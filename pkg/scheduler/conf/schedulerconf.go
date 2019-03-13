@@ -5,7 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/golang/glog"
-	"github.com/universal-scheduler/k8s-shim/pkg/common"
+	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/common"
 	"os"
 	"time"
 )

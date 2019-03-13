@@ -2,9 +2,9 @@ package controller
 
 import (
 	"github.com/golang/glog"
-	"github.com/universal-scheduler/k8s-shim/pkg/common"
-	"github.com/universal-scheduler/scheduler-spec/lib/go/si"
-	"github.com/universal-scheduler/yunikorn-scheduler/pkg/unityscheduler/api"
+	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/common"
+	"github.infra.cloudera.com/yunikorn/scheduler-interface/lib/go/si"
+	"github.infra.cloudera.com/yunikorn/yunikorn-core/pkg/unityscheduler/api"
 	"k8s.io/api/core/v1"
 )
 

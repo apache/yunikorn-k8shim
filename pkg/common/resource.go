@@ -2,7 +2,7 @@ package common
 
 import (
 	"github.com/golang/glog"
-	"github.com/universal-scheduler/scheduler-spec/lib/go/si"
+	"github.infra.cloudera.com/yunikorn/scheduler-interface/lib/go/si"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 )

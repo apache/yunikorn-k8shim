@@ -2,8 +2,8 @@ package callback
 
 import (
 	"github.com/golang/glog"
-	"github.com/universal-scheduler/k8s-shim/pkg/scheduler/state"
-	"github.com/universal-scheduler/scheduler-spec/lib/go/si"
+	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/scheduler/state"
+	"github.infra.cloudera.com/yunikorn/scheduler-interface/lib/go/si"
 )
 
 type SimpleRMCallback struct {

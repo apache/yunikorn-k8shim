@@ -15,11 +15,11 @@ package main
 
 import (
 	"github.com/golang/glog"
-	"github.com/universal-scheduler/k8s-shim/pkg/scheduler/conf"
-	"github.com/universal-scheduler/k8s-shim/pkg/scheduler/fsm"
-	"github.com/universal-scheduler/k8s-shim/pkg/scheduler/shim/callback"
-	"github.com/universal-scheduler/k8s-shim/pkg/scheduler/state"
-	"github.com/universal-scheduler/yunikorn-scheduler/pkg/unityscheduler/entrypoint"
+	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/scheduler/conf"
+	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/scheduler/fsm"
+	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/scheduler/shim/callback"
+	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/scheduler/state"
+	"github.infra.cloudera.com/yunikorn/yunikorn-core/pkg/unityscheduler/entrypoint"
 	"os"
 	"os/signal"
 	"syscall"
