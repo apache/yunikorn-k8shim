@@ -1,0 +1,27 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  labels:
+    app: yunikorn
+  name: yunikorn-scheduler
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: yunikorn
+      name: yunikorn-scheduler
+    spec:
+      hostNetwork: true
+      containers:
+        - name: yunikorn-scheduler-core
+          image: yunikorn/scheduler-core:0.1.0
+          imagePullPolicy: Always
+        - name: yunikorn-scheduler-web
+          image: yunikorn/scheduler-web:0.1.0
+          imagePullPolicy: Always
+        - name: kubectl
+          image: lachlanevenson/k8s-kubectl:latest
+          args:
+            - "proxy"
+

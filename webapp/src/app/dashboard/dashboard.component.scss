@@ -1,0 +1,15 @@
+.mat-card {
+  margin-bottom: 20px;
+  &:hover {
+      cursor: pointer;
+      border: 1px solid #3fae2a;
+  }
+  &:focus {
+    outline: none;
+  }
+}
+
+.info-value {
+  margin-top: 6px;
+  font-size: 1.4em;
+}

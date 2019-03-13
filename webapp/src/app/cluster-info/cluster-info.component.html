@@ -1,0 +1,18 @@
+<div class="cluster-info">
+    <div class="flex-grid">
+        <div class="left-col flex-primary">
+            <app-job-status [chartData]="jobStatusData"></app-job-status>
+        </div>
+        <div class="right-col flex-primary">
+            <app-job-history></app-job-history>
+        </div>
+    </div>
+    <div class="flex-grid grid-row">
+        <div class="left-col flex-primary">
+            <app-container-status [chartData]="containerStatusData"></app-container-status>
+        </div>
+        <div class="right-col flex-primary">
+            <app-container-history></app-container-history>
+        </div>
+    </div>
+</div>

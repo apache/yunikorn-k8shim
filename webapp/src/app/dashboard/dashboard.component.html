@@ -1,0 +1,24 @@
+<mat-card *ngFor="let cluster of clusterList" [routerLink]="['/clusters', cluster.clustername]">
+    <div class="flex-grid">
+        <div class="flex-primary">
+            <div class="text-uppercase hwx-light">Name</div>
+            <div class="info-value hwx-strong">{{ cluster.clustername }}</div>
+        </div>
+        <div class="flex-primary">
+            <div class="text-uppercase hwx-light">Status</div>
+            <div class="info-value hwx-strong">Connected</div>
+        </div>
+        <div class="flex-primary">
+            <div class="text-uppercase hwx-light">Nodes</div>
+            <div class="info-value hwx-strong">{{ cluster.activeNodes }}</div>
+        </div>
+        <div class="flex-primary">
+            <div class="text-uppercase hwx-light">Jobs</div>
+            <div class="info-value hwx-strong">{{ cluster.runningJobs }}</div>
+        </div>
+        <div class="flex-primary">
+            <div class="text-uppercase hwx-light">Containers</div>
+            <div class="info-value hwx-strong">{{ cluster.runningContainers }}</div>
+        </div>
+    </div>
+</mat-card>

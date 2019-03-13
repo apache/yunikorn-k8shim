@@ -1,0 +1,20 @@
+<div class="queue-rack">
+    <mat-card class="queue-item" *ngFor="let item of queueList">
+        <div
+            class="flex-grid queue-name"
+            [ngClass]="{ selected: item.isSelected }"
+            (click)="onQueueSelected(item)"
+            [ngStyle]="{ backgroundColor: getQueueCapacityColor(item) }"
+        >
+            <div class="flex-primary queue-label">
+                {{ item.queueName }}
+            </div>
+            <a href="#" *ngIf="!item.isLeafQueue" (click)="toggleQueueChildren($event, item)">
+                <i class="fas fa-plus-circle" *ngIf="!item.isExpanded"></i>
+                <i class="fas fa-minus-circle" *ngIf="item.isExpanded"></i>
+            </a>
+            <span class="fa fa-caret-right" *ngIf="item.isExpanded"></span>
+        </div>
+        <mat-progress-bar value="{{ item.absoluteUsedCapacity }}"></mat-progress-bar>
+    </mat-card>
+</div>

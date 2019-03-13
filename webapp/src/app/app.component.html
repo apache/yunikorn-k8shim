@@ -1,0 +1,53 @@
+<div class="navigation" [ngClass]="{ open: isNavOpen }">
+    <div class="logo">
+        <a [routerLink]="['/']">
+            <img src="./assets/images/logo.png" />
+            <div class="text-md text-semibold text-uppercase">Unity</div>
+            <div class="text-md text-uppercase">Scheduler</div>
+        </a>
+    </div>
+    <ul class="navigation-primary">
+        <li class="active">
+            <a [routerLink]="['/dashboard']">
+                <i class="fa fa-caret-right"></i>
+                <i class="fa fa-th-large"></i>
+                <span>Dashboard</span>
+            </a>
+        </li>
+        <!-- <li class="">
+            <a [routerLink]="['/']">
+                <i class="fa fa-caret-right"></i>
+                <i class="fa fa-cogs"></i>
+                <span>Settings</span>
+            </a>
+        </li> -->
+    </ul>
+    <div class="expander" (click)="toggleNavigation()">
+        <i class="fa fa-angle-double-left"></i>
+        <i class="fa fa-angle-double-right"></i>
+    </div>
+</div>
+<div class="wrapper">
+    <div class="container-fluid">
+        <div class="header">
+            <div class="flex-grid">
+                <div class="flex-primary">
+                    <ul class="breadcrumb">
+                        <li *ngFor="let crumb of breadcrumbs">
+                            <a href="#" [routerLink]="[crumb.url]">
+                                {{ crumb.label }}
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="content-wrapper">
+            <router-outlet></router-outlet>
+        </div>
+    </div>
+</div>
+
+<ngx-spinner bdColor="rgba(51,51,51,0.7)" size="default" color="#2192bf" type="ball-clip-rotate">
+    <!-- <p style="font-size: 16px; color: #fff;">Loading...</p> -->
+</ngx-spinner>

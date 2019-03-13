@@ -1,0 +1,11 @@
+.mat-tab-link {
+  border-radius: 0;
+  color: #666;
+  opacity: 1;
+  font-size: 18px;
+  text-transform: uppercase;
+  &.active {
+    color: #333;
+    border-bottom: 3px solid #3fae2a;
+  }
+}

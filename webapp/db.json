@@ -1,0 +1,74 @@
+{
+    "clusters": [
+        {
+            "activeNodes": "2",
+            "clustername": "k8s",
+            "completedJobs": "10",
+            "failedContainers": "10",
+            "failedJobs": "10",
+            "failedNodes": "0",
+            "pendingContainers": "10",
+            "pendingJobs": "10",
+            "runningContainers": "10",
+            "runningJobs": "10",
+            "totalContainers": "10",
+            "totalJobs": "10",
+            "totalNodes": "2"
+        }
+    ],
+    "queues": {
+        "partitionname": "[my-kube-cluster]default",
+        "capacity": {
+            "capacity": "map[vcore:96000 memory:810085]",
+            "usedcapacity": "0"
+        },
+        "nodes": null,
+        "queues": [
+            {
+                "queuename": "root",
+                "status": "RUNNING",
+                "capacities": {
+                    "capacity": "[memory:1000000 vcore:100000]",
+                    "maxcapacity": "[memory:1000000 vcore:100000]",
+                    "usedcapacity": "[memory:5908 vcore:4000]",
+                    "absusedcapacity": "20"
+                },
+                "queues": [
+                    {
+                        "queuename": "advertisement",
+                        "status": "RUNNING",
+                        "capacities": {
+                            "capacity": "[memory:500000 vcore:50000]",
+                            "maxcapacity": "[memory:500000 vcore:50000]",
+                            "usedcapacity": "[memory:5908 vcore:4000]",
+                            "absusedcapacity": "20"
+                        },
+                        "queues": []
+                    },
+                    {
+                        "queuename": "search",
+                        "status": "RUNNING",
+                        "capacities": {
+                            "capacity": "[memory:400000 vcore:40000]",
+                            "maxcapacity": "[memory:400000 vcore:40000]",
+                            "usedcapacity": "[]",
+                            "absusedcapacity": "20"
+                        },
+                        "queues": []
+                    },
+                    {
+                        "queuename": "sandbox",
+                        "status": "RUNNING",
+                        "capacities": {
+                            "capacity": "[memory:100000 vcore:10000]",
+                            "maxcapacity": "[vcore:10000 memory:100000]",
+                            "usedcapacity": "[]",
+                            "absusedcapacity": "20"
+                        },
+                        "queues": []
+                    }
+                ]
+            }
+        ]
+    }
+}

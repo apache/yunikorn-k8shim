@@ -1,0 +1,403 @@
+{
+    "scheduler": {
+        "schedulerInfo": {
+            "type": "capacityScheduler",
+            "capacity": 100.0,
+            "usedCapacity": 0.0,
+            "maxCapacity": 100.0,
+            "queueName": "root",
+            "queues": {
+                "queue": [
+                    {
+                        "type": "capacitySchedulerLeafQueueInfo",
+                        "capacity": 40.0,
+                        "usedCapacity": 0.0,
+                        "maxCapacity": 100.0,
+                        "absoluteCapacity": 40.0,
+                        "absoluteMaxCapacity": 100.0,
+                        "absoluteUsedCapacity": 0.0,
+                        "numApplications": 0,
+                        "queueName": "default",
+                        "state": "RUNNING",
+                        "hideReservationQueues": false,
+                        "nodeLabels": ["*"],
+                        "allocatedContainers": 0,
+                        "reservedContainers": 0,
+                        "pendingContainers": 0,
+                        "capacities": {
+                            "queueCapacitiesByPartition": [
+                                {
+                                    "partitionName": "",
+                                    "capacity": 40.0,
+                                    "usedCapacity": 30.0,
+                                    "maxCapacity": 100.0,
+                                    "absoluteCapacity": 40.0,
+                                    "absoluteUsedCapacity": 30.0,
+                                    "absoluteMaxCapacity": 100.0,
+                                    "maxAMLimitPercentage": 50.0,
+                                    "effectiveMinResource": {
+                                        "memory": 3276,
+                                        "vCores": 3
+                                    },
+                                    "effectiveMaxResource": {
+                                        "memory": 8192,
+                                        "vCores": 8
+                                    }
+                                }
+                            ]
+                        },
+                        "numActiveApplications": 0,
+                        "numPendingApplications": 0,
+                        "numContainers": 0,
+                        "maxApplications": 4000,
+                        "maxApplicationsPerUser": 4000,
+                        "userLimit": 100,
+                        "users": {},
+                        "userLimitFactor": 1.0,
+                        "preemptionDisabled": false,
+                        "intraQueuePreemptionDisabled": false,
+                        "defaultPriority": 0,
+                        "isAutoCreatedLeafQueue": false
+                    },
+                    {
+                        "type": "capacitySchedulerLeafQueueInfo",
+                        "capacity": 60.0,
+                        "usedCapacity": 0.0,
+                        "maxCapacity": 100.0,
+                        "absoluteCapacity": 60.0,
+                        "absoluteMaxCapacity": 100.0,
+                        "absoluteUsedCapacity": 0.0,
+                        "numApplications": 0,
+                        "queueName": "testing",
+                        "queues": {
+                            "queue": [
+                                {
+                                    "type": "capacitySchedulerLeafQueueInfo",
+                                    "capacity": 40.0,
+                                    "usedCapacity": 0.0,
+                                    "maxCapacity": 100.0,
+                                    "absoluteCapacity": 40.0,
+                                    "absoluteMaxCapacity": 100.0,
+                                    "absoluteUsedCapacity": 0.0,
+                                    "numApplications": 0,
+                                    "queueName": "staging",
+                                    "state": "RUNNING",
+                                    "hideReservationQueues": false,
+                                    "nodeLabels": ["*"],
+                                    "allocatedContainers": 0,
+                                    "reservedContainers": 0,
+                                    "pendingContainers": 0,
+                                    "capacities": {
+                                        "queueCapacitiesByPartition": [
+                                            {
+                                                "partitionName": "",
+                                                "capacity": 40.0,
+                                                "usedCapacity": 30.0,
+                                                "maxCapacity": 100.0,
+                                                "absoluteCapacity": 40.0,
+                                                "absoluteUsedCapacity": 30.0,
+                                                "absoluteMaxCapacity": 100.0,
+                                                "maxAMLimitPercentage": 50.0,
+                                                "effectiveMinResource": {
+                                                    "memory": 3276,
+                                                    "vCores": 3
+                                                },
+                                                "effectiveMaxResource": {
+                                                    "memory": 8192,
+                                                    "vCores": 8
+                                                }
+                                            }
+                                        ]
+                                    },
+                                    "numActiveApplications": 0,
+                                    "numPendingApplications": 0,
+                                    "numContainers": 0,
+                                    "maxApplications": 4000,
+                                    "maxApplicationsPerUser": 4000,
+                                    "userLimit": 100,
+                                    "users": {},
+                                    "userLimitFactor": 1.0,
+                                    "preemptionDisabled": false,
+                                    "intraQueuePreemptionDisabled": false,
+                                    "defaultPriority": 0,
+                                    "isAutoCreatedLeafQueue": false
+                                },
+                                {
+                                    "type": "capacitySchedulerLeafQueueInfo",
+                                    "capacity": 60.0,
+                                    "usedCapacity": 0.0,
+                                    "maxCapacity": 100.0,
+                                    "absoluteCapacity": 60.0,
+                                    "absoluteMaxCapacity": 100.0,
+                                    "absoluteUsedCapacity": 0.0,
+                                    "numApplications": 0,
+                                    "queueName": "production",
+                                    "state": "RUNNING",
+                                    "queues": {
+                                        "queue": [
+                                            {
+                                                "type": "capacitySchedulerLeafQueueInfo",
+                                                "capacity": 40.0,
+                                                "usedCapacity": 0.0,
+                                                "maxCapacity": 100.0,
+                                                "absoluteCapacity": 40.0,
+                                                "absoluteMaxCapacity": 100.0,
+                                                "absoluteUsedCapacity": 0.0,
+                                                "numApplications": 0,
+                                                "queueName": "canary",
+                                                "queues": {
+                                                    "queue": [
+                                                        {
+                                                            "type": "capacitySchedulerLeafQueueInfo",
+                                                            "capacity": 40.0,
+                                                            "usedCapacity": 0.0,
+                                                            "maxCapacity": 100.0,
+                                                            "absoluteCapacity": 40.0,
+                                                            "absoluteMaxCapacity": 100.0,
+                                                            "absoluteUsedCapacity": 0.0,
+                                                            "numApplications": 0,
+                                                            "queueName": "daily",
+                                                            "state": "RUNNING",
+                                                            "hideReservationQueues": false,
+                                                            "nodeLabels": ["*"],
+                                                            "allocatedContainers": 0,
+                                                            "reservedContainers": 0,
+                                                            "pendingContainers": 0,
+                                                            "capacities": {
+                                                                "queueCapacitiesByPartition": [
+                                                                    {
+                                                                        "partitionName": "",
+                                                                        "capacity": 40.0,
+                                                                        "usedCapacity": 30.0,
+                                                                        "maxCapacity": 100.0,
+                                                                        "absoluteCapacity": 40.0,
+                                                                        "absoluteUsedCapacity": 30.0,
+                                                                        "absoluteMaxCapacity": 100.0,
+                                                                        "maxAMLimitPercentage": 50.0,
+                                                                        "effectiveMinResource": {
+                                                                            "memory": 3276,
+                                                                            "vCores": 3
+                                                                        },
+                                                                        "effectiveMaxResource": {
+                                                                            "memory": 8192,
+                                                                            "vCores": 8
+                                                                        }
+                                                                    }
+                                                                ]
+                                                            },
+                                                            "numActiveApplications": 0,
+                                                            "numPendingApplications": 0,
+                                                            "numContainers": 0,
+                                                            "maxApplications": 4000,
+                                                            "maxApplicationsPerUser": 4000,
+                                                            "userLimit": 100,
+                                                            "users": {},
+                                                            "userLimitFactor": 1.0,
+                                                            "preemptionDisabled": false,
+                                                            "intraQueuePreemptionDisabled": false,
+                                                            "defaultPriority": 0,
+                                                            "isAutoCreatedLeafQueue": false
+                                                        }
+                                                    ]
+                                                },
+                                                "state": "RUNNING",
+                                                "hideReservationQueues": false,
+                                                "nodeLabels": ["*"],
+                                                "allocatedContainers": 0,
+                                                "reservedContainers": 0,
+                                                "pendingContainers": 0,
+                                                "capacities": {
+                                                    "queueCapacitiesByPartition": [
+                                                        {
+                                                            "partitionName": "",
+                                                            "capacity": 40.0,
+                                                            "usedCapacity": 30.0,
+                                                            "maxCapacity": 100.0,
+                                                            "absoluteCapacity": 40.0,
+                                                            "absoluteUsedCapacity": 30.0,
+                                                            "absoluteMaxCapacity": 100.0,
+                                                            "maxAMLimitPercentage": 50.0,
+                                                            "effectiveMinResource": {
+                                                                "memory": 3276,
+                                                                "vCores": 3
+                                                            },
+                                                            "effectiveMaxResource": {
+                                                                "memory": 8192,
+                                                                "vCores": 8
+                                                            }
+                                                        }
+                                                    ]
+                                                },
+                                                "numActiveApplications": 0,
+                                                "numPendingApplications": 0,
+                                                "numContainers": 0,
+                                                "maxApplications": 4000,
+                                                "maxApplicationsPerUser": 4000,
+                                                "userLimit": 100,
+                                                "users": {},
+                                                "userLimitFactor": 1.0,
+                                                "preemptionDisabled": false,
+                                                "intraQueuePreemptionDisabled": false,
+                                                "defaultPriority": 0,
+                                                "isAutoCreatedLeafQueue": false
+                                            },
+                                            {
+                                                "type": "capacitySchedulerLeafQueueInfo",
+                                                "capacity": 60.0,
+                                                "usedCapacity": 0.0,
+                                                "maxCapacity": 100.0,
+                                                "absoluteCapacity": 60.0,
+                                                "absoluteMaxCapacity": 100.0,
+                                                "absoluteUsedCapacity": 0.0,
+                                                "numApplications": 0,
+                                                "queueName": "nightly",
+                                                "state": "RUNNING",
+                                                "hideReservationQueues": false,
+                                                "nodeLabels": ["*"],
+                                                "allocatedContainers": 0,
+                                                "reservedContainers": 0,
+                                                "pendingContainers": 0,
+                                                "capacities": {
+                                                    "queueCapacitiesByPartition": [
+                                                        {
+                                                            "partitionName": "",
+                                                            "capacity": 60.0,
+                                                            "usedCapacity": 40.0,
+                                                            "maxCapacity": 100.0,
+                                                            "absoluteCapacity": 60.0,
+                                                            "absoluteUsedCapacity": 40.0,
+                                                            "absoluteMaxCapacity": 100.0,
+                                                            "maxAMLimitPercentage": 50.0,
+                                                            "effectiveMinResource": {
+                                                                "memory": 4915,
+                                                                "vCores": 4
+                                                            },
+                                                            "effectiveMaxResource": {
+                                                                "memory": 8192,
+                                                                "vCores": 8
+                                                            }
+                                                        }
+                                                    ]
+                                                },
+                                                "numActiveApplications": 0,
+                                                "numPendingApplications": 0,
+                                                "numContainers": 0,
+                                                "maxApplications": 6000,
+                                                "maxApplicationsPerUser": 6000,
+                                                "userLimit": 100,
+                                                "userLimitFactor": 1.0,
+                                                "preemptionDisabled": false,
+                                                "intraQueuePreemptionDisabled": false,
+                                                "defaultPriority": 0,
+                                                "isAutoCreatedLeafQueue": false
+                                            }
+                                        ]
+                                    },
+                                    "hideReservationQueues": false,
+                                    "nodeLabels": ["*"],
+                                    "allocatedContainers": 0,
+                                    "reservedContainers": 0,
+                                    "pendingContainers": 0,
+                                    "capacities": {
+                                        "queueCapacitiesByPartition": [
+                                            {
+                                                "partitionName": "",
+                                                "capacity": 60.0,
+                                                "usedCapacity": 40.0,
+                                                "maxCapacity": 100.0,
+                                                "absoluteCapacity": 60.0,
+                                                "absoluteUsedCapacity": 40.0,
+                                                "absoluteMaxCapacity": 100.0,
+                                                "maxAMLimitPercentage": 50.0,
+                                                "effectiveMinResource": {
+                                                    "memory": 4915,
+                                                    "vCores": 4
+                                                },
+                                                "effectiveMaxResource": {
+                                                    "memory": 8192,
+                                                    "vCores": 8
+                                                }
+                                            }
+                                        ]
+                                    },
+                                    "numActiveApplications": 0,
+                                    "numPendingApplications": 0,
+                                    "numContainers": 0,
+                                    "maxApplications": 6000,
+                                    "maxApplicationsPerUser": 6000,
+                                    "userLimit": 100,
+                                    "userLimitFactor": 1.0,
+                                    "preemptionDisabled": false,
+                                    "intraQueuePreemptionDisabled": false,
+                                    "defaultPriority": 0,
+                                    "isAutoCreatedLeafQueue": false
+                                }
+                            ]
+                        },
+                        "state": "RUNNING",
+                        "hideReservationQueues": false,
+                        "nodeLabels": ["*"],
+                        "allocatedContainers": 0,
+                        "reservedContainers": 0,
+                        "pendingContainers": 0,
+                        "capacities": {
+                            "queueCapacitiesByPartition": [
+                                {
+                                    "partitionName": "",
+                                    "capacity": 60.0,
+                                    "usedCapacity": 40.0,
+                                    "maxCapacity": 100.0,
+                                    "absoluteCapacity": 60.0,
+                                    "absoluteUsedCapacity": 40.0,
+                                    "absoluteMaxCapacity": 100.0,
+                                    "maxAMLimitPercentage": 50.0,
+                                    "effectiveMinResource": {
+                                        "memory": 4915,
+                                        "vCores": 4
+                                    },
+                                    "effectiveMaxResource": {
+                                        "memory": 8192,
+                                        "vCores": 8
+                                    }
+                                }
+                            ]
+                        },
+                        "numActiveApplications": 0,
+                        "numPendingApplications": 0,
+                        "numContainers": 0,
+                        "maxApplications": 6000,
+                        "maxApplicationsPerUser": 6000,
+                        "userLimit": 100,
+                        "userLimitFactor": 1.0,
+                        "preemptionDisabled": false,
+                        "intraQueuePreemptionDisabled": false,
+                        "defaultPriority": 0,
+                        "isAutoCreatedLeafQueue": false
+                    }
+                ]
+            },
+            "capacities": {
+                "queueCapacitiesByPartition": [
+                    {
+                        "partitionName": "",
+                        "capacity": 100.0,
+                        "usedCapacity": 60.0,
+                        "maxCapacity": 100.0,
+                        "absoluteCapacity": 100.0,
+                        "absoluteUsedCapacity": 60.0,
+                        "absoluteMaxCapacity": 100.0,
+                        "maxAMLimitPercentage": 0.0,
+                        "effectiveMinResource": {
+                            "memory": 8192,
+                            "vCores": 8
+                        },
+                        "effectiveMaxResource": {
+                            "memory": 8192,
+                            "vCores": 8
+                        }
+                    }
+                ]
+            }
+        }
+    }
+}

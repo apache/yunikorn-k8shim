@@ -1,0 +1,63 @@
+.mat-card.queue-item {
+    max-width: 200px;
+    padding: 0;
+    margin-bottom: 20px;
+    .queue-name {
+        font-size: 1.2em;
+        color: #333;
+        align-items: center;
+        padding: 12px 10px 10px;
+        cursor: pointer;
+        > a {
+            text-decoration: none;
+            color: #333;
+            font-size: 18px;
+            &:hover {
+                color: #3fae2a;
+            }
+        }
+        &.selected {
+            background: #303d54 !important;
+            color: #fff;
+            > a {
+                color: #fff;
+            }
+        }
+        .queue-label {
+            max-width: 162px;
+            word-wrap: break-word;
+        }
+    }
+    .fa-caret-right {
+        position: absolute;
+        right: -13px;
+        font-size: 24px;
+        color: #40ae29;
+    }
+}
+.queue-rack {
+    padding: 20px 0px 20px 10px;
+    border-right: 1px solid #ddd;
+    height: 580px;
+    max-width: 236px;
+    .queue-item:last-child {
+        margin-bottom: 0;
+    }
+    overflow: hidden;
+    overflow-y: auto;
+    &::-webkit-scrollbar {
+        -webkit-appearance: none;
+        width: 11px;
+    }
+    &::-webkit-scrollbar-track {
+        background-color: #ffffff;
+    }
+    &::-webkit-scrollbar-thumb {
+        border-radius: 8px;
+        border: 2px solid white;
+        background-color: rgba(0, 0, 0, 0.5);
+    }
+    &::-webkit-scrollbar-thumb:hover {
+        background-color: rgba(0, 0, 0, 0.5);
+    }
+}

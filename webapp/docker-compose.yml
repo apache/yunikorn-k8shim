@@ -1,0 +1,7 @@
+version: '3'
+services:
+  uschedulerwebapp:
+    build: .
+    image: uscheduler_uiwebapp
+    ports:
+      - 8089:80

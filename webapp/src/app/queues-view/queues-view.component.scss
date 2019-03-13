@@ -1,0 +1,53 @@
+.part-label {
+    color: #666;
+    font-size: 1.2em;
+    margin-right: 10px;
+}
+.queues-view {
+    .queue-level {
+        max-width: 240px;
+    }
+}
+.mat-drawer-container {
+    width: 400px;
+    height: 580px;
+    background: #eee;
+    position: absolute;
+    right: 0;
+    display: none;
+    .mat-drawer {
+        width: 400px;
+    }
+    .close-btn {
+        float: right;
+        font-size: 1.2em;
+        cursor: pointer;
+        padding-right: 5px;
+        &:hover {
+            color: #ef6162;
+        }
+    }
+    .header {
+        padding: 10px;
+        height: 38px;
+        border-bottom: 1px solid #ccc;
+        font-size: 1.2em;
+        font-weight: bold;
+    }
+    .item-wrapper {
+        .left-item {
+            text-align: right;
+        }
+        .left-item,
+        .right-item {
+            width: 50%;
+            padding: 6px;
+            padding-right: 0;
+            font-size: 1.1em;
+            color: #666;
+        }
+        .right-item {
+            font-weight: 600;
+        }
+    }
+}
