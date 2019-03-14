@@ -11,8 +11,7 @@ By default, it handles all pods scheduling if pod's spec has field `schedulerNam
 cd $GOPATH
 mkdir -p src/github.infra.cloudera.com/yunikorn/
 cd src/github.infra.cloudera.com/yunikorn/
-git clone https://github.com/sunilgovind/simplekubescheduler.git
-
+git clone https://github.infra.cloudera.com/yunikorn/k8s-shim.git
 ```
 
 ### 2. Build and run it locally
