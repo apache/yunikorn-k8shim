@@ -1,43 +1,74 @@
-# Kubernetes Unity Scheduler
+# YuniKorn Scheduler for Kubernetes (k8s-shim)
 
-Embedded unity scheduler is a customized k8s scheduler, with pre-defined name `unified-scheduler`.
-Pods whose spec contains field `schedulerName: unified-scheduler` will be scheduled by this scheduler.
+YuniKorn scheduler for kubernetes is a customized k8s scheduler, it can be dropped into k8s and takes care of pod scheduling.
+This project contains the k8s shim layer code for k8s, it depends on `yunikorn-core` which encapsulates all the actual scheduling logic.
+By default, it handles all pods scheduling if pod's spec has field `schedulerName: yunikorn`.
 
+## Development Environment setup
 
-## Build and Run
+### 1. Get source code
+```
+cd $GOPATH
+mkdir -p src/github.infra.cloudera.com/yunikorn/
+cd src/github.infra.cloudera.com/yunikorn/
+git clone https://github.com/sunilgovind/simplekubescheduler.git
 
-### Build binary on laptop
+```
+
+### 2. Build and run it locally
+
+#### Build binary on laptop
 
 ```
 make build
 ```
 
-### Run binary on laptop, connects to Kubernetes cluster via local `kubectl`
+this command will build a binary `k8s_yunikorn_scheduler` under project root. This binary is executable on local environment, as long as `kubectl` is properly configured.
+Run `./k8s_yunikorn_scheduler -help` to see all options.
+
+**Note**: it may take few minutes to run this command for the first time, because it needs to download all dependencies.
+
+#### Alternatively, you can just run
 
 ```
 make run
 ```
 
-### Build scheduler docker image
+this will build the code, and run the binary with verbose logging.
+
+
+### 3. Deploy to a k8s cluster
+
+#### Build docker image for k8s-shim
 
 ```
 make image
 ```
 
-### Deploy a job
+this command will build the image, tag it and push to a docker hub repo.
+You may need to modify the image name and tag in `Makefile` if you want to push it somewhere else.
 
-```
-kubectl create -f deployments/nigix/nginxjob.yaml 
-```
-this job will be pending as it asks to be scheduled by `unity-scheduler`.
-
-### Deploy scheduler on Kubernetes
+#### Deploy the scheduler on k8s
 
 ```
 kubectl create -f deployments/scheduler/scheduler.yaml
 ```
 
-then previous job can be scheduled.
+
+#### Run sample jobs
+
+All sample deployments can be found under `./deployments` directory.
+
+```
+// some nginx pods
+kubectl create -f deployments/nigix/nginxjob.yaml
+
+// some pods simply run sleep
+kubectl create -f deployments/sleep/sleeppods.xml
+```
+
+`./deployments/spark` contains pod template files for Spark driver and executor, they can be used if you want to run Spark on k8s using this scheduler.
+
 
 ## Options 
 
@@ -53,11 +84,11 @@ then previous job can be scheduled.
 5: VERBOSE
 
 # log VERBOSE to stderr
-./unity_scheduler -logtostderr=true -v=5
+./k8s_yunikorn_scheduler -logtostderr=true -v=5
 
 # log INFO to file under certain dir
-./unity_scheduler -log_dir=/path/to/logs -v=3
+./k8s_yunikorn_scheduler -log_dir=/path/to/logs -v=3
 
 # more options
-./unity_scheduler -help
+./k8s_yunikorn_scheduler -help
 ```
