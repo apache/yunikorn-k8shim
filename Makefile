@@ -1,4 +1,4 @@
-BINARY=unity_scheduler
+BINARY=k8s_yunikorn_scheduler
 OUTPUT=_output
 BIN_DIR=bin
 RELEASE_BIN_DIR=${OUTPUT}/bin

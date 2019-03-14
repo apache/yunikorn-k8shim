@@ -1,5 +1,5 @@
 FROM scratch
-ADD unity_scheduler /unity_scheduler
+ADD k8s_yunikorn_scheduler /k8s_yunikorn_scheduler
 ADD queues.yaml /queues.yaml
-ENTRYPOINT ["/unity_scheduler"]
+ENTRYPOINT ["/k8s_yunikorn_scheduler"]
 CMD ["-logtostderr=true", "-v=5"]
