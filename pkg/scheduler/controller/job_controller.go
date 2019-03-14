@@ -4,7 +4,7 @@ import (
 	"github.com/golang/glog"
 	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/common"
 	"github.infra.cloudera.com/yunikorn/scheduler-interface/lib/go/si"
-	"github.infra.cloudera.com/yunikorn/yunikorn-core/pkg/unityscheduler/api"
+	"github.infra.cloudera.com/yunikorn/yunikorn-core/pkg/api"
 	"k8s.io/api/core/v1"
 )
 

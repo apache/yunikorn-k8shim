@@ -7,8 +7,8 @@ import (
 	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/common"
 	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/scheduler/state"
 	"github.infra.cloudera.com/yunikorn/scheduler-interface/lib/go/si"
-	"github.infra.cloudera.com/yunikorn/yunikorn-core/pkg/unityscheduler/api"
-	"github.infra.cloudera.com/yunikorn/yunikorn-core/pkg/unityscheduler/rmproxy"
+	"github.infra.cloudera.com/yunikorn/yunikorn-core/pkg/api"
+	"github.infra.cloudera.com/yunikorn/yunikorn-core/pkg/rmproxy"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sync"
 )

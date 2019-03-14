@@ -1,0 +1,23 @@
+[[constraint]]
+  name = "github.infra.cloudera.com/yunikorn/scheduler-interface"
+  branch = "master"
+
+[[constraint]]
+  name = "github.infra.cloudera.com/yunikorn/yunikorn-core"
+  branch = "master"
+
+[[constraint]]
+  name = "github.com/golang/glog"
+  branch = "master"
+
+[[constraint]]
+  name = "k8s.io/api"
+  branch = "master"
+
+[[constraint]]
+  name = "k8s.io/apimachinery"
+  branch = "master"
+
+[[constraint]]
+  name = "k8s.io/client-go"
+  branch = "master"

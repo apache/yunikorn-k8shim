@@ -7,7 +7,7 @@ import (
 	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/common"
 	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/scheduler/conf"
 	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/scheduler/controller"
-	"github.infra.cloudera.com/yunikorn/yunikorn-core/pkg/unityscheduler/api"
+	"github.infra.cloudera.com/yunikorn/yunikorn-core/pkg/api"
 	"k8s.io/api/core/v1"
 	"k8s.io/client-go/informers"
 	infomerv1 "k8s.io/client-go/informers/core/v1"

@@ -19,7 +19,7 @@ import (
 	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/scheduler/fsm"
 	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/scheduler/shim/callback"
 	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/scheduler/state"
-	"github.infra.cloudera.com/yunikorn/yunikorn-core/pkg/unityscheduler/entrypoint"
+	"github.infra.cloudera.com/yunikorn/yunikorn-core/pkg/entrypoint"
 	"os"
 	"os/signal"
 	"syscall"
