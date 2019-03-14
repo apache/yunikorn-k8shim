@@ -12,6 +12,7 @@ DATE=$(shell date +%FT%T%z)
 init:
 	mkdir -p ${BIN_DIR}
 	mkdir -p ${RELEASE_BIN_DIR}
+	if [ ! -d ./vendor ]; then dep ensure; fi
 
 build: init
 	go build -o=${BINARY} --ldflags '-X main.version=${IMAGE_VERSION} -X main.date=${DATE}' ./pkg/scheduler/
