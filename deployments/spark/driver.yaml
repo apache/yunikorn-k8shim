@@ -4,7 +4,7 @@ metadata:
   labels:
     spark-app-id: spark-00001
     jobId: spark-00001
-    queue: a
+    queue: sandbox
   annotations:
     spark-driver-cpus: 1
     spark-driver-mem: 1g

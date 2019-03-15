@@ -1,6 +1,6 @@
 # Spark on Kubernetes
 
-Before these steps, first refer to [README](../README.md) to launch unity-scheduler on Kubernetes.
+Before these steps, first refer to [README](../README.md) to launch yunikorn-scheduler on Kubernetes.
 
 ### Steps
 
@@ -29,7 +29,7 @@ Before these steps, first refer to [README](../README.md) to launch unity-schedu
 
 [executor.yaml](../deployments/spark/exectuor.yaml)
 
-Note, following labels must be set in order to be scheduled with unity-scheduler:
+Note, following labels must be set in order to be scheduled with yunikorn-scheduler:
 
 * jobId: spark-00001
 * queue: queue_a
