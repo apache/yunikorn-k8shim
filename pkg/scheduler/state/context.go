@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/golang/glog"
 	"github.com/pkg/errors"
+	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/client"
 	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/common"
 	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/scheduler/conf"
 	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/scheduler/controller"
@@ -11,10 +12,7 @@ import (
 	"k8s.io/api/core/v1"
 	"k8s.io/client-go/informers"
 	infomerv1 "k8s.io/client-go/informers/core/v1"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/client-go/tools/clientcmd"
 	"strings"
 	"sync"
 )
@@ -26,11 +24,11 @@ type Context struct {
 	nodeController *controller.NodeController
 	podController *controller.PodController
 	conf *conf.SchedulerConf
-	clientSet *kubernetes.Clientset
+	kubeClient client.KubeClient
 
 	// informers
-	podInformer      infomerv1.PodInformer
-	nodeInformer     infomerv1.NodeInformer
+	podInformer infomerv1.PodInformer
+	nodeInformer infomerv1.NodeInformer
 	// nsInformer       infomerv1.NamespaceInformer
 	// pvInformer       infomerv1.PersistentVolumeInformer
 	// pvcInformer      infomerv1.PersistentVolumeClaimInformer
@@ -38,38 +36,21 @@ type Context struct {
 	lock *sync.RWMutex
 }
 
-func getKubeConfig(master string, kubeconfig string) (*rest.Config, error) {
-	if kubeconfig == "" && master == "" {
-		glog.V(1).Infof("master/kubeconfig not found." +
-			" using in-cluster config, this may not work")
-		kubeconfig, err := rest.InClusterConfig()
-		if err == nil {
-			return kubeconfig, nil
-		}
-	}
-	return clientcmd.BuildConfigFromFlags(master, kubeconfig)
-}
-
 func NewContext(scheduler api.SchedulerApi, configs *conf.SchedulerConf) *Context {
-	kubeconf, err := getKubeConfig("", configs.KubeConfig)
-	if err != nil {
-		panic("failed to init... FIXME")
-	}
-
 	ctx := &Context{
 		jobMap: make(map[string]*common.Job),
 		conf: configs,
-		clientSet: kubernetes.NewForConfigOrDie(kubeconf),
+		kubeClient: client.NewKubeClient(configs.KubeConfig),
 		lock: &sync.RWMutex{},
 	}
 
 	// init controllers
-    ctx.jobController = controller.NewJobController(scheduler)
-	ctx.podController = controller.NewPodController(ctx.clientSet)
+    ctx.jobController = controller.NewJobController(scheduler, ctx.kubeClient)
+	ctx.podController = controller.NewPodController(ctx.kubeClient)
 	ctx.nodeController = controller.NewNodeController(scheduler)
 
 	// we have disabled re-sync to keep ourselves up-to-date
-	informerFactory := informers.NewSharedInformerFactory(ctx.clientSet, 0)
+	informerFactory := informers.NewSharedInformerFactory(ctx.kubeClient.GetClientSet(), 0)
 
 	ctx.nodeInformer = informerFactory.Core().V1().Nodes()
 	ctx.nodeInformer.Informer().AddEventHandlerWithResyncPeriod(
@@ -115,16 +96,52 @@ func (ctx *Context) AddPod(obj interface{}) {
 	ctx.PrintJobMap()
 }
 
-func (ctx *Context) UpdatePod(oldObj, newObj interface{}) {
+func (ctx *Context) UpdatePod(obj, newObj interface{}) {
 	glog.V(4).Infof("context: handling UpdatePod")
+	pod, ok := newObj.(*v1.Pod)
+	if !ok {
+		glog.Errorf("Cannot convert to *v1.Pod: %v", obj)
+		return
+	}
+	glog.V(4).Infof("pod %s status %s", pod.Name, pod.Status.Phase)
 }
 
 func (ctx *Context) DeletePod(obj interface{}) {
 	glog.V(4).Infof("context: handling DeletePod")
+
+	// when a pod is deleted, we need to check its role.
+	// for spark, if driver pod is deleted, then we consider the job is completed
+	var pod *v1.Pod
+	switch t := obj.(type) {
+	case *v1.Pod:
+		pod = t
+	case cache.DeletedFinalStateUnknown:
+		var ok bool
+		pod, ok = t.Obj.(*v1.Pod)
+		if !ok {
+			glog.V(1).Info("Cannot convert to *v1.Pod: %v", t.Obj)
+			return
+		}
+	default:
+		glog.V(1).Info("Cannot convert to *v1.Pod: %v", t)
+		return
+	}
+
+	ctx.lock.Lock()
+	defer ctx.lock.Unlock()
+
+	// spark driver pod succeed means spark job is done
+	if job := ctx.GetOrCreateJob(pod); job != nil {
+		job.StartCompletionHandler(ctx.kubeClient, pod)
+	}
 }
 
 func (ctx *Context) GetJobController() *controller.JobController {
 	return ctx.jobController
+}
+
+func (ctx *Context) GetPodController() *controller.PodController {
+	return ctx.podController
 }
 
 // filter pods by scheduler name and state

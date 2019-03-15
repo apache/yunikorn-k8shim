@@ -12,31 +12,32 @@ type NativeClient struct {
 	clientSet *kubernetes.Clientset
 }
 
-func newNativeClient(kc string) KubeClient{
+func newNativeClient(kc string) NativeClient{
 	config, err := clientcmd.BuildConfigFromFlags("", kc)
 	if err != nil {
 		panic(err.Error())
 	}
 
-	configuredClient, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		panic(err.Error())
-	}
-
-	return &NativeClient{
+	configuredClient := kubernetes.NewForConfigOrDie(config)
+	return NativeClient{
 		clientSet: configuredClient,
 	}
 }
 
-func (nc *NativeClient) Bind(pod *v1.Pod, node v1.Node) error {
-	glog.V(3).Infof("bind pod %s(%s) to node %s(%s)", pod.Name, pod.UID, node.Name, node.UID)
+func (nc NativeClient) GetClientSet() *kubernetes.Clientset {
+	return nc.clientSet
+}
+
+func (nc NativeClient) Bind(pod *v1.Pod, hostId string) error {
+	glog.V(3).Infof("bind pod %s(%s) to node %s", pod.Name, pod.UID, hostId)
 	if err := nc.clientSet.CoreV1().Pods(pod.Namespace).Bind(
-		&v1.Binding{ObjectMeta: apis.ObjectMeta{Namespace: pod.Namespace, Name: pod.Name, UID: pod.UID},
+		&v1.Binding{ObjectMeta: apis.ObjectMeta{
+			Namespace: pod.Namespace, Name: pod.Name, UID: pod.UID},
 			Target: v1.ObjectReference{
 				Kind: "Node",
-				Name: node.Name,
-			},
-		}); err != nil {
+				Name: hostId,
+		},
+	}); err != nil {
 		glog.V(2).Infof("Failed to bind pod <%v/%v>: %#v", pod.Namespace, pod.Name, err)
 		return err
 	}
@@ -44,10 +45,9 @@ func (nc *NativeClient) Bind(pod *v1.Pod, node v1.Node) error {
 
 }
 
-func (nc *NativeClient) Delete(pod *v1.Pod, node v1.Node) error {
+func (nc NativeClient) Delete(pod *v1.Pod) error {
 	// TODO make this configurable for pods
 	gracefulSeconds := int64(3)
-	glog.V(3).Infof("delete pod %s(%s) from node %s(%s)", pod.Name, pod.UID, node.Name, node.UID)
 	if err := nc.clientSet.CoreV1().Pods(pod.Namespace).Delete(pod.Name, &apis.DeleteOptions{
 		GracePeriodSeconds: &gracefulSeconds,
 	}); err != nil {

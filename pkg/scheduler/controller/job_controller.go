@@ -2,6 +2,7 @@ package controller
 
 import (
 	"github.com/golang/glog"
+	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/client"
 	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/common"
 	"github.infra.cloudera.com/yunikorn/scheduler-interface/lib/go/si"
 	"github.infra.cloudera.com/yunikorn/yunikorn-core/pkg/api"
@@ -11,11 +12,13 @@ import (
 // job controller manages a job's lifecycle
 type JobController struct {
 	proxy api.SchedulerApi
+	kubeClient client.KubeClient
 }
 
-func NewJobController(schedulerApi api.SchedulerApi) *JobController {
+func NewJobController(schedulerApi api.SchedulerApi, client client.KubeClient) *JobController {
 	return &JobController{
 		proxy: schedulerApi,
+		kubeClient: client,
 	}
 }
 

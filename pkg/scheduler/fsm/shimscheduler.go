@@ -94,11 +94,13 @@ func (ss *ShimScheduler) schedule() {
 				ss.context.GetJobController().Run(job)
 			case job.States.RUNNING.Value():
 				ss.context.GetJobController().Schedule(job, pendingPod)
-			case job.States.FINISHED.Value():
-				glog.V(4).Infof("job %s is already at finished state", job.JobId)
+			case job.States.COMPLETED.Value():
+				glog.V(1).Infof("job %s is already at finished state", job.JobId)
+				//ss.context.GetPodController().DeletePod(pendingPod)
 			case job.States.REJECTED.Value():
-				glog.V(4).Infof("ignoring schedule pod %s for job %s, job is rejected",
+				glog.V(1).Infof("ignoring schedule pod %s for job %s, job is rejected",
 					pendingPod.UID, job.JobId)
+				//ss.context.GetPodController().DeletePod(pendingPod)
 			}
 		}
 	}

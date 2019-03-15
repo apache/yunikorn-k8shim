@@ -20,3 +20,8 @@ const DefaultPartition = "default"
 // Resource
 const Memory = "memory"
 const CPU = "vcore"
+
+// Spark
+const SparkLabelAppId = "spark-app-id"
+const SparkLabelRole = "spark-role"
+const SparkLabelRoleDriver = "driver"

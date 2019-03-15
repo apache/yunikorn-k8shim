@@ -5,8 +5,11 @@ type JobStates struct {
 	SUBMITTED JobState
 	ACCEPTED JobState
 	RUNNING JobState
-	FINISHED JobState
 	REJECTED JobState
+	COMPLETED JobState
+	KILLING JobState
+	KILLED JobState
+	FAILED JobState
 }
 
 type JobState struct {
@@ -26,7 +29,10 @@ func InitiateJobStates() *JobStates {
 		SUBMITTED: newJobState("SUBMITTED"),
 		ACCEPTED: newJobState("ACCEPTED"),
 		RUNNING: newJobState("RUNNING"),
-		FINISHED: newJobState("FINISHED"),
 		REJECTED: newJobState("REJECTED"),
+		COMPLETED: newJobState("COMPLETED"),
+		KILLING: newJobState("KILLING"),
+		KILLED: newJobState("KILLED"),
+		FAILED: newJobState("FAILED"),
 	}
 }

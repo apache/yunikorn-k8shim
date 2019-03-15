@@ -29,7 +29,7 @@
   revision = "23def4e6c14b4da8ac2ed8007337bc5eb5007998"
 
 [[projects]]
-  digest = "1:d3d38150b6d77b2aad42a9e105170538b6563518993d43df78a1add6e31cce62"
+  digest = "1:529d738b7976c3848cae5cf3a8036440166835e389c1f617af701eeb12a0518d"
   name = "github.com/golang/protobuf"
   packages = [
     "descriptor",
@@ -42,8 +42,8 @@
     "ptypes/wrappers",
   ]
   pruneopts = ""
-  revision = "c823c79ea1570fb5ff454033735a8e68575d1d0f"
-  version = "v1.3.0"
+  revision = "b5d812f8a3706043e23a9cd5babf2e5423744d30"
+  version = "v1.3.1"
 
 [[projects]]
   branch = "master"
@@ -154,7 +154,7 @@
   name = "github.infra.cloudera.com/yunikorn/scheduler-interface"
   packages = ["lib/go/si"]
   pruneopts = ""
-  revision = "c1ba313eff2c019f92d403a4c8573237bc8e04f0"
+  revision = "199be046a781be94b4ad6b40d9c2e01f74229b6e"
 
 [[projects]]
   branch = "master"
@@ -177,7 +177,7 @@
     "pkg/scheduler/schedulerevent",
   ]
   pruneopts = ""
-  revision = "95084e22472cb95a34d4b446d098e17aa990d14e"
+  revision = "125e08967e1b3bb258ba9545dbcde82424bca440"
 
 [[projects]]
   branch = "master"
@@ -626,12 +626,12 @@
     "k8s.io/api/core/v1",
     "k8s.io/apimachinery/pkg/api/resource",
     "k8s.io/apimachinery/pkg/apis/meta/v1",
+    "k8s.io/apimachinery/pkg/fields",
     "k8s.io/apimachinery/pkg/types",
     "k8s.io/apimachinery/pkg/util/wait",
     "k8s.io/client-go/informers",
     "k8s.io/client-go/informers/core/v1",
     "k8s.io/client-go/kubernetes",
-    "k8s.io/client-go/rest",
     "k8s.io/client-go/tools/cache",
     "k8s.io/client-go/tools/clientcmd",
   ]
