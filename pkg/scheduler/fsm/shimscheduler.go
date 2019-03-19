@@ -101,21 +101,21 @@ func (ss *ShimScheduler) Handle(se SchedulerEvent) error {
 func (ss *ShimScheduler) schedule() {
 	jobs := ss.context.SelectJobs(nil)
 	for _, job := range jobs {
-		for _, pendingPod := range job.GetPendingPods() {
-			glog.V(3).Infof("schedule job %s pending pod: %s", job.JobId, pendingPod.Name,)
+		for _, pendingTask := range job.GetPendingTasks() {
+			glog.V(3).Infof("schedule job %s pending task: %s", job.JobId, pendingTask.GetTaskPod().Name)
 			switch job.GetJobState() {
 			case job.States.NEW.Value():
 				ss.context.GetJobController().Submit(job)
 			case job.States.ACCEPTED.Value():
 				ss.context.GetJobController().Run(job)
 			case job.States.RUNNING.Value():
-				ss.context.GetJobController().Schedule(job, pendingPod)
+				ss.context.GetJobController().Schedule(job, pendingTask)
 			case job.States.COMPLETED.Value():
 				glog.V(1).Infof("job %s is already at finished state", job.JobId)
 				//ss.context.GetPodController().DeletePod(pendingPod)
 			case job.States.REJECTED.Value():
 				glog.V(1).Infof("ignoring schedule pod %s for job %s, job is rejected",
-					pendingPod.UID, job.JobId)
+					pendingTask.GetTaskPod().UID, job.JobId)
 				//ss.context.GetPodController().DeletePod(pendingPod)
 			}
 		}
