@@ -36,11 +36,10 @@ import (
 // context maintains scheduling state, like jobs and jobs' pods.
 type Context struct {
 	jobMap map[string]*common.Job
-	jobController *controller.JobController
 	nodeController *controller.NodeController
-	taskController *controller.TaskController
 	conf *conf.SchedulerConf
 	kubeClient client.KubeClient
+	schedulerApi api.SchedulerApi
 
 	// informers
 	podInformer infomerv1.PodInformer
@@ -57,13 +56,12 @@ func NewContext(scheduler api.SchedulerApi, configs *conf.SchedulerConf) *Contex
 		jobMap: make(map[string]*common.Job),
 		conf: configs,
 		kubeClient: client.NewKubeClient(configs.KubeConfig),
+		schedulerApi: scheduler,
 		lock: &sync.RWMutex{},
 	}
 
 	// init controllers
-    ctx.jobController = controller.NewJobController(scheduler, ctx.kubeClient)
 	ctx.nodeController = controller.NewNodeController(scheduler)
-	ctx.taskController = controller.NewTaskController(ctx.kubeClient)
 
 	// we have disabled re-sync to keep ourselves up-to-date
 	informerFactory := informers.NewSharedInformerFactory(ctx.kubeClient.GetClientSet(), 0)
@@ -149,10 +147,6 @@ func (ctx *Context) DeletePod(obj interface{}) {
 	}
 }
 
-func (ctx *Context) GetJobController() *controller.JobController {
-	return ctx.jobController
-}
-
 // filter pods by scheduler name and state
 func (ctx *Context) filterPods(obj interface{}) bool {
 	switch obj.(type) {
@@ -170,17 +164,6 @@ func (ctx *Context) filterPods(obj interface{}) bool {
 
 func (ctx *Context) GetSchedulerConf() *conf.SchedulerConf {
 	return ctx.conf
-}
-
-func (ctx *Context) PrintJobMap() {
-	glog.V(4).Infof("Job Map:")
-	for k, v := range ctx.jobMap {
-		glog.V(4).Infof("    %s -> %s", k, v.String())
-	}
-}
-
-func (context *Context) HasPendingJobs() bool {
-	return len(context.jobMap) > 0
 }
 
 // validate pod see if it is applicable for the scheduler
@@ -208,7 +191,7 @@ func (ctx *Context) getOrCreateJob(pod *v1.Pod) *common.Job {
 	if job, ok := ctx.jobMap[jobId]; ok {
 		return job
 	} else {
-		newJob := common.NewJob(jobId)
+		newJob := common.NewJob(jobId, ctx.schedulerApi)
 		if queueName, ok := pod.Labels[common.LabelQueueName]; ok {
 			newJob.Queue = queueName
 		}
@@ -222,7 +205,7 @@ func (ctx *Context) getOrAddTask(job *common.Job, pod *v1.Pod) *common.Task {
 	if task := job.GetTask(string(pod.UID)); task != nil {
 		return task
 	}
-	newTask := common.CreateTaskFromPod(job.JobId, ctx.kubeClient, pod)
+	newTask := common.CreateTaskFromPod(job, ctx.kubeClient, ctx.schedulerApi, pod)
 	job.AddTask(newTask)
 	return newTask
 }
@@ -230,7 +213,7 @@ func (ctx *Context) getOrAddTask(job *common.Job, pod *v1.Pod) *common.Task {
 
 func (ctx *Context) JobAccepted(jobId string) {
 	if job, ok := ctx.jobMap[jobId]; ok {
-		ctx.jobController.Accept(job)
+		job.Handle(common.NewSimpleJobEvent(common.AcceptJob))
 		return
 	}
 	glog.V(2).Infof("job %s is not found ", jobId)
@@ -238,7 +221,7 @@ func (ctx *Context) JobAccepted(jobId string) {
 
 func (ctx *Context) JobRejected(jobId string) {
 	if job, ok := ctx.jobMap[jobId]; ok {
-		ctx.jobController.Reject(job)
+		job.Handle(common.NewSimpleJobEvent(common.RejectJob))
 		return
 	}
 	glog.V(2).Infof("job %s is rejected by the scheduler, but it is not found in the context", jobId)

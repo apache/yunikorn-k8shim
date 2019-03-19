@@ -16,14 +16,39 @@ limitations under the License.
 
 package common
 
-const (
-	PENDING    string = "PENDING"
-	SCHEDULING string = "SCHEDULING"
-	ALLOCATED  string = "ALLOCATED"
-	REJECTED   string = "REJECTED"
-	BOUND      string = "BOUND"
-	KILLING    string = "KILLING"
-	KILLED     string = "KILLED"
-	FAILED     string = "FAILED"
-	COMPLETED  string = "COMPLETED"
-)
+type TaskStates struct {
+	PENDING TaskState
+	SCHEDULING TaskState
+	ALLOCATED TaskState
+	REJECTED TaskState
+	BOUND TaskState
+	KILLING TaskState
+	KILLED TaskState
+	FAILED TaskState
+	COMPLETED TaskState
+}
+
+type TaskState struct {
+	state string
+	Value func() string
+}
+
+func newTaskState(str string) TaskState{
+	return TaskState{
+		state: str,
+		Value: func() string { return str }}
+}
+
+func InitiateTaskStates() *TaskStates {
+	return &TaskStates {
+		PENDING: newTaskState("PENDING"),
+		SCHEDULING: newTaskState("SCHEDULING"),
+		ALLOCATED: newTaskState("ALLOCATED"),
+		REJECTED: newTaskState("REJECTED"),
+		BOUND: newTaskState("BOUND"),
+		KILLING: newTaskState("KILLING"),
+		KILLED: newTaskState("KILLED"),
+		FAILED: newTaskState("FAILED"),
+		COMPLETED: newTaskState("COMPLETED"),
+	}
+}

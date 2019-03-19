@@ -16,30 +16,41 @@ limitations under the License.
 
 package common
 
-type JobEvents struct {
-	SUBMIT JobEvent
-	ACCEPT JobEvent
-	RUN JobEvent
-	REJECT JobEvent
-	COMPLETE JobEvent
-	FAIL JobEvent
-	KILL JobEvent
-	KILLED JobEvent
+type JobEventType string
+
+const (
+	SubmitJob    JobEventType = "SubmitJob"
+	AcceptJob    JobEventType = "AcceptJob"
+	RunJob       JobEventType = "RunJob"
+	RejectJob    JobEventType = "RejectJob"
+	CompleteJob  JobEventType = "CompleteJob"
+	FailJob      JobEventType = "FailJob"
+	KillJob      JobEventType = "KillJob"
+	KilledJob    JobEventType = "KilledJob"
+)
+
+type JobEvent interface {
+	getEvent() JobEventType
+	getArgs() interface{}
 }
 
-type JobEvent struct {
-	event string
+// ------------------------
+// SimpleJobEvent simples moves job states
+// ------------------------
+type SimpleJobEvent struct {
+	event JobEventType
 }
 
-func InitiateJobEvents() *JobEvents {
-	return &JobEvents {
-		SUBMIT: JobEvent{"SUBMIT"},
-		ACCEPT: JobEvent{"ACCEPT"},
-		RUN: JobEvent{"RUN"},
-		REJECT: JobEvent{"REJECT"},
-		COMPLETE: JobEvent{"COMPLETE"},
-		FAIL: JobEvent{"FAIL"},
-		KILL: JobEvent{"KILL"},
-		KILLED: JobEvent{"KILLED"},
+func NewSimpleJobEvent(eventType JobEventType) SimpleJobEvent {
+	return SimpleJobEvent{
+		event: eventType,
 	}
+}
+
+func (st SimpleJobEvent) getEvent() JobEventType {
+	return st.event
+}
+
+func (st SimpleJobEvent) getArgs() interface{} {
+	return nil
 }

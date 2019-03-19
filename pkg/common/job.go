@@ -21,23 +21,26 @@ import (
 	"github.com/golang/glog"
 	"github.com/looplab/fsm"
 	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/client"
+	"github.infra.cloudera.com/yunikorn/scheduler-interface/lib/go/si"
+	"github.infra.cloudera.com/yunikorn/yunikorn-core/pkg/api"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"strings"
 	"sync"
 )
 
 type Job struct {
-	JobId string
-	Queue string
-	Partition string
-	taskMap map[string]*Task
-	JobState string
-	FSM *fsm.FSM
-	Events *JobEvents
-	States *JobStates
-	lock *sync.RWMutex
-	ch CompletionHandler
+	JobId        string
+	Queue        string
+	Partition    string
+	taskMap      map[string]*Task
+	jobState     string
+	sm           *fsm.FSM
+	States       *JobStates
+	lock         *sync.RWMutex
+	ch           CompletionHandler
+	schedulerApi api.SchedulerApi
+	workChan     chan *Task
+	stopChan     chan struct{}
 }
 
 func (job *Job) String() string  {
@@ -46,42 +49,75 @@ func (job *Job) String() string  {
 		job.JobId, job.Queue, job.Partition, len(job.taskMap), job.GetJobState())
 }
 
-func NewJob(jobId string) *Job {
+func NewJob(jobId string, scheduler api.SchedulerApi) *Job {
 	taskMap := make(map[string]*Task)
-	events := InitiateJobEvents()
 	states := InitiateJobStates()
 	job := &Job {
 		JobId:     jobId,
 		taskMap:   taskMap,
-		JobState:  states.NEW.state,
+		jobState:  states.NEW.state,
 		Queue:     JobDefaultQueue,
 		Partition: DefaultPartition,
-		Events: events,
-		States: states,
-		lock: &sync.RWMutex{},
-		ch: CompletionHandler {running: false},
+		States:    states,
+		lock:      &sync.RWMutex{},
+		ch:        CompletionHandler {running: false},
+		workChan:  make(chan *Task, 1024),
+		stopChan:  make(chan struct{}),
+		schedulerApi: scheduler,
 	}
 
-	job.FSM = fsm.NewFSM(
+	job.sm = fsm.NewFSM(
 		states.NEW.state,
 		fsm.Events{
-			{ Name: events.SUBMIT.event, Src: []string{ states.NEW.state }, Dst: states.SUBMITTED.state },
-			{ Name: events.ACCEPT.event, Src: []string{ states.SUBMITTED.state }, Dst: states.ACCEPTED.state },
-			{ Name: events.RUN.event, Src: []string{ states.ACCEPTED.state }, Dst: states.RUNNING.state},
-			{ Name: events.COMPLETE.event, Src: []string{ states.RUNNING.state, }, Dst: states.COMPLETED.state},
-			{ Name: events.REJECT.event, Src: []string{ states.SUBMITTED.state }, Dst: states.REJECTED.state },
-			{ Name: events.FAIL.event, Src: []string{ states.REJECTED.state, states.ACCEPTED.state, states.RUNNING.state }, Dst: states.FAILED.state },
-			{ Name: events.KILL.event, Src: []string{ states.ACCEPTED.state, states.RUNNING.state }, Dst: states.KILLING.state },
-			{ Name: events.KILLED.event, Src: []string{ states.KILLING.state }, Dst: states.KILLED.state },
+			{Name: string(SubmitJob), Src: []string{states.NEW.state}, Dst: states.SUBMITTED.state},
+			{Name: string(AcceptJob), Src: []string{states.SUBMITTED.state}, Dst: states.ACCEPTED.state},
+			{Name: string(RunJob), Src: []string{states.ACCEPTED.state, states.RUNNING.state}, Dst: states.RUNNING.state},
+			{Name: string(CompleteJob), Src: []string{states.RUNNING.state,}, Dst: states.COMPLETED.state},
+			{Name: string(RejectJob), Src: []string{states.SUBMITTED.state}, Dst: states.REJECTED.state},
+			{Name: string(FailJob), Src: []string{states.REJECTED.state, states.ACCEPTED.state, states.RUNNING.state}, Dst: states.FAILED.state},
+			{Name: string(KillJob), Src: []string{states.ACCEPTED.state, states.RUNNING.state}, Dst: states.KILLING.state},
+			{Name: string(KilledJob), Src: []string{states.KILLING.state}, Dst: states.KILLED.state},
 		},
 		fsm.Callbacks{
-			events.REJECT.event: func(event *fsm.Event) {
-				job.Handle(events.FAIL)
-			},
+			"enter_state": 		  job.handleTaskStateChange,
+			states.RUNNING.state: job.handleRunJobEvent,
+			string(RejectJob):    job.handleRejectJobEvent,
+			string(CompleteJob):  job.handleCompleteJobEvent,
 		},
 	)
 
 	return job
+}
+
+func (job *Job) ScheduleTask(task *Task) {
+	job.workChan <- task
+}
+
+func (job *Job) IgnoreScheduleTask(task *Task) {
+	glog.V(1).Infof("job %s is in unexpected state, current state is %s," +
+		" task cannot be scheduled if job's state is other than %s",
+		job.JobId, job.GetJobState(), job.States.RUNNING.Value())
+}
+
+// submit job to the scheduler
+func (job *Job) Submit() {
+	glog.V(3).Infof("submit new job %s to cluster %s", job.String(), ClusterId)
+	if err := job.schedulerApi.Update(&si.UpdateRequest{
+		NewJobs: []*si.AddJobRequest{
+			{
+				JobId:         job.JobId,
+				QueueName:     job.Queue,
+				PartitionName: job.Partition,
+			},
+		},
+		RmId: ClusterId,
+	}); err == nil {
+		job.Handle(NewSimpleJobEvent(SubmitJob))
+	}
+}
+
+func (job *Job) Run() {
+	job.Handle(NewSimpleJobEvent(RunJob))
 }
 
 func (job *Job) GetTask(taskId string) *Task {
@@ -96,7 +132,6 @@ func (job *Job) AddTask(task *Task) {
 	job.taskMap[task.taskId] = task
 }
 
-// TODO should throw error if jobId not found
 func GetJobID(pod *v1.Pod) string {
 	for name, value := range pod.Labels {
 		if name == SparkLabelAppId {
@@ -121,9 +156,7 @@ func (job *Job) IsPendingTask(task *Task) bool {
 	defer job.lock.RUnlock()
 
 	if task := job.taskMap[task.taskId]; task != nil {
-		if task.GetTaskState() == PENDING {
-			return true
-		}
+		return task.IsPending()
 	}
 	return false
 }
@@ -132,7 +165,7 @@ func (job *Job) GetJobState() string {
 	job.lock.RLock()
 	defer job.lock.RUnlock()
 
-	return job.FSM.Current()
+	return job.sm.Current()
 }
 
 func (job *Job) PrintJobState() {
@@ -150,14 +183,53 @@ func (job *Job) PrintJobState() {
 	glog.V(4).Infof(" - totalNumOfPods: %d, names: %s", len(job.taskMap), allTaskNames)
 }
 
+func (job *Job) handleTaskStateChange(event *fsm.Event) {
+	if len(event.Args) == 1 {
+		switch event.Args[0].(type) {
+		case Task:
+			job.workChan <- event.Args[0].(*Task)
+		}
+	}
+}
+
+func (job *Job) handleRejectJobEvent(event *fsm.Event) {
+	glog.V(4).Infof("job %s is rejected by scheduler", job.JobId)
+}
+
+func (job *Job) handleCompleteJobEvent(event *fsm.Event) {
+	// shutdown the working channel
+	close(job.stopChan)
+}
+
+func (job *Job) handleRunJobEvent(event *fsm.Event) {
+	glog.V(4).Infof("starting internal job working thread")
+	go func() {
+		for {
+			select {
+			case task := <-job.workChan:
+				glog.V(3).Infof("Scheduling task: task=%s, state=%s", task.taskId, task.GetTaskState())
+				switch task.GetTaskState() {
+				case task.states.PENDING.state:
+					task.Handle(NewSubmitTaskEvent())
+				default:
+					// nothing to do here...
+				}
+			case <-job.stopChan:
+				glog.V(3).Infof("stopping job working thread for job %s", job.JobId)
+				return
+			}
+		}
+	}()
+}
+
 // event handling
 func (job *Job) Handle(se JobEvent) error {
 	job.lock.Lock()
 	defer job.lock.Unlock()
 
-	glog.V(4).Infof("Job(%s): preState: %s, coming event: %s", job.JobId, job.FSM.Current(), se.event)
-	err := job.FSM.Event(se.event)
-	glog.V(4).Infof("Job(%s): postState: %s, handled event: %s", job.JobId, job.FSM.Current(), se.event)
+	glog.V(4).Infof("Job(%s): preState: %s, coming event: %s", job.JobId, job.sm.Current(), string(se.getEvent()))
+	err := job.sm.Event(string(se.getEvent()), se.getArgs())
+	glog.V(4).Infof("Job(%s): postState: %s, handled event: %s", job.JobId, job.sm.Current(), string(se.getEvent()))
 	return err
 }
 
@@ -166,9 +238,11 @@ func (job *Job) GetPendingTasks() []*Task {
 	defer job.lock.RUnlock()
 
 	taskList := make([]*Task, 0)
-	for _, task := range job.taskMap {
-		if strings.Compare(task.GetTaskState(), PENDING) == 0 {
-			taskList = append(taskList, task)
+	if len(job.taskMap) > 0 {
+		for _, task := range job.taskMap {
+			if task.IsPending() {
+				taskList = append(taskList, task)
+			}
 		}
 	}
 	return taskList
@@ -217,7 +291,7 @@ func (job *Job) startSparkCompletionHandler(client client.KubeClient, pod *v1.Po
 					resp := events.Object.(*v1.Pod)
 					if resp.Status.Phase == v1.PodSucceeded && resp.UID == pod.UID {
 						glog.V(4).Infof("spark driver completed %s, job completed %s", resp.Name, job.JobId)
-						job.Handle(job.Events.COMPLETE)
+						job.Handle(NewSimpleJobEvent(CompleteJob))
 						return
 					}
 				}

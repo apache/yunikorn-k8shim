@@ -34,15 +34,25 @@ type TaskEvent interface {
 	getArgs() interface{}
 }
 
-type TaskEvents struct {
-	Submit TaskEvent
-	Allocated TaskEvent
-	Rejected TaskEvent
-	Bind TaskEvent
-	Complete TaskEvent
-	Fail TaskEvent
-	Kill TaskEvent
-	Killed TaskEvent
+// ------------------------
+// Simple task Event simply moves task to next state, it has no arguments provided
+// ------------------------
+type SimpleTaskEvent struct {
+	event TaskEventType
+}
+
+func NewSimpleTaskEvent(taskType TaskEventType) SimpleTaskEvent {
+	return SimpleTaskEvent {
+		event: taskType,
+	}
+}
+
+func (st SimpleTaskEvent) getEvent() TaskEventType {
+	return st.event
+}
+
+func (st SimpleTaskEvent) getArgs() interface{} {
+	return nil
 }
 
 // ------------------------

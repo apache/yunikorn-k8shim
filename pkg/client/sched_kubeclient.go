@@ -24,27 +24,27 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-type NativeClient struct {
+type SchedulerKubeClient struct {
 	clientSet *kubernetes.Clientset
 }
 
-func newNativeClient(kc string) NativeClient{
+func newSchedulerKubeClient(kc string) SchedulerKubeClient {
 	config, err := clientcmd.BuildConfigFromFlags("", kc)
 	if err != nil {
 		panic(err.Error())
 	}
 
 	configuredClient := kubernetes.NewForConfigOrDie(config)
-	return NativeClient{
+	return SchedulerKubeClient{
 		clientSet: configuredClient,
 	}
 }
 
-func (nc NativeClient) GetClientSet() *kubernetes.Clientset {
+func (nc SchedulerKubeClient) GetClientSet() *kubernetes.Clientset {
 	return nc.clientSet
 }
 
-func (nc NativeClient) Bind(pod *v1.Pod, hostId string) error {
+func (nc SchedulerKubeClient) Bind(pod *v1.Pod, hostId string) error {
 	glog.V(3).Infof("bind pod %s(%s) to node %s", pod.Name, pod.UID, hostId)
 	if err := nc.clientSet.CoreV1().Pods(pod.Namespace).Bind(
 		&v1.Binding{ObjectMeta: apis.ObjectMeta{
@@ -61,7 +61,7 @@ func (nc NativeClient) Bind(pod *v1.Pod, hostId string) error {
 
 }
 
-func (nc NativeClient) Delete(pod *v1.Pod) error {
+func (nc SchedulerKubeClient) Delete(pod *v1.Pod) error {
 	// TODO make this configurable for pods
 	gracefulSeconds := int64(3)
 	if err := nc.clientSet.CoreV1().Pods(pod.Namespace).Delete(pod.Name, &apis.DeleteOptions{

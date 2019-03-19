@@ -34,5 +34,5 @@ type KubeClient interface {
 
 func NewKubeClient(kc string) KubeClient {
 	//return newRestClient("127.0.0.1:8001")
-	return newNativeClient(kc)
+	return newSchedulerKubeClient(kc)
 }
