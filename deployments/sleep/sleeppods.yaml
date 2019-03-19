@@ -4,7 +4,7 @@ metadata:
   labels:
     app: sleep
     jobId: "job_2019_01_22_00001"
-    queue: "a"
+    queue: "sandbox"
   name: task0
 spec:
   schedulerName: yunikorn
@@ -23,7 +23,7 @@ metadata:
   labels:
     app: sleep
     jobId: "job_2019_01_22_00001"
-    queue: "a"
+    queue: "sandbox"
   name: task1
 spec:
   schedulerName: yunikorn
@@ -42,7 +42,7 @@ metadata:
   labels:
     app: sleep
     jobId: "job_2019_01_22_00001"
-    queue: "a"
+    queue: "sandbox"
   name: task2
 spec:
   schedulerName: yunikorn

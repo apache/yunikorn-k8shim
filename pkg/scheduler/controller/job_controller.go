@@ -68,21 +68,20 @@ func (jc *JobController) Reject(job *common.Job) {
 	job.Handle(job.Events.REJECT)
 }
 
-func (jc *JobController) Schedule(job *common.Job, pod *v1.Pod) {
+func (jc *JobController) Schedule(job *common.Job, task *common.Task) {
 	// schedule pod
 	// job is accepted, now schedule the pod
-	if job.IsPendingPod(pod) {
-		glog.V(3).Infof("pod %s is pending, send request to the scheduler", pod.UID)
-		if err := jc.sendSchedulingRequest(job.JobId, pod); err != nil {
-			glog.V(2).Infof("failed to send scheduling request to scheduler, error: %v", err)
-			return
-		}
-		// once pod is scheduled, remove it from the pod list
-		// this is to avoid sending duplicate update requests to scheduler
-		// don't worry, we will add it back if the pod is rejected by the scheduler
-		job.RemovePendingPod(pod)
-		job.PrintJobState()
+	glog.V(3).Infof("pod %s is pending, send request to the scheduler", task.GetTaskPod().UID)
+	if err := jc.sendSchedulingRequest(job.JobId, task.GetTaskPod()); err != nil {
+		glog.V(2).Infof("failed to send scheduling request to scheduler, error: %v", err)
+		return
 	}
+
+	// once pod is scheduled, move task state to SCHEDULING
+	// this is to avoid sending duplicate update requests to scheduler
+	// don't worry, we will add it back if the pod is rejected by the scheduler
+	task.Handle(common.NewSubmitTaskEvent())
+	job.PrintJobState()
 }
 
 func (jc *JobController) sendSchedulingRequest(jobId string, pod *v1.Pod) error {

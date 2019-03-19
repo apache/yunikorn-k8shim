@@ -38,7 +38,7 @@ type Context struct {
 	jobMap map[string]*common.Job
 	jobController *controller.JobController
 	nodeController *controller.NodeController
-	podController *controller.PodController
+	taskController *controller.TaskController
 	conf *conf.SchedulerConf
 	kubeClient client.KubeClient
 
@@ -62,8 +62,8 @@ func NewContext(scheduler api.SchedulerApi, configs *conf.SchedulerConf) *Contex
 
 	// init controllers
     ctx.jobController = controller.NewJobController(scheduler, ctx.kubeClient)
-	ctx.podController = controller.NewPodController(ctx.kubeClient)
 	ctx.nodeController = controller.NewNodeController(scheduler)
+	ctx.taskController = controller.NewTaskController(ctx.kubeClient)
 
 	// we have disabled re-sync to keep ourselves up-to-date
 	informerFactory := informers.NewSharedInformerFactory(ctx.kubeClient.GetClientSet(), 0)
@@ -93,23 +93,21 @@ func NewContext(scheduler api.SchedulerApi, configs *conf.SchedulerConf) *Contex
 }
 
 func (ctx *Context) AddPod(obj interface{}) {
-	glog.V(4).Infof("context: handling AddPod")
 	pod, ok := obj.(*v1.Pod)
 	if !ok {
 		glog.Errorf("Cannot convert to *v1.Pod: %v", obj)
 		return
 	}
 
+	glog.V(4).Infof("context: handling AddPod podName=%s/%s, podUid=%s", pod.Namespace, pod.Name, pod.UID)
 	if err := ctx.ValidatePod(pod); err != nil {
 		glog.V(1).Infof("job is invalid, error: %s", err.Error())
 		return
 	}
-	job := ctx.GetOrCreateJob(pod)
-	job.PrintJobState()
 
-	glog.V(3).Infof("pending pod found from api-server, job: %s, pod: %s",
-		job.JobId, pod.Name)
-	ctx.PrintJobMap()
+	job := ctx.getOrCreateJob(pod)
+	task := ctx.getOrAddTask(job, pod)
+	job.AddTask(task)
 }
 
 func (ctx *Context) UpdatePod(obj, newObj interface{}) {
@@ -123,8 +121,6 @@ func (ctx *Context) UpdatePod(obj, newObj interface{}) {
 }
 
 func (ctx *Context) DeletePod(obj interface{}) {
-	glog.V(4).Infof("context: handling DeletePod")
-
 	// when a pod is deleted, we need to check its role.
 	// for spark, if driver pod is deleted, then we consider the job is completed
 	var pod *v1.Pod
@@ -146,18 +142,15 @@ func (ctx *Context) DeletePod(obj interface{}) {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
 
-	// spark driver pod succeed means spark job is done
-	if job := ctx.GetOrCreateJob(pod); job != nil {
+	glog.V(4).Infof("context: handling DeletePod podName=%s/%s, podUid=%s", pod.Namespace, pod.Name, pod.UID)
+	if job := ctx.getOrCreateJob(pod); job != nil {
+		// starts a completion handler to handle the completion of a job on demand
 		job.StartCompletionHandler(ctx.kubeClient, pod)
 	}
 }
 
 func (ctx *Context) GetJobController() *controller.JobController {
 	return ctx.jobController
-}
-
-func (ctx *Context) GetPodController() *controller.PodController {
-	return ctx.podController
 }
 
 // filter pods by scheduler name and state
@@ -175,13 +168,13 @@ func (ctx *Context) filterPods(obj interface{}) bool {
 	}
 }
 
-func (context *Context) GetSchedulerConf() *conf.SchedulerConf {
-	return context.conf
+func (ctx *Context) GetSchedulerConf() *conf.SchedulerConf {
+	return ctx.conf
 }
 
-func (context *Context) PrintJobMap() {
+func (ctx *Context) PrintJobMap() {
 	glog.V(4).Infof("Job Map:")
-	for k, v := range context.jobMap {
+	for k, v := range ctx.jobMap {
 		glog.V(4).Infof("    %s -> %s", k, v.String())
 	}
 }
@@ -192,99 +185,80 @@ func (context *Context) HasPendingJobs() bool {
 
 // validate pod see if it is applicable for the scheduler
 //
-func (context *Context) ValidatePod(pod *v1.Pod) error {
-	if pod.Spec.SchedulerName == "" || pod.Spec.SchedulerName != context.conf.SchedulerName {
+func (ctx *Context) ValidatePod(pod *v1.Pod) error {
+	if pod.Spec.SchedulerName == "" || pod.Spec.SchedulerName != ctx.conf.SchedulerName {
 		// only pod with specific scheduler name is valid to us
 		return errors.New(fmt.Sprintf("only pod whose spec has explicitly " +
 			"specified schedulerName=%s is a valid scheduling-target, but schedulerName for pod %s(%s) is %s",
-			pod.Spec.SchedulerName, pod.Name, pod.UID, context.conf.SchedulerName))
+			pod.Spec.SchedulerName, pod.Name, pod.UID, ctx.conf.SchedulerName))
 	}
 
 	jobId := common.GetJobID(pod)
 	if jobId == "" {
-		return errors.Errorf("invalid pod, no label %s is found in metadata", common.LabelJobId)
+		return errors.Errorf("invalid pod, cannot retrieve jobId from pod's spec")
 	}
 
 	return nil
 }
 
-func (context *Context) GetOrCreateJob(pod *v1.Pod) *common.Job {
+// if job already exists in the context, directly return the job from context
+// if job doesn't exist in the context yet, create a new job instance and add to context
+func (ctx *Context) getOrCreateJob(pod *v1.Pod) *common.Job {
 	jobId := common.GetJobID(pod)
-	if job, ok := context.jobMap[jobId]; ok {
-		if job.AddPod(pod) {
-			job.AddPendingPod(pod)
-		}
+	if job, ok := ctx.jobMap[jobId]; ok {
+		return job
 	} else {
 		newJob := common.NewJob(jobId)
 		if queueName, ok := pod.Labels[common.LabelQueueName]; ok {
 			newJob.Queue = queueName
 		}
-		newJob.AddPod(pod)
-		newJob.AddPendingPod(pod)
-		context.jobMap[jobId] = newJob
+		ctx.jobMap[jobId] = newJob
+		return ctx.jobMap[jobId]
 	}
-
-	return context.jobMap[jobId]
 }
 
-func (context *Context) JobAccepted(jobId string) {
-	if job, ok := context.jobMap[jobId]; ok {
-		context.jobController.Accept(job)
+func (ctx *Context) getOrAddTask(job *common.Job, pod *v1.Pod) *common.Task {
+	// using pod UID as taskId
+	if task := job.GetTask(string(pod.UID)); task != nil {
+		return task
+	}
+	newTask := common.CreateTaskFromPod(job.JobId, ctx.kubeClient, pod)
+	job.AddTask(newTask)
+	return newTask
+}
+
+
+func (ctx *Context) JobAccepted(jobId string) {
+	if job, ok := ctx.jobMap[jobId]; ok {
+		ctx.jobController.Accept(job)
 		return
 	}
 	glog.V(2).Infof("job %s is not found ", jobId)
 }
 
-func (context *Context) JobRejected(jobId string) {
-	if job, ok := context.jobMap[jobId]; ok {
-		context.jobController.Reject(job)
+func (ctx *Context) JobRejected(jobId string) {
+	if job, ok := ctx.jobMap[jobId]; ok {
+		ctx.jobController.Reject(job)
 		return
 	}
 	glog.V(2).Infof("job %s is rejected by the scheduler, but it is not found in the context", jobId)
 }
 
-func (context *Context) getPod(jobId string, podId string) (pod *v1.Pod, err error) {
-	if job, ok := context.jobMap[jobId]; ok {
-		for _, elem := range job.PodList {
-			if string(elem.UID) == podId {
-				return elem, nil
-			}
+
+func (ctx *Context) AllocateTask(jobId string, taskId string, nodeId string) error {
+	if job := ctx.jobMap[jobId]; job != nil {
+		if task := job.GetTask(taskId); task != nil {
+			return task.Handle(common.NewAllocateTaskEvent(nodeId))
 		}
-	}
-	return nil, errors.New(fmt.Sprintf("pod %s is not found in job %s",podId, jobId))
-}
-
-func (context *Context) AllocatePod(jobId string, podId string, nodeId string) error {
-	pendingPod, err := context.getPod(jobId, podId)
-	if err != nil {
-		return err
-	}
-
-	if pendingPod == nil {
-		glog.V(2).Info("skipping binding job %s pod UID=%s to node %s," +
-			" pod is not found in the context", jobId, podId, nodeId)
-		return errors.New(fmt.Sprintf("binding pod %s skipped because pod doesn't exist in context", podId))
-	}
-	glog.V(4).Infof("bind pod target: name: %s, uid: %s", pendingPod.Name, pendingPod.UID)
-	err = context.podController.Bind(pendingPod, nodeId)
-	if err != nil {
-		glog.V(1).Infof("bind pod failed, name: %s, uid: %s, %#v",
-			pendingPod.Name, pendingPod.UID, err)
-		return err
 	}
 	return nil
 }
 
-func (context *Context) OnPodRejected(jobId string, podUid string) error {
-	glog.V(3).Infof("pod request %s from job %s is rejected by the scheduler," +
-		" adding back to the pending list", podUid, jobId)
-	if job, ok := context.jobMap[jobId]; ok {
-		for _, pod := range job.PodList {
-			if string(pod.UID) == podUid {
-				job.AddPendingPod(pod)
-				job.PrintJobState()
-				return nil
-			}
+func (ctx *Context) OnPodRejected(jobId string, podUid string) error {
+	if job, ok := ctx.jobMap[jobId]; ok {
+		if task := job.GetTask(podUid); task != nil {
+			task.Handle(common.NewFailTaskEvent(
+				fmt.Sprintf("task %s from job %s is rejected by scheduler", podUid, jobId)))
 		}
 	}
 	return errors.New("pod gets rejected, but job info is not found in context," +

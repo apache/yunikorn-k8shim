@@ -11,6 +11,7 @@ spec:
       labels:
         app: nginx
         jobId: "job_2019_01_22_00002"
+        queue: sandbox
       name: nginx
     spec:
       schedulerName: yunikorn

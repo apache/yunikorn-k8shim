@@ -49,10 +49,11 @@ func (callback *SimpleRMCallback) RecvUpdateResponse(response *si.UpdateResponse
 	// handle new allocations
 	for _, alloc := range response.NewAllocations {
 		// got allocation for pod, bind pod to the scheduled node
-		// remove pod from pending list
 		glog.V(4).Infof("callback: response to new allocation, allocationKey: %s, jobId: %s, nodeId: %s",
 			alloc.AllocationKey, alloc.JobId, alloc.NodeId)
-		callback.context.AllocatePod(alloc.JobId, alloc.AllocationKey, alloc.NodeId)
+		if err := callback.context.AllocateTask(alloc.JobId, alloc.AllocationKey, alloc.NodeId); err != nil {
+			glog.V(1).Infof("failed to allocate task, error %v", err)
+		}
 	}
 
 	for _, reject := range response.RejectedAllocations {
