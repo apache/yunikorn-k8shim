@@ -31,7 +31,7 @@ const (
 
 type TaskEvent interface {
 	getEvent() TaskEventType
-	getArgs() []interface{}
+	getArgs() interface{}
 }
 
 type TaskEvents struct {
@@ -63,7 +63,7 @@ func (st SubmitTaskEvent) getEvent() TaskEventType {
 	return st.event
 }
 
-func (st SubmitTaskEvent) getArgs() []interface{} {
+func (st SubmitTaskEvent) getArgs() interface{} {
 	return nil
 }
 
@@ -78,7 +78,7 @@ type AllocatedTaskEvent struct {
 func NewAllocateTaskEvent(nid string) AllocatedTaskEvent {
 	return AllocatedTaskEvent{
 		event: Allocated,
-		nodeId:        nid,
+		nodeId: nid,
 	}
 }
 
@@ -86,10 +86,8 @@ func (ae AllocatedTaskEvent) getEvent() TaskEventType {
 	return ae.event
 }
 
-func (ae AllocatedTaskEvent) getArgs() []interface{} {
-	args := make([]interface{}, 1)
-	args[0] = ae.nodeId
-	return args
+func (ae AllocatedTaskEvent) getArgs() interface{} {
+	return ae.nodeId
 }
 
 // ------------------------
@@ -109,7 +107,7 @@ func (bt BindTaskEvent) getEvent() TaskEventType {
 	return bt.event
 }
 
-func (bt BindTaskEvent) getArgs() []interface{} {
+func (bt BindTaskEvent) getArgs() interface{} {
 	return nil
 }
 
@@ -133,8 +131,6 @@ func (ae FailTaskEvent) getEvent() TaskEventType {
 	return ae.event
 }
 
-func (ae FailTaskEvent) getArgs() []interface{} {
-	args := make([]interface{}, 1)
-	args[0] = ae.message
-	return args
+func (ae FailTaskEvent) getArgs() interface{} {
+	return ae.message
 }

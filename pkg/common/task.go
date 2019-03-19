@@ -30,7 +30,7 @@ type Task struct {
 	taskId        string
 	jobId         string
 	pod           *v1.Pod
-	kubeClient client.KubeClient
+	kubeClient    client.KubeClient
 	Events        *TaskEvents
 	sm            *fsm.FSM
 	lock          sync.RWMutex
@@ -98,6 +98,10 @@ func (task *Task) handleFailEvent(event *fsm.Event) {
 		task.jobId, task.taskId, event.Args[0])
 }
 
+// this is called after task reaches ALLOCATED state,
+// we run this in a go routine to bind pod to the allocated node,
+// if successful, we move task to next state BOUND,
+// otherwise we fail the task
 func (task *Task) postTaskAllocated(event *fsm.Event) {
 	go func(event *fsm.Event) {
 		task.lock.Lock()
@@ -112,7 +116,7 @@ func (task *Task) postTaskAllocated(event *fsm.Event) {
 			task.Handle(NewFailTaskEvent(errorMessage))
 		}
 
-		nodeId := fmt.Sprintf("%v", event.Args[0])
+		nodeId := fmt.Sprint(event.Args[0])
 		glog.V(4).Infof("bind pod target: name: %s, uid: %s", task.pod.Name, task.pod.UID)
 		if err := task.kubeClient.Bind(task.pod, nodeId); err != nil {
 			errorMessage = fmt.Sprintf("bind pod failed, name: %s, uid: %s, %#v",
@@ -121,6 +125,7 @@ func (task *Task) postTaskAllocated(event *fsm.Event) {
 			task.Handle(NewFailTaskEvent(errorMessage))
 			return
 		}
+
 		glog.V(3).Infof("Successfully bound pod %s", task.pod.Name)
 		task.Handle(NewBindTaskEvent())
 	}(event)
@@ -128,8 +133,6 @@ func (task *Task) postTaskAllocated(event *fsm.Event) {
 
 // event handling
 func (task *Task) Handle(te TaskEvent) error {
-	task.lock.Lock()
-	defer task.lock.Unlock()
 	glog.V(4).Infof("Task(%s): preState: %s, coming event: %s",
 		task.taskId, task.sm.Current(), te.getEvent())
 	err := task.sm.Event(string(te.getEvent()), te.getArgs())
