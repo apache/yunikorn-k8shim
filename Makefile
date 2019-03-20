@@ -36,7 +36,7 @@ image: build_image
 
 run: build
 	cp ${LOCAL_CONF}/${CONF_FILE} .
-	./${BINARY} --logtostderr=true -v=5 -kubeconfig=/Users/wyang/.kube/config
+	./${BINARY} --logtostderr=true -v=5 -kubeconfig=$(HOME)/.kube/config
 	
 
 clean:
