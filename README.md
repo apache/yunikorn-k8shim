@@ -6,6 +6,8 @@ By default, it handles all pods scheduling if pod's spec has field `schedulerNam
 
 ## Development Environment setup
 
+Read [env-setup](./docs/env-setup.md) first to setup Docker, Kubernetes development environment.
+
 ### 1. Get source code
 ```
 cd $GOPATH
@@ -68,26 +70,4 @@ kubectl create -f deployments/sleep/sleeppods.xml
 
 `./deployments/spark` contains pod template files for Spark driver and executor, they can be used if you want to run Spark on k8s using this scheduler.
 
-
-## Options 
-
-### Logging level
-
-```
-# logging level
-0: FATAL
-1: ERROR
-2: WARN
-3: INFO
-4: DEBUG
-5: VERBOSE
-
-# log VERBOSE to stderr
-./k8s_yunikorn_scheduler -logtostderr=true -v=5
-
-# log INFO to file under certain dir
-./k8s_yunikorn_scheduler -log_dir=/path/to/logs -v=3
-
-# more options
-./k8s_yunikorn_scheduler -help
-```
+Tutorial of running Spark with YuniKorn can be found [here](./docs/spark.md).
