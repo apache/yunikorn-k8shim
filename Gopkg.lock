@@ -171,15 +171,15 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:add5a397ba3eff5babe85424c0594db4e89eb215854d1fa6ff740fb3a6ba4902"
+  digest = "1:57613082e9611ae64978a694d6de67430421ec647333c97774b4e6982298adb8"
   name = "github.infra.cloudera.com/yunikorn/scheduler-interface"
   packages = ["lib/go/si"]
   pruneopts = ""
-  revision = "199be046a781be94b4ad6b40d9c2e01f74229b6e"
+  revision = "9bb21b5bf114150d3df4da2cef174851cabedf53"
 
 [[projects]]
   branch = "master"
-  digest = "1:4b6abd6fc7ce6f8ea9f03a8b8fab3b294f258d5b95db170b213a44cd0ecf644a"
+  digest = "1:4e6999222c31bd490c1f5fc0e6aada0dc7c8231b73df331e2e9988ff96a326d0"
   name = "github.infra.cloudera.com/yunikorn/yunikorn-core"
   packages = [
     "pkg/api",
@@ -200,19 +200,19 @@
     "pkg/webservice/dao",
   ]
   pruneopts = ""
-  revision = "70c237d96cb266d887bfc5574a155578e44ca865"
+  revision = "12e0683c680fb2559e76479a08f392fdc060bc1d"
 
 [[projects]]
   branch = "master"
-  digest = "1:c81a0b59fb29b7b1db82ab9022fcb4a4284317b6cadc015048e994ed6b9599ab"
+  digest = "1:36ef1d8645934b1744cc7d8726e00d3dd9d8d84c18617bf7367a3a6d532f3370"
   name = "golang.org/x/crypto"
   packages = ["ssh/terminal"]
   pruneopts = ""
-  revision = "b7391e95e576cacdcdd422573063bc057239113d"
+  revision = "a5d413f7728c81fb97d96a2b722368945f651e78"
 
 [[projects]]
   branch = "master"
-  digest = "1:2edbdba51caaa974da24fd3d5c4bb79a907bdc90cbe893aff4fb61ff20a3f41a"
+  digest = "1:ca92e2feb3da3eafb66a9a5604e4bec7a1df56fd3715324c7c003e335bddaed5"
   name = "golang.org/x/net"
   packages = [
     "context",
@@ -225,7 +225,7 @@
     "trace",
   ]
   pruneopts = ""
-  revision = "e3b2ff56ed879efa686c9d09ed74f9bfe42f1a1d"
+  revision = "15845e8f865bdabdefb6e7da65b4d9e8de5e94ef"
 
 [[projects]]
   branch = "master"
@@ -658,6 +658,7 @@
     "github.com/pkg/errors",
     "github.infra.cloudera.com/yunikorn/scheduler-interface/lib/go/si",
     "github.infra.cloudera.com/yunikorn/yunikorn-core/pkg/api",
+    "github.infra.cloudera.com/yunikorn/yunikorn-core/pkg/common/configs",
     "github.infra.cloudera.com/yunikorn/yunikorn-core/pkg/entrypoint",
     "github.infra.cloudera.com/yunikorn/yunikorn-core/pkg/rmproxy",
     "gotest.tools/assert",

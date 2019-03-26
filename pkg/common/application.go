@@ -115,9 +115,9 @@ func (app *Application) IgnoreScheduleTask(task *Task) {
 func (app *Application) Submit() {
 	glog.V(3).Infof("submit new app %s to cluster %s", app.String(), ClusterId)
 	if err := app.schedulerApi.Update(&si.UpdateRequest{
-		NewJobs: []*si.AddJobRequest{
+		NewApplications: []*si.AddApplicationRequest{
 			{
-				JobId:         app.applicationId,
+				ApplicationId: app.applicationId,
 				QueueName:     app.queue,
 				PartitionName: app.partition,
 			},

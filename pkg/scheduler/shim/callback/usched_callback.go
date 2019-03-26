@@ -33,25 +33,25 @@ func NewSimpleRMCallback(ctx *state.Context) *SimpleRMCallback {
 func (callback *SimpleRMCallback) RecvUpdateResponse(response *si.UpdateResponse) error {
 	glog.V(4).Infof("callback received response: %s", response.String())
 
-	// handle new accepted jobs
-	for _, job := range response.AcceptedJobs {
+	// handle new accepted apps
+	for _, app := range response.AcceptedApplications {
 		// update context
-		glog.V(4).Infof("callback: response to accepted job: %s", job.JobId)
-		callback.context.ApplicationAccepted(job.JobId)
+		glog.V(4).Infof("callback: response to accepted application: %s", app.ApplicationId)
+		callback.context.ApplicationAccepted(app.ApplicationId)
 	}
 
-	for _, job := range response.RejectedJobs {
+	for _, app := range response.RejectedApplications {
 		// update context
-		glog.V(4).Infof("callback: response to rejected job: %s", job.JobId)
-		callback.context.ApplicationRejected(job.JobId)
+		glog.V(4).Infof("callback: response to rejected application: %s", app.ApplicationId)
+		callback.context.ApplicationRejected(app.ApplicationId)
 	}
 
 	// handle new allocations
 	for _, alloc := range response.NewAllocations {
 		// got allocation for pod, bind pod to the scheduled node
-		glog.V(4).Infof("callback: response to new allocation, allocationKey: %s, jobId: %s, nodeId: %s",
-			alloc.AllocationKey, alloc.JobId, alloc.NodeId)
-		if err := callback.context.AllocateTask(alloc.JobId, alloc.AllocationKey, alloc.NodeId); err != nil {
+		glog.V(4).Infof("callback: response to new allocation, allocationKey: %s, applicationId: %s, nodeId: %s",
+			alloc.AllocationKey, alloc.ApplicationId, alloc.NodeId)
+		if err := callback.context.AllocateTask(alloc.ApplicationId, alloc.AllocationKey, alloc.NodeId); err != nil {
 			glog.V(1).Infof("failed to allocate task, error %v", err)
 		}
 	}
@@ -60,8 +60,8 @@ func (callback *SimpleRMCallback) RecvUpdateResponse(response *si.UpdateResponse
 		// request rejected by the scheduler, put it back and try scheduling again
 		glog.V(4).Infof("callback: response to rejected allocation, allocationKey: %s",
 			reject.AllocationKey)
-		// TODO reject response should include jobId
-		callback.context.OnPodRejected("jobId", reject.AllocationKey)
+		// TODO reject response should include appId
+		callback.context.OnPodRejected("applicationId", reject.AllocationKey)
 	}
 
 	return nil

@@ -30,9 +30,9 @@ func TestSubmitApplication(t *testing.T) {
 func TestRunApplication(t *testing.T) {
 	ms := &MockSchedulerApi{}
 	ms.updateFn = func(request *si.UpdateRequest) error {
-		assert.Equal(t, len(request.NewJobs), 1)
-		assert.Equal(t, request.NewJobs[0].JobId, "app00001")
-		assert.Equal(t, request.NewJobs[0].QueueName, "root.abc")
+		assert.Equal(t, len(request.NewApplications), 1)
+		assert.Equal(t, request.NewApplications[0].ApplicationId, "app00001")
+		assert.Equal(t, request.NewApplications[0].QueueName, "root.abc")
 		return nil
 	}
 

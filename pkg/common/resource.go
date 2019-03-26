@@ -84,7 +84,7 @@ func CreateUpdateRequestForTask(appId string, taskId string, queueName string, r
 		AllocationKey: taskId,
 		ResourceAsk:   resource,
 		QueueName:     queueName,
-		JobId:         appId,
+		ApplicationId: appId,
 		MaxAllocations: 1,
 	}
 
