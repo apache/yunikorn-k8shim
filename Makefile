@@ -4,6 +4,7 @@ BIN_DIR=bin
 RELEASE_BIN_DIR=${OUTPUT}/bin
 LOCAL_CONF=conf
 CONF_FILE=queues.yaml
+REPO=github.infra.cloudera.com/yunikorn/k8s-shim/pkg
 
 IMAGE_TAG=yunikorn/scheduler-core
 IMAGE_VERSION=0.1.0
@@ -37,7 +38,10 @@ image: build_image
 run: build
 	cp ${LOCAL_CONF}/${CONF_FILE} .
 	./${BINARY} --logtostderr=true -v=5 -kubeconfig=$(HOME)/.kube/config
-	
+
+test:
+	go test ./... -cover
+	go vet $(REPO)...
 
 clean:
 	rm -rf ${OUTPUT}

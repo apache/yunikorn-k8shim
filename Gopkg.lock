@@ -46,6 +46,19 @@
   version = "v1.3.1"
 
 [[projects]]
+  digest = "1:f9f45f75f332e03fc7e9fe9188ea4e1ce4d14779ef34fa1b023da67518e36327"
+  name = "github.com/google/go-cmp"
+  packages = [
+    "cmp",
+    "cmp/internal/diff",
+    "cmp/internal/function",
+    "cmp/internal/value",
+  ]
+  pruneopts = ""
+  revision = "3af367b6b30c263d47e8895973edcca9a49cf029"
+  version = "v0.2.0"
+
+[[projects]]
   branch = "master"
   digest = "1:754f77e9c839b24778a4b64422236d38515301d2baeb63113aa3edc42e6af692"
   name = "github.com/google/gofuzz"
@@ -166,7 +179,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:64736814cd1bdb78761d6b624238136b64328de397f45b34c1773c5ad06832f8"
+  digest = "1:4b6abd6fc7ce6f8ea9f03a8b8fab3b294f258d5b95db170b213a44cd0ecf644a"
   name = "github.infra.cloudera.com/yunikorn/yunikorn-core"
   packages = [
     "pkg/api",
@@ -187,7 +200,7 @@
     "pkg/webservice/dao",
   ]
   pruneopts = ""
-  revision = "1fbb1a6492986b6e70201342e9bbcd36caefd79d"
+  revision = "70c237d96cb266d887bfc5574a155578e44ca865"
 
 [[projects]]
   branch = "master"
@@ -346,6 +359,20 @@
   pruneopts = ""
   revision = "51d6538a90f86fe93ac480b35f37b2be17fef232"
   version = "v2.2.2"
+
+[[projects]]
+  digest = "1:b0afe5dc12a8405637366435b1b901dae29140b5c8b41785814a6f9d14df3355"
+  name = "gotest.tools"
+  packages = [
+    "assert",
+    "assert/cmp",
+    "internal/difflib",
+    "internal/format",
+    "internal/source",
+  ]
+  pruneopts = ""
+  revision = "1083505acf35a0bd8a696b26837e1fb3187a7a83"
+  version = "v2.3.0"
 
 [[projects]]
   branch = "master"
@@ -633,6 +660,7 @@
     "github.infra.cloudera.com/yunikorn/yunikorn-core/pkg/api",
     "github.infra.cloudera.com/yunikorn/yunikorn-core/pkg/entrypoint",
     "github.infra.cloudera.com/yunikorn/yunikorn-core/pkg/rmproxy",
+    "gotest.tools/assert",
     "k8s.io/api/core/v1",
     "k8s.io/apimachinery/pkg/api/resource",
     "k8s.io/apimachinery/pkg/apis/meta/v1",

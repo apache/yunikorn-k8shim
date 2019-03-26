@@ -46,10 +46,9 @@ func GetPodResource(pod *v1.Pod) (resource *si.Resource) {
 }
 
 func GetNodeResource(nodeStatus *v1.NodeStatus) *si.Resource {
-	memory, cpu := ExplainResourceList(nodeStatus.Allocatable)
+	memory, cpu := ExplainResourceList(nodeStatus.Capacity)
 	return NewResource(memory, cpu)
 }
-
 
 func ExplainResourceList(resourceList v1.ResourceList) (m int64, c int64) {
 	var memory, vcore = int64(0), int64(0)
@@ -80,16 +79,11 @@ func ExplainResourceList(resourceList v1.ResourceList) (m int64, c int64) {
 	return memory, vcore
 }
 
-func ConvertRequest(jobId string, pod *v1.Pod) si.UpdateRequest {
-	podResource := GetPodResource(pod)
-	jobQueue := JobDefaultQueue
-	if queueName, ok := pod.Labels[LabelQueueName]; ok {
-		jobQueue = queueName
-	}
+func CreateUpdateRequestForTask(jobId string, taskId string, queueName string, resource *si.Resource) si.UpdateRequest {
 	ask := si.AllocationAsk{
-		AllocationKey: string(pod.UID),
-		ResourceAsk:   podResource,
-		QueueName:     jobQueue,
+		AllocationKey: taskId,
+		ResourceAsk:   resource,
+		QueueName:     queueName,
 		JobId:         jobId,
 		MaxAllocations: 1,
 	}
@@ -103,5 +97,39 @@ func ConvertRequest(jobId string, pod *v1.Pod) si.UpdateRequest {
 	}
 
 	return result
+}
+
+func CreateResource(memory int64, vcore int64) si.Resource {
+	return si.Resource{
+		Resources: map[string]*si.Quantity{
+			Memory: {Value: memory},
+			CPU:  {Value: vcore},
+		}}
+}
+
+func CreateUpdateRequestForNode(node Node) si.UpdateRequest {
+	// Use node's name as the NodeId, this is because when bind pod to node,
+	// name of node is required but uid is optional.
+	nodeInfo := &si.NewNodeInfo{
+		NodeId: node.name,
+		SchedulableResource: node.resource,
+		// TODO is this required?
+		Attributes: map[string]string{
+			DefaultNodeAttributeHostNameKey : node.name,
+			DefaultNodeAttributeRackNameKey: DefaultRackName,
+		},
+	}
+
+	glog.V(3).Infof("node ID %s, resource: %s, ",
+		nodeInfo.NodeId,
+		nodeInfo.SchedulableResource.String())
+
+	nodes := make([]*si.NewNodeInfo, 1)
+	nodes[0] = nodeInfo
+	request := si.UpdateRequest{
+		NewSchedulableNodes: nodes,
+		RmId:                ClusterId,
+	}
+	return request
 }
 

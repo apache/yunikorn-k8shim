@@ -48,15 +48,24 @@ type Context struct {
 	// pvInformer       infomerv1.PersistentVolumeInformer
 	// pvcInformer      infomerv1.PersistentVolumeClaimInformer
 
+	testMode bool
 	lock *sync.RWMutex
 }
 
+
 func NewContext(scheduler api.SchedulerApi, configs *conf.SchedulerConf) *Context {
+	kc := client.NewKubeClient(configs.KubeConfig)
+	return NewContextInternal(scheduler, configs, kc, false)
+}
+
+// only for testing
+func NewContextInternal(scheduler api.SchedulerApi, configs *conf.SchedulerConf, client client.KubeClient, testMode bool) *Context {
 	ctx := &Context{
 		jobMap: make(map[string]*common.Job),
 		conf: configs,
-		kubeClient: client.NewKubeClient(configs.KubeConfig),
+		kubeClient: client,
 		schedulerApi: scheduler,
+		testMode: testMode,
 		lock: &sync.RWMutex{},
 	}
 
@@ -191,13 +200,19 @@ func (ctx *Context) getOrCreateJob(pod *v1.Pod) *common.Job {
 	if job, ok := ctx.jobMap[jobId]; ok {
 		return job
 	} else {
-		newJob := common.NewJob(jobId, ctx.schedulerApi)
-		if queueName, ok := pod.Labels[common.LabelQueueName]; ok {
-			newJob.Queue = queueName
+		queueName := common.JobDefaultQueue
+		if an, ok := pod.Labels[common.LabelQueueName]; ok {
+			queueName = an
 		}
+		newJob := common.NewJob(jobId, queueName, ctx.schedulerApi)
 		ctx.jobMap[jobId] = newJob
 		return ctx.jobMap[jobId]
 	}
+}
+
+// for testing only
+func (ctx *Context) AddJob(job *common.Job) {
+	ctx.jobMap[job.JobId] = job
 }
 
 func (ctx *Context) getOrAddTask(job *common.Job, pod *v1.Pod) *common.Task {
@@ -265,6 +280,8 @@ func (ctx *Context) SelectJobs(filter func(job *common.Job) bool) []*common.Job 
 }
 
 func (ctx *Context) Run(stopCh <-chan struct{}) {
-	go ctx.nodeInformer.Informer().Run(stopCh)
-	go ctx.podInformer.Informer().Run(stopCh)
+	if !ctx.testMode {
+		go ctx.nodeInformer.Informer().Run(stopCh)
+		go ctx.podInformer.Informer().Run(stopCh)
+	}
 }

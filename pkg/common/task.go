@@ -19,6 +19,7 @@ package common
 import (
 	"fmt"
 	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/client"
+	"github.infra.cloudera.com/yunikorn/scheduler-interface/lib/go/si"
 	"github.infra.cloudera.com/yunikorn/yunikorn-core/pkg/api"
 	"strings"
 	"sync"
@@ -32,43 +33,70 @@ type Task struct {
 	taskId        string
 	jobId         string
 	job 		  *Job
+	resource      *si.Resource
 	pod           *v1.Pod
 	kubeClient    client.KubeClient
 	schedulerApi  api.SchedulerApi
-	states        *TaskStates
 	sm            *fsm.FSM
-	lock          sync.RWMutex
+	lock          *sync.RWMutex
 }
 
 func newTask(tid string, job *Job, client client.KubeClient, schedulerApi api.SchedulerApi, pod *v1.Pod) Task {
-	states := InitiateTaskStates()
+	taskResource := GetPodResource(pod)
+	return createTaskInternal(tid, job, taskResource, pod, client, schedulerApi)
+}
+
+func CreateTaskForTest(tid string, job *Job, resource *si.Resource,
+	client client.KubeClient, schedulerApi api.SchedulerApi) Task {
+	return createTaskInternal(tid, job, resource, &v1.Pod{}, client, schedulerApi)
+}
+
+func createTaskInternal(tid string, job *Job, resource *si.Resource,
+	pod *v1.Pod, client client.KubeClient, schedulerApi api.SchedulerApi) Task {
 	task := Task{
-		taskId: tid,
-		jobId:  job.JobId,
-		job: 	job,
-		pod:    pod,
-		kubeClient: client,
+		taskId:       tid,
+		jobId:        job.JobId,
+		job:          job,
+		pod:          pod,
+		resource:     resource,
+		kubeClient:   client,
 		schedulerApi: schedulerApi,
-		states: states,
-		lock:   sync.RWMutex{},
+		lock:         &sync.RWMutex{},
 	}
 
+	var states = States().Task
 	task.sm = fsm.NewFSM(
-		states.PENDING.state,
+		states.Pending,
 		fsm.Events{
-			{Name: string(Submit), Src: []string{states.PENDING.state}, Dst: states.SCHEDULING.state},
-			{Name: string(Allocated), Src: []string{states.SCHEDULING.state}, Dst: states.ALLOCATED.state},
-			{Name: string(Bound), Src: []string{states.ALLOCATED.state}, Dst: states.BOUND.state},
-			{Name: string(Complete), Src: []string{states.BOUND.state}, Dst: states.COMPLETED.state},
-			{Name: string(Kill), Src: []string{states.PENDING.state, states.SCHEDULING.state, states.ALLOCATED.state, states.BOUND.state}, Dst: states.KILLING.state},
-			{Name: string(Killed), Src: []string{states.KILLING.state}, Dst: states.KILLED.state},
-			{Name: string(Rejected), Src: []string{states.SCHEDULING.state}, Dst: states.REJECTED.state},
-			{Name: string(Fail), Src: []string{states.REJECTED.state}, Dst: states.FAILED.state},
+			{Name: string(Submit),
+				Src: []string{states.Pending},
+				Dst: states.Scheduling},
+			{Name: string(Allocated),
+				Src: []string{states.Scheduling},
+				Dst: states.Allocated},
+			{Name: string(Bound),
+				Src: []string{states.Allocated},
+				Dst: states.Bound},
+			{Name: string(Complete),
+				Src: []string{states.Bound},
+				Dst: states.Completed},
+			{Name: string(Kill),
+				Src: []string{states.Pending, states.Scheduling, states.Allocated, states.Bound},
+				Dst: states.Killing},
+			{Name: string(Killed),
+				Src: []string{states.Killing},
+				Dst: states.Killed},
+			{Name: string(Rejected),
+				Src: []string{states.Scheduling},
+				Dst: states.Rejected},
+			{Name: string(Fail),
+				Src: []string{states.Rejected},
+				Dst: states.Failed},
 		},
 		fsm.Callbacks{
 			string(Submit):         task.handleSubmitTaskEvent,
 			string(Fail):           task.handleFailEvent,
-			states.ALLOCATED.state: task.postTaskAllocated,
+			states.Allocated:       task.postTaskAllocated,
 			"enter_state":          task.onStateChange,
 		},
 	)
@@ -94,7 +122,7 @@ func (task *Task) GetTaskState() string {
 }
 
 func (task *Task) IsPending() bool {
-	return strings.Compare(task.GetTaskState(), task.states.PENDING.state) == 0
+	return strings.Compare(task.GetTaskState(), States().Task.Pending) == 0
 }
 
 func (task *Task) handleFailEvent(event *fsm.Event) {
@@ -121,7 +149,12 @@ func (task *Task) onStateChange(event *fsm.Event) {
 func (task *Task) handleSubmitTaskEvent(event *fsm.Event) {
 	glog.V(4).Infof("Trying to schedule pod: %s", task.GetTaskPod().Name)
 	// convert the request
-	rr := ConvertRequest(task.jobId, task.GetTaskPod())
+	//rr := ConvertRequest(task.jobId, task.GetTaskPod())
+	jobQueue := task.job.Queue
+	if queueName, ok := task.pod.Labels[LabelQueueName]; ok {
+		jobQueue = queueName
+	}
+	rr := CreateUpdateRequestForTask(task.jobId, task.taskId, jobQueue, task.resource)
 	glog.V(4).Infof("send update request %s", rr.String())
 	if err := task.schedulerApi.Update(&rr); err != nil {
 		glog.V(2).Infof("failed to send scheduling request to scheduler, error: %v", err)

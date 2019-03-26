@@ -33,9 +33,7 @@ type Job struct {
 	Queue        string
 	Partition    string
 	taskMap      map[string]*Task
-	jobState     string
 	sm           *fsm.FSM
-	States       *JobStates
 	lock         *sync.RWMutex
 	ch           CompletionHandler
 	schedulerApi api.SchedulerApi
@@ -49,16 +47,13 @@ func (job *Job) String() string  {
 		job.JobId, job.Queue, job.Partition, len(job.taskMap), job.GetJobState())
 }
 
-func NewJob(jobId string, scheduler api.SchedulerApi) *Job {
+func NewJob(jobId string, queueName string, scheduler api.SchedulerApi) *Job {
 	taskMap := make(map[string]*Task)
-	states := InitiateJobStates()
 	job := &Job {
 		JobId:     jobId,
 		taskMap:   taskMap,
-		jobState:  states.NEW.state,
-		Queue:     JobDefaultQueue,
+		Queue:     queueName,
 		Partition: DefaultPartition,
-		States:    states,
 		lock:      &sync.RWMutex{},
 		ch:        CompletionHandler {running: false},
 		workChan:  make(chan *Task, 1024),
@@ -66,23 +61,40 @@ func NewJob(jobId string, scheduler api.SchedulerApi) *Job {
 		schedulerApi: scheduler,
 	}
 
+	var states = States().Job
 	job.sm = fsm.NewFSM(
-		states.NEW.state,
+		states.New,
 		fsm.Events{
-			{Name: string(SubmitJob), Src: []string{states.NEW.state}, Dst: states.SUBMITTED.state},
-			{Name: string(AcceptJob), Src: []string{states.SUBMITTED.state}, Dst: states.ACCEPTED.state},
-			{Name: string(RunJob), Src: []string{states.ACCEPTED.state, states.RUNNING.state}, Dst: states.RUNNING.state},
-			{Name: string(CompleteJob), Src: []string{states.RUNNING.state,}, Dst: states.COMPLETED.state},
-			{Name: string(RejectJob), Src: []string{states.SUBMITTED.state}, Dst: states.REJECTED.state},
-			{Name: string(FailJob), Src: []string{states.REJECTED.state, states.ACCEPTED.state, states.RUNNING.state}, Dst: states.FAILED.state},
-			{Name: string(KillJob), Src: []string{states.ACCEPTED.state, states.RUNNING.state}, Dst: states.KILLING.state},
-			{Name: string(KilledJob), Src: []string{states.KILLING.state}, Dst: states.KILLED.state},
+			{Name: string(SubmitJob),
+				Src: []string{states.New},
+				Dst: states.Submitted},
+			{Name: string(AcceptJob),
+				Src: []string{states.Submitted},
+				Dst: states.Accepted},
+			{Name: string(RunJob),
+				Src: []string{states.Accepted, states.Running},
+				Dst: states.Running},
+			{Name: string(CompleteJob),
+				Src: []string{states.Running,},
+				Dst: states.Completed},
+			{Name: string(RejectJob),
+				Src: []string{states.Submitted},
+				Dst: states.Rejected},
+			{Name: string(FailJob),
+				Src: []string{states.Rejected, states.Accepted, states.Running},
+				Dst: states.Failed},
+			{Name: string(KillJob),
+				Src: []string{states.Accepted, states.Running},
+				Dst: states.Killing},
+			{Name: string(KilledJob),
+				Src: []string{states.Killing},
+				Dst: states.Killed},
 		},
 		fsm.Callbacks{
-			"enter_state": 		  job.handleTaskStateChange,
-			states.RUNNING.state: job.handleRunJobEvent,
-			string(RejectJob):    job.handleRejectJobEvent,
-			string(CompleteJob):  job.handleCompleteJobEvent,
+			"enter_state":       job.handleTaskStateChange,
+			states.Running:        job.handleRunJobEvent,
+			string(RejectJob):   job.handleRejectJobEvent,
+			string(CompleteJob): job.handleCompleteJobEvent,
 		},
 	)
 
@@ -96,7 +108,7 @@ func (job *Job) ScheduleTask(task *Task) {
 func (job *Job) IgnoreScheduleTask(task *Task) {
 	glog.V(1).Infof("job %s is in unexpected state, current state is %s," +
 		" task cannot be scheduled if job's state is other than %s",
-		job.JobId, job.GetJobState(), job.States.RUNNING.Value())
+		job.JobId, job.GetJobState(), States().Job.Running)
 }
 
 // submit job to the scheduler
@@ -209,7 +221,7 @@ func (job *Job) handleRunJobEvent(event *fsm.Event) {
 			case task := <-job.workChan:
 				glog.V(3).Infof("Scheduling task: task=%s, state=%s", task.taskId, task.GetTaskState())
 				switch task.GetTaskState() {
-				case task.states.PENDING.state:
+				case States().Task.Pending:
 					task.Handle(NewSubmitTaskEvent())
 				default:
 					// nothing to do here...

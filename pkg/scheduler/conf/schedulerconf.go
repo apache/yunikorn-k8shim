@@ -27,11 +27,11 @@ import (
 )
 
 type SchedulerConf struct {
-	ClusterId string `json: cluster_id"`
-	ClusterVersion string `json: cluster_version`
-	SchedulerName string `json:"scheduler_name"`
-	Interval int `json:"scheduling_interval_in_second"`
-	KubeConfig string `json:"absolute_kube_config_file_path"`
+	ClusterId      string `json:"clusterId"`
+	ClusterVersion string `json:"clusterVersion"`
+	SchedulerName  string `json:"schedulerName"`
+	Interval       int    `json:"schedulingIntervalSecond"`
+	KubeConfig     string `json:"absoluteKubeConfigFilePath"`
 }
 
 func (conf *SchedulerConf) GetSchedulingInterval() time.Duration {

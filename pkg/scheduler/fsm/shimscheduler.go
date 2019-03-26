@@ -36,27 +36,25 @@ type ShimScheduler struct {
 	callback api.ResourceManagerCallback
 	sm *fsm.FSM
 	events *SchedulerEvents
-	states *SchedulerStates
 	lock *sync.Mutex
 }
 
 func NewShimScheduler(p *rmproxy.RMProxy, ctx *state.Context, cb api.ResourceManagerCallback) *ShimScheduler {
 	var events = InitiateEvents()
-	var states =  InitiateStates()
 	ss := &ShimScheduler{
 		rmProxy: p,
 		context: ctx,
 		callback: cb,
 		events:  events,
-		states: states,
 	}
 
+	var states = common.States().Scheduler
 	ss.sm = fsm.NewFSM(
-		ss.states.NEW.state,
+		states.New,
 		fsm.Events{
 			{ Name: events.REGISTER.event,
-				Src: []string{states.NEW.state},
-				Dst: states.REGISTERED.state},
+				Src: []string{states.New},
+				Dst: states.Registered},
 			//{Name: "reject", Src: []string{"new"}, Dst: "rejected"},
 		},
 		fsm.Callbacks{
@@ -89,6 +87,10 @@ func (ss *ShimScheduler) registerShimLayer() error {
 	return nil
 }
 
+func (ss *ShimScheduler) GetSchedulerState() string {
+	return ss.sm.Current()
+}
+
 // event handling
 func (ss *ShimScheduler) Handle(se SchedulerEvent) error {
 	glog.V(4).Infof("ShimScheduler: preState: %s, coming event: %s", ss.sm.Current(), se.event)
@@ -102,17 +104,18 @@ func (ss *ShimScheduler) schedule() {
 	jobs := ss.context.SelectJobs(nil)
 	for _, job := range jobs {
 		for _, pendingTask := range job.GetPendingTasks() {
+			var states = common.States().Job
 			glog.V(3).Infof("schedule job %s pending task: %s", job.JobId, pendingTask.GetTaskPod().Name)
 			switch job.GetJobState() {
-			case job.States.NEW.Value():
+			case states.New:
 				job.Submit()
-			case job.States.ACCEPTED.Value():
+			case states.Accepted:
 				job.Run()
-			case job.States.RUNNING.Value():
+			case states.Running:
 				job.ScheduleTask(pendingTask)
-			case job.States.COMPLETED.Value():
+			case states.Completed:
 				job.IgnoreScheduleTask(pendingTask)
-			case job.States.REJECTED.Value():
+			case states.Rejected:
 				job.IgnoreScheduleTask(pendingTask)
 			}
 		}
