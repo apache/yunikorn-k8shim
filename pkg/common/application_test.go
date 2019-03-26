@@ -7,48 +7,48 @@ import (
 	"testing"
 )
 
-func TestNewJob(t *testing.T) {
-	job := NewJob("job00001", "root.queue", newMockSchedulerApi())
-	assert.Equal(t, job.JobId, "job00001" )
-	assert.Equal(t, job.GetJobState(), States().Job.New)
-	assert.Equal(t, job.Partition, DefaultPartition)
-	assert.Equal(t, len(job.taskMap), 0)
-	assert.Equal(t, job.sm.Current(), States().Job.New)
-	assert.Equal(t, job.Queue, "root.queue")
+func TestNewApplication(t *testing.T) {
+	app := NewApplication("app00001", "root.queue", newMockSchedulerApi())
+	assert.Equal(t, app.GetApplicationId(), "app00001" )
+	assert.Equal(t, app.GetApplicationState(), States().Application.New)
+	assert.Equal(t, app.partition, DefaultPartition)
+	assert.Equal(t, len(app.taskMap), 0)
+	assert.Equal(t, app.GetApplicationState(), States().Application.New)
+	assert.Equal(t, app.queue, "root.queue")
 }
 
-func TestSubmitJob(t *testing.T) {
-	job := NewJob("job00001", "root.abc", newMockSchedulerApi())
-	job.Submit()
-	assert.Equal(t, job.GetJobState(), States().Job.Submitted)
+func TestSubmitApplication(t *testing.T) {
+	app := NewApplication("app00001", "root.abc", newMockSchedulerApi())
+	app.Submit()
+	assert.Equal(t, app.GetApplicationState(), States().Application.Submitted)
 
-	// job already submitted
-	job.Submit()
-	assert.Equal(t, job.GetJobState(), States().Job.Submitted)
+	// app already submitted
+	app.Submit()
+	assert.Equal(t, app.GetApplicationState(), States().Application.Submitted)
 }
 
-func TestRunJob(t *testing.T) {
+func TestRunApplication(t *testing.T) {
 	ms := &MockSchedulerApi{}
 	ms.updateFn = func(request *si.UpdateRequest) error {
 		assert.Equal(t, len(request.NewJobs), 1)
-		assert.Equal(t, request.NewJobs[0].JobId, "job00001")
+		assert.Equal(t, request.NewJobs[0].JobId, "app00001")
 		assert.Equal(t, request.NewJobs[0].QueueName, "root.abc")
 		return nil
 	}
 
-	job := NewJob("job00001", "root.abc", ms)
+	app := NewApplication("app00001", "root.abc", ms)
 
-	// job must be submitted before being able to run
-	job.Run()
-	assert.Equal(t, job.GetJobState(), States().Job.New)
+	// app must be submitted before being able to run
+	app.Run()
+	assert.Equal(t, app.GetApplicationState(), States().Application.New)
 
-	// submit the job
-	job.Submit()
-	assert.Equal(t, job.GetJobState(), States().Job.Submitted)
+	// submit the app
+	app.Submit()
+	assert.Equal(t, app.GetApplicationState(), States().Application.Submitted)
 
-	// job must be accepted first
-	job.Run()
-	assert.Equal(t, job.GetJobState(), States().Job.Submitted)
+	// app must be accepted first
+	app.Run()
+	assert.Equal(t, app.GetApplicationState(), States().Application.Submitted)
 
 }
 

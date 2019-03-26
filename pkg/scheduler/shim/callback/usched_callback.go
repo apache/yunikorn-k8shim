@@ -37,13 +37,13 @@ func (callback *SimpleRMCallback) RecvUpdateResponse(response *si.UpdateResponse
 	for _, job := range response.AcceptedJobs {
 		// update context
 		glog.V(4).Infof("callback: response to accepted job: %s", job.JobId)
-		callback.context.JobAccepted(job.JobId)
+		callback.context.ApplicationAccepted(job.JobId)
 	}
 
 	for _, job := range response.RejectedJobs {
 		// update context
 		glog.V(4).Infof("callback: response to rejected job: %s", job.JobId)
-		callback.context.JobRejected(job.JobId)
+		callback.context.ApplicationRejected(job.JobId)
 	}
 
 	// handle new allocations

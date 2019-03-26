@@ -33,13 +33,13 @@ import (
 	"sync"
 )
 
-// context maintains scheduling state, like jobs and jobs' pods.
+// context maintains scheduling state, like apps and apps' tasks.
 type Context struct {
-	jobMap map[string]*common.Job
+	applications   map[string]*common.Application
 	nodeController *controller.NodeController
-	conf *conf.SchedulerConf
-	kubeClient client.KubeClient
-	schedulerApi api.SchedulerApi
+	conf           *conf.SchedulerConf
+	kubeClient     client.KubeClient
+	schedulerApi   api.SchedulerApi
 
 	// informers
 	podInformer infomerv1.PodInformer
@@ -61,12 +61,12 @@ func NewContext(scheduler api.SchedulerApi, configs *conf.SchedulerConf) *Contex
 // only for testing
 func NewContextInternal(scheduler api.SchedulerApi, configs *conf.SchedulerConf, client client.KubeClient, testMode bool) *Context {
 	ctx := &Context{
-		jobMap: make(map[string]*common.Job),
-		conf: configs,
-		kubeClient: client,
+		applications: make(map[string]*common.Application),
+		conf:         configs,
+		kubeClient:   client,
 		schedulerApi: scheduler,
-		testMode: testMode,
-		lock: &sync.RWMutex{},
+		testMode:     testMode,
+		lock:         &sync.RWMutex{},
 	}
 
 	// init controllers
@@ -108,13 +108,13 @@ func (ctx *Context) AddPod(obj interface{}) {
 
 	glog.V(4).Infof("context: handling AddPod podName=%s/%s, podUid=%s", pod.Namespace, pod.Name, pod.UID)
 	if err := ctx.ValidatePod(pod); err != nil {
-		glog.V(1).Infof("job is invalid, error: %s", err.Error())
+		glog.V(1).Infof("application is invalid, error: %s", err.Error())
 		return
 	}
 
-	job := ctx.getOrCreateJob(pod)
-	task := ctx.getOrAddTask(job, pod)
-	job.AddTask(task)
+	app := ctx.getOrCreateApplication(pod)
+	task := ctx.getOrAddTask(app, pod)
+	app.AddTask(task)
 }
 
 func (ctx *Context) UpdatePod(obj, newObj interface{}) {
@@ -129,7 +129,7 @@ func (ctx *Context) UpdatePod(obj, newObj interface{}) {
 
 func (ctx *Context) DeletePod(obj interface{}) {
 	// when a pod is deleted, we need to check its role.
-	// for spark, if driver pod is deleted, then we consider the job is completed
+	// for spark, if driver pod is deleted, then we consider the app is completed
 	var pod *v1.Pod
 	switch t := obj.(type) {
 	case *v1.Pod:
@@ -150,9 +150,9 @@ func (ctx *Context) DeletePod(obj interface{}) {
 	defer ctx.lock.Unlock()
 
 	glog.V(4).Infof("context: handling DeletePod podName=%s/%s, podUid=%s", pod.Namespace, pod.Name, pod.UID)
-	if job := ctx.getOrCreateJob(pod); job != nil {
-		// starts a completion handler to handle the completion of a job on demand
-		job.StartCompletionHandler(ctx.kubeClient, pod)
+	if app := ctx.getOrCreateApplication(pod); app != nil {
+		// starts a completion handler to handle the completion of a app on demand
+		app.StartCompletionHandler(ctx.kubeClient, pod)
 	}
 }
 
@@ -185,98 +185,97 @@ func (ctx *Context) ValidatePod(pod *v1.Pod) error {
 			pod.Spec.SchedulerName, pod.Name, pod.UID, ctx.conf.SchedulerName))
 	}
 
-	jobId := common.GetJobID(pod)
-	if jobId == "" {
-		return errors.Errorf("invalid pod, cannot retrieve jobId from pod's spec")
+	appId := common.GetApplicationId(pod)
+	if appId == "" {
+		return errors.Errorf("invalid pod, cannot retrieve appId from pod's spec")
 	}
 
 	return nil
 }
 
-// if job already exists in the context, directly return the job from context
-// if job doesn't exist in the context yet, create a new job instance and add to context
-func (ctx *Context) getOrCreateJob(pod *v1.Pod) *common.Job {
-	jobId := common.GetJobID(pod)
-	if job, ok := ctx.jobMap[jobId]; ok {
-		return job
+// if app already exists in the context, directly return the app from context
+// if app doesn't exist in the context yet, create a new app instance and add to context
+func (ctx *Context) getOrCreateApplication(pod *v1.Pod) *common.Application {
+	appId := common.GetApplicationId(pod)
+	if app, ok := ctx.applications[appId]; ok {
+		return app
 	} else {
-		queueName := common.JobDefaultQueue
+		queueName := common.ApplicationDefaultQueue
 		if an, ok := pod.Labels[common.LabelQueueName]; ok {
 			queueName = an
 		}
-		newJob := common.NewJob(jobId, queueName, ctx.schedulerApi)
-		ctx.jobMap[jobId] = newJob
-		return ctx.jobMap[jobId]
+		newApp := common.NewApplication(appId, queueName, ctx.schedulerApi)
+		ctx.applications[appId] = newApp
+		return ctx.applications[appId]
 	}
 }
 
 // for testing only
-func (ctx *Context) AddJob(job *common.Job) {
-	ctx.jobMap[job.JobId] = job
+func (ctx *Context) AddApplication(app *common.Application) {
+	ctx.applications[app.GetApplicationId()] = app
 }
 
-func (ctx *Context) getOrAddTask(job *common.Job, pod *v1.Pod) *common.Task {
+func (ctx *Context) getOrAddTask(app *common.Application, pod *v1.Pod) *common.Task {
 	// using pod UID as taskId
-	if task := job.GetTask(string(pod.UID)); task != nil {
+	if task := app.GetTask(string(pod.UID)); task != nil {
 		return task
 	}
-	newTask := common.CreateTaskFromPod(job, ctx.kubeClient, ctx.schedulerApi, pod)
-	job.AddTask(newTask)
+	newTask := common.CreateTaskFromPod(app, ctx.kubeClient, ctx.schedulerApi, pod)
+	app.AddTask(newTask)
 	return newTask
 }
 
 
-func (ctx *Context) JobAccepted(jobId string) {
-	if job, ok := ctx.jobMap[jobId]; ok {
-		job.Handle(common.NewSimpleJobEvent(common.AcceptJob))
+func (ctx *Context) ApplicationAccepted(appId string) {
+	if app, ok := ctx.applications[appId]; ok {
+		app.Handle(common.NewSimpleApplicationEvent(common.AcceptApplication))
 		return
 	}
-	glog.V(2).Infof("job %s is not found ", jobId)
+	glog.V(2).Infof("app %s is not found ", appId)
 }
 
-func (ctx *Context) JobRejected(jobId string) {
-	if job, ok := ctx.jobMap[jobId]; ok {
-		job.Handle(common.NewSimpleJobEvent(common.RejectJob))
+func (ctx *Context) ApplicationRejected(appId string) {
+	if app, ok := ctx.applications[appId]; ok {
+		app.Handle(common.NewSimpleApplicationEvent(common.RejectApplication))
 		return
 	}
-	glog.V(2).Infof("job %s is rejected by the scheduler, but it is not found in the context", jobId)
+	glog.V(2).Infof("app %s is rejected by the scheduler, but it is not found in the context", appId)
 }
 
 
-func (ctx *Context) AllocateTask(jobId string, taskId string, nodeId string) error {
-	if job := ctx.jobMap[jobId]; job != nil {
-		if task := job.GetTask(taskId); task != nil {
+func (ctx *Context) AllocateTask(appId string, taskId string, nodeId string) error {
+	if app := ctx.applications[appId]; app != nil {
+		if task := app.GetTask(taskId); task != nil {
 			return task.Handle(common.NewAllocateTaskEvent(nodeId))
 		}
 	}
 	return nil
 }
 
-func (ctx *Context) OnPodRejected(jobId string, podUid string) error {
-	if job, ok := ctx.jobMap[jobId]; ok {
-		if task := job.GetTask(podUid); task != nil {
+func (ctx *Context) OnPodRejected(appId string, podUid string) error {
+	if app, ok := ctx.applications[appId]; ok {
+		if task := app.GetTask(podUid); task != nil {
 			task.Handle(common.NewFailTaskEvent(
-				fmt.Sprintf("task %s from job %s is rejected by scheduler", podUid, jobId)))
+				fmt.Sprintf("task %s from application %s is rejected by scheduler", podUid, appId)))
 		}
 	}
-	return errors.New("pod gets rejected, but job info is not found in context," +
+	return errors.New("pod gets rejected, but application info is not found in context," +
 		" something is wrong")
 }
 
-func (ctx *Context) SelectJobs(filter func(job *common.Job) bool) []*common.Job {
+func (ctx *Context) SelectApplications(filter func(app *common.Application) bool) []*common.Application {
 	ctx.lock.RLock()
 	defer ctx.lock.RUnlock()
 
-	jobs := make([]*common.Job, 0)
-	for _, job := range ctx.jobMap {
-		if filter != nil && !filter(job) {
+	apps := make([]*common.Application, 0)
+	for _, app := range ctx.applications {
+		if filter != nil && !filter(app) {
 			continue
 		}
-		// glog.V(4).Infof("pending job %s to job select result", jobId)
-		jobs = append(jobs, job)
+		apps = append(apps, app)
 	}
 
-	return jobs
+	return apps
 }
 
 func (ctx *Context) Run(stopCh <-chan struct{}) {

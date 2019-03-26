@@ -31,8 +31,8 @@ import (
 
 type Task struct {
 	taskId        string
-	jobId         string
-	job 		  *Job
+	applicationId string
+	application   *Application
 	resource      *si.Resource
 	pod           *v1.Pod
 	kubeClient    client.KubeClient
@@ -41,27 +41,27 @@ type Task struct {
 	lock          *sync.RWMutex
 }
 
-func newTask(tid string, job *Job, client client.KubeClient, schedulerApi api.SchedulerApi, pod *v1.Pod) Task {
+func newTask(tid string, app *Application, client client.KubeClient, schedulerApi api.SchedulerApi, pod *v1.Pod) Task {
 	taskResource := GetPodResource(pod)
-	return createTaskInternal(tid, job, taskResource, pod, client, schedulerApi)
+	return createTaskInternal(tid, app, taskResource, pod, client, schedulerApi)
 }
 
-func CreateTaskForTest(tid string, job *Job, resource *si.Resource,
+func CreateTaskForTest(tid string, app *Application, resource *si.Resource,
 	client client.KubeClient, schedulerApi api.SchedulerApi) Task {
-	return createTaskInternal(tid, job, resource, &v1.Pod{}, client, schedulerApi)
+	return createTaskInternal(tid, app, resource, &v1.Pod{}, client, schedulerApi)
 }
 
-func createTaskInternal(tid string, job *Job, resource *si.Resource,
+func createTaskInternal(tid string, app *Application, resource *si.Resource,
 	pod *v1.Pod, client client.KubeClient, schedulerApi api.SchedulerApi) Task {
 	task := Task{
-		taskId:       tid,
-		jobId:        job.JobId,
-		job:          job,
-		pod:          pod,
-		resource:     resource,
-		kubeClient:   client,
-		schedulerApi: schedulerApi,
-		lock:         &sync.RWMutex{},
+		taskId:        tid,
+		applicationId: app.applicationId,
+		application:   app,
+		pod:           pod,
+		resource:      resource,
+		kubeClient:    client,
+		schedulerApi:  schedulerApi,
+		lock:          &sync.RWMutex{},
 	}
 
 	var states = States().Task
@@ -104,8 +104,8 @@ func createTaskInternal(tid string, job *Job, resource *si.Resource,
 	return task
 }
 
-func CreateTaskFromPod(job *Job, client client.KubeClient, scheduler api.SchedulerApi, pod *v1.Pod) *Task {
-	task := newTask(string(pod.UID), job, client, scheduler, pod)
+func CreateTaskFromPod(app *Application, client client.KubeClient, scheduler api.SchedulerApi, pod *v1.Pod) *Task {
+	task := newTask(string(pod.UID), app, client, scheduler, pod)
 	return &task
 }
 
@@ -135,26 +135,26 @@ func (task *Task) handleFailEvent(event *fsm.Event) {
 		return
 	}
 
-	glog.V(1).Infof("Task failed, jobId=%s, taskId=%s, error message: %s",
-		task.jobId, task.taskId, event.Args[0])
+	glog.V(1).Infof("Task failed, applicationId=%s, taskId=%s, error message: %s",
+		task.applicationId, task.taskId, event.Args[0])
 }
 
 func (task *Task) onStateChange(event *fsm.Event) {
 	glog.V(4).Infof("Enqueue task on state change," +
 		" taskId=%s, preState=%s, postState=%s",
 		task.taskId, event.Src, event.Dst)
-	task.job.workChan <- task
+	task.application.workChan <- task
 }
 
 func (task *Task) handleSubmitTaskEvent(event *fsm.Event) {
 	glog.V(4).Infof("Trying to schedule pod: %s", task.GetTaskPod().Name)
 	// convert the request
-	//rr := ConvertRequest(task.jobId, task.GetTaskPod())
-	jobQueue := task.job.Queue
+	//rr := ConvertRequest(task.applicationId, task.GetTaskPod())
+	appQueue := task.application.queue
 	if queueName, ok := task.pod.Labels[LabelQueueName]; ok {
-		jobQueue = queueName
+		appQueue = queueName
 	}
-	rr := CreateUpdateRequestForTask(task.jobId, task.taskId, jobQueue, task.resource)
+	rr := CreateUpdateRequestForTask(task.applicationId, task.taskId, appQueue, task.resource)
 	glog.V(4).Infof("send update request %s", rr.String())
 	if err := task.schedulerApi.Update(&rr); err != nil {
 		glog.V(2).Infof("failed to send scheduling request to scheduler, error: %v", err)

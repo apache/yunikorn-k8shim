@@ -5,9 +5,9 @@ var (
 )
 
 type AllStates struct {
-	Job       *JobStates
-	Task      *TaskStates
-	Scheduler *SchedulerStates
+	Application *ApplicationStates
+	Task        *TaskStates
+	Scheduler   *SchedulerStates
 }
 
 type SchedulerStates struct {
@@ -20,7 +20,7 @@ type SchedulerStates struct {
 	Stopped    string
 }
 
-type JobStates struct {
+type ApplicationStates struct {
 	New       string
 	Submitted string
 	Accepted  string
@@ -47,7 +47,7 @@ type TaskStates struct {
 func States() *AllStates {
 	if states == nil {
 		states = &AllStates{
-			Job: &JobStates{
+			Application: &ApplicationStates{
 				New:       "New",
 				Submitted: "Submitted",
 				Accepted:  "Accepted",

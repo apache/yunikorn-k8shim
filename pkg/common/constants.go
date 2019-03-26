@@ -27,10 +27,10 @@ const DefaultNodeAttributeHostNameKey = "si.io/hostname"
 const DefaultNodeAttributeRackNameKey = "si.io/rackname"
 const DefaultRackName = "/rack-default"
 
-// Job
-const LabelJobId = "jobId"
+// Application
+const LabelApplicationId = "applicationId"
 const LabelQueueName = "queue"
-const JobDefaultQueue = "root"
+const ApplicationDefaultQueue = "root"
 const DefaultPartition = "default"
 
 // Resource

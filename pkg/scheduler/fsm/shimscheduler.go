@@ -99,24 +99,25 @@ func (ss *ShimScheduler) Handle(se SchedulerEvent) error {
 	return err
 }
 
-// each schedule iteration, we scan all jobs and triggers job state transition
+// each schedule iteration, we scan all apps and triggers app state transition
 func (ss *ShimScheduler) schedule() {
-	jobs := ss.context.SelectJobs(nil)
-	for _, job := range jobs {
-		for _, pendingTask := range job.GetPendingTasks() {
-			var states = common.States().Job
-			glog.V(3).Infof("schedule job %s pending task: %s", job.JobId, pendingTask.GetTaskPod().Name)
-			switch job.GetJobState() {
+	apps := ss.context.SelectApplications(nil)
+	for _, app := range apps {
+		for _, pendingTask := range app.GetPendingTasks() {
+			var states = common.States().Application
+			glog.V(3).Infof("schedule app %s pending task: %s",
+				app.GetApplicationId(), pendingTask.GetTaskPod().Name)
+			switch app.GetApplicationState() {
 			case states.New:
-				job.Submit()
+				app.Submit()
 			case states.Accepted:
-				job.Run()
+				app.Run()
 			case states.Running:
-				job.ScheduleTask(pendingTask)
+				app.ScheduleTask(pendingTask)
 			case states.Completed:
-				job.IgnoreScheduleTask(pendingTask)
+				app.IgnoreScheduleTask(pendingTask)
 			case states.Rejected:
-				job.IgnoreScheduleTask(pendingTask)
+				app.IgnoreScheduleTask(pendingTask)
 			}
 		}
 	}

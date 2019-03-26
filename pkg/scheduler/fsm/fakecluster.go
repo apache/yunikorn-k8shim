@@ -1,3 +1,19 @@
+/*
+Copyright 2019 The Unity Scheduler Authors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package fsm
 
 import (
@@ -108,9 +124,9 @@ func (fc *FakeCluster) addNode(nodeName string, memory int64, cpu int64) error {
 	return fc.proxy.Update(&request)
 }
 
-func (fc *FakeCluster) addTask(tid string, ask si.Resource, job *common.Job) common.Task{
-	task := common.CreateTaskForTest(tid, job, &ask, fc.client, fc.proxy)
-	job.AddTask(&task)
+func (fc *FakeCluster) addTask(tid string, ask si.Resource, app *common.Application) common.Task{
+	task := common.CreateTaskForTest(tid, app, &ask, fc.client, fc.proxy)
+	app.AddTask(&task)
 	return task
 }
 
@@ -127,49 +143,49 @@ func (fc *FakeCluster) waitForSchedulerState(t *testing.T, expectedState string)
 	}
 }
 
-func (fc *FakeCluster) waitAndAssertJobState(t *testing.T, jobId string, expectedState string) {
-	jobList := fc.context.SelectJobs(func(job *common.Job) bool {
-		return job.JobId == jobId
+func (fc *FakeCluster) waitAndAssertApplicationState(t *testing.T, appId string, expectedState string) {
+	appList := fc.context.SelectApplications(func(app *common.Application) bool {
+		return app.GetApplicationId() == appId
 	})
-	assert.Equal(t, len(jobList), 1)
-	assert.Equal(t, jobList[0].JobId, jobId)
+	assert.Equal(t, len(appList), 1)
+	assert.Equal(t, appList[0].GetApplicationId(), appId)
 	deadline := time.Now().Add(10 * time.Second)
 	for {
-		if jobList[0].GetJobState() == expectedState {
+		if appList[0].GetApplicationState() == expectedState {
 			break
 		}
 
 		if time.Now().After(deadline) {
-			t.Errorf("job %s doesn't reach expected state in given time, expecting: %s, actual: %s",
-				jobId, expectedState, jobList[0].GetJobState())
+			t.Errorf("application %s doesn't reach expected state in given time, expecting: %s, actual: %s",
+				appId, expectedState, appList[0].GetApplicationState())
 		}
 	}
 }
 
-func (fc *FakeCluster) addJob(job *common.Job) {
-	fc.context.AddJob(job)
+func (fc *FakeCluster) addApplication(app *common.Application) {
+	fc.context.AddApplication(app)
 }
 
-func (fc *FakeCluster) newJob(jobId string, queueName string) *common.Job {
-	return common.NewJob(jobId, queueName, fc.proxy)
+func (fc *FakeCluster) newApplication(appId string, queueName string) *common.Application {
+	return common.NewApplication(appId, queueName, fc.proxy)
 }
 
-func (fc *FakeCluster) waitAndAssertTaskState(t *testing.T, jobId string, taskId string, expectedState string) {
-	jobList := fc.context.SelectJobs(func(job *common.Job) bool {
-		return job.JobId == jobId
+func (fc *FakeCluster) waitAndAssertTaskState(t *testing.T, appId string, taskId string, expectedState string) {
+	appList := fc.context.SelectApplications(func(app *common.Application) bool {
+		return app.GetApplicationId() == appId
 	})
-	assert.Equal(t, len(jobList), 1)
-	assert.Equal(t, jobList[0].JobId, jobId)
-	assert.Assert(t, jobList[0].GetTask(taskId) != nil)
+	assert.Equal(t, len(appList), 1)
+	assert.Equal(t, appList[0].GetApplicationId(), appId)
+	assert.Assert(t, appList[0].GetTask(taskId) != nil)
 	deadline := time.Now().Add(10 * time.Second)
 	for {
-		if jobList[0].GetTask(taskId).GetTaskState() == expectedState {
+		if appList[0].GetTask(taskId).GetTaskState() == expectedState {
 			break
 		}
 
 		if time.Now().After(deadline) {
 			t.Errorf("task %s doesn't reach expected state in given time, expecting: %s, actual: %s",
-				taskId, expectedState, jobList[0].GetTask(taskId).GetTaskState())
+				taskId, expectedState, appList[0].GetTask(taskId).GetTaskState())
 		}
 	}
 }

@@ -79,12 +79,12 @@ func ExplainResourceList(resourceList v1.ResourceList) (m int64, c int64) {
 	return memory, vcore
 }
 
-func CreateUpdateRequestForTask(jobId string, taskId string, queueName string, resource *si.Resource) si.UpdateRequest {
+func CreateUpdateRequestForTask(appId string, taskId string, queueName string, resource *si.Resource) si.UpdateRequest {
 	ask := si.AllocationAsk{
 		AllocationKey: taskId,
 		ResourceAsk:   resource,
 		QueueName:     queueName,
-		JobId:         jobId,
+		JobId:         appId,
 		MaxAllocations: 1,
 	}
 

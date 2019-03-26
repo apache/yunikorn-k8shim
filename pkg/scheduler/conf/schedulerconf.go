@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"github.com/golang/glog"
 	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/common"
-	"os"
 	"time"
 )
 
@@ -49,15 +48,7 @@ func ParseFromCommandline() *SchedulerConf {
 	var kubeConfig *string
 	var schedulingInterval *int
 
-	//if home := getHomeDir(); home != "" {
-	//	kubeConfig = flag.String("kubeconfig",
-	//		filepath.Join(home, ".kube", "config"),
-	//		"(optional) absolute path to the kubeconfig file")
-	//} else {
-	kubeConfig = flag.String("kubeconfig", "",
-		"absolute path to the kubeconfig file")
-	//}
-
+	kubeConfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
 	schedulingInterval = flag.Int("interval", 1, "scheduling interval in seconds")
 	clusterId = flag.String("clusterid", common.ClusterId, "cluster id")
 	clusterVersion = flag.String("clusterversion", common.ClusterVersion, "cluster version")
@@ -72,13 +63,6 @@ func ParseFromCommandline() *SchedulerConf {
 		Interval: *schedulingInterval,
 		KubeConfig: *kubeConfig,
 	}
-}
-
-func getHomeDir() string {
-	if h := os.Getenv("HOME"); h != "" {
-		return h
-	}
-	return ""
 }
 
 func (conf *SchedulerConf) DumpConfiguration() {
