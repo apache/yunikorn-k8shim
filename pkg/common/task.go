@@ -115,6 +115,10 @@ func (task *Task) GetTaskPod() *v1.Pod {
 	return task.pod
 }
 
+func (task *Task) GetTaskId() string {
+	return task.taskId
+}
+
 func (task *Task) GetTaskState() string {
 	task.lock.RLock()
 	defer task.lock.RUnlock()

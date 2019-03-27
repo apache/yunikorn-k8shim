@@ -179,7 +179,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:4e6999222c31bd490c1f5fc0e6aada0dc7c8231b73df331e2e9988ff96a326d0"
+  digest = "1:ddfe495af97de485333ee579d2a8d904c1a58ad15656591f530696abb68dadf4"
   name = "github.infra.cloudera.com/yunikorn/yunikorn-core"
   packages = [
     "pkg/api",
@@ -200,7 +200,7 @@
     "pkg/webservice/dao",
   ]
   pruneopts = ""
-  revision = "12e0683c680fb2559e76479a08f392fdc060bc1d"
+  revision = "639c9e586e3c6f7facb617e0e236c532ce58b02f"
 
 [[projects]]
   branch = "master"
@@ -212,7 +212,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:ca92e2feb3da3eafb66a9a5604e4bec7a1df56fd3715324c7c003e335bddaed5"
+  digest = "1:508f3242b6949248a4b201ca469142c5cec6e91bda19c0bce004d16285591627"
   name = "golang.org/x/net"
   packages = [
     "context",
@@ -225,7 +225,7 @@
     "trace",
   ]
   pruneopts = ""
-  revision = "15845e8f865bdabdefb6e7da65b4d9e8de5e94ef"
+  revision = "74e053c68e2965fe54b49e4d18cb37db34288db2"
 
 [[projects]]
   branch = "master"
@@ -421,7 +421,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:5b809366886e1bc90591e2d428fb1f2535ed8c83cfd79a61a95a0db15abb9cf8"
+  digest = "1:d219b332851ba3d587820cb9866a7ca61feb16b9af5676ce7408ff241e48e737"
   name = "k8s.io/apimachinery"
   packages = [
     "pkg/api/errors",
@@ -465,11 +465,11 @@
     "third_party/forked/golang/reflect",
   ]
   pruneopts = ""
-  revision = "03ac7a9ade429d715a1a46ceaa3724c18ebae54f"
+  revision = "4ceb6b6c5db56a2f8f454dd837c07160a3d6e131"
 
 [[projects]]
   branch = "master"
-  digest = "1:247e1efa3a829886d91bdd01bb3c7808ce8ab145f2af119dc21668060102b700"
+  digest = "1:0e7102f9323d70a8ad8553b68301916da2da1386ea7b07b802b6df83cd07e23b"
   name = "k8s.io/client-go"
   packages = [
     "discovery",
@@ -619,7 +619,7 @@
     "util/retry",
   ]
   pruneopts = ""
-  revision = "c6841eb0ec87be5c84d6c1b8eb1b8791c528daa7"
+  revision = "35ae057ca1850b929c77a4b32694a0b43c7441b3"
 
 [[projects]]
   digest = "1:5afb58506f8972419a6e93f051513854291127189f04607aac1388eb378c0608"

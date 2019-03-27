@@ -112,9 +112,10 @@ func (ctx *Context) AddPod(obj interface{}) {
 		return
 	}
 
-	app := ctx.getOrCreateApplication(pod)
-	task := ctx.getOrAddTask(app, pod)
-	app.AddTask(task)
+	if app := ctx.getOrCreateApplication(pod); app != nil {
+		task := ctx.getOrAddTask(app, pod)
+		app.AddTask(task)
+	}
 }
 
 func (ctx *Context) UpdatePod(obj, newObj interface{}) {
@@ -185,9 +186,8 @@ func (ctx *Context) ValidatePod(pod *v1.Pod) error {
 			pod.Spec.SchedulerName, pod.Name, pod.UID, ctx.conf.SchedulerName))
 	}
 
-	appId := common.GetApplicationId(pod)
-	if appId == "" {
-		return errors.Errorf("invalid pod, cannot retrieve appId from pod's spec")
+	if _, err := common.GetApplicationId(pod); err != nil {
+		return err
 	}
 
 	return nil
@@ -196,7 +196,12 @@ func (ctx *Context) ValidatePod(pod *v1.Pod) error {
 // if app already exists in the context, directly return the app from context
 // if app doesn't exist in the context yet, create a new app instance and add to context
 func (ctx *Context) getOrCreateApplication(pod *v1.Pod) *common.Application {
-	appId := common.GetApplicationId(pod)
+	appId, err := common.GetApplicationId(pod)
+	if err != nil {
+		glog.V(1).Infof("unable to get application by given pod, error message: %s", err.Error())
+		return nil
+	}
+
 	if app, ok := ctx.applications[appId]; ok {
 		return app
 	} else {
