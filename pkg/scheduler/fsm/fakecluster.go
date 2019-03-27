@@ -29,7 +29,6 @@ import (
 	"github.infra.cloudera.com/yunikorn/yunikorn-core/pkg/rmproxy"
 	"gotest.tools/assert"
 	"k8s.io/api/core/v1"
-	"k8s.io/client-go/kubernetes"
 	"testing"
 	"time"
 )
@@ -50,24 +49,6 @@ type FakeCluster struct {
 	bindFn func(pod *v1.Pod, hostId string) error
 	deleteFn func(pod *v1.Pod) error
 	stopChan chan struct{}
-}
-
-// fake client allows us to inject customized bind/delete pod functions
-type FakeKubeClient struct {
-	bindFn func(pod *v1.Pod, hostId string) error
-	deleteFn func(pod *v1.Pod) error
-}
-
-func (c *FakeKubeClient) Bind(pod *v1.Pod, hostId string) error {
-	return c.bindFn(pod, hostId)
-}
-
-func (c *FakeKubeClient) Delete(pod *v1.Pod) error {
-	return c.deleteFn(pod)
-}
-
-func (c *FakeKubeClient) GetClientSet() *kubernetes.Clientset {
-	return nil
 }
 
 func (fc *FakeCluster) init(queues string) {
@@ -94,9 +75,9 @@ func (fc *FakeCluster) init(queues string) {
 	rmProxy, _, _  := entrypoint.StartAllServices()
 	utils.MockSchedulerConfigByData([]byte(fc.conf))
 
-	client := &FakeKubeClient{
-		bindFn:   fc.bindFn,
-		deleteFn: fc.deleteFn,
+	client := &client.FakeKubeClient{
+		BindFn:   fc.bindFn,
+		DeleteFn: fc.deleteFn,
 	}
 	context := state.NewContextInternal(rmProxy, &configs, client, true)
 	callback := callback.NewSimpleRMCallback(context)

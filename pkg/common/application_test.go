@@ -4,6 +4,8 @@ import (
 	"github.infra.cloudera.com/yunikorn/scheduler-interface/lib/go/si"
 	"github.infra.cloudera.com/yunikorn/yunikorn-core/pkg/api"
 	"gotest.tools/assert"
+	"k8s.io/api/core/v1"
+	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"testing"
 )
 
@@ -50,6 +52,93 @@ func TestRunApplication(t *testing.T) {
 	app.Run()
 	assert.Equal(t, app.GetApplicationState(), States().Application.Submitted)
 
+}
+
+func TestGetApplicationIdFromPod(t *testing.T) {
+	// defined in label
+	pod := v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name:         "pod00001",
+			Namespace:    "default",
+			UID:          "UID-POD-00001",
+			Labels: map[string]string{
+				"applicationId": "app00001",
+				"queue":         "root.a",
+			},
+		},
+		Spec:   v1.PodSpec{},
+		Status: v1.PodStatus{},
+	}
+	appId, err := GetApplicationId(&pod)
+	assert.Equal(t, appId, "app00001")
+	assert.Equal(t, err, nil)
+
+	// defined in annotations
+	pod = v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name:         "pod00001",
+			Namespace:    "default",
+			UID:          "UID-POD-00001",
+			Annotations: map[string]string{
+				"applicationId": "app00002",
+				"queue":         "root.a",
+			},
+		},
+		Spec:   v1.PodSpec{},
+		Status: v1.PodStatus{},
+	}
+	appId, err = GetApplicationId(&pod)
+	assert.Equal(t, appId, "app00002")
+	assert.Equal(t, err, nil)
+
+	// spark app-id
+	pod = v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name:         "pod00001",
+			Namespace:    "default",
+			UID:          "UID-POD-00001",
+			Labels: map[string]string{
+				"spark-app-id": "spark-0001",
+				"queue":         "root.a",
+			},
+		},
+		Spec:   v1.PodSpec{},
+		Status: v1.PodStatus{},
+	}
+	appId, err = GetApplicationId(&pod)
+	assert.Equal(t, appId, "spark-0001")
+	assert.Equal(t, err, nil)
+
+	// not found
+	pod = v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name:         "pod00001",
+			Namespace:    "default",
+			UID:          "UID-POD-00001",
+		},
+		Spec:   v1.PodSpec{},
+		Status: v1.PodStatus{},
+	}
+
+	appId, err = GetApplicationId(&pod)
+	assert.Equal(t, appId, "")
+	assert.Assert(t, err != nil)
 }
 
 func newMockSchedulerApi() *MockSchedulerApi {

@@ -17,6 +17,7 @@ limitations under the License.
 package common
 
 import (
+	"errors"
 	"fmt"
 	"github.com/golang/glog"
 	"github.com/looplab/fsm"
@@ -148,16 +149,27 @@ func (app *Application) AddTask(task *Task) {
 	app.taskMap[task.taskId] = task
 }
 
-func GetApplicationId(pod *v1.Pod) string {
+func GetApplicationId(pod *v1.Pod) (string, error) {
 	for name, value := range pod.Labels {
+		// if a pod for spark already provided appId, reuse it
 		if name == SparkLabelAppId {
-			return value
+			return value, nil
 		}
+
+		// application ID can be defined as a label
 		if name == LabelApplicationId {
-			return value
+			return value, nil
 		}
 	}
-	return ""
+
+	// application ID can be defined in annotations too
+	for name, value := range pod.Annotations {
+		if name == LabelApplicationId {
+			return value, nil
+		}
+	}
+	return "", errors.New(fmt.Sprintf("unable to retrieve application ID from pod spec, %s",
+		pod.Spec.String()))
 }
 
 
