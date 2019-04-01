@@ -124,9 +124,19 @@ func TestAddPod(t *testing.T) {
 	context.AddPod(&pod1)
 	assert.Equal(t, len(context.applications), 1)
 	assert.Equal(t, len(app01.GetPendingTasks()), 2)
-	assert.Equal(t, app01.GetPendingTasks()[1].GetTaskPod().Name, "pod00002")
-	assert.Equal(t, string(app01.GetPendingTasks()[1].GetTaskPod().UID), "UID-POD-00002")
-	assert.Equal(t, app01.GetPendingTasks()[1].GetTaskPod().Namespace, "default")
+
+	for _, pt := range app01.GetPendingTasks() {
+		switch pt.GetTaskPod().Name {
+		case "pod00001" :
+			assert.Equal(t, string(pt.GetTaskPod().UID), "UID-POD-00001")
+			assert.Equal(t, pt.GetTaskPod().Namespace, "default")
+		case "pod00002" :
+			assert.Equal(t, string(pt.GetTaskPod().UID), "UID-POD-00002")
+			assert.Equal(t, pt.GetTaskPod().Namespace, "default")
+		default:
+			t.Fatalf("pending tasks contain unexpected task %s", pt.GetTaskPod().Name)
+		}
+	}
 
 	// add a invalid pod
 	pod2 := v1.Pod{
