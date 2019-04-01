@@ -100,7 +100,7 @@ func (fc *FakeCluster) assertSchedulerState(t *testing.T, expectedState string) 
 func (fc *FakeCluster) addNode(nodeName string, memory int64, cpu int64) error {
 	nodeResource := common.CreateResource(memory, cpu)
 	node := common.CreateFromNodeSpec(nodeName, nodeName, &nodeResource)
-	request := common.CreateUpdateRequestForNode(node)
+	request := common.CreateUpdateRequestForNewNode(node)
 	fmt.Printf("report new nodes to scheduler, request: %s", request.String())
 	return fc.proxy.Update(&request)
 }

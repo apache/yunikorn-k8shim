@@ -107,15 +107,15 @@ func CreateResource(memory int64, vcore int64) si.Resource {
 		}}
 }
 
-func CreateUpdateRequestForNode(node Node) si.UpdateRequest {
+func CreateUpdateRequestForNewNode(node Node) si.UpdateRequest {
 	// Use node's name as the NodeId, this is because when bind pod to node,
 	// name of node is required but uid is optional.
 	nodeInfo := &si.NewNodeInfo{
-		NodeId: node.name,
+		NodeId:              node.name,
 		SchedulableResource: node.resource,
 		// TODO is this required?
 		Attributes: map[string]string{
-			DefaultNodeAttributeHostNameKey : node.name,
+			DefaultNodeAttributeHostNameKey: node.name,
 			DefaultNodeAttributeRackNameKey: DefaultRackName,
 		},
 	}
@@ -131,5 +131,45 @@ func CreateUpdateRequestForNode(node Node) si.UpdateRequest {
 		RmId:                ClusterId,
 	}
 	return request
+}
+
+func CreateUpdateRequestForUpdatedNode(node Node) si.UpdateRequest {
+	// Currently only includes resource in the update request
+	nodeInfo := &si.UpdateNodeInfo{
+		NodeId:              node.name,
+		SchedulableResource: node.resource,
+	}
+
+	glog.V(3).Infof("node ID %s, resource: %s, ",
+		nodeInfo.NodeId,
+		nodeInfo.SchedulableResource.String())
+
+	nodes := make([]*si.UpdateNodeInfo, 1)
+	nodes[0] = nodeInfo
+	request := si.UpdateRequest{
+		UpdatedNodes: nodes,
+		RmId:         ClusterId,
+	}
+	return request
+}
+
+func Equals(left *si.Resource, right *si.Resource) bool {
+	if left == right {
+		return true
+	}
+
+	for k, v := range left.Resources {
+		if right.Resources[k].Value != v.Value {
+			return false
+		}
+	}
+
+	for k, v := range right.Resources {
+		if left.Resources[k].Value != v.Value {
+			return false
+		}
+	}
+
+	return true
 }
 
