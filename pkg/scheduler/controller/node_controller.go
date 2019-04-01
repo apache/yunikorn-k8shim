@@ -17,6 +17,8 @@ limitations under the License.
 package controller
 
 import (
+	"errors"
+	"fmt"
 	"github.com/golang/glog"
 	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/common"
 	"github.infra.cloudera.com/yunikorn/yunikorn-core/pkg/api"
@@ -33,17 +35,29 @@ func NewNodeController(schedulerApi api.SchedulerApi) *NodeController {
 	}
 }
 
+func convertToNode(obj interface{}) (*v1.Node, error) {
+	if node, ok := obj.(*v1.Node); ok {
+		return node, nil
+	}
+	return nil, errors.New(fmt.Sprintf("Cannot convert to *v1.Node: %v", obj))
+}
+
+func equals(n1 *v1.Node, n2 *v1.Node) bool {
+	n1Resource := common.GetNodeResource(&n1.Status)
+	n2Resource := common.GetNodeResource(&n2.Status)
+	return common.Equals(n1Resource, n2Resource)
+}
+
 func (nc *NodeController) AddNode(obj interface{}) {
 	glog.V(4).Infof("node-controller: AddNode")
-
-	node, ok := obj.(*v1.Node)
-	if !ok {
-		glog.Errorf("Cannot convert to *v1.Node: %v", obj)
+	node, err := convertToNode(obj)
+	if err != nil {
+		glog.Errorf(err.Error())
 		return
 	}
 
 	n := common.CreateFrom(node)
-	request := common.CreateUpdateRequestForNode(n)
+	request := common.CreateUpdateRequestForNewNode(n)
 	glog.V(3).Infof("report new nodes to scheduler, request: %s", request.String())
 	if err := nc.proxy.Update(&request); err != nil {
 		glog.V(1).Infof("hitting error while handle AddNode, %#v", err)
@@ -51,9 +65,34 @@ func (nc *NodeController) AddNode(obj interface{}) {
 }
 
 func (nc *NodeController) UpdateNode(oldObj, newObj interface{}) {
-	// glog.V(4).Infof("### node-controller: UpdateNode")
+	// we only trigger update when resource changes
+	oldNode, err := convertToNode(oldObj)
+	if err != nil {
+		glog.Errorf(err.Error())
+		return
+	}
+
+	newNode, err := convertToNode(newObj)
+	if err != nil {
+		glog.Errorf(err.Error())
+		return
+	}
+
+	// node resource changes
+	if equals(oldNode, newNode) {
+		glog.V(3).Infof("Node status not changed, skip this UpdateNode event")
+		return
+	}
+
+	glog.V(4).Infof("node-controller: UpdateNode")
+	node := common.CreateFrom(newNode)
+	request := common.CreateUpdateRequestForUpdatedNode(node)
+	glog.V(3).Infof("send updated nodes to scheduler, request: %s", request.String())
+	if err := nc.proxy.Update(&request); err != nil {
+		glog.V(1).Infof("hitting error while handle UpdateNode, %#v", err)
+	}
 }
 
 func (nc *NodeController) DeleteNode(obj interface{}) {
-	// glog.V(4).Infof("### node-controller: UpdateNode")
+	// TODO
 }
