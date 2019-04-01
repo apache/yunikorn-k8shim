@@ -18,9 +18,9 @@ package main
 
 import (
 	"github.com/golang/glog"
+	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/scheduler/callback"
 	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/scheduler/conf"
 	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/scheduler/fsm"
-	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/scheduler/shim/callback"
 	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/scheduler/state"
 	"github.infra.cloudera.com/yunikorn/yunikorn-core/pkg/entrypoint"
 	"os"
