@@ -62,8 +62,12 @@ partitions:
 
 	// create app and tasks
 	app0001 := cluster.newApplication("app0001", "root.a")
-	cluster.addTask("task0001", common.CreateResource(10, 1), app0001)
-	cluster.addTask("task0002", common.CreateResource(10, 1), app0001)
+	taskResource := common.NewResourceBuilder().
+		AddResource(common.Memory, 10).
+		AddResource(common.CPU, 1).
+		Build()
+	cluster.addTask("task0001", taskResource, app0001)
+	cluster.addTask("task0002", taskResource, app0001)
 
 	// add app to context
 	cluster.addApplication(app0001)
@@ -115,8 +119,12 @@ partitions:
 	cluster.addNode("test.host.02", 100, 10)
 
 	// create app and tasks
+	taskResource := common.NewResourceBuilder().
+		AddResource(common.Memory, 10).
+		AddResource(common.CPU, 1).
+		Build()
 	app0001 := cluster.newApplication("app0001", "root.non_exist_queue")
-	cluster.addTask("task0001", common.CreateResource(10, 1), app0001)
+	cluster.addTask("task0001", taskResource, app0001)
 
 	// add app to context
 	cluster.addApplication(app0001)
@@ -127,7 +135,7 @@ partitions:
 
 	// submit the app again
 	app0001 = cluster.newApplication("app0001", "root.a")
-	cluster.addTask("task0001", common.CreateResource(10, 1), app0001)
+	cluster.addTask("task0001", taskResource, app0001)
 	cluster.addApplication(app0001)
 	cluster.waitAndAssertApplicationState(t, "app0001", common.States().Application.Accepted)
 }
