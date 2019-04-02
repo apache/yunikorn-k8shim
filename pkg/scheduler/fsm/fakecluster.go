@@ -98,15 +98,18 @@ func (fc *FakeCluster) assertSchedulerState(t *testing.T, expectedState string) 
 }
 
 func (fc *FakeCluster) addNode(nodeName string, memory int64, cpu int64) error {
-	nodeResource := common.CreateResource(memory, cpu)
-	node := common.CreateFromNodeSpec(nodeName, nodeName, &nodeResource)
+	nodeResource := common.NewResourceBuilder().
+		AddResource(common.Memory, memory).
+		AddResource(common.CPU, cpu).
+		Build()
+	node := common.CreateFromNodeSpec(nodeName, nodeName, nodeResource)
 	request := common.CreateUpdateRequestForNewNode(node)
 	fmt.Printf("report new nodes to scheduler, request: %s", request.String())
 	return fc.proxy.Update(&request)
 }
 
-func (fc *FakeCluster) addTask(tid string, ask si.Resource, app *common.Application) common.Task{
-	task := common.CreateTaskForTest(tid, app, &ask, fc.client, fc.proxy)
+func (fc *FakeCluster) addTask(tid string, ask *si.Resource, app *common.Application) common.Task{
+	task := common.CreateTaskForTest(tid, app, ask, fc.client, fc.proxy)
 	app.AddTask(&task)
 	return task
 }

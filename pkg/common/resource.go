@@ -23,60 +23,58 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 )
 
-func NewResource(memory int64, vcore int64) *si.Resource {
-	return &si.Resource{
-		Resources: map[string]*si.Quantity{
-			Memory : { Value : memory},
-			CPU : {Value : vcore},
-		},
+// resource builder is a helper struct to construct si resources
+type ResourceBuilder struct {
+	resourceMap map[string]*si.Quantity
+}
+
+func NewResourceBuilder() *ResourceBuilder{
+	return &ResourceBuilder{
+		resourceMap: make(map[string]*si.Quantity),
 	}
+}
+
+func (w *ResourceBuilder) AddResource(name string, value int64) *ResourceBuilder {
+	w.resourceMap[name] = &si.Quantity{Value: value}
+	return w
+}
+
+func (w *ResourceBuilder) Build() *si.Resource{
+	return &si.Resource{Resources: w.resourceMap}
 }
 
 func GetPodResource(pod *v1.Pod) (resource *si.Resource) {
 	glog.V(4).Info("Get resource from pod spec")
-	var memory, vcore = int64(0), int64(0)
+	//var memory, vcore = int64(0), int64(0)
+	var podResource *si.Resource
 	for _, c := range pod.Spec.Containers {
 		resourceList := c.Resources.Requests
-		m, c := ExplainResourceList(resourceList)
-		memory += m
-		vcore += c
+		containerResource := getResource(resourceList)
+		podResource = Add(podResource, containerResource)
 	}
-	glog.V(4).Infof("Parsed resource memory: %d, vcores: %d", memory, vcore)
-	return NewResource(memory, vcore)
+	glog.V(4).Infof("Parsed resource %s", podResource.String())
+	return podResource
 }
 
 func GetNodeResource(nodeStatus *v1.NodeStatus) *si.Resource {
-	memory, cpu := ExplainResourceList(nodeStatus.Capacity)
-	return NewResource(memory, cpu)
+	return getResource(nodeStatus.Capacity)
 }
 
-func ExplainResourceList(resourceList v1.ResourceList) (m int64, c int64) {
-	var memory, vcore = int64(0), int64(0)
+func getResource(resourceList v1.ResourceList) *si.Resource {
+	resources := NewResourceBuilder()
 	for name, value := range resourceList {
-		// log.Printf("parsing resource: resoueceName: %s, value: %s", name, value)
 		switch name {
 		case v1.ResourceMemory:
-			//q, err := resource.ParseQuantity(value)
-			//if err != nil {
-			//	log.Printf("Unable to parse...")
-			//}
-			memory = value.ScaledValue(resource.Mega)
+			memory := value.ScaledValue(resource.Mega)
+			resources.AddResource(Memory, memory)
 		case v1.ResourceCPU:
-			// 500m -> 500
-			// 1 -> 1000
-			//q, err := resource.ParseQuantity(value)
-			//if err != nil {
-			//	log.Printf("Unable to parse %s, value %d",
-			//		v1.ResourceCPU, value.Value())
-			//	continue
-			//}
-			vcore = value.MilliValue()
+			vcore := value.MilliValue()
+			resources.AddResource(CPU, vcore)
 		default:
-			// log.Printf("ignore resource %s=%s", name, value)
-			continue
+			resources.AddResource(string(name), value.Value())
 		}
 	}
-	return memory, vcore
+	return resources.Build()
 }
 
 func CreateUpdateRequestForTask(appId string, taskId string, queueName string, resource *si.Resource) si.UpdateRequest {
@@ -97,14 +95,6 @@ func CreateUpdateRequestForTask(appId string, taskId string, queueName string, r
 	}
 
 	return result
-}
-
-func CreateResource(memory int64, vcore int64) si.Resource {
-	return si.Resource{
-		Resources: map[string]*si.Quantity{
-			Memory: {Value: memory},
-			CPU:  {Value: vcore},
-		}}
 }
 
 func CreateUpdateRequestForNewNode(node Node) si.UpdateRequest {
@@ -158,18 +148,48 @@ func Equals(left *si.Resource, right *si.Resource) bool {
 		return true
 	}
 
-	for k, v := range left.Resources {
-		if right.Resources[k].Value != v.Value {
-			return false
+	if left != nil && left.Resources != nil {
+		for k, v := range left.Resources {
+			if right == nil ||
+				right.Resources[k] == nil ||
+				right.Resources[k].Value != v.Value {
+				return false
+			}
 		}
 	}
 
-	for k, v := range right.Resources {
-		if left.Resources[k].Value != v.Value {
-			return false
+	if right != nil && right.Resources != nil {
+		for k, v := range right.Resources {
+			if left == nil ||
+				left.Resources[k] == nil ||
+				left.Resources[k].Value != v.Value {
+				return false
+			}
 		}
 	}
 
 	return true
+}
+
+func Add(left *si.Resource, right *si.Resource) *si.Resource {
+	result := &si.Resource{Resources: make(map[string]*si.Quantity)}
+	if left == nil && right == nil {
+		return result
+	}
+	if right != nil {
+		for k, v := range right.Resources {
+			result.Resources[k] = v
+		}
+	}
+	if left != nil {
+		for k, v := range left.Resources {
+			if er, ok := result.Resources[k]; ok {
+				result.Resources[k] = &si.Quantity{Value: int64(er.Value + v.Value)}
+				continue
+			}
+			result.Resources[k] = v
+		}
+	}
+	return result
 }
 
