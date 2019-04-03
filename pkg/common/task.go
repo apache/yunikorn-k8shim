@@ -87,7 +87,7 @@ func createTaskInternal(tid string, app *Application, resource *si.Resource,
 				Src: []string{states.Killing},
 				Dst: states.Killed},
 			{Name: string(Rejected),
-				Src: []string{states.Scheduling},
+				Src: []string{states.Pending, states.Scheduling},
 				Dst: states.Rejected},
 			{Name: string(Fail),
 				Src: []string{states.Rejected},
@@ -97,6 +97,7 @@ func createTaskInternal(tid string, app *Application, resource *si.Resource,
 			string(Submit):         task.handleSubmitTaskEvent,
 			string(Fail):           task.handleFailEvent,
 			states.Allocated:       task.postTaskAllocated,
+			states.Rejected:        task.postTaskRejected,
 			"enter_state":          task.onStateChange,
 		},
 	)
@@ -197,6 +198,17 @@ func (task *Task) postTaskAllocated(event *fsm.Event) {
 		glog.V(3).Infof("Successfully bound pod %s", task.pod.Name)
 		task.Handle(NewBindTaskEvent())
 	}(event)
+}
+
+func (task *Task) postTaskRejected(event *fsm.Event) {
+	// currently, once task is rejected by scheduler, we directly move task to failed state.
+	// so this function simply triggers the state transition when it is rejected.
+	// but further, we can introduce retry mechanism if necessary.
+	go func() {
+		task.Handle(NewFailTaskEvent(
+			fmt.Sprintf("task %s failed because it is rejected by scheduler",
+				task.taskId)))
+	}()
 }
 
 // event handling

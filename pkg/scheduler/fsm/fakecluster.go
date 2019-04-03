@@ -80,7 +80,7 @@ func (fc *FakeCluster) init(queues string) {
 		DeleteFn: fc.deleteFn,
 	}
 	context := state.NewContextInternal(rmProxy, &configs, client, true)
-	callback := callback.NewSimpleRMCallback(context)
+	callback := callback.NewAsyncRMCallback(context)
 	ss := NewShimScheduler(rmProxy, context, callback)
 
 	fc.context = context

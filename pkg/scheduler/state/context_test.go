@@ -24,6 +24,7 @@ import (
 	"k8s.io/api/core/v1"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"testing"
+	"time"
 )
 
 const fakeClusterId = "test-cluster"
@@ -187,3 +188,52 @@ func TestAddPod(t *testing.T) {
 	assert.Equal(t, len(app02.GetPendingTasks()), 1)
 	assert.Equal(t, app02.GetApplicationId(), "app00002")
 }
+
+func TestPodRejected(t *testing.T) {
+	context := initContextForTest()
+
+	pod := v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name:         "pod00001",
+			Namespace:    "default",
+			UID:          "UID-POD-00001",
+			Labels: map[string]string{
+				"applicationId": "app00001",
+				"queue":         "root.a",
+			},
+		},
+		Spec:   v1.PodSpec{ SchedulerName: fakeClusterSchedulerName },
+		Status: v1.PodStatus{},
+	}
+
+	context.AddPod(&pod)
+	app01 := context.getOrCreateApplication(&pod)
+	assert.Equal(t, len(context.applications), 1)
+	assert.Equal(t, app01.GetApplicationId(), "app00001")
+	assert.Equal(t, len(app01.GetPendingTasks()), 1)
+	assert.Equal(t, app01.GetPendingTasks()[0].GetTaskPod().Name, "pod00001")
+	assert.Equal(t, string(app01.GetPendingTasks()[0].GetTaskPod().UID), "UID-POD-00001")
+	assert.Equal(t, app01.GetPendingTasks()[0].GetTaskPod().Namespace, "default")
+
+	context.OnTaskRejected("app00001", string(pod.UID))
+	assert.Equal(t, len(app01.GetPendingTasks()), 0)
+	assertTaskState(t, app01.GetTask("UID-POD-00001"), common.States().Task.Failed, 3*time.Second)
+}
+
+func assertTaskState(t *testing.T, task *common.Task, expectedState string, timeout time.Duration) {
+	deadline := time.Now().Add(timeout)
+	for {
+		if task.GetTaskState() == expectedState {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Errorf("task %s doesn't reach expected state in given time, expecting: %s, actual: %s",
+				task.GetTaskId(), expectedState, task.GetTaskState())
+		}
+	}
+}
+

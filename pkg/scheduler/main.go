@@ -46,7 +46,7 @@ func main() {
 	rmProxy, _, _ := entrypoint.StartAllServices()
 
 	context := state.NewContext(rmProxy, configs)
-	callback := callback.NewSimpleRMCallback(context)
+	callback := callback.NewAsyncRMCallback(context)
 
 	stopChan := make(chan struct{})
 	ss := fsm.NewShimScheduler(rmProxy, context, callback)

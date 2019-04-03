@@ -144,3 +144,27 @@ func (ae FailTaskEvent) getEvent() TaskEventType {
 func (ae FailTaskEvent) getArgs() interface{} {
 	return ae.message
 }
+
+
+// ------------------------
+// Fail Event
+// ------------------------
+type RejectTaskEvent struct {
+	event TaskEventType
+	message string
+}
+
+func NewRejectTaskEvent(rejectedMessage string) RejectTaskEvent {
+	return RejectTaskEvent {
+		event: Rejected,
+		message: rejectedMessage,
+	}
+}
+
+func (re RejectTaskEvent) getEvent() TaskEventType {
+	return re.event
+}
+
+func (re RejectTaskEvent) getArgs() interface{} {
+	return re.message
+}

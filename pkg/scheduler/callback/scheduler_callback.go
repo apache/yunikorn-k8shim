@@ -22,15 +22,15 @@ import (
 	"github.infra.cloudera.com/yunikorn/scheduler-interface/lib/go/si"
 )
 
-type SimpleRMCallback struct {
+type AsyncRMCallback struct {
 	context *state.Context
 }
 
-func NewSimpleRMCallback(ctx *state.Context) *SimpleRMCallback {
-	return &SimpleRMCallback{context: ctx}
+func NewAsyncRMCallback(ctx *state.Context) *AsyncRMCallback {
+	return &AsyncRMCallback{context: ctx}
 }
 
-func (callback *SimpleRMCallback) RecvUpdateResponse(response *si.UpdateResponse) error {
+func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse) error {
 	glog.V(4).Infof("callback received response: %s", response.String())
 
 	// handle new accepted apps
@@ -60,8 +60,7 @@ func (callback *SimpleRMCallback) RecvUpdateResponse(response *si.UpdateResponse
 		// request rejected by the scheduler, put it back and try scheduling again
 		glog.V(4).Infof("callback: response to rejected allocation, allocationKey: %s",
 			reject.AllocationKey)
-		// TODO reject response should include appId
-		callback.context.OnPodRejected("applicationId", reject.AllocationKey)
+		callback.context.OnTaskRejected(reject.ApplicationId, reject.AllocationKey)
 	}
 
 	return nil

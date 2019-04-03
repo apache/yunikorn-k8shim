@@ -257,11 +257,12 @@ func (ctx *Context) AllocateTask(appId string, taskId string, nodeId string) err
 	return nil
 }
 
-func (ctx *Context) OnPodRejected(appId string, podUid string) error {
+func (ctx *Context) OnTaskRejected(appId string, podUid string) error {
 	if app, ok := ctx.applications[appId]; ok {
 		if task := app.GetTask(podUid); task != nil {
-			task.Handle(common.NewFailTaskEvent(
+			task.Handle(common.NewRejectTaskEvent(
 				fmt.Sprintf("task %s from application %s is rejected by scheduler", podUid, appId)))
+			return nil
 		}
 	}
 	return errors.New("pod gets rejected, but application info is not found in context," +
