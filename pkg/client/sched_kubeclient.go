@@ -21,6 +21,7 @@ import (
 	"k8s.io/api/core/v1"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
@@ -29,12 +30,25 @@ type SchedulerKubeClient struct {
 }
 
 func newSchedulerKubeClient(kc string) SchedulerKubeClient {
-	config, err := clientcmd.BuildConfigFromFlags("", kc)
+	// using kube config
+	if kc != "" {
+		config, err := clientcmd.BuildConfigFromFlags("", kc)
+		if err != nil {
+			panic(err.Error())
+		}
+		configuredClient := kubernetes.NewForConfigOrDie(config)
+		return SchedulerKubeClient{
+			clientSet: configuredClient,
+		}
+	}
+
+	// using in cluster config
+	config, err := rest.InClusterConfig()
 	if err != nil {
 		panic(err.Error())
 	}
 
-	configuredClient := kubernetes.NewForConfigOrDie(config)
+	configuredClient, err := kubernetes.NewForConfig(config)
 	return SchedulerKubeClient{
 		clientSet: configuredClient,
 	}

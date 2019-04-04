@@ -27,13 +27,20 @@ build_image: init
 	./pkg/scheduler/
 
 image: build_image
-	cp ${RELEASE_BIN_DIR}/${BINARY} ./deployments/image
-	cp ${LOCAL_CONF}/${CONF_FILE} ./deployments/image
+	cp ${RELEASE_BIN_DIR}/${BINARY} ./deployments/image/file
+	cp ${LOCAL_CONF}/${CONF_FILE} ./deployments/image/file
 	GOOS=linux
-	docker build ./deployments/image -t ${IMAGE_TAG}:${IMAGE_VERSION}
+	docker build ./deployments/image/file -t ${IMAGE_TAG}:${IMAGE_VERSION}
 	docker push ${IMAGE_TAG}:${IMAGE_VERSION}
-	rm -f ./deployments/image/${BINARY}
-	rm -f ./deployments/image/${CONF_FILE}
+	rm -f ./deployments/image/file/${BINARY}
+	rm -f ./deployments/image/file/${CONF_FILE}
+
+image2: build_image
+	cp ${RELEASE_BIN_DIR}/${BINARY} ./deployments/image/configmap
+	GOOS=linux
+	docker build ./deployments/image/configmap -t ${IMAGE_TAG}:0.1.10
+	docker push ${IMAGE_TAG}:0.1.10
+	rm -f ./deployments/image/configmap/${BINARY}
 
 run: build
 	cp ${LOCAL_CONF}/${CONF_FILE} .
@@ -47,6 +54,8 @@ clean:
 	rm -rf ${OUTPUT}
 	rm -rf ${BIN_DIR}
 	rm -f ${CONF_FILE} ${BINARY}
-	rm -f ./deployments/image/${BINARY}
-	rm -f ./deployments/image/${CONF_FILE}
+	rm -f ./deployments/image/file/${BINARY}
+	rm -f ./deployments/image/file/${CONF_FILE}
+	rm -f ./deployments/image/configmap/${BINARY}
+	rm -f ./deployments/image/configmap/${CONF_FILE}
 
