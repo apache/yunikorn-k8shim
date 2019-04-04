@@ -90,7 +90,7 @@ func TestAddPod(t *testing.T) {
 		Status: v1.PodStatus{},
 	}
 
-	context.AddPod(&pod)
+	context.addPod(&pod)
 	app01 := context.getOrCreateApplication(&pod)
 	assert.Equal(t, len(context.applications), 1)
 	assert.Equal(t, app01.GetApplicationId(), "app00001")
@@ -100,7 +100,7 @@ func TestAddPod(t *testing.T) {
 	assert.Equal(t, app01.GetPendingTasks()[0].GetTaskPod().Namespace, "default")
 
 	// add same pod again
-	context.AddPod(&pod)
+	context.addPod(&pod)
 	assert.Equal(t, len(context.applications), 1)
 	assert.Equal(t, context.getOrCreateApplication(&pod), app01)
 
@@ -122,7 +122,7 @@ func TestAddPod(t *testing.T) {
 		Spec:   v1.PodSpec{ SchedulerName: fakeClusterSchedulerName },
 		Status: v1.PodStatus{},
 	}
-	context.AddPod(&pod1)
+	context.addPod(&pod1)
 	assert.Equal(t, len(context.applications), 1)
 	assert.Equal(t, len(app01.GetPendingTasks()), 2)
 
@@ -158,7 +158,7 @@ func TestAddPod(t *testing.T) {
 		Status: v1.PodStatus{},
 	}
 
-	context.AddPod(&pod2)
+	context.addPod(&pod2)
 	assert.Equal(t, len(context.applications), 1)
 	assert.Equal(t, len(app01.GetPendingTasks()), 2)
 
@@ -181,7 +181,7 @@ func TestAddPod(t *testing.T) {
 		Status: v1.PodStatus{},
 	}
 
-	context.AddPod(&pod3)
+	context.addPod(&pod3)
 	assert.Equal(t, len(context.applications), 2)
 	assert.Equal(t, len(app01.GetPendingTasks()), 2)
 	app02 := context.getOrCreateApplication(&pod3)
@@ -210,7 +210,7 @@ func TestPodRejected(t *testing.T) {
 		Status: v1.PodStatus{},
 	}
 
-	context.AddPod(&pod)
+	context.addPod(&pod)
 	app01 := context.getOrCreateApplication(&pod)
 	assert.Equal(t, len(context.applications), 1)
 	assert.Equal(t, app01.GetApplicationId(), "app00001")

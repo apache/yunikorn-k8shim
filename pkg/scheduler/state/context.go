@@ -25,6 +25,7 @@ import (
 	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/scheduler/conf"
 	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/scheduler/controller"
 	"github.infra.cloudera.com/yunikorn/yunikorn-core/pkg/api"
+	"github.infra.cloudera.com/yunikorn/yunikorn-core/pkg/rmproxy"
 	"k8s.io/api/core/v1"
 	"k8s.io/client-go/informers"
 	infomerv1 "k8s.io/client-go/informers/core/v1"
@@ -42,14 +43,15 @@ type Context struct {
 	schedulerApi   api.SchedulerApi
 
 	// informers
-	podInformer infomerv1.PodInformer
-	nodeInformer infomerv1.NodeInformer
+	podInformer       infomerv1.PodInformer
+	nodeInformer      infomerv1.NodeInformer
+	configMapInformer infomerv1.ConfigMapInformer
 	// nsInformer       infomerv1.NamespaceInformer
 	// pvInformer       infomerv1.PersistentVolumeInformer
 	// pvcInformer      infomerv1.PersistentVolumeClaimInformer
 
 	testMode bool
-	lock *sync.RWMutex
+	lock     *sync.RWMutex
 }
 
 
@@ -90,16 +92,26 @@ func NewContextInternal(scheduler api.SchedulerApi, configs *conf.SchedulerConf,
 		cache.FilteringResourceEventHandler{
 			FilterFunc: ctx.filterPods,
 			Handler: cache.ResourceEventHandlerFuncs{
-				AddFunc:    ctx.AddPod,
-				UpdateFunc: ctx.UpdatePod,
-				DeleteFunc: ctx.DeletePod,
+				AddFunc:    ctx.addPod,
+				UpdateFunc: ctx.updatePod,
+				DeleteFunc: ctx.deletePod,
 			},
 		})
+
+	ctx.configMapInformer = informerFactory.Core().V1().ConfigMaps()
+	ctx.configMapInformer.Informer().AddEventHandler(cache.FilteringResourceEventHandler{
+		FilterFunc: ctx.filterConfigMaps,
+		Handler: cache.ResourceEventHandlerFuncs{
+			AddFunc:    ctx.addConfigMaps,
+			UpdateFunc: ctx.updateConfigMaps,
+			DeleteFunc: ctx.deleteConfigMaps,
+		},
+	})
 
 	return ctx
 }
 
-func (ctx *Context) AddPod(obj interface{}) {
+func (ctx *Context) addPod(obj interface{}) {
 	pod, ok := obj.(*v1.Pod)
 	if !ok {
 		glog.Errorf("Cannot convert to *v1.Pod: %v", obj)
@@ -118,7 +130,7 @@ func (ctx *Context) AddPod(obj interface{}) {
 	}
 }
 
-func (ctx *Context) UpdatePod(obj, newObj interface{}) {
+func (ctx *Context) updatePod(obj, newObj interface{}) {
 	glog.V(4).Infof("context: handling UpdatePod")
 	pod, ok := newObj.(*v1.Pod)
 	if !ok {
@@ -128,7 +140,7 @@ func (ctx *Context) UpdatePod(obj, newObj interface{}) {
 	glog.V(4).Infof("pod %s status %s", pod.Name, pod.Status.Phase)
 }
 
-func (ctx *Context) DeletePod(obj interface{}) {
+func (ctx *Context) deletePod(obj interface{}) {
 	// when a pod is deleted, we need to check its role.
 	// for spark, if driver pod is deleted, then we consider the app is completed
 	var pod *v1.Pod
@@ -169,6 +181,45 @@ func (ctx *Context) filterPods(obj interface{}) bool {
 		return false
 	default:
 		return false
+	}
+}
+
+// filter configMap for the scheduler
+func (ctx *Context) filterConfigMaps(obj interface{}) bool {
+	switch obj.(type) {
+	case *v1.ConfigMap:
+		cm := obj.(*v1.ConfigMap)
+		return cm.Name == common.DefaultConfigMapName
+	default:
+		return false
+	}
+}
+
+func (ctx *Context) addConfigMaps(obj interface{}) {
+	glog.V(4).Infof("configMap added")
+	ctx.triggerReloadConfig()
+}
+
+func (ctx *Context) updateConfigMaps(obj, newObj interface{}) {
+	glog.V(4).Infof("configMap updated")
+	ctx.triggerReloadConfig()
+}
+
+func (ctx *Context) deleteConfigMaps(obj interface{}) {
+	glog.V(3).Infof("configMap deleted")
+}
+
+func (ctx *Context) triggerReloadConfig() {
+	glog.V(3).Infof("trigger scheduler configuration reloading")
+	// TODO this should be moved to an admin API interface
+	switch ctx.schedulerApi.(type) {
+	case *rmproxy.RMProxy:
+		proxy := ctx.schedulerApi.(*rmproxy.RMProxy)
+		if err := proxy.ReloadConfiguration(); err != nil {
+			glog.V(1).Infof("Reload configuration failed with error %s", err.Error())
+		}
+	default:
+		return
 	}
 }
 
@@ -288,5 +339,6 @@ func (ctx *Context) Run(stopCh <-chan struct{}) {
 	if !ctx.testMode {
 		go ctx.nodeInformer.Informer().Run(stopCh)
 		go ctx.podInformer.Informer().Run(stopCh)
+		go ctx.configMapInformer.Informer().Run(stopCh)
 	}
 }

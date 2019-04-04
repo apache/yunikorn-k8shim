@@ -26,6 +26,8 @@ configmap/yunikorn-configs created
 kubectl describe configmaps yunikorn-configs
 ```
 
+**Note**, if name of the ConfigMap is something else other than `yunikorn-configs`, the updates to the ConfigMap will not be detected, therefore configuration hot-refresh will not work in this case.
+
 ## Attach ConfigMap Volume to Scheduler Pod
 
 This is done in the scheduler yaml file, please look at [scheduler-configmap.yaml](../deployments/scheduler/scheduler-configmap.yaml)
