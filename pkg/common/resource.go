@@ -97,6 +97,27 @@ func CreateUpdateRequestForTask(appId string, taskId string, queueName string, r
 	return result
 }
 
+func CreateReleaseAllocationRequestForTask(appId string, allocUuid string, partition string, resource *si.Resource) si.UpdateRequest {
+	toReleases := make([]*si.AllocationReleaseRequest, 0)
+	toReleases = append(toReleases, &si.AllocationReleaseRequest{
+		ApplicationId: appId,
+		Uuid:          allocUuid,
+		PartitionName: partition,
+		Message:       "task completed",
+	})
+
+	releaseRequest := si.AllocationReleasesRequest{
+		AllocationsToRelease:    toReleases,
+	}
+
+	result := si.UpdateRequest{
+		Releases: &releaseRequest,
+		RmId: ClusterId,
+	}
+
+	return result
+}
+
 func CreateUpdateRequestForNewNode(node Node) si.UpdateRequest {
 	// Use node's name as the NodeId, this is because when bind pod to node,
 	// name of node is required but uid is optional.

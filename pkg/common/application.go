@@ -256,7 +256,7 @@ func (app *Application) Handle(se ApplicationEvent) error {
 	defer app.lock.Unlock()
 
 	glog.V(4).Infof("Application(%s): preState: %s, coming event: %s", app.applicationId, app.sm.Current(), string(se.getEvent()))
-	err := app.sm.Event(string(se.getEvent()), se.getArgs())
+	err := app.sm.Event(string(se.getEvent()), se.getArgs()...)
 	glog.V(4).Infof("Application(%s): postState: %s, handled event: %s", app.applicationId, app.sm.Current(), string(se.getEvent()))
 	return err
 }

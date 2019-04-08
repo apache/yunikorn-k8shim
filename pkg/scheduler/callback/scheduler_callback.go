@@ -49,9 +49,10 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 	// handle new allocations
 	for _, alloc := range response.NewAllocations {
 		// got allocation for pod, bind pod to the scheduled node
-		glog.V(4).Infof("callback: response to new allocation, allocationKey: %s, applicationId: %s, nodeId: %s",
-			alloc.AllocationKey, alloc.ApplicationId, alloc.NodeId)
-		if err := callback.context.AllocateTask(alloc.ApplicationId, alloc.AllocationKey, alloc.NodeId); err != nil {
+		glog.V(4).Infof("callback: response to new allocation, allocationKey: %s," +
+			" allocation UUID: %s, applicationId: %s, nodeId: %s",
+			alloc.AllocationKey, alloc.Uuid, alloc.ApplicationId, alloc.NodeId)
+		if err := callback.context.AllocateTask(alloc.ApplicationId, alloc.AllocationKey, alloc.Uuid, alloc.NodeId); err != nil {
 			glog.V(1).Infof("failed to allocate task, error %v", err)
 		}
 	}
@@ -61,6 +62,11 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 		glog.V(4).Infof("callback: response to rejected allocation, allocationKey: %s",
 			reject.AllocationKey)
 		callback.context.OnTaskRejected(reject.ApplicationId, reject.AllocationKey)
+	}
+
+	for _, release := range response.ReleasedAllocations {
+		glog.V(4).Infof("callback: response to released allocations, allocationKey: %s",
+			release.AllocationUUID)
 	}
 
 	return nil

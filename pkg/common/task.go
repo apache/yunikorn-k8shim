@@ -30,15 +30,16 @@ import (
 )
 
 type Task struct {
-	taskId        string
-	applicationId string
-	application   *Application
-	resource      *si.Resource
-	pod           *v1.Pod
-	kubeClient    client.KubeClient
-	schedulerApi  api.SchedulerApi
-	sm            *fsm.FSM
-	lock          *sync.RWMutex
+	taskId         string
+	applicationId  string
+	application    *Application
+	allocationUuid string
+	resource       *si.Resource
+	pod            *v1.Pod
+	kubeClient     client.KubeClient
+	schedulerApi   api.SchedulerApi
+	sm             *fsm.FSM
+	lock           *sync.RWMutex
 }
 
 func newTask(tid string, app *Application, client client.KubeClient, schedulerApi api.SchedulerApi, pod *v1.Pod) Task {
@@ -98,6 +99,7 @@ func createTaskInternal(tid string, app *Application, resource *si.Resource,
 			string(Fail):           task.handleFailEvent,
 			states.Allocated:       task.postTaskAllocated,
 			states.Rejected:        task.postTaskRejected,
+			states.Completed:       task.postTaskCompleted,
 			"enter_state":          task.onStateChange,
 		},
 	)
@@ -134,14 +136,14 @@ func (task *Task) handleFailEvent(event *fsm.Event) {
 	task.lock.Lock()
 	defer task.lock.Unlock()
 
-	if len(event.Args) != 1 {
-		glog.V(1).Infof("invalid number of arguments, expecting 1 but get %d",
-			len(event.Args))
+	eventArgs := make([]string, 1)
+	if err := GetEventArgsAsStrings(eventArgs, event.Args); err != nil {
+		task.Handle(NewFailTaskEvent(err.Error()))
 		return
 	}
 
 	glog.V(1).Infof("Task failed, applicationId=%s, taskId=%s, error message: %s",
-		task.applicationId, task.taskId, event.Args[0])
+		task.applicationId, task.taskId, eventArgs[0])
 }
 
 func (task *Task) onStateChange(event *fsm.Event) {
@@ -177,15 +179,16 @@ func (task *Task) postTaskAllocated(event *fsm.Event) {
 		defer task.lock.Unlock()
 
 		var errorMessage string
-		// once allocated, task state transits to ALLOCATED,
-		// now trigger BIND pod to a specific node
-		if len(event.Args) != 1 {
-			errorMessage = fmt.Sprintf("invalid number of arguments, expecting 1 but get %d", len(event.Args))
-			glog.V(1).Infof(errorMessage)
+		eventArgs := make([]string, 2)
+		if err := GetEventArgsAsStrings(eventArgs, event.Args); err != nil {
+			errorMessage = err.Error()
+			glog.V(1).Infof(err.Error())
 			task.Handle(NewFailTaskEvent(errorMessage))
+			return
 		}
 
-		nodeId := fmt.Sprint(event.Args[0])
+		allocUuid := eventArgs[0]
+		nodeId :=eventArgs[1]
 		glog.V(4).Infof("bind pod target: name: %s, uid: %s", task.pod.Name, task.pod.UID)
 		if err := task.kubeClient.Bind(task.pod, nodeId); err != nil {
 			errorMessage = fmt.Sprintf("bind pod failed, name: %s, uid: %s, %#v",
@@ -196,6 +199,7 @@ func (task *Task) postTaskAllocated(event *fsm.Event) {
 		}
 
 		glog.V(3).Infof("Successfully bound pod %s", task.pod.Name)
+		task.allocationUuid = allocUuid
 		task.Handle(NewBindTaskEvent())
 	}(event)
 }
@@ -211,11 +215,24 @@ func (task *Task) postTaskRejected(event *fsm.Event) {
 	}()
 }
 
+func (task *Task) postTaskCompleted(event *fsm.Event) {
+	// when task is completed, we notify the scheduler to release allocations
+	go func() {
+		releaseRequest := CreateReleaseAllocationRequestForTask(
+			task.applicationId, task.allocationUuid, task.application.partition, task.resource)
+		glog.V(4).Infof("send release request %s", releaseRequest.String())
+		if err := task.schedulerApi.Update(&releaseRequest); err != nil {
+			glog.V(2).Infof("failed to send scheduling request to scheduler, error: %v", err)
+		}
+	}()
+}
+
+
 // event handling
 func (task *Task) Handle(te TaskEvent) error {
 	glog.V(4).Infof("Task(%s): preState: %s, coming event: %s",
 		task.taskId, task.sm.Current(), te.getEvent())
-	err := task.sm.Event(string(te.getEvent()), te.getArgs())
+	err := task.sm.Event(string(te.getEvent()), te.getArgs()...)
 	glog.V(4).Infof("Task(%s): postState: %s, handled event: %s",
 		task.taskId, task.sm.Current(), te.getEvent())
 	return err

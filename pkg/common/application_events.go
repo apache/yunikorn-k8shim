@@ -31,7 +31,7 @@ const (
 
 type ApplicationEvent interface {
 	getEvent() ApplicationEventType
-	getArgs() interface{}
+	getArgs() []interface{}
 }
 
 // ------------------------
@@ -51,6 +51,6 @@ func (st SimpleApplicationEvent) getEvent() ApplicationEventType {
 	return st.event
 }
 
-func (st SimpleApplicationEvent) getArgs() interface{} {
+func (st SimpleApplicationEvent) getArgs() []interface{} {
 	return nil
 }

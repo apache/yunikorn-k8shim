@@ -31,7 +31,7 @@ const (
 
 type TaskEvent interface {
 	getEvent() TaskEventType
-	getArgs() interface{}
+	getArgs() []interface{}
 }
 
 // ------------------------
@@ -51,7 +51,7 @@ func (st SimpleTaskEvent) getEvent() TaskEventType {
 	return st.event
 }
 
-func (st SimpleTaskEvent) getArgs() interface{} {
+func (st SimpleTaskEvent) getArgs() []interface{} {
 	return nil
 }
 
@@ -73,7 +73,7 @@ func (st SubmitTaskEvent) getEvent() TaskEventType {
 	return st.event
 }
 
-func (st SubmitTaskEvent) getArgs() interface{} {
+func (st SubmitTaskEvent) getArgs() []interface{} {
 	return nil
 }
 
@@ -83,11 +83,13 @@ func (st SubmitTaskEvent) getArgs() interface{} {
 type AllocatedTaskEvent struct {
 	event TaskEventType
 	nodeId string
+	allocationUuid string
 }
 
-func NewAllocateTaskEvent(nid string) AllocatedTaskEvent {
+func NewAllocateTaskEvent(allocUuid string, nid string) AllocatedTaskEvent {
 	return AllocatedTaskEvent{
 		event: Allocated,
+		allocationUuid: allocUuid,
 		nodeId: nid,
 	}
 }
@@ -96,8 +98,11 @@ func (ae AllocatedTaskEvent) getEvent() TaskEventType {
 	return ae.event
 }
 
-func (ae AllocatedTaskEvent) getArgs() interface{} {
-	return ae.nodeId
+func (ae AllocatedTaskEvent) getArgs() []interface{} {
+	args := make([]interface{}, 2)
+	args[0] = ae.allocationUuid
+	args[1] = ae.nodeId
+	return args
 }
 
 // ------------------------
@@ -117,7 +122,7 @@ func (bt BindTaskEvent) getEvent() TaskEventType {
 	return bt.event
 }
 
-func (bt BindTaskEvent) getArgs() interface{} {
+func (bt BindTaskEvent) getArgs() []interface{} {
 	return nil
 }
 
@@ -141,8 +146,10 @@ func (ae FailTaskEvent) getEvent() TaskEventType {
 	return ae.event
 }
 
-func (ae FailTaskEvent) getArgs() interface{} {
-	return ae.message
+func (ae FailTaskEvent) getArgs() []interface{} {
+	args := make([]interface{}, 1)
+	args[0] = ae.message
+	return args
 }
 
 
@@ -165,6 +172,8 @@ func (re RejectTaskEvent) getEvent() TaskEventType {
 	return re.event
 }
 
-func (re RejectTaskEvent) getArgs() interface{} {
-	return re.message
+func (re RejectTaskEvent) getArgs() []interface{} {
+	args := make([]interface{}, 1)
+	args[0] = re.message
+	return args
 }

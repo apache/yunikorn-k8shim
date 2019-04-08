@@ -162,8 +162,13 @@ func (ctx *Context) deletePod(obj interface{}) {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
 
-	glog.V(4).Infof("context: handling DeletePod podName=%s/%s, podUid=%s", pod.Namespace, pod.Name, pod.UID)
 	if app := ctx.getOrCreateApplication(pod); app != nil {
+		glog.V(4).Infof("Release allocation")
+		if task := app.GetTask(string(pod.UID)); task != nil {
+			task.Handle(common.NewSimpleTaskEvent(common.Complete))
+		}
+
+		glog.V(4).Infof("context: handling DeletePod podName=%s/%s, podUid=%s", pod.Namespace, pod.Name, pod.UID)
 		// starts a completion handler to handle the completion of a app on demand
 		app.StartCompletionHandler(ctx.kubeClient, pod)
 	}
@@ -299,10 +304,13 @@ func (ctx *Context) ApplicationRejected(appId string) {
 }
 
 
-func (ctx *Context) AllocateTask(appId string, taskId string, nodeId string) error {
+// scheduler generates an allocation Uuid every time it allocates a container,
+// it is returned in the allocation response, we need to store this UUID in task because
+// it is the key to query allocation post allocate, e.g when do release.
+func (ctx *Context) AllocateTask(appId string, taskId string, allocUuid string, nodeId string) error {
 	if app := ctx.applications[appId]; app != nil {
 		if task := app.GetTask(taskId); task != nil {
-			return task.Handle(common.NewAllocateTaskEvent(nodeId))
+			return task.Handle(common.NewAllocateTaskEvent(allocUuid, nodeId))
 		}
 	}
 	return nil
@@ -311,9 +319,8 @@ func (ctx *Context) AllocateTask(appId string, taskId string, nodeId string) err
 func (ctx *Context) OnTaskRejected(appId string, podUid string) error {
 	if app, ok := ctx.applications[appId]; ok {
 		if task := app.GetTask(podUid); task != nil {
-			task.Handle(common.NewRejectTaskEvent(
+			return task.Handle(common.NewRejectTaskEvent(
 				fmt.Sprintf("task %s from application %s is rejected by scheduler", podUid, appId)))
-			return nil
 		}
 	}
 	return errors.New("pod gets rejected, but application info is not found in context," +
