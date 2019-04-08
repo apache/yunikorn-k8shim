@@ -1,6 +1,7 @@
 package common
 
 import (
+	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/scheduler/conf"
 	"github.infra.cloudera.com/yunikorn/scheduler-interface/lib/go/si"
 	"github.infra.cloudera.com/yunikorn/yunikorn-core/pkg/api"
 	"gotest.tools/assert"
@@ -13,7 +14,7 @@ func TestNewApplication(t *testing.T) {
 	app := NewApplication("app00001", "root.queue", newMockSchedulerApi())
 	assert.Equal(t, app.GetApplicationId(), "app00001" )
 	assert.Equal(t, app.GetApplicationState(), States().Application.New)
-	assert.Equal(t, app.partition, DefaultPartition)
+	assert.Equal(t, app.partition, conf.DefaultPartition)
 	assert.Equal(t, len(app.taskMap), 0)
 	assert.Equal(t, app.GetApplicationState(), States().Application.New)
 	assert.Equal(t, app.queue, "root.queue")
