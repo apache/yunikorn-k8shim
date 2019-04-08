@@ -18,6 +18,7 @@ package common
 
 import (
 	"github.com/golang/glog"
+	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/scheduler/conf"
 	"github.infra.cloudera.com/yunikorn/scheduler-interface/lib/go/si"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -66,10 +67,10 @@ func getResource(resourceList v1.ResourceList) *si.Resource {
 		switch name {
 		case v1.ResourceMemory:
 			memory := value.ScaledValue(resource.Mega)
-			resources.AddResource(Memory, memory)
+			resources.AddResource(conf.Memory, memory)
 		case v1.ResourceCPU:
 			vcore := value.MilliValue()
-			resources.AddResource(CPU, vcore)
+			resources.AddResource(conf.CPU, vcore)
 		default:
 			resources.AddResource(string(name), value.Value())
 		}
@@ -91,7 +92,7 @@ func CreateUpdateRequestForTask(appId string, taskId string, queueName string, r
 		NewSchedulableNodes:  nil,
 		UpdatedNodes:         nil,
 		UtilizationReports:   nil,
-		RmId: ClusterId,
+		RmId: conf.GlobalClusterId,
 	}
 
 	return result
@@ -112,7 +113,7 @@ func CreateReleaseAllocationRequestForTask(appId string, allocUuid string, parti
 
 	result := si.UpdateRequest{
 		Releases: &releaseRequest,
-		RmId: ClusterId,
+		RmId: conf.GlobalClusterId,
 	}
 
 	return result
@@ -126,8 +127,8 @@ func CreateUpdateRequestForNewNode(node Node) si.UpdateRequest {
 		SchedulableResource: node.resource,
 		// TODO is this required?
 		Attributes: map[string]string{
-			DefaultNodeAttributeHostNameKey: node.name,
-			DefaultNodeAttributeRackNameKey: DefaultRackName,
+			conf.DefaultNodeAttributeHostNameKey: node.name,
+			conf.DefaultNodeAttributeRackNameKey: conf.DefaultRackName,
 		},
 	}
 
@@ -139,7 +140,7 @@ func CreateUpdateRequestForNewNode(node Node) si.UpdateRequest {
 	nodes[0] = nodeInfo
 	request := si.UpdateRequest{
 		NewSchedulableNodes: nodes,
-		RmId:                ClusterId,
+		RmId:                conf.GlobalClusterId,
 	}
 	return request
 }
@@ -159,7 +160,7 @@ func CreateUpdateRequestForUpdatedNode(node Node) si.UpdateRequest {
 	nodes[0] = nodeInfo
 	request := si.UpdateRequest{
 		UpdatedNodes: nodes,
-		RmId:         ClusterId,
+		RmId:         conf.GlobalClusterId,
 	}
 	return request
 }

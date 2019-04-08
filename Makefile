@@ -44,7 +44,8 @@ image2: build_image
 
 run: build
 	cp ${LOCAL_CONF}/${CONF_FILE} .
-	./${BINARY} --logtostderr=true -v=5 -kubeconfig=$(HOME)/.kube/config
+	./${BINARY} -logtostderr=true -v=5 -kubeconfig=$(HOME)/.kube/config -interval=1 \
+	-clusterid=mycluster -clusterversion=0.1 -name=yunikorn -policygroup=queues
 
 test:
 	go test ./... -cover

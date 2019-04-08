@@ -21,6 +21,7 @@ import (
 	"github.com/golang/glog"
 	"github.com/looplab/fsm"
 	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/common"
+	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/scheduler/conf"
 	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/scheduler/state"
 	"github.infra.cloudera.com/yunikorn/scheduler-interface/lib/go/si"
 	"github.infra.cloudera.com/yunikorn/yunikorn-core/pkg/api"
@@ -75,9 +76,9 @@ func (ss *ShimScheduler) register() func(e *fsm.Event) {
 func (ss *ShimScheduler) registerShimLayer() error {
 	glog.V(3).Infof("register RM to the scheduler")
 	registerMessage := si.RegisterResourceManagerRequest{
-		RmId:    common.ClusterId,
-		Version: common.ClusterVersion,
-		PolicyGroup: common.DefaultPolicyGroup,
+		RmId:        conf.GlobalClusterId,
+		Version:     conf.GlobalClusterVersion,
+		PolicyGroup: conf.GlobalPolicyGroup,
 	}
 
 	if _, err := ss.rmProxy.RegisterResourceManager(&registerMessage, ss.callback); err != nil {

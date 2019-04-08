@@ -21,14 +21,18 @@ import (
 	"flag"
 	"fmt"
 	"github.com/golang/glog"
-	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/common"
 	"time"
 )
+
+var GlobalClusterId string
+var GlobalClusterVersion string
+var GlobalPolicyGroup string
 
 type SchedulerConf struct {
 	ClusterId      string `json:"clusterId"`
 	ClusterVersion string `json:"clusterVersion"`
 	SchedulerName  string `json:"schedulerName"`
+	PolicyGroup    string `json:"policyGroup"`
 	Interval       int    `json:"schedulingIntervalSecond"`
 	KubeConfig     string `json:"absoluteKubeConfigFilePath"`
 }
@@ -47,18 +51,25 @@ func ParseFromCommandline() *SchedulerConf {
 	var schedulerName *string
 	var kubeConfig *string
 	var schedulingInterval *int
+	var policyGroup *string
 
 	kubeConfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
 	schedulingInterval = flag.Int("interval", 1, "scheduling interval in seconds")
-	clusterId = flag.String("clusterid", common.ClusterId, "cluster id")
-	clusterVersion = flag.String("clusterversion", common.ClusterVersion, "cluster version")
-	schedulerName = flag.String("name", common.SchedulerName, "name of the scheduler")
+	clusterId = flag.String("clusterid", ClusterId, "cluster id")
+	clusterVersion = flag.String("clusterversion", ClusterVersion, "cluster version")
+	schedulerName = flag.String("name", SchedulerName, "name of the scheduler")
+	policyGroup = flag.String("policygroup", DefaultPolicyGroup, "policy group")
 
 	flag.Parse()
+
+	GlobalClusterId = *clusterId
+	GlobalClusterVersion = *clusterVersion
+	GlobalPolicyGroup = *policyGroup
 
 	return &SchedulerConf{
 		ClusterId: *clusterId,
 		ClusterVersion: *clusterVersion,
+		PolicyGroup: *policyGroup,
 		SchedulerName: *schedulerName,
 		Interval: *schedulingInterval,
 		KubeConfig: *kubeConfig,

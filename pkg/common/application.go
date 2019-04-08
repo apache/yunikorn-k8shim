@@ -22,6 +22,7 @@ import (
 	"github.com/golang/glog"
 	"github.com/looplab/fsm"
 	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/client"
+	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/scheduler/conf"
 	"github.infra.cloudera.com/yunikorn/scheduler-interface/lib/go/si"
 	"github.infra.cloudera.com/yunikorn/yunikorn-core/pkg/api"
 	"k8s.io/api/core/v1"
@@ -54,7 +55,7 @@ func NewApplication(appId string, queueName string, scheduler api.SchedulerApi) 
 		applicationId: appId,
 		taskMap:       taskMap,
 		queue:         queueName,
-		partition:     DefaultPartition,
+		partition:     conf.DefaultPartition,
 		lock:          &sync.RWMutex{},
 		ch:            CompletionHandler {running: false},
 		workChan:      make(chan *Task, 1024),
@@ -114,7 +115,7 @@ func (app *Application) IgnoreScheduleTask(task *Task) {
 
 // submit app to the scheduler
 func (app *Application) Submit() {
-	glog.V(3).Infof("submit new app %s to cluster %s", app.String(), ClusterId)
+	glog.V(3).Infof("submit new app %s to cluster %s", app.String(), conf.GlobalClusterId)
 	if err := app.schedulerApi.Update(&si.UpdateRequest{
 		NewApplications: []*si.AddApplicationRequest{
 			{
@@ -123,7 +124,7 @@ func (app *Application) Submit() {
 				PartitionName: app.partition,
 			},
 		},
-		RmId: ClusterId,
+		RmId: conf.GlobalClusterId,
 	}); err == nil {
 		app.Handle(NewSimpleApplicationEvent(SubmitApplication))
 	}
@@ -152,19 +153,19 @@ func (app *Application) AddTask(task *Task) {
 func GetApplicationId(pod *v1.Pod) (string, error) {
 	for name, value := range pod.Labels {
 		// if a pod for spark already provided appId, reuse it
-		if name == SparkLabelAppId {
+		if name == conf.SparkLabelAppId {
 			return value, nil
 		}
 
 		// application ID can be defined as a label
-		if name == LabelApplicationId {
+		if name == conf.LabelApplicationId {
 			return value, nil
 		}
 	}
 
 	// application ID can be defined in annotations too
 	for name, value := range pod.Annotations {
-		if name == LabelApplicationId {
+		if name == conf.LabelApplicationId {
 			return value, nil
 		}
 	}
@@ -287,7 +288,7 @@ type CompletionHandler struct {
 
 func (app *Application) StartCompletionHandler(client client.KubeClient, pod *v1.Pod) {
 	for name, value := range pod.Labels {
-		if name == SparkLabelRole && value == SparkLabelRoleDriver {
+		if name == conf.SparkLabelRole && value == conf.SparkLabelRoleDriver {
 			app.startSparkCompletionHandler(client, pod)
 			return
 		}

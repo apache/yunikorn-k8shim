@@ -19,6 +19,7 @@ package common
 import (
 	"fmt"
 	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/client"
+	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/scheduler/conf"
 	"github.infra.cloudera.com/yunikorn/scheduler-interface/lib/go/si"
 	"github.infra.cloudera.com/yunikorn/yunikorn-core/pkg/api"
 	"strings"
@@ -158,7 +159,7 @@ func (task *Task) handleSubmitTaskEvent(event *fsm.Event) {
 	// convert the request
 	//rr := ConvertRequest(task.applicationId, task.GetTaskPod())
 	appQueue := task.application.queue
-	if queueName, ok := task.pod.Labels[LabelQueueName]; ok {
+	if queueName, ok := task.pod.Labels[conf.LabelQueueName]; ok {
 		appQueue = queueName
 	}
 	rr := CreateUpdateRequestForTask(task.applicationId, task.taskId, appQueue, task.resource)

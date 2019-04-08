@@ -194,7 +194,7 @@ func (ctx *Context) filterConfigMaps(obj interface{}) bool {
 	switch obj.(type) {
 	case *v1.ConfigMap:
 		cm := obj.(*v1.ConfigMap)
-		return cm.Name == common.DefaultConfigMapName
+		return cm.Name == conf.DefaultConfigMapName
 	default:
 		return false
 	}
@@ -261,8 +261,8 @@ func (ctx *Context) getOrCreateApplication(pod *v1.Pod) *common.Application {
 	if app, ok := ctx.applications[appId]; ok {
 		return app
 	} else {
-		queueName := common.ApplicationDefaultQueue
-		if an, ok := pod.Labels[common.LabelQueueName]; ok {
+		queueName := conf.ApplicationDefaultQueue
+		if an, ok := pod.Labels[conf.LabelQueueName]; ok {
 			queueName = an
 		}
 		newApp := common.NewApplication(appId, queueName, ctx.schedulerApi)

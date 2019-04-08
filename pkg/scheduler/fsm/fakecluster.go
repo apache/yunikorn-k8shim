@@ -99,8 +99,8 @@ func (fc *FakeCluster) assertSchedulerState(t *testing.T, expectedState string) 
 
 func (fc *FakeCluster) addNode(nodeName string, memory int64, cpu int64) error {
 	nodeResource := common.NewResourceBuilder().
-		AddResource(common.Memory, memory).
-		AddResource(common.CPU, cpu).
+		AddResource(conf.Memory, memory).
+		AddResource(conf.CPU, cpu).
 		Build()
 	node := common.CreateFromNodeSpec(nodeName, nodeName, nodeResource)
 	request := common.CreateUpdateRequestForNewNode(node)
