@@ -179,3 +179,54 @@ func TestUpdateNode(t *testing.T) {
 	assert.Equal(t, api.RegisterCount, 0)
 	assert.Equal(t, api.UpdateCount, 1)
 }
+
+func TestDeleteNode(t *testing.T) {
+	api := test.FakeSchedulerApi {
+		// register fn doesn't nothing than checking input
+		UpdateFn: func(request *si.UpdateRequest) error {
+			if request.UpdatedNodes == nil || len(request.UpdatedNodes) != 1 {
+				t.Fatalf("unexpected updated nodes info from the request")
+			}
+
+			info := request.UpdatedNodes[0]
+			if info.NodeId != "host0001" {
+				t.Fatalf("unexpected node name %s", info.NodeId)
+			}
+
+			if memory := info.SchedulableResource.Resources[conf.Memory].Value; memory != int64(1024) {
+				t.Fatalf("unexpected node memory %d", memory)
+			}
+
+			if cpu := info.SchedulableResource.Resources[conf.CPU].Value; cpu != int64(10000) {
+				t.Fatalf("unexpected node CPU %d", cpu)
+			}
+
+			return nil
+		},
+	}
+
+	nc := NodeController{proxy: &api}
+	resourceList := make(map[v1.ResourceName]resource.Quantity)
+	resourceList[v1.ResourceName("memory")] = *resource.NewQuantity(1024*1000*1000, resource.DecimalSI)
+	resourceList[v1.ResourceName("cpu")] = *resource.NewQuantity(10, resource.DecimalSI)
+
+	var node = v1.Node{
+		ObjectMeta: apis.ObjectMeta{
+			Name:            "host0001",
+			Namespace:       "default",
+			UID:             "uid_0001",
+		},
+		Status: v1.NodeStatus{
+			Capacity:        resourceList,
+		},
+	}
+
+	ignoreNodeUpdateFn := func(request *si.UpdateRequest) error {
+		// fake update
+		return nil
+	}
+	api.UpdateFn = ignoreNodeUpdateFn
+	nc.DeleteNode(&node)
+	assert.Equal(t, api.RegisterCount, 0)
+	assert.Equal(t, api.UpdateCount, 1)
+}

@@ -132,7 +132,7 @@ func CreateUpdateRequestForNewNode(node Node) si.UpdateRequest {
 		},
 	}
 
-	glog.V(3).Infof("node ID %s, resource: %s, ",
+	glog.V(3).Infof("New node to be added, node ID %s, resource: %s, ",
 		nodeInfo.NodeId,
 		nodeInfo.SchedulableResource.String())
 
@@ -152,7 +152,7 @@ func CreateUpdateRequestForUpdatedNode(node Node) si.UpdateRequest {
 		SchedulableResource: node.resource,
 	}
 
-	glog.V(3).Infof("node ID %s, resource: %s, ",
+	glog.V(3).Infof("Node to be updated, node ID %s, resource: %s, ",
 		nodeInfo.NodeId,
 		nodeInfo.SchedulableResource.String())
 
@@ -160,6 +160,26 @@ func CreateUpdateRequestForUpdatedNode(node Node) si.UpdateRequest {
 	nodes[0] = nodeInfo
 	request := si.UpdateRequest{
 		UpdatedNodes: nodes,
+		RmId:         conf.GlobalClusterId,
+	}
+	return request
+}
+
+func CreateUpdateRequestForDeleteNode(node Node) si.UpdateRequest {
+	deletedNodes := make([]*si.UpdateNodeInfo, 1)
+	nodeInfo := &si.UpdateNodeInfo{
+		NodeId:              node.name,
+		SchedulableResource: node.resource,
+		Action:              si.UpdateNodeInfo_DECOMISSION,
+	}
+
+	glog.V(3).Infof("Node to be deleted, node ID %s, resource: %s, ",
+		nodeInfo.NodeId,
+		nodeInfo.SchedulableResource.String())
+
+	deletedNodes[0] = nodeInfo
+	request := si.UpdateRequest{
+		UpdatedNodes: deletedNodes,
 		RmId:         conf.GlobalClusterId,
 	}
 	return request

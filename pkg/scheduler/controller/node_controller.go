@@ -94,5 +94,17 @@ func (nc *NodeController) UpdateNode(oldObj, newObj interface{}) {
 }
 
 func (nc *NodeController) DeleteNode(obj interface{}) {
-	// TODO
+	glog.V(4).Infof("node-controller: DeleteNode")
+	node, err := convertToNode(obj)
+	if err != nil {
+		glog.Errorf(err.Error())
+		return
+	}
+
+	n := common.CreateFrom(node)
+	request := common.CreateUpdateRequestForDeleteNode(n)
+	glog.V(3).Infof("send updated nodes to scheduler, request: %s", request.String())
+	if err := nc.proxy.Update(&request); err != nil {
+		glog.V(1).Infof("hitting error while handle UpdateNode, %#v", err)
+	}
 }
