@@ -17,12 +17,12 @@ spec:
     spec:
       containers:
         - name: yunikorn-scheduler-core
-          image: yunikorn/scheduler-core:0.1.0
+          image: yunikorn/scheduler-core:0.2.0
           imagePullPolicy: Always
           ports:
             - containerPort: 9080
         - name: yunikorn-scheduler-web
-          image: yunikorn/scheduler-web:0.1.0
+          image: yunikorn/scheduler-web:0.2.0
           imagePullPolicy: Always
           ports:
             - containerPort: 9889
