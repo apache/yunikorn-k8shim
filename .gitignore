@@ -1,4 +1,3 @@
 vendor
-*.yaml
 .idea
 k8s_yunikorn_scheduler
