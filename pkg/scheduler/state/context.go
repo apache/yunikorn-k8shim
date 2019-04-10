@@ -220,7 +220,7 @@ func (ctx *Context) triggerReloadConfig() {
 	switch ctx.schedulerApi.(type) {
 	case *rmproxy.RMProxy:
 		proxy := ctx.schedulerApi.(*rmproxy.RMProxy)
-		if err := proxy.ReloadConfiguration(); err != nil {
+		if err := proxy.ReloadConfiguration(ctx.conf.ClusterId); err != nil {
 			glog.V(1).Infof("Reload configuration failed with error %s", err.Error())
 		}
 	default:
