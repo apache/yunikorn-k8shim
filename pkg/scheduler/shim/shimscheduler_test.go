@@ -14,11 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package fsm
+package shim
 
 import (
 	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/common"
 	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/scheduler/conf"
+	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/state"
 	"testing"
 )
 
@@ -55,7 +56,7 @@ partitions:
 	defer cluster.stop()
 
 	// ensure scheduler state
-	cluster.waitForSchedulerState(t, common.States().Scheduler.Registered)
+	cluster.waitForSchedulerState(t, state.States().Scheduler.Registered)
 
 	// register nodes
 	cluster.addNode("test.host.01", 100, 10)
@@ -75,9 +76,9 @@ partitions:
 
 	// wait for scheduling app and tasks
 	// verify app state
-	cluster.waitAndAssertApplicationState(t, "app0001", common.States().Application.Running)
-	cluster.waitAndAssertTaskState(t, "app0001", "task0001", common.States().Task.Bound)
-	cluster.waitAndAssertTaskState(t, "app0001", "task0002", common.States().Task.Bound)
+	cluster.waitAndAssertApplicationState(t, "app0001", state.States().Application.Running)
+	cluster.waitAndAssertTaskState(t, "app0001", "task0001", state.States().Task.Bound)
+	cluster.waitAndAssertTaskState(t, "app0001", "task0002", state.States().Task.Bound)
 }
 
 func TestRejectApplications(t *testing.T) {
@@ -113,7 +114,7 @@ partitions:
 	defer cluster.stop()
 
 	// ensure scheduler state
-	cluster.waitForSchedulerState(t, common.States().Scheduler.Registered)
+	cluster.waitForSchedulerState(t, state.States().Scheduler.Registered)
 
 	// register nodes
 	cluster.addNode("test.host.01", 100, 10)
@@ -132,11 +133,11 @@ partitions:
 
 	// wait for scheduling app and tasks
 	// verify app state
-	cluster.waitAndAssertApplicationState(t, "app0001", common.States().Application.Rejected)
+	cluster.waitAndAssertApplicationState(t, "app0001", state.States().Application.Failed)
 
 	// submit the app again
 	app0001 = cluster.newApplication("app0001", "root.a")
 	cluster.addTask("task0001", taskResource, app0001)
 	cluster.addApplication(app0001)
-	cluster.waitAndAssertApplicationState(t, "app0001", common.States().Application.Accepted)
+	cluster.waitAndAssertApplicationState(t, "app0001", state.States().Application.Accepted)
 }

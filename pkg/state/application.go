@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package common
+package state
 
 import (
 	"errors"
@@ -39,8 +39,6 @@ type Application struct {
 	lock          *sync.RWMutex
 	ch            CompletionHandler
 	schedulerApi  api.SchedulerApi
-	workChan      chan *Task
-	stopChan      chan struct{}
 }
 
 func (app *Application) String() string  {
@@ -58,8 +56,6 @@ func NewApplication(appId string, queueName string, scheduler api.SchedulerApi) 
 		partition:     conf.DefaultPartition,
 		lock:          &sync.RWMutex{},
 		ch:            CompletionHandler {running: false},
-		workChan:      make(chan *Task, 1024),
-		stopChan:      make(chan struct{}),
 		schedulerApi:  scheduler,
 	}
 
@@ -83,7 +79,7 @@ func NewApplication(appId string, queueName string, scheduler api.SchedulerApi) 
 				Src: []string{states.Submitted},
 				Dst: states.Rejected},
 			{Name: string(FailApplication),
-				Src: []string{states.Rejected, states.Accepted, states.Running},
+				Src: []string{states.Submitted, states.Rejected, states.Accepted, states.Running},
 				Dst: states.Failed},
 			{Name: string(KillApplication),
 				Src: []string{states.Accepted, states.Running},
@@ -93,8 +89,9 @@ func NewApplication(appId string, queueName string, scheduler api.SchedulerApi) 
 				Dst: states.Killed},
 		},
 		fsm.Callbacks{
-			"enter_state":               app.handleTaskStateChange,
-			states.Running:              app.handleRunApplicationEvent,
+			//"enter_state":               app.handleTaskStateChange,
+			string(SubmitApplication):   app.handleSubmitApplicationEvent,
+			string(RunApplication):      app.handleRunApplicationEvent,
 			string(RejectApplication):   app.handleRejectApplicationEvent,
 			string(CompleteApplication): app.handleCompleteApplicationEvent,
 		},
@@ -103,46 +100,44 @@ func NewApplication(appId string, queueName string, scheduler api.SchedulerApi) 
 	return app
 }
 
-func (app *Application) ScheduleTask(task *Task) {
-	app.workChan <- task
-}
-
-func (app *Application) IgnoreScheduleTask(task *Task) {
-	glog.V(1).Infof("app %s is in unexpected state, current state is %s," +
-		" task cannot be scheduled if app's state is other than %s",
-		app.applicationId, app.GetApplicationState(), States().Application.Running)
-}
-
-// submit app to the scheduler
-func (app *Application) Submit() {
-	glog.V(3).Infof("submit new app %s to cluster %s", app.String(), conf.GlobalClusterId)
-	if err := app.schedulerApi.Update(&si.UpdateRequest{
-		NewApplications: []*si.AddApplicationRequest{
-			{
-				ApplicationId: app.applicationId,
-				QueueName:     app.queue,
-				PartitionName: app.partition,
-			},
-		},
-		RmId: conf.GlobalClusterId,
-	}); err == nil {
-		app.Handle(NewSimpleApplicationEvent(SubmitApplication))
+func (app *Application) handle(ev ApplicationEvent) error {
+	// state machine has its instinct lock, we don't need to hold the app lock here
+	// because the callbacks are the places where might modify app state, not here.
+	glog.V(4).Infof("Application(%s): preState: %s, coming event: %s",
+		app.applicationId, app.sm.Current(), string(ev.getEvent()))
+	if err := app.sm.Event(string(ev.getEvent()), ev.getArgs()...); err != nil {
+		return err
 	}
+	glog.V(4).Infof("Application(%s): postState: %s, handled event: %s",
+		app.applicationId, app.sm.Current(), string(ev.getEvent()))
+	return nil
 }
 
-func (app *Application) Run() {
-	app.Handle(NewSimpleApplicationEvent(RunApplication))
-}
-
-func (app *Application) GetTask(taskId string) *Task {
-	return app.taskMap[taskId]
+func (app *Application) GetTask(taskId string) (*Task, error) {
+	app.lock.RLock()
+	defer app.lock.RUnlock()
+	if task, ok := app.taskMap[taskId]; ok{
+		return task, nil
+	}
+	return nil, errors.New(fmt.Sprintf("task %s doesn't exist in application %s",
+		taskId, app.applicationId))
 }
 
 func (app *Application) GetApplicationId() string{
+	app.lock.RLock()
+	defer app.lock.RUnlock()
 	return app.applicationId
 }
 
+func (app *Application) GetQueue() string {
+	app.lock.RLock()
+	defer app.lock.RUnlock()
+	return app.queue
+}
+
 func (app *Application) AddTask(task *Task) {
+	app.lock.Lock()
+	defer app.lock.Unlock()
 	if _, ok := app.taskMap[task.taskId]; ok {
 		// skip adding duplicate task
 		return
@@ -150,7 +145,7 @@ func (app *Application) AddTask(task *Task) {
 	app.taskMap[task.taskId] = task
 }
 
-func GetApplicationId(pod *v1.Pod) (string, error) {
+func GenerateApplicationIdFromPod(pod *v1.Pod) (string, error) {
 	for name, value := range pod.Labels {
 		// if a pod for spark already provided appId, reuse it
 		if name == conf.SparkLabelAppId {
@@ -173,93 +168,8 @@ func GetApplicationId(pod *v1.Pod) (string, error) {
 		pod.Spec.String()))
 }
 
-
-func (app *Application) RemoveTask(task Task) {
-	app.lock.Lock()
-	defer app.lock.Unlock()
-	delete(app.taskMap, string(task.taskId))
-}
-
-func (app *Application) IsPendingTask(task *Task) bool {
-	app.lock.RLock()
-	defer app.lock.RUnlock()
-
-	if task := app.taskMap[task.taskId]; task != nil {
-		return task.IsPending()
-	}
-	return false
-}
-
 func (app *Application) GetApplicationState() string {
-	app.lock.RLock()
-	defer app.lock.RUnlock()
-
 	return app.sm.Current()
-}
-
-func (app *Application) PrintApplicationState() {
-	app.lock.RLock()
-	defer app.lock.RUnlock()
-
-	var allTaskNames = make([]string, len(app.taskMap))
-	var idx int64 = 0
-	for _, task := range app.taskMap {
-		allTaskNames[idx] = fmt.Sprintf("%s(%s)", task.GetTaskPod().Name, task.GetTaskState())
-		idx++
-	}
-	glog.V(4).Infof("app state of %s", app.applicationId)
-	glog.V(4).Infof(" - state: %s", app.GetApplicationState())
-	glog.V(4).Infof(" - totalNumOfPods: %d, names: %s", len(app.taskMap), allTaskNames)
-}
-
-func (app *Application) handleTaskStateChange(event *fsm.Event) {
-	if len(event.Args) == 1 {
-		switch event.Args[0].(type) {
-		case Task:
-			app.workChan <- event.Args[0].(*Task)
-		}
-	}
-}
-
-func (app *Application) handleRejectApplicationEvent(event *fsm.Event) {
-	glog.V(4).Infof("app %s is rejected by scheduler", app.applicationId)
-}
-
-func (app *Application) handleCompleteApplicationEvent(event *fsm.Event) {
-	// shutdown the working channel
-	close(app.stopChan)
-}
-
-func (app *Application) handleRunApplicationEvent(event *fsm.Event) {
-	glog.V(4).Infof("starting internal app working thread")
-	go func() {
-		for {
-			select {
-			case task := <-app.workChan:
-				glog.V(3).Infof("Scheduling task: task=%s, state=%s", task.taskId, task.GetTaskState())
-				switch task.GetTaskState() {
-				case States().Task.Pending:
-					task.Handle(NewSubmitTaskEvent())
-				default:
-					// nothing to do here...
-				}
-			case <-app.stopChan:
-				glog.V(3).Infof("stopping app working thread for app %s", app.applicationId)
-				return
-			}
-		}
-	}()
-}
-
-// event handling
-func (app *Application) Handle(se ApplicationEvent) error {
-	app.lock.Lock()
-	defer app.lock.Unlock()
-
-	glog.V(4).Infof("Application(%s): preState: %s, coming event: %s", app.applicationId, app.sm.Current(), string(se.getEvent()))
-	err := app.sm.Event(string(se.getEvent()), se.getArgs()...)
-	glog.V(4).Infof("Application(%s): postState: %s, handled event: %s", app.applicationId, app.sm.Current(), string(se.getEvent()))
-	return err
 }
 
 func (app *Application) GetPendingTasks() []*Task {
@@ -275,6 +185,52 @@ func (app *Application) GetPendingTasks() []*Task {
 		}
 	}
 	return taskList
+}
+
+func (app *Application) handleSubmitApplicationEvent(event *fsm.Event) {
+	glog.V(3).Infof("submit new app %s to cluster %s", app.String(), conf.GlobalClusterId)
+	err := app.schedulerApi.Update(
+		&si.UpdateRequest{
+			NewApplications: []*si.AddApplicationRequest{
+				{
+					ApplicationId: app.applicationId,
+					QueueName:     app.queue,
+					PartitionName: app.partition,
+				},
+			},
+			RmId: conf.GlobalClusterId,
+	})
+
+	if err != nil {
+		// submission failed
+		GetDispatcher().Dispatch(NewFailApplicationEvent(app.applicationId))
+	}
+}
+
+// this is called after entering running state
+func (app *Application) handleRunApplicationEvent(event *fsm.Event) {
+	if event.Args == nil || len(event.Args) != 1 {
+		glog.V(1).Infof("failed to run application tasks," +
+			" event argument is expected to have only 1 argument",
+			app.applicationId)
+		return
+	}
+
+	switch t := event.Args[0].(type) {
+	case *Task:
+		GetDispatcher().Dispatch(NewSubmitTaskEvent(app.applicationId, t.taskId))
+	}
+}
+
+func (app *Application) handleRejectApplicationEvent(event *fsm.Event) {
+	glog.V(4).Infof("app %s is rejected by scheduler", app.applicationId)
+	// for rejected apps, we directly move them to failed state
+	GetDispatcher().Dispatch(NewFailApplicationEvent(app.applicationId))
+}
+
+func (app *Application) handleCompleteApplicationEvent(event *fsm.Event) {
+	//// shutdown the working channel
+	//close(app.stopChan)
 }
 
 // a application can have one and at most one completion handler,
@@ -319,7 +275,7 @@ func (app *Application) startSparkCompletionHandler(client client.KubeClient, po
 					resp := events.Object.(*v1.Pod)
 					if resp.Status.Phase == v1.PodSucceeded && resp.UID == pod.UID {
 						glog.V(4).Infof("spark driver completed %s, app completed %s", resp.Name, app.applicationId)
-						app.Handle(NewSimpleApplicationEvent(CompleteApplication))
+						GetDispatcher().Dispatch(NewSimpleApplicationEvent(app.applicationId, CompleteApplication))
 						return
 					}
 				}

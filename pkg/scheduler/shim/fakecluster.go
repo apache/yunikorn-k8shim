@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package fsm
+package shim
 
 import (
 	"fmt"
@@ -22,7 +22,7 @@ import (
 	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/common"
 	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/scheduler/callback"
 	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/scheduler/conf"
-	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/scheduler/state"
+	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/state"
 	"github.infra.cloudera.com/yunikorn/scheduler-interface/lib/go/si"
 	utils "github.infra.cloudera.com/yunikorn/yunikorn-core/pkg/common/configs"
 	"github.infra.cloudera.com/yunikorn/yunikorn-core/pkg/entrypoint"
@@ -81,7 +81,12 @@ func (fc *FakeCluster) init(queues string) {
 	}
 	context := state.NewContextInternal(rmProxy, &configs, client, true)
 	callback := callback.NewAsyncRMCallback(context)
-	ss := NewShimScheduler(rmProxy, context, callback)
+
+	dispatch := state.GetDispatcher()
+	dispatch.SetContext(context)
+	dispatch.Start()
+
+	ss := newShimScheduler(rmProxy, context, callback)
 
 	fc.context = context
 	fc.scheduler = ss
@@ -108,8 +113,8 @@ func (fc *FakeCluster) addNode(nodeName string, memory int64, cpu int64) error {
 	return fc.proxy.Update(&request)
 }
 
-func (fc *FakeCluster) addTask(tid string, ask *si.Resource, app *common.Application) common.Task{
-	task := common.CreateTaskForTest(tid, app, ask, fc.client, fc.proxy)
+func (fc *FakeCluster) addTask(tid string, ask *si.Resource, app *state.Application) state.Task{
+	task := state.CreateTaskForTest(tid, app, ask, fc.client, fc.proxy)
 	app.AddTask(&task)
 	return task
 }
@@ -118,6 +123,7 @@ func (fc *FakeCluster) waitForSchedulerState(t *testing.T, expectedState string)
 	deadline := time.Now().Add(10 * time.Second)
 	for {
 		if fc.scheduler.GetSchedulerState() == expectedState {
+			time.Sleep(1*time.Second)
 			break
 		}
 		if time.Now().After(deadline) {
@@ -128,7 +134,7 @@ func (fc *FakeCluster) waitForSchedulerState(t *testing.T, expectedState string)
 }
 
 func (fc *FakeCluster) waitAndAssertApplicationState(t *testing.T, appId string, expectedState string) {
-	appList := fc.context.SelectApplications(func(app *common.Application) bool {
+	appList := fc.context.SelectApplications(func(app *state.Application) bool {
 		return app.GetApplicationId() == appId
 	})
 	assert.Equal(t, len(appList), 1)
@@ -136,6 +142,7 @@ func (fc *FakeCluster) waitAndAssertApplicationState(t *testing.T, appId string,
 	deadline := time.Now().Add(10 * time.Second)
 	for {
 		if appList[0].GetApplicationState() == expectedState {
+			time.Sleep(1*time.Second)
 			break
 		}
 
@@ -146,30 +153,33 @@ func (fc *FakeCluster) waitAndAssertApplicationState(t *testing.T, appId string,
 	}
 }
 
-func (fc *FakeCluster) addApplication(app *common.Application) {
+func (fc *FakeCluster) addApplication(app *state.Application) {
 	fc.context.AddApplication(app)
 }
 
-func (fc *FakeCluster) newApplication(appId string, queueName string) *common.Application {
-	return common.NewApplication(appId, queueName, fc.proxy)
+func (fc *FakeCluster) newApplication(appId string, queueName string) *state.Application {
+	app := state.NewApplication(appId, queueName, fc.proxy)
+	return app
 }
 
 func (fc *FakeCluster) waitAndAssertTaskState(t *testing.T, appId string, taskId string, expectedState string) {
-	appList := fc.context.SelectApplications(func(app *common.Application) bool {
+	appList := fc.context.SelectApplications(func(app *state.Application) bool {
 		return app.GetApplicationId() == appId
 	})
 	assert.Equal(t, len(appList), 1)
 	assert.Equal(t, appList[0].GetApplicationId(), appId)
-	assert.Assert(t, appList[0].GetTask(taskId) != nil)
+
+	task, err := appList[0].GetTask(taskId)
+	assert.Assert(t, err == nil)
 	deadline := time.Now().Add(10 * time.Second)
 	for {
-		if appList[0].GetTask(taskId).GetTaskState() == expectedState {
+		if task.GetTaskState() == expectedState {
 			break
 		}
 
 		if time.Now().After(deadline) {
 			t.Errorf("task %s doesn't reach expected state in given time, expecting: %s, actual: %s",
-				taskId, expectedState, appList[0].GetTask(taskId).GetTaskState())
+				taskId, expectedState, task.GetTaskState())
 		}
 	}
 }

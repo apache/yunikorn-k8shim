@@ -18,7 +18,6 @@ package state
 
 import (
 	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/client"
-	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/common"
 	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/scheduler/conf"
 	"gotest.tools/assert"
 	"k8s.io/api/core/v1"
@@ -55,15 +54,15 @@ func initContextForTest() *Context {
 }
 func TestAddApplications(t *testing.T) {
 	context := initContextForTest()
-	app01 := common.NewApplication("app00001", "root.a", nil)
+	app01 := NewApplication("app00001", "root.a", nil)
 	context.AddApplication(app01)
 	assert.Equal(t, len(context.applications), 1)
 	assert.Assert(t, context.applications["app00001"] != nil)
-	assert.Equal(t, context.applications["app00001"].GetApplicationState(), common.States().Application.New)
+	assert.Equal(t, context.applications["app00001"].GetApplicationState(), States().Application.New)
 	assert.Equal(t, len(context.applications["app00001"].GetPendingTasks()), 0)
 
-	task01 := common.CreateTaskForTest("task00001", app01, nil, nil, nil)
-	task02 := common.CreateTaskForTest("task00002", app01, nil, nil, nil)
+	task01 := CreateTaskForTest("task00001", app01, nil, nil, nil)
+	task02 := CreateTaskForTest("task00002", app01, nil, nil, nil)
 	app01.AddTask(&task01)
 	app01.AddTask(&task02)
 	assert.Equal(t, len(context.applications["app00001"].GetPendingTasks()), 2)
@@ -191,6 +190,9 @@ func TestAddPod(t *testing.T) {
 
 func TestPodRejected(t *testing.T) {
 	context := initContextForTest()
+	dispatcher := GetDispatcher()
+	dispatcher.SetContext(context)
+	dispatcher.Start()
 
 	pod := v1.Pod{
 		TypeMeta: apis.TypeMeta{
@@ -219,12 +221,17 @@ func TestPodRejected(t *testing.T) {
 	assert.Equal(t, string(app01.GetPendingTasks()[0].GetTaskPod().UID), "UID-POD-00001")
 	assert.Equal(t, app01.GetPendingTasks()[0].GetTaskPod().Namespace, "default")
 
-	context.OnTaskRejected("app00001", string(pod.UID))
+	// reject the task
+	task, _ := app01.GetTask("UID-POD-00001")
+	task.handle(NewRejectTaskEvent("app00001", "UID-POD-00001", ""))
 	assert.Equal(t, len(app01.GetPendingTasks()), 0)
-	assertTaskState(t, app01.GetTask("UID-POD-00001"), common.States().Task.Failed, 3*time.Second)
+
+	task01, err := app01.GetTask("UID-POD-00001")
+	assert.Assert(t, err == nil)
+	assertTaskState(t, task01, States().Task.Failed, 3*time.Second)
 }
 
-func assertTaskState(t *testing.T, task *common.Task, expectedState string, timeout time.Duration) {
+func assertTaskState(t *testing.T, task *Task, expectedState string, timeout time.Duration) {
 	deadline := time.Now().Add(timeout)
 	for {
 		if task.GetTaskState() == expectedState {

@@ -17,11 +17,14 @@ limitations under the License.
 package callback
 
 import (
+	"fmt"
 	"github.com/golang/glog"
-	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/scheduler/state"
+	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/state"
 	"github.infra.cloudera.com/yunikorn/scheduler-interface/lib/go/si"
 )
 
+// RM callback is called from the scheduler core, we need to ensure the response is handled
+// asynchronously to avoid blocking the scheduler.
 type AsyncRMCallback struct {
 	context *state.Context
 }
@@ -37,13 +40,19 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 	for _, app := range response.AcceptedApplications {
 		// update context
 		glog.V(4).Infof("callback: response to accepted application: %s", app.ApplicationId)
-		callback.context.ApplicationAccepted(app.ApplicationId)
+		if app, err := callback.context.GetApplication(app.ApplicationId); err == nil {
+			ev := state.NewSimpleApplicationEvent(app.GetApplicationId(), state.AcceptApplication)
+			state.GetDispatcher().Dispatch(ev)
+		}
 	}
 
 	for _, app := range response.RejectedApplications {
 		// update context
 		glog.V(4).Infof("callback: response to rejected application: %s", app.ApplicationId)
-		callback.context.ApplicationRejected(app.ApplicationId)
+		if app, err := callback.context.GetApplication(app.ApplicationId); err == nil {
+			ev := state.NewSimpleApplicationEvent(app.GetApplicationId(), state.RejectApplication)
+			state.GetDispatcher().Dispatch(ev)
+		}
 	}
 
 	// handle new allocations
@@ -52,8 +61,10 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 		glog.V(4).Infof("callback: response to new allocation, allocationKey: %s," +
 			" allocation UUID: %s, applicationId: %s, nodeId: %s",
 			alloc.AllocationKey, alloc.Uuid, alloc.ApplicationId, alloc.NodeId)
-		if err := callback.context.AllocateTask(alloc.ApplicationId, alloc.AllocationKey, alloc.Uuid, alloc.NodeId); err != nil {
-			glog.V(1).Infof("failed to allocate task, error %v", err)
+
+		if app, err := callback.context.GetApplication(alloc.ApplicationId); err == nil {
+			ev := state.NewAllocateTaskEvent(app.GetApplicationId(), alloc.AllocationKey, alloc.Uuid, alloc.NodeId)
+			state.GetDispatcher().Dispatch(ev)
 		}
 	}
 
@@ -61,7 +72,11 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 		// request rejected by the scheduler, put it back and try scheduling again
 		glog.V(4).Infof("callback: response to rejected allocation, allocationKey: %s",
 			reject.AllocationKey)
-		callback.context.OnTaskRejected(reject.ApplicationId, reject.AllocationKey)
+		if app, err := callback.context.GetApplication(reject.ApplicationId); err == nil {
+			state.GetDispatcher().Dispatch(state.NewRejectTaskEvent(app.GetApplicationId(), reject.AllocationKey,
+				fmt.Sprintf("task %s from application %s is rejected by scheduler",
+					reject.AllocationKey, reject.ApplicationId)))
+		}
 	}
 
 	for _, release := range response.ReleasedAllocations {
@@ -71,6 +86,3 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 
 	return nil
 }
-
-
-

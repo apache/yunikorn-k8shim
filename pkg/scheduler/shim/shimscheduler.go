@@ -14,15 +14,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package fsm
+package shim
 
 import (
 	"fmt"
 	"github.com/golang/glog"
 	"github.com/looplab/fsm"
-	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/common"
+	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/scheduler/callback"
 	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/scheduler/conf"
-	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/scheduler/state"
+	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/state"
 	"github.infra.cloudera.com/yunikorn/scheduler-interface/lib/go/si"
 	"github.infra.cloudera.com/yunikorn/yunikorn-core/pkg/api"
 	"github.infra.cloudera.com/yunikorn/yunikorn-core/pkg/rmproxy"
@@ -32,28 +32,41 @@ import (
 
 // shim scheduler watches api server and interacts with unity scheduler to allocate pods
 type ShimScheduler struct {
-	rmProxy *rmproxy.RMProxy
-	context *state.Context
-	callback api.ResourceManagerCallback
-	sm *fsm.FSM
-	events *SchedulerEvents
-	lock *sync.Mutex
+	rmProxy    *rmproxy.RMProxy
+	context    *state.Context
+	callback   api.ResourceManagerCallback
+	sm         *fsm.FSM
+	events     *SchedulerEvents
+	dispatcher *state.Dispatcher
+	lock       *sync.Mutex
 }
 
-func NewShimScheduler(p *rmproxy.RMProxy, ctx *state.Context, cb api.ResourceManagerCallback) *ShimScheduler {
+func NewShimScheduler(p *rmproxy.RMProxy, configs *conf.SchedulerConf) *ShimScheduler {
+	context := state.NewContext(p, configs)
+	callback := callback.NewAsyncRMCallback(context)
+	return newShimScheduler(p, context, callback)
+}
+
+// this is visible for testing
+func newShimScheduler(p *rmproxy.RMProxy, ctx *state.Context, cb api.ResourceManagerCallback) *ShimScheduler {
 	var events = InitiateEvents()
 	ss := &ShimScheduler{
-		rmProxy: p,
-		context: ctx,
+		rmProxy:  p,
+		context:  ctx,
 		callback: cb,
-		events:  events,
+		events:   events,
 	}
 
-	var states = common.States().Scheduler
+	// init dispatcher
+	ss.dispatcher = state.GetDispatcher()
+	ss.dispatcher.SetContext(ctx)
+
+	// init state machine
+	var states = state.States().Scheduler
 	ss.sm = fsm.NewFSM(
 		states.New,
 		fsm.Events{
-			{ Name: events.REGISTER.event,
+			{Name: events.REGISTER.event,
 				Src: []string{states.New},
 				Dst: states.Registered},
 			//{Name: "reject", Src: []string{"new"}, Dst: "rejected"},
@@ -105,20 +118,23 @@ func (ss *ShimScheduler) schedule() {
 	apps := ss.context.SelectApplications(nil)
 	for _, app := range apps {
 		for _, pendingTask := range app.GetPendingTasks() {
-			var states = common.States().Application
+			var states = state.States().Application
 			glog.V(3).Infof("schedule app %s pending task: %s",
 				app.GetApplicationId(), pendingTask.GetTaskPod().Name)
 			switch app.GetApplicationState() {
 			case states.New:
-				app.Submit()
+				ev := state.NewSubmitApplicationEvent(app.GetApplicationId())
+				state.GetDispatcher().Dispatch(ev)
 			case states.Accepted:
-				app.Run()
+				ev := state.NewRunApplicationEvent(app.GetApplicationId(), pendingTask)
+				state.GetDispatcher().Dispatch(ev)
 			case states.Running:
-				app.ScheduleTask(pendingTask)
-			case states.Completed:
-				app.IgnoreScheduleTask(pendingTask)
-			case states.Rejected:
-				app.IgnoreScheduleTask(pendingTask)
+				ev := state.NewRunApplicationEvent(app.GetApplicationId(), pendingTask)
+				state.GetDispatcher().Dispatch(ev)
+			default:
+				glog.V(1).Infof("app %s is in unexpected state, current state is %s,"+
+					" task cannot be scheduled if app's state is other than %s",
+					app.GetApplicationId(), app.GetApplicationState(), state.States().Application.Running)
 			}
 		}
 	}
@@ -131,7 +147,9 @@ func (ss *ShimScheduler) Run(stopChan chan struct{}) {
 		panic(fmt.Sprintf("state transition failed, error %s", err.Error()))
 	}
 
+	// run dispatcher
+	ss.dispatcher.Start()
+
 	ss.context.Run(stopChan)
 	go wait.Until(ss.schedule, ss.context.GetSchedulerConf().GetSchedulingInterval(), stopChan)
 }
-

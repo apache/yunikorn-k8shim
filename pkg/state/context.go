@@ -21,7 +21,6 @@ import (
 	"github.com/golang/glog"
 	"github.com/pkg/errors"
 	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/client"
-	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/common"
 	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/scheduler/conf"
 	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/scheduler/controller"
 	"github.infra.cloudera.com/yunikorn/yunikorn-core/pkg/api"
@@ -36,7 +35,7 @@ import (
 
 // context maintains scheduling state, like apps and apps' tasks.
 type Context struct {
-	applications   map[string]*common.Application
+	applications   map[string]*Application
 	nodeController *controller.NodeController
 	conf           *conf.SchedulerConf
 	kubeClient     client.KubeClient
@@ -54,7 +53,6 @@ type Context struct {
 	lock     *sync.RWMutex
 }
 
-
 func NewContext(scheduler api.SchedulerApi, configs *conf.SchedulerConf) *Context {
 	kc := client.NewKubeClient(configs.KubeConfig)
 	return NewContextInternal(scheduler, configs, kc, false)
@@ -63,7 +61,7 @@ func NewContext(scheduler api.SchedulerApi, configs *conf.SchedulerConf) *Contex
 // only for testing
 func NewContextInternal(scheduler api.SchedulerApi, configs *conf.SchedulerConf, client client.KubeClient, testMode bool) *Context {
 	ctx := &Context{
-		applications: make(map[string]*common.Application),
+		applications: make(map[string]*Application),
 		conf:         configs,
 		kubeClient:   client,
 		schedulerApi: scheduler,
@@ -77,6 +75,7 @@ func NewContextInternal(scheduler api.SchedulerApi, configs *conf.SchedulerConf,
 	// we have disabled re-sync to keep ourselves up-to-date
 	informerFactory := informers.NewSharedInformerFactory(ctx.kubeClient.GetClientSet(), 0)
 
+	// init informers
 	ctx.nodeInformer = informerFactory.Core().V1().Nodes()
 	ctx.nodeInformer.Informer().AddEventHandlerWithResyncPeriod(
 		cache.ResourceEventHandlerFuncs{
@@ -111,6 +110,10 @@ func NewContextInternal(scheduler api.SchedulerApi, configs *conf.SchedulerConf,
 	return ctx
 }
 
+// add a pod to the context
+// if pod is valid, we convent the pod to a equivalent task,
+// if task belongs to a application, we add this task to the application,
+// if task is new, we create a application and add this task to that.
 func (ctx *Context) addPod(obj interface{}) {
 	pod, ok := obj.(*v1.Pod)
 	if !ok {
@@ -119,7 +122,7 @@ func (ctx *Context) addPod(obj interface{}) {
 	}
 
 	glog.V(4).Infof("context: handling AddPod podName=%s/%s, podUid=%s", pod.Namespace, pod.Name, pod.UID)
-	if err := ctx.ValidatePod(pod); err != nil {
+	if err := ctx.validatePod(pod); err != nil {
 		glog.V(1).Infof("application is invalid, error: %s", err.Error())
 		return
 	}
@@ -130,6 +133,36 @@ func (ctx *Context) addPod(obj interface{}) {
 	}
 }
 
+// create a task if it doesn't exist yet,
+// return the task directly if it is already there in the application
+func (ctx *Context) getOrAddTask(a *Application, pod *v1.Pod) *Task {
+	// using pod UID as taskId
+	if task, err := a.GetTask(string(pod.UID)); err == nil {
+		return task
+	}
+	newTask := CreateTaskFromPod(a, ctx.kubeClient, ctx.schedulerApi, pod)
+	a.AddTask(newTask)
+	return newTask
+}
+
+// validate pod see if it is applicable for the scheduler
+func (ctx *Context) validatePod(pod *v1.Pod) error {
+	if pod.Spec.SchedulerName == "" || pod.Spec.SchedulerName != ctx.conf.SchedulerName {
+		// only pod with specific scheduler name is valid to us
+		return errors.New(fmt.Sprintf("only pod whose spec has explicitly " +
+			"specified schedulerName=%s is a valid scheduling-target, but schedulerName for pod %s(%s) is %s",
+			pod.Spec.SchedulerName, pod.Name, pod.UID, ctx.conf.SchedulerName))
+	}
+
+	if _, err := GenerateApplicationIdFromPod(pod); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// this function is called when a pod of a application gets updated,
+// currently there is no operation needed for this call.
 func (ctx *Context) updatePod(obj, newObj interface{}) {
 	glog.V(4).Infof("context: handling UpdatePod")
 	pod, ok := newObj.(*v1.Pod)
@@ -140,6 +173,10 @@ func (ctx *Context) updatePod(obj, newObj interface{}) {
 	glog.V(4).Infof("pod %s status %s", pod.Name, pod.Status.Phase)
 }
 
+// this function is called when a pod is deleted from api-server.
+// when a pod is completed, the equivalent task's state will also be completed
+// optionally, we run a completionHandler per workload, in order to determine
+// if a application is completed along with this pod's completion
 func (ctx *Context) deletePod(obj interface{}) {
 	// when a pod is deleted, we need to check its role.
 	// for spark, if driver pod is deleted, then we consider the app is completed
@@ -162,15 +199,14 @@ func (ctx *Context) deletePod(obj interface{}) {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
 
-	if app := ctx.getOrCreateApplication(pod); app != nil {
+	if application := ctx.getOrCreateApplication(pod); application != nil {
 		glog.V(4).Infof("Release allocation")
-		if task := app.GetTask(string(pod.UID)); task != nil {
-			task.Handle(common.NewSimpleTaskEvent(common.Complete))
-		}
+		GetDispatcher().Dispatch(NewSimpleTaskEvent(
+			application.GetApplicationId(), string(pod.UID), Complete))
 
 		glog.V(4).Infof("context: handling DeletePod podName=%s/%s, podUid=%s", pod.Namespace, pod.Name, pod.UID)
 		// starts a completion handler to handle the completion of a app on demand
-		app.StartCompletionHandler(ctx.kubeClient, pod)
+		application.StartCompletionHandler(ctx.kubeClient, pod)
 	}
 }
 
@@ -200,16 +236,20 @@ func (ctx *Context) filterConfigMaps(obj interface{}) bool {
 	}
 }
 
+// when detects the configMap for the scheduler is added, trigger hot-refresh
 func (ctx *Context) addConfigMaps(obj interface{}) {
 	glog.V(4).Infof("configMap added")
 	ctx.triggerReloadConfig()
 }
 
+// when detects the configMap for the scheduler is updated, trigger hot-refresh
 func (ctx *Context) updateConfigMaps(obj, newObj interface{}) {
 	glog.V(4).Infof("configMap updated")
 	ctx.triggerReloadConfig()
 }
 
+// when detects the configMap for the scheduler is deleted, no operation needed here
+// we assume there will be a consequent add operation after delete, so we treat it like a update.
 func (ctx *Context) deleteConfigMaps(obj interface{}) {
 	glog.V(3).Infof("configMap deleted")
 }
@@ -220,7 +260,7 @@ func (ctx *Context) triggerReloadConfig() {
 	switch ctx.schedulerApi.(type) {
 	case *rmproxy.RMProxy:
 		proxy := ctx.schedulerApi.(*rmproxy.RMProxy)
-		if err := proxy.ReloadConfiguration(ctx.conf.ClusterId); err != nil {
+		if err := proxy.ReloadConfiguration(); err != nil {
 			glog.V(1).Infof("Reload configuration failed with error %s", err.Error())
 		}
 	default:
@@ -232,106 +272,54 @@ func (ctx *Context) GetSchedulerConf() *conf.SchedulerConf {
 	return ctx.conf
 }
 
-// validate pod see if it is applicable for the scheduler
-//
-func (ctx *Context) ValidatePod(pod *v1.Pod) error {
-	if pod.Spec.SchedulerName == "" || pod.Spec.SchedulerName != ctx.conf.SchedulerName {
-		// only pod with specific scheduler name is valid to us
-		return errors.New(fmt.Sprintf("only pod whose spec has explicitly " +
-			"specified schedulerName=%s is a valid scheduling-target, but schedulerName for pod %s(%s) is %s",
-			pod.Spec.SchedulerName, pod.Name, pod.UID, ctx.conf.SchedulerName))
-	}
-
-	if _, err := common.GetApplicationId(pod); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 // if app already exists in the context, directly return the app from context
 // if app doesn't exist in the context yet, create a new app instance and add to context
-func (ctx *Context) getOrCreateApplication(pod *v1.Pod) *common.Application {
-	appId, err := common.GetApplicationId(pod)
+func (ctx *Context) getOrCreateApplication(pod *v1.Pod) *Application {
+	appId, err := GenerateApplicationIdFromPod(pod)
 	if err != nil {
 		glog.V(1).Infof("unable to get application by given pod, error message: %s", err.Error())
 		return nil
 	}
 
-	if app, ok := ctx.applications[appId]; ok {
-		return app
+	if application, ok := ctx.applications[appId]; ok {
+		return application
 	} else {
 		queueName := conf.ApplicationDefaultQueue
 		if an, ok := pod.Labels[conf.LabelQueueName]; ok {
 			queueName = an
 		}
-		newApp := common.NewApplication(appId, queueName, ctx.schedulerApi)
+		newApp := NewApplication(appId, queueName, ctx.schedulerApi)
 		ctx.applications[appId] = newApp
 		return ctx.applications[appId]
 	}
 }
 
 // for testing only
-func (ctx *Context) AddApplication(app *common.Application) {
+func (ctx *Context) AddApplication(app *Application) {
 	ctx.applications[app.GetApplicationId()] = app
 }
 
-func (ctx *Context) getOrAddTask(app *common.Application, pod *v1.Pod) *common.Task {
-	// using pod UID as taskId
-	if task := app.GetTask(string(pod.UID)); task != nil {
-		return task
-	}
-	newTask := common.CreateTaskFromPod(app, ctx.kubeClient, ctx.schedulerApi, pod)
-	app.AddTask(newTask)
-	return newTask
-}
-
-
-func (ctx *Context) ApplicationAccepted(appId string) {
+func (ctx *Context) GetApplication(appId string) (*Application, error) {
 	if app, ok := ctx.applications[appId]; ok {
-		app.Handle(common.NewSimpleApplicationEvent(common.AcceptApplication))
-		return
+		return app, nil
 	}
-	glog.V(2).Infof("app %s is not found ", appId)
+	return nil, errors.New(fmt.Sprintf("application %s is not found in context", appId))
 }
 
-func (ctx *Context) ApplicationRejected(appId string) {
+func (ctx *Context) GetTask(appId string, taskId string) (*Task, error) {
 	if app, ok := ctx.applications[appId]; ok {
-		app.Handle(common.NewSimpleApplicationEvent(common.RejectApplication))
-		return
-	}
-	glog.V(2).Infof("app %s is rejected by the scheduler, but it is not found in the context", appId)
-}
-
-
-// scheduler generates an allocation Uuid every time it allocates a container,
-// it is returned in the allocation response, we need to store this UUID in task because
-// it is the key to query allocation post allocate, e.g when do release.
-func (ctx *Context) AllocateTask(appId string, taskId string, allocUuid string, nodeId string) error {
-	if app := ctx.applications[appId]; app != nil {
-		if task := app.GetTask(taskId); task != nil {
-			return task.Handle(common.NewAllocateTaskEvent(allocUuid, nodeId))
+		if task, err := app.GetTask(taskId); err == nil {
+			return task, nil
 		}
 	}
-	return nil
+	return nil, errors.New(fmt.Sprintf("application %s is not found in context", appId))
 }
 
-func (ctx *Context) OnTaskRejected(appId string, podUid string) error {
-	if app, ok := ctx.applications[appId]; ok {
-		if task := app.GetTask(podUid); task != nil {
-			return task.Handle(common.NewRejectTaskEvent(
-				fmt.Sprintf("task %s from application %s is rejected by scheduler", podUid, appId)))
-		}
-	}
-	return errors.New("pod gets rejected, but application info is not found in context," +
-		" something is wrong")
-}
-
-func (ctx *Context) SelectApplications(filter func(app *common.Application) bool) []*common.Application {
+func (ctx *Context) SelectApplications(filter func(app *Application) bool) []*Application {
 	ctx.lock.RLock()
 	defer ctx.lock.RUnlock()
 
-	apps := make([]*common.Application, 0)
+	apps := make([]*Application, 0)
 	for _, app := range ctx.applications {
 		if filter != nil && !filter(app) {
 			continue

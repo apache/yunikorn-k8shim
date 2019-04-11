@@ -14,11 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package common
+package state
 
 import (
 	"fmt"
 	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/client"
+	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/common"
 	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/scheduler/conf"
 	"github.infra.cloudera.com/yunikorn/scheduler-interface/lib/go/si"
 	"github.infra.cloudera.com/yunikorn/yunikorn-core/pkg/api"
@@ -44,7 +45,7 @@ type Task struct {
 }
 
 func newTask(tid string, app *Application, client client.KubeClient, schedulerApi api.SchedulerApi, pod *v1.Pod) Task {
-	taskResource := GetPodResource(pod)
+	taskResource := common.GetPodResource(pod)
 	return createTaskInternal(tid, app, taskResource, pod, client, schedulerApi)
 }
 
@@ -57,7 +58,7 @@ func createTaskInternal(tid string, app *Application, resource *si.Resource,
 	pod *v1.Pod, client client.KubeClient, schedulerApi api.SchedulerApi) Task {
 	task := Task{
 		taskId:        tid,
-		applicationId: app.applicationId,
+		applicationId: app.GetApplicationId(),
 		application:   app,
 		pod:           pod,
 		resource:      resource,
@@ -101,11 +102,23 @@ func createTaskInternal(tid string, app *Application, resource *si.Resource,
 			states.Allocated:       task.postTaskAllocated,
 			states.Rejected:        task.postTaskRejected,
 			states.Completed:       task.postTaskCompleted,
-			"enter_state":          task.onStateChange,
+			//"enter_state":          task.onStateChange,
 		},
 	)
 
 	return task
+}
+
+// event handling
+func (task *Task) handle(te TaskEvent) error {
+	glog.V(4).Infof("Task(%s): preState: %s, coming event: %s",
+		task.taskId, task.sm.Current(), te.getEvent())
+	if err := task.sm.Event(string(te.getEvent()), te.getArgs()...); err != nil {
+		return err
+	}
+	glog.V(4).Infof("Task(%s): postState: %s, handled event: %s",
+		task.taskId, task.sm.Current(), te.getEvent())
+	return nil
 }
 
 func CreateTaskFromPod(app *Application, client client.KubeClient, scheduler api.SchedulerApi, pod *v1.Pod) *Task {
@@ -120,6 +133,8 @@ func (task *Task) GetTaskPod() *v1.Pod {
 }
 
 func (task *Task) GetTaskId() string {
+	task.lock.RLock()
+	defer task.lock.RUnlock()
 	return task.taskId
 }
 
@@ -139,7 +154,7 @@ func (task *Task) handleFailEvent(event *fsm.Event) {
 
 	eventArgs := make([]string, 1)
 	if err := GetEventArgsAsStrings(eventArgs, event.Args); err != nil {
-		task.Handle(NewFailTaskEvent(err.Error()))
+		GetDispatcher().Dispatch(NewFailTaskEvent(task.applicationId, task.taskId, err.Error()))
 		return
 	}
 
@@ -147,12 +162,6 @@ func (task *Task) handleFailEvent(event *fsm.Event) {
 		task.applicationId, task.taskId, eventArgs[0])
 }
 
-func (task *Task) onStateChange(event *fsm.Event) {
-	glog.V(4).Infof("Enqueue task on state change," +
-		" taskId=%s, preState=%s, postState=%s",
-		task.taskId, event.Src, event.Dst)
-	task.application.workChan <- task
-}
 
 func (task *Task) handleSubmitTaskEvent(event *fsm.Event) {
 	glog.V(4).Infof("Trying to schedule pod: %s", task.GetTaskPod().Name)
@@ -162,7 +171,7 @@ func (task *Task) handleSubmitTaskEvent(event *fsm.Event) {
 	if queueName, ok := task.pod.Labels[conf.LabelQueueName]; ok {
 		appQueue = queueName
 	}
-	rr := CreateUpdateRequestForTask(task.applicationId, task.taskId, appQueue, task.resource)
+	rr := common.CreateUpdateRequestForTask(task.applicationId, task.taskId, appQueue, task.resource)
 	glog.V(4).Infof("send update request %s", rr.String())
 	if err := task.schedulerApi.Update(&rr); err != nil {
 		glog.V(2).Infof("failed to send scheduling request to scheduler, error: %v", err)
@@ -184,24 +193,24 @@ func (task *Task) postTaskAllocated(event *fsm.Event) {
 		if err := GetEventArgsAsStrings(eventArgs, event.Args); err != nil {
 			errorMessage = err.Error()
 			glog.V(1).Infof(err.Error())
-			task.Handle(NewFailTaskEvent(errorMessage))
+			GetDispatcher().Dispatch(NewFailTaskEvent(task.applicationId, task.taskId, errorMessage))
 			return
 		}
 
 		allocUuid := eventArgs[0]
-		nodeId :=eventArgs[1]
+		nodeId := eventArgs[1]
 		glog.V(4).Infof("bind pod target: name: %s, uid: %s", task.pod.Name, task.pod.UID)
 		if err := task.kubeClient.Bind(task.pod, nodeId); err != nil {
 			errorMessage = fmt.Sprintf("bind pod failed, name: %s, uid: %s, %#v",
 				task.pod.Name, task.pod.UID, err)
 			glog.V(1).Info(errorMessage)
-			task.Handle(NewFailTaskEvent(errorMessage))
+			GetDispatcher().Dispatch(NewFailTaskEvent(task.applicationId, task.taskId, errorMessage))
 			return
 		}
 
 		glog.V(3).Infof("Successfully bound pod %s", task.pod.Name)
 		task.allocationUuid = allocUuid
-		task.Handle(NewBindTaskEvent())
+		GetDispatcher().Dispatch(NewBindTaskEvent(task.applicationId, task.taskId))
 	}(event)
 }
 
@@ -209,32 +218,18 @@ func (task *Task) postTaskRejected(event *fsm.Event) {
 	// currently, once task is rejected by scheduler, we directly move task to failed state.
 	// so this function simply triggers the state transition when it is rejected.
 	// but further, we can introduce retry mechanism if necessary.
-	go func() {
-		task.Handle(NewFailTaskEvent(
-			fmt.Sprintf("task %s failed because it is rejected by scheduler",
-				task.taskId)))
-	}()
+	GetDispatcher().Dispatch(NewFailTaskEvent(task.applicationId, task.taskId,
+		fmt.Sprintf("task %s failed because it is rejected by scheduler", task.taskId)))
 }
 
 func (task *Task) postTaskCompleted(event *fsm.Event) {
 	// when task is completed, we notify the scheduler to release allocations
 	go func() {
-		releaseRequest := CreateReleaseAllocationRequestForTask(
+		releaseRequest := common.CreateReleaseAllocationRequestForTask(
 			task.applicationId, task.allocationUuid, task.application.partition, task.resource)
 		glog.V(4).Infof("send release request %s", releaseRequest.String())
 		if err := task.schedulerApi.Update(&releaseRequest); err != nil {
 			glog.V(2).Infof("failed to send scheduling request to scheduler, error: %v", err)
 		}
 	}()
-}
-
-
-// event handling
-func (task *Task) Handle(te TaskEvent) error {
-	glog.V(4).Infof("Task(%s): preState: %s, coming event: %s",
-		task.taskId, task.sm.Current(), te.getEvent())
-	err := task.sm.Event(string(te.getEvent()), te.getArgs()...)
-	glog.V(4).Infof("Task(%s): postState: %s, handled event: %s",
-		task.taskId, task.sm.Current(), te.getEvent())
-	return err
 }

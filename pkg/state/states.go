@@ -1,4 +1,4 @@
-package common
+package state
 
 var (
 	states *AllStates

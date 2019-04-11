@@ -18,10 +18,8 @@ package main
 
 import (
 	"github.com/golang/glog"
-	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/scheduler/callback"
 	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/scheduler/conf"
-	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/scheduler/fsm"
-	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/scheduler/state"
+	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/scheduler/shim"
 	"github.infra.cloudera.com/yunikorn/yunikorn-core/pkg/entrypoint"
 	"os"
 	"os/signal"
@@ -41,15 +39,11 @@ func main() {
 	glog.V(3).Infof("Build info: version=%s, date=%s", version, date)
 	glog.V(3).Infof("******************************************************************")
 
-
-	glog.V(3).Infof("starting unified-scheduler")
+	glog.V(3).Infof("starting %s", configs.SchedulerName)
 	rmProxy, _, _ := entrypoint.StartAllServices()
 
-	context := state.NewContext(rmProxy, configs)
-	callback := callback.NewAsyncRMCallback(context)
-
 	stopChan := make(chan struct{})
-	ss := fsm.NewShimScheduler(rmProxy, context, callback)
+	ss := shim.NewShimScheduler(rmProxy, configs)
 	ss.Run(stopChan)
 
 	signalChan := make(chan os.Signal, 1)

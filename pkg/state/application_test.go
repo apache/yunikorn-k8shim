@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package common
+package state
 
 import (
 	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/scheduler/conf"
@@ -24,6 +24,7 @@ import (
 	"k8s.io/api/core/v1"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"testing"
+	"time"
 )
 
 func TestNewApplication(t *testing.T) {
@@ -38,12 +39,13 @@ func TestNewApplication(t *testing.T) {
 
 func TestSubmitApplication(t *testing.T) {
 	app := NewApplication("app00001", "root.abc", newMockSchedulerApi())
-	app.Submit()
-	assert.Equal(t, app.GetApplicationState(), States().Application.Submitted)
+
+	app.handle(NewSubmitApplicationEvent(app.applicationId))
+	assertAppState(t, app, States().Application.Submitted, 10*time.Second)
 
 	// app already submitted
-	app.Submit()
-	assert.Equal(t, app.GetApplicationState(), States().Application.Submitted)
+	app.handle(NewSubmitApplicationEvent(app.applicationId))
+	assertAppState(t, app, States().Application.Submitted, 10*time.Second)
 }
 
 func TestRunApplication(t *testing.T) {
@@ -58,17 +60,17 @@ func TestRunApplication(t *testing.T) {
 	app := NewApplication("app00001", "root.abc", ms)
 
 	// app must be submitted before being able to run
-	app.Run()
-	assert.Equal(t, app.GetApplicationState(), States().Application.New)
+	app.handle(NewRunApplicationEvent(app.applicationId, nil))
+	assertAppState(t, app, States().Application.New, 3*time.Second)
 
 	// submit the app
-	app.Submit()
-	assert.Equal(t, app.GetApplicationState(), States().Application.Submitted)
+	app.handle(NewSubmitApplicationEvent(app.applicationId))
+	assertAppState(t, app, States().Application.Submitted, 3*time.Second)
+
 
 	// app must be accepted first
-	app.Run()
-	assert.Equal(t, app.GetApplicationState(), States().Application.Submitted)
-
+	app.handle(NewRunApplicationEvent(app.applicationId, nil))
+	assertAppState(t, app, States().Application.Submitted, 3*time.Second)
 }
 
 func TestGetApplicationIdFromPod(t *testing.T) {
@@ -90,7 +92,7 @@ func TestGetApplicationIdFromPod(t *testing.T) {
 		Spec:   v1.PodSpec{},
 		Status: v1.PodStatus{},
 	}
-	appId, err := GetApplicationId(&pod)
+	appId, err := GenerateApplicationIdFromPod(&pod)
 	assert.Equal(t, appId, "app00001")
 	assert.Equal(t, err, nil)
 
@@ -112,7 +114,7 @@ func TestGetApplicationIdFromPod(t *testing.T) {
 		Spec:   v1.PodSpec{},
 		Status: v1.PodStatus{},
 	}
-	appId, err = GetApplicationId(&pod)
+	appId, err = GenerateApplicationIdFromPod(&pod)
 	assert.Equal(t, appId, "app00002")
 	assert.Equal(t, err, nil)
 
@@ -134,7 +136,7 @@ func TestGetApplicationIdFromPod(t *testing.T) {
 		Spec:   v1.PodSpec{},
 		Status: v1.PodStatus{},
 	}
-	appId, err = GetApplicationId(&pod)
+	appId, err = GenerateApplicationIdFromPod(&pod)
 	assert.Equal(t, appId, "spark-0001")
 	assert.Equal(t, err, nil)
 
@@ -153,7 +155,7 @@ func TestGetApplicationIdFromPod(t *testing.T) {
 		Status: v1.PodStatus{},
 	}
 
-	appId, err = GetApplicationId(&pod)
+	appId, err = GenerateApplicationIdFromPod(&pod)
 	assert.Equal(t, appId, "")
 	assert.Assert(t, err != nil)
 }
@@ -182,4 +184,17 @@ func (ms *MockSchedulerApi) RegisterResourceManager(request *si.RegisterResource
 
 func (ms *MockSchedulerApi) Update(request *si.UpdateRequest) error {
 	return ms.updateFn(request)
+}
+
+func assertAppState(t *testing.T, app *Application, expectedState string, duration time.Duration) {
+	deadline := time.Now().Add(duration)
+	for {
+		if app.sm.Current() == expectedState {
+			return
+		}
+
+		if time.Now().After(deadline) {
+			t.Fatalf("timeout waiting for app %s reach to state %s", app.applicationId, expectedState)
+		}
+	}
 }

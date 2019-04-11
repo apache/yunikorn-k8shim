@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package common
+package state
 
 import (
 	"fmt"
@@ -23,7 +23,7 @@ import (
 )
 
 func TestAllocateTaskEventArgs(t *testing.T) {
-	alloc := NewAllocateTaskEvent("UID-0001", "node-0001")
+	alloc := NewAllocateTaskEvent("app-0001", "task-0001", "UID-0001", "node-0001")
 	args := alloc.getArgs()
 
 	assert.Equal(t, len(args), 2)
@@ -32,7 +32,7 @@ func TestAllocateTaskEventArgs(t *testing.T) {
 }
 
 func TestGetAllocateTaskEventArgs(t *testing.T) {
-	alloc := NewAllocateTaskEvent("UID-0001", "node-0001")
+	alloc := NewAllocateTaskEvent("app-0001", "task-0001", "UID-0001", "node-0001")
 	args := alloc.getArgs()
 	assert.Equal(t, len(args), 2)
 	assert.Equal(t, fmt.Sprint(args[0]), "UID-0001")

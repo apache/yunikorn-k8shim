@@ -14,22 +14,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package common
+package shim
 
-import "errors"
+type SchedulerEvents struct {
+	REGISTER SchedulerEvent
+}
 
+type SchedulerEvent struct {
+	event string
+}
 
-func GetEventArgsAsStrings(result []string, generic []interface{}) error {
-	if generic != nil && len(generic) > 0 {
-		if result == nil || cap(result) != len(generic) {
-			return errors.New("invalid length of arguments")
-		}
-		for idx, argument := range generic {
-			argStr, ok := argument.(string)
-			if ok {
-				result[idx] = argStr
-			}
-		}
+func InitiateEvents() *SchedulerEvents {
+	return &SchedulerEvents {
+		REGISTER: SchedulerEvent{"REGISTER"},
 	}
-	return nil
 }
