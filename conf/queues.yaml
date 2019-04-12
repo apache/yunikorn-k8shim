@@ -4,13 +4,6 @@ partitions:
     queues:
       -
         name: root
-        resources:
-          guaranteed:
-            memory: 1000000
-            vcore: 100000
-          max:
-            memory: 1000000
-            vcore: 100000
         queues:
           -
             name: advertisement

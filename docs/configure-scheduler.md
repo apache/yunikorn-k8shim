@@ -30,7 +30,7 @@ kubectl describe configmaps yunikorn-configs
 
 ## Attach ConfigMap Volume to Scheduler Pod
 
-This is done in the scheduler yaml file, please look at [scheduler-configmap.yaml](../deployments/scheduler/scheduler-configmap.yaml)
+This is done in the scheduler yaml file, please look at [scheduler-v0.1.10.yaml](../deployments/scheduler/scheduler-v0.1.10.yaml)
 for reference.
 
 

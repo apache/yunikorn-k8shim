@@ -31,13 +31,6 @@ partitions:
     queues:
       -
         name: root
-        resources:
-          guaranteed:
-            memory: 200
-            vcore: 20
-          max:
-            memory: 200
-            vcore: 20
         queues:
           -
             name: a
@@ -89,13 +82,6 @@ partitions:
     queues:
       -
         name: root
-        resources:
-          guaranteed:
-            memory: 200
-            vcore: 20
-          max:
-            memory: 200
-            vcore: 20
         queues:
           -
             name: a

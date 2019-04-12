@@ -3,7 +3,7 @@ kind: Pod
 metadata:
   labels:
     app: sleep
-    applicationId: "job_2019_01_22_00001"
+    applicationId: "application-sleep-0001"
     queue: "root.sandbox"
   name: task0
 spec:
@@ -22,7 +22,7 @@ kind: Pod
 metadata:
   labels:
     app: sleep
-    applicationId: "job_2019_01_22_00001"
+    applicationId: "application-sleep-0002"
     queue: "root.sandbox"
   name: task1
 spec:
@@ -41,7 +41,7 @@ kind: Pod
 metadata:
   labels:
     app: sleep
-    applicationId: "job_2019_01_22_00001"
+    applicationId: "application-sleep-0003"
     queue: "root.sandbox"
   name: task2
 spec:

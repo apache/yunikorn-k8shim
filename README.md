@@ -52,9 +52,8 @@ You may need to modify the image name and tag in `Makefile` if you want to push 
 #### Deploy the scheduler on k8s
 
 ```
-kubectl create -f deployments/scheduler/scheduler.yaml
+kubectl create -f deployments/scheduler/scheduler-v0.2.0.yaml
 ```
-
 
 #### Run sample jobs
 
