@@ -179,7 +179,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:29612f627fa29c03e0a0f1b7830210faa592f43fbf6f01678a5fa9fb5518c625"
+  digest = "1:d46eef3e6a27dcc71e74af4bc5edaea4045e41779b52bc1a2449b28daa471350"
   name = "github.infra.cloudera.com/yunikorn/yunikorn-core"
   packages = [
     "pkg/api",
@@ -201,7 +201,7 @@
     "pkg/webservice/dao",
   ]
   pruneopts = ""
-  revision = "99489c3d189c142a7d694e4e6711c4867b4c01c4"
+  revision = "6a09df2b99149620fc5241c17694de0b925e357c"
 
 [[projects]]
   branch = "master"
@@ -241,14 +241,14 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:227fd48f127e252f68fecb328ee448020d26c93f9429356da9235b2845a04be8"
+  digest = "1:238467a15f2deb982e11e67d5dd7f126e631ae0ed09ba47859028ce46f4313f5"
   name = "golang.org/x/sys"
   packages = [
     "unix",
     "windows",
   ]
   pruneopts = ""
-  revision = "b44545bcd369ef9ff9bebcfebf5f3370ef9b1932"
+  revision = "97732733099d6a942a73b889770774366de963ed"
 
 [[projects]]
   digest = "1:5acd3512b047305d49e8763eef7ba423901e85d5dd2fd1e71778a0ea8de10bd4"
