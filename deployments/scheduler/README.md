@@ -26,7 +26,7 @@ Capabilities:
 
 ## v0.2.0
 
-This was built at Apr 10th
+This was built on Apr 10th
 * Deploys scheduler-core + scheduler-web
 * Scheduler pod runs 2 containers, 1 for scheduler-core, 1 for scheduler-web
 * Configuration file queues.yaml is built into the image
@@ -36,6 +36,16 @@ This was built at Apr 10th
 deployment: [scheduler-v0.2.0.yaml](scheduler-v0.2.0.yaml)
 
 this deployment only deploys both yunikorn-core + k8s-shim and yunikorn-web on a local K8s.
+
+## v0.3.0
+
+This was built on Apr 16th
+* Deploys scheduler-core + scheduler-web
+* Configuration loaded from config map (hot reload has some known issue)
+* Web UI has basic cluster/queue/application info
+* UI port is `9889`
+
+deployment: [scheduler-v0.3.0.yaml](scheduler-v0.3.0.yaml)
 
 ## v0.1.10
 
