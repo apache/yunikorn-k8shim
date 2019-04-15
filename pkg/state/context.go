@@ -245,6 +245,15 @@ func (ctx *Context) addConfigMaps(obj interface{}) {
 // when detects the configMap for the scheduler is updated, trigger hot-refresh
 func (ctx *Context) updateConfigMaps(obj, newObj interface{}) {
 	glog.V(4).Infof("configMap updated")
+	// When update event is received, it is not guaranteed the data mounted to the pod
+	// is also updated. This is because the actual update in pod's volume is ensured
+	// by kubelet, kubelet is checking whether the mounted ConfigMap is fresh on every
+	// periodic sync. As a result, the total delay from the moment when the ConfigMap
+	// is updated to the moment when new keys are projected to the pod can be as long
+	// as kubelet sync period + ttl of ConfigMaps cache in kubelet.
+	// We trigger configuration reload, on YuniKorn core side, it keeps checking config
+	// file state once this is called. And the acutal reload happens when it detects
+	// actual changes on the content.
 	ctx.triggerReloadConfig()
 }
 
@@ -266,6 +275,7 @@ func (ctx *Context) triggerReloadConfig() {
 	default:
 		return
 	}
+	glog.V(3).Infof("reload configuration sent...")
 }
 
 func (ctx *Context) GetSchedulerConf() *conf.SchedulerConf {
@@ -332,6 +342,7 @@ func (ctx *Context) SelectApplications(filter func(app *Application) bool) []*Ap
 
 func (ctx *Context) Run(stopCh <-chan struct{}) {
 	if !ctx.testMode {
+		glog.V(4).Infof("---- running informers")
 		go ctx.nodeInformer.Informer().Run(stopCh)
 		go ctx.podInformer.Informer().Run(stopCh)
 		go ctx.configMapInformer.Informer().Run(stopCh)
