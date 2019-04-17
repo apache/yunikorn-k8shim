@@ -48,7 +48,7 @@
 		},
 		{
 			"ImportPath": "github.com/golang/protobuf",
-			"Rev": "v1.1.0"
+			"Rev": "v1.2.0"
 		},
 		{
 			"ImportPath": "github.com/google/btree",
@@ -184,11 +184,11 @@
 		},
 		{
 			"ImportPath": "k8s.io/api",
-			"Rev": "d687e77c8ae9"
+			"Rev": "9eb4726e83e4"
 		},
 		{
 			"ImportPath": "k8s.io/apimachinery",
-			"Rev": "760d1845f48b"
+			"Rev": "3370b4aef5d6"
 		},
 		{
 			"ImportPath": "k8s.io/klog",
