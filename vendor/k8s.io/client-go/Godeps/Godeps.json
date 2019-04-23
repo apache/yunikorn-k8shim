@@ -104,7 +104,7 @@
 		},
 		{
 			"ImportPath": "github.com/onsi/ginkgo",
-			"Rev": "67b9df7f55fe"
+			"Rev": "v1.6.0"
 		},
 		{
 			"ImportPath": "github.com/onsi/gomega",
@@ -184,15 +184,15 @@
 		},
 		{
 			"ImportPath": "k8s.io/api",
-			"Rev": "9eb4726e83e4"
+			"Rev": "c5cad27821f6"
 		},
 		{
 			"ImportPath": "k8s.io/apimachinery",
-			"Rev": "3370b4aef5d6"
+			"Rev": "b874eabb9a4e"
 		},
 		{
 			"ImportPath": "k8s.io/klog",
-			"Rev": "8e90cee79f82"
+			"Rev": "v0.3.0"
 		},
 		{
 			"ImportPath": "k8s.io/kube-openapi",
