@@ -226,7 +226,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:8a90430b832eef1a2dc71ce81683b4d06de10068d73959ff8cd65d73c86633cd"
+  digest = "1:2d6ab3bd6cc8bb3fa0bfaf6ce8a241e0e2b53d7cff88018febf15180c27b4151"
   name = "github.infra.cloudera.com/yunikorn/yunikorn-core"
   packages = [
     "pkg/api",
@@ -250,7 +250,7 @@
     "pkg/webservice/dao",
   ]
   pruneopts = ""
-  revision = "b5b7186e1036d51b596d492facbef07682a5446a"
+  revision = "0fe1cb83c97813d7bc334aa4e3e1701b83de664b"
 
 [[projects]]
   branch = "master"
