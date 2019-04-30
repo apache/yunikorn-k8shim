@@ -1,7 +1,0 @@
-*.tmp
-.DS_Store
-.build
-*.swp
-*.a
-_output
-vendor
