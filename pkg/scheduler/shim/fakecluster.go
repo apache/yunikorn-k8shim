@@ -72,7 +72,8 @@ func (fc *FakeCluster) init(queues string) {
 		return nil
 	}
 
-	rmProxy, _, _  := entrypoint.StartAllServices()
+	serviceContext := entrypoint.StartAllServices()
+	rmProxy := serviceContext.RMProxy
 	utils.MockSchedulerConfigByData([]byte(fc.conf))
 
 	client := &client.FakeKubeClient{

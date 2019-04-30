@@ -40,10 +40,10 @@ func main() {
 	glog.V(3).Infof("******************************************************************")
 
 	glog.V(3).Infof("starting %s", configs.SchedulerName)
-	rmProxy, _, _ := entrypoint.StartAllServices()
+	serviceContext := entrypoint.StartAllServices()
 
 	stopChan := make(chan struct{})
-	ss := shim.NewShimScheduler(rmProxy, configs)
+	ss := shim.NewShimScheduler(serviceContext.RMProxy, configs)
 	ss.Run(stopChan)
 
 	signalChan := make(chan os.Signal, 1)
