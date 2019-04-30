@@ -22,7 +22,6 @@ import (
     "github.com/golang/glog"
     "github.com/satori/go.uuid"
     "github.infra.cloudera.com/yunikorn/scheduler-interface/lib/go/si"
-    "github.infra.cloudera.com/yunikorn/yunikorn-core/pkg/cache/cacheevent"
     "github.infra.cloudera.com/yunikorn/yunikorn-core/pkg/common/commonevents"
     "github.infra.cloudera.com/yunikorn/yunikorn-core/pkg/common/configs"
     "github.infra.cloudera.com/yunikorn/yunikorn-core/pkg/common/resources"
@@ -46,10 +45,13 @@ type PartitionInfo struct {
     state        partitionState
 
     // Total node resources
-    TotalPartitionResource *resources.Resource
+    totalPartitionResource *resources.Resource
 
     // Reference to scheduler metrics
     metrics schedulermetrics.CoreSchedulerMetrics
+
+    // Partition Configs
+    partitionConfig *configs.PartitionConfig
 
     lock sync.RWMutex
 }
@@ -65,7 +67,7 @@ func NewPartitionInfo(partition configs.PartitionConfig, rmId string) (*Partitio
     p.allocations = make(map[string]*AllocationInfo)
     p.nodes = make(map[string]*NodeInfo)
     p.applications = make(map[string]*ApplicationInfo)
-    p.TotalPartitionResource = resources.NewResource()
+    p.totalPartitionResource = resources.NewResource()
     glog.V(0).Infof("Creating partition %s for RM %s", p.Name, p.RMId)
 
     // Setup the queue structure: root first it should be the only queue at this level
@@ -78,6 +80,9 @@ func NewPartitionInfo(partition configs.PartitionConfig, rmId string) (*Partitio
     }
     p.Root = root
     glog.V(0).Infof("Added queue structure to partition %s", p.Name)
+
+    // set partition config
+    p.partitionConfig = &partition
 
     //TODO add placement rules and users
     return p, nil
@@ -102,6 +107,13 @@ func addQueueInfo(conf []configs.QueueConfig, parent *QueueInfo) error {
     return nil
 }
 
+func (pi *PartitionInfo) GetTotalPartitionResource() *resources.Resource {
+    pi.lock.RLock()
+    defer pi.lock.RUnlock()
+
+    return pi.totalPartitionResource
+}
+
 func (pi *PartitionInfo) addNewNode(node *NodeInfo, existingAllocations []*si.Allocation) error {
     pi.lock.Lock()
     defer pi.lock.Unlock()
@@ -121,8 +133,8 @@ func (pi *PartitionInfo) addNewNode(node *NodeInfo, existingAllocations []*si.Al
         }
     }
 
-    pi.TotalPartitionResource = resources.Add(pi.TotalPartitionResource, node.TotalResource)
-    pi.Root.MaxResource = pi.TotalPartitionResource
+    pi.totalPartitionResource = resources.Add(pi.totalPartitionResource, node.TotalResource)
+    pi.Root.MaxResource = pi.totalPartitionResource
 
     return nil
 }
@@ -150,17 +162,18 @@ func (pi *PartitionInfo) removeNode(nodeId string) {
             panic(fmt.Sprintf("Failed to getApp=%s when node=%s being removed, this shouldn't happen.", alloc.ApplicationId, node.NodeId))
         }
 
-        // get queue and update
-        for queue != nil {
-            queue.DecAllocatedResource(alloc.AllocatedResource)
-            queue = queue.Parent
+        // we should never have an error, cache is in an inconsistent state if this happens
+        if queue != nil {
+            if err := queue.DecAllocatedResource(alloc.AllocatedResource); err != nil {
+                glog.V(0).Infof("Queue failed to release resources from application %s: %v", alloc.ApplicationId, err)
+            }
         }
 
         glog.V(2).Infof("Remove allocation=%s from node=%s when node is removing", alloc.AllocationProto.Uuid, node.NodeId)
     }
 
-    pi.TotalPartitionResource = resources.Sub(pi.TotalPartitionResource, node.TotalResource)
-    pi.Root.MaxResource = pi.TotalPartitionResource
+    pi.totalPartitionResource = resources.Sub(pi.totalPartitionResource, node.TotalResource)
+    pi.Root.MaxResource = pi.totalPartitionResource
 
     // Remove node from nodes
     glog.V(0).Infof("Node=%s is removed from cache", node.NodeId)
@@ -190,7 +203,7 @@ func (pi *PartitionInfo) GetNode(nodeId string) *NodeInfo {
 }
 
 // Returns removed allocations
-func (pi *PartitionInfo) releaseAllocationsForApplication(toRelease *cacheevent.ReleaseAllocation) []*AllocationInfo {
+func (pi *PartitionInfo) releaseAllocationsForApplication(toRelease *commonevents.ReleaseAllocation) []*AllocationInfo {
     pi.lock.Lock()
     defer pi.lock.Unlock()
 
@@ -229,10 +242,12 @@ func (pi *PartitionInfo) releaseAllocationsForApplication(toRelease *cacheevent.
         resources.AddTo(totalReleasedResource, alloc.AllocatedResource)
     }
 
-    // Update queues
-    for queue != nil {
-        queue.DecAllocatedResource(totalReleasedResource)
-        queue = queue.Parent
+    // this nil check is not really needed as we can only reach here with a queue set, IDE complains without this
+    if queue != nil {
+        // we should never have an error, cache is in an inconsistent state if this happens
+        if err := queue.DecAllocatedResource(totalReleasedResource); err != nil {
+            glog.V(0).Infof("Queue failed to release resources for application %s: %v", toRelease.ApplicationId, err)
+        }
     }
 
     // Update global allocation list
@@ -244,7 +259,7 @@ func (pi *PartitionInfo) releaseAllocationsForApplication(toRelease *cacheevent.
     return allocationsToRelease
 }
 
-func (pi *PartitionInfo) addNewAllocation(alloc *commonevents.AllocationProposal) (*AllocationInfo, error) {
+func (pi *PartitionInfo) addNewAllocation(alloc *commonevents.AllocationProposal, nodeReported bool) (*AllocationInfo, error) {
     pi.lock.Lock()
     defer pi.lock.Unlock()
 
@@ -271,7 +286,7 @@ func (pi *PartitionInfo) addNewAllocation(alloc *commonevents.AllocationProposal
     }
 
     // If new allocation go beyond node's total resource?
-    newNodeResource := resources.Add(node.AllocatedResource, alloc.AllocatedResource)
+    newNodeResource := resources.Add(node.GetAllocatedResource(), alloc.AllocatedResource)
     if !resources.FitIn(node.TotalResource, newNodeResource) {
         pi.metrics.IncScheduledAllocationFailures()
         return nil, errors.New(fmt.Sprintf("Cannot allocate resource=[%s] from app=%s on "+
@@ -279,27 +294,18 @@ func (pi *PartitionInfo) addNewAllocation(alloc *commonevents.AllocationProposal
             alloc.AllocatedResource, alloc.ApplicationId, node.NodeId, newNodeResource, node.TotalResource))
     }
 
-    // If new allocation go beyond any of queue's max resource?
-    q := queue
-    for q != nil {
-        newQueueResource := resources.Add(q.AllocatedResource, alloc.AllocatedResource)
-        if q.MaxResource != nil && !resources.FitIn(q.MaxResource, newQueueResource) {
+    // If new allocation go beyond any of queue's max resource? Only check if when it is allocated instead of node reported.
+    if !nodeReported {
+        if err := queue.IncAllocatedResource(alloc.AllocatedResource); err != nil {
             pi.metrics.IncScheduledAllocationFailures()
-            return nil, errors.New(fmt.Sprintf("Cannot allocate resource=[%s] from app=%s on "+
-                "queue=%s because resource exceeded total available, allocated+new=%s, total=%s",
-                alloc.AllocatedResource, alloc.ApplicationId, queue.Name, newQueueResource, queue.MaxResource))
+            return nil, fmt.Errorf("Cannot allocate resource from application %s: %v ",
+                alloc.ApplicationId, err)
         }
-        q = q.Parent
     }
 
     // Start allocation
     allocationUuid := pi.GetNewAllocationUuid()
     allocation := NewAllocationInfo(allocationUuid, alloc)
-    q = queue
-    for q != nil {
-        q.IncAllocatedResource(allocation.AllocatedResource)
-        q = q.Parent
-    }
 
     node.AddAllocation(allocation)
 
@@ -322,11 +328,15 @@ func (pi *PartitionInfo) addNewAllocationForNodeReportedAllocation(allocation *s
         AllocationKey:     allocation.AllocationKey,
         Tags:              allocation.AllocationTags,
         Priority:          allocation.Priority,
-    })
+    }, true)
 }
 
-func (pi *PartitionInfo) addNewAllocationForSchedulingAllocation(proposal *commonevents.AllocationProposal) (*AllocationInfo, error) {
-    return pi.addNewAllocation(proposal)
+func (pi *PartitionInfo) addNewAllocationForSchedulingAllocation(allocationProposals []*commonevents.AllocationProposal) (*AllocationInfo, error) {
+    if len(allocationProposals) > 1 {
+        return nil, errors.New(fmt.Sprintf("Allocation=%v, Now we only support allocate one allocation at one time", allocationProposals))
+    }
+
+    return pi.addNewAllocation(allocationProposals[0], false)
 }
 
 func (pi *PartitionInfo) GetNewAllocationUuid() string {
@@ -348,7 +358,7 @@ func (pi *PartitionInfo) RemoveApplication(appId string) (*ApplicationInfo, []*A
         delete(pi.applications, appId)
 
         // Total allocated
-        totalAppAllocated := app.AllocatedResource
+        totalAppAllocated := app.GetAllocatedResource()
 
         // Get all allocations
         allocations := app.CleanupAllAllocations()
@@ -378,11 +388,12 @@ func (pi *PartitionInfo) RemoveApplication(appId string) (*ApplicationInfo, []*A
             }
         }
 
-        // Update queues
+        // we should never have an error, cache is in an inconsistent state if this happens
         queue := app.LeafQueue
-        for queue != nil {
-            queue.DecAllocatedResource(totalAppAllocated)
-            queue = queue.Parent
+        if queue != nil {
+            if err := queue.DecAllocatedResource(totalAppAllocated); err != nil {
+                glog.V(0).Infof("Queue failed to release resources from application %s: %v", app.ApplicationId, err)
+            }
         }
 
         glog.V(2).Infof("Removed app=%s from partition=%s, total-allocated=%s", app.ApplicationId, app.Partition, totalAppAllocated)
@@ -431,7 +442,7 @@ func (pi *PartitionInfo) GetQueueInfos() []dao.QueueDAOInfo {
     info.Capacities = dao.QueueCapacity{
         Capacity:     checkAndSetResource(pi.Root.GuaranteedResource),
         MaxCapacity:  checkAndSetResource(pi.Root.MaxResource),
-        UsedCapacity: checkAndSetResource(pi.Root.AllocatedResource),
+        UsedCapacity: checkAndSetResource(pi.Root.GetAllocatedResource()),
         AbsUsedCapacity: "20",
     }
     info.ChildQueues = GetChildQueueInfos(pi.Root)
@@ -453,7 +464,7 @@ func GetChildQueueInfos(info *QueueInfo) []dao.QueueDAOInfo {
         queue.Capacities = dao.QueueCapacity{
             Capacity:     checkAndSetResource(v.GuaranteedResource),
             MaxCapacity:  checkAndSetResource(v.MaxResource),
-            UsedCapacity: checkAndSetResource(v.AllocatedResource),
+            UsedCapacity: checkAndSetResource(v.GetAllocatedResource()),
             AbsUsedCapacity: "20",
         }
         queue.ChildQueues = GetChildQueueInfos(v)
@@ -526,6 +537,8 @@ func (pi *PartitionInfo) updatePartitionQueues(partition configs.PartitionConfig
     if err != nil {
         return err
     }
+    // replace partition config
+    pi.partitionConfig = &partition
     return pi.updateQueues(queueConf.Queues, root)
 }
 
@@ -583,4 +596,10 @@ func (pi *PartitionInfo) IsRunning() bool {
 // Is the partition
 func (pi *PartitionInfo) IsStopped() bool {
     return pi.state == deleted
+}
+
+func (pi* PartitionInfo) GetPartitionConfig() *configs.PartitionConfig {
+    pi.lock.RLock()
+    defer pi.lock.RUnlock()
+    return pi.partitionConfig
 }

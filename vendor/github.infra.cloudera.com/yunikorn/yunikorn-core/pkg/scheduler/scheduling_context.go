@@ -27,6 +27,8 @@ import (
 type ClusterSchedulingContext struct {
     partitions map[string]*PartitionSchedulingContext
 
+    needPreemption bool
+
     lock sync.RWMutex
 }
 
@@ -52,6 +54,17 @@ func newPartitionSchedulingContext(rmId string) *PartitionSchedulingContext {
         queues:       make(map[string]*SchedulingQueue),
         RmId:         rmId,
     }
+}
+
+func (csc *ClusterSchedulingContext) getPartitionMapClone() map[string]*PartitionSchedulingContext {
+    csc.lock.RLock()
+    defer csc.lock.RUnlock()
+
+    newMap := make(map[string]*PartitionSchedulingContext)
+    for k,v := range csc.partitions {
+        newMap[k] = v
+    }
+    return newMap
 }
 
 func (psc *PartitionSchedulingContext) updatePartitionSchedulingContext(info *cache.PartitionInfo) {
@@ -106,7 +119,7 @@ func (psc *PartitionSchedulingContext) RemoveSchedulingApplication(appId string,
     schedulingQueue.RemoveSchedulingApplication(schedulingApp)
 
     // Update pending resource of queues
-    totalPending := schedulingApp.Requests.TotalPendingResource
+    totalPending := schedulingApp.Requests.GetPendingResource()
     queue := schedulingApp.ParentQueue
     for queue != nil {
         queue.DecPendingResource(totalPending)
@@ -205,6 +218,8 @@ func (csc *ClusterSchedulingContext) updateSchedulingPartitions(partitions []*ca
 
     // Walk over the updated partitions
     for _, updatedPartition := range partitions {
+        csc.needPreemption = csc.needPreemption || updatedPartition.GetPartitionConfig().Preemption.Enabled
+
         partition := csc.partitions[updatedPartition.Name]
         if partition != nil {
             glog.V(3).Infof("Updating existing scheduling partition: %s", updatedPartition.Name)
@@ -226,12 +241,21 @@ func (csc *ClusterSchedulingContext) updateSchedulingPartitions(partitions []*ca
     return nil
 }
 
-// TODO can only proceed if the partition is empty
-// Remove the partition from the scheduler (triggered before RM registration)
-func (csc *ClusterSchedulingContext) RemoveSchedulingPartition(partitionName string) {
+func (csc *ClusterSchedulingContext) RemoveSchedulingPartitionsByRMId(rmId string) {
     csc.lock.Lock()
     defer csc.lock.Unlock()
-    delete(csc.partitions, partitionName)
+    partitionToRemove := make(map[string]bool)
+
+    // Just remove corresponding partitions
+    for k, partition := range csc.partitions {
+        if partition.RmId == rmId {
+            partitionToRemove[k] = true
+        }
+    }
+
+    for partitionName := range partitionToRemove {
+        delete(csc.partitions, partitionName)
+    }
 }
 
 // Remove the partition from the scheduler based on a configuration change
@@ -251,4 +275,11 @@ func (csc *ClusterSchedulingContext) deleteSchedulingPartitions(partitions []*ca
         }
     }
     return nil
+}
+
+func (csc* ClusterSchedulingContext) NeedPreemption() bool {
+    csc.lock.RLock()
+    defer csc.lock.RUnlock()
+
+    return csc.needPreemption
 }

@@ -32,7 +32,11 @@ import (
 // Test scheduler reconfiguration
 func TestConfigScheduler(t *testing.T) {
     // Start all tests
-    proxy, cache, scheduler := entrypoint.StartAllServicesWithManualScheduler()
+    serviceContext := entrypoint.StartAllServicesWithManualScheduler()
+    defer serviceContext.StopAll()
+    proxy := serviceContext.RMProxy
+    cache := serviceContext.Cache
+    scheduler := serviceContext.Scheduler
 
     // Register RM
     configData := `
@@ -156,7 +160,11 @@ partitions:
 // Test basic interactions from rm proxy to cache and to scheduler.
 func TestBasicScheduler(t *testing.T) {
     // Start all tests
-    proxy, cache, scheduler := entrypoint.StartAllServicesWithManualScheduler()
+    serviceContext := entrypoint.StartAllServicesWithManualScheduler()
+    defer serviceContext.StopAll()
+    proxy := serviceContext.RMProxy
+    cache := serviceContext.Cache
+    scheduler := serviceContext.Scheduler
 
     // Register RM
     configData := `
@@ -285,7 +293,7 @@ partitions:
     waitForPendingResource(t, schedulerQueueRoot, 20, 1000)
     waitForPendingResourceForApplication(t, schedulingApp, 20, 1000)
 
-    scheduler.SingleStepSchedule(16)
+    scheduler.SingleStepScheduleAllocTest(16)
 
     waitForAllocations(mockRM, 2, 1000)
 
@@ -295,9 +303,9 @@ partitions:
     waitForPendingResourceForApplication(t, schedulingApp, 0, 1000)
 
     // Check allocated resources of queues, apps
-    assert.Assert(t, schedulerQueueA.CachedQueueInfo.AllocatedResource.Resources[resources.MEMORY] == 20)
-    assert.Assert(t, schedulerQueueRoot.CachedQueueInfo.AllocatedResource.Resources[resources.MEMORY] == 20)
-    assert.Assert(t, schedulingApp.ApplicationInfo.AllocatedResource.Resources[resources.MEMORY] == 20)
+    assert.Assert(t, schedulerQueueA.CachedQueueInfo.GetAllocatedResource().Resources[resources.MEMORY] == 20)
+    assert.Assert(t, schedulerQueueRoot.CachedQueueInfo.GetAllocatedResource().Resources[resources.MEMORY] == 20)
+    assert.Assert(t, schedulingApp.ApplicationInfo.GetAllocatedResource().Resources[resources.MEMORY] == 20)
 
     // once we start to process allocation asks from this app, verify the state again
     assert.Equal(t, app01.GetApplicationState(), cacheInfo.Running.String())
@@ -347,7 +355,7 @@ partitions:
     waitForPendingResourceForApplication(t, schedulingApp, 300, 1000)
 
     // Now app-1 uses 20 resource, and queue-a's max = 150, so it can get two 50 container allocated.
-    scheduler.SingleStepSchedule(16)
+    scheduler.SingleStepScheduleAllocTest(16)
 
     waitForAllocations(mockRM, 4, 1000)
 
@@ -357,9 +365,9 @@ partitions:
     waitForPendingResourceForApplication(t, schedulingApp, 200, 1000)
 
     // Check allocated resources of queues, apps
-    assert.Assert(t, schedulerQueueA.CachedQueueInfo.AllocatedResource.Resources[resources.MEMORY] == 120)
-    assert.Assert(t, schedulerQueueRoot.CachedQueueInfo.AllocatedResource.Resources[resources.MEMORY] == 120)
-    assert.Assert(t, schedulingApp.ApplicationInfo.AllocatedResource.Resources[resources.MEMORY] == 120)
+    assert.Assert(t, schedulerQueueA.CachedQueueInfo.GetAllocatedResource().Resources[resources.MEMORY] == 120)
+    assert.Assert(t, schedulerQueueRoot.CachedQueueInfo.GetAllocatedResource().Resources[resources.MEMORY] == 120)
+    assert.Assert(t, schedulingApp.ApplicationInfo.GetAllocatedResource().Resources[resources.MEMORY] == 120)
 
     // Check allocated resources of nodes
     waitForNodesAllocatedResource(t, cache, "[rm:123]default", []string{"node-1:1234", "node-2:1234"}, 120, 1000)
@@ -395,9 +403,9 @@ partitions:
     waitForPendingResourceForApplication(t, schedulingApp, 200, 1000)
 
     // Check allocated resources of queues, apps should be 0 now
-    assert.Assert(t, schedulerQueueA.CachedQueueInfo.AllocatedResource.Resources[resources.MEMORY] == 0)
-    assert.Assert(t, schedulerQueueRoot.CachedQueueInfo.AllocatedResource.Resources[resources.MEMORY] == 0)
-    assert.Assert(t, schedulingApp.ApplicationInfo.AllocatedResource.Resources[resources.MEMORY] == 0)
+    assert.Assert(t, schedulerQueueA.CachedQueueInfo.GetAllocatedResource().Resources[resources.MEMORY] == 0)
+    assert.Assert(t, schedulerQueueRoot.CachedQueueInfo.GetAllocatedResource().Resources[resources.MEMORY] == 0)
+    assert.Assert(t, schedulingApp.ApplicationInfo.GetAllocatedResource().Resources[resources.MEMORY] == 0)
 
     // Release asks
     err = proxy.Update(&si.UpdateRequest{
@@ -423,7 +431,11 @@ partitions:
 
 func TestBasicSchedulerAutoAllocation(t *testing.T) {
     // Start all tests
-    proxy, cache, scheduler := entrypoint.StartAllServices()
+    serviceContext := entrypoint.StartAllServices()
+    defer serviceContext.StopAll()
+    proxy := serviceContext.RMProxy
+    cache := serviceContext.Cache
+    scheduler := serviceContext.Scheduler
 
     // Register RM
     configData := `
@@ -539,9 +551,9 @@ partitions:
     waitForPendingResourceForApplication(t, schedulingApp, 50, 1000)
 
     // Check allocated resources of queues, apps
-    assert.Assert(t, schedulerQueueA.CachedQueueInfo.AllocatedResource.Resources[resources.MEMORY] == 150)
-    assert.Assert(t, schedulerQueueRoot.CachedQueueInfo.AllocatedResource.Resources[resources.MEMORY] == 150)
-    assert.Assert(t, schedulingApp.ApplicationInfo.AllocatedResource.Resources[resources.MEMORY] == 150)
+    assert.Assert(t, schedulerQueueA.CachedQueueInfo.GetAllocatedResource().Resources[resources.MEMORY] == 150)
+    assert.Assert(t, schedulerQueueRoot.CachedQueueInfo.GetAllocatedResource().Resources[resources.MEMORY] == 150)
+    assert.Assert(t, schedulingApp.ApplicationInfo.GetAllocatedResource().Resources[resources.MEMORY] == 150)
 
     // Check allocated resources of nodes
     waitForNodesAllocatedResource(t, cache, "[rm:123]default", []string{"node-1:1234", "node-2:1234"}, 150, 1000)
@@ -549,7 +561,10 @@ partitions:
 
 func TestFairnessAllocationForQueues(t *testing.T) {
     // Start all tests
-    proxy, _, scheduler := entrypoint.StartAllServicesWithManualScheduler()
+    serviceContext := entrypoint.StartAllServicesWithManualScheduler()
+    defer serviceContext.StopAll()
+    proxy := serviceContext.RMProxy
+    scheduler := serviceContext.Scheduler
 
     // Register RM
     configData := `
@@ -689,7 +704,7 @@ partitions:
     waitForPendingResource(t, schedulerQueueRoot, 400, 1000)
 
     for i := 0; i < 20; i++ {
-        scheduler.SingleStepSchedule(1)
+        scheduler.SingleStepScheduleAllocTest(1)
         time.Sleep(time.Duration(100 * time.Millisecond))
     }
 
@@ -703,7 +718,10 @@ partitions:
 
 func TestFairnessAllocationForApplications(t *testing.T) {
     // Start all tests
-    proxy, _, scheduler := entrypoint.StartAllServicesWithManualScheduler()
+    serviceContext := entrypoint.StartAllServicesWithManualScheduler()
+    defer serviceContext.StopAll()
+    proxy := serviceContext.RMProxy
+    scheduler := serviceContext.Scheduler
 
     // Register RM
     configData := `
@@ -850,7 +868,7 @@ partitions:
     waitForPendingResourceForApplication(t, schedulingApp2, 200, 1000)
 
     for i := 0; i < 20; i++ {
-        scheduler.SingleStepSchedule(1)
+        scheduler.SingleStepScheduleAllocTest(1)
         time.Sleep(time.Duration(100 * time.Millisecond))
     }
 
@@ -864,13 +882,15 @@ partitions:
     waitForPendingResourceForApplication(t, schedulingApp2, 100, 1000)
 
     // Both apps got 100 resources,
-    assert.Assert(t, schedulingApp1.ApplicationInfo.AllocatedResource.Resources[resources.MEMORY] == 100)
-    assert.Assert(t, schedulingApp2.ApplicationInfo.AllocatedResource.Resources[resources.MEMORY] == 100)
+    assert.Assert(t, schedulingApp1.ApplicationInfo.GetAllocatedResource().Resources[resources.MEMORY] == 100)
+    assert.Assert(t, schedulingApp2.ApplicationInfo.GetAllocatedResource().Resources[resources.MEMORY] == 100)
 }
 
 func TestRejectApplications(t *testing.T) {
     // Start all tests
-    proxy, _, _ := entrypoint.StartAllServicesWithManualScheduler()
+    serviceContext := entrypoint.StartAllServicesWithManualScheduler()
+    defer serviceContext.StopAll()
+    proxy := serviceContext.RMProxy
 
     // Register RM
     configData := `
