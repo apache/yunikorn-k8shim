@@ -7,7 +7,7 @@ CONF_FILE=queues.yaml
 REPO=github.infra.cloudera.com/yunikorn/k8s-shim/pkg
 
 IMAGE_TAG=yunikorn/scheduler-core
-IMAGE_VERSION=0.1.0
+IMAGE_VERSION=0.3.5
 DATE=$(shell date +%FT%T%z)
 
 init:
@@ -38,8 +38,8 @@ image: build_image
 image2: build_image
 	cp ${RELEASE_BIN_DIR}/${BINARY} ./deployments/image/configmap
 	GOOS=linux
-	docker build ./deployments/image/configmap -t ${IMAGE_TAG}:0.1.10
-	docker push ${IMAGE_TAG}:0.1.10
+	docker build ./deployments/image/configmap -t ${IMAGE_TAG}:0.3.5
+	docker push ${IMAGE_TAG}:0.3.5
 	rm -f ./deployments/image/configmap/${BINARY}
 
 run: build

@@ -49,6 +49,12 @@ make image
 this command will build the image, tag it and push to a docker hub repo.
 You may need to modify the image name and tag in `Makefile` if you want to push it somewhere else.
 
+#### Create RBAC for the scheduler
+
+```
+kubectl create -f deployments/scheduler/yunikorn-rbac.yaml
+```
+
 #### Deploy the scheduler on k8s
 
 ```
@@ -68,5 +74,18 @@ kubectl create -f deployments/sleep/sleeppods.xml
 ```
 
 `./deployments/spark` contains pod template files for Spark driver and executor, they can be used if you want to run Spark on k8s using this scheduler.
+
+#### Access UI
+
+```
+// get name of yunikorn pod
+kubectl get pods | grep yunikorn-scheduler | cut -d " " -f 1
+
+// UI port
+kubectl port-forward ${podName} 9889
+
+// web service port
+kubectl port-forward ${podName} 9080
+```
 
 Tutorial of running Spark with YuniKorn can be found [here](./docs/spark.md).

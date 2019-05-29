@@ -1,0 +1,34 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  labels:
+    app: yunikorn
+  name: yunikorn-scheduler
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: yunikorn
+      name: yunikorn-scheduler
+    spec:
+      hostNetwork: true
+      containers:
+        - name: yunikorn-scheduler-core
+          image: yunikorn/scheduler-core:0.3.5
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 9080
+            - containerPort: 9090
+          volumeMounts:
+            - name: config-volume
+              mountPath: /etc/yunikorn/
+        - name: yunikorn-scheduler-web
+          image: yunikorn/scheduler-web:0.3.5
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 9889
+      volumes:
+        - name: config-volume
+          configMap:
+            name: yunikorn-configs
