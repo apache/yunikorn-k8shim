@@ -188,11 +188,11 @@ func (ctx *Context) deletePod(obj interface{}) {
 		var ok bool
 		pod, ok = t.Obj.(*v1.Pod)
 		if !ok {
-			glog.V(1).Info("Cannot convert to *v1.Pod: %v", t.Obj)
+			glog.V(1).Infof("Cannot convert to *v1.Pod: %v", t.Obj)
 			return
 		}
 	default:
-		glog.V(1).Info("Cannot convert to *v1.Pod: %v", t)
+		glog.V(1).Infof("Cannot convert to *v1.Pod: %v", t)
 		return
 	}
 

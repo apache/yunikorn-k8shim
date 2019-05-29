@@ -210,7 +210,7 @@ func (app *Application) handleSubmitApplicationEvent(event *fsm.Event) {
 // this is called after entering running state
 func (app *Application) handleRunApplicationEvent(event *fsm.Event) {
 	if event.Args == nil || len(event.Args) != 1 {
-		glog.V(1).Infof("failed to run application tasks," +
+		glog.V(1).Infof("failed to run tasks from application %s," +
 			" event argument is expected to have only 1 argument",
 			app.applicationId)
 		return
@@ -262,7 +262,7 @@ func (app *Application) startSparkCompletionHandler(client client.KubeClient, po
 		completeFn: func() {
 			podWatch, err := client.GetClientSet().CoreV1().Pods(pod.Namespace).Watch(metav1.ListOptions{ Watch: true, })
 			if err != nil {
-				glog.V(1).Info("Unable to create Watch for pod %s", pod.Name)
+				glog.V(1).Infof("Unable to create Watch for pod %s", pod.Name)
 				return
 			}
 
