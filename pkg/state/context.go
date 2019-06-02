@@ -21,8 +21,10 @@ import (
 	"github.com/golang/glog"
 	"github.com/pkg/errors"
 	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/client"
+	plugin "github.infra.cloudera.com/yunikorn/k8s-shim/pkg/predicates"
 	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/scheduler/conf"
 	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/scheduler/controller"
+	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/state/external"
 	"github.infra.cloudera.com/yunikorn/yunikorn-core/pkg/api"
 	"github.infra.cloudera.com/yunikorn/yunikorn-core/pkg/rmproxy"
 	"k8s.io/api/core/v1"
@@ -49,6 +51,10 @@ type Context struct {
 	// pvInformer       infomerv1.PersistentVolumeInformer
 	// pvcInformer      infomerv1.PersistentVolumeClaimInformer
 
+	nodes *external.CachedNodes
+	pods  map[string]*v1.Pod
+	predictor *plugin.Predictor
+
 	testMode bool
 	lock     *sync.RWMutex
 }
@@ -65,12 +71,15 @@ func NewContextInternal(scheduler api.SchedulerApi, configs *conf.SchedulerConf,
 		conf:         configs,
 		kubeClient:   client,
 		schedulerApi: scheduler,
+		nodes:        external.NewCachedNodes(),
+		pods:         make(map[string]*v1.Pod),
+		predictor:    plugin.NewPredictor(),
 		testMode:     testMode,
 		lock:         &sync.RWMutex{},
 	}
 
 	// init controllers
-	ctx.nodeController = controller.NewNodeController(scheduler)
+	ctx.nodeController = controller.NewNodeController(scheduler, ctx.nodes)
 
 	// we have disabled re-sync to keep ourselves up-to-date
 	informerFactory := informers.NewSharedInformerFactory(ctx.kubeClient.GetClientSet(), 0)
@@ -115,6 +124,9 @@ func NewContextInternal(scheduler api.SchedulerApi, configs *conf.SchedulerConf,
 // if task belongs to a application, we add this task to the application,
 // if task is new, we create a application and add this task to that.
 func (ctx *Context) addPod(obj interface{}) {
+	ctx.lock.Lock()
+	defer ctx.lock.Unlock()
+
 	pod, ok := obj.(*v1.Pod)
 	if !ok {
 		glog.Errorf("Cannot convert to *v1.Pod: %v", obj)
@@ -122,15 +134,35 @@ func (ctx *Context) addPod(obj interface{}) {
 	}
 
 	glog.V(4).Infof("context: handling AddPod podName=%s/%s, podUid=%s", pod.Namespace, pod.Name, pod.UID)
-	if err := ctx.validatePod(pod); err != nil {
-		glog.V(1).Infof("application is invalid, error: %s", err.Error())
-		return
+	if pod.Status.Phase == v1.PodPending {
+		if err := ctx.validatePod(pod); err != nil {
+			glog.V(1).Infof("application is invalid, error: %s", err.Error())
+			return
+		}
+
+		if app := ctx.getOrCreateApplication(pod); app != nil {
+			task := ctx.getOrAddTask(app, pod)
+			app.AddTask(task)
+		}
 	}
 
-	if app := ctx.getOrCreateApplication(pod); app != nil {
-		task := ctx.getOrAddTask(app, pod)
-		app.AddTask(task)
-	}
+
+	// put pod into an internal cache, this way we can track pods simply using
+	// its UID. because core doesn't have info about pods, only UIDs.
+	// pods should be removed from the cache once they are deleted from api-server.
+	ctx.addPodToCache(pod)
+}
+
+func (ctx *Context) addPodToCache(pod *v1.Pod) {
+	glog.V(4).Infof("adding pod %s to cache", pod.Name)
+	ctx.nodes.AddPod(pod)
+	ctx.pods[string(pod.UID)] = pod
+}
+
+func (ctx *Context) removePodFromCache(pod *v1.Pod) {
+	glog.V(4).Infof("removing pod %s from cache", pod.Name)
+	ctx.nodes.RemovePod(pod)
+	delete(ctx.pods, string(pod.UID))
 }
 
 // create a task if it doesn't exist yet,
@@ -165,12 +197,23 @@ func (ctx *Context) validatePod(pod *v1.Pod) error {
 // currently there is no operation needed for this call.
 func (ctx *Context) updatePod(obj, newObj interface{}) {
 	glog.V(4).Infof("context: handling UpdatePod")
+	old, ok := obj.(*v1.Pod)
+	if !ok {
+		glog.Errorf("Cannot convert to *v1.Pod: %v", obj)
+		return
+	}
 	pod, ok := newObj.(*v1.Pod)
 	if !ok {
 		glog.Errorf("Cannot convert to *v1.Pod: %v", obj)
 		return
 	}
-	glog.V(4).Infof("pod %s status %s", pod.Name, pod.Status.Phase)
+	glog.V(4).Infof("pod %s status %s old", old.Name, old.Status.Phase)
+	glog.V(4).Infof("pod %s status %s new", pod.Name, pod.Status.Phase)
+}
+
+func (ctx *Context) updatePodInCache(old, new *v1.Pod) {
+	glog.V(4).Infof("updating pod %s in cache", old.Name)
+	ctx.nodes.UpdatePod(old, new)
 }
 
 // this function is called when a pod is deleted from api-server.
@@ -199,6 +242,9 @@ func (ctx *Context) deletePod(obj interface{}) {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
 
+	glog.V(4).Infof("deleting pod %s from cache", pod.Name)
+	ctx.removePodFromCache(pod)
+
 	if application := ctx.getOrCreateApplication(pod); application != nil {
 		glog.V(4).Infof("Release allocation")
 		GetDispatcher().Dispatch(NewSimpleTaskEvent(
@@ -216,8 +262,8 @@ func (ctx *Context) filterPods(obj interface{}) bool {
 	case *v1.Pod:
 		pod := obj.(*v1.Pod)
 		if strings.Compare(pod.Spec.SchedulerName,
-			ctx.conf.SchedulerName) == 0 && pod.Status.Phase == v1.PodPending {
-			return true
+			ctx.conf.SchedulerName) == 0 {
+				return true
 		}
 		return false
 	default:
@@ -276,6 +322,19 @@ func (ctx *Context) triggerReloadConfig() {
 		return
 	}
 	glog.V(3).Infof("reload configuration sent...")
+}
+
+// evaluate given predicates based on current context
+func (ctx *Context) IsPodFitNode(name string, node string) error {
+	ctx.lock.RLock()
+	defer ctx.lock.RUnlock()
+	if pod, ok := ctx.pods[name]; ok {
+		// if pod exists in cache, try to run predicates
+		if targetNode := ctx.nodes.GetNode(node); targetNode != nil {
+			return ctx.predictor.Predicates(pod, targetNode)
+		}
+	}
+	return fmt.Errorf("predicates were not running because pod or node was not found in cache")
 }
 
 func (ctx *Context) GetSchedulerConf() *conf.SchedulerConf {

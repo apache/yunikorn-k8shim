@@ -21,17 +21,20 @@ import (
 	"fmt"
 	"github.com/golang/glog"
 	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/common"
+	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/state/external"
 	"github.infra.cloudera.com/yunikorn/yunikorn-core/pkg/api"
 	"k8s.io/api/core/v1"
 )
 
 type NodeController struct {
 	proxy api.SchedulerApi
+	cache *external.CachedNodes
 }
 
-func NewNodeController(schedulerApi api.SchedulerApi) *NodeController {
+func NewNodeController(schedulerApi api.SchedulerApi, cache *external.CachedNodes) *NodeController {
 	return &NodeController{
 		proxy: schedulerApi,
+		cache: cache,
 	}
 }
 
@@ -56,6 +59,10 @@ func (nc *NodeController) AddNode(obj interface{}) {
 		return
 	}
 
+	// add node to cache
+	glog.V(4).Infof("adding node %s to cache", node.Name)
+	nc.cache.AddNode(node)
+
 	n := common.CreateFrom(node)
 	request := common.CreateUpdateRequestForNewNode(n)
 	glog.V(3).Infof("report new nodes to scheduler, request: %s", request.String())
@@ -77,6 +84,10 @@ func (nc *NodeController) UpdateNode(oldObj, newObj interface{}) {
 		glog.Errorf(err.Error())
 		return
 	}
+
+	// update cache
+	glog.V(4).Infof("updating node %s in cache", oldNode.Name)
+	nc.cache.UpdateNode(oldNode, newNode)
 
 	// node resource changes
 	if equals(oldNode, newNode) {
@@ -100,6 +111,10 @@ func (nc *NodeController) DeleteNode(obj interface{}) {
 		glog.Errorf(err.Error())
 		return
 	}
+
+	// add node to cache
+	glog.V(4).Infof("delete node %s from cache", node.Name)
+	nc.cache.RemoveNode(node)
 
 	n := common.CreateFrom(node)
 	request := common.CreateUpdateRequestForDeleteNode(n)

@@ -9,7 +9,7 @@ var dispatcher *Dispatcher
 
 // central dispatcher that dispatches scheduling events.
 type Dispatcher struct {
-	context   *Context
+	context *Context
 	eventChan chan SchedulingEvent
 	stopChan  chan struct{}
 	isRunning bool
@@ -26,8 +26,8 @@ func GetDispatcher() *Dispatcher {
 }
 
 // this should be called only on initialization
-func (p *Dispatcher) SetContext(context *Context) {
-	p.context = context
+func (p *Dispatcher) SetContext(ctx *Context) {
+	p.context = ctx
 }
 
 // dispatches scheduler events to actual app/task handler,

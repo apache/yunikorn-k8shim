@@ -66,16 +66,26 @@ func newShimScheduler(p *rmproxy.RMProxy, ctx *state.Context, cb api.ResourceMan
 	ss.sm = fsm.NewFSM(
 		states.New,
 		fsm.Events{
-			{Name: events.REGISTER.event,
+			{Name: events.Register.event,
 				Src: []string{states.New},
 				Dst: states.Registered},
+			{Name: events.RefreshCache.event,
+				Src: []string{states.New, states.Running},
+				Dst: states.Running},
 			//{Name: "reject", Src: []string{"new"}, Dst: "rejected"},
 		},
 		fsm.Callbacks{
-			events.REGISTER.event: ss.register(),
+			events.Register.event: ss.register(),
+			events.RefreshCache.event: ss.refreshCache(),
 		},
 	)
 	return ss
+}
+
+func (ss *ShimScheduler) refreshCache() func(e *fsm.Event) {
+	return func(e *fsm.Event) {
+
+	}
 }
 
 func (ss *ShimScheduler) register() func(e *fsm.Event) {
@@ -105,6 +115,10 @@ func (ss *ShimScheduler) GetSchedulerState() string {
 	return ss.sm.Current()
 }
 
+func (ss *ShimScheduler) GetContext() *state.Context {
+	return ss.context
+}
+
 // event handling
 func (ss *ShimScheduler) Handle(se SchedulerEvent) error {
 	glog.V(4).Infof("ShimScheduler: preState: %s, coming event: %s", ss.sm.Current(), se.event)
@@ -117,6 +131,7 @@ func (ss *ShimScheduler) Handle(se SchedulerEvent) error {
 func (ss *ShimScheduler) schedule() {
 	apps := ss.context.SelectApplications(nil)
 	for _, app := range apps {
+		glog.V(4).Infof(">>> app %s", app.GetApplicationId())
 		for _, pendingTask := range app.GetPendingTasks() {
 			var states = state.States().Application
 			glog.V(3).Infof("schedule app %s pending task: %s",
@@ -143,7 +158,7 @@ func (ss *ShimScheduler) schedule() {
 
 func (ss *ShimScheduler) Run(stopChan chan struct{}) {
 	// first register to scheduler
-	if err := ss.Handle(ss.events.REGISTER); err != nil {
+	if err := ss.Handle(ss.events.Register); err != nil {
 		panic(fmt.Sprintf("state transition failed, error %s", err.Error()))
 	}
 

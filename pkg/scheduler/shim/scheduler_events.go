@@ -17,7 +17,8 @@ limitations under the License.
 package shim
 
 type SchedulerEvents struct {
-	REGISTER SchedulerEvent
+	Register SchedulerEvent
+	RefreshCache SchedulerEvent
 }
 
 type SchedulerEvent struct {
@@ -26,6 +27,7 @@ type SchedulerEvent struct {
 
 func InitiateEvents() *SchedulerEvents {
 	return &SchedulerEvents {
-		REGISTER: SchedulerEvent{"REGISTER"},
+		Register: SchedulerEvent{"REGISTER"},
+		RefreshCache: SchedulerEvent{"REFRESH"},
 	}
 }

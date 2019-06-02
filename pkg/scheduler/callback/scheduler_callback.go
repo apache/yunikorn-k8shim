@@ -86,3 +86,7 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 
 	return nil
 }
+
+func (callback *AsyncRMCallback) EvalPredicates(name string, node string) error {
+	return callback.context.IsPodFitNode(name, node)
+}
