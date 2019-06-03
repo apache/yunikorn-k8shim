@@ -19,6 +19,9 @@ package external
 import (
 	"fmt"
 	"k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/kubernetes/pkg/scheduler/algorithm"
+	"k8s.io/kubernetes/pkg/scheduler/factory"
 	deschedulernode "k8s.io/kubernetes/pkg/scheduler/nodeinfo"
 	"sync"
 )
@@ -38,7 +41,16 @@ func NewCachedNodes() *CachedNodes {
 	}
 }
 
+func (cache *CachedNodes) assignArgs(args factory.PluginFactoryArgs) {
+	// nodes cache implemented PodLister and NodeInfo interface
+	args.PodLister = cache
+	args.NodeInfo = cache
+}
+
 func (cache *CachedNodes) GetNode(name string) *deschedulernode.NodeInfo {
+	cache.lock.RLock()
+	defer cache.lock.RUnlock()
+
 	if n, ok := cache.nodesMap[name]; ok {
 		return n
 	}
@@ -52,6 +64,7 @@ func (cache *CachedNodes) AddNode(node *v1.Node) {
 	n, ok := cache.nodesMap[node.Name]
 	if !ok {
 		n = deschedulernode.NewNodeInfo()
+		n.SetNode(node)
 		cache.nodesMap[node.Name] = n
 	}
 }
@@ -119,3 +132,42 @@ func (cache *CachedNodes) RemovePod(pod *v1.Pod) error {
 	return nil
 }
 
+
+// Implement scheduler/algorithm/PodLister interface
+func (cache *CachedNodes) List(selector labels.Selector) ([]*v1.Pod, error) {
+	alwaysTrue := func(p *v1.Pod) bool { return true }
+	return cache.FilteredList(alwaysTrue, selector)
+}
+
+// Implement scheduler/algorithm/PodLister interface
+func (cache *CachedNodes) FilteredList(podFilter algorithm.PodFilter, selector labels.Selector) ([]*v1.Pod, error) {
+	cache.lock.RLock()
+	defer cache.lock.RUnlock()
+	// podFilter is expected to return true for most or all of the pods. We
+	// can avoid expensive array growth without wasting too much memory by
+	// pre-allocating capacity.
+	maxSize := 0
+	for _, nodeInfo := range cache.nodesMap {
+		maxSize += len(nodeInfo.Pods())
+	}
+	pods := make([]*v1.Pod, 0, maxSize)
+	for _, nodeInfo := range cache.nodesMap {
+		for _, pod := range nodeInfo.Pods() {
+			if podFilter(pod) && selector.Matches(labels.Set(pod.Labels)) {
+				pods = append(pods, pod)
+			}
+		}
+	}
+	return pods, nil
+}
+
+// Implement scheduler/algorithm/NodeInfo interface
+func (cache *CachedNodes) GetNodeInfo(nodeName string) (*v1.Node, error) {
+	cache.lock.RLock()
+	defer cache.lock.RUnlock()
+
+	if nodeInfo, ok := cache.nodesMap[nodeName]; ok {
+		return nodeInfo.Node(), nil
+	}
+	return nil, fmt.Errorf("node %s is not found", nodeName)
+}

@@ -73,7 +73,7 @@ func NewContextInternal(scheduler api.SchedulerApi, configs *conf.SchedulerConf,
 		schedulerApi: scheduler,
 		nodes:        external.NewCachedNodes(),
 		pods:         make(map[string]*v1.Pod),
-		predictor:    plugin.NewPredictor(),
+		predictor:    plugin.NewPredictor(external.GetPluginArgs()),
 		testMode:     testMode,
 		lock:         &sync.RWMutex{},
 	}
