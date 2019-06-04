@@ -133,13 +133,13 @@ func (cache *CachedNodes) RemovePod(pod *v1.Pod) error {
 }
 
 
-// Implement scheduler/algorithm/PodLister interface
+// Implement scheduler/algorithm/types.go#PodLister interface
 func (cache *CachedNodes) List(selector labels.Selector) ([]*v1.Pod, error) {
 	alwaysTrue := func(p *v1.Pod) bool { return true }
 	return cache.FilteredList(alwaysTrue, selector)
 }
 
-// Implement scheduler/algorithm/PodLister interface
+// Implement scheduler/algorithm/types.go#PodLister interface
 func (cache *CachedNodes) FilteredList(podFilter algorithm.PodFilter, selector labels.Selector) ([]*v1.Pod, error) {
 	cache.lock.RLock()
 	defer cache.lock.RUnlock()
@@ -161,7 +161,7 @@ func (cache *CachedNodes) FilteredList(podFilter algorithm.PodFilter, selector l
 	return pods, nil
 }
 
-// Implement scheduler/algorithm/NodeInfo interface
+// Implement scheduler/algorithm/predicates/predicates.go#NodeInfo interface
 func (cache *CachedNodes) GetNodeInfo(nodeName string) (*v1.Node, error) {
 	cache.lock.RLock()
 	defer cache.lock.RUnlock()

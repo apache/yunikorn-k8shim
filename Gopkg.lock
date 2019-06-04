@@ -256,7 +256,7 @@
 
 [[projects]]
   branch = "wwei_predicates"
-  digest = "1:bd96e5867f7e72e813482d866f86e62fbe150382556671846c748c751622f259"
+  digest = "1:f21f9cb65d242221cd9f27da7b4808804fa77e63b8b5467e11b710fb73f82331"
   name = "github.infra.cloudera.com/yunikorn/yunikorn-core"
   packages = [
     "pkg/api",
@@ -270,7 +270,6 @@
     "pkg/entrypoint",
     "pkg/handler",
     "pkg/plugins",
-    "pkg/plugins/predicates",
     "pkg/queuemetrics",
     "pkg/rmproxy",
     "pkg/rmproxy/rmevent",
@@ -281,7 +280,7 @@
     "pkg/webservice/dao",
   ]
   pruneopts = ""
-  revision = "04bfc490a62da219fd41b2dd53d978c59a7894c5"
+  revision = "7da9d0677ddbaf422567267ee5709141ddc9ed97"
 
 [[projects]]
   branch = "master"
@@ -298,7 +297,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:3fcc745bd071aa073bd666e01ff8df5fc72ab15f493ae7246710c66c738aab45"
+  digest = "1:8f557a9325893b454acdd05c69d6f6d481a24e8466646e5340c5b78c39a80cb8"
   name = "golang.org/x/net"
   packages = [
     "context",
@@ -311,7 +310,7 @@
     "trace",
   ]
   pruneopts = ""
-  revision = "f3200d17e092c607f615320ecaad13d87ad9a2b3"
+  revision = "60506f45cf65977eb3a9c6e30f995f54a721c271"
 
 [[projects]]
   branch = "master"
@@ -326,14 +325,14 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:53d2717ee0679c525202956060f1c602dda4277884ae4013b1b7d05b64cceea5"
+  digest = "1:ab8e7eea4bffdd9000e76bb80d02b583b3864900ad86c6913ec1743fc833c80a"
   name = "golang.org/x/sys"
   packages = [
     "unix",
     "windows",
   ]
   pruneopts = ""
-  revision = "ad28b68e88f12448a1685d038ffea87bbbb34148"
+  revision = "4c4f7f33c9ed00de01c4c741d2177abfcfe19307"
 
 [[projects]]
   digest = "1:740b51a55815493a8d0f2b1e0d0ae48fe48953bf7eaf3fcc4198823bf67768c0"
@@ -775,14 +774,14 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:356e23d285a46722105d8babb35e35e2caed5ef854ab3615d9c19759114d5d30"
+  digest = "1:c147cd8075fe7df0383229c2f9748c9db4d0fc02e7912e37f524365deae40678"
   name = "k8s.io/csi-translation-lib"
   packages = [
     ".",
     "plugins",
   ]
   pruneopts = ""
-  revision = "9083685369b17ee1a59e1350eb29916a40344fa0"
+  revision = "7894ac0517620ae30378a80d0ffe59cb0c873459"
 
 [[projects]]
   digest = "1:975a70b988168c3be18acc1d95bca85974f18be63c2024d14eb97fdcacab672a"
@@ -794,11 +793,11 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:24f929c65b6d2635880acbb8c33fa1143cf82133de91d227a779b7786d7eb07c"
+  digest = "1:d2aae07aa745223592ae668f6eb6c2ca0242d66a6dcf16b1e8e2711a79aad0f1"
   name = "k8s.io/kube-openapi"
   packages = ["pkg/util/proto"]
   pruneopts = ""
-  revision = "b52b5b0f5a7c473a00ca5580c49c83449146ac17"
+  revision = "db7b694dc208eead64d38030265f702db593fcf2"
 
 [[projects]]
   digest = "1:30b201b810685671ff5b26a02f9d8a520cea5b451790ffe13f15c26170ff27fb"
@@ -829,9 +828,19 @@
     "pkg/master/ports",
     "pkg/scheduler/algorithm",
     "pkg/scheduler/algorithm/predicates",
+    "pkg/scheduler/algorithm/priorities",
     "pkg/scheduler/algorithm/priorities/util",
     "pkg/scheduler/api",
+    "pkg/scheduler/api/validation",
+    "pkg/scheduler/core",
+    "pkg/scheduler/factory",
+    "pkg/scheduler/internal/cache",
+    "pkg/scheduler/internal/cache/debugger",
+    "pkg/scheduler/internal/queue",
+    "pkg/scheduler/metrics",
     "pkg/scheduler/nodeinfo",
+    "pkg/scheduler/plugins",
+    "pkg/scheduler/plugins/v1alpha1",
     "pkg/scheduler/util",
     "pkg/scheduler/volumebinder",
     "pkg/security/apparmor",
@@ -840,6 +849,7 @@
     "pkg/util/goroutinemap/exponentialbackoff",
     "pkg/util/hash",
     "pkg/util/mount",
+    "pkg/util/node",
     "pkg/util/parsers",
     "pkg/util/resizefs",
     "pkg/util/taints",
@@ -899,6 +909,7 @@
     "k8s.io/api/core/v1",
     "k8s.io/apimachinery/pkg/api/resource",
     "k8s.io/apimachinery/pkg/apis/meta/v1",
+    "k8s.io/apimachinery/pkg/labels",
     "k8s.io/apimachinery/pkg/util/sets",
     "k8s.io/apimachinery/pkg/util/wait",
     "k8s.io/client-go/informers",
@@ -907,7 +918,10 @@
     "k8s.io/client-go/rest",
     "k8s.io/client-go/tools/cache",
     "k8s.io/client-go/tools/clientcmd",
+    "k8s.io/kubernetes/pkg/scheduler/algorithm",
     "k8s.io/kubernetes/pkg/scheduler/algorithm/predicates",
+    "k8s.io/kubernetes/pkg/scheduler/api",
+    "k8s.io/kubernetes/pkg/scheduler/factory",
     "k8s.io/kubernetes/pkg/scheduler/nodeinfo",
   ]
   solver-name = "gps-cdcl"

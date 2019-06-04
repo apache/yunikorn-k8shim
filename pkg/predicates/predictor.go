@@ -231,13 +231,13 @@ func (p *Predictor) Predicates(pod *v1.Pod, node *deschedulernode.NodeInfo) erro
 			fit, reasons, err = predicate(pod, nil, node)
 			glog.V(4).Infof("predicate %s, result %v", predicateKey, fit)
 			if err != nil {
-				glog.V(0).Infof("evaluating predicate, key=%s, result=%s, reason: %v",
+				glog.V(0).Infof("evaluating predicate, key=%s, result=%v, reason: %v",
 					predicateKey, fit, reasons)
 				return err
 			}
 
 			if !fit {
-				glog.V(0).Infof("evaluating predicate, key=%s, result=%s, reason: %v",
+				glog.V(0).Infof("evaluating predicate, key=%s, result=%v, reason: %v",
 					predicateKey, fit, reasons)
 				return fmt.Errorf("predicate %s cannot be satisified, reason %v", predicateKey, reasons)
 			}

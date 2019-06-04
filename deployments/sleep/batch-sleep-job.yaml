@@ -1,0 +1,24 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: batch-sleep-job-1
+spec:
+  completions: 50
+  parallelism: 50
+  template:
+    metadata:
+      labels:
+        app: sleep
+        applicationId: "batch-sleep-job-1"
+        queue: root.sandbox
+    spec:
+      schedulerName: yunikorn
+      restartPolicy: Never
+      containers:
+        - name: sleep300
+          image: "alpine:latest"
+          command: ["sleep", "300"]
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "2000M"
