@@ -28,8 +28,11 @@ import (
 	"sync"
 )
 
-// this policy defines a configurable set of supported predicates
-var policy = schedulerapi.Policy{
+// this policy defines a configurable set of supported predicates.
+// this should be configurable, and can be dumped as part of the
+// scheduler configuration, which can be used to explicitly advertise
+// what are supported.
+var DefaultSchedulerPolicy = schedulerapi.Policy{
 	Predicates: []schedulerapi.PredicatePolicy{
 		{Name: "MatchNodeSelector"},
 		{Name: "PodFitsResources"},
@@ -42,22 +45,29 @@ type Predictor struct {
 	fitPredicateMap map[string]factory.FitPredicateFactory
 	fitPredicateFunctions map[string]predicates.FitPredicate
 	predicateMetaProducerFactory factory.PredicateMetadataProducerFactory
+	predicateMetaProducer  predicates.PredicateMetadataProducer
 	mandatoryFitPredicates sets.String
+	schedulerPolicy schedulerapi.Policy
 	lock sync.RWMutex
 }
 
 func NewPredictor(args factory.PluginFactoryArgs) *Predictor{
+	return newPredictorInternal(args, DefaultSchedulerPolicy)
+}
+
+func newPredictorInternal(args factory.PluginFactoryArgs, schedulerPolicy schedulerapi.Policy) *Predictor{
 	p := &Predictor {
 		fitPredicateMap:  make(map[string]factory.FitPredicateFactory),
 		fitPredicateFunctions: make(map[string]predicates.FitPredicate),
 		mandatoryFitPredicates: sets.NewString(),
+		schedulerPolicy: schedulerPolicy,
 	}
 	// init all predicates
 	p.init()
-
 	// generate predicate functions
 	p.populatePredicateFunc(args)
-
+	// generate predicate meta producer
+	p.populatePredicateMetaProducer(args)
 	return p
 }
 
@@ -210,14 +220,25 @@ func (p *Predictor) RegisterPredicateMetadataProducerFactory(factory factory.Pre
 }
 
 func(p *Predictor) populatePredicateFunc(args factory.PluginFactoryArgs) {
-	for _, predicate := range policy.Predicates {
+	for _, predicate := range p.schedulerPolicy.Predicates {
 		if preFactory, ok := p.fitPredicateMap[predicate.Name]; ok {
 			p.fitPredicateFunctions[predicate.Name] = preFactory(args)
 		}
 	}
 }
 
-func (p *Predictor) Predicates(pod *v1.Pod, node *deschedulernode.NodeInfo) error {
+func (p *Predictor) populatePredicateMetaProducer(args factory.PluginFactoryArgs) {
+	if p.predicateMetaProducerFactory != nil {
+		p.predicateMetaProducer = p.predicateMetaProducerFactory(args)
+	}
+}
+
+func (p *Predictor) GetPredicateMeta(pod *v1.Pod,
+	nodeNameToInfo map[string]*deschedulernode.NodeInfo) predicates.PredicateMetadata {
+	return p.predicateMetaProducer(pod, nodeNameToInfo)
+}
+
+func (p *Predictor) Predicates(pod *v1.Pod, meta predicates.PredicateMetadata, node *deschedulernode.NodeInfo) error {
 	glog.V(4).Infof("Calling predicates")
 	// honor the ordering...
 	for _, predicateKey := range predicates.Ordering() {
@@ -227,8 +248,7 @@ func (p *Predictor) Predicates(pod *v1.Pod, node *deschedulernode.NodeInfo) erro
 			err     error
 		)
 		if predicate, exist := p.fitPredicateFunctions[predicateKey]; exist {
-			// TODO meta???
-			fit, reasons, err = predicate(pod, nil, node)
+			fit, reasons, err = predicate(pod, meta, node)
 			glog.V(4).Infof("predicate %s, result %v", predicateKey, fit)
 			if err != nil {
 				glog.V(0).Infof("evaluating predicate, key=%s, result=%v, reason: %v",

@@ -36,9 +36,15 @@ type CachedNodes struct {
 }
 
 func NewCachedNodes() *CachedNodes {
-	return &CachedNodes {
+	cache := &CachedNodes {
 		nodesMap: make(map[string]*deschedulernode.NodeInfo),
 	}
+	cache.assignArgs(GetPluginArgs())
+	return cache
+}
+
+func (cache *CachedNodes) GetNodesInfoMap() map[string]*deschedulernode.NodeInfo {
+	return cache.nodesMap
 }
 
 func (cache *CachedNodes) assignArgs(args factory.PluginFactoryArgs) {

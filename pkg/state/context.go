@@ -331,7 +331,8 @@ func (ctx *Context) IsPodFitNode(name string, node string) error {
 	if pod, ok := ctx.pods[name]; ok {
 		// if pod exists in cache, try to run predicates
 		if targetNode := ctx.nodes.GetNode(node); targetNode != nil {
-			return ctx.predictor.Predicates(pod, targetNode)
+			meta := ctx.predictor.GetPredicateMeta(pod, ctx.nodes.GetNodesInfoMap())
+			return ctx.predictor.Predicates(pod, meta, targetNode)
 		}
 	}
 	return fmt.Errorf("predicates were not running because pod or node was not found in cache")
