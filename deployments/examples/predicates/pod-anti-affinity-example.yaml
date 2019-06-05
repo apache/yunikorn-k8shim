@@ -1,0 +1,60 @@
+# this deployment ensures 2 pods cannot be co-located together on same node.
+# if deploy this yaml on 1 node cluster, expecting 1 pod to be started and the other should be pending,
+# because 1 node(s) didn't match pod affinity/anti-affinity, 1 node(s) didn't satisfy existing pods anti-affinity rules.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: with-pod-affinity-01
+  labels:
+    app: pause
+    applicationId: "pod-with-pod-anti-affinity-01"
+    queue: "root.sandbox"
+    zone: z1
+spec:
+  schedulerName: yunikorn
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchExpressions:
+              - key: zone
+                operator: In
+                values:
+                  - z1
+          topologyKey: "kubernetes.io/hostname"
+  containers:
+    - name: with-pod-affinity
+      image: k8s.gcr.io/pause:2.0
+      resources:
+        requests:
+          cpu: "100m"
+          memory: "500M"
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: with-pod-affinity-02
+  labels:
+    app: pause
+    applicationId: "pod-with-pod-anti-affinity-01"
+    queue: "root.sandbox"
+    zone: z1
+spec:
+  schedulerName: yunikorn
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchExpressions:
+              - key: zone
+                operator: In
+                values:
+                  - z1
+          topologyKey: "kubernetes.io/hostname"
+  containers:
+    - name: with-pod-affinity
+      image: k8s.gcr.io/pause:2.0
+      resources:
+        requests:
+          cpu: "100m"
+          memory: "500M"

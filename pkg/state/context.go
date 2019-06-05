@@ -24,7 +24,7 @@ import (
 	plugin "github.infra.cloudera.com/yunikorn/k8s-shim/pkg/predicates"
 	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/scheduler/conf"
 	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/scheduler/controller"
-	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/state/external"
+	schedulercache "github.infra.cloudera.com/yunikorn/k8s-shim/pkg/state/cache"
 	"github.infra.cloudera.com/yunikorn/yunikorn-core/pkg/api"
 	"github.infra.cloudera.com/yunikorn/yunikorn-core/pkg/rmproxy"
 	"k8s.io/api/core/v1"
@@ -51,9 +51,8 @@ type Context struct {
 	// pvInformer       infomerv1.PersistentVolumeInformer
 	// pvcInformer      infomerv1.PersistentVolumeClaimInformer
 
-	nodes *external.CachedNodes
-	pods  map[string]*v1.Pod
-	predictor *plugin.Predictor
+	schedulerCache *schedulercache.SchedulerCache
+	predictor      *plugin.Predictor
 
 	testMode bool
 	lock     *sync.RWMutex
@@ -67,19 +66,18 @@ func NewContext(scheduler api.SchedulerApi, configs *conf.SchedulerConf) *Contex
 // only for testing
 func NewContextInternal(scheduler api.SchedulerApi, configs *conf.SchedulerConf, client client.KubeClient, testMode bool) *Context {
 	ctx := &Context{
-		applications: make(map[string]*Application),
-		conf:         configs,
-		kubeClient:   client,
-		schedulerApi: scheduler,
-		nodes:        external.NewCachedNodes(),
-		pods:         make(map[string]*v1.Pod),
-		predictor:    plugin.NewPredictor(external.GetPluginArgs()),
-		testMode:     testMode,
-		lock:         &sync.RWMutex{},
+		applications:   make(map[string]*Application),
+		conf:           configs,
+		kubeClient:     client,
+		schedulerApi:   scheduler,
+		schedulerCache: schedulercache.NewSchedulerCache(),
+		predictor:      plugin.NewPredictor(schedulercache.GetPluginArgs(), testMode),
+		testMode:       testMode,
+		lock:           &sync.RWMutex{},
 	}
 
 	// init controllers
-	ctx.nodeController = controller.NewNodeController(scheduler, ctx.nodes)
+	ctx.nodeController = controller.NewNodeController(scheduler, ctx.schedulerCache)
 
 	// we have disabled re-sync to keep ourselves up-to-date
 	informerFactory := informers.NewSharedInformerFactory(ctx.kubeClient.GetClientSet(), 0)
@@ -88,9 +86,9 @@ func NewContextInternal(scheduler api.SchedulerApi, configs *conf.SchedulerConf,
 	ctx.nodeInformer = informerFactory.Core().V1().Nodes()
 	ctx.nodeInformer.Informer().AddEventHandlerWithResyncPeriod(
 		cache.ResourceEventHandlerFuncs{
-			AddFunc:    ctx.nodeController.AddNode,
-			UpdateFunc: ctx.nodeController.UpdateNode,
-			DeleteFunc: ctx.nodeController.DeleteNode,
+			AddFunc:    ctx.addNode,
+			UpdateFunc: ctx.updateNode,
+			DeleteFunc: ctx.deleteNode,
 		},
 		0,
 	)
@@ -106,6 +104,17 @@ func NewContextInternal(scheduler api.SchedulerApi, configs *conf.SchedulerConf,
 			},
 		})
 
+	ctx.podInformer.Informer().AddEventHandler(
+		cache.FilteringResourceEventHandler{
+			FilterFunc: ctx.filterAssignedPods,
+			Handler: cache.ResourceEventHandlerFuncs{
+				AddFunc:    ctx.addPodToCache,
+				UpdateFunc: ctx.updatePodInCache,
+				DeleteFunc: ctx.removePodFromCache,
+			},
+		},
+	)
+
 	ctx.configMapInformer = informerFactory.Core().V1().ConfigMaps()
 	ctx.configMapInformer.Informer().AddEventHandler(cache.FilteringResourceEventHandler{
 		FilterFunc: ctx.filterConfigMaps,
@@ -117,6 +126,23 @@ func NewContextInternal(scheduler api.SchedulerApi, configs *conf.SchedulerConf,
 	})
 
 	return ctx
+}
+
+func (ctx *Context) addNode(obj interface{}) {
+	ctx.nodeController.AddNode(obj)
+}
+
+func (ctx *Context) updateNode(oldObj, newObj interface{}) {
+	ctx.nodeController.UpdateNode(oldObj, newObj)
+}
+
+func (ctx *Context) deleteNode(obj interface{}) {
+	ctx.nodeController.DeleteNode(obj)
+}
+
+// assignedPod selects pods that are assigned (scheduled and running).
+func assignedPod(pod *v1.Pod) bool {
+	return len(pod.Spec.NodeName) != 0
 }
 
 // add a pod to the context
@@ -146,23 +172,39 @@ func (ctx *Context) addPod(obj interface{}) {
 		}
 	}
 
-
-	// put pod into an internal cache, this way we can track pods simply using
-	// its UID. because core doesn't have info about pods, only UIDs.
-	// pods should be removed from the cache once they are deleted from api-server.
-	ctx.addPodToCache(pod)
+	ctx.schedulerCache.AddPodToCache(pod)
 }
 
-func (ctx *Context) addPodToCache(pod *v1.Pod) {
+func (ctx *Context) addPodToCache(obj interface{}) {
+	pod, ok := obj.(*v1.Pod)
+	if !ok {
+		glog.V(0).Infof("cannot convert to *v1.Pod: %v", obj)
+		return
+	}
+
 	glog.V(4).Infof("adding pod %s to cache", pod.Name)
-	ctx.nodes.AddPod(pod)
-	ctx.pods[string(pod.UID)] = pod
+	ctx.schedulerCache.AddPod(pod)
 }
 
-func (ctx *Context) removePodFromCache(pod *v1.Pod) {
+func (ctx *Context) removePodFromCache(obj interface{}) {
+	var pod *v1.Pod
+	switch t := obj.(type) {
+	case *v1.Pod:
+		pod = t
+	case cache.DeletedFinalStateUnknown:
+		var ok bool
+		pod, ok = t.Obj.(*v1.Pod)
+		if !ok {
+			glog.V(0).Infof("cannot convert to *v1.Pod: %v", t.Obj)
+			return
+		}
+	default:
+		glog.V(0).Infof("cannot convert to *v1.Pod: %v", t)
+		return
+	}
+
 	glog.V(4).Infof("removing pod %s from cache", pod.Name)
-	ctx.nodes.RemovePod(pod)
-	delete(ctx.pods, string(pod.UID))
+	ctx.schedulerCache.RemovePod(pod)
 }
 
 // create a task if it doesn't exist yet,
@@ -181,9 +223,9 @@ func (ctx *Context) getOrAddTask(a *Application, pod *v1.Pod) *Task {
 func (ctx *Context) validatePod(pod *v1.Pod) error {
 	if pod.Spec.SchedulerName == "" || pod.Spec.SchedulerName != ctx.conf.SchedulerName {
 		// only pod with specific scheduler name is valid to us
-		return errors.New(fmt.Sprintf("only pod whose spec has explicitly " +
+		return fmt.Errorf("only pod whose spec has explicitly " +
 			"specified schedulerName=%s is a valid scheduling-target, but schedulerName for pod %s(%s) is %s",
-			pod.Spec.SchedulerName, pod.Name, pod.UID, ctx.conf.SchedulerName))
+			ctx.conf.SchedulerName, pod.Name, pod.UID, pod.Spec.SchedulerName)
 	}
 
 	if _, err := GenerateApplicationIdFromPod(pod); err != nil {
@@ -211,9 +253,18 @@ func (ctx *Context) updatePod(obj, newObj interface{}) {
 	glog.V(4).Infof("pod %s status %s new", pod.Name, pod.Status.Phase)
 }
 
-func (ctx *Context) updatePodInCache(old, new *v1.Pod) {
-	glog.V(4).Infof("updating pod %s in cache", old.Name)
-	ctx.nodes.UpdatePod(old, new)
+func (ctx *Context) updatePodInCache(oldObj, newObj interface{}) {
+	oldPod, ok := oldObj.(*v1.Pod)
+	if !ok {
+		glog.V(0).Infof("cannot convert oldObj to *v1.Pod: %v", oldObj)
+		return
+	}
+	newPod, ok := newObj.(*v1.Pod)
+	if !ok {
+		glog.V(0).Infof("cannot convert newObj to *v1.Pod: %v", newObj)
+		return
+	}
+	ctx.schedulerCache.UpdatePod(oldPod, newPod)
 }
 
 // this function is called when a pod is deleted from api-server.
@@ -242,9 +293,6 @@ func (ctx *Context) deletePod(obj interface{}) {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
 
-	glog.V(4).Infof("deleting pod %s from cache", pod.Name)
-	ctx.removePodFromCache(pod)
-
 	if application := ctx.getOrCreateApplication(pod); application != nil {
 		glog.V(4).Infof("Release allocation")
 		GetDispatcher().Dispatch(NewSimpleTaskEvent(
@@ -253,6 +301,23 @@ func (ctx *Context) deletePod(obj interface{}) {
 		glog.V(4).Infof("context: handling DeletePod podName=%s/%s, podUid=%s", pod.Namespace, pod.Name, pod.UID)
 		// starts a completion handler to handle the completion of a app on demand
 		application.StartCompletionHandler(ctx.kubeClient, pod)
+	}
+
+	ctx.schedulerCache.InvalidatePodFromCache(pod)
+}
+
+// filter assigned pods
+func (ctx *Context) filterAssignedPods(obj interface{}) bool {
+	switch t := obj.(type) {
+	case *v1.Pod:
+		return assignedPod(t)
+	case cache.DeletedFinalStateUnknown:
+		if pod, ok := t.Obj.(*v1.Pod); ok {
+			return assignedPod(pod)
+		}
+		return false
+	default:
+		return false
 	}
 }
 
@@ -326,12 +391,17 @@ func (ctx *Context) triggerReloadConfig() {
 
 // evaluate given predicates based on current context
 func (ctx *Context) IsPodFitNode(name string, node string) error {
+	// simply skip if predicates are not enabled
+	if !ctx.predictor.Enabled() {
+		return nil
+	}
+
 	ctx.lock.RLock()
 	defer ctx.lock.RUnlock()
-	if pod, ok := ctx.pods[name]; ok {
+	if pod, ok := ctx.schedulerCache.GetPod(name); ok {
 		// if pod exists in cache, try to run predicates
-		if targetNode := ctx.nodes.GetNode(node); targetNode != nil {
-			meta := ctx.predictor.GetPredicateMeta(pod, ctx.nodes.GetNodesInfoMap())
+		if targetNode := ctx.schedulerCache.GetNode(node); targetNode != nil {
+			meta := ctx.predictor.GetPredicateMeta(pod, ctx.schedulerCache.GetNodesInfoMap())
 			return ctx.predictor.Predicates(pod, meta, targetNode)
 		}
 	}
@@ -402,7 +472,6 @@ func (ctx *Context) SelectApplications(filter func(app *Application) bool) []*Ap
 
 func (ctx *Context) Run(stopCh <-chan struct{}) {
 	if !ctx.testMode {
-		glog.V(4).Infof("---- running informers")
 		go ctx.nodeInformer.Informer().Run(stopCh)
 		go ctx.podInformer.Informer().Run(stopCh)
 		go ctx.configMapInformer.Informer().Run(stopCh)

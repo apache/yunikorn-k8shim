@@ -86,7 +86,9 @@ func TestAddPod(t *testing.T) {
 			},
 		},
 		Spec:   v1.PodSpec{ SchedulerName: fakeClusterSchedulerName },
-		Status: v1.PodStatus{},
+		Status: v1.PodStatus{
+			Phase: v1.PodPending,
+		},
 	}
 
 	context.addPod(&pod)
@@ -119,7 +121,9 @@ func TestAddPod(t *testing.T) {
 			},
 		},
 		Spec:   v1.PodSpec{ SchedulerName: fakeClusterSchedulerName },
-		Status: v1.PodStatus{},
+		Status: v1.PodStatus{
+			Phase: v1.PodPending,
+		},
 	}
 	context.addPod(&pod1)
 	assert.Equal(t, len(context.applications), 1)
@@ -154,7 +158,9 @@ func TestAddPod(t *testing.T) {
 			},
 		},
 		Spec:   v1.PodSpec{}, // scheduler name missing
-		Status: v1.PodStatus{},
+		Status: v1.PodStatus{
+			Phase:  v1.PodPending,
+		},
 	}
 
 	context.addPod(&pod2)
@@ -177,7 +183,9 @@ func TestAddPod(t *testing.T) {
 			},
 		},
 		Spec:   v1.PodSpec{ SchedulerName: fakeClusterSchedulerName },
-		Status: v1.PodStatus{},
+		Status: v1.PodStatus{
+			Phase: v1.PodPending,
+		},
 	}
 
 	context.addPod(&pod3)
@@ -209,7 +217,9 @@ func TestPodRejected(t *testing.T) {
 			},
 		},
 		Spec:   v1.PodSpec{ SchedulerName: fakeClusterSchedulerName },
-		Status: v1.PodStatus{},
+		Status: v1.PodStatus{
+			Phase: v1.PodPending,
+		},
 	}
 
 	context.addPod(&pod)

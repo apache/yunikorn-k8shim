@@ -41,7 +41,7 @@ var (
 )
 
 func TestPodFitsHost(t *testing.T) {
-	predictor := newPredictorInternal(factory.PluginFactoryArgs{}, schedulerapi.Policy{
+	predictor := newPredictorInternal(&factory.PluginFactoryArgs{}, schedulerapi.Policy{
 		Predicates: []schedulerapi.PredicatePolicy{
 			{Name: predicates.HostNamePred},
 		}})
@@ -125,7 +125,7 @@ func newPod(host string, hostPortInfos ...string) *v1.Pod {
 }
 
 func TestPodFitsHostPorts(t *testing.T) {
-	predictor := newPredictorInternal(factory.PluginFactoryArgs{}, schedulerapi.Policy{
+	predictor := newPredictorInternal(&factory.PluginFactoryArgs{}, schedulerapi.Policy{
 		Predicates: []schedulerapi.PredicatePolicy{
 			{Name: predicates.PodFitsHostPortsPred },
 		}})
@@ -239,7 +239,7 @@ func TestPodFitsHostPorts(t *testing.T) {
 }
 
 func TestPodFitsSelector(t *testing.T) {
-	predictor := newPredictorInternal(factory.PluginFactoryArgs{}, schedulerapi.Policy{
+	predictor := newPredictorInternal(&factory.PluginFactoryArgs{}, schedulerapi.Policy{
 		Predicates: []schedulerapi.PredicatePolicy{
 			{Name: predicates.MatchNodeSelectorPred },
 		}})
@@ -988,7 +988,7 @@ func newPodWithPort(hostPorts ...int) *v1.Pod {
 }
 
 func TestRunGeneralPredicates(t *testing.T) {
-	predictor := newPredictorInternal(factory.PluginFactoryArgs{}, schedulerapi.Policy{
+	predictor := newPredictorInternal(&factory.PluginFactoryArgs{}, schedulerapi.Policy{
 		Predicates: []schedulerapi.PredicatePolicy{
 			{Name: predicates.GeneralPred},
 		}})
@@ -1065,7 +1065,7 @@ func TestRunGeneralPredicates(t *testing.T) {
 }
 
 func TestInterPodAffinity(t *testing.T) {
-	predictor := newPredictorInternal(factory.PluginFactoryArgs{}, schedulerapi.Policy{
+	predictor := newPredictorInternal(&factory.PluginFactoryArgs{}, schedulerapi.Policy{
 		Predicates: []schedulerapi.PredicatePolicy{
 			{Name: predicates.MatchInterPodAffinityPred},
 		}})

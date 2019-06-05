@@ -21,17 +21,17 @@ import (
 	"fmt"
 	"github.com/golang/glog"
 	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/common"
-	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/state/external"
+	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/state/cache"
 	"github.infra.cloudera.com/yunikorn/yunikorn-core/pkg/api"
 	"k8s.io/api/core/v1"
 )
 
 type NodeController struct {
 	proxy api.SchedulerApi
-	cache *external.CachedNodes
+	cache *cache.SchedulerCache
 }
 
-func NewNodeController(schedulerApi api.SchedulerApi, cache *external.CachedNodes) *NodeController {
+func NewNodeController(schedulerApi api.SchedulerApi, cache *cache.SchedulerCache) *NodeController {
 	return &NodeController{
 		proxy: schedulerApi,
 		cache: cache,

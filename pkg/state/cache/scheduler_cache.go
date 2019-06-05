@@ -14,10 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package external
+package cache
 
 import (
 	"fmt"
+	"github.com/golang/glog"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/kubernetes/pkg/scheduler/algorithm"
@@ -26,34 +27,38 @@ import (
 	"sync"
 )
 
-// this is a cache of nodes in the form of de-scheduler nodeInfo,
-// instead of re-creating all nodes info from scratch, we replicate
-// nodes info from de-scheduler, in order to re-use predicates functions.
-type CachedNodes struct {
+// scheduler cache maintains some critical information about nodes and pods used for scheduling
+// nodes are cached in the form of de-scheduler nodeInfo, instead of re-creating all nodes info from scratch,
+// we replicate nodes info from de-scheduler, in order to re-use predicates functions.
+type SchedulerCache struct {
 	// node name to NodeInfo map
 	nodesMap map[string]*deschedulernode.NodeInfo
-	lock sync.RWMutex
+	podsMap  map[string]*v1.Pod
+	lock     sync.RWMutex
 }
 
-func NewCachedNodes() *CachedNodes {
-	cache := &CachedNodes {
+func NewSchedulerCache() *SchedulerCache {
+	cache := &SchedulerCache {
 		nodesMap: make(map[string]*deschedulernode.NodeInfo),
+		podsMap:  make(map[string]*v1.Pod),
 	}
 	cache.assignArgs(GetPluginArgs())
 	return cache
 }
 
-func (cache *CachedNodes) GetNodesInfoMap() map[string]*deschedulernode.NodeInfo {
+func (cache *SchedulerCache) GetNodesInfoMap() map[string]*deschedulernode.NodeInfo {
 	return cache.nodesMap
 }
 
-func (cache *CachedNodes) assignArgs(args factory.PluginFactoryArgs) {
+func (cache *SchedulerCache) assignArgs(args *factory.PluginFactoryArgs) {
 	// nodes cache implemented PodLister and NodeInfo interface
+	glog.V(5).Infof("PluginFactoryArgs#PodLister -> cachedNodes")
+	glog.V(5).Infof("PluginFactoryArgs#NodeInfo -> cachedNodes")
 	args.PodLister = cache
 	args.NodeInfo = cache
 }
 
-func (cache *CachedNodes) GetNode(name string) *deschedulernode.NodeInfo {
+func (cache *SchedulerCache) GetNode(name string) *deschedulernode.NodeInfo {
 	cache.lock.RLock()
 	defer cache.lock.RUnlock()
 
@@ -63,7 +68,7 @@ func (cache *CachedNodes) GetNode(name string) *deschedulernode.NodeInfo {
 	return nil
 }
 
-func (cache *CachedNodes) AddNode(node *v1.Node) {
+func (cache *SchedulerCache) AddNode(node *v1.Node) {
 	cache.lock.Lock()
 	defer cache.lock.Unlock()
 
@@ -75,7 +80,7 @@ func (cache *CachedNodes) AddNode(node *v1.Node) {
 	}
 }
 
-func (cache *CachedNodes) UpdateNode(oldNode, newNode *v1.Node) error {
+func (cache *SchedulerCache) UpdateNode(oldNode, newNode *v1.Node) error {
 	cache.lock.Lock()
 	defer cache.lock.Unlock()
 
@@ -87,10 +92,14 @@ func (cache *CachedNodes) UpdateNode(oldNode, newNode *v1.Node) error {
 	return nil
 }
 
-func (cache *CachedNodes) RemoveNode(node *v1.Node) error {
+func (cache *SchedulerCache) RemoveNode(node *v1.Node) error {
 	cache.lock.Lock()
 	defer cache.lock.Unlock()
 
+	return cache.removeNode(node)
+}
+
+func (cache *SchedulerCache) removeNode(node *v1.Node) error {
 	_, ok := cache.nodesMap[node.Name]
 	if !ok {
 		return fmt.Errorf("node %v is not found", node.Name)
@@ -100,11 +109,13 @@ func (cache *CachedNodes) RemoveNode(node *v1.Node) error {
 	return nil
 }
 
-
-func (cache *CachedNodes) AddPod(pod *v1.Pod) {
+func (cache *SchedulerCache) AddPod(pod *v1.Pod) {
 	cache.lock.Lock()
 	defer cache.lock.Unlock()
+	cache.addPod(pod)
+}
 
+func (cache *SchedulerCache) addPod(pod *v1.Pod) {
 	n, ok := cache.nodesMap[pod.Spec.NodeName]
 	if !ok {
 		n = deschedulernode.NewNodeInfo()
@@ -113,21 +124,49 @@ func (cache *CachedNodes) AddPod(pod *v1.Pod) {
 	n.AddPod(pod)
 }
 
-func (cache *CachedNodes) UpdatePod(oldPod, newPod *v1.Pod) error {
+func (cache *SchedulerCache) AddPodToCache(pod *v1.Pod) {
 	cache.lock.Lock()
 	defer cache.lock.Unlock()
+	cache.podsMap[string(pod.UID)] = pod
+}
 
-	if err := cache.RemovePod(oldPod); err != nil {
+func (cache *SchedulerCache) InvalidatePodFromCache(pod *v1.Pod) {
+	cache.lock.Lock()
+	defer cache.lock.Unlock()
+	delete(cache.podsMap, string(pod.UID))
+}
+
+func (cache *SchedulerCache) GetPod(uid string) (*v1.Pod, bool) {
+	cache.lock.RLock()
+	defer cache.lock.RUnlock()
+	if pod, ok := cache.podsMap[uid]; ok {
+		return pod, true
+	} else {
+		return nil, false
+	}
+}
+
+func (cache *SchedulerCache) UpdatePod(oldPod, newPod *v1.Pod) error {
+	cache.lock.Lock()
+	defer cache.lock.Unlock()
+	return cache.updatePod(oldPod, newPod)
+}
+
+func (cache *SchedulerCache) updatePod(oldPod, newPod *v1.Pod) error {
+	if err := cache.removePod(oldPod); err != nil {
 		return err
 	}
-	cache.AddPod(newPod)
+	cache.addPod(newPod)
 	return nil
 }
 
-func (cache *CachedNodes) RemovePod(pod *v1.Pod) error {
+func (cache *SchedulerCache) RemovePod(pod *v1.Pod) error {
 	cache.lock.Lock()
 	defer cache.lock.Unlock()
+	return cache.removePod(pod)
+}
 
+func (cache *SchedulerCache) removePod(pod *v1.Pod) error {
 	n, ok := cache.nodesMap[pod.Spec.NodeName]
 	if !ok {
 		return fmt.Errorf("node %v is not found", pod.Spec.NodeName)
@@ -138,15 +177,14 @@ func (cache *CachedNodes) RemovePod(pod *v1.Pod) error {
 	return nil
 }
 
-
 // Implement scheduler/algorithm/types.go#PodLister interface
-func (cache *CachedNodes) List(selector labels.Selector) ([]*v1.Pod, error) {
+func (cache *SchedulerCache) List(selector labels.Selector) ([]*v1.Pod, error) {
 	alwaysTrue := func(p *v1.Pod) bool { return true }
 	return cache.FilteredList(alwaysTrue, selector)
 }
 
 // Implement scheduler/algorithm/types.go#PodLister interface
-func (cache *CachedNodes) FilteredList(podFilter algorithm.PodFilter, selector labels.Selector) ([]*v1.Pod, error) {
+func (cache *SchedulerCache) FilteredList(podFilter algorithm.PodFilter, selector labels.Selector) ([]*v1.Pod, error) {
 	cache.lock.RLock()
 	defer cache.lock.RUnlock()
 	// podFilter is expected to return true for most or all of the pods. We
@@ -168,7 +206,7 @@ func (cache *CachedNodes) FilteredList(podFilter algorithm.PodFilter, selector l
 }
 
 // Implement scheduler/algorithm/predicates/predicates.go#NodeInfo interface
-func (cache *CachedNodes) GetNodeInfo(nodeName string) (*v1.Node, error) {
+func (cache *SchedulerCache) GetNodeInfo(nodeName string) (*v1.Node, error) {
 	cache.lock.RLock()
 	defer cache.lock.RUnlock()
 

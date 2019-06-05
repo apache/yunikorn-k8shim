@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package external
+package cache
 
 import "k8s.io/kubernetes/pkg/scheduler/factory"
 
@@ -31,15 +31,15 @@ import "k8s.io/kubernetes/pkg/scheduler/factory"
 // NodeLister -> InterPodAffinityPriority
 //
 // see more at how these args are used in predictor.go
-var pluginArgs factory.PluginFactoryArgs
+var pluginArgs *factory.PluginFactoryArgs
 
 // initially args are empty, these args will be initialized by one or more provides,
 // from whom implemented PluginFactoryArgsProvider interface.
 func init() {
-	pluginArgs = factory.PluginFactoryArgs{}
+	pluginArgs = &factory.PluginFactoryArgs{}
 }
 
-func GetPluginArgs() factory.PluginFactoryArgs {
+func GetPluginArgs() *factory.PluginFactoryArgs {
 	return pluginArgs
 }
 

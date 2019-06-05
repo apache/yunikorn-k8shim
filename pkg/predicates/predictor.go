@@ -38,6 +38,7 @@ var DefaultSchedulerPolicy = schedulerapi.Policy{
 		{Name: "PodFitsResources"},
 		{Name: "PodFitsPorts"},
 		{Name: "NoDiskConflict"},
+		{Name: "MatchInterPodAffinity"},
 	},
 }
 
@@ -51,11 +52,17 @@ type Predictor struct {
 	lock sync.RWMutex
 }
 
-func NewPredictor(args factory.PluginFactoryArgs) *Predictor{
+func NewPredictor(args *factory.PluginFactoryArgs, testMode bool) *Predictor{
+	if testMode {
+		// in test mode, disable all the predicates
+		return newPredictorInternal(args, schedulerapi.Policy{
+			Predicates: []schedulerapi.PredicatePolicy{},
+		})
+	}
 	return newPredictorInternal(args, DefaultSchedulerPolicy)
 }
 
-func newPredictorInternal(args factory.PluginFactoryArgs, schedulerPolicy schedulerapi.Policy) *Predictor{
+func newPredictorInternal(args *factory.PluginFactoryArgs, schedulerPolicy schedulerapi.Policy) *Predictor{
 	p := &Predictor {
 		fitPredicateMap:  make(map[string]factory.FitPredicateFactory),
 		fitPredicateFunctions: make(map[string]predicates.FitPredicate),
@@ -65,9 +72,9 @@ func newPredictorInternal(args factory.PluginFactoryArgs, schedulerPolicy schedu
 	// init all predicates
 	p.init()
 	// generate predicate functions
-	p.populatePredicateFunc(args)
+	p.populatePredicateFunc(*args)
 	// generate predicate meta producer
-	p.populatePredicateMetaProducer(args)
+	p.populatePredicateMetaProducer(*args)
 	return p
 }
 
@@ -236,6 +243,10 @@ func (p *Predictor) populatePredicateMetaProducer(args factory.PluginFactoryArgs
 func (p *Predictor) GetPredicateMeta(pod *v1.Pod,
 	nodeNameToInfo map[string]*deschedulernode.NodeInfo) predicates.PredicateMetadata {
 	return p.predicateMetaProducer(pod, nodeNameToInfo)
+}
+
+func (p *Predictor) Enabled() bool {
+	return len(p.schedulerPolicy.Predicates) > 0
 }
 
 func (p *Predictor) Predicates(pod *v1.Pod, meta predicates.PredicateMetadata, node *deschedulernode.NodeInfo) error {

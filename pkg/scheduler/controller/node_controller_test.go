@@ -18,7 +18,7 @@ package controller
 
 import (
 	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/scheduler/conf"
-	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/state/external"
+	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/state/cache"
 	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/test"
 	"github.infra.cloudera.com/yunikorn/scheduler-interface/lib/go/si"
 	"gotest.tools/assert"
@@ -55,7 +55,7 @@ func TestAddNode(t *testing.T) {
 
 	nc := NodeController{
 		proxy: &api,
-		cache: external.NewCachedNodes(),
+		cache: cache.NewSchedulerCache(),
 	}
 	resourceList := make(map[v1.ResourceName]resource.Quantity)
 	resourceList[v1.ResourceName("memory")] = *resource.NewQuantity(1024*1000*1000, resource.DecimalSI)
@@ -105,7 +105,7 @@ func TestUpdateNode(t *testing.T) {
 
 	nc := NodeController{
 		proxy: &api,
-		cache: external.NewCachedNodes(),
+		cache: cache.NewSchedulerCache(),
 	}
 	resourceList := make(map[v1.ResourceName]resource.Quantity)
 	resourceList[v1.ResourceName("memory")] = *resource.NewQuantity(1024*1000*1000, resource.DecimalSI)
@@ -214,7 +214,7 @@ func TestDeleteNode(t *testing.T) {
 
 	nc := NodeController{
 		proxy: &api,
-		cache: external.NewCachedNodes(),
+		cache: cache.NewSchedulerCache(),
 	}
 	resourceList := make(map[v1.ResourceName]resource.Quantity)
 	resourceList[v1.ResourceName("memory")] = *resource.NewQuantity(1024*1000*1000, resource.DecimalSI)

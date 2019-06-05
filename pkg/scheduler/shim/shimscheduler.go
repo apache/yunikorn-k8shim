@@ -131,7 +131,6 @@ func (ss *ShimScheduler) Handle(se SchedulerEvent) error {
 func (ss *ShimScheduler) schedule() {
 	apps := ss.context.SelectApplications(nil)
 	for _, app := range apps {
-		glog.V(4).Infof(">>> app %s", app.GetApplicationId())
 		for _, pendingTask := range app.GetPendingTasks() {
 			var states = state.States().Application
 			glog.V(3).Infof("schedule app %s pending task: %s",
