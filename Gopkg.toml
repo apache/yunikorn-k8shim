@@ -6,7 +6,7 @@ noverify = ["k8s.io/kubernetes","k8s.io/cloud-provider"]
 
 [[constraint]]
   name = "github.infra.cloudera.com/yunikorn/yunikorn-core"
-  branch = "wwei_predicates"
+  branch = "master"
 
 [[constraint]]
   name = "github.com/golang/glog"
