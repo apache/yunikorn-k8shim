@@ -45,7 +45,9 @@ shim binds pod B to N
 ```
 
 (1) and (2) are running in parallel.
+
 (3) yunikorn-core calls a `schedulerPlugin` API to run predicates, this API is implemented on k8s-shim side.
+
 (4) K8s-shim generates metadata based on current scheduler cache, the metadata includes some intermittent states about nodes and pods.
 
 ## Predicates White-list
