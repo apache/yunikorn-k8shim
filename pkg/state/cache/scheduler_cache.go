@@ -34,6 +34,7 @@ type SchedulerCache struct {
 	// node name to NodeInfo map
 	nodesMap map[string]*deschedulernode.NodeInfo
 	podsMap  map[string]*v1.Pod
+	assumedPods map[string]bool
 	lock     sync.RWMutex
 }
 
@@ -41,6 +42,7 @@ func NewSchedulerCache() *SchedulerCache {
 	cache := &SchedulerCache {
 		nodesMap: make(map[string]*deschedulernode.NodeInfo),
 		podsMap:  make(map[string]*v1.Pod),
+		assumedPods: make(map[string]bool),
 	}
 	cache.assignArgs(GetPluginArgs())
 	return cache
@@ -109,47 +111,79 @@ func (cache *SchedulerCache) removeNode(node *v1.Node) error {
 	return nil
 }
 
-func (cache *SchedulerCache) AddPod(pod *v1.Pod) {
-	cache.lock.Lock()
-	defer cache.lock.Unlock()
-	cache.addPod(pod)
-}
-
-func (cache *SchedulerCache) addPod(pod *v1.Pod) {
-	n, ok := cache.nodesMap[pod.Spec.NodeName]
-	if !ok {
-		n = deschedulernode.NewNodeInfo()
-		cache.nodesMap[pod.Spec.NodeName] = n
+// cache pod in the scheduler internal map, so it can be fast retrieved by UID,
+// if pod is assigned to a node, update the cached nodes map too so that scheduler
+// knows which pod is running before pod is bound to that node.
+func (cache *SchedulerCache) AddPod(pod *v1.Pod) error {
+	key, err := deschedulernode.GetPodKey(pod)
+	if err != nil {
+		return err
 	}
-	n.AddPod(pod)
-}
 
-func (cache *SchedulerCache) AddPodToCache(pod *v1.Pod) {
 	cache.lock.Lock()
 	defer cache.lock.Unlock()
-	cache.podsMap[string(pod.UID)] = pod
-}
 
-func (cache *SchedulerCache) InvalidatePodFromCache(pod *v1.Pod) {
-	cache.lock.Lock()
-	defer cache.lock.Unlock()
-	delete(cache.podsMap, string(pod.UID))
-}
-
-func (cache *SchedulerCache) GetPod(uid string) (*v1.Pod, bool) {
-	cache.lock.RLock()
-	defer cache.lock.RUnlock()
-	if pod, ok := cache.podsMap[uid]; ok {
-		return pod, true
-	} else {
-		return nil, false
+	currState, ok := cache.podsMap[key]
+	switch {
+	case ok && cache.assumedPods[key]:
+		if currState.Spec.NodeName != pod.Spec.NodeName {
+			// The pod was added to a different node than it was assumed to.
+			glog.V(0).Infof("Pod %v was assumed to be on %v but got added to %v",
+				key, pod.Spec.NodeName, currState.Spec.NodeName)
+			// Clean this up.
+			cache.removePod(currState)
+			cache.addPod(pod)
+		}
+		delete(cache.assumedPods, key)
+		cache.podsMap[key] = pod
+	case !ok:
+		// Pod was expired. We should add it back.
+		cache.addPod(pod)
+		cache.podsMap[key] = pod
+	default:
+		return fmt.Errorf("pod %v was already in added state", key)
 	}
+	return nil
 }
 
 func (cache *SchedulerCache) UpdatePod(oldPod, newPod *v1.Pod) error {
+	key, err := deschedulernode.GetPodKey(oldPod)
+	if err != nil {
+		return err
+	}
+
 	cache.lock.Lock()
 	defer cache.lock.Unlock()
-	return cache.updatePod(oldPod, newPod)
+
+	currState, ok := cache.podsMap[key]
+	switch {
+	// An assumed pod won't have Update/Remove event. It needs to have Add event
+	// before Update event, in which case the state would change from Assumed to Added.
+	case ok && !cache.assumedPods[key]:
+		if currState.Spec.NodeName != newPod.Spec.NodeName {
+			glog.V(0).Infof("Pod %v updated on a different node than previously added to.", key)
+			glog.V(0).Infof("scheduler cache is corrupted and can badly affect scheduling decisions")
+		}
+		if err := cache.updatePod(oldPod, newPod); err != nil {
+			return err
+		}
+		cache.podsMap[key] = newPod
+	default:
+		return fmt.Errorf("pod %v is not added to scheduler cache, so cannot be updated", key)
+	}
+	return nil
+}
+
+// Assumes that lock is already acquired.
+func (cache *SchedulerCache) addPod(pod *v1.Pod) {
+	if pod.Spec.NodeName != "" {
+		n, ok := cache.nodesMap[pod.Spec.NodeName]
+		if !ok {
+			n = deschedulernode.NewNodeInfo()
+			cache.nodesMap[pod.Spec.NodeName] = n
+		}
+		n.AddPod(pod)
+	}
 }
 
 func (cache *SchedulerCache) updatePod(oldPod, newPod *v1.Pod) error {
@@ -173,6 +207,64 @@ func (cache *SchedulerCache) removePod(pod *v1.Pod) error {
 	}
 	if err := n.RemovePod(pod); err != nil {
 		return err
+	}
+	return nil
+}
+
+func (cache *SchedulerCache) GetPod(uid string) (*v1.Pod, bool) {
+	cache.lock.RLock()
+	defer cache.lock.RUnlock()
+	if pod, ok := cache.podsMap[uid]; ok {
+		return pod, true
+	} else {
+		return nil, false
+	}
+}
+
+func (cache *SchedulerCache) AssumePod(pod *v1.Pod) error {
+	key, err := deschedulernode.GetPodKey(pod)
+	if err != nil {
+		return err
+	}
+
+	cache.lock.Lock()
+	defer cache.lock.Unlock()
+	//if _, ok := cache.podsMap[key]; ok {
+	//	return fmt.Errorf("pod %v is in the cache, so can't be assumed", key)
+	//}
+
+	cache.addPod(pod)
+	cache.podsMap[key] = pod
+	cache.assumedPods[key] = true
+	return nil
+}
+
+func (cache *SchedulerCache) ForgetPod(pod *v1.Pod) error {
+	key, err := deschedulernode.GetPodKey(pod)
+	if err != nil {
+		return err
+	}
+
+	cache.lock.Lock()
+	defer cache.lock.Unlock()
+
+	currState, ok := cache.podsMap[key]
+	if ok && currState.Spec.NodeName != pod.Spec.NodeName {
+		return fmt.Errorf("pod %v was assumed on %v but assigned to %v",
+			key, pod.Spec.NodeName, currState.Spec.NodeName)
+	}
+
+	switch {
+	// Only assumed pod can be forgotten.
+	case ok && cache.assumedPods[key]:
+		err := cache.removePod(pod)
+		if err != nil {
+			return err
+		}
+		delete(cache.assumedPods, key)
+		delete(cache.podsMap, key)
+	default:
+		return fmt.Errorf("pod %v wasn't assumed so cannot be forgotten", key)
 	}
 	return nil
 }

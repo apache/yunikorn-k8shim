@@ -172,7 +172,10 @@ func (ctx *Context) addPod(obj interface{}) {
 		}
 	}
 
-	ctx.schedulerCache.AddPodToCache(pod)
+	// add pod to cache
+	if err := ctx.schedulerCache.AddPod(pod); err != nil {
+		glog.V(1).Infof("adding pod %v to scheduler cache failed, error: %v", pod, err)
+	}
 }
 
 func (ctx *Context) addPodToCache(obj interface{}) {
@@ -183,7 +186,9 @@ func (ctx *Context) addPodToCache(obj interface{}) {
 	}
 
 	glog.V(4).Infof("adding pod %s to cache", pod.Name)
-	ctx.schedulerCache.AddPod(pod)
+	if err := ctx.schedulerCache.AddPod(pod); err != nil {
+		glog.V(1).Infof("adding pod %v to scheduler cache failed, error: %v", pod, err)
+	}
 }
 
 func (ctx *Context) removePodFromCache(obj interface{}) {
@@ -204,7 +209,9 @@ func (ctx *Context) removePodFromCache(obj interface{}) {
 	}
 
 	glog.V(4).Infof("removing pod %s from cache", pod.Name)
-	ctx.schedulerCache.RemovePod(pod)
+	if err := ctx.schedulerCache.RemovePod(pod); err != nil {
+		glog.V(1).Infof("failed to remove pod %v from scheduler cache, error: %v", pod, err)
+	}
 }
 
 // create a task if it doesn't exist yet,
@@ -264,7 +271,9 @@ func (ctx *Context) updatePodInCache(oldObj, newObj interface{}) {
 		glog.V(0).Infof("cannot convert newObj to *v1.Pod: %v", newObj)
 		return
 	}
-	ctx.schedulerCache.UpdatePod(oldPod, newPod)
+	if err := ctx.schedulerCache.UpdatePod(oldPod, newPod); err != nil {
+		glog.V(1).Infof("update pod %v in scheduler cache failed, error %v", oldPod, err)
+	}
 }
 
 // this function is called when a pod is deleted from api-server.
@@ -303,7 +312,10 @@ func (ctx *Context) deletePod(obj interface{}) {
 		application.StartCompletionHandler(ctx.kubeClient, pod)
 	}
 
-	ctx.schedulerCache.InvalidatePodFromCache(pod)
+	glog.V(4).Infof("removing pod %s from cache", pod.Name)
+	if err := ctx.schedulerCache.RemovePod(pod); err != nil {
+		glog.V(1).Infof("failed to remove pod %v from scheduler cache, error: %v", pod, err)
+	}
 }
 
 // filter assigned pods
@@ -406,6 +418,24 @@ func (ctx *Context) IsPodFitNode(name string, node string) error {
 		}
 	}
 	return fmt.Errorf("predicates were not running because pod or node was not found in cache")
+}
+
+// assume a pod will be running on a node, in scheduler, we maintain
+// a cache where stores info for each node what pods are supposed to
+// be running on it. And we keep this cache in-sync between core and the shim.
+// this way, the core can make allocation decisions with consideration of
+// other assumed pods before they are actually bound to the node (bound is slow).
+func (ctx *Context) AssumePod(name string, node string) error {
+	ctx.lock.Lock()
+	defer ctx.lock.Unlock()
+	if pod, ok := ctx.schedulerCache.GetPod(name); ok {
+		// assign the node name for pod
+		pod.Spec.NodeName = node
+		if targetNode := ctx.schedulerCache.GetNode(node); targetNode != nil {
+			return ctx.schedulerCache.AssumePod(pod)
+		}
+	}
+	return nil
 }
 
 func (ctx *Context) GetSchedulerConf() *conf.SchedulerConf {

@@ -87,6 +87,14 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 	return nil
 }
 
+// this callback implements scheduler plugin interface PredicatesPlugin/
 func (callback *AsyncRMCallback) Predicates(allocationId string, node string) error {
 	return callback.context.IsPodFitNode(allocationId, node)
 }
+
+// this callback implements scheduler plugin interface ReconcilePlugin.
+func (callback *AsyncRMCallback) ReSyncSchedulerCache(allocationId string, node string) error {
+	return callback.context.AssumePod(allocationId, node)
+}
+
+
