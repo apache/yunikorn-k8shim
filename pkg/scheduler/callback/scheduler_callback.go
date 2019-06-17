@@ -88,13 +88,18 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 }
 
 // this callback implements scheduler plugin interface PredicatesPlugin/
-func (callback *AsyncRMCallback) Predicates(allocationId string, node string) error {
-	return callback.context.IsPodFitNode(allocationId, node)
+func (callback *AsyncRMCallback) Predicates(args *si.PredicatesArgs) error {
+	return callback.context.IsPodFitNode(args.AllocationKey, args.NodeId)
 }
 
 // this callback implements scheduler plugin interface ReconcilePlugin.
-func (callback *AsyncRMCallback) ReSyncSchedulerCache(allocationId string, node string) error {
-	return callback.context.AssumePod(allocationId, node)
+func (callback *AsyncRMCallback) ReSyncSchedulerCache(args *si.ReSyncSchedulerCacheArgs) error {
+	for _, assumedAlloc := range args.AssumedAllocations {
+		if err := callback.context.AssumePod(assumedAlloc.AllocationKey, assumedAlloc.NodeId); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 

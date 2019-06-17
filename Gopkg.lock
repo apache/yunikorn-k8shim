@@ -92,7 +92,7 @@
   version = "v1.0.0"
 
 [[projects]]
-  digest = "1:16b2837c8b3cf045fa2cdc82af0cf78b19582701394484ae76b2c3bc3c99ad73"
+  digest = "1:5facc3828b6a56f9aec988433ea33fb4407a89460952ed75be5347cec07318c0"
   name = "github.com/googleapis/gnostic"
   packages = [
     "OpenAPIv2",
@@ -100,8 +100,8 @@
     "extensions",
   ]
   pruneopts = ""
-  revision = "7c663266750e7d82587642f65e60bc4083f1f84e"
-  version = "v0.2.0"
+  revision = "e73c7ec21d36ddb0711cb36d1502d18363b5c2c9"
+  version = "v0.3.0"
 
 [[projects]]
   digest = "1:ec5262e6c65f9fcedc01d7789ee4e18ad429dde822cfd50e57e3fd77c4d70c73"
@@ -247,15 +247,15 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:aaa1a83ba075b409525d3c1ea8bb9cf9da642e21d442c7ed5954ff7895580aaf"
+  digest = "1:16cca037d21d32060fffaf0f96bda5b9a6d5b630ed1b96f1090f91c5dd97c2d3"
   name = "github.infra.cloudera.com/yunikorn/scheduler-interface"
   packages = ["lib/go/si"]
   pruneopts = ""
-  revision = "3ec329c384e96088b78bf97ca015408cf6e2eaaa"
+  revision = "5e5e3ab930e0a570a3f12618e004a5f583d4a9d9"
 
 [[projects]]
   branch = "master"
-  digest = "1:db324bddab87e7839272b1b6b514fb546888d479468af077b90ec5840dc9a09b"
+  digest = "1:a1f2d83e3536a4bba51bd9f42557fbc72bd6afcd4ae18fdff8dba23821153c55"
   name = "github.infra.cloudera.com/yunikorn/yunikorn-core"
   packages = [
     "pkg/api",
@@ -279,7 +279,7 @@
     "pkg/webservice/dao",
   ]
   pruneopts = ""
-  revision = "72bc2086b47f0ab20867cdd8312fdd64cddb77b6"
+  revision = "1e3df9623a48e64bf7e677c21f3e28f602d53f66"
 
 [[projects]]
   branch = "master"
@@ -296,7 +296,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:81205bca004fdbacb381172d3e6af57740b65e4f6d1c21cef72f9e6afad096ec"
+  digest = "1:e8dcab1991c5afb5f4cf88ebfbe7edc85407cc3c3a0768e705e10158b2036963"
   name = "golang.org/x/net"
   packages = [
     "context",
@@ -309,7 +309,7 @@
     "trace",
   ]
   pruneopts = ""
-  revision = "3f473d35a33aa6fdd203e306dc439b797820e3f1"
+  revision = "d28f0bde5980168871434b95cfc858db9f2a7a99"
 
 [[projects]]
   branch = "master"
@@ -324,14 +324,14 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:e2a6a7d92d5bdb8002c65aa0916c725c4afc019827d415a46046acafc42edb16"
+  digest = "1:3e58d7c7f8e8393f1738c1e57295392d3a0560a1785738010ce40a87c3fe1096"
   name = "golang.org/x/sys"
   packages = [
     "unix",
     "windows",
   ]
   pruneopts = ""
-  revision = "93c9922d18aeb82498a065f07aec7ad7fa60dfb7"
+  revision = "15dcb6c0061f497a3f66e3ea034b629c6dd4d99e"
 
 [[projects]]
   digest = "1:740b51a55815493a8d0f2b1e0d0ae48fe48953bf7eaf3fcc4198823bf67768c0"
@@ -773,14 +773,14 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:4b47bad77c9b4961b0e5444131174fc44ad0531cb9fcf95472fdec9065d2d159"
+  digest = "1:699379c2f1cf9d569cbb8fd9463f3d61b4836a1e95738aa21d19e117de6eacce"
   name = "k8s.io/csi-translation-lib"
   packages = [
     ".",
     "plugins",
   ]
   pruneopts = ""
-  revision = "1cfe03a9fcd97443cfe8649b3041cc10d8a5240a"
+  revision = "9ff632302e7ee3b0b6118cd21569ce8b51f7f0f2"
 
 [[projects]]
   digest = "1:9eaf86f4f6fb4a8f177220d488ef1e3255d06a691cca95f14ef085d4cd1cef3c"
@@ -917,7 +917,6 @@
     "k8s.io/client-go/rest",
     "k8s.io/client-go/tools/cache",
     "k8s.io/client-go/tools/clientcmd",
-    "k8s.io/klog",
     "k8s.io/kubernetes/pkg/apis/core/v1/helper",
     "k8s.io/kubernetes/pkg/scheduler/algorithm",
     "k8s.io/kubernetes/pkg/scheduler/algorithm/predicates",
