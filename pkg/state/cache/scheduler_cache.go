@@ -54,8 +54,8 @@ func (cache *SchedulerCache) GetNodesInfoMap() map[string]*deschedulernode.NodeI
 
 func (cache *SchedulerCache) assignArgs(args *factory.PluginFactoryArgs) {
 	// nodes cache implemented PodLister and NodeInfo interface
-	glog.V(5).Infof("PluginFactoryArgs#PodLister -> cachedNodes")
-	glog.V(5).Infof("PluginFactoryArgs#NodeInfo -> cachedNodes")
+	glog.V(5).Infof("PluginFactoryArgs#PodLister -> SchedulerCache")
+	glog.V(5).Infof("PluginFactoryArgs#NodeInfo -> SchedulerCache")
 	args.PodLister = cache
 	args.NodeInfo = cache
 }
