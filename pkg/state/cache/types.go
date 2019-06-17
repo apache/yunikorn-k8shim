@@ -43,11 +43,11 @@ func GetPluginArgs() *factory.PluginFactoryArgs {
 	return pluginArgs
 }
 
-// see e.g CachedNodes
+// see e.g SchedulerCache
 type PluginFactoryArgsProvider interface {
 	// a plugin factory args provider implemented one or more interfaces defined in
 	// such as PodLister, NodeLister, etc.
-	assignArgs(args factory.PluginFactoryArgs)
+	assignArgs(args *factory.PluginFactoryArgs)
 }
 
 
