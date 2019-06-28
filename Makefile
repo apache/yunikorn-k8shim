@@ -14,6 +14,12 @@
 # limitations under the License.
 #
 
+# Check if this is at least GO 1.11 for Go Modules
+GO_VERSION := $(shell go version | awk '$$3 ~ /go1.(10|0-9])/ {print $$3}')
+ifdef GO_VERSION
+$(error Build requires go 1.11 or later)
+endif
+
 BINARY=k8s_yunikorn_scheduler
 OUTPUT=_output
 BIN_DIR=bin
@@ -26,10 +32,13 @@ IMAGE_TAG=yunikorn/scheduler-core
 IMAGE_VERSION=0.3.5
 DATE=$(shell date +%FT%T%z)
 
+# Force Go modules even when checked out inside GOPATH
+GO111MODULE := on
+export GO111MODULE
+
 init:
 	mkdir -p ${BIN_DIR}
 	mkdir -p ${RELEASE_BIN_DIR}
-	if [ ! -d ./vendor ]; then dep ensure; fi
 
 build: init
 	go build -o=${BINARY} --ldflags '-X main.version=${IMAGE_VERSION} -X main.date=${DATE}' ./pkg/scheduler/

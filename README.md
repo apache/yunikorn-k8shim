@@ -17,6 +17,8 @@ git clone https://github.infra.cloudera.com/yunikorn/k8s-shim.git
 ```
 
 ### 2. Build and run it locally
+Prerequisite:
+- Go 1.11+
 
 #### Build binary on laptop
 
