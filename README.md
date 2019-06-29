@@ -11,9 +11,9 @@ Read [env-setup](./docs/env-setup.md) first to setup Docker, Kubernetes developm
 ### 1. Get source code
 ```
 cd $GOPATH
-mkdir -p src/github.infra.cloudera.com/yunikorn/
-cd src/github.infra.cloudera.com/yunikorn/
-git clone https://github.infra.cloudera.com/yunikorn/k8s-shim.git
+mkdir -p src/github.com/cloudera/
+cd src/github.com/cloudera/
+git clone https://github.com/cloudera/k8s-shim.git
 ```
 
 ### 2. Build and run it locally
@@ -94,9 +94,9 @@ Tutorial of running Spark with YuniKorn can be found [here](./docs/spark.md).
 
 ## How do I contribute code?
 You need to first sign and return an
-[ICLA](https://github.infra.cloudera.com/yunikorn-core/blob/master/CLAs/Cloudera%20ICLA_25APR2018.pdf)
+[ICLA](https://github.com/cloudera/yunikorn-core/blob/master/CLAs/Cloudera%20ICLA_25APR2018.pdf)
 and
-[CCLA](https://github.infra.cloudera.com/yunikorn-core/blob/master/CLAs/Cloudera%20CCLA_25APR2018.pdf)
+[CCLA](https://github.com/cloudera/yunikorn-core/blob/master/CLAs/Cloudera%20CCLA_25APR2018.pdf)
 before we can accept and redistribute your contribution. Once these are submitted you are
 free to start contributing to k8s-shim. Submit these to CLA@cloudera.com.
 

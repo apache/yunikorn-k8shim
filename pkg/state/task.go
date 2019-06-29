@@ -18,11 +18,11 @@ package state
 
 import (
 	"fmt"
-	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/client"
-	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/common"
-	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/scheduler/conf"
-	"github.infra.cloudera.com/yunikorn/scheduler-interface/lib/go/si"
-	"github.infra.cloudera.com/yunikorn/yunikorn-core/pkg/api"
+	"github.com/cloudera/k8s-shim/pkg/client"
+	"github.com/cloudera/k8s-shim/pkg/common"
+	"github.com/cloudera/k8s-shim/pkg/scheduler/conf"
+	"github.com/cloudera/scheduler-interface/lib/go/si"
+	"github.com/cloudera/yunikorn-core/pkg/api"
 	"strings"
 	"sync"
 

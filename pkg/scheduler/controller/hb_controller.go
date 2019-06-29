@@ -17,10 +17,10 @@ limitations under the License.
 package controller
 //
 //import (
-//	"github.infra.cloudera.com/yunikorn/k8shim/pkg/common"
-//	"github.infra.cloudera.com/yunikorn/k8shim/pkg/scheduler/state"
-//	"github.infra.cloudera.com/yunikorn/scheduler-interface/lib/go/si"
-//	"github.infra.cloudera.com/yunikorn/yunikorn-core/pkg/api"
+//	"github.com/cloudera/k8shim/pkg/common"
+//	"github.com/cloudera/k8shim/pkg/scheduler/state"
+//	"github.com/cloudera/scheduler-interface/lib/go/si"
+//	"github.com/cloudera/yunikorn-core/pkg/api"
 //	"log"
 //	"sync"
 //	"time"

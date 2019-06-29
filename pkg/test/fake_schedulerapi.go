@@ -17,8 +17,8 @@ limitations under the License.
 package test
 
 import (
-	"github.infra.cloudera.com/yunikorn/scheduler-interface/lib/go/si"
-	"github.infra.cloudera.com/yunikorn/yunikorn-core/pkg/api"
+	"github.com/cloudera/scheduler-interface/lib/go/si"
+	"github.com/cloudera/yunikorn-core/pkg/api"
 )
 
 type FakeSchedulerApi struct {

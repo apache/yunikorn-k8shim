@@ -17,9 +17,9 @@ limitations under the License.
 package shim
 
 import (
-	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/common"
-	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/scheduler/conf"
-	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/state"
+	"github.com/cloudera/k8s-shim/pkg/common"
+	"github.com/cloudera/k8s-shim/pkg/scheduler/conf"
+	"github.com/cloudera/k8s-shim/pkg/state"
 	"testing"
 )
 

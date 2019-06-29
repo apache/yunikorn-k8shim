@@ -10,7 +10,7 @@ code as much as possible.
 YuniKorn-core is agnostic about underneath RMs, so the predicates functions are implemented in K8s-shim as a `SchedulerPlugin`.
 SchedulerPlugin is a way to plug/extend scheduler capabilities. Shim can implement such plugin and register itself to
 yunikorn-core, so plugged function can be invoked in the scheduler core. Find all supported plugins in
-[types](https://github.infra.cloudera.com/yunikorn/yunikorn-core/blob/master/pkg/plugins/types.go).
+[types](https://github.com/cloudera/yunikorn-core/blob/master/pkg/plugins/types.go).
 
 ## Workflow
 
@@ -56,4 +56,4 @@ Intentionally, we only support a white-list of predicates. Majorly due to 2 reas
 * Predicate functions are time-consuming, it has negative impact on scheduler performance. To support predicates that are only necessary can minimize the impact. This will be configurable via CLI options;
 * The implementation depends heavily on K8s default scheduler code, though we reused some unit tests, the coverage is still a problem. We'll continue to improve the coverage when adding new predicates.
 
-the white-list currently is defined in [DefaultSchedulerPolicy](https://github.infra.cloudera.com/yunikorn/k8s-shim/blob/master/pkg/predicates/predictor.go).
+the white-list currently is defined in [DefaultSchedulerPolicy](https://github.com/cloudera/k8s-shim/blob/master/pkg/predicates/predictor.go).

@@ -17,7 +17,7 @@ limitations under the License.
 package test
 
 import (
-	"github.infra.cloudera.com/yunikorn/scheduler-interface/lib/go/si"
+	"github.com/cloudera/scheduler-interface/lib/go/si"
 )
 
 type FakeRMCallBack struct {

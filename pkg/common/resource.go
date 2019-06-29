@@ -18,8 +18,8 @@ package common
 
 import (
 	"github.com/golang/glog"
-	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/scheduler/conf"
-	"github.infra.cloudera.com/yunikorn/scheduler-interface/lib/go/si"
+	"github.com/cloudera/k8s-shim/pkg/scheduler/conf"
+	"github.com/cloudera/scheduler-interface/lib/go/si"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 )

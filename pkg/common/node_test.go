@@ -17,7 +17,7 @@ limitations under the License.
 package common
 
 import (
-	"github.infra.cloudera.com/yunikorn/k8s-shim/pkg/scheduler/conf"
+	"github.com/cloudera/k8s-shim/pkg/scheduler/conf"
 	"gotest.tools/assert"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
