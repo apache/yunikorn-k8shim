@@ -47,6 +47,17 @@ This was built on Apr 16th
 
 deployment: [scheduler-v0.3.0.yaml](scheduler-v0.3.0.yaml)
 
+## v0.3.5
+
+This was built on May 22th
+* Deploys scheduler-core + scheduler-web
+* Configuration loaded from config map
+* Configuration hot refresh works with config map
+* Web UI has basic cluster/queue/application info
+* UI port is `9889`
+
+deployment: [scheduler-v0.3.0.yaml](scheduler-v0.3.0.yaml)
+
 ## v0.1.10
 
 First version that supports loading configuration from ConfigMap.

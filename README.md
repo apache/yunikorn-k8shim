@@ -60,7 +60,7 @@ kubectl create -f deployments/scheduler/yunikorn-rbac.yaml
 #### Deploy the scheduler on k8s
 
 ```
-kubectl create -f deployments/scheduler/scheduler-v0.2.0.yaml
+kubectl create -f deployments/scheduler/scheduler-v0.3.5.yaml
 ```
 
 #### Run sample jobs

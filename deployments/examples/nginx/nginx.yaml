@@ -10,7 +10,7 @@ spec:
     metadata:
       labels:
         app: nginx
-        applicationId: "job_2019_01_22_00002"
+        applicationId: "nginx_2019_01_22_00001"
         queue: root.sandbox
       name: nginx
     spec:

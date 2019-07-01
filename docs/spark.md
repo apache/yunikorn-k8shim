@@ -25,14 +25,14 @@ Before these steps, first refer to [README](../README.md) to launch yunikorn-sch
 
 ### Pod templates:
 
-* [driver.yaml](../deployments/spark/driver.yaml)
+* [driver.yaml](../deployments/examples/spark/driver.yaml)
 
-* [executor.yaml](../deployments/spark/exectuor.yaml)
+* [executor.yaml](../deployments/examples/spark/exectuor.yaml)
 
 Note, following labels must be set in order to be scheduled with yunikorn-scheduler:
 
-* jobId: spark-00001
-* queue: name_of_the_queue
+* spark-app-id: id_of_the_spark_job (e.g spark-00001 )
+* queue: name_of_the_queue (e.g root.sandbox)
 
 And scheduler name must be set to:
 

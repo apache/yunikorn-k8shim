@@ -1,3 +1,4 @@
+# launch 3 pods in root.sandbox queue, each pod sleeps 30 seconds.
 apiVersion: v1
 kind: Pod
 metadata:
@@ -9,9 +10,9 @@ metadata:
 spec:
   schedulerName: yunikorn
   containers:
-    - name: sleep-5s
+    - name: sleep-30s
       image: "alpine:latest"
-      command: ["/bin/ash", "-ec", "while :; do echo '.'; sleep 5 ; done"]
+      command: ["sleep", "30"]
       resources:
         requests:
           cpu: "100m"
@@ -28,9 +29,9 @@ metadata:
 spec:
   schedulerName: yunikorn
   containers:
-    - name: sleep-5s
+    - name: sleep-30s
       image: "alpine:latest"
-      command: ["/bin/ash", "-ec", "while :; do echo '.'; sleep 5 ; done"]
+      command: ["sleep", "30"]
       resources:
         requests:
           cpu: "100m"
@@ -47,9 +48,9 @@ metadata:
 spec:
   schedulerName: yunikorn
   containers:
-    - name: sleep-5s
+    - name: sleep-30s
       image: "alpine:latest"
-      command: ["/bin/ash", "-ec", "while :; do echo '.'; sleep 5 ; done"]
+      command: ["sleep", "30"]
       resources:
         requests:
           cpu: "100m"
