@@ -1,4 +1,4 @@
-module "https://github.com/cloudera/k8s-shim"
+module github.com/cloudera/k8s-shim
 
 go 1.12
 
