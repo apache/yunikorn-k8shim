@@ -18,9 +18,9 @@ package callback
 
 import (
 	"fmt"
-	"github.com/golang/glog"
 	"github.com/cloudera/k8s-shim/pkg/state"
 	"github.com/cloudera/scheduler-interface/lib/go/si"
+	"github.com/golang/glog"
 )
 
 // RM callback is called from the scheduler core, we need to ensure the response is handled

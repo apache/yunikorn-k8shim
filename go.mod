@@ -3,9 +3,8 @@ module "https://github.com/cloudera/k8s-shim"
 go 1.12
 
 require (
-	github.com/cloudera/k8s-shim v0.0.0-20190617085258-b5181cbda062
-	github.com/cloudera/scheduler-interface v0.0.0-20190617075922-5e5e3ab930e0
-	github.com/cloudera/yunikorn-core v0.0.0-20190617080722-1e3df9623a48
+	github.com/cloudera/scheduler-interface v0.0.0-20190629053425-455c193da6b1
+	github.com/cloudera/yunikorn-core v0.0.0-20190629041148-266dbf69b666
 	github.com/coreos/bbolt v1.3.3 // indirect
 	github.com/coreos/etcd v3.3.13+incompatible // indirect
 	github.com/coreos/go-semver v0.3.0 // indirect
@@ -42,7 +41,7 @@ require (
 	google.golang.org/appengine v1.6.1 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/square/go-jose.v2 v2.3.1 // indirect
-	gotest.tools v0.0.0-20181223230014-1083505acf35
+	gotest.tools v2.2.0+incompatible
 	k8s.io/api v0.0.0-20190624085159-95846d7ef82a
 	k8s.io/apiextensions-apiserver v0.0.0-20190516231611-bf6753f2aa24 // indirect
 	k8s.io/apimachinery v0.0.0-20190624085041-961b39a1baa0

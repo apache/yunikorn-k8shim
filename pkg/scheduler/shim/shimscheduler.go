@@ -18,14 +18,14 @@ package shim
 
 import (
 	"fmt"
-	"github.com/golang/glog"
-	"github.com/looplab/fsm"
 	"github.com/cloudera/k8s-shim/pkg/scheduler/callback"
 	"github.com/cloudera/k8s-shim/pkg/scheduler/conf"
 	"github.com/cloudera/k8s-shim/pkg/state"
 	"github.com/cloudera/scheduler-interface/lib/go/si"
 	"github.com/cloudera/yunikorn-core/pkg/api"
 	"github.com/cloudera/yunikorn-core/pkg/rmproxy"
+	"github.com/golang/glog"
+	"github.com/looplab/fsm"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sync"
 )
