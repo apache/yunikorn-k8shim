@@ -22,7 +22,6 @@ endif
 
 BINARY=k8s_yunikorn_scheduler
 OUTPUT=_output
-BIN_DIR=bin
 RELEASE_BIN_DIR=${OUTPUT}/bin
 LOCAL_CONF=conf
 CONF_FILE=queues.yaml
@@ -37,11 +36,12 @@ GO111MODULE := on
 export GO111MODULE
 
 init:
-	mkdir -p ${BIN_DIR}
 	mkdir -p ${RELEASE_BIN_DIR}
 
 build: init
-	go build -o=${BINARY} --ldflags '-X main.version=${IMAGE_VERSION} -X main.date=${DATE}' ./pkg/scheduler/
+	go build -o=${RELEASE_BIN_DIR}/${BINARY} --ldflags \
+	'-X main.version=${IMAGE_VERSION} -X main.date=${DATE}' \
+	./pkg/scheduler/
 
 build_image: init
 	GOOS=linux GOARCH=amd64 \
@@ -68,8 +68,8 @@ image2: build_image
 	rm -f ./deployments/image/configmap/${BINARY}
 
 run: build
-	cp ${LOCAL_CONF}/${CONF_FILE} .
-	./${BINARY} -logtostderr=true -v=5 -kubeconfig=$(HOME)/.kube/config -interval=1 \
+	cp ${LOCAL_CONF}/${CONF_FILE} ${RELEASE_BIN_DIR}
+	cd ${RELEASE_BIN_DIR} && ./${BINARY} -logtostderr=true -v=5 -kubeconfig=$(HOME)/.kube/config -interval=1 \
 	-clusterid=mycluster -clusterversion=0.1 -name=yunikorn -policygroup=queues
 
 test:
@@ -78,7 +78,6 @@ test:
 
 clean:
 	rm -rf ${OUTPUT}
-	rm -rf ${BIN_DIR}
 	rm -f ${CONF_FILE} ${BINARY}
 	rm -f ./deployments/image/file/${BINARY}
 	rm -f ./deployments/image/file/${CONF_FILE}
