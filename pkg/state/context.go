@@ -18,8 +18,6 @@ package state
 
 import (
 	"fmt"
-	"github.com/golang/glog"
-	"github.com/pkg/errors"
 	"github.com/cloudera/k8s-shim/pkg/client"
 	plugin "github.com/cloudera/k8s-shim/pkg/predicates"
 	"github.com/cloudera/k8s-shim/pkg/scheduler/conf"
@@ -27,10 +25,14 @@ import (
 	schedulercache "github.com/cloudera/k8s-shim/pkg/state/cache"
 	"github.com/cloudera/yunikorn-core/pkg/api"
 	"github.com/cloudera/yunikorn-core/pkg/rmproxy"
+	"github.com/golang/glog"
+	"github.com/pkg/errors"
 	"k8s.io/api/core/v1"
 	"k8s.io/client-go/informers"
-	infomerv1 "k8s.io/client-go/informers/core/v1"
+	coreInfomerV1 "k8s.io/client-go/informers/core/v1"
+	storageInformerV1 "k8s.io/client-go/informers/storage/v1"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/kubernetes/pkg/scheduler/volumebinder"
 	"strings"
 	"sync"
 )
@@ -44,12 +46,15 @@ type Context struct {
 	schedulerApi   api.SchedulerApi
 
 	// informers
-	podInformer       infomerv1.PodInformer
-	nodeInformer      infomerv1.NodeInformer
-	configMapInformer infomerv1.ConfigMapInformer
-	// nsInformer       infomerv1.NamespaceInformer
-	// pvInformer       infomerv1.PersistentVolumeInformer
-	// pvcInformer      infomerv1.PersistentVolumeClaimInformer
+	podInformer       coreInfomerV1.PodInformer
+	nodeInformer      coreInfomerV1.NodeInformer
+	configMapInformer coreInfomerV1.ConfigMapInformer
+	// nsInformer       coreInfomerV1.NamespaceInformer
+	pvInformer      coreInfomerV1.PersistentVolumeInformer
+	pvcInformer     coreInfomerV1.PersistentVolumeClaimInformer
+	storageInformer storageInformerV1.StorageClassInformer
+
+	volumeBinder *volumebinder.VolumeBinder
 
 	schedulerCache *schedulercache.SchedulerCache
 	predictor      *plugin.Predictor
@@ -58,32 +63,54 @@ type Context struct {
 	lock     *sync.RWMutex
 }
 
+// Create a new context for the scheduler.
+// This wraps the internal call which really creates the context.
 func NewContext(scheduler api.SchedulerApi, configs *conf.SchedulerConf) *Context {
 	kc := client.NewKubeClient(configs.KubeConfig)
 	return NewContextInternal(scheduler, configs, kc, false)
 }
 
-// only for testing
+// Internal create of the scheduler context.
+// Only exposed for testing, not to e used for anything else
 func NewContextInternal(scheduler api.SchedulerApi, configs *conf.SchedulerConf, client client.KubeClient, testMode bool) *Context {
+	// create the context note that order is important:
+	// volumebinder needs the informers
+	// the cache needs informers and volumebinder
+	// nodecontroller needs the cache
+	// predictor need the cache, volumebinder and informers
 	ctx := &Context{
-		applications:   make(map[string]*Application),
-		conf:           configs,
-		kubeClient:     client,
-		schedulerApi:   scheduler,
-		schedulerCache: schedulercache.NewSchedulerCache(),
-		predictor:      plugin.NewPredictor(schedulercache.GetPluginArgs(), testMode),
-		testMode:       testMode,
-		lock:           &sync.RWMutex{},
+		applications: make(map[string]*Application),
+		conf:         configs,
+		kubeClient:   client,
+		schedulerApi: scheduler,
+		testMode:     testMode,
+		lock:         &sync.RWMutex{},
 	}
-
-	// init controllers
-	ctx.nodeController = controller.NewNodeController(scheduler, ctx.schedulerCache)
 
 	// we have disabled re-sync to keep ourselves up-to-date
 	informerFactory := informers.NewSharedInformerFactory(ctx.kubeClient.GetClientSet(), 0)
 
 	// init informers
+	// volume informers are also used to get the Listers for the predicates
 	ctx.nodeInformer = informerFactory.Core().V1().Nodes()
+	ctx.podInformer = informerFactory.Core().V1().Pods()
+	ctx.configMapInformer = informerFactory.Core().V1().ConfigMaps()
+	ctx.storageInformer = informerFactory.Storage().V1().StorageClasses()
+	ctx.pvInformer = informerFactory.Core().V1().PersistentVolumes()
+	ctx.pvcInformer = informerFactory.Core().V1().PersistentVolumeClaims()
+
+	// create a volume binder (needs the informers)
+	// TODO timeout is only used in the bind so for now just set a value
+	ctx.volumeBinder = volumebinder.NewVolumeBinder(ctx.kubeClient.GetClientSet(), ctx.nodeInformer, ctx.pvcInformer, ctx.pvInformer, ctx.storageInformer, 10)
+
+	// create the cache
+	ctx.schedulerCache = schedulercache.NewSchedulerCache(ctx.pvInformer.Lister(), ctx.pvcInformer.Lister(), ctx.storageInformer.Lister(), ctx.volumeBinder)
+
+	// init the controllers and plugins (need the cache)
+	ctx.nodeController = controller.NewNodeController(scheduler, ctx.schedulerCache)
+	ctx.predictor = plugin.NewPredictor(schedulercache.GetPluginArgs(), testMode)
+
+	// Add the event handling to all informers that need it
 	ctx.nodeInformer.Informer().AddEventHandlerWithResyncPeriod(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc:    ctx.addNode,
@@ -93,7 +120,6 @@ func NewContextInternal(scheduler api.SchedulerApi, configs *conf.SchedulerConf,
 		0,
 	)
 
-	ctx.podInformer = informerFactory.Core().V1().Pods()
 	ctx.podInformer.Informer().AddEventHandler(
 		cache.FilteringResourceEventHandler{
 			FilterFunc: ctx.filterPods,
@@ -115,7 +141,6 @@ func NewContextInternal(scheduler api.SchedulerApi, configs *conf.SchedulerConf,
 		},
 	)
 
-	ctx.configMapInformer = informerFactory.Core().V1().ConfigMaps()
 	ctx.configMapInformer.Informer().AddEventHandler(cache.FilteringResourceEventHandler{
 		FilterFunc: ctx.filterConfigMaps,
 		Handler: cache.ResourceEventHandlerFuncs{
@@ -230,7 +255,7 @@ func (ctx *Context) getOrAddTask(a *Application, pod *v1.Pod) *Task {
 func (ctx *Context) validatePod(pod *v1.Pod) error {
 	if pod.Spec.SchedulerName == "" || pod.Spec.SchedulerName != ctx.conf.SchedulerName {
 		// only pod with specific scheduler name is valid to us
-		return fmt.Errorf("only pod whose spec has explicitly " +
+		return fmt.Errorf("only pod whose spec has explicitly "+
 			"specified schedulerName=%s is a valid scheduling-target, but schedulerName for pod %s(%s) is %s",
 			ctx.conf.SchedulerName, pod.Name, pod.UID, pod.Spec.SchedulerName)
 	}
@@ -340,7 +365,7 @@ func (ctx *Context) filterPods(obj interface{}) bool {
 		pod := obj.(*v1.Pod)
 		if strings.Compare(pod.Spec.SchedulerName,
 			ctx.conf.SchedulerName) == 0 {
-				return true
+			return true
 		}
 		return false
 	default:
@@ -504,6 +529,9 @@ func (ctx *Context) Run(stopCh <-chan struct{}) {
 	if !ctx.testMode {
 		go ctx.nodeInformer.Informer().Run(stopCh)
 		go ctx.podInformer.Informer().Run(stopCh)
+		go ctx.pvInformer.Informer().Run(stopCh)
+		go ctx.pvcInformer.Informer().Run(stopCh)
+		go ctx.storageInformer.Informer().Run(stopCh)
 		go ctx.configMapInformer.Informer().Run(stopCh)
 	}
 }

@@ -25,6 +25,8 @@ import "k8s.io/kubernetes/pkg/scheduler/factory"
 // NodeInfo -> MatchInterPodAffinityPred
 // PVInfo -> All volume related predicates
 // PVCInfo -> All volume related predicates
+// StorageClassInfo -> Volume related predicates
+// VolumeBinder -> Volume bind predicate
 //
 // -- Priorities ---
 // ServiceLister/ControllerLister/ReplicaSetLister/StatefulSetLister are required by PriorityMetadataProducer
@@ -49,7 +51,3 @@ type PluginFactoryArgsProvider interface {
 	// such as PodLister, NodeLister, etc.
 	assignArgs(args *factory.PluginFactoryArgs)
 }
-
-
-
-

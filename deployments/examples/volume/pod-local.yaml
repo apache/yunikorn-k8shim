@@ -1,0 +1,30 @@
+# Create a pod that reads and writes to the local mounted volume.
+
+kind: Pod
+apiVersion: v1
+metadata:
+  name: pod-with-volume
+  labels:
+    applicationId: "pod-with-volume"
+    queue: "root.sandbox"
+spec:
+  schedulerName: yunikorn
+  containers:
+    - name: pod-with-volume
+      image: alpine
+      resources:
+        requests:
+          cpu: "100m"
+          memory: "500M"
+      # Mount the local volume in the container
+      volumeMounts:
+        - name: my-local-pd
+          mountPath: "/var/tmp/mytest"
+      # Write to a file inside our mounted path
+      command: ["/bin/sh"]
+      args: ["-c", "while true; do date >> /var/tmp/mytest/dates.txt; sleep 5; done"]
+  # Add the local volume claim
+  volumes:
+    - name: my-local-pd
+      persistentVolumeClaim:
+        claimName: local-claim-1

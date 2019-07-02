@@ -34,25 +34,28 @@ import (
 // what are supported.
 var DefaultSchedulerPolicy = schedulerapi.Policy{
 	Predicates: []schedulerapi.PredicatePolicy{
-		{Name: "MatchNodeSelector"},
-		{Name: "PodFitsResources"},
+		{Name: predicates.MatchNodeSelectorPred},
+		{Name: predicates.PodFitsResourcesPred},
 		{Name: "PodFitsPorts"},
-		{Name: "NoDiskConflict"},
-		{Name: "MatchInterPodAffinity"},
+		{Name: predicates.NoDiskConflictPred},
+		{Name: predicates.MatchInterPodAffinityPred},
+		// If replacing the default scheduler you must have the volume predicate included:
+		// https://docs.okd.io/latest/admin_guide/scheduling/scheduler.html#static-predicates
+		{Name: predicates.CheckVolumeBindingPred},
 	},
 }
 
 type Predictor struct {
-	fitPredicateMap map[string]factory.FitPredicateFactory
-	fitPredicateFunctions map[string]predicates.FitPredicate
+	fitPredicateMap              map[string]factory.FitPredicateFactory
+	fitPredicateFunctions        map[string]predicates.FitPredicate
 	predicateMetaProducerFactory factory.PredicateMetadataProducerFactory
-	predicateMetaProducer  predicates.PredicateMetadataProducer
-	mandatoryFitPredicates sets.String
-	schedulerPolicy schedulerapi.Policy
-	lock sync.RWMutex
+	predicateMetaProducer        predicates.PredicateMetadataProducer
+	mandatoryFitPredicates       sets.String
+	schedulerPolicy              schedulerapi.Policy
+	lock                         sync.RWMutex
 }
 
-func NewPredictor(args *factory.PluginFactoryArgs, testMode bool) *Predictor{
+func NewPredictor(args *factory.PluginFactoryArgs, testMode bool) *Predictor {
 	if testMode {
 		// in test mode, disable all the predicates
 		return newPredictorInternal(args, schedulerapi.Policy{
@@ -62,12 +65,12 @@ func NewPredictor(args *factory.PluginFactoryArgs, testMode bool) *Predictor{
 	return newPredictorInternal(args, DefaultSchedulerPolicy)
 }
 
-func newPredictorInternal(args *factory.PluginFactoryArgs, schedulerPolicy schedulerapi.Policy) *Predictor{
-	p := &Predictor {
-		fitPredicateMap:  make(map[string]factory.FitPredicateFactory),
-		fitPredicateFunctions: make(map[string]predicates.FitPredicate),
+func newPredictorInternal(args *factory.PluginFactoryArgs, schedulerPolicy schedulerapi.Policy) *Predictor {
+	p := &Predictor{
+		fitPredicateMap:        make(map[string]factory.FitPredicateFactory),
+		fitPredicateFunctions:  make(map[string]predicates.FitPredicate),
 		mandatoryFitPredicates: sets.NewString(),
-		schedulerPolicy: schedulerPolicy,
+		schedulerPolicy:        schedulerPolicy,
 	}
 	// init all predicates
 	p.init()
@@ -226,7 +229,7 @@ func (p *Predictor) RegisterPredicateMetadataProducerFactory(factory factory.Pre
 	p.predicateMetaProducerFactory = factory
 }
 
-func(p *Predictor) populatePredicateFunc(args factory.PluginFactoryArgs) {
+func (p *Predictor) populatePredicateFunc(args factory.PluginFactoryArgs) {
 	for _, predicate := range p.schedulerPolicy.Predicates {
 		if preFactory, ok := p.fitPredicateMap[predicate.Name]; ok {
 			p.fitPredicateFunctions[predicate.Name] = preFactory(args)
