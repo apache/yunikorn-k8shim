@@ -145,12 +145,12 @@ func (ae AllocatedTaskEvent) getArgs() []interface{} {
 	return args
 }
 
-func (st AllocatedTaskEvent) getTaskId() string {
-	return st.taskId
+func (ae AllocatedTaskEvent) getTaskId() string {
+	return ae.taskId
 }
 
-func (st AllocatedTaskEvent) getApplicationId() string {
-	return st.applicationId
+func (ae AllocatedTaskEvent) getApplicationId() string {
+	return ae.applicationId
 }
 
 // ------------------------
@@ -178,12 +178,12 @@ func (bt BindTaskEvent) getArgs() []interface{} {
 	return nil
 }
 
-func (st BindTaskEvent) getTaskId() string {
-	return st.taskId
+func (bt BindTaskEvent) getTaskId() string {
+	return bt.taskId
 }
 
-func (st BindTaskEvent) getApplicationId() string {
-	return st.applicationId
+func (bt BindTaskEvent) getApplicationId() string {
+	return bt.applicationId
 }
 
 // ------------------------
@@ -205,26 +205,26 @@ func NewFailTaskEvent(appId string, taskId string, failedMessage string) FailTas
 	}
 }
 
-func (ae FailTaskEvent) getEvent() TaskEventType {
-	return ae.event
+func (fe FailTaskEvent) getEvent() TaskEventType {
+	return fe.event
 }
 
-func (ae FailTaskEvent) getArgs() []interface{} {
+func (fe FailTaskEvent) getArgs() []interface{} {
 	args := make([]interface{}, 1)
-	args[0] = ae.message
+	args[0] = fe.message
 	return args
 }
 
-func (st FailTaskEvent) getTaskId() string {
-	return st.taskId
+func (fe FailTaskEvent) getTaskId() string {
+	return fe.taskId
 }
 
-func (st FailTaskEvent) getApplicationId() string {
-	return st.applicationId
+func (fe FailTaskEvent) getApplicationId() string {
+	return fe.applicationId
 }
 
 // ------------------------
-// Fail Event
+// Reject Event
 // ------------------------
 type RejectTaskEvent struct {
 	applicationId string
@@ -252,10 +252,10 @@ func (re RejectTaskEvent) getArgs() []interface{} {
 	return args
 }
 
-func (st RejectTaskEvent) getTaskId() string {
-	return st.taskId
+func (re RejectTaskEvent) getTaskId() string {
+	return re.taskId
 }
 
-func (st RejectTaskEvent) getApplicationId() string {
-	return st.applicationId
+func (re RejectTaskEvent) getApplicationId() string {
+	return re.applicationId
 }

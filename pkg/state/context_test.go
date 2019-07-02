@@ -18,7 +18,7 @@ package state
 
 import (
 	"github.com/cloudera/k8s-shim/pkg/client"
-	"github.com/cloudera/k8s-shim/pkg/scheduler/conf"
+	"github.com/cloudera/k8s-shim/pkg/conf"
 	"gotest.tools/assert"
 	"k8s.io/api/core/v1"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"

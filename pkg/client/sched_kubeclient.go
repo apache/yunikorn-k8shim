@@ -17,7 +17,8 @@ limitations under the License.
 package client
 
 import (
-	"github.com/golang/glog"
+	"github.com/cloudera/k8s-shim/pkg/log"
+	"go.uber.org/zap"
 	"k8s.io/api/core/v1"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -34,7 +35,7 @@ func newSchedulerKubeClient(kc string) SchedulerKubeClient {
 	if kc != "" {
 		config, err := clientcmd.BuildConfigFromFlags("", kc)
 		if err != nil {
-			panic(err.Error())
+			log.Logger.Fatal("failed to create kubeClient configs", zap.Error(err))
 		}
 		configuredClient := kubernetes.NewForConfigOrDie(config)
 		return SchedulerKubeClient{
@@ -45,7 +46,7 @@ func newSchedulerKubeClient(kc string) SchedulerKubeClient {
 	// using in cluster config
 	config, err := rest.InClusterConfig()
 	if err != nil {
-		panic(err.Error())
+		log.Logger.Fatal("failed to get InClusterConfig", zap.Error(err))
 	}
 
 	configuredClient, err := kubernetes.NewForConfig(config)
@@ -59,7 +60,11 @@ func (nc SchedulerKubeClient) GetClientSet() *kubernetes.Clientset {
 }
 
 func (nc SchedulerKubeClient) Bind(pod *v1.Pod, hostId string) error {
-	glog.V(3).Infof("bind pod %s(%s) to node %s", pod.Name, pod.UID, hostId)
+	log.Logger.Info("bind pod to node",
+		zap.String("podName", pod.Name),
+		zap.String("podUID", string(pod.UID)),
+		zap.String("nodeId", hostId))
+
 	if err := nc.clientSet.CoreV1().Pods(pod.Namespace).Bind(
 		&v1.Binding{ObjectMeta: apis.ObjectMeta{
 			Namespace: pod.Namespace, Name: pod.Name, UID: pod.UID},
@@ -68,7 +73,10 @@ func (nc SchedulerKubeClient) Bind(pod *v1.Pod, hostId string) error {
 				Name: hostId,
 		},
 	}); err != nil {
-		glog.V(2).Infof("Failed to bind pod <%v/%v>: %#v", pod.Namespace, pod.Name, err)
+		log.Logger.Error("failed to bind pod",
+			zap.String("namespace", pod.Namespace),
+			zap.String("podName", pod.Name),
+			zap.Error(err))
 		return err
 	}
 	return nil
@@ -81,7 +89,10 @@ func (nc SchedulerKubeClient) Delete(pod *v1.Pod) error {
 	if err := nc.clientSet.CoreV1().Pods(pod.Namespace).Delete(pod.Name, &apis.DeleteOptions{
 		GracePeriodSeconds: &gracefulSeconds,
 	}); err != nil {
-		glog.Errorf("Failed to delete pod <%v/%v>: %#v", pod.Namespace, pod.Name, err)
+		log.Logger.Error("failed to delete pod",
+			zap.String("namespace", pod.Namespace),
+			zap.String("podName", pod.Name),
+			zap.Error(err))
 		return err
 	}
 	return nil

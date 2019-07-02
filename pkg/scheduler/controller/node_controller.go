@@ -17,12 +17,11 @@ limitations under the License.
 package controller
 
 import (
-	"errors"
 	"fmt"
-	"github.com/golang/glog"
 	"github.com/cloudera/k8s-shim/pkg/common"
 	"github.com/cloudera/k8s-shim/pkg/state/cache"
 	"github.com/cloudera/yunikorn-core/pkg/api"
+	"github.com/golang/glog"
 	"k8s.io/api/core/v1"
 )
 
@@ -42,7 +41,7 @@ func convertToNode(obj interface{}) (*v1.Node, error) {
 	if node, ok := obj.(*v1.Node); ok {
 		return node, nil
 	}
-	return nil, errors.New(fmt.Sprintf("Cannot convert to *v1.Node: %v", obj))
+	return nil, fmt.Errorf("cannot convert to *v1.Node: %v", obj)
 }
 
 func equals(n1 *v1.Node, n2 *v1.Node) bool {

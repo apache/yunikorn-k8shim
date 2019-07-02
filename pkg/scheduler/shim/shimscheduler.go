@@ -18,14 +18,15 @@ package shim
 
 import (
 	"fmt"
+	"github.com/cloudera/k8s-shim/pkg/conf"
+	"github.com/cloudera/k8s-shim/pkg/log"
 	"github.com/cloudera/k8s-shim/pkg/scheduler/callback"
-	"github.com/cloudera/k8s-shim/pkg/scheduler/conf"
 	"github.com/cloudera/k8s-shim/pkg/state"
 	"github.com/cloudera/scheduler-interface/lib/go/si"
 	"github.com/cloudera/yunikorn-core/pkg/api"
 	"github.com/cloudera/yunikorn-core/pkg/rmproxy"
-	"github.com/golang/glog"
 	"github.com/looplab/fsm"
+	"go.uber.org/zap"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sync"
 )
@@ -91,19 +92,23 @@ func (ss *ShimScheduler) refreshCache() func(e *fsm.Event) {
 func (ss *ShimScheduler) register() func(e *fsm.Event) {
 	return func(e *fsm.Event) {
 		if err := ss.registerShimLayer(); err != nil {
-			panic(fmt.Sprintf("failed to register to the unity scheduler, error %s", err.Error()))
+			log.Logger.Fatal("failed to register to yunikorn-core", zap.Error(err))
 		}
 	}
 }
 
 func (ss *ShimScheduler) registerShimLayer() error {
-	glog.V(3).Infof("register RM to the scheduler")
+	configuration := conf.GetSchedulerConf()
 	registerMessage := si.RegisterResourceManagerRequest{
-		RmId:        conf.GlobalClusterId,
-		Version:     conf.GlobalClusterVersion,
-		PolicyGroup: conf.GlobalPolicyGroup,
+		RmId:        configuration.ClusterId,
+		Version:     configuration.ClusterVersion,
+		PolicyGroup: configuration.PolicyGroup,
 	}
 
+	log.Logger.Info("register RM to the scheduler",
+		zap.String("clusterId", configuration.ClusterId),
+		zap.String("clusterVersion", configuration.ClusterVersion),
+		zap.String("policyGroup", configuration.PolicyGroup))
 	if _, err := ss.rmProxy.RegisterResourceManager(&registerMessage, ss.callback); err != nil {
 		return err
 	}
@@ -121,9 +126,13 @@ func (ss *ShimScheduler) GetContext() *state.Context {
 
 // event handling
 func (ss *ShimScheduler) Handle(se SchedulerEvent) error {
-	glog.V(4).Infof("ShimScheduler: preState: %s, coming event: %s", ss.sm.Current(), se.event)
+	log.Logger.Info("shim-scheduler state transition",
+		zap.String("preState", ss.sm.Current()),
+		zap.String("pending event", se.event))
 	err := ss.sm.Event(se.event)
-	glog.V(4).Infof("ShimScheduler: postState: %s, handled event: %s", ss.sm.Current(), se.event)
+	log.Logger.Info("shim-scheduler state transition",
+		zap.String("postState", ss.sm.Current()),
+		zap.String("handled event", se.event))
 	return err
 }
 
@@ -133,8 +142,9 @@ func (ss *ShimScheduler) schedule() {
 	for _, app := range apps {
 		for _, pendingTask := range app.GetPendingTasks() {
 			var states = state.States().Application
-			glog.V(3).Infof("schedule app %s pending task: %s",
-				app.GetApplicationId(), pendingTask.GetTaskPod().Name)
+			log.Logger.Info("scheduling",
+				zap.String("app", app.GetApplicationId()),
+				zap.String("pendingTask", pendingTask.GetTaskPod().Name))
 			switch app.GetApplicationState() {
 			case states.New:
 				ev := state.NewSubmitApplicationEvent(app.GetApplicationId())
@@ -146,9 +156,10 @@ func (ss *ShimScheduler) schedule() {
 				ev := state.NewRunApplicationEvent(app.GetApplicationId(), pendingTask)
 				state.GetDispatcher().Dispatch(ev)
 			default:
-				glog.V(1).Infof("app %s is in unexpected state, current state is %s,"+
-					" task cannot be scheduled if app's state is other than %s",
-					app.GetApplicationId(), app.GetApplicationState(), state.States().Application.Running)
+				log.Logger.Warn("application is in unexpected state, tasks cannot be scheduled under this state",
+					zap.String("appId", app.GetApplicationId()),
+					zap.String("appState", app.GetApplicationState()),
+					zap.String("desiredState", state.States().Application.Running))
 			}
 		}
 	}
@@ -165,5 +176,5 @@ func (ss *ShimScheduler) Run(stopChan chan struct{}) {
 	ss.dispatcher.Start()
 
 	ss.context.Run(stopChan)
-	go wait.Until(ss.schedule, ss.context.GetSchedulerConf().GetSchedulingInterval(), stopChan)
+	go wait.Until(ss.schedule, conf.GetSchedulerConf().GetSchedulingInterval(), stopChan)
 }

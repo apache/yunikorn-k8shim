@@ -20,13 +20,13 @@ import (
 	"fmt"
 	"github.com/cloudera/k8s-shim/pkg/client"
 	"github.com/cloudera/k8s-shim/pkg/common"
-	"github.com/cloudera/k8s-shim/pkg/scheduler/conf"
+	"github.com/cloudera/k8s-shim/pkg/log"
 	"github.com/cloudera/scheduler-interface/lib/go/si"
 	"github.com/cloudera/yunikorn-core/pkg/api"
+	"go.uber.org/zap"
 	"strings"
 	"sync"
 
-	"github.com/golang/glog"
 	"github.com/looplab/fsm"
 	"k8s.io/api/core/v1"
 )
@@ -111,13 +111,17 @@ func createTaskInternal(tid string, app *Application, resource *si.Resource,
 
 // event handling
 func (task *Task) handle(te TaskEvent) error {
-	glog.V(4).Infof("Task(%s): preState: %s, coming event: %s",
-		task.taskId, task.sm.Current(), te.getEvent())
+	log.Logger.Debug("task state transition",
+		zap.String("taskId", task.taskId),
+		zap.String("preState", task.sm.Current()),
+		zap.String("pendingEvent", string(te.getEvent())))
 	if err := task.sm.Event(string(te.getEvent()), te.getArgs()...); err != nil {
 		return err
 	}
-	glog.V(4).Infof("Task(%s): postState: %s, handled event: %s",
-		task.taskId, task.sm.Current(), te.getEvent())
+	log.Logger.Debug("task state transition",
+		zap.String("taskId", task.taskId),
+		zap.String("postState", task.sm.Current()),
+		zap.String("handledEvent", string(te.getEvent())))
 	return nil
 }
 
@@ -158,23 +162,26 @@ func (task *Task) handleFailEvent(event *fsm.Event) {
 		return
 	}
 
-	glog.V(1).Infof("Task failed, applicationId=%s, taskId=%s, error message: %s",
-		task.applicationId, task.taskId, eventArgs[0])
+	log.Logger.Error("task failed",
+		zap.String("appId", task.applicationId),
+		zap.String("taskId", task.taskId),
+		zap.String("reason", eventArgs[0]))
 }
 
 
 func (task *Task) handleSubmitTaskEvent(event *fsm.Event) {
-	glog.V(4).Infof("Trying to schedule pod: %s", task.GetTaskPod().Name)
+	log.Logger.Debug("scheduling pod",
+		zap.String("podName", task.GetTaskPod().Name))
 	// convert the request
 	//rr := ConvertRequest(task.applicationId, task.GetTaskPod())
 	appQueue := task.application.queue
-	if queueName, ok := task.pod.Labels[conf.LabelQueueName]; ok {
+	if queueName, ok := task.pod.Labels[common.LabelQueueName]; ok {
 		appQueue = queueName
 	}
 	rr := common.CreateUpdateRequestForTask(task.applicationId, task.taskId, appQueue, task.resource)
-	glog.V(4).Infof("send update request %s", rr.String())
+	log.Logger.Debug("send update request", zap.String("request", rr.String()))
 	if err := task.schedulerApi.Update(&rr); err != nil {
-		glog.V(2).Infof("failed to send scheduling request to scheduler, error: %v", err)
+		log.Logger.Debug("failed to send scheduling request to scheduler", zap.Error(err))
 		return
 	}
 }
@@ -192,23 +199,27 @@ func (task *Task) postTaskAllocated(event *fsm.Event) {
 		eventArgs := make([]string, 2)
 		if err := GetEventArgsAsStrings(eventArgs, event.Args); err != nil {
 			errorMessage = err.Error()
-			glog.V(1).Infof(err.Error())
+			log.Logger.Error("error", zap.Error(err))
 			GetDispatcher().Dispatch(NewFailTaskEvent(task.applicationId, task.taskId, errorMessage))
 			return
 		}
 
 		allocUuid := eventArgs[0]
 		nodeId := eventArgs[1]
-		glog.V(4).Infof("bind pod target: name: %s, uid: %s", task.pod.Name, task.pod.UID)
+
+		log.Logger.Debug("bind pod",
+			zap.String("podName", task.pod.Name),
+			zap.String("podUID", string(task.pod.UID)))
+
 		if err := task.kubeClient.Bind(task.pod, nodeId); err != nil {
 			errorMessage = fmt.Sprintf("bind pod failed, name: %s, uid: %s, %#v",
 				task.pod.Name, task.pod.UID, err)
-			glog.V(1).Info(errorMessage)
+			log.Logger.Error(errorMessage)
 			GetDispatcher().Dispatch(NewFailTaskEvent(task.applicationId, task.taskId, errorMessage))
 			return
 		}
 
-		glog.V(3).Infof("Successfully bound pod %s", task.pod.Name)
+		log.Logger.Info("successfully bound pod", zap.String("podName", task.pod.Name))
 		task.allocationUuid = allocUuid
 		GetDispatcher().Dispatch(NewBindTaskEvent(task.applicationId, task.taskId))
 	}(event)
@@ -227,9 +238,11 @@ func (task *Task) postTaskCompleted(event *fsm.Event) {
 	go func() {
 		releaseRequest := common.CreateReleaseAllocationRequestForTask(
 			task.applicationId, task.allocationUuid, task.application.partition, task.resource)
-		glog.V(4).Infof("send release request %s", releaseRequest.String())
+
+		log.Logger.Debug("send release request",
+			zap.String("releaseRequest", releaseRequest.String()))
 		if err := task.schedulerApi.Update(&releaseRequest); err != nil {
-			glog.V(2).Infof("failed to send scheduling request to scheduler, error: %v", err)
+			log.Logger.Debug("failed to send scheduling request to scheduler", zap.Error(err))
 		}
 	}()
 }

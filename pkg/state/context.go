@@ -19,21 +19,22 @@ package state
 import (
 	"fmt"
 	"github.com/cloudera/k8s-shim/pkg/client"
+	"github.com/cloudera/k8s-shim/pkg/common"
+	"github.com/cloudera/k8s-shim/pkg/conf"
+	"github.com/cloudera/k8s-shim/pkg/log"
 	plugin "github.com/cloudera/k8s-shim/pkg/predicates"
-	"github.com/cloudera/k8s-shim/pkg/scheduler/conf"
 	"github.com/cloudera/k8s-shim/pkg/scheduler/controller"
 	schedulercache "github.com/cloudera/k8s-shim/pkg/state/cache"
+	"github.com/cloudera/k8s-shim/pkg/utils"
 	"github.com/cloudera/yunikorn-core/pkg/api"
 	"github.com/cloudera/yunikorn-core/pkg/rmproxy"
-	"github.com/golang/glog"
-	"github.com/pkg/errors"
+	"go.uber.org/zap"
 	"k8s.io/api/core/v1"
 	"k8s.io/client-go/informers"
 	coreInfomerV1 "k8s.io/client-go/informers/core/v1"
 	storageInformerV1 "k8s.io/client-go/informers/storage/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubernetes/pkg/scheduler/volumebinder"
-	"strings"
 	"sync"
 )
 
@@ -165,11 +166,6 @@ func (ctx *Context) deleteNode(obj interface{}) {
 	ctx.nodeController.DeleteNode(obj)
 }
 
-// assignedPod selects pods that are assigned (scheduled and running).
-func assignedPod(pod *v1.Pod) bool {
-	return len(pod.Spec.NodeName) != 0
-}
-
 // add a pod to the context
 // if pod is valid, we convent the pod to a equivalent task,
 // if task belongs to a application, we add this task to the application,
@@ -178,16 +174,19 @@ func (ctx *Context) addPod(obj interface{}) {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
 
-	pod, ok := obj.(*v1.Pod)
-	if !ok {
-		glog.Errorf("Cannot convert to *v1.Pod: %v", obj)
+	pod, err := utils.Convert2Pod(obj)
+	if err != nil {
+		log.Logger.Error("failed to add pod", zap.Error(err))
 		return
 	}
 
-	glog.V(4).Infof("context: handling AddPod podName=%s/%s, podUid=%s", pod.Namespace, pod.Name, pod.UID)
+	log.Logger.Debug("add pod",
+		zap.String("namespace", pod.Namespace),
+		zap.String("podName", pod.Name),
+		zap.String("podUID", string(pod.UID)))
 	if pod.Status.Phase == v1.PodPending {
 		if err := ctx.validatePod(pod); err != nil {
-			glog.V(1).Infof("application is invalid, error: %s", err.Error())
+			log.Logger.Error("application is invalid", zap.Error(err))
 			return
 		}
 
@@ -199,20 +198,24 @@ func (ctx *Context) addPod(obj interface{}) {
 
 	// add pod to cache
 	if err := ctx.schedulerCache.AddPod(pod); err != nil {
-		glog.V(1).Infof("adding pod %v to scheduler cache failed, error: %v", pod, err)
+		log.Logger.Error("add pod to scheduler cache failed",
+			zap.String("podName", pod.Name),
+			zap.Error(err))
 	}
 }
 
 func (ctx *Context) addPodToCache(obj interface{}) {
-	pod, ok := obj.(*v1.Pod)
-	if !ok {
-		glog.V(0).Infof("cannot convert to *v1.Pod: %v", obj)
+	pod, err := utils.Convert2Pod(obj)
+	if err != nil {
+		log.Logger.Error("failed to add pod to cache", zap.Error(err))
 		return
 	}
 
-	glog.V(4).Infof("adding pod %s to cache", pod.Name)
+	log.Logger.Info("adding pod to cache", zap.String("podName", pod.Name))
 	if err := ctx.schedulerCache.AddPod(pod); err != nil {
-		glog.V(1).Infof("adding pod %v to scheduler cache failed, error: %v", pod, err)
+		log.Logger.Error("add pod to scheduler cache failed",
+			zap.String("podName", pod.Name),
+			zap.Error(err))
 	}
 }
 
@@ -225,17 +228,19 @@ func (ctx *Context) removePodFromCache(obj interface{}) {
 		var ok bool
 		pod, ok = t.Obj.(*v1.Pod)
 		if !ok {
-			glog.V(0).Infof("cannot convert to *v1.Pod: %v", t.Obj)
+			log.Logger.Error("Cannot convert to *v1.Pod", zap.Any("pod", obj))
 			return
 		}
 	default:
-		glog.V(0).Infof("cannot convert to *v1.Pod: %v", t)
+		log.Logger.Error("Cannot convert to *v1.Pod", zap.Any("pod", obj))
 		return
 	}
 
-	glog.V(4).Infof("removing pod %s from cache", pod.Name)
+	log.Logger.Info("removing pod from cache", zap.String("podName", pod.Name))
 	if err := ctx.schedulerCache.RemovePod(pod); err != nil {
-		glog.V(1).Infof("failed to remove pod %v from scheduler cache, error: %v", pod, err)
+		log.Logger.Error("failed to remove pod from scheduler cache",
+			zap.String("podName", pod.Name),
+			zap.Error(err))
 	}
 }
 
@@ -270,34 +275,39 @@ func (ctx *Context) validatePod(pod *v1.Pod) error {
 // this function is called when a pod of a application gets updated,
 // currently there is no operation needed for this call.
 func (ctx *Context) updatePod(obj, newObj interface{}) {
-	glog.V(4).Infof("context: handling UpdatePod")
-	old, ok := obj.(*v1.Pod)
-	if !ok {
-		glog.Errorf("Cannot convert to *v1.Pod: %v", obj)
+	log.Logger.Debug("handling UpdatePod")
+	old, err := utils.Convert2Pod(obj)
+	if err != nil {
+		log.Logger.Error("failed to update pod", zap.Error(err))
 		return
 	}
-	pod, ok := newObj.(*v1.Pod)
-	if !ok {
-		glog.Errorf("Cannot convert to *v1.Pod: %v", obj)
+	pod, err := utils.Convert2Pod(newObj)
+	if err != nil {
+		log.Logger.Error("failed to update pod", zap.Error(err))
 		return
 	}
-	glog.V(4).Infof("pod %s status %s old", old.Name, old.Status.Phase)
-	glog.V(4).Infof("pod %s status %s new", pod.Name, pod.Status.Phase)
+
+	log.Logger.Debug("updatePod",
+		zap.String("podName", old.Name),
+		zap.String("oldState", string(old.Status.Phase)),
+		zap.String("newState", string(pod.Status.Phase)))
 }
 
 func (ctx *Context) updatePodInCache(oldObj, newObj interface{}) {
-	oldPod, ok := oldObj.(*v1.Pod)
-	if !ok {
-		glog.V(0).Infof("cannot convert oldObj to *v1.Pod: %v", oldObj)
+	oldPod, err := utils.Convert2Pod(oldObj)
+	if err != nil {
+		log.Logger.Error("failed to update pod in cache", zap.Error(err))
 		return
 	}
-	newPod, ok := newObj.(*v1.Pod)
-	if !ok {
-		glog.V(0).Infof("cannot convert newObj to *v1.Pod: %v", newObj)
+	newPod, err := utils.Convert2Pod(newObj)
+	if err != nil {
+		log.Logger.Error("failed to update pod in cache", zap.Error(err))
 		return
 	}
 	if err := ctx.schedulerCache.UpdatePod(oldPod, newPod); err != nil {
-		glog.V(1).Infof("update pod %v in scheduler cache failed, error %v", oldPod, err)
+		log.Logger.Debug("failed to update pod in cache",
+			zap.String("podName", oldPod.Name),
+			zap.Error(err))
 	}
 }
 
@@ -313,14 +323,14 @@ func (ctx *Context) deletePod(obj interface{}) {
 	case *v1.Pod:
 		pod = t
 	case cache.DeletedFinalStateUnknown:
-		var ok bool
-		pod, ok = t.Obj.(*v1.Pod)
-		if !ok {
-			glog.V(1).Infof("Cannot convert to *v1.Pod: %v", t.Obj)
+		var err error
+		pod, err = utils.Convert2Pod(t.Obj)
+		if err != nil {
+			log.Logger.Error(err.Error())
 			return
 		}
 	default:
-		glog.V(1).Infof("Cannot convert to *v1.Pod: %v", t)
+		log.Logger.Error("cannot convert to pod")
 		return
 	}
 
@@ -328,18 +338,23 @@ func (ctx *Context) deletePod(obj interface{}) {
 	defer ctx.lock.Unlock()
 
 	if application := ctx.getOrCreateApplication(pod); application != nil {
-		glog.V(4).Infof("Release allocation")
+		log.Logger.Debug("release allocation")
 		GetDispatcher().Dispatch(NewSimpleTaskEvent(
 			application.GetApplicationId(), string(pod.UID), Complete))
 
-		glog.V(4).Infof("context: handling DeletePod podName=%s/%s, podUid=%s", pod.Namespace, pod.Name, pod.UID)
+		log.Logger.Info("delete pod",
+			zap.String("namespace", pod.Namespace),
+			zap.String("podName", pod.Name),
+			zap.String("podUID", string(pod.UID)))
 		// starts a completion handler to handle the completion of a app on demand
 		application.StartCompletionHandler(ctx.kubeClient, pod)
 	}
 
-	glog.V(4).Infof("removing pod %s from cache", pod.Name)
+	log.Logger.Debug("remove pod from cache", zap.String("podName", pod.Name))
 	if err := ctx.schedulerCache.RemovePod(pod); err != nil {
-		glog.V(1).Infof("failed to remove pod %v from scheduler cache, error: %v", pod, err)
+		log.Logger.Error("failed to remove pod from scheduler cache",
+			zap.String("podName", pod.Name),
+			zap.Error(err))
 	}
 }
 
@@ -347,10 +362,10 @@ func (ctx *Context) deletePod(obj interface{}) {
 func (ctx *Context) filterAssignedPods(obj interface{}) bool {
 	switch t := obj.(type) {
 	case *v1.Pod:
-		return assignedPod(t)
+		return utils.IsSchedulablePod(t) && utils.IsAssignedPod(t)
 	case cache.DeletedFinalStateUnknown:
 		if pod, ok := t.Obj.(*v1.Pod); ok {
-			return assignedPod(pod)
+			return utils.IsSchedulablePod(pod) && utils.IsAssignedPod(pod)
 		}
 		return false
 	default:
@@ -363,11 +378,7 @@ func (ctx *Context) filterPods(obj interface{}) bool {
 	switch obj.(type) {
 	case *v1.Pod:
 		pod := obj.(*v1.Pod)
-		if strings.Compare(pod.Spec.SchedulerName,
-			ctx.conf.SchedulerName) == 0 {
-			return true
-		}
-		return false
+		return utils.IsSchedulablePod(pod)
 	default:
 		return false
 	}
@@ -378,7 +389,7 @@ func (ctx *Context) filterConfigMaps(obj interface{}) bool {
 	switch obj.(type) {
 	case *v1.ConfigMap:
 		cm := obj.(*v1.ConfigMap)
-		return cm.Name == conf.DefaultConfigMapName
+		return cm.Name == common.DefaultConfigMapName
 	default:
 		return false
 	}
@@ -386,13 +397,13 @@ func (ctx *Context) filterConfigMaps(obj interface{}) bool {
 
 // when detects the configMap for the scheduler is added, trigger hot-refresh
 func (ctx *Context) addConfigMaps(obj interface{}) {
-	glog.V(4).Infof("configMap added")
+	log.Logger.Debug("configMap added")
 	ctx.triggerReloadConfig()
 }
 
 // when detects the configMap for the scheduler is updated, trigger hot-refresh
 func (ctx *Context) updateConfigMaps(obj, newObj interface{}) {
-	glog.V(4).Infof("configMap updated")
+	log.Logger.Debug("trigger scheduler to reload configuration")
 	// When update event is received, it is not guaranteed the data mounted to the pod
 	// is also updated. This is because the actual update in pod's volume is ensured
 	// by kubelet, kubelet is checking whether the mounted ConfigMap is fresh on every
@@ -408,22 +419,21 @@ func (ctx *Context) updateConfigMaps(obj, newObj interface{}) {
 // when detects the configMap for the scheduler is deleted, no operation needed here
 // we assume there will be a consequent add operation after delete, so we treat it like a update.
 func (ctx *Context) deleteConfigMaps(obj interface{}) {
-	glog.V(3).Infof("configMap deleted")
+	log.Logger.Debug("configMap deleted")
 }
 
 func (ctx *Context) triggerReloadConfig() {
-	glog.V(3).Infof("trigger scheduler configuration reloading")
+	log.Logger.Info("trigger scheduler configuration reloading")
 	// TODO this should be moved to an admin API interface
 	switch ctx.schedulerApi.(type) {
 	case *rmproxy.RMProxy:
 		proxy := ctx.schedulerApi.(*rmproxy.RMProxy)
 		if err := proxy.ReloadConfiguration(ctx.conf.ClusterId); err != nil {
-			glog.V(1).Infof("Reload configuration failed with error %s", err.Error())
+			log.Logger.Error("reload configuration failed", zap.Error(err))
 		}
 	default:
 		return
 	}
-	glog.V(3).Infof("reload configuration sent...")
 }
 
 // evaluate given predicates based on current context
@@ -472,15 +482,15 @@ func (ctx *Context) GetSchedulerConf() *conf.SchedulerConf {
 func (ctx *Context) getOrCreateApplication(pod *v1.Pod) *Application {
 	appId, err := GenerateApplicationIdFromPod(pod)
 	if err != nil {
-		glog.V(1).Infof("unable to get application by given pod, error message: %s", err.Error())
+		log.Logger.Error("unable to get application by given pod", zap.Error(err))
 		return nil
 	}
 
 	if application, ok := ctx.applications[appId]; ok {
 		return application
 	} else {
-		queueName := conf.ApplicationDefaultQueue
-		if an, ok := pod.Labels[conf.LabelQueueName]; ok {
+		queueName := common.ApplicationDefaultQueue
+		if an, ok := pod.Labels[common.LabelQueueName]; ok {
 			queueName = an
 		}
 		newApp := NewApplication(appId, queueName, ctx.schedulerApi)
@@ -498,7 +508,7 @@ func (ctx *Context) GetApplication(appId string) (*Application, error) {
 	if app, ok := ctx.applications[appId]; ok {
 		return app, nil
 	}
-	return nil, errors.New(fmt.Sprintf("application %s is not found in context", appId))
+	return nil, fmt.Errorf("application %s is not found in context", appId)
 }
 
 func (ctx *Context) GetTask(appId string, taskId string) (*Task, error) {
@@ -507,7 +517,7 @@ func (ctx *Context) GetTask(appId string, taskId string) (*Task, error) {
 			return task, nil
 		}
 	}
-	return nil, errors.New(fmt.Sprintf("application %s is not found in context", appId))
+	return nil, fmt.Errorf("application %s is not found in context", appId)
 }
 
 func (ctx *Context) SelectApplications(filter func(app *Application) bool) []*Application {

@@ -18,7 +18,8 @@ package cache
 
 import (
 	"fmt"
-	"github.com/golang/glog"
+	"github.com/cloudera/k8s-shim/pkg/log"
+	"go.uber.org/zap"
 	"k8s.io/api/core/v1"
 	storageV1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -67,7 +68,7 @@ func (cache *SchedulerCache) GetNodesInfoMap() map[string]*schedulernode.NodeInf
 
 func (cache *SchedulerCache) assignArgs(args *factory.PluginFactoryArgs) {
 	// nodes cache implemented PodLister and NodeInfo interface
-	glog.V(5).Infof("Initialising PluginFactoryArgs using SchedulerCache")
+	log.Logger.Debug("Initialising PluginFactoryArgs using SchedulerCache")
 	args.PodLister = cache
 	args.NodeInfo = cache
 	args.VolumeBinder = cache.volumeBinder
@@ -87,7 +88,6 @@ func (cache *SchedulerCache) GetNode(name string) *schedulernode.NodeInfo {
 }
 
 func (cache *SchedulerCache) AddNode(node *v1.Node) {
-	glog.V(0).Infof("in addNode with lock set: %v", cache.lock)
 	cache.lock.Lock()
 	defer cache.lock.Unlock()
 
@@ -145,8 +145,10 @@ func (cache *SchedulerCache) AddPod(pod *v1.Pod) error {
 	case ok && cache.assumedPods[key]:
 		if currState.Spec.NodeName != pod.Spec.NodeName {
 			// The pod was added to a different node than it was assumed to.
-			glog.V(0).Infof("Pod %v was assumed to be on %v but got added to %v",
-				key, pod.Spec.NodeName, currState.Spec.NodeName)
+			log.Logger.Warn("inconsistent pod location",
+				zap.String("assumedLocation", pod.Spec.NodeName),
+				zap.String("actualLocation", currState.Spec.NodeName))
+
 			// Clean this up.
 			_ = cache.removePod(currState)
 			cache.addPod(pod)
@@ -158,7 +160,8 @@ func (cache *SchedulerCache) AddPod(pod *v1.Pod) error {
 		cache.addPod(pod)
 		cache.podsMap[key] = pod
 	default:
-		return fmt.Errorf("pod %v was already in added state", key)
+		// return fmt.Errorf("pod %v was already in added state", key)
+		log.Logger.Debug("pod was already in added state", zap.String("pod", key))
 	}
 	return nil
 }
@@ -178,8 +181,8 @@ func (cache *SchedulerCache) UpdatePod(oldPod, newPod *v1.Pod) error {
 	// before Update event, in which case the state would change from Assumed to Added.
 	case ok && !cache.assumedPods[key]:
 		if currState.Spec.NodeName != newPod.Spec.NodeName {
-			glog.V(0).Infof("Pod %v updated on a different node than previously added to.", key)
-			glog.V(0).Infof("scheduler cache is corrupted and can badly affect scheduling decisions")
+			log.Logger.Error("pod updated on a different node than previously added to", zap.String("pod", key))
+			log.Logger.Error("scheduler cache is corrupted and can badly affect scheduling decisions")
 		}
 		if err := cache.updatePod(oldPod, newPod); err != nil {
 			return err

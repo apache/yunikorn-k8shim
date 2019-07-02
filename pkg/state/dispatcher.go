@@ -18,7 +18,8 @@ package state
 
 import (
 	"errors"
-	"github.com/golang/glog"
+	"github.com/cloudera/k8s-shim/pkg/log"
+	"go.uber.org/zap"
 )
 
 var dispatcher *Dispatcher
@@ -66,26 +67,28 @@ func (p *Dispatcher) Dispatch(event SchedulingEvent) error {
 func (p *Dispatcher) handleApplicationEvent(event ApplicationEvent) {
 	app, err := p.context.GetApplication(event.getApplicationId())
 	if err != nil {
-		glog.Error(err.Error())
+		log.Logger.Error("failed to handle application event", zap.Error(err))
 		return
 	}
 
 	if err := app.handle(event); err != nil {
-		glog.V(1).Infof("failed to handle event %s, error: %s",
-			event.getEvent(), err.Error())
+		log.Logger.Error("failed to handle application event",
+			zap.String("event", string(event.getEvent())),
+			zap.Error(err))
 	}
 }
 
 func (p *Dispatcher) handleTaskEvent(event TaskEvent) {
 	task, err := p.context.GetTask(event.getApplicationId(), event.getTaskId())
 	if err != nil {
-		glog.Error(err.Error())
+		log.Logger.Error("failed to handle application event", zap.Error(err))
 		return
 	}
 
 	if err := task.handle(event); err != nil {
-		glog.V(1).Infof("failed to handle event %s, error: %s",
-			event.getEvent(), err.Error())
+		log.Logger.Error("failed to handle task event",
+			zap.String("event", string(event.getEvent())),
+			zap.Error(err))
 	}
 }
 
@@ -100,7 +103,7 @@ func (p *Dispatcher) Start() {
 				case TaskEvent:
 					p.handleTaskEvent(v)
 				default:
-					panic("Unsupported event")
+					log.Logger.Fatal("unsupported event")
 				}
 			case <-p.stopChan:
 				close(p.eventChan)

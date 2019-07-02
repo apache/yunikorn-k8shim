@@ -18,7 +18,8 @@ package predicates
 
 import (
 	"fmt"
-	"github.com/golang/glog"
+	"github.com/cloudera/k8s-shim/pkg/log"
+	"go.uber.org/zap"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/kubernetes/pkg/scheduler/algorithm/predicates"
@@ -253,7 +254,7 @@ func (p *Predictor) Enabled() bool {
 }
 
 func (p *Predictor) Predicates(pod *v1.Pod, meta predicates.PredicateMetadata, node *deschedulernode.NodeInfo) error {
-	glog.V(4).Infof("Calling predicates")
+	log.Logger.Debug("calling predicates")
 	// honor the ordering...
 	for _, predicateKey := range predicates.Ordering() {
 		var (
@@ -263,16 +264,20 @@ func (p *Predictor) Predicates(pod *v1.Pod, meta predicates.PredicateMetadata, n
 		)
 		if predicate, exist := p.fitPredicateFunctions[predicateKey]; exist {
 			fit, reasons, err = predicate(pod, meta, node)
-			glog.V(4).Infof("predicate %s, result %v", predicateKey, fit)
+			log.Logger.Debug("predicate", zap.String("key", predicateKey), zap.Bool("fit", fit))
 			if err != nil {
-				glog.V(0).Infof("evaluating predicate, key=%s, result=%v, reason: %v",
-					predicateKey, fit, reasons)
+				log.Logger.Error("predicate failed",
+					zap.String("key", predicateKey),
+					zap.Bool("fit", fit),
+					zap.Any("reasons", reasons))
 				return err
 			}
 
 			if !fit {
-				glog.V(0).Infof("evaluating predicate, key=%s, result=%v, reason: %v",
-					predicateKey, fit, reasons)
+				log.Logger.Warn("predicate failed",
+					zap.String("key", predicateKey),
+					zap.Bool("fit", fit),
+					zap.Any("reasons", reasons))
 				return fmt.Errorf("predicate %s cannot be satisified, reason %v", predicateKey, reasons)
 			}
 		}

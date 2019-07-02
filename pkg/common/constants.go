@@ -14,15 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package conf
-
-// Scheduler
-const SchedulerName = "yunikorn"
-const DefaultPolicyGroup = "queues"
+package common
 
 // Cluster
-const ClusterId = "my-kube-cluster"
-const ClusterVersion = "0.1"
 const DefaultNodeAttributeHostNameKey = "si.io/hostname"
 const DefaultNodeAttributeRackNameKey = "si.io/rackname"
 const DefaultRackName = "/rack-default"

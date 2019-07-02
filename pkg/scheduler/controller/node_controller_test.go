@@ -17,7 +17,7 @@ limitations under the License.
 package controller
 
 import (
-	"github.com/cloudera/k8s-shim/pkg/scheduler/conf"
+	"github.com/cloudera/k8s-shim/pkg/common"
 	"github.com/cloudera/k8s-shim/pkg/state/cache"
 	"github.com/cloudera/k8s-shim/pkg/test"
 	"github.com/cloudera/scheduler-interface/lib/go/si"
@@ -41,11 +41,11 @@ func TestAddNode(t *testing.T) {
 				t.Fatalf("unexpected node name %s", info.NodeId)
 			}
 
-			if memory := info.SchedulableResource.Resources[conf.Memory].Value; memory != int64(1024) {
+			if memory := info.SchedulableResource.Resources[common.Memory].Value; memory != int64(1024) {
 				t.Fatalf("unexpected node memory %d", memory)
 			}
 
-			if cpu := info.SchedulableResource.Resources[conf.CPU].Value; cpu != int64(10000) {
+			if cpu := info.SchedulableResource.Resources[common.CPU].Value; cpu != int64(10000) {
 				t.Fatalf("unexpected node CPU %d", cpu)
 			}
 
@@ -91,11 +91,11 @@ func TestUpdateNode(t *testing.T) {
 				t.Fatalf("unexpected node name %s", info.NodeId)
 			}
 
-			if memory := info.SchedulableResource.Resources[conf.Memory].Value; memory != int64(1024) {
+			if memory := info.SchedulableResource.Resources[common.Memory].Value; memory != int64(1024) {
 				t.Fatalf("unexpected node memory %d", memory)
 			}
 
-			if cpu := info.SchedulableResource.Resources[conf.CPU].Value; cpu != int64(10000) {
+			if cpu := info.SchedulableResource.Resources[common.CPU].Value; cpu != int64(10000) {
 				t.Fatalf("unexpected node CPU %d", cpu)
 			}
 
@@ -171,11 +171,11 @@ func TestUpdateNode(t *testing.T) {
 			t.Fatalf("unexpected node name %s", info.NodeId)
 		}
 
-		if memory := info.SchedulableResource.Resources[conf.Memory].Value; memory != int64(2048) {
+		if memory := info.SchedulableResource.Resources[common.Memory].Value; memory != int64(2048) {
 			t.Fatalf("unexpected node memory %d", memory)
 		}
 
-		if cpu := info.SchedulableResource.Resources[conf.CPU].Value; cpu != int64(10000) {
+		if cpu := info.SchedulableResource.Resources[common.CPU].Value; cpu != int64(10000) {
 			t.Fatalf("unexpected node CPU %d", cpu)
 		}
 
@@ -200,11 +200,11 @@ func TestDeleteNode(t *testing.T) {
 				t.Fatalf("unexpected node name %s", info.NodeId)
 			}
 
-			if memory := info.SchedulableResource.Resources[conf.Memory].Value; memory != int64(1024) {
+			if memory := info.SchedulableResource.Resources[common.Memory].Value; memory != int64(1024) {
 				t.Fatalf("unexpected node memory %d", memory)
 			}
 
-			if cpu := info.SchedulableResource.Resources[conf.CPU].Value; cpu != int64(10000) {
+			if cpu := info.SchedulableResource.Resources[common.CPU].Value; cpu != int64(10000) {
 				t.Fatalf("unexpected node CPU %d", cpu)
 			}
 

@@ -17,7 +17,6 @@ limitations under the License.
 package common
 
 import (
-	"github.com/cloudera/k8s-shim/pkg/scheduler/conf"
 	"gotest.tools/assert"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -27,15 +26,15 @@ import (
 
 func TestCreateNodeFromSpec(t *testing.T) {
 	resource := NewResourceBuilder().
-		AddResource(conf.Memory, 999).
-		AddResource(conf.CPU, 9).
+		AddResource(Memory, 999).
+		AddResource(CPU, 9).
 		Build()
 	node := CreateFromNodeSpec("host0001", "uid_0001", resource)
 	assert.Equal(t, node.name, "host0001")
 	assert.Equal(t, node.uid, "uid_0001")
 	assert.Equal(t, len(node.resource.Resources), 2)
-	assert.Equal(t, node.resource.Resources[conf.Memory].Value, int64(999))
-	assert.Equal(t, node.resource.Resources[conf.CPU].Value, int64(9))
+	assert.Equal(t, node.resource.Resources[Memory].Value, int64(999))
+	assert.Equal(t, node.resource.Resources[CPU].Value, int64(9))
 }
 
 func TestCreateNode(t *testing.T) {
@@ -55,8 +54,8 @@ func TestCreateNode(t *testing.T) {
 	assert.Equal(t, node.name, "host0001")
 	assert.Equal(t, node.uid, "uid_0001")
 	assert.Equal(t, len(node.resource.Resources), 2)
-	assert.Equal(t, node.resource.Resources[conf.Memory].Value, int64(999))
-	assert.Equal(t, node.resource.Resources[conf.CPU].Value, int64(9000))
+	assert.Equal(t, node.resource.Resources[Memory].Value, int64(999))
+	assert.Equal(t, node.resource.Resources[CPU].Value, int64(9000))
 }
 
 func TestCreateNodeWithCustomResource(t *testing.T) {
@@ -77,7 +76,7 @@ func TestCreateNodeWithCustomResource(t *testing.T) {
 	assert.Equal(t, node.name, "host0001")
 	assert.Equal(t, node.uid, "uid_0001")
 	assert.Equal(t, len(node.resource.Resources), 3)
-	assert.Equal(t, node.resource.Resources[conf.Memory].Value, int64(999))
-	assert.Equal(t, node.resource.Resources[conf.CPU].Value, int64(9000))
+	assert.Equal(t, node.resource.Resources[Memory].Value, int64(999))
+	assert.Equal(t, node.resource.Resources[CPU].Value, int64(9000))
 	assert.Equal(t, node.resource.Resources["nvidia.com/gpu"].Value, int64(3))
 }
