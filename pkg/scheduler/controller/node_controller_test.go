@@ -29,7 +29,7 @@ import (
 )
 
 func TestAddNode(t *testing.T) {
-	api := test.FakeSchedulerApi {
+	api := test.FakeSchedulerApi{
 		// register fn doesn't nothing than checking input
 		UpdateFn: func(request *si.UpdateRequest) error {
 			if request.NewSchedulableNodes == nil || len(request.NewSchedulableNodes) != 1 {
@@ -55,19 +55,19 @@ func TestAddNode(t *testing.T) {
 
 	nc := NodeController{
 		proxy: &api,
-		cache: cache.NewSchedulerCache(),
+		cache: NewTestSchedulerCache(),
 	}
 	resourceList := make(map[v1.ResourceName]resource.Quantity)
 	resourceList[v1.ResourceName("memory")] = *resource.NewQuantity(1024*1000*1000, resource.DecimalSI)
 	resourceList[v1.ResourceName("cpu")] = *resource.NewQuantity(10, resource.DecimalSI)
 	var newNode = v1.Node{
 		ObjectMeta: apis.ObjectMeta{
-			Name:            "host0001",
-			Namespace:       "default",
-			UID:             "uid_0001",
+			Name:      "host0001",
+			Namespace: "default",
+			UID:       "uid_0001",
 		},
 		Status: v1.NodeStatus{
-			Capacity:        resourceList,
+			Capacity: resourceList,
 		},
 	}
 
@@ -79,7 +79,7 @@ func TestAddNode(t *testing.T) {
 }
 
 func TestUpdateNode(t *testing.T) {
-	api := test.FakeSchedulerApi {
+	api := test.FakeSchedulerApi{
 		// register fn doesn't nothing than checking input
 		UpdateFn: func(request *si.UpdateRequest) error {
 			if request.NewSchedulableNodes == nil || len(request.NewSchedulableNodes) != 1 {
@@ -105,7 +105,7 @@ func TestUpdateNode(t *testing.T) {
 
 	nc := NodeController{
 		proxy: &api,
-		cache: cache.NewSchedulerCache(),
+		cache: NewTestSchedulerCache(),
 	}
 	resourceList := make(map[v1.ResourceName]resource.Quantity)
 	resourceList[v1.ResourceName("memory")] = *resource.NewQuantity(1024*1000*1000, resource.DecimalSI)
@@ -113,23 +113,23 @@ func TestUpdateNode(t *testing.T) {
 
 	var oldNode = v1.Node{
 		ObjectMeta: apis.ObjectMeta{
-			Name:            "host0001",
-			Namespace:       "default",
-			UID:             "uid_0001",
+			Name:      "host0001",
+			Namespace: "default",
+			UID:       "uid_0001",
 		},
 		Status: v1.NodeStatus{
-			Capacity:        resourceList,
+			Capacity: resourceList,
 		},
 	}
 
 	var newNode = v1.Node{
 		ObjectMeta: apis.ObjectMeta{
-			Name:            "host0001",
-			Namespace:       "default",
-			UID:             "uid_0001",
+			Name:      "host0001",
+			Namespace: "default",
+			UID:       "uid_0001",
 		},
 		Status: v1.NodeStatus{
-			Capacity:        resourceList,
+			Capacity: resourceList,
 		},
 	}
 
@@ -152,12 +152,12 @@ func TestUpdateNode(t *testing.T) {
 	newResourceList[v1.ResourceName("cpu")] = *resource.NewQuantity(10, resource.DecimalSI)
 	newNode = v1.Node{
 		ObjectMeta: apis.ObjectMeta{
-			Name:            "host0001",
-			Namespace:       "default",
-			UID:             "uid_0001",
+			Name:      "host0001",
+			Namespace: "default",
+			UID:       "uid_0001",
 		},
 		Status: v1.NodeStatus{
-			Capacity:        newResourceList,
+			Capacity: newResourceList,
 		},
 	}
 
@@ -188,7 +188,7 @@ func TestUpdateNode(t *testing.T) {
 }
 
 func TestDeleteNode(t *testing.T) {
-	api := test.FakeSchedulerApi {
+	api := test.FakeSchedulerApi{
 		// register fn doesn't nothing than checking input
 		UpdateFn: func(request *si.UpdateRequest) error {
 			if request.UpdatedNodes == nil || len(request.UpdatedNodes) != 1 {
@@ -214,7 +214,7 @@ func TestDeleteNode(t *testing.T) {
 
 	nc := NodeController{
 		proxy: &api,
-		cache: cache.NewSchedulerCache(),
+		cache: NewTestSchedulerCache(),
 	}
 	resourceList := make(map[v1.ResourceName]resource.Quantity)
 	resourceList[v1.ResourceName("memory")] = *resource.NewQuantity(1024*1000*1000, resource.DecimalSI)
@@ -222,12 +222,12 @@ func TestDeleteNode(t *testing.T) {
 
 	var node = v1.Node{
 		ObjectMeta: apis.ObjectMeta{
-			Name:            "host0001",
-			Namespace:       "default",
-			UID:             "uid_0001",
+			Name:      "host0001",
+			Namespace: "default",
+			UID:       "uid_0001",
 		},
 		Status: v1.NodeStatus{
-			Capacity:        resourceList,
+			Capacity: resourceList,
 		},
 	}
 
@@ -239,4 +239,9 @@ func TestDeleteNode(t *testing.T) {
 	nc.DeleteNode(&node)
 	assert.Equal(t, api.RegisterCount, 0)
 	assert.Equal(t, api.UpdateCount, 1)
+}
+
+// A wrapper around the scheduler cache which does not initialise the lister and volumebinder
+func NewTestSchedulerCache() *cache.SchedulerCache {
+	return cache.NewSchedulerCache(nil, nil, nil, nil)
 }

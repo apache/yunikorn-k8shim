@@ -20,10 +20,14 @@ import (
 	"fmt"
 	"github.com/golang/glog"
 	"k8s.io/api/core/v1"
+	storageV1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	corelistersV1 "k8s.io/client-go/listers/core/v1"
+	storagelisterV1 "k8s.io/client-go/listers/storage/v1"
 	"k8s.io/kubernetes/pkg/scheduler/algorithm"
 	"k8s.io/kubernetes/pkg/scheduler/factory"
-	deschedulernode "k8s.io/kubernetes/pkg/scheduler/nodeinfo"
+	schedulernode "k8s.io/kubernetes/pkg/scheduler/nodeinfo"
+	"k8s.io/kubernetes/pkg/scheduler/volumebinder"
 	"sync"
 )
 
@@ -32,35 +36,47 @@ import (
 // we replicate nodes info from de-scheduler, in order to re-use predicates functions.
 type SchedulerCache struct {
 	// node name to NodeInfo map
-	nodesMap map[string]*deschedulernode.NodeInfo
-	podsMap  map[string]*v1.Pod
+	nodesMap    map[string]*schedulernode.NodeInfo
+	podsMap     map[string]*v1.Pod
 	assumedPods map[string]bool
-	lock     sync.RWMutex
+	lock        sync.RWMutex
+
+	pvLister      corelistersV1.PersistentVolumeLister
+	pvcLister     corelistersV1.PersistentVolumeClaimLister
+	storageLister storagelisterV1.StorageClassLister
+	volumeBinder  *volumebinder.VolumeBinder
 }
 
-func NewSchedulerCache() *SchedulerCache {
-	cache := &SchedulerCache {
-		nodesMap: make(map[string]*deschedulernode.NodeInfo),
-		podsMap:  make(map[string]*v1.Pod),
-		assumedPods: make(map[string]bool),
+func NewSchedulerCache(pvl corelistersV1.PersistentVolumeLister, pvcl corelistersV1.PersistentVolumeClaimLister, stl storagelisterV1.StorageClassLister, binder *volumebinder.VolumeBinder) *SchedulerCache {
+	cache := &SchedulerCache{
+		nodesMap:      make(map[string]*schedulernode.NodeInfo),
+		podsMap:       make(map[string]*v1.Pod),
+		assumedPods:   make(map[string]bool),
+		pvLister:      pvl,
+		pvcLister:     pvcl,
+		storageLister: stl,
+		volumeBinder:  binder,
 	}
 	cache.assignArgs(GetPluginArgs())
 	return cache
 }
 
-func (cache *SchedulerCache) GetNodesInfoMap() map[string]*deschedulernode.NodeInfo {
+func (cache *SchedulerCache) GetNodesInfoMap() map[string]*schedulernode.NodeInfo {
 	return cache.nodesMap
 }
 
 func (cache *SchedulerCache) assignArgs(args *factory.PluginFactoryArgs) {
 	// nodes cache implemented PodLister and NodeInfo interface
-	glog.V(5).Infof("PluginFactoryArgs#PodLister -> SchedulerCache")
-	glog.V(5).Infof("PluginFactoryArgs#NodeInfo -> SchedulerCache")
+	glog.V(5).Infof("Initialising PluginFactoryArgs using SchedulerCache")
 	args.PodLister = cache
 	args.NodeInfo = cache
+	args.VolumeBinder = cache.volumeBinder
+	args.PVInfo = cache
+	args.PVCInfo = cache
+	args.StorageClassInfo = cache
 }
 
-func (cache *SchedulerCache) GetNode(name string) *deschedulernode.NodeInfo {
+func (cache *SchedulerCache) GetNode(name string) *schedulernode.NodeInfo {
 	cache.lock.RLock()
 	defer cache.lock.RUnlock()
 
@@ -71,13 +87,14 @@ func (cache *SchedulerCache) GetNode(name string) *deschedulernode.NodeInfo {
 }
 
 func (cache *SchedulerCache) AddNode(node *v1.Node) {
+	glog.V(0).Infof("in addNode with lock set: %v", cache.lock)
 	cache.lock.Lock()
 	defer cache.lock.Unlock()
 
 	n, ok := cache.nodesMap[node.Name]
 	if !ok {
-		n = deschedulernode.NewNodeInfo()
-		n.SetNode(node)
+		n = schedulernode.NewNodeInfo()
+		_ = n.SetNode(node)
 		cache.nodesMap[node.Name] = n
 	}
 }
@@ -88,8 +105,8 @@ func (cache *SchedulerCache) UpdateNode(oldNode, newNode *v1.Node) error {
 
 	n, ok := cache.nodesMap[oldNode.Name]
 	if ok {
-		n.RemoveNode(oldNode)
-		n.SetNode(newNode)
+		_ = n.RemoveNode(oldNode)
+		_ = n.SetNode(newNode)
 	}
 	return nil
 }
@@ -115,7 +132,7 @@ func (cache *SchedulerCache) removeNode(node *v1.Node) error {
 // if pod is assigned to a node, update the cached nodes map too so that scheduler
 // knows which pod is running before pod is bound to that node.
 func (cache *SchedulerCache) AddPod(pod *v1.Pod) error {
-	key, err := deschedulernode.GetPodKey(pod)
+	key, err := schedulernode.GetPodKey(pod)
 	if err != nil {
 		return err
 	}
@@ -131,7 +148,7 @@ func (cache *SchedulerCache) AddPod(pod *v1.Pod) error {
 			glog.V(0).Infof("Pod %v was assumed to be on %v but got added to %v",
 				key, pod.Spec.NodeName, currState.Spec.NodeName)
 			// Clean this up.
-			cache.removePod(currState)
+			_ = cache.removePod(currState)
 			cache.addPod(pod)
 		}
 		delete(cache.assumedPods, key)
@@ -147,7 +164,7 @@ func (cache *SchedulerCache) AddPod(pod *v1.Pod) error {
 }
 
 func (cache *SchedulerCache) UpdatePod(oldPod, newPod *v1.Pod) error {
-	key, err := deschedulernode.GetPodKey(oldPod)
+	key, err := schedulernode.GetPodKey(oldPod)
 	if err != nil {
 		return err
 	}
@@ -179,7 +196,7 @@ func (cache *SchedulerCache) addPod(pod *v1.Pod) {
 	if pod.Spec.NodeName != "" {
 		n, ok := cache.nodesMap[pod.Spec.NodeName]
 		if !ok {
-			n = deschedulernode.NewNodeInfo()
+			n = schedulernode.NewNodeInfo()
 			cache.nodesMap[pod.Spec.NodeName] = n
 		}
 		n.AddPod(pod)
@@ -222,7 +239,7 @@ func (cache *SchedulerCache) GetPod(uid string) (*v1.Pod, bool) {
 }
 
 func (cache *SchedulerCache) AssumePod(pod *v1.Pod) error {
-	key, err := deschedulernode.GetPodKey(pod)
+	key, err := schedulernode.GetPodKey(pod)
 	if err != nil {
 		return err
 	}
@@ -240,7 +257,7 @@ func (cache *SchedulerCache) AssumePod(pod *v1.Pod) error {
 }
 
 func (cache *SchedulerCache) ForgetPod(pod *v1.Pod) error {
-	key, err := deschedulernode.GetPodKey(pod)
+	key, err := schedulernode.GetPodKey(pod)
 	if err != nil {
 		return err
 	}
@@ -306,4 +323,19 @@ func (cache *SchedulerCache) GetNodeInfo(nodeName string) (*v1.Node, error) {
 		return nodeInfo.Node(), nil
 	}
 	return nil, fmt.Errorf("node %s is not found", nodeName)
+}
+
+// Implement scheduler/algorithm/predicates/predicates.go#StorageClassInfo interface
+func (cache *SchedulerCache) GetStorageClassInfo(className string) (*storageV1.StorageClass, error) {
+	return cache.storageLister.Get(className)
+}
+
+// Implement scheduler/algorithm/predicates/predicates.go#PersistentVolumeClaimInfo interface
+func (cache *SchedulerCache) GetPersistentVolumeClaimInfo(nameSpace, name string) (*v1.PersistentVolumeClaim, error) {
+	return cache.pvcLister.PersistentVolumeClaims(nameSpace).Get(name)
+}
+
+// Implement scheduler/algorithm/predicates/predicates.go#PersistentVolumeClaimInfo interface
+func (cache *SchedulerCache) GetPersistentVolumeInfo(name string) (*v1.PersistentVolume, error) {
+	return cache.pvLister.Get(name)
 }

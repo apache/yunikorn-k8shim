@@ -1,0 +1,31 @@
+# PersistentVolume for local mounted directory.
+# Development and testing on a single-node cluster only.
+kind: PersistentVolume
+apiVersion: v1
+metadata:
+  name: pv0001
+  labels:
+    type: local
+spec:
+  storageClassName: manual
+  capacity:
+    storage: 500Mi
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: "/tmp/data01"
+
+---
+# Claim the local PersistentVolume.
+# Automatic bind of the claim to the volume.
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: local-claim-1
+spec:
+  storageClassName: manual
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 200Mi

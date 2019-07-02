@@ -1,0 +1,35 @@
+# Create a pod that reads and writes to the NFS server via an NFS volume.
+
+kind: Pod
+apiVersion: v1
+metadata:
+  name: pod-with-nfs
+  labels:
+    applicationId: "pod-with-nfs"
+    queue: "root.sandbox"
+spec:
+  schedulerName: yunikorn
+  containers:
+    - name: pod-with-nfs
+      image: nginx
+      resources:
+        requests:
+          cpu: "100m"
+          memory: "500M"
+      securityContext:
+        privileged: true
+      # Mount the NFS volume in the container
+      volumeMounts:
+        - name: nfs-volume
+          mountPath: /var/nfs
+      # Write to a file inside our NFS
+      command: ["/bin/sh"]
+      args: ["-c", "while true; do date >> /var/nfs/dates.txt; sleep 5; done"]
+  # Add the server as an NFS volume for the pod
+  volumes:
+    - name: nfs-volume
+      nfs:
+        # URL for the NFS server
+        server: 10.0.0.10 # Change this: use kubectl get services
+        path: /
+
