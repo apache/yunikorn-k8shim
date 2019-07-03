@@ -13,24 +13,19 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-
-package state
+package conf
 
 import (
-	"fmt"
+	"gotest.tools/assert"
+	"testing"
 )
 
-func GetEventArgsAsStrings(result []string, generic []interface{}) error {
-	if generic != nil && len(generic) > 0 {
-		if result == nil || cap(result) != len(generic) {
-			return fmt.Errorf("invalid length of arguments")
-		}
-		for idx, argument := range generic {
-			argStr, ok := argument.(string)
-			if ok {
-				result[idx] = argStr
-			}
-		}
-	}
-	return nil
+func TestDefaultValues(t *testing.T) {
+	conf := GetSchedulerConf()
+	assert.Equal(t, conf.ClusterId, DefaultClusterId)
+	assert.Equal(t, conf.PolicyGroup, DefaultPolicyGroup)
+	assert.Equal(t, conf.ClusterVersion, DefaultClusterVersion)
+	assert.Equal(t, conf.SchedulerName, DefaultSchedulerName)
+	assert.Equal(t, conf.LoggingLevel, DefaultLoggingLevel)
+	assert.Equal(t, conf.LogEncoding, DefaultLogEncoding)
 }

@@ -17,7 +17,7 @@ limitations under the License.
 package state
 
 import (
-	"github.com/cloudera/k8s-shim/pkg/scheduler/conf"
+	"github.com/cloudera/k8s-shim/pkg/common"
 	"github.com/cloudera/scheduler-interface/lib/go/si"
 	"github.com/cloudera/yunikorn-core/pkg/api"
 	"gotest.tools/assert"
@@ -31,7 +31,7 @@ func TestNewApplication(t *testing.T) {
 	app := NewApplication("app00001", "root.queue", newMockSchedulerApi())
 	assert.Equal(t, app.GetApplicationId(), "app00001" )
 	assert.Equal(t, app.GetApplicationState(), States().Application.New)
-	assert.Equal(t, app.partition, conf.DefaultPartition)
+	assert.Equal(t, app.partition, common.DefaultPartition)
 	assert.Equal(t, len(app.taskMap), 0)
 	assert.Equal(t, app.GetApplicationState(), States().Application.New)
 	assert.Equal(t, app.queue, "root.queue")

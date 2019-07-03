@@ -13,24 +13,28 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-
-package state
+package utils
 
 import (
 	"fmt"
+	"github.com/cloudera/k8s-shim/pkg/conf"
+	"k8s.io/api/core/v1"
+	"strings"
 )
 
-func GetEventArgsAsStrings(result []string, generic []interface{}) error {
-	if generic != nil && len(generic) > 0 {
-		if result == nil || cap(result) != len(generic) {
-			return fmt.Errorf("invalid length of arguments")
-		}
-		for idx, argument := range generic {
-			argStr, ok := argument.(string)
-			if ok {
-				result[idx] = argStr
-			}
-		}
+func Convert2Pod(obj interface{}) (*v1.Pod, error) {
+	pod, ok := obj.(*v1.Pod)
+	if !ok {
+		return nil, fmt.Errorf("cannot convert to *v1.Pod: %v", obj)
 	}
-	return nil
+	return pod, nil
+}
+
+// assignedPod selects pods that are assigned (scheduled and running).
+func IsAssignedPod(pod *v1.Pod) bool {
+	return len(pod.Spec.NodeName) != 0
+}
+
+func IsSchedulablePod(pod *v1.Pod) bool {
+	return strings.Compare(pod.Spec.SchedulerName, conf.GetSchedulerConf().SchedulerName) == 0
 }

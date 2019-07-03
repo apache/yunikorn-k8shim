@@ -85,16 +85,16 @@ func NewSubmitApplicationEvent(appId string) SubmitApplicationEvent {
 	}
 }
 
-func (e SubmitApplicationEvent) getEvent() ApplicationEventType {
-	return e.event
+func (se SubmitApplicationEvent) getEvent() ApplicationEventType {
+	return se.event
 }
 
-func (e SubmitApplicationEvent) getArgs() []interface{} {
+func (se SubmitApplicationEvent) getArgs() []interface{} {
 	return nil
 }
 
-func (st SubmitApplicationEvent) getApplicationId() string {
-	return st.applicationId
+func (se SubmitApplicationEvent) getApplicationId() string {
+	return se.applicationId
 }
 
 // ------------------------
@@ -114,18 +114,18 @@ func NewRunApplicationEvent(appId string, task *Task) RunApplicationEvent {
 	}
 }
 
-func (e RunApplicationEvent) getEvent() ApplicationEventType {
-	return e.event
+func (re RunApplicationEvent) getEvent() ApplicationEventType {
+	return re.event
 }
 
-func (e RunApplicationEvent) getArgs() []interface{} {
+func (re RunApplicationEvent) getArgs() []interface{} {
 	args := make([]interface{}, 1)
-	args[0] = e.task
+	args[0] = re.task
 	return args
 }
 
-func (st RunApplicationEvent) getApplicationId() string {
-	return st.applicationId
+func (re RunApplicationEvent) getApplicationId() string {
+	return re.applicationId
 }
 
 // ------------------------
@@ -143,14 +143,14 @@ func NewFailApplicationEvent(appId string) FailApplicationEvent {
 	}
 }
 
-func (e FailApplicationEvent) getEvent() ApplicationEventType {
-	return e.event
+func (fe FailApplicationEvent) getEvent() ApplicationEventType {
+	return fe.event
 }
 
-func (e FailApplicationEvent) getArgs() []interface{} {
+func (fe FailApplicationEvent) getArgs() []interface{} {
 	return nil
 }
 
-func (st FailApplicationEvent) getApplicationId() string {
-	return st.applicationId
+func (fe FailApplicationEvent) getApplicationId() string {
+	return fe.applicationId
 }

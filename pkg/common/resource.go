@@ -17,8 +17,7 @@ limitations under the License.
 package common
 
 import (
-	"github.com/golang/glog"
-	"github.com/cloudera/k8s-shim/pkg/scheduler/conf"
+	"github.com/cloudera/k8s-shim/pkg/conf"
 	"github.com/cloudera/scheduler-interface/lib/go/si"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -45,7 +44,6 @@ func (w *ResourceBuilder) Build() *si.Resource{
 }
 
 func GetPodResource(pod *v1.Pod) (resource *si.Resource) {
-	glog.V(4).Info("Get resource from pod spec")
 	//var memory, vcore = int64(0), int64(0)
 	var podResource *si.Resource
 	for _, c := range pod.Spec.Containers {
@@ -53,7 +51,6 @@ func GetPodResource(pod *v1.Pod) (resource *si.Resource) {
 		containerResource := getResource(resourceList)
 		podResource = Add(podResource, containerResource)
 	}
-	glog.V(4).Infof("Parsed resource %s", podResource.String())
 	return podResource
 }
 
@@ -67,10 +64,10 @@ func getResource(resourceList v1.ResourceList) *si.Resource {
 		switch name {
 		case v1.ResourceMemory:
 			memory := value.ScaledValue(resource.Mega)
-			resources.AddResource(conf.Memory, memory)
+			resources.AddResource(Memory, memory)
 		case v1.ResourceCPU:
 			vcore := value.MilliValue()
-			resources.AddResource(conf.CPU, vcore)
+			resources.AddResource(CPU, vcore)
 		default:
 			resources.AddResource(string(name), value.Value())
 		}
@@ -92,7 +89,7 @@ func CreateUpdateRequestForTask(appId string, taskId string, queueName string, r
 		NewSchedulableNodes:  nil,
 		UpdatedNodes:         nil,
 		UtilizationReports:   nil,
-		RmId: conf.GlobalClusterId,
+		RmId: conf.GetSchedulerConf().ClusterId,
 	}
 
 	return result
@@ -113,7 +110,7 @@ func CreateReleaseAllocationRequestForTask(appId string, allocUuid string, parti
 
 	result := si.UpdateRequest{
 		Releases: &releaseRequest,
-		RmId: conf.GlobalClusterId,
+		RmId: conf.GetSchedulerConf().ClusterId,
 	}
 
 	return result
@@ -127,20 +124,16 @@ func CreateUpdateRequestForNewNode(node Node) si.UpdateRequest {
 		SchedulableResource: node.resource,
 		// TODO is this required?
 		Attributes: map[string]string{
-			conf.DefaultNodeAttributeHostNameKey: node.name,
-			conf.DefaultNodeAttributeRackNameKey: conf.DefaultRackName,
+			DefaultNodeAttributeHostNameKey: node.name,
+			DefaultNodeAttributeRackNameKey: DefaultRackName,
 		},
 	}
-
-	glog.V(3).Infof("New node to be added, node ID %s, resource: %s, ",
-		nodeInfo.NodeId,
-		nodeInfo.SchedulableResource.String())
 
 	nodes := make([]*si.NewNodeInfo, 1)
 	nodes[0] = nodeInfo
 	request := si.UpdateRequest{
 		NewSchedulableNodes: nodes,
-		RmId:                conf.GlobalClusterId,
+		RmId:                conf.GetSchedulerConf().ClusterId,
 	}
 	return request
 }
@@ -152,15 +145,11 @@ func CreateUpdateRequestForUpdatedNode(node Node) si.UpdateRequest {
 		SchedulableResource: node.resource,
 	}
 
-	glog.V(3).Infof("Node to be updated, node ID %s, resource: %s, ",
-		nodeInfo.NodeId,
-		nodeInfo.SchedulableResource.String())
-
 	nodes := make([]*si.UpdateNodeInfo, 1)
 	nodes[0] = nodeInfo
 	request := si.UpdateRequest{
 		UpdatedNodes: nodes,
-		RmId:         conf.GlobalClusterId,
+		RmId:         conf.GetSchedulerConf().ClusterId,
 	}
 	return request
 }
@@ -173,14 +162,10 @@ func CreateUpdateRequestForDeleteNode(node Node) si.UpdateRequest {
 		Action:              si.UpdateNodeInfo_DECOMISSION,
 	}
 
-	glog.V(3).Infof("Node to be deleted, node ID %s, resource: %s, ",
-		nodeInfo.NodeId,
-		nodeInfo.SchedulableResource.String())
-
 	deletedNodes[0] = nodeInfo
 	request := si.UpdateRequest{
 		UpdatedNodes: deletedNodes,
-		RmId:         conf.GlobalClusterId,
+		RmId:         conf.GetSchedulerConf().ClusterId,
 	}
 	return request
 }

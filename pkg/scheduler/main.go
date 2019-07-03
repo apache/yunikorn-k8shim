@@ -17,10 +17,11 @@ limitations under the License.
 package main
 
 import (
-	"github.com/golang/glog"
-	"github.com/cloudera/k8s-shim/pkg/scheduler/conf"
+	"github.com/cloudera/k8s-shim/pkg/conf"
+	"github.com/cloudera/k8s-shim/pkg/log"
 	"github.com/cloudera/k8s-shim/pkg/scheduler/shim"
 	"github.com/cloudera/yunikorn-core/pkg/entrypoint"
+	"go.uber.org/zap"
 	"os"
 	"os/signal"
 	"syscall"
@@ -32,18 +33,13 @@ var (
 )
 
 func main() {
-	configs := conf.ParseFromCommandline()
-	configs.DumpConfiguration()
+	log.Logger.Info("Build info", zap.String("version", version), zap.String("date", date))
+	log.Logger.Info("starting scheduler",
+		zap.String("name", conf.GetSchedulerConf().SchedulerName))
 
-	glog.V(3).Infof("******************************************************************")
-	glog.V(3).Infof("Build info: version=%s, date=%s", version, date)
-	glog.V(3).Infof("******************************************************************")
-
-	glog.V(3).Infof("starting %s", configs.SchedulerName)
 	serviceContext := entrypoint.StartAllServices()
-
 	stopChan := make(chan struct{})
-	ss := shim.NewShimScheduler(serviceContext.RMProxy, configs)
+	ss := shim.NewShimScheduler(serviceContext.RMProxy, conf.GetSchedulerConf())
 	ss.Run(stopChan)
 
 	signalChan := make(chan os.Signal, 1)
@@ -51,7 +47,7 @@ func main() {
 	for {
 		select {
 		case <-signalChan:
-			glog.V(3).Infof("Shutdown signal received, exiting...")
+			log.Logger.Info("Shutdown signal received, exiting...")
 			close(stopChan)
 			os.Exit(0)
 		}

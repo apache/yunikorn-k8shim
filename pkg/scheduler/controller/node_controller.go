@@ -17,12 +17,12 @@ limitations under the License.
 package controller
 
 import (
-	"errors"
 	"fmt"
-	"github.com/golang/glog"
 	"github.com/cloudera/k8s-shim/pkg/common"
+	"github.com/cloudera/k8s-shim/pkg/log"
 	"github.com/cloudera/k8s-shim/pkg/state/cache"
 	"github.com/cloudera/yunikorn-core/pkg/api"
+	"go.uber.org/zap"
 	"k8s.io/api/core/v1"
 )
 
@@ -42,7 +42,7 @@ func convertToNode(obj interface{}) (*v1.Node, error) {
 	if node, ok := obj.(*v1.Node); ok {
 		return node, nil
 	}
-	return nil, errors.New(fmt.Sprintf("Cannot convert to *v1.Node: %v", obj))
+	return nil, fmt.Errorf("cannot convert to *v1.Node: %v", obj)
 }
 
 func equals(n1 *v1.Node, n2 *v1.Node) bool {
@@ -52,22 +52,22 @@ func equals(n1 *v1.Node, n2 *v1.Node) bool {
 }
 
 func (nc *NodeController) AddNode(obj interface{}) {
-	glog.V(4).Infof("node-controller: AddNode")
+	log.Logger.Debug("node-controller: AddNode")
 	node, err := convertToNode(obj)
 	if err != nil {
-		glog.Errorf(err.Error())
+		log.Logger.Error("node conversion failed", zap.Error(err))
 		return
 	}
 
 	// add node to cache
-	glog.V(4).Infof("adding node %s to cache", node.Name)
+	log.Logger.Info("adding node to cache", zap.String("NodeName", node.Name))
 	nc.cache.AddNode(node)
 
 	n := common.CreateFrom(node)
 	request := common.CreateUpdateRequestForNewNode(n)
-	glog.V(3).Infof("report new nodes to scheduler, request: %s", request.String())
+	log.Logger.Info("report new nodes to scheduler", zap.Any("request", request.String()))
 	if err := nc.proxy.Update(&request); err != nil {
-		glog.V(1).Infof("hitting error while handle AddNode, %#v", err)
+		log.Logger.Error("hitting error while handling AddNode", zap.Error(err))
 	}
 }
 
@@ -75,51 +75,51 @@ func (nc *NodeController) UpdateNode(oldObj, newObj interface{}) {
 	// we only trigger update when resource changes
 	oldNode, err := convertToNode(oldObj)
 	if err != nil {
-		glog.Errorf(err.Error())
+		log.Logger.Error("old node conversion failed", zap.Error(err))
 		return
 	}
 
 	newNode, err := convertToNode(newObj)
 	if err != nil {
-		glog.Errorf(err.Error())
+		log.Logger.Error("new node conversion failed", zap.Error(err))
 		return
 	}
 
 	// update cache
-	glog.V(4).Infof("updating node %s in cache", oldNode.Name)
+	log.Logger.Debug("updating node in cache", zap.String("OldNodeName", oldNode.Name))
 	nc.cache.UpdateNode(oldNode, newNode)
 
 	// node resource changes
 	if equals(oldNode, newNode) {
-		glog.V(3).Infof("Node status not changed, skip this UpdateNode event")
+		log.Logger.Info("Node status not changed, skip this UpdateNode event")
 		return
 	}
 
-	glog.V(4).Infof("node-controller: UpdateNode")
+	log.Logger.Debug("node-controller: UpdateNode")
 	node := common.CreateFrom(newNode)
 	request := common.CreateUpdateRequestForUpdatedNode(node)
-	glog.V(3).Infof("send updated nodes to scheduler, request: %s", request.String())
+	log.Logger.Info("report updated nodes to scheduler", zap.Any("request", request))
 	if err := nc.proxy.Update(&request); err != nil {
-		glog.V(1).Infof("hitting error while handle UpdateNode, %#v", err)
+		log.Logger.Info("hitting error while handling UpdateNode", zap.Error(err))
 	}
 }
 
 func (nc *NodeController) DeleteNode(obj interface{}) {
-	glog.V(4).Infof("node-controller: DeleteNode")
+	log.Logger.Debug("node-controller: DeleteNode")
 	node, err := convertToNode(obj)
 	if err != nil {
-		glog.Errorf(err.Error())
+		log.Logger.Error("node conversion failed", zap.Error(err))
 		return
 	}
 
 	// add node to cache
-	glog.V(4).Infof("delete node %s from cache", node.Name)
+	log.Logger.Debug("delete node from cache", zap.String("nodeName", node.Name))
 	nc.cache.RemoveNode(node)
 
 	n := common.CreateFrom(node)
 	request := common.CreateUpdateRequestForDeleteNode(n)
-	glog.V(3).Infof("send updated nodes to scheduler, request: %s", request.String())
+	log.Logger.Info("report updated nodes to scheduler", zap.Any("request", request.String()))
 	if err := nc.proxy.Update(&request); err != nil {
-		glog.V(1).Infof("hitting error while handle UpdateNode, %#v", err)
+		log.Logger.Info("hitting error while handling UpdateNode", zap.Error(err))
 	}
 }

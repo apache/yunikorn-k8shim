@@ -18,7 +18,6 @@ package shim
 
 import (
 	"github.com/cloudera/k8s-shim/pkg/common"
-	"github.com/cloudera/k8s-shim/pkg/scheduler/conf"
 	"github.com/cloudera/k8s-shim/pkg/state"
 	"testing"
 )
@@ -58,8 +57,8 @@ partitions:
 	// create app and tasks
 	app0001 := cluster.newApplication("app0001", "root.a")
 	taskResource := common.NewResourceBuilder().
-		AddResource(conf.Memory, 10).
-		AddResource(conf.CPU, 1).
+		AddResource(common.Memory, 10).
+		AddResource(common.CPU, 1).
 		Build()
 	cluster.addTask("task0001", taskResource, app0001)
 	cluster.addTask("task0002", taskResource, app0001)
@@ -108,8 +107,8 @@ partitions:
 
 	// create app and tasks
 	taskResource := common.NewResourceBuilder().
-		AddResource(conf.Memory, 10).
-		AddResource(conf.CPU, 1).
+		AddResource(common.Memory, 10).
+		AddResource(common.CPU, 1).
 		Build()
 	app0001 := cluster.newApplication("app0001", "root.non_exist_queue")
 	cluster.addTask("task0001", taskResource, app0001)

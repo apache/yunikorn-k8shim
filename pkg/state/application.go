@@ -17,14 +17,15 @@ limitations under the License.
 package state
 
 import (
-	"errors"
 	"fmt"
-	"github.com/golang/glog"
-	"github.com/looplab/fsm"
 	"github.com/cloudera/k8s-shim/pkg/client"
-	"github.com/cloudera/k8s-shim/pkg/scheduler/conf"
+	"github.com/cloudera/k8s-shim/pkg/common"
+	"github.com/cloudera/k8s-shim/pkg/conf"
+	"github.com/cloudera/k8s-shim/pkg/log"
 	"github.com/cloudera/scheduler-interface/lib/go/si"
 	"github.com/cloudera/yunikorn-core/pkg/api"
+	"github.com/looplab/fsm"
+	"go.uber.org/zap"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sync"
@@ -41,8 +42,8 @@ type Application struct {
 	schedulerApi  api.SchedulerApi
 }
 
-func (app *Application) String() string  {
-	return fmt.Sprintf("applicationId: %s, queue: %s, partition: %s," +
+func (app *Application) String() string {
+	return fmt.Sprintf("applicationId: %s, queue: %s, partition: %s,"+
 		" totalNumOfTasks: %d, currentState: %s",
 		app.applicationId, app.queue, app.partition, len(app.taskMap), app.GetApplicationState())
 }
@@ -53,9 +54,9 @@ func NewApplication(appId string, queueName string, scheduler api.SchedulerApi) 
 		applicationId: appId,
 		taskMap:       taskMap,
 		queue:         queueName,
-		partition:     conf.DefaultPartition,
+		partition:     common.DefaultPartition,
 		lock:          &sync.RWMutex{},
-		ch:            CompletionHandler {running: false},
+		ch:            CompletionHandler{running: false},
 		schedulerApi:  scheduler,
 	}
 
@@ -73,7 +74,7 @@ func NewApplication(appId string, queueName string, scheduler api.SchedulerApi) 
 				Src: []string{states.Accepted, states.Running},
 				Dst: states.Running},
 			{Name: string(CompleteApplication),
-				Src: []string{states.Running,},
+				Src: []string{states.Running},
 				Dst: states.Completed},
 			{Name: string(RejectApplication),
 				Src: []string{states.Submitted},
@@ -103,27 +104,31 @@ func NewApplication(appId string, queueName string, scheduler api.SchedulerApi) 
 func (app *Application) handle(ev ApplicationEvent) error {
 	// state machine has its instinct lock, we don't need to hold the app lock here
 	// because the callbacks are the places where might modify app state, not here.
-	glog.V(4).Infof("Application(%s): preState: %s, coming event: %s",
-		app.applicationId, app.sm.Current(), string(ev.getEvent()))
+	log.Logger.Debug("application state transition",
+		zap.String("appId", app.applicationId),
+		zap.String("preState", app.sm.Current()),
+		zap.String("pendingEvent", string(ev.getEvent())))
 	if err := app.sm.Event(string(ev.getEvent()), ev.getArgs()...); err != nil {
 		return err
 	}
-	glog.V(4).Infof("Application(%s): postState: %s, handled event: %s",
-		app.applicationId, app.sm.Current(), string(ev.getEvent()))
+	log.Logger.Debug("application state transition",
+		zap.String("appId", app.applicationId),
+		zap.String("postState", app.sm.Current()),
+		zap.String("handledEvent", string(ev.getEvent())))
 	return nil
 }
 
 func (app *Application) GetTask(taskId string) (*Task, error) {
 	app.lock.RLock()
 	defer app.lock.RUnlock()
-	if task, ok := app.taskMap[taskId]; ok{
+	if task, ok := app.taskMap[taskId]; ok {
 		return task, nil
 	}
-	return nil, errors.New(fmt.Sprintf("task %s doesn't exist in application %s",
-		taskId, app.applicationId))
+	return nil, fmt.Errorf("task %s doesn't exist in application %s",
+		taskId, app.applicationId)
 }
 
-func (app *Application) GetApplicationId() string{
+func (app *Application) GetApplicationId() string {
 	app.lock.RLock()
 	defer app.lock.RUnlock()
 	return app.applicationId
@@ -148,24 +153,24 @@ func (app *Application) AddTask(task *Task) {
 func GenerateApplicationIdFromPod(pod *v1.Pod) (string, error) {
 	for name, value := range pod.Labels {
 		// if a pod for spark already provided appId, reuse it
-		if name == conf.SparkLabelAppId {
+		if name == common.SparkLabelAppId {
 			return value, nil
 		}
 
 		// application ID can be defined as a label
-		if name == conf.LabelApplicationId {
+		if name == common.LabelApplicationId {
 			return value, nil
 		}
 	}
 
 	// application ID can be defined in annotations too
 	for name, value := range pod.Annotations {
-		if name == conf.LabelApplicationId {
+		if name == common.LabelApplicationId {
 			return value, nil
 		}
 	}
-	return "", errors.New(fmt.Sprintf("unable to retrieve application ID from pod spec, %s",
-		pod.Spec.String()))
+	return "", fmt.Errorf("unable to retrieve application ID from pod spec, %s",
+		pod.Spec.String())
 }
 
 func (app *Application) GetApplicationState() string {
@@ -188,7 +193,9 @@ func (app *Application) GetPendingTasks() []*Task {
 }
 
 func (app *Application) handleSubmitApplicationEvent(event *fsm.Event) {
-	glog.V(3).Infof("submit new app %s to cluster %s", app.String(), conf.GlobalClusterId)
+	log.Logger.Info("handle app submission",
+		zap.String("app", app.String()),
+		zap.String("clusterId", conf.GetSchedulerConf().ClusterId))
 	err := app.schedulerApi.Update(
 		&si.UpdateRequest{
 			NewApplications: []*si.AddApplicationRequest{
@@ -198,8 +205,8 @@ func (app *Application) handleSubmitApplicationEvent(event *fsm.Event) {
 					PartitionName: app.partition,
 				},
 			},
-			RmId: conf.GlobalClusterId,
-	})
+			RmId: conf.GetSchedulerConf().ClusterId,
+		})
 
 	if err != nil {
 		// submission failed
@@ -210,9 +217,9 @@ func (app *Application) handleSubmitApplicationEvent(event *fsm.Event) {
 // this is called after entering running state
 func (app *Application) handleRunApplicationEvent(event *fsm.Event) {
 	if event.Args == nil || len(event.Args) != 1 {
-		glog.V(1).Infof("failed to run tasks from application %s," +
-			" event argument is expected to have only 1 argument",
-			app.applicationId)
+		log.Logger.Error("failed to run tasks",
+			zap.String("appId", app.applicationId),
+			zap.String("reason", " event argument is expected to have only 1 argument"))
 		return
 	}
 
@@ -223,7 +230,7 @@ func (app *Application) handleRunApplicationEvent(event *fsm.Event) {
 }
 
 func (app *Application) handleRejectApplicationEvent(event *fsm.Event) {
-	glog.V(4).Infof("app %s is rejected by scheduler", app.applicationId)
+	log.Logger.Info("app is rejected by scheduler", zap.String("appId", app.applicationId))
 	// for rejected apps, we directly move them to failed state
 	GetDispatcher().Dispatch(NewFailApplicationEvent(app.applicationId))
 }
@@ -238,31 +245,35 @@ func (app *Application) handleCompleteApplicationEvent(event *fsm.Event) {
 // such as for Spark, once driver is succeed, we think this application is completed.
 // this interface can be customized for different type of apps.
 type CompletionHandler struct {
-	running bool
+	running    bool
 	completeFn func()
 }
 
 func (app *Application) StartCompletionHandler(client client.KubeClient, pod *v1.Pod) {
 	for name, value := range pod.Labels {
-		if name == conf.SparkLabelRole && value == conf.SparkLabelRoleDriver {
+		if name == common.SparkLabelRole && value == common.SparkLabelRoleDriver {
 			app.startSparkCompletionHandler(client, pod)
 			return
 		}
- 	}
+	}
 }
 
 func (app *Application) startSparkCompletionHandler(client client.KubeClient, pod *v1.Pod) {
 	// spark driver pod
-	glog.V(4).Infof("start app completion handler for pod %s, app %s", pod.Name, app.applicationId)
+	log.Logger.Info("start app completion handler",
+		zap.String("pod", pod.Name),
+		zap.String("appId", app.applicationId))
 	if app.ch.running {
 		return
 	}
 
 	app.ch = CompletionHandler{
 		completeFn: func() {
-			podWatch, err := client.GetClientSet().CoreV1().Pods(pod.Namespace).Watch(metav1.ListOptions{ Watch: true, })
+			podWatch, err := client.GetClientSet().CoreV1().Pods(pod.Namespace).Watch(metav1.ListOptions{Watch: true})
 			if err != nil {
-				glog.V(1).Infof("Unable to create Watch for pod %s", pod.Name)
+				log.Logger.Info("unable to create Watch for pod",
+					zap.String("pod", pod.Name),
+					zap.Error(err))
 				return
 			}
 
@@ -274,7 +285,9 @@ func (app *Application) startSparkCompletionHandler(client client.KubeClient, po
 					}
 					resp := events.Object.(*v1.Pod)
 					if resp.Status.Phase == v1.PodSucceeded && resp.UID == pod.UID {
-						glog.V(4).Infof("spark driver completed %s, app completed %s", resp.Name, app.applicationId)
+						log.Logger.Info("spark driver completed, app completed",
+							zap.String("pod", resp.Name),
+							zap.String("appId", app.applicationId))
 						GetDispatcher().Dispatch(NewSimpleApplicationEvent(app.applicationId, CompleteApplication))
 						return
 					}

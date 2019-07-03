@@ -20,8 +20,8 @@ import (
 	"fmt"
 	"github.com/cloudera/k8s-shim/pkg/client"
 	"github.com/cloudera/k8s-shim/pkg/common"
+	"github.com/cloudera/k8s-shim/pkg/conf"
 	"github.com/cloudera/k8s-shim/pkg/scheduler/callback"
-	"github.com/cloudera/k8s-shim/pkg/scheduler/conf"
 	"github.com/cloudera/k8s-shim/pkg/state"
 	"github.com/cloudera/scheduler-interface/lib/go/si"
 	utils "github.com/cloudera/yunikorn-core/pkg/common/configs"
@@ -105,8 +105,8 @@ func (fc *FakeCluster) assertSchedulerState(t *testing.T, expectedState string) 
 
 func (fc *FakeCluster) addNode(nodeName string, memory int64, cpu int64) error {
 	nodeResource := common.NewResourceBuilder().
-		AddResource(conf.Memory, memory).
-		AddResource(conf.CPU, cpu).
+		AddResource(common.Memory, memory).
+		AddResource(common.CPU, cpu).
 		Build()
 	node := common.CreateFromNodeSpec(nodeName, nodeName, nodeResource)
 	request := common.CreateUpdateRequestForNewNode(node)
