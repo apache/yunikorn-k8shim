@@ -17,7 +17,7 @@ limitations under the License.
 package state
 
 import (
-	"errors"
+	"fmt"
 	"github.com/cloudera/k8s-shim/pkg/log"
 	"go.uber.org/zap"
 )
@@ -26,7 +26,7 @@ var dispatcher *Dispatcher
 
 // central dispatcher that dispatches scheduling events.
 type Dispatcher struct {
-	context *Context
+	context   *Context
 	eventChan chan SchedulingEvent
 	stopChan  chan struct{}
 	isRunning bool
@@ -53,14 +53,14 @@ func (p *Dispatcher) SetContext(ctx *Context) {
 // one by one in order.
 func (p *Dispatcher) Dispatch(event SchedulingEvent) error {
 	if !p.isRunning {
-		return errors.New("dispatcher is not running")
+		return fmt.Errorf("dispatcher is not running")
 	}
 
 	select {
 	case p.eventChan <- event:
 		return nil
 	default:
-		return errors.New("failed to dispatch event")
+		return fmt.Errorf("failed to dispatch event")
 	}
 }
 

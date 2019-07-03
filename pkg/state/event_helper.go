@@ -16,14 +16,14 @@ limitations under the License.
 
 package state
 
-
-import "errors"
-
+import (
+	"fmt"
+)
 
 func GetEventArgsAsStrings(result []string, generic []interface{}) error {
 	if generic != nil && len(generic) > 0 {
 		if result == nil || cap(result) != len(generic) {
-			return errors.New("invalid length of arguments")
+			return fmt.Errorf("invalid length of arguments")
 		}
 		for idx, argument := range generic {
 			argStr, ok := argument.(string)

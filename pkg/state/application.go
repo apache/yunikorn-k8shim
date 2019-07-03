@@ -17,7 +17,6 @@ limitations under the License.
 package state
 
 import (
-	"errors"
 	"fmt"
 	"github.com/cloudera/k8s-shim/pkg/client"
 	"github.com/cloudera/k8s-shim/pkg/common"
@@ -43,8 +42,8 @@ type Application struct {
 	schedulerApi  api.SchedulerApi
 }
 
-func (app *Application) String() string  {
-	return fmt.Sprintf("applicationId: %s, queue: %s, partition: %s," +
+func (app *Application) String() string {
+	return fmt.Sprintf("applicationId: %s, queue: %s, partition: %s,"+
 		" totalNumOfTasks: %d, currentState: %s",
 		app.applicationId, app.queue, app.partition, len(app.taskMap), app.GetApplicationState())
 }
@@ -57,7 +56,7 @@ func NewApplication(appId string, queueName string, scheduler api.SchedulerApi) 
 		queue:         queueName,
 		partition:     common.DefaultPartition,
 		lock:          &sync.RWMutex{},
-		ch:            CompletionHandler {running: false},
+		ch:            CompletionHandler{running: false},
 		schedulerApi:  scheduler,
 	}
 
@@ -75,7 +74,7 @@ func NewApplication(appId string, queueName string, scheduler api.SchedulerApi) 
 				Src: []string{states.Accepted, states.Running},
 				Dst: states.Running},
 			{Name: string(CompleteApplication),
-				Src: []string{states.Running,},
+				Src: []string{states.Running},
 				Dst: states.Completed},
 			{Name: string(RejectApplication),
 				Src: []string{states.Submitted},
@@ -122,14 +121,14 @@ func (app *Application) handle(ev ApplicationEvent) error {
 func (app *Application) GetTask(taskId string) (*Task, error) {
 	app.lock.RLock()
 	defer app.lock.RUnlock()
-	if task, ok := app.taskMap[taskId]; ok{
+	if task, ok := app.taskMap[taskId]; ok {
 		return task, nil
 	}
-	return nil, errors.New(fmt.Sprintf("task %s doesn't exist in application %s",
-		taskId, app.applicationId))
+	return nil, fmt.Errorf("task %s doesn't exist in application %s",
+		taskId, app.applicationId)
 }
 
-func (app *Application) GetApplicationId() string{
+func (app *Application) GetApplicationId() string {
 	app.lock.RLock()
 	defer app.lock.RUnlock()
 	return app.applicationId
@@ -170,8 +169,8 @@ func GenerateApplicationIdFromPod(pod *v1.Pod) (string, error) {
 			return value, nil
 		}
 	}
-	return "", errors.New(fmt.Sprintf("unable to retrieve application ID from pod spec, %s",
-		pod.Spec.String()))
+	return "", fmt.Errorf("unable to retrieve application ID from pod spec, %s",
+		pod.Spec.String())
 }
 
 func (app *Application) GetApplicationState() string {
@@ -207,7 +206,7 @@ func (app *Application) handleSubmitApplicationEvent(event *fsm.Event) {
 				},
 			},
 			RmId: conf.GetSchedulerConf().ClusterId,
-	})
+		})
 
 	if err != nil {
 		// submission failed
@@ -246,7 +245,7 @@ func (app *Application) handleCompleteApplicationEvent(event *fsm.Event) {
 // such as for Spark, once driver is succeed, we think this application is completed.
 // this interface can be customized for different type of apps.
 type CompletionHandler struct {
-	running bool
+	running    bool
 	completeFn func()
 }
 
@@ -256,7 +255,7 @@ func (app *Application) StartCompletionHandler(client client.KubeClient, pod *v1
 			app.startSparkCompletionHandler(client, pod)
 			return
 		}
- 	}
+	}
 }
 
 func (app *Application) startSparkCompletionHandler(client client.KubeClient, pod *v1.Pod) {
@@ -270,7 +269,7 @@ func (app *Application) startSparkCompletionHandler(client client.KubeClient, po
 
 	app.ch = CompletionHandler{
 		completeFn: func() {
-			podWatch, err := client.GetClientSet().CoreV1().Pods(pod.Namespace).Watch(metav1.ListOptions{ Watch: true, })
+			podWatch, err := client.GetClientSet().CoreV1().Pods(pod.Namespace).Watch(metav1.ListOptions{Watch: true})
 			if err != nil {
 				log.Logger.Info("unable to create Watch for pod",
 					zap.String("pod", pod.Name),
