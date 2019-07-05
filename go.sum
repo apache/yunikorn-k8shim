@@ -17,6 +17,8 @@ github.com/cloudera/scheduler-interface v0.0.0-20190629053425-455c193da6b1 h1:rj
 github.com/cloudera/scheduler-interface v0.0.0-20190629053425-455c193da6b1/go.mod h1:6hDdjRmrKI2bDFNYosEQ56fBC58FXMD2l6imTWyJep4=
 github.com/cloudera/yunikorn-core v0.0.0-20190629041148-266dbf69b666 h1:1vQ9PUDo9S7I/HO3wXpa9c6ZCiA6+gOYWZ/UTIptTEU=
 github.com/cloudera/yunikorn-core v0.0.0-20190629041148-266dbf69b666/go.mod h1:Ks1tk9URZLxzf9SIz7kCshnY5625Rz+q2qlc0+wFjVo=
+github.com/cloudera/yunikorn-core v0.0.0-20190705082841-f02bee819f7f h1:1uHIfSN5jqHn/4WOuFhU1fwSCFBIRjiCfhjaE0fCVDs=
+github.com/cloudera/yunikorn-core v0.0.0-20190705082841-f02bee819f7f/go.mod h1:7d52q06cGtSrm+zoqAw515TZuJSzrCDiKW8XoYbzG8A=
 github.com/coreos/bbolt v1.3.3 h1:n6AiVyVRKQFNb6mJlwESEvvLoDyiTzXX7ORAUlkeBdY=
 github.com/coreos/bbolt v1.3.3/go.mod h1:iRUV2dpdMOn7Bo10OQBFzIJO9kkE559Wcmn+qkEiiKk=
 github.com/coreos/etcd v3.3.13+incompatible h1:8F3hqu9fGYLBifCmRCJsicFqDx/D68Rt3q1JMazcgBQ=

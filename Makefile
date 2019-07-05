@@ -39,7 +39,7 @@ init:
 	mkdir -p ${RELEASE_BIN_DIR}
 
 build: init
-	go build -o=${RELEASE_BIN_DIR}/${BINARY} --ldflags \
+	go build -o=${RELEASE_BIN_DIR}/${BINARY} -race --ldflags \
 	'-X main.version=${IMAGE_VERSION} -X main.date=${DATE}' \
 	./pkg/scheduler/
 
