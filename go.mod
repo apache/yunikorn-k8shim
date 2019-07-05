@@ -4,7 +4,7 @@ go 1.12
 
 require (
 	github.com/cloudera/scheduler-interface v0.0.0-20190629053425-455c193da6b1
-	github.com/cloudera/yunikorn-core v0.0.0-20190705082841-f02bee819f7f
+	github.com/cloudera/yunikorn-core v0.0.0-20190705101915-5878c12f647e
 	github.com/coreos/bbolt v1.3.3 // indirect
 	github.com/coreos/etcd v3.3.13+incompatible // indirect
 	github.com/coreos/go-semver v0.3.0 // indirect
