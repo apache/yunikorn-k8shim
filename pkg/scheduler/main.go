@@ -17,10 +17,10 @@ limitations under the License.
 package main
 
 import (
+	"github.com/cloudera/yunikorn-core/pkg/entrypoint"
 	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
 	"github.com/cloudera/yunikorn-k8shim/pkg/log"
 	"github.com/cloudera/yunikorn-k8shim/pkg/scheduler/shim"
-	"github.com/cloudera/yunikorn-core/pkg/entrypoint"
 	"go.uber.org/zap"
 	"os"
 	"os/signal"

@@ -18,6 +18,8 @@ package state
 
 import (
 	"fmt"
+	"github.com/cloudera/yunikorn-core/pkg/api"
+	"github.com/cloudera/yunikorn-core/pkg/rmproxy"
 	"github.com/cloudera/yunikorn-k8shim/pkg/client"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common"
 	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
@@ -26,8 +28,6 @@ import (
 	"github.com/cloudera/yunikorn-k8shim/pkg/scheduler/controller"
 	schedulercache "github.com/cloudera/yunikorn-k8shim/pkg/state/cache"
 	"github.com/cloudera/yunikorn-k8shim/pkg/utils"
-	"github.com/cloudera/yunikorn-core/pkg/api"
-	"github.com/cloudera/yunikorn-core/pkg/rmproxy"
 	"go.uber.org/zap"
 	"k8s.io/api/core/v1"
 	"k8s.io/client-go/informers"

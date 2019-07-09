@@ -18,15 +18,15 @@ package shim
 
 import (
 	"fmt"
+	utils "github.com/cloudera/yunikorn-core/pkg/common/configs"
+	"github.com/cloudera/yunikorn-core/pkg/entrypoint"
+	"github.com/cloudera/yunikorn-core/pkg/rmproxy"
 	"github.com/cloudera/yunikorn-k8shim/pkg/client"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common"
 	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
 	"github.com/cloudera/yunikorn-k8shim/pkg/scheduler/callback"
 	"github.com/cloudera/yunikorn-k8shim/pkg/state"
 	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
-	utils "github.com/cloudera/yunikorn-core/pkg/common/configs"
-	"github.com/cloudera/yunikorn-core/pkg/entrypoint"
-	"github.com/cloudera/yunikorn-core/pkg/rmproxy"
 	"gotest.tools/assert"
 	"k8s.io/api/core/v1"
 	"testing"
