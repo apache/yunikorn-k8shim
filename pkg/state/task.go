@@ -157,7 +157,7 @@ func (task *Task) handleFailEvent(event *fsm.Event) {
 	defer task.lock.Unlock()
 
 	eventArgs := make([]string, 1)
-	if err := GetEventArgsAsStrings(eventArgs, event.Args); err != nil {
+	if err := getEventArgsAsStrings(eventArgs, event.Args); err != nil {
 		GetDispatcher().Dispatch(NewFailTaskEvent(task.applicationId, task.taskId, err.Error()))
 		return
 	}
@@ -197,7 +197,7 @@ func (task *Task) postTaskAllocated(event *fsm.Event) {
 
 		var errorMessage string
 		eventArgs := make([]string, 2)
-		if err := GetEventArgsAsStrings(eventArgs, event.Args); err != nil {
+		if err := getEventArgsAsStrings(eventArgs, event.Args); err != nil {
 			errorMessage = err.Error()
 			log.Logger.Error("error", zap.Error(err))
 			GetDispatcher().Dispatch(NewFailTaskEvent(task.applicationId, task.taskId, errorMessage))

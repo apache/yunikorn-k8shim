@@ -39,18 +39,18 @@ func TestGetAllocateTaskEventArgs(t *testing.T) {
 	assert.Equal(t, fmt.Sprint(args[1]), "node-0001")
 
 	out := make([]string, 2)
-	GetEventArgsAsStrings(out, args)
+	getEventArgsAsStrings(out, args)
 	assert.Equal(t, out[0], "UID-0001")
 	assert.Equal(t, out[1], "node-0001")
 
 	out = make([]string, 0)
-	err := GetEventArgsAsStrings(out, args)
+	err := getEventArgsAsStrings(out, args)
 	assert.Assert(t, err != nil)
 
 	out = make([]string, 5)
-	err = GetEventArgsAsStrings(out, args)
+	err = getEventArgsAsStrings(out, args)
 	assert.Assert(t, err != nil)
 
-	err = GetEventArgsAsStrings(nil, args)
+	err = getEventArgsAsStrings(nil, args)
 	assert.Assert(t, err != nil)
 }

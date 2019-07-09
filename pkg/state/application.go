@@ -150,7 +150,7 @@ func (app *Application) AddTask(task *Task) {
 	app.taskMap[task.taskId] = task
 }
 
-func GenerateApplicationIdFromPod(pod *v1.Pod) (string, error) {
+func generateApplicationIdFromPod(pod *v1.Pod) (string, error) {
 	for name, value := range pod.Labels {
 		// if a pod for spark already provided appId, reuse it
 		if name == common.SparkLabelAppId {
@@ -249,7 +249,7 @@ type CompletionHandler struct {
 	completeFn func()
 }
 
-func (app *Application) StartCompletionHandler(client client.KubeClient, pod *v1.Pod) {
+func (app *Application) startCompletionHandler(client client.KubeClient, pod *v1.Pod) {
 	for name, value := range pod.Labels {
 		if name == common.SparkLabelRole && value == common.SparkLabelRoleDriver {
 			app.startSparkCompletionHandler(client, pod)

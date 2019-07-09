@@ -265,7 +265,7 @@ func (ctx *Context) validatePod(pod *v1.Pod) error {
 			ctx.conf.SchedulerName, pod.Name, pod.UID, pod.Spec.SchedulerName)
 	}
 
-	if _, err := GenerateApplicationIdFromPod(pod); err != nil {
+	if _, err := generateApplicationIdFromPod(pod); err != nil {
 		return err
 	}
 
@@ -347,7 +347,7 @@ func (ctx *Context) deletePod(obj interface{}) {
 			zap.String("podName", pod.Name),
 			zap.String("podUID", string(pod.UID)))
 		// starts a completion handler to handle the completion of a app on demand
-		application.StartCompletionHandler(ctx.kubeClient, pod)
+		application.startCompletionHandler(ctx.kubeClient, pod)
 	}
 
 	log.Logger.Debug("remove pod from cache", zap.String("podName", pod.Name))
@@ -478,14 +478,10 @@ func (ctx *Context) AssumePod(name string, node string) error {
 	return nil
 }
 
-func (ctx *Context) GetSchedulerConf() *conf.SchedulerConf {
-	return ctx.conf
-}
-
 // if app already exists in the context, directly return the app from context
 // if app doesn't exist in the context yet, create a new app instance and add to context
 func (ctx *Context) getOrCreateApplication(pod *v1.Pod) *Application {
-	appId, err := GenerateApplicationIdFromPod(pod)
+	appId, err := generateApplicationIdFromPod(pod)
 	if err != nil {
 		log.Logger.Error("unable to get application by given pod", zap.Error(err))
 		return nil

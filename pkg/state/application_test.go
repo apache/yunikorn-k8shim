@@ -92,7 +92,7 @@ func TestGetApplicationIdFromPod(t *testing.T) {
 		Spec:   v1.PodSpec{},
 		Status: v1.PodStatus{},
 	}
-	appId, err := GenerateApplicationIdFromPod(&pod)
+	appId, err := generateApplicationIdFromPod(&pod)
 	assert.Equal(t, appId, "app00001")
 	assert.Equal(t, err, nil)
 
@@ -114,7 +114,7 @@ func TestGetApplicationIdFromPod(t *testing.T) {
 		Spec:   v1.PodSpec{},
 		Status: v1.PodStatus{},
 	}
-	appId, err = GenerateApplicationIdFromPod(&pod)
+	appId, err = generateApplicationIdFromPod(&pod)
 	assert.Equal(t, appId, "app00002")
 	assert.Equal(t, err, nil)
 
@@ -136,7 +136,7 @@ func TestGetApplicationIdFromPod(t *testing.T) {
 		Spec:   v1.PodSpec{},
 		Status: v1.PodStatus{},
 	}
-	appId, err = GenerateApplicationIdFromPod(&pod)
+	appId, err = generateApplicationIdFromPod(&pod)
 	assert.Equal(t, appId, "spark-0001")
 	assert.Equal(t, err, nil)
 
@@ -155,7 +155,7 @@ func TestGetApplicationIdFromPod(t *testing.T) {
 		Status: v1.PodStatus{},
 	}
 
-	appId, err = GenerateApplicationIdFromPod(&pod)
+	appId, err = generateApplicationIdFromPod(&pod)
 	assert.Equal(t, appId, "")
 	assert.Assert(t, err != nil)
 }
