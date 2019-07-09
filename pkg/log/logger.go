@@ -68,6 +68,11 @@ func init() {
 		panic(fmt.Sprintf("failed to init logger, reason: %s", err.Error()))
 	}
 
+	// set as global logging
+	// when k8s-shim runs with core, core side can directly reuse this logger,
+	// this way we are making consistent logging configs in shim and core.
+	zap.ReplaceGlobals(Logger)
+
 	// dump configuration
 	c, _ := json.MarshalIndent(&configs, "", " ")
 	Logger.Info("scheduler configuration", zap.String("configs", string(c)))
