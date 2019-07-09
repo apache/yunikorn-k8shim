@@ -74,7 +74,7 @@ run: build
 	-logEncoding=console -logLevel=-1
 
 test:
-	go test ./... -cover
+	go test ./... -cover -race -tags deadlock -v
 	go vet $(REPO)...
 
 clean:

@@ -506,6 +506,8 @@ func (ctx *Context) getOrCreateApplication(pod *v1.Pod) *Application {
 
 // for testing only
 func (ctx *Context) AddApplication(app *Application) {
+	ctx.lock.Lock()
+	defer ctx.lock.Unlock()
 	ctx.applications[app.GetApplicationId()] = app
 }
 
