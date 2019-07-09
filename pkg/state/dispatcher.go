@@ -18,7 +18,7 @@ package state
 
 import (
 	"fmt"
-	"github.com/cloudera/k8s-shim/pkg/log"
+	"github.com/cloudera/yunikorn-k8shim/pkg/log"
 	"go.uber.org/zap"
 )
 

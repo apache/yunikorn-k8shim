@@ -25,7 +25,7 @@ OUTPUT=_output
 RELEASE_BIN_DIR=${OUTPUT}/bin
 LOCAL_CONF=conf
 CONF_FILE=queues.yaml
-REPO=github.com/cloudera/k8s-shim/pkg
+REPO=github.com/cloudera/yunikorn-k8shim/pkg
 
 IMAGE_TAG=yunikorn/scheduler-core
 IMAGE_VERSION=0.3.5

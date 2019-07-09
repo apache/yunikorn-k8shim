@@ -18,9 +18,9 @@ package controller
 
 import (
 	"fmt"
-	"github.com/cloudera/k8s-shim/pkg/common"
-	"github.com/cloudera/k8s-shim/pkg/log"
-	"github.com/cloudera/k8s-shim/pkg/state/cache"
+	"github.com/cloudera/yunikorn-k8shim/pkg/common"
+	"github.com/cloudera/yunikorn-k8shim/pkg/log"
+	"github.com/cloudera/yunikorn-k8shim/pkg/state/cache"
 	"github.com/cloudera/yunikorn-core/pkg/api"
 	"go.uber.org/zap"
 	"k8s.io/api/core/v1"

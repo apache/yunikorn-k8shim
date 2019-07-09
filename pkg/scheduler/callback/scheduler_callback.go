@@ -18,9 +18,9 @@ package callback
 
 import (
 	"fmt"
-	"github.com/cloudera/k8s-shim/pkg/log"
-	"github.com/cloudera/k8s-shim/pkg/state"
-	"github.com/cloudera/scheduler-interface/lib/go/si"
+	"github.com/cloudera/yunikorn-k8shim/pkg/log"
+	"github.com/cloudera/yunikorn-k8shim/pkg/state"
+	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
 	"go.uber.org/zap"
 )
 

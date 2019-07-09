@@ -16,7 +16,7 @@ This must be done before deploying the scheduler.
 
 ```
 // 1) download configuration file
-curl -o queues.yaml https://github.com/cloudera/k8s-shim/blob/master/conf/queues.yaml
+curl -o queues.yaml https://github.com/cloudera/yunikorn-k8shim/blob/master/conf/queues.yaml
 
 // 2) create configmap
 kubectl create configmap yunikorn-configs --from-file=queues.yaml

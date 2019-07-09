@@ -17,10 +17,10 @@ limitations under the License.
 package controller
 
 import (
-	"github.com/cloudera/k8s-shim/pkg/common"
-	"github.com/cloudera/k8s-shim/pkg/state/cache"
-	"github.com/cloudera/k8s-shim/pkg/test"
-	"github.com/cloudera/scheduler-interface/lib/go/si"
+	"github.com/cloudera/yunikorn-k8shim/pkg/common"
+	"github.com/cloudera/yunikorn-k8shim/pkg/state/cache"
+	"github.com/cloudera/yunikorn-k8shim/pkg/test"
+	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
 	"gotest.tools/assert"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"

@@ -17,8 +17,8 @@ limitations under the License.
 package common
 
 import (
-	"github.com/cloudera/k8s-shim/pkg/conf"
-	"github.com/cloudera/scheduler-interface/lib/go/si"
+	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
+	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 )

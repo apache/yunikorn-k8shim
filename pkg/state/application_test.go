@@ -17,8 +17,8 @@ limitations under the License.
 package state
 
 import (
-	"github.com/cloudera/k8s-shim/pkg/common"
-	"github.com/cloudera/scheduler-interface/lib/go/si"
+	"github.com/cloudera/yunikorn-k8shim/pkg/common"
+	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
 	"github.com/cloudera/yunikorn-core/pkg/api"
 	"gotest.tools/assert"
 	"k8s.io/api/core/v1"

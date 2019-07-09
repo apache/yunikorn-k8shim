@@ -17,7 +17,7 @@ package utils
 
 import (
 	"fmt"
-	"github.com/cloudera/k8s-shim/pkg/conf"
+	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
 	"k8s.io/api/core/v1"
 	"strings"
 )

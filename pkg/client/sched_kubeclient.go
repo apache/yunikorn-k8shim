@@ -17,7 +17,7 @@ limitations under the License.
 package client
 
 import (
-	"github.com/cloudera/k8s-shim/pkg/log"
+	"github.com/cloudera/yunikorn-k8shim/pkg/log"
 	"go.uber.org/zap"
 	"k8s.io/api/core/v1"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"

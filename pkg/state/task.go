@@ -18,10 +18,10 @@ package state
 
 import (
 	"fmt"
-	"github.com/cloudera/k8s-shim/pkg/client"
-	"github.com/cloudera/k8s-shim/pkg/common"
-	"github.com/cloudera/k8s-shim/pkg/log"
-	"github.com/cloudera/scheduler-interface/lib/go/si"
+	"github.com/cloudera/yunikorn-k8shim/pkg/client"
+	"github.com/cloudera/yunikorn-k8shim/pkg/common"
+	"github.com/cloudera/yunikorn-k8shim/pkg/log"
+	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
 	"github.com/cloudera/yunikorn-core/pkg/api"
 	"go.uber.org/zap"
 	"strings"

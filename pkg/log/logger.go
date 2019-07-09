@@ -19,7 +19,7 @@ package log
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/cloudera/k8s-shim/pkg/conf"
+	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"strings"

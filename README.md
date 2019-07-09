@@ -13,7 +13,7 @@ Read [env-setup](./docs/env-setup.md) first to setup Docker, Kubernetes developm
 cd $GOPATH
 mkdir -p src/github.com/cloudera/
 cd src/github.com/cloudera/
-git clone https://github.com/cloudera/k8s-shim.git
+git clone https://github.com/cloudera/yunikorn-k8shim.git
 ```
 
 ### 2. Build and run it locally

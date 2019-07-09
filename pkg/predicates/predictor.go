@@ -18,7 +18,7 @@ package predicates
 
 import (
 	"fmt"
-	"github.com/cloudera/k8s-shim/pkg/log"
+	"github.com/cloudera/yunikorn-k8shim/pkg/log"
 	"go.uber.org/zap"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
