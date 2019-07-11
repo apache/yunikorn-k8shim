@@ -78,10 +78,9 @@ test:
 	go vet $(REPO)...
 
 clean:
-	rm -rf ${OUTPUT}
-	rm -f ${CONF_FILE} ${BINARY}
-	rm -f ./deployments/image/file/${BINARY}
-	rm -f ./deployments/image/file/${CONF_FILE}
-	rm -f ./deployments/image/configmap/${BINARY}
-	rm -f ./deployments/image/configmap/${CONF_FILE}
+	rm -rf ${OUTPUT} ${CONF_FILE} ${BINARY} \
+	./deployments/image/file/${BINARY} \
+	./deployments/image/file/${CONF_FILE} \
+	./deployments/image/configmap/${BINARY} \
+	./deployments/image/configmap/${CONF_FILE}
 
