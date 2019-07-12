@@ -46,7 +46,12 @@ or build an image that uses a config map:
 ```
 make image_map
 ```
-You *must* update the `IMAGE_TAG` variable in the `Makefile` to push to an accessible repository.
+
+You can set `TAG` and `VERSION` in the commandline to build docker image with a specified version and tag. For example,
+```
+make image TAG=yunikorn/yunikorn-scheduler VERSION=0.1.0
+```
+this command will build library with version `0.1.0` and the docker image tag is `yunikorn/yunikorn-scheduler:0.1.0`.
 
 ## Design documents
 All design documents are located in a central location per component. The core component design documents also contains the design documents for cross component designs.
