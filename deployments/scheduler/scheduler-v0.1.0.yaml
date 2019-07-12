@@ -14,11 +14,11 @@ spec:
     spec:
       hostNetwork: true
       containers:
-        - name: yunikorn-scheduler-core
-          image: yunikorn/scheduler-core:0.1.0
+        - name: yunikorn-scheduler-k8s
+          image: yunikorn/yunikorn-scheduler-k8s:0.1.0
           imagePullPolicy: Always
         - name: yunikorn-scheduler-web
-          image: yunikorn/scheduler-web:0.1.0
+          image: yunikorn/yunikorn-web:0.1.0
           imagePullPolicy: Always
         - name: kubectl
           image: lachlanevenson/k8s-kubectl:latest

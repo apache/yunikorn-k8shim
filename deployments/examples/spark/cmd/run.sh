@@ -1,10 +1,10 @@
 #!/bin/bash
 
 # replace these env var values accordingly
-SPARK_HOME=/Users/wyang/Documents/GitHub/spark
+SPARK_HOME=/Users/example/repository/spark
 K8S_ENDPOINT=http://localhost:8001
 SPARK_EXECUTOR_NUM=1
-SPARK_DOCKER_IMAGE=yangwwei/spark:latest
+SPARK_DOCKER_IMAGE=yunikorn/spark:latest
 SPARK_EXAMPLE_JAR=local:///opt/spark/examples/jars/spark-examples_2.12-3.0.0-SNAPSHOT.jar
 
 # spark submit command
