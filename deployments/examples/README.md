@@ -2,15 +2,32 @@
 
 Explore sample yaml files under this package to submit applications and get them scheduled by yunikorn.
 
-##nignx
+## nignx
+A simple one pod deployment of a [nginx](./nginx/nginx.yaml) image.
 
-##predicates
+## predicates
+Several examples for affinity and anti affinity:
 
-##sleep
+* [node affinity](./predicates/node-affinity-example.yaml)
+* [node selector](./predicates/pod-nodeselector-example.yaml)
+* [pod affinity](./predicates/pod-affinity-example.yaml)
+* [pod anti affinity](./predicates/pod-anti-affinity-example.yaml)
 
-##spark
+## sleep
+Two sample deployments using sleep jobs:
+* [simple sleep](./sleep/sleeppods.yaml) launches 3 pods, each pod sleeps 30 seconds.
+* [batch sleep](./sleep/batch-sleep-job.yaml) launch a job with 50 pods, each pod sleeps 300 seconds.
 
-##volumes
+## spark
+A sample application using Apache Spark.
+
+Start via the [run.sh](./spark/cmd/run.sh) script, for full details see the [user guide](https://github.com/cloudera/yunikorn-core/blob/master/docs/user-guide.md) in the yunikorn-core
+
+Deployment files for the driver and executor: 
+* [driver](./spark/driver.yaml)
+* [executor](spark/executor.yaml)
+
+## volumes
 The volumes directory contains two cases:
 
 Both cases will generate an unending stream of data in a file called `dates.txt` on the mounted volume. 

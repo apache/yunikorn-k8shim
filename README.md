@@ -1,96 +1,56 @@
 # YuniKorn Scheduler for Kubernetes (yunikorn-k8shim)
 
-YuniKorn scheduler for kubernetes is a customized k8s scheduler, it can be deployed in a K8s cluster and work as the scheduler.
+YuniKorn scheduler shim for kubernetes is a customized k8s scheduler, it can be deployed in a K8s cluster and work as the scheduler.
 This project contains the k8s shim layer code for k8s, it depends on `yunikorn-core` which encapsulates all the actual scheduling logic.
 By default, it handles all pods scheduling if pod's spec has field `schedulerName: yunikorn`.
 
+For detailed information on the components and how to build the overall scheduler please see the [yunikorn-core](https://github.com/cloudera/yunikorn-core).
+
 ## Development Environment setup
 
-Read [env-setup](./docs/env-setup.md) first to setup Docker, Kubernetes development environment.
+Read [env-setup](https://github.com/cloudera/yunikorn-core/blob/master/docs/env-setup.md) first to setup Docker, Kubernetes development environment.
 
-### 1. Get source code
-```
-cd $GOPATH
-mkdir -p src/github.com/cloudera/
-cd src/github.com/cloudera/
-git clone https://github.com/cloudera/yunikorn-k8shim.git
-```
+## Build local steps
+The dependencies in the project are managed using [go modules](https://blog.golang.org/using-go-modules).   
 
-### 2. Build and run it locally
 Prerequisite:
 - Go 1.11+
 
-#### Build binary on laptop
-
+### Build binary
+The simplest way to get a local binary that can be run on a local Kubernetes environment is: 
 ```
 make build
 ```
 
-this command will build a binary `k8s_yunikorn_scheduler` under `_output/bin` dir. This binary is executable on local environment, as long as `kubectl` is properly configured.
+This command will build a binary `k8s_yunikorn_scheduler` under `_output/bin` dir. This binary is executable on local environment, as long as `kubectl` is properly configured.
 Run `./k8s_yunikorn_scheduler -help` to see all options.
 
 **Note**: it may take few minutes to run this command for the first time, because it needs to download all dependencies.
 
-#### Alternatively, you can just run
-
+### Build run
+If the local environment is up and running you can build and run the binary via: 
 ```
 make run
 ```
 
-this will build the code, and run the binary with verbose logging.
+This will build the code, and run the binary with verbose logging. It will set the configuration for the scheduler to the provided default configuration `queues.yaml`.
 
+## Build image steps
+Build docker image can be triggered by running one of the following two image targets:
 
-### 3. Deploy to a k8s cluster
-
-#### Build docker image for k8s-shim
-
+Build an image that uses a build in configuration:
 ```
 make image
 ```
-
-this command will build the image, tag it and push to a docker hub repo.
-You may need to modify the image name and tag in `Makefile` if you want to push it somewhere else.
-
-#### Create RBAC for the scheduler
-
+or build an image that uses a config map:
 ```
-kubectl create -f deployments/scheduler/yunikorn-rbac.yaml
+make image_map
 ```
+You *must* update the `IMAGE_TAG` variable in the `Makefile` to push to an accessible repository.
 
-#### Deploy the scheduler on k8s
-
-```
-kubectl create -f deployments/scheduler/scheduler-v0.3.5.yaml
-```
-
-#### Run sample jobs
-
-All sample deployments can be found under `./deployments` directory.
-
-```
-// some nginx pods
-kubectl create -f deployments/nigix/nginxjob.yaml
-
-// some pods simply run sleep
-kubectl create -f deployments/sleep/sleeppods.xml
-```
-
-`./deployments/spark` contains pod template files for Spark driver and executor, they can be used if you want to run Spark on k8s using this scheduler.
-
-#### Access UI
-
-```
-// get name of yunikorn pod
-kubectl get pods | grep yunikorn-scheduler | cut -d " " -f 1
-
-// UI port
-kubectl port-forward ${podName} 9889
-
-// web service port
-kubectl port-forward ${podName} 9080
-```
-
-Tutorial of running Spark with YuniKorn can be found [here](./docs/spark.md).
+## Design documents
+All design documents are located in a central location per component. The core component design documents also contains the design documents for cross component designs.
+[List of design documents](docs/design/design-index.md) for the k8s-shim.
 
 ## How do I contribute code?
 

@@ -16,13 +16,13 @@ spec:
       name: yunikorn-scheduler
     spec:
       containers:
-        - name: yunikorn-scheduler-core
-          image: yunikorn/scheduler-core:0.2.0
+        - name: yunikorn-scheduler-k8s
+          image: yunikorn/yunikorn-scheduler-k8s:0.2.0
           imagePullPolicy: Always
           ports:
             - containerPort: 9080
         - name: yunikorn-scheduler-web
-          image: yunikorn/scheduler-web:0.2.0
+          image: yunikorn/yunikorn-web:0.2.0
           imagePullPolicy: Always
           ports:
             - containerPort: 9889

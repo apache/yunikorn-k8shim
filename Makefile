@@ -27,9 +27,14 @@ LOCAL_CONF=conf
 CONF_FILE=queues.yaml
 REPO=github.com/cloudera/yunikorn-k8shim/pkg
 
-IMAGE_TAG=yunikorn/scheduler-core
-IMAGE_VERSION=0.3.5
+# Version parameters
 DATE=$(shell date +%FT%T%z)
+IMAGE_VERSION=0.3.5
+
+# Image build parameters
+# change this to tag the image with a different name
+IMAGE_TAG=yunikorn/yunikorn-scheduler-k8s
+# change this to tag the image with a different name
 
 # Force Go modules even when checked out inside GOPATH
 GO111MODULE := on
@@ -39,32 +44,27 @@ init:
 	mkdir -p ${RELEASE_BIN_DIR}
 
 build: init
-	go build -o=${RELEASE_BIN_DIR}/${BINARY} -race --ldflags \
+	go build -o=${RELEASE_BIN_DIR}/${BINARY} -race -ldflags \
 	'-X main.version=${IMAGE_VERSION} -X main.date=${DATE}' \
 	./pkg/scheduler/
 
 build_image: init
 	GOOS=linux GOARCH=amd64 \
-	go build -a \
-	--ldflags '-extldflags "-static" -X main.version=${IMAGE_VERSION} -X main.date=${DATE}' \
+	go build -a -o=${RELEASE_BIN_DIR}/${BINARY} -ldflags \
+	'-extldflags "-static" -X main.version=${IMAGE_VERSION} -X main.date=${DATE}' \
 	-tags netgo -installsuffix netgo \
-	-o=${RELEASE_BIN_DIR}/${BINARY} \
 	./pkg/scheduler/
 
 image: build_image
 	cp ${RELEASE_BIN_DIR}/${BINARY} ./deployments/image/file
 	cp ${LOCAL_CONF}/${CONF_FILE} ./deployments/image/file
-	GOOS=linux
 	docker build ./deployments/image/file -t ${IMAGE_TAG}:${IMAGE_VERSION}
-	docker push ${IMAGE_TAG}:${IMAGE_VERSION}
 	rm -f ./deployments/image/file/${BINARY}
 	rm -f ./deployments/image/file/${CONF_FILE}
 
-image2: build_image
+image_map: build_image
 	cp ${RELEASE_BIN_DIR}/${BINARY} ./deployments/image/configmap
-	GOOS=linux
-	docker build ./deployments/image/configmap -t ${IMAGE_TAG}:0.3.5
-	docker push ${IMAGE_TAG}:0.3.5
+	docker build ./deployments/image/configmap -t ${IMAGE_TAG}:${IMAGE_VERSION}
 	rm -f ./deployments/image/configmap/${BINARY}
 
 run: build
@@ -83,4 +83,3 @@ clean:
 	./deployments/image/file/${CONF_FILE} \
 	./deployments/image/configmap/${BINARY} \
 	./deployments/image/configmap/${CONF_FILE}
-
