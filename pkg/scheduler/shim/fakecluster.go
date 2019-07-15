@@ -18,9 +18,9 @@ package shim
 
 import (
 	"fmt"
+	"github.com/cloudera/yunikorn-core/pkg/api"
 	utils "github.com/cloudera/yunikorn-core/pkg/common/configs"
 	"github.com/cloudera/yunikorn-core/pkg/entrypoint"
-	"github.com/cloudera/yunikorn-core/pkg/rmproxy"
 	"github.com/cloudera/yunikorn-k8shim/pkg/client"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common"
 	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
@@ -43,7 +43,7 @@ const fakeClusterSchedulingInterval = 1
 type FakeCluster struct {
 	context *state.Context
 	scheduler *ShimScheduler
-	proxy *rmproxy.RMProxy
+	proxy  api.SchedulerApi
 	client client.KubeClient
 	conf string
 	bindFn func(pod *v1.Pod, hostId string) error

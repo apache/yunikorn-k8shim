@@ -38,6 +38,7 @@ func main() {
 		zap.String("name", conf.GetSchedulerConf().SchedulerName))
 
 	serviceContext := entrypoint.StartAllServices()
+
 	stopChan := make(chan struct{})
 	ss := shim.NewShimScheduler(serviceContext.RMProxy, conf.GetSchedulerConf())
 	ss.Run(stopChan)

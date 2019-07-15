@@ -19,7 +19,6 @@ package shim
 import (
 	"fmt"
 	"github.com/cloudera/yunikorn-core/pkg/api"
-	"github.com/cloudera/yunikorn-core/pkg/rmproxy"
 	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
 	"github.com/cloudera/yunikorn-k8shim/pkg/log"
 	"github.com/cloudera/yunikorn-k8shim/pkg/scheduler/callback"
@@ -33,7 +32,7 @@ import (
 
 // shim scheduler watches api server and interacts with unity scheduler to allocate pods
 type ShimScheduler struct {
-	rmProxy    *rmproxy.RMProxy
+	rmProxy    api.SchedulerApi
 	context    *state.Context
 	callback   api.ResourceManagerCallback
 	sm         *fsm.FSM
@@ -42,17 +41,17 @@ type ShimScheduler struct {
 	lock       *sync.Mutex
 }
 
-func NewShimScheduler(p *rmproxy.RMProxy, configs *conf.SchedulerConf) *ShimScheduler {
-	context := state.NewContext(p, configs)
+func NewShimScheduler(api api.SchedulerApi, configs *conf.SchedulerConf) *ShimScheduler {
+	context := state.NewContext(api, configs)
 	callback := callback.NewAsyncRMCallback(context)
-	return newShimScheduler(p, context, callback)
+	return newShimScheduler(api, context, callback)
 }
 
 // this is visible for testing
-func newShimScheduler(p *rmproxy.RMProxy, ctx *state.Context, cb api.ResourceManagerCallback) *ShimScheduler {
+func newShimScheduler(api api.SchedulerApi, ctx *state.Context, cb api.ResourceManagerCallback) *ShimScheduler {
 	var events = InitiateEvents()
 	ss := &ShimScheduler{
-		rmProxy:  p,
+		rmProxy:  api,
 		context:  ctx,
 		callback: cb,
 		events:   events,

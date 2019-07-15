@@ -19,7 +19,6 @@ package state
 import (
 	"fmt"
 	"github.com/cloudera/yunikorn-core/pkg/api"
-	"github.com/cloudera/yunikorn-core/pkg/rmproxy"
 	"github.com/cloudera/yunikorn-k8shim/pkg/client"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common"
 	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
@@ -424,15 +423,8 @@ func (ctx *Context) deleteConfigMaps(obj interface{}) {
 
 func (ctx *Context) triggerReloadConfig() {
 	log.Logger.Info("trigger scheduler configuration reloading")
-	// TODO this should be moved to an admin API interface
-	switch ctx.schedulerApi.(type) {
-	case *rmproxy.RMProxy:
-		proxy := ctx.schedulerApi.(*rmproxy.RMProxy)
-		if err := proxy.ReloadConfiguration(ctx.conf.ClusterId); err != nil {
-			log.Logger.Error("reload configuration failed", zap.Error(err))
-		}
-	default:
-		return
+	if err := ctx.schedulerApi.ReloadConfiguration(ctx.conf.ClusterId); err != nil {
+		log.Logger.Error("reload configuration failed", zap.Error(err))
 	}
 }
 

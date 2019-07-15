@@ -3,7 +3,7 @@ module github.com/cloudera/yunikorn-k8shim
 go 1.12
 
 require (
-	github.com/cloudera/yunikorn-core v0.0.0-20190713145355-7dc996717d37
+	github.com/cloudera/yunikorn-core v0.0.0-20190715065645-dca66c7e5a9e
 	github.com/cloudera/yunikorn-scheduler-interface v0.0.0-20190712100022-3df392eded1f
 	github.com/coreos/bbolt v1.3.3 // indirect
 	github.com/coreos/etcd v3.3.13+incompatible // indirect
@@ -37,6 +37,7 @@ require (
 	github.com/xiang90/probing v0.0.0-20190116061207-43a291ad63a2 // indirect
 	go.etcd.io/bbolt v1.3.3 // indirect
 	go.uber.org/zap v1.10.0
+	golang.org/x/tools v0.0.0-20190715044752-607ca053a137 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/square/go-jose.v2 v2.3.1 // indirect
 	gotest.tools v2.2.0+incompatible

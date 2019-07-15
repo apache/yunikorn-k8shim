@@ -36,6 +36,10 @@ github.com/cloudera/yunikorn-core v0.0.0-20190709143932-612ff012277e h1:6u6sw2on
 github.com/cloudera/yunikorn-core v0.0.0-20190709143932-612ff012277e/go.mod h1:7YTbulI+A4JW9Ilv+cghVYdj/X3G7iFonuo0qBNnInk=
 github.com/cloudera/yunikorn-core v0.0.0-20190713145355-7dc996717d37 h1:3hsaqx6W6EoEXcefqV4txytK8qw6os/2niFQS4hjEFM=
 github.com/cloudera/yunikorn-core v0.0.0-20190713145355-7dc996717d37/go.mod h1:JWG/qNWu+3u8nrOZ1nKTY4D19oDUxfeYDzCtuIjCoNU=
+github.com/cloudera/yunikorn-core v0.0.0-20190715063525-3298bd9ab598 h1:Sdh8inirFd37idx8UAmhkYLViOYq4B4/MgJLVTr2NN4=
+github.com/cloudera/yunikorn-core v0.0.0-20190715063525-3298bd9ab598/go.mod h1:JWG/qNWu+3u8nrOZ1nKTY4D19oDUxfeYDzCtuIjCoNU=
+github.com/cloudera/yunikorn-core v0.0.0-20190715065645-dca66c7e5a9e h1:3wDhl4nrMqsh2VrsadvM89MyCd0qjqKFs0RcGfqhcLk=
+github.com/cloudera/yunikorn-core v0.0.0-20190715065645-dca66c7e5a9e/go.mod h1:JWG/qNWu+3u8nrOZ1nKTY4D19oDUxfeYDzCtuIjCoNU=
 github.com/cloudera/yunikorn-scheduler-interface v0.0.0-20190709143634-b18608ace3f2 h1:kAdX0uv8hYtb0ULvrwUYgZU+bokbJ0/G2rohjjOwPPM=
 github.com/cloudera/yunikorn-scheduler-interface v0.0.0-20190709143634-b18608ace3f2/go.mod h1:QE7hLVzWYKot7H8eNMnGsphqStSEmSxxU5dgFzI32rk=
 github.com/cloudera/yunikorn-scheduler-interface v0.0.0-20190712100022-3df392eded1f h1:L+S1fRGNnPpoKgTsjkCld4YBdHvQ+j7MHuRg0mPebjk=
@@ -336,6 +340,7 @@ golang.org/x/tools v0.0.0-20190524140312-2c0ae7006135/go.mod h1:RgjU9mgBXZiqYHBn
 golang.org/x/tools v0.0.0-20190606124116-d0a3d012864b/go.mod h1:/rFqwRUd4F7ZHNgwSSTFct+R/Kf4OFW1sUzUTQQTgfc=
 golang.org/x/tools v0.0.0-20190624190245-7f2218787638/go.mod h1:/rFqwRUd4F7ZHNgwSSTFct+R/Kf4OFW1sUzUTQQTgfc=
 golang.org/x/tools v0.0.0-20190712213246-8b927904ee0d/go.mod h1:jcCCGcm9btYwXyDqrUWc6MKQKKGJCWEQ3AfLSRIbEuI=
+golang.org/x/tools v0.0.0-20190715044752-607ca053a137/go.mod h1:jcCCGcm9btYwXyDqrUWc6MKQKKGJCWEQ3AfLSRIbEuI=
 google.golang.org/api v0.4.0/go.mod h1:8k5glujaEP+g9n7WNsDg8QP6cUVNI86fCNMcbazEtwE=
 google.golang.org/api v0.7.0/go.mod h1:WtwebWUNSVBH/HAw79HIFXZNqEvBhG+Ra+ax0hx3E3M=
 google.golang.org/appengine v1.1.0/go.mod h1:EbEs0AVv82hx2wNQdGPgUI5lhzA/G0D9YwlJXL52JkM=

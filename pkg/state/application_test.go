@@ -186,6 +186,10 @@ func (ms *MockSchedulerApi) Update(request *si.UpdateRequest) error {
 	return ms.updateFn(request)
 }
 
+func (ms *MockSchedulerApi) ReloadConfiguration(rmId string) error {
+	return nil
+}
+
 func assertAppState(t *testing.T, app *Application, expectedState string, duration time.Duration) {
 	deadline := time.Now().Add(duration)
 	for {

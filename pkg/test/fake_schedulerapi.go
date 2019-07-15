@@ -39,3 +39,7 @@ func (api *FakeSchedulerApi) Update(request *si.UpdateRequest) error {
 	api.UpdateCount++
 	return api.UpdateFn(request)
 }
+
+func (api *FakeSchedulerApi) ReloadConfiguration(rmId string) error {
+	return nil
+}
