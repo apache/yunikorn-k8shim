@@ -29,20 +29,22 @@ const (
 	DefaultPolicyGroup = "queues"
 	DefaultLoggingLevel = 0
 	DefaultLogEncoding = "console"
+	DefaultVolumeBindTimeout = time.Duration(10) * time.Second
 )
 
 var configuration *SchedulerConf
 
 type SchedulerConf struct {
-	ClusterId      string `json:"clusterId"`
-	ClusterVersion string `json:"clusterVersion"`
-	SchedulerName  string `json:"schedulerName"`
-	PolicyGroup    string `json:"policyGroup"`
-	Interval       int    `json:"schedulingIntervalSecond"`
-	KubeConfig     string `json:"absoluteKubeConfigFilePath"`
-	LoggingLevel   int    `json:"loggingLevel"`
-	LogEncoding    string `json:"logEncoding"`
-	LogFile        string `json:"logFilePath"`
+	ClusterId         string        `json:"clusterId"`
+	ClusterVersion    string        `json:"clusterVersion"`
+	SchedulerName     string        `json:"schedulerName"`
+	PolicyGroup       string        `json:"policyGroup"`
+	Interval          int           `json:"schedulingIntervalSecond"`
+	KubeConfig        string        `json:"absoluteKubeConfigFilePath"`
+	LoggingLevel      int           `json:"loggingLevel"`
+	LogEncoding       string        `json:"logEncoding"`
+	LogFile           string        `json:"logFilePath"`
+	VolumeBindTimeout time.Duration `json:"volumeBindTimeout"`
 }
 
 func GetSchedulerConf() *SchedulerConf {
@@ -59,29 +61,41 @@ func (conf *SchedulerConf) GetKubeConfigPath() string {
 
 func init() {
 	// scheduler options
-	kubeConfig := flag.String("kubeConfig", "", "absolute path to the kubeconfig file")
-	schedulingInterval := flag.Int("interval", 1, "scheduling interval in seconds")
-	clusterId := flag.String("clusterId", DefaultClusterId, "cluster id")
-	clusterVersion := flag.String("clusterVersion", DefaultClusterVersion, "cluster version")
-	schedulerName := flag.String("name", DefaultSchedulerName, "name of the scheduler")
-	policyGroup := flag.String("policyGroup", DefaultPolicyGroup, "policy group")
+	kubeConfig := flag.String("kubeConfig", "",
+		"absolute path to the kubeconfig file")
+	schedulingInterval := flag.Int("interval", 1,
+		"scheduling interval in seconds")
+	clusterId := flag.String("clusterId", DefaultClusterId,
+		"cluster id")
+	clusterVersion := flag.String("clusterVersion", DefaultClusterVersion,
+		"cluster version")
+	schedulerName := flag.String("name", DefaultSchedulerName,
+		"name of the scheduler")
+	policyGroup := flag.String("policyGroup", DefaultPolicyGroup,
+		"policy group")
+	volumeBindTimeout := flag.Duration("volumeBindTimeout", DefaultVolumeBindTimeout,
+		"timeout in seconds when binding a volume")
 
 	// logging options
-	logLevel := flag.Int("logLevel", DefaultLoggingLevel, "logging level, available range [-1, 5], from DEBUG to FATAL.")
-	encode := flag.String("logEncoding", DefaultLogEncoding, "log encoding, json or console.")
-	logFile := flag.String("logFile", "", "absolute log file path")
+	logLevel := flag.Int("logLevel", DefaultLoggingLevel,
+		"logging level, available range [-1, 5], from DEBUG to FATAL.")
+	encode := flag.String("logEncoding", DefaultLogEncoding,
+		"log encoding, json or console.")
+	logFile := flag.String("logFile", "",
+		"absolute log file path")
 
 	flag.Parse()
 
 	configuration = &SchedulerConf{
-		ClusterId:      *clusterId,
-		ClusterVersion: *clusterVersion,
-		PolicyGroup:    *policyGroup,
-		SchedulerName:  *schedulerName,
-		Interval:       *schedulingInterval,
-		KubeConfig:     *kubeConfig,
-		LoggingLevel:   *logLevel,
-		LogEncoding:    *encode,
-		LogFile:        *logFile,
+		ClusterId:         *clusterId,
+		ClusterVersion:    *clusterVersion,
+		PolicyGroup:       *policyGroup,
+		SchedulerName:     *schedulerName,
+		Interval:          *schedulingInterval,
+		KubeConfig:        *kubeConfig,
+		LoggingLevel:      *logLevel,
+		LogEncoding:       *encode,
+		LogFile:           *logFile,
+		VolumeBindTimeout: *volumeBindTimeout,
 	}
 }
