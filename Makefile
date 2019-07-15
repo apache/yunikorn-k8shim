@@ -42,44 +42,72 @@ endif
 GO111MODULE := on
 export GO111MODULE
 
-init:
+.PHONY: common
+common: common-init common-check-license
+
+.PHONY: common-check-license
+common-check-license:
+	@echo "checking license header"
+	@licRes=$$(for file in $$(find . -type f -iname '*.go' ! -path './vendor/*') ; do \
+               awk 'NR<=3' $$file | grep -Eq "Copyright 2019 Cloudera" || echo $$file; done); \
+       if [ -n "$${licRes}" ]; then \
+               echo "following files have incorrect license header"; echo "$${licRes}"; \
+               exit 1; \
+       fi
+
+.PHONY: common-init
+common-init:
 	mkdir -p ${RELEASE_BIN_DIR}
 
-build: init
+.PHONY: build
+build: common
+	@echo "building scheduler binary"
 	go build -o=${RELEASE_BIN_DIR}/${BINARY} -race -ldflags \
 	'-X main.version=${VERSION} -X main.date=${DATE}' \
 	./pkg/scheduler/
 
-build_image: init
+.PHONY: build_image
+build_image: common
+	@echo "building binary for scheduler docker image"
 	GOOS=linux GOARCH=amd64 \
 	go build -a -o=${RELEASE_BIN_DIR}/${BINARY} -ldflags \
 	'-extldflags "-static" -X main.version=${VERSION} -X main.date=${DATE}' \
 	-tags netgo -installsuffix netgo \
 	./pkg/scheduler/
 
+.PHONY: image
 image: build_image
+	@echo "building scheduler docker image (loads configs from local file)"
 	cp ${RELEASE_BIN_DIR}/${BINARY} ./deployments/image/file
 	cp ${LOCAL_CONF}/${CONF_FILE} ./deployments/image/file
 	docker build ./deployments/image/file -t ${TAG}:${VERSION}
 	rm -f ./deployments/image/file/${BINARY}
 	rm -f ./deployments/image/file/${CONF_FILE}
 
+.PHONY: image_map
 image_map: build_image
+	@echo "building scheduler docker image (loads configs from configmap)"
 	cp ${RELEASE_BIN_DIR}/${BINARY} ./deployments/image/configmap
 	docker build ./deployments/image/configmap -t ${TAG}:${VERSION}
 	rm -f ./deployments/image/configmap/${BINARY}
 
+.PHONY: run
 run: build
+	@echo "running scheduler locally"
 	cp ${LOCAL_CONF}/${CONF_FILE} ${RELEASE_BIN_DIR}
 	cd ${RELEASE_BIN_DIR} && ./${BINARY} -kubeConfig=$(HOME)/.kube/config -interval=1 \
 	-clusterId=mycluster -clusterVersion=0.1 -name=yunikorn -policyGroup=queues \
 	-logEncoding=console -logLevel=-1
 
+.PHONY: test
 test:
+	@echo "running unit tests"
 	go test ./... -cover -race -tags deadlock
 	go vet $(REPO)...
 
+.PHONY: clean
 clean:
+	go clean ./...
 	rm -rf ${OUTPUT} ${CONF_FILE} ${BINARY} \
 	./deployments/image/file/${BINARY} \
 	./deployments/image/file/${CONF_FILE} \
