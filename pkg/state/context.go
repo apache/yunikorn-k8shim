@@ -101,11 +101,19 @@ func NewContextInternal(scheduler api.SchedulerApi, configs *conf.SchedulerConf,
 	ctx.pvcInformer = informerFactory.Core().V1().PersistentVolumeClaims()
 
 	// create a volume binder (needs the informers)
-	// TODO timeout is only used in the bind so for now just set a value
-	ctx.volumeBinder = volumebinder.NewVolumeBinder(ctx.kubeClient.GetClientSet(), ctx.nodeInformer, ctx.pvcInformer, ctx.pvInformer, ctx.storageInformer, 10)
+	ctx.volumeBinder = volumebinder.NewVolumeBinder(
+		ctx.kubeClient.GetClientSet(),
+		ctx.nodeInformer, ctx.pvcInformer,
+		ctx.pvInformer,
+		ctx.storageInformer,
+		ctx.conf.VolumeBindTimeout)
 
 	// create the cache
-	ctx.schedulerCache = schedulercache.NewSchedulerCache(ctx.pvInformer.Lister(), ctx.pvcInformer.Lister(), ctx.storageInformer.Lister(), ctx.volumeBinder)
+	ctx.schedulerCache = schedulercache.NewSchedulerCache(
+		ctx.pvInformer.Lister(),
+		ctx.pvcInformer.Lister(),
+		ctx.storageInformer.Lister(),
+		ctx.volumeBinder)
 
 	// init the controllers and plugins (need the cache)
 	ctx.nodeController = controller.NewNodeController(scheduler, ctx.schedulerCache)
@@ -410,8 +418,8 @@ func (ctx *Context) updateConfigMaps(obj, newObj interface{}) {
 	// periodic sync. As a result, the total delay from the moment when the ConfigMap
 	// is updated to the moment when new keys are projected to the pod can be as long
 	// as kubelet sync period + ttl of ConfigMaps cache in kubelet.
-	// We trigger configuration reload, on YuniKorn core side, it keeps checking config
-	// file state once this is called. And the acutal reload happens when it detects
+	// We trigger configuration reload, on yunikorn-core side, it keeps checking config
+	// file state once this is called. And the actual reload happens when it detects
 	// actual changes on the content.
 	ctx.triggerReloadConfig()
 }
