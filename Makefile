@@ -42,32 +42,28 @@ endif
 GO111MODULE := on
 export GO111MODULE
 
-.PHONY: common
-common: common-init common-check-license
-
 .PHONY: common-check-license
 common-check-license:
 	@echo "checking license header"
-	@licRes=$$(for file in $$(find . -type f -iname '*.go' ! -path './vendor/*') ; do \
-               awk 'NR<=3' $$file | grep -Eq "Copyright 2019 Cloudera" || echo $$file; done); \
-       if [ -n "$${licRes}" ]; then \
-               echo "following files have incorrect license header"; echo "$${licRes}"; \
-               exit 1; \
-       fi
+	@licRes=$$(grep -Lr --include="*.go" "Copyright 20[1-2][0-9] Cloudera" .) ; \
+	if [ -n "$${licRes}" ]; then \
+		echo "following files have incorrect license header:\n$${licRes}" ; \
+		exit 1; \
+	fi
 
-.PHONY: common-init
-common-init:
+.PHONY: init
+init:
 	mkdir -p ${RELEASE_BIN_DIR}
 
 .PHONY: build
-build: common
+build: init
 	@echo "building scheduler binary"
 	go build -o=${RELEASE_BIN_DIR}/${BINARY} -race -ldflags \
 	'-X main.version=${VERSION} -X main.date=${DATE}' \
 	./pkg/scheduler/
 
 .PHONY: build_image
-build_image: common
+build_image: init
 	@echo "building binary for scheduler docker image"
 	GOOS=linux GOARCH=amd64 \
 	go build -a -o=${RELEASE_BIN_DIR}/${BINARY} -ldflags \

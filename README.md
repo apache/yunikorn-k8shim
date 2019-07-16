@@ -4,54 +4,45 @@ YuniKorn scheduler shim for kubernetes is a customized k8s scheduler, it can be 
 This project contains the k8s shim layer code for k8s, it depends on `yunikorn-core` which encapsulates all the actual scheduling logic.
 By default, it handles all pods scheduling if pod's spec has field `schedulerName: yunikorn`.
 
-For detailed information on the components and how to build the overall scheduler please see the [yunikorn-core](https://github.com/cloudera/yunikorn-core).
+For detailed information on how to build the overall scheduler please see the [build document](https://github.com/cloudera/yunikorn-core/blob/master/docs/build.md) in the `yunikorn-core`.
 
-## Development Environment setup
-
-Read [env-setup](https://github.com/cloudera/yunikorn-core/blob/master/docs/env-setup.md) first to setup Docker, Kubernetes development environment.
-
-## Build local steps
-The dependencies in the project are managed using [go modules](https://blog.golang.org/using-go-modules).   
-
-Prerequisite:
-- Go 1.11+
+## K8s-shim component build
+This component build should only be used for development builds.
+Prerequisites and build environment setup is described in the above mentioned build document.
 
 ### Build binary
 The simplest way to get a local binary that can be run on a local Kubernetes environment is: 
 ```
 make build
 ```
-
 This command will build a binary `k8s_yunikorn_scheduler` under `_output/bin` dir. This binary is executable on local environment, as long as `kubectl` is properly configured.
 Run `./k8s_yunikorn_scheduler -help` to see all options.
 
 **Note**: it may take few minutes to run this command for the first time, because it needs to download all dependencies.
 
 ### Build run
-If the local environment is up and running you can build and run the binary via: 
+If the local kubernetes environment is up and running you can build and run the binary via: 
 ```
 make run
 ```
+This will build the code, and run the scheduler with verbose logging. 
+It will set the configuration for the scheduler to the provided default configuration `queues.yaml` and uses the current setup for kubernetes.
 
-This will build the code, and run the binary with verbose logging. It will set the configuration for the scheduler to the provided default configuration `queues.yaml`.
+### Build and run tests
+Unit tests for the shim only can be run via:
+```
+make test
+```
+Any changes made to the shim code should not cause any existing tests to fail.
 
-## Build image steps
-Build docker image can be triggered by running one of the following two image targets:
-
-Build an image that uses a build in configuration:
-```
-make image
-```
-or build an image that uses a config map:
-```
-make image_map
-```
+### Build image steps
+Build docker image can be triggered by running one of two image targets as per the integrated build documentation referenced above..
 
 You can set `TAG` and `VERSION` in the commandline to build docker image with a specified version and tag. For example,
 ```
 make image TAG=yunikorn/yunikorn-scheduler VERSION=0.1.0
 ```
-this command will build library with version `0.1.0` and the docker image tag is `yunikorn/yunikorn-scheduler:0.1.0`.
+This command will build a binary executable with version `0.1.0` and the docker image tag is `yunikorn/yunikorn-scheduler:0.1.0`.
 
 ## Design documents
 All design documents are located in a central location per component. The core component design documents also contains the design documents for cross component designs.
