@@ -30,7 +30,7 @@ REPO=github.com/cloudera/yunikorn-k8shim/pkg
 # Version parameters
 DATE=$(shell date +%FT%T%z)
 ifeq ($(VERSION),)
-VERSION := 0.1
+VERSION := 0.1.0
 endif
 
 # Image build parameters
@@ -73,18 +73,17 @@ build_image: init
 
 .PHONY: image
 image: build_image
-	@echo "building scheduler docker image (loads configs from local file)"
-	cp ${RELEASE_BIN_DIR}/${BINARY} ./deployments/image/file
-	cp ${LOCAL_CONF}/${CONF_FILE} ./deployments/image/file
-	docker build ./deployments/image/file -t ${TAG}:${VERSION}
-	rm -f ./deployments/image/file/${BINARY}
-	rm -f ./deployments/image/file/${CONF_FILE}
-
-.PHONY: image_map
-image_map: build_image
-	@echo "building scheduler docker image (loads configs from configmap)"
+	@echo "building scheduler docker image"
 	cp ${RELEASE_BIN_DIR}/${BINARY} ./deployments/image/configmap
-	docker build ./deployments/image/configmap -t ${TAG}:${VERSION}
+	@coreSHA=$$(go list -m "github.com/cloudera/yunikorn-core" | cut -d "-" -f4) ; \
+	siSHA=$$(go list -m "github.com/cloudera/yunikorn-scheduler-interface" | cut -d "-" -f5) ; \
+	shimSHA=$$(git rev-parse --short=12 HEAD) ; \
+	docker build ./deployments/image/configmap -t ${TAG}:${VERSION} \
+	--label "yunikorn-core-revision=$${coreSHA}" \
+	--label "yunikorn-scheduler-interface-revision=$${siSHA}" \
+	--label "yunikorn-k8shim-revision=$${shimSHA}" \
+	--label "BuildTimeStamp=${DATE}" \
+	--label "Version=${VERSION}"
 	rm -f ./deployments/image/configmap/${BINARY}
 
 .PHONY: run

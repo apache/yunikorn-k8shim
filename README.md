@@ -36,7 +36,11 @@ make test
 Any changes made to the shim code should not cause any existing tests to fail.
 
 ### Build image steps
-Build docker image can be triggered by running one of two image targets as per the integrated build documentation referenced above..
+Build docker image can be triggered by running following command.
+
+```
+make image
+```
 
 You can set `TAG` and `VERSION` in the commandline to build docker image with a specified version and tag. For example,
 ```
