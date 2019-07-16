@@ -48,6 +48,12 @@ make image TAG=yunikorn/yunikorn-scheduler VERSION=0.1.0
 ```
 This command will build a binary executable with version `0.1.0` and the docker image tag is `yunikorn/yunikorn-scheduler:0.1.0`.
 
+You can run following command to retrieve the meta info for a docker image build, such as component revisions, date of the build, etc.
+
+```
+docker inspect --format='{{.Config.Labels}}' ${IMAGE_ID}
+```
+
 ## Design documents
 All design documents are located in a central location per component. The core component design documents also contains the design documents for cross component designs.
 [List of design documents](docs/design/design-index.md) for the k8s-shim.
