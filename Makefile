@@ -30,10 +30,11 @@ REPO=github.com/cloudera/yunikorn-k8shim/pkg
 # Version parameters
 DATE=$(shell date +%FT%T%z)
 ifeq ($(VERSION),)
-VERSION := 0.1.0
+VERSION := 0.1.0-SNAPSHOT
 endif
 
 # Image build parameters
+# This tag of the image must be changed when pushed to a public repository.
 ifeq ($(TAG),)
 TAG := yunikorn/yunikorn-scheduler-k8s
 endif
@@ -74,7 +75,8 @@ build_image: init
 .PHONY: image
 image: build_image
 	@echo "building scheduler docker image"
-	cp ${RELEASE_BIN_DIR}/${BINARY} ./deployments/image/configmap
+	@cp ${RELEASE_BIN_DIR}/${BINARY} ./deployments/image/configmap
+	@sed -i '.bkp' 's/clusterVersion=.*"/clusterVersion=${VERSION}"/' deployments/image/configmap/Dockerfile
 	@coreSHA=$$(go list -m "github.com/cloudera/yunikorn-core" | cut -d "-" -f4) ; \
 	siSHA=$$(go list -m "github.com/cloudera/yunikorn-scheduler-interface" | cut -d "-" -f5) ; \
 	shimSHA=$$(git rev-parse --short=12 HEAD) ; \
@@ -84,14 +86,15 @@ image: build_image
 	--label "yunikorn-k8shim-revision=$${shimSHA}" \
 	--label "BuildTimeStamp=${DATE}" \
 	--label "Version=${VERSION}"
-	rm -f ./deployments/image/configmap/${BINARY}
+	@mv -f deployments/image/configmap/Dockerfile.bkp deployments/image/configmap/Dockerfile
+	@rm -f ./deployments/image/configmap/${BINARY}
 
 .PHONY: run
 run: build
 	@echo "running scheduler locally"
-	cp ${LOCAL_CONF}/${CONF_FILE} ${RELEASE_BIN_DIR}
+	@cp ${LOCAL_CONF}/${CONF_FILE} ${RELEASE_BIN_DIR}
 	cd ${RELEASE_BIN_DIR} && ./${BINARY} -kubeConfig=$(HOME)/.kube/config -interval=1 \
-	-clusterId=mycluster -clusterVersion=0.1 -name=yunikorn -policyGroup=queues \
+	-clusterId=mycluster -clusterVersion=${VERSION} -name=yunikorn -policyGroup=queues \
 	-logEncoding=console -logLevel=-1
 
 .PHONY: test
@@ -102,7 +105,7 @@ test:
 
 .PHONY: clean
 clean:
-	go clean ./...
+	go clean -r -x ./...
 	rm -rf ${OUTPUT} ${CONF_FILE} ${BINARY} \
 	./deployments/image/file/${BINARY} \
 	./deployments/image/file/${CONF_FILE} \
