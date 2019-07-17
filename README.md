@@ -44,14 +44,14 @@ make image
 
 You can set `TAG` and `VERSION` in the commandline to build docker image with a specified version and tag. For example,
 ```
-make image TAG=yunikorn/yunikorn-scheduler VERSION=0.1.0
+make image TAG=yunikorn/yunikorn-scheduler-k8s VERSION=latest
 ```
-This command will build a binary executable with version `0.1.0` and the docker image tag is `yunikorn/yunikorn-scheduler:0.1.0`.
+This command will build a binary executable with version `latest` and the docker image tag is `yunikorn/yunikorn-scheduler-k8s:latest`.
 
 You can run following command to retrieve the meta info for a docker image build, such as component revisions, date of the build, etc.
 
 ```
-docker inspect --format='{{.Config.Labels}}' ${IMAGE_ID}
+docker inspect --format='{{.Config.Labels}}' yunikorn/yunikorn-scheduler-k8s:latest
 ```
 
 ## Design documents

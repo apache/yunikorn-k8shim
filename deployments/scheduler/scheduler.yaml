@@ -15,7 +15,7 @@ spec:
       hostNetwork: true
       containers:
         - name: yunikorn-scheduler-k8s
-          image: yunikorn/yunikorn-scheduler-k8s:0.3.4
+          image: yunikorn/yunikorn-scheduler-k8s:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 9080
@@ -24,7 +24,7 @@ spec:
             - name: config-volume
               mountPath: /etc/yunikorn/
         - name: yunikorn-scheduler-web
-          image: yunikorn/yunikorn-web:0.3.0
+          image: yunikorn/yunikorn-web:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 9889
