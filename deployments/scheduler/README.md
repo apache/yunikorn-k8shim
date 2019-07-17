@@ -1,13 +1,13 @@
 # Deployment examples
 
-## 0.1.0-SNAPSHOT
+## scheduler
 
 * Deploys scheduler-core + scheduler-web
 * Scheduler pod runs 2 containers, 1 for scheduler-core, 1 for scheduler-web
 * Configuration loaded from config map
 * UI port is `9889`
 
-deployment: [scheduler-v0.1.0-SNAPSHOT.yaml](scheduler-v0.1.0-SNAPSHOT.yaml)
+deployment: [scheduler.yaml](scheduler.yaml)
 
 ## RBAC
 
