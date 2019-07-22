@@ -17,16 +17,19 @@ spec:
     spec:
       containers:
         - name: yunikorn-scheduler-k8s
-          image: yunikorn/yunikorn-scheduler-k8s:0.2.0
-          imagePullPolicy: Always
+          image: yunikorn/yunikorn-scheduler-k8s:latest
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 9080
         - name: yunikorn-scheduler-web
-          image: yunikorn/yunikorn-web:0.2.0
-          imagePullPolicy: Always
+          image: yunikorn/yunikorn-web:latest
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 9889
-
+      volumes:
+        - name: config-volume
+          configMap:
+            name: yunikorn-configs
 ---
 apiVersion: v1
 kind: Service
