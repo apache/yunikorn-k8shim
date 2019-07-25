@@ -23,7 +23,6 @@ spec:
             - name: config-volume
               mountPath: /etc/yunikorn/
           ports:
-          ports:
             - containerPort: 9080
         - name: yunikorn-scheduler-web
           image: yunikorn/yunikorn-web:latest
