@@ -49,4 +49,3 @@ spec:
   selector:
     app: yunikorn
   type: LoadBalancer
-
