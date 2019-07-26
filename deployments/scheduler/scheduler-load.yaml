@@ -19,6 +19,9 @@ spec:
         - name: yunikorn-scheduler-k8s
           image: yunikorn/yunikorn-scheduler-k8s:latest
           imagePullPolicy: IfNotPresent
+          volumeMounts:
+            - name: config-volume
+              mountPath: /etc/yunikorn/
           ports:
             - containerPort: 9080
         - name: yunikorn-scheduler-web

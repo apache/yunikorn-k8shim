@@ -66,7 +66,7 @@ build: init
 .PHONY: build_image
 build_image: init
 	@echo "building binary for scheduler docker image"
-	GOOS=linux GOARCH=amd64 \
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
 	go build -a -o=${RELEASE_BIN_DIR}/${BINARY} -ldflags \
 	'-extldflags "-static" -X main.version=${VERSION} -X main.date=${DATE}' \
 	-tags netgo -installsuffix netgo \
