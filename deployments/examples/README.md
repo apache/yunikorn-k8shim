@@ -25,7 +25,7 @@ Start via the [run.sh](./spark/cmd/run.sh) script, for full details see the [use
 
 Deployment files for the driver and executor: 
 * [driver](./spark/driver.yaml).
-* [executor](spark/executor.yaml).
+* [executor](./spark/executor.yaml).
 
 ## volumes
 The volumes directory contains three cases:
@@ -52,7 +52,8 @@ Use [minikube](https://kubernetes.io/docs/tasks/tools/install-minikube/) as a wo
   * Bind an existing volume into the pod using a PV and PVC: [pod-ebs-exist.yaml](./volume/pod-ebs-exist.yaml).
     <br>Pre-requisite: add the volume on top of an existing volume [ebs-pv.yaml](./volume/ebs-pv.yaml).
   * Bind an existing volume into the pod directly using the volume ID: [pod-ebs-direct.yaml](./volume/pod-ebs-direct.yaml).
-  * Create a new volume using auto provisioning via the storage class: [pod-ebs-auto.yaml](./volume/pod-ebs-auto.yaml).
+  * Create a new volume using dynamic provisioning via the storage class: [pod-ebs-dynamic.yaml](./volume/pod-ebs-dynamic.yaml).
     <br>Pre-requisite: add the storage class: [storage-class.yaml](./volume/storage-class.yaml). the cluster must also have `--enable-admission-plugins DefaultStorageClass` set.
+    <br>See [Dynamic Volume Provisioning](https://kubernetes.io/docs/concepts/storage/dynamic-provisioning/) in the kubernetes docs.
   
-_NOTE_: auto provisioning can interfere with the existing volume examples given.
+_NOTE_: dynamic provisioning can interfere with the existing volume examples given.
