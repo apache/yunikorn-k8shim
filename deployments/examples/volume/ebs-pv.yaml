@@ -1,0 +1,19 @@
+# PersistentVolume for AWS EBS storage.
+# No storage class, no default storage class defined
+# must update the volume ID to point to an available volume
+kind: PersistentVolume
+apiVersion: v1
+metadata:
+  name: pv0001
+  labels:
+    type: amazonEBS
+spec:
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteOnce
+  awsElasticblockStore:
+    # replace with a valid ID for the cluster
+    # an invalid ID will cause scheduler failures in th bind phase
+    volumeID: vol-049df61146c4d7901
+    fsType: ext4

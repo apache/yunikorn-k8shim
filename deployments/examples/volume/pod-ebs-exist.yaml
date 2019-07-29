@@ -1,0 +1,45 @@
+# Claim an EBS PersistentVolume.
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: ebs-claim-exist
+  labels:
+    type: amazonEBS
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+
+---
+# Create a pod that reads and writes to the EBS mounted volume.
+kind: Pod
+apiVersion: v1
+metadata:
+  name: pod-with-volume
+  labels:
+    applicationId: "pod-with-ebs-exist"
+    queue: "root.sandbox"
+spec:
+  schedulerName: yunikorn
+  containers:
+    - name: pod-with-ebs-exist
+      image: alpine
+      resources:
+        requests:
+          cpu: "100m"
+          memory: "500M"
+      # Mount the EBS volume in the container
+      volumeMounts:
+        - name: ebs-claim-exist
+          mountPath: "/var/tmp/mytest"
+      # Write to a file inside our mounted path
+      command: ["/bin/sh"]
+      args: ["-c", "while true; do date >> /var/tmp/mytest/dates.txt; sleep 5; done"]
+  # Add the EBS volume claim
+  volumes:
+    - name: ebs-claim-exist
+      persistentVolumeClaim:
+        claimName: ebs-claim-exist
+

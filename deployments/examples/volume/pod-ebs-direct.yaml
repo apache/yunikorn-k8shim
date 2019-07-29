@@ -1,0 +1,31 @@
+# Create a pod that reads and writes to the EBS mounted volume.
+kind: Pod
+apiVersion: v1
+metadata:
+  name: pod-with-volume
+  labels:
+    applicationId: "pod-with-ebs-direct"
+    queue: "root.sandbox"
+spec:
+  schedulerName: yunikorn
+  containers:
+    - name: pod-with-ebs-direct
+      image: alpine
+      resources:
+        requests:
+          cpu: "100m"
+          memory: "500M"
+      # Mount the local volume in the container
+      volumeMounts:
+        - name: ebs-direct
+          mountPath: "/var/tmp/mytest"
+      # Write to a file inside our mounted path
+      command: ["/bin/sh"]
+      args: ["-c", "while true; do date >> /var/tmp/mytest/dates.txt; sleep 5; done"]
+  # direct link to the AWS EBS volume
+  # This AWS EBS volume must already exist.
+  volumes:
+    - name: ebs-direct
+      awsElasticBlockStore:
+        volumeID: vol-049df61146c4d7901
+        fsType: ext4
