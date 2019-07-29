@@ -11,7 +11,7 @@ spec:
   capacity:
     storage: 1Gi
   accessModes:
-    - ReadWriteMany
+    - ReadWriteOnce
   awsElasticblockStore:
     # replace with a valid ID for the cluster
     # an invalid ID will cause scheduler failures in th bind phase
