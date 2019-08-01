@@ -51,7 +51,16 @@ func (p *Dispatcher) SetContext(ctx *Context) {
 // each app/task has its own state machine and maintain their own states.
 // currently all events share same channel, so they are dispatched
 // one by one in order.
-func (p *Dispatcher) Dispatch(event SchedulingEvent) error {
+func (p *Dispatcher) Dispatch(event SchedulingEvent) {
+	// currently if dispatch fails, we simply log the error
+	// we may revisit this later, e.g add retry here
+	if err := p.dispatch(event); err != nil {
+		log.Logger.Warn("failed to dispatch SchedulingEvent",
+			zap.Error(err))
+	}
+}
+
+func (p *Dispatcher) dispatch(event SchedulingEvent) error {
 	if !p.isRunning {
 		return fmt.Errorf("dispatcher is not running")
 	}
