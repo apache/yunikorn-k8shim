@@ -14,20 +14,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package shim
+package dispatcher
 
-type SchedulerEvents struct {
-	Register SchedulerEvent
-	RefreshCache SchedulerEvent
-}
+import (
+	"github.com/stretchr/testify/assert"
+	"testing"
+)
 
-type SchedulerEvent struct {
-	event string
-}
-
-func InitiateEvents() *SchedulerEvents {
-	return &SchedulerEvents {
-		Register: SchedulerEvent{"REGISTER"},
-		RefreshCache: SchedulerEvent{"REFRESH"},
-	}
+func TestRegisterEventHandler(t *testing.T) {
+	RegisterEventHandler(EventTypeApp, func(obj interface{}) {})
+	RegisterEventHandler(EventTypeTask, func(obj interface{}) {})
+	RegisterEventHandler(EventTypeTask, func(obj interface{}) {})
+	assert.Equal(t, len(dispatcher.handlers), 2)
 }

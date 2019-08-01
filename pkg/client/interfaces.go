@@ -14,19 +14,25 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package test
+package client
 
 import (
-	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
+	"k8s.io/api/core/v1"
+	"k8s.io/client-go/kubernetes"
 )
 
-type FakeRMCallBack struct {
-	ResponseFn func(response *si.UpdateResponse) error
+type KubeClient interface {
+	// bind a pod to a specific host
+	Bind(pod *v1.Pod, hostId string) error
+
+	// Delete a pod from a host
+	Delete(pod *v1.Pod) error
+
+	// minimal expose this, only informers factory needs it
+	GetClientSet() *kubernetes.Clientset
 }
 
-func (callback *FakeRMCallBack) RecvUpdateResponse(response *si.UpdateResponse) error {
-	return callback.ResponseFn(response)
+func NewKubeClient(kc string) KubeClient {
+	//return newRestClient("127.0.0.1:8001")
+	return newSchedulerKubeClient(kc)
 }
-
-
-

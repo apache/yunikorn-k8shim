@@ -17,10 +17,10 @@ limitations under the License.
 package main
 
 import (
+	"github.com/cloudera/yunikorn-core/pkg/api"
 	"github.com/cloudera/yunikorn-core/pkg/entrypoint"
 	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
 	"github.com/cloudera/yunikorn-k8shim/pkg/log"
-	"github.com/cloudera/yunikorn-k8shim/pkg/scheduler/shim"
 	"go.uber.org/zap"
 	"os"
 	"os/signal"
@@ -40,17 +40,19 @@ func main() {
 	serviceContext := entrypoint.StartAllServices()
 
 	stopChan := make(chan struct{})
-	ss := shim.NewShimScheduler(serviceContext.RMProxy, conf.GetSchedulerConf())
-	ss.Run(stopChan)
+	if sa, ok := serviceContext.RMProxy.(api.SchedulerApi); ok {
+		ss := newShimScheduler(sa, conf.GetSchedulerConf())
+		ss.run(stopChan)
 
-	signalChan := make(chan os.Signal, 1)
-	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
-	for {
-		select {
-		case <-signalChan:
-			log.Logger.Info("Shutdown signal received, exiting...")
-			close(stopChan)
-			os.Exit(0)
+		signalChan := make(chan os.Signal, 1)
+		signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
+		for {
+			select {
+			case <-signalChan:
+				log.Logger.Info("Shutdown signal received, exiting...")
+				close(stopChan)
+				os.Exit(0)
+			}
 		}
 	}
 }

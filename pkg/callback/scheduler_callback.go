@@ -18,8 +18,10 @@ package callback
 
 import (
 	"fmt"
+	"github.com/cloudera/yunikorn-k8shim/pkg/cache"
+	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
+	"github.com/cloudera/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/cloudera/yunikorn-k8shim/pkg/log"
-	"github.com/cloudera/yunikorn-k8shim/pkg/state"
 	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
 	"go.uber.org/zap"
 )
@@ -27,10 +29,10 @@ import (
 // RM callback is called from the scheduler core, we need to ensure the response is handled
 // asynchronously to avoid blocking the scheduler.
 type AsyncRMCallback struct {
-	context *state.Context
+	context *cache.Context
 }
 
-func NewAsyncRMCallback(ctx *state.Context) *AsyncRMCallback {
+func NewAsyncRMCallback(ctx *cache.Context) *AsyncRMCallback {
 	return &AsyncRMCallback{context: ctx}
 }
 
@@ -45,8 +47,8 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 			zap.String("appId", app.ApplicationId))
 
 		if app, err := callback.context.GetApplication(app.ApplicationId); err == nil {
-			ev := state.NewSimpleApplicationEvent(app.GetApplicationId(), state.AcceptApplication)
-			state.GetDispatcher().Dispatch(ev)
+			ev := cache.NewSimpleApplicationEvent(app.GetApplicationId(), events.AcceptApplication)
+			dispatcher.Dispatch(ev)
 		}
 	}
 
@@ -56,8 +58,8 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 			zap.String("appId", app.ApplicationId))
 
 		if app, err := callback.context.GetApplication(app.ApplicationId); err == nil {
-			ev := state.NewSimpleApplicationEvent(app.GetApplicationId(), state.RejectApplication)
-			state.GetDispatcher().Dispatch(ev)
+			ev := cache.NewSimpleApplicationEvent(app.GetApplicationId(), events.RejectApplication)
+			dispatcher.Dispatch(ev)
 		}
 	}
 
@@ -71,8 +73,8 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 			zap.String("nodeId", alloc.NodeId))
 
 		if app, err := callback.context.GetApplication(alloc.ApplicationId); err == nil {
-			ev := state.NewAllocateTaskEvent(app.GetApplicationId(), alloc.AllocationKey, alloc.Uuid, alloc.NodeId)
-			state.GetDispatcher().Dispatch(ev)
+			ev := cache.NewAllocateTaskEvent(app.GetApplicationId(), alloc.AllocationKey, alloc.Uuid, alloc.NodeId)
+			dispatcher.Dispatch(ev)
 		}
 	}
 
@@ -82,7 +84,7 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 			zap.String("allocationKey", reject.AllocationKey))
 
 		if app, err := callback.context.GetApplication(reject.ApplicationId); err == nil {
-			state.GetDispatcher().Dispatch(state.NewRejectTaskEvent(app.GetApplicationId(), reject.AllocationKey,
+			dispatcher.Dispatch(cache.NewRejectTaskEvent(app.GetApplicationId(), reject.AllocationKey,
 				fmt.Sprintf("task %s from application %s is rejected by scheduler",
 					reject.AllocationKey, reject.ApplicationId)))
 		}

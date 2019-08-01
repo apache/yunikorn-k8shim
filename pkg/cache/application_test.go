@@ -14,11 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package state
+package cache
 
 import (
 	"github.com/cloudera/yunikorn-core/pkg/api"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common"
+	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
 	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
 	"gotest.tools/assert"
 	"k8s.io/api/core/v1"
@@ -30,22 +31,27 @@ import (
 func TestNewApplication(t *testing.T) {
 	app := NewApplication("app00001", "root.queue", newMockSchedulerApi())
 	assert.Equal(t, app.GetApplicationId(), "app00001" )
-	assert.Equal(t, app.GetApplicationState(), States().Application.New)
+	assert.Equal(t, app.GetApplicationState(), events.States().Application.New)
 	assert.Equal(t, app.partition, common.DefaultPartition)
 	assert.Equal(t, len(app.taskMap), 0)
-	assert.Equal(t, app.GetApplicationState(), States().Application.New)
+	assert.Equal(t, app.GetApplicationState(), events.States().Application.New)
 	assert.Equal(t, app.queue, "root.queue")
 }
 
 func TestSubmitApplication(t *testing.T) {
 	app := NewApplication("app00001", "root.abc", newMockSchedulerApi())
 
-	app.handle(NewSubmitApplicationEvent(app.applicationId))
-	assertAppState(t, app, States().Application.Submitted, 10*time.Second)
+	if err := app.handle(NewSubmitApplicationEvent(app.applicationId)); err != nil {
+		t.Fatalf("%v", err)
+	}
+	assertAppState(t, app, events.States().Application.Submitted, 10*time.Second)
 
 	// app already submitted
-	app.handle(NewSubmitApplicationEvent(app.applicationId))
-	assertAppState(t, app, States().Application.Submitted, 10*time.Second)
+	if err := app.handle(NewSubmitApplicationEvent(app.applicationId)); err != nil {
+		// this should give an error
+		t.Logf("expecting this error: %v", err)
+	}
+	assertAppState(t, app, events.States().Application.Submitted, 10*time.Second)
 }
 
 func TestRunApplication(t *testing.T) {
@@ -60,17 +66,24 @@ func TestRunApplication(t *testing.T) {
 	app := NewApplication("app00001", "root.abc", ms)
 
 	// app must be submitted before being able to run
-	app.handle(NewRunApplicationEvent(app.applicationId, nil))
-	assertAppState(t, app, States().Application.New, 3*time.Second)
+	if err := app.handle(NewRunApplicationEvent(app.applicationId, nil)); err != nil {
+		// this should give an error
+		t.Logf("expecting this error: %v", err)
+	}
+	assertAppState(t, app, events.States().Application.New, 3*time.Second)
 
 	// submit the app
-	app.handle(NewSubmitApplicationEvent(app.applicationId))
-	assertAppState(t, app, States().Application.Submitted, 3*time.Second)
-
+	if err := app.handle(NewSubmitApplicationEvent(app.applicationId)); err != nil {
+		t.Fatalf("%v", err)
+	}
+	assertAppState(t, app, events.States().Application.Submitted, 3*time.Second)
 
 	// app must be accepted first
-	app.handle(NewRunApplicationEvent(app.applicationId, nil))
-	assertAppState(t, app, States().Application.Submitted, 3*time.Second)
+	if err := app.handle(NewRunApplicationEvent(app.applicationId, nil)); err != nil {
+		// this should give an error
+		t.Logf("expecting this error: %v", err)
+	}
+	assertAppState(t, app, events.States().Application.Submitted, 3*time.Second)
 }
 
 func TestGetApplicationIdFromPod(t *testing.T) {

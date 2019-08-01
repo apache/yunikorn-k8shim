@@ -14,15 +14,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package shim
+package main
 
 import (
 	"fmt"
 	"github.com/cloudera/yunikorn-core/pkg/api"
+	"github.com/cloudera/yunikorn-k8shim/pkg/cache"
+	"github.com/cloudera/yunikorn-k8shim/pkg/callback"
+	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
 	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
+	"github.com/cloudera/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/cloudera/yunikorn-k8shim/pkg/log"
-	"github.com/cloudera/yunikorn-k8shim/pkg/scheduler/callback"
-	"github.com/cloudera/yunikorn-k8shim/pkg/state"
 	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
 	"github.com/looplab/fsm"
 	"go.uber.org/zap"
@@ -31,64 +33,51 @@ import (
 )
 
 // shim scheduler watches api server and interacts with unity scheduler to allocate pods
-type ShimScheduler struct {
-	rmProxy    api.SchedulerApi
-	context    *state.Context
-	callback   api.ResourceManagerCallback
-	sm         *fsm.FSM
-	events     *SchedulerEvents
-	dispatcher *state.Dispatcher
-	lock       *sync.Mutex
+type KubernetesShim struct {
+	rmProxy      api.SchedulerApi
+	context      *cache.Context
+	callback     api.ResourceManagerCallback
+	stateMachine *fsm.FSM
+	dispatcher   *dispatcher.Dispatcher
+	lock         *sync.Mutex
 }
 
-func NewShimScheduler(api api.SchedulerApi, configs *conf.SchedulerConf) *ShimScheduler {
-	context := state.NewContext(api, configs)
-	callback := callback.NewAsyncRMCallback(context)
-	return newShimScheduler(api, context, callback)
+func newShimScheduler(api api.SchedulerApi, configs *conf.SchedulerConf) *KubernetesShim {
+	context := cache.NewContext(api, configs)
+	rmCallback := callback.NewAsyncRMCallback(context)
+	return newShimSchedulerInternal(api, context, rmCallback)
 }
 
 // this is visible for testing
-func newShimScheduler(api api.SchedulerApi, ctx *state.Context, cb api.ResourceManagerCallback) *ShimScheduler {
-	var events = InitiateEvents()
-	ss := &ShimScheduler{
-		rmProxy:  api,
-		context:  ctx,
-		callback: cb,
-		events:   events,
+func newShimSchedulerInternal(api api.SchedulerApi, ctx *cache.Context, cb api.ResourceManagerCallback) *KubernetesShim {
+	var states = events.States().Scheduler
+	ss := &KubernetesShim{
+		rmProxy:      api,
+		context:      ctx,
+		callback:     cb,
 	}
 
 	// init dispatcher
-	ss.dispatcher = state.GetDispatcher()
-	ss.dispatcher.SetContext(ctx)
+	dispatcher.RegisterEventHandler(dispatcher.EventTypeApp, ctx.ApplicationEventHandler())
+	dispatcher.RegisterEventHandler(dispatcher.EventTypeTask, ctx.TaskEventHandler())
 
 	// init state machine
-	var states = state.States().Scheduler
-	ss.sm = fsm.NewFSM(
+	ss.stateMachine = fsm.NewFSM(
 		states.New,
 		fsm.Events{
-			{Name: events.Register.event,
+			{Name: string(RegisterScheduler),
 				Src: []string{states.New},
 				Dst: states.Registered},
-			{Name: events.RefreshCache.event,
-				Src: []string{states.New, states.Running},
-				Dst: states.Running},
-			//{Name: "reject", Src: []string{"new"}, Dst: "rejected"},
 		},
 		fsm.Callbacks{
-			events.Register.event: ss.register(),
-			events.RefreshCache.event: ss.refreshCache(),
+			string(RegisterScheduler): ss.register(),
 		},
 	)
+
 	return ss
 }
 
-func (ss *ShimScheduler) refreshCache() func(e *fsm.Event) {
-	return func(e *fsm.Event) {
-
-	}
-}
-
-func (ss *ShimScheduler) register() func(e *fsm.Event) {
+func (ss *KubernetesShim) register() func(e *fsm.Event) {
 	return func(e *fsm.Event) {
 		if err := ss.registerShimLayer(); err != nil {
 			log.Logger.Fatal("failed to register to yunikorn-core", zap.Error(err))
@@ -96,7 +85,7 @@ func (ss *ShimScheduler) register() func(e *fsm.Event) {
 	}
 }
 
-func (ss *ShimScheduler) registerShimLayer() error {
+func (ss *KubernetesShim) registerShimLayer() error {
 	configuration := conf.GetSchedulerConf()
 	registerMessage := si.RegisterResourceManagerRequest{
 		RmId:        configuration.ClusterId,
@@ -115,64 +104,59 @@ func (ss *ShimScheduler) registerShimLayer() error {
 	return nil
 }
 
-func (ss *ShimScheduler) GetSchedulerState() string {
-	return ss.sm.Current()
-}
-
-func (ss *ShimScheduler) GetContext() *state.Context {
-	return ss.context
+func (ss *KubernetesShim) GetSchedulerState() string {
+	return ss.stateMachine.Current()
 }
 
 // event handling
-func (ss *ShimScheduler) Handle(se SchedulerEvent) error {
+func (ss *KubernetesShim) Handle(se SchedulerEvent) error {
 	log.Logger.Info("shim-scheduler state transition",
-		zap.String("preState", ss.sm.Current()),
-		zap.String("pending event", se.event))
-	err := ss.sm.Event(se.event)
+		zap.String("preState", ss.stateMachine.Current()),
+		zap.String("pending event", string(se.GetEvent())))
+	err := ss.stateMachine.Event(string(se.GetEvent()))
 	log.Logger.Info("shim-scheduler state transition",
-		zap.String("postState", ss.sm.Current()),
-		zap.String("handled event", se.event))
+		zap.String("postState", ss.stateMachine.Current()),
+		zap.String("handled event", string(se.GetEvent())))
 	return err
 }
 
 // each schedule iteration, we scan all apps and triggers app state transition
-func (ss *ShimScheduler) schedule() {
+func (ss *KubernetesShim) schedule() {
 	apps := ss.context.SelectApplications(nil)
 	for _, app := range apps {
 		for _, pendingTask := range app.GetPendingTasks() {
-			var states = state.States().Application
+			var states = events.States().Application
 			log.Logger.Info("scheduling",
 				zap.String("app", app.GetApplicationId()),
 				zap.String("pendingTask", pendingTask.GetTaskPod().Name))
 			switch app.GetApplicationState() {
 			case states.New:
-				ev := state.NewSubmitApplicationEvent(app.GetApplicationId())
-				state.GetDispatcher().Dispatch(ev)
+				ev := cache.NewSubmitApplicationEvent(app.GetApplicationId())
+				dispatcher.Dispatch(ev)
 			case states.Accepted:
-				ev := state.NewRunApplicationEvent(app.GetApplicationId(), pendingTask)
-				state.GetDispatcher().Dispatch(ev)
+				ev := cache.NewRunApplicationEvent(app.GetApplicationId(), pendingTask)
+				dispatcher.Dispatch(ev)
 			case states.Running:
-				ev := state.NewRunApplicationEvent(app.GetApplicationId(), pendingTask)
-				state.GetDispatcher().Dispatch(ev)
+				ev := cache.NewRunApplicationEvent(app.GetApplicationId(), pendingTask)
+				dispatcher.Dispatch(ev)
 			default:
 				log.Logger.Warn("application is in unexpected state, tasks cannot be scheduled under this state",
 					zap.String("appId", app.GetApplicationId()),
 					zap.String("appState", app.GetApplicationState()),
-					zap.String("desiredState", state.States().Application.Running))
+					zap.String("desiredState", events.States().Application.Running))
 			}
 		}
 	}
-
 }
 
-func (ss *ShimScheduler) Run(stopChan chan struct{}) {
+func (ss *KubernetesShim) run(stopChan chan struct{}) {
 	// first register to scheduler
-	if err := ss.Handle(ss.events.Register); err != nil {
+	if err := ss.Handle(newRegisterSchedulerEvent()); err != nil {
 		panic(fmt.Sprintf("state transition failed, error %s", err.Error()))
 	}
 
 	// run dispatcher
-	ss.dispatcher.Start()
+	dispatcher.Start()
 
 	ss.context.Run(stopChan)
 	go wait.Until(ss.schedule, conf.GetSchedulerConf().GetSchedulingInterval(), stopChan)

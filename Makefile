@@ -61,7 +61,8 @@ build: init
 	@echo "building scheduler binary"
 	go build -o=${RELEASE_BIN_DIR}/${BINARY} -race -ldflags \
 	'-X main.version=${VERSION} -X main.date=${DATE}' \
-	./pkg/scheduler/
+    ./pkg/shim/
+	@chmod +x ${RELEASE_BIN_DIR}/${BINARY}
 
 .PHONY: build_image
 build_image: init
@@ -70,7 +71,7 @@ build_image: init
 	go build -a -o=${RELEASE_BIN_DIR}/${BINARY} -ldflags \
 	'-extldflags "-static" -X main.version=${VERSION} -X main.date=${DATE}' \
 	-tags netgo -installsuffix netgo \
-	./pkg/scheduler/
+	./pkg/shim/
 
 .PHONY: image
 image: build_image

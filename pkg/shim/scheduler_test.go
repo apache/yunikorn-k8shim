@@ -14,11 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package shim
+package main
 
 import (
 	"github.com/cloudera/yunikorn-k8shim/pkg/common"
-	"github.com/cloudera/yunikorn-k8shim/pkg/state"
+	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
 	"testing"
 )
 
@@ -42,17 +42,21 @@ partitions:
                 vcore: 20
 `
 	// init and register scheduler
-	cluster := FakeCluster{}
+	cluster := MockScheduler{}
 	cluster.init(configData)
 	cluster.start()
 	defer cluster.stop()
 
 	// ensure scheduler state
-	cluster.waitForSchedulerState(t, state.States().Scheduler.Registered)
+	cluster.waitForSchedulerState(t, events.States().Scheduler.Registered)
 
 	// register nodes
-	cluster.addNode("test.host.01", 100, 10)
-	cluster.addNode("test.host.02", 100, 10)
+	if err := cluster.addNode("test.host.01", 100, 10); err != nil {
+		t.Fatalf("add node failed %v", err)
+	}
+	if err := cluster.addNode("test.host.02", 100, 10); err != nil {
+		t.Fatalf("add node failed %v", err)
+	}
 
 	// create app and tasks
 	app0001 := cluster.newApplication("app0001", "root.a")
@@ -68,9 +72,9 @@ partitions:
 
 	// wait for scheduling app and tasks
 	// verify app state
-	cluster.waitAndAssertApplicationState(t, "app0001", state.States().Application.Running)
-	cluster.waitAndAssertTaskState(t, "app0001", "task0001", state.States().Task.Bound)
-	cluster.waitAndAssertTaskState(t, "app0001", "task0002", state.States().Task.Bound)
+	cluster.waitAndAssertApplicationState(t, "app0001", events.States().Application.Running)
+	cluster.waitAndAssertTaskState(t, "app0001", "task0001", events.States().Task.Bound)
+	cluster.waitAndAssertTaskState(t, "app0001", "task0002", events.States().Task.Bound)
 }
 
 func TestRejectApplications(t *testing.T) {
@@ -93,17 +97,21 @@ partitions:
                 vcore: 20
 `
 	// init and register scheduler
-	cluster := FakeCluster{}
+	cluster := MockScheduler{}
 	cluster.init(configData)
 	cluster.start()
 	defer cluster.stop()
 
 	// ensure scheduler state
-	cluster.waitForSchedulerState(t, state.States().Scheduler.Registered)
+	cluster.waitForSchedulerState(t, events.States().Scheduler.Registered)
 
 	// register nodes
-	cluster.addNode("test.host.01", 100, 10)
-	cluster.addNode("test.host.02", 100, 10)
+	if err := cluster.addNode("test.host.01", 100, 10); err != nil {
+		t.Fatalf("%v", err)
+	}
+	if err := cluster.addNode("test.host.02", 100, 10); err != nil {
+		t.Fatalf("%v", err)
+	}
 
 	// create app and tasks
 	taskResource := common.NewResourceBuilder().
@@ -118,11 +126,11 @@ partitions:
 
 	// wait for scheduling app and tasks
 	// verify app state
-	cluster.waitAndAssertApplicationState(t, "app0001", state.States().Application.Failed)
+	cluster.waitAndAssertApplicationState(t, "app0001", events.States().Application.Failed)
 
 	// submit the app again
 	app0001 = cluster.newApplication("app0001", "root.a")
 	cluster.addTask("task0001", taskResource, app0001)
 	cluster.addApplication(app0001)
-	cluster.waitAndAssertApplicationState(t, "app0001", state.States().Application.Accepted)
+	cluster.waitAndAssertApplicationState(t, "app0001", events.States().Application.Accepted)
 }

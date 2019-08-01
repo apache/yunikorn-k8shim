@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package state
+package events
 
 var (
 	states *AllStates
@@ -77,7 +77,7 @@ func States() *AllStates {
 			Task: &TaskStates{
 				Pending:    "Pending",
 				Scheduling: "Scheduling",
-				Allocated:  "Allocated",
+				Allocated:  "TaskAllocated",
 				Rejected:   "Rejected",
 				Bound:      "Bound",
 				Killing:    "Killing",

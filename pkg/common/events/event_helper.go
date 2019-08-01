@@ -14,13 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package state
+package events
 
 import (
 	"fmt"
 )
 
-func getEventArgsAsStrings(result []string, generic []interface{}) error {
+func GetEventArgsAsStrings(result []string, generic []interface{}) error {
 	if generic != nil && len(generic) > 0 {
 		if result == nil || cap(result) != len(generic) {
 			return fmt.Errorf("invalid length of arguments")

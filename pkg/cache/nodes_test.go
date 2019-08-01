@@ -14,12 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controller
+package cache
 
 import (
+	"github.com/cloudera/yunikorn-k8shim/pkg/cache/external"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common"
-	"github.com/cloudera/yunikorn-k8shim/pkg/state/cache"
-	"github.com/cloudera/yunikorn-k8shim/pkg/test"
+	"github.com/cloudera/yunikorn-k8shim/pkg/common/test"
 	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
 	"gotest.tools/assert"
 	"k8s.io/api/core/v1"
@@ -71,7 +71,7 @@ func TestAddNode(t *testing.T) {
 		},
 	}
 
-	nc.AddNode(&newNode)
+	nc.addNode(&newNode)
 	// values are verified in injected fn
 	// verify register is not called, update is called and just called once
 	assert.Equal(t, api.RegisterCount, 0)
@@ -142,7 +142,7 @@ func TestUpdateNode(t *testing.T) {
 		return nil
 	}
 	api.UpdateFn = ignoreNodeUpdateFn
-	nc.UpdateNode(&oldNode, &newNode)
+	nc.updateNode(&oldNode, &newNode)
 	assert.Equal(t, api.RegisterCount, 0)
 	assert.Equal(t, api.UpdateCount, 0)
 
@@ -182,7 +182,7 @@ func TestUpdateNode(t *testing.T) {
 		return nil
 	}
 
-	nc.UpdateNode(&oldNode, &newNode)
+	nc.updateNode(&oldNode, &newNode)
 	assert.Equal(t, api.RegisterCount, 0)
 	assert.Equal(t, api.UpdateCount, 1)
 }
@@ -236,12 +236,15 @@ func TestDeleteNode(t *testing.T) {
 		return nil
 	}
 	api.UpdateFn = ignoreNodeUpdateFn
-	nc.DeleteNode(&node)
+	nc.addNode(&node)
+	nc.deleteNode(&node)
 	assert.Equal(t, api.RegisterCount, 0)
-	assert.Equal(t, api.UpdateCount, 1)
+	// update should be called twice
+	// one for add, the other one for delete
+	assert.Equal(t, api.UpdateCount, 2)
 }
 
 // A wrapper around the scheduler cache which does not initialise the lister and volumebinder
-func NewTestSchedulerCache() *cache.SchedulerCache {
-	return cache.NewSchedulerCache(nil, nil, nil, nil)
+func NewTestSchedulerCache() *external.SchedulerCache {
+	return external.NewSchedulerCache(nil, nil, nil, nil)
 }

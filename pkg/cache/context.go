@@ -14,19 +14,20 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package state
+package cache
 
 import (
 	"fmt"
 	"github.com/cloudera/yunikorn-core/pkg/api"
+	schedulercache "github.com/cloudera/yunikorn-k8shim/pkg/cache/external"
 	"github.com/cloudera/yunikorn-k8shim/pkg/client"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common"
+	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
+	"github.com/cloudera/yunikorn-k8shim/pkg/common/utils"
 	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
+	"github.com/cloudera/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/cloudera/yunikorn-k8shim/pkg/log"
-	plugin "github.com/cloudera/yunikorn-k8shim/pkg/predicates"
-	"github.com/cloudera/yunikorn-k8shim/pkg/scheduler/controller"
-	schedulercache "github.com/cloudera/yunikorn-k8shim/pkg/state/cache"
-	"github.com/cloudera/yunikorn-k8shim/pkg/utils"
+	plugin "github.com/cloudera/yunikorn-k8shim/pkg/plugin/predicates"
 	"go.uber.org/zap"
 	"k8s.io/api/core/v1"
 	"k8s.io/client-go/informers"
@@ -40,7 +41,7 @@ import (
 // context maintains scheduling state, like apps and apps' tasks.
 type Context struct {
 	applications   map[string]*Application
-	nodeController *controller.NodeController
+	nodeController *NodeController
 	conf           *conf.SchedulerConf
 	kubeClient     client.KubeClient
 	schedulerApi   api.SchedulerApi
@@ -115,7 +116,7 @@ func NewContextInternal(scheduler api.SchedulerApi, configs *conf.SchedulerConf,
 		ctx.volumeBinder)
 
 	// init the controllers and plugins (need the cache)
-	ctx.nodeController = controller.NewNodeController(scheduler, ctx.schedulerCache)
+	ctx.nodeController = newNodeController(scheduler, ctx.schedulerCache)
 	ctx.predictor = plugin.NewPredictor(schedulercache.GetPluginArgs(), testMode)
 
 	// Add the event handling to all informers that need it
@@ -162,15 +163,15 @@ func NewContextInternal(scheduler api.SchedulerApi, configs *conf.SchedulerConf,
 }
 
 func (ctx *Context) addNode(obj interface{}) {
-	ctx.nodeController.AddNode(obj)
+	ctx.nodeController.addNode(obj)
 }
 
 func (ctx *Context) updateNode(oldObj, newObj interface{}) {
-	ctx.nodeController.UpdateNode(oldObj, newObj)
+	ctx.nodeController.updateNode(oldObj, newObj)
 }
 
 func (ctx *Context) deleteNode(obj interface{}) {
-	ctx.nodeController.DeleteNode(obj)
+	ctx.nodeController.deleteNode(obj)
 }
 
 // add a pod to the context
@@ -346,8 +347,8 @@ func (ctx *Context) deletePod(obj interface{}) {
 
 	if application := ctx.getOrCreateApplication(pod); application != nil {
 		log.Logger.Debug("release allocation")
-		GetDispatcher().Dispatch(NewSimpleTaskEvent(
-			application.GetApplicationId(), string(pod.UID), Complete))
+		dispatcher.Dispatch(NewSimpleTaskEvent(
+			application.GetApplicationId(), string(pod.UID), events.CompleteTask))
 
 		log.Logger.Info("delete pod",
 			zap.String("namespace", pod.Namespace),
@@ -536,6 +537,42 @@ func (ctx *Context) SelectApplications(filter func(app *Application) bool) []*Ap
 	}
 
 	return apps
+}
+
+func (ctx *Context) ApplicationEventHandler() func(obj interface{}){
+	return func(obj interface{}) {
+		if event, ok := obj.(events.ApplicationEvent); ok {
+			app, err := ctx.GetApplication(event.GetApplicationId())
+			if err != nil {
+				log.Logger.Error("failed to handle application event", zap.Error(err))
+				return
+			}
+
+			if err := app.handle(event); err != nil {
+				log.Logger.Error("failed to handle application event",
+					zap.String("event", string(event.GetEvent())),
+					zap.Error(err))
+			}
+		}
+	}
+}
+
+func (ctx *Context) TaskEventHandler() func(obj interface{}){
+	return func(obj interface{}) {
+		if event, ok := obj.(events.TaskEvent); ok {
+			task, err := ctx.GetTask(event.GetApplicationId(), event.GetTaskId())
+			if err != nil {
+				log.Logger.Error("failed to handle application event", zap.Error(err))
+				return
+			}
+
+			if err := task.Handle(event); err != nil {
+				log.Logger.Error("failed to handle task event",
+					zap.String("event", string(event.GetEvent())),
+					zap.Error(err))
+			}
+		}
+	}
 }
 
 func (ctx *Context) Run(stopCh <-chan struct{}) {

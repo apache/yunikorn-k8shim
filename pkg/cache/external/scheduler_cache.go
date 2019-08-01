@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package cache
+package external
 
 import (
 	"fmt"
@@ -48,8 +48,12 @@ type SchedulerCache struct {
 	volumeBinder  *volumebinder.VolumeBinder
 }
 
-func NewSchedulerCache(pvl corelistersV1.PersistentVolumeLister, pvcl corelistersV1.PersistentVolumeClaimLister, stl storagelisterV1.StorageClassLister, binder *volumebinder.VolumeBinder) *SchedulerCache {
-	cache := &SchedulerCache{
+func NewSchedulerCache(pvl corelistersV1.PersistentVolumeLister,
+	pvcl corelistersV1.PersistentVolumeClaimLister,
+	stl storagelisterV1.StorageClassLister,
+	binder *volumebinder.VolumeBinder) *SchedulerCache {
+
+		cache := &SchedulerCache{
 		nodesMap:      make(map[string]*schedulernode.NodeInfo),
 		podsMap:       make(map[string]*v1.Pod),
 		assumedPods:   make(map[string]bool),

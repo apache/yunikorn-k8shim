@@ -14,13 +14,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package state
+package cache
 
 import (
 	"fmt"
 	"github.com/cloudera/yunikorn-core/pkg/api"
 	"github.com/cloudera/yunikorn-k8shim/pkg/client"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common"
+	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
+	"github.com/cloudera/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/cloudera/yunikorn-k8shim/pkg/log"
 	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
 	"go.uber.org/zap"
@@ -67,42 +69,41 @@ func createTaskInternal(tid string, app *Application, resource *si.Resource,
 		lock:          &sync.RWMutex{},
 	}
 
-	var states = States().Task
+	var states = events.States().Task
 	task.sm = fsm.NewFSM(
 		states.Pending,
 		fsm.Events{
-			{Name: string(Submit),
+			{Name: string(events.SubmitTask),
 				Src: []string{states.Pending},
 				Dst: states.Scheduling},
-			{Name: string(Allocated),
+			{Name: string(events.TaskAllocated),
 				Src: []string{states.Scheduling},
 				Dst: states.Allocated},
-			{Name: string(Bound),
+			{Name: string(events.TaskBound),
 				Src: []string{states.Allocated},
 				Dst: states.Bound},
-			{Name: string(Complete),
+			{Name: string(events.CompleteTask),
 				Src: []string{states.Bound},
 				Dst: states.Completed},
-			{Name: string(Kill),
+			{Name: string(events.KillTask),
 				Src: []string{states.Pending, states.Scheduling, states.Allocated, states.Bound},
 				Dst: states.Killing},
-			{Name: string(Killed),
+			{Name: string(events.TaskKilled),
 				Src: []string{states.Killing},
 				Dst: states.Killed},
-			{Name: string(Rejected),
+			{Name: string(events.TaskRejected),
 				Src: []string{states.Pending, states.Scheduling},
 				Dst: states.Rejected},
-			{Name: string(Fail),
+			{Name: string(events.TaskFail),
 				Src: []string{states.Rejected},
 				Dst: states.Failed},
 		},
 		fsm.Callbacks{
-			string(Submit):         task.handleSubmitTaskEvent,
-			string(Fail):           task.handleFailEvent,
-			states.Allocated:       task.postTaskAllocated,
-			states.Rejected:        task.postTaskRejected,
-			states.Completed:       task.postTaskCompleted,
-			//"enter_state":          task.onStateChange,
+			string(events.SubmitTask): task.handleSubmitTaskEvent,
+			string(events.TaskFail):   task.handleFailEvent,
+			states.Allocated:          task.postTaskAllocated,
+			states.Rejected:           task.postTaskRejected,
+			states.Completed:          task.postTaskCompleted,
 		},
 	)
 
@@ -110,18 +111,18 @@ func createTaskInternal(tid string, app *Application, resource *si.Resource,
 }
 
 // event handling
-func (task *Task) handle(te TaskEvent) error {
+func (task *Task) Handle(te events.TaskEvent) error {
 	log.Logger.Debug("task state transition",
 		zap.String("taskId", task.taskId),
 		zap.String("preState", task.sm.Current()),
-		zap.String("pendingEvent", string(te.getEvent())))
-	if err := task.sm.Event(string(te.getEvent()), te.getArgs()...); err != nil {
+		zap.String("pendingEvent", string(te.GetEvent())))
+	if err := task.sm.Event(string(te.GetEvent()), te.GetArgs()...); err != nil {
 		return err
 	}
 	log.Logger.Debug("task state transition",
 		zap.String("taskId", task.taskId),
 		zap.String("postState", task.sm.Current()),
-		zap.String("handledEvent", string(te.getEvent())))
+		zap.String("handledEvent", string(te.GetEvent())))
 	return nil
 }
 
@@ -149,7 +150,7 @@ func (task *Task) GetTaskState() string {
 }
 
 func (task *Task) IsPending() bool {
-	return strings.Compare(task.GetTaskState(), States().Task.Pending) == 0
+	return strings.Compare(task.GetTaskState(), events.States().Task.Pending) == 0
 }
 
 func (task *Task) handleFailEvent(event *fsm.Event) {
@@ -157,8 +158,8 @@ func (task *Task) handleFailEvent(event *fsm.Event) {
 	defer task.lock.Unlock()
 
 	eventArgs := make([]string, 1)
-	if err := getEventArgsAsStrings(eventArgs, event.Args); err != nil {
-		GetDispatcher().Dispatch(NewFailTaskEvent(task.applicationId, task.taskId, err.Error()))
+	if err := events.GetEventArgsAsStrings(eventArgs, event.Args); err != nil {
+		dispatcher.Dispatch(NewFailTaskEvent(task.applicationId, task.taskId, err.Error()))
 		return
 	}
 
@@ -197,10 +198,10 @@ func (task *Task) postTaskAllocated(event *fsm.Event) {
 
 		var errorMessage string
 		eventArgs := make([]string, 2)
-		if err := getEventArgsAsStrings(eventArgs, event.Args); err != nil {
+		if err := events.GetEventArgsAsStrings(eventArgs, event.Args); err != nil {
 			errorMessage = err.Error()
 			log.Logger.Error("error", zap.Error(err))
-			GetDispatcher().Dispatch(NewFailTaskEvent(task.applicationId, task.taskId, errorMessage))
+			dispatcher.Dispatch(NewFailTaskEvent(task.applicationId, task.taskId, errorMessage))
 			return
 		}
 
@@ -215,13 +216,13 @@ func (task *Task) postTaskAllocated(event *fsm.Event) {
 			errorMessage = fmt.Sprintf("bind pod failed, name: %s, uid: %s, %#v",
 				task.pod.Name, task.pod.UID, err)
 			log.Logger.Error(errorMessage)
-			GetDispatcher().Dispatch(NewFailTaskEvent(task.applicationId, task.taskId, errorMessage))
+			dispatcher.Dispatch(NewFailTaskEvent(task.applicationId, task.taskId, errorMessage))
 			return
 		}
 
 		log.Logger.Info("successfully bound pod", zap.String("podName", task.pod.Name))
 		task.allocationUuid = allocUuid
-		GetDispatcher().Dispatch(NewBindTaskEvent(task.applicationId, task.taskId))
+		dispatcher.Dispatch(NewBindTaskEvent(task.applicationId, task.taskId))
 	}(event)
 }
 
@@ -229,7 +230,7 @@ func (task *Task) postTaskRejected(event *fsm.Event) {
 	// currently, once task is rejected by scheduler, we directly move task to failed state.
 	// so this function simply triggers the state transition when it is rejected.
 	// but further, we can introduce retry mechanism if necessary.
-	GetDispatcher().Dispatch(NewFailTaskEvent(task.applicationId, task.taskId,
+	dispatcher.Dispatch(NewFailTaskEvent(task.applicationId, task.taskId,
 		fmt.Sprintf("task %s failed because it is rejected by scheduler", task.taskId)))
 }
 

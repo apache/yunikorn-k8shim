@@ -14,11 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package state
+package cache
 
 import (
 	"github.com/cloudera/yunikorn-k8shim/pkg/client"
+	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
 	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
+	"github.com/cloudera/yunikorn-k8shim/pkg/dispatcher"
 	"gotest.tools/assert"
 	"k8s.io/api/core/v1"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -58,7 +60,7 @@ func TestAddApplications(t *testing.T) {
 	context.AddApplication(app01)
 	assert.Equal(t, len(context.applications), 1)
 	assert.Assert(t, context.applications["app00001"] != nil)
-	assert.Equal(t, context.applications["app00001"].GetApplicationState(), States().Application.New)
+	assert.Equal(t, context.applications["app00001"].GetApplicationState(), events.States().Application.New)
 	assert.Equal(t, len(context.applications["app00001"].GetPendingTasks()), 0)
 
 	task01 := CreateTaskForTest("task00001", app01, nil, nil, nil)
@@ -198,8 +200,8 @@ func TestAddPod(t *testing.T) {
 
 func TestPodRejected(t *testing.T) {
 	context := initContextForTest()
-	dispatcher := GetDispatcher()
-	dispatcher.SetContext(context)
+	dispatcher.RegisterEventHandler(dispatcher.EventTypeApp, context.ApplicationEventHandler())
+	dispatcher.RegisterEventHandler(dispatcher.EventTypeTask, context.TaskEventHandler())
 	dispatcher.Start()
 
 	pod := v1.Pod{
@@ -233,12 +235,13 @@ func TestPodRejected(t *testing.T) {
 
 	// reject the task
 	task, _ := app01.GetTask("UID-POD-00001")
-	task.handle(NewRejectTaskEvent("app00001", "UID-POD-00001", ""))
+	err := task.Handle(NewRejectTaskEvent("app00001", "UID-POD-00001", ""))
+	assert.Assert(t, err == nil)
 	assert.Equal(t, len(app01.GetPendingTasks()), 0)
 
 	task01, err := app01.GetTask("UID-POD-00001")
 	assert.Assert(t, err == nil)
-	assertTaskState(t, task01, States().Task.Failed, 3*time.Second)
+	assertTaskState(t, task01, events.States().Task.Failed, 3*time.Second)
 }
 
 func assertTaskState(t *testing.T, task *Task, expectedState string, timeout time.Duration) {

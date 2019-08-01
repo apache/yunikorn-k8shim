@@ -14,14 +14,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package state
+package cache
 
 import (
 	"fmt"
 	"github.com/cloudera/yunikorn-core/pkg/api"
 	"github.com/cloudera/yunikorn-k8shim/pkg/client"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common"
+	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
 	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
+	"github.com/cloudera/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/cloudera/yunikorn-k8shim/pkg/log"
 	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
 	"github.com/looplab/fsm"
@@ -60,61 +62,61 @@ func NewApplication(appId string, queueName string, scheduler api.SchedulerApi) 
 		schedulerApi:  scheduler,
 	}
 
-	var states = States().Application
+	var states = events.States().Application
 	app.sm = fsm.NewFSM(
 		states.New,
 		fsm.Events{
-			{Name: string(SubmitApplication),
+			{Name: string(events.SubmitApplication),
 				Src: []string{states.New},
 				Dst: states.Submitted},
-			{Name: string(AcceptApplication),
+			{Name: string(events.AcceptApplication),
 				Src: []string{states.Submitted},
 				Dst: states.Accepted},
-			{Name: string(RunApplication),
+			{Name: string(events.RunApplication),
 				Src: []string{states.Accepted, states.Running},
 				Dst: states.Running},
-			{Name: string(CompleteApplication),
+			{Name: string(events.CompleteApplication),
 				Src: []string{states.Running},
 				Dst: states.Completed},
-			{Name: string(RejectApplication),
+			{Name: string(events.RejectApplication),
 				Src: []string{states.Submitted},
 				Dst: states.Rejected},
-			{Name: string(FailApplication),
+			{Name: string(events.FailApplication),
 				Src: []string{states.Submitted, states.Rejected, states.Accepted, states.Running},
 				Dst: states.Failed},
-			{Name: string(KillApplication),
+			{Name: string(events.KillApplication),
 				Src: []string{states.Accepted, states.Running},
 				Dst: states.Killing},
-			{Name: string(KilledApplication),
+			{Name: string(events.KilledApplication),
 				Src: []string{states.Killing},
 				Dst: states.Killed},
 		},
 		fsm.Callbacks{
 			//"enter_state":               app.handleTaskStateChange,
-			string(SubmitApplication):   app.handleSubmitApplicationEvent,
-			string(RunApplication):      app.handleRunApplicationEvent,
-			string(RejectApplication):   app.handleRejectApplicationEvent,
-			string(CompleteApplication): app.handleCompleteApplicationEvent,
+			string(events.SubmitApplication):   app.handleSubmitApplicationEvent,
+			string(events.RunApplication):      app.handleRunApplicationEvent,
+			string(events.RejectApplication):   app.handleRejectApplicationEvent,
+			string(events.CompleteApplication): app.handleCompleteApplicationEvent,
 		},
 	)
 
 	return app
 }
 
-func (app *Application) handle(ev ApplicationEvent) error {
+func (app *Application) handle(ev events.ApplicationEvent) error {
 	// state machine has its instinct lock, we don't need to hold the app lock here
 	// because the callbacks are the places where might modify app state, not here.
 	log.Logger.Debug("application state transition",
 		zap.String("appId", app.applicationId),
 		zap.String("preState", app.sm.Current()),
-		zap.String("pendingEvent", string(ev.getEvent())))
-	if err := app.sm.Event(string(ev.getEvent()), ev.getArgs()...); err != nil {
+		zap.String("pendingEvent", string(ev.GetEvent())))
+	if err := app.sm.Event(string(ev.GetEvent()), ev.GetArgs()...); err != nil {
 		return err
 	}
 	log.Logger.Debug("application state transition",
 		zap.String("appId", app.applicationId),
 		zap.String("postState", app.sm.Current()),
-		zap.String("handledEvent", string(ev.getEvent())))
+		zap.String("handledEvent", string(ev.GetEvent())))
 	return nil
 }
 
@@ -210,7 +212,8 @@ func (app *Application) handleSubmitApplicationEvent(event *fsm.Event) {
 
 	if err != nil {
 		// submission failed
-		GetDispatcher().Dispatch(NewFailApplicationEvent(app.applicationId))
+		log.Logger.Warn("failed to submit app", zap.Error(err))
+		dispatcher.Dispatch(NewFailApplicationEvent(app.applicationId))
 	}
 }
 
@@ -225,14 +228,14 @@ func (app *Application) handleRunApplicationEvent(event *fsm.Event) {
 
 	switch t := event.Args[0].(type) {
 	case *Task:
-		GetDispatcher().Dispatch(NewSubmitTaskEvent(app.applicationId, t.taskId))
+		dispatcher.Dispatch(NewSubmitTaskEvent(app.applicationId, t.taskId))
 	}
 }
 
 func (app *Application) handleRejectApplicationEvent(event *fsm.Event) {
 	log.Logger.Info("app is rejected by scheduler", zap.String("appId", app.applicationId))
 	// for rejected apps, we directly move them to failed state
-	GetDispatcher().Dispatch(NewFailApplicationEvent(app.applicationId))
+	dispatcher.Dispatch(NewFailApplicationEvent(app.applicationId))
 }
 
 func (app *Application) handleCompleteApplicationEvent(event *fsm.Event) {
@@ -279,16 +282,16 @@ func (app *Application) startSparkCompletionHandler(client client.KubeClient, po
 
 			for {
 				select {
-				case events, ok := <-podWatch.ResultChan():
+				case targetPod, ok := <-podWatch.ResultChan():
 					if !ok {
 						return
 					}
-					resp := events.Object.(*v1.Pod)
+					resp := targetPod.Object.(*v1.Pod)
 					if resp.Status.Phase == v1.PodSucceeded && resp.UID == pod.UID {
 						log.Logger.Info("spark driver completed, app completed",
 							zap.String("pod", resp.Name),
 							zap.String("appId", app.applicationId))
-						GetDispatcher().Dispatch(NewSimpleApplicationEvent(app.applicationId, CompleteApplication))
+						dispatcher.Dispatch(NewSimpleApplicationEvent(app.applicationId, events.CompleteApplication))
 						return
 					}
 				}

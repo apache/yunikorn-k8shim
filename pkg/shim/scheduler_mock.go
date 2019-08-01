@@ -14,18 +14,19 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package shim
+package main
 
 import (
 	"fmt"
 	"github.com/cloudera/yunikorn-core/pkg/api"
 	utils "github.com/cloudera/yunikorn-core/pkg/common/configs"
 	"github.com/cloudera/yunikorn-core/pkg/entrypoint"
+	"github.com/cloudera/yunikorn-k8shim/pkg/cache"
+	"github.com/cloudera/yunikorn-k8shim/pkg/callback"
 	"github.com/cloudera/yunikorn-k8shim/pkg/client"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common"
 	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
-	"github.com/cloudera/yunikorn-k8shim/pkg/scheduler/callback"
-	"github.com/cloudera/yunikorn-k8shim/pkg/state"
+	"github.com/cloudera/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
 	"gotest.tools/assert"
 	"k8s.io/api/core/v1"
@@ -40,9 +41,9 @@ const fakeClusterSchedulingInterval = 1
 
 // fake cluster is used for testing
 // it uses fake kube client to simulate API calls with k8s, all other code paths are real
-type FakeCluster struct {
-	context *state.Context
-	scheduler *ShimScheduler
+type MockScheduler struct {
+	context *cache.Context
+	scheduler *KubernetesShim
 	proxy  api.SchedulerApi
 	client client.KubeClient
 	conf string
@@ -51,7 +52,7 @@ type FakeCluster struct {
 	stopChan chan struct{}
 }
 
-func (fc *FakeCluster) init(queues string) {
+func (fc *MockScheduler) init(queues string) {
 	configs := conf.SchedulerConf{
 		ClusterId:      fakeClusterId,
 		ClusterVersion: fakeClusterVersion,
@@ -76,34 +77,36 @@ func (fc *FakeCluster) init(queues string) {
 	rmProxy := serviceContext.RMProxy
 	utils.MockSchedulerConfigByData([]byte(fc.conf))
 
-	client := &client.FakeKubeClient{
+	fakeClient := &client.FakeKubeClient{
 		BindFn:   fc.bindFn,
 		DeleteFn: fc.deleteFn,
 	}
-	context := state.NewContextInternal(rmProxy, &configs, client, true)
-	callback := callback.NewAsyncRMCallback(context)
 
-	dispatch := state.GetDispatcher()
-	dispatch.SetContext(context)
-	dispatch.Start()
+	schedulerApi, _ := rmProxy.(api.SchedulerApi)
+	context := cache.NewContextInternal(schedulerApi, &configs, fakeClient, true)
+	rmCallback := callback.NewAsyncRMCallback(context)
 
-	ss := newShimScheduler(rmProxy, context, callback)
+	dispatcher.RegisterEventHandler(dispatcher.EventTypeApp, context.ApplicationEventHandler())
+	dispatcher.RegisterEventHandler(dispatcher.EventTypeTask, context.TaskEventHandler())
+	dispatcher.Start()
+
+	ss := newShimSchedulerInternal(schedulerApi, context, rmCallback)
 
 	fc.context = context
 	fc.scheduler = ss
-	fc.proxy = rmProxy
-	fc.client = client
+	fc.proxy = schedulerApi
+	fc.client = fakeClient
 }
 
-func (fc *FakeCluster) start() {
-	fc.scheduler.Run(fc.stopChan)
+func (fc *MockScheduler) start() {
+	fc.scheduler.run(fc.stopChan)
 }
 
-func (fc *FakeCluster) assertSchedulerState(t *testing.T, expectedState string) {
+func (fc *MockScheduler) assertSchedulerState(t *testing.T, expectedState string) {
 	assert.Equal(t, fc.scheduler.GetSchedulerState(), expectedState)
 }
 
-func (fc *FakeCluster) addNode(nodeName string, memory int64, cpu int64) error {
+func (fc *MockScheduler) addNode(nodeName string, memory int64, cpu int64) error {
 	nodeResource := common.NewResourceBuilder().
 		AddResource(common.Memory, memory).
 		AddResource(common.CPU, cpu).
@@ -114,13 +117,13 @@ func (fc *FakeCluster) addNode(nodeName string, memory int64, cpu int64) error {
 	return fc.proxy.Update(&request)
 }
 
-func (fc *FakeCluster) addTask(tid string, ask *si.Resource, app *state.Application) state.Task{
-	task := state.CreateTaskForTest(tid, app, ask, fc.client, fc.proxy)
+func (fc *MockScheduler) addTask(tid string, ask *si.Resource, app *cache.Application) cache.Task{
+	task := cache.CreateTaskForTest(tid, app, ask, fc.client, fc.proxy)
 	app.AddTask(&task)
 	return task
 }
 
-func (fc *FakeCluster) waitForSchedulerState(t *testing.T, expectedState string) {
+func (fc *MockScheduler) waitForSchedulerState(t *testing.T, expectedState string) {
 	deadline := time.Now().Add(10 * time.Second)
 	for {
 		if fc.scheduler.GetSchedulerState() == expectedState {
@@ -134,8 +137,8 @@ func (fc *FakeCluster) waitForSchedulerState(t *testing.T, expectedState string)
 	}
 }
 
-func (fc *FakeCluster) waitAndAssertApplicationState(t *testing.T, appId string, expectedState string) {
-	appList := fc.context.SelectApplications(func(app *state.Application) bool {
+func (fc *MockScheduler) waitAndAssertApplicationState(t *testing.T, appId string, expectedState string) {
+	appList := fc.context.SelectApplications(func(app *cache.Application) bool {
 		return app.GetApplicationId() == appId
 	})
 	assert.Equal(t, len(appList), 1)
@@ -154,17 +157,17 @@ func (fc *FakeCluster) waitAndAssertApplicationState(t *testing.T, appId string,
 	}
 }
 
-func (fc *FakeCluster) addApplication(app *state.Application) {
+func (fc *MockScheduler) addApplication(app *cache.Application) {
 	fc.context.AddApplication(app)
 }
 
-func (fc *FakeCluster) newApplication(appId string, queueName string) *state.Application {
-	app := state.NewApplication(appId, queueName, fc.proxy)
+func (fc *MockScheduler) newApplication(appId string, queueName string) *cache.Application {
+	app := cache.NewApplication(appId, queueName, fc.proxy)
 	return app
 }
 
-func (fc *FakeCluster) waitAndAssertTaskState(t *testing.T, appId string, taskId string, expectedState string) {
-	appList := fc.context.SelectApplications(func(app *state.Application) bool {
+func (fc *MockScheduler) waitAndAssertTaskState(t *testing.T, appId string, taskId string, expectedState string) {
+	appList := fc.context.SelectApplications(func(app *cache.Application) bool {
 		return app.GetApplicationId() == appId
 	})
 	assert.Equal(t, len(appList), 1)
@@ -185,6 +188,6 @@ func (fc *FakeCluster) waitAndAssertTaskState(t *testing.T, appId string, taskId
 	}
 }
 
-func (fc *FakeCluster) stop() {
+func (fc *MockScheduler) stop() {
 	close(fc.stopChan)
 }

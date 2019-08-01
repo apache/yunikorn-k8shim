@@ -14,24 +14,24 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controller
+package cache
 
 import (
 	"fmt"
 	"github.com/cloudera/yunikorn-core/pkg/api"
+	"github.com/cloudera/yunikorn-k8shim/pkg/cache/external"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common"
 	"github.com/cloudera/yunikorn-k8shim/pkg/log"
-	"github.com/cloudera/yunikorn-k8shim/pkg/state/cache"
 	"go.uber.org/zap"
 	"k8s.io/api/core/v1"
 )
 
 type NodeController struct {
 	proxy api.SchedulerApi
-	cache *cache.SchedulerCache
+	cache *external.SchedulerCache
 }
 
-func NewNodeController(schedulerApi api.SchedulerApi, cache *cache.SchedulerCache) *NodeController {
+func newNodeController(schedulerApi api.SchedulerApi, cache *external.SchedulerCache) *NodeController {
 	return &NodeController{
 		proxy: schedulerApi,
 		cache: cache,
@@ -51,7 +51,7 @@ func equals(n1 *v1.Node, n2 *v1.Node) bool {
 	return common.Equals(n1Resource, n2Resource)
 }
 
-func (nc *NodeController) AddNode(obj interface{}) {
+func (nc *NodeController) addNode(obj interface{}) {
 	log.Logger.Debug("node-controller: AddNode")
 	node, err := convertToNode(obj)
 	if err != nil {
@@ -71,23 +71,30 @@ func (nc *NodeController) AddNode(obj interface{}) {
 	}
 }
 
-func (nc *NodeController) UpdateNode(oldObj, newObj interface{}) {
+func (nc *NodeController) updateNode(oldObj, newObj interface{}) {
 	// we only trigger update when resource changes
 	oldNode, err := convertToNode(oldObj)
 	if err != nil {
-		log.Logger.Error("old node conversion failed", zap.Error(err))
+		log.Logger.Error("old node conversion failed",
+			zap.Error(err))
 		return
 	}
 
 	newNode, err := convertToNode(newObj)
 	if err != nil {
-		log.Logger.Error("new node conversion failed", zap.Error(err))
+		log.Logger.Error("new node conversion failed",
+			zap.Error(err))
 		return
 	}
 
 	// update cache
-	log.Logger.Debug("updating node in cache", zap.String("OldNodeName", oldNode.Name))
-	nc.cache.UpdateNode(oldNode, newNode)
+	log.Logger.Debug("updating node in cache",
+		zap.String("OldNodeName", oldNode.Name))
+	if err := nc.cache.UpdateNode(oldNode, newNode); err != nil {
+		log.Logger.Error("unable to update node in scheduler cache",
+			zap.Error(err))
+		return
+	}
 
 	// node resource changes
 	if equals(oldNode, newNode) {
@@ -104,7 +111,7 @@ func (nc *NodeController) UpdateNode(oldObj, newObj interface{}) {
 	}
 }
 
-func (nc *NodeController) DeleteNode(obj interface{}) {
+func (nc *NodeController) deleteNode(obj interface{}) {
 	log.Logger.Debug("node-controller: DeleteNode")
 	node, err := convertToNode(obj)
 	if err != nil {
@@ -114,7 +121,11 @@ func (nc *NodeController) DeleteNode(obj interface{}) {
 
 	// add node to cache
 	log.Logger.Debug("delete node from cache", zap.String("nodeName", node.Name))
-	nc.cache.RemoveNode(node)
+	if err := nc.cache.RemoveNode(node); err != nil {
+		log.Logger.Error("unable to delete node from scheduler cache",
+			zap.Error(err))
+		return
+	}
 
 	n := common.CreateFrom(node)
 	request := common.CreateUpdateRequestForDeleteNode(n)
