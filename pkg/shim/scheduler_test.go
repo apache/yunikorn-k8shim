@@ -17,9 +17,17 @@ limitations under the License.
 package main
 
 import (
+	"fmt"
+	"github.com/cloudera/yunikorn-core/pkg/api"
+	"github.com/cloudera/yunikorn-core/pkg/log"
+	"github.com/cloudera/yunikorn-k8shim/pkg/cache"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
+	"github.com/cloudera/yunikorn-k8shim/pkg/common/test"
+	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
+	"go.uber.org/zap"
 	"testing"
+	"time"
 )
 
 func TestApplicationScheduling(t *testing.T) {
@@ -48,7 +56,7 @@ partitions:
 	defer cluster.stop()
 
 	// ensure scheduler state
-	cluster.waitForSchedulerState(t, events.States().Scheduler.Registered)
+	cluster.waitForSchedulerState(t, events.States().Scheduler.Running)
 
 	// register nodes
 	if err := cluster.addNode("test.host.01", 100, 10); err != nil {
@@ -103,7 +111,7 @@ partitions:
 	defer cluster.stop()
 
 	// ensure scheduler state
-	cluster.waitForSchedulerState(t, events.States().Scheduler.Registered)
+	cluster.waitForSchedulerState(t, events.States().Scheduler.Running)
 
 	// register nodes
 	if err := cluster.addNode("test.host.01", 100, 10); err != nil {
@@ -133,4 +141,41 @@ partitions:
 	cluster.addTask("task0001", taskResource, app0001)
 	cluster.addApplication(app0001)
 	cluster.waitAndAssertApplicationState(t, "app0001", events.States().Application.Accepted)
+}
+
+func TestSchedulerRegistrationFailed(t *testing.T){
+	var ctx *cache.Context
+	var callback api.ResourceManagerCallback
+
+	schedulerApi := test.FakeSchedulerApi{
+		RegisterFn: func(request *si.RegisterResourceManagerRequest,
+			callback api.ResourceManagerCallback) (response *si.RegisterResourceManagerResponse, e error) {
+				return nil, fmt.Errorf("some error")
+		},
+	}
+
+	shim := newShimSchedulerInternal(&schedulerApi, ctx, callback)
+	shim.run()
+	defer shim.stop()
+
+	if err := waitShimSchedulerState(shim, events.States().Scheduler.Stopped, 5 * time.Second); err !=nil {
+		t.Fatalf("%v", err)
+	}
+}
+
+func waitShimSchedulerState(shim *KubernetesShim, expectedState string, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	for {
+		if shim.GetSchedulerState() == expectedState {
+			log.Logger.Info("waiting for state",
+				zap.String("expect", expectedState),
+				zap.String("current", shim.GetSchedulerState()))
+			return nil
+		}
+		time.Sleep(1*time.Second)
+		if time.Now().After(deadline) {
+			return fmt.Errorf("scheduler has not reached expected state %s in %d seconds, current state: %s",
+				expectedState, deadline.Second(), shim.GetSchedulerState())
+		}
+	}
 }

@@ -203,6 +203,7 @@ func TestPodRejected(t *testing.T) {
 	dispatcher.RegisterEventHandler(dispatcher.EventTypeApp, context.ApplicationEventHandler())
 	dispatcher.RegisterEventHandler(dispatcher.EventTypeTask, context.TaskEventHandler())
 	dispatcher.Start()
+	defer dispatcher.Stop()
 
 	pod := v1.Pod{
 		TypeMeta: apis.TypeMeta{

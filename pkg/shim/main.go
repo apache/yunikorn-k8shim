@@ -39,10 +39,9 @@ func main() {
 
 	serviceContext := entrypoint.StartAllServices()
 
-	stopChan := make(chan struct{})
 	if sa, ok := serviceContext.RMProxy.(api.SchedulerApi); ok {
 		ss := newShimScheduler(sa, conf.GetSchedulerConf())
-		ss.run(stopChan)
+		ss.run()
 
 		signalChan := make(chan os.Signal, 1)
 		signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
@@ -50,7 +49,7 @@ func main() {
 			select {
 			case <-signalChan:
 				log.Logger.Info("Shutdown signal received, exiting...")
-				close(stopChan)
+				ss.stop()
 				os.Exit(0)
 			}
 		}

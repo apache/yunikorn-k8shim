@@ -17,7 +17,6 @@ limitations under the License.
 package main
 
 import (
-	"fmt"
 	"github.com/cloudera/yunikorn-core/pkg/api"
 	"github.com/cloudera/yunikorn-k8shim/pkg/cache"
 	"github.com/cloudera/yunikorn-k8shim/pkg/callback"
@@ -39,6 +38,7 @@ type KubernetesShim struct {
 	callback     api.ResourceManagerCallback
 	stateMachine *fsm.FSM
 	dispatcher   *dispatcher.Dispatcher
+	stopChan     chan struct{}
 	lock         *sync.Mutex
 }
 
@@ -55,33 +55,107 @@ func newShimSchedulerInternal(api api.SchedulerApi, ctx *cache.Context, cb api.R
 		rmProxy:      api,
 		context:      ctx,
 		callback:     cb,
+		stopChan:     make(chan struct{}),
 	}
-
-	// init dispatcher
-	dispatcher.RegisterEventHandler(dispatcher.EventTypeApp, ctx.ApplicationEventHandler())
-	dispatcher.RegisterEventHandler(dispatcher.EventTypeTask, ctx.TaskEventHandler())
 
 	// init state machine
 	ss.stateMachine = fsm.NewFSM(
 		states.New,
 		fsm.Events{
-			{Name: string(RegisterScheduler),
+			{Name: string(events.RegisterScheduler),
 				Src: []string{states.New},
+				Dst: states.Registering},
+			{Name: string(events.RegisterSchedulerSucceed),
+				Src: []string{states.Registering},
 				Dst: states.Registered},
+			{Name: string(events.RegisterSchedulerFailed),
+				Src: []string{states.Registering},
+				Dst: states.Stopped},
+			{Name: string(events.RecoverScheduler),
+				Src: []string{states.Registered},
+				Dst: states.Recovering},
+			{Name: string(events.RecoverSchedulerSucceed),
+				Src: []string{states.Recovering},
+				Dst: states.Running},
+			{Name: string(events.RecoverSchedulerFailed),
+				Src: []string{states.Recovering},
+				Dst: states.Stopped},
 		},
 		fsm.Callbacks{
-			string(RegisterScheduler): ss.register(),
+			string(events.RegisterScheduler): ss.register(),                     // trigger registration
+			string(events.RegisterSchedulerFailed): ss.handleSchedulerFailure(), // registration failed, stop the scheduler
+			string(states.Registered): ss.triggerSchedulerStateRecovery(),       // if reaches registered, trigger recovering
+			string(states.Recovering): ss.recoverSchedulerState(),               // do recovering
+			string(states.Running): ss.doScheduling(),                           // do scheduling
 		},
 	)
 
+	// init dispatcher
+	dispatcher.RegisterEventHandler(dispatcher.EventTypeApp, ctx.ApplicationEventHandler())
+	dispatcher.RegisterEventHandler(dispatcher.EventTypeTask, ctx.TaskEventHandler())
+	dispatcher.RegisterEventHandler(dispatcher.EventTypeScheduler, ss.schedulerEventHandler())
+
 	return ss
+}
+
+func (ss *KubernetesShim) schedulerEventHandler() func(obj interface{}){
+	return func(obj interface{}) {
+		if event, ok := obj.(events.SchedulerEvent); ok {
+			if err := ss.handle(event); err != nil {
+				log.Logger.Error("failed to handle scheduler event",
+					zap.String("event", string(event.GetEvent())),
+					zap.Error(err))
+			}
+		}
+	}
 }
 
 func (ss *KubernetesShim) register() func(e *fsm.Event) {
 	return func(e *fsm.Event) {
 		if err := ss.registerShimLayer(); err != nil {
-			log.Logger.Fatal("failed to register to yunikorn-core", zap.Error(err))
+			dispatcher.Dispatch(ShimSchedulerEvent{
+				event: events.RegisterSchedulerFailed,
+			})
+		} else {
+			dispatcher.Dispatch(ShimSchedulerEvent{
+				event: events.RegisterSchedulerSucceed,
+			})
 		}
+	}
+}
+
+func (ss *KubernetesShim) handleSchedulerFailure() func(e *fsm.Event) {
+	return func(e *fsm.Event) {
+		ss.stop()
+	}
+}
+
+func (ss *KubernetesShim) triggerSchedulerStateRecovery() func(e *fsm.Event) {
+	return func(e *fsm.Event) {
+		dispatcher.Dispatch(ShimSchedulerEvent{
+			event: events.RecoverScheduler,
+		})
+	}
+}
+
+func (ss *KubernetesShim) recoverSchedulerState() func(e *fsm.Event) {
+	return func(e *fsm.Event) {
+		log.Logger.Info("recovering scheduler states...please wait...")
+		// TODO add recovery process
+
+		// success
+		dispatcher.Dispatch(ShimSchedulerEvent{
+			event: events.RecoverSchedulerSucceed,
+		})
+	}
+}
+
+func (ss *KubernetesShim) doScheduling() func(e *fsm.Event) {
+	return func(e *fsm.Event) {
+		// run context
+		ss.context.Run(ss.stopChan)
+		// run main scheduling loop
+		go wait.Until(ss.schedule, conf.GetSchedulerConf().GetSchedulingInterval(), ss.stopChan)
 	}
 }
 
@@ -109,7 +183,7 @@ func (ss *KubernetesShim) GetSchedulerState() string {
 }
 
 // event handling
-func (ss *KubernetesShim) Handle(se SchedulerEvent) error {
+func (ss *KubernetesShim) handle(se events.SchedulerEvent) error {
 	log.Logger.Info("shim-scheduler state transition",
 		zap.String("preState", ss.stateMachine.Current()),
 		zap.String("pending event", string(se.GetEvent())))
@@ -149,15 +223,21 @@ func (ss *KubernetesShim) schedule() {
 	}
 }
 
-func (ss *KubernetesShim) run(stopChan chan struct{}) {
-	// first register to scheduler
-	if err := ss.Handle(newRegisterSchedulerEvent()); err != nil {
-		panic(fmt.Sprintf("state transition failed, error %s", err.Error()))
-	}
-
+func (ss *KubernetesShim) run() {
 	// run dispatcher
 	dispatcher.Start()
 
-	ss.context.Run(stopChan)
-	go wait.Until(ss.schedule, conf.GetSchedulerConf().GetSchedulingInterval(), stopChan)
+	// register scheduler with scheduler core
+	dispatcher.Dispatch(newRegisterSchedulerEvent())
+}
+
+func (ss *KubernetesShim) stop() {
+	log.Logger.Info("stopping scheduler")
+	select {
+	case ss.stopChan <- struct{}{}:
+		// stop the dispatcher
+		dispatcher.Stop()
+	default:
+		log.Logger.Info("scheduler is already stopped")
+	}
 }

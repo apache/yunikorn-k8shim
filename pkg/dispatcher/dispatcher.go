@@ -22,6 +22,8 @@ import (
 	"github.com/cloudera/yunikorn-k8shim/pkg/log"
 	"go.uber.org/zap"
 	"sync"
+	"sync/atomic"
+	"time"
 )
 
 var dispatcher *Dispatcher
@@ -41,7 +43,8 @@ type Dispatcher struct {
 	eventChan chan events.SchedulingEvent
 	stopChan  chan struct{}
 	handlers  map[EventType]func(interface{})
-	isRunning bool
+	running   atomic.Value
+	lock      sync.RWMutex
 }
 
 func init() {
@@ -50,14 +53,26 @@ func init() {
 			dispatcher = &Dispatcher{
 				eventChan: make(chan events.SchedulingEvent, 1024),
 				handlers:  make(map[EventType]func(interface{})),
-				isRunning: false,
+				stopChan:  make(chan struct{}),
+				running:   atomic.Value{},
+				lock:      sync.RWMutex{},
 			}
+			dispatcher.setRunning(false)
 		}
 	})
 }
 
 func RegisterEventHandler(eventType EventType, handlerFn func(interface{})) {
+	dispatcher.lock.Lock()
+	defer dispatcher.lock.Unlock()
 	dispatcher.handlers[eventType] = handlerFn
+}
+
+// a thread-safe way to get event handlers
+func getEventHandler(eventType EventType) func(interface{}) {
+	dispatcher.lock.RLock()
+	defer dispatcher.lock.RUnlock()
+	return dispatcher.handlers[eventType]
 }
 
 // dispatches scheduler events to actual app/task handler,
@@ -73,8 +88,16 @@ func Dispatch(event events.SchedulingEvent) {
 	}
 }
 
+func (p *Dispatcher) isRunning() bool {
+	return p.running.Load().(bool)
+}
+
+func (p *Dispatcher) setRunning(flag bool) {
+	p.running.Store(flag)
+}
+
 func (p *Dispatcher) dispatch(event events.SchedulingEvent) error {
-	if !p.isRunning {
+	if !p.isRunning() {
 		return fmt.Errorf("dispatcher is not running")
 	}
 
@@ -82,29 +105,64 @@ func (p *Dispatcher) dispatch(event events.SchedulingEvent) error {
 	case p.eventChan <- event:
 		return nil
 	default:
-		return fmt.Errorf("failed to dispatch event")
+		return fmt.Errorf("failed to dispatch event," +
+			" event channel is full or closed")
 	}
 }
 
+func (p *Dispatcher) drain() {
+	for len(p.eventChan) > 0 {
+		log.Logger.Info("wait dispatcher to drain",
+			zap.Int("remaining events", len(p.eventChan)))
+		time.Sleep(time.Duration(1) * time.Second)
+	}
+	log.Logger.Info("dispatcher is draining out")
+}
+
 func Start() {
+	log.Logger.Info("starting the dispatcher")
 	go func() {
 		for {
 			select {
 			case event := <-dispatcher.eventChan:
 				switch v := event.(type) {
 				case events.ApplicationEvent:
-					dispatcher.handlers[EventTypeApp](v)
+					getEventHandler(EventTypeApp)(v)
 				case events.TaskEvent:
-					dispatcher.handlers[EventTypeTask](v)
+					getEventHandler(EventTypeTask)(v)
+				case events.SchedulerEvent:
+					getEventHandler(EventTypeScheduler)(v)
 				default:
-					log.Logger.Fatal("unsupported event")
+					log.Logger.Fatal("unsupported event",
+						zap.Any("event", v))
 				}
 			case <-dispatcher.stopChan:
-				close(dispatcher.eventChan)
-				dispatcher.isRunning = false
+				log.Logger.Info("shutting down event channel")
+				dispatcher.setRunning(false)
 				return
 			}
 		}
 	}()
-	dispatcher.isRunning = true
+	dispatcher.setRunning(true)
 }
+
+// stop the dispatcher and wait at most 5 seconds gracefully
+func Stop() {
+	log.Logger.Info("stopping the dispatcher")
+	select {
+	case dispatcher.stopChan <- struct{}{}:
+		maxTimeout := 5
+		for dispatcher.isRunning() && maxTimeout > 0 {
+			log.Logger.Info("waiting for dispatcher to be stopped",
+				zap.Int("remainingSeconds", maxTimeout))
+			time.Sleep(time.Duration(1) * time.Second)
+			maxTimeout--
+		}
+		if !dispatcher.isRunning() {
+			log.Logger.Info("dispatcher stopped")
+		}
+	default:
+		log.Logger.Info("dispatcher is already stopped")
+	}
+}
+

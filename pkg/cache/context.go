@@ -509,13 +509,17 @@ func (ctx *Context) AddApplication(app *Application) {
 }
 
 func (ctx *Context) GetApplication(appId string) (*Application, error) {
+	ctx.lock.RLock()
+	defer ctx.lock.RUnlock()
 	if app, ok := ctx.applications[appId]; ok {
 		return app, nil
 	}
 	return nil, fmt.Errorf("application %s is not found in context", appId)
 }
 
-func (ctx *Context) GetTask(appId string, taskId string) (*Task, error) {
+func (ctx *Context) getTask(appId string, taskId string) (*Task, error) {
+	ctx.lock.RLock()
+	defer ctx.lock.RUnlock()
 	if app, ok := ctx.applications[appId]; ok {
 		if task, err := app.GetTask(taskId); err == nil {
 			return task, nil
@@ -560,7 +564,7 @@ func (ctx *Context) ApplicationEventHandler() func(obj interface{}){
 func (ctx *Context) TaskEventHandler() func(obj interface{}){
 	return func(obj interface{}) {
 		if event, ok := obj.(events.TaskEvent); ok {
-			task, err := ctx.GetTask(event.GetApplicationId(), event.GetTaskId())
+			task, err := ctx.getTask(event.GetApplicationId(), event.GetTaskId())
 			if err != nil {
 				log.Logger.Error("failed to handle application event", zap.Error(err))
 				return

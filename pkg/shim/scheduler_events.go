@@ -16,35 +16,34 @@ limitations under the License.
 
 package main
 
-// --------------------------------------
-// scheduler events
-// --------------------------------------
-type SchedulerEventType string
+import "github.com/cloudera/yunikorn-k8shim/pkg/common/events"
 
-const (
-	RegisterScheduler SchedulerEventType = "RegisterScheduler"
-)
-
-type SchedulerEvent interface {
-	// the type of this event
-	GetEvent() SchedulerEventType
-
-	// an event can have multiple arguments, these arguments will be passed to
-	// state machines' callbacks when doing state transition
-	GetArgs() []interface{}
+type ShimSchedulerEvent struct {
+	event events.SchedulerEventType
 }
 
+func (rs ShimSchedulerEvent) GetEvent() events.SchedulerEventType {
+	return rs.event
+}
+
+func (rs ShimSchedulerEvent) GetArgs() []interface{} {
+	return nil
+}
+
+// -------------------------------------------------------------------
+// event to trigger scheduler registration
+// --------------------------------------------------------------------
 type RegisterSchedulerEvent struct {
-	event SchedulerEventType
+	event events.SchedulerEventType
 }
 
 func newRegisterSchedulerEvent() RegisterSchedulerEvent {
 	return RegisterSchedulerEvent{
-		event: RegisterScheduler,
+		event: events.RegisterScheduler,
 	}
 }
 
-func (rs RegisterSchedulerEvent) GetEvent() SchedulerEventType {
+func (rs RegisterSchedulerEvent) GetEvent() events.SchedulerEventType {
 	return rs.event
 }
 

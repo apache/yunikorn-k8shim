@@ -27,13 +27,13 @@ type AllStates struct {
 }
 
 type SchedulerStates struct {
-	New        string
-	Registered string
-	Syncing    string
-	Running    string
-	Draining   string
-	Stopping   string
-	Stopped    string
+	New         string
+	Registered  string
+	Registering string
+	Recovering  string
+	Running     string
+	Draining    string
+	Stopped     string
 }
 
 type ApplicationStates struct {
@@ -86,13 +86,13 @@ func States() *AllStates {
 				Completed:  "Completed",
 			},
 			Scheduler: &SchedulerStates{
-				New:        "New",
-				Registered: "Registered",
-				Syncing:    "Syncing",
-				Running:    "Running",
-				Draining:   "Draining",
-				Stopping:   "Stopping",
-				Stopped:    "Stopped",
+				New:         "New",
+				Registered:  "Registered",
+				Registering: "Registering",
+				Recovering:  "Recovering",
+				Running:     "Running",
+				Draining:    "Draining",
+				Stopped:     "Stopped",
 			},
 		}
 	}

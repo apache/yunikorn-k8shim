@@ -26,7 +26,6 @@ import (
 	"github.com/cloudera/yunikorn-k8shim/pkg/client"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common"
 	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
-	"github.com/cloudera/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
 	"gotest.tools/assert"
 	"k8s.io/api/core/v1"
@@ -86,10 +85,6 @@ func (fc *MockScheduler) init(queues string) {
 	context := cache.NewContextInternal(schedulerApi, &configs, fakeClient, true)
 	rmCallback := callback.NewAsyncRMCallback(context)
 
-	dispatcher.RegisterEventHandler(dispatcher.EventTypeApp, context.ApplicationEventHandler())
-	dispatcher.RegisterEventHandler(dispatcher.EventTypeTask, context.TaskEventHandler())
-	dispatcher.Start()
-
 	ss := newShimSchedulerInternal(schedulerApi, context, rmCallback)
 
 	fc.context = context
@@ -99,7 +94,7 @@ func (fc *MockScheduler) init(queues string) {
 }
 
 func (fc *MockScheduler) start() {
-	fc.scheduler.run(fc.stopChan)
+	fc.scheduler.run()
 }
 
 func (fc *MockScheduler) assertSchedulerState(t *testing.T, expectedState string) {
@@ -190,4 +185,5 @@ func (fc *MockScheduler) waitAndAssertTaskState(t *testing.T, appId string, task
 
 func (fc *MockScheduler) stop() {
 	close(fc.stopChan)
+	fc.scheduler.stop()
 }
