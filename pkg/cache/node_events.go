@@ -14,27 +14,24 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package client
+package cache
 
-import (
-	"k8s.io/api/core/v1"
-	"k8s.io/client-go/kubernetes"
-)
+import "github.com/cloudera/yunikorn-k8shim/pkg/common/events"
 
-// fake client allows us to inject customized bind/delete pod functions
-type FakeKubeClient struct {
-	BindFn   func(pod *v1.Pod, hostId string) error
-	DeleteFn func(pod *v1.Pod) error
+type CachedSchedulerNodeEvent struct {
+	NodeId        string
+	Event         events.SchedulerNodeEventType
+	Arguments     []interface{}
 }
 
-func (c *FakeKubeClient) Bind(pod *v1.Pod, hostId string) error {
-	return c.BindFn(pod, hostId)
+func (sn CachedSchedulerNodeEvent) GetEvent() events.SchedulerNodeEventType {
+	return sn.Event
 }
 
-func (c *FakeKubeClient) Delete(pod *v1.Pod) error {
-	return c.DeleteFn(pod)
+func (sn CachedSchedulerNodeEvent) GetArgs() []interface{} {
+	return sn.Arguments
 }
 
-func (c *FakeKubeClient) GetClientSet() *kubernetes.Clientset {
-	return nil
+func (sn CachedSchedulerNodeEvent) GetNodeId() string {
+	return sn.NodeId
 }

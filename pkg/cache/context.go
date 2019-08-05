@@ -40,11 +40,11 @@ import (
 
 // context maintains scheduling state, like apps and apps' tasks.
 type Context struct {
-	applications   map[string]*Application
-	nodeController *NodeController
-	conf           *conf.SchedulerConf
-	kubeClient     client.KubeClient
-	schedulerApi   api.SchedulerApi
+	applications map[string]*Application
+	nodes        *schedulerNodes
+	conf         *conf.SchedulerConf
+	kubeClient   client.KubeClient
+	schedulerApi api.SchedulerApi
 
 	// informers
 	podInformer       coreInfomerV1.PodInformer
@@ -116,15 +116,15 @@ func NewContextInternal(scheduler api.SchedulerApi, configs *conf.SchedulerConf,
 		ctx.volumeBinder)
 
 	// init the controllers and plugins (need the cache)
-	ctx.nodeController = newNodeController(scheduler, ctx.schedulerCache)
+	ctx.nodes = newSchedulerNodes(scheduler, ctx.schedulerCache)
 	ctx.predictor = plugin.NewPredictor(schedulercache.GetPluginArgs(), testMode)
 
 	// Add the event handling to all informers that need it
 	ctx.nodeInformer.Informer().AddEventHandlerWithResyncPeriod(
 		cache.ResourceEventHandlerFuncs{
-			AddFunc:    ctx.addNode,
-			UpdateFunc: ctx.updateNode,
-			DeleteFunc: ctx.deleteNode,
+			AddFunc:    ctx.nodes.addNode,
+			UpdateFunc: ctx.nodes.updateNode,
+			DeleteFunc: ctx.nodes.deleteNode,
 		},
 		0,
 	)
@@ -160,18 +160,6 @@ func NewContextInternal(scheduler api.SchedulerApi, configs *conf.SchedulerConf,
 	})
 
 	return ctx
-}
-
-func (ctx *Context) addNode(obj interface{}) {
-	ctx.nodeController.addNode(obj)
-}
-
-func (ctx *Context) updateNode(oldObj, newObj interface{}) {
-	ctx.nodeController.updateNode(oldObj, newObj)
-}
-
-func (ctx *Context) deleteNode(obj interface{}) {
-	ctx.nodeController.deleteNode(obj)
 }
 
 // add a pod to the context
@@ -225,6 +213,10 @@ func (ctx *Context) addPodToCache(obj interface{}) {
 			zap.String("podName", pod.Name),
 			zap.Error(err))
 	}
+
+	if err := ctx.nodes.addExistingAllocation(pod); err != nil {
+		log.Logger.Error("failed to add existing allocations", zap.Error(err))
+	}
 }
 
 func (ctx *Context) removePodFromCache(obj interface{}) {
@@ -273,7 +265,7 @@ func (ctx *Context) validatePod(pod *v1.Pod) error {
 			ctx.conf.SchedulerName, pod.Name, pod.UID, pod.Spec.SchedulerName)
 	}
 
-	if _, err := generateApplicationIdFromPod(pod); err != nil {
+	if _, err := utils.GetApplicationIdFromPod(pod); err != nil {
 		return err
 	}
 
@@ -482,7 +474,7 @@ func (ctx *Context) AssumePod(name string, node string) error {
 // if app already exists in the context, directly return the app from context
 // if app doesn't exist in the context yet, create a new app instance and add to context
 func (ctx *Context) getOrCreateApplication(pod *v1.Pod) *Application {
-	appId, err := generateApplicationIdFromPod(pod)
+	appId, err := utils.GetApplicationIdFromPod(pod)
 	if err != nil {
 		log.Logger.Error("unable to get application by given pod", zap.Error(err))
 		return nil
@@ -491,11 +483,7 @@ func (ctx *Context) getOrCreateApplication(pod *v1.Pod) *Application {
 	if application, ok := ctx.applications[appId]; ok {
 		return application
 	} else {
-		queueName := common.ApplicationDefaultQueue
-		if an, ok := pod.Labels[common.LabelQueueName]; ok {
-			queueName = an
-		}
-		newApp := NewApplication(appId, queueName, ctx.schedulerApi)
+		newApp := NewApplication(appId, utils.GetQueueNameFromPod(pod), ctx.schedulerApi)
 		ctx.applications[appId] = newApp
 		return ctx.applications[appId]
 	}
@@ -579,8 +567,17 @@ func (ctx *Context) TaskEventHandler() func(obj interface{}){
 	}
 }
 
+func (ctx *Context) SchedulerNodeEventHandler() func(obj interface{}){
+	if ctx != nil && ctx.nodes != nil {
+		return ctx.nodes.schedulerNodeEventHandler()
+	} else {
+		// this is not required in some tests
+		return nil
+	}
+}
+
 func (ctx *Context) Run(stopCh <-chan struct{}) {
-	if !ctx.testMode {
+	if ctx != nil && !ctx.testMode {
 		go ctx.nodeInformer.Informer().Run(stopCh)
 		go ctx.podInformer.Informer().Run(stopCh)
 		go ctx.pvInformer.Informer().Run(stopCh)

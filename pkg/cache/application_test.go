@@ -20,6 +20,7 @@ import (
 	"github.com/cloudera/yunikorn-core/pkg/api"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
+	"github.com/cloudera/yunikorn-k8shim/pkg/common/utils"
 	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
 	"gotest.tools/assert"
 	"k8s.io/api/core/v1"
@@ -105,7 +106,7 @@ func TestGetApplicationIdFromPod(t *testing.T) {
 		Spec:   v1.PodSpec{},
 		Status: v1.PodStatus{},
 	}
-	appId, err := generateApplicationIdFromPod(&pod)
+	appId, err := utils.GetApplicationIdFromPod(&pod)
 	assert.Equal(t, appId, "app00001")
 	assert.Equal(t, err, nil)
 
@@ -127,7 +128,7 @@ func TestGetApplicationIdFromPod(t *testing.T) {
 		Spec:   v1.PodSpec{},
 		Status: v1.PodStatus{},
 	}
-	appId, err = generateApplicationIdFromPod(&pod)
+	appId, err = utils.GetApplicationIdFromPod(&pod)
 	assert.Equal(t, appId, "app00002")
 	assert.Equal(t, err, nil)
 
@@ -149,7 +150,7 @@ func TestGetApplicationIdFromPod(t *testing.T) {
 		Spec:   v1.PodSpec{},
 		Status: v1.PodStatus{},
 	}
-	appId, err = generateApplicationIdFromPod(&pod)
+	appId, err = utils.GetApplicationIdFromPod(&pod)
 	assert.Equal(t, appId, "spark-0001")
 	assert.Equal(t, err, nil)
 
@@ -168,7 +169,7 @@ func TestGetApplicationIdFromPod(t *testing.T) {
 		Status: v1.PodStatus{},
 	}
 
-	appId, err = generateApplicationIdFromPod(&pod)
+	appId, err = utils.GetApplicationIdFromPod(&pod)
 	assert.Equal(t, appId, "")
 	assert.Assert(t, err != nil)
 }

@@ -24,6 +24,7 @@ type AllStates struct {
 	Application *ApplicationStates
 	Task        *TaskStates
 	Scheduler   *SchedulerStates
+	Node        *NodeStates
 }
 
 type SchedulerStates struct {
@@ -46,6 +47,14 @@ type ApplicationStates struct {
 	Killing   string
 	Killed    string
 	Failed    string
+}
+
+type NodeStates struct {
+	New        string
+	Recovering string
+	Healthy    string
+	Unhealthy  string
+	Rejected   string
 }
 
 type TaskStates struct {
@@ -93,6 +102,13 @@ func States() *AllStates {
 				Running:     "Running",
 				Draining:    "Draining",
 				Stopped:     "Stopped",
+			},
+			Node: &NodeStates{
+				New:        "New",
+				Recovering: "Recovering",
+				Healthy:    "Healthy",
+				Unhealthy:  "Unhealthy",
+				Rejected:   "Rejected",
 			},
 		}
 	}

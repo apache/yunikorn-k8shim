@@ -17,9 +17,12 @@ package utils
 
 import (
 	"fmt"
+	"github.com/cloudera/yunikorn-k8shim/pkg/common"
 	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
 	"k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"strings"
+	"time"
 )
 
 func Convert2Pod(obj interface{}) (*v1.Pod, error) {
@@ -37,4 +40,64 @@ func IsAssignedPod(pod *v1.Pod) bool {
 
 func IsSchedulablePod(pod *v1.Pod) bool {
 	return strings.Compare(pod.Spec.SchedulerName, conf.GetSchedulerConf().SchedulerName) == 0
+}
+
+func GetQueueNameFromPod(pod *v1.Pod) string {
+	queueName := common.ApplicationDefaultQueue
+	if an, ok := pod.Labels[common.LabelQueueName]; ok {
+		queueName = an
+	}
+	return queueName
+}
+
+func GetApplicationIdFromPod(pod *v1.Pod) (string, error) {
+	for name, value := range pod.Labels {
+		// if a pod for spark already provided appId, reuse it
+		if name == common.SparkLabelAppId {
+			return value, nil
+		}
+
+		// application ID can be defined as a label
+		if name == common.LabelApplicationId {
+			return value, nil
+		}
+	}
+
+	// application ID can be defined in annotations too
+	for name, value := range pod.Annotations {
+		if name == common.LabelApplicationId {
+			return value, nil
+		}
+	}
+	return "", fmt.Errorf("unable to retrieve application ID from pod spec, %s",
+		pod.Spec.String())
+}
+
+type K8sResource struct {
+	ResourceName v1.ResourceName
+	Value int64
+}
+
+func NewK8sResourceList(resources...K8sResource) map[v1.ResourceName]resource.Quantity {
+	resourceList := make(map[v1.ResourceName]resource.Quantity)
+	for _, r := range resources {
+		resourceList[r.ResourceName] = *resource.NewQuantity(r.Value, resource.DecimalSI)
+
+	}
+	return resourceList
+}
+
+func WaitForCondition(eval func() bool, interval time.Duration, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	for {
+		if eval() {
+			return nil
+		}
+
+		if time.Now().After(deadline) {
+			return fmt.Errorf("timeout waiting for condition")
+		}
+
+		time.Sleep(interval)
+	}
 }

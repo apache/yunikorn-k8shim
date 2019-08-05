@@ -132,6 +132,8 @@ func Start() {
 					getEventHandler(EventTypeTask)(v)
 				case events.SchedulerEvent:
 					getEventHandler(EventTypeScheduler)(v)
+				case events.SchedulerNodeEvent:
+					getEventHandler(EventTypeNode)(v)
 				default:
 					log.Logger.Fatal("unsupported event",
 						zap.Any("event", v))

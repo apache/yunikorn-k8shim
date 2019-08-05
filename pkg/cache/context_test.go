@@ -17,8 +17,8 @@ limitations under the License.
 package cache
 
 import (
-	"github.com/cloudera/yunikorn-k8shim/pkg/client"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
+	"github.com/cloudera/yunikorn-k8shim/pkg/common/test"
 	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
 	"github.com/cloudera/yunikorn-k8shim/pkg/dispatcher"
 	"gotest.tools/assert"
@@ -42,14 +42,7 @@ func initContextForTest() *Context {
 		KubeConfig:     "",
 	}
 
-	client := &client.FakeKubeClient{
-		BindFn: func(pod *v1.Pod, hostId string) error {
-			return nil
-		},
-		DeleteFn: func(pod *v1.Pod) error {
-			return nil
-		},
-	}
+	client := test.NewKubeClientMock()
 
 	context := NewContextInternal(nil, &configs, client, true)
 	return context
