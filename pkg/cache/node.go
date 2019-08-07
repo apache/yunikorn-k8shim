@@ -84,8 +84,7 @@ func (n *SchedulerNode) addExistingAllocation(allocation *si.Allocation) {
 }
 
 func (n *SchedulerNode) getNodeState() string {
-	n.lock.RLock()
-	defer n.lock.RUnlock()
+	// fsm has its own internal lock, we don't need to hold node's lock here
 	return n.fsm.Current()
 }
 

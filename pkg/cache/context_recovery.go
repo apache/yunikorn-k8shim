@@ -118,21 +118,26 @@ func (ctx *Context) waitForNodeRecovery(nodeLister v1.NodeLister, maxTimeout tim
 	// add all known nodes to cache, waiting for recover
 	for _, node := range allNodes {
 		ctx.nodes.addAndReportNode(node, false)
-		if podList, err := ctx.kubeClient.GetClientSet().
-			CoreV1().Pods("").
-			List(metav1.ListOptions{
-				FieldSelector: fmt.Sprintf("spec.nodeName=%s", node.Name),
-			}); err != nil {
-			return err
-		} else {
-			for _, pod := range podList.Items {
-				if utils.IsSchedulablePod(&pod) && utils.IsAssignedPod(&pod) {
-					log.Logger.Debug("existing pods",
-						zap.String("podName", pod.Name),
-						zap.String("podUID", string(pod.UID)),
-						zap.String("podNodeName", pod.Spec.NodeName))
-					if err := ctx.nodes.addExistingAllocation(&pod); err != nil {
-						log.Logger.Warn("add existing allocation failed", zap.Error(err))
+		// current, disable getting pods for a node during test,
+		// because in the tests, we don't really send existing allocations
+		// we simply simulate to accept or reject nodes on conditions.
+		if !ctx.testMode {
+			if podList, err := ctx.kubeClient.GetClientSet().
+				CoreV1().Pods("").
+				List(metav1.ListOptions{
+					FieldSelector: fmt.Sprintf("spec.nodeName=%s", node.Name),
+				}); err != nil {
+				return err
+			} else {
+				for _, pod := range podList.Items {
+					if utils.IsSchedulablePod(&pod) && utils.IsAssignedPod(&pod) {
+						log.Logger.Debug("existing pods",
+							zap.String("podName", pod.Name),
+							zap.String("podUID", string(pod.UID)),
+							zap.String("podNodeName", pod.Spec.NodeName))
+						if err := ctx.nodes.addExistingAllocation(&pod); err != nil {
+							log.Logger.Warn("add existing allocation failed", zap.Error(err))
+						}
 					}
 				}
 			}

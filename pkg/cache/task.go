@@ -138,8 +138,7 @@ func (task *Task) GetTaskPod() *v1.Pod {
 }
 
 func (task *Task) GetTaskState() string {
-	task.lock.RLock()
-	defer task.lock.RUnlock()
+	// fsm has its own internal lock, we don't need to hold node's lock here
 	return task.sm.Current()
 }
 
