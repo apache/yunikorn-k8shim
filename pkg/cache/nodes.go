@@ -73,7 +73,6 @@ func equals(n1 *v1.Node, n2 *v1.Node) bool {
 func (nc *schedulerNodes) addExistingAllocation(pod *v1.Pod) error {
 	nc.lock.Lock()
 	defer nc.lock.Unlock()
-
 	if utils.IsAssignedPod(pod) {
 		if appId, err := utils.GetApplicationIdFromPod(pod); err == nil {
 			if schedulerNode, ok := nc.nodesMap[pod.Spec.NodeName]; ok {
@@ -92,61 +91,44 @@ func (nc *schedulerNodes) addExistingAllocation(pod *v1.Pod) error {
 			return err
 		}
 	}
-	return fmt.Errorf("cannot existing allocation because pod %s is not assigned to a node", pod.Name)
+	return nil
 }
 
-func (nc *schedulerNodes) addNode(obj interface{}) {
+func (nc *schedulerNodes) addNode(node *v1.Node) {
+	nc.addAndReportNode(node, true)
+}
+
+func (nc *schedulerNodes) addAndReportNode(node *v1.Node, reportNode bool) {
 	nc.lock.Lock()
 	defer nc.lock.Unlock()
-
-	node, err := convertToNode(obj)
-	if err != nil {
-		log.Logger.Error("node conversion failed", zap.Error(err))
-		return
-	}
-
-	// add node to cache
-	log.Logger.Info("adding node to cache", zap.String("NodeName", node.Name))
-	nc.cache.AddNode(node)
 
 	// add node to nodes map
-	newNode := newSchedulerNode(node.Name, string(node.UID), common.GetNodeResource(&node.Status), nc.proxy)
-	nc.nodesMap[node.Name] = newNode
+	if _, ok := nc.nodesMap[node.Name]; !ok {
+		log.Logger.Info("adding node to context",
+			zap.String("nodeName", node.Name),
+			zap.String("UID", string(node.UID)))
+		newNode := newSchedulerNode(node.Name, string(node.UID), common.GetNodeResource(&node.Status), nc.proxy)
+		nc.nodesMap[node.Name] = newNode
+	}
 
 	// once node is added to scheduler, first thing is to recover its state
-	dispatcher.Dispatch(CachedSchedulerNodeEvent{
-		NodeId:    newNode.name,
-		Event:     events.RecoverNode,
-	})
+	// node might already be in healthy state, previously recovered during recovery process,
+	// do not trigger recover again in this case.
+	if reportNode {
+		if node, ok := nc.nodesMap[node.Name]; ok {
+			if node.getNodeState() == events.States().Node.New {
+				dispatcher.Dispatch(CachedSchedulerNodeEvent{
+					NodeId: node.name,
+					Event:  events.RecoverNode,
+				})
+			}
+		}
+	}
 }
 
-func (nc *schedulerNodes) updateNode(oldObj, newObj interface{}) {
+func (nc *schedulerNodes) updateNode(oldNode, newNode *v1.Node) {
 	nc.lock.Lock()
 	defer nc.lock.Unlock()
-
-	// we only trigger update when resource changes
-	oldNode, err := convertToNode(oldObj)
-	if err != nil {
-		log.Logger.Error("old node conversion failed",
-			zap.Error(err))
-		return
-	}
-
-	newNode, err := convertToNode(newObj)
-	if err != nil {
-		log.Logger.Error("new node conversion failed",
-			zap.Error(err))
-		return
-	}
-
-	// update cache
-	log.Logger.Debug("updating node in cache",
-		zap.String("OldNodeName", oldNode.Name))
-	if err := nc.cache.UpdateNode(oldNode, newNode); err != nil {
-		log.Logger.Error("unable to update node in scheduler cache",
-			zap.Error(err))
-		return
-	}
 
 	// node resource changes
 	if equals(oldNode, newNode) {
@@ -162,23 +144,9 @@ func (nc *schedulerNodes) updateNode(oldObj, newObj interface{}) {
 	}
 }
 
-func (nc *schedulerNodes) deleteNode(obj interface{}) {
+func (nc *schedulerNodes) deleteNode(node *v1.Node) {
 	nc.lock.Lock()
 	defer nc.lock.Unlock()
-
-	node, err := convertToNode(obj)
-	if err != nil {
-		log.Logger.Error("node conversion failed", zap.Error(err))
-		return
-	}
-
-	// add node to cache
-	log.Logger.Debug("delete node from cache", zap.String("nodeName", node.Name))
-	if err := nc.cache.RemoveNode(node); err != nil {
-		log.Logger.Error("unable to delete node from scheduler cache",
-			zap.Error(err))
-		return
-	}
 
 	n := common.CreateFrom(node)
 	request := common.CreateUpdateRequestForDeleteNode(n)

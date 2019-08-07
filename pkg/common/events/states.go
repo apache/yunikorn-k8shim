@@ -38,15 +38,16 @@ type SchedulerStates struct {
 }
 
 type ApplicationStates struct {
-	New       string
-	Submitted string
-	Accepted  string
-	Running   string
-	Rejected  string
-	Completed string
-	Killing   string
-	Killed    string
-	Failed    string
+	New        string
+	Recovering string
+	Submitted  string
+	Accepted   string
+	Running    string
+	Rejected   string
+	Completed  string
+	Killing    string
+	Killed     string
+	Failed     string
 }
 
 type NodeStates struct {
@@ -73,15 +74,16 @@ func States() *AllStates {
 	if states == nil {
 		states = &AllStates{
 			Application: &ApplicationStates{
-				New:       "New",
-				Submitted: "Submitted",
-				Accepted:  "Accepted",
-				Running:   "Running",
-				Rejected:  "Rejected",
-				Completed: "Completed",
-				Killing:   "Killing",
-				Killed:    "Killed",
-				Failed:    "Failed",
+				New:        "New",
+				Recovering: "Recovering",
+				Submitted:  "Submitted",
+				Accepted:   "Accepted",
+				Running:    "Running",
+				Rejected:   "Rejected",
+				Completed:  "Completed",
+				Killing:    "Killing",
+				Killed:     "Killed",
+				Failed:     "Failed",
 			},
 			Task: &TaskStates{
 				Pending:    "Pending",

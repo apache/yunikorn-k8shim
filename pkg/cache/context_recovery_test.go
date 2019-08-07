@@ -29,7 +29,7 @@ import (
 	"time"
 )
 
-func TestRecoveringState(t *testing.T) {
+func TestNodeRecoveringState(t *testing.T) {
 	mockApi := test.NewSchedulerApiMock()
 	mockClient := test.NewKubeClientMock()
 
@@ -74,8 +74,14 @@ func TestRecoveringState(t *testing.T) {
 		},
 	}
 
-	context.nodes.addNode(&node1)
-	context.nodes.addNode(&node2)
+	nodeLister := test.NewNodeListerMock()
+	nodeLister.AddNode(&node1)
+	nodeLister.AddNode(&node2)
+	if err := context.waitForNodeRecovery(nodeLister, time.Duration(3 * time.Second)); err == nil {
+		t.Fatalf("expecting timeout here!")
+	} else {
+		t.Logf("context stays waiting for recovery, error: %v", err)
+	}
 
 	sn1 := context.nodes.getNode("host0001")
 	sn2 := context.nodes.getNode("host0002")
@@ -83,21 +89,8 @@ func TestRecoveringState(t *testing.T) {
 	assert.Assert(t, sn1 != nil)
 	assert.Assert(t, sn2 != nil)
 
-	if err := utils.WaitForCondition(func() bool {
-		return sn1.getNodeState() == string(events.States().Node.Recovering) &&
-			sn2.getNodeState() == string(events.States().Node.Recovering)
-	}, time.Duration(1*time.Second), time.Duration(5*time.Second)); err != nil {
-		t.Fatalf("all nodes should under recoverying state")
-	}
-
-	nodeLister := test.NewNodeListerMock()
-	nodeLister.AddNode(&node1)
-	nodeLister.AddNode(&node2)
-	if err := context.waitForRecovery(nodeLister, time.Duration(3 * time.Second)); err == nil {
-		t.Fatalf("expecting timeout here!")
-	} else {
-		t.Logf("context stays waiting for recovery, error: %v", err)
-	}
+	assert.Equal(t, sn1.getNodeState(), string(events.States().Node.Recovering))
+	assert.Equal(t, sn2.getNodeState(), string(events.States().Node.Recovering))
 }
 
 func TestNodesRecovery(t *testing.T) {
@@ -145,8 +138,14 @@ func TestNodesRecovery(t *testing.T) {
 		},
 	}
 
-	context.nodes.addNode(&node1)
-	context.nodes.addNode(&node2)
+	nodeLister := test.NewNodeListerMock()
+	nodeLister.AddNode(&node1)
+	nodeLister.AddNode(&node2)
+	if err := context.waitForNodeRecovery(nodeLister, time.Duration(3 * time.Second)); err == nil {
+		t.Fatalf("expecting timeout here!")
+	} else {
+		t.Logf("context stays waiting for recovery, error: %v", err)
+	}
 
 	sn1 := context.nodes.getNode("host0001")
 	sn2 := context.nodes.getNode("host0002")
@@ -154,26 +153,17 @@ func TestNodesRecovery(t *testing.T) {
 	assert.Assert(t, sn1 != nil)
 	assert.Assert(t, sn2 != nil)
 
-	if err := utils.WaitForCondition(func() bool {
-		return sn1.getNodeState() == string(events.States().Node.Recovering) &&
-			sn2.getNodeState() == string(events.States().Node.Recovering)
-	}, time.Duration(1*time.Second), time.Duration(5*time.Second)); err != nil {
-		t.Fatalf("all nodes should under recoverying state")
-	}
-
 	// node1 recovery is done
 	dispatcher.Dispatch(CachedSchedulerNodeEvent{
 		NodeId:    "host0001",
 		Event:     events.NodeAccepted,
 	})
 
-	nodeLister := test.NewNodeListerMock()
-	nodeLister.AddNode(&node1)
-	nodeLister.AddNode(&node2)
-	if err := context.waitForRecovery(nodeLister, time.Duration(3 * time.Second)); err == nil {
-		t.Fatalf("expecting timeout here!")
-	} else {
-		t.Logf("context stays waiting for recovery, error: %v", err)
+	if err := utils.WaitForCondition(func() bool {
+		return sn1.getNodeState() == string(events.States().Node.Healthy) &&
+			sn2.getNodeState() == string(events.States().Node.Recovering)
+	}, time.Duration(1 * time.Second), time.Duration(5 * time.Second)); err != nil {
+		t.Fatal("unexpected node states")
 	}
 
 	// node2 recovery is done
@@ -182,7 +172,117 @@ func TestNodesRecovery(t *testing.T) {
 		Event:     events.NodeAccepted,
 	})
 
-	if err := context.waitForRecovery(nodeLister, time.Duration(3 * time.Second)); err != nil {
+	if err := context.waitForNodeRecovery(nodeLister, time.Duration(3 * time.Second)); err != nil {
 		t.Fatalf("recovery should be successful, however got error %v", err)
+	}
+
+	assert.Equal(t, sn1.getNodeState(), string(events.States().Node.Healthy))
+	assert.Equal(t, sn2.getNodeState(), string(events.States().Node.Healthy))
+}
+
+func TestAppRecovery(t *testing.T) {
+	mockApi := test.NewSchedulerApiMock()
+	mockClient := test.NewKubeClientMock()
+	conf.GetSchedulerConf().SchedulerName = fakeClusterSchedulerName
+
+	context := NewContextInternal(mockApi, &conf.SchedulerConf{}, mockClient, true)
+	dispatcher.RegisterEventHandler(dispatcher.EventTypeApp, context.ApplicationEventHandler())
+	dispatcher.Start()
+	defer dispatcher.Stop()
+
+	// app1 -> pod1
+	// assigned on node1
+	pod1 := v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name:      "pod1",
+			Namespace: "default",
+			UID:       "UID-POD-00001",
+			Labels: map[string]string{
+				"applicationId": "app1",
+				"queue":         "root.a",
+			},
+		},
+		Spec: v1.PodSpec{
+			NodeName:      "node01",
+			SchedulerName: fakeClusterSchedulerName,
+		},
+		Status: v1.PodStatus{
+			Phase: v1.PodRunning,
+		},
+	}
+
+	// app2 -> pod2
+	// assigned on node2
+	pod2 := v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name:      "pod2",
+			Namespace: "default",
+			UID:       "UID-POD-00002",
+			Labels: map[string]string{
+				"applicationId": "app2",
+				"queue":         "root.a",
+			},
+		},
+		Spec: v1.PodSpec{
+			NodeName:      "node2",
+			SchedulerName: fakeClusterSchedulerName,
+		},
+		Status: v1.PodStatus{
+			Phase: v1.PodRunning,
+		},
+	}
+
+	// app3 -> pod3
+	// pending for scheduling
+	pod3 := v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name:      "pod3",
+			Namespace: "default",
+			UID:       "UID-POD-00003",
+			Labels: map[string]string{
+				"applicationId": "app3",
+				"queue":         "root.a",
+			},
+		},
+		Spec: v1.PodSpec{
+			SchedulerName: fakeClusterSchedulerName,
+		},
+		Status: v1.PodStatus{
+			Phase: v1.PodPending,
+		},
+	}
+
+	podLister := test.NewPodListerMock()
+	podLister.AddPod(&pod1)
+	podLister.AddPod(&pod2)
+	podLister.AddPod(&pod3)
+
+	if err := context.waitForAppRecovery(podLister, time.Duration(3 * time.Second)); err == nil {
+		t.Fatalf("expecting timeout here!")
+	} else {
+		t.Logf("context stays waiting for recovery, error: %v", err)
+	}
+
+	// simulate app is accepted by scheduler
+	dispatcher.Dispatch(NewSimpleApplicationEvent("app1", events.AcceptApplication))
+	dispatcher.Dispatch(NewSimpleApplicationEvent("app2", events.AcceptApplication))
+
+	// apps are accepted, recovery of apps are done
+	if err := context.waitForAppRecovery(podLister, time.Duration(3 * time.Second)); err == nil {
+		t.Logf("recovery exits once all apps are recovered")
+	} else {
+		t.Fatalf("unexpected failure, error: %v", err)
 	}
 }

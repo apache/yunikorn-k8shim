@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"fmt"
 	"github.com/cloudera/yunikorn-core/pkg/api"
 	"github.com/cloudera/yunikorn-k8shim/pkg/cache"
 	"github.com/cloudera/yunikorn-k8shim/pkg/callback"
@@ -142,26 +143,33 @@ func (ss *KubernetesShim) triggerSchedulerStateRecovery() func(e *fsm.Event) {
 
 func (ss *KubernetesShim) recoverSchedulerState() func(e *fsm.Event) {
 	return func(e *fsm.Event) {
-		log.Logger.Info("recovering scheduler states...please wait...")
-		// wait for recovery, max timeout 3 minutes
-		if err := ss.context.WaitForRecovery(time.Duration(3) * time.Minute); err != nil {
-			// failed
-			log.Logger.Fatal("scheduler recovery failed", zap.Error(err))
-			dispatcher.Dispatch(ShimSchedulerEvent{
-				event: events.RecoverSchedulerFailed,
-			})
-		} else {
-			// success
-			log.Logger.Info("scheduler recovery succeed")
-			dispatcher.Dispatch(ShimSchedulerEvent{
-				event: events.RecoverSchedulerSucceed,
-			})
-		}
+		// run recovery process in a go routine
+		// do not block main thread
+		go func() {
+			log.Logger.Info("recovering scheduler states")
+			// wait for recovery, max timeout 3 minutes
+			if err := ss.context.WaitForRecovery(time.Duration(3) * time.Minute); err != nil {
+				// failed
+				log.Logger.Fatal("scheduler recovery failed", zap.Error(err))
+				dispatcher.Dispatch(ShimSchedulerEvent{
+					event: events.RecoverSchedulerFailed,
+				})
+			} else {
+				// success
+				log.Logger.Info("scheduler recovery succeed")
+				dispatcher.Dispatch(ShimSchedulerEvent{
+					event: events.RecoverSchedulerSucceed,
+				})
+			}
+		}()
 	}
 }
 
 func (ss *KubernetesShim) doScheduling() func(e *fsm.Event) {
 	return func(e *fsm.Event) {
+		// add event handlers to the context
+		ss.context.AddSchedulingEventHandlers()
+
 		// run main scheduling loop
 		go wait.Until(ss.schedule, conf.GetSchedulerConf().GetSchedulingInterval(), ss.stopChan)
 	}
@@ -229,6 +237,20 @@ func (ss *KubernetesShim) schedule() {
 			}
 		}
 	}
+}
+
+func (ss *KubernetesShim) blockUntilRunning(timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	for ss.GetSchedulerState() != events.States().Scheduler.Running {
+		log.Logger.Info("waiting for scheduler state",
+			zap.String("expect", events.States().Scheduler.Running),
+			zap.String("current", ss.GetSchedulerState()))
+		if time.Now().After(deadline) {
+			return fmt.Errorf("timeout waiting for scheduler gets to expect state after %s", timeout.String())
+		}
+		time.Sleep(1 * time.Second)
+	}
+	return nil
 }
 
 func (ss *KubernetesShim) run() {

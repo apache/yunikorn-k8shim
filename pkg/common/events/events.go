@@ -30,6 +30,7 @@ type ApplicationEventType string
 
 const (
 	SubmitApplication   ApplicationEventType = "SubmitApplication"
+	RecoverApplication  ApplicationEventType = "RecoverApplication"
 	AcceptApplication   ApplicationEventType = "AcceptApplication"
 	RunApplication      ApplicationEventType = "RunApplication"
 	RejectApplication   ApplicationEventType = "RejectApplication"

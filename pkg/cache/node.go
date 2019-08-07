@@ -30,13 +30,13 @@ import (
 
 // stores info about what scheduler cares about a node
 type SchedulerNode struct {
-	name      string
-	uid       string
-	capacity  *si.Resource
+	name                string
+	uid                 string
+	capacity            *si.Resource
 	existingAllocations []*si.Allocation
-	schedulerApi api.SchedulerApi
-	fsm       *fsm.FSM
-	lock      *sync.RWMutex
+	schedulerApi        api.SchedulerApi
+	fsm                 *fsm.FSM
+	lock                *sync.RWMutex
 }
 
 func newSchedulerNode(nodeName string, nodeUid string,
@@ -78,6 +78,8 @@ func (n *SchedulerNode) initFSM() {
 func (n *SchedulerNode) addExistingAllocation(allocation *si.Allocation) {
 	n.lock.Lock()
 	defer n.lock.Unlock()
+	log.Logger.Info("add existing allocation",
+		zap.Any("allocation", allocation))
 	n.existingAllocations = append(n.existingAllocations, allocation)
 }
 
