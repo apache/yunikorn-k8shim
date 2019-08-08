@@ -97,7 +97,7 @@ func (ctx *Context) waitForAppRecovery(lister v1.PodLister, maxTimeout time.Dura
 			}
 
 			return false
-		}, time.Duration(1) * time.Second, maxTimeout); err != nil{
+		}, 1 * time.Second, maxTimeout); err != nil{
 			return fmt.Errorf("timeout waiting for app recovery in %s", maxTimeout.String())
 		}
 	}

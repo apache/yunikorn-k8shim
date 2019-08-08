@@ -148,7 +148,7 @@ func (ss *KubernetesShim) recoverSchedulerState() func(e *fsm.Event) {
 		go func() {
 			log.Logger.Info("recovering scheduler states")
 			// wait for recovery, max timeout 3 minutes
-			if err := ss.context.WaitForRecovery(time.Duration(3) * time.Minute); err != nil {
+			if err := ss.context.WaitForRecovery(3 * time.Minute); err != nil {
 				// failed
 				log.Logger.Fatal("scheduler recovery failed", zap.Error(err))
 				dispatcher.Dispatch(ShimSchedulerEvent{

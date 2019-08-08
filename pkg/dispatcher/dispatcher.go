@@ -114,7 +114,7 @@ func (p *Dispatcher) drain() {
 	for len(p.eventChan) > 0 {
 		log.Logger.Info("wait dispatcher to drain",
 			zap.Int("remaining events", len(p.eventChan)))
-		time.Sleep(time.Duration(1) * time.Second)
+		time.Sleep(1 * time.Second)
 	}
 	log.Logger.Info("dispatcher is draining out")
 }
@@ -157,7 +157,7 @@ func Stop() {
 		for dispatcher.isRunning() && maxTimeout > 0 {
 			log.Logger.Info("waiting for dispatcher to be stopped",
 				zap.Int("remainingSeconds", maxTimeout))
-			time.Sleep(time.Duration(1) * time.Second)
+			time.Sleep(1 * time.Second)
 			maxTimeout--
 		}
 		if !dispatcher.isRunning() {
