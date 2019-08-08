@@ -31,8 +31,9 @@ import (
 )
 
 func (ctx *Context) WaitForRecovery(maxTimeout time.Duration) error {
-	// currently, disable recovery when testing in mocked cluster,
-	// mock pod/node lister is not easy
+	// Currently, disable recovery when testing in a mocked cluster,
+	// because mock pod/node lister is not easy. We do have unit tests for
+	// waitForAppRecovery/waitForNodeRecovery separately.
 	if !ctx.testMode {
 		// step 1: recover apps
 		if err := ctx.waitForAppRecovery(ctx.podInformer.Lister(), maxTimeout); err != nil {
