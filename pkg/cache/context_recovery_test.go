@@ -77,7 +77,7 @@ func TestNodeRecoveringState(t *testing.T) {
 	nodeLister := test.NewNodeListerMock()
 	nodeLister.AddNode(&node1)
 	nodeLister.AddNode(&node2)
-	if err := context.waitForNodeRecovery(nodeLister, time.Duration(3 * time.Second)); err == nil {
+	if err := context.waitForNodeRecovery(nodeLister, 3*time.Second); err == nil {
 		t.Fatalf("expecting timeout here!")
 	} else {
 		t.Logf("context stays waiting for recovery, error: %v", err)
@@ -141,7 +141,7 @@ func TestNodesRecovery(t *testing.T) {
 	nodeLister := test.NewNodeListerMock()
 	nodeLister.AddNode(&node1)
 	nodeLister.AddNode(&node2)
-	if err := context.waitForNodeRecovery(nodeLister, time.Duration(3 * time.Second)); err == nil {
+	if err := context.waitForNodeRecovery(nodeLister, 3*time.Second); err == nil {
 		t.Fatalf("expecting timeout here!")
 	} else {
 		t.Logf("context stays waiting for recovery, error: %v", err)
@@ -162,7 +162,7 @@ func TestNodesRecovery(t *testing.T) {
 	if err := utils.WaitForCondition(func() bool {
 		return sn1.getNodeState() == string(events.States().Node.Healthy) &&
 			sn2.getNodeState() == string(events.States().Node.Recovering)
-	}, time.Duration(1 * time.Second), time.Duration(5 * time.Second)); err != nil {
+	}, time.Second, 5*time.Second); err != nil {
 		t.Fatal("unexpected node states")
 	}
 
@@ -172,7 +172,7 @@ func TestNodesRecovery(t *testing.T) {
 		Event:     events.NodeAccepted,
 	})
 
-	if err := context.waitForNodeRecovery(nodeLister, time.Duration(3 * time.Second)); err != nil {
+	if err := context.waitForNodeRecovery(nodeLister, 3*time.Second); err != nil {
 		t.Fatalf("recovery should be successful, however got error %v", err)
 	}
 
@@ -269,7 +269,7 @@ func TestAppRecovery(t *testing.T) {
 	podLister.AddPod(&pod2)
 	podLister.AddPod(&pod3)
 
-	if err := context.waitForAppRecovery(podLister, time.Duration(3 * time.Second)); err == nil {
+	if err := context.waitForAppRecovery(podLister, 3*time.Second); err == nil {
 		t.Fatalf("expecting timeout here!")
 	} else {
 		t.Logf("context stays waiting for recovery, error: %v", err)
@@ -280,7 +280,7 @@ func TestAppRecovery(t *testing.T) {
 	dispatcher.Dispatch(NewSimpleApplicationEvent("app2", events.AcceptApplication))
 
 	// apps are accepted, recovery of apps are done
-	if err := context.waitForAppRecovery(podLister, time.Duration(3 * time.Second)); err == nil {
+	if err := context.waitForAppRecovery(podLister, 3*time.Second); err == nil {
 		t.Logf("recovery exits once all apps are recovered")
 	} else {
 		t.Fatalf("unexpected failure, error: %v", err)

@@ -174,7 +174,7 @@ func (ctx *Context) waitForNodeRecovery(nodeLister v1.NodeLister, maxTimeout tim
 				zap.Int("recoveredNodes", nodesRecovered))
 			return false
 		}
-	}, time.Duration(1) * time.Second, maxTimeout); err != nil{
+	}, time.Second, maxTimeout); err != nil{
 		return fmt.Errorf("timeout waiting for app recovery in %s", maxTimeout.String())
 	}
 
@@ -190,7 +190,7 @@ func waitAndListPods(lister v1.PodLister) (pods []*corev1.Pod, err error){
 			}
 		}
 		return false
-	}, time.Duration(1*time.Second), time.Duration(1*time.Minute)); err != nil {
+	}, time.Second, time.Minute); err != nil {
 		return nil, err
 	}
 
@@ -206,7 +206,7 @@ func waitAndListNodes(lister v1.NodeLister) (nodes []*corev1.Node, err error){
 			}
 		}
 		return false
-	}, time.Duration(1*time.Second), time.Duration(1*time.Minute)); err != nil {
+	}, time.Second, time.Minute); err != nil {
 		return nil, err
 	}
 

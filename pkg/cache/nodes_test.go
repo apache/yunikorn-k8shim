@@ -83,13 +83,13 @@ func TestAddNode(t *testing.T) {
 	// verify register is not called, update is called and just called once
 	if err := utils.WaitForCondition(func() bool {
 		return api.GetRegisterCount() == 0
-	}, time.Duration(1*time.Second), time.Duration(5*time.Second)); err != nil {
+	}, time.Second, 5*time.Second); err != nil {
 		t.Fatalf("%v", err)
 	}
 
 	if err := utils.WaitForCondition(func() bool {
 		return api.GetUpdateCount() == 1
-	}, time.Duration(1*time.Second), time.Duration(5*time.Second)); err != nil {
+	}, time.Second, 5*time.Second); err != nil {
 		t.Fatalf("%v", err)
 	}
 }
@@ -266,7 +266,7 @@ func TestDeleteNode(t *testing.T) {
 
 	if err := utils.WaitForCondition(func() bool {
 		return api.GetRegisterCount() == 0
-	}, time.Duration(1*time.Second), time.Duration(5*time.Second)); err != nil {
+	}, 1*time.Second, 5*time.Second); err != nil {
 		t.Fatalf("%v", err)
 	}
 
@@ -274,7 +274,7 @@ func TestDeleteNode(t *testing.T) {
 	// one for add, the other one for delete
 	if err := utils.WaitForCondition(func() bool {
 		return api.GetUpdateCount() == 2
-	}, time.Duration(1*time.Second), time.Duration(5*time.Second)); err != nil {
+	}, 1*time.Second, 5*time.Second); err != nil {
 		t.Fatalf("%v", err)
 	}
 }
