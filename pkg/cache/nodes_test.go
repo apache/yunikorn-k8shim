@@ -20,43 +20,49 @@ import (
 	"github.com/cloudera/yunikorn-k8shim/pkg/cache/external"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/test"
+	"github.com/cloudera/yunikorn-k8shim/pkg/common/utils"
+	"github.com/cloudera/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
 	"gotest.tools/assert"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"testing"
+	"time"
 )
 
 func TestAddNode(t *testing.T) {
-	api := test.FakeSchedulerApi{
-		// register fn doesn't nothing than checking input
-		UpdateFn: func(request *si.UpdateRequest) error {
-			if request.NewSchedulableNodes == nil || len(request.NewSchedulableNodes) != 1 {
-				t.Fatalf("unexpected new nodes info from the request")
-			}
+	api := test.NewSchedulerApiMock()
 
-			info := request.NewSchedulableNodes[0]
-			if info.NodeId != "host0001" {
-				t.Fatalf("unexpected node name %s", info.NodeId)
-			}
+	// register fn doesn't nothing than checking input
+	inputCheckerUpdateFn := func(request *si.UpdateRequest) error {
+		if request.NewSchedulableNodes == nil || len(request.NewSchedulableNodes) != 1 {
+			t.Fatalf("unexpected new nodes info from the request")
+		}
 
-			if memory := info.SchedulableResource.Resources[common.Memory].Value; memory != int64(1024) {
-				t.Fatalf("unexpected node memory %d", memory)
-			}
+		info := request.NewSchedulableNodes[0]
+		if info.NodeId != "host0001" {
+			t.Fatalf("unexpected node name %s", info.NodeId)
+		}
 
-			if cpu := info.SchedulableResource.Resources[common.CPU].Value; cpu != int64(10000) {
-				t.Fatalf("unexpected node CPU %d", cpu)
-			}
+		if memory := info.SchedulableResource.Resources[common.Memory].Value; memory != int64(1024) {
+			t.Fatalf("unexpected node memory %d", memory)
+		}
 
-			return nil
-		},
+		if cpu := info.SchedulableResource.Resources[common.CPU].Value; cpu != int64(10000) {
+			t.Fatalf("unexpected node CPU %d", cpu)
+		}
+
+		return nil
 	}
 
-	nc := NodeController{
-		proxy: &api,
-		cache: NewTestSchedulerCache(),
-	}
+	api.UpdateFunction(inputCheckerUpdateFn)
+
+	nodes := newSchedulerNodes(api, NewTestSchedulerCache())
+	dispatcher.RegisterEventHandler(dispatcher.EventTypeNode, nodes.schedulerNodeEventHandler())
+	dispatcher.Start()
+	defer dispatcher.Stop()
+
 	resourceList := make(map[v1.ResourceName]resource.Quantity)
 	resourceList[v1.ResourceName("memory")] = *resource.NewQuantity(1024*1000*1000, resource.DecimalSI)
 	resourceList[v1.ResourceName("cpu")] = *resource.NewQuantity(10, resource.DecimalSI)
@@ -71,42 +77,55 @@ func TestAddNode(t *testing.T) {
 		},
 	}
 
-	nc.addNode(&newNode)
+	nodes.addNode(&newNode)
+
 	// values are verified in injected fn
 	// verify register is not called, update is called and just called once
-	assert.Equal(t, api.RegisterCount, 0)
-	assert.Equal(t, api.UpdateCount, 1)
+	if err := utils.WaitForCondition(func() bool {
+		return api.GetRegisterCount() == 0
+	}, time.Second, 5*time.Second); err != nil {
+		t.Fatalf("%v", err)
+	}
+
+	if err := utils.WaitForCondition(func() bool {
+		return api.GetUpdateCount() == 1
+	}, time.Second, 5*time.Second); err != nil {
+		t.Fatalf("%v", err)
+	}
 }
 
 func TestUpdateNode(t *testing.T) {
-	api := test.FakeSchedulerApi{
-		// register fn doesn't nothing than checking input
-		UpdateFn: func(request *si.UpdateRequest) error {
-			if request.NewSchedulableNodes == nil || len(request.NewSchedulableNodes) != 1 {
-				t.Fatalf("unexpected new nodes info from the request")
-			}
+	api := test.NewSchedulerApiMock()
 
-			info := request.NewSchedulableNodes[0]
-			if info.NodeId != "host0001" {
-				t.Fatalf("unexpected node name %s", info.NodeId)
-			}
+	// register fn doesn't nothing than checking input
+	inputCheckerUpdateFn := func(request *si.UpdateRequest) error {
+		if request.NewSchedulableNodes == nil || len(request.NewSchedulableNodes) != 1 {
+			t.Fatalf("unexpected new nodes info from the request")
+		}
 
-			if memory := info.SchedulableResource.Resources[common.Memory].Value; memory != int64(1024) {
-				t.Fatalf("unexpected node memory %d", memory)
-			}
+		info := request.NewSchedulableNodes[0]
+		if info.NodeId != "host0001" {
+			t.Fatalf("unexpected node name %s", info.NodeId)
+		}
 
-			if cpu := info.SchedulableResource.Resources[common.CPU].Value; cpu != int64(10000) {
-				t.Fatalf("unexpected node CPU %d", cpu)
-			}
+		if memory := info.SchedulableResource.Resources[common.Memory].Value; memory != int64(1024) {
+			t.Fatalf("unexpected node memory %d", memory)
+		}
 
-			return nil
-		},
+		if cpu := info.SchedulableResource.Resources[common.CPU].Value; cpu != int64(10000) {
+			t.Fatalf("unexpected node CPU %d", cpu)
+		}
+
+		return nil
 	}
 
-	nc := NodeController{
-		proxy: &api,
-		cache: NewTestSchedulerCache(),
-	}
+	api.UpdateFunction(inputCheckerUpdateFn)
+
+	nodes := newSchedulerNodes(api, NewTestSchedulerCache())
+	dispatcher.RegisterEventHandler(dispatcher.EventTypeNode, nodes.schedulerNodeEventHandler())
+	dispatcher.Start()
+	defer dispatcher.Stop()
+
 	resourceList := make(map[v1.ResourceName]resource.Quantity)
 	resourceList[v1.ResourceName("memory")] = *resource.NewQuantity(1024*1000*1000, resource.DecimalSI)
 	resourceList[v1.ResourceName("cpu")] = *resource.NewQuantity(10, resource.DecimalSI)
@@ -141,10 +160,10 @@ func TestUpdateNode(t *testing.T) {
 
 		return nil
 	}
-	api.UpdateFn = ignoreNodeUpdateFn
-	nc.updateNode(&oldNode, &newNode)
-	assert.Equal(t, api.RegisterCount, 0)
-	assert.Equal(t, api.UpdateCount, 0)
+	api.UpdateFunction(ignoreNodeUpdateFn)
+	nodes.updateNode(&oldNode, &newNode)
+	assert.Equal(t, api.GetRegisterCount(), int32(0))
+	assert.Equal(t, api.GetUpdateCount(), int32(0))
 
 	// change new node's resource, afterwards the update request should be sent to the scheduler
 	newResourceList := make(map[v1.ResourceName]resource.Quantity)
@@ -161,7 +180,7 @@ func TestUpdateNode(t *testing.T) {
 		},
 	}
 
-	api.UpdateFn = func(request *si.UpdateRequest) error {
+	checkFn := func(request *si.UpdateRequest) error {
 		if request.UpdatedNodes == nil || len(request.UpdatedNodes) != 1 {
 			t.Fatalf("unexpected new nodes info from the request")
 		}
@@ -182,40 +201,45 @@ func TestUpdateNode(t *testing.T) {
 		return nil
 	}
 
-	nc.updateNode(&oldNode, &newNode)
-	assert.Equal(t, api.RegisterCount, 0)
-	assert.Equal(t, api.UpdateCount, 1)
+	api.UpdateFunction(checkFn)
+
+	nodes.updateNode(&oldNode, &newNode)
+	assert.Equal(t, api.GetRegisterCount(), int32(0))
+	assert.Equal(t, api.GetUpdateCount(), int32(1))
 }
 
 func TestDeleteNode(t *testing.T) {
-	api := test.FakeSchedulerApi{
-		// register fn doesn't nothing than checking input
-		UpdateFn: func(request *si.UpdateRequest) error {
-			if request.UpdatedNodes == nil || len(request.UpdatedNodes) != 1 {
-				t.Fatalf("unexpected updated nodes info from the request")
-			}
+	api := test.NewSchedulerApiMock()
 
-			info := request.UpdatedNodes[0]
-			if info.NodeId != "host0001" {
-				t.Fatalf("unexpected node name %s", info.NodeId)
-			}
+	// register fn doesn't nothing than checking input
+	inputCheckerFn := func(request *si.UpdateRequest) error {
+		if request.UpdatedNodes == nil || len(request.UpdatedNodes) != 1 {
+			t.Fatalf("unexpected updated nodes info from the request")
+		}
 
-			if memory := info.SchedulableResource.Resources[common.Memory].Value; memory != int64(1024) {
-				t.Fatalf("unexpected node memory %d", memory)
-			}
+		info := request.UpdatedNodes[0]
+		if info.NodeId != "host0001" {
+			t.Fatalf("unexpected node name %s", info.NodeId)
+		}
 
-			if cpu := info.SchedulableResource.Resources[common.CPU].Value; cpu != int64(10000) {
-				t.Fatalf("unexpected node CPU %d", cpu)
-			}
+		if memory := info.SchedulableResource.Resources[common.Memory].Value; memory != int64(1024) {
+			t.Fatalf("unexpected node memory %d", memory)
+		}
 
-			return nil
-		},
+		if cpu := info.SchedulableResource.Resources[common.CPU].Value; cpu != int64(10000) {
+			t.Fatalf("unexpected node CPU %d", cpu)
+		}
+
+		return nil
 	}
 
-	nc := NodeController{
-		proxy: &api,
-		cache: NewTestSchedulerCache(),
-	}
+	api.UpdateFunction(inputCheckerFn)
+
+	nodes := newSchedulerNodes(api, NewTestSchedulerCache())
+	dispatcher.RegisterEventHandler(dispatcher.EventTypeNode, nodes.schedulerNodeEventHandler())
+	dispatcher.Start()
+	defer dispatcher.Stop()
+
 	resourceList := make(map[v1.ResourceName]resource.Quantity)
 	resourceList[v1.ResourceName("memory")] = *resource.NewQuantity(1024*1000*1000, resource.DecimalSI)
 	resourceList[v1.ResourceName("cpu")] = *resource.NewQuantity(10, resource.DecimalSI)
@@ -235,13 +259,24 @@ func TestDeleteNode(t *testing.T) {
 		// fake update
 		return nil
 	}
-	api.UpdateFn = ignoreNodeUpdateFn
-	nc.addNode(&node)
-	nc.deleteNode(&node)
-	assert.Equal(t, api.RegisterCount, 0)
+	api.UpdateFunction(ignoreNodeUpdateFn)
+	nodes.addNode(&node)
+	nodes.deleteNode(&node)
+
+
+	if err := utils.WaitForCondition(func() bool {
+		return api.GetRegisterCount() == 0
+	}, 1*time.Second, 5*time.Second); err != nil {
+		t.Fatalf("%v", err)
+	}
+
 	// update should be called twice
 	// one for add, the other one for delete
-	assert.Equal(t, api.UpdateCount, 2)
+	if err := utils.WaitForCondition(func() bool {
+		return api.GetUpdateCount() == 2
+	}, 1*time.Second, 5*time.Second); err != nil {
+		t.Fatalf("%v", err)
+	}
 }
 
 // A wrapper around the scheduler cache which does not initialise the lister and volumebinder

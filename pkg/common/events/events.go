@@ -16,7 +16,6 @@ limitations under the License.
 
 package events
 
-
 //----------------------------------------------
 // General event interface
 //----------------------------------------------
@@ -31,6 +30,7 @@ type ApplicationEventType string
 
 const (
 	SubmitApplication   ApplicationEventType = "SubmitApplication"
+	RecoverApplication  ApplicationEventType = "RecoverApplication"
 	AcceptApplication   ApplicationEventType = "AcceptApplication"
 	RunApplication      ApplicationEventType = "RunApplication"
 	RejectApplication   ApplicationEventType = "RejectApplication"
@@ -87,7 +87,6 @@ type TaskEvent interface {
 	GetArgs() []interface{}
 }
 
-
 // --------------------------------------
 // scheduler events
 // --------------------------------------
@@ -105,6 +104,29 @@ const (
 type SchedulerEvent interface {
 	// the type of this event
 	GetEvent() SchedulerEventType
+
+	// an event can have multiple arguments, these arguments will be passed to
+	// state machines' callbacks when doing state transition
+	GetArgs() []interface{}
+}
+
+// --------------------------------------
+// scheduler node events
+// --------------------------------------
+type SchedulerNodeEventType string
+
+const (
+	RecoverNode        SchedulerNodeEventType = "RecoverNode"
+	NodeAccepted       SchedulerNodeEventType = "NodeAccepted"
+	NodeRejected       SchedulerNodeEventType = "NodeRejected"
+)
+
+type SchedulerNodeEvent interface {
+	// returns the node Id
+	GetNodeId() string
+
+	// the type of this event
+	GetEvent() SchedulerNodeEventType
 
 	// an event can have multiple arguments, these arguments will be passed to
 	// state machines' callbacks when doing state transition

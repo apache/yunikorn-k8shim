@@ -26,7 +26,6 @@ import (
 	"github.com/cloudera/yunikorn-k8shim/pkg/log"
 	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
 	"go.uber.org/zap"
-	"strings"
 	"sync"
 
 	"github.com/looplab/fsm"
@@ -42,6 +41,7 @@ type Task struct {
 	pod            *v1.Pod
 	kubeClient     client.KubeClient
 	schedulerApi   api.SchedulerApi
+	nodeName       string
 	sm             *fsm.FSM
 	lock           *sync.RWMutex
 }
@@ -111,7 +111,7 @@ func createTaskInternal(tid string, app *Application, resource *si.Resource,
 }
 
 // event handling
-func (task *Task) Handle(te events.TaskEvent) error {
+func (task *Task) handle(te events.TaskEvent) error {
 	log.Logger.Debug("task state transition",
 		zap.String("taskId", task.taskId),
 		zap.String("preState", task.sm.Current()),
@@ -126,7 +126,7 @@ func (task *Task) Handle(te events.TaskEvent) error {
 	return nil
 }
 
-func CreateTaskFromPod(app *Application, client client.KubeClient, scheduler api.SchedulerApi, pod *v1.Pod) *Task {
+func createTaskFromPod(app *Application, client client.KubeClient, scheduler api.SchedulerApi, pod *v1.Pod) *Task {
 	task := newTask(string(pod.UID), app, client, scheduler, pod)
 	return &task
 }
@@ -137,20 +137,16 @@ func (task *Task) GetTaskPod() *v1.Pod {
 	return task.pod
 }
 
-func (task *Task) GetTaskId() string {
-	task.lock.RLock()
-	defer task.lock.RUnlock()
-	return task.taskId
-}
-
 func (task *Task) GetTaskState() string {
-	task.lock.RLock()
-	defer task.lock.RUnlock()
+	// fsm has its own internal lock, we don't need to hold node's lock here
 	return task.sm.Current()
 }
 
-func (task *Task) IsPending() bool {
-	return strings.Compare(task.GetTaskState(), events.States().Task.Pending) == 0
+func (task *Task) setAllocated(nodeName string) {
+	task.lock.Lock()
+	defer task.lock.Unlock()
+	task.nodeName = nodeName
+	task.sm.SetState(events.States().Task.Allocated)
 }
 
 func (task *Task) handleFailEvent(event *fsm.Event) {

@@ -29,7 +29,7 @@ const (
 	DefaultPolicyGroup = "queues"
 	DefaultLoggingLevel = 0
 	DefaultLogEncoding = "console"
-	DefaultVolumeBindTimeout = time.Duration(10) * time.Second
+	DefaultVolumeBindTimeout = 10 * time.Second
 )
 
 var configuration *SchedulerConf

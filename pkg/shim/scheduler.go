@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"fmt"
 	"github.com/cloudera/yunikorn-core/pkg/api"
 	"github.com/cloudera/yunikorn-k8shim/pkg/cache"
 	"github.com/cloudera/yunikorn-k8shim/pkg/callback"
@@ -29,17 +30,18 @@ import (
 	"go.uber.org/zap"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sync"
+	"time"
 )
 
 // shim scheduler watches api server and interacts with unity scheduler to allocate pods
 type KubernetesShim struct {
-	rmProxy      api.SchedulerApi
-	context      *cache.Context
-	callback     api.ResourceManagerCallback
-	stateMachine *fsm.FSM
-	dispatcher   *dispatcher.Dispatcher
-	stopChan     chan struct{}
-	lock         *sync.Mutex
+	rmProxy        api.SchedulerApi
+	context        *cache.Context
+	callback       api.ResourceManagerCallback
+	stateMachine   *fsm.FSM
+	dispatcher     *dispatcher.Dispatcher
+	stopChan       chan struct{}
+	lock           *sync.Mutex
 }
 
 func newShimScheduler(api api.SchedulerApi, configs *conf.SchedulerConf) *KubernetesShim {
@@ -52,10 +54,10 @@ func newShimScheduler(api api.SchedulerApi, configs *conf.SchedulerConf) *Kubern
 func newShimSchedulerInternal(api api.SchedulerApi, ctx *cache.Context, cb api.ResourceManagerCallback) *KubernetesShim {
 	var states = events.States().Scheduler
 	ss := &KubernetesShim{
-		rmProxy:      api,
-		context:      ctx,
-		callback:     cb,
-		stopChan:     make(chan struct{}),
+		rmProxy:        api,
+		context:        ctx,
+		callback:       cb,
+		stopChan:       make(chan struct{}),
 	}
 
 	// init state machine
@@ -93,12 +95,13 @@ func newShimSchedulerInternal(api api.SchedulerApi, ctx *cache.Context, cb api.R
 	// init dispatcher
 	dispatcher.RegisterEventHandler(dispatcher.EventTypeApp, ctx.ApplicationEventHandler())
 	dispatcher.RegisterEventHandler(dispatcher.EventTypeTask, ctx.TaskEventHandler())
-	dispatcher.RegisterEventHandler(dispatcher.EventTypeScheduler, ss.schedulerEventHandler())
+	dispatcher.RegisterEventHandler(dispatcher.EventTypeNode, ctx.SchedulerNodeEventHandler())
+	dispatcher.RegisterEventHandler(dispatcher.EventTypeScheduler, ss.SchedulerEventHandler())
 
 	return ss
 }
 
-func (ss *KubernetesShim) schedulerEventHandler() func(obj interface{}){
+func (ss *KubernetesShim) SchedulerEventHandler() func(obj interface{}){
 	return func(obj interface{}) {
 		if event, ok := obj.(events.SchedulerEvent); ok {
 			if err := ss.handle(event); err != nil {
@@ -140,20 +143,33 @@ func (ss *KubernetesShim) triggerSchedulerStateRecovery() func(e *fsm.Event) {
 
 func (ss *KubernetesShim) recoverSchedulerState() func(e *fsm.Event) {
 	return func(e *fsm.Event) {
-		log.Logger.Info("recovering scheduler states...please wait...")
-		// TODO add recovery process
-
-		// success
-		dispatcher.Dispatch(ShimSchedulerEvent{
-			event: events.RecoverSchedulerSucceed,
-		})
+		// run recovery process in a go routine
+		// do not block main thread
+		go func() {
+			log.Logger.Info("recovering scheduler states")
+			// wait for recovery, max timeout 3 minutes
+			if err := ss.context.WaitForRecovery(3 * time.Minute); err != nil {
+				// failed
+				log.Logger.Fatal("scheduler recovery failed", zap.Error(err))
+				dispatcher.Dispatch(ShimSchedulerEvent{
+					event: events.RecoverSchedulerFailed,
+				})
+			} else {
+				// success
+				log.Logger.Info("scheduler recovery succeed")
+				dispatcher.Dispatch(ShimSchedulerEvent{
+					event: events.RecoverSchedulerSucceed,
+				})
+			}
+		}()
 	}
 }
 
 func (ss *KubernetesShim) doScheduling() func(e *fsm.Event) {
 	return func(e *fsm.Event) {
-		// run context
-		ss.context.Run(ss.stopChan)
+		// add event handlers to the context
+		ss.context.AddSchedulingEventHandlers()
+
 		// run main scheduling loop
 		go wait.Until(ss.schedule, conf.GetSchedulerConf().GetSchedulingInterval(), ss.stopChan)
 	}
@@ -223,12 +239,29 @@ func (ss *KubernetesShim) schedule() {
 	}
 }
 
+func (ss *KubernetesShim) blockUntilRunning(timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	for ss.GetSchedulerState() != events.States().Scheduler.Running {
+		log.Logger.Info("waiting for scheduler state",
+			zap.String("expect", events.States().Scheduler.Running),
+			zap.String("current", ss.GetSchedulerState()))
+		if time.Now().After(deadline) {
+			return fmt.Errorf("timeout waiting for scheduler gets to expect state after %s", timeout.String())
+		}
+		time.Sleep(1 * time.Second)
+	}
+	return nil
+}
+
 func (ss *KubernetesShim) run() {
 	// run dispatcher
 	dispatcher.Start()
 
 	// register scheduler with scheduler core
 	dispatcher.Dispatch(newRegisterSchedulerEvent())
+
+	// run context
+	ss.context.Run(ss.stopChan)
 }
 
 func (ss *KubernetesShim) stop() {

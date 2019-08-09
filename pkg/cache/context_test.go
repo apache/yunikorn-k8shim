@@ -17,8 +17,8 @@ limitations under the License.
 package cache
 
 import (
-	"github.com/cloudera/yunikorn-k8shim/pkg/client"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
+	"github.com/cloudera/yunikorn-k8shim/pkg/common/test"
 	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
 	"github.com/cloudera/yunikorn-k8shim/pkg/dispatcher"
 	"gotest.tools/assert"
@@ -42,14 +42,7 @@ func initContextForTest() *Context {
 		KubeConfig:     "",
 	}
 
-	client := &client.FakeKubeClient{
-		BindFn: func(pod *v1.Pod, hostId string) error {
-			return nil
-		},
-		DeleteFn: func(pod *v1.Pod) error {
-			return nil
-		},
-	}
+	client := test.NewKubeClientMock()
 
 	context := NewContextInternal(nil, &configs, client, true)
 	return context
@@ -236,7 +229,7 @@ func TestPodRejected(t *testing.T) {
 
 	// reject the task
 	task, _ := app01.GetTask("UID-POD-00001")
-	err := task.Handle(NewRejectTaskEvent("app00001", "UID-POD-00001", ""))
+	err := task.handle(NewRejectTaskEvent("app00001", "UID-POD-00001", ""))
 	assert.Assert(t, err == nil)
 	assert.Equal(t, len(app01.GetPendingTasks()), 0)
 
@@ -253,7 +246,7 @@ func assertTaskState(t *testing.T, task *Task, expectedState string, timeout tim
 		}
 		if time.Now().After(deadline) {
 			t.Errorf("task %s doesn't reach expected state in given time, expecting: %s, actual: %s",
-				task.GetTaskId(), expectedState, task.GetTaskState())
+				task.taskId, expectedState, task.GetTaskState())
 		}
 	}
 }

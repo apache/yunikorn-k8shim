@@ -40,11 +40,11 @@ import (
 
 // context maintains scheduling state, like apps and apps' tasks.
 type Context struct {
-	applications   map[string]*Application
-	nodeController *NodeController
-	conf           *conf.SchedulerConf
-	kubeClient     client.KubeClient
-	schedulerApi   api.SchedulerApi
+	applications map[string]*Application
+	nodes        *schedulerNodes
+	conf         *conf.SchedulerConf
+	kubeClient   client.KubeClient
+	schedulerApi api.SchedulerApi
 
 	// informers
 	podInformer       coreInfomerV1.PodInformer
@@ -116,9 +116,13 @@ func NewContextInternal(scheduler api.SchedulerApi, configs *conf.SchedulerConf,
 		ctx.volumeBinder)
 
 	// init the controllers and plugins (need the cache)
-	ctx.nodeController = newNodeController(scheduler, ctx.schedulerCache)
+	ctx.nodes = newSchedulerNodes(scheduler, ctx.schedulerCache)
 	ctx.predictor = plugin.NewPredictor(schedulercache.GetPluginArgs(), testMode)
 
+	return ctx
+}
+
+func (ctx *Context) AddSchedulingEventHandlers() {
 	// Add the event handling to all informers that need it
 	ctx.nodeInformer.Informer().AddEventHandlerWithResyncPeriod(
 		cache.ResourceEventHandlerFuncs{
@@ -158,20 +162,69 @@ func NewContextInternal(scheduler api.SchedulerApi, configs *conf.SchedulerConf,
 			DeleteFunc: ctx.deleteConfigMaps,
 		},
 	})
-
-	return ctx
 }
 
 func (ctx *Context) addNode(obj interface{}) {
-	ctx.nodeController.addNode(obj)
+	node, err := convertToNode(obj)
+	if err != nil {
+		log.Logger.Error("node conversion failed", zap.Error(err))
+		return
+	}
+
+	// add node to secondary scheduler cache
+	log.Logger.Info("adding node to cache", zap.String("NodeName", node.Name))
+	ctx.schedulerCache.AddNode(node)
+
+	// add node to internal cache
+	ctx.nodes.addNode(node)
 }
 
 func (ctx *Context) updateNode(oldObj, newObj interface{}) {
-	ctx.nodeController.updateNode(oldObj, newObj)
+	// we only trigger update when resource changes
+	oldNode, err := convertToNode(oldObj)
+	if err != nil {
+		log.Logger.Error("old node conversion failed",
+			zap.Error(err))
+		return
+	}
+
+	newNode, err := convertToNode(newObj)
+	if err != nil {
+		log.Logger.Error("new node conversion failed",
+			zap.Error(err))
+		return
+	}
+
+	// update secondary cache
+	log.Logger.Debug("updating node in cache",
+		zap.String("OldNodeName", oldNode.Name))
+	if err := ctx.schedulerCache.UpdateNode(oldNode, newNode); err != nil {
+		log.Logger.Error("unable to update node in scheduler cache",
+			zap.Error(err))
+		return
+	}
+
+	// update primary cache
+	ctx.nodes.updateNode(oldNode, newNode)
 }
 
 func (ctx *Context) deleteNode(obj interface{}) {
-	ctx.nodeController.deleteNode(obj)
+	node, err := convertToNode(obj)
+	if err != nil {
+		log.Logger.Error("node conversion failed", zap.Error(err))
+		return
+	}
+
+	// delete node from secondary cache
+	log.Logger.Debug("delete node from cache", zap.String("nodeName", node.Name))
+	if err := ctx.schedulerCache.RemoveNode(node); err != nil {
+		log.Logger.Error("unable to delete node from scheduler cache",
+			zap.Error(err))
+		return
+	}
+
+	// delete node from primary cache
+	ctx.nodes.deleteNode(node)
 }
 
 // add a pod to the context
@@ -179,20 +232,19 @@ func (ctx *Context) deleteNode(obj interface{}) {
 // if task belongs to a application, we add this task to the application,
 // if task is new, we create a application and add this task to that.
 func (ctx *Context) addPod(obj interface{}) {
-	ctx.lock.Lock()
-	defer ctx.lock.Unlock()
-
 	pod, err := utils.Convert2Pod(obj)
 	if err != nil {
 		log.Logger.Error("failed to add pod", zap.Error(err))
 		return
 	}
 
-	log.Logger.Debug("add pod",
-		zap.String("namespace", pod.Namespace),
-		zap.String("podName", pod.Name),
-		zap.String("podUID", string(pod.UID)))
+
 	if pod.Status.Phase == v1.PodPending {
+		log.Logger.Debug("add pod",
+			zap.String("namespace", pod.Namespace),
+			zap.String("podName", pod.Name),
+			zap.String("podUID", string(pod.UID)),
+			zap.String("state", string(pod.Status.Phase)))
 		if err := ctx.validatePod(pod); err != nil {
 			log.Logger.Error("application is invalid", zap.Error(err))
 			return
@@ -201,6 +253,19 @@ func (ctx *Context) addPod(obj interface{}) {
 		if app := ctx.getOrCreateApplication(pod); app != nil {
 			task := ctx.getOrAddTask(app, pod)
 			app.AddTask(task)
+		}
+	}
+
+	if utils.IsAssignedPod(pod) && utils.IsSchedulablePod(pod) {
+		log.Logger.Debug("add pod",
+			zap.String("namespace", pod.Namespace),
+			zap.String("podName", pod.Name),
+			zap.String("podUID", string(pod.UID)),
+			zap.String("assignedNode", pod.Spec.NodeName),
+			zap.String("state", "assigned"))
+		if app := ctx.getOrCreateApplication(pod); app != nil {
+			task := ctx.getOrAddTask(app, pod)
+			task.setAllocated(pod.Spec.NodeName)
 		}
 	}
 
@@ -259,7 +324,7 @@ func (ctx *Context) getOrAddTask(a *Application, pod *v1.Pod) *Task {
 	if task, err := a.GetTask(string(pod.UID)); err == nil {
 		return task
 	}
-	newTask := CreateTaskFromPod(a, ctx.kubeClient, ctx.schedulerApi, pod)
+	newTask := createTaskFromPod(a, ctx.kubeClient, ctx.schedulerApi, pod)
 	a.AddTask(newTask)
 	return newTask
 }
@@ -273,7 +338,7 @@ func (ctx *Context) validatePod(pod *v1.Pod) error {
 			ctx.conf.SchedulerName, pod.Name, pod.UID, pod.Spec.SchedulerName)
 	}
 
-	if _, err := generateApplicationIdFromPod(pod); err != nil {
+	if _, err := utils.GetApplicationIdFromPod(pod); err != nil {
 		return err
 	}
 
@@ -341,9 +406,6 @@ func (ctx *Context) deletePod(obj interface{}) {
 		log.Logger.Error("cannot convert to pod")
 		return
 	}
-
-	ctx.lock.Lock()
-	defer ctx.lock.Unlock()
 
 	if application := ctx.getOrCreateApplication(pod); application != nil {
 		log.Logger.Debug("release allocation")
@@ -482,7 +544,10 @@ func (ctx *Context) AssumePod(name string, node string) error {
 // if app already exists in the context, directly return the app from context
 // if app doesn't exist in the context yet, create a new app instance and add to context
 func (ctx *Context) getOrCreateApplication(pod *v1.Pod) *Application {
-	appId, err := generateApplicationIdFromPod(pod)
+	ctx.lock.Lock()
+	defer ctx.lock.Unlock()
+
+	appId, err := utils.GetApplicationIdFromPod(pod)
 	if err != nil {
 		log.Logger.Error("unable to get application by given pod", zap.Error(err))
 		return nil
@@ -491,11 +556,7 @@ func (ctx *Context) getOrCreateApplication(pod *v1.Pod) *Application {
 	if application, ok := ctx.applications[appId]; ok {
 		return application
 	} else {
-		queueName := common.ApplicationDefaultQueue
-		if an, ok := pod.Labels[common.LabelQueueName]; ok {
-			queueName = an
-		}
-		newApp := NewApplication(appId, queueName, ctx.schedulerApi)
+		newApp := NewApplication(appId, utils.GetQueueNameFromPod(pod), ctx.schedulerApi)
 		ctx.applications[appId] = newApp
 		return ctx.applications[appId]
 	}
@@ -570,7 +631,7 @@ func (ctx *Context) TaskEventHandler() func(obj interface{}){
 				return
 			}
 
-			if err := task.Handle(event); err != nil {
+			if err := task.handle(event); err != nil {
 				log.Logger.Error("failed to handle task event",
 					zap.String("event", string(event.GetEvent())),
 					zap.Error(err))
@@ -579,8 +640,17 @@ func (ctx *Context) TaskEventHandler() func(obj interface{}){
 	}
 }
 
+func (ctx *Context) SchedulerNodeEventHandler() func(obj interface{}){
+	if ctx != nil && ctx.nodes != nil {
+		return ctx.nodes.schedulerNodeEventHandler()
+	} else {
+		// this is not required in some tests
+		return nil
+	}
+}
+
 func (ctx *Context) Run(stopCh <-chan struct{}) {
-	if !ctx.testMode {
+	if ctx != nil && !ctx.testMode {
 		go ctx.nodeInformer.Informer().Run(stopCh)
 		go ctx.podInformer.Informer().Run(stopCh)
 		go ctx.pvInformer.Informer().Run(stopCh)

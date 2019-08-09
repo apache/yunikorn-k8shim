@@ -40,6 +40,27 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 	log.Logger.Info("callback received",
 		zap.String("updateResponse", response.String()))
 
+	// handle new accepted nodes
+	for _, node := range response.AcceptedNodes {
+		log.Logger.Info("callback: response to accepted node",
+			zap.String("nodeId", node.NodeId))
+
+		dispatcher.Dispatch(cache.CachedSchedulerNodeEvent{
+			NodeId:    node.NodeId,
+			Event:     events.NodeAccepted,
+		})
+	}
+
+	for _, node := range response.RejectedNodes {
+		log.Logger.Info("callback: response to rejected node",
+			zap.String("nodeId", node.NodeId))
+
+		dispatcher.Dispatch(cache.CachedSchedulerNodeEvent{
+			NodeId:    node.NodeId,
+			Event:     events.NodeRejected,
+		})
+	}
+
 	// handle new accepted apps
 	for _, app := range response.AcceptedApplications {
 		// update context

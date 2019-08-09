@@ -141,20 +141,20 @@ partitions:
 	cluster.addTask("task0001", taskResource, app0001)
 	cluster.addApplication(app0001)
 	cluster.waitAndAssertApplicationState(t, "app0001", events.States().Application.Accepted)
+	cluster.waitAndAssertTaskState(t, "app0001", "task0001", events.States().Task.Bound)
 }
 
 func TestSchedulerRegistrationFailed(t *testing.T){
 	var ctx *cache.Context
 	var callback api.ResourceManagerCallback
 
-	schedulerApi := test.FakeSchedulerApi{
-		RegisterFn: func(request *si.RegisterResourceManagerRequest,
+	schedulerApi := test.NewSchedulerApiMock().RegisterFunction(
+		func(request *si.RegisterResourceManagerRequest,
 			callback api.ResourceManagerCallback) (response *si.RegisterResourceManagerResponse, e error) {
 				return nil, fmt.Errorf("some error")
-		},
-	}
+		})
 
-	shim := newShimSchedulerInternal(&schedulerApi, ctx, callback)
+	shim := newShimSchedulerInternal(schedulerApi, ctx, callback)
 	shim.run()
 	defer shim.stop()
 

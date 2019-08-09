@@ -25,6 +25,7 @@ import (
 	"github.com/cloudera/yunikorn-k8shim/pkg/callback"
 	"github.com/cloudera/yunikorn-k8shim/pkg/client"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common"
+	"github.com/cloudera/yunikorn-k8shim/pkg/common/test"
 	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
 	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
 	"gotest.tools/assert"
@@ -76,10 +77,9 @@ func (fc *MockScheduler) init(queues string) {
 	rmProxy := serviceContext.RMProxy
 	utils.MockSchedulerConfigByData([]byte(fc.conf))
 
-	fakeClient := &client.FakeKubeClient{
-		BindFn:   fc.bindFn,
-		DeleteFn: fc.deleteFn,
-	}
+	fakeClient := test.NewKubeClientMock()
+	fakeClient.MockBindFn(fc.bindFn)
+	fakeClient.MockDeleteFn(fc.deleteFn)
 
 	schedulerApi, _ := rmProxy.(api.SchedulerApi)
 	context := cache.NewContextInternal(schedulerApi, &configs, fakeClient, true)

@@ -69,8 +69,11 @@ func NewApplication(appId string, queueName string, scheduler api.SchedulerApi) 
 			{Name: string(events.SubmitApplication),
 				Src: []string{states.New},
 				Dst: states.Submitted},
+			{Name: string(events.RecoverApplication),
+				Src: []string{states.New},
+				Dst: states.Recovering},
 			{Name: string(events.AcceptApplication),
-				Src: []string{states.Submitted},
+				Src: []string{states.Submitted, states.Recovering},
 				Dst: states.Accepted},
 			{Name: string(events.RunApplication),
 				Src: []string{states.Accepted, states.Running},
@@ -94,6 +97,7 @@ func NewApplication(appId string, queueName string, scheduler api.SchedulerApi) 
 		fsm.Callbacks{
 			//"enter_state":               app.handleTaskStateChange,
 			string(events.SubmitApplication):   app.handleSubmitApplicationEvent,
+			string(events.RecoverApplication):  app.handleRecoverApplicationEvent,
 			string(events.RunApplication):      app.handleRunApplicationEvent,
 			string(events.RejectApplication):   app.handleRejectApplicationEvent,
 			string(events.CompleteApplication): app.handleCompleteApplicationEvent,
@@ -152,41 +156,26 @@ func (app *Application) AddTask(task *Task) {
 	app.taskMap[task.taskId] = task
 }
 
-func generateApplicationIdFromPod(pod *v1.Pod) (string, error) {
-	for name, value := range pod.Labels {
-		// if a pod for spark already provided appId, reuse it
-		if name == common.SparkLabelAppId {
-			return value, nil
-		}
-
-		// application ID can be defined as a label
-		if name == common.LabelApplicationId {
-			return value, nil
-		}
-	}
-
-	// application ID can be defined in annotations too
-	for name, value := range pod.Annotations {
-		if name == common.LabelApplicationId {
-			return value, nil
-		}
-	}
-	return "", fmt.Errorf("unable to retrieve application ID from pod spec, %s",
-		pod.Spec.String())
-}
-
 func (app *Application) GetApplicationState() string {
 	return app.sm.Current()
 }
 
 func (app *Application) GetPendingTasks() []*Task {
+	return app.getTasks(events.States().Task.Pending)
+}
+
+func (app *Application) GetAllocatedTasks() []*Task {
+	return app.getTasks(events.States().Task.Allocated)
+}
+
+func (app *Application) getTasks(state string) []*Task {
 	app.lock.RLock()
 	defer app.lock.RUnlock()
 
 	taskList := make([]*Task, 0)
 	if len(app.taskMap) > 0 {
 		for _, task := range app.taskMap {
-			if task.IsPending() {
+			if task.GetTaskState() == state {
 				taskList = append(taskList, task)
 			}
 		}
@@ -196,6 +185,29 @@ func (app *Application) GetPendingTasks() []*Task {
 
 func (app *Application) handleSubmitApplicationEvent(event *fsm.Event) {
 	log.Logger.Info("handle app submission",
+		zap.String("app", app.String()),
+		zap.String("clusterId", conf.GetSchedulerConf().ClusterId))
+	err := app.schedulerApi.Update(
+		&si.UpdateRequest{
+			NewApplications: []*si.AddApplicationRequest{
+				{
+					ApplicationId: app.applicationId,
+					QueueName:     app.queue,
+					PartitionName: app.partition,
+				},
+			},
+			RmId: conf.GetSchedulerConf().ClusterId,
+		})
+
+	if err != nil {
+		// submission failed
+		log.Logger.Warn("failed to submit app", zap.Error(err))
+		dispatcher.Dispatch(NewFailApplicationEvent(app.applicationId))
+	}
+}
+
+func (app *Application) handleRecoverApplicationEvent(event *fsm.Event) {
+	log.Logger.Info("handle app recovering",
 		zap.String("app", app.String()),
 		zap.String("clusterId", conf.GetSchedulerConf().ClusterId))
 	err := app.schedulerApi.Update(
