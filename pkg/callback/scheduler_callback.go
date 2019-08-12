@@ -89,8 +89,8 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 		// got allocation for pod, bind pod to the scheduled node
 		log.Logger.Info("callback: response to new allocation",
 			zap.String("allocationKey", alloc.AllocationKey),
-			zap.String("allocationUuid", alloc.Uuid),
-			zap.String("appId", alloc.ApplicationId),
+			zap.String("Uuid", alloc.Uuid),
+			zap.String("applicationId", alloc.ApplicationId),
 			zap.String("nodeId", alloc.NodeId))
 
 		if app, err := callback.context.GetApplication(alloc.ApplicationId); err == nil {
@@ -113,7 +113,7 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 
 	for _, release := range response.ReleasedAllocations {
 		log.Logger.Info("callback: response to released allocations",
-			zap.String("allocationUuid", release.AllocationUUID))
+			zap.String("Uuid", release.Uuid))
 	}
 
 	return nil

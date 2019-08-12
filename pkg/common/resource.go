@@ -75,11 +75,10 @@ func getResource(resourceList v1.ResourceList) *si.Resource {
 	return resources.Build()
 }
 
-func CreateUpdateRequestForTask(appId string, taskId string, queueName string, resource *si.Resource) si.UpdateRequest {
+func CreateUpdateRequestForTask(appId, taskId string, resource *si.Resource) si.UpdateRequest {
 	ask := si.AllocationAsk{
 		AllocationKey: taskId,
 		ResourceAsk:   resource,
-		QueueName:     queueName,
 		ApplicationId: appId,
 		MaxAllocations: 1,
 	}
@@ -95,7 +94,7 @@ func CreateUpdateRequestForTask(appId string, taskId string, queueName string, r
 	return result
 }
 
-func CreateReleaseAllocationRequestForTask(appId string, allocUuid string, partition string, resource *si.Resource) si.UpdateRequest {
+func CreateReleaseAllocationRequestForTask(appId, allocUuid, partition string) si.UpdateRequest {
 	toReleases := make([]*si.AllocationReleaseRequest, 0)
 	toReleases = append(toReleases, &si.AllocationReleaseRequest{
 		ApplicationId: appId,
