@@ -170,12 +170,7 @@ func (task *Task) handleSubmitTaskEvent(event *fsm.Event) {
 	log.Logger.Debug("scheduling pod",
 		zap.String("podName", task.GetTaskPod().Name))
 	// convert the request
-	//rr := ConvertRequest(task.applicationId, task.GetTaskPod())
-	appQueue := task.application.queue
-	if queueName, ok := task.pod.Labels[common.LabelQueueName]; ok {
-		appQueue = queueName
-	}
-	rr := common.CreateUpdateRequestForTask(task.applicationId, task.taskId, appQueue, task.resource)
+	rr := common.CreateUpdateRequestForTask(task.applicationId, task.taskId, task.resource)
 	log.Logger.Debug("send update request", zap.String("request", rr.String()))
 	if err := task.schedulerApi.Update(&rr); err != nil {
 		log.Logger.Debug("failed to send scheduling request to scheduler", zap.Error(err))
@@ -234,7 +229,7 @@ func (task *Task) postTaskCompleted(event *fsm.Event) {
 	// when task is completed, we notify the scheduler to release allocations
 	go func() {
 		releaseRequest := common.CreateReleaseAllocationRequestForTask(
-			task.applicationId, task.allocationUuid, task.application.partition, task.resource)
+			task.applicationId, task.allocationUuid, task.application.partition)
 
 		log.Logger.Debug("send release request",
 			zap.String("releaseRequest", releaseRequest.String()))
