@@ -30,7 +30,7 @@ import (
 )
 
 func TestNewApplication(t *testing.T) {
-	app := NewApplication("app00001", "root.queue", newMockSchedulerApi())
+	app := NewApplication("app00001", "root.queue", "testuser", map[string]string{}, newMockSchedulerApi())
 	assert.Equal(t, app.GetApplicationId(), "app00001" )
 	assert.Equal(t, app.GetApplicationState(), events.States().Application.New)
 	assert.Equal(t, app.partition, common.DefaultPartition)
@@ -40,17 +40,19 @@ func TestNewApplication(t *testing.T) {
 }
 
 func TestSubmitApplication(t *testing.T) {
-	app := NewApplication("app00001", "root.abc", newMockSchedulerApi())
+	app := NewApplication("app00001", "root.abc", "testuser", map[string]string{}, newMockSchedulerApi())
 
-	if err := app.handle(NewSubmitApplicationEvent(app.applicationId)); err != nil {
+	err := app.handle(NewSubmitApplicationEvent(app.applicationId))
+	if err != nil {
 		t.Fatalf("%v", err)
 	}
 	assertAppState(t, app, events.States().Application.Submitted, 10*time.Second)
 
 	// app already submitted
-	if err := app.handle(NewSubmitApplicationEvent(app.applicationId)); err != nil {
+	err = app.handle(NewSubmitApplicationEvent(app.applicationId))
+	if err == nil {
 		// this should give an error
-		t.Logf("expecting this error: %v", err)
+		t.Error("expecting error got 'nil'")
 	}
 	assertAppState(t, app, events.States().Application.Submitted, 10*time.Second)
 }
@@ -64,25 +66,28 @@ func TestRunApplication(t *testing.T) {
 		return nil
 	}
 
-	app := NewApplication("app00001", "root.abc", ms)
+	app := NewApplication("app00001", "root.abc", "testuser", map[string]string{}, ms)
 
 	// app must be submitted before being able to run
-	if err := app.handle(NewRunApplicationEvent(app.applicationId, nil)); err != nil {
+	err := app.handle(NewRunApplicationEvent(app.applicationId, nil))
+	if err == nil {
 		// this should give an error
-		t.Logf("expecting this error: %v", err)
+		t.Error("expecting error got 'nil'")
 	}
 	assertAppState(t, app, events.States().Application.New, 3*time.Second)
 
 	// submit the app
-	if err := app.handle(NewSubmitApplicationEvent(app.applicationId)); err != nil {
+	err = app.handle(NewSubmitApplicationEvent(app.applicationId))
+	if err != nil {
 		t.Fatalf("%v", err)
 	}
 	assertAppState(t, app, events.States().Application.Submitted, 3*time.Second)
 
 	// app must be accepted first
-	if err := app.handle(NewRunApplicationEvent(app.applicationId, nil)); err != nil {
+	err = app.handle(NewRunApplicationEvent(app.applicationId, nil))
+	if err == nil {
 		// this should give an error
-		t.Logf("expecting this error: %v", err)
+		t.Error("expecting error got 'nil'")
 	}
 	assertAppState(t, app, events.States().Application.Submitted, 3*time.Second)
 }
@@ -184,6 +189,7 @@ func newMockSchedulerApi() *MockSchedulerApi {
 		},
 	}
 }
+
 type MockSchedulerApi struct {
 	callback api.ResourceManagerCallback
 	registerFn func(request *si.RegisterResourceManagerRequest,

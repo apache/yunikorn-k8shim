@@ -101,7 +101,7 @@ func (fc *MockScheduler) assertSchedulerState(t *testing.T, expectedState string
 	assert.Equal(t, fc.scheduler.GetSchedulerState(), expectedState)
 }
 
-func (fc *MockScheduler) addNode(nodeName string, memory int64, cpu int64) error {
+func (fc *MockScheduler) addNode(nodeName string, memory, cpu int64) error {
 	nodeResource := common.NewResourceBuilder().
 		AddResource(common.Memory, memory).
 		AddResource(common.CPU, cpu).
@@ -132,7 +132,7 @@ func (fc *MockScheduler) waitForSchedulerState(t *testing.T, expectedState strin
 	}
 }
 
-func (fc *MockScheduler) waitAndAssertApplicationState(t *testing.T, appId string, expectedState string) {
+func (fc *MockScheduler) waitAndAssertApplicationState(t *testing.T, appId, expectedState string) {
 	appList := fc.context.SelectApplications(func(app *cache.Application) bool {
 		return app.GetApplicationId() == appId
 	})
@@ -156,12 +156,12 @@ func (fc *MockScheduler) addApplication(app *cache.Application) {
 	fc.context.AddApplication(app)
 }
 
-func (fc *MockScheduler) newApplication(appId string, queueName string) *cache.Application {
-	app := cache.NewApplication(appId, queueName, fc.proxy)
+func (fc *MockScheduler) newApplication(appId, queueName string) *cache.Application {
+	app := cache.NewApplication(appId, queueName, "testuser", map[string]string{}, fc.proxy)
 	return app
 }
 
-func (fc *MockScheduler) waitAndAssertTaskState(t *testing.T, appId string, taskId string, expectedState string) {
+func (fc *MockScheduler) waitAndAssertTaskState(t *testing.T, appId, taskId, expectedState string) {
 	appList := fc.context.SelectApplications(func(app *cache.Application) bool {
 		return app.GetApplicationId() == appId
 	})

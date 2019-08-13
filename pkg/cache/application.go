@@ -37,7 +37,9 @@ type Application struct {
 	applicationId string
 	queue         string
 	partition     string
+	user          string
 	taskMap       map[string]*Task
+	tags          map[string]string
 	sm            *fsm.FSM
 	lock          *sync.RWMutex
 	ch            CompletionHandler
@@ -50,13 +52,15 @@ func (app *Application) String() string {
 		app.applicationId, app.queue, app.partition, len(app.taskMap), app.GetApplicationState())
 }
 
-func NewApplication(appId string, queueName string, scheduler api.SchedulerApi) *Application {
+func NewApplication(appId, queueName, user string, tags map[string]string, scheduler api.SchedulerApi) *Application {
 	taskMap := make(map[string]*Task)
 	app := &Application{
 		applicationId: appId,
-		taskMap:       taskMap,
 		queue:         queueName,
 		partition:     common.DefaultPartition,
+		user:          user,
+		taskMap:       taskMap,
+		tags:          tags,
 		lock:          &sync.RWMutex{},
 		ch:            CompletionHandler{running: false},
 		schedulerApi:  scheduler,
@@ -194,6 +198,8 @@ func (app *Application) handleSubmitApplicationEvent(event *fsm.Event) {
 					ApplicationId: app.applicationId,
 					QueueName:     app.queue,
 					PartitionName: app.partition,
+					Ugi:           &si.UserGroupInformation{User: app.user},
+					Tags:          app.tags,
 				},
 			},
 			RmId: conf.GetSchedulerConf().ClusterId,

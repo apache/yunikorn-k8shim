@@ -84,7 +84,7 @@ func (nc *schedulerNodes) addExistingAllocation(pod *v1.Pod) error {
 					QueueName:        utils.GetQueueNameFromPod(pod),
 					NodeId:           pod.Spec.NodeName,
 					ApplicationId:    appId,
-					Partition:        common.DefaultPartition,
+					PartitionName:    common.DefaultPartition,
 				})
 			}
 		} else {
