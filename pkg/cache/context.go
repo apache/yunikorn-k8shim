@@ -555,11 +555,21 @@ func (ctx *Context) getOrCreateApplication(pod *v1.Pod) *Application {
 
 	if application, ok := ctx.applications[appId]; ok {
 		return application
-	} else {
-		newApp := NewApplication(appId, utils.GetQueueNameFromPod(pod), ctx.schedulerApi)
-		ctx.applications[appId] = newApp
-		return ctx.applications[appId]
 	}
+	// create the tags for the application
+	// labels or annotations from the pod can be added when needed
+	tags := map[string]string{}
+	if pod.Namespace == "" {
+		tags["namespace"] = "default"
+	} else {
+		tags["namespace"] = pod.Namespace
+	}
+	// get the application owner (this is all that is available as far as we can find)
+	user := pod.Spec.ServiceAccountName
+	// create a new app
+	newApp := NewApplication(appId, utils.GetQueueNameFromPod(pod), user, tags, ctx.schedulerApi)
+	ctx.applications[appId] = newApp
+	return ctx.applications[appId]
 }
 
 // for testing only

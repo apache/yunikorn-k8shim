@@ -49,7 +49,7 @@ func initContextForTest() *Context {
 }
 func TestAddApplications(t *testing.T) {
 	context := initContextForTest()
-	app01 := NewApplication("app00001", "root.a", nil)
+	app01 := NewApplication("app00001", "root.a", "testuser", map[string]string{}, nil)
 	context.AddApplication(app01)
 	assert.Equal(t, len(context.applications), 1)
 	assert.Assert(t, context.applications["app00001"] != nil)
