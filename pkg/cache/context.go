@@ -558,10 +558,10 @@ func (ctx *Context) getOrCreateApplication(pod *v1.Pod) *Application {
 	}
 	// create the tags for the application
 	// labels or annotations from the pod can be added when needed
-    tags := map[string]string{}
-    tags["namespace"] = pod.Namespace
-    // get the application owner (this is all that is available as far as we can find)
-    user := pod.Spec.ServiceAccountName
+	tags := map[string]string{}
+	tags["namespace"] = pod.Namespace
+	// get the application owner (this is all that is available as far as we can find)
+	user := pod.Spec.ServiceAccountName
 	// create a new app
 	newApp := NewApplication(appId, utils.GetQueueNameFromPod(pod), user, tags, ctx.schedulerApi)
 	ctx.applications[appId] = newApp
