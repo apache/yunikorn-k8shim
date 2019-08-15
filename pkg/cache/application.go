@@ -198,8 +198,10 @@ func (app *Application) handleSubmitApplicationEvent(event *fsm.Event) {
 					ApplicationId: app.applicationId,
 					QueueName:     app.queue,
 					PartitionName: app.partition,
-					Ugi:           &si.UserGroupInformation{User: app.user},
-					Tags:          app.tags,
+					Ugi: &si.UserGroupInformation{
+						User: app.user,
+					},
+					Tags: app.tags,
 				},
 			},
 			RmId: conf.GetSchedulerConf().ClusterId,
@@ -223,6 +225,10 @@ func (app *Application) handleRecoverApplicationEvent(event *fsm.Event) {
 					ApplicationId: app.applicationId,
 					QueueName:     app.queue,
 					PartitionName: app.partition,
+					Ugi: &si.UserGroupInformation{
+						User: app.user,
+					},
+					Tags: app.tags,
 				},
 			},
 			RmId: conf.GetSchedulerConf().ClusterId,
