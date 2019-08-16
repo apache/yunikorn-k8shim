@@ -176,6 +176,11 @@ func (task *Task) handleSubmitTaskEvent(event *fsm.Event) {
 		log.Logger.Debug("failed to send scheduling request to scheduler", zap.Error(err))
 		return
 	}
+
+	events.GetRecorder().Eventf(task.pod,
+		v1.EventTypeNormal, "TaskSubmitted",
+		"application \"%s\" task \"%s\" is submitted to the scheduler",
+		task.applicationId, task.taskId)
 }
 
 // this is called after task reaches ALLOCATED state,
@@ -208,12 +213,17 @@ func (task *Task) postTaskAllocated(event *fsm.Event) {
 				task.pod.Name, task.pod.UID, err)
 			log.Logger.Error(errorMessage)
 			dispatcher.Dispatch(NewFailTaskEvent(task.applicationId, task.taskId, errorMessage))
+			events.GetRecorder().Eventf(task.pod,
+				v1.EventTypeWarning, "PodBindFailure", errorMessage)
 			return
 		}
 
 		log.Logger.Info("successfully bound pod", zap.String("podName", task.pod.Name))
 		task.allocationUuid = allocUuid
 		dispatcher.Dispatch(NewBindTaskEvent(task.applicationId, task.taskId))
+		events.GetRecorder().Eventf(task.pod,
+			v1.EventTypeNormal, "PodBindSuccessful",
+			"pod \"%s\" successfully bound to node \"%s\"", task.pod.Name, nodeId)
 	}(event)
 }
 
@@ -223,6 +233,10 @@ func (task *Task) postTaskRejected(event *fsm.Event) {
 	// but further, we can introduce retry mechanism if necessary.
 	dispatcher.Dispatch(NewFailTaskEvent(task.applicationId, task.taskId,
 		fmt.Sprintf("task %s failed because it is rejected by scheduler", task.taskId)))
+
+	events.GetRecorder().Eventf(task.pod,
+		v1.EventTypeWarning, "TaskRejected",
+		"application \"%s\" task \"%s\" is rejected by the scheduler", task.applicationId, task.taskId)
 }
 
 func (task *Task) postTaskCompleted(event *fsm.Event) {
@@ -237,4 +251,8 @@ func (task *Task) postTaskCompleted(event *fsm.Event) {
 			log.Logger.Debug("failed to send scheduling request to scheduler", zap.Error(err))
 		}
 	}()
+
+	events.GetRecorder().Eventf(task.pod,
+		v1.EventTypeNormal, "TaskCompleted",
+		"application \"%s\" task \"%s\" is completed", task.applicationId, task.taskId)
 }

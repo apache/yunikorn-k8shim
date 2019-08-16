@@ -59,8 +59,10 @@ func (fc *MockScheduler) init(queues string) {
 		SchedulerName:  fakeClusterSchedulerName,
 		Interval:       fakeClusterSchedulingInterval,
 		KubeConfig:     "",
+		TestMode:       true,
 	}
 
+	conf.Set(&configs)
 	fc.conf = queues
 	fc.stopChan = make(chan struct{})
 	// default functions for bind and delete, this can be override if necessary

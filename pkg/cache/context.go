@@ -177,6 +177,10 @@ func (ctx *Context) addNode(obj interface{}) {
 
 	// add node to internal cache
 	ctx.nodes.addNode(node)
+
+	// post the event
+	events.GetRecorder().Eventf(node, v1.EventTypeNormal, "Accepted",
+		"node is accepted by the scheduler")
 }
 
 func (ctx *Context) updateNode(oldObj, newObj interface{}) {
@@ -225,6 +229,10 @@ func (ctx *Context) deleteNode(obj interface{}) {
 
 	// delete node from primary cache
 	ctx.nodes.deleteNode(node)
+
+	// post the event
+	events.GetRecorder().Eventf(node, v1.EventTypeNormal, "Deleted",
+		"node is deleted from the scheduler")
 }
 
 // add a pod to the context
