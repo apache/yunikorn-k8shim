@@ -18,6 +18,7 @@ package predicates
 
 import (
 	"fmt"
+	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
 	"gotest.tools/assert"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -41,6 +42,7 @@ var (
 )
 
 func TestPodFitsHost(t *testing.T) {
+	conf.Set(&conf.SchedulerConf{TestMode: true})
 	predictor := newPredictorInternal(&factory.PluginFactoryArgs{}, schedulerapi.Policy{
 		Predicates: []schedulerapi.PredicatePolicy{
 			{Name: predicates.HostNamePred},

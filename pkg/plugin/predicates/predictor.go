@@ -18,6 +18,7 @@ package predicates
 
 import (
 	"fmt"
+	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
 	"github.com/cloudera/yunikorn-k8shim/pkg/log"
 	"go.uber.org/zap"
 	"k8s.io/api/core/v1"
@@ -270,6 +271,8 @@ func (p *Predictor) Predicates(pod *v1.Pod, meta predicates.PredicateMetadata, n
 					zap.String("key", predicateKey),
 					zap.Bool("fit", fit),
 					zap.Any("reasons", reasons))
+				events.GetRecorder().Eventf(pod, v1.EventTypeWarning,
+					"FailedScheduling", err.Error())
 				return err
 			}
 
@@ -278,6 +281,8 @@ func (p *Predictor) Predicates(pod *v1.Pod, meta predicates.PredicateMetadata, n
 					zap.String("key", predicateKey),
 					zap.Bool("fit", fit),
 					zap.Any("reasons", reasons))
+				events.GetRecorder().Eventf(pod, v1.EventTypeWarning,
+					"FailedScheduling", "%v", reasons)
 				return fmt.Errorf("predicate %s cannot be satisified, reason %v", predicateKey, reasons)
 			}
 		}

@@ -40,8 +40,10 @@ func initContextForTest() *Context {
 		SchedulerName:  fakeClusterSchedulerName,
 		Interval:       fakeClusterSchedulingInterval,
 		KubeConfig:     "",
+		TestMode:       true,
 	}
 
+	conf.Set(&configs)
 	client := test.NewKubeClientMock()
 
 	context := NewContextInternal(nil, &configs, client, true)

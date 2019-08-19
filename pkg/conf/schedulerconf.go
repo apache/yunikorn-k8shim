@@ -30,6 +30,7 @@ const (
 	DefaultLoggingLevel = 0
 	DefaultLogEncoding = "console"
 	DefaultVolumeBindTimeout = 10 * time.Second
+	DefaultSchedulingInterval = time.Second
 )
 
 var configuration *SchedulerConf
@@ -39,20 +40,26 @@ type SchedulerConf struct {
 	ClusterVersion    string        `json:"clusterVersion"`
 	SchedulerName     string        `json:"schedulerName"`
 	PolicyGroup       string        `json:"policyGroup"`
-	Interval          int           `json:"schedulingIntervalSecond"`
+	Interval          time.Duration `json:"schedulingIntervalSecond"`
 	KubeConfig        string        `json:"absoluteKubeConfigFilePath"`
 	LoggingLevel      int           `json:"loggingLevel"`
 	LogEncoding       string        `json:"logEncoding"`
 	LogFile           string        `json:"logFilePath"`
 	VolumeBindTimeout time.Duration `json:"volumeBindTimeout"`
+	TestMode          bool          `json:"testMode"`
 }
 
 func GetSchedulerConf() *SchedulerConf {
 	return configuration
 }
 
+// unit tests may need to override configuration
+func Set(conf *SchedulerConf) {
+	configuration = conf
+}
+
 func (conf *SchedulerConf) GetSchedulingInterval() time.Duration {
-	return time.Duration(conf.Interval) * time.Second
+	return conf.Interval
 }
 
 func (conf *SchedulerConf) GetKubeConfigPath() string {
@@ -63,7 +70,7 @@ func init() {
 	// scheduler options
 	kubeConfig := flag.String("kubeConfig", "",
 		"absolute path to the kubeconfig file")
-	schedulingInterval := flag.Int("interval", 1,
+	schedulingInterval := flag.Duration("interval", DefaultSchedulingInterval,
 		"scheduling interval in seconds")
 	clusterId := flag.String("clusterId", DefaultClusterId,
 		"cluster id")

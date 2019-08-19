@@ -94,7 +94,7 @@ image: build_image
 run: build
 	@echo "running scheduler locally"
 	@cp ${LOCAL_CONF}/${CONF_FILE} ${RELEASE_BIN_DIR}
-	cd ${RELEASE_BIN_DIR} && ./${BINARY} -kubeConfig=$(HOME)/.kube/config -interval=1 \
+	cd ${RELEASE_BIN_DIR} && ./${BINARY} -kubeConfig=$(HOME)/.kube/config -interval=1s \
 	-clusterId=mycluster -clusterVersion=${VERSION} -name=yunikorn -policyGroup=queues \
 	-logEncoding=console -logLevel=-1
 
