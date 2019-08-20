@@ -23,6 +23,8 @@ endif
 BINARY=k8s_yunikorn_scheduler
 OUTPUT=_output
 RELEASE_BIN_DIR=${OUTPUT}/bin
+ADMISSION_CONTROLLER_BIN_DIR=${OUTPUT}/admission-controllers/
+POD_ADMISSION_CONTROLLER_BINARY=scheduler-admission-controller
 LOCAL_CONF=conf
 CONF_FILE=queues.yaml
 REPO=github.com/cloudera/yunikorn-k8shim/pkg
@@ -55,6 +57,7 @@ common-check-license:
 .PHONY: init
 init:
 	mkdir -p ${RELEASE_BIN_DIR}
+	mkdir -p ${ADMISSION_CONTROLLER_BIN_DIR}
 
 .PHONY: build
 build: init
@@ -90,6 +93,22 @@ image: build_image
 	@mv -f deployments/image/configmap/Dockerfile.bkp deployments/image/configmap/Dockerfile
 	@rm -f ./deployments/image/configmap/${BINARY}
 
+.PHONY: admission
+admission:
+	@echo "building admission controller binary"
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+	go build -a -o=${ADMISSION_CONTROLLER_BIN_DIR}/${POD_ADMISSION_CONTROLLER_BINARY} -ldflags \
+    '-extldflags "-static" -X main.version=${VERSION} -X main.date=${DATE}' \
+    -tags netgo -installsuffix netgo \
+    ./pkg/plugin/admissioncontrollers/webhook
+
+
+.PHONY: adm_image
+adm_image: admission
+	@echo "building admission controller docker images"
+	@cp ${ADMISSION_CONTROLLER_BIN_DIR}/${POD_ADMISSION_CONTROLLER_BINARY} ./deployments/image/admission
+	docker build ./deployments/image/admission -t yunikorn/scheduler-admission-controller:${VERSION} \
+
 .PHONY: run
 run: build
 	@echo "running scheduler locally"
@@ -111,4 +130,5 @@ clean:
 	./deployments/image/file/${BINARY} \
 	./deployments/image/file/${CONF_FILE} \
 	./deployments/image/configmap/${BINARY} \
-	./deployments/image/configmap/${CONF_FILE}
+	./deployments/image/configmap/${CONF_FILE} \
+	./deployments/image/admission/${POD_ADMISSION_CONTROLLER_BINARY}
