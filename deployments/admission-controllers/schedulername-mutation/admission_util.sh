@@ -40,8 +40,7 @@ create_resources() {
   kubectl create secret generic ${SECRET} \
           --from-file=key.pem=${KEY_DIR}/server-key.pem \
           --from-file=cert.pem=${KEY_DIR}/server-cert.pem \
-          --dry-run -o yaml |
-      kubectl -n ${NAMESPACE} apply -f -
+          --namespace=${NAMESPACE}
 
   # Read the PEM-encoded CA certificate, base64 encode it, and replace the `${CA_PEM_B64}` placeholder in the YAML
   # template with it. Then, create the Kubernetes resources.

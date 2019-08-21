@@ -16,7 +16,6 @@
 
 tmpdir="$1"
 service=`cat configs.properties | grep service | cut -d "=" -f 2`
-secret=`cat configs.properties | grep secret | cut -d "=" -f 2`
 namespace=`cat configs.properties | grep namespace | cut -d "=" -f 2`
 
 if [ ! -x "$(command -v openssl)" ]; then
@@ -88,10 +87,3 @@ if [[ ${serverCert} == '' ]]; then
     exit 1
 fi
 echo ${serverCert} | openssl base64 -d -A -out ${tmpdir}/server-cert.pem
-
-# create the secret with CA cert and server cert/key
-kubectl create secret generic ${secret} \
-        --from-file=key.pem=${tmpdir}/server-key.pem \
-        --from-file=cert.pem=${tmpdir}/server-cert.pem \
-        --dry-run -o yaml |
-    kubectl -n ${namespace} apply -f -
