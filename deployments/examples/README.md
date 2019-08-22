@@ -57,3 +57,10 @@ Use [minikube](https://kubernetes.io/docs/tasks/tools/install-minikube/) as a wo
     <br>See [Dynamic Volume Provisioning](https://kubernetes.io/docs/concepts/storage/dynamic-provisioning/) in the kubernetes docs.
   
 _NOTE_: dynamic provisioning can interfere with the existing volume examples given.
+
+## namespace
+The namespace example uses a placement rule and special queue configuration. The pod is a simple sleep pod which will be scheduled based on the namespace it runs in. The pod does not have a queue set.
+
+* create the config volume using the local [queues.yaml](./namespace/queues.yaml) file not the standard one.
+* add the development namespace  using [development](./namespace/development.yaml) file: `kubectl create -f development.yaml`
+* run a sleep pod which will show in the `root.development` queue: [sleeppod.yaml](./namespace/sleeppod.yaml)

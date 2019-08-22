@@ -33,14 +33,12 @@ import (
 func TestApplicationScheduling(t *testing.T) {
 	configData := `
 partitions:
-  -
-    name: default
+  - name: default
     queues:
-      -
-        name: root
+      - name: root
+        submitacl: "*"
         queues:
-          -
-            name: a
+          - name: a
             resources:
               guaranteed:
                 memory: 100
@@ -88,14 +86,12 @@ partitions:
 func TestRejectApplications(t *testing.T) {
 	configData := `
 partitions:
-  -
-    name: default
+  - name: default
     queues:
-      -
-        name: root
+      - name: root
+        submitacl: "*"
         queues:
-          -
-            name: a
+          - name: a
             resources:
               guaranteed:
                 memory: 100
