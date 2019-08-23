@@ -11,9 +11,8 @@ to replace default scheduler.
 
 Create the admission controller web-hook, run following command
 
-```
+```shell script
 ./admission_util.sh create
-
 ```
 this command does following tasks
 
@@ -28,7 +27,7 @@ this command does following tasks
 Launch a pod with following spec, note this spec did not specify `schedulerName`,
 without the admission controller, it should be scheduled by default scheduler without any issue.
 
-```
+```yaml
 apiVersion: v1
 kind: Pod
 metadata:
@@ -51,16 +50,16 @@ spec:
 However, after the admission controller is started, this pod will keep at pending state (if yunikorn is not running).
 Review the spec,
 
-```
+```shell script
 kubectl get pod task0 -o yaml 
 ```
 
 you'll see the `schedulerName` has been injected with value `yunikorn`.
 
-### Cleanup
+### Stop and delete the admission controller
 
 Use following command to cleanup all resources
-```
-./admission_util.sh delete
 
+```shell script
+./admission_util.sh delete
 ```

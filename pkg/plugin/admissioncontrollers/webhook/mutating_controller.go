@@ -125,7 +125,6 @@ func (c *admissionController) serve(w http.ResponseWriter, r *http.Request) {
 			},
 		}
 	} else {
-		fmt.Println(r.URL.Path)
 		if r.URL.Path == "/mutate" {
 			admissionResponse = c.mutate(&ar)
 		}

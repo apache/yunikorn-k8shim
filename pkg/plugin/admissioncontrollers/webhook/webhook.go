@@ -21,7 +21,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"github.com/cloudera/yunikorn-core/pkg/log"
-	"github.com/golang/glog"
 	"go.uber.org/zap"
 	"net/http"
 	"os"
@@ -42,7 +41,7 @@ func main() {
 	keyPath := filepath.Join(tlsDir, tlsKeyFile)
 	pair, err := tls.LoadX509KeyPair(certPath, keyPath)
 	if err != nil {
-		glog.Fatal("Failed to load key pair: %v", err)
+		log.Logger.Fatal("Failed to load key pair", zap.Error(err))
 	}
 
 	webHook := admissionController{}

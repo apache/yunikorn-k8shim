@@ -14,9 +14,16 @@
 
 : ${1?'missing output directory'}
 
+CONF_FILE="configs.properties"
+
+if [ ! -f ${CONF_FILE} ]; then
+  echo "${CONF_FILE} is missing in current directory!"
+  exit 1
+fi
+
 tmpdir="$1"
-service=`cat configs.properties | grep service | cut -d "=" -f 2`
-namespace=`cat configs.properties | grep namespace | cut -d "=" -f 2`
+service=`cat ${CONF_FILE} | grep service | cut -d "=" -f 2`
+namespace=`cat ${CONF_FILE} | grep namespace | cut -d "=" -f 2`
 
 if [ ! -x "$(command -v openssl)" ]; then
     echo "openssl not found"
@@ -65,11 +72,12 @@ spec:
 EOF
 
 # verify CSR has been created
-while true; do
+for x in $(seq 10); do
     kubectl get csr ${csrName}
     if [ "$?" -eq 0 ]; then
         break
     fi
+    sleep 1
 done
 
 # approve and fetch the signed certificate

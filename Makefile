@@ -107,7 +107,7 @@ admission:
 adm_image: admission
 	@echo "building admission controller docker images"
 	@cp ${ADMISSION_CONTROLLER_BIN_DIR}/${POD_ADMISSION_CONTROLLER_BINARY} ./deployments/image/admission
-	docker build ./deployments/image/admission -t yunikorn/scheduler-admission-controller:${VERSION} \
+	docker build ./deployments/image/admission -t yunikorn/scheduler-admission-controller:${VERSION}
 
 .PHONY: run
 run: build
