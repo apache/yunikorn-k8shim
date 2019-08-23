@@ -30,7 +30,6 @@ delete_resources() {
   kubectl delete -f server.yaml
   kubectl delete -n ${NAMESPACE} secret ${SECRET}
   kubectl delete -n ${NAMESPACE} certificatesigningrequest.certificates.k8s.io ${SERVICE}.${NAMESPACE}
-  kubectl delete namespace ${NAMESPACE}
   rm -rf server.yaml
   return 0
 }
