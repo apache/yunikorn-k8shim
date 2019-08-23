@@ -124,12 +124,13 @@ func (n *SchedulerNode) handle(ev events.SchedulerNodeEvent) error {
 		zap.String("nodeId", ev.GetNodeId()),
 		zap.String("preState", n.fsm.Current()),
 		zap.String("pendingEvent", string(ev.GetEvent())))
-	if err := n.fsm.Event(string(ev.GetEvent()), ev.GetArgs()...); err != nil {
+	err := n.fsm.Event(string(ev.GetEvent()), ev.GetArgs()...)
+	// handle the same state transition not nil error (limit of fsm).
+	if err != nil && err.Error() != "no transition"{
 		return err
 	}
 	log.Logger.Debug("scheduler node state transition",
 		zap.String("nodeId", ev.GetNodeId()),
-		zap.String("postState", n.fsm.Current()),
-		zap.String("pendingEvent", string(ev.GetEvent())))
+		zap.String("postState", n.fsm.Current()))
 	return nil
 }
