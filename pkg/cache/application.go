@@ -118,13 +118,14 @@ func (app *Application) handle(ev events.ApplicationEvent) error {
 		zap.String("appId", app.applicationId),
 		zap.String("preState", app.sm.Current()),
 		zap.String("pendingEvent", string(ev.GetEvent())))
-	if err := app.sm.Event(string(ev.GetEvent()), ev.GetArgs()...); err != nil {
+	err := app.sm.Event(string(ev.GetEvent()), ev.GetArgs()...)
+	// handle the same state transition not nil error (limit of fsm).
+	if err != nil && err.Error() != "no transition" {
 		return err
 	}
 	log.Logger.Debug("application state transition",
 		zap.String("appId", app.applicationId),
-		zap.String("postState", app.sm.Current()),
-		zap.String("handledEvent", string(ev.GetEvent())))
+		zap.String("postState", app.sm.Current()))
 	return nil
 }
 

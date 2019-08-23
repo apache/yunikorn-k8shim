@@ -116,13 +116,14 @@ func (task *Task) handle(te events.TaskEvent) error {
 		zap.String("taskId", task.taskId),
 		zap.String("preState", task.sm.Current()),
 		zap.String("pendingEvent", string(te.GetEvent())))
-	if err := task.sm.Event(string(te.GetEvent()), te.GetArgs()...); err != nil {
+	err := task.sm.Event(string(te.GetEvent()), te.GetArgs()...)
+	// handle the same state transition not nil error (limit of fsm).
+	if err != nil && err.Error() != "no transition"{
 		return err
 	}
 	log.Logger.Debug("task state transition",
 		zap.String("taskId", task.taskId),
-		zap.String("postState", task.sm.Current()),
-		zap.String("handledEvent", string(te.GetEvent())))
+		zap.String("postState", task.sm.Current()))
 	return nil
 }
 

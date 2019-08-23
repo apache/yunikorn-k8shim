@@ -204,10 +204,12 @@ func (ss *KubernetesShim) handle(se events.SchedulerEvent) error {
 		zap.String("preState", ss.stateMachine.Current()),
 		zap.String("pending event", string(se.GetEvent())))
 	err := ss.stateMachine.Event(string(se.GetEvent()))
+	if err != nil && err.Error() == "no transition" {
+		return err
+	}
 	log.Logger.Info("shim-scheduler state transition",
-		zap.String("postState", ss.stateMachine.Current()),
-		zap.String("handled event", string(se.GetEvent())))
-	return err
+		zap.String("postState", ss.stateMachine.Current()))
+	return nil
 }
 
 // each schedule iteration, we scan all apps and triggers app state transition
