@@ -28,33 +28,45 @@ Deployment files for the driver and executor:
 * [executor](./spark/executor.yaml).
 
 ## volumes
-The volumes directory contains three cases:
+The volumes directory contains three examples:
+1. [local volumes](#local-volume)
+1. [NFS volume](#nfs-volume)
+1. [EBS volumes](#ebs-volume)
 
-Both cases will generate an unending stream of data in a file called `dates.txt` on the mounted volume. 
-* local volume
-  * create the local volume and volume claim using the [local-pv.yaml](./volume/local-pv.yaml). 
-  * create the pod that uses the volume via [pod-local.yaml](./volume/pod-local.yaml).
-* NFS volume
-  * start a NFS server which exports a local directory from the server instance [nfs-server.yaml](./volume/nfs-server.yaml).
-  * get the IP address of the NFS server pod via `kubectl get services`. Use the cluster IP address returned to update the client pod yaml for the next step.
-  * create the pod that uses the exported nfs volume [pod-nfs.yaml](./volume/pod-nfs.yaml).
+All examples will generate an unending stream of data in a file called `dates.txt` on the mounted volume.
+Run times should be limited or the disk usage must be monitored for longer runs. 
 
-_NOTE_: The NFS server will not work on a Docker Desktop in a Mac OS-X environment with kubernetes turned on as it does not support the kernel NFS driver used by the server.
-Use [minikube](https://kubernetes.io/docs/tasks/tools/install-minikube/) as a workaround.
+### local volume
+* create the local volume and volume claim using the [local-pv.yaml](./volume/local-pv.yaml).
+* create the pod that uses the volume via [pod-local.yaml](./volume/pod-local.yaml).
 
-* EBS volume with Kubernetes on AWS
+### NFS volume
+1. start a NFS server which exports a local directory from the server instance [nfs-server.yaml](./volume/nfs-server.yaml).
+1. get the IP address of the NFS server pod via 
+   ```shell script
+   kubectl get services | grep nfs-server | awk '{print $3}'
+   ```
+   Use the cluster IP address returned to update the client pod yaml for the next step.
+1. replace nfs server the IP address in the [pod-nfs.yaml](./volume/pod-nfs.yaml) with the one retrieved above.
+1. create the client pod that uses the exported nfs volume.
 
-  Pre-requisites that are not decribed:
-  * create a EKS cluster on AWS: [Creating an Amazon EKS Cluster](https://docs.aws.amazon.com/eks/latest/userguide/create-cluster.html).
-  * deploy the dashboard: [EKS dashboard tutorial](https://docs.aws.amazon.com/eks/latest/userguide/dashboard-tutorial.html).
+_NOTE_: The NFS server will not work on a Docker Desktop in a Mac OS-X environment. Even with kubernetes turned on. The image used by Docker Desktop does not support the kernel NFS driver used by the server.
+Use [minikube](https://kubernetes.io/docs/tasks/tools/install-minikube/) as a workaround and follow the [environment setup](https://github.com/cloudera/yunikorn-core/blob/master/docs/setup/env-setup.md#installing-minikube) to add it to Docker Desktop.
+
+### EBS volume
+EBS volumes cannot be used outside of AWS. Therefor you must have an EKS cluster on AWS.
+Pre-requisites and installation that is not described in this document:
+* create a EKS cluster on AWS: [Creating an Amazon EKS Cluster](https://docs.aws.amazon.com/eks/latest/userguide/create-cluster.html).
+* deploy the dashboard: [EKS dashboard tutorial](https://docs.aws.amazon.com/eks/latest/userguide/dashboard-tutorial.html).
   
-  Three example cases:
-  * Bind an existing volume into the pod using a PV and PVC: [pod-ebs-exist.yaml](./volume/pod-ebs-exist.yaml).
-    <br>Pre-requisite: add the volume on top of an existing volume [ebs-pv.yaml](./volume/ebs-pv.yaml).
-  * Bind an existing volume into the pod directly using the volume ID: [pod-ebs-direct.yaml](./volume/pod-ebs-direct.yaml).
-  * Create a new volume using dynamic provisioning via the storage class: [pod-ebs-dynamic.yaml](./volume/pod-ebs-dynamic.yaml).
-    <br>Pre-requisite: add the storage class: [storage-class.yaml](./volume/storage-class.yaml). the cluster must also have `--enable-admission-plugins DefaultStorageClass` set.
-    <br>See [Dynamic Volume Provisioning](https://kubernetes.io/docs/concepts/storage/dynamic-provisioning/) in the kubernetes docs.
+Three example cases:
+* bind an existing volume into the pod directly using the volume ID: [pod-ebs-direct.yaml](./volume/pod-ebs-direct.yaml).
+    pre-requisite: create an EBS volume and retrieve the ID.
+* bind an existing volume into the pod using a PV and PVC: [pod-ebs-exist.yaml](./volume/pod-ebs-exist.yaml).
+    pre-requisite: add the PV on top of an existing EBS volume [ebs-pv.yaml](./volume/ebs-pv.yaml).
+* create a new volume using dynamic provisioning via the storage class: [pod-ebs-dynamic.yaml](./volume/pod-ebs-dynamic.yaml).
+    pre-requisite: add the storage class: [storage-class.yaml](./volume/storage-class.yaml). the cluster must also have `--enable-admission-plugins DefaultStorageClass` set.
+    see [Dynamic Volume Provisioning](https://kubernetes.io/docs/concepts/storage/dynamic-provisioning/) in the kubernetes docs.
   
 _NOTE_: dynamic provisioning can interfere with the existing volume examples given.
 
