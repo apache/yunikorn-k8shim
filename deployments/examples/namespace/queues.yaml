@@ -1,0 +1,20 @@
+partitions:
+  - name: default
+    queues:
+      - name: root
+        submitacl: "*"
+        queues:
+          - name: development
+            resources:
+              guaranteed:
+                memory: 500000
+                vcore: 50000
+          - name: default
+            resources:
+              guaranteed:
+                memory: 500000
+                vcore: 50000
+    placementrules:
+      - name: tag
+        value: namespace
+        create: true

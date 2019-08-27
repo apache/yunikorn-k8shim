@@ -1,12 +1,10 @@
 partitions:
-  -
-    name: default
+  - name: default
     queues:
-      -
-        name: root
+      - name: root
+        submitacl: "*"
         queues:
-          -
-            name: advertisement
+          - name: advertisement
             resources:
               guaranteed:
                 memory: 500000
@@ -14,8 +12,7 @@ partitions:
               max:
                 memory: 800000
                 vcore: 80000
-          -
-            name: search
+          - name: search
             resources:
               guaranteed:
                 memory: 400000
@@ -23,8 +20,7 @@ partitions:
               max:
                 memory: 600000
                 vcore: 60000
-          -
-            name: sandbox
+          - name: sandbox
             resources:
               guaranteed:
                 memory: 100000

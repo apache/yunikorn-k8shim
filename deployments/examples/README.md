@@ -57,3 +57,13 @@ Use [minikube](https://kubernetes.io/docs/tasks/tools/install-minikube/) as a wo
     <br>See [Dynamic Volume Provisioning](https://kubernetes.io/docs/concepts/storage/dynamic-provisioning/) in the kubernetes docs.
   
 _NOTE_: dynamic provisioning can interfere with the existing volume examples given.
+
+## namespace
+The namespace example uses a placement rule and special queue configuration. The pods are a simple sleep pod which will be scheduled based on the namespace it runs in. The pod specification does not have a queue set.
+
+* create the configmap as explained in the [user guide](https://github.com/cloudera/yunikorn-core/blob/master/docs/user-guide.md#create-the-configmap) using the local [queues.yaml](./namespace/queues.yaml) file not the standard one.
+* add the namespaces development and production using [namespaces.yaml](namespace/namespaces.yaml) file: `kubectl create -f namespaces.yaml`
+* run the sleep pod in the development namespace which gets added to the `development` queue using the local [sleeppod_dev.yaml](namespace/sleeppod_dev.yaml): `kubectl create -f sleeppod_dev.yaml`.
+  The pod spec does not specify a queue just a namespace but the application will be run in the `root.development` queue. 
+* run the sleep pod in the production namespace which creates a new `production` queue using the local [sleeppod_prod.yaml](namespace/sleeppod_prod.yaml): `kubectl create -f namespaces.yaml`.
+  The pod spec does not specify a queue just a namespace but the application will be run in the newly created `root.production` queue. This queue does not exist in the queue configuration. 

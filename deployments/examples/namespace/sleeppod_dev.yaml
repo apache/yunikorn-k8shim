@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    app: sleep
+    applicationId: "application-namespace-1"
+  name: sleep1
+  namespace: development
+spec:
+  schedulerName: yunikorn
+  restartPolicy: Never
+  containers:
+    - name: sleep-30s
+      image: "alpine:latest"
+      command: ["sleep", "30"]
+      resources:
+        requests:
+          cpu: "100m"
+          memory: "500M"
