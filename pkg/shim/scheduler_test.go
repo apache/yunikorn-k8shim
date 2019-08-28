@@ -163,21 +163,22 @@ func TestSchedulerRegistrationFailed(t *testing.T){
 func TestTaskFailures(t *testing.T) {
 	configData := `
 partitions:
-  -
-    name: default
-    queues:
-      -
-        name: root
-        queues:
-          -
-            name: a
-            resources:
-              guaranteed:
-                memory: 100
-                vcore: 10
-              max:
-                memory: 100
-                vcore: 10
+ -
+   name: default
+   queues:
+     -
+       name: root
+       submitacl: "*"
+       queues:
+         -
+           name: a
+           resources:
+             guaranteed:
+               memory: 100
+               vcore: 10
+             max:
+               memory: 100
+               vcore: 10
 `
 	// init and register scheduler
 	cluster := MockScheduler{}
@@ -224,7 +225,7 @@ partitions:
 	// one task get bound, one ask failed, so we are expecting only 1 allocation in the scheduler
 	if err := cluster.waitAndVerifySchedulerAllocations("root.a",
 		"[test-cluster]default","app0001", 1); err != nil {
-		t.Fatalf("number of allocations is not expected %v", err)
+		t.Fatalf("number of allocations is not expected, error: %v", err)
 	}
 }
 

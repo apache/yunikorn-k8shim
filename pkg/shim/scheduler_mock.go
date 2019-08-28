@@ -40,7 +40,7 @@ import (
 const fakeClusterId = "test-cluster"
 const fakeClusterVersion = "0.1.0"
 const fakeClusterSchedulerName = "yunikorn-test"
-const fakeClusterSchedulingInterval = 1
+const fakeClusterSchedulingInterval = time.Second
 
 // fake cluster is used for testing
 // it uses fake kube client to simulate API calls with k8s, all other code paths are real
@@ -213,7 +213,7 @@ func (fc *MockScheduler) waitAndVerifySchedulerAllocations(
 		return utils2.WaitForCondition(func() bool {
 			for _, app := range partition.GetApplications() {
 				if app.ApplicationId == applicationId {
-					if len(app.GetAllAllocations()) != expectedNumOfAllocations {
+					if len(app.GetAllAllocations()) == expectedNumOfAllocations {
 						return true
 					}
 				}
