@@ -20,6 +20,9 @@ ifdef GO_VERSION
 $(error Build requires go 1.11 or later)
 endif
 
+# Make sure we are in the same directory as the Makefile
+BASE_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
+
 BINARY=k8s_yunikorn_scheduler
 OUTPUT=_output
 RELEASE_BIN_DIR=${OUTPUT}/bin
@@ -45,6 +48,9 @@ endif
 GO111MODULE := on
 export GO111MODULE
 
+all:
+	$(MAKE) -C $(dir $(BASE_DIR)) build
+
 .PHONY: common-check-license
 common-check-license:
 	@echo "checking license header"
@@ -54,11 +60,21 @@ common-check-license:
 		exit 1; \
 	fi
 
+.PHONY: run
+run: build
+	@echo "running scheduler locally"
+	@cp ${LOCAL_CONF}/${CONF_FILE} ${RELEASE_BIN_DIR}
+	cd ${RELEASE_BIN_DIR} && ./${BINARY} -kubeConfig=$(HOME)/.kube/config -interval=1s \
+	-clusterId=mycluster -clusterVersion=${VERSION} -name=yunikorn -policyGroup=queues \
+	-logEncoding=console -logLevel=-1
+
+# Create output directories
 .PHONY: init
 init:
 	mkdir -p ${RELEASE_BIN_DIR}
 	mkdir -p ${ADMISSION_CONTROLLER_BIN_DIR}
 
+# Build scheduler binary for dev and test
 .PHONY: build
 build: init
 	@echo "building scheduler binary"
@@ -67,8 +83,9 @@ build: init
     ./pkg/shim/
 	@chmod +x ${RELEASE_BIN_DIR}/${BINARY}
 
-.PHONY: build_image
-build_image: init
+# Build scheduler binary in a production ready version
+.PHONY: scheduler
+scheduler: init
 	@echo "building binary for scheduler docker image"
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
 	go build -a -o=${RELEASE_BIN_DIR}/${BINARY} -ldflags \
@@ -76,8 +93,9 @@ build_image: init
 	-tags netgo -installsuffix netgo \
 	./pkg/shim/
 
-.PHONY: image
-image: build_image
+# Build a scheduler image based on the production ready version
+.PHONY: sched_image
+sched_image: scheduler
 	@echo "building scheduler docker image"
 	@cp ${RELEASE_BIN_DIR}/${BINARY} ./deployments/image/configmap
 	@sed -i'.bkp' 's/clusterVersion=.*"/clusterVersion=${VERSION}"/' deployments/image/configmap/Dockerfile
@@ -93,8 +111,9 @@ image: build_image
 	@mv -f deployments/image/configmap/Dockerfile.bkp deployments/image/configmap/Dockerfile
 	@rm -f ./deployments/image/configmap/${BINARY}
 
+# Build admission controller binary in a production ready version
 .PHONY: admission
-admission:
+admission: init
 	@echo "building admission controller binary"
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
 	go build -a -o=${ADMISSION_CONTROLLER_BIN_DIR}/${POD_ADMISSION_CONTROLLER_BINARY} -ldflags \
@@ -102,27 +121,26 @@ admission:
     -tags netgo -installsuffix netgo \
     ./pkg/plugin/admissioncontrollers/webhook
 
-
+# Build an admission controller image based on the production ready version
 .PHONY: adm_image
 adm_image: admission
 	@echo "building admission controller docker images"
 	@cp ${ADMISSION_CONTROLLER_BIN_DIR}/${POD_ADMISSION_CONTROLLER_BINARY} ./deployments/image/admission
 	docker build ./deployments/image/admission -t yunikorn/scheduler-admission-controller:${VERSION}
+	@rm -f ./deployments/image/admission/${POD_ADMISSION_CONTROLLER_BINARY}
 
-.PHONY: run
-run: build
-	@echo "running scheduler locally"
-	@cp ${LOCAL_CONF}/${CONF_FILE} ${RELEASE_BIN_DIR}
-	cd ${RELEASE_BIN_DIR} && ./${BINARY} -kubeConfig=$(HOME)/.kube/config -interval=1s \
-	-clusterId=mycluster -clusterVersion=${VERSION} -name=yunikorn -policyGroup=queues \
-	-logEncoding=console -logLevel=-1
+# Build all images based on the production ready version
+.PHONY: image
+image: sched_image adm_image
 
+# Run the tests after building
 .PHONY: test
 test:
 	@echo "running unit tests"
 	go test ./... -cover -race -tags deadlock
 	go vet $(REPO)...
 
+# Simple clean of generated files only (no local cleanup).
 .PHONY: clean
 clean:
 	go clean -r -x ./...
