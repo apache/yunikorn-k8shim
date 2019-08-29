@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: yunikorn-configs
+  labels:
+    app: yunikorn
+  annotations:
+    "helm.sh/hook": "pre-install"
+data:
+  queues.yaml: {{quote .Values.configuration}}

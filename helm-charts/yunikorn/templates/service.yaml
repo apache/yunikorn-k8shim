@@ -3,7 +3,7 @@ kind: Service
 metadata:
   name: yunikorn-service
   labels:
-    app: yunikorn-service
+    app: yunikorn
     chart: {{ include "yunikorn.chart" . }}
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
