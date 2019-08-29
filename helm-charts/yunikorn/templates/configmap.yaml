@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: yunikorn-configs
+  labels:
+    app: yunikorn
+    chart: {{ include "yunikorn.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+  annotations:
+    "helm.sh/hook": "pre-install"
+data:
+  queues.yaml: {{quote .Values.configuration}}

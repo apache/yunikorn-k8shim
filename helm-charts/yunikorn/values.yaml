@@ -1,4 +1,3 @@
-# Default values for yunikorn-k8s-shim.
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
@@ -14,10 +13,46 @@ web_image:
   tag: latest
   pullPolicy: IfNotPresent
 
-nameOverride: ""
-fullnameOverride: ""
-
 service:
   type: LoadBalancer
   port: 9080
   port_web: 9889
+
+# scheduler configuration
+configuration: |
+  partitions:
+    -
+      name: default
+      queues:
+        -
+          name: root
+          submitacl: '*'
+          queues:
+            -
+              name: advertisement
+              resources:
+                guaranteed:
+                  memory: 500000
+                  vcore: 50000
+                max:
+                  memory: 800000
+                  vcore: 80000
+            -
+              name: search
+              resources:
+                guaranteed:
+                  memory: 400000
+                  vcore: 40000
+                max:
+                  memory: 600000
+                  vcore: 60000
+            -
+              name: sandbox
+              resources:
+                guaranteed:
+                  memory: 100000
+                  vcore: 10000
+                max:
+                  memory: 100000
+                  vcore: 10000
+
