@@ -651,6 +651,8 @@ func (ctx *Context) TaskEventHandler() func(obj interface{}){
 
 			if err := task.handle(event); err != nil {
 				log.Logger.Error("failed to handle task event",
+					zap.String("applicationId", task.applicationId),
+					zap.String("taskId", task.taskId),
 					zap.String("event", string(event.GetEvent())),
 					zap.Error(err))
 			}

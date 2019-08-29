@@ -26,6 +26,7 @@ import (
 	"github.com/cloudera/yunikorn-k8shim/pkg/log"
 	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
 	"go.uber.org/zap"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sync"
 
 	"github.com/looplab/fsm"
@@ -51,9 +52,16 @@ func newTask(tid string, app *Application, client client.KubeClient, schedulerAp
 	return createTaskInternal(tid, app, taskResource, pod, client, schedulerApi)
 }
 
+// test only
 func CreateTaskForTest(tid string, app *Application, resource *si.Resource,
 	client client.KubeClient, schedulerApi api.SchedulerApi) Task {
-	return createTaskInternal(tid, app, resource, &v1.Pod{}, client, schedulerApi)
+	// for testing purpose, the pod name is same as the taskId
+	taskPod := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: tid,
+		},
+	}
+	return createTaskInternal(tid, app, resource, taskPod, client, schedulerApi)
 }
 
 func createTaskInternal(tid string, app *Application, resource *si.Resource,
@@ -95,7 +103,7 @@ func createTaskInternal(tid string, app *Application, resource *si.Resource,
 				Src: []string{states.Pending, states.Scheduling},
 				Dst: states.Rejected},
 			{Name: string(events.TaskFail),
-				Src: []string{states.Rejected},
+				Src: []string{states.Rejected, states.Allocated},
 				Dst: states.Failed},
 		},
 		fsm.Callbacks{
@@ -104,6 +112,7 @@ func createTaskInternal(tid string, app *Application, resource *si.Resource,
 			states.Allocated:          task.postTaskAllocated,
 			states.Rejected:           task.postTaskRejected,
 			states.Completed:          task.postTaskCompleted,
+			states.Failed:             task.postTaskFailed,
 		},
 	)
 
@@ -205,6 +214,9 @@ func (task *Task) postTaskAllocated(event *fsm.Event) {
 		allocUuid := eventArgs[0]
 		nodeId := eventArgs[1]
 
+		// task allocation UID is assigned once we get allocation decision from scheduler core
+		task.allocationUuid = allocUuid
+
 		log.Logger.Debug("bind pod",
 			zap.String("podName", task.pod.Name),
 			zap.String("podUID", string(task.pod.UID)))
@@ -220,7 +232,6 @@ func (task *Task) postTaskAllocated(event *fsm.Event) {
 		}
 
 		log.Logger.Info("successfully bound pod", zap.String("podName", task.pod.Name))
-		task.allocationUuid = allocUuid
 		dispatcher.Dispatch(NewBindTaskEvent(task.applicationId, task.taskId))
 		events.GetRecorder().Eventf(task.pod,
 			v1.EventTypeNormal, "PodBindSuccessful",
@@ -240,20 +251,38 @@ func (task *Task) postTaskRejected(event *fsm.Event) {
 		"application \"%s\" task \"%s\" is rejected by the scheduler", task.applicationId, task.taskId)
 }
 
-func (task *Task) postTaskCompleted(event *fsm.Event) {
-	// when task is completed, we notify the scheduler to release allocations
-	go func() {
-		releaseRequest := common.CreateReleaseAllocationRequestForTask(
-			task.applicationId, task.allocationUuid, task.application.partition)
+func (task *Task) postTaskFailed(event *fsm.Event) {
+	// when task is failed, we need to do the cleanup,
+	// we need to release the allocation from scheduler core
+	task.releaseAllocation()
 
-		log.Logger.Debug("send release request",
-			zap.String("releaseRequest", releaseRequest.String()))
-		if err := task.schedulerApi.Update(&releaseRequest); err != nil {
-			log.Logger.Debug("failed to send scheduling request to scheduler", zap.Error(err))
-		}
-	}()
+	events.GetRecorder().Eventf(task.pod,
+		v1.EventTypeWarning, "TaskFailed",
+		"application \"%s\" task \"%s\" is failed", task.applicationId, task.taskId)
+}
+
+func (task *Task) postTaskCompleted(event *fsm.Event) {
+	// when task is completed, release its allocation from scheduler core
+	task.releaseAllocation()
 
 	events.GetRecorder().Eventf(task.pod,
 		v1.EventTypeNormal, "TaskCompleted",
 		"application \"%s\" task \"%s\" is completed", task.applicationId, task.taskId)
+}
+
+func (task *Task) releaseAllocation() {
+	// when task is completed, we notify the scheduler to release allocations
+	go func() {
+		// scheduler api might be nil in some tests
+		if task.schedulerApi != nil {
+			releaseRequest := common.CreateReleaseAllocationRequestForTask(
+				task.applicationId, task.allocationUuid, task.application.partition)
+
+			log.Logger.Debug("send release request",
+				zap.String("releaseRequest", releaseRequest.String()))
+			if err := task.schedulerApi.Update(&releaseRequest); err != nil {
+				log.Logger.Debug("failed to send scheduling request to scheduler", zap.Error(err))
+			}
+		}
+	}()
 }

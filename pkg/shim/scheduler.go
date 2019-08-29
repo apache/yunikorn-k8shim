@@ -232,10 +232,9 @@ func (ss *KubernetesShim) schedule() {
 				ev := cache.NewRunApplicationEvent(app.GetApplicationId(), pendingTask)
 				dispatcher.Dispatch(ev)
 			default:
-				log.Logger.Warn("application is in unexpected state, tasks cannot be scheduled under this state",
+				log.Logger.Debug("skipping scheduling application",
 					zap.String("appId", app.GetApplicationId()),
-					zap.String("appState", app.GetApplicationState()),
-					zap.String("desiredState", events.States().Application.Running))
+					zap.String("appState", app.GetApplicationState()))
 			}
 		}
 	}
