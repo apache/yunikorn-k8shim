@@ -4,7 +4,7 @@ metadata:
   name: yunikorn-scheduler
   labels:
     app: yunikorn
-    chart: {{ include "yunikorn-k8s-shim.chart" . }}
+    chart: {{ include "yunikorn.chart" . }}
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
 spec:
