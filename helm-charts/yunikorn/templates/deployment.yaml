@@ -1,0 +1,44 @@
+apiVersion: apps/v1beta2
+kind: Deployment
+metadata:
+  name: yunikorn-scheduler
+  labels:
+    app: yunikorn
+    chart: {{ include "yunikorn.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: yunikorn
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      name: yunikorn-scheduler
+      labels:
+        app: yunikorn
+        release: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: yunikorn-scheduler-k8s
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http1
+              containerPort: {{ .Values.service.port }}
+              protocol: TCP
+          volumeMounts:
+            - name: config-volume
+              mountPath: /etc/yunikorn/
+        - name: yunikorn-scheduler-web
+          image: "{{ .Values.web_image.repository }}:{{ .Values.web_image.tag }}"
+          imagePullPolicy: {{ .Values.web_image.pullPolicy }}
+          ports:
+            - name: http2
+              containerPort: {{ .Values.service.port_web }}
+              protocol: TCP
+      volumes:
+        - name: config-volume
+          configMap:
+            name: yunikorn-configs

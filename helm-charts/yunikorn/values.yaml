@@ -1,0 +1,23 @@
+# Default values for yunikorn-k8s-shim.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replicaCount: 1
+
+image:
+  repository: yunikorn/yunikorn-scheduler-k8s
+  tag: latest
+  pullPolicy: IfNotPresent
+
+web_image:
+  repository: yunikorn/yunikorn-web
+  tag: latest
+  pullPolicy: IfNotPresent
+
+nameOverride: ""
+fullnameOverride: ""
+
+service:
+  type: LoadBalancer
+  port: 9080
+  port_web: 9889
