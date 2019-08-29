@@ -19,7 +19,7 @@ package main
 import (
 	"fmt"
 	"github.com/cloudera/yunikorn-core/pkg/api"
-	utils "github.com/cloudera/yunikorn-core/pkg/common/configs"
+	coreconfigs "github.com/cloudera/yunikorn-core/pkg/common/configs"
 	"github.com/cloudera/yunikorn-core/pkg/entrypoint"
 	"github.com/cloudera/yunikorn-core/pkg/log"
 	"github.com/cloudera/yunikorn-k8shim/pkg/cache"
@@ -27,7 +27,7 @@ import (
 	"github.com/cloudera/yunikorn-k8shim/pkg/client"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/test"
-	utils2 "github.com/cloudera/yunikorn-k8shim/pkg/common/utils"
+	"github.com/cloudera/yunikorn-k8shim/pkg/common/utils"
 	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
 	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
 	"go.uber.org/zap"
@@ -86,7 +86,7 @@ func (fc *MockScheduler) init(queues string) {
 
 	serviceContext := entrypoint.StartAllServices()
 	rmProxy := serviceContext.RMProxy
-	utils.MockSchedulerConfigByData([]byte(fc.conf))
+	coreconfigs.MockSchedulerConfigByData([]byte(fc.conf))
 
 	fakeClient := test.NewKubeClientMock()
 	fakeClient.MockBindFn(fc.bindFn)
@@ -210,7 +210,7 @@ func (fc *MockScheduler) waitAndVerifySchedulerAllocations(
 			return fmt.Errorf("partition %s is not found in the scheduler context", partitionName)
 		}
 
-		return utils2.WaitForCondition(func() bool {
+		return utils.WaitForCondition(func() bool {
 			for _, app := range partition.GetApplications() {
 				if app.ApplicationId == applicationId {
 					if len(app.GetAllAllocations()) == expectedNumOfAllocations {
