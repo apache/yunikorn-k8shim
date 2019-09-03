@@ -19,8 +19,8 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/cloudera/yunikorn-core/pkg/log"
 	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
+	"github.com/cloudera/yunikorn-k8shim/pkg/log"
 	"go.uber.org/zap"
 	"io/ioutil"
 	"k8s.io/api/admission/v1beta1"
