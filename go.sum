@@ -24,6 +24,8 @@ github.com/cloudera/yunikorn-core v0.0.0-20190827030005-b454127216da h1:24N3Ika5
 github.com/cloudera/yunikorn-core v0.0.0-20190827030005-b454127216da/go.mod h1:1mhFF71SYZdv5a91tqZLq8t+3lsHp3A8ITbq6kwXsAY=
 github.com/cloudera/yunikorn-core v0.0.0-20190903032330-1e225cc0ec6e h1:fTvtgbk0hmr2j0oJ+LkKX2j6X8GDdx4B9o1+7C44PYk=
 github.com/cloudera/yunikorn-core v0.0.0-20190903032330-1e225cc0ec6e/go.mod h1:1mhFF71SYZdv5a91tqZLq8t+3lsHp3A8ITbq6kwXsAY=
+github.com/cloudera/yunikorn-core v0.0.0-20190903041108-a0b527bab361 h1:3syD/GkdV+xwgmZv/IbJptCEM9IGN7/FW+tLtb4AFh0=
+github.com/cloudera/yunikorn-core v0.0.0-20190903041108-a0b527bab361/go.mod h1:Y7Dd08NdNnkKK2jlmAA8OhGLfDu36MRWV4iDlNO9sBw=
 github.com/cloudera/yunikorn-scheduler-interface v0.0.0-20190812041505-6b2f6fbba7d0 h1:4aUgT4g26aNGwzJMbgTI1lF/RDAZW8QBo+IJr5jvras=
 github.com/cloudera/yunikorn-scheduler-interface v0.0.0-20190812041505-6b2f6fbba7d0/go.mod h1:QE7hLVzWYKot7H8eNMnGsphqStSEmSxxU5dgFzI32rk=
 github.com/cloudera/yunikorn-scheduler-interface v0.0.0-20190829044341-d23ffbd675db h1:PNih9ijOKHeZofZmvqpaKVxCPOrz0qXTgQ0Mm3C94DE=
