@@ -3,8 +3,8 @@ module github.com/cloudera/yunikorn-k8shim
 go 1.12
 
 require (
-	github.com/cloudera/yunikorn-core v0.0.0-20190903041108-a0b527bab361
-	github.com/cloudera/yunikorn-scheduler-interface v0.0.0-20190829044341-d23ffbd675db
+	github.com/cloudera/yunikorn-core v0.0.0-20190909100905-ab8ee88b6505
+	github.com/cloudera/yunikorn-scheduler-interface v0.0.0-20190909100534-0557527533f6
 	github.com/coreos/bbolt v1.3.3 // indirect
 	github.com/coreos/etcd v3.3.13+incompatible // indirect
 	github.com/coreos/go-semver v0.3.0 // indirect
@@ -13,7 +13,6 @@ require (
 	github.com/docker/distribution v2.7.1+incompatible // indirect
 	github.com/go-kit/kit v0.9.0 // indirect
 	github.com/gogo/protobuf v1.2.1 // indirect
-	github.com/golang/groupcache v0.0.0-20190129154638-5b532d6fd5ef // indirect
 	github.com/googleapis/gnostic v0.3.0 // indirect
 	github.com/gorilla/websocket v1.4.0 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.0.0 // indirect

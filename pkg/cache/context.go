@@ -427,13 +427,6 @@ func (ctx *Context) deletePod(obj interface{}) {
 		// starts a completion handler to handle the completion of a app on demand
 		application.startCompletionHandler(ctx.kubeClient, pod)
 	}
-
-	log.Logger.Debug("remove pod from cache", zap.String("podName", pod.Name))
-	if err := ctx.schedulerCache.RemovePod(pod); err != nil {
-		log.Logger.Error("failed to remove pod from scheduler cache",
-			zap.String("podName", pod.Name),
-			zap.Error(err))
-	}
 }
 
 // filter assigned pods
@@ -545,6 +538,23 @@ func (ctx *Context) AssumePod(name string, node string) error {
 		if targetNode := ctx.schedulerCache.GetNode(node); targetNode != nil {
 			return ctx.schedulerCache.AssumePod(assumedPod)
 		}
+	}
+	return nil
+}
+
+// forget pod must be called when a pod is assumed to be running on a node,
+// but then for some reason it is failed to bind or released.
+func (ctx *Context) ForgetPod(name string) error {
+	ctx.lock.Lock()
+	defer ctx.lock.Unlock()
+
+	if pod, ok := ctx.schedulerCache.GetPod(name); ok {
+		log.Logger.Debug("forget pod", zap.String("pod", pod.Name))
+		return ctx.schedulerCache.ForgetPod(pod)
+	} else {
+		log.Logger.Debug("unable to forget pod",
+			zap.String("pod", pod.Name),
+			zap.String("reason", fmt.Sprintf("pod %s not found in scheduler cache", name)))
 	}
 	return nil
 }
