@@ -131,6 +131,12 @@ func (callback *AsyncRMCallback) ReSyncSchedulerCache(args *si.ReSyncSchedulerCa
 			return err
 		}
 	}
+
+	for _, forgetAlloc := range args.ForgetAllocations {
+		if err := callback.context.ForgetPod(forgetAlloc.AllocationKey); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
