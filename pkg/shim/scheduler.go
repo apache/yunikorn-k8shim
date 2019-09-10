@@ -104,10 +104,12 @@ func newShimSchedulerInternal(api api.SchedulerApi, ctx *cache.Context, cb api.R
 func (ss *KubernetesShim) SchedulerEventHandler() func(obj interface{}){
 	return func(obj interface{}) {
 		if event, ok := obj.(events.SchedulerEvent); ok {
-			if err := ss.handle(event); err != nil {
-				log.Logger.Error("failed to handle scheduler event",
-					zap.String("event", string(event.GetEvent())),
-					zap.Error(err))
+			if ss.stateMachine.Can(string(event.GetEvent())) {
+				if err := ss.handle(event); err != nil {
+					log.Logger.Error("failed to handle scheduler event",
+						zap.String("event", string(event.GetEvent())),
+						zap.Error(err))
+				}
 			}
 		}
 	}

@@ -641,10 +641,12 @@ func (ctx *Context) ApplicationEventHandler() func(obj interface{}){
 				return
 			}
 
-			if err := app.handle(event); err != nil {
-				log.Logger.Error("failed to handle application event",
-					zap.String("event", string(event.GetEvent())),
-					zap.Error(err))
+			if app.sm.Can(string(event.GetEvent())) {
+				if err := app.handle(event); err != nil {
+					log.Logger.Error("failed to handle application event",
+						zap.String("event", string(event.GetEvent())),
+						zap.Error(err))
+				}
 			}
 		}
 	}
@@ -659,12 +661,14 @@ func (ctx *Context) TaskEventHandler() func(obj interface{}){
 				return
 			}
 
-			if err := task.handle(event); err != nil {
-				log.Logger.Error("failed to handle task event",
-					zap.String("applicationId", task.applicationId),
-					zap.String("taskId", task.taskId),
-					zap.String("event", string(event.GetEvent())),
-					zap.Error(err))
+			if task.sm.Can(string(event.GetEvent())) {
+				if err := task.handle(event); err != nil {
+					log.Logger.Error("failed to handle task event",
+						zap.String("applicationId", task.applicationId),
+						zap.String("taskId", task.taskId),
+						zap.String("event", string(event.GetEvent())),
+						zap.Error(err))
+				}
 			}
 		}
 	}

@@ -160,10 +160,12 @@ func (nc *schedulerNodes) schedulerNodeEventHandler() func(obj interface{}){
 	return func(obj interface{}) {
 		if event, ok := obj.(events.SchedulerNodeEvent); ok {
 			if node := nc.getNode(event.GetNodeId()); node != nil{
-				if err := node.handle(event); err != nil {
-					log.Logger.Error("failed to handle scheduler node event",
-						zap.String("event", string(event.GetEvent())),
-						zap.Error(err))
+				if node.fsm.Can(string(event.GetEvent())) {
+					if err := node.handle(event); err != nil {
+						log.Logger.Error("failed to handle scheduler node event",
+							zap.String("event", string(event.GetEvent())),
+							zap.Error(err))
+					}
 				}
 			}
 		}
