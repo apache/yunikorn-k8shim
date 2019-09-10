@@ -41,7 +41,7 @@ type KubernetesShim struct {
 	stateMachine   *fsm.FSM
 	dispatcher     *dispatcher.Dispatcher
 	stopChan       chan struct{}
-	lock           *sync.Mutex
+	lock           *sync.RWMutex
 }
 
 func newShimScheduler(api api.SchedulerApi, configs *conf.SchedulerConf) *KubernetesShim {
@@ -58,6 +58,7 @@ func newShimSchedulerInternal(api api.SchedulerApi, ctx *cache.Context, cb api.R
 		context:        ctx,
 		callback:       cb,
 		stopChan:       make(chan struct{}),
+		lock:           &sync.RWMutex{},
 	}
 
 	// init state machine
@@ -104,7 +105,7 @@ func newShimSchedulerInternal(api api.SchedulerApi, ctx *cache.Context, cb api.R
 func (ss *KubernetesShim) SchedulerEventHandler() func(obj interface{}){
 	return func(obj interface{}) {
 		if event, ok := obj.(events.SchedulerEvent); ok {
-			if ss.stateMachine.Can(string(event.GetEvent())) {
+			if ss.canHandle(event) {
 				if err := ss.handle(event); err != nil {
 					log.Logger.Error("failed to handle scheduler event",
 						zap.String("event", string(event.GetEvent())),
@@ -202,6 +203,8 @@ func (ss *KubernetesShim) GetSchedulerState() string {
 
 // event handling
 func (ss *KubernetesShim) handle(se events.SchedulerEvent) error {
+	ss.lock.Lock()
+	defer ss.lock.Unlock()
 	log.Logger.Info("shim-scheduler state transition",
 		zap.String("preState", ss.stateMachine.Current()),
 		zap.String("pending event", string(se.GetEvent())))
@@ -212,6 +215,12 @@ func (ss *KubernetesShim) handle(se events.SchedulerEvent) error {
 	log.Logger.Info("shim-scheduler state transition",
 		zap.String("postState", ss.stateMachine.Current()))
 	return nil
+}
+
+func (ss *KubernetesShim) canHandle(se events.SchedulerEvent) bool {
+	ss.lock.RLock()
+	defer ss.lock.RUnlock()
+	return ss.stateMachine.Can(string(se.GetEvent()))
 }
 
 // each schedule iteration, we scan all apps and triggers app state transition

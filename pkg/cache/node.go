@@ -89,9 +89,6 @@ func (n *SchedulerNode) getNodeState() string {
 }
 
 func (n *SchedulerNode) handleNodeRecovery(event *fsm.Event) {
-	n.lock.Lock()
-	defer n.lock.Unlock()
-
 	log.Logger.Info("node recovering",
 		zap.String("nodeId", n.name))
 
@@ -120,6 +117,8 @@ func (n *SchedulerNode) handleNodeRecovery(event *fsm.Event) {
 }
 
 func (n *SchedulerNode) handle(ev events.SchedulerNodeEvent) error {
+	n.lock.Lock()
+	defer n.lock.Unlock()
 	log.Logger.Debug("scheduler node state transition",
 		zap.String("nodeId", ev.GetNodeId()),
 		zap.String("preState", n.fsm.Current()),
@@ -133,4 +132,10 @@ func (n *SchedulerNode) handle(ev events.SchedulerNodeEvent) error {
 		zap.String("nodeId", ev.GetNodeId()),
 		zap.String("postState", n.fsm.Current()))
 	return nil
+}
+
+func (n *SchedulerNode) canHandle(ev events.SchedulerNodeEvent) bool {
+	n.lock.RLock()
+	defer n.lock.RUnlock()
+	return n.fsm.Can(string(ev.GetEvent()))
 }

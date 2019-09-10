@@ -553,7 +553,6 @@ func (ctx *Context) ForgetPod(name string) error {
 		return ctx.schedulerCache.ForgetPod(pod)
 	} else {
 		log.Logger.Debug("unable to forget pod",
-			zap.String("pod", pod.Name),
 			zap.String("reason", fmt.Sprintf("pod %s not found in scheduler cache", name)))
 	}
 	return nil
@@ -641,7 +640,7 @@ func (ctx *Context) ApplicationEventHandler() func(obj interface{}){
 				return
 			}
 
-			if app.sm.Can(string(event.GetEvent())) {
+			if app.canHandle(event) {
 				if err := app.handle(event); err != nil {
 					log.Logger.Error("failed to handle application event",
 						zap.String("event", string(event.GetEvent())),
@@ -661,7 +660,7 @@ func (ctx *Context) TaskEventHandler() func(obj interface{}){
 				return
 			}
 
-			if task.sm.Can(string(event.GetEvent())) {
+			if task.canHandle(event) {
 				if err := task.handle(event); err != nil {
 					log.Logger.Error("failed to handle task event",
 						zap.String("applicationId", task.applicationId),

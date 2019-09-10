@@ -121,6 +121,8 @@ func createTaskInternal(tid string, app *Application, resource *si.Resource,
 
 // event handling
 func (task *Task) handle(te events.TaskEvent) error {
+	task.lock.Lock()
+	defer task.lock.Unlock()
 	log.Logger.Debug("task state transition",
 		zap.String("taskId", task.taskId),
 		zap.String("preState", task.sm.Current()),
@@ -134,6 +136,12 @@ func (task *Task) handle(te events.TaskEvent) error {
 		zap.String("taskId", task.taskId),
 		zap.String("postState", task.sm.Current()))
 	return nil
+}
+
+func (task *Task) canHandle(te events.TaskEvent) bool {
+	task.lock.RLock()
+	defer task.lock.RUnlock()
+	return task.sm.Can(string(te.GetEvent()))
 }
 
 func createTaskFromPod(app *Application, client client.KubeClient, scheduler api.SchedulerApi, pod *v1.Pod) *Task {
@@ -160,9 +168,6 @@ func (task *Task) setAllocated(nodeName string) {
 }
 
 func (task *Task) handleFailEvent(event *fsm.Event) {
-	task.lock.Lock()
-	defer task.lock.Unlock()
-
 	eventArgs := make([]string, 1)
 	if err := events.GetEventArgsAsStrings(eventArgs, event.Args); err != nil {
 		dispatcher.Dispatch(NewFailTaskEvent(task.applicationId, task.taskId, err.Error()))
@@ -178,7 +183,7 @@ func (task *Task) handleFailEvent(event *fsm.Event) {
 
 func (task *Task) handleSubmitTaskEvent(event *fsm.Event) {
 	log.Logger.Debug("scheduling pod",
-		zap.String("podName", task.GetTaskPod().Name))
+		zap.String("podName", task.pod.Name))
 	// convert the request
 	rr := common.CreateUpdateRequestForTask(task.applicationId, task.taskId, task.resource)
 	log.Logger.Debug("send update request", zap.String("request", rr.String()))
@@ -198,7 +203,13 @@ func (task *Task) handleSubmitTaskEvent(event *fsm.Event) {
 // if successful, we move task to next state BOUND,
 // otherwise we fail the task
 func (task *Task) postTaskAllocated(event *fsm.Event) {
+	// delay binding task
+	// this calls K8s api to bind a pod to the assigned node, this may need some time,
+	// so we do a delay binding to avoid blocking main process. we tracks the result
+	// of the binding and properly handle failures.
 	go func(event *fsm.Event) {
+		// we need to obtain task's lock first,
+		// this ensures no other threads modifying task state at the time being
 		task.lock.Lock()
 		defer task.lock.Unlock()
 

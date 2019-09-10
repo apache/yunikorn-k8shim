@@ -36,6 +36,17 @@ github.com/cloudera/yunikorn-core v0.0.0-20190909094546-92daebe29b51 h1:6gGOz5vW
 github.com/cloudera/yunikorn-core v0.0.0-20190909094546-92daebe29b51/go.mod h1:q9uObc2PcRha9nVUAw4vjvQ6brzo9cdMwnlHgALm6VQ=
 github.com/cloudera/yunikorn-core v0.0.0-20190909100905-ab8ee88b6505 h1:SDpBuIaqDY9DKa0bwZLUkGh9A4rc3I0LJBTgyeqv5L4=
 github.com/cloudera/yunikorn-core v0.0.0-20190909100905-ab8ee88b6505/go.mod h1:46VFShV/RsqLCplGwQlE+jIoSHpwgbV79qdeSHBA5lg=
+github.com/cloudera/yunikorn-core v0.0.0-20190909134420-68f42a51d4f0 h1:917qREK1EIxmNO5WOJsmCHWSXtk4+TJHFr/WA+PoTFI=
+github.com/cloudera/yunikorn-core v0.0.0-20190910082542-187f6b4b9b72 h1:wfhEt97lJ5AVYvO1XZkoppouyPT1480nzdH6pJsSHy4=
+github.com/cloudera/yunikorn-core v0.0.0-20190910082542-187f6b4b9b72/go.mod h1:46VFShV/RsqLCplGwQlE+jIoSHpwgbV79qdeSHBA5lg=
+github.com/cloudera/yunikorn-core v0.0.0-20190910083844-fc852f13a81a h1:1AvL3Nn3iNCtzW47JZ603YNDeRdpZSGlYuRdr3BgqRk=
+github.com/cloudera/yunikorn-core v0.0.0-20190910083844-fc852f13a81a/go.mod h1:46VFShV/RsqLCplGwQlE+jIoSHpwgbV79qdeSHBA5lg=
+github.com/cloudera/yunikorn-core v0.0.0-20190910084452-0574b7c192cb h1:VcGm7ajlT99gXASlspZBGH4Vbc+SemY3ebTdiH4V3WA=
+github.com/cloudera/yunikorn-core v0.0.0-20190910084452-0574b7c192cb/go.mod h1:46VFShV/RsqLCplGwQlE+jIoSHpwgbV79qdeSHBA5lg=
+github.com/cloudera/yunikorn-core v0.0.0-20190910085820-5257fb5a27e9 h1:mHyotgUljspqB9xY55b30UKmGx7YoXE/c8DWHJ6BAgI=
+github.com/cloudera/yunikorn-core v0.0.0-20190910085820-5257fb5a27e9/go.mod h1:46VFShV/RsqLCplGwQlE+jIoSHpwgbV79qdeSHBA5lg=
+github.com/cloudera/yunikorn-core v0.0.0-20190910090913-f02e1d185859 h1:APi7k/9Q0buzVXMmRvTt0+sGDo1wvuiosxDQX+HFn/o=
+github.com/cloudera/yunikorn-core v0.0.0-20190910090913-f02e1d185859/go.mod h1:46VFShV/RsqLCplGwQlE+jIoSHpwgbV79qdeSHBA5lg=
 github.com/cloudera/yunikorn-scheduler-interface v0.0.0-20190812041505-6b2f6fbba7d0 h1:4aUgT4g26aNGwzJMbgTI1lF/RDAZW8QBo+IJr5jvras=
 github.com/cloudera/yunikorn-scheduler-interface v0.0.0-20190812041505-6b2f6fbba7d0/go.mod h1:QE7hLVzWYKot7H8eNMnGsphqStSEmSxxU5dgFzI32rk=
 github.com/cloudera/yunikorn-scheduler-interface v0.0.0-20190829044341-d23ffbd675db h1:PNih9ijOKHeZofZmvqpaKVxCPOrz0qXTgQ0Mm3C94DE=
@@ -300,6 +311,7 @@ golang.org/x/lint v0.0.0-20190227174305-5b3e6a55c961/go.mod h1:wehouNa3lNwaWXcvx
 golang.org/x/lint v0.0.0-20190301231843-5614ed5bae6f/go.mod h1:UVdnD1Gm6xHRNCYTkRU2/jEulfH38KcIWyp/GAMgvoE=
 golang.org/x/lint v0.0.0-20190313153728-d0100b6bd8b3/go.mod h1:6SW0HCj/g11FgYtHlgUYUwCkIfeOF89ocIRzGO/8vkc=
 golang.org/x/lint v0.0.0-20190409202823-959b441ac422/go.mod h1:6SW0HCj/g11FgYtHlgUYUwCkIfeOF89ocIRzGO/8vkc=
+golang.org/x/lint v0.0.0-20190909230951-414d861bb4ac/go.mod h1:6SW0HCj/g11FgYtHlgUYUwCkIfeOF89ocIRzGO/8vkc=
 golang.org/x/mobile v0.0.0-20190312151609-d3739f865fa6/go.mod h1:z+o9i4GpDbdi3rU15maQ/Ox0txvL9dWGYEHz965HBQE=
 golang.org/x/mobile v0.0.0-20190719004257-d2bd2a29d028/go.mod h1:E/iHnbuqvinMTCcRqshq8CkpyQDoeVncDDYHnLhea+o=
 golang.org/x/mobile v0.0.0-20190830201351-c6da95954960/go.mod h1:mJOp/i0LXPxJZ9weeIadcPqKVfS05Ai7m6/t9z1Hs/Y=
@@ -367,6 +379,8 @@ golang.org/x/sys v0.0.0-20190907184412-d223b2b6db03 h1:b3JiLYVaG9kHjTcOQIoUh978Y
 golang.org/x/sys v0.0.0-20190907184412-d223b2b6db03/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/sys v0.0.0-20190909082730-f460065e899a h1:mIzbOulag9/gXacgxKlFVwpCOWSfBT3/pDyyCwGA9as=
 golang.org/x/sys v0.0.0-20190909082730-f460065e899a/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
+golang.org/x/sys v0.0.0-20190910064555-bbd175535a8b h1:3S2h5FadpNr0zUUCVZjlKIEYF+KaX/OBplTGo89CYHI=
+golang.org/x/sys v0.0.0-20190910064555-bbd175535a8b/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/text v0.0.0-20160726164857-2910a502d2bf/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=
 golang.org/x/text v0.3.0/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=
 golang.org/x/text v0.3.1-0.20180807135948-17ff2d5776d2/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=
@@ -396,6 +410,7 @@ golang.org/x/tools v0.0.0-20190628153133-6cdbf07be9d0/go.mod h1:/rFqwRUd4F7ZHNgw
 golang.org/x/tools v0.0.0-20190816200558-6889da9d5479/go.mod h1:b+2E5dAYhXwXZwtnZ6UAqBI28+e2cm9otk0dWdXHAEo=
 golang.org/x/tools v0.0.0-20190903025054-afe7f8212f0d/go.mod h1:b+2E5dAYhXwXZwtnZ6UAqBI28+e2cm9otk0dWdXHAEo=
 golang.org/x/tools v0.0.0-20190909030654-5b82db07426d/go.mod h1:b+2E5dAYhXwXZwtnZ6UAqBI28+e2cm9otk0dWdXHAEo=
+golang.org/x/tools v0.0.0-20190910044552-dd2b5c81c578/go.mod h1:b+2E5dAYhXwXZwtnZ6UAqBI28+e2cm9otk0dWdXHAEo=
 golang.org/x/xerrors v0.0.0-20190717185122-a985d3407aa7/go.mod h1:I/5z698sn9Ka8TeJc9MKroUUfqBBauWjQqLJ2OPfmY0=
 google.golang.org/api v0.4.0/go.mod h1:8k5glujaEP+g9n7WNsDg8QP6cUVNI86fCNMcbazEtwE=
 google.golang.org/api v0.7.0/go.mod h1:WtwebWUNSVBH/HAw79HIFXZNqEvBhG+Ra+ax0hx3E3M=

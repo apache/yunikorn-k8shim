@@ -112,8 +112,17 @@ func NewApplication(appId, queueName, user string, tags map[string]string, sched
 }
 
 func (app *Application) handle(ev events.ApplicationEvent) error {
-	// state machine has its instinct lock, we don't need to hold the app lock here
-	// because the callbacks are the places where might modify app state, not here.
+	// Locking mechanism:
+	// 1) when handle event transitions, we first obtain the object's lock,
+	//    this helps us to place a pre-check before entering here, in case
+	//    we receive some invalidate events. If this introduces performance
+	//    regression, a possible way to optimize is to use a separate lock
+	//    to protect the transition phase.
+	// 2) Note, state machine calls those callbacks here, we must ensure
+	//    they are lock-free calls. Otherwise the callback will be blocked
+	//    because the lock is already held here.
+	app.lock.Lock()
+	defer app.lock.Unlock()
 	log.Logger.Debug("application state transition",
 		zap.String("appId", app.applicationId),
 		zap.String("preState", app.sm.Current()),
@@ -127,6 +136,12 @@ func (app *Application) handle(ev events.ApplicationEvent) error {
 		zap.String("appId", app.applicationId),
 		zap.String("postState", app.sm.Current()))
 	return nil
+}
+
+func (app *Application) canHandle(ev events.ApplicationEvent) bool {
+	app.lock.RLock()
+	defer app.lock.RUnlock()
+	return app.sm.Can(string(ev.GetEvent()))
 }
 
 func (app *Application) GetTask(taskId string) (*Task, error) {
