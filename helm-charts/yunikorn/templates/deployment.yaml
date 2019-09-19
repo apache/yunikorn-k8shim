@@ -20,6 +20,7 @@ spec:
         app: yunikorn
         release: {{ .Release.Name }}
     spec:
+      serviceAccountName: {{ .Values.serviceAccount }}
       containers:
         - name: yunikorn-scheduler-k8s
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"

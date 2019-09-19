@@ -3,6 +3,8 @@
 
 replicaCount: 1
 
+serviceAccount: yunikorn-admin
+
 image:
   repository: yunikorn/yunikorn-scheduler-k8s
   tag: latest
