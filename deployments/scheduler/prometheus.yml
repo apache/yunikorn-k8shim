@@ -1,0 +1,20 @@
+global:
+  scrape_interval:     3s
+  evaluation_interval: 15s
+
+alerting:
+  alertmanagers:
+  - static_configs:
+    - targets:
+      # - alertmanager:9093
+
+rule_files:
+  # - "first_rules.yml"
+  # - "second_rules.yml"
+
+scrape_configs:
+  - job_name: 'yunikorn'
+    scrape_interval: 1s
+    metrics_path: '/ws/v1/metrics'
+    static_configs:
+    - targets: ['docker.for.mac.host.internal:9080']
