@@ -1,3 +1,4 @@
+# this is a sample Prometheus configuration file used to collect scheduler metrics
 global:
   scrape_interval:     3s
   evaluation_interval: 15s
@@ -6,7 +7,7 @@ alerting:
   alertmanagers:
   - static_configs:
     - targets:
-      # - alertmanager:9093
+      # - alert manager:9093
 
 rule_files:
   # - "first_rules.yml"
