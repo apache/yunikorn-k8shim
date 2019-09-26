@@ -126,9 +126,40 @@ func (nc *schedulerNodes) addAndReportNode(node *v1.Node, reportNode bool) {
 	}
 }
 
+func (nc *schedulerNodes) drainNode(node *v1.Node) {
+	log.Logger.Info("draining node", zap.String("name", node.Name))
+	if node, ok := nc.nodesMap[node.Name]; ok {
+		if node.getNodeState() == events.States().Node.Healthy {
+			dispatcher.Dispatch(CachedSchedulerNodeEvent{
+				NodeId: node.name,
+				Event:  events.DrainNode,
+			})
+		}
+	}
+}
+
+func (nc *schedulerNodes) restoreNode(node *v1.Node) {
+	log.Logger.Info("restoring node", zap.String("name", node.Name))
+	if node, ok := nc.nodesMap[node.Name]; ok {
+		if node.getNodeState() == events.States().Node.Draining {
+			dispatcher.Dispatch(CachedSchedulerNodeEvent{
+				NodeId: node.name,
+				Event:  events.RestoreNode,
+			})
+		}
+	}
+}
+
 func (nc *schedulerNodes) updateNode(oldNode, newNode *v1.Node) {
 	nc.lock.Lock()
 	defer nc.lock.Unlock()
+
+	// cordon or restore node
+	if (!oldNode.Spec.Unschedulable) && newNode.Spec.Unschedulable {
+		nc.drainNode(newNode)
+	} else if oldNode.Spec.Unschedulable && !newNode.Spec.Unschedulable {
+		nc.restoreNode(newNode)
+	}
 
 	// node resource changes
 	if equals(oldNode, newNode) {

@@ -56,6 +56,7 @@ type NodeStates struct {
 	Healthy    string
 	Unhealthy  string
 	Rejected   string
+	Draining   string
 }
 
 type TaskStates struct {

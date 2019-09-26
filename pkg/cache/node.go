@@ -69,9 +69,19 @@ func (n *SchedulerNode) initFSM() {
 				Src: []string{states.New, states.Recovering},
 				Dst: states.Rejected,
 			},
+			{Name: string(events.DrainNode),
+				Src: []string{states.Healthy},
+				Dst: states.Draining,
+			},
+			{Name: string(events.RestoreNode),
+				Src: []string{states.Draining},
+				Dst: states.Healthy,
+			},
 		},
 		fsm.Callbacks{
 			string(states.Recovering): n.handleNodeRecovery,
+			string(events.DrainNode): n.handleDrainNode,
+			string(events.RestoreNode): n.handleRestoreNode,
 		})
 }
 
@@ -104,6 +114,52 @@ func (n *SchedulerNode) handleNodeRecovery(event *fsm.Event) {
 					common.DefaultNodeAttributeRackNameKey: common.DefaultRackName,
 				},
 				ExistingAllocations: n.existingAllocations,
+			},
+		},
+		RmId: conf.GetSchedulerConf().ClusterId,
+	}
+
+	// send request to scheduler-core
+	if err := n.schedulerApi.Update(request); err != nil {
+		log.Logger.Error("failed to send request",
+			zap.Any("request", request))
+	}
+}
+
+func (n *SchedulerNode) handleDrainNode(event *fsm.Event) {
+	log.Logger.Info("node enters draining mode",
+		zap.String("nodeId", n.name))
+	
+	request := &si.UpdateRequest{
+		Asks:     nil,
+		Releases: nil,
+		UpdatedNodes: []*si.UpdateNodeInfo{
+			{
+				NodeId: n.name,
+				Action: si.UpdateNodeInfo_DRAIN_NODE,
+			},
+		},
+		RmId: conf.GetSchedulerConf().ClusterId,
+	}
+
+	// send request to scheduler-core
+	if err := n.schedulerApi.Update(request); err != nil {
+		log.Logger.Error("failed to send request",
+			zap.Any("request", request))
+	}
+}
+
+func (n *SchedulerNode) handleRestoreNode(event *fsm.Event) {
+	log.Logger.Info("restore node from draining mode",
+		zap.String("nodeId", n.name))
+
+	request := &si.UpdateRequest{
+		Asks:     nil,
+		Releases: nil,
+		UpdatedNodes: []*si.UpdateNodeInfo{
+			{
+				NodeId: n.name,
+				Action: si.UpdateNodeInfo_DRAIN_TO_SCHEDULABLE,
 			},
 		},
 		RmId: conf.GetSchedulerConf().ClusterId,

@@ -19,6 +19,7 @@ package cache
 import (
 	"github.com/cloudera/yunikorn-k8shim/pkg/cache/external"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common"
+	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/test"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/utils"
 	"github.com/cloudera/yunikorn-k8shim/pkg/dispatcher"
@@ -282,4 +283,118 @@ func TestDeleteNode(t *testing.T) {
 // A wrapper around the scheduler cache which does not initialise the lister and volumebinder
 func NewTestSchedulerCache() *external.SchedulerCache {
 	return external.NewSchedulerCache(nil, nil, nil, nil)
+}
+
+func TestCordonNode(t *testing.T) {
+	api := test.NewSchedulerApiMock()
+
+	// register fn doesn't nothing than checking input
+	inputCheckerUpdateFn := func(request *si.UpdateRequest) error {
+		if request.UpdatedNodes == nil {
+			t.Fatalf("updated nodes should not be nil")
+		}
+
+		if len(request.UpdatedNodes) != 1 {
+			t.Fatalf("expecting 1 updated node")
+		}
+
+		if request.UpdatedNodes[0].Action != si.UpdateNodeInfo_DRAIN_NODE {
+			t.Fatalf("expecting UpdateNodeInfo_DRAIN_NODE but get %s",
+				request.UpdatedNodes[0].Action.String())
+		}
+		return nil
+	}
+
+	nodes := newSchedulerNodes(api, NewTestSchedulerCache())
+	dispatcher.RegisterEventHandler(dispatcher.EventTypeNode, nodes.schedulerNodeEventHandler())
+	dispatcher.Start()
+	defer dispatcher.Stop()
+
+	resourceList := make(map[v1.ResourceName]resource.Quantity)
+	resourceList[v1.ResourceName("memory")] = *resource.NewQuantity(1024*1000*1000, resource.DecimalSI)
+	resourceList[v1.ResourceName("cpu")] = *resource.NewQuantity(10, resource.DecimalSI)
+
+	var oldNode = v1.Node{
+		ObjectMeta: apis.ObjectMeta{
+			Name:      "host0001",
+			Namespace: "default",
+			UID:       "uid_0001",
+		},
+		Status: v1.NodeStatus{
+			Capacity: resourceList,
+		},
+		Spec: v1.NodeSpec{
+			Unschedulable: false,
+		},
+	}
+
+	var newNode = v1.Node{
+		ObjectMeta: apis.ObjectMeta{
+			Name:      "host0001",
+			Namespace: "default",
+			UID:       "uid_0001",
+		},
+		Status: v1.NodeStatus{
+			Capacity: resourceList,
+		},
+		Spec: v1.NodeSpec{
+			Unschedulable: true,
+		},
+	}
+
+	api.UpdateFunction(inputCheckerUpdateFn)
+	nodes.addAndReportNode(&oldNode, false)
+	nodes.getNode("host0001").fsm.SetState(events.States().Node.Healthy)
+	api.UpdateFunction(inputCheckerUpdateFn)
+	nodes.updateNode(&oldNode, &newNode)
+
+	// wait until node reaches Draining state
+	if err := utils.WaitForCondition(func() bool {
+		return nodes.getNode("host0001").getNodeState() == events.States().Node.Draining
+	}, 1*time.Second, 5*time.Second); err != nil {
+		t.Fatalf("%v", err)
+	}
+
+	// restore the node
+	var newNode2 = v1.Node{
+		ObjectMeta: apis.ObjectMeta{
+			Name:      "host0001",
+			Namespace: "default",
+			UID:       "uid_0001",
+		},
+		Status: v1.NodeStatus{
+			Capacity: resourceList,
+		},
+		Spec: v1.NodeSpec{
+			Unschedulable: false,
+		},
+	}
+
+	// register fn doesn't nothing than checking input
+	inputCheckerUpdateFn2 := func(request *si.UpdateRequest) error {
+		if request.UpdatedNodes == nil {
+			t.Fatalf("updated nodes should not be nil")
+		}
+
+		if len(request.UpdatedNodes) != 1 {
+			t.Fatalf("expecting 1 updated node")
+		}
+
+		if request.UpdatedNodes[0].Action != si.UpdateNodeInfo_DRAIN_TO_SCHEDULABLE {
+			t.Fatalf("expecting UpdateNodeInfo_DRAIN_NODE but get %s",
+				request.UpdatedNodes[0].Action.String())
+		}
+		return nil
+	}
+
+	api.UpdateFunction(inputCheckerUpdateFn2)
+	nodes.updateNode(&newNode, &newNode2)
+
+	// wait until node reaches Draining state
+	if err := utils.WaitForCondition(func() bool {
+		return nodes.getNode("host0001").getNodeState() == events.States().Node.Healthy
+	}, 1*time.Second, 5*time.Second); err != nil {
+		t.Fatalf("%v", err)
+	}
+
 }
