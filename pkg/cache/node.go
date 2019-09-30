@@ -21,6 +21,7 @@ import (
 	"github.com/cloudera/yunikorn-k8shim/pkg/common"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
 	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
+	"github.com/cloudera/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/cloudera/yunikorn-k8shim/pkg/log"
 	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
 	"github.com/looplab/fsm"
@@ -33,6 +34,7 @@ type SchedulerNode struct {
 	name                string
 	uid                 string
 	capacity            *si.Resource
+	schedulable         bool
 	existingAllocations []*si.Allocation
 	schedulerApi        api.SchedulerApi
 	fsm                 *fsm.FSM
@@ -40,12 +42,13 @@ type SchedulerNode struct {
 }
 
 func newSchedulerNode(nodeName string, nodeUid string,
-	nodeResource *si.Resource, schedulerApi api.SchedulerApi) *SchedulerNode {
+	nodeResource *si.Resource, schedulerApi api.SchedulerApi, schedulable bool) *SchedulerNode {
 	schedulerNode := &SchedulerNode{
 		name: nodeName,
 		uid:  nodeUid,
 		capacity: nodeResource,
 		schedulerApi: schedulerApi,
+		schedulable: schedulable,
 		lock: &sync.RWMutex{},
 	}
 	schedulerNode.initFSM()
@@ -63,6 +66,10 @@ func (n *SchedulerNode) initFSM() {
 			},
 			{Name: string(events.NodeAccepted),
 				Src: []string{states.Recovering},
+				Dst: states.Accepted,
+			},
+			{Name: string(events.NodeReady),
+				Src: []string{states.Accepted},
 				Dst: states.Healthy,
 			},
 			{Name: string(events.NodeRejected),
@@ -70,7 +77,7 @@ func (n *SchedulerNode) initFSM() {
 				Dst: states.Rejected,
 			},
 			{Name: string(events.DrainNode),
-				Src: []string{states.Healthy},
+				Src: []string{states.Healthy, states.Accepted},
 				Dst: states.Draining,
 			},
 			{Name: string(events.RestoreNode),
@@ -82,6 +89,7 @@ func (n *SchedulerNode) initFSM() {
 			string(states.Recovering): n.handleNodeRecovery,
 			string(events.DrainNode): n.handleDrainNode,
 			string(events.RestoreNode): n.handleRestoreNode,
+			string(states.Accepted): n.postNodeAccepted,
 		})
 }
 
@@ -98,9 +106,28 @@ func (n *SchedulerNode) getNodeState() string {
 	return n.fsm.Current()
 }
 
+func (n *SchedulerNode) postNodeAccepted(event *fsm.Event) {
+	// when node is accepted, it means the node is already registered to the scheduler,
+	// this doesn't mean this node is ready for scheduling, there is a step away.
+	// we need to check the K8s node state, if it is not schedulable, then we should notify
+	// the scheduler to not schedule new pods onto it.
+	if n.schedulable {
+		dispatcher.Dispatch(CachedSchedulerNodeEvent{
+			NodeId: n.name,
+			Event:  events.NodeReady,
+		})
+	} else {
+		dispatcher.Dispatch(CachedSchedulerNodeEvent{
+			NodeId: n.name,
+			Event:  events.DrainNode,
+		})
+	}
+}
+
 func (n *SchedulerNode) handleNodeRecovery(event *fsm.Event) {
 	log.Logger.Info("node recovering",
-		zap.String("nodeId", n.name))
+		zap.String("nodeId", n.name),
+		zap.Bool("schedulable", n.schedulable))
 
 	request := &si.UpdateRequest{
 		Asks:     nil,
@@ -137,6 +164,10 @@ func (n *SchedulerNode) handleDrainNode(event *fsm.Event) {
 			{
 				NodeId: n.name,
 				Action: si.UpdateNodeInfo_DRAIN_NODE,
+				Attributes: map[string]string{
+					common.DefaultNodeAttributeHostNameKey: n.name,
+					common.DefaultNodeAttributeRackNameKey: common.DefaultRackName,
+				},
 			},
 		},
 		RmId: conf.GetSchedulerConf().ClusterId,
@@ -160,6 +191,10 @@ func (n *SchedulerNode) handleRestoreNode(event *fsm.Event) {
 			{
 				NodeId: n.name,
 				Action: si.UpdateNodeInfo_DRAIN_TO_SCHEDULABLE,
+				Attributes: map[string]string{
+					common.DefaultNodeAttributeHostNameKey: n.name,
+					common.DefaultNodeAttributeRackNameKey: common.DefaultRackName,
+				},
 			},
 		},
 		RmId: conf.GetSchedulerConf().ClusterId,

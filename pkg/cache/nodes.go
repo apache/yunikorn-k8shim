@@ -106,8 +106,10 @@ func (nc *schedulerNodes) addAndReportNode(node *v1.Node, reportNode bool) {
 	if _, ok := nc.nodesMap[node.Name]; !ok {
 		log.Logger.Info("adding node to context",
 			zap.String("nodeName", node.Name),
-			zap.String("UID", string(node.UID)))
-		newNode := newSchedulerNode(node.Name, string(node.UID), common.GetNodeResource(&node.Status), nc.proxy)
+			zap.String("UID", string(node.UID)),
+			zap.Bool("schedulable", !node.Spec.Unschedulable))
+		newNode := newSchedulerNode(node.Name, string(node.UID),
+			common.GetNodeResource(&node.Status), nc.proxy, !node.Spec.Unschedulable)
 		nc.nodesMap[node.Name] = newNode
 	}
 

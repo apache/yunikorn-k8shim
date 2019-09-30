@@ -161,6 +161,8 @@ func (ctx *Context) waitForNodeRecovery(nodeLister v1.NodeLister, maxTimeout tim
 				})
 			case string(events.States().Node.Healthy):
 				nodesRecovered++
+			case string(events.States().Node.Draining):
+				nodesRecovered++
 			}
 		}
 
