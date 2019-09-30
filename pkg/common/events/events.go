@@ -119,6 +119,9 @@ const (
 	RecoverNode        SchedulerNodeEventType = "RecoverNode"
 	NodeAccepted       SchedulerNodeEventType = "NodeAccepted"
 	NodeRejected       SchedulerNodeEventType = "NodeRejected"
+	DrainNode          SchedulerNodeEventType = "DrainNode"
+	RestoreNode        SchedulerNodeEventType = "RestoreNode"
+	NodeReady          SchedulerNodeEventType = "NodeReady"
 )
 
 type SchedulerNodeEvent interface {

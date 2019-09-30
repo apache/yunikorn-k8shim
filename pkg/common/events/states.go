@@ -53,9 +53,11 @@ type ApplicationStates struct {
 type NodeStates struct {
 	New        string
 	Recovering string
+	Accepted   string
 	Healthy    string
 	Unhealthy  string
 	Rejected   string
+	Draining   string
 }
 
 type TaskStates struct {
@@ -108,9 +110,11 @@ func States() *AllStates {
 			Node: &NodeStates{
 				New:        "New",
 				Recovering: "Recovering",
+				Accepted:   "Accepted",
 				Healthy:    "Healthy",
 				Unhealthy:  "Unhealthy",
 				Rejected:   "Rejected",
+				Draining:   "Draining",
 			},
 		}
 	}

@@ -54,6 +54,8 @@ func (api *SchedulerApiMock) RegisterFunction(rfn func(request *si.RegisterResou
 }
 
 func (api *SchedulerApiMock) UpdateFunction(ufn func(request *si.UpdateRequest) error) *SchedulerApiMock {
+	api.lock.Lock()
+	defer api.lock.Unlock()
 	api.updateFn = ufn
 	return api
 }

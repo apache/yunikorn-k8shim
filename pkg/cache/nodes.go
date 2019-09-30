@@ -106,8 +106,10 @@ func (nc *schedulerNodes) addAndReportNode(node *v1.Node, reportNode bool) {
 	if _, ok := nc.nodesMap[node.Name]; !ok {
 		log.Logger.Info("adding node to context",
 			zap.String("nodeName", node.Name),
-			zap.String("UID", string(node.UID)))
-		newNode := newSchedulerNode(node.Name, string(node.UID), common.GetNodeResource(&node.Status), nc.proxy)
+			zap.String("UID", string(node.UID)),
+			zap.Bool("schedulable", !node.Spec.Unschedulable))
+		newNode := newSchedulerNode(node.Name, string(node.UID),
+			common.GetNodeResource(&node.Status), nc.proxy, !node.Spec.Unschedulable)
 		nc.nodesMap[node.Name] = newNode
 	}
 
@@ -126,9 +128,40 @@ func (nc *schedulerNodes) addAndReportNode(node *v1.Node, reportNode bool) {
 	}
 }
 
+func (nc *schedulerNodes) drainNode(node *v1.Node) {
+	log.Logger.Info("draining node", zap.String("name", node.Name))
+	if node, ok := nc.nodesMap[node.Name]; ok {
+		if node.getNodeState() == events.States().Node.Healthy {
+			dispatcher.Dispatch(CachedSchedulerNodeEvent{
+				NodeId: node.name,
+				Event:  events.DrainNode,
+			})
+		}
+	}
+}
+
+func (nc *schedulerNodes) restoreNode(node *v1.Node) {
+	log.Logger.Info("restoring node", zap.String("name", node.Name))
+	if node, ok := nc.nodesMap[node.Name]; ok {
+		if node.getNodeState() == events.States().Node.Draining {
+			dispatcher.Dispatch(CachedSchedulerNodeEvent{
+				NodeId: node.name,
+				Event:  events.RestoreNode,
+			})
+		}
+	}
+}
+
 func (nc *schedulerNodes) updateNode(oldNode, newNode *v1.Node) {
 	nc.lock.Lock()
 	defer nc.lock.Unlock()
+
+	// cordon or restore node
+	if (!oldNode.Spec.Unschedulable) && newNode.Spec.Unschedulable {
+		nc.drainNode(newNode)
+	} else if oldNode.Spec.Unschedulable && !newNode.Spec.Unschedulable {
+		nc.restoreNode(newNode)
+	}
 
 	// node resource changes
 	if equals(oldNode, newNode) {
