@@ -125,3 +125,70 @@ func TestDispatcherStartStop(t *testing.T) {
 		t.Logf("seen expected error: %v", err)
 	}
 }
+
+// Test sending events from multiple senders in parallel,
+// verify that events won't be lost
+func TestDispatcherEventChannelFull(t *testing.T) {
+	// capacity of event channel
+	eventChannelCapacity := cap(dispatcher.eventChan)
+	numSenders := 5
+
+	// thread safe
+	recorder := &appEventsRecorder{
+		apps: make([]string, 0),
+		lock: &sync.RWMutex{},
+	}
+	// pretend to be an time-consuming event-handler
+	RegisterEventHandler(EventTypeApp, func(obj interface{}) {
+		if event, ok := obj.(events.ApplicationEvent); ok {
+			recorder.addApp(event.GetApplicationId())
+		}
+	})
+
+	// start the dispatcher
+	Start()
+
+	// send events
+	wg := sync.WaitGroup{}
+	wg.Add(numSenders)
+	sendFunc := func (senderNo int) {
+		for i := 0; i < eventChannelCapacity; i++ {
+			Dispatch(TestAppEvent{
+				appId: "test",
+				eventType: events.RunApplication,
+			})
+		}
+		wg.Done()
+	}
+	var fullFlag bool
+	checkFullFunc := func () {
+		for {
+			if len(dispatcher.eventChan) == eventChannelCapacity {
+				fullFlag = true
+				break
+			}
+		}
+	}
+	go checkFullFunc()
+	for i := 0; i < numSenders; i++ {
+		go sendFunc(i)
+	}
+
+	// wait until all events are sent
+	wg.Wait()
+
+	// check event channel has been exhausted for a while
+	assert.Equal(t, true, fullFlag)
+
+	// wait until all events are handled
+	dispatcher.drain()
+
+	// assert all event are handled
+	assert.Equal(t, recorder.size(), numSenders * eventChannelCapacity)
+
+	// stop the dispatcher
+	Stop()
+
+	// ensure state is stopped
+	assert.Equal(t, dispatcher.isRunning(), false)
+}

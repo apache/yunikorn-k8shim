@@ -101,14 +101,16 @@ func (p *Dispatcher) dispatch(event events.SchedulingEvent) error {
 	if !p.isRunning() {
 		return fmt.Errorf("dispatcher is not running")
 	}
-
-	select {
-	case p.eventChan <- event:
-		return nil
-	default:
-		return fmt.Errorf("failed to dispatch event," +
-			" event channel is full or closed")
+	for p.isRunning() {
+		select {
+		case p.eventChan <- event:
+			return nil
+		case <-time.After(time.Second * 3):
+			log.Logger.Error("event channel is full, keep waiting",
+				zap.Int("channelLength", len(p.eventChan)))
+		}
 	}
+	return fmt.Errorf("dispatcher is stopped")
 }
 
 func (p *Dispatcher) drain() {
