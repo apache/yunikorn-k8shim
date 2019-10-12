@@ -39,6 +39,8 @@ const (
 	EventTypeScheduler
 )
 
+var asyncDispatchCheckInterval = 3 * time.Second
+
 // central dispatcher that dispatches scheduling events.
 type Dispatcher struct {
 	eventChan chan events.SchedulingEvent
@@ -101,16 +103,45 @@ func (p *Dispatcher) dispatch(event events.SchedulingEvent) error {
 	if !p.isRunning() {
 		return fmt.Errorf("dispatcher is not running")
 	}
-	for p.isRunning() {
-		select {
-		case p.eventChan <- event:
-			return nil
-		case <-time.After(time.Second * 3):
-			log.Logger.Error("event channel is full, keep waiting",
-				zap.Int("channelLength", len(p.eventChan)))
-		}
+	select {
+	case p.eventChan <- event:
+		log.Logger.Info("dispatched", zap.Int("capacity", cap(p.eventChan)),
+			zap.Int("length", len(p.eventChan)))
+		return nil
+	default:
+		log.Logger.Warn("event channel is full, transition to async-dispatch mode",
+			zap.Int("channelLength", len(p.eventChan)),
+			zap.String("event", fmt.Sprintf("%+v", event)))
+		p.asyncDispatch(event)
+		return nil
 	}
-	return fmt.Errorf("dispatcher is stopped")
+}
+
+// async-dispatch try to enqueue the event in every 3 seconds util timeout,
+// it's only called when event channel is full.
+func (p *Dispatcher) asyncDispatch(event events.SchedulingEvent) {
+	go func() {
+		beginTime := time.Now()
+		for p.isRunning() {
+			select {
+			case p.eventChan <- event:
+				return
+			case <-time.After(asyncDispatchCheckInterval):
+				elapseTime := time.Now().Sub(beginTime)
+				if elapseTime >= conf.GetSchedulerConf().DispatchTimeout {
+					log.Logger.Error("dispatch timeout",
+						zap.Float64("elapseSeconds", elapseTime.Seconds()),
+						zap.Int("channelLength", len(p.eventChan)),
+						zap.String("event", fmt.Sprintf("%+v", event)))
+					return
+				}
+				log.Logger.Warn("event channel is full, keep waiting...",
+					zap.Float64("elapseSeconds", elapseTime.Seconds()),
+					zap.Int("channelLength", len(p.eventChan)),
+					zap.String("event", fmt.Sprintf("%+v", event)))
+			}
+		}
+	}()
 }
 
 func (p *Dispatcher) drain() {

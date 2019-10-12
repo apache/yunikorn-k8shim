@@ -18,9 +18,13 @@ package dispatcher
 
 import (
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
+	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
 	"gotest.tools/assert"
+	"runtime"
+	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 // app event for testing
@@ -128,10 +132,9 @@ func TestDispatcherStartStop(t *testing.T) {
 
 // Test sending events from multiple senders in parallel,
 // verify that events won't be lost
-func TestDispatcherEventChannelFull(t *testing.T) {
-	// capacity of event channel
-	eventChannelCapacity := cap(dispatcher.eventChan)
-	numSenders := 5
+func TestEventWillNotBeLostWhenEventChannelIsFull(t *testing.T) {
+	// reset event channel with small capacity for testing
+	dispatcher.eventChan = make(chan events.SchedulingEvent, 1)
 
 	// thread safe
 	recorder := &appEventsRecorder{
@@ -142,6 +145,7 @@ func TestDispatcherEventChannelFull(t *testing.T) {
 	RegisterEventHandler(EventTypeApp, func(obj interface{}) {
 		if event, ok := obj.(events.ApplicationEvent); ok {
 			recorder.addApp(event.GetApplicationId())
+			time.Sleep(1 * time.Millisecond)
 		}
 	})
 
@@ -150,45 +154,86 @@ func TestDispatcherEventChannelFull(t *testing.T) {
 
 	// send events
 	wg := sync.WaitGroup{}
-	wg.Add(numSenders)
-	sendFunc := func (senderNo int) {
-		for i := 0; i < eventChannelCapacity; i++ {
-			Dispatch(TestAppEvent{
-				appId: "test",
-				eventType: events.RunApplication,
-			})
-		}
-		wg.Done()
-	}
-	var fullFlag bool
-	checkFullFunc := func () {
+	numEvents := 100
+	wg.Add(numEvents)
+	// check full
+	fullChan := make(chan bool)
+	checkFullFunc := func() {
 		for {
-			if len(dispatcher.eventChan) == eventChannelCapacity {
-				fullFlag = true
+			if len(dispatcher.eventChan) == cap(dispatcher.eventChan) {
+				fullChan <- true
 				break
 			}
 		}
 	}
 	go checkFullFunc()
-	for i := 0; i < numSenders; i++ {
-		go sendFunc(i)
+	sendFunc := func () {
+		for i := 0; i < numEvents; i++ {
+			Dispatch(TestAppEvent{
+				appId: "test",
+				eventType: events.RunApplication,
+			})
+			wg.Done()
+		}
 	}
+	go sendFunc()
 
 	// wait until all events are sent
 	wg.Wait()
 
 	// check event channel has been exhausted for a while
-	assert.Equal(t, true, fullFlag)
+	assert.Assert(t, true, <-fullChan)
 
 	// wait until all events are handled
 	dispatcher.drain()
 
 	// assert all event are handled
-	assert.Equal(t, recorder.size(), numSenders * eventChannelCapacity)
+	assert.Equal(t, recorder.size(), numEvents)
 
 	// stop the dispatcher
 	Stop()
 
 	// ensure state is stopped
 	assert.Equal(t, dispatcher.isRunning(), false)
+}
+
+// Test dispatch timeout, verify that Dispatcher#asyncDispatch is called when event channel is full
+// and will disappear after timeout.
+func TestDispatchTimeout(t *testing.T) {
+	// reset event channel with small capacity for testing
+	dispatcher.eventChan = make(chan events.SchedulingEvent, 1)
+	asyncDispatchCheckInterval = 100 * time.Millisecond
+	conf.GetSchedulerConf().DispatchTimeout = 500 * time.Millisecond
+
+	// pretend to be an time-consuming event-handler
+	handledChan := make(chan bool)
+	RegisterEventHandler(EventTypeApp, func(obj interface{}) {
+		if _, ok := obj.(events.ApplicationEvent); ok {
+			time.Sleep(2 * time.Second)
+			handledChan <- true
+		}
+	})
+	// start the dispatcher
+	Start()
+	// dispatch 3 events, the third event will be dispatch asynchronously
+	for i := 0; i < 3; i++ {
+		go Dispatch(TestAppEvent{
+			appId:     "test",
+			eventType: events.RunApplication,
+		})
+	}
+	// sleep 200ms to verify that Dispatcher#asyncDispatch is called
+	time.Sleep(200 * time.Millisecond)
+	buf := make([]byte, 1<<16)
+	runtime.Stack(buf, true)
+	assert.Assert(t, strings.Contains(string(buf), "asyncDispatch"))
+
+	// sleep 400ms to verify that async-dispatch goroutine is disappeared
+	time.Sleep(400 * time.Millisecond)
+	buf = make([]byte, 1<<16)
+	runtime.Stack(buf, true)
+	assert.Assert(t, !strings.Contains(string(buf), "asyncDispatch"))
+
+	// stop the dispatcher
+	Stop()
 }
