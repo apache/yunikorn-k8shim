@@ -19,6 +19,7 @@ package dispatcher
 import (
 	"fmt"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
+	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
 	"github.com/cloudera/yunikorn-k8shim/pkg/log"
 	"go.uber.org/zap"
 	"sync"
@@ -51,7 +52,7 @@ func init() {
 	once.Do(func() {
 		if dispatcher == nil {
 			dispatcher = &Dispatcher{
-				eventChan: make(chan events.SchedulingEvent, 1024),
+				eventChan: make(chan events.SchedulingEvent, conf.GetSchedulerConf().EventChannelCapacity),
 				handlers:  make(map[EventType]func(interface{})),
 				stopChan:  make(chan struct{}),
 				running:   atomic.Value{},
