@@ -31,6 +31,7 @@ const (
 	DefaultLogEncoding = "console"
 	DefaultVolumeBindTimeout = 10 * time.Second
 	DefaultSchedulingInterval = time.Second
+	DefaultEventChannelCapacity = 1024 * 1024
 )
 
 var configuration *SchedulerConf
@@ -47,6 +48,7 @@ type SchedulerConf struct {
 	LogFile           string        `json:"logFilePath"`
 	VolumeBindTimeout time.Duration `json:"volumeBindTimeout"`
 	TestMode          bool          `json:"testMode"`
+	EventChannelCapacity int        `json:"eventChannelCapacity"`
 }
 
 func GetSchedulerConf() *SchedulerConf {
@@ -82,6 +84,8 @@ func init() {
 		"policy group")
 	volumeBindTimeout := flag.Duration("volumeBindTimeout", DefaultVolumeBindTimeout,
 		"timeout in seconds when binding a volume")
+	eventChannelCapacity := flag.Int("eventChannelCapacity", DefaultEventChannelCapacity,
+		"event channel capacity of dispatcher")
 
 	// logging options
 	logLevel := flag.Int("logLevel", DefaultLoggingLevel,
@@ -104,5 +108,6 @@ func init() {
 		LogEncoding:       *encode,
 		LogFile:           *logFile,
 		VolumeBindTimeout: *volumeBindTimeout,
+		EventChannelCapacity: *eventChannelCapacity,
 	}
 }
