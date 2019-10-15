@@ -1,0 +1,3 @@
+docker_images:
+  yunikorn-scheduler-k8s: __registry__/yunikorn-scheduler-k8s
+  scheduler-admission-controller: __registry__/scheduler-admission-controller

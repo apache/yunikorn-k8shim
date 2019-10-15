@@ -40,8 +40,8 @@ endif
 
 # Image build parameters
 # This tag of the image must be changed when pushed to a public repository.
-ifeq ($(TAG),)
-TAG := yunikorn/yunikorn-scheduler-k8s
+ifeq ($(REGISTRY),)
+REGISTRY := yunikorn/yunikorn-scheduler-k8s
 endif
 
 # Force Go modules even when checked out inside GOPATH
@@ -102,7 +102,7 @@ sched_image: scheduler
 	@coreSHA=$$(go list -m "github.com/cloudera/yunikorn-core" | cut -d "-" -f4) ; \
 	siSHA=$$(go list -m "github.com/cloudera/yunikorn-scheduler-interface" | cut -d "-" -f5) ; \
 	shimSHA=$$(git rev-parse --short=12 HEAD) ; \
-	docker build ./deployments/image/configmap -t ${TAG}:${VERSION} \
+	docker build ./deployments/image/configmap -t ${REGISTRY}/yunikorn-scheduler-k8s:${VERSION} \
 	--label "yunikorn-core-revision=$${coreSHA}" \
 	--label "yunikorn-scheduler-interface-revision=$${siSHA}" \
 	--label "yunikorn-k8shim-revision=$${shimSHA}" \
@@ -126,7 +126,7 @@ admission: init
 adm_image: admission
 	@echo "building admission controller docker images"
 	@cp ${ADMISSION_CONTROLLER_BIN_DIR}/${POD_ADMISSION_CONTROLLER_BINARY} ./deployments/image/admission
-	docker build ./deployments/image/admission -t yunikorn/scheduler-admission-controller:${VERSION}
+	docker build ./deployments/image/admission -t ${REGISTRY}/scheduler-admission-controller:${VERSION}
 	@rm -f ./deployments/image/admission/${POD_ADMISSION_CONTROLLER_BINARY}
 
 # Build all images based on the production ready version
