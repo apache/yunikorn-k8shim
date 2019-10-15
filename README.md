@@ -43,9 +43,9 @@ Build docker image can be triggered by running following command.
 make image
 ```
 
-You can set `TAG` and `VERSION` in the commandline to build docker image with a specified version and tag. For example,
+You can set `REGISTRY` and `VERSION` in the commandline to build docker image with a specified tag and version. For example,
 ```
-make image TAG=yunikorn/yunikorn-scheduler-k8s VERSION=latest
+make image REGISTRY=yunikorn VERSION=latest
 ```
 This command will build a binary executable with version `latest` and the docker image tag is `yunikorn/yunikorn-scheduler-k8s:latest`.
 
