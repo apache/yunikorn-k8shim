@@ -23,7 +23,7 @@ service:
 #
 # ------------------------------------------------------------------------
 # Please choose one configuration from following two for yunikorn
-# Use "CMD + /" to uncomment a block
+# Use "CMD + /" to comment-out or uncomment a block before the deployment
 # ------------------------------------------------------------------------
 #
 
