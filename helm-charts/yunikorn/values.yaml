@@ -20,7 +20,27 @@ service:
   port: 9080
   port_web: 9889
 
-# scheduler configuration
+#
+# ------------------------------------------------------------------------
+# Please choose one configuration from following two for yunikorn
+# Use "CMD + /" to uncomment a block
+# ------------------------------------------------------------------------
+#
+
+# Use this configuration to automatically map K8s namespaces to yunikorn queues
+#configuration: |
+#  partitions:
+#    -
+#      name: default
+#      placementrules:
+#        - name: tag
+#          value: namespace
+#          create: true
+#      queues:
+#        - name: root
+#          submitacl: '*'
+
+# Use this configuration to configure absolute capacities for yunikorn queues
 configuration: |
   partitions:
     -
