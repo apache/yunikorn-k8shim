@@ -22,7 +22,7 @@ import (
 	"github.com/cloudera/yunikorn-k8shim/pkg/common"
 	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
 	"github.com/cloudera/yunikorn-k8shim/pkg/log"
-	"github.com/google/uuid"
+	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 	"io/ioutil"
 	"k8s.io/api/admission/v1beta1"
@@ -114,7 +114,7 @@ func updateLabels(pod *v1.Pod, patch []patchOperation) []patchOperation {
 	if _, ok := existingLabels[common.SparkLabelAppId]; !ok {
 		if _, ok := existingLabels[common.LabelApplicationId]; !ok {
 			// if app id not exist, generate one
-			generatedId := fmt.Sprintf("autogen_%s_%s", pod.Name, uuid.New().String())
+			generatedId := fmt.Sprintf("autogen_%s_%s", pod.Name, uuid.NewV4().String())
 			log.Logger.Debug("adding application ID",
 				zap.String("generatedID", generatedId))
 			result[common.LabelApplicationId] = generatedId
