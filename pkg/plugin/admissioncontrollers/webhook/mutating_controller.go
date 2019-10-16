@@ -19,8 +19,10 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/cloudera/yunikorn-k8shim/pkg/common"
 	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
 	"github.com/cloudera/yunikorn-k8shim/pkg/log"
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"io/ioutil"
 	"k8s.io/api/admission/v1beta1"
@@ -69,11 +71,8 @@ func (c *admissionController) mutate(ar *v1beta1.AdmissionReview) *v1beta1.Admis
 			}
 		}
 
-		patch = append(patch, patchOperation{
-			Op:    "add",
-			Path:  "/spec/schedulerName",
-			Value: conf.GetSchedulerConf().SchedulerName,
-		})
+		patch = updateSchedulerName(patch)
+		patch = updateLabels(&pod, patch)
 	}
 
 	patchBytes, err := json.Marshal(patch)
@@ -93,6 +92,48 @@ func (c *admissionController) mutate(ar *v1beta1.AdmissionReview) *v1beta1.Admis
 			return &pt
 		}(),
 	}
+}
+
+func updateSchedulerName(patch []patchOperation) []patchOperation {
+	log.Logger.Info("updating scheduler name")
+	return append(patch, patchOperation{
+		Op:    "add",
+		Path:  "/spec/schedulerName",
+		Value: conf.GetSchedulerConf().SchedulerName,
+	})
+}
+
+func updateLabels(pod *v1.Pod, patch []patchOperation) []patchOperation {
+	log.Logger.Info("updating pod labels")
+	existingLabels := pod.Labels
+	result := make(map[string]string)
+	for k,v := range existingLabels {
+		result[k] = v
+	}
+
+	if _, ok := existingLabels[common.SparkLabelAppId]; !ok {
+		if _, ok := existingLabels[common.LabelApplicationId]; !ok {
+			// if app id not exist, generate one
+			generatedId := fmt.Sprintf("autogen_%s_%s", pod.Name, uuid.New().String())
+			log.Logger.Debug("adding application ID",
+				zap.String("generatedID", generatedId))
+			result[common.LabelApplicationId] = generatedId
+		}
+	}
+
+	if _, ok := existingLabels[common.LabelQueueName]; !ok {
+		log.Logger.Debug("adding queue name",
+			zap.String("defaultQueue", "root.default"))
+		result[common.LabelQueueName] = "root.default"
+	}
+
+	patch = append(patch, patchOperation{
+		Op:    "add",
+		Path:  "/metadata/labels",
+		Value: result,
+	})
+
+	return patch
 }
 
 func (c *admissionController) serve(w http.ResponseWriter, r *http.Request) {
