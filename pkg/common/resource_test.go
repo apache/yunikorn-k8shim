@@ -141,8 +141,8 @@ func TestParsePodResource(t *testing.T) {
 
 	// container 01
 	c1Resources := make(map[v1.ResourceName]resource.Quantity)
-	c1Resources[v1.ResourceName(v1.ResourceMemory)] = resource.MustParse("500M")
-	c1Resources[v1.ResourceName(v1.ResourceCPU)] = resource.MustParse("1")
+	c1Resources[v1.ResourceMemory] = resource.MustParse("500M")
+	c1Resources[v1.ResourceCPU] = resource.MustParse("1")
 	c1Resources[v1.ResourceName("nvidia.com/gpu")] = resource.MustParse("1")
 	containers = append(containers, v1.Container{
 		Name: "container-01",
@@ -153,8 +153,8 @@ func TestParsePodResource(t *testing.T) {
 
 	// container 02
 	c2Resources := make(map[v1.ResourceName]resource.Quantity)
-	c2Resources[v1.ResourceName(v1.ResourceMemory)] = resource.MustParse("1024M")
-	c2Resources[v1.ResourceName(v1.ResourceCPU)] = resource.MustParse("2")
+	c2Resources[v1.ResourceMemory] = resource.MustParse("1024M")
+	c2Resources[v1.ResourceCPU] = resource.MustParse("2")
 	c2Resources[v1.ResourceName("nvidia.com/gpu")] = resource.MustParse("4")
 	containers = append(containers, v1.Container{
 		Name: "container-02",
@@ -179,8 +179,54 @@ func TestParsePodResource(t *testing.T) {
 	}
 
 	// verify we get aggregated resource from containers
-	resource := GetPodResource(pod)
-	assert.Equal(t, resource.Resources[Memory].GetValue(), int64(1524))
-	assert.Equal(t, resource.Resources[CPU].GetValue(), int64(3000))
-	assert.Equal(t, resource.Resources["nvidia.com/gpu"].GetValue(), int64(5))
+	res := GetPodResource(pod)
+	assert.Equal(t, res.Resources[Memory].GetValue(), int64(1524))
+	assert.Equal(t, res.Resources[CPU].GetValue(), int64(3000))
+	assert.Equal(t, res.Resources["nvidia.com/gpu"].GetValue(), int64(5))
+}
+
+func TestBestEffortPod(t *testing.T) {
+	resources := make(map[v1.ResourceName]resource.Quantity)
+	containers := make([]v1.Container, 0)
+	containers = append(containers, v1.Container{
+		Name: "container-01",
+		Resources: v1.ResourceRequirements{
+			Requests: resources,
+		},
+	})
+
+	// pod, no resources requested
+	pod := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "pod-resource-test-00001",
+			UID:  "UID-00001",
+		},
+		Spec: v1.PodSpec{
+			Containers: containers,
+		},
+	}
+
+    // best effort pod all resources are nil or zero
+	res := GetPodResource(pod)
+	assert.Equal(t, len(res.Resources), 1)
+	assert.Equal(t, res.Resources[Memory].GetValue(), int64(1))
+
+	// Add a resource to existing container (other than mem)
+	resources[v1.ResourceCPU] = resource.MustParse("1")
+
+	res = GetPodResource(pod)
+	assert.Equal(t, len(res.Resources), 1)
+	assert.Equal(t, res.Resources[CPU].GetValue(), int64(1000))
+
+	// reset the cpu request to zero and add memory
+	resources[v1.ResourceMemory] = resource.MustParse("0")
+	resources[v1.ResourceCPU] = resource.MustParse("0")
+
+	res = GetPodResource(pod)
+	assert.Equal(t, len(res.Resources), 1)
+	assert.Equal(t, res.Resources[Memory].GetValue(), int64(1))
 }

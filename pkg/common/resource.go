@@ -21,6 +21,7 @@ import (
 	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/kubernetes/pkg/apis/core/v1/helper/qos"
 )
 
 // resource builder is a helper struct to construct si resources
@@ -43,9 +44,24 @@ func (w *ResourceBuilder) Build() *si.Resource{
 	return &si.Resource{Resources: w.resourceMap}
 }
 
+// Get the resources from a pod's containers and convert that into a internal resource.
+// A pod has two resource parts: Requests and Limits.
+// Based on the values a pod gets a QOS assigned, as per
+// https://kubernetes.io/docs/tasks/configure-pod-container/quality-service-pod/
+// QOS class Guaranteed and Burstable are supported. However Burstable is scheduled based on the request
+// values, limits are ignored in the current setup.
+// BestEffort pods are scheduled using a minimum resource of 1MB only.
 func GetPodResource(pod *v1.Pod) (resource *si.Resource) {
 	//var memory, vcore = int64(0), int64(0)
 	var podResource *si.Resource
+	// A QosBestEffort pod does not request any resources and thus cannot be
+	// scheduled. Handle a QosBestEffort pod by setting a tiny memory value.
+	if qos.GetPodQOS(pod) == v1.PodQOSBestEffort {
+		resources := NewResourceBuilder()
+		resources.AddResource(Memory, 1)
+		return resources.Build()
+	}
+
 	for _, c := range pod.Spec.Containers {
 		resourceList := c.Resources.Requests
 		containerResource := getResource(resourceList)
