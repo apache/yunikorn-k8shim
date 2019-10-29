@@ -30,6 +30,7 @@ import (
 	"go.uber.org/zap"
 	"gotest.tools/assert"
 	"k8s.io/api/core/v1"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -265,14 +266,14 @@ partitions:
 	// reset event handler for app events:
 	// pretend to be processed slowly so that scheduler may have the chance
 	// to generate duplicate events, and count RunApplication events for verification.
-	numRunAppEvents := 0
+	var numRunAppEvents int32 = 0
 	dispatcher.RegisterEventHandler(dispatcher.EventTypeApp, func(obj interface{}) {
 		if event, ok := obj.(events.ApplicationEvent); ok {
 			cluster.context.ApplicationEventHandler()(event)
 			if event.GetEvent() == events.RunApplication {
-				numRunAppEvents += 1
+				 atomic.AddInt32(&numRunAppEvents, 1)
 			}
-			if numRunAppEvents <= 2 {
+			if atomic.LoadInt32(&numRunAppEvents) <= 2 {
 				time.Sleep(time.Millisecond)
 			}
 		}
@@ -305,7 +306,7 @@ partitions:
 	cluster.waitAndAssertTaskState(t, "app0001", "task0002", events.States().Task.Bound)
 
 	// verify whether there are any duplicated RunApplication events
-	assert.Equal(t, 2, numRunAppEvents)
+	assert.Equal(t, int32(2), numRunAppEvents)
 }
 
 func waitShimSchedulerState(shim *KubernetesShim, expectedState string, timeout time.Duration) error {
