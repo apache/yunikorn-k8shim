@@ -17,6 +17,7 @@ limitations under the License.
 package dispatcher
 
 import (
+	"errors"
 	"fmt"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
 	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
@@ -39,7 +40,13 @@ const (
 	EventTypeScheduler
 )
 
-var asyncDispatchCheckInterval = 3 * time.Second
+var (
+	ErrExcessAsyncDispatchLimit = errors.New("dispatcher exceeds async-dispatch limit")
+	AsyncDispatchLimit int32 = 10000
+	AsyncDispatchCheckInterval = 3 * time.Second
+	DispatchTimeout time.Duration
+	asyncDispatchCount int32 = 0
+)
 
 // central dispatcher that dispatches scheduling events.
 type Dispatcher struct {
@@ -63,6 +70,10 @@ func init() {
 			dispatcher.setRunning(false)
 		}
 	})
+	DispatchTimeout = conf.GetSchedulerConf().DispatchTimeout
+	log.Logger.Info("Init dispatcher",
+		zap.Int("EventChannelCapacity", cap(dispatcher.eventChan)),
+		zap.Float64("DispatchTimeoutInSeconds", DispatchTimeout.Seconds()))
 }
 
 func RegisterEventHandler(eventType EventType, handlerFn func(interface{})) {
@@ -105,13 +116,8 @@ func (p *Dispatcher) dispatch(event events.SchedulingEvent) error {
 	}
 	select {
 	case p.eventChan <- event:
-		log.Logger.Info("dispatched", zap.Int("capacity", cap(p.eventChan)),
-			zap.Int("length", len(p.eventChan)))
 		return nil
 	default:
-		log.Logger.Warn("event channel is full, transition to async-dispatch mode",
-			zap.Int("channelLength", len(p.eventChan)),
-			zap.String("event", fmt.Sprintf("%+v", event)))
 		p.asyncDispatch(event)
 		return nil
 	}
@@ -120,28 +126,30 @@ func (p *Dispatcher) dispatch(event events.SchedulingEvent) error {
 // async-dispatch try to enqueue the event in every 3 seconds util timeout,
 // it's only called when event channel is full.
 func (p *Dispatcher) asyncDispatch(event events.SchedulingEvent) {
-	go func() {
-		beginTime := time.Now()
+	count := atomic.AddInt32(&asyncDispatchCount, 1)
+	log.Logger.Warn("event channel is full, transition to async-dispatch mode",
+		zap.Int32("asyncDispatchCount", count))
+	if count > AsyncDispatchLimit {
+		panic(ErrExcessAsyncDispatchLimit)
+	}
+	go func(beginTime time.Time) {
+		defer atomic.AddInt32(&asyncDispatchCount, -1)
 		for p.isRunning() {
 			select {
 			case p.eventChan <- event:
 				return
-			case <-time.After(asyncDispatchCheckInterval):
-				elapseTime := time.Now().Sub(beginTime)
-				if elapseTime >= conf.GetSchedulerConf().DispatchTimeout {
+			case <-time.After(AsyncDispatchCheckInterval):
+				elapseTime := time.Since(beginTime)
+				if elapseTime >= DispatchTimeout {
 					log.Logger.Error("dispatch timeout",
-						zap.Float64("elapseSeconds", elapseTime.Seconds()),
-						zap.Int("channelLength", len(p.eventChan)),
-						zap.String("event", fmt.Sprintf("%+v", event)))
+						zap.Float64("elapseSeconds", elapseTime.Seconds()))
 					return
 				}
 				log.Logger.Warn("event channel is full, keep waiting...",
-					zap.Float64("elapseSeconds", elapseTime.Seconds()),
-					zap.Int("channelLength", len(p.eventChan)),
-					zap.String("event", fmt.Sprintf("%+v", event)))
+					zap.Float64("elapseSeconds", elapseTime.Seconds()))
 			}
 		}
-	}()
+	}(time.Now())
 }
 
 func (p *Dispatcher) drain() {
