@@ -79,7 +79,7 @@ func createTaskInternal(tid string, app *Application, resource *si.Resource,
 
 	var states = events.States().Task
 	task.sm = fsm.NewFSM(
-		states.Pending,
+		states.New,
 		fsm.Events{
 			{Name: string(events.SubmitTask),
 				Src: []string{states.Pending},
@@ -158,6 +158,18 @@ func (task *Task) GetTaskPod() *v1.Pod {
 func (task *Task) GetTaskState() string {
 	// fsm has its own internal lock, we don't need to hold node's lock here
 	return task.sm.Current()
+}
+
+func (task *Task) TransitionToPending() {
+	task.lock.Lock()
+	defer task.lock.Unlock()
+	if task.sm.Current() == events.States().Task.New {
+		task.sm.SetState(events.States().Task.Pending)
+	} else {
+		log.Logger.Warn("Skip transitioning task state from non-new to pending",
+			zap.String("appId", task.applicationId),
+			zap.String("taskId", task.taskId))
+	}
 }
 
 func (task *Task) setAllocated(nodeName string) {

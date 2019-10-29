@@ -23,9 +23,12 @@ import (
 	"github.com/cloudera/yunikorn-k8shim/pkg/common"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/test"
+	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
+	"github.com/cloudera/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/cloudera/yunikorn-k8shim/pkg/log"
 	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
 	"go.uber.org/zap"
+	"gotest.tools/assert"
 	"k8s.io/api/core/v1"
 	"testing"
 	"time"
@@ -227,6 +230,82 @@ partitions:
 		"[test-cluster]default","app0001", 1); err != nil {
 		t.Fatalf("number of allocations is not expected, error: %v", err)
 	}
+}
+
+func TestApplicationSchedulingWithoutDuplicateEvents(t *testing.T) {
+	configData := `
+partitions:
+  - name: default
+    queues:
+      - name: root
+        submitacl: "*"
+        queues:
+          - name: a
+            resources:
+              guaranteed:
+                memory: 100
+                vcore: 10
+              max:
+                memory: 150
+                vcore: 20
+`
+	// init and register scheduler
+	cluster := MockScheduler{}
+	cluster.init(configData)
+	cluster.start()
+
+	// update scheduling interval and recover it at last
+	backupInterval := conf.GetSchedulerConf().Interval
+	conf.GetSchedulerConf().Interval = 0
+	defer func() {
+		conf.GetSchedulerConf().Interval = backupInterval
+		cluster.stop()
+	}()
+
+	// reset event handler for app events:
+	// pretend to be processed slowly so that scheduler may have the chance
+	// to generate duplicate events, and count RunApplication events for verification.
+	numRunAppEvents := 0
+	dispatcher.RegisterEventHandler(dispatcher.EventTypeApp, func(obj interface{}) {
+		if event, ok := obj.(events.ApplicationEvent); ok {
+			cluster.context.ApplicationEventHandler()(event)
+			if event.GetEvent() == events.RunApplication {
+				numRunAppEvents += 1
+			}
+			if numRunAppEvents <= 2 {
+				time.Sleep(time.Millisecond)
+			}
+		}
+	})
+
+	// ensure scheduler state
+	cluster.waitForSchedulerState(t, events.States().Scheduler.Running)
+
+	// register nodes
+	if err := cluster.addNode("test.host.01", 100, 10); err != nil {
+		t.Fatalf("add node failed %v", err)
+	}
+
+	// create app and tasks
+	app0001 := cluster.newApplication("app0001", "root.a")
+	taskResource := common.NewResourceBuilder().
+		AddResource(common.Memory, 10).
+		AddResource(common.CPU, 1).
+		Build()
+	cluster.addTask("task0001", taskResource, app0001)
+	cluster.addTask("task0002", taskResource, app0001)
+
+	// add app to context
+	cluster.addApplication(app0001)
+
+	// wait for scheduling app and tasks
+	// verify app state
+	cluster.waitAndAssertApplicationState(t, "app0001", events.States().Application.Running)
+	cluster.waitAndAssertTaskState(t, "app0001", "task0001", events.States().Task.Bound)
+	cluster.waitAndAssertTaskState(t, "app0001", "task0002", events.States().Task.Bound)
+
+	// verify whether there are any duplicated RunApplication events
+	assert.Equal(t, 2, numRunAppEvents)
 }
 
 func waitShimSchedulerState(shim *KubernetesShim, expectedState string, timeout time.Duration) error {

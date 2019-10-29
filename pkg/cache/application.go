@@ -180,6 +180,10 @@ func (app *Application) GetApplicationState() string {
 	return app.sm.Current()
 }
 
+func (app *Application) GetNewTasks() []*Task {
+	return app.getTasks(events.States().Task.New)
+}
+
 func (app *Application) GetPendingTasks() []*Task {
 	return app.getTasks(events.States().Task.Pending)
 }
