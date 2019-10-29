@@ -17,6 +17,7 @@ limitations under the License.
 package client
 
 import (
+	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
 	"github.com/cloudera/yunikorn-k8shim/pkg/log"
 	"go.uber.org/zap"
 	"k8s.io/api/core/v1"
@@ -31,9 +32,12 @@ type SchedulerKubeClient struct {
 }
 
 func newSchedulerKubeClient(kc string) SchedulerKubeClient {
+	schedulerConf := conf.GetSchedulerConf()
 	// using kube config
 	if kc != "" {
 		config, err := clientcmd.BuildConfigFromFlags("", kc)
+		config.QPS = float32(schedulerConf.KubeQPS)
+		config.Burst = schedulerConf.KubeBurst
 		if err != nil {
 			log.Logger.Fatal("failed to create kubeClient configs", zap.Error(err))
 		}
@@ -45,10 +49,11 @@ func newSchedulerKubeClient(kc string) SchedulerKubeClient {
 
 	// using in cluster config
 	config, err := rest.InClusterConfig()
+	config.QPS = float32(schedulerConf.KubeQPS)
+	config.Burst = schedulerConf.KubeBurst
 	if err != nil {
 		log.Logger.Fatal("failed to get InClusterConfig", zap.Error(err))
 	}
-
 	configuredClient, err := kubernetes.NewForConfig(config)
 	return SchedulerKubeClient{
 		clientSet: configuredClient,
