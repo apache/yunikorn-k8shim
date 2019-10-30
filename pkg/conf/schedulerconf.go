@@ -33,6 +33,8 @@ const (
 	DefaultSchedulingInterval = time.Second
 	DefaultEventChannelCapacity = 1024 * 1024
 	DefaultDispatchTimeout = 300 * time.Second
+	DefaultKubeQPS = 1000
+	DefaultKubeBurst = 1000
 )
 
 var configuration *SchedulerConf
@@ -51,6 +53,8 @@ type SchedulerConf struct {
 	TestMode          bool          `json:"testMode"`
 	EventChannelCapacity int        `json:"eventChannelCapacity"`
 	DispatchTimeout   time.Duration `json:"dispatchTimeout"`
+	KubeQPS           int           `json:"kubeQPS"`
+	KubeBurst         int           `json:"KubeBurst"`
 }
 
 func GetSchedulerConf() *SchedulerConf {
@@ -90,6 +94,10 @@ func init() {
 		"event channel capacity of dispatcher")
 	dispatchTimeout := flag.Duration("dispatchTimeout", DefaultDispatchTimeout,
 		"timeout in seconds when dispatching an event")
+	kubeQPS := flag.Int("kubeQPS", DefaultKubeQPS,
+		"the maximum QPS to kubernetes master from this client")
+	kubeBurst := flag.Int("kubeBurst", DefaultKubeBurst,
+		"the maximum burst for throttle to kubernetes master from this client")
 
 	// logging options
 	logLevel := flag.Int("logLevel", DefaultLoggingLevel,
@@ -114,5 +122,7 @@ func init() {
 		VolumeBindTimeout: *volumeBindTimeout,
 		EventChannelCapacity: *eventChannelCapacity,
 		DispatchTimeout:   *dispatchTimeout,
+		KubeQPS:   *kubeQPS,
+		KubeBurst: *kubeBurst,
 	}
 }
