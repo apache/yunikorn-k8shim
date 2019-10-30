@@ -227,26 +227,20 @@ func (ss *KubernetesShim) canHandle(se events.SchedulerEvent) bool {
 func (ss *KubernetesShim) schedule() {
 	apps := ss.context.SelectApplications(nil)
 	for _, app := range apps {
-		for _, pendingTask := range app.GetPendingTasks() {
-			var states = events.States().Application
-			log.Logger.Info("scheduling",
-				zap.String("app", app.GetApplicationId()),
-				zap.String("pendingTask", pendingTask.GetTaskPod().Name))
-			switch app.GetApplicationState() {
-			case states.New:
-				ev := cache.NewSubmitApplicationEvent(app.GetApplicationId())
+		var states = events.States().Application
+		switch app.GetApplicationState() {
+		case states.New:
+			ev := cache.NewSubmitApplicationEvent(app.GetApplicationId())
+			dispatcher.Dispatch(ev)
+		case states.Accepted, states.Running:
+			if len(app.GetPendingTasks()) > 0 {
+				ev := cache.NewRunApplicationEvent(app.GetApplicationId())
 				dispatcher.Dispatch(ev)
-			case states.Accepted:
-				ev := cache.NewRunApplicationEvent(app.GetApplicationId(), pendingTask)
-				dispatcher.Dispatch(ev)
-			case states.Running:
-				ev := cache.NewRunApplicationEvent(app.GetApplicationId(), pendingTask)
-				dispatcher.Dispatch(ev)
-			default:
-				log.Logger.Debug("skipping scheduling application",
-					zap.String("appId", app.GetApplicationId()),
-					zap.String("appState", app.GetApplicationState()))
 			}
+		default:
+			log.Logger.Debug("skipping scheduling application",
+				zap.String("appId", app.GetApplicationId()),
+				zap.String("appState", app.GetApplicationState()))
 		}
 	}
 }

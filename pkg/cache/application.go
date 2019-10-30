@@ -181,17 +181,18 @@ func (app *Application) GetApplicationState() string {
 }
 
 func (app *Application) GetPendingTasks() []*Task {
+	app.lock.RLock()
+	defer app.lock.RUnlock()
 	return app.getTasks(events.States().Task.Pending)
 }
 
 func (app *Application) GetAllocatedTasks() []*Task {
+	app.lock.RLock()
+	defer app.lock.RUnlock()
 	return app.getTasks(events.States().Task.Allocated)
 }
 
 func (app *Application) getTasks(state string) []*Task {
-	app.lock.RLock()
-	defer app.lock.RUnlock()
-
 	taskList := make([]*Task, 0)
 	if len(app.taskMap) > 0 {
 		for _, task := range app.taskMap {
@@ -258,17 +259,16 @@ func (app *Application) handleRecoverApplicationEvent(event *fsm.Event) {
 }
 
 // this is called after entering running state
+// RunApplicationEvent is triggered in each scheduling interval,
+// each time, we scan all the pending tasks of current app and
+// submit the task if the state is pending.
 func (app *Application) handleRunApplicationEvent(event *fsm.Event) {
-	if event.Args == nil || len(event.Args) != 1 {
-		log.Logger.Error("failed to run tasks",
-			zap.String("appId", app.applicationId),
-			zap.String("reason", " event argument is expected to have only 1 argument"))
-		return
-	}
-
-	switch t := event.Args[0].(type) {
-	case *Task:
-		dispatcher.Dispatch(NewSubmitTaskEvent(app.applicationId, t.taskId))
+	pendingTasks := app.getTasks(events.States().Task.Pending)
+	log.Logger.Debug("scheduling pending tasks",
+		zap.String("appID", app.applicationId),
+		zap.Int("numOfPendingTasks", len(pendingTasks)))
+	for _, pendingTask := range pendingTasks {
+		dispatcher.Dispatch(NewSubmitTaskEvent(app.applicationId, pendingTask.taskId))
 	}
 }
 
