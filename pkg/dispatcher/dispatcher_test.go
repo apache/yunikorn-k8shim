@@ -253,7 +253,7 @@ func TestExceedAsyncDispatchLimit(t *testing.T) {
 		AsyncDispatchLimit = 10000
 		// check error
 		if err := recover(); err != nil {
-			assert.Equal(t, err, ErrExcessAsyncDispatchLimit)
+			assert.Assert(t, strings.Contains(err.(error).Error(), "dispatcher exceeds async-dispatch limit"))
 		} else {
 			t.Error("Panic should be caught here")
 		}

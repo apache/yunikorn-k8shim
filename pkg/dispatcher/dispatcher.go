@@ -17,7 +17,6 @@ limitations under the License.
 package dispatcher
 
 import (
-	"errors"
 	"fmt"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
 	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
@@ -41,8 +40,7 @@ const (
 )
 
 var (
-	ErrExcessAsyncDispatchLimit = errors.New("dispatcher exceeds async-dispatch limit")
-	AsyncDispatchLimit int32 = 10000
+	AsyncDispatchLimit int32
 	AsyncDispatchCheckInterval = 3 * time.Second
 	DispatchTimeout time.Duration
 	asyncDispatchCount int32 = 0
@@ -58,10 +56,11 @@ type Dispatcher struct {
 }
 
 func init() {
+	eventChannelCapacity := conf.GetSchedulerConf().EventChannelCapacity
 	once.Do(func() {
 		if dispatcher == nil {
 			dispatcher = &Dispatcher{
-				eventChan: make(chan events.SchedulingEvent, conf.GetSchedulerConf().EventChannelCapacity),
+				eventChan: make(chan events.SchedulingEvent, eventChannelCapacity),
 				handlers:  make(map[EventType]func(interface{})),
 				stopChan:  make(chan struct{}),
 				running:   atomic.Value{},
@@ -71,8 +70,13 @@ func init() {
 		}
 	})
 	DispatchTimeout = conf.GetSchedulerConf().DispatchTimeout
+	AsyncDispatchLimit = int32(eventChannelCapacity / 10)
+	if AsyncDispatchLimit < 10000 {
+		AsyncDispatchLimit = 10000
+	}
 	log.Logger.Info("Init dispatcher",
-		zap.Int("EventChannelCapacity", cap(dispatcher.eventChan)),
+		zap.Int("EventChannelCapacity", eventChannelCapacity),
+		zap.Int32("AsyncDispatchLimit", AsyncDispatchLimit),
 		zap.Float64("DispatchTimeoutInSeconds", DispatchTimeout.Seconds()))
 }
 
@@ -130,7 +134,7 @@ func (p *Dispatcher) asyncDispatch(event events.SchedulingEvent) {
 	log.Logger.Warn("event channel is full, transition to async-dispatch mode",
 		zap.Int32("asyncDispatchCount", count))
 	if count > AsyncDispatchLimit {
-		panic(ErrExcessAsyncDispatchLimit)
+		panic(fmt.Errorf("dispatcher exceeds async-dispatch limit"))
 	}
 	go func(beginTime time.Time) {
 		defer atomic.AddInt32(&asyncDispatchCount, -1)
