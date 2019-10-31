@@ -29,6 +29,7 @@ func TestDefaultValues(t *testing.T) {
 	assert.Equal(t, conf.LoggingLevel, DefaultLoggingLevel)
 	assert.Equal(t, conf.LogEncoding, DefaultLogEncoding)
 	assert.Equal(t, conf.EventChannelCapacity, DefaultEventChannelCapacity)
+	assert.Equal(t, conf.DispatchTimeout, DefaultDispatchTimeout)
 	assert.Equal(t, conf.KubeQPS, DefaultKubeQPS)
 	assert.Equal(t, conf.KubeBurst, DefaultKubeBurst)
 }

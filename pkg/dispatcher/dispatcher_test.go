@@ -19,8 +19,12 @@ package dispatcher
 import (
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
 	"gotest.tools/assert"
+	"runtime"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 )
 
 // app event for testing
@@ -123,5 +127,144 @@ func TestDispatcherStartStop(t *testing.T) {
 		t.Fatalf("dispatch is not running, this should fail")
 	} else {
 		t.Logf("seen expected error: %v", err)
+	}
+}
+
+// Test sending events from multiple senders in parallel,
+// verify that events won't be lost
+func TestEventWillNotBeLostWhenEventChannelIsFull(t *testing.T) {
+	// reset event channel with small capacity for testing
+	backupCapacity := cap(dispatcher.eventChan)
+	dispatcher.eventChan = make(chan events.SchedulingEvent, 1)
+	defer func() {
+		dispatcher.eventChan = make(chan events.SchedulingEvent, backupCapacity)
+	}()
+
+	// thread safe
+	recorder := &appEventsRecorder{
+		apps: make([]string, 0),
+		lock: &sync.RWMutex{},
+	}
+	// pretend to be an time-consuming event-handler
+	RegisterEventHandler(EventTypeApp, func(obj interface{}) {
+		if event, ok := obj.(events.ApplicationEvent); ok {
+			recorder.addApp(event.GetApplicationId())
+			time.Sleep(1 * time.Millisecond)
+		}
+	})
+
+	// start the dispatcher
+	Start()
+
+	// send events
+	numEvents := 10
+	for i := 0; i < numEvents; i++ {
+		Dispatch(TestAppEvent{
+			appId:     "test",
+			eventType: events.RunApplication,
+		})
+	}
+
+	// check event channel is full and some events are dispatched asynchronously
+	assert.Assert(t, atomic.LoadInt32(&asyncDispatchCount) > 0)
+
+	// wait until all events are handled
+	dispatcher.drain()
+
+	// assert all event are handled
+	assert.Equal(t, recorder.size(), numEvents)
+	assert.Assert(t, atomic.LoadInt32(&asyncDispatchCount) == 0)
+
+	// stop the dispatcher
+	Stop()
+
+	// ensure state is stopped
+	assert.Equal(t, dispatcher.isRunning(), false)
+}
+
+// Test dispatch timeout, verify that Dispatcher#asyncDispatch is called when event channel is full
+// and will disappear after timeout.
+func TestDispatchTimeout(t *testing.T) {
+	// reset event channel with small capacity for testing
+	backupCapacity := cap(dispatcher.eventChan)
+	backupAsyncDispatchCheckInterval := AsyncDispatchCheckInterval
+	backupDispatchTimeout := DispatchTimeout
+	dispatcher.eventChan = make(chan events.SchedulingEvent, 1)
+	AsyncDispatchCheckInterval = 100 * time.Millisecond
+	DispatchTimeout = 500 * time.Millisecond
+	defer func() {
+		dispatcher.eventChan = make(chan events.SchedulingEvent, backupCapacity)
+		AsyncDispatchCheckInterval = backupAsyncDispatchCheckInterval
+		DispatchTimeout = backupDispatchTimeout
+	}()
+
+	// pretend to be an time-consuming event-handler
+	handledChan := make(chan bool)
+	RegisterEventHandler(EventTypeApp, func(obj interface{}) {
+		if _, ok := obj.(events.ApplicationEvent); ok {
+			time.Sleep(2 * time.Second)
+			handledChan <- true
+		}
+	})
+	// start the dispatcher
+	Start()
+	// dispatch 3 events, the third event will be dispatched asynchronously
+	for i := 0; i < 3; i++ {
+		Dispatch(TestAppEvent{
+			appId:     "test",
+			eventType: events.RunApplication,
+		})
+	}
+	assert.Equal(t, int32(1), atomic.LoadInt32(&asyncDispatchCount))
+	// sleep 200ms to verify that Dispatcher#asyncDispatch is called
+	time.Sleep(200 * time.Millisecond)
+	buf := make([]byte, 1<<16)
+	runtime.Stack(buf, true)
+	assert.Assert(t, strings.Contains(string(buf), "asyncDispatch"))
+
+	// sleep 400ms to verify that async-dispatch goroutine is disappeared
+	time.Sleep(400 * time.Millisecond)
+	buf = make([]byte, 1<<16)
+	runtime.Stack(buf, true)
+	assert.Assert(t, !strings.Contains(string(buf), "asyncDispatch"))
+
+	// stop the dispatcher
+	Stop()
+}
+
+// Test exceeding the async-dispatch limit, should panic immediately.
+func TestExceedAsyncDispatchLimit(t *testing.T) {
+	// reset event channel with small capacity for testing
+	dispatcher.eventChan = make(chan events.SchedulingEvent, 1)
+	AsyncDispatchLimit = 1
+	// pretend to be an time-consuming event-handler
+	handledChan := make(chan bool)
+	RegisterEventHandler(EventTypeApp, func(obj interface{}) {
+		if _, ok := obj.(events.ApplicationEvent); ok {
+			time.Sleep(2 * time.Second)
+			handledChan <- true
+		}
+	})
+	// Handle errors in defer func with recover.
+	defer func() {
+		// stop the dispatcher
+		Stop()
+		// recovery variables
+		AsyncDispatchLimit = 10000
+		// check error
+		if err := recover(); err != nil {
+			assert.Assert(t, strings.Contains(err.(error).Error(), "dispatcher exceeds async-dispatch limit"))
+		} else {
+			t.Error("Panic should be caught here")
+		}
+	}()
+	// start the dispatcher
+	Start()
+	// dispatch 4 events, the third and forth events will be dispatched asynchronously
+	for i := 0; i < 4; i++ {
+		Dispatch(TestAppEvent{
+			appId:     "test",
+			eventType: events.RunApplication,
+		})
 	}
 }

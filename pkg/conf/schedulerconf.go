@@ -32,6 +32,7 @@ const (
 	DefaultVolumeBindTimeout = 10 * time.Second
 	DefaultSchedulingInterval = time.Second
 	DefaultEventChannelCapacity = 1024 * 1024
+	DefaultDispatchTimeout = 300 * time.Second
 	DefaultKubeQPS = 1000
 	DefaultKubeBurst = 1000
 )
@@ -51,6 +52,7 @@ type SchedulerConf struct {
 	VolumeBindTimeout time.Duration `json:"volumeBindTimeout"`
 	TestMode          bool          `json:"testMode"`
 	EventChannelCapacity int        `json:"eventChannelCapacity"`
+	DispatchTimeout   time.Duration `json:"dispatchTimeout"`
 	KubeQPS           int           `json:"kubeQPS"`
 	KubeBurst         int           `json:"KubeBurst"`
 }
@@ -90,6 +92,8 @@ func init() {
 		"timeout in seconds when binding a volume")
 	eventChannelCapacity := flag.Int("eventChannelCapacity", DefaultEventChannelCapacity,
 		"event channel capacity of dispatcher")
+	dispatchTimeout := flag.Duration("dispatchTimeout", DefaultDispatchTimeout,
+		"timeout in seconds when dispatching an event")
 	kubeQPS := flag.Int("kubeQPS", DefaultKubeQPS,
 		"the maximum QPS to kubernetes master from this client")
 	kubeBurst := flag.Int("kubeBurst", DefaultKubeBurst,
@@ -117,6 +121,7 @@ func init() {
 		LogFile:           *logFile,
 		VolumeBindTimeout: *volumeBindTimeout,
 		EventChannelCapacity: *eventChannelCapacity,
+		DispatchTimeout:   *dispatchTimeout,
 		KubeQPS:   *kubeQPS,
 		KubeBurst: *kubeBurst,
 	}
