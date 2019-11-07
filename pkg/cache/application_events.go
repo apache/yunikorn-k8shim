@@ -78,14 +78,12 @@ func (se SubmitApplicationEvent) GetApplicationId() string {
 type RunApplicationEvent struct {
 	applicationId string
 	event         events.ApplicationEventType
-	task          *Task
 }
 
-func NewRunApplicationEvent(appId string, task *Task) RunApplicationEvent {
+func NewRunApplicationEvent(appId string) RunApplicationEvent {
 	return RunApplicationEvent{
 		applicationId: appId,
 		event:         events.RunApplication,
-		task:          task,
 	}
 }
 
@@ -94,9 +92,7 @@ func (re RunApplicationEvent) GetEvent() events.ApplicationEventType {
 }
 
 func (re RunApplicationEvent) GetArgs() []interface{} {
-	args := make([]interface{}, 1)
-	args[0] = re.task
-	return args
+	return nil
 }
 
 func (re RunApplicationEvent) GetApplicationId() string {

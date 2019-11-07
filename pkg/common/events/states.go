@@ -61,6 +61,7 @@ type NodeStates struct {
 }
 
 type TaskStates struct {
+	New        string
 	Pending    string
 	Scheduling string
 	Allocated  string
@@ -88,6 +89,7 @@ func States() *AllStates {
 				Failed:     "Failed",
 			},
 			Task: &TaskStates{
+				New:        "New",
 				Pending:    "Pending",
 				Scheduling: "Scheduling",
 				Allocated:  "TaskAllocated",
