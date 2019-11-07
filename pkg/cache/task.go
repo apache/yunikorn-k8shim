@@ -79,8 +79,11 @@ func createTaskInternal(tid string, app *Application, resource *si.Resource,
 
 	var states = events.States().Task
 	task.sm = fsm.NewFSM(
-		states.Pending,
+		states.New,
 		fsm.Events{
+			{Name: string(events.InitTask),
+				Src: []string{states.New},
+				Dst: states.Pending},
 			{Name: string(events.SubmitTask),
 				Src: []string{states.Pending},
 				Dst: states.Scheduling},
@@ -100,7 +103,7 @@ func createTaskInternal(tid string, app *Application, resource *si.Resource,
 				Src: []string{states.Killing},
 				Dst: states.Killed},
 			{Name: string(events.TaskRejected),
-				Src: []string{states.Pending, states.Scheduling},
+				Src: []string{states.New, states.Pending, states.Scheduling},
 				Dst: states.Rejected},
 			{Name: string(events.TaskFail),
 				Src: []string{states.Rejected, states.Allocated},
@@ -109,6 +112,7 @@ func createTaskInternal(tid string, app *Application, resource *si.Resource,
 		fsm.Callbacks{
 			string(events.SubmitTask): task.handleSubmitTaskEvent,
 			string(events.TaskFail):   task.handleFailEvent,
+			states.Pending:            task.postTaskPending,
 			states.Allocated:          task.postTaskAllocated,
 			states.Rejected:           task.postTaskRejected,
 			states.Completed:          task.postTaskCompleted,
@@ -196,6 +200,12 @@ func (task *Task) handleSubmitTaskEvent(event *fsm.Event) {
 		v1.EventTypeNormal, "TaskSubmitted",
 		"application \"%s\" task \"%s\" is submitted to the scheduler",
 		task.applicationId, task.taskId)
+}
+
+// this is called after task reaches PENDING state,
+// submit the resource asks from this task to the scheduler core
+func (task *Task) postTaskPending(event *fsm.Event) {
+	dispatcher.Dispatch(NewSubmitTaskEvent(task.applicationId, task.taskId))
 }
 
 // this is called after task reaches ALLOCATED state,

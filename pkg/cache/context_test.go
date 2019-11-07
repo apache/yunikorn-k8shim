@@ -62,7 +62,7 @@ func TestAddApplications(t *testing.T) {
 	task02 := CreateTaskForTest("task00002", app01, nil, nil, nil)
 	app01.AddTask(&task01)
 	app01.AddTask(&task02)
-	assert.Equal(t, len(context.applications["app00001"].GetPendingTasks()), 2)
+	assert.Equal(t, len(context.applications["app00001"].GetNewTasks()), 2)
 }
 
 func TestAddPod(t *testing.T) {
@@ -92,10 +92,10 @@ func TestAddPod(t *testing.T) {
 	app01 := context.getOrCreateApplication(&pod)
 	assert.Equal(t, len(context.applications), 1)
 	assert.Equal(t, app01.GetApplicationId(), "app00001")
-	assert.Equal(t, len(app01.GetPendingTasks()), 1)
-	assert.Equal(t, app01.GetPendingTasks()[0].GetTaskPod().Name, "pod00001")
-	assert.Equal(t, string(app01.GetPendingTasks()[0].GetTaskPod().UID), "UID-POD-00001")
-	assert.Equal(t, app01.GetPendingTasks()[0].GetTaskPod().Namespace, "default")
+	assert.Equal(t, len(app01.GetNewTasks()), 1)
+	assert.Equal(t, app01.GetNewTasks()[0].GetTaskPod().Name, "pod00001")
+	assert.Equal(t, string(app01.GetNewTasks()[0].GetTaskPod().UID), "UID-POD-00001")
+	assert.Equal(t, app01.GetNewTasks()[0].GetTaskPod().Namespace, "default")
 
 	// add same pod again
 	context.addPod(&pod)
@@ -124,9 +124,9 @@ func TestAddPod(t *testing.T) {
 	}
 	context.addPod(&pod1)
 	assert.Equal(t, len(context.applications), 1)
-	assert.Equal(t, len(app01.GetPendingTasks()), 2)
+	assert.Equal(t, len(app01.GetNewTasks()), 2)
 
-	for _, pt := range app01.GetPendingTasks() {
+	for _, pt := range app01.GetNewTasks() {
 		switch pt.GetTaskPod().Name {
 		case "pod00001" :
 			assert.Equal(t, string(pt.GetTaskPod().UID), "UID-POD-00001")
@@ -162,7 +162,7 @@ func TestAddPod(t *testing.T) {
 
 	context.addPod(&pod2)
 	assert.Equal(t, len(context.applications), 1)
-	assert.Equal(t, len(app01.GetPendingTasks()), 2)
+	assert.Equal(t, len(app01.GetNewTasks()), 2)
 
 	// add another pod from another app
 	pod3 := v1.Pod{
@@ -187,9 +187,9 @@ func TestAddPod(t *testing.T) {
 
 	context.addPod(&pod3)
 	assert.Equal(t, len(context.applications), 2)
-	assert.Equal(t, len(app01.GetPendingTasks()), 2)
+	assert.Equal(t, len(app01.GetNewTasks()), 2)
 	app02 := context.getOrCreateApplication(&pod3)
-	assert.Equal(t, len(app02.GetPendingTasks()), 1)
+	assert.Equal(t, len(app02.GetNewTasks()), 1)
 	assert.Equal(t, app02.GetApplicationId(), "app00002")
 }
 
@@ -224,16 +224,16 @@ func TestPodRejected(t *testing.T) {
 	app01 := context.getOrCreateApplication(&pod)
 	assert.Equal(t, len(context.applications), 1)
 	assert.Equal(t, app01.GetApplicationId(), "app00001")
-	assert.Equal(t, len(app01.GetPendingTasks()), 1)
-	assert.Equal(t, app01.GetPendingTasks()[0].GetTaskPod().Name, "pod00001")
-	assert.Equal(t, string(app01.GetPendingTasks()[0].GetTaskPod().UID), "UID-POD-00001")
-	assert.Equal(t, app01.GetPendingTasks()[0].GetTaskPod().Namespace, "default")
+	assert.Equal(t, len(app01.GetNewTasks()), 1)
+	assert.Equal(t, app01.GetNewTasks()[0].GetTaskPod().Name, "pod00001")
+	assert.Equal(t, string(app01.GetNewTasks()[0].GetTaskPod().UID), "UID-POD-00001")
+	assert.Equal(t, app01.GetNewTasks()[0].GetTaskPod().Namespace, "default")
 
 	// reject the task
 	task, _ := app01.GetTask("UID-POD-00001")
 	err := task.handle(NewRejectTaskEvent("app00001", "UID-POD-00001", ""))
 	assert.Assert(t, err == nil)
-	assert.Equal(t, len(app01.GetPendingTasks()), 0)
+	assert.Equal(t, len(app01.GetNewTasks()), 0)
 
 	task01, err := app01.GetTask("UID-POD-00001")
 	assert.Assert(t, err == nil)

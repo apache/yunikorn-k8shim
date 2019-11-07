@@ -101,8 +101,8 @@ func NewApplication(appId, queueName, user string, tags map[string]string, sched
 		fsm.Callbacks{
 			//"enter_state":               app.handleTaskStateChange,
 			string(events.SubmitApplication):   app.handleSubmitApplicationEvent,
+			string(events.AcceptApplication):   app.handleAcceptApplicationEvent,
 			string(events.RecoverApplication):  app.handleRecoverApplicationEvent,
-			string(events.RunApplication):      app.handleRunApplicationEvent,
 			string(events.RejectApplication):   app.handleRejectApplicationEvent,
 			string(events.CompleteApplication): app.handleCompleteApplicationEvent,
 		},
@@ -186,6 +186,12 @@ func (app *Application) GetPendingTasks() []*Task {
 	return app.getTasks(events.States().Task.Pending)
 }
 
+func (app *Application) GetNewTasks() []*Task {
+	app.lock.RLock()
+	defer app.lock.RUnlock()
+	return app.getTasks(events.States().Task.New)
+}
+
 func (app *Application) GetAllocatedTasks() []*Task {
 	app.lock.RLock()
 	defer app.lock.RUnlock()
@@ -202,6 +208,48 @@ func (app *Application) getTasks(state string) []*Task {
 		}
 	}
 	return taskList
+}
+
+// This is called in every scheduling interval,
+// we are not using dispatcher here because we want to
+// make state transition in sync mode in order to prevent
+// generating too many duplicate events. However, it must
+// ensure non of these calls is expensive, usually, they
+// do nothing more than just triggering the state transition.
+func (app *Application) Schedule() {
+	var states = events.States().Application
+	switch app.GetApplicationState() {
+	case states.New:
+		ev := NewSubmitApplicationEvent(app.GetApplicationId())
+		if err := app.handle(ev); err != nil {
+			log.Logger.Warn("failed to handle SUBMIT app event",
+				zap.Error(err))
+		}
+	case states.Accepted:
+		ev := NewRunApplicationEvent(app.GetApplicationId())
+		if err := app.handle(ev); err != nil {
+			log.Logger.Warn("failed to handle RUN app event",
+				zap.Error(err))
+		}
+	case states.Running:
+		if len(app.GetNewTasks()) > 0 {
+			for _, task := range app.getTasks(events.States().Task.New) {
+				// note, if we directly trigger submit task event, it may spawn too many duplicate
+				// events, because a task might be submitted multiple times before its state transits to PENDING.
+				if err := task.handle(
+					NewSimpleTaskEvent(task.applicationId, task.taskId, events.InitTask)); err != nil {
+					// something goes wrong when transit task to PENDING state,
+					// this should not happen because we already checked the state
+					// before calling the transition. Nowhere to go, just log the error.
+					log.Logger.Warn("init task failed", zap.Error(err))
+				}
+			}
+		}
+	default:
+		log.Logger.Debug("skipping scheduling application",
+			zap.String("appId", app.GetApplicationId()),
+			zap.String("appState", app.GetApplicationState()))
+	}
 }
 
 func (app *Application) handleSubmitApplicationEvent(event *fsm.Event) {
@@ -231,6 +279,10 @@ func (app *Application) handleSubmitApplicationEvent(event *fsm.Event) {
 	}
 }
 
+func (app *Application) handleAcceptApplicationEvent(event *fsm.Event) {
+	dispatcher.Dispatch(NewRunApplicationEvent(app.applicationId))
+}
+
 func (app *Application) handleRecoverApplicationEvent(event *fsm.Event) {
 	log.Logger.Info("handle app recovering",
 		zap.String("app", app.String()),
@@ -255,20 +307,6 @@ func (app *Application) handleRecoverApplicationEvent(event *fsm.Event) {
 		// submission failed
 		log.Logger.Warn("failed to submit app", zap.Error(err))
 		dispatcher.Dispatch(NewFailApplicationEvent(app.applicationId))
-	}
-}
-
-// this is called after entering running state
-// RunApplicationEvent is triggered in each scheduling interval,
-// each time, we scan all the pending tasks of current app and
-// submit the task if the state is pending.
-func (app *Application) handleRunApplicationEvent(event *fsm.Event) {
-	pendingTasks := app.getTasks(events.States().Task.Pending)
-	log.Logger.Debug("scheduling pending tasks",
-		zap.String("appID", app.applicationId),
-		zap.Int("numOfPendingTasks", len(pendingTasks)))
-	for _, pendingTask := range pendingTasks {
-		dispatcher.Dispatch(NewSubmitTaskEvent(app.applicationId, pendingTask.taskId))
 	}
 }
 
