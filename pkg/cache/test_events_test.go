@@ -18,8 +18,15 @@ package cache
 import (
 	"fmt"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
+	"github.com/cloudera/yunikorn-k8shim/pkg/common/test"
+	"github.com/cloudera/yunikorn-k8shim/pkg/common/utils"
+	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
+	"github.com/cloudera/yunikorn-k8shim/pkg/dispatcher"
+	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
 	"gotest.tools/assert"
+	v1 "k8s.io/api/core/v1"
 	"testing"
+	"time"
 )
 
 func TestAllocateTaskEventArgs(t *testing.T) {
@@ -54,4 +61,61 @@ func TestGetAllocateTaskEventArgs(t *testing.T) {
 
 	err = events.GetEventArgsAsStrings(nil, args)
 	assert.Assert(t, err != nil)
+}
+
+func TestSubmitTaskSucceed(t *testing.T) {
+	schedulerConf := conf.GetSchedulerConf()
+	schedulerConf.TestMode = true
+	schedulerApi := newMockSchedulerApi()
+	app := NewApplication("app00001", "root.queue", "user", map[string]string{}, schedulerApi)
+	task := newTask("task00001", app, &test.KubeClientMock{}, schedulerApi, &v1.Pod{})
+	if err := task.handle(NewSubmitTaskEvent(app.applicationId, task.taskId)); err != nil {
+		t.Fail()
+	}
+	assert.Equal(t, task.GetTaskState(), events.States().Task.Scheduling)
+}
+
+func TestSubmitTaskFailed(t *testing.T) {
+	// set things up, use some mocked clients
+	schedulerConf := conf.GetSchedulerConf()
+	schedulerConf.TestMode = true
+	schedulerApi := newMockSchedulerApi()
+	schedulerApi.updateFn = func(request *si.UpdateRequest) error {
+		return fmt.Errorf("mocked error")
+	}
+	app := NewApplication("app00001", "root.queue", "user", map[string]string{}, schedulerApi)
+	task := newTask("task00001", app, &test.KubeClientMock{}, schedulerApi, &v1.Pod{})
+
+	// launch the dispatcher
+	dispatcher.RegisterEventHandler(dispatcher.EventTypeTask, func(obj interface{}) {
+		if event, ok := obj.(events.TaskEvent); ok {
+			if task.canHandle(event) {
+				if err := task.handle(event); err != nil {
+					t.Fail()
+				}
+			}
+		}
+	})
+	dispatcher.Start()
+
+	// task submission should fail, because we mock the error in client api
+	if err := task.handle(NewSubmitTaskEvent(app.applicationId, task.taskId)); err != nil {
+		t.Fail()
+	}
+
+	// task submission failed, it should become to pending state again
+	if err := utils.WaitForCondition(func() bool {
+		return task.GetTaskState() == events.States().Task.Pending
+	}, time.Second, 3*time.Second); err != nil {
+		t.Fail()
+	}
+
+	// the pending task cache should contain the task
+	contains := false
+	for _, p := range app.GetPendingTasks() {
+		if p.taskId == task.taskId {
+			contains = true
+		}
+	}
+	assert.Equal(t, contains, true)
 }

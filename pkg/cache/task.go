@@ -105,6 +105,9 @@ func createTaskInternal(tid string, app *Application, resource *si.Resource,
 			{Name: string(events.TaskFail),
 				Src: []string{states.Rejected, states.Allocated},
 				Dst: states.Failed},
+			{Name: string(events.RetryTask),
+				Src: []string{states.Pending, states.Scheduling},
+				Dst: states.Pending},
 		},
 		fsm.Callbacks{
 			string(events.SubmitTask): task.handleSubmitTaskEvent,
@@ -188,7 +191,14 @@ func (task *Task) handleSubmitTaskEvent(event *fsm.Event) {
 	rr := common.CreateUpdateRequestForTask(task.applicationId, task.taskId, task.resource)
 	log.Logger.Debug("send update request", zap.String("request", rr.String()))
 	if err := task.schedulerApi.Update(&rr); err != nil {
+		// if task submission failed, something might go wrong in scheduler-core,
+		// we should retry the task again. shim continues to retry unless scheduler-core
+		// responses us, either accept or rejected.
 		log.Logger.Debug("failed to send scheduling request to scheduler", zap.Error(err))
+		dispatcher.Dispatch(NewRetryTaskEvent(task.applicationId, task.taskId,
+			fmt.Sprintf("failed to send scheduling request to scheduler, error: %v", err)))
+		// put it back to cache
+		task.application.addPendingTask(task)
 		return
 	}
 
@@ -254,6 +264,10 @@ func (task *Task) postTaskRejected(event *fsm.Event) {
 	// currently, once task is rejected by scheduler, we directly move task to failed state.
 	// so this function simply triggers the state transition when it is rejected.
 	// but further, we can introduce retry mechanism if necessary.
+	//
+	// Future note:
+	// we cache a list of pending tasks for each application (see more in application.go),
+	// if we move a task's state back to pending, we will need to update that cache as well.
 	dispatcher.Dispatch(NewFailTaskEvent(task.applicationId, task.taskId,
 		fmt.Sprintf("task %s failed because it is rejected by scheduler", task.taskId)))
 
