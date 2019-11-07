@@ -39,7 +39,6 @@ type Application struct {
 	partition     string
 	user          string
 	taskMap       map[string]*Task
-	pendingTasks  map[string]*Task // cache pending tasks
 	tags          map[string]string
 	sm            *fsm.FSM
 	lock          *sync.RWMutex
@@ -55,14 +54,12 @@ func (app *Application) String() string {
 
 func NewApplication(appId, queueName, user string, tags map[string]string, scheduler api.SchedulerApi) *Application {
 	taskMap := make(map[string]*Task)
-	pendingTaskMap := make(map[string]*Task)
 	app := &Application{
 		applicationId: appId,
 		queue:         queueName,
 		partition:     common.DefaultPartition,
 		user:          user,
 		taskMap:       taskMap,
-		pendingTasks:  pendingTaskMap,
 		tags:          tags,
 		lock:          &sync.RWMutex{},
 		ch:            CompletionHandler{running: false},
@@ -172,45 +169,21 @@ func (app *Application) GetQueue() string {
 func (app *Application) AddTask(task *Task) {
 	app.lock.Lock()
 	defer app.lock.Unlock()
-	app.addTask(task)
-	app.addPendingTask(task)
-}
-
-func (app *Application) addTask(task *Task) {
-	if _, ok := app.taskMap[task.taskId]; !ok {
+	if _, ok := app.taskMap[task.taskId]; ok {
 		// skip adding duplicate task
-		app.taskMap[task.taskId] = task
+		return
 	}
-}
-
-func (app *Application) addPendingTask(task *Task) {
-	if _, ok := app.pendingTasks[task.taskId]; !ok {
-		app.pendingTasks[task.taskId] = task
-	}
-}
-
-func (app *Application) removePendingTasks(task *Task) {
-	if _, ok := app.pendingTasks[task.taskId]; ok {
-		delete(app.pendingTasks, task.taskId)
-	}
+	app.taskMap[task.taskId] = task
 }
 
 func (app *Application) GetApplicationState() string {
 	return app.sm.Current()
 }
 
-// return pending tasks when the task is in pending state
-// and the task has not been submitted yet.
 func (app *Application) GetPendingTasks() []*Task {
 	app.lock.RLock()
 	defer app.lock.RUnlock()
-	tasks := make([]*Task, 0)
-	for _, t := range app.pendingTasks {
-		if t.GetTaskState() == events.States().Task.Pending {
-			tasks = append(tasks, t)
-		}
-	}
-	return tasks
+	return app.getTasks(events.States().Task.Pending)
 }
 
 func (app *Application) GetAllocatedTasks() []*Task {
@@ -290,20 +263,12 @@ func (app *Application) handleRecoverApplicationEvent(event *fsm.Event) {
 // each time, we scan all the pending tasks of current app and
 // submit the task if the state is pending.
 func (app *Application) handleRunApplicationEvent(event *fsm.Event) {
-	if len(app.pendingTasks) > 0 {
-		log.Logger.Debug("scheduling pending tasks",
-			zap.String("appID", app.applicationId),
-			zap.Int("numOfPendingTasks", len(app.pendingTasks)))
-		for _, pendingTask := range app.pendingTasks {
-			dispatcher.Dispatch(NewSubmitTaskEvent(app.applicationId, pendingTask.taskId))
-
-			// This function is called in every scheduling interval. When there are lots of tasks,
-			// this might spawn lots of duplicate submit-task even and eventually block the dispatcher.
-			// This is because the state transition is async and it is slower than the scheduling routine.
-			// To fix this issue, we maintain a cache of pending tasks, once a submit-task-event is
-			// dispatched for a pending tasks, we can safely ignore it in next scheduling interval.
-			app.removePendingTasks(pendingTask)
-		}
+	pendingTasks := app.getTasks(events.States().Task.Pending)
+	log.Logger.Debug("scheduling pending tasks",
+		zap.String("appID", app.applicationId),
+		zap.Int("numOfPendingTasks", len(pendingTasks)))
+	for _, pendingTask := range pendingTasks {
+		dispatcher.Dispatch(NewSubmitTaskEvent(app.applicationId, pendingTask.taskId))
 	}
 }
 

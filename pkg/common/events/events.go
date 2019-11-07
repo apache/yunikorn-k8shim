@@ -61,7 +61,6 @@ type TaskEventType string
 
 const (
 	SubmitTask    TaskEventType = "SubmitTask"
-	RetryTask     TaskEventType = "RetryTask"
 	TaskAllocated TaskEventType = "TaskAllocated"
 	TaskRejected  TaskEventType = "TaskRejected"
 	TaskBound     TaskEventType = "TaskBound"
