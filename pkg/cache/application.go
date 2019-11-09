@@ -233,7 +233,7 @@ func (app *Application) Schedule() {
 		}
 	case states.Running:
 		if len(app.GetNewTasks()) > 0 {
-			for _, task := range app.getTasks(events.States().Task.New) {
+			for _, task := range app.GetNewTasks() {
 				// note, if we directly trigger submit task event, it may spawn too many duplicate
 				// events, because a task might be submitted multiple times before its state transits to PENDING.
 				if err := task.handle(
