@@ -69,7 +69,7 @@ func TestRunApplication(t *testing.T) {
 	app := NewApplication("app00001", "root.abc", "testuser", map[string]string{}, ms)
 
 	// app must be submitted before being able to run
-	err := app.handle(NewRunApplicationEvent(app.applicationId, nil))
+	err := app.handle(NewRunApplicationEvent(app.applicationId))
 	if err == nil {
 		// this should give an error
 		t.Error("expecting error got 'nil'")
@@ -84,7 +84,7 @@ func TestRunApplication(t *testing.T) {
 	assertAppState(t, app, events.States().Application.Submitted, 3*time.Second)
 
 	// app must be accepted first
-	err = app.handle(NewRunApplicationEvent(app.applicationId, nil))
+	err = app.handle(NewRunApplicationEvent(app.applicationId))
 	if err == nil {
 		// this should give an error
 		t.Error("expecting error got 'nil'")

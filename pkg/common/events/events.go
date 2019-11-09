@@ -60,6 +60,7 @@ type ApplicationEvent interface {
 type TaskEventType string
 
 const (
+	InitTask	  TaskEventType = "InitTask"
 	SubmitTask    TaskEventType = "SubmitTask"
 	TaskAllocated TaskEventType = "TaskAllocated"
 	TaskRejected  TaskEventType = "TaskRejected"
