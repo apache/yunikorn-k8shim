@@ -20,6 +20,8 @@ service:
   port: 9080
   port_web: 9889
 
+embedAdmissionController: true
+
 #
 # ------------------------------------------------------------------------
 # Please choose one configuration from following two for yunikorn

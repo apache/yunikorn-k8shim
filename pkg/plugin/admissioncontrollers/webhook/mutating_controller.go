@@ -31,6 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"net/http"
+	"strings"
 )
 
 var  (
@@ -68,6 +69,13 @@ func (c *admissionController) mutate(ar *v1beta1.AdmissionReview) *v1beta1.Admis
 				Result: &metav1.Status{
 					Message: err.Error(),
 				},
+			}
+		}
+
+		if strings.HasPrefix(pod.Name, "yunikorn-scheduler") {
+			log.Logger.Info("ignore yunikorn scheduler pod")
+			return  &v1beta1.AdmissionResponse{
+				Allowed: true,
 			}
 		}
 

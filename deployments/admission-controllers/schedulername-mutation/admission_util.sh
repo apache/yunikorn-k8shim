@@ -34,6 +34,27 @@ delete_resources() {
   return 0
 }
 
+precheck() {
+  # depedency check
+  command -v kubectl &> /dev/null
+  if [ $? -ne 0 ]; then
+    echo "dependency check failed: kubectl is not installed"
+    exit 1
+  fi
+
+  command -v openssl &> /dev/null
+  if [ $? -ne 0 ]; then
+    echo "dependency check failed: jq is not installed"
+    exit 1
+  fi
+
+  command -v jq &> /dev/null
+  if [ $? -ne 0 ]; then
+    echo "dependency check failed: jq is not installed"
+    exit 1
+  fi
+}
+
 create_resources() {
   KEY_DIR=$1
   # Generate keys into a temporary directory.
@@ -70,6 +91,7 @@ if [ $# -eq 1 ] && [ $1 == "delete" ]; then
   delete_resources
   exit $?
 elif [ $# -eq 1 ] && [ $1 == "create" ]; then
+  precheck
   KEY_DIR="$(mktemp -d)"
   create_resources ${KEY_DIR}
   rm -rf "$keydir"
