@@ -32,6 +32,15 @@ spec:
           volumeMounts:
             - name: config-volume
               mountPath: /etc/yunikorn/
+          {{ if .Values.embedAdmissionController }}
+          lifecycle:
+              postStart:
+                exec:
+                  command: ["/bin/sh", "/admission_util.sh", "create"]
+              preStop:
+                exec:
+                  command: ["/bin/sh", "/admission_util.sh", "delete"]
+          {{ end }}
         - name: yunikorn-scheduler-web
           image: "{{ .Values.web_image.repository }}:{{ .Values.web_image.tag }}"
           imagePullPolicy: {{ .Values.web_image.pullPolicy }}

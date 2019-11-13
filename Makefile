@@ -98,6 +98,8 @@ scheduler: init
 sched_image: scheduler
 	@echo "building scheduler docker image"
 	@cp ${RELEASE_BIN_DIR}/${BINARY} ./deployments/image/configmap
+	@mkdir -p ./deployments/image/configmap/admission-controller-init-scripts
+	@cp ./deployments/admission-controllers/schedulername-mutation/*  deployments/image/configmap/admission-controller-init-scripts/
 	@sed -i'.bkp' 's/clusterVersion=.*"/clusterVersion=${VERSION}"/' deployments/image/configmap/Dockerfile
 	@coreSHA=$$(go list -m "github.com/cloudera/yunikorn-core" | cut -d "-" -f4) ; \
 	siSHA=$$(go list -m "github.com/cloudera/yunikorn-scheduler-interface" | cut -d "-" -f5) ; \
@@ -108,8 +110,9 @@ sched_image: scheduler
 	--label "yunikorn-k8shim-revision=$${shimSHA}" \
 	--label "BuildTimeStamp=${DATE}" \
 	--label "Version=${VERSION}"
-	@mv -f deployments/image/configmap/Dockerfile.bkp deployments/image/configmap/Dockerfile
+	@mv -f ./deployments/image/configmap/Dockerfile.bkp ./deployments/image/configmap/Dockerfile
 	@rm -f ./deployments/image/configmap/${BINARY}
+	@rm -rf ./deployments/image/configmap/admission-controller-init-scripts/
 
 # Build admission controller binary in a production ready version
 .PHONY: admission
