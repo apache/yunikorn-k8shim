@@ -44,7 +44,7 @@ precheck() {
 
   command -v openssl &> /dev/null
   if [ $? -ne 0 ]; then
-    echo "dependency check failed: jq is not installed"
+    echo "dependency check failed: openssl is not installed"
     exit 1
   fi
 
