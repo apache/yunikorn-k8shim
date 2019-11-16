@@ -71,7 +71,8 @@ create_resources() {
           --namespace=${NAMESPACE}
 
   # Replace the certificate in the template with a valid CA parsed from kube-config
-  ca_pem_b64=$(kubectl config view --raw --flatten -o json | jq -r '.clusters[] | select(.name == "'$(kubectl config current-context)'") | .cluster."certificate-authority-data"')
+  #ca_pem_b64=$(kubectl config view --raw --flatten -o json | jq -r '.clusters[] | select(.name == "'$(kubectl config current-context)'") | .cluster."certificate-authority-data"')
+  ca_pem_b64=$(kubectl get secret -o jsonpath="{.items[?(@.type==\"kubernetes.io/service-account-token\")].data['ca\.crt']}" | cut -d " " -f 1)
   sed -e 's@${CA_PEM_B64}@'"$ca_pem_b64"'@g' <"${basedir}/server.yaml.template" > server.yaml
   kubectl create -f server.yaml
 
