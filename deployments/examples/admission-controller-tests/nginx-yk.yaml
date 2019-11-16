@@ -1,0 +1,29 @@
+# this yaml sets the schedulerName to be "yunikorn", it also has
+# required info such as queue, applicationId defined. Even
+# admission controller is running, we don't expect these info
+# to be overwritten by any means.
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  labels:
+    app: nginx
+  name: nginx
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: nginx
+        applicationId: "nginx_do_not_replace_my_id"
+        queue: root.default
+      name: nginx
+    spec:
+      schedulerName: yunikorn
+      containers:
+        - name: nginx
+          image: "nginx:1.11.1-alpine"
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1024M"
+
