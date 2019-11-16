@@ -1,7 +1,7 @@
-# this yaml sets the schedulerName to be "yunikorn", it also has
-# required info such as queue, applicationId defined. Even
-# admission controller is running, we don't expect these info
-# to be overwritten by any means.
+# This yaml sets the schedulerName to "yunikorn", it also has
+# the required info such as queue and applicationId defined. Even
+# if the admission controller is running, we don't expect this info
+# to be overwritten by the admission controller.
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
