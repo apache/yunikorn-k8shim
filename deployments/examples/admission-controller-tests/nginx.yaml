@@ -1,6 +1,6 @@
-# this yaml doesn't have any specify info for yunikorn
-# it depends on the admission-controller to mutate pod's spec
-# on the fly if it wants to be scheduled by yunikorn
+# This yaml doesn't have any specify info for yunikorn, it
+# depends on the admission-controller to mutate the pod's
+# spec on the fly if it wants to be scheduled by yunikorn.
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
