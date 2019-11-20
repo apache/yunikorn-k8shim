@@ -1,4 +1,4 @@
-FROM alpine:latest
+FROM golang:1.12.13-alpine3.10
 
 # admission controller bundles
 RUN apk add curl
@@ -16,5 +16,6 @@ RUN chmod +x /generate-signed-ca.sh
 
 # scheduler binary
 ADD k8s_yunikorn_scheduler /k8s_yunikorn_scheduler
+WORKDIR /
 ENTRYPOINT ["/k8s_yunikorn_scheduler"]
 CMD ["-logEncoding=console", "-logLevel=-1", "-clusterId=mycluster", "-clusterVersion=latest"]
