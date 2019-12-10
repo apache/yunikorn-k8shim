@@ -86,7 +86,8 @@ func (ctx *Context) waitForAppRecovery(lister v1.PodLister, maxTimeout time.Dura
 				log.Logger.Info("appInfo",
 					zap.String("appId", app.applicationId),
 					zap.String("state", app.GetApplicationState()))
-				if app.GetApplicationState() == string(events.States().Application.Accepted) {
+				if app.GetApplicationState() != events.States().Application.New &&
+					app.GetApplicationState() != events.States().Application.Recovering {
 					delete(toRecoverApps, app.applicationId)
 				}
 			}
