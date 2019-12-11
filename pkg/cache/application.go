@@ -101,7 +101,6 @@ func NewApplication(appId, queueName, user string, tags map[string]string, sched
 		fsm.Callbacks{
 			//"enter_state":               app.handleTaskStateChange,
 			string(events.SubmitApplication):   app.handleSubmitApplicationEvent,
-			string(events.AcceptApplication):   app.handleAcceptApplicationEvent,
 			string(events.RecoverApplication):  app.handleRecoverApplicationEvent,
 			string(events.RejectApplication):   app.handleRejectApplicationEvent,
 			string(events.CompleteApplication): app.handleCompleteApplicationEvent,
@@ -277,10 +276,6 @@ func (app *Application) handleSubmitApplicationEvent(event *fsm.Event) {
 		log.Logger.Warn("failed to submit app", zap.Error(err))
 		dispatcher.Dispatch(NewFailApplicationEvent(app.applicationId))
 	}
-}
-
-func (app *Application) handleAcceptApplicationEvent(event *fsm.Event) {
-	dispatcher.Dispatch(NewRunApplicationEvent(app.applicationId))
 }
 
 func (app *Application) handleRecoverApplicationEvent(event *fsm.Event) {

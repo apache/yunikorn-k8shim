@@ -269,15 +269,23 @@ func TestAppRecovery(t *testing.T) {
 	podLister.AddPod(&pod2)
 	podLister.AddPod(&pod3)
 
-	if err := context.waitForAppRecovery(podLister, 3*time.Second); err == nil {
-		t.Fatalf("expecting timeout here!")
-	} else {
-		t.Logf("context stays waiting for recovery, error: %v", err)
-	}
-
-	// simulate app is accepted by scheduler
-	dispatcher.Dispatch(NewSimpleApplicationEvent("app1", events.AcceptApplication))
-	dispatcher.Dispatch(NewSimpleApplicationEvent("app2", events.AcceptApplication))
+	// wait for apps to reach Recovering state, then dispatch AcceptApplication events
+	go func() {
+		if err := utils.WaitForCondition(func() bool {
+			apps := context.SelectApplications(nil)
+			if len(apps) == 2 &&
+				apps[0].GetApplicationState() == events.States().Application.Recovering &&
+				apps[1].GetApplicationState() == events.States().Application.Recovering {
+				// simulate app is accepted by scheduler
+				dispatcher.Dispatch(NewSimpleApplicationEvent("app1", events.AcceptApplication))
+				dispatcher.Dispatch(NewSimpleApplicationEvent("app2", events.AcceptApplication))
+				return true
+			}
+			return false
+		}, 100*time.Millisecond, 3*time.Second); err != nil {
+			t.Fatal("unexpected app states")
+		}
+	}()
 
 	// apps are accepted, recovery of apps are done
 	if err := context.waitForAppRecovery(podLister, 3*time.Second); err == nil {
