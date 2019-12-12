@@ -17,6 +17,7 @@ limitations under the License.
 package cache
 
 import (
+	"fmt"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/test"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/utils"
@@ -269,10 +270,11 @@ func TestAppRecovery(t *testing.T) {
 	podLister.AddPod(&pod2)
 	podLister.AddPod(&pod3)
 
-	// wait for apps to reach Recovering state, then dispatch AcceptApplication events
+	// wait for to-recover apps to reach Recovering state, then dispatch AcceptApplication events
 	go func() {
 		if err := utils.WaitForCondition(func() bool {
 			apps := context.SelectApplications(nil)
+			// only apps already scheduled before can be recovered at first
 			if len(apps) == 2 &&
 				apps[0].GetApplicationState() == events.States().Application.Recovering &&
 				apps[1].GetApplicationState() == events.States().Application.Recovering {
@@ -283,13 +285,31 @@ func TestAppRecovery(t *testing.T) {
 			}
 			return false
 		}, 100*time.Millisecond, 3*time.Second); err != nil {
-			t.Fatal("unexpected app states")
+			appStates := make(map[string]string)
+			apps := context.SelectApplications(nil)
+			for _, app := range apps {
+				appStates[app.GetApplicationId()] = app.GetApplicationState()
+			}
+			t.Fatalf("failed to wait for 2 apps with Recovering state in 3 seconds, actual app states: %s",
+				fmt.Sprintf("%v", appStates))
 		}
 	}()
 
 	// apps are accepted, recovery of apps are done
 	if err := context.waitForAppRecovery(podLister, 3*time.Second); err == nil {
 		t.Logf("recovery exits once all apps are recovered")
+	} else {
+		t.Fatalf("unexpected failure, error: %v", err)
+	}
+
+	// check app states
+	if app1, err := context.GetApplication("app1"); err == nil {
+		assert.Equal(t, app1.GetApplicationState(), events.States().Application.Accepted)
+	} else {
+		t.Fatalf("unexpected failure, error: %v", err)
+	}
+	if app2, err := context.GetApplication("app2"); err == nil {
+		assert.Equal(t, app2.GetApplicationState(), events.States().Application.Accepted)
 	} else {
 		t.Fatalf("unexpected failure, error: %v", err)
 	}
