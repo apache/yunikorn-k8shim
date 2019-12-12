@@ -2011,3 +2011,25 @@ func TestInterPodAffinity(t *testing.T) {
 		})
 	}
 }
+
+func TestConfiguredPredicates(t *testing.T) {
+	schedulerConf := conf.GetSchedulerConf()
+	predicates := []string{predicates.MatchNodeSelectorPred,
+		predicates.CheckVolumeBindingPred, predicates.PodFitsResourcesPred}
+	schedulerConf.Predicates = strings.Join(predicates, ",")
+	predicator := NewPredictor(&factory.PluginFactoryArgs{}, false)
+	assert.Equal(t, len(predicator.fitPredicateFunctions), len(predicates))
+	for _,pred := range predicates {
+		_, ok := predicator.fitPredicateFunctions[pred]
+		assert.Assert(t, ok, "configured predicate (%s) is not found", pred)
+	}
+}
+
+func TestInvalidConfiguredPredicates(t *testing.T) {
+	schedulerConf := conf.GetSchedulerConf()
+	predicates := []string{predicates.MatchNodeSelectorPred,
+		"xxx", predicates.CheckVolumeBindingPred}
+	schedulerConf.Predicates = strings.Join(predicates, ",")
+	_, err := parseConfiguredSchedulerPolicy()
+	assert.Error(t, err, "configured predicate is invalid: xxx")
+}

@@ -32,4 +32,5 @@ func TestDefaultValues(t *testing.T) {
 	assert.Equal(t, conf.DispatchTimeout, DefaultDispatchTimeout)
 	assert.Equal(t, conf.KubeQPS, DefaultKubeQPS)
 	assert.Equal(t, conf.KubeBurst, DefaultKubeBurst)
+	assert.Equal(t, conf.Predicates, "")
 }

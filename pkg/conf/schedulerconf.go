@@ -54,7 +54,8 @@ type SchedulerConf struct {
 	EventChannelCapacity int        `json:"eventChannelCapacity"`
 	DispatchTimeout   time.Duration `json:"dispatchTimeout"`
 	KubeQPS           int           `json:"kubeQPS"`
-	KubeBurst         int           `json:"KubeBurst"`
+	KubeBurst         int           `json:"kubeBurst"`
+	Predicates        string        `json:"predicates"`
 }
 
 func GetSchedulerConf() *SchedulerConf {
@@ -98,6 +99,8 @@ func init() {
 		"the maximum QPS to kubernetes master from this client")
 	kubeBurst := flag.Int("kubeBurst", DefaultKubeBurst,
 		"the maximum burst for throttle to kubernetes master from this client")
+	predicates := flag.String("predicates", "",
+		"comma-separated list of predicates")
 
 	// logging options
 	logLevel := flag.Int("logLevel", DefaultLoggingLevel,
@@ -124,5 +127,6 @@ func init() {
 		DispatchTimeout:   *dispatchTimeout,
 		KubeQPS:   *kubeQPS,
 		KubeBurst: *kubeBurst,
+		Predicates: *predicates,
 	}
 }
