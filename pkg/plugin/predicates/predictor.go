@@ -59,6 +59,10 @@ type Predictor struct {
 	lock                         sync.RWMutex
 }
 
+const InvalidPredicateMsg = "please refer to the definition of predicatesOrdering in " +
+	"https://github.com/kubernetes/kubernetes/blob/master/pkg/scheduler/algorithm/predicates/predicates.go " +
+	"for valid predicates."
+
 func NewPredictor(args *factory.PluginFactoryArgs, testMode bool) *Predictor {
 	if testMode {
 		// in test mode, disable all the predicates
@@ -315,7 +319,8 @@ func parseConfiguredSchedulerPolicy() (*schedulerapi.Policy, error) {
 				predicatePolicies[i] = schedulerapi.PredicatePolicy{Name: parsedPredicate}
 			} else {
 				// return error if there's invalid predicate
-				return nil, fmt.Errorf("configured predicate is invalid: %s", parsedPredicate)
+				return nil, fmt.Errorf("configured predicate '%s' is invalid, %s",
+					parsedPredicate, InvalidPredicateMsg)
 			}
 		}
 		log.Logger.Info("use configured predicates",

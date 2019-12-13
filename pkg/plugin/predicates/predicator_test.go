@@ -2021,7 +2021,7 @@ func TestConfiguredPredicates(t *testing.T) {
 	assert.Equal(t, len(predicator.fitPredicateFunctions), len(predicates))
 	for _,pred := range predicates {
 		_, ok := predicator.fitPredicateFunctions[pred]
-		assert.Assert(t, ok, "configured predicate (%s) is not found", pred)
+		assert.Assert(t, ok, "configured predicate '%s' is not found", pred)
 	}
 }
 
@@ -2031,5 +2031,5 @@ func TestInvalidConfiguredPredicates(t *testing.T) {
 		"xxx", predicates.CheckVolumeBindingPred}
 	schedulerConf.Predicates = strings.Join(predicates, ",")
 	_, err := parseConfiguredSchedulerPolicy()
-	assert.Error(t, err, "configured predicate is invalid: xxx")
+	assert.Error(t, err, "configured predicate 'xxx' is invalid, "+InvalidPredicateMsg)
 }
