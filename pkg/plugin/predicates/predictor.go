@@ -19,6 +19,7 @@ package predicates
 import (
 	"fmt"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
+	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
 	"github.com/cloudera/yunikorn-k8shim/pkg/log"
 	"go.uber.org/zap"
 	"k8s.io/api/core/v1"
@@ -27,6 +28,7 @@ import (
 	schedulerapi "k8s.io/kubernetes/pkg/scheduler/api"
 	"k8s.io/kubernetes/pkg/scheduler/factory"
 	deschedulernode "k8s.io/kubernetes/pkg/scheduler/nodeinfo"
+	"strings"
 	"sync"
 )
 
@@ -64,7 +66,14 @@ func NewPredictor(args *factory.PluginFactoryArgs, testMode bool) *Predictor {
 			Predicates: []schedulerapi.PredicatePolicy{},
 		})
 	}
-	return newPredictorInternal(args, DefaultSchedulerPolicy)
+	schedulerPolicy, err := parseConfiguredSchedulerPolicy()
+	if err != nil {
+		log.Logger.Fatal(err.Error())
+	}
+	if schedulerPolicy == nil {
+		schedulerPolicy = &DefaultSchedulerPolicy
+	}
+	return newPredictorInternal(args, *schedulerPolicy)
 }
 
 func newPredictorInternal(args *factory.PluginFactoryArgs, schedulerPolicy schedulerapi.Policy) *Predictor {
@@ -288,4 +297,31 @@ func (p *Predictor) Predicates(pod *v1.Pod, meta predicates.PredicateMetadata, n
 		}
 	}
 	return nil
+}
+
+// parse configured scheduler policy from scheduler conf, currently only depends on predicates.
+func parseConfiguredSchedulerPolicy() (*schedulerapi.Policy, error) {
+	configuredPredicates := conf.GetSchedulerConf().Predicates
+	if configuredPredicates != "" {
+		validPredicates := make(map[string]bool)
+		for _, validPredicate := range predicates.Ordering() {
+			validPredicates[validPredicate] = true
+		}
+		parsedPredicates := strings.Split(configuredPredicates, ",")
+		predicatePolicies := make([]schedulerapi.PredicatePolicy, len(parsedPredicates))
+		// validate parsed predicates and update predicate policies
+		for i, parsedPredicate := range parsedPredicates {
+			if _, ok := validPredicates[parsedPredicate]; ok {
+				predicatePolicies[i] = schedulerapi.PredicatePolicy{Name: parsedPredicate}
+			} else {
+				// return error if there's invalid predicate
+				return nil, fmt.Errorf("configured predicate '%s' is invalid, valid predicates are: %v",
+					parsedPredicate, predicates.Ordering())
+			}
+		}
+		log.Logger.Info("use configured predicates",
+			zap.Any("predicates", predicatePolicies))
+		return &schedulerapi.Policy{Predicates: predicatePolicies}, nil
+	}
+	return nil, nil
 }
