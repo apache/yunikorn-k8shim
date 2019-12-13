@@ -2014,22 +2014,24 @@ func TestInterPodAffinity(t *testing.T) {
 
 func TestConfiguredPredicates(t *testing.T) {
 	schedulerConf := conf.GetSchedulerConf()
-	predicates := []string{predicates.MatchNodeSelectorPred,
+	testPredicates := []string{predicates.MatchNodeSelectorPred,
 		predicates.CheckVolumeBindingPred, predicates.PodFitsResourcesPred}
-	schedulerConf.Predicates = strings.Join(predicates, ",")
-	predicator := NewPredictor(&factory.PluginFactoryArgs{}, false)
-	assert.Equal(t, len(predicator.fitPredicateFunctions), len(predicates))
-	for _,pred := range predicates {
-		_, ok := predicator.fitPredicateFunctions[pred]
+	schedulerConf.Predicates = strings.Join(testPredicates, ",")
+	predictor := NewPredictor(&factory.PluginFactoryArgs{}, false)
+	assert.Equal(t, len(predictor.fitPredicateFunctions), len(testPredicates))
+	for _,pred := range testPredicates {
+		_, ok := predictor.fitPredicateFunctions[pred]
 		assert.Assert(t, ok, "configured predicate '%s' is not found", pred)
 	}
 }
 
 func TestInvalidConfiguredPredicates(t *testing.T) {
 	schedulerConf := conf.GetSchedulerConf()
-	predicates := []string{predicates.MatchNodeSelectorPred,
+	testPredicates := []string{predicates.MatchNodeSelectorPred,
 		"xxx", predicates.CheckVolumeBindingPred}
-	schedulerConf.Predicates = strings.Join(predicates, ",")
+	schedulerConf.Predicates = strings.Join(testPredicates, ",")
 	_, err := parseConfiguredSchedulerPolicy()
-	assert.Error(t, err, "configured predicate 'xxx' is invalid, "+InvalidPredicateMsg)
+	t.Log(err)
+	assert.Error(t, err, fmt.Sprintf("configured predicate 'xxx' is invalid, valid predicates are: %v",
+		predicates.Ordering()))
 }
