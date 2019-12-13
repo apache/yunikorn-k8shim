@@ -18,6 +18,8 @@ package conf
 
 import (
 	"flag"
+	"fmt"
+	"k8s.io/kubernetes/pkg/scheduler/algorithm/predicates"
 	"time"
 )
 
@@ -99,10 +101,9 @@ func init() {
 		"the maximum QPS to kubernetes master from this client")
 	kubeBurst := flag.Int("kubeBurst", DefaultKubeBurst,
 		"the maximum burst for throttle to kubernetes master from this client")
-	predicates := flag.String("predicates", "", "comma-separated list of predicates, "+
-		"which will be validated as per the definition of predicatesOrdering in "+
-		"https://github.com/kubernetes/kubernetes/blob/master/pkg/scheduler/algorithm/predicates/predicates.go, "+
-		"the program will exit if any invalid predicates exist.")
+	predicates := flag.String("predicates", "",
+		fmt.Sprintf("comma-separated list of predicates, valid predicates are: %s, " +
+			"the program will exit if any invalid predicates exist.", predicates.Ordering()))
 
 	// logging options
 	logLevel := flag.Int("logLevel", DefaultLoggingLevel,
