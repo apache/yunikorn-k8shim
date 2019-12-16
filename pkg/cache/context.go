@@ -527,16 +527,23 @@ func (ctx *Context) IsPodFitNode(name string, node string) error {
 func (ctx *Context) AssumePod(name string, node string) error {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
-
 	if pod, ok := ctx.schedulerCache.GetPod(name); ok {
-		// when add assumed pod, we make a copy of the pod to avoid
-		// modifying its original reference. otherwise, it may have
-		// race when some other go-routines accessing it in parallel.
-		assumedPod := pod.DeepCopy()
-		// assign the node name for pod
-		assumedPod.Spec.NodeName = node
-		if targetNode := ctx.schedulerCache.GetNode(node); targetNode != nil {
-			return ctx.schedulerCache.AssumePod(assumedPod)
+		if ctx.volumeBinder != nil {
+			// assume pod volumes before assuming the pod
+			// this will update scheduler cache with essential PV/PVC binding info
+			if _, err := ctx.volumeBinder.Binder.AssumePodVolumes(pod, node); err != nil {
+				return fmt.Errorf("failed to assume pod volumes")
+			}
+
+			// when add assumed pod, we make a copy of the pod to avoid
+			// modifying its original reference. otherwise, it may have
+			// race when some other go-routines accessing it in parallel.
+			assumedPod := pod.DeepCopy()
+			// assign the node name for pod
+			assumedPod.Spec.NodeName = node
+			if targetNode := ctx.schedulerCache.GetNode(node); targetNode != nil {
+				return ctx.schedulerCache.AssumePod(assumedPod)
+			}
 		}
 	}
 	return nil

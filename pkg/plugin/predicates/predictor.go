@@ -38,11 +38,13 @@ import (
 // what are supported.
 var DefaultSchedulerPolicy = schedulerapi.Policy{
 	Predicates: []schedulerapi.PredicatePolicy{
-		{Name: predicates.MatchNodeSelectorPred},
-		{Name: predicates.PodFitsResourcesPred},
-		{Name: "PodFitsPorts"},
-		{Name: predicates.NoDiskConflictPred},
+		{Name: predicates.NoVolumeZoneConflictPred},
+		{Name: predicates.MaxCSIVolumeCountPred},
 		{Name: predicates.MatchInterPodAffinityPred},
+		{Name: predicates.NoDiskConflictPred},
+		{Name: predicates.GeneralPred},
+		{Name: predicates.PodToleratesNodeTaintsPred},
+		{Name: predicates.CheckNodeUnschedulablePred},
 		// If replacing the default scheduler you must have the volume predicate included:
 		// https://docs.okd.io/latest/admin_guide/scheduling/scheduler.html#static-predicates
 		{Name: predicates.CheckVolumeBindingPred},
@@ -201,6 +203,16 @@ func (p *Predictor) init() {
 			return predicates.NewVolumeBindingPredicate(args.VolumeBinder)
 		},
 	)
+
+	// GeneralPredicates are the predicates that are enforced by all Kubernetes components
+	// (e.g. kubelet and all schedulers)
+	p.RegisterFitPredicate(predicates.GeneralPred, predicates.GeneralPredicates)
+
+	// Fit is determined based on whether a pod can tolerate all of the node's taints
+	p.RegisterMandatoryFitPredicate(predicates.PodToleratesNodeTaintsPred, predicates.PodToleratesNodeTaints)
+
+	// Fit is determined based on whether a pod can tolerate unschedulable of node
+	p.RegisterMandatoryFitPredicate(predicates.CheckNodeUnschedulablePred, predicates.CheckNodeUnschedulablePredicate)
 }
 
 // From: k8s.io/kubernetes/pkg/scheduler/factory/plugins.go

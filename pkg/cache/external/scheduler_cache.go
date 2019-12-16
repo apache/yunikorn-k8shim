@@ -293,6 +293,21 @@ func (cache *SchedulerCache) ForgetPod(pod *v1.Pod) error {
 	return nil
 }
 
+func (cache *SchedulerCache) BindPodVolumes(pod *v1.Pod) error {
+	if cache.volumeBinder != nil {
+		if err := cache.volumeBinder.Binder.BindPodVolumes(pod); err != nil {
+			log.Logger.Error("failed to bind volumes to pod",
+				zap.String("pod", fmt.Sprintf("\"%v/%v\"", pod.Namespace, pod.Name)),
+				zap.Error(err))
+			if forgetErr := cache.ForgetPod(pod); forgetErr != nil {
+				log.Logger.Error("failed to forget pod", zap.Error(forgetErr))
+			}
+			return err
+		}
+	}
+	return nil
+}
+
 // Implement scheduler/algorithm/types.go#PodLister interface
 func (cache *SchedulerCache) List(selector labels.Selector) ([]*v1.Pod, error) {
 	alwaysTrue := func(p *v1.Pod) bool { return true }
