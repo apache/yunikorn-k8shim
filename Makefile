@@ -129,7 +129,7 @@ admission: init
 adm_image: admission
 	@echo "building admission controller docker images"
 	@cp ${ADMISSION_CONTROLLER_BIN_DIR}/${POD_ADMISSION_CONTROLLER_BINARY} ./deployments/image/admission
-	docker build ./deployments/image/admission -t ${REGISTRY}/scheduler-admission-controller:${VERSION}
+	docker build ./deployments/image/admission -t ${REGISTRY}/yunikorn-scheduler-admission-controller:${VERSION}
 	@rm -f ./deployments/image/admission/${POD_ADMISSION_CONTROLLER_BINARY}
 
 # Build all images based on the production ready version
