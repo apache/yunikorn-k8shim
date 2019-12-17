@@ -19,7 +19,6 @@ package cache
 import (
 	"fmt"
 	"github.com/cloudera/yunikorn-core/pkg/api"
-	"github.com/cloudera/yunikorn-k8shim/pkg/cache/external"
 	"github.com/cloudera/yunikorn-k8shim/pkg/client"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
@@ -28,6 +27,7 @@ import (
 	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
 	"go.uber.org/zap"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/kubernetes/pkg/scheduler/volumebinder"
 	"sync"
 
 	"github.com/looplab/fsm"
@@ -43,15 +43,15 @@ type Task struct {
 	pod            *v1.Pod
 	kubeClient     client.KubeClient
 	schedulerApi   api.SchedulerApi
-	schedulerCache *external.SchedulerCache
+	volumeBinder   *volumebinder.VolumeBinder
 	nodeName       string
 	sm             *fsm.FSM
 	lock           *sync.RWMutex
 }
 
-func newTask(tid string, app *Application, client client.KubeClient, schedulerApi api.SchedulerApi, cache *external.SchedulerCache, pod *v1.Pod) Task {
+func newTask(tid string, app *Application, client client.KubeClient, schedulerApi api.SchedulerApi, volumeBinder *volumebinder.VolumeBinder, pod *v1.Pod) Task {
 	taskResource := common.GetPodResource(pod)
-	return createTaskInternal(tid, app, taskResource, pod, client, schedulerApi, cache)
+	return createTaskInternal(tid, app, taskResource, pod, client, schedulerApi, volumeBinder)
 }
 
 // test only
@@ -67,7 +67,7 @@ func CreateTaskForTest(tid string, app *Application, resource *si.Resource,
 }
 
 func createTaskInternal(tid string, app *Application, resource *si.Resource,
-	pod *v1.Pod, client client.KubeClient, schedulerApi api.SchedulerApi, cache *external.SchedulerCache) Task {
+	pod *v1.Pod, client client.KubeClient, schedulerApi api.SchedulerApi, volumeBinder *volumebinder.VolumeBinder) Task {
 	task := Task{
 		taskId:        tid,
 		applicationId: app.GetApplicationId(),
@@ -76,7 +76,7 @@ func createTaskInternal(tid string, app *Application, resource *si.Resource,
 		resource:      resource,
 		kubeClient:    client,
 		schedulerApi:  schedulerApi,
-		schedulerCache: cache,
+		volumeBinder:  volumeBinder,
 		lock:          &sync.RWMutex{},
 	}
 
@@ -151,8 +151,9 @@ func (task *Task) canHandle(te events.TaskEvent) bool {
 	return task.sm.Can(string(te.GetEvent()))
 }
 
-func createTaskFromPod(app *Application, client client.KubeClient, scheduler api.SchedulerApi, pod *v1.Pod) *Task {
-	task := newTask(string(pod.UID), app, client, scheduler, nil, pod)
+func createTaskFromPod(app *Application, client client.KubeClient,
+	scheduler api.SchedulerApi, volumeBinder *volumebinder.VolumeBinder, pod *v1.Pod) *Task {
+	task := newTask(string(pod.UID), app, client, scheduler, volumeBinder, pod)
 	return &task
 }
 
@@ -245,8 +246,8 @@ func (task *Task) postTaskAllocated(event *fsm.Event) {
 		log.Logger.Debug("bind pod volumes",
 			zap.String("podName", task.pod.Name),
 			zap.String("podUID", string(task.pod.UID)))
-		if task.schedulerCache != nil {
-			if err := task.schedulerCache.BindPodVolumes(task.pod); err != nil {
+		if task.volumeBinder != nil {
+			if err := task.volumeBinder.Binder.BindPodVolumes(task.pod); err != nil {
 				errorMessage = fmt.Sprintf("bind pod volumes failed, name: %s, uid: %s, %#v",
 					task.pod.Name, task.pod.UID, err)
 				dispatcher.Dispatch(NewFailTaskEvent(task.applicationId, task.taskId, errorMessage))

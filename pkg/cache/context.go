@@ -40,28 +40,30 @@ import (
 
 // context maintains scheduling state, like apps and apps' tasks.
 type Context struct {
-	applications map[string]*Application
-	nodes        *schedulerNodes
-	conf         *conf.SchedulerConf
-	kubeClient   client.KubeClient
-	schedulerApi api.SchedulerApi
+	applications      map[string]*Application
+	nodes             *schedulerNodes
+	conf              *conf.SchedulerConf
+	kubeClient        client.KubeClient
+	schedulerApi      api.SchedulerApi
 
-	// informers
+	// resource informers
 	podInformer       coreInfomerV1.PodInformer
 	nodeInformer      coreInfomerV1.NodeInformer
 	configMapInformer coreInfomerV1.ConfigMapInformer
-	// nsInformer       coreInfomerV1.NamespaceInformer
-	pvInformer      coreInfomerV1.PersistentVolumeInformer
-	pvcInformer     coreInfomerV1.PersistentVolumeClaimInformer
-	storageInformer storageInformerV1.StorageClassInformer
+	pvInformer        coreInfomerV1.PersistentVolumeInformer
+	pvcInformer       coreInfomerV1.PersistentVolumeClaimInformer
+	storageInformer   storageInformerV1.StorageClassInformer
 
-	volumeBinder *volumebinder.VolumeBinder
+	// volume binder handles PV/PVC related operations
+	volumeBinder      *volumebinder.VolumeBinder
+	schedulerCache    *schedulercache.SchedulerCache
 
-	schedulerCache *schedulercache.SchedulerCache
-	predictor      *plugin.Predictor
+	// plugged predictor handles predicates related checks
+	predictor         *plugin.Predictor
 
-	testMode bool
-	lock     *sync.RWMutex
+	// test mode disables some functionality for UT
+	testMode          bool
+	lock              *sync.RWMutex
 }
 
 // Create a new context for the scheduler.
@@ -327,13 +329,13 @@ func (ctx *Context) removePodFromCache(obj interface{}) {
 
 // create a task if it doesn't exist yet,
 // return the task directly if it is already there in the application
-func (ctx *Context) getOrAddTask(a *Application, pod *v1.Pod) *Task {
+func (ctx *Context) getOrAddTask(app *Application, pod *v1.Pod) *Task {
 	// using pod UID as taskId
-	if task, err := a.GetTask(string(pod.UID)); err == nil {
+	if task, err := app.GetTask(string(pod.UID)); err == nil {
 		return task
 	}
-	newTask := createTaskFromPod(a, ctx.kubeClient, ctx.schedulerApi, pod)
-	a.AddTask(newTask)
+	newTask := createTaskFromPod(app, ctx.kubeClient, ctx.schedulerApi, ctx.volumeBinder, pod)
+	app.AddTask(newTask)
 	return newTask
 }
 
