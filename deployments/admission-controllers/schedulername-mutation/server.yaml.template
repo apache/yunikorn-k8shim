@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: yunikorn-admission-controller-webhook
-          image: yunikorn/scheduler-admission-controller:latest
+          image: yunikorn/yunikorn-scheduler-admission-controller:latest
           imagePullPolicy: IfNotPresent
           ports:
           - containerPort: 8443
