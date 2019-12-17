@@ -217,7 +217,7 @@ func TestAppRecovery(t *testing.T) {
 	}
 
 	// app2 -> pod2
-	// assigned on node2
+	// pending for scheduling
 	pod2 := v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
@@ -226,34 +226,9 @@ func TestAppRecovery(t *testing.T) {
 		ObjectMeta: apis.ObjectMeta{
 			Name:      "pod2",
 			Namespace: "default",
-			UID:       "UID-POD-00002",
-			Labels: map[string]string{
-				"applicationId": "app2",
-				"queue":         "root.a",
-			},
-		},
-		Spec: v1.PodSpec{
-			NodeName:      "node2",
-			SchedulerName: fakeClusterSchedulerName,
-		},
-		Status: v1.PodStatus{
-			Phase: v1.PodRunning,
-		},
-	}
-
-	// app3 -> pod3
-	// pending for scheduling
-	pod3 := v1.Pod{
-		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-		ObjectMeta: apis.ObjectMeta{
-			Name:      "pod3",
-			Namespace: "default",
 			UID:       "UID-POD-00003",
 			Labels: map[string]string{
-				"applicationId": "app3",
+				"applicationId": "app2",
 				"queue":         "root.a",
 			},
 		},
@@ -268,19 +243,15 @@ func TestAppRecovery(t *testing.T) {
 	podLister := test.NewPodListerMock()
 	podLister.AddPod(&pod1)
 	podLister.AddPod(&pod2)
-	podLister.AddPod(&pod3)
 
-	// wait for to-recover apps to reach Recovering state, then dispatch AcceptApplication events
+	// wait for app1 to reach Recovering state, then dispatch AcceptApplication events
 	go func() {
 		if err := utils.WaitForCondition(func() bool {
-			apps := context.SelectApplications(nil)
-			// only apps already scheduled before can be recovered at first
-			if len(apps) == 2 &&
-				apps[0].GetApplicationState() == events.States().Application.Recovering &&
-				apps[1].GetApplicationState() == events.States().Application.Recovering {
-				// simulate app is accepted by scheduler
-				dispatcher.Dispatch(NewSimpleApplicationEvent("app1", events.AcceptApplication))
-				dispatcher.Dispatch(NewSimpleApplicationEvent("app2", events.AcceptApplication))
+			app1, _ := context.GetApplication("app1")
+			// only app1 which is already scheduled before can be recovered
+			if app1 != nil && app1.GetApplicationState() == events.States().Application.Recovering {
+				// simulate that app1 is accepted by scheduler
+				dispatcher.Dispatch(NewSimpleApplicationEvent(app1.applicationId, events.AcceptApplication))
 				return true
 			}
 			return false
@@ -290,27 +261,25 @@ func TestAppRecovery(t *testing.T) {
 			for _, app := range apps {
 				appStates[app.GetApplicationId()] = app.GetApplicationState()
 			}
-			t.Fatalf("failed to wait for 2 apps with Recovering state in 3 seconds, actual app states: %s",
+			t.Fatalf("failed to wait for app1 with Recovering state in 3 seconds, actual app states: %s",
 				fmt.Sprintf("%v", appStates))
 		}
 	}()
 
-	// apps are accepted, recovery of apps are done
+	// recovery should be done when app1 is accepted
 	if err := context.waitForAppRecovery(podLister, 3*time.Second); err == nil {
 		t.Logf("recovery exits once all apps are recovered")
 	} else {
 		t.Fatalf("unexpected failure, error: %v", err)
 	}
 
-	// check app states
+	// check app1: it should be accepted now
 	if app1, err := context.GetApplication("app1"); err == nil {
 		assert.Equal(t, app1.GetApplicationState(), events.States().Application.Accepted)
 	} else {
 		t.Fatalf("unexpected failure, error: %v", err)
 	}
-	if app2, err := context.GetApplication("app2"); err == nil {
-		assert.Equal(t, app2.GetApplicationState(), events.States().Application.Accepted)
-	} else {
-		t.Fatalf("unexpected failure, error: %v", err)
-	}
+	// check app2: it should be ignored in recovery process and will not be found in context
+	_, err := context.GetApplication("app2")
+	assert.Error(t, err, "application app2 is not found in context")
 }
