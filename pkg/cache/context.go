@@ -539,16 +539,16 @@ func (ctx *Context) AssumePod(name string, node string) error {
 			if _, err := ctx.volumeBinder.Binder.AssumePodVolumes(pod, node); err != nil {
 				return err
 			}
+		}
 
-			// when add assumed pod, we make a copy of the pod to avoid
-			// modifying its original reference. otherwise, it may have
-			// race when some other go-routines accessing it in parallel.
-			assumedPod := pod.DeepCopy()
-			// assign the node name for pod
-			assumedPod.Spec.NodeName = node
-			if targetNode := ctx.schedulerCache.GetNode(node); targetNode != nil {
-				return ctx.schedulerCache.AssumePod(assumedPod)
-			}
+		// when add assumed pod, we make a copy of the pod to avoid
+		// modifying its original reference. otherwise, it may have
+		// race when some other go-routines accessing it in parallel.
+		assumedPod := pod.DeepCopy()
+		// assign the node name for pod
+		assumedPod.Spec.NodeName = node
+		if targetNode := ctx.schedulerCache.GetNode(node); targetNode != nil {
+			return ctx.schedulerCache.AssumePod(assumedPod)
 		}
 	}
 	return nil
