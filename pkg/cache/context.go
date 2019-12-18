@@ -102,13 +102,16 @@ func NewContextInternal(scheduler api.SchedulerApi, configs *conf.SchedulerConf,
 	ctx.pvInformer = informerFactory.Core().V1().PersistentVolumes()
 	ctx.pvcInformer = informerFactory.Core().V1().PersistentVolumeClaims()
 
-	// create a volume binder (needs the informers)
-	ctx.volumeBinder = volumebinder.NewVolumeBinder(
-		ctx.kubeClient.GetClientSet(),
-		ctx.nodeInformer, ctx.pvcInformer,
-		ctx.pvInformer,
-		ctx.storageInformer,
-		ctx.conf.VolumeBindTimeout)
+	// for test mode, we skip volume binding operations for now
+	if !testMode {
+		// create a volume binder (needs the informers)
+		ctx.volumeBinder = volumebinder.NewVolumeBinder(
+			ctx.kubeClient.GetClientSet(),
+			ctx.nodeInformer, ctx.pvcInformer,
+			ctx.pvInformer,
+			ctx.storageInformer,
+			ctx.conf.VolumeBindTimeout)
+	}
 
 	// create the cache
 	ctx.schedulerCache = schedulercache.NewSchedulerCache(
@@ -334,7 +337,7 @@ func (ctx *Context) getOrAddTask(app *Application, pod *v1.Pod) *Task {
 	if task, err := app.GetTask(string(pod.UID)); err == nil {
 		return task
 	}
-	newTask := createTaskFromPod(app, ctx.kubeClient, ctx.schedulerApi, ctx.volumeBinder, pod)
+	newTask := createTaskFromPod(app, ctx, pod)
 	app.AddTask(newTask)
 	return newTask
 }
@@ -534,7 +537,7 @@ func (ctx *Context) AssumePod(name string, node string) error {
 			// assume pod volumes before assuming the pod
 			// this will update scheduler cache with essential PV/PVC binding info
 			if _, err := ctx.volumeBinder.Binder.AssumePodVolumes(pod, node); err != nil {
-				return fmt.Errorf("failed to assume pod volumes")
+				return err
 			}
 
 			// when add assumed pod, we make a copy of the pod to avoid

@@ -125,7 +125,7 @@ func (fc *MockScheduler) addNode(nodeName string, memory, cpu int64) error {
 }
 
 func (fc *MockScheduler) addTask(tid string, ask *si.Resource, app *cache.Application) cache.Task{
-	task := cache.CreateTaskForTest(tid, app, ask, fc.client, fc.proxy)
+	task := cache.CreateTaskForTest(tid, app, ask, fc.context)
 	app.AddTask(&task)
 	return task
 }

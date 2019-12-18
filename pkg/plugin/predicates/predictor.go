@@ -181,20 +181,11 @@ func (p *Predictor) init() {
 	// (e.g. kubelet and all schedulers)
 	p.RegisterFitPredicate(predicates.GeneralPred, predicates.GeneralPredicates)
 
-	// Fit is determined by node memory pressure condition.
-	p.RegisterFitPredicate(predicates.CheckNodeMemoryPressurePred, predicates.CheckNodeMemoryPressurePredicate)
-
-	// Fit is determined by node disk pressure condition.
-	p.RegisterFitPredicate(predicates.CheckNodeDiskPressurePred, predicates.CheckNodeDiskPressurePredicate)
-
-	// Fit is determined by node pid pressure condition.
-	p.RegisterFitPredicate(predicates.CheckNodePIDPressurePred, predicates.CheckNodePIDPressurePredicate)
-
-	// Fit is determined by node conditions: not ready, network unavailable or out of disk.
-	p.RegisterMandatoryFitPredicate(predicates.CheckNodeConditionPred, predicates.CheckNodeConditionPredicate)
-
 	// Fit is determined based on whether a pod can tolerate all of the node's taints
-	p.RegisterFitPredicate(predicates.PodToleratesNodeTaintsPred, predicates.PodToleratesNodeTaints)
+	p.RegisterMandatoryFitPredicate(predicates.PodToleratesNodeTaintsPred, predicates.PodToleratesNodeTaints)
+
+	// Fit is determined based on whether a pod can tolerate unschedulable of node
+	p.RegisterMandatoryFitPredicate(predicates.CheckNodeUnschedulablePred, predicates.CheckNodeUnschedulablePredicate)
 
 	// Fit is determined by volume topology requirements.
 	p.RegisterFitPredicateFactory(
@@ -203,16 +194,6 @@ func (p *Predictor) init() {
 			return predicates.NewVolumeBindingPredicate(args.VolumeBinder)
 		},
 	)
-
-	// GeneralPredicates are the predicates that are enforced by all Kubernetes components
-	// (e.g. kubelet and all schedulers)
-	p.RegisterFitPredicate(predicates.GeneralPred, predicates.GeneralPredicates)
-
-	// Fit is determined based on whether a pod can tolerate all of the node's taints
-	p.RegisterMandatoryFitPredicate(predicates.PodToleratesNodeTaintsPred, predicates.PodToleratesNodeTaints)
-
-	// Fit is determined based on whether a pod can tolerate unschedulable of node
-	p.RegisterMandatoryFitPredicate(predicates.CheckNodeUnschedulablePred, predicates.CheckNodeUnschedulablePredicate)
 }
 
 // From: k8s.io/kubernetes/pkg/scheduler/factory/plugins.go

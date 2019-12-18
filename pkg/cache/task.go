@@ -18,8 +18,6 @@ package cache
 
 import (
 	"fmt"
-	"github.com/cloudera/yunikorn-core/pkg/api"
-	"github.com/cloudera/yunikorn-k8shim/pkg/client"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
 	"github.com/cloudera/yunikorn-k8shim/pkg/dispatcher"
@@ -27,7 +25,6 @@ import (
 	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
 	"go.uber.org/zap"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/kubernetes/pkg/scheduler/volumebinder"
 	"sync"
 
 	"github.com/looplab/fsm"
@@ -41,42 +38,37 @@ type Task struct {
 	allocationUuid string
 	resource       *si.Resource
 	pod            *v1.Pod
-	kubeClient     client.KubeClient
-	schedulerApi   api.SchedulerApi
-	volumeBinder   *volumebinder.VolumeBinder
+	context        *Context
 	nodeName       string
 	sm             *fsm.FSM
 	lock           *sync.RWMutex
 }
 
-func newTask(tid string, app *Application, client client.KubeClient, schedulerApi api.SchedulerApi, volumeBinder *volumebinder.VolumeBinder, pod *v1.Pod) Task {
+func newTask(tid string, app *Application, ctx *Context, pod *v1.Pod) Task {
 	taskResource := common.GetPodResource(pod)
-	return createTaskInternal(tid, app, taskResource, pod, client, schedulerApi, volumeBinder)
+	return createTaskInternal(tid, app, taskResource, pod, ctx)
 }
 
 // test only
-func CreateTaskForTest(tid string, app *Application, resource *si.Resource,
-	client client.KubeClient, schedulerApi api.SchedulerApi) Task {
+func CreateTaskForTest(tid string, app *Application, resource *si.Resource, ctx *Context) Task {
 	// for testing purpose, the pod name is same as the taskId
 	taskPod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: tid,
 		},
 	}
-	return createTaskInternal(tid, app, resource, taskPod, client, schedulerApi, nil)
+	return createTaskInternal(tid, app, resource, taskPod, ctx)
 }
 
 func createTaskInternal(tid string, app *Application, resource *si.Resource,
-	pod *v1.Pod, client client.KubeClient, schedulerApi api.SchedulerApi, volumeBinder *volumebinder.VolumeBinder) Task {
+	pod *v1.Pod, ctx *Context) Task {
 	task := Task{
 		taskId:        tid,
 		applicationId: app.GetApplicationId(),
 		application:   app,
 		pod:           pod,
 		resource:      resource,
-		kubeClient:    client,
-		schedulerApi:  schedulerApi,
-		volumeBinder:  volumeBinder,
+		context:       ctx,
 		lock:          &sync.RWMutex{},
 	}
 
@@ -151,9 +143,8 @@ func (task *Task) canHandle(te events.TaskEvent) bool {
 	return task.sm.Can(string(te.GetEvent()))
 }
 
-func createTaskFromPod(app *Application, client client.KubeClient,
-	scheduler api.SchedulerApi, volumeBinder *volumebinder.VolumeBinder, pod *v1.Pod) *Task {
-	task := newTask(string(pod.UID), app, client, scheduler, volumeBinder, pod)
+func createTaskFromPod(app *Application, ctx *Context, pod *v1.Pod) *Task {
+	task := newTask(string(pod.UID), app, ctx, pod)
 	return &task
 }
 
@@ -195,7 +186,7 @@ func (task *Task) handleSubmitTaskEvent(event *fsm.Event) {
 	// convert the request
 	rr := common.CreateUpdateRequestForTask(task.applicationId, task.taskId, task.resource)
 	log.Logger.Debug("send update request", zap.String("request", rr.String()))
-	if err := task.schedulerApi.Update(&rr); err != nil {
+	if err := task.context.schedulerApi.Update(&rr); err != nil {
 		log.Logger.Debug("failed to send scheduling request to scheduler", zap.Error(err))
 		return
 	}
@@ -246,8 +237,8 @@ func (task *Task) postTaskAllocated(event *fsm.Event) {
 		log.Logger.Debug("bind pod volumes",
 			zap.String("podName", task.pod.Name),
 			zap.String("podUID", string(task.pod.UID)))
-		if task.volumeBinder != nil {
-			if err := task.volumeBinder.Binder.BindPodVolumes(task.pod); err != nil {
+		if task.context.volumeBinder != nil {
+			if err := task.context.volumeBinder.Binder.BindPodVolumes(task.pod); err != nil {
 				errorMessage = fmt.Sprintf("bind pod volumes failed, name: %s, uid: %s, %#v",
 					task.pod.Name, task.pod.UID, err)
 				dispatcher.Dispatch(NewFailTaskEvent(task.applicationId, task.taskId, errorMessage))
@@ -261,7 +252,7 @@ func (task *Task) postTaskAllocated(event *fsm.Event) {
 			zap.String("podName", task.pod.Name),
 			zap.String("podUID", string(task.pod.UID)))
 
-		if err := task.kubeClient.Bind(task.pod, nodeId); err != nil {
+		if err := task.context.kubeClient.Bind(task.pod, nodeId); err != nil {
 			errorMessage = fmt.Sprintf("bind pod failed, name: %s, uid: %s, %#v",
 				task.pod.Name, task.pod.UID, err)
 			log.Logger.Error(errorMessage)
@@ -314,13 +305,13 @@ func (task *Task) releaseAllocation() {
 	// when task is completed, we notify the scheduler to release allocations
 	go func() {
 		// scheduler api might be nil in some tests
-		if task.schedulerApi != nil {
+		if task.context.schedulerApi != nil {
 			releaseRequest := common.CreateReleaseAllocationRequestForTask(
 				task.applicationId, task.allocationUuid, task.application.partition)
 
 			log.Logger.Debug("send release request",
 				zap.String("releaseRequest", releaseRequest.String()))
-			if err := task.schedulerApi.Update(&releaseRequest); err != nil {
+			if err := task.context.schedulerApi.Update(&releaseRequest); err != nil {
 				log.Logger.Debug("failed to send scheduling request to scheduler", zap.Error(err))
 			}
 		}
