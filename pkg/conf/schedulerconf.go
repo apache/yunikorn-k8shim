@@ -19,6 +19,8 @@ package conf
 import (
 	"flag"
 	"fmt"
+	"go.uber.org/zap/zapcore"
+	"k8s.io/klog"
 	"k8s.io/kubernetes/pkg/scheduler/algorithm/predicates"
 	"time"
 )
@@ -114,6 +116,14 @@ func init() {
 		"absolute log file path")
 
 	flag.Parse()
+
+	// if log level is debug, enable klog and set its log level verbosity to 4 (represents debug level),
+	// For details refer to the Logging Conventions of klog at
+	// https://github.com/kubernetes/community/blob/master/contributors/devel/sig-instrumentation/logging.md
+	if zapcore.Level(*logLevel).Enabled(zapcore.DebugLevel) {
+		klog.InitFlags(nil)
+		flag.Set("v", "4")
+	}
 
 	configuration = &SchedulerConf{
 		ClusterId:         *clusterId,
