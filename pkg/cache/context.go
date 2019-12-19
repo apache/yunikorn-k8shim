@@ -535,7 +535,7 @@ func (ctx *Context) BindPodVolumes(pod *v1.Pod) error {
 		// However, the assumePodVolumes was done in scheduler-core, because these assumed pods are cached
 		// during scheduling process as they have directly impact to other scheduling processes.
 		// The actual binding happens in the shim right before binding to a node.
-		allBound, err := ctx.volumeBinder.Binder.AssumePodVolumes(assumedPod, pod.Spec.NodeName)
+		allBound, err := ctx.volumeBinder.Binder.AssumePodVolumes(assumedPod, assumedPod.Spec.NodeName)
 		if err != nil {
 			log.Logger.Debug("AssumePodVolumes failed",
 				zap.String("podName", pod.Name),
