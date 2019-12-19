@@ -524,6 +524,38 @@ func (ctx *Context) IsPodFitNode(name string, node string) error {
 	return fmt.Errorf("predicates were not running because pod or node was not found in cache")
 }
 
+// call volume binder to bind pod volumes if necessary,
+// internally, volume binder maintains a cache (podBindingCache) for pod volumes,
+// and before calling this, they should have been updated by FindPodVolumes and AssumePodVolumes.
+func (ctx *Context) BindPodVolumes(pod *v1.Pod) error {
+	if assumedPod, exist := ctx.schedulerCache.GetPod(string(pod.UID)); exist {
+		// assumePodVolumes is called when we do assumePod, why we call it again here?
+		// ideally this should not happen, we can simply do assumePodVolumes, based on the return value,
+		// see if pod needs the binding operation.
+		// However, the assumePodVolumes was done in scheduler-core, because these assumed pods are cached
+		// during scheduling process as they have directly impact to other scheduling processes.
+		// The actual binding happens in the shim right before binding to a node.
+		allBound, err := ctx.volumeBinder.Binder.AssumePodVolumes(assumedPod, pod.Spec.NodeName)
+		if err != nil {
+			log.Logger.Debug("AssumePodVolumes failed",
+				zap.String("podName", pod.Name),
+				zap.Error(err))
+			return err
+		}
+
+		if allBound {
+			log.Logger.Info("BindPodVolumes Skipped",
+				zap.String("podName", pod.Name),
+				zap.String("reason", "Volumes are bound already"))
+			return nil
+		}
+
+		log.Logger.Info("BindPodVolumes", zap.String("podName", pod.Name))
+		return ctx.volumeBinder.Binder.BindPodVolumes(assumedPod)
+	}
+	return nil
+}
+
 // assume a pod will be running on a node, in scheduler, we maintain
 // a cache where stores info for each node what pods are supposed to
 // be running on it. And we keep this cache in-sync between core and the shim.
@@ -533,18 +565,19 @@ func (ctx *Context) AssumePod(name string, node string) error {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
 	if pod, ok := ctx.schedulerCache.GetPod(name); ok {
-		if ctx.volumeBinder != nil {
-			// assume pod volumes before assuming the pod
-			// this will update scheduler cache with essential PV/PVC binding info
-			if _, err := ctx.volumeBinder.Binder.AssumePodVolumes(pod, node); err != nil {
-				return err
-			}
-		}
-
 		// when add assumed pod, we make a copy of the pod to avoid
 		// modifying its original reference. otherwise, it may have
 		// race when some other go-routines accessing it in parallel.
 		assumedPod := pod.DeepCopy()
+		// assume pod volumes, this will update bindings info in cache
+		if ctx.volumeBinder != nil {
+			// assume pod volumes before assuming the pod
+			// this will update scheduler cache with essential PV/PVC binding info
+			if _, err := ctx.volumeBinder.Binder.AssumePodVolumes(assumedPod, node); err != nil {
+				return err
+			}
+		}
+
 		// assign the node name for pod
 		assumedPod.Spec.NodeName = node
 		if targetNode := ctx.schedulerCache.GetNode(node); targetNode != nil {
