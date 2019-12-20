@@ -238,7 +238,7 @@ func (task *Task) postTaskAllocated(event *fsm.Event) {
 			zap.String("podName", task.pod.Name),
 			zap.String("podUID", string(task.pod.UID)))
 		if task.context.volumeBinder != nil {
-			if err := task.context.BindPodVolumes(task.pod); err != nil {
+			if err := task.context.bindPodVolumes(task.pod); err != nil {
 				errorMessage = fmt.Sprintf("bind pod volumes failed, name: %s, uid: %s, %#v",
 					task.pod.Name, task.pod.UID, err)
 				dispatcher.Dispatch(NewFailTaskEvent(task.applicationId, task.taskId, errorMessage))

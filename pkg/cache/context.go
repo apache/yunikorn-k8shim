@@ -526,7 +526,7 @@ func (ctx *Context) IsPodFitNode(name string, node string) error {
 // call volume binder to bind pod volumes if necessary,
 // internally, volume binder maintains a cache (podBindingCache) for pod volumes,
 // and before calling this, they should have been updated by FindPodVolumes and AssumePodVolumes.
-func (ctx *Context) BindPodVolumes(pod *v1.Pod) error {
+func (ctx *Context) bindPodVolumes(pod *v1.Pod) error {
 	podKey := string(pod.UID)
 	// the assumePodVolumes was done in scheduler-core, because these assumed pods are cached
 	// during scheduling process as they have directly impact to other scheduling processes.
@@ -534,11 +534,10 @@ func (ctx *Context) BindPodVolumes(pod *v1.Pod) error {
 	// then here we just need to retrieve that value from cache, to skip bindings if volumes are already bound.
 	if assumedPod, exist := ctx.schedulerCache.GetPod(podKey); exist {
 		if ctx.schedulerCache.ArePodVolumesAllBound(podKey) {
-			log.Logger.Info("BindPodVolumes Skipped",
-				zap.String("podName", pod.Name),
-				zap.String("reason", "Volumes are bound already"))
+			log.Logger.Info("Binding Pod Volumes skipped: all volumes already bound",
+				zap.String("podName", pod.Name))
 		} else {
-			log.Logger.Info("BindPodVolumes", zap.String("podName", pod.Name))
+			log.Logger.Info("Binding Pod Volumes", zap.String("podName", pod.Name))
 			return ctx.volumeBinder.Binder.BindPodVolumes(assumedPod)
 		}
 	}
