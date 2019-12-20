@@ -39,7 +39,9 @@ type SchedulerCache struct {
 	// node name to NodeInfo map
 	nodesMap    map[string]*schedulernode.NodeInfo
 	podsMap     map[string]*v1.Pod
-	assumedPods map[string]*cachedPodState
+	// this is a map of assumed pods,
+	// the value indicates if a pod volumes are all bound
+	assumedPods map[string]bool
 	lock        sync.RWMutex
 
 	pvLister      corelistersV1.PersistentVolumeLister
@@ -63,7 +65,7 @@ func NewSchedulerCache(pvl corelistersV1.PersistentVolumeLister,
 		cache := &SchedulerCache{
 		nodesMap:      make(map[string]*schedulernode.NodeInfo),
 		podsMap:       make(map[string]*v1.Pod),
-		assumedPods:   make(map[string]*cachedPodState),
+		assumedPods:   make(map[string]bool),
 		pvLister:      pvl,
 		pvcLister:     pvcl,
 		storageLister: stl,
@@ -141,10 +143,14 @@ func (cache *SchedulerCache) removeNode(node *v1.Node) error {
 
 // return if pod is assumed in cache, avoid nil
 func (cache *SchedulerCache) isAssumedPod(podKey string) bool {
-	if currState, ok := cache.assumedPods[podKey]; ok {
-		return currState.assumed
-	}
-	return false
+	_, ok := cache.assumedPods[podKey]
+	return ok
+}
+
+func (cache *SchedulerCache) ArePodVolumesAllBound(podKey string) bool {
+	cache.lock.RLock()
+	defer cache.lock.RUnlock()
+	return cache.assumedPods[podKey]
 }
 
 // cache pod in the scheduler internal map, so it can be fast retrieved by UID,
@@ -274,10 +280,7 @@ func (cache *SchedulerCache) AssumePod(pod *v1.Pod, allBound bool) error {
 
 	cache.addPod(pod)
 	cache.podsMap[key] = pod
-	cache.assumedPods[key] = &cachedPodState{
-		assumed:         true,
-		allVolumesBound: allBound,
-	}
+	cache.assumedPods[key] = allBound
 
 	return nil
 }
