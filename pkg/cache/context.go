@@ -251,7 +251,6 @@ func (ctx *Context) addPod(obj interface{}) {
 		return
 	}
 
-
 	if pod.Status.Phase == v1.PodPending {
 		log.Logger.Debug("add pod",
 			zap.String("namespace", pod.Namespace),
@@ -568,20 +567,28 @@ func (ctx *Context) AssumePod(name string, node string) error {
 		// when add assumed pod, we make a copy of the pod to avoid
 		// modifying its original reference. otherwise, it may have
 		// race when some other go-routines accessing it in parallel.
-		assumedPod := pod.DeepCopy()
-		// assume pod volumes, this will update bindings info in cache
-		if ctx.volumeBinder != nil {
+		if targetNode := ctx.schedulerCache.GetNode(node); targetNode != nil {
+			assumedPod := pod.DeepCopy()
+			// assume pod volumes, this will update bindings info in cache
 			// assume pod volumes before assuming the pod
 			// this will update scheduler cache with essential PV/PVC binding info
-			if _, err := ctx.volumeBinder.Binder.AssumePodVolumes(assumedPod, node); err != nil {
+			assumePodVolumesIfNecessary := func(pod *v1.Pod, node string) (bool, error) {
+				// volume builder might be null in UTs
+				if ctx.volumeBinder != nil {
+					return ctx.volumeBinder.Binder.AssumePodVolumes(pod, node)
+				}
+				// if volume binder not exist (in UTs),
+				// we just assume pods volumes are all bound,
+				// so we simply ignore binding operations
+				return true, nil
+			}
+			allBound, err := assumePodVolumesIfNecessary(assumedPod, node)
+			if err != nil {
 				return err
 			}
-		}
-
-		// assign the node name for pod
-		assumedPod.Spec.NodeName = node
-		if targetNode := ctx.schedulerCache.GetNode(node); targetNode != nil {
-			return ctx.schedulerCache.AssumePod(assumedPod)
+			// assign the node name for pod
+			assumedPod.Spec.NodeName = node
+			return ctx.schedulerCache.AssumePod(assumedPod, allBound)
 		}
 	}
 	return nil
