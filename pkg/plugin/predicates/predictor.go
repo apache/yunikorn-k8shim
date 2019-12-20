@@ -38,11 +38,13 @@ import (
 // what are supported.
 var DefaultSchedulerPolicy = schedulerapi.Policy{
 	Predicates: []schedulerapi.PredicatePolicy{
-		{Name: predicates.MatchNodeSelectorPred},
-		{Name: predicates.PodFitsResourcesPred},
-		{Name: "PodFitsPorts"},
-		{Name: predicates.NoDiskConflictPred},
+		{Name: predicates.NoVolumeZoneConflictPred},
+		{Name: predicates.MaxCSIVolumeCountPred},
 		{Name: predicates.MatchInterPodAffinityPred},
+		{Name: predicates.NoDiskConflictPred},
+		{Name: predicates.GeneralPred},
+		{Name: predicates.PodToleratesNodeTaintsPred},
+		{Name: predicates.CheckNodeUnschedulablePred},
 		// If replacing the default scheduler you must have the volume predicate included:
 		// https://docs.okd.io/latest/admin_guide/scheduling/scheduler.html#static-predicates
 		{Name: predicates.CheckVolumeBindingPred},
@@ -179,20 +181,11 @@ func (p *Predictor) init() {
 	// (e.g. kubelet and all schedulers)
 	p.RegisterFitPredicate(predicates.GeneralPred, predicates.GeneralPredicates)
 
-	// Fit is determined by node memory pressure condition.
-	p.RegisterFitPredicate(predicates.CheckNodeMemoryPressurePred, predicates.CheckNodeMemoryPressurePredicate)
-
-	// Fit is determined by node disk pressure condition.
-	p.RegisterFitPredicate(predicates.CheckNodeDiskPressurePred, predicates.CheckNodeDiskPressurePredicate)
-
-	// Fit is determined by node pid pressure condition.
-	p.RegisterFitPredicate(predicates.CheckNodePIDPressurePred, predicates.CheckNodePIDPressurePredicate)
-
-	// Fit is determined by node conditions: not ready, network unavailable or out of disk.
-	p.RegisterMandatoryFitPredicate(predicates.CheckNodeConditionPred, predicates.CheckNodeConditionPredicate)
-
 	// Fit is determined based on whether a pod can tolerate all of the node's taints
-	p.RegisterFitPredicate(predicates.PodToleratesNodeTaintsPred, predicates.PodToleratesNodeTaints)
+	p.RegisterMandatoryFitPredicate(predicates.PodToleratesNodeTaintsPred, predicates.PodToleratesNodeTaints)
+
+	// Fit is determined based on whether a pod can tolerate unschedulable of node
+	p.RegisterMandatoryFitPredicate(predicates.CheckNodeUnschedulablePred, predicates.CheckNodeUnschedulablePredicate)
 
 	// Fit is determined by volume topology requirements.
 	p.RegisterFitPredicateFactory(

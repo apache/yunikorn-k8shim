@@ -40,28 +40,30 @@ import (
 
 // context maintains scheduling state, like apps and apps' tasks.
 type Context struct {
-	applications map[string]*Application
-	nodes        *schedulerNodes
-	conf         *conf.SchedulerConf
-	kubeClient   client.KubeClient
-	schedulerApi api.SchedulerApi
+	applications      map[string]*Application
+	nodes             *schedulerNodes
+	conf              *conf.SchedulerConf
+	kubeClient        client.KubeClient
+	schedulerApi      api.SchedulerApi
 
-	// informers
+	// resource informers
 	podInformer       coreInfomerV1.PodInformer
 	nodeInformer      coreInfomerV1.NodeInformer
 	configMapInformer coreInfomerV1.ConfigMapInformer
-	// nsInformer       coreInfomerV1.NamespaceInformer
-	pvInformer      coreInfomerV1.PersistentVolumeInformer
-	pvcInformer     coreInfomerV1.PersistentVolumeClaimInformer
-	storageInformer storageInformerV1.StorageClassInformer
+	pvInformer        coreInfomerV1.PersistentVolumeInformer
+	pvcInformer       coreInfomerV1.PersistentVolumeClaimInformer
+	storageInformer   storageInformerV1.StorageClassInformer
 
-	volumeBinder *volumebinder.VolumeBinder
+	// volume binder handles PV/PVC related operations
+	volumeBinder      *volumebinder.VolumeBinder
+	schedulerCache    *schedulercache.SchedulerCache
 
-	schedulerCache *schedulercache.SchedulerCache
-	predictor      *plugin.Predictor
+	// plugged predictor handles predicates related checks
+	predictor         *plugin.Predictor
 
-	testMode bool
-	lock     *sync.RWMutex
+	// test mode disables some functionality for UT
+	testMode          bool
+	lock              *sync.RWMutex
 }
 
 // Create a new context for the scheduler.
@@ -100,13 +102,16 @@ func NewContextInternal(scheduler api.SchedulerApi, configs *conf.SchedulerConf,
 	ctx.pvInformer = informerFactory.Core().V1().PersistentVolumes()
 	ctx.pvcInformer = informerFactory.Core().V1().PersistentVolumeClaims()
 
-	// create a volume binder (needs the informers)
-	ctx.volumeBinder = volumebinder.NewVolumeBinder(
-		ctx.kubeClient.GetClientSet(),
-		ctx.nodeInformer, ctx.pvcInformer,
-		ctx.pvInformer,
-		ctx.storageInformer,
-		ctx.conf.VolumeBindTimeout)
+	// for test mode, we skip volume binding operations for now
+	if !testMode {
+		// create a volume binder (needs the informers)
+		ctx.volumeBinder = volumebinder.NewVolumeBinder(
+			ctx.kubeClient.GetClientSet(),
+			ctx.nodeInformer, ctx.pvcInformer,
+			ctx.pvInformer,
+			ctx.storageInformer,
+			ctx.conf.VolumeBindTimeout)
+	}
 
 	// create the cache
 	ctx.schedulerCache = schedulercache.NewSchedulerCache(
@@ -246,7 +251,6 @@ func (ctx *Context) addPod(obj interface{}) {
 		return
 	}
 
-
 	if pod.Status.Phase == v1.PodPending {
 		log.Logger.Debug("add pod",
 			zap.String("namespace", pod.Namespace),
@@ -327,13 +331,13 @@ func (ctx *Context) removePodFromCache(obj interface{}) {
 
 // create a task if it doesn't exist yet,
 // return the task directly if it is already there in the application
-func (ctx *Context) getOrAddTask(a *Application, pod *v1.Pod) *Task {
+func (ctx *Context) getOrAddTask(app *Application, pod *v1.Pod) *Task {
 	// using pod UID as taskId
-	if task, err := a.GetTask(string(pod.UID)); err == nil {
+	if task, err := app.GetTask(string(pod.UID)); err == nil {
 		return task
 	}
-	newTask := createTaskFromPod(a, ctx.kubeClient, ctx.schedulerApi, pod)
-	a.AddTask(newTask)
+	newTask := createTaskFromPod(app, ctx, pod)
+	app.AddTask(newTask)
 	return newTask
 }
 
@@ -519,6 +523,27 @@ func (ctx *Context) IsPodFitNode(name string, node string) error {
 	return fmt.Errorf("predicates were not running because pod or node was not found in cache")
 }
 
+// call volume binder to bind pod volumes if necessary,
+// internally, volume binder maintains a cache (podBindingCache) for pod volumes,
+// and before calling this, they should have been updated by FindPodVolumes and AssumePodVolumes.
+func (ctx *Context) bindPodVolumes(pod *v1.Pod) error {
+	podKey := string(pod.UID)
+	// the assumePodVolumes was done in scheduler-core, because these assumed pods are cached
+	// during scheduling process as they have directly impact to other scheduling processes.
+	// when assumePodVolumes was called, we caches the value if all pod volumes are bound in schedulerCache,
+	// then here we just need to retrieve that value from cache, to skip bindings if volumes are already bound.
+	if assumedPod, exist := ctx.schedulerCache.GetPod(podKey); exist {
+		if ctx.schedulerCache.ArePodVolumesAllBound(podKey) {
+			log.Logger.Info("Binding Pod Volumes skipped: all volumes already bound",
+				zap.String("podName", pod.Name))
+		} else {
+			log.Logger.Info("Binding Pod Volumes", zap.String("podName", pod.Name))
+			return ctx.volumeBinder.Binder.BindPodVolumes(assumedPod)
+		}
+	}
+	return nil
+}
+
 // assume a pod will be running on a node, in scheduler, we maintain
 // a cache where stores info for each node what pods are supposed to
 // be running on it. And we keep this cache in-sync between core and the shim.
@@ -527,16 +552,27 @@ func (ctx *Context) IsPodFitNode(name string, node string) error {
 func (ctx *Context) AssumePod(name string, node string) error {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
-
 	if pod, ok := ctx.schedulerCache.GetPod(name); ok {
 		// when add assumed pod, we make a copy of the pod to avoid
 		// modifying its original reference. otherwise, it may have
 		// race when some other go-routines accessing it in parallel.
-		assumedPod := pod.DeepCopy()
-		// assign the node name for pod
-		assumedPod.Spec.NodeName = node
 		if targetNode := ctx.schedulerCache.GetNode(node); targetNode != nil {
-			return ctx.schedulerCache.AssumePod(assumedPod)
+			assumedPod := pod.DeepCopy()
+			// assume pod volumes, this will update bindings info in cache
+			// assume pod volumes before assuming the pod
+			// this will update scheduler cache with essential PV/PVC binding info
+			var allBound = true
+			// volume builder might be null in UTs
+			if ctx.volumeBinder != nil {
+				var err error
+				allBound, err = ctx.volumeBinder.Binder.AssumePodVolumes(pod, node)
+				if err != nil {
+					return err
+				}
+			}
+			// assign the node name for pod
+			assumedPod.Spec.NodeName = node
+			return ctx.schedulerCache.AssumePod(assumedPod, allBound)
 		}
 	}
 	return nil

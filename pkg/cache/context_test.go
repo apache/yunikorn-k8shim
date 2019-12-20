@@ -58,8 +58,8 @@ func TestAddApplications(t *testing.T) {
 	assert.Equal(t, context.applications["app00001"].GetApplicationState(), events.States().Application.New)
 	assert.Equal(t, len(context.applications["app00001"].GetPendingTasks()), 0)
 
-	task01 := CreateTaskForTest("task00001", app01, nil, nil, nil)
-	task02 := CreateTaskForTest("task00002", app01, nil, nil, nil)
+	task01 := CreateTaskForTest("task00001", app01, nil, nil)
+	task02 := CreateTaskForTest("task00002", app01, nil, nil)
 	app01.AddTask(&task01)
 	app01.AddTask(&task02)
 	assert.Equal(t, len(context.applications["app00001"].GetNewTasks()), 2)

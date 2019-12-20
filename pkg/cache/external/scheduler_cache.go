@@ -39,6 +39,8 @@ type SchedulerCache struct {
 	// node name to NodeInfo map
 	nodesMap    map[string]*schedulernode.NodeInfo
 	podsMap     map[string]*v1.Pod
+	// this is a map of assumed pods,
+	// the value indicates if a pod volumes are all bound
 	assumedPods map[string]bool
 	lock        sync.RWMutex
 
@@ -46,6 +48,13 @@ type SchedulerCache struct {
 	pvcLister     corelistersV1.PersistentVolumeClaimLister
 	storageLister storagelisterV1.StorageClassLister
 	volumeBinder  *volumebinder.VolumeBinder
+}
+
+// cachedPodState is used to store pod states
+// these states are only used within the schedulerCache
+type cachedPodState struct {
+	assumed bool
+	allVolumesBound bool
 }
 
 func NewSchedulerCache(pvl corelistersV1.PersistentVolumeLister,
@@ -132,6 +141,18 @@ func (cache *SchedulerCache) removeNode(node *v1.Node) error {
 	return nil
 }
 
+// return if pod is assumed in cache, avoid nil
+func (cache *SchedulerCache) isAssumedPod(podKey string) bool {
+	_, ok := cache.assumedPods[podKey]
+	return ok
+}
+
+func (cache *SchedulerCache) ArePodVolumesAllBound(podKey string) bool {
+	cache.lock.RLock()
+	defer cache.lock.RUnlock()
+	return cache.assumedPods[podKey]
+}
+
 // cache pod in the scheduler internal map, so it can be fast retrieved by UID,
 // if pod is assigned to a node, update the cached nodes map too so that scheduler
 // knows which pod is running before pod is bound to that node.
@@ -146,7 +167,7 @@ func (cache *SchedulerCache) AddPod(pod *v1.Pod) error {
 
 	currState, ok := cache.podsMap[key]
 	switch {
-	case ok && cache.assumedPods[key]:
+	case ok && cache.isAssumedPod(key):
 		if currState.Spec.NodeName != pod.Spec.NodeName {
 			// The pod was added to a different node than it was assumed to.
 			log.Logger.Warn("inconsistent pod location",
@@ -183,7 +204,7 @@ func (cache *SchedulerCache) UpdatePod(oldPod, newPod *v1.Pod) error {
 	switch {
 	// An assumed pod won't have Update/Remove event. It needs to have Add event
 	// before Update event, in which case the state would change from Assumed to Added.
-	case ok && !cache.assumedPods[key]:
+	case ok && !cache.isAssumedPod(key):
 		if currState.Spec.NodeName != newPod.Spec.NodeName {
 			log.Logger.Error("pod updated on a different node than previously added to", zap.String("pod", key))
 			log.Logger.Error("scheduler cache is corrupted and can badly affect scheduling decisions")
@@ -245,7 +266,7 @@ func (cache *SchedulerCache) GetPod(uid string) (*v1.Pod, bool) {
 	}
 }
 
-func (cache *SchedulerCache) AssumePod(pod *v1.Pod) error {
+func (cache *SchedulerCache) AssumePod(pod *v1.Pod, allBound bool) error {
 	key, err := schedulernode.GetPodKey(pod)
 	if err != nil {
 		return err
@@ -259,7 +280,8 @@ func (cache *SchedulerCache) AssumePod(pod *v1.Pod) error {
 
 	cache.addPod(pod)
 	cache.podsMap[key] = pod
-	cache.assumedPods[key] = true
+	cache.assumedPods[key] = allBound
+
 	return nil
 }
 
@@ -280,7 +302,7 @@ func (cache *SchedulerCache) ForgetPod(pod *v1.Pod) error {
 
 	switch {
 	// Only assumed pod can be forgotten.
-	case ok && cache.assumedPods[key]:
+	case ok && cache.isAssumedPod(key):
 		err := cache.removePod(pod)
 		if err != nil {
 			return err
