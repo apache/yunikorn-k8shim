@@ -17,10 +17,11 @@ limitations under the License.
 package test
 
 import (
-	"github.com/cloudera/yunikorn-core/pkg/api"
-	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
 	"sync"
 	"sync/atomic"
+
+	"github.com/cloudera/yunikorn-core/pkg/api"
+	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
 )
 
 type SchedulerApiMock struct {

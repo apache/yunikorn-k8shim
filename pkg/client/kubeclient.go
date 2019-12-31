@@ -17,14 +17,15 @@ limitations under the License.
 package client
 
 import (
-	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
-	"github.com/cloudera/yunikorn-k8shim/pkg/log"
 	"go.uber.org/zap"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+
+	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
+	"github.com/cloudera/yunikorn-k8shim/pkg/log"
 )
 
 type SchedulerKubeClient struct {
@@ -85,7 +86,6 @@ func (nc SchedulerKubeClient) Bind(pod *v1.Pod, hostId string) error {
 		return err
 	}
 	return nil
-
 }
 
 func (nc SchedulerKubeClient) Delete(pod *v1.Pod) error {

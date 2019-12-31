@@ -18,16 +18,18 @@ package cache
 
 import (
 	"fmt"
-	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
-	"github.com/cloudera/yunikorn-k8shim/pkg/common/utils"
-	"github.com/cloudera/yunikorn-k8shim/pkg/dispatcher"
-	"github.com/cloudera/yunikorn-k8shim/pkg/log"
+	"time"
+
 	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/client-go/listers/core/v1"
-	"time"
+	v1 "k8s.io/client-go/listers/core/v1"
+
+	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
+	"github.com/cloudera/yunikorn-k8shim/pkg/common/utils"
+	"github.com/cloudera/yunikorn-k8shim/pkg/dispatcher"
+	"github.com/cloudera/yunikorn-k8shim/pkg/log"
 )
 
 func (ctx *Context) WaitForRecovery(maxTimeout time.Duration) error {

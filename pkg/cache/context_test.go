@@ -17,15 +17,17 @@ limitations under the License.
 package cache
 
 import (
+	"testing"
+	"time"
+
+	"gotest.tools/assert"
+	v1 "k8s.io/api/core/v1"
+	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/test"
 	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
 	"github.com/cloudera/yunikorn-k8shim/pkg/dispatcher"
-	"gotest.tools/assert"
-	"k8s.io/api/core/v1"
-	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"testing"
-	"time"
 )
 
 const fakeClusterId = "test-cluster"

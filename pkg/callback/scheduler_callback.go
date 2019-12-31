@@ -18,12 +18,14 @@ package callback
 
 import (
 	"fmt"
+
+	"go.uber.org/zap"
+
 	"github.com/cloudera/yunikorn-k8shim/pkg/cache"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
 	"github.com/cloudera/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/cloudera/yunikorn-k8shim/pkg/log"
 	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
-	"go.uber.org/zap"
 )
 
 // RM callback is called from the scheduler core, we need to ensure the response is handled

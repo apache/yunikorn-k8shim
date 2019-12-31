@@ -17,13 +17,15 @@ limitations under the License.
 package events
 
 import (
-	"github.com/cloudera/yunikorn-k8shim/pkg/client"
-	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
+	"sync"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes/scheme"
-	"k8s.io/client-go/kubernetes/typed/core/v1"
+	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/record"
-	"sync"
+
+	"github.com/cloudera/yunikorn-k8shim/pkg/client"
+	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
 )
 
 var eventRecorder record.EventRecorder = record.NewFakeRecorder(1024)

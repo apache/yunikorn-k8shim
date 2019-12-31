@@ -17,12 +17,14 @@ package utils
 
 import (
 	"fmt"
-	"github.com/cloudera/yunikorn-k8shim/pkg/common"
-	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
-	"k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	"strings"
 	"time"
+
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
+
+	"github.com/cloudera/yunikorn-k8shim/pkg/common"
+	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
 )
 
 func Convert2Pod(obj interface{}) (*v1.Pod, error) {
@@ -82,7 +84,6 @@ func NewK8sResourceList(resources ...K8sResource) map[v1.ResourceName]resource.Q
 	resourceList := make(map[v1.ResourceName]resource.Quantity)
 	for _, r := range resources {
 		resourceList[r.ResourceName] = *resource.NewQuantity(r.Value, resource.DecimalSI)
-
 	}
 	return resourceList
 }

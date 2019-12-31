@@ -18,6 +18,13 @@ package cache
 
 import (
 	"fmt"
+	"sync"
+
+	"github.com/looplab/fsm"
+	"go.uber.org/zap"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/cloudera/yunikorn-core/pkg/api"
 	"github.com/cloudera/yunikorn-k8shim/pkg/client"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common"
@@ -26,11 +33,6 @@ import (
 	"github.com/cloudera/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/cloudera/yunikorn-k8shim/pkg/log"
 	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
-	"github.com/looplab/fsm"
-	"go.uber.org/zap"
-	"k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sync"
 )
 
 type Application struct {

@@ -18,9 +18,10 @@ package external
 
 import (
 	"fmt"
-	"github.com/cloudera/yunikorn-k8shim/pkg/log"
+	"sync"
+
 	"go.uber.org/zap"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	storageV1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	corelistersV1 "k8s.io/client-go/listers/core/v1"
@@ -29,7 +30,8 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/factory"
 	schedulernode "k8s.io/kubernetes/pkg/scheduler/nodeinfo"
 	"k8s.io/kubernetes/pkg/scheduler/volumebinder"
-	"sync"
+
+	"github.com/cloudera/yunikorn-k8shim/pkg/log"
 )
 
 // scheduler cache maintains some critical information about nodes and pods used for scheduling
@@ -61,7 +63,6 @@ func NewSchedulerCache(pvl corelistersV1.PersistentVolumeLister,
 	pvcl corelistersV1.PersistentVolumeClaimLister,
 	stl storagelisterV1.StorageClassLister,
 	binder *volumebinder.VolumeBinder) *SchedulerCache {
-
 	cache := &SchedulerCache{
 		nodesMap:      make(map[string]*schedulernode.NodeInfo),
 		podsMap:       make(map[string]*v1.Pod),

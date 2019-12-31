@@ -17,6 +17,11 @@ limitations under the License.
 package cache
 
 import (
+	"sync"
+
+	"github.com/looplab/fsm"
+	"go.uber.org/zap"
+
 	"github.com/cloudera/yunikorn-core/pkg/api"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
@@ -24,9 +29,6 @@ import (
 	"github.com/cloudera/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/cloudera/yunikorn-k8shim/pkg/log"
 	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
-	"github.com/looplab/fsm"
-	"go.uber.org/zap"
-	"sync"
 )
 
 // stores info about what scheduler cares about a node

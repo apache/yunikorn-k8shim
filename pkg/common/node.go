@@ -17,8 +17,9 @@ limitations under the License.
 package common
 
 import (
+	v1 "k8s.io/api/core/v1"
+
 	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
-	"k8s.io/api/core/v1"
 )
 
 // stores info about what scheduler cares about a node

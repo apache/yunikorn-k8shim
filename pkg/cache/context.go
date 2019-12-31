@@ -18,6 +18,16 @@ package cache
 
 import (
 	"fmt"
+	"sync"
+
+	"go.uber.org/zap"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/informers"
+	coreInfomerV1 "k8s.io/client-go/informers/core/v1"
+	storageInformerV1 "k8s.io/client-go/informers/storage/v1"
+	"k8s.io/client-go/tools/cache"
+	"k8s.io/kubernetes/pkg/scheduler/volumebinder"
+
 	"github.com/cloudera/yunikorn-core/pkg/api"
 	schedulercache "github.com/cloudera/yunikorn-k8shim/pkg/cache/external"
 	"github.com/cloudera/yunikorn-k8shim/pkg/client"
@@ -28,14 +38,6 @@ import (
 	"github.com/cloudera/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/cloudera/yunikorn-k8shim/pkg/log"
 	plugin "github.com/cloudera/yunikorn-k8shim/pkg/plugin/predicates"
-	"go.uber.org/zap"
-	"k8s.io/api/core/v1"
-	"k8s.io/client-go/informers"
-	coreInfomerV1 "k8s.io/client-go/informers/core/v1"
-	storageInformerV1 "k8s.io/client-go/informers/storage/v1"
-	"k8s.io/client-go/tools/cache"
-	"k8s.io/kubernetes/pkg/scheduler/volumebinder"
-	"sync"
 )
 
 // context maintains scheduling state, like apps and apps' tasks.

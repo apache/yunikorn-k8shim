@@ -18,13 +18,15 @@ package dispatcher
 
 import (
 	"fmt"
-	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
-	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
-	"github.com/cloudera/yunikorn-k8shim/pkg/log"
-	"go.uber.org/zap"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"go.uber.org/zap"
+
+	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
+	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
+	"github.com/cloudera/yunikorn-k8shim/pkg/log"
 )
 
 var dispatcher *Dispatcher

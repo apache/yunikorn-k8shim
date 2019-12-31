@@ -17,14 +17,16 @@ limitations under the License.
 package dispatcher
 
 import (
-	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
-	"gotest.tools/assert"
 	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"gotest.tools/assert"
+
+	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
 )
 
 // app event for testing

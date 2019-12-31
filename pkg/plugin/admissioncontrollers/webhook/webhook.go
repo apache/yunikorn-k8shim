@@ -20,13 +20,15 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"github.com/cloudera/yunikorn-k8shim/pkg/log"
-	"go.uber.org/zap"
 	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"syscall"
+
+	"go.uber.org/zap"
+
+	"github.com/cloudera/yunikorn-k8shim/pkg/log"
 )
 
 const (

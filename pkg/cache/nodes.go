@@ -18,6 +18,11 @@ package cache
 
 import (
 	"fmt"
+	"sync"
+
+	"go.uber.org/zap"
+	v1 "k8s.io/api/core/v1"
+
 	"github.com/cloudera/yunikorn-core/pkg/api"
 	"github.com/cloudera/yunikorn-k8shim/pkg/cache/external"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common"
@@ -26,9 +31,6 @@ import (
 	"github.com/cloudera/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/cloudera/yunikorn-k8shim/pkg/log"
 	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
-	"go.uber.org/zap"
-	"k8s.io/api/core/v1"
-	"sync"
 )
 
 // scheduler nodes maintain cluster nodes and their status for the scheduler

@@ -17,9 +17,11 @@ package cache
 
 import (
 	"fmt"
-	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
-	"gotest.tools/assert"
 	"testing"
+
+	"gotest.tools/assert"
+
+	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
 )
 
 func TestAllocateTaskEventArgs(t *testing.T) {

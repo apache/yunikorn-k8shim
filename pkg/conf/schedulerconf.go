@@ -19,10 +19,11 @@ package conf
 import (
 	"flag"
 	"fmt"
+	"time"
+
 	"go.uber.org/zap/zapcore"
 	"k8s.io/klog"
 	"k8s.io/kubernetes/pkg/scheduler/algorithm/predicates"
-	"time"
 )
 
 // default configuration values, these can be override by CLI options

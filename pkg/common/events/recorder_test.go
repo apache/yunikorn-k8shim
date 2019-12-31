@@ -17,10 +17,12 @@ limitations under the License.
 package events
 
 import (
-	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
-	"gotest.tools/assert"
 	"reflect"
 	"testing"
+
+	"gotest.tools/assert"
+
+	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
 )
 
 func TestInit(t *testing.T) {

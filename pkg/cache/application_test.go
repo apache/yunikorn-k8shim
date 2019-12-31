@@ -17,16 +17,18 @@ limitations under the License.
 package cache
 
 import (
+	"testing"
+	"time"
+
+	"gotest.tools/assert"
+	v1 "k8s.io/api/core/v1"
+	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/cloudera/yunikorn-core/pkg/api"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/utils"
 	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
-	"gotest.tools/assert"
-	"k8s.io/api/core/v1"
-	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"testing"
-	"time"
 )
 
 func TestNewApplication(t *testing.T) {

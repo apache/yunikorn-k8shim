@@ -16,8 +16,9 @@ limitations under the License.
 package conf
 
 import (
-	"gotest.tools/assert"
 	"testing"
+
+	"gotest.tools/assert"
 )
 
 func TestDefaultValues(t *testing.T) {

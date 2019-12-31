@@ -18,9 +18,12 @@ package predicates
 
 import (
 	"fmt"
-	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
+	"strconv"
+	"strings"
+	"testing"
+
 	"gotest.tools/assert"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1helper "k8s.io/kubernetes/pkg/apis/core/v1/helper"
@@ -28,9 +31,8 @@ import (
 	schedulerapi "k8s.io/kubernetes/pkg/scheduler/api"
 	"k8s.io/kubernetes/pkg/scheduler/factory"
 	deschedulernode "k8s.io/kubernetes/pkg/scheduler/nodeinfo"
-	"strconv"
-	"strings"
-	"testing"
+
+	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
 )
 
 var (

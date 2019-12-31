@@ -17,11 +17,12 @@ limitations under the License.
 package common
 
 import (
+	"testing"
+
 	"gotest.tools/assert"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"testing"
 )
 
 func TestCreateNodeFromSpec(t *testing.T) {

@@ -19,19 +19,21 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/cloudera/yunikorn-k8shim/pkg/common"
-	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
-	"github.com/cloudera/yunikorn-k8shim/pkg/log"
-	"github.com/satori/go.uuid"
-	"go.uber.org/zap"
 	"io/ioutil"
+	"net/http"
+	"strings"
+
+	uuid "github.com/satori/go.uuid"
+	"go.uber.org/zap"
 	"k8s.io/api/admission/v1beta1"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
-	"net/http"
-	"strings"
+
+	"github.com/cloudera/yunikorn-k8shim/pkg/common"
+	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
+	"github.com/cloudera/yunikorn-k8shim/pkg/log"
 )
 
 var (

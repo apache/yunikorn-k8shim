@@ -17,14 +17,16 @@ limitations under the License.
 package main
 
 import (
+	"os"
+	"os/signal"
+	"syscall"
+
+	"go.uber.org/zap"
+
 	"github.com/cloudera/yunikorn-core/pkg/api"
 	"github.com/cloudera/yunikorn-core/pkg/entrypoint"
 	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
 	"github.com/cloudera/yunikorn-k8shim/pkg/log"
-	"go.uber.org/zap"
-	"os"
-	"os/signal"
-	"syscall"
 )
 
 var (

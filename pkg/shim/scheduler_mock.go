@@ -18,6 +18,13 @@ package main
 
 import (
 	"fmt"
+	"testing"
+	"time"
+
+	"go.uber.org/zap"
+	"gotest.tools/assert"
+	v1 "k8s.io/api/core/v1"
+
 	"github.com/cloudera/yunikorn-core/pkg/api"
 	coreconfigs "github.com/cloudera/yunikorn-core/pkg/common/configs"
 	"github.com/cloudera/yunikorn-core/pkg/entrypoint"
@@ -30,11 +37,6 @@ import (
 	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
 	"github.com/cloudera/yunikorn-k8shim/pkg/log"
 	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
-	"go.uber.org/zap"
-	"gotest.tools/assert"
-	"k8s.io/api/core/v1"
-	"testing"
-	"time"
 )
 
 const fakeClusterId = "test-cluster"

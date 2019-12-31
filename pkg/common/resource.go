@@ -17,11 +17,12 @@ limitations under the License.
 package common
 
 import (
-	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
-	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/kubernetes/pkg/apis/core/v1/helper/qos"
+
+	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
+	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
 )
 
 // resource builder is a helper struct to construct si resources

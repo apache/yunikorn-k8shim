@@ -18,7 +18,8 @@ package test
 
 import (
 	"fmt"
-	"k8s.io/api/core/v1"
+
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	clientv1 "k8s.io/client-go/listers/core/v1"
 )

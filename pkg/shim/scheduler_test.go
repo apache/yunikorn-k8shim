@@ -18,6 +18,12 @@ package main
 
 import (
 	"fmt"
+	"testing"
+	"time"
+
+	"go.uber.org/zap"
+	v1 "k8s.io/api/core/v1"
+
 	"github.com/cloudera/yunikorn-core/pkg/api"
 	"github.com/cloudera/yunikorn-k8shim/pkg/cache"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common"
@@ -25,10 +31,6 @@ import (
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/test"
 	"github.com/cloudera/yunikorn-k8shim/pkg/log"
 	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
-	"go.uber.org/zap"
-	"k8s.io/api/core/v1"
-	"testing"
-	"time"
 )
 
 func TestApplicationScheduling(t *testing.T) {

@@ -19,16 +19,17 @@ package log
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
+	"strings"
+
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-	"strings"
+
+	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
 )
 
 var Logger *zap.Logger
 
 func init() {
-
 	configs := conf.GetSchedulerConf()
 
 	var outputPaths []string

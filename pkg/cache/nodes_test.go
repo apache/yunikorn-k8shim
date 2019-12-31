@@ -17,6 +17,14 @@ limitations under the License.
 package cache
 
 import (
+	"testing"
+	"time"
+
+	"gotest.tools/assert"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
+	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/cloudera/yunikorn-k8shim/pkg/cache/external"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
@@ -24,12 +32,6 @@ import (
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/utils"
 	"github.com/cloudera/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
-	"gotest.tools/assert"
-	"k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
-	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"testing"
-	"time"
 )
 
 func TestAddNode(t *testing.T) {
@@ -395,5 +397,4 @@ func TestCordonNode(t *testing.T) {
 	}, 1*time.Second, 5*time.Second); err != nil {
 		t.Fatalf("%v", err)
 	}
-
 }
