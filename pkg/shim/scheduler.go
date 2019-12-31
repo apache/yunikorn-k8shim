@@ -17,7 +17,6 @@ limitations under the License.
 package main
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
@@ -41,7 +40,6 @@ type KubernetesShim struct {
 	context      *cache.Context
 	callback     api.ResourceManagerCallback
 	stateMachine *fsm.FSM
-	dispatcher   *dispatcher.Dispatcher
 	stopChan     chan struct{}
 	lock         *sync.RWMutex
 }
@@ -231,20 +229,6 @@ func (ss *KubernetesShim) schedule() {
 	for _, app := range apps {
 		app.Schedule()
 	}
-}
-
-func (ss *KubernetesShim) blockUntilRunning(timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
-	for ss.GetSchedulerState() != events.States().Scheduler.Running {
-		log.Logger.Info("waiting for scheduler state",
-			zap.String("expect", events.States().Scheduler.Running),
-			zap.String("current", ss.GetSchedulerState()))
-		if time.Now().After(deadline) {
-			return fmt.Errorf("timeout waiting for scheduler gets to expect state after %s", timeout.String())
-		}
-		time.Sleep(1 * time.Second)
-	}
-	return nil
 }
 
 func (ss *KubernetesShim) run() {

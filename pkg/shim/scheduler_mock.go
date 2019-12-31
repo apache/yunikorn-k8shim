@@ -111,10 +111,6 @@ func (fc *MockScheduler) start() {
 	fc.scheduler.run()
 }
 
-func (fc *MockScheduler) assertSchedulerState(t *testing.T, expectedState string) {
-	assert.Equal(t, fc.scheduler.GetSchedulerState(), expectedState)
-}
-
 func (fc *MockScheduler) addNode(nodeName string, memory, cpu int64) error {
 	nodeResource := common.NewResourceBuilder().
 		AddResource(common.Memory, memory).

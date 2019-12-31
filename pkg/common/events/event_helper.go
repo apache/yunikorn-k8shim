@@ -21,7 +21,7 @@ import (
 )
 
 func GetEventArgsAsStrings(result []string, generic []interface{}) error {
-	if generic != nil && len(generic) > 0 {
+	if len(generic) > 0 {
 		if result == nil || cap(result) != len(generic) {
 			return fmt.Errorf("invalid length of arguments")
 		}

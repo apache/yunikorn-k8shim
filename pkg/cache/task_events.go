@@ -58,7 +58,6 @@ type SubmitTaskEvent struct {
 	applicationId string
 	taskId        string
 	event         events.TaskEventType
-	message       string
 }
 
 func NewSubmitTaskEvent(appId string, taskId string) SubmitTaskEvent {

@@ -37,9 +37,6 @@ import (
 
 var (
 	extendedResourceA     = v1.ResourceName("example.com/aaa")
-	extendedResourceB     = v1.ResourceName("example.com/bbb")
-	kubernetesIOResourceA = v1.ResourceName("kubernetes.io/something")
-	kubernetesIOResourceB = v1.ResourceName("subdomain.kubernetes.io/something")
 	hugePageResourceA     = v1helper.HugePageResourceName(resource.MustParse("2Mi"))
 )
 

@@ -65,7 +65,7 @@ func (ctx *Context) waitForAppRecovery(lister v1.PodLister, maxTimeout time.Dura
 
 	// scan all pods and discover apps, for apps already scheduled before,
 	// trigger app recovering
-	toRecoverApps := make(map[string]*Application, 0)
+	toRecoverApps := make(map[string]*Application)
 	for _, pod := range allPods {
 		// pod from a existing app must have been assigned to a node,
 		// this means the app was scheduled and needs to be recovered

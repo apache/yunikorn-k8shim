@@ -52,13 +52,6 @@ type SchedulerCache struct {
 	volumeBinder  *volumebinder.VolumeBinder
 }
 
-// cachedPodState is used to store pod states
-// these states are only used within the schedulerCache
-type cachedPodState struct {
-	assumed         bool
-	allVolumesBound bool
-}
-
 func NewSchedulerCache(pvl corelistersV1.PersistentVolumeLister,
 	pvcl corelistersV1.PersistentVolumeClaimLister,
 	stl storagelisterV1.StorageClassLister,

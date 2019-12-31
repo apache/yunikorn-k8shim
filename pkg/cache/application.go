@@ -355,20 +355,14 @@ func (app *Application) startSparkCompletionHandler(client client.KubeClient, po
 				return
 			}
 
-			for {
-				select {
-				case targetPod, ok := <-podWatch.ResultChan():
-					if !ok {
-						return
-					}
-					resp := targetPod.Object.(*v1.Pod)
-					if resp.Status.Phase == v1.PodSucceeded && resp.UID == pod.UID {
-						log.Logger.Info("spark driver completed, app completed",
-							zap.String("pod", resp.Name),
-							zap.String("appId", app.applicationId))
-						dispatcher.Dispatch(NewSimpleApplicationEvent(app.applicationId, events.CompleteApplication))
-						return
-					}
+			for targetPod := range podWatch.ResultChan() {
+				resp := targetPod.Object.(*v1.Pod)
+				if resp.Status.Phase == v1.PodSucceeded && resp.UID == pod.UID {
+					log.Logger.Info("spark driver completed, app completed",
+						zap.String("pod", resp.Name),
+						zap.String("appId", app.applicationId))
+					dispatcher.Dispatch(NewSimpleApplicationEvent(app.applicationId, events.CompleteApplication))
+					return
 				}
 			}
 		},
