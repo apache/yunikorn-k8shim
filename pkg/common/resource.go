@@ -29,7 +29,7 @@ type ResourceBuilder struct {
 	resourceMap map[string]*si.Quantity
 }
 
-func NewResourceBuilder() *ResourceBuilder{
+func NewResourceBuilder() *ResourceBuilder {
 	return &ResourceBuilder{
 		resourceMap: make(map[string]*si.Quantity),
 	}
@@ -40,7 +40,7 @@ func (w *ResourceBuilder) AddResource(name string, value int64) *ResourceBuilder
 	return w
 }
 
-func (w *ResourceBuilder) Build() *si.Resource{
+func (w *ResourceBuilder) Build() *si.Resource {
 	return &si.Resource{Resources: w.resourceMap}
 }
 
@@ -93,18 +93,18 @@ func getResource(resourceList v1.ResourceList) *si.Resource {
 
 func CreateUpdateRequestForTask(appId, taskId string, resource *si.Resource) si.UpdateRequest {
 	ask := si.AllocationAsk{
-		AllocationKey: taskId,
-		ResourceAsk:   resource,
-		ApplicationId: appId,
+		AllocationKey:  taskId,
+		ResourceAsk:    resource,
+		ApplicationId:  appId,
 		MaxAllocations: 1,
 	}
 
 	result := si.UpdateRequest{
-		Asks:                 []*si.AllocationAsk {&ask},
-		NewSchedulableNodes:  nil,
-		UpdatedNodes:         nil,
-		UtilizationReports:   nil,
-		RmId: conf.GetSchedulerConf().ClusterId,
+		Asks:                []*si.AllocationAsk{&ask},
+		NewSchedulableNodes: nil,
+		UpdatedNodes:        nil,
+		UtilizationReports:  nil,
+		RmId:                conf.GetSchedulerConf().ClusterId,
 	}
 
 	return result
@@ -120,12 +120,12 @@ func CreateReleaseAllocationRequestForTask(appId, allocUuid, partition string) s
 	})
 
 	releaseRequest := si.AllocationReleasesRequest{
-		AllocationsToRelease:    toReleases,
+		AllocationsToRelease: toReleases,
 	}
 
 	result := si.UpdateRequest{
 		Releases: &releaseRequest,
-		RmId: conf.GetSchedulerConf().ClusterId,
+		RmId:     conf.GetSchedulerConf().ClusterId,
 	}
 
 	return result
@@ -234,4 +234,3 @@ func Add(left *si.Resource, right *si.Resource) *si.Resource {
 	}
 	return result
 }
-

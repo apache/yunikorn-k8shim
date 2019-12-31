@@ -129,7 +129,7 @@ func newPod(host string, hostPortInfos ...string) *v1.Pod {
 func TestPodFitsHostPorts(t *testing.T) {
 	predictor := newPredictorInternal(&factory.PluginFactoryArgs{}, schedulerapi.Policy{
 		Predicates: []schedulerapi.PredicatePolicy{
-			{Name: predicates.PodFitsHostPortsPred },
+			{Name: predicates.PodFitsHostPortsPred},
 		}})
 	tests := []struct {
 		pod      *v1.Pod
@@ -243,7 +243,7 @@ func TestPodFitsHostPorts(t *testing.T) {
 func TestPodFitsSelector(t *testing.T) {
 	predictor := newPredictorInternal(&factory.PluginFactoryArgs{}, schedulerapi.Policy{
 		Predicates: []schedulerapi.PredicatePolicy{
-			{Name: predicates.MatchNodeSelectorPred },
+			{Name: predicates.MatchNodeSelectorPred},
 		}})
 	tests := []struct {
 		pod      *v1.Pod
@@ -1038,9 +1038,9 @@ func TestRunGeneralPredicates(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{Name: "machine1"},
 				Status:     v1.NodeStatus{Capacity: makeResources(10, 20, 32, 0, 0, 0).Capacity, Allocatable: makeAllocatableResources(10, 20, 32, 0, 0, 0)},
 			},
-			fits:    false,
-			wErr:    nil,
-			name:    "host not match",
+			fits: false,
+			wErr: nil,
+			name: "host not match",
 		},
 		{
 			pod:      newPodWithPort(123),
@@ -1049,9 +1049,9 @@ func TestRunGeneralPredicates(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{Name: "machine1"},
 				Status:     v1.NodeStatus{Capacity: makeResources(10, 20, 32, 0, 0, 0).Capacity, Allocatable: makeAllocatableResources(10, 20, 32, 0, 0, 0)},
 			},
-			fits:    false,
-			wErr:    nil,
-			name:    "host port conflict",
+			fits: false,
+			wErr: nil,
+			name: "host port conflict",
 		},
 	}
 	for _, test := range resourceTests {
@@ -1079,11 +1079,11 @@ func TestInterPodAffinity(t *testing.T) {
 	podLabel2 := map[string]string{"security": "S1"}
 	node1 := v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "machine1", Labels: labels1}}
 	tests := []struct {
-		pod                  *v1.Pod
-		pods                 []*v1.Pod
-		node                 *v1.Node
-		fits                 bool
-		name                 string
+		pod  *v1.Pod
+		pods []*v1.Pod
+		node *v1.Node
+		fits bool
+		name string
 	}{
 		{
 			pod:  new(v1.Pod),
@@ -1179,10 +1179,10 @@ func TestInterPodAffinity(t *testing.T) {
 					},
 				},
 			},
-			pods:                 []*v1.Pod{{Spec: v1.PodSpec{NodeName: "machine1"}, ObjectMeta: metav1.ObjectMeta{Labels: podLabel, Namespace: "ns"}}},
-			node:                 &node1,
-			fits:                 false,
-			name:                 "Does not satisfy the PodAffinity with labelSelector because of diff Namespace",
+			pods: []*v1.Pod{{Spec: v1.PodSpec{NodeName: "machine1"}, ObjectMeta: metav1.ObjectMeta{Labels: podLabel, Namespace: "ns"}}},
+			node: &node1,
+			fits: false,
+			name: "Does not satisfy the PodAffinity with labelSelector because of diff Namespace",
 		},
 		{
 			pod: &v1.Pod{
@@ -1209,10 +1209,10 @@ func TestInterPodAffinity(t *testing.T) {
 					},
 				},
 			},
-			pods:                 []*v1.Pod{{Spec: v1.PodSpec{NodeName: "machine1"}, ObjectMeta: metav1.ObjectMeta{Labels: podLabel}}},
-			node:                 &node1,
-			fits:                 false,
-			name:                 "Doesn't satisfy the PodAffinity because of unmatching labelSelector with the existing pod",
+			pods: []*v1.Pod{{Spec: v1.PodSpec{NodeName: "machine1"}, ObjectMeta: metav1.ObjectMeta{Labels: podLabel}}},
+			node: &node1,
+			fits: false,
+			name: "Doesn't satisfy the PodAffinity because of unmatching labelSelector with the existing pod",
 		},
 		{
 			pod: &v1.Pod{
@@ -1305,10 +1305,10 @@ func TestInterPodAffinity(t *testing.T) {
 					},
 				},
 			},
-			pods:                 []*v1.Pod{{Spec: v1.PodSpec{NodeName: "machine1"}, ObjectMeta: metav1.ObjectMeta{Labels: podLabel}}},
-			node:                 &node1,
-			fits:                 false,
-			name:                 "The labelSelector requirements(items of matchExpressions) are ANDed, the pod cannot schedule onto the node because one of the matchExpression item don't match.",
+			pods: []*v1.Pod{{Spec: v1.PodSpec{NodeName: "machine1"}, ObjectMeta: metav1.ObjectMeta{Labels: podLabel}}},
+			node: &node1,
+			fits: false,
+			name: "The labelSelector requirements(items of matchExpressions) are ANDed, the pod cannot schedule onto the node because one of the matchExpression item don't match.",
 		},
 		{
 			pod: &v1.Pod{
@@ -1471,10 +1471,10 @@ func TestInterPodAffinity(t *testing.T) {
 					},
 				},
 			},
-			pods:                 []*v1.Pod{{Spec: v1.PodSpec{NodeName: "machine1"}, ObjectMeta: metav1.ObjectMeta{Labels: podLabel}}},
-			node:                 &node1,
-			fits:                 false,
-			name:                 "satisfies the PodAffinity but doesn't satisfy the PodAntiAffinity with the existing pod",
+			pods: []*v1.Pod{{Spec: v1.PodSpec{NodeName: "machine1"}, ObjectMeta: metav1.ObjectMeta{Labels: podLabel}}},
+			node: &node1,
+			fits: false,
+			name: "satisfies the PodAffinity but doesn't satisfy the PodAntiAffinity with the existing pod",
 		},
 		{
 			pod: &v1.Pod{
@@ -1544,9 +1544,9 @@ func TestInterPodAffinity(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{Labels: podLabel},
 				},
 			},
-			node:                 &node1,
-			fits:                 false,
-			name:                 "satisfies the PodAffinity and PodAntiAffinity but doesn't satisfy PodAntiAffinity symmetry with the existing pod",
+			node: &node1,
+			fits: false,
+			name: "satisfies the PodAffinity and PodAntiAffinity but doesn't satisfy PodAntiAffinity symmetry with the existing pod",
 		},
 		{
 			pod: &v1.Pod{
@@ -1574,10 +1574,10 @@ func TestInterPodAffinity(t *testing.T) {
 					},
 				},
 			},
-			pods:                 []*v1.Pod{{Spec: v1.PodSpec{NodeName: "machine2"}, ObjectMeta: metav1.ObjectMeta{Labels: podLabel}}},
-			node:                 &node1,
-			fits:                 false,
-			name:                 "pod matches its own Label in PodAffinity and that matches the existing pod Labels",
+			pods: []*v1.Pod{{Spec: v1.PodSpec{NodeName: "machine2"}, ObjectMeta: metav1.ObjectMeta{Labels: podLabel}}},
+			node: &node1,
+			fits: false,
+			name: "pod matches its own Label in PodAffinity and that matches the existing pod Labels",
 		},
 		{
 			pod: &v1.Pod{
@@ -1610,9 +1610,9 @@ func TestInterPodAffinity(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{Labels: podLabel},
 				},
 			},
-			node:                 &node1,
-			fits:                 false,
-			name:                 "verify that PodAntiAffinity from existing pod is respected when pod has no AntiAffinity constraints. doesn't satisfy PodAntiAffinity symmetry with the existing pod",
+			node: &node1,
+			fits: false,
+			name: "verify that PodAntiAffinity from existing pod is respected when pod has no AntiAffinity constraints. doesn't satisfy PodAntiAffinity symmetry with the existing pod",
 		},
 		{
 			pod: &v1.Pod{
@@ -1709,9 +1709,9 @@ func TestInterPodAffinity(t *testing.T) {
 					},
 				},
 			},
-			node:                 &node1,
-			fits:                 false,
-			name:                 "satisfies the PodAntiAffinity with existing pod but doesn't satisfy PodAntiAffinity symmetry with incoming pod",
+			node: &node1,
+			fits: false,
+			name: "satisfies the PodAntiAffinity with existing pod but doesn't satisfy PodAntiAffinity symmetry with incoming pod",
 		},
 		{
 			pod: &v1.Pod{
@@ -1772,9 +1772,9 @@ func TestInterPodAffinity(t *testing.T) {
 					},
 				},
 			},
-			node:                 &node1,
-			fits:                 false,
-			name:                 "PodAntiAffinity symmetry check a1: incoming pod and existing pod partially match each other on AffinityTerms",
+			node: &node1,
+			fits: false,
+			name: "PodAntiAffinity symmetry check a1: incoming pod and existing pod partially match each other on AffinityTerms",
 		},
 		{
 			pod: &v1.Pod{
@@ -1835,9 +1835,9 @@ func TestInterPodAffinity(t *testing.T) {
 					},
 				},
 			},
-			node:                 &node1,
-			fits:                 false,
-			name:                 "PodAntiAffinity symmetry check a2: incoming pod and existing pod partially match each other on AffinityTerms",
+			node: &node1,
+			fits: false,
+			name: "PodAntiAffinity symmetry check a2: incoming pod and existing pod partially match each other on AffinityTerms",
 		},
 		{
 			pod: &v1.Pod{
@@ -1909,9 +1909,9 @@ func TestInterPodAffinity(t *testing.T) {
 					},
 				},
 			},
-			node:                 &node1,
-			fits:                 false,
-			name:                 "PodAntiAffinity symmetry check b1: incoming pod and existing pod partially match each other on AffinityTerms",
+			node: &node1,
+			fits: false,
+			name: "PodAntiAffinity symmetry check b1: incoming pod and existing pod partially match each other on AffinityTerms",
 		},
 		{
 			pod: &v1.Pod{
@@ -1983,9 +1983,9 @@ func TestInterPodAffinity(t *testing.T) {
 					},
 				},
 			},
-			node:                 &node1,
-			fits:                 false,
-			name:                 "PodAntiAffinity symmetry check b2: incoming pod and existing pod partially match each other on AffinityTerms",
+			node: &node1,
+			fits: false,
+			name: "PodAntiAffinity symmetry check b2: incoming pod and existing pod partially match each other on AffinityTerms",
 		},
 	}
 
@@ -2019,7 +2019,7 @@ func TestConfiguredPredicates(t *testing.T) {
 	schedulerConf.Predicates = strings.Join(testPredicates, ",")
 	predictor := NewPredictor(&factory.PluginFactoryArgs{}, false)
 	assert.Equal(t, len(predictor.fitPredicateFunctions), len(testPredicates))
-	for _,pred := range testPredicates {
+	for _, pred := range testPredicates {
 		_, ok := predictor.fitPredicateFunctions[pred]
 		assert.Assert(t, ok, "configured predicate '%s' is not found", pred)
 	}

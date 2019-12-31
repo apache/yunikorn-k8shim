@@ -98,11 +98,11 @@ func TestDispatcherStartStop(t *testing.T) {
 
 	// dispatch an event
 	Dispatch(TestAppEvent{
-		appId: "test-app-001",
+		appId:     "test-app-001",
 		eventType: events.RunApplication,
 	})
 	Dispatch(TestAppEvent{
-		appId: "test-app-002",
+		appId:     "test-app-002",
 		eventType: events.RunApplication,
 	})
 
@@ -121,7 +121,7 @@ func TestDispatcherStartStop(t *testing.T) {
 
 	// dispatch new events should fail
 	if err := dispatcher.dispatch(TestAppEvent{
-		appId: "test-app-002",
+		appId:     "test-app-002",
 		eventType: events.RunApplication,
 	}); err == nil {
 		t.Fatalf("dispatch is not running, this should fail")

@@ -48,9 +48,9 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/mutate", webHook.serve)
 	server := &http.Server{
-		Addr: fmt.Sprintf(":%v", HttpPort),
+		Addr:      fmt.Sprintf(":%v", HttpPort),
 		TLSConfig: &tls.Config{Certificates: []tls.Certificate{pair}},
-		Handler: mux,
+		Handler:   mux,
 	}
 
 	go func() {
@@ -68,7 +68,8 @@ func main() {
 	<-signalChan
 
 	log.Logger.Info("shutting down the admission controller...")
-	err = server.Shutdown(context.Background()); if err != nil {
+	err = server.Shutdown(context.Background())
+	if err != nil {
 		log.Logger.Warn("failed to stop the admission controller",
 			zap.Error(err))
 	}

@@ -27,39 +27,39 @@ import (
 
 // default configuration values, these can be override by CLI options
 const (
-	DefaultClusterId = "my-kube-cluster"
-	DefaultClusterVersion = "0.1"
-	DefaultSchedulerName = "yunikorn"
-	DefaultPolicyGroup = "queues"
-	DefaultLoggingLevel = 0
-	DefaultLogEncoding = "console"
-	DefaultVolumeBindTimeout = 10 * time.Second
-	DefaultSchedulingInterval = time.Second
+	DefaultClusterId            = "my-kube-cluster"
+	DefaultClusterVersion       = "0.1"
+	DefaultSchedulerName        = "yunikorn"
+	DefaultPolicyGroup          = "queues"
+	DefaultLoggingLevel         = 0
+	DefaultLogEncoding          = "console"
+	DefaultVolumeBindTimeout    = 10 * time.Second
+	DefaultSchedulingInterval   = time.Second
 	DefaultEventChannelCapacity = 1024 * 1024
-	DefaultDispatchTimeout = 300 * time.Second
-	DefaultKubeQPS = 1000
-	DefaultKubeBurst = 1000
+	DefaultDispatchTimeout      = 300 * time.Second
+	DefaultKubeQPS              = 1000
+	DefaultKubeBurst            = 1000
 )
 
 var configuration *SchedulerConf
 
 type SchedulerConf struct {
-	ClusterId         string        `json:"clusterId"`
-	ClusterVersion    string        `json:"clusterVersion"`
-	SchedulerName     string        `json:"schedulerName"`
-	PolicyGroup       string        `json:"policyGroup"`
-	Interval          time.Duration `json:"schedulingIntervalSecond"`
-	KubeConfig        string        `json:"absoluteKubeConfigFilePath"`
-	LoggingLevel      int           `json:"loggingLevel"`
-	LogEncoding       string        `json:"logEncoding"`
-	LogFile           string        `json:"logFilePath"`
-	VolumeBindTimeout time.Duration `json:"volumeBindTimeout"`
-	TestMode          bool          `json:"testMode"`
-	EventChannelCapacity int        `json:"eventChannelCapacity"`
-	DispatchTimeout   time.Duration `json:"dispatchTimeout"`
-	KubeQPS           int           `json:"kubeQPS"`
-	KubeBurst         int           `json:"kubeBurst"`
-	Predicates        string        `json:"predicates"`
+	ClusterId            string        `json:"clusterId"`
+	ClusterVersion       string        `json:"clusterVersion"`
+	SchedulerName        string        `json:"schedulerName"`
+	PolicyGroup          string        `json:"policyGroup"`
+	Interval             time.Duration `json:"schedulingIntervalSecond"`
+	KubeConfig           string        `json:"absoluteKubeConfigFilePath"`
+	LoggingLevel         int           `json:"loggingLevel"`
+	LogEncoding          string        `json:"logEncoding"`
+	LogFile              string        `json:"logFilePath"`
+	VolumeBindTimeout    time.Duration `json:"volumeBindTimeout"`
+	TestMode             bool          `json:"testMode"`
+	EventChannelCapacity int           `json:"eventChannelCapacity"`
+	DispatchTimeout      time.Duration `json:"dispatchTimeout"`
+	KubeQPS              int           `json:"kubeQPS"`
+	KubeBurst            int           `json:"kubeBurst"`
+	Predicates           string        `json:"predicates"`
 }
 
 func GetSchedulerConf() *SchedulerConf {
@@ -104,7 +104,7 @@ func init() {
 	kubeBurst := flag.Int("kubeBurst", DefaultKubeBurst,
 		"the maximum burst for throttle to kubernetes master from this client")
 	predicates := flag.String("predicates", "",
-		fmt.Sprintf("comma-separated list of predicates, valid predicates are: %s, " +
+		fmt.Sprintf("comma-separated list of predicates, valid predicates are: %s, "+
 			"the program will exit if any invalid predicates exist.", predicates.Ordering()))
 
 	// logging options
@@ -126,20 +126,20 @@ func init() {
 	}
 
 	configuration = &SchedulerConf{
-		ClusterId:         *clusterId,
-		ClusterVersion:    *clusterVersion,
-		PolicyGroup:       *policyGroup,
-		SchedulerName:     *schedulerName,
-		Interval:          *schedulingInterval,
-		KubeConfig:        *kubeConfig,
-		LoggingLevel:      *logLevel,
-		LogEncoding:       *encode,
-		LogFile:           *logFile,
-		VolumeBindTimeout: *volumeBindTimeout,
+		ClusterId:            *clusterId,
+		ClusterVersion:       *clusterVersion,
+		PolicyGroup:          *policyGroup,
+		SchedulerName:        *schedulerName,
+		Interval:             *schedulingInterval,
+		KubeConfig:           *kubeConfig,
+		LoggingLevel:         *logLevel,
+		LogEncoding:          *encode,
+		LogFile:              *logFile,
+		VolumeBindTimeout:    *volumeBindTimeout,
 		EventChannelCapacity: *eventChannelCapacity,
-		DispatchTimeout:   *dispatchTimeout,
-		KubeQPS:   *kubeQPS,
-		KubeBurst: *kubeBurst,
-		Predicates: *predicates,
+		DispatchTimeout:      *dispatchTimeout,
+		KubeQPS:              *kubeQPS,
+		KubeBurst:            *kubeBurst,
+		Predicates:           *predicates,
 	}
 }

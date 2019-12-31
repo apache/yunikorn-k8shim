@@ -124,7 +124,7 @@ func (fc *MockScheduler) addNode(nodeName string, memory, cpu int64) error {
 	return fc.proxy.Update(&request)
 }
 
-func (fc *MockScheduler) addTask(tid string, ask *si.Resource, app *cache.Application) cache.Task{
+func (fc *MockScheduler) addTask(tid string, ask *si.Resource, app *cache.Application) cache.Task {
 	task := cache.CreateTaskForTest(tid, app, ask, fc.context)
 	app.AddTask(&task)
 	return task
@@ -142,7 +142,7 @@ func (fc *MockScheduler) waitForSchedulerState(t *testing.T, expectedState strin
 		time.Sleep(time.Second)
 		if time.Now().After(deadline) {
 			t.Errorf("wait for scheduler to reach state %s failed, current state %s",
-				expectedState, fc.scheduler.GetSchedulerState() )
+				expectedState, fc.scheduler.GetSchedulerState())
 		}
 	}
 }
@@ -205,21 +205,21 @@ func (fc *MockScheduler) waitAndAssertTaskState(t *testing.T, appId, taskId, exp
 
 func (fc *MockScheduler) waitAndVerifySchedulerAllocations(
 	queueName, partitionName, applicationId string, expectedNumOfAllocations int) error {
-		partition := fc.coreContext.Cache.GetPartition(partitionName)
-		if partition == nil {
-			return fmt.Errorf("partition %s is not found in the scheduler context", partitionName)
-		}
+	partition := fc.coreContext.Cache.GetPartition(partitionName)
+	if partition == nil {
+		return fmt.Errorf("partition %s is not found in the scheduler context", partitionName)
+	}
 
-		return utils.WaitForCondition(func() bool {
-			for _, app := range partition.GetApplications() {
-				if app.ApplicationId == applicationId {
-					if len(app.GetAllAllocations()) == expectedNumOfAllocations {
-						return true
-					}
+	return utils.WaitForCondition(func() bool {
+		for _, app := range partition.GetApplications() {
+			if app.ApplicationId == applicationId {
+				if len(app.GetAllAllocations()) == expectedNumOfAllocations {
+					return true
 				}
 			}
-			return false
-		}, time.Second, 5 * time.Second)
+		}
+		return false
+	}, time.Second, 5*time.Second)
 }
 
 func (fc *MockScheduler) stop() {

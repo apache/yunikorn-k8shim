@@ -75,10 +75,10 @@ func GetApplicationIdFromPod(pod *v1.Pod) (string, error) {
 
 type K8sResource struct {
 	ResourceName v1.ResourceName
-	Value int64
+	Value        int64
 }
 
-func NewK8sResourceList(resources...K8sResource) map[v1.ResourceName]resource.Quantity {
+func NewK8sResourceList(resources ...K8sResource) map[v1.ResourceName]resource.Quantity {
 	resourceList := make(map[v1.ResourceName]resource.Quantity)
 	for _, r := range resources {
 		resourceList[r.ResourceName] = *resource.NewQuantity(r.Value, resource.DecimalSI)

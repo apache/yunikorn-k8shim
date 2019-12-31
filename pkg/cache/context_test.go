@@ -74,15 +74,15 @@ func TestAddPod(t *testing.T) {
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
-			Name:         "pod00001",
-			Namespace:    "default",
-			UID:          "UID-POD-00001",
+			Name:      "pod00001",
+			Namespace: "default",
+			UID:       "UID-POD-00001",
 			Labels: map[string]string{
 				"applicationId": "app00001",
 				"queue":         "root.a",
 			},
 		},
-		Spec:   v1.PodSpec{ SchedulerName: fakeClusterSchedulerName },
+		Spec: v1.PodSpec{SchedulerName: fakeClusterSchedulerName},
 		Status: v1.PodStatus{
 			Phase: v1.PodPending,
 		},
@@ -109,15 +109,15 @@ func TestAddPod(t *testing.T) {
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
-			Name:         "pod00002",
-			Namespace:    "default",
-			UID:          "UID-POD-00002",
+			Name:      "pod00002",
+			Namespace: "default",
+			UID:       "UID-POD-00002",
 			Labels: map[string]string{
 				"applicationId": "app00001",
 				"queue":         "root.a",
 			},
 		},
-		Spec:   v1.PodSpec{ SchedulerName: fakeClusterSchedulerName },
+		Spec: v1.PodSpec{SchedulerName: fakeClusterSchedulerName},
 		Status: v1.PodStatus{
 			Phase: v1.PodPending,
 		},
@@ -128,10 +128,10 @@ func TestAddPod(t *testing.T) {
 
 	for _, pt := range app01.GetNewTasks() {
 		switch pt.GetTaskPod().Name {
-		case "pod00001" :
+		case "pod00001":
 			assert.Equal(t, string(pt.GetTaskPod().UID), "UID-POD-00001")
 			assert.Equal(t, pt.GetTaskPod().Namespace, "default")
-		case "pod00002" :
+		case "pod00002":
 			assert.Equal(t, string(pt.GetTaskPod().UID), "UID-POD-00002")
 			assert.Equal(t, pt.GetTaskPod().Namespace, "default")
 		default:
@@ -146,17 +146,17 @@ func TestAddPod(t *testing.T) {
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
-			Name:         "pod00003",
-			Namespace:    "default",
-			UID:          "UID-POD-00003",
+			Name:      "pod00003",
+			Namespace: "default",
+			UID:       "UID-POD-00003",
 			Labels: map[string]string{
 				"applicationId": "app00001",
 				"queue":         "root.a",
 			},
 		},
-		Spec:   v1.PodSpec{}, // scheduler name missing
+		Spec: v1.PodSpec{}, // scheduler name missing
 		Status: v1.PodStatus{
-			Phase:  v1.PodPending,
+			Phase: v1.PodPending,
 		},
 	}
 
@@ -171,15 +171,15 @@ func TestAddPod(t *testing.T) {
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
-			Name:         "pod00004",
-			Namespace:    "default",
-			UID:          "UID-POD-00004",
+			Name:      "pod00004",
+			Namespace: "default",
+			UID:       "UID-POD-00004",
 			Labels: map[string]string{
 				"applicationId": "app00002",
 				"queue":         "root.a",
 			},
 		},
-		Spec:   v1.PodSpec{ SchedulerName: fakeClusterSchedulerName },
+		Spec: v1.PodSpec{SchedulerName: fakeClusterSchedulerName},
 		Status: v1.PodStatus{
 			Phase: v1.PodPending,
 		},
@@ -206,15 +206,15 @@ func TestPodRejected(t *testing.T) {
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
-			Name:         "pod00001",
-			Namespace:    "default",
-			UID:          "UID-POD-00001",
+			Name:      "pod00001",
+			Namespace: "default",
+			UID:       "UID-POD-00001",
 			Labels: map[string]string{
 				"applicationId": "app00001",
 				"queue":         "root.a",
 			},
 		},
-		Spec:   v1.PodSpec{ SchedulerName: fakeClusterSchedulerName },
+		Spec: v1.PodSpec{SchedulerName: fakeClusterSchedulerName},
 		Status: v1.PodStatus{
 			Phase: v1.PodPending,
 		},
@@ -252,4 +252,3 @@ func assertTaskState(t *testing.T, task *Task, expectedState string, timeout tim
 		}
 	}
 }
-

@@ -35,13 +35,13 @@ import (
 
 // shim scheduler watches api server and interacts with unity scheduler to allocate pods
 type KubernetesShim struct {
-	rmProxy        api.SchedulerApi
-	context        *cache.Context
-	callback       api.ResourceManagerCallback
-	stateMachine   *fsm.FSM
-	dispatcher     *dispatcher.Dispatcher
-	stopChan       chan struct{}
-	lock           *sync.RWMutex
+	rmProxy      api.SchedulerApi
+	context      *cache.Context
+	callback     api.ResourceManagerCallback
+	stateMachine *fsm.FSM
+	dispatcher   *dispatcher.Dispatcher
+	stopChan     chan struct{}
+	lock         *sync.RWMutex
 }
 
 func newShimScheduler(api api.SchedulerApi, configs *conf.SchedulerConf) *KubernetesShim {
@@ -54,11 +54,11 @@ func newShimScheduler(api api.SchedulerApi, configs *conf.SchedulerConf) *Kubern
 func newShimSchedulerInternal(api api.SchedulerApi, ctx *cache.Context, cb api.ResourceManagerCallback) *KubernetesShim {
 	var states = events.States().Scheduler
 	ss := &KubernetesShim{
-		rmProxy:        api,
-		context:        ctx,
-		callback:       cb,
-		stopChan:       make(chan struct{}),
-		lock:           &sync.RWMutex{},
+		rmProxy:  api,
+		context:  ctx,
+		callback: cb,
+		stopChan: make(chan struct{}),
+		lock:     &sync.RWMutex{},
 	}
 
 	// init state machine
@@ -85,11 +85,11 @@ func newShimSchedulerInternal(api api.SchedulerApi, ctx *cache.Context, cb api.R
 				Dst: states.Stopped},
 		},
 		fsm.Callbacks{
-			string(events.RegisterScheduler): ss.register(),                     // trigger registration
-			string(events.RegisterSchedulerFailed): ss.handleSchedulerFailure(), // registration failed, stop the scheduler
-			string(states.Registered): ss.triggerSchedulerStateRecovery(),       // if reaches registered, trigger recovering
-			string(states.Recovering): ss.recoverSchedulerState(),               // do recovering
-			string(states.Running): ss.doScheduling(),                           // do scheduling
+			string(events.RegisterScheduler):       ss.register(),                      // trigger registration
+			string(events.RegisterSchedulerFailed): ss.handleSchedulerFailure(),        // registration failed, stop the scheduler
+			string(states.Registered):              ss.triggerSchedulerStateRecovery(), // if reaches registered, trigger recovering
+			string(states.Recovering):              ss.recoverSchedulerState(),         // do recovering
+			string(states.Running):                 ss.doScheduling(),                  // do scheduling
 		},
 	)
 
@@ -102,7 +102,7 @@ func newShimSchedulerInternal(api api.SchedulerApi, ctx *cache.Context, cb api.R
 	return ss
 }
 
-func (ss *KubernetesShim) SchedulerEventHandler() func(obj interface{}){
+func (ss *KubernetesShim) SchedulerEventHandler() func(obj interface{}) {
 	return func(obj interface{}) {
 		if event, ok := obj.(events.SchedulerEvent); ok {
 			if ss.canHandle(event) {

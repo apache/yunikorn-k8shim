@@ -40,11 +40,11 @@ import (
 
 // context maintains scheduling state, like apps and apps' tasks.
 type Context struct {
-	applications      map[string]*Application
-	nodes             *schedulerNodes
-	conf              *conf.SchedulerConf
-	kubeClient        client.KubeClient
-	schedulerApi      api.SchedulerApi
+	applications map[string]*Application
+	nodes        *schedulerNodes
+	conf         *conf.SchedulerConf
+	kubeClient   client.KubeClient
+	schedulerApi api.SchedulerApi
 
 	// resource informers
 	podInformer       coreInfomerV1.PodInformer
@@ -55,15 +55,15 @@ type Context struct {
 	storageInformer   storageInformerV1.StorageClassInformer
 
 	// volume binder handles PV/PVC related operations
-	volumeBinder      *volumebinder.VolumeBinder
-	schedulerCache    *schedulercache.SchedulerCache
+	volumeBinder   *volumebinder.VolumeBinder
+	schedulerCache *schedulercache.SchedulerCache
 
 	// plugged predictor handles predicates related checks
-	predictor         *plugin.Predictor
+	predictor *plugin.Predictor
 
 	// test mode disables some functionality for UT
-	testMode          bool
-	lock              *sync.RWMutex
+	testMode bool
+	lock     *sync.RWMutex
 }
 
 // Create a new context for the scheduler.
@@ -667,7 +667,7 @@ func (ctx *Context) SelectApplications(filter func(app *Application) bool) []*Ap
 	return apps
 }
 
-func (ctx *Context) ApplicationEventHandler() func(obj interface{}){
+func (ctx *Context) ApplicationEventHandler() func(obj interface{}) {
 	return func(obj interface{}) {
 		if event, ok := obj.(events.ApplicationEvent); ok {
 			app, err := ctx.GetApplication(event.GetApplicationId())
@@ -687,7 +687,7 @@ func (ctx *Context) ApplicationEventHandler() func(obj interface{}){
 	}
 }
 
-func (ctx *Context) TaskEventHandler() func(obj interface{}){
+func (ctx *Context) TaskEventHandler() func(obj interface{}) {
 	return func(obj interface{}) {
 		if event, ok := obj.(events.TaskEvent); ok {
 			task, err := ctx.getTask(event.GetApplicationId(), event.GetTaskId())
@@ -709,7 +709,7 @@ func (ctx *Context) TaskEventHandler() func(obj interface{}){
 	}
 }
 
-func (ctx *Context) SchedulerNodeEventHandler() func(obj interface{}){
+func (ctx *Context) SchedulerNodeEventHandler() func(obj interface{}) {
 	if ctx != nil && ctx.nodes != nil {
 		return ctx.nodes.schedulerNodeEventHandler()
 	} else {

@@ -189,10 +189,10 @@ func (nc *schedulerNodes) deleteNode(node *v1.Node) {
 	}
 }
 
-func (nc *schedulerNodes) schedulerNodeEventHandler() func(obj interface{}){
+func (nc *schedulerNodes) schedulerNodeEventHandler() func(obj interface{}) {
 	return func(obj interface{}) {
 		if event, ok := obj.(events.SchedulerNodeEvent); ok {
-			if node := nc.getNode(event.GetNodeId()); node != nil{
+			if node := nc.getNode(event.GetNodeId()); node != nil {
 				if node.canHandle(event) {
 					if err := node.handle(event); err != nil {
 						log.Logger.Error("failed to handle scheduler node event",

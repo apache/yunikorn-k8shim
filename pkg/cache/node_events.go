@@ -19,9 +19,9 @@ package cache
 import "github.com/cloudera/yunikorn-k8shim/pkg/common/events"
 
 type CachedSchedulerNodeEvent struct {
-	NodeId        string
-	Event         events.SchedulerNodeEventType
-	Arguments     []interface{}
+	NodeId    string
+	Event     events.SchedulerNodeEventType
+	Arguments []interface{}
 }
 
 func (sn CachedSchedulerNodeEvent) GetEvent() events.SchedulerNodeEventType {

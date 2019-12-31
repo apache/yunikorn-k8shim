@@ -27,8 +27,6 @@ type PodListerMock struct {
 	allPods []*v1.Pod
 }
 
-
-
 func NewPodListerMock() *PodListerMock {
 	return &PodListerMock{
 		allPods: make([]*v1.Pod, 0),
@@ -44,7 +42,7 @@ func (n *PodListerMock) List(selector labels.Selector) (ret []*v1.Pod, err error
 }
 
 func (n *PodListerMock) Get(name string) (*v1.Pod, error) {
-	for _, n := range n.allPods{
+	for _, n := range n.allPods {
 		if n.Name == name {
 			return n, nil
 		}

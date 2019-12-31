@@ -42,7 +42,7 @@ func (n *NodeListerMock) List(selector labels.Selector) (ret []*v1.Node, err err
 }
 
 func (n *NodeListerMock) Get(name string) (*v1.Node, error) {
-	for _, n := range n.allNodes{
+	for _, n := range n.allNodes {
 		if n.Name == name {
 			return n, nil
 		}

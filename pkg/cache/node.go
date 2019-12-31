@@ -44,12 +44,12 @@ type SchedulerNode struct {
 func newSchedulerNode(nodeName string, nodeUid string,
 	nodeResource *si.Resource, schedulerApi api.SchedulerApi, schedulable bool) *SchedulerNode {
 	schedulerNode := &SchedulerNode{
-		name: nodeName,
-		uid:  nodeUid,
-		capacity: nodeResource,
+		name:         nodeName,
+		uid:          nodeUid,
+		capacity:     nodeResource,
 		schedulerApi: schedulerApi,
-		schedulable: schedulable,
-		lock: &sync.RWMutex{},
+		schedulable:  schedulable,
+		lock:         &sync.RWMutex{},
 	}
 	schedulerNode.initFSM()
 	return schedulerNode
@@ -86,10 +86,10 @@ func (n *SchedulerNode) initFSM() {
 			},
 		},
 		fsm.Callbacks{
-			string(states.Recovering): n.handleNodeRecovery,
-			string(events.DrainNode): n.handleDrainNode,
+			string(states.Recovering):  n.handleNodeRecovery,
+			string(events.DrainNode):   n.handleDrainNode,
 			string(events.RestoreNode): n.handleRestoreNode,
-			string(states.Accepted): n.postNodeAccepted,
+			string(states.Accepted):    n.postNodeAccepted,
 		})
 }
 
@@ -156,7 +156,7 @@ func (n *SchedulerNode) handleNodeRecovery(event *fsm.Event) {
 func (n *SchedulerNode) handleDrainNode(event *fsm.Event) {
 	log.Logger.Info("node enters draining mode",
 		zap.String("nodeId", n.name))
-	
+
 	request := &si.UpdateRequest{
 		Asks:     nil,
 		Releases: nil,
@@ -216,7 +216,7 @@ func (n *SchedulerNode) handle(ev events.SchedulerNodeEvent) error {
 		zap.String("pendingEvent", string(ev.GetEvent())))
 	err := n.fsm.Event(string(ev.GetEvent()), ev.GetArgs()...)
 	// handle the same state transition not nil error (limit of fsm).
-	if err != nil && err.Error() != "no transition"{
+	if err != nil && err.Error() != "no transition" {
 		return err
 	}
 	log.Logger.Debug("scheduler node state transition",

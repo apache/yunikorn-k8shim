@@ -128,7 +128,7 @@ func (task *Task) handle(te events.TaskEvent) error {
 		zap.String("pendingEvent", string(te.GetEvent())))
 	err := task.sm.Event(string(te.GetEvent()), te.GetArgs()...)
 	// handle the same state transition not nil error (limit of fsm).
-	if err != nil && err.Error() != "no transition"{
+	if err != nil && err.Error() != "no transition" {
 		return err
 	}
 	log.Logger.Debug("task state transition",
@@ -178,7 +178,6 @@ func (task *Task) handleFailEvent(event *fsm.Event) {
 		zap.String("taskId", task.taskId),
 		zap.String("reason", eventArgs[0]))
 }
-
 
 func (task *Task) handleSubmitTaskEvent(event *fsm.Event) {
 	log.Logger.Debug("scheduling pod",

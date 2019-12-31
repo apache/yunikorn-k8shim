@@ -264,7 +264,6 @@ func TestDeleteNode(t *testing.T) {
 	nodes.addNode(&node)
 	nodes.deleteNode(&node)
 
-
 	if err := utils.WaitForCondition(func() bool {
 		return api.GetRegisterCount() == 0
 	}, 1*time.Second, 5*time.Second); err != nil {

@@ -28,8 +28,8 @@ type SchedulerApiMock struct {
 	updateCount   int32
 	registerFn    func(request *si.RegisterResourceManagerRequest,
 		callback api.ResourceManagerCallback) (*si.RegisterResourceManagerResponse, error)
-	updateFn      func(request *si.UpdateRequest) error
-	lock          sync.Mutex
+	updateFn func(request *si.UpdateRequest) error
+	lock     sync.Mutex
 }
 
 func NewSchedulerApiMock() *SchedulerApiMock {
@@ -49,8 +49,8 @@ func NewSchedulerApiMock() *SchedulerApiMock {
 
 func (api *SchedulerApiMock) RegisterFunction(rfn func(request *si.RegisterResourceManagerRequest,
 	callback api.ResourceManagerCallback) (*si.RegisterResourceManagerResponse, error)) *SchedulerApiMock {
-		api.registerFn = rfn
-		return api
+	api.registerFn = rfn
+	return api
 }
 
 func (api *SchedulerApiMock) UpdateFunction(ufn func(request *si.UpdateRequest) error) *SchedulerApiMock {
@@ -62,10 +62,10 @@ func (api *SchedulerApiMock) UpdateFunction(ufn func(request *si.UpdateRequest) 
 
 func (api *SchedulerApiMock) RegisterResourceManager(request *si.RegisterResourceManagerRequest,
 	callback api.ResourceManagerCallback) (*si.RegisterResourceManagerResponse, error) {
-		api.lock.Lock()
-		defer api.lock.Unlock()
-		atomic.AddInt32(&api.registerCount, 1)
-		return api.registerFn(request, callback)
+	api.lock.Lock()
+	defer api.lock.Unlock()
+	atomic.AddInt32(&api.registerCount, 1)
+	return api.registerFn(request, callback)
 }
 
 func (api *SchedulerApiMock) Update(request *si.UpdateRequest) error {

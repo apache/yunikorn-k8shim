@@ -34,14 +34,13 @@ import (
 	"strings"
 )
 
-var  (
+var (
 	runtimeScheme = runtime.NewScheme()
 	codecs        = serializer.NewCodecFactory(runtimeScheme)
 	deserializer  = codecs.UniversalDeserializer()
 )
 
 type admissionController struct {
-
 }
 
 type patchOperation struct {
@@ -74,7 +73,7 @@ func (c *admissionController) mutate(ar *v1beta1.AdmissionReview) *v1beta1.Admis
 
 		if strings.HasPrefix(pod.Name, "yunikorn-scheduler") {
 			log.Logger.Info("ignore yunikorn scheduler pod")
-			return  &v1beta1.AdmissionResponse{
+			return &v1beta1.AdmissionResponse{
 				Allowed: true,
 			}
 		}
@@ -115,7 +114,7 @@ func updateLabels(pod *v1.Pod, patch []patchOperation) []patchOperation {
 	log.Logger.Info("updating pod labels")
 	existingLabels := pod.Labels
 	result := make(map[string]string)
-	for k,v := range existingLabels {
+	for k, v := range existingLabels {
 		result[k] = v
 	}
 

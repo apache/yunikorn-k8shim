@@ -40,10 +40,10 @@ const (
 )
 
 var (
-	AsyncDispatchLimit int32
+	AsyncDispatchLimit         int32
 	AsyncDispatchCheckInterval = 3 * time.Second
-	DispatchTimeout time.Duration
-	asyncDispatchCount int32 = 0
+	DispatchTimeout            time.Duration
+	asyncDispatchCount         int32 = 0
 )
 
 // central dispatcher that dispatches scheduling events.
@@ -213,4 +213,3 @@ func Stop() {
 		log.Logger.Info("dispatcher is already stopped")
 	}
 }
-

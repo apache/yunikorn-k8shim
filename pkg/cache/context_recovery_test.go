@@ -49,10 +49,10 @@ func TestNodeRecoveringState(t *testing.T) {
 			Capacity: utils.NewK8sResourceList(
 				utils.K8sResource{
 					ResourceName: v1.ResourceMemory,
-					Value: 1024,
+					Value:        1024,
 				}, utils.K8sResource{
 					ResourceName: v1.ResourceCPU,
-					Value: 10,
+					Value:        10,
 				}),
 		},
 	}
@@ -67,10 +67,10 @@ func TestNodeRecoveringState(t *testing.T) {
 			Capacity: utils.NewK8sResourceList(
 				utils.K8sResource{
 					ResourceName: v1.ResourceMemory,
-					Value: 1024,
+					Value:        1024,
 				}, utils.K8sResource{
 					ResourceName: v1.ResourceCPU,
-					Value: 10,
+					Value:        10,
 				}),
 		},
 	}
@@ -113,10 +113,10 @@ func TestNodesRecovery(t *testing.T) {
 			Capacity: utils.NewK8sResourceList(
 				utils.K8sResource{
 					ResourceName: v1.ResourceMemory,
-					Value: 1024,
+					Value:        1024,
 				}, utils.K8sResource{
 					ResourceName: v1.ResourceCPU,
-					Value: 10,
+					Value:        10,
 				}),
 		},
 	}
@@ -131,10 +131,10 @@ func TestNodesRecovery(t *testing.T) {
 			Capacity: utils.NewK8sResourceList(
 				utils.K8sResource{
 					ResourceName: v1.ResourceMemory,
-					Value: 1024,
+					Value:        1024,
 				}, utils.K8sResource{
 					ResourceName: v1.ResourceCPU,
-					Value: 10,
+					Value:        10,
 				}),
 		},
 	}
@@ -156,8 +156,8 @@ func TestNodesRecovery(t *testing.T) {
 
 	// node1 recovery is done
 	dispatcher.Dispatch(CachedSchedulerNodeEvent{
-		NodeId:    "host0001",
-		Event:     events.NodeAccepted,
+		NodeId: "host0001",
+		Event:  events.NodeAccepted,
 	})
 
 	if err := utils.WaitForCondition(func() bool {
@@ -169,8 +169,8 @@ func TestNodesRecovery(t *testing.T) {
 
 	// node2 recovery is done
 	dispatcher.Dispatch(CachedSchedulerNodeEvent{
-		NodeId:    "host0002",
-		Event:     events.NodeAccepted,
+		NodeId: "host0002",
+		Event:  events.NodeAccepted,
 	})
 
 	if err := context.waitForNodeRecovery(nodeLister, 3*time.Second); err != nil {

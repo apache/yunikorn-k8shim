@@ -60,7 +60,7 @@ type ApplicationEvent interface {
 type TaskEventType string
 
 const (
-	InitTask	  TaskEventType = "InitTask"
+	InitTask      TaskEventType = "InitTask"
 	SubmitTask    TaskEventType = "SubmitTask"
 	TaskAllocated TaskEventType = "TaskAllocated"
 	TaskRejected  TaskEventType = "TaskRejected"
@@ -117,12 +117,12 @@ type SchedulerEvent interface {
 type SchedulerNodeEventType string
 
 const (
-	RecoverNode        SchedulerNodeEventType = "RecoverNode"
-	NodeAccepted       SchedulerNodeEventType = "NodeAccepted"
-	NodeRejected       SchedulerNodeEventType = "NodeRejected"
-	DrainNode          SchedulerNodeEventType = "DrainNode"
-	RestoreNode        SchedulerNodeEventType = "RestoreNode"
-	NodeReady          SchedulerNodeEventType = "NodeReady"
+	RecoverNode  SchedulerNodeEventType = "RecoverNode"
+	NodeAccepted SchedulerNodeEventType = "NodeAccepted"
+	NodeRejected SchedulerNodeEventType = "NodeRejected"
+	DrainNode    SchedulerNodeEventType = "DrainNode"
+	RestoreNode  SchedulerNodeEventType = "RestoreNode"
+	NodeReady    SchedulerNodeEventType = "NodeReady"
 )
 
 type SchedulerNodeEvent interface {

@@ -31,7 +31,7 @@ import (
 
 func TestNewApplication(t *testing.T) {
 	app := NewApplication("app00001", "root.queue", "testuser", map[string]string{}, newMockSchedulerApi())
-	assert.Equal(t, app.GetApplicationId(), "app00001" )
+	assert.Equal(t, app.GetApplicationId(), "app00001")
 	assert.Equal(t, app.GetApplicationState(), events.States().Application.New)
 	assert.Equal(t, app.partition, common.DefaultPartition)
 	assert.Equal(t, len(app.taskMap), 0)
@@ -100,9 +100,9 @@ func TestGetApplicationIdFromPod(t *testing.T) {
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
-			Name:         "pod00001",
-			Namespace:    "default",
-			UID:          "UID-POD-00001",
+			Name:      "pod00001",
+			Namespace: "default",
+			UID:       "UID-POD-00001",
 			Labels: map[string]string{
 				"applicationId": "app00001",
 				"queue":         "root.a",
@@ -122,9 +122,9 @@ func TestGetApplicationIdFromPod(t *testing.T) {
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
-			Name:         "pod00001",
-			Namespace:    "default",
-			UID:          "UID-POD-00001",
+			Name:      "pod00001",
+			Namespace: "default",
+			UID:       "UID-POD-00001",
 			Annotations: map[string]string{
 				"applicationId": "app00002",
 				"queue":         "root.a",
@@ -144,12 +144,12 @@ func TestGetApplicationIdFromPod(t *testing.T) {
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
-			Name:         "pod00001",
-			Namespace:    "default",
-			UID:          "UID-POD-00001",
+			Name:      "pod00001",
+			Namespace: "default",
+			UID:       "UID-POD-00001",
 			Labels: map[string]string{
 				"spark-app-id": "spark-0001",
-				"queue":         "root.a",
+				"queue":        "root.a",
 			},
 		},
 		Spec:   v1.PodSpec{},
@@ -166,9 +166,9 @@ func TestGetApplicationIdFromPod(t *testing.T) {
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
-			Name:         "pod00001",
-			Namespace:    "default",
-			UID:          "UID-POD-00001",
+			Name:      "pod00001",
+			Namespace: "default",
+			UID:       "UID-POD-00001",
 		},
 		Spec:   v1.PodSpec{},
 		Status: v1.PodStatus{},
@@ -191,7 +191,7 @@ func newMockSchedulerApi() *MockSchedulerApi {
 }
 
 type MockSchedulerApi struct {
-	callback api.ResourceManagerCallback
+	callback   api.ResourceManagerCallback
 	registerFn func(request *si.RegisterResourceManagerRequest,
 		callback api.ResourceManagerCallback) (*si.RegisterResourceManagerResponse, error)
 	updateFn func(request *si.UpdateRequest) error

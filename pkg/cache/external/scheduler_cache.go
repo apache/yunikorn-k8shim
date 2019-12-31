@@ -37,8 +37,8 @@ import (
 // we replicate nodes info from de-scheduler, in order to re-use predicates functions.
 type SchedulerCache struct {
 	// node name to NodeInfo map
-	nodesMap    map[string]*schedulernode.NodeInfo
-	podsMap     map[string]*v1.Pod
+	nodesMap map[string]*schedulernode.NodeInfo
+	podsMap  map[string]*v1.Pod
 	// this is a map of assumed pods,
 	// the value indicates if a pod volumes are all bound
 	assumedPods map[string]bool
@@ -53,7 +53,7 @@ type SchedulerCache struct {
 // cachedPodState is used to store pod states
 // these states are only used within the schedulerCache
 type cachedPodState struct {
-	assumed bool
+	assumed         bool
 	allVolumesBound bool
 }
 
@@ -62,7 +62,7 @@ func NewSchedulerCache(pvl corelistersV1.PersistentVolumeLister,
 	stl storagelisterV1.StorageClassLister,
 	binder *volumebinder.VolumeBinder) *SchedulerCache {
 
-		cache := &SchedulerCache{
+	cache := &SchedulerCache{
 		nodesMap:      make(map[string]*schedulernode.NodeInfo),
 		podsMap:       make(map[string]*v1.Pod),
 		assumedPods:   make(map[string]bool),

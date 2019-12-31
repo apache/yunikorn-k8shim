@@ -210,7 +210,7 @@ func TestBestEffortPod(t *testing.T) {
 		},
 	}
 
-    // best effort pod all resources are nil or zero
+	// best effort pod all resources are nil or zero
 	res := GetPodResource(pod)
 	assert.Equal(t, len(res.Resources), 1)
 	assert.Equal(t, res.Resources[Memory].GetValue(), int64(1))

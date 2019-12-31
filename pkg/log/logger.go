@@ -33,9 +33,9 @@ func init() {
 
 	var outputPaths []string
 	if strings.Compare(configs.LogFile, "") == 0 {
-		outputPaths = []string {"stdout"}
+		outputPaths = []string{"stdout"}
 	} else {
-		outputPaths = []string {"stdout", configs.LogFile}
+		outputPaths = []string{"stdout", configs.LogFile}
 	}
 
 	zapConfigs := zap.Config{

@@ -141,21 +141,21 @@ partitions:
 	cluster.waitAndAssertTaskState(t, "app0001", "task0001", events.States().Task.Bound)
 }
 
-func TestSchedulerRegistrationFailed(t *testing.T){
+func TestSchedulerRegistrationFailed(t *testing.T) {
 	var ctx *cache.Context
 	var callback api.ResourceManagerCallback
 
 	schedulerApi := test.NewSchedulerApiMock().RegisterFunction(
 		func(request *si.RegisterResourceManagerRequest,
 			callback api.ResourceManagerCallback) (response *si.RegisterResourceManagerResponse, e error) {
-				return nil, fmt.Errorf("some error")
+			return nil, fmt.Errorf("some error")
 		})
 
 	shim := newShimSchedulerInternal(schedulerApi, ctx, callback)
 	shim.run()
 	defer shim.stop()
 
-	if err := waitShimSchedulerState(shim, events.States().Scheduler.Stopped, 5 * time.Second); err !=nil {
+	if err := waitShimSchedulerState(shim, events.States().Scheduler.Stopped, 5*time.Second); err != nil {
 		t.Fatalf("%v", err)
 	}
 }
@@ -224,7 +224,7 @@ partitions:
 
 	// one task get bound, one ask failed, so we are expecting only 1 allocation in the scheduler
 	if err := cluster.waitAndVerifySchedulerAllocations("root.a",
-		"[test-cluster]default","app0001", 1); err != nil {
+		"[test-cluster]default", "app0001", 1); err != nil {
 		t.Fatalf("number of allocations is not expected, error: %v", err)
 	}
 }
@@ -238,7 +238,7 @@ func waitShimSchedulerState(shim *KubernetesShim, expectedState string, timeout 
 				zap.String("current", shim.GetSchedulerState()))
 			return nil
 		}
-		time.Sleep(1*time.Second)
+		time.Sleep(1 * time.Second)
 		if time.Now().After(deadline) {
 			return fmt.Errorf("scheduler has not reached expected state %s in %d seconds, current state: %s",
 				expectedState, deadline.Second(), shim.GetSchedulerState())

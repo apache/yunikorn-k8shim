@@ -76,8 +76,8 @@ func (nc SchedulerKubeClient) Bind(pod *v1.Pod, hostId string) error {
 			Target: v1.ObjectReference{
 				Kind: "Node",
 				Name: hostId,
-		},
-	}); err != nil {
+			},
+		}); err != nil {
 		log.Logger.Error("failed to bind pod",
 			zap.String("namespace", pod.Namespace),
 			zap.String("podName", pod.Name),
@@ -102,4 +102,3 @@ func (nc SchedulerKubeClient) Delete(pod *v1.Pod) error {
 	}
 	return nil
 }
-

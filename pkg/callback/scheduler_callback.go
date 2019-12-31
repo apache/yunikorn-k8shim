@@ -46,8 +46,8 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 			zap.String("nodeId", node.NodeId))
 
 		dispatcher.Dispatch(cache.CachedSchedulerNodeEvent{
-			NodeId:    node.NodeId,
-			Event:     events.NodeAccepted,
+			NodeId: node.NodeId,
+			Event:  events.NodeAccepted,
 		})
 	}
 
@@ -56,8 +56,8 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 			zap.String("nodeId", node.NodeId))
 
 		dispatcher.Dispatch(cache.CachedSchedulerNodeEvent{
-			NodeId:    node.NodeId,
-			Event:     events.NodeRejected,
+			NodeId: node.NodeId,
+			Event:  events.NodeRejected,
 		})
 	}
 
@@ -139,5 +139,3 @@ func (callback *AsyncRMCallback) ReSyncSchedulerCache(args *si.ReSyncSchedulerCa
 	}
 	return nil
 }
-
-
