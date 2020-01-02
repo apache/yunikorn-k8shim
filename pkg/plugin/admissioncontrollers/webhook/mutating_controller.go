@@ -62,8 +62,7 @@ func (c *admissionController) mutate(ar *v1beta1.AdmissionReview) *v1beta1.Admis
 
 	var patch []patchOperation
 
-	switch req.Kind.Kind {
-	case "Pod":
+	if req.Kind.Kind == "Pod" {
 		var pod v1.Pod
 		if err := json.Unmarshal(req.Object.Raw, &pod); err != nil {
 			return &v1beta1.AdmissionResponse{
@@ -174,10 +173,8 @@ func (c *admissionController) serve(w http.ResponseWriter, r *http.Request) {
 				Message: err.Error(),
 			},
 		}
-	} else {
-		if r.URL.Path == "/mutate" {
-			admissionResponse = c.mutate(&ar)
-		}
+	} else if r.URL.Path == "/mutate" {
+		admissionResponse = c.mutate(&ar)
 	}
 
 	admissionReview := v1beta1.AdmissionReview{}
@@ -194,7 +191,7 @@ func (c *admissionController) serve(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Logger.Info("writing response...")
-	if _, err := w.Write(resp); err != nil {
+	if _, err = w.Write(resp); err != nil {
 		http.Error(w, fmt.Sprintf("could not write response: %v", err), http.StatusInternalServerError)
 	}
 }

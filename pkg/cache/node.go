@@ -158,7 +158,7 @@ func (n *SchedulerNode) handleNodeRecovery(event *fsm.Event) {
 func (n *SchedulerNode) handleDrainNode(event *fsm.Event) {
 	log.Logger.Info("node enters draining mode",
 		zap.String("nodeID", n.name))
-	
+
 	request := &si.UpdateRequest{
 		Asks:     nil,
 		Releases: nil,

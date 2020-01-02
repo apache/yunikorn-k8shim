@@ -17,7 +17,6 @@ limitations under the License.
 package cache
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -247,11 +246,12 @@ func TestAppRecovery(t *testing.T) {
 	podLister.AddPod(&pod2)
 
 	// wait for app1 to reach Recovering state, then dispatch AcceptApplication events
+	//nolint:staticcheck
 	go func() {
 		if err := utils.WaitForCondition(func() bool {
-			app1, _ := context.GetApplication("app1")
+			app1, err := context.GetApplication("app1")
 			// only app1 which is already scheduled before can be recovered
-			if app1 != nil && app1.GetApplicationState() == events.States().Application.Recovering {
+			if err == nil && app1 != nil && app1.GetApplicationState() == events.States().Application.Recovering {
 				// simulate that app1 is accepted by scheduler
 				dispatcher.Dispatch(NewSimpleApplicationEvent(app1.applicationID, events.AcceptApplication))
 				return true
@@ -263,8 +263,7 @@ func TestAppRecovery(t *testing.T) {
 			for _, app := range apps {
 				appStates[app.GetApplicationID()] = app.GetApplicationState()
 			}
-			t.Fatalf("failed to wait for app1 with Recovering state in 3 seconds, actual app states: %s",
-				fmt.Sprintf("%v", appStates))
+			t.Fatalf("failed to wait for app1 with Recovering state in 3 seconds, actual app states: %v", appStates)
 		}
 	}()
 

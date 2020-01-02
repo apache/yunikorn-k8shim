@@ -232,14 +232,15 @@ func TestPodRejected(t *testing.T) {
 	assert.Equal(t, app01.GetNewTasks()[0].GetTaskPod().Namespace, "default")
 
 	// reject the task
-	task, _ := app01.GetTask("UID-POD-00001")
-	err := task.handle(NewRejectTaskEvent("app00001", "UID-POD-00001", ""))
+	task, err := app01.GetTask("UID-POD-00001")
+	assert.Assert(t, err == nil)
+	err = task.handle(NewRejectTaskEvent("app00001", "UID-POD-00001", ""))
 	assert.Assert(t, err == nil)
 	assert.Equal(t, len(app01.GetNewTasks()), 0)
 
-	task01, err := app01.GetTask("UID-POD-00001")
+	task, err = app01.GetTask("UID-POD-00001")
 	assert.Assert(t, err == nil)
-	assertTaskState(t, task01, events.States().Task.Failed, 3*time.Second)
+	assertTaskState(t, task, events.States().Task.Failed, 3*time.Second)
 }
 
 func assertTaskState(t *testing.T, task *Task, expectedState string, timeout time.Duration) {

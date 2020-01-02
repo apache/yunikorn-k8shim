@@ -75,9 +75,14 @@ func init() {
 	zap.ReplaceGlobals(Logger)
 
 	// dump configuration
-	c, _ := json.MarshalIndent(&configs, "", " ")
-	Logger.Info("scheduler configuration", zap.String("configs", string(c)))
+	c, err := json.MarshalIndent(&configs, "", " ")
+	if err != nil {
+		Logger.Info("scheduler configuration, json conversion failed", zap.Any("configs", configs))
+	} else {
+		Logger.Info("scheduler configuration, pretty print", zap.String("configs", string(c)))
+	}
 
 	// make sure logs are flushed
+	//nolint:errcheck
 	defer Logger.Sync()
 }

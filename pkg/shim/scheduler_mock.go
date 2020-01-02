@@ -94,7 +94,11 @@ func (fc *MockScheduler) init(queues string) {
 	fakeClient.MockBindFn(fc.bindFn)
 	fakeClient.MockDeleteFn(fc.deleteFn)
 
-	schedulerAPI, _ := rmProxy.(api.SchedulerAPI)
+	schedulerAPI, ok := rmProxy.(api.SchedulerAPI)
+	if !ok {
+		log.Logger.Debug("cast failed unexpected object",
+			zap.Any("schedulerAPI", rmProxy))
+	}
 	context := cache.NewContextInternal(schedulerAPI, &configs, fakeClient, true)
 	rmCallback := callback.NewAsyncRMCallback(context)
 

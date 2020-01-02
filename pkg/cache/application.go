@@ -356,7 +356,11 @@ func (app *Application) startSparkCompletionHandler(client client.KubeClient, po
 			}
 
 			for targetPod := range podWatch.ResultChan() {
-				resp := targetPod.Object.(*v1.Pod)
+				resp, ok := targetPod.Object.(*v1.Pod)
+				if !ok {
+					log.Logger.Debug("cast failed unexpected object",
+						zap.Any("PodObject", targetPod.Object))
+				}
 				if resp.Status.Phase == v1.PodSucceeded && resp.UID == pod.UID {
 					log.Logger.Info("spark driver completed, app completed",
 						zap.String("pod", resp.Name),

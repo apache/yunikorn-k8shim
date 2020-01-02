@@ -406,14 +406,13 @@ func (ctx *Context) deletePod(obj interface{}) {
 	// when a pod is deleted, we need to check its role.
 	// for spark, if driver pod is deleted, then we consider the app is completed
 	var pod *v1.Pod
-	switch t := obj.(type) {
+	switch obj := obj.(type) {
 	case *v1.Pod:
-		pod = t
+		pod = obj
 	case cache.DeletedFinalStateUnknown:
-		var err error
-		pod, err = utils.Convert2Pod(t.Obj)
-		if err != nil {
-			log.Logger.Error(err.Error())
+		var ok bool
+		if pod, ok = obj.Obj.(*v1.Pod); !ok {
+			log.Logger.Error("cannot convert to pod")
 			return
 		}
 	default:
@@ -437,11 +436,11 @@ func (ctx *Context) deletePod(obj interface{}) {
 
 // filter assigned pods
 func (ctx *Context) filterAssignedPods(obj interface{}) bool {
-	switch t := obj.(type) {
+	switch obj := obj.(type) {
 	case *v1.Pod:
-		return utils.IsSchedulablePod(t) && utils.IsAssignedPod(t)
+		return utils.IsSchedulablePod(obj) && utils.IsAssignedPod(obj)
 	case cache.DeletedFinalStateUnknown:
-		if pod, ok := t.Obj.(*v1.Pod); ok {
+		if pod, ok := obj.Obj.(*v1.Pod); ok {
 			return utils.IsSchedulablePod(pod) && utils.IsAssignedPod(pod)
 		}
 		return false
@@ -452,10 +451,9 @@ func (ctx *Context) filterAssignedPods(obj interface{}) bool {
 
 // filter pods by scheduler name and state
 func (ctx *Context) filterPods(obj interface{}) bool {
-	switch obj.(type) {
+	switch obj := obj.(type) {
 	case *v1.Pod:
-		pod := obj.(*v1.Pod)
-		return utils.IsSchedulablePod(pod)
+		return utils.IsSchedulablePod(obj)
 	default:
 		return false
 	}
@@ -463,10 +461,9 @@ func (ctx *Context) filterPods(obj interface{}) bool {
 
 // filter configMap for the scheduler
 func (ctx *Context) filterConfigMaps(obj interface{}) bool {
-	switch obj.(type) {
+	switch obj := obj.(type) {
 	case *v1.ConfigMap:
-		cm := obj.(*v1.ConfigMap)
-		return cm.Name == common.DefaultConfigMapName
+		return obj.Name == common.DefaultConfigMapName
 	default:
 		return false
 	}
@@ -589,10 +586,9 @@ func (ctx *Context) ForgetPod(name string) error {
 	if pod, ok := ctx.schedulerCache.GetPod(name); ok {
 		log.Logger.Debug("forget pod", zap.String("pod", pod.Name))
 		return ctx.schedulerCache.ForgetPod(pod)
-	} else {
-		log.Logger.Debug("unable to forget pod",
-			zap.String("reason", fmt.Sprintf("pod %s not found in scheduler cache", name)))
 	}
+	log.Logger.Debug("unable to forget pod",
+		zap.String("reason", fmt.Sprintf("pod %s not found in scheduler cache", name)))
 	return nil
 }
 
@@ -679,7 +675,7 @@ func (ctx *Context) ApplicationEventHandler() func(obj interface{}) {
 			}
 
 			if app.canHandle(event) {
-				if err := app.handle(event); err != nil {
+				if err = app.handle(event); err != nil {
 					log.Logger.Error("failed to handle application event",
 						zap.String("event", string(event.GetEvent())),
 						zap.Error(err))
@@ -699,7 +695,7 @@ func (ctx *Context) TaskEventHandler() func(obj interface{}) {
 			}
 
 			if task.canHandle(event) {
-				if err := task.handle(event); err != nil {
+				if err = task.handle(event); err != nil {
 					log.Logger.Error("failed to handle task event",
 						zap.String("applicationID", task.applicationID),
 						zap.String("taskID", task.taskID),
@@ -714,10 +710,9 @@ func (ctx *Context) TaskEventHandler() func(obj interface{}) {
 func (ctx *Context) SchedulerNodeEventHandler() func(obj interface{}) {
 	if ctx != nil && ctx.nodes != nil {
 		return ctx.nodes.schedulerNodeEventHandler()
-	} else {
-		// this is not required in some tests
-		return nil
 	}
+	// this is not required in some tests
+	return nil
 }
 
 func (ctx *Context) Run(stopCh <-chan struct{}) {

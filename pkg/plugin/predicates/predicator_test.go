@@ -36,8 +36,8 @@ import (
 )
 
 var (
-	extendedResourceA     = v1.ResourceName("example.com/aaa")
-	hugePageResourceA     = v1helper.HugePageResourceName(resource.MustParse("2Mi"))
+	extendedResourceA = v1.ResourceName("example.com/aaa")
+	hugePageResourceA = v1helper.HugePageResourceName(resource.MustParse("2Mi"))
 )
 
 func TestPodFitsHost(t *testing.T) {
@@ -91,11 +91,12 @@ func TestPodFitsHost(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			nodeInfo := deschedulernode.NewNodeInfo()
-			nodeInfo.SetNode(test.node)
+			// API call always returns nil, never an error
+			//nolint:errcheck
+			_ = nodeInfo.SetNode(test.node)
 			err := predictor.Predicates(test.pod, nil, nodeInfo)
-			assert.Equal(t, err == nil, test.fits)
-			if err != nil {
-				fmt.Println(err.Error())
+			if (err == nil) != test.fits {
+				t.Errorf("%s expected fit state '%t' did not match real state and err = %v", test.name, test.fits, err)
 			}
 		})
 	}
@@ -105,6 +106,7 @@ func newPod(host string, hostPortInfos ...string) *v1.Pod {
 	var networkPorts []v1.ContainerPort
 	for _, portInfo := range hostPortInfos {
 		split := strings.Split(portInfo, "/")
+		//nolint:errcheck
 		hostPort, _ := strconv.Atoi(split[2])
 
 		networkPorts = append(networkPorts, v1.ContainerPort{
@@ -231,9 +233,8 @@ func TestPodFitsHostPorts(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			err := predictor.Predicates(test.pod, nil, test.nodeInfo)
-			assert.Equal(t, err == nil, test.fits)
-			if err != nil {
-				fmt.Println(err.Error())
+			if (err == nil) != test.fits {
+				t.Errorf("%s expected fit state '%t' did not match real state and err = %v", test.name, test.fits, err)
 			}
 		})
 	}
@@ -923,12 +924,13 @@ func TestPodFitsSelector(t *testing.T) {
 				Labels: test.labels,
 			}}
 			nodeInfo := deschedulernode.NewNodeInfo()
-			nodeInfo.SetNode(&node)
+			// API call always returns nil, never an error
+			//nolint:errcheck
+			_ = nodeInfo.SetNode(&node)
 
 			err := predictor.Predicates(test.pod, nil, nodeInfo)
-			assert.Equal(t, err == nil, test.fits)
-			if err != nil {
-				fmt.Println(err.Error())
+			if (err == nil) != test.fits {
+				t.Errorf("%s expected fit state '%t' did not match real state and err = %v", test.name, test.fits, err)
 			}
 		})
 	}
@@ -1055,11 +1057,12 @@ func TestRunGeneralPredicates(t *testing.T) {
 	}
 	for _, test := range resourceTests {
 		t.Run(test.name, func(t *testing.T) {
-			test.nodeInfo.SetNode(test.node)
+			// API call always returns nil, never an error
+			//nolint:errcheck
+			_ = test.nodeInfo.SetNode(test.node)
 			err := predictor.Predicates(test.pod, nil, test.nodeInfo)
-			assert.Equal(t, err == nil, test.fits)
-			if err != nil {
-				fmt.Println(err.Error())
+			if (err == nil) != test.fits {
+				t.Errorf("%s expected fit state '%t' did not match real state and err = %v", test.name, test.fits, err)
 			}
 		})
 	}
@@ -1999,13 +2002,14 @@ func TestInterPodAffinity(t *testing.T) {
 			}
 
 			nodeInfo := deschedulernode.NewNodeInfo(podsOnNode...)
-			nodeInfo.SetNode(test.node)
+			// API call always returns nil, never an error
+			//nolint:errcheck
+			_ = nodeInfo.SetNode(test.node)
 			nodeInfoMap := map[string]*deschedulernode.NodeInfo{test.node.Name: nodeInfo}
 			meta := predictor.GetPredicateMeta(test.pod, nodeInfoMap)
 			err := predictor.Predicates(test.pod, meta, nodeInfo)
-			assert.Equal(t, err == nil, test.fits)
-			if err != nil {
-				fmt.Println(err.Error())
+			if (err == nil) != test.fits {
+				t.Errorf("%s expected fit state '%t' did not match real state and err = %v", test.name, test.fits, err)
 			}
 		})
 	}
@@ -2030,7 +2034,6 @@ func TestInvalidConfiguredPredicates(t *testing.T) {
 		"xxx", predicates.CheckVolumeBindingPred}
 	schedulerConf.Predicates = strings.Join(testPredicates, ",")
 	_, err := parseConfiguredSchedulerPolicy()
-	t.Log(err)
 	assert.Error(t, err, fmt.Sprintf("configured predicate 'xxx' is invalid, valid predicates are: %v",
 		predicates.Ordering()))
 }

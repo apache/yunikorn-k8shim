@@ -56,7 +56,7 @@ func main() {
 	}
 
 	go func() {
-		if err := server.ListenAndServeTLS("", ""); err != nil {
+		if err = server.ListenAndServeTLS("", ""); err != nil {
 			log.Logger.Fatal("failed to start admission controller", zap.Error(err))
 		}
 	}()

@@ -104,7 +104,7 @@ func init() {
 		"the maximum QPS to kubernetes master from this client")
 	kubeBurst := flag.Int("kubeBurst", DefaultKubeBurst,
 		"the maximum burst for throttle to kubernetes master from this client")
-	predicates := flag.String("predicates", "",
+	predicateList := flag.String("predicates", "",
 		fmt.Sprintf("comma-separated list of predicates, valid predicates are: %s, "+
 			"the program will exit if any invalid predicates exist.", predicates.Ordering()))
 
@@ -123,7 +123,9 @@ func init() {
 	// https://github.com/kubernetes/community/blob/master/contributors/devel/sig-instrumentation/logging.md
 	if zapcore.Level(*logLevel).Enabled(zapcore.DebugLevel) {
 		klog.InitFlags(nil)
-		flag.Set("v", "4")
+		// cannot really handle the error here ignore it
+		//nolint:errcheck
+		_ = flag.Set("v", "4")
 	}
 
 	configuration = &SchedulerConf{
@@ -141,6 +143,6 @@ func init() {
 		DispatchTimeout:      *dispatchTimeout,
 		KubeQPS:              *kubeQPS,
 		KubeBurst:            *kubeBurst,
-		Predicates:           *predicates,
+		Predicates:           *predicateList,
 	}
 }

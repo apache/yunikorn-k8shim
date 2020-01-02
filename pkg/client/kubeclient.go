@@ -37,11 +37,11 @@ func newSchedulerKubeClient(kc string) SchedulerKubeClient {
 	// using kube config
 	if kc != "" {
 		config, err := clientcmd.BuildConfigFromFlags("", kc)
-		config.QPS = float32(schedulerConf.KubeQPS)
-		config.Burst = schedulerConf.KubeBurst
 		if err != nil {
 			log.Logger.Fatal("failed to create kubeClient configs", zap.Error(err))
 		}
+		config.QPS = float32(schedulerConf.KubeQPS)
+		config.Burst = schedulerConf.KubeBurst
 		configuredClient := kubernetes.NewForConfigOrDie(config)
 		return SchedulerKubeClient{
 			clientSet: configuredClient,
@@ -50,12 +50,15 @@ func newSchedulerKubeClient(kc string) SchedulerKubeClient {
 
 	// using in cluster config
 	config, err := rest.InClusterConfig()
-	config.QPS = float32(schedulerConf.KubeQPS)
-	config.Burst = schedulerConf.KubeBurst
 	if err != nil {
 		log.Logger.Fatal("failed to get InClusterConfig", zap.Error(err))
 	}
+	config.QPS = float32(schedulerConf.KubeQPS)
+	config.Burst = schedulerConf.KubeBurst
 	configuredClient, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		log.Logger.Fatal("failed to get Clientset", zap.Error(err))
+	}
 	return SchedulerKubeClient{
 		clientSet: configuredClient,
 	}
