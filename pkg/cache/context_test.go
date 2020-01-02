@@ -30,14 +30,14 @@ import (
 	"github.com/cloudera/yunikorn-k8shim/pkg/dispatcher"
 )
 
-const fakeClusterId = "test-cluster"
+const fakeClusterID = "test-cluster"
 const fakeClusterVersion = "0.1.0"
 const fakeClusterSchedulerName = "yunikorn-test"
 const fakeClusterSchedulingInterval = 1
 
 func initContextForTest() *Context {
 	configs := conf.SchedulerConf{
-		ClusterId:      fakeClusterId,
+		ClusterID:      fakeClusterID,
 		ClusterVersion: fakeClusterVersion,
 		SchedulerName:  fakeClusterSchedulerName,
 		Interval:       fakeClusterSchedulingInterval,
@@ -80,7 +80,7 @@ func TestAddPod(t *testing.T) {
 			Namespace: "default",
 			UID:       "UID-POD-00001",
 			Labels: map[string]string{
-				"applicationId": "app00001",
+				"applicationID": "app00001",
 				"queue":         "root.a",
 			},
 		},
@@ -93,7 +93,7 @@ func TestAddPod(t *testing.T) {
 	context.addPod(&pod)
 	app01 := context.getOrCreateApplication(&pod)
 	assert.Equal(t, len(context.applications), 1)
-	assert.Equal(t, app01.GetApplicationId(), "app00001")
+	assert.Equal(t, app01.GetApplicationID(), "app00001")
 	assert.Equal(t, len(app01.GetNewTasks()), 1)
 	assert.Equal(t, app01.GetNewTasks()[0].GetTaskPod().Name, "pod00001")
 	assert.Equal(t, string(app01.GetNewTasks()[0].GetTaskPod().UID), "UID-POD-00001")
@@ -115,7 +115,7 @@ func TestAddPod(t *testing.T) {
 			Namespace: "default",
 			UID:       "UID-POD-00002",
 			Labels: map[string]string{
-				"applicationId": "app00001",
+				"applicationID": "app00001",
 				"queue":         "root.a",
 			},
 		},
@@ -152,7 +152,7 @@ func TestAddPod(t *testing.T) {
 			Namespace: "default",
 			UID:       "UID-POD-00003",
 			Labels: map[string]string{
-				"applicationId": "app00001",
+				"applicationID": "app00001",
 				"queue":         "root.a",
 			},
 		},
@@ -177,7 +177,7 @@ func TestAddPod(t *testing.T) {
 			Namespace: "default",
 			UID:       "UID-POD-00004",
 			Labels: map[string]string{
-				"applicationId": "app00002",
+				"applicationID": "app00002",
 				"queue":         "root.a",
 			},
 		},
@@ -192,7 +192,7 @@ func TestAddPod(t *testing.T) {
 	assert.Equal(t, len(app01.GetNewTasks()), 2)
 	app02 := context.getOrCreateApplication(&pod3)
 	assert.Equal(t, len(app02.GetNewTasks()), 1)
-	assert.Equal(t, app02.GetApplicationId(), "app00002")
+	assert.Equal(t, app02.GetApplicationID(), "app00002")
 }
 
 func TestPodRejected(t *testing.T) {
@@ -212,7 +212,7 @@ func TestPodRejected(t *testing.T) {
 			Namespace: "default",
 			UID:       "UID-POD-00001",
 			Labels: map[string]string{
-				"applicationId": "app00001",
+				"applicationID": "app00001",
 				"queue":         "root.a",
 			},
 		},
@@ -225,7 +225,7 @@ func TestPodRejected(t *testing.T) {
 	context.addPod(&pod)
 	app01 := context.getOrCreateApplication(&pod)
 	assert.Equal(t, len(context.applications), 1)
-	assert.Equal(t, app01.GetApplicationId(), "app00001")
+	assert.Equal(t, app01.GetApplicationID(), "app00001")
 	assert.Equal(t, len(app01.GetNewTasks()), 1)
 	assert.Equal(t, app01.GetNewTasks()[0].GetTaskPod().Name, "pod00001")
 	assert.Equal(t, string(app01.GetNewTasks()[0].GetTaskPod().UID), "UID-POD-00001")
@@ -250,7 +250,7 @@ func assertTaskState(t *testing.T, task *Task, expectedState string, timeout tim
 		}
 		if time.Now().After(deadline) {
 			t.Errorf("task %s doesn't reach expected state in given time, expecting: %s, actual: %s",
-				task.taskId, expectedState, task.GetTaskState())
+				task.taskID, expectedState, task.GetTaskState())
 		}
 	}
 }

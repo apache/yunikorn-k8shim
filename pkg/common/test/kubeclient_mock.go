@@ -23,13 +23,13 @@ import (
 
 // fake client allows us to inject customized bind/delete pod functions
 type KubeClientMock struct {
-	bindFn   func(pod *v1.Pod, hostId string) error
+	bindFn   func(pod *v1.Pod, hostID string) error
 	deleteFn func(pod *v1.Pod) error
 }
 
 func NewKubeClientMock() *KubeClientMock {
 	return &KubeClientMock{
-		bindFn: func(pod *v1.Pod, hostId string) error {
+		bindFn: func(pod *v1.Pod, hostID string) error {
 			return nil
 		},
 		deleteFn: func(pod *v1.Pod) error {
@@ -38,7 +38,7 @@ func NewKubeClientMock() *KubeClientMock {
 	}
 }
 
-func (c *KubeClientMock) MockBindFn(bfn func(pod *v1.Pod, hostId string) error) {
+func (c *KubeClientMock) MockBindFn(bfn func(pod *v1.Pod, hostID string) error) {
 	c.bindFn = bfn
 }
 
@@ -46,8 +46,8 @@ func (c *KubeClientMock) MockDeleteFn(dfn func(pod *v1.Pod) error) {
 	c.deleteFn = dfn
 }
 
-func (c *KubeClientMock) Bind(pod *v1.Pod, hostId string) error {
-	return c.bindFn(pod, hostId)
+func (c *KubeClientMock) Bind(pod *v1.Pod, hostID string) error {
+	return c.bindFn(pod, hostID)
 }
 
 func (c *KubeClientMock) Delete(pod *v1.Pod) error {

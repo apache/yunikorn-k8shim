@@ -65,18 +65,18 @@ func (nc SchedulerKubeClient) GetClientSet() *kubernetes.Clientset {
 	return nc.clientSet
 }
 
-func (nc SchedulerKubeClient) Bind(pod *v1.Pod, hostId string) error {
+func (nc SchedulerKubeClient) Bind(pod *v1.Pod, hostID string) error {
 	log.Logger.Info("bind pod to node",
 		zap.String("podName", pod.Name),
 		zap.String("podUID", string(pod.UID)),
-		zap.String("nodeId", hostId))
+		zap.String("nodeID", hostID))
 
 	if err := nc.clientSet.CoreV1().Pods(pod.Namespace).Bind(
 		&v1.Binding{ObjectMeta: apis.ObjectMeta{
 			Namespace: pod.Namespace, Name: pod.Name, UID: pod.UID},
 			Target: v1.ObjectReference{
 				Kind: "Node",
-				Name: hostId,
+				Name: hostID,
 			},
 		}); err != nil {
 		log.Logger.Error("failed to bind pod",

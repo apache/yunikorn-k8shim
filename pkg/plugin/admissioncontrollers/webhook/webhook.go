@@ -32,7 +32,7 @@ import (
 )
 
 const (
-	HttpPort    = 8443
+	HTTPPort    = 8443
 	tlsDir      = `/run/secrets/tls`
 	tlsCertFile = `cert.pem`
 	tlsKeyFile  = `key.pem`
@@ -50,7 +50,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/mutate", webHook.serve)
 	server := &http.Server{
-		Addr:      fmt.Sprintf(":%v", HttpPort),
+		Addr:      fmt.Sprintf(":%v", HTTPPort),
 		TLSConfig: &tls.Config{Certificates: []tls.Certificate{pair}},
 		Handler:   mux,
 	}
@@ -62,7 +62,7 @@ func main() {
 	}()
 
 	log.Logger.Info("the admission controller started",
-		zap.Int("port", HttpPort),
+		zap.Int("port", HTTPPort),
 		zap.String("listeningOn", "/mutate"))
 
 	signalChan := make(chan os.Signal, 1)

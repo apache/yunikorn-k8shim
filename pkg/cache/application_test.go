@@ -32,8 +32,8 @@ import (
 )
 
 func TestNewApplication(t *testing.T) {
-	app := NewApplication("app00001", "root.queue", "testuser", map[string]string{}, newMockSchedulerApi())
-	assert.Equal(t, app.GetApplicationId(), "app00001")
+	app := NewApplication("app00001", "root.queue", "testuser", map[string]string{}, newMockSchedulerAPI())
+	assert.Equal(t, app.GetApplicationID(), "app00001")
 	assert.Equal(t, app.GetApplicationState(), events.States().Application.New)
 	assert.Equal(t, app.partition, common.DefaultPartition)
 	assert.Equal(t, len(app.taskMap), 0)
@@ -42,16 +42,16 @@ func TestNewApplication(t *testing.T) {
 }
 
 func TestSubmitApplication(t *testing.T) {
-	app := NewApplication("app00001", "root.abc", "testuser", map[string]string{}, newMockSchedulerApi())
+	app := NewApplication("app00001", "root.abc", "testuser", map[string]string{}, newMockSchedulerAPI())
 
-	err := app.handle(NewSubmitApplicationEvent(app.applicationId))
+	err := app.handle(NewSubmitApplicationEvent(app.applicationID))
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
 	assertAppState(t, app, events.States().Application.Submitted, 10*time.Second)
 
 	// app already submitted
-	err = app.handle(NewSubmitApplicationEvent(app.applicationId))
+	err = app.handle(NewSubmitApplicationEvent(app.applicationID))
 	if err == nil {
 		// this should give an error
 		t.Error("expecting error got 'nil'")
@@ -60,10 +60,10 @@ func TestSubmitApplication(t *testing.T) {
 }
 
 func TestRunApplication(t *testing.T) {
-	ms := &MockSchedulerApi{}
+	ms := &mockSchedulerAPI{}
 	ms.updateFn = func(request *si.UpdateRequest) error {
 		assert.Equal(t, len(request.NewApplications), 1)
-		assert.Equal(t, request.NewApplications[0].ApplicationId, "app00001")
+		assert.Equal(t, request.NewApplications[0].ApplicationID, "app00001")
 		assert.Equal(t, request.NewApplications[0].QueueName, "root.abc")
 		return nil
 	}
@@ -71,7 +71,7 @@ func TestRunApplication(t *testing.T) {
 	app := NewApplication("app00001", "root.abc", "testuser", map[string]string{}, ms)
 
 	// app must be submitted before being able to run
-	err := app.handle(NewRunApplicationEvent(app.applicationId))
+	err := app.handle(NewRunApplicationEvent(app.applicationID))
 	if err == nil {
 		// this should give an error
 		t.Error("expecting error got 'nil'")
@@ -79,14 +79,14 @@ func TestRunApplication(t *testing.T) {
 	assertAppState(t, app, events.States().Application.New, 3*time.Second)
 
 	// submit the app
-	err = app.handle(NewSubmitApplicationEvent(app.applicationId))
+	err = app.handle(NewSubmitApplicationEvent(app.applicationID))
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
 	assertAppState(t, app, events.States().Application.Submitted, 3*time.Second)
 
 	// app must be accepted first
-	err = app.handle(NewRunApplicationEvent(app.applicationId))
+	err = app.handle(NewRunApplicationEvent(app.applicationID))
 	if err == nil {
 		// this should give an error
 		t.Error("expecting error got 'nil'")
@@ -94,7 +94,7 @@ func TestRunApplication(t *testing.T) {
 	assertAppState(t, app, events.States().Application.Submitted, 3*time.Second)
 }
 
-func TestGetApplicationIdFromPod(t *testing.T) {
+func TestGetApplicationIDFromPod(t *testing.T) {
 	// defined in label
 	pod := v1.Pod{
 		TypeMeta: apis.TypeMeta{
@@ -106,15 +106,15 @@ func TestGetApplicationIdFromPod(t *testing.T) {
 			Namespace: "default",
 			UID:       "UID-POD-00001",
 			Labels: map[string]string{
-				"applicationId": "app00001",
+				"applicationID": "app00001",
 				"queue":         "root.a",
 			},
 		},
 		Spec:   v1.PodSpec{},
 		Status: v1.PodStatus{},
 	}
-	appId, err := utils.GetApplicationIdFromPod(&pod)
-	assert.Equal(t, appId, "app00001")
+	appID, err := utils.GetApplicationIDFromPod(&pod)
+	assert.Equal(t, appID, "app00001")
 	assert.Equal(t, err, nil)
 
 	// defined in annotations
@@ -128,15 +128,15 @@ func TestGetApplicationIdFromPod(t *testing.T) {
 			Namespace: "default",
 			UID:       "UID-POD-00001",
 			Annotations: map[string]string{
-				"applicationId": "app00002",
+				"applicationID": "app00002",
 				"queue":         "root.a",
 			},
 		},
 		Spec:   v1.PodSpec{},
 		Status: v1.PodStatus{},
 	}
-	appId, err = utils.GetApplicationIdFromPod(&pod)
-	assert.Equal(t, appId, "app00002")
+	appID, err = utils.GetApplicationIDFromPod(&pod)
+	assert.Equal(t, appID, "app00002")
 	assert.Equal(t, err, nil)
 
 	// spark app-id
@@ -157,8 +157,8 @@ func TestGetApplicationIdFromPod(t *testing.T) {
 		Spec:   v1.PodSpec{},
 		Status: v1.PodStatus{},
 	}
-	appId, err = utils.GetApplicationIdFromPod(&pod)
-	assert.Equal(t, appId, "spark-0001")
+	appID, err = utils.GetApplicationIDFromPod(&pod)
+	assert.Equal(t, appID, "spark-0001")
 	assert.Equal(t, err, nil)
 
 	// not found
@@ -176,13 +176,13 @@ func TestGetApplicationIdFromPod(t *testing.T) {
 		Status: v1.PodStatus{},
 	}
 
-	appId, err = utils.GetApplicationIdFromPod(&pod)
-	assert.Equal(t, appId, "")
+	appID, err = utils.GetApplicationIDFromPod(&pod)
+	assert.Equal(t, appID, "")
 	assert.Assert(t, err != nil)
 }
 
-func newMockSchedulerApi() *MockSchedulerApi {
-	return &MockSchedulerApi{
+func newMockSchedulerAPI() *mockSchedulerAPI {
+	return &mockSchedulerAPI{
 		registerFn: func(request *si.RegisterResourceManagerRequest, callback api.ResourceManagerCallback) (response *si.RegisterResourceManagerResponse, e error) {
 			return nil, nil
 		},
@@ -192,23 +192,23 @@ func newMockSchedulerApi() *MockSchedulerApi {
 	}
 }
 
-type MockSchedulerApi struct {
+type mockSchedulerAPI struct {
 	callback   api.ResourceManagerCallback //nolint:structcheck,unused
 	registerFn func(request *si.RegisterResourceManagerRequest,
 		callback api.ResourceManagerCallback) (*si.RegisterResourceManagerResponse, error)
 	updateFn func(request *si.UpdateRequest) error
 }
 
-func (ms *MockSchedulerApi) RegisterResourceManager(request *si.RegisterResourceManagerRequest,
+func (ms *mockSchedulerAPI) RegisterResourceManager(request *si.RegisterResourceManagerRequest,
 	callback api.ResourceManagerCallback) (*si.RegisterResourceManagerResponse, error) {
 	return ms.registerFn(request, callback)
 }
 
-func (ms *MockSchedulerApi) Update(request *si.UpdateRequest) error {
+func (ms *mockSchedulerAPI) Update(request *si.UpdateRequest) error {
 	return ms.updateFn(request)
 }
 
-func (ms *MockSchedulerApi) ReloadConfiguration(rmId string) error {
+func (ms *mockSchedulerAPI) ReloadConfiguration(rmID string) error {
 	return nil
 }
 
@@ -220,7 +220,7 @@ func assertAppState(t *testing.T, app *Application, expectedState string, durati
 		}
 
 		if time.Now().After(deadline) {
-			t.Fatalf("timeout waiting for app %s reach to state %s", app.applicationId, expectedState)
+			t.Fatalf("timeout waiting for app %s reach to state %s", app.applicationID, expectedState)
 		}
 	}
 }

@@ -33,10 +33,10 @@ import (
 )
 
 func TestNodeRecoveringState(t *testing.T) {
-	mockApi := test.NewSchedulerApiMock()
+	mockAPI := test.NewSchedulerAPIMock()
 	mockClient := test.NewKubeClientMock()
 
-	context := NewContextInternal(mockApi, &conf.SchedulerConf{}, mockClient, true)
+	context := NewContextInternal(mockAPI, &conf.SchedulerConf{}, mockClient, true)
 	dispatcher.RegisterEventHandler(dispatcher.EventTypeNode, context.nodes.schedulerNodeEventHandler())
 	dispatcher.Start()
 	defer dispatcher.Stop()
@@ -97,10 +97,10 @@ func TestNodeRecoveringState(t *testing.T) {
 }
 
 func TestNodesRecovery(t *testing.T) {
-	mockApi := test.NewSchedulerApiMock()
+	mockAPI := test.NewSchedulerAPIMock()
 	mockClient := test.NewKubeClientMock()
 
-	context := NewContextInternal(mockApi, &conf.SchedulerConf{}, mockClient, true)
+	context := NewContextInternal(mockAPI, &conf.SchedulerConf{}, mockClient, true)
 	dispatcher.RegisterEventHandler(dispatcher.EventTypeNode, context.nodes.schedulerNodeEventHandler())
 	dispatcher.Start()
 	defer dispatcher.Stop()
@@ -158,7 +158,7 @@ func TestNodesRecovery(t *testing.T) {
 
 	// node1 recovery is done
 	dispatcher.Dispatch(CachedSchedulerNodeEvent{
-		NodeId: "host0001",
+		NodeID: "host0001",
 		Event:  events.NodeAccepted,
 	})
 
@@ -171,7 +171,7 @@ func TestNodesRecovery(t *testing.T) {
 
 	// node2 recovery is done
 	dispatcher.Dispatch(CachedSchedulerNodeEvent{
-		NodeId: "host0002",
+		NodeID: "host0002",
 		Event:  events.NodeAccepted,
 	})
 
@@ -184,11 +184,11 @@ func TestNodesRecovery(t *testing.T) {
 }
 
 func TestAppRecovery(t *testing.T) {
-	mockApi := test.NewSchedulerApiMock()
+	mockAPI := test.NewSchedulerAPIMock()
 	mockClient := test.NewKubeClientMock()
 	conf.GetSchedulerConf().SchedulerName = fakeClusterSchedulerName
 
-	context := NewContextInternal(mockApi, &conf.SchedulerConf{}, mockClient, true)
+	context := NewContextInternal(mockAPI, &conf.SchedulerConf{}, mockClient, true)
 	dispatcher.RegisterEventHandler(dispatcher.EventTypeApp, context.ApplicationEventHandler())
 	dispatcher.Start()
 	defer dispatcher.Stop()
@@ -205,7 +205,7 @@ func TestAppRecovery(t *testing.T) {
 			Namespace: "default",
 			UID:       "UID-POD-00001",
 			Labels: map[string]string{
-				"applicationId": "app1",
+				"applicationID": "app1",
 				"queue":         "root.a",
 			},
 		},
@@ -230,7 +230,7 @@ func TestAppRecovery(t *testing.T) {
 			Namespace: "default",
 			UID:       "UID-POD-00003",
 			Labels: map[string]string{
-				"applicationId": "app2",
+				"applicationID": "app2",
 				"queue":         "root.a",
 			},
 		},
@@ -253,7 +253,7 @@ func TestAppRecovery(t *testing.T) {
 			// only app1 which is already scheduled before can be recovered
 			if app1 != nil && app1.GetApplicationState() == events.States().Application.Recovering {
 				// simulate that app1 is accepted by scheduler
-				dispatcher.Dispatch(NewSimpleApplicationEvent(app1.applicationId, events.AcceptApplication))
+				dispatcher.Dispatch(NewSimpleApplicationEvent(app1.applicationID, events.AcceptApplication))
 				return true
 			}
 			return false
@@ -261,7 +261,7 @@ func TestAppRecovery(t *testing.T) {
 			appStates := make(map[string]string)
 			apps := context.SelectApplications(nil)
 			for _, app := range apps {
-				appStates[app.GetApplicationId()] = app.GetApplicationState()
+				appStates[app.GetApplicationID()] = app.GetApplicationState()
 			}
 			t.Fatalf("failed to wait for app1 with Recovering state in 3 seconds, actual app states: %s",
 				fmt.Sprintf("%v", appStates))

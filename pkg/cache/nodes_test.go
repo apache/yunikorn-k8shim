@@ -35,7 +35,7 @@ import (
 )
 
 func TestAddNode(t *testing.T) {
-	api := test.NewSchedulerApiMock()
+	api := test.NewSchedulerAPIMock()
 
 	// register fn doesn't nothing than checking input
 	inputCheckerUpdateFn := func(request *si.UpdateRequest) error {
@@ -44,8 +44,8 @@ func TestAddNode(t *testing.T) {
 		}
 
 		info := request.NewSchedulableNodes[0]
-		if info.NodeId != "host0001" {
-			t.Fatalf("unexpected node name %s", info.NodeId)
+		if info.NodeID != "host0001" {
+			t.Fatalf("unexpected node name %s", info.NodeID)
 		}
 
 		if memory := info.SchedulableResource.Resources[common.Memory].Value; memory != int64(1024) {
@@ -98,7 +98,7 @@ func TestAddNode(t *testing.T) {
 }
 
 func TestUpdateNode(t *testing.T) {
-	api := test.NewSchedulerApiMock()
+	api := test.NewSchedulerAPIMock()
 
 	// register fn doesn't nothing than checking input
 	inputCheckerUpdateFn := func(request *si.UpdateRequest) error {
@@ -107,8 +107,8 @@ func TestUpdateNode(t *testing.T) {
 		}
 
 		info := request.NewSchedulableNodes[0]
-		if info.NodeId != "host0001" {
-			t.Fatalf("unexpected node name %s", info.NodeId)
+		if info.NodeID != "host0001" {
+			t.Fatalf("unexpected node name %s", info.NodeID)
 		}
 
 		if memory := info.SchedulableResource.Resources[common.Memory].Value; memory != int64(1024) {
@@ -189,8 +189,8 @@ func TestUpdateNode(t *testing.T) {
 		}
 
 		info := request.UpdatedNodes[0]
-		if info.NodeId != "host0001" {
-			t.Fatalf("unexpected node name %s", info.NodeId)
+		if info.NodeID != "host0001" {
+			t.Fatalf("unexpected node name %s", info.NodeID)
 		}
 
 		if memory := info.SchedulableResource.Resources[common.Memory].Value; memory != int64(2048) {
@@ -212,7 +212,7 @@ func TestUpdateNode(t *testing.T) {
 }
 
 func TestDeleteNode(t *testing.T) {
-	api := test.NewSchedulerApiMock()
+	api := test.NewSchedulerAPIMock()
 
 	// register fn doesn't nothing than checking input
 	inputCheckerFn := func(request *si.UpdateRequest) error {
@@ -221,8 +221,8 @@ func TestDeleteNode(t *testing.T) {
 		}
 
 		info := request.UpdatedNodes[0]
-		if info.NodeId != "host0001" {
-			t.Fatalf("unexpected node name %s", info.NodeId)
+		if info.NodeID != "host0001" {
+			t.Fatalf("unexpected node name %s", info.NodeID)
 		}
 
 		if memory := info.SchedulableResource.Resources[common.Memory].Value; memory != int64(1024) {
@@ -287,7 +287,7 @@ func NewTestSchedulerCache() *external.SchedulerCache {
 }
 
 func TestCordonNode(t *testing.T) {
-	api := test.NewSchedulerApiMock()
+	api := test.NewSchedulerAPIMock()
 
 	// register fn doesn't nothing than checking input
 	inputCheckerUpdateFn := func(request *si.UpdateRequest) error {

@@ -23,7 +23,7 @@ import (
 
 type KubeClient interface {
 	// bind a pod to a specific host
-	Bind(pod *v1.Pod, hostId string) error
+	Bind(pod *v1.Pod, hostID string) error
 
 	// Delete a pod from a host
 	Delete(pod *v1.Pod) error

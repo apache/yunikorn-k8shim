@@ -28,7 +28,7 @@ import (
 
 // default configuration values, these can be override by CLI options
 const (
-	DefaultClusterId            = "my-kube-cluster"
+	DefaultClusterID            = "my-kube-cluster"
 	DefaultClusterVersion       = "0.1"
 	DefaultSchedulerName        = "yunikorn"
 	DefaultPolicyGroup          = "queues"
@@ -45,7 +45,7 @@ const (
 var configuration *SchedulerConf
 
 type SchedulerConf struct {
-	ClusterId            string        `json:"clusterId"`
+	ClusterID            string        `json:"clusterId"`
 	ClusterVersion       string        `json:"clusterVersion"`
 	SchedulerName        string        `json:"schedulerName"`
 	PolicyGroup          string        `json:"policyGroup"`
@@ -86,7 +86,7 @@ func init() {
 		"absolute path to the kubeconfig file")
 	schedulingInterval := flag.Duration("interval", DefaultSchedulingInterval,
 		"scheduling interval in seconds")
-	clusterId := flag.String("clusterId", DefaultClusterId,
+	clusterID := flag.String("clusterId", DefaultClusterID,
 		"cluster id")
 	clusterVersion := flag.String("clusterVersion", DefaultClusterVersion,
 		"cluster version")
@@ -127,7 +127,7 @@ func init() {
 	}
 
 	configuration = &SchedulerConf{
-		ClusterId:            *clusterId,
+		ClusterID:            *clusterID,
 		ClusterVersion:       *clusterVersion,
 		PolicyGroup:          *policyGroup,
 		SchedulerName:        *schedulerName,

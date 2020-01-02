@@ -23,7 +23,7 @@ import (
 
 func TestDefaultValues(t *testing.T) {
 	conf := GetSchedulerConf()
-	assert.Equal(t, conf.ClusterId, DefaultClusterId)
+	assert.Equal(t, conf.ClusterID, DefaultClusterID)
 	assert.Equal(t, conf.PolicyGroup, DefaultPolicyGroup)
 	assert.Equal(t, conf.ClusterVersion, DefaultClusterVersion)
 	assert.Equal(t, conf.SchedulerName, DefaultSchedulerName)

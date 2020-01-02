@@ -36,7 +36,7 @@ import (
 
 // shim scheduler watches api server and interacts with unity scheduler to allocate pods
 type KubernetesShim struct {
-	rmProxy      api.SchedulerApi
+	rmProxy      api.SchedulerAPI
 	context      *cache.Context
 	callback     api.ResourceManagerCallback
 	stateMachine *fsm.FSM
@@ -44,14 +44,14 @@ type KubernetesShim struct {
 	lock         *sync.RWMutex
 }
 
-func newShimScheduler(api api.SchedulerApi, configs *conf.SchedulerConf) *KubernetesShim {
+func newShimScheduler(api api.SchedulerAPI, configs *conf.SchedulerConf) *KubernetesShim {
 	context := cache.NewContext(api, configs)
 	rmCallback := callback.NewAsyncRMCallback(context)
 	return newShimSchedulerInternal(api, context, rmCallback)
 }
 
 // this is visible for testing
-func newShimSchedulerInternal(api api.SchedulerApi, ctx *cache.Context, cb api.ResourceManagerCallback) *KubernetesShim {
+func newShimSchedulerInternal(api api.SchedulerAPI, ctx *cache.Context, cb api.ResourceManagerCallback) *KubernetesShim {
 	var states = events.States().Scheduler
 	ss := &KubernetesShim{
 		rmProxy:  api,
@@ -181,13 +181,13 @@ func (ss *KubernetesShim) doScheduling() func(e *fsm.Event) {
 func (ss *KubernetesShim) registerShimLayer() error {
 	configuration := conf.GetSchedulerConf()
 	registerMessage := si.RegisterResourceManagerRequest{
-		RmId:        configuration.ClusterId,
+		RmID:        configuration.ClusterID,
 		Version:     configuration.ClusterVersion,
 		PolicyGroup: configuration.PolicyGroup,
 	}
 
 	log.Logger.Info("register RM to the scheduler",
-		zap.String("clusterId", configuration.ClusterId),
+		zap.String("clusterID", configuration.ClusterID),
 		zap.String("clusterVersion", configuration.ClusterVersion),
 		zap.String("policyGroup", configuration.PolicyGroup))
 	if _, err := ss.rmProxy.RegisterResourceManager(&registerMessage, ss.callback); err != nil {

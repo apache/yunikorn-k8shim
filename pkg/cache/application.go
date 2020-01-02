@@ -36,7 +36,7 @@ import (
 )
 
 type Application struct {
-	applicationId string
+	applicationID string
 	queue         string
 	partition     string
 	user          string
@@ -45,19 +45,19 @@ type Application struct {
 	sm            *fsm.FSM
 	lock          *sync.RWMutex
 	ch            CompletionHandler
-	schedulerApi  api.SchedulerApi
+	schedulerAPI  api.SchedulerAPI
 }
 
 func (app *Application) String() string {
-	return fmt.Sprintf("applicationId: %s, queue: %s, partition: %s,"+
+	return fmt.Sprintf("applicationID: %s, queue: %s, partition: %s,"+
 		" totalNumOfTasks: %d, currentState: %s",
-		app.applicationId, app.queue, app.partition, len(app.taskMap), app.GetApplicationState())
+		app.applicationID, app.queue, app.partition, len(app.taskMap), app.GetApplicationState())
 }
 
-func NewApplication(appId, queueName, user string, tags map[string]string, scheduler api.SchedulerApi) *Application {
+func NewApplication(appID, queueName, user string, tags map[string]string, scheduler api.SchedulerAPI) *Application {
 	taskMap := make(map[string]*Task)
 	app := &Application{
-		applicationId: appId,
+		applicationID: appID,
 		queue:         queueName,
 		partition:     common.DefaultPartition,
 		user:          user,
@@ -65,7 +65,7 @@ func NewApplication(appId, queueName, user string, tags map[string]string, sched
 		tags:          tags,
 		lock:          &sync.RWMutex{},
 		ch:            CompletionHandler{running: false},
-		schedulerApi:  scheduler,
+		schedulerAPI:  scheduler,
 	}
 
 	var states = events.States().Application
@@ -125,7 +125,7 @@ func (app *Application) handle(ev events.ApplicationEvent) error {
 	app.lock.Lock()
 	defer app.lock.Unlock()
 	log.Logger.Debug("application state transition",
-		zap.String("appId", app.applicationId),
+		zap.String("appID", app.applicationID),
 		zap.String("preState", app.sm.Current()),
 		zap.String("pendingEvent", string(ev.GetEvent())))
 	err := app.sm.Event(string(ev.GetEvent()), ev.GetArgs()...)
@@ -134,7 +134,7 @@ func (app *Application) handle(ev events.ApplicationEvent) error {
 		return err
 	}
 	log.Logger.Debug("application state transition",
-		zap.String("appId", app.applicationId),
+		zap.String("appID", app.applicationID),
 		zap.String("postState", app.sm.Current()))
 	return nil
 }
@@ -145,20 +145,20 @@ func (app *Application) canHandle(ev events.ApplicationEvent) bool {
 	return app.sm.Can(string(ev.GetEvent()))
 }
 
-func (app *Application) GetTask(taskId string) (*Task, error) {
+func (app *Application) GetTask(taskID string) (*Task, error) {
 	app.lock.RLock()
 	defer app.lock.RUnlock()
-	if task, ok := app.taskMap[taskId]; ok {
+	if task, ok := app.taskMap[taskID]; ok {
 		return task, nil
 	}
 	return nil, fmt.Errorf("task %s doesn't exist in application %s",
-		taskId, app.applicationId)
+		taskID, app.applicationID)
 }
 
-func (app *Application) GetApplicationId() string {
+func (app *Application) GetApplicationID() string {
 	app.lock.RLock()
 	defer app.lock.RUnlock()
-	return app.applicationId
+	return app.applicationID
 }
 
 func (app *Application) GetQueue() string {
@@ -170,11 +170,11 @@ func (app *Application) GetQueue() string {
 func (app *Application) AddTask(task *Task) {
 	app.lock.Lock()
 	defer app.lock.Unlock()
-	if _, ok := app.taskMap[task.taskId]; ok {
+	if _, ok := app.taskMap[task.taskID]; ok {
 		// skip adding duplicate task
 		return
 	}
-	app.taskMap[task.taskId] = task
+	app.taskMap[task.taskID] = task
 }
 
 func (app *Application) GetApplicationState() string {
@@ -221,13 +221,13 @@ func (app *Application) Schedule() {
 	var states = events.States().Application
 	switch app.GetApplicationState() {
 	case states.New:
-		ev := NewSubmitApplicationEvent(app.GetApplicationId())
+		ev := NewSubmitApplicationEvent(app.GetApplicationID())
 		if err := app.handle(ev); err != nil {
 			log.Logger.Warn("failed to handle SUBMIT app event",
 				zap.Error(err))
 		}
 	case states.Accepted:
-		ev := NewRunApplicationEvent(app.GetApplicationId())
+		ev := NewRunApplicationEvent(app.GetApplicationID())
 		if err := app.handle(ev); err != nil {
 			log.Logger.Warn("failed to handle RUN app event",
 				zap.Error(err))
@@ -238,7 +238,7 @@ func (app *Application) Schedule() {
 				// note, if we directly trigger submit task event, it may spawn too many duplicate
 				// events, because a task might be submitted multiple times before its state transits to PENDING.
 				if err := task.handle(
-					NewSimpleTaskEvent(task.applicationId, task.taskId, events.InitTask)); err != nil {
+					NewSimpleTaskEvent(task.applicationID, task.taskID, events.InitTask)); err != nil {
 					// something goes wrong when transit task to PENDING state,
 					// this should not happen because we already checked the state
 					// before calling the transition. Nowhere to go, just log the error.
@@ -248,7 +248,7 @@ func (app *Application) Schedule() {
 		}
 	default:
 		log.Logger.Debug("skipping scheduling application",
-			zap.String("appId", app.GetApplicationId()),
+			zap.String("appID", app.GetApplicationID()),
 			zap.String("appState", app.GetApplicationState()))
 	}
 }
@@ -256,12 +256,12 @@ func (app *Application) Schedule() {
 func (app *Application) handleSubmitApplicationEvent(event *fsm.Event) {
 	log.Logger.Info("handle app submission",
 		zap.String("app", app.String()),
-		zap.String("clusterId", conf.GetSchedulerConf().ClusterId))
-	err := app.schedulerApi.Update(
+		zap.String("clusterID", conf.GetSchedulerConf().ClusterID))
+	err := app.schedulerAPI.Update(
 		&si.UpdateRequest{
 			NewApplications: []*si.AddApplicationRequest{
 				{
-					ApplicationId: app.applicationId,
+					ApplicationID: app.applicationID,
 					QueueName:     app.queue,
 					PartitionName: app.partition,
 					Ugi: &si.UserGroupInformation{
@@ -270,25 +270,25 @@ func (app *Application) handleSubmitApplicationEvent(event *fsm.Event) {
 					Tags: app.tags,
 				},
 			},
-			RmId: conf.GetSchedulerConf().ClusterId,
+			RmID: conf.GetSchedulerConf().ClusterID,
 		})
 
 	if err != nil {
 		// submission failed
 		log.Logger.Warn("failed to submit app", zap.Error(err))
-		dispatcher.Dispatch(NewFailApplicationEvent(app.applicationId))
+		dispatcher.Dispatch(NewFailApplicationEvent(app.applicationID))
 	}
 }
 
 func (app *Application) handleRecoverApplicationEvent(event *fsm.Event) {
 	log.Logger.Info("handle app recovering",
 		zap.String("app", app.String()),
-		zap.String("clusterId", conf.GetSchedulerConf().ClusterId))
-	err := app.schedulerApi.Update(
+		zap.String("clusterID", conf.GetSchedulerConf().ClusterID))
+	err := app.schedulerAPI.Update(
 		&si.UpdateRequest{
 			NewApplications: []*si.AddApplicationRequest{
 				{
-					ApplicationId: app.applicationId,
+					ApplicationID: app.applicationID,
 					QueueName:     app.queue,
 					PartitionName: app.partition,
 					Ugi: &si.UserGroupInformation{
@@ -297,20 +297,20 @@ func (app *Application) handleRecoverApplicationEvent(event *fsm.Event) {
 					Tags: app.tags,
 				},
 			},
-			RmId: conf.GetSchedulerConf().ClusterId,
+			RmID: conf.GetSchedulerConf().ClusterID,
 		})
 
 	if err != nil {
 		// submission failed
 		log.Logger.Warn("failed to submit app", zap.Error(err))
-		dispatcher.Dispatch(NewFailApplicationEvent(app.applicationId))
+		dispatcher.Dispatch(NewFailApplicationEvent(app.applicationID))
 	}
 }
 
 func (app *Application) handleRejectApplicationEvent(event *fsm.Event) {
-	log.Logger.Info("app is rejected by scheduler", zap.String("appId", app.applicationId))
+	log.Logger.Info("app is rejected by scheduler", zap.String("appID", app.applicationID))
 	// for rejected apps, we directly move them to failed state
-	dispatcher.Dispatch(NewFailApplicationEvent(app.applicationId))
+	dispatcher.Dispatch(NewFailApplicationEvent(app.applicationID))
 }
 
 func (app *Application) handleCompleteApplicationEvent(event *fsm.Event) {
@@ -340,7 +340,7 @@ func (app *Application) startSparkCompletionHandler(client client.KubeClient, po
 	// spark driver pod
 	log.Logger.Info("start app completion handler",
 		zap.String("pod", pod.Name),
-		zap.String("appId", app.applicationId))
+		zap.String("appID", app.applicationID))
 	if app.ch.running {
 		return
 	}
@@ -360,8 +360,8 @@ func (app *Application) startSparkCompletionHandler(client client.KubeClient, po
 				if resp.Status.Phase == v1.PodSucceeded && resp.UID == pod.UID {
 					log.Logger.Info("spark driver completed, app completed",
 						zap.String("pod", resp.Name),
-						zap.String("appId", app.applicationId))
-					dispatcher.Dispatch(NewSimpleApplicationEvent(app.applicationId, events.CompleteApplication))
+						zap.String("appID", app.applicationID))
+					dispatcher.Dispatch(NewSimpleApplicationEvent(app.applicationID, events.CompleteApplication))
 					return
 				}
 			}

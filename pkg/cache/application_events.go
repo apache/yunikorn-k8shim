@@ -22,13 +22,13 @@ import "github.com/cloudera/yunikorn-k8shim/pkg/common/events"
 // SimpleApplicationEvent simples moves application states
 // ------------------------
 type SimpleApplicationEvent struct {
-	applicationId string
+	applicationID string
 	event         events.ApplicationEventType
 }
 
-func NewSimpleApplicationEvent(appId string, eventType events.ApplicationEventType) SimpleApplicationEvent {
+func NewSimpleApplicationEvent(appID string, eventType events.ApplicationEventType) SimpleApplicationEvent {
 	return SimpleApplicationEvent{
-		applicationId: appId,
+		applicationID: appID,
 		event:         eventType,
 	}
 }
@@ -41,21 +41,21 @@ func (st SimpleApplicationEvent) GetArgs() []interface{} {
 	return nil
 }
 
-func (st SimpleApplicationEvent) GetApplicationId() string {
-	return st.applicationId
+func (st SimpleApplicationEvent) GetApplicationID() string {
+	return st.applicationID
 }
 
 // ------------------------
 // SubmitTask application
 // ------------------------
 type SubmitApplicationEvent struct {
-	applicationId string
+	applicationID string
 	event         events.ApplicationEventType
 }
 
-func NewSubmitApplicationEvent(appId string) SubmitApplicationEvent {
+func NewSubmitApplicationEvent(appID string) SubmitApplicationEvent {
 	return SubmitApplicationEvent{
-		applicationId: appId,
+		applicationID: appID,
 		event:         events.SubmitApplication,
 	}
 }
@@ -68,21 +68,21 @@ func (se SubmitApplicationEvent) GetArgs() []interface{} {
 	return nil
 }
 
-func (se SubmitApplicationEvent) GetApplicationId() string {
-	return se.applicationId
+func (se SubmitApplicationEvent) GetApplicationID() string {
+	return se.applicationID
 }
 
 // ------------------------
 // Run application
 // ------------------------
 type RunApplicationEvent struct {
-	applicationId string
+	applicationID string
 	event         events.ApplicationEventType
 }
 
-func NewRunApplicationEvent(appId string) RunApplicationEvent {
+func NewRunApplicationEvent(appID string) RunApplicationEvent {
 	return RunApplicationEvent{
-		applicationId: appId,
+		applicationID: appID,
 		event:         events.RunApplication,
 	}
 }
@@ -95,21 +95,21 @@ func (re RunApplicationEvent) GetArgs() []interface{} {
 	return nil
 }
 
-func (re RunApplicationEvent) GetApplicationId() string {
-	return re.applicationId
+func (re RunApplicationEvent) GetApplicationID() string {
+	return re.applicationID
 }
 
 // ------------------------
 // Fail application
 // ------------------------
 type FailApplicationEvent struct {
-	applicationId string
+	applicationID string
 	event         events.ApplicationEventType
 }
 
-func NewFailApplicationEvent(appId string) FailApplicationEvent {
+func NewFailApplicationEvent(appID string) FailApplicationEvent {
 	return FailApplicationEvent{
-		applicationId: appId,
+		applicationID: appID,
 		event:         events.FailApplication,
 	}
 }
@@ -122,6 +122,6 @@ func (fe FailApplicationEvent) GetArgs() []interface{} {
 	return nil
 }
 
-func (fe FailApplicationEvent) GetApplicationId() string {
-	return fe.applicationId
+func (fe FailApplicationEvent) GetApplicationID() string {
+	return fe.applicationID
 }

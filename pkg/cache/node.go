@@ -38,18 +38,18 @@ type SchedulerNode struct {
 	capacity            *si.Resource
 	schedulable         bool
 	existingAllocations []*si.Allocation
-	schedulerApi        api.SchedulerApi
+	schedulerAPI        api.SchedulerAPI
 	fsm                 *fsm.FSM
 	lock                *sync.RWMutex
 }
 
-func newSchedulerNode(nodeName string, nodeUid string,
-	nodeResource *si.Resource, schedulerApi api.SchedulerApi, schedulable bool) *SchedulerNode {
+func newSchedulerNode(nodeName string, nodeUID string,
+	nodeResource *si.Resource, schedulerAPI api.SchedulerAPI, schedulable bool) *SchedulerNode {
 	schedulerNode := &SchedulerNode{
 		name:         nodeName,
-		uid:          nodeUid,
+		uid:          nodeUID,
 		capacity:     nodeResource,
-		schedulerApi: schedulerApi,
+		schedulerAPI: schedulerAPI,
 		schedulable:  schedulable,
 		lock:         &sync.RWMutex{},
 	}
@@ -115,12 +115,12 @@ func (n *SchedulerNode) postNodeAccepted(event *fsm.Event) {
 	// the scheduler to not schedule new pods onto it.
 	if n.schedulable {
 		dispatcher.Dispatch(CachedSchedulerNodeEvent{
-			NodeId: n.name,
+			NodeID: n.name,
 			Event:  events.NodeReady,
 		})
 	} else {
 		dispatcher.Dispatch(CachedSchedulerNodeEvent{
-			NodeId: n.name,
+			NodeID: n.name,
 			Event:  events.DrainNode,
 		})
 	}
@@ -128,7 +128,7 @@ func (n *SchedulerNode) postNodeAccepted(event *fsm.Event) {
 
 func (n *SchedulerNode) handleNodeRecovery(event *fsm.Event) {
 	log.Logger.Info("node recovering",
-		zap.String("nodeId", n.name),
+		zap.String("nodeID", n.name),
 		zap.Bool("schedulable", n.schedulable))
 
 	request := &si.UpdateRequest{
@@ -136,7 +136,7 @@ func (n *SchedulerNode) handleNodeRecovery(event *fsm.Event) {
 		Releases: nil,
 		NewSchedulableNodes: []*si.NewNodeInfo{
 			{
-				NodeId:              n.name,
+				NodeID:              n.name,
 				SchedulableResource: n.capacity,
 				Attributes: map[string]string{
 					common.DefaultNodeAttributeHostNameKey: n.name,
@@ -145,11 +145,11 @@ func (n *SchedulerNode) handleNodeRecovery(event *fsm.Event) {
 				ExistingAllocations: n.existingAllocations,
 			},
 		},
-		RmId: conf.GetSchedulerConf().ClusterId,
+		RmID: conf.GetSchedulerConf().ClusterID,
 	}
 
 	// send request to scheduler-core
-	if err := n.schedulerApi.Update(request); err != nil {
+	if err := n.schedulerAPI.Update(request); err != nil {
 		log.Logger.Error("failed to send request",
 			zap.Any("request", request))
 	}
@@ -157,14 +157,14 @@ func (n *SchedulerNode) handleNodeRecovery(event *fsm.Event) {
 
 func (n *SchedulerNode) handleDrainNode(event *fsm.Event) {
 	log.Logger.Info("node enters draining mode",
-		zap.String("nodeId", n.name))
-
+		zap.String("nodeID", n.name))
+	
 	request := &si.UpdateRequest{
 		Asks:     nil,
 		Releases: nil,
 		UpdatedNodes: []*si.UpdateNodeInfo{
 			{
-				NodeId: n.name,
+				NodeID: n.name,
 				Action: si.UpdateNodeInfo_DRAIN_NODE,
 				Attributes: map[string]string{
 					common.DefaultNodeAttributeHostNameKey: n.name,
@@ -172,11 +172,11 @@ func (n *SchedulerNode) handleDrainNode(event *fsm.Event) {
 				},
 			},
 		},
-		RmId: conf.GetSchedulerConf().ClusterId,
+		RmID: conf.GetSchedulerConf().ClusterID,
 	}
 
 	// send request to scheduler-core
-	if err := n.schedulerApi.Update(request); err != nil {
+	if err := n.schedulerAPI.Update(request); err != nil {
 		log.Logger.Error("failed to send request",
 			zap.Any("request", request))
 	}
@@ -184,14 +184,14 @@ func (n *SchedulerNode) handleDrainNode(event *fsm.Event) {
 
 func (n *SchedulerNode) handleRestoreNode(event *fsm.Event) {
 	log.Logger.Info("restore node from draining mode",
-		zap.String("nodeId", n.name))
+		zap.String("nodeID", n.name))
 
 	request := &si.UpdateRequest{
 		Asks:     nil,
 		Releases: nil,
 		UpdatedNodes: []*si.UpdateNodeInfo{
 			{
-				NodeId: n.name,
+				NodeID: n.name,
 				Action: si.UpdateNodeInfo_DRAIN_TO_SCHEDULABLE,
 				Attributes: map[string]string{
 					common.DefaultNodeAttributeHostNameKey: n.name,
@@ -199,11 +199,11 @@ func (n *SchedulerNode) handleRestoreNode(event *fsm.Event) {
 				},
 			},
 		},
-		RmId: conf.GetSchedulerConf().ClusterId,
+		RmID: conf.GetSchedulerConf().ClusterID,
 	}
 
 	// send request to scheduler-core
-	if err := n.schedulerApi.Update(request); err != nil {
+	if err := n.schedulerAPI.Update(request); err != nil {
 		log.Logger.Error("failed to send request",
 			zap.Any("request", request))
 	}
@@ -213,7 +213,7 @@ func (n *SchedulerNode) handle(ev events.SchedulerNodeEvent) error {
 	n.lock.Lock()
 	defer n.lock.Unlock()
 	log.Logger.Debug("scheduler node state transition",
-		zap.String("nodeId", ev.GetNodeId()),
+		zap.String("nodeID", ev.GetNodeID()),
 		zap.String("preState", n.fsm.Current()),
 		zap.String("pendingEvent", string(ev.GetEvent())))
 	err := n.fsm.Event(string(ev.GetEvent()), ev.GetArgs()...)
@@ -222,7 +222,7 @@ func (n *SchedulerNode) handle(ev events.SchedulerNodeEvent) error {
 		return err
 	}
 	log.Logger.Debug("scheduler node state transition",
-		zap.String("nodeId", ev.GetNodeId()),
+		zap.String("nodeID", ev.GetNodeID()),
 		zap.String("postState", n.fsm.Current()))
 	return nil
 }

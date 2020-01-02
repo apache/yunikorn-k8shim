@@ -37,10 +37,10 @@ func CreateFrom(node *v1.Node) Node {
 	}
 }
 
-func CreateFromNodeSpec(nodeName string, nodeUid string, nodeResource *si.Resource) Node {
+func CreateFromNodeSpec(nodeName string, nodeUID string, nodeResource *si.Resource) Node {
 	return Node{
 		name:     nodeName,
-		uid:      nodeUid,
+		uid:      nodeUID,
 		resource: nodeResource,
 	}
 }

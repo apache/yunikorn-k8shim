@@ -22,15 +22,15 @@ import "github.com/cloudera/yunikorn-k8shim/pkg/common/events"
 // Simple task Event simply moves task to next state, it has no arguments provided
 // ------------------------
 type SimpleTaskEvent struct {
-	applicationId string
-	taskId        string
+	applicationID string
+	taskID        string
 	event         events.TaskEventType
 }
 
-func NewSimpleTaskEvent(appId string, taskId string, taskType events.TaskEventType) SimpleTaskEvent {
+func NewSimpleTaskEvent(appID string, taskID string, taskType events.TaskEventType) SimpleTaskEvent {
 	return SimpleTaskEvent{
-		applicationId: appId,
-		taskId:        taskId,
+		applicationID: appID,
+		taskID:        taskID,
 		event:         taskType,
 	}
 }
@@ -43,27 +43,27 @@ func (st SimpleTaskEvent) GetArgs() []interface{} {
 	return nil
 }
 
-func (st SimpleTaskEvent) GetTaskId() string {
-	return st.taskId
+func (st SimpleTaskEvent) GetTaskID() string {
+	return st.taskID
 }
 
-func (st SimpleTaskEvent) GetApplicationId() string {
-	return st.applicationId
+func (st SimpleTaskEvent) GetApplicationID() string {
+	return st.applicationID
 }
 
 // ------------------------
 // SubmitTask Event
 // ------------------------
 type SubmitTaskEvent struct {
-	applicationId string
-	taskId        string
+	applicationID string
+	taskID        string
 	event         events.TaskEventType
 }
 
-func NewSubmitTaskEvent(appId string, taskId string) SubmitTaskEvent {
+func NewSubmitTaskEvent(appID string, taskID string) SubmitTaskEvent {
 	return SubmitTaskEvent{
-		applicationId: appId,
-		taskId:        taskId,
+		applicationID: appID,
+		taskID:        taskID,
 		event:         events.SubmitTask,
 	}
 }
@@ -76,32 +76,32 @@ func (st SubmitTaskEvent) GetArgs() []interface{} {
 	return nil
 }
 
-func (st SubmitTaskEvent) GetTaskId() string {
-	return st.taskId
+func (st SubmitTaskEvent) GetTaskID() string {
+	return st.taskID
 }
 
-func (st SubmitTaskEvent) GetApplicationId() string {
-	return st.applicationId
+func (st SubmitTaskEvent) GetApplicationID() string {
+	return st.applicationID
 }
 
 // ------------------------
 // Allocate Event
 // ------------------------
 type AllocatedTaskEvent struct {
-	applicationId  string
-	taskId         string
+	applicationID  string
+	taskID         string
 	event          events.TaskEventType
-	nodeId         string
-	allocationUuid string
+	nodeID         string
+	allocationUUID string
 }
 
-func NewAllocateTaskEvent(appId string, taskId string, allocUuid string, nid string) AllocatedTaskEvent {
+func NewAllocateTaskEvent(appID string, taskID string, allocUUID string, nid string) AllocatedTaskEvent {
 	return AllocatedTaskEvent{
-		applicationId:  appId,
-		taskId:         taskId,
+		applicationID:  appID,
+		taskID:         taskID,
 		event:          events.TaskAllocated,
-		allocationUuid: allocUuid,
-		nodeId:         nid,
+		allocationUUID: allocUUID,
+		nodeID:         nid,
 	}
 }
 
@@ -111,32 +111,32 @@ func (ae AllocatedTaskEvent) GetEvent() events.TaskEventType {
 
 func (ae AllocatedTaskEvent) GetArgs() []interface{} {
 	args := make([]interface{}, 2)
-	args[0] = ae.allocationUuid
-	args[1] = ae.nodeId
+	args[0] = ae.allocationUUID
+	args[1] = ae.nodeID
 	return args
 }
 
-func (ae AllocatedTaskEvent) GetTaskId() string {
-	return ae.taskId
+func (ae AllocatedTaskEvent) GetTaskID() string {
+	return ae.taskID
 }
 
-func (ae AllocatedTaskEvent) GetApplicationId() string {
-	return ae.applicationId
+func (ae AllocatedTaskEvent) GetApplicationID() string {
+	return ae.applicationID
 }
 
 // ------------------------
 // Bound Event
 // ------------------------
 type BindTaskEvent struct {
-	applicationId string
-	taskId        string
+	applicationID string
+	taskID        string
 	event         events.TaskEventType
 }
 
-func NewBindTaskEvent(appId string, taskId string) BindTaskEvent {
+func NewBindTaskEvent(appID string, taskID string) BindTaskEvent {
 	return BindTaskEvent{
-		applicationId: appId,
-		taskId:        taskId,
+		applicationID: appID,
+		taskID:        taskID,
 		event:         events.TaskBound,
 	}
 }
@@ -149,28 +149,28 @@ func (bt BindTaskEvent) GetArgs() []interface{} {
 	return nil
 }
 
-func (bt BindTaskEvent) GetTaskId() string {
-	return bt.taskId
+func (bt BindTaskEvent) GetTaskID() string {
+	return bt.taskID
 }
 
-func (bt BindTaskEvent) GetApplicationId() string {
-	return bt.applicationId
+func (bt BindTaskEvent) GetApplicationID() string {
+	return bt.applicationID
 }
 
 // ------------------------
 // Fail Event
 // ------------------------
 type FailTaskEvent struct {
-	applicationId string
-	taskId        string
+	applicationID string
+	taskID        string
 	event         events.TaskEventType
 	message       string
 }
 
-func NewFailTaskEvent(appId string, taskId string, failedMessage string) FailTaskEvent {
+func NewFailTaskEvent(appID string, taskID string, failedMessage string) FailTaskEvent {
 	return FailTaskEvent{
-		applicationId: appId,
-		taskId:        taskId,
+		applicationID: appID,
+		taskID:        taskID,
 		event:         events.TaskFail,
 		message:       failedMessage,
 	}
@@ -186,28 +186,28 @@ func (fe FailTaskEvent) GetArgs() []interface{} {
 	return args
 }
 
-func (fe FailTaskEvent) GetTaskId() string {
-	return fe.taskId
+func (fe FailTaskEvent) GetTaskID() string {
+	return fe.taskID
 }
 
-func (fe FailTaskEvent) GetApplicationId() string {
-	return fe.applicationId
+func (fe FailTaskEvent) GetApplicationID() string {
+	return fe.applicationID
 }
 
 // ------------------------
 // Reject Event
 // ------------------------
 type RejectTaskEvent struct {
-	applicationId string
-	taskId        string
+	applicationID string
+	taskID        string
 	event         events.TaskEventType
 	message       string
 }
 
-func NewRejectTaskEvent(appId string, taskId string, rejectedMessage string) RejectTaskEvent {
+func NewRejectTaskEvent(appID string, taskID string, rejectedMessage string) RejectTaskEvent {
 	return RejectTaskEvent{
-		applicationId: appId,
-		taskId:        taskId,
+		applicationID: appID,
+		taskID:        taskID,
 		event:         events.TaskRejected,
 		message:       rejectedMessage,
 	}
@@ -223,10 +223,10 @@ func (re RejectTaskEvent) GetArgs() []interface{} {
 	return args
 }
 
-func (re RejectTaskEvent) GetTaskId() string {
-	return re.taskId
+func (re RejectTaskEvent) GetTaskID() string {
+	return re.taskID
 }
 
-func (re RejectTaskEvent) GetApplicationId() string {
-	return re.applicationId
+func (re RejectTaskEvent) GetApplicationID() string {
+	return re.applicationID
 }

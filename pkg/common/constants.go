@@ -22,7 +22,7 @@ const DefaultNodeAttributeRackNameKey = "si.io/rackname"
 const DefaultRackName = "/rack-default"
 
 // Application
-const LabelApplicationId = "applicationId"
+const LabelApplicationID = "applicationId"
 const LabelQueueName = "queue"
 const ApplicationDefaultQueue = "root"
 const DefaultPartition = "default"
@@ -32,7 +32,7 @@ const Memory = "memory"
 const CPU = "vcore"
 
 // Spark
-const SparkLabelAppId = "spark-app-id"
+const SparkLabelAppID = "spark-app-id"
 const SparkLabelRole = "spark-role"
 const SparkLabelRoleDriver = "driver"
 

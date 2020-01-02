@@ -92,11 +92,11 @@ func getResource(resourceList v1.ResourceList) *si.Resource {
 	return resources.Build()
 }
 
-func CreateUpdateRequestForTask(appId, taskId string, resource *si.Resource) si.UpdateRequest {
+func CreateUpdateRequestForTask(appID, taskID string, resource *si.Resource) si.UpdateRequest {
 	ask := si.AllocationAsk{
-		AllocationKey:  taskId,
+		AllocationKey:  taskID,
 		ResourceAsk:    resource,
-		ApplicationId:  appId,
+		ApplicationID:  appID,
 		MaxAllocations: 1,
 	}
 
@@ -105,17 +105,17 @@ func CreateUpdateRequestForTask(appId, taskId string, resource *si.Resource) si.
 		NewSchedulableNodes: nil,
 		UpdatedNodes:        nil,
 		UtilizationReports:  nil,
-		RmId:                conf.GetSchedulerConf().ClusterId,
+		RmID:                conf.GetSchedulerConf().ClusterID,
 	}
 
 	return result
 }
 
-func CreateReleaseAllocationRequestForTask(appId, allocUuid, partition string) si.UpdateRequest {
+func CreateReleaseAllocationRequestForTask(appID, allocUUID, partition string) si.UpdateRequest {
 	toReleases := make([]*si.AllocationReleaseRequest, 0)
 	toReleases = append(toReleases, &si.AllocationReleaseRequest{
-		ApplicationId: appId,
-		Uuid:          allocUuid,
+		ApplicationID: appID,
+		UUID:          allocUUID,
 		PartitionName: partition,
 		Message:       "task completed",
 	})
@@ -126,17 +126,17 @@ func CreateReleaseAllocationRequestForTask(appId, allocUuid, partition string) s
 
 	result := si.UpdateRequest{
 		Releases: &releaseRequest,
-		RmId:     conf.GetSchedulerConf().ClusterId,
+		RmID:     conf.GetSchedulerConf().ClusterID,
 	}
 
 	return result
 }
 
 func CreateUpdateRequestForNewNode(node Node) si.UpdateRequest {
-	// Use node's name as the NodeId, this is because when bind pod to node,
+	// Use node's name as the NodeID, this is because when bind pod to node,
 	// name of node is required but uid is optional.
 	nodeInfo := &si.NewNodeInfo{
-		NodeId:              node.name,
+		NodeID:              node.name,
 		SchedulableResource: node.resource,
 		// TODO is this required?
 		Attributes: map[string]string{
@@ -149,7 +149,7 @@ func CreateUpdateRequestForNewNode(node Node) si.UpdateRequest {
 	nodes[0] = nodeInfo
 	request := si.UpdateRequest{
 		NewSchedulableNodes: nodes,
-		RmId:                conf.GetSchedulerConf().ClusterId,
+		RmID:                conf.GetSchedulerConf().ClusterID,
 	}
 	return request
 }
@@ -157,7 +157,7 @@ func CreateUpdateRequestForNewNode(node Node) si.UpdateRequest {
 func CreateUpdateRequestForUpdatedNode(node Node) si.UpdateRequest {
 	// Currently only includes resource in the update request
 	nodeInfo := &si.UpdateNodeInfo{
-		NodeId:              node.name,
+		NodeID:              node.name,
 		SchedulableResource: node.resource,
 	}
 
@@ -165,7 +165,7 @@ func CreateUpdateRequestForUpdatedNode(node Node) si.UpdateRequest {
 	nodes[0] = nodeInfo
 	request := si.UpdateRequest{
 		UpdatedNodes: nodes,
-		RmId:         conf.GetSchedulerConf().ClusterId,
+		RmID:         conf.GetSchedulerConf().ClusterID,
 	}
 	return request
 }
@@ -173,7 +173,7 @@ func CreateUpdateRequestForUpdatedNode(node Node) si.UpdateRequest {
 func CreateUpdateRequestForDeleteNode(node Node) si.UpdateRequest {
 	deletedNodes := make([]*si.UpdateNodeInfo, 1)
 	nodeInfo := &si.UpdateNodeInfo{
-		NodeId:              node.name,
+		NodeID:              node.name,
 		SchedulableResource: node.resource,
 		Action:              si.UpdateNodeInfo_DECOMISSION,
 	}
@@ -181,7 +181,7 @@ func CreateUpdateRequestForDeleteNode(node Node) si.UpdateRequest {
 	deletedNodes[0] = nodeInfo
 	request := si.UpdateRequest{
 		UpdatedNodes: deletedNodes,
-		RmId:         conf.GetSchedulerConf().ClusterId,
+		RmID:         conf.GetSchedulerConf().ClusterID,
 	}
 	return request
 }

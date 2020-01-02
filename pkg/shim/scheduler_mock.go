@@ -39,7 +39,7 @@ import (
 	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
 )
 
-const fakeClusterId = "test-cluster"
+const fakeClusterID = "test-cluster"
 const fakeClusterVersion = "0.1.0"
 const fakeClusterSchedulerName = "yunikorn-test"
 const fakeClusterSchedulingInterval = time.Second
@@ -49,18 +49,18 @@ const fakeClusterSchedulingInterval = time.Second
 type MockScheduler struct {
 	context     *cache.Context
 	scheduler   *KubernetesShim
-	proxy       api.SchedulerApi
+	proxy       api.SchedulerAPI
 	client      client.KubeClient
 	coreContext *entrypoint.ServiceContext
 	conf        string
-	bindFn      func(pod *v1.Pod, hostId string) error
+	bindFn      func(pod *v1.Pod, hostID string) error
 	deleteFn    func(pod *v1.Pod) error
 	stopChan    chan struct{}
 }
 
 func (fc *MockScheduler) init(queues string) {
 	configs := conf.SchedulerConf{
-		ClusterId:      fakeClusterId,
+		ClusterID:      fakeClusterID,
 		ClusterVersion: fakeClusterVersion,
 		SchedulerName:  fakeClusterSchedulerName,
 		Interval:       fakeClusterSchedulingInterval,
@@ -80,7 +80,7 @@ func (fc *MockScheduler) init(queues string) {
 	}
 
 	if fc.bindFn == nil {
-		fc.bindFn = func(pod *v1.Pod, hostId string) error {
+		fc.bindFn = func(pod *v1.Pod, hostID string) error {
 			fmt.Printf("pod bound")
 			return nil
 		}
@@ -94,15 +94,15 @@ func (fc *MockScheduler) init(queues string) {
 	fakeClient.MockBindFn(fc.bindFn)
 	fakeClient.MockDeleteFn(fc.deleteFn)
 
-	schedulerApi, _ := rmProxy.(api.SchedulerApi)
-	context := cache.NewContextInternal(schedulerApi, &configs, fakeClient, true)
+	schedulerAPI, _ := rmProxy.(api.SchedulerAPI)
+	context := cache.NewContextInternal(schedulerAPI, &configs, fakeClient, true)
 	rmCallback := callback.NewAsyncRMCallback(context)
 
-	ss := newShimSchedulerInternal(schedulerApi, context, rmCallback)
+	ss := newShimSchedulerInternal(schedulerAPI, context, rmCallback)
 
 	fc.context = context
 	fc.scheduler = ss
-	fc.proxy = schedulerApi
+	fc.proxy = schedulerAPI
 	fc.client = fakeClient
 	fc.coreContext = serviceContext
 }
@@ -145,12 +145,12 @@ func (fc *MockScheduler) waitForSchedulerState(t *testing.T, expectedState strin
 	}
 }
 
-func (fc *MockScheduler) waitAndAssertApplicationState(t *testing.T, appId, expectedState string) {
+func (fc *MockScheduler) waitAndAssertApplicationState(t *testing.T, appID, expectedState string) {
 	appList := fc.context.SelectApplications(func(app *cache.Application) bool {
-		return app.GetApplicationId() == appId
+		return app.GetApplicationID() == appID
 	})
 	assert.Equal(t, len(appList), 1)
-	assert.Equal(t, appList[0].GetApplicationId(), appId)
+	assert.Equal(t, appList[0].GetApplicationID(), appID)
 	deadline := time.Now().Add(10 * time.Second)
 	for {
 		if appList[0].GetApplicationState() == expectedState {
@@ -162,7 +162,7 @@ func (fc *MockScheduler) waitAndAssertApplicationState(t *testing.T, appId, expe
 		time.Sleep(time.Second)
 		if time.Now().After(deadline) {
 			t.Errorf("application %s doesn't reach expected state in given time, expecting: %s, actual: %s",
-				appId, expectedState, appList[0].GetApplicationState())
+				appID, expectedState, appList[0].GetApplicationState())
 		}
 	}
 }
@@ -171,19 +171,19 @@ func (fc *MockScheduler) addApplication(app *cache.Application) {
 	fc.context.AddApplication(app)
 }
 
-func (fc *MockScheduler) newApplication(appId, queueName string) *cache.Application {
-	app := cache.NewApplication(appId, queueName, "testuser", map[string]string{}, fc.proxy)
+func (fc *MockScheduler) newApplication(appID, queueName string) *cache.Application {
+	app := cache.NewApplication(appID, queueName, "testuser", map[string]string{}, fc.proxy)
 	return app
 }
 
-func (fc *MockScheduler) waitAndAssertTaskState(t *testing.T, appId, taskId, expectedState string) {
+func (fc *MockScheduler) waitAndAssertTaskState(t *testing.T, appID, taskID, expectedState string) {
 	appList := fc.context.SelectApplications(func(app *cache.Application) bool {
-		return app.GetApplicationId() == appId
+		return app.GetApplicationID() == appID
 	})
 	assert.Equal(t, len(appList), 1)
-	assert.Equal(t, appList[0].GetApplicationId(), appId)
+	assert.Equal(t, appList[0].GetApplicationID(), appID)
 
-	task, err := appList[0].GetTask(taskId)
+	task, err := appList[0].GetTask(taskID)
 	assert.Assert(t, err == nil)
 	deadline := time.Now().Add(10 * time.Second)
 	for {
@@ -196,13 +196,13 @@ func (fc *MockScheduler) waitAndAssertTaskState(t *testing.T, appId, taskId, exp
 		time.Sleep(time.Second)
 		if time.Now().After(deadline) {
 			t.Errorf("task %s doesn't reach expected state in given time, expecting: %s, actual: %s",
-				taskId, expectedState, task.GetTaskState())
+				taskID, expectedState, task.GetTaskState())
 		}
 	}
 }
 
 func (fc *MockScheduler) waitAndVerifySchedulerAllocations(
-	queueName, partitionName, applicationId string, expectedNumOfAllocations int) error {
+	queueName, partitionName, applicationID string, expectedNumOfAllocations int) error {
 	partition := fc.coreContext.Cache.GetPartition(partitionName)
 	if partition == nil {
 		return fmt.Errorf("partition %s is not found in the scheduler context", partitionName)
@@ -210,7 +210,7 @@ func (fc *MockScheduler) waitAndVerifySchedulerAllocations(
 
 	return utils.WaitForCondition(func() bool {
 		for _, app := range partition.GetApplications() {
-			if app.ApplicationId == applicationId {
+			if app.ApplicationID == applicationID {
 				if len(app.GetAllAllocations()) == expectedNumOfAllocations {
 					return true
 				}

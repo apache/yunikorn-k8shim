@@ -46,7 +46,7 @@ type Context struct {
 	nodes        *schedulerNodes
 	conf         *conf.SchedulerConf
 	kubeClient   client.KubeClient
-	schedulerApi api.SchedulerApi
+	schedulerAPI api.SchedulerAPI
 
 	// resource informers
 	podInformer       coreInfomerV1.PodInformer
@@ -70,14 +70,14 @@ type Context struct {
 
 // Create a new context for the scheduler.
 // This wraps the internal call which really creates the context.
-func NewContext(scheduler api.SchedulerApi, configs *conf.SchedulerConf) *Context {
+func NewContext(scheduler api.SchedulerAPI, configs *conf.SchedulerConf) *Context {
 	kc := client.NewKubeClient(configs.KubeConfig)
 	return NewContextInternal(scheduler, configs, kc, false)
 }
 
 // Internal create of the scheduler context.
 // Only exposed for testing, not to e used for anything else
-func NewContextInternal(scheduler api.SchedulerApi, configs *conf.SchedulerConf, client client.KubeClient, testMode bool) *Context {
+func NewContextInternal(scheduler api.SchedulerAPI, configs *conf.SchedulerConf, client client.KubeClient, testMode bool) *Context {
 	// create the context note that order is important:
 	// volumebinder needs the informers
 	// the cache needs informers and volumebinder
@@ -87,7 +87,7 @@ func NewContextInternal(scheduler api.SchedulerApi, configs *conf.SchedulerConf,
 		applications: make(map[string]*Application),
 		conf:         configs,
 		kubeClient:   client,
-		schedulerApi: scheduler,
+		schedulerAPI: scheduler,
 		testMode:     testMode,
 		lock:         &sync.RWMutex{},
 	}
@@ -334,7 +334,7 @@ func (ctx *Context) removePodFromCache(obj interface{}) {
 // create a task if it doesn't exist yet,
 // return the task directly if it is already there in the application
 func (ctx *Context) getOrAddTask(app *Application, pod *v1.Pod) *Task {
-	// using pod UID as taskId
+	// using pod UID as taskID
 	if task, err := app.GetTask(string(pod.UID)); err == nil {
 		return task
 	}
@@ -352,7 +352,7 @@ func (ctx *Context) validatePod(pod *v1.Pod) error {
 			ctx.conf.SchedulerName, pod.Name, pod.UID, pod.Spec.SchedulerName)
 	}
 
-	if _, err := utils.GetApplicationIdFromPod(pod); err != nil {
+	if _, err := utils.GetApplicationIDFromPod(pod); err != nil {
 		return err
 	}
 
@@ -424,7 +424,7 @@ func (ctx *Context) deletePod(obj interface{}) {
 	if application := ctx.getOrCreateApplication(pod); application != nil {
 		log.Logger.Debug("release allocation")
 		dispatcher.Dispatch(NewSimpleTaskEvent(
-			application.GetApplicationId(), string(pod.UID), events.CompleteTask))
+			application.GetApplicationID(), string(pod.UID), events.CompleteTask))
 
 		log.Logger.Info("delete pod",
 			zap.String("namespace", pod.Namespace),
@@ -501,7 +501,7 @@ func (ctx *Context) deleteConfigMaps(obj interface{}) {
 
 func (ctx *Context) triggerReloadConfig() {
 	log.Logger.Info("trigger scheduler configuration reloading")
-	if err := ctx.schedulerApi.ReloadConfiguration(ctx.conf.ClusterId); err != nil {
+	if err := ctx.schedulerAPI.ReloadConfiguration(ctx.conf.ClusterID); err != nil {
 		log.Logger.Error("reload configuration failed", zap.Error(err))
 	}
 }
@@ -602,13 +602,13 @@ func (ctx *Context) getOrCreateApplication(pod *v1.Pod) *Application {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
 
-	appId, err := utils.GetApplicationIdFromPod(pod)
+	appID, err := utils.GetApplicationIDFromPod(pod)
 	if err != nil {
 		log.Logger.Error("unable to get application by given pod", zap.Error(err))
 		return nil
 	}
 
-	if application, ok := ctx.applications[appId]; ok {
+	if application, ok := ctx.applications[appID]; ok {
 		return application
 	}
 	// create the tags for the application
@@ -622,36 +622,36 @@ func (ctx *Context) getOrCreateApplication(pod *v1.Pod) *Application {
 	// get the application owner (this is all that is available as far as we can find)
 	user := pod.Spec.ServiceAccountName
 	// create a new app
-	newApp := NewApplication(appId, utils.GetQueueNameFromPod(pod), user, tags, ctx.schedulerApi)
-	ctx.applications[appId] = newApp
-	return ctx.applications[appId]
+	newApp := NewApplication(appID, utils.GetQueueNameFromPod(pod), user, tags, ctx.schedulerAPI)
+	ctx.applications[appID] = newApp
+	return ctx.applications[appID]
 }
 
 // for testing only
 func (ctx *Context) AddApplication(app *Application) {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
-	ctx.applications[app.GetApplicationId()] = app
+	ctx.applications[app.GetApplicationID()] = app
 }
 
-func (ctx *Context) GetApplication(appId string) (*Application, error) {
+func (ctx *Context) GetApplication(appID string) (*Application, error) {
 	ctx.lock.RLock()
 	defer ctx.lock.RUnlock()
-	if app, ok := ctx.applications[appId]; ok {
+	if app, ok := ctx.applications[appID]; ok {
 		return app, nil
 	}
-	return nil, fmt.Errorf("application %s is not found in context", appId)
+	return nil, fmt.Errorf("application %s is not found in context", appID)
 }
 
-func (ctx *Context) getTask(appId string, taskId string) (*Task, error) {
+func (ctx *Context) getTask(appID string, taskID string) (*Task, error) {
 	ctx.lock.RLock()
 	defer ctx.lock.RUnlock()
-	if app, ok := ctx.applications[appId]; ok {
-		if task, err := app.GetTask(taskId); err == nil {
+	if app, ok := ctx.applications[appID]; ok {
+		if task, err := app.GetTask(taskID); err == nil {
 			return task, nil
 		}
 	}
-	return nil, fmt.Errorf("application %s is not found in context", appId)
+	return nil, fmt.Errorf("application %s is not found in context", appID)
 }
 
 func (ctx *Context) SelectApplications(filter func(app *Application) bool) []*Application {
@@ -672,7 +672,7 @@ func (ctx *Context) SelectApplications(filter func(app *Application) bool) []*Ap
 func (ctx *Context) ApplicationEventHandler() func(obj interface{}) {
 	return func(obj interface{}) {
 		if event, ok := obj.(events.ApplicationEvent); ok {
-			app, err := ctx.GetApplication(event.GetApplicationId())
+			app, err := ctx.GetApplication(event.GetApplicationID())
 			if err != nil {
 				log.Logger.Error("failed to handle application event", zap.Error(err))
 				return
@@ -692,7 +692,7 @@ func (ctx *Context) ApplicationEventHandler() func(obj interface{}) {
 func (ctx *Context) TaskEventHandler() func(obj interface{}) {
 	return func(obj interface{}) {
 		if event, ok := obj.(events.TaskEvent); ok {
-			task, err := ctx.getTask(event.GetApplicationId(), event.GetTaskId())
+			task, err := ctx.getTask(event.GetApplicationID(), event.GetTaskID())
 			if err != nil {
 				log.Logger.Error("failed to handle application event", zap.Error(err))
 				return
@@ -701,8 +701,8 @@ func (ctx *Context) TaskEventHandler() func(obj interface{}) {
 			if task.canHandle(event) {
 				if err := task.handle(event); err != nil {
 					log.Logger.Error("failed to handle task event",
-						zap.String("applicationId", task.applicationId),
-						zap.String("taskId", task.taskId),
+						zap.String("applicationID", task.applicationID),
+						zap.String("taskID", task.taskID),
 						zap.String("event", string(event.GetEvent())),
 						zap.Error(err))
 				}

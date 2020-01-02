@@ -31,12 +31,12 @@ import (
 
 // app event for testing
 type TestAppEvent struct {
-	appId     string
+	appID     string
 	eventType events.ApplicationEventType
 }
 
-func (t TestAppEvent) GetApplicationId() string {
-	return t.appId
+func (t TestAppEvent) GetApplicationID() string {
+	return t.appID
 }
 
 func (t TestAppEvent) GetEvent() events.ApplicationEventType {
@@ -59,17 +59,17 @@ type appEventsRecorder struct {
 	lock *sync.RWMutex
 }
 
-func (a *appEventsRecorder) addApp(appId string) {
+func (a *appEventsRecorder) addApp(appID string) {
 	a.lock.Lock()
 	defer a.lock.Unlock()
-	a.apps = append(a.apps, appId)
+	a.apps = append(a.apps, appID)
 }
 
-func (a *appEventsRecorder) contains(appId string) bool {
+func (a *appEventsRecorder) contains(appID string) bool {
 	a.lock.RLock()
 	defer a.lock.RUnlock()
-	for _, existingAppId := range a.apps {
-		if existingAppId == appId {
+	for _, existingAppID := range a.apps {
+		if existingAppID == appID {
 			return true
 		}
 	}
@@ -91,7 +91,7 @@ func TestDispatcherStartStop(t *testing.T) {
 
 	RegisterEventHandler(EventTypeApp, func(obj interface{}) {
 		if event, ok := obj.(events.ApplicationEvent); ok {
-			recorder.addApp(event.GetApplicationId())
+			recorder.addApp(event.GetApplicationID())
 		}
 	})
 
@@ -100,11 +100,11 @@ func TestDispatcherStartStop(t *testing.T) {
 
 	// dispatch an event
 	Dispatch(TestAppEvent{
-		appId:     "test-app-001",
+		appID:     "test-app-001",
 		eventType: events.RunApplication,
 	})
 	Dispatch(TestAppEvent{
-		appId:     "test-app-002",
+		appID:     "test-app-002",
 		eventType: events.RunApplication,
 	})
 
@@ -123,7 +123,7 @@ func TestDispatcherStartStop(t *testing.T) {
 
 	// dispatch new events should fail
 	if err := dispatcher.dispatch(TestAppEvent{
-		appId:     "test-app-002",
+		appID:     "test-app-002",
 		eventType: events.RunApplication,
 	}); err == nil {
 		t.Fatalf("dispatch is not running, this should fail")
@@ -150,7 +150,7 @@ func TestEventWillNotBeLostWhenEventChannelIsFull(t *testing.T) {
 	// pretend to be an time-consuming event-handler
 	RegisterEventHandler(EventTypeApp, func(obj interface{}) {
 		if event, ok := obj.(events.ApplicationEvent); ok {
-			recorder.addApp(event.GetApplicationId())
+			recorder.addApp(event.GetApplicationID())
 			time.Sleep(1 * time.Millisecond)
 		}
 	})
@@ -162,7 +162,7 @@ func TestEventWillNotBeLostWhenEventChannelIsFull(t *testing.T) {
 	numEvents := 10
 	for i := 0; i < numEvents; i++ {
 		Dispatch(TestAppEvent{
-			appId:     "test",
+			appID:     "test",
 			eventType: events.RunApplication,
 		})
 	}
@@ -213,7 +213,7 @@ func TestDispatchTimeout(t *testing.T) {
 	// dispatch 3 events, the third event will be dispatched asynchronously
 	for i := 0; i < 3; i++ {
 		Dispatch(TestAppEvent{
-			appId:     "test",
+			appID:     "test",
 			eventType: events.RunApplication,
 		})
 	}
@@ -265,7 +265,7 @@ func TestExceedAsyncDispatchLimit(t *testing.T) {
 	// dispatch 4 events, the third and forth events will be dispatched asynchronously
 	for i := 0; i < 4; i++ {
 		Dispatch(TestAppEvent{
-			appId:     "test",
+			appID:     "test",
 			eventType: events.RunApplication,
 		})
 	}

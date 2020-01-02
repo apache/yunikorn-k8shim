@@ -147,13 +147,13 @@ func TestSchedulerRegistrationFailed(t *testing.T) {
 	var ctx *cache.Context
 	var callback api.ResourceManagerCallback
 
-	schedulerApi := test.NewSchedulerApiMock().RegisterFunction(
+	schedulerAPI := test.NewSchedulerAPIMock().RegisterFunction(
 		func(request *si.RegisterResourceManagerRequest,
 			callback api.ResourceManagerCallback) (response *si.RegisterResourceManagerResponse, e error) {
 			return nil, fmt.Errorf("some error")
 		})
 
-	shim := newShimSchedulerInternal(schedulerApi, ctx, callback)
+	shim := newShimSchedulerInternal(schedulerAPI, ctx, callback)
 	shim.run()
 	defer shim.stop()
 
@@ -185,7 +185,7 @@ partitions:
 	// init and register scheduler
 	cluster := MockScheduler{}
 	// mock pod bind failures
-	cluster.bindFn = func(pod *v1.Pod, hostId string) error {
+	cluster.bindFn = func(pod *v1.Pod, hostID string) error {
 		if pod.Name == "task0001" {
 			return fmt.Errorf("mocked error when binding the pod")
 		}

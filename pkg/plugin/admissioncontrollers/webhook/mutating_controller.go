@@ -120,13 +120,13 @@ func updateLabels(pod *v1.Pod, patch []patchOperation) []patchOperation {
 		result[k] = v
 	}
 
-	if _, ok := existingLabels[common.SparkLabelAppId]; !ok {
-		if _, ok := existingLabels[common.LabelApplicationId]; !ok {
+	if _, ok := existingLabels[common.SparkLabelAppID]; !ok {
+		if _, ok := existingLabels[common.LabelApplicationID]; !ok {
 			// if app id not exist, generate one
-			generatedId := fmt.Sprintf("autogen_%s_%s", pod.Name, uuid.NewV4().String())
+			generatedID := fmt.Sprintf("autogen_%s_%s", pod.Name, uuid.NewV4().String())
 			log.Logger.Debug("adding application ID",
-				zap.String("generatedID", generatedId))
-			result[common.LabelApplicationId] = generatedId
+				zap.String("generatedID", generatedID))
+			result[common.LabelApplicationID] = generatedID
 		}
 	}
 

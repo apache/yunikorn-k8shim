@@ -74,9 +74,9 @@ func (ctx *Context) waitForAppRecovery(lister v1.PodLister, maxTimeout time.Dura
 			ctx.AddApplication(app)
 			if app.GetApplicationState() == string(events.States().Application.New) {
 				log.Logger.Info("start to recover the app",
-					zap.String("appId", app.applicationId))
-				dispatcher.Dispatch(NewSimpleApplicationEvent(app.applicationId, events.RecoverApplication))
-				toRecoverApps[app.applicationId] = app
+					zap.String("appID", app.applicationID))
+				dispatcher.Dispatch(NewSimpleApplicationEvent(app.applicationID, events.RecoverApplication))
+				toRecoverApps[app.applicationID] = app
 			}
 		}
 	}
@@ -86,10 +86,10 @@ func (ctx *Context) waitForAppRecovery(lister v1.PodLister, maxTimeout time.Dura
 		if err := utils.WaitForCondition(func() bool {
 			for _, app := range toRecoverApps {
 				log.Logger.Info("appInfo",
-					zap.String("appId", app.applicationId),
+					zap.String("appID", app.applicationID),
 					zap.String("state", app.GetApplicationState()))
 				if app.GetApplicationState() == string(events.States().Application.Accepted) {
-					delete(toRecoverApps, app.applicationId)
+					delete(toRecoverApps, app.applicationID)
 				}
 			}
 
@@ -156,9 +156,9 @@ func (ctx *Context) waitForNodeRecovery(nodeLister v1.NodeLister, maxTimeout tim
 			switch node.getNodeState() {
 			case string(events.States().Node.New):
 				log.Logger.Info("node recovering",
-					zap.String("nodeId", node.name))
+					zap.String("nodeID", node.name))
 				dispatcher.Dispatch(CachedSchedulerNodeEvent{
-					NodeId: node.name,
+					NodeID: node.name,
 					Event:  events.RecoverNode,
 				})
 			case string(events.States().Node.Healthy):

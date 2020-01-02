@@ -52,22 +52,22 @@ func GetQueueNameFromPod(pod *v1.Pod) string {
 	return queueName
 }
 
-func GetApplicationIdFromPod(pod *v1.Pod) (string, error) {
+func GetApplicationIDFromPod(pod *v1.Pod) (string, error) {
 	for name, value := range pod.Labels {
-		// if a pod for spark already provided appId, reuse it
-		if name == common.SparkLabelAppId {
+		// if a pod for spark already provided appID, reuse it
+		if name == common.SparkLabelAppID {
 			return value, nil
 		}
 
 		// application ID can be defined as a label
-		if name == common.LabelApplicationId {
+		if name == common.LabelApplicationID {
 			return value, nil
 		}
 	}
 
 	// application ID can be defined in annotations too
 	for name, value := range pod.Annotations {
-		if name == common.LabelApplicationId {
+		if name == common.LabelApplicationID {
 			return value, nil
 		}
 	}
