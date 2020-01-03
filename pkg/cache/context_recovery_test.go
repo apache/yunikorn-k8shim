@@ -204,7 +204,7 @@ func TestAppRecovery(t *testing.T) {
 			Namespace: "default",
 			UID:       "UID-POD-00001",
 			Labels: map[string]string{
-				"applicationID": "app1",
+				"applicationId": "app1",
 				"queue":         "root.a",
 			},
 		},
@@ -229,7 +229,7 @@ func TestAppRecovery(t *testing.T) {
 			Namespace: "default",
 			UID:       "UID-POD-00003",
 			Labels: map[string]string{
-				"applicationID": "app2",
+				"applicationId": "app2",
 				"queue":         "root.a",
 			},
 		},

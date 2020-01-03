@@ -106,7 +106,7 @@ func TestGetApplicationIDFromPod(t *testing.T) {
 			Namespace: "default",
 			UID:       "UID-POD-00001",
 			Labels: map[string]string{
-				"applicationID": "app00001",
+				"applicationId": "app00001",
 				"queue":         "root.a",
 			},
 		},
@@ -128,7 +128,7 @@ func TestGetApplicationIDFromPod(t *testing.T) {
 			Namespace: "default",
 			UID:       "UID-POD-00001",
 			Annotations: map[string]string{
-				"applicationID": "app00002",
+				"applicationId": "app00002",
 				"queue":         "root.a",
 			},
 		},
