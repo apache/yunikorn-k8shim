@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Cloudera, Inc.  All rights reserved.
+Copyright 2020 Cloudera, Inc.  All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,13 +16,14 @@ limitations under the License.
 package conf
 
 import (
-	"gotest.tools/assert"
 	"testing"
+
+	"gotest.tools/assert"
 )
 
 func TestDefaultValues(t *testing.T) {
 	conf := GetSchedulerConf()
-	assert.Equal(t, conf.ClusterId, DefaultClusterId)
+	assert.Equal(t, conf.ClusterID, DefaultClusterID)
 	assert.Equal(t, conf.PolicyGroup, DefaultPolicyGroup)
 	assert.Equal(t, conf.ClusterVersion, DefaultClusterVersion)
 	assert.Equal(t, conf.SchedulerName, DefaultSchedulerName)

@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Cloudera, Inc.  All rights reserved.
+Copyright 2020 Cloudera, Inc.  All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,14 +17,16 @@ limitations under the License.
 package main
 
 import (
+	"os"
+	"os/signal"
+	"syscall"
+
+	"go.uber.org/zap"
+
 	"github.com/cloudera/yunikorn-core/pkg/api"
 	"github.com/cloudera/yunikorn-core/pkg/entrypoint"
 	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
 	"github.com/cloudera/yunikorn-k8shim/pkg/log"
-	"go.uber.org/zap"
-	"os"
-	"os/signal"
-	"syscall"
 )
 
 var (
@@ -39,19 +41,16 @@ func main() {
 
 	serviceContext := entrypoint.StartAllServices()
 
-	if sa, ok := serviceContext.RMProxy.(api.SchedulerApi); ok {
+	if sa, ok := serviceContext.RMProxy.(api.SchedulerAPI); ok {
 		ss := newShimScheduler(sa, conf.GetSchedulerConf())
 		ss.run()
 
 		signalChan := make(chan os.Signal, 1)
 		signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
-		for {
-			select {
-			case <-signalChan:
-				log.Logger.Info("Shutdown signal received, exiting...")
-				ss.stop()
-				os.Exit(0)
-			}
+		for range signalChan {
+			log.Logger.Info("Shutdown signal received, exiting...")
+			ss.stop()
+			os.Exit(0)
 		}
 	}
 }

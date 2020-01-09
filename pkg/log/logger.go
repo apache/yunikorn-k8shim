@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Cloudera, Inc.  All rights reserved.
+Copyright 2020 Cloudera, Inc.  All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,23 +19,24 @@ package log
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
+	"strings"
+
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-	"strings"
+
+	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
 )
 
 var Logger *zap.Logger
 
 func init() {
-
 	configs := conf.GetSchedulerConf()
 
 	var outputPaths []string
 	if strings.Compare(configs.LogFile, "") == 0 {
-		outputPaths = []string {"stdout"}
+		outputPaths = []string{"stdout"}
 	} else {
-		outputPaths = []string {"stdout", configs.LogFile}
+		outputPaths = []string{"stdout", configs.LogFile}
 	}
 
 	zapConfigs := zap.Config{
@@ -74,9 +75,14 @@ func init() {
 	zap.ReplaceGlobals(Logger)
 
 	// dump configuration
-	c, _ := json.MarshalIndent(&configs, "", " ")
-	Logger.Info("scheduler configuration", zap.String("configs", string(c)))
+	c, err := json.MarshalIndent(&configs, "", " ")
+	if err != nil {
+		Logger.Info("scheduler configuration, json conversion failed", zap.Any("configs", configs))
+	} else {
+		Logger.Info("scheduler configuration, pretty print", zap.String("configs", string(c)))
+	}
 
 	// make sure logs are flushed
+	//nolint:errcheck
 	defer Logger.Sync()
 }

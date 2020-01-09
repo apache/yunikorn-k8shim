@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Cloudera, Inc.  All rights reserved.
+Copyright 2020 Cloudera, Inc.  All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,6 +18,11 @@ package cache
 
 import (
 	"fmt"
+	"sync"
+
+	"go.uber.org/zap"
+	v1 "k8s.io/api/core/v1"
+
 	"github.com/cloudera/yunikorn-core/pkg/api"
 	"github.com/cloudera/yunikorn-k8shim/pkg/cache/external"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common"
@@ -26,22 +31,19 @@ import (
 	"github.com/cloudera/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/cloudera/yunikorn-k8shim/pkg/log"
 	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
-	"go.uber.org/zap"
-	"k8s.io/api/core/v1"
-	"sync"
 )
 
 // scheduler nodes maintain cluster nodes and their status for the scheduler
 type schedulerNodes struct {
-	proxy    api.SchedulerApi
+	proxy    api.SchedulerAPI
 	nodesMap map[string]*SchedulerNode
 	cache    *external.SchedulerCache
 	lock     *sync.RWMutex
 }
 
-func newSchedulerNodes(schedulerApi api.SchedulerApi, cache *external.SchedulerCache) *schedulerNodes {
+func newSchedulerNodes(schedulerAPI api.SchedulerAPI, cache *external.SchedulerCache) *schedulerNodes {
 	return &schedulerNodes{
-		proxy:    schedulerApi,
+		proxy:    schedulerAPI,
 		nodesMap: make(map[string]*SchedulerNode),
 		cache:    cache,
 		lock:     &sync.RWMutex{},
@@ -74,16 +76,16 @@ func (nc *schedulerNodes) addExistingAllocation(pod *v1.Pod) error {
 	nc.lock.Lock()
 	defer nc.lock.Unlock()
 	if utils.IsAssignedPod(pod) {
-		if appId, err := utils.GetApplicationIdFromPod(pod); err == nil {
+		if appID, err := utils.GetApplicationIDFromPod(pod); err == nil {
 			if schedulerNode, ok := nc.nodesMap[pod.Spec.NodeName]; ok {
 				schedulerNode.addExistingAllocation(&si.Allocation{
 					AllocationKey:    pod.Name,
 					AllocationTags:   nil,
-					Uuid:             string(pod.UID),
+					UUID:             string(pod.UID),
 					ResourcePerAlloc: common.GetPodResource(pod),
 					QueueName:        utils.GetQueueNameFromPod(pod),
-					NodeId:           pod.Spec.NodeName,
-					ApplicationId:    appId,
+					NodeID:           pod.Spec.NodeName,
+					ApplicationID:    appID,
 					PartitionName:    common.DefaultPartition,
 				})
 			}
@@ -120,7 +122,7 @@ func (nc *schedulerNodes) addAndReportNode(node *v1.Node, reportNode bool) {
 		if node, ok := nc.nodesMap[node.Name]; ok {
 			if node.getNodeState() == events.States().Node.New {
 				dispatcher.Dispatch(CachedSchedulerNodeEvent{
-					NodeId: node.name,
+					NodeID: node.name,
 					Event:  events.RecoverNode,
 				})
 			}
@@ -133,7 +135,7 @@ func (nc *schedulerNodes) drainNode(node *v1.Node) {
 	if node, ok := nc.nodesMap[node.Name]; ok {
 		if node.getNodeState() == events.States().Node.Healthy {
 			dispatcher.Dispatch(CachedSchedulerNodeEvent{
-				NodeId: node.name,
+				NodeID: node.name,
 				Event:  events.DrainNode,
 			})
 		}
@@ -145,7 +147,7 @@ func (nc *schedulerNodes) restoreNode(node *v1.Node) {
 	if node, ok := nc.nodesMap[node.Name]; ok {
 		if node.getNodeState() == events.States().Node.Draining {
 			dispatcher.Dispatch(CachedSchedulerNodeEvent{
-				NodeId: node.name,
+				NodeID: node.name,
 				Event:  events.RestoreNode,
 			})
 		}
@@ -189,10 +191,10 @@ func (nc *schedulerNodes) deleteNode(node *v1.Node) {
 	}
 }
 
-func (nc *schedulerNodes) schedulerNodeEventHandler() func(obj interface{}){
+func (nc *schedulerNodes) schedulerNodeEventHandler() func(obj interface{}) {
 	return func(obj interface{}) {
 		if event, ok := obj.(events.SchedulerNodeEvent); ok {
-			if node := nc.getNode(event.GetNodeId()); node != nil{
+			if node := nc.getNode(event.GetNodeID()); node != nil {
 				if node.canHandle(event) {
 					if err := node.handle(event); err != nil {
 						log.Logger.Error("failed to handle scheduler node event",

@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Cloudera, Inc.  All rights reserved.
+Copyright 2020 Cloudera, Inc.  All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,9 +19,9 @@ package cache
 import "github.com/cloudera/yunikorn-k8shim/pkg/common/events"
 
 type CachedSchedulerNodeEvent struct {
-	NodeId        string
-	Event         events.SchedulerNodeEventType
-	Arguments     []interface{}
+	NodeID    string
+	Event     events.SchedulerNodeEventType
+	Arguments []interface{}
 }
 
 func (sn CachedSchedulerNodeEvent) GetEvent() events.SchedulerNodeEventType {
@@ -32,6 +32,6 @@ func (sn CachedSchedulerNodeEvent) GetArgs() []interface{} {
 	return sn.Arguments
 }
 
-func (sn CachedSchedulerNodeEvent) GetNodeId() string {
-	return sn.NodeId
+func (sn CachedSchedulerNodeEvent) GetNodeID() string {
+	return sn.NodeID
 }

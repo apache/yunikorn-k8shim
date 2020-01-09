@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Cloudera, Inc.  All rights reserved.
+Copyright 2020 Cloudera, Inc.  All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,11 +17,12 @@ limitations under the License.
 package common
 
 import (
-	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
-	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/kubernetes/pkg/apis/core/v1/helper/qos"
+
+	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
+	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
 )
 
 // resource builder is a helper struct to construct si resources
@@ -29,7 +30,7 @@ type ResourceBuilder struct {
 	resourceMap map[string]*si.Quantity
 }
 
-func NewResourceBuilder() *ResourceBuilder{
+func NewResourceBuilder() *ResourceBuilder {
 	return &ResourceBuilder{
 		resourceMap: make(map[string]*si.Quantity),
 	}
@@ -40,7 +41,7 @@ func (w *ResourceBuilder) AddResource(name string, value int64) *ResourceBuilder
 	return w
 }
 
-func (w *ResourceBuilder) Build() *si.Resource{
+func (w *ResourceBuilder) Build() *si.Resource {
 	return &si.Resource{Resources: w.resourceMap}
 }
 
@@ -91,51 +92,51 @@ func getResource(resourceList v1.ResourceList) *si.Resource {
 	return resources.Build()
 }
 
-func CreateUpdateRequestForTask(appId, taskId string, resource *si.Resource) si.UpdateRequest {
+func CreateUpdateRequestForTask(appID, taskID string, resource *si.Resource) si.UpdateRequest {
 	ask := si.AllocationAsk{
-		AllocationKey: taskId,
-		ResourceAsk:   resource,
-		ApplicationId: appId,
+		AllocationKey:  taskID,
+		ResourceAsk:    resource,
+		ApplicationID:  appID,
 		MaxAllocations: 1,
 	}
 
 	result := si.UpdateRequest{
-		Asks:                 []*si.AllocationAsk {&ask},
-		NewSchedulableNodes:  nil,
-		UpdatedNodes:         nil,
-		UtilizationReports:   nil,
-		RmId: conf.GetSchedulerConf().ClusterId,
+		Asks:                []*si.AllocationAsk{&ask},
+		NewSchedulableNodes: nil,
+		UpdatedNodes:        nil,
+		UtilizationReports:  nil,
+		RmID:                conf.GetSchedulerConf().ClusterID,
 	}
 
 	return result
 }
 
-func CreateReleaseAllocationRequestForTask(appId, allocUuid, partition string) si.UpdateRequest {
+func CreateReleaseAllocationRequestForTask(appID, allocUUID, partition string) si.UpdateRequest {
 	toReleases := make([]*si.AllocationReleaseRequest, 0)
 	toReleases = append(toReleases, &si.AllocationReleaseRequest{
-		ApplicationId: appId,
-		Uuid:          allocUuid,
+		ApplicationID: appID,
+		UUID:          allocUUID,
 		PartitionName: partition,
 		Message:       "task completed",
 	})
 
 	releaseRequest := si.AllocationReleasesRequest{
-		AllocationsToRelease:    toReleases,
+		AllocationsToRelease: toReleases,
 	}
 
 	result := si.UpdateRequest{
 		Releases: &releaseRequest,
-		RmId: conf.GetSchedulerConf().ClusterId,
+		RmID:     conf.GetSchedulerConf().ClusterID,
 	}
 
 	return result
 }
 
 func CreateUpdateRequestForNewNode(node Node) si.UpdateRequest {
-	// Use node's name as the NodeId, this is because when bind pod to node,
+	// Use node's name as the NodeID, this is because when bind pod to node,
 	// name of node is required but uid is optional.
 	nodeInfo := &si.NewNodeInfo{
-		NodeId:              node.name,
+		NodeID:              node.name,
 		SchedulableResource: node.resource,
 		// TODO is this required?
 		Attributes: map[string]string{
@@ -148,7 +149,7 @@ func CreateUpdateRequestForNewNode(node Node) si.UpdateRequest {
 	nodes[0] = nodeInfo
 	request := si.UpdateRequest{
 		NewSchedulableNodes: nodes,
-		RmId:                conf.GetSchedulerConf().ClusterId,
+		RmID:                conf.GetSchedulerConf().ClusterID,
 	}
 	return request
 }
@@ -156,7 +157,7 @@ func CreateUpdateRequestForNewNode(node Node) si.UpdateRequest {
 func CreateUpdateRequestForUpdatedNode(node Node) si.UpdateRequest {
 	// Currently only includes resource in the update request
 	nodeInfo := &si.UpdateNodeInfo{
-		NodeId:              node.name,
+		NodeID:              node.name,
 		SchedulableResource: node.resource,
 	}
 
@@ -164,7 +165,7 @@ func CreateUpdateRequestForUpdatedNode(node Node) si.UpdateRequest {
 	nodes[0] = nodeInfo
 	request := si.UpdateRequest{
 		UpdatedNodes: nodes,
-		RmId:         conf.GetSchedulerConf().ClusterId,
+		RmID:         conf.GetSchedulerConf().ClusterID,
 	}
 	return request
 }
@@ -172,7 +173,7 @@ func CreateUpdateRequestForUpdatedNode(node Node) si.UpdateRequest {
 func CreateUpdateRequestForDeleteNode(node Node) si.UpdateRequest {
 	deletedNodes := make([]*si.UpdateNodeInfo, 1)
 	nodeInfo := &si.UpdateNodeInfo{
-		NodeId:              node.name,
+		NodeID:              node.name,
 		SchedulableResource: node.resource,
 		Action:              si.UpdateNodeInfo_DECOMISSION,
 	}
@@ -180,7 +181,7 @@ func CreateUpdateRequestForDeleteNode(node Node) si.UpdateRequest {
 	deletedNodes[0] = nodeInfo
 	request := si.UpdateRequest{
 		UpdatedNodes: deletedNodes,
-		RmId:         conf.GetSchedulerConf().ClusterId,
+		RmID:         conf.GetSchedulerConf().ClusterID,
 	}
 	return request
 }
@@ -234,4 +235,3 @@ func Add(left *si.Resource, right *si.Resource) *si.Resource {
 	}
 	return result
 }
-

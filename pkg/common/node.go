@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Cloudera, Inc.  All rights reserved.
+Copyright 2020 Cloudera, Inc.  All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,29 +17,30 @@ limitations under the License.
 package common
 
 import (
+	v1 "k8s.io/api/core/v1"
+
 	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
-	"k8s.io/api/core/v1"
 )
 
 // stores info about what scheduler cares about a node
 type Node struct {
-	name string
-	uid string
+	name     string
+	uid      string
 	resource *si.Resource
 }
 
 func CreateFrom(node *v1.Node) Node {
 	return Node{
-		name: node.Name,
-		uid: string(node.UID),
+		name:     node.Name,
+		uid:      string(node.UID),
 		resource: GetNodeResource(&node.Status),
 	}
 }
 
-func CreateFromNodeSpec(nodeName string, nodeUid string, nodeResource *si.Resource) Node {
-	return Node {
-		name: nodeName,
-		uid: nodeUid,
+func CreateFromNodeSpec(nodeName string, nodeUID string, nodeResource *si.Resource) Node {
+	return Node{
+		name:     nodeName,
+		uid:      nodeUID,
 		resource: nodeResource,
 	}
 }

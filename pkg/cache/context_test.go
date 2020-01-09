@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Cloudera, Inc.  All rights reserved.
+Copyright 2020 Cloudera, Inc.  All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,25 +17,27 @@ limitations under the License.
 package cache
 
 import (
+	"testing"
+	"time"
+
+	"gotest.tools/assert"
+	v1 "k8s.io/api/core/v1"
+	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/test"
 	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
 	"github.com/cloudera/yunikorn-k8shim/pkg/dispatcher"
-	"gotest.tools/assert"
-	"k8s.io/api/core/v1"
-	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"testing"
-	"time"
 )
 
-const fakeClusterId = "test-cluster"
+const fakeClusterID = "test-cluster"
 const fakeClusterVersion = "0.1.0"
 const fakeClusterSchedulerName = "yunikorn-test"
 const fakeClusterSchedulingInterval = 1
 
 func initContextForTest() *Context {
 	configs := conf.SchedulerConf{
-		ClusterId:      fakeClusterId,
+		ClusterID:      fakeClusterID,
 		ClusterVersion: fakeClusterVersion,
 		SchedulerName:  fakeClusterSchedulerName,
 		Interval:       fakeClusterSchedulingInterval,
@@ -74,15 +76,15 @@ func TestAddPod(t *testing.T) {
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
-			Name:         "pod00001",
-			Namespace:    "default",
-			UID:          "UID-POD-00001",
+			Name:      "pod00001",
+			Namespace: "default",
+			UID:       "UID-POD-00001",
 			Labels: map[string]string{
 				"applicationId": "app00001",
 				"queue":         "root.a",
 			},
 		},
-		Spec:   v1.PodSpec{ SchedulerName: fakeClusterSchedulerName },
+		Spec: v1.PodSpec{SchedulerName: fakeClusterSchedulerName},
 		Status: v1.PodStatus{
 			Phase: v1.PodPending,
 		},
@@ -91,7 +93,7 @@ func TestAddPod(t *testing.T) {
 	context.addPod(&pod)
 	app01 := context.getOrCreateApplication(&pod)
 	assert.Equal(t, len(context.applications), 1)
-	assert.Equal(t, app01.GetApplicationId(), "app00001")
+	assert.Equal(t, app01.GetApplicationID(), "app00001")
 	assert.Equal(t, len(app01.GetNewTasks()), 1)
 	assert.Equal(t, app01.GetNewTasks()[0].GetTaskPod().Name, "pod00001")
 	assert.Equal(t, string(app01.GetNewTasks()[0].GetTaskPod().UID), "UID-POD-00001")
@@ -109,15 +111,15 @@ func TestAddPod(t *testing.T) {
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
-			Name:         "pod00002",
-			Namespace:    "default",
-			UID:          "UID-POD-00002",
+			Name:      "pod00002",
+			Namespace: "default",
+			UID:       "UID-POD-00002",
 			Labels: map[string]string{
 				"applicationId": "app00001",
 				"queue":         "root.a",
 			},
 		},
-		Spec:   v1.PodSpec{ SchedulerName: fakeClusterSchedulerName },
+		Spec: v1.PodSpec{SchedulerName: fakeClusterSchedulerName},
 		Status: v1.PodStatus{
 			Phase: v1.PodPending,
 		},
@@ -128,10 +130,10 @@ func TestAddPod(t *testing.T) {
 
 	for _, pt := range app01.GetNewTasks() {
 		switch pt.GetTaskPod().Name {
-		case "pod00001" :
+		case "pod00001":
 			assert.Equal(t, string(pt.GetTaskPod().UID), "UID-POD-00001")
 			assert.Equal(t, pt.GetTaskPod().Namespace, "default")
-		case "pod00002" :
+		case "pod00002":
 			assert.Equal(t, string(pt.GetTaskPod().UID), "UID-POD-00002")
 			assert.Equal(t, pt.GetTaskPod().Namespace, "default")
 		default:
@@ -146,17 +148,17 @@ func TestAddPod(t *testing.T) {
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
-			Name:         "pod00003",
-			Namespace:    "default",
-			UID:          "UID-POD-00003",
+			Name:      "pod00003",
+			Namespace: "default",
+			UID:       "UID-POD-00003",
 			Labels: map[string]string{
 				"applicationId": "app00001",
 				"queue":         "root.a",
 			},
 		},
-		Spec:   v1.PodSpec{}, // scheduler name missing
+		Spec: v1.PodSpec{}, // scheduler name missing
 		Status: v1.PodStatus{
-			Phase:  v1.PodPending,
+			Phase: v1.PodPending,
 		},
 	}
 
@@ -171,15 +173,15 @@ func TestAddPod(t *testing.T) {
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
-			Name:         "pod00004",
-			Namespace:    "default",
-			UID:          "UID-POD-00004",
+			Name:      "pod00004",
+			Namespace: "default",
+			UID:       "UID-POD-00004",
 			Labels: map[string]string{
 				"applicationId": "app00002",
 				"queue":         "root.a",
 			},
 		},
-		Spec:   v1.PodSpec{ SchedulerName: fakeClusterSchedulerName },
+		Spec: v1.PodSpec{SchedulerName: fakeClusterSchedulerName},
 		Status: v1.PodStatus{
 			Phase: v1.PodPending,
 		},
@@ -190,7 +192,7 @@ func TestAddPod(t *testing.T) {
 	assert.Equal(t, len(app01.GetNewTasks()), 2)
 	app02 := context.getOrCreateApplication(&pod3)
 	assert.Equal(t, len(app02.GetNewTasks()), 1)
-	assert.Equal(t, app02.GetApplicationId(), "app00002")
+	assert.Equal(t, app02.GetApplicationID(), "app00002")
 }
 
 func TestPodRejected(t *testing.T) {
@@ -206,15 +208,15 @@ func TestPodRejected(t *testing.T) {
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
-			Name:         "pod00001",
-			Namespace:    "default",
-			UID:          "UID-POD-00001",
+			Name:      "pod00001",
+			Namespace: "default",
+			UID:       "UID-POD-00001",
 			Labels: map[string]string{
 				"applicationId": "app00001",
 				"queue":         "root.a",
 			},
 		},
-		Spec:   v1.PodSpec{ SchedulerName: fakeClusterSchedulerName },
+		Spec: v1.PodSpec{SchedulerName: fakeClusterSchedulerName},
 		Status: v1.PodStatus{
 			Phase: v1.PodPending,
 		},
@@ -223,21 +225,22 @@ func TestPodRejected(t *testing.T) {
 	context.addPod(&pod)
 	app01 := context.getOrCreateApplication(&pod)
 	assert.Equal(t, len(context.applications), 1)
-	assert.Equal(t, app01.GetApplicationId(), "app00001")
+	assert.Equal(t, app01.GetApplicationID(), "app00001")
 	assert.Equal(t, len(app01.GetNewTasks()), 1)
 	assert.Equal(t, app01.GetNewTasks()[0].GetTaskPod().Name, "pod00001")
 	assert.Equal(t, string(app01.GetNewTasks()[0].GetTaskPod().UID), "UID-POD-00001")
 	assert.Equal(t, app01.GetNewTasks()[0].GetTaskPod().Namespace, "default")
 
 	// reject the task
-	task, _ := app01.GetTask("UID-POD-00001")
-	err := task.handle(NewRejectTaskEvent("app00001", "UID-POD-00001", ""))
+	task, err := app01.GetTask("UID-POD-00001")
+	assert.Assert(t, err == nil)
+	err = task.handle(NewRejectTaskEvent("app00001", "UID-POD-00001", ""))
 	assert.Assert(t, err == nil)
 	assert.Equal(t, len(app01.GetNewTasks()), 0)
 
-	task01, err := app01.GetTask("UID-POD-00001")
+	task, err = app01.GetTask("UID-POD-00001")
 	assert.Assert(t, err == nil)
-	assertTaskState(t, task01, events.States().Task.Failed, 3*time.Second)
+	assertTaskState(t, task, events.States().Task.Failed, 3*time.Second)
 }
 
 func assertTaskState(t *testing.T, task *Task, expectedState string, timeout time.Duration) {
@@ -248,8 +251,7 @@ func assertTaskState(t *testing.T, task *Task, expectedState string, timeout tim
 		}
 		if time.Now().After(deadline) {
 			t.Errorf("task %s doesn't reach expected state in given time, expecting: %s, actual: %s",
-				task.taskId, expectedState, task.GetTaskState())
+				task.taskID, expectedState, task.GetTaskState())
 		}
 	}
 }
-

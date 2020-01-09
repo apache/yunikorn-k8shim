@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Cloudera, Inc.  All rights reserved.
+Copyright 2020 Cloudera, Inc.  All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,12 +17,14 @@ package utils
 
 import (
 	"fmt"
-	"github.com/cloudera/yunikorn-k8shim/pkg/common"
-	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
-	"k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	"strings"
 	"time"
+
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
+
+	"github.com/cloudera/yunikorn-k8shim/pkg/common"
+	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
 )
 
 func Convert2Pod(obj interface{}) (*v1.Pod, error) {
@@ -50,22 +52,22 @@ func GetQueueNameFromPod(pod *v1.Pod) string {
 	return queueName
 }
 
-func GetApplicationIdFromPod(pod *v1.Pod) (string, error) {
+func GetApplicationIDFromPod(pod *v1.Pod) (string, error) {
 	for name, value := range pod.Labels {
-		// if a pod for spark already provided appId, reuse it
-		if name == common.SparkLabelAppId {
+		// if a pod for spark already provided appID, reuse it
+		if name == common.SparkLabelAppID {
 			return value, nil
 		}
 
 		// application ID can be defined as a label
-		if name == common.LabelApplicationId {
+		if name == common.LabelApplicationID {
 			return value, nil
 		}
 	}
 
 	// application ID can be defined in annotations too
 	for name, value := range pod.Annotations {
-		if name == common.LabelApplicationId {
+		if name == common.LabelApplicationID {
 			return value, nil
 		}
 	}
@@ -75,14 +77,13 @@ func GetApplicationIdFromPod(pod *v1.Pod) (string, error) {
 
 type K8sResource struct {
 	ResourceName v1.ResourceName
-	Value int64
+	Value        int64
 }
 
-func NewK8sResourceList(resources...K8sResource) map[v1.ResourceName]resource.Quantity {
+func NewK8sResourceList(resources ...K8sResource) map[v1.ResourceName]resource.Quantity {
 	resourceList := make(map[v1.ResourceName]resource.Quantity)
 	for _, r := range resources {
 		resourceList[r.ResourceName] = *resource.NewQuantity(r.Value, resource.DecimalSI)
-
 	}
 	return resourceList
 }

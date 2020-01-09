@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Cloudera, Inc.  All rights reserved.
+Copyright 2020 Cloudera, Inc.  All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@ const DefaultNodeAttributeRackNameKey = "si.io/rackname"
 const DefaultRackName = "/rack-default"
 
 // Application
-const LabelApplicationId = "applicationId"
+const LabelApplicationID = "applicationId"
 const LabelQueueName = "queue"
 const ApplicationDefaultQueue = "root"
 const DefaultPartition = "default"
@@ -32,7 +32,7 @@ const Memory = "memory"
 const CPU = "vcore"
 
 // Spark
-const SparkLabelAppId = "spark-app-id"
+const SparkLabelAppID = "spark-app-id"
 const SparkLabelRole = "spark-role"
 const SparkLabelRoleDriver = "driver"
 

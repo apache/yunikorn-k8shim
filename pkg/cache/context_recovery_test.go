@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Cloudera, Inc.  All rights reserved.
+Copyright 2020 Cloudera, Inc.  All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,24 +17,25 @@ limitations under the License.
 package cache
 
 import (
-	"fmt"
+	"testing"
+	"time"
+
+	"gotest.tools/assert"
+	v1 "k8s.io/api/core/v1"
+	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/test"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/utils"
 	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
 	"github.com/cloudera/yunikorn-k8shim/pkg/dispatcher"
-	"gotest.tools/assert"
-	"k8s.io/api/core/v1"
-	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"testing"
-	"time"
 )
 
 func TestNodeRecoveringState(t *testing.T) {
-	mockApi := test.NewSchedulerApiMock()
+	mockAPI := test.NewSchedulerAPIMock()
 	mockClient := test.NewKubeClientMock()
 
-	context := NewContextInternal(mockApi, &conf.SchedulerConf{}, mockClient, true)
+	context := NewContextInternal(mockAPI, &conf.SchedulerConf{}, mockClient, true)
 	dispatcher.RegisterEventHandler(dispatcher.EventTypeNode, context.nodes.schedulerNodeEventHandler())
 	dispatcher.Start()
 	defer dispatcher.Stop()
@@ -49,10 +50,10 @@ func TestNodeRecoveringState(t *testing.T) {
 			Capacity: utils.NewK8sResourceList(
 				utils.K8sResource{
 					ResourceName: v1.ResourceMemory,
-					Value: 1024,
+					Value:        1024,
 				}, utils.K8sResource{
 					ResourceName: v1.ResourceCPU,
-					Value: 10,
+					Value:        10,
 				}),
 		},
 	}
@@ -67,10 +68,10 @@ func TestNodeRecoveringState(t *testing.T) {
 			Capacity: utils.NewK8sResourceList(
 				utils.K8sResource{
 					ResourceName: v1.ResourceMemory,
-					Value: 1024,
+					Value:        1024,
 				}, utils.K8sResource{
 					ResourceName: v1.ResourceCPU,
-					Value: 10,
+					Value:        10,
 				}),
 		},
 	}
@@ -95,10 +96,10 @@ func TestNodeRecoveringState(t *testing.T) {
 }
 
 func TestNodesRecovery(t *testing.T) {
-	mockApi := test.NewSchedulerApiMock()
+	mockAPI := test.NewSchedulerAPIMock()
 	mockClient := test.NewKubeClientMock()
 
-	context := NewContextInternal(mockApi, &conf.SchedulerConf{}, mockClient, true)
+	context := NewContextInternal(mockAPI, &conf.SchedulerConf{}, mockClient, true)
 	dispatcher.RegisterEventHandler(dispatcher.EventTypeNode, context.nodes.schedulerNodeEventHandler())
 	dispatcher.Start()
 	defer dispatcher.Stop()
@@ -113,10 +114,10 @@ func TestNodesRecovery(t *testing.T) {
 			Capacity: utils.NewK8sResourceList(
 				utils.K8sResource{
 					ResourceName: v1.ResourceMemory,
-					Value: 1024,
+					Value:        1024,
 				}, utils.K8sResource{
 					ResourceName: v1.ResourceCPU,
-					Value: 10,
+					Value:        10,
 				}),
 		},
 	}
@@ -131,10 +132,10 @@ func TestNodesRecovery(t *testing.T) {
 			Capacity: utils.NewK8sResourceList(
 				utils.K8sResource{
 					ResourceName: v1.ResourceMemory,
-					Value: 1024,
+					Value:        1024,
 				}, utils.K8sResource{
 					ResourceName: v1.ResourceCPU,
-					Value: 10,
+					Value:        10,
 				}),
 		},
 	}
@@ -156,8 +157,8 @@ func TestNodesRecovery(t *testing.T) {
 
 	// node1 recovery is done
 	dispatcher.Dispatch(CachedSchedulerNodeEvent{
-		NodeId:    "host0001",
-		Event:     events.NodeAccepted,
+		NodeID: "host0001",
+		Event:  events.NodeAccepted,
 	})
 
 	if err := utils.WaitForCondition(func() bool {
@@ -169,8 +170,8 @@ func TestNodesRecovery(t *testing.T) {
 
 	// node2 recovery is done
 	dispatcher.Dispatch(CachedSchedulerNodeEvent{
-		NodeId:    "host0002",
-		Event:     events.NodeAccepted,
+		NodeID: "host0002",
+		Event:  events.NodeAccepted,
 	})
 
 	if err := context.waitForNodeRecovery(nodeLister, 3*time.Second); err != nil {
@@ -182,11 +183,11 @@ func TestNodesRecovery(t *testing.T) {
 }
 
 func TestAppRecovery(t *testing.T) {
-	mockApi := test.NewSchedulerApiMock()
+	mockAPI := test.NewSchedulerAPIMock()
 	mockClient := test.NewKubeClientMock()
 	conf.GetSchedulerConf().SchedulerName = fakeClusterSchedulerName
 
-	context := NewContextInternal(mockApi, &conf.SchedulerConf{}, mockClient, true)
+	context := NewContextInternal(mockAPI, &conf.SchedulerConf{}, mockClient, true)
 	dispatcher.RegisterEventHandler(dispatcher.EventTypeApp, context.ApplicationEventHandler())
 	dispatcher.Start()
 	defer dispatcher.Stop()
@@ -245,13 +246,14 @@ func TestAppRecovery(t *testing.T) {
 	podLister.AddPod(&pod2)
 
 	// wait for app1 to reach Recovering state, then dispatch AcceptApplication events
+	//nolint:staticcheck
 	go func() {
 		if err := utils.WaitForCondition(func() bool {
-			app1, _ := context.GetApplication("app1")
+			app1, err := context.GetApplication("app1")
 			// only app1 which is already scheduled before can be recovered
-			if app1 != nil && app1.GetApplicationState() == events.States().Application.Recovering {
+			if err == nil && app1 != nil && app1.GetApplicationState() == events.States().Application.Recovering {
 				// simulate that app1 is accepted by scheduler
-				dispatcher.Dispatch(NewSimpleApplicationEvent(app1.applicationId, events.AcceptApplication))
+				dispatcher.Dispatch(NewSimpleApplicationEvent(app1.applicationID, events.AcceptApplication))
 				return true
 			}
 			return false
@@ -259,10 +261,9 @@ func TestAppRecovery(t *testing.T) {
 			appStates := make(map[string]string)
 			apps := context.SelectApplications(nil)
 			for _, app := range apps {
-				appStates[app.GetApplicationId()] = app.GetApplicationState()
+				appStates[app.GetApplicationID()] = app.GetApplicationState()
 			}
-			t.Fatalf("failed to wait for app1 with Recovering state in 3 seconds, actual app states: %s",
-				fmt.Sprintf("%v", appStates))
+			t.Fatalf("failed to wait for app1 with Recovering state in 3 seconds, actual app states: %v", appStates)
 		}
 	}()
 

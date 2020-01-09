@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Cloudera, Inc.  All rights reserved.
+Copyright 2020 Cloudera, Inc.  All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,9 +18,10 @@ package external
 
 import (
 	"fmt"
-	"github.com/cloudera/yunikorn-k8shim/pkg/log"
+	"sync"
+
 	"go.uber.org/zap"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	storageV1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	corelistersV1 "k8s.io/client-go/listers/core/v1"
@@ -29,7 +30,8 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/factory"
 	schedulernode "k8s.io/kubernetes/pkg/scheduler/nodeinfo"
 	"k8s.io/kubernetes/pkg/scheduler/volumebinder"
-	"sync"
+
+	"github.com/cloudera/yunikorn-k8shim/pkg/log"
 )
 
 // scheduler cache maintains some critical information about nodes and pods used for scheduling
@@ -37,8 +39,8 @@ import (
 // we replicate nodes info from de-scheduler, in order to re-use predicates functions.
 type SchedulerCache struct {
 	// node name to NodeInfo map
-	nodesMap    map[string]*schedulernode.NodeInfo
-	podsMap     map[string]*v1.Pod
+	nodesMap map[string]*schedulernode.NodeInfo
+	podsMap  map[string]*v1.Pod
 	// this is a map of assumed pods,
 	// the value indicates if a pod volumes are all bound
 	assumedPods map[string]bool
@@ -50,19 +52,11 @@ type SchedulerCache struct {
 	volumeBinder  *volumebinder.VolumeBinder
 }
 
-// cachedPodState is used to store pod states
-// these states are only used within the schedulerCache
-type cachedPodState struct {
-	assumed bool
-	allVolumesBound bool
-}
-
 func NewSchedulerCache(pvl corelistersV1.PersistentVolumeLister,
 	pvcl corelistersV1.PersistentVolumeClaimLister,
 	stl storagelisterV1.StorageClassLister,
 	binder *volumebinder.VolumeBinder) *SchedulerCache {
-
-		cache := &SchedulerCache{
+	cache := &SchedulerCache{
 		nodesMap:      make(map[string]*schedulernode.NodeInfo),
 		podsMap:       make(map[string]*v1.Pod),
 		assumedPods:   make(map[string]bool),
@@ -104,9 +98,11 @@ func (cache *SchedulerCache) AddNode(node *v1.Node) {
 	cache.lock.Lock()
 	defer cache.lock.Unlock()
 
-	n, ok := cache.nodesMap[node.Name]
+	_, ok := cache.nodesMap[node.Name]
 	if !ok {
-		n = schedulernode.NewNodeInfo()
+		n := schedulernode.NewNodeInfo()
+		// API call always returns nil, never an error
+		//nolint:errcheck
 		_ = n.SetNode(node)
 		cache.nodesMap[node.Name] = n
 	}
@@ -118,7 +114,10 @@ func (cache *SchedulerCache) UpdateNode(oldNode, newNode *v1.Node) error {
 
 	n, ok := cache.nodesMap[oldNode.Name]
 	if ok {
+		// API calls always returns nil, never an error
+		//nolint:errcheck
 		_ = n.RemoveNode(oldNode)
+		//nolint:errcheck
 		_ = n.SetNode(newNode)
 	}
 	return nil
@@ -175,7 +174,11 @@ func (cache *SchedulerCache) AddPod(pod *v1.Pod) error {
 				zap.String("actualLocation", currState.Spec.NodeName))
 
 			// Clean this up.
-			_ = cache.removePod(currState)
+			err = cache.removePod(currState)
+			if err != nil {
+				log.Logger.Debug("node not in cache",
+					zap.Error(err))
+			}
 			cache.addPod(pod)
 		}
 		delete(cache.assumedPods, key)
@@ -185,7 +188,6 @@ func (cache *SchedulerCache) AddPod(pod *v1.Pod) error {
 		cache.addPod(pod)
 		cache.podsMap[key] = pod
 	default:
-		// return fmt.Errorf("pod %v was already in added state", key)
 		log.Logger.Debug("pod was already in added state", zap.String("pod", key))
 	}
 	return nil
@@ -209,7 +211,7 @@ func (cache *SchedulerCache) UpdatePod(oldPod, newPod *v1.Pod) error {
 			log.Logger.Error("pod updated on a different node than previously added to", zap.String("pod", key))
 			log.Logger.Error("scheduler cache is corrupted and can badly affect scheduling decisions")
 		}
-		if err := cache.updatePod(oldPod, newPod); err != nil {
+		if err = cache.updatePod(oldPod, newPod); err != nil {
 			return err
 		}
 		cache.podsMap[key] = newPod
@@ -261,9 +263,8 @@ func (cache *SchedulerCache) GetPod(uid string) (*v1.Pod, bool) {
 	defer cache.lock.RUnlock()
 	if pod, ok := cache.podsMap[uid]; ok {
 		return pod, true
-	} else {
-		return nil, false
 	}
+	return nil, false
 }
 
 func (cache *SchedulerCache) AssumePod(pod *v1.Pod, allBound bool) error {
@@ -303,7 +304,7 @@ func (cache *SchedulerCache) ForgetPod(pod *v1.Pod) error {
 	switch {
 	// Only assumed pod can be forgotten.
 	case ok && cache.isAssumedPod(key):
-		err := cache.removePod(pod)
+		err = cache.removePod(pod)
 		if err != nil {
 			return err
 		}

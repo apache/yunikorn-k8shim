@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Cloudera, Inc.  All rights reserved.
+Copyright 2020 Cloudera, Inc.  All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ import (
 )
 
 func GetEventArgsAsStrings(result []string, generic []interface{}) error {
-	if generic != nil && len(generic) > 0 {
+	if len(generic) > 0 {
 		if result == nil || cap(result) != len(generic) {
 			return fmt.Errorf("invalid length of arguments")
 		}

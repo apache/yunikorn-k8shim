@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Cloudera, Inc.  All rights reserved.
+Copyright 2020 Cloudera, Inc.  All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -44,7 +44,7 @@ type ApplicationEvent interface {
 	// an application event is associated with an application Id,
 	// dispatcher finds out actual application based on this id
 	// to handle this event
-	GetApplicationId() string
+	GetApplicationID() string
 
 	// the type of this event
 	GetEvent() ApplicationEventType
@@ -60,7 +60,7 @@ type ApplicationEvent interface {
 type TaskEventType string
 
 const (
-	InitTask	  TaskEventType = "InitTask"
+	InitTask      TaskEventType = "InitTask"
 	SubmitTask    TaskEventType = "SubmitTask"
 	TaskAllocated TaskEventType = "TaskAllocated"
 	TaskRejected  TaskEventType = "TaskRejected"
@@ -72,13 +72,13 @@ const (
 )
 
 type TaskEvent interface {
-	// application id which this task belongs to
-	GetApplicationId() string
+	// application ID which this task belongs to
+	GetApplicationID() string
 
-	// a task event must be associated with an application id
-	// and a task id, dispatcher need them to dispatch this event
+	// a task event must be associated with an application ID
+	// and a task ID, dispatcher need them to dispatch this event
 	// to the actual task
-	GetTaskId() string
+	GetTaskID() string
 
 	// type of this event
 	GetEvent() TaskEventType
@@ -117,17 +117,17 @@ type SchedulerEvent interface {
 type SchedulerNodeEventType string
 
 const (
-	RecoverNode        SchedulerNodeEventType = "RecoverNode"
-	NodeAccepted       SchedulerNodeEventType = "NodeAccepted"
-	NodeRejected       SchedulerNodeEventType = "NodeRejected"
-	DrainNode          SchedulerNodeEventType = "DrainNode"
-	RestoreNode        SchedulerNodeEventType = "RestoreNode"
-	NodeReady          SchedulerNodeEventType = "NodeReady"
+	RecoverNode  SchedulerNodeEventType = "RecoverNode"
+	NodeAccepted SchedulerNodeEventType = "NodeAccepted"
+	NodeRejected SchedulerNodeEventType = "NodeRejected"
+	DrainNode    SchedulerNodeEventType = "DrainNode"
+	RestoreNode  SchedulerNodeEventType = "RestoreNode"
+	NodeReady    SchedulerNodeEventType = "NodeReady"
 )
 
 type SchedulerNodeEvent interface {
-	// returns the node Id
-	GetNodeId() string
+	// returns the node ID
+	GetNodeID() string
 
 	// the type of this event
 	GetEvent() SchedulerNodeEventType

@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Cloudera, Inc.  All rights reserved.
+Copyright 2020 Cloudera, Inc.  All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,17 +20,19 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"github.com/cloudera/yunikorn-k8shim/pkg/log"
-	"go.uber.org/zap"
 	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"syscall"
+
+	"go.uber.org/zap"
+
+	"github.com/cloudera/yunikorn-k8shim/pkg/log"
 )
 
 const (
-	HttpPort    = 8443
+	HTTPPort    = 8443
 	tlsDir      = `/run/secrets/tls`
 	tlsCertFile = `cert.pem`
 	tlsKeyFile  = `key.pem`
@@ -48,19 +50,19 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/mutate", webHook.serve)
 	server := &http.Server{
-		Addr: fmt.Sprintf(":%v", HttpPort),
+		Addr:      fmt.Sprintf(":%v", HTTPPort),
 		TLSConfig: &tls.Config{Certificates: []tls.Certificate{pair}},
-		Handler: mux,
+		Handler:   mux,
 	}
 
 	go func() {
-		if err := server.ListenAndServeTLS("", ""); err != nil {
+		if err = server.ListenAndServeTLS("", ""); err != nil {
 			log.Logger.Fatal("failed to start admission controller", zap.Error(err))
 		}
 	}()
 
 	log.Logger.Info("the admission controller started",
-		zap.Int("port", HttpPort),
+		zap.Int("port", HTTPPort),
 		zap.String("listeningOn", "/mutate"))
 
 	signalChan := make(chan os.Signal, 1)
@@ -68,7 +70,8 @@ func main() {
 	<-signalChan
 
 	log.Logger.Info("shutting down the admission controller...")
-	err = server.Shutdown(context.Background()); if err != nil {
+	err = server.Shutdown(context.Background())
+	if err != nil {
 		log.Logger.Warn("failed to stop the admission controller",
 			zap.Error(err))
 	}

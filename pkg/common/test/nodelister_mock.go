@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Cloudera, Inc.  All rights reserved.
+Copyright 2020 Cloudera, Inc.  All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,7 +18,8 @@ package test
 
 import (
 	"fmt"
-	"k8s.io/api/core/v1"
+
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	clientv1 "k8s.io/client-go/listers/core/v1"
 )
@@ -42,7 +43,7 @@ func (n *NodeListerMock) List(selector labels.Selector) (ret []*v1.Node, err err
 }
 
 func (n *NodeListerMock) Get(name string) (*v1.Node, error) {
-	for _, n := range n.allNodes{
+	for _, n := range n.allNodes {
 		if n.Name == name {
 			return n, nil
 		}

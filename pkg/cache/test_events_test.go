@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Cloudera, Inc.  All rights reserved.
+Copyright 2020 Cloudera, Inc.  All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,9 +17,11 @@ package cache
 
 import (
 	"fmt"
-	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
-	"gotest.tools/assert"
 	"testing"
+
+	"gotest.tools/assert"
+
+	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
 )
 
 func TestAllocateTaskEventArgs(t *testing.T) {

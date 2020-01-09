@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Cloudera, Inc.  All rights reserved.
+Copyright 2020 Cloudera, Inc.  All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,11 +16,12 @@ limitations under the License.
 package common
 
 import (
+	"testing"
+
 	"gotest.tools/assert"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"testing"
 )
 
 func TestAdd(t *testing.T) {
@@ -210,7 +211,7 @@ func TestBestEffortPod(t *testing.T) {
 		},
 	}
 
-    // best effort pod all resources are nil or zero
+	// best effort pod all resources are nil or zero
 	res := GetPodResource(pod)
 	assert.Equal(t, len(res.Resources), 1)
 	assert.Equal(t, res.Resources[Memory].GetValue(), int64(1))

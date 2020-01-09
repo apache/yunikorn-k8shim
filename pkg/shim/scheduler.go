@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Cloudera, Inc.  All rights reserved.
+Copyright 2020 Cloudera, Inc.  All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,7 +17,13 @@ limitations under the License.
 package main
 
 import (
-	"fmt"
+	"sync"
+	"time"
+
+	"github.com/looplab/fsm"
+	"go.uber.org/zap"
+	"k8s.io/apimachinery/pkg/util/wait"
+
 	"github.com/cloudera/yunikorn-core/pkg/api"
 	"github.com/cloudera/yunikorn-k8shim/pkg/cache"
 	"github.com/cloudera/yunikorn-k8shim/pkg/callback"
@@ -26,39 +32,33 @@ import (
 	"github.com/cloudera/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/cloudera/yunikorn-k8shim/pkg/log"
 	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
-	"github.com/looplab/fsm"
-	"go.uber.org/zap"
-	"k8s.io/apimachinery/pkg/util/wait"
-	"sync"
-	"time"
 )
 
 // shim scheduler watches api server and interacts with unity scheduler to allocate pods
 type KubernetesShim struct {
-	rmProxy        api.SchedulerApi
-	context        *cache.Context
-	callback       api.ResourceManagerCallback
-	stateMachine   *fsm.FSM
-	dispatcher     *dispatcher.Dispatcher
-	stopChan       chan struct{}
-	lock           *sync.RWMutex
+	rmProxy      api.SchedulerAPI
+	context      *cache.Context
+	callback     api.ResourceManagerCallback
+	stateMachine *fsm.FSM
+	stopChan     chan struct{}
+	lock         *sync.RWMutex
 }
 
-func newShimScheduler(api api.SchedulerApi, configs *conf.SchedulerConf) *KubernetesShim {
+func newShimScheduler(api api.SchedulerAPI, configs *conf.SchedulerConf) *KubernetesShim {
 	context := cache.NewContext(api, configs)
 	rmCallback := callback.NewAsyncRMCallback(context)
 	return newShimSchedulerInternal(api, context, rmCallback)
 }
 
 // this is visible for testing
-func newShimSchedulerInternal(api api.SchedulerApi, ctx *cache.Context, cb api.ResourceManagerCallback) *KubernetesShim {
+func newShimSchedulerInternal(api api.SchedulerAPI, ctx *cache.Context, cb api.ResourceManagerCallback) *KubernetesShim {
 	var states = events.States().Scheduler
 	ss := &KubernetesShim{
-		rmProxy:        api,
-		context:        ctx,
-		callback:       cb,
-		stopChan:       make(chan struct{}),
-		lock:           &sync.RWMutex{},
+		rmProxy:  api,
+		context:  ctx,
+		callback: cb,
+		stopChan: make(chan struct{}),
+		lock:     &sync.RWMutex{},
 	}
 
 	// init state machine
@@ -85,11 +85,11 @@ func newShimSchedulerInternal(api api.SchedulerApi, ctx *cache.Context, cb api.R
 				Dst: states.Stopped},
 		},
 		fsm.Callbacks{
-			string(events.RegisterScheduler): ss.register(),                     // trigger registration
-			string(events.RegisterSchedulerFailed): ss.handleSchedulerFailure(), // registration failed, stop the scheduler
-			string(states.Registered): ss.triggerSchedulerStateRecovery(),       // if reaches registered, trigger recovering
-			string(states.Recovering): ss.recoverSchedulerState(),               // do recovering
-			string(states.Running): ss.doScheduling(),                           // do scheduling
+			string(events.RegisterScheduler):       ss.register(),                      // trigger registration
+			string(events.RegisterSchedulerFailed): ss.handleSchedulerFailure(),        // registration failed, stop the scheduler
+			string(states.Registered):              ss.triggerSchedulerStateRecovery(), // if reaches registered, trigger recovering
+			string(states.Recovering):              ss.recoverSchedulerState(),         // do recovering
+			string(states.Running):                 ss.doScheduling(),                  // do scheduling
 		},
 	)
 
@@ -102,7 +102,7 @@ func newShimSchedulerInternal(api api.SchedulerApi, ctx *cache.Context, cb api.R
 	return ss
 }
 
-func (ss *KubernetesShim) SchedulerEventHandler() func(obj interface{}){
+func (ss *KubernetesShim) SchedulerEventHandler() func(obj interface{}) {
 	return func(obj interface{}) {
 		if event, ok := obj.(events.SchedulerEvent); ok {
 			if ss.canHandle(event) {
@@ -181,13 +181,13 @@ func (ss *KubernetesShim) doScheduling() func(e *fsm.Event) {
 func (ss *KubernetesShim) registerShimLayer() error {
 	configuration := conf.GetSchedulerConf()
 	registerMessage := si.RegisterResourceManagerRequest{
-		RmId:        configuration.ClusterId,
+		RmID:        configuration.ClusterID,
 		Version:     configuration.ClusterVersion,
 		PolicyGroup: configuration.PolicyGroup,
 	}
 
 	log.Logger.Info("register RM to the scheduler",
-		zap.String("clusterId", configuration.ClusterId),
+		zap.String("clusterID", configuration.ClusterID),
 		zap.String("clusterVersion", configuration.ClusterVersion),
 		zap.String("policyGroup", configuration.PolicyGroup))
 	if _, err := ss.rmProxy.RegisterResourceManager(&registerMessage, ss.callback); err != nil {
@@ -229,20 +229,6 @@ func (ss *KubernetesShim) schedule() {
 	for _, app := range apps {
 		app.Schedule()
 	}
-}
-
-func (ss *KubernetesShim) blockUntilRunning(timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
-	for ss.GetSchedulerState() != events.States().Scheduler.Running {
-		log.Logger.Info("waiting for scheduler state",
-			zap.String("expect", events.States().Scheduler.Running),
-			zap.String("current", ss.GetSchedulerState()))
-		if time.Now().After(deadline) {
-			return fmt.Errorf("timeout waiting for scheduler gets to expect state after %s", timeout.String())
-		}
-		time.Sleep(1 * time.Second)
-	}
-	return nil
 }
 
 func (ss *KubernetesShim) run() {

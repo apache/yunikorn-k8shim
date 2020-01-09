@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Cloudera, Inc.  All rights reserved.
+Copyright 2020 Cloudera, Inc.  All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,13 +18,15 @@ package dispatcher
 
 import (
 	"fmt"
-	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
-	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
-	"github.com/cloudera/yunikorn-k8shim/pkg/log"
-	"go.uber.org/zap"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"go.uber.org/zap"
+
+	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
+	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
+	"github.com/cloudera/yunikorn-k8shim/pkg/log"
 )
 
 var dispatcher *Dispatcher
@@ -40,10 +42,10 @@ const (
 )
 
 var (
-	AsyncDispatchLimit int32
+	AsyncDispatchLimit         int32
 	AsyncDispatchCheckInterval = 3 * time.Second
-	DispatchTimeout time.Duration
-	asyncDispatchCount int32 = 0
+	DispatchTimeout            time.Duration
+	asyncDispatchCount         int32 = 0
 )
 
 // central dispatcher that dispatches scheduling events.
@@ -213,4 +215,3 @@ func Stop() {
 		log.Logger.Info("dispatcher is already stopped")
 	}
 }
-

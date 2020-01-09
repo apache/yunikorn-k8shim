@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Cloudera, Inc.  All rights reserved.
+Copyright 2020 Cloudera, Inc.  All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,6 +17,14 @@ limitations under the License.
 package cache
 
 import (
+	"testing"
+	"time"
+
+	"gotest.tools/assert"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
+	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/cloudera/yunikorn-k8shim/pkg/cache/external"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
@@ -24,16 +32,10 @@ import (
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/utils"
 	"github.com/cloudera/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
-	"gotest.tools/assert"
-	"k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
-	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"testing"
-	"time"
 )
 
 func TestAddNode(t *testing.T) {
-	api := test.NewSchedulerApiMock()
+	api := test.NewSchedulerAPIMock()
 
 	// register fn doesn't nothing than checking input
 	inputCheckerUpdateFn := func(request *si.UpdateRequest) error {
@@ -42,8 +44,8 @@ func TestAddNode(t *testing.T) {
 		}
 
 		info := request.NewSchedulableNodes[0]
-		if info.NodeId != "host0001" {
-			t.Fatalf("unexpected node name %s", info.NodeId)
+		if info.NodeID != "host0001" {
+			t.Fatalf("unexpected node name %s", info.NodeID)
 		}
 
 		if memory := info.SchedulableResource.Resources[common.Memory].Value; memory != int64(1024) {
@@ -96,7 +98,7 @@ func TestAddNode(t *testing.T) {
 }
 
 func TestUpdateNode(t *testing.T) {
-	api := test.NewSchedulerApiMock()
+	api := test.NewSchedulerAPIMock()
 
 	// register fn doesn't nothing than checking input
 	inputCheckerUpdateFn := func(request *si.UpdateRequest) error {
@@ -105,8 +107,8 @@ func TestUpdateNode(t *testing.T) {
 		}
 
 		info := request.NewSchedulableNodes[0]
-		if info.NodeId != "host0001" {
-			t.Fatalf("unexpected node name %s", info.NodeId)
+		if info.NodeID != "host0001" {
+			t.Fatalf("unexpected node name %s", info.NodeID)
 		}
 
 		if memory := info.SchedulableResource.Resources[common.Memory].Value; memory != int64(1024) {
@@ -187,8 +189,8 @@ func TestUpdateNode(t *testing.T) {
 		}
 
 		info := request.UpdatedNodes[0]
-		if info.NodeId != "host0001" {
-			t.Fatalf("unexpected node name %s", info.NodeId)
+		if info.NodeID != "host0001" {
+			t.Fatalf("unexpected node name %s", info.NodeID)
 		}
 
 		if memory := info.SchedulableResource.Resources[common.Memory].Value; memory != int64(2048) {
@@ -210,7 +212,7 @@ func TestUpdateNode(t *testing.T) {
 }
 
 func TestDeleteNode(t *testing.T) {
-	api := test.NewSchedulerApiMock()
+	api := test.NewSchedulerAPIMock()
 
 	// register fn doesn't nothing than checking input
 	inputCheckerFn := func(request *si.UpdateRequest) error {
@@ -219,8 +221,8 @@ func TestDeleteNode(t *testing.T) {
 		}
 
 		info := request.UpdatedNodes[0]
-		if info.NodeId != "host0001" {
-			t.Fatalf("unexpected node name %s", info.NodeId)
+		if info.NodeID != "host0001" {
+			t.Fatalf("unexpected node name %s", info.NodeID)
 		}
 
 		if memory := info.SchedulableResource.Resources[common.Memory].Value; memory != int64(1024) {
@@ -264,7 +266,6 @@ func TestDeleteNode(t *testing.T) {
 	nodes.addNode(&node)
 	nodes.deleteNode(&node)
 
-
 	if err := utils.WaitForCondition(func() bool {
 		return api.GetRegisterCount() == 0
 	}, 1*time.Second, 5*time.Second); err != nil {
@@ -286,7 +287,7 @@ func NewTestSchedulerCache() *external.SchedulerCache {
 }
 
 func TestCordonNode(t *testing.T) {
-	api := test.NewSchedulerApiMock()
+	api := test.NewSchedulerAPIMock()
 
 	// register fn doesn't nothing than checking input
 	inputCheckerUpdateFn := func(request *si.UpdateRequest) error {
@@ -396,5 +397,4 @@ func TestCordonNode(t *testing.T) {
 	}, 1*time.Second, 5*time.Second); err != nil {
 		t.Fatalf("%v", err)
 	}
-
 }

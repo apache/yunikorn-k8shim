@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Cloudera, Inc.  All rights reserved.
+Copyright 2020 Cloudera, Inc.  All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,6 +18,12 @@ package main
 
 import (
 	"fmt"
+	"testing"
+	"time"
+
+	"go.uber.org/zap"
+	v1 "k8s.io/api/core/v1"
+
 	"github.com/cloudera/yunikorn-core/pkg/api"
 	"github.com/cloudera/yunikorn-k8shim/pkg/cache"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common"
@@ -25,10 +31,6 @@ import (
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/test"
 	"github.com/cloudera/yunikorn-k8shim/pkg/log"
 	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
-	"go.uber.org/zap"
-	"k8s.io/api/core/v1"
-	"testing"
-	"time"
 )
 
 func TestApplicationScheduling(t *testing.T) {
@@ -141,21 +143,21 @@ partitions:
 	cluster.waitAndAssertTaskState(t, "app0001", "task0001", events.States().Task.Bound)
 }
 
-func TestSchedulerRegistrationFailed(t *testing.T){
+func TestSchedulerRegistrationFailed(t *testing.T) {
 	var ctx *cache.Context
 	var callback api.ResourceManagerCallback
 
-	schedulerApi := test.NewSchedulerApiMock().RegisterFunction(
+	schedulerAPI := test.NewSchedulerAPIMock().RegisterFunction(
 		func(request *si.RegisterResourceManagerRequest,
 			callback api.ResourceManagerCallback) (response *si.RegisterResourceManagerResponse, e error) {
-				return nil, fmt.Errorf("some error")
+			return nil, fmt.Errorf("some error")
 		})
 
-	shim := newShimSchedulerInternal(schedulerApi, ctx, callback)
+	shim := newShimSchedulerInternal(schedulerAPI, ctx, callback)
 	shim.run()
 	defer shim.stop()
 
-	if err := waitShimSchedulerState(shim, events.States().Scheduler.Stopped, 5 * time.Second); err !=nil {
+	if err := waitShimSchedulerState(shim, events.States().Scheduler.Stopped, 5*time.Second); err != nil {
 		t.Fatalf("%v", err)
 	}
 }
@@ -183,7 +185,7 @@ partitions:
 	// init and register scheduler
 	cluster := MockScheduler{}
 	// mock pod bind failures
-	cluster.bindFn = func(pod *v1.Pod, hostId string) error {
+	cluster.bindFn = func(pod *v1.Pod, hostID string) error {
 		if pod.Name == "task0001" {
 			return fmt.Errorf("mocked error when binding the pod")
 		}
@@ -224,7 +226,7 @@ partitions:
 
 	// one task get bound, one ask failed, so we are expecting only 1 allocation in the scheduler
 	if err := cluster.waitAndVerifySchedulerAllocations("root.a",
-		"[test-cluster]default","app0001", 1); err != nil {
+		"[test-cluster]default", "app0001", 1); err != nil {
 		t.Fatalf("number of allocations is not expected, error: %v", err)
 	}
 }
@@ -238,7 +240,7 @@ func waitShimSchedulerState(shim *KubernetesShim, expectedState string, timeout 
 				zap.String("current", shim.GetSchedulerState()))
 			return nil
 		}
-		time.Sleep(1*time.Second)
+		time.Sleep(1 * time.Second)
 		if time.Now().After(deadline) {
 			return fmt.Errorf("scheduler has not reached expected state %s in %d seconds, current state: %s",
 				expectedState, deadline.Second(), shim.GetSchedulerState())

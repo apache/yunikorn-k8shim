@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Cloudera, Inc.  All rights reserved.
+Copyright 2020 Cloudera, Inc.  All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,21 +17,23 @@ limitations under the License.
 package cache
 
 import (
+	"testing"
+	"time"
+
+	"gotest.tools/assert"
+	v1 "k8s.io/api/core/v1"
+	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/cloudera/yunikorn-core/pkg/api"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/utils"
 	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
-	"gotest.tools/assert"
-	"k8s.io/api/core/v1"
-	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"testing"
-	"time"
 )
 
 func TestNewApplication(t *testing.T) {
-	app := NewApplication("app00001", "root.queue", "testuser", map[string]string{}, newMockSchedulerApi())
-	assert.Equal(t, app.GetApplicationId(), "app00001" )
+	app := NewApplication("app00001", "root.queue", "testuser", map[string]string{}, newMockSchedulerAPI())
+	assert.Equal(t, app.GetApplicationID(), "app00001")
 	assert.Equal(t, app.GetApplicationState(), events.States().Application.New)
 	assert.Equal(t, app.partition, common.DefaultPartition)
 	assert.Equal(t, len(app.taskMap), 0)
@@ -40,16 +42,16 @@ func TestNewApplication(t *testing.T) {
 }
 
 func TestSubmitApplication(t *testing.T) {
-	app := NewApplication("app00001", "root.abc", "testuser", map[string]string{}, newMockSchedulerApi())
+	app := NewApplication("app00001", "root.abc", "testuser", map[string]string{}, newMockSchedulerAPI())
 
-	err := app.handle(NewSubmitApplicationEvent(app.applicationId))
+	err := app.handle(NewSubmitApplicationEvent(app.applicationID))
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
 	assertAppState(t, app, events.States().Application.Submitted, 10*time.Second)
 
 	// app already submitted
-	err = app.handle(NewSubmitApplicationEvent(app.applicationId))
+	err = app.handle(NewSubmitApplicationEvent(app.applicationID))
 	if err == nil {
 		// this should give an error
 		t.Error("expecting error got 'nil'")
@@ -58,10 +60,10 @@ func TestSubmitApplication(t *testing.T) {
 }
 
 func TestRunApplication(t *testing.T) {
-	ms := &MockSchedulerApi{}
+	ms := &mockSchedulerAPI{}
 	ms.updateFn = func(request *si.UpdateRequest) error {
 		assert.Equal(t, len(request.NewApplications), 1)
-		assert.Equal(t, request.NewApplications[0].ApplicationId, "app00001")
+		assert.Equal(t, request.NewApplications[0].ApplicationID, "app00001")
 		assert.Equal(t, request.NewApplications[0].QueueName, "root.abc")
 		return nil
 	}
@@ -69,7 +71,7 @@ func TestRunApplication(t *testing.T) {
 	app := NewApplication("app00001", "root.abc", "testuser", map[string]string{}, ms)
 
 	// app must be submitted before being able to run
-	err := app.handle(NewRunApplicationEvent(app.applicationId))
+	err := app.handle(NewRunApplicationEvent(app.applicationID))
 	if err == nil {
 		// this should give an error
 		t.Error("expecting error got 'nil'")
@@ -77,14 +79,14 @@ func TestRunApplication(t *testing.T) {
 	assertAppState(t, app, events.States().Application.New, 3*time.Second)
 
 	// submit the app
-	err = app.handle(NewSubmitApplicationEvent(app.applicationId))
+	err = app.handle(NewSubmitApplicationEvent(app.applicationID))
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
 	assertAppState(t, app, events.States().Application.Submitted, 3*time.Second)
 
 	// app must be accepted first
-	err = app.handle(NewRunApplicationEvent(app.applicationId))
+	err = app.handle(NewRunApplicationEvent(app.applicationID))
 	if err == nil {
 		// this should give an error
 		t.Error("expecting error got 'nil'")
@@ -92,7 +94,7 @@ func TestRunApplication(t *testing.T) {
 	assertAppState(t, app, events.States().Application.Submitted, 3*time.Second)
 }
 
-func TestGetApplicationIdFromPod(t *testing.T) {
+func TestGetApplicationIDFromPod(t *testing.T) {
 	// defined in label
 	pod := v1.Pod{
 		TypeMeta: apis.TypeMeta{
@@ -100,9 +102,9 @@ func TestGetApplicationIdFromPod(t *testing.T) {
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
-			Name:         "pod00001",
-			Namespace:    "default",
-			UID:          "UID-POD-00001",
+			Name:      "pod00001",
+			Namespace: "default",
+			UID:       "UID-POD-00001",
 			Labels: map[string]string{
 				"applicationId": "app00001",
 				"queue":         "root.a",
@@ -111,8 +113,8 @@ func TestGetApplicationIdFromPod(t *testing.T) {
 		Spec:   v1.PodSpec{},
 		Status: v1.PodStatus{},
 	}
-	appId, err := utils.GetApplicationIdFromPod(&pod)
-	assert.Equal(t, appId, "app00001")
+	appID, err := utils.GetApplicationIDFromPod(&pod)
+	assert.Equal(t, appID, "app00001")
 	assert.Equal(t, err, nil)
 
 	// defined in annotations
@@ -122,9 +124,9 @@ func TestGetApplicationIdFromPod(t *testing.T) {
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
-			Name:         "pod00001",
-			Namespace:    "default",
-			UID:          "UID-POD-00001",
+			Name:      "pod00001",
+			Namespace: "default",
+			UID:       "UID-POD-00001",
 			Annotations: map[string]string{
 				"applicationId": "app00002",
 				"queue":         "root.a",
@@ -133,8 +135,8 @@ func TestGetApplicationIdFromPod(t *testing.T) {
 		Spec:   v1.PodSpec{},
 		Status: v1.PodStatus{},
 	}
-	appId, err = utils.GetApplicationIdFromPod(&pod)
-	assert.Equal(t, appId, "app00002")
+	appID, err = utils.GetApplicationIDFromPod(&pod)
+	assert.Equal(t, appID, "app00002")
 	assert.Equal(t, err, nil)
 
 	// spark app-id
@@ -144,19 +146,19 @@ func TestGetApplicationIdFromPod(t *testing.T) {
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
-			Name:         "pod00001",
-			Namespace:    "default",
-			UID:          "UID-POD-00001",
+			Name:      "pod00001",
+			Namespace: "default",
+			UID:       "UID-POD-00001",
 			Labels: map[string]string{
 				"spark-app-id": "spark-0001",
-				"queue":         "root.a",
+				"queue":        "root.a",
 			},
 		},
 		Spec:   v1.PodSpec{},
 		Status: v1.PodStatus{},
 	}
-	appId, err = utils.GetApplicationIdFromPod(&pod)
-	assert.Equal(t, appId, "spark-0001")
+	appID, err = utils.GetApplicationIDFromPod(&pod)
+	assert.Equal(t, appID, "spark-0001")
 	assert.Equal(t, err, nil)
 
 	// not found
@@ -166,21 +168,21 @@ func TestGetApplicationIdFromPod(t *testing.T) {
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
-			Name:         "pod00001",
-			Namespace:    "default",
-			UID:          "UID-POD-00001",
+			Name:      "pod00001",
+			Namespace: "default",
+			UID:       "UID-POD-00001",
 		},
 		Spec:   v1.PodSpec{},
 		Status: v1.PodStatus{},
 	}
 
-	appId, err = utils.GetApplicationIdFromPod(&pod)
-	assert.Equal(t, appId, "")
+	appID, err = utils.GetApplicationIDFromPod(&pod)
+	assert.Equal(t, appID, "")
 	assert.Assert(t, err != nil)
 }
 
-func newMockSchedulerApi() *MockSchedulerApi {
-	return &MockSchedulerApi{
+func newMockSchedulerAPI() *mockSchedulerAPI {
+	return &mockSchedulerAPI{
 		registerFn: func(request *si.RegisterResourceManagerRequest, callback api.ResourceManagerCallback) (response *si.RegisterResourceManagerResponse, e error) {
 			return nil, nil
 		},
@@ -190,23 +192,23 @@ func newMockSchedulerApi() *MockSchedulerApi {
 	}
 }
 
-type MockSchedulerApi struct {
-	callback api.ResourceManagerCallback
+type mockSchedulerAPI struct {
+	callback   api.ResourceManagerCallback //nolint:structcheck,unused
 	registerFn func(request *si.RegisterResourceManagerRequest,
 		callback api.ResourceManagerCallback) (*si.RegisterResourceManagerResponse, error)
 	updateFn func(request *si.UpdateRequest) error
 }
 
-func (ms *MockSchedulerApi) RegisterResourceManager(request *si.RegisterResourceManagerRequest,
+func (ms *mockSchedulerAPI) RegisterResourceManager(request *si.RegisterResourceManagerRequest,
 	callback api.ResourceManagerCallback) (*si.RegisterResourceManagerResponse, error) {
 	return ms.registerFn(request, callback)
 }
 
-func (ms *MockSchedulerApi) Update(request *si.UpdateRequest) error {
+func (ms *mockSchedulerAPI) Update(request *si.UpdateRequest) error {
 	return ms.updateFn(request)
 }
 
-func (ms *MockSchedulerApi) ReloadConfiguration(rmId string) error {
+func (ms *mockSchedulerAPI) ReloadConfiguration(rmID string) error {
 	return nil
 }
 
@@ -218,7 +220,7 @@ func assertAppState(t *testing.T, app *Application, expectedState string, durati
 		}
 
 		if time.Now().After(deadline) {
-			t.Fatalf("timeout waiting for app %s reach to state %s", app.applicationId, expectedState)
+			t.Fatalf("timeout waiting for app %s reach to state %s", app.applicationID, expectedState)
 		}
 	}
 }

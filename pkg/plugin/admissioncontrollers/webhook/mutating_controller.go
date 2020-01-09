@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Cloudera, Inc.  All rights reserved.
+Copyright 2020 Cloudera, Inc.  All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,29 +19,30 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/cloudera/yunikorn-k8shim/pkg/common"
-	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
-	"github.com/cloudera/yunikorn-k8shim/pkg/log"
-	"github.com/satori/go.uuid"
-	"go.uber.org/zap"
 	"io/ioutil"
+	"net/http"
+	"strings"
+
+	uuid "github.com/satori/go.uuid"
+	"go.uber.org/zap"
 	"k8s.io/api/admission/v1beta1"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
-	"net/http"
-	"strings"
+
+	"github.com/cloudera/yunikorn-k8shim/pkg/common"
+	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
+	"github.com/cloudera/yunikorn-k8shim/pkg/log"
 )
 
-var  (
+var (
 	runtimeScheme = runtime.NewScheme()
 	codecs        = serializer.NewCodecFactory(runtimeScheme)
 	deserializer  = codecs.UniversalDeserializer()
 )
 
 type admissionController struct {
-
 }
 
 type patchOperation struct {
@@ -61,8 +62,7 @@ func (c *admissionController) mutate(ar *v1beta1.AdmissionReview) *v1beta1.Admis
 
 	var patch []patchOperation
 
-	switch req.Kind.Kind {
-	case "Pod":
+	if req.Kind.Kind == "Pod" {
 		var pod v1.Pod
 		if err := json.Unmarshal(req.Object.Raw, &pod); err != nil {
 			return &v1beta1.AdmissionResponse{
@@ -74,7 +74,7 @@ func (c *admissionController) mutate(ar *v1beta1.AdmissionReview) *v1beta1.Admis
 
 		if strings.HasPrefix(pod.Name, "yunikorn-scheduler") {
 			log.Logger.Info("ignore yunikorn scheduler pod")
-			return  &v1beta1.AdmissionResponse{
+			return &v1beta1.AdmissionResponse{
 				Allowed: true,
 			}
 		}
@@ -115,17 +115,17 @@ func updateLabels(pod *v1.Pod, patch []patchOperation) []patchOperation {
 	log.Logger.Info("updating pod labels")
 	existingLabels := pod.Labels
 	result := make(map[string]string)
-	for k,v := range existingLabels {
+	for k, v := range existingLabels {
 		result[k] = v
 	}
 
-	if _, ok := existingLabels[common.SparkLabelAppId]; !ok {
-		if _, ok := existingLabels[common.LabelApplicationId]; !ok {
+	if _, ok := existingLabels[common.SparkLabelAppID]; !ok {
+		if _, ok := existingLabels[common.LabelApplicationID]; !ok {
 			// if app id not exist, generate one
-			generatedId := fmt.Sprintf("autogen_%s_%s", pod.Name, uuid.NewV4().String())
+			generatedID := fmt.Sprintf("autogen_%s_%s", pod.Name, uuid.NewV4().String())
 			log.Logger.Debug("adding application ID",
-				zap.String("generatedID", generatedId))
-			result[common.LabelApplicationId] = generatedId
+				zap.String("generatedID", generatedID))
+			result[common.LabelApplicationID] = generatedID
 		}
 	}
 
@@ -173,10 +173,8 @@ func (c *admissionController) serve(w http.ResponseWriter, r *http.Request) {
 				Message: err.Error(),
 			},
 		}
-	} else {
-		if r.URL.Path == "/mutate" {
-			admissionResponse = c.mutate(&ar)
-		}
+	} else if r.URL.Path == "/mutate" {
+		admissionResponse = c.mutate(&ar)
 	}
 
 	admissionReview := v1beta1.AdmissionReview{}
@@ -193,7 +191,7 @@ func (c *admissionController) serve(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Logger.Info("writing response...")
-	if _, err := w.Write(resp); err != nil {
+	if _, err = w.Write(resp); err != nil {
 		http.Error(w, fmt.Sprintf("could not write response: %v", err), http.StatusInternalServerError)
 	}
 }
