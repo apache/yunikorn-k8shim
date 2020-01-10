@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cloudera/yunikorn-k8shim/pkg/plugin/appmgmt"
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
 
@@ -147,13 +148,16 @@ func TestSchedulerRegistrationFailed(t *testing.T) {
 	var ctx *cache.Context
 	var callback api.ResourceManagerCallback
 
-	schedulerAPI := test.NewSchedulerAPIMock().RegisterFunction(
+	mockedAMProtocol := cache.NewMockedAMProtocol()
+	mockedAPIProvider := test.NewMockedAPIProvider()
+	mockedAPIProvider.GetAPIs().SchedulerAPI = test.NewSchedulerAPIMock().RegisterFunction(
 		func(request *si.RegisterResourceManagerRequest,
 			callback api.ResourceManagerCallback) (response *si.RegisterResourceManagerResponse, e error) {
 			return nil, fmt.Errorf("some error")
 		})
 
-	shim := newShimSchedulerInternal(schedulerAPI, ctx, callback)
+	shim := newShimSchedulerInternal(ctx, test.NewMockedAPIProvider(),
+		appmgmt.NewAMService(mockedAMProtocol, mockedAPIProvider), callback)
 	shim.run()
 	defer shim.stop()
 
@@ -185,12 +189,13 @@ partitions:
 	// init and register scheduler
 	cluster := MockScheduler{}
 	// mock pod bind failures
-	cluster.bindFn = func(pod *v1.Pod, hostID string) error {
+	cluster.apiProvider.MockBindFn(func(pod *v1.Pod, hostID string) error {
 		if pod.Name == "task0001" {
 			return fmt.Errorf("mocked error when binding the pod")
 		}
 		return nil
-	}
+	})
+
 	cluster.init(configData)
 	cluster.start()
 	defer cluster.stop()

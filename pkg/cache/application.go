@@ -207,6 +207,14 @@ func (app *Application) getTasks(state string) []*Task {
 	return taskList
 }
 
+// only for testing
+// this is just used for testing, it is not supposed to change state like this
+func (app *Application) SetState(state string) {
+	app.lock.Lock()
+	defer app.lock.Unlock()
+	app.sm.SetState(state)
+}
+
 // This is called in every scheduling interval,
 // we are not using dispatcher here because we want to
 // make state transition in sync mode in order to prevent

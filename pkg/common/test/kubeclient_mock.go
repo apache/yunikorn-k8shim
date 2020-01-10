@@ -17,6 +17,8 @@ limitations under the License.
 package test
 
 import (
+	"github.com/cloudera/yunikorn-k8shim/pkg/log"
+	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
 )
@@ -30,9 +32,13 @@ type KubeClientMock struct {
 func NewKubeClientMock() *KubeClientMock {
 	return &KubeClientMock{
 		bindFn: func(pod *v1.Pod, hostID string) error {
+			log.Logger.Info("pod bound",
+				zap.String("PodName", pod.Name))
 			return nil
 		},
 		deleteFn: func(pod *v1.Pod) error {
+			log.Logger.Info("pod deleted",
+				zap.String("PodName", pod.Name))
 			return nil
 		},
 	}

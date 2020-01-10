@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package sparkoperator
+package sparkopt
 
 import (
 	"github.com/GoogleCloudPlatform/spark-on-k8s-operator/pkg/apis/sparkoperator.k8s.io/v1beta2"
@@ -29,26 +29,26 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-type SparkOperatorService struct {
+type Manager struct {
 	amProtocol         cache.ApplicationManagementProtocol
 	apiProvider        client.APIProvider
 	crdInformer        k8sCache.SharedIndexInformer
 	crdInformerFactory crInformers.SharedInformerFactory
-	stopCh             <-chan struct{}
+	stopCh             chan struct{}
 }
 
-func New(amProtocol cache.ApplicationManagementProtocol, apiProvider client.APIProvider) *SparkOperatorService {
-	return &SparkOperatorService{
+func New(amProtocol cache.ApplicationManagementProtocol, apiProvider client.APIProvider) *Manager {
+	return &Manager{
 		amProtocol:  amProtocol,
 		apiProvider: apiProvider,
-		stopCh:      nil, // TODO add stop flags
+		stopCh:      make(chan struct{}),
 	}
 }
 
 // this implements AppManagementService interface
-func (os *SparkOperatorService) ServiceInit() error {
+func (os *Manager) ServiceInit() error {
 	configs, err := clientcmd.BuildConfigFromFlags("",
-		os.apiProvider.GetClientSet().Conf.KubeConfig)
+		os.apiProvider.GetAPIs().Conf.KubeConfig)
 	if err != nil {
 		return err
 	}
@@ -80,59 +80,61 @@ func (os *SparkOperatorService) ServiceInit() error {
 	return nil
 }
 
-func (os *SparkOperatorService) Name() string {
+func (os *Manager) Name() string {
 	return "spark-operator-service"
 }
 
-func (os *SparkOperatorService) Start() error {
+func (os *Manager) Start() error {
+	log.Logger.Info("starting", zap.String("Name", os.Name()))
 	go os.crdInformerFactory.Start(os.stopCh)
 	return nil
 }
 
-func (os *SparkOperatorService) Stop() error {
-	// TODO add stop logic
+func (os *Manager) Stop() error {
+	log.Logger.Info("stopping", zap.String("Name", os.Name()))
+	os.stopCh<- struct{}{}
 	return nil
 }
 
-func (os *SparkOperatorService) GetTaskMetadata(pod *v1.Pod) (cache.TaskMetadata, bool) {
+func (os *Manager) GetTaskMetadata(pod *v1.Pod) (cache.TaskMetadata, bool) {
 	return cache.TaskMetadata{}, false
 }
 
-func (os *SparkOperatorService) GetAppMetadata(pod *v1.Pod) (cache.ApplicationMetadata, bool) {
+func (os *Manager) GetAppMetadata(pod *v1.Pod) (cache.ApplicationMetadata, bool) {
 	return cache.ApplicationMetadata{}, false
 }
 
 // callbacks for SparkApplication CRD
-func (os *SparkOperatorService) addApplication(obj interface{}) {
+func (os *Manager) addApplication(obj interface{}) {
 	app := obj.(*v1beta2.SparkApplication)
 	log.Logger.Info("spark app added", zap.Any("SparkApplication", app))
 }
 
-func (os *SparkOperatorService) updateApplication(old, new interface{}) {
+func (os *Manager) updateApplication(old, new interface{}) {
 	appOld := old.(*v1beta2.SparkApplication)
 	appNew := new.(*v1beta2.SparkApplication)
 	log.Logger.Info("spark app updated - old", zap.Any("SparkApplication", appOld))
 	log.Logger.Info("spark app updated - new", zap.Any("SparkApplication", appNew))
 }
 
-func (os *SparkOperatorService) deleteApplication(obj interface{}) {
+func (os *Manager) deleteApplication(obj interface{}) {
 	app := obj.(*v1beta2.SparkApplication)
 	log.Logger.Info("spark app deleted", zap.Any("SparkApplication", app))
 }
 
 // callbacks for Spark pods
-func (os *SparkOperatorService) filterPod(obj interface{}) bool {
+func (os *Manager) filterPod(obj interface{}) bool {
 	return true
 }
 
-func (os *SparkOperatorService) addPod(obj interface{}) {
+func (os *Manager) addPod(obj interface{}) {
 
 }
 
-func (os *SparkOperatorService) updatePod(old, new interface{}) {
+func (os *Manager) updatePod(old, new interface{}) {
 
 }
 
-func (os *SparkOperatorService) deletePod(obj interface{}) {
+func (os *Manager) deletePod(obj interface{}) {
 
 }

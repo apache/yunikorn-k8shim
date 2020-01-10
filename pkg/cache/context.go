@@ -38,21 +38,14 @@ import (
 
 // context maintains scheduling state, like apps and apps' tasks.
 type Context struct {
-	// cached the state
-	applications   map[string]*Application
-	nodes          *schedulerNodes
-	conf           *conf.SchedulerConf
-	schedulerCache *schedulercache.SchedulerCache
-
-	// runtime resource handlers
-	apiProvider client.APIProvider
-
-	// plugged predictor handles predicates related checks
-	predictor         *plugin.Predictor
-
-	// test mode disables some functionality for UT
-	testMode bool
-	lock     *sync.RWMutex
+	applications   map[string]*Application        // apps
+	nodes          *schedulerNodes                // nodes
+	conf           *conf.SchedulerConf            // configs
+	schedulerCache *schedulercache.SchedulerCache // external cache
+	apiProvider    client.APIProvider             // apis to interact with api-server, scheduler-core, etc
+	predictor      *plugin.Predictor              // K8s predicates
+	testMode       bool                           // flag for UT
+	lock           *sync.RWMutex                  // lock
 }
 
 // Create a new context for the scheduler.
@@ -77,10 +70,10 @@ func NewContextInternal(apis client.APIProvider, testMode bool) *Context {
 	}
 
 	// create the cache
-	ctx.schedulerCache = schedulercache.NewSchedulerCache(apis.GetClientSet())
+	ctx.schedulerCache = schedulercache.NewSchedulerCache(apis.GetAPIs())
 
 	// init the controllers and plugins (need the cache)
-	ctx.nodes = newSchedulerNodes(apis.GetClientSet().SchedulerAPI, ctx.schedulerCache)
+	ctx.nodes = newSchedulerNodes(apis.GetAPIs().SchedulerAPI, ctx.schedulerCache)
 	ctx.predictor = plugin.NewPredictor(schedulercache.GetPluginArgs(), testMode)
 
 	return ctx
@@ -290,7 +283,7 @@ func (ctx *Context) deleteConfigMaps(obj interface{}) {
 
 func (ctx *Context) triggerReloadConfig() {
 	log.Logger.Info("trigger scheduler configuration reloading")
-	if err := ctx.apiProvider.GetClientSet().SchedulerAPI.ReloadConfiguration(ctx.conf.ClusterID); err != nil {
+	if err := ctx.apiProvider.GetAPIs().SchedulerAPI.ReloadConfiguration(ctx.conf.ClusterID); err != nil {
 		log.Logger.Error("reload configuration failed", zap.Error(err))
 	}
 }
@@ -329,7 +322,7 @@ func (ctx *Context) bindPodVolumes(pod *v1.Pod) error {
 				zap.String("podName", pod.Name))
 		} else {
 			log.Logger.Info("Binding Pod Volumes", zap.String("podName", pod.Name))
-			return ctx.apiProvider.GetClientSet().VolumeBinder.Binder.BindPodVolumes(assumedPod)
+			return ctx.apiProvider.GetAPIs().VolumeBinder.Binder.BindPodVolumes(assumedPod)
 		}
 	}
 	return nil
@@ -354,9 +347,9 @@ func (ctx *Context) AssumePod(name string, node string) error {
 			// this will update scheduler cache with essential PV/PVC binding info
 			var allBound = true
 			// volume builder might be null in UTs
-			if ctx.apiProvider.GetClientSet().VolumeBinder != nil {
+			if ctx.apiProvider.GetAPIs().VolumeBinder != nil {
 				var err error
-				allBound, err = ctx.apiProvider.GetClientSet().VolumeBinder.Binder.AssumePodVolumes(pod, node)
+				allBound, err = ctx.apiProvider.GetAPIs().VolumeBinder.Binder.AssumePodVolumes(pod, node)
 				if err != nil {
 					return err
 				}
@@ -402,38 +395,6 @@ func (ctx *Context) NotifyApplicationComplete(appID string) {
 	}
 }
 
-// if app already exists in the context, directly return the app from context
-// if app doesn't exist in the context yet, create a new app instance and add to context
-func (ctx *Context) getOrCreateApplication(pod *v1.Pod) *Application {
-	ctx.lock.Lock()
-	defer ctx.lock.Unlock()
-
-	appID, err := utils.GetApplicationIDFromPod(pod)
-	if err != nil {
-		log.Logger.Error("unable to get application by given pod", zap.Error(err))
-		return nil
-	}
-
-	if application, ok := ctx.applications[appID]; ok {
-		return application
-	}
-	// create the tags for the application
-	// labels or annotations from the pod can be added when needed
-	tags := map[string]string{}
-	if pod.Namespace == "" {
-		tags["namespace"] = "default"
-	} else {
-		tags["namespace"] = pod.Namespace
-	}
-	// get the application owner (this is all that is available as far as we can find)
-	user := pod.Spec.ServiceAccountName
-	// create a new app
-	newApp := NewApplication(appID, utils.GetQueueNameFromPod(pod), user, tags,
-		ctx.apiProvider.GetClientSet().SchedulerAPI)
-	ctx.applications[appID] = newApp
-	return ctx.applications[appID]
-}
-
 func (ctx *Context) AddApplication(request *AddApplicationRequest) *Application {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
@@ -442,7 +403,7 @@ func (ctx *Context) AddApplication(request *AddApplicationRequest) *Application 
 		request.Metadata.QueueName,
 		request.Metadata.User,
 		request.Metadata.Tags,
-		ctx.apiProvider.GetClientSet().SchedulerAPI)
+		ctx.apiProvider.GetAPIs().SchedulerAPI)
 
 	// add into cache
 	ctx.applications[app.applicationID] = app
@@ -475,7 +436,7 @@ func (ctx *Context) GetApplication(appID string) (*Application, bool) {
 func (ctx *Context) AddTask(request *AddTaskRequest) {
 	if app, ok := ctx.GetApplication(request.Metadata.ApplicationID); ok {
 		if _, err := app.GetTask(request.Metadata.TaskID); err != nil {
-			task := newTask(request.Metadata.TaskID, app, ctx, request.Metadata.Pod)
+			task := NewTask(request.Metadata.TaskID, app, ctx, request.Metadata.Pod)
 			// in recovery mode, task is considered as allocated
 			if request.Recovery {
 				task.setAllocated(request.Metadata.Pod.Spec.NodeName)

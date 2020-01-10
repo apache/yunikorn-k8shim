@@ -21,93 +21,60 @@ import (
 	"testing"
 	"time"
 
-	"go.uber.org/zap"
-	"gotest.tools/assert"
-	v1 "k8s.io/api/core/v1"
-
 	"github.com/cloudera/yunikorn-core/pkg/api"
 	coreconfigs "github.com/cloudera/yunikorn-core/pkg/common/configs"
 	"github.com/cloudera/yunikorn-core/pkg/entrypoint"
 	"github.com/cloudera/yunikorn-k8shim/pkg/cache"
 	"github.com/cloudera/yunikorn-k8shim/pkg/callback"
-	"github.com/cloudera/yunikorn-k8shim/pkg/client"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/test"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/utils"
 	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
 	"github.com/cloudera/yunikorn-k8shim/pkg/log"
+	"github.com/cloudera/yunikorn-k8shim/pkg/plugin/appmgmt"
 	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
+	"go.uber.org/zap"
+	"gotest.tools/assert"
 )
-
-const fakeClusterID = "test-cluster"
-const fakeClusterVersion = "0.1.0"
-const fakeClusterSchedulerName = "yunikorn-test"
-const fakeClusterSchedulingInterval = time.Second
 
 // fake cluster is used for testing
 // it uses fake kube client to simulate API calls with k8s, all other code paths are real
 type MockScheduler struct {
 	context     *cache.Context
 	scheduler   *KubernetesShim
-	proxy       api.SchedulerAPI
-	client      client.KubeClient
 	coreContext *entrypoint.ServiceContext
+	apiProvider *test.MockedAPIProvider
+	amProtocol  *cache.MockedAMProtocol
 	conf        string
-	bindFn      func(pod *v1.Pod, hostID string) error
-	deleteFn    func(pod *v1.Pod) error
 	stopChan    chan struct{}
 }
 
 func (fc *MockScheduler) init(queues string) {
-	configs := conf.SchedulerConf{
-		ClusterID:      fakeClusterID,
-		ClusterVersion: fakeClusterVersion,
-		SchedulerName:  fakeClusterSchedulerName,
-		Interval:       fakeClusterSchedulingInterval,
-		KubeConfig:     "",
-		TestMode:       true,
-	}
-
-	conf.Set(&configs)
 	fc.conf = queues
 	fc.stopChan = make(chan struct{})
-	// default functions for bind and delete, this can be override if necessary
-	if fc.deleteFn == nil {
-		fc.deleteFn = func(pod *v1.Pod) error {
-			fmt.Printf("pod deleted")
-			return nil
-		}
-	}
-
-	if fc.bindFn == nil {
-		fc.bindFn = func(pod *v1.Pod, hostID string) error {
-			fmt.Printf("pod bound")
-			return nil
-		}
-	}
 
 	serviceContext := entrypoint.StartAllServices()
 	rmProxy := serviceContext.RMProxy
 	coreconfigs.MockSchedulerConfigByData([]byte(fc.conf))
-
-	fakeClient := test.NewKubeClientMock()
-	fakeClient.MockBindFn(fc.bindFn)
-	fakeClient.MockDeleteFn(fc.deleteFn)
-
 	schedulerAPI, ok := rmProxy.(api.SchedulerAPI)
 	if !ok {
 		log.Logger.Debug("cast failed unexpected object",
 			zap.Any("schedulerAPI", rmProxy))
 	}
-	context := cache.NewContextInternal(client.NewAPIFactory(schedulerAPI, fakeClient, &configs), true)
+
+	mockedAPIProvider := test.NewMockedAPIProvider()
+	mockedAMProtocol := cache.NewMockedAMProtocol()
+	mockedAPIProvider.GetAPIs().SchedulerAPI = schedulerAPI
+
+	context := cache.NewContextInternal(mockedAPIProvider, true)
 	rmCallback := callback.NewAsyncRMCallback(context)
-	ss := newShimSchedulerInternal(schedulerAPI, context, nil, rmCallback)
+	amSvc := appmgmt.NewAMService(mockedAMProtocol, mockedAPIProvider)
+	ss := newShimSchedulerInternal(context, mockedAPIProvider, amSvc, rmCallback)
 
 	fc.context = context
 	fc.scheduler = ss
-	fc.proxy = schedulerAPI
-	fc.client = fakeClient
 	fc.coreContext = serviceContext
+	conf.Set(mockedAPIProvider.GetAPIs().Conf)
 }
 
 func (fc *MockScheduler) start() {
@@ -122,7 +89,7 @@ func (fc *MockScheduler) addNode(nodeName string, memory, cpu int64) error {
 	node := common.CreateFromNodeSpec(nodeName, nodeName, nodeResource)
 	request := common.CreateUpdateRequestForNewNode(node)
 	fmt.Printf("report new nodes to scheduler, request: %s", request.String())
-	return fc.proxy.Update(&request)
+	return fc.apiProvider.GetAPIs().SchedulerAPI.Update(&request)
 }
 
 func (fc *MockScheduler) addTask(tid string, ask *si.Resource, app *cache.Application) cache.Task {
@@ -183,7 +150,7 @@ func (fc *MockScheduler) addApplication(app *cache.Application) {
 }
 
 func (fc *MockScheduler) newApplication(appID, queueName string) *cache.Application {
-	app := cache.NewApplication(appID, queueName, "testuser", map[string]string{}, fc.proxy)
+	app := cache.NewApplication(appID, queueName, "testuser", map[string]string{}, fc.apiProvider.GetAPIs().SchedulerAPI)
 	return app
 }
 

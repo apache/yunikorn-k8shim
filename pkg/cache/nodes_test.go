@@ -283,7 +283,7 @@ func TestDeleteNode(t *testing.T) {
 
 // A wrapper around the scheduler cache which does not initialise the lister and volumebinder
 func NewTestSchedulerCache() *external.SchedulerCache {
-	return external.NewSchedulerCache(nil, nil, nil, nil)
+	return external.NewSchedulerCache(nil)
 }
 
 func TestCordonNode(t *testing.T) {

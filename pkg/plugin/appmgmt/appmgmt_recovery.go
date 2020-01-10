@@ -30,12 +30,12 @@ import (
 	"k8s.io/client-go/listers/core/v1"
 )
 
-func (svc *SchedulerAppManager) WaitForRecovery(maxTimeout time.Duration) error {
+func (svc *AppManagementService) WaitForRecovery(maxTimeout time.Duration) error {
 	// Currently, disable recovery when testing in a mocked cluster,
 	// because mock pod/node lister is not easy. We do have unit tests for
 	// waitForAppRecovery/waitForNodeRecovery separately.
 	if !svc.skipRecovery {
-		if err := svc.waitForAppRecovery(svc.apiProvider.GetClientSet().PodInformer.Lister(), maxTimeout); err != nil {
+		if err := svc.waitForAppRecovery(svc.apiProvider.GetAPIs().PodInformer.Lister(), maxTimeout); err != nil {
 			log.Logger.Error("app recovery failed", zap.Error(err))
 			return err
 		}
@@ -44,11 +44,11 @@ func (svc *SchedulerAppManager) WaitForRecovery(maxTimeout time.Duration) error 
 	return nil
 }
 
-func (svc *SchedulerAppManager) recoverApp(pod *corev1.Pod) (*cache.Application, bool){
+func (svc *AppManagementService) recoverApp(pod *corev1.Pod) (*cache.Application, bool){
 	// pod from a existing app must have been assigned to a node,
 	// this means the app was scheduled and needs to be recovered
 	if utils.IsAssignedPod(pod) && utils.IsSchedulablePod(pod) {
-		for _, appmgmt := range svc.amService {
+		for _, appmgmt := range svc.managers {
 			if appMeta, ok := appmgmt.GetAppMetadata(pod); ok {
 				if _, exist := svc.amProtocol.GetApplication(appMeta.ApplicationID); !exist {
 					// if app already exist, that means it is already under recovering
@@ -68,7 +68,7 @@ func (svc *SchedulerAppManager) recoverApp(pod *corev1.Pod) (*cache.Application,
 // Wait until all previous scheduled applications are recovered, or fail as timeout.
 // During this process, shim submits all applications again to the scheduler-core and verifies app
 // state to ensure they are accepted, this must be done before recovering app allocations.
-func (svc *SchedulerAppManager) waitForAppRecovery(lister v1.PodLister, maxTimeout time.Duration) error {
+func (svc *AppManagementService) waitForAppRecovery(lister v1.PodLister, maxTimeout time.Duration) error {
 	// give informers sometime to warm up...
 	allPods, err := waitAndListPods(lister)
 	if err != nil {

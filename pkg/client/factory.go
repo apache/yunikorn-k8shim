@@ -39,7 +39,7 @@ const (
 )
 
 type APIProvider interface {
-	GetClientSet() *Clients
+	GetAPIs() *Clients
 	AddEventHandler (handlers *ResourceEventHandlers)
 	Run(stopCh <-chan struct{})
 }
@@ -60,7 +60,9 @@ type APIFactory struct {
 	lock *sync.RWMutex
 }
 
-func NewAPIFactory(scheduler api.SchedulerAPI, kubeClient KubeClient, configs *conf.SchedulerConf) *APIFactory {
+func NewAPIFactory(scheduler api.SchedulerAPI, configs *conf.SchedulerConf) *APIFactory {
+	kubeClient := NewKubeClient(configs.KubeConfig)
+
 	// we have disabled re-sync to keep ourselves up-to-date
 	informerFactory := informers.NewSharedInformerFactory(kubeClient.GetClientSet(), 0)
 
@@ -97,7 +99,7 @@ func NewAPIFactory(scheduler api.SchedulerAPI, kubeClient KubeClient, configs *c
 	}
 }
 
-func (s *APIFactory) GetClientSet() *Clients {
+func (s *APIFactory) GetAPIs() *Clients {
 	return s.clients
 }
 
@@ -130,27 +132,27 @@ func (s *APIFactory) addEventHandlers(
 	handlerType Type, handler cache.ResourceEventHandler, resyncPeriod time.Duration) {
 	switch handlerType {
 	case PodInformerHandlers:
-		s.GetClientSet().PodInformer.Informer().
+		s.GetAPIs().PodInformer.Informer().
 			AddEventHandlerWithResyncPeriod(handler, resyncPeriod)
 	case NodeInformerHandlers:
-		s.GetClientSet().NodeInformer.Informer().
+		s.GetAPIs().NodeInformer.Informer().
 			AddEventHandlerWithResyncPeriod(handler, resyncPeriod)
 	case ConfigMapInformerHandlers:
-		s.GetClientSet().ConfigMapInformer.Informer().
+		s.GetAPIs().ConfigMapInformer.Informer().
 			AddEventHandlerWithResyncPeriod(handler, resyncPeriod)
 	case StorageInformerHandlers:
-		s.GetClientSet().StorageInformer.Informer().
+		s.GetAPIs().StorageInformer.Informer().
 			AddEventHandlerWithResyncPeriod(handler, resyncPeriod)
 	case PVInformerHandlers:
-		s.GetClientSet().PVInformer.Informer().
+		s.GetAPIs().PVInformer.Informer().
 			AddEventHandlerWithResyncPeriod(handler, resyncPeriod)
 	case PVCInformerHandlers:
-		s.GetClientSet().PVCInformer.Informer().
+		s.GetAPIs().PVCInformer.Informer().
 			AddEventHandlerWithResyncPeriod(handler, resyncPeriod)
 	}
 }
 
 func (s *APIFactory) Run(stopCh <-chan struct{}) {
-	// lunch clients
+	// launch clients
 	s.clients.Run(stopCh)
 }

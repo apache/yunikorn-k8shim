@@ -25,7 +25,7 @@ import (
 // an app management service monitors the lifecycle of applications,
 // it is responsible for reporting application status to the scheduler,
 // that helps the scheduler to manage the application lifecycle natively.
-type AppManagementService interface {
+type AppManager interface {
 	// the name of this application service
 	// this info is exposed to the scheduler so we know what kind of apps
 	// the scheduler is able to supervise.

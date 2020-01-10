@@ -20,45 +20,46 @@ import (
 	"github.com/cloudera/yunikorn-k8shim/pkg/client"
 	"github.com/cloudera/yunikorn-k8shim/pkg/log"
 	"github.com/cloudera/yunikorn-k8shim/pkg/plugin/appmgmt/general"
-	"github.com/cloudera/yunikorn-k8shim/pkg/plugin/appmgmt/sparkoperator"
+	"github.com/cloudera/yunikorn-k8shim/pkg/plugin/appmgmt/sparkopt"
 	"go.uber.org/zap"
 )
 
-// scheduler operator service is a central service that interacts with
+// app manager service is a central service that interacts with
 // one or more K8s operators for app scheduling.
-type SchedulerAppManager struct {
-	// CRD informer
-	// crdInformer cache.SharedIndexInformer
+type AppManagementService struct {
 	apiProvider  client.APIProvider
 	amProtocol   cache.ApplicationManagementProtocol
-	amService    []AppManagementService
+	managers     []AppManager
 	skipRecovery bool
 }
 
-func NewAppManager(amProtocol cache.ApplicationManagementProtocol, apiProvider client.APIProvider) *SchedulerAppManager {
-	appManager := &SchedulerAppManager{
-		amProtocol: amProtocol,
+func NewAMService(amProtocol cache.ApplicationManagementProtocol, apiProvider client.APIProvider) *AppManagementService {
+	appManager := &AppManagementService{
+		amProtocol:  amProtocol,
 		apiProvider: apiProvider,
-		amService:   make([]AppManagementService, 0),
+		managers:    make([]AppManager, 0),
 	}
 
-	appManager.Register(
+	appManager.register(
 		// registered app plugins
+		// for general apps
 		general.New(amProtocol, apiProvider),
-		sparkoperator.New(amProtocol, apiProvider))
+		// for spark operator - SparkApplication
+		sparkopt.New(amProtocol, apiProvider))
+
 	return appManager
 }
 
-func (svc *SchedulerAppManager) Register(amServices ...AppManagementService) {
-	for _, amService := range amServices {
+func (svc *AppManagementService) register(managers ...AppManager) {
+	for _, mgr := range managers {
 		log.Logger.Info("registering app management service",
-			zap.String("serviceName", amService.Name()))
-		svc.amService = append(svc.amService, amService)
+			zap.String("serviceName", mgr.Name()))
+		svc.managers = append(svc.managers, mgr)
 	}
 }
 
-func (svc *SchedulerAppManager) StartAll() error {
-	for _, optService := range svc.amService {
+func (svc *AppManagementService) Start() error {
+	for _, optService := range svc.managers {
 		// init service before starting
 		if err := optService.ServiceInit(); err != nil {
 			return err
@@ -70,10 +71,9 @@ func (svc *SchedulerAppManager) StartAll() error {
 			log.Logger.Error("failed to start management service",
 				zap.String("serviceName", optService.Name()),
 				zap.Error(err))
-			// shutdown all
-			svc.StopAll()
 			return err
 		}
+
 		log.Logger.Info("service started",
 			zap.String("serviceName", optService.Name()))
 	}
@@ -81,9 +81,9 @@ func (svc *SchedulerAppManager) StartAll() error {
 	return nil
 }
 
-func (svc *SchedulerAppManager) StopAll() {
-	log.Logger.Info("shutting down all app management services")
-	for _, optService := range svc.amService {
+func (svc *AppManagementService) Stop() {
+	log.Logger.Info("shutting down app management services")
+	for _, optService := range svc.managers {
 		if err := optService.Stop(); err != nil {
 			log.Logger.Error("stop service error",
 				zap.String("serviceName", optService.Name()),

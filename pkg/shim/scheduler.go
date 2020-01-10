@@ -38,9 +38,9 @@ import (
 
 // shim scheduler watches api server and interacts with unity scheduler to allocate pods
 type KubernetesShim struct {
-	rmProxy      api.SchedulerAPI
+	apiFactory   client.APIProvider
 	context      *cache.Context
-	appManager   *appmgmt.SchedulerAppManager
+	appManager   *appmgmt.AppManagementService
 	callback     api.ResourceManagerCallback
 	stateMachine *fsm.FSM
 	stopChan     chan struct{}
@@ -48,30 +48,24 @@ type KubernetesShim struct {
 }
 
 func newShimScheduler(scheduler api.SchedulerAPI, configs *conf.SchedulerConf) *KubernetesShim {
-	apiFactory := client.NewAPIFactory(scheduler, client.NewKubeClient(configs.KubeConfig), configs)
-
-	// context stores shim state
+	apiFactory := client.NewAPIFactory(scheduler, configs)
 	context := cache.NewContext(apiFactory)
-	// scheduler callback receives decisions from scheduler core,
-	// and then it writes updates to the context
 	rmCallback := callback.NewAsyncRMCallback(context)
-	// app manager manages app lifecycle
-	// and it updates those info to the context with ApplicationManagementProtocol
-	appManager := appmgmt.NewAppManager(context, apiFactory)
-	return newShimSchedulerInternal(scheduler, context, appManager, rmCallback)
+	appManager := appmgmt.NewAMService(context, apiFactory)
+	return newShimSchedulerInternal(context, apiFactory, appManager, rmCallback)
 }
 
 // this is visible for testing
-func newShimSchedulerInternal(api api.SchedulerAPI, ctx *cache.Context,
-	am *appmgmt.SchedulerAppManager, cb api.ResourceManagerCallback) *KubernetesShim {
+func newShimSchedulerInternal(ctx *cache.Context, apiFactory client.APIProvider,
+	am *appmgmt.AppManagementService, cb api.ResourceManagerCallback) *KubernetesShim {
 	var states = events.States().Scheduler
 	ss := &KubernetesShim{
-		rmProxy:  api,
-		context:  ctx,
-		appManager:     am,
-		callback: cb,
-		stopChan: make(chan struct{}),
-		lock:     &sync.RWMutex{},
+		apiFactory: apiFactory,
+		context:    ctx,
+		appManager: am,
+		callback:   cb,
+		stopChan:   make(chan struct{}),
+		lock:       &sync.RWMutex{},
 	}
 
 	// init state machine
@@ -219,8 +213,9 @@ func (ss *KubernetesShim) registerShimLayer() error {
 		zap.String("clusterID", configuration.ClusterID),
 		zap.String("clusterVersion", configuration.ClusterVersion),
 		zap.String("policyGroup", configuration.PolicyGroup))
-	if _, err := ss.rmProxy.RegisterResourceManager(&registerMessage, ss.callback); err != nil {
-		return err
+	if _, err := ss.apiFactory.GetAPIs().SchedulerAPI.
+		RegisterResourceManager(&registerMessage, ss.callback); err != nil {
+			return err
 	}
 
 	return nil
@@ -268,7 +263,7 @@ func (ss *KubernetesShim) run() {
 	dispatcher.Dispatch(newRegisterSchedulerEvent())
 
 	// run app manager
-	if err := ss.appManager.StartAll(); err != nil {
+	if err := ss.appManager.Start(); err != nil {
 		log.Logger.Fatal("failed to start app manager", zap.Error(err))
 		ss.stop()
 	}
@@ -283,6 +278,8 @@ func (ss *KubernetesShim) stop() {
 	case ss.stopChan <- struct{}{}:
 		// stop the dispatcher
 		dispatcher.Stop()
+		// stop the app manager
+		ss.appManager.Stop()
 	default:
 		log.Logger.Info("scheduler is already stopped")
 	}

@@ -26,7 +26,7 @@ import (
 	"github.com/cloudera/yunikorn-k8shim/pkg/log"
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sCache "k8s.io/client-go/tools/cache"
 )
 
@@ -34,25 +34,25 @@ import (
 // it recognize apps by reading pod's spec labels, if there are proper info such as
 // applicationID, queue name found, and claim it as an app or a app task,
 // then report them to scheduler cache by calling am protocol
-type GenericAppManagementService struct {
+type Manager struct {
 	apiProvider client.APIProvider
 	amProtocol cache.ApplicationManagementProtocol
 }
 
-func New(amProtocol cache.ApplicationManagementProtocol, apiProvider client.APIProvider) *GenericAppManagementService {
-	return &GenericAppManagementService{
+func New(amProtocol cache.ApplicationManagementProtocol, apiProvider client.APIProvider) *Manager {
+	return &Manager{
 		apiProvider: apiProvider,
 		amProtocol: amProtocol,
 	}
 }
 
 // this implements AppManagementService interface
-func (os *GenericAppManagementService) Name() string {
+func (os *Manager) Name() string {
 	return "generic-app-management-service"
 }
 
 // this implements AppManagementService interface
-func (os *GenericAppManagementService) ServiceInit() error {
+func (os *Manager) ServiceInit() error {
 	os.apiProvider.AddEventHandler(
 		&client.ResourceEventHandlers{
 			Type:     client.PodInformerHandlers,
@@ -65,19 +65,19 @@ func (os *GenericAppManagementService) ServiceInit() error {
 }
 
 // this implements AppManagementService interface
-func (os *GenericAppManagementService) Start() error {
+func (os *Manager) Start() error {
 	// generic app manager leverages the shared context,
 	// no other service, go routine is required to be started
 	return nil
 }
 
 // this implements AppManagementService interface
-func (os *GenericAppManagementService) Stop() error {
+func (os *Manager) Stop() error {
 	// noop
 	return nil
 }
 
-func (os *GenericAppManagementService) addApplicationInternal(pod *v1.Pod, recovery bool) (*cache.Application, bool) {
+func (os *Manager) addApplicationInternal(pod *v1.Pod, recovery bool) (*cache.Application, bool) {
 	log.Logger.Debug("add pod",
 		zap.String("namespace", pod.Namespace),
 		zap.String("podName", pod.Name),
@@ -133,7 +133,7 @@ func (os *GenericAppManagementService) addApplicationInternal(pod *v1.Pod, recov
 	return app, added
 }
 
-func (os *GenericAppManagementService) GetTaskMetadata(pod *v1.Pod) (cache.TaskMetadata, bool) {
+func (os *Manager) GetTaskMetadata(pod *v1.Pod) (cache.TaskMetadata, bool) {
 	appId, err := utils.GetApplicationIDFromPod(pod)
 	if err != nil {
 		log.Logger.Debug("unable to get task by given pod", zap.Error(err))
@@ -147,7 +147,7 @@ func (os *GenericAppManagementService) GetTaskMetadata(pod *v1.Pod) (cache.TaskM
 	}, true
 }
 
-func (os *GenericAppManagementService) GetAppMetadata(pod *v1.Pod) (cache.ApplicationMetadata, bool) {
+func (os *Manager) GetAppMetadata(pod *v1.Pod) (cache.ApplicationMetadata, bool) {
 	appId, err := utils.GetApplicationIDFromPod(pod)
 	if err != nil {
 		log.Logger.Debug("unable to get application by given pod", zap.Error(err))
@@ -175,7 +175,7 @@ func (os *GenericAppManagementService) GetAppMetadata(pod *v1.Pod) (cache.Applic
 }
 
 // filter pods by scheduler name and state
-func (os *GenericAppManagementService) filterPods(obj interface{}) bool {
+func (os *Manager) filterPods(obj interface{}) bool {
 	switch obj.(type) {
 	case *v1.Pod:
 		pod := obj.(*v1.Pod)
@@ -185,7 +185,7 @@ func (os *GenericAppManagementService) filterPods(obj interface{}) bool {
 	}
 }
 
-func (os *GenericAppManagementService) addPod(obj interface{}) {
+func (os *Manager) addPod(obj interface{}) {
 	pod, err := utils.Convert2Pod(obj)
 	if err != nil {
 		log.Logger.Error("failed to add pod", zap.Error(err))
@@ -220,7 +220,7 @@ func (os *GenericAppManagementService) addPod(obj interface{}) {
 
 // when pod resource is modified, we need to act accordingly
 // e.g vertical scale out the pod, this requires the scheduler to be aware of this
-func (os *GenericAppManagementService) updatePod(old, new interface{}) {
+func (os *Manager) updatePod(old, new interface{}) {
 	// TODO
 }
 
@@ -228,7 +228,7 @@ func (os *GenericAppManagementService) updatePod(old, new interface{}) {
 // when a pod is completed, the equivalent task's state will also be completed
 // optionally, we run a completionHandler per workload, in order to determine
 // if a application is completed along with this pod's completion
-func (os *GenericAppManagementService) deletePod(obj interface{}) {
+func (os *Manager) deletePod(obj interface{}) {
 	// when a pod is deleted, we need to check its role.
 	// for spark, if driver pod is deleted, then we consider the app is completed
 	var pod *v1.Pod
@@ -267,14 +267,14 @@ func (os *GenericAppManagementService) deletePod(obj interface{}) {
 	}
 }
 
-func (os *GenericAppManagementService) startCompletionHandler(app *cache.Application, pod *v1.Pod) {
+func (os *Manager) startCompletionHandler(app *cache.Application, pod *v1.Pod) {
 	for name, value := range pod.Labels {
 		if name == common.SparkLabelRole && value == common.SparkLabelRoleDriver {
 			app.StartCompletionHandler(cache.CompletionHandler{
 				CompleteFn: func() {
-					podWatch, err := os.apiProvider.GetClientSet().
+					podWatch, err := os.apiProvider.GetAPIs().
 						KubeClient.GetClientSet().CoreV1().
-						Pods(pod.Namespace).Watch(metav1.ListOptions{Watch: true})
+						Pods(pod.Namespace).Watch(metaV1.ListOptions{Watch: true})
 					if err != nil {
 						log.Logger.Info("unable to create Watch for pod",
 							zap.String("pod", pod.Name),
