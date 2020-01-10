@@ -67,7 +67,7 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 		log.Logger.Info("callback: response to accepted application",
 			zap.String("appId", app.ApplicationId))
 
-		if app, err := callback.context.GetApplication(app.ApplicationId); err == nil {
+		if app, ok := callback.context.GetApplication(app.ApplicationId); ok {
 			ev := cache.NewSimpleApplicationEvent(app.GetApplicationId(), events.AcceptApplication)
 			dispatcher.Dispatch(ev)
 		}
@@ -78,7 +78,7 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 		log.Logger.Info("callback: response to rejected application",
 			zap.String("appId", app.ApplicationId))
 
-		if app, err := callback.context.GetApplication(app.ApplicationId); err == nil {
+		if app, ok := callback.context.GetApplication(app.ApplicationId); ok {
 			ev := cache.NewSimpleApplicationEvent(app.GetApplicationId(), events.RejectApplication)
 			dispatcher.Dispatch(ev)
 		}
@@ -93,7 +93,7 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 			zap.String("applicationId", alloc.ApplicationId),
 			zap.String("nodeId", alloc.NodeId))
 
-		if app, err := callback.context.GetApplication(alloc.ApplicationId); err == nil {
+		if app, ok := callback.context.GetApplication(alloc.ApplicationId); ok {
 			ev := cache.NewAllocateTaskEvent(app.GetApplicationId(), alloc.AllocationKey, alloc.Uuid, alloc.NodeId)
 			dispatcher.Dispatch(ev)
 		}
@@ -104,7 +104,7 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 		log.Logger.Info("callback: response to rejected allocation",
 			zap.String("allocationKey", reject.AllocationKey))
 
-		if app, err := callback.context.GetApplication(reject.ApplicationId); err == nil {
+		if app, ok := callback.context.GetApplication(reject.ApplicationId); ok {
 			dispatcher.Dispatch(cache.NewRejectTaskEvent(app.GetApplicationId(), reject.AllocationKey,
 				fmt.Sprintf("task %s from application %s is rejected by scheduler",
 					reject.AllocationKey, reject.ApplicationId)))

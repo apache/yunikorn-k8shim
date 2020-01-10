@@ -19,7 +19,6 @@ package cache
 import (
 	"fmt"
 	"github.com/cloudera/yunikorn-core/pkg/api"
-	"github.com/cloudera/yunikorn-k8shim/pkg/client"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
 	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
@@ -28,8 +27,6 @@ import (
 	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
 	"github.com/looplab/fsm"
 	"go.uber.org/zap"
-	"k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sync"
 )
 
@@ -62,7 +59,7 @@ func NewApplication(appId, queueName, user string, tags map[string]string, sched
 		taskMap:       taskMap,
 		tags:          tags,
 		lock:          &sync.RWMutex{},
-		ch:            CompletionHandler{running: false},
+		ch:            CompletionHandler{Running: false},
 		schedulerApi:  scheduler,
 	}
 
@@ -321,11 +318,22 @@ func (app *Application) handleCompleteApplicationEvent(event *fsm.Event) {
 // such as for Spark, once driver is succeed, we think this application is completed.
 // this interface can be customized for different type of apps.
 type CompletionHandler struct {
-	running    bool
-	completeFn func()
+	Running    bool
+	CompleteFn func()
 }
 
-func (app *Application) startCompletionHandler(client client.KubeClient, pod *v1.Pod) {
+func (app *Application) StartCompletionHandler(handler CompletionHandler) {
+	if app.ch.Running {
+		log.Logger.Info("app completion handler is already running")
+		return
+	}
+
+	app.ch = handler
+	app.ch.start()
+}
+
+/**
+func (app *Application) StartCompletionHandler(client client.KubeClient, pod *v1.Pod) {
 	for name, value := range pod.Labels {
 		if name == common.SparkLabelRole && value == common.SparkLabelRoleDriver {
 			app.startSparkCompletionHandler(client, pod)
@@ -373,9 +381,11 @@ func (app *Application) startSparkCompletionHandler(client client.KubeClient, po
 	}
 	app.ch.start()
 }
+**/
 
 func (ch CompletionHandler) start() {
-	if !ch.running {
-		go ch.completeFn()
+	if !ch.Running {
+		go ch.CompleteFn()
+		ch.Running = true
 	}
 }

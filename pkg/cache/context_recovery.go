@@ -35,70 +35,9 @@ func (ctx *Context) WaitForRecovery(maxTimeout time.Duration) error {
 	// because mock pod/node lister is not easy. We do have unit tests for
 	// waitForAppRecovery/waitForNodeRecovery separately.
 	if !ctx.testMode {
-		// step 1: recover apps
-		if err := ctx.waitForAppRecovery(ctx.podInformer.Lister(), maxTimeout); err != nil {
-			log.Logger.Error("app recovery failed", zap.Error(err))
-			return err
-		}
-
-		// step 2: recover nodes
-		if err := ctx.waitForNodeRecovery(ctx.nodeInformer.Lister(), maxTimeout); err != nil {
+		if err := ctx.waitForNodeRecovery(ctx.sharedContext.GetClientSet().NodeInformer.Lister(), maxTimeout); err != nil {
 			log.Logger.Error("nodes recovery failed", zap.Error(err))
 			return err
-		}
-	}
-
-	return nil
-}
-
-// Wait until all previous scheduled applications are recovered, or fail as timeout.
-// During this process, shim submits all applications again to the scheduler-core and verifies app
-// state to ensure they are accepted, this must be done before recovering app allocations.
-func (ctx *Context) waitForAppRecovery(lister v1.PodLister, maxTimeout time.Duration) error {
-	// give informers sometime to warm up...
-	allPods, err := waitAndListPods(lister)
-	if err != nil {
-		return err
-	}
-
-	// scan all pods and discover apps, for apps already scheduled before,
-	// trigger app recovering
-	toRecoverApps := make(map[string]*Application, 0)
-	for _, pod := range allPods {
-		// pod from a existing app must have been assigned to a node,
-		// this means the app was scheduled and needs to be recovered
-		if utils.IsAssignedPod(pod) && utils.IsSchedulablePod(pod) {
-			app := ctx.getOrCreateApplication(pod)
-			ctx.AddApplication(app)
-			if app.GetApplicationState() == string(events.States().Application.New) {
-				log.Logger.Info("start to recover the app",
-					zap.String("appId", app.applicationId))
-				dispatcher.Dispatch(NewSimpleApplicationEvent(app.applicationId, events.RecoverApplication))
-				toRecoverApps[app.applicationId] = app
-			}
-		}
-	}
-
-	if len(toRecoverApps) > 0 {
-		// check app states periodically, ensure all apps exit from recovering state
-		if err := utils.WaitForCondition(func() bool {
-			for _, app := range toRecoverApps {
-				log.Logger.Info("appInfo",
-					zap.String("appId", app.applicationId),
-					zap.String("state", app.GetApplicationState()))
-				if app.GetApplicationState() == string(events.States().Application.Accepted) {
-					delete(toRecoverApps, app.applicationId)
-				}
-			}
-
-			if len(toRecoverApps) == 0 {
-				log.Logger.Info("app recovery is successful")
-				return true
-			}
-
-			return false
-		}, 1 * time.Second, maxTimeout); err != nil{
-			return fmt.Errorf("timeout waiting for app recovery in %s", maxTimeout.String())
 		}
 	}
 
@@ -123,7 +62,7 @@ func (ctx *Context) waitForNodeRecovery(nodeLister v1.NodeLister, maxTimeout tim
 		// because in the tests, we don't really send existing allocations
 		// we simply simulate to accept or reject nodes on conditions.
 		if !ctx.testMode {
-			if podList, err := ctx.kubeClient.GetClientSet().
+			if podList, err := ctx.sharedContext.GetClientSet().KubeClient.GetClientSet().
 				CoreV1().Pods("").
 				List(metav1.ListOptions{
 					FieldSelector: fmt.Sprintf("spec.nodeName=%s", node.Name),
@@ -181,22 +120,6 @@ func (ctx *Context) waitForNodeRecovery(nodeLister v1.NodeLister, maxTimeout tim
 	}
 
 	return nil
-}
-
-func waitAndListPods(lister v1.PodLister) (pods []*corev1.Pod, err error){
-	var allPods []*corev1.Pod
-	if err := utils.WaitForCondition(func() bool {
-		if allPods, _ = lister.List(labels.Everything()); allPods != nil {
-			if len(allPods) > 0 {
-				return true
-			}
-		}
-		return false
-	}, time.Second, time.Minute); err != nil {
-		return nil, err
-	}
-
-	return allPods, nil
 }
 
 func waitAndListNodes(lister v1.NodeLister) (nodes []*corev1.Node, err error){

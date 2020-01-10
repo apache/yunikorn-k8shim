@@ -29,6 +29,7 @@ import (
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/utils"
 	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
 	"github.com/cloudera/yunikorn-k8shim/pkg/log"
+	"github.com/cloudera/yunikorn-k8shim/pkg/plugin/appmgmt"
 	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
 	"go.uber.org/zap"
 	"gotest.tools/assert"
@@ -93,10 +94,11 @@ func (fc *MockScheduler) init(queues string) {
 	fakeClient.MockDeleteFn(fc.deleteFn)
 
 	schedulerApi, _ := rmProxy.(api.SchedulerApi)
-	context := cache.NewContextInternal(schedulerApi, &configs, fakeClient, true)
+	context := cache.NewContextInternal(cache.NewResourceHandlerContext(schedulerApi, fakeClient, &configs), true)
 	rmCallback := callback.NewAsyncRMCallback(context)
 
-	ss := newShimSchedulerInternal(schedulerApi, context, rmCallback)
+
+	ss := newShimSchedulerInternal(schedulerApi, context, &appmgmt.SchedulerAppManager{}, rmCallback)
 
 	fc.context = context
 	fc.scheduler = ss
@@ -170,7 +172,13 @@ func (fc *MockScheduler) waitAndAssertApplicationState(t *testing.T, appId, expe
 }
 
 func (fc *MockScheduler) addApplication(app *cache.Application) {
-	fc.context.AddApplication(app)
+	fc.context.AddApplication(&cache.AddApplicationRequest{
+		ApplicationID: app.GetApplicationId(),
+		QueueName:     app.GetQueue(),
+		User:          "",
+		Tags:          nil,
+		Recovery:      false,
+	})
 }
 
 func (fc *MockScheduler) newApplication(appId, queueName string) *cache.Application {

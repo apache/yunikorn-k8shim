@@ -21,10 +21,13 @@ import (
 	"github.com/cloudera/yunikorn-core/pkg/api"
 	"github.com/cloudera/yunikorn-k8shim/pkg/cache"
 	"github.com/cloudera/yunikorn-k8shim/pkg/callback"
+	"github.com/cloudera/yunikorn-k8shim/pkg/client"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
 	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
 	"github.com/cloudera/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/cloudera/yunikorn-k8shim/pkg/log"
+	"github.com/cloudera/yunikorn-k8shim/pkg/plugin/appmgmt"
+	"github.com/cloudera/yunikorn-k8shim/pkg/plugin/appmgmt/general"
 	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
 	"github.com/looplab/fsm"
 	"go.uber.org/zap"
@@ -37,6 +40,7 @@ import (
 type KubernetesShim struct {
 	rmProxy        api.SchedulerApi
 	context        *cache.Context
+	appManager     *appmgmt.SchedulerAppManager
 	callback       api.ResourceManagerCallback
 	stateMachine   *fsm.FSM
 	dispatcher     *dispatcher.Dispatcher
@@ -45,17 +49,27 @@ type KubernetesShim struct {
 }
 
 func newShimScheduler(api api.SchedulerApi, configs *conf.SchedulerConf) *KubernetesShim {
-	context := cache.NewContext(api, configs)
+	sharedContext := cache.NewResourceHandlerContext(api, client.NewKubeClient(configs.KubeConfig), configs)
+	// context stores shim state
+	context := cache.NewContext(sharedContext)
+	// scheduler callback receives decisions from scheduler core,
+	// and then it writes updates to the context
 	rmCallback := callback.NewAsyncRMCallback(context)
-	return newShimSchedulerInternal(api, context, rmCallback)
+	// app manager manages app lifecycle
+	// and it updates those info to the context with ApplicationManagementProtocol
+	appManager := appmgmt.NewAppManager(sharedContext)
+	appManager.Register(general.NewGeneralAppManagementService(context, sharedContext))
+	return newShimSchedulerInternal(api, context, appManager, rmCallback)
 }
 
 // this is visible for testing
-func newShimSchedulerInternal(api api.SchedulerApi, ctx *cache.Context, cb api.ResourceManagerCallback) *KubernetesShim {
+func newShimSchedulerInternal(api api.SchedulerApi, ctx *cache.Context,
+	am *appmgmt.SchedulerAppManager, cb api.ResourceManagerCallback) *KubernetesShim {
 	var states = events.States().Scheduler
 	ss := &KubernetesShim{
 		rmProxy:        api,
 		context:        ctx,
+		appManager:     am,
 		callback:       cb,
 		stopChan:       make(chan struct{}),
 		lock:           &sync.RWMutex{},
@@ -150,20 +164,38 @@ func (ss *KubernetesShim) recoverSchedulerState() func(e *fsm.Event) {
 		// do not block main thread
 		go func() {
 			log.Logger.Info("recovering scheduler states")
-			// wait for recovery, max timeout 3 minutes
+			// step 1: recover all applications
+			// this step, we collect all the existing allocated pods from api-server,
+			// identify the scheduling identity (aka applicationInfo) from the pod,
+			// and then add these applications to the scheduler.
+			if err := ss.appManager.WaitForRecovery(3 * time.Minute); err != nil {
+				// failed
+				log.Logger.Fatal("scheduler recovery failed", zap.Error(err))
+				dispatcher.Dispatch(ShimSchedulerEvent{
+					event: events.RecoverSchedulerFailed,
+				})
+				return
+			}
+
+			// step 2: recover existing allocations
+			// this step, we collect all existing allocations (allocated pods) from api-server,
+			// rerun the scheduling for these allocations in order to restore scheduler-state,
+			// the rerun is like a replay, not a actual scheduling procedure.
 			if err := ss.context.WaitForRecovery(3 * time.Minute); err != nil {
 				// failed
 				log.Logger.Fatal("scheduler recovery failed", zap.Error(err))
 				dispatcher.Dispatch(ShimSchedulerEvent{
 					event: events.RecoverSchedulerFailed,
 				})
-			} else {
-				// success
-				log.Logger.Info("scheduler recovery succeed")
-				dispatcher.Dispatch(ShimSchedulerEvent{
-					event: events.RecoverSchedulerSucceed,
-				})
+				return
 			}
+
+			// success
+			log.Logger.Info("scheduler recovery succeed")
+			dispatcher.Dispatch(ShimSchedulerEvent{
+				event: events.RecoverSchedulerSucceed,
+			})
+
 		}()
 	}
 }
@@ -251,6 +283,12 @@ func (ss *KubernetesShim) run() {
 
 	// register scheduler with scheduler core
 	dispatcher.Dispatch(newRegisterSchedulerEvent())
+
+	// run app manager
+	if err := ss.appManager.StartAll(); err != nil {
+		log.Logger.Fatal("failed to start app manager", zap.Error(err))
+		ss.stop()
+	}
 
 	// run context
 	ss.context.Run(ss.stopChan)
