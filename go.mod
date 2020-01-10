@@ -4,8 +4,8 @@ go 1.12
 
 require (
 	github.com/cespare/xxhash/v2 v2.1.1 // indirect
-	github.com/cloudera/yunikorn-core v0.0.0-20191120190934-c04bc172c898
-	github.com/cloudera/yunikorn-scheduler-interface v0.0.0-20190926162348-e1f0f8203763
+	github.com/cloudera/yunikorn-core v0.0.0-20200109234236-160343fa2caa
+	github.com/cloudera/yunikorn-scheduler-interface v0.0.0-20200109232514-da93802b2137
 	github.com/coreos/bbolt v1.3.3 // indirect
 	github.com/coreos/etcd v3.3.13+incompatible // indirect
 	github.com/coreos/go-semver v0.3.0 // indirect
@@ -59,7 +59,7 @@ require (
 	k8s.io/apiserver v0.0.0-20190516230822-f89599b3f645 // indirect
 	k8s.io/client-go v0.0.0-20190624085356-2c6e35a5b9cf
 	k8s.io/csi-translation-lib v0.0.0-20190624131023-0cad93d77298 // indirect
-	k8s.io/klog v0.3.3 // indirect
+	k8s.io/klog v0.3.3
 	k8s.io/kube-openapi v0.0.0-20190603182131-db7b694dc208 // indirect
 	k8s.io/kubernetes v1.14.3
 	k8s.io/utils v0.0.0-20190607212802-c55fbcfc754a // indirect

@@ -22,8 +22,12 @@ github.com/cespare/xxhash/v2 v2.1.1/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XL
 github.com/client9/misspell v0.3.4/go.mod h1:qj6jICC3Q7zFZvVWo7KLAzC3yx5G7kyvSDkc90ppPyw=
 github.com/cloudera/yunikorn-core v0.0.0-20191120190934-c04bc172c898 h1:KWgpRE4hxs0PrwE+XQmtZVF+SgTharih9Y+LVInQf8s=
 github.com/cloudera/yunikorn-core v0.0.0-20191120190934-c04bc172c898/go.mod h1:NlrTGoZEFx/jVMiDnvvfSNea7CcJ4oO8AsOQiKAGP0U=
+github.com/cloudera/yunikorn-core v0.0.0-20200109234236-160343fa2caa h1:BcsEC6spu1Fv0mRhe4EQRJEan4X7FAQ0gQtfbuNtiTk=
+github.com/cloudera/yunikorn-core v0.0.0-20200109234236-160343fa2caa/go.mod h1:jUENwl14hmd+veAiUc3LQoTIDCtzCQWGfiGWQD1fFpQ=
 github.com/cloudera/yunikorn-scheduler-interface v0.0.0-20190926162348-e1f0f8203763 h1:rrHfUgEG0IChfihZgQlyOzqDh9qVbuvWFSWKl6mo5EM=
 github.com/cloudera/yunikorn-scheduler-interface v0.0.0-20190926162348-e1f0f8203763/go.mod h1:QE7hLVzWYKot7H8eNMnGsphqStSEmSxxU5dgFzI32rk=
+github.com/cloudera/yunikorn-scheduler-interface v0.0.0-20200109232514-da93802b2137 h1:l7L1UK8YoYUan45a7sGV1yYy1R3uTW1aHQxIFomov5s=
+github.com/cloudera/yunikorn-scheduler-interface v0.0.0-20200109232514-da93802b2137/go.mod h1:QE7hLVzWYKot7H8eNMnGsphqStSEmSxxU5dgFzI32rk=
 github.com/coreos/bbolt v1.3.3 h1:n6AiVyVRKQFNb6mJlwESEvvLoDyiTzXX7ORAUlkeBdY=
 github.com/coreos/bbolt v1.3.3/go.mod h1:iRUV2dpdMOn7Bo10OQBFzIJO9kkE559Wcmn+qkEiiKk=
 github.com/coreos/etcd v3.3.13+incompatible h1:8F3hqu9fGYLBifCmRCJsicFqDx/D68Rt3q1JMazcgBQ=
