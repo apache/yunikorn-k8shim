@@ -1,11 +1,8 @@
 package general
 
 import (
-	"fmt"
-
 	"github.com/cloudera/yunikorn-k8shim/pkg/cache"
-	"github.com/cloudera/yunikorn-k8shim/pkg/cache/apis"
-	"github.com/cloudera/yunikorn-k8shim/pkg/cache/protocols"
+	"github.com/cloudera/yunikorn-k8shim/pkg/client"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/utils"
@@ -22,17 +19,14 @@ import (
 // applicationID, queue name found, and claim it as an app or a app task,
 // then report them to scheduler cache by calling am protocol
 type GenericAppManagementService struct {
-	// am protocol is used to sync info with scheduler cache
-	amProtocol protocols.ApplicationManagementProtocol
-	// shared context provides clients to communicate with api-server
-	apiSet *apis.APISet
+	apiProvider client.APIProvider
+	amProtocol cache.ApplicationManagementProtocol
 }
 
-func NewGeneralAppManagementService(amProtocol protocols.ApplicationManagementProtocol,
-	apiSet *apis.APISet) *GenericAppManagementService {
+func New(amProtocol cache.ApplicationManagementProtocol, apiProvider client.APIProvider) *GenericAppManagementService {
 	return &GenericAppManagementService{
+		apiProvider: apiProvider,
 		amProtocol: amProtocol,
-		apiSet:     apiSet,
 	}
 }
 
@@ -43,9 +37,9 @@ func (os *GenericAppManagementService) Name() string {
 
 // this implements AppManagementService interface
 func (os *GenericAppManagementService) ServiceInit() error {
-	os.apiSet.AddEventHandler(
-		&apis.ResourceEventHandlers{
-			Type:     apis.PodInformerEvents,
+	os.apiProvider.AddEventHandler(
+		&client.ResourceEventHandlers{
+			Type:     client.PodInformerHandlers,
 			FilterFn: os.filterPods,
 			AddFn:    os.addPod,
 			UpdateFn: os.updatePod,
@@ -74,7 +68,7 @@ func (os *GenericAppManagementService) addApplicationInternal(pod *v1.Pod, recov
 		zap.String("podUID", string(pod.UID)),
 		zap.String("state", string(pod.Status.Phase)))
 
-	appId, err := utils.GetApplicationIdFromPod(pod)
+	appId, err := utils.GetApplicationIDFromPod(pod)
 	if err != nil {
 		log.Logger.Error("unable to get application by given pod", zap.Error(err))
 		return nil, false
@@ -96,11 +90,13 @@ func (os *GenericAppManagementService) addApplicationInternal(pod *v1.Pod, recov
 		// get the application owner (this is all that is available as far as we can find)
 		user := pod.Spec.ServiceAccountName
 		// add or recovery this app
-		app = os.amProtocol.AddApplication(&protocols.AddApplicationRequest{
-			ApplicationID: appId,
-			QueueName:     utils.GetQueueNameFromPod(pod),
-			User:          user,
-			Tags:          tags,
+		app = os.amProtocol.AddApplication(&cache.AddApplicationRequest{
+			Metadata: cache.ApplicationMetadata{
+				ApplicationID: appId,
+				QueueName:     utils.GetQueueNameFromPod(pod),
+				User:          user,
+				Tags:          tags,
+			},
 			Recovery:      recovery,
 		})
 		added = true
@@ -108,21 +104,58 @@ func (os *GenericAppManagementService) addApplicationInternal(pod *v1.Pod, recov
 
 	// app already exist, add the task if needed
 	if _, err := app.GetTask(string(pod.UID)); err != nil {
-		os.amProtocol.AddTask(&protocols.AddTaskRequest{
-			ApplicationID: app.GetApplicationId(),
-			TaskID:        string(pod.UID),
-			Pod:           pod,
-			Recovery:      recovery,
+		os.amProtocol.AddTask(&cache.AddTaskRequest{
+			Metadata: cache.TaskMetadata{
+				ApplicationID: app.GetApplicationID(),
+				TaskID:        string(pod.UID),
+				Pod:           pod,
+			},
+			Recovery: false,
 		})
 	}
 
 	return app, added
 }
 
-// recover the app state if it is needed, returns the app and recovering=true to the caller
-// so the caller knows which app is under recovering
-func (os *GenericAppManagementService) RecoverApplication(pod *v1.Pod) (app *cache.Application, recovering bool) {
-	return os.addApplicationInternal(pod, true)
+func (os *GenericAppManagementService) GetTaskMetadata(pod *v1.Pod) (cache.TaskMetadata, bool) {
+	appId, err := utils.GetApplicationIDFromPod(pod)
+	if err != nil {
+		log.Logger.Debug("unable to get task by given pod", zap.Error(err))
+		return cache.TaskMetadata{}, false
+	}
+
+	return cache.TaskMetadata{
+		ApplicationID: appId,
+		TaskID:        string(pod.UID),
+		Pod:           pod,
+	}, true
+}
+
+func (os *GenericAppManagementService) GetAppMetadata(pod *v1.Pod) (cache.ApplicationMetadata, bool) {
+	appId, err := utils.GetApplicationIDFromPod(pod)
+	if err != nil {
+		log.Logger.Debug("unable to get application by given pod", zap.Error(err))
+		return cache.ApplicationMetadata{}, false
+	}
+
+	// tags will at least have namespace info
+	// labels or annotations from the pod can be added when needed
+	// user info is retrieved via service account
+	tags := map[string]string{}
+	if pod.Namespace == "" {
+		tags["namespace"] = "default"
+	} else {
+		tags["namespace"] = pod.Namespace
+	}
+	// get the application owner (this is all that is available as far as we can find)
+	user := pod.Spec.ServiceAccountName
+
+	return cache.ApplicationMetadata{
+		ApplicationID: appId,
+		QueueName:     utils.GetQueueNameFromPod(pod),
+		User:          user,
+		Tags:          tags,
+	}, true
 }
 
 // filter pods by scheduler name and state
@@ -136,21 +169,6 @@ func (os *GenericAppManagementService) filterPods(obj interface{}) bool {
 	}
 }
 
-func (os *GenericAppManagementService) validatePod(pod *v1.Pod) error {
-	if pod.Spec.SchedulerName == "" || pod.Spec.SchedulerName != os.apiSet.GetClientSet().Conf.SchedulerName {
-		// only pod with specific scheduler name is valid to us
-		return fmt.Errorf("only pod whose spec has explicitly "+
-			"specified schedulerName=%s is a valid scheduling-target, but schedulerName for pod %s(%s) is %s",
-			os.apiSet.GetClientSet().Conf.SchedulerName, pod.Name, pod.UID, pod.Spec.SchedulerName)
-	}
-
-	if _, err := utils.GetApplicationIdFromPod(pod); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 func (os *GenericAppManagementService) addPod(obj interface{}) {
 	pod, err := utils.Convert2Pod(obj)
 	if err != nil {
@@ -159,7 +177,28 @@ func (os *GenericAppManagementService) addPod(obj interface{}) {
 	}
 
 	if pod.Status.Phase == v1.PodPending {
-		os.addApplicationInternal(pod, false)
+		// add app
+		if appMeta, ok := os.GetAppMetadata(pod); ok {
+			// check if app already exist
+			if _, exist := os.amProtocol.GetApplication(appMeta.ApplicationID); !exist {
+				os.amProtocol.AddApplication(&cache.AddApplicationRequest{
+					Metadata: appMeta,
+					Recovery: false,
+				})
+			}
+		}
+
+		// add task
+		if taskMeta, ok := os.GetTaskMetadata(pod); ok {
+			if app, exist := os.amProtocol.GetApplication(taskMeta.ApplicationID); exist {
+				if _, err := app.GetTask(string(pod.UID)); err != nil {
+					os.amProtocol.AddTask(&cache.AddTaskRequest{
+						Metadata: taskMeta,
+						Recovery: false,
+					})
+				}
+			}
+		}
 	}
 }
 
@@ -192,7 +231,7 @@ func (os *GenericAppManagementService) deletePod(obj interface{}) {
 		return
 	}
 
-	appId, err := utils.GetApplicationIdFromPod(pod)
+	appId, err := utils.GetApplicationIDFromPod(pod)
 	if err != nil {
 		log.Logger.Error("unable to get application by given pod", zap.Error(err))
 		return
@@ -201,7 +240,7 @@ func (os *GenericAppManagementService) deletePod(obj interface{}) {
 	if application, ok := os.amProtocol.GetApplication(appId); ok {
 		log.Logger.Debug("release allocation")
 		dispatcher.Dispatch(cache.NewSimpleTaskEvent(
-			application.GetApplicationId(), string(pod.UID), events.CompleteTask))
+			application.GetApplicationID(), string(pod.UID), events.CompleteTask))
 
 		log.Logger.Info("delete pod",
 			zap.String("namespace", pod.Namespace),
@@ -217,7 +256,7 @@ func (os *GenericAppManagementService) startCompletionHandler(app *cache.Applica
 		if name == common.SparkLabelRole && value == common.SparkLabelRoleDriver {
 			app.StartCompletionHandler(cache.CompletionHandler{
 				CompleteFn: func() {
-					podWatch, err := os.apiSet.GetClientSet().
+					podWatch, err := os.apiProvider.GetClientSet().
 						KubeClient.GetClientSet().CoreV1().
 						Pods(pod.Namespace).Watch(metav1.ListOptions{Watch: true})
 					if err != nil {
@@ -237,8 +276,8 @@ func (os *GenericAppManagementService) startCompletionHandler(app *cache.Applica
 							if resp.Status.Phase == v1.PodSucceeded && resp.UID == pod.UID {
 								log.Logger.Info("spark driver completed, app completed",
 									zap.String("pod", resp.Name),
-									zap.String("appId", app.GetApplicationId()))
-								dispatcher.Dispatch(cache.NewSimpleApplicationEvent(app.GetApplicationId(), events.CompleteApplication))
+									zap.String("appId", app.GetApplicationID()))
+								dispatcher.Dispatch(cache.NewSimpleApplicationEvent(app.GetApplicationID(), events.CompleteApplication))
 								return
 							}
 						}

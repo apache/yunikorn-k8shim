@@ -53,7 +53,7 @@ type SchedulerCache struct {
 	volumeBinder  *volumebinder.VolumeBinder
 }
 
-func NewSchedulerCache(clients *client.SchedulerClientSet) *SchedulerCache {
+func NewSchedulerCache(clients *client.Clients) *SchedulerCache {
 	cache := &SchedulerCache{
 		nodesMap:      make(map[string]*schedulernode.NodeInfo),
 		podsMap:       make(map[string]*v1.Pod),

@@ -5,8 +5,8 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
-// a common interface for applications' operator service
-// an operator service monitors the lifecycle the applications,
+// a common interface for app management service
+// an app management service monitors the lifecycle of applications,
 // it is responsible for reporting application status to the scheduler,
 // that helps the scheduler to manage the application lifecycle natively.
 type AppManagementService interface {
@@ -36,5 +36,7 @@ type AppManagementService interface {
 	// nodes state will be taken care of by the scheduler itself, however for apps state recovery,
 	// the scheduler will need to call this function for every allocated pod, app management service
 	// needs to implement this accordingly.
-	RecoverApplication(pod *v1.Pod) (app *cache.Application, recovering bool)
+	GetAppMetadata(pod *v1.Pod) (cache.ApplicationMetadata, bool)
+
+	GetTaskMetadata(pod *v1.Pod) (cache.TaskMetadata, bool)
 }

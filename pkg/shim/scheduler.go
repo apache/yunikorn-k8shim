@@ -20,10 +20,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cloudera/yunikorn-k8shim/pkg/cache/apis"
 	"github.com/cloudera/yunikorn-k8shim/pkg/client"
 	"github.com/cloudera/yunikorn-k8shim/pkg/plugin/appmgmt"
-	"github.com/cloudera/yunikorn-k8shim/pkg/plugin/appmgmt/general"
 	"github.com/looplab/fsm"
 	"go.uber.org/zap"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -42,26 +40,25 @@ import (
 type KubernetesShim struct {
 	rmProxy      api.SchedulerAPI
 	context      *cache.Context
-	appManager     *appmgmt.SchedulerAppManager
+	appManager   *appmgmt.SchedulerAppManager
 	callback     api.ResourceManagerCallback
 	stateMachine *fsm.FSM
 	stopChan     chan struct{}
 	lock         *sync.RWMutex
 }
 
-func newShimScheduler(api api.SchedulerAPI, configs *conf.SchedulerConf) *KubernetesShim {
-	sharedContext := apis.NewAPISet(api, client.NewKubeClient(configs.KubeConfig), configs)
+func newShimScheduler(scheduler api.SchedulerAPI, configs *conf.SchedulerConf) *KubernetesShim {
+	apiFactory := client.NewAPIFactory(scheduler, client.NewKubeClient(configs.KubeConfig), configs)
 
 	// context stores shim state
-	context := cache.NewContext(sharedContext)
+	context := cache.NewContext(apiFactory)
 	// scheduler callback receives decisions from scheduler core,
 	// and then it writes updates to the context
 	rmCallback := callback.NewAsyncRMCallback(context)
 	// app manager manages app lifecycle
 	// and it updates those info to the context with ApplicationManagementProtocol
-	appManager := appmgmt.NewAppManager(sharedContext)
-	appManager.Register(general.NewGeneralAppManagementService(context, sharedContext))
-	return newShimSchedulerInternal(api, context, appManager, rmCallback)
+	appManager := appmgmt.NewAppManager(context, apiFactory)
+	return newShimSchedulerInternal(scheduler, context, appManager, rmCallback)
 }
 
 // this is visible for testing
@@ -186,7 +183,6 @@ func (ss *KubernetesShim) recoverSchedulerState() func(e *fsm.Event) {
 				// failed
 				log.Logger.Fatal("scheduler recovery failed", zap.Error(err))
 				dispatcher.Dispatch(ShimSchedulerEvent{
-					event: events.RecoverSchedulerSucceed,
 					event: events.RecoverSchedulerFailed,
 				})
 				return

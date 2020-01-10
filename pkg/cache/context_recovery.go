@@ -37,7 +37,7 @@ func (ctx *Context) WaitForRecovery(maxTimeout time.Duration) error {
 	// because mock pod/node lister is not easy. We do have unit tests for
 	// waitForAppRecovery/waitForNodeRecovery separately.
 	if !ctx.testMode {
-		if err := ctx.waitForNodeRecovery(ctx.sharedContext.GetClientSet().NodeInformer.Lister(), maxTimeout); err != nil {
+		if err := ctx.waitForNodeRecovery(ctx.apiProvider.GetClientSet().NodeInformer.Lister(), maxTimeout); err != nil {
 			log.Logger.Error("nodes recovery failed", zap.Error(err))
 			return err
 		}
@@ -65,7 +65,7 @@ func (ctx *Context) waitForNodeRecovery(nodeLister v1.NodeLister, maxTimeout tim
 		// we simply simulate to accept or reject nodes on conditions.
 		if !ctx.testMode {
 			var podList *corev1.PodList
-			podList, err = ctx.sharedContext.GetClientSet().KubeClient.GetClientSet().
+			podList, err = ctx.apiProvider.GetClientSet().KubeClient.GetClientSet().
 				CoreV1().Pods("").
 				List(metav1.ListOptions{
 					FieldSelector: fmt.Sprintf("spec.nodeName=%s", node.Name),

@@ -2,6 +2,8 @@ package appmgmt
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/cloudera/yunikorn-k8shim/pkg/cache"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/utils"
@@ -10,7 +12,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/listers/core/v1"
-	"time"
 )
 
 func (svc *SchedulerAppManager) WaitForRecovery(maxTimeout time.Duration) error {
@@ -18,13 +19,34 @@ func (svc *SchedulerAppManager) WaitForRecovery(maxTimeout time.Duration) error 
 	// because mock pod/node lister is not easy. We do have unit tests for
 	// waitForAppRecovery/waitForNodeRecovery separately.
 	if !svc.skipRecovery {
-		if err := svc.waitForAppRecovery(svc.sharedContext.GetClientSet().PodInformer.Lister(), maxTimeout); err != nil {
+		if err := svc.waitForAppRecovery(svc.apiProvider.GetClientSet().PodInformer.Lister(), maxTimeout); err != nil {
 			log.Logger.Error("app recovery failed", zap.Error(err))
 			return err
 		}
 	}
 
 	return nil
+}
+
+func (svc *SchedulerAppManager) recoverApp(pod *corev1.Pod) (*cache.Application, bool){
+	// pod from a existing app must have been assigned to a node,
+	// this means the app was scheduled and needs to be recovered
+	if utils.IsAssignedPod(pod) && utils.IsSchedulablePod(pod) {
+		for _, appmgmt := range svc.amService {
+			if appMeta, ok := appmgmt.GetAppMetadata(pod); ok {
+				if _, exist := svc.amProtocol.GetApplication(appMeta.ApplicationID); !exist {
+					// if app already exist, that means it is already under recovering
+					// otherwise, recovery this app through am protocol
+					app := svc.amProtocol.AddApplication(&cache.AddApplicationRequest{
+						Metadata: appMeta,
+						Recovery: true,
+					})
+					return app, true
+				}
+			}
+		}
+	}
+	return nil, false
 }
 
 // Wait until all previous scheduled applications are recovered, or fail as timeout.
@@ -41,12 +63,8 @@ func (svc *SchedulerAppManager) waitForAppRecovery(lister v1.PodLister, maxTimeo
 	// trigger app recovering
 	toRecoverApps := make(map[string]*cache.Application, 0)
 	for _, pod := range allPods {
-		// pod from a existing app must have been assigned to a node,
-		// this means the app was scheduled and needs to be recovered
-		if utils.IsAssignedPod(pod) && utils.IsSchedulablePod(pod) {
-			if app, recovering := svc.RecoverApplication(pod); recovering {
-				toRecoverApps[app.GetApplicationId()] = app
-			}
+		if app, recovering := svc.recoverApp(pod); recovering {
+			toRecoverApps[app.GetApplicationID()] = app
 		}
 	}
 
@@ -55,10 +73,10 @@ func (svc *SchedulerAppManager) waitForAppRecovery(lister v1.PodLister, maxTimeo
 		if err := utils.WaitForCondition(func() bool {
 			for _, app := range toRecoverApps {
 				log.Logger.Info("appInfo",
-					zap.String("appId", app.GetApplicationId()),
+					zap.String("appId", app.GetApplicationID()),
 					zap.String("state", app.GetApplicationState()))
-				if app.GetApplicationState() == string(events.States().Application.Accepted) {
-					delete(toRecoverApps, app.GetApplicationId())
+				if app.GetApplicationState() == events.States().Application.Accepted {
+					delete(toRecoverApps, app.GetApplicationID())
 				}
 			}
 

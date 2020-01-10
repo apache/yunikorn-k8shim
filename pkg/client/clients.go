@@ -1,3 +1,19 @@
+/*
+Copyright 2020 Cloudera, Inc.  All rights reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package client
 
 import (
@@ -8,16 +24,16 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/volumebinder"
 )
 
-// scheduler client set encapsulates a set of useful clients
+// clients encapsulates a set of useful client APIs
 // that can be shared by callers when talking to K8s api-server,
 // or the scheduler core.
-type SchedulerClientSet struct {
+type Clients struct {
 	// configs
 	Conf *conf.SchedulerConf
 
 	// client apis
 	KubeClient   KubeClient
-	SchedulerApi api.SchedulerApi
+	SchedulerAPI api.SchedulerAPI
 
 	// resource informers
 	PodInformer       coreInformerV1.PodInformer
@@ -31,7 +47,7 @@ type SchedulerClientSet struct {
 	VolumeBinder *volumebinder.VolumeBinder
 }
 
-func (c *SchedulerClientSet) Run(stopCh <-chan struct{}) {
+func (c *Clients) Run(stopCh <-chan struct{}) {
 	if c.NodeInformer != nil {
 		go c.NodeInformer.Informer().Run(stopCh)
 	}

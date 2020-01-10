@@ -20,8 +20,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/cloudera/yunikorn-k8shim/pkg/cache/protocols"
-	"github.com/cloudera/yunikorn-k8shim/pkg/cache/apis"
+	"github.com/cloudera/yunikorn-k8shim/pkg/client"
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
 
@@ -46,7 +45,7 @@ type Context struct {
 	schedulerCache *schedulercache.SchedulerCache
 
 	// runtime resource handlers
-	sharedContext *apis.APISet
+	apiProvider client.APIProvider
 
 	// plugged predictor handles predicates related checks
 	predictor         *plugin.Predictor
@@ -58,13 +57,13 @@ type Context struct {
 
 // Create a new context for the scheduler.
 // This wraps the internal call which really creates the context.
-func NewContext(sharedContext *apis.APISet) *Context {
-	return NewContextInternal(sharedContext, false)
+func NewContext(apis client.APIProvider) *Context {
+	return NewContextInternal(apis, false)
 }
 
 // Internal create of the scheduler context.
 // Only exposed for testing, not to e used for anything else
-func NewContextInternal(sharedContext *apis.APISet, testMode bool) *Context {
+func NewContextInternal(apis client.APIProvider, testMode bool) *Context {
 	// create the context note that order is important:
 	// volumebinder needs the informers
 	// the cache needs informers and volumebinder
@@ -72,43 +71,43 @@ func NewContextInternal(sharedContext *apis.APISet, testMode bool) *Context {
 	// predictor need the cache, volumebinder and informers
 	ctx := &Context{
 		applications: make(map[string]*Application),
-		sharedContext: sharedContext,
+		apiProvider:  apis,
 		testMode:     testMode,
 		lock:         &sync.RWMutex{},
 	}
 
 	// create the cache
-	ctx.schedulerCache = schedulercache.NewSchedulerCache(sharedContext.GetClientSet())
+	ctx.schedulerCache = schedulercache.NewSchedulerCache(apis.GetClientSet())
 
 	// init the controllers and plugins (need the cache)
-	ctx.nodes = newSchedulerNodes(sharedContext.GetClientSet().SchedulerApi, ctx.schedulerCache)
+	ctx.nodes = newSchedulerNodes(apis.GetClientSet().SchedulerAPI, ctx.schedulerCache)
 	ctx.predictor = plugin.NewPredictor(schedulercache.GetPluginArgs(), testMode)
 
 	return ctx
 }
 
 func (ctx *Context) AddSchedulingEventHandlers() {
-	ctx.sharedContext.AddEventHandler(&apis.ResourceEventHandlers{
-		Type:                 apis.NodeInformerEvents,
-		AddFn:                ctx.addNode,
-		UpdateFn:             ctx.updateNode,
-		DeleteFn:             ctx.deleteNode,
+	ctx.apiProvider.AddEventHandler(&client.ResourceEventHandlers{
+		Type:     client.NodeInformerHandlers,
+		AddFn:    ctx.addNode,
+		UpdateFn: ctx.updateNode,
+		DeleteFn: ctx.deleteNode,
 	})
 
-	ctx.sharedContext.AddEventHandler(&apis.ResourceEventHandlers{
-		Type:                 apis.PodInformerEvents,
-		FilterFn:             ctx.filterPods,
-		AddFn:                ctx.addPodToCache,
-		UpdateFn:             ctx.updatePodInCache,
-		DeleteFn:             ctx.removePodFromCache,
+	ctx.apiProvider.AddEventHandler(&client.ResourceEventHandlers{
+		Type:     client.PodInformerHandlers,
+		FilterFn: ctx.filterPods,
+		AddFn:    ctx.addPodToCache,
+		UpdateFn: ctx.updatePodInCache,
+		DeleteFn: ctx.removePodFromCache,
 	})
 
-	ctx.sharedContext.AddEventHandler(&apis.ResourceEventHandlers{
-		Type:                 apis.ConfigMapInformerEvents,
-		FilterFn:             ctx.filterConfigMaps,
-		AddFn:                ctx.addConfigMaps,
-		UpdateFn:             ctx.updateConfigMaps,
-		DeleteFn:             ctx.deleteConfigMaps,
+	ctx.apiProvider.AddEventHandler(&client.ResourceEventHandlers{
+		Type:     client.ConfigMapInformerHandlers,
+		FilterFn: ctx.filterConfigMaps,
+		AddFn:    ctx.addConfigMaps,
+		UpdateFn: ctx.updateConfigMaps,
+		DeleteFn: ctx.deleteConfigMaps,
 	})
 }
 
@@ -291,7 +290,7 @@ func (ctx *Context) deleteConfigMaps(obj interface{}) {
 
 func (ctx *Context) triggerReloadConfig() {
 	log.Logger.Info("trigger scheduler configuration reloading")
-	if err := ctx.sharedContext.GetClientSet().SchedulerApi.ReloadConfiguration(ctx.conf.ClusterID); err != nil {
+	if err := ctx.apiProvider.GetClientSet().SchedulerAPI.ReloadConfiguration(ctx.conf.ClusterID); err != nil {
 		log.Logger.Error("reload configuration failed", zap.Error(err))
 	}
 }
@@ -330,7 +329,7 @@ func (ctx *Context) bindPodVolumes(pod *v1.Pod) error {
 				zap.String("podName", pod.Name))
 		} else {
 			log.Logger.Info("Binding Pod Volumes", zap.String("podName", pod.Name))
-			return ctx.sharedContext.GetClientSet().VolumeBinder.Binder.BindPodVolumes(assumedPod)
+			return ctx.apiProvider.GetClientSet().VolumeBinder.Binder.BindPodVolumes(assumedPod)
 		}
 	}
 	return nil
@@ -355,9 +354,9 @@ func (ctx *Context) AssumePod(name string, node string) error {
 			// this will update scheduler cache with essential PV/PVC binding info
 			var allBound = true
 			// volume builder might be null in UTs
-			if ctx.sharedContext.GetClientSet().VolumeBinder != nil {
+			if ctx.apiProvider.GetClientSet().VolumeBinder != nil {
 				var err error
-				allBound, err = ctx.sharedContext.GetClientSet().VolumeBinder.Binder.AssumePodVolumes(pod, node)
+				allBound, err = ctx.apiProvider.GetClientSet().VolumeBinder.Binder.AssumePodVolumes(pod, node)
 				if err != nil {
 					return err
 				}
@@ -430,19 +429,25 @@ func (ctx *Context) getOrCreateApplication(pod *v1.Pod) *Application {
 	user := pod.Spec.ServiceAccountName
 	// create a new app
 	newApp := NewApplication(appID, utils.GetQueueNameFromPod(pod), user, tags,
-		ctx.sharedContext.GetClientSet().SchedulerApi)
+		ctx.apiProvider.GetClientSet().SchedulerAPI)
 	ctx.applications[appID] = newApp
 	return ctx.applications[appID]
 }
 
-// for testing only
-func (ctx *Context) AddApplication(request *protocols.AddApplicationRequest) *Application {
+func (ctx *Context) AddApplication(request *AddApplicationRequest) *Application {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
 	app := NewApplication(
-		request.ApplicationID, request.QueueName, request.User, request.Tags,
-		ctx.sharedContext.GetClientSet().SchedulerApi)
+		request.Metadata.ApplicationID,
+		request.Metadata.QueueName,
+		request.Metadata.User,
+		request.Metadata.Tags,
+		ctx.apiProvider.GetClientSet().SchedulerAPI)
+
+	// add into cache
 	ctx.applications[app.applicationID] = app
+
+	// trigger recovery
 	if request.Recovery {
 		if app.GetApplicationState() == events.States().Application.New {
 			log.Logger.Info("start to recover the app",
@@ -450,6 +455,10 @@ func (ctx *Context) AddApplication(request *protocols.AddApplicationRequest) *Ap
 			dispatcher.Dispatch(NewSimpleApplicationEvent(app.applicationID, events.RecoverApplication))
 		}
 	}
+
+	log.Logger.Info("app added",
+		zap.String("appID", app.applicationID),
+		zap.Bool("recovery", request.Recovery))
 	return app
 }
 
@@ -463,15 +472,18 @@ func (ctx *Context) GetApplication(appID string) (*Application, bool) {
 }
 
 // this implements ApplicationManagementProtocol
-func (ctx *Context) AddTask(request *protocols.AddTaskRequest) {
-	if app, ok := ctx.GetApplication(request.ApplicationID); ok {
-		if _, err := app.GetTask(request.TaskID); err != nil {
-			task := newTask(request.TaskID, app, ctx, request.Pod)
+func (ctx *Context) AddTask(request *AddTaskRequest) {
+	if app, ok := ctx.GetApplication(request.Metadata.ApplicationID); ok {
+		if _, err := app.GetTask(request.Metadata.TaskID); err != nil {
+			task := newTask(request.Metadata.TaskID, app, ctx, request.Metadata.Pod)
 			// in recovery mode, task is considered as allocated
 			if request.Recovery {
-				task.setAllocated(request.Pod.Spec.NodeName)
+				task.setAllocated(request.Metadata.Pod.Spec.NodeName)
 			}
 			app.AddTask(&task)
+			log.Logger.Info("task added",
+				zap.String("appID", app.applicationID),
+				zap.String("taskID", task.taskID))
 		}
 	}
 }
@@ -555,6 +567,6 @@ func (ctx *Context) SchedulerNodeEventHandler() func(obj interface{}) {
 
 func (ctx *Context) Run(stopCh <-chan struct{}) {
 	if ctx != nil && !ctx.testMode {
-		ctx.sharedContext.Run(stopCh)
+		ctx.apiProvider.Run(stopCh)
 	}
 }
