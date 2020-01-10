@@ -275,12 +275,12 @@ func TestAppRecovery(t *testing.T) {
 	}
 
 	// check app1: it should be accepted now
-	if app1, err := context.GetApplication("app1"); err == nil {
+	if app1, ok := context.GetApplication("app1"); ok {
 		assert.Equal(t, app1.GetApplicationState(), events.States().Application.Accepted)
 	} else {
-		t.Fatalf("unexpected failure, error: %v", err)
+		t.Fatalf("application not exist",)
 	}
 	// check app2: it should be ignored in recovery process and will not be found in context
-	_, err := context.GetApplication("app2")
-	assert.Error(t, err, "application app2 is not found in context")
+	_, exist := context.GetApplication("app2")
+	assert.Equal(t, exist, false)
 }

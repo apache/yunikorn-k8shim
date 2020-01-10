@@ -3,6 +3,7 @@ module github.com/cloudera/yunikorn-k8shim
 go 1.12
 
 require (
+	github.com/GoogleCloudPlatform/spark-on-k8s-operator v0.0.0-20200107165602-f610b1d4cf34
 	github.com/cespare/xxhash/v2 v2.1.1 // indirect
 	github.com/cloudera/yunikorn-core v0.0.0-20200109234236-160343fa2caa
 	github.com/cloudera/yunikorn-scheduler-interface v0.0.0-20200109232514-da93802b2137

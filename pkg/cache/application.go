@@ -22,11 +22,8 @@ import (
 
 	"github.com/looplab/fsm"
 	"go.uber.org/zap"
-	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/cloudera/yunikorn-core/pkg/api"
-	"github.com/cloudera/yunikorn-k8shim/pkg/client"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
 	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
@@ -64,7 +61,7 @@ func NewApplication(appID, queueName, user string, tags map[string]string, sched
 		taskMap:       taskMap,
 		tags:          tags,
 		lock:          &sync.RWMutex{},
-		ch:            CompletionHandler{running: false},
+		ch:            CompletionHandler{Running: false},
 		schedulerAPI:  scheduler,
 	}
 
@@ -101,7 +98,6 @@ func NewApplication(appID, queueName, user string, tags map[string]string, sched
 				Dst: states.Killed},
 		},
 		fsm.Callbacks{
-			//"enter_state":               app.handleTaskStateChange,
 			string(events.SubmitApplication):   app.handleSubmitApplicationEvent,
 			string(events.RecoverApplication):  app.handleRecoverApplicationEvent,
 			string(events.RejectApplication):   app.handleRejectApplicationEvent,
@@ -323,59 +319,22 @@ func (app *Application) handleCompleteApplicationEvent(event *fsm.Event) {
 // such as for Spark, once driver is succeed, we think this application is completed.
 // this interface can be customized for different type of apps.
 type CompletionHandler struct {
-	running    bool
-	completeFn func()
+	Running    bool
+	CompleteFn func()
 }
 
-func (app *Application) startCompletionHandler(client client.KubeClient, pod *v1.Pod) {
-	for name, value := range pod.Labels {
-		if name == common.SparkLabelRole && value == common.SparkLabelRoleDriver {
-			app.startSparkCompletionHandler(client, pod)
-			return
-		}
-	}
-}
-
-func (app *Application) startSparkCompletionHandler(client client.KubeClient, pod *v1.Pod) {
-	// spark driver pod
-	log.Logger.Info("start app completion handler",
-		zap.String("pod", pod.Name),
-		zap.String("appID", app.applicationID))
-	if app.ch.running {
+func (app *Application) StartCompletionHandler(handler CompletionHandler) {
+	if app.ch.Running {
+		log.Logger.Info("app completion handler is already running")
 		return
 	}
 
-	app.ch = CompletionHandler{
-		completeFn: func() {
-			podWatch, err := client.GetClientSet().CoreV1().Pods(pod.Namespace).Watch(metav1.ListOptions{Watch: true})
-			if err != nil {
-				log.Logger.Info("unable to create Watch for pod",
-					zap.String("pod", pod.Name),
-					zap.Error(err))
-				return
-			}
-
-			for targetPod := range podWatch.ResultChan() {
-				resp, ok := targetPod.Object.(*v1.Pod)
-				if !ok {
-					log.Logger.Debug("cast failed unexpected object",
-						zap.Any("PodObject", targetPod.Object))
-				}
-				if resp.Status.Phase == v1.PodSucceeded && resp.UID == pod.UID {
-					log.Logger.Info("spark driver completed, app completed",
-						zap.String("pod", resp.Name),
-						zap.String("appID", app.applicationID))
-					dispatcher.Dispatch(NewSimpleApplicationEvent(app.applicationID, events.CompleteApplication))
-					return
-				}
-			}
-		},
-	}
+	app.ch = handler
 	app.ch.start()
 }
 
 func (ch CompletionHandler) start() {
-	if !ch.running {
-		go ch.completeFn()
+	if !ch.Running {
+		go ch.CompleteFn()
 	}
 }

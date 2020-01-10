@@ -145,11 +145,6 @@ func (task *Task) canHandle(te events.TaskEvent) bool {
 	return task.sm.Can(string(te.GetEvent()))
 }
 
-func createTaskFromPod(app *Application, ctx *Context, pod *v1.Pod) *Task {
-	task := newTask(string(pod.UID), app, ctx, pod)
-	return &task
-}
-
 func (task *Task) GetTaskPod() *v1.Pod {
 	task.lock.RLock()
 	defer task.lock.RUnlock()
@@ -187,7 +182,7 @@ func (task *Task) handleSubmitTaskEvent(event *fsm.Event) {
 	// convert the request
 	rr := common.CreateUpdateRequestForTask(task.applicationID, task.taskID, task.resource)
 	log.Logger.Debug("send update request", zap.String("request", rr.String()))
-	if err := task.context.schedulerAPI.Update(&rr); err != nil {
+	if err := task.context.sharedContext.GetClientSet().SchedulerApi.Update(&rr); err != nil {
 		log.Logger.Debug("failed to send scheduling request to scheduler", zap.Error(err))
 		return
 	}
@@ -238,7 +233,7 @@ func (task *Task) postTaskAllocated(event *fsm.Event) {
 		log.Logger.Debug("bind pod volumes",
 			zap.String("podName", task.pod.Name),
 			zap.String("podUID", string(task.pod.UID)))
-		if task.context.volumeBinder != nil {
+		if task.context.sharedContext.GetClientSet().VolumeBinder != nil {
 			if err := task.context.bindPodVolumes(task.pod); err != nil {
 				errorMessage = fmt.Sprintf("bind pod volumes failed, name: %s, uid: %s, %#v",
 					task.pod.Name, task.pod.UID, err)
@@ -253,7 +248,7 @@ func (task *Task) postTaskAllocated(event *fsm.Event) {
 			zap.String("podName", task.pod.Name),
 			zap.String("podUID", string(task.pod.UID)))
 
-		if err := task.context.kubeClient.Bind(task.pod, nodeID); err != nil {
+		if err := task.context.sharedContext.GetClientSet().KubeClient.Bind(task.pod, nodeID); err != nil {
 			errorMessage = fmt.Sprintf("bind pod failed, name: %s, uid: %s, %#v",
 				task.pod.Name, task.pod.UID, err)
 			log.Logger.Error(errorMessage)
@@ -306,13 +301,13 @@ func (task *Task) releaseAllocation() {
 	// when task is completed, we notify the scheduler to release allocations
 	go func() {
 		// scheduler api might be nil in some tests
-		if task.context.schedulerAPI != nil {
+		if task.context.sharedContext.GetClientSet().SchedulerApi != nil {
 			releaseRequest := common.CreateReleaseAllocationRequestForTask(
 				task.applicationID, task.allocationUUID, task.application.partition)
 
 			log.Logger.Debug("send release request",
 				zap.String("releaseRequest", releaseRequest.String()))
-			if err := task.context.schedulerAPI.Update(&releaseRequest); err != nil {
+			if err := task.context.sharedContext.GetClientSet().SchedulerApi.Update(&releaseRequest); err != nil {
 				log.Logger.Debug("failed to send scheduling request to scheduler", zap.Error(err))
 			}
 		}

@@ -31,6 +31,7 @@ import (
 	schedulernode "k8s.io/kubernetes/pkg/scheduler/nodeinfo"
 	"k8s.io/kubernetes/pkg/scheduler/volumebinder"
 
+	"github.com/cloudera/yunikorn-k8shim/pkg/client"
 	"github.com/cloudera/yunikorn-k8shim/pkg/log"
 )
 
@@ -52,18 +53,15 @@ type SchedulerCache struct {
 	volumeBinder  *volumebinder.VolumeBinder
 }
 
-func NewSchedulerCache(pvl corelistersV1.PersistentVolumeLister,
-	pvcl corelistersV1.PersistentVolumeClaimLister,
-	stl storagelisterV1.StorageClassLister,
-	binder *volumebinder.VolumeBinder) *SchedulerCache {
+func NewSchedulerCache(clients *client.SchedulerClientSet) *SchedulerCache {
 	cache := &SchedulerCache{
 		nodesMap:      make(map[string]*schedulernode.NodeInfo),
 		podsMap:       make(map[string]*v1.Pod),
 		assumedPods:   make(map[string]bool),
-		pvLister:      pvl,
-		pvcLister:     pvcl,
-		storageLister: stl,
-		volumeBinder:  binder,
+		pvLister:      clients.PVInformer.Lister(),
+		pvcLister:     clients.PVCInformer.Lister(),
+		storageLister: clients.StorageInformer.Lister(),
+		volumeBinder:  clients.VolumeBinder,
 	}
 	cache.assignArgs(GetPluginArgs())
 	return cache

@@ -36,6 +36,7 @@ import (
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/utils"
 	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
 	"github.com/cloudera/yunikorn-k8shim/pkg/log"
+	"github.com/cloudera/yunikorn-k8shim/pkg/plugin/appmgmt"
 	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
 )
 
@@ -99,9 +100,8 @@ func (fc *MockScheduler) init(queues string) {
 		log.Logger.Debug("cast failed unexpected object",
 			zap.Any("schedulerAPI", rmProxy))
 	}
-	context := cache.NewContextInternal(schedulerAPI, &configs, fakeClient, true)
+	context := cache.NewContextInternal(cache.NewResourceHandlerContext(schedulerApi, fakeClient, &configs), true)
 	rmCallback := callback.NewAsyncRMCallback(context)
-
 	ss := newShimSchedulerInternal(schedulerAPI, context, rmCallback)
 
 	fc.context = context
@@ -172,7 +172,13 @@ func (fc *MockScheduler) waitAndAssertApplicationState(t *testing.T, appID, expe
 }
 
 func (fc *MockScheduler) addApplication(app *cache.Application) {
-	fc.context.AddApplication(app)
+	fc.context.AddApplication(&cache.AddApplicationRequest{
+		ApplicationID: app.GetApplicationId(),
+		QueueName:     app.GetQueue(),
+		User:          "",
+		Tags:          nil,
+		Recovery:      false,
+	})
 }
 
 func (fc *MockScheduler) newApplication(appID, queueName string) *cache.Application {
