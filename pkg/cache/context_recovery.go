@@ -36,7 +36,7 @@ func (ctx *Context) WaitForRecovery(maxTimeout time.Duration) error {
 	// Currently, disable recovery when testing in a mocked cluster,
 	// because mock pod/node lister is not easy. We do have unit tests for
 	// waitForAppRecovery/waitForNodeRecovery separately.
-	if !ctx.testMode {
+	if !ctx.apiProvider.IsTestingMode() {
 		if err := ctx.waitForNodeRecovery(ctx.apiProvider.GetAPIs().NodeInformer.Lister(), maxTimeout); err != nil {
 			log.Logger.Error("nodes recovery failed", zap.Error(err))
 			return err
@@ -63,7 +63,7 @@ func (ctx *Context) waitForNodeRecovery(nodeLister v1.NodeLister, maxTimeout tim
 		// current, disable getting pods for a node during test,
 		// because in the tests, we don't really send existing allocations
 		// we simply simulate to accept or reject nodes on conditions.
-		if !ctx.testMode {
+		if !ctx.apiProvider.IsTestingMode() {
 			var podList *corev1.PodList
 			podList, err = ctx.apiProvider.GetAPIs().KubeClient.GetClientSet().
 				CoreV1().Pods("").

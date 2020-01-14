@@ -48,13 +48,10 @@ type KubernetesShim struct {
 }
 
 func newShimScheduler(scheduler api.SchedulerAPI, configs *conf.SchedulerConf) *KubernetesShim {
-	apiFactory := client.NewAPIFactory(scheduler, configs)
+	apiFactory := client.NewAPIFactory(scheduler, configs, false)
 	context := cache.NewContext(apiFactory)
 	rmCallback := callback.NewAsyncRMCallback(context)
-	appManager := appmgmt.NewAMService(context, apiFactory,
-		&appmgmt.AMServiceLaunchOptions{
-			TestMode: false,
-		})
+	appManager := appmgmt.NewAMService(context, apiFactory)
 	return newShimSchedulerInternal(context, apiFactory, appManager, rmCallback)
 }
 

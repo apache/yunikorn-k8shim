@@ -149,10 +149,9 @@ func TestSchedulerRegistrationFailed(t *testing.T) {
 			return nil, fmt.Errorf("some error")
 		})
 
-	ctx := cache.NewContextInternal(mockedAPIProvider, true)
+	ctx := cache.NewContext(mockedAPIProvider)
 	shim := newShimSchedulerInternal(ctx, mockedAPIProvider,
-		appmgmt.NewAMService(mockedAMProtocol, mockedAPIProvider,
-			&appmgmt.AMServiceLaunchOptions{TestMode: true}), callback)
+		appmgmt.NewAMService(mockedAMProtocol, mockedAPIProvider), callback)
 	shim.run()
 	defer shim.stop()
 

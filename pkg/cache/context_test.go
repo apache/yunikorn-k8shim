@@ -43,7 +43,7 @@ func initContextForTest() *Context {
 
 	conf.Set(&configs)
 
-	context := NewContextInternal(test.NewMockedAPIProvider(), true)
+	context := NewContext(test.NewMockedAPIProvider())
 	return context
 }
 func TestAddApplications(t *testing.T) {

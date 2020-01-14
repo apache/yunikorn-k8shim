@@ -76,6 +76,10 @@ func (m *MockedAPIProvider) GetAPIs() *client.Clients {
 	return m.clients
 }
 
+func (m *MockedAPIProvider) IsTestingMode() bool {
+	return true
+}
+
 func (m *MockedAPIProvider) AddEventHandler (handlers *client.ResourceEventHandlers) {
 	// no impl
 }

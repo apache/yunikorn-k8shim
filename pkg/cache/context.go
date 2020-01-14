@@ -42,19 +42,11 @@ type Context struct {
 	schedulerCache *schedulercache.SchedulerCache // external cache
 	apiProvider    client.APIProvider             // apis to interact with api-server, scheduler-core, etc
 	predictor      *plugin.Predictor              // K8s predicates
-	testMode       bool                           // flag for UT
 	lock           *sync.RWMutex                  // lock
 }
 
 // Create a new context for the scheduler.
-// This wraps the internal call which really creates the context.
 func NewContext(apis client.APIProvider) *Context {
-	return NewContextInternal(apis, false)
-}
-
-// Internal create of the scheduler context.
-// Only exposed for testing, not to e used for anything else
-func NewContextInternal(apis client.APIProvider, testMode bool) *Context {
 	// create the context note that order is important:
 	// volumebinder needs the informers
 	// the cache needs informers and volumebinder
@@ -63,7 +55,6 @@ func NewContextInternal(apis client.APIProvider, testMode bool) *Context {
 	ctx := &Context{
 		applications: make(map[string]*Application),
 		apiProvider:  apis,
-		testMode:     testMode,
 		lock:         &sync.RWMutex{},
 	}
 
@@ -72,7 +63,7 @@ func NewContextInternal(apis client.APIProvider, testMode bool) *Context {
 
 	// init the controllers and plugins (need the cache)
 	ctx.nodes = newSchedulerNodes(apis.GetAPIs().SchedulerAPI, ctx.schedulerCache)
-	ctx.predictor = plugin.NewPredictor(schedulercache.GetPluginArgs(), testMode)
+	ctx.predictor = plugin.NewPredictor(schedulercache.GetPluginArgs(), apis.IsTestingMode())
 
 	return ctx
 }
@@ -526,7 +517,7 @@ func (ctx *Context) SchedulerNodeEventHandler() func(obj interface{}) {
 }
 
 func (ctx *Context) Run(stopCh <-chan struct{}) {
-	if ctx != nil && !ctx.testMode {
+	if ctx != nil {
 		ctx.apiProvider.Run(stopCh)
 	}
 }

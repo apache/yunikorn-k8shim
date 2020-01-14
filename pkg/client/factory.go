@@ -42,6 +42,7 @@ type APIProvider interface {
 	GetAPIs() *Clients
 	AddEventHandler (handlers *ResourceEventHandlers)
 	Run(stopCh <-chan struct{})
+	IsTestingMode() bool
 }
 
 // resource handlers defines add/update/delete operations in response to the corresponding resources updates.
@@ -54,13 +55,15 @@ type ResourceEventHandlers struct {
 	DeleteFn func(obj interface{})
 }
 
-// shared context maintains a set of useful struts that used to be accessing cross components
+// API factory maintains shared clients which can be used to access other external components
+// e.g K8s api-server, or scheduler-core.
 type APIFactory struct {
-	clients *Clients
-	lock *sync.RWMutex
+	clients  *Clients
+	testMode bool
+	lock     *sync.RWMutex
 }
 
-func NewAPIFactory(scheduler api.SchedulerAPI, configs *conf.SchedulerConf) *APIFactory {
+func NewAPIFactory(scheduler api.SchedulerAPI, configs *conf.SchedulerConf, testMode bool) *APIFactory {
 	kubeClient := NewKubeClient(configs.KubeConfig)
 
 	// we have disabled re-sync to keep ourselves up-to-date
@@ -95,12 +98,17 @@ func NewAPIFactory(scheduler api.SchedulerAPI, configs *conf.SchedulerConf) *API
 			StorageInformer:   storageInformer,
 			VolumeBinder:      volumeBinder,
 		},
-		lock: &sync.RWMutex{},
+		testMode: testMode,
+		lock:     &sync.RWMutex{},
 	}
 }
 
 func (s *APIFactory) GetAPIs() *Clients {
 	return s.clients
+}
+
+func (s *APIFactory) IsTestingMode() bool {
+	return s.testMode
 }
 
 func (s *APIFactory) AddEventHandler(handlers *ResourceEventHandlers) {
@@ -154,5 +162,7 @@ func (s *APIFactory) addEventHandlers(
 
 func (s *APIFactory) Run(stopCh <-chan struct{}) {
 	// launch clients
-	s.clients.Run(stopCh)
+	if !s.IsTestingMode() {
+		s.clients.Run(stopCh)
+	}
 }

@@ -30,23 +30,17 @@ type AppManagementService struct {
 	apiProvider   client.APIProvider
 	amProtocol    cache.ApplicationManagementProtocol
 	managers      []AppManager
-	launchOptions *AMServiceLaunchOptions
-}
-
-type AMServiceLaunchOptions struct {
-	TestMode bool
 }
 
 func NewAMService(amProtocol cache.ApplicationManagementProtocol,
-	apiProvider client.APIProvider, launchOptions *AMServiceLaunchOptions) *AppManagementService {
+	apiProvider client.APIProvider) *AppManagementService {
 	appManager := &AppManagementService{
 		amProtocol:    amProtocol,
 		apiProvider:   apiProvider,
-		launchOptions: launchOptions,
 		managers:      make([]AppManager, 0),
 	}
 
-	if !launchOptions.TestMode {
+	if !apiProvider.IsTestingMode() {
 		appManager.register(
 			// registered app plugins
 			// for general apps
