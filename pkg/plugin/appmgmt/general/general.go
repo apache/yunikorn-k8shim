@@ -77,61 +77,6 @@ func (os *Manager) Stop() error {
 	return nil
 }
 
-func (os *Manager) addApplicationInternal(pod *v1.Pod, recovery bool) (*cache.Application, bool) {
-	log.Logger.Debug("add pod",
-		zap.String("namespace", pod.Namespace),
-		zap.String("podName", pod.Name),
-		zap.String("podUID", string(pod.UID)),
-		zap.String("state", string(pod.Status.Phase)))
-
-	appId, err := utils.GetApplicationIDFromPod(pod)
-	if err != nil {
-		log.Logger.Error("unable to get application by given pod", zap.Error(err))
-		return nil, false
-	}
-
-	added := false
-	// found appId, now see if this app is already existed
-	app, ok := os.amProtocol.GetApplication(appId)
-	if !ok {
-		// tags will at least have namespace info
-		// labels or annotations from the pod can be added when needed
-		// user info is retrieved via service account
-		tags := map[string]string{}
-		if pod.Namespace == "" {
-			tags["namespace"] = "default"
-		} else {
-			tags["namespace"] = pod.Namespace
-		}
-		// get the application owner (this is all that is available as far as we can find)
-		user := pod.Spec.ServiceAccountName
-		// add or recovery this app
-		app, added = os.amProtocol.AddApplication(&cache.AddApplicationRequest{
-			Metadata: cache.ApplicationMetadata{
-				ApplicationID: appId,
-				QueueName:     utils.GetQueueNameFromPod(pod),
-				User:          user,
-				Tags:          tags,
-			},
-			Recovery:      recovery,
-		})
-	}
-
-	// app already exist, add the task if needed
-	if _, err := app.GetTask(string(pod.UID)); err != nil {
-		os.amProtocol.AddTask(&cache.AddTaskRequest{
-			Metadata: cache.TaskMetadata{
-				ApplicationID: app.GetApplicationID(),
-				TaskID:        string(pod.UID),
-				Pod:           pod,
-			},
-			Recovery: false,
-		})
-	}
-
-	return app, added
-}
-
 func (os *Manager) GetTaskMetadata(pod *v1.Pod) (cache.TaskMetadata, bool) {
 	appId, err := utils.GetApplicationIDFromPod(pod)
 	if err != nil {
