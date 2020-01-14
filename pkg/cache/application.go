@@ -163,7 +163,7 @@ func (app *Application) GetQueue() string {
 	return app.queue
 }
 
-func (app *Application) AddTask(task *Task) {
+func (app *Application) addTask(task *Task) {
 	app.lock.Lock()
 	defer app.lock.Unlock()
 	if _, ok := app.taskMap[task.taskID]; ok {
@@ -171,6 +171,20 @@ func (app *Application) AddTask(task *Task) {
 		return
 	}
 	app.taskMap[task.taskID] = task
+}
+
+func (app *Application) removeTask(taskID string) error {
+	app.lock.Lock()
+	defer app.lock.Unlock()
+	if _, ok := app.taskMap[taskID]; ok {
+		delete(app.taskMap, taskID)
+		log.Logger.Info("task removed",
+			zap.String("appID", app.applicationID),
+			zap.String("taskID", taskID))
+		return nil
+	}
+	return fmt.Errorf("task %s is not found in application %s",
+		taskID, app.applicationID)
 }
 
 func (app *Application) GetApplicationState() string {

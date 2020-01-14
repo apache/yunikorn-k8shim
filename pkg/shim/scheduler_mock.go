@@ -157,6 +157,10 @@ func (fc *MockScheduler) addApplication(appId string, queue string) {
 	})
 }
 
+func (fc *MockScheduler) removeApplication(appId string) error {
+	return fc.context.RemoveApplication(appId)
+}
+
 func (fc *MockScheduler) newApplication(appID, queueName string) *cache.Application {
 	app := cache.NewApplication(appID, queueName, "testuser", map[string]string{}, fc.apiProvider.GetAPIs().SchedulerAPI)
 	return app

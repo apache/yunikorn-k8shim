@@ -385,7 +385,12 @@ func (ctx *Context) NotifyApplicationComplete(appID string) {
 	}
 }
 
-func (ctx *Context) AddApplication(request *AddApplicationRequest) *Application {
+func (ctx *Context) AddApplication(request *AddApplicationRequest) (*Application, bool) {
+	if app, exist := ctx.GetApplication(request.Metadata.ApplicationID); exist {
+		// returns existing app, isAdded=false
+		return app, false
+	}
+
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
 	app := NewApplication(
@@ -410,7 +415,9 @@ func (ctx *Context) AddApplication(request *AddApplicationRequest) *Application 
 	log.Logger.Info("app added",
 		zap.String("appID", app.applicationID),
 		zap.Bool("recovery", request.Recovery))
-	return app
+
+	// returns the new added app, isAdded=true
+	return app, true
 }
 
 func (ctx *Context) GetApplication(appID string) (*Application, bool) {
@@ -422,21 +429,51 @@ func (ctx *Context) GetApplication(appID string) (*Application, bool) {
 	return nil, false
 }
 
+func (ctx *Context) RemoveApplication(appID string) error {
+	ctx.lock.Lock()
+	defer ctx.lock.Unlock()
+	if _, exist := ctx.applications[appID]; exist{
+		delete(ctx.applications, appID)
+		log.Logger.Info("app removed",
+			zap.String("appID", appID))
+		return nil
+	} else {
+		return fmt.Errorf("application %s is not found in the context", appID)
+	}
+}
+
 // this implements ApplicationManagementProtocol
-func (ctx *Context) AddTask(request *AddTaskRequest) {
+func (ctx *Context) AddTask(request *AddTaskRequest) (*Task, bool) {
 	if app, ok := ctx.GetApplication(request.Metadata.ApplicationID); ok {
-		if _, err := app.GetTask(request.Metadata.TaskID); err != nil {
+		if existingTask, err := app.GetTask(request.Metadata.TaskID); err != nil {
 			task := NewTask(request.Metadata.TaskID, app, ctx, request.Metadata.Pod)
 			// in recovery mode, task is considered as allocated
 			if request.Recovery {
 				task.setAllocated(request.Metadata.Pod.Spec.NodeName)
 			}
-			app.AddTask(&task)
+			app.addTask(&task)
 			log.Logger.Info("task added",
 				zap.String("appID", app.applicationID),
 				zap.String("taskID", task.taskID))
+
+			return &task, true
+		} else {
+			return existingTask, false
 		}
+	} else {
+		return nil, false
 	}
+}
+
+func (ctx *Context) RemoveTask(appID, taskID string) error {
+	ctx.lock.RLock()
+	defer ctx.lock.RUnlock()
+	if app, ok := ctx.applications[appID]; ok {
+		return app.removeTask(taskID)
+	} else {
+		return fmt.Errorf("application %s is not found in the context", appID)
+	}
+
 }
 
 func (ctx *Context) getTask(appID string, taskID string) (*Task, error) {

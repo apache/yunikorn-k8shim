@@ -106,7 +106,7 @@ func (os *Manager) addApplicationInternal(pod *v1.Pod, recovery bool) (*cache.Ap
 		// get the application owner (this is all that is available as far as we can find)
 		user := pod.Spec.ServiceAccountName
 		// add or recovery this app
-		app = os.amProtocol.AddApplication(&cache.AddApplicationRequest{
+		app, added = os.amProtocol.AddApplication(&cache.AddApplicationRequest{
 			Metadata: cache.ApplicationMetadata{
 				ApplicationID: appId,
 				QueueName:     utils.GetQueueNameFromPod(pod),
@@ -115,7 +115,6 @@ func (os *Manager) addApplicationInternal(pod *v1.Pod, recovery bool) (*cache.Ap
 			},
 			Recovery:      recovery,
 		})
-		added = true
 	}
 
 	// app already exist, add the task if needed

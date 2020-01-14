@@ -31,6 +31,7 @@ import (
 	"github.com/cloudera/yunikorn-k8shim/pkg/plugin/appmgmt"
 	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
 	"go.uber.org/zap"
+	"gotest.tools/assert"
 	v1 "k8s.io/api/core/v1"
 )
 
@@ -132,9 +133,13 @@ partitions:
 	// verify app state
 	cluster.waitAndAssertApplicationState(t, "app0001", events.States().Application.Failed)
 
+	// remove the application
+	err := cluster.removeApplication("app0001")
+	assert.Assert(t, err == nil)
+
 	// submit the app again
 	cluster.addApplication("app0001", "root.a")
-	cluster.addTask("app0001", "task0001", taskResource, )
+	cluster.addTask("app0001", "task0001", taskResource)
 	cluster.waitAndAssertApplicationState(t, "app0001", events.States().Application.Running)
 	cluster.waitAndAssertTaskState(t, "app0001", "task0001", events.States().Task.Bound)
 }

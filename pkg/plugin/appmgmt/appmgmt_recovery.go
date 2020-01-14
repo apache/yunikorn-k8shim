@@ -50,15 +50,10 @@ func (svc *AppManagementService) recoverApp(pod *corev1.Pod) (*cache.Application
 	if utils.IsAssignedPod(pod) && utils.IsSchedulablePod(pod) {
 		for _, appmgmt := range svc.managers {
 			if appMeta, ok := appmgmt.GetAppMetadata(pod); ok {
-				if _, exist := svc.amProtocol.GetApplication(appMeta.ApplicationID); !exist {
-					// if app already exist, that means it is already under recovering
-					// otherwise, recovery this app through am protocol
-					app := svc.amProtocol.AddApplication(&cache.AddApplicationRequest{
-						Metadata: appMeta,
-						Recovery: true,
-					})
-					return app, true
-				}
+				return svc.amProtocol.AddApplication(&cache.AddApplicationRequest{
+					Metadata: appMeta,
+					Recovery: true,
+				})
 			}
 		}
 	}

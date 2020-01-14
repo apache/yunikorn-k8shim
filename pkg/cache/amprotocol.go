@@ -24,8 +24,10 @@ import (
 // this is the protocol between scheduler cache and app management plugins
 type ApplicationManagementProtocol interface {
 	GetApplication(appID string) (*Application, bool)
-	AddApplication(request *AddApplicationRequest) *Application
-	AddTask(request *AddTaskRequest)
+	AddApplication(request *AddApplicationRequest) (*Application, bool)
+	RemoveApplication(appID string) error
+	AddTask(request *AddTaskRequest) (*Task, bool)
+	RemoveTask(appID, taskID string) error
 	NotifyApplicationComplete(appID string)
 }
 
