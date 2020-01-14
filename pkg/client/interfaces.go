@@ -19,6 +19,7 @@ package client
 import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 )
 
 type KubeClient interface {
@@ -30,6 +31,8 @@ type KubeClient interface {
 
 	// minimal expose this, only informers factory needs it
 	GetClientSet() *kubernetes.Clientset
+
+	GetConfigs() *rest.Config
 }
 
 func NewKubeClient(kc string) KubeClient {

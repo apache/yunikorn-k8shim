@@ -35,6 +35,8 @@ import (
 	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
 	"go.uber.org/zap"
 	"gotest.tools/assert"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // fake cluster is used for testing
@@ -44,18 +46,15 @@ type MockScheduler struct {
 	scheduler   *KubernetesShim
 	coreContext *entrypoint.ServiceContext
 	apiProvider *test.MockedAPIProvider
-	amProtocol  *cache.MockedAMProtocol
-	conf        string
 	stopChan    chan struct{}
 }
 
 func (fc *MockScheduler) init(queues string) {
-	fc.conf = queues
 	fc.stopChan = make(chan struct{})
 
 	serviceContext := entrypoint.StartAllServices()
 	rmProxy := serviceContext.RMProxy
-	coreconfigs.MockSchedulerConfigByData([]byte(fc.conf))
+	coreconfigs.MockSchedulerConfigByData([]byte(queues))
 	schedulerAPI, ok := rmProxy.(api.SchedulerAPI)
 	if !ok {
 		log.Logger.Debug("cast failed unexpected object",
@@ -63,17 +62,18 @@ func (fc *MockScheduler) init(queues string) {
 	}
 
 	mockedAPIProvider := test.NewMockedAPIProvider()
-	mockedAMProtocol := cache.NewMockedAMProtocol()
 	mockedAPIProvider.GetAPIs().SchedulerAPI = schedulerAPI
 
 	context := cache.NewContextInternal(mockedAPIProvider, true)
 	rmCallback := callback.NewAsyncRMCallback(context)
-	amSvc := appmgmt.NewAMService(mockedAMProtocol, mockedAPIProvider)
+	amSvc := appmgmt.NewAMService(context, mockedAPIProvider,
+		&appmgmt.AMServiceLaunchOptions{TestMode:true})
 	ss := newShimSchedulerInternal(context, mockedAPIProvider, amSvc, rmCallback)
 
 	fc.context = context
 	fc.scheduler = ss
 	fc.coreContext = serviceContext
+	fc.apiProvider = mockedAPIProvider
 	conf.Set(mockedAPIProvider.GetAPIs().Conf)
 }
 
@@ -92,10 +92,19 @@ func (fc *MockScheduler) addNode(nodeName string, memory, cpu int64) error {
 	return fc.apiProvider.GetAPIs().SchedulerAPI.Update(&request)
 }
 
-func (fc *MockScheduler) addTask(tid string, ask *si.Resource, app *cache.Application) cache.Task {
-	task := cache.CreateTaskForTest(tid, app, ask, fc.context)
-	app.AddTask(&task)
-	return task
+func (fc *MockScheduler) addTask(appID string, taskID string, ask *si.Resource) {
+	fc.context.AddTask(&cache.AddTaskRequest{
+		Metadata: cache.TaskMetadata{
+			ApplicationID: appID,
+			TaskID:        taskID,
+			Pod:           &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: taskID,
+				},
+			},
+		},
+		Recovery: false,
+	})
 }
 
 func (fc *MockScheduler) waitForSchedulerState(t *testing.T, expectedState string) {
@@ -137,13 +146,13 @@ func (fc *MockScheduler) waitAndAssertApplicationState(t *testing.T, appID, expe
 	}
 }
 
-func (fc *MockScheduler) addApplication(app *cache.Application) {
+func (fc *MockScheduler) addApplication(appId string, queue string) {
 	fc.context.AddApplication(&cache.AddApplicationRequest{
 		Metadata: cache.ApplicationMetadata{
-			ApplicationID: app.GetApplicationID(),
-			QueueName:     app.GetQueue(),
-			User:          "",
-			Tags:          nil,
+			ApplicationID: appId,
+			QueueName:     queue,
+			User:          "test-user",
+			Tags:          map[string]string{"app-type": "test-app"},
 		},
 		Recovery:      false,
 	})

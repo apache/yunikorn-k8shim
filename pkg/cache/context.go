@@ -28,7 +28,6 @@ import (
 	"github.com/cloudera/yunikorn-k8shim/pkg/common"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/utils"
-	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
 	"github.com/cloudera/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/cloudera/yunikorn-k8shim/pkg/log"
 	plugin "github.com/cloudera/yunikorn-k8shim/pkg/plugin/predicates"
@@ -40,7 +39,6 @@ import (
 type Context struct {
 	applications   map[string]*Application        // apps
 	nodes          *schedulerNodes                // nodes
-	conf           *conf.SchedulerConf            // configs
 	schedulerCache *schedulercache.SchedulerCache // external cache
 	apiProvider    client.APIProvider             // apis to interact with api-server, scheduler-core, etc
 	predictor      *plugin.Predictor              // K8s predicates
@@ -283,7 +281,8 @@ func (ctx *Context) deleteConfigMaps(obj interface{}) {
 
 func (ctx *Context) triggerReloadConfig() {
 	log.Logger.Info("trigger scheduler configuration reloading")
-	if err := ctx.apiProvider.GetAPIs().SchedulerAPI.ReloadConfiguration(ctx.conf.ClusterID); err != nil {
+	clusterId := ctx.apiProvider.GetAPIs().Conf.ClusterID
+	if err := ctx.apiProvider.GetAPIs().SchedulerAPI.ReloadConfiguration(clusterId); err != nil {
 		log.Logger.Error("reload configuration failed", zap.Error(err))
 	}
 }

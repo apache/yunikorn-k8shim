@@ -21,6 +21,7 @@ import (
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 )
 
 // fake client allows us to inject customized bind/delete pod functions
@@ -61,5 +62,9 @@ func (c *KubeClientMock) Delete(pod *v1.Pod) error {
 }
 
 func (c *KubeClientMock) GetClientSet() *kubernetes.Clientset {
+	return nil
+}
+
+func (c *KubeClientMock) GetConfigs() *rest.Config {
 	return nil
 }

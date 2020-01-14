@@ -30,6 +30,7 @@ import (
 
 type SchedulerKubeClient struct {
 	clientSet *kubernetes.Clientset
+	configs   *rest.Config
 }
 
 func newSchedulerKubeClient(kc string) SchedulerKubeClient {
@@ -61,11 +62,16 @@ func newSchedulerKubeClient(kc string) SchedulerKubeClient {
 	}
 	return SchedulerKubeClient{
 		clientSet: configuredClient,
+		configs:   config,
 	}
 }
 
 func (nc SchedulerKubeClient) GetClientSet() *kubernetes.Clientset {
 	return nc.clientSet
+}
+
+func (nc SchedulerKubeClient) GetConfigs() *rest.Config {
+	return nc.configs
 }
 
 func (nc SchedulerKubeClient) Bind(pod *v1.Pod, hostID string) error {

@@ -26,7 +26,6 @@ import (
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
 	k8sCache "k8s.io/client-go/tools/cache"
-	"k8s.io/client-go/tools/clientcmd"
 )
 
 type Manager struct {
@@ -47,17 +46,12 @@ func New(amProtocol cache.ApplicationManagementProtocol, apiProvider client.APIP
 
 // this implements AppManagementService interface
 func (os *Manager) ServiceInit() error {
-	configs, err := clientcmd.BuildConfigFromFlags("",
-		os.apiProvider.GetAPIs().Conf.KubeConfig)
+	crClient, err := crcClientSet.NewForConfig(
+		os.apiProvider.GetAPIs().KubeClient.GetConfigs())
 	if err != nil {
 		return err
 	}
-
-	crClient, err := crcClientSet.NewForConfig(configs)
-	if err != nil {
-		return err
-	}
-
+	
 	var factoryOpts []crInformers.SharedInformerOption
 	os.crdInformerFactory = crInformers.NewSharedInformerFactoryWithOptions(
 		crClient, 0, factoryOpts...)

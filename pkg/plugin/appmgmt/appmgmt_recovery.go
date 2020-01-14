@@ -34,7 +34,7 @@ func (svc *AppManagementService) WaitForRecovery(maxTimeout time.Duration) error
 	// Currently, disable recovery when testing in a mocked cluster,
 	// because mock pod/node lister is not easy. We do have unit tests for
 	// waitForAppRecovery/waitForNodeRecovery separately.
-	if !svc.skipRecovery {
+	if !svc.launchOptions.TestMode {
 		if err := svc.waitForAppRecovery(svc.apiProvider.GetAPIs().PodInformer.Lister(), maxTimeout); err != nil {
 			log.Logger.Error("app recovery failed", zap.Error(err))
 			return err

@@ -27,25 +27,33 @@ import (
 // app manager service is a central service that interacts with
 // one or more K8s operators for app scheduling.
 type AppManagementService struct {
-	apiProvider  client.APIProvider
-	amProtocol   cache.ApplicationManagementProtocol
-	managers     []AppManager
-	skipRecovery bool
+	apiProvider   client.APIProvider
+	amProtocol    cache.ApplicationManagementProtocol
+	managers      []AppManager
+	launchOptions *AMServiceLaunchOptions
 }
 
-func NewAMService(amProtocol cache.ApplicationManagementProtocol, apiProvider client.APIProvider) *AppManagementService {
+type AMServiceLaunchOptions struct {
+	TestMode bool
+}
+
+func NewAMService(amProtocol cache.ApplicationManagementProtocol,
+	apiProvider client.APIProvider, launchOptions *AMServiceLaunchOptions) *AppManagementService {
 	appManager := &AppManagementService{
-		amProtocol:  amProtocol,
-		apiProvider: apiProvider,
-		managers:    make([]AppManager, 0),
+		amProtocol:    amProtocol,
+		apiProvider:   apiProvider,
+		launchOptions: launchOptions,
+		managers:      make([]AppManager, 0),
 	}
 
-	appManager.register(
-		// registered app plugins
-		// for general apps
-		general.New(amProtocol, apiProvider),
-		// for spark operator - SparkApplication
-		sparkopt.New(amProtocol, apiProvider))
+	if !launchOptions.TestMode {
+		appManager.register(
+			// registered app plugins
+			// for general apps
+			general.New(amProtocol, apiProvider),
+			// for spark operator - SparkApplication
+			sparkopt.New(amProtocol, apiProvider))
+	}
 
 	return appManager
 }
