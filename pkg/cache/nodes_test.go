@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cloudera/yunikorn-k8shim/pkg/client"
 	"gotest.tools/assert"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -283,7 +284,7 @@ func TestDeleteNode(t *testing.T) {
 
 // A wrapper around the scheduler cache which does not initialise the lister and volumebinder
 func NewTestSchedulerCache() *external.SchedulerCache {
-	return external.NewSchedulerCache(test.NewMockedAPIProvider().GetAPIs())
+	return external.NewSchedulerCache(client.NewMockedAPIProvider().GetAPIs())
 }
 
 func TestCordonNode(t *testing.T) {

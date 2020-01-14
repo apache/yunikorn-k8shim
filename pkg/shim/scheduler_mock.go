@@ -26,8 +26,8 @@ import (
 	"github.com/cloudera/yunikorn-core/pkg/entrypoint"
 	"github.com/cloudera/yunikorn-k8shim/pkg/cache"
 	"github.com/cloudera/yunikorn-k8shim/pkg/callback"
+	"github.com/cloudera/yunikorn-k8shim/pkg/client"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common"
-	"github.com/cloudera/yunikorn-k8shim/pkg/common/test"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/utils"
 	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
 	"github.com/cloudera/yunikorn-k8shim/pkg/log"
@@ -45,7 +45,7 @@ type MockScheduler struct {
 	context     *cache.Context
 	scheduler   *KubernetesShim
 	coreContext *entrypoint.ServiceContext
-	apiProvider *test.MockedAPIProvider
+	apiProvider *client.MockedAPIProvider
 	stopChan    chan struct{}
 }
 
@@ -61,7 +61,7 @@ func (fc *MockScheduler) init(queues string) {
 			zap.Any("schedulerAPI", rmProxy))
 	}
 
-	mockedAPIProvider := test.NewMockedAPIProvider()
+	mockedAPIProvider := client.NewMockedAPIProvider()
 	mockedAPIProvider.GetAPIs().SchedulerAPI = schedulerAPI
 
 	context := cache.NewContext(mockedAPIProvider)

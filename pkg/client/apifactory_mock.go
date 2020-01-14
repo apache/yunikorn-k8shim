@@ -14,21 +14,21 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package test
+package client
 
 import (
-	"github.com/cloudera/yunikorn-k8shim/pkg/client"
+	"github.com/cloudera/yunikorn-k8shim/pkg/common/test"
 	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
 	v1 "k8s.io/api/core/v1"
 )
 
 type MockedAPIProvider struct {
-	clients *client.Clients
+	clients *Clients
 }
 
 func NewMockedAPIProvider() *MockedAPIProvider {
 	return &MockedAPIProvider{
-		clients: &client.Clients{
+		clients: &Clients{
 			Conf:              &conf.SchedulerConf{
 				ClusterID:            "yk-test-cluster",
 				ClusterVersion:       "0.1",
@@ -48,7 +48,7 @@ func NewMockedAPIProvider() *MockedAPIProvider {
 				Predicates:           "",
 			},
 			KubeClient:        NewKubeClientMock(),
-			SchedulerAPI:      NewSchedulerAPIMock(),
+			SchedulerAPI:      test.NewSchedulerAPIMock(),
 			PodInformer:       nil,
 			NodeInformer:      nil,
 			ConfigMapInformer: nil,
@@ -72,7 +72,7 @@ func (m *MockedAPIProvider) MockDeleteFn(dfn func(pod *v1.Pod) error) {
 	}
 }
 
-func (m *MockedAPIProvider) GetAPIs() *client.Clients {
+func (m *MockedAPIProvider) GetAPIs() *Clients {
 	return m.clients
 }
 
@@ -80,7 +80,7 @@ func (m *MockedAPIProvider) IsTestingMode() bool {
 	return true
 }
 
-func (m *MockedAPIProvider) AddEventHandler (handlers *client.ResourceEventHandlers) {
+func (m *MockedAPIProvider) AddEventHandler (handlers *ResourceEventHandlers) {
 	// no impl
 }
 

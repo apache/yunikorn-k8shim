@@ -20,15 +20,15 @@ import (
 	"testing"
 
 	"github.com/cloudera/yunikorn-k8shim/pkg/cache"
+	"github.com/cloudera/yunikorn-k8shim/pkg/client"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
-	"github.com/cloudera/yunikorn-k8shim/pkg/common/test"
 	"gotest.tools/assert"
 	v1 "k8s.io/api/core/v1"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestGetAppMetadata(t *testing.T) {
-	am := New(cache.NewMockedAMProtocol(), test.NewMockedAPIProvider())
+	am := New(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider())
 
 	pod := v1.Pod{
 		TypeMeta: apis.TypeMeta{
@@ -111,7 +111,7 @@ func TestGetAppMetadata(t *testing.T) {
 }
 
 func TestGetTaskMetadata(t *testing.T) {
-	am := New(&cache.MockedAMProtocol{}, test.NewMockedAPIProvider())
+	am := New(&cache.MockedAMProtocol{}, client.NewMockedAPIProvider())
 
 	pod := v1.Pod{
 		TypeMeta: apis.TypeMeta{
@@ -160,7 +160,7 @@ func TestGetTaskMetadata(t *testing.T) {
 
 
 func TestAddPod(t *testing.T) {
-	am := New(cache.NewMockedAMProtocol(), test.NewMockedAPIProvider())
+	am := New(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider())
 
 	pod := v1.Pod{
 		TypeMeta: apis.TypeMeta{

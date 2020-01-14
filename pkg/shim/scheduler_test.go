@@ -23,6 +23,7 @@ import (
 
 	"github.com/cloudera/yunikorn-core/pkg/api"
 	"github.com/cloudera/yunikorn-k8shim/pkg/cache"
+	"github.com/cloudera/yunikorn-k8shim/pkg/client"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/test"
@@ -142,7 +143,7 @@ func TestSchedulerRegistrationFailed(t *testing.T) {
 	var callback api.ResourceManagerCallback
 
 	mockedAMProtocol := cache.NewMockedAMProtocol()
-	mockedAPIProvider := test.NewMockedAPIProvider()
+	mockedAPIProvider := client.NewMockedAPIProvider()
 	mockedAPIProvider.GetAPIs().SchedulerAPI = test.NewSchedulerAPIMock().RegisterFunction(
 		func(request *si.RegisterResourceManagerRequest,
 			callback api.ResourceManagerCallback) (response *si.RegisterResourceManagerResponse, e error) {

@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cloudera/yunikorn-k8shim/pkg/client"
 	"gotest.tools/assert"
 	v1 "k8s.io/api/core/v1"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -31,7 +32,7 @@ import (
 )
 
 func TestNodeRecoveringState(t *testing.T) {
-	context := NewContext(test.NewMockedAPIProvider())
+	context := NewContext(client.NewMockedAPIProvider())
 	dispatcher.RegisterEventHandler(dispatcher.EventTypeNode, context.nodes.schedulerNodeEventHandler())
 	dispatcher.Start()
 	defer dispatcher.Stop()
@@ -92,7 +93,7 @@ func TestNodeRecoveringState(t *testing.T) {
 }
 
 func TestNodesRecovery(t *testing.T) {
-	context := NewContext(test.NewMockedAPIProvider())
+	context := NewContext(client.NewMockedAPIProvider())
 	dispatcher.RegisterEventHandler(dispatcher.EventTypeNode, context.nodes.schedulerNodeEventHandler())
 	dispatcher.Start()
 	defer dispatcher.Stop()
