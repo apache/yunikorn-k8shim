@@ -35,14 +35,14 @@ func TestConvert2Pod(t *testing.T) {
 
 func TestIsAssignedPod(t *testing.T) {
 	assigned := IsAssignedPod(&v1.Pod{
-		Spec:       v1.PodSpec{
+		Spec: v1.PodSpec{
 			NodeName: "some-node",
 		},
 	})
 	assert.Equal(t, assigned, true)
 
 	assigned = IsAssignedPod(&v1.Pod{
-		Spec:       v1.PodSpec{},
+		Spec: v1.PodSpec{},
 	})
 	assert.Equal(t, assigned, false)
 
