@@ -20,7 +20,7 @@ import (
 	"github.com/cloudera/yunikorn-k8shim/pkg/client"
 	"github.com/cloudera/yunikorn-k8shim/pkg/log"
 	"github.com/cloudera/yunikorn-k8shim/pkg/plugin/appmgmt/general"
-	"github.com/cloudera/yunikorn-k8shim/pkg/plugin/appmgmt/sparkopt"
+	"github.com/cloudera/yunikorn-k8shim/pkg/plugin/appmgmt/sparkoperator"
 	"go.uber.org/zap"
 )
 
@@ -46,7 +46,7 @@ func NewAMService(amProtocol cache.ApplicationManagementProtocol,
 			// for general apps
 			general.New(amProtocol, apiProvider),
 			// for spark operator - SparkApplication
-			sparkopt.New(amProtocol, apiProvider))
+			sparkoperator.New(amProtocol, apiProvider))
 	}
 
 	return appManager

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package sparkopt
+package sparkoperator
 
 import (
 	"github.com/GoogleCloudPlatform/spark-on-k8s-operator/pkg/apis/sparkoperator.k8s.io/v1beta2"
@@ -127,23 +127,6 @@ func (os *Manager) ListApplications() (map[string]cache.ApplicationMetadata, err
 			}
 		}
 		return existingApps, nil
-	}
-	return nil, err
-}
-
-func (os *Manager) ListAppTasks(appID string) (map[string]cache.TaskMetadata, error) {
-	lister := os.apiProvider.GetAPIs().PodInformer.Lister()
-	matchedLabels := make(map[string]string)
-	matchedLabels[SparkAppNameLabel] = appID
-	sparkTasks, err := lister.List(labels.SelectorFromSet(matchedLabels))
-	if err == nil {
-		existingTasks := make(map[string]cache.TaskMetadata)
-		for _, sparkPod := range sparkTasks {
-			if meta, ok := os.getTaskMetadata(sparkPod); ok {
-				existingTasks[meta.TaskID] = meta
-			}
-		}
-		return existingTasks, nil
 	}
 	return nil, err
 }
