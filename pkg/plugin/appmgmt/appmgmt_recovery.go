@@ -27,54 +27,62 @@ import (
 	"go.uber.org/zap"
 )
 
-func  (svc *AppManagementService) WaitForRecovery(maxTimeout time.Duration) error {
-	// get all existing applications
+func (svc *AppManagementService) WaitForRecovery(maxTimeout time.Duration) error {
 	if !svc.apiProvider.IsTestingMode() {
-		recoveringApps := make(map[string]*cache.Application)
-		for _, mgr := range svc.managers {
-			appMetas, err := mgr.ListApplications()
-			if err != nil {
-				log.Logger.Error("failed to list apps", zap.Error(err))
-				return err
-			}
+		apps := svc.kickoffRecovery()
+		return svc.waitForAppRecovery(apps, maxTimeout)
+	}
+	return nil
+}
 
-			// trigger recovery of the apps
-			// this is simply submit the app again
-			for _, appMeta := range appMetas {
-				if app, recovering := svc.amProtocol.AddApplication(
-					&cache.AddApplicationRequest{
-						Metadata: appMeta,
-						Recovery: true,
-				}); recovering {
-					recoveringApps[app.GetApplicationID()] = app
-				}
-			}
+func (svc *AppManagementService) kickoffRecovery() map[string]*cache.Application {
+	recoveringApps := make(map[string]*cache.Application)
+	for _, mgr := range svc.managers {
+		appMetas, err := mgr.ListApplications()
+		if err != nil {
+			log.Logger.Error("failed to list apps", zap.Error(err))
+			return recoveringApps
 		}
 
-		// wait for app recovery
-		if len(recoveringApps) > 0 {
-			// check app states periodically, ensure all apps exit from recovering state
-			if err := utils.WaitForCondition(func() bool {
-				for _, app := range recoveringApps {
-					log.Logger.Info("appInfo",
-						zap.String("appId", app.GetApplicationID()),
-						zap.String("state", app.GetApplicationState()))
-					if app.GetApplicationState() == events.States().Application.Accepted {
-						delete(recoveringApps, app.GetApplicationID())
-					}
-				}
-
-				if len(recoveringApps) == 0 {
-					log.Logger.Info("app recovery is successful")
-					return true
-				}
-
-				return false
-			}, 1 * time.Second, maxTimeout); err != nil{
-				return fmt.Errorf("timeout waiting for app recovery in %s",
-					maxTimeout.String())
+		// trigger recovery of the apps
+		// this is simply submit the app again
+		for _, appMeta := range appMetas {
+			if app, recovering := svc.amProtocol.AddApplication(
+				&cache.AddApplicationRequest{
+					Metadata: appMeta,
+					Recovery: true,
+				}); recovering {
+				recoveringApps[app.GetApplicationID()] = app
 			}
 		}
 	}
+	return recoveringApps
+}
+
+func (svc *AppManagementService) waitForAppRecovery(recoveringApps map[string]*cache.Application, maxTimeout time.Duration) error {
+	if len(recoveringApps) > 0 {
+		// check app states periodically, ensure all apps exit from recovering state
+		if err := utils.WaitForCondition(func() bool {
+			for _, app := range recoveringApps {
+				log.Logger.Info("appInfo",
+					zap.String("appId", app.GetApplicationID()),
+					zap.String("state", app.GetApplicationState()))
+				if app.GetApplicationState() == events.States().Application.Accepted {
+					delete(recoveringApps, app.GetApplicationID())
+				}
+			}
+
+			if len(recoveringApps) == 0 {
+				log.Logger.Info("app recovery is successful")
+				return true
+			}
+
+			return false
+		}, 1*time.Second, maxTimeout); err != nil {
+			return fmt.Errorf("timeout waiting for app recovery in %s",
+				maxTimeout.String())
+		}
+	}
+
 	return nil
 }
