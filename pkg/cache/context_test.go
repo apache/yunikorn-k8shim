@@ -231,6 +231,37 @@ func TestAddTask(t *testing.T) {
 	assert.Equal(t, len(context.applications["app00001"].GetNewTasks()), 2)
 }
 
+func TestRecoverTask(t *testing.T) {
+	context := initContextForTest()
+
+	// add a new application
+	context.AddApplication(&AddApplicationRequest{
+		Metadata: ApplicationMetadata{
+			ApplicationID: "app00001",
+			QueueName:     "root.a",
+			User:          "test-user",
+			Tags:          nil,
+		},
+		Recovery: true,
+	})
+	assert.Equal(t, len(context.applications), 1)
+	assert.Assert(t, context.applications["app00001"] != nil)
+	assert.Equal(t, len(context.applications["app00001"].GetPendingTasks()), 0)
+
+	// add a tasks to the existing application
+	task, taskAdded := context.AddTask(&AddTaskRequest{
+		Metadata: TaskMetadata{
+			ApplicationID: "app00001",
+			TaskID:        "task00001",
+			Pod:           &v1.Pod{},
+		},
+		Recovery: true,
+	})
+	assert.Assert(t, taskAdded, true)
+	assert.Equal(t, task.taskID, "task00001")
+	assert.Equal(t, task.GetTaskState(), events.States().Task.Allocated)
+}
+
 func TestRemoveTask(t *testing.T) {
 	context := initContextForTest()
 

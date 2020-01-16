@@ -20,13 +20,13 @@ import (
 	"github.com/cloudera/yunikorn-k8shim/pkg/cache"
 	"github.com/cloudera/yunikorn-k8shim/pkg/client"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common"
-	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/utils"
-	"github.com/cloudera/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/cloudera/yunikorn-k8shim/pkg/log"
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/selection"
 	k8sCache "k8s.io/client-go/tools/cache"
 )
 
@@ -77,7 +77,7 @@ func (os *Manager) Stop() error {
 	return nil
 }
 
-func (os *Manager) GetTaskMetadata(pod *v1.Pod) (cache.TaskMetadata, bool) {
+func (os *Manager) getTaskMetadata(pod *v1.Pod) (cache.TaskMetadata, bool) {
 	appId, err := utils.GetApplicationIDFromPod(pod)
 	if err != nil {
 		log.Logger.Debug("unable to get task by given pod", zap.Error(err))
@@ -91,7 +91,7 @@ func (os *Manager) GetTaskMetadata(pod *v1.Pod) (cache.TaskMetadata, bool) {
 	}, true
 }
 
-func (os *Manager) GetAppMetadata(pod *v1.Pod) (cache.ApplicationMetadata, bool) {
+func (os *Manager) getAppMetadata(pod *v1.Pod) (cache.ApplicationMetadata, bool) {
 	appId, err := utils.GetApplicationIDFromPod(pod)
 	if err != nil {
 		log.Logger.Debug("unable to get application by given pod", zap.Error(err))
@@ -136,27 +136,38 @@ func (os *Manager) addPod(obj interface{}) {
 		return
 	}
 
-	if pod.Status.Phase == v1.PodPending {
-		// add app
-		if appMeta, ok := os.GetAppMetadata(pod); ok {
-			// check if app already exist
-			if _, exist := os.amProtocol.GetApplication(appMeta.ApplicationID); !exist {
-				os.amProtocol.AddApplication(&cache.AddApplicationRequest{
-					Metadata: appMeta,
-					Recovery: false,
-				})
-			}
-		}
+	recovery, err := utils.NeedRecovery(pod)
+	if err != nil {
+		log.Logger.Error("we can't tell to add or recover this pod",
+			zap.Error(err))
+		return
+	}
 
-		// add task
-		if taskMeta, ok := os.GetTaskMetadata(pod); ok {
-			if app, exist := os.amProtocol.GetApplication(taskMeta.ApplicationID); exist {
-				if _, err := app.GetTask(string(pod.UID)); err != nil {
-					os.amProtocol.AddTask(&cache.AddTaskRequest{
-						Metadata: taskMeta,
-						Recovery: false,
-					})
-				}
+	log.Logger.Debug("pod added",
+		zap.String("appType", os.Name()),
+		zap.String("Name", pod.Name),
+		zap.String("Namespace", pod.Namespace),
+		zap.Bool("NeedsRecovery", recovery))
+
+	// add app
+	if appMeta, ok := os.getAppMetadata(pod); ok {
+		// check if app already exist
+		if _, exist := os.amProtocol.GetApplication(appMeta.ApplicationID); !exist {
+			os.amProtocol.AddApplication(&cache.AddApplicationRequest{
+				Metadata: appMeta,
+				Recovery: recovery,
+			})
+		}
+	}
+
+	// add task
+	if taskMeta, ok := os.getTaskMetadata(pod); ok {
+		if app, exist := os.amProtocol.GetApplication(taskMeta.ApplicationID); exist {
+			if _, err := app.GetTask(string(pod.UID)); err != nil {
+				os.amProtocol.AddTask(&cache.AddTaskRequest{
+					Metadata: taskMeta,
+					Recovery: recovery,
+				})
 			}
 		}
 	}
@@ -191,27 +202,21 @@ func (os *Manager) deletePod(obj interface{}) {
 		return
 	}
 
-	appId, err := utils.GetApplicationIDFromPod(pod)
-	if err != nil {
-		log.Logger.Error("unable to get application by given pod", zap.Error(err))
-		return
-	}
+	log.Logger.Info("delete pod",
+		zap.String("appType", os.Name()),
+		zap.String("namespace", pod.Namespace),
+		zap.String("podName", pod.Name),
+		zap.String("podUID", string(pod.UID)))
 
-	if application, ok := os.amProtocol.GetApplication(appId); ok {
-		log.Logger.Debug("release allocation")
-		dispatcher.Dispatch(cache.NewSimpleTaskEvent(
-			application.GetApplicationID(), string(pod.UID), events.CompleteTask))
-
-		log.Logger.Info("delete pod",
-			zap.String("namespace", pod.Namespace),
-			zap.String("podName", pod.Name),
-			zap.String("podUID", string(pod.UID)))
-		// starts a completion handler to handle the completion of a app on demand
-		os.startCompletionHandler(application, pod)
+	if taskMeta, ok := os.getTaskMetadata(pod); ok {
+		if application, ok := os.amProtocol.GetApplication(taskMeta.ApplicationID); ok {
+			os.amProtocol.NotifyTaskComplete(taskMeta.ApplicationID, taskMeta.TaskID)
+			os.startCompletionHandlerIfNecessary(application, pod)
+		}
 	}
 }
 
-func (os *Manager) startCompletionHandler(app *cache.Application, pod *v1.Pod) {
+func (os *Manager) startCompletionHandlerIfNecessary(app *cache.Application, pod *v1.Pod) {
 	for name, value := range pod.Labels {
 		if name == common.SparkLabelRole && value == common.SparkLabelRoleDriver {
 			app.StartCompletionHandler(cache.CompletionHandler{
@@ -237,7 +242,7 @@ func (os *Manager) startCompletionHandler(app *cache.Application, pod *v1.Pod) {
 								log.Logger.Info("spark driver completed, app completed",
 									zap.String("pod", resp.Name),
 									zap.String("appId", app.GetApplicationID()))
-								dispatcher.Dispatch(cache.NewSimpleApplicationEvent(app.GetApplicationID(), events.CompleteApplication))
+								os.amProtocol.NotifyApplicationComplete(app.GetApplicationID())
 								return
 							}
 						}
@@ -247,4 +252,34 @@ func (os *Manager) startCompletionHandler(app *cache.Application, pod *v1.Pod) {
 			return
 		}
 	}
+}
+
+func (os *Manager) ListApplications() (map[string]cache.ApplicationMetadata, error) {
+	// selector: applicationID exist
+	slt := labels.NewSelector()
+	req, err := labels.NewRequirement(common.LabelApplicationID, selection.Exists, nil)
+	if err != nil {
+		return nil, err
+	}
+	slt = slt.Add(*req)
+
+	// list all pods on this cluster
+	appPods, err := os.apiProvider.GetAPIs().PodInformer.Lister().List(slt)
+	if err != nil {
+		return nil, err
+	}
+
+	// get existing apps
+	existingApps := make(map[string]cache.ApplicationMetadata)
+	if appPods != nil && len(appPods) > 0 {
+		for _, pod := range appPods {
+			if meta, ok := os.getAppMetadata(pod); ok {
+				if _, exist := existingApps[meta.ApplicationID]; !exist {
+					existingApps[meta.ApplicationID] = meta
+				}
+			}
+		}
+	}
+
+	return existingApps, nil
 }

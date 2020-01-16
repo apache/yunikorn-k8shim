@@ -377,15 +377,27 @@ func (ctx *Context) UpdateApplication(app *Application) {
 // the complete state may further explained to completed_with_errors(failed) or successfully_completed,
 // either way we need to release all allocations (if exists) for this application
 func (ctx *Context) NotifyApplicationComplete(appID string) {
-	ctx.lock.Lock()
-	defer ctx.lock.Unlock()
 	if _, ok := ctx.GetApplication(appID); ok {
 		ev := NewSimpleApplicationEvent(appID, events.CompleteApplication)
 		dispatcher.Dispatch(ev)
 	}
 }
 
+func (ctx *Context) NotifyTaskComplete(appID, taskID string) {
+	log.Logger.Debug("NotifyTaskComplete",
+		zap.String("appID", appID),
+		zap.String("taskID", taskID))
+	if _, ok := ctx.GetApplication(appID); ok {
+		log.Logger.Debug("release allocation",
+			zap.String("appID", appID),
+			zap.String("taskID", taskID))
+		ev := NewSimpleTaskEvent(appID, taskID, events.CompleteTask)
+		dispatcher.Dispatch(ev)
+	}
+}
+
 func (ctx *Context) AddApplication(request *AddApplicationRequest) (*Application, bool) {
+	log.Logger.Debug("AddApplication", zap.Any("Request", request))
 	if app, exist := ctx.GetApplication(request.Metadata.ApplicationID); exist {
 		// returns existing app, isAdded=false
 		return app, false
@@ -444,6 +456,7 @@ func (ctx *Context) RemoveApplication(appID string) error {
 
 // this implements ApplicationManagementProtocol
 func (ctx *Context) AddTask(request *AddTaskRequest) (*Task, bool) {
+	log.Logger.Debug("AddTask", zap.Any("Request", request))
 	if app, ok := ctx.GetApplication(request.Metadata.ApplicationID); ok {
 		if existingTask, err := app.GetTask(request.Metadata.TaskID); err != nil {
 			task := NewTask(request.Metadata.TaskID, app, ctx, request.Metadata.Pod)
@@ -454,7 +467,8 @@ func (ctx *Context) AddTask(request *AddTaskRequest) (*Task, bool) {
 			app.addTask(&task)
 			log.Logger.Info("task added",
 				zap.String("appID", app.applicationID),
-				zap.String("taskID", task.taskID))
+				zap.String("taskID", task.taskID),
+				zap.String("taskState", task.GetTaskState()))
 
 			return &task, true
 		} else {
@@ -473,7 +487,6 @@ func (ctx *Context) RemoveTask(appID, taskID string) error {
 	} else {
 		return fmt.Errorf("application %s is not found in the context", appID)
 	}
-
 }
 
 func (ctx *Context) getTask(appID string, taskID string) (*Task, error) {

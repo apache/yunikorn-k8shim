@@ -18,7 +18,6 @@ package appmgmt
 
 import (
 	"github.com/cloudera/yunikorn-k8shim/pkg/cache"
-	v1 "k8s.io/api/core/v1"
 )
 
 // a common interface for app management service
@@ -46,13 +45,12 @@ type AppManager interface {
 	// the stop() function is called.
 	Stop() error
 
-	// why we need a recoveryApplication API here?
+	// list applications returns all existing applications known to this app manager.
+	// why we need this?
 	// the scheduler is stateless, all states are maintained just in memory,
 	// so each time when scheduler restarts, it needs to recover apps and nodes states from scratch.
 	// nodes state will be taken care of by the scheduler itself, however for apps state recovery,
-	// the scheduler will need to call this function for every allocated pod, app management service
-	// needs to implement this accordingly.
-	GetAppMetadata(pod *v1.Pod) (cache.ApplicationMetadata, bool)
-
-	GetTaskMetadata(pod *v1.Pod) (cache.TaskMetadata, bool)
+	// the scheduler will need to call this function to collect existing app info,
+	// and then properly recover these applications before recovering nodes.
+	ListApplications() (map[string]cache.ApplicationMetadata, error)
 }

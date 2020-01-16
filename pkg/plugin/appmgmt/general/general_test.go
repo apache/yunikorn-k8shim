@@ -50,7 +50,7 @@ func TestGetAppMetadata(t *testing.T) {
 		},
 	}
 
-	app, ok := am.GetAppMetadata(&pod)
+	app, ok := am.getAppMetadata(&pod)
 	assert.Equal(t, ok, true)
 	assert.Equal(t, app.ApplicationID, "app00001")
 	assert.Equal(t, app.QueueName, "root.a")
@@ -80,7 +80,7 @@ func TestGetAppMetadata(t *testing.T) {
 		},
 	}
 
-	app, ok = am.GetAppMetadata(&pod)
+	app, ok = am.getAppMetadata(&pod)
 	assert.Equal(t, ok, true)
 	assert.Equal(t, app.ApplicationID, "app00002")
 	assert.Equal(t, app.QueueName, "root.b")
@@ -106,7 +106,7 @@ func TestGetAppMetadata(t *testing.T) {
 		},
 	}
 
-	app, ok = am.GetAppMetadata(&pod)
+	app, ok = am.getAppMetadata(&pod)
 	assert.Equal(t, ok, false)
 }
 
@@ -133,7 +133,7 @@ func TestGetTaskMetadata(t *testing.T) {
 		},
 	}
 
-	task, ok := am.GetTaskMetadata(&pod)
+	task, ok := am.getTaskMetadata(&pod)
 	assert.Equal(t, ok, true)
 	assert.Equal(t, task.ApplicationID, "app00001")
 	assert.Equal(t, task.TaskID, "UID-POD-00001")
@@ -154,7 +154,7 @@ func TestGetTaskMetadata(t *testing.T) {
 		},
 	}
 
-	task, ok = am.GetTaskMetadata(&pod)
+	task, ok = am.getTaskMetadata(&pod)
 	assert.Equal(t, ok, false)
 }
 
@@ -246,6 +246,50 @@ func TestAddPod(t *testing.T) {
 	assert.Equal(t, len(app02.GetNewTasks()), 1)
 	assert.Equal(t, app02.GetApplicationID(), "app00002")
 	assert.Equal(t, app02.GetNewTasks()[0].GetTaskPod().Name, "pod00004")
+}
+
+func TestDeletePod(t *testing.T) {
+	am := New(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider())
+
+	pod := v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name:      "pod00001",
+			Namespace: "default",
+			UID:       "UID-POD-00001",
+			Labels:    map[string]string{
+				"applicationId": "app00001",
+				"queue":         "root.a",
+			},
+		},
+		Spec: v1.PodSpec{SchedulerName: "yunikorn"},
+		Status: v1.PodStatus{
+			Phase: v1.PodPending,
+		},
+	}
+
+	// add a pending pod through the AM service
+	am.addPod(&pod)
+
+	app, ok := am.amProtocol.GetApplication("app00001")
+	assert.Equal(t, ok, true)
+	assert.Equal(t, app.GetApplicationID(), "app00001")
+	assert.Equal(t, app.GetApplicationState(), events.States().Application.New)
+	assert.Equal(t, app.GetQueue(), "root.a")
+	assert.Equal(t, len(app.GetNewTasks()), 1)
+
+	task, err := app.GetTask("UID-POD-00001")
+	assert.Assert(t, err == nil)
+	assert.Equal(t, task.GetTaskState(), events.States().Task.New)
+
+	// try delete the pod
+	am.deletePod(&pod)
+
+	// this is to verify NotifyTaskComplete is called
+	assert.Equal(t, task.GetTaskState(), events.States().Task.Completed)
 }
 
 /**

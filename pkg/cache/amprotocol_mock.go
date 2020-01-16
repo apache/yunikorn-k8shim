@@ -79,6 +79,15 @@ func (m *MockedAMProtocol) RemoveTask(appID, taskID string) error {
 }
 
 func (m *MockedAMProtocol) NotifyApplicationComplete(appID string) {
-
+	if app, ok := m.GetApplication(appID); ok {
+		app.SetState(events.States().Application.Completed)
+	}
 }
 
+func (m *MockedAMProtocol) NotifyTaskComplete(appID, taskID string) {
+	if app, ok := m.GetApplication(appID); ok {
+		if task, err := app.GetTask(taskID); err == nil {
+			task.sm.SetState(events.States().Task.Completed)
+		}
+	}
+}

@@ -46,6 +46,7 @@ func newSchedulerKubeClient(kc string) SchedulerKubeClient {
 		configuredClient := kubernetes.NewForConfigOrDie(config)
 		return SchedulerKubeClient{
 			clientSet: configuredClient,
+			configs:   config,
 		}
 	}
 

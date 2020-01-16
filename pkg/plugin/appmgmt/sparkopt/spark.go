@@ -25,7 +25,13 @@ import (
 	"github.com/cloudera/yunikorn-k8shim/pkg/log"
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	k8sCache "k8s.io/client-go/tools/cache"
+)
+
+const (
+	LabelAnnotationPrefix = "sparkoperator.k8s.io/"
+	SparkAppNameLabel = LabelAnnotationPrefix + "app-name"
 )
 
 type Manager struct {
@@ -90,12 +96,56 @@ func (os *Manager) Stop() error {
 	return nil
 }
 
-func (os *Manager) GetTaskMetadata(pod *v1.Pod) (cache.TaskMetadata, bool) {
+func (os *Manager) getTaskMetadata(pod *v1.Pod) (cache.TaskMetadata, bool) {
+	// spark executors are having a common label
+	if appName, ok := pod.Labels[SparkAppNameLabel]; ok {
+		return cache.TaskMetadata{
+			ApplicationID: appName,
+			TaskID:        string(pod.UID),
+			Pod:           pod,
+		}, true
+	}
 	return cache.TaskMetadata{}, false
 }
 
-func (os *Manager) GetAppMetadata(pod *v1.Pod) (cache.ApplicationMetadata, bool) {
+func (os *Manager) getAppMetadata(pod *v1.Pod) (cache.ApplicationMetadata, bool) {
 	return cache.ApplicationMetadata{}, false
+}
+
+// list all existing applications
+func (os *Manager) ListApplications() (map[string]cache.ApplicationMetadata, error) {
+	lister := os.crdInformerFactory.Sparkoperator().V1beta2().SparkApplications().Lister()
+	sparkApps, err := lister.List(labels.Everything())
+	if err == nil {
+		existingApps := make(map[string]cache.ApplicationMetadata)
+		for _, sparkApp := range sparkApps {
+			existingApps[sparkApp.Name] = cache.ApplicationMetadata{
+				ApplicationID: sparkApp.Name,
+				QueueName:     sparkApp.Namespace,
+				User:          "",
+				Tags:          make(map[string]string),
+			}
+		}
+		return existingApps, nil
+	}
+	return nil, err
+}
+
+func (os *Manager) ListAppTasks(appID string) (map[string]cache.TaskMetadata, error) {
+	lister := os.apiProvider.GetAPIs().PodInformer.Lister()
+	matchedLabels := make(map[string]string)
+	matchedLabels[SparkAppNameLabel] = appID
+	sparkTasks, err := lister.List(labels.SelectorFromSet(matchedLabels))
+	if err == nil {
+		existingTasks := make(map[string]cache.TaskMetadata)
+		for _, sparkPod := range sparkTasks {
+			if meta, ok := os.getTaskMetadata(sparkPod); ok {
+				existingTasks[meta.TaskID] = meta
+			}
+		}
+		return existingTasks, nil
+	}
+	return nil, err
 }
 
 // callbacks for SparkApplication CRD
