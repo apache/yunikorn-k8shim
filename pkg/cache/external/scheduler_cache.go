@@ -27,6 +27,7 @@ import (
 	corelistersV1 "k8s.io/client-go/listers/core/v1"
 	storagelisterV1 "k8s.io/client-go/listers/storage/v1"
 	"k8s.io/kubernetes/pkg/scheduler/algorithm"
+	"k8s.io/kubernetes/pkg/scheduler/algorithm/predicates"
 	"k8s.io/kubernetes/pkg/scheduler/factory"
 	schedulernode "k8s.io/kubernetes/pkg/scheduler/nodeinfo"
 	"k8s.io/kubernetes/pkg/scheduler/volumebinder"
@@ -79,9 +80,9 @@ func (cache *SchedulerCache) assignArgs(args *factory.PluginFactoryArgs) {
 	args.PodLister = cache
 	args.NodeInfo = cache
 	args.VolumeBinder = cache.volumeBinder
-	args.PVInfo = cache
-	args.PVCInfo = cache
-	args.StorageClassInfo = cache
+	args.PVInfo = &predicates.CachedPersistentVolumeInfo{PersistentVolumeLister: cache.pvLister}
+	args.PVCInfo = &predicates.CachedPersistentVolumeClaimInfo{PersistentVolumeClaimLister: cache.pvcLister}
+	args.StorageClassInfo = &predicates.CachedStorageClassInfo{StorageClassLister: cache.storageLister}
 }
 
 func (cache *SchedulerCache) GetNode(name string) *schedulernode.NodeInfo {

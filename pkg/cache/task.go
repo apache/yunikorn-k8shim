@@ -19,6 +19,7 @@ package cache
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	"go.uber.org/zap"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -196,6 +197,37 @@ func (task *Task) handleSubmitTaskEvent(event *fsm.Event) {
 		v1.EventTypeNormal, "TaskSubmitted",
 		"application \"%s\" task \"%s\" is submitted to the scheduler",
 		task.applicationID, task.taskID)
+
+	// after a small amount of time, if the task is still not able to get allocation,
+	// put the pod to unscheduable state. This will trigger the cluster-auto-scaler to launch
+	// the auto-scaling process.
+	// TODO improve this
+	// Note, this approach is suboptimal, when a task cannot be allocated, it doesn't always
+	// mean it needs the nodes to scale up. E.g task runs out of max capacity of the queue,
+	// user/app runs out of the limit etc. Ideally, we should add more interactions between
+	// core and shim to negotiate on when to set the state to unscheduable and trigger the
+	// auto-scaling appropriately.
+	go func(self *Task) {
+		time.Sleep(5*time.Second)
+		log.Logger.Info("updating pod state",
+			zap.String("taskStateNow", self.GetTaskState()))
+		if self.GetTaskState() == events.States().Task.Scheduling {
+			// if task state is still pending after 5s,
+			// move task to un-schedule-able state.
+			self.lock.Lock()
+			if err := self.context.UpdatePodCondition(self.pod,
+				&v1.PodCondition{
+					Type:    v1.PodScheduled,
+					Status:  v1.ConditionFalse,
+					Reason:  v1.PodReasonUnschedulable,
+					Message: "retrying scheduling",
+				}); err != nil {
+				log.Logger.Error("update pod condition failed",
+					zap.Error(err))
+			}
+			self.lock.Unlock()
+		}
+	}(task)
 }
 
 // this is called after task reaches PENDING state,
@@ -317,4 +349,30 @@ func (task *Task) releaseAllocation() {
 			}
 		}
 	}()
+}
+
+// some sanity checks before sending task for scheduling,
+// this reduces the scheduling overhead by blocking such
+// request away from the core scheduler.
+func (task *Task) sanityCheckBeforeScheduling() error {
+	// Check PVCs used by the pod
+	namespace := task.pod.Namespace
+	manifest := &(task.pod.Spec)
+	for i := range manifest.Volumes {
+		volume := &manifest.Volumes[i]
+		if volume.PersistentVolumeClaim == nil {
+			// Volume is not a PVC, ignore
+			continue
+		}
+		pvcName := volume.PersistentVolumeClaim.ClaimName
+		log.Logger.Debug("checking PVC", zap.String("name", pvcName))
+		pvc, err := task.context.pvcInformer.Lister().PersistentVolumeClaims(namespace).Get(pvcName)
+		if err != nil {
+			return err
+		}
+		if pvc.DeletionTimestamp != nil {
+			return fmt.Errorf("persistentvolumeclaim %q is being deleted", pvc.Name)
+		}
+	}
+	return nil
 }

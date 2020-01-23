@@ -231,3 +231,13 @@ func TestBestEffortPod(t *testing.T) {
 	assert.Equal(t, len(res.Resources), 1)
 	assert.Equal(t, res.Resources[Memory].GetValue(), int64(1))
 }
+
+func TestNodeResource(t *testing.T) {
+	nodeCapacity := make(map[v1.ResourceName]resource.Quantity)
+	nodeCapacity[v1.ResourceCPU] = resource.MustParse("14500m")
+	result := GetNodeResource(&v1.NodeStatus{
+		Capacity:        nodeCapacity,
+	})
+
+	assert.Equal(t, result.Resources[CPU].GetValue(), int64(14500))
+}
