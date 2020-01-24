@@ -504,13 +504,11 @@ func (ctx *Context) triggerReloadConfig() {
 	}
 }
 
-func (ctx *Context) UpdatePodCondition(pod *v1.Pod, condition *v1.PodCondition) error {
+func (ctx *Context) updatePodCondition(pod *v1.Pod, condition *v1.PodCondition) error {
 	log.Logger.Info("Updating pod condition",
 		zap.String("namespace", pod.Namespace),
 		zap.String("name", pod.Name),
-		zap.String("", string(condition.Type)),
-		zap.String("status", string(condition.Status)),
-		zap.String("reason", condition.Reason))
+		zap.Any("podCondition", condition))
 	if podutil.UpdatePodCondition(&pod.Status, condition) {
 		_, err := ctx.kubeClient.GetClientSet().CoreV1().Pods(pod.Namespace).UpdateStatus(pod)
 		return err

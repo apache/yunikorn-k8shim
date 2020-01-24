@@ -238,8 +238,8 @@ func (app *Application) Schedule() {
 				if err := task.sanityCheckBeforeScheduling(); err == nil {
 					// note, if we directly trigger submit task event, it may spawn too many duplicate
 					// events, because a task might be submitted multiple times before its state transits to PENDING.
-					if err := task.handle(
-						NewSimpleTaskEvent(task.applicationID, task.taskID, events.InitTask)); err != nil {
+					if handleErr := task.handle(
+						NewSimpleTaskEvent(task.applicationID, task.taskID, events.InitTask)); handleErr != nil {
 						// something goes wrong when transit task to PENDING state,
 						// this should not happen because we already checked the state
 						// before calling the transition. Nowhere to go, just log the error.
