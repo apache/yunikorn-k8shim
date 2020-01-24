@@ -247,6 +247,8 @@ func (app *Application) Schedule() {
 					}
 				} else {
 					log.Logger.Debug("task is not ready for scheduling",
+						zap.String("appID", task.applicationID),
+						zap.String("taskID", task.taskID),
 						zap.Error(err))
 				}
 			}
