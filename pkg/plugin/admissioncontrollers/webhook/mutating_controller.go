@@ -22,8 +22,8 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strings"
+	"time"
 
-	uuid "github.com/satori/go.uuid"
 	"go.uber.org/zap"
 	"k8s.io/api/admission/v1beta1"
 	v1 "k8s.io/api/core/v1"
@@ -122,7 +122,14 @@ func updateLabels(pod *v1.Pod, patch []patchOperation) []patchOperation {
 	if _, ok := existingLabels[common.SparkLabelAppID]; !ok {
 		if _, ok := existingLabels[common.LabelApplicationID]; !ok {
 			// if app id not exist, generate one
-			generatedID := fmt.Sprintf("autogen_%s_%s", pod.Name, uuid.NewV4().String())
+			// the generated ID is using [PodNamespace]_[PodName]_[Timestamp] naming convention.
+			// some admission controllers have strict checks of the length/format of each labels,
+			// this convention keeps the name tidy and short.
+			podNamespace := "default"
+			if pod.Namespace != "" {
+				podNamespace = pod.Namespace
+			}
+ 			generatedID := fmt.Sprintf("%s_%s_%d", podNamespace, pod.Name, time.Now().Unix())
 			log.Logger.Debug("adding application ID",
 				zap.String("generatedID", generatedID))
 			result[common.LabelApplicationID] = generatedID

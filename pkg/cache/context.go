@@ -26,6 +26,7 @@ import (
 	coreInfomerV1 "k8s.io/client-go/informers/core/v1"
 	storageInformerV1 "k8s.io/client-go/informers/storage/v1"
 	"k8s.io/client-go/tools/cache"
+	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
 	"k8s.io/kubernetes/pkg/scheduler/volumebinder"
 
 	"github.com/cloudera/yunikorn-core/pkg/api"
@@ -501,6 +502,18 @@ func (ctx *Context) triggerReloadConfig() {
 	if err := ctx.schedulerAPI.ReloadConfiguration(ctx.conf.ClusterID); err != nil {
 		log.Logger.Error("reload configuration failed", zap.Error(err))
 	}
+}
+
+func (ctx *Context) updatePodCondition(pod *v1.Pod, condition *v1.PodCondition) error {
+	log.Logger.Info("Updating pod condition",
+		zap.String("namespace", pod.Namespace),
+		zap.String("name", pod.Name),
+		zap.Any("podCondition", condition))
+	if podutil.UpdatePodCondition(&pod.Status, condition) {
+		_, err := ctx.kubeClient.GetClientSet().CoreV1().Pods(pod.Namespace).UpdateStatus(pod)
+		return err
+	}
+	return nil
 }
 
 // evaluate given predicates based on current context
