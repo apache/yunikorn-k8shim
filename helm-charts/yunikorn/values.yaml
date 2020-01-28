@@ -8,12 +8,12 @@ serviceAccount: yunikorn-admin
 image:
   repository: yunikorn/yunikorn-scheduler-k8s
   tag: latest
-  pullPolicy: IfNotPresent
+  pullPolicy: Always
 
 web_image:
   repository: yunikorn/yunikorn-web
   tag: latest
-  pullPolicy: IfNotPresent
+  pullPolicy: Always
 
 service:
   type: LoadBalancer

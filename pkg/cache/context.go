@@ -31,6 +31,7 @@ import (
 	"github.com/cloudera/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/cloudera/yunikorn-k8shim/pkg/log"
 	plugin "github.com/cloudera/yunikorn-k8shim/pkg/plugin/predicates"
+	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
 
 	"k8s.io/client-go/tools/cache"
 )
@@ -276,6 +277,18 @@ func (ctx *Context) triggerReloadConfig() {
 	if err := ctx.apiProvider.GetAPIs().SchedulerAPI.ReloadConfiguration(clusterId); err != nil {
 		log.Logger.Error("reload configuration failed", zap.Error(err))
 	}
+}
+
+func (ctx *Context) updatePodCondition(pod *v1.Pod, condition *v1.PodCondition) error {
+	log.Logger.Info("Updating pod condition",
+		zap.String("namespace", pod.Namespace),
+		zap.String("name", pod.Name),
+		zap.Any("podCondition", condition))
+	if podutil.UpdatePodCondition(&pod.Status, condition) {
+		_, err := ctx.apiProvider.GetAPIs().KubeClient.GetClientSet().CoreV1().Pods(pod.Namespace).UpdateStatus(pod)
+		return err
+	}
+	return nil
 }
 
 // evaluate given predicates based on current context

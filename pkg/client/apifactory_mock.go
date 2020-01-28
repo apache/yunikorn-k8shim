@@ -20,6 +20,9 @@ import (
 	"github.com/cloudera/yunikorn-k8shim/pkg/common/test"
 	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
 	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/client-go/listers/core/v1"
+	storagev1 "k8s.io/client-go/listers/storage/v1"
+	"k8s.io/client-go/tools/cache"
 )
 
 type MockedAPIProvider struct {
@@ -52,9 +55,9 @@ func NewMockedAPIProvider() *MockedAPIProvider {
 			PodInformer:       nil,
 			NodeInformer:      nil,
 			ConfigMapInformer: nil,
-			PVInformer:        nil,
-			PVCInformer:       nil,
-			StorageInformer:   nil,
+			PVInformer:        &MockedPersistentVolumeInformer{},
+			PVCInformer:       &MockedPersistentVolumeClaimInformer{},
+			StorageInformer:   &MockedStorageClassInformer{},
 			VolumeBinder:      nil,
 		},
 	}
@@ -86,4 +89,37 @@ func (m *MockedAPIProvider) AddEventHandler (handlers *ResourceEventHandlers) {
 
 func (m *MockedAPIProvider) Run(stopCh <-chan struct{}) {
 	// no impl
+}
+
+// MockedPersistentVolumeInformer implements PersistentVolumeInformer interface
+type MockedPersistentVolumeInformer struct {}
+
+func (m *MockedPersistentVolumeInformer) Informer() cache.SharedIndexInformer {
+	return nil
+}
+
+func (m *MockedPersistentVolumeInformer) Lister() corev1.PersistentVolumeLister {
+	return nil
+}
+
+// MockedPersistentVolumeClaimInformer implements PersistentVolumeClaimInformer interface
+type MockedPersistentVolumeClaimInformer struct {}
+
+func (m *MockedPersistentVolumeClaimInformer) Informer() cache.SharedIndexInformer {
+	return nil
+}
+
+func (m *MockedPersistentVolumeClaimInformer) Lister() corev1.PersistentVolumeClaimLister {
+	return nil
+}
+
+// MockedStorageClassInformer implements StorageClassInformer interface
+type MockedStorageClassInformer struct {}
+
+func (m *MockedStorageClassInformer) Informer() cache.SharedIndexInformer {
+	return nil
+}
+
+func (m *MockedStorageClassInformer) Lister() storagev1.StorageClassLister {
+	return nil
 }

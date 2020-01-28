@@ -253,14 +253,22 @@ func (app *Application) Schedule() {
 	case states.Running:
 		if len(app.GetNewTasks()) > 0 {
 			for _, task := range app.GetNewTasks() {
-				// note, if we directly trigger submit task event, it may spawn too many duplicate
-				// events, because a task might be submitted multiple times before its state transits to PENDING.
-				if err := task.handle(
-					NewSimpleTaskEvent(task.applicationID, task.taskID, events.InitTask)); err != nil {
-					// something goes wrong when transit task to PENDING state,
-					// this should not happen because we already checked the state
-					// before calling the transition. Nowhere to go, just log the error.
-					log.Logger.Warn("init task failed", zap.Error(err))
+				// for each new task, we do a sanity check before moving the state to Pending_Schedule
+				if err := task.sanityCheckBeforeScheduling(); err == nil {
+					// note, if we directly trigger submit task event, it may spawn too many duplicate
+					// events, because a task might be submitted multiple times before its state transits to PENDING.
+					if handleErr := task.handle(
+						NewSimpleTaskEvent(task.applicationID, task.taskID, events.InitTask)); handleErr != nil {
+						// something goes wrong when transit task to PENDING state,
+						// this should not happen because we already checked the state
+						// before calling the transition. Nowhere to go, just log the error.
+						log.Logger.Warn("init task failed", zap.Error(err))
+					}
+				} else {
+					log.Logger.Debug("task is not ready for scheduling",
+						zap.String("appID", task.applicationID),
+						zap.String("taskID", task.taskID),
+						zap.Error(err))
 				}
 			}
 		}

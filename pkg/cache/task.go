@@ -19,6 +19,7 @@ package cache
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	"go.uber.org/zap"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -91,7 +92,7 @@ func createTaskInternal(tid string, app *Application, resource *si.Resource,
 				Src: []string{states.Allocated},
 				Dst: states.Bound},
 			{Name: string(events.CompleteTask),
-				Src: []string{states.Bound, states.Allocated},
+				Src: states.Any,
 				Dst: states.Completed},
 			{Name: string(events.KillTask),
 				Src: []string{states.Pending, states.Scheduling, states.Allocated, states.Bound},
@@ -191,6 +192,40 @@ func (task *Task) handleSubmitTaskEvent(event *fsm.Event) {
 		v1.EventTypeNormal, "TaskSubmitted",
 		"application \"%s\" task \"%s\" is submitted to the scheduler",
 		task.applicationID, task.taskID)
+
+	// after a small amount of time, if the task is still not able to get allocation,
+	// put the pod to unscheduable state. This will trigger the cluster-auto-scaler to launch
+	// the auto-scaling process.
+	// TODO improve this
+	// Note, this approach is suboptimal, when a task cannot be allocated, it doesn't always
+	// mean it needs the nodes to scale up. E.g task runs out of max capacity of the queue,
+	// user/app runs out of the limit etc. Ideally, we should add more interactions between
+	// core and shim to negotiate on when to set the state to unscheduable and trigger the
+	// auto-scaling appropriately.
+	go func(t *Task) {
+		time.Sleep(5*time.Second)
+		if t.GetTaskState() == events.States().Task.Scheduling {
+			log.Logger.Debug("updating pod state ",
+				zap.String("appID", t.applicationID),
+				zap.String("taskID", t.taskID),
+				zap.String("podName", fmt.Sprintf("%s/%s", task.pod.Namespace, task.pod.Name)),
+				zap.String("state", "Unscheduable"))
+			// if task state is still pending after 5s,
+			// move task to un-schedule-able state.
+			t.lock.Lock()
+			defer t.lock.Unlock()
+			if err := t.context.updatePodCondition(t.pod,
+				&v1.PodCondition{
+					Type:    v1.PodScheduled,
+					Status:  v1.ConditionFalse,
+					Reason:  v1.PodReasonUnschedulable,
+					Message: "retrying scheduling",
+				}); err != nil {
+				log.Logger.Error("update pod condition failed",
+					zap.Error(err))
+			}
+		}
+	}(task)
 }
 
 // this is called after task reaches PENDING state,
@@ -312,4 +347,30 @@ func (task *Task) releaseAllocation() {
 			}
 		}
 	}()
+}
+
+// some sanity checks before sending task for scheduling,
+// this reduces the scheduling overhead by blocking such
+// request away from the core scheduler.
+func (task *Task) sanityCheckBeforeScheduling() error {
+	// Check PVCs used by the pod
+	namespace := task.pod.Namespace
+	manifest := &(task.pod.Spec)
+	for i := range manifest.Volumes {
+		volume := &manifest.Volumes[i]
+		if volume.PersistentVolumeClaim == nil {
+			// Volume is not a PVC, ignore
+			continue
+		}
+		pvcName := volume.PersistentVolumeClaim.ClaimName
+		log.Logger.Debug("checking PVC", zap.String("name", pvcName))
+		pvc, err := task.context.apiProvider.GetAPIs().PVCInformer.Lister().PersistentVolumeClaims(namespace).Get(pvcName)
+		if err != nil {
+			return err
+		}
+		if pvc.DeletionTimestamp != nil {
+			return fmt.Errorf("persistentvolumeclaim %q is being deleted", pvc.Name)
+		}
+	}
+	return nil
 }
