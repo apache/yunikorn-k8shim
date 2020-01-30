@@ -40,6 +40,10 @@ func NeedRecovery(pod *v1.Pod) (bool, error) {
 		return false, nil
 	}
 
+	if !IsSchedulablePod(pod) {
+		return false, nil
+	}
+
 	if pod.Spec.NodeName != "" {
 		return true, nil
 	}

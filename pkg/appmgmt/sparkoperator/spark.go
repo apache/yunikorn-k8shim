@@ -22,6 +22,8 @@ import (
 	crInformers "github.com/GoogleCloudPlatform/spark-on-k8s-operator/pkg/client/informers/externalversions"
 	"github.com/cloudera/yunikorn-k8shim/pkg/cache"
 	"github.com/cloudera/yunikorn-k8shim/pkg/client"
+	"github.com/cloudera/yunikorn-k8shim/pkg/common"
+	"github.com/cloudera/yunikorn-k8shim/pkg/common/utils"
 	"github.com/cloudera/yunikorn-k8shim/pkg/log"
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
@@ -108,8 +110,25 @@ func (os *Manager) getTaskMetadata(pod *v1.Pod) (cache.TaskMetadata, bool) {
 	return cache.TaskMetadata{}, false
 }
 
-func (os *Manager) getAppMetadata(pod *v1.Pod) (cache.ApplicationMetadata, bool) {
-	return cache.ApplicationMetadata{}, false
+func (os *Manager) getAppMetadata(sparkApp *v1beta2.SparkApplication) cache.ApplicationMetadata {
+	// extract tags from annotations
+	tags := make(map[string]string)
+	for annotationKey, annotationValue := range sparkApp.GetAnnotations() {
+		tags[annotationKey] = annotationValue
+	}
+
+	// set queue name if app labels it
+	queueName := common.ApplicationDefaultQueue
+	if an, ok := sparkApp.Labels[common.LabelQueueName]; ok {
+		queueName = an
+	}
+
+	return cache.ApplicationMetadata{
+		ApplicationID: sparkApp.Name,
+		QueueName:     queueName,
+		User:          "default",
+		Tags:          tags,
+	}
 }
 
 // list all existing applications
@@ -119,12 +138,7 @@ func (os *Manager) ListApplications() (map[string]cache.ApplicationMetadata, err
 	if err == nil {
 		existingApps := make(map[string]cache.ApplicationMetadata)
 		for _, sparkApp := range sparkApps {
-			existingApps[sparkApp.Name] = cache.ApplicationMetadata{
-				ApplicationID: sparkApp.Name,
-				QueueName:     sparkApp.Namespace,
-				User:          "",
-				Tags:          make(map[string]string),
-			}
+			existingApps[sparkApp.Name] = os.getAppMetadata(sparkApp)
 		}
 		return existingApps, nil
 	}
@@ -135,6 +149,10 @@ func (os *Manager) ListApplications() (map[string]cache.ApplicationMetadata, err
 func (os *Manager) addApplication(obj interface{}) {
 	app := obj.(*v1beta2.SparkApplication)
 	log.Logger.Info("spark app added", zap.Any("SparkApplication", app))
+	os.amProtocol.AddApplication(&cache.AddApplicationRequest{
+		Metadata: os.getAppMetadata(app),
+		Recovery: false,
+	})
 }
 
 func (os *Manager) updateApplication(old, new interface{}) {
@@ -147,21 +165,38 @@ func (os *Manager) updateApplication(old, new interface{}) {
 func (os *Manager) deleteApplication(obj interface{}) {
 	app := obj.(*v1beta2.SparkApplication)
 	log.Logger.Info("spark app deleted", zap.Any("SparkApplication", app))
+	os.amProtocol.NotifyApplicationComplete(os.getAppMetadata(app).ApplicationID)
 }
 
 // callbacks for Spark pods
 func (os *Manager) filterPod(obj interface{}) bool {
-	return true
+	if pod, err := utils.Convert2Pod(obj); err == nil {
+		if _, isTask := os.getTaskMetadata(pod); isTask {
+			return true
+		}
+	}
+	return false
 }
 
 func (os *Manager) addPod(obj interface{}) {
-
+	if pod, err := utils.Convert2Pod(obj); err == nil {
+		if meta, isTask := os.getTaskMetadata(pod); isTask {
+			os.amProtocol.AddTask(&cache.AddTaskRequest{
+				Metadata: meta,
+				Recovery: false,
+			})
+		}
+	}
 }
 
 func (os *Manager) updatePod(old, new interface{}) {
-
+	// noop
 }
 
 func (os *Manager) deletePod(obj interface{}) {
-
+	if pod, err := utils.Convert2Pod(obj); err == nil {
+		if meta, isTask := os.getTaskMetadata(pod); isTask {
+			os.amProtocol.NotifyTaskComplete(meta.ApplicationID, meta.TaskID)
+		}
+	}
 }
