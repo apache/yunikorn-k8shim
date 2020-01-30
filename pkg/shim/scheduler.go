@@ -20,8 +20,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cloudera/yunikorn-k8shim/pkg/appmgmt"
 	"github.com/cloudera/yunikorn-k8shim/pkg/client"
-	"github.com/cloudera/yunikorn-k8shim/pkg/plugin/appmgmt"
 	"github.com/looplab/fsm"
 	"go.uber.org/zap"
 	"k8s.io/apimachinery/pkg/util/wait"

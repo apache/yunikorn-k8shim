@@ -16,11 +16,11 @@ limitations under the License.
 package appmgmt
 
 import (
+	"github.com/cloudera/yunikorn-k8shim/pkg/appmgmt/general"
+	"github.com/cloudera/yunikorn-k8shim/pkg/appmgmt/sparkoperator"
 	"github.com/cloudera/yunikorn-k8shim/pkg/cache"
 	"github.com/cloudera/yunikorn-k8shim/pkg/client"
 	"github.com/cloudera/yunikorn-k8shim/pkg/log"
-	"github.com/cloudera/yunikorn-k8shim/pkg/plugin/appmgmt/general"
-	"github.com/cloudera/yunikorn-k8shim/pkg/plugin/appmgmt/sparkoperator"
 	"go.uber.org/zap"
 )
 

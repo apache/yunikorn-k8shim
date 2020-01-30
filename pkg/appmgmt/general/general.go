@@ -163,7 +163,7 @@ func (os *Manager) addPod(obj interface{}) {
 	// add task
 	if taskMeta, ok := os.getTaskMetadata(pod); ok {
 		if app, exist := os.amProtocol.GetApplication(taskMeta.ApplicationID); exist {
-			if _, err := app.GetTask(string(pod.UID)); err != nil {
+			if _, taskErr := app.GetTask(string(pod.UID)); taskErr != nil {
 				os.amProtocol.AddTask(&cache.AddTaskRequest{
 					Metadata: taskMeta,
 					Recovery: recovery,
@@ -209,7 +209,7 @@ func (os *Manager) deletePod(obj interface{}) {
 		zap.String("podUID", string(pod.UID)))
 
 	if taskMeta, ok := os.getTaskMetadata(pod); ok {
-		if application, ok := os.amProtocol.GetApplication(taskMeta.ApplicationID); ok {
+		if application, exist := os.amProtocol.GetApplication(taskMeta.ApplicationID); exist {
 			os.amProtocol.NotifyTaskComplete(taskMeta.ApplicationID, taskMeta.TaskID)
 			os.startCompletionHandlerIfNecessary(application, pod)
 		}
