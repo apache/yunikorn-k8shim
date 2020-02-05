@@ -29,9 +29,9 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/factory"
 	deschedulernode "k8s.io/kubernetes/pkg/scheduler/nodeinfo"
 
-	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
-	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
-	"github.com/cloudera/yunikorn-k8shim/pkg/log"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 )
 
 // this policy defines a configurable set of supported predicates.

@@ -26,10 +26,10 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	v1 "k8s.io/client-go/listers/core/v1"
 
-	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
-	"github.com/cloudera/yunikorn-k8shim/pkg/common/utils"
-	"github.com/cloudera/yunikorn-k8shim/pkg/dispatcher"
-	"github.com/cloudera/yunikorn-k8shim/pkg/log"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/dispatcher"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 )
 
 func (ctx *Context) WaitForRecovery(maxTimeout time.Duration) error {

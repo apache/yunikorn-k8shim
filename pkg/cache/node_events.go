@@ -16,7 +16,7 @@ limitations under the License.
 
 package cache
 
-import "github.com/cloudera/yunikorn-k8shim/pkg/common/events"
+import "github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 
 type CachedSchedulerNodeEvent struct {
 	NodeID    string

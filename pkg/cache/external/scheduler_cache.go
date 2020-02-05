@@ -32,7 +32,7 @@ import (
 	schedulernode "k8s.io/kubernetes/pkg/scheduler/nodeinfo"
 	"k8s.io/kubernetes/pkg/scheduler/volumebinder"
 
-	"github.com/cloudera/yunikorn-k8shim/pkg/log"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 )
 
 // scheduler cache maintains some critical information about nodes and pods used for scheduling

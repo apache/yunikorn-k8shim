@@ -24,8 +24,8 @@ import (
 	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/record"
 
-	"github.com/cloudera/yunikorn-k8shim/pkg/client"
-	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 )
 
 var eventRecorder record.EventRecorder = record.NewFakeRecorder(1024)

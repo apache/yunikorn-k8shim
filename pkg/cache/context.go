@@ -29,16 +29,16 @@ import (
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
 	"k8s.io/kubernetes/pkg/scheduler/volumebinder"
 
-	"github.com/cloudera/yunikorn-core/pkg/api"
-	schedulercache "github.com/cloudera/yunikorn-k8shim/pkg/cache/external"
-	"github.com/cloudera/yunikorn-k8shim/pkg/client"
-	"github.com/cloudera/yunikorn-k8shim/pkg/common"
-	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
-	"github.com/cloudera/yunikorn-k8shim/pkg/common/utils"
-	"github.com/cloudera/yunikorn-k8shim/pkg/conf"
-	"github.com/cloudera/yunikorn-k8shim/pkg/dispatcher"
-	"github.com/cloudera/yunikorn-k8shim/pkg/log"
-	plugin "github.com/cloudera/yunikorn-k8shim/pkg/plugin/predicates"
+	"github.com/apache/incubator-yunikorn-core/pkg/api"
+	schedulercache "github.com/apache/incubator-yunikorn-k8shim/pkg/cache/external"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/dispatcher"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
+	plugin "github.com/apache/incubator-yunikorn-k8shim/pkg/plugin/predicates"
 )
 
 // context maintains scheduling state, like apps and apps' tasks.

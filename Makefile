@@ -30,7 +30,7 @@ ADMISSION_CONTROLLER_BIN_DIR=${OUTPUT}/admission-controllers/
 POD_ADMISSION_CONTROLLER_BINARY=scheduler-admission-controller
 LOCAL_CONF=conf
 CONF_FILE=queues.yaml
-REPO=github.com/cloudera/yunikorn-k8shim/pkg
+REPO=github.com/apache/incubator-yunikorn-k8shim/pkg
 
 # Version parameters
 DATE=$(shell date +%FT%T%z)

@@ -26,7 +26,7 @@ import (
 
 	"gotest.tools/assert"
 
-	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 )
 
 // app event for testing

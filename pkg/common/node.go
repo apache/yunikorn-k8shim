@@ -19,7 +19,7 @@ package common
 import (
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/cloudera/yunikorn-scheduler-interface/lib/go/si"
+	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 )
 
 // stores info about what scheduler cares about a node
