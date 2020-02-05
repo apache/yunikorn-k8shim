@@ -28,6 +28,8 @@ jobs:
         run: |
           export PATH=$PATH:$(go env GOPATH)/bin
           curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.22.2
+          pwd
+          ls -al .
           make lint
 
       - name: unit test
