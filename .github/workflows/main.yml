@@ -1,0 +1,36 @@
+name: Precommit check
+
+on:
+  pull_request:
+    branches: 
+      - master
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Set up Go 1.12
+        uses: actions/setup-go@v1
+        with:
+          go-version: 1.12
+
+      - name: Checkout source code
+        uses: actions/checkout@v2
+
+      - name: Check license
+        run: make common-check-license
+
+      - name: Go lint
+        env:
+          GOPATH: /tmp/go
+        run: |
+          export PATH=$PATH:$(go env GOPATH)/bin
+          go get -u golang.org/x/lint/golint
+          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.22.2
+          ls -al ${GOPATH}/bin
+          make lint
+
+      - name: unit test
+        run: make test
