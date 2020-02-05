@@ -32,7 +32,7 @@ const Memory = "memory"
 const CPU = "vcore"
 
 // Spark
-const SparkLabelAppID = "spark-app-id"
+const SparkLabelAppID = "spark-app-selector"
 const SparkLabelRole = "spark-role"
 const SparkLabelRoleDriver = "driver"
 
