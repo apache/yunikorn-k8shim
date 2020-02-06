@@ -17,6 +17,7 @@ limitations under the License.
 package dispatcher
 
 import (
+	"fmt"
 	"runtime"
 	"strings"
 	"sync"
@@ -24,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
 	"gotest.tools/assert"
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
@@ -204,7 +206,7 @@ func TestDispatchTimeout(t *testing.T) {
 	handledChan := make(chan bool)
 	RegisterEventHandler(EventTypeApp, func(obj interface{}) {
 		if _, ok := obj.(events.ApplicationEvent); ok {
-			time.Sleep(2 * time.Second)
+			time.Sleep(30 * time.Second)
 			handledChan <- true
 		}
 	})
@@ -213,7 +215,7 @@ func TestDispatchTimeout(t *testing.T) {
 	// dispatch 3 events, the third event will be dispatched asynchronously
 	for i := 0; i < 3; i++ {
 		Dispatch(TestAppEvent{
-			appID:     "test",
+			appID:     fmt.Sprintf("test-%d", i),
 			eventType: events.RunApplication,
 		})
 	}
@@ -232,6 +234,13 @@ func TestDispatchTimeout(t *testing.T) {
 
 	// stop the dispatcher
 	Stop()
+
+	// wait until all async routines are stopped
+	if err := utils.WaitForCondition(func() bool {
+		return atomic.LoadInt32(&asyncDispatchCount) == 0
+	}, 100 * time.Millisecond, 3 * time.Second); err != nil {
+		t.Failed()
+	}
 }
 
 // Test exceeding the async-dispatch limit, should panic immediately.
