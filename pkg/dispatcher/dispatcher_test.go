@@ -195,6 +195,8 @@ func TestDispatchTimeout(t *testing.T) {
 	AsyncDispatchCheckInterval = 100 * time.Millisecond
 	DispatchTimeout = 500 * time.Millisecond
 	defer func() {
+		dispatcher.lock.Lock()
+		defer dispatcher.lock.Unlock()
 		dispatcher.eventChan = make(chan events.SchedulingEvent, backupCapacity)
 		AsyncDispatchCheckInterval = backupAsyncDispatchCheckInterval
 		DispatchTimeout = backupDispatchTimeout
