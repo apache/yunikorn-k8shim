@@ -1,18 +1,20 @@
 #
-# Copyright 2020 Cloudera, Inc.  All rights reserved.
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
 #
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
+#      http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 
 # Check if this is at least GO 1.11 for Go Modules
 GO_VERSION := $(shell go version | awk '$$3 ~ /go1.(10|0-9])/ {print $$3}')
@@ -30,7 +32,7 @@ ADMISSION_CONTROLLER_BIN_DIR=${OUTPUT}/admission-controllers/
 POD_ADMISSION_CONTROLLER_BINARY=scheduler-admission-controller
 LOCAL_CONF=conf
 CONF_FILE=queues.yaml
-REPO=github.com/cloudera/yunikorn-k8shim/pkg
+REPO=github.com/apache/incubator-yunikorn-k8shim/pkg
 
 # Version parameters
 DATE=$(shell date +%FT%T%z)
@@ -67,7 +69,7 @@ lint:
 .PHONY: common-check-license
 common-check-license:
 	@echo "checking license header"
-	@licRes=$$(grep -Lr --include=*.{go,sh} "Copyright 20[1-2][0-9] Cloudera" .) ; \
+	@licRes=$$(grep -Lr --include=*.{go,sh} "Licensed to the Apache Software Foundation" .) ; \
 	if [ -n "$${licRes}" ]; then \
 		echo "following files have incorrect license header:\n$${licRes}" ; \
 		exit 1; \

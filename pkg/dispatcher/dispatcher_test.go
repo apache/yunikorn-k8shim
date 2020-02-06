@@ -1,22 +1,25 @@
 /*
-Copyright 2020 Cloudera, Inc.  All rights reserved.
+ Licensed to the Apache Software Foundation (ASF) under one
+ or more contributor license agreements.  See the NOTICE file
+ distributed with this work for additional information
+ regarding copyright ownership.  The ASF licenses this file
+ to you under the Apache License, Version 2.0 (the
+ "License"); you may not use this file except in compliance
+ with the License.  You may obtain a copy of the License at
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
+     http://www.apache.org/licenses/LICENSE-2.0
 
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
 */
 
 package dispatcher
 
 import (
+	"fmt"
 	"runtime"
 	"strings"
 	"sync"
@@ -24,15 +27,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
 	"gotest.tools/assert"
-
-	"github.com/cloudera/yunikorn-k8shim/pkg/common/events"
 )
 
 // app event for testing
 type TestAppEvent struct {
 	appID     string
 	eventType events.ApplicationEventType
+	flag      chan bool
 }
 
 func (t TestAppEvent) GetApplicationID() string {
@@ -200,32 +204,47 @@ func TestDispatchTimeout(t *testing.T) {
 		DispatchTimeout = backupDispatchTimeout
 	}()
 
-	// pretend to be an time-consuming event-handler
-	handledChan := make(chan bool)
+    // start the handler, but waiting on a flag
 	RegisterEventHandler(EventTypeApp, func(obj interface{}) {
-		if _, ok := obj.(events.ApplicationEvent); ok {
-			time.Sleep(2 * time.Second)
-			handledChan <- true
+		if appEvent, ok := obj.(TestAppEvent); ok {
+			fmt.Println(fmt.Sprintf("handling %s", appEvent.appID))
+			<- appEvent.flag
+			fmt.Println(fmt.Sprintf("handling %s DONE", appEvent.appID))
 		}
 	})
+
 	// start the dispatcher
 	Start()
+
 	// dispatch 3 events, the third event will be dispatched asynchronously
 	for i := 0; i < 3; i++ {
 		Dispatch(TestAppEvent{
-			appID:     "test",
+			appID:     fmt.Sprintf("test-%d", i),
 			eventType: events.RunApplication,
+			flag:      make(chan bool),
 		})
 	}
-	assert.Equal(t, int32(1), atomic.LoadInt32(&asyncDispatchCount))
-	// sleep 200ms to verify that Dispatcher#asyncDispatch is called
-	time.Sleep(200 * time.Millisecond)
+
+	// give it a small amount of time,
+	// 1st event should be picked up and stuck at handling
+	// 2nd one should be added to the channel
+	// 3rd one should be posted as an async request
+	time.Sleep(100 * time.Millisecond)
+	assert.Equal(t, atomic.LoadInt32(&asyncDispatchCount), int32(1))
+
+	// verify Dispatcher#asyncDispatch is called
 	buf := make([]byte, 1<<16)
 	runtime.Stack(buf, true)
 	assert.Assert(t, strings.Contains(string(buf), "asyncDispatch"))
 
-	// sleep 400ms to verify that async-dispatch goroutine is disappeared
-	time.Sleep(400 * time.Millisecond)
+	// wait until async dispatch routine times out
+	if err := utils.WaitForCondition(func() bool {
+		return atomic.LoadInt32(&asyncDispatchCount) == int32(0)
+	}, 100 * time.Millisecond, DispatchTimeout+AsyncDispatchCheckInterval); err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	// verify no left-over thread
 	buf = make([]byte, 1<<16)
 	runtime.Stack(buf, true)
 	assert.Assert(t, !strings.Contains(string(buf), "asyncDispatch"))
