@@ -240,22 +240,12 @@ func TestDispatchTimeout(t *testing.T) {
 	// 2nd one should be added to the channel
 	// 3rd one should be posted as an async request
 	time.Sleep(100 * time.Millisecond)
-
-	// depends on the timing, async count might be 1 or 2
 	assert.Equal(t, atomic.LoadInt32(&asyncDispatchCount), int32(1))
 
 	// verify Dispatcher#asyncDispatch is called
 	buf := make([]byte, 1<<16)
 	runtime.Stack(buf, true)
 	assert.Assert(t, strings.Contains(string(buf), "asyncDispatch"))
-
-	// notify the the handler
-	for _, ev := range []TestAppEvent {event0, event1, event2} {
-		select {
-		case ev.flag <- true:
-		default:
-		}
-	}
 
 	// wait until async dispatch routine times out
 	if err := utils.WaitForCondition(func() bool {
