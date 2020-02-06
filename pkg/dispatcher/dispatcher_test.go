@@ -35,6 +35,7 @@ import (
 type TestAppEvent struct {
 	appID     string
 	eventType events.ApplicationEventType
+	flag      chan bool
 }
 
 func (t TestAppEvent) GetApplicationID() string {
@@ -203,44 +204,73 @@ func TestDispatchTimeout(t *testing.T) {
 	}()
 
 	// pretend to be an time-consuming event-handler
-	handledChan := make(chan bool)
 	RegisterEventHandler(EventTypeApp, func(obj interface{}) {
-		if _, ok := obj.(events.ApplicationEvent); ok {
-			time.Sleep(30 * time.Second)
-			handledChan <- true
+		if appEvent, ok := obj.(TestAppEvent); ok {
+			fmt.Println(fmt.Sprintf("handling %s", appEvent.appID))
+			<- appEvent.flag
+			fmt.Println(fmt.Sprintf("handling %s DONE", appEvent.appID))
 		}
 	})
 	// start the dispatcher
 	Start()
 	// dispatch 3 events, the third event will be dispatched asynchronously
-	for i := 0; i < 3; i++ {
-		Dispatch(TestAppEvent{
-			appID:     fmt.Sprintf("test-%d", i),
-			eventType: events.RunApplication,
-		})
+	event0 := TestAppEvent{
+		appID:     "test-00",
+		eventType: events.RunApplication,
+		flag:      make(chan bool),
 	}
-	assert.Equal(t, int32(1), atomic.LoadInt32(&asyncDispatchCount))
-	// sleep 200ms to verify that Dispatcher#asyncDispatch is called
-	time.Sleep(200 * time.Millisecond)
+	event1 := TestAppEvent{
+		appID:     "test-01",
+		eventType: events.RunApplication,
+		flag:      make(chan bool),
+	}
+	event2 := TestAppEvent{
+		appID:     "test-02",
+		eventType: events.RunApplication,
+		flag:      make(chan bool),
+	}
+
+	// dispatch all events
+	Dispatch(event0)
+	Dispatch(event1)
+	Dispatch(event2)
+
+	// give it a small amount of time,
+	// 1st event should be picked up and stuck at handling
+	// 2nd one should be added to the channel
+	// 3rd one should be posted as an async request
+	time.Sleep(100 * time.Millisecond)
+
+	// depends on the timing, async count might be 1 or 2
+	assert.Equal(t, atomic.LoadInt32(&asyncDispatchCount), int32(1))
+
+	// verify Dispatcher#asyncDispatch is called
 	buf := make([]byte, 1<<16)
 	runtime.Stack(buf, true)
 	assert.Assert(t, strings.Contains(string(buf), "asyncDispatch"))
 
-	// sleep 400ms to verify that async-dispatch goroutine is disappeared
-	time.Sleep(400 * time.Millisecond)
+	// notify the the handler
+	for _, ev := range []TestAppEvent {event0, event1, event2} {
+		select {
+		case ev.flag <- true:
+		default:
+		}
+	}
+
+	// wait until async dispatch routine times out
+	if err := utils.WaitForCondition(func() bool {
+		return atomic.LoadInt32(&asyncDispatchCount) == int32(0)
+	}, 100 * time.Millisecond, 3 * time.Second); err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	// verify no left-over thread
 	buf = make([]byte, 1<<16)
 	runtime.Stack(buf, true)
 	assert.Assert(t, !strings.Contains(string(buf), "asyncDispatch"))
 
 	// stop the dispatcher
 	Stop()
-
-	// wait until all async routines are stopped
-	if err := utils.WaitForCondition(func() bool {
-		return atomic.LoadInt32(&asyncDispatchCount) == 0
-	}, 100 * time.Millisecond, 3 * time.Second); err != nil {
-		t.Failed()
-	}
 }
 
 // Test exceeding the async-dispatch limit, should panic immediately.
