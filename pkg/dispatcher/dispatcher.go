@@ -138,11 +138,11 @@ func (p *Dispatcher) asyncDispatch(event events.SchedulingEvent) {
 	if count > AsyncDispatchLimit {
 		panic(fmt.Errorf("dispatcher exceeds async-dispatch limit"))
 	}
-	go func(beginTime time.Time) {
+	go func(beginTime time.Time, stop chan struct{}) {
 		defer atomic.AddInt32(&asyncDispatchCount, -1)
 		for p.isRunning() {
 			select {
-			case <- p.stopChan:
+			case <- stop:
 				return
 			case p.eventChan <- event:
 				return
@@ -157,7 +157,7 @@ func (p *Dispatcher) asyncDispatch(event events.SchedulingEvent) {
 					zap.Float64("elapseSeconds", elapseTime.Seconds()))
 			}
 		}
-	}(time.Now())
+	}(time.Now(), p.stopChan)
 }
 
 func (p *Dispatcher) drain() {
