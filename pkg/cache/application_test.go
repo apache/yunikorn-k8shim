@@ -150,7 +150,7 @@ func TestGetApplicationIDFromPod(t *testing.T) {
 			Namespace: "default",
 			UID:       "UID-POD-00001",
 			Labels: map[string]string{
-				"spark-app-id": "spark-0001",
+				"spark-app-selector": "spark-0001",
 				"queue":        "root.a",
 			},
 		},
