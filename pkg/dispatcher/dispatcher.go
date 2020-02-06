@@ -142,6 +142,8 @@ func (p *Dispatcher) asyncDispatch(event events.SchedulingEvent) {
 		defer atomic.AddInt32(&asyncDispatchCount, -1)
 		for p.isRunning() {
 			select {
+			case <- p.stopChan:
+				return
 			case p.eventChan <- event:
 				return
 			case <-time.After(AsyncDispatchCheckInterval):
