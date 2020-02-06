@@ -25,10 +25,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
 	"gotest.tools/assert"
-
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 )
 
 // app event for testing
@@ -203,7 +202,7 @@ func TestDispatchTimeout(t *testing.T) {
 		DispatchTimeout = backupDispatchTimeout
 	}()
 
-	// pretend to be an time-consuming event-handler
+    // start the handler, but waiting on a flag
 	RegisterEventHandler(EventTypeApp, func(obj interface{}) {
 		if appEvent, ok := obj.(TestAppEvent); ok {
 			fmt.Println(fmt.Sprintf("handling %s", appEvent.appID))
@@ -211,29 +210,18 @@ func TestDispatchTimeout(t *testing.T) {
 			fmt.Println(fmt.Sprintf("handling %s DONE", appEvent.appID))
 		}
 	})
+
 	// start the dispatcher
 	Start()
-	// dispatch 3 events, the third event will be dispatched asynchronously
-	event0 := TestAppEvent{
-		appID:     "test-00",
-		eventType: events.RunApplication,
-		flag:      make(chan bool),
-	}
-	event1 := TestAppEvent{
-		appID:     "test-01",
-		eventType: events.RunApplication,
-		flag:      make(chan bool),
-	}
-	event2 := TestAppEvent{
-		appID:     "test-02",
-		eventType: events.RunApplication,
-		flag:      make(chan bool),
-	}
 
-	// dispatch all events
-	Dispatch(event0)
-	Dispatch(event1)
-	Dispatch(event2)
+	// dispatch 3 events, the third event will be dispatched asynchronously
+	for i := 0; i < 3; i++ {
+		Dispatch(TestAppEvent{
+			appID:     fmt.Sprintf("test-%d", i),
+			eventType: events.RunApplication,
+			flag:      make(chan bool),
+		})
+	}
 
 	// give it a small amount of time,
 	// 1st event should be picked up and stuck at handling
