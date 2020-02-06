@@ -125,7 +125,13 @@ func (os *Manager) filterPods(obj interface{}) bool {
 	switch obj.(type) {
 	case *v1.Pod:
 		pod := obj.(*v1.Pod)
-		return utils.IsSchedulablePod(pod)
+		if utils.GeneralPodFilter(pod) {
+			// only application ID is required
+			if _, err := utils.GetApplicationIDFromPod(pod); err == nil {
+				return true
+			}
+		}
+		return false
 	default:
 		return false
 	}

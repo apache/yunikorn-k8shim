@@ -230,7 +230,7 @@ func (ctx *Context) updatePodInCache(oldObj, newObj interface{}) {
 func (ctx *Context) filterPods(obj interface{}) bool {
 	switch obj := obj.(type) {
 	case *v1.Pod:
-		return utils.IsSchedulablePod(obj)
+		return utils.GeneralPodFilter(obj)
 	default:
 		return false
 	}
@@ -392,7 +392,10 @@ func (ctx *Context) UpdateApplication(app *Application) {
 // the complete state may further explained to completed_with_errors(failed) or successfully_completed,
 // either way we need to release all allocations (if exists) for this application
 func (ctx *Context) NotifyApplicationComplete(appID string) {
-	if _, ok := ctx.GetApplication(appID); ok {
+	if app, ok := ctx.GetApplication(appID); ok {
+		log.Logger.Debug("NotifyApplicationComplete",
+			zap.String("appID", appID),
+			zap.String("currentAppState", app.GetApplicationState()))
 		ev := NewSimpleApplicationEvent(appID, events.CompleteApplication)
 		dispatcher.Dispatch(ev)
 	}

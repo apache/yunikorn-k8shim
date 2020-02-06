@@ -76,7 +76,7 @@ func (ctx *Context) waitForNodeRecovery(nodeLister v1.NodeLister, maxTimeout tim
 				return err
 			}
 			for _, pod := range podList.Items {
-				if utils.IsSchedulablePod(&pod) && utils.IsAssignedPod(&pod) {
+				if utils.GeneralPodFilter(&pod) && utils.IsAssignedPod(&pod) {
 					log.Logger.Debug("existing pods",
 						zap.String("podName", pod.Name),
 						zap.String("podUID", string(pod.UID)),

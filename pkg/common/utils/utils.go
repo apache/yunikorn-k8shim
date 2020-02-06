@@ -42,7 +42,7 @@ func NeedRecovery(pod *v1.Pod) (bool, error) {
 		return false, nil
 	}
 
-	if !IsSchedulablePod(pod) {
+	if !GeneralPodFilter(pod) {
 		return false, nil
 	}
 
@@ -54,7 +54,7 @@ func NeedRecovery(pod *v1.Pod) (bool, error) {
 }
 
 // assignedPod selects pods that are assigned (scheduled and running).
-func IsAssignedPod(pod *v1.Pod) bool {
+func GeneralPodFilter(pod *v1.Pod) bool {
 	return len(pod.Spec.NodeName) != 0
 }
 
