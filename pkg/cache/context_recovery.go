@@ -22,6 +22,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
+	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -34,12 +36,12 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 )
 
-func (ctx *Context) WaitForRecovery(maxTimeout time.Duration) error {
+func (ctx *Context) WaitForRecovery(recoverableApps []interfaces.Recoverable, maxTimeout time.Duration) error {
 	// Currently, disable recovery when testing in a mocked cluster,
 	// because mock pod/node lister is not easy. We do have unit tests for
-	// waitForAppRecovery/waitForNodeRecovery separately.
+	// waitForAppRecovery/recover separately.
 	if !ctx.apiProvider.IsTestingMode() {
-		if err := ctx.waitForNodeRecovery(ctx.apiProvider.GetAPIs().NodeInformer.Lister(), maxTimeout); err != nil {
+		if err := ctx.recover(recoverableApps, maxTimeout); err != nil {
 			log.Logger.Error("nodes recovery failed", zap.Error(err))
 			return err
 		}
@@ -48,13 +50,24 @@ func (ctx *Context) WaitForRecovery(maxTimeout time.Duration) error {
 	return nil
 }
 
+// for a given pod, return an allocation if found
+func getExistingAllocation(recoverableApps []interfaces.Recoverable, pod *corev1.Pod) (*si.Allocation, bool) {
+	for _, mgr := range recoverableApps {
+		if alloc, found := mgr.GetExistingAllocation(pod); found {
+			return alloc, found
+		}
+	}
+	return nil, false
+}
+
 // Recover nodes and the placed allocations on these nodes.
 // In this process, shim sends all nodes along with existing allocations on these nodes to the
 // scheduler core, scheduler-core recovers its state and accept a node only it is able to recover
 // node state plus the allocations. If a node is recovered successfully, its state is marked as
 // healthy. Only healthy nodes can be used for scheduling.
-func (ctx *Context) waitForNodeRecovery(nodeLister v1.NodeLister, maxTimeout time.Duration) error {
-	allNodes, err := waitAndListNodes(nodeLister)
+func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) error {
+	lister := ctx.apiProvider.GetAPIs().NodeInformer.Lister()
+	allNodes, err := waitAndListNodes(lister)
 	if err != nil {
 		return err
 	}
@@ -77,12 +90,14 @@ func (ctx *Context) waitForNodeRecovery(nodeLister v1.NodeLister, maxTimeout tim
 			}
 			for _, pod := range podList.Items {
 				if utils.GeneralPodFilter(&pod) && utils.IsAssignedPod(&pod) {
-					log.Logger.Debug("existing pods",
-						zap.String("podName", pod.Name),
-						zap.String("podUID", string(pod.UID)),
-						zap.String("podNodeName", pod.Spec.NodeName))
-					if err = ctx.nodes.addExistingAllocation(&pod); err != nil {
-						log.Logger.Warn("add existing allocation failed", zap.Error(err))
+					if existingAlloc, valid := getExistingAllocation(mgr, &pod); valid {
+						log.Logger.Debug("existing allocation",
+							zap.String("appID", existingAlloc.ApplicationID),
+							zap.String("podUID", string(pod.UID)),
+							zap.String("podNodeName", existingAlloc.NodeID))
+						if err = ctx.nodes.addExistingAllocation(existingAlloc); err != nil {
+							log.Logger.Warn("add existing allocation failed", zap.Error(err))
+						}
 					}
 				}
 			}
@@ -119,8 +134,8 @@ func (ctx *Context) waitForNodeRecovery(nodeLister v1.NodeLister, maxTimeout tim
 			zap.Int("totalNodes", len(allNodes)),
 			zap.Int("recoveredNodes", nodesRecovered))
 		return false
-	}, time.Second, maxTimeout); err != nil {
-		return fmt.Errorf("timeout waiting for app recovery in %s", maxTimeout.String())
+	}, time.Second, due); err != nil {
+		return fmt.Errorf("timeout waiting for app recovery in %s", due.String())
 	}
 
 	return nil

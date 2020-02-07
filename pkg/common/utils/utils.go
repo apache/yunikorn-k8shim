@@ -38,7 +38,7 @@ func Convert2Pod(obj interface{}) (*v1.Pod, error) {
 }
 
 func NeedRecovery(pod *v1.Pod) (bool, error) {
-	if pod.Status.Phase == v1.PodPending  {
+	if pod.Status.Phase == v1.PodPending {
 		return false, nil
 	}
 

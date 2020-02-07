@@ -57,7 +57,7 @@ func TestGetAppMetadata(t *testing.T) {
 	assert.Equal(t, app.ApplicationID, "app00001")
 	assert.Equal(t, app.QueueName, "root.a")
 	assert.Equal(t, app.User, "")
-	assert.DeepEqual(t, app.Tags, map[string]string {"namespace" : "default"})
+	assert.DeepEqual(t, app.Tags, map[string]string{"namespace": "default"})
 
 	pod = v1.Pod{
 		TypeMeta: apis.TypeMeta{
@@ -74,7 +74,7 @@ func TestGetAppMetadata(t *testing.T) {
 			},
 		},
 		Spec: v1.PodSpec{
-			SchedulerName: "yunikorn",
+			SchedulerName:      "yunikorn",
 			ServiceAccountName: "bob",
 		},
 		Status: v1.PodStatus{
@@ -87,7 +87,7 @@ func TestGetAppMetadata(t *testing.T) {
 	assert.Equal(t, app.ApplicationID, "app00002")
 	assert.Equal(t, app.QueueName, "root.b")
 	assert.Equal(t, app.User, "bob")
-	assert.DeepEqual(t, app.Tags, map[string]string {"namespace" : "app-namespace-01"})
+	assert.DeepEqual(t, app.Tags, map[string]string{"namespace": "app-namespace-01"})
 
 	pod = v1.Pod{
 		TypeMeta: apis.TypeMeta{
@@ -100,7 +100,7 @@ func TestGetAppMetadata(t *testing.T) {
 			UID:       "UID-POD-00001",
 		},
 		Spec: v1.PodSpec{
-			SchedulerName: "yunikorn",
+			SchedulerName:      "yunikorn",
 			ServiceAccountName: "bob",
 		},
 		Status: v1.PodStatus{
@@ -160,7 +160,6 @@ func TestGetTaskMetadata(t *testing.T) {
 	assert.Equal(t, ok, false)
 }
 
-
 func TestAddPod(t *testing.T) {
 	am := New(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider())
 
@@ -187,8 +186,10 @@ func TestAddPod(t *testing.T) {
 	// add a pending pod through the AM service
 	am.addPod(&pod)
 
-	app, ok := am.amProtocol.GetApplication("app00001")
+	managedApp, ok := am.amProtocol.GetApplication("app00001")
 	assert.Equal(t, ok, true)
+	app, valid := toApplication(managedApp)
+	assert.Equal(t, valid, true)
 	assert.Equal(t, app.GetApplicationID(), "app00001")
 	assert.Equal(t, app.GetApplicationState(), events.States().Application.New)
 	assert.Equal(t, app.GetQueue(), "root.a")
@@ -245,9 +246,11 @@ func TestAddPod(t *testing.T) {
 
 	am.addPod(&pod2)
 	app02, ok := am.amProtocol.GetApplication("app00002")
-	assert.Equal(t, len(app02.GetNewTasks()), 1)
-	assert.Equal(t, app02.GetApplicationID(), "app00002")
-	assert.Equal(t, app02.GetNewTasks()[0].GetTaskPod().Name, "pod00004")
+	app, valid = toApplication(app02)
+	assert.Equal(t, valid, true)
+	assert.Equal(t, len(app.GetNewTasks()), 1)
+	assert.Equal(t, app.GetApplicationID(), "app00002")
+	assert.Equal(t, app.GetNewTasks()[0].GetTaskPod().Name, "pod00004")
 }
 
 func TestDeletePod(t *testing.T) {
@@ -262,7 +265,7 @@ func TestDeletePod(t *testing.T) {
 			Name:      "pod00001",
 			Namespace: "default",
 			UID:       "UID-POD-00001",
-			Labels:    map[string]string{
+			Labels: map[string]string{
 				"applicationId": "app00001",
 				"queue":         "root.a",
 			},
@@ -276,7 +279,9 @@ func TestDeletePod(t *testing.T) {
 	// add a pending pod through the AM service
 	am.addPod(&pod)
 
-	app, ok := am.amProtocol.GetApplication("app00001")
+	managedApp, ok := am.amProtocol.GetApplication("app00001")
+	app, valid := toApplication(managedApp)
+	assert.Equal(t, valid, true)
 	assert.Equal(t, ok, true)
 	assert.Equal(t, app.GetApplicationID(), "app00001")
 	assert.Equal(t, app.GetApplicationState(), events.States().Application.New)
@@ -292,6 +297,13 @@ func TestDeletePod(t *testing.T) {
 
 	// this is to verify NotifyTaskComplete is called
 	assert.Equal(t, task.GetTaskState(), events.States().Task.Completed)
+}
+
+func toApplication(something interface{}) (*cache.Application, bool) {
+	if app, valid := something.(*cache.Application); valid {
+		return app, true
+	}
+	return nil, false
 }
 
 /**

@@ -55,7 +55,7 @@ func NewMockedAPIProvider() *MockedAPIProvider {
 			KubeClient:        NewKubeClientMock(),
 			SchedulerAPI:      test.NewSchedulerAPIMock(),
 			PodInformer:       nil,
-			NodeInformer:      nil,
+			NodeInformer:      test.NewMockedNodeInformer(),
 			ConfigMapInformer: nil,
 			PVInformer:        &MockedPersistentVolumeInformer{},
 			PVCInformer:       &MockedPersistentVolumeClaimInformer{},
@@ -74,6 +74,13 @@ func (m *MockedAPIProvider) MockBindFn(bfn func(pod *v1.Pod, hostID string) erro
 func (m *MockedAPIProvider) MockDeleteFn(dfn func(pod *v1.Pod) error) {
 	if mock, ok := m.clients.KubeClient.(*KubeClientMock); ok {
 		mock.deleteFn = dfn
+	}
+}
+
+func (m *MockedAPIProvider) SetNodeLister(lister corev1.NodeLister)  {
+	informer := m.clients.NodeInformer
+	if i, ok := informer.(*test.MockedNodeInformer); ok {
+		i.SetLister(lister)
 	}
 }
 

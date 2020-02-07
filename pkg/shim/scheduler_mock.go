@@ -27,6 +27,7 @@ import (
 	coreconfigs "github.com/apache/incubator-yunikorn-core/pkg/common/configs"
 	"github.com/apache/incubator-yunikorn-core/pkg/entrypoint"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/cache"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/callback"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
@@ -94,8 +95,8 @@ func (fc *MockScheduler) addNode(nodeName string, memory, cpu int64) error {
 }
 
 func (fc *MockScheduler) addTask(appID string, taskID string, ask *si.Resource) {
-	fc.context.AddTask(&cache.AddTaskRequest{
-		Metadata: cache.TaskMetadata{
+	fc.context.AddTask(&interfaces.AddTaskRequest{
+		Metadata: interfaces.TaskMetadata{
 			ApplicationID: appID,
 			TaskID:        taskID,
 			Pod:           &v1.Pod{
@@ -148,8 +149,8 @@ func (fc *MockScheduler) waitAndAssertApplicationState(t *testing.T, appID, expe
 }
 
 func (fc *MockScheduler) addApplication(appId string, queue string) {
-	fc.context.AddApplication(&cache.AddApplicationRequest{
-		Metadata: cache.ApplicationMetadata{
+	fc.context.AddApplication(&interfaces.AddApplicationRequest{
+		Metadata: interfaces.ApplicationMetadata{
 			ApplicationID: appId,
 			QueueName:     queue,
 			User:          "test-user",

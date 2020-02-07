@@ -19,32 +19,33 @@
 package general
 
 import (
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/cache"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
+	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
-	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
 	k8sCache "k8s.io/client-go/tools/cache"
 )
 
+// implements interfaces#Recoverable, interfaces#AppManager
 // generic app management service watches events from all the pods,
 // it recognize apps by reading pod's spec labels, if there are proper info such as
 // applicationID, queue name found, and claim it as an app or a app task,
 // then report them to scheduler cache by calling am protocol
 type Manager struct {
 	apiProvider client.APIProvider
-	amProtocol cache.ApplicationManagementProtocol
+	amProtocol  interfaces.ApplicationManagementProtocol
 }
 
-func New(amProtocol cache.ApplicationManagementProtocol, apiProvider client.APIProvider) *Manager {
+func New(amProtocol interfaces.ApplicationManagementProtocol, apiProvider client.APIProvider) *Manager {
 	return &Manager{
 		apiProvider: apiProvider,
-		amProtocol: amProtocol,
+		amProtocol:  amProtocol,
 	}
 }
 
@@ -79,25 +80,25 @@ func (os *Manager) Stop() error {
 	return nil
 }
 
-func (os *Manager) getTaskMetadata(pod *v1.Pod) (cache.TaskMetadata, bool) {
+func (os *Manager) getTaskMetadata(pod *v1.Pod) (interfaces.TaskMetadata, bool) {
 	appId, err := utils.GetApplicationIDFromPod(pod)
 	if err != nil {
 		log.Logger.Debug("unable to get task by given pod", zap.Error(err))
-		return cache.TaskMetadata{}, false
+		return interfaces.TaskMetadata{}, false
 	}
 
-	return cache.TaskMetadata{
+	return interfaces.TaskMetadata{
 		ApplicationID: appId,
 		TaskID:        string(pod.UID),
 		Pod:           pod,
 	}, true
 }
 
-func (os *Manager) getAppMetadata(pod *v1.Pod) (cache.ApplicationMetadata, bool) {
+func (os *Manager) getAppMetadata(pod *v1.Pod) (interfaces.ApplicationMetadata, bool) {
 	appId, err := utils.GetApplicationIDFromPod(pod)
 	if err != nil {
 		log.Logger.Debug("unable to get application by given pod", zap.Error(err))
-		return cache.ApplicationMetadata{}, false
+		return interfaces.ApplicationMetadata{}, false
 	}
 
 	// tags will at least have namespace info
@@ -112,7 +113,7 @@ func (os *Manager) getAppMetadata(pod *v1.Pod) (cache.ApplicationMetadata, bool)
 	// get the application owner (this is all that is available as far as we can find)
 	user := pod.Spec.ServiceAccountName
 
-	return cache.ApplicationMetadata{
+	return interfaces.ApplicationMetadata{
 		ApplicationID: appId,
 		QueueName:     utils.GetQueueNameFromPod(pod),
 		User:          user,
@@ -161,7 +162,7 @@ func (os *Manager) addPod(obj interface{}) {
 	if appMeta, ok := os.getAppMetadata(pod); ok {
 		// check if app already exist
 		if _, exist := os.amProtocol.GetApplication(appMeta.ApplicationID); !exist {
-			os.amProtocol.AddApplication(&cache.AddApplicationRequest{
+			os.amProtocol.AddApplication(&interfaces.AddApplicationRequest{
 				Metadata: appMeta,
 				Recovery: recovery,
 			})
@@ -172,7 +173,7 @@ func (os *Manager) addPod(obj interface{}) {
 	if taskMeta, ok := os.getTaskMetadata(pod); ok {
 		if app, exist := os.amProtocol.GetApplication(taskMeta.ApplicationID); exist {
 			if _, taskErr := app.GetTask(string(pod.UID)); taskErr != nil {
-				os.amProtocol.AddTask(&cache.AddTaskRequest{
+				os.amProtocol.AddTask(&interfaces.AddTaskRequest{
 					Metadata: taskMeta,
 					Recovery: recovery,
 				})
@@ -217,52 +218,52 @@ func (os *Manager) deletePod(obj interface{}) {
 		zap.String("podUID", string(pod.UID)))
 
 	if taskMeta, ok := os.getTaskMetadata(pod); ok {
-		if application, exist := os.amProtocol.GetApplication(taskMeta.ApplicationID); exist {
+		if _, exist := os.amProtocol.GetApplication(taskMeta.ApplicationID); exist {
 			os.amProtocol.NotifyTaskComplete(taskMeta.ApplicationID, taskMeta.TaskID)
-			os.startCompletionHandlerIfNecessary(application, pod)
+			//os.startCompletionHandlerIfNecessary(application, pod)
 		}
 	}
 }
 
-func (os *Manager) startCompletionHandlerIfNecessary(app *cache.Application, pod *v1.Pod) {
-	for name, value := range pod.Labels {
-		if name == common.SparkLabelRole && value == common.SparkLabelRoleDriver {
-			app.StartCompletionHandler(cache.CompletionHandler{
-				CompleteFn: func() {
-					podWatch, err := os.apiProvider.GetAPIs().
-						KubeClient.GetClientSet().CoreV1().
-						Pods(pod.Namespace).Watch(metaV1.ListOptions{Watch: true})
-					if err != nil {
-						log.Logger.Info("unable to create Watch for pod",
-							zap.String("pod", pod.Name),
-							zap.Error(err))
-						return
-					}
+// func (os *Manager) startCompletionHandlerIfNecessary(app interfaces.ManagedApp, pod *v1.Pod) {
+// 	for name, value := range pod.Labels {
+// 		if name == common.SparkLabelRole && value == common.SparkLabelRoleDriver {
+// 			app.StartCompletionHandler(cache.CompletionHandler{
+// 				CompleteFn: func() {
+// 					podWatch, err := os.apiProvider.GetAPIs().
+// 						KubeClient.GetClientSet().CoreV1().
+// 						Pods(pod.Namespace).Watch(metaV1.ListOptions{Watch: true})
+// 					if err != nil {
+// 						log.Logger.Info("unable to create Watch for pod",
+// 							zap.String("pod", pod.Name),
+// 							zap.Error(err))
+// 						return
+// 					}
+//
+// 					for {
+// 						select {
+// 						case targetPod, ok := <-podWatch.ResultChan():
+// 							if !ok {
+// 								return
+// 							}
+// 							resp := targetPod.Object.(*v1.Pod)
+// 							if resp.Status.Phase == v1.PodSucceeded && resp.UID == pod.UID {
+// 								log.Logger.Info("spark driver completed, app completed",
+// 									zap.String("pod", resp.Name),
+// 									zap.String("appId", app.GetApplicationID()))
+// 								os.amProtocol.NotifyApplicationComplete(app.GetApplicationID())
+// 								return
+// 							}
+// 						}
+// 					}
+// 				},
+// 			})
+// 			return
+// 		}
+// 	}
+// }
 
-					for {
-						select {
-						case targetPod, ok := <-podWatch.ResultChan():
-							if !ok {
-								return
-							}
-							resp := targetPod.Object.(*v1.Pod)
-							if resp.Status.Phase == v1.PodSucceeded && resp.UID == pod.UID {
-								log.Logger.Info("spark driver completed, app completed",
-									zap.String("pod", resp.Name),
-									zap.String("appId", app.GetApplicationID()))
-								os.amProtocol.NotifyApplicationComplete(app.GetApplicationID())
-								return
-							}
-						}
-					}
-				},
-			})
-			return
-		}
-	}
-}
-
-func (os *Manager) ListApplications() (map[string]cache.ApplicationMetadata, error) {
+func (os *Manager) ListApplications() (map[string]interfaces.ApplicationMetadata, error) {
 	// selector: applicationID exist
 	slt := labels.NewSelector()
 	req, err := labels.NewRequirement(common.LabelApplicationID, selection.Exists, nil)
@@ -278,7 +279,7 @@ func (os *Manager) ListApplications() (map[string]cache.ApplicationMetadata, err
 	}
 
 	// get existing apps
-	existingApps := make(map[string]cache.ApplicationMetadata)
+	existingApps := make(map[string]interfaces.ApplicationMetadata)
 	if appPods != nil && len(appPods) > 0 {
 		for _, pod := range appPods {
 			if meta, ok := os.getAppMetadata(pod); ok {
@@ -290,4 +291,20 @@ func (os *Manager) ListApplications() (map[string]cache.ApplicationMetadata, err
 	}
 
 	return existingApps, nil
+}
+
+func (os *Manager) GetExistingAllocation(pod *v1.Pod) (*si.Allocation, bool) {
+	if meta, valid := os.getAppMetadata(pod); valid {
+		return &si.Allocation{
+			AllocationKey:    pod.Name,
+			AllocationTags:   meta.Tags,
+			UUID:             string(pod.UID),
+			ResourcePerAlloc: common.GetPodResource(pod),
+			QueueName:        meta.QueueName,
+			NodeID:           pod.Spec.NodeName,
+			ApplicationID:    meta.ApplicationID,
+			PartitionName:    common.DefaultPartition,
+		}, true
+	}
+	return nil, false
 }

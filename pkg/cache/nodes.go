@@ -29,7 +29,6 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/cache/external"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
@@ -74,28 +73,14 @@ func equals(n1 *v1.Node, n2 *v1.Node) bool {
 	return common.Equals(n1Resource, n2Resource)
 }
 
-func (nc *schedulerNodes) addExistingAllocation(pod *v1.Pod) error {
+func (nc *schedulerNodes) addExistingAllocation(allocation *si.Allocation) error {
 	nc.lock.Lock()
 	defer nc.lock.Unlock()
-	if utils.IsAssignedPod(pod) {
-		if appID, err := utils.GetApplicationIDFromPod(pod); err == nil {
-			if schedulerNode, ok := nc.nodesMap[pod.Spec.NodeName]; ok {
-				schedulerNode.addExistingAllocation(&si.Allocation{
-					AllocationKey:    pod.Name,
-					AllocationTags:   nil,
-					UUID:             string(pod.UID),
-					ResourcePerAlloc: common.GetPodResource(pod),
-					QueueName:        utils.GetQueueNameFromPod(pod),
-					NodeID:           pod.Spec.NodeName,
-					ApplicationID:    appID,
-					PartitionName:    common.DefaultPartition,
-				})
-			}
-		} else {
-			return err
-		}
+	if schedulerNode, ok := nc.nodesMap[allocation.NodeID]; ok {
+		schedulerNode.addExistingAllocation(allocation)
+		return nil
 	}
-	return nil
+	return fmt.Errorf("orphan allocation %v", allocation)
 }
 
 func (nc *schedulerNodes) addNode(node *v1.Node) {

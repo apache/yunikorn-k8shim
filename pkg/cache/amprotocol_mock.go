@@ -20,6 +20,7 @@ package cache
 import (
 	"fmt"
 
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 )
 
@@ -33,14 +34,14 @@ func NewMockedAMProtocol() *MockedAMProtocol {
 		applications: make(map[string]*Application)}
 }
 
-func (m *MockedAMProtocol) GetApplication(appID string) (*Application, bool) {
+func (m *MockedAMProtocol) GetApplication(appID string) (interfaces.ManagedApp, bool) {
 	if app, ok := m.applications[appID]; ok {
 		return app, true
 	}
 	return nil, false
 }
 
-func (m *MockedAMProtocol) AddApplication(request *AddApplicationRequest) (*Application, bool) {
+func (m *MockedAMProtocol) AddApplication(request *interfaces.AddApplicationRequest) (interfaces.ManagedApp, bool) {
 	if app, ok := m.GetApplication(request.Metadata.ApplicationID); ok {
 		return app, false
 	}
@@ -73,7 +74,7 @@ func (m *MockedAMProtocol) RemoveApplication(appID string) error {
 	return fmt.Errorf("application doesn't exist")
 }
 
-func (m *MockedAMProtocol) AddTask(request *AddTaskRequest) (*Task, bool) {
+func (m *MockedAMProtocol) AddTask(request *interfaces.AddTaskRequest) (interfaces.ManagedTask, bool) {
 	if app, ok := m.applications[request.Metadata.ApplicationID]; ok {
 		if existingTask, err := app.GetTask(request.Metadata.TaskID); err != nil {
 			task := NewTask(request.Metadata.TaskID, app, nil, request.Metadata.Pod)
@@ -97,14 +98,18 @@ func (m *MockedAMProtocol) RemoveTask(appID, taskID string) error {
 
 func (m *MockedAMProtocol) NotifyApplicationComplete(appID string) {
 	if app, ok := m.GetApplication(appID); ok {
-		app.SetState(events.States().Application.Completed)
+		if p, valid := app.(*Application); valid {
+			p.SetState(events.States().Application.Completed)
+		}
 	}
 }
 
 func (m *MockedAMProtocol) NotifyTaskComplete(appID, taskID string) {
 	if app, ok := m.GetApplication(appID); ok {
 		if task, err := app.GetTask(taskID); err == nil {
-			task.sm.SetState(events.States().Task.Completed)
+			if t, ok := task.(*Task); ok {
+				t.sm.SetState(events.States().Task.Completed)
+			}
 		}
 	}
 }

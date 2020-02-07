@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/looplab/fsm"
 	"go.uber.org/zap"
 
@@ -143,7 +144,7 @@ func (app *Application) canHandle(ev events.ApplicationEvent) bool {
 	return app.sm.Can(string(ev.GetEvent()))
 }
 
-func (app *Application) GetTask(taskID string) (*Task, error) {
+func (app *Application) GetTask(taskID string) (interfaces.ManagedTask, error) {
 	app.lock.RLock()
 	defer app.lock.RUnlock()
 	if task, ok := app.taskMap[taskID]; ok {
@@ -163,6 +164,12 @@ func (app *Application) GetQueue() string {
 	app.lock.RLock()
 	defer app.lock.RUnlock()
 	return app.queue
+}
+
+func (app *Application) GetUser() string {
+	app.lock.RLock()
+	defer app.lock.RUnlock()
+	return app.user
 }
 
 func (app *Application) addTask(task *Task) {

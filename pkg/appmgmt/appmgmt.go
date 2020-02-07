@@ -19,8 +19,8 @@ package appmgmt
 
 import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/general"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/sparkoperator"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/cache"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 	"go.uber.org/zap"
@@ -29,17 +29,17 @@ import (
 // app manager service is a central service that interacts with
 // one or more K8s operators for app scheduling.
 type AppManagementService struct {
-	apiProvider   client.APIProvider
-	amProtocol    cache.ApplicationManagementProtocol
-	managers      []AppManager
+	apiProvider client.APIProvider
+	amProtocol  interfaces.ApplicationManagementProtocol
+	managers    []interfaces.AppManager
 }
 
-func NewAMService(amProtocol cache.ApplicationManagementProtocol,
+func NewAMService(amProtocol interfaces.ApplicationManagementProtocol,
 	apiProvider client.APIProvider) *AppManagementService {
 	appManager := &AppManagementService{
 		amProtocol:    amProtocol,
 		apiProvider:   apiProvider,
-		managers:      make([]AppManager, 0),
+		managers:      make([]interfaces.AppManager, 0),
 	}
 
 	if !apiProvider.IsTestingMode() {
@@ -54,7 +54,11 @@ func NewAMService(amProtocol cache.ApplicationManagementProtocol,
 	return appManager
 }
 
-func (svc *AppManagementService) register(managers ...AppManager) {
+func (svc *AppManagementService) GetAllManagers() []interfaces.AppManager {
+	return svc.managers
+}
+
+func (svc *AppManagementService) register(managers ...interfaces.AppManager) {
 	for _, mgr := range managers {
 		log.Logger.Info("registering app management service",
 			zap.String("serviceName", mgr.Name()))

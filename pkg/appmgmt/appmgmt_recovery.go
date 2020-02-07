@@ -22,7 +22,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/cache"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
@@ -37,31 +37,34 @@ func (svc *AppManagementService) WaitForRecovery(maxTimeout time.Duration) error
 	return nil
 }
 
-func (svc *AppManagementService) kickoffRecovery() map[string]*cache.Application {
-	recoveringApps := make(map[string]*cache.Application)
+func (svc *AppManagementService) kickoffRecovery() map[string]interfaces.ManagedApp {
+	recoveringApps := make(map[string]interfaces.ManagedApp)
 	for _, mgr := range svc.managers {
-		appMetas, err := mgr.ListApplications()
-		if err != nil {
-			log.Logger.Error("failed to list apps", zap.Error(err))
-			return recoveringApps
-		}
+		if m, ok := mgr.(interfaces.Recoverable); ok {
+			appMetas, err := m.ListApplications()
+			if err != nil {
+				log.Logger.Error("failed to list apps", zap.Error(err))
+				return recoveringApps
+			}
 
-		// trigger recovery of the apps
-		// this is simply submit the app again
-		for _, appMeta := range appMetas {
-			if app, recovering := svc.amProtocol.AddApplication(
-				&cache.AddApplicationRequest{
-					Metadata: appMeta,
-					Recovery: true,
-				}); recovering {
-				recoveringApps[app.GetApplicationID()] = app
+			// trigger recovery of the apps
+			// this is simply submit the app again
+			for _, appMeta := range appMetas {
+				if app, recovering := svc.amProtocol.AddApplication(
+					&interfaces.AddApplicationRequest{
+						Metadata: appMeta,
+						Recovery: true,
+					}); recovering {
+					recoveringApps[app.GetApplicationID()] = app
+				}
 			}
 		}
 	}
 	return recoveringApps
 }
 
-func (svc *AppManagementService) waitForAppRecovery(recoveringApps map[string]*cache.Application, maxTimeout time.Duration) error {
+func (svc *AppManagementService) waitForAppRecovery(
+	recoveringApps map[string]interfaces.ManagedApp, maxTimeout time.Duration) error {
 	if len(recoveringApps) > 0 {
 		// check app states periodically, ensure all apps exit from recovering state
 		if err := utils.WaitForCondition(func() bool {

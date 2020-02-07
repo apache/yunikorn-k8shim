@@ -19,6 +19,7 @@ package cache
 import (
 	"testing"
 
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
@@ -51,8 +52,8 @@ func TestAddApplications(t *testing.T) {
 	context := initContextForTest()
 
 	// add a new application
-	context.AddApplication(&AddApplicationRequest{
-		Metadata: ApplicationMetadata{
+	context.AddApplication(&interfaces.AddApplicationRequest{
+		Metadata: interfaces.ApplicationMetadata{
 			ApplicationID: "app00001",
 			QueueName:     "root.a",
 			User:          "test-user",
@@ -66,8 +67,8 @@ func TestAddApplications(t *testing.T) {
 	assert.Equal(t, len(context.applications["app00001"].GetPendingTasks()), 0)
 
 	// add an app but app already exists
-	app, ok := context.AddApplication(&AddApplicationRequest{
-		Metadata: ApplicationMetadata{
+	app, ok := context.AddApplication(&interfaces.AddApplicationRequest{
+		Metadata: interfaces.ApplicationMetadata{
 			ApplicationID: "app00001",
 			QueueName:     "root.other",
 			User:          "test-user",
@@ -77,13 +78,13 @@ func TestAddApplications(t *testing.T) {
 	})
 
 	assert.Equal(t, ok, false)
-	assert.Equal(t, app.queue, "root.a")
+	assert.Equal(t, app.GetQueue(), "root.a")
 }
 
 func TestGetApplication(t *testing.T) {
 	context := initContextForTest()
-	context.AddApplication(&AddApplicationRequest{
-		Metadata: ApplicationMetadata{
+	context.AddApplication(&interfaces.AddApplicationRequest{
+		Metadata: interfaces.ApplicationMetadata{
 			ApplicationID: "app00001",
 			QueueName:     "root.a",
 			User:          "test-user",
@@ -91,8 +92,8 @@ func TestGetApplication(t *testing.T) {
 		},
 		Recovery: false,
 	})
-	context.AddApplication(&AddApplicationRequest{
-		Metadata: ApplicationMetadata{
+	context.AddApplication(&interfaces.AddApplicationRequest{
+		Metadata: interfaces.ApplicationMetadata{
 			ApplicationID: "app00002",
 			QueueName:     "root.b",
 			User:          "test-user",
@@ -103,15 +104,15 @@ func TestGetApplication(t *testing.T) {
 
 	app, ok := context.GetApplication("app00001")
 	assert.Equal(t, ok, true)
-	assert.Equal(t, app.applicationID, "app00001")
-	assert.Equal(t, app.queue, "root.a")
-	assert.Equal(t, app.user, "test-user")
+	assert.Equal(t, app.GetApplicationID(), "app00001")
+	assert.Equal(t, app.GetQueue(), "root.a")
+	assert.Equal(t, app.GetUser(), "test-user")
 
 	app, ok = context.GetApplication("app00002")
 	assert.Equal(t, ok, true)
-	assert.Equal(t, app.applicationID, "app00002")
-	assert.Equal(t, app.queue, "root.b")
-	assert.Equal(t, app.user, "test-user")
+	assert.Equal(t, app.GetApplicationID(), "app00002")
+	assert.Equal(t, app.GetQueue(), "root.b")
+	assert.Equal(t, app.GetUser(), "test-user")
 
 	// get a non-exist application
 	app, ok = context.GetApplication("app-none-exist")
@@ -122,8 +123,8 @@ func TestGetApplication(t *testing.T) {
 func TestRemoveApplication(t *testing.T) {
 	// add 2 applications
 	context := initContextForTest()
-	context.AddApplication(&AddApplicationRequest{
-		Metadata: ApplicationMetadata{
+	context.AddApplication(&interfaces.AddApplicationRequest{
+		Metadata: interfaces.ApplicationMetadata{
 			ApplicationID: "app00001",
 			QueueName:     "root.a",
 			User:          "test-user",
@@ -131,8 +132,8 @@ func TestRemoveApplication(t *testing.T) {
 		},
 		Recovery: false,
 	})
-	context.AddApplication(&AddApplicationRequest{
-		Metadata: ApplicationMetadata{
+	context.AddApplication(&interfaces.AddApplicationRequest{
+		Metadata: interfaces.ApplicationMetadata{
 			ApplicationID: "app00002",
 			QueueName:     "root.b",
 			User:          "test-user",
@@ -165,8 +166,8 @@ func TestAddTask(t *testing.T) {
 	context := initContextForTest()
 
 	// add a new application
-	context.AddApplication(&AddApplicationRequest{
-		Metadata: ApplicationMetadata{
+	context.AddApplication(&interfaces.AddApplicationRequest{
+		Metadata: interfaces.ApplicationMetadata{
 			ApplicationID: "app00001",
 			QueueName:     "root.a",
 			User:          "test-user",
@@ -180,8 +181,8 @@ func TestAddTask(t *testing.T) {
 	assert.Equal(t, len(context.applications["app00001"].GetPendingTasks()), 0)
 
 	// add a tasks to the existing application
-	task, taskAdded := context.AddTask(&AddTaskRequest{
-		Metadata: TaskMetadata{
+	task, taskAdded := context.AddTask(&interfaces.AddTaskRequest{
+		Metadata: interfaces.TaskMetadata{
 			ApplicationID: "app00001",
 			TaskID:        "task00001",
 			Pod:           &v1.Pod{},
@@ -189,11 +190,11 @@ func TestAddTask(t *testing.T) {
 		Recovery: false,
 	})
 	assert.Assert(t, taskAdded, true)
-	assert.Equal(t, task.taskID, "task00001")
+	assert.Equal(t, task.GetTaskID(), "task00001")
 
 	// add another task
-	task, taskAdded = context.AddTask(&AddTaskRequest{
-		Metadata: TaskMetadata{
+	task, taskAdded = context.AddTask(&interfaces.AddTaskRequest{
+		Metadata: interfaces.TaskMetadata{
 			ApplicationID: "app00001",
 			TaskID:        "task00002",
 			Pod:           &v1.Pod{},
@@ -201,11 +202,11 @@ func TestAddTask(t *testing.T) {
 		Recovery: false,
 	})
 	assert.Assert(t, taskAdded, true)
-	assert.Equal(t, task.taskID, "task00002")
+	assert.Equal(t, task.GetTaskID(), "task00002")
 
 	// add a task with dup taskID
-	task, taskAdded = context.AddTask(&AddTaskRequest{
-		Metadata: TaskMetadata{
+	task, taskAdded = context.AddTask(&interfaces.AddTaskRequest{
+		Metadata: interfaces.TaskMetadata{
 			ApplicationID: "app00001",
 			TaskID:        "task00002",
 			Pod:           &v1.Pod{},
@@ -213,11 +214,11 @@ func TestAddTask(t *testing.T) {
 		Recovery: false,
 	})
 	assert.Equal(t, taskAdded, false)
-	assert.Equal(t, task.taskID, "task00002")
+	assert.Equal(t, task.GetTaskID(), "task00002")
 
 	// add a task without app's appearance
-	task, taskAdded = context.AddTask(&AddTaskRequest{
-		Metadata: TaskMetadata{
+	task, taskAdded = context.AddTask(&interfaces.AddTaskRequest{
+		Metadata: interfaces.TaskMetadata{
 			ApplicationID: "app-non-exist",
 			TaskID:        "task00003",
 			Pod:           &v1.Pod{},
@@ -235,8 +236,8 @@ func TestRecoverTask(t *testing.T) {
 	context := initContextForTest()
 
 	// add a new application
-	context.AddApplication(&AddApplicationRequest{
-		Metadata: ApplicationMetadata{
+	context.AddApplication(&interfaces.AddApplicationRequest{
+		Metadata: interfaces.ApplicationMetadata{
 			ApplicationID: "app00001",
 			QueueName:     "root.a",
 			User:          "test-user",
@@ -249,8 +250,8 @@ func TestRecoverTask(t *testing.T) {
 	assert.Equal(t, len(context.applications["app00001"].GetPendingTasks()), 0)
 
 	// add a tasks to the existing application
-	task, taskAdded := context.AddTask(&AddTaskRequest{
-		Metadata: TaskMetadata{
+	task, taskAdded := context.AddTask(&interfaces.AddTaskRequest{
+		Metadata: interfaces.TaskMetadata{
 			ApplicationID: "app00001",
 			TaskID:        "task00001",
 			Pod:           &v1.Pod{},
@@ -258,7 +259,7 @@ func TestRecoverTask(t *testing.T) {
 		Recovery: true,
 	})
 	assert.Assert(t, taskAdded, true)
-	assert.Equal(t, task.taskID, "task00001")
+	assert.Equal(t, task.GetTaskID(), "task00001")
 	assert.Equal(t, task.GetTaskState(), events.States().Task.Allocated)
 }
 
@@ -266,8 +267,8 @@ func TestRemoveTask(t *testing.T) {
 	context := initContextForTest()
 
 	// add a new application
-	context.AddApplication(&AddApplicationRequest{
-		Metadata: ApplicationMetadata{
+	context.AddApplication(&interfaces.AddApplicationRequest{
+		Metadata: interfaces.ApplicationMetadata{
 			ApplicationID: "app00001",
 			QueueName:     "root.a",
 			User:          "test-user",
@@ -277,16 +278,16 @@ func TestRemoveTask(t *testing.T) {
 	})
 
 	// add 2 tasks
-	context.AddTask(&AddTaskRequest{
-		Metadata: TaskMetadata{
+	context.AddTask(&interfaces.AddTaskRequest{
+		Metadata: interfaces.TaskMetadata{
 			ApplicationID: "app00001",
 			TaskID:        "task00001",
 			Pod:           &v1.Pod{},
 		},
 		Recovery: false,
 	})
-	context.AddTask(&AddTaskRequest{
-		Metadata: TaskMetadata{
+	context.AddTask(&interfaces.AddTaskRequest{
+		Metadata: interfaces.TaskMetadata{
 			ApplicationID: "app00001",
 			TaskID:        "task00002",
 			Pod:           &v1.Pod{},
@@ -295,7 +296,13 @@ func TestRemoveTask(t *testing.T) {
 	})
 
 	// verify app and tasks
-	app, ok := context.GetApplication("app00001")
+	managedApp, ok := context.GetApplication("app00001")
+
+	app, valid := managedApp.(*Application)
+	if !valid {
+		t.Errorf("expecting application type")
+	}
+
 	assert.Equal(t, ok, true)
 	assert.Assert(t, app != nil)
 

@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
 	"github.com/looplab/fsm"
 	"go.uber.org/zap"
@@ -175,7 +176,13 @@ func (ss *KubernetesShim) recoverSchedulerState() func(e *fsm.Event) {
 			// this step, we collect all existing allocations (allocated pods) from api-server,
 			// rerun the scheduling for these allocations in order to restore scheduler-state,
 			// the rerun is like a replay, not a actual scheduling procedure.
-			if err := ss.context.WaitForRecovery(3 * time.Minute); err != nil {
+			recoverableApps := make([]interfaces.Recoverable, 0)
+			for _, appMgr := range ss.appManager.GetAllManagers() {
+				if m, ok := appMgr.(interfaces.Recoverable); ok {
+					recoverableApps = append(recoverableApps, m)
+				}
+			}
+			if err := ss.context.WaitForRecovery(recoverableApps, 3*time.Minute); err != nil {
 				// failed
 				log.Logger.Fatal("scheduler recovery failed", zap.Error(err))
 				dispatcher.Dispatch(ShimSchedulerEvent{
@@ -217,7 +224,7 @@ func (ss *KubernetesShim) registerShimLayer() error {
 		zap.String("policyGroup", configuration.PolicyGroup))
 	if _, err := ss.apiFactory.GetAPIs().SchedulerAPI.
 		RegisterResourceManager(&registerMessage, ss.callback); err != nil {
-			return err
+		return err
 	}
 
 	return nil

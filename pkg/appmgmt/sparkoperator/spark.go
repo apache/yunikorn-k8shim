@@ -22,11 +22,12 @@ import (
 	"github.com/GoogleCloudPlatform/spark-on-k8s-operator/pkg/apis/sparkoperator.k8s.io/v1beta2"
 	crcClientSet "github.com/GoogleCloudPlatform/spark-on-k8s-operator/pkg/client/clientset/versioned"
 	crInformers "github.com/GoogleCloudPlatform/spark-on-k8s-operator/pkg/client/informers/externalversions"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/cache"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
+	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -35,18 +36,19 @@ import (
 
 const (
 	LabelAnnotationPrefix = "sparkoperator.k8s.io/"
-	SparkAppNameLabel = LabelAnnotationPrefix + "app-name"
+	SparkAppNameLabel     = LabelAnnotationPrefix + "app-name"
 )
 
+// implements interfaces#Recoverable, interfaces#AppManager
 type Manager struct {
-	amProtocol         cache.ApplicationManagementProtocol
+	amProtocol         interfaces.ApplicationManagementProtocol
 	apiProvider        client.APIProvider
 	crdInformer        k8sCache.SharedIndexInformer
 	crdInformerFactory crInformers.SharedInformerFactory
 	stopCh             chan struct{}
 }
 
-func New(amProtocol cache.ApplicationManagementProtocol, apiProvider client.APIProvider) *Manager {
+func New(amProtocol interfaces.ApplicationManagementProtocol, apiProvider client.APIProvider) *Manager {
 	return &Manager{
 		amProtocol:  amProtocol,
 		apiProvider: apiProvider,
@@ -61,7 +63,7 @@ func (os *Manager) ServiceInit() error {
 	if err != nil {
 		return err
 	}
-	
+
 	var factoryOpts []crInformers.SharedInformerOption
 	os.crdInformerFactory = crInformers.NewSharedInformerFactoryWithOptions(
 		crClient, 0, factoryOpts...)
@@ -96,23 +98,23 @@ func (os *Manager) Start() error {
 
 func (os *Manager) Stop() error {
 	log.Logger.Info("stopping", zap.String("Name", os.Name()))
-	os.stopCh<- struct{}{}
+	os.stopCh <- struct{}{}
 	return nil
 }
 
-func (os *Manager) getTaskMetadata(pod *v1.Pod) (cache.TaskMetadata, bool) {
+func (os *Manager) getTaskMetadata(pod *v1.Pod) (interfaces.TaskMetadata, bool) {
 	// spark executors are having a common label
 	if appName, ok := pod.Labels[SparkAppNameLabel]; ok {
-		return cache.TaskMetadata{
+		return interfaces.TaskMetadata{
 			ApplicationID: appName,
 			TaskID:        string(pod.UID),
 			Pod:           pod,
 		}, true
 	}
-	return cache.TaskMetadata{}, false
+	return interfaces.TaskMetadata{}, false
 }
 
-func (os *Manager) getAppMetadata(sparkApp *v1beta2.SparkApplication) cache.ApplicationMetadata {
+func (os *Manager) getAppMetadata(sparkApp *v1beta2.SparkApplication) interfaces.ApplicationMetadata {
 	// extract tags from annotations
 	tags := make(map[string]string)
 	for annotationKey, annotationValue := range sparkApp.GetAnnotations() {
@@ -125,7 +127,7 @@ func (os *Manager) getAppMetadata(sparkApp *v1beta2.SparkApplication) cache.Appl
 		queueName = an
 	}
 
-	return cache.ApplicationMetadata{
+	return interfaces.ApplicationMetadata{
 		ApplicationID: sparkApp.Name,
 		QueueName:     queueName,
 		User:          "default",
@@ -134,11 +136,11 @@ func (os *Manager) getAppMetadata(sparkApp *v1beta2.SparkApplication) cache.Appl
 }
 
 // list all existing applications
-func (os *Manager) ListApplications() (map[string]cache.ApplicationMetadata, error) {
+func (os *Manager) ListApplications() (map[string]interfaces.ApplicationMetadata, error) {
 	lister := os.crdInformerFactory.Sparkoperator().V1beta2().SparkApplications().Lister()
 	sparkApps, err := lister.List(labels.Everything())
 	if err == nil {
-		existingApps := make(map[string]cache.ApplicationMetadata)
+		existingApps := make(map[string]interfaces.ApplicationMetadata)
 		for _, sparkApp := range sparkApps {
 			existingApps[sparkApp.Name] = os.getAppMetadata(sparkApp)
 		}
@@ -147,11 +149,27 @@ func (os *Manager) ListApplications() (map[string]cache.ApplicationMetadata, err
 	return nil, err
 }
 
+func (os *Manager) GetExistingAllocation(pod *v1.Pod) (*si.Allocation, bool) {
+	if meta, valid := os.getTaskMetadata(pod); valid {
+		return &si.Allocation{
+			AllocationKey:    pod.Name,
+			AllocationTags:   nil,
+			UUID:             string(pod.UID),
+			ResourcePerAlloc: common.GetPodResource(pod),
+			QueueName:        utils.GetQueueNameFromPod(pod),
+			NodeID:           pod.Spec.NodeName,
+			ApplicationID:    meta.ApplicationID,
+			PartitionName:    common.DefaultPartition,
+		}, true
+	}
+	return nil, false
+}
+
 // callbacks for SparkApplication CRD
 func (os *Manager) addApplication(obj interface{}) {
 	app := obj.(*v1beta2.SparkApplication)
 	log.Logger.Info("spark app added", zap.Any("SparkApplication", app))
-	os.amProtocol.AddApplication(&cache.AddApplicationRequest{
+	os.amProtocol.AddApplication(&interfaces.AddApplicationRequest{
 		Metadata: os.getAppMetadata(app),
 		Recovery: false,
 	})
@@ -183,7 +201,7 @@ func (os *Manager) filterPod(obj interface{}) bool {
 func (os *Manager) addPod(obj interface{}) {
 	if pod, err := utils.Convert2Pod(obj); err == nil {
 		if meta, isTask := os.getTaskMetadata(pod); isTask {
-			os.amProtocol.AddTask(&cache.AddTaskRequest{
+			os.amProtocol.AddTask(&interfaces.AddTaskRequest{
 				Metadata: meta,
 				Recovery: false,
 			})

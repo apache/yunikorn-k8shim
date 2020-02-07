@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
 	"gotest.tools/assert"
 	v1 "k8s.io/api/core/v1"
@@ -32,7 +33,8 @@ import (
 )
 
 func TestNodeRecoveringState(t *testing.T) {
-	context := NewContext(client.NewMockedAPIProvider())
+	apiProvide4test := client.NewMockedAPIProvider()
+	context := NewContext(apiProvide4test)
 	dispatcher.RegisterEventHandler(dispatcher.EventTypeNode, context.nodes.schedulerNodeEventHandler())
 	dispatcher.Start()
 	defer dispatcher.Stop()
@@ -76,7 +78,10 @@ func TestNodeRecoveringState(t *testing.T) {
 	nodeLister := test.NewNodeListerMock()
 	nodeLister.AddNode(&node1)
 	nodeLister.AddNode(&node2)
-	if err := context.waitForNodeRecovery(nodeLister, 3*time.Second); err == nil {
+	apiProvide4test.SetNodeLister(nodeLister)
+
+	mockedAppMgr := test.NewMockedRecoverableAppManager()
+	if err := context.recover([]interfaces.Recoverable{mockedAppMgr}, 3*time.Second); err == nil {
 		t.Fatalf("expecting timeout here!")
 	} else {
 		t.Logf("context stays waiting for recovery, error: %v", err)
@@ -93,7 +98,8 @@ func TestNodeRecoveringState(t *testing.T) {
 }
 
 func TestNodesRecovery(t *testing.T) {
-	context := NewContext(client.NewMockedAPIProvider())
+	apiProvide4test := client.NewMockedAPIProvider()
+	context := NewContext(apiProvide4test)
 	dispatcher.RegisterEventHandler(dispatcher.EventTypeNode, context.nodes.schedulerNodeEventHandler())
 	dispatcher.Start()
 	defer dispatcher.Stop()
@@ -137,7 +143,10 @@ func TestNodesRecovery(t *testing.T) {
 	nodeLister := test.NewNodeListerMock()
 	nodeLister.AddNode(&node1)
 	nodeLister.AddNode(&node2)
-	if err := context.waitForNodeRecovery(nodeLister, 3*time.Second); err == nil {
+	apiProvide4test.SetNodeLister(nodeLister)
+
+	mockedAppRecover := test.NewMockedRecoverableAppManager()
+	if err := context.recover([]interfaces.Recoverable{mockedAppRecover}, 3*time.Second); err == nil {
 		t.Fatalf("expecting timeout here!")
 	} else {
 		t.Logf("context stays waiting for recovery, error: %v", err)
@@ -168,7 +177,7 @@ func TestNodesRecovery(t *testing.T) {
 		Event:  events.NodeAccepted,
 	})
 
-	if err := context.waitForNodeRecovery(nodeLister, 3*time.Second); err != nil {
+	if err := context.recover([]interfaces.Recoverable{mockedAppRecover}, 3*time.Second); err != nil {
 		t.Fatalf("recovery should be successful, however got error %v", err)
 	}
 

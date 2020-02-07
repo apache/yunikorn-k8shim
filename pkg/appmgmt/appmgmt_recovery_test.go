@@ -22,10 +22,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/cache"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
+	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 	"gotest.tools/assert"
+	v1 "k8s.io/api/core/v1"
 )
 
 func TestAppManagerRecoveryState(t *testing.T) {
@@ -98,19 +101,23 @@ func (ma *mockedAppManager) Stop() error {
 	return nil
 }
 
-func (ma *mockedAppManager) ListApplications() (map[string]cache.ApplicationMetadata, error) {
-	apps := make(map[string]cache.ApplicationMetadata)
-	apps["app01"] = cache.ApplicationMetadata{
+func (ma *mockedAppManager) ListApplications() (map[string]interfaces.ApplicationMetadata, error) {
+	apps := make(map[string]interfaces.ApplicationMetadata)
+	apps["app01"] = interfaces.ApplicationMetadata{
 		ApplicationID: "app01",
 		QueueName:     "root.a",
 		User:          "",
 		Tags:          nil,
 	}
-	apps["app02"] = cache.ApplicationMetadata{
+	apps["app02"] = interfaces.ApplicationMetadata{
 		ApplicationID: "app02",
 		QueueName:     "root.a",
 		User:          "",
 		Tags:          nil,
 	}
 	return apps, nil
+}
+
+func (ma *mockedAppManager) GetExistingAllocation(pod *v1.Pod) (*si.Allocation, bool) {
+	return nil, false
 }
