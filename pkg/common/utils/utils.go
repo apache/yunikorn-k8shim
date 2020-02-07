@@ -53,6 +53,10 @@ func NeedRecovery(pod *v1.Pod) (bool, error) {
 	return false, fmt.Errorf("unknown pod state %v", pod)
 }
 
+func IsPodRunning(pod *v1.Pod) bool {
+	return pod.Status.Phase == v1.PodRunning
+}
+
 // assignedPod selects pods that are assigned (scheduled and running).
 func IsAssignedPod(pod *v1.Pod) bool {
 	return len(pod.Spec.NodeName) != 0
