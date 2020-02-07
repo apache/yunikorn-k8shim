@@ -44,7 +44,6 @@ type Application struct {
 	tags          map[string]string
 	sm            *fsm.FSM
 	lock          *sync.RWMutex
-	ch            CompletionHandler
 	schedulerAPI  api.SchedulerAPI
 }
 
@@ -64,7 +63,6 @@ func NewApplication(appID, queueName, user string, tags map[string]string, sched
 		taskMap:       taskMap,
 		tags:          tags,
 		lock:          &sync.RWMutex{},
-		ch:            CompletionHandler{Running: false},
 		schedulerAPI:  scheduler,
 	}
 
@@ -349,31 +347,5 @@ func (app *Application) handleRejectApplicationEvent(event *fsm.Event) {
 }
 
 func (app *Application) handleCompleteApplicationEvent(event *fsm.Event) {
-	//// shutdown the working channel
-	//close(app.stopChan)
-}
-
-// a application can have one and at most one completion handler,
-// the completion handler determines when a application is considered as stopped,
-// such as for Spark, once driver is succeed, we think this application is completed.
-// this interface can be customized for different type of apps.
-type CompletionHandler struct {
-	Running    bool
-	CompleteFn func()
-}
-
-func (app *Application) StartCompletionHandler(handler CompletionHandler) {
-	if app.ch.Running {
-		log.Logger.Info("app completion handler is already running")
-		return
-	}
-
-	app.ch = handler
-	app.ch.start()
-}
-
-func (ch CompletionHandler) start() {
-	if !ch.Running {
-		go ch.CompleteFn()
-	}
+	// TODO app lifecycle updates
 }

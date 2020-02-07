@@ -220,48 +220,9 @@ func (os *Manager) deletePod(obj interface{}) {
 	if taskMeta, ok := os.getTaskMetadata(pod); ok {
 		if _, exist := os.amProtocol.GetApplication(taskMeta.ApplicationID); exist {
 			os.amProtocol.NotifyTaskComplete(taskMeta.ApplicationID, taskMeta.TaskID)
-			//os.startCompletionHandlerIfNecessary(application, pod)
 		}
 	}
 }
-
-// func (os *Manager) startCompletionHandlerIfNecessary(app interfaces.ManagedApp, pod *v1.Pod) {
-// 	for name, value := range pod.Labels {
-// 		if name == common.SparkLabelRole && value == common.SparkLabelRoleDriver {
-// 			app.StartCompletionHandler(cache.CompletionHandler{
-// 				CompleteFn: func() {
-// 					podWatch, err := os.apiProvider.GetAPIs().
-// 						KubeClient.GetClientSet().CoreV1().
-// 						Pods(pod.Namespace).Watch(metaV1.ListOptions{Watch: true})
-// 					if err != nil {
-// 						log.Logger.Info("unable to create Watch for pod",
-// 							zap.String("pod", pod.Name),
-// 							zap.Error(err))
-// 						return
-// 					}
-//
-// 					for {
-// 						select {
-// 						case targetPod, ok := <-podWatch.ResultChan():
-// 							if !ok {
-// 								return
-// 							}
-// 							resp := targetPod.Object.(*v1.Pod)
-// 							if resp.Status.Phase == v1.PodSucceeded && resp.UID == pod.UID {
-// 								log.Logger.Info("spark driver completed, app completed",
-// 									zap.String("pod", resp.Name),
-// 									zap.String("appId", app.GetApplicationID()))
-// 								os.amProtocol.NotifyApplicationComplete(app.GetApplicationID())
-// 								return
-// 							}
-// 						}
-// 					}
-// 				},
-// 			})
-// 			return
-// 		}
-// 	}
-// }
 
 func (os *Manager) ListApplications() (map[string]interfaces.ApplicationMetadata, error) {
 	// selector: applicationID exist

@@ -21,11 +21,11 @@ Two sample deployments using sleep jobs:
 ## spark
 A sample application using Apache Spark.
 
-Start via the [run.sh](./spark/cmd/run.sh) script, for full details see the [user guide](https://github.com/cloudera/yunikorn-core/blob/master/docs/user-guide.md) in the yunikorn-core.
+Start via the [run.sh](spark30/cmd/run.sh) script, for full details see the [user guide](https://github.com/cloudera/yunikorn-core/blob/master/docs/user-guide.md) in the yunikorn-core.
 
 Deployment files for the driver and executor: 
-* [driver](./spark/driver.yaml).
-* [executor](./spark/executor.yaml).
+* [driver](spark30/driver.yaml).
+* [executor](spark30/executor.yaml).
 
 ## volumes
 The volumes directory contains three examples:
