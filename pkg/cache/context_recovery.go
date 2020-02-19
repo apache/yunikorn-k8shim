@@ -205,9 +205,8 @@ func waitAndListPods(lister v1.PodLister) ([]*corev1.Pod, error) {
 
 func waitAndListNodes(lister v1.NodeLister) ([]*corev1.Node, error) {
 	var allNodes []*corev1.Node
-	var listErr error
 	err := utils.WaitForCondition(func() bool {
-		//nolint:errcheck
+		var listErr error
 		allNodes, listErr = lister.List(labels.Everything())
 		return listErr == nil
 	}, time.Second, time.Minute)
