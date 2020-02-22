@@ -27,11 +27,13 @@ import (
 type ApplicationManagementProtocol interface {
 	// returns app that already existed in the cache,
 	// or nil, false if app with the given appID is not found
-	GetApplication(appID string) (ManagedApp, bool)
+	GetApplication(appID string) ManagedApp
 
 	// add app to the context, app manager needs to provide all
 	// necessary app metadata through this call. If this a existing app
 	// for recovery, the AddApplicationRequest#Recovery must be true.
+	// return app, false if the application already exist
+	// return app, true if the application doesn't exist yet
 	AddApplication(request *AddApplicationRequest) (ManagedApp, bool)
 
 	// remove application from the context
@@ -40,8 +42,9 @@ type ApplicationManagementProtocol interface {
 	RemoveApplication(appID string) error
 
 	// add task to the context, if add is successful,
-	// return the added task and a bool value true; if add is failed,
-	// e.g app is not found in context, return nil and false.
+	// return the added task and a bool value true; if task already exist,
+	// return task and false; if add is failed, e.g app is not found in context,
+	// return nil and false.
 	AddTask(request *AddTaskRequest) (ManagedTask, bool)
 
 	// remove task from the app

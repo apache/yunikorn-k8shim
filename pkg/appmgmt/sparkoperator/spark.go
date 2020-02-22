@@ -48,7 +48,7 @@ type Manager struct {
 	stopCh             chan struct{}
 }
 
-func New(amProtocol interfaces.ApplicationManagementProtocol, apiProvider client.APIProvider) *Manager {
+func NewManager(amProtocol interfaces.ApplicationManagementProtocol, apiProvider client.APIProvider) *Manager {
 	return &Manager{
 		amProtocol:  amProtocol,
 		apiProvider: apiProvider,
@@ -91,15 +91,16 @@ func (os *Manager) Name() string {
 }
 
 func (os *Manager) Start() error {
-	log.Logger.Info("starting", zap.String("Name", os.Name()))
-	go os.crdInformerFactory.Start(os.stopCh)
+	if os.crdInformerFactory != nil {
+		log.Logger.Info("starting", zap.String("Name", os.Name()))
+		go os.crdInformerFactory.Start(os.stopCh)
+	}
 	return nil
 }
 
-func (os *Manager) Stop() error {
+func (os *Manager) Stop() {
 	log.Logger.Info("stopping", zap.String("Name", os.Name()))
 	os.stopCh <- struct{}{}
-	return nil
 }
 
 func (os *Manager) getTaskMetadata(pod *v1.Pod) (interfaces.TaskMetadata, bool) {
@@ -139,17 +140,18 @@ func (os *Manager) getAppMetadata(sparkApp *v1beta2.SparkApplication) interfaces
 func (os *Manager) ListApplications() (map[string]interfaces.ApplicationMetadata, error) {
 	lister := os.crdInformerFactory.Sparkoperator().V1beta2().SparkApplications().Lister()
 	sparkApps, err := lister.List(labels.Everything())
-	if err == nil {
-		existingApps := make(map[string]interfaces.ApplicationMetadata)
-		for _, sparkApp := range sparkApps {
-			existingApps[sparkApp.Name] = os.getAppMetadata(sparkApp)
-		}
-		return existingApps, nil
+	if err != nil {
+		return nil, err
 	}
-	return nil, err
+
+	existingApps := make(map[string]interfaces.ApplicationMetadata)
+	for _, sparkApp := range sparkApps {
+		existingApps[sparkApp.Name] = os.getAppMetadata(sparkApp)
+	}
+	return existingApps, nil
 }
 
-func (os *Manager) GetExistingAllocation(pod *v1.Pod) (*si.Allocation, bool) {
+func (os *Manager) GetExistingAllocation(pod *v1.Pod) *si.Allocation {
 	if meta, valid := os.getTaskMetadata(pod); valid {
 		return &si.Allocation{
 			AllocationKey:    pod.Name,
@@ -160,9 +162,9 @@ func (os *Manager) GetExistingAllocation(pod *v1.Pod) (*si.Allocation, bool) {
 			NodeID:           pod.Spec.NodeName,
 			ApplicationID:    meta.ApplicationID,
 			PartitionName:    common.DefaultPartition,
-		}, true
+		}
 	}
-	return nil, false
+	return nil
 }
 
 // callbacks for SparkApplication CRD
@@ -178,8 +180,9 @@ func (os *Manager) addApplication(obj interface{}) {
 func (os *Manager) updateApplication(old, new interface{}) {
 	appOld := old.(*v1beta2.SparkApplication)
 	appNew := new.(*v1beta2.SparkApplication)
-	log.Logger.Info("spark app updated - old", zap.Any("SparkApplication", appOld))
-	log.Logger.Info("spark app updated - new", zap.Any("SparkApplication", appNew))
+	log.Logger.Debug("spark app updated",
+		zap.Any("old", appOld),
+		zap.Any("old", appNew))
 }
 
 func (os *Manager) deleteApplication(obj interface{}) {

@@ -38,7 +38,8 @@ func TestAppManagerRecoveryState(t *testing.T) {
 	amService.register(&mockedAppManager{})
 
 	// this should timeout
-	apps := amService.kickoffRecovery()
+	apps, err := amService.recoverApps()
+	assert.Assert(t, err == nil)
 	assert.Equal(t, len(apps), 2)
 
 	for appId, app := range apps {
@@ -54,10 +55,11 @@ func TestAppManagerRecoveryTimeout(t *testing.T) {
 	amService.register(&mockedAppManager{})
 
 	// this should timeout
-	apps := amService.kickoffRecovery()
+	apps, err := amService.recoverApps()
+	assert.Assert(t, err == nil)
 	assert.Equal(t, len(apps), 2)
 
-	err := amService.waitForAppRecovery(apps, 3*time.Second)
+	err = amService.waitForAppRecovery(apps, 3*time.Second)
 	assert.ErrorContains(t, err, "timeout waiting for app recovery")
 }
 
@@ -67,7 +69,8 @@ func TestAppManagerRecoveryExitCondition(t *testing.T) {
 	amService := NewAMService(amProtocol, apiProvider)
 	amService.register(&mockedAppManager{})
 
-	apps := amService.kickoffRecovery()
+	apps, err := amService.recoverApps()
+	assert.Assert(t, err == nil)
 	assert.Equal(t, len(apps), 2)
 
 	// simulate app recovery succeed
@@ -76,7 +79,7 @@ func TestAppManagerRecoveryExitCondition(t *testing.T) {
 	}
 
 	// this should not timeout
-	err := amService.waitForAppRecovery(apps, 3*time.Second)
+	err = amService.waitForAppRecovery(apps, 3*time.Second)
 	assert.Equal(t, err, nil)
 }
 
@@ -97,8 +100,8 @@ func (ma *mockedAppManager) Start() error {
 	return nil
 }
 
-func (ma *mockedAppManager) Stop() error {
-	return nil
+func (ma *mockedAppManager) Stop() {
+	// noop
 }
 
 func (ma *mockedAppManager) ListApplications() (map[string]interfaces.ApplicationMetadata, error) {
@@ -118,6 +121,6 @@ func (ma *mockedAppManager) ListApplications() (map[string]interfaces.Applicatio
 	return apps, nil
 }
 
-func (ma *mockedAppManager) GetExistingAllocation(pod *v1.Pod) (*si.Allocation, bool) {
-	return nil, false
+func (ma *mockedAppManager) GetExistingAllocation(pod *v1.Pod) *si.Allocation {
+	return nil
 }

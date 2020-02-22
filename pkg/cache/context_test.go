@@ -1,17 +1,19 @@
 /*
-Copyright 2020 Cloudera, Inc.  All rights reserved.
+ Licensed to the Apache Software Foundation (ASF) under one
+ or more contributor license agreements.  See the NOTICE file
+ distributed with this work for additional information
+ regarding copyright ownership.  The ASF licenses this file
+ to you under the Apache License, Version 2.0 (the
+ "License"); you may not use this file except in compliance
+ with the License.  You may obtain a copy of the License at
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
+     http://www.apache.org/licenses/LICENSE-2.0
 
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
 */
 
 package cache
@@ -24,7 +26,7 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"gotest.tools/assert"
-	v1 "k8s.io/api/core/v1"
+	"k8s.io/api/core/v1"
 )
 
 const fakeClusterID = "test-cluster"
@@ -102,21 +104,20 @@ func TestGetApplication(t *testing.T) {
 		Recovery: false,
 	})
 
-	app, ok := context.GetApplication("app00001")
-	assert.Equal(t, ok, true)
+	app := context.GetApplication("app00001")
+	assert.Assert(t, app != nil)
 	assert.Equal(t, app.GetApplicationID(), "app00001")
 	assert.Equal(t, app.GetQueue(), "root.a")
 	assert.Equal(t, app.GetUser(), "test-user")
 
-	app, ok = context.GetApplication("app00002")
-	assert.Equal(t, ok, true)
+	app = context.GetApplication("app00002")
+	assert.Assert(t, app != nil)
 	assert.Equal(t, app.GetApplicationID(), "app00002")
 	assert.Equal(t, app.GetQueue(), "root.b")
 	assert.Equal(t, app.GetUser(), "test-user")
 
 	// get a non-exist application
-	app, ok = context.GetApplication("app-none-exist")
-	assert.Equal(t, ok, false)
+	app = context.GetApplication("app-none-exist")
 	assert.Assert(t, app == nil)
 }
 
@@ -147,8 +148,7 @@ func TestRemoveApplication(t *testing.T) {
 	err := context.RemoveApplication("app00001")
 	assert.Assert(t, err == nil)
 
-	app, ok := context.GetApplication("app00001")
-	assert.Equal(t, ok, false)
+	app := context.GetApplication("app00001")
 	assert.Assert(t, app == nil)
 
 	// try remove again
@@ -157,8 +157,7 @@ func TestRemoveApplication(t *testing.T) {
 	assert.Assert(t, err != nil)
 
 	// make sure the other app is not affected
-	app, ok = context.GetApplication("app00002")
-	assert.Equal(t, ok, true)
+	app = context.GetApplication("app00002")
 	assert.Assert(t, app != nil)
 }
 
@@ -296,14 +295,14 @@ func TestRemoveTask(t *testing.T) {
 	})
 
 	// verify app and tasks
-	managedApp, ok := context.GetApplication("app00001")
+	managedApp := context.GetApplication("app00001")
+	assert.Assert(t, managedApp != nil)
 
 	app, valid := managedApp.(*Application)
 	if !valid {
 		t.Errorf("expecting application type")
 	}
 
-	assert.Equal(t, ok, true)
 	assert.Assert(t, app != nil)
 
 	// now app should have 2 tasks

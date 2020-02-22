@@ -30,7 +30,7 @@ import (
 )
 
 func TestGetAppMetadata(t *testing.T) {
-	am := New(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider())
+	am := NewManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider())
 
 	pod := v1.Pod{
 		TypeMeta: apis.TypeMeta{
@@ -113,7 +113,7 @@ func TestGetAppMetadata(t *testing.T) {
 }
 
 func TestGetTaskMetadata(t *testing.T) {
-	am := New(&cache.MockedAMProtocol{}, client.NewMockedAPIProvider())
+	am := NewManager(&cache.MockedAMProtocol{}, client.NewMockedAPIProvider())
 
 	pod := v1.Pod{
 		TypeMeta: apis.TypeMeta{
@@ -161,7 +161,7 @@ func TestGetTaskMetadata(t *testing.T) {
 }
 
 func TestAddPod(t *testing.T) {
-	am := New(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider())
+	am := NewManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider())
 
 	pod := v1.Pod{
 		TypeMeta: apis.TypeMeta{
@@ -186,8 +186,8 @@ func TestAddPod(t *testing.T) {
 	// add a pending pod through the AM service
 	am.addPod(&pod)
 
-	managedApp, ok := am.amProtocol.GetApplication("app00001")
-	assert.Equal(t, ok, true)
+	managedApp := am.amProtocol.GetApplication("app00001")
+	assert.Assert(t, managedApp != nil)
 	app, valid := toApplication(managedApp)
 	assert.Equal(t, valid, true)
 	assert.Equal(t, app.GetApplicationID(), "app00001")
@@ -245,7 +245,8 @@ func TestAddPod(t *testing.T) {
 	}
 
 	am.addPod(&pod2)
-	app02, ok := am.amProtocol.GetApplication("app00002")
+	app02 := am.amProtocol.GetApplication("app00002")
+	assert.Assert(t, app02 != nil)
 	app, valid = toApplication(app02)
 	assert.Equal(t, valid, true)
 	assert.Equal(t, len(app.GetNewTasks()), 1)
@@ -254,7 +255,7 @@ func TestAddPod(t *testing.T) {
 }
 
 func TestDeletePod(t *testing.T) {
-	am := New(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider())
+	am := NewManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider())
 
 	pod := v1.Pod{
 		TypeMeta: apis.TypeMeta{
@@ -279,10 +280,10 @@ func TestDeletePod(t *testing.T) {
 	// add a pending pod through the AM service
 	am.addPod(&pod)
 
-	managedApp, ok := am.amProtocol.GetApplication("app00001")
+	managedApp := am.amProtocol.GetApplication("app00001")
+	assert.Assert(t, managedApp != nil)
 	app, valid := toApplication(managedApp)
 	assert.Equal(t, valid, true)
-	assert.Equal(t, ok, true)
 	assert.Equal(t, app.GetApplicationID(), "app00001")
 	assert.Equal(t, app.GetApplicationState(), events.States().Application.New)
 	assert.Equal(t, app.GetQueue(), "root.a")
@@ -305,66 +306,3 @@ func toApplication(something interface{}) (*cache.Application, bool) {
 	}
 	return nil, false
 }
-
-/**
-func TestPodRejected(t *testing.T) {
-	context := initContextForTest()
-	dispatcher.RegisterEventHandler(dispatcher.EventTypeApp, context.ApplicationEventHandler())
-	dispatcher.RegisterEventHandler(dispatcher.EventTypeTask, context.TaskEventHandler())
-	dispatcher.Start()
-	defer dispatcher.Stop()
-
-	pod := v1.Pod{
-		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-		ObjectMeta: apis.ObjectMeta{
-			Name:      "pod00001",
-			Namespace: "default",
-			UID:       "UID-POD-00001",
-			Labels: map[string]string{
-				"applicationId": "app00001",
-				"queue":         "root.a",
-			},
-		},
-		Spec: v1.PodSpec{SchedulerName: fakeClusterSchedulerName},
-		Status: v1.PodStatus{
-			Phase: v1.PodPending,
-		},
-	}
-
-	context.addPod(&pod)
-	app01 := context.getOrCreateApplication(&pod)
-	assert.Equal(t, len(context.applications), 1)
-	assert.Equal(t, app01.GetApplicationID(), "app00001")
-	assert.Equal(t, len(app01.GetNewTasks()), 1)
-	assert.Equal(t, app01.GetNewTasks()[0].GetTaskPod().Name, "pod00001")
-	assert.Equal(t, string(app01.GetNewTasks()[0].GetTaskPod().UID), "UID-POD-00001")
-	assert.Equal(t, app01.GetNewTasks()[0].GetTaskPod().Namespace, "default")
-
-	// reject the task
-	task, err := app01.GetTask("UID-POD-00001")
-	assert.Assert(t, err == nil)
-	err = task.handle(NewRejectTaskEvent("app00001", "UID-POD-00001", ""))
-	assert.Assert(t, err == nil)
-	assert.Equal(t, len(app01.GetNewTasks()), 0)
-
-	task, err = app01.GetTask("UID-POD-00001")
-	assert.Assert(t, err == nil)
-	assertTaskState(t, task, events.States().Task.Failed, 3*time.Second)
-}
-
-func assertTaskState(t *testing.T, task *Task, expectedState string, timeout time.Duration) {
-	deadline := time.Now().Add(timeout)
-	for {
-		if task.GetTaskState() == expectedState {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Errorf("task %s doesn't reach expected state in given time, expecting: %s, actual: %s",
-				task.taskID, expectedState, task.GetTaskState())
-		}
-	}
-}
-**/

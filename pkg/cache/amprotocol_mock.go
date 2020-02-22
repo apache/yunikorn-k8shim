@@ -34,15 +34,15 @@ func NewMockedAMProtocol() *MockedAMProtocol {
 		applications: make(map[string]*Application)}
 }
 
-func (m *MockedAMProtocol) GetApplication(appID string) (interfaces.ManagedApp, bool) {
+func (m *MockedAMProtocol) GetApplication(appID string) interfaces.ManagedApp {
 	if app, ok := m.applications[appID]; ok {
-		return app, true
+		return app
 	}
-	return nil, false
+	return nil
 }
 
 func (m *MockedAMProtocol) AddApplication(request *interfaces.AddApplicationRequest) (interfaces.ManagedApp, bool) {
-	if app, ok := m.GetApplication(request.Metadata.ApplicationID); ok {
+	if app := m.GetApplication(request.Metadata.ApplicationID); app != nil {
 		return app, false
 	}
 
@@ -67,7 +67,7 @@ func (m *MockedAMProtocol) AddApplication(request *interfaces.AddApplicationRequ
 }
 
 func (m *MockedAMProtocol) RemoveApplication(appID string) error {
-	if _, ok := m.GetApplication(appID); ok {
+	if app := m.GetApplication(appID); app != nil {
 		delete(m.applications, appID)
 		return nil
 	}
@@ -97,7 +97,7 @@ func (m *MockedAMProtocol) RemoveTask(appID, taskID string) error {
 }
 
 func (m *MockedAMProtocol) NotifyApplicationComplete(appID string) {
-	if app, ok := m.GetApplication(appID); ok {
+	if app := m.GetApplication(appID); app != nil{
 		if p, valid := app.(*Application); valid {
 			p.SetState(events.States().Application.Completed)
 		}
@@ -105,7 +105,7 @@ func (m *MockedAMProtocol) NotifyApplicationComplete(appID string) {
 }
 
 func (m *MockedAMProtocol) NotifyTaskComplete(appID, taskID string) {
-	if app, ok := m.GetApplication(appID); ok {
+	if app := m.GetApplication(appID); app != nil {
 		if task, err := app.GetTask(taskID); err == nil {
 			if t, ok := task.(*Task); ok {
 				t.sm.SetState(events.States().Task.Completed)

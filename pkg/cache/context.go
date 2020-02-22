@@ -25,7 +25,7 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
 	"go.uber.org/zap"
-	v1 "k8s.io/api/core/v1"
+	"k8s.io/api/core/v1"
 
 	schedulercache "github.com/apache/incubator-yunikorn-k8shim/pkg/cache/external"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
@@ -392,7 +392,7 @@ func (ctx *Context) UpdateApplication(app *Application) {
 // the complete state may further explained to completed_with_errors(failed) or successfully_completed,
 // either way we need to release all allocations (if exists) for this application
 func (ctx *Context) NotifyApplicationComplete(appID string) {
-	if app, ok := ctx.GetApplication(appID); ok {
+	if app := ctx.GetApplication(appID); app != nil {
 		log.Logger.Debug("NotifyApplicationComplete",
 			zap.String("appID", appID),
 			zap.String("currentAppState", app.GetApplicationState()))
@@ -405,7 +405,7 @@ func (ctx *Context) NotifyTaskComplete(appID, taskID string) {
 	log.Logger.Debug("NotifyTaskComplete",
 		zap.String("appID", appID),
 		zap.String("taskID", taskID))
-	if _, ok := ctx.GetApplication(appID); ok {
+	if app := ctx.GetApplication(appID); app != nil {
 		log.Logger.Debug("release allocation",
 			zap.String("appID", appID),
 			zap.String("taskID", taskID))
@@ -416,7 +416,7 @@ func (ctx *Context) NotifyTaskComplete(appID, taskID string) {
 
 func (ctx *Context) AddApplication(request *interfaces.AddApplicationRequest) (interfaces.ManagedApp, bool) {
 	log.Logger.Debug("AddApplication", zap.Any("Request", request))
-	if app, exist := ctx.GetApplication(request.Metadata.ApplicationID); exist {
+	if app := ctx.GetApplication(request.Metadata.ApplicationID); app != nil {
 		// returns existing app, isAdded=false
 		return app, false
 	}
@@ -450,13 +450,13 @@ func (ctx *Context) AddApplication(request *interfaces.AddApplicationRequest) (i
 	return app, true
 }
 
-func (ctx *Context) GetApplication(appID string) (interfaces.ManagedApp, bool) {
+func (ctx *Context) GetApplication(appID string) interfaces.ManagedApp {
 	ctx.lock.RLock()
 	defer ctx.lock.RUnlock()
 	if app, ok := ctx.applications[appID]; ok {
-		return app, true
+		return app
 	}
-	return nil, false
+	return nil
 }
 
 func (ctx *Context) RemoveApplication(appID string) error {
@@ -475,7 +475,7 @@ func (ctx *Context) RemoveApplication(appID string) error {
 // this implements ApplicationManagementProtocol
 func (ctx *Context) AddTask(request *interfaces.AddTaskRequest) (interfaces.ManagedTask, bool) {
 	log.Logger.Debug("AddTask", zap.Any("Request", request))
-	if managedApp, ok := ctx.GetApplication(request.Metadata.ApplicationID); ok {
+	if managedApp := ctx.GetApplication(request.Metadata.ApplicationID); managedApp != nil {
 		if app, valid := managedApp.(*Application); valid {
 			existingTask, err := app.GetTask(request.Metadata.TaskID)
 			if err != nil {
@@ -539,8 +539,8 @@ func (ctx *Context) SelectApplications(filter func(app *Application) bool) []*Ap
 func (ctx *Context) ApplicationEventHandler() func(obj interface{}) {
 	return func(obj interface{}) {
 		if event, ok := obj.(events.ApplicationEvent); ok {
-			managedApp, exist := ctx.GetApplication(event.GetApplicationID())
-			if !exist {
+			managedApp := ctx.GetApplication(event.GetApplicationID())
+			if managedApp == nil {
 				log.Logger.Error("failed to handle application event",
 					zap.String("reason", "application not exist"))
 				return

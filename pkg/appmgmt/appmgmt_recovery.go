@@ -31,20 +31,24 @@ import (
 
 func (svc *AppManagementService) WaitForRecovery(maxTimeout time.Duration) error {
 	if !svc.apiProvider.IsTestingMode() {
-		apps := svc.kickoffRecovery()
+		apps, err := svc.recoverApps()
+		if err != nil {
+			return err
+		}
+
 		return svc.waitForAppRecovery(apps, maxTimeout)
 	}
 	return nil
 }
 
-func (svc *AppManagementService) kickoffRecovery() map[string]interfaces.ManagedApp {
+func (svc *AppManagementService) recoverApps() (map[string]interfaces.ManagedApp, error) {
 	recoveringApps := make(map[string]interfaces.ManagedApp)
 	for _, mgr := range svc.managers {
 		if m, ok := mgr.(interfaces.Recoverable); ok {
 			appMetas, err := m.ListApplications()
 			if err != nil {
 				log.Logger.Error("failed to list apps", zap.Error(err))
-				return recoveringApps
+				return recoveringApps, err
 			}
 
 			// trigger recovery of the apps
@@ -60,16 +64,18 @@ func (svc *AppManagementService) kickoffRecovery() map[string]interfaces.Managed
 			}
 		}
 	}
-	return recoveringApps
+	return recoveringApps, nil
 }
 
 func (svc *AppManagementService) waitForAppRecovery(
 	recoveringApps map[string]interfaces.ManagedApp, maxTimeout time.Duration) error {
 	if len(recoveringApps) > 0 {
+		log.Logger.Info("wait for app recovery",
+			zap.Int("appToRecover", len(recoveringApps)))
 		// check app states periodically, ensure all apps exit from recovering state
 		if err := utils.WaitForCondition(func() bool {
 			for _, app := range recoveringApps {
-				log.Logger.Info("appInfo",
+				log.Logger.Debug("appInfo",
 					zap.String("appId", app.GetApplicationID()),
 					zap.String("state", app.GetApplicationState()))
 				if app.GetApplicationState() == events.States().Application.Accepted {

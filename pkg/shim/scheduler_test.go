@@ -34,7 +34,7 @@ import (
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 	"go.uber.org/zap"
 	"gotest.tools/assert"
-	v1 "k8s.io/api/core/v1"
+	"k8s.io/api/core/v1"
 )
 
 func TestApplicationScheduling(t *testing.T) {

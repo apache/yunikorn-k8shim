@@ -25,17 +25,18 @@ import (
 
 // recoverable interface defines a certain type of app that can be recovered upon scheduler' restart
 // each app manager needs to implement this interface in order to support fault recovery
+//
+// why we need this?
+// the scheduler is stateless, all states are maintained just in memory,
+// so each time when scheduler restarts, it needs to recover apps and nodes states from scratch.
+// nodes state will be taken care of by the scheduler itself, however for apps state recovery,
+// the scheduler will need to call this function to collect existing app info,
+// and then properly recover these applications before recovering nodes.
 type Recoverable interface {
 	// list applications returns all existing applications known to this app manager.
-	// why we need this?
-	// the scheduler is stateless, all states are maintained just in memory,
-	// so each time when scheduler restarts, it needs to recover apps and nodes states from scratch.
-	// nodes state will be taken care of by the scheduler itself, however for apps state recovery,
-	// the scheduler will need to call this function to collect existing app info,
-	// and then properly recover these applications before recovering nodes.
 	ListApplications() (map[string]ApplicationMetadata, error)
 
 	// this is called during recovery
 	// for a given pod, return an allocation if found
-	GetExistingAllocation(pod *v1.Pod) (*si.Allocation, bool)
+	GetExistingAllocation(pod *v1.Pod) *si.Allocation
 }

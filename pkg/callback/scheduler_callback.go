@@ -71,7 +71,7 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 		log.Logger.Info("callback: response to accepted application",
 			zap.String("appID", app.ApplicationID))
 
-		if app, ok := callback.context.GetApplication(app.ApplicationID); ok {
+		if app := callback.context.GetApplication(app.ApplicationID); app != nil {
 			ev := cache.NewSimpleApplicationEvent(app.GetApplicationID(), events.AcceptApplication)
 			dispatcher.Dispatch(ev)
 		}
@@ -82,7 +82,7 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 		log.Logger.Info("callback: response to rejected application",
 			zap.String("appID", app.ApplicationID))
 
-		if app, ok := callback.context.GetApplication(app.ApplicationID); ok {
+		if app := callback.context.GetApplication(app.ApplicationID); app != nil {
 			ev := cache.NewSimpleApplicationEvent(app.GetApplicationID(), events.RejectApplication)
 			dispatcher.Dispatch(ev)
 		}
@@ -97,7 +97,7 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 			zap.String("applicationID", alloc.ApplicationID),
 			zap.String("nodeID", alloc.NodeID))
 
-		if app, ok := callback.context.GetApplication(alloc.ApplicationID); ok {
+		if app := callback.context.GetApplication(alloc.ApplicationID); app != nil {
 			ev := cache.NewAllocateTaskEvent(app.GetApplicationID(), alloc.AllocationKey, alloc.UUID, alloc.NodeID)
 			dispatcher.Dispatch(ev)
 		}
@@ -108,7 +108,7 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 		log.Logger.Info("callback: response to rejected allocation",
 			zap.String("allocationKey", reject.AllocationKey))
 
-		if app, ok := callback.context.GetApplication(reject.ApplicationID); ok {
+		if app := callback.context.GetApplication(reject.ApplicationID); app != nil {
 			dispatcher.Dispatch(cache.NewRejectTaskEvent(app.GetApplicationID(), reject.AllocationKey,
 				fmt.Sprintf("task %s from application %s is rejected by scheduler",
 					reject.AllocationKey, reject.ApplicationID)))

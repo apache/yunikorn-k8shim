@@ -41,5 +41,5 @@ type AppManager interface {
 
 	// if there is some go routines running in start, properly stop them while
 	// the stop() function is called.
-	Stop() error
+	Stop()
 }

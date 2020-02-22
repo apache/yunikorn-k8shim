@@ -51,18 +51,18 @@ func (ctx *Context) WaitForRecovery(recoverableApps []interfaces.Recoverable, ma
 }
 
 // for a given pod, return an allocation if found
-func getExistingAllocation(recoverableApps []interfaces.Recoverable, pod *corev1.Pod) (*si.Allocation, bool) {
+func getExistingAllocation(recoverableApps []interfaces.Recoverable, pod *corev1.Pod) *si.Allocation {
 	for _, mgr := range recoverableApps {
 		// only collect pod that is in running state,
 		// if pod is pending, the scheduling has not happened yet,
 		// if pod is succeed or failed, the resource should be already released
 		if utils.IsPodRunning(pod) {
-			if alloc, found := mgr.GetExistingAllocation(pod); found {
-				return alloc, found
+			if alloc := mgr.GetExistingAllocation(pod); alloc != nil {
+				return alloc
 			}
 		}
 	}
-	return nil, false
+	return nil
 }
 
 // Recover nodes and the placed allocations on these nodes.
@@ -95,7 +95,7 @@ func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) err
 			}
 			for _, pod := range podList.Items {
 				if utils.GeneralPodFilter(&pod) && utils.IsAssignedPod(&pod) {
-					if existingAlloc, valid := getExistingAllocation(mgr, &pod); valid {
+					if existingAlloc := getExistingAllocation(mgr, &pod); existingAlloc != nil {
 						log.Logger.Debug("existing allocation",
 							zap.String("appID", existingAlloc.ApplicationID),
 							zap.String("podUID", string(pod.UID)),

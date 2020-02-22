@@ -15,15 +15,17 @@
  See the License for the specific language governing permissions and
  limitations under the License.
 */
+
 package appmgmt
 
 import (
+	"go.uber.org/zap"
+
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/general"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/sparkoperator"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
-	"go.uber.org/zap"
 )
 
 // app manager service is a central service that interacts with
@@ -46,9 +48,9 @@ func NewAMService(amProtocol interfaces.ApplicationManagementProtocol,
 		appManager.register(
 			// registered app plugins
 			// for general apps
-			general.New(amProtocol, apiProvider),
+			general.NewManager(amProtocol, apiProvider),
 			// for spark operator - SparkApplication
-			sparkoperator.New(amProtocol, apiProvider))
+			sparkoperator.NewManager(amProtocol, apiProvider))
 	}
 
 	return appManager
@@ -70,6 +72,9 @@ func (svc *AppManagementService) Start() error {
 	for _, optService := range svc.managers {
 		// init service before starting
 		if err := optService.ServiceInit(); err != nil {
+			log.Logger.Error("service init fails",
+				zap.String("serviceName", optService.Name()),
+				zap.Error(err))
 			return err
 		}
 
@@ -92,10 +97,6 @@ func (svc *AppManagementService) Start() error {
 func (svc *AppManagementService) Stop() {
 	log.Logger.Info("shutting down app management services")
 	for _, optService := range svc.managers {
-		if err := optService.Stop(); err != nil {
-			log.Logger.Error("stop service error",
-				zap.String("serviceName", optService.Name()),
-				zap.Error(err))
-		}
+		optService.Stop()
 	}
 }

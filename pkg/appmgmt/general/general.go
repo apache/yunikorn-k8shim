@@ -42,7 +42,7 @@ type Manager struct {
 	amProtocol  interfaces.ApplicationManagementProtocol
 }
 
-func New(amProtocol interfaces.ApplicationManagementProtocol, apiProvider client.APIProvider) *Manager {
+func NewManager(amProtocol interfaces.ApplicationManagementProtocol, apiProvider client.APIProvider) *Manager {
 	return &Manager{
 		apiProvider: apiProvider,
 		amProtocol:  amProtocol,
@@ -75,9 +75,8 @@ func (os *Manager) Start() error {
 }
 
 // this implements AppManagementService interface
-func (os *Manager) Stop() error {
+func (os *Manager) Stop() {
 	// noop
-	return nil
 }
 
 func (os *Manager) getTaskMetadata(pod *v1.Pod) (interfaces.TaskMetadata, bool) {
@@ -161,7 +160,7 @@ func (os *Manager) addPod(obj interface{}) {
 	// add app
 	if appMeta, ok := os.getAppMetadata(pod); ok {
 		// check if app already exist
-		if _, exist := os.amProtocol.GetApplication(appMeta.ApplicationID); !exist {
+		if app := os.amProtocol.GetApplication(appMeta.ApplicationID); app == nil {
 			os.amProtocol.AddApplication(&interfaces.AddApplicationRequest{
 				Metadata: appMeta,
 				Recovery: recovery,
@@ -171,7 +170,7 @@ func (os *Manager) addPod(obj interface{}) {
 
 	// add task
 	if taskMeta, ok := os.getTaskMetadata(pod); ok {
-		if app, exist := os.amProtocol.GetApplication(taskMeta.ApplicationID); exist {
+		if app := os.amProtocol.GetApplication(taskMeta.ApplicationID); app != nil {
 			if _, taskErr := app.GetTask(string(pod.UID)); taskErr != nil {
 				os.amProtocol.AddTask(&interfaces.AddTaskRequest{
 					Metadata: taskMeta,
@@ -218,7 +217,7 @@ func (os *Manager) deletePod(obj interface{}) {
 		zap.String("podUID", string(pod.UID)))
 
 	if taskMeta, ok := os.getTaskMetadata(pod); ok {
-		if _, exist := os.amProtocol.GetApplication(taskMeta.ApplicationID); exist {
+		if app := os.amProtocol.GetApplication(taskMeta.ApplicationID); app != nil {
 			os.amProtocol.NotifyTaskComplete(taskMeta.ApplicationID, taskMeta.TaskID)
 		}
 	}
@@ -254,7 +253,7 @@ func (os *Manager) ListApplications() (map[string]interfaces.ApplicationMetadata
 	return existingApps, nil
 }
 
-func (os *Manager) GetExistingAllocation(pod *v1.Pod) (*si.Allocation, bool) {
+func (os *Manager) GetExistingAllocation(pod *v1.Pod) *si.Allocation {
 	if meta, valid := os.getAppMetadata(pod); valid {
 		return &si.Allocation{
 			AllocationKey:    pod.Name,
@@ -265,7 +264,7 @@ func (os *Manager) GetExistingAllocation(pod *v1.Pod) (*si.Allocation, bool) {
 			NodeID:           pod.Spec.NodeName,
 			ApplicationID:    meta.ApplicationID,
 			PartitionName:    common.DefaultPartition,
-		}, true
+		}
 	}
-	return nil, false
+	return nil
 }
