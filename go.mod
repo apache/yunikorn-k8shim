@@ -3,8 +3,8 @@ module github.com/apache/incubator-yunikorn-k8shim
 go 1.12
 
 require (
-	github.com/GoogleCloudPlatform/spark-on-k8s-operator v0.0.0-20200205184846-c11e54a3e16e
-	github.com/apache/incubator-yunikorn-core v0.0.0-20200205182925-dfc6d0cfdfef
+	github.com/GoogleCloudPlatform/spark-on-k8s-operator v0.0.0-20200212043150-3df703098970
+	github.com/apache/incubator-yunikorn-core v0.0.0-20200220000753-366b635676e8
 	github.com/apache/incubator-yunikorn-scheduler-interface v0.0.0-20200205180409-ebed5aec1d1f
 	github.com/coreos/bbolt v1.3.3 // indirect
 	github.com/coreos/etcd v3.3.13+incompatible // indirect

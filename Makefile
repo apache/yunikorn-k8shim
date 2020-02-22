@@ -40,6 +40,11 @@ ifeq ($(VERSION),)
 VERSION := latest
 endif
 
+# Kubeconfig
+ifeq ($(KUBECONFIG),)
+KUBECONFIG := $(HOME)/.kube/config
+endif
+
 # Image build parameters
 # This tag of the image must be changed when pushed to a public repository.
 ifeq ($(REGISTRY),)
@@ -79,7 +84,7 @@ common-check-license:
 run: build
 	@echo "running scheduler locally"
 	@cp ${LOCAL_CONF}/${CONF_FILE} ${RELEASE_BIN_DIR}
-	cd ${RELEASE_BIN_DIR} && ./${BINARY} -kubeConfig=$(HOME)/.kube/config -interval=1s \
+	cd ${RELEASE_BIN_DIR} && ./${BINARY} -kubeConfig=$(KUBECONFIG) -interval=1s \
 	-clusterId=mycluster -clusterVersion=${VERSION} -name=yunikorn -policyGroup=queues \
 	-logEncoding=console -logLevel=-1
 
