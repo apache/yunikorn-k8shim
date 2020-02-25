@@ -96,8 +96,16 @@ func (m *MockedAPIProvider) AddEventHandler (handlers *ResourceEventHandlers) {
 	// no impl
 }
 
-func (m *MockedAPIProvider) Run(stopCh <-chan struct{}) {
+func (m *MockedAPIProvider) Start() {
 	// no impl
+}
+
+func (m *MockedAPIProvider) Stop() {
+	// no impl
+}
+
+func (m *MockedAPIProvider) WaitForSync() error {
+	return nil
 }
 
 // MockedPersistentVolumeInformer implements PersistentVolumeInformer interface

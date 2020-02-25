@@ -32,9 +32,7 @@ type ApplicationManagementProtocol interface {
 	// add app to the context, app manager needs to provide all
 	// necessary app metadata through this call. If this a existing app
 	// for recovery, the AddApplicationRequest#Recovery must be true.
-	// return app, false if the application already exist
-	// return app, true if the application doesn't exist yet
-	AddApplication(request *AddApplicationRequest) (ManagedApp, bool)
+	AddApplication(request *AddApplicationRequest) ManagedApp
 
 	// remove application from the context
 	// returns an error if for some reason the app cannot be removed,
@@ -42,10 +40,7 @@ type ApplicationManagementProtocol interface {
 	RemoveApplication(appID string) error
 
 	// add task to the context, if add is successful,
-	// return the added task and a bool value true; if task already exist,
-	// return task and false; if add is failed, e.g app is not found in context,
-	// return nil and false.
-	AddTask(request *AddTaskRequest) (ManagedTask, bool)
+	AddTask(request *AddTaskRequest) ManagedTask
 
 	// remove task from the app
 	// return an error if for some reason the task cannot be removed

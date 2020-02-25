@@ -19,8 +19,12 @@
 package client
 
 import (
+	"time"
+
 	"github.com/apache/incubator-yunikorn-core/pkg/api"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
+	"k8s.io/client-go/informers"
 	coreInformerV1 "k8s.io/client-go/informers/core/v1"
 	storageInformerV1 "k8s.io/client-go/informers/storage/v1"
 	"k8s.io/kubernetes/pkg/scheduler/volumebinder"
@@ -37,6 +41,9 @@ type Clients struct {
 	KubeClient   KubeClient
 	SchedulerAPI api.SchedulerAPI
 
+	// informer factory
+	InformerFactory   informers.SharedInformerFactory
+
 	// resource informers
 	PodInformer       coreInformerV1.PodInformer
 	NodeInformer      coreInformerV1.NodeInformer
@@ -49,23 +56,23 @@ type Clients struct {
 	VolumeBinder *volumebinder.VolumeBinder
 }
 
+func (c *Clients) WaitForSync(interval time.Duration, timeout time.Duration) error {
+	return utils.WaitForCondition(func() bool {
+		// cache is re-sync'd when all informers are sync'd
+		return c.NodeInformer.Informer().HasSynced() &&
+			c.PodInformer.Informer().HasSynced() &&
+			c.PVCInformer.Informer().HasSynced() &&
+			c.PVInformer.Informer().HasSynced() &&
+			c.StorageInformer.Informer().HasSynced() &&
+			c.ConfigMapInformer.Informer().HasSynced()
+	}, interval, timeout)
+}
+
 func (c *Clients) Run(stopCh <-chan struct{}) {
-	if c.NodeInformer != nil {
-		go c.NodeInformer.Informer().Run(stopCh)
-	}
-	if c.PodInformer != nil {
-		go c.PodInformer.Informer().Run(stopCh)
-	}
-	if c.PVInformer != nil {
-		go c.PVInformer.Informer().Run(stopCh)
-	}
-	if c.PVCInformer != nil {
-		go c.PVCInformer.Informer().Run(stopCh)
-	}
-	if c.StorageInformer != nil {
-		go c.StorageInformer.Informer().Run(stopCh)
-	}
-	if c.ConfigMapInformer != nil {
-		go c.ConfigMapInformer.Informer().Run(stopCh)
-	}
+	go c.NodeInformer.Informer().Run(stopCh)
+	go c.PodInformer.Informer().Run(stopCh)
+	go c.PVInformer.Informer().Run(stopCh)
+	go c.PVCInformer.Informer().Run(stopCh)
+	go c.StorageInformer.Informer().Run(stopCh)
+	go c.ConfigMapInformer.Informer().Run(stopCh)
 }

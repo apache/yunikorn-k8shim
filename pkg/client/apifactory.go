@@ -43,7 +43,9 @@ const (
 type APIProvider interface {
 	GetAPIs() *Clients
 	AddEventHandler (handlers *ResourceEventHandlers)
-	Run(stopCh <-chan struct{})
+	Start()
+	Stop()
+	WaitForSync() error
 	IsTestingMode() bool
 }
 
@@ -62,6 +64,7 @@ type ResourceEventHandlers struct {
 type APIFactory struct {
 	clients  *Clients
 	testMode bool
+	stopChan chan struct{}
 	lock     *sync.RWMutex
 }
 
@@ -92,6 +95,7 @@ func NewAPIFactory(scheduler api.SchedulerAPI, configs *conf.SchedulerConf, test
 			Conf:              configs,
 			KubeClient:        kubeClient,
 			SchedulerAPI:      scheduler,
+			InformerFactory:   informerFactory,
 			PodInformer:       podInformer,
 			NodeInformer:      nodeInformer,
 			ConfigMapInformer: configMapInformer,
@@ -101,6 +105,7 @@ func NewAPIFactory(scheduler api.SchedulerAPI, configs *conf.SchedulerConf, test
 			VolumeBinder:      volumeBinder,
 		},
 		testMode: testMode,
+		stopChan: make(chan struct{}),
 		lock:     &sync.RWMutex{},
 	}
 }
@@ -162,9 +167,23 @@ func (s *APIFactory) addEventHandlers(
 	}
 }
 
-func (s *APIFactory) Run(stopCh <-chan struct{}) {
+func (s *APIFactory) WaitForSync() error {
+	if s.testMode {
+		// skip this in test mode
+		return nil
+	}
+	return s.clients.WaitForSync(time.Second, 30 * time.Second)
+}
+
+func (s *APIFactory) Start() {
 	// launch clients
 	if !s.IsTestingMode() {
-		s.clients.Run(stopCh)
+		s.clients.Run(s.stopChan)
+	}
+}
+
+func (s *APIFactory) Stop() {
+	if !s.IsTestingMode() {
+		close(s.stopChan)
 	}
 }

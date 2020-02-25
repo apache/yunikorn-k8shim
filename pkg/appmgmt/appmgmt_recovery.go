@@ -54,12 +54,12 @@ func (svc *AppManagementService) recoverApps() (map[string]interfaces.ManagedApp
 			// trigger recovery of the apps
 			// this is simply submit the app again
 			for _, appMeta := range appMetas {
-				if app, recovering := svc.amProtocol.AddApplication(
+				if app := svc.amProtocol.AddApplication(
 					&interfaces.AddApplicationRequest{
 						Metadata: appMeta,
 						Recovery: true,
-					}); recovering {
-					recoveringApps[app.GetApplicationID()] = app
+					}); app != nil {
+						recoveringApps[app.GetApplicationID()] = app
 				}
 			}
 		}

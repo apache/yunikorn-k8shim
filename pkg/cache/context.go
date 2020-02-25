@@ -414,11 +414,10 @@ func (ctx *Context) NotifyTaskComplete(appID, taskID string) {
 	}
 }
 
-func (ctx *Context) AddApplication(request *interfaces.AddApplicationRequest) (interfaces.ManagedApp, bool) {
+func (ctx *Context) AddApplication(request *interfaces.AddApplicationRequest) interfaces.ManagedApp {
 	log.Logger.Debug("AddApplication", zap.Any("Request", request))
 	if app := ctx.GetApplication(request.Metadata.ApplicationID); app != nil {
-		// returns existing app, isAdded=false
-		return app, false
+		return app
 	}
 
 	ctx.lock.Lock()
@@ -446,8 +445,7 @@ func (ctx *Context) AddApplication(request *interfaces.AddApplicationRequest) (i
 		zap.String("appID", app.applicationID),
 		zap.Bool("recovery", request.Recovery))
 
-	// returns the new added app, isAdded=true
-	return app, true
+	return app
 }
 
 func (ctx *Context) GetApplication(appID string) interfaces.ManagedApp {
@@ -473,7 +471,7 @@ func (ctx *Context) RemoveApplication(appID string) error {
 }
 
 // this implements ApplicationManagementProtocol
-func (ctx *Context) AddTask(request *interfaces.AddTaskRequest) (interfaces.ManagedTask, bool) {
+func (ctx *Context) AddTask(request *interfaces.AddTaskRequest) interfaces.ManagedTask {
 	log.Logger.Debug("AddTask", zap.Any("Request", request))
 	if managedApp := ctx.GetApplication(request.Metadata.ApplicationID); managedApp != nil {
 		if app, valid := managedApp.(*Application); valid {
@@ -490,12 +488,12 @@ func (ctx *Context) AddTask(request *interfaces.AddTaskRequest) (interfaces.Mana
 					zap.String("taskID", task.taskID),
 					zap.String("taskState", task.GetTaskState()))
 
-				return &task, true
+				return &task
 			}
-			return existingTask, false
+			return existingTask
 		}
 	}
-	return nil, false
+	return nil
 }
 
 func (ctx *Context) RemoveTask(appID, taskID string) error {
@@ -589,8 +587,3 @@ func (ctx *Context) SchedulerNodeEventHandler() func(obj interface{}) {
 	return nil
 }
 
-func (ctx *Context) Run(stopCh <-chan struct{}) {
-	if ctx != nil {
-		ctx.apiProvider.Run(stopCh)
-	}
-}

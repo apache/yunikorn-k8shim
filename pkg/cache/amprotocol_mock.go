@@ -41,9 +41,9 @@ func (m *MockedAMProtocol) GetApplication(appID string) interfaces.ManagedApp {
 	return nil
 }
 
-func (m *MockedAMProtocol) AddApplication(request *interfaces.AddApplicationRequest) (interfaces.ManagedApp, bool) {
+func (m *MockedAMProtocol) AddApplication(request *interfaces.AddApplicationRequest) interfaces.ManagedApp {
 	if app := m.GetApplication(request.Metadata.ApplicationID); app != nil {
-		return app, false
+		return app
 	}
 
 	app := NewApplication(
@@ -63,7 +63,7 @@ func (m *MockedAMProtocol) AddApplication(request *interfaces.AddApplicationRequ
 		app.SetState(events.States().Application.New)
 	}
 
-	return app, true
+	return app
 }
 
 func (m *MockedAMProtocol) RemoveApplication(appID string) error {
@@ -74,17 +74,17 @@ func (m *MockedAMProtocol) RemoveApplication(appID string) error {
 	return fmt.Errorf("application doesn't exist")
 }
 
-func (m *MockedAMProtocol) AddTask(request *interfaces.AddTaskRequest) (interfaces.ManagedTask, bool) {
+func (m *MockedAMProtocol) AddTask(request *interfaces.AddTaskRequest) interfaces.ManagedTask {
 	if app, ok := m.applications[request.Metadata.ApplicationID]; ok {
 		if existingTask, err := app.GetTask(request.Metadata.TaskID); err != nil {
 			task := NewTask(request.Metadata.TaskID, app, nil, request.Metadata.Pod)
 			app.addTask(&task)
-			return &task, true
+			return &task
 		} else {
-			return existingTask, false
+			return existingTask
 		}
 	} else {
-		return nil, false
+		return nil
 	}
 }
 

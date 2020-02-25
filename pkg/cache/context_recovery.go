@@ -23,25 +23,24 @@ import (
 	"time"
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/dispatcher"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	v1 "k8s.io/client-go/listers/core/v1"
-
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/dispatcher"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 )
 
-func (ctx *Context) WaitForRecovery(recoverableApps []interfaces.Recoverable, maxTimeout time.Duration) error {
+func (ctx *Context) WaitForRecovery(recoverableAppManagers []interfaces.Recoverable, maxTimeout time.Duration) error {
 	// Currently, disable recovery when testing in a mocked cluster,
 	// because mock pod/node lister is not easy. We do have unit tests for
 	// waitForAppRecovery/recover separately.
 	if !ctx.apiProvider.IsTestingMode() {
-		if err := ctx.recover(recoverableApps, maxTimeout); err != nil {
+		if err := ctx.recover(recoverableAppManagers, maxTimeout); err != nil {
 			log.Logger.Error("nodes recovery failed", zap.Error(err))
 			return err
 		}
@@ -51,8 +50,8 @@ func (ctx *Context) WaitForRecovery(recoverableApps []interfaces.Recoverable, ma
 }
 
 // for a given pod, return an allocation if found
-func getExistingAllocation(recoverableApps []interfaces.Recoverable, pod *corev1.Pod) *si.Allocation {
-	for _, mgr := range recoverableApps {
+func getExistingAllocation(recoverableAppManagers []interfaces.Recoverable, pod *corev1.Pod) *si.Allocation {
+	for _, mgr := range recoverableAppManagers {
 		// only collect pod that is in running state,
 		// if pod is pending, the scheduling has not happened yet,
 		// if pod is succeed or failed, the resource should be already released
@@ -71,8 +70,7 @@ func getExistingAllocation(recoverableApps []interfaces.Recoverable, pod *corev1
 // node state plus the allocations. If a node is recovered successfully, its state is marked as
 // healthy. Only healthy nodes can be used for scheduling.
 func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) error {
-	lister := ctx.apiProvider.GetAPIs().NodeInformer.Lister()
-	allNodes, err := waitAndListNodes(lister)
+	allNodes, err := waitAndListNodes(ctx.apiProvider)
 	if err != nil {
 		return err
 	}
@@ -146,11 +144,21 @@ func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) err
 	return nil
 }
 
-func waitAndListNodes(lister v1.NodeLister) ([]*corev1.Node, error) {
+func waitAndListNodes(apiProvider client.APIProvider) ([]*corev1.Node, error) {
 	var allNodes []*corev1.Node
+	var listErr error
+
+	// need to wait for sync
+	// because the shared indexer doesn't sync its cache periodically
+	if err := apiProvider.WaitForSync(); err != nil {
+		return allNodes, err
+	}
+
+	// list all nodes in the cluster,
+	// retry for sometime if there is some errors
 	err := utils.WaitForCondition(func() bool {
-		var listErr error
-		allNodes, listErr = lister.List(labels.Everything())
+		allNodes, listErr = apiProvider.GetAPIs().
+			NodeInformer.Lister().List(labels.Everything())
 		return listErr == nil
 	}, time.Second, time.Minute)
 	if err != nil {

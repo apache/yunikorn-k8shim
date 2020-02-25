@@ -69,7 +69,7 @@ func TestAddApplications(t *testing.T) {
 	assert.Equal(t, len(context.applications["app00001"].GetPendingTasks()), 0)
 
 	// add an app but app already exists
-	app, ok := context.AddApplication(&interfaces.AddApplicationRequest{
+	app := context.AddApplication(&interfaces.AddApplicationRequest{
 		Metadata: interfaces.ApplicationMetadata{
 			ApplicationID: "app00001",
 			QueueName:     "root.other",
@@ -79,7 +79,7 @@ func TestAddApplications(t *testing.T) {
 		Recovery: false,
 	})
 
-	assert.Equal(t, ok, false)
+	assert.Assert(t, app != nil)
 	assert.Equal(t, app.GetQueue(), "root.a")
 }
 
@@ -180,7 +180,7 @@ func TestAddTask(t *testing.T) {
 	assert.Equal(t, len(context.applications["app00001"].GetPendingTasks()), 0)
 
 	// add a tasks to the existing application
-	task, taskAdded := context.AddTask(&interfaces.AddTaskRequest{
+	task := context.AddTask(&interfaces.AddTaskRequest{
 		Metadata: interfaces.TaskMetadata{
 			ApplicationID: "app00001",
 			TaskID:        "task00001",
@@ -188,11 +188,11 @@ func TestAddTask(t *testing.T) {
 		},
 		Recovery: false,
 	})
-	assert.Assert(t, taskAdded, true)
+	assert.Assert(t, task != nil)
 	assert.Equal(t, task.GetTaskID(), "task00001")
 
 	// add another task
-	task, taskAdded = context.AddTask(&interfaces.AddTaskRequest{
+	task = context.AddTask(&interfaces.AddTaskRequest{
 		Metadata: interfaces.TaskMetadata{
 			ApplicationID: "app00001",
 			TaskID:        "task00002",
@@ -200,11 +200,11 @@ func TestAddTask(t *testing.T) {
 		},
 		Recovery: false,
 	})
-	assert.Assert(t, taskAdded, true)
+	assert.Assert(t, task != nil)
 	assert.Equal(t, task.GetTaskID(), "task00002")
 
 	// add a task with dup taskID
-	task, taskAdded = context.AddTask(&interfaces.AddTaskRequest{
+	task  = context.AddTask(&interfaces.AddTaskRequest{
 		Metadata: interfaces.TaskMetadata{
 			ApplicationID: "app00001",
 			TaskID:        "task00002",
@@ -212,11 +212,11 @@ func TestAddTask(t *testing.T) {
 		},
 		Recovery: false,
 	})
-	assert.Equal(t, taskAdded, false)
+	assert.Assert(t, task != nil)
 	assert.Equal(t, task.GetTaskID(), "task00002")
 
 	// add a task without app's appearance
-	task, taskAdded = context.AddTask(&interfaces.AddTaskRequest{
+	task = context.AddTask(&interfaces.AddTaskRequest{
 		Metadata: interfaces.TaskMetadata{
 			ApplicationID: "app-non-exist",
 			TaskID:        "task00003",
@@ -224,7 +224,6 @@ func TestAddTask(t *testing.T) {
 		},
 		Recovery: false,
 	})
-	assert.Equal(t, taskAdded, false)
 	assert.Assert(t, task == nil)
 
 	// verify number of tasks in cache
@@ -249,7 +248,7 @@ func TestRecoverTask(t *testing.T) {
 	assert.Equal(t, len(context.applications["app00001"].GetPendingTasks()), 0)
 
 	// add a tasks to the existing application
-	task, taskAdded := context.AddTask(&interfaces.AddTaskRequest{
+	task := context.AddTask(&interfaces.AddTaskRequest{
 		Metadata: interfaces.TaskMetadata{
 			ApplicationID: "app00001",
 			TaskID:        "task00001",
@@ -257,7 +256,7 @@ func TestRecoverTask(t *testing.T) {
 		},
 		Recovery: true,
 	})
-	assert.Assert(t, taskAdded, true)
+	assert.Assert(t, task != nil)
 	assert.Equal(t, task.GetTaskID(), "task00001")
 	assert.Equal(t, task.GetTaskState(), events.States().Task.Allocated)
 }

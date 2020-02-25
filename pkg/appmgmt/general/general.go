@@ -242,9 +242,13 @@ func (os *Manager) ListApplications() (map[string]interfaces.ApplicationMetadata
 	existingApps := make(map[string]interfaces.ApplicationMetadata)
 	if appPods != nil && len(appPods) > 0 {
 		for _, pod := range appPods {
-			if meta, ok := os.getAppMetadata(pod); ok {
-				if _, exist := existingApps[meta.ApplicationID]; !exist {
-					existingApps[meta.ApplicationID] = meta
+			// general filter passes, and pod is assigned
+			// this means the pod is already scheduled by scheduler for an existing app
+			if utils.GeneralPodFilter(pod) && utils.IsAssignedPod(pod) {
+				if meta, ok := os.getAppMetadata(pod); ok {
+					if _, exist := existingApps[meta.ApplicationID]; !exist {
+						existingApps[meta.ApplicationID] = meta
+					}
 				}
 			}
 		}
