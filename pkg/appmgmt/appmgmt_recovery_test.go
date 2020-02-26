@@ -26,12 +26,14 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/cache"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 	"gotest.tools/assert"
 	v1 "k8s.io/api/core/v1"
 )
 
 func TestAppManagerRecoveryState(t *testing.T) {
+	conf.GetSchedulerConf().OperatorPlugins = "mocked-app-manager"
 	amProtocol := cache.NewMockedAMProtocol()
 	apiProvider := client.NewMockedAPIProvider()
 	amService := NewAMService(amProtocol, apiProvider)
@@ -49,6 +51,7 @@ func TestAppManagerRecoveryState(t *testing.T) {
 }
 
 func TestAppManagerRecoveryTimeout(t *testing.T) {
+	conf.GetSchedulerConf().OperatorPlugins = "mocked-app-manager"
 	amProtocol := cache.NewMockedAMProtocol()
 	apiProvider := client.NewMockedAPIProvider()
 	amService := NewAMService(amProtocol, apiProvider)
@@ -64,6 +67,7 @@ func TestAppManagerRecoveryTimeout(t *testing.T) {
 }
 
 func TestAppManagerRecoveryExitCondition(t *testing.T) {
+	conf.GetSchedulerConf().OperatorPlugins = "mocked-app-manager"
 	amProtocol := cache.NewMockedAMProtocol()
 	apiProvider := client.NewMockedAPIProvider()
 	amService := NewAMService(amProtocol, apiProvider)
