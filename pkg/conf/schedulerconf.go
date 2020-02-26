@@ -21,6 +21,7 @@ package conf
 import (
 	"flag"
 	"fmt"
+	"strings"
 	"time"
 
 	"go.uber.org/zap/zapcore"
@@ -63,6 +64,7 @@ type SchedulerConf struct {
 	KubeQPS              int           `json:"kubeQPS"`
 	KubeBurst            int           `json:"kubeBurst"`
 	Predicates           string        `json:"predicates"`
+	OperatorPlugins      string        `json:"operatorPlugins"`
 }
 
 func GetSchedulerConf() *SchedulerConf {
@@ -80,6 +82,21 @@ func (conf *SchedulerConf) GetSchedulingInterval() time.Duration {
 
 func (conf *SchedulerConf) GetKubeConfigPath() string {
 	return conf.KubeConfig
+}
+
+func (conf *SchedulerConf) IsOperatorPluginEnabled(name string) bool {
+	if conf.OperatorPlugins == "" {
+		return false
+	}
+
+	plugins := strings.Split(conf.OperatorPlugins, ",")
+	for _, p := range plugins {
+		if p == name {
+			return true
+		}
+	}
+
+	return false
 }
 
 func init() {
@@ -109,6 +126,8 @@ func init() {
 	predicateList := flag.String("predicates", "",
 		fmt.Sprintf("comma-separated list of predicates, valid predicates are: %s, "+
 			"the program will exit if any invalid predicates exist.", predicates.Ordering()))
+	operatorPluginList := flag.String("operatorPlugins", "general",
+		"common-separated list of operator plugin names, currently, only \"spark-operator-service\" is supported.")
 
 	// logging options
 	logLevel := flag.Int("logLevel", DefaultLoggingLevel,
@@ -146,5 +165,6 @@ func init() {
 		KubeQPS:              *kubeQPS,
 		KubeBurst:            *kubeBurst,
 		Predicates:           *predicateList,
+		OperatorPlugins:      *operatorPluginList,
 	}
 }

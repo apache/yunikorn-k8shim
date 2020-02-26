@@ -51,7 +51,7 @@ func NewManager(amProtocol interfaces.ApplicationManagementProtocol, apiProvider
 
 // this implements AppManagementService interface
 func (os *Manager) Name() string {
-	return "generic-app-management-service"
+	return "general"
 }
 
 // this implements AppManagementService interface

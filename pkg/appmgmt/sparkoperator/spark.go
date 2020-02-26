@@ -87,7 +87,7 @@ func (os *Manager) ServiceInit() error {
 }
 
 func (os *Manager) Name() string {
-	return "spark-operator-service"
+	return "spark-k8s-operator"
 }
 
 func (os *Manager) Start() error {

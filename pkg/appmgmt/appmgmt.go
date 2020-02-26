@@ -19,6 +19,7 @@
 package appmgmt
 
 import (
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"go.uber.org/zap"
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/general"
@@ -62,9 +63,14 @@ func (svc *AppManagementService) GetAllManagers() []interfaces.AppManager {
 
 func (svc *AppManagementService) register(managers ...interfaces.AppManager) {
 	for _, mgr := range managers {
-		log.Logger.Info("registering app management service",
-			zap.String("serviceName", mgr.Name()))
-		svc.managers = append(svc.managers, mgr)
+		if conf.GetSchedulerConf().IsOperatorPluginEnabled(mgr.Name()) {
+			log.Logger.Info("registering app management service",
+				zap.String("serviceName", mgr.Name()))
+			svc.managers = append(svc.managers, mgr)
+		} else {
+			log.Logger.Info("skip registering app management service",
+				zap.String("serviceName", mgr.Name()))
+		}
 	}
 }
 
