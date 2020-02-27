@@ -178,6 +178,7 @@ func CreateUpdateRequestForDeleteNode(node Node) si.UpdateRequest {
 	nodeInfo := &si.UpdateNodeInfo{
 		NodeID:              node.name,
 		SchedulableResource: node.resource,
+		Attributes:          make(map[string]string),
 		Action:              si.UpdateNodeInfo_DECOMISSION,
 	}
 
