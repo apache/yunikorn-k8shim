@@ -131,7 +131,7 @@ func updateLabels(pod *v1.Pod, patch []patchOperation) []patchOperation {
 			if pod.Namespace != "" {
 				podNamespace = pod.Namespace
 			}
- 			generatedID := fmt.Sprintf("%s_%s_%d", podNamespace, pod.Name, time.Now().Unix())
+			generatedID := fmt.Sprintf("%s_%s_%d", podNamespace, pod.Name, time.Now().Unix())
 			log.Logger.Debug("adding application ID",
 				zap.String("generatedID", generatedID))
 			result[common.LabelApplicationID] = generatedID

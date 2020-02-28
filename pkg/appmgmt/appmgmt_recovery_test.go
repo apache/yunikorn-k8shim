@@ -22,14 +22,15 @@ import (
 	"testing"
 	"time"
 
+	"gotest.tools/assert"
+	v1 "k8s.io/api/core/v1"
+
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/cache"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
-	"gotest.tools/assert"
-	v1 "k8s.io/api/core/v1"
 )
 
 func TestAppManagerRecoveryState(t *testing.T) {
@@ -88,13 +89,11 @@ func TestAppManagerRecoveryExitCondition(t *testing.T) {
 }
 
 type mockedAppManager struct {
-
 }
 
 func (ma *mockedAppManager) Name() string {
 	return "mocked-app-manager"
 }
-
 
 func (ma *mockedAppManager) ServiceInit() error {
 	return nil

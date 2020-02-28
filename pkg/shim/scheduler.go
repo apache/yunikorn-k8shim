@@ -22,16 +22,16 @@ import (
 	"sync"
 	"time"
 
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
 	"github.com/looplab/fsm"
 	"go.uber.org/zap"
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/apache/incubator-yunikorn-core/pkg/api"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/cache"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/callback"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/dispatcher"
@@ -97,7 +97,7 @@ func newShimSchedulerInternal(ctx *cache.Context, apiFactory client.APIProvider,
 		fsm.Callbacks{
 			string(events.RegisterScheduler):       ss.register(),                      // trigger registration
 			string(events.RegisterSchedulerFailed): ss.handleSchedulerFailure(),        // registration failed, stop the scheduler
-			string(events.RecoverSchedulerFailed):  ss.handleSchedulerFailure(),                          // recovery failed
+			string(events.RecoverSchedulerFailed):  ss.handleSchedulerFailure(),        // recovery failed
 			string(states.Registered):              ss.triggerSchedulerStateRecovery(), // if reaches registered, trigger recovering
 			string(states.Recovering):              ss.recoverSchedulerState(),         // do recovering
 			string(states.Running):                 ss.doScheduling(),                  // do scheduling

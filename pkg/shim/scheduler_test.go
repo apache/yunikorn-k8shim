@@ -23,6 +23,10 @@ import (
 	"testing"
 	"time"
 
+	"go.uber.org/zap"
+	"gotest.tools/assert"
+	"k8s.io/api/core/v1"
+
 	"github.com/apache/incubator-yunikorn-core/pkg/api"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/cache"
@@ -32,9 +36,6 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/test"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
-	"go.uber.org/zap"
-	"gotest.tools/assert"
-	"k8s.io/api/core/v1"
 )
 
 func TestApplicationScheduling(t *testing.T) {
@@ -219,7 +220,7 @@ partitions:
 		AddResource(common.Memory, 50).
 		AddResource(common.CPU, 5).
 		Build()
-	cluster.addTask("app0001", "task0001", taskResource, )
+	cluster.addTask("app0001", "task0001", taskResource)
 	cluster.addTask("app0001", "task0002", taskResource)
 
 	// wait for scheduling app and tasks

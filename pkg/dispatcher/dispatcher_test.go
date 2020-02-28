@@ -27,9 +27,10 @@ import (
 	"testing"
 	"time"
 
+	"gotest.tools/assert"
+
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
-	"gotest.tools/assert"
 )
 
 // app event for testing
@@ -204,11 +205,11 @@ func TestDispatchTimeout(t *testing.T) {
 		DispatchTimeout = backupDispatchTimeout
 	}()
 
-    // start the handler, but waiting on a flag
+	// start the handler, but waiting on a flag
 	RegisterEventHandler(EventTypeApp, func(obj interface{}) {
 		if appEvent, ok := obj.(TestAppEvent); ok {
 			fmt.Println(fmt.Sprintf("handling %s", appEvent.appID))
-			<- appEvent.flag
+			<-appEvent.flag
 			fmt.Println(fmt.Sprintf("handling %s DONE", appEvent.appID))
 		}
 	})
@@ -240,7 +241,7 @@ func TestDispatchTimeout(t *testing.T) {
 	// wait until async dispatch routine times out
 	if err := utils.WaitForCondition(func() bool {
 		return atomic.LoadInt32(&asyncDispatchCount) == int32(0)
-	}, 100 * time.Millisecond, DispatchTimeout+AsyncDispatchCheckInterval); err != nil {
+	}, 100*time.Millisecond, DispatchTimeout+AsyncDispatchCheckInterval); err != nil {
 		t.Fatalf(err.Error())
 	}
 

@@ -23,6 +23,11 @@ import (
 	"testing"
 	"time"
 
+	"go.uber.org/zap"
+	"gotest.tools/assert"
+	"k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/apache/incubator-yunikorn-core/pkg/api"
 	coreconfigs "github.com/apache/incubator-yunikorn-core/pkg/common/configs"
 	"github.com/apache/incubator-yunikorn-core/pkg/entrypoint"
@@ -36,10 +41,6 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
-	"go.uber.org/zap"
-	"gotest.tools/assert"
-	"k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // fake cluster is used for testing
@@ -99,7 +100,7 @@ func (fc *MockScheduler) addTask(appID string, taskID string, ask *si.Resource) 
 		Metadata: interfaces.TaskMetadata{
 			ApplicationID: appID,
 			TaskID:        taskID,
-			Pod:           &v1.Pod{
+			Pod: &v1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: taskID,
 				},
@@ -156,7 +157,7 @@ func (fc *MockScheduler) addApplication(appId string, queue string) {
 			User:          "test-user",
 			Tags:          map[string]string{"app-type": "test-app"},
 		},
-		Recovery:      false,
+		Recovery: false,
 	})
 }
 

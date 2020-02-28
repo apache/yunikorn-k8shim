@@ -21,12 +21,13 @@ package cache
 import (
 	"testing"
 
+	"gotest.tools/assert"
+	"k8s.io/api/core/v1"
+
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
-	"gotest.tools/assert"
-	"k8s.io/api/core/v1"
 )
 
 const fakeClusterID = "test-cluster"
@@ -204,7 +205,7 @@ func TestAddTask(t *testing.T) {
 	assert.Equal(t, task.GetTaskID(), "task00002")
 
 	// add a task with dup taskID
-	task  = context.AddTask(&interfaces.AddTaskRequest{
+	task = context.AddTask(&interfaces.AddTaskRequest{
 		Metadata: interfaces.TaskMetadata{
 			ApplicationID: "app00001",
 			TaskID:        "task00002",

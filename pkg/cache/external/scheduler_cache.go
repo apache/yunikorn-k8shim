@@ -47,15 +47,15 @@ type SchedulerCache struct {
 	assumedPods map[string]bool
 	lock        sync.RWMutex
 	// client APIs
-	clients     *client.Clients
+	clients *client.Clients
 }
 
 func NewSchedulerCache(clients *client.Clients) *SchedulerCache {
 	cache := &SchedulerCache{
-		nodesMap:      make(map[string]*schedulernode.NodeInfo),
-		podsMap:       make(map[string]*v1.Pod),
-		assumedPods:   make(map[string]bool),
-		clients:       clients,
+		nodesMap:    make(map[string]*schedulernode.NodeInfo),
+		podsMap:     make(map[string]*v1.Pod),
+		assumedPods: make(map[string]bool),
+		clients:     clients,
 	}
 	cache.assignArgs(GetPluginArgs())
 	return cache

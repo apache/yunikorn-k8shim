@@ -159,9 +159,9 @@ func CreateUpdateRequestForNewNode(node Node) si.UpdateRequest {
 func CreateUpdateRequestForUpdatedNode(node Node) si.UpdateRequest {
 	// Currently only includes resource in the update request
 	nodeInfo := &si.UpdateNodeInfo{
-		NodeID:               node.name,
-		Attributes:           make(map[string]string),
-		SchedulableResource:  node.resource,
+		NodeID:              node.name,
+		Attributes:          make(map[string]string),
+		SchedulableResource: node.resource,
 	}
 
 	nodes := make([]*si.UpdateNodeInfo, 1)

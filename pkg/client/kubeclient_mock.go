@@ -19,11 +19,12 @@
 package client
 
 import (
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 	"go.uber.org/zap"
-	v1 "k8s.io/api/core/v1"
+	"k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 )
 
 // fake client allows us to inject customized bind/delete pod functions
