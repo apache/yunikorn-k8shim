@@ -16,27 +16,38 @@
  limitations under the License.
 */
 
-package client
+package utils
 
 import (
+	"testing"
+
+	"gotest.tools/assert"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 )
 
-type KubeClient interface {
-	// bind a pod to a specific host
-	Bind(pod *v1.Pod, hostID string) error
+func TestConvert2Pod(t *testing.T) {
+	pod, err := Convert2Pod(&v1.Node{})
+	assert.Assert(t, err != nil)
+	assert.Assert(t, pod == nil)
 
-	// Delete a pod from a host
-	Delete(pod *v1.Pod) error
-
-	// minimal expose this, only informers factory needs it
-	GetClientSet() *kubernetes.Clientset
-
-	GetConfigs() *rest.Config
+	pod, err = Convert2Pod(&v1.Pod{})
+	assert.Assert(t, err == nil)
+	assert.Assert(t, pod != nil)
 }
 
-func NewKubeClient(kc string) KubeClient {
-	return newSchedulerKubeClient(kc)
+func TestIsAssignedPod(t *testing.T) {
+	assigned := IsAssignedPod(&v1.Pod{
+		Spec: v1.PodSpec{
+			NodeName: "some-node",
+		},
+	})
+	assert.Equal(t, assigned, true)
+
+	assigned = IsAssignedPod(&v1.Pod{
+		Spec: v1.PodSpec{},
+	})
+	assert.Equal(t, assigned, false)
+
+	assigned = IsAssignedPod(&v1.Pod{})
+	assert.Equal(t, assigned, false)
 }

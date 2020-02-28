@@ -23,16 +23,18 @@ import (
 	"testing"
 	"time"
 
-	"go.uber.org/zap"
-	v1 "k8s.io/api/core/v1"
-
 	"github.com/apache/incubator-yunikorn-core/pkg/api"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/cache"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/test"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
+	"go.uber.org/zap"
+	"gotest.tools/assert"
+	"k8s.io/api/core/v1"
 )
 
 func TestApplicationScheduling(t *testing.T) {
@@ -70,16 +72,13 @@ partitions:
 	}
 
 	// create app and tasks
-	app0001 := cluster.newApplication("app0001", "root.a")
+	cluster.addApplication("app0001", "root.a")
 	taskResource := common.NewResourceBuilder().
 		AddResource(common.Memory, 10).
 		AddResource(common.CPU, 1).
 		Build()
-	cluster.addTask("task0001", taskResource, app0001)
-	cluster.addTask("task0002", taskResource, app0001)
-
-	// add app to context
-	cluster.addApplication(app0001)
+	cluster.addTask("app0001", "task0001", taskResource)
+	cluster.addTask("app0001", "task0002", taskResource)
 
 	// wait for scheduling app and tasks
 	// verify app state
@@ -122,40 +121,45 @@ partitions:
 		t.Fatalf("%v", err)
 	}
 
+	// add app to context
+	cluster.addApplication("app0001", "root.non_exist_queue")
+
 	// create app and tasks
 	taskResource := common.NewResourceBuilder().
 		AddResource(common.Memory, 10).
 		AddResource(common.CPU, 1).
 		Build()
-	app0001 := cluster.newApplication("app0001", "root.non_exist_queue")
-	cluster.addTask("task0001", taskResource, app0001)
-
-	// add app to context
-	cluster.addApplication(app0001)
+	cluster.addTask("app0001", "task0001", taskResource)
 
 	// wait for scheduling app and tasks
 	// verify app state
 	cluster.waitAndAssertApplicationState(t, "app0001", events.States().Application.Failed)
 
+	// remove the application
+	err := cluster.removeApplication("app0001")
+	assert.Assert(t, err == nil)
+
 	// submit the app again
-	app0001 = cluster.newApplication("app0001", "root.a")
-	cluster.addTask("task0001", taskResource, app0001)
-	cluster.addApplication(app0001)
+	cluster.addApplication("app0001", "root.a")
+	cluster.addTask("app0001", "task0001", taskResource)
 	cluster.waitAndAssertApplicationState(t, "app0001", events.States().Application.Running)
 	cluster.waitAndAssertTaskState(t, "app0001", "task0001", events.States().Task.Bound)
 }
 
 func TestSchedulerRegistrationFailed(t *testing.T) {
-	var ctx *cache.Context
 	var callback api.ResourceManagerCallback
 
-	schedulerAPI := test.NewSchedulerAPIMock().RegisterFunction(
+	mockedAMProtocol := cache.NewMockedAMProtocol()
+	mockedAPIProvider := client.NewMockedAPIProvider()
+	mockedAPIProvider.GetAPIs().SchedulerAPI = test.NewSchedulerAPIMock().RegisterFunction(
 		func(request *si.RegisterResourceManagerRequest,
 			callback api.ResourceManagerCallback) (response *si.RegisterResourceManagerResponse, e error) {
 			return nil, fmt.Errorf("some error")
 		})
 
-	shim := newShimSchedulerInternal(schedulerAPI, ctx, callback)
+	ctx := cache.NewContext(mockedAPIProvider)
+	shim := newShimSchedulerInternal(ctx, mockedAPIProvider,
+		appmgmt.NewAMService(mockedAMProtocol, mockedAPIProvider), callback)
 	shim.run()
 	defer shim.stop()
 
@@ -186,16 +190,17 @@ partitions:
 `
 	// init and register scheduler
 	cluster := MockScheduler{}
+	cluster.init(configData)
+	cluster.start()
+	defer cluster.stop()
+
 	// mock pod bind failures
-	cluster.bindFn = func(pod *v1.Pod, hostID string) error {
+	cluster.apiProvider.MockBindFn(func(pod *v1.Pod, hostID string) error {
 		if pod.Name == "task0001" {
 			return fmt.Errorf("mocked error when binding the pod")
 		}
 		return nil
-	}
-	cluster.init(configData)
-	cluster.start()
-	defer cluster.stop()
+	})
 
 	// ensure scheduler state
 	cluster.waitForSchedulerState(t, events.States().Scheduler.Running)
@@ -209,16 +214,13 @@ partitions:
 	}
 
 	// create app and tasks
-	app0001 := cluster.newApplication("app0001", "root.a")
+	cluster.addApplication("app0001", "root.a")
 	taskResource := common.NewResourceBuilder().
 		AddResource(common.Memory, 50).
 		AddResource(common.CPU, 5).
 		Build()
-	cluster.addTask("task0001", taskResource, app0001)
-	cluster.addTask("task0002", taskResource, app0001)
-
-	// add app to context
-	cluster.addApplication(app0001)
+	cluster.addTask("app0001", "task0001", taskResource, )
+	cluster.addTask("app0001", "task0002", taskResource)
 
 	// wait for scheduling app and tasks
 	// verify app state
@@ -228,7 +230,7 @@ partitions:
 
 	// one task get bound, one ask failed, so we are expecting only 1 allocation in the scheduler
 	if err := cluster.waitAndVerifySchedulerAllocations("root.a",
-		"[test-cluster]default", "app0001", 1); err != nil {
+		"[yk-test-cluster]default", "app0001", 1); err != nil {
 		t.Fatalf("number of allocations is not expected, error: %v", err)
 	}
 }

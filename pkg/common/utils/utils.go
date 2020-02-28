@@ -37,12 +37,32 @@ func Convert2Pod(obj interface{}) (*v1.Pod, error) {
 	return pod, nil
 }
 
+func NeedRecovery(pod *v1.Pod) (bool, error) {
+	if pod.Status.Phase == v1.PodPending {
+		return false, nil
+	}
+
+	if !GeneralPodFilter(pod) {
+		return false, nil
+	}
+
+	if pod.Spec.NodeName != "" {
+		return true, nil
+	}
+
+	return false, fmt.Errorf("unknown pod state %v", pod)
+}
+
+func IsPodRunning(pod *v1.Pod) bool {
+	return pod.Status.Phase == v1.PodRunning
+}
+
 // assignedPod selects pods that are assigned (scheduled and running).
 func IsAssignedPod(pod *v1.Pod) bool {
 	return len(pod.Spec.NodeName) != 0
 }
 
-func IsSchedulablePod(pod *v1.Pod) bool {
+func GeneralPodFilter(pod *v1.Pod) bool {
 	return strings.Compare(pod.Spec.SchedulerName, conf.GetSchedulerConf().SchedulerName) == 0
 }
 

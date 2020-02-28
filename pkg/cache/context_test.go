@@ -20,16 +20,13 @@ package cache
 
 import (
 	"testing"
-	"time"
 
-	"gotest.tools/assert"
-	v1 "k8s.io/api/core/v1"
-	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
-
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/test"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/dispatcher"
+	"gotest.tools/assert"
+	"k8s.io/api/core/v1"
 )
 
 const fakeClusterID = "test-cluster"
@@ -48,212 +45,289 @@ func initContextForTest() *Context {
 	}
 
 	conf.Set(&configs)
-	client := test.NewKubeClientMock()
 
-	context := NewContextInternal(nil, &configs, client, true)
+	context := NewContext(client.NewMockedAPIProvider())
 	return context
 }
+
 func TestAddApplications(t *testing.T) {
 	context := initContextForTest()
-	app01 := NewApplication("app00001", "root.a", "testuser", map[string]string{}, nil)
-	context.AddApplication(app01)
+
+	// add a new application
+	context.AddApplication(&interfaces.AddApplicationRequest{
+		Metadata: interfaces.ApplicationMetadata{
+			ApplicationID: "app00001",
+			QueueName:     "root.a",
+			User:          "test-user",
+			Tags:          nil,
+		},
+		Recovery: false,
+	})
 	assert.Equal(t, len(context.applications), 1)
 	assert.Assert(t, context.applications["app00001"] != nil)
 	assert.Equal(t, context.applications["app00001"].GetApplicationState(), events.States().Application.New)
 	assert.Equal(t, len(context.applications["app00001"].GetPendingTasks()), 0)
 
-	task01 := CreateTaskForTest("task00001", app01, nil, nil)
-	task02 := CreateTaskForTest("task00002", app01, nil, nil)
-	app01.AddTask(&task01)
-	app01.AddTask(&task02)
+	// add an app but app already exists
+	app := context.AddApplication(&interfaces.AddApplicationRequest{
+		Metadata: interfaces.ApplicationMetadata{
+			ApplicationID: "app00001",
+			QueueName:     "root.other",
+			User:          "test-user",
+			Tags:          nil,
+		},
+		Recovery: false,
+	})
+
+	assert.Assert(t, app != nil)
+	assert.Equal(t, app.GetQueue(), "root.a")
+}
+
+func TestGetApplication(t *testing.T) {
+	context := initContextForTest()
+	context.AddApplication(&interfaces.AddApplicationRequest{
+		Metadata: interfaces.ApplicationMetadata{
+			ApplicationID: "app00001",
+			QueueName:     "root.a",
+			User:          "test-user",
+			Tags:          nil,
+		},
+		Recovery: false,
+	})
+	context.AddApplication(&interfaces.AddApplicationRequest{
+		Metadata: interfaces.ApplicationMetadata{
+			ApplicationID: "app00002",
+			QueueName:     "root.b",
+			User:          "test-user",
+			Tags:          nil,
+		},
+		Recovery: false,
+	})
+
+	app := context.GetApplication("app00001")
+	assert.Assert(t, app != nil)
+	assert.Equal(t, app.GetApplicationID(), "app00001")
+	assert.Equal(t, app.GetQueue(), "root.a")
+	assert.Equal(t, app.GetUser(), "test-user")
+
+	app = context.GetApplication("app00002")
+	assert.Assert(t, app != nil)
+	assert.Equal(t, app.GetApplicationID(), "app00002")
+	assert.Equal(t, app.GetQueue(), "root.b")
+	assert.Equal(t, app.GetUser(), "test-user")
+
+	// get a non-exist application
+	app = context.GetApplication("app-none-exist")
+	assert.Assert(t, app == nil)
+}
+
+func TestRemoveApplication(t *testing.T) {
+	// add 2 applications
+	context := initContextForTest()
+	context.AddApplication(&interfaces.AddApplicationRequest{
+		Metadata: interfaces.ApplicationMetadata{
+			ApplicationID: "app00001",
+			QueueName:     "root.a",
+			User:          "test-user",
+			Tags:          nil,
+		},
+		Recovery: false,
+	})
+	context.AddApplication(&interfaces.AddApplicationRequest{
+		Metadata: interfaces.ApplicationMetadata{
+			ApplicationID: "app00002",
+			QueueName:     "root.b",
+			User:          "test-user",
+			Tags:          nil,
+		},
+		Recovery: false,
+	})
+
+	// remove application
+	// this should be successful
+	err := context.RemoveApplication("app00001")
+	assert.Assert(t, err == nil)
+
+	app := context.GetApplication("app00001")
+	assert.Assert(t, app == nil)
+
+	// try remove again
+	// this should fail
+	err = context.RemoveApplication("app00001")
+	assert.Assert(t, err != nil)
+
+	// make sure the other app is not affected
+	app = context.GetApplication("app00002")
+	assert.Assert(t, app != nil)
+}
+
+func TestAddTask(t *testing.T) {
+	context := initContextForTest()
+
+	// add a new application
+	context.AddApplication(&interfaces.AddApplicationRequest{
+		Metadata: interfaces.ApplicationMetadata{
+			ApplicationID: "app00001",
+			QueueName:     "root.a",
+			User:          "test-user",
+			Tags:          nil,
+		},
+		Recovery: false,
+	})
+	assert.Equal(t, len(context.applications), 1)
+	assert.Assert(t, context.applications["app00001"] != nil)
+	assert.Equal(t, context.applications["app00001"].GetApplicationState(), events.States().Application.New)
+	assert.Equal(t, len(context.applications["app00001"].GetPendingTasks()), 0)
+
+	// add a tasks to the existing application
+	task := context.AddTask(&interfaces.AddTaskRequest{
+		Metadata: interfaces.TaskMetadata{
+			ApplicationID: "app00001",
+			TaskID:        "task00001",
+			Pod:           &v1.Pod{},
+		},
+		Recovery: false,
+	})
+	assert.Assert(t, task != nil)
+	assert.Equal(t, task.GetTaskID(), "task00001")
+
+	// add another task
+	task = context.AddTask(&interfaces.AddTaskRequest{
+		Metadata: interfaces.TaskMetadata{
+			ApplicationID: "app00001",
+			TaskID:        "task00002",
+			Pod:           &v1.Pod{},
+		},
+		Recovery: false,
+	})
+	assert.Assert(t, task != nil)
+	assert.Equal(t, task.GetTaskID(), "task00002")
+
+	// add a task with dup taskID
+	task  = context.AddTask(&interfaces.AddTaskRequest{
+		Metadata: interfaces.TaskMetadata{
+			ApplicationID: "app00001",
+			TaskID:        "task00002",
+			Pod:           &v1.Pod{},
+		},
+		Recovery: false,
+	})
+	assert.Assert(t, task != nil)
+	assert.Equal(t, task.GetTaskID(), "task00002")
+
+	// add a task without app's appearance
+	task = context.AddTask(&interfaces.AddTaskRequest{
+		Metadata: interfaces.TaskMetadata{
+			ApplicationID: "app-non-exist",
+			TaskID:        "task00003",
+			Pod:           &v1.Pod{},
+		},
+		Recovery: false,
+	})
+	assert.Assert(t, task == nil)
+
+	// verify number of tasks in cache
 	assert.Equal(t, len(context.applications["app00001"].GetNewTasks()), 2)
 }
 
-func TestAddPod(t *testing.T) {
+func TestRecoverTask(t *testing.T) {
 	context := initContextForTest()
 
-	pod := v1.Pod{
-		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
+	// add a new application
+	context.AddApplication(&interfaces.AddApplicationRequest{
+		Metadata: interfaces.ApplicationMetadata{
+			ApplicationID: "app00001",
+			QueueName:     "root.a",
+			User:          "test-user",
+			Tags:          nil,
 		},
-		ObjectMeta: apis.ObjectMeta{
-			Name:      "pod00001",
-			Namespace: "default",
-			UID:       "UID-POD-00001",
-			Labels: map[string]string{
-				"applicationId": "app00001",
-				"queue":         "root.a",
-			},
-		},
-		Spec: v1.PodSpec{SchedulerName: fakeClusterSchedulerName},
-		Status: v1.PodStatus{
-			Phase: v1.PodPending,
-		},
-	}
-
-	context.addPod(&pod)
-	app01 := context.getOrCreateApplication(&pod)
+		Recovery: true,
+	})
 	assert.Equal(t, len(context.applications), 1)
-	assert.Equal(t, app01.GetApplicationID(), "app00001")
-	assert.Equal(t, len(app01.GetNewTasks()), 1)
-	assert.Equal(t, app01.GetNewTasks()[0].GetTaskPod().Name, "pod00001")
-	assert.Equal(t, string(app01.GetNewTasks()[0].GetTaskPod().UID), "UID-POD-00001")
-	assert.Equal(t, app01.GetNewTasks()[0].GetTaskPod().Namespace, "default")
+	assert.Assert(t, context.applications["app00001"] != nil)
+	assert.Equal(t, len(context.applications["app00001"].GetPendingTasks()), 0)
 
-	// add same pod again
-	context.addPod(&pod)
-	assert.Equal(t, len(context.applications), 1)
-	assert.Equal(t, context.getOrCreateApplication(&pod), app01)
-
-	// add another pod for same application
-	pod1 := v1.Pod{
-		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
+	// add a tasks to the existing application
+	task := context.AddTask(&interfaces.AddTaskRequest{
+		Metadata: interfaces.TaskMetadata{
+			ApplicationID: "app00001",
+			TaskID:        "task00001",
+			Pod:           &v1.Pod{},
 		},
-		ObjectMeta: apis.ObjectMeta{
-			Name:      "pod00002",
-			Namespace: "default",
-			UID:       "UID-POD-00002",
-			Labels: map[string]string{
-				"applicationId": "app00001",
-				"queue":         "root.a",
-			},
-		},
-		Spec: v1.PodSpec{SchedulerName: fakeClusterSchedulerName},
-		Status: v1.PodStatus{
-			Phase: v1.PodPending,
-		},
-	}
-	context.addPod(&pod1)
-	assert.Equal(t, len(context.applications), 1)
-	assert.Equal(t, len(app01.GetNewTasks()), 2)
-
-	for _, pt := range app01.GetNewTasks() {
-		switch pt.GetTaskPod().Name {
-		case "pod00001":
-			assert.Equal(t, string(pt.GetTaskPod().UID), "UID-POD-00001")
-			assert.Equal(t, pt.GetTaskPod().Namespace, "default")
-		case "pod00002":
-			assert.Equal(t, string(pt.GetTaskPod().UID), "UID-POD-00002")
-			assert.Equal(t, pt.GetTaskPod().Namespace, "default")
-		default:
-			t.Fatalf("pending tasks contain unexpected task %s", pt.GetTaskPod().Name)
-		}
-	}
-
-	// add a invalid pod
-	pod2 := v1.Pod{
-		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-		ObjectMeta: apis.ObjectMeta{
-			Name:      "pod00003",
-			Namespace: "default",
-			UID:       "UID-POD-00003",
-			Labels: map[string]string{
-				"applicationId": "app00001",
-				"queue":         "root.a",
-			},
-		},
-		Spec: v1.PodSpec{}, // scheduler name missing
-		Status: v1.PodStatus{
-			Phase: v1.PodPending,
-		},
-	}
-
-	context.addPod(&pod2)
-	assert.Equal(t, len(context.applications), 1)
-	assert.Equal(t, len(app01.GetNewTasks()), 2)
-
-	// add another pod from another app
-	pod3 := v1.Pod{
-		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-		ObjectMeta: apis.ObjectMeta{
-			Name:      "pod00004",
-			Namespace: "default",
-			UID:       "UID-POD-00004",
-			Labels: map[string]string{
-				"applicationId": "app00002",
-				"queue":         "root.a",
-			},
-		},
-		Spec: v1.PodSpec{SchedulerName: fakeClusterSchedulerName},
-		Status: v1.PodStatus{
-			Phase: v1.PodPending,
-		},
-	}
-
-	context.addPod(&pod3)
-	assert.Equal(t, len(context.applications), 2)
-	assert.Equal(t, len(app01.GetNewTasks()), 2)
-	app02 := context.getOrCreateApplication(&pod3)
-	assert.Equal(t, len(app02.GetNewTasks()), 1)
-	assert.Equal(t, app02.GetApplicationID(), "app00002")
+		Recovery: true,
+	})
+	assert.Assert(t, task != nil)
+	assert.Equal(t, task.GetTaskID(), "task00001")
+	assert.Equal(t, task.GetTaskState(), events.States().Task.Allocated)
 }
 
-func TestPodRejected(t *testing.T) {
+func TestRemoveTask(t *testing.T) {
 	context := initContextForTest()
-	dispatcher.RegisterEventHandler(dispatcher.EventTypeApp, context.ApplicationEventHandler())
-	dispatcher.RegisterEventHandler(dispatcher.EventTypeTask, context.TaskEventHandler())
-	dispatcher.Start()
-	defer dispatcher.Stop()
 
-	pod := v1.Pod{
-		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
+	// add a new application
+	context.AddApplication(&interfaces.AddApplicationRequest{
+		Metadata: interfaces.ApplicationMetadata{
+			ApplicationID: "app00001",
+			QueueName:     "root.a",
+			User:          "test-user",
+			Tags:          nil,
 		},
-		ObjectMeta: apis.ObjectMeta{
-			Name:      "pod00001",
-			Namespace: "default",
-			UID:       "UID-POD-00001",
-			Labels: map[string]string{
-				"applicationId": "app00001",
-				"queue":         "root.a",
-			},
+		Recovery: false,
+	})
+
+	// add 2 tasks
+	context.AddTask(&interfaces.AddTaskRequest{
+		Metadata: interfaces.TaskMetadata{
+			ApplicationID: "app00001",
+			TaskID:        "task00001",
+			Pod:           &v1.Pod{},
 		},
-		Spec: v1.PodSpec{SchedulerName: fakeClusterSchedulerName},
-		Status: v1.PodStatus{
-			Phase: v1.PodPending,
+		Recovery: false,
+	})
+	context.AddTask(&interfaces.AddTaskRequest{
+		Metadata: interfaces.TaskMetadata{
+			ApplicationID: "app00001",
+			TaskID:        "task00002",
+			Pod:           &v1.Pod{},
 		},
+		Recovery: false,
+	})
+
+	// verify app and tasks
+	managedApp := context.GetApplication("app00001")
+	assert.Assert(t, managedApp != nil)
+
+	app, valid := managedApp.(*Application)
+	if !valid {
+		t.Errorf("expecting application type")
 	}
 
-	context.addPod(&pod)
-	app01 := context.getOrCreateApplication(&pod)
-	assert.Equal(t, len(context.applications), 1)
-	assert.Equal(t, app01.GetApplicationID(), "app00001")
-	assert.Equal(t, len(app01.GetNewTasks()), 1)
-	assert.Equal(t, app01.GetNewTasks()[0].GetTaskPod().Name, "pod00001")
-	assert.Equal(t, string(app01.GetNewTasks()[0].GetTaskPod().UID), "UID-POD-00001")
-	assert.Equal(t, app01.GetNewTasks()[0].GetTaskPod().Namespace, "default")
+	assert.Assert(t, app != nil)
 
-	// reject the task
-	task, err := app01.GetTask("UID-POD-00001")
-	assert.Assert(t, err == nil)
-	err = task.handle(NewRejectTaskEvent("app00001", "UID-POD-00001", ""))
-	assert.Assert(t, err == nil)
-	assert.Equal(t, len(app01.GetNewTasks()), 0)
+	// now app should have 2 tasks
+	assert.Equal(t, len(app.GetNewTasks()), 2)
 
-	task, err = app01.GetTask("UID-POD-00001")
-	assert.Assert(t, err == nil)
-	assertTaskState(t, task, events.States().Task.Failed, 3*time.Second)
-}
+	// try to remove a non-exist task
+	// this should fail
+	err := context.RemoveTask("app00001", "non-exist-task")
+	assert.Assert(t, err != nil)
 
-func assertTaskState(t *testing.T, task *Task, expectedState string, timeout time.Duration) {
-	deadline := time.Now().Add(timeout)
-	for {
-		if task.GetTaskState() == expectedState {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Errorf("task %s doesn't reach expected state in given time, expecting: %s, actual: %s",
-				task.taskID, expectedState, task.GetTaskState())
-		}
-	}
+	// try to remove a task from non-exist application
+	// this should also fail
+	err = context.RemoveTask("app-non-exist", "task00001")
+	assert.Assert(t, err != nil)
+
+	// this should success
+	err = context.RemoveTask("app00001", "task00001")
+	assert.Assert(t, err == nil)
+
+	// now only 1 task left
+	assert.Equal(t, len(app.GetNewTasks()), 1)
+
+	// this should success
+	err = context.RemoveTask("app00001", "task00002")
+	assert.Assert(t, err == nil)
+
+	// now there is no task left
+	assert.Equal(t, len(app.GetNewTasks()), 0)
 }

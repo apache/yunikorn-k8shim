@@ -22,6 +22,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
 	"gotest.tools/assert"
 	v1 "k8s.io/api/core/v1"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -29,15 +31,12 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/test"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/dispatcher"
 )
 
 func TestNodeRecoveringState(t *testing.T) {
-	mockAPI := test.NewSchedulerAPIMock()
-	mockClient := test.NewKubeClientMock()
-
-	context := NewContextInternal(mockAPI, &conf.SchedulerConf{}, mockClient, true)
+	apiProvider4test := client.NewMockedAPIProvider()
+	context := NewContext(apiProvider4test)
 	dispatcher.RegisterEventHandler(dispatcher.EventTypeNode, context.nodes.schedulerNodeEventHandler())
 	dispatcher.Start()
 	defer dispatcher.Stop()
@@ -81,7 +80,10 @@ func TestNodeRecoveringState(t *testing.T) {
 	nodeLister := test.NewNodeListerMock()
 	nodeLister.AddNode(&node1)
 	nodeLister.AddNode(&node2)
-	if err := context.waitForNodeRecovery(nodeLister, 3*time.Second); err == nil {
+	apiProvider4test.SetNodeLister(nodeLister)
+
+	mockedAppMgr := test.NewMockedRecoverableAppManager()
+	if err := context.recover([]interfaces.Recoverable{mockedAppMgr}, 3*time.Second); err == nil {
 		t.Fatalf("expecting timeout here!")
 	} else {
 		t.Logf("context stays waiting for recovery, error: %v", err)
@@ -98,10 +100,8 @@ func TestNodeRecoveringState(t *testing.T) {
 }
 
 func TestNodesRecovery(t *testing.T) {
-	mockAPI := test.NewSchedulerAPIMock()
-	mockClient := test.NewKubeClientMock()
-
-	context := NewContextInternal(mockAPI, &conf.SchedulerConf{}, mockClient, true)
+	apiProvide4test := client.NewMockedAPIProvider()
+	context := NewContext(apiProvide4test)
 	dispatcher.RegisterEventHandler(dispatcher.EventTypeNode, context.nodes.schedulerNodeEventHandler())
 	dispatcher.Start()
 	defer dispatcher.Stop()
@@ -145,7 +145,10 @@ func TestNodesRecovery(t *testing.T) {
 	nodeLister := test.NewNodeListerMock()
 	nodeLister.AddNode(&node1)
 	nodeLister.AddNode(&node2)
-	if err := context.waitForNodeRecovery(nodeLister, 3*time.Second); err == nil {
+	apiProvide4test.SetNodeLister(nodeLister)
+
+	mockedAppRecover := test.NewMockedRecoverableAppManager()
+	if err := context.recover([]interfaces.Recoverable{mockedAppRecover}, 3*time.Second); err == nil {
 		t.Fatalf("expecting timeout here!")
 	} else {
 		t.Logf("context stays waiting for recovery, error: %v", err)
@@ -176,113 +179,10 @@ func TestNodesRecovery(t *testing.T) {
 		Event:  events.NodeAccepted,
 	})
 
-	if err := context.waitForNodeRecovery(nodeLister, 3*time.Second); err != nil {
+	if err := context.recover([]interfaces.Recoverable{mockedAppRecover}, 3*time.Second); err != nil {
 		t.Fatalf("recovery should be successful, however got error %v", err)
 	}
 
 	assert.Equal(t, sn1.getNodeState(), string(events.States().Node.Healthy))
 	assert.Equal(t, sn2.getNodeState(), string(events.States().Node.Healthy))
-}
-
-func TestAppRecovery(t *testing.T) {
-	mockAPI := test.NewSchedulerAPIMock()
-	mockClient := test.NewKubeClientMock()
-	conf.GetSchedulerConf().SchedulerName = fakeClusterSchedulerName
-
-	context := NewContextInternal(mockAPI, &conf.SchedulerConf{}, mockClient, true)
-	dispatcher.RegisterEventHandler(dispatcher.EventTypeApp, context.ApplicationEventHandler())
-	dispatcher.Start()
-	defer dispatcher.Stop()
-
-	// app1 -> pod1
-	// assigned on node1
-	pod1 := v1.Pod{
-		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-		ObjectMeta: apis.ObjectMeta{
-			Name:      "pod1",
-			Namespace: "default",
-			UID:       "UID-POD-00001",
-			Labels: map[string]string{
-				"applicationId": "app1",
-				"queue":         "root.a",
-			},
-		},
-		Spec: v1.PodSpec{
-			NodeName:      "node01",
-			SchedulerName: fakeClusterSchedulerName,
-		},
-		Status: v1.PodStatus{
-			Phase: v1.PodRunning,
-		},
-	}
-
-	// app2 -> pod2
-	// pending for scheduling
-	pod2 := v1.Pod{
-		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-		ObjectMeta: apis.ObjectMeta{
-			Name:      "pod2",
-			Namespace: "default",
-			UID:       "UID-POD-00003",
-			Labels: map[string]string{
-				"applicationId": "app2",
-				"queue":         "root.a",
-			},
-		},
-		Spec: v1.PodSpec{
-			SchedulerName: fakeClusterSchedulerName,
-		},
-		Status: v1.PodStatus{
-			Phase: v1.PodPending,
-		},
-	}
-
-	podLister := test.NewPodListerMock()
-	podLister.AddPod(&pod1)
-	podLister.AddPod(&pod2)
-
-	// wait for app1 to reach Recovering state, then dispatch AcceptApplication events
-	//nolint:staticcheck
-	go func() {
-		if err := utils.WaitForCondition(func() bool {
-			app1, err := context.GetApplication("app1")
-			// only app1 which is already scheduled before can be recovered
-			if err == nil && app1 != nil && app1.GetApplicationState() == events.States().Application.Recovering {
-				// simulate that app1 is accepted by scheduler
-				dispatcher.Dispatch(NewSimpleApplicationEvent(app1.applicationID, events.AcceptApplication))
-				return true
-			}
-			return false
-		}, 100*time.Millisecond, 3*time.Second); err != nil {
-			appStates := make(map[string]string)
-			apps := context.SelectApplications(nil)
-			for _, app := range apps {
-				appStates[app.GetApplicationID()] = app.GetApplicationState()
-			}
-			t.Fatalf("failed to wait for app1 with Recovering state in 3 seconds, actual app states: %v", appStates)
-		}
-	}()
-
-	// recovery should be done when app1 is accepted
-	if err := context.waitForAppRecovery(podLister, 3*time.Second); err == nil {
-		t.Logf("recovery exits once all apps are recovered")
-	} else {
-		t.Fatalf("unexpected failure, error: %v", err)
-	}
-
-	// check app1: it should be accepted now
-	if app1, err := context.GetApplication("app1"); err == nil {
-		assert.Equal(t, app1.GetApplicationState(), events.States().Application.Accepted)
-	} else {
-		t.Fatalf("unexpected failure, error: %v", err)
-	}
-	// check app2: it should be ignored in recovery process and will not be found in context
-	_, err := context.GetApplication("app2")
-	assert.Error(t, err, "application app2 is not found in context")
 }

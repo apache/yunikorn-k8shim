@@ -22,13 +22,11 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/looplab/fsm"
 	"go.uber.org/zap"
-	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/apache/incubator-yunikorn-core/pkg/api"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
@@ -46,7 +44,6 @@ type Application struct {
 	tags          map[string]string
 	sm            *fsm.FSM
 	lock          *sync.RWMutex
-	ch            CompletionHandler
 	schedulerAPI  api.SchedulerAPI
 }
 
@@ -66,7 +63,6 @@ func NewApplication(appID, queueName, user string, tags map[string]string, sched
 		taskMap:       taskMap,
 		tags:          tags,
 		lock:          &sync.RWMutex{},
-		ch:            CompletionHandler{running: false},
 		schedulerAPI:  scheduler,
 	}
 
@@ -146,7 +142,7 @@ func (app *Application) canHandle(ev events.ApplicationEvent) bool {
 	return app.sm.Can(string(ev.GetEvent()))
 }
 
-func (app *Application) GetTask(taskID string) (*Task, error) {
+func (app *Application) GetTask(taskID string) (interfaces.ManagedTask, error) {
 	app.lock.RLock()
 	defer app.lock.RUnlock()
 	if task, ok := app.taskMap[taskID]; ok {
@@ -168,7 +164,13 @@ func (app *Application) GetQueue() string {
 	return app.queue
 }
 
-func (app *Application) AddTask(task *Task) {
+func (app *Application) GetUser() string {
+	app.lock.RLock()
+	defer app.lock.RUnlock()
+	return app.user
+}
+
+func (app *Application) addTask(task *Task) {
 	app.lock.Lock()
 	defer app.lock.Unlock()
 	if _, ok := app.taskMap[task.taskID]; ok {
@@ -176,6 +178,20 @@ func (app *Application) AddTask(task *Task) {
 		return
 	}
 	app.taskMap[task.taskID] = task
+}
+
+func (app *Application) removeTask(taskID string) error {
+	app.lock.Lock()
+	defer app.lock.Unlock()
+	if _, ok := app.taskMap[taskID]; ok {
+		delete(app.taskMap, taskID)
+		log.Logger.Info("task removed",
+			zap.String("appID", app.applicationID),
+			zap.String("taskID", taskID))
+		return nil
+	}
+	return fmt.Errorf("task %s is not found in application %s",
+		taskID, app.applicationID)
 }
 
 func (app *Application) GetApplicationState() string {
@@ -210,6 +226,14 @@ func (app *Application) getTasks(state string) []*Task {
 		}
 	}
 	return taskList
+}
+
+// only for testing
+// this is just used for testing, it is not supposed to change state like this
+func (app *Application) SetState(state string) {
+	app.lock.Lock()
+	defer app.lock.Unlock()
+	app.sm.SetState(state)
 }
 
 // This is called in every scheduling interval,
@@ -323,68 +347,5 @@ func (app *Application) handleRejectApplicationEvent(event *fsm.Event) {
 }
 
 func (app *Application) handleCompleteApplicationEvent(event *fsm.Event) {
-	//// shutdown the working channel
-	//close(app.stopChan)
-}
-
-// a application can have one and at most one completion handler,
-// the completion handler determines when a application is considered as stopped,
-// such as for Spark, once driver is succeed, we think this application is completed.
-// this interface can be customized for different type of apps.
-type CompletionHandler struct {
-	running    bool
-	completeFn func()
-}
-
-func (app *Application) startCompletionHandler(client client.KubeClient, pod *v1.Pod) {
-	for name, value := range pod.Labels {
-		if name == common.SparkLabelRole && value == common.SparkLabelRoleDriver {
-			app.startSparkCompletionHandler(client, pod)
-			return
-		}
-	}
-}
-
-func (app *Application) startSparkCompletionHandler(client client.KubeClient, pod *v1.Pod) {
-	// spark driver pod
-	log.Logger.Info("start app completion handler",
-		zap.String("pod", pod.Name),
-		zap.String("appID", app.applicationID))
-	if app.ch.running {
-		return
-	}
-
-	app.ch = CompletionHandler{
-		completeFn: func() {
-			podWatch, err := client.GetClientSet().CoreV1().Pods(pod.Namespace).Watch(metav1.ListOptions{Watch: true})
-			if err != nil {
-				log.Logger.Info("unable to create Watch for pod",
-					zap.String("pod", pod.Name),
-					zap.Error(err))
-				return
-			}
-
-			for targetPod := range podWatch.ResultChan() {
-				resp, ok := targetPod.Object.(*v1.Pod)
-				if !ok {
-					log.Logger.Debug("cast failed unexpected object",
-						zap.Any("PodObject", targetPod.Object))
-				}
-				if resp.Status.Phase == v1.PodSucceeded && resp.UID == pod.UID {
-					log.Logger.Info("spark driver completed, app completed",
-						zap.String("pod", resp.Name),
-						zap.String("appID", app.applicationID))
-					dispatcher.Dispatch(NewSimpleApplicationEvent(app.applicationID, events.CompleteApplication))
-					return
-				}
-			}
-		},
-	}
-	app.ch.start()
-}
-
-func (ch CompletionHandler) start() {
-	if !ch.running {
-		go ch.completeFn()
-	}
+	// TODO app lifecycle updates
 }

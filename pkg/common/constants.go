@@ -26,7 +26,7 @@ const DefaultRackName = "/rack-default"
 // Application
 const LabelApplicationID = "applicationId"
 const LabelQueueName = "queue"
-const ApplicationDefaultQueue = "root"
+const ApplicationDefaultQueue = "root.sandbox"
 const DefaultPartition = "default"
 
 // Resource

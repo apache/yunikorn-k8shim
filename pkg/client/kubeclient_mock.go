@@ -16,11 +16,14 @@
  limitations under the License.
 */
 
-package test
+package client
 
 import (
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
+	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 )
 
 // fake client allows us to inject customized bind/delete pod functions
@@ -32,9 +35,13 @@ type KubeClientMock struct {
 func NewKubeClientMock() *KubeClientMock {
 	return &KubeClientMock{
 		bindFn: func(pod *v1.Pod, hostID string) error {
+			log.Logger.Info("pod bound",
+				zap.String("PodName", pod.Name))
 			return nil
 		},
 		deleteFn: func(pod *v1.Pod) error {
+			log.Logger.Info("pod deleted",
+				zap.String("PodName", pod.Name))
 			return nil
 		},
 	}
@@ -57,5 +64,9 @@ func (c *KubeClientMock) Delete(pod *v1.Pod) error {
 }
 
 func (c *KubeClientMock) GetClientSet() *kubernetes.Clientset {
+	return nil
+}
+
+func (c *KubeClientMock) GetConfigs() *rest.Config {
 	return nil
 }

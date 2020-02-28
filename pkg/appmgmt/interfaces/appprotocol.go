@@ -16,27 +16,21 @@
  limitations under the License.
 */
 
-package client
+package interfaces
 
-import (
-	v1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-)
+import v1 "k8s.io/api/core/v1"
 
-type KubeClient interface {
-	// bind a pod to a specific host
-	Bind(pod *v1.Pod, hostID string) error
-
-	// Delete a pod from a host
-	Delete(pod *v1.Pod) error
-
-	// minimal expose this, only informers factory needs it
-	GetClientSet() *kubernetes.Clientset
-
-	GetConfigs() *rest.Config
+type ManagedApp interface {
+	GetApplicationID() string
+	GetTask(taskID string) (ManagedTask, error)
+	GetApplicationState() string
+	GetQueue() string
+	GetUser() string
+	SetState(state string)
 }
 
-func NewKubeClient(kc string) KubeClient {
-	return newSchedulerKubeClient(kc)
+type ManagedTask interface {
+	GetTaskID() string
+	GetTaskState() string
+	GetTaskPod() *v1.Pod
 }

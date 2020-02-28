@@ -16,27 +16,32 @@
  limitations under the License.
 */
 
-package client
+package test
 
 import (
-	v1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
+	v1 "k8s.io/client-go/listers/core/v1"
+	"k8s.io/client-go/tools/cache"
 )
 
-type KubeClient interface {
-	// bind a pod to a specific host
-	Bind(pod *v1.Pod, hostID string) error
-
-	// Delete a pod from a host
-	Delete(pod *v1.Pod) error
-
-	// minimal expose this, only informers factory needs it
-	GetClientSet() *kubernetes.Clientset
-
-	GetConfigs() *rest.Config
+type MockedNodeInformer struct {
+	nodeLister v1.NodeLister
 }
 
-func NewKubeClient(kc string) KubeClient {
-	return newSchedulerKubeClient(kc)
+func NewMockedNodeInformer() *MockedNodeInformer {
+	return &MockedNodeInformer{
+		nodeLister: NewNodeListerMock(),
+	}
 }
+
+func (m *MockedNodeInformer) Informer() cache.SharedIndexInformer {
+	return nil
+}
+
+func (m *MockedNodeInformer) Lister() v1.NodeLister {
+	return m.nodeLister
+}
+
+func (m *MockedNodeInformer) SetLister(lister v1.NodeLister) {
+	m.nodeLister = lister
+}
+

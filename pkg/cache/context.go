@@ -22,65 +22,35 @@ import (
 	"fmt"
 	"sync"
 
-	"go.uber.org/zap"
-	v1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/informers"
-	coreInfomerV1 "k8s.io/client-go/informers/core/v1"
-	storageInformerV1 "k8s.io/client-go/informers/storage/v1"
-	"k8s.io/client-go/tools/cache"
-	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
-	"k8s.io/kubernetes/pkg/scheduler/volumebinder"
-
-	"github.com/apache/incubator-yunikorn-core/pkg/api"
-	schedulercache "github.com/apache/incubator-yunikorn-k8shim/pkg/cache/external"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
+	"go.uber.org/zap"
+	"k8s.io/api/core/v1"
+
+	schedulercache "github.com/apache/incubator-yunikorn-k8shim/pkg/cache/external"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 	plugin "github.com/apache/incubator-yunikorn-k8shim/pkg/plugin/predicates"
+	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
+
+	"k8s.io/client-go/tools/cache"
 )
 
 // context maintains scheduling state, like apps and apps' tasks.
 type Context struct {
-	applications map[string]*Application
-	nodes        *schedulerNodes
-	conf         *conf.SchedulerConf
-	kubeClient   client.KubeClient
-	schedulerAPI api.SchedulerAPI
-
-	// resource informers
-	podInformer       coreInfomerV1.PodInformer
-	nodeInformer      coreInfomerV1.NodeInformer
-	configMapInformer coreInfomerV1.ConfigMapInformer
-	pvInformer        coreInfomerV1.PersistentVolumeInformer
-	pvcInformer       coreInfomerV1.PersistentVolumeClaimInformer
-	storageInformer   storageInformerV1.StorageClassInformer
-
-	// volume binder handles PV/PVC related operations
-	volumeBinder   *volumebinder.VolumeBinder
-	schedulerCache *schedulercache.SchedulerCache
-
-	// plugged predictor handles predicates related checks
-	predictor *plugin.Predictor
-
-	// test mode disables some functionality for UT
-	testMode bool
-	lock     *sync.RWMutex
+	applications   map[string]*Application        // apps
+	nodes          *schedulerNodes                // nodes
+	schedulerCache *schedulercache.SchedulerCache // external cache
+	apiProvider    client.APIProvider             // apis to interact with api-server, scheduler-core, etc
+	predictor      *plugin.Predictor              // K8s predicates
+	lock           *sync.RWMutex                  // lock
 }
 
 // Create a new context for the scheduler.
-// This wraps the internal call which really creates the context.
-func NewContext(scheduler api.SchedulerAPI, configs *conf.SchedulerConf) *Context {
-	kc := client.NewKubeClient(configs.KubeConfig)
-	return NewContextInternal(scheduler, configs, kc, false)
-}
-
-// Internal create of the scheduler context.
-// Only exposed for testing, not to e used for anything else
-func NewContextInternal(scheduler api.SchedulerAPI, configs *conf.SchedulerConf, client client.KubeClient, testMode bool) *Context {
+func NewContext(apis client.APIProvider) *Context {
 	// create the context note that order is important:
 	// volumebinder needs the informers
 	// the cache needs informers and volumebinder
@@ -88,89 +58,42 @@ func NewContextInternal(scheduler api.SchedulerAPI, configs *conf.SchedulerConf,
 	// predictor need the cache, volumebinder and informers
 	ctx := &Context{
 		applications: make(map[string]*Application),
-		conf:         configs,
-		kubeClient:   client,
-		schedulerAPI: scheduler,
-		testMode:     testMode,
+		apiProvider:  apis,
 		lock:         &sync.RWMutex{},
 	}
 
-	// we have disabled re-sync to keep ourselves up-to-date
-	informerFactory := informers.NewSharedInformerFactory(ctx.kubeClient.GetClientSet(), 0)
-
-	// init informers
-	// volume informers are also used to get the Listers for the predicates
-	ctx.nodeInformer = informerFactory.Core().V1().Nodes()
-	ctx.podInformer = informerFactory.Core().V1().Pods()
-	ctx.configMapInformer = informerFactory.Core().V1().ConfigMaps()
-	ctx.storageInformer = informerFactory.Storage().V1().StorageClasses()
-	ctx.pvInformer = informerFactory.Core().V1().PersistentVolumes()
-	ctx.pvcInformer = informerFactory.Core().V1().PersistentVolumeClaims()
-
-	// for test mode, we skip volume binding operations for now
-	if !testMode {
-		// create a volume binder (needs the informers)
-		ctx.volumeBinder = volumebinder.NewVolumeBinder(
-			ctx.kubeClient.GetClientSet(),
-			ctx.nodeInformer, ctx.pvcInformer,
-			ctx.pvInformer,
-			ctx.storageInformer,
-			ctx.conf.VolumeBindTimeout)
-	}
-
 	// create the cache
-	ctx.schedulerCache = schedulercache.NewSchedulerCache(
-		ctx.pvInformer.Lister(),
-		ctx.pvcInformer.Lister(),
-		ctx.storageInformer.Lister(),
-		ctx.volumeBinder)
+	ctx.schedulerCache = schedulercache.NewSchedulerCache(apis.GetAPIs())
 
 	// init the controllers and plugins (need the cache)
-	ctx.nodes = newSchedulerNodes(scheduler, ctx.schedulerCache)
-	ctx.predictor = plugin.NewPredictor(schedulercache.GetPluginArgs(), testMode)
+	ctx.nodes = newSchedulerNodes(apis.GetAPIs().SchedulerAPI, ctx.schedulerCache)
+	ctx.predictor = plugin.NewPredictor(schedulercache.GetPluginArgs(), apis.IsTestingMode())
 
 	return ctx
 }
 
 func (ctx *Context) AddSchedulingEventHandlers() {
-	// Add the event handling to all informers that need it
-	ctx.nodeInformer.Informer().AddEventHandlerWithResyncPeriod(
-		cache.ResourceEventHandlerFuncs{
-			AddFunc:    ctx.addNode,
-			UpdateFunc: ctx.updateNode,
-			DeleteFunc: ctx.deleteNode,
-		},
-		0,
-	)
+	ctx.apiProvider.AddEventHandler(&client.ResourceEventHandlers{
+		Type:     client.NodeInformerHandlers,
+		AddFn:    ctx.addNode,
+		UpdateFn: ctx.updateNode,
+		DeleteFn: ctx.deleteNode,
+	})
 
-	ctx.podInformer.Informer().AddEventHandler(
-		cache.FilteringResourceEventHandler{
-			FilterFunc: ctx.filterPods,
-			Handler: cache.ResourceEventHandlerFuncs{
-				AddFunc:    ctx.addPod,
-				UpdateFunc: ctx.updatePod,
-				DeleteFunc: ctx.deletePod,
-			},
-		})
+	ctx.apiProvider.AddEventHandler(&client.ResourceEventHandlers{
+		Type:     client.PodInformerHandlers,
+		FilterFn: ctx.filterPods,
+		AddFn:    ctx.addPodToCache,
+		UpdateFn: ctx.updatePodInCache,
+		DeleteFn: ctx.removePodFromCache,
+	})
 
-	ctx.podInformer.Informer().AddEventHandler(
-		cache.FilteringResourceEventHandler{
-			FilterFunc: ctx.filterAssignedPods,
-			Handler: cache.ResourceEventHandlerFuncs{
-				AddFunc:    ctx.addPodToCache,
-				UpdateFunc: ctx.updatePodInCache,
-				DeleteFunc: ctx.removePodFromCache,
-			},
-		},
-	)
-
-	ctx.configMapInformer.Informer().AddEventHandler(cache.FilteringResourceEventHandler{
-		FilterFunc: ctx.filterConfigMaps,
-		Handler: cache.ResourceEventHandlerFuncs{
-			AddFunc:    ctx.addConfigMaps,
-			UpdateFunc: ctx.updateConfigMaps,
-			DeleteFunc: ctx.deleteConfigMaps,
-		},
+	ctx.apiProvider.AddEventHandler(&client.ResourceEventHandlers{
+		Type:     client.ConfigMapInformerHandlers,
+		FilterFn: ctx.filterConfigMaps,
+		AddFn:    ctx.addConfigMaps,
+		UpdateFn: ctx.updateConfigMaps,
+		DeleteFn: ctx.deleteConfigMaps,
 	})
 }
 
@@ -245,55 +168,6 @@ func (ctx *Context) deleteNode(obj interface{}) {
 		"node is deleted from the scheduler")
 }
 
-// add a pod to the context
-// if pod is valid, we convent the pod to a equivalent task,
-// if task belongs to a application, we add this task to the application,
-// if task is new, we create a application and add this task to that.
-func (ctx *Context) addPod(obj interface{}) {
-	pod, err := utils.Convert2Pod(obj)
-	if err != nil {
-		log.Logger.Error("failed to add pod", zap.Error(err))
-		return
-	}
-
-	if pod.Status.Phase == v1.PodPending {
-		log.Logger.Debug("add pod",
-			zap.String("namespace", pod.Namespace),
-			zap.String("podName", pod.Name),
-			zap.String("podUID", string(pod.UID)),
-			zap.String("state", string(pod.Status.Phase)))
-		if err := ctx.validatePod(pod); err != nil {
-			log.Logger.Error("application is invalid", zap.Error(err))
-			return
-		}
-
-		if app := ctx.getOrCreateApplication(pod); app != nil {
-			task := ctx.getOrAddTask(app, pod)
-			app.AddTask(task)
-		}
-	}
-
-	if utils.IsAssignedPod(pod) && utils.IsSchedulablePod(pod) {
-		log.Logger.Debug("add pod",
-			zap.String("namespace", pod.Namespace),
-			zap.String("podName", pod.Name),
-			zap.String("podUID", string(pod.UID)),
-			zap.String("assignedNode", pod.Spec.NodeName),
-			zap.String("state", "assigned"))
-		if app := ctx.getOrCreateApplication(pod); app != nil {
-			task := ctx.getOrAddTask(app, pod)
-			task.setAllocated(pod.Spec.NodeName)
-		}
-	}
-
-	// add pod to cache
-	if err := ctx.schedulerCache.AddPod(pod); err != nil {
-		log.Logger.Error("add pod to scheduler cache failed",
-			zap.String("podName", pod.Name),
-			zap.Error(err))
-	}
-}
-
 func (ctx *Context) addPodToCache(obj interface{}) {
 	pod, err := utils.Convert2Pod(obj)
 	if err != nil {
@@ -334,55 +208,6 @@ func (ctx *Context) removePodFromCache(obj interface{}) {
 	}
 }
 
-// create a task if it doesn't exist yet,
-// return the task directly if it is already there in the application
-func (ctx *Context) getOrAddTask(app *Application, pod *v1.Pod) *Task {
-	// using pod UID as taskID
-	if task, err := app.GetTask(string(pod.UID)); err == nil {
-		return task
-	}
-	newTask := createTaskFromPod(app, ctx, pod)
-	app.AddTask(newTask)
-	return newTask
-}
-
-// validate pod see if it is applicable for the scheduler
-func (ctx *Context) validatePod(pod *v1.Pod) error {
-	if pod.Spec.SchedulerName == "" || pod.Spec.SchedulerName != ctx.conf.SchedulerName {
-		// only pod with specific scheduler name is valid to us
-		return fmt.Errorf("only pod whose spec has explicitly "+
-			"specified schedulerName=%s is a valid scheduling-target, but schedulerName for pod %s(%s) is %s",
-			ctx.conf.SchedulerName, pod.Name, pod.UID, pod.Spec.SchedulerName)
-	}
-
-	if _, err := utils.GetApplicationIDFromPod(pod); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// this function is called when a pod of a application gets updated,
-// currently there is no operation needed for this call.
-func (ctx *Context) updatePod(obj, newObj interface{}) {
-	log.Logger.Debug("handling UpdatePod")
-	old, err := utils.Convert2Pod(obj)
-	if err != nil {
-		log.Logger.Error("failed to update pod", zap.Error(err))
-		return
-	}
-	pod, err := utils.Convert2Pod(newObj)
-	if err != nil {
-		log.Logger.Error("failed to update pod", zap.Error(err))
-		return
-	}
-
-	log.Logger.Debug("updatePod",
-		zap.String("podName", old.Name),
-		zap.String("oldState", string(old.Status.Phase)),
-		zap.String("newState", string(pod.Status.Phase)))
-}
-
 func (ctx *Context) updatePodInCache(oldObj, newObj interface{}) {
 	oldPod, err := utils.Convert2Pod(oldObj)
 	if err != nil {
@@ -401,62 +226,11 @@ func (ctx *Context) updatePodInCache(oldObj, newObj interface{}) {
 	}
 }
 
-// this function is called when a pod is deleted from api-server.
-// when a pod is completed, the equivalent task's state will also be completed
-// optionally, we run a completionHandler per workload, in order to determine
-// if a application is completed along with this pod's completion
-func (ctx *Context) deletePod(obj interface{}) {
-	// when a pod is deleted, we need to check its role.
-	// for spark, if driver pod is deleted, then we consider the app is completed
-	var pod *v1.Pod
-	switch obj := obj.(type) {
-	case *v1.Pod:
-		pod = obj
-	case cache.DeletedFinalStateUnknown:
-		var ok bool
-		if pod, ok = obj.Obj.(*v1.Pod); !ok {
-			log.Logger.Error("cannot convert to pod")
-			return
-		}
-	default:
-		log.Logger.Error("cannot convert to pod")
-		return
-	}
-
-	if application := ctx.getOrCreateApplication(pod); application != nil {
-		log.Logger.Debug("release allocation")
-		dispatcher.Dispatch(NewSimpleTaskEvent(
-			application.GetApplicationID(), string(pod.UID), events.CompleteTask))
-
-		log.Logger.Info("delete pod",
-			zap.String("namespace", pod.Namespace),
-			zap.String("podName", pod.Name),
-			zap.String("podUID", string(pod.UID)))
-		// starts a completion handler to handle the completion of a app on demand
-		application.startCompletionHandler(ctx.kubeClient, pod)
-	}
-}
-
-// filter assigned pods
-func (ctx *Context) filterAssignedPods(obj interface{}) bool {
-	switch obj := obj.(type) {
-	case *v1.Pod:
-		return utils.IsSchedulablePod(obj) && utils.IsAssignedPod(obj)
-	case cache.DeletedFinalStateUnknown:
-		if pod, ok := obj.Obj.(*v1.Pod); ok {
-			return utils.IsSchedulablePod(pod) && utils.IsAssignedPod(pod)
-		}
-		return false
-	default:
-		return false
-	}
-}
-
 // filter pods by scheduler name and state
 func (ctx *Context) filterPods(obj interface{}) bool {
 	switch obj := obj.(type) {
 	case *v1.Pod:
-		return utils.IsSchedulablePod(obj)
+		return utils.GeneralPodFilter(obj)
 	default:
 		return false
 	}
@@ -501,7 +275,8 @@ func (ctx *Context) deleteConfigMaps(obj interface{}) {
 
 func (ctx *Context) triggerReloadConfig() {
 	log.Logger.Info("trigger scheduler configuration reloading")
-	if err := ctx.schedulerAPI.ReloadConfiguration(ctx.conf.ClusterID); err != nil {
+	clusterId := ctx.apiProvider.GetAPIs().Conf.ClusterID
+	if err := ctx.apiProvider.GetAPIs().SchedulerAPI.ReloadConfiguration(clusterId); err != nil {
 		log.Logger.Error("reload configuration failed", zap.Error(err))
 	}
 }
@@ -512,7 +287,7 @@ func (ctx *Context) updatePodCondition(pod *v1.Pod, condition *v1.PodCondition) 
 		zap.String("name", pod.Name),
 		zap.Any("podCondition", condition))
 	if podutil.UpdatePodCondition(&pod.Status, condition) {
-		_, err := ctx.kubeClient.GetClientSet().CoreV1().Pods(pod.Namespace).UpdateStatus(pod)
+		_, err := ctx.apiProvider.GetAPIs().KubeClient.GetClientSet().CoreV1().Pods(pod.Namespace).UpdateStatus(pod)
 		return err
 	}
 	return nil
@@ -552,7 +327,7 @@ func (ctx *Context) bindPodVolumes(pod *v1.Pod) error {
 				zap.String("podName", pod.Name))
 		} else {
 			log.Logger.Info("Binding Pod Volumes", zap.String("podName", pod.Name))
-			return ctx.volumeBinder.Binder.BindPodVolumes(assumedPod)
+			return ctx.apiProvider.GetAPIs().VolumeBinder.Binder.BindPodVolumes(assumedPod)
 		}
 	}
 	return nil
@@ -577,9 +352,9 @@ func (ctx *Context) AssumePod(name string, node string) error {
 			// this will update scheduler cache with essential PV/PVC binding info
 			var allBound = true
 			// volume builder might be null in UTs
-			if ctx.volumeBinder != nil {
+			if ctx.apiProvider.GetAPIs().VolumeBinder != nil {
 				var err error
-				allBound, err = ctx.volumeBinder.Binder.AssumePodVolumes(pod, node)
+				allBound, err = ctx.apiProvider.GetAPIs().VolumeBinder.Binder.AssumePodVolumes(pod, node)
 				if err != nil {
 					return err
 				}
@@ -607,59 +382,138 @@ func (ctx *Context) ForgetPod(name string) error {
 	return nil
 }
 
-// if app already exists in the context, directly return the app from context
-// if app doesn't exist in the context yet, create a new app instance and add to context
-func (ctx *Context) getOrCreateApplication(pod *v1.Pod) *Application {
+func (ctx *Context) UpdateApplication(app *Application) {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
-
-	appID, err := utils.GetApplicationIDFromPod(pod)
-	if err != nil {
-		log.Logger.Error("unable to get application by given pod", zap.Error(err))
-		return nil
-	}
-
-	if application, ok := ctx.applications[appID]; ok {
-		return application
-	}
-	// create the tags for the application
-	// labels or annotations from the pod can be added when needed
-	tags := map[string]string{}
-	if pod.Namespace == "" {
-		tags["namespace"] = "default"
-	} else {
-		tags["namespace"] = pod.Namespace
-	}
-	// get the application owner (this is all that is available as far as we can find)
-	user := pod.Spec.ServiceAccountName
-	// create a new app
-	newApp := NewApplication(appID, utils.GetQueueNameFromPod(pod), user, tags, ctx.schedulerAPI)
-	ctx.applications[appID] = newApp
-	return ctx.applications[appID]
+	ctx.applications[app.applicationID] = app
 }
 
-// for testing only
-func (ctx *Context) AddApplication(app *Application) {
+// inform the scheduler that the application is completed,
+// the complete state may further explained to completed_with_errors(failed) or successfully_completed,
+// either way we need to release all allocations (if exists) for this application
+func (ctx *Context) NotifyApplicationComplete(appID string) {
+	if app := ctx.GetApplication(appID); app != nil {
+		log.Logger.Debug("NotifyApplicationComplete",
+			zap.String("appID", appID),
+			zap.String("currentAppState", app.GetApplicationState()))
+		ev := NewSimpleApplicationEvent(appID, events.CompleteApplication)
+		dispatcher.Dispatch(ev)
+	}
+}
+
+func (ctx *Context) NotifyTaskComplete(appID, taskID string) {
+	log.Logger.Debug("NotifyTaskComplete",
+		zap.String("appID", appID),
+		zap.String("taskID", taskID))
+	if app := ctx.GetApplication(appID); app != nil {
+		log.Logger.Debug("release allocation",
+			zap.String("appID", appID),
+			zap.String("taskID", taskID))
+		ev := NewSimpleTaskEvent(appID, taskID, events.CompleteTask)
+		dispatcher.Dispatch(ev)
+	}
+}
+
+func (ctx *Context) AddApplication(request *interfaces.AddApplicationRequest) interfaces.ManagedApp {
+	log.Logger.Debug("AddApplication", zap.Any("Request", request))
+	if app := ctx.GetApplication(request.Metadata.ApplicationID); app != nil {
+		return app
+	}
+
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
-	ctx.applications[app.GetApplicationID()] = app
+	app := NewApplication(
+		request.Metadata.ApplicationID,
+		request.Metadata.QueueName,
+		request.Metadata.User,
+		request.Metadata.Tags,
+		ctx.apiProvider.GetAPIs().SchedulerAPI)
+
+	// add into cache
+	ctx.applications[app.applicationID] = app
+
+	// trigger recovery
+	if request.Recovery {
+		if app.GetApplicationState() == events.States().Application.New {
+			log.Logger.Info("start to recover the app",
+				zap.String("appId", app.applicationID))
+			dispatcher.Dispatch(NewSimpleApplicationEvent(app.applicationID, events.RecoverApplication))
+		}
+	}
+
+	log.Logger.Info("app added",
+		zap.String("appID", app.applicationID),
+		zap.Bool("recovery", request.Recovery))
+
+	return app
 }
 
-func (ctx *Context) GetApplication(appID string) (*Application, error) {
+func (ctx *Context) GetApplication(appID string) interfaces.ManagedApp {
 	ctx.lock.RLock()
 	defer ctx.lock.RUnlock()
 	if app, ok := ctx.applications[appID]; ok {
-		return app, nil
+		return app
 	}
-	return nil, fmt.Errorf("application %s is not found in context", appID)
+	return nil
+}
+
+func (ctx *Context) RemoveApplication(appID string) error {
+	ctx.lock.Lock()
+	defer ctx.lock.Unlock()
+	if _, exist := ctx.applications[appID]; exist {
+		delete(ctx.applications, appID)
+		log.Logger.Info("app removed",
+			zap.String("appID", appID))
+		return nil
+	} else {
+		return fmt.Errorf("application %s is not found in the context", appID)
+	}
+}
+
+// this implements ApplicationManagementProtocol
+func (ctx *Context) AddTask(request *interfaces.AddTaskRequest) interfaces.ManagedTask {
+	log.Logger.Debug("AddTask", zap.Any("Request", request))
+	if managedApp := ctx.GetApplication(request.Metadata.ApplicationID); managedApp != nil {
+		if app, valid := managedApp.(*Application); valid {
+			existingTask, err := app.GetTask(request.Metadata.TaskID)
+			if err != nil {
+				task := NewTask(request.Metadata.TaskID, app, ctx, request.Metadata.Pod)
+				// in recovery mode, task is considered as allocated
+				if request.Recovery {
+					task.setAllocated(request.Metadata.Pod.Spec.NodeName)
+				}
+				app.addTask(&task)
+				log.Logger.Info("task added",
+					zap.String("appID", app.applicationID),
+					zap.String("taskID", task.taskID),
+					zap.String("taskState", task.GetTaskState()))
+
+				return &task
+			}
+			return existingTask
+		}
+	}
+	return nil
+}
+
+func (ctx *Context) RemoveTask(appID, taskID string) error {
+	ctx.lock.RLock()
+	defer ctx.lock.RUnlock()
+	if app, ok := ctx.applications[appID]; ok {
+		return app.removeTask(taskID)
+	} else {
+		return fmt.Errorf("application %s is not found in the context", appID)
+	}
 }
 
 func (ctx *Context) getTask(appID string, taskID string) (*Task, error) {
 	ctx.lock.RLock()
 	defer ctx.lock.RUnlock()
 	if app, ok := ctx.applications[appID]; ok {
-		if task, err := app.GetTask(taskID); err == nil {
-			return task, nil
+		if managedTask, err := app.GetTask(taskID); err == nil {
+			if task, valid := managedTask.(*Task); valid {
+				return task, nil
+			}
 		}
 	}
 	return nil, fmt.Errorf("application %s is not found in context", appID)
@@ -683,17 +537,20 @@ func (ctx *Context) SelectApplications(filter func(app *Application) bool) []*Ap
 func (ctx *Context) ApplicationEventHandler() func(obj interface{}) {
 	return func(obj interface{}) {
 		if event, ok := obj.(events.ApplicationEvent); ok {
-			app, err := ctx.GetApplication(event.GetApplicationID())
-			if err != nil {
-				log.Logger.Error("failed to handle application event", zap.Error(err))
+			managedApp := ctx.GetApplication(event.GetApplicationID())
+			if managedApp == nil {
+				log.Logger.Error("failed to handle application event",
+					zap.String("reason", "application not exist"))
 				return
 			}
 
-			if app.canHandle(event) {
-				if err = app.handle(event); err != nil {
-					log.Logger.Error("failed to handle application event",
-						zap.String("event", string(event.GetEvent())),
-						zap.Error(err))
+			if app, ok := managedApp.(*Application); ok {
+				if app.canHandle(event) {
+					if err := app.handle(event); err != nil {
+						log.Logger.Error("failed to handle application event",
+							zap.String("event", string(event.GetEvent())),
+							zap.Error(err))
+					}
 				}
 			}
 		}
@@ -730,13 +587,3 @@ func (ctx *Context) SchedulerNodeEventHandler() func(obj interface{}) {
 	return nil
 }
 
-func (ctx *Context) Run(stopCh <-chan struct{}) {
-	if ctx != nil && !ctx.testMode {
-		go ctx.nodeInformer.Informer().Run(stopCh)
-		go ctx.podInformer.Informer().Run(stopCh)
-		go ctx.pvInformer.Informer().Run(stopCh)
-		go ctx.pvcInformer.Informer().Run(stopCh)
-		go ctx.storageInformer.Informer().Run(stopCh)
-		go ctx.configMapInformer.Informer().Run(stopCh)
-	}
-}

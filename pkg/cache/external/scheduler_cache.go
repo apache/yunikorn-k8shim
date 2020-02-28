@@ -26,14 +26,12 @@ import (
 	v1 "k8s.io/api/core/v1"
 	storageV1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	corelistersV1 "k8s.io/client-go/listers/core/v1"
-	storagelisterV1 "k8s.io/client-go/listers/storage/v1"
 	"k8s.io/kubernetes/pkg/scheduler/algorithm"
 	"k8s.io/kubernetes/pkg/scheduler/algorithm/predicates"
 	"k8s.io/kubernetes/pkg/scheduler/factory"
 	schedulernode "k8s.io/kubernetes/pkg/scheduler/nodeinfo"
-	"k8s.io/kubernetes/pkg/scheduler/volumebinder"
 
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 )
 
@@ -48,25 +46,16 @@ type SchedulerCache struct {
 	// the value indicates if a pod volumes are all bound
 	assumedPods map[string]bool
 	lock        sync.RWMutex
-
-	pvLister      corelistersV1.PersistentVolumeLister
-	pvcLister     corelistersV1.PersistentVolumeClaimLister
-	storageLister storagelisterV1.StorageClassLister
-	volumeBinder  *volumebinder.VolumeBinder
+	// client APIs
+	clients     *client.Clients
 }
 
-func NewSchedulerCache(pvl corelistersV1.PersistentVolumeLister,
-	pvcl corelistersV1.PersistentVolumeClaimLister,
-	stl storagelisterV1.StorageClassLister,
-	binder *volumebinder.VolumeBinder) *SchedulerCache {
+func NewSchedulerCache(clients *client.Clients) *SchedulerCache {
 	cache := &SchedulerCache{
 		nodesMap:      make(map[string]*schedulernode.NodeInfo),
 		podsMap:       make(map[string]*v1.Pod),
 		assumedPods:   make(map[string]bool),
-		pvLister:      pvl,
-		pvcLister:     pvcl,
-		storageLister: stl,
-		volumeBinder:  binder,
+		clients:       clients,
 	}
 	cache.assignArgs(GetPluginArgs())
 	return cache
@@ -81,10 +70,10 @@ func (cache *SchedulerCache) assignArgs(args *factory.PluginFactoryArgs) {
 	log.Logger.Debug("Initialising PluginFactoryArgs using SchedulerCache")
 	args.PodLister = cache
 	args.NodeInfo = cache
-	args.VolumeBinder = cache.volumeBinder
-	args.PVInfo = &predicates.CachedPersistentVolumeInfo{PersistentVolumeLister: cache.pvLister}
-	args.PVCInfo = &predicates.CachedPersistentVolumeClaimInfo{PersistentVolumeClaimLister: cache.pvcLister}
-	args.StorageClassInfo = &predicates.CachedStorageClassInfo{StorageClassLister: cache.storageLister}
+	args.VolumeBinder = cache.clients.VolumeBinder
+	args.PVInfo = &predicates.CachedPersistentVolumeInfo{PersistentVolumeLister: cache.clients.PVInformer.Lister()}
+	args.PVCInfo = &predicates.CachedPersistentVolumeClaimInfo{PersistentVolumeClaimLister: cache.clients.PVCInformer.Lister()}
+	args.StorageClassInfo = &predicates.CachedStorageClassInfo{StorageClassLister: cache.clients.StorageInformer.Lister()}
 }
 
 func (cache *SchedulerCache) GetNode(name string) *schedulernode.NodeInfo {
@@ -360,15 +349,15 @@ func (cache *SchedulerCache) GetNodeInfo(nodeName string) (*v1.Node, error) {
 
 // Implement scheduler/algorithm/predicates/predicates.go#StorageClassInfo interface
 func (cache *SchedulerCache) GetStorageClassInfo(className string) (*storageV1.StorageClass, error) {
-	return cache.storageLister.Get(className)
+	return cache.clients.StorageInformer.Lister().Get(className)
 }
 
 // Implement scheduler/algorithm/predicates/predicates.go#PersistentVolumeClaimInfo interface
 func (cache *SchedulerCache) GetPersistentVolumeClaimInfo(nameSpace, name string) (*v1.PersistentVolumeClaim, error) {
-	return cache.pvcLister.PersistentVolumeClaims(nameSpace).Get(name)
+	return cache.clients.PVCInformer.Lister().PersistentVolumeClaims(nameSpace).Get(name)
 }
 
 // Implement scheduler/algorithm/predicates/predicates.go#PersistentVolumeClaimInfo interface
 func (cache *SchedulerCache) GetPersistentVolumeInfo(name string) (*v1.PersistentVolume, error) {
-	return cache.pvLister.Get(name)
+	return cache.clients.PVInformer.Lister().Get(name)
 }
