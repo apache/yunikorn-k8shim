@@ -97,7 +97,7 @@ func (m *MockedAMProtocol) RemoveTask(appID, taskID string) error {
 }
 
 func (m *MockedAMProtocol) NotifyApplicationComplete(appID string) {
-	if app := m.GetApplication(appID); app != nil{
+	if app := m.GetApplication(appID); app != nil {
 		if p, valid := app.(*Application); valid {
 			p.SetState(events.States().Application.Completed)
 		}

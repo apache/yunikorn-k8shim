@@ -21,13 +21,14 @@ package client
 import (
 	"time"
 
-	"github.com/apache/incubator-yunikorn-core/pkg/api"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"k8s.io/client-go/informers"
 	coreInformerV1 "k8s.io/client-go/informers/core/v1"
 	storageInformerV1 "k8s.io/client-go/informers/storage/v1"
 	"k8s.io/kubernetes/pkg/scheduler/volumebinder"
+
+	"github.com/apache/incubator-yunikorn-core/pkg/api"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 )
 
 // clients encapsulates a set of useful client APIs
@@ -42,7 +43,7 @@ type Clients struct {
 	SchedulerAPI api.SchedulerAPI
 
 	// informer factory
-	InformerFactory   informers.SharedInformerFactory
+	InformerFactory informers.SharedInformerFactory
 
 	// resource informers
 	PodInformer       coreInformerV1.PodInformer

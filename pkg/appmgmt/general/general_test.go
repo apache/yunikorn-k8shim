@@ -21,12 +21,13 @@ package general
 import (
 	"testing"
 
+	"gotest.tools/assert"
+	"k8s.io/api/core/v1"
+	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/cache"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
-	"gotest.tools/assert"
-	v1 "k8s.io/api/core/v1"
-	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestGetAppMetadata(t *testing.T) {

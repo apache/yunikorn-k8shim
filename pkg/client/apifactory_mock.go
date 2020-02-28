@@ -19,12 +19,13 @@
 package client
 
 import (
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/test"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
-	v1 "k8s.io/api/core/v1"
+	"k8s.io/api/core/v1"
 	corev1 "k8s.io/client-go/listers/core/v1"
 	storagev1 "k8s.io/client-go/listers/storage/v1"
 	"k8s.io/client-go/tools/cache"
+
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/test"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 )
 
 type MockedAPIProvider struct {
@@ -34,7 +35,7 @@ type MockedAPIProvider struct {
 func NewMockedAPIProvider() *MockedAPIProvider {
 	return &MockedAPIProvider{
 		clients: &Clients{
-			Conf:              &conf.SchedulerConf{
+			Conf: &conf.SchedulerConf{
 				ClusterID:            "yk-test-cluster",
 				ClusterVersion:       "0.1",
 				SchedulerName:        "yunikorn",
@@ -77,7 +78,7 @@ func (m *MockedAPIProvider) MockDeleteFn(dfn func(pod *v1.Pod) error) {
 	}
 }
 
-func (m *MockedAPIProvider) SetNodeLister(lister corev1.NodeLister)  {
+func (m *MockedAPIProvider) SetNodeLister(lister corev1.NodeLister) {
 	informer := m.clients.NodeInformer
 	if i, ok := informer.(*test.MockedNodeInformer); ok {
 		i.SetLister(lister)
@@ -92,7 +93,7 @@ func (m *MockedAPIProvider) IsTestingMode() bool {
 	return true
 }
 
-func (m *MockedAPIProvider) AddEventHandler (handlers *ResourceEventHandlers) {
+func (m *MockedAPIProvider) AddEventHandler(handlers *ResourceEventHandlers) {
 	// no impl
 }
 
@@ -109,7 +110,7 @@ func (m *MockedAPIProvider) WaitForSync() error {
 }
 
 // MockedPersistentVolumeInformer implements PersistentVolumeInformer interface
-type MockedPersistentVolumeInformer struct {}
+type MockedPersistentVolumeInformer struct{}
 
 func (m *MockedPersistentVolumeInformer) Informer() cache.SharedIndexInformer {
 	return nil
@@ -120,7 +121,7 @@ func (m *MockedPersistentVolumeInformer) Lister() corev1.PersistentVolumeLister 
 }
 
 // MockedPersistentVolumeClaimInformer implements PersistentVolumeClaimInformer interface
-type MockedPersistentVolumeClaimInformer struct {}
+type MockedPersistentVolumeClaimInformer struct{}
 
 func (m *MockedPersistentVolumeClaimInformer) Informer() cache.SharedIndexInformer {
 	return nil
@@ -131,7 +132,7 @@ func (m *MockedPersistentVolumeClaimInformer) Lister() corev1.PersistentVolumeCl
 }
 
 // MockedStorageClassInformer implements StorageClassInformer interface
-type MockedStorageClassInformer struct {}
+type MockedStorageClassInformer struct{}
 
 func (m *MockedStorageClassInformer) Informer() cache.SharedIndexInformer {
 	return nil

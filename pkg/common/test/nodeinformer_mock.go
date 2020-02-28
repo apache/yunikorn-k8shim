@@ -19,7 +19,7 @@
 package test
 
 import (
-	v1 "k8s.io/client-go/listers/core/v1"
+	"k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -44,4 +44,3 @@ func (m *MockedNodeInformer) Lister() v1.NodeLister {
 func (m *MockedNodeInformer) SetLister(lister v1.NodeLister) {
 	m.nodeLister = lister
 }
-

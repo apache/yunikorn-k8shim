@@ -211,7 +211,7 @@ func (task *Task) handleSubmitTaskEvent(event *fsm.Event) {
 	// core and shim to negotiate on when to set the state to unscheduable and trigger the
 	// auto-scaling appropriately.
 	go func(t *Task) {
-		time.Sleep(5*time.Second)
+		time.Sleep(5 * time.Second)
 		if t.GetTaskState() == events.States().Task.Scheduling {
 			log.Logger.Debug("updating pod state ",
 				zap.String("appID", t.applicationID),

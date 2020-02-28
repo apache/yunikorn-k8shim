@@ -22,11 +22,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/apache/incubator-yunikorn-core/pkg/api"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubernetes/pkg/scheduler/volumebinder"
+
+	"github.com/apache/incubator-yunikorn-core/pkg/api"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 )
 
 type Type int
@@ -42,7 +43,7 @@ const (
 
 type APIProvider interface {
 	GetAPIs() *Clients
-	AddEventHandler (handlers *ResourceEventHandlers)
+	AddEventHandler(handlers *ResourceEventHandlers)
 	Start()
 	Stop()
 	WaitForSync() error
@@ -54,7 +55,7 @@ type APIProvider interface {
 type ResourceEventHandlers struct {
 	Type
 	FilterFn func(obj interface{}) bool
-	AddFn func(obj interface{})
+	AddFn    func(obj interface{})
 	UpdateFn func(old, new interface{})
 	DeleteFn func(obj interface{})
 }
@@ -172,7 +173,7 @@ func (s *APIFactory) WaitForSync() error {
 		// skip this in test mode
 		return nil
 	}
-	return s.clients.WaitForSync(time.Second, 30 * time.Second)
+	return s.clients.WaitForSync(time.Second, 30*time.Second)
 }
 
 func (s *APIFactory) Start() {

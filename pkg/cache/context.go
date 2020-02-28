@@ -22,21 +22,20 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
 	"go.uber.org/zap"
 	"k8s.io/api/core/v1"
+	"k8s.io/client-go/tools/cache"
+	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
 
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
 	schedulercache "github.com/apache/incubator-yunikorn-k8shim/pkg/cache/external"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 	plugin "github.com/apache/incubator-yunikorn-k8shim/pkg/plugin/predicates"
-	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
-
-	"k8s.io/client-go/tools/cache"
 )
 
 // context maintains scheduling state, like apps and apps' tasks.
@@ -586,4 +585,3 @@ func (ctx *Context) SchedulerNodeEventHandler() func(obj interface{}) {
 	// this is not required in some tests
 	return nil
 }
-
