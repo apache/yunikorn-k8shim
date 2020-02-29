@@ -114,7 +114,11 @@ func updateSchedulerName(patch []patchOperation) []patchOperation {
 }
 
 func updateLabels(pod *v1.Pod, patch []patchOperation) []patchOperation {
-	log.Logger.Info("updating pod labels")
+	log.Logger.Info("updating pod labels",
+		zap.String("podName", pod.Name),
+		zap.String("generateName", pod.GenerateName),
+		zap.String("namespace", pod.Namespace),
+		zap.Any("labels", pod.Labels))
 	existingLabels := pod.Labels
 	result := make(map[string]string)
 	for k, v := range existingLabels {
@@ -131,7 +135,17 @@ func updateLabels(pod *v1.Pod, patch []patchOperation) []patchOperation {
 			if pod.Namespace != "" {
 				podNamespace = pod.Namespace
 			}
-			generatedID := fmt.Sprintf("%s_%s_%d", podNamespace, pod.Name, time.Now().Unix())
+
+			// pod's name can be generated, if name is not explicitly specified
+			// look for generateName instead
+			podName := "unknown"
+			if pod.Name != "" {
+				podName = pod.Name
+			} else if pod.GenerateName != "" {
+				podName = pod.GenerateName
+			}
+
+			generatedID := fmt.Sprintf("%s_%s_%d", podNamespace, podName, time.Now().Unix())
 			log.Logger.Debug("adding application ID",
 				zap.String("generatedID", generatedID))
 			result[common.LabelApplicationID] = generatedID
