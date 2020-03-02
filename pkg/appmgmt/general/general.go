@@ -185,7 +185,38 @@ func (os *Manager) addPod(obj interface{}) {
 // when pod resource is modified, we need to act accordingly
 // e.g vertical scale out the pod, this requires the scheduler to be aware of this
 func (os *Manager) updatePod(old, new interface{}) {
-	// TODO
+	oldPod, err := utils.Convert2Pod(old)
+	if err != nil {
+		log.Logger.Error("expecting a pod object", zap.Error(err))
+		return
+	}
+
+	newPod, err := utils.Convert2Pod(new)
+	if err != nil {
+		log.Logger.Error("expecting a pod object", zap.Error(err))
+		return
+	}
+
+	// triggered when pod status' phase changes
+	if oldPod.Status.Phase != newPod.Status.Phase {
+		// pod succeed or failed means all containers in the pod have been terminated,
+		// and these container won't be restarted. In this case, we can safely release
+		// the resources for this allocation. And mark the task is done.
+		if newPod.Status.Phase == v1.PodSucceeded ||
+			newPod.Status.Phase == v1.PodFailed {
+			log.Logger.Info("task completes",
+				zap.String("appType", os.Name()),
+				zap.String("namespace", newPod.Namespace),
+				zap.String("podName", newPod.Name),
+				zap.String("podUID", string(newPod.UID)),
+				zap.String("podStatus", string(newPod.Status.Phase)))
+			if taskMeta, ok := os.getTaskMetadata(newPod); ok {
+				if app := os.amProtocol.GetApplication(taskMeta.ApplicationID); app != nil {
+					os.amProtocol.NotifyTaskComplete(taskMeta.ApplicationID, taskMeta.TaskID)
+				}
+			}
+		}
+	}
 }
 
 // this function is called when a pod is deleted from api-server.
