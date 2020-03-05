@@ -255,6 +255,132 @@ func TestAddPod(t *testing.T) {
 	assert.Equal(t, app.GetNewTasks()[0].GetTaskPod().Name, "pod00004")
 }
 
+func TestUpdatePodWhenSucceed(t *testing.T) {
+	am := NewManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider())
+
+	pod := v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name:      "pod00001",
+			Namespace: "default",
+			UID:       "UID-POD-00001",
+			Labels: map[string]string{
+				"applicationId": "app00001",
+				"queue":         "root.a",
+			},
+		},
+		Spec: v1.PodSpec{SchedulerName: "yunikorn"},
+		Status: v1.PodStatus{
+			Phase: v1.PodPending,
+		},
+	}
+
+	// add a pending pod through the AM service
+	am.addPod(&pod)
+
+	managedApp := am.amProtocol.GetApplication("app00001")
+	assert.Assert(t, managedApp != nil)
+	app, valid := toApplication(managedApp)
+	assert.Equal(t, valid, true)
+	assert.Equal(t, app.GetApplicationID(), "app00001")
+	assert.Equal(t, app.GetApplicationState(), events.States().Application.New)
+	assert.Equal(t, app.GetQueue(), "root.a")
+	assert.Equal(t, len(app.GetNewTasks()), 1)
+
+	task, err := app.GetTask("UID-POD-00001")
+	assert.Assert(t, err == nil)
+	assert.Equal(t, task.GetTaskState(), events.States().Task.New)
+
+	// try update the pod
+
+	newPod := v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name:      "pod00001",
+			Namespace: "default",
+			UID:       "UID-POD-00001",
+			Labels: map[string]string{
+				"applicationId": "app00001",
+				"queue":         "root.a",
+			},
+		},
+		Spec: v1.PodSpec{SchedulerName: "yunikorn"},
+		Status: v1.PodStatus{
+			Phase: v1.PodSucceeded,
+		},
+	}
+
+	am.updatePod(&pod, &newPod)
+
+	// this is to verify NotifyTaskComplete is called
+	assert.Equal(t, task.GetTaskState(), events.States().Task.Completed)
+}
+
+func TestUpdatePodWhenFailed(t *testing.T) {
+	am := NewManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider())
+
+	pod := v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name:      "pod00001",
+			Namespace: "default",
+			UID:       "UID-POD-00001",
+			Labels: map[string]string{
+				"applicationId": "app00001",
+				"queue":         "root.a",
+			},
+		},
+		Spec: v1.PodSpec{SchedulerName: "yunikorn"},
+		Status: v1.PodStatus{
+			Phase: v1.PodPending,
+		},
+	}
+
+	// add a pending pod through the AM service
+	am.addPod(&pod)
+
+	// try update the pod to Failed status
+	newPod := v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name:      "pod00001",
+			Namespace: "default",
+			UID:       "UID-POD-00001",
+			Labels: map[string]string{
+				"applicationId": "app00001",
+				"queue":         "root.a",
+			},
+		},
+		Spec: v1.PodSpec{SchedulerName: "yunikorn"},
+		Status: v1.PodStatus{
+			Phase: v1.PodSucceeded,
+		},
+	}
+
+	am.updatePod(&pod, &newPod)
+
+	managedApp := am.amProtocol.GetApplication("app00001")
+	assert.Assert(t, managedApp != nil)
+	app, valid := toApplication(managedApp)
+	assert.Equal(t, valid, true)
+	task, err := app.GetTask("UID-POD-00001")
+	assert.Assert(t, err == nil)
+	// this is to verify NotifyTaskComplete is called
+	assert.Equal(t, task.GetTaskState(), events.States().Task.Completed)
+}
+
 func TestDeletePod(t *testing.T) {
 	am := NewManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider())
 
