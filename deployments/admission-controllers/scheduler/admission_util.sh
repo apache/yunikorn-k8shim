@@ -27,9 +27,18 @@ fi
 SERVICE=`cat ${CONF_FILE} | grep service | cut -d "=" -f 2`
 SECRET=`cat ${CONF_FILE} | grep secret | cut -d "=" -f 2`
 NAMESPACE=`cat ${CONF_FILE} | grep namespace | cut -d "=" -f 2`
+POLICY_GROUP=`cat ${CONF_FILE} | grep policyGroup | cut -d "=" -f 2`
+REGISTERED_ADMISSIONS=`cat ${CONF_FILE} | grep registeredAdmissions | cut -d "=" -f 2`
+REGISTERED_ADMISSIONS=${REGISTERED_ADMISSIONS//,/ }
 
 delete_resources() {
   kubectl delete -f server.yaml
+  # cleanup admissions
+  for admission in $REGISTERED_ADMISSIONS
+  do
+    kubectl delete -f ${admission}.yaml
+    rm -rf ${admission}.yaml
+  done
   kubectl delete -n ${NAMESPACE} secret ${SECRET}
   kubectl delete -n ${NAMESPACE} certificatesigningrequest.certificates.k8s.io ${SERVICE}.${NAMESPACE}
   rm -rf server.yaml
@@ -55,6 +64,14 @@ precheck() {
     echo "dependency check failed: jq is not installed"
     exit 1
   fi
+  # check registered admissions
+  for admission in $REGISTERED_ADMISSIONS
+  do
+    if [ ! -f "templates/${admission}.yaml.template" ]; then
+      echo "invalid registered admission: ${admission}, template not found: templates/${admission}.yaml.template"
+    exit 1
+    fi
+  done
 }
 
 create_resources() {
@@ -74,8 +91,17 @@ create_resources() {
 
   # Replace the certificate in the template with a valid CA parsed from security tokens
   ca_pem_b64=$(kubectl get secret -o jsonpath="{.items[?(@.type==\"kubernetes.io/service-account-token\")].data['ca\.crt']}" | cut -d " " -f 1)
-  sed -e 's@${CA_PEM_B64}@'"$ca_pem_b64"'@g' <"${basedir}/server.yaml.template" > server.yaml
+  sed -e 's@${NAMESPACE}@'"$NAMESPACE"'@g' -e 's@${SERVICE}@'"$SERVICE"'@g' -e 's@${POLICY_GROUP}@'"$POLICY_GROUP"'@g' \
+    <"${basedir}/templates/server.yaml.template" > server.yaml
   kubectl create -f server.yaml
+
+  # register admissions
+  for admission in $REGISTERED_ADMISSIONS
+  do
+    sed -e 's@${CA_PEM_B64}@'"$ca_pem_b64"'@g' -e 's@${NAMESPACE}@'"$NAMESPACE"'@g' -e 's@${SERVICE}@'"$SERVICE"'@g' \
+      <"${basedir}/templates/${admission}.yaml.template" > ${admission}.yaml
+    kubectl create -f ${admission}.yaml
+  done
 
   echo "The webhook server has been deployed and configured!"
   return 0

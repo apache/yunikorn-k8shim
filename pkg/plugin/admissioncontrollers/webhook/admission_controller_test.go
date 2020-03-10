@@ -19,6 +19,9 @@
 package main
 
 import (
+	"fmt"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"strings"
 	"testing"
 
@@ -211,3 +214,42 @@ func TestUpdateSchedulerName(t *testing.T) {
 	}
 }
 
+func TestValidateConfigMap(t *testing.T) {
+	configName := fmt.Sprintf("%s.yaml", conf.DefaultPolicyGroup)
+	controller := &admissionController{
+		configName: configName,
+	}
+	configmap := &v1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: common.DefaultConfigMapName,
+		},
+		Data:       make(map[string]string),
+	}
+	// case 1: specified config "queues.yaml" not found
+	err := controller.validateConfigMap(configmap)
+	assert.Assert(t, err != nil, "expecting error when specified config is not found")
+	assert.Equal(t, err.Error(), "required config 'queues.yaml' not found in this configmap")
+	// case 2: invalid content
+	configmap.Data[configName] = `
+partitions:
+  - name: default
+    nodesortpolicy:
+        type: illegal-type
+    queues:
+      - name: root
+`
+	err = controller.validateConfigMap(configmap)
+	assert.Assert(t, err != nil, "expecting error for invalid content")
+	assert.Equal(t, err.Error(), "undefined policy: illegal-type")
+	// case 3: valid content
+	configmap.Data[configName] = `
+partitions:
+  - name: default
+    nodesortpolicy:
+        type: fair
+    queues:
+      - name: root
+`
+	err = controller.validateConfigMap(configmap)
+	assert.Assert(t, err == nil, fmt.Sprintf("expecting no error for valid content, but got '%v'", err))
+}

@@ -21,6 +21,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/apache/incubator-yunikorn-core/pkg/common/configs"
 	"io/ioutil"
 	"net/http"
 	"strings"
@@ -45,6 +46,7 @@ var (
 )
 
 type admissionController struct {
+	configName string
 }
 
 type patchOperation struct {
@@ -167,6 +169,53 @@ func updateLabels(pod *v1.Pod, patch []patchOperation) []patchOperation {
 	return patch
 }
 
+func (c *admissionController) validateConf(ar *v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
+	req := ar.Request
+	log.Logger.Info("AdmissionReview",
+		zap.Any("Kind", req.Kind),
+		zap.String("Namespace", req.Namespace),
+		zap.String("UID", string(req.UID)),
+		zap.String("Operation", string(req.Operation)),
+		zap.Any("UserInfo", req.UserInfo))
+
+	if req.Kind.Kind == "ConfigMap" {
+		var configmap v1.ConfigMap
+		if err := json.Unmarshal(req.Object.Raw, &configmap); err != nil {
+			return &v1beta1.AdmissionResponse{
+				Result: &metav1.Status{
+					Message: err.Error(),
+				},
+			}
+		}
+		// validate new/updated config map
+		if err := c.validateConfigMap(&configmap); err != nil {
+			return &v1beta1.AdmissionResponse{
+				Result: &metav1.Status{
+					Message: err.Error(),
+				},
+			}
+		}
+	}
+
+	return &v1beta1.AdmissionResponse{
+		Allowed: true,
+	}
+}
+
+func (c *admissionController) validateConfigMap(cm *v1.ConfigMap) error {
+	if cm.Name == common.DefaultConfigMapName {
+		log.Logger.Info("validating yunikorn configs")
+		if content, ok := cm.Data[c.configName]; ok {
+			if _, err := configs.LoadSchedulerConfigFromByteArray([]byte(content)); err != nil {
+				return err
+			}
+		} else {
+			return fmt.Errorf("required config '%s' not found in this configmap", c.configName)
+		}
+	}
+	return nil
+}
+
 func (c *admissionController) serve(w http.ResponseWriter, r *http.Request) {
 	log.Logger.Debug("request", zap.Any("httpRequest", r))
 	var body []byte
@@ -196,8 +245,10 @@ func (c *admissionController) serve(w http.ResponseWriter, r *http.Request) {
 				Message: err.Error(),
 			},
 		}
-	} else if r.URL.Path == "/mutate" {
+	} else if r.URL.Path == mutateURL {
 		admissionResponse = c.mutate(&ar)
+	} else if r.URL.Path == validateConfURL {
+		admissionResponse = c.validateConf(&ar)
 	}
 
 	admissionReview := v1beta1.AdmissionReview{}

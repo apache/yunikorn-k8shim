@@ -1,9 +1,10 @@
-# Admission Controller to inject SchedulerName on-the-fly
+# Admission Controller to mutate or validate on-the-fly
 
-This directory contains resources to create an admission controller web-hook which can inject
-`schedulerName` to pod's spec before admitting it. This can be used to deploy on an existing
-Kubernetes cluster and route all pods to YuniKorn, which can be treated as an alternative way
-to replace default scheduler.
+This directory contains resources to create admission controller web-hooks:
+- inject `schedulerName` and required `labels` to pod's spec/metadata before admitting it. 
+ This can be used to deploy on an existing Kubernetes cluster and route all pods to YuniKorn,
+ which can be treated as an alternative way to replace default scheduler.
+- validate yunikorn configs (the config-map named `yunikorn-configs`) before admitting it.
 
 ## Steps
 
@@ -23,6 +24,8 @@ this command does following tasks
 - Create the admission controller web-hook and launch it on K8s
 
 ### Test the admission controller
+
+#### Mutations
 
 Launch a pod with following spec, note this spec did not specify `schedulerName`,
 without the admission controller, it should be scheduled by default scheduler without any issue.
@@ -55,6 +58,28 @@ kubectl get pod task0 -o yaml
 ```
 
 you'll see the `schedulerName` has been injected with value `yunikorn`.
+
+#### Validations
+
+After the admission controller is started, the config-map named `yunikorn-configs` will be validated
+ before it's created or updated, thus the request with invalid content will be denied immediately and
+ the error will be returned to the client.
+
+For example, if the content of yunikorn configs is updated with invalid node sort policy:
+```
+partitions:
+  - name: default
+    nodesortpolicy:
+        type: illegal-type
+    queues:
+      - name: root
+```
+
+This update request will be denied and error will be returned as below:
+```
+error: configmaps "yunikorn-configs" could not be patched: admission webhook "admission-webhook.yunikorn.validate-conf"
+ denied the request: undefined policy: illegal-type
+```
 
 ### Stop and delete the admission controller
 

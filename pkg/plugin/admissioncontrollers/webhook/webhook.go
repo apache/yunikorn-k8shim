@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"net/http"
 	"os"
 	"os/signal"
@@ -38,6 +39,11 @@ const (
 	tlsDir      = `/run/secrets/tls`
 	tlsCertFile = `cert.pem`
 	tlsKeyFile  = `key.pem`
+	policyGroupEnvVarName = "POLICY_GROUP"
+
+	// legal URLs
+	mutateURL       = "/mutate"
+	validateConfURL = "/validate-conf"
 )
 
 func main() {
@@ -47,10 +53,17 @@ func main() {
 	if err != nil {
 		log.Logger.Fatal("Failed to load key pair", zap.Error(err))
 	}
+	policyGroup := os.Getenv(policyGroupEnvVarName)
+	if policyGroup == "" {
+		policyGroup = conf.DefaultPolicyGroup
+	}
 
-	webHook := admissionController{}
+	webHook := admissionController{
+		configName: fmt.Sprintf("%s.yaml", policyGroup),
+	}
 	mux := http.NewServeMux()
-	mux.HandleFunc("/mutate", webHook.serve)
+	mux.HandleFunc(mutateURL, webHook.serve)
+	mux.HandleFunc(validateConfURL, webHook.serve)
 	server := &http.Server{
 		Addr:      fmt.Sprintf(":%v", HTTPPort),
 		TLSConfig: &tls.Config{Certificates: []tls.Certificate{pair}},
@@ -65,7 +78,7 @@ func main() {
 
 	log.Logger.Info("the admission controller started",
 		zap.Int("port", HTTPPort),
-		zap.String("listeningOn", "/mutate"))
+		zap.Strings("listeningOn", []string{mutateURL, validateConfURL}))
 
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
