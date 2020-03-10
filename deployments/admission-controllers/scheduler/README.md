@@ -1,10 +1,10 @@
 # Admission Controller to mutate or validate on-the-fly
 
 This directory contains resources to create admission controller web-hooks:
-- inject `schedulerName` and required `labels` to pod's spec/metadata before admitting it. 
+- mutations: inject `schedulerName` and required `labels` to pod's spec/metadata before admitting it. 
  This can be used to deploy on an existing Kubernetes cluster and route all pods to YuniKorn,
  which can be treated as an alternative way to replace default scheduler.
-- validate yunikorn configs (the config-map named `yunikorn-configs`) before admitting it.
+- validations: validate yunikorn configs (the config-map named `yunikorn-configs`) before admitting it.
 
 ## Steps
 
@@ -61,24 +61,24 @@ you'll see the `schedulerName` has been injected with value `yunikorn`.
 
 #### Validations
 
-After the admission controller is started, the config-map named `yunikorn-configs` will be validated
- before it's created or updated, thus the request with invalid content will be denied immediately and
- the error will be returned to the client.
+After the admission controller is started, the config-map named `yunikorn-configs` can be validated
+ before it's created or updated, thus update/creation request with invalid content will be denied immediately and
+ the error cause will be returned to the client.
 
-For example, if the content of yunikorn configs is updated with invalid node sort policy:
+For example, if yunikorn configs is updating with invalid node sort policy:
 ```
 partitions:
   - name: default
     nodesortpolicy:
-        type: illegal-type
+        type: invalid
     queues:
       - name: root
 ```
 
-This update request will be denied and error will be returned as below:
+This update request should be denied and the client can receive an error as below:
 ```
 error: configmaps "yunikorn-configs" could not be patched: admission webhook "admission-webhook.yunikorn.validate-conf"
- denied the request: undefined policy: illegal-type
+ denied the request: undefined policy: invalid
 ```
 
 ### Stop and delete the admission controller

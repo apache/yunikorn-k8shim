@@ -234,13 +234,13 @@ func TestValidateConfigMap(t *testing.T) {
 partitions:
   - name: default
     nodesortpolicy:
-        type: illegal-type
+        type: invalid
     queues:
       - name: root
 `
 	err = controller.validateConfigMap(configmap)
 	assert.Assert(t, err != nil, "expecting error for invalid content")
-	assert.Equal(t, err.Error(), "undefined policy: illegal-type")
+	assert.Equal(t, err.Error(), "undefined policy: invalid")
 	// case 3: valid content
 	configmap.Data[configName] = `
 partitions:
