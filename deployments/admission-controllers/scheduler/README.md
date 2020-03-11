@@ -1,4 +1,4 @@
-# Admission Controller to mutate or validate on-the-fly
+# Admission Controller to mutate and validate on-the-fly
 
 This directory contains resources to create admission controller web-hooks:
 - mutations: inject `schedulerName` and required `labels` to pod's spec/metadata before admitting it. 

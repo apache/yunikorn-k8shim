@@ -69,7 +69,7 @@ precheck() {
   do
     if [ ! -f "templates/${admission}.yaml.template" ]; then
       echo "invalid registered admission: ${admission}, template not found: templates/${admission}.yaml.template"
-    exit 1
+      exit 1
     fi
   done
 }
