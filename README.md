@@ -4,7 +4,7 @@ YuniKorn scheduler shim for kubernetes is a customized k8s scheduler, it can be 
 This project contains the k8s shim layer code for k8s, it depends on `yunikorn-core` which encapsulates all the actual scheduling logic.
 By default, it handles all pods scheduling if pod's spec has field `schedulerName: yunikorn`.
 
-For detailed information on how to build the overall scheduler please see the [build document](https://github.com/cloudera/yunikorn-core/blob/master/docs/developer-guide.md) in the `yunikorn-core`.
+For detailed information on how to build the overall scheduler please see the [build document](https://github.com/apache/incubator-yunikorn-core/blob/master/docs/developer-guide.md) in the `yunikorn-core`.
 
 ## K8s-shim component build
 This component build should only be used for development builds.
