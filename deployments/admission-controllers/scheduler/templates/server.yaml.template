@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: yunikorn-admission-controller-webhook
-          image: reg.docker.alibaba-inc.com/boyuan/yunikorn-scheduler-admission-controller:latest
+          image: yunikorn/yunikorn-scheduler-admission-controller:latest
           imagePullPolicy: Always
           ports:
           - containerPort: 8443

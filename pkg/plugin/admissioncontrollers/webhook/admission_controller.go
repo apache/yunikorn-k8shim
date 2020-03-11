@@ -70,6 +70,7 @@ func (c *admissionController) mutate(ar *v1beta1.AdmissionReview) *v1beta1.Admis
 		var pod v1.Pod
 		if err := json.Unmarshal(req.Object.Raw, &pod); err != nil {
 			return &v1beta1.AdmissionResponse{
+				Allowed: false,
 				Result: &metav1.Status{
 					Message: err.Error(),
 				},
@@ -90,6 +91,7 @@ func (c *admissionController) mutate(ar *v1beta1.AdmissionReview) *v1beta1.Admis
 	patchBytes, err := json.Marshal(patch)
 	if err != nil {
 		return &v1beta1.AdmissionResponse{
+			Allowed: false,
 			Result: &metav1.Status{
 				Message: err.Error(),
 			},
@@ -182,6 +184,7 @@ func (c *admissionController) validateConf(ar *v1beta1.AdmissionReview) *v1beta1
 		var configmap v1.ConfigMap
 		if err := json.Unmarshal(req.Object.Raw, &configmap); err != nil {
 			return &v1beta1.AdmissionResponse{
+				Allowed: false,
 				Result: &metav1.Status{
 					Message: err.Error(),
 				},
@@ -190,6 +193,7 @@ func (c *admissionController) validateConf(ar *v1beta1.AdmissionReview) *v1beta1
 		// validate new/updated config map
 		if err := c.validateConfigMap(&configmap); err != nil {
 			return &v1beta1.AdmissionResponse{
+				Allowed: false,
 				Result: &metav1.Status{
 					Message: err.Error(),
 				},
@@ -241,6 +245,7 @@ func (c *admissionController) serve(w http.ResponseWriter, r *http.Request) {
 	if _, _, err := deserializer.Decode(body, nil, &ar); err != nil {
 		log.Logger.Error("Can't decode the body", zap.Error(err))
 		admissionResponse = &v1beta1.AdmissionResponse{
+			Allowed: false,
 			Result: &metav1.Status{
 				Message: err.Error(),
 			},
