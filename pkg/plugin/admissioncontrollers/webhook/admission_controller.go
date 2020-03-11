@@ -195,6 +195,7 @@ func (c *admissionController) validateConf(ar *v1beta1.AdmissionReview) *v1beta1
 			return &v1beta1.AdmissionResponse{
 				Allowed: false,
 				Result: &metav1.Status{
+					Reason:  metav1.StatusReasonInvalid,
 					Message: err.Error(),
 				},
 			}
