@@ -74,7 +74,12 @@ func GetPodResource(pod *v1.Pod) (resource *si.Resource) {
 }
 
 func GetNodeResource(nodeStatus *v1.NodeStatus) *si.Resource {
-	return getResource(nodeStatus.Capacity)
+	// Capacity represents the total capacity of the node
+	// Allocatable represents the resources of a node that are available for scheduling.
+	// Each kubelet can reserve some resources from the scheduler.
+	// We can rely on Allocatable resource here, because if it is not specified,
+	// the default value is same as Capacity. (same behavior as the default-scheduler)
+	return getResource(nodeStatus.Allocatable)
 }
 
 func getResource(resourceList v1.ResourceList) *si.Resource {
