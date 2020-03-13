@@ -80,7 +80,7 @@ func TestAddNode(t *testing.T) {
 			UID:       "uid_0001",
 		},
 		Status: v1.NodeStatus{
-			Capacity: resourceList,
+			Allocatable: resourceList,
 		},
 	}
 
@@ -144,7 +144,7 @@ func TestUpdateNode(t *testing.T) {
 			UID:       "uid_0001",
 		},
 		Status: v1.NodeStatus{
-			Capacity: resourceList,
+			Allocatable: resourceList,
 		},
 	}
 
@@ -155,7 +155,7 @@ func TestUpdateNode(t *testing.T) {
 			UID:       "uid_0001",
 		},
 		Status: v1.NodeStatus{
-			Capacity: resourceList,
+			Allocatable: resourceList,
 		},
 	}
 
@@ -183,7 +183,7 @@ func TestUpdateNode(t *testing.T) {
 			UID:       "uid_0001",
 		},
 		Status: v1.NodeStatus{
-			Capacity: newResourceList,
+			Allocatable: newResourceList,
 		},
 	}
 
@@ -258,7 +258,7 @@ func TestDeleteNode(t *testing.T) {
 			UID:       "uid_0001",
 		},
 		Status: v1.NodeStatus{
-			Capacity: resourceList,
+			Allocatable: resourceList,
 		},
 	}
 
@@ -326,7 +326,7 @@ func TestCordonNode(t *testing.T) {
 			UID:       "uid_0001",
 		},
 		Status: v1.NodeStatus{
-			Capacity: resourceList,
+			Allocatable: resourceList,
 		},
 		Spec: v1.NodeSpec{
 			Unschedulable: false,
@@ -340,7 +340,7 @@ func TestCordonNode(t *testing.T) {
 			UID:       "uid_0001",
 		},
 		Status: v1.NodeStatus{
-			Capacity: resourceList,
+			Allocatable: resourceList,
 		},
 		Spec: v1.NodeSpec{
 			Unschedulable: true,
@@ -368,7 +368,7 @@ func TestCordonNode(t *testing.T) {
 			UID:       "uid_0001",
 		},
 		Status: v1.NodeStatus{
-			Capacity: resourceList,
+			Allocatable: resourceList,
 		},
 		Spec: v1.NodeSpec{
 			Unschedulable: false,

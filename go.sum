@@ -18,6 +18,8 @@ github.com/apache/incubator-yunikorn-core v0.0.0-20200220000753-366b635676e8 h1:
 github.com/apache/incubator-yunikorn-core v0.0.0-20200220000753-366b635676e8/go.mod h1:qaaM/20rGS+ymrSBWUzKoisjr1U+AseLwp2Aqzt9dbQ=
 github.com/apache/incubator-yunikorn-core v0.0.0-20200305002428-995de5888097 h1:4n8DQE1UeyOxYSG+kpsKzwLAB9s35k/ynypj/c/PlnU=
 github.com/apache/incubator-yunikorn-core v0.0.0-20200305002428-995de5888097/go.mod h1:qaaM/20rGS+ymrSBWUzKoisjr1U+AseLwp2Aqzt9dbQ=
+github.com/apache/incubator-yunikorn-core v0.0.0-20200312021020-9186877b0ef9 h1:AvihfK3rrs+QLzWqqkbDSVVcPS9KNJ4sX9QIjXXNCzg=
+github.com/apache/incubator-yunikorn-core v0.0.0-20200312021020-9186877b0ef9/go.mod h1:qJhs+ERlZUmv2VDuyQV+jjDiZhwr6LJiomWE1NTiJ2w=
 github.com/apache/incubator-yunikorn-scheduler-interface v0.0.0-20200205180409-ebed5aec1d1f h1:rgrw1i7KqVnIVS53mYYS+M70hBY6QVk1USn4NjKhw7k=
 github.com/apache/incubator-yunikorn-scheduler-interface v0.0.0-20200205180409-ebed5aec1d1f/go.mod h1:De+73NNH4KaRL9MGGnCyHJOtx2oQGVYOaespfoRNGSo=
 github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973/go.mod h1:Dwedo/Wpr24TaqPxmxbtue+5NUziq4I4S80YR8gNf3Q=

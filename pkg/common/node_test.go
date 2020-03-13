@@ -41,16 +41,20 @@ func TestCreateNodeFromSpec(t *testing.T) {
 }
 
 func TestCreateNode(t *testing.T) {
-	resourceList := make(map[v1.ResourceName]resource.Quantity)
-	resourceList[v1.ResourceName("memory")] = *resource.NewQuantity(999*1000*1000, resource.DecimalSI)
-	resourceList[v1.ResourceName("cpu")] = *resource.NewQuantity(9, resource.DecimalSI)
+	capacityList := make(map[v1.ResourceName]resource.Quantity)
+	capacityList[v1.ResourceName("memory")] = *resource.NewQuantity(999*1000*1000, resource.DecimalSI)
+	capacityList[v1.ResourceName("cpu")] = *resource.NewQuantity(9, resource.DecimalSI)
+	allocatableList := make(map[v1.ResourceName]resource.Quantity)
+	allocatableList[v1.ResourceName("memory")] = *resource.NewQuantity(999*1000*1000, resource.DecimalSI)
+	allocatableList[v1.ResourceName("cpu")] = *resource.NewQuantity(8, resource.DecimalSI)
 	var k8sNode = v1.Node{
 		ObjectMeta: apis.ObjectMeta{
 			Name: "host0001",
 			UID:  "uid_0001",
 		},
 		Status: v1.NodeStatus{
-			Capacity: resourceList,
+			Capacity:    capacityList,
+			Allocatable: allocatableList,
 		},
 	}
 	node := CreateFrom(&k8sNode)
@@ -58,7 +62,7 @@ func TestCreateNode(t *testing.T) {
 	assert.Equal(t, node.uid, "uid_0001")
 	assert.Equal(t, len(node.resource.Resources), 2)
 	assert.Equal(t, node.resource.Resources[Memory].Value, int64(999))
-	assert.Equal(t, node.resource.Resources[CPU].Value, int64(9000))
+	assert.Equal(t, node.resource.Resources[CPU].Value, int64(8000))
 }
 
 func TestCreateNodeWithCustomResource(t *testing.T) {
@@ -72,7 +76,7 @@ func TestCreateNodeWithCustomResource(t *testing.T) {
 			UID:  "uid_0001",
 		},
 		Status: v1.NodeStatus{
-			Capacity: resourceList,
+			Allocatable: resourceList,
 		},
 	}
 	node := CreateFrom(&k8sNode)
