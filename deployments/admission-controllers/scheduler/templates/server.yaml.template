@@ -29,6 +29,8 @@ spec:
           env:
           - name: POLICY_GROUP
             value: ${POLICY_GROUP}
+          - name: SCHEDULER_SERVICE_ADDRESS
+            value: ${SCHEDULER_SERVICE_ADDRESS}
       volumes:
       - name: webhook-tls-certs
         secret:

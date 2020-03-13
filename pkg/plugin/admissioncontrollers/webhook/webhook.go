@@ -40,6 +40,8 @@ const (
 	tlsCertFile = `cert.pem`
 	tlsKeyFile  = `key.pem`
 	policyGroupEnvVarName = "POLICY_GROUP"
+	schedulerServiceAddressEnvVarName = "SCHEDULER_SERVICE_ADDRESS"
+	validateConfUrlPattern = "http://%s/ws/v1/validate-conf"
 
 	// legal URLs
 	mutateURL       = "/mutate"
@@ -57,9 +59,11 @@ func main() {
 	if policyGroup == "" {
 		policyGroup = conf.DefaultPolicyGroup
 	}
+	schedulerServiceAddress := os.Getenv(schedulerServiceAddressEnvVarName)
 
 	webHook := admissionController{
-		configName: fmt.Sprintf("%s.yaml", policyGroup),
+		configName:              fmt.Sprintf("%s.yaml", policyGroup),
+		schedulerServiceAddress: schedulerServiceAddress,
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc(mutateURL, webHook.serve)

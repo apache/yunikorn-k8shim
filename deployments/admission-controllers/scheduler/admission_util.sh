@@ -24,12 +24,13 @@ if [ ! -f ${CONF_FILE} ]; then
   exit 1
 fi
 
-SERVICE=`cat ${CONF_FILE} | grep service | cut -d "=" -f 2`
-SECRET=`cat ${CONF_FILE} | grep secret | cut -d "=" -f 2`
-NAMESPACE=`cat ${CONF_FILE} | grep namespace | cut -d "=" -f 2`
-POLICY_GROUP=`cat ${CONF_FILE} | grep policyGroup | cut -d "=" -f 2`
-REGISTERED_ADMISSIONS=`cat ${CONF_FILE} | grep registeredAdmissions | cut -d "=" -f 2`
+SERVICE=`cat ${CONF_FILE} | grep ^service | cut -d "=" -f 2`
+SECRET=`cat ${CONF_FILE} | grep ^secret | cut -d "=" -f 2`
+NAMESPACE=`cat ${CONF_FILE} | grep ^namespace | cut -d "=" -f 2`
+POLICY_GROUP=`cat ${CONF_FILE} | grep ^policyGroup | cut -d "=" -f 2`
+REGISTERED_ADMISSIONS=`cat ${CONF_FILE} | grep ^registeredAdmissions | cut -d "=" -f 2`
 REGISTERED_ADMISSIONS=${REGISTERED_ADMISSIONS//,/ }
+SCHEDULER_SERVICE_ADDRESS=`cat ${CONF_FILE} | grep ^schedulerServiceAddress | cut -d "=" -f 2`
 
 delete_resources() {
   kubectl delete -f server.yaml
@@ -91,7 +92,9 @@ create_resources() {
 
   # Replace the certificate in the template with a valid CA parsed from security tokens
   ca_pem_b64=$(kubectl get secret -o jsonpath="{.items[?(@.type==\"kubernetes.io/service-account-token\")].data['ca\.crt']}" | cut -d " " -f 1)
-  sed -e 's@${NAMESPACE}@'"$NAMESPACE"'@g' -e 's@${SERVICE}@'"$SERVICE"'@g' -e 's@${POLICY_GROUP}@'"$POLICY_GROUP"'@g' \
+  sed -e 's@${NAMESPACE}@'"$NAMESPACE"'@g' -e 's@${SERVICE}@'"$SERVICE"'@g' \
+    -e 's@${POLICY_GROUP}@'"$POLICY_GROUP"'@g' \
+    -e 's@${SCHEDULER_SERVICE_ADDRESS}@'"$SCHEDULER_SERVICE_ADDRESS"'@g' \
     <"${basedir}/templates/server.yaml.template" > server.yaml
   kubectl create -f server.yaml
 

@@ -19,9 +19,9 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/apache/incubator-yunikorn-core/pkg/common/configs"
 	"io/ioutil"
 	"net/http"
 	"strings"
@@ -46,13 +46,19 @@ var (
 )
 
 type admissionController struct {
-	configName string
+	configName              string
+	schedulerServiceAddress string
 }
 
 type patchOperation struct {
 	Op    string      `json:"op"`
 	Path  string      `json:"path"`
 	Value interface{} `json:"value,omitempty"`
+}
+
+type ValidateConfResponse struct {
+	Allowed bool
+	Error   string
 }
 
 func (c *admissionController) mutate(ar *v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
@@ -192,6 +198,7 @@ func (c *admissionController) validateConf(ar *v1beta1.AdmissionReview) *v1beta1
 		}
 		// validate new/updated config map
 		if err := c.validateConfigMap(&configmap); err != nil {
+			log.Logger.Error("failed to validate yunikorn configs", zap.Error(err))
 			return &v1beta1.AdmissionResponse{
 				Allowed: false,
 				Result: &metav1.Status{
@@ -210,9 +217,20 @@ func (c *admissionController) validateConfigMap(cm *v1.ConfigMap) error {
 	if cm.Name == common.DefaultConfigMapName {
 		log.Logger.Info("validating yunikorn configs")
 		if content, ok := cm.Data[c.configName]; ok {
-			if _, err := configs.LoadSchedulerConfigFromByteArray([]byte(content)); err != nil {
+			validateConfUrl := fmt.Sprintf(validateConfUrlPattern, c.schedulerServiceAddress)
+			response, err := http.Post(validateConfUrl, "application/json", bytes.NewBuffer([]byte(content)))
+			if err != nil {
 				return err
 			}
+			responseBytes, err := ioutil.ReadAll(response.Body)
+			if err != nil {
+				return err
+			}
+			var responseData ValidateConfResponse
+			if err := json.Unmarshal(responseBytes, &responseData); err != nil {
+				return err
+			}
+			return fmt.Errorf(responseData.Error)
 		} else {
 			return fmt.Errorf("required config '%s' not found in this configmap", c.configName)
 		}
