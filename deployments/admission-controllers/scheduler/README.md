@@ -1,7 +1,7 @@
 # Admission Controller to mutate and validate on-the-fly
 
 This directory contains resources to create admission controller web-hooks:
-- mutations: inject `schedulerName` and required `labels` to pod's spec/metadata before admitting it. 
+- mutations: inject `schedulerName` and required `labels` to pod's spec/metadata before admitting it.
  This can be used to deploy on an existing Kubernetes cluster and route all pods to YuniKorn,
  which can be treated as an alternative way to replace default scheduler.
 - validations: validate yunikorn configs (the config-map named `yunikorn-configs`) before admitting it.

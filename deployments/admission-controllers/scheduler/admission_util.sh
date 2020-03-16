@@ -30,7 +30,7 @@ NAMESPACE=`cat ${CONF_FILE} | grep ^namespace | cut -d "=" -f 2`
 POLICY_GROUP=`cat ${CONF_FILE} | grep ^policyGroup | cut -d "=" -f 2`
 REGISTERED_ADMISSIONS=`cat ${CONF_FILE} | grep ^registeredAdmissions | cut -d "=" -f 2`
 REGISTERED_ADMISSIONS=${REGISTERED_ADMISSIONS//,/ }
-SCHEDULER_SERVICE_ADDRESS=`cat ${CONF_FILE} | grep ^schedulerServiceAddress | cut -d "=" -f 2`
+SCHEDULER_SERVICE_NAME=`cat ${CONF_FILE} | grep ^schedulerServiceName | cut -d "=" -f 2`
 
 delete_resources() {
   kubectl delete -f server.yaml
@@ -44,6 +44,42 @@ delete_resources() {
   kubectl delete -n ${NAMESPACE} certificatesigningrequest.certificates.k8s.io ${SERVICE}.${NAMESPACE}
   rm -rf server.yaml
   return 0
+}
+
+updateEnvVars() {
+  # update environment variables
+  while true; do
+    case $1 in
+      -e|--env)
+        shift
+        if [ -z "$1" ]; then
+          echo "empty argument to -e|--env flag"
+          exit 1
+        fi
+        setEnvCmd=$1
+        case $setEnvCmd in
+          *=*)
+            echo "Update environment variable: $setEnvCmd"
+            eval "$setEnvCmd"
+            shift
+            ;;
+          *)
+            echo "error argument to -e|--env flag: without '=' char"
+            exit 1
+            ;;
+        esac
+        ;;
+      "")
+        shift
+        break;
+        ;;
+      *)
+        echo "error argument flag: $1, valid flag: -e|--env"
+        shift
+        break;
+        ;;
+    esac
+  done
 }
 
 precheck() {
@@ -73,11 +109,19 @@ precheck() {
       exit 1
     fi
   done
+  # get port of REST API service in yunikorn scheduler automatically
+  port=$(kubectl get service "${SCHEDULER_SERVICE_NAME}" -n "${NAMESPACE}" -o jsonpath="{.spec.ports[0].port}")
+  if [ -z $port ]; then
+    echo "failed to get port from service ${SCHEDULER_SERVICE_NAME} in namespace ${NAMESPACE}"
+    exit 1
+  fi
+  SCHEDULER_SERVICE_ADDRESS="${SCHEDULER_SERVICE_NAME}.${NAMESPACE}.svc:${port}"
 }
 
 create_resources() {
   KEY_DIR=$1
   # Generate keys into a temporary directory.
+  export SERVICE NAMESPACE
   ${basedir}/generate-signed-ca.sh "${KEY_DIR}"
 
   # Create the yunikorn namespace.
@@ -116,12 +160,17 @@ usage() {
   echo "      Create admission controller and other related resources"
   echo "  delete "
   echo "      Delete all resources previously created"
+  echo "Flags:"
+  echo "  -e, --env"
+  echo "      Set environment variable, value format: ENV_NAME=ENV_VALUE"
 }
 
 if [ $# -eq 1 ] && [ $1 == "delete" ]; then
   delete_resources
   exit $?
-elif [ $# -eq 1 ] && [ $1 == "create" ]; then
+elif [ $# -ge 1 ] && [ $1 == "create" ]; then
+  shift
+  updateEnvVars "$@"
   precheck
   KEY_DIR="$(mktemp -d)"
   create_resources ${KEY_DIR}

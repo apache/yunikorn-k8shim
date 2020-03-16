@@ -27,7 +27,7 @@ RUN mv ./kubectl /usr/local/bin/kubectl
 COPY admission-controller-init-scripts/admission_util.sh /
 COPY admission-controller-init-scripts/configs.properties /
 COPY admission-controller-init-scripts/generate-signed-ca.sh /
-COPY admission-controller-init-scripts/templates/server.yaml.template /
+COPY admission-controller-init-scripts/templates /templates
 RUN chmod +x /admission_util.sh
 RUN chmod +x /generate-signed-ca.sh
 

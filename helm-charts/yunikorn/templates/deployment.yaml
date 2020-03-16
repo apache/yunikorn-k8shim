@@ -36,7 +36,7 @@ spec:
           lifecycle:
               postStart:
                 exec:
-                  command: ["/bin/sh", "/admission_util.sh", "create"]
+                  command: ["/bin/sh", "/admission_util.sh", "create", "--env", "NAMESPACE={{ .Release.Namespace }}"]
               preStop:
                 exec:
                   command: ["/bin/sh", "/admission_util.sh", "delete"]
