@@ -31,6 +31,10 @@ type Node struct {
 	resource *si.Resource
 }
 
+func NewNode(name, uid string, resource *si.Resource) Node {
+	return Node {name, uid,resource}
+}
+
 func CreateFrom(node *v1.Node) Node {
 	return Node{
 		name:     node.Name,

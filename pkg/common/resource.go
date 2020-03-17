@@ -167,6 +167,7 @@ func CreateUpdateRequestForUpdatedNode(node Node) si.UpdateRequest {
 		NodeID:              node.name,
 		Attributes:          make(map[string]string),
 		SchedulableResource: node.resource,
+		Action:              si.UpdateNodeInfo_UPDATE_NODE_CAPACITY,
 	}
 
 	nodes := make([]*si.UpdateNodeInfo, 1)
@@ -243,4 +244,36 @@ func Add(left *si.Resource, right *si.Resource) *si.Resource {
 		}
 	}
 	return result
+}
+
+func Sub(left *si.Resource, right *si.Resource) *si.Resource {
+	if left == nil {
+		left = &si.Resource{}
+	}
+	if right == nil {
+		return &si.Resource{}
+	}
+
+	// neither are nil, clone one and sub the other
+	rb := NewResourceBuilder()
+	for k, v := range left.Resources {
+		if rightValue, ok := right.Resources[k]; ok {
+			rb.AddResource(k, v.Value - rightValue.Value)
+		} else {
+			rb.AddResource(k, v.Value)
+		}
+	}
+	return rb.Build()
+}
+
+func IsZero(r *si.Resource) bool {
+	if r == nil {
+		return true
+	}
+	for _, v := range r.Resources {
+		if v.Value != 0 {
+			return false
+		}
+	}
+	return true
 }

@@ -87,6 +87,14 @@ func (ctx *Context) AddSchedulingEventHandlers() {
 		DeleteFn: ctx.removePodFromCache,
 	})
 
+	nodeCoordinator := newNodeCoordinator(ctx.nodes)
+	ctx.apiProvider.AddEventHandler(&client.ResourceEventHandlers{
+		Type:     client.PodInformerHandlers,
+		FilterFn: nodeCoordinator.filterPods,
+		UpdateFn: nodeCoordinator.updatePod,
+		DeleteFn: nodeCoordinator.deletePod,
+	})
+
 	ctx.apiProvider.AddEventHandler(&client.ResourceEventHandlers{
 		Type:     client.ConfigMapInformerHandlers,
 		FilterFn: ctx.filterConfigMaps,
@@ -218,6 +226,38 @@ func (ctx *Context) updatePodInCache(oldObj, newObj interface{}) {
 		log.Logger.Error("failed to update pod in cache", zap.Error(err))
 		return
 	}
+
+	// // if pod is not scheduled by yunikorn
+	// if !utils.GeneralPodFilter(newPod) {
+	// 	if oldPod.Status.Phase != newPod.Status.Phase {
+	// 		if newPod.Spec.NodeName != "" {
+	// 			log.Logger.Info("pod is running",
+	// 				zap.String("namespace", newPod.Namespace),
+	// 				zap.String("podName", newPod.Name),
+	// 				zap.String("podStatus", string(newPod.Status.Phase)))
+	// 			if err := ctx.AssumePod(newPod.Name, newPod.Spec.NodeName); err != nil {
+	// 				log.Logger.Warn("failed to assumePod",
+	// 					zap.String("podName", oldPod.Name),
+	// 					zap.Error(err))
+	// 			}
+	// 		} else if newPod.Status.Phase == v1.PodSucceeded ||
+	// 			newPod.Status.Phase == v1.PodFailed {
+	// 			// if pod is terminated, we should notify the cache
+	// 			// to forget this pod, that will release the cached resource
+	// 			// of the allocated node. otherwise, it may cause resource leak
+	// 			log.Logger.Info("pod is terminated",
+	// 				zap.String("namespace", newPod.Namespace),
+	// 				zap.String("podName", newPod.Name),
+	// 				zap.String("podStatus", string(newPod.Status.Phase)))
+	// 			if err := ctx.ForgetPod(newPod.Name); err != nil {
+	// 				log.Logger.Warn("failed to forgetPod",
+	// 					zap.String("podName", oldPod.Name),
+	// 					zap.Error(err))
+	// 			}
+	// 		}
+	// 	}
+	// }
+
 	if err := ctx.schedulerCache.UpdatePod(oldPod, newPod); err != nil {
 		log.Logger.Debug("failed to update pod in cache",
 			zap.String("podName", oldPod.Name),

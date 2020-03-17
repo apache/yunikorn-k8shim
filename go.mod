@@ -3,9 +3,12 @@ module github.com/apache/incubator-yunikorn-k8shim
 go 1.12
 
 require (
+	cloud.google.com/go/pubsub v1.3.1 // indirect
+	dmitri.shuralyov.com/gpu/mtl v0.0.0-20191203043605-d42048ed14fd // indirect
 	github.com/GoogleCloudPlatform/spark-on-k8s-operator v0.0.0-20200212043150-3df703098970
-	github.com/apache/incubator-yunikorn-core v0.0.0-20200312021020-9186877b0ef9
-	github.com/apache/incubator-yunikorn-scheduler-interface v0.0.0-20200205180409-ebed5aec1d1f
+	github.com/apache/incubator-yunikorn-core v0.0.0-20200317170818-745006601b46
+	github.com/apache/incubator-yunikorn-scheduler-interface v0.0.0-20200317075703-dc1f4bf18c12
+	github.com/cncf/udpa/go v0.0.0-20200313221541-5f7e5dd04533 // indirect
 	github.com/coreos/bbolt v1.3.3 // indirect
 	github.com/coreos/etcd v3.3.13+incompatible // indirect
 	github.com/coreos/go-semver v0.3.0 // indirect
@@ -13,7 +16,7 @@ require (
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect
 	github.com/docker/distribution v2.7.1+incompatible // indirect
 	github.com/gogo/protobuf v1.2.1 // indirect
-	github.com/golang/groupcache v0.0.0-20200121045136-8c9f03a8e57e // indirect
+	github.com/golang/mock v1.4.3 // indirect
 	github.com/google/btree v1.0.0 // indirect
 	github.com/google/gofuzz v1.1.0 // indirect
 	github.com/googleapis/gnostic v0.3.0 // indirect
@@ -26,11 +29,13 @@ require (
 	github.com/jonboulle/clockwork v0.1.0 // indirect
 	github.com/konsorten/go-windows-terminal-sequences v1.0.2 // indirect
 	github.com/kr/pretty v0.2.0 // indirect
+	github.com/kr/pty v1.1.1 // indirect
 	github.com/looplab/fsm v0.1.0
 	github.com/opencontainers/go-digest v1.0.0-rc1 // indirect
 	github.com/pborman/uuid v1.2.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/prometheus/client_golang v1.4.0 // indirect
+	github.com/rogpeppe/go-internal v1.5.2 // indirect
 	github.com/soheilhy/cmux v0.1.4 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/stretchr/objx v0.2.0 // indirect
@@ -40,19 +45,14 @@ require (
 	go.uber.org/atomic v1.5.1 // indirect
 	go.uber.org/multierr v1.4.0 // indirect
 	go.uber.org/zap v1.13.0
-	golang.org/x/crypto v0.0.0-20200204104054-c9f3fb736b72 // indirect
-	golang.org/x/lint v0.0.0-20200130185559-910be7a94367 // indirect
-	golang.org/x/mod v0.2.0 // indirect
-	golang.org/x/net v0.0.0-20200202094626-16171245cfb2 // indirect
-	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d // indirect
-	golang.org/x/sys v0.0.0-20200202164722-d101bd2416d5 // indirect
-	golang.org/x/time v0.0.0-20191024005414-555d28b269f0 // indirect
-	golang.org/x/tools v0.0.0-20200205141839-4abfd4a1628e // indirect
-	google.golang.org/appengine v1.6.5 // indirect
-	google.golang.org/genproto v0.0.0-20200205142000-a86caf926a67 // indirect
+	golang.org/x/crypto v0.0.0-20200311171314-f7b00557c8c4 // indirect
+	golang.org/x/exp v0.0.0-20200228211341-fcea875c7e85 // indirect
+	golang.org/x/image v0.0.0-20200119044424-58c23975cae1 // indirect
+	golang.org/x/mobile v0.0.0-20200222142934-3c8601c510d0 // indirect
+	golang.org/x/sync v0.0.0-20200317015054-43a5402ce75a // indirect
+	golang.org/x/tools v0.0.0-20200317043434-63da46f3035e // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/square/go-jose.v2 v2.3.1 // indirect
-	gopkg.in/yaml.v2 v2.2.8 // indirect
 	gotest.tools v2.2.0+incompatible
 	k8s.io/api v0.0.0-20190624085159-95846d7ef82a
 	k8s.io/apiextensions-apiserver v0.0.0-20190516231611-bf6753f2aa24 // indirect
@@ -64,6 +64,7 @@ require (
 	k8s.io/kube-openapi v0.0.0-20190603182131-db7b694dc208 // indirect
 	k8s.io/kubernetes v1.14.3
 	k8s.io/utils v0.0.0-20190607212802-c55fbcfc754a // indirect
+	rsc.io/sampler v1.99.99 // indirect
 )
 
 replace k8s.io/cloud-provider v0.0.0-20190624091323-9dc79cf4f9c7 => k8s.io/cloud-provider v0.0.0-20190516232619-2bf8e45c8454
