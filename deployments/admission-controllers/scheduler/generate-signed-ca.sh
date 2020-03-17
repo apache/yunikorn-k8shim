@@ -24,6 +24,14 @@ if [ ! -f ${CONF_FILE} ]; then
 fi
 
 tmpdir="$1"
+if [ -z "$SERVICE" ]; then
+  echo "required environment variable SERVICE not found!"
+  exit 1
+fi
+if [ -z "$NAMESPACE" ]; then
+  echo "required environment variable NAMESPACE not found!"
+  exit 1
+fi
 service=$SERVICE
 namespace=$NAMESPACE
 

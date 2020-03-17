@@ -122,7 +122,11 @@ create_resources() {
   KEY_DIR=$1
   # Generate keys into a temporary directory.
   export SERVICE NAMESPACE
-  ${basedir}/generate-signed-ca.sh "${KEY_DIR}"
+  if ! ${basedir}/generate-signed-ca.sh "${KEY_DIR}"
+  then
+    echo "failed to generate signed ca!"
+    exit 1
+  fi
 
   # Create the yunikorn namespace.
   echo "Creating namespace ${NAMESPACE}"
@@ -165,7 +169,9 @@ usage() {
   echo "      Set environment variable, value format: ENV_NAME=ENV_VALUE"
 }
 
-if [ $# -eq 1 ] && [ $1 == "delete" ]; then
+if [ $# -ge 1 ] && [ $1 == "delete" ]; then
+  shift
+  updateEnvVars "$@"
   delete_resources
   exit $?
 elif [ $# -ge 1 ] && [ $1 == "create" ]; then

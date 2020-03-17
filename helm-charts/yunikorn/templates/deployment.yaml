@@ -39,7 +39,7 @@ spec:
                   command: ["/bin/sh", "/admission_util.sh", "create", "--env", "NAMESPACE={{ .Release.Namespace }}"]
               preStop:
                 exec:
-                  command: ["/bin/sh", "/admission_util.sh", "delete"]
+                  command: ["/bin/sh", "/admission_util.sh", "delete", "--env", "NAMESPACE={{ .Release.Namespace }}"]
           {{ end }}
         - name: yunikorn-scheduler-web
           image: "{{ .Values.web_image.repository }}:{{ .Values.web_image.tag }}"
