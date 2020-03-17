@@ -109,13 +109,15 @@ precheck() {
       exit 1
     fi
   done
-  # get port of REST API service in yunikorn scheduler automatically
-  port=$(kubectl get service "${SCHEDULER_SERVICE_NAME}" -n "${NAMESPACE}" -o jsonpath="{.spec.ports[0].port}")
-  if [ -z $port ]; then
-    echo "failed to get port from service ${SCHEDULER_SERVICE_NAME} in namespace ${NAMESPACE}"
-    exit 1
+  if [ -z "$SCHEDULER_SERVICE_ADDRESS" ];  then
+    # get port of REST API service in yunikorn scheduler automatically
+    port=$(kubectl get service "${SCHEDULER_SERVICE_NAME}" -n "${NAMESPACE}" -o jsonpath="{.spec.ports[0].port}")
+    if [ -z $port ]; then
+      echo "failed to get port from service ${SCHEDULER_SERVICE_NAME} in namespace ${NAMESPACE}"
+      exit 1
+    fi
+    SCHEDULER_SERVICE_ADDRESS="${SCHEDULER_SERVICE_NAME}.${NAMESPACE}.svc:${port}"
   fi
-  SCHEDULER_SERVICE_ADDRESS="${SCHEDULER_SERVICE_NAME}.${NAMESPACE}.svc:${port}"
 }
 
 create_resources() {

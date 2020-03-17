@@ -225,31 +225,9 @@ func TestValidateConfigMap(t *testing.T) {
 		},
 		Data:       make(map[string]string),
 	}
-	// case 1: specified config "queues.yaml" not found
+	// specified config "queues.yaml" not found
 	err := controller.validateConfigMap(configmap)
 	assert.Assert(t, err != nil, "expecting error when specified config is not found")
 	assert.Equal(t, err.Error(), "required config 'queues.yaml' not found in this configmap")
-	// case 2: invalid content
-	configmap.Data[configName] = `
-partitions:
-  - name: default
-    nodesortpolicy:
-        type: invalid
-    queues:
-      - name: root
-`
-	err = controller.validateConfigMap(configmap)
-	assert.Assert(t, err != nil, "expecting error for invalid content")
-	assert.Equal(t, err.Error(), "undefined policy: invalid")
-	// case 3: valid content
-	configmap.Data[configName] = `
-partitions:
-  - name: default
-    nodesortpolicy:
-        type: fair
-    queues:
-      - name: root
-`
-	err = controller.validateConfigMap(configmap)
-	assert.Assert(t, err == nil, fmt.Sprintf("expecting no error for valid content, but got '%v'", err))
+	// skip further validations which depends on the webservice of yunikorn-core
 }

@@ -57,8 +57,8 @@ type patchOperation struct {
 }
 
 type ValidateConfResponse struct {
-	Allowed bool
-	Error   string
+	Allowed bool   `json:"allowed"`
+	Reason  string `json:"reason"`
 }
 
 func (c *admissionController) mutate(ar *v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
@@ -230,7 +230,7 @@ func (c *admissionController) validateConfigMap(cm *v1.ConfigMap) error {
 			if err := json.Unmarshal(responseBytes, &responseData); err != nil {
 				return err
 			}
-			return fmt.Errorf(responseData.Error)
+			return fmt.Errorf(responseData.Reason)
 		} else {
 			return fmt.Errorf("required config '%s' not found in this configmap", c.configName)
 		}
