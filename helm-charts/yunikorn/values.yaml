@@ -15,6 +15,11 @@ web_image:
   tag: latest
   pullPolicy: Always
 
+hyperkube_image:
+  repository: k8s.gcr.io/hyperkube
+  tag: v1.12.1
+  pullPolicy: IfNotPresent
+
 service:
   type: LoadBalancer
   port: 9080

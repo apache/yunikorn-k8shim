@@ -1,0 +1,33 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: yunikorn-cleanup
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/hook": post-delete
+    "helm.sh/hook-weight": "3"
+    "helm.sh/hook-delete-policy": hook-succeeded
+  labels:
+    app: yunikorn
+    release: {{ .Release.Name }}
+spec:
+  template:
+    metadata:
+      name: yunikorn-cleanup
+      labels:
+        app: yunikorn
+        release: {{ .Release.Name }}
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount }}
+      containers:
+        - name: kubectl
+          image: "{{ .Values.hyperkube_image.repository }}:{{ .Values.hyperkube_image.tag }}"
+          imagePullPolicy: {{ .Values.hyperkube_image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -c
+            - >
+              kubectl delete configmap yunikorn-configs;
+              kubectl delete clusterrolebinding yunikorn-rbac;
+              kubectl delete serviceaccount yunikorn-admin;
+      restartPolicy: OnFailure
