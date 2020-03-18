@@ -74,6 +74,10 @@ func GetQueueNameFromPod(pod *v1.Pod) string {
 	return queueName
 }
 
+func IsTerminated(pod *v1.Pod) bool {
+	return pod.Status.Phase == v1.PodFailed || pod.Status.Phase == v1.PodSucceeded
+}
+
 func GetApplicationIDFromPod(pod *v1.Pod) (string, error) {
 	for name, value := range pod.Labels {
 		// if a pod for spark already provided appID, reuse it

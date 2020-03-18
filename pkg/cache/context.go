@@ -227,37 +227,6 @@ func (ctx *Context) updatePodInCache(oldObj, newObj interface{}) {
 		return
 	}
 
-	// // if pod is not scheduled by yunikorn
-	// if !utils.GeneralPodFilter(newPod) {
-	// 	if oldPod.Status.Phase != newPod.Status.Phase {
-	// 		if newPod.Spec.NodeName != "" {
-	// 			log.Logger.Info("pod is running",
-	// 				zap.String("namespace", newPod.Namespace),
-	// 				zap.String("podName", newPod.Name),
-	// 				zap.String("podStatus", string(newPod.Status.Phase)))
-	// 			if err := ctx.AssumePod(newPod.Name, newPod.Spec.NodeName); err != nil {
-	// 				log.Logger.Warn("failed to assumePod",
-	// 					zap.String("podName", oldPod.Name),
-	// 					zap.Error(err))
-	// 			}
-	// 		} else if newPod.Status.Phase == v1.PodSucceeded ||
-	// 			newPod.Status.Phase == v1.PodFailed {
-	// 			// if pod is terminated, we should notify the cache
-	// 			// to forget this pod, that will release the cached resource
-	// 			// of the allocated node. otherwise, it may cause resource leak
-	// 			log.Logger.Info("pod is terminated",
-	// 				zap.String("namespace", newPod.Namespace),
-	// 				zap.String("podName", newPod.Name),
-	// 				zap.String("podStatus", string(newPod.Status.Phase)))
-	// 			if err := ctx.ForgetPod(newPod.Name); err != nil {
-	// 				log.Logger.Warn("failed to forgetPod",
-	// 					zap.String("podName", oldPod.Name),
-	// 					zap.Error(err))
-	// 			}
-	// 		}
-	// 	}
-	// }
-
 	if err := ctx.schedulerCache.UpdatePod(oldPod, newPod); err != nil {
 		log.Logger.Debug("failed to update pod in cache",
 			zap.String("podName", oldPod.Name),
@@ -269,7 +238,13 @@ func (ctx *Context) updatePodInCache(oldObj, newObj interface{}) {
 func (ctx *Context) filterPods(obj interface{}) bool {
 	switch obj := obj.(type) {
 	case *v1.Pod:
-		return utils.GeneralPodFilter(obj)
+		// if a terminated pod is added to cache, it will
+		// add requested resource to the cached node, causing
+		// the node uses more resources that it actually is,
+		// this can only be fixed after the pod is removed.
+		// (trigger the delete pod)
+		return utils.GeneralPodFilter(obj) &&
+			!utils.IsTerminated(obj)
 	default:
 		return false
 	}
