@@ -25,12 +25,10 @@ fi
 
 tmpdir="$1"
 if [ -z "$SERVICE" ]; then
-  echo "required environment variable SERVICE not found!"
-  exit 1
+  SERVICE=`cat ${CONF_FILE} | grep ^service | cut -d "=" -f 2`
 fi
 if [ -z "$NAMESPACE" ]; then
-  echo "required environment variable NAMESPACE not found!"
-  exit 1
+  NAMESPACE=`cat ${CONF_FILE} | grep ^namespace | cut -d "=" -f 2`
 fi
 service=$SERVICE
 namespace=$NAMESPACE

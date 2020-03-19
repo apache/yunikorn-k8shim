@@ -24,13 +24,25 @@ if [ ! -f ${CONF_FILE} ]; then
   exit 1
 fi
 
-SERVICE=`cat ${CONF_FILE} | grep ^service | cut -d "=" -f 2`
-SECRET=`cat ${CONF_FILE} | grep ^secret | cut -d "=" -f 2`
-NAMESPACE=`cat ${CONF_FILE} | grep ^namespace | cut -d "=" -f 2`
-POLICY_GROUP=`cat ${CONF_FILE} | grep ^policyGroup | cut -d "=" -f 2`
-REGISTERED_ADMISSIONS=`cat ${CONF_FILE} | grep ^registeredAdmissions | cut -d "=" -f 2`
+if [ -z "$SERVICE" ]; then
+  SERVICE=`cat ${CONF_FILE} | grep ^service | cut -d "=" -f 2`
+fi
+if [ -z "$SECRET" ]; then
+  SECRET=`cat ${CONF_FILE} | grep ^secret | cut -d "=" -f 2`
+fi
+if [ -z "$NAMESPACE" ]; then
+  NAMESPACE=`cat ${CONF_FILE} | grep ^namespace | cut -d "=" -f 2`
+fi
+if [ -z "$POLICY_GROUP" ]; then
+  POLICY_GROUP=`cat ${CONF_FILE} | grep ^policyGroup | cut -d "=" -f 2`
+fi
+if [ -z "$REGISTERED_ADMISSIONS" ]; then
+  REGISTERED_ADMISSIONS=`cat ${CONF_FILE} | grep ^registeredAdmissions | cut -d "=" -f 2`
+fi
 REGISTERED_ADMISSIONS=${REGISTERED_ADMISSIONS//,/ }
-SCHEDULER_SERVICE_NAME=`cat ${CONF_FILE} | grep ^schedulerServiceName | cut -d "=" -f 2`
+if [ -z "$SCHEDULER_SERVICE_NAME" ]; then
+  SCHEDULER_SERVICE_NAME=`cat ${CONF_FILE} | grep ^schedulerServiceName | cut -d "=" -f 2`
+fi
 
 delete_resources() {
   kubectl delete -f server.yaml
@@ -44,42 +56,6 @@ delete_resources() {
   kubectl delete -n ${NAMESPACE} certificatesigningrequest.certificates.k8s.io ${SERVICE}.${NAMESPACE}
   rm -rf server.yaml
   return 0
-}
-
-updateEnvVars() {
-  # update environment variables
-  while true; do
-    case $1 in
-      -e|--env)
-        shift
-        if [ -z "$1" ]; then
-          echo "empty argument to -e|--env flag"
-          exit 1
-        fi
-        setEnvCmd=$1
-        case $setEnvCmd in
-          *=*)
-            echo "Update environment variable: $setEnvCmd"
-            eval "$setEnvCmd"
-            shift
-            ;;
-          *)
-            echo "error argument to -e|--env flag: without '=' char"
-            exit 1
-            ;;
-        esac
-        ;;
-      "")
-        shift
-        break;
-        ;;
-      *)
-        echo "error argument flag: $1, valid flag: -e|--env"
-        shift
-        break;
-        ;;
-    esac
-  done
 }
 
 precheck() {
@@ -123,7 +99,6 @@ precheck() {
 create_resources() {
   KEY_DIR=$1
   # Generate keys into a temporary directory.
-  export SERVICE NAMESPACE
   if ! ${basedir}/generate-signed-ca.sh "${KEY_DIR}"
   then
     echo "failed to generate signed ca!"
@@ -166,19 +141,12 @@ usage() {
   echo "      Create admission controller and other related resources"
   echo "  delete "
   echo "      Delete all resources previously created"
-  echo "Flags:"
-  echo "  -e, --env"
-  echo "      Set environment variable, value format: ENV_NAME=ENV_VALUE"
 }
 
-if [ $# -ge 1 ] && [ $1 == "delete" ]; then
-  shift
-  updateEnvVars "$@"
+if [ $# -eq 1 ] && [ $1 == "delete" ]; then
   delete_resources
   exit $?
-elif [ $# -ge 1 ] && [ $1 == "create" ]; then
-  shift
-  updateEnvVars "$@"
+elif [ $# -eq 1 ] && [ $1 == "create" ]; then
   precheck
   KEY_DIR="$(mktemp -d)"
   create_resources ${KEY_DIR}

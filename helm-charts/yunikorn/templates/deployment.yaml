@@ -29,6 +29,11 @@ spec:
             - name: http1
               containerPort: {{ .Values.service.port }}
               protocol: TCP
+          env:
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
           volumeMounts:
             - name: config-volume
               mountPath: /etc/yunikorn/
@@ -36,10 +41,10 @@ spec:
           lifecycle:
               postStart:
                 exec:
-                  command: ["/bin/sh", "/admission_util.sh", "create", "--env", "NAMESPACE={{ .Release.Namespace }}"]
+                  command: ["/bin/sh", "/admission_util.sh", "create"]
               preStop:
                 exec:
-                  command: ["/bin/sh", "/admission_util.sh", "delete", "--env", "NAMESPACE={{ .Release.Namespace }}"]
+                  command: ["/bin/sh", "/admission_util.sh", "delete"]
           {{ end }}
         - name: yunikorn-scheduler-web
           image: "{{ .Values.web_image.repository }}:{{ .Values.web_image.tag }}"
