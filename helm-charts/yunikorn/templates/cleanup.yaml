@@ -28,6 +28,6 @@ spec:
             - -c
             - >
               kubectl delete configmap yunikorn-configs;
-              kubectl delete clusterrolebinding yunikorn-rbac;
               kubectl delete serviceaccount yunikorn-admin;
+              kubectl delete clusterrolebinding yunikorn-rbac;
       restartPolicy: OnFailure
