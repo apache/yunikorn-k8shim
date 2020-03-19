@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"strings"
 	"time"
 
 	"go.uber.org/zap"
@@ -83,10 +82,12 @@ func (c *admissionController) mutate(ar *v1beta1.AdmissionReview) *v1beta1.Admis
 			}
 		}
 
-		if strings.HasPrefix(pod.Name, "yunikorn-scheduler") {
-			log.Logger.Info("ignore yunikorn scheduler pod")
-			return &v1beta1.AdmissionResponse{
-				Allowed: true,
+		if labelAppValue, ok := pod.Labels[common.LabelApp]; ok {
+			if labelAppValue == "yunikorn" {
+				log.Logger.Info("ignore yunikorn pod")
+				return &v1beta1.AdmissionResponse{
+					Allowed: true,
+				}
 			}
 		}
 

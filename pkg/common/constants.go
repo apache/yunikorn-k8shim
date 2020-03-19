@@ -24,6 +24,7 @@ const DefaultNodeAttributeRackNameKey = "si.io/rackname"
 const DefaultRackName = "/rack-default"
 
 // Application
+const LabelApp = "app"
 const LabelApplicationID = "applicationId"
 const LabelQueueName = "queue"
 const ApplicationDefaultQueue = "root.sandbox"
