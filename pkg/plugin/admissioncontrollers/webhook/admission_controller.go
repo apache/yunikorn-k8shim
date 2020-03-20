@@ -223,6 +223,7 @@ func (c *admissionController) validateConfigMap(cm *v1.ConfigMap) error {
 			if err != nil {
 				return err
 			}
+			defer response.Body.Close()
 			responseBytes, err := ioutil.ReadAll(response.Body)
 			if err != nil {
 				return err
