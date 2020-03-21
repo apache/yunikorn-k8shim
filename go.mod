@@ -7,7 +7,7 @@ require (
 	cloud.google.com/go/pubsub v1.3.1 // indirect
 	dmitri.shuralyov.com/gpu/mtl v0.0.0-20191203043605-d42048ed14fd // indirect
 	github.com/GoogleCloudPlatform/spark-on-k8s-operator v0.0.0-20200212043150-3df703098970
-	github.com/apache/incubator-yunikorn-core v0.0.0-20200317170818-745006601b46
+	github.com/apache/incubator-yunikorn-core v0.0.0-20200321010655-d7e79254c5ff
 	github.com/apache/incubator-yunikorn-scheduler-interface v0.0.0-20200317075703-dc1f4bf18c12
 	github.com/cncf/udpa/go v0.0.0-20200313221541-5f7e5dd04533 // indirect
 	github.com/coreos/bbolt v1.3.3 // indirect
