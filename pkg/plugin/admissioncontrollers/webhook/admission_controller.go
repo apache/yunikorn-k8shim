@@ -45,8 +45,8 @@ var (
 )
 
 type admissionController struct {
-	configName              string
-	schedulerServiceAddress string
+	configName               string
+	schedulerValidateConfURL string
 }
 
 type patchOperation struct {
@@ -218,8 +218,7 @@ func (c *admissionController) validateConfigMap(cm *v1.ConfigMap) error {
 	if cm.Name == common.DefaultConfigMapName {
 		log.Logger.Info("validating yunikorn configs")
 		if content, ok := cm.Data[c.configName]; ok {
-			validateConfUrl := fmt.Sprintf(validateConfUrlPattern, c.schedulerServiceAddress)
-			response, err := http.Post(validateConfUrl, "application/json", bytes.NewBuffer([]byte(content)))
+			response, err := http.Post(c.schedulerValidateConfURL, "application/json", bytes.NewBuffer([]byte(content)))
 			if err != nil {
 				return err
 			}
@@ -233,9 +232,8 @@ func (c *admissionController) validateConfigMap(cm *v1.ConfigMap) error {
 				return err
 			}
 			return fmt.Errorf(responseData.Reason)
-		} else {
-			return fmt.Errorf("required config '%s' not found in this configmap", c.configName)
 		}
+		return fmt.Errorf("required config '%s' not found in this configmap", c.configName)
 	}
 	return nil
 }

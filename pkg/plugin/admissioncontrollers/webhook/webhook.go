@@ -22,7 +22,6 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"net/http"
 	"os"
 	"os/signal"
@@ -31,17 +30,18 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 )
 
 const (
-	HTTPPort    = 8443
-	tlsDir      = `/run/secrets/tls`
-	tlsCertFile = `cert.pem`
-	tlsKeyFile  = `key.pem`
-	policyGroupEnvVarName = "POLICY_GROUP"
+	HTTPPort                          = 8443
+	tlsDir                            = `/run/secrets/tls`
+	tlsCertFile                       = `cert.pem`
+	tlsKeyFile                        = `key.pem`
+	policyGroupEnvVarName             = "POLICY_GROUP"
 	schedulerServiceAddressEnvVarName = "SCHEDULER_SERVICE_ADDRESS"
-	validateConfUrlPattern = "http://%s/ws/v1/validate-conf"
+	schedulerValidateConfURLPattern   = "http://%s/ws/v1/validate-conf"
 
 	// legal URLs
 	mutateURL       = "/mutate"
@@ -62,8 +62,8 @@ func main() {
 	schedulerServiceAddress := os.Getenv(schedulerServiceAddressEnvVarName)
 
 	webHook := admissionController{
-		configName:              fmt.Sprintf("%s.yaml", policyGroup),
-		schedulerServiceAddress: schedulerServiceAddress,
+		configName:               fmt.Sprintf("%s.yaml", policyGroup),
+		schedulerValidateConfURL: fmt.Sprintf(schedulerValidateConfURLPattern, schedulerServiceAddress),
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc(mutateURL, webHook.serve)

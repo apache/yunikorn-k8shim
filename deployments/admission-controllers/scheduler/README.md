@@ -63,7 +63,9 @@ you'll see the `schedulerName` has been injected with value `yunikorn`.
 
 YuniKorn loads its configuration from a configmap called yunikorn-configs, this admission controller adds a web-hook to
 validate the update and create requests for this configmap.
-It is a safeguard to protect the scheduler not to load invalid configuration, by rejecting such requests.
+It rejects invalid configuration which otherwise would have been rejected inside the scheduler update process.
+Validations are currently limited to a syntax check only. The scheduler could still reject a configuration if it cannot
+replace the current configuration due to conflicts.
 
 For example, if yunikorn configs is updating with invalid node sort policy:
 ```
