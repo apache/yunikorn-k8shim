@@ -214,7 +214,6 @@ func TestReleaseTaskAllocation(t *testing.T) {
 		assert.Assert(t, request.Releases.AllocationsToRelease != nil)
 		assert.Equal(t, request.Releases.AllocationsToRelease[0].ApplicationID, app.applicationID)
 		assert.Equal(t, request.Releases.AllocationsToRelease[0].PartitionName, "default")
-		assert.Equal(t, request.Releases.AllocationsToRelease[0].UUID, "UID-00001")
 		return nil
 	})
 
