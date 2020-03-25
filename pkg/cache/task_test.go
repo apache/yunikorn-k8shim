@@ -21,10 +21,12 @@ package cache
 import (
 	"testing"
 
+	"gotest.tools/assert"
+
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
-	"gotest.tools/assert"
+
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -62,37 +64,32 @@ func TestTaskStateTransitions(t *testing.T) {
 
 	// new task
 	event0 := NewSimpleTaskEvent(task.applicationID, task.taskID, events.InitTask)
-	if err := task.handle(event0); err != nil {
-		t.Fatal(err)
-	}
+	err := task.handle(event0)
+	assert.NilError(t, err, "failed to handle InitTask event")
 	assert.Equal(t, task.GetTaskState(), events.States().Task.Pending)
 
 	// submit task to the scheduler-core
 	event1 := NewSubmitTaskEvent(app.applicationID, task.taskID)
-	if err := task.handle(event1); err != nil {
-		t.Fatal(err)
-	}
+	err = task.handle(event1)
+	assert.NilError(t, err, "failed to handle SubmitTask event")
 	assert.Equal(t, task.GetTaskState(), events.States().Task.Scheduling)
 
 	// allocated
 	event2 := NewAllocateTaskEvent(app.applicationID, task.taskID, string(pod.UID), "node-1")
-	if err := task.handle(event2); err != nil {
-		t.Fatal(err)
-	}
+	err = task.handle(event2)
+	assert.NilError(t, err, "failed to handle AllocateTask event")
 	assert.Equal(t, task.GetTaskState(), events.States().Task.Allocated)
 
 	// bound
 	event3 := NewBindTaskEvent(app.applicationID, task.taskID)
-	if err := task.handle(event3); err != nil {
-		t.Fatal(err)
-	}
+	err = task.handle(event3)
+	assert.NilError(t, err, "failed to handle BindTask event")
 	assert.Equal(t, task.GetTaskState(), events.States().Task.Bound)
 
 	// complete
 	event4 := NewSimpleTaskEvent(app.applicationID, task.taskID, events.CompleteTask)
-	if err := task.handle(event4); err != nil {
-		t.Fatal(err)
-	}
+	err = task.handle(event4)
+	assert.NilError(t, err, "failed to handle CompleteTask event")
 	assert.Equal(t, task.GetTaskState(), events.States().Task.Completed)
 }
 
@@ -128,17 +125,17 @@ func TestTaskIllegalEventHandling(t *testing.T) {
 
 	// new task
 	event0 := NewSimpleTaskEvent(task.applicationID, task.taskID, events.InitTask)
-	if err := task.handle(event0); err != nil {
-		t.Fatal(err)
-	}
+	err := task.handle(event0)
+	assert.NilError(t, err, "failed to handle InitTask event")
 	assert.Equal(t, task.GetTaskState(), events.States().Task.Pending)
 
 	// verify illegal event handling logic
 	event2 := NewAllocateTaskEvent(app.applicationID, task.taskID, string(pod.UID), "node-1")
-	err := task.handle(event2)
+	err = task.handle(event2)
 	if err == nil {
 		t.Fatal("expecting an error, event AllocateTask is illegal when task is Pending")
 	}
+
 	// task state should not have changed
 	assert.Equal(t, task.GetTaskState(), events.States().Task.Pending)
 }
@@ -148,9 +145,7 @@ func TestReleaseTaskAllocation(t *testing.T) {
 	mockedContext := initContextForTest()
 	apiProvider := mockedContext.apiProvider
 	mockedApiProvider, ok := apiProvider.(*client.MockedAPIProvider)
-	if !ok {
-		t.Fatal("expecting MockedAPIProvider")
-	}
+	assert.Assert(t, ok, "expecting MockedAPIProvider")
 
 	resources := make(map[v1.ResourceName]resource.Quantity)
 	containers := make([]v1.Container, 0)
@@ -181,30 +176,26 @@ func TestReleaseTaskAllocation(t *testing.T) {
 
 	// new task
 	event0 := NewSimpleTaskEvent(task.applicationID, task.taskID, events.InitTask)
-	if err := task.handle(event0); err != nil {
-		t.Fatal(err)
-	}
+	err := task.handle(event0)
+	assert.NilError(t, err, "failed to handle InitTask event")
 	assert.Equal(t, task.GetTaskState(), events.States().Task.Pending)
 
 	// submit task to the scheduler-core
 	event1 := NewSubmitTaskEvent(app.applicationID, task.taskID)
-	if err := task.handle(event1); err != nil {
-		t.Fatal(err)
-	}
+	err = task.handle(event1)
+	assert.NilError(t, err, "failed to handle SubmitTask event")
 	assert.Equal(t, task.GetTaskState(), events.States().Task.Scheduling)
 
 	// allocated
 	event2 := NewAllocateTaskEvent(app.applicationID, task.taskID, string(pod.UID), "node-1")
-	if err := task.handle(event2); err != nil {
-		t.Fatal(err)
-	}
+	err = task.handle(event2)
+	assert.NilError(t, err, "failed to handle AllocateTask event")
 	assert.Equal(t, task.GetTaskState(), events.States().Task.Allocated)
 
 	// bound
 	event3 := NewBindTaskEvent(app.applicationID, task.taskID)
-	if err := task.handle(event3); err != nil {
-		t.Fatal(err)
-	}
+	err = task.handle(event3)
+	assert.NilError(t, err, "failed to handle BindTask event")
 	assert.Equal(t, task.GetTaskState(), events.States().Task.Bound)
 
 	// the mocked update function does nothing than verify the coming messages
@@ -219,9 +210,8 @@ func TestReleaseTaskAllocation(t *testing.T) {
 
 	// complete
 	event4 := NewSimpleTaskEvent(app.applicationID, task.taskID, events.CompleteTask)
-	if err := task.handle(event4); err != nil {
-		t.Fatal(err)
-	}
+	err = task.handle(event4)
+	assert.NilError(t, err, "failed to handle CompleteTask event")
 	assert.Equal(t, task.GetTaskState(), events.States().Task.Completed)
 	// 2 updates call, 1 for submit, 1 for release
 	assert.Equal(t, mockedApiProvider.GetSchedulerApiUpdateCount(), int32(2))
@@ -265,17 +255,16 @@ func TestReleaseTaskAsk(t *testing.T) {
 
 	// new task
 	event0 := NewSimpleTaskEvent(task.applicationID, task.taskID, events.InitTask)
-	if err := task.handle(event0); err != nil {
-		t.Fatal(err)
-	}
+	err := task.handle(event0)
+	assert.NilError(t, err, "failed to handle InitTask event")
+
 	assert.Equal(t, task.GetTaskState(), events.States().Task.Pending)
 
 	// submit task to the scheduler-core
 	// the task will be at scheduling state from this point on
 	event1 := NewSubmitTaskEvent(app.applicationID, task.taskID)
-	if err := task.handle(event1); err != nil {
-		t.Fatal(err)
-	}
+	err = task.handle(event1)
+	assert.NilError(t, err, "failed to handle SubmitTask event")
 	assert.Equal(t, task.GetTaskState(), events.States().Task.Scheduling)
 
 	// the mocked update function does nothing than verify the coming messages
@@ -292,9 +281,8 @@ func TestReleaseTaskAsk(t *testing.T) {
 
 	// complete
 	event4 := NewSimpleTaskEvent(app.applicationID, task.taskID, events.CompleteTask)
-	if err := task.handle(event4); err != nil {
-		t.Fatal(err)
-	}
+	err = task.handle(event4)
+	assert.NilError(t, err, "failed to handle CompleteTask event")
 	assert.Equal(t, task.GetTaskState(), events.States().Task.Completed)
 	// 2 updates call, 1 for submit, 1 for release
 	assert.Equal(t, mockedApiProvider.GetSchedulerApiUpdateCount(), int32(2))

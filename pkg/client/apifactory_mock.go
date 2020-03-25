@@ -19,14 +19,14 @@
 package client
 
 import (
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/test"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
+
 	"k8s.io/api/core/v1"
 	corev1 "k8s.io/client-go/listers/core/v1"
 	storagev1 "k8s.io/client-go/listers/storage/v1"
 	"k8s.io/client-go/tools/cache"
-
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/test"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 )
 
 type MockedAPIProvider struct {
