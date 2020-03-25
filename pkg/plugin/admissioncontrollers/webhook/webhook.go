@@ -30,14 +30,22 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 )
 
 const (
-	HTTPPort    = 8443
-	tlsDir      = `/run/secrets/tls`
-	tlsCertFile = `cert.pem`
-	tlsKeyFile  = `key.pem`
+	HTTPPort                          = 8443
+	tlsDir                            = `/run/secrets/tls`
+	tlsCertFile                       = `cert.pem`
+	tlsKeyFile                        = `key.pem`
+	policyGroupEnvVarName             = "POLICY_GROUP"
+	schedulerServiceAddressEnvVarName = "SCHEDULER_SERVICE_ADDRESS"
+	schedulerValidateConfURLPattern   = "http://%s/ws/v1/validate-conf"
+
+	// legal URLs
+	mutateURL       = "/mutate"
+	validateConfURL = "/validate-conf"
 )
 
 func main() {
@@ -47,10 +55,19 @@ func main() {
 	if err != nil {
 		log.Logger.Fatal("Failed to load key pair", zap.Error(err))
 	}
+	policyGroup := os.Getenv(policyGroupEnvVarName)
+	if policyGroup == "" {
+		policyGroup = conf.DefaultPolicyGroup
+	}
+	schedulerServiceAddress := os.Getenv(schedulerServiceAddressEnvVarName)
 
-	webHook := admissionController{}
+	webHook := admissionController{
+		configName:               fmt.Sprintf("%s.yaml", policyGroup),
+		schedulerValidateConfURL: fmt.Sprintf(schedulerValidateConfURLPattern, schedulerServiceAddress),
+	}
 	mux := http.NewServeMux()
-	mux.HandleFunc("/mutate", webHook.serve)
+	mux.HandleFunc(mutateURL, webHook.serve)
+	mux.HandleFunc(validateConfURL, webHook.serve)
 	server := &http.Server{
 		Addr:      fmt.Sprintf(":%v", HTTPPort),
 		TLSConfig: &tls.Config{Certificates: []tls.Certificate{pair}},
@@ -65,7 +82,7 @@ func main() {
 
 	log.Logger.Info("the admission controller started",
 		zap.Int("port", HTTPPort),
-		zap.String("listeningOn", "/mutate"))
+		zap.Strings("listeningOn", []string{mutateURL, validateConfURL}))
 
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)

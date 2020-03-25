@@ -2,7 +2,7 @@ apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
   name: yunikorn-admission-controller
-  namespace: yunikorn
+  namespace: ${NAMESPACE}
   labels:
     app: yunikorn
 spec:
@@ -26,6 +26,11 @@ spec:
           - name: webhook-tls-certs
             mountPath: /run/secrets/tls
             readOnly: true
+          env:
+          - name: POLICY_GROUP
+            value: ${POLICY_GROUP}
+          - name: SCHEDULER_SERVICE_ADDRESS
+            value: ${SCHEDULER_SERVICE_ADDRESS}
       volumes:
       - name: webhook-tls-certs
         secret:
@@ -34,8 +39,8 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: yunikorn-admission-controller-service
-  namespace: yunikorn
+  name: ${SERVICE}
+  namespace: ${NAMESPACE}
   labels:
     app: yunikorn
 spec:
@@ -44,24 +49,3 @@ spec:
       targetPort: webhook-api
   selector:
     app: yunikorn
----
-apiVersion: admissionregistration.k8s.io/v1beta1
-kind: MutatingWebhookConfiguration
-metadata:
-  name: yunikorn-admission-controller-cfg
-  labels:
-    app: yunikorn
-webhooks:
-  - name: admission-webhook.yunikorn.svc
-    clientConfig:
-      service:
-        name: yunikorn-admission-controller-service
-        namespace: yunikorn
-        path: "/mutate"
-      caBundle: ${CA_PEM_B64}
-    rules:
-      - operations: ["CREATE"]
-        apiGroups: [""]
-        apiVersions: ["v1"]
-        resources: ["pods"]
-    failurePolicy: Ignore

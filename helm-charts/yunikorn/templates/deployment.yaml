@@ -29,6 +29,11 @@ spec:
             - name: http1
               containerPort: {{ .Values.service.port }}
               protocol: TCP
+          env:
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
           volumeMounts:
             - name: config-volume
               mountPath: /etc/yunikorn/

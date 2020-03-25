@@ -19,11 +19,11 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"strings"
 	"time"
 
 	"go.uber.org/zap"
@@ -45,12 +45,19 @@ var (
 )
 
 type admissionController struct {
+	configName               string
+	schedulerValidateConfURL string
 }
 
 type patchOperation struct {
 	Op    string      `json:"op"`
 	Path  string      `json:"path"`
 	Value interface{} `json:"value,omitempty"`
+}
+
+type ValidateConfResponse struct {
+	Allowed bool   `json:"allowed"`
+	Reason  string `json:"reason"`
 }
 
 func (c *admissionController) mutate(ar *v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
@@ -68,16 +75,19 @@ func (c *admissionController) mutate(ar *v1beta1.AdmissionReview) *v1beta1.Admis
 		var pod v1.Pod
 		if err := json.Unmarshal(req.Object.Raw, &pod); err != nil {
 			return &v1beta1.AdmissionResponse{
+				Allowed: false,
 				Result: &metav1.Status{
 					Message: err.Error(),
 				},
 			}
 		}
 
-		if strings.HasPrefix(pod.Name, "yunikorn-scheduler") {
-			log.Logger.Info("ignore yunikorn scheduler pod")
-			return &v1beta1.AdmissionResponse{
-				Allowed: true,
+		if labelAppValue, ok := pod.Labels[common.LabelApp]; ok {
+			if labelAppValue == "yunikorn" {
+				log.Logger.Info("ignore yunikorn pod")
+				return &v1beta1.AdmissionResponse{
+					Allowed: true,
+				}
 			}
 		}
 
@@ -88,6 +98,7 @@ func (c *admissionController) mutate(ar *v1beta1.AdmissionReview) *v1beta1.Admis
 	patchBytes, err := json.Marshal(patch)
 	if err != nil {
 		return &v1beta1.AdmissionResponse{
+			Allowed: false,
 			Result: &metav1.Status{
 				Message: err.Error(),
 			},
@@ -167,6 +178,66 @@ func updateLabels(pod *v1.Pod, patch []patchOperation) []patchOperation {
 	return patch
 }
 
+func (c *admissionController) validateConf(ar *v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
+	req := ar.Request
+	log.Logger.Info("AdmissionReview",
+		zap.Any("Kind", req.Kind),
+		zap.String("Namespace", req.Namespace),
+		zap.String("UID", string(req.UID)),
+		zap.String("Operation", string(req.Operation)),
+		zap.Any("UserInfo", req.UserInfo))
+
+	if req.Kind.Kind == "ConfigMap" {
+		var configmap v1.ConfigMap
+		if err := json.Unmarshal(req.Object.Raw, &configmap); err != nil {
+			return &v1beta1.AdmissionResponse{
+				Allowed: false,
+				Result: &metav1.Status{
+					Message: err.Error(),
+				},
+			}
+		}
+		// validate new/updated config map
+		if err := c.validateConfigMap(&configmap); err != nil {
+			log.Logger.Error("failed to validate yunikorn configs", zap.Error(err))
+			return &v1beta1.AdmissionResponse{
+				Allowed: false,
+				Result: &metav1.Status{
+					Message: err.Error(),
+				},
+			}
+		}
+	}
+
+	return &v1beta1.AdmissionResponse{
+		Allowed: true,
+	}
+}
+
+func (c *admissionController) validateConfigMap(cm *v1.ConfigMap) error {
+	if cm.Name == common.DefaultConfigMapName {
+		log.Logger.Info("validating yunikorn configs")
+		if content, ok := cm.Data[c.configName]; ok {
+			response, err := http.Post(c.schedulerValidateConfURL, "application/json", bytes.NewBuffer([]byte(content)))
+			if err != nil {
+				return err
+			}
+			defer response.Body.Close()
+			responseBytes, err := ioutil.ReadAll(response.Body)
+			if err != nil {
+				return err
+			}
+			var responseData ValidateConfResponse
+			if err := json.Unmarshal(responseBytes, &responseData); err != nil {
+				return err
+			}
+			return fmt.Errorf(responseData.Reason)
+		}
+		return fmt.Errorf("required config '%s' not found in this configmap", c.configName)
+	}
+	return nil
+}
+
 func (c *admissionController) serve(w http.ResponseWriter, r *http.Request) {
 	log.Logger.Debug("request", zap.Any("httpRequest", r))
 	var body []byte
@@ -192,12 +263,15 @@ func (c *admissionController) serve(w http.ResponseWriter, r *http.Request) {
 	if _, _, err := deserializer.Decode(body, nil, &ar); err != nil {
 		log.Logger.Error("Can't decode the body", zap.Error(err))
 		admissionResponse = &v1beta1.AdmissionResponse{
+			Allowed: false,
 			Result: &metav1.Status{
 				Message: err.Error(),
 			},
 		}
-	} else if r.URL.Path == "/mutate" {
+	} else if r.URL.Path == mutateURL {
 		admissionResponse = c.mutate(&ar)
+	} else if r.URL.Path == validateConfURL {
+		admissionResponse = c.validateConf(&ar)
 	}
 
 	admissionReview := v1beta1.AdmissionReview{}
