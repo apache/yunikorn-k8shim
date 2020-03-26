@@ -19,13 +19,14 @@
 package client
 
 import (
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/test"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
+	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
+
 	"k8s.io/api/core/v1"
 	corev1 "k8s.io/client-go/listers/core/v1"
 	storagev1 "k8s.io/client-go/listers/storage/v1"
 	"k8s.io/client-go/tools/cache"
-
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/test"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 )
 
 type MockedAPIProvider struct {
@@ -64,6 +65,26 @@ func NewMockedAPIProvider() *MockedAPIProvider {
 			VolumeBinder:      nil,
 		},
 	}
+}
+
+func (m *MockedAPIProvider) MockSchedulerApiUpdateFn(ufn func(request *si.UpdateRequest) error) {
+	if mock, ok := m.clients.SchedulerAPI.(*test.SchedulerAPIMock); ok {
+		mock.UpdateFunction(ufn)
+	}
+}
+
+func (m *MockedAPIProvider) GetSchedulerApiUpdateCount() int32 {
+	if mock, ok := m.clients.SchedulerAPI.(*test.SchedulerAPIMock); ok {
+		return mock.GetUpdateCount()
+	}
+	return int32(0)
+}
+
+func (m *MockedAPIProvider) GetSchedulerApiRegisterCount() int32 {
+	if mock, ok := m.clients.SchedulerAPI.(*test.SchedulerAPIMock); ok {
+		return mock.GetRegisterCount()
+	}
+	return int32(0)
 }
 
 func (m *MockedAPIProvider) MockBindFn(bfn func(pod *v1.Pod, hostID string) error) {

@@ -110,17 +110,21 @@ func createTaskInternal(tid string, app *Application, resource *si.Resource,
 				Dst: states.Failed},
 		},
 		fsm.Callbacks{
-			string(events.SubmitTask): task.handleSubmitTaskEvent,
-			string(events.TaskFail):   task.handleFailEvent,
-			states.Pending:            task.postTaskPending,
-			states.Allocated:          task.postTaskAllocated,
-			states.Rejected:           task.postTaskRejected,
-			states.Completed:          task.postTaskCompleted,
-			states.Failed:             task.postTaskFailed,
+			string(events.SubmitTask):       task.handleSubmitTaskEvent,
+			string(events.TaskFail):         task.handleFailEvent,
+			states.Pending:                  task.postTaskPending,
+			states.Allocated:                task.postTaskAllocated,
+			states.Rejected:                 task.postTaskRejected,
+			beforeHook(events.CompleteTask): task.beforeTaskCompleted,
+			states.Failed:                   task.postTaskFailed,
 		},
 	)
 
 	return task
+}
+
+func beforeHook(event events.TaskEventType) string {
+	return fmt.Sprintf("before_%s", string(event))
 }
 
 // event handling
@@ -331,8 +335,10 @@ func (task *Task) postTaskFailed(event *fsm.Event) {
 		"application \"%s\" task \"%s\" is failed", task.applicationID, task.taskID)
 }
 
-func (task *Task) postTaskCompleted(event *fsm.Event) {
-	// when task is completed, release its allocation from scheduler core
+func (task *Task) beforeTaskCompleted(event *fsm.Event) {
+	// before task transits to completed, release its allocation from scheduler core
+	// this is done as a before hook because the releaseAllocation() call needs to
+	// send different requests to scheduler-core, depending on current task state
 	task.releaseAllocation()
 
 	events.GetRecorder().Eventf(task.pod,
@@ -341,20 +347,35 @@ func (task *Task) postTaskCompleted(event *fsm.Event) {
 }
 
 func (task *Task) releaseAllocation() {
-	// when task is completed, we notify the scheduler to release allocations
-	go func() {
-		// scheduler api might be nil in some tests
-		if task.context.apiProvider.GetAPIs().SchedulerAPI != nil {
-			releaseRequest := common.CreateReleaseAllocationRequestForTask(
-				task.applicationID, task.allocationUUID, task.application.partition)
+	// scheduler api might be nil in some tests
+	if task.context.apiProvider.GetAPIs().SchedulerAPI != nil {
+		// if allocated, sending release
 
-			log.Logger.Debug("send release request",
-				zap.String("releaseRequest", releaseRequest.String()))
-			if err := task.context.apiProvider.GetAPIs().SchedulerAPI.Update(&releaseRequest); err != nil {
-				log.Logger.Debug("failed to send scheduling request to scheduler", zap.Error(err))
-			}
+		log.Logger.Debug("prepare to send release request",
+			zap.String("applicationID", task.applicationID),
+			zap.String("taskID", task.taskID),
+			zap.String("task", task.GetTaskState()))
+
+		// depends on current task state, generate requests accordingly.
+		// if task is already allocated, which means the scheduler core already,
+		// places an allocation for it, we need to send AllocationReleaseRequest,
+		// if task is not allocated yet, we need to send AllocationAskReleaseRequest
+		var releaseRequest si.UpdateRequest
+		s := events.States().Task
+		switch task.GetTaskState() {
+		case s.New, s.Pending, s.Scheduling:
+			releaseRequest = common.CreateReleaseAskRequestForTask(
+				task.applicationID, task.taskID, task.application.partition)
+		default:
+			releaseRequest = common.CreateReleaseAllocationRequestForTask(
+				task.applicationID, task.allocationUUID, task.application.partition)
 		}
-	}()
+		log.Logger.Info("send release request",
+			zap.String("releaseRequest", releaseRequest.String()))
+		if err := task.context.apiProvider.GetAPIs().SchedulerAPI.Update(&releaseRequest); err != nil {
+			log.Logger.Debug("failed to send scheduling request to scheduler", zap.Error(err))
+		}
+	}
 }
 
 // some sanity checks before sending task for scheduling,

@@ -118,6 +118,27 @@ func CreateUpdateRequestForTask(appID, taskID string, resource *si.Resource) si.
 	return result
 }
 
+func CreateReleaseAskRequestForTask(appID, taskId, partition string) si.UpdateRequest {
+	toReleases := make([]*si.AllocationAskReleaseRequest, 0)
+	toReleases = append(toReleases, &si.AllocationAskReleaseRequest{
+		ApplicationID: appID,
+		Allocationkey: taskId,
+		PartitionName: partition,
+		Message:       "task resource request is canceled",
+	})
+
+	releaseRequest := si.AllocationReleasesRequest{
+		AllocationAsksToRelease: toReleases,
+	}
+
+	result := si.UpdateRequest{
+		Releases: &releaseRequest,
+		RmID:     conf.GetSchedulerConf().ClusterID,
+	}
+
+	return result
+}
+
 func CreateReleaseAllocationRequestForTask(appID, allocUUID, partition string) si.UpdateRequest {
 	toReleases := make([]*si.AllocationReleaseRequest, 0)
 	toReleases = append(toReleases, &si.AllocationReleaseRequest{
