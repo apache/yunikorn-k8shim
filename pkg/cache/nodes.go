@@ -36,8 +36,8 @@ import (
 
 type updateType int
 const (
-	AddCapacity updateType = iota
-	SubCapacity
+	AddOccupiedResource updateType = iota
+	SubOccupiedResource
 )
 
 // scheduler nodes maintain cluster nodes and their status for the scheduler
@@ -147,7 +147,7 @@ func (nc *schedulerNodes) restoreNode(node *v1.Node) {
 	}
 }
 
-func (nc *schedulerNodes) updateNodeCapacity(name string, resource *si.Resource, opt updateType) {
+func (nc *schedulerNodes) updateNodeOccupiedResources(name string, resource *si.Resource, opt updateType) {
 	if common.IsZero(resource) {
 		return
 	}
@@ -157,18 +157,18 @@ func (nc *schedulerNodes) updateNodeCapacity(name string, resource *si.Resource,
 		defer nc.lock.Unlock()
 
 		switch opt {
-		case AddCapacity:
-			schedulerNode.capacity = common.Add(schedulerNode.capacity, resource)
-		case SubCapacity:
-			schedulerNode.capacity = common.Sub(schedulerNode.capacity, resource)
+		case AddOccupiedResource:
+			schedulerNode.occupied = common.Add(schedulerNode.occupied, resource)
+		case SubOccupiedResource:
+			schedulerNode.occupied = common.Sub(schedulerNode.occupied, resource)
 		default:
 			// noop
 			return
 		}
 
-		node := common.NewNode(schedulerNode.name, schedulerNode.uid, schedulerNode.capacity)
+		node := common.NewNode(schedulerNode.name, schedulerNode.uid, schedulerNode.capacity, schedulerNode.occupied)
 		request := common.CreateUpdateRequestForUpdatedNode(node)
-		log.Logger.Info("report updated nodes to scheduler",
+		log.Logger.Info("report occupied resources updates",
 			zap.String("node", schedulerNode.name),
 			zap.Any("request", request))
 		if err := nc.proxy.Update(&request); err != nil {

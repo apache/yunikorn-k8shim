@@ -24,6 +24,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
@@ -57,6 +58,10 @@ func IsPodRunning(pod *v1.Pod) bool {
 	return pod.Status.Phase == v1.PodRunning
 }
 
+func IsPodTerminated(pod *v1.Pod) bool {
+	return pod.Status.Phase == v1.PodFailed || pod.Status.Phase == v1.PodSucceeded
+}
+
 // assignedPod selects pods that are assigned (scheduled and running).
 func IsAssignedPod(pod *v1.Pod) bool {
 	return len(pod.Spec.NodeName) != 0
@@ -72,10 +77,6 @@ func GetQueueNameFromPod(pod *v1.Pod) string {
 		queueName = an
 	}
 	return queueName
-}
-
-func IsTerminated(pod *v1.Pod) bool {
-	return pod.Status.Phase == v1.PodFailed || pod.Status.Phase == v1.PodSucceeded
 }
 
 func GetApplicationIDFromPod(pod *v1.Pod) (string, error) {
@@ -126,5 +127,52 @@ func WaitForCondition(eval func() bool, interval time.Duration, timeout time.Dur
 		}
 
 		time.Sleep(interval)
+	}
+}
+
+func PodForTest(podName, memory, cpu string) *v1.Pod {
+	containers := make([]v1.Container, 0)
+	c1Resources := make(map[v1.ResourceName]resource.Quantity)
+	c1Resources[v1.ResourceMemory] = resource.MustParse(memory)
+	c1Resources[v1.ResourceCPU] = resource.MustParse(cpu)
+	containers = append(containers, v1.Container{
+		Name: "container-01",
+		Resources: v1.ResourceRequirements{
+			Requests: c1Resources,
+		},
+	})
+
+	return &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: podName,
+		},
+		Spec: v1.PodSpec{
+			Containers: containers,
+		},
+	}
+}
+
+func NodeForTest(nodeID, memory, cpu string) *v1.Node {
+	resourceList := make(map[v1.ResourceName]resource.Quantity)
+	resourceList[v1.ResourceName("memory")] = resource.MustParse(memory)
+	resourceList[v1.ResourceName("cpu")] = resource.MustParse(cpu)
+	return &v1.Node{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Node",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name:      nodeID,
+			Namespace: "default",
+			UID:       "uid_0001",
+		},
+		Spec: v1.NodeSpec{},
+		Status: v1.NodeStatus{
+			Allocatable: resourceList,
+		},
 	}
 }

@@ -94,7 +94,7 @@ func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) err
 				return err
 			}
 
-			excludeResources := common.NewResourceBuilder().Build()
+			occupiedResources := common.NewResourceBuilder().Build()
 			for _, pod := range podList.Items {
 				if utils.GeneralPodFilter(&pod) && utils.IsAssignedPod(&pod) {
 					if existingAlloc := getExistingAllocation(mgr, &pod); existingAlloc != nil {
@@ -109,8 +109,8 @@ func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) err
 				} else if utils.IsAssignedPod(&pod) &&
 					pod.Status.Phase == corev1.PodRunning {
 					// pod is running but not scheduled by us
-					// we should remove this part of capacity from the node
-					excludeResources = common.Add(excludeResources, common.GetPodResource(&pod))
+					// we should report this occupied resource to scheduler-core
+					occupiedResources = common.Add(occupiedResources, common.GetPodResource(&pod))
 					if err := ctx.nodes.cache.AddPod(&pod); err != nil {
 						log.Logger.Warn("failed to update scheduler-cache",
 							zap.Error(err))
@@ -118,10 +118,10 @@ func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) err
 				}
 			}
 
-			log.Logger.Info("exclude resources allocated by other scheduler",
+			log.Logger.Info("update occupied resources that allocated by other scheduler",
 				zap.String("node", node.Name),
-				zap.String("total", excludeResources.String()))
-			ctx.nodes.updateNodeCapacity(node.Name, excludeResources, SubCapacity)
+				zap.String("totalOccupied", occupiedResources.String()))
+			ctx.nodes.updateNodeOccupiedResources(node.Name, occupiedResources, AddOccupiedResource)
 		}
 	}
 

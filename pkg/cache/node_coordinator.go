@@ -27,18 +27,26 @@ import (
 	k8sCache "k8s.io/client-go/tools/cache"
 )
 
-// nodeCoordinator looks at the resources that not allocated by yunikorn,
-// and refresh scheduler cache to keep nodes' capacity in-sync
-type nodeCoordinator struct {
+// nodeResourceCoordinator looks at the resources that not allocated by yunikorn,
+// and refresh scheduler cache to keep nodes' capacity in-sync.
+// this coordinator only looks after the pods that not scheduled by yunikorn,
+// and it registers update/delete handler to the pod informer. It ensures that
+// following operations are done
+//  1) when a pod is becoming Running, add occupied node resource
+//  2) when a pod is terminated, sub the occupied node resource
+//  3) when a pod is deleted, sub the occupied node resource
+// each of these updates will trigger a node UPDATE action to update the occupied
+// resource in the scheduler-core.
+type nodeResourceCoordinator struct {
 	nodes *schedulerNodes
 }
 
-func newNodeCoordinator(nodes *schedulerNodes) *nodeCoordinator {
-	return &nodeCoordinator{nodes}
+func newNodeResourceCoordinator(nodes *schedulerNodes) *nodeResourceCoordinator {
+	return &nodeResourceCoordinator{nodes}
 }
 
 // filter pods that not scheduled by us
-func (c *nodeCoordinator) filterPods(obj interface{}) bool {
+func (c *nodeResourceCoordinator) filterPods(obj interface{}) bool {
 	switch obj.(type) {
 	case *v1.Pod:
 		pod := obj.(*v1.Pod)
@@ -48,7 +56,7 @@ func (c *nodeCoordinator) filterPods(obj interface{}) bool {
 	}
 }
 
-func (c *nodeCoordinator) updatePod(old, new interface{}) {
+func (c *nodeResourceCoordinator) updatePod(old, new interface{}) {
 	oldPod, err := utils.Convert2Pod(old)
 	if err != nil {
 		log.Logger.Error("expecting a pod object", zap.Error(err))
@@ -61,54 +69,38 @@ func (c *nodeCoordinator) updatePod(old, new interface{}) {
 		return
 	}
 
-	log.Logger.Info("### UPDATE",
-		zap.String("old", string(oldPod.Status.Phase)),
-		zap.String("newPod", string(newPod.Status.Phase)))
-
 	// triggered when pod status phase changes
 	if oldPod.Status.Phase != newPod.Status.Phase {
-		// if pod is running but not scheduled by us,
-		// we need to notify scheduler-core to re-sync the node resource
-		log.Logger.Info("### UPDATE",
-			zap.String("old", string(oldPod.Status.Phase)),
-			zap.String("newPod", string(newPod.Status.Phase)),
-			zap.Bool("equal", newPod.Status.Phase == v1.PodRunning))
-
-		if newPod.Status.Phase == v1.PodRunning {
-			log.Logger.Info("pod is allocated by another scheduler",
+		if utils.IsAssignedPod(newPod) {
+			log.Logger.Debug("pod phase changes",
 				zap.String("namespace", newPod.Namespace),
 				zap.String("podName", newPod.Name),
-				zap.String("podStatus", string(newPod.Status.Phase)))
-
-			if nodeName := newPod.Spec.NodeName; nodeName != "" {
+				zap.String("podStatusBefore", string(oldPod.Status.Phase)),
+				zap.String("podStatusCurrent", string(newPod.Status.Phase)))
+			if utils.IsPodRunning(newPod) {
+				// if pod is running but not scheduled by us,
+				// we need to notify scheduler-core to re-sync the node resource
 				podResource := common.GetPodResource(newPod)
-				c.nodes.updateNodeCapacity(nodeName, podResource, SubCapacity)
+				c.nodes.updateNodeOccupiedResources(newPod.Spec.NodeName, podResource, AddOccupiedResource)
 				if err := c.nodes.cache.AddPod(newPod); err != nil {
 					log.Logger.Warn("failed to update scheduler-cache",
 						zap.Error(err))
 				}
-			}
-		} else if newPod.Status.Phase == v1.PodSucceeded ||
-			newPod.Status.Phase == v1.PodFailed {
-			// this means pod is terminated
-			// we need to add the capacity back and re-sync with the scheduler-core
-			if nodeName := newPod.Spec.NodeName; nodeName != "" {
+			} else if utils.IsPodTerminated(newPod) {
+				// this means pod is terminated
+				// we need sub the occupied resource and re-sync with the scheduler-core
 				podResource := common.GetPodResource(newPod)
-				c.nodes.updateNodeCapacity(nodeName, podResource, AddCapacity)
+				c.nodes.updateNodeOccupiedResources(newPod.Spec.NodeName, podResource, SubOccupiedResource)
 				if err := c.nodes.cache.RemovePod(newPod); err != nil {
 					log.Logger.Warn("failed to update scheduler-cache",
 						zap.Error(err))
 				}
-			} else {
-				log.Logger.Warn("node is not found in pod's spec",
-					zap.String("namespace", newPod.Namespace),
-					zap.String("podName", newPod.Name))
 			}
 		}
 	}
 }
 
-func (c *nodeCoordinator) deletePod(obj interface{}) {
+func (c *nodeResourceCoordinator) deletePod(obj interface{}) {
 	var pod *v1.Pod
 	switch t := obj.(type) {
 	case *v1.Pod:
@@ -125,10 +117,9 @@ func (c *nodeCoordinator) deletePod(obj interface{}) {
 		return
 	}
 
-	// if pod is already terminated
-	if pod.Status.Phase == v1.PodSucceeded ||
-		pod.Status.Phase == v1.PodFailed {
-		log.Logger.Debug("pod is already terminated, node capacity should be already updated")
+	// if pod is already terminated, that means the updates have already done
+	if utils.IsPodTerminated(pod) {
+		log.Logger.Debug("pod is already terminated, occupied resource updated should have already done")
 		return
 	}
 
@@ -137,9 +128,9 @@ func (c *nodeCoordinator) deletePod(obj interface{}) {
 		zap.String("podName", pod.Name))
 
 	podResource := common.GetPodResource(pod)
-	c.nodes.updateNodeCapacity(pod.Spec.NodeName, podResource, AddCapacity)
+	c.nodes.updateNodeOccupiedResources(pod.Spec.NodeName, podResource, SubOccupiedResource)
 	if err := c.nodes.cache.RemovePod(pod); err != nil {
-		log.Logger.Warn("failed to update scheduler-cache",
+		log.Logger.Debug("failed to update scheduler-cache",
 			zap.Error(err))
 	}
 }

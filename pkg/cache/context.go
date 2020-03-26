@@ -87,7 +87,7 @@ func (ctx *Context) AddSchedulingEventHandlers() {
 		DeleteFn: ctx.removePodFromCache,
 	})
 
-	nodeCoordinator := newNodeCoordinator(ctx.nodes)
+	nodeCoordinator := newNodeResourceCoordinator(ctx.nodes)
 	ctx.apiProvider.AddEventHandler(&client.ResourceEventHandlers{
 		Type:     client.PodInformerHandlers,
 		FilterFn: nodeCoordinator.filterPods,
@@ -244,7 +244,7 @@ func (ctx *Context) filterPods(obj interface{}) bool {
 		// this can only be fixed after the pod is removed.
 		// (trigger the delete pod)
 		return utils.GeneralPodFilter(obj) &&
-			!utils.IsTerminated(obj)
+			!utils.IsPodTerminated(obj)
 	default:
 		return false
 	}

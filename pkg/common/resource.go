@@ -165,7 +165,7 @@ func CreateUpdateRequestForNewNode(node Node) si.UpdateRequest {
 	// name of node is required but uid is optional.
 	nodeInfo := &si.NewNodeInfo{
 		NodeID:              node.name,
-		SchedulableResource: node.resource,
+		SchedulableResource: node.capacity,
 		// TODO is this required?
 		Attributes: map[string]string{
 			DefaultNodeAttributeHostNameKey: node.name,
@@ -187,8 +187,9 @@ func CreateUpdateRequestForUpdatedNode(node Node) si.UpdateRequest {
 	nodeInfo := &si.UpdateNodeInfo{
 		NodeID:              node.name,
 		Attributes:          make(map[string]string),
-		SchedulableResource: node.resource,
-		Action:              si.UpdateNodeInfo_UPDATE_NODE_CAPACITY,
+		SchedulableResource: node.capacity,
+		OccupiedResource:    node.occupied,
+		Action:              si.UpdateNodeInfo_UPDATE,
 	}
 
 	nodes := make([]*si.UpdateNodeInfo, 1)
@@ -204,7 +205,8 @@ func CreateUpdateRequestForDeleteNode(node Node) si.UpdateRequest {
 	deletedNodes := make([]*si.UpdateNodeInfo, 1)
 	nodeInfo := &si.UpdateNodeInfo{
 		NodeID:              node.name,
-		SchedulableResource: node.resource,
+		SchedulableResource: node.capacity,
+		OccupiedResource:    node.occupied,
 		Attributes:          make(map[string]string),
 		Action:              si.UpdateNodeInfo_DECOMISSION,
 	}

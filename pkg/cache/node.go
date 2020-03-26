@@ -38,6 +38,7 @@ type SchedulerNode struct {
 	name                string
 	uid                 string
 	capacity            *si.Resource
+	occupied            *si.Resource
 	schedulable         bool
 	existingAllocations []*si.Allocation
 	schedulerAPI        api.SchedulerAPI
@@ -51,6 +52,7 @@ func newSchedulerNode(nodeName string, nodeUID string,
 		name:         nodeName,
 		uid:          nodeUID,
 		capacity:     nodeResource,
+		occupied:     common.NewResourceBuilder().Build(),
 		schedulerAPI: schedulerAPI,
 		schedulable:  schedulable,
 		lock:         &sync.RWMutex{},

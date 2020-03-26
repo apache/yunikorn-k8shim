@@ -28,18 +28,19 @@ import (
 type Node struct {
 	name     string
 	uid      string
-	resource *si.Resource
+	capacity *si.Resource
+	occupied *si.Resource
 }
 
-func NewNode(name, uid string, resource *si.Resource) Node {
-	return Node {name, uid,resource}
+func NewNode(name, uid string, capacity *si.Resource, occupied *si.Resource) Node {
+	return Node {name, uid,capacity, occupied}
 }
 
 func CreateFrom(node *v1.Node) Node {
 	return Node{
 		name:     node.Name,
 		uid:      string(node.UID),
-		resource: GetNodeResource(&node.Status),
+		capacity: GetNodeResource(&node.Status),
 	}
 }
 
@@ -47,6 +48,6 @@ func CreateFromNodeSpec(nodeName string, nodeUID string, nodeResource *si.Resour
 	return Node{
 		name:     nodeName,
 		uid:      nodeUID,
-		resource: nodeResource,
+		capacity: nodeResource,
 	}
 }
