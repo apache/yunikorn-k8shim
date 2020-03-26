@@ -138,25 +138,7 @@ func updateLabels(pod *v1.Pod, patch []patchOperation) []patchOperation {
 
 	if _, ok := existingLabels[common.SparkLabelAppID]; !ok {
 		if _, ok := existingLabels[common.LabelApplicationID]; !ok {
-			// if app id not exist, generate one
-			// the generated ID is using [PodNamespace]_[PodName]_[Timestamp] naming convention.
-			// some admission controllers have strict checks of the length/format of each labels,
-			// this convention keeps the name tidy and short.
-			podNamespace := "default"
-			if pod.Namespace != "" {
-				podNamespace = pod.Namespace
-			}
-
-			// pod's name can be generated, if name is not explicitly specified
-			// look for generateName instead
-			podName := "unknown"
-			if pod.Name != "" {
-				podName = pod.Name
-			} else if pod.GenerateName != "" {
-				podName = pod.GenerateName
-			}
-
-			generatedID := fmt.Sprintf("%s_%s_%d", podNamespace, podName, time.Now().Unix())
+			generatedID := fmt.Sprintf("__app_%d", time.Now().UnixNano())
 			log.Logger.Debug("adding application ID",
 				zap.String("generatedID", generatedID))
 			result[common.LabelApplicationID] = generatedID
