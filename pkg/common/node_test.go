@@ -35,9 +35,9 @@ func TestCreateNodeFromSpec(t *testing.T) {
 	node := CreateFromNodeSpec("host0001", "uid_0001", resource)
 	assert.Equal(t, node.name, "host0001")
 	assert.Equal(t, node.uid, "uid_0001")
-	assert.Equal(t, len(node.resource.Resources), 2)
-	assert.Equal(t, node.resource.Resources[Memory].Value, int64(999))
-	assert.Equal(t, node.resource.Resources[CPU].Value, int64(9))
+	assert.Equal(t, len(node.capacity.Resources), 2)
+	assert.Equal(t, node.capacity.Resources[Memory].Value, int64(999))
+	assert.Equal(t, node.capacity.Resources[CPU].Value, int64(9))
 }
 
 func TestCreateNode(t *testing.T) {
@@ -60,9 +60,9 @@ func TestCreateNode(t *testing.T) {
 	node := CreateFrom(&k8sNode)
 	assert.Equal(t, node.name, "host0001")
 	assert.Equal(t, node.uid, "uid_0001")
-	assert.Equal(t, len(node.resource.Resources), 2)
-	assert.Equal(t, node.resource.Resources[Memory].Value, int64(999))
-	assert.Equal(t, node.resource.Resources[CPU].Value, int64(8000))
+	assert.Equal(t, len(node.capacity.Resources), 2)
+	assert.Equal(t, node.capacity.Resources[Memory].Value, int64(999))
+	assert.Equal(t, node.capacity.Resources[CPU].Value, int64(8000))
 }
 
 func TestCreateNodeWithCustomResource(t *testing.T) {
@@ -82,8 +82,8 @@ func TestCreateNodeWithCustomResource(t *testing.T) {
 	node := CreateFrom(&k8sNode)
 	assert.Equal(t, node.name, "host0001")
 	assert.Equal(t, node.uid, "uid_0001")
-	assert.Equal(t, len(node.resource.Resources), 3)
-	assert.Equal(t, node.resource.Resources[Memory].Value, int64(999))
-	assert.Equal(t, node.resource.Resources[CPU].Value, int64(9000))
-	assert.Equal(t, node.resource.Resources["nvidia.com/gpu"].Value, int64(3))
+	assert.Equal(t, len(node.capacity.Resources), 3)
+	assert.Equal(t, node.capacity.Resources[Memory].Value, int64(999))
+	assert.Equal(t, node.capacity.Resources[CPU].Value, int64(9000))
+	assert.Equal(t, node.capacity.Resources["nvidia.com/gpu"].Value, int64(3))
 }
