@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
 	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -92,6 +93,8 @@ func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) err
 			if err != nil {
 				return err
 			}
+
+			occupiedResources := common.NewResourceBuilder().Build()
 			for _, pod := range podList.Items {
 				if utils.GeneralPodFilter(&pod) && utils.IsAssignedPod(&pod) {
 					if existingAlloc := getExistingAllocation(mgr, &pod); existingAlloc != nil {
@@ -103,8 +106,22 @@ func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) err
 							log.Logger.Warn("add existing allocation failed", zap.Error(err))
 						}
 					}
+				} else if utils.IsAssignedPod(&pod) &&
+					pod.Status.Phase == corev1.PodRunning {
+					// pod is running but not scheduled by us
+					// we should report this occupied resource to scheduler-core
+					occupiedResources = common.Add(occupiedResources, common.GetPodResource(&pod))
+					if err := ctx.nodes.cache.AddPod(&pod); err != nil {
+						log.Logger.Warn("failed to update scheduler-cache",
+							zap.Error(err))
+					}
 				}
 			}
+
+			log.Logger.Info("update occupied resources that allocated by other scheduler",
+				zap.String("node", node.Name),
+				zap.String("totalOccupied", occupiedResources.String()))
+			ctx.nodes.updateNodeOccupiedResources(node.Name, occupiedResources, AddOccupiedResource)
 		}
 	}
 

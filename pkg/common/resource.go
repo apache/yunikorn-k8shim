@@ -124,7 +124,7 @@ func CreateReleaseAskRequestForTask(appID, taskId, partition string) si.UpdateRe
 		ApplicationID: appID,
 		Allocationkey: taskId,
 		PartitionName: partition,
-		Message:       "task resource request is canceled",
+		Message:       "task request is canceled",
 	})
 
 	releaseRequest := si.AllocationReleasesRequest{
@@ -165,7 +165,7 @@ func CreateUpdateRequestForNewNode(node Node) si.UpdateRequest {
 	// name of node is required but uid is optional.
 	nodeInfo := &si.NewNodeInfo{
 		NodeID:              node.name,
-		SchedulableResource: node.resource,
+		SchedulableResource: node.capacity,
 		// TODO is this required?
 		Attributes: map[string]string{
 			DefaultNodeAttributeHostNameKey: node.name,
@@ -187,7 +187,9 @@ func CreateUpdateRequestForUpdatedNode(node Node) si.UpdateRequest {
 	nodeInfo := &si.UpdateNodeInfo{
 		NodeID:              node.name,
 		Attributes:          make(map[string]string),
-		SchedulableResource: node.resource,
+		SchedulableResource: node.capacity,
+		OccupiedResource:    node.occupied,
+		Action:              si.UpdateNodeInfo_UPDATE,
 	}
 
 	nodes := make([]*si.UpdateNodeInfo, 1)
@@ -203,7 +205,8 @@ func CreateUpdateRequestForDeleteNode(node Node) si.UpdateRequest {
 	deletedNodes := make([]*si.UpdateNodeInfo, 1)
 	nodeInfo := &si.UpdateNodeInfo{
 		NodeID:              node.name,
-		SchedulableResource: node.resource,
+		SchedulableResource: node.capacity,
+		OccupiedResource:    node.occupied,
 		Attributes:          make(map[string]string),
 		Action:              si.UpdateNodeInfo_DECOMISSION,
 	}
@@ -264,4 +267,45 @@ func Add(left *si.Resource, right *si.Resource) *si.Resource {
 		}
 	}
 	return result
+}
+
+func Sub(left *si.Resource, right *si.Resource) *si.Resource {
+	if left == nil {
+		left = &si.Resource{}
+	}
+	if right == nil {
+		return left
+	}
+
+	// clone left
+	rb := NewResourceBuilder()
+	for k, v := range left.Resources {
+		rb.AddResource(k, v.Value)
+	}
+	result := rb.Build()
+
+	// sub right
+	for k, v := range right.Resources {
+		if _, ok := result.Resources[k]; !ok {
+			result.Resources[k] = &si.Quantity{
+				Value: -v.Value,
+			}
+		} else {
+			result.Resources[k].Value -= v.Value
+		}
+	}
+
+	return result
+}
+
+func IsZero(r *si.Resource) bool {
+	if r == nil {
+		return true
+	}
+	for _, v := range r.Resources {
+		if v.Value != 0 {
+			return false
+		}
+	}
+	return true
 }

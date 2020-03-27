@@ -214,19 +214,16 @@ func (task *Task) handleSubmitTaskEvent(event *fsm.Event) {
 	// user/app runs out of the limit etc. Ideally, we should add more interactions between
 	// core and shim to negotiate on when to set the state to unscheduable and trigger the
 	// auto-scaling appropriately.
-	go func(t *Task) {
-		time.Sleep(5 * time.Second)
-		if t.GetTaskState() == events.States().Task.Scheduling {
+	time.AfterFunc(3*time.Second, func() {
+		if task.GetTaskState() == events.States().Task.Scheduling {
 			log.Logger.Debug("updating pod state ",
-				zap.String("appID", t.applicationID),
-				zap.String("taskID", t.taskID),
+				zap.String("appID", task.applicationID),
+				zap.String("taskID", task.taskID),
 				zap.String("podName", fmt.Sprintf("%s/%s", task.pod.Namespace, task.pod.Name)),
 				zap.String("state", "Unscheduable"))
 			// if task state is still pending after 5s,
 			// move task to un-schedule-able state.
-			t.lock.Lock()
-			defer t.lock.Unlock()
-			if err := t.context.updatePodCondition(t.pod,
+			if err := task.context.updatePodCondition(task.pod,
 				&v1.PodCondition{
 					Type:    v1.PodScheduled,
 					Status:  v1.ConditionFalse,
@@ -236,8 +233,11 @@ func (task *Task) handleSubmitTaskEvent(event *fsm.Event) {
 				log.Logger.Error("update pod condition failed",
 					zap.Error(err))
 			}
+			events.GetRecorder().Eventf(task.pod,
+				v1.EventTypeNormal, "TaskStateChanges",
+				"Pod %s state changes to Unscheduable", task.pod.Name)
 		}
-	}(task)
+	})
 }
 
 // this is called after task reaches PENDING state,
@@ -349,8 +349,6 @@ func (task *Task) beforeTaskCompleted(event *fsm.Event) {
 func (task *Task) releaseAllocation() {
 	// scheduler api might be nil in some tests
 	if task.context.apiProvider.GetAPIs().SchedulerAPI != nil {
-		// if allocated, sending release
-
 		log.Logger.Debug("prepare to send release request",
 			zap.String("applicationID", task.applicationID),
 			zap.String("taskID", task.taskID),

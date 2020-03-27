@@ -24,6 +24,8 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 )
 
 func TestAdd(t *testing.T) {
@@ -266,4 +268,85 @@ func TestCreateReleaseAskRequestForTask(t *testing.T) {
 	assert.Equal(t, request.Releases.AllocationAsksToRelease[0].ApplicationID, "app01")
 	assert.Equal(t, request.Releases.AllocationAsksToRelease[0].Allocationkey, "task01")
 	assert.Equal(t, request.Releases.AllocationAsksToRelease[0].PartitionName, "default")
+}
+
+func TestIsZero(t *testing.T) {
+	r := NewResourceBuilder().
+		AddResource(Memory, 1).
+		AddResource(CPU, 1).
+		Build()
+	assert.Equal(t, IsZero(r), false)
+
+	r = NewResourceBuilder().
+		AddResource(CPU, 0).
+		Build()
+	assert.Equal(t, IsZero(r), true)
+
+	r = NewResourceBuilder().
+		AddResource(Memory, 0).
+		AddResource(CPU, 0).
+		Build()
+	assert.Equal(t, IsZero(r), true)
+
+	r = NewResourceBuilder().
+		AddResource(Memory, 0).
+		AddResource(CPU, 1).
+		Build()
+	assert.Equal(t, IsZero(r), false)
+
+	assert.Equal(t, IsZero(nil), true)
+
+	r = &si.Resource{}
+	assert.Equal(t, IsZero(r), true)
+}
+
+func TestSub(t *testing.T) {
+	// simple case (nil checks)
+	result := Sub(nil, nil)
+	if result == nil || len(result.Resources) != 0 {
+		t.Errorf("sub nil resources did not return zero resource: %v", result)
+	}
+
+	// empty resources
+	left := NewResourceBuilder().Build()
+	result = Sub(left, nil)
+	if result == nil || len(result.Resources) != 0 || result != left {
+		t.Errorf("sub Zero resource (right) did not return cloned resource: %v", result)
+	}
+
+	// simple empty resources
+	res1 := NewResourceBuilder().
+		AddResource("a", 5).
+		Build()
+	result = Sub(left, res1)
+
+	expected := NewResourceBuilder().
+		AddResource("a", -5).
+		Build()
+	if !Equals(result, expected) {
+		t.Errorf("sub failed expected %v, actual %v", expected, result.Resources)
+	}
+
+	// complex case: just checking the resource merge, values check is secondary
+	res1 = NewResourceBuilder().
+		AddResource("a", 0).
+		AddResource("b", 1).
+		Build()
+	res2 := NewResourceBuilder().
+		AddResource("a", 1).
+		AddResource("c", 0).
+		AddResource("d", -1).
+		Build()
+	res3 := Sub(res1, res2)
+
+	expected = NewResourceBuilder().
+		AddResource("a", -1).
+		AddResource("b", 1).
+		AddResource("c", 0).
+		AddResource("d", 1).
+		Build()
+
+	if !Equals(res3, expected) {
+		t.Errorf("sub failed expected %v, actual %v", expected, res3.Resources)
+	}
 }

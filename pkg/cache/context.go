@@ -87,6 +87,14 @@ func (ctx *Context) AddSchedulingEventHandlers() {
 		DeleteFn: ctx.removePodFromCache,
 	})
 
+	nodeCoordinator := newNodeResourceCoordinator(ctx.nodes)
+	ctx.apiProvider.AddEventHandler(&client.ResourceEventHandlers{
+		Type:     client.PodInformerHandlers,
+		FilterFn: nodeCoordinator.filterPods,
+		UpdateFn: nodeCoordinator.updatePod,
+		DeleteFn: nodeCoordinator.deletePod,
+	})
+
 	ctx.apiProvider.AddEventHandler(&client.ResourceEventHandlers{
 		Type:     client.ConfigMapInformerHandlers,
 		FilterFn: ctx.filterConfigMaps,
@@ -218,6 +226,7 @@ func (ctx *Context) updatePodInCache(oldObj, newObj interface{}) {
 		log.Logger.Error("failed to update pod in cache", zap.Error(err))
 		return
 	}
+
 	if err := ctx.schedulerCache.UpdatePod(oldPod, newPod); err != nil {
 		log.Logger.Debug("failed to update pod in cache",
 			zap.String("podName", oldPod.Name),
@@ -229,7 +238,13 @@ func (ctx *Context) updatePodInCache(oldObj, newObj interface{}) {
 func (ctx *Context) filterPods(obj interface{}) bool {
 	switch obj := obj.(type) {
 	case *v1.Pod:
-		return utils.GeneralPodFilter(obj)
+		// if a terminated pod is added to cache, it will
+		// add requested resource to the cached node, causing
+		// the node uses more resources that it actually is,
+		// this can only be fixed after the pod is removed.
+		// (trigger the delete pod)
+		return utils.GeneralPodFilter(obj) &&
+			!utils.IsPodTerminated(obj)
 	default:
 		return false
 	}

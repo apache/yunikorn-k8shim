@@ -202,8 +202,7 @@ func (os *Manager) updatePod(old, new interface{}) {
 		// pod succeed or failed means all containers in the pod have been terminated,
 		// and these container won't be restarted. In this case, we can safely release
 		// the resources for this allocation. And mark the task is done.
-		if newPod.Status.Phase == v1.PodSucceeded ||
-			newPod.Status.Phase == v1.PodFailed {
+		if utils.IsPodTerminated(newPod) {
 			log.Logger.Info("task completes",
 				zap.String("appType", os.Name()),
 				zap.String("namespace", newPod.Namespace),

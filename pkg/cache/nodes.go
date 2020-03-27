@@ -34,6 +34,13 @@ import (
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 )
 
+type updateType int
+
+const (
+	AddOccupiedResource updateType = iota
+	SubOccupiedResource
+)
+
 // scheduler nodes maintain cluster nodes and their status for the scheduler
 type schedulerNodes struct {
 	proxy    api.SchedulerAPI
@@ -137,6 +144,36 @@ func (nc *schedulerNodes) restoreNode(node *v1.Node) {
 				NodeID: node.name,
 				Event:  events.RestoreNode,
 			})
+		}
+	}
+}
+
+func (nc *schedulerNodes) updateNodeOccupiedResources(name string, resource *si.Resource, opt updateType) {
+	if common.IsZero(resource) {
+		return
+	}
+
+	if schedulerNode := nc.getNode(name); schedulerNode != nil {
+		nc.lock.Lock()
+		defer nc.lock.Unlock()
+
+		switch opt {
+		case AddOccupiedResource:
+			schedulerNode.occupied = common.Add(schedulerNode.occupied, resource)
+		case SubOccupiedResource:
+			schedulerNode.occupied = common.Sub(schedulerNode.occupied, resource)
+		default:
+			// noop
+			return
+		}
+
+		node := common.NewNode(schedulerNode.name, schedulerNode.uid, schedulerNode.capacity, schedulerNode.occupied)
+		request := common.CreateUpdateRequestForUpdatedNode(node)
+		log.Logger.Info("report occupied resources updates",
+			zap.String("node", schedulerNode.name),
+			zap.Any("request", request))
+		if err := nc.proxy.Update(&request); err != nil {
+			log.Logger.Info("hitting error while handling UpdateNode", zap.Error(err))
 		}
 	}
 }
