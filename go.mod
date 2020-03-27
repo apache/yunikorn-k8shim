@@ -6,17 +6,23 @@ require (
 	github.com/GoogleCloudPlatform/spark-on-k8s-operator v0.0.0-20200212043150-3df703098970
 	github.com/apache/incubator-yunikorn-core v0.0.0-20200326231431-eebff3eda3db
 	github.com/apache/incubator-yunikorn-scheduler-interface v0.0.0-20200324235502-68d212f575dc
+	github.com/gogo/protobuf v1.3.1 // indirect
+	github.com/googleapis/gnostic v0.4.1 // indirect
+	github.com/imdario/mergo v0.3.9 // indirect
 	github.com/looplab/fsm v0.1.0
-	github.com/yuin/goldmark v1.1.26 // indirect
 	go.uber.org/zap v1.13.0
-	golang.org/x/tools v0.0.0-20200325203130-f53864d0dba1 // indirect
-	google.golang.org/genproto v0.0.0-20200326112834-f447254575fd // indirect
+	gopkg.in/square/go-jose.v2 v2.4.1 // indirect
 	gotest.tools v2.2.0+incompatible
-	k8s.io/api v0.0.0-20190624085159-95846d7ef82a
-	k8s.io/apimachinery v0.0.0-20190624085041-961b39a1baa0
-	k8s.io/client-go v0.0.0-20190624085356-2c6e35a5b9cf
-	k8s.io/klog v0.3.3
-	k8s.io/kubernetes v1.14.3
+	k8s.io/api v0.0.0-20191004102349-159aefb8556b
+	k8s.io/apiextensions-apiserver v0.0.0-20191212015246-8fe0c124fb40 // indirect
+	k8s.io/apimachinery v0.0.0-20191004074956-c5d2f014d689
+	k8s.io/apiserver v0.0.0-20191212015046-43d571094e6f // indirect
+	k8s.io/client-go v11.0.1-0.20191029005444-8e4128053008+incompatible
+	k8s.io/csi-translation-lib v0.0.0-20191212015623-92af21758231 // indirect
+	k8s.io/klog v1.0.0
+	k8s.io/kube-openapi v0.0.0-20200204173128-addea2498afe // indirect
+	k8s.io/kubernetes v1.14.10
+	k8s.io/utils v0.0.0-20200327001022-6496210b90e8 // indirect
 )
 
-replace k8s.io/cloud-provider v0.0.0-20190624091323-9dc79cf4f9c7 => k8s.io/cloud-provider v0.0.0-20190516232619-2bf8e45c8454
+replace k8s.io/cloud-provider => k8s.io/cloud-provider v0.0.0-20191212015549-86a326830157
