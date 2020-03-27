@@ -27,10 +27,10 @@ import (
 	k8sCache "k8s.io/client-go/tools/cache"
 )
 
-// nodeResourceCoordinator looks at the resources that not allocated by yunikorn,
+// nodeResourceCoordinator looks at the resources that are not allocated by yunikorn,
 // and refresh scheduler cache to keep nodes' capacity in-sync.
-// this coordinator only looks after the pods that not scheduled by yunikorn,
-// and it registers update/delete handler to the pod informer. It ensures that
+// this coordinator only looks after the pods that are not scheduled by yunikorn,
+// and it registers update/delete handler to the pod informer. It ensures that the
 // following operations are done
 //  1) when a pod is becoming Running, add occupied node resource
 //  2) when a pod is terminated, sub the occupied node resource
@@ -119,11 +119,11 @@ func (c *nodeResourceCoordinator) deletePod(obj interface{}) {
 
 	// if pod is already terminated, that means the updates have already done
 	if utils.IsPodTerminated(pod) {
-		log.Logger.Debug("pod is already terminated, occupied resource updated should have already done")
+		log.Logger.Debug("pod is already terminated, occupied resource updated should have already been done")
 		return
 	}
 
-	log.Logger.Info("delete pod that scheduled by other schedulers",
+	log.Logger.Info("deleting pod that scheduled by other schedulers",
 		zap.String("namespace", pod.Namespace),
 		zap.String("podName", pod.Name))
 

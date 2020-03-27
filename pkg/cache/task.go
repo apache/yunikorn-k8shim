@@ -349,7 +349,6 @@ func (task *Task) beforeTaskCompleted(event *fsm.Event) {
 func (task *Task) releaseAllocation() {
 	// scheduler api might be nil in some tests
 	if task.context.apiProvider.GetAPIs().SchedulerAPI != nil {
-		// if allocated, sending release
 		log.Logger.Debug("prepare to send release request",
 			zap.String("applicationID", task.applicationID),
 			zap.String("taskID", task.taskID),

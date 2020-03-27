@@ -274,19 +274,31 @@ func Sub(left *si.Resource, right *si.Resource) *si.Resource {
 		left = &si.Resource{}
 	}
 	if right == nil {
-		return &si.Resource{}
+		return left
 	}
 
-	// neither are nil, clone one and sub the other
+
+	// clone left
 	rb := NewResourceBuilder()
 	for k, v := range left.Resources {
-		if rightValue, ok := right.Resources[k]; ok {
-			rb.AddResource(k, v.Value - rightValue.Value)
-		} else {
-			rb.AddResource(k, v.Value)
+		rb.AddResource(k, v.Value)
+	}
+	result := rb.Build()
+
+	// sub right
+	for k, v := range right.Resources {
+		if _, ok := result.Resources[k]; !ok {
+			result.Resources[k] = &si.Quantity{
+				Value: 0,
+			}
+		}
+
+		result.Resources[k] = &si.Quantity{
+			Value: result.Resources[k].Value - v.Value,
 		}
 	}
-	return rb.Build()
+
+	return result
 }
 
 func IsZero(r *si.Resource) bool {

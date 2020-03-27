@@ -311,7 +311,7 @@ func TestSub(t *testing.T) {
 	// empty resources
 	left := NewResourceBuilder().Build()
 	result = Sub(left, nil)
-	if result == nil || len(result.Resources) != 0 || result == left {
+	if result == nil || len(result.Resources) != 0 || result != left {
 		t.Errorf("sub Zero resource (right) did not return cloned resource: %v", result)
 	}
 
@@ -320,7 +320,13 @@ func TestSub(t *testing.T) {
 		AddResource("a", 5).
 		Build()
 	result = Sub(left, res1)
-	assert.Equal(t, IsZero(result), true)
+
+	expected := NewResourceBuilder().
+		AddResource("a", -5).
+		Build()
+	if !Equals(result, expected) {
+		t.Errorf("sub failed expected %v, actual %v", expected, result.Resources)
+	}
 
 	// complex case: just checking the resource merge, values check is secondary
 	res1 = NewResourceBuilder().
@@ -334,9 +340,11 @@ func TestSub(t *testing.T) {
 		Build()
 	res3 := Sub(res1, res2)
 
-	expected := NewResourceBuilder().
+	expected = NewResourceBuilder().
 		AddResource("a", -1).
 		AddResource("b", 1).
+		AddResource("c", 0).
+		AddResource("d", 1).
 		Build()
 
 	if !Equals(res3, expected) {
