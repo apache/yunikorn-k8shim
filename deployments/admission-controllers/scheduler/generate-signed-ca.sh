@@ -24,8 +24,14 @@ if [ ! -f ${CONF_FILE} ]; then
 fi
 
 tmpdir="$1"
-service=`cat ${CONF_FILE} | grep service | cut -d "=" -f 2`
-namespace=`cat ${CONF_FILE} | grep namespace | cut -d "=" -f 2`
+if [ -z "$SERVICE" ]; then
+  SERVICE=`cat ${CONF_FILE} | grep ^service | cut -d "=" -f 2`
+fi
+if [ -z "$NAMESPACE" ]; then
+  NAMESPACE=`cat ${CONF_FILE} | grep ^namespace | cut -d "=" -f 2`
+fi
+service=$SERVICE
+namespace=$NAMESPACE
 
 if [ ! -x "$(command -v openssl)" ]; then
     echo "openssl not found"

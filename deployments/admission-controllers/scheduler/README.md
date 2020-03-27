@@ -1,9 +1,10 @@
-# Admission Controller to inject SchedulerName on-the-fly
+# Admission Controller to mutate and validate on-the-fly
 
-This directory contains resources to create an admission controller web-hook which can inject
-`schedulerName` to pod's spec before admitting it. This can be used to deploy on an existing
-Kubernetes cluster and route all pods to YuniKorn, which can be treated as an alternative way
-to replace default scheduler.
+This directory contains resources to create admission controller web-hooks:
+- mutations: inject `schedulerName` and required `labels` to pod's spec/metadata before admitting it.
+ This can be used to deploy on an existing Kubernetes cluster and route all pods to YuniKorn,
+ which can be treated as an alternative way to replace default scheduler.
+- validations: validate yunikorn configs (the config-map named `yunikorn-configs`) before admitting it.
 
 ## Steps
 
@@ -23,6 +24,8 @@ this command does following tasks
 - Create the admission controller web-hook and launch it on K8s
 
 ### Test the admission controller
+
+#### Mutations
 
 Launch a pod with following spec, note this spec did not specify `schedulerName`,
 without the admission controller, it should be scheduled by default scheduler without any issue.
@@ -55,6 +58,30 @@ kubectl get pod task0 -o yaml
 ```
 
 you'll see the `schedulerName` has been injected with value `yunikorn`.
+
+#### Validations
+
+YuniKorn loads its configuration from a configmap called yunikorn-configs, this admission controller adds a web-hook to
+validate the update and create requests for this configmap.
+It rejects invalid configuration which otherwise would have been rejected inside the scheduler update process.
+Validations are currently limited to a syntax check only. The scheduler could still reject a configuration if it cannot
+replace the current configuration due to conflicts.
+
+For example, if yunikorn configs is updating with invalid node sort policy:
+```
+partitions:
+  - name: default
+    nodesortpolicy:
+        type: invalid
+    queues:
+      - name: root
+```
+
+This update request should be denied and the client can receive an error as below:
+```
+error: configmaps "yunikorn-configs" could not be patched: admission webhook "admission-webhook.yunikorn.validate-conf"
+ denied the request: undefined policy: invalid
+```
 
 ### Stop and delete the admission controller
 

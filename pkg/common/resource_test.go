@@ -20,8 +20,10 @@ package common
 import (
 	"testing"
 
-	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 	"gotest.tools/assert"
+
+	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
+
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -243,6 +245,30 @@ func TestNodeResource(t *testing.T) {
 	})
 
 	assert.Equal(t, result.Resources[CPU].GetValue(), int64(14500))
+}
+
+func TestCreateReleaseAllocationRequest(t *testing.T) {
+	request := CreateReleaseAllocationRequestForTask("app01", "alloc01", "default")
+	assert.Assert(t, request.Releases != nil)
+	assert.Assert(t, request.Releases.AllocationsToRelease != nil)
+	assert.Assert(t, request.Releases.AllocationAsksToRelease == nil)
+	assert.Equal(t, len(request.Releases.AllocationsToRelease), 1)
+	assert.Equal(t, len(request.Releases.AllocationAsksToRelease), 0)
+	assert.Equal(t, request.Releases.AllocationsToRelease[0].ApplicationID, "app01")
+	assert.Equal(t, request.Releases.AllocationsToRelease[0].UUID, "alloc01")
+	assert.Equal(t, request.Releases.AllocationsToRelease[0].PartitionName, "default")
+}
+
+func TestCreateReleaseAskRequestForTask(t *testing.T) {
+	request := CreateReleaseAskRequestForTask("app01", "task01", "default")
+	assert.Assert(t, request.Releases != nil)
+	assert.Assert(t, request.Releases.AllocationsToRelease == nil)
+	assert.Assert(t, request.Releases.AllocationAsksToRelease != nil)
+	assert.Equal(t, len(request.Releases.AllocationsToRelease), 0)
+	assert.Equal(t, len(request.Releases.AllocationAsksToRelease), 1)
+	assert.Equal(t, request.Releases.AllocationAsksToRelease[0].ApplicationID, "app01")
+	assert.Equal(t, request.Releases.AllocationAsksToRelease[0].Allocationkey, "task01")
+	assert.Equal(t, request.Releases.AllocationAsksToRelease[0].PartitionName, "default")
 }
 
 func TestIsZero(t *testing.T) {

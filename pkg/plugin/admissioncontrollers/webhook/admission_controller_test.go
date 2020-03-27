@@ -19,12 +19,16 @@
 package main
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
 	"gotest.tools/assert"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 )
 
 func TestUpdateLabels(t *testing.T) {
@@ -79,7 +83,7 @@ func TestUpdateLabels(t *testing.T) {
 			UID:             "7f5fd6c5d5",
 			ResourceVersion: "10654",
 			Labels: map[string]string{
-				"random": "random",
+				"random":        "random",
 				"applicationId": "app-0001",
 			},
 		},
@@ -117,7 +121,7 @@ func TestUpdateLabels(t *testing.T) {
 			ResourceVersion: "10654",
 			Labels: map[string]string{
 				"random": "random",
-				"queue": "root.abc",
+				"queue":  "root.abc",
 			},
 		},
 		Spec:   v1.PodSpec{},
@@ -211,3 +215,20 @@ func TestUpdateSchedulerName(t *testing.T) {
 	}
 }
 
+func TestValidateConfigMap(t *testing.T) {
+	configName := fmt.Sprintf("%s.yaml", conf.DefaultPolicyGroup)
+	controller := &admissionController{
+		configName: configName,
+	}
+	configmap := &v1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: common.DefaultConfigMapName,
+		},
+		Data: make(map[string]string),
+	}
+	// specified config "queues.yaml" not found
+	err := controller.validateConfigMap(configmap)
+	assert.Assert(t, err != nil, "expecting error when specified config is not found")
+	assert.Equal(t, err.Error(), "required config 'queues.yaml' not found in this configmap")
+	// skip further validations which depends on the webservice of yunikorn-core
+}
