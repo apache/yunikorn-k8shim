@@ -16,6 +16,15 @@ spec:
       containers:
         - name: yunikorn-scheduler-k8s
           image: yunikorn/yunikorn-scheduler-k8s:latest
+          env:
+            - name: logEncoding
+              value: console
+            - name: logLevel
+              value: '1'
+            - name: clusterId
+              value: mycluster
+            - name: clusterVersion
+              value: latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 9080

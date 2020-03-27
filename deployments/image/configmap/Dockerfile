@@ -35,4 +35,3 @@ RUN chmod +x /generate-signed-ca.sh
 ADD k8s_yunikorn_scheduler /k8s_yunikorn_scheduler
 WORKDIR /
 ENTRYPOINT ["/k8s_yunikorn_scheduler"]
-CMD ["-logEncoding=console", "-logLevel=-1", "-clusterId=mycluster", "-clusterVersion=latest"]
