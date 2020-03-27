@@ -11,16 +11,19 @@ require (
 	github.com/apache/incubator-yunikorn-core v0.0.0-20200327044858-ee5f23bc7618
 	github.com/apache/incubator-yunikorn-scheduler-interface v0.0.0-20200324235502-68d212f575dc
 	github.com/cncf/udpa/go v0.0.0-20200324003616-bae28a880fdb // indirect
+	github.com/docker/distribution v2.7.1+incompatible // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect
 	github.com/gogo/protobuf v1.3.1 // indirect
 	github.com/google/gofuzz v1.1.0 // indirect
-	github.com/googleapis/gnostic v0.4.1 // indirect
+	github.com/googleapis/gnostic v0.4.0 // indirect
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
 	github.com/imdario/mergo v0.3.9 // indirect
 	github.com/konsorten/go-windows-terminal-sequences v1.0.2 // indirect
+	github.com/kr/pretty v0.2.0 // indirect
 	github.com/looplab/fsm v0.1.0
 	github.com/onsi/ginkgo v1.8.0 // indirect
 	github.com/onsi/gomega v1.5.0 // indirect
+	github.com/opencontainers/go-digest v1.0.0-rc1 // indirect
 	github.com/rogpeppe/go-internal v1.5.2 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/stretchr/objx v0.2.0 // indirect
@@ -29,6 +32,7 @@ require (
 	golang.org/x/exp v0.0.0-20200320212757-167ffe94c325 // indirect
 	golang.org/x/image v0.0.0-20200119044424-58c23975cae1 // indirect
 	golang.org/x/mobile v0.0.0-20200222142934-3c8601c510d0 // indirect
+	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/square/go-jose.v2 v2.4.1 // indirect
 	gotest.tools v2.2.0+incompatible
 	k8s.io/api v0.0.0-20191004102349-159aefb8556b
@@ -36,6 +40,7 @@ require (
 	k8s.io/apimachinery v0.0.0-20191004074956-c5d2f014d689
 	k8s.io/apiserver v0.0.0-20191212015046-43d571094e6f // indirect
 	k8s.io/client-go v11.0.1-0.20191029005444-8e4128053008+incompatible
+	k8s.io/cloud-provider v0.0.0-00010101000000-000000000000 // indirect
 	k8s.io/csi-translation-lib v0.0.0-20191212015623-92af21758231 // indirect
 	k8s.io/klog v1.0.0
 	k8s.io/kube-openapi v0.0.0-20200204173128-addea2498afe // indirect
