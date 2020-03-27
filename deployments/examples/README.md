@@ -2,7 +2,7 @@
 
 Explore sample yaml files under this package to submit applications and get them scheduled by yunikorn.
 
-## nignx
+## nginx
 A simple one pod deployment of a [nginx](./nginx/nginx.yaml) image.
 
 ## predicates
