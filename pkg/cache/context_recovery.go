@@ -121,7 +121,9 @@ func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) err
 			log.Logger.Info("update occupied resources that allocated by other scheduler",
 				zap.String("node", node.Name),
 				zap.String("totalOccupied", occupiedResources.String()))
-			ctx.nodes.updateNodeOccupiedResources(node.Name, occupiedResources, AddOccupiedResource)
+			if cachedNode := ctx.nodes.getNode(node.Name); cachedNode != nil {
+				cachedNode.setOccupiedResource(occupiedResources)
+			}
 		}
 	}
 
