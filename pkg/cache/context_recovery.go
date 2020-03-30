@@ -117,6 +117,13 @@ func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) err
 				}
 			}
 
+			// why we need to calculate the occupied resources here? why not add an event-handler
+			// in node_coordinator#addPod?
+			// this is because the occupied resources must be calculated and counted before the
+			// scheduling started. If we do both updating existing occupied resources along with
+			// new pods scheduling, due to the fact that we cannot predicate the ordering of K8s
+			// events, it could be dangerous because we might schedule pods onto some node that
+			// doesn't have enough capacity (occupied resources not yet reported).
 			log.Logger.Info("update occupied resources that allocated by other scheduler",
 				zap.String("node", node.Name),
 				zap.String("totalOccupied", occupiedResources.String()))
