@@ -18,4 +18,9 @@
 FROM scratch
 ADD k8s_yunikorn_scheduler /k8s_yunikorn_scheduler
 ADD queues.yaml /queues.yaml
-ENTRYPOINT ["/k8s_yunikorn_scheduler"]
+ENV LOG_ENCODING "console"
+ENV LOG_LEVEL "-1"
+ENV CLUSTER_ID "mycluster"
+ENV CLUSTER_VERSION "latest"
+ENTRYPOINT ["sh", "-c", "/k8s_yunikorn_scheduler -logEncoding=${LOG_ENCODING} \
+-logLevel=${LOG_LEVEL} -clusterId=${CLUSTER_ID} -clusterVersion=${CLUSTER_VERSION}"]

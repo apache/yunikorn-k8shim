@@ -17,13 +17,13 @@ spec:
         - name: yunikorn-scheduler-k8s
           image: yunikorn/yunikorn-scheduler-k8s:latest
           env:
-            - name: logEncoding
+            - name: LOG_ENCODING
               value: console
-            - name: logLevel
-              value: '1'
-            - name: clusterId
-              value: mycluster
-            - name: clusterVersion
+            - name: LOG_LEVEL
+              value: '-1'
+            - name: CLUSTER_ID
+              value: myCluster
+            - name: CLUSTER_VERSION
               value: latest
           imagePullPolicy: IfNotPresent
           ports:
