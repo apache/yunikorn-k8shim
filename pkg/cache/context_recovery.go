@@ -106,8 +106,7 @@ func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) err
 							log.Logger.Warn("add existing allocation failed", zap.Error(err))
 						}
 					}
-				} else if utils.IsAssignedPod(&pod) &&
-					pod.Status.Phase == corev1.PodRunning {
+				} else if utils.IsAssignedPod(&pod) && utils.IsPodRunning(&pod) {
 					// pod is running but not scheduled by us
 					// we should report this occupied resource to scheduler-core
 					occupiedResources = common.Add(occupiedResources, common.GetPodResource(&pod))
