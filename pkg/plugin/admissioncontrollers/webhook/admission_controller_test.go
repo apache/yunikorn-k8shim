@@ -63,7 +63,7 @@ func TestUpdateLabels(t *testing.T) {
 		assert.Equal(t, len(updatedMap), 3)
 		assert.Equal(t, updatedMap["random"], "random")
 		assert.Equal(t, updatedMap["queue"], "root.default")
-		assert.Equal(t, strings.HasPrefix(updatedMap["applicationId"], "__app_"), true)
+		assert.Equal(t, strings.HasPrefix(updatedMap["applicationId"], "default_a-test-pod"), true)
 	} else {
 		t.Fatal("patch info is not expected")
 	}
@@ -137,7 +137,7 @@ func TestUpdateLabels(t *testing.T) {
 		assert.Equal(t, len(updatedMap), 3)
 		assert.Equal(t, updatedMap["random"], "random")
 		assert.Equal(t, updatedMap["queue"], "root.abc")
-		assert.Equal(t, strings.HasPrefix(updatedMap["applicationId"], "__app_"), true)
+		assert.Equal(t, strings.HasPrefix(updatedMap["applicationId"], "default_a-test-pod"), true)
 	} else {
 		t.Fatal("patch info is not expected")
 	}
@@ -168,7 +168,7 @@ func TestUpdateLabels(t *testing.T) {
 	if updatedMap, ok := patch[0].Value.(map[string]string); ok {
 		assert.Equal(t, len(updatedMap), 2)
 		assert.Equal(t, updatedMap["queue"], "root.default")
-		assert.Equal(t, strings.HasPrefix(updatedMap["applicationId"], "__app_"), true)
+		assert.Equal(t, strings.HasPrefix(updatedMap["applicationId"], "default_a-test-pod"), true)
 	} else {
 		t.Fatal("patch info is not expected")
 	}
@@ -196,7 +196,7 @@ func TestUpdateLabels(t *testing.T) {
 	if updatedMap, ok := patch[0].Value.(map[string]string); ok {
 		assert.Equal(t, len(updatedMap), 2)
 		assert.Equal(t, updatedMap["queue"], "root.default")
-		assert.Equal(t, strings.HasPrefix(updatedMap["applicationId"], "__app_"), true)
+		assert.Equal(t, strings.HasPrefix(updatedMap["applicationId"], "default_some-pod-"), true)
 	} else {
 		t.Fatal("patch info is not expected")
 	}
