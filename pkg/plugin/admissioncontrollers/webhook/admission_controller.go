@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strconv"
 	"time"
 
 	"go.uber.org/zap"
@@ -124,6 +125,15 @@ func updateSchedulerName(patch []patchOperation) []patchOperation {
 	})
 }
 
+// the generated ID is using [PodName]_[Timestamp] naming convention.
+// the generated ID should be unique even the pod name is same (differ on nano time),
+// and the max length of the ID is 63 chars.
+func generateAppID(podName string) string {
+	timestamp := strconv.FormatInt(time.Now().UnixNano(), 10)
+	generatedID := fmt.Sprintf("%.43s_%.19s", podName, timestamp)
+	return generatedID
+}
+
 func updateLabels(pod *v1.Pod, patch []patchOperation) []patchOperation {
 	log.Logger.Info("updating pod labels",
 		zap.String("podName", pod.Name),
@@ -139,14 +149,6 @@ func updateLabels(pod *v1.Pod, patch []patchOperation) []patchOperation {
 	if _, ok := existingLabels[common.SparkLabelAppID]; !ok {
 		if _, ok := existingLabels[common.LabelApplicationID]; !ok {
 			// if app id not exist, generate one
-			// the generated ID is using [PodNamespace]_[PodName]_[Timestamp] naming convention.
-			// some admission controllers have strict checks of the length/format of each labels,
-			// this convention keeps the name tidy and short.
-			podNamespace := "default"
-			if pod.Namespace != "" {
-				podNamespace = pod.Namespace
-			}
-
 			// pod's name can be generated, if name is not explicitly specified
 			// look for generateName instead
 			podName := "unknown"
@@ -156,7 +158,7 @@ func updateLabels(pod *v1.Pod, patch []patchOperation) []patchOperation {
 				podName = pod.GenerateName
 			}
 
-			generatedID := fmt.Sprintf("%s_%s_%d", podNamespace, podName, time.Now().Unix())
+			generatedID := generateAppID(podName)
 			log.Logger.Debug("adding application ID",
 				zap.String("generatedID", generatedID))
 			result[common.LabelApplicationID] = generatedID
