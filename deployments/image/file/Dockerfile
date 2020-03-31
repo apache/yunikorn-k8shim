@@ -18,9 +18,32 @@
 FROM scratch
 ADD k8s_yunikorn_scheduler /k8s_yunikorn_scheduler
 ADD queues.yaml /queues.yaml
-ENV LOG_ENCODING "console"
-ENV LOG_LEVEL "-1"
 ENV CLUSTER_ID "mycluster"
 ENV CLUSTER_VERSION "latest"
-ENTRYPOINT ["sh", "-c", "/k8s_yunikorn_scheduler -logEncoding=${LOG_ENCODING} \
--logLevel=${LOG_LEVEL} -clusterId=${CLUSTER_ID} -clusterVersion=${CLUSTER_VERSION}"]
+ENV SCHEDULER_NAME "yunikorn"
+ENV POLICY_GROUP "queues"
+ENV SCHEDULING_INTERVAL "1s"
+ENV LOG_LEVEL "-1"
+ENV LOG_ENCODING "console"
+ENV VOLUME_BINDING_TIMEOUT "10s"
+ENV EVENT_CHANNEL_CAPACITY "1048576"
+ENV DISPATCHER_TIMEOUT "300s"
+ENV KUBE_CLIENT_QPS "1000"
+ENV KUBE_CLIENT_BURST "1000"
+ENV PREDICATES ""
+ENV OPERATOR_PLUGINS "general"
+ENTRYPOINT ["sh", "-c", "/k8s_yunikorn_scheduler \
+-clusterId=${CLUSTER_ID} \
+-clusterVersion=${CLUSTER_VERSION} \
+-name=${SCHEDULER_NAME} \
+-policyGroup=${POLICY_GROUP} \
+-interval=${SCHEDULING_INTERVAL} \
+-logLevel=${LOG_LEVEL} \
+-logEncoding=${LOG_ENCODING} \
+-volumeBindTimeout=${VOLUME_BINDING_TIMEOUT} \
+-eventChannelCapacity=${EVENT_CHANNEL_CAPACITY} \
+-dispatchTimeout=${DISPATCHER_TIMEOUT} \
+-kubeQPS=${KUBE_CLIENT_QPS} \
+-kubeBurst=${KUBE_CLIENT_BURST} \
+-predicates=${PREDICATES} \
+-operatorPlugins=${OPERATOR_PLUGINS}"]
