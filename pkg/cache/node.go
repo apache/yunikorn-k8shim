@@ -107,6 +107,14 @@ func (n *SchedulerNode) addExistingAllocation(allocation *si.Allocation) {
 	n.existingAllocations = append(n.existingAllocations, allocation)
 }
 
+func (n *SchedulerNode) setOccupiedResource(resource *si.Resource) {
+	n.lock.Lock()
+	defer n.lock.Unlock()
+	log.Logger.Info("set node occupied resource",
+		zap.String("occupied", resource.String()))
+	n.occupied = resource
+}
+
 func (n *SchedulerNode) getNodeState() string {
 	// fsm has its own internal lock, we don't need to hold node's lock here
 	return n.fsm.Current()
@@ -142,6 +150,7 @@ func (n *SchedulerNode) handleNodeRecovery(event *fsm.Event) {
 			{
 				NodeID:              n.name,
 				SchedulableResource: n.capacity,
+				OccupiedResource:    n.occupied,
 				Attributes: map[string]string{
 					common.DefaultNodeAttributeHostNameKey: n.name,
 					common.DefaultNodeAttributeRackNameKey: common.DefaultRackName,

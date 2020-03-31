@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
 	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -30,6 +29,7 @@ import (
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/dispatcher"
@@ -96,7 +96,12 @@ func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) err
 
 			occupiedResources := common.NewResourceBuilder().Build()
 			for _, pod := range podList.Items {
-				if utils.GeneralPodFilter(&pod) && utils.IsAssignedPod(&pod) {
+				// only handle assigned pods
+				if !utils.IsAssignedPod(&pod) {
+					continue
+				}
+				// yunikorn scheduled pods add to existing allocations
+				if utils.GeneralPodFilter(&pod) {
 					if existingAlloc := getExistingAllocation(mgr, &pod); existingAlloc != nil {
 						log.Logger.Debug("existing allocation",
 							zap.String("appID", existingAlloc.ApplicationID),
@@ -106,22 +111,30 @@ func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) err
 							log.Logger.Warn("add existing allocation failed", zap.Error(err))
 						}
 					}
-				} else if utils.IsAssignedPod(&pod) &&
-					pod.Status.Phase == corev1.PodRunning {
+				} else if utils.IsPodRunning(&pod) {
 					// pod is running but not scheduled by us
 					// we should report this occupied resource to scheduler-core
 					occupiedResources = common.Add(occupiedResources, common.GetPodResource(&pod))
-					if err := ctx.nodes.cache.AddPod(&pod); err != nil {
+					if err = ctx.nodes.cache.AddPod(&pod); err != nil {
 						log.Logger.Warn("failed to update scheduler-cache",
 							zap.Error(err))
 					}
 				}
 			}
 
+			// why we need to calculate the occupied resources here? why not add an event-handler
+			// in node_coordinator#addPod?
+			// this is because the occupied resources must be calculated and counted before the
+			// scheduling started. If we do both updating existing occupied resources along with
+			// new pods scheduling, due to the fact that we cannot predicate the ordering of K8s
+			// events, it could be dangerous because we might schedule pods onto some node that
+			// doesn't have enough capacity (occupied resources not yet reported).
 			log.Logger.Info("update occupied resources that allocated by other scheduler",
 				zap.String("node", node.Name),
 				zap.String("totalOccupied", occupiedResources.String()))
-			ctx.nodes.updateNodeOccupiedResources(node.Name, occupiedResources, AddOccupiedResource)
+			if cachedNode := ctx.nodes.getNode(node.Name); cachedNode != nil {
+				cachedNode.setOccupiedResource(occupiedResources)
+			}
 		}
 	}
 
