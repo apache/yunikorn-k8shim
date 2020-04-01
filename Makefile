@@ -168,8 +168,6 @@ test:
 clean:
 	go clean -r -x ./...
 	rm -rf ${OUTPUT} ${CONF_FILE} ${BINARY} \
-	./deployments/image/file/${BINARY} \
-	./deployments/image/file/${CONF_FILE} \
 	./deployments/image/configmap/${BINARY} \
 	./deployments/image/configmap/${CONF_FILE} \
 	./deployments/image/admission/${POD_ADMISSION_CONTROLLER_BINARY}
