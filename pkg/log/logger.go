@@ -21,7 +21,6 @@ package log
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -34,11 +33,9 @@ var Logger *zap.Logger
 func init() {
 	configs := conf.GetSchedulerConf()
 
-	var outputPaths []string
-	if strings.Compare(configs.LogFile, "") == 0 {
-		outputPaths = []string{"stdout"}
-	} else {
-		outputPaths = []string{"stdout", configs.LogFile}
+	outputPaths := []string{"stdout"}
+	if configs.LogFile != "" {
+		outputPaths = append(outputPaths, configs.LogFile)
 	}
 
 	zapConfigs := zap.Config{
@@ -49,26 +46,30 @@ func init() {
 		Sampling:          nil,
 		Encoding:          configs.LogEncoding,
 		EncoderConfig: zapcore.EncoderConfig{
-			MessageKey:     "message",
-			LevelKey:       "level",
-			TimeKey:        "time",
-			NameKey:        "name",
-			CallerKey:      "caller",
-			StacktraceKey:  "stacktrace",
+			MessageKey:    "message",
+			LevelKey:      "level",
+			TimeKey:       "time",
+			NameKey:       "name",
+			CallerKey:     "caller",
+			StacktraceKey: "stacktrace",
+			LineEnding:    zapcore.DefaultLineEnding,
+			// note: https://godoc.org/go.uber.org/zap/zapcore#EncoderConfig
+			// only EncodeName is optional all others must be set
 			EncodeLevel:    zapcore.CapitalLevelEncoder,
 			EncodeTime:     zapcore.ISO8601TimeEncoder,
-			EncodeDuration: nil,
+			EncodeDuration: zapcore.StringDurationEncoder,
 			EncodeCaller:   zapcore.ShortCallerEncoder,
 		},
 		OutputPaths:      outputPaths,
 		ErrorOutputPaths: []string{"stderr"},
 	}
 
-	if logger, err := zapConfigs.Build(); err == nil {
-		Logger = logger
-		// zap.ReplaceGlobals(Logger)
-	} else {
-		panic(fmt.Sprintf("failed to init logger, reason: %s", err.Error()))
+	var err error
+	Logger, err = zapConfigs.Build()
+	// this should really not happen so just write to stdout and set a Nop logger
+	if err != nil {
+		fmt.Printf("Logging disabled, logger init failed with error: %v", err)
+		Logger = zap.NewNop()
 	}
 
 	// set as global logging
@@ -77,11 +78,12 @@ func init() {
 	zap.ReplaceGlobals(Logger)
 
 	// dump configuration
-	c, err := json.MarshalIndent(&configs, "", " ")
+	var c []byte
+	c, err = json.MarshalIndent(&configs, "", " ")
 	if err != nil {
 		Logger.Info("scheduler configuration, json conversion failed", zap.Any("configs", configs))
 	} else {
-		Logger.Info("scheduler configuration, pretty print", zap.String("configs", string(c)))
+		Logger.Info("scheduler configuration, pretty print", zap.ByteString("configs", c))
 	}
 
 	// make sure logs are flushed
