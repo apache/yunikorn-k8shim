@@ -63,9 +63,9 @@ func TestUpdateLabels(t *testing.T) {
 		assert.Equal(t, len(updatedMap), 3)
 		assert.Equal(t, updatedMap["random"], "random")
 		assert.Equal(t, updatedMap["queue"], "root.default")
-		assert.Equal(t, strings.HasPrefix(updatedMap["applicationId"], "default_a-test-pod"), true)
+		assert.Equal(t, strings.HasPrefix(updatedMap["applicationId"], "a-test-pod"), true)
 	} else {
-		t.Fatal("patch info is not expected")
+		t.Fatal("patch info content is not as expected")
 	}
 
 	// verify if applicationId is given in the labels,
@@ -102,7 +102,7 @@ func TestUpdateLabels(t *testing.T) {
 		assert.Equal(t, updatedMap["queue"], "root.default")
 		assert.Equal(t, updatedMap["applicationId"], "app-0001")
 	} else {
-		t.Fatal("patch info is not expected")
+		t.Fatal("patch info content is not as expected")
 	}
 
 	// verify if queue is given in the labels,
@@ -137,9 +137,9 @@ func TestUpdateLabels(t *testing.T) {
 		assert.Equal(t, len(updatedMap), 3)
 		assert.Equal(t, updatedMap["random"], "random")
 		assert.Equal(t, updatedMap["queue"], "root.abc")
-		assert.Equal(t, strings.HasPrefix(updatedMap["applicationId"], "default_a-test-pod"), true)
+		assert.Equal(t, strings.HasPrefix(updatedMap["applicationId"], "a-test-pod"), true)
 	} else {
-		t.Fatal("patch info is not expected")
+		t.Fatal("patch info content is not as expected")
 	}
 
 	// namespace might be empty
@@ -168,9 +168,9 @@ func TestUpdateLabels(t *testing.T) {
 	if updatedMap, ok := patch[0].Value.(map[string]string); ok {
 		assert.Equal(t, len(updatedMap), 2)
 		assert.Equal(t, updatedMap["queue"], "root.default")
-		assert.Equal(t, strings.HasPrefix(updatedMap["applicationId"], "default_a-test-pod"), true)
+		assert.Equal(t, strings.HasPrefix(updatedMap["applicationId"], "a-test-pod"), true)
 	} else {
-		t.Fatal("patch info is not expected")
+		t.Fatal("patch info content is not as expected")
 	}
 
 	// pod name might be empty, it can comes from generatedName
@@ -196,9 +196,35 @@ func TestUpdateLabels(t *testing.T) {
 	if updatedMap, ok := patch[0].Value.(map[string]string); ok {
 		assert.Equal(t, len(updatedMap), 2)
 		assert.Equal(t, updatedMap["queue"], "root.default")
-		assert.Equal(t, strings.HasPrefix(updatedMap["applicationId"], "default_some-pod-"), true)
+		assert.Equal(t, strings.HasPrefix(updatedMap["applicationId"], "some-pod-"), true)
 	} else {
-		t.Fatal("patch info is not expected")
+		t.Fatal("patch info content is not as expected")
+	}
+
+	// pod name and generate name could be both empty
+	patch = make([]patchOperation, 0)
+
+	pod = &v1.Pod{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{},
+		Spec:       v1.PodSpec{},
+		Status:     v1.PodStatus{},
+	}
+
+	patch = updateLabels(pod, patch)
+
+	assert.Equal(t, len(patch), 1)
+	assert.Equal(t, patch[0].Op, "add")
+	assert.Equal(t, patch[0].Path, "/metadata/labels")
+	if updatedMap, ok := patch[0].Value.(map[string]string); ok {
+		assert.Equal(t, len(updatedMap), 2)
+		assert.Equal(t, updatedMap["queue"], "root.default")
+		assert.Equal(t, strings.HasPrefix(updatedMap["applicationId"], "unknown"), true)
+	} else {
+		t.Fatal("patch info content is not as expected")
 	}
 }
 
@@ -211,7 +237,7 @@ func TestUpdateSchedulerName(t *testing.T) {
 	if name, ok := patch[0].Value.(string); ok {
 		assert.Equal(t, name, "yunikorn")
 	} else {
-		t.Fatal("patch info is not expected")
+		t.Fatal("patch info content is not as expected")
 	}
 }
 
@@ -231,4 +257,22 @@ func TestValidateConfigMap(t *testing.T) {
 	assert.Assert(t, err != nil, "expecting error when specified config is not found")
 	assert.Equal(t, err.Error(), "required config 'queues.yaml' not found in this configmap")
 	// skip further validations which depends on the webservice of yunikorn-core
+}
+
+func TestGenerateAppID(t *testing.T) {
+	appID := generateAppID("this-is-a-pod-name")
+	assert.Equal(t, strings.HasPrefix(appID, "this-is-a-pod-name"), true)
+	assert.Equal(t, len(appID), 38)
+
+	appID = generateAppID("short")
+	assert.Equal(t, strings.HasPrefix(appID, "short"), true)
+	assert.Equal(t, len(appID), 25)
+
+	appID = generateAppID(strings.Repeat("long", 100))
+	assert.Equal(t, strings.HasPrefix(appID, "long"), true)
+	assert.Equal(t, len(appID), 63)
+
+	appID = generateAppID("monitoring-prometheus-kube-state-metrics-6484fd9764-ql2w4")
+	assert.Equal(t, strings.HasPrefix(appID, "monitoring-prometheus"), true)
+	assert.Equal(t, len(appID), 63)
 }
