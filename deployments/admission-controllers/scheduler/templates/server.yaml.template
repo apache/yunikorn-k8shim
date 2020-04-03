@@ -15,6 +15,16 @@ spec:
       labels:
         app: yunikorn
     spec:
+      affinity:
+        podAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                - key: component
+                  operator: In
+                  values:
+                  - scheduler
+              topologyKey: "kubernetes.io/hostname"
       containers:
         - name: yunikorn-admission-controller-webhook
           image: yunikorn/yunikorn-scheduler-admission-controller:latest
