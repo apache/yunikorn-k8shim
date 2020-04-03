@@ -8,7 +8,7 @@ require (
 	dmitri.shuralyov.com/gpu/mtl v0.0.0-20191203043605-d42048ed14fd // indirect
 	github.com/BurntSushi/xgb v0.0.0-20200324125942-20f126ea2843 // indirect
 	github.com/GoogleCloudPlatform/spark-on-k8s-operator v0.0.0-20200212043150-3df703098970
-	github.com/apache/incubator-yunikorn-core v0.0.0-20200331022441-c9492dfdd252
+	github.com/apache/incubator-yunikorn-core v0.0.0-20200403014952-0e3dc0a683e7
 	github.com/apache/incubator-yunikorn-scheduler-interface v0.0.0-20200327234544-149aaa3d8e48
 	github.com/cncf/udpa/go v0.0.0-20200324003616-bae28a880fdb // indirect
 	github.com/docker/distribution v2.7.1+incompatible // indirect
