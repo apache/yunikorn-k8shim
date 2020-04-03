@@ -10,6 +10,7 @@ spec:
     metadata:
       labels:
         app: yunikorn
+        component: scheduler
       name: yunikorn-scheduler
     spec:
       hostNetwork: true

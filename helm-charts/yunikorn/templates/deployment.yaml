@@ -18,6 +18,7 @@ spec:
       name: yunikorn-scheduler
       labels:
         app: yunikorn
+        component: scheduler
         release: {{ .Release.Name }}
     spec:
       serviceAccountName: {{ .Values.serviceAccount }}
