@@ -129,9 +129,6 @@ func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) err
 			// new pods scheduling, due to the fact that we cannot predicate the ordering of K8s
 			// events, it could be dangerous because we might schedule pods onto some node that
 			// doesn't have enough capacity (occupied resources not yet reported).
-			log.Logger.Info("update occupied resources that allocated by other scheduler",
-				zap.String("node", node.Name),
-				zap.String("totalOccupied", occupiedResources.String()))
 			if cachedNode := ctx.nodes.getNode(node.Name); cachedNode != nil {
 				cachedNode.setOccupiedResource(occupiedResources)
 			}

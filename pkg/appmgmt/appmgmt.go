@@ -93,7 +93,7 @@ func (svc *AppManagementService) Start() error {
 			return err
 		}
 
-		log.Logger.Info("service started",
+		log.Logger.Info("app management service started",
 			zap.String("serviceName", optService.Name()))
 	}
 

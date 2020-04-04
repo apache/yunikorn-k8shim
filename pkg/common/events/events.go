@@ -18,6 +18,8 @@
 
 package events
 
+const EnterState = "enter_state"
+
 //----------------------------------------------
 // General event interface
 //----------------------------------------------
