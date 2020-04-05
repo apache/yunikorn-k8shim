@@ -22,7 +22,9 @@ import (
 	"flag"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
+	"unsafe"
 
 	"go.uber.org/zap/zapcore"
 	"k8s.io/klog"
@@ -45,7 +47,7 @@ const (
 	DefaultKubeBurst            = 1000
 )
 
-var configuration *SchedulerConf
+var pointer unsafe.Pointer
 
 type SchedulerConf struct {
 	ClusterID            string        `json:"clusterId"`
@@ -68,12 +70,12 @@ type SchedulerConf struct {
 }
 
 func GetSchedulerConf() *SchedulerConf {
-	return configuration
+	return (*SchedulerConf)(atomic.LoadPointer(&pointer))
 }
 
 // unit tests may need to override configuration
 func Set(conf *SchedulerConf) {
-	configuration = conf
+	atomic.StorePointer(&pointer, unsafe.Pointer(conf))
 }
 
 func (conf *SchedulerConf) GetSchedulingInterval() time.Duration {
@@ -149,7 +151,7 @@ func init() {
 		_ = flag.Set("v", "4")
 	}
 
-	configuration = &SchedulerConf{
+	Set(&SchedulerConf{
 		ClusterID:            *clusterID,
 		ClusterVersion:       *clusterVersion,
 		PolicyGroup:          *policyGroup,
@@ -166,5 +168,5 @@ func init() {
 		KubeBurst:            *kubeBurst,
 		Predicates:           *predicateList,
 		OperatorPlugins:      *operatorPluginList,
-	}
+	})
 }
