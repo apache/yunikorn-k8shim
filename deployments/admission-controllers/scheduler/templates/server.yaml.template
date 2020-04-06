@@ -23,7 +23,7 @@ spec:
                 - key: component
                   operator: In
                   values:
-                  - scheduler
+                  - yunikorn-scheduler
               topologyKey: "kubernetes.io/hostname"
       containers:
         - name: yunikorn-admission-controller-webhook
