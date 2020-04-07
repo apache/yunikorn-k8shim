@@ -13,7 +13,7 @@ spec:
     metadata:
       labels:
         app: yunikorn
-        component: scheduler
+        component: yunikorn-scheduler
       name: yunikorn-scheduler
     spec:
       containers:
