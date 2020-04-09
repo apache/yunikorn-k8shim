@@ -222,7 +222,7 @@ func (task *Task) handleSubmitTaskEvent(event *fsm.Event) {
 			log.Logger.Debug("updating pod state ",
 				zap.String("appID", task.applicationID),
 				zap.String("taskID", task.taskID),
-				zap.String("podName", fmt.Sprintf("%s", task.alias)),
+				zap.String("podName", task.alias),
 				zap.String("state", "Unscheduable"))
 			// if task state is still pending after 5s,
 			// move task to un-schedule-able state.
@@ -290,7 +290,7 @@ func (task *Task) postTaskAllocated(event *fsm.Event) {
 			zap.String("podUID", string(task.pod.UID)))
 		if task.context.apiProvider.GetAPIs().VolumeBinder != nil {
 			if err := task.context.bindPodVolumes(task.pod); err != nil {
-				errorMessage = fmt.Sprintf("bind pod volumes failed, name: %s, %#v", task.alias, err)
+				errorMessage = fmt.Sprintf("bind pod volumes failed, name: %s, %s", task.alias, err.Error())
 				dispatcher.Dispatch(NewFailTaskEvent(task.applicationID, task.taskID, errorMessage))
 				events.GetRecorder().Eventf(task.pod,
 					v1.EventTypeWarning, "PodVolumesBindFailure", errorMessage)
@@ -303,7 +303,7 @@ func (task *Task) postTaskAllocated(event *fsm.Event) {
 			zap.String("podUID", string(task.pod.UID)))
 
 		if err := task.context.apiProvider.GetAPIs().KubeClient.Bind(task.pod, nodeID); err != nil {
-			errorMessage = fmt.Sprintf("bind pod volumes failed, name: %s, %#v", task.alias, err)
+			errorMessage = fmt.Sprintf("bind pod volumes failed, name: %s, %s", task.alias, err.Error())
 			log.Logger.Error(errorMessage)
 			dispatcher.Dispatch(NewFailTaskEvent(task.applicationID, task.taskID, errorMessage))
 			events.GetRecorder().Eventf(task.pod,

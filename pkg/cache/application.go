@@ -104,7 +104,6 @@ func NewApplication(appID, queueName, user string, tags map[string]string, sched
 			string(events.RejectApplication):   app.handleRejectApplicationEvent,
 			string(events.CompleteApplication): app.handleCompleteApplicationEvent,
 			events.EnterState:                  app.enterState,
-
 		},
 	)
 
