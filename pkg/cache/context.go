@@ -308,7 +308,7 @@ func (ctx *Context) updatePodCondition(pod *v1.Pod, condition *v1.PodCondition) 
 }
 
 // evaluate given predicates based on current context
-func (ctx *Context) IsPodFitNode(name string, node string) error {
+func (ctx *Context) IsPodFitNode(name, node string, allocate bool) error {
 	// simply skip if predicates are not enabled
 	if !ctx.predictor.Enabled() {
 		return nil
@@ -320,7 +320,7 @@ func (ctx *Context) IsPodFitNode(name string, node string) error {
 		// if pod exists in cache, try to run predicates
 		if targetNode := ctx.schedulerCache.GetNode(node); targetNode != nil {
 			meta := ctx.predictor.GetPredicateMeta(pod, ctx.schedulerCache.GetNodesInfoMap())
-			return ctx.predictor.Predicates(pod, meta, targetNode)
+			return ctx.predictor.Predicates(pod, meta, targetNode, allocate)
 		}
 	}
 	return fmt.Errorf("predicates were not running because pod or node was not found in cache")

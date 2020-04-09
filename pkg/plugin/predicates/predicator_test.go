@@ -96,7 +96,7 @@ func TestPodFitsHost(t *testing.T) {
 			// API call always returns nil, never an error
 			//nolint:errcheck
 			_ = nodeInfo.SetNode(test.node)
-			err := predictor.Predicates(test.pod, nil, nodeInfo)
+			err := predictor.Predicates(test.pod, nil, nodeInfo, true)
 			if (err == nil) != test.fits {
 				t.Errorf("%s expected fit state '%t' did not match real state and err = %v", test.name, test.fits, err)
 			}
@@ -234,7 +234,7 @@ func TestPodFitsHostPorts(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			err := predictor.Predicates(test.pod, nil, test.nodeInfo)
+			err := predictor.Predicates(test.pod, nil, test.nodeInfo, true)
 			if (err == nil) != test.fits {
 				t.Errorf("%s expected fit state '%t' did not match real state and err = %v", test.name, test.fits, err)
 			}
@@ -930,7 +930,7 @@ func TestPodFitsSelector(t *testing.T) {
 			//nolint:errcheck
 			_ = nodeInfo.SetNode(&node)
 
-			err := predictor.Predicates(test.pod, nil, nodeInfo)
+			err := predictor.Predicates(test.pod, nil, nodeInfo, true)
 			if (err == nil) != test.fits {
 				t.Errorf("%s expected fit state '%t' did not match real state and err = %v", test.name, test.fits, err)
 			}
@@ -977,7 +977,7 @@ func makeAllocatableResources(milliCPU, memory, pods, extendedA, storage, hugePa
 }
 
 func newPodWithPort(hostPorts ...int) *v1.Pod {
-	networkPorts := []v1.ContainerPort{}
+	var networkPorts []v1.ContainerPort
 	for _, port := range hostPorts {
 		networkPorts = append(networkPorts, v1.ContainerPort{HostPort: int32(port)})
 	}
@@ -1062,7 +1062,7 @@ func TestRunGeneralPredicates(t *testing.T) {
 			// API call always returns nil, never an error
 			//nolint:errcheck
 			_ = test.nodeInfo.SetNode(test.node)
-			err := predictor.Predicates(test.pod, nil, test.nodeInfo)
+			err := predictor.Predicates(test.pod, nil, test.nodeInfo, true)
 			if (err == nil) != test.fits {
 				t.Errorf("%s expected fit state '%t' did not match real state and err = %v", test.name, test.fits, err)
 			}
@@ -2009,7 +2009,7 @@ func TestInterPodAffinity(t *testing.T) {
 			_ = nodeInfo.SetNode(test.node)
 			nodeInfoMap := map[string]*deschedulernode.NodeInfo{test.node.Name: nodeInfo}
 			meta := predictor.GetPredicateMeta(test.pod, nodeInfoMap)
-			err := predictor.Predicates(test.pod, meta, nodeInfo)
+			err := predictor.Predicates(test.pod, meta, nodeInfo, true)
 			if (err == nil) != test.fits {
 				t.Errorf("%s expected fit state '%t' did not match real state and err = %v", test.name, test.fits, err)
 			}
@@ -2038,4 +2038,51 @@ func TestInvalidConfiguredPredicates(t *testing.T) {
 	_, err := parseConfiguredSchedulerPolicy()
 	assert.Error(t, err, fmt.Sprintf("configured predicate 'xxx' is invalid, valid predicates are: %v",
 		predicates.Ordering()))
+}
+
+func TestReserveAlloc(t *testing.T) {
+	conf.Set(&conf.SchedulerConf{TestMode: true})
+	pod := &v1.Pod{
+		Spec: v1.PodSpec{
+			NodeName: "foo",
+		},
+	}
+	node := &v1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "foo",
+		},
+	}
+	nodeInfo := deschedulernode.NewNodeInfo(pod)
+	// API call always returns nil, never an error
+	//nolint:errcheck
+	_ = nodeInfo.SetNode(node)
+	nodeInfoMap := map[string]*deschedulernode.NodeInfo{node.Name: nodeInfo}
+
+	// no predicates configured that are run by reservations
+	predictor := newPredictorInternal(&factory.PluginFactoryArgs{}, schedulerapi.Policy{
+		Predicates: []schedulerapi.PredicatePolicy{
+			{Name: predicates.HostNamePred},
+		}})
+	meta := predictor.GetPredicateMeta(pod, nodeInfoMap)
+	err := predictor.Predicates(pod, meta, nodeInfo, false)
+	assert.NilError(t, err, "error should have been nil, no predicates given")
+
+	// add one predicate also run by reservations
+	predictor = newPredictorInternal(&factory.PluginFactoryArgs{}, schedulerapi.Policy{
+		Predicates: []schedulerapi.PredicatePolicy{
+			{Name: predicates.CheckNodeUnschedulablePred},
+		}})
+	err = predictor.Predicates(pod, meta, nodeInfo, false)
+	assert.NilError(t, err, "error should have been nil, node is schedulable")
+
+	// make the node unschedulable
+	nodeInfo.SetTaints([]v1.Taint{{
+		Key:    schedulerapi.TaintNodeUnschedulable,
+		Effect: v1.TaintEffectNoSchedule,
+	}})
+	node.Spec.Unschedulable = true
+	err = predictor.Predicates(pod, meta, nodeInfo, false)
+	if err == nil {
+		t.Errorf("error should not have been nil, predicate should have failed")
+	}
 }
