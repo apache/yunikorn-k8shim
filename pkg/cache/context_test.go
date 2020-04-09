@@ -21,13 +21,13 @@ package cache
 import (
 	"testing"
 
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"gotest.tools/assert"
 	"k8s.io/api/core/v1"
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 )
 
 const fakeClusterID = "test-cluster"
@@ -36,17 +36,7 @@ const fakeClusterSchedulerName = "yunikorn-test"
 const fakeClusterSchedulingInterval = 1
 
 func initContextForTest() *Context {
-	configs := conf.SchedulerConf{
-		ClusterID:      fakeClusterID,
-		ClusterVersion: fakeClusterVersion,
-		SchedulerName:  fakeClusterSchedulerName,
-		Interval:       fakeClusterSchedulingInterval,
-		KubeConfig:     "",
-		TestMode:       true,
-	}
-
-	conf.Set(&configs)
-
+	conf.GetSchedulerConf().SetTestMode(true)
 	context := NewContext(client.NewMockedAPIProvider())
 	return context
 }

@@ -23,6 +23,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"go.uber.org/zap"
 	"gotest.tools/assert"
 	"k8s.io/api/core/v1"
@@ -38,7 +39,6 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 )
@@ -54,6 +54,7 @@ type MockScheduler struct {
 }
 
 func (fc *MockScheduler) init(queues string) {
+	conf.GetSchedulerConf().SetTestMode(true)
 	fc.stopChan = make(chan struct{})
 
 	serviceContext := entrypoint.StartAllServices()
@@ -77,7 +78,6 @@ func (fc *MockScheduler) init(queues string) {
 	fc.scheduler = ss
 	fc.coreContext = serviceContext
 	fc.apiProvider = mockedAPIProvider
-	conf.Set(mockedAPIProvider.GetAPIs().Conf)
 }
 
 func (fc *MockScheduler) start() {
