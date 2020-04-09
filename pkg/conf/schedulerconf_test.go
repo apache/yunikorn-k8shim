@@ -18,8 +18,6 @@
 package conf
 
 import (
-	"fmt"
-	"sync"
 	"testing"
 
 	"gotest.tools/assert"
@@ -38,35 +36,4 @@ func TestDefaultValues(t *testing.T) {
 	assert.Equal(t, conf.KubeQPS, DefaultKubeQPS)
 	assert.Equal(t, conf.KubeBurst, DefaultKubeBurst)
 	assert.Equal(t, conf.Predicates, "")
-}
-
-// run some concurrent write/read
-// if the Get and Set function is not thread safe,
-// this will give data race warnings when running with -race flag
-func TestConcurrency(t *testing.T) {
-	wg := sync.WaitGroup{}
-
-	wg.Add(1)
-	go func() {
-		for i := 0; i < 10; i++ {
-			fmt.Println(GetSchedulerConf().ClusterID)
-			fmt.Println(GetSchedulerConf().ClusterVersion)
-			fmt.Println(GetSchedulerConf().SchedulerName)
-		}
-		wg.Done()
-	}()
-
-	wg.Add(1)
-	go func() {
-		for i := 0; i < 10; i++ {
-			Set(&SchedulerConf{
-				ClusterID:            "test-id",
-				ClusterVersion:       "0.1",
-				SchedulerName:        "yk",
-			})
-		}
-		wg.Done()
-	}()
-
-	wg.Wait()
 }
