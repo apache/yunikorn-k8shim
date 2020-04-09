@@ -43,7 +43,7 @@ var (
 )
 
 func TestPodFitsHost(t *testing.T) {
-	conf.Set(&conf.SchedulerConf{TestMode: true})
+	conf.GetSchedulerConf().SetTestMode(true)
 	predictor := newPredictorInternal(&factory.PluginFactoryArgs{}, schedulerapi.Policy{
 		Predicates: []schedulerapi.PredicatePolicy{
 			{Name: predicates.HostNamePred},
