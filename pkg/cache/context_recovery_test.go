@@ -142,8 +142,6 @@ func TestNodesRecovery(t *testing.T) {
 	mockedAppRecover := test.NewMockedRecoverableAppManager()
 	if err := context.recover([]interfaces.Recoverable{mockedAppRecover}, 1*time.Second); err == nil {
 		t.Fatalf("expecting timeout here!")
-	} else {
-		t.Logf("context stays waiting for recovery, error: %v", err)
 	}
 
 	// verify all nodes were added into context
@@ -162,7 +160,7 @@ func TestNodesRecovery(t *testing.T) {
 	if err := utils.WaitForCondition(func() bool {
 		return reflect.DeepEqual(getNodeStates(schedulerNodes), expectedStates)
 	}, 100*time.Millisecond, 3*time.Second); err != nil {
-		t.Fatal("unexpected node states")
+		t.Fatalf("unexpected node states, actual: %v, expected: %v", getNodeStates(schedulerNodes), expectedStates)
 	}
 
 	// dispatch NodeRejected event for the second node, its expected state should be Rejected
@@ -174,7 +172,7 @@ func TestNodesRecovery(t *testing.T) {
 	if err := utils.WaitForCondition(func() bool {
 		return reflect.DeepEqual(getNodeStates(schedulerNodes), expectedStates)
 	}, 100*time.Millisecond, 3*time.Second); err != nil {
-		t.Fatal("unexpected node states")
+		t.Fatalf("unexpected node states, actual: %v, expected: %v", getNodeStates(schedulerNodes), expectedStates)
 	}
 
 	// dispatch DrainNode event for the third node, its expected state should be Draining
