@@ -20,14 +20,19 @@ spec:
     spec:
       serviceAccountName: {{ .Values.serviceAccount }}
       containers:
-        - name: kubectl
-          image: "{{ .Values.hyperkube_image.repository }}:{{ .Values.hyperkube_image.tag }}"
-          imagePullPolicy: {{ .Values.hyperkube_image.pullPolicy }}
+        - name: curl
+          image: "{{ .Values.curl_image.repository }}:{{ .Values.curl_image.tag }}"
+          imagePullPolicy: {{ .Values.curl_image.pullPolicy }}
           command:
             - /bin/sh
             - -c
             - >
-              kubectl delete configmap yunikorn-configs;
-              kubectl delete serviceaccount yunikorn-admin;
-              kubectl delete clusterrolebinding yunikorn-rbac;
+              APISERVER=https://kubernetes.default.svc.cluster.local;
+              SERVICEACCOUNT=/var/run/secrets/kubernetes.io/serviceaccount;
+              NAMESPACE=$(cat ${SERVICEACCOUNT}/namespace);
+              TOKEN=$(cat ${SERVICEACCOUNT}/token);
+              CACERT=${SERVICEACCOUNT}/ca.crt;
+              curl --cacert ${CACERT} --header "Authorization: Bearer ${TOKEN}" -X DELETE ${APISERVER}/api/v1/namespaces/${NAMESPACE}/configmaps/yunikorn-configs;
+              curl --cacert ${CACERT} --header "Authorization: Bearer ${TOKEN}" -X DELETE ${APISERVER}/api/v1/namespaces/${NAMESPACE}/serviceaccounts/yunikorn-admin;
+              curl --cacert ${CACERT} --header "Authorization: Bearer ${TOKEN}" -X DELETE ${APISERVER}/apis/rbac.authorization.k8s.io/v1beta1/clusterrolebindings/yunikorn-rbac;
       restartPolicy: OnFailure
