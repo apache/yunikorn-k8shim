@@ -156,6 +156,8 @@ func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) err
 				nodesRecovered++
 			case events.States().Node.Draining:
 				nodesRecovered++
+			case events.States().Node.Rejected:
+				nodesRecovered++
 			}
 		}
 
