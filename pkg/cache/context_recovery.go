@@ -95,7 +95,6 @@ func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) err
 		}
 
 		nodeOccupiedResources := make(map[string]*si.Resource)
-		//occupiedResources := common.NewResourceBuilder().Build()
 		for _, pod := range podList.Items {
 			// only handle assigned pods
 			if !utils.IsAssignedPod(&pod) {
