@@ -112,15 +112,15 @@ func (ctx *Context) addNode(obj interface{}) {
 	}
 
 	// add node to secondary scheduler cache
-	log.Logger.Info("adding node to cache", zap.String("NodeName", node.Name))
+	log.Logger.Debug("adding node to cache", zap.String("NodeName", node.Name))
 	ctx.schedulerCache.AddNode(node)
 
 	// add node to internal cache
 	ctx.nodes.addNode(node)
 
 	// post the event
-	events.GetRecorder().Eventf(node, v1.EventTypeNormal, "Accepted",
-		"node is accepted by the scheduler")
+	events.GetRecorder().Eventf(node, v1.EventTypeNormal, "NodeAccepted",
+		fmt.Sprintf("node %s is accepted by the scheduler", node.Name))
 }
 
 func (ctx *Context) updateNode(oldObj, newObj interface{}) {
@@ -140,8 +140,6 @@ func (ctx *Context) updateNode(oldObj, newObj interface{}) {
 	}
 
 	// update secondary cache
-	log.Logger.Debug("updating node in cache",
-		zap.String("OldNodeName", oldNode.Name))
 	if err := ctx.schedulerCache.UpdateNode(oldNode, newNode); err != nil {
 		log.Logger.Error("unable to update node in scheduler cache",
 			zap.Error(err))
@@ -171,8 +169,8 @@ func (ctx *Context) deleteNode(obj interface{}) {
 	ctx.nodes.deleteNode(node)
 
 	// post the event
-	events.GetRecorder().Eventf(node, v1.EventTypeNormal, "Deleted",
-		"node is deleted from the scheduler")
+	events.GetRecorder().Eventf(node, v1.EventTypeNormal, "NodeDeleted",
+		fmt.Sprintf("node %s is deleted from the scheduler", node.Name))
 }
 
 func (ctx *Context) addPodToCache(obj interface{}) {
@@ -182,7 +180,7 @@ func (ctx *Context) addPodToCache(obj interface{}) {
 		return
 	}
 
-	log.Logger.Info("adding pod to cache", zap.String("podName", pod.Name))
+	log.Logger.Debug("adding pod to cache", zap.String("podName", pod.Name))
 	if err := ctx.schedulerCache.AddPod(pod); err != nil {
 		log.Logger.Error("add pod to scheduler cache failed",
 			zap.String("podName", pod.Name),
@@ -207,7 +205,7 @@ func (ctx *Context) removePodFromCache(obj interface{}) {
 		return
 	}
 
-	log.Logger.Info("removing pod from cache", zap.String("podName", pod.Name))
+	log.Logger.Debug("removing pod from cache", zap.String("podName", pod.Name))
 	if err := ctx.schedulerCache.RemovePod(pod); err != nil {
 		log.Logger.Error("failed to remove pod from scheduler cache",
 			zap.String("podName", pod.Name),
@@ -486,7 +484,10 @@ func (ctx *Context) RemoveApplication(appID string) error {
 
 // this implements ApplicationManagementProtocol
 func (ctx *Context) AddTask(request *interfaces.AddTaskRequest) interfaces.ManagedTask {
-	log.Logger.Debug("AddTask", zap.Any("Request", request))
+	log.Logger.Debug("AddTask",
+		zap.String("appID", request.Metadata.ApplicationID),
+		zap.String("taskID", request.Metadata.TaskID),
+		zap.Bool("isRecovery", request.Recovery))
 	if managedApp := ctx.GetApplication(request.Metadata.ApplicationID); managedApp != nil {
 		if app, valid := managedApp.(*Application); valid {
 			existingTask, err := app.GetTask(request.Metadata.TaskID)

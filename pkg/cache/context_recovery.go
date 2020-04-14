@@ -135,9 +135,6 @@ func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) err
 		// events, it could be dangerous because we might schedule pods onto some node that
 		// doesn't have enough capacity (occupied resources not yet reported).
 		for nodeName, occupiedResource := range nodeOccupiedResources {
-			log.Logger.Info("update occupied resources that allocated by other scheduler",
-				zap.String("node", nodeName),
-				zap.String("totalOccupied", occupiedResource.String()))
 			if cachedNode := ctx.nodes.getNode(nodeName); cachedNode != nil {
 				cachedNode.setOccupiedResource(occupiedResource)
 			}

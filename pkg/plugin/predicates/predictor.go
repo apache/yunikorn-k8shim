@@ -261,7 +261,6 @@ func (p *Predictor) Enabled() bool {
 }
 
 func (p *Predictor) Predicates(pod *v1.Pod, meta predicates.PredicateMetadata, node *deschedulernode.NodeInfo) error {
-	log.Logger.Debug("calling predicates")
 	// honor the ordering...
 	for _, predicateKey := range predicates.Ordering() {
 		var (
@@ -271,25 +270,16 @@ func (p *Predictor) Predicates(pod *v1.Pod, meta predicates.PredicateMetadata, n
 		)
 		if predicate, exist := p.fitPredicateFunctions[predicateKey]; exist {
 			fit, reasons, err = predicate(pod, meta, node)
-			log.Logger.Debug("predicate", zap.String("key", predicateKey), zap.Bool("fit", fit))
 			if err != nil {
-				log.Logger.Error("predicate failed",
-					zap.String("key", predicateKey),
-					zap.Bool("fit", fit),
-					zap.Any("reasons", reasons))
 				events.GetRecorder().Eventf(pod, v1.EventTypeWarning,
-					"FailedScheduling", err.Error())
+					"FailedScheduling", "predicate is not satisfied, error: %s", err.Error())
 				return err
 			}
 
 			if !fit {
-				log.Logger.Warn("predicate failed",
-					zap.String("key", predicateKey),
-					zap.Bool("fit", fit),
-					zap.Any("reasons", reasons))
 				events.GetRecorder().Eventf(pod, v1.EventTypeWarning,
 					"FailedScheduling", "%v", reasons)
-				return fmt.Errorf("predicate %s cannot be satisified, reason %v", predicateKey, reasons)
+				return fmt.Errorf("predicate %s cannot be satisfied, reason: %v", predicateKey, reasons)
 			}
 		}
 	}
