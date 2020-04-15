@@ -2041,7 +2041,6 @@ func TestInvalidConfiguredPredicates(t *testing.T) {
 }
 
 func TestReserveAlloc(t *testing.T) {
-	conf.Set(&conf.SchedulerConf{TestMode: true})
 	pod := &v1.Pod{
 		Spec: v1.PodSpec{
 			NodeName: "foo",
