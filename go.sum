@@ -14,6 +14,8 @@ github.com/alecthomas/units v0.0.0-20190717042225-c3de453c63f4/go.mod h1:ybxpYRF
 github.com/antihax/optional v0.0.0-20180407024304-ca021399b1a6/go.mod h1:V8iCPQYkqmusNa815XgQio277wI47sdRh1dUOLdyC6Q=
 github.com/apache/incubator-yunikorn-core v0.0.0-20200415025050-f57dc6106790 h1:WGG2B4e4FC2SjznOB2tTqLG8gO+p1PVXTMa425kNbzg=
 github.com/apache/incubator-yunikorn-core v0.0.0-20200415025050-f57dc6106790/go.mod h1:KZwPaVuSfV0yqQfuts9dKWlPi/S6mRnr81hLy/zczoI=
+github.com/apache/incubator-yunikorn-core v0.0.0-20200415063211-baf42fda4999 h1:6FcOvMIpJvj7dvC2EFFCT/Vjet7i5nqUeKD3PBDTWBs=
+github.com/apache/incubator-yunikorn-core v0.0.0-20200415063211-baf42fda4999/go.mod h1:KZwPaVuSfV0yqQfuts9dKWlPi/S6mRnr81hLy/zczoI=
 github.com/apache/incubator-yunikorn-scheduler-interface v0.0.0-20200414171840-a773cd557b1f h1:MO1PV62hmeaahOItQq848+aSbypnjdtXj4k0v+O4+nI=
 github.com/apache/incubator-yunikorn-scheduler-interface v0.0.0-20200414171840-a773cd557b1f/go.mod h1:De+73NNH4KaRL9MGGnCyHJOtx2oQGVYOaespfoRNGSo=
 github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973/go.mod h1:Dwedo/Wpr24TaqPxmxbtue+5NUziq4I4S80YR8gNf3Q=
