@@ -40,7 +40,7 @@ import (
 // this should be configurable, and can be dumped as part of the
 // scheduler configuration, which can be used to explicitly advertise
 // what are supported.
-var DefaultSchedulerPolicy = schedulerapi.Policy{
+var defaultSchedulerPolicy = schedulerapi.Policy{
 	Predicates: []schedulerapi.PredicatePolicy{
 		{Name: predicates.NoVolumeZoneConflictPred},
 		{Name: predicates.MaxCSIVolumeCountPred},
@@ -55,6 +55,17 @@ var DefaultSchedulerPolicy = schedulerapi.Policy{
 	},
 }
 
+// This is a hardcoded list of predicates to run when checking reservation proposals.
+// This list must be a subset of the default policy or the configured policy.
+// It should not include resources used as the pod is just reserved which means the node is
+// out of resources. At least one pod should stop before we can proceed with allocation and
+// that could change the resources used (including disk mount, pids, ports etc)
+var reservationPredicates = []string{
+	predicates.PodToleratesNodeTaintsPred, // taint check
+	predicates.MatchInterPodAffinityPred,  // affinity check
+	predicates.CheckNodeUnschedulablePred, // unschedulable node are filtered
+}
+
 type Predictor struct {
 	fitPredicateMap              map[string]factory.FitPredicateFactory
 	fitPredicateFunctions        map[string]predicates.FitPredicate
@@ -62,7 +73,8 @@ type Predictor struct {
 	predicateMetaProducer        predicates.PredicateMetadataProducer
 	mandatoryFitPredicates       sets.String
 	schedulerPolicy              schedulerapi.Policy
-	lock                         sync.RWMutex
+
+	sync.RWMutex
 }
 
 func NewPredictor(args *factory.PluginFactoryArgs, testMode bool) *Predictor {
@@ -77,7 +89,7 @@ func NewPredictor(args *factory.PluginFactoryArgs, testMode bool) *Predictor {
 		log.Logger.Fatal(err.Error())
 	}
 	if schedulerPolicy == nil {
-		schedulerPolicy = &DefaultSchedulerPolicy
+		schedulerPolicy = &defaultSchedulerPolicy
 	}
 	return newPredictorInternal(args, *schedulerPolicy)
 }
@@ -102,7 +114,7 @@ func newPredictorInternal(args *factory.PluginFactoryArgs, schedulerPolicy sched
 // see more at "kubernetes/pkg/scheduler/algorithmprovider/defaults/register_predicates.go"
 func (p *Predictor) init() {
 	// Register functions that extract metadata used by predicates computations.
-	p.RegisterPredicateMetadataProducerFactory(
+	p.registerPredicateMetadataProducerFactory(
 		func(args factory.PluginFactoryArgs) predicates.PredicateMetadataProducer {
 			return predicates.NewPredicateMetadataFactory(args.PodLister)
 		})
@@ -113,57 +125,57 @@ func (p *Predictor) init() {
 
 	// PodFitsPorts has been replaced by PodFitsHostPorts for better user understanding.
 	// For backwards compatibility with 1.0, PodFitsPorts is registered as well.
-	p.RegisterFitPredicate("PodFitsPorts", predicates.PodFitsHostPorts)
+	p.registerFitPredicate("PodFitsPorts", predicates.PodFitsHostPorts)
 	// Fit is defined based on the absence of port conflicts.
 	// This predicate is actually a default predicate, because it is invoked from
 	// predicates.GeneralPredicates()
-	p.RegisterFitPredicate(predicates.PodFitsHostPortsPred, predicates.PodFitsHostPorts)
+	p.registerFitPredicate(predicates.PodFitsHostPortsPred, predicates.PodFitsHostPorts)
 	// Fit is determined by resource availability.
 	// This predicate is actually a default predicate, because it is invoked from
 	// predicates.GeneralPredicates()
-	p.RegisterFitPredicate(predicates.PodFitsResourcesPred, predicates.PodFitsResources)
+	p.registerFitPredicate(predicates.PodFitsResourcesPred, predicates.PodFitsResources)
 	// Fit is determined by the presence of the Host parameter and a string match
 	// This predicate is actually a default predicate, because it is invoked from
 	// predicates.GeneralPredicates()
-	p.RegisterFitPredicate(predicates.HostNamePred, predicates.PodFitsHost)
+	p.registerFitPredicate(predicates.HostNamePred, predicates.PodFitsHost)
 	// Fit is determined by node selector query.
-	p.RegisterFitPredicate(predicates.MatchNodeSelectorPred, predicates.PodMatchNodeSelector)
+	p.registerFitPredicate(predicates.MatchNodeSelectorPred, predicates.PodMatchNodeSelector)
 
 	// Fit is determined by volume zone requirements.
-	p.RegisterFitPredicateFactory(
+	p.registerFitPredicateFactory(
 		predicates.NoVolumeZoneConflictPred,
 		func(args factory.PluginFactoryArgs) predicates.FitPredicate {
 			return predicates.NewVolumeZonePredicate(args.PVInfo, args.PVCInfo, args.StorageClassInfo)
 		},
 	)
 	// Fit is determined by whether or not there would be too many AWS EBS volumes attached to the node
-	p.RegisterFitPredicateFactory(
+	p.registerFitPredicateFactory(
 		predicates.MaxEBSVolumeCountPred,
 		func(args factory.PluginFactoryArgs) predicates.FitPredicate {
 			return predicates.NewMaxPDVolumeCountPredicate(predicates.EBSVolumeFilterType, args.PVInfo, args.PVCInfo)
 		},
 	)
 	// Fit is determined by whether or not there would be too many GCE PD volumes attached to the node
-	p.RegisterFitPredicateFactory(
+	p.registerFitPredicateFactory(
 		predicates.MaxGCEPDVolumeCountPred,
 		func(args factory.PluginFactoryArgs) predicates.FitPredicate {
 			return predicates.NewMaxPDVolumeCountPredicate(predicates.GCEPDVolumeFilterType, args.PVInfo, args.PVCInfo)
 		},
 	)
 	// Fit is determined by whether or not there would be too many Azure Disk volumes attached to the node
-	p.RegisterFitPredicateFactory(
+	p.registerFitPredicateFactory(
 		predicates.MaxAzureDiskVolumeCountPred,
 		func(args factory.PluginFactoryArgs) predicates.FitPredicate {
 			return predicates.NewMaxPDVolumeCountPredicate(predicates.AzureDiskVolumeFilterType, args.PVInfo, args.PVCInfo)
 		},
 	)
-	p.RegisterFitPredicateFactory(
+	p.registerFitPredicateFactory(
 		predicates.MaxCSIVolumeCountPred,
 		func(args factory.PluginFactoryArgs) predicates.FitPredicate {
 			return predicates.NewCSIMaxVolumeLimitPredicate(args.PVInfo, args.PVCInfo)
 		},
 	)
-	p.RegisterFitPredicateFactory(
+	p.registerFitPredicateFactory(
 		predicates.MaxCinderVolumeCountPred,
 		func(args factory.PluginFactoryArgs) predicates.FitPredicate {
 			return predicates.NewMaxPDVolumeCountPredicate(predicates.CinderVolumeFilterType, args.PVInfo, args.PVCInfo)
@@ -171,7 +183,7 @@ func (p *Predictor) init() {
 	)
 
 	// Fit is determined by inter-pod affinity.
-	p.RegisterFitPredicateFactory(
+	p.registerFitPredicateFactory(
 		predicates.MatchInterPodAffinityPred,
 		func(args factory.PluginFactoryArgs) predicates.FitPredicate {
 			return predicates.NewPodAffinityPredicate(args.NodeInfo, args.PodLister)
@@ -179,20 +191,20 @@ func (p *Predictor) init() {
 	)
 
 	// Fit is determined by non-conflicting disk volumes.
-	p.RegisterFitPredicate(predicates.NoDiskConflictPred, predicates.NoDiskConflict)
+	p.registerFitPredicate(predicates.NoDiskConflictPred, predicates.NoDiskConflict)
 
 	// GeneralPredicates are the predicates that are enforced by all Kubernetes components
 	// (e.g. kubelet and all schedulers)
-	p.RegisterFitPredicate(predicates.GeneralPred, predicates.GeneralPredicates)
+	p.registerFitPredicate(predicates.GeneralPred, predicates.GeneralPredicates)
 
 	// Fit is determined based on whether a pod can tolerate all of the node's taints
-	p.RegisterMandatoryFitPredicate(predicates.PodToleratesNodeTaintsPred, predicates.PodToleratesNodeTaints)
+	p.registerMandatoryFitPredicate(predicates.PodToleratesNodeTaintsPred, predicates.PodToleratesNodeTaints)
 
 	// Fit is determined based on whether a pod can tolerate unschedulable of node
-	p.RegisterMandatoryFitPredicate(predicates.CheckNodeUnschedulablePred, predicates.CheckNodeUnschedulablePredicate)
+	p.registerMandatoryFitPredicate(predicates.CheckNodeUnschedulablePred, predicates.CheckNodeUnschedulablePredicate)
 
 	// Fit is determined by volume topology requirements.
-	p.RegisterFitPredicateFactory(
+	p.registerFitPredicateFactory(
 		predicates.CheckVolumeBindingPred,
 		func(args factory.PluginFactoryArgs) predicates.FitPredicate {
 			return predicates.NewVolumeBindingPredicate(args.VolumeBinder)
@@ -203,8 +215,8 @@ func (p *Predictor) init() {
 // From: k8s.io/kubernetes/pkg/scheduler/factory/plugins.go
 // RegisterFitPredicate registers a fit predicate with the algorithm
 // registry. Returns the name with which the predicate was registered.
-func (p *Predictor) RegisterFitPredicate(name string, predicate predicates.FitPredicate) string {
-	return p.RegisterFitPredicateFactory(name,
+func (p *Predictor) registerFitPredicate(name string, predicate predicates.FitPredicate) string {
+	return p.registerFitPredicateFactory(name,
 		func(factory.PluginFactoryArgs) predicates.FitPredicate { return predicate })
 }
 
@@ -212,9 +224,9 @@ func (p *Predictor) RegisterFitPredicate(name string, predicate predicates.FitPr
 // RegisterMandatoryFitPredicate registers a fit predicate with the algorithm registry, the predicate is used by
 // kubelet, DaemonSet; it is always included in configuration. Returns the name with which the predicate was
 // registered.
-func (p *Predictor) RegisterMandatoryFitPredicate(name string, predicate predicates.FitPredicate) string {
-	p.lock.Lock()
-	defer p.lock.Unlock()
+func (p *Predictor) registerMandatoryFitPredicate(name string, predicate predicates.FitPredicate) string {
+	p.Lock()
+	defer p.Unlock()
 	p.fitPredicateMap[name] = func(factory.PluginFactoryArgs) predicates.FitPredicate { return predicate }
 	p.mandatoryFitPredicates.Insert(name)
 	return name
@@ -223,17 +235,17 @@ func (p *Predictor) RegisterMandatoryFitPredicate(name string, predicate predica
 // From: k8s.io/kubernetes/pkg/scheduler/factory/plugins.go
 // RegisterFitPredicateFactory registers a fit predicate factory with the
 // algorithm registry. Returns the name with which the predicate was registered.
-func (p *Predictor) RegisterFitPredicateFactory(name string, predicateFactory factory.FitPredicateFactory) string {
-	p.lock.Lock()
-	defer p.lock.Unlock()
+func (p *Predictor) registerFitPredicateFactory(name string, predicateFactory factory.FitPredicateFactory) string {
+	p.Lock()
+	defer p.Unlock()
 	p.fitPredicateMap[name] = predicateFactory
 	return name
 }
 
 // RegisterPredicateMetadataProducerFactory registers a PredicateMetadataProducerFactory.
-func (p *Predictor) RegisterPredicateMetadataProducerFactory(factory factory.PredicateMetadataProducerFactory) {
-	p.lock.Lock()
-	defer p.lock.Unlock()
+func (p *Predictor) registerPredicateMetadataProducerFactory(factory factory.PredicateMetadataProducerFactory) {
+	p.Lock()
+	defer p.Unlock()
 	p.predicateMetaProducerFactory = factory
 }
 
@@ -260,16 +272,40 @@ func (p *Predictor) Enabled() bool {
 	return len(p.schedulerPolicy.Predicates) > 0
 }
 
-func (p *Predictor) Predicates(pod *v1.Pod, meta predicates.PredicateMetadata, node *deschedulernode.NodeInfo) error {
+func (p *Predictor) Predicates(pod *v1.Pod, meta predicates.PredicateMetadata, node *deschedulernode.NodeInfo, allocate bool) error {
+	if allocate {
+		return p.predicatesAllocate(pod, meta, node)
+	}
+	return p.predicatesReserve(pod, meta, node)
+}
+
+func (p *Predictor) predicatesReserve(pod *v1.Pod, meta predicates.PredicateMetadata, node *deschedulernode.NodeInfo) error {
+	log.Logger.Debug("calling predicates on reserve")
+	for _, predicateKey := range reservationPredicates {
+		if predicateFn, exist := p.fitPredicateFunctions[predicateKey]; exist {
+			fit, reasons, err := predicateFn(pod, meta, node)
+			if !fit {
+				err = fmt.Errorf("predicate %s fit failed, reason(s) %v", predicateKey, reasons)
+			}
+			if err != nil {
+				log.Logger.Debug("predicate failure on reserve",
+					zap.String("name", predicateKey),
+					zap.Bool("result", fit),
+					zap.Error(err))
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (p *Predictor) predicatesAllocate(pod *v1.Pod, meta predicates.PredicateMetadata, node *deschedulernode.NodeInfo) error {
+	log.Logger.Debug("calling predicates on allocate")
 	// honor the ordering...
 	for _, predicateKey := range predicates.Ordering() {
-		var (
-			fit     bool
-			reasons []predicates.PredicateFailureReason
-			err     error
-		)
-		if predicate, exist := p.fitPredicateFunctions[predicateKey]; exist {
-			fit, reasons, err = predicate(pod, meta, node)
+		if predicateFn, exist := p.fitPredicateFunctions[predicateKey]; exist {
+			fit, reasons, err := predicateFn(pod, meta, node)
+			log.Logger.Debug("predicate", zap.String("key", predicateKey), zap.Bool("fit", fit))
 			if err != nil {
 				events.GetRecorder().Eventf(pod, v1.EventTypeWarning,
 					"FailedScheduling", "predicate is not satisfied, error: %s", err.Error())
