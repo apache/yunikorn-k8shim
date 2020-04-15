@@ -27,7 +27,7 @@ spec:
             - /bin/sh
             - -c
             - >
-              APISERVER=https://kubernetes.default.svc.cluster.local;
+              APISERVER=https://kubernetes.default.svc;
               SERVICEACCOUNT=/var/run/secrets/kubernetes.io/serviceaccount;
               NAMESPACE=$(cat ${SERVICEACCOUNT}/namespace);
               TOKEN=$(cat ${SERVICEACCOUNT}/token);
