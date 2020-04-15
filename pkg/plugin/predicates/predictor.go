@@ -59,11 +59,11 @@ var defaultSchedulerPolicy = schedulerapi.Policy{
 // This list must be a subset of the default policy or the configured policy.
 // It should not include resources used as the pod is just reserved which means the node is
 // out of resources. At least one pod should stop before we can proceed with allocation and
-// that could change the resources used (including disk mount, pid ports etc)
-var reservationPredicates = []schedulerapi.PredicatePolicy{
-	{Name: predicates.PodToleratesNodeTaintsPred}, // taint check
-	{Name: predicates.MatchInterPodAffinityPred},  // affinity check
-	{Name: predicates.CheckNodeUnschedulablePred}, // unschedulable node are filtered
+// that could change the resources used (including disk mount, pids, ports etc)
+var reservationPredicates = []string{
+	predicates.PodToleratesNodeTaintsPred, // taint check
+	predicates.MatchInterPodAffinityPred,  // affinity check
+	predicates.CheckNodeUnschedulablePred, // unschedulable node are filtered
 }
 
 type Predictor struct {
@@ -281,8 +281,7 @@ func (p *Predictor) Predicates(pod *v1.Pod, meta predicates.PredicateMetadata, n
 
 func (p *Predictor) predicatesReserve(pod *v1.Pod, meta predicates.PredicateMetadata, node *deschedulernode.NodeInfo) error {
 	log.Logger.Debug("calling predicates on reserve")
-	for _, predicate := range reservationPredicates {
-		predicateKey := predicate.Name
+	for _, predicateKey := range reservationPredicates {
 		if predicateFn, exist := p.fitPredicateFunctions[predicateKey]; exist {
 			fit, reasons, err := predicateFn(pod, meta, node)
 			if !fit {
