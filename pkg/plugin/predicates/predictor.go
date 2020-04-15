@@ -307,23 +307,15 @@ func (p *Predictor) predicatesAllocate(pod *v1.Pod, meta predicates.PredicateMet
 			fit, reasons, err := predicateFn(pod, meta, node)
 			log.Logger.Debug("predicate", zap.String("key", predicateKey), zap.Bool("fit", fit))
 			if err != nil {
-				log.Logger.Error("predicate failed on allocate",
-					zap.String("key", predicateKey),
-					zap.Bool("fit", fit),
-					zap.Any("reasons", reasons))
 				events.GetRecorder().Eventf(pod, v1.EventTypeWarning,
-					"FailedScheduling", err.Error())
+					"FailedScheduling", "predicate is not satisfied, error: %s", err.Error())
 				return err
 			}
 
 			if !fit {
-				log.Logger.Warn("predicate did not fit",
-					zap.String("key", predicateKey),
-					zap.Bool("fit", fit),
-					zap.Any("reasons", reasons))
 				events.GetRecorder().Eventf(pod, v1.EventTypeWarning,
 					"FailedScheduling", "%v", reasons)
-				return fmt.Errorf("predicate %s cannot be satisified, reason %v", predicateKey, reasons)
+				return fmt.Errorf("predicate %s cannot be satisfied, reason: %v", predicateKey, reasons)
 			}
 		}
 	}

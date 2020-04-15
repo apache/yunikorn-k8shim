@@ -231,7 +231,7 @@ partitions:
 
 	// one task get bound, one ask failed, so we are expecting only 1 allocation in the scheduler
 	if err := cluster.waitAndVerifySchedulerAllocations("root.a",
-		"[yk-test-cluster]default", "app0001", 1); err != nil {
+		"[my-kube-cluster]default", "app0001", 1); err != nil {
 		t.Fatalf("number of allocations is not expected, error: %v", err)
 	}
 }

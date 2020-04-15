@@ -121,8 +121,8 @@ sched_image: scheduler
 	@mkdir -p ./deployments/image/configmap/admission-controller-init-scripts
 	@cp -r ./deployments/admission-controllers/scheduler/*  deployments/image/configmap/admission-controller-init-scripts/
 	@sed -i'.bkp' 's/clusterVersion=.*"/clusterVersion=${VERSION}"/' deployments/image/configmap/Dockerfile
-	@coreSHA=$$(go list -m "github.com/apache/incubator-yunikorn-core" | cut -d "-" -f4) ; \
-	siSHA=$$(go list -m "github.com/apache/incubator-yunikorn-scheduler-interface" | cut -d "-" -f5) ; \
+	@coreSHA=$$(go list -m "github.com/apache/incubator-yunikorn-core" | cut -d "-" -f5) ; \
+	siSHA=$$(go list -m "github.com/apache/incubator-yunikorn-scheduler-interface" | cut -d "-" -f6) ; \
 	shimSHA=$$(git rev-parse --short=12 HEAD) ; \
 	docker build ./deployments/image/configmap -t ${REGISTRY}/yunikorn-scheduler-k8s:${VERSION} \
 	--label "yunikorn-core-revision=$${coreSHA}" \

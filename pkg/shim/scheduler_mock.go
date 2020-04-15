@@ -54,6 +54,7 @@ type MockScheduler struct {
 }
 
 func (fc *MockScheduler) init(queues string) {
+	conf.GetSchedulerConf().SetTestMode(true)
 	fc.stopChan = make(chan struct{})
 
 	serviceContext := entrypoint.StartAllServices()
@@ -77,7 +78,6 @@ func (fc *MockScheduler) init(queues string) {
 	fc.scheduler = ss
 	fc.coreContext = serviceContext
 	fc.apiProvider = mockedAPIProvider
-	conf.Set(mockedAPIProvider.GetAPIs().Conf)
 }
 
 func (fc *MockScheduler) start() {

@@ -57,7 +57,6 @@ type NodeStates struct {
 	Recovering string
 	Accepted   string
 	Healthy    string
-	Unhealthy  string
 	Rejected   string
 	Draining   string
 }
@@ -123,7 +122,6 @@ func States() *AllStates {
 				Recovering: "Recovering",
 				Accepted:   "Accepted",
 				Healthy:    "Healthy",
-				Unhealthy:  "Unhealthy",
 				Rejected:   "Rejected",
 				Draining:   "Draining",
 			},

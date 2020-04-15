@@ -240,14 +240,14 @@ func (ss *KubernetesShim) GetSchedulerState() string {
 func (ss *KubernetesShim) handle(se events.SchedulerEvent) error {
 	ss.lock.Lock()
 	defer ss.lock.Unlock()
-	log.Logger.Info("shim-scheduler state transition",
+	log.Logger.Debug("shim-scheduler state transition",
 		zap.String("preState", ss.stateMachine.Current()),
 		zap.String("pending event", string(se.GetEvent())))
 	err := ss.stateMachine.Event(string(se.GetEvent()))
 	if err != nil && err.Error() == "no transition" {
 		return err
 	}
-	log.Logger.Info("shim-scheduler state transition",
+	log.Logger.Debug("shim-scheduler state transition",
 		zap.String("postState", ss.stateMachine.Current()))
 	return nil
 }

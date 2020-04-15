@@ -103,6 +103,7 @@ func NewApplication(appID, queueName, user string, tags map[string]string, sched
 			string(events.RecoverApplication):  app.handleRecoverApplicationEvent,
 			string(events.RejectApplication):   app.handleRejectApplicationEvent,
 			string(events.CompleteApplication): app.handleCompleteApplicationEvent,
+			events.EnterState:                  app.enterState,
 		},
 	)
 
@@ -348,4 +349,11 @@ func (app *Application) handleRejectApplicationEvent(event *fsm.Event) {
 
 func (app *Application) handleCompleteApplicationEvent(event *fsm.Event) {
 	// TODO app lifecycle updates
+}
+
+func (app *Application) enterState(event *fsm.Event) {
+	log.Logger.Info("app state",
+		zap.String("appID", app.applicationID),
+		zap.String("queue", app.queue),
+		zap.String("state", app.GetApplicationState()))
 }
