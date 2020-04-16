@@ -24,7 +24,7 @@ import (
 
 	"github.com/looplab/fsm"
 	"go.uber.org/zap"
-	v1 "k8s.io/api/core/v1"
+	"k8s.io/api/core/v1"
 
 	"github.com/apache/incubator-yunikorn-core/pkg/api"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
