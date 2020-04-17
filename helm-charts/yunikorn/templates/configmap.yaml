@@ -9,5 +9,6 @@ metadata:
     heritage: {{ .Release.Service }}
   annotations:
     "helm.sh/hook": "pre-install"
+    "helm.sh/hook-weight": "2"
 data:
   queues.yaml: {{quote .Values.configuration}}
