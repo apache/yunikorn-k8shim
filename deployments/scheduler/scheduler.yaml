@@ -26,6 +26,13 @@ spec:
               value: myCluster
             - name: CLUSTER_VERSION
               value: latest
+          resources:
+            requests:
+              cpu: 200m
+              memory: 1Gi
+            limits:
+              cpu: 4
+              memory: 2Gi
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 9080
