@@ -38,6 +38,7 @@ import (
 
 type Task struct {
 	taskID         string
+	alias          string
 	applicationID  string
 	application    *Application
 	allocationUUID string
@@ -69,6 +70,7 @@ func createTaskInternal(tid string, app *Application, resource *si.Resource,
 	pod *v1.Pod, ctx *Context) Task {
 	task := Task{
 		taskID:        tid,
+		alias:         fmt.Sprintf("%s/%s", pod.Namespace, pod.Name),
 		applicationID: app.GetApplicationID(),
 		application:   app,
 		pod:           pod,
@@ -117,6 +119,7 @@ func createTaskInternal(tid string, app *Application, resource *si.Resource,
 			states.Rejected:                 task.postTaskRejected,
 			beforeHook(events.CompleteTask): task.beforeTaskCompleted,
 			states.Failed:                   task.postTaskFailed,
+			events.EnterState:               task.enterState,
 		},
 	)
 
@@ -180,6 +183,8 @@ func (task *Task) handleFailEvent(event *fsm.Event) {
 	eventArgs := make([]string, 1)
 	if err := events.GetEventArgsAsStrings(eventArgs, event.Args); err != nil {
 		dispatcher.Dispatch(NewFailTaskEvent(task.applicationID, task.taskID, err.Error()))
+		events.GetRecorder().Eventf(task.pod, v1.EventTypeWarning, "SchedulingFailed",
+			"%s scheduling failed, reason: %s", task.alias, err.Error())
 		return
 	}
 
@@ -200,10 +205,8 @@ func (task *Task) handleSubmitTaskEvent(event *fsm.Event) {
 		return
 	}
 
-	events.GetRecorder().Eventf(task.pod,
-		v1.EventTypeNormal, "TaskSubmitted",
-		"application \"%s\" task \"%s\" is submitted to the scheduler",
-		task.applicationID, task.taskID)
+	events.GetRecorder().Eventf(task.pod, v1.EventTypeNormal, "Scheduling",
+		"%s is queued and waiting for allocation", task.alias)
 
 	// after a small amount of time, if the task is still not able to get allocation,
 	// put the pod to unscheduable state. This will trigger the cluster-auto-scaler to launch
@@ -219,7 +222,7 @@ func (task *Task) handleSubmitTaskEvent(event *fsm.Event) {
 			log.Logger.Debug("updating pod state ",
 				zap.String("appID", task.applicationID),
 				zap.String("taskID", task.taskID),
-				zap.String("podName", fmt.Sprintf("%s/%s", task.pod.Namespace, task.pod.Name)),
+				zap.String("podName", task.alias),
 				zap.String("state", "Unscheduable"))
 			// if task state is still pending after 5s,
 			// move task to un-schedule-able state.
@@ -228,14 +231,14 @@ func (task *Task) handleSubmitTaskEvent(event *fsm.Event) {
 					Type:    v1.PodScheduled,
 					Status:  v1.ConditionFalse,
 					Reason:  v1.PodReasonUnschedulable,
-					Message: "retrying scheduling",
+					Message: "pod is unable to be scheduled due to lack of resources",
 				}); err != nil {
 				log.Logger.Error("update pod condition failed",
 					zap.Error(err))
 			}
 			events.GetRecorder().Eventf(task.pod,
-				v1.EventTypeNormal, "TaskStateChanges",
-				"Pod %s state changes to Unscheduable", task.pod.Name)
+				v1.EventTypeNormal, "PodUnscheduable",
+				"Task %s state changes to Unscheduable", task.alias)
 		}
 	})
 }
@@ -273,6 +276,11 @@ func (task *Task) postTaskAllocated(event *fsm.Event) {
 		allocUUID := eventArgs[0]
 		nodeID := eventArgs[1]
 
+		// post a message to indicate the pod gets its allocation
+		events.GetRecorder().Eventf(task.pod,
+			v1.EventTypeNormal, "Scheduled",
+			"Successfully assigned %s to node %s", task.alias, nodeID)
+
 		// task allocation UID is assigned once we get allocation decision from scheduler core
 		task.allocationUUID = allocUUID
 
@@ -282,8 +290,7 @@ func (task *Task) postTaskAllocated(event *fsm.Event) {
 			zap.String("podUID", string(task.pod.UID)))
 		if task.context.apiProvider.GetAPIs().VolumeBinder != nil {
 			if err := task.context.bindPodVolumes(task.pod); err != nil {
-				errorMessage = fmt.Sprintf("bind pod volumes failed, name: %s, uid: %s, %#v",
-					task.pod.Name, task.pod.UID, err)
+				errorMessage = fmt.Sprintf("bind pod volumes failed, name: %s, %s", task.alias, err.Error())
 				dispatcher.Dispatch(NewFailTaskEvent(task.applicationID, task.taskID, errorMessage))
 				events.GetRecorder().Eventf(task.pod,
 					v1.EventTypeWarning, "PodVolumesBindFailure", errorMessage)
@@ -296,8 +303,7 @@ func (task *Task) postTaskAllocated(event *fsm.Event) {
 			zap.String("podUID", string(task.pod.UID)))
 
 		if err := task.context.apiProvider.GetAPIs().KubeClient.Bind(task.pod, nodeID); err != nil {
-			errorMessage = fmt.Sprintf("bind pod failed, name: %s, uid: %s, %#v",
-				task.pod.Name, task.pod.UID, err)
+			errorMessage = fmt.Sprintf("bind pod volumes failed, name: %s, %s", task.alias, err.Error())
 			log.Logger.Error(errorMessage)
 			dispatcher.Dispatch(NewFailTaskEvent(task.applicationID, task.taskID, errorMessage))
 			events.GetRecorder().Eventf(task.pod,
@@ -309,7 +315,7 @@ func (task *Task) postTaskAllocated(event *fsm.Event) {
 		dispatcher.Dispatch(NewBindTaskEvent(task.applicationID, task.taskID))
 		events.GetRecorder().Eventf(task.pod,
 			v1.EventTypeNormal, "PodBindSuccessful",
-			"pod \"%s\" successfully bound to node \"%s\"", task.pod.Name, nodeID)
+			"Pod %s is successfully bound to node %s", task.alias, nodeID)
 	}(event)
 }
 
@@ -318,11 +324,11 @@ func (task *Task) postTaskRejected(event *fsm.Event) {
 	// so this function simply triggers the state transition when it is rejected.
 	// but further, we can introduce retry mechanism if necessary.
 	dispatcher.Dispatch(NewFailTaskEvent(task.applicationID, task.taskID,
-		fmt.Sprintf("task %s failed because it is rejected by scheduler", task.taskID)))
+		fmt.Sprintf("task %s failed because it is rejected by scheduler", task.alias)))
 
 	events.GetRecorder().Eventf(task.pod,
 		v1.EventTypeWarning, "TaskRejected",
-		"application \"%s\" task \"%s\" is rejected by the scheduler", task.applicationID, task.taskID)
+		"Task %s is rejected by the scheduler", task.alias)
 }
 
 func (task *Task) postTaskFailed(event *fsm.Event) {
@@ -331,8 +337,8 @@ func (task *Task) postTaskFailed(event *fsm.Event) {
 	task.releaseAllocation()
 
 	events.GetRecorder().Eventf(task.pod,
-		v1.EventTypeWarning, "TaskFailed",
-		"application \"%s\" task \"%s\" is failed", task.applicationID, task.taskID)
+		v1.EventTypeNormal, "TaskFailed",
+		"Task %s is failed", task.alias)
 }
 
 func (task *Task) beforeTaskCompleted(event *fsm.Event) {
@@ -343,7 +349,7 @@ func (task *Task) beforeTaskCompleted(event *fsm.Event) {
 
 	events.GetRecorder().Eventf(task.pod,
 		v1.EventTypeNormal, "TaskCompleted",
-		"application \"%s\" task \"%s\" is completed", task.applicationID, task.taskID)
+		"Task %s is completed", task.alias)
 }
 
 func (task *Task) releaseAllocation() {
@@ -352,6 +358,7 @@ func (task *Task) releaseAllocation() {
 		log.Logger.Debug("prepare to send release request",
 			zap.String("applicationID", task.applicationID),
 			zap.String("taskID", task.taskID),
+			zap.String("taskAlias", task.alias),
 			zap.String("task", task.GetTaskState()))
 
 		// depends on current task state, generate requests accordingly.
@@ -368,8 +375,12 @@ func (task *Task) releaseAllocation() {
 			releaseRequest = common.CreateReleaseAllocationRequestForTask(
 				task.applicationID, task.allocationUUID, task.application.partition)
 		}
-		log.Logger.Info("send release request",
-			zap.String("releaseRequest", releaseRequest.String()))
+
+		if releaseRequest.Releases != nil {
+			log.Logger.Info("releasing allocations",
+				zap.Int("numOfAsksToRelease", len(releaseRequest.Releases.AllocationAsksToRelease)),
+				zap.Int("numOfAllocationsToRelease", len(releaseRequest.Releases.AllocationsToRelease)))
+		}
 		if err := task.context.apiProvider.GetAPIs().SchedulerAPI.Update(&releaseRequest); err != nil {
 			log.Logger.Debug("failed to send scheduling request to scheduler", zap.Error(err))
 		}
@@ -400,4 +411,12 @@ func (task *Task) sanityCheckBeforeScheduling() error {
 		}
 	}
 	return nil
+}
+
+func (task *Task) enterState(event *fsm.Event) {
+	log.Logger.Info("task state",
+		zap.String("appID", task.applicationID),
+		zap.String("taskID", task.taskID),
+		zap.String("taskAlias", task.alias),
+		zap.String("state", task.GetTaskState()))
 }

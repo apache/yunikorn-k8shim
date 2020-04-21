@@ -15,6 +15,11 @@ web_image:
   tag: latest
   pullPolicy: Always
 
+curl_image:
+  repository: curlimages/curl
+  tag: latest
+  pullPolicy: IfNotPresent
+
 service:
   type: LoadBalancer
   port: 9080
@@ -23,7 +28,7 @@ service:
 # When this flag is true, the admission controller will be installed along with the scheduler.
 # When this flag is false, the admission controller will not be installed.
 # Once the admission controller is installed, all traffic will be routing to yunikorn.
-embedAdmissionController: true
+embedAdmissionController: false
 
 #
 # ------------------------------------------------------------------------

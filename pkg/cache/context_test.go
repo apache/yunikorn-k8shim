@@ -36,17 +36,7 @@ const fakeClusterSchedulerName = "yunikorn-test"
 const fakeClusterSchedulingInterval = 1
 
 func initContextForTest() *Context {
-	configs := conf.SchedulerConf{
-		ClusterID:      fakeClusterID,
-		ClusterVersion: fakeClusterVersion,
-		SchedulerName:  fakeClusterSchedulerName,
-		Interval:       fakeClusterSchedulingInterval,
-		KubeConfig:     "",
-		TestMode:       true,
-	}
-
-	conf.Set(&configs)
-
+	conf.GetSchedulerConf().SetTestMode(true)
 	context := NewContext(client.NewMockedAPIProvider())
 	return context
 }

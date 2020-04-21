@@ -24,6 +24,7 @@ import (
 
 	"github.com/looplab/fsm"
 	"go.uber.org/zap"
+	"k8s.io/api/core/v1"
 
 	"github.com/apache/incubator-yunikorn-core/pkg/api"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
@@ -103,6 +104,7 @@ func NewApplication(appID, queueName, user string, tags map[string]string, sched
 			string(events.RecoverApplication):  app.handleRecoverApplicationEvent,
 			string(events.RejectApplication):   app.handleRejectApplicationEvent,
 			string(events.CompleteApplication): app.handleCompleteApplicationEvent,
+			events.EnterState:                  app.enterState,
 		},
 	)
 
@@ -272,6 +274,7 @@ func (app *Application) Schedule() {
 						log.Logger.Warn("init task failed", zap.Error(err))
 					}
 				} else {
+					events.GetRecorder().Event(task.GetTaskPod(), v1.EventTypeWarning, "FailedScheduling", err.Error())
 					log.Logger.Debug("task is not ready for scheduling",
 						zap.String("appID", task.applicationID),
 						zap.String("taskID", task.taskID),
@@ -348,4 +351,11 @@ func (app *Application) handleRejectApplicationEvent(event *fsm.Event) {
 
 func (app *Application) handleCompleteApplicationEvent(event *fsm.Event) {
 	// TODO app lifecycle updates
+}
+
+func (app *Application) enterState(event *fsm.Event) {
+	log.Logger.Info("app state",
+		zap.String("appID", app.applicationID),
+		zap.String("queue", app.queue),
+		zap.String("state", app.GetApplicationState()))
 }
