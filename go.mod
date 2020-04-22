@@ -4,8 +4,8 @@ go 1.12
 
 require (
 	github.com/GoogleCloudPlatform/spark-on-k8s-operator v0.0.0-20200212043150-3df703098970
-	github.com/apache/incubator-yunikorn-core v0.8.0-incubating-rc1
-	github.com/apache/incubator-yunikorn-scheduler-interface v0.8.0-incubating-rc1
+	github.com/apache/incubator-yunikorn-core v0.8.0
+	github.com/apache/incubator-yunikorn-scheduler-interface v0.8.0
 	github.com/coreos/etcd v3.3.20+incompatible // indirect
 	github.com/coreos/go-semver v0.3.0 // indirect
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect
