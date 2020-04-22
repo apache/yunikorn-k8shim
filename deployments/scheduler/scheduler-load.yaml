@@ -19,6 +19,13 @@ spec:
       containers:
         - name: yunikorn-scheduler-k8s
           image: yunikorn/yunikorn-scheduler-k8s:latest
+          resources:
+            requests:
+              cpu: 200m
+              memory: 1Gi
+            limits:
+              cpu: 4
+              memory: 2Gi
           imagePullPolicy: IfNotPresent
           volumeMounts:
             - name: config-volume
