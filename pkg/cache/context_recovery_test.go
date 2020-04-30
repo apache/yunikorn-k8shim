@@ -157,11 +157,10 @@ func TestNodesRecovery(t *testing.T) {
 		Event:  events.NodeAccepted,
 	})
 	expectedStates[0] = events.States().Node.Healthy
-	if err := utils.WaitForCondition(func() bool {
+	err := utils.WaitForCondition(func() bool {
 		return reflect.DeepEqual(getNodeStates(schedulerNodes), expectedStates)
-	}, 100*time.Millisecond, 3*time.Second); err != nil {
-		t.Fatalf("unexpected node states, actual: %v, expected: %v", getNodeStates(schedulerNodes), expectedStates)
-	}
+	}, 100*time.Millisecond, 3*time.Second)
+	assert.NilError(t, err, "unexpected node states, actual: %v, expected: %v", getNodeStates(schedulerNodes), expectedStates)
 
 	// dispatch NodeRejected event for the second node, its expected state should be Rejected
 	dispatcher.Dispatch(CachedSchedulerNodeEvent{
@@ -169,11 +168,10 @@ func TestNodesRecovery(t *testing.T) {
 		Event:  events.NodeRejected,
 	})
 	expectedStates[1] = events.States().Node.Rejected
-	if err := utils.WaitForCondition(func() bool {
+	err = utils.WaitForCondition(func() bool {
 		return reflect.DeepEqual(getNodeStates(schedulerNodes), expectedStates)
-	}, 100*time.Millisecond, 3*time.Second); err != nil {
-		t.Fatalf("unexpected node states, actual: %v, expected: %v", getNodeStates(schedulerNodes), expectedStates)
-	}
+	}, 100*time.Millisecond, 3*time.Second)
+	assert.NilError(t, err, "unexpected node states, actual: %v, expected: %v", getNodeStates(schedulerNodes), expectedStates)
 
 	// dispatch DrainNode event for the third node, its expected state should be Draining
 	schedulerNodes[2].schedulable = false
@@ -182,9 +180,8 @@ func TestNodesRecovery(t *testing.T) {
 		Event:  events.NodeAccepted,
 	})
 	expectedStates[2] = events.States().Node.Draining
-	if err := context.recover([]interfaces.Recoverable{mockedAppRecover}, 3*time.Second); err != nil {
-		t.Fatalf("recovery should be successful, however got error %v", err)
-	}
+	err = context.recover([]interfaces.Recoverable{mockedAppRecover}, 3*time.Second)
+	assert.NilError(t, err, "recovery should be successful, however got error")
 	assert.DeepEqual(t, getNodeStates(schedulerNodes), expectedStates)
 }
 

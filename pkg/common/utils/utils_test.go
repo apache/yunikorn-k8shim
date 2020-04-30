@@ -31,7 +31,7 @@ func TestConvert2Pod(t *testing.T) {
 	assert.Assert(t, pod == nil)
 
 	pod, err = Convert2Pod(&v1.Pod{})
-	assert.Assert(t, err == nil)
+	assert.NilError(t, err)
 	assert.Assert(t, pod != nil)
 }
 
