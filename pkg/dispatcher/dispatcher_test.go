@@ -239,11 +239,10 @@ func TestDispatchTimeout(t *testing.T) {
 	assert.Assert(t, strings.Contains(string(buf), "asyncDispatch"))
 
 	// wait until async dispatch routine times out
-	if err := utils.WaitForCondition(func() bool {
+	err := utils.WaitForCondition(func() bool {
 		return atomic.LoadInt32(&asyncDispatchCount) == int32(0)
-	}, 100*time.Millisecond, DispatchTimeout+AsyncDispatchCheckInterval); err != nil {
-		t.Fatalf(err.Error())
-	}
+	}, 100*time.Millisecond, DispatchTimeout+AsyncDispatchCheckInterval)
+	assert.NilError(t, err)
 
 	// verify no left-over thread
 	buf = make([]byte, 1<<16)
