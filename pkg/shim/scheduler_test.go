@@ -133,7 +133,7 @@ partitions:
 	cluster.waitAndAssertApplicationState(t, "app0001", events.States().Application.Failed)
 
 	// remove the application
-	err := cluster.removeApplication("app0001")
+	err = cluster.removeApplication("app0001")
 	assert.Assert(t, err == nil)
 
 	// submit the app again
