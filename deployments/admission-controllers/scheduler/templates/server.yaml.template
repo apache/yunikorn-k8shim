@@ -15,6 +15,7 @@ spec:
       labels:
         app: yunikorn
     spec:
+      hostNetwork: true
       tolerations:
       - operator: "Exists"
       affinity:
