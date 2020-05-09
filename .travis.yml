@@ -17,7 +17,7 @@ env:
 
 install: true
 
-before_script:
+before_install:
   - curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.22.2
 
 #script:
@@ -28,16 +28,18 @@ before_script:
 
 jobs:
   include:
-    - stage: license check
-      script: make common-check-license
     - stage: unit test
-      script: make test
-    - stage: golangci-lint check
-      script: make lint
-
-after_success:
-  - bash <(curl -s https://codecov.io/bash)
-  - if [[ "$TRAVIS_BRANCH" == "master" ]]; then
-      docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD ;
-      make push-image ;
-    fi
+      script:
+      - make common-check-license
+      - make test
+      - make lint
+    - stage: coverage
+      script:
+      - bash <(curl -s https://codecov.io/bash)
+    - stage: publish docker image
+      script:
+      - |
+        if [[ "$TRAVIS_BRANCH" == "master" ]]; then
+          docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD ;
+          make push-image ;
+        fi
