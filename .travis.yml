@@ -14,6 +14,6 @@ install: true
 go_import_path: golang.org/x/lint
 
 script:
-  make common-check-license
-  make lint
-  make test
+  - make common-check-license
+  - make lint
+  - make test
