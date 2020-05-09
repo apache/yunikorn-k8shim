@@ -6,12 +6,16 @@ os:
 go:
   - "1.12"
 
+git:
+  depth: 1
+
 env:
   - GO111MODULE=on
 
 install: true
 
-go_import_path: golang.org/x/lint
+before_script:
+  - curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.22.2
 
 script:
   - make common-check-license
