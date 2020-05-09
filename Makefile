@@ -160,7 +160,7 @@ image: sched_image adm_image
 .PHONY: test
 test:
 	@echo "running unit tests"
-	go test ./... -cover -race -tags deadlock
+	go test ./... -race -tags deadlock -coverprofile=coverage.txt -covermode=atomic
 	go vet $(REPO)...
 
 # Simple clean of generated files only (no local cleanup).
