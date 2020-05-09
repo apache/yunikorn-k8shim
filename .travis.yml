@@ -31,5 +31,6 @@ jobs:
       - |
         if [[ "$TRAVIS_BRANCH" == "master" ]]; then
           docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD ;
-          make push-image ;
+          make image ;
+          make push ;
         fi

@@ -156,6 +156,12 @@ adm_image: admission
 .PHONY: image
 image: sched_image adm_image
 
+.PHONY: push
+push:
+	@echo "running unit tests"
+	docker push ${REGISTRY}/yunikorn:core-${VERSION}
+	docker push ${REGISTRY}/yunikorn:admission-${VERSION}
+
 # Run the tests after building
 .PHONY: test
 test:
