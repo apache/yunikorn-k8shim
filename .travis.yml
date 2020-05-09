@@ -19,7 +19,8 @@ before_script:
 
 script:
   - make common-check-license
-  - make lint
+  - pwd && ls -al
+  - golangci-lint run --new
   - make test
 
 after_success:
