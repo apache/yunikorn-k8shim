@@ -1,5 +1,10 @@
 # YuniKorn Scheduler for Kubernetes (yunikorn-k8shim)
 
+[![Go Report Card](https://goreportcard.com/badge/github.com/apache/incubator-yunikorn-k8shim)](https://goreportcard.com/report/github.com/apache/incubator-yunikorn-k8shim)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![Repo Size](https://img.shields.io/github/repo-size/apache/incubator-yunikorn-k8shim?style=plastic)](https://img.shields.io/github/repo-size/apache/incubator-yunikorn-k8shim?style=plastic)
+[![Activity](https://img.shields.io/github/commit-activity/w/apache/incubator-yunikorn-k8shim?style=social)](https://img.shields.io/github/commit-activity/w/apache/incubator-yunikorn-k8shim?style=social)
+
 YuniKorn scheduler shim for kubernetes is a customized k8s scheduler, it can be deployed in a K8s cluster and work as the scheduler.
 This project contains the k8s shim layer code for k8s, it depends on `yunikorn-core` which encapsulates all the actual scheduling logic.
 By default, it handles all pods scheduling if pod's spec has field `schedulerName: yunikorn`.
