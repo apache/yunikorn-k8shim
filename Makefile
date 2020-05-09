@@ -158,7 +158,7 @@ image: sched_image adm_image
 
 .PHONY: push
 push:
-	@echo "running unit tests"
+	@echo "push docker images"
 	docker push ${REGISTRY}/yunikorn:core-${VERSION}
 	docker push ${REGISTRY}/yunikorn:admission-${VERSION}
 
