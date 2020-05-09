@@ -18,5 +18,6 @@ jobs:
         - curl -Lo ./kind "https://kind.sigs.k8s.io/dl/v0.8.0/kind-linux-amd64"
         - chmod +x ./kind
         - mv ./kind $(go env GOPATH)/bin
-        - export KUBECONFIG="$(kind get kubeconfig-path)"
+        - kind create cluster --name k8s-yk-kind
+        - kubectl cluster-info --context k8s-yk-kind
       script: kubectl get nodes
