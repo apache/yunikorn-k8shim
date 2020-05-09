@@ -1,0 +1,25 @@
+language: go
+
+os:
+  - linux
+
+go:
+  - "1.12"
+
+git:
+  depth: 1
+
+env:
+  - GO111MODULE=on
+
+install: true
+
+jobs:
+  include:
+    - stage: integration tests
+      before_script:
+        - curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl && chmod +x kubectl && sudo mv kubectl /usr/local/bin/
+        - go get sigs.k8s.io/kind
+        - kind create cluster
+        - export KUBECONFIG="$(kind get kubeconfig-path)"
+      script: kubectl get nodes
