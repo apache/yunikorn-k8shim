@@ -6,19 +6,17 @@ os:
 go:
   - "1.12"
 
-env:
-  - GO111MODULE=on
-
 install: true
+
+services: docker
 
 jobs:
   include:
     - stage: integration tests
       before_script:
         - curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl && chmod +x kubectl && sudo mv kubectl /usr/local/bin/
-        - curl -o /usr/local/bin/kind -L https://github.com/kubernetes-sigs/kind/releases/download/v0.8.0/kind-linux-amd64
-        - chmod +x /usr/local/bin/kind
-        - export PATH=${PATH}:/usr/local/bin
-        - kind create cluster
+        - curl -Lo ./kind "https://kind.sigs.k8s.io/dl/v0.8.0/kind-linux-amd64"
+        - chmod +x ./kind
+        - mv ./kind $(go env GOPATH)/bin
         - export KUBECONFIG="$(kind get kubeconfig-path)"
       script: kubectl get nodes
