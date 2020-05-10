@@ -17,6 +17,7 @@ make build
 ```
 This command will build a binary `k8s_yunikorn_scheduler` under `_output/bin` dir. This binary is executable on local environment, as long as `kubectl` is properly configured.
 Run `./k8s_yunikorn_scheduler -help` to see all options.
+
 **Note**: It may take few minutes to run this command for the first time, because it needs to download all dependencies.
 In case you get an error relating to `checksum mismatch`, run `go clean -modcache` and then rerun `make build`.
 
