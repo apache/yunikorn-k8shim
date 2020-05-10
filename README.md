@@ -17,48 +17,6 @@ make build
 ```
 This command will build a binary `k8s_yunikorn_scheduler` under `_output/bin` dir. This binary is executable on local environment, as long as `kubectl` is properly configured.
 Run `./k8s_yunikorn_scheduler -help` to see all options.
-language: go
-
-os:
-  - linux
-
-go:
-  - "1.12"
-
-git:
-  depth: 1
-
-services:
-  - 'docker'
-
-env:
-  - GO111MODULE=on
-
-install: true
-
-jobs:
-  include:
-    - stage: unit test
-      script:
-        - curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.22.2
-        - make common-check-license
-        - make test
-        - make lint
-      after_success: bash <(curl -s https://codecov.io/bash)
-    - stage: publish docker image
-      deploy:
-        provider: script
-        script: make push
-        on:
-          branch: master
-          condition: $TRAVIS_EVENT_TYPE = cron
-    - stage: integration tests
-      before_script:
-        - curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl && chmod +x kubectl && sudo mv kubectl /usr/local/bin/
-        - go get sigs.k8s.io/kind
-        - kind create cluster
-        - export KUBECONFIG="$(kind get kubeconfig-path)"
-      script: kubectl get nodes
 **Note**: It may take few minutes to run this command for the first time, because it needs to download all dependencies.
 In case you get an error relating to `checksum mismatch`, run `go clean -modcache` and then rerun `make build`.
 
