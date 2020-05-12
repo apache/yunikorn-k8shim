@@ -62,3 +62,7 @@ replace k8s.io/cloud-provider => k8s.io/cloud-provider v0.0.0-20191212015549-86a
 replace github.com/golang/lint => golang.org/x/lint v0.0.0-20200302205851-738671d3881b
 
 replace github.com/coreos/bbolt => go.etcd.io/bbolt v1.3.4
+
+replace github.com/apache/incubator-yunikorn-scheduler-interface => /Users/adamantal/git/yunikorn/incubator-yunikorn-scheduler-interface
+
+replace github.com/apache/incubator-yunikorn-core => /Users/adamantal/git/yunikorn/yunikorn-core
