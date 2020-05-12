@@ -22,7 +22,7 @@ import (
 	"k8s.io/api/core/v1"
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
+	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/common"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 )
 

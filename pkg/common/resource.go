@@ -24,6 +24,7 @@ import (
 	"k8s.io/kubernetes/pkg/apis/core/v1/helper/qos"
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
+	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/common"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 )
 
@@ -61,7 +62,7 @@ func GetPodResource(pod *v1.Pod) (resource *si.Resource) {
 	// scheduled. Handle a QosBestEffort pod by setting a tiny memory value.
 	if qos.GetPodQOS(pod) == v1.PodQOSBestEffort {
 		resources := NewResourceBuilder()
-		resources.AddResource(Memory, 1)
+		resources.AddResource(common.Memory, 1)
 		return resources.Build()
 	}
 
@@ -88,10 +89,10 @@ func getResource(resourceList v1.ResourceList) *si.Resource {
 		switch name {
 		case v1.ResourceMemory:
 			memory := value.ScaledValue(resource.Mega)
-			resources.AddResource(Memory, memory)
+			resources.AddResource(common.Memory, memory)
 		case v1.ResourceCPU:
 			vcore := value.MilliValue()
-			resources.AddResource(CPU, vcore)
+			resources.AddResource(common.CPU, vcore)
 		default:
 			resources.AddResource(string(name), value.Value())
 		}
@@ -168,8 +169,8 @@ func CreateUpdateRequestForNewNode(node Node) si.UpdateRequest {
 		SchedulableResource: node.capacity,
 		// TODO is this required?
 		Attributes: map[string]string{
-			DefaultNodeAttributeHostNameKey: node.name,
-			DefaultNodeAttributeRackNameKey: DefaultRackName,
+			common.DefaultNodeAttributeHostNameKey: node.name,
+			common.DefaultNodeAttributeRackNameKey: common.DefaultRackName,
 		},
 	}
 

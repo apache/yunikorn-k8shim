@@ -32,6 +32,7 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
+	siCommon "github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/common"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 )
 
@@ -124,8 +125,8 @@ func (os *Manager) getAppMetadata(sparkApp *v1beta2.SparkApplication) interfaces
 	}
 
 	// set queue name if app labels it
-	queueName := common.ApplicationDefaultQueue
-	if an, ok := sparkApp.Labels[common.LabelQueueName]; ok {
+	queueName := siCommon.ApplicationDefaultQueue
+	if an, ok := sparkApp.Labels[siCommon.LabelQueueName]; ok {
 		queueName = an
 	}
 
@@ -162,7 +163,7 @@ func (os *Manager) GetExistingAllocation(pod *v1.Pod) *si.Allocation {
 			QueueName:        utils.GetQueueNameFromPod(pod),
 			NodeID:           pod.Spec.NodeName,
 			ApplicationID:    meta.ApplicationID,
-			PartitionName:    common.DefaultPartition,
+			PartitionName:    siCommon.DefaultPartition,
 		}
 	}
 	return nil

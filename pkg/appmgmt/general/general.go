@@ -30,6 +30,7 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
+	siCommon "github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/common"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 )
 
@@ -257,7 +258,7 @@ func (os *Manager) deletePod(obj interface{}) {
 func (os *Manager) ListApplications() (map[string]interfaces.ApplicationMetadata, error) {
 	// selector: applicationID exist
 	slt := labels.NewSelector()
-	req, err := labels.NewRequirement(common.LabelApplicationID, selection.Exists, nil)
+	req, err := labels.NewRequirement(siCommon.LabelApplicationID, selection.Exists, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -298,7 +299,7 @@ func (os *Manager) GetExistingAllocation(pod *v1.Pod) *si.Allocation {
 			QueueName:        meta.QueueName,
 			NodeID:           pod.Spec.NodeName,
 			ApplicationID:    meta.ApplicationID,
-			PartitionName:    common.DefaultPartition,
+			PartitionName:    siCommon.DefaultPartition,
 		}
 	}
 	return nil
