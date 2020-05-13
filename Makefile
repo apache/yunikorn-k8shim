@@ -71,8 +71,8 @@ lint:
 	fi ; \
 	$${lintBin} run --new
 
-.PHONY: common-check-license
-common-check-license:
+.PHONY: license-check
+license-check:
 	@echo "checking license header"
 	@licRes=$$(grep -Lr --include=*.{go,sh} "Licensed to the Apache Software Foundation" .) ; \
 	if [ -n "$${licRes}" ]; then \
@@ -124,7 +124,7 @@ sched_image: scheduler
 	@coreSHA=$$(go list -m "github.com/apache/incubator-yunikorn-core" | cut -d "-" -f5) ; \
 	siSHA=$$(go list -m "github.com/apache/incubator-yunikorn-scheduler-interface" | cut -d "-" -f6) ; \
 	shimSHA=$$(git rev-parse --short=12 HEAD) ; \
-	docker build ./deployments/image/configmap -t ${REGISTRY}/yunikorn:core-${VERSION} \
+	docker build ./deployments/image/configmap -t ${REGISTRY}/yunikorn:scheduler-${VERSION} \
 	--label "yunikorn-core-revision=$${coreSHA}" \
 	--label "yunikorn-scheduler-interface-revision=$${siSHA}" \
 	--label "yunikorn-k8shim-revision=$${shimSHA}" \
@@ -160,7 +160,7 @@ image: sched_image adm_image
 push: image
 	@echo "push docker images"
 	echo "${DOCKER_PASSWORD}" | docker login -u "${DOCKER_USERNAME}" --password-stdin
-	docker push ${REGISTRY}/yunikorn:core-${VERSION}
+	docker push ${REGISTRY}/yunikorn:scheduler-${VERSION}
 	docker push ${REGISTRY}/yunikorn:admission-${VERSION}
 
 # Run the tests after building
