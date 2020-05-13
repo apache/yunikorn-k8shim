@@ -27,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/apache/incubator-yunikorn-core/pkg/api"
+	coreEvents "github.com/apache/incubator-yunikorn-core/pkg/events"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/cache"
@@ -45,28 +46,30 @@ type KubernetesShim struct {
 	context      *cache.Context
 	appManager   *appmgmt.AppManagementService
 	callback     api.ResourceManagerCallback
+	eventStore   *coreEvents.EventStore
 	stateMachine *fsm.FSM
 	stopChan     chan struct{}
 	lock         *sync.RWMutex
 }
 
-func newShimScheduler(scheduler api.SchedulerAPI, configs *conf.SchedulerConf) *KubernetesShim {
+func newShimScheduler(scheduler api.SchedulerAPI, configs *conf.SchedulerConf, eventStore *coreEvents.EventStore) *KubernetesShim {
 	apiFactory := client.NewAPIFactory(scheduler, configs, false)
 	context := cache.NewContext(apiFactory)
 	rmCallback := callback.NewAsyncRMCallback(context)
 	appManager := appmgmt.NewAMService(context, apiFactory)
-	return newShimSchedulerInternal(context, apiFactory, appManager, rmCallback)
+	return newShimSchedulerInternal(context, apiFactory, appManager, rmCallback, eventStore)
 }
 
 // this is visible for testing
 func newShimSchedulerInternal(ctx *cache.Context, apiFactory client.APIProvider,
-	am *appmgmt.AppManagementService, cb api.ResourceManagerCallback) *KubernetesShim {
+	am *appmgmt.AppManagementService, cb api.ResourceManagerCallback, eventStore *coreEvents.EventStore) *KubernetesShim {
 	var states = events.States().Scheduler
 	ss := &KubernetesShim{
 		apiFactory: apiFactory,
 		context:    ctx,
 		appManager: am,
 		callback:   cb,
+		eventStore:	eventStore,
 		stopChan:   make(chan struct{}),
 		lock:       &sync.RWMutex{},
 	}

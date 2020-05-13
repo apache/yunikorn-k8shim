@@ -44,7 +44,7 @@ func main() {
 	serviceContext := entrypoint.StartAllServices()
 
 	if sa, ok := serviceContext.RMProxy.(api.SchedulerAPI); ok {
-		ss := newShimScheduler(sa, conf.GetSchedulerConf())
+		ss := newShimScheduler(sa, conf.GetSchedulerConf(), serviceContext.EventStore)
 		ss.run()
 
 		signalChan := make(chan os.Signal, 1)

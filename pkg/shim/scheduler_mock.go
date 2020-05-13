@@ -72,7 +72,7 @@ func (fc *MockScheduler) init(queues string) {
 	context := cache.NewContext(mockedAPIProvider)
 	rmCallback := callback.NewAsyncRMCallback(context)
 	amSvc := appmgmt.NewAMService(context, mockedAPIProvider)
-	ss := newShimSchedulerInternal(context, mockedAPIProvider, amSvc, rmCallback)
+	ss := newShimSchedulerInternal(context, mockedAPIProvider, amSvc, rmCallback, serviceContext.EventStore)
 
 	fc.context = context
 	fc.scheduler = ss
