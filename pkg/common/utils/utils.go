@@ -38,6 +38,14 @@ func Convert2Pod(obj interface{}) (*v1.Pod, error) {
 	return pod, nil
 }
 
+func Convert2Namespace(obj interface{}) (*v1.Namespace, error) {
+	namespace, ok := obj.(*v1.Namespace)
+	if !ok {
+		return nil, fmt.Errorf("cannot convert to *v1.Namespace: %v", obj)
+	}
+	return namespace, nil
+}
+
 func NeedRecovery(pod *v1.Pod) (bool, error) {
 	if pod.Status.Phase == v1.PodPending {
 		return false, nil

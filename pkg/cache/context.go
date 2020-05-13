@@ -102,6 +102,15 @@ func (ctx *Context) AddSchedulingEventHandlers() {
 		UpdateFn: ctx.updateConfigMaps,
 		DeleteFn: ctx.deleteConfigMaps,
 	})
+
+	mapper := &NamespaceMapper{}
+	ctx.apiProvider.AddEventHandler(&client.ResourceEventHandlers{
+		Type:     client.NamespaceInformerHandlers,
+		FilterFn: mapper.filterNamespace,
+		AddFn:    mapper.addNamespace,
+		UpdateFn: mapper.updateNamespace,
+		DeleteFn: mapper.deleteNamespace,
+	})
 }
 
 func (ctx *Context) addNode(obj interface{}) {

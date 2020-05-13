@@ -39,6 +39,7 @@ const (
 	StorageInformerHandlers
 	PVInformerHandlers
 	PVCInformerHandlers
+	NamespaceInformerHandlers
 )
 
 type APIProvider interface {
@@ -83,6 +84,8 @@ func NewAPIFactory(scheduler api.SchedulerAPI, configs *conf.SchedulerConf, test
 	storageInformer := informerFactory.Storage().V1().StorageClasses()
 	pvInformer := informerFactory.Core().V1().PersistentVolumes()
 	pvcInformer := informerFactory.Core().V1().PersistentVolumeClaims()
+	namespaceInformer := informerFactory.Core().V1().Namespaces()
+
 	// create a volume binder (needs the informers)
 	volumeBinder := volumebinder.NewVolumeBinder(
 		kubeClient.GetClientSet(),
@@ -104,6 +107,7 @@ func NewAPIFactory(scheduler api.SchedulerAPI, configs *conf.SchedulerConf, test
 			PVCInformer:       pvcInformer,
 			StorageInformer:   storageInformer,
 			VolumeBinder:      volumeBinder,
+			NamespaceInformer: namespaceInformer,
 		},
 		testMode: testMode,
 		stopChan: make(chan struct{}),
@@ -164,6 +168,9 @@ func (s *APIFactory) addEventHandlers(
 			AddEventHandlerWithResyncPeriod(handler, resyncPeriod)
 	case PVCInformerHandlers:
 		s.GetAPIs().PVCInformer.Informer().
+			AddEventHandlerWithResyncPeriod(handler, resyncPeriod)
+	case NamespaceInformerHandlers:
+		s.GetAPIs().NamespaceInformer.Informer().
 			AddEventHandlerWithResyncPeriod(handler, resyncPeriod)
 	}
 }

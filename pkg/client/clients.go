@@ -52,6 +52,7 @@ type Clients struct {
 	PVInformer        coreInformerV1.PersistentVolumeInformer
 	PVCInformer       coreInformerV1.PersistentVolumeClaimInformer
 	StorageInformer   storageInformerV1.StorageClassInformer
+	NamespaceInformer coreInformerV1.NamespaceInformer
 
 	// volume binder handles PV/PVC related operations
 	VolumeBinder *volumebinder.VolumeBinder
