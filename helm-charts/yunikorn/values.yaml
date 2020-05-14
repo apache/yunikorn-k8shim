@@ -23,13 +23,13 @@ replicaCount: 1
 serviceAccount: yunikorn-admin
 
 image:
-  repository: yunikorn/yunikorn-scheduler-k8s
-  tag: latest
+  repository: apache/yunikorn
+  tag: scheduler-latest
   pullPolicy: Always
 
 web_image:
-  repository: yunikorn/yunikorn-web
-  tag: latest
+  repository: apache/yunikorn
+  tag: web-latest
   pullPolicy: Always
 
 curl_image:
