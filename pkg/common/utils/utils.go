@@ -26,8 +26,9 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
-	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/common"
+	siCommon "github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/common"
 )
 
 func Convert2Pod(obj interface{}) (*v1.Pod, error) {
@@ -73,7 +74,7 @@ func GeneralPodFilter(pod *v1.Pod) bool {
 
 func GetQueueNameFromPod(pod *v1.Pod) string {
 	queueName := common.ApplicationDefaultQueue
-	if an, ok := pod.Labels[common.LabelQueueName]; ok {
+	if an, ok := pod.Labels[siCommon.LabelQueueName]; ok {
 		queueName = an
 	}
 	return queueName
@@ -82,19 +83,19 @@ func GetQueueNameFromPod(pod *v1.Pod) string {
 func GetApplicationIDFromPod(pod *v1.Pod) (string, error) {
 	for name, value := range pod.Labels {
 		// if a pod for spark already provided appID, reuse it
-		if name == common.SparkLabelAppID {
+		if name == siCommon.SparkLabelAppID {
 			return value, nil
 		}
 
 		// application ID can be defined as a label
-		if name == common.LabelApplicationID {
+		if name == siCommon.LabelApplicationID {
 			return value, nil
 		}
 	}
 
 	// application ID can be defined in annotations too
 	for name, value := range pod.Annotations {
-		if name == common.LabelApplicationID {
+		if name == siCommon.LabelApplicationID {
 			return value, nil
 		}
 	}

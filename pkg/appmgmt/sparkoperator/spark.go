@@ -125,7 +125,7 @@ func (os *Manager) getAppMetadata(sparkApp *v1beta2.SparkApplication) interfaces
 	}
 
 	// set queue name if app labels it
-	queueName := siCommon.ApplicationDefaultQueue
+	queueName := common.ApplicationDefaultQueue
 	if an, ok := sparkApp.Labels[siCommon.LabelQueueName]; ok {
 		queueName = an
 	}
@@ -163,7 +163,7 @@ func (os *Manager) GetExistingAllocation(pod *v1.Pod) *si.Allocation {
 			QueueName:        utils.GetQueueNameFromPod(pod),
 			NodeID:           pod.Spec.NodeName,
 			ApplicationID:    meta.ApplicationID,
-			PartitionName:    siCommon.DefaultPartition,
+			PartitionName:    common.DefaultPartition,
 		}
 	}
 	return nil

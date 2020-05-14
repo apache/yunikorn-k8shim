@@ -299,7 +299,7 @@ func (os *Manager) GetExistingAllocation(pod *v1.Pod) *si.Allocation {
 			QueueName:        meta.QueueName,
 			NodeID:           pod.Spec.NodeName,
 			ApplicationID:    meta.ApplicationID,
-			PartitionName:    siCommon.DefaultPartition,
+			PartitionName:    common.DefaultPartition,
 		}
 	}
 	return nil

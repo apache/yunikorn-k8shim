@@ -154,7 +154,7 @@ func (n *SchedulerNode) handleNodeRecovery(event *fsm.Event) {
 				OccupiedResource:    n.occupied,
 				Attributes: map[string]string{
 					siCommon.DefaultNodeAttributeHostNameKey: n.name,
-					siCommon.DefaultNodeAttributeRackNameKey: siCommon.DefaultRackName,
+					siCommon.DefaultNodeAttributeRackNameKey: common.DefaultRackName,
 				},
 				ExistingAllocations: n.existingAllocations,
 			},
@@ -182,7 +182,7 @@ func (n *SchedulerNode) handleDrainNode(event *fsm.Event) {
 				Action: si.UpdateNodeInfo_DRAIN_NODE,
 				Attributes: map[string]string{
 					siCommon.DefaultNodeAttributeHostNameKey: n.name,
-					siCommon.DefaultNodeAttributeRackNameKey: siCommon.DefaultRackName,
+					siCommon.DefaultNodeAttributeRackNameKey: common.DefaultRackName,
 				},
 			},
 		},
@@ -209,7 +209,7 @@ func (n *SchedulerNode) handleRestoreNode(event *fsm.Event) {
 				Action: si.UpdateNodeInfo_DRAIN_TO_SCHEDULABLE,
 				Attributes: map[string]string{
 					siCommon.DefaultNodeAttributeHostNameKey: n.name,
-					siCommon.DefaultNodeAttributeRackNameKey: siCommon.DefaultRackName,
+					siCommon.DefaultNodeAttributeRackNameKey: common.DefaultRackName,
 				},
 			},
 		},
