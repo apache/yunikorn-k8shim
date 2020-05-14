@@ -48,7 +48,7 @@ endif
 # Image build parameters
 # This tag of the image must be changed when pushed to a public repository.
 ifeq ($(REGISTRY),)
-REGISTRY := yunikorn
+REGISTRY := apache
 endif
 
 # Force Go modules even when checked out inside GOPATH
@@ -71,10 +71,10 @@ lint:
 	fi ; \
 	$${lintBin} run --new
 
-.PHONY: common-check-license
-common-check-license:
+.PHONY: license-check
+license-check:
 	@echo "checking license header"
-	@licRes=$$(grep -Lr --include=*.{go,sh} "Licensed to the Apache Software Foundation" .) ; \
+	@licRes=$$(grep -Lr --include=*.{go,sh,md,yaml,yml,mod} "Licensed to the Apache Software Foundation" .) ; \
 	if [ -n "$${licRes}" ]; then \
 		echo "following files have incorrect license header:\n$${licRes}" ; \
 		exit 1; \
@@ -124,7 +124,7 @@ sched_image: scheduler
 	@coreSHA=$$(go list -m "github.com/apache/incubator-yunikorn-core" | cut -d "-" -f5) ; \
 	siSHA=$$(go list -m "github.com/apache/incubator-yunikorn-scheduler-interface" | cut -d "-" -f6) ; \
 	shimSHA=$$(git rev-parse --short=12 HEAD) ; \
-	docker build ./deployments/image/configmap -t ${REGISTRY}/yunikorn-scheduler-k8s:${VERSION} \
+	docker build ./deployments/image/configmap -t ${REGISTRY}/yunikorn:scheduler-${VERSION} \
 	--label "yunikorn-core-revision=$${coreSHA}" \
 	--label "yunikorn-scheduler-interface-revision=$${siSHA}" \
 	--label "yunikorn-k8shim-revision=$${shimSHA}" \
@@ -149,18 +149,25 @@ admission: init
 adm_image: admission
 	@echo "building admission controller docker images"
 	@cp ${ADMISSION_CONTROLLER_BIN_DIR}/${POD_ADMISSION_CONTROLLER_BINARY} ./deployments/image/admission
-	docker build ./deployments/image/admission -t ${REGISTRY}/yunikorn-scheduler-admission-controller:${VERSION}
+	docker build ./deployments/image/admission -t ${REGISTRY}/yunikorn:admission-${VERSION}
 	@rm -f ./deployments/image/admission/${POD_ADMISSION_CONTROLLER_BINARY}
 
 # Build all images based on the production ready version
 .PHONY: image
 image: sched_image adm_image
 
+.PHONY: push
+push: image
+	@echo "push docker images"
+	echo "${DOCKER_PASSWORD}" | docker login -u "${DOCKER_USERNAME}" --password-stdin
+	docker push ${REGISTRY}/yunikorn:scheduler-${VERSION}
+	docker push ${REGISTRY}/yunikorn:admission-${VERSION}
+
 # Run the tests after building
 .PHONY: test
 test:
 	@echo "running unit tests"
-	go test ./... -cover -race -tags deadlock
+	go test ./... -race -tags deadlock -coverprofile=coverage.txt -covermode=atomic
 	go vet $(REPO)...
 
 # Simple clean of generated files only (no local cleanup).

@@ -15,20 +15,38 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-github:
-  description: "Apache YuniKorn K8shim"
-  homepage: https://yunikorn.apache.org/
-  labels:
-    - yunikorn
-    - go
-    - universal-resource-scheduler
-    - apache-yarn
-    - kubernetes
-  enabled_merge_buttons:
-    squash:  true
-    merge:   false
-    rebase:  false
-  features:
-    wiki: true
-    issues: false
-    projects: false
+language: go
+
+os:
+  - linux
+
+go:
+  - "1.12"
+
+git:
+  depth: 1
+
+services:
+  - 'docker'
+
+env:
+  - GO111MODULE=on
+
+install: true
+
+jobs:
+  include:
+    - stage: pre-commit checks
+      script:
+      - curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.22.2
+      - make license-check
+      - make test
+      - make lint
+      after_success: bash <(curl -s https://codecov.io/bash)
+    - stage: publish docker image
+      deploy:
+        provider: script
+        script: make push
+        on:
+          branch: master
+          #condition: $TRAVIS_EVENT_TYPE = cron
