@@ -28,7 +28,7 @@ spec:
       template:
         metadata:
           labels:
-            applicationId: "tf_ps_20200521_001"
+            applicationId: "tf_job_20200521_001"
             queue: root.sandbox
         spec:
           schedulerName: yunikorn
@@ -41,7 +41,7 @@ spec:
       template:
         metadata:
           labels:
-            applicationId: "tf_worker_20200521_001"
+            applicationId: "tf_job_20200521_001"
             queue: root.sandbox
         spec:
           schedulerName: yunikorn
