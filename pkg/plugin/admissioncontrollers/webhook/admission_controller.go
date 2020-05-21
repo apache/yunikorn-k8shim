@@ -157,7 +157,7 @@ func updateLabels(namespace string, pod *v1.Pod, patch []patchOperation) []patch
 		if _, ok := existingLabels[common.LabelApplicationID]; !ok {
 			// if app id not exist, generate one
 			// for each namespace, we group unnamed pods to one single app
-			// application ID convention: __${NAMESPACE}_app_default
+			// application ID convention: ${AUTO_GEN_PREFIX}-${NAMESPACE}-${AUTO_GEN_SUFFIX}
 			generatedID := generateAppID(namespace)
 			log.Logger.Debug("adding application ID",
 				zap.String("generatedID", generatedID))
