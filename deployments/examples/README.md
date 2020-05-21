@@ -45,6 +45,9 @@ Deployment files for the driver and executor:
 * [driver](spark30/driver.yaml).
 * [executor](spark30/executor.yaml).
 
+## tfjob
+A simple example for [kubeflow/tensorflow](./tfjob/tf-job-mnist.yaml) image.
+
 ## volumes
 The volumes directory contains three examples:
 1. [local volumes](#local-volume)
