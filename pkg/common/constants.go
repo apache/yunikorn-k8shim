@@ -19,6 +19,8 @@
 package common
 
 // Cluster
+const DefaultNodeAttributeHostNameKey = "si/hostname"
+const DefaultNodeAttributeRackNameKey = "si/rackname"
 const DefaultRackName = "/rack-default"
 
 // Application

@@ -169,8 +169,8 @@ func CreateUpdateRequestForNewNode(node Node) si.UpdateRequest {
 		SchedulableResource: node.capacity,
 		// TODO is this required?
 		Attributes: map[string]string{
-			siCommon.DefaultNodeAttributeHostNameKey: node.name,
-			siCommon.DefaultNodeAttributeRackNameKey: DefaultRackName,
+			DefaultNodeAttributeHostNameKey: node.name,
+			DefaultNodeAttributeRackNameKey: DefaultRackName,
 		},
 	}
 
