@@ -47,6 +47,8 @@ Deployment files for the driver and executor:
 
 ## Tensorflow job
 A simple example for [kubeflow/tensorflow](./tfjob/tf-job-mnist.yaml) image.
+In this example it will run a distributed mnist model for e2e test, for full more detail see the [dist-mnist](https://github.com/kubeflow/tf-operator/tree/master/examples/v1/dist-mnist) section.
+As we can schedule tfjob mean we can support kubeflow.
 
 ## volumes
 The volumes directory contains three examples:
