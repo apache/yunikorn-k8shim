@@ -125,6 +125,7 @@ sched_image: scheduler
 	siSHA=$$(go list -m "github.com/apache/incubator-yunikorn-scheduler-interface" | cut -d "-" -f6) ; \
 	shimSHA=$$(git rev-parse --short=12 HEAD) ; \
 	docker build ./deployments/image/configmap -t ${REGISTRY}/yunikorn:scheduler-${VERSION} \
+	--build-arg DOCKER_IMAGE_REGISTRY=${REGISTRY} --build-arg DOCKER_IMAGE_VERSION=${VERSION} \
 	--label "yunikorn-core-revision=$${coreSHA}" \
 	--label "yunikorn-scheduler-interface-revision=$${siSHA}" \
 	--label "yunikorn-k8shim-revision=$${shimSHA}" \
