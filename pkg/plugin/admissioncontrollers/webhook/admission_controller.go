@@ -24,8 +24,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"strconv"
-	"time"
 
 	"go.uber.org/zap"
 	"k8s.io/api/admission/v1beta1"
@@ -37,6 +35,11 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
+)
+
+const (
+	autoGenAppPrefix = "yunikorn"
+	autoGenAppSuffix = "autogen"
 )
 
 var (
@@ -63,9 +66,10 @@ type ValidateConfResponse struct {
 
 func (c *admissionController) mutate(ar *v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
 	req := ar.Request
+	namespace := ar.Request.Namespace
 	log.Logger.Info("AdmissionReview",
 		zap.Any("Kind", req.Kind),
-		zap.String("Namespace", req.Namespace),
+		zap.String("Namespace", namespace),
 		zap.String("UID", string(req.UID)),
 		zap.String("Operation", string(req.Operation)),
 		zap.Any("UserInfo", req.UserInfo))
@@ -93,7 +97,7 @@ func (c *admissionController) mutate(ar *v1beta1.AdmissionReview) *v1beta1.Admis
 		}
 
 		patch = updateSchedulerName(patch)
-		patch = updateLabels(&pod, patch)
+		patch = updateLabels(namespace, &pod, patch)
 	}
 
 	patchBytes, err := json.Marshal(patch)
@@ -125,20 +129,23 @@ func updateSchedulerName(patch []patchOperation) []patchOperation {
 	})
 }
 
-// the generated ID is using [PodName]_[Timestamp] naming convention.
-// the generated ID should be unique even the pod name is same (differ on nano time),
+// generate appID based on the namespace value,
 // and the max length of the ID is 63 chars.
-func generateAppID(podName string) string {
-	timestamp := strconv.FormatInt(time.Now().UnixNano(), 10)
-	generatedID := fmt.Sprintf("%.43s_%.19s", podName, timestamp)
-	return generatedID
+func generateAppID(namespace string) string {
+	ns := "default"
+	if namespace != "" {
+		ns = namespace
+	}
+	generatedID := fmt.Sprintf("%s-%s-%s", autoGenAppPrefix, ns, autoGenAppSuffix)
+	appID := fmt.Sprintf("%.63s", generatedID)
+	return appID
 }
 
-func updateLabels(pod *v1.Pod, patch []patchOperation) []patchOperation {
+func updateLabels(namespace string, pod *v1.Pod, patch []patchOperation) []patchOperation {
 	log.Logger.Info("updating pod labels",
 		zap.String("podName", pod.Name),
 		zap.String("generateName", pod.GenerateName),
-		zap.String("namespace", pod.Namespace),
+		zap.String("namespace", namespace),
 		zap.Any("labels", pod.Labels))
 	existingLabels := pod.Labels
 	result := make(map[string]string)
@@ -149,16 +156,9 @@ func updateLabels(pod *v1.Pod, patch []patchOperation) []patchOperation {
 	if _, ok := existingLabels[common.SparkLabelAppID]; !ok {
 		if _, ok := existingLabels[common.LabelApplicationID]; !ok {
 			// if app id not exist, generate one
-			// pod's name can be generated, if name is not explicitly specified
-			// look for generateName instead
-			podName := "unknown"
-			if pod.Name != "" {
-				podName = pod.Name
-			} else if pod.GenerateName != "" {
-				podName = pod.GenerateName
-			}
-
-			generatedID := generateAppID(podName)
+			// for each namespace, we group unnamed pods to one single app
+			// application ID convention: ${AUTO_GEN_PREFIX}-${NAMESPACE}-${AUTO_GEN_SUFFIX}
+			generatedID := generateAppID(namespace)
 			log.Logger.Debug("adding application ID",
 				zap.String("generatedID", generatedID))
 			result[common.LabelApplicationID] = generatedID
