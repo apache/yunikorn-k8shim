@@ -30,7 +30,7 @@ spec:
               topologyKey: "kubernetes.io/hostname"
       containers:
         - name: yunikorn-admission-controller-webhook
-          image: ${REGISTRY}/yunikorn:admission-${VERSION}
+          image: yunikorn/yunikorn-scheduler-admission-controller:latest
           imagePullPolicy: Always
           ports:
           - containerPort: 8443
