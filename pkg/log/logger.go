@@ -24,7 +24,6 @@ import (
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 )
@@ -92,14 +91,3 @@ func init() {
 	defer Logger.Sync()
 }
 
-// temporarily reset the Logger to enable the observer,
-// unit tests can leverage the observedLogs to verify the accuracy of the logs,
-// the reset function MUST be called after the verification is done
-func GetLogObserver() (observedLogs *observer.ObservedLogs, reset func()) {
-	core, recorded := observer.New(zap.DebugLevel)
-	tmp := Logger
-	Logger = zap.New(core)
-	return recorded, func() {
-		Logger = tmp
-	}
-}
