@@ -21,15 +21,17 @@ package cache
 import (
 	"testing"
 
+	"go.uber.org/zap"
 	"gotest.tools/assert"
-
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
-	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
+	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 )
 
 func TestTaskStateTransitions(t *testing.T) {
@@ -91,6 +93,58 @@ func TestTaskStateTransitions(t *testing.T) {
 	err = task.handle(event4)
 	assert.NilError(t, err, "failed to handle CompleteTask event")
 	assert.Equal(t, task.GetTaskState(), events.States().Task.Completed)
+}
+
+func TestTaskEventLogging(t *testing.T) {
+	obv, reset := log.GetLogObserver()
+	defer reset()
+
+	mockedSchedulerAPI := newMockSchedulerAPI()
+	mockedContext := initContextForTest()
+	resources := make(map[v1.ResourceName]resource.Quantity)
+	containers := make([]v1.Container, 0)
+	containers = append(containers, v1.Container{
+		Name: "container-01",
+		Resources: v1.ResourceRequirements{
+			Requests: resources,
+		},
+	})
+	pod := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "pod-resource-test-00001",
+			UID:  "UID-00001",
+		},
+		Spec: v1.PodSpec{
+			Containers: containers,
+		},
+	}
+
+	// task SM transitions
+	app := NewApplication("app01", "root.default",
+		"bob", map[string]string{}, mockedSchedulerAPI)
+	task := NewTask("task01", app, mockedContext, pod)
+	err := task.handle(NewSimpleTaskEvent(task.applicationID, task.taskID, events.InitTask))
+	assert.NilError(t, err, "failed to handle InitTask event")
+	err = task.handle(NewSubmitTaskEvent(app.applicationID, task.taskID))
+	assert.NilError(t, err, "failed to handle SubmitTask event")
+	err = task.handle(NewAllocateTaskEvent(app.applicationID, task.taskID, string(pod.UID), "node-1"))
+	assert.NilError(t, err, "failed to handle AllocateTask event")
+	err = task.handle(NewBindTaskEvent(app.applicationID, task.taskID))
+	assert.NilError(t, err, "failed to handle BindTask event")
+	err = task.handle(NewSimpleTaskEvent(app.applicationID, task.taskID, events.CompleteTask))
+	assert.NilError(t, err, "failed to handle CompleteTask event")
+
+	// verify logs
+	// New is the initial state, not logged while doing state transition
+	assert.Equal(t, obv.FilterField(zap.String("currentTaskState", events.States().Task.Pending)).Len(), 1)
+	assert.Equal(t, obv.FilterField(zap.String("currentTaskState", events.States().Task.Scheduling)).Len(), 1)
+	assert.Equal(t, obv.FilterField(zap.String("currentTaskState", events.States().Task.Allocated)).Len(), 1)
+	assert.Equal(t, obv.FilterField(zap.String("currentTaskState", events.States().Task.Bound)).Len(), 1)
+	assert.Equal(t, obv.FilterField(zap.String("currentTaskState", events.States().Task.Completed)).Len(), 1)
 }
 
 func TestTaskIllegalEventHandling(t *testing.T) {

@@ -228,6 +228,45 @@ partitions:
 	assert.NilError(t, err, "number of allocations is not expected, error")
 }
 
+func TestSchedulerStateLogs(t *testing.T) {
+	obv, reset := log.GetLogObserver()
+	defer reset()
+
+	configData := `
+partitions:
+ -
+   name: default
+   queues:
+     -
+       name: root
+       submitacl: "*"
+       queues:
+         -
+           name: a
+           resources:
+             guaranteed:
+               memory: 100
+               vcore: 10
+             max:
+               memory: 100
+               vcore: 10
+`
+	// init and register scheduler
+	cluster := MockScheduler{}
+	cluster.init(configData)
+	cluster.start()
+	defer cluster.stop()
+
+	// the scheduler should be transiting to Running state
+	cluster.waitForSchedulerState(t, events.States().Scheduler.Running)
+
+	// verify the state transition logs are logged
+	assert.Equal(t, obv.FilterField(zap.String("currentSchedulerState", events.States().Scheduler.Registering)).Len(), 1)
+	assert.Equal(t, obv.FilterField(zap.String("currentSchedulerState", events.States().Scheduler.Registered)).Len(), 1)
+	assert.Equal(t, obv.FilterField(zap.String("currentSchedulerState", events.States().Scheduler.Recovering)).Len(), 1)
+	assert.Equal(t, obv.FilterField(zap.String("currentSchedulerState", events.States().Scheduler.Running)).Len(), 1)
+}
+
 func waitShimSchedulerState(shim *KubernetesShim, expectedState string, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	for {

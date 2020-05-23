@@ -22,7 +22,9 @@ import (
 	"testing"
 	"time"
 
+	"go.uber.org/zap"
 	"gotest.tools/assert"
+
 	v1 "k8s.io/api/core/v1"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -30,6 +32,7 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 )
 
@@ -57,6 +60,29 @@ func TestSubmitApplication(t *testing.T) {
 		t.Error("expecting error got 'nil'")
 	}
 	assertAppState(t, app, events.States().Application.Submitted, 10*time.Second)
+}
+
+func TestAppEventLogging(t *testing.T) {
+	obv, reset := log.GetLogObserver()
+	defer reset()
+
+	// app states transitions
+	app := NewApplication("app00001", "root.abc", "testuser", map[string]string{}, newMockSchedulerAPI())
+	err := app.handle(NewSubmitApplicationEvent(app.applicationID))
+	assert.NilError(t, err, "handle submitApp event failed")
+	err = app.handle(NewSimpleApplicationEvent(app.GetApplicationID(), events.AcceptApplication))
+	assert.NilError(t, err, "handle acceptApp event failed")
+	err = app.handle(NewRunApplicationEvent(app.applicationID))
+	assert.NilError(t, err, "handle runApp event failed")
+	err = app.handle(NewFailApplicationEvent(app.applicationID))
+	assert.NilError(t, err, "handle failApp event failed")
+
+	// verify app states logging
+	// from New -> Submitted -> Accepted -> Running -> Failed
+	assert.Equal(t, obv.FilterField(zap.String("currentAppState", events.States().Application.Submitted)).Len(), 1)
+	assert.Equal(t, obv.FilterField(zap.String("currentAppState", events.States().Application.Accepted)).Len(), 1)
+	assert.Equal(t, obv.FilterField(zap.String("currentAppState", events.States().Application.Running)).Len(), 1)
+	assert.Equal(t, obv.FilterField(zap.String("currentAppState", events.States().Application.Failed)).Len(), 1)
 }
 
 func TestRunApplication(t *testing.T) {
