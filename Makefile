@@ -165,7 +165,7 @@ push: image
 
 # Run the tests after building
 .PHONY: test
-test:
+test: clean
 	@echo "running unit tests"
 	go test ./... -race -tags deadlock -coverprofile=coverage.txt -covermode=atomic
 	go vet $(REPO)...
@@ -173,7 +173,8 @@ test:
 # Simple clean of generated files only (no local cleanup).
 .PHONY: clean
 clean:
-	go clean -r -x ./...
+	@echo "cleaning up caches and output"
+	go clean -cache -testcache -r -x ./... 2>&1 >/dev/null
 	rm -rf ${OUTPUT} ${CONF_FILE} ${BINARY} \
 	./deployments/image/configmap/${BINARY} \
 	./deployments/image/configmap/${CONF_FILE} \
