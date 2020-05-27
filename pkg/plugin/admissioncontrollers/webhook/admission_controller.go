@@ -33,7 +33,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 )
 
@@ -125,7 +124,7 @@ func updateSchedulerName(patch []patchOperation) []patchOperation {
 	return append(patch, patchOperation{
 		Op:    "add",
 		Path:  "/spec/schedulerName",
-		Value: conf.GetSchedulerConf().SchedulerName,
+		Value: "yunikorn",
 	})
 }
 
