@@ -22,6 +22,7 @@ import (
 	"fmt"
 
 	"go.uber.org/zap"
+	"k8s.io/api/core/v1"
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/cache"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
@@ -140,6 +141,35 @@ func (callback *AsyncRMCallback) ReSyncSchedulerCache(args *si.ReSyncSchedulerCa
 		if err := callback.context.ForgetPod(forgetAlloc.AllocationKey); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+// this callback implement scheduler plugin interface EventPlugin.
+func (callback *AsyncRMCallback) SendEvent(event *si.EventMessage) error {
+	log.Logger.Debug("processing event")
+	reason := event.Reason
+	msg := event.Message
+
+	switch event.Type {
+	case si.EventMessage_APP:
+		// until we don't have app CRD let's expose app event to all its pods (asks)
+		appId := event.ID
+		pods, err := cache.GetAllPods(callback.context, appId)
+		if err != nil {
+			return fmt.Errorf("could not find application: %s", appId)
+		}
+		for _, pod := range pods {
+			log.Logger.Debug("Emitting ")
+			// TODO set event type: normal/warning
+			events.GetRecorder().Event(pod, v1.EventTypeWarning, reason, msg)
+		}
+	case si.EventMessage_REQUEST:
+
+		// TODO search pod and emit event there
+		return fmt.Errorf("processing request event is not implemented yet: %s", event)
+	default:
+		return fmt.Errorf("could not process unknown event type: %s", event)
 	}
 	return nil
 }
