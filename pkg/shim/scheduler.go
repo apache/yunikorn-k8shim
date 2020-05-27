@@ -269,11 +269,10 @@ func (ss *KubernetesShim) run() {
 }
 
 func (ss *KubernetesShim) enterState(event *fsm.Event) {
-	log.Logger.Info("scheduler shim state",
-		zap.String("currentState", event.Src),
-		zap.String("targetState", event.Dst),
-		zap.String("event", event.Event),
-		zap.String("currentSchedulerState", ss.GetSchedulerState()))
+	log.Logger.Debug("scheduler shim state transition",
+		zap.String("source", event.Src),
+		zap.String("destination", event.Dst),
+		zap.String("event", event.Event))
 }
 
 func (ss *KubernetesShim) stop() {

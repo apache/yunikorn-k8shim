@@ -241,10 +241,9 @@ func (n *SchedulerNode) canHandle(ev events.SchedulerNodeEvent) bool {
 }
 
 func (n *SchedulerNode) enterState(event *fsm.Event) {
-	log.Logger.Info("node state",
-		zap.String("currentState", event.Src),
-		zap.String("targetState", event.Dst),
-		zap.String("event", event.Event),
-		zap.String("nodeName", n.name),
-		zap.String("currentNodeState", n.getNodeState()))
+	log.Logger.Debug("shim node state transition",
+		zap.String("node", n.name),
+		zap.String("source", event.Src),
+		zap.String("destination", event.Dst),
+		zap.String("event", event.Event))
 }

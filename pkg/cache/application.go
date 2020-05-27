@@ -347,11 +347,9 @@ func (app *Application) handleCompleteApplicationEvent(event *fsm.Event) {
 }
 
 func (app *Application) enterState(event *fsm.Event) {
-	log.Logger.Info("app state",
-		zap.String("currentState", event.Src),
-		zap.String("targetState", event.Dst),
-		zap.String("event", event.Event),
-		zap.String("appID", app.applicationID),
-		zap.String("queue", app.queue),
-		zap.String("currentAppState", app.GetApplicationState()))
+	log.Logger.Debug("shim app state transition",
+		zap.String("app", app.applicationID),
+		zap.String("source", event.Src),
+		zap.String("destination", event.Dst),
+		zap.String("event", event.Event))
 }

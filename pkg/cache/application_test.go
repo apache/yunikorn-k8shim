@@ -23,7 +23,6 @@ import (
 	"time"
 
 	"gotest.tools/assert"
-
 	v1 "k8s.io/api/core/v1"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 

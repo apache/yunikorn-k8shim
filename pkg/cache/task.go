@@ -407,12 +407,11 @@ func (task *Task) sanityCheckBeforeScheduling() error {
 }
 
 func (task *Task) enterState(event *fsm.Event) {
-	log.Logger.Info("task state",
-		zap.String("currentState", event.Src),
-		zap.String("targetState", event.Dst),
-		zap.String("event", event.Event),
-		zap.String("appID", task.applicationID),
-		zap.String("taskID", task.taskID),
+	log.Logger.Debug("shim task state transition",
+		zap.String("app", task.applicationID),
+		zap.String("task", task.taskID),
 		zap.String("taskAlias", task.alias),
-		zap.String("currentTaskState", task.GetTaskState()))
+		zap.String("source", event.Src),
+		zap.String("destination", event.Dst),
+		zap.String("event", event.Event))
 }
