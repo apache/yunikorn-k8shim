@@ -156,22 +156,33 @@ func (callback *AsyncRMCallback) SendEvent(eventMessages []*si.EventMessage) err
 			msg := event.Message
 
 			switch event.Type {
+			case si.EventMessage_REQUEST:
+				taskAppID := event.ID
+				parts := strings.Split(taskAppID, ",")
+				taskID := parts[0]
+				// The application might have contained ","
+				appID := strings.Join(parts[1:], ",")
+
+				log.Logger.Info("taskID", zap.String("taskID", taskID))
+				app := callback.context.GetApplication(appID)
+				task, err := app.GetTask(taskID)
+				if err != nil {
+					errors = append(errors, fmt.Sprintf("could not find %s task belonging to %s app", taskID, appID))
+					continue
+				}
+				pod := task.GetTaskPod()
+				if pod == nil {
+					errors = append(errors, fmt.Sprintf("could not obtain %s task's pod", taskID))
+				}
+
+				// TODO remove this
+				log.Logger.Debug("Emitting event", zap.String("pod name", pod.ObjectMeta.Name), zap.String("reason", reason), zap.String("message", msg))
+				events.GetRecorder().Event(pod, v1.EventTypeWarning, reason, msg)
+				log.Logger.Debug("event emitted")
 			case si.EventMessage_APP:
 				// until we don't have app CRD let's expose app event to all its pods (asks)
 				// pending on YUNIKORN-170
-				appId := event.ID
-				pods, err := cache.GetAllPods(callback.context, appId)
-				if err != nil {
-					errors = append(errors, fmt.Sprintf("could not find application: %s", appId))
-					continue
-				}
-				for _, pod := range pods {
-					log.Logger.Info("Emitting event", zap.String("pod", pod.ObjectMeta.Name))
-					events.GetRecorder().Event(pod, v1.EventTypeWarning, reason, msg)
-				}
-			case si.EventMessage_REQUEST:
-				// TODO search pod and emit event there
-				errors = append(errors, fmt.Sprintf("processing request event is not implemented yet: %s", event))
+				errors = append(errors, fmt.Sprintf("processing app event is not implemented yet: %s", event))
 			default:
 				errors = append(errors, fmt.Sprintf("could not process unknown event type: %s", event))
 			}
