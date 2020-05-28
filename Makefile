@@ -182,14 +182,14 @@ clean:
 	./deployments/image/configmap/${CONF_FILE} \
 	./deployments/image/admission/${POD_ADMISSION_CONTROLLER_BINARY}
 
+# Run the e2e tests, this assumes yunikorn is running under yunikorn-ns namespace
 .PHONY: e2e_test
 e2e_test:
 		@echo "running e2e tests"
-		@cd ./test/e2e
-		ginkgo -r -v -- -yk-namespace "yunikorn-e2e-ns" -kube-config $(KUBECONFIG)
+		cd ./test/e2e && ginkgo -r -v -- -yk-namespace "yunikorn-ns" -kube-config $(KUBECONFIG)
 
+# Run the CI tests, this assumes yunikorn is running under yunikorn-ns namespace
 .PHONY: ci_test
 ci_test:
 		@echo "running ci tests"
-		@cd ./test/e2e
-		ginkgo -r -v CI -- -yk-namespace "yunikorn-ci-ns" -kube-config $(KUBECONFIG)
+		cd ./test/e2e && ginkgo -r -v CI -- -yk-namespace "yunikorn-ns" -kube-config $(KUBECONFIG)
