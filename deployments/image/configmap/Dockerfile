@@ -17,11 +17,6 @@
 
 FROM golang:1.12.13-alpine3.10
 
-ARG DOCKER_IMAGE_REGISTRY
-ARG DOCKER_IMAGE_VERSION
-ENV DOCKER_IMAGE_REGISTRY=${DOCKER_IMAGE_REGISTRY:-apache}
-ENV DOCKER_IMAGE_VERSION=${DOCKER_IMAGE_VERSION:-latest}
-
 # admission controller bundles
 RUN apk add curl
 RUN apk add jq
@@ -33,10 +28,6 @@ COPY admission-controller-init-scripts/admission_util.sh /
 COPY admission-controller-init-scripts/configs.properties /
 COPY admission-controller-init-scripts/generate-signed-ca.sh /
 COPY admission-controller-init-scripts/templates /templates
-
-# update the refs in admission controller deployment template
-RUN sed -i 's@${REGISTRY}@'"$DOCKER_IMAGE_REGISTRY"'@g' /templates/server.yaml.template
-RUN sed -i 's@${VERSION}@'"$DOCKER_IMAGE_VERSION"'@g' /templates/server.yaml.template
 
 RUN chmod +x /admission_util.sh
 RUN chmod +x /generate-signed-ca.sh

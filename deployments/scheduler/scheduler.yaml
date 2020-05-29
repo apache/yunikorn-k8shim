@@ -33,7 +33,7 @@ spec:
       hostNetwork: true
       containers:
         - name: yunikorn-scheduler-k8s
-          image: apache/yunikorn:scheduler-latest
+          image: apache/yunikorn:scheduler-0.8.2
           env:
             - name: LOG_ENCODING
               value: console
