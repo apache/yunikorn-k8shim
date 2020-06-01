@@ -22,7 +22,7 @@ go 1.12
 
 require (
 	github.com/GoogleCloudPlatform/spark-on-k8s-operator v0.0.0-20200212043150-3df703098970
-	github.com/apache/incubator-yunikorn-core v0.0.0-20200530022047-201bbb45e3bf
+	github.com/apache/incubator-yunikorn-core v0.0.0-20200601201758-fc196adbafbc
 	github.com/apache/incubator-yunikorn-scheduler-interface v0.8.1-0.20200601033744-f86297aaea9e
 	github.com/coreos/etcd v3.3.20+incompatible // indirect
 	github.com/coreos/go-semver v0.3.0 // indirect
