@@ -17,19 +17,18 @@
 */
 package CI
 
-
 import (
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
+	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/cfg_manager"
+	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/helpers"
+	"github.com/onsi/ginkgo"
+	"github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 	"regexp"
 	"strconv"
 	"time"
-	"yunikorn-qe/framework/cfg_manager"
-	"yunikorn-qe/framework/helpers"
 )
 
-var _ = Describe( "CI: Test for basic scheduling", func(){
+var _ = ginkgo.Describe("CI: Test for basic scheduling", func() {
 	var kClient helpers.KubeCtl
 	var restClient helpers.RClient
 	var sleepPodDef = cfg_manager.GetAbsPath("../testdata/sleeppod_template.yaml")
@@ -38,69 +37,69 @@ var _ = Describe( "CI: Test for basic scheduling", func(){
 	var appsInfo map[string]interface{}
 	var r = regexp.MustCompile("memory:(\\d+) vcore:(\\d+)")
 
-	BeforeSuite(func(){
+	ginkgo.BeforeSuite(func() {
 		// Initializing kubectl client
 		kClient = helpers.KubeCtl{}
 		kClient.SetClient()
 		// Initializing rest client
 		restClient = helpers.RClient{}
-		By("create development namespace")
+		ginkgo.By("create development namespace")
 		ns1, err := kClient.CreateNamespace(dev)
-		Ω(err).NotTo(HaveOccurred())
-		Ω(ns1.Status.Phase).To(Equal(v1.NamespaceActive))
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		gomega.Ω(ns1.Status.Phase).To(gomega.Equal(v1.NamespaceActive))
 
-		By("Deploy the sleep pod to the development namespace")
+		ginkgo.By("Deploy the sleep pod to the development namespace")
 		sleepObj := helpers.GetPodObj(sleepPodDef)
 		sleepObj.Namespace = dev
 		sleepObj.ObjectMeta.Labels["applicationId"] = helpers.GetUUID()
 		sleepRespPod, err = kClient.CreatePod(sleepObj, dev)
-		Ω(err).NotTo(HaveOccurred())
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		//Adding sleep here for the app info to be reflected.
 		time.Sleep(3 * time.Second)
 
 		appsInfo, err = restClient.GetAppInfo(sleepRespPod.ObjectMeta.Labels["applicationId"])
-		Ω(err).NotTo(HaveOccurred())
-		Ω(appsInfo).NotTo(BeNil())
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		gomega.Ω(appsInfo).NotTo(gomega.BeNil())
 	})
 
-	Context("Verifying the basic scheduling information", func(){
-		It("Verify the application & queue information ", func(){
-			By("Verify that the sleep pod is mapped to development queue")
-			Ω(appsInfo["applicationID"]).To(Equal(sleepRespPod.ObjectMeta.Labels["applicationId"]))
-			Ω(appsInfo["queueName"]).To(ContainSubstring(sleepRespPod.ObjectMeta.Namespace))
+	ginkgo.Context("Verifying the basic scheduling information", func() {
+		ginkgo.It("Verify the application & queue information ", func() {
+			ginkgo.By("Verify that the sleep pod is mapped to development queue")
+			gomega.Ω(appsInfo["applicationID"]).To(gomega.Equal(sleepRespPod.ObjectMeta.Labels["applicationId"]))
+			gomega.Ω(appsInfo["queueName"]).To(gomega.ContainSubstring(sleepRespPod.ObjectMeta.Namespace))
 		})
 
-		It("Verify that the job is scheduled & running by YuniKorn", func(){
-			By("Verify that the job is scheduled & running by YuniKorn")
-			Ω(appsInfo["applicationState"]).To(Equal("Running"))
-			Ω("yunikorn").To(Equal(sleepRespPod.Spec.SchedulerName))
+		ginkgo.It("Verify that the job is scheduled & running by YuniKorn", func() {
+			ginkgo.By("Verify that the job is scheduled & running by YuniKorn")
+			gomega.Ω(appsInfo["applicationState"]).To(gomega.Equal("Running"))
+			gomega.Ω("yunikorn").To(gomega.Equal(sleepRespPod.Spec.SchedulerName))
 		})
 
-		It("Verify the pod allocation properties", func(){
-			By("Verify the pod allocation properties")
-			Ω(appsInfo["allocations"]).NotTo(BeNil())
+		ginkgo.It("Verify the pod allocation properties", func() {
+			ginkgo.By("Verify the pod allocation properties")
+			gomega.Ω(appsInfo["allocations"]).NotTo(gomega.BeNil())
 			allocations := appsInfo["allocations"].([]interface{})[0].(map[string]interface{})
-			Ω(allocations["allocationKey"]).NotTo(BeNil())
-			Ω(allocations["nodeId"]).NotTo(BeNil())
-			Ω(allocations["partition"]).NotTo(BeNil())
-			Ω(allocations["uuid"]).NotTo(BeNil())
-			Ω(allocations["applicationId"]).To(Equal(sleepRespPod.ObjectMeta.Labels["applicationId"]))
-			Ω(allocations["queueName"]).To(ContainSubstring(sleepRespPod.ObjectMeta.Namespace))
-			core:= strconv.FormatInt(sleepRespPod.Spec.Containers[0].Resources.Requests.Cpu().MilliValue(), 10)
-			mem:= sleepRespPod.Spec.Containers[0].Resources.Requests.Memory().String()
+			gomega.Ω(allocations["allocationKey"]).NotTo(gomega.BeNil())
+			gomega.Ω(allocations["nodeId"]).NotTo(gomega.BeNil())
+			gomega.Ω(allocations["partition"]).NotTo(gomega.BeNil())
+			gomega.Ω(allocations["uuid"]).NotTo(gomega.BeNil())
+			gomega.Ω(allocations["applicationId"]).To(gomega.Equal(sleepRespPod.ObjectMeta.Labels["applicationId"]))
+			gomega.Ω(allocations["queueName"]).To(gomega.ContainSubstring(sleepRespPod.ObjectMeta.Namespace))
+			core := strconv.FormatInt(sleepRespPod.Spec.Containers[0].Resources.Requests.Cpu().MilliValue(), 10)
+			mem := sleepRespPod.Spec.Containers[0].Resources.Requests.Memory().String()
 			matches := r.FindStringSubmatch(allocations["resource"].(string))
-			Ω(matches[1]+"M").To(Equal(mem))
-			Ω(matches[2]).To(ContainSubstring(core))
+			gomega.Ω(matches[1] + "M").To(gomega.Equal(mem))
+			gomega.Ω(matches[2]).To(gomega.ContainSubstring(core))
 		})
 
-		AfterSuite(func(){
-			By("Deleting pod with name - " + sleepRespPod.Name)
+		ginkgo.AfterSuite(func() {
+			ginkgo.By("Deleting pod with name - " + sleepRespPod.Name)
 			err := kClient.DeletePod(sleepRespPod.Name, dev)
-			Ω(err).NotTo(HaveOccurred())
+			gomega.Ω(err).NotTo(gomega.HaveOccurred())
 
-			By("Deleting development namespaces")
+			ginkgo.By("Deleting development namespaces")
 			err = kClient.DeleteNamespace(dev)
-			Ω(err).NotTo(HaveOccurred())
+			gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		})
 	})
 })

@@ -18,40 +18,36 @@
 package helpers
 
 import (
-	"fmt"
+	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/cfg_manager"
 	"github.com/mitchellh/go-homedir"
-	. "github.com/onsi/ginkgo"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"os"
-	"yunikorn-qe/framework/cfg_manager"
 )
 
 var err error
 
-type KubeCtl struct{
-	clientSet *kubernetes.Clientset
+type KubeCtl struct {
+	clientSet      *kubernetes.Clientset
 	kubeConfigPath string
-	kubeConfig *rest.Config
+	kubeConfig     *rest.Config
 }
 
-// FindKubeConfig finds path from env:KUBECONFIG or ~/.kube/config
-func (k *KubeCtl) FindKubeConfig() {
+// findKubeConfig finds path from env:KUBECONFIG or ~/.kube/config
+func (k *KubeCtl) findKubeConfig() error {
 	env := os.Getenv("KUBECONFIG")
 	if env != "" {
 		k.kubeConfigPath = env
 	}
 	k.kubeConfigPath, err = homedir.Expand(cfg_manager.YuniKornTestConfig.KubeConfig)
-	if err != nil {
-		fmt.Fprintln(GinkgoWriter, err)
-	}
+	return err
 }
 
 func (k *KubeCtl) SetClient() {
-	k.FindKubeConfig()
+	k.findKubeConfig()
 	k.kubeConfig, err = clientcmd.BuildConfigFromFlags("", k.kubeConfigPath)
 	check(err)
 	// Create an rest client not targeting specific API version
@@ -59,23 +55,23 @@ func (k *KubeCtl) SetClient() {
 	check(err)
 }
 
-func (k *KubeCtl) GetPods(namespace string) (*v1.PodList, error){
+func (k *KubeCtl) GetPods(namespace string) (*v1.PodList, error) {
 	return k.clientSet.CoreV1().Pods(namespace).List(metav1.ListOptions{})
 }
 
-func (k *KubeCtl)  GetService(serviceName string, namespace string) (*v1.Service, error){
-	 return k.clientSet.CoreV1().Services(namespace).Get(serviceName, metav1.GetOptions{})
+func (k *KubeCtl) GetService(serviceName string, namespace string) (*v1.Service, error) {
+	return k.clientSet.CoreV1().Services(namespace).Get(serviceName, metav1.GetOptions{})
 }
 
 // Func to create a namespace provided a name
-func (k *KubeCtl) CreateNamespace(namespace string) (*v1.Namespace, error){
+func (k *KubeCtl) CreateNamespace(namespace string) (*v1.Namespace, error) {
 	nsSpec := yaml2Obj(cfg_manager.NSTemplatePath).(*v1.Namespace)
 	nsSpec.Name = namespace
 	nsSpec.Labels = map[string]string{"Name": namespace}
 	return k.clientSet.CoreV1().Namespaces().Create(nsSpec)
 }
 
-func (k *KubeCtl)  DeleteNamespace(namespace string) error{
+func (k *KubeCtl) DeleteNamespace(namespace string) error {
 	return k.clientSet.CoreV1().Namespaces().Delete(namespace, &metav1.DeleteOptions{})
 }
 

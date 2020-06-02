@@ -24,15 +24,15 @@ import (
 
 // YuniKornTestConfigType holds all of the configurable elements of the testsuite
 type YuniKornTestConfigType struct {
-	JsonLogs   		bool
-	LogLevel   		string
-	Timeout    		time.Duration
-	KubeConfig 		string
-	LogFile    		string
-	YkNamespace		string
-	YkHost			string
-	YkPort			string
-	YkScheme		string
+	JsonLogs    bool
+	LogLevel    string
+	Timeout     time.Duration
+	KubeConfig  string
+	LogFile     string
+	YkNamespace string
+	YkHost      string
+	YkPort      string
+	YkScheme    string
 }
 
 // YuniKornTestConfig holds the global configuration of commandline flags

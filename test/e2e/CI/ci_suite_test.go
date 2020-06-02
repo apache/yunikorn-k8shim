@@ -18,18 +18,18 @@
 package CI
 
 import (
+	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/cfg_manager"
 	"testing"
-	"yunikorn-qe/framework/cfg_manager"
 
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
+	"github.com/onsi/ginkgo"
+	"github.com/onsi/gomega"
 )
 
-func init(){
+func init() {
 	cfg_manager.YuniKornTestConfig.ParseFlags()
 }
 
 func TestPlacementRules(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "CI Test Suite")
+	gomega.RegisterFailHandler(ginkgo.Fail)
+	ginkgo.RunSpecs(t, "CI Test Suite")
 }

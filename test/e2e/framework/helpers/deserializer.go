@@ -23,16 +23,15 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 )
 
-func yaml2Obj(yamlPath string) runtime.Object{
+func yaml2Obj(yamlPath string) runtime.Object {
 	decode := scheme.Codecs.UniversalDeserializer().Decode
 	obj, _, err := decode(GetFileContents(yamlPath), nil, nil)
 	check(err)
 
-	//fmt.Fprintf(ginkgo.GinkgoWriter, groupVersionKind.String())
 	return obj
 }
 
-func Y2Map(yamlPath string) map[interface{}]interface{}{
+func Y2Map(yamlPath string) map[interface{}]interface{} {
 	m := make(map[interface{}]interface{})
 	err := yaml.Unmarshal(GetFileContents(yamlPath), &m)
 	check(err)

@@ -22,11 +22,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/cfg_manager"
 	"io"
 	"net/http"
 	"net/url"
 	"path"
-	"yunikorn-qe/framework/cfg_manager"
 )
 
 type RClient struct {
@@ -35,7 +35,6 @@ type RClient struct {
 
 	httpClient *http.Client
 }
-
 
 func (c *RClient) newRequest(method, path string, body interface{}) (*http.Request, error) {
 	rel := &url.URL{Path: path}
@@ -75,12 +74,6 @@ func (c *RClient) do(req *http.Request, v interface{}) (*http.Response, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
-	//bodyBytes, err := ioutil.ReadAll(resp.Body)
-	//if err != nil {
-	//	log.Fatal(err)
-	//}
-	//bodyString := string(bodyBytes)
-	//fmt.Fprintln(ginkgo.GinkgoWriter, bodyString)
 	err = json.NewDecoder(resp.Body).Decode(v)
 	return resp, err
 }
@@ -110,8 +103,8 @@ func (c *RClient) GetAppInfo(appID string) (map[string]interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	for _, appInfo := range apps{
-		for key, element := range appInfo{
+	for _, appInfo := range apps {
+		for key, element := range appInfo {
 			if key == "applicationID" && element == appID {
 				return appInfo, nil
 			}

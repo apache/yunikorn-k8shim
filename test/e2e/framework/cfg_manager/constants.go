@@ -27,31 +27,31 @@ const (
 
 	// LogPerm is the permission for files that are created by this framework
 	// that contain logs, outputs etc
-	LogPerm         				= 	os.FileMode(0666)
+	LogPerm = os.FileMode(0666)
 
-	YKScheduler 					= 	"yunikorn-scheduler"
-	YKAdmCtrl 						= 	"yunikorn-admission-controller"
+	YKScheduler = "yunikorn-scheduler"
+	YKAdmCtrl   = "yunikorn-admission-controller"
 	// YuniKorn service name
-	YKSvcName 						= 	"yunikorn-service"
+	YKSvcName = "yunikorn-service"
 
 	//YuniKorn Admission controller serivce name
-	YKAdmCtrlName 					= 	"yunikorn-admission-controller-service"
+	YKAdmCtrlName = "yunikorn-admission-controller-service"
 
 	// REST endpoints of YuniKorn
-	QueuesPath 						= 	"ws/v1/queues"
-	AppsPath 						= 	"ws/v1/apps"
-	ClustersPath 					= 	"ws/v1/clusters"
+	QueuesPath   = "ws/v1/queues"
+	AppsPath     = "ws/v1/apps"
+	ClustersPath = "ws/v1/clusters"
 
 	//YuniKorn Service Details
-	DefaultYuniKornHost 			= 	"localhost"
-	DefaultYuniKornPort 			= 	"9080"
-	DefaultYuniKornScheme 			=	"http"
+	DefaultYuniKornHost   = "localhost"
+	DefaultYuniKornPort   = "9080"
+	DefaultYuniKornScheme = "http"
 
-	DefaultYuniKornConfigMap 		=	"yunikorn-configs"
+	DefaultYuniKornConfigMap = "yunikorn-configs"
 )
 
 //File paths
-var NSTemplatePath					=	GetAbsPath("../testdata/ns_template.yaml")
+var NSTemplatePath = GetAbsPath("../testdata/ns_template.yaml")
 
 func GetAbsPath(p string) string {
 	path, _ := filepath.Abs(p)

@@ -19,13 +19,13 @@ package helpers
 
 import (
 	"fmt"
+	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/cfg_manager"
 	"github.com/google/uuid"
 	"github.com/onsi/ginkgo"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
-	"yunikorn-qe/framework/cfg_manager"
 )
 
 // GetTestName returns the test Name in a single string without spaces or /
@@ -74,31 +74,31 @@ func check(err error) {
 	}
 }
 
-func GetFileContents(filename string) []byte{
+func GetFileContents(filename string) []byte {
 	data, err := ioutil.ReadFile(filename)
 	check(err)
 	return data
 }
 
-func GetYKUrl() string{
+func GetYKUrl() string {
 	return fmt.Sprintf("%s://%s:%s",
 		cfg_manager.YuniKornTestConfig.YkScheme,
 		cfg_manager.YuniKornTestConfig.YkHost,
 		cfg_manager.YuniKornTestConfig.YkPort,
-		)
+	)
 }
 
-func GetYKHost() string{
+func GetYKHost() string {
 	return fmt.Sprintf("%s:%s",
 		cfg_manager.YuniKornTestConfig.YkHost,
 		cfg_manager.YuniKornTestConfig.YkPort,
 	)
 }
 
-func GetYKScheme() string{
+func GetYKScheme() string {
 	return cfg_manager.YuniKornTestConfig.YkScheme
 }
 
-func GetUUID() string{
+func GetUUID() string {
 	return uuid.New().String()
 }
