@@ -22,12 +22,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
+	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
+	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 )
 
 func Convert2Pod(obj interface{}) (*v1.Pod, error) {
@@ -100,6 +103,22 @@ func GetApplicationIDFromPod(pod *v1.Pod) (string, error) {
 	}
 	return "", fmt.Errorf("unable to retrieve application ID from pod spec, %s",
 		pod.Spec.String())
+}
+
+func GetNamespaceQuotaFromAnnotation(namespaceObj *v1.Namespace) *si.Resource {
+	log.Logger.Info("### GetNamespaceQuotaFromAnnotation")
+	// retrieve resource quota info from annotations
+	cpuQuota := namespaceObj.Annotations["yunikorn.apache.org/queue.max.cpu"]
+	memQuota := namespaceObj.Annotations["yunikorn.apache.org/queue.max.memory"]
+
+	log.Logger.Info("### GetNamespaceQuotaFromAnnotation", zap.String("cpu", cpuQuota), zap.String("mem", memQuota))
+
+	// no quota found
+	if cpuQuota == "" && memQuota == "" {
+		return nil
+	}
+
+	return common.ParseResource(cpuQuota, memQuota)
 }
 
 type K8sResource struct {

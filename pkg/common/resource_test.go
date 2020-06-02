@@ -18,6 +18,7 @@
 package common
 
 import (
+	"fmt"
 	"testing"
 
 	"gotest.tools/assert"
@@ -324,5 +325,56 @@ func TestSub(t *testing.T) {
 
 	if !Equals(res3, expected) {
 		t.Errorf("sub failed expected %v, actual %v", expected, res3.Resources)
+	}
+}
+
+func TestParseResourceString(t *testing.T) {
+	testCases := []struct {
+		cpu          string
+		mem          string
+		cpuExist     bool
+		memoryExist  bool
+		expectCPU    int64
+		expectMemory int64
+	}{
+		// empty values
+		{"", "", false, false, 0, 0},
+		// cpu values
+		{"1", "", true, false, 1000, 0},
+		{"0.5", "", true, false, 500, 0},
+		{"0.33", "", true, false, 330, 0},
+		{"1000", "", true, false, 1000000, 0},
+		{"-10", "", true, false, -10000, 0},
+		{"100m", "", true, false, 100, 0},
+		// memory values
+		{"", "65536", false, true, 0, 1},
+		{"", "129M", false, true, 0, 129},
+		{"", "123Mi", false, true, 0, 129},
+		{"", "128974848", false, true, 0, 129},
+		{"", "1G", false, true, 0, 1000},
+		{"", "1Gi", false, true, 0, 1074},
+		{"", "1T", false, true, 0, 1000000},
+		{"", "1P", false, true, 0, 1000000000},
+		{"", "1E", false, true, 0, 1000000000000},
+		// cpu and memory
+		{"0.5", "64M", true, true, 500, 64},
+		// parsing error on cpu
+		{"xyz", "64M", false, true, 0, 64},
+		// parsing error on memory
+		{"100m", "64MiB", true, false, 100, 0},
+		// parsing failed for both cpu and memory
+		{"xyz", "64MiB", false, false, 0, 0},
+	}
+
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("cpu: %s, memory: %s", tc.cpu, tc.mem), func(t *testing.T) {
+			siResource := ParseResource(tc.cpu, tc.mem)
+			cpuRes, hasCPU := siResource.GetResources()[CPU]
+			assert.Equal(t, hasCPU, tc.cpuExist)
+			assert.Equal(t, cpuRes.GetValue(), tc.expectCPU)
+			memRes, hasMem := siResource.GetResources()[Memory]
+			assert.Equal(t, hasMem, tc.memoryExist)
+			assert.Equal(t, memRes.GetValue(), tc.expectMemory)
+		})
 	}
 }

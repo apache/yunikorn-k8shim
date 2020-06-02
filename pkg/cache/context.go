@@ -19,6 +19,7 @@
 package cache
 
 import (
+	"encoding/json"
 	"fmt"
 	"sync"
 
@@ -36,6 +37,7 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 	plugin "github.com/apache/incubator-yunikorn-k8shim/pkg/plugin/predicates"
+	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 )
 
 // context maintains scheduling state, like apps and apps' tasks.
@@ -426,6 +428,28 @@ func (ctx *Context) NotifyTaskComplete(appID, taskID string) {
 	}
 }
 
+// get namespace resource quota from annotation
+// if the namespace is unable to be listed from api-server, a nil is returned
+// if the annotation doesn't have the quota defined, a nil is returned
+// if cpu or memory quota is defined in the annotation, a corresponding si.Resource is returned
+func (ctx *Context) getNamespaceResourceQuota(namespace string) *si.Resource {
+	if namespace == "" {
+		return nil
+	}
+
+	nsLister := ctx.apiProvider.GetAPIs().NamespaceInformer.Lister()
+	namespaceObj, err := nsLister.Get(namespace)
+	if err != nil {
+		// every app should belong to a namespace,
+		// if we cannot list the namespace here, probably something is wrong
+		// log an error here and do not add the app to cache
+		log.Logger.Error("failed to get app namespace", zap.Error(err))
+		return nil
+	}
+
+	return utils.GetNamespaceQuotaFromAnnotation(namespaceObj)
+}
+
 func (ctx *Context) AddApplication(request *interfaces.AddApplicationRequest) interfaces.ManagedApp {
 	log.Logger.Debug("AddApplication", zap.Any("Request", request))
 	if app := ctx.GetApplication(request.Metadata.ApplicationID); app != nil {
@@ -434,6 +458,19 @@ func (ctx *Context) AddApplication(request *interfaces.AddApplicationRequest) in
 
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
+
+	// add resource quota info as a app tag
+	log.Logger.Info("### retrieve namespace info 1")
+	if ns, ok := request.Metadata.Tags[common.AppTagNamespace]; ok {
+		log.Logger.Info("### retrieve namespace info 2", zap.String("namespace", ns))
+		resourceQuota := ctx.getNamespaceResourceQuota(ns)
+		if resourceQuota != nil && !common.IsZero(resourceQuota) {
+			if quotaStr, err := json.Marshal(resourceQuota); err == nil {
+				request.Metadata.Tags[common.AppTagNamespaceResourceQuota] = string(quotaStr)
+			}
+		}
+	}
+
 	app := NewApplication(
 		request.Metadata.ApplicationID,
 		request.Metadata.QueueName,

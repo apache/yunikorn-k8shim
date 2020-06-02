@@ -19,10 +19,15 @@
 package utils
 
 import (
+	"fmt"
 	"testing"
 
 	"gotest.tools/assert"
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
+	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 )
 
 func TestConvert2Pod(t *testing.T) {
@@ -50,4 +55,94 @@ func TestIsAssignedPod(t *testing.T) {
 
 	assigned = IsAssignedPod(&v1.Pod{})
 	assert.Equal(t, assigned, false)
+}
+
+func TestGetNamespaceQuotaFromAnnotation(t *testing.T) {
+	testCases := []struct {
+		namespace        *v1.Namespace
+		expectedResource *si.Resource
+	}{
+		{&v1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test",
+				Namespace: "test",
+			},
+		}, nil},
+		{&v1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test",
+				Namespace: "test",
+				Annotations: map[string]string{
+					"yunikorn.apache.org/queue.max.cpu": "1",
+				},
+			},
+		}, common.NewResourceBuilder().
+			AddResource(common.CPU, 1000).
+			Build()},
+		{&v1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test",
+				Namespace: "test",
+				Annotations: map[string]string{
+					"yunikorn.apache.org/queue.max.memory": "128M",
+				},
+			},
+		}, common.NewResourceBuilder().
+			AddResource(common.Memory, 128).
+			Build()},
+		{&v1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test",
+				Namespace: "test",
+				Annotations: map[string]string{
+					"yunikorn.apache.org/queue.max.cpu":    "error",
+					"yunikorn.apache.org/queue.max.memory": "128M",
+				},
+			},
+		}, common.NewResourceBuilder().
+			AddResource(common.Memory, 128).
+			Build()},
+		{&v1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test",
+				Namespace: "test",
+				Annotations: map[string]string{
+					"yunikorn.apache.org/queue.max.cpu":    "1",
+					"yunikorn.apache.org/queue.max.memory": "error",
+				},
+			},
+		}, common.NewResourceBuilder().
+			AddResource(common.CPU, 1000).
+			Build()},
+		{&v1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test",
+				Namespace: "test",
+				Annotations: map[string]string{
+					"yunikorn.apache.org/queue.max.cpu":    "error",
+					"yunikorn.apache.org/queue.max.memory": "error",
+				},
+			},
+		}, common.NewResourceBuilder().Build()},
+		{&v1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test",
+				Namespace: "test",
+				Annotations: map[string]string{
+					"yunikorn.apache.org/queue.max.cpu":    "1",
+					"yunikorn.apache.org/queue.max.memory": "64M",
+				},
+			},
+		}, common.NewResourceBuilder().
+			AddResource(common.CPU, 1000).
+			AddResource(common.Memory, 64).
+			Build()},
+	}
+
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("namespace: %v", tc.namespace), func(t *testing.T) {
+			res := GetNamespaceQuotaFromAnnotation(tc.namespace)
+			assert.Assert(t, common.Equals(res, tc.expectedResource))
+		})
+	}
 }
