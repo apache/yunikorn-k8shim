@@ -123,18 +123,11 @@ func (app *Application) handle(ev events.ApplicationEvent) error {
 	//    because the lock is already held here.
 	app.lock.Lock()
 	defer app.lock.Unlock()
-	log.Logger.Debug("application state transition",
-		zap.String("appID", app.applicationID),
-		zap.String("preState", app.sm.Current()),
-		zap.String("pendingEvent", string(ev.GetEvent())))
 	err := app.sm.Event(string(ev.GetEvent()), ev.GetArgs()...)
 	// handle the same state transition not nil error (limit of fsm).
 	if err != nil && err.Error() != "no transition" {
 		return err
 	}
-	log.Logger.Debug("application state transition",
-		zap.String("appID", app.applicationID),
-		zap.String("postState", app.sm.Current()))
 	return nil
 }
 
@@ -354,8 +347,9 @@ func (app *Application) handleCompleteApplicationEvent(event *fsm.Event) {
 }
 
 func (app *Application) enterState(event *fsm.Event) {
-	log.Logger.Info("app state",
-		zap.String("appID", app.applicationID),
-		zap.String("queue", app.queue),
-		zap.String("state", app.GetApplicationState()))
+	log.Logger.Debug("shim app state transition",
+		zap.String("app", app.applicationID),
+		zap.String("source", event.Src),
+		zap.String("destination", event.Dst),
+		zap.String("event", event.Event))
 }

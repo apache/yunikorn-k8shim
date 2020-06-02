@@ -93,10 +93,15 @@ func (cache *SchedulerCache) AddNode(node *v1.Node) {
 	_, ok := cache.nodesMap[node.Name]
 	if !ok {
 		n := schedulernode.NewNodeInfo()
-		// API call always returns nil, never an error
-		//nolint:errcheck
-		_ = n.SetNode(node)
 		cache.nodesMap[node.Name] = n
+	}
+
+	// make sure the node is always linked to the cached node object
+	// Currently, SetNode API call always returns nil, never an error
+	if err := cache.nodesMap[node.Name].SetNode(node); err != nil {
+		// currently, this may never reached because SetNode always return nil
+		// keep the check around to prevent the API changes to provide an error in some cases
+		log.Logger.Error("failed to store v1.Node in cache", zap.Error(err))
 	}
 }
 

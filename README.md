@@ -71,12 +71,12 @@ You can set `REGISTRY` and `VERSION` in the commandline to build docker image wi
 ```
 make image REGISTRY=yunikorn VERSION=latest
 ```
-This command will build a binary executable with version `latest` and the docker image tag is `yunikorn/yunikorn-scheduler-k8s:latest`.
+This command will build a binary executable with version `latest` and the docker image tag is `yunikorn/yunikorn:scheduler-latest`.
 
 You can run following command to retrieve the meta info for a docker image build, such as component revisions, date of the build, etc.
 
 ```
-docker inspect --format='{{.Config.Labels}}' yunikorn/yunikorn-scheduler-k8s:latest
+docker inspect --format='{{.Config.Labels}}' yunikorn/yunikorn:scheduler-latest
 ```
 
 ## Design documents
