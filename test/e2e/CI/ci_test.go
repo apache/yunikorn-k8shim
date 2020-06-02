@@ -40,7 +40,7 @@ var _ = ginkgo.Describe("CI: Test for basic scheduling", func() {
 	ginkgo.BeforeSuite(func() {
 		// Initializing kubectl client
 		kClient = helpers.KubeCtl{}
-		kClient.SetClient()
+		gomega.Ω(kClient.SetClient()).To(gomega.BeNil())
 		// Initializing rest client
 		restClient = helpers.RClient{}
 		ginkgo.By("create development namespace")
@@ -49,7 +49,8 @@ var _ = ginkgo.Describe("CI: Test for basic scheduling", func() {
 		gomega.Ω(ns1.Status.Phase).To(gomega.Equal(v1.NamespaceActive))
 
 		ginkgo.By("Deploy the sleep pod to the development namespace")
-		sleepObj := helpers.GetPodObj(sleepPodDef)
+		sleepObj, err := helpers.GetPodObj(sleepPodDef)
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		sleepObj.Namespace = dev
 		sleepObj.ObjectMeta.Labels["applicationId"] = helpers.GetUUID()
 		sleepRespPod, err = kClient.CreatePod(sleepObj, dev)

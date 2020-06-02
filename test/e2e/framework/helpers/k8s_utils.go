@@ -46,13 +46,16 @@ func (k *KubeCtl) findKubeConfig() error {
 	return err
 }
 
-func (k *KubeCtl) SetClient() {
-	k.findKubeConfig()
+func (k *KubeCtl) SetClient() error{
+	if k.findKubeConfig() != nil{
+		return err
+	}
 	k.kubeConfig, err = clientcmd.BuildConfigFromFlags("", k.kubeConfigPath)
-	check(err)
-	// Create an rest client not targeting specific API version
+	if err != nil{
+		return err
+	}
 	k.clientSet, err = kubernetes.NewForConfig(k.kubeConfig)
-	check(err)
+	return err
 }
 
 func (k *KubeCtl) GetPods(namespace string) (*v1.PodList, error) {
@@ -65,7 +68,11 @@ func (k *KubeCtl) GetService(serviceName string, namespace string) (*v1.Service,
 
 // Func to create a namespace provided a name
 func (k *KubeCtl) CreateNamespace(namespace string) (*v1.Namespace, error) {
-	nsSpec := yaml2Obj(cfg_manager.NSTemplatePath).(*v1.Namespace)
+	rs, err := yaml2Obj(cfg_manager.NSTemplatePath)
+	if err != nil{
+		return nil, err
+	}
+	nsSpec := rs.(*v1.Namespace)
 	nsSpec.Name = namespace
 	nsSpec.Labels = map[string]string{"Name": namespace}
 	return k.clientSet.CoreV1().Namespaces().Create(nsSpec)
@@ -75,8 +82,12 @@ func (k *KubeCtl) DeleteNamespace(namespace string) error {
 	return k.clientSet.CoreV1().Namespaces().Delete(namespace, &metav1.DeleteOptions{})
 }
 
-func GetConfigMapObj(yamlPath string) *v1.ConfigMap {
-	return yaml2Obj(yamlPath).(*v1.ConfigMap)
+func GetConfigMapObj(yamlPath string) (*v1.ConfigMap, error) {
+	c, err := yaml2Obj(yamlPath)
+	if err != nil {
+		return nil, err
+	}
+	return c.(*v1.ConfigMap), err
 }
 
 func (k *KubeCtl) CreateConfigMap(cMap *v1.ConfigMap, namespace string) (*v1.ConfigMap, error) {
@@ -95,8 +106,12 @@ func (k *KubeCtl) DeleteConfigMap(cName string, namespace string) error {
 	return k.clientSet.CoreV1().ConfigMaps(namespace).Delete(cName, &metav1.DeleteOptions{})
 }
 
-func GetPodObj(yamlPath string) *v1.Pod {
-	return yaml2Obj(yamlPath).(*v1.Pod)
+func GetPodObj(yamlPath string) (*v1.Pod, error) {
+	o, err := yaml2Obj(yamlPath)
+	if err != nil {
+		return nil, err
+	}
+	return o.(*v1.Pod), err
 }
 
 func (k *KubeCtl) CreatePod(pod *v1.Pod, namespace string) (*v1.Pod, error) {

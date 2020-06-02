@@ -23,17 +23,22 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 )
 
-func yaml2Obj(yamlPath string) runtime.Object {
+func yaml2Obj(yamlPath string) (runtime.Object, error) {
 	decode := scheme.Codecs.UniversalDeserializer().Decode
-	obj, _, err := decode(GetFileContents(yamlPath), nil, nil)
-	check(err)
-
-	return obj
+	content, err := GetFileContents(yamlPath)
+	if err == nil {
+		obj, _, err := decode(content, nil, nil)
+		return obj, err
+	}
+	return nil, err
 }
 
-func Y2Map(yamlPath string) map[interface{}]interface{} {
+func Y2Map(yamlPath string) (map[interface{}]interface{}, error) {
 	m := make(map[interface{}]interface{})
-	err := yaml.Unmarshal(GetFileContents(yamlPath), &m)
-	check(err)
-	return m
+	content, err := GetFileContents(yamlPath)
+	if err == nil {
+		err := yaml.Unmarshal(content, &m)
+		return m, err
+	}
+	return nil, err
 }

@@ -68,16 +68,9 @@ func CreateLogFile(filename string, data []byte) error {
 	return err
 }
 
-func check(err error) {
-	if err != nil {
-		fmt.Fprintf(ginkgo.GinkgoWriter, "ERROR: %v\n", err)
-	}
-}
-
-func GetFileContents(filename string) []byte {
+func GetFileContents(filename string) ([]byte, error) {
 	data, err := ioutil.ReadFile(filename)
-	check(err)
-	return data
+	return data, err
 }
 
 func GetYKUrl() string {
