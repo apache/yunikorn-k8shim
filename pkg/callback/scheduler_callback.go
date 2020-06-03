@@ -147,21 +147,18 @@ func (callback *AsyncRMCallback) ReSyncSchedulerCache(args *si.ReSyncSchedulerCa
 }
 
 // this callback implement scheduler plugin interface EventPlugin.
-func (callback *AsyncRMCallback) SendEvent(eventMessages []*si.EventMessage) error {
+func (callback *AsyncRMCallback) SendEvent(eventRecords []*si.EventRecord) error {
 	errors := make([]string, 0)
-	if len(eventMessages) > 0 {
-		log.Logger.Debug(fmt.Sprintf("processing %d events", len(eventMessages)))
-		for _, event := range eventMessages {
-			reason := event.Reason
-			msg := event.Message
+	if len(eventRecords) > 0 {
+		log.Logger.Debug(fmt.Sprintf("processing %d events", len(eventRecords)))
+		for _, record := range eventRecords {
+			reason := record.Reason
+			msg := record.Message
 
-			switch event.Type {
-			case si.EventMessage_REQUEST:
-				taskAppID := event.ID
-				parts := strings.Split(taskAppID, ",")
-				taskID := parts[0]
-				// The application might have contained ","
-				appID := strings.Join(parts[1:], ",")
+			switch record.Type {
+			case si.EventRecord_REQUEST:
+				taskID := record.ObjectID
+				appID := record.GroupID
 
 				log.Logger.Info("taskID", zap.String("taskID", taskID))
 				app := callback.context.GetApplication(appID)
@@ -179,12 +176,12 @@ func (callback *AsyncRMCallback) SendEvent(eventMessages []*si.EventMessage) err
 				log.Logger.Debug("Emitting event", zap.String("pod name", pod.ObjectMeta.Name), zap.String("reason", reason), zap.String("message", msg))
 				events.GetRecorder().Event(pod, v1.EventTypeWarning, reason, msg)
 				log.Logger.Debug("event emitted")
-			case si.EventMessage_APP:
+			case si.EventRecord_APP:
 				// until we don't have app CRD let's expose app event to all its pods (asks)
 				// pending on YUNIKORN-170
-				errors = append(errors, fmt.Sprintf("processing app event is not implemented yet: %s", event))
+				errors = append(errors, fmt.Sprintf("processing app event is not implemented yet: %s", record))
 			default:
-				errors = append(errors, fmt.Sprintf("could not process unknown event type: %s", event))
+				errors = append(errors, fmt.Sprintf("could not process unknown event type: %s", record))
 			}
 		}
 	}
