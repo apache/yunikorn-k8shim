@@ -65,10 +65,6 @@ func (cache *SchedulerCache) GetNodesInfoMap() map[string]*schedulernode.NodeInf
 	return cache.nodesMap
 }
 
-func (cache *SchedulerCache) GetPodsInfoMap() map[string]*v1.Pod {
-	return cache.podsMap
-}
-
 func (cache *SchedulerCache) assignArgs(args *factory.PluginFactoryArgs) {
 	// nodes cache implemented PodLister and NodeInfo interface
 	log.Logger.Debug("Initialising PluginFactoryArgs using SchedulerCache")
