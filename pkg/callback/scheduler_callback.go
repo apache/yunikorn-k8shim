@@ -23,7 +23,6 @@ import (
 	"strings"
 
 	"go.uber.org/zap"
-	"k8s.io/api/core/v1"
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/cache"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
@@ -159,22 +158,12 @@ func (callback *AsyncRMCallback) SendEvent(eventRecords []*si.EventRecord) error
 			case si.EventRecord_REQUEST:
 				taskID := record.ObjectID
 				appID := record.GroupID
-
-				log.Logger.Info("taskID", zap.String("taskID", taskID))
 				app := callback.context.GetApplication(appID)
-				task, err := app.GetTask(taskID)
-				if err != nil {
-					errors = append(errors, fmt.Sprintf("could not find %s task belonging to %s app", taskID, appID))
-					continue
-				}
-				pod := task.GetTaskPod()
-				if pod == nil {
-					errors = append(errors, fmt.Sprintf("could not obtain %s task's pod", taskID))
-				}
 
-				// TODO remove this
-				log.Logger.Debug("Emitting event", zap.String("pod name", pod.ObjectMeta.Name), zap.String("reason", reason), zap.String("message", msg))
-				events.GetRecorder().Event(pod, v1.EventTypeWarning, reason, msg)
+				err := cache.PublishTaskEvent(taskID, reason, msg, app)
+				if err != nil {
+					errors = append(errors, err.Error())
+				}
 				log.Logger.Debug("event emitted")
 			case si.EventRecord_APP:
 				// until we don't have app CRD let's expose app event to all its pods (asks)
