@@ -169,7 +169,7 @@ push: image
 .PHONY: test
 test: clean
 	@echo "running unit tests"
-	go test ./... -race -tags deadlock -coverprofile=coverage.txt -covermode=atomic
+	go test `go list ./... | grep -v test/e2e` -cover -race -tags deadlock
 	go vet $(REPO)...
 
 # Simple clean of generated files only (no local cleanup).
