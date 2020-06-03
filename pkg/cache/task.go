@@ -134,18 +134,11 @@ func beforeHook(event events.TaskEventType) string {
 func (task *Task) handle(te events.TaskEvent) error {
 	task.lock.Lock()
 	defer task.lock.Unlock()
-	log.Logger.Debug("task state transition",
-		zap.String("taskID", task.taskID),
-		zap.String("preState", task.sm.Current()),
-		zap.String("pendingEvent", string(te.GetEvent())))
 	err := task.sm.Event(string(te.GetEvent()), te.GetArgs()...)
 	// handle the same state transition not nil error (limit of fsm).
 	if err != nil && err.Error() != "no transition" {
 		return err
 	}
-	log.Logger.Debug("task state transition",
-		zap.String("taskID", task.taskID),
-		zap.String("postState", task.sm.Current()))
 	return nil
 }
 
@@ -414,9 +407,11 @@ func (task *Task) sanityCheckBeforeScheduling() error {
 }
 
 func (task *Task) enterState(event *fsm.Event) {
-	log.Logger.Info("task state",
-		zap.String("appID", task.applicationID),
-		zap.String("taskID", task.taskID),
+	log.Logger.Debug("shim task state transition",
+		zap.String("app", task.applicationID),
+		zap.String("task", task.taskID),
 		zap.String("taskAlias", task.alias),
-		zap.String("state", task.GetTaskState()))
+		zap.String("source", event.Src),
+		zap.String("destination", event.Dst),
+		zap.String("event", event.Event))
 }

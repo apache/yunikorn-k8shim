@@ -280,7 +280,6 @@ func (p *Predictor) Predicates(pod *v1.Pod, meta predicates.PredicateMetadata, n
 }
 
 func (p *Predictor) predicatesReserve(pod *v1.Pod, meta predicates.PredicateMetadata, node *deschedulernode.NodeInfo) error {
-	log.Logger.Debug("calling predicates on reserve")
 	for _, predicateKey := range reservationPredicates {
 		if predicateFn, exist := p.fitPredicateFunctions[predicateKey]; exist {
 			fit, reasons, err := predicateFn(pod, meta, node)
@@ -288,10 +287,6 @@ func (p *Predictor) predicatesReserve(pod *v1.Pod, meta predicates.PredicateMeta
 				err = fmt.Errorf("predicate %s fit failed, reason(s) %v", predicateKey, reasons)
 			}
 			if err != nil {
-				log.Logger.Debug("predicate failure on reserve",
-					zap.String("name", predicateKey),
-					zap.Bool("result", fit),
-					zap.Error(err))
 				return err
 			}
 		}
@@ -300,12 +295,10 @@ func (p *Predictor) predicatesReserve(pod *v1.Pod, meta predicates.PredicateMeta
 }
 
 func (p *Predictor) predicatesAllocate(pod *v1.Pod, meta predicates.PredicateMetadata, node *deschedulernode.NodeInfo) error {
-	log.Logger.Debug("calling predicates on allocate")
 	// honor the ordering...
 	for _, predicateKey := range predicates.Ordering() {
 		if predicateFn, exist := p.fitPredicateFunctions[predicateKey]; exist {
 			fit, reasons, err := predicateFn(pod, meta, node)
-			log.Logger.Debug("predicate", zap.String("key", predicateKey), zap.Bool("fit", fit))
 			if err != nil {
 				events.GetRecorder().Eventf(pod, v1.EventTypeWarning,
 					"FailedScheduling", "predicate is not satisfied, error: %s", err.Error())

@@ -120,6 +120,8 @@ sched_image: scheduler
 	@cp ${RELEASE_BIN_DIR}/${BINARY} ./deployments/image/configmap
 	@mkdir -p ./deployments/image/configmap/admission-controller-init-scripts
 	@cp -r ./deployments/admission-controllers/scheduler/*  deployments/image/configmap/admission-controller-init-scripts/
+	@sed -i -e 's@\$${REGISTRY}@'"${REGISTRY}"'@g' deployments/image/configmap/admission-controller-init-scripts/templates/server.yaml.template
+	@sed -i -e 's@\$${VERSION}@'"${VERSION}"'@g' deployments/image/configmap/admission-controller-init-scripts/templates/server.yaml.template
 	@sed -i'.bkp' 's/clusterVersion=.*"/clusterVersion=${VERSION}"/' deployments/image/configmap/Dockerfile
 	@coreSHA=$$(go list -m "github.com/apache/incubator-yunikorn-core" | cut -d "-" -f5) ; \
 	siSHA=$$(go list -m "github.com/apache/incubator-yunikorn-scheduler-interface" | cut -d "-" -f6) ; \
@@ -165,7 +167,7 @@ push: image
 
 # Run the tests after building
 .PHONY: test
-test:
+test: clean
 	@echo "running unit tests"
 	go test ./... -race -tags deadlock -coverprofile=coverage.txt -covermode=atomic
 	go vet $(REPO)...
@@ -173,7 +175,8 @@ test:
 # Simple clean of generated files only (no local cleanup).
 .PHONY: clean
 clean:
-	go clean -r -x ./...
+	@echo "cleaning up caches and output"
+	go clean -cache -testcache -r -x ./... 2>&1 >/dev/null
 	rm -rf ${OUTPUT} ${CONF_FILE} ${BINARY} \
 	./deployments/image/configmap/${BINARY} \
 	./deployments/image/configmap/${CONF_FILE} \
