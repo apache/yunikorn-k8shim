@@ -418,7 +418,6 @@ func (task *Task) enterState(event *fsm.Event) {
 }
 
 func PublishTaskEvent(taskID, reason, msg string, app interfaces.ManagedApp) error {
-	log.Logger.Info("taskID", zap.String("taskID", taskID))
 	task, err := app.GetTask(taskID)
 	if err != nil {
 		return fmt.Errorf("could not find %s task belonging to %s app", taskID, app.GetApplicationID())
@@ -428,8 +427,7 @@ func PublishTaskEvent(taskID, reason, msg string, app interfaces.ManagedApp) err
 		return fmt.Errorf("could not obtain %s task's pod", taskID)
 	}
 
-	// TODO remove this
-	log.Logger.Debug("Emitting event", zap.String("pod name", pod.ObjectMeta.Name), zap.String("reason", reason), zap.String("message", msg))
+	log.Logger.Debug("publishing task event", zap.String("podName", pod.ObjectMeta.Name), zap.String("reason", reason), zap.String("message", msg))
 	events.GetRecorder().Event(pod, v1.EventTypeWarning, reason, msg)
 
 	return nil
