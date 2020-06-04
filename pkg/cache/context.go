@@ -434,6 +434,7 @@ func (ctx *Context) NotifyTaskComplete(appID, taskID string) {
 // if cpu or memory quota is defined in the annotation, a corresponding si.Resource is returned
 func (ctx *Context) getNamespaceResourceQuota(namespace string) *si.Resource {
 	if namespace == "" {
+		log.Logger.Debug("skip getting resource quota because namespace is empty")
 		return nil
 	}
 
@@ -460,9 +461,10 @@ func (ctx *Context) AddApplication(request *interfaces.AddApplicationRequest) in
 	defer ctx.lock.Unlock()
 
 	// add resource quota info as a app tag
-	log.Logger.Info("### retrieve namespace info 1")
 	if ns, ok := request.Metadata.Tags[common.AppTagNamespace]; ok {
-		log.Logger.Info("### retrieve namespace info 2", zap.String("namespace", ns))
+		log.Logger.Debug("app namespace info",
+			zap.String("appID", request.Metadata.ApplicationID),
+			zap.String("namespace", ns))
 		resourceQuota := ctx.getNamespaceResourceQuota(ns)
 		if resourceQuota != nil && !common.IsZero(resourceQuota) {
 			if quotaStr, err := json.Marshal(resourceQuota); err == nil {

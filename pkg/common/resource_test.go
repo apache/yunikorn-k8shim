@@ -359,9 +359,9 @@ func TestParseResourceString(t *testing.T) {
 		// cpu and memory
 		{"0.5", "64M", true, true, 500, 64},
 		// parsing error on cpu
-		{"xyz", "64M", false, true, 0, 64},
+		{"xyz", "64M", false, false, 0, 0},
 		// parsing error on memory
-		{"100m", "64MiB", true, false, 100, 0},
+		{"100m", "64MiB", false, false, 0, 0},
 		// parsing failed for both cpu and memory
 		{"xyz", "64MiB", false, false, 0, 0},
 	}

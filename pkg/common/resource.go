@@ -84,7 +84,7 @@ func GetNodeResource(nodeStatus *v1.NodeStatus) *si.Resource {
 }
 
 // parse cpu and memory from string to si.Resource, both of them are optional
-// if parse failed with some errors, log the error and ignore the resource
+// if parse failed with some errors, log the error and return a nil
 func ParseResource(cpuStr, memStr string) *si.Resource {
 	if cpuStr == "" && memStr == "" {
 		return nil
@@ -98,6 +98,7 @@ func ParseResource(cpuStr, memStr string) *si.Resource {
 			log.Logger.Error("failed to parse cpu resource",
 				zap.String("cpuStr", cpuStr),
 				zap.Error(err))
+			return nil
 		}
 	}
 
@@ -108,6 +109,7 @@ func ParseResource(cpuStr, memStr string) *si.Resource {
 			log.Logger.Error("failed to parse memory resource",
 				zap.String("memStr", memStr),
 				zap.Error(err))
+			return nil
 		}
 	}
 

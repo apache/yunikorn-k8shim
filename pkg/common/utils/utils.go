@@ -22,8 +22,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
-	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -106,12 +104,9 @@ func GetApplicationIDFromPod(pod *v1.Pod) (string, error) {
 }
 
 func GetNamespaceQuotaFromAnnotation(namespaceObj *v1.Namespace) *si.Resource {
-	log.Logger.Info("### GetNamespaceQuotaFromAnnotation")
 	// retrieve resource quota info from annotations
-	cpuQuota := namespaceObj.Annotations["yunikorn.apache.org/queue.max.cpu"]
-	memQuota := namespaceObj.Annotations["yunikorn.apache.org/queue.max.memory"]
-
-	log.Logger.Info("### GetNamespaceQuotaFromAnnotation", zap.String("cpu", cpuQuota), zap.String("mem", memQuota))
+	cpuQuota := namespaceObj.Annotations["yunikorn.apache.org/namespace.max.cpu"]
+	memQuota := namespaceObj.Annotations["yunikorn.apache.org/namespace.max.memory"]
 
 	// no quota found
 	if cpuQuota == "" && memQuota == "" {
