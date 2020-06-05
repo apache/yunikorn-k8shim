@@ -22,7 +22,7 @@ OR follow this doc for deploying go https://golang.org/doc/install
 * `yk-host` - hostname of the YuniKorn REST Server, defaults to localhost.   
 * `yk-port` - port number of the YuniKorn REST Server, defaults to 9080.
 * `yk-scheme` - scheme of the YuniKorn REST Server, defaults to http.
-* `timeout` -  timeout for the tests run
+* `timeout` -  timeout for all tests, defaults to 24 hours
 
 ## Launching Tests
 
@@ -30,12 +30,12 @@ OR follow this doc for deploying go https://golang.org/doc/install
 * Launching CI tests is as simple as below.
 ```console
 $ kubectl config use-context <<cluster-under-test-context>>
-$ ginkgo -r -v CI -- -yk-namespace "yunikorn-ns" -kube-config "$HOME/.kube/config"
+$ ginkgo -r -v CI -timeout=2 -- -yk-namespace "yunikorn-ns" -kube-config "$HOME/.kube/config"
 ```
 
 * Launching all the tests can be done as..
 ```console
-$ ginkgo -r -v -- -yk-namespace "yunikorn-ns" -kube-config "$HOME/.kube/config"
+$ ginkgo -r -v -timeout=2 -- -yk-namespace "yunikorn-ns" -kube-config "$HOME/.kube/config"
 
 ```
 

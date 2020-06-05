@@ -169,7 +169,7 @@ push: image
 .PHONY: test
 test: clean
 	@echo "running unit tests"
-	go test `go list ./... | grep -v test/e2e` -cover -race -tags deadlock
+	go test ./pkg/... -cover -race -tags deadlock
 	go vet $(REPO)...
 
 # Simple clean of generated files only (no local cleanup).
@@ -186,4 +186,4 @@ clean:
 .PHONY: e2e_test
 e2e_test:
 	@echo "running e2e tests"
-	cd ./test/e2e && ginkgo -r -v -- -yk-namespace "yunikorn" -kube-config $(KUBECONFIG)
+	cd ./test/e2e && ginkgo -r -v -timeout=2 -- -yk-namespace "yunikorn" -kube-config $(KUBECONFIG)

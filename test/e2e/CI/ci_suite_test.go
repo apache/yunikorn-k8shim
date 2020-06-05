@@ -19,10 +19,9 @@ package CI
 
 import (
 	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/cfg_manager"
-	"testing"
-
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
+	"testing"
 )
 
 func init() {
