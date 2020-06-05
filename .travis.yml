@@ -31,6 +31,7 @@ services:
 
 env:
   - GO111MODULE=on
+  - CLUSTER_NAME="yk8s"
 
 install: true
 
