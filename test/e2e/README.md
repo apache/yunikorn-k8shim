@@ -30,14 +30,11 @@ OR follow this doc for deploying go https://golang.org/doc/install
 * Launching CI tests is as simple as below.
 ```console
 $ kubectl config use-context <<cluster-under-test-context>>
-$ ginkgo -r -v CI -timeout=2 -- -yk-namespace "yunikorn-ns" -kube-config "$HOME/.kube/config"
+$ ginkgo -r -v CI -timeout=2 -- -yk-namespace "yunikorn" -kube-config "$HOME/.kube/config"
 ```
 
 * Launching all the tests can be done as..
 ```console
-$ ginkgo -r -v -timeout=2 -- -yk-namespace "yunikorn-ns" -kube-config "$HOME/.kube/config"
+$ ginkgo -r -v -timeout=2 -- -yk-namespace "yunikorn" -kube-config "$HOME/.kube/config"
 
 ```
-
-
-

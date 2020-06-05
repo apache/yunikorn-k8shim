@@ -18,7 +18,6 @@
 package CI
 
 import (
-	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/cfg_manager"
 	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/helpers"
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
@@ -31,7 +30,7 @@ import (
 var _ = ginkgo.Describe("CI: Test for basic scheduling", func() {
 	var kClient helpers.KubeCtl
 	var restClient helpers.RClient
-	var sleepPodDef = cfg_manager.GetAbsPath("../testdata/sleeppod_template.yaml")
+	var sleepPodDef = helpers.GetAbsPath("../testdata/sleeppod_template.yaml")
 	var sleepRespPod *v1.Pod
 	var dev = "development"
 	var appsInfo map[string]interface{}

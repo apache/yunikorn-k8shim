@@ -28,6 +28,11 @@ import (
 	"strings"
 )
 
+func GetAbsPath(p string) string {
+	path, _ := filepath.Abs(p)
+	return path
+}
+
 // GetTestName returns the test Name in a single string without spaces or /
 func GetTestName() string {
 	testDesc := ginkgo.CurrentGinkgoTestDescription()

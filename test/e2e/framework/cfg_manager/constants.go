@@ -18,8 +18,8 @@
 package cfg_manager
 
 import (
+	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/helpers"
 	"os"
-	"path/filepath"
 )
 
 const (
@@ -51,9 +51,4 @@ const (
 )
 
 //File paths
-var NSTemplatePath = GetAbsPath("../testdata/ns_template.yaml")
-
-func GetAbsPath(p string) string {
-	path, _ := filepath.Abs(p)
-	return path
-}
+var NSTemplatePath = helpers.GetAbsPath("../testdata/ns_template.yaml")

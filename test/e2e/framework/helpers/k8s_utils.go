@@ -18,14 +18,15 @@
 package helpers
 
 import (
+	"errors"
 	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/cfg_manager"
-	"github.com/mitchellh/go-homedir"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"os"
+	"path/filepath"
 )
 
 var err error
@@ -41,9 +42,31 @@ func (k *KubeCtl) findKubeConfig() error {
 	env := os.Getenv("KUBECONFIG")
 	if env != "" {
 		k.kubeConfigPath = env
+		return nil
 	}
-	k.kubeConfigPath, err = homedir.Expand(cfg_manager.YuniKornTestConfig.KubeConfig)
+	k.kubeConfigPath, err = expand(cfg_manager.YuniKornTestConfig.KubeConfig)
 	return err
+}
+
+func expand(path string) (string, error) {
+	if len(path) == 0 {
+		return path, nil
+	}
+
+	if path[0] != '~' {
+		return path, nil
+	}
+
+	if len(path) > 1 && path[1] != '/' && path[1] != '\\' {
+		return "", errors.New("cannot expand user-specific home dir")
+	}
+
+	dir, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.Join(dir, path[1:]), nil
 }
 
 func (k *KubeCtl) SetClient() error{
