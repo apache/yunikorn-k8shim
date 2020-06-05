@@ -1,11 +1,29 @@
+//
+// Licensed to the Apache Software Foundation (ASF) under one
+// or more contributor license agreements.  See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.  The ASF licenses this file
+// to you under the Apache License, Version 2.0 (the
+// "License"); you may not use this file except in compliance
+// with the License.  You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
 module github.com/apache/incubator-yunikorn-k8shim
 
 go 1.12
 
 require (
 	github.com/GoogleCloudPlatform/spark-on-k8s-operator v0.0.0-20200212043150-3df703098970
-	github.com/apache/incubator-yunikorn-core v0.0.0-20200417070322-891de7466236
-	github.com/apache/incubator-yunikorn-scheduler-interface v0.0.0-20200414171840-a773cd557b1f
+	github.com/apache/incubator-yunikorn-core v0.0.0-20200601201758-fc196adbafbc
+	github.com/apache/incubator-yunikorn-scheduler-interface v0.8.1-0.20200601033744-f86297aaea9e
 	github.com/coreos/etcd v3.3.20+incompatible // indirect
 	github.com/coreos/go-semver v0.3.0 // indirect
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect

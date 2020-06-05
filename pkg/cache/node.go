@@ -96,6 +96,7 @@ func (n *SchedulerNode) initFSM() {
 			string(events.DrainNode):   n.handleDrainNode,
 			string(events.RestoreNode): n.handleRestoreNode,
 			string(states.Accepted):    n.postNodeAccepted,
+			events.EnterState:          n.enterState,
 		})
 }
 
@@ -225,18 +226,11 @@ func (n *SchedulerNode) handleRestoreNode(event *fsm.Event) {
 func (n *SchedulerNode) handle(ev events.SchedulerNodeEvent) error {
 	n.lock.Lock()
 	defer n.lock.Unlock()
-	log.Logger.Debug("scheduler node state transition",
-		zap.String("nodeID", ev.GetNodeID()),
-		zap.String("preState", n.fsm.Current()),
-		zap.String("pendingEvent", string(ev.GetEvent())))
 	err := n.fsm.Event(string(ev.GetEvent()), ev.GetArgs()...)
 	// handle the same state transition not nil error (limit of fsm).
 	if err != nil && err.Error() != "no transition" {
 		return err
 	}
-	log.Logger.Debug("scheduler node state transition",
-		zap.String("nodeID", ev.GetNodeID()),
-		zap.String("postState", n.fsm.Current()))
 	return nil
 }
 
@@ -244,4 +238,12 @@ func (n *SchedulerNode) canHandle(ev events.SchedulerNodeEvent) bool {
 	n.lock.RLock()
 	defer n.lock.RUnlock()
 	return n.fsm.Can(string(ev.GetEvent()))
+}
+
+func (n *SchedulerNode) enterState(event *fsm.Event) {
+	log.Logger.Debug("shim node state transition",
+		zap.String("node", n.name),
+		zap.String("source", event.Src),
+		zap.String("destination", event.Dst),
+		zap.String("event", event.Event))
 }

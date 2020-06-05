@@ -52,6 +52,7 @@ type Clients struct {
 	PVInformer        coreInformerV1.PersistentVolumeInformer
 	PVCInformer       coreInformerV1.PersistentVolumeClaimInformer
 	StorageInformer   storageInformerV1.StorageClassInformer
+	NamespaceInformer coreInformerV1.NamespaceInformer
 
 	// volume binder handles PV/PVC related operations
 	VolumeBinder *volumebinder.VolumeBinder
@@ -65,7 +66,8 @@ func (c *Clients) WaitForSync(interval time.Duration, timeout time.Duration) err
 			c.PVCInformer.Informer().HasSynced() &&
 			c.PVInformer.Informer().HasSynced() &&
 			c.StorageInformer.Informer().HasSynced() &&
-			c.ConfigMapInformer.Informer().HasSynced()
+			c.ConfigMapInformer.Informer().HasSynced() &&
+			c.NamespaceInformer.Informer().HasSynced()
 	}, interval, timeout)
 }
 
@@ -76,4 +78,5 @@ func (c *Clients) Run(stopCh <-chan struct{}) {
 	go c.PVCInformer.Informer().Run(stopCh)
 	go c.StorageInformer.Informer().Run(stopCh)
 	go c.ConfigMapInformer.Informer().Run(stopCh)
+	go c.NamespaceInformer.Informer().Run(stopCh)
 }

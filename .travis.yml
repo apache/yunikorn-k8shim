@@ -1,3 +1,20 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 language: go
 
 os:
@@ -6,23 +23,30 @@ os:
 go:
   - "1.12"
 
+git:
+  depth: 1
+
+services:
+  - 'docker'
+
 env:
-  - CLUSTER_NAME="yk8s"
+  - GO111MODULE=on
 
 install: true
 
-services: docker
-
 jobs:
   include:
-    - stage: integration tests
-      before_script:
-        - curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl && chmod +x kubectl && sudo mv kubectl /usr/local/bin/
-        - curl -Lo ./kind "https://kind.sigs.k8s.io/dl/v0.8.0/kind-linux-amd64"
-        - chmod +x ./kind
-        - mv ./kind $(go env GOPATH)/bin
-        - kind create cluster --name ${CLUSTER_NAME}
-        - kubectl cluster-info --context kind-${CLUSTER_NAME}
-      script: kubectl get nodes
-      after_script:
-        - kind delete cluster --name ${CLUSTER_NAME}
+    - stage: pre-commit checks
+      script:
+      - curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.22.2
+      - make license-check
+      - make test
+      - make lint
+      after_success: bash <(curl -s https://codecov.io/bash)
+    - stage: publish docker image
+      deploy:
+        provider: script
+        script: make push
+        on:
+          branch: master
+          #condition: $TRAVIS_EVENT_TYPE = cron
