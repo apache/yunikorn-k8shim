@@ -443,7 +443,7 @@ func (ctx *Context) getNamespaceResourceQuota(namespace string) *si.Resource {
 	if err != nil {
 		// every app should belong to a namespace,
 		// if we cannot list the namespace here, probably something is wrong
-		// log an error here and do not add the app to cache
+		// log an error here and skip retrieving the resource quota
 		log.Logger.Error("failed to get app namespace", zap.Error(err))
 		return nil
 	}
