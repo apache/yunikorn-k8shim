@@ -73,7 +73,7 @@ func TestGetNamespaceQuotaFromAnnotation(t *testing.T) {
 				Name:      "test",
 				Namespace: "test",
 				Annotations: map[string]string{
-					"yunikorn.apache.org/queue.max.cpu": "1",
+					"yunikorn.apache.org/namespace.max.cpu": "1",
 				},
 			},
 		}, common.NewResourceBuilder().
@@ -84,7 +84,7 @@ func TestGetNamespaceQuotaFromAnnotation(t *testing.T) {
 				Name:      "test",
 				Namespace: "test",
 				Annotations: map[string]string{
-					"yunikorn.apache.org/queue.max.memory": "128M",
+					"yunikorn.apache.org/namespace.max.memory": "128M",
 				},
 			},
 		}, common.NewResourceBuilder().
@@ -95,42 +95,38 @@ func TestGetNamespaceQuotaFromAnnotation(t *testing.T) {
 				Name:      "test",
 				Namespace: "test",
 				Annotations: map[string]string{
-					"yunikorn.apache.org/queue.max.cpu":    "error",
-					"yunikorn.apache.org/queue.max.memory": "128M",
+					"yunikorn.apache.org/namespace.max.cpu":    "error",
+					"yunikorn.apache.org/namespace.max.memory": "128M",
 				},
 			},
-		}, common.NewResourceBuilder().
-			AddResource(common.Memory, 128).
-			Build()},
+		}, nil},
 		{&v1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "test",
 				Namespace: "test",
 				Annotations: map[string]string{
-					"yunikorn.apache.org/queue.max.cpu":    "1",
-					"yunikorn.apache.org/queue.max.memory": "error",
+					"yunikorn.apache.org/namespace.max.cpu":    "1",
+					"yunikorn.apache.org/namespace.max.memory": "error",
 				},
 			},
-		}, common.NewResourceBuilder().
-			AddResource(common.CPU, 1000).
-			Build()},
+		}, nil},
 		{&v1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "test",
 				Namespace: "test",
 				Annotations: map[string]string{
-					"yunikorn.apache.org/queue.max.cpu":    "error",
-					"yunikorn.apache.org/queue.max.memory": "error",
+					"yunikorn.apache.org/namespace.max.cpu":    "error",
+					"yunikorn.apache.org/namespace.max.memory": "error",
 				},
 			},
-		}, common.NewResourceBuilder().Build()},
+		}, nil},
 		{&v1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "test",
 				Namespace: "test",
 				Annotations: map[string]string{
-					"yunikorn.apache.org/queue.max.cpu":    "1",
-					"yunikorn.apache.org/queue.max.memory": "64M",
+					"yunikorn.apache.org/namespace.max.cpu":    "1",
+					"yunikorn.apache.org/namespace.max.memory": "64M",
 				},
 			},
 		}, common.NewResourceBuilder().
