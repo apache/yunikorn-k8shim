@@ -19,10 +19,12 @@
 package common
 
 import (
+	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/kubernetes/pkg/apis/core/v1/helper/qos"
 
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 )
 
@@ -79,6 +81,39 @@ func GetNodeResource(nodeStatus *v1.NodeStatus) *si.Resource {
 	// We can rely on Allocatable resource here, because if it is not specified,
 	// the default value is same as Capacity. (same behavior as the default-scheduler)
 	return getResource(nodeStatus.Allocatable)
+}
+
+// parse cpu and memory from string to si.Resource, both of them are optional
+// if parse failed with some errors, log the error and return a nil
+func ParseResource(cpuStr, memStr string) *si.Resource {
+	if cpuStr == "" && memStr == "" {
+		return nil
+	}
+
+	result := NewResourceBuilder()
+	if cpuStr != "" {
+		if vcore, err := resource.ParseQuantity(cpuStr); err == nil {
+			result.AddResource(CPU, vcore.MilliValue())
+		} else {
+			log.Logger.Error("failed to parse cpu resource",
+				zap.String("cpuStr", cpuStr),
+				zap.Error(err))
+			return nil
+		}
+	}
+
+	if memStr != "" {
+		if mem, err := resource.ParseQuantity(memStr); err == nil {
+			result.AddResource(Memory, mem.ScaledValue(resource.Mega))
+		} else {
+			log.Logger.Error("failed to parse memory resource",
+				zap.String("memStr", memStr),
+				zap.Error(err))
+			return nil
+		}
+	}
+
+	return result.Build()
 }
 
 func getResource(resourceList v1.ResourceList) *si.Resource {

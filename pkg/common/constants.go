@@ -29,6 +29,9 @@ const LabelApplicationID = "applicationId"
 const LabelQueueName = "queue"
 const ApplicationDefaultQueue = "root.sandbox"
 const DefaultPartition = "default"
+const AppTagNamespace = "namespace"
+const AppTagNamespaceResourceQuota = "namespace.resourcequota"
+const DefaultAppNamespace = "default"
 
 // Resource
 const Memory = "memory"

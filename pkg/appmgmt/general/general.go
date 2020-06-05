@@ -106,9 +106,9 @@ func (os *Manager) getAppMetadata(pod *v1.Pod) (interfaces.ApplicationMetadata, 
 	// user info is retrieved via service account
 	tags := map[string]string{}
 	if pod.Namespace == "" {
-		tags["namespace"] = "default"
+		tags[common.AppTagNamespace] = common.DefaultAppNamespace
 	} else {
-		tags["namespace"] = pod.Namespace
+		tags[common.AppTagNamespace] = pod.Namespace
 	}
 	// get the application owner (this is all that is available as far as we can find)
 	user := pod.Spec.ServiceAccountName
