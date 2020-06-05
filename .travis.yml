@@ -30,8 +30,9 @@ services:
   - 'docker'
 
 env:
-  - GO111MODULE=on
-  - CLUSTER_NAME="yk8s"
+  global:
+    - GO111MODULE=on
+    - CLUSTER_NAME="yk8s"
 
 install: true
 
