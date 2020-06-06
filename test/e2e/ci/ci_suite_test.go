@@ -15,17 +15,20 @@
  See the License for the specific language governing permissions and
  limitations under the License.
 */
-package CI
+
+package ci
 
 import (
-	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/cfg_manager"
+	"testing"
+
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
-	"testing"
+
+	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/configmanager"
 )
 
 func init() {
-	cfg_manager.YuniKornTestConfig.ParseFlags()
+	configmanager.YuniKornTestConfig.ParseFlags()
 }
 
 func TestPlacementRules(t *testing.T) {

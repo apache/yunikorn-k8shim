@@ -15,19 +15,22 @@
  See the License for the specific language governing permissions and
  limitations under the License.
 */
+
 package helpers
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 
-	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/cfg_manager"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+
+	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/configmanager"
 )
 
 var err error
@@ -45,7 +48,7 @@ func (k *KubeCtl) findKubeConfig() error {
 		k.kubeConfigPath = env
 		return nil
 	}
-	k.kubeConfigPath, err = expand(cfg_manager.YuniKornTestConfig.KubeConfig)
+	k.kubeConfigPath, err = expand(configmanager.YuniKornTestConfig.KubeConfig)
 	return err
 }
 
@@ -62,9 +65,9 @@ func expand(path string) (string, error) {
 		return "", errors.New("cannot expand user-specific home dir")
 	}
 
-	dir, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
+	dir, err1 := os.UserHomeDir()
+	if err1 != nil {
+		return "", err1
 	}
 
 	return filepath.Join(dir, path[1:]), nil
@@ -92,14 +95,20 @@ func (k *KubeCtl) GetService(serviceName string, namespace string) (*v1.Service,
 
 // Func to create a namespace provided a name
 func (k *KubeCtl) CreateNamespace(namespace string) (*v1.Namespace, error) {
-	rs, err := yaml2Obj(GetAbsPath(cfg_manager.NSTemplatePath))
+	epath, err := GetAbsPath(configmanager.NSTemplatePath)
 	if err != nil {
 		return nil, err
 	}
-	nsSpec := rs.(*v1.Namespace)
-	nsSpec.Name = namespace
-	nsSpec.Labels = map[string]string{"Name": namespace}
-	return k.clientSet.CoreV1().Namespaces().Create(nsSpec)
+	rs, err := yaml2Obj(epath)
+	if err != nil {
+		return nil, err
+	}
+	if nsSpec, ok := rs.(*v1.Namespace); ok {
+		nsSpec.Name = namespace
+		nsSpec.Labels = map[string]string{"Name": namespace}
+		return k.clientSet.CoreV1().Namespaces().Create(nsSpec)
+	}
+	return nil, fmt.Errorf("unable to type cast the yaml object to v1.Namespace")
 }
 
 func (k *KubeCtl) DeleteNamespace(namespace string) error {

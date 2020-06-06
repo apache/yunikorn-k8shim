@@ -15,6 +15,7 @@
  See the License for the specific language governing permissions and
  limitations under the License.
 */
+
 package helpers
 
 import (
@@ -27,8 +28,8 @@ func yaml2Obj(yamlPath string) (runtime.Object, error) {
 	decode := scheme.Codecs.UniversalDeserializer().Decode
 	content, err := GetFileContents(yamlPath)
 	if err == nil {
-		obj, _, err := decode(content, nil, nil)
-		return obj, err
+		obj, _, err1 := decode(content, nil, nil)
+		return obj, err1
 	}
 	return nil, err
 }
@@ -37,8 +38,8 @@ func Y2Map(yamlPath string) (map[interface{}]interface{}, error) {
 	m := make(map[interface{}]interface{})
 	content, err := GetFileContents(yamlPath)
 	if err == nil {
-		err := yaml.Unmarshal(content, &m)
-		return m, err
+		err1 := yaml.Unmarshal(content, &m)
+		return m, err1
 	}
 	return nil, err
 }

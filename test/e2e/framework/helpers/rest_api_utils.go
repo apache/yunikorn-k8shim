@@ -15,18 +15,19 @@
  See the License for the specific language governing permissions and
  limitations under the License.
 */
+
 package helpers
 
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/cfg_manager"
 	"io"
 	"net/http"
 	"net/url"
 	"path"
+
+	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/configmanager"
 )
 
 type RClient struct {
@@ -79,7 +80,7 @@ func (c *RClient) do(req *http.Request, v interface{}) (*http.Response, error) {
 }
 
 func (c *RClient) GetQueues() (map[string]interface{}, error) {
-	req, err := c.newRequest("GET", path.Join(GetYKUrl(), cfg_manager.QueuesPath), nil)
+	req, err := c.newRequest("GET", path.Join(GetYKUrl(), configmanager.QueuesPath), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +90,7 @@ func (c *RClient) GetQueues() (map[string]interface{}, error) {
 }
 
 func (c *RClient) GetApps() ([]map[string]interface{}, error) {
-	req, err := c.newRequest("GET", cfg_manager.AppsPath, nil)
+	req, err := c.newRequest("GET", configmanager.AppsPath, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -110,5 +111,5 @@ func (c *RClient) GetAppInfo(appID string) (map[string]interface{}, error) {
 			}
 		}
 	}
-	return nil, errors.New(fmt.Sprintf("AppInfo not found: %s", appID))
+	return nil, fmt.Errorf("AppInfo not found: %s", appID)
 }

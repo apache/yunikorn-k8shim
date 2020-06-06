@@ -186,4 +186,4 @@ clean:
 .PHONY: e2e_test
 e2e_test:
 	@echo "running e2e tests"
-	cd ./test/e2e && ginkgo -r -v -timeout=2 -- -yk-namespace "yunikorn" -kube-config $(KUBECONFIG)
+	cd ./test/e2e && ginkgo -r -v -timeout=2h -- -yk-namespace "yunikorn" -kube-config $(KUBECONFIG)

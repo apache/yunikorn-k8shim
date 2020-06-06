@@ -15,7 +15,8 @@
  See the License for the specific language governing permissions and
  limitations under the License.
 */
-package cfg_manager
+
+package configmanager
 
 import (
 	"flag"
@@ -24,7 +25,7 @@ import (
 
 // YuniKornTestConfigType holds all of the configurable elements of the testsuite
 type YuniKornTestConfigType struct {
-	JsonLogs    bool
+	JSONLogs    bool
 	LogLevel    string
 	Timeout     time.Duration
 	KubeConfig  string
@@ -41,7 +42,7 @@ var YuniKornTestConfig = YuniKornTestConfigType{}
 
 // ParseFlags parses commandline flags relevant to testing.
 func (c *YuniKornTestConfigType) ParseFlags() {
-	flag.BoolVar(&c.JsonLogs, "json-logs-enabled", false,
+	flag.BoolVar(&c.JSONLogs, "json-logs-enabled", false,
 		"Enables logging in json format")
 	flag.StringVar(&c.LogLevel, "log-level", "debug",
 		"log level(debug|info|error|critical")

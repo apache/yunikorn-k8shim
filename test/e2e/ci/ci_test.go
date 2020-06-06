@@ -15,29 +15,35 @@
  See the License for the specific language governing permissions and
  limitations under the License.
 */
-package CI
+
+package ci
 
 import (
-	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/helpers"
-	"github.com/onsi/ginkgo"
-	"github.com/onsi/gomega"
-	v1 "k8s.io/api/core/v1"
 	"regexp"
 	"strconv"
 	"time"
+
+	"github.com/onsi/ginkgo"
+	"github.com/onsi/gomega"
+	v1 "k8s.io/api/core/v1"
+
+	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/helpers"
 )
 
 var _ = ginkgo.Describe("CI: Test for basic scheduling", func() {
 	var kClient helpers.KubeCtl
 	var restClient helpers.RClient
-	var sleepPodDef = helpers.GetAbsPath("../testdata/sleeppod_template.yaml")
+	var sleepPodDef string
+	var err error
 	var sleepRespPod *v1.Pod
 	var dev = "development"
 	var appsInfo map[string]interface{}
-	var r = regexp.MustCompile("memory:(\\d+) vcore:(\\d+)")
+	var r = regexp.MustCompile(`memory:(\d+) vcore:(\d+)`)
 
 	ginkgo.BeforeSuite(func() {
 		// Initializing kubectl client
+		sleepPodDef, err = helpers.GetAbsPath("../testdata/sleeppod_template.yaml")
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		kClient = helpers.KubeCtl{}
 		gomega.Ω(kClient.SetClient()).To(gomega.BeNil())
 		// Initializing rest client
@@ -78,7 +84,8 @@ var _ = ginkgo.Describe("CI: Test for basic scheduling", func() {
 		ginkgo.It("Verify the pod allocation properties", func() {
 			ginkgo.By("Verify the pod allocation properties")
 			gomega.Ω(appsInfo["allocations"]).NotTo(gomega.BeNil())
-			allocations := appsInfo["allocations"].([]interface{})[0].(map[string]interface{})
+			allocations, ok := appsInfo["allocations"].([]interface{})[0].(map[string]interface{})
+			gomega.Ω(ok).Should(gomega.BeTrue())
 			gomega.Ω(allocations["allocationKey"]).NotTo(gomega.BeNil())
 			gomega.Ω(allocations["nodeId"]).NotTo(gomega.BeNil())
 			gomega.Ω(allocations["partition"]).NotTo(gomega.BeNil())

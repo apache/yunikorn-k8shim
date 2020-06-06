@@ -15,22 +15,25 @@
  See the License for the specific language governing permissions and
  limitations under the License.
 */
+
 package helpers
 
 import (
 	"fmt"
-	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/cfg_manager"
-	"github.com/google/uuid"
-	"github.com/onsi/ginkgo"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/google/uuid"
+	"github.com/onsi/ginkgo"
+
+	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/configmanager"
 )
 
-func GetAbsPath(p string) string {
-	path, _ := filepath.Abs(p)
-	return path
+func GetAbsPath(p string) (string, error) {
+	path, err := filepath.Abs(p)
+	return path, err
 }
 
 // GetTestName returns the test Name in a single string without spaces or /
@@ -45,7 +48,7 @@ func GetTestName() string {
 func ReportDirectoryPath() string {
 	prefix := ""
 	testName := GetTestName()
-	return filepath.Join(cfg_manager.TestResultsPath, prefix, testName)
+	return filepath.Join(configmanager.TestResultsPath, prefix, testName)
 }
 
 // CreateReportDirectory creates and returns the directory path
@@ -69,7 +72,7 @@ func CreateLogFile(filename string, data []byte) error {
 	}
 
 	finalPath := filepath.Join(path, filename)
-	err = ioutil.WriteFile(finalPath, data, cfg_manager.LogPerm)
+	err = ioutil.WriteFile(finalPath, data, configmanager.LogPerm)
 	return err
 }
 
@@ -80,21 +83,21 @@ func GetFileContents(filename string) ([]byte, error) {
 
 func GetYKUrl() string {
 	return fmt.Sprintf("%s://%s:%s",
-		cfg_manager.YuniKornTestConfig.YkScheme,
-		cfg_manager.YuniKornTestConfig.YkHost,
-		cfg_manager.YuniKornTestConfig.YkPort,
+		configmanager.YuniKornTestConfig.YkScheme,
+		configmanager.YuniKornTestConfig.YkHost,
+		configmanager.YuniKornTestConfig.YkPort,
 	)
 }
 
 func GetYKHost() string {
 	return fmt.Sprintf("%s:%s",
-		cfg_manager.YuniKornTestConfig.YkHost,
-		cfg_manager.YuniKornTestConfig.YkPort,
+		configmanager.YuniKornTestConfig.YkHost,
+		configmanager.YuniKornTestConfig.YkPort,
 	)
 }
 
 func GetYKScheme() string {
-	return cfg_manager.YuniKornTestConfig.YkScheme
+	return configmanager.YuniKornTestConfig.YkScheme
 }
 
 func GetUUID() string {

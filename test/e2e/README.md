@@ -1,3 +1,21 @@
+<!--
+* Licensed to the Apache Software Foundation (ASF) under one
+* or more contributor license agreements.  See the NOTICE file
+* distributed with this work for additional information
+* regarding copyright ownership.  The ASF licenses this file
+* to you under the Apache License, Version 2.0 (the
+* "License"); you may not use this file except in compliance
+* with the License.  You may obtain a copy of the License at
+*
+*      http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+-->
+
 # End to End Testing in YuniKorn-K8shim
 
 End-to-end (e2e) tests for YuniKorn-K8shim provide a mechanism to test end-to-end behavior of the system, and is the last signal to ensure end user operations match developer specifications. 
@@ -8,7 +26,7 @@ The e2e tests are built atop of [Ginkgo](https://onsi.github.io/ginkgo/) and [Go
 
 Below is the structure of the project.
 * `test/e2e/` contains tests for YuniKorn Features like Scheduling, Predicates etc
-* `test/e2e/framework/cfg_manager` manages & maintains the test and cluster configuration
+* `test/e2e/framework/configManager` manages & maintains the test and cluster configuration
 * `test/e2e/framework/helpers` contains utility modules for k8s client, (de)serializers, rest api client and other common libraries.
 * `test/e2e/testdata` contains all the test related data like configmaps, pod specs etc
 
@@ -30,11 +48,11 @@ OR follow this doc for deploying go https://golang.org/doc/install
 * Launching CI tests is as simple as below.
 ```console
 $ kubectl config use-context <<cluster-under-test-context>>
-$ ginkgo -r -v CI -timeout=2 -- -yk-namespace "yunikorn" -kube-config "$HOME/.kube/config"
+$ ginkgo -r -v CI -timeout=2h -- -yk-namespace "yunikorn" -kube-config "$HOME/.kube/config"
 ```
 
 * Launching all the tests can be done as..
 ```console
-$ ginkgo -r -v -timeout=2 -- -yk-namespace "yunikorn" -kube-config "$HOME/.kube/config"
+$ ginkgo -r -v -timeout=2h -- -yk-namespace "yunikorn" -kube-config "$HOME/.kube/config"
 
 ```
