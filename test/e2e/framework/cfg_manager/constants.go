@@ -18,7 +18,6 @@
 package cfg_manager
 
 import (
-	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/helpers"
 	"os"
 )
 
@@ -47,8 +46,7 @@ const (
 	DefaultYuniKornPort   = "9080"
 	DefaultYuniKornScheme = "http"
 
+	NSTemplatePath = "../testdata/ns_template.yaml"
+
 	DefaultYuniKornConfigMap = "yunikorn-configs"
 )
-
-//File paths
-var NSTemplatePath = helpers.GetAbsPath("../testdata/ns_template.yaml")

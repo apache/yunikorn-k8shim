@@ -19,14 +19,15 @@ package helpers
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
+
 	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/cfg_manager"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
-	"os"
-	"path/filepath"
 )
 
 var err error
@@ -69,12 +70,12 @@ func expand(path string) (string, error) {
 	return filepath.Join(dir, path[1:]), nil
 }
 
-func (k *KubeCtl) SetClient() error{
-	if k.findKubeConfig() != nil{
+func (k *KubeCtl) SetClient() error {
+	if k.findKubeConfig() != nil {
 		return err
 	}
 	k.kubeConfig, err = clientcmd.BuildConfigFromFlags("", k.kubeConfigPath)
-	if err != nil{
+	if err != nil {
 		return err
 	}
 	k.clientSet, err = kubernetes.NewForConfig(k.kubeConfig)
@@ -91,8 +92,8 @@ func (k *KubeCtl) GetService(serviceName string, namespace string) (*v1.Service,
 
 // Func to create a namespace provided a name
 func (k *KubeCtl) CreateNamespace(namespace string) (*v1.Namespace, error) {
-	rs, err := yaml2Obj(cfg_manager.NSTemplatePath)
-	if err != nil{
+	rs, err := yaml2Obj(GetAbsPath(cfg_manager.NSTemplatePath))
+	if err != nil {
 		return nil, err
 	}
 	nsSpec := rs.(*v1.Namespace)
