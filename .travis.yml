@@ -47,6 +47,8 @@ jobs:
 #      - make lint
 #      after_success: bash <(curl -s https://codecov.io/bash)
     - stage: publish docker image
+      script:
+        - echo "publishing docker images, by ${DOCKER_USERNAME}"
       deploy:
         provider: script
         script: make push
