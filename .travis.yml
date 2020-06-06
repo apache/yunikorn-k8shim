@@ -48,12 +48,7 @@ jobs:
 #      after_success: bash <(curl -s https://codecov.io/bash)
     - stage: publish docker image
       script:
-        - echo "publishing docker images, by ${DOCKER_USERNAME}"
-      deploy:
-        provider: script
-        script: make push
-        on:
-          branch: master
+        - make push
 #    - stage: integration tests
 #      before_script:
 #        - curl -L https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash
