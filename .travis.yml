@@ -39,35 +39,34 @@ install: true
 
 jobs:
   include:
-    - stage: pre-commit checks
-      script:
-      - curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.22.2
-      - make license-check
-      - make test
-      - make lint
-      after_success: bash <(curl -s https://codecov.io/bash)
+#    - stage: pre-commit checks
+#      script:
+#      - curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.22.2
+#      - make license-check
+#      - make test
+#      - make lint
+#      after_success: bash <(curl -s https://codecov.io/bash)
     - stage: publish docker image
       deploy:
         provider: script
         script: make push
         on:
           branch: master
-          #condition: $TRAVIS_EVENT_TYPE = cron
-    - stage: integration tests
-      before_script:
-        - curl -L https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash
-        - curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl && chmod +x kubectl && sudo mv kubectl /usr/local/bin/
-        - curl -Lo ./kind "https://kind.sigs.k8s.io/dl/v0.8.0/kind-linux-amd64"
-        - chmod +x ./kind
-        - mv ./kind $(go env GOPATH)/bin
-        - kind create cluster --name ${CLUSTER_NAME} --image ${KIND_NODE_IMAGE}
-        - kubectl cluster-info --context kind-${CLUSTER_NAME}
-      script:
-        - kubectl version
-        - helm repo add yunikorn https://apache.github.io/incubator-yunikorn-release
-        - helm repo update
-        - kubectl create namespace yunikorn
-        - helm install yunikorn yunikorn/yunikorn --namespace yunikorn
-      after_script:
-        - helm uninstall yunikorn --namespace yunikorn
-        - kind delete cluster --name ${CLUSTER_NAME}
+#    - stage: integration tests
+#      before_script:
+#        - curl -L https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash
+#        - curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl && chmod +x kubectl && sudo mv kubectl /usr/local/bin/
+#        - curl -Lo ./kind "https://kind.sigs.k8s.io/dl/v0.8.0/kind-linux-amd64"
+#        - chmod +x ./kind
+#        - mv ./kind $(go env GOPATH)/bin
+#        - kind create cluster --name ${CLUSTER_NAME} --image ${KIND_NODE_IMAGE}
+#        - kubectl cluster-info --context kind-${CLUSTER_NAME}
+#      script:
+#        - kubectl version
+#        - helm repo add yunikorn https://apache.github.io/incubator-yunikorn-release
+#        - helm repo update
+#        - kubectl create namespace yunikorn
+#        - helm install yunikorn yunikorn/yunikorn --namespace yunikorn
+#      after_script:
+#        - helm uninstall yunikorn --namespace yunikorn
+#        - kind delete cluster --name ${CLUSTER_NAME}
