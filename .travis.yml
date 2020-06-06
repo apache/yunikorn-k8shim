@@ -54,6 +54,11 @@ jobs:
           branch: master
           #condition: $TRAVIS_EVENT_TYPE = cron
     - stage: integration tests
+      install:
+        - go get -v github.com/onsi/ginkgo/ginkgo
+        - go get -v github.com/onsi/gomega
+        - go get -v -t ./...
+        - export PATH=$PATH:$HOME/gopath/bin
       before_script:
         - curl -L https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash
         - curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl && chmod +x kubectl && sudo mv kubectl /usr/local/bin/
