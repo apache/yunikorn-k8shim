@@ -24,8 +24,6 @@
 bash k8s.io/code-generator/generate-groups.sh "all" \
   github.com/apache/incubator-yunikorn-k8shim/pkg/client github.com/apache/incubator-yunikorn-k8shim/pkg/apis \
   "yunikorn.apache.org:v1alpha1" \
-  #--output-base "$(dirname "${BASH_SOURCE[0]}")/../../.." \
-  #--go-header-file  ./pkg/apis/apache.org/boilerplate.go.txt
 
 # To use your own boilerplate text append:
 #   --go-header-file "${SCRIPT_ROOT}"/hack/custom-boilerplate.go.txt
