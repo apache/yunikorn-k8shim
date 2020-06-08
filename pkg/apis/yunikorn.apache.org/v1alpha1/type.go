@@ -46,21 +46,20 @@ type ApplicationSpec struct {
 type ApplicationStateType string
 
 const (
-	NewApplicationState     ApplicationStateType = "iota"
-	AcceptedState       	ApplicationStateType = "Accepted"
-	StartingState        	ApplicationStateType = "Starting"
-	RunningState          	ApplicationStateType = "Running"
-	WaitingState		ApplicationStateType = "Waiting"
-	RejectedState		ApplicationStateType = "Rejected"
-	CompletedState		ApplicationStateType = "Completed"
-	KilledState		ApplicationStateType = "Killed"
-	
+	NewApplicationState ApplicationStateType = "iota"
+	AcceptedState       ApplicationStateType = "Accepted"
+	StartingState       ApplicationStateType = "Starting"
+	RunningState        ApplicationStateType = "Running"
+	WaitingState        ApplicationStateType = "Waiting"
+	RejectedState       ApplicationStateType = "Rejected"
+	CompletedState      ApplicationStateType = "Completed"
+	KilledState         ApplicationStateType = "Killed"
 )
 
 type ApplicationStatus struct {
-	AppStatus 	ApplicationStateType 	`json:"applicationState,omitempty"`
-	Message   	string               	`json:"message,omitempty"`
-	LastUpdate 	metav1.Time		`json:"lastUpdate,omitempty"`
+	AppStatus  ApplicationStateType `json:"applicationState,omitempty"`
+	Message    string               `json:"message,omitempty"`
+	LastUpdate metav1.Time          `json:"lastUpdate,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

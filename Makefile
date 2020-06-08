@@ -165,6 +165,12 @@ push: image
 	docker push ${REGISTRY}/yunikorn:scheduler-${VERSION}
 	docker push ${REGISTRY}/yunikorn:admission-${VERSION}
 
+#Generate the CRD code with code-generator (release-1.14)
+.PHONY: code_gen
+code_gen:
+	@echo "Generating CRD code"
+	bash ${GOPATH}/src/$(REPO)/apis/yunikorn.apache.org/update-codegen.sh
+
 # Run the tests after building
 .PHONY: test
 test: clean

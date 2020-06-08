@@ -21,7 +21,7 @@
 #                  k8s.io/kubernetes. The output-base is needed for the generators to output into the vendor dir
 #                  instead of the $GOPATH directly. For normal projects this can be dropped.
 
-bash k8s.io/code-generator/generate-groups.sh "all" \
+bash ${GOPATH}/src/k8s.io/code-generator/generate-groups.sh "all" \
   github.com/apache/incubator-yunikorn-k8shim/pkg/client github.com/apache/incubator-yunikorn-k8shim/pkg/apis \
   "yunikorn.apache.org:v1alpha1" \
 
