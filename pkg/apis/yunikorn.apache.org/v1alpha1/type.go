@@ -46,17 +46,15 @@ type ApplicationSpec struct {
 type ApplicationStateType string
 
 const (
-	NewState              ApplicationStateType = ""
-	SubmittedState        ApplicationStateType = "SUBMITTED"
-	RunningState          ApplicationStateType = "RUNNING"
-	CompletedState        ApplicationStateType = "COMPLETED"
-	FailedState           ApplicationStateType = "FAILED"
-	FailedSubmissionState ApplicationStateType = "SUBMISSION_FAILED"
-	PendingRerunState     ApplicationStateType = "PENDING_RERUN"
-	InvalidatingState     ApplicationStateType = "INVALIDATING"
-	SucceedingState       ApplicationStateType = "SUCCEEDING"
-	FailingState          ApplicationStateType = "FAILING"
-	UnknownState          ApplicationStateType = "UNKNOWN"
+	NewApplicationState     ApplicationStateType = "iota"
+	AcceptedState       	ApplicationStateType = "Accepted"
+	StartingState        	ApplicationStateType = "Starting"
+	RunningState          	ApplicationStateType = "Running"
+	WaitingState		ApplicationStateType = "Waiting"
+	RejectedState		ApplicationStateType = "Rejected"
+	CompletedState		ApplicationStateType = "Completed"
+	KilledState		ApplicationStateType = "Killed"
+	
 )
 
 type ApplicationStatus struct {
