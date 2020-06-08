@@ -58,7 +58,9 @@ const (
 )
 
 type ApplicationStatus struct {
-	AppStatus ApplicationStateType `json:"applicationState,omitempty"`
+	AppStatus 	ApplicationStateType 	`json:"applicationState,omitempty"`
+	Message   	String               	`json:"message,omitempty"`
+	LastUpdate 	metav1.Time		`json:lastUpdate,omitempty`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
