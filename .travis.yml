@@ -72,7 +72,7 @@ jobs:
         - helm repo add yunikorn https://apache.github.io/incubator-yunikorn-release
         - helm repo update
         - kubectl create namespace yunikorn
-        - helm install yunikorn yunikorn/yunikorn --namespace yunikorn
+        - helm install yunikorn yunikorn/yunikorn --namespace yunikorn --wait
         - kubectl port-forward svc/yunikorn-service 9080:9080 -n yunikorn &
         - make e2e_test
       after_script:
