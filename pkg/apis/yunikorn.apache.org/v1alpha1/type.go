@@ -46,7 +46,7 @@ type ApplicationSpec struct {
 type ApplicationStateType string
 
 const (
-	NewApplicationState ApplicationStateType = "iota"
+	NewApplicationState ApplicationStateType = "New"
 	AcceptedState       ApplicationStateType = "Accepted"
 	StartingState       ApplicationStateType = "Starting"
 	RunningState        ApplicationStateType = "Running"
