@@ -161,7 +161,7 @@ image: sched_image adm_image
 .PHONY: push
 push: image
 	@echo "push docker images"
-	echo "${DOCKER_PASSWORD}" | docker login --username "${DOCKER_USERNAME}" --password-stdin
+	echo "${DOCKER_PASSWORD}" | docker login -u "${DOCKER_USERNAME}" --password-stdin
 	docker push ${REGISTRY}/yunikorn:scheduler-${VERSION}
 	docker push ${REGISTRY}/yunikorn:admission-${VERSION}
 

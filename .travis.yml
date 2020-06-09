@@ -51,6 +51,7 @@ jobs:
         provider: script
         script: make push
         on:
+          branch: master
           condition: $TRAVIS_EVENT_TYPE = cron
     - stage: integration tests
       before_script:
