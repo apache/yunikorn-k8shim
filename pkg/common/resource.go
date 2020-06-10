@@ -19,11 +19,12 @@
 package common
 
 import (
+	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/kubernetes/pkg/apis/core/v1/helper/qos"
 
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 )
 
@@ -82,6 +83,39 @@ func GetNodeResource(nodeStatus *v1.NodeStatus) *si.Resource {
 	return getResource(nodeStatus.Allocatable)
 }
 
+// parse cpu and memory from string to si.Resource, both of them are optional
+// if parse failed with some errors, log the error and return a nil
+func ParseResource(cpuStr, memStr string) *si.Resource {
+	if cpuStr == "" && memStr == "" {
+		return nil
+	}
+
+	result := NewResourceBuilder()
+	if cpuStr != "" {
+		if vcore, err := resource.ParseQuantity(cpuStr); err == nil {
+			result.AddResource(CPU, vcore.MilliValue())
+		} else {
+			log.Logger.Error("failed to parse cpu resource",
+				zap.String("cpuStr", cpuStr),
+				zap.Error(err))
+			return nil
+		}
+	}
+
+	if memStr != "" {
+		if mem, err := resource.ParseQuantity(memStr); err == nil {
+			result.AddResource(Memory, mem.ScaledValue(resource.Mega))
+		} else {
+			log.Logger.Error("failed to parse memory resource",
+				zap.String("memStr", memStr),
+				zap.Error(err))
+			return nil
+		}
+	}
+
+	return result.Build()
+}
+
 func getResource(resourceList v1.ResourceList) *si.Resource {
 	resources := NewResourceBuilder()
 	for name, value := range resourceList {
@@ -97,126 +131,6 @@ func getResource(resourceList v1.ResourceList) *si.Resource {
 		}
 	}
 	return resources.Build()
-}
-
-func CreateUpdateRequestForTask(appID, taskID string, resource *si.Resource) si.UpdateRequest {
-	ask := si.AllocationAsk{
-		AllocationKey:  taskID,
-		ResourceAsk:    resource,
-		ApplicationID:  appID,
-		MaxAllocations: 1,
-	}
-
-	result := si.UpdateRequest{
-		Asks:                []*si.AllocationAsk{&ask},
-		NewSchedulableNodes: nil,
-		UpdatedNodes:        nil,
-		UtilizationReports:  nil,
-		RmID:                conf.GetSchedulerConf().ClusterID,
-	}
-
-	return result
-}
-
-func CreateReleaseAskRequestForTask(appID, taskId, partition string) si.UpdateRequest {
-	toReleases := make([]*si.AllocationAskReleaseRequest, 0)
-	toReleases = append(toReleases, &si.AllocationAskReleaseRequest{
-		ApplicationID: appID,
-		Allocationkey: taskId,
-		PartitionName: partition,
-		Message:       "task request is canceled",
-	})
-
-	releaseRequest := si.AllocationReleasesRequest{
-		AllocationAsksToRelease: toReleases,
-	}
-
-	result := si.UpdateRequest{
-		Releases: &releaseRequest,
-		RmID:     conf.GetSchedulerConf().ClusterID,
-	}
-
-	return result
-}
-
-func CreateReleaseAllocationRequestForTask(appID, allocUUID, partition string) si.UpdateRequest {
-	toReleases := make([]*si.AllocationReleaseRequest, 0)
-	toReleases = append(toReleases, &si.AllocationReleaseRequest{
-		ApplicationID: appID,
-		UUID:          allocUUID,
-		PartitionName: partition,
-		Message:       "task completed",
-	})
-
-	releaseRequest := si.AllocationReleasesRequest{
-		AllocationsToRelease: toReleases,
-	}
-
-	result := si.UpdateRequest{
-		Releases: &releaseRequest,
-		RmID:     conf.GetSchedulerConf().ClusterID,
-	}
-
-	return result
-}
-
-func CreateUpdateRequestForNewNode(node Node) si.UpdateRequest {
-	// Use node's name as the NodeID, this is because when bind pod to node,
-	// name of node is required but uid is optional.
-	nodeInfo := &si.NewNodeInfo{
-		NodeID:              node.name,
-		SchedulableResource: node.capacity,
-		// TODO is this required?
-		Attributes: map[string]string{
-			DefaultNodeAttributeHostNameKey: node.name,
-			DefaultNodeAttributeRackNameKey: DefaultRackName,
-		},
-	}
-
-	nodes := make([]*si.NewNodeInfo, 1)
-	nodes[0] = nodeInfo
-	request := si.UpdateRequest{
-		NewSchedulableNodes: nodes,
-		RmID:                conf.GetSchedulerConf().ClusterID,
-	}
-	return request
-}
-
-func CreateUpdateRequestForUpdatedNode(node Node) si.UpdateRequest {
-	// Currently only includes resource in the update request
-	nodeInfo := &si.UpdateNodeInfo{
-		NodeID:              node.name,
-		Attributes:          make(map[string]string),
-		SchedulableResource: node.capacity,
-		OccupiedResource:    node.occupied,
-		Action:              si.UpdateNodeInfo_UPDATE,
-	}
-
-	nodes := make([]*si.UpdateNodeInfo, 1)
-	nodes[0] = nodeInfo
-	request := si.UpdateRequest{
-		UpdatedNodes: nodes,
-		RmID:         conf.GetSchedulerConf().ClusterID,
-	}
-	return request
-}
-
-func CreateUpdateRequestForDeleteNode(node Node) si.UpdateRequest {
-	deletedNodes := make([]*si.UpdateNodeInfo, 1)
-	nodeInfo := &si.UpdateNodeInfo{
-		NodeID:              node.name,
-		SchedulableResource: node.capacity,
-		OccupiedResource:    node.occupied,
-		Attributes:          make(map[string]string),
-		Action:              si.UpdateNodeInfo_DECOMISSION,
-	}
-
-	deletedNodes[0] = nodeInfo
-	request := si.UpdateRequest{
-		UpdatedNodes: deletedNodes,
-		RmID:         conf.GetSchedulerConf().ClusterID,
-	}
-	return request
 }
 
 func Equals(left *si.Resource, right *si.Resource) bool {

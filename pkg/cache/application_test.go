@@ -47,9 +47,7 @@ func TestSubmitApplication(t *testing.T) {
 	app := NewApplication("app00001", "root.abc", "testuser", map[string]string{}, newMockSchedulerAPI())
 
 	err := app.handle(NewSubmitApplicationEvent(app.applicationID))
-	if err != nil {
-		t.Fatalf("%v", err)
-	}
+	assert.NilError(t, err)
 	assertAppState(t, app, events.States().Application.Submitted, 10*time.Second)
 
 	// app already submitted
@@ -82,9 +80,7 @@ func TestRunApplication(t *testing.T) {
 
 	// submit the app
 	err = app.handle(NewSubmitApplicationEvent(app.applicationID))
-	if err != nil {
-		t.Fatalf("%v", err)
-	}
+	assert.NilError(t, err)
 	assertAppState(t, app, events.States().Application.Submitted, 3*time.Second)
 
 	// app must be accepted first

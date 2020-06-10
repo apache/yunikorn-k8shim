@@ -88,17 +88,15 @@ func TestAddNode(t *testing.T) {
 
 	// values are verified in injected fn
 	// verify register is not called, update is called and just called once
-	if err := utils.WaitForCondition(func() bool {
+	err := utils.WaitForCondition(func() bool {
 		return api.GetRegisterCount() == 0
-	}, time.Second, 5*time.Second); err != nil {
-		t.Fatalf("%v", err)
-	}
+	}, time.Second, 5*time.Second)
+	assert.NilError(t, err)
 
-	if err := utils.WaitForCondition(func() bool {
+	err = utils.WaitForCondition(func() bool {
 		return api.GetUpdateCount() == 1
-	}, time.Second, 5*time.Second); err != nil {
-		t.Fatalf("%v", err)
-	}
+	}, time.Second, 5*time.Second)
+	assert.NilError(t, err)
 }
 
 func TestUpdateNode(t *testing.T) {
@@ -270,19 +268,17 @@ func TestDeleteNode(t *testing.T) {
 	nodes.addNode(&node)
 	nodes.deleteNode(&node)
 
-	if err := utils.WaitForCondition(func() bool {
+	err := utils.WaitForCondition(func() bool {
 		return api.GetRegisterCount() == 0
-	}, 1*time.Second, 5*time.Second); err != nil {
-		t.Fatalf("%v", err)
-	}
+	}, 1*time.Second, 5*time.Second)
+	assert.NilError(t, err)
 
 	// update should be called twice
 	// one for add, the other one for delete
-	if err := utils.WaitForCondition(func() bool {
+	err = utils.WaitForCondition(func() bool {
 		return api.GetUpdateCount() == 2
-	}, 1*time.Second, 5*time.Second); err != nil {
-		t.Fatalf("%v", err)
-	}
+	}, 1*time.Second, 5*time.Second)
+	assert.NilError(t, err)
 }
 
 // A wrapper around the scheduler cache which does not initialise the lister and volumebinder
@@ -354,11 +350,10 @@ func TestCordonNode(t *testing.T) {
 	nodes.updateNode(&oldNode, &newNode)
 
 	// wait until node reaches Draining state
-	if err := utils.WaitForCondition(func() bool {
+	err := utils.WaitForCondition(func() bool {
 		return nodes.getNode("host0001").getNodeState() == events.States().Node.Draining
-	}, 1*time.Second, 5*time.Second); err != nil {
-		t.Fatalf("%v", err)
-	}
+	}, 1*time.Second, 5*time.Second)
+	assert.NilError(t, err)
 
 	// restore the node
 	var newNode2 = v1.Node{
@@ -396,9 +391,8 @@ func TestCordonNode(t *testing.T) {
 	nodes.updateNode(&newNode, &newNode2)
 
 	// wait until node reaches Draining state
-	if err := utils.WaitForCondition(func() bool {
+	err = utils.WaitForCondition(func() bool {
 		return nodes.getNode("host0001").getNodeState() == events.States().Node.Healthy
-	}, 1*time.Second, 5*time.Second); err != nil {
-		t.Fatalf("%v", err)
-	}
+	}, 1*time.Second, 5*time.Second)
+	assert.NilError(t, err)
 }

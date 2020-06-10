@@ -129,6 +129,9 @@ func (os *Manager) getAppMetadata(sparkApp *v1beta2.SparkApplication) interfaces
 		queueName = an
 	}
 
+	// retrieve the namespace info from the CRD
+	tags[common.AppTagNamespace] = sparkApp.Namespace
+
 	return interfaces.ApplicationMetadata{
 		ApplicationID: sparkApp.Name,
 		QueueName:     queueName,

@@ -28,6 +28,7 @@ import (
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
+	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 )
 
 func Convert2Pod(obj interface{}) (*v1.Pod, error) {
@@ -100,6 +101,19 @@ func GetApplicationIDFromPod(pod *v1.Pod) (string, error) {
 	}
 	return "", fmt.Errorf("unable to retrieve application ID from pod spec, %s",
 		pod.Spec.String())
+}
+
+func GetNamespaceQuotaFromAnnotation(namespaceObj *v1.Namespace) *si.Resource {
+	// retrieve resource quota info from annotations
+	cpuQuota := namespaceObj.Annotations["yunikorn.apache.org/namespace.max.cpu"]
+	memQuota := namespaceObj.Annotations["yunikorn.apache.org/namespace.max.memory"]
+
+	// no quota found
+	if cpuQuota == "" && memQuota == "" {
+		return nil
+	}
+
+	return common.ParseResource(cpuQuota, memQuota)
 }
 
 type K8sResource struct {

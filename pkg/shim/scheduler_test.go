@@ -65,12 +65,10 @@ partitions:
 	cluster.waitForSchedulerState(t, events.States().Scheduler.Running)
 
 	// register nodes
-	if err := cluster.addNode("test.host.01", 100, 10); err != nil {
-		t.Fatalf("add node failed %v", err)
-	}
-	if err := cluster.addNode("test.host.02", 100, 10); err != nil {
-		t.Fatalf("add node failed %v", err)
-	}
+	err := cluster.addNode("test.host.01", 100, 10)
+	assert.NilError(t, err, "add node failed")
+	err = cluster.addNode("test.host.02", 100, 10)
+	assert.NilError(t, err, "add node failed")
 
 	// create app and tasks
 	cluster.addApplication("app0001", "root.a")
@@ -115,12 +113,10 @@ partitions:
 	cluster.waitForSchedulerState(t, events.States().Scheduler.Running)
 
 	// register nodes
-	if err := cluster.addNode("test.host.01", 100, 10); err != nil {
-		t.Fatalf("%v", err)
-	}
-	if err := cluster.addNode("test.host.02", 100, 10); err != nil {
-		t.Fatalf("%v", err)
-	}
+	err := cluster.addNode("test.host.01", 100, 10)
+	assert.NilError(t, err)
+	err = cluster.addNode("test.host.02", 100, 10)
+	assert.NilError(t, err)
 
 	// add app to context
 	cluster.addApplication("app0001", "root.non_exist_queue")
@@ -137,7 +133,7 @@ partitions:
 	cluster.waitAndAssertApplicationState(t, "app0001", events.States().Application.Failed)
 
 	// remove the application
-	err := cluster.removeApplication("app0001")
+	err = cluster.removeApplication("app0001")
 	assert.Assert(t, err == nil)
 
 	// submit the app again
@@ -164,9 +160,8 @@ func TestSchedulerRegistrationFailed(t *testing.T) {
 	shim.run()
 	defer shim.stop()
 
-	if err := waitShimSchedulerState(shim, events.States().Scheduler.Stopped, 5*time.Second); err != nil {
-		t.Fatalf("%v", err)
-	}
+	err := waitShimSchedulerState(shim, events.States().Scheduler.Stopped, 5*time.Second)
+	assert.NilError(t, err)
 }
 
 func TestTaskFailures(t *testing.T) {
@@ -207,12 +202,10 @@ partitions:
 	cluster.waitForSchedulerState(t, events.States().Scheduler.Running)
 
 	// register nodes
-	if err := cluster.addNode("test.host.01", 100, 10); err != nil {
-		t.Fatalf("add node failed %v", err)
-	}
-	if err := cluster.addNode("test.host.02", 100, 10); err != nil {
-		t.Fatalf("add node failed %v", err)
-	}
+	err := cluster.addNode("test.host.01", 100, 10)
+	assert.NilError(t, err, "add node failed")
+	err = cluster.addNode("test.host.02", 100, 10)
+	assert.NilError(t, err, "add node failed")
 
 	// create app and tasks
 	cluster.addApplication("app0001", "root.a")
@@ -230,10 +223,9 @@ partitions:
 	cluster.waitAndAssertTaskState(t, "app0001", "task0002", events.States().Task.Bound)
 
 	// one task get bound, one ask failed, so we are expecting only 1 allocation in the scheduler
-	if err := cluster.waitAndVerifySchedulerAllocations("root.a",
-		"[yk-test-cluster]default", "app0001", 1); err != nil {
-		t.Fatalf("number of allocations is not expected, error: %v", err)
-	}
+	err = cluster.waitAndVerifySchedulerAllocations("root.a",
+		"[my-kube-cluster]default", "app0001", 1)
+	assert.NilError(t, err, "number of allocations is not expected, error")
 }
 
 func waitShimSchedulerState(shim *KubernetesShim, expectedState string, timeout time.Duration) error {

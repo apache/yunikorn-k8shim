@@ -95,12 +95,13 @@ func newShimSchedulerInternal(ctx *cache.Context, apiFactory client.APIProvider,
 				Dst: states.Stopped},
 		},
 		fsm.Callbacks{
-			string(events.RegisterScheduler):       ss.register(),                      // trigger registration
-			string(events.RegisterSchedulerFailed): ss.handleSchedulerFailure(),        // registration failed, stop the scheduler
-			string(events.RecoverSchedulerFailed):  ss.handleSchedulerFailure(),        // recovery failed
-			string(states.Registered):              ss.triggerSchedulerStateRecovery(), // if reaches registered, trigger recovering
-			string(states.Recovering):              ss.recoverSchedulerState(),         // do recovering
-			string(states.Running):                 ss.doScheduling(),                  // do scheduling
+			string(events.RegisterScheduler):       ss.register,                      // trigger registration
+			string(events.RegisterSchedulerFailed): ss.handleSchedulerFailure,        // registration failed, stop the scheduler
+			string(events.RecoverSchedulerFailed):  ss.handleSchedulerFailure,        // recovery failed
+			string(states.Registered):              ss.triggerSchedulerStateRecovery, // if reaches registered, trigger recovering
+			string(states.Recovering):              ss.recoverSchedulerState,         // do recovering
+			string(states.Running):                 ss.doScheduling,                  // do scheduling
+			events.EnterState:                      ss.enterState,
 		},
 	)
 
@@ -127,89 +128,79 @@ func (ss *KubernetesShim) SchedulerEventHandler() func(obj interface{}) {
 	}
 }
 
-func (ss *KubernetesShim) register() func(e *fsm.Event) {
-	return func(e *fsm.Event) {
-		if err := ss.registerShimLayer(); err != nil {
-			dispatcher.Dispatch(ShimSchedulerEvent{
-				event: events.RegisterSchedulerFailed,
-			})
-		} else {
-			dispatcher.Dispatch(ShimSchedulerEvent{
-				event: events.RegisterSchedulerSucceed,
-			})
-		}
-	}
-}
-
-func (ss *KubernetesShim) handleSchedulerFailure() func(e *fsm.Event) {
-	return func(e *fsm.Event) {
-		ss.stop()
-	}
-}
-
-func (ss *KubernetesShim) triggerSchedulerStateRecovery() func(e *fsm.Event) {
-	return func(e *fsm.Event) {
+func (ss *KubernetesShim) register(e *fsm.Event) {
+	if err := ss.registerShimLayer(); err != nil {
 		dispatcher.Dispatch(ShimSchedulerEvent{
-			event: events.RecoverScheduler,
+			event: events.RegisterSchedulerFailed,
+		})
+	} else {
+		dispatcher.Dispatch(ShimSchedulerEvent{
+			event: events.RegisterSchedulerSucceed,
 		})
 	}
 }
 
-func (ss *KubernetesShim) recoverSchedulerState() func(e *fsm.Event) {
-	return func(e *fsm.Event) {
-		// run recovery process in a go routine
-		// do not block main thread
-		go func() {
-			log.Logger.Info("recovering scheduler states")
-			// step 1: recover all applications
-			// this step, we collect all the existing allocated pods from api-server,
-			// identify the scheduling identity (aka applicationInfo) from the pod,
-			// and then add these applications to the scheduler.
-			if err := ss.appManager.WaitForRecovery(3 * time.Minute); err != nil {
-				// failed
-				log.Logger.Error("scheduler recovery failed", zap.Error(err))
-				dispatcher.Dispatch(ShimSchedulerEvent{
-					event: events.RecoverSchedulerFailed,
-				})
-				return
-			}
-
-			// step 2: recover existing allocations
-			// this step, we collect all existing allocations (allocated pods) from api-server,
-			// rerun the scheduling for these allocations in order to restore scheduler-state,
-			// the rerun is like a replay, not a actual scheduling procedure.
-			recoverableAppManagers := make([]interfaces.Recoverable, 0)
-			for _, appMgr := range ss.appManager.GetAllManagers() {
-				if m, ok := appMgr.(interfaces.Recoverable); ok {
-					recoverableAppManagers = append(recoverableAppManagers, m)
-				}
-			}
-			if err := ss.context.WaitForRecovery(recoverableAppManagers, 3*time.Minute); err != nil {
-				// failed
-				log.Logger.Error("scheduler recovery failed", zap.Error(err))
-				dispatcher.Dispatch(ShimSchedulerEvent{
-					event: events.RecoverSchedulerFailed,
-				})
-				return
-			}
-
-			// success
-			log.Logger.Info("scheduler recovery succeed")
-			dispatcher.Dispatch(ShimSchedulerEvent{
-				event: events.RecoverSchedulerSucceed,
-			})
-		}()
-	}
+func (ss *KubernetesShim) handleSchedulerFailure(e *fsm.Event) {
+	ss.stop()
 }
 
-func (ss *KubernetesShim) doScheduling() func(e *fsm.Event) {
-	return func(e *fsm.Event) {
-		// add event handlers to the context
-		ss.context.AddSchedulingEventHandlers()
+func (ss *KubernetesShim) triggerSchedulerStateRecovery(e *fsm.Event) {
+	dispatcher.Dispatch(ShimSchedulerEvent{
+		event: events.RecoverScheduler,
+	})
+}
 
-		// run main scheduling loop
-		go wait.Until(ss.schedule, conf.GetSchedulerConf().GetSchedulingInterval(), ss.stopChan)
-	}
+func (ss *KubernetesShim) recoverSchedulerState(e *fsm.Event) {
+	// run recovery process in a go routine
+	// do not block main thread
+	go func() {
+		log.Logger.Info("recovering scheduler states")
+		// step 1: recover all applications
+		// this step, we collect all the existing allocated pods from api-server,
+		// identify the scheduling identity (aka applicationInfo) from the pod,
+		// and then add these applications to the scheduler.
+		if err := ss.appManager.WaitForRecovery(3 * time.Minute); err != nil {
+			// failed
+			log.Logger.Error("scheduler recovery failed", zap.Error(err))
+			dispatcher.Dispatch(ShimSchedulerEvent{
+				event: events.RecoverSchedulerFailed,
+			})
+			return
+		}
+
+		// step 2: recover existing allocations
+		// this step, we collect all existing allocations (allocated pods) from api-server,
+		// rerun the scheduling for these allocations in order to restore scheduler-state,
+		// the rerun is like a replay, not a actual scheduling procedure.
+		recoverableAppManagers := make([]interfaces.Recoverable, 0)
+		for _, appMgr := range ss.appManager.GetAllManagers() {
+			if m, ok := appMgr.(interfaces.Recoverable); ok {
+				recoverableAppManagers = append(recoverableAppManagers, m)
+			}
+		}
+		if err := ss.context.WaitForRecovery(recoverableAppManagers, 3*time.Minute); err != nil {
+			// failed
+			log.Logger.Error("scheduler recovery failed", zap.Error(err))
+			dispatcher.Dispatch(ShimSchedulerEvent{
+				event: events.RecoverSchedulerFailed,
+			})
+			return
+		}
+
+		// success
+		log.Logger.Info("scheduler recovery succeed")
+		dispatcher.Dispatch(ShimSchedulerEvent{
+			event: events.RecoverSchedulerSucceed,
+		})
+	}()
+}
+
+func (ss *KubernetesShim) doScheduling(e *fsm.Event) {
+	// add event handlers to the context
+	ss.context.AddSchedulingEventHandlers()
+
+	// run main scheduling loop
+	go wait.Until(ss.schedule, conf.GetSchedulerConf().GetSchedulingInterval(), ss.stopChan)
 }
 
 func (ss *KubernetesShim) registerShimLayer() error {
@@ -240,15 +231,10 @@ func (ss *KubernetesShim) GetSchedulerState() string {
 func (ss *KubernetesShim) handle(se events.SchedulerEvent) error {
 	ss.lock.Lock()
 	defer ss.lock.Unlock()
-	log.Logger.Info("shim-scheduler state transition",
-		zap.String("preState", ss.stateMachine.Current()),
-		zap.String("pending event", string(se.GetEvent())))
 	err := ss.stateMachine.Event(string(se.GetEvent()))
 	if err != nil && err.Error() == "no transition" {
 		return err
 	}
-	log.Logger.Info("shim-scheduler state transition",
-		zap.String("postState", ss.stateMachine.Current()))
 	return nil
 }
 
@@ -280,6 +266,13 @@ func (ss *KubernetesShim) run() {
 	}
 
 	ss.apiFactory.Start()
+}
+
+func (ss *KubernetesShim) enterState(event *fsm.Event) {
+	log.Logger.Debug("scheduler shim state transition",
+		zap.String("source", event.Src),
+		zap.String("destination", event.Dst),
+		zap.String("event", event.Event))
 }
 
 func (ss *KubernetesShim) stop() {

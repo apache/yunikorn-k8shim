@@ -80,60 +80,63 @@ func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) err
 	// add all known nodes to cache, waiting for recover
 	for _, node := range allNodes {
 		ctx.nodes.addAndReportNode(node, false)
-		// current, disable getting pods for a node during test,
-		// because in the tests, we don't really send existing allocations
-		// we simply simulate to accept or reject nodes on conditions.
-		if !ctx.apiProvider.IsTestingMode() {
-			var podList *corev1.PodList
-			podList, err = ctx.apiProvider.GetAPIs().KubeClient.GetClientSet().
-				CoreV1().Pods("").
-				List(metav1.ListOptions{
-					FieldSelector: fmt.Sprintf("spec.nodeName=%s", node.Name),
-				})
-			if err != nil {
-				return err
-			}
+	}
 
-			occupiedResources := common.NewResourceBuilder().Build()
-			for _, pod := range podList.Items {
-				// only handle assigned pods
-				if !utils.IsAssignedPod(&pod) {
-					continue
-				}
-				// yunikorn scheduled pods add to existing allocations
-				if utils.GeneralPodFilter(&pod) {
-					if existingAlloc := getExistingAllocation(mgr, &pod); existingAlloc != nil {
-						log.Logger.Debug("existing allocation",
-							zap.String("appID", existingAlloc.ApplicationID),
-							zap.String("podUID", string(pod.UID)),
-							zap.String("podNodeName", existingAlloc.NodeID))
-						if err = ctx.nodes.addExistingAllocation(existingAlloc); err != nil {
-							log.Logger.Warn("add existing allocation failed", zap.Error(err))
-						}
-					}
-				} else if utils.IsPodRunning(&pod) {
-					// pod is running but not scheduled by us
-					// we should report this occupied resource to scheduler-core
-					occupiedResources = common.Add(occupiedResources, common.GetPodResource(&pod))
-					if err = ctx.nodes.cache.AddPod(&pod); err != nil {
-						log.Logger.Warn("failed to update scheduler-cache",
-							zap.Error(err))
+	// current, disable getting pods for a node during test,
+	// because in the tests, we don't really send existing allocations
+	// we simply simulate to accept or reject nodes on conditions.
+	if !ctx.apiProvider.IsTestingMode() {
+		var podList *corev1.PodList
+		podList, err = ctx.apiProvider.GetAPIs().KubeClient.GetClientSet().
+			CoreV1().Pods("").
+			List(metav1.ListOptions{})
+		if err != nil {
+			return err
+		}
+
+		nodeOccupiedResources := make(map[string]*si.Resource)
+		for _, pod := range podList.Items {
+			// only handle assigned pods
+			if !utils.IsAssignedPod(&pod) {
+				continue
+			}
+			// yunikorn scheduled pods add to existing allocations
+			if utils.GeneralPodFilter(&pod) {
+				if existingAlloc := getExistingAllocation(mgr, &pod); existingAlloc != nil {
+					log.Logger.Debug("existing allocation",
+						zap.String("appID", existingAlloc.ApplicationID),
+						zap.String("podUID", string(pod.UID)),
+						zap.String("podNodeName", existingAlloc.NodeID))
+					if err = ctx.nodes.addExistingAllocation(existingAlloc); err != nil {
+						log.Logger.Warn("add existing allocation failed", zap.Error(err))
 					}
 				}
+			} else if utils.IsPodRunning(&pod) {
+				// pod is running but not scheduled by us
+				// we should report this occupied resource to scheduler-core
+				occupiedResource := nodeOccupiedResources[pod.Spec.NodeName]
+				if occupiedResource == nil {
+					occupiedResource = common.NewResourceBuilder().Build()
+				}
+				occupiedResource = common.Add(occupiedResource, common.GetPodResource(&pod))
+				nodeOccupiedResources[pod.Spec.NodeName] = occupiedResource
+				if err = ctx.nodes.cache.AddPod(&pod); err != nil {
+					log.Logger.Warn("failed to update scheduler-cache",
+						zap.Error(err))
+				}
 			}
+		}
 
-			// why we need to calculate the occupied resources here? why not add an event-handler
-			// in node_coordinator#addPod?
-			// this is because the occupied resources must be calculated and counted before the
-			// scheduling started. If we do both updating existing occupied resources along with
-			// new pods scheduling, due to the fact that we cannot predicate the ordering of K8s
-			// events, it could be dangerous because we might schedule pods onto some node that
-			// doesn't have enough capacity (occupied resources not yet reported).
-			log.Logger.Info("update occupied resources that allocated by other scheduler",
-				zap.String("node", node.Name),
-				zap.String("totalOccupied", occupiedResources.String()))
-			if cachedNode := ctx.nodes.getNode(node.Name); cachedNode != nil {
-				cachedNode.setOccupiedResource(occupiedResources)
+		// why we need to calculate the occupied resources here? why not add an event-handler
+		// in node_coordinator#addPod?
+		// this is because the occupied resources must be calculated and counted before the
+		// scheduling started. If we do both updating existing occupied resources along with
+		// new pods scheduling, due to the fact that we cannot predicate the ordering of K8s
+		// events, it could be dangerous because we might schedule pods onto some node that
+		// doesn't have enough capacity (occupied resources not yet reported).
+		for nodeName, occupiedResource := range nodeOccupiedResources {
+			if cachedNode := ctx.nodes.getNode(nodeName); cachedNode != nil {
+				cachedNode.setOccupiedResource(occupiedResource)
 			}
 		}
 	}
@@ -155,6 +158,8 @@ func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) err
 			case events.States().Node.Healthy:
 				nodesRecovered++
 			case events.States().Node.Draining:
+				nodesRecovered++
+			case events.States().Node.Rejected:
 				nodesRecovered++
 			}
 		}

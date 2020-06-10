@@ -1,4 +1,28 @@
+<!--
+* Licensed to the Apache Software Foundation (ASF) under one
+* or more contributor license agreements.  See the NOTICE file
+* distributed with this work for additional information
+* regarding copyright ownership.  The ASF licenses this file
+* to you under the Apache License, Version 2.0 (the
+* "License"); you may not use this file except in compliance
+* with the License.  You may obtain a copy of the License at
+*
+*      http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+-->
+
 # YuniKorn Scheduler for Kubernetes (yunikorn-k8shim)
+
+[![Build Status](https://travis-ci.org/apache/incubator-yunikorn-k8shim.svg?branch=master)](https://travis-ci.org/apache/incubator-yunikorn-k8shim)
+[![codecov](https://codecov.io/gh/apache/incubator-yunikorn-k8shim/branch/master/graph/badge.svg)](https://codecov.io/gh/apache/incubator-yunikorn-k8shim)
+[![Go Report Card](https://goreportcard.com/badge/github.com/apache/incubator-yunikorn-k8shim)](https://goreportcard.com/report/github.com/apache/incubator-yunikorn-k8shim)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![Repo Size](https://img.shields.io/github/repo-size/apache/incubator-yunikorn-k8shim)](https://img.shields.io/github/repo-size/apache/incubator-yunikorn-k8shim)
 
 YuniKorn scheduler shim for kubernetes is a customized k8s scheduler, it can be deployed in a K8s cluster and work as the scheduler.
 This project contains the k8s shim layer code for k8s, it depends on `yunikorn-core` which encapsulates all the actual scheduling logic.
@@ -47,12 +71,12 @@ You can set `REGISTRY` and `VERSION` in the commandline to build docker image wi
 ```
 make image REGISTRY=yunikorn VERSION=latest
 ```
-This command will build a binary executable with version `latest` and the docker image tag is `yunikorn/yunikorn-scheduler-k8s:latest`.
+This command will build a binary executable with version `latest` and the docker image tag is `yunikorn/yunikorn:scheduler-latest`.
 
 You can run following command to retrieve the meta info for a docker image build, such as component revisions, date of the build, etc.
 
 ```
-docker inspect --format='{{.Config.Labels}}' yunikorn/yunikorn-scheduler-k8s:latest
+docker inspect --format='{{.Config.Labels}}' yunikorn/yunikorn:scheduler-latest
 ```
 
 ## Design documents

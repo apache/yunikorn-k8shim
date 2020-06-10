@@ -90,3 +90,4 @@ func init() {
 	//nolint:errcheck
 	defer Logger.Sync()
 }
+

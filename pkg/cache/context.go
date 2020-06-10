@@ -19,6 +19,7 @@
 package cache
 
 import (
+	"encoding/json"
 	"fmt"
 	"sync"
 
@@ -36,6 +37,7 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 	plugin "github.com/apache/incubator-yunikorn-k8shim/pkg/plugin/predicates"
+	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 )
 
 // context maintains scheduling state, like apps and apps' tasks.
@@ -112,15 +114,15 @@ func (ctx *Context) addNode(obj interface{}) {
 	}
 
 	// add node to secondary scheduler cache
-	log.Logger.Info("adding node to cache", zap.String("NodeName", node.Name))
+	log.Logger.Debug("adding node to cache", zap.String("NodeName", node.Name))
 	ctx.schedulerCache.AddNode(node)
 
 	// add node to internal cache
 	ctx.nodes.addNode(node)
 
 	// post the event
-	events.GetRecorder().Eventf(node, v1.EventTypeNormal, "Accepted",
-		"node is accepted by the scheduler")
+	events.GetRecorder().Eventf(node, v1.EventTypeNormal, "NodeAccepted",
+		fmt.Sprintf("node %s is accepted by the scheduler", node.Name))
 }
 
 func (ctx *Context) updateNode(oldObj, newObj interface{}) {
@@ -140,8 +142,6 @@ func (ctx *Context) updateNode(oldObj, newObj interface{}) {
 	}
 
 	// update secondary cache
-	log.Logger.Debug("updating node in cache",
-		zap.String("OldNodeName", oldNode.Name))
 	if err := ctx.schedulerCache.UpdateNode(oldNode, newNode); err != nil {
 		log.Logger.Error("unable to update node in scheduler cache",
 			zap.Error(err))
@@ -171,8 +171,8 @@ func (ctx *Context) deleteNode(obj interface{}) {
 	ctx.nodes.deleteNode(node)
 
 	// post the event
-	events.GetRecorder().Eventf(node, v1.EventTypeNormal, "Deleted",
-		"node is deleted from the scheduler")
+	events.GetRecorder().Eventf(node, v1.EventTypeNormal, "NodeDeleted",
+		fmt.Sprintf("node %s is deleted from the scheduler", node.Name))
 }
 
 func (ctx *Context) addPodToCache(obj interface{}) {
@@ -182,7 +182,7 @@ func (ctx *Context) addPodToCache(obj interface{}) {
 		return
 	}
 
-	log.Logger.Info("adding pod to cache", zap.String("podName", pod.Name))
+	log.Logger.Debug("adding pod to cache", zap.String("podName", pod.Name))
 	if err := ctx.schedulerCache.AddPod(pod); err != nil {
 		log.Logger.Error("add pod to scheduler cache failed",
 			zap.String("podName", pod.Name),
@@ -207,7 +207,7 @@ func (ctx *Context) removePodFromCache(obj interface{}) {
 		return
 	}
 
-	log.Logger.Info("removing pod from cache", zap.String("podName", pod.Name))
+	log.Logger.Debug("removing pod from cache", zap.String("podName", pod.Name))
 	if err := ctx.schedulerCache.RemovePod(pod); err != nil {
 		log.Logger.Error("failed to remove pod from scheduler cache",
 			zap.String("podName", pod.Name),
@@ -308,7 +308,7 @@ func (ctx *Context) updatePodCondition(pod *v1.Pod, condition *v1.PodCondition) 
 }
 
 // evaluate given predicates based on current context
-func (ctx *Context) IsPodFitNode(name string, node string) error {
+func (ctx *Context) IsPodFitNode(name, node string, allocate bool) error {
 	// simply skip if predicates are not enabled
 	if !ctx.predictor.Enabled() {
 		return nil
@@ -320,7 +320,7 @@ func (ctx *Context) IsPodFitNode(name string, node string) error {
 		// if pod exists in cache, try to run predicates
 		if targetNode := ctx.schedulerCache.GetNode(node); targetNode != nil {
 			meta := ctx.predictor.GetPredicateMeta(pod, ctx.schedulerCache.GetNodesInfoMap())
-			return ctx.predictor.Predicates(pod, meta, targetNode)
+			return ctx.predictor.Predicates(pod, meta, targetNode, allocate)
 		}
 	}
 	return fmt.Errorf("predicates were not running because pod or node was not found in cache")
@@ -428,6 +428,29 @@ func (ctx *Context) NotifyTaskComplete(appID, taskID string) {
 	}
 }
 
+// get namespace resource quota from annotation
+// if the namespace is unable to be listed from api-server, a nil is returned
+// if the annotation doesn't have the quota defined, a nil is returned
+// if cpu or memory quota is defined in the annotation, a corresponding si.Resource is returned
+func (ctx *Context) getNamespaceResourceQuota(namespace string) *si.Resource {
+	if namespace == "" {
+		log.Logger.Debug("skip getting resource quota because namespace is empty")
+		return nil
+	}
+
+	nsLister := ctx.apiProvider.GetAPIs().NamespaceInformer.Lister()
+	namespaceObj, err := nsLister.Get(namespace)
+	if err != nil {
+		// every app should belong to a namespace,
+		// if we cannot list the namespace here, probably something is wrong
+		// log an error here and skip retrieving the resource quota
+		log.Logger.Error("failed to get app namespace", zap.Error(err))
+		return nil
+	}
+
+	return utils.GetNamespaceQuotaFromAnnotation(namespaceObj)
+}
+
 func (ctx *Context) AddApplication(request *interfaces.AddApplicationRequest) interfaces.ManagedApp {
 	log.Logger.Debug("AddApplication", zap.Any("Request", request))
 	if app := ctx.GetApplication(request.Metadata.ApplicationID); app != nil {
@@ -436,6 +459,20 @@ func (ctx *Context) AddApplication(request *interfaces.AddApplicationRequest) in
 
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
+
+	// add resource quota info as a app tag
+	if ns, ok := request.Metadata.Tags[common.AppTagNamespace]; ok {
+		log.Logger.Debug("app namespace info",
+			zap.String("appID", request.Metadata.ApplicationID),
+			zap.String("namespace", ns))
+		resourceQuota := ctx.getNamespaceResourceQuota(ns)
+		if resourceQuota != nil && !common.IsZero(resourceQuota) {
+			if quotaStr, err := json.Marshal(resourceQuota); err == nil {
+				request.Metadata.Tags[common.AppTagNamespaceResourceQuota] = string(quotaStr)
+			}
+		}
+	}
+
 	app := NewApplication(
 		request.Metadata.ApplicationID,
 		request.Metadata.QueueName,
@@ -486,7 +523,10 @@ func (ctx *Context) RemoveApplication(appID string) error {
 
 // this implements ApplicationManagementProtocol
 func (ctx *Context) AddTask(request *interfaces.AddTaskRequest) interfaces.ManagedTask {
-	log.Logger.Debug("AddTask", zap.Any("Request", request))
+	log.Logger.Debug("AddTask",
+		zap.String("appID", request.Metadata.ApplicationID),
+		zap.String("taskID", request.Metadata.TaskID),
+		zap.Bool("isRecovery", request.Recovery))
 	if managedApp := ctx.GetApplication(request.Metadata.ApplicationID); managedApp != nil {
 		if app, valid := managedApp.(*Application); valid {
 			existingTask, err := app.GetTask(request.Metadata.TaskID)

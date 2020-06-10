@@ -31,7 +31,7 @@ func TestInit(t *testing.T) {
 	// simply test the get won't fail
 	// which means the get function honors the testMode and
 	// skips initiating a real event recorder
-	conf.Set(&conf.SchedulerConf{TestMode: true})
+	conf.GetSchedulerConf().SetTestMode(true)
 	recorder := GetRecorder()
 	assert.Equal(t, reflect.TypeOf(recorder).String(), "*record.FakeRecorder")
 }

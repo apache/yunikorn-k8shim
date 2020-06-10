@@ -22,6 +22,7 @@ import (
 	"flag"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"go.uber.org/zap/zapcore"
@@ -65,26 +66,34 @@ type SchedulerConf struct {
 	KubeBurst            int           `json:"kubeBurst"`
 	Predicates           string        `json:"predicates"`
 	OperatorPlugins      string        `json:"operatorPlugins"`
+	sync.RWMutex
 }
 
 func GetSchedulerConf() *SchedulerConf {
 	return configuration
 }
 
-// unit tests may need to override configuration
-func Set(conf *SchedulerConf) {
-	configuration = conf
+func (conf *SchedulerConf) SetTestMode(testMode bool) {
+	conf.Lock()
+	defer conf.Unlock()
+	conf.TestMode = testMode
 }
 
 func (conf *SchedulerConf) GetSchedulingInterval() time.Duration {
+	conf.RLock()
+	defer conf.RUnlock()
 	return conf.Interval
 }
 
 func (conf *SchedulerConf) GetKubeConfigPath() string {
+	conf.RLock()
+	defer conf.RUnlock()
 	return conf.KubeConfig
 }
 
 func (conf *SchedulerConf) IsOperatorPluginEnabled(name string) bool {
+	conf.RLock()
+	defer conf.RUnlock()
 	if conf.OperatorPlugins == "" {
 		return false
 	}

@@ -22,14 +22,13 @@ import (
 	"testing"
 
 	"gotest.tools/assert"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
+	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
-
-	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
-	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestTaskStateTransitions(t *testing.T) {
