@@ -63,7 +63,7 @@ var _ = ginkgo.Describe("CI: Test for basic scheduling", func() {
 		//Wait for pod to move to running state
 		err = kClient.WaitForPodBySelectorRunning(dev,
 			fmt.Sprintf("app=%s", sleepRespPod.ObjectMeta.Labels["app"]),
-			3)
+			5)
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 
 		appsInfo, err = restClient.GetAppInfo(sleepRespPod.ObjectMeta.Labels["applicationId"])
