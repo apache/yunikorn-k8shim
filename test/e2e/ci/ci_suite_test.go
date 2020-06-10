@@ -16,31 +16,22 @@
  limitations under the License.
 */
 
-package common
+package ci
 
-// Cluster
-const DefaultNodeAttributeHostNameKey = "si.io/hostname"
-const DefaultNodeAttributeRackNameKey = "si.io/rackname"
-const DefaultRackName = "/rack-default"
+import (
+	"testing"
 
-// Application
-const LabelApp = "app"
-const LabelApplicationID = "applicationId"
-const LabelQueueName = "queue"
-const ApplicationDefaultQueue = "root.sandbox"
-const DefaultPartition = "default"
-const AppTagNamespace = "namespace"
-const AppTagNamespaceResourceQuota = "namespace.resourcequota"
-const DefaultAppNamespace = "default"
+	"github.com/onsi/ginkgo"
+	"github.com/onsi/gomega"
 
-// Resource
-const Memory = "memory"
-const CPU = "vcore"
+	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/configmanager"
+)
 
-// Spark
-const SparkLabelAppID = "spark-app-selector"
-const SparkLabelRole = "spark-role"
-const SparkLabelRoleDriver = "driver"
+func init() {
+	configmanager.YuniKornTestConfig.ParseFlags()
+}
 
-// Configuration
-const DefaultConfigMapName = "yunikorn-configs"
+func TestPlacementRules(t *testing.T) {
+	gomega.RegisterFailHandler(ginkgo.Fail)
+	ginkgo.RunSpecs(t, "CI Test Suite")
+}

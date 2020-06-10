@@ -34,6 +34,7 @@ require (
 	github.com/golang/groupcache v0.0.0-20200121045136-8c9f03a8e57e // indirect
 	github.com/google/btree v1.0.0 // indirect
 	github.com/google/gofuzz v1.1.0 // indirect
+	github.com/google/uuid v1.1.1
 	github.com/googleapis/gnostic v0.4.0 // indirect
 	github.com/gorilla/websocket v1.4.2 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.2.0 // indirect
@@ -44,8 +45,9 @@ require (
 	github.com/jonboulle/clockwork v0.1.0 // indirect
 	github.com/konsorten/go-windows-terminal-sequences v1.0.2 // indirect
 	github.com/looplab/fsm v0.1.0
-	github.com/onsi/ginkgo v1.8.0 // indirect
-	github.com/onsi/gomega v1.5.0 // indirect
+	github.com/mitchellh/go-homedir v1.1.0
+	github.com/onsi/ginkgo v1.8.0
+	github.com/onsi/gomega v1.5.0
 	github.com/opencontainers/go-digest v1.0.0-rc1 // indirect
 	github.com/pborman/uuid v1.2.0 // indirect
 	github.com/soheilhy/cmux v0.1.4 // indirect
@@ -61,6 +63,7 @@ require (
 	google.golang.org/appengine v1.6.5 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/square/go-jose.v2 v2.4.1 // indirect
+	gopkg.in/yaml.v2 v2.2.8
 	gotest.tools v2.2.0+incompatible
 	k8s.io/api v0.0.0-20191004102349-159aefb8556b
 	k8s.io/apiextensions-apiserver v0.0.0-20191212015246-8fe0c124fb40 // indirect

@@ -83,6 +83,8 @@ func NewAPIFactory(scheduler api.SchedulerAPI, configs *conf.SchedulerConf, test
 	storageInformer := informerFactory.Storage().V1().StorageClasses()
 	pvInformer := informerFactory.Core().V1().PersistentVolumes()
 	pvcInformer := informerFactory.Core().V1().PersistentVolumeClaims()
+	namespaceInformer := informerFactory.Core().V1().Namespaces()
+
 	// create a volume binder (needs the informers)
 	volumeBinder := volumebinder.NewVolumeBinder(
 		kubeClient.GetClientSet(),
@@ -102,6 +104,7 @@ func NewAPIFactory(scheduler api.SchedulerAPI, configs *conf.SchedulerConf, test
 			ConfigMapInformer: configMapInformer,
 			PVInformer:        pvInformer,
 			PVCInformer:       pvcInformer,
+			NamespaceInformer: namespaceInformer,
 			StorageInformer:   storageInformer,
 			VolumeBinder:      volumeBinder,
 		},

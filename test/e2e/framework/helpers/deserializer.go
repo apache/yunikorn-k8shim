@@ -16,31 +16,30 @@
  limitations under the License.
 */
 
-package common
+package helpers
 
-// Cluster
-const DefaultNodeAttributeHostNameKey = "si.io/hostname"
-const DefaultNodeAttributeRackNameKey = "si.io/rackname"
-const DefaultRackName = "/rack-default"
+import (
+	"gopkg.in/yaml.v2"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes/scheme"
+)
 
-// Application
-const LabelApp = "app"
-const LabelApplicationID = "applicationId"
-const LabelQueueName = "queue"
-const ApplicationDefaultQueue = "root.sandbox"
-const DefaultPartition = "default"
-const AppTagNamespace = "namespace"
-const AppTagNamespaceResourceQuota = "namespace.resourcequota"
-const DefaultAppNamespace = "default"
+func yaml2Obj(yamlPath string) (runtime.Object, error) {
+	decode := scheme.Codecs.UniversalDeserializer().Decode
+	content, err := GetFileContents(yamlPath)
+	if err == nil {
+		obj, _, err1 := decode(content, nil, nil)
+		return obj, err1
+	}
+	return nil, err
+}
 
-// Resource
-const Memory = "memory"
-const CPU = "vcore"
-
-// Spark
-const SparkLabelAppID = "spark-app-selector"
-const SparkLabelRole = "spark-role"
-const SparkLabelRoleDriver = "driver"
-
-// Configuration
-const DefaultConfigMapName = "yunikorn-configs"
+func Y2Map(yamlPath string) (map[interface{}]interface{}, error) {
+	m := make(map[interface{}]interface{})
+	content, err := GetFileContents(yamlPath)
+	if err == nil {
+		err1 := yaml.Unmarshal(content, &m)
+		return m, err1
+	}
+	return nil, err
+}

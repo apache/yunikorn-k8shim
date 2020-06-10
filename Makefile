@@ -169,7 +169,7 @@ push: image
 .PHONY: test
 test: clean
 	@echo "running unit tests"
-	go test ./... -race -tags deadlock -coverprofile=coverage.txt -covermode=atomic
+	go test ./pkg/... -cover -race -tags deadlock -coverprofile=coverage.txt -covermode=atomic
 	go vet $(REPO)...
 
 # Simple clean of generated files only (no local cleanup).
@@ -181,3 +181,9 @@ clean:
 	./deployments/image/configmap/${BINARY} \
 	./deployments/image/configmap/${CONF_FILE} \
 	./deployments/image/admission/${POD_ADMISSION_CONTROLLER_BINARY}
+
+# Run the e2e tests, this assumes yunikorn is running under yunikorn-ns namespace
+.PHONY: e2e_test
+e2e_test:
+	@echo "running e2e tests"
+	cd ./test/e2e && ginkgo -r -v -timeout=2h -- -yk-namespace "yunikorn" -kube-config $(KUBECONFIG)
