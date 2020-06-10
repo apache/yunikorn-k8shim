@@ -52,7 +52,7 @@ jobs:
         script: make push
         on:
           branch: master
-          #condition: $TRAVIS_EVENT_TYPE = cron
+          condition: $TRAVIS_EVENT_TYPE = cron
     - stage: integration tests
       before_script:
         - curl -L https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash
