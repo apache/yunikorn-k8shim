@@ -16,14 +16,14 @@
 #limitations under the License.
 #
 
-# generate the code with:
-# --output-base    because this script should also be able to run inside the vendor dir of
-#                  k8s.io/kubernetes. The output-base is needed for the generators to output into the vendor dir
-#                  instead of the $GOPATH directly. For normal projects this can be dropped.
+# If you want to re-run the code-generator to generate code,
+# Please make sure the directory structure must be the example.
+# ex: github.com/apache/incubator-yunikorn-k8shim
 
-bash ${GOPATH}/src/k8s.io/code-generator/generate-groups.sh "all" \
+SCRIPT_ROOT=$(dirname ${BASH_SOURCE})
+
+bash pkg/apis/yunikorn.apache.org/generate-groups.sh "all" \
   github.com/apache/incubator-yunikorn-k8shim/pkg/client github.com/apache/incubator-yunikorn-k8shim/pkg/apis \
   "yunikorn.apache.org:v1alpha1" \
-
-# To use your own boilerplate text append:
-#   --go-header-file "${SCRIPT_ROOT}"/hack/custom-boilerplate.go.txt
+  --go-header-file "${SCRIPT_ROOT}"/custom-boilerplate.go.txt \
+  --output-base "$(dirname "${BASH_SOURCE[0]}")/../../../../../.."

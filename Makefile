@@ -166,10 +166,14 @@ push: image
 	docker push ${REGISTRY}/yunikorn:admission-${VERSION}
 
 #Generate the CRD code with code-generator (release-1.14)
+
+# If you want to re-run the code-generator to generate code,
+# Please make sure the directory structure must be the example.
+# ex: github.com/apache/incubator-yunikorn-k8shim
 .PHONY: code_gen
 code_gen:
 	@echo "Generating CRD code"
-	bash ${GOPATH}/src/$(REPO)/apis/yunikorn.apache.org/update-codegen.sh
+	bash pkg/apis/yunikorn.apache.org/update-codegen.sh
 
 # Run the tests after building
 .PHONY: test
