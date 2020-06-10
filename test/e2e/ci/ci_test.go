@@ -19,9 +19,9 @@
 package ci
 
 import (
+	"fmt"
 	"regexp"
 	"strconv"
-	"time"
 
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
@@ -60,8 +60,11 @@ var _ = ginkgo.Describe("CI: Test for basic scheduling", func() {
 		sleepObj.ObjectMeta.Labels["applicationId"] = helpers.GetUUID()
 		sleepRespPod, err = kClient.CreatePod(sleepObj, dev)
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
-		//Adding sleep here for the app info to be reflected.
-		time.Sleep(3 * time.Second)
+		//Wait for pod to move to running state
+		err = kClient.WaitForPodBySelectorRunning(dev,
+			fmt.Sprintf("app=%s", sleepRespPod.ObjectMeta.Labels["app"]),
+			3)
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 
 		appsInfo, err = restClient.GetAppInfo(sleepRespPod.ObjectMeta.Labels["applicationId"])
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
