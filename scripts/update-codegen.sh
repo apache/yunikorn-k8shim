@@ -1,3 +1,5 @@
+#!/bin/bash
+
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -18,12 +20,10 @@
 
 # If you want to re-run the code-generator to generate code,
 # Please make sure the directory structure must be the example.
-# ex: github.com/apache/incubator-yunikorn-k8shim
+# ex: github.com/apache/incubator-yunikorn-k8shim  
 
-SCRIPT_ROOT=$(dirname ${BASH_SOURCE})
-
-bash pkg/apis/yunikorn.apache.org/generate-groups.sh "all" \
+ ./scripts/generate-groups.sh "all" \
   github.com/apache/incubator-yunikorn-k8shim/pkg/client github.com/apache/incubator-yunikorn-k8shim/pkg/apis \
   "yunikorn.apache.org:v1alpha1" \
-  --go-header-file "${SCRIPT_ROOT}"/custom-boilerplate.go.txt \
-  --output-base "$(dirname "${BASH_SOURCE[0]}")/../../../../../.."
+  --go-header-file $(dirname "${BASH_SOURCE}")/custom-boilerplate.go.txt \
+  --output-base "$(dirname "${BASH_SOURCE}")/../../../.."

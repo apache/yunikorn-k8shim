@@ -173,7 +173,7 @@ push: image
 .PHONY: code_gen
 code_gen:
 	@echo "Generating CRD code"
-	bash pkg/apis/yunikorn.apache.org/update-codegen.sh
+	./scripts/update-codegen.sh
 
 # Run the tests after building
 .PHONY: test
