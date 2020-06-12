@@ -19,16 +19,48 @@
 package common
 
 import (
+	"encoding/json"
+
+	"go.uber.org/zap"
+	v1 "k8s.io/api/core/v1"
+
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 )
 
-func CreateUpdateRequestForTask(appID, taskID string, resource *si.Resource) si.UpdateRequest {
+func createTagsForTask(pod *v1.Pod, taskID string) map[string]string {
+	tags := map[string]string{
+		"namespace": pod.Namespace,
+		"podName": pod.Name,
+	}
+
+	// add Pod labels to Task tags
+	labels, err := json.Marshal(pod.Labels)
+	if err != nil {
+		log.Logger.Debug("Could not marshal pod labels", zap.String("taskID", taskID))
+	} else {
+		tags["labels"] = string(labels)
+	}
+
+	// add Pod annotations to Task tags
+	annotations, err := json.Marshal(pod.Annotations)
+	if err != nil {
+		log.Logger.Debug("Could not marshal pod annotations", zap.String("taskID", taskID))
+	} else {
+		tags["annotations"] = string(annotations)
+	}
+
+	return tags
+}
+
+func CreateUpdateRequestForTask(appID, taskID string, resource *si.Resource, pod *v1.Pod) si.UpdateRequest {
 	ask := si.AllocationAsk{
 		AllocationKey:  taskID,
 		ResourceAsk:    resource,
 		ApplicationID:  appID,
 		MaxAllocations: 1,
+		Tags:			createTagsForTask(pod, taskID),
 	}
 
 	result := si.UpdateRequest{

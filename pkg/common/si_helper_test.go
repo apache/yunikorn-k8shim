@@ -18,9 +18,12 @@
 package common
 
 import (
+	"encoding/json"
 	"testing"
 
 	"gotest.tools/assert"
+	v1 "k8s.io/api/core/v1"
+	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestCreateReleaseAllocationRequest(t *testing.T) {
@@ -45,4 +48,53 @@ func TestCreateReleaseAskRequestForTask(t *testing.T) {
 	assert.Equal(t, request.Releases.AllocationAsksToRelease[0].ApplicationID, "app01")
 	assert.Equal(t, request.Releases.AllocationAsksToRelease[0].Allocationkey, "task01")
 	assert.Equal(t, request.Releases.AllocationAsksToRelease[0].PartitionName, "default")
+}
+
+
+func TestCreateUpdateRequestForTask(t *testing.T) {
+	res := NewResourceBuilder().
+		AddResource(Memory, 1).
+		AddResource(CPU, 1).
+		Build()
+	podName := "pod-resource-test-00001"
+	namespace := "important"
+	labels := map[string]string{
+		"label1": "val1",
+		"label2": "val2",
+	}
+	annotations := map[string]string{
+		"key1": "value1",
+		"key2": "value2",
+	}
+	pod := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: podName,
+			UID:  "UID-00001",
+			Namespace: namespace,
+			Labels: labels,
+			Annotations: annotations,
+		},
+	}
+
+	updateRequest := CreateUpdateRequestForTask("appId1", "taskId1", res, pod)
+	asks := updateRequest.Asks
+	assert.Equal(t, len(asks), 1)
+	allocAsk := asks[0]
+	assert.Assert(t, allocAsk != nil)
+	tags := allocAsk.Tags
+	assert.Assert(t, tags != nil)
+	assert.Assert(t, tags["podName"] == podName)
+	assert.Assert(t, tags["namespace"] == namespace)
+
+	strLabels, err := json.Marshal(labels)
+	assert.NilError(t, err, "Could not marshal labels")
+	assert.Assert(t, tags["labels"] == string(strLabels))
+
+	strAnnotations, err := json.Marshal(annotations)
+	assert.NilError(t, err, "Could not marshal annotations")
+	assert.Assert(t, tags["annotations"] == string(strAnnotations))
 }
