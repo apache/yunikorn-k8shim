@@ -173,6 +173,109 @@ func TestAddUnassignedPod(t *testing.T) {
 	}
 }
 
+func TestUpdateNode(t *testing.T) {
+	cache := NewSchedulerCache(client.NewMockedAPIProvider().GetAPIs())
+
+	resourceList := make(map[v1.ResourceName]resource.Quantity)
+	resourceList[v1.ResourceName("memory")] = *resource.NewQuantity(1024*1000*1000, resource.DecimalSI)
+	resourceList[v1.ResourceName("cpu")] = *resource.NewQuantity(10, resource.DecimalSI)
+
+	// old node, state: unschedulable
+	oldNode := &v1.Node{
+		ObjectMeta: apis.ObjectMeta{
+			Name:      "host0001",
+			Namespace: "default",
+			UID:       "Node-UID-00001",
+		},
+		Status: v1.NodeStatus{
+			Allocatable: resourceList,
+		},
+		Spec: v1.NodeSpec{
+			Unschedulable: true,
+		},
+	}
+
+	// old node, state: schedulable
+	newNode := &v1.Node{
+		ObjectMeta: apis.ObjectMeta{
+			Name:      "host0001",
+			Namespace: "default",
+			UID:       "Node-UID-00001",
+		},
+		Status: v1.NodeStatus{
+			Allocatable: resourceList,
+		},
+		Spec: v1.NodeSpec{
+			Unschedulable: false,
+		},
+	}
+
+	// first add the old node
+	cache.AddNode(oldNode)
+
+	// make sure the node is added to the cache
+	nodeInCache := cache.GetNode("host0001")
+	assert.Assert(t, nodeInCache.Node() != nil)
+	assert.Equal(t, nodeInCache.Node().Name, "host0001")
+	assert.Equal(t, nodeInCache.Node().Spec.Unschedulable, true)
+
+	// then update the node
+	err := cache.UpdateNode(oldNode, newNode)
+	assert.NilError(t, err, "update node failed")
+
+	// make sure the node in cache also gets updated
+	// unschedulable -> schedulable
+	assert.Assert(t, nodeInCache.Node() != nil)
+	assert.Equal(t, nodeInCache.Node().Name, "host0001")
+	assert.Equal(t, nodeInCache.Node().Spec.Unschedulable, false)
+}
+
+func TestUpdateNonExistNode(t *testing.T) {
+	cache := NewSchedulerCache(client.NewMockedAPIProvider().GetAPIs())
+
+	resourceList := make(map[v1.ResourceName]resource.Quantity)
+	resourceList[v1.ResourceName("memory")] = *resource.NewQuantity(1024*1000*1000, resource.DecimalSI)
+	resourceList[v1.ResourceName("cpu")] = *resource.NewQuantity(10, resource.DecimalSI)
+
+	// old node, state: unschedulable
+	oldNode := &v1.Node{
+		ObjectMeta: apis.ObjectMeta{
+			Name:      "host0001",
+			Namespace: "default",
+			UID:       "Node-UID-00001",
+		},
+		Status: v1.NodeStatus{
+			Allocatable: resourceList,
+		},
+		Spec: v1.NodeSpec{
+			Unschedulable: true,
+		},
+	}
+
+	// old node, state: schedulable
+	newNode := &v1.Node{
+		ObjectMeta: apis.ObjectMeta{
+			Name:      "host0001",
+			Namespace: "default",
+			UID:       "Node-UID-00001",
+		},
+		Status: v1.NodeStatus{
+			Allocatable: resourceList,
+		},
+		Spec: v1.NodeSpec{
+			Unschedulable: false,
+		},
+	}
+
+	err := cache.UpdateNode(oldNode, newNode)
+	assert.NilError(t, err, "update node failed")
+
+	nodeInCache := cache.GetNode("host0001")
+	assert.Assert(t, nodeInCache.Node() != nil)
+	assert.Equal(t, nodeInCache.Node().Name, "host0001")
+	assert.Equal(t, nodeInCache.Node().Spec.Unschedulable, false)
+}
+
 func add2Cache(cache *SchedulerCache, objects ...interface{}) error {
 	for _, obj := range objects {
 		switch podOrNode := obj.(type) {
