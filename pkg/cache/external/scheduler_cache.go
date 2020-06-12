@@ -111,7 +111,7 @@ func (cache *SchedulerCache) UpdateNode(oldNode, newNode *v1.Node) error {
 
 	n, ok := cache.nodesMap[newNode.Name]
 	if !ok {
-		log.Logger.Warn("updated node doesn't exist in cache, add it!",
+		log.Logger.Warn("updated node info not found, adding it to the cache",
 			zap.String("nodeName", newNode.Name))
 		n = schedulernode.NewNodeInfo()
 		cache.nodesMap[newNode.Name] = n
