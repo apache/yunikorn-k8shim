@@ -247,7 +247,7 @@ func (cache *SchedulerCache) RemovePod(pod *v1.Pod) error {
 func (cache *SchedulerCache) removePod(pod *v1.Pod) error {
 	n, ok := cache.nodesMap[pod.Spec.NodeName]
 	if !ok {
-		return fmt.Errorf("node %v is not found", pod.Spec.NodeName)
+		return nil
 	}
 	if err := n.RemovePod(pod); err != nil {
 		return err
