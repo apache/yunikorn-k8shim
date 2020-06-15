@@ -91,3 +91,8 @@ func (api *SchedulerAPIMock) GetRegisterCount() int32 {
 func (api *SchedulerAPIMock) GetUpdateCount() int32 {
 	return atomic.LoadInt32(&api.updateCount)
 }
+
+func (api *SchedulerAPIMock) ResetAllCounters() {
+	atomic.StoreInt32(&api.registerCount, 0)
+	atomic.StoreInt32(&api.updateCount, 0)
+}

@@ -109,15 +109,15 @@ func (cache *SchedulerCache) UpdateNode(oldNode, newNode *v1.Node) error {
 	cache.lock.Lock()
 	defer cache.lock.Unlock()
 
-	n, ok := cache.nodesMap[oldNode.Name]
-	if ok {
-		// API calls always returns nil, never an error
-		//nolint:errcheck
-		_ = n.RemoveNode(oldNode)
-		//nolint:errcheck
-		_ = n.SetNode(newNode)
+	n, ok := cache.nodesMap[newNode.Name]
+	if !ok {
+		log.Logger.Warn("updated node info not found, adding it to the cache",
+			zap.String("nodeName", newNode.Name))
+		n = schedulernode.NewNodeInfo()
+		cache.nodesMap[newNode.Name] = n
 	}
-	return nil
+
+	return n.SetNode(newNode)
 }
 
 func (cache *SchedulerCache) RemoveNode(node *v1.Node) error {
@@ -247,7 +247,7 @@ func (cache *SchedulerCache) RemovePod(pod *v1.Pod) error {
 func (cache *SchedulerCache) removePod(pod *v1.Pod) error {
 	n, ok := cache.nodesMap[pod.Spec.NodeName]
 	if !ok {
-		return fmt.Errorf("node %v is not found", pod.Spec.NodeName)
+		return nil
 	}
 	if err := n.RemovePod(pod); err != nil {
 		return err

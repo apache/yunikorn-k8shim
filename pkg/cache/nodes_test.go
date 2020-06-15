@@ -102,30 +102,6 @@ func TestAddNode(t *testing.T) {
 func TestUpdateNode(t *testing.T) {
 	api := test.NewSchedulerAPIMock()
 
-	// register fn doesn't nothing than checking input
-	inputCheckerUpdateFn := func(request *si.UpdateRequest) error {
-		if request.NewSchedulableNodes == nil || len(request.NewSchedulableNodes) != 1 {
-			t.Fatalf("unexpected new nodes info from the request")
-		}
-
-		info := request.NewSchedulableNodes[0]
-		if info.NodeID != "host0001" {
-			t.Fatalf("unexpected node name %s", info.NodeID)
-		}
-
-		if memory := info.SchedulableResource.Resources[common.Memory].Value; memory != int64(1024) {
-			t.Fatalf("unexpected node memory %d", memory)
-		}
-
-		if cpu := info.SchedulableResource.Resources[common.CPU].Value; cpu != int64(10000) {
-			t.Fatalf("unexpected node CPU %d", cpu)
-		}
-
-		return nil
-	}
-
-	api.UpdateFunction(inputCheckerUpdateFn)
-
 	nodes := newSchedulerNodes(api, NewTestSchedulerCache())
 	dispatcher.RegisterEventHandler(dispatcher.EventTypeNode, nodes.schedulerNodeEventHandler())
 	dispatcher.Start()
@@ -156,6 +132,42 @@ func TestUpdateNode(t *testing.T) {
 			Allocatable: resourceList,
 		},
 	}
+
+	// this function validates the new node can be added
+	// this verifies the shim sends the si.UpdateRequest to core with the new node info
+	api.UpdateFunction(func(request *si.UpdateRequest) error {
+		if request.NewSchedulableNodes == nil || len(request.NewSchedulableNodes) != 1 {
+			t.Fatalf("unexpected new nodes info from the request")
+		}
+
+		info := request.NewSchedulableNodes[0]
+		if info.NodeID != "host0001" {
+			t.Fatalf("unexpected node name %s", info.NodeID)
+		}
+
+		if memory := info.SchedulableResource.Resources[common.Memory].Value; memory != int64(1024) {
+			t.Fatalf("unexpected node memory %d", memory)
+		}
+
+		if cpu := info.SchedulableResource.Resources[common.CPU].Value; cpu != int64(10000) {
+			t.Fatalf("unexpected node CPU %d", cpu)
+		}
+
+		return nil
+	})
+
+	// add the node first
+	nodes.addNode(&oldNode)
+
+	// wait for node being added
+	assert.NilError(t, utils.WaitForCondition(func() bool {
+		return api.GetUpdateCount() == 1
+	}, time.Second, 5*time.Second))
+	assert.Assert(t, nodes.getNode("host0001") != nil)
+	assert.Equal(t, nodes.getNode("host0001").name, "host0001")
+
+	// reset all counters to make the verification easier
+	api.ResetAllCounters()
 
 	// if node resource stays same, update update should be ignored
 	ignoreNodeUpdateFn := func(request *si.UpdateRequest) error {
@@ -211,6 +223,117 @@ func TestUpdateNode(t *testing.T) {
 	nodes.updateNode(&oldNode, &newNode)
 	assert.Equal(t, api.GetRegisterCount(), int32(0))
 	assert.Equal(t, api.GetUpdateCount(), int32(1))
+}
+
+func TestUpdateWithoutNodeAdded(t *testing.T) {
+	api := test.NewSchedulerAPIMock()
+
+	nodes := newSchedulerNodes(api, NewTestSchedulerCache())
+	dispatcher.RegisterEventHandler(dispatcher.EventTypeNode, nodes.schedulerNodeEventHandler())
+	dispatcher.Start()
+	defer dispatcher.Stop()
+
+	resourceList := make(map[v1.ResourceName]resource.Quantity)
+	resourceList[v1.ResourceName("memory")] = *resource.NewQuantity(1024*1000*1000, resource.DecimalSI)
+	resourceList[v1.ResourceName("cpu")] = *resource.NewQuantity(10, resource.DecimalSI)
+
+	var oldNode = v1.Node{
+		ObjectMeta: apis.ObjectMeta{
+			Name:      "host0001",
+			Namespace: "default",
+			UID:       "uid_0001",
+		},
+		Status: v1.NodeStatus{
+			Allocatable: resourceList,
+		},
+	}
+
+	var newNode = v1.Node{
+		ObjectMeta: apis.ObjectMeta{
+			Name:      "host0001",
+			Namespace: "default",
+			UID:       "uid_0001",
+		},
+		Status: v1.NodeStatus{
+			Allocatable: resourceList,
+		},
+	}
+
+	//
+	api.UpdateFunction(func(request *si.UpdateRequest) error {
+		if request.NewSchedulableNodes == nil || len(request.NewSchedulableNodes) != 1 {
+			t.Fatalf("unexpected new nodes info from the request")
+		}
+
+		info := request.NewSchedulableNodes[0]
+		if info.NodeID != "host0001" {
+			t.Fatalf("unexpected node name %s", info.NodeID)
+		}
+
+		if memory := info.SchedulableResource.Resources[common.Memory].Value; memory != int64(1024) {
+			t.Fatalf("unexpected node memory %d", memory)
+		}
+
+		if cpu := info.SchedulableResource.Resources[common.CPU].Value; cpu != int64(10000) {
+			t.Fatalf("unexpected node CPU %d", cpu)
+		}
+
+		return nil
+	})
+
+	// directly trigger an update
+	// if the node was not seeing in the cache, we should see the node be added
+	nodes.updateNode(&oldNode, &newNode)
+
+	// wait for node being added
+	assert.NilError(t, utils.WaitForCondition(func() bool {
+		return api.GetUpdateCount() == 1
+	}, time.Second, 5*time.Second))
+	assert.Assert(t, nodes.getNode("host0001") != nil)
+	assert.Equal(t, nodes.getNode("host0001").name, "host0001")
+	assert.Equal(t, api.GetUpdateCount(), int32(1))
+
+	// change new node's resource, afterwards the update request should be sent to the scheduler
+	newResourceList := make(map[v1.ResourceName]resource.Quantity)
+	newResourceList[v1.ResourceName("memory")] = *resource.NewQuantity(2048*1000*1000, resource.DecimalSI)
+	newResourceList[v1.ResourceName("cpu")] = *resource.NewQuantity(10, resource.DecimalSI)
+	newNode = v1.Node{
+		ObjectMeta: apis.ObjectMeta{
+			Name:      "host0001",
+			Namespace: "default",
+			UID:       "uid_0001",
+		},
+		Status: v1.NodeStatus{
+			Allocatable: newResourceList,
+		},
+	}
+
+	checkFn := func(request *si.UpdateRequest) error {
+		if request.UpdatedNodes == nil || len(request.UpdatedNodes) != 1 {
+			t.Fatalf("unexpected new nodes info from the request")
+		}
+
+		info := request.UpdatedNodes[0]
+		if info.NodeID != "host0001" {
+			t.Fatalf("unexpected node name %s", info.NodeID)
+		}
+
+		if memory := info.SchedulableResource.Resources[common.Memory].Value; memory != int64(2048) {
+			t.Fatalf("unexpected node memory %d", memory)
+		}
+
+		if cpu := info.SchedulableResource.Resources[common.CPU].Value; cpu != int64(10000) {
+			t.Fatalf("unexpected node CPU %d", cpu)
+		}
+
+		return nil
+	}
+
+	api.UpdateFunction(checkFn)
+
+	nodes.updateNode(&oldNode, &newNode)
+	assert.Equal(t, api.GetRegisterCount(), int32(0))
+	assert.Equal(t, api.GetUpdateCount(), int32(2))
 }
 
 func TestDeleteNode(t *testing.T) {

@@ -178,6 +178,14 @@ func (nc *schedulerNodes) updateNodeOccupiedResources(name string, resource *si.
 }
 
 func (nc *schedulerNodes) updateNode(oldNode, newNode *v1.Node) {
+	// before updating a node, check if it exists in the cache or not
+	// if we receive a update node event but the node doesn't exist,
+	// we need to add it instead of updating it.
+	if cachedNode := nc.getNode(newNode.Name); cachedNode == nil {
+		nc.addNode(newNode)
+		return
+	}
+
 	nc.lock.Lock()
 	defer nc.lock.Unlock()
 
