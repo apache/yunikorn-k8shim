@@ -191,7 +191,7 @@ func (task *Task) handleSubmitTaskEvent(event *fsm.Event) {
 	log.Logger.Debug("scheduling pod",
 		zap.String("podName", task.pod.Name))
 	// convert the request
-	rr := common.CreateUpdateRequestForTask(task.applicationID, task.taskID, task.resource)
+	rr := common.CreateUpdateRequestForTask(task.applicationID, task.taskID, task.resource, task.pod)
 	log.Logger.Debug("send update request", zap.String("request", rr.String()))
 	if err := task.context.apiProvider.GetAPIs().SchedulerAPI.Update(&rr); err != nil {
 		log.Logger.Debug("failed to send scheduling request to scheduler", zap.Error(err))

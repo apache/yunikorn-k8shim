@@ -19,16 +19,36 @@
 package common
 
 import (
+	v1 "k8s.io/api/core/v1"
+
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
+	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/common"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 )
 
-func CreateUpdateRequestForTask(appID, taskID string, resource *si.Resource) si.UpdateRequest {
+func createTagsForTask(pod *v1.Pod) map[string]string {
+	metaPrefix := common.DomainK8s + common.GroupMeta
+	tags := map[string]string{
+		metaPrefix + common.KeyNamespace: pod.Namespace,
+		metaPrefix + common.KeyPodName:   pod.Name,
+	}
+
+	// add Pod labels to Task tags
+	labelPrefix := common.DomainK8s + common.GroupLabel
+	for k, v := range pod.Labels {
+		tags[labelPrefix + k] = v
+	}
+
+	return tags
+}
+
+func CreateUpdateRequestForTask(appID, taskID string, resource *si.Resource, pod *v1.Pod) si.UpdateRequest {
 	ask := si.AllocationAsk{
 		AllocationKey:  taskID,
 		ResourceAsk:    resource,
 		ApplicationID:  appID,
 		MaxAllocations: 1,
+		Tags:			createTagsForTask(pod),
 	}
 
 	result := si.UpdateRequest{
