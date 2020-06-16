@@ -18,9 +18,9 @@
 package common
 
 import (
-	"encoding/json"
 	"testing"
 
+	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/common"
 	"gotest.tools/assert"
 	v1 "k8s.io/api/core/v1"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -50,12 +50,8 @@ func TestCreateReleaseAskRequestForTask(t *testing.T) {
 	assert.Equal(t, request.Releases.AllocationAsksToRelease[0].PartitionName, "default")
 }
 
-
 func TestCreateUpdateRequestForTask(t *testing.T) {
-	res := NewResourceBuilder().
-		AddResource(Memory, 1).
-		AddResource(CPU, 1).
-		Build()
+	res := NewResourceBuilder().Build()
 	podName := "pod-resource-test-00001"
 	namespace := "important"
 	labels := map[string]string{
@@ -63,8 +59,7 @@ func TestCreateUpdateRequestForTask(t *testing.T) {
 		"label2": "val2",
 	}
 	annotations := map[string]string{
-		"key1": "value1",
-		"key2": "value2",
+		"key": "value",
 	}
 	pod := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
@@ -72,10 +67,10 @@ func TestCreateUpdateRequestForTask(t *testing.T) {
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
-			Name: podName,
-			UID:  "UID-00001",
-			Namespace: namespace,
-			Labels: labels,
+			Name:        podName,
+			UID:         "UID-00001",
+			Namespace:   namespace,
+			Labels:      labels,
 			Annotations: annotations,
 		},
 	}
@@ -87,14 +82,9 @@ func TestCreateUpdateRequestForTask(t *testing.T) {
 	assert.Assert(t, allocAsk != nil)
 	tags := allocAsk.Tags
 	assert.Assert(t, tags != nil)
-	assert.Assert(t, tags["podName"] == podName)
-	assert.Assert(t, tags["namespace"] == namespace)
+	assert.Equal(t, tags[common.DomainK8s+common.GroupMeta+"podName"], podName)
+	assert.Equal(t, tags[common.DomainK8s+common.GroupMeta+"namespace"], namespace)
 
-	strLabels, err := json.Marshal(labels)
-	assert.NilError(t, err, "Could not marshal labels")
-	assert.Assert(t, tags["labels"] == string(strLabels))
-
-	strAnnotations, err := json.Marshal(annotations)
-	assert.NilError(t, err, "Could not marshal annotations")
-	assert.Assert(t, tags["annotations"] == string(strAnnotations))
+	assert.Equal(t, tags[common.DomainK8s+common.GroupLabel+"label1"], "val1")
+	assert.Equal(t, tags[common.DomainK8s+common.GroupLabel+"label2"], "val2")
 }

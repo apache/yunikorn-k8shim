@@ -19,36 +19,24 @@
 package common
 
 import (
-	"encoding/json"
-
-	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
+	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/common"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 )
 
-func createTagsForTask(pod *v1.Pod, taskID string) map[string]string {
+func createTagsForTask(pod *v1.Pod) map[string]string {
+	metaPrefix := common.DomainK8s + common.GroupMeta
 	tags := map[string]string{
-		"namespace": pod.Namespace,
-		"podName": pod.Name,
+		metaPrefix + common.KeyNamespace: pod.Namespace,
+		metaPrefix + common.KeyPodName:   pod.Name,
 	}
 
 	// add Pod labels to Task tags
-	labels, err := json.Marshal(pod.Labels)
-	if err != nil {
-		log.Logger.Debug("Could not marshal pod labels", zap.String("taskID", taskID))
-	} else {
-		tags["labels"] = string(labels)
-	}
-
-	// add Pod annotations to Task tags
-	annotations, err := json.Marshal(pod.Annotations)
-	if err != nil {
-		log.Logger.Debug("Could not marshal pod annotations", zap.String("taskID", taskID))
-	} else {
-		tags["annotations"] = string(annotations)
+	labelPrefix := common.DomainK8s + common.GroupLabel
+	for k, v := range pod.Labels {
+		tags[labelPrefix + k] = v
 	}
 
 	return tags
@@ -60,7 +48,7 @@ func CreateUpdateRequestForTask(appID, taskID string, resource *si.Resource, pod
 		ResourceAsk:    resource,
 		ApplicationID:  appID,
 		MaxAllocations: 1,
-		Tags:			createTagsForTask(pod, taskID),
+		Tags:			createTagsForTask(pod),
 	}
 
 	result := si.UpdateRequest{
