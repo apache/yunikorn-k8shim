@@ -170,6 +170,8 @@ push: image
 # If you want to re-run the code-generator to generate code,
 # Please make sure the directory structure must be the example.
 # ex: github.com/apache/incubator-yunikorn-k8shim
+# Also you need to set you GOPATH environmental variables first.
+# If GOPATH is empty, we will set it to "$HOME/go".
 .PHONY: code_gen
 code_gen:
 	@echo "Generating CRD code"

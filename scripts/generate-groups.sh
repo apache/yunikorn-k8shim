@@ -22,6 +22,13 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
+#Set GOPATH if GOPATH is empty.
+if [ "${GOPATH}" == "" ]; then
+  echo "GOPATH is empty."
+  export GOPATH="${HOME}/go"
+  echo "Set GOPATH to ${GOPATH}"
+fi
+
 # generate-groups generates everything for a project with external types only, e.g. a project based
 # on CustomResourceDefinitions.
 
