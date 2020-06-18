@@ -19,7 +19,7 @@
 # the required info such as queue and applicationId defined. Even
 # if the admission controller is running, we don't expect this info
 # to be overwritten by the admission controller.
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
@@ -27,6 +27,9 @@ metadata:
   name: nginx
 spec:
   replicas: 1
+  selector:
+    matchLabels:
+      app: nginx
   template:
     metadata:
       labels:
