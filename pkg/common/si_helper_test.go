@@ -20,7 +20,10 @@ package common
 import (
 	"testing"
 
+	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/common"
 	"gotest.tools/assert"
+	v1 "k8s.io/api/core/v1"
+	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestCreateReleaseAllocationRequest(t *testing.T) {
@@ -45,4 +48,43 @@ func TestCreateReleaseAskRequestForTask(t *testing.T) {
 	assert.Equal(t, request.Releases.AllocationAsksToRelease[0].ApplicationID, "app01")
 	assert.Equal(t, request.Releases.AllocationAsksToRelease[0].Allocationkey, "task01")
 	assert.Equal(t, request.Releases.AllocationAsksToRelease[0].PartitionName, "default")
+}
+
+func TestCreateUpdateRequestForTask(t *testing.T) {
+	res := NewResourceBuilder().Build()
+	podName := "pod-resource-test-00001"
+	namespace := "important"
+	labels := map[string]string{
+		"label1": "val1",
+		"label2": "val2",
+	}
+	annotations := map[string]string{
+		"key": "value",
+	}
+	pod := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name:        podName,
+			UID:         "UID-00001",
+			Namespace:   namespace,
+			Labels:      labels,
+			Annotations: annotations,
+		},
+	}
+
+	updateRequest := CreateUpdateRequestForTask("appId1", "taskId1", res, pod)
+	asks := updateRequest.Asks
+	assert.Equal(t, len(asks), 1)
+	allocAsk := asks[0]
+	assert.Assert(t, allocAsk != nil)
+	tags := allocAsk.Tags
+	assert.Assert(t, tags != nil)
+	assert.Equal(t, tags[common.DomainK8s+common.GroupMeta+"podName"], podName)
+	assert.Equal(t, tags[common.DomainK8s+common.GroupMeta+"namespace"], namespace)
+
+	assert.Equal(t, tags[common.DomainK8s+common.GroupLabel+"label1"], "val1")
+	assert.Equal(t, tags[common.DomainK8s+common.GroupLabel+"label2"], "val2")
 }
