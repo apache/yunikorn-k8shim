@@ -588,6 +588,30 @@ func (ctx *Context) SelectApplications(filter func(app *Application) bool) []*Ap
 	return apps
 }
 
+func (ctx *Context) PublishEvents(eventRecords []*si.EventRecord) {
+	if len(eventRecords) > 0 {
+		for _, record := range eventRecords {
+			switch record.Type {
+			case si.EventRecord_REQUEST:
+				taskID := record.ObjectID
+				appID := record.GroupID
+				if task, err := ctx.getTask(appID, taskID); err == nil {
+					events.GetRecorder().Event(task.GetTaskPod(),
+						v1.EventTypeNormal, record.Reason, record.Message)
+				} else {
+					log.Logger.Warn("task event is not published because task is not found",
+						zap.String("appID", appID),
+						zap.String("taskID", taskID),
+						zap.String("event", record.String()))
+				}
+			default:
+				log.Logger.Warn("Unsupported event type, currently only supports to publish request event records",
+					zap.String("type", record.Type.String()))
+			}
+		}
+	}
+}
+
 func (ctx *Context) ApplicationEventHandler() func(obj interface{}) {
 	return func(obj interface{}) {
 		if event, ok := obj.(events.ApplicationEvent); ok {
