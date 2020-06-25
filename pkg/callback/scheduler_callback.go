@@ -145,10 +145,9 @@ func (callback *AsyncRMCallback) ReSyncSchedulerCache(args *si.ReSyncSchedulerCa
 }
 
 // this callback implement scheduler plugin interface EventPlugin.
-func (callback *AsyncRMCallback) SendEvent(eventRecords []*si.EventRecord) error {
+func (callback *AsyncRMCallback) SendEvent(eventRecords []*si.EventRecord) {
 	if len(eventRecords) > 0 {
 		log.Logger.Debug(fmt.Sprintf("prepare to publish %d events", len(eventRecords)))
 		callback.context.PublishEvents(eventRecords)
 	}
-	return nil
 }
