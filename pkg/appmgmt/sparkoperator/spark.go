@@ -158,7 +158,7 @@ func (os *Manager) ListApplications() (map[string]interfaces.ApplicationMetadata
 func (os *Manager) GetExistingAllocation(pod *v1.Pod) *si.Allocation {
 	if meta, valid := os.getTaskMetadata(pod); valid {
 		return &si.Allocation{
-			AllocationKey:    pod.Name,
+			AllocationKey:    string(pod.UID),
 			AllocationTags:   nil,
 			UUID:             string(pod.UID),
 			ResourcePerAlloc: common.GetPodResource(pod),

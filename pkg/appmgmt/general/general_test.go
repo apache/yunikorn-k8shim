@@ -433,3 +433,39 @@ func toApplication(something interface{}) (*cache.Application, bool) {
 	}
 	return nil, false
 }
+
+func TestGetExistingAllocation(t *testing.T) {
+	am := NewManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider())
+
+	pod := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name:      "pod00001",
+			Namespace: "default",
+			UID:       "UID-POD-00001",
+			Labels: map[string]string{
+				"applicationId": "app00001",
+				"queue":         "root.a",
+			},
+		},
+		Spec: v1.PodSpec{
+			SchedulerName: "yunikorn",
+			NodeName: "allocated-node",
+		},
+		Status: v1.PodStatus{
+			Phase: v1.PodPending,
+		},
+	}
+
+	// verifies the existing allocation is correctly returned
+	alloc := am.GetExistingAllocation(pod)
+	assert.Equal(t, alloc.ApplicationID, "app00001")
+	assert.Equal(t, alloc.QueueName, "root.a")
+	assert.Equal(t, alloc.AllocationKey, string(pod.UID))
+	assert.Equal(t, alloc.UUID, string(pod.UID))
+	assert.Equal(t, alloc.NodeID, "allocated-node")
+}
+
