@@ -165,6 +165,12 @@ func (task *Task) GetTaskState() string {
 	return task.sm.Current()
 }
 
+func (task *Task) getTaskAllocationUUID() string {
+	task.lock.RLock()
+	defer task.lock.RUnlock()
+	return task.allocationUUID
+}
+
 func (task *Task) setAllocated(nodeName, allocationUUID string) {
 	task.lock.Lock()
 	defer task.lock.Unlock()
