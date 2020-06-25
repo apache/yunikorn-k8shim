@@ -78,9 +78,9 @@ var _ = ginkgo.Describe("CI: Test for basic scheduling", func() {
 			gomega.Ω(appsInfo["queueName"]).To(gomega.ContainSubstring(sleepRespPod.ObjectMeta.Namespace))
 		})
 
-		ginkgo.It("Verify that the job is scheduled & running by YuniKorn", func() {
+		ginkgo.It("Verify that the job is scheduled & Starting by YuniKorn", func() {
 			ginkgo.By("Verify that the job is scheduled & running by YuniKorn")
-			gomega.Ω(appsInfo["applicationState"]).To(gomega.Equal("Running"))
+			gomega.Ω(appsInfo["applicationState"]).To(gomega.Equal("Starting"))
 			gomega.Ω("yunikorn").To(gomega.Equal(sleepRespPod.Spec.SchedulerName))
 		})
 
