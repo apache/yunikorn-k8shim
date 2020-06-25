@@ -20,7 +20,6 @@ package callback
 
 import (
 	"fmt"
-	"strings"
 
 	"go.uber.org/zap"
 
@@ -147,32 +146,9 @@ func (callback *AsyncRMCallback) ReSyncSchedulerCache(args *si.ReSyncSchedulerCa
 
 // this callback implement scheduler plugin interface EventPlugin.
 func (callback *AsyncRMCallback) SendEvent(eventRecords []*si.EventRecord) error {
-	errors := make([]string, 0)
 	if len(eventRecords) > 0 {
-		log.Logger.Debug(fmt.Sprintf("processing %d events", len(eventRecords)))
-		for _, record := range eventRecords {
-			reason := record.Reason
-			msg := record.Message
-
-			switch record.Type {
-			case si.EventRecord_REQUEST:
-				taskID := record.ObjectID
-				appID := record.GroupID
-				app := callback.context.GetApplication(appID)
-
-				err := cache.PublishTaskEvent(taskID, reason, msg, app)
-				if err != nil {
-					errors = append(errors, err.Error())
-				}
-				log.Logger.Debug("event emitted")
-			case si.EventRecord_APP:
-				// until we don't have app CRD let's expose app event to all its pods (asks)
-				// pending on YUNIKORN-170
-				errors = append(errors, fmt.Sprintf("processing app event is not implemented yet: %s", record))
-			default:
-				errors = append(errors, fmt.Sprintf("could not process unknown event type: %s", record))
-			}
-		}
+		log.Logger.Debug(fmt.Sprintf("prepare to publish %d events", len(eventRecords)))
+		callback.context.PublishEvents(eventRecords)
 	}
-	return fmt.Errorf(strings.Join(errors, "\n"))
+	return nil
 }

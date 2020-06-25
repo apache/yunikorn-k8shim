@@ -23,7 +23,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"go.uber.org/zap"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -415,20 +414,4 @@ func (task *Task) enterState(event *fsm.Event) {
 		zap.String("source", event.Src),
 		zap.String("destination", event.Dst),
 		zap.String("event", event.Event))
-}
-
-func PublishTaskEvent(taskID, reason, msg string, app interfaces.ManagedApp) error {
-	task, err := app.GetTask(taskID)
-	if err != nil {
-		return fmt.Errorf("could not find %s task belonging to %s app", taskID, app.GetApplicationID())
-	}
-	pod := task.GetTaskPod()
-	if pod == nil {
-		return fmt.Errorf("could not obtain %s task's pod", taskID)
-	}
-
-	log.Logger.Debug("publishing task event", zap.String("podName", pod.ObjectMeta.Name), zap.String("reason", reason), zap.String("message", msg))
-	events.GetRecorder().Event(pod, v1.EventTypeWarning, reason, msg)
-
-	return nil
 }
