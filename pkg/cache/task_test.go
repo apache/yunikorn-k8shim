@@ -392,7 +392,7 @@ func TestSortTasks(t *testing.T) {
 
 	tasks := app.GetNewTasks()
 	assert.Equal(t, len(tasks), 3)
-	assert.Equal(t, tasks[0], &task0)
-	assert.Equal(t, tasks[1], &task1)
-	assert.Equal(t, tasks[2], &task2)
+	assert.Equal(t, tasks[0], task0)
+	assert.Equal(t, tasks[1], task1)
+	assert.Equal(t, tasks[2], task2)
 }
