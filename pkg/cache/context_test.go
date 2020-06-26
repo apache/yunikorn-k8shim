@@ -23,17 +23,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/apache/incubator-yunikorn-core/pkg/common"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/dispatcher"
 	"gotest.tools/assert"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
+	"github.com/apache/incubator-yunikorn-core/pkg/common"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/dispatcher"
 )
 
 func initContextForTest() *Context {
@@ -255,9 +255,9 @@ func TestRecoverTask(t *testing.T) {
 					APIVersion: "v1",
 				},
 				ObjectMeta: apis.ObjectMeta{
-					Name: podName,
+					Name:      podName,
 					Namespace: "yk",
-					UID:  podUID,
+					UID:       podUID,
 				},
 				Spec: v1.PodSpec{},
 			},
@@ -326,9 +326,9 @@ func TestTaskReleaseAfterRecovery(t *testing.T) {
 					APIVersion: "v1",
 				},
 				ObjectMeta: apis.ObjectMeta{
-					Name: pod1Name,
+					Name:      pod1Name,
 					Namespace: namespace,
-					UID:  pod1UID,
+					UID:       pod1UID,
 				},
 				Spec: v1.PodSpec{},
 			},
@@ -350,9 +350,9 @@ func TestTaskReleaseAfterRecovery(t *testing.T) {
 					APIVersion: "v1",
 				},
 				ObjectMeta: apis.ObjectMeta{
-					Name: pod2Name,
+					Name:      pod2Name,
 					Namespace: namespace,
-					UID:  pod2UID,
+					UID:       pod2UID,
 				},
 				Spec: v1.PodSpec{},
 			},
@@ -378,16 +378,16 @@ func TestTaskReleaseAfterRecovery(t *testing.T) {
 	t1, ok := task1.(*Task)
 	assert.Equal(t, ok, true)
 
-	err := common.WaitFor(100 * time.Millisecond, 3 * time.Second, func() bool {
-		return t1.GetTaskState() ==  events.States().Task.Completed
+	err := common.WaitFor(100*time.Millisecond, 3*time.Second, func() bool {
+		return t1.GetTaskState() == events.States().Task.Completed
 	})
 	assert.NilError(t, err, "release should be completed for task1")
 
 	// expect to see:
 	//  - task0 is still there
 	//  - task1 gets released
-	assert.Equal(t, t0.GetTaskState(),  events.States().Task.Allocated)
-	assert.Equal(t, t1.GetTaskState(),  events.States().Task.Completed)
+	assert.Equal(t, t0.GetTaskState(), events.States().Task.Allocated)
+	assert.Equal(t, t1.GetTaskState(), events.States().Task.Completed)
 }
 
 func TestRemoveTask(t *testing.T) {

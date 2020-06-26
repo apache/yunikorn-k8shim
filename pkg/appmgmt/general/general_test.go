@@ -22,7 +22,7 @@ import (
 	"testing"
 
 	"gotest.tools/assert"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/cache"
@@ -453,7 +453,7 @@ func TestGetExistingAllocation(t *testing.T) {
 		},
 		Spec: v1.PodSpec{
 			SchedulerName: "yunikorn",
-			NodeName: "allocated-node",
+			NodeName:      "allocated-node",
 		},
 		Status: v1.PodStatus{
 			Phase: v1.PodPending,
@@ -468,4 +468,3 @@ func TestGetExistingAllocation(t *testing.T) {
 	assert.Equal(t, alloc.UUID, string(pod.UID))
 	assert.Equal(t, alloc.NodeID, "allocated-node")
 }
-

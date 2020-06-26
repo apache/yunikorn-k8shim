@@ -193,7 +193,7 @@ func TestReleaseTaskAllocation(t *testing.T) {
 	assert.NilError(t, err, "failed to handle AllocateTask event")
 	assert.Equal(t, task.GetTaskState(), events.States().Task.Allocated)
 	// bind a task is a async process, wait for it to happen
-	err = common.WaitFor(100 * time.Millisecond, 3 * time.Second, func() bool {
+	err = common.WaitFor(100*time.Millisecond, 3*time.Second, func() bool {
 		return task.getTaskAllocationUUID() == string(pod.UID)
 	})
 	assert.NilError(t, err, "failed to wait for allocation UUID being set for task")

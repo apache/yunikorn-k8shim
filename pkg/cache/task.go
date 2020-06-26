@@ -377,8 +377,8 @@ func (task *Task) releaseAllocation() {
 			// log a warning and skip the release request. this may leak some resource
 			// in the scheduler, collect logs and check why this happens.
 			if task.allocationUUID == "" {
-				log.Logger.Warn("task allocation UUID is empty, sending this release request " +
-					"to yunikorn-core could cause all allocations of this app get released. skip this " +
+				log.Logger.Warn("task allocation UUID is empty, sending this release request "+
+					"to yunikorn-core could cause all allocations of this app get released. skip this "+
 					"request, this may cause some resource leak. check the logs for more info!",
 					zap.String("applicationID", task.applicationID),
 					zap.String("taskID", task.taskID),
