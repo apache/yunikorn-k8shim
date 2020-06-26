@@ -20,6 +20,7 @@ run:
   issues-exit-code: 1
   skip-dirs-use-default: true
   modules-download-mode: readonly
+  deadline: 5m
 
 # settings of specific linters
 linters-settings:
@@ -34,6 +35,9 @@ linters-settings:
     local-prefixes: github.com/apache/incubator-yunikorn
   govet:
     check-shadowing: true
+  funlen:
+    lines: 120
+    statements: 80
   depguard:
     list-type: blacklist
     include-go-root: false
