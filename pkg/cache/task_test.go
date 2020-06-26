@@ -23,9 +23,11 @@ import (
 	"time"
 
 	"gotest.tools/assert"
+
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/apache/incubator-yunikorn-core/pkg/common"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
@@ -292,4 +294,105 @@ func TestReleaseTaskAsk(t *testing.T) {
 	assert.Equal(t, task.GetTaskState(), events.States().Task.Completed)
 	// 2 updates call, 1 for submit, 1 for release
 	assert.Equal(t, mockedApiProvider.GetSchedulerApiUpdateCount(), int32(2))
+}
+
+func TestCreateTask(t *testing.T) {
+	time0 := time.Now()
+	mockedContext := initContextForTest()
+	mockedSchedulerAPI := newMockSchedulerAPI()
+	app := NewApplication("app01", "root.default",
+		"bob", map[string]string{}, mockedSchedulerAPI)
+
+	// pod has timestamp defined
+	pod0 := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name:              "pod-00",
+			UID:               "UID-00",
+			CreationTimestamp: metav1.Time{Time: time0},
+		},
+	}
+
+	// pod has no timestamp defined
+	pod1 := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "pod-00",
+			UID:  "UID-00",
+		},
+	}
+
+	// make sure the time is passed in to the task
+	task0 := NewTask("task00", app, mockedContext, pod0)
+	assert.Equal(t, task0.createTime, time0)
+
+	// if pod doesn't have timestamp defined, uses the default value
+	task1 := NewTask("task01", app, mockedContext, pod1)
+	assert.Equal(t, task1.createTime, time.Time{})
+}
+
+func TestSortTasks(t *testing.T) {
+	time0 := time.Now()
+	time1 := time0.Add(10 * time.Millisecond)
+	time2 := time1.Add(10 * time.Millisecond)
+
+	mockedContext := initContextForTest()
+	mockedSchedulerAPI := newMockSchedulerAPI()
+	app := NewApplication("app01", "root.default",
+		"bob", map[string]string{}, mockedSchedulerAPI)
+
+	pod0 := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name:              "pod-00",
+			UID:               "UID-00",
+			CreationTimestamp: metav1.Time{Time: time0},
+		},
+	}
+
+	pod1 := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name:              "pod-01",
+			UID:               "UID-01",
+			CreationTimestamp: metav1.Time{Time: time1},
+		},
+	}
+
+	pod2 := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name:              "pod-02",
+			UID:               "UID-02",
+			CreationTimestamp: metav1.Time{Time: time2},
+		},
+	}
+
+	task0 := NewTask("task00", app, mockedContext, pod0)
+	task1 := NewTask("task01", app, mockedContext, pod1)
+	task2 := NewTask("task02", app, mockedContext, pod2)
+	app.addTask(task0)
+	app.addTask(task1)
+	app.addTask(task2)
+
+	tasks := app.GetNewTasks()
+	assert.Equal(t, len(tasks), 3)
+	assert.Equal(t, tasks[0], task0)
+	assert.Equal(t, tasks[1], task1)
+	assert.Equal(t, tasks[2], task2)
 }
