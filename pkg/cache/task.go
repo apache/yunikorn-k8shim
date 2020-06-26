@@ -50,13 +50,13 @@ type Task struct {
 	lock           *sync.RWMutex
 }
 
-func NewTask(tid string, app *Application, ctx *Context, pod *v1.Pod) Task {
+func NewTask(tid string, app *Application, ctx *Context, pod *v1.Pod) *Task {
 	taskResource := common.GetPodResource(pod)
 	return createTaskInternal(tid, app, taskResource, pod, ctx)
 }
 
 // test only
-func CreateTaskForTest(tid string, app *Application, resource *si.Resource, ctx *Context) Task {
+func CreateTaskForTest(tid string, app *Application, resource *si.Resource, ctx *Context) *Task {
 	// for testing purpose, the pod name is same as the taskID
 	taskPod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -67,8 +67,8 @@ func CreateTaskForTest(tid string, app *Application, resource *si.Resource, ctx 
 }
 
 func createTaskInternal(tid string, app *Application, resource *si.Resource,
-	pod *v1.Pod, ctx *Context) Task {
-	task := Task{
+	pod *v1.Pod, ctx *Context) *Task {
+	task := &Task{
 		taskID:        tid,
 		alias:         fmt.Sprintf("%s/%s", pod.Namespace, pod.Name),
 		applicationID: app.GetApplicationID(),
@@ -165,9 +165,16 @@ func (task *Task) GetTaskState() string {
 	return task.sm.Current()
 }
 
-func (task *Task) setAllocated(nodeName string) {
+func (task *Task) getTaskAllocationUUID() string {
+	task.lock.RLock()
+	defer task.lock.RUnlock()
+	return task.allocationUUID
+}
+
+func (task *Task) setAllocated(nodeName, allocationUUID string) {
 	task.lock.Lock()
 	defer task.lock.Unlock()
+	task.allocationUUID = allocationUUID
 	task.nodeName = nodeName
 	task.sm.SetState(events.States().Task.Allocated)
 }
@@ -352,6 +359,7 @@ func (task *Task) releaseAllocation() {
 			zap.String("applicationID", task.applicationID),
 			zap.String("taskID", task.taskID),
 			zap.String("taskAlias", task.alias),
+			zap.String("allocationUUID", task.allocationUUID),
 			zap.String("task", task.GetTaskState()))
 
 		// depends on current task state, generate requests accordingly.
@@ -365,6 +373,20 @@ func (task *Task) releaseAllocation() {
 			releaseRequest = common.CreateReleaseAskRequestForTask(
 				task.applicationID, task.taskID, task.application.partition)
 		default:
+			// sending empty allocation UUID back to scheduler-core is dangerous
+			// log a warning and skip the release request. this may leak some resource
+			// in the scheduler, collect logs and check why this happens.
+			if task.allocationUUID == "" {
+				log.Logger.Warn("task allocation UUID is empty, sending this release request "+
+					"to yunikorn-core could cause all allocations of this app get released. skip this "+
+					"request, this may cause some resource leak. check the logs for more info!",
+					zap.String("applicationID", task.applicationID),
+					zap.String("taskID", task.taskID),
+					zap.String("taskAlias", task.alias),
+					zap.String("allocationUUID", task.allocationUUID),
+					zap.String("task", task.GetTaskState()))
+				return
+			}
 			releaseRequest = common.CreateReleaseAllocationRequestForTask(
 				task.applicationID, task.allocationUUID, task.application.partition)
 		}

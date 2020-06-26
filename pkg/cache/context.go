@@ -209,7 +209,7 @@ func (ctx *Context) removePodFromCache(obj interface{}) {
 
 	log.Logger.Debug("removing pod from cache", zap.String("podName", pod.Name))
 	if err := ctx.schedulerCache.RemovePod(pod); err != nil {
-		log.Logger.Error("failed to remove pod from scheduler cache",
+		log.Logger.Debug("failed to remove pod from scheduler cache",
 			zap.String("podName", pod.Name),
 			zap.Error(err))
 	}
@@ -534,15 +534,17 @@ func (ctx *Context) AddTask(request *interfaces.AddTaskRequest) interfaces.Manag
 				task := NewTask(request.Metadata.TaskID, app, ctx, request.Metadata.Pod)
 				// in recovery mode, task is considered as allocated
 				if request.Recovery {
-					task.setAllocated(request.Metadata.Pod.Spec.NodeName)
+					// in scheduling, allocationUUID is assigned by scheduler-core
+					// in recovery mode, allocationUuid equals to taskID, which also equals to the pod UID
+					task.setAllocated(request.Metadata.Pod.Spec.NodeName, request.Metadata.TaskID)
 				}
-				app.addTask(&task)
+				app.addTask(task)
 				log.Logger.Info("task added",
 					zap.String("appID", app.applicationID),
 					zap.String("taskID", task.taskID),
 					zap.String("taskState", task.GetTaskState()))
 
-				return &task
+				return task
 			}
 			return existingTask
 		}

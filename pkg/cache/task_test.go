@@ -20,12 +20,14 @@ package cache
 
 import (
 	"testing"
+	"time"
 
 	"gotest.tools/assert"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/apache/incubator-yunikorn-core/pkg/common"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
@@ -190,6 +192,11 @@ func TestReleaseTaskAllocation(t *testing.T) {
 	err = task.handle(event2)
 	assert.NilError(t, err, "failed to handle AllocateTask event")
 	assert.Equal(t, task.GetTaskState(), events.States().Task.Allocated)
+	// bind a task is a async process, wait for it to happen
+	err = common.WaitFor(100*time.Millisecond, 3*time.Second, func() bool {
+		return task.getTaskAllocationUUID() == string(pod.UID)
+	})
+	assert.NilError(t, err, "failed to wait for allocation UUID being set for task")
 
 	// bound
 	event3 := NewBindTaskEvent(app.applicationID, task.taskID)

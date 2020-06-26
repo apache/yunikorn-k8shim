@@ -22,7 +22,7 @@ import (
 	"testing"
 
 	"gotest.tools/assert"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/cache"
@@ -432,4 +432,39 @@ func toApplication(something interface{}) (*cache.Application, bool) {
 		return app, true
 	}
 	return nil, false
+}
+
+func TestGetExistingAllocation(t *testing.T) {
+	am := NewManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider())
+
+	pod := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name:      "pod00001",
+			Namespace: "default",
+			UID:       "UID-POD-00001",
+			Labels: map[string]string{
+				"applicationId": "app00001",
+				"queue":         "root.a",
+			},
+		},
+		Spec: v1.PodSpec{
+			SchedulerName: "yunikorn",
+			NodeName:      "allocated-node",
+		},
+		Status: v1.PodStatus{
+			Phase: v1.PodPending,
+		},
+	}
+
+	// verifies the existing allocation is correctly returned
+	alloc := am.GetExistingAllocation(pod)
+	assert.Equal(t, alloc.ApplicationID, "app00001")
+	assert.Equal(t, alloc.QueueName, "root.a")
+	assert.Equal(t, alloc.AllocationKey, string(pod.UID))
+	assert.Equal(t, alloc.UUID, string(pod.UID))
+	assert.Equal(t, alloc.NodeID, "allocated-node")
 }

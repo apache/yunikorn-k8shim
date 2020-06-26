@@ -19,21 +19,22 @@
 package cache
 
 import (
+	"fmt"
 	"testing"
+	"time"
 
 	"gotest.tools/assert"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
+	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 
+	"github.com/apache/incubator-yunikorn-core/pkg/common"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/dispatcher"
 )
-
-const fakeClusterID = "test-cluster"
-const fakeClusterVersion = "0.1.0"
-const fakeClusterSchedulerName = "yunikorn-test"
-const fakeClusterSchedulingInterval = 1
 
 func initContextForTest() *Context {
 	conf.GetSchedulerConf().SetTestMode(true)
@@ -224,32 +225,169 @@ func TestAddTask(t *testing.T) {
 func TestRecoverTask(t *testing.T) {
 	context := initContextForTest()
 
+	const appID = "app00001"
+	const queue = "root.a"
+	const podUID = "task00001"
+	const podName = "my-pod"
+
 	// add a new application
 	context.AddApplication(&interfaces.AddApplicationRequest{
 		Metadata: interfaces.ApplicationMetadata{
-			ApplicationID: "app00001",
-			QueueName:     "root.a",
+			ApplicationID: appID,
+			QueueName:     queue,
 			User:          "test-user",
 			Tags:          nil,
 		},
 		Recovery: true,
 	})
 	assert.Equal(t, len(context.applications), 1)
-	assert.Assert(t, context.applications["app00001"] != nil)
-	assert.Equal(t, len(context.applications["app00001"].GetPendingTasks()), 0)
+	assert.Assert(t, context.applications[appID] != nil)
+	assert.Equal(t, len(context.applications[appID].GetPendingTasks()), 0)
 
 	// add a tasks to the existing application
 	task := context.AddTask(&interfaces.AddTaskRequest{
 		Metadata: interfaces.TaskMetadata{
-			ApplicationID: "app00001",
-			TaskID:        "task00001",
-			Pod:           &v1.Pod{},
+			ApplicationID: appID,
+			TaskID:        podUID,
+			Pod: &v1.Pod{
+				TypeMeta: apis.TypeMeta{
+					Kind:       "Pod",
+					APIVersion: "v1",
+				},
+				ObjectMeta: apis.ObjectMeta{
+					Name:      podName,
+					Namespace: "yk",
+					UID:       podUID,
+				},
+				Spec: v1.PodSpec{},
+			},
 		},
 		Recovery: true,
 	})
 	assert.Assert(t, task != nil)
-	assert.Equal(t, task.GetTaskID(), "task00001")
+	assert.Equal(t, task.GetTaskID(), podUID)
 	assert.Equal(t, task.GetTaskState(), events.States().Task.Allocated)
+
+	// make sure the recovered task is added to the app
+	app, exist := context.applications[appID]
+	assert.Equal(t, exist, true)
+	assert.Equal(t, len(app.GetAllocatedTasks()), 1)
+
+	// verify the info for the recovered task
+	recoveredTask, err := app.GetTask(podUID)
+	assert.NilError(t, err)
+	tt, ok := recoveredTask.(*Task)
+	assert.Equal(t, ok, true)
+	assert.Equal(t, tt.taskID, podUID)
+	assert.Equal(t, tt.allocationUUID, podUID)
+	assert.Equal(t, tt.GetTaskState(), events.States().Task.Allocated)
+	assert.Equal(t, tt.alias, fmt.Sprintf("yk/%s", podName))
+	assert.Equal(t, tt.pod.UID, types.UID(podUID))
+}
+
+func TestTaskReleaseAfterRecovery(t *testing.T) {
+	context := initContextForTest()
+	dispatcher.RegisterEventHandler(dispatcher.EventTypeApp, context.ApplicationEventHandler())
+	dispatcher.RegisterEventHandler(dispatcher.EventTypeTask, context.TaskEventHandler())
+	dispatcher.Start()
+	defer dispatcher.Stop()
+
+	const appID = "app00001"
+	const queue = "root.a"
+	const pod1UID = "task00001"
+	const pod1Name = "my-pod-1"
+	const pod2UID = "task00002"
+	const pod2Name = "my-pod-2"
+	const namespace = "yk"
+
+	// do app recovery, first recover app, then tasks
+	// add application to recovery
+	context.AddApplication(&interfaces.AddApplicationRequest{
+		Metadata: interfaces.ApplicationMetadata{
+			ApplicationID: appID,
+			QueueName:     queue,
+			User:          "test-user",
+			Tags:          nil,
+		},
+		Recovery: true,
+	})
+	assert.Equal(t, len(context.applications), 1)
+	assert.Assert(t, context.applications[appID] != nil)
+	assert.Equal(t, len(context.applications[appID].GetPendingTasks()), 0)
+
+	// add a tasks to the existing application
+	task0 := context.AddTask(&interfaces.AddTaskRequest{
+		Metadata: interfaces.TaskMetadata{
+			ApplicationID: appID,
+			TaskID:        pod1UID,
+			Pod: &v1.Pod{
+				TypeMeta: apis.TypeMeta{
+					Kind:       "Pod",
+					APIVersion: "v1",
+				},
+				ObjectMeta: apis.ObjectMeta{
+					Name:      pod1Name,
+					Namespace: namespace,
+					UID:       pod1UID,
+				},
+				Spec: v1.PodSpec{},
+			},
+		},
+		Recovery: true,
+	})
+
+	assert.Assert(t, task0 != nil)
+	assert.Equal(t, task0.GetTaskID(), pod1UID)
+	assert.Equal(t, task0.GetTaskState(), events.States().Task.Allocated)
+
+	task1 := context.AddTask(&interfaces.AddTaskRequest{
+		Metadata: interfaces.TaskMetadata{
+			ApplicationID: appID,
+			TaskID:        pod2UID,
+			Pod: &v1.Pod{
+				TypeMeta: apis.TypeMeta{
+					Kind:       "Pod",
+					APIVersion: "v1",
+				},
+				ObjectMeta: apis.ObjectMeta{
+					Name:      pod2Name,
+					Namespace: namespace,
+					UID:       pod2UID,
+				},
+				Spec: v1.PodSpec{},
+			},
+		},
+		Recovery: true,
+	})
+
+	assert.Assert(t, task1 != nil)
+	assert.Equal(t, task1.GetTaskID(), pod2UID)
+	assert.Equal(t, task1.GetTaskState(), events.States().Task.Allocated)
+
+	// app should have 2 tasks recovered
+	app, exist := context.applications[appID]
+	assert.Equal(t, exist, true)
+	assert.Equal(t, len(app.GetAllocatedTasks()), 2)
+
+	// release one of the tasks
+	context.NotifyTaskComplete(appID, pod2UID)
+
+	// wait for release
+	t0, ok := task0.(*Task)
+	assert.Equal(t, ok, true)
+	t1, ok := task1.(*Task)
+	assert.Equal(t, ok, true)
+
+	err := common.WaitFor(100*time.Millisecond, 3*time.Second, func() bool {
+		return t1.GetTaskState() == events.States().Task.Completed
+	})
+	assert.NilError(t, err, "release should be completed for task1")
+
+	// expect to see:
+	//  - task0 is still there
+	//  - task1 gets released
+	assert.Equal(t, t0.GetTaskState(), events.States().Task.Allocated)
+	assert.Equal(t, t1.GetTaskState(), events.States().Task.Completed)
 }
 
 func TestRemoveTask(t *testing.T) {

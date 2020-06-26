@@ -78,8 +78,8 @@ func (m *MockedAMProtocol) AddTask(request *interfaces.AddTaskRequest) interface
 	if app, ok := m.applications[request.Metadata.ApplicationID]; ok {
 		if existingTask, err := app.GetTask(request.Metadata.TaskID); err != nil {
 			task := NewTask(request.Metadata.TaskID, app, nil, request.Metadata.Pod)
-			app.addTask(&task)
-			return &task
+			app.addTask(task)
+			return task
 		} else {
 			return existingTask
 		}
