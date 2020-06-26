@@ -20,6 +20,7 @@ package cache
 
 import (
 	"fmt"
+	"sort"
 	"sync"
 
 	"github.com/looplab/fsm"
@@ -220,6 +221,14 @@ func (app *Application) getTasks(state string) []*Task {
 			}
 		}
 	}
+
+	// sort the task based on creation time
+	sort.Slice(taskList, func(i, j int) bool {
+		l := taskList[i]
+		r := taskList[j]
+		return l.createTime.Before(r.createTime)
+	})
+
 	return taskList
 }
 

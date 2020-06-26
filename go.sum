@@ -26,6 +26,8 @@ github.com/apache/incubator-yunikorn-core v0.0.0-20200612225821-42763f5385c7 h1:
 github.com/apache/incubator-yunikorn-core v0.0.0-20200612225821-42763f5385c7/go.mod h1:5p0hHyU3l79nbo5GoW4rPq9b6Zoc42ID1tNQ4+6cY5A=
 github.com/apache/incubator-yunikorn-core v0.0.0-20200617005428-7529703804b3 h1:I9oaHK1Z5FYlabWdayukOtWLwp0otatl6mMBOpERqWQ=
 github.com/apache/incubator-yunikorn-core v0.0.0-20200617005428-7529703804b3/go.mod h1:9hkNjP9kYi8I1Wr98cAGpzSGf5/aOgBclJ5PmG5/jwk=
+github.com/apache/incubator-yunikorn-core v0.0.0-20200626030104-5553cbad86ae h1:v2ZlwWL3lPcmRO2k332n5siIwaKT8y2tssXcz4YgsvI=
+github.com/apache/incubator-yunikorn-core v0.0.0-20200626030104-5553cbad86ae/go.mod h1:9hkNjP9kYi8I1Wr98cAGpzSGf5/aOgBclJ5PmG5/jwk=
 github.com/apache/incubator-yunikorn-core v0.8.0 h1:U7ARr+BHM5IxQM9Tgnk6WeL3HbyD4wTvutmTggG75CA=
 github.com/apache/incubator-yunikorn-scheduler-interface v0.0.0-20200414171840-a773cd557b1f h1:MO1PV62hmeaahOItQq848+aSbypnjdtXj4k0v+O4+nI=
 github.com/apache/incubator-yunikorn-scheduler-interface v0.0.0-20200414171840-a773cd557b1f/go.mod h1:De+73NNH4KaRL9MGGnCyHJOtx2oQGVYOaespfoRNGSo=

@@ -46,6 +46,7 @@ type Task struct {
 	pod            *v1.Pod
 	context        *Context
 	nodeName       string
+	createTime     time.Time
 	sm             *fsm.FSM
 	lock           *sync.RWMutex
 }
@@ -75,6 +76,7 @@ func createTaskInternal(tid string, app *Application, resource *si.Resource,
 		application:   app,
 		pod:           pod,
 		resource:      resource,
+		createTime:    pod.GetCreationTimestamp().Time,
 		context:       ctx,
 		lock:          &sync.RWMutex{},
 	}
