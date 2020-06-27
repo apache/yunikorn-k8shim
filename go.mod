@@ -71,6 +71,7 @@ require (
 	k8s.io/apiserver v0.0.0-20191212015046-43d571094e6f // indirect
 	k8s.io/client-go v11.0.1-0.20191029005444-8e4128053008+incompatible
 	k8s.io/cloud-provider v0.0.0-00010101000000-000000000000 // indirect
+	k8s.io/code-generator v0.0.0-20190311093542-50b561225d70 // indirect
 	k8s.io/csi-translation-lib v0.0.0-20191212015623-92af21758231 // indirect
 	k8s.io/klog v1.0.0
 	k8s.io/kube-openapi v0.0.0-20200204173128-addea2498afe // indirect
