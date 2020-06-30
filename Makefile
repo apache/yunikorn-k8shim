@@ -70,7 +70,7 @@ lint:
 		fi \
 	fi ; \
 	headSHA=$$(git rev-parse --short=12 origin/HEAD) ; \
-	$${lintBin} run --new-from-rev=$${headSHA}
+	$${lintBin} run --new-from-rev=$${headSHA} --skip-dirs pkg/client
 
 .PHONY: license-check
 license-check:
