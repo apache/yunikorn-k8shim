@@ -20,6 +20,7 @@ package cache
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -27,6 +28,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/record"
 
 	"github.com/apache/incubator-yunikorn-core/pkg/common"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
@@ -34,6 +36,8 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/dispatcher"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
+	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 )
 
 func initContextForTest() *Context {
@@ -459,4 +463,61 @@ func TestRemoveTask(t *testing.T) {
 
 	// now there is no task left
 	assert.Equal(t, len(app.GetNewTasks()), 0)
+}
+
+func TestPublishEvents(t *testing.T) {
+	conf.GetSchedulerConf().SetTestMode(true)
+	recorder := events.GetRecorder().(*record.FakeRecorder)
+	context := initContextForTest()
+
+	// create fake application and task
+	context.AddApplication(&interfaces.AddApplicationRequest{
+		Metadata: interfaces.ApplicationMetadata{
+			ApplicationID: "app_event",
+			QueueName:     "root.a",
+			User:          "test-user",
+			Tags:          nil,
+		},
+		Recovery: false,
+	})
+	context.AddTask(&interfaces.AddTaskRequest{
+		Metadata: interfaces.TaskMetadata{
+			ApplicationID: "app_event",
+			TaskID:        "task_event",
+			Pod:           &v1.Pod{},
+		},
+		Recovery: false,
+	})
+
+	// create an event belonging to that task
+	eventRecords := make([]*si.EventRecord, 0)
+	message := "event_related_message"
+	reason := "event_related_reason"
+	eventRecords = append(eventRecords, &si.EventRecord{
+		Type:     si.EventRecord_REQUEST,
+		ObjectID: "task_event",
+		GroupID:  "app_event",
+		Reason:   reason,
+		Message:  message,
+	})
+	context.PublishEvents(eventRecords)
+
+	// iterate through the events, and check that the event has been published
+	found := false
+	for {
+		if found {
+			break
+		}
+		select {
+		case event := <-recorder.Events:
+			log.Logger.Info(event)
+			if strings.Contains(event, reason) && strings.Contains(event, message) {
+				found = true
+			}
+		default:
+			if !found {
+				t.Fatal("the event is supposed to be published")
+			}
+		}
+	}
 }
