@@ -608,9 +608,9 @@ func (ctx *Context) PublishEvents(eventRecords []*si.EventRecord) {
 				}
 			case si.EventRecord_NODE:
 				nodeID := record.ObjectID
-				node, err := ctx.apiProvider.GetAPIs().NodeInformer.Lister().Get(nodeID)
-				if err != nil {
-					log.Logger.Warn("node event is not published because node id is not found",
+				node := ctx.schedulerCache.GetNode(nodeID).Node()
+				if node == nil {
+					log.Logger.Warn("node event is not published because node is not found",
 						zap.String("nodeID", nodeID),
 						zap.String("event", record.String()))
 					continue
