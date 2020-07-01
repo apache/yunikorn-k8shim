@@ -20,6 +20,7 @@ package cache
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -27,13 +28,17 @@ import (
 	v1 "k8s.io/api/core/v1"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/record"
 
 	"github.com/apache/incubator-yunikorn-core/pkg/common"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/dispatcher"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
+	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 )
 
 func initContextForTest() *Context {
@@ -459,4 +464,80 @@ func TestRemoveTask(t *testing.T) {
 
 	// now there is no task left
 	assert.Equal(t, len(app.GetNewTasks()), 0)
+}
+
+func TestNodeEventFailsPublishingWithoutNode(t *testing.T) {
+	conf.GetSchedulerConf().SetTestMode(true)
+	recorder, ok := events.GetRecorder().(*record.FakeRecorder)
+	if !ok {
+		t.Fatal("the EventRecorder is expected to be of type FakeRecorder")
+	}
+	context := initContextForTest()
+
+	eventRecords := make([]*si.EventRecord, 0)
+	message := "non_existing_node_related_message"
+	reason := "non_existing_node_related_reason"
+	eventRecords = append(eventRecords, &si.EventRecord{
+		Type:     si.EventRecord_NODE,
+		ObjectID: "non_existing_host",
+		Reason:   reason,
+		Message:  message,
+	})
+	context.PublishEvents(eventRecords)
+
+	// check that the event has been published
+	select {
+	case event := <-recorder.Events:
+		log.Logger.Info(event)
+		if strings.Contains(event, reason) && strings.Contains(event, message) {
+			t.Fatal("event should not be published if the pod does not exist")
+		}
+	default:
+		break
+	}
+}
+
+func TestNodeEventPublishedCorrectly(t *testing.T) {
+	conf.GetSchedulerConf().SetTestMode(true)
+	recorder, ok := events.GetRecorder().(*record.FakeRecorder)
+	if !ok {
+		t.Fatal("the EventRecorder is expected to be of type FakeRecorder")
+	}
+	context := initContextForTest()
+
+	node := v1.Node{
+		ObjectMeta: apis.ObjectMeta{
+			Name:      "host0001",
+			Namespace: "default",
+			UID:       "uid_0001",
+		},
+	}
+	context.addNode(&node)
+
+	eventRecords := make([]*si.EventRecord, 0)
+	message := "node_related_message"
+	reason := "node_related_reason"
+	eventRecords = append(eventRecords, &si.EventRecord{
+		Type:     si.EventRecord_NODE,
+		ObjectID: "host0001",
+		Reason:   reason,
+		Message:  message,
+	})
+	context.PublishEvents(eventRecords)
+
+	// check that the event has been published
+	err := utils.WaitForCondition(func() bool {
+		for {
+			select {
+			case event := <-recorder.Events:
+				log.Logger.Info(event)
+				if strings.Contains(event, reason) && strings.Contains(event, message) {
+					return true
+				}
+			default:
+				return false
+			}
+		}
+	}, 5 * time.Millisecond, 20 * time.Millisecond)
+	assert.NilError(t, err, "event should have been emitted")
 }
