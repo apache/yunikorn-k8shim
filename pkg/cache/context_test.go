@@ -538,6 +538,6 @@ func TestNodeEventPublishedCorrectly(t *testing.T) {
 				return false
 			}
 		}
-	}, 5 * time.Millisecond, 20 * time.Millisecond)
+	}, 5*time.Millisecond, 20*time.Millisecond)
 	assert.NilError(t, err, "event should have been emitted")
 }
