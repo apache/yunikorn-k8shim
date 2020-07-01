@@ -209,40 +209,6 @@ func (task *Task) handleSubmitTaskEvent(event *fsm.Event) {
 
 	events.GetRecorder().Eventf(task.pod, v1.EventTypeNormal, "Scheduling",
 		"%s is queued and waiting for allocation", task.alias)
-
-	// after a small amount of time, if the task is still not able to get allocation,
-	// put the pod to unscheduable state. This will trigger the cluster-auto-scaler to launch
-	// the auto-scaling process.
-	// TODO improve this
-	// Note, this approach is suboptimal, when a task cannot be allocated, it doesn't always
-	// mean it needs the nodes to scale up. E.g task runs out of max capacity of the queue,
-	// user/app runs out of the limit etc. Ideally, we should add more interactions between
-	// core and shim to negotiate on when to set the state to unscheduable and trigger the
-	// auto-scaling appropriately.
-	time.AfterFunc(3*time.Second, func() {
-		if task.GetTaskState() == events.States().Task.Scheduling {
-			log.Logger.Debug("updating pod state ",
-				zap.String("appID", task.applicationID),
-				zap.String("taskID", task.taskID),
-				zap.String("podName", task.alias),
-				zap.String("state", "Unscheduable"))
-			// if task state is still pending after 5s,
-			// move task to un-schedule-able state.
-			if err := task.context.updatePodCondition(task.pod,
-				&v1.PodCondition{
-					Type:    v1.PodScheduled,
-					Status:  v1.ConditionFalse,
-					Reason:  v1.PodReasonUnschedulable,
-					Message: "pod is unable to be scheduled due to lack of resources",
-				}); err != nil {
-				log.Logger.Error("update pod condition failed",
-					zap.Error(err))
-			}
-			events.GetRecorder().Eventf(task.pod,
-				v1.EventTypeNormal, "PodUnscheduable",
-				"Task %s state changes to Unscheduable", task.alias)
-		}
-	})
 }
 
 // this is called after task reaches PENDING state,

@@ -152,3 +152,8 @@ func (callback *AsyncRMCallback) SendEvent(eventRecords []*si.EventRecord) error
 	}
 	return nil
 }
+
+// this callback implements scheduler plugin interface ContainerSchedulingStateUpdater.
+func (callback *AsyncRMCallback) Update(request *si.UpdateContainerSchedulingStateRequest) {
+	callback.context.HandleContainerStateUpdate(request)
+}

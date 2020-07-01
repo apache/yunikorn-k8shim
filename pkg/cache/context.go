@@ -295,16 +295,25 @@ func (ctx *Context) triggerReloadConfig() {
 	}
 }
 
-func (ctx *Context) updatePodCondition(pod *v1.Pod, condition *v1.PodCondition) error {
-	log.Logger.Info("Updating pod condition",
+// update pod condition if the condition has changed, it returns a bool value to indicate
+// if the update is made or skipped, return an error if it is unable to make the change when it is needed to.
+func (ctx *Context) updatePodCondition(pod *v1.Pod, condition *v1.PodCondition) (bool, error) {
+	// only update the pod when pod condition changes
+	// minimize the overhead added to the api-server/etcd
+	if utils.PodUnderCondition(pod, condition) {
+		return false, nil
+	}
+
+	log.Logger.Info("updating pod condition",
 		zap.String("namespace", pod.Namespace),
 		zap.String("name", pod.Name),
 		zap.Any("podCondition", condition))
 	if podutil.UpdatePodCondition(&pod.Status, condition) {
 		_, err := ctx.apiProvider.GetAPIs().KubeClient.GetClientSet().CoreV1().Pods(pod.Namespace).UpdateStatus(pod)
-		return err
+		return false, err
 	}
-	return nil
+
+	return true, nil
 }
 
 // evaluate given predicates based on current context
@@ -610,6 +619,49 @@ func (ctx *Context) PublishEvents(eventRecords []*si.EventRecord) {
 				log.Logger.Warn("Unsupported event type, currently only supports to publish request event records",
 					zap.String("type", record.Type.String()))
 			}
+		}
+	}
+}
+
+// this function handles the pod scheduling failures with respect to the different causes,
+// and update the pod condition accordingly. the cluster autoscaler depends on the certain
+// pod condition in order to trigger auto-scaling.
+func (ctx *Context) HandleContainerStateUpdate(request *si.UpdateContainerSchedulingStateRequest) {
+	updatePodConditionFn := func(task *Task, podConditionReason, podConditionMsg, eventMessage string) {
+		if task.GetTaskState() == events.States().Task.Scheduling {
+			updated, err := task.context.updatePodCondition(task.pod,
+				&v1.PodCondition{
+					Type:    v1.PodScheduled,
+					Status:  v1.ConditionFalse,
+					Reason:  podConditionReason,
+					Message: podConditionMsg,
+				})
+			if err != nil {
+				log.Logger.Error("update pod condition failed",
+					zap.Error(err))
+			}
+			if updated {
+				events.GetRecorder().Eventf(task.pod,
+					v1.EventTypeNormal, "PodUnschedulable", eventMessage, task.alias)
+			}
+		}
+	}
+
+	// the allocationKey equals to the taskID
+	if task, err := ctx.getTask(request.ApplicartionID, request.AllocationKey); err == nil {
+		switch request.State {
+		case si.UpdateContainerSchedulingStateRequest_SKIPPED:
+			// auto-scaler scans pods whose pod condition is PodScheduled=false && reason=Unschedulable
+			// if the pod is skipped because the queue quota has been exceed, we do not trigger the auto-scaling
+			updatePodConditionFn(task, "SchedulingSkipped", request.Reason,
+				"Task %s is skipped from scheduling because the queue quota has been exceed")
+		case si.UpdateContainerSchedulingStateRequest_FAILED:
+			// set pod condition to Unschedulable in order to trigger auto-scaling
+			updatePodConditionFn(task, v1.PodReasonUnschedulable, request.Reason,
+				"Task %s is pending for the requested resources become available")
+		default:
+			log.Logger.Warn("no handler for container scheduling state",
+				zap.String("state", request.State.String()))
 		}
 	}
 }
