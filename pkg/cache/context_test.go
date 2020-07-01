@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
 	"gotest.tools/assert"
 	v1 "k8s.io/api/core/v1"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -465,9 +466,52 @@ func TestRemoveTask(t *testing.T) {
 	assert.Equal(t, len(app.GetNewTasks()), 0)
 }
 
-func TestPublishEvents(t *testing.T) {
+func TestPublishEventsWithNotExistingAsk(t *testing.T) {
 	conf.GetSchedulerConf().SetTestMode(true)
-	recorder := events.GetRecorder().(*record.FakeRecorder)
+	recorder, ok := events.GetRecorder().(*record.FakeRecorder)
+	if !ok {
+		t.Fatal("the EventRecorder is expected to be of type FakeRecorder")
+	}
+	context := initContextForTest()
+	context.AddApplication(&interfaces.AddApplicationRequest{
+		Metadata: interfaces.ApplicationMetadata{
+			ApplicationID: "app_event_12",
+			QueueName:     "root.a",
+			User:          "test-user",
+			Tags:          nil,
+		},
+		Recovery: false,
+	})
+	eventRecords := make([]*si.EventRecord, 0)
+	message := "event_related_text_msg"
+	reason := "event_related_text"
+	eventRecords = append(eventRecords, &si.EventRecord{
+		Type:     si.EventRecord_REQUEST,
+		ObjectID: "non_existing_task_event",
+		GroupID:  "app_event_12",
+		Reason:   reason,
+		Message:  message,
+	})
+	context.PublishEvents(eventRecords)
+
+	// check that the event has been published
+	select {
+	case event := <-recorder.Events:
+		log.Logger.Info(event)
+		if strings.Contains(event, reason) && strings.Contains(event, message) {
+			t.Fatal("event should not be published if the pod does not exist")
+		}
+	default:
+		break
+	}
+}
+
+func TestPublishEventsCorrectly(t *testing.T) {
+	conf.GetSchedulerConf().SetTestMode(true)
+	recorder, ok := events.GetRecorder().(*record.FakeRecorder)
+	if !ok {
+		t.Fatal("the EventRecorder is expected to be of type FakeRecorder")
+	}
 	context := initContextForTest()
 
 	// create fake application and task
@@ -502,22 +546,19 @@ func TestPublishEvents(t *testing.T) {
 	})
 	context.PublishEvents(eventRecords)
 
-	// iterate through the events, and check that the event has been published
-	found := false
-	for {
-		if found {
-			break
-		}
-		select {
-		case event := <-recorder.Events:
-			log.Logger.Info(event)
-			if strings.Contains(event, reason) && strings.Contains(event, message) {
-				found = true
-			}
-		default:
-			if !found {
-				t.Fatal("the event is supposed to be published")
+	// check that the event has been published
+	err := utils.WaitForCondition(func() bool {
+		for {
+			select {
+			case event := <-recorder.Events:
+				log.Logger.Info(event)
+				if strings.Contains(event, reason) && strings.Contains(event, message) {
+					return true
+				}
+			default:
+				return false
 			}
 		}
-	}
+	}, 5 * time.Millisecond, 20 * time.Millisecond)
+	assert.NilError(t, err, "event should have been emitted")
 }
