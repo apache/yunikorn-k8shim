@@ -606,6 +606,24 @@ func (ctx *Context) PublishEvents(eventRecords []*si.EventRecord) {
 						zap.String("taskID", taskID),
 						zap.String("event", record.String()))
 				}
+			case si.EventRecord_NODE:
+				nodeID := record.ObjectID
+				nodeInfo := ctx.schedulerCache.GetNode(nodeID)
+				if nodeInfo == nil {
+					log.Logger.Warn("node event is not published because nodeInfo is not found",
+						zap.String("nodeID", nodeID),
+						zap.String("event", record.String()))
+					continue
+				}
+				node := nodeInfo.Node()
+				if node == nil {
+					log.Logger.Warn("node event is not published because node is not found",
+						zap.String("nodeID", nodeID),
+						zap.String("event", record.String()))
+					continue
+				}
+				events.GetRecorder().Event(node,
+					v1.EventTypeNormal, record.Reason, record.Message)
 			default:
 				log.Logger.Warn("Unsupported event type, currently only supports to publish request event records",
 					zap.String("type", record.Type.String()))
