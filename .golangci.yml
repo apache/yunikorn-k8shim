@@ -24,6 +24,7 @@ run:
     - pkg/client/clientset
     - pkg/client/informers
     - pkg/client/listers
+  skip-files:
     - pkg/apis/yunikorn.apache.org/v1alpha1/zz_generated.deepcopy.go
 
 # settings of specific linters
