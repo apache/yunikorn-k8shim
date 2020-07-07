@@ -132,7 +132,7 @@ function delete_cluster() {
 function print_usage() {
     cat <<EOF
 Usage: $(basename "$0") -a <action> -n <kind-cluster-name> -v <kind-node-image-version>
-  <action>                     the action that needs to be executed, either "test" or "cleanup".
+  <action>                     the action that needs to be executed, must be either "test" or "cleanup".
   <kind-cluster-name>          the name of the K8s cluster that created by kind.
   <kind-node-image-version>    the kind node image used to provision the K8s cluster.
 
