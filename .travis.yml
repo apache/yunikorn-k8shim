@@ -60,6 +60,6 @@ jobs:
         - go get -v -t ./...
         - export PATH=$PATH:$HOME/gopath/bin
       script:
-        - ./scripts/create_k8s_cluster.sh -a "test" -n ${CLUSTER_NAME} -v ${KIND_NODE_IMAGE}
+        - ./scripts/run-e2e-tests.sh -a "test" -n ${CLUSTER_NAME} -v ${KIND_NODE_IMAGE}
       after_script:
-        - ./scripts/create_k8s_cluster.sh -a "cleanup" -n ${CLUSTER_NAME}
+        - ./scripts/run-e2e-tests.sh -a "cleanup" -n ${CLUSTER_NAME}

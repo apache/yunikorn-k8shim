@@ -77,7 +77,7 @@ function install_cluster() {
   # install KIND
   echo "step 4/6: installing kind"
   curl -Lo ./kind "https://kind.sigs.k8s.io/dl/v0.8.0/kind-linux-amd64" \
-    chmod +x ./kind && mv ./kind $(go env GOPATH)/bin
+    && chmod +x ./kind && mv ./kind $(go env GOPATH)/bin
   exit_on_error "install KIND failed"
   check_cmd "kind"
 
