@@ -97,8 +97,8 @@ function install_cluster() {
   kubectl create namespace yunikorn
   exit_on_error "failed to create yunikorn namespace"
   helm install yunikorn yunikorn/yunikorn --namespace yunikorn \
-    --set image.repository=local \
-    --set image.tag=latest
+    --set image.repository=local/yunikorn \
+    --set image.tag=scheduler-latest
   exit_on_error "failed to install yunikorn"
   kubectl wait --for=condition=available --timeout=300s deployment/yunikorn-scheduler -n yunikorn
   exit_on_error "failed to wait for yunikorn scheduler deployment being deployed"
@@ -176,7 +176,6 @@ check_opt "${action}"
 echo "kind cluster name: ${cluster_name}"
 check_opt "${cluster_name}"
 echo "kind node image version ${cluster_version}"
-check_opt "${cluster_version}"
 
 # this script only supports 2 actions
 #   1) test
