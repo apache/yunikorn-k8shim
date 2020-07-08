@@ -102,6 +102,13 @@ function install_cluster() {
     --set image.pullPolicy=IfNotPresent
   exit_on_error "failed to install yunikorn"
   kubectl wait --for=condition=available --timeout=300s deployment/yunikorn-scheduler -n yunikorn
+
+  ## TODO remove this
+  kubectl get pods -n yunikorn
+  kubectl get pods -o=jsonpath='{.items[?(@.metadata.labels.component=="yunikorn-scheduler")].status.containerStatuses}' -n yunikorn
+  docker images
+  exit 1
+
   exit_on_error "failed to wait for yunikorn scheduler deployment being deployed"
   kubectl wait --for=condition=ready --timeout=300s pod -l app=yunikorn -n yunikorn
   exit_on_error "failed to wait for yunikorn scheduler pods being deployed"
