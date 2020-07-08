@@ -98,7 +98,8 @@ function install_cluster() {
   exit_on_error "failed to create yunikorn namespace"
   helm install yunikorn yunikorn/yunikorn --namespace yunikorn \
     --set image.repository=local/yunikorn \
-    --set image.tag=scheduler-latest
+    --set image.tag=scheduler-latest \
+    --set image.pullPolicy=IfNotPresent
   exit_on_error "failed to install yunikorn"
   kubectl wait --for=condition=available --timeout=300s deployment/yunikorn-scheduler -n yunikorn
   exit_on_error "failed to wait for yunikorn scheduler deployment being deployed"
