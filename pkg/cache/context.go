@@ -295,27 +295,6 @@ func (ctx *Context) triggerReloadConfig() {
 	}
 }
 
-// update pod condition if the condition has changed, it returns a bool value to indicate
-// if the update is made or skipped, return an error if it is unable to make the change when it is needed to.
-func (ctx *Context) updatePodCondition(pod *v1.Pod, condition *v1.PodCondition) (bool, error) {
-	// only update the pod when pod condition changes
-	// minimize the overhead added to the api-server/etcd
-	if utils.PodUnderCondition(pod, condition) {
-		return false, nil
-	}
-
-	log.Logger.Info("updating pod condition",
-		zap.String("namespace", pod.Namespace),
-		zap.String("name", pod.Name),
-		zap.Any("podCondition", condition))
-	if podutil.UpdatePodCondition(&pod.Status, condition) {
-		_, err := ctx.apiProvider.GetAPIs().KubeClient.GetClientSet().CoreV1().Pods(pod.Namespace).UpdateStatus(pod)
-		return false, err
-	}
-
-	return true, nil
-}
-
 // evaluate given predicates based on current context
 func (ctx *Context) IsPodFitNode(name, node string, allocate bool) error {
 	// simply skip if predicates are not enabled
@@ -647,20 +626,30 @@ func (ctx *Context) PublishEvents(eventRecords []*si.EventRecord) {
 func (ctx *Context) HandleContainerStateUpdate(request *si.UpdateContainerSchedulingStateRequest) {
 	updatePodConditionFn := func(task *Task, podConditionReason, podConditionMsg, eventMessage string) {
 		if task.GetTaskState() == events.States().Task.Scheduling {
-			updated, err := task.context.updatePodCondition(task.pod,
-				&v1.PodCondition{
-					Type:    v1.PodScheduled,
-					Status:  v1.ConditionFalse,
-					Reason:  podConditionReason,
-					Message: podConditionMsg,
-				})
-			if err != nil {
-				log.Logger.Error("update pod condition failed",
-					zap.Error(err))
+			taskPodCondition := &v1.PodCondition{
+				Type:    v1.PodScheduled,
+				Status:  v1.ConditionFalse,
+				Reason:  podConditionReason,
+				Message: podConditionMsg,
 			}
-			if updated {
-				events.GetRecorder().Eventf(task.pod,
-					v1.EventTypeNormal, "PodUnschedulable", eventMessage, task.alias)
+			// only update the pod when pod condition changes
+			// minimize the overhead added to the api-server/etcd
+			if !utils.PodUnderCondition(task.pod, taskPodCondition) {
+				log.Logger.Info("updating pod condition",
+					zap.String("namespace", task.pod.Namespace),
+					zap.String("name", task.pod.Name),
+					zap.Any("podCondition", taskPodCondition))
+				// call api-server to do the pod condition update
+				if podutil.UpdatePodCondition(&task.pod.Status, taskPodCondition) {
+					if _, err := ctx.apiProvider.GetAPIs().KubeClient.GetClientSet().CoreV1().
+						Pods(task.pod.Namespace).UpdateStatus(task.pod); err != nil {
+						log.Logger.Error("update pod condition failed",
+							zap.Error(err))
+					} else {
+						events.GetRecorder().Eventf(task.pod,
+							v1.EventTypeNormal, "PodUnschedulable", eventMessage, task.alias)
+					}
+				}
 			}
 		}
 	}
