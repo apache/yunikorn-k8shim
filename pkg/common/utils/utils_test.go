@@ -21,6 +21,7 @@ package utils
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"gotest.tools/assert"
 	v1 "k8s.io/api/core/v1"
@@ -141,4 +142,130 @@ func TestGetNamespaceQuotaFromAnnotation(t *testing.T) {
 			assert.Assert(t, common.Equals(res, tc.expectedResource))
 		})
 	}
+}
+
+// nolint: funlen
+func TestPodUnderCondition(t *testing.T) {
+	// pod has no condition set
+	pod := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-pod",
+			Namespace: "test",
+			UID:       "test-pod-UID",
+		},
+		Spec: v1.PodSpec{},
+		Status: v1.PodStatus{
+			Phase: v1.PodPending,
+		},
+	}
+
+	condition := &v1.PodCondition{
+		Type:    v1.PodScheduled,
+		Status:  v1.ConditionFalse,
+		Reason:  "some-reason",
+		Message: "some-message",
+	}
+
+	assert.Equal(t, PodUnderCondition(pod, condition), false)
+
+	// pod has condition set and condition not changed
+	pod = &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-pod",
+			Namespace: "test",
+			UID:       "test-pod-UID",
+		},
+		Spec: v1.PodSpec{},
+		Status: v1.PodStatus{
+			Phase: v1.PodPending,
+			Conditions: []v1.PodCondition{
+				{
+					Type:    v1.PodScheduled,
+					Status:  v1.ConditionFalse,
+					Reason:  "some-reason",
+					Message: "some-message",
+				},
+			},
+		},
+	}
+
+	condition = &v1.PodCondition{
+		Type:    v1.PodScheduled,
+		Status:  v1.ConditionFalse,
+		Reason:  "some-reason",
+		Message: "some-message",
+	}
+
+	assert.Equal(t, PodUnderCondition(pod, condition), true)
+
+	// pod has condition set and condition has changed
+	pod = &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-pod",
+			Namespace: "test",
+			UID:       "test-pod-UID",
+		},
+		Spec: v1.PodSpec{},
+		Status: v1.PodStatus{
+			Phase: v1.PodPending,
+			Conditions: []v1.PodCondition{
+				{
+					Type:    v1.PodScheduled,
+					Status:  v1.ConditionFalse,
+					Reason:  "some-reason",
+					Message: "some-message",
+				},
+			},
+		},
+	}
+
+	condition = &v1.PodCondition{
+		Type:    v1.PodScheduled,
+		Status:  v1.ConditionFalse,
+		Reason:  "some-other-reason",
+		Message: "some-message",
+	}
+
+	assert.Equal(t, PodUnderCondition(pod, condition), false)
+
+	// pod has multiple condition set, one condition has changed
+	time0 := time.Now()
+	time1 := time0.Add(100 * time.Second)
+
+	pod = &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-pod",
+			Namespace: "test",
+			UID:       "test-pod-UID",
+		},
+		Spec: v1.PodSpec{},
+		Status: v1.PodStatus{
+			Phase: v1.PodPending,
+			Conditions: []v1.PodCondition{
+				{
+					Type:               v1.PodScheduled,
+					Status:             v1.ConditionFalse,
+					Reason:             "some-reason",
+					Message:            "some-message",
+					LastTransitionTime: metav1.Time{Time: time0},
+				},
+				{
+					Type:               v1.ContainersReady,
+					Status:             v1.ConditionFalse,
+					Reason:             "some-reason",
+					Message:            "some-message",
+					LastTransitionTime: metav1.Time{Time: time1},
+				},
+			},
+		},
+	}
+
+	condition = &v1.PodCondition{
+		Type:    v1.PodScheduled,
+		Status:  v1.ConditionTrue,
+		Reason:  "scheduled",
+		Message: "",
+	}
+
+	assert.Equal(t, PodUnderCondition(pod, condition), false)
 }
