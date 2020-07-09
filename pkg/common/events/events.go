@@ -42,6 +42,7 @@ const (
 	FailApplication     ApplicationEventType = "FailApplication"
 	KillApplication     ApplicationEventType = "KillApplication"
 	KilledApplication   ApplicationEventType = "KilledApplication"
+	AppStateChange      ApplicationEventType = "ApplicationStateChange"
 )
 
 type ApplicationEvent interface {

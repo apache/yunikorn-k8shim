@@ -232,6 +232,10 @@ func (app *Application) getTasks(state string) []*Task {
 	return taskList
 }
 
+func (app *Application) GetTags() map[string] string {
+	return app.tags
+}
+
 // only for testing
 // this is just used for testing, it is not supposed to change state like this
 func (app *Application) SetState(state string) {

@@ -44,3 +44,6 @@ const SparkLabelRoleDriver = "driver"
 
 // Configuration
 const DefaultConfigMapName = "yunikorn-configs"
+
+//Application crd
+const AppManagerHandlerName = "yunikorn-app"

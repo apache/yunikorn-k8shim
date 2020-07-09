@@ -19,6 +19,7 @@
 package appmgmt
 
 import (
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/controller/application"
 	"go.uber.org/zap"
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/general"
@@ -51,7 +52,9 @@ func NewAMService(amProtocol interfaces.ApplicationManagementProtocol,
 			// for general apps
 			general.NewManager(amProtocol, apiProvider),
 			// for spark operator - SparkApplication
-			sparkoperator.NewManager(amProtocol, apiProvider))
+			sparkoperator.NewManager(amProtocol, apiProvider),
+			// for application crds
+			application.NewAppManager(amProtocol))
 	}
 
 	return appManager
@@ -59,6 +62,15 @@ func NewAMService(amProtocol interfaces.ApplicationManagementProtocol,
 
 func (svc *AppManagementService) GetAllManagers() []interfaces.AppManager {
 	return svc.managers
+}
+
+func (svc *AppManagementService) GetManagerByName(name string) interfaces.AppManager {
+	for _, mgr := range svc.managers {
+		if mgr.Name() == name {
+			return mgr
+		}
+	}
+	return nil
 }
 
 func (svc *AppManagementService) register(managers ...interfaces.AppManager) {

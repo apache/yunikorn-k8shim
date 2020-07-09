@@ -26,6 +26,13 @@ import "github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 type SimpleApplicationEvent struct {
 	applicationID string
 	event         events.ApplicationEventType
+	State         string
+}
+
+func NewSimpleApplicationEventWithState(appID string, eventType events.ApplicationEventType, state string) SimpleApplicationEvent {
+	event := NewSimpleApplicationEvent(appID, eventType)
+	event.State = state
+	return event
 }
 
 func NewSimpleApplicationEvent(appID string, eventType events.ApplicationEventType) SimpleApplicationEvent {
