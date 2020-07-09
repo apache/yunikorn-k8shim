@@ -144,6 +144,7 @@ func TestGetNamespaceQuotaFromAnnotation(t *testing.T) {
 	}
 }
 
+// nolint: funlen
 func TestPodUnderCondition(t *testing.T) {
 	// pod has no condition set
 	pod := &v1.Pod{
@@ -229,7 +230,7 @@ func TestPodUnderCondition(t *testing.T) {
 
 	// pod has multiple condition set, one condition has changed
 	time0 := time.Now()
-	time1 := time0.Add(100*time.Second)
+	time1 := time0.Add(100 * time.Second)
 
 	pod = &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{

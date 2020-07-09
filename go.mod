@@ -22,7 +22,7 @@ go 1.12
 
 require (
 	github.com/GoogleCloudPlatform/spark-on-k8s-operator v0.0.0-20200212043150-3df703098970
-	github.com/apache/incubator-yunikorn-core v0.0.0-20200626205152-2def2a3ee0da
+	github.com/apache/incubator-yunikorn-core v0.0.0-20200709071036-4dbe9a337b83
 	github.com/apache/incubator-yunikorn-scheduler-interface v0.8.1-0.20200623235757-ceaac44952b8
 	github.com/coreos/etcd v3.3.20+incompatible // indirect
 	github.com/coreos/go-semver v0.3.0 // indirect
@@ -84,5 +84,3 @@ replace k8s.io/cloud-provider => k8s.io/cloud-provider v0.0.0-20191212015549-86a
 replace github.com/golang/lint => golang.org/x/lint v0.0.0-20200302205851-738671d3881b
 
 replace github.com/coreos/bbolt => go.etcd.io/bbolt v1.3.4
-
-replace github.com/apache/incubator-yunikorn-core => /Users/wyang/workspace/github/wyang/incubator-yunikorn-core

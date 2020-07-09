@@ -620,52 +620,67 @@ func (ctx *Context) PublishEvents(eventRecords []*si.EventRecord) {
 	}
 }
 
+// update task's pod condition when the condition has not yet updated,
+// return true if the update was done and false if the update is skipped due to any error, or a dup operation
+func (ctx *Context) updatePodCondition(task *Task, podCondition *v1.PodCondition) bool {
+	if task.GetTaskState() == events.States().Task.Scheduling {
+		// only update the pod when pod condition changes
+		// minimize the overhead added to the api-server/etcd
+		if !utils.PodUnderCondition(task.pod, podCondition) {
+			log.Logger.Info("updating pod condition",
+				zap.String("namespace", task.pod.Namespace),
+				zap.String("name", task.pod.Name),
+				zap.Any("podCondition", podCondition))
+			// call api-server to do the pod condition update
+			if podutil.UpdatePodCondition(&task.pod.Status, podCondition) {
+				_, err := ctx.apiProvider.GetAPIs().KubeClient.GetClientSet().CoreV1().
+					Pods(task.pod.Namespace).UpdateStatus(task.pod)
+				if err == nil {
+					return true
+				}
+				// only log the error here, no need to handle it if the update failed
+				log.Logger.Error("update pod condition failed",
+					zap.Error(err))
+			}
+		}
+	}
+	return false
+}
+
 // this function handles the pod scheduling failures with respect to the different causes,
 // and update the pod condition accordingly. the cluster autoscaler depends on the certain
 // pod condition in order to trigger auto-scaling.
 func (ctx *Context) HandleContainerStateUpdate(request *si.UpdateContainerSchedulingStateRequest) {
-	updatePodConditionFn := func(task *Task, podConditionReason, podConditionMsg, eventMessage string) {
-		if task.GetTaskState() == events.States().Task.Scheduling {
-			taskPodCondition := &v1.PodCondition{
-				Type:    v1.PodScheduled,
-				Status:  v1.ConditionFalse,
-				Reason:  podConditionReason,
-				Message: podConditionMsg,
-			}
-			// only update the pod when pod condition changes
-			// minimize the overhead added to the api-server/etcd
-			if !utils.PodUnderCondition(task.pod, taskPodCondition) {
-				log.Logger.Info("updating pod condition",
-					zap.String("namespace", task.pod.Namespace),
-					zap.String("name", task.pod.Name),
-					zap.Any("podCondition", taskPodCondition))
-				// call api-server to do the pod condition update
-				if podutil.UpdatePodCondition(&task.pod.Status, taskPodCondition) {
-					if _, err := ctx.apiProvider.GetAPIs().KubeClient.GetClientSet().CoreV1().
-						Pods(task.pod.Namespace).UpdateStatus(task.pod); err != nil {
-						log.Logger.Error("update pod condition failed",
-							zap.Error(err))
-					} else {
-						events.GetRecorder().Eventf(task.pod,
-							v1.EventTypeNormal, "PodUnschedulable", eventMessage, task.alias)
-					}
-				}
-			}
-		}
-	}
-
 	// the allocationKey equals to the taskID
 	if task, err := ctx.getTask(request.ApplicartionID, request.AllocationKey); err == nil {
 		switch request.State {
 		case si.UpdateContainerSchedulingStateRequest_SKIPPED:
 			// auto-scaler scans pods whose pod condition is PodScheduled=false && reason=Unschedulable
 			// if the pod is skipped because the queue quota has been exceed, we do not trigger the auto-scaling
-			updatePodConditionFn(task, "SchedulingSkipped", request.Reason,
-				"Task %s is skipped from scheduling because the queue quota has been exceed")
+			if ctx.updatePodCondition(task,
+				&v1.PodCondition{
+					Type:    v1.PodScheduled,
+					Status:  v1.ConditionFalse,
+					Reason:  "SchedulingSkipped",
+					Message: request.Reason,
+				}) {
+				events.GetRecorder().Eventf(task.pod,
+					v1.EventTypeNormal, "PodUnschedulable",
+					"Task %s is skipped from scheduling because the queue quota has been exceed", task.alias)
+			}
 		case si.UpdateContainerSchedulingStateRequest_FAILED:
 			// set pod condition to Unschedulable in order to trigger auto-scaling
-			updatePodConditionFn(task, v1.PodReasonUnschedulable, request.Reason,
-				"Task %s is pending for the requested resources become available")
+			if ctx.updatePodCondition(task,
+				&v1.PodCondition{
+					Type:    v1.PodScheduled,
+					Status:  v1.ConditionFalse,
+					Reason:  v1.PodReasonUnschedulable,
+					Message: request.Reason,
+				}) {
+				events.GetRecorder().Eventf(task.pod,
+					v1.EventTypeNormal, "PodUnschedulable",
+					"Task %s is pending for the requested resources become available", task.alias)
+			}
 		default:
 			log.Logger.Warn("no handler for container scheduling state",
 				zap.String("state", request.State.String()))
