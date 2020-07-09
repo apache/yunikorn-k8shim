@@ -16,5 +16,5 @@
 # limitations under the License.
 
 docker_images:
-  yunikorn-scheduler-k8s: __registry__/yunikorn:scheduler-
-  yunikorn-scheduler-admission-controller: __registry__/yunikorn:admission-
+  yunikorn-scheduler-k8s: __registry__/yunikorn-scheduler
+  yunikorn-scheduler-admission-controller: __registry__/yunikorn-admission
