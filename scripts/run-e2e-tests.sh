@@ -96,8 +96,8 @@ function install_cluster() {
   exit_on_error "add yunikorn helm repo failed"
 
   # load latest yunikorn docker images to kind
-  kind load docker-image ${REGISTRY}/yunikorn:scheduler-${VERSION} --name ${k8s_cluster_name}
-  kind load docker-image ${REGISTRY}/yunikorn:admission-${VERSION} --name ${k8s_cluster_name}
+  kind load docker-image local/yunikorn:scheduler-latest --name ${k8s_cluster_name}
+  kind load docker-image local/yunikorn:admission-latest --name ${k8s_cluster_name}
 
   kubectl create namespace yunikorn
   exit_on_error "failed to create yunikorn namespace"
