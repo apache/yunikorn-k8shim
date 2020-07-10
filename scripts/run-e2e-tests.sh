@@ -55,14 +55,19 @@ function install_cluster() {
   k8s_cluster_name=$1
   kind_node_image=$2
 
-  echo "step 1/5: installing helm-v3"
+  # build docker images from latest code, so that we can install yunikorn with these latest images
+  echo "step 1/6: building docker images from latest code"
+  make image REGISTRY=local VERSION=latest
+  exit_on_error "build docker images failed"
+
+  echo "step 2/6: installing helm-v3"
   check_cmd "curl"
   curl -L https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash
   exit_on_error "install helm-v3 failed"
   check_cmd "helm"
 
   # install kubectl
-  echo "step 2/5: installing kubectl"
+  echo "step 3/6: installing kubectl"
   stable_release=$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)
   exit_on_error "unable to retrieve latest stable version of kubectl"
   curl -LO https://storage.googleapis.com/kubernetes-release/release/${stable_release}/bin/linux/amd64/kubectl \
@@ -70,14 +75,14 @@ function install_cluster() {
   exit_on_error "install kubectl failed"
 
   # install KIND
-  echo "step 3/5: installing kind"
+  echo "step 4/6: installing kind"
   curl -Lo ./kind "https://kind.sigs.k8s.io/dl/v0.8.0/kind-linux-amd64" \
     && chmod +x ./kind && mv ./kind $(go env GOPATH)/bin
   exit_on_error "install KIND failed"
   check_cmd "kind"
 
   # create K8s cluster
-  echo "step 4/5: installing K8s cluster using kind"
+  echo "step 5/6: installing K8s cluster using kind"
   kind create cluster --name ${k8s_cluster_name} --image ${kind_node_image}
   exit_on_error "instal K8s cluster failed"
   kubectl cluster-info --context kind-${k8s_cluster_name}
@@ -86,15 +91,20 @@ function install_cluster() {
   kubectl version
 
   # install yunikorn
-  echo "step 5/5: installing yunikorn scheduler"
+  echo "step 6/6: installing yunikorn scheduler"
   helm repo add yunikorn https://apache.github.io/incubator-yunikorn-release && helm repo update
   exit_on_error "add yunikorn helm repo failed"
+
+  # load latest yunikorn docker images to kind
+  kind load docker-image ${REGISTRY}/yunikorn:scheduler-${VERSION} --name ${k8s_cluster_name}
+  kind load docker-image ${REGISTRY}/yunikorn:admission-${VERSION} --name ${k8s_cluster_name}
+
   kubectl create namespace yunikorn
   exit_on_error "failed to create yunikorn namespace"
   helm install yunikorn yunikorn/yunikorn --namespace yunikorn \
-    --set image.repository=apache/yunikorn \
+    --set image.repository=local/yunikorn \
     --set image.tag=scheduler-latest \
-    --set image.pullPolicy=Always
+    --set image.pullPolicy=Never
   exit_on_error "failed to install yunikorn"
   kubectl wait --for=condition=available --timeout=300s deployment/yunikorn-scheduler -n yunikorn
 
