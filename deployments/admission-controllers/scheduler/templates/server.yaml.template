@@ -31,7 +31,7 @@ spec:
       containers:
         - name: yunikorn-admission-controller-webhook
           image: ${REGISTRY}/yunikorn:admission-${VERSION}
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           ports:
           - containerPort: 8443
             name: webhook-api
