@@ -20,5 +20,5 @@ kind: Application
 metadata:
   name: example
 spec:
-  queue: default
+  queue: root.default
   maxPendingSeconds: 10

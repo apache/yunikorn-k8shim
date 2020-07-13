@@ -54,8 +54,10 @@ spec:
               type: integer
             queue:
               type: string
+              pattern: '^[a-zA-Z0-9_-]{1,64}$'
             maxPendingSeconds:
               type: integer
+              minimum: 1
         status:
           type: object
           properties:
