@@ -119,42 +119,69 @@ func TestGetApplication(t *testing.T) {
 }
 
 func TestRemoveApplication(t *testing.T) {
-	// add 2 applications
+	// add 3 applications
 	context := initContextForTest()
-	context.AddApplication(&interfaces.AddApplicationRequest{
-		Metadata: interfaces.ApplicationMetadata{
-			ApplicationID: "app00001",
-			QueueName:     "root.a",
-			User:          "test-user",
-			Tags:          nil,
+	app1 := NewApplication("app00001", "root.a", "testuser", map[string]string{}, newMockSchedulerAPI())
+	app2 := NewApplication("app00002", "root.b", "testuser", map[string]string{}, newMockSchedulerAPI())
+	app3 := NewApplication("app00003", "root.c", "testuser", map[string]string{}, newMockSchedulerAPI())
+	context.applications["app00001"] = app1
+	context.applications["app00002"] = app2
+	context.applications["app00003"] = app3
+	pod1 := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
 		},
-		Recovery: false,
-	})
-	context.AddApplication(&interfaces.AddApplicationRequest{
-		Metadata: interfaces.ApplicationMetadata{
-			ApplicationID: "app00002",
-			QueueName:     "root.b",
-			User:          "test-user",
-			Tags:          nil,
+		ObjectMeta: apis.ObjectMeta{
+			Name: "remove-test-00001",
+			UID:  "UID-00001",
 		},
-		Recovery: false,
-	})
+	}
+	pod2 := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "remove-test-00002",
+			UID:  "UID-00002",
+		},
+	}
+	// New task to application 1
+	// set task state in Pending (non-terminated)
+	task1 := NewTask("task01", app1, context, pod1)
+	app1.taskMap["task01"] = task1
+	task1.sm.SetState(events.States().Task.Pending)
+	//New task to application 2
+	// set task state in Failed (terminated)
+	task2 := NewTask("task02", app2, context, pod2)
+	app2.taskMap["task02"] = task2
+	task2.sm.SetState(events.States().Task.Failed)
 
-	// remove application
-	// this should be successful
+	// remove application 1 which have non-terminated task
+	// this should fail
+	assert.Equal(t, len(context.applications), 3)
 	err := context.RemoveApplication("app00001")
-	assert.Assert(t, err == nil)
+	assert.Assert(t, err != nil)
 
 	app := context.GetApplication("app00001")
+	assert.Assert(t, app != nil)
+
+	// remove application 2 which have terminated task
+	// this should be successful
+	err = context.RemoveApplication("app00002")
+	assert.Assert(t, err == nil)
+
+	app = context.GetApplication("app00002")
 	assert.Assert(t, app == nil)
 
-	// try remove again
-	// this should fail
-	err = context.RemoveApplication("app00001")
+	//try remove again
+	//this should fail
+	err = context.RemoveApplication("app00002")
 	assert.Assert(t, err != nil)
 
 	// make sure the other app is not affected
-	app = context.GetApplication("app00002")
+	app = context.GetApplication("app00003")
 	assert.Assert(t, app != nil)
 }
 

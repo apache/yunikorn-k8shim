@@ -25,7 +25,7 @@ import (
 
 	"go.uber.org/zap"
 	"gotest.tools/assert"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 
 	"github.com/apache/incubator-yunikorn-core/pkg/api"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt"
@@ -133,6 +133,9 @@ partitions:
 	cluster.waitAndAssertApplicationState(t, "app0001", events.States().Application.Failed)
 
 	// remove the application
+	// remove task first or removeApplication will fail
+	err = cluster.context.RemoveTask("app0001", "task0001")
+	assert.Assert(t, err == nil)
 	err = cluster.removeApplication("app0001")
 	assert.Assert(t, err == nil)
 

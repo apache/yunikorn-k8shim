@@ -24,7 +24,7 @@ import (
 	"sync"
 
 	"go.uber.org/zap"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/cache"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
 
@@ -499,10 +499,49 @@ func (ctx *Context) GetApplication(appID string) interfaces.ManagedApp {
 func (ctx *Context) RemoveApplication(appID string) error {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
-	if _, exist := ctx.applications[appID]; exist {
+	if app, exist := ctx.applications[appID]; exist {
+		var states = events.States().Task
+		for _, task := range app.taskMap {
+			switch taskState := task.GetTaskState(); taskState {
+			case states.New:
+				log.Logger.Warn("Can't remove application beacuse task states is New",
+					zap.String("taskID", task.GetTaskID()))
+				return fmt.Errorf("application %s still has task in non-terminated", appID)
+
+			case states.Pending:
+				log.Logger.Warn("Can't remove application beacuse task states is Pending",
+					zap.String("taskID", task.GetTaskID()))
+				return fmt.Errorf("application %s still has task in non-terminated", appID)
+
+			case states.Scheduling:
+				log.Logger.Warn("Can't remove application beacuse task states is Scheduling",
+					zap.String("taskID", task.GetTaskID()))
+				return fmt.Errorf("application %s still has task in non-terminated", appID)
+
+			case states.Allocated:
+				log.Logger.Warn("Can't remove application beacuse task states is Allocated",
+					zap.String("taskID", task.GetTaskID()))
+				return fmt.Errorf("application %s still has task in non-terminated", appID)
+
+			case states.Bound:
+				log.Logger.Warn("Can't remove application beacuse task states is Bound",
+					zap.String("taskID", task.GetTaskID()))
+				return fmt.Errorf("application %s still has task in non-terminated", appID)
+
+			case states.Killing:
+				log.Logger.Warn("Can't remove application beacuse task states is Killing",
+					zap.String("taskID", task.GetTaskID()))
+				return fmt.Errorf("application %s still has task in non-terminated", appID)
+			}
+		}
 		delete(ctx.applications, appID)
 		log.Logger.Info("app removed",
 			zap.String("appID", appID))
+		// send the update request to scheduler core
+		rr := common.CreateUpdateRequestForRemoveApplication(app.applicationID, app.partition)
+		if err := ctx.apiProvider.GetAPIs().SchedulerAPI.Update(&rr); err != nil {
+			log.Logger.Debug("failed to send remove application request to core", zap.Error(err))
+		}
 		return nil
 	} else {
 		return fmt.Errorf("application %s is not found in the context", appID)
