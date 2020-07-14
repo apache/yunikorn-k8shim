@@ -131,6 +131,10 @@ create_resources() {
     kubectl create -f ${admission}.yaml
   done
 
+  # at this point, we should have the webhook installed and started
+  # cleanup the tmp files
+  rm -rf ${KEY_DIR}
+
   echo "The webhook server has been deployed and configured!"
   return 0
 }
