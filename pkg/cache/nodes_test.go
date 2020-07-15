@@ -391,17 +391,15 @@ func TestDeleteNode(t *testing.T) {
 	nodes.addNode(&node)
 	nodes.deleteNode(&node)
 
-	err := utils.WaitForCondition(func() bool {
+	assert.NilError(t, utils.WaitForCondition(func() bool {
 		return api.GetRegisterCount() == 0
-	}, 1*time.Second, 5*time.Second)
-	assert.NilError(t, err)
+	}, 1*time.Second, 5*time.Second))
 
 	// update should be called twice
 	// one for add, the other one for delete
-	err = utils.WaitForCondition(func() bool {
+	assert.NilError(t, utils.WaitForCondition(func() bool {
 		return api.GetUpdateCount() == 2
-	}, 1*time.Second, 5*time.Second)
-	assert.NilError(t, err)
+	}, 1*time.Second, 5*time.Second))
 }
 
 // A wrapper around the scheduler cache which does not initialise the lister and volumebinder
