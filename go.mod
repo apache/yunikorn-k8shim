@@ -24,7 +24,6 @@ require (
 	github.com/GoogleCloudPlatform/spark-on-k8s-operator v0.0.0-20200212043150-3df703098970
 	github.com/apache/incubator-yunikorn-core v0.0.0-20200714081538-699243c7ecd8
 	github.com/apache/incubator-yunikorn-scheduler-interface v0.8.1-0.20200623235757-ceaac44952b8
-	github.com/coreos/bbolt v0.0.0-00010101000000-000000000000 // indirect
 	github.com/coreos/etcd v3.3.20+incompatible // indirect
 	github.com/coreos/go-semver v0.3.0 // indirect
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect
@@ -46,6 +45,7 @@ require (
 	github.com/jonboulle/clockwork v0.1.0 // indirect
 	github.com/konsorten/go-windows-terminal-sequences v1.0.2 // indirect
 	github.com/looplab/fsm v0.1.0
+	github.com/mitchellh/go-homedir v1.1.0
 	github.com/onsi/ginkgo v1.8.0
 	github.com/onsi/gomega v1.5.0
 	github.com/opencontainers/go-digest v1.0.0-rc1 // indirect
@@ -71,6 +71,7 @@ require (
 	k8s.io/apiserver v0.0.0-20191212015046-43d571094e6f // indirect
 	k8s.io/client-go v11.0.1-0.20191029005444-8e4128053008+incompatible
 	k8s.io/cloud-provider v0.0.0-00010101000000-000000000000 // indirect
+	k8s.io/code-generator v0.0.0-20190311093542-50b561225d70 // indirect
 	k8s.io/csi-translation-lib v0.0.0-20191212015623-92af21758231 // indirect
 	k8s.io/klog v1.0.0
 	k8s.io/kube-openapi v0.0.0-20200204173128-addea2498afe // indirect
