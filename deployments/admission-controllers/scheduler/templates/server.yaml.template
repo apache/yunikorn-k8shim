@@ -44,6 +44,7 @@ spec:
             value: ${POLICY_GROUP}
           - name: SCHEDULER_SERVICE_ADDRESS
             value: ${SCHEDULER_SERVICE_ADDRESS}
+      dnsPolicy: ClusterFirstWithHostNet
       volumes:
       - name: webhook-tls-certs
         secret:
