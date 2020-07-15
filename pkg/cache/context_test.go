@@ -163,6 +163,7 @@ func TestRemoveApplication(t *testing.T) {
 	assert.Equal(t, len(context.applications), 3)
 	err := context.RemoveApplication("app00001")
 	assert.Assert(t, err != nil)
+	assert.ErrorContains(t, err, "application app00001 still has task in non-terminated task")
 
 	app := context.GetApplication("app00001")
 	assert.Assert(t, app != nil)
@@ -179,6 +180,7 @@ func TestRemoveApplication(t *testing.T) {
 	//this should fail
 	err = context.RemoveApplication("app00002")
 	assert.Assert(t, err != nil)
+	assert.ErrorContains(t, err, "application app00002 is not found in the context")
 
 	// make sure the other app is not affected
 	app = context.GetApplication("app00003")
