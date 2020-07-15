@@ -153,9 +153,19 @@ func (ctx *Context) updateNode(oldObj, newObj interface{}) {
 }
 
 func (ctx *Context) deleteNode(obj interface{}) {
-	node, err := convertToNode(obj)
-	if err != nil {
-		log.Logger.Error("node conversion failed", zap.Error(err))
+	var node *v1.Node
+	switch t := obj.(type) {
+	case *v1.Node:
+		node = t
+	case cache.DeletedFinalStateUnknown:
+		var ok bool
+		node, ok = t.Obj.(*v1.Node)
+		if !ok {
+			log.Logger.Error("cannot convert to *v1.Node", zap.Any("object", t.Obj))
+			return
+		}
+	default:
+		log.Logger.Error("cannot convert to *v1.Node", zap.Any("object", t))
 		return
 	}
 

@@ -338,31 +338,6 @@ func TestUpdateWithoutNodeAdded(t *testing.T) {
 
 func TestDeleteNode(t *testing.T) {
 	api := test.NewSchedulerAPIMock()
-
-	// register fn doesn't nothing than checking input
-	inputCheckerFn := func(request *si.UpdateRequest) error {
-		if request.UpdatedNodes == nil || len(request.UpdatedNodes) != 1 {
-			t.Fatalf("unexpected updated nodes info from the request")
-		}
-
-		info := request.UpdatedNodes[0]
-		if info.NodeID != "host0001" {
-			t.Fatalf("unexpected node name %s", info.NodeID)
-		}
-
-		if memory := info.SchedulableResource.Resources[common.Memory].Value; memory != int64(1024) {
-			t.Fatalf("unexpected node memory %d", memory)
-		}
-
-		if cpu := info.SchedulableResource.Resources[common.CPU].Value; cpu != int64(10000) {
-			t.Fatalf("unexpected node CPU %d", cpu)
-		}
-
-		return nil
-	}
-
-	api.UpdateFunction(inputCheckerFn)
-
 	nodes := newSchedulerNodes(api, NewTestSchedulerCache())
 	dispatcher.RegisterEventHandler(dispatcher.EventTypeNode, nodes.schedulerNodeEventHandler())
 	dispatcher.Start()
@@ -388,20 +363,79 @@ func TestDeleteNode(t *testing.T) {
 		return nil
 	}
 	api.UpdateFunction(ignoreNodeUpdateFn)
-	nodes.addNode(&node)
-	nodes.deleteNode(&node)
 
+	// add node to the cache
+	nodes.addNode(&node)
 	err := utils.WaitForCondition(func() bool {
 		return api.GetRegisterCount() == 0
 	}, 1*time.Second, 5*time.Second)
 	assert.NilError(t, err)
+	err = utils.WaitForCondition(func() bool {
+		return api.GetUpdateCount() == 1
+	}, 100*time.Millisecond, 1000*time.Millisecond)
+	assert.NilError(t, err)
 
-	// update should be called twice
-	// one for add, the other one for delete
+	// delete node should trigger another update
+	nodes.deleteNode(&node)
 	err = utils.WaitForCondition(func() bool {
 		return api.GetUpdateCount() == 2
-	}, 1*time.Second, 5*time.Second)
+	}, 100*time.Millisecond, 1000*time.Millisecond)
 	assert.NilError(t, err)
+
+	// ensure the node is removed from cache
+	assert.Assert(t, nodes.getNode("host0001") == nil)
+
+	// add the node back, hostName is same but UID is different
+	var nodeNew = v1.Node{
+		ObjectMeta: apis.ObjectMeta{
+			Name:      "host0001",
+			Namespace: "default",
+			UID:       "uid_002",
+		},
+		Status: v1.NodeStatus{
+			Allocatable: resourceList,
+		},
+	}
+	nodes.addNode(&nodeNew)
+	err = utils.WaitForCondition(func() bool {
+		return api.GetUpdateCount() == 3
+	}, 100*time.Millisecond, 1000*time.Millisecond)
+
+	assert.Assert(t, nodes.getNode("host0001") != nil)
+	assert.Equal(t, nodes.getNode("host0001").name, "host0001")
+	assert.Equal(t, nodes.getNode("host0001").uid, "uid_002")
+
+	// remove the node again, and then try update
+	nodes.deleteNode(&nodeNew)
+	err = utils.WaitForCondition(func() bool {
+		return api.GetUpdateCount() == 4
+	}, 100*time.Millisecond, 1000*time.Millisecond)
+	assert.NilError(t, err)
+
+	// instead of a add, do a update
+	// this could happen when a node is removed and added back,
+	// or a new node is created with the same hostname
+	var nodeNew2 = v1.Node{
+		ObjectMeta: apis.ObjectMeta{
+			Name:      "host0001",
+			Namespace: "default",
+			UID:       "uid_003",
+		},
+		Status: v1.NodeStatus{
+			Allocatable: resourceList,
+		},
+	}
+
+	// update the node, this will trigger a update to add the node
+	nodes.updateNode(&nodeNew, &nodeNew2)
+	err = utils.WaitForCondition(func() bool {
+		return api.GetUpdateCount() == 5
+	}, 100*time.Millisecond, 1000*time.Millisecond)
+	assert.NilError(t, err)
+
+	assert.Assert(t, nodes.getNode("host0001") != nil)
+	assert.Equal(t, nodes.getNode("host0001").name, "host0001")
+	assert.Equal(t, nodes.getNode("host0001").uid, "uid_003")
 }
 
 // A wrapper around the scheduler cache which does not initialise the lister and volumebinder
