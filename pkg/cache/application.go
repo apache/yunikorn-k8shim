@@ -234,18 +234,14 @@ func (app *Application) getTasks(state string) []*Task {
 
 func (app *Application) getNonTerminatedTaskAlias() []string {
 	var nonTerminatedTaskAlias []string
-	terminatedStates := events.States().Task.Terminated
-	terminated := false
+re:
 	for _, task := range app.taskMap {
-		for _, states := range terminatedStates {
+		for _, states := range events.States().Task.Terminated {
 			if states == task.GetTaskState() {
-				terminated = true
+				continue re
 			}
 		}
-		if !terminated {
-			nonTerminatedTaskAlias = append(nonTerminatedTaskAlias, task.alias)
-		}
-		terminated = false
+		nonTerminatedTaskAlias = append(nonTerminatedTaskAlias, task.alias)
 	}
 	return nonTerminatedTaskAlias
 }
