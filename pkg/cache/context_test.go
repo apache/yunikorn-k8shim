@@ -163,7 +163,7 @@ func TestRemoveApplication(t *testing.T) {
 	assert.Equal(t, len(context.applications), 3)
 	err := context.RemoveApplication("app00001")
 	assert.Assert(t, err != nil)
-	assert.ErrorContains(t, err, "application app00001 still has task in non-terminated task")
+	assert.ErrorContains(t, err, "application app00001 because it still has task in non-terminated task, tasks: /remove-test-00001")
 
 	app := context.GetApplication("app00001")
 	assert.Assert(t, app != nil)

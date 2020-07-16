@@ -21,6 +21,7 @@ package cache
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 
 	"go.uber.org/zap"
@@ -500,20 +501,11 @@ func (ctx *Context) RemoveApplication(appID string) error {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
 	if app, exist := ctx.applications[appID]; exist {
-		var terminatedStates = events.States().Task.Terminated
-		terminatedNum := 0
-		taskmessage := "Task: "
-		for _, task := range app.taskMap {
-			for _, states := range terminatedStates {
-				if states == task.GetTaskState() {
-					terminatedNum++
-				}
-			}
-			taskmessage = taskmessage + task.alias + ", "
-		}
+		//get the non-terminated task alias
+		nonTerminatedTaskAlias := app.getNonTerminatedTaskAlias()
 		// check there are any non-terminated task or not
-		if terminatedNum < len(app.taskMap) {
-			return fmt.Errorf("application %s still has task in non-terminated task, %s", appID, taskmessage)
+		if len(nonTerminatedTaskAlias) > 0 {
+			return fmt.Errorf("failed to remove application %s because it still has task in non-terminated task, tasks: %s", appID, strings.Join(nonTerminatedTaskAlias, ","))
 		}
 		// send the update request to scheduler core
 		rr := common.CreateUpdateRequestForRemoveApplication(app.applicationID, app.partition)
