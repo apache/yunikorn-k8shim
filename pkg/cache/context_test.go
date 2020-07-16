@@ -121,12 +121,15 @@ func TestGetApplication(t *testing.T) {
 func TestRemoveApplication(t *testing.T) {
 	// add 3 applications
 	context := initContextForTest()
-	app1 := NewApplication("app00001", "root.a", "testuser", map[string]string{}, newMockSchedulerAPI())
-	app2 := NewApplication("app00002", "root.b", "testuser", map[string]string{}, newMockSchedulerAPI())
-	app3 := NewApplication("app00003", "root.c", "testuser", map[string]string{}, newMockSchedulerAPI())
-	context.applications["app00001"] = app1
-	context.applications["app00002"] = app2
-	context.applications["app00003"] = app3
+	appID1 := "app00001"
+	appID2 := "app00002"
+	appID3 := "app00003"
+	app1 := NewApplication(appID1, "root.a", "testuser", map[string]string{}, newMockSchedulerAPI())
+	app2 := NewApplication(appID2, "root.b", "testuser", map[string]string{}, newMockSchedulerAPI())
+	app3 := NewApplication(appID3, "root.c", "testuser", map[string]string{}, newMockSchedulerAPI())
+	context.applications[appID1] = app1
+	context.applications[appID2] = app2
+	context.applications[appID3] = app3
 	pod1 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
@@ -161,29 +164,29 @@ func TestRemoveApplication(t *testing.T) {
 	// remove application 1 which have non-terminated task
 	// this should fail
 	assert.Equal(t, len(context.applications), 3)
-	err := context.RemoveApplication("app00001")
+	err := context.RemoveApplication(appID1)
 	assert.Assert(t, err != nil)
 	assert.ErrorContains(t, err, "application app00001 because it still has task in non-terminated task, tasks: /remove-test-00001")
 
-	app := context.GetApplication("app00001")
+	app := context.GetApplication(appID1)
 	assert.Assert(t, app != nil)
 
 	// remove application 2 which have terminated task
 	// this should be successful
-	err = context.RemoveApplication("app00002")
+	err = context.RemoveApplication(appID2)
 	assert.Assert(t, err == nil)
 
-	app = context.GetApplication("app00002")
+	app = context.GetApplication(appID2)
 	assert.Assert(t, app == nil)
 
 	//try remove again
 	//this should fail
-	err = context.RemoveApplication("app00002")
+	err = context.RemoveApplication(appID2)
 	assert.Assert(t, err != nil)
 	assert.ErrorContains(t, err, "application app00002 is not found in the context")
 
 	// make sure the other app is not affected
-	app = context.GetApplication("app00003")
+	app = context.GetApplication(appID3)
 	assert.Assert(t, app != nil)
 }
 

@@ -225,8 +225,9 @@ func assertAppState(t *testing.T, app *Application, expectedState string, durati
 
 func TestGetNonTerminatedTaskAlias(t *testing.T) {
 	context := initContextForTest()
-	app := NewApplication("app00001", "root.a", "testuser", map[string]string{}, newMockSchedulerAPI())
-	context.applications["app00001"] = app
+	appID := "app00001"
+	app := NewApplication(appID, "root.a", "testuser", map[string]string{}, newMockSchedulerAPI())
+	context.applications[appID] = app
 	// app doesn't have any task
 	res := app.getNonTerminatedTaskAlias()
 	assert.Equal(t, len(res), 0)
@@ -252,11 +253,13 @@ func TestGetNonTerminatedTaskAlias(t *testing.T) {
 		},
 	}
 	// set two task to non-terminated states
-	task1 := NewTask("task01", app, context, pod1)
-	app.taskMap["task01"] = task1
+	taskID1 := "task01"
+	task1 := NewTask(taskID1, app, context, pod1)
+	app.taskMap[taskID1] = task1
 	task1.sm.SetState(events.States().Task.Pending)
-	task2 := NewTask("task02", app, context, pod2)
-	app.taskMap["task02"] = task2
+	taskID2 := "task02"
+	task2 := NewTask(taskID2, app, context, pod2)
+	app.taskMap[taskID2] = task2
 	task2.sm.SetState(events.States().Task.Pending)
 	// check the tasks both in non-terminated states
 	// res should return both task's alias
