@@ -396,3 +396,30 @@ func TestSortTasks(t *testing.T) {
 	assert.Equal(t, tasks[1], task1)
 	assert.Equal(t, tasks[2], task2)
 }
+
+func TestIsTerminated(t *testing.T) {
+	mockedContext := initContextForTest()
+	mockedSchedulerAPI := newMockSchedulerAPI()
+	app := NewApplication("app01", "root.default",
+		"bob", map[string]string{}, mockedSchedulerAPI)
+	pod := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "pod-01",
+			UID:  "UID-01",
+		},
+	}
+	task := NewTask("task01", app, mockedContext, pod)
+	//set task states to non-terminated
+	task.sm.SetState(events.States().Task.Pending)
+	res := task.isTerminated()
+	assert.Equal(t, res, false)
+
+	//set task states to terminated
+	task.sm.SetState(events.States().Task.Failed)
+	res = task.isTerminated()
+	assert.Equal(t, res, true)
+}

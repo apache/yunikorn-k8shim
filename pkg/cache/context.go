@@ -21,10 +21,11 @@ package cache
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 
 	"go.uber.org/zap"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/cache"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
 
@@ -509,10 +510,22 @@ func (ctx *Context) GetApplication(appID string) interfaces.ManagedApp {
 func (ctx *Context) RemoveApplication(appID string) error {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
-	if _, exist := ctx.applications[appID]; exist {
+	if app, exist := ctx.applications[appID]; exist {
+		//get the non-terminated task alias
+		nonTerminatedTaskAlias := app.getNonTerminatedTaskAlias()
+		// check there are any non-terminated task or not
+		if len(nonTerminatedTaskAlias) > 0 {
+			return fmt.Errorf("failed to remove application %s because it still has task in non-terminated task, tasks: %s", appID, strings.Join(nonTerminatedTaskAlias, ","))
+		}
+		// send the update request to scheduler core
+		rr := common.CreateUpdateRequestForRemoveApplication(app.applicationID, app.partition)
+		if err := ctx.apiProvider.GetAPIs().SchedulerAPI.Update(&rr); err != nil {
+			log.Logger.Error("failed to send remove application request to core", zap.Error(err))
+		}
 		delete(ctx.applications, appID)
 		log.Logger.Info("app removed",
 			zap.String("appID", appID))
+
 		return nil
 	} else {
 		return fmt.Errorf("application %s is not found in the context", appID)

@@ -173,6 +173,15 @@ func (task *Task) getTaskAllocationUUID() string {
 	return task.allocationUUID
 }
 
+func (task *Task) isTerminated() bool {
+	for _, states := range events.States().Task.Terminated {
+		if task.GetTaskState() == states {
+			return true
+		}
+	}
+	return false
+}
+
 func (task *Task) setAllocated(nodeName, allocationUUID string) {
 	task.lock.Lock()
 	defer task.lock.Unlock()

@@ -36,7 +36,7 @@ func createTagsForTask(pod *v1.Pod) map[string]string {
 	// add Pod labels to Task tags
 	labelPrefix := common.DomainK8s + common.GroupLabel
 	for k, v := range pod.Labels {
-		tags[labelPrefix + k] = v
+		tags[labelPrefix+k] = v
 	}
 
 	return tags
@@ -48,7 +48,7 @@ func CreateUpdateRequestForTask(appID, taskID string, resource *si.Resource, pod
 		ResourceAsk:    resource,
 		ApplicationID:  appID,
 		MaxAllocations: 1,
-		Tags:			createTagsForTask(pod),
+		Tags:           createTagsForTask(pod),
 	}
 
 	result := si.UpdateRequest{
@@ -160,5 +160,19 @@ func CreateUpdateRequestForDeleteNode(node Node) si.UpdateRequest {
 		UpdatedNodes: deletedNodes,
 		RmID:         conf.GetSchedulerConf().ClusterID,
 	}
+	return request
+}
+
+func CreateUpdateRequestForRemoveApplication(appID, partition string) si.UpdateRequest {
+	removeApp := make([]*si.RemoveApplicationRequest, 0)
+	removeApp = append(removeApp, &si.RemoveApplicationRequest{
+		ApplicationID: appID,
+		PartitionName: partition,
+	})
+	request := si.UpdateRequest{
+		RemoveApplications: removeApp,
+		RmID:               conf.GetSchedulerConf().ClusterID,
+	}
+
 	return request
 }
