@@ -24,7 +24,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
 	"gotest.tools/assert"
 	v1 "k8s.io/api/core/v1"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -603,16 +602,20 @@ func TestPublishEventsWithNotExistingAsk(t *testing.T) {
 	})
 	context.PublishEvents(eventRecords)
 
-	// check that the event has been published
-	select {
-	case event := <-recorder.Events:
-		log.Logger.Info(event)
-		if strings.Contains(event, reason) && strings.Contains(event, message) {
-			t.Fatal("event should not be published if the pod does not exist")
+	// check that the event has not been published
+	err := utils.WaitForCondition(func() bool {
+		for {
+			select {
+			case event := <-recorder.Events:
+				if strings.Contains(event, reason) && strings.Contains(event, message) {
+					return false
+				}
+			default:
+				return true
+			}
 		}
-	default:
-		break
-	}
+	}, 5 * time.Millisecond, 20 * time.Millisecond)
+	assert.NilError(t, err, "event should not have been published if the pod does not exist")
 }
 
 func TestPublishEventsCorrectly(t *testing.T) {
@@ -660,7 +663,6 @@ func TestPublishEventsCorrectly(t *testing.T) {
 		for {
 			select {
 			case event := <-recorder.Events:
-				log.Logger.Info(event)
 				if strings.Contains(event, reason) && strings.Contains(event, message) {
 					return true
 				}
