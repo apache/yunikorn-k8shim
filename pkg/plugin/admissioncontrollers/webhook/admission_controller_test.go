@@ -92,7 +92,6 @@ func TestUpdateLabels(t *testing.T) {
 		Spec:   v1.PodSpec{},
 		Status: v1.PodStatus{},
 	}
-
 	patch = updateLabels("default", pod, patch)
 
 	assert.Equal(t, len(patch), 1)
@@ -289,7 +288,7 @@ func TestValidateConfigMapValidConfig(t *testing.T) {
 /**
 Test for the case when the POST request is successful, but the config change is not allowed.
 */
-func TestValidateConfigMapInValidConfig (t *testing.T) {
+func TestValidateConfigMapInValidConfig(t *testing.T) {
 	configmap := prepareConfigMap(ConfigData)
 	srv := serverMock(false)
 	defer srv.Close()
@@ -303,7 +302,7 @@ func TestValidateConfigMapInValidConfig (t *testing.T) {
 /**
 Test for the case when the POST request fails
 */
-func TestValidateConfigMapWrongRequest (t *testing.T) {
+func TestValidateConfigMapWrongRequest(t *testing.T) {
 	configmap := prepareConfigMap(ConfigData)
 	srv := serverMock(false)
 	defer srv.Close()
@@ -314,22 +313,22 @@ func TestValidateConfigMapWrongRequest (t *testing.T) {
 		"Other error returned than the expected one")
 }
 
-func prepareConfigMap(data string) *v1.ConfigMap{
+func prepareConfigMap(data string) *v1.ConfigMap {
 	configmap := &v1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: common.DefaultConfigMapName,
 		},
-		Data: map[string]string {"queues.yaml": data},
+		Data: map[string]string{"queues.yaml": data},
 	}
 	return configmap
 }
 
-func prepareController(URL string) *admissionController {
+func prepareController(url string) *admissionController {
 	configName := fmt.Sprintf("%s.yaml", conf.DefaultPolicyGroup)
 	controller := &admissionController{
 		configName: configName,
 	}
-	controller.schedulerValidateConfURL = fmt.Sprintf(schedulerValidateConfURLPattern, URL)
+	controller.schedulerValidateConfURL = fmt.Sprintf(schedulerValidateConfURLPattern, url)
 	return controller
 }
 
@@ -350,7 +349,7 @@ func successResponseMock(w http.ResponseWriter, r *http.Request) {
 		"allowed": true,
 		"reason": ""
 		}`
-	w.Write([]byte(resp))
+	w.Write([]byte(resp)) //nolint:errcheck
 }
 
 func failedResponseMock(w http.ResponseWriter, r *http.Request) {
@@ -359,7 +358,7 @@ func failedResponseMock(w http.ResponseWriter, r *http.Request) {
 		"allowed": false,
 		"reason": "Invalid config"
 		}`
-	w.Write([]byte(resp))
+	w.Write([]byte(resp)) //nolint:errcheck
 }
 
 func TestGenerateAppID(t *testing.T) {
