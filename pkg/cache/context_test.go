@@ -35,6 +35,7 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
@@ -119,42 +120,74 @@ func TestGetApplication(t *testing.T) {
 }
 
 func TestRemoveApplication(t *testing.T) {
-	// add 2 applications
+	// add 3 applications
 	context := initContextForTest()
-	context.AddApplication(&interfaces.AddApplicationRequest{
-		Metadata: interfaces.ApplicationMetadata{
-			ApplicationID: "app00001",
-			QueueName:     "root.a",
-			User:          "test-user",
-			Tags:          nil,
+	appID1 := "app00001"
+	appID2 := "app00002"
+	appID3 := "app00003"
+	app1 := NewApplication(appID1, "root.a", "testuser", map[string]string{}, newMockSchedulerAPI())
+	app2 := NewApplication(appID2, "root.b", "testuser", map[string]string{}, newMockSchedulerAPI())
+	app3 := NewApplication(appID3, "root.c", "testuser", map[string]string{}, newMockSchedulerAPI())
+	context.applications[appID1] = app1
+	context.applications[appID2] = app2
+	context.applications[appID3] = app3
+	pod1 := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
 		},
-		Recovery: false,
-	})
-	context.AddApplication(&interfaces.AddApplicationRequest{
-		Metadata: interfaces.ApplicationMetadata{
-			ApplicationID: "app00002",
-			QueueName:     "root.b",
-			User:          "test-user",
-			Tags:          nil,
+		ObjectMeta: apis.ObjectMeta{
+			Name: "remove-test-00001",
+			UID:  "UID-00001",
 		},
-		Recovery: false,
-	})
+	}
+	pod2 := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "remove-test-00002",
+			UID:  "UID-00002",
+		},
+	}
+	// New task to application 1
+	// set task state in Pending (non-terminated)
+	task1 := NewTask("task01", app1, context, pod1)
+	app1.taskMap["task01"] = task1
+	task1.sm.SetState(events.States().Task.Pending)
+	//New task to application 2
+	// set task state in Failed (terminated)
+	task2 := NewTask("task02", app2, context, pod2)
+	app2.taskMap["task02"] = task2
+	task2.sm.SetState(events.States().Task.Failed)
 
-	// remove application
+	// remove application 1 which have non-terminated task
+	// this should fail
+	assert.Equal(t, len(context.applications), 3)
+	err := context.RemoveApplication(appID1)
+	assert.Assert(t, err != nil)
+	assert.ErrorContains(t, err, "application app00001 because it still has task in non-terminated task, tasks: /remove-test-00001")
+
+	app := context.GetApplication(appID1)
+	assert.Assert(t, app != nil)
+
+	// remove application 2 which have terminated task
 	// this should be successful
-	err := context.RemoveApplication("app00001")
+	err = context.RemoveApplication(appID2)
 	assert.Assert(t, err == nil)
 
-	app := context.GetApplication("app00001")
+	app = context.GetApplication(appID2)
 	assert.Assert(t, app == nil)
 
-	// try remove again
-	// this should fail
-	err = context.RemoveApplication("app00001")
+	//try remove again
+	//this should fail
+	err = context.RemoveApplication(appID2)
 	assert.Assert(t, err != nil)
+	assert.ErrorContains(t, err, "application app00002 is not found in the context")
 
 	// make sure the other app is not affected
-	app = context.GetApplication("app00002")
+	app = context.GetApplication(appID3)
 	assert.Assert(t, app != nil)
 }
 
@@ -464,6 +497,82 @@ func TestRemoveTask(t *testing.T) {
 
 	// now there is no task left
 	assert.Equal(t, len(app.GetNewTasks()), 0)
+}
+
+func TestNodeEventFailsPublishingWithoutNode(t *testing.T) {
+	conf.GetSchedulerConf().SetTestMode(true)
+	recorder, ok := events.GetRecorder().(*record.FakeRecorder)
+	if !ok {
+		t.Fatal("the EventRecorder is expected to be of type FakeRecorder")
+	}
+	context := initContextForTest()
+
+	eventRecords := make([]*si.EventRecord, 0)
+	message := "non_existing_node_related_message"
+	reason := "non_existing_node_related_reason"
+	eventRecords = append(eventRecords, &si.EventRecord{
+		Type:     si.EventRecord_NODE,
+		ObjectID: "non_existing_host",
+		Reason:   reason,
+		Message:  message,
+	})
+	context.PublishEvents(eventRecords)
+
+	// check that the event has been published
+	select {
+	case event := <-recorder.Events:
+		log.Logger.Info(event)
+		if strings.Contains(event, reason) && strings.Contains(event, message) {
+			t.Fatal("event should not be published if the pod does not exist")
+		}
+	default:
+		break
+	}
+}
+
+func TestNodeEventPublishedCorrectly(t *testing.T) {
+	conf.GetSchedulerConf().SetTestMode(true)
+	recorder, ok := events.GetRecorder().(*record.FakeRecorder)
+	if !ok {
+		t.Fatal("the EventRecorder is expected to be of type FakeRecorder")
+	}
+	context := initContextForTest()
+
+	node := v1.Node{
+		ObjectMeta: apis.ObjectMeta{
+			Name:      "host0001",
+			Namespace: "default",
+			UID:       "uid_0001",
+		},
+	}
+	context.addNode(&node)
+
+	eventRecords := make([]*si.EventRecord, 0)
+	message := "node_related_message"
+	reason := "node_related_reason"
+	eventRecords = append(eventRecords, &si.EventRecord{
+		Type:     si.EventRecord_NODE,
+		ObjectID: "host0001",
+		Reason:   reason,
+		Message:  message,
+	})
+	context.PublishEvents(eventRecords)
+
+	// check that the event has been published
+	err := utils.WaitForCondition(func() bool {
+		for {
+			select {
+			case event := <-recorder.Events:
+				log.Logger.Info(event)
+				if strings.Contains(event, reason) && strings.Contains(event, message) {
+					return true
+				}
+			default:
+				return false
+			}
+		}
+	}, 5*time.Millisecond, 20*time.Millisecond)
+	assert.NilError(t, err, "event should have been emitted")
 }
 
 func TestPublishEventsWithNotExistingAsk(t *testing.T) {

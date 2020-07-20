@@ -21,10 +21,11 @@ package cache
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 
 	"go.uber.org/zap"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/cache"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
 
@@ -153,9 +154,19 @@ func (ctx *Context) updateNode(oldObj, newObj interface{}) {
 }
 
 func (ctx *Context) deleteNode(obj interface{}) {
-	node, err := convertToNode(obj)
-	if err != nil {
-		log.Logger.Error("node conversion failed", zap.Error(err))
+	var node *v1.Node
+	switch t := obj.(type) {
+	case *v1.Node:
+		node = t
+	case cache.DeletedFinalStateUnknown:
+		var ok bool
+		node, ok = t.Obj.(*v1.Node)
+		if !ok {
+			log.Logger.Error("cannot convert to *v1.Node", zap.Any("object", t.Obj))
+			return
+		}
+	default:
+		log.Logger.Error("cannot convert to *v1.Node", zap.Any("object", t))
 		return
 	}
 
@@ -293,18 +304,6 @@ func (ctx *Context) triggerReloadConfig() {
 	if err := ctx.apiProvider.GetAPIs().SchedulerAPI.ReloadConfiguration(clusterId); err != nil {
 		log.Logger.Error("reload configuration failed", zap.Error(err))
 	}
-}
-
-func (ctx *Context) updatePodCondition(pod *v1.Pod, condition *v1.PodCondition) error {
-	log.Logger.Info("Updating pod condition",
-		zap.String("namespace", pod.Namespace),
-		zap.String("name", pod.Name),
-		zap.Any("podCondition", condition))
-	if podutil.UpdatePodCondition(&pod.Status, condition) {
-		_, err := ctx.apiProvider.GetAPIs().KubeClient.GetClientSet().CoreV1().Pods(pod.Namespace).UpdateStatus(pod)
-		return err
-	}
-	return nil
 }
 
 // evaluate given predicates based on current context
@@ -511,10 +510,22 @@ func (ctx *Context) GetApplication(appID string) interfaces.ManagedApp {
 func (ctx *Context) RemoveApplication(appID string) error {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
-	if _, exist := ctx.applications[appID]; exist {
+	if app, exist := ctx.applications[appID]; exist {
+		//get the non-terminated task alias
+		nonTerminatedTaskAlias := app.getNonTerminatedTaskAlias()
+		// check there are any non-terminated task or not
+		if len(nonTerminatedTaskAlias) > 0 {
+			return fmt.Errorf("failed to remove application %s because it still has task in non-terminated task, tasks: %s", appID, strings.Join(nonTerminatedTaskAlias, ","))
+		}
+		// send the update request to scheduler core
+		rr := common.CreateUpdateRequestForRemoveApplication(app.applicationID, app.partition)
+		if err := ctx.apiProvider.GetAPIs().SchedulerAPI.Update(&rr); err != nil {
+			log.Logger.Error("failed to send remove application request to core", zap.Error(err))
+		}
 		delete(ctx.applications, appID)
 		log.Logger.Info("app removed",
 			zap.String("appID", appID))
+
 		return nil
 	} else {
 		return fmt.Errorf("application %s is not found in the context", appID)
@@ -606,10 +617,98 @@ func (ctx *Context) PublishEvents(eventRecords []*si.EventRecord) {
 						zap.String("taskID", taskID),
 						zap.String("event", record.String()))
 				}
+			case si.EventRecord_NODE:
+				nodeID := record.ObjectID
+				nodeInfo := ctx.schedulerCache.GetNode(nodeID)
+				if nodeInfo == nil {
+					log.Logger.Warn("node event is not published because nodeInfo is not found",
+						zap.String("nodeID", nodeID),
+						zap.String("event", record.String()))
+					continue
+				}
+				node := nodeInfo.Node()
+				if node == nil {
+					log.Logger.Warn("node event is not published because node is not found",
+						zap.String("nodeID", nodeID),
+						zap.String("event", record.String()))
+					continue
+				}
+				events.GetRecorder().Event(node,
+					v1.EventTypeNormal, record.Reason, record.Message)
 			default:
 				log.Logger.Warn("Unsupported event type, currently only supports to publish request event records",
 					zap.String("type", record.Type.String()))
 			}
+		}
+	}
+}
+
+// update task's pod condition when the condition has not yet updated,
+// return true if the update was done and false if the update is skipped due to any error, or a dup operation
+func (ctx *Context) updatePodCondition(task *Task, podCondition *v1.PodCondition) bool {
+	if task.GetTaskState() == events.States().Task.Scheduling {
+		// only update the pod when pod condition changes
+		// minimize the overhead added to the api-server/etcd
+		if !utils.PodUnderCondition(task.pod, podCondition) {
+			log.Logger.Info("updating pod condition",
+				zap.String("namespace", task.pod.Namespace),
+				zap.String("name", task.pod.Name),
+				zap.Any("podCondition", podCondition))
+			// call api-server to do the pod condition update
+			if podutil.UpdatePodCondition(&task.pod.Status, podCondition) {
+				if !ctx.apiProvider.IsTestingMode() {
+					_, err := ctx.apiProvider.GetAPIs().KubeClient.GetClientSet().CoreV1().
+						Pods(task.pod.Namespace).UpdateStatus(task.pod)
+					if err == nil {
+						return true
+					}
+					// only log the error here, no need to handle it if the update failed
+					log.Logger.Error("update pod condition failed",
+						zap.Error(err))
+				}
+			}
+		}
+	}
+	return false
+}
+
+// this function handles the pod scheduling failures with respect to the different causes,
+// and update the pod condition accordingly. the cluster autoscaler depends on the certain
+// pod condition in order to trigger auto-scaling.
+func (ctx *Context) HandleContainerStateUpdate(request *si.UpdateContainerSchedulingStateRequest) {
+	// the allocationKey equals to the taskID
+	if task, err := ctx.getTask(request.ApplicartionID, request.AllocationKey); err == nil {
+		switch request.State {
+		case si.UpdateContainerSchedulingStateRequest_SKIPPED:
+			// auto-scaler scans pods whose pod condition is PodScheduled=false && reason=Unschedulable
+			// if the pod is skipped because the queue quota has been exceed, we do not trigger the auto-scaling
+			if ctx.updatePodCondition(task,
+				&v1.PodCondition{
+					Type:    v1.PodScheduled,
+					Status:  v1.ConditionFalse,
+					Reason:  "SchedulingSkipped",
+					Message: request.Reason,
+				}) {
+				events.GetRecorder().Eventf(task.pod,
+					v1.EventTypeNormal, "PodUnschedulable",
+					"Task %s is skipped from scheduling because the queue quota has been exceed", task.alias)
+			}
+		case si.UpdateContainerSchedulingStateRequest_FAILED:
+			// set pod condition to Unschedulable in order to trigger auto-scaling
+			if ctx.updatePodCondition(task,
+				&v1.PodCondition{
+					Type:    v1.PodScheduled,
+					Status:  v1.ConditionFalse,
+					Reason:  v1.PodReasonUnschedulable,
+					Message: request.Reason,
+				}) {
+				events.GetRecorder().Eventf(task.pod,
+					v1.EventTypeNormal, "PodUnschedulable",
+					"Task %s is pending for the requested resources become available", task.alias)
+			}
+		default:
+			log.Logger.Warn("no handler for container scheduling state",
+				zap.String("state", request.State.String()))
 		}
 	}
 }

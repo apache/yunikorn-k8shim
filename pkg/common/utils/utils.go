@@ -25,6 +25,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
+	podv1 "k8s.io/kubernetes/pkg/api/v1/pod"
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
@@ -101,6 +102,13 @@ func GetApplicationIDFromPod(pod *v1.Pod) (string, error) {
 	}
 	return "", fmt.Errorf("unable to retrieve application ID from pod spec, %s",
 		pod.Spec.String())
+}
+
+// compare the existing pod condition with the given one, return true if the pod condition remains not changed.
+// return false if pod has no condition set yet, or condition has changed.
+func PodUnderCondition(pod *v1.Pod, condition *v1.PodCondition) bool {
+	_, current := podv1.GetPodCondition(&pod.Status, condition.Type)
+	return current != nil && current.Status == condition.Status && current.Reason == condition.Reason
 }
 
 func GetNamespaceQuotaFromAnnotation(namespaceObj *v1.Namespace) *si.Resource {

@@ -73,6 +73,7 @@ type TaskStates struct {
 	Failed     string
 	Completed  string
 	Any        []string // Any refers to all possible states
+	Terminated []string // Rejected, Killed, Failed, Completed
 }
 
 func States() *AllStates {
@@ -106,6 +107,10 @@ func States() *AllStates {
 					"TaskAllocated", "Rejected",
 					"Bound", "Killing", "Killed",
 					"Failed", "Completed",
+				},
+				Terminated: []string{
+					"Rejected", "Killed", "Failed",
+					"Completed",
 				},
 			},
 			Scheduler: &SchedulerStates{

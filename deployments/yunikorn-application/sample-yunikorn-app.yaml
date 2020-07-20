@@ -15,6 +15,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-docker_images:
-  yunikorn-scheduler-k8s: __registry__/yunikorn-scheduler
-  yunikorn-scheduler-admission-controller: __registry__/yunikorn-admission
+apiVersion: "yunikorn.apache.org/v1alpha1"
+kind: Application
+metadata:
+  name: example
+spec:
+  queue: root.default
+  maxPendingSeconds: 10

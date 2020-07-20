@@ -50,6 +50,14 @@ func TestCreateReleaseAskRequestForTask(t *testing.T) {
 	assert.Equal(t, request.Releases.AllocationAsksToRelease[0].PartitionName, "default")
 }
 
+func TestCreateUpdateRequestForRemoveApplication(t *testing.T) {
+	request := CreateUpdateRequestForRemoveApplication("app01", "default")
+	assert.Assert(t, request.RemoveApplications != nil)
+	assert.Equal(t, len(request.RemoveApplications), 1)
+	assert.Equal(t, request.RemoveApplications[0].ApplicationID, "app01")
+	assert.Equal(t, request.RemoveApplications[0].PartitionName, "default")
+}
+
 func TestCreateUpdateRequestForTask(t *testing.T) {
 	res := NewResourceBuilder().Build()
 	podName := "pod-resource-test-00001"

@@ -25,7 +25,7 @@ import (
 
 	"go.uber.org/zap"
 	"gotest.tools/assert"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 
 	"github.com/apache/incubator-yunikorn-core/pkg/api"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt"
@@ -119,28 +119,32 @@ partitions:
 	assert.NilError(t, err)
 
 	// add app to context
-	cluster.addApplication("app0001", "root.non_exist_queue")
+	appID := "app0001"
+	cluster.addApplication(appID, "root.non_exist_queue")
 
 	// create app and tasks
 	taskResource := common.NewResourceBuilder().
 		AddResource(common.Memory, 10).
 		AddResource(common.CPU, 1).
 		Build()
-	cluster.addTask("app0001", "task0001", taskResource)
+	cluster.addTask(appID, "task0001", taskResource)
 
 	// wait for scheduling app and tasks
 	// verify app state
-	cluster.waitAndAssertApplicationState(t, "app0001", events.States().Application.Failed)
+	cluster.waitAndAssertApplicationState(t, appID, events.States().Application.Failed)
 
 	// remove the application
-	err = cluster.removeApplication("app0001")
+	// remove task first or removeApplication will fail
+	err = cluster.context.RemoveTask(appID, "task0001")
+	assert.Assert(t, err == nil)
+	err = cluster.removeApplication(appID)
 	assert.Assert(t, err == nil)
 
 	// submit the app again
-	cluster.addApplication("app0001", "root.a")
-	cluster.addTask("app0001", "task0001", taskResource)
-	cluster.waitAndAssertApplicationState(t, "app0001", events.States().Application.Running)
-	cluster.waitAndAssertTaskState(t, "app0001", "task0001", events.States().Task.Bound)
+	cluster.addApplication(appID, "root.a")
+	cluster.addTask(appID, "task0001", taskResource)
+	cluster.waitAndAssertApplicationState(t, appID, events.States().Application.Running)
+	cluster.waitAndAssertTaskState(t, appID, "task0001", events.States().Task.Bound)
 }
 
 func TestSchedulerRegistrationFailed(t *testing.T) {
