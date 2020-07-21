@@ -232,9 +232,12 @@ func (c *admissionController) validateConfigMap(cm *v1.ConfigMap) error {
 			if err := json.Unmarshal(responseBytes, &responseData); err != nil {
 				return err
 			}
-			return fmt.Errorf(responseData.Reason)
+			if !responseData.Allowed {
+				return fmt.Errorf(responseData.Reason)
+			}
+		} else {
+			return fmt.Errorf("required config '%s' not found in this configmap", c.configName)
 		}
-		return fmt.Errorf("required config '%s' not found in this configmap", c.configName)
 	}
 	return nil
 }
