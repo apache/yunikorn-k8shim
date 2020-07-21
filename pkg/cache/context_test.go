@@ -614,7 +614,7 @@ func TestPublishEventsWithNotExistingAsk(t *testing.T) {
 				return true
 			}
 		}
-	}, 5 * time.Millisecond, 20 * time.Millisecond)
+	}, 5*time.Millisecond, 20*time.Millisecond)
 	assert.NilError(t, err, "event should not have been published if the pod does not exist")
 }
 
@@ -670,6 +670,6 @@ func TestPublishEventsCorrectly(t *testing.T) {
 				return false
 			}
 		}
-	}, 5 * time.Millisecond, 20 * time.Millisecond)
+	}, 5*time.Millisecond, 20*time.Millisecond)
 	assert.NilError(t, err, "event should have been emitted")
 }
