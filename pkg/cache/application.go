@@ -25,7 +25,7 @@ import (
 
 	"github.com/looplab/fsm"
 	"go.uber.org/zap"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 
 	"github.com/apache/incubator-yunikorn-core/pkg/api"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
@@ -234,6 +234,16 @@ func (app *Application) getTasks(state string) []*Task {
 
 func (app *Application) GetTags() map[string] string {
 	return app.tags
+}
+
+func (app *Application) getNonTerminatedTaskAlias() []string {
+	var nonTerminatedTaskAlias []string
+	for _, task := range app.taskMap {
+		if !task.isTerminated() {
+			nonTerminatedTaskAlias = append(nonTerminatedTaskAlias, task.alias)
+		}
+	}
+	return nonTerminatedTaskAlias
 }
 
 // only for testing

@@ -20,6 +20,8 @@ package main
 
 import (
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -90,7 +92,6 @@ func TestUpdateLabels(t *testing.T) {
 		Spec:   v1.PodSpec{},
 		Status: v1.PodStatus{},
 	}
-
 	patch = updateLabels("default", pod, patch)
 
 	assert.Equal(t, len(patch), 1)
@@ -257,6 +258,107 @@ func TestValidateConfigMap(t *testing.T) {
 	assert.Assert(t, err != nil, "expecting error when specified config is not found")
 	assert.Equal(t, err.Error(), "required config 'queues.yaml' not found in this configmap")
 	// skip further validations which depends on the webservice of yunikorn-core
+}
+
+const ConfigData = `
+partitions:
+  - name: default
+    placementrules:
+        - name: tag
+          value: namespace
+          create: true
+    queues:
+      - name: root
+        submitacl: "*"
+`
+
+/**
+Test for the case when the POST request is successful, and the config change is allowed.
+*/
+func TestValidateConfigMapValidConfig(t *testing.T) {
+	configmap := prepareConfigMap(ConfigData)
+	srv := serverMock(true)
+	defer srv.Close()
+	// both server and url pattern contains http://, so we need to delete one
+	controller := prepareController(strings.Replace(srv.URL, "http://", "", 1))
+	err := controller.validateConfigMap(configmap)
+	assert.NilError(t, err, "No error expected")
+}
+
+/**
+Test for the case when the POST request is successful, but the config change is not allowed.
+*/
+func TestValidateConfigMapInValidConfig(t *testing.T) {
+	configmap := prepareConfigMap(ConfigData)
+	srv := serverMock(false)
+	defer srv.Close()
+	// both server and url pattern contains http://, so we need to delete one
+	controller := prepareController(strings.Replace(srv.URL, "http://", "", 1))
+	err := controller.validateConfigMap(configmap)
+	assert.Equal(t, "Invalid config", err.Error(),
+		"Other error returned than the expected one")
+}
+
+/**
+Test for the case when the POST request fails
+*/
+func TestValidateConfigMapWrongRequest(t *testing.T) {
+	configmap := prepareConfigMap(ConfigData)
+	srv := serverMock(false)
+	defer srv.Close()
+	// the url is wrong, so the POST request will fail and an error will be returned
+	controller := prepareController(srv.URL)
+	err := controller.validateConfigMap(configmap)
+	assert.Equal(t, true, strings.Contains(err.Error(), "no such host"),
+		"Other error returned than the expected one")
+}
+
+func prepareConfigMap(data string) *v1.ConfigMap {
+	configmap := &v1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: common.DefaultConfigMapName,
+		},
+		Data: map[string]string{"queues.yaml": data},
+	}
+	return configmap
+}
+
+func prepareController(url string) *admissionController {
+	configName := fmt.Sprintf("%s.yaml", conf.DefaultPolicyGroup)
+	controller := &admissionController{
+		configName: configName,
+	}
+	controller.schedulerValidateConfURL = fmt.Sprintf(schedulerValidateConfURLPattern, url)
+	return controller
+}
+
+func serverMock(valid bool) *httptest.Server {
+	handler := http.NewServeMux()
+	if valid {
+		handler.HandleFunc("/ws/v1/validate-conf", successResponseMock)
+	} else {
+		handler.HandleFunc("/ws/v1/validate-conf", failedResponseMock)
+	}
+	srv := httptest.NewServer(handler)
+	return srv
+}
+
+func successResponseMock(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(200)
+	resp := `{
+		"allowed": true,
+		"reason": ""
+		}`
+	w.Write([]byte(resp)) //nolint:errcheck
+}
+
+func failedResponseMock(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(200)
+	resp := `{
+		"allowed": false,
+		"reason": "Invalid config"
+		}`
+	w.Write([]byte(resp)) //nolint:errcheck
 }
 
 func TestGenerateAppID(t *testing.T) {

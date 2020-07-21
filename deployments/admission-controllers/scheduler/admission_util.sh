@@ -43,6 +43,15 @@ REGISTERED_ADMISSIONS=${REGISTERED_ADMISSIONS//,/ }
 if [ -z "$SCHEDULER_SERVICE_NAME" ]; then
   SCHEDULER_SERVICE_NAME=`cat ${CONF_FILE} | grep ^schedulerServiceName | cut -d "=" -f 2`
 fi
+if [ -z "$ADMISSION_CONTROLLER_IMAGE_REGISTRY" ]; then
+  ADMISSION_CONTROLLER_IMAGE_REGISTRY=`cat ${CONF_FILE} | grep ^dockerImageRegistry | cut -d "=" -f 2`
+fi
+if [ -z "$ADMISSION_CONTROLLER_IMAGE_TAG" ]; then
+  ADMISSION_CONTROLLER_IMAGE_TAG=`cat ${CONF_FILE} | grep ^dockerImageTag | cut -d "=" -f 2`
+fi
+if [ -z "$ADMISSION_CONTROLLER_IMAGE_PULL_POLICY" ]; then
+  ADMISSION_CONTROLLER_IMAGE_PULL_POLICY=`cat ${CONF_FILE} | grep ^dockerImagePullPolicy | cut -d "=" -f 2`
+fi
 
 delete_resources() {
   kubectl delete -f server.yaml
@@ -115,11 +124,17 @@ create_resources() {
           --from-file=cert.pem=${KEY_DIR}/server-cert.pem \
           --namespace=${NAMESPACE}
 
+  # clean up local key and cert files
+  rm -rf ${KEY_DIR}
+
   # Replace the certificate in the template with a valid CA parsed from security tokens
   ca_pem_b64=$(kubectl get secret -o jsonpath="{.items[?(@.type==\"kubernetes.io/service-account-token\")].data['ca\.crt']}" | cut -d " " -f 1)
   sed -e 's@${NAMESPACE}@'"$NAMESPACE"'@g' -e 's@${SERVICE}@'"$SERVICE"'@g' \
     -e 's@${POLICY_GROUP}@'"$POLICY_GROUP"'@g' \
     -e 's@${SCHEDULER_SERVICE_ADDRESS}@'"$SCHEDULER_SERVICE_ADDRESS"'@g' \
+    -e 's@${ADMISSION_CONTROLLER_IMAGE_REGISTRY}@'"$ADMISSION_CONTROLLER_IMAGE_REGISTRY"'@g' \
+    -e 's@${ADMISSION_CONTROLLER_IMAGE_TAG}@'"$ADMISSION_CONTROLLER_IMAGE_TAG"'@g' \
+    -e 's@${ADMISSION_CONTROLLER_IMAGE_PULL_POLICY}@'"$ADMISSION_CONTROLLER_IMAGE_PULL_POLICY"'@g' \
     <"${basedir}/templates/server.yaml.template" > server.yaml
   kubectl create -f server.yaml
 
@@ -150,7 +165,6 @@ elif [ $# -eq 1 ] && [ $1 == "create" ]; then
   precheck
   KEY_DIR="$(mktemp -d)"
   create_resources ${KEY_DIR}
-  rm -rf "$keydir"
   exit $?
 else
   usage
