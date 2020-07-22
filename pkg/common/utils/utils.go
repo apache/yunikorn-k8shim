@@ -19,6 +19,7 @@ package utils
 
 import (
 	"fmt"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"strings"
 	"time"
 
@@ -74,8 +75,8 @@ func GeneralPodFilter(pod *v1.Pod) bool {
 }
 
 func GetQueueNameFromPod(pod *v1.Pod) string {
-	queueName := common.ApplicationDefaultQueue
-	if an, ok := pod.Labels[common.LabelQueueName]; ok {
+	queueName := constants.ApplicationDefaultQueue
+	if an, ok := pod.Labels[constants.LabelQueueName]; ok {
 		queueName = an
 	}
 	return queueName
@@ -84,19 +85,19 @@ func GetQueueNameFromPod(pod *v1.Pod) string {
 func GetApplicationIDFromPod(pod *v1.Pod) (string, error) {
 	for name, value := range pod.Labels {
 		// if a pod for spark already provided appID, reuse it
-		if name == common.SparkLabelAppID {
+		if name == constants.SparkLabelAppID {
 			return value, nil
 		}
 
 		// application ID can be defined as a label
-		if name == common.LabelApplicationID {
+		if name == constants.LabelApplicationID {
 			return value, nil
 		}
 	}
 
 	// application ID can be defined in annotations too
 	for name, value := range pod.Annotations {
-		if name == common.LabelApplicationID {
+		if name == constants.LabelApplicationID {
 			return value, nil
 		}
 	}

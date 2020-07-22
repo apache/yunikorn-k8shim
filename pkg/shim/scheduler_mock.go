@@ -20,6 +20,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"testing"
 	"time"
 
@@ -86,8 +87,8 @@ func (fc *MockScheduler) start() {
 
 func (fc *MockScheduler) addNode(nodeName string, memory, cpu int64) error {
 	nodeResource := common.NewResourceBuilder().
-		AddResource(common.Memory, memory).
-		AddResource(common.CPU, cpu).
+		AddResource(constants.Memory, memory).
+		AddResource(constants.CPU, cpu).
 		Build()
 	node := common.CreateFromNodeSpec(nodeName, nodeName, nodeResource)
 	request := common.CreateUpdateRequestForNewNode(node)

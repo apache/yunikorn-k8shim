@@ -20,6 +20,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"testing"
 	"time"
 
@@ -73,8 +74,8 @@ partitions:
 	// create app and tasks
 	cluster.addApplication("app0001", "root.a")
 	taskResource := common.NewResourceBuilder().
-		AddResource(common.Memory, 10).
-		AddResource(common.CPU, 1).
+		AddResource(constants.Memory, 10).
+		AddResource(constants.CPU, 1).
 		Build()
 	cluster.addTask("app0001", "task0001", taskResource)
 	cluster.addTask("app0001", "task0002", taskResource)
@@ -124,8 +125,8 @@ partitions:
 
 	// create app and tasks
 	taskResource := common.NewResourceBuilder().
-		AddResource(common.Memory, 10).
-		AddResource(common.CPU, 1).
+		AddResource(constants.Memory, 10).
+		AddResource(constants.CPU, 1).
 		Build()
 	cluster.addTask(appID, "task0001", taskResource)
 
@@ -214,8 +215,8 @@ partitions:
 	// create app and tasks
 	cluster.addApplication("app0001", "root.a")
 	taskResource := common.NewResourceBuilder().
-		AddResource(common.Memory, 50).
-		AddResource(common.CPU, 5).
+		AddResource(constants.Memory, 50).
+		AddResource(constants.CPU, 5).
 		Build()
 	cluster.addTask("app0001", "task0001", taskResource)
 	cluster.addTask("app0001", "task0002", taskResource)

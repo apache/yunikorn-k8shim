@@ -66,7 +66,7 @@ require (
 	gopkg.in/yaml.v2 v2.2.8
 	gotest.tools v2.2.0+incompatible
 	k8s.io/api v0.0.0-20191004102349-159aefb8556b
-	k8s.io/apiextensions-apiserver v0.0.0-20191212015246-8fe0c124fb40 // indirect
+	k8s.io/apiextensions-apiserver v0.0.0-20191212015246-8fe0c124fb40
 	k8s.io/apimachinery v0.0.0-20191004074956-c5d2f014d689
 	k8s.io/apiserver v0.0.0-20191212015046-43d571094e6f // indirect
 	k8s.io/client-go v11.0.1-0.20191029005444-8e4128053008+incompatible
@@ -84,3 +84,7 @@ replace k8s.io/cloud-provider => k8s.io/cloud-provider v0.0.0-20191212015549-86a
 replace github.com/golang/lint => golang.org/x/lint v0.0.0-20200302205851-738671d3881b
 
 replace github.com/coreos/bbolt => go.etcd.io/bbolt v1.3.4
+
+replace github.com/apache/incubator-yunikorn-scheduler-interface => /Users/martonjuliakinga/repos/yunikorn/incubator-yunikorn-scheduler-interface
+
+replace github.com/apache/incubator-yunikorn-core => /Users/martonjuliakinga/repos/yunikorn/incubator-yunikorn-core

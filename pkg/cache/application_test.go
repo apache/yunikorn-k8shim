@@ -19,6 +19,7 @@
 package cache
 
 import (
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"testing"
 	"time"
 
@@ -27,7 +28,6 @@ import (
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/apache/incubator-yunikorn-core/pkg/api"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
@@ -37,7 +37,7 @@ func TestNewApplication(t *testing.T) {
 	app := NewApplication("app00001", "root.queue", "testuser", map[string]string{}, newMockSchedulerAPI())
 	assert.Equal(t, app.GetApplicationID(), "app00001")
 	assert.Equal(t, app.GetApplicationState(), events.States().Application.New)
-	assert.Equal(t, app.partition, common.DefaultPartition)
+	assert.Equal(t, app.partition, constants.DefaultPartition)
 	assert.Equal(t, len(app.taskMap), 0)
 	assert.Equal(t, app.GetApplicationState(), events.States().Application.New)
 	assert.Equal(t, app.queue, "root.queue")

@@ -25,10 +25,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"go.uber.org/zap/zapcore"
 	"k8s.io/klog"
 	"k8s.io/kubernetes/pkg/scheduler/algorithm/predicates"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
 )
 
 // default configuration values, these can be override by CLI options
@@ -136,9 +136,9 @@ func init() {
 	predicateList := flag.String("predicates", "",
 		fmt.Sprintf("comma-separated list of predicates, valid predicates are: %s, "+
 			"the program will exit if any invalid predicates exist.", predicates.Ordering()))
-	operatorPluginList := flag.String("operatorPlugins", "general," + common.AppManagerHandlerName,
-		"comma-separated list of operator plugin names, currently, only \"spark-operator-service\"" +
-		"and" + common.AppManagerHandlerName + "is supported.")
+	operatorPluginList := flag.String("operatorPlugins", "general,"+constants.AppManagerHandlerName,
+		"comma-separated list of operator plugin names, currently, only \"spark-operator-service\""+
+			"and"+constants.AppManagerHandlerName+"is supported.")
 
 	// logging options
 	logLevel := flag.Int("logLevel", DefaultLoggingLevel,

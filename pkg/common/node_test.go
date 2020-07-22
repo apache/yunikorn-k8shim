@@ -19,6 +19,7 @@
 package common
 
 import (
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"testing"
 
 	"gotest.tools/assert"
@@ -29,15 +30,15 @@ import (
 
 func TestCreateNodeFromSpec(t *testing.T) {
 	resource := NewResourceBuilder().
-		AddResource(Memory, 999).
-		AddResource(CPU, 9).
+		AddResource(constants.Memory, 999).
+		AddResource(constants.CPU, 9).
 		Build()
 	node := CreateFromNodeSpec("host0001", "uid_0001", resource)
 	assert.Equal(t, node.name, "host0001")
 	assert.Equal(t, node.uid, "uid_0001")
 	assert.Equal(t, len(node.capacity.Resources), 2)
-	assert.Equal(t, node.capacity.Resources[Memory].Value, int64(999))
-	assert.Equal(t, node.capacity.Resources[CPU].Value, int64(9))
+	assert.Equal(t, node.capacity.Resources[constants.Memory].Value, int64(999))
+	assert.Equal(t, node.capacity.Resources[constants.CPU].Value, int64(9))
 }
 
 func TestCreateNode(t *testing.T) {
@@ -61,8 +62,8 @@ func TestCreateNode(t *testing.T) {
 	assert.Equal(t, node.name, "host0001")
 	assert.Equal(t, node.uid, "uid_0001")
 	assert.Equal(t, len(node.capacity.Resources), 2)
-	assert.Equal(t, node.capacity.Resources[Memory].Value, int64(999))
-	assert.Equal(t, node.capacity.Resources[CPU].Value, int64(8000))
+	assert.Equal(t, node.capacity.Resources[constants.Memory].Value, int64(999))
+	assert.Equal(t, node.capacity.Resources[constants.CPU].Value, int64(8000))
 }
 
 func TestCreateNodeWithCustomResource(t *testing.T) {
@@ -83,7 +84,7 @@ func TestCreateNodeWithCustomResource(t *testing.T) {
 	assert.Equal(t, node.name, "host0001")
 	assert.Equal(t, node.uid, "uid_0001")
 	assert.Equal(t, len(node.capacity.Resources), 3)
-	assert.Equal(t, node.capacity.Resources[Memory].Value, int64(999))
-	assert.Equal(t, node.capacity.Resources[CPU].Value, int64(9000))
+	assert.Equal(t, node.capacity.Resources[constants.Memory].Value, int64(999))
+	assert.Equal(t, node.capacity.Resources[constants.CPU].Value, int64(9000))
 	assert.Equal(t, node.capacity.Resources["nvidia.com/gpu"].Value, int64(3))
 }

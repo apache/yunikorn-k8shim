@@ -27,7 +27,7 @@ import (
 	appscheme "github.com/apache/incubator-yunikorn-k8shim/pkg/client/clientset/versioned/scheme"
 	appinformers "github.com/apache/incubator-yunikorn-k8shim/pkg/client/informers/externalversions"
 	applister "github.com/apache/incubator-yunikorn-k8shim/pkg/client/listers/yunikorn.apache.org/v1alpha1"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 	"go.uber.org/zap"
@@ -55,7 +55,7 @@ func NewAppManager(amProtocol interfaces.ApplicationManagementProtocol) *AppMana
 
 // this implements AppManagementService interface
 func (appMgr *AppManager) Name() string {
-	return "app-CRD"
+	return constants.AppManagerHandlerName
 }
 
 // this implements AppManagementService interface
@@ -86,7 +86,7 @@ func (appMgr *AppManager) HandleCallbackEvents() func(obj interface{}) {
 				if shimEvent, ok := event.(shimcache.SimpleApplicationEvent); ok {
 					appId := event.GetApplicationID()
 					var app = appMgr.amProtocol.GetApplication(appId).(*shimcache.Application)
-					appCRD, err := appMgr.controller.lister.Applications(app.GetTags()[common.AppTagNamespace]).Get(appId)
+					appCRD, err := appMgr.controller.lister.Applications(app.GetTags()[constants.AppTagNamespace]).Get(appId)
 					if err == nil {
 						log.Logger.Error("Failed to query app CRD for status update",
 							zap.String("Application ID", appId))
@@ -225,9 +225,9 @@ func (appMgr *AppManager) getAppMetadata(app *appv1.Application) (interfaces.App
 	// user info is retrieved via service account
 	tags := map[string]string{}
 	if app.Namespace == "" {
-		tags[common.AppTagNamespace] = common.DefaultAppNamespace
+		tags[constants.AppTagNamespace] = constants.DefaultAppNamespace
 	} else {
-		tags[common.AppTagNamespace] = app.Namespace
+		tags[constants.AppTagNamespace] = app.Namespace
 	}
 
 	return interfaces.ApplicationMetadata{

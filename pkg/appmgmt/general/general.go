@@ -19,6 +19,7 @@
 package general
 
 import (
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"go.uber.org/zap"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -112,9 +113,9 @@ func (os *Manager) getAppMetadata(pod *v1.Pod) (interfaces.ApplicationMetadata, 
 	// user info is retrieved via service account
 	tags := map[string]string{}
 	if pod.Namespace == "" {
-		tags[common.AppTagNamespace] = common.DefaultAppNamespace
+		tags[constants.AppTagNamespace] = constants.DefaultAppNamespace
 	} else {
-		tags[common.AppTagNamespace] = pod.Namespace
+		tags[constants.AppTagNamespace] = pod.Namespace
 	}
 	// get the application owner (this is all that is available as far as we can find)
 	user := pod.Spec.ServiceAccountName
@@ -263,7 +264,7 @@ func (os *Manager) deletePod(obj interface{}) {
 func (os *Manager) ListApplications() (map[string]interfaces.ApplicationMetadata, error) {
 	// selector: applicationID exist
 	slt := labels.NewSelector()
-	req, err := labels.NewRequirement(common.LabelApplicationID, selection.Exists, nil)
+	req, err := labels.NewRequirement(constants.LabelApplicationID, selection.Exists, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -307,7 +308,7 @@ func (os *Manager) GetExistingAllocation(pod *v1.Pod) *si.Allocation {
 			QueueName:        meta.QueueName,
 			NodeID:           pod.Spec.NodeName,
 			ApplicationID:    meta.ApplicationID,
-			PartitionName:    common.DefaultPartition,
+			PartitionName:    constants.DefaultPartition,
 		}
 	}
 	return nil

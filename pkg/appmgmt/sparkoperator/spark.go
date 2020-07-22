@@ -22,6 +22,7 @@ import (
 	"github.com/GoogleCloudPlatform/spark-on-k8s-operator/pkg/apis/sparkoperator.k8s.io/v1beta2"
 	crcClientSet "github.com/GoogleCloudPlatform/spark-on-k8s-operator/pkg/client/clientset/versioned"
 	crInformers "github.com/GoogleCloudPlatform/spark-on-k8s-operator/pkg/client/informers/externalversions"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"go.uber.org/zap"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -130,13 +131,13 @@ func (os *Manager) getAppMetadata(sparkApp *v1beta2.SparkApplication) interfaces
 	}
 
 	// set queue name if app labels it
-	queueName := common.ApplicationDefaultQueue
-	if an, ok := sparkApp.Labels[common.LabelQueueName]; ok {
+	queueName := constants.ApplicationDefaultQueue
+	if an, ok := sparkApp.Labels[constants.LabelQueueName]; ok {
 		queueName = an
 	}
 
 	// retrieve the namespace info from the CRD
-	tags[common.AppTagNamespace] = sparkApp.Namespace
+	tags[constants.AppTagNamespace] = sparkApp.Namespace
 
 	return interfaces.ApplicationMetadata{
 		ApplicationID: sparkApp.Name,
@@ -171,7 +172,7 @@ func (os *Manager) GetExistingAllocation(pod *v1.Pod) *si.Allocation {
 			QueueName:        utils.GetQueueNameFromPod(pod),
 			NodeID:           pod.Spec.NodeName,
 			ApplicationID:    meta.ApplicationID,
-			PartitionName:    common.DefaultPartition,
+			PartitionName:    constants.DefaultPartition,
 		}
 	}
 	return nil

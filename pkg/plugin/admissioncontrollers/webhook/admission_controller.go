@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"io/ioutil"
 	"net/http"
 
@@ -32,7 +33,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 )
 
@@ -86,7 +86,7 @@ func (c *admissionController) mutate(ar *v1beta1.AdmissionReview) *v1beta1.Admis
 			}
 		}
 
-		if labelAppValue, ok := pod.Labels[common.LabelApp]; ok {
+		if labelAppValue, ok := pod.Labels[constants.LabelApp]; ok {
 			if labelAppValue == "yunikorn" {
 				log.Logger.Info("ignore yunikorn pod")
 				return &v1beta1.AdmissionResponse{
@@ -152,22 +152,22 @@ func updateLabels(namespace string, pod *v1.Pod, patch []patchOperation) []patch
 		result[k] = v
 	}
 
-	if _, ok := existingLabels[common.SparkLabelAppID]; !ok {
-		if _, ok := existingLabels[common.LabelApplicationID]; !ok {
+	if _, ok := existingLabels[constants.SparkLabelAppID]; !ok {
+		if _, ok := existingLabels[constants.LabelApplicationID]; !ok {
 			// if app id not exist, generate one
 			// for each namespace, we group unnamed pods to one single app
 			// application ID convention: ${AUTO_GEN_PREFIX}-${NAMESPACE}-${AUTO_GEN_SUFFIX}
 			generatedID := generateAppID(namespace)
 			log.Logger.Debug("adding application ID",
 				zap.String("generatedID", generatedID))
-			result[common.LabelApplicationID] = generatedID
+			result[constants.LabelApplicationID] = generatedID
 		}
 	}
 
-	if _, ok := existingLabels[common.LabelQueueName]; !ok {
+	if _, ok := existingLabels[constants.LabelQueueName]; !ok {
 		log.Logger.Debug("adding queue name",
 			zap.String("defaultQueue", "root.default"))
-		result[common.LabelQueueName] = "root.default"
+		result[constants.LabelQueueName] = "root.default"
 	}
 
 	patch = append(patch, patchOperation{
@@ -216,7 +216,7 @@ func (c *admissionController) validateConf(ar *v1beta1.AdmissionReview) *v1beta1
 }
 
 func (c *admissionController) validateConfigMap(cm *v1.ConfigMap) error {
-	if cm.Name == common.DefaultConfigMapName {
+	if cm.Name == constants.DefaultConfigMapName {
 		log.Logger.Info("validating yunikorn configs")
 		if content, ok := cm.Data[c.configName]; ok {
 			response, err := http.Post(c.schedulerValidateConfURL, "application/json", bytes.NewBuffer([]byte(content)))

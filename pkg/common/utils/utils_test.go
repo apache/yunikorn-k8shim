@@ -20,6 +20,7 @@ package utils
 
 import (
 	"fmt"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"testing"
 	"time"
 
@@ -78,7 +79,7 @@ func TestGetNamespaceQuotaFromAnnotation(t *testing.T) {
 				},
 			},
 		}, common.NewResourceBuilder().
-			AddResource(common.CPU, 1000).
+			AddResource(constants.CPU, 1000).
 			Build()},
 		{&v1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
@@ -89,7 +90,7 @@ func TestGetNamespaceQuotaFromAnnotation(t *testing.T) {
 				},
 			},
 		}, common.NewResourceBuilder().
-			AddResource(common.Memory, 128).
+			AddResource(constants.Memory, 128).
 			Build()},
 		{&v1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
@@ -131,8 +132,8 @@ func TestGetNamespaceQuotaFromAnnotation(t *testing.T) {
 				},
 			},
 		}, common.NewResourceBuilder().
-			AddResource(common.CPU, 1000).
-			AddResource(common.Memory, 64).
+			AddResource(constants.CPU, 1000).
+			AddResource(constants.Memory, 64).
 			Build()},
 	}
 

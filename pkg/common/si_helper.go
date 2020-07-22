@@ -19,6 +19,7 @@
 package common
 
 import (
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
@@ -112,8 +113,8 @@ func CreateUpdateRequestForNewNode(node Node) si.UpdateRequest {
 		SchedulableResource: node.capacity,
 		// TODO is this required?
 		Attributes: map[string]string{
-			DefaultNodeAttributeHostNameKey: node.name,
-			DefaultNodeAttributeRackNameKey: DefaultRackName,
+			constants.DefaultNodeAttributeHostNameKey: node.name,
+			constants.DefaultNodeAttributeRackNameKey: constants.DefaultRackName,
 		},
 	}
 

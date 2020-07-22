@@ -21,6 +21,7 @@ package cache
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"strings"
 	"sync"
 
@@ -265,7 +266,7 @@ func (ctx *Context) filterPods(obj interface{}) bool {
 func (ctx *Context) filterConfigMaps(obj interface{}) bool {
 	switch obj := obj.(type) {
 	case *v1.ConfigMap:
-		return obj.Name == common.DefaultConfigMapName
+		return obj.Name == constants.DefaultConfigMapName
 	default:
 		return false
 	}
@@ -460,14 +461,14 @@ func (ctx *Context) AddApplication(request *interfaces.AddApplicationRequest) in
 	defer ctx.lock.Unlock()
 
 	// add resource quota info as a app tag
-	if ns, ok := request.Metadata.Tags[common.AppTagNamespace]; ok {
+	if ns, ok := request.Metadata.Tags[constants.AppTagNamespace]; ok {
 		log.Logger.Debug("app namespace info",
 			zap.String("appID", request.Metadata.ApplicationID),
 			zap.String("namespace", ns))
 		resourceQuota := ctx.getNamespaceResourceQuota(ns)
 		if resourceQuota != nil && !common.IsZero(resourceQuota) {
 			if quotaStr, err := json.Marshal(resourceQuota); err == nil {
-				request.Metadata.Tags[common.AppTagNamespaceResourceQuota] = string(quotaStr)
+				request.Metadata.Tags[constants.AppTagNamespaceResourceQuota] = string(quotaStr)
 			}
 		}
 	}

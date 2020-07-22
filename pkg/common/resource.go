@@ -19,6 +19,7 @@
 package common
 
 import (
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -62,7 +63,7 @@ func GetPodResource(pod *v1.Pod) (resource *si.Resource) {
 	// scheduled. Handle a QosBestEffort pod by setting a tiny memory value.
 	if qos.GetPodQOS(pod) == v1.PodQOSBestEffort {
 		resources := NewResourceBuilder()
-		resources.AddResource(Memory, 1)
+		resources.AddResource(constants.Memory, 1)
 		return resources.Build()
 	}
 
@@ -93,7 +94,7 @@ func ParseResource(cpuStr, memStr string) *si.Resource {
 	result := NewResourceBuilder()
 	if cpuStr != "" {
 		if vcore, err := resource.ParseQuantity(cpuStr); err == nil {
-			result.AddResource(CPU, vcore.MilliValue())
+			result.AddResource(constants.CPU, vcore.MilliValue())
 		} else {
 			log.Logger.Error("failed to parse cpu resource",
 				zap.String("cpuStr", cpuStr),
@@ -104,7 +105,7 @@ func ParseResource(cpuStr, memStr string) *si.Resource {
 
 	if memStr != "" {
 		if mem, err := resource.ParseQuantity(memStr); err == nil {
-			result.AddResource(Memory, mem.ScaledValue(resource.Mega))
+			result.AddResource(constants.Memory, mem.ScaledValue(resource.Mega))
 		} else {
 			log.Logger.Error("failed to parse memory resource",
 				zap.String("memStr", memStr),
@@ -122,10 +123,10 @@ func getResource(resourceList v1.ResourceList) *si.Resource {
 		switch name {
 		case v1.ResourceMemory:
 			memory := value.ScaledValue(resource.Mega)
-			resources.AddResource(Memory, memory)
+			resources.AddResource(constants.Memory, memory)
 		case v1.ResourceCPU:
 			vcore := value.MilliValue()
-			resources.AddResource(CPU, vcore)
+			resources.AddResource(constants.CPU, vcore)
 		default:
 			resources.AddResource(string(name), value.Value())
 		}
