@@ -27,6 +27,7 @@ import (
 	"github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
 	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/helpers"
 )
 
@@ -81,7 +82,7 @@ var _ = ginkgo.Describe("CI: Test for basic scheduling", func() {
 		ginkgo.It("Verify that the job is scheduled & Starting by YuniKorn", func() {
 			ginkgo.By("Verify that the job is scheduled & running by YuniKorn")
 			gomega.Ω(appsInfo["applicationState"]).To(gomega.Equal("Starting"))
-			gomega.Ω("yunikorn").To(gomega.Equal(sleepRespPod.Spec.SchedulerName))
+			gomega.Ω(common.SchedulerName).To(gomega.Equal(sleepRespPod.Spec.SchedulerName))
 		})
 
 		ginkgo.It("Verify the pod allocation properties", func() {

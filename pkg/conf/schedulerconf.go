@@ -34,7 +34,6 @@ import (
 const (
 	DefaultClusterID            = "my-kube-cluster"
 	DefaultClusterVersion       = "0.1"
-	DefaultSchedulerName        = "yunikorn"
 	DefaultPolicyGroup          = "queues"
 	DefaultLoggingLevel         = 0
 	DefaultLogEncoding          = "console"
@@ -51,7 +50,6 @@ var configuration *SchedulerConf
 type SchedulerConf struct {
 	ClusterID            string        `json:"clusterId"`
 	ClusterVersion       string        `json:"clusterVersion"`
-	SchedulerName        string        `json:"schedulerName"`
 	PolicyGroup          string        `json:"policyGroup"`
 	Interval             time.Duration `json:"schedulingIntervalSecond"`
 	KubeConfig           string        `json:"absoluteKubeConfigFilePath"`
@@ -118,8 +116,6 @@ func init() {
 		"cluster id")
 	clusterVersion := flag.String("clusterVersion", DefaultClusterVersion,
 		"cluster version")
-	schedulerName := flag.String("name", DefaultSchedulerName,
-		"name of the scheduler")
 	policyGroup := flag.String("policyGroup", DefaultPolicyGroup,
 		"policy group")
 	volumeBindTimeout := flag.Duration("volumeBindTimeout", DefaultVolumeBindTimeout,
@@ -162,7 +158,6 @@ func init() {
 		ClusterID:            *clusterID,
 		ClusterVersion:       *clusterVersion,
 		PolicyGroup:          *policyGroup,
-		SchedulerName:        *schedulerName,
 		Interval:             *schedulingInterval,
 		KubeConfig:           *kubeConfig,
 		LoggingLevel:         *logLevel,
