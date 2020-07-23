@@ -27,15 +27,20 @@ import (
 	"github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
+	crdclientset "github.com/apache/incubator-yunikorn-k8shim/pkg/client/clientset/versioned"
 	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/helpers"
 )
 
 var _ = ginkgo.Describe("CI: Test for basic scheduling", func() {
 	var kClient helpers.KubeCtl
 	var restClient helpers.RClient
+	var appClient *crdclientset.Clientset
 	var sleepPodDef string
+	var appCRDDef string
 	var err error
 	var sleepRespPod *v1.Pod
+	var appCRD *v1alpha1.Application
 	var dev = "development"
 	var appsInfo map[string]interface{}
 	var r = regexp.MustCompile(`memory:(\d+) vcore:(\d+)`)
@@ -52,6 +57,26 @@ var _ = ginkgo.Describe("CI: Test for basic scheduling", func() {
 		ns1, err := kClient.CreateNamespace(dev)
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		gomega.Ω(ns1.Status.Phase).To(gomega.Equal(v1.NamespaceActive))
+
+		ginkgo.By("Deploy the example Application to the development namespace")
+		appClient, err = helpers.NewApplicationClient()
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		// error test case
+		apperrDef, err := helpers.GetAbsPath("../testdata/application_error.yaml")
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		_, err = helpers.GetApplicationObj(apperrDef)
+		gomega.Ω(err).To(gomega.HaveOccurred())
+		// correct test case
+		appCRDDef, err = helpers.GetAbsPath("../testdata/application.yaml")
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		appCRDObj, err := helpers.GetApplicationObj(appCRDDef)
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		appCRDObj.Namespace = dev
+		err = helpers.CreateApplication(appClient, appCRDObj, dev)
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		appCRD, err = helpers.GetApplication(appClient, dev, "example")
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		gomega.Ω(appCRD).NotTo(gomega.BeNil())
 
 		ginkgo.By("Deploy the sleep pod to the development namespace")
 		sleepObj, err := helpers.GetPodObj(sleepPodDef)
@@ -84,6 +109,14 @@ var _ = ginkgo.Describe("CI: Test for basic scheduling", func() {
 			gomega.Ω("yunikorn").To(gomega.Equal(sleepRespPod.Spec.SchedulerName))
 		})
 
+		ginkgo.It("Verify that the Application is created", func() {
+			ginkgo.By("Verify that the Application is created")
+			gomega.Ω(appCRD.Spec.Queue).To(gomega.Equal("root.default"))
+			gomega.Ω(appCRD.Spec.MaxPendingSeconds).To(gomega.Equal(int32(10)))
+			gomega.Ω(appCRD.ObjectMeta.Name).To(gomega.Equal("example"))
+			gomega.Ω(appCRD.ObjectMeta.Namespace).To(gomega.Equal(dev))
+		})
+
 		ginkgo.It("Verify the pod allocation properties", func() {
 			ginkgo.By("Verify the pod allocation properties")
 			gomega.Ω(appsInfo["allocations"]).NotTo(gomega.BeNil())
@@ -105,6 +138,10 @@ var _ = ginkgo.Describe("CI: Test for basic scheduling", func() {
 		ginkgo.AfterSuite(func() {
 			ginkgo.By("Deleting pod with name - " + sleepRespPod.Name)
 			err := kClient.DeletePod(sleepRespPod.Name, dev)
+			gomega.Ω(err).NotTo(gomega.HaveOccurred())
+
+			ginkgo.By("Deleting application CRD")
+			err = helpers.DeleteApplication(appClient, dev, "example")
 			gomega.Ω(err).NotTo(gomega.HaveOccurred())
 
 			ginkgo.By("Deleting development namespaces")
