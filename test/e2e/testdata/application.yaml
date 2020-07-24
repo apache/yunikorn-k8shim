@@ -22,3 +22,4 @@ metadata:
 spec:
   queue: root.default
   maxPendingSeconds: 10
+  
