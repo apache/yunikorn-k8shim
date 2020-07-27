@@ -15,6 +15,7 @@ spec:
       labels:
         app: yunikorn
     spec:
+      imagePullSecrets:
       hostNetwork: true
       tolerations:
       - operator: "Exists"
@@ -45,8 +46,6 @@ spec:
           - name: SCHEDULER_SERVICE_ADDRESS
             value: ${SCHEDULER_SERVICE_ADDRESS}
       dnsPolicy: ClusterFirstWithHostNet
-      imagePullSecrets:
-      - name: ${ADMISSION_CONTROLLER_IMAGE_PULL_SECRETS}
       volumes:
       - name: webhook-tls-certs
         secret:
