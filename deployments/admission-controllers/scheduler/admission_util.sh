@@ -135,6 +135,7 @@ create_resources() {
     -e 's@${ADMISSION_CONTROLLER_IMAGE_REGISTRY}@'"$ADMISSION_CONTROLLER_IMAGE_REGISTRY"'@g' \
     -e 's@${ADMISSION_CONTROLLER_IMAGE_TAG}@'"$ADMISSION_CONTROLLER_IMAGE_TAG"'@g' \
     -e 's@${ADMISSION_CONTROLLER_IMAGE_PULL_POLICY}@'"$ADMISSION_CONTROLLER_IMAGE_PULL_POLICY"'@g' \
+    -e 's@${ADMISSION_CONTROLLER_IMAGE_PULL_SECRETS}@'"$ADMISSION_CONTROLLER_IMAGE_PULL_SECRETS"'@g' \
     <"${basedir}/templates/server.yaml.template" > server.yaml
   kubectl create -f server.yaml
 
