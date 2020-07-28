@@ -26,13 +26,6 @@ import "github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 type SimpleApplicationEvent struct {
 	applicationID string
 	event         events.ApplicationEventType
-	State         string
-}
-
-func NewSimpleApplicationEventWithState(appID string, eventType events.ApplicationEventType, state string) SimpleApplicationEvent {
-	event := NewSimpleApplicationEvent(appID, eventType)
-	event.State = state
-	return event
 }
 
 func NewSimpleApplicationEvent(appID string, eventType events.ApplicationEventType) SimpleApplicationEvent {
@@ -51,6 +44,35 @@ func (st SimpleApplicationEvent) GetArgs() []interface{} {
 }
 
 func (st SimpleApplicationEvent) GetApplicationID() string {
+	return st.applicationID
+}
+
+// ------------------------
+// ApplicationStatusChangeEvent updates the status in the application CRD
+// ------------------------
+type ApplicationStatusChangeEvent struct {
+	applicationID string
+	event         events.ApplicationEventType
+	State         string
+}
+
+func NewApplicationStatusChangeEvent(appID string, eventType events.ApplicationEventType, state string) ApplicationStatusChangeEvent {
+	return ApplicationStatusChangeEvent {
+		applicationID: appID,
+		event:         eventType,
+		State:		   state,
+	}
+}
+
+func (st ApplicationStatusChangeEvent) GetEvent() events.ApplicationEventType {
+	return st.event
+}
+
+func (st ApplicationStatusChangeEvent) GetArgs() []interface{} {
+	return nil
+}
+
+func (st ApplicationStatusChangeEvent) GetApplicationID() string {
 	return st.applicationID
 }
 

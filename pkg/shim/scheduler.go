@@ -117,9 +117,10 @@ func newShimSchedulerInternal(ctx *cache.Context, apiFactory client.APIProvider,
 }
 
 func (ss *KubernetesShim) registerAppManagerHandler (appMgrName string) {
+	ss.context.AddSchedulingEventHandlers()
 	appMgr := ss.appManager.GetManagerByName(appMgrName)
 	if appMgr != nil {
-		dispatcher.RegisterEventHandler(dispatcher.EventTypeApp, appMgr.HandleCallbackEvents())
+		dispatcher.RegisterEventHandler(dispatcher.EventTypeAppStatus, appMgr.HandleCallbackEvents())
 	} else {
 		log.Logger.Debug("App manager not registered",
 		zap.String("app manager name", appMgrName))

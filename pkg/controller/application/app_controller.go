@@ -19,6 +19,9 @@
 package application
 
 import (
+	"os"
+	"time"
+
 	corecache "github.com/apache/incubator-yunikorn-core/pkg/cache"
 	appv1 "github.com/apache/incubator-yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
@@ -38,18 +41,16 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
-	"os"
-	"time"
 )
 
 type AppManager struct {
-	amProtocol  interfaces.ApplicationManagementProtocol
-	controller  *Controller
+	amProtocol interfaces.ApplicationManagementProtocol
+	controller *Controller
 }
 
-func NewAppManager(amProtocol interfaces.ApplicationManagementProtocol) *AppManager{
+func NewAppManager(amProtocol interfaces.ApplicationManagementProtocol) *AppManager {
 	return &AppManager{
-		amProtocol:  	amProtocol,
+		amProtocol: amProtocol,
 	}
 }
 
@@ -60,7 +61,7 @@ func (appMgr *AppManager) Name() string {
 
 // this implements AppManagementService interface
 func (appMgr *AppManager) ServiceInit() error {
-return nil
+	return nil
 }
 
 // this implements AppManagementService interface
@@ -83,7 +84,7 @@ func (appMgr *AppManager) HandleCallbackEvents() func(obj interface{}) {
 				log.Logger.Info("Status Change callback",
 					zap.Any("new state", event.GetArgs()))
 				//TODO: check how to get the status from the event
-				if shimEvent, ok := event.(shimcache.SimpleApplicationEvent); ok {
+				if shimEvent, ok := event.(shimcache.ApplicationStatusChangeEvent); ok {
 					appId := event.GetApplicationID()
 					var app = appMgr.amProtocol.GetApplication(appId).(*shimcache.Application)
 					appCRD, err := appMgr.controller.lister.Applications(app.GetTags()[constants.AppTagNamespace]).Get(appId)
@@ -109,8 +110,8 @@ type Controller struct {
 	kubeClient       kubernetes.Interface
 	extensionsClient apiextensionsclient.Interface
 	appClient        applicationclient.Interface
-	informer 		 cache.SharedIndexInformer
-	lister 			 applister.ApplicationLister
+	informer         cache.SharedIndexInformer
+	lister           applister.ApplicationLister
 }
 
 func NewController(appMgr *AppManager) *Controller {
@@ -127,7 +128,7 @@ func NewController(appMgr *AppManager) *Controller {
 	informerFactory := appinformers.NewSharedInformerFactory(appClient, time.Minute*1)
 	informer := informerFactory.Apache().V1alpha1().Applications()
 	informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: appMgr.addApp,
+		AddFunc:    appMgr.addApp,
 		UpdateFunc: appMgr.updateApp,
 		DeleteFunc: appMgr.deleteApp,
 	})
@@ -135,11 +136,11 @@ func NewController(appMgr *AppManager) *Controller {
 
 	utilruntime.Must(appv1.AddToScheme(appscheme.Scheme))
 	return &Controller{
-		kubeClient:          kubeClient,
+		kubeClient:       kubeClient,
 		extensionsClient: apiextensionsClient,
-		appClient  :  appClient,
-		informer:               informer.Informer(),
-		lister:                 informer.Lister(),
+		appClient:        appClient,
+		informer:         informer.Informer(),
+		lister:           informer.Lister(),
 	}
 }
 
@@ -164,14 +165,14 @@ func (c *Controller) Run() {
 
 /*
 Update the application in the scheduler
- */
-func (appMgr *AppManager) updateApp (oldObj interface{}, newObj interface{}) {
-//TODO: implement the update
+*/
+func (appMgr *AppManager) updateApp(oldObj interface{}, newObj interface{}) {
+	//TODO: implement the update
 }
 
 /*
 Remove the application from the scheduler as well
- */
+*/
 func (appMgr *AppManager) deleteApp(obj interface{}) {
 	app, _ := obj.(*appv1.Application)
 	appId := app.Name
@@ -183,7 +184,7 @@ func (appMgr *AppManager) deleteApp(obj interface{}) {
 
 /*
 Add application to scheduler
- */
+*/
 func (appMgr *AppManager) addApp(obj interface{}) {
 	appCRD, _ := obj.(*appv1.Application)
 	if appMeta, ok := appMgr.getAppMetadata(appCRD); ok {
@@ -218,7 +219,7 @@ func (appMgr *AppManager) updateAppCRDStatus(appCRD *appv1.Application, status a
 }
 
 func (appMgr *AppManager) getAppMetadata(app *appv1.Application) (interfaces.ApplicationMetadata, bool) {
-	appId:= app.Name
+	appId := app.Name
 
 	// tags will at least have namespace info
 	// labels or annotations from the pod can be added when needed
@@ -260,4 +261,3 @@ func convertShimAppStateToAppCRDState(status string) appv1.ApplicationStateType 
 		return "Undefined"
 	}
 }
-

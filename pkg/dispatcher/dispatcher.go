@@ -41,6 +41,7 @@ const (
 	EventTypeTask
 	EventTypeNode
 	EventTypeScheduler
+	EventTypeAppStatus
 )
 
 var (
@@ -179,7 +180,11 @@ func Start() {
 			case event := <-dispatcher.eventChan:
 				switch v := event.(type) {
 				case events.ApplicationEvent:
-					getEventHandler(EventTypeApp)(v)
+					if v.GetEvent() == events.AppStateChange {
+						getEventHandler(EventTypeAppStatus)(v)
+					} else {
+						getEventHandler(EventTypeApp)(v)
+					}
 				case events.TaskEvent:
 					getEventHandler(EventTypeTask)(v)
 				case events.SchedulerEvent:

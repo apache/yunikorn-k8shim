@@ -127,8 +127,7 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 			zap.String("new status", updated.State))
 
 		//handle status update
-		//TODO: add a new  event type instead of using this
-		dispatcher.Dispatch(cache.NewSimpleApplicationEventWithState(updated.ApplicationID, events.AppStateChange, updated.State))
+		dispatcher.Dispatch(cache.NewApplicationStatusChangeEvent(updated.ApplicationID, events.AppStateChange, updated.State))
 	}
 
 	return nil
