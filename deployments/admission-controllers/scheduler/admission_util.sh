@@ -52,9 +52,6 @@ fi
 if [ -z "$ADMISSION_CONTROLLER_IMAGE_PULL_POLICY" ]; then
   ADMISSION_CONTROLLER_IMAGE_PULL_POLICY=`cat ${CONF_FILE} | grep ^dockerImagePullPolicy | cut -d "=" -f 2`
 fi
-if [ -z "$ADMISSION_CONTROLLER_IMAGE_PULL_SECRETS" ]; then
-  ADMISSION_CONTROLLER_IMAGE_PULL_SECRETS=`cat ${CONF_FILE} | grep ^dockerImagePullSecrets | cut -d "=" -f 2`
-fi
 delete_resources() {
   kubectl delete -f server.yaml
   # cleanup admissions
@@ -137,10 +134,9 @@ create_resources() {
     -e 's@${ADMISSION_CONTROLLER_IMAGE_REGISTRY}@'"$ADMISSION_CONTROLLER_IMAGE_REGISTRY"'@g' \
     -e 's@${ADMISSION_CONTROLLER_IMAGE_TAG}@'"$ADMISSION_CONTROLLER_IMAGE_TAG"'@g' \
     -e 's@${ADMISSION_CONTROLLER_IMAGE_PULL_POLICY}@'"$ADMISSION_CONTROLLER_IMAGE_PULL_POLICY"'@g' \
-    -e 's@${ADMISSION_CONTROLLER_IMAGE_PULL_SECRETS}@'"$ADMISSION_CONTROLLER_IMAGE_PULL_SECRETS"'@g' \
     <"${basedir}/templates/server.yaml.template" > server.yaml
 
-  # ImagePullSecrets is an array with format [secret1 secret2 ...]
+if [ -n "$ADMISSION_CONTROLLER_IMAGE_PULL_SECRETS" ]; then
   touch .server_yaml_tmp_file
   secrets_array=`echo "${ADMISSION_CONTROLLER_IMAGE_PULL_SECRETS}" | cut -d']' -f 1 | cut -d'[' -f 2`
   echo ${secrets_array} | awk -F" " '{ split($0, arr, " "); }END{ for ( i in arr ) { print arr[i] } }' | while read line ; do
@@ -148,6 +144,8 @@ create_resources() {
   done
   sed -i '/[\s]*imagePullSecrets:/r .server_yaml_tmp_file' server.yaml
   rm -rf .server_yaml_tmp_file
+fi
+  # ImagePullSecrets is an array with format [secret1 secret2 ...]
 
   kubectl create -f server.yaml
 
