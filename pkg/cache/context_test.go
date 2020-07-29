@@ -573,3 +573,103 @@ func TestNodeEventPublishedCorrectly(t *testing.T) {
 	}, 5*time.Millisecond, 20*time.Millisecond)
 	assert.NilError(t, err, "event should have been emitted")
 }
+
+func TestPublishEventsWithNotExistingAsk(t *testing.T) {
+	conf.GetSchedulerConf().SetTestMode(true)
+	recorder, ok := events.GetRecorder().(*record.FakeRecorder)
+	if !ok {
+		t.Fatal("the EventRecorder is expected to be of type FakeRecorder")
+	}
+	context := initContextForTest()
+	context.AddApplication(&interfaces.AddApplicationRequest{
+		Metadata: interfaces.ApplicationMetadata{
+			ApplicationID: "app_event_12",
+			QueueName:     "root.a",
+			User:          "test-user",
+			Tags:          nil,
+		},
+		Recovery: false,
+	})
+	eventRecords := make([]*si.EventRecord, 0)
+	message := "event_related_text_msg"
+	reason := "event_related_text"
+	eventRecords = append(eventRecords, &si.EventRecord{
+		Type:     si.EventRecord_REQUEST,
+		ObjectID: "non_existing_task_event",
+		GroupID:  "app_event_12",
+		Reason:   reason,
+		Message:  message,
+	})
+	context.PublishEvents(eventRecords)
+
+	// check that the event has not been published
+	err := utils.WaitForCondition(func() bool {
+		for {
+			select {
+			case event := <-recorder.Events:
+				if strings.Contains(event, reason) && strings.Contains(event, message) {
+					return false
+				}
+			default:
+				return true
+			}
+		}
+	}, 5*time.Millisecond, 20*time.Millisecond)
+	assert.NilError(t, err, "event should not have been published if the pod does not exist")
+}
+
+func TestPublishEventsCorrectly(t *testing.T) {
+	conf.GetSchedulerConf().SetTestMode(true)
+	recorder, ok := events.GetRecorder().(*record.FakeRecorder)
+	if !ok {
+		t.Fatal("the EventRecorder is expected to be of type FakeRecorder")
+	}
+	context := initContextForTest()
+
+	// create fake application and task
+	context.AddApplication(&interfaces.AddApplicationRequest{
+		Metadata: interfaces.ApplicationMetadata{
+			ApplicationID: "app_event",
+			QueueName:     "root.a",
+			User:          "test-user",
+			Tags:          nil,
+		},
+		Recovery: false,
+	})
+	context.AddTask(&interfaces.AddTaskRequest{
+		Metadata: interfaces.TaskMetadata{
+			ApplicationID: "app_event",
+			TaskID:        "task_event",
+			Pod:           &v1.Pod{},
+		},
+		Recovery: false,
+	})
+
+	// create an event belonging to that task
+	eventRecords := make([]*si.EventRecord, 0)
+	message := "event_related_message"
+	reason := "event_related_reason"
+	eventRecords = append(eventRecords, &si.EventRecord{
+		Type:     si.EventRecord_REQUEST,
+		ObjectID: "task_event",
+		GroupID:  "app_event",
+		Reason:   reason,
+		Message:  message,
+	})
+	context.PublishEvents(eventRecords)
+
+	// check that the event has been published
+	err := utils.WaitForCondition(func() bool {
+		for {
+			select {
+			case event := <-recorder.Events:
+				if strings.Contains(event, reason) && strings.Contains(event, message) {
+					return true
+				}
+			default:
+				return false
+			}
+		}
+	}, 5*time.Millisecond, 20*time.Millisecond)
+	assert.NilError(t, err, "event should have been emitted")
+}
