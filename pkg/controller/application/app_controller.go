@@ -22,6 +22,17 @@ import (
 	"os"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/equality"
+
+	"go.uber.org/zap"
+	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/tools/clientcmd"
+
 	corecache "github.com/apache/incubator-yunikorn-core/pkg/cache"
 	appv1 "github.com/apache/incubator-yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
@@ -33,14 +44,6 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
-	"go.uber.org/zap"
-	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/cache"
-	"k8s.io/client-go/tools/clientcmd"
 )
 
 type AppManager struct {
@@ -81,16 +84,17 @@ func (appMgr *AppManager) HandleCallbackEvents() func(obj interface{}) {
 	return func(obj interface{}) {
 		if event, ok := obj.(events.ApplicationEvent); ok {
 			if events.AppStateChange == event.GetEvent() {
-				log.Logger.Info("Status Change callback",
-					zap.Any("new state", event.GetArgs()))
-				//TODO: check how to get the status from the event
 				if shimEvent, ok := event.(shimcache.ApplicationStatusChangeEvent); ok {
-					appId := event.GetApplicationID()
-					var app = appMgr.amProtocol.GetApplication(appId).(*shimcache.Application)
-					appCRD, err := appMgr.controller.lister.Applications(app.GetTags()[constants.AppTagNamespace]).Get(appId)
-					if err == nil {
-						log.Logger.Error("Failed to query app CRD for status update",
-							zap.String("Application ID", appId))
+					appID := event.GetApplicationID()
+					log.Logger.Info("Status Change callback received",
+						zap.String("app id", appID),
+						zap.String("new status", shimEvent.State))
+					var app = appMgr.amProtocol.GetApplication(appID).(*shimcache.Application)
+					appCRD, err := appMgr.controller.lister.Applications(app.GetTags()[constants.AppTagNamespace]).Get(appID)
+					if err != nil {
+						log.Logger.Warn("Failed to query app CRD for status update",
+							zap.String("Application ID", appID),
+							zap.Error(err))
 						return
 					}
 					crdState := convertShimAppStateToAppCRDState(shimEvent.State)
@@ -98,7 +102,7 @@ func (appMgr *AppManager) HandleCallbackEvents() func(obj interface{}) {
 						appMgr.updateAppCRDStatus(appCRD, crdState)
 					} else {
 						log.Logger.Error("Invalid status, skip saving it",
-							zap.String("App id", appId))
+							zap.String("App id", appID))
 					}
 				}
 			}
@@ -145,6 +149,7 @@ func NewController(appMgr *AppManager) *Controller {
 }
 
 func (c *Controller) Run() {
+	//TODO: handle the case when the crd is not registered: register it programatically
 	defer utilruntime.HandleCrash()
 
 	log.Logger.Info("Waiting cache to be synced.")
@@ -156,43 +161,70 @@ func (c *Controller) Run() {
 		timeoutCh <- struct{}{}
 	}()
 	if ok := cache.WaitForCacheSync(timeoutCh, c.informer.HasSynced); !ok {
-		log.Logger.Fatal("Timeout expired during waiting for caches to sync.")
+		log.Logger.Error("Timeout expired during waiting for caches to sync. Skip starting the application controller")
+	} else {
+		log.Logger.Info("Starting application controller.")
 	}
-
-	log.Logger.Info("Starting custom controller.")
-	//select {}
 }
 
 /*
 Update the application in the scheduler
 */
 func (appMgr *AppManager) updateApp(oldObj interface{}, newObj interface{}) {
-	//TODO: implement the update
+	newApp, ok := newObj.(*appv1.Application)
+	if !ok {
+		log.Logger.Error("newObj is not an Application")
+	}
+	oldApp, ok := oldObj.(*appv1.Application)
+	if !ok {
+		log.Logger.Error("oldObj is not an Application")
+	}
+	// No need to update if ResourceVersion is not changed
+	if newApp.ResourceVersion == oldApp.ResourceVersion {
+		log.Logger.Info("No need to update because app object is not modified")
+		return
+	}
+
+	// handle spec change
+	if !equality.Semantic.DeepEqual(oldApp.Spec, newApp.Spec) {
+		//TODO: handle update, discuss what should be updated since only the queue is the common property yet
+	}
 }
 
 /*
 Remove the application from the scheduler as well
 */
 func (appMgr *AppManager) deleteApp(obj interface{}) {
-	app, _ := obj.(*appv1.Application)
-	appId := app.Name
-	appMgr.amProtocol.RemoveApplication(appId)
+	app, ok := obj.(*appv1.Application)
+	if !ok {
+		log.Logger.Error("obj is not an Application")
+	}
+	appID := app.Name
+	err := appMgr.amProtocol.RemoveApplication(appID)
+	if err != nil {
+		log.Logger.Error("Application removal failed",
+			zap.String("appID", appID),
+			zap.Error(err))
+	}
 	log.Logger.Debug("App CRD deleted",
-		zap.String("Name", appId))
-	//TODO: check why is not remobed from core
+		zap.String("Name", appID))
+	//TODO: delete related pods and deployments
 }
 
 /*
 Add application to scheduler
 */
 func (appMgr *AppManager) addApp(obj interface{}) {
-	appCRD, _ := obj.(*appv1.Application)
+	appCRD, ok := obj.(*appv1.Application)
+	if !ok {
+		log.Logger.Error("obj is not an Application")
+	}
 	if appMeta, ok := appMgr.getAppMetadata(appCRD); ok {
 		app := appMgr.amProtocol.GetApplication(appMeta.ApplicationID)
 		if app == nil {
 			appMgr.amProtocol.AddApplication(&interfaces.AddApplicationRequest{
 				Metadata: appMeta,
-				//TODO: ask about recovery
+				//TODO: debug recovery
 				//TODO: try to define the owner reference for the submitted pods to this CRD and try of we delete the
 				//CRD the pods will be deleted as well
 				Recovery: false,
@@ -206,7 +238,7 @@ func (appMgr *AppManager) addApp(obj interface{}) {
 func (appMgr *AppManager) updateAppCRDStatus(appCRD *appv1.Application, status appv1.ApplicationStateType) {
 	copy := appCRD.DeepCopy()
 	copy.Status = appv1.ApplicationStatus{
-		AppStatus:  appv1.NewApplicationState,
+		AppStatus:  status,
 		Message:    "app CRD status change",
 		LastUpdate: v1.NewTime(time.Now()),
 	}
@@ -219,7 +251,7 @@ func (appMgr *AppManager) updateAppCRDStatus(appCRD *appv1.Application, status a
 }
 
 func (appMgr *AppManager) getAppMetadata(app *appv1.Application) (interfaces.ApplicationMetadata, bool) {
-	appId := app.Name
+	appID := app.Name
 
 	// tags will at least have namespace info
 	// labels or annotations from the pod can be added when needed
@@ -232,7 +264,7 @@ func (appMgr *AppManager) getAppMetadata(app *appv1.Application) (interfaces.App
 	}
 
 	return interfaces.ApplicationMetadata{
-		ApplicationID: appId,
+		ApplicationID: appID,
 		QueueName:     app.Spec.Queue,
 		User:          "default",
 		Tags:          tags,
