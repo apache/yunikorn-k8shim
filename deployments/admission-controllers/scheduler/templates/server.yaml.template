@@ -15,6 +15,7 @@ spec:
       labels:
         app: yunikorn
     spec:
+      imagePullSecrets:
       hostNetwork: true
       tolerations:
       - operator: "Exists"
