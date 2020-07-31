@@ -36,7 +36,6 @@ ADD k8s_yunikorn_scheduler /k8s_yunikorn_scheduler
 WORKDIR /
 ENV CLUSTER_ID "mycluster"
 ENV CLUSTER_VERSION "latest"
-ENV SCHEDULER_NAME "yunikorn"
 ENV POLICY_GROUP "queues"
 ENV SCHEDULING_INTERVAL "1s"
 ENV LOG_LEVEL "-1"
