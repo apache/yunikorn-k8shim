@@ -28,7 +28,6 @@ func TestDefaultValues(t *testing.T) {
 	assert.Equal(t, conf.ClusterID, DefaultClusterID)
 	assert.Equal(t, conf.PolicyGroup, DefaultPolicyGroup)
 	assert.Equal(t, conf.ClusterVersion, DefaultClusterVersion)
-	assert.Equal(t, conf.SchedulerName, DefaultSchedulerName)
 	assert.Equal(t, conf.LoggingLevel, DefaultLoggingLevel)
 	assert.Equal(t, conf.LogEncoding, DefaultLogEncoding)
 	assert.Equal(t, conf.EventChannelCapacity, DefaultEventChannelCapacity)

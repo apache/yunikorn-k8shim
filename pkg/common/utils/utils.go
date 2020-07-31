@@ -28,7 +28,6 @@ import (
 	podv1 "k8s.io/kubernetes/pkg/api/v1/pod"
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 )
 
@@ -70,7 +69,7 @@ func IsAssignedPod(pod *v1.Pod) bool {
 }
 
 func GeneralPodFilter(pod *v1.Pod) bool {
-	return strings.Compare(pod.Spec.SchedulerName, conf.GetSchedulerConf().SchedulerName) == 0
+	return strings.Compare(pod.Spec.SchedulerName, common.SchedulerName) == 0
 }
 
 func GetQueueNameFromPod(pod *v1.Pod) string {
