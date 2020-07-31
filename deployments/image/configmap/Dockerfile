@@ -51,7 +51,6 @@ ENV OPERATOR_PLUGINS "general"
 ENTRYPOINT ["sh", "-c", "/k8s_yunikorn_scheduler \
 -clusterId=${CLUSTER_ID} \
 -clusterVersion=${CLUSTER_VERSION} \
--name=${SCHEDULER_NAME} \
 -policyGroup=${POLICY_GROUP} \
 -interval=${SCHEDULING_INTERVAL} \
 -logLevel=${LOG_LEVEL} \
