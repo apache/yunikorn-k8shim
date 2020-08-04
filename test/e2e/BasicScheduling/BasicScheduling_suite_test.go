@@ -16,10 +16,13 @@
  limitations under the License.
 */
 
-package ci
+package basicscheduling_test
 
 import (
+	"path/filepath"
 	"testing"
+
+	"github.com/onsi/ginkgo/reporters"
 
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
@@ -31,7 +34,8 @@ func init() {
 	configmanager.YuniKornTestConfig.ParseFlags()
 }
 
-func TestPlacementRules(t *testing.T) {
+func TestBasicScheduling(t *testing.T) {
 	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "CI Test Suite")
+	junitReporter := reporters.NewJUnitReporter(filepath.Join(configmanager.YuniKornTestConfig.LogDir, "basic_scheduling_junit.xml"))
+	ginkgo.RunSpecsWithDefaultAndCustomReporters(t, "TestBasicScheduling", []ginkgo.Reporter{junitReporter})
 }

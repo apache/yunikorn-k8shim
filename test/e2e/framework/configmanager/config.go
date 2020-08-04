@@ -34,6 +34,7 @@ type YuniKornTestConfigType struct {
 	YkHost      string
 	YkPort      string
 	YkScheme    string
+	LogDir      string
 }
 
 // YuniKornTestConfig holds the global configuration of commandline flags
@@ -52,7 +53,7 @@ func (c *YuniKornTestConfigType) ParseFlags() {
 		"Log location")
 	flag.DurationVar(&c.Timeout, "timeout", 24*time.Hour,
 		"Specifies timeout for test run")
-	flag.StringVar(&c.YkNamespace, "yk-namespace", "default",
+	flag.StringVar(&c.YkNamespace, "yk-namespace", "yunikorn",
 		"K8s Namespace in which YuniKorn service deployed")
 	flag.StringVar(&c.YkHost, "yk-host", DefaultYuniKornHost,
 		"Hostname/IP of YuniKorn service")
@@ -60,4 +61,6 @@ func (c *YuniKornTestConfigType) ParseFlags() {
 		"External Port of YuniKorn service")
 	flag.StringVar(&c.YkScheme, "yk-scheme", DefaultYuniKornScheme,
 		"Scheme of YuniKron Service")
+	flag.StringVar(&c.LogDir, "log-dir", "/yunikorn-qe/test-results/target/failsafe-reports",
+		"Log location where the logs are stored")
 }
