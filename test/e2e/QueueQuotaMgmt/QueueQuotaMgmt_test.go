@@ -84,13 +84,13 @@ var _ = Describe("", func() {
 		6. Wait until pod-1 completes and verify that pod-2 is scheduled now.
 	*/
 	It("Verify_Queue_Quota_Allocation", func() {
-		maxMem = 1024
-		maxCPU = 1000
+		maxMem = 300
+		maxCPU = 300
 		annotations[maxCPUAnnotation] = strconv.FormatInt(maxCPU, 10) + "m"
 		annotations[maxMemAnnotation] = strconv.FormatInt(maxMem, 10) + "M"
 
-		var reqCPU int64 = 300
-		var reqMem int64 = 300
+		var reqCPU int64 = 100
+		var reqMem int64 = 100
 
 		ns = "ns-" + common.RandSeq(10)
 		By(fmt.Sprintf("create %s namespace with maxCPU: %d and maxMem: %d", ns, maxCPU, maxMem))
