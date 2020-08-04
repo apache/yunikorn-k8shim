@@ -39,8 +39,6 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/configmanager"
 )
 
-var err error
-
 type KubeCtl struct {
 	clientSet      *kubernetes.Clientset
 	kubeConfigPath string
@@ -54,6 +52,7 @@ func (k *KubeCtl) findKubeConfig() error {
 		k.kubeConfigPath = env
 		return nil
 	}
+	var err error
 	k.kubeConfigPath, err = expand(configmanager.YuniKornTestConfig.KubeConfig)
 	return err
 }
@@ -80,6 +79,7 @@ func expand(path string) (string, error) {
 }
 
 func (k *KubeCtl) SetClient() error {
+	var err error
 	if k.findKubeConfig() != nil {
 		return err
 	}
@@ -95,7 +95,7 @@ func (k *KubeCtl) GetKubeConfig() (*rest.Config, error) {
 	if k.kubeConfig != nil {
 		return k.kubeConfig, nil
 	}
-	return nil, err
+	return nil, errors.New("kubeconfig is nil")
 }
 func (k *KubeCtl) GetPods(namespace string) (*v1.PodList, error) {
 	return k.clientSet.CoreV1().Pods(namespace).List(metav1.ListOptions{})

@@ -77,11 +77,6 @@ var _ = ginkgo.Describe("", func() {
 		ginkgo.By("Verify that the sleep pod is mapped to development queue")
 		gomega.Ω(appsInfo["applicationID"]).To(gomega.Equal(sleepRespPod.ObjectMeta.Labels["applicationId"]))
 		gomega.Ω(appsInfo["queueName"]).To(gomega.ContainSubstring(sleepRespPod.ObjectMeta.Namespace))
-	})
-
-	ginkgo.It("Verify_Job_State", func() {
-		ginkgo.By("Verify that the job is scheduled & starting by YuniKorn")
-		gomega.Ω(appsInfo["applicationState"]).To(gomega.Equal("Starting"))
 		gomega.Ω("yunikorn").To(gomega.Equal(sleepRespPod.Spec.SchedulerName))
 	})
 
