@@ -51,10 +51,10 @@ var _ = BeforeSuite(func() {
 
 	oldConfigMap = c.DeepCopy()
 	Ω(c).Should(BeEquivalentTo(oldConfigMap))
-	var stateAwareStr = "partitions:\n  -\n    name: default\n    placementrules:\n      - name: tag\n        " +
+	var configStr = "partitions:\n  -\n    name: default\n    placementrules:\n      - name: tag\n        " +
 		"value: namespace\n        create: true\n    queues:\n      - name: root\n        " +
 		"submitacl: '*'"
-	c.Data[configmanager.DefaultPolicyGroup] = stateAwareStr
+	c.Data[configmanager.DefaultPolicyGroup] = configStr
 	var d, err2 = k.UpdateConfigMap(c, configmanager.YuniKornTestConfig.YkNamespace)
 	Ω(err2).NotTo(HaveOccurred())
 	Ω(d).NotTo(BeNil())
