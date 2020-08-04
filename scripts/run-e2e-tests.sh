@@ -147,7 +147,7 @@ Usage: $(basename "$0") -a <action> -n <kind-cluster-name> -v <kind-node-image-v
   <kind-node-image-version>    the kind node image used to provision the K8s cluster.
 
 Examples:
-  $(basename "$0") -n "yk8s" -v "kindest/node:v1.15.3"
+  $(basename "$0") -n "yk8s" -v "kindest/node:v1.15.11"
 EOF
 }
 

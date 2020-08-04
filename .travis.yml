@@ -33,7 +33,7 @@ env:
   global:
     - GO111MODULE=on
     - CLUSTER_NAME="yk8s"
-    - KIND_NODE_IMAGE="kindest/node:v1.15.3"
+    - KIND_NODE_IMAGE="kindest/node:v1.15.11"
 
 install: true
 
