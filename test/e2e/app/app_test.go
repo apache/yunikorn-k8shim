@@ -22,13 +22,16 @@ import (
 	"github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 
+	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
+
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
 	crdclientset "github.com/apache/incubator-yunikorn-k8shim/pkg/client/clientset/versioned"
-	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/helpers"
+	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/helpers/common"
+	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/helpers/k8s"
 )
 
 var _ = ginkgo.Describe("App", func() {
-	var kClient helpers.KubeCtl
+	var kClient k8s.KubeCtl
 	var appClient *crdclientset.Clientset
 	var appCRDDef string
 	var appCRD *v1alpha1.Application
@@ -36,30 +39,30 @@ var _ = ginkgo.Describe("App", func() {
 
 	ginkgo.BeforeSuite(func() {
 		// Initializing kubectl client and create test namespace
-		kClient = helpers.KubeCtl{}
+		kClient = k8s.KubeCtl{}
 		gomega.Ω(kClient.SetClient()).To(gomega.BeNil())
 		ginkgo.By("create apptest namespace")
-		ns, err := kClient.CreateNamespace(dev)
+		ns, err := kClient.CreateNamespace(dev, nil)
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		gomega.Ω(ns.Status.Phase).To(gomega.Equal(v1.NamespaceActive))
 
 		ginkgo.By("Deploy the example Application to the apptest namespace")
-		appClient, err = helpers.NewApplicationClient()
+		appClient, err = yunikorn.NewApplicationClient()
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		// error test case
-		apperrDef, err := helpers.GetAbsPath("../testdata/application_error.yaml")
+		apperrDef, err := common.GetAbsPath("../testdata/application_error.yaml")
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
-		_, err = helpers.GetApplicationObj(apperrDef)
+		_, err = yunikorn.GetApplicationObj(apperrDef)
 		gomega.Ω(err).To(gomega.HaveOccurred())
 		// correct test case
-		appCRDDef, err = helpers.GetAbsPath("../testdata/application.yaml")
+		appCRDDef, err = common.GetAbsPath("../testdata/application.yaml")
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
-		appCRDObj, err := helpers.GetApplicationObj(appCRDDef)
+		appCRDObj, err := yunikorn.GetApplicationObj(appCRDDef)
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		appCRDObj.Namespace = dev
-		err = helpers.CreateApplication(appClient, appCRDObj, dev)
+		err = yunikorn.CreateApplication(appClient, appCRDObj, dev)
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
-		appCRD, err = helpers.GetApplication(appClient, dev, "example")
+		appCRD, err = yunikorn.GetApplication(appClient, dev, "example")
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		gomega.Ω(appCRD).NotTo(gomega.BeNil())
 	})
@@ -75,7 +78,7 @@ var _ = ginkgo.Describe("App", func() {
 
 		ginkgo.AfterSuite(func() {
 			ginkgo.By("Deleting application CRD")
-			err := helpers.DeleteApplication(appClient, dev, "example")
+			err := yunikorn.DeleteApplication(appClient, dev, "example")
 			gomega.Ω(err).NotTo(gomega.HaveOccurred())
 
 			ginkgo.By("Deleting development namespaces")
