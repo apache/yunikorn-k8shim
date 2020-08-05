@@ -197,3 +197,15 @@ func NodeForTest(nodeID, memory, cpu string) *v1.Node {
 		},
 	}
 }
+
+func ContainsString(array []string, str string) bool {
+	if array == nil {
+		return false
+	}
+	for _, s := range array {
+		if s == str {
+			return true
+		}
+	}
+	return false
+}
