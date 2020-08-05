@@ -19,7 +19,6 @@
 package main
 
 import (
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"sync"
 	"time"
 
@@ -111,21 +110,11 @@ func newShimSchedulerInternal(ctx *cache.Context, apiFactory client.APIProvider,
 	dispatcher.RegisterEventHandler(dispatcher.EventTypeTask, ctx.TaskEventHandler())
 	dispatcher.RegisterEventHandler(dispatcher.EventTypeNode, ctx.SchedulerNodeEventHandler())
 	dispatcher.RegisterEventHandler(dispatcher.EventTypeScheduler, ss.SchedulerEventHandler())
-	ss.registerAppManagerHandler(constants.AppManagerHandlerName)
+	dispatcher.RegisterEventHandler(dispatcher.EventTypeAppStatus, am.ApplicationStateUpdateEventHandler())
 
 	return ss
 }
 
-func (ss *KubernetesShim) registerAppManagerHandler (appMgrName string) {
-	ss.context.AddSchedulingEventHandlers()
-	appMgr := ss.appManager.GetManagerByName(appMgrName)
-	if appMgr != nil {
-		dispatcher.RegisterEventHandler(dispatcher.EventTypeAppStatus, appMgr.HandleCallbackEvents())
-	} else {
-		log.Logger.Debug("App manager not registered",
-		zap.String("app manager name", appMgrName))
-	}
-}
 func (ss *KubernetesShim) SchedulerEventHandler() func(obj interface{}) {
 	return func(obj interface{}) {
 		if event, ok := obj.(events.SchedulerEvent); ok {

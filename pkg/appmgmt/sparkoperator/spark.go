@@ -105,12 +105,6 @@ func (os *Manager) Stop() {
 	os.stopCh <- struct{}{}
 }
 
-func (os *Manager) HandleCallbackEvents() func(obj interface{}) {
-	return func(obj interface{}) {
-		//noop
-	}
-}
-
 func (os *Manager) getTaskMetadata(pod *v1.Pod) (interfaces.TaskMetadata, bool) {
 	// spark executors are having a common label
 	if appName, ok := pod.Labels[SparkAppNameLabel]; ok {

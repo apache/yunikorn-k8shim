@@ -19,6 +19,9 @@
 package client
 
 import (
+	applicationclient "github.com/apache/incubator-yunikorn-k8shim/pkg/client/clientset/versioned"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/client/informers/externalversions/yunikorn.apache.org/v1alpha1"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"sync"
 	"time"
 
@@ -27,6 +30,8 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/volumebinder"
 
 	"github.com/apache/incubator-yunikorn-core/pkg/api"
+	appclient "github.com/apache/incubator-yunikorn-k8shim/pkg/client/clientset/versioned"
+	appinformers "github.com/apache/incubator-yunikorn-k8shim/pkg/client/informers/externalversions"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 )
 
@@ -39,6 +44,7 @@ const (
 	StorageInformerHandlers
 	PVInformerHandlers
 	PVCInformerHandlers
+	ApplicationInformerHandlers
 )
 
 type APIProvider interface {
@@ -85,6 +91,14 @@ func NewAPIFactory(scheduler api.SchedulerAPI, configs *conf.SchedulerConf, test
 	pvcInformer := informerFactory.Core().V1().PersistentVolumeClaims()
 	namespaceInformer := informerFactory.Core().V1().Namespaces()
 
+	var appClient *appclient.Clientset = nil
+	var applicationInformer v1alpha1.ApplicationInformer = nil
+
+	if configs.IsOperatorPluginEnabled(constants.AppManagerHandlerName) {
+		appClient = applicationclient.NewForConfigOrDie(kubeClient.GetConfigs())
+		applicationInformer = appinformers.NewSharedInformerFactory(appClient, time.Minute*1).Apache().V1alpha1().Applications()
+	}
+
 	// create a volume binder (needs the informers)
 	volumeBinder := volumebinder.NewVolumeBinder(
 		kubeClient.GetClientSet(),
@@ -97,6 +111,7 @@ func NewAPIFactory(scheduler api.SchedulerAPI, configs *conf.SchedulerConf, test
 		clients: &Clients{
 			Conf:              configs,
 			KubeClient:        kubeClient,
+			AppClient:		   *appClient,
 			SchedulerAPI:      scheduler,
 			InformerFactory:   informerFactory,
 			PodInformer:       podInformer,
@@ -107,6 +122,7 @@ func NewAPIFactory(scheduler api.SchedulerAPI, configs *conf.SchedulerConf, test
 			NamespaceInformer: namespaceInformer,
 			StorageInformer:   storageInformer,
 			VolumeBinder:      volumeBinder,
+			ApplicationInformer:applicationInformer,
 		},
 		testMode: testMode,
 		stopChan: make(chan struct{}),
@@ -167,6 +183,9 @@ func (s *APIFactory) addEventHandlers(
 			AddEventHandlerWithResyncPeriod(handler, resyncPeriod)
 	case PVCInformerHandlers:
 		s.GetAPIs().PVCInformer.Informer().
+			AddEventHandlerWithResyncPeriod(handler, resyncPeriod)
+	case ApplicationInformerHandlers:
+		s.GetAPIs().ApplicationInformer.Informer().
 			AddEventHandlerWithResyncPeriod(handler, resyncPeriod)
 	}
 }

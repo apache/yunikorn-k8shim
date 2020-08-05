@@ -19,6 +19,7 @@
 package appmgmt
 
 import (
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"go.uber.org/zap"
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/general"
@@ -54,7 +55,7 @@ func NewAMService(amProtocol interfaces.ApplicationManagementProtocol,
 			// for spark operator - SparkApplication
 			sparkoperator.NewManager(amProtocol, apiProvider),
 			// for application crds
-			application.NewAppManager(amProtocol))
+			application.NewAppManager(amProtocol, apiProvider))
 	}
 
 	return appManager
@@ -116,5 +117,19 @@ func (svc *AppManagementService) Stop() {
 	log.Logger.Info("shutting down app management services")
 	for _, optService := range svc.managers {
 		optService.Stop()
+	}
+}
+
+func (svc *AppManagementService) ApplicationStateUpdateEventHandler() func(obj interface{}) {
+	// when there is a app state update event received
+	// call the corresponding appManager to handle it, right now, only need to call the appCRD manager to handle this
+	mgr := svc.GetManagerByName(constants.AppManagerHandlerName)
+	if appMgr, ok := mgr.(*application.AppManager); ok {
+		return appMgr.HandleApplicationStateUpdate()
+	}
+	log.Logger.Warn("App manager is not registered",
+		zap.String("app manager name", constants.AppManagerHandlerName))
+	return func(obj interface{}) {
+		// noop
 	}
 }

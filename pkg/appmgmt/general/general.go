@@ -81,12 +81,6 @@ func (os *Manager) Stop() {
 	// noop
 }
 
-func (os *Manager) HandleCallbackEvents() func(obj interface{}) {
-	return func(obj interface{}) {
-		//noop
-	}
-}
-
 func (os *Manager) getTaskMetadata(pod *v1.Pod) (interfaces.TaskMetadata, bool) {
 	appId, err := utils.GetApplicationIDFromPod(pod)
 	if err != nil {

@@ -59,6 +59,13 @@ type ApplicationEvent interface {
 	GetArgs() []interface{}
 }
 
+// ------------------------
+// ApplicationStatusEvent updates the status in the application CRD
+// ------------------------
+type ApplicationStatusEvent interface {
+	GetState() string
+}
+
 //----------------------------------------------
 // Task events
 //----------------------------------------------

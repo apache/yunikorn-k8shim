@@ -70,7 +70,7 @@ func IsAssignedPod(pod *v1.Pod) bool {
 }
 
 func GeneralPodFilter(pod *v1.Pod) bool {
-	return strings.Compare(pod.Spec.SchedulerName, common.SchedulerName) == 0
+	return strings.Compare(pod.Spec.SchedulerName, constants.SchedulerName) == 0
 }
 
 func GetQueueNameFromPod(pod *v1.Pod) string {

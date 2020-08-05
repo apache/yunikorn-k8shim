@@ -19,6 +19,7 @@
 package client
 
 import (
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/client/informers/externalversions/yunikorn.apache.org/v1alpha1"
 	"time"
 
 	"k8s.io/client-go/informers"
@@ -27,6 +28,7 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/volumebinder"
 
 	"github.com/apache/incubator-yunikorn-core/pkg/api"
+	appclient "github.com/apache/incubator-yunikorn-k8shim/pkg/client/clientset/versioned"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 )
@@ -41,6 +43,7 @@ type Clients struct {
 	// client apis
 	KubeClient   KubeClient
 	SchedulerAPI api.SchedulerAPI
+	AppClient appclient.Clientset
 
 	// informer factory
 	InformerFactory informers.SharedInformerFactory
@@ -53,6 +56,7 @@ type Clients struct {
 	PVCInformer       coreInformerV1.PersistentVolumeClaimInformer
 	StorageInformer   storageInformerV1.StorageClassInformer
 	NamespaceInformer coreInformerV1.NamespaceInformer
+	ApplicationInformer v1alpha1.ApplicationInformer
 
 	// volume binder handles PV/PVC related operations
 	VolumeBinder *volumebinder.VolumeBinder
@@ -67,7 +71,8 @@ func (c *Clients) WaitForSync(interval time.Duration, timeout time.Duration) err
 			c.PVInformer.Informer().HasSynced() &&
 			c.StorageInformer.Informer().HasSynced() &&
 			c.ConfigMapInformer.Informer().HasSynced() &&
-			c.NamespaceInformer.Informer().HasSynced()
+			c.NamespaceInformer.Informer().HasSynced() &&
+			c.ApplicationInformer.Informer().HasSynced()
 	}, interval, timeout)
 }
 
@@ -79,4 +84,7 @@ func (c *Clients) Run(stopCh <-chan struct{}) {
 	go c.StorageInformer.Informer().Run(stopCh)
 	go c.ConfigMapInformer.Informer().Run(stopCh)
 	go c.NamespaceInformer.Informer().Run(stopCh)
+	if c.ApplicationInformer != nil {
+		go c.ApplicationInformer.Informer().Run(stopCh)
+	}
 }

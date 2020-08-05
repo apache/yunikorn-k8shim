@@ -19,6 +19,7 @@
 package main
 
 import (
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"os"
 	"os/signal"
 	"syscall"
@@ -27,7 +28,6 @@ import (
 
 	"github.com/apache/incubator-yunikorn-core/pkg/api"
 	"github.com/apache/incubator-yunikorn-core/pkg/entrypoint"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 )
@@ -40,7 +40,7 @@ var (
 func main() {
 	log.Logger.Info("Build info", zap.String("version", version), zap.String("date", date))
 	log.Logger.Info("starting scheduler",
-		zap.String("name", common.SchedulerName))
+		zap.String("name", constants.SchedulerName))
 
 	serviceContext := entrypoint.StartAllServices()
 

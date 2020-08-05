@@ -179,12 +179,10 @@ func Start() {
 			select {
 			case event := <-dispatcher.eventChan:
 				switch v := event.(type) {
+				case events.ApplicationStatusEvent:
+					getEventHandler(EventTypeAppStatus)(v)
 				case events.ApplicationEvent:
-					if v.GetEvent() == events.AppStateChange {
-						getEventHandler(EventTypeAppStatus)(v)
-					} else {
-						getEventHandler(EventTypeApp)(v)
-					}
+					getEventHandler(EventTypeApp)(v)
 				case events.TaskEvent:
 					getEventHandler(EventTypeTask)(v)
 				case events.SchedulerEvent:

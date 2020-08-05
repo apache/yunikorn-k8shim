@@ -53,14 +53,14 @@ func (st SimpleApplicationEvent) GetApplicationID() string {
 type ApplicationStatusChangeEvent struct {
 	applicationID string
 	event         events.ApplicationEventType
-	State         string
+	state         string
 }
 
 func NewApplicationStatusChangeEvent(appID string, eventType events.ApplicationEventType, state string) ApplicationStatusChangeEvent {
 	return ApplicationStatusChangeEvent {
 		applicationID: appID,
 		event:         eventType,
-		State:		   state,
+		state:		   state,
 	}
 }
 
@@ -74,6 +74,10 @@ func (st ApplicationStatusChangeEvent) GetArgs() []interface{} {
 
 func (st ApplicationStatusChangeEvent) GetApplicationID() string {
 	return st.applicationID
+}
+
+func (st ApplicationStatusChangeEvent) GetState() string {
+	return st.state
 }
 
 // ------------------------

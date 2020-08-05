@@ -19,6 +19,7 @@
 package events
 
 import (
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"sync"
 
 	corev1 "k8s.io/api/core/v1"
@@ -27,7 +28,6 @@ import (
 	"k8s.io/client-go/tools/record"
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 )
 
@@ -45,7 +45,7 @@ func GetRecorder() record.EventRecorder {
 			eventBroadcaster.StartRecordingToSink(&v1.EventSinkImpl{
 				Interface: k8sClient.GetClientSet().CoreV1().Events("")})
 			eventRecorder = eventBroadcaster.NewRecorder(scheme.Scheme,
-				corev1.EventSource{Component: common.SchedulerName})
+				corev1.EventSource{Component: constants.SchedulerName})
 		}
 	})
 

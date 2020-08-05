@@ -43,5 +43,4 @@ type AppManager interface {
 	// the stop() function is called.
 	Stop()
 
-	HandleCallbackEvents() func(obj interface{})
 }
