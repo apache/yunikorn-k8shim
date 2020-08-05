@@ -124,7 +124,7 @@ func updateSchedulerName(patch []patchOperation) []patchOperation {
 	return append(patch, patchOperation{
 		Op:    "add",
 		Path:  "/spec/schedulerName",
-		Value: "yunikorn",
+		Value: common.SchedulerName,
 	})
 }
 

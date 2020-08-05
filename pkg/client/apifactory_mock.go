@@ -39,7 +39,6 @@ func NewMockedAPIProvider() *MockedAPIProvider {
 			Conf: &conf.SchedulerConf{
 				ClusterID:            "yk-test-cluster",
 				ClusterVersion:       "0.1",
-				SchedulerName:        "yunikorn",
 				PolicyGroup:          "queues",
 				Interval:             0,
 				KubeConfig:           "",

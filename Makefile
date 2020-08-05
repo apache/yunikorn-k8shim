@@ -86,7 +86,7 @@ run: build
 	@echo "running scheduler locally"
 	@cp ${LOCAL_CONF}/${CONF_FILE} ${RELEASE_BIN_DIR}
 	cd ${RELEASE_BIN_DIR} && ./${BINARY} -kubeConfig=$(KUBECONFIG) -interval=1s \
-	-clusterId=mycluster -clusterVersion=${VERSION} -name=yunikorn -policyGroup=queues \
+	-clusterId=mycluster -clusterVersion=${VERSION} -policyGroup=queues \
 	-logEncoding=console -logLevel=-1
 
 # Create output directories

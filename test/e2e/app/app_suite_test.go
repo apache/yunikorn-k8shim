@@ -15,24 +15,23 @@
  See the License for the specific language governing permissions and
  limitations under the License.
 */
-package conf
+
+package app
 
 import (
 	"testing"
 
-	"gotest.tools/assert"
+	"github.com/onsi/ginkgo"
+	"github.com/onsi/gomega"
+
+	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/configmanager"
 )
 
-func TestDefaultValues(t *testing.T) {
-	conf := GetSchedulerConf()
-	assert.Equal(t, conf.ClusterID, DefaultClusterID)
-	assert.Equal(t, conf.PolicyGroup, DefaultPolicyGroup)
-	assert.Equal(t, conf.ClusterVersion, DefaultClusterVersion)
-	assert.Equal(t, conf.LoggingLevel, DefaultLoggingLevel)
-	assert.Equal(t, conf.LogEncoding, DefaultLogEncoding)
-	assert.Equal(t, conf.EventChannelCapacity, DefaultEventChannelCapacity)
-	assert.Equal(t, conf.DispatchTimeout, DefaultDispatchTimeout)
-	assert.Equal(t, conf.KubeQPS, DefaultKubeQPS)
-	assert.Equal(t, conf.KubeBurst, DefaultKubeBurst)
-	assert.Equal(t, conf.Predicates, "")
+func init() {
+	configmanager.YuniKornTestConfig.ParseFlags()
+}
+
+func TestApp(t *testing.T) {
+	gomega.RegisterFailHandler(ginkgo.Fail)
+	ginkgo.RunSpecs(t, "App Suite")
 }
