@@ -16,16 +16,19 @@
  limitations under the License.
 */
 
-package helpers
+package yunikorn
 
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
-	"path"
+	"time"
+
+	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/configmanager"
 )
@@ -80,13 +83,33 @@ func (c *RClient) do(req *http.Request, v interface{}) (*http.Response, error) {
 }
 
 func (c *RClient) GetQueues() (map[string]interface{}, error) {
-	req, err := c.newRequest("GET", path.Join(GetYKUrl(), configmanager.QueuesPath), nil)
+	req, err := c.newRequest("GET", configmanager.QueuesPath, nil)
 	if err != nil {
 		return nil, err
 	}
 	var queues map[string]interface{}
 	_, err = c.do(req, &queues)
 	return queues, err
+}
+
+func (c *RClient) GetSpecificQueueInfo(queueName string) (map[string]interface{}, error) {
+	queues, err := c.GetQueues()
+	if err != nil {
+		return nil, err
+	}
+	//root queue
+	var rootQ = queues["queues"].(map[string]interface{})
+	var allSubQueues = rootQ["queues"].([]interface{})
+	for _, s := range allSubQueues {
+		var subQ, success = s.(map[string]interface{})
+		if !success {
+			return nil, errors.New("map typecast failed")
+		}
+		if subQ["queuename"] == queueName {
+			return subQ, nil
+		}
+	}
+	return nil, fmt.Errorf("QueueInfo not found: %s", queueName)
 }
 
 func (c *RClient) GetApps() ([]map[string]interface{}, error) {
@@ -112,4 +135,58 @@ func (c *RClient) GetAppInfo(appID string) (map[string]interface{}, error) {
 		}
 	}
 	return nil, fmt.Errorf("AppInfo not found: %s", appID)
+}
+
+func (c *RClient) GetAppsFromSpecificQueue(queueName string) ([]map[string]interface{}, error) {
+	apps, err := c.GetApps()
+	if err != nil {
+		return nil, err
+	}
+	var appsOfQueue []map[string]interface{}
+	for _, appInfo := range apps {
+		for key, element := range appInfo {
+			if key == "queueName" && element == queueName {
+				appsOfQueue = append(appsOfQueue, appInfo)
+			}
+		}
+	}
+	return appsOfQueue, nil
+}
+
+func (c *RClient) isAppInDesiredState(appID string, state string) wait.ConditionFunc {
+	return func() (bool, error) {
+		appInfo, err := c.GetAppInfo(appID)
+		if err != nil {
+			return false, nil //returning nil here for wait & loop
+		}
+
+		switch appInfo["applicationState"] {
+		case state:
+			return true, nil
+		case States().Application.Rejected:
+			return false, fmt.Errorf(fmt.Sprintf("App not in desired state: %s", state))
+		}
+		return false, nil
+	}
+}
+
+func (c *RClient) WaitForAppStateTransition(appID string, state string, timeout int) error {
+	return wait.PollImmediate(time.Second, time.Duration(timeout)*time.Second, c.isAppInDesiredState(appID, state))
+}
+
+func (c *RClient) AreAllExecPodsAllotted(appID string, execPodCount int) wait.ConditionFunc {
+	return func() (bool, error) {
+		appInfo, err := c.GetAppInfo(appID)
+		if err != nil {
+			return false, err
+		}
+
+		if appInfo["allocations"] == nil {
+			return false, fmt.Errorf(fmt.Sprintf("Allocations are not yet complete for appID: %s", appID))
+		}
+		if len(appInfo["allocations"].([]interface{})) >= execPodCount {
+			return true, nil
+		}
+		return false, nil
+	}
 }

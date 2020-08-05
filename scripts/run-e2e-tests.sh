@@ -105,6 +105,9 @@ function install_cluster() {
     --set image.repository=local/yunikorn \
     --set image.tag=scheduler-latest \
     --set image.pullPolicy=Never \
+    --set admission_controller_image.repository=local/yunikorn \
+    --set admission_controller_image.tag=admission-latest \
+    --set admission_controller_image.pullPolicy=Never \
     --set installCRD=true
   exit_on_error "failed to install yunikorn"
   kubectl wait --for=condition=available --timeout=300s deployment/yunikorn-scheduler -n yunikorn
@@ -144,7 +147,7 @@ Usage: $(basename "$0") -a <action> -n <kind-cluster-name> -v <kind-node-image-v
   <kind-node-image-version>    the kind node image used to provision the K8s cluster.
 
 Examples:
-  $(basename "$0") -n "yk8s" -v "kindest/node:v1.15.3"
+  $(basename "$0") -n "yk8s" -v "kindest/node:v1.15.11"
 EOF
 }
 

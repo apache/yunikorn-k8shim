@@ -25,9 +25,9 @@ spec:
   schedulerName: yunikorn
   restartPolicy: Never
   containers:
-    - name: sleep-30s-1
+    - name: sleep-600s-1
       image: "alpine:latest"
-      command: ["sleep", "30"]
+      command: ["sleep", "600"]
       resources:
         requests:
           cpu: "100m"

@@ -16,7 +16,7 @@
  limitations under the License.
 */
 
-package helpers
+package k8s
 
 import (
 	"errors"
@@ -25,9 +25,12 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/helpers/common"
+
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	v1 "k8s.io/api/core/v1"
+	authv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -35,8 +38,6 @@ import (
 
 	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/configmanager"
 )
-
-var err error
 
 type KubeCtl struct {
 	clientSet      *kubernetes.Clientset
@@ -51,6 +52,7 @@ func (k *KubeCtl) findKubeConfig() error {
 		k.kubeConfigPath = env
 		return nil
 	}
+	var err error
 	k.kubeConfigPath, err = expand(configmanager.YuniKornTestConfig.KubeConfig)
 	return err
 }
@@ -77,6 +79,7 @@ func expand(path string) (string, error) {
 }
 
 func (k *KubeCtl) SetClient() error {
+	var err error
 	if k.findKubeConfig() != nil {
 		return err
 	}
@@ -88,8 +91,26 @@ func (k *KubeCtl) SetClient() error {
 	return err
 }
 
+func (k *KubeCtl) GetKubeConfig() (*rest.Config, error) {
+	if k.kubeConfig != nil {
+		return k.kubeConfig, nil
+	}
+	return nil, errors.New("kubeconfig is nil")
+}
 func (k *KubeCtl) GetPods(namespace string) (*v1.PodList, error) {
 	return k.clientSet.CoreV1().Pods(namespace).List(metav1.ListOptions{})
+}
+
+func (k *KubeCtl) GetPodNamesFromNS(namespace string) ([]string, error) {
+	var s []string
+	Pods, err := k.GetPods(namespace)
+	if err != nil {
+		return nil, err
+	}
+	for _, each := range Pods.Items {
+		s = append(s, each.Name)
+	}
+	return s, nil
 }
 
 func (k *KubeCtl) GetService(serviceName string, namespace string) (*v1.Service, error) {
@@ -97,21 +118,17 @@ func (k *KubeCtl) GetService(serviceName string, namespace string) (*v1.Service,
 }
 
 // Func to create a namespace provided a name
-func (k *KubeCtl) CreateNamespace(namespace string) (*v1.Namespace, error) {
-	epath, err := GetAbsPath(configmanager.NSTemplatePath)
-	if err != nil {
-		return nil, err
-	}
-	rs, err := yaml2Obj(epath)
-	if err != nil {
-		return nil, err
-	}
-	if nsSpec, ok := rs.(*v1.Namespace); ok {
-		nsSpec.Name = namespace
-		nsSpec.Labels = map[string]string{"Name": namespace}
-		return k.clientSet.CoreV1().Namespaces().Create(nsSpec)
-	}
-	return nil, fmt.Errorf("unable to type cast the yaml object to v1.Namespace")
+func (k *KubeCtl) CreateNamespace(namespace string, annotations map[string]string) (*v1.Namespace, error) {
+	return k.clientSet.CoreV1().Namespaces().Create(&v1.Namespace{
+		TypeMeta: metav1.TypeMeta{},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        namespace,
+			Labels:      map[string]string{"Name": namespace},
+			Annotations: annotations,
+		},
+		Spec:   v1.NamespaceSpec{},
+		Status: v1.NamespaceStatus{},
+	})
 }
 
 func (k *KubeCtl) DeleteNamespace(namespace string) error {
@@ -119,7 +136,7 @@ func (k *KubeCtl) DeleteNamespace(namespace string) error {
 }
 
 func GetConfigMapObj(yamlPath string) (*v1.ConfigMap, error) {
-	c, err := yaml2Obj(yamlPath)
+	c, err := common.Yaml2Obj(yamlPath)
 	if err != nil {
 		return nil, err
 	}
@@ -143,7 +160,7 @@ func (k *KubeCtl) DeleteConfigMap(cName string, namespace string) error {
 }
 
 func GetPodObj(yamlPath string) (*v1.Pod, error) {
-	o, err := yaml2Obj(yamlPath)
+	o, err := common.Yaml2Obj(yamlPath)
 	if err != nil {
 		return nil, err
 	}
@@ -159,8 +176,8 @@ func (k *KubeCtl) DeletePod(podName string, namespace string) error {
 }
 
 // return a condition function that indicates whether the given pod is
-// currently running
-func (k *KubeCtl) isPodRunning(podName string, namespace string) wait.ConditionFunc {
+// currently in desired state
+func (k *KubeCtl) isPodInDesiredState(podName string, namespace string, state v1.PodPhase) wait.ConditionFunc {
 	return func() (bool, error) {
 		fmt.Printf(".") // progress bar!
 
@@ -170,19 +187,53 @@ func (k *KubeCtl) isPodRunning(podName string, namespace string) wait.ConditionF
 		}
 
 		switch pod.Status.Phase {
-		case v1.PodRunning:
+		case state:
 			return true, nil
-		case v1.PodFailed, v1.PodSucceeded:
-			return false, fmt.Errorf("pod ran to completion")
+		case v1.PodUnknown:
+			return false, fmt.Errorf("pod is in unknown state")
 		}
 		return false, nil
 	}
 }
 
+// Return a condition function that indicates if the pod is NOT in the given namespace
+func (k *KubeCtl) isPodNotInNS(podName string, namespace string) wait.ConditionFunc {
+	return func() (bool, error) {
+		fmt.Printf(".") // progress bar!
+
+		podNames, err := k.GetPodNamesFromNS(namespace)
+		if err != nil {
+			return false, err
+		}
+		for _, name := range podNames {
+			if podName == name {
+				return false, nil
+			}
+		}
+		return true, nil
+	}
+}
+
+func (k *KubeCtl) WaitForPodTerminated(namespace string, podName string, timeout time.Duration) error {
+	return wait.PollImmediate(time.Second, timeout*time.Second, k.isPodNotInNS(podName, namespace))
+}
+
 // Poll up to timeout seconds for pod to enter running state.
 // Returns an error if the pod never enters the running state.
-func (k *KubeCtl) waitForPodRunning(namespace string, podName string, timeout time.Duration) error {
-	return wait.PollImmediate(time.Second, timeout, k.isPodRunning(podName, namespace))
+func (k *KubeCtl) WaitForPodRunning(namespace string, podName string, timeout time.Duration) error {
+	return wait.PollImmediate(time.Second, timeout, k.isPodInDesiredState(podName, namespace, v1.PodRunning))
+}
+
+func (k *KubeCtl) WaitForPodPending(namespace string, podName string, timeout time.Duration) error {
+	return wait.PollImmediate(time.Second, timeout, k.isPodInDesiredState(podName, namespace, v1.PodPending))
+}
+
+func (k *KubeCtl) WaitForPodSucceeded(namespace string, podName string, timeout time.Duration) error {
+	return wait.PollImmediate(time.Second, timeout, k.isPodInDesiredState(podName, namespace, v1.PodSucceeded))
+}
+
+func (k *KubeCtl) WaitForPodFailed(namespace string, podName string, timeout time.Duration) error {
+	return wait.PollImmediate(time.Second, timeout, k.isPodInDesiredState(podName, namespace, v1.PodFailed))
 }
 
 // Returns the list of currently scheduled or running pods in `namespace` with the given selector
@@ -208,9 +259,70 @@ func (k *KubeCtl) WaitForPodBySelectorRunning(namespace string, selector string,
 	}
 
 	for _, pod := range podList.Items {
-		if err := k.waitForPodRunning(namespace, pod.Name, time.Duration(timeout)*time.Second); err != nil {
+		if err := k.WaitForPodRunning(namespace, pod.Name, time.Duration(timeout)*time.Second); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func (k *KubeCtl) CreateSecret(secret *v1.Secret, namespace string) (*v1.Secret, error) {
+	return k.clientSet.CoreV1().Secrets(namespace).Create(secret)
+}
+
+func GetSecretObj(yamlPath string) (*v1.Secret, error) {
+	o, err := common.Yaml2Obj(yamlPath)
+	if err != nil {
+		return nil, err
+	}
+	return o.(*v1.Secret), err
+}
+
+func (k *KubeCtl) CreateServiceAccount(accountName string, namespace string) (*v1.ServiceAccount, error) {
+	return k.clientSet.CoreV1().ServiceAccounts(namespace).Create(&v1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{Name: accountName},
+	})
+}
+
+func (k *KubeCtl) DeleteServiceAccount(accountName string, namespace string) error {
+	return k.clientSet.CoreV1().ServiceAccounts(namespace).Delete(accountName, &metav1.DeleteOptions{})
+}
+
+func (k *KubeCtl) CreateClusterRoleBinding(
+	roleName string,
+	role string,
+	namespace string,
+	serviceAccount string) (*authv1.ClusterRoleBinding, error) {
+	return k.clientSet.RbacV1().ClusterRoleBindings().Create(&authv1.ClusterRoleBinding{
+		TypeMeta:   metav1.TypeMeta{},
+		ObjectMeta: metav1.ObjectMeta{Name: roleName},
+		Subjects: []authv1.Subject{
+			{
+				Kind:      "ServiceAccount",
+				Name:      serviceAccount,
+				Namespace: namespace,
+			},
+		},
+		RoleRef: authv1.RoleRef{Name: role, Kind: "ClusterRole"},
+	})
+}
+
+func (k *KubeCtl) DeleteClusterRoleBindings(roleName string) error {
+	return k.clientSet.RbacV1().ClusterRoleBindings().Delete(roleName, &metav1.DeleteOptions{})
+}
+
+func (k *KubeCtl) GetConfigMaps(namespace string, cMapName string) (*v1.ConfigMap, error) {
+	return k.clientSet.CoreV1().ConfigMaps(namespace).Get(cMapName, metav1.GetOptions{})
+}
+
+func (k *KubeCtl) UpdateConfigMaps(namespace string, cMap *v1.ConfigMap) (*v1.ConfigMap, error) {
+	return k.clientSet.CoreV1().ConfigMaps(namespace).Update(cMap)
+}
+
+func (k *KubeCtl) DeleteConfigMaps(namespace string, cMapName string) error {
+	return k.clientSet.CoreV1().ConfigMaps(namespace).Delete(cMapName, &metav1.DeleteOptions{})
+}
+
+func (k *KubeCtl) CreateConfigMaps(namespace string, cMap *v1.ConfigMap) (*v1.ConfigMap, error) {
+	return k.clientSet.CoreV1().ConfigMaps(namespace).Create(cMap)
 }
