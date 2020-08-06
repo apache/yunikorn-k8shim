@@ -23,9 +23,6 @@ os:
 go:
   - "1.12"
 
-git:
-  depth: 1
-
 services:
   - 'docker'
 
