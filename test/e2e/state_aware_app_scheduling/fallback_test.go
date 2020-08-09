@@ -61,7 +61,6 @@ var _ = Describe("FallbackTest:", func() {
 		sleepObj.ObjectMeta.Labels["applicationId"] = common.GetUUID()
 		sleepRespPod, err = kClient.CreatePod(sleepObj, ns)
 		Ω(err).NotTo(HaveOccurred())
-		//Wait for pod to move to running state
 	})
 
 	It("Verify_App_In_Starting_State", func() {
