@@ -197,4 +197,3 @@ func NodeForTest(nodeID, memory, cpu string) *v1.Node {
 		},
 	}
 }
-

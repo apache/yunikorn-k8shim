@@ -269,4 +269,3 @@ func TestPodUnderCondition(t *testing.T) {
 
 	assert.Equal(t, PodUnderCondition(pod, condition), false)
 }
-
