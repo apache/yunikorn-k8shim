@@ -100,7 +100,7 @@ function install_cluster() {
   exit_on_error "failed to create yunikorn namespace"
   # use latest helm charts from the release repo to install yunikorn
   git clone https://github.com/apache/incubator-yunikorn-release.git
-  helm install yunikorn ./helm-charts/yunikorn --namespace yunikorn \
+  helm install yunikorn ./incubator-yunikorn-release/helm-charts/yunikorn --namespace yunikorn \
     --set image.repository=local/yunikorn \
     --set image.tag=scheduler-latest \
     --set image.pullPolicy=Never \
