@@ -92,16 +92,15 @@ function install_cluster() {
 
   # install yunikorn
   echo "step 6/6: installing yunikorn scheduler"
-  helm repo add yunikorn https://apache.github.io/incubator-yunikorn-release && helm repo update
-  exit_on_error "add yunikorn helm repo failed"
-
   # load latest yunikorn docker images to kind
   kind load docker-image local/yunikorn:scheduler-latest --name ${k8s_cluster_name}
   kind load docker-image local/yunikorn:admission-latest --name ${k8s_cluster_name}
 
   kubectl create namespace yunikorn
   exit_on_error "failed to create yunikorn namespace"
-  helm install yunikorn yunikorn/yunikorn --namespace yunikorn \
+  # use latest helm charts from the release repo to install yunikorn
+  git clone https://github.com/apache/incubator-yunikorn-release.git
+  helm install yunikorn ./helm-charts/yunikorn --namespace yunikorn \
     --set image.repository=local/yunikorn \
     --set image.tag=scheduler-latest \
     --set image.pullPolicy=Never \
