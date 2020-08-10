@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"gotest.tools/assert"
+	is "gotest.tools/assert/cmp"
 	v1 "k8s.io/api/core/v1"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -265,10 +266,10 @@ func TestGetNonTerminatedTaskAlias(t *testing.T) {
 	// res should return both task's alias
 	res = app.getNonTerminatedTaskAlias()
 	assert.Equal(t, len(res), 2)
-	assert.Equal(t, utils.ContainsString(res, "/test-00001"), true)
-	assert.Equal(t, utils.ContainsString(res, "/test-00002"), true)
+	assert.Assert(t, is.Contains(res, "/test-00001"))
+	assert.Assert(t, is.Contains(res, "/test-00002"))
 
-	// set two tasks to terminated states
+	//set two tasks to terminated states
 	task1.sm.SetState(events.States().Task.Rejected)
 	task2.sm.SetState(events.States().Task.Rejected)
 	// check the tasks both in terminated states
@@ -276,7 +277,7 @@ func TestGetNonTerminatedTaskAlias(t *testing.T) {
 	res = app.getNonTerminatedTaskAlias()
 	assert.Equal(t, len(res), 0)
 
-	// set two tasks to one is terminated, another is non-terminated
+	//set two tasks to one is terminated, another is non-terminated
 	task1.sm.SetState(events.States().Task.Rejected)
 	task2.sm.SetState(events.States().Task.Allocated)
 	// check the task, should only return task2's alias

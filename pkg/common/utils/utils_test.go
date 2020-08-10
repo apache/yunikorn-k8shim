@@ -270,18 +270,3 @@ func TestPodUnderCondition(t *testing.T) {
 	assert.Equal(t, PodUnderCondition(pod, condition), false)
 }
 
-func TestContainsString(t *testing.T) {
-	array1 := []string{"a", "b", "c"}
-	assert.Equal(t, ContainsString(array1, "a"), true)
-	assert.Equal(t, ContainsString(array1, "b"), true)
-	assert.Equal(t, ContainsString(array1, "c"), true)
-	assert.Equal(t, ContainsString(array1, "d"), false)
-	assert.Equal(t, ContainsString(array1, ""), false)
-
-	// nil array
-	assert.Equal(t, ContainsString(nil, "a"), false)
-
-	// empty array
-	assert.Equal(t, ContainsString([]string{}, "a"), false)
-	assert.Equal(t, ContainsString([]string{}, ""), false)
-}
