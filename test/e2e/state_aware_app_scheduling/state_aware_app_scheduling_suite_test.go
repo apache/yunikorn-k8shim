@@ -24,14 +24,12 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/helpers/k8s"
-
-	"github.com/onsi/ginkgo/reporters"
-
 	"github.com/onsi/ginkgo"
+	"github.com/onsi/ginkgo/reporters"
 	"github.com/onsi/gomega"
 
 	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/configmanager"
+	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/helpers/k8s"
 )
 
 func init() {
@@ -51,9 +49,20 @@ var _ = BeforeSuite(func() {
 
 	oldConfigMap = c.DeepCopy()
 	Ω(c).Should(BeEquivalentTo(oldConfigMap))
-	var stateAwareStr = "partitions:\n  -\n    name: default\n    placementrules:\n      - name: tag\n        " +
-		"value: namespace\n        create: true\n    queues:\n      - name: root\n        " +
-		"submitacl: '*'\n        properties:\n          application.sort.policy: stateaware"
+	var stateAwareStr = `
+partitions:
+  -
+    name: default
+    placementrules:
+      - name: tag
+        value: namespace
+        create: true
+    queues:
+      - name: root
+        submitacl: '*'
+        properties:
+          application.sort.policy: stateaware
+`
 	c.Data[configmanager.DefaultPolicyGroup] = stateAwareStr
 	var d, err2 = k.UpdateConfigMap(c, configmanager.YuniKornTestConfig.YkNamespace)
 	Ω(err2).NotTo(HaveOccurred())

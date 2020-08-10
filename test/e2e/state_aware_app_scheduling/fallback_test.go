@@ -84,7 +84,7 @@ var _ = Describe("FallbackTest:", func() {
 		By("Wait for fallback timeout of 5mins")
 		err = restClient.WaitForAppStateTransition(sleepRespPod.ObjectMeta.Labels["applicationId"],
 			yunikorn.States().Application.Running,
-			360)
+			420)
 		Ω(err).NotTo(HaveOccurred())
 
 		// Get AppInfo again to check the allocations post running state.
