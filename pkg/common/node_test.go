@@ -19,13 +19,14 @@
 package common
 
 import (
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"testing"
 
 	"gotest.tools/assert"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 )
 
 func TestCreateNodeFromSpec(t *testing.T) {

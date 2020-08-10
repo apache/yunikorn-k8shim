@@ -19,12 +19,12 @@
 package common
 
 import (
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/kubernetes/pkg/apis/core/v1/helper/qos"
 
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 )

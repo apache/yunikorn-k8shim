@@ -57,10 +57,10 @@ type ApplicationStatusChangeEvent struct {
 }
 
 func NewApplicationStatusChangeEvent(appID string, eventType events.ApplicationEventType, state string) ApplicationStatusChangeEvent {
-	return ApplicationStatusChangeEvent {
+	return ApplicationStatusChangeEvent{
 		applicationID: appID,
 		event:         eventType,
-		state:		   state,
+		state:         state,
 	}
 }
 

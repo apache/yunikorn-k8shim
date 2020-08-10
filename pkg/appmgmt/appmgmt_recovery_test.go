@@ -107,7 +107,6 @@ func (ma *mockedAppManager) Stop() {
 	// noop
 }
 
-
 func (ma *mockedAppManager) ListApplications() (map[string]interfaces.ApplicationMetadata, error) {
 	apps := make(map[string]interfaces.ApplicationMetadata)
 	apps["app01"] = interfaces.ApplicationMetadata{

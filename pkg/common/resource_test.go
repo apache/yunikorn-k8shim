@@ -19,7 +19,6 @@ package common
 
 import (
 	"fmt"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"testing"
 
 	"gotest.tools/assert"
@@ -27,6 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 )
 

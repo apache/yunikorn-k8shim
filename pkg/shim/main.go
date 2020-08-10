@@ -19,7 +19,6 @@
 package main
 
 import (
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"os"
 	"os/signal"
 	"syscall"
@@ -28,6 +27,7 @@ import (
 
 	"github.com/apache/incubator-yunikorn-core/pkg/api"
 	"github.com/apache/incubator-yunikorn-core/pkg/entrypoint"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 )

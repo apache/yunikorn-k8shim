@@ -20,7 +20,6 @@ package cache
 
 import (
 	"fmt"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"sort"
 	"sync"
 
@@ -30,6 +29,7 @@ import (
 
 	"github.com/apache/incubator-yunikorn-core/pkg/api"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/dispatcher"

@@ -19,7 +19,6 @@ package utils
 
 import (
 	"fmt"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"strings"
 	"time"
 
@@ -29,6 +28,7 @@ import (
 	podv1 "k8s.io/kubernetes/pkg/api/v1/pod"
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 )
 

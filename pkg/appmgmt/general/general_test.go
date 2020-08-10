@@ -19,7 +19,6 @@
 package general
 
 import (
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"testing"
 
 	"gotest.tools/assert"
@@ -28,6 +27,7 @@ import (
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/cache"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 )
 

@@ -19,12 +19,12 @@
 package cache
 
 import (
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"testing"
 
 	"gotest.tools/assert"
 	v1 "k8s.io/api/core/v1"
 
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 )

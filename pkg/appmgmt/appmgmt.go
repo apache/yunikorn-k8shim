@@ -19,13 +19,13 @@
 package appmgmt
 
 import (
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"go.uber.org/zap"
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/general"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/sparkoperator"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/controller/application"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"

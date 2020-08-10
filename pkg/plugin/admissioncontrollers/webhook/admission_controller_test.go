@@ -20,7 +20,6 @@ package main
 
 import (
 	"fmt"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -30,6 +29,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 )
 

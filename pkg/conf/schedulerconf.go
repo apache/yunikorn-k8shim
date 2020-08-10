@@ -25,10 +25,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"go.uber.org/zap/zapcore"
 	"k8s.io/klog"
 	"k8s.io/kubernetes/pkg/scheduler/algorithm/predicates"
+
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 )
 
 // default configuration values, these can be override by CLI options

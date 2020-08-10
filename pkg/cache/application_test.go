@@ -19,7 +19,6 @@
 package cache
 
 import (
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"testing"
 	"time"
 
@@ -28,6 +27,7 @@ import (
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/apache/incubator-yunikorn-core/pkg/api"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"

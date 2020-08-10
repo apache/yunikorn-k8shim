@@ -20,7 +20,6 @@ package main
 
 import (
 	"fmt"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"testing"
 	"time"
 
@@ -33,6 +32,7 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/cache"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/test"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"

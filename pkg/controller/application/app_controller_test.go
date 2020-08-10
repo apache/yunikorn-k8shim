@@ -50,7 +50,9 @@ func TestDeleteApp(t *testing.T) {
 func TestAddApp(t *testing.T) {
 	am := NewAppManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider())
 	app := createApp(defaultName, defaultNamespace, defaultQueue)
-	am.apiProvider.GetAPIs().AppClient.ApacheV1alpha1().Applications(defaultNamespace).Create(&app)
+	savedApp, err := am.apiProvider.GetAPIs().AppClient.ApacheV1alpha1().Applications(defaultNamespace).Create(&app)
+	assert.NilError(t, err)
+	assert.Equal(t, savedApp.Name, app.Name)
 	am.addApp(&app)
 	appID := constructAppID(defaultName, defaultNamespace)
 	managedApp := am.amProtocol.GetApplication(appID)
@@ -61,7 +63,6 @@ func TestAddApp(t *testing.T) {
 }
 
 func TestGetAppMetadata(t *testing.T) {
-
 	am := NewAppManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider())
 	app := createApp(defaultName, defaultNamespace, defaultQueue)
 	metadata, ok := am.getAppMetadata(&app)
