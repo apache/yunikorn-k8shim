@@ -16,7 +16,7 @@
  limitations under the License.
 */
 
-package helpers
+package common
 
 import (
 	"gopkg.in/yaml.v2"
@@ -24,7 +24,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 )
 
-func yaml2Obj(yamlPath string) (runtime.Object, error) {
+func Yaml2Obj(yamlPath string) (runtime.Object, error) {
 	decode := scheme.Codecs.UniversalDeserializer().Decode
 	content, err := GetFileContents(yamlPath)
 	if err == nil {

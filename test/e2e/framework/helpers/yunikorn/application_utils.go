@@ -16,7 +16,7 @@
  limitations under the License.
 */
 
-package helpers
+package yunikorn
 
 import (
 	"os"
