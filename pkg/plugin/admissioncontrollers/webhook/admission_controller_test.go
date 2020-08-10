@@ -236,7 +236,7 @@ func TestUpdateSchedulerName(t *testing.T) {
 	assert.Equal(t, patch[0].Op, "add")
 	assert.Equal(t, patch[0].Path, "/spec/schedulerName")
 	if name, ok := patch[0].Value.(string); ok {
-		assert.Equal(t, name, com.SchedulerName)
+		assert.Equal(t, name, constants.SchedulerName)
 	} else {
 		t.Fatal("patch info content is not as expected")
 	}

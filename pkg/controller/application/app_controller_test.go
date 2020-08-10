@@ -19,11 +19,6 @@
 package application
 
 import (
-	"bytes"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
-	"go.uber.org/zap"
-	"net/url"
-	"strings"
 	"testing"
 
 	"gotest.tools/assert"
@@ -38,57 +33,6 @@ import (
 const defaultName = "example"
 const defaultNamespace = "default"
 const defaultQueue = "root.default"
-
-// MemorySink implements zap.Sink by writing all messages to a buffer.
-type MemorySink struct {
-	*bytes.Buffer
-}
-
-// Implement Close and Sync as no-ops to satisfy the interface. The Write
-// method is provided by the embedded buffer.
-
-func (s *MemorySink) Close() error { return nil }
-func (s *MemorySink) Sync() error  { return nil }
-
-func TestHandleApplicationUpdate(t *testing.T) {
-	appID := constructAppID(defaultName, defaultNamespace)
-	am := NewAppManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider())
-	updateHandler := am.HandleApplicationStateUpdate()
-	//successMsg := "Application status changed"
-
-	testCases := []struct {
-		name          string
-		event         events.SchedulingEvent
-		expectedWarnMsg       string
-	}{
-		{"Not application event", cache.NewSubmitTaskEvent(appID, "taskID"), "not an Application event"},
-	}
-	for _, tc := range testCases {
-		sink := &MemorySink{new(bytes.Buffer)}
-		zap.RegisterSink("memory", func(*url.URL) (zap.Sink, error) {
-			return sink, nil
-		})
-		conf := zap.NewProductionConfig()
-		// Redirect all messages to the MemorySink.
-		conf.OutputPaths = []string{"memory://"}
-
-		l, err := conf.Build()
-		if err != nil {
-			t.Fatal(err)
-		}
-		*log.Logger = *l
-		t.Run(tc.name, func(t *testing.T) {
-			updateHandler(tc.event)
-			if len(tc.expectedWarnMsg) > 0 {
-				output := sink.String()
-				assert.Assert(t, strings.Contains(output, tc.expectedWarnMsg))
-			} else {
-				//assert.Assert(t, strings.Contains(buf.String(), successMsg))
-			}
-		})
-	}
-
-}
 
 func TestDeleteApp(t *testing.T) {
 	am := NewAppManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider())
