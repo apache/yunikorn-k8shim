@@ -20,9 +20,13 @@ package application
 
 import (
 	"fmt"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
 	"strings"
 	"time"
+
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
+
+	"go.uber.org/zap"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	appv1 "github.com/apache/incubator-yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
@@ -30,8 +34,6 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
-	"go.uber.org/zap"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type AppManager struct {
@@ -44,8 +46,8 @@ const appIDDelimiter = "-"
 
 func NewAppManager(amProtocol interfaces.ApplicationManagementProtocol, apiProvider client.APIProvider) *AppManager {
 	return &AppManager{
-		amProtocol: amProtocol,
-		apiProvider:apiProvider,
+		amProtocol:  amProtocol,
+		apiProvider: apiProvider,
 	}
 }
 
@@ -85,19 +87,17 @@ func (appMgr *AppManager) HandleApplicationStateUpdate() func(obj interface{}) {
 						zap.String("app id", appID),
 						zap.String("new status", shimEvent.GetState()))
 					var app = appMgr.amProtocol.GetApplication(appID).(*shimcache.Application)
-					appName, err := getNameFromAppId(appID)
+					appName, err := getNameFromAppID(appID)
 					if err != nil {
 						log.Logger.Warn("Failed to handle status update",
 							zap.String("application ID", appID),
 							zap.Error(err))
-						return
 					}
-					appCRD, err := appMgr.apiProvider.GetAPIs().ApplicationInformer.Lister().Applications(app.GetTags()[constants.AppTagNamespace]).Get(appName)
+					appCRD, err := appMgr.apiProvider.GetAPIs().AppInformer.Lister().Applications(app.GetTags()[constants.AppTagNamespace]).Get(appName)
 					if err != nil {
 						log.Logger.Warn("Failed to query app CRD for status update",
 							zap.String("Application ID", appID),
 							zap.Error(err))
-						return
 					}
 					crdState := convertShimAppStateToAppCRDState(shimEvent.GetState())
 					if crdState != "Undefined" {
@@ -105,7 +105,10 @@ func (appMgr *AppManager) HandleApplicationStateUpdate() func(obj interface{}) {
 					} else {
 						log.Logger.Error("Invalid status, skip saving it",
 							zap.String("App id", appID))
+						//create some error
 					}
+					log.Logger.Debug("Application status changed",
+						zap.String("AppID", appID))
 				}
 			}
 		}
@@ -131,7 +134,6 @@ func (appMgr *AppManager) deleteApp(obj interface{}) {
 	}
 	log.Logger.Debug("App CRD deleted",
 		zap.String("Name", appID))
-	//TODO: delete related pods and deployments
 }
 
 /*
@@ -148,9 +150,6 @@ func (appMgr *AppManager) addApp(obj interface{}) {
 		if app == nil {
 			appMgr.amProtocol.AddApplication(&interfaces.AddApplicationRequest{
 				Metadata: appMeta,
-				//TODO: debug recovery
-				//TODO: try to define the owner reference for the submitted pods to this CRD and try of we delete the
-				//CRD the pods will be deleted as well
 				Recovery: false,
 			})
 			// set and save status = New
@@ -160,16 +159,16 @@ func (appMgr *AppManager) addApp(obj interface{}) {
 }
 
 func (appMgr *AppManager) updateAppCRDStatus(appCRD *appv1.Application, status appv1.ApplicationStateType) {
-	copy := appCRD.DeepCopy()
-	copy.Status = appv1.ApplicationStatus{
+	appCopy := appCRD.DeepCopy()
+	appCopy.Status = appv1.ApplicationStatus{
 		AppStatus:  status,
 		Message:    "app CRD status change",
 		LastUpdate: v1.NewTime(time.Now()),
 	}
-	_, err := appMgr.apiProvider.GetAPIs().AppClient.ApacheV1alpha1().Applications(appCRD.Namespace).UpdateStatus(copy)
+	_, err := appMgr.apiProvider.GetAPIs().AppClient.ApacheV1alpha1().Applications(appCRD.Namespace).UpdateStatus(appCopy)
 	if err != nil {
 		log.Logger.Error("Failed to update application CRD",
-			zap.String("AppId", copy.Name))
+			zap.String("AppId", appCopy.Name))
 		return
 	}
 }
@@ -177,7 +176,7 @@ func (appMgr *AppManager) updateAppCRDStatus(appCRD *appv1.Application, status a
 func (appMgr *AppManager) getAppMetadata(app *appv1.Application) (interfaces.ApplicationMetadata, bool) {
 	appID := constructAppID(app.Name, app.Namespace)
 
-	// tags will at least have namespace info
+	// tags will at least have defaultNamespace info
 	// labels or annotations from the pod can be added when needed
 	// user info is retrieved via service account
 	tags := map[string]string{}
@@ -190,7 +189,7 @@ func (appMgr *AppManager) getAppMetadata(app *appv1.Application) (interfaces.App
 	return interfaces.ApplicationMetadata{
 		ApplicationID: appID,
 		QueueName:     app.Spec.Queue,
-		User:          "default",
+		User:          "",
 		Tags:          tags,
 	}, true
 }
@@ -199,18 +198,18 @@ func constructAppID(name string, namespace string) string {
 	return namespace + appIDDelimiter + name
 }
 
-func getNameFromAppId(appId string) (string, error) {
-	if len(appId) > 0 {
-		strings := strings.Split(appId, appIDDelimiter)
-		if len(strings) < 2 {
-			return "", fmt.Errorf("appID should not be empty")
-		} else {
-			return strings[1], nil
+func getNameFromAppID(appID string) (string, error) {
+	if len(appID) > 0 {
+		splitted := strings.Split(appID, appIDDelimiter)
+		if len(splitted) < 2 {
+			return "", fmt.Errorf("unknown appID format")
 		}
-	} else {
-		return "", fmt.Errorf("appID should not be empty")
+		return splitted[1], nil
 	}
+	return "", fmt.Errorf("appID should not be empty")
 }
+
+const undefinedState = "Undefined"
 
 func convertShimAppStateToAppCRDState(status string) appv1.ApplicationStateType {
 	switch status {
@@ -231,6 +230,6 @@ func convertShimAppStateToAppCRDState(status string) appv1.ApplicationStateType 
 	case "Killed":
 		return appv1.KilledState
 	default:
-		return "Undefined"
+		return undefinedState
 	}
 }

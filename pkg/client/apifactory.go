@@ -19,11 +19,12 @@
 package client
 
 import (
+	"sync"
+	"time"
+
 	applicationclient "github.com/apache/incubator-yunikorn-k8shim/pkg/client/clientset/versioned"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client/informers/externalversions/yunikorn.apache.org/v1alpha1"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
-	"sync"
-	"time"
 
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
@@ -111,7 +112,7 @@ func NewAPIFactory(scheduler api.SchedulerAPI, configs *conf.SchedulerConf, test
 		clients: &Clients{
 			Conf:              configs,
 			KubeClient:        kubeClient,
-			AppClient:		   *appClient,
+			AppClient:         appClient,
 			SchedulerAPI:      scheduler,
 			InformerFactory:   informerFactory,
 			PodInformer:       podInformer,
@@ -122,7 +123,7 @@ func NewAPIFactory(scheduler api.SchedulerAPI, configs *conf.SchedulerConf, test
 			NamespaceInformer: namespaceInformer,
 			StorageInformer:   storageInformer,
 			VolumeBinder:      volumeBinder,
-			ApplicationInformer:applicationInformer,
+			AppInformer:       applicationInformer,
 		},
 		testMode: testMode,
 		stopChan: make(chan struct{}),
@@ -185,7 +186,7 @@ func (s *APIFactory) addEventHandlers(
 		s.GetAPIs().PVCInformer.Informer().
 			AddEventHandlerWithResyncPeriod(handler, resyncPeriod)
 	case ApplicationInformerHandlers:
-		s.GetAPIs().ApplicationInformer.Informer().
+		s.GetAPIs().AppInformer.Informer().
 			AddEventHandlerWithResyncPeriod(handler, resyncPeriod)
 	}
 }
