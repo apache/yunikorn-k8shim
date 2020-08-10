@@ -232,7 +232,7 @@ func (app *Application) getTasks(state string) []*Task {
 	return taskList
 }
 
-func (app *Application) GetTags() map[string] string {
+func (app *Application) GetTags() map[string]string {
 	return app.tags
 }
 
