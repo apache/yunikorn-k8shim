@@ -15,7 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM golang:1.12.13-alpine3.10
+FROM registry.redhat.io/ubi8/go-toolset:1.12.8-45
 
 # admission controller bundles
 RUN apk add curl
