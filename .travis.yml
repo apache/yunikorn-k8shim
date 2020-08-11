@@ -23,17 +23,12 @@ os:
 go:
   - "1.12"
 
-git:
-  depth: 1
-
 services:
   - 'docker'
 
 env:
   global:
     - GO111MODULE=on
-    - CLUSTER_NAME="yk8s"
-    - KIND_NODE_IMAGE="kindest/node:v1.15.11"
 
 install: true
 
@@ -53,13 +48,22 @@ jobs:
         on:
           branch: master
           condition: $TRAVIS_EVENT_TYPE = cron
-    - stage: integration tests
-      install:
-        - go get -v github.com/onsi/ginkgo/ginkgo
-        - go get -v github.com/onsi/gomega
-        - go get -v -t ./...
-        - export PATH=$PATH:$HOME/gopath/bin
-      script:
-        - ./scripts/run-e2e-tests.sh -a "test" -n ${CLUSTER_NAME} -v ${KIND_NODE_IMAGE}
-      after_script:
-        - ./scripts/run-e2e-tests.sh -a "cleanup" -n ${CLUSTER_NAME}
+    - stage: e2e tests
+      script: ./scripts/run-e2e-tests.sh -a "test" -n ${CLUSTER_NAME} -v ${KIND_NODE_IMAGE}
+      after_script: ./scripts/run-e2e-tests.sh -a "cleanup" -n ${CLUSTER_NAME}
+      env:
+        - KIND_NODE_IMAGE="kindest/node:v1.14.10"
+        - CLUSTER_NAME="yk8s"
+    - stage: e2e tests
+      script: ./scripts/run-e2e-tests.sh -a "test" -n ${CLUSTER_NAME} -v ${KIND_NODE_IMAGE}
+      after_script: ./scripts/run-e2e-tests.sh -a "cleanup" -n ${CLUSTER_NAME}
+      env:
+        - KIND_NODE_IMAGE="kindest/node:v1.15.11"
+        - CLUSTER_NAME="yk8s"
+    - stage: e2e tests
+      script: ./scripts/run-e2e-tests.sh -a "test" -n ${CLUSTER_NAME} -v ${KIND_NODE_IMAGE}
+      after_script: ./scripts/run-e2e-tests.sh -a "cleanup" -n ${CLUSTER_NAME}
+      env:
+        - KIND_NODE_IMAGE="kindest/node:v1.16.9"
+        - CLUSTER_NAME="yk8s"
+
