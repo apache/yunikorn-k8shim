@@ -69,7 +69,7 @@ func TestGetAppMetadata(t *testing.T) {
 	assert.Equal(t, ok, true)
 	assert.Equal(t, metadata.ApplicationID, defaultNamespace+appIDDelimiter+defaultName)
 	assert.Equal(t, metadata.QueueName, defaultQueue)
-	assert.Equal(t, metadata.User, "")
+	assert.Equal(t, metadata.User, "default")
 	assert.DeepEqual(t, metadata.Tags, map[string]string{"namespace": defaultNamespace})
 }
 

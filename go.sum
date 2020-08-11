@@ -37,8 +37,12 @@ github.com/apache/incubator-yunikorn-core v0.0.0-20200714081538-699243c7ecd8/go.
 github.com/apache/incubator-yunikorn-core v0.0.0-20200717041747-f3e1c760c714 h1:g97EnBzZbYmRDRNKRzBNfJyjbNuDVW3YYcc6YVvFFV8=
 github.com/apache/incubator-yunikorn-core v0.0.0-20200717041747-f3e1c760c714/go.mod h1:ylbn8J42XqliChvwiTcZ4FNjhD555OLyzuiYPnGhTTI=
 github.com/apache/incubator-yunikorn-core v0.8.0 h1:U7ARr+BHM5IxQM9Tgnk6WeL3HbyD4wTvutmTggG75CA=
+github.com/apache/incubator-yunikorn-scheduler-interface v0.0.0-0.20200731171855-a731b08643db/go.mod h1:t1x4L4P6YzNYRhZjQg7qAd/RM8ICaXZ1vo16SimxVes=
 github.com/apache/incubator-yunikorn-scheduler-interface v0.0.0-20200414171840-a773cd557b1f h1:MO1PV62hmeaahOItQq848+aSbypnjdtXj4k0v+O4+nI=
 github.com/apache/incubator-yunikorn-scheduler-interface v0.0.0-20200414171840-a773cd557b1f/go.mod h1:De+73NNH4KaRL9MGGnCyHJOtx2oQGVYOaespfoRNGSo=
+github.com/apache/incubator-yunikorn-scheduler-interface v0.0.0-20200623235757-ceaac44952b8/go.mod h1:t1x4L4P6YzNYRhZjQg7qAd/RM8ICaXZ1vo16SimxVes=
+github.com/apache/incubator-yunikorn-scheduler-interface v0.0.0-20200731171855-a731b08643db h1:Urv9zLTtCJHPJ/KxvBNkN0rfH9/ASDoN9juSE1Gm7v8=
+github.com/apache/incubator-yunikorn-scheduler-interface v0.0.0-20200731171855-a731b08643db/go.mod h1:t1x4L4P6YzNYRhZjQg7qAd/RM8ICaXZ1vo16SimxVes=
 github.com/apache/incubator-yunikorn-scheduler-interface v0.8.0 h1:6gmLqBsnbUHbbd73GioZTqoXNbLXB7LPnFN9Qk6QpwU=
 github.com/apache/incubator-yunikorn-scheduler-interface v0.8.1-0.20200601033744-f86297aaea9e h1:zqfhgVK0kqSgOEG+pLfpFK8YdiSpg6/AYXwcdGJBycc=
 github.com/apache/incubator-yunikorn-scheduler-interface v0.8.1-0.20200601033744-f86297aaea9e/go.mod h1:t1x4L4P6YzNYRhZjQg7qAd/RM8ICaXZ1vo16SimxVes=
@@ -46,6 +50,7 @@ github.com/apache/incubator-yunikorn-scheduler-interface v0.8.1-0.20200613000533
 github.com/apache/incubator-yunikorn-scheduler-interface v0.8.1-0.20200613000533-a889c9d6bafc/go.mod h1:t1x4L4P6YzNYRhZjQg7qAd/RM8ICaXZ1vo16SimxVes=
 github.com/apache/incubator-yunikorn-scheduler-interface v0.8.1-0.20200623235757-ceaac44952b8 h1:aORS/WDQWXXLEUWB4Xt+uDmFZ+5sYOTQQuXB6e3U+To=
 github.com/apache/incubator-yunikorn-scheduler-interface v0.8.1-0.20200623235757-ceaac44952b8/go.mod h1:t1x4L4P6YzNYRhZjQg7qAd/RM8ICaXZ1vo16SimxVes=
+github.com/apache/incubator-yunikorn-scheduler-interface v0.9.0 h1:8B5fYkjol04f4wxa5SYZ3apXEDoZ2mXoYa0IWqLJLEQ=
 github.com/apache/incubator-yunikorn-scheduler-interface v0.9.1-0.20200731171855-a731b08643db h1:wROpUf+c7SUOH8dR4tOo8BqgN0F3GK7uSPIQrF/hrdI=
 github.com/apache/incubator-yunikorn-scheduler-interface v0.9.1-0.20200731171855-a731b08643db/go.mod h1:t1x4L4P6YzNYRhZjQg7qAd/RM8ICaXZ1vo16SimxVes=
 github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973/go.mod h1:Dwedo/Wpr24TaqPxmxbtue+5NUziq4I4S80YR8gNf3Q=

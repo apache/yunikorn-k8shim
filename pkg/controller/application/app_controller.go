@@ -152,8 +152,10 @@ func (appMgr *AppManager) addApp(obj interface{}) {
 				Metadata: appMeta,
 				Recovery: false,
 			})
-			// set and save status = New
-			appMgr.updateAppCRDStatus(appCRD, appv1.NewApplicationState)
+			// set and save status = New in case it is not set. In case of recovery don't overwrite it
+			if len(appCRD.Status.AppStatus) == 0 {
+				appMgr.updateAppCRDStatus(appCRD, appv1.NewApplicationState)
+			}
 		}
 	}
 }
@@ -189,7 +191,7 @@ func (appMgr *AppManager) getAppMetadata(app *appv1.Application) (interfaces.App
 	return interfaces.ApplicationMetadata{
 		ApplicationID: appID,
 		QueueName:     app.Spec.Queue,
-		User:          "",
+		User:          "default",
 		Tags:          tags,
 	}, true
 }
