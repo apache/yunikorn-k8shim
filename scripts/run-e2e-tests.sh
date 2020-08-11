@@ -55,6 +55,12 @@ function install_cluster() {
   k8s_cluster_name=$1
   kind_node_image=$2
 
+  # install ginkgo and gomega for e2e tests
+  check_cmd "go"
+  go get -v github.com/onsi/ginkgo/ginkgo
+  go get -v github.com/onsi/gomega
+  export PATH=$PATH:$HOME/gopath/bin
+
   # build docker images from latest code, so that we can install yunikorn with these latest images
   echo "step 1/6: building docker images from latest code"
   make image REGISTRY=local VERSION=latest
