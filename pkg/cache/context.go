@@ -428,14 +428,15 @@ func (ctx *Context) NotifyTaskComplete(appID, taskID string) {
 	}
 }
 
-// get namespace resource quota from annotation
-// if the namespace is unable to be listed from api-server, a nil is returned
-// if the annotation doesn't have the quota defined, a nil is returned
+// get namespace resource quota and parent queue from annotation
+// if the namespace is unable to be listed from api-server, a nil and an empty string are returned
+// if the annotation doesn't have the quota defined, a nil and an empty string are returned
 // if cpu or memory quota is defined in the annotation, a corresponding si.Resource is returned
-func (ctx *Context) getNamespaceResourceQuota(namespace string) *si.Resource {
+// if the parent queue is defined in the annotation, this configured string is returned
+func (ctx *Context) getTagsFromNamespaceAnnotations(namespace string) (*si.Resource, string) {
 	if namespace == "" {
 		log.Logger().Debug("skip getting resource quota because namespace is empty")
-		return nil
+		return nil, ""
 	}
 
 	nsLister := ctx.apiProvider.GetAPIs().NamespaceInformer.Lister()
@@ -445,10 +446,10 @@ func (ctx *Context) getNamespaceResourceQuota(namespace string) *si.Resource {
 		// if we cannot list the namespace here, probably something is wrong
 		// log an error here and skip retrieving the resource quota
 		log.Logger().Error("failed to get app namespace", zap.Error(err))
-		return nil
+		return nil, ""
 	}
 
-	return utils.GetNamespaceQuotaFromAnnotation(namespaceObj)
+	return utils.GetNamespaceQuotaFromAnnotation(namespaceObj), namespaceObj.Annotations["yunikorn.apache.org/parentqueue"]
 }
 
 func (ctx *Context) AddApplication(request *interfaces.AddApplicationRequest) interfaces.ManagedApp {
@@ -460,18 +461,23 @@ func (ctx *Context) AddApplication(request *interfaces.AddApplicationRequest) in
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
 
-	// add resource quota info as a app tag
 	if ns, ok := request.Metadata.Tags[constants.AppTagNamespace]; ok {
 		log.Logger().Debug("app namespace info",
 			zap.String("appID", request.Metadata.ApplicationID),
 			zap.String("namespace", ns))
-		resourceQuota := ctx.getNamespaceResourceQuota(ns)
+		resourceQuota, parentQueue := ctx.getTagsFromNamespaceAnnotations(ns)
+		// add resource quota info as an app tag
 		if resourceQuota != nil && !common.IsZero(resourceQuota) {
 			if quotaStr, err := json.Marshal(resourceQuota); err == nil {
 				request.Metadata.Tags[constants.AppTagNamespaceResourceQuota] = string(quotaStr)
 			}
 		}
+		// add parent queue info as an app tag
+		if parentQueue != "" {
+			request.Metadata.Tags[common.AppTagNamespaceParentQueue] = parentQueue
+		}
 	}
+
 
 	app := NewApplication(
 		request.Metadata.ApplicationID,

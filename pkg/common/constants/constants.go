@@ -31,6 +31,7 @@ const ApplicationDefaultQueue = "root.sandbox"
 const DefaultPartition = "default"
 const AppTagNamespace = "namespace"
 const AppTagNamespaceResourceQuota = "namespace.resourcequota"
+const AppTagNamespaceParentQueue = "namespace.parentqueue"
 const DefaultAppNamespace = "default"
 
 // Resource
