@@ -19,10 +19,8 @@
 package general
 
 import (
-	"os"
 	"testing"
 
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"gotest.tools/assert"
 	v1 "k8s.io/api/core/v1"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -32,11 +30,6 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 )
-
-func TestMain(m *testing.M) {
-	conf.GetSchedulerConf()
-	os.Exit(m.Run())
-}
 
 func TestGetAppMetadata(t *testing.T) {
 	am := NewManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider())
