@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"testing"
 	"time"
 
 	"go.uber.org/zap/zapcore"
@@ -107,6 +108,15 @@ func (conf *SchedulerConf) IsOperatorPluginEnabled(name string) bool {
 }
 
 func init() {
+	// require: go 1.13+
+	// calling testing.Init() before flag.Parse(), this makes sure all testing flags
+	// got registered while running the UTs. This is a behavior change since go 1.13,
+	// see https://tip.golang.org/doc/go1.13#testing. Testing flags are registered
+	// in the new Init function, if other package calls flag.Parse() first, it will
+	// cause the test package fail to init.
+	// See more in https://issues.apache.org/jira/browse/YUNIKORN-24
+	testing.Init()
+
 	// scheduler options
 	kubeConfig := flag.String("kubeConfig", "",
 		"absolute path to the kubeconfig file")

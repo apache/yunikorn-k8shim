@@ -21,7 +21,7 @@ os:
   - linux
 
 go:
-  - "1.12"
+  - "1.15"
 
 services:
   - 'docker'
