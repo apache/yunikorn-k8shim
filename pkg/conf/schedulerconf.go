@@ -174,4 +174,3 @@ func initConfigs() {
 		OperatorPlugins:      *operatorPluginList,
 	}
 }
-
