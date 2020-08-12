@@ -36,12 +36,12 @@ type KubeClientMock struct {
 func NewKubeClientMock() *KubeClientMock {
 	return &KubeClientMock{
 		bindFn: func(pod *v1.Pod, hostID string) error {
-			log.Logger.Info("pod bound",
+			log.Logger().Info("pod bound",
 				zap.String("PodName", pod.Name))
 			return nil
 		},
 		deleteFn: func(pod *v1.Pod) error {
-			log.Logger.Info("pod deleted",
+			log.Logger().Info("pod deleted",
 				zap.String("PodName", pod.Name))
 			return nil
 		},

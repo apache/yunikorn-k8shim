@@ -59,42 +59,49 @@ type Dispatcher struct {
 	lock      sync.RWMutex
 }
 
-func init() {
+func initDispatcher() {
 	eventChannelCapacity := conf.GetSchedulerConf().EventChannelCapacity
-	once.Do(func() {
-		if dispatcher == nil {
-			dispatcher = &Dispatcher{
-				eventChan: make(chan events.SchedulingEvent, eventChannelCapacity),
-				handlers:  make(map[EventType]func(interface{})),
-				stopChan:  make(chan struct{}),
-				running:   atomic.Value{},
-				lock:      sync.RWMutex{},
-			}
-			dispatcher.setRunning(false)
+	if dispatcher == nil {
+		dispatcher = &Dispatcher{
+			eventChan: make(chan events.SchedulingEvent, eventChannelCapacity),
+			handlers:  make(map[EventType]func(interface{})),
+			stopChan:  make(chan struct{}),
+			running:   atomic.Value{},
+			lock:      sync.RWMutex{},
 		}
-	})
+		dispatcher.setRunning(false)
+	}
 	DispatchTimeout = conf.GetSchedulerConf().DispatchTimeout
 	AsyncDispatchLimit = int32(eventChannelCapacity / 10)
 	if AsyncDispatchLimit < 10000 {
 		AsyncDispatchLimit = 10000
 	}
-	log.Logger.Info("Init dispatcher",
+	log.Logger().Info("Init dispatcher",
 		zap.Int("EventChannelCapacity", eventChannelCapacity),
 		zap.Int32("AsyncDispatchLimit", AsyncDispatchLimit),
 		zap.Float64("DispatchTimeoutInSeconds", DispatchTimeout.Seconds()))
 }
 
 func RegisterEventHandler(eventType EventType, handlerFn func(interface{})) {
-	dispatcher.lock.Lock()
-	defer dispatcher.lock.Unlock()
-	dispatcher.handlers[eventType] = handlerFn
+	eventDispatcher := getDispatcher()
+	eventDispatcher.lock.Lock()
+	defer eventDispatcher.lock.Unlock()
+	eventDispatcher.handlers[eventType] = handlerFn
 }
 
 // a thread-safe way to get event handlers
 func getEventHandler(eventType EventType) func(interface{}) {
-	dispatcher.lock.RLock()
-	defer dispatcher.lock.RUnlock()
-	return dispatcher.handlers[eventType]
+	eventDispatcher := getDispatcher()
+	eventDispatcher.lock.RLock()
+	defer eventDispatcher.lock.RUnlock()
+	return eventDispatcher.handlers[eventType]
+}
+
+func getDispatcher() *Dispatcher {
+	// init the dispatcher if it hasn't yet done
+	// this is only called once
+	once.Do(initDispatcher)
+	return dispatcher
 }
 
 // dispatches scheduler events to actual app/task handler,
@@ -104,8 +111,8 @@ func getEventHandler(eventType EventType) func(interface{}) {
 func Dispatch(event events.SchedulingEvent) {
 	// currently if dispatch fails, we simply log the error
 	// we may revisit this later, e.g add retry here
-	if err := dispatcher.dispatch(event); err != nil {
-		log.Logger.Warn("failed to dispatch SchedulingEvent",
+	if err := getDispatcher().dispatch(event); err != nil {
+		log.Logger().Warn("failed to dispatch SchedulingEvent",
 			zap.Error(err))
 	}
 }
@@ -135,7 +142,7 @@ func (p *Dispatcher) dispatch(event events.SchedulingEvent) error {
 // it's only called when event channel is full.
 func (p *Dispatcher) asyncDispatch(event events.SchedulingEvent) {
 	count := atomic.AddInt32(&asyncDispatchCount, 1)
-	log.Logger.Warn("event channel is full, transition to async-dispatch mode",
+	log.Logger().Warn("event channel is full, transition to async-dispatch mode",
 		zap.Int32("asyncDispatchCount", count))
 	if count > AsyncDispatchLimit {
 		panic(fmt.Errorf("dispatcher exceeds async-dispatch limit"))
@@ -151,11 +158,11 @@ func (p *Dispatcher) asyncDispatch(event events.SchedulingEvent) {
 			case <-time.After(AsyncDispatchCheckInterval):
 				elapseTime := time.Since(beginTime)
 				if elapseTime >= DispatchTimeout {
-					log.Logger.Error("dispatch timeout",
+					log.Logger().Error("dispatch timeout",
 						zap.Float64("elapseSeconds", elapseTime.Seconds()))
 					return
 				}
-				log.Logger.Warn("event channel is full, keep waiting...",
+				log.Logger().Warn("event channel is full, keep waiting...",
 					zap.Float64("elapseSeconds", elapseTime.Seconds()))
 			}
 		}
@@ -164,19 +171,19 @@ func (p *Dispatcher) asyncDispatch(event events.SchedulingEvent) {
 
 func (p *Dispatcher) drain() {
 	for len(p.eventChan) > 0 {
-		log.Logger.Info("wait dispatcher to drain",
+		log.Logger().Info("wait dispatcher to drain",
 			zap.Int("remaining events", len(p.eventChan)))
 		time.Sleep(1 * time.Second)
 	}
-	log.Logger.Info("dispatcher is draining out")
+	log.Logger().Info("dispatcher is draining out")
 }
 
 func Start() {
-	log.Logger.Info("starting the dispatcher")
+	log.Logger().Info("starting the dispatcher")
 	go func() {
 		for {
 			select {
-			case event := <-dispatcher.eventChan:
+			case event := <-getDispatcher().eventChan:
 				switch v := event.(type) {
 				case events.ApplicationEvent:
 					getEventHandler(EventTypeApp)(v)
@@ -187,35 +194,35 @@ func Start() {
 				case events.SchedulerNodeEvent:
 					getEventHandler(EventTypeNode)(v)
 				default:
-					log.Logger.Fatal("unsupported event",
+					log.Logger().Fatal("unsupported event",
 						zap.Any("event", v))
 				}
-			case <-dispatcher.stopChan:
-				log.Logger.Info("shutting down event channel")
-				dispatcher.setRunning(false)
+			case <-getDispatcher().stopChan:
+				log.Logger().Info("shutting down event channel")
+				getDispatcher().setRunning(false)
 				return
 			}
 		}
 	}()
-	dispatcher.setRunning(true)
+	getDispatcher().setRunning(true)
 }
 
 // stop the dispatcher and wait at most 5 seconds gracefully
 func Stop() {
-	log.Logger.Info("stopping the dispatcher")
+	log.Logger().Info("stopping the dispatcher")
 	select {
-	case dispatcher.stopChan <- struct{}{}:
+	case getDispatcher().stopChan <- struct{}{}:
 		maxTimeout := 5
-		for dispatcher.isRunning() && maxTimeout > 0 {
-			log.Logger.Info("waiting for dispatcher to be stopped",
+		for getDispatcher().isRunning() && maxTimeout > 0 {
+			log.Logger().Info("waiting for dispatcher to be stopped",
 				zap.Int("remainingSeconds", maxTimeout))
 			time.Sleep(1 * time.Second)
 			maxTimeout--
 		}
-		if !dispatcher.isRunning() {
-			log.Logger.Info("dispatcher stopped")
+		if !getDispatcher().isRunning() {
+			log.Logger().Info("dispatcher stopped")
 		}
 	default:
-		log.Logger.Info("dispatcher is already stopped")
+		log.Logger().Info("dispatcher is already stopped")
 	}
 }

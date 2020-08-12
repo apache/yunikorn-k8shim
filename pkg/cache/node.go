@@ -103,7 +103,7 @@ func (n *SchedulerNode) initFSM() {
 func (n *SchedulerNode) addExistingAllocation(allocation *si.Allocation) {
 	n.lock.Lock()
 	defer n.lock.Unlock()
-	log.Logger.Info("add existing allocation",
+	log.Logger().Info("add existing allocation",
 		zap.Any("allocation", allocation))
 	n.existingAllocations = append(n.existingAllocations, allocation)
 }
@@ -111,7 +111,7 @@ func (n *SchedulerNode) addExistingAllocation(allocation *si.Allocation) {
 func (n *SchedulerNode) setOccupiedResource(resource *si.Resource) {
 	n.lock.Lock()
 	defer n.lock.Unlock()
-	log.Logger.Info("set node occupied resource",
+	log.Logger().Info("set node occupied resource",
 		zap.String("occupied", resource.String()))
 	n.occupied = resource
 }
@@ -140,7 +140,7 @@ func (n *SchedulerNode) postNodeAccepted(event *fsm.Event) {
 }
 
 func (n *SchedulerNode) handleNodeRecovery(event *fsm.Event) {
-	log.Logger.Info("node recovering",
+	log.Logger().Info("node recovering",
 		zap.String("nodeID", n.name),
 		zap.Bool("schedulable", n.schedulable))
 
@@ -164,13 +164,13 @@ func (n *SchedulerNode) handleNodeRecovery(event *fsm.Event) {
 
 	// send request to scheduler-core
 	if err := n.schedulerAPI.Update(request); err != nil {
-		log.Logger.Error("failed to send request",
+		log.Logger().Error("failed to send request",
 			zap.Any("request", request))
 	}
 }
 
 func (n *SchedulerNode) handleDrainNode(event *fsm.Event) {
-	log.Logger.Info("node enters draining mode",
+	log.Logger().Info("node enters draining mode",
 		zap.String("nodeID", n.name))
 
 	request := &si.UpdateRequest{
@@ -191,13 +191,13 @@ func (n *SchedulerNode) handleDrainNode(event *fsm.Event) {
 
 	// send request to scheduler-core
 	if err := n.schedulerAPI.Update(request); err != nil {
-		log.Logger.Error("failed to send request",
+		log.Logger().Error("failed to send request",
 			zap.Any("request", request))
 	}
 }
 
 func (n *SchedulerNode) handleRestoreNode(event *fsm.Event) {
-	log.Logger.Info("restore node from draining mode",
+	log.Logger().Info("restore node from draining mode",
 		zap.String("nodeID", n.name))
 
 	request := &si.UpdateRequest{
@@ -218,7 +218,7 @@ func (n *SchedulerNode) handleRestoreNode(event *fsm.Event) {
 
 	// send request to scheduler-core
 	if err := n.schedulerAPI.Update(request); err != nil {
-		log.Logger.Error("failed to send request",
+		log.Logger().Error("failed to send request",
 			zap.Any("request", request))
 	}
 }
@@ -241,7 +241,7 @@ func (n *SchedulerNode) canHandle(ev events.SchedulerNodeEvent) bool {
 }
 
 func (n *SchedulerNode) enterState(event *fsm.Event) {
-	log.Logger.Debug("shim node state transition",
+	log.Logger().Debug("shim node state transition",
 		zap.String("node", n.name),
 		zap.String("source", event.Src),
 		zap.String("destination", event.Dst),

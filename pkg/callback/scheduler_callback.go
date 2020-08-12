@@ -41,12 +41,12 @@ func NewAsyncRMCallback(ctx *cache.Context) *AsyncRMCallback {
 }
 
 func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse) error {
-	log.Logger.Debug("callback received",
+	log.Logger().Debug("callback received",
 		zap.String("updateResponse", response.String()))
 
 	// handle new accepted nodes
 	for _, node := range response.AcceptedNodes {
-		log.Logger.Debug("callback: response to accepted node",
+		log.Logger().Debug("callback: response to accepted node",
 			zap.String("nodeID", node.NodeID))
 
 		dispatcher.Dispatch(cache.CachedSchedulerNodeEvent{
@@ -56,7 +56,7 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 	}
 
 	for _, node := range response.RejectedNodes {
-		log.Logger.Debug("callback: response to rejected node",
+		log.Logger().Debug("callback: response to rejected node",
 			zap.String("nodeID", node.NodeID))
 
 		dispatcher.Dispatch(cache.CachedSchedulerNodeEvent{
@@ -68,7 +68,7 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 	// handle new accepted apps
 	for _, app := range response.AcceptedApplications {
 		// update context
-		log.Logger.Debug("callback: response to accepted application",
+		log.Logger().Debug("callback: response to accepted application",
 			zap.String("appID", app.ApplicationID))
 
 		if app := callback.context.GetApplication(app.ApplicationID); app != nil {
@@ -79,7 +79,7 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 
 	for _, app := range response.RejectedApplications {
 		// update context
-		log.Logger.Debug("callback: response to rejected application",
+		log.Logger().Debug("callback: response to rejected application",
 			zap.String("appID", app.ApplicationID))
 
 		if app := callback.context.GetApplication(app.ApplicationID); app != nil {
@@ -91,7 +91,7 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 	// handle new allocations
 	for _, alloc := range response.NewAllocations {
 		// got allocation for pod, bind pod to the scheduled node
-		log.Logger.Debug("callback: response to new allocation",
+		log.Logger().Debug("callback: response to new allocation",
 			zap.String("allocationKey", alloc.AllocationKey),
 			zap.String("UUID", alloc.UUID),
 			zap.String("applicationID", alloc.ApplicationID),
@@ -105,7 +105,7 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 
 	for _, reject := range response.RejectedAllocations {
 		// request rejected by the scheduler, put it back and try scheduling again
-		log.Logger.Debug("callback: response to rejected allocation",
+		log.Logger().Debug("callback: response to rejected allocation",
 			zap.String("allocationKey", reject.AllocationKey))
 
 		if app := callback.context.GetApplication(reject.ApplicationID); app != nil {
@@ -116,7 +116,7 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 	}
 
 	for _, release := range response.ReleasedAllocations {
-		log.Logger.Debug("callback: response to released allocations",
+		log.Logger().Debug("callback: response to released allocations",
 			zap.String("UUID", release.UUID))
 	}
 
@@ -147,7 +147,7 @@ func (callback *AsyncRMCallback) ReSyncSchedulerCache(args *si.ReSyncSchedulerCa
 // this callback implement scheduler plugin interface EventPlugin.
 func (callback *AsyncRMCallback) SendEvent(eventRecords []*si.EventRecord) {
 	if len(eventRecords) > 0 {
-		log.Logger.Debug(fmt.Sprintf("prepare to publish %d events", len(eventRecords)))
+		log.Logger().Debug(fmt.Sprintf("prepare to publish %d events", len(eventRecords)))
 		callback.context.PublishEvents(eventRecords)
 	}
 }

@@ -60,20 +60,20 @@ func (c *nodeResourceCoordinator) filterPods(obj interface{}) bool {
 func (c *nodeResourceCoordinator) updatePod(old, new interface{}) {
 	oldPod, err := utils.Convert2Pod(old)
 	if err != nil {
-		log.Logger.Error("expecting a pod object", zap.Error(err))
+		log.Logger().Error("expecting a pod object", zap.Error(err))
 		return
 	}
 
 	newPod, err := utils.Convert2Pod(new)
 	if err != nil {
-		log.Logger.Error("expecting a pod object", zap.Error(err))
+		log.Logger().Error("expecting a pod object", zap.Error(err))
 		return
 	}
 
 	// triggered when pod status phase changes
 	if oldPod.Status.Phase != newPod.Status.Phase {
 		if utils.IsAssignedPod(newPod) {
-			log.Logger.Debug("pod phase changes",
+			log.Logger().Debug("pod phase changes",
 				zap.String("namespace", newPod.Namespace),
 				zap.String("podName", newPod.Name),
 				zap.String("podStatusBefore", string(oldPod.Status.Phase)),
@@ -84,7 +84,7 @@ func (c *nodeResourceCoordinator) updatePod(old, new interface{}) {
 				podResource := common.GetPodResource(newPod)
 				c.nodes.updateNodeOccupiedResources(newPod.Spec.NodeName, podResource, AddOccupiedResource)
 				if err := c.nodes.cache.AddPod(newPod); err != nil {
-					log.Logger.Warn("failed to update scheduler-cache",
+					log.Logger().Warn("failed to update scheduler-cache",
 						zap.Error(err))
 				}
 			} else if utils.IsPodTerminated(newPod) {
@@ -93,7 +93,7 @@ func (c *nodeResourceCoordinator) updatePod(old, new interface{}) {
 				podResource := common.GetPodResource(newPod)
 				c.nodes.updateNodeOccupiedResources(newPod.Spec.NodeName, podResource, SubOccupiedResource)
 				if err := c.nodes.cache.RemovePod(newPod); err != nil {
-					log.Logger.Warn("failed to update scheduler-cache",
+					log.Logger().Warn("failed to update scheduler-cache",
 						zap.Error(err))
 				}
 			}
@@ -110,28 +110,28 @@ func (c *nodeResourceCoordinator) deletePod(obj interface{}) {
 		var err error
 		pod, err = utils.Convert2Pod(t.Obj)
 		if err != nil {
-			log.Logger.Error(err.Error())
+			log.Logger().Error(err.Error())
 			return
 		}
 	default:
-		log.Logger.Error("cannot convert to pod")
+		log.Logger().Error("cannot convert to pod")
 		return
 	}
 
 	// if pod is already terminated, that means the updates have already done
 	if utils.IsPodTerminated(pod) {
-		log.Logger.Debug("pod is already terminated, occupied resource updated should have already been done")
+		log.Logger().Debug("pod is already terminated, occupied resource updated should have already been done")
 		return
 	}
 
-	log.Logger.Info("deleting pod that scheduled by other schedulers",
+	log.Logger().Info("deleting pod that scheduled by other schedulers",
 		zap.String("namespace", pod.Namespace),
 		zap.String("podName", pod.Name))
 
 	podResource := common.GetPodResource(pod)
 	c.nodes.updateNodeOccupiedResources(pod.Spec.NodeName, podResource, SubOccupiedResource)
 	if err := c.nodes.cache.RemovePod(pod); err != nil {
-		log.Logger.Debug("failed to update scheduler-cache",
+		log.Logger().Debug("failed to update scheduler-cache",
 			zap.Error(err))
 	}
 }

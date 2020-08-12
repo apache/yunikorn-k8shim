@@ -181,7 +181,7 @@ func (app *Application) removeTask(taskID string) error {
 	defer app.lock.Unlock()
 	if _, ok := app.taskMap[taskID]; ok {
 		delete(app.taskMap, taskID)
-		log.Logger.Info("task removed",
+		log.Logger().Info("task removed",
 			zap.String("appID", app.applicationID),
 			zap.String("taskID", taskID))
 		return nil
@@ -262,13 +262,13 @@ func (app *Application) Schedule() {
 	case states.New:
 		ev := NewSubmitApplicationEvent(app.GetApplicationID())
 		if err := app.handle(ev); err != nil {
-			log.Logger.Warn("failed to handle SUBMIT app event",
+			log.Logger().Warn("failed to handle SUBMIT app event",
 				zap.Error(err))
 		}
 	case states.Accepted:
 		ev := NewRunApplicationEvent(app.GetApplicationID())
 		if err := app.handle(ev); err != nil {
-			log.Logger.Warn("failed to handle RUN app event",
+			log.Logger().Warn("failed to handle RUN app event",
 				zap.Error(err))
 		}
 	case states.Running:
@@ -283,11 +283,11 @@ func (app *Application) Schedule() {
 						// something goes wrong when transit task to PENDING state,
 						// this should not happen because we already checked the state
 						// before calling the transition. Nowhere to go, just log the error.
-						log.Logger.Warn("init task failed", zap.Error(err))
+						log.Logger().Warn("init task failed", zap.Error(err))
 					}
 				} else {
 					events.GetRecorder().Event(task.GetTaskPod(), v1.EventTypeWarning, "FailedScheduling", err.Error())
-					log.Logger.Debug("task is not ready for scheduling",
+					log.Logger().Debug("task is not ready for scheduling",
 						zap.String("appID", task.applicationID),
 						zap.String("taskID", task.taskID),
 						zap.Error(err))
@@ -295,14 +295,14 @@ func (app *Application) Schedule() {
 			}
 		}
 	default:
-		log.Logger.Debug("skipping scheduling application",
+		log.Logger().Debug("skipping scheduling application",
 			zap.String("appID", app.GetApplicationID()),
 			zap.String("appState", app.GetApplicationState()))
 	}
 }
 
 func (app *Application) handleSubmitApplicationEvent(event *fsm.Event) {
-	log.Logger.Info("handle app submission",
+	log.Logger().Info("handle app submission",
 		zap.String("app", app.String()),
 		zap.String("clusterID", conf.GetSchedulerConf().ClusterID))
 	err := app.schedulerAPI.Update(
@@ -323,13 +323,13 @@ func (app *Application) handleSubmitApplicationEvent(event *fsm.Event) {
 
 	if err != nil {
 		// submission failed
-		log.Logger.Warn("failed to submit app", zap.Error(err))
+		log.Logger().Warn("failed to submit app", zap.Error(err))
 		dispatcher.Dispatch(NewFailApplicationEvent(app.applicationID))
 	}
 }
 
 func (app *Application) handleRecoverApplicationEvent(event *fsm.Event) {
-	log.Logger.Info("handle app recovering",
+	log.Logger().Info("handle app recovering",
 		zap.String("app", app.String()),
 		zap.String("clusterID", conf.GetSchedulerConf().ClusterID))
 	err := app.schedulerAPI.Update(
@@ -350,13 +350,13 @@ func (app *Application) handleRecoverApplicationEvent(event *fsm.Event) {
 
 	if err != nil {
 		// submission failed
-		log.Logger.Warn("failed to submit app", zap.Error(err))
+		log.Logger().Warn("failed to submit app", zap.Error(err))
 		dispatcher.Dispatch(NewFailApplicationEvent(app.applicationID))
 	}
 }
 
 func (app *Application) handleRejectApplicationEvent(event *fsm.Event) {
-	log.Logger.Info("app is rejected by scheduler", zap.String("appID", app.applicationID))
+	log.Logger().Info("app is rejected by scheduler", zap.String("appID", app.applicationID))
 	// for rejected apps, we directly move them to failed state
 	dispatcher.Dispatch(NewFailApplicationEvent(app.applicationID))
 }
@@ -366,7 +366,7 @@ func (app *Application) handleCompleteApplicationEvent(event *fsm.Event) {
 }
 
 func (app *Application) enterState(event *fsm.Event) {
-	log.Logger.Debug("shim app state transition",
+	log.Logger().Debug("shim app state transition",
 		zap.String("app", app.applicationID),
 		zap.String("source", event.Src),
 		zap.String("destination", event.Dst),

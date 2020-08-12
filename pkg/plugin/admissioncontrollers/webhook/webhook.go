@@ -53,7 +53,7 @@ func main() {
 	keyPath := filepath.Join(tlsDir, tlsKeyFile)
 	pair, err := tls.LoadX509KeyPair(certPath, keyPath)
 	if err != nil {
-		log.Logger.Fatal("Failed to load key pair", zap.Error(err))
+		log.Logger().Fatal("Failed to load key pair", zap.Error(err))
 	}
 	policyGroup := os.Getenv(policyGroupEnvVarName)
 	if policyGroup == "" {
@@ -76,11 +76,11 @@ func main() {
 
 	go func() {
 		if err = server.ListenAndServeTLS("", ""); err != nil {
-			log.Logger.Fatal("failed to start admission controller", zap.Error(err))
+			log.Logger().Fatal("failed to start admission controller", zap.Error(err))
 		}
 	}()
 
-	log.Logger.Info("the admission controller started",
+	log.Logger().Info("the admission controller started",
 		zap.Int("port", HTTPPort),
 		zap.Strings("listeningOn", []string{mutateURL, validateConfURL}))
 
@@ -88,10 +88,10 @@ func main() {
 	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
 	<-signalChan
 
-	log.Logger.Info("shutting down the admission controller...")
+	log.Logger().Info("shutting down the admission controller...")
 	err = server.Shutdown(context.Background())
 	if err != nil {
-		log.Logger.Warn("failed to stop the admission controller",
+		log.Logger().Warn("failed to stop the admission controller",
 			zap.Error(err))
 	}
 }
