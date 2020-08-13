@@ -73,7 +73,7 @@ func (c *Clients) WaitForSync(interval time.Duration, timeout time.Duration) err
 			c.StorageInformer.Informer().HasSynced() &&
 			c.ConfigMapInformer.Informer().HasSynced() &&
 			c.NamespaceInformer.Informer().HasSynced() &&
-			c.AppInformer.Informer().HasSynced()
+			(c.AppInformer == nil || c.AppInformer.Informer().HasSynced())
 	}, interval, timeout)
 }
 
