@@ -478,7 +478,6 @@ func (ctx *Context) AddApplication(request *interfaces.AddApplicationRequest) in
 		}
 	}
 
-
 	app := NewApplication(
 		request.Metadata.ApplicationID,
 		request.Metadata.QueueName,
