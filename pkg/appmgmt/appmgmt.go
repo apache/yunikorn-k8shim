@@ -23,7 +23,6 @@ import (
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/general"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/sparkoperator"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
@@ -49,9 +48,7 @@ func NewAMService(amProtocol interfaces.ApplicationManagementProtocol,
 		appManager.register(
 			// registered app plugins
 			// for general apps
-			general.NewManager(amProtocol, apiProvider),
-			// for spark operator - SparkApplication
-			sparkoperator.NewManager(amProtocol, apiProvider))
+			general.NewManager(amProtocol, apiProvider))
 	}
 
 	return appManager

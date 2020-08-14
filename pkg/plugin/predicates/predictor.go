@@ -148,39 +148,6 @@ func (p *Predictor) init() {
 			return predicates.NewVolumeZonePredicate(args.PVInfo, args.PVCInfo, args.StorageClassInfo)
 		},
 	)
-	// Fit is determined by whether or not there would be too many AWS EBS volumes attached to the node
-	p.registerFitPredicateFactory(
-		predicates.MaxEBSVolumeCountPred,
-		func(args factory.PluginFactoryArgs) predicates.FitPredicate {
-			return predicates.NewMaxPDVolumeCountPredicate(predicates.EBSVolumeFilterType, args.PVInfo, args.PVCInfo)
-		},
-	)
-	// Fit is determined by whether or not there would be too many GCE PD volumes attached to the node
-	p.registerFitPredicateFactory(
-		predicates.MaxGCEPDVolumeCountPred,
-		func(args factory.PluginFactoryArgs) predicates.FitPredicate {
-			return predicates.NewMaxPDVolumeCountPredicate(predicates.GCEPDVolumeFilterType, args.PVInfo, args.PVCInfo)
-		},
-	)
-	// Fit is determined by whether or not there would be too many Azure Disk volumes attached to the node
-	p.registerFitPredicateFactory(
-		predicates.MaxAzureDiskVolumeCountPred,
-		func(args factory.PluginFactoryArgs) predicates.FitPredicate {
-			return predicates.NewMaxPDVolumeCountPredicate(predicates.AzureDiskVolumeFilterType, args.PVInfo, args.PVCInfo)
-		},
-	)
-	p.registerFitPredicateFactory(
-		predicates.MaxCSIVolumeCountPred,
-		func(args factory.PluginFactoryArgs) predicates.FitPredicate {
-			return predicates.NewCSIMaxVolumeLimitPredicate(args.PVInfo, args.PVCInfo)
-		},
-	)
-	p.registerFitPredicateFactory(
-		predicates.MaxCinderVolumeCountPred,
-		func(args factory.PluginFactoryArgs) predicates.FitPredicate {
-			return predicates.NewMaxPDVolumeCountPredicate(predicates.CinderVolumeFilterType, args.PVInfo, args.PVCInfo)
-		},
-	)
 
 	// Fit is determined by inter-pod affinity.
 	p.registerFitPredicateFactory(
