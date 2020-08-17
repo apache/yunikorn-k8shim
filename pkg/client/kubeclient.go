@@ -41,7 +41,7 @@ func newSchedulerKubeClient(kc string) SchedulerKubeClient {
 	if kc != "" {
 		config, err := clientcmd.BuildConfigFromFlags("", kc)
 		if err != nil {
-			log.Logger.Fatal("failed to create kubeClient configs", zap.Error(err))
+			log.Logger().Fatal("failed to create kubeClient configs", zap.Error(err))
 		}
 		config.QPS = float32(schedulerConf.KubeQPS)
 		config.Burst = schedulerConf.KubeBurst
@@ -55,13 +55,13 @@ func newSchedulerKubeClient(kc string) SchedulerKubeClient {
 	// using in cluster config
 	config, err := rest.InClusterConfig()
 	if err != nil {
-		log.Logger.Fatal("failed to get InClusterConfig", zap.Error(err))
+		log.Logger().Fatal("failed to get InClusterConfig", zap.Error(err))
 	}
 	config.QPS = float32(schedulerConf.KubeQPS)
 	config.Burst = schedulerConf.KubeBurst
 	configuredClient, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		log.Logger.Fatal("failed to get Clientset", zap.Error(err))
+		log.Logger().Fatal("failed to get Clientset", zap.Error(err))
 	}
 	return SchedulerKubeClient{
 		clientSet: configuredClient,
@@ -78,7 +78,7 @@ func (nc SchedulerKubeClient) GetConfigs() *rest.Config {
 }
 
 func (nc SchedulerKubeClient) Bind(pod *v1.Pod, hostID string) error {
-	log.Logger.Info("bind pod to node",
+	log.Logger().Info("bind pod to node",
 		zap.String("podName", pod.Name),
 		zap.String("podUID", string(pod.UID)),
 		zap.String("nodeID", hostID))
@@ -91,7 +91,7 @@ func (nc SchedulerKubeClient) Bind(pod *v1.Pod, hostID string) error {
 				Name: hostID,
 			},
 		}); err != nil {
-		log.Logger.Error("failed to bind pod",
+		log.Logger().Error("failed to bind pod",
 			zap.String("namespace", pod.Namespace),
 			zap.String("podName", pod.Name),
 			zap.Error(err))
@@ -106,7 +106,7 @@ func (nc SchedulerKubeClient) Delete(pod *v1.Pod) error {
 	if err := nc.clientSet.CoreV1().Pods(pod.Namespace).Delete(pod.Name, &apis.DeleteOptions{
 		GracePeriodSeconds: &gracefulSeconds,
 	}); err != nil {
-		log.Logger.Error("failed to delete pod",
+		log.Logger().Error("failed to delete pod",
 			zap.String("namespace", pod.Namespace),
 			zap.String("podName", pod.Name),
 			zap.Error(err))

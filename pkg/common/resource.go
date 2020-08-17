@@ -95,7 +95,7 @@ func ParseResource(cpuStr, memStr string) *si.Resource {
 		if vcore, err := resource.ParseQuantity(cpuStr); err == nil {
 			result.AddResource(CPU, vcore.MilliValue())
 		} else {
-			log.Logger.Error("failed to parse cpu resource",
+			log.Logger().Error("failed to parse cpu resource",
 				zap.String("cpuStr", cpuStr),
 				zap.Error(err))
 			return nil
@@ -106,7 +106,7 @@ func ParseResource(cpuStr, memStr string) *si.Resource {
 		if mem, err := resource.ParseQuantity(memStr); err == nil {
 			result.AddResource(Memory, mem.ScaledValue(resource.Mega))
 		} else {
-			log.Logger.Error("failed to parse memory resource",
+			log.Logger().Error("failed to parse memory resource",
 				zap.String("memStr", memStr),
 				zap.Error(err))
 			return nil

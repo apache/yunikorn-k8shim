@@ -21,6 +21,7 @@ package log
 import (
 	"encoding/json"
 	"fmt"
+	"sync"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -28,9 +29,15 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 )
 
-var Logger *zap.Logger
+var once sync.Once
+var logger *zap.Logger
 
-func init() {
+func Logger() *zap.Logger {
+	once.Do(initLogger)
+	return logger
+}
+
+func initLogger() {
 	configs := conf.GetSchedulerConf()
 
 	outputPaths := []string{"stdout"}
@@ -65,29 +72,29 @@ func init() {
 	}
 
 	var err error
-	Logger, err = zapConfigs.Build()
+	logger, err = zapConfigs.Build()
 	// this should really not happen so just write to stdout and set a Nop logger
 	if err != nil {
 		fmt.Printf("Logging disabled, logger init failed with error: %v", err)
-		Logger = zap.NewNop()
+		logger = zap.NewNop()
 	}
 
 	// set as global logging
 	// when k8s-shim runs with core, core side can directly reuse this logger,
 	// this way we are making consistent logging configs in shim and core.
-	zap.ReplaceGlobals(Logger)
+	zap.ReplaceGlobals(logger)
 
 	// dump configuration
 	var c []byte
 	c, err = json.MarshalIndent(&configs, "", " ")
 	if err != nil {
-		Logger.Info("scheduler configuration, json conversion failed", zap.Any("configs", configs))
+		logger.Info("scheduler configuration, json conversion failed", zap.Any("configs", configs))
 	} else {
-		Logger.Info("scheduler configuration, pretty print", zap.ByteString("configs", c))
+		logger.Info("scheduler configuration, pretty print", zap.ByteString("configs", c))
 	}
 
 	// make sure logs are flushed
 	//nolint:errcheck
-	defer Logger.Sync()
+	defer logger.Sync()
 }
 

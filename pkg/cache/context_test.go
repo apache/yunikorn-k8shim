@@ -520,7 +520,7 @@ func TestNodeEventFailsPublishingWithoutNode(t *testing.T) {
 	// check that the event has been published
 	select {
 	case event := <-recorder.Events:
-		log.Logger.Info(event)
+		log.Logger().Info(event)
 		if strings.Contains(event, reason) && strings.Contains(event, message) {
 			t.Fatal("event should not be published if the pod does not exist")
 		}
@@ -562,7 +562,7 @@ func TestNodeEventPublishedCorrectly(t *testing.T) {
 		for {
 			select {
 			case event := <-recorder.Events:
-				log.Logger.Info(event)
+				log.Logger().Info(event)
 				if strings.Contains(event, reason) && strings.Contains(event, message) {
 					return true
 				}

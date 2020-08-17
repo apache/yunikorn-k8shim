@@ -38,8 +38,8 @@ var (
 )
 
 func main() {
-	log.Logger.Info("Build info", zap.String("version", version), zap.String("date", date))
-	log.Logger.Info("starting scheduler",
+	log.Logger().Info("Build info", zap.String("version", version), zap.String("date", date))
+	log.Logger().Info("starting scheduler",
 		zap.String("name", common.SchedulerName))
 
 	serviceContext := entrypoint.StartAllServices()
@@ -51,7 +51,7 @@ func main() {
 		signalChan := make(chan os.Signal, 1)
 		signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
 		for range signalChan {
-			log.Logger.Info("Shutdown signal received, exiting...")
+			log.Logger().Info("Shutdown signal received, exiting...")
 			ss.stop()
 			os.Exit(0)
 		}

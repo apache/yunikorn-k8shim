@@ -86,7 +86,7 @@ func NewPredictor(args *factory.PluginFactoryArgs, testMode bool) *Predictor {
 	}
 	schedulerPolicy, err := parseConfiguredSchedulerPolicy()
 	if err != nil {
-		log.Logger.Fatal(err.Error())
+		log.Logger().Fatal(err.Error())
 	}
 	if schedulerPolicy == nil {
 		schedulerPolicy = &defaultSchedulerPolicy
@@ -335,7 +335,7 @@ func parseConfiguredSchedulerPolicy() (*schedulerapi.Policy, error) {
 					parsedPredicate, predicates.Ordering())
 			}
 		}
-		log.Logger.Info("use configured predicates",
+		log.Logger().Info("use configured predicates",
 			zap.Any("predicates", predicatePolicies))
 		return &schedulerapi.Policy{Predicates: predicatePolicies}, nil
 	}

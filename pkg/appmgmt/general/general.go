@@ -83,7 +83,7 @@ func (os *Manager) Stop() {
 func (os *Manager) getTaskMetadata(pod *v1.Pod) (interfaces.TaskMetadata, bool) {
 	appId, err := utils.GetApplicationIDFromPod(pod)
 	if err != nil {
-		log.Logger.Debug("unable to get task by given pod", zap.Error(err))
+		log.Logger().Debug("unable to get task by given pod", zap.Error(err))
 		return interfaces.TaskMetadata{}, false
 	}
 
@@ -97,7 +97,7 @@ func (os *Manager) getTaskMetadata(pod *v1.Pod) (interfaces.TaskMetadata, bool) 
 func (os *Manager) getAppMetadata(pod *v1.Pod) (interfaces.ApplicationMetadata, bool) {
 	appId, err := utils.GetApplicationIDFromPod(pod)
 	if err != nil {
-		log.Logger.Debug("unable to get application by given pod", zap.Error(err))
+		log.Logger().Debug("unable to get application by given pod", zap.Error(err))
 		return interfaces.ApplicationMetadata{}, false
 	}
 
@@ -141,18 +141,18 @@ func (os *Manager) filterPods(obj interface{}) bool {
 func (os *Manager) addPod(obj interface{}) {
 	pod, err := utils.Convert2Pod(obj)
 	if err != nil {
-		log.Logger.Error("failed to add pod", zap.Error(err))
+		log.Logger().Error("failed to add pod", zap.Error(err))
 		return
 	}
 
 	recovery, err := utils.NeedRecovery(pod)
 	if err != nil {
-		log.Logger.Error("we can't tell to add or recover this pod",
+		log.Logger().Error("we can't tell to add or recover this pod",
 			zap.Error(err))
 		return
 	}
 
-	log.Logger.Debug("pod added",
+	log.Logger().Debug("pod added",
 		zap.String("appType", os.Name()),
 		zap.String("Name", pod.Name),
 		zap.String("Namespace", pod.Namespace),
@@ -187,13 +187,13 @@ func (os *Manager) addPod(obj interface{}) {
 func (os *Manager) updatePod(old, new interface{}) {
 	oldPod, err := utils.Convert2Pod(old)
 	if err != nil {
-		log.Logger.Error("expecting a pod object", zap.Error(err))
+		log.Logger().Error("expecting a pod object", zap.Error(err))
 		return
 	}
 
 	newPod, err := utils.Convert2Pod(new)
 	if err != nil {
-		log.Logger.Error("expecting a pod object", zap.Error(err))
+		log.Logger().Error("expecting a pod object", zap.Error(err))
 		return
 	}
 
@@ -203,7 +203,7 @@ func (os *Manager) updatePod(old, new interface{}) {
 		// and these container won't be restarted. In this case, we can safely release
 		// the resources for this allocation. And mark the task is done.
 		if utils.IsPodTerminated(newPod) {
-			log.Logger.Info("task completes",
+			log.Logger().Info("task completes",
 				zap.String("appType", os.Name()),
 				zap.String("namespace", newPod.Namespace),
 				zap.String("podName", newPod.Name),
@@ -233,15 +233,15 @@ func (os *Manager) deletePod(obj interface{}) {
 		var err error
 		pod, err = utils.Convert2Pod(t.Obj)
 		if err != nil {
-			log.Logger.Error(err.Error())
+			log.Logger().Error(err.Error())
 			return
 		}
 	default:
-		log.Logger.Error("cannot convert to pod")
+		log.Logger().Error("cannot convert to pod")
 		return
 	}
 
-	log.Logger.Info("delete pod",
+	log.Logger().Info("delete pod",
 		zap.String("appType", os.Name()),
 		zap.String("namespace", pod.Namespace),
 		zap.String("podName", pod.Name),

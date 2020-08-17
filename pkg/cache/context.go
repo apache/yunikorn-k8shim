@@ -110,12 +110,12 @@ func (ctx *Context) AddSchedulingEventHandlers() {
 func (ctx *Context) addNode(obj interface{}) {
 	node, err := convertToNode(obj)
 	if err != nil {
-		log.Logger.Error("node conversion failed", zap.Error(err))
+		log.Logger().Error("node conversion failed", zap.Error(err))
 		return
 	}
 
 	// add node to secondary scheduler cache
-	log.Logger.Debug("adding node to cache", zap.String("NodeName", node.Name))
+	log.Logger().Debug("adding node to cache", zap.String("NodeName", node.Name))
 	ctx.schedulerCache.AddNode(node)
 
 	// add node to internal cache
@@ -130,21 +130,21 @@ func (ctx *Context) updateNode(oldObj, newObj interface{}) {
 	// we only trigger update when resource changes
 	oldNode, err := convertToNode(oldObj)
 	if err != nil {
-		log.Logger.Error("old node conversion failed",
+		log.Logger().Error("old node conversion failed",
 			zap.Error(err))
 		return
 	}
 
 	newNode, err := convertToNode(newObj)
 	if err != nil {
-		log.Logger.Error("new node conversion failed",
+		log.Logger().Error("new node conversion failed",
 			zap.Error(err))
 		return
 	}
 
 	// update secondary cache
 	if err := ctx.schedulerCache.UpdateNode(oldNode, newNode); err != nil {
-		log.Logger.Error("unable to update node in scheduler cache",
+		log.Logger().Error("unable to update node in scheduler cache",
 			zap.Error(err))
 		return
 	}
@@ -162,18 +162,18 @@ func (ctx *Context) deleteNode(obj interface{}) {
 		var ok bool
 		node, ok = t.Obj.(*v1.Node)
 		if !ok {
-			log.Logger.Error("cannot convert to *v1.Node", zap.Any("object", t.Obj))
+			log.Logger().Error("cannot convert to *v1.Node", zap.Any("object", t.Obj))
 			return
 		}
 	default:
-		log.Logger.Error("cannot convert to *v1.Node", zap.Any("object", t))
+		log.Logger().Error("cannot convert to *v1.Node", zap.Any("object", t))
 		return
 	}
 
 	// delete node from secondary cache
-	log.Logger.Debug("delete node from cache", zap.String("nodeName", node.Name))
+	log.Logger().Debug("delete node from cache", zap.String("nodeName", node.Name))
 	if err := ctx.schedulerCache.RemoveNode(node); err != nil {
-		log.Logger.Error("unable to delete node from scheduler cache",
+		log.Logger().Error("unable to delete node from scheduler cache",
 			zap.Error(err))
 		return
 	}
@@ -189,13 +189,13 @@ func (ctx *Context) deleteNode(obj interface{}) {
 func (ctx *Context) addPodToCache(obj interface{}) {
 	pod, err := utils.Convert2Pod(obj)
 	if err != nil {
-		log.Logger.Error("failed to add pod to cache", zap.Error(err))
+		log.Logger().Error("failed to add pod to cache", zap.Error(err))
 		return
 	}
 
-	log.Logger.Debug("adding pod to cache", zap.String("podName", pod.Name))
+	log.Logger().Debug("adding pod to cache", zap.String("podName", pod.Name))
 	if err := ctx.schedulerCache.AddPod(pod); err != nil {
-		log.Logger.Error("add pod to scheduler cache failed",
+		log.Logger().Error("add pod to scheduler cache failed",
 			zap.String("podName", pod.Name),
 			zap.Error(err))
 	}
@@ -210,17 +210,17 @@ func (ctx *Context) removePodFromCache(obj interface{}) {
 		var ok bool
 		pod, ok = t.Obj.(*v1.Pod)
 		if !ok {
-			log.Logger.Error("Cannot convert to *v1.Pod", zap.Any("pod", obj))
+			log.Logger().Error("Cannot convert to *v1.Pod", zap.Any("pod", obj))
 			return
 		}
 	default:
-		log.Logger.Error("Cannot convert to *v1.Pod", zap.Any("pod", obj))
+		log.Logger().Error("Cannot convert to *v1.Pod", zap.Any("pod", obj))
 		return
 	}
 
-	log.Logger.Debug("removing pod from cache", zap.String("podName", pod.Name))
+	log.Logger().Debug("removing pod from cache", zap.String("podName", pod.Name))
 	if err := ctx.schedulerCache.RemovePod(pod); err != nil {
-		log.Logger.Debug("failed to remove pod from scheduler cache",
+		log.Logger().Debug("failed to remove pod from scheduler cache",
 			zap.String("podName", pod.Name),
 			zap.Error(err))
 	}
@@ -229,17 +229,17 @@ func (ctx *Context) removePodFromCache(obj interface{}) {
 func (ctx *Context) updatePodInCache(oldObj, newObj interface{}) {
 	oldPod, err := utils.Convert2Pod(oldObj)
 	if err != nil {
-		log.Logger.Error("failed to update pod in cache", zap.Error(err))
+		log.Logger().Error("failed to update pod in cache", zap.Error(err))
 		return
 	}
 	newPod, err := utils.Convert2Pod(newObj)
 	if err != nil {
-		log.Logger.Error("failed to update pod in cache", zap.Error(err))
+		log.Logger().Error("failed to update pod in cache", zap.Error(err))
 		return
 	}
 
 	if err := ctx.schedulerCache.UpdatePod(oldPod, newPod); err != nil {
-		log.Logger.Debug("failed to update pod in cache",
+		log.Logger().Debug("failed to update pod in cache",
 			zap.String("podName", oldPod.Name),
 			zap.Error(err))
 	}
@@ -273,13 +273,13 @@ func (ctx *Context) filterConfigMaps(obj interface{}) bool {
 
 // when detects the configMap for the scheduler is added, trigger hot-refresh
 func (ctx *Context) addConfigMaps(obj interface{}) {
-	log.Logger.Debug("configMap added")
+	log.Logger().Debug("configMap added")
 	ctx.triggerReloadConfig()
 }
 
 // when detects the configMap for the scheduler is updated, trigger hot-refresh
 func (ctx *Context) updateConfigMaps(obj, newObj interface{}) {
-	log.Logger.Debug("trigger scheduler to reload configuration")
+	log.Logger().Debug("trigger scheduler to reload configuration")
 	// When update event is received, it is not guaranteed the data mounted to the pod
 	// is also updated. This is because the actual update in pod's volume is ensured
 	// by kubelet, kubelet is checking whether the mounted ConfigMap is fresh on every
@@ -295,14 +295,14 @@ func (ctx *Context) updateConfigMaps(obj, newObj interface{}) {
 // when detects the configMap for the scheduler is deleted, no operation needed here
 // we assume there will be a consequent add operation after delete, so we treat it like a update.
 func (ctx *Context) deleteConfigMaps(obj interface{}) {
-	log.Logger.Debug("configMap deleted")
+	log.Logger().Debug("configMap deleted")
 }
 
 func (ctx *Context) triggerReloadConfig() {
-	log.Logger.Info("trigger scheduler configuration reloading")
+	log.Logger().Info("trigger scheduler configuration reloading")
 	clusterId := ctx.apiProvider.GetAPIs().Conf.ClusterID
 	if err := ctx.apiProvider.GetAPIs().SchedulerAPI.ReloadConfiguration(clusterId); err != nil {
-		log.Logger.Error("reload configuration failed", zap.Error(err))
+		log.Logger().Error("reload configuration failed", zap.Error(err))
 	}
 }
 
@@ -336,10 +336,10 @@ func (ctx *Context) bindPodVolumes(pod *v1.Pod) error {
 	// then here we just need to retrieve that value from cache, to skip bindings if volumes are already bound.
 	if assumedPod, exist := ctx.schedulerCache.GetPod(podKey); exist {
 		if ctx.schedulerCache.ArePodVolumesAllBound(podKey) {
-			log.Logger.Info("Binding Pod Volumes skipped: all volumes already bound",
+			log.Logger().Info("Binding Pod Volumes skipped: all volumes already bound",
 				zap.String("podName", pod.Name))
 		} else {
-			log.Logger.Info("Binding Pod Volumes", zap.String("podName", pod.Name))
+			log.Logger().Info("Binding Pod Volumes", zap.String("podName", pod.Name))
 			return ctx.apiProvider.GetAPIs().VolumeBinder.Binder.BindPodVolumes(assumedPod)
 		}
 	}
@@ -387,10 +387,10 @@ func (ctx *Context) ForgetPod(name string) error {
 	defer ctx.lock.Unlock()
 
 	if pod, ok := ctx.schedulerCache.GetPod(name); ok {
-		log.Logger.Debug("forget pod", zap.String("pod", pod.Name))
+		log.Logger().Debug("forget pod", zap.String("pod", pod.Name))
 		return ctx.schedulerCache.ForgetPod(pod)
 	}
-	log.Logger.Debug("unable to forget pod",
+	log.Logger().Debug("unable to forget pod",
 		zap.String("reason", fmt.Sprintf("pod %s not found in scheduler cache", name)))
 	return nil
 }
@@ -406,7 +406,7 @@ func (ctx *Context) UpdateApplication(app *Application) {
 // either way we need to release all allocations (if exists) for this application
 func (ctx *Context) NotifyApplicationComplete(appID string) {
 	if app := ctx.GetApplication(appID); app != nil {
-		log.Logger.Debug("NotifyApplicationComplete",
+		log.Logger().Debug("NotifyApplicationComplete",
 			zap.String("appID", appID),
 			zap.String("currentAppState", app.GetApplicationState()))
 		ev := NewSimpleApplicationEvent(appID, events.CompleteApplication)
@@ -415,11 +415,11 @@ func (ctx *Context) NotifyApplicationComplete(appID string) {
 }
 
 func (ctx *Context) NotifyTaskComplete(appID, taskID string) {
-	log.Logger.Debug("NotifyTaskComplete",
+	log.Logger().Debug("NotifyTaskComplete",
 		zap.String("appID", appID),
 		zap.String("taskID", taskID))
 	if app := ctx.GetApplication(appID); app != nil {
-		log.Logger.Debug("release allocation",
+		log.Logger().Debug("release allocation",
 			zap.String("appID", appID),
 			zap.String("taskID", taskID))
 		ev := NewSimpleTaskEvent(appID, taskID, events.CompleteTask)
@@ -433,7 +433,7 @@ func (ctx *Context) NotifyTaskComplete(appID, taskID string) {
 // if cpu or memory quota is defined in the annotation, a corresponding si.Resource is returned
 func (ctx *Context) getNamespaceResourceQuota(namespace string) *si.Resource {
 	if namespace == "" {
-		log.Logger.Debug("skip getting resource quota because namespace is empty")
+		log.Logger().Debug("skip getting resource quota because namespace is empty")
 		return nil
 	}
 
@@ -443,7 +443,7 @@ func (ctx *Context) getNamespaceResourceQuota(namespace string) *si.Resource {
 		// every app should belong to a namespace,
 		// if we cannot list the namespace here, probably something is wrong
 		// log an error here and skip retrieving the resource quota
-		log.Logger.Error("failed to get app namespace", zap.Error(err))
+		log.Logger().Error("failed to get app namespace", zap.Error(err))
 		return nil
 	}
 
@@ -451,7 +451,7 @@ func (ctx *Context) getNamespaceResourceQuota(namespace string) *si.Resource {
 }
 
 func (ctx *Context) AddApplication(request *interfaces.AddApplicationRequest) interfaces.ManagedApp {
-	log.Logger.Debug("AddApplication", zap.Any("Request", request))
+	log.Logger().Debug("AddApplication", zap.Any("Request", request))
 	if app := ctx.GetApplication(request.Metadata.ApplicationID); app != nil {
 		return app
 	}
@@ -461,7 +461,7 @@ func (ctx *Context) AddApplication(request *interfaces.AddApplicationRequest) in
 
 	// add resource quota info as a app tag
 	if ns, ok := request.Metadata.Tags[common.AppTagNamespace]; ok {
-		log.Logger.Debug("app namespace info",
+		log.Logger().Debug("app namespace info",
 			zap.String("appID", request.Metadata.ApplicationID),
 			zap.String("namespace", ns))
 		resourceQuota := ctx.getNamespaceResourceQuota(ns)
@@ -485,13 +485,13 @@ func (ctx *Context) AddApplication(request *interfaces.AddApplicationRequest) in
 	// trigger recovery
 	if request.Recovery {
 		if app.GetApplicationState() == events.States().Application.New {
-			log.Logger.Info("start to recover the app",
+			log.Logger().Info("start to recover the app",
 				zap.String("appId", app.applicationID))
 			dispatcher.Dispatch(NewSimpleApplicationEvent(app.applicationID, events.RecoverApplication))
 		}
 	}
 
-	log.Logger.Info("app added",
+	log.Logger().Info("app added",
 		zap.String("appID", app.applicationID),
 		zap.Bool("recovery", request.Recovery))
 
@@ -520,10 +520,10 @@ func (ctx *Context) RemoveApplication(appID string) error {
 		// send the update request to scheduler core
 		rr := common.CreateUpdateRequestForRemoveApplication(app.applicationID, app.partition)
 		if err := ctx.apiProvider.GetAPIs().SchedulerAPI.Update(&rr); err != nil {
-			log.Logger.Error("failed to send remove application request to core", zap.Error(err))
+			log.Logger().Error("failed to send remove application request to core", zap.Error(err))
 		}
 		delete(ctx.applications, appID)
-		log.Logger.Info("app removed",
+		log.Logger().Info("app removed",
 			zap.String("appID", appID))
 
 		return nil
@@ -534,7 +534,7 @@ func (ctx *Context) RemoveApplication(appID string) error {
 
 // this implements ApplicationManagementProtocol
 func (ctx *Context) AddTask(request *interfaces.AddTaskRequest) interfaces.ManagedTask {
-	log.Logger.Debug("AddTask",
+	log.Logger().Debug("AddTask",
 		zap.String("appID", request.Metadata.ApplicationID),
 		zap.String("taskID", request.Metadata.TaskID),
 		zap.Bool("isRecovery", request.Recovery))
@@ -550,7 +550,7 @@ func (ctx *Context) AddTask(request *interfaces.AddTaskRequest) interfaces.Manag
 					task.setAllocated(request.Metadata.Pod.Spec.NodeName, request.Metadata.TaskID)
 				}
 				app.addTask(task)
-				log.Logger.Info("task added",
+				log.Logger().Info("task added",
 					zap.String("appID", app.applicationID),
 					zap.String("taskID", task.taskID),
 					zap.String("taskState", task.GetTaskState()))
@@ -612,7 +612,7 @@ func (ctx *Context) PublishEvents(eventRecords []*si.EventRecord) {
 					events.GetRecorder().Event(task.GetTaskPod(),
 						v1.EventTypeNormal, record.Reason, record.Message)
 				} else {
-					log.Logger.Warn("task event is not published because task is not found",
+					log.Logger().Warn("task event is not published because task is not found",
 						zap.String("appID", appID),
 						zap.String("taskID", taskID),
 						zap.String("event", record.String()))
@@ -621,14 +621,14 @@ func (ctx *Context) PublishEvents(eventRecords []*si.EventRecord) {
 				nodeID := record.ObjectID
 				nodeInfo := ctx.schedulerCache.GetNode(nodeID)
 				if nodeInfo == nil {
-					log.Logger.Warn("node event is not published because nodeInfo is not found",
+					log.Logger().Warn("node event is not published because nodeInfo is not found",
 						zap.String("nodeID", nodeID),
 						zap.String("event", record.String()))
 					continue
 				}
 				node := nodeInfo.Node()
 				if node == nil {
-					log.Logger.Warn("node event is not published because node is not found",
+					log.Logger().Warn("node event is not published because node is not found",
 						zap.String("nodeID", nodeID),
 						zap.String("event", record.String()))
 					continue
@@ -636,7 +636,7 @@ func (ctx *Context) PublishEvents(eventRecords []*si.EventRecord) {
 				events.GetRecorder().Event(node,
 					v1.EventTypeNormal, record.Reason, record.Message)
 			default:
-				log.Logger.Warn("Unsupported event type, currently only supports to publish request event records",
+				log.Logger().Warn("Unsupported event type, currently only supports to publish request event records",
 					zap.String("type", record.Type.String()))
 			}
 		}
@@ -650,7 +650,7 @@ func (ctx *Context) updatePodCondition(task *Task, podCondition *v1.PodCondition
 		// only update the pod when pod condition changes
 		// minimize the overhead added to the api-server/etcd
 		if !utils.PodUnderCondition(task.pod, podCondition) {
-			log.Logger.Info("updating pod condition",
+			log.Logger().Info("updating pod condition",
 				zap.String("namespace", task.pod.Namespace),
 				zap.String("name", task.pod.Name),
 				zap.Any("podCondition", podCondition))
@@ -663,7 +663,7 @@ func (ctx *Context) updatePodCondition(task *Task, podCondition *v1.PodCondition
 						return true
 					}
 					// only log the error here, no need to handle it if the update failed
-					log.Logger.Error("update pod condition failed",
+					log.Logger().Error("update pod condition failed",
 						zap.Error(err))
 				}
 			}
@@ -707,7 +707,7 @@ func (ctx *Context) HandleContainerStateUpdate(request *si.UpdateContainerSchedu
 					"Task %s is pending for the requested resources become available", task.alias)
 			}
 		default:
-			log.Logger.Warn("no handler for container scheduling state",
+			log.Logger().Warn("no handler for container scheduling state",
 				zap.String("state", request.State.String()))
 		}
 	}
@@ -718,7 +718,7 @@ func (ctx *Context) ApplicationEventHandler() func(obj interface{}) {
 		if event, ok := obj.(events.ApplicationEvent); ok {
 			managedApp := ctx.GetApplication(event.GetApplicationID())
 			if managedApp == nil {
-				log.Logger.Error("failed to handle application event",
+				log.Logger().Error("failed to handle application event",
 					zap.String("reason", "application not exist"))
 				return
 			}
@@ -726,7 +726,7 @@ func (ctx *Context) ApplicationEventHandler() func(obj interface{}) {
 			if app, ok := managedApp.(*Application); ok {
 				if app.canHandle(event) {
 					if err := app.handle(event); err != nil {
-						log.Logger.Error("failed to handle application event",
+						log.Logger().Error("failed to handle application event",
 							zap.String("event", string(event.GetEvent())),
 							zap.Error(err))
 					}
@@ -741,13 +741,13 @@ func (ctx *Context) TaskEventHandler() func(obj interface{}) {
 		if event, ok := obj.(events.TaskEvent); ok {
 			task, err := ctx.getTask(event.GetApplicationID(), event.GetTaskID())
 			if err != nil {
-				log.Logger.Error("failed to handle application event", zap.Error(err))
+				log.Logger().Error("failed to handle application event", zap.Error(err))
 				return
 			}
 
 			if task.canHandle(event) {
 				if err = task.handle(event); err != nil {
-					log.Logger.Error("failed to handle task event",
+					log.Logger().Error("failed to handle task event",
 						zap.String("applicationID", task.applicationID),
 						zap.String("taskID", task.taskID),
 						zap.String("event", string(event.GetEvent())),
