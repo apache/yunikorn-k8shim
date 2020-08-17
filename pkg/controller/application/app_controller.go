@@ -83,19 +83,19 @@ func (appMgr *AppManager) HandleApplicationStateUpdate() func(obj interface{}) {
 			if events.AppStateChange == event.GetEvent() {
 				if shimEvent, ok := event.(shimcache.ApplicationStatusChangeEvent); ok {
 					appID := event.GetApplicationID()
-					log.Logger.Info("Status Change callback received",
+					log.Logger().Info("Status Change callback received",
 						zap.String("app id", appID),
 						zap.String("new status", shimEvent.GetState()))
 					var app = appMgr.amProtocol.GetApplication(appID).(*shimcache.Application)
 					appName, err := getNameFromAppID(appID)
 					if err != nil {
-						log.Logger.Warn("Failed to handle status update",
+						log.Logger().Warn("Failed to handle status update",
 							zap.String("application ID", appID),
 							zap.Error(err))
 					}
 					appCRD, err := appMgr.apiProvider.GetAPIs().AppInformer.Lister().Applications(app.GetTags()[constants.AppTagNamespace]).Get(appName)
 					if err != nil {
-						log.Logger.Warn("Failed to query app CRD for status update",
+						log.Logger().Warn("Failed to query app CRD for status update",
 							zap.String("Application ID", appID),
 							zap.Error(err))
 					}
@@ -103,11 +103,11 @@ func (appMgr *AppManager) HandleApplicationStateUpdate() func(obj interface{}) {
 					if crdState != "Undefined" {
 						appMgr.updateAppCRDStatus(appCRD, crdState)
 					} else {
-						log.Logger.Error("Invalid status, skip saving it",
+						log.Logger().Error("Invalid status, skip saving it",
 							zap.String("App id", appID))
 						//create some error
 					}
-					log.Logger.Debug("Application status changed",
+					log.Logger().Debug("Application status changed",
 						zap.String("AppID", appID))
 				}
 			}
@@ -121,18 +121,18 @@ Remove the application from the scheduler as well
 func (appMgr *AppManager) deleteApp(obj interface{}) {
 	app, ok := obj.(*appv1.Application)
 	if !ok {
-		log.Logger.Error("obj is not an Application")
+		log.Logger().Error("obj is not an Application")
 		return
 	}
 	appID := constructAppID(app.Name, app.Namespace)
 	err := appMgr.amProtocol.RemoveApplication(appID)
 	if err != nil {
-		log.Logger.Error("Application removal failed",
+		log.Logger().Error("Application removal failed",
 			zap.String("appID", appID),
 			zap.Error(err))
 		return
 	}
-	log.Logger.Debug("App CRD deleted",
+	log.Logger().Debug("App CRD deleted",
 		zap.String("Name", appID))
 }
 
@@ -142,7 +142,7 @@ Add application to scheduler
 func (appMgr *AppManager) addApp(obj interface{}) {
 	appCRD, ok := obj.(*appv1.Application)
 	if !ok {
-		log.Logger.Error("obj is not an Application")
+		log.Logger().Error("obj is not an Application")
 		return
 	}
 	if appMeta, ok := appMgr.getAppMetadata(appCRD); ok {
@@ -169,7 +169,7 @@ func (appMgr *AppManager) updateAppCRDStatus(appCRD *appv1.Application, status a
 	}
 	_, err := appMgr.apiProvider.GetAPIs().AppClient.ApacheV1alpha1().Applications(appCRD.Namespace).UpdateStatus(appCopy)
 	if err != nil {
-		log.Logger.Error("Failed to update application CRD",
+		log.Logger().Error("Failed to update application CRD",
 			zap.String("AppId", appCopy.Name))
 		return
 	}

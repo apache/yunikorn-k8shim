@@ -122,7 +122,7 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 
 	// handle status changes
 	for _, updated := range response.UpdatedApplications {
-		log.Logger.Debug("status update callback received",
+		log.Logger().Debug("status update callback received",
 			zap.String("appId", updated.ApplicationID),
 			zap.String("new status", updated.State))
 

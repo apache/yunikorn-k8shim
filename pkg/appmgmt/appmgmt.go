@@ -127,7 +127,7 @@ func (svc *AppManagementService) ApplicationStateUpdateEventHandler() func(obj i
 	if appMgr, ok := mgr.(*application.AppManager); ok {
 		return appMgr.HandleApplicationStateUpdate()
 	}
-	log.Logger.Warn("App manager is not registered",
+	log.Logger().Warn("App manager is not registered",
 		zap.String("app manager name", constants.AppManagerHandlerName))
 	return func(obj interface{}) {
 		// noop
