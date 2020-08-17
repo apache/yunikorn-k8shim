@@ -19,11 +19,13 @@
 package appmgmt
 
 import (
+	"testing"
+
+	"gotest.tools/assert"
+
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/cache"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
-	"gotest.tools/assert"
-	"testing"
 )
 
 func TestAppManagementService_GetManagerByName(t *testing.T) {
@@ -48,7 +50,7 @@ func TestAppManagementService_GetManagerByName(t *testing.T) {
 				assert.Assert(t, appMgr != nil)
 				assert.Equal(t, appMgr.Name(), tc.appMgrName)
 			} else {
-				assert.Assert(t, appMgr == nil )
+				assert.Assert(t, appMgr == nil)
 			}
 		})
 	}
