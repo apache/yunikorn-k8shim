@@ -120,7 +120,7 @@ func (ss *KubernetesShim) SchedulerEventHandler() func(obj interface{}) {
 		if event, ok := obj.(events.SchedulerEvent); ok {
 			if ss.canHandle(event) {
 				if err := ss.handle(event); err != nil {
-					log.Logger.Error("failed to handle scheduler event",
+					log.Logger().Error("failed to handle scheduler event",
 						zap.String("event", string(event.GetEvent())),
 						zap.Error(err))
 				}
@@ -155,14 +155,14 @@ func (ss *KubernetesShim) recoverSchedulerState(e *fsm.Event) {
 	// run recovery process in a go routine
 	// do not block main thread
 	go func() {
-		log.Logger.Info("recovering scheduler states")
+		log.Logger().Info("recovering scheduler states")
 		// step 1: recover all applications
 		// this step, we collect all the existing allocated pods from api-server,
 		// identify the scheduling identity (aka applicationInfo) from the pod,
 		// and then add these applications to the scheduler.
 		if err := ss.appManager.WaitForRecovery(3 * time.Minute); err != nil {
 			// failed
-			log.Logger.Error("scheduler recovery failed", zap.Error(err))
+			log.Logger().Error("scheduler recovery failed", zap.Error(err))
 			dispatcher.Dispatch(ShimSchedulerEvent{
 				event: events.RecoverSchedulerFailed,
 			})
@@ -181,7 +181,7 @@ func (ss *KubernetesShim) recoverSchedulerState(e *fsm.Event) {
 		}
 		if err := ss.context.WaitForRecovery(recoverableAppManagers, 3*time.Minute); err != nil {
 			// failed
-			log.Logger.Error("scheduler recovery failed", zap.Error(err))
+			log.Logger().Error("scheduler recovery failed", zap.Error(err))
 			dispatcher.Dispatch(ShimSchedulerEvent{
 				event: events.RecoverSchedulerFailed,
 			})
@@ -189,7 +189,7 @@ func (ss *KubernetesShim) recoverSchedulerState(e *fsm.Event) {
 		}
 
 		// success
-		log.Logger.Info("scheduler recovery succeed")
+		log.Logger().Info("scheduler recovery succeed")
 		dispatcher.Dispatch(ShimSchedulerEvent{
 			event: events.RecoverSchedulerSucceed,
 		})
@@ -212,7 +212,7 @@ func (ss *KubernetesShim) registerShimLayer() error {
 		PolicyGroup: configuration.PolicyGroup,
 	}
 
-	log.Logger.Info("register RM to the scheduler",
+	log.Logger().Info("register RM to the scheduler",
 		zap.String("clusterID", configuration.ClusterID),
 		zap.String("clusterVersion", configuration.ClusterVersion),
 		zap.String("policyGroup", configuration.PolicyGroup))
@@ -262,7 +262,7 @@ func (ss *KubernetesShim) run() {
 
 	// run app managers
 	if err := ss.appManager.Start(); err != nil {
-		log.Logger.Fatal("failed to start app manager", zap.Error(err))
+		log.Logger().Fatal("failed to start app manager", zap.Error(err))
 		ss.stop()
 	}
 
@@ -270,14 +270,14 @@ func (ss *KubernetesShim) run() {
 }
 
 func (ss *KubernetesShim) enterState(event *fsm.Event) {
-	log.Logger.Debug("scheduler shim state transition",
+	log.Logger().Debug("scheduler shim state transition",
 		zap.String("source", event.Src),
 		zap.String("destination", event.Dst),
 		zap.String("event", event.Event))
 }
 
 func (ss *KubernetesShim) stop() {
-	log.Logger.Info("stopping scheduler")
+	log.Logger().Info("stopping scheduler")
 	select {
 	case ss.stopChan <- struct{}{}:
 		// stop the dispatcher
@@ -285,6 +285,6 @@ func (ss *KubernetesShim) stop() {
 		// stop the app manager
 		ss.appManager.Stop()
 	default:
-		log.Logger.Info("scheduler is already stopped")
+		log.Logger().Info("scheduler is already stopped")
 	}
 }

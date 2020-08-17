@@ -94,14 +94,14 @@ func (os *Manager) Name() string {
 
 func (os *Manager) Start() error {
 	if os.crdInformerFactory != nil {
-		log.Logger.Info("starting", zap.String("Name", os.Name()))
+		log.Logger().Info("starting", zap.String("Name", os.Name()))
 		go os.crdInformerFactory.Start(os.stopCh)
 	}
 	return nil
 }
 
 func (os *Manager) Stop() {
-	log.Logger.Info("stopping", zap.String("Name", os.Name()))
+	log.Logger().Info("stopping", zap.String("Name", os.Name()))
 	os.stopCh <- struct{}{}
 }
 
@@ -175,7 +175,7 @@ func (os *Manager) GetExistingAllocation(pod *v1.Pod) *si.Allocation {
 // callbacks for SparkApplication CRD
 func (os *Manager) addApplication(obj interface{}) {
 	app := obj.(*v1beta2.SparkApplication)
-	log.Logger.Info("spark app added", zap.Any("SparkApplication", app))
+	log.Logger().Info("spark app added", zap.Any("SparkApplication", app))
 	os.amProtocol.AddApplication(&interfaces.AddApplicationRequest{
 		Metadata: os.getAppMetadata(app),
 		Recovery: false,
@@ -185,14 +185,14 @@ func (os *Manager) addApplication(obj interface{}) {
 func (os *Manager) updateApplication(old, new interface{}) {
 	appOld := old.(*v1beta2.SparkApplication)
 	appNew := new.(*v1beta2.SparkApplication)
-	log.Logger.Debug("spark app updated",
+	log.Logger().Debug("spark app updated",
 		zap.Any("old", appOld),
 		zap.Any("old", appNew))
 }
 
 func (os *Manager) deleteApplication(obj interface{}) {
 	app := obj.(*v1beta2.SparkApplication)
-	log.Logger.Info("spark app deleted", zap.Any("SparkApplication", app))
+	log.Logger().Info("spark app deleted", zap.Any("SparkApplication", app))
 	os.amProtocol.NotifyApplicationComplete(os.getAppMetadata(app).ApplicationID)
 }
 

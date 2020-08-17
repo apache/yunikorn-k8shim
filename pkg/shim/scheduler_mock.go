@@ -63,7 +63,7 @@ func (fc *MockScheduler) init(queues string) {
 	coreconfigs.MockSchedulerConfigByData([]byte(queues))
 	schedulerAPI, ok := rmProxy.(api.SchedulerAPI)
 	if !ok {
-		log.Logger.Debug("cast failed unexpected object",
+		log.Logger().Debug("cast failed unexpected object",
 			zap.Any("schedulerAPI", rmProxy))
 	}
 
@@ -117,7 +117,7 @@ func (fc *MockScheduler) waitForSchedulerState(t *testing.T, expectedState strin
 		if fc.scheduler.GetSchedulerState() == expectedState {
 			break
 		}
-		log.Logger.Info("waiting for scheduler state",
+		log.Logger().Info("waiting for scheduler state",
 			zap.String("expected", expectedState),
 			zap.String("actual", fc.scheduler.GetSchedulerState()))
 		time.Sleep(time.Second)
@@ -139,7 +139,7 @@ func (fc *MockScheduler) waitAndAssertApplicationState(t *testing.T, appID, expe
 		if appList[0].GetApplicationState() == expectedState {
 			break
 		}
-		log.Logger.Info("waiting for app state",
+		log.Logger().Info("waiting for app state",
 			zap.String("expected", expectedState),
 			zap.String("actual", appList[0].GetApplicationState()))
 		time.Sleep(time.Second)
@@ -185,7 +185,7 @@ func (fc *MockScheduler) waitAndAssertTaskState(t *testing.T, appID, taskID, exp
 		if task.GetTaskState() == expectedState {
 			break
 		}
-		log.Logger.Info("waiting for task state",
+		log.Logger().Info("waiting for task state",
 			zap.String("expected", expectedState),
 			zap.String("actual", task.GetTaskState()))
 		time.Sleep(time.Second)

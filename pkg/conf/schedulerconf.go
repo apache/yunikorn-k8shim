@@ -47,6 +47,7 @@ const (
 	DefaultKubeBurst            = 1000
 )
 
+var once sync.Once
 var configuration *SchedulerConf
 
 type SchedulerConf struct {
@@ -70,6 +71,7 @@ type SchedulerConf struct {
 }
 
 func GetSchedulerConf() *SchedulerConf {
+	once.Do(initConfigs)
 	return configuration
 }
 
@@ -108,7 +110,7 @@ func (conf *SchedulerConf) IsOperatorPluginEnabled(name string) bool {
 	return false
 }
 
-func init() {
+func initConfigs() {
 	// scheduler options
 	kubeConfig := flag.String("kubeConfig", "",
 		"absolute path to the kubeconfig file")

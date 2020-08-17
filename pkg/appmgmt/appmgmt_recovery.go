@@ -48,7 +48,7 @@ func (svc *AppManagementService) recoverApps() (map[string]interfaces.ManagedApp
 		if m, ok := mgr.(interfaces.Recoverable); ok {
 			appMetas, err := m.ListApplications()
 			if err != nil {
-				log.Logger.Error("failed to list apps", zap.Error(err))
+				log.Logger().Error("failed to list apps", zap.Error(err))
 				return recoveringApps, err
 			}
 
@@ -71,12 +71,12 @@ func (svc *AppManagementService) recoverApps() (map[string]interfaces.ManagedApp
 func (svc *AppManagementService) waitForAppRecovery(
 	recoveringApps map[string]interfaces.ManagedApp, maxTimeout time.Duration) error {
 	if len(recoveringApps) > 0 {
-		log.Logger.Info("wait for app recovery",
+		log.Logger().Info("wait for app recovery",
 			zap.Int("appToRecover", len(recoveringApps)))
 		// check app states periodically, ensure all apps exit from recovering state
 		if err := utils.WaitForCondition(func() bool {
 			for _, app := range recoveringApps {
-				log.Logger.Debug("appInfo",
+				log.Logger().Debug("appInfo",
 					zap.String("appId", app.GetApplicationID()),
 					zap.String("state", app.GetApplicationState()))
 				if app.GetApplicationState() == events.States().Application.Accepted {
@@ -85,7 +85,7 @@ func (svc *AppManagementService) waitForAppRecovery(
 			}
 
 			if len(recoveringApps) == 0 {
-				log.Logger.Info("app recovery is successful")
+				log.Logger().Info("app recovery is successful")
 				return true
 			}
 

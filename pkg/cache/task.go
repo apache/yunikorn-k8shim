@@ -199,20 +199,20 @@ func (task *Task) handleFailEvent(event *fsm.Event) {
 		return
 	}
 
-	log.Logger.Error("task failed",
+	log.Logger().Error("task failed",
 		zap.String("appID", task.applicationID),
 		zap.String("taskID", task.taskID),
 		zap.String("reason", eventArgs[0]))
 }
 
 func (task *Task) handleSubmitTaskEvent(event *fsm.Event) {
-	log.Logger.Debug("scheduling pod",
+	log.Logger().Debug("scheduling pod",
 		zap.String("podName", task.pod.Name))
 	// convert the request
 	rr := common.CreateUpdateRequestForTask(task.applicationID, task.taskID, task.resource, task.pod)
-	log.Logger.Debug("send update request", zap.String("request", rr.String()))
+	log.Logger().Debug("send update request", zap.String("request", rr.String()))
 	if err := task.context.apiProvider.GetAPIs().SchedulerAPI.Update(&rr); err != nil {
-		log.Logger.Debug("failed to send scheduling request to scheduler", zap.Error(err))
+		log.Logger().Debug("failed to send scheduling request to scheduler", zap.Error(err))
 		return
 	}
 
@@ -245,7 +245,7 @@ func (task *Task) postTaskAllocated(event *fsm.Event) {
 		eventArgs := make([]string, 2)
 		if err := events.GetEventArgsAsStrings(eventArgs, event.Args); err != nil {
 			errorMessage = err.Error()
-			log.Logger.Error("error", zap.Error(err))
+			log.Logger().Error("error", zap.Error(err))
 			dispatcher.Dispatch(NewFailTaskEvent(task.applicationID, task.taskID, errorMessage))
 			return
 		}
@@ -262,7 +262,7 @@ func (task *Task) postTaskAllocated(event *fsm.Event) {
 		task.allocationUUID = allocUUID
 
 		// before binding pod to node, first bind volumes to pod
-		log.Logger.Debug("bind pod volumes",
+		log.Logger().Debug("bind pod volumes",
 			zap.String("podName", task.pod.Name),
 			zap.String("podUID", string(task.pod.UID)))
 		if task.context.apiProvider.GetAPIs().VolumeBinder != nil {
@@ -275,20 +275,20 @@ func (task *Task) postTaskAllocated(event *fsm.Event) {
 			}
 		}
 
-		log.Logger.Debug("bind pod",
+		log.Logger().Debug("bind pod",
 			zap.String("podName", task.pod.Name),
 			zap.String("podUID", string(task.pod.UID)))
 
 		if err := task.context.apiProvider.GetAPIs().KubeClient.Bind(task.pod, nodeID); err != nil {
 			errorMessage = fmt.Sprintf("bind pod volumes failed, name: %s, %s", task.alias, err.Error())
-			log.Logger.Error(errorMessage)
+			log.Logger().Error(errorMessage)
 			dispatcher.Dispatch(NewFailTaskEvent(task.applicationID, task.taskID, errorMessage))
 			events.GetRecorder().Eventf(task.pod,
 				v1.EventTypeWarning, "PodBindFailure", errorMessage)
 			return
 		}
 
-		log.Logger.Info("successfully bound pod", zap.String("podName", task.pod.Name))
+		log.Logger().Info("successfully bound pod", zap.String("podName", task.pod.Name))
 		dispatcher.Dispatch(NewBindTaskEvent(task.applicationID, task.taskID))
 		events.GetRecorder().Eventf(task.pod,
 			v1.EventTypeNormal, "PodBindSuccessful",
@@ -332,7 +332,7 @@ func (task *Task) beforeTaskCompleted(event *fsm.Event) {
 func (task *Task) releaseAllocation() {
 	// scheduler api might be nil in some tests
 	if task.context.apiProvider.GetAPIs().SchedulerAPI != nil {
-		log.Logger.Debug("prepare to send release request",
+		log.Logger().Debug("prepare to send release request",
 			zap.String("applicationID", task.applicationID),
 			zap.String("taskID", task.taskID),
 			zap.String("taskAlias", task.alias),
@@ -354,7 +354,7 @@ func (task *Task) releaseAllocation() {
 			// log a warning and skip the release request. this may leak some resource
 			// in the scheduler, collect logs and check why this happens.
 			if task.allocationUUID == "" {
-				log.Logger.Warn("task allocation UUID is empty, sending this release request "+
+				log.Logger().Warn("task allocation UUID is empty, sending this release request "+
 					"to yunikorn-core could cause all allocations of this app get released. skip this "+
 					"request, this may cause some resource leak. check the logs for more info!",
 					zap.String("applicationID", task.applicationID),
@@ -369,12 +369,12 @@ func (task *Task) releaseAllocation() {
 		}
 
 		if releaseRequest.Releases != nil {
-			log.Logger.Info("releasing allocations",
+			log.Logger().Info("releasing allocations",
 				zap.Int("numOfAsksToRelease", len(releaseRequest.Releases.AllocationAsksToRelease)),
 				zap.Int("numOfAllocationsToRelease", len(releaseRequest.Releases.AllocationsToRelease)))
 		}
 		if err := task.context.apiProvider.GetAPIs().SchedulerAPI.Update(&releaseRequest); err != nil {
-			log.Logger.Debug("failed to send scheduling request to scheduler", zap.Error(err))
+			log.Logger().Debug("failed to send scheduling request to scheduler", zap.Error(err))
 		}
 	}
 }
@@ -393,7 +393,7 @@ func (task *Task) sanityCheckBeforeScheduling() error {
 			continue
 		}
 		pvcName := volume.PersistentVolumeClaim.ClaimName
-		log.Logger.Debug("checking PVC", zap.String("name", pvcName))
+		log.Logger().Debug("checking PVC", zap.String("name", pvcName))
 		pvc, err := task.context.apiProvider.GetAPIs().PVCInformer.Lister().PersistentVolumeClaims(namespace).Get(pvcName)
 		if err != nil {
 			return err
@@ -406,7 +406,7 @@ func (task *Task) sanityCheckBeforeScheduling() error {
 }
 
 func (task *Task) enterState(event *fsm.Event) {
-	log.Logger.Debug("shim task state transition",
+	log.Logger().Debug("shim task state transition",
 		zap.String("app", task.applicationID),
 		zap.String("task", task.taskID),
 		zap.String("taskAlias", task.alias),

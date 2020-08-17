@@ -43,7 +43,7 @@ func (ctx *Context) WaitForRecovery(recoverableAppManagers []interfaces.Recovera
 	// waitForAppRecovery/recover separately.
 	if !ctx.apiProvider.IsTestingMode() {
 		if err := ctx.recover(recoverableAppManagers, maxTimeout); err != nil {
-			log.Logger.Error("nodes recovery failed", zap.Error(err))
+			log.Logger().Error("nodes recovery failed", zap.Error(err))
 			return err
 		}
 	}
@@ -103,12 +103,12 @@ func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) err
 			// yunikorn scheduled pods add to existing allocations
 			if utils.GeneralPodFilter(&pod) {
 				if existingAlloc := getExistingAllocation(mgr, &pod); existingAlloc != nil {
-					log.Logger.Debug("existing allocation",
+					log.Logger().Debug("existing allocation",
 						zap.String("appID", existingAlloc.ApplicationID),
 						zap.String("podUID", string(pod.UID)),
 						zap.String("podNodeName", existingAlloc.NodeID))
 					if err = ctx.nodes.addExistingAllocation(existingAlloc); err != nil {
-						log.Logger.Warn("add existing allocation failed", zap.Error(err))
+						log.Logger().Warn("add existing allocation failed", zap.Error(err))
 					}
 				}
 			} else if utils.IsPodRunning(&pod) {
@@ -121,7 +121,7 @@ func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) err
 				occupiedResource = common.Add(occupiedResource, common.GetPodResource(&pod))
 				nodeOccupiedResources[pod.Spec.NodeName] = occupiedResource
 				if err = ctx.nodes.cache.AddPod(&pod); err != nil {
-					log.Logger.Warn("failed to update scheduler-cache",
+					log.Logger().Warn("failed to update scheduler-cache",
 						zap.Error(err))
 				}
 			}
@@ -144,12 +144,12 @@ func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) err
 	if err = utils.WaitForCondition(func() bool {
 		nodesRecovered := 0
 		for _, node := range ctx.nodes.nodesMap {
-			log.Logger.Info("node state",
+			log.Logger().Info("node state",
 				zap.String("nodeName", node.name),
 				zap.String("nodeState", node.getNodeState()))
 			switch node.getNodeState() {
 			case events.States().Node.New:
-				log.Logger.Info("node recovering",
+				log.Logger().Info("node recovering",
 					zap.String("nodeID", node.name))
 				dispatcher.Dispatch(CachedSchedulerNodeEvent{
 					NodeID: node.name,
@@ -165,11 +165,11 @@ func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) err
 		}
 
 		if nodesRecovered == len(allNodes) {
-			log.Logger.Info("nodes recovery is successful",
+			log.Logger().Info("nodes recovery is successful",
 				zap.Int("recoveredNodes", nodesRecovered))
 			return true
 		}
-		log.Logger.Info("still waiting for recovering nodes",
+		log.Logger().Info("still waiting for recovering nodes",
 			zap.Int("totalNodes", len(allNodes)),
 			zap.Int("recoveredNodes", nodesRecovered))
 		return false

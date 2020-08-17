@@ -32,7 +32,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 )
 
@@ -66,7 +66,7 @@ type ValidateConfResponse struct {
 func (c *admissionController) mutate(ar *v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
 	req := ar.Request
 	namespace := ar.Request.Namespace
-	log.Logger.Info("AdmissionReview",
+	log.Logger().Info("AdmissionReview",
 		zap.Any("Kind", req.Kind),
 		zap.String("Namespace", namespace),
 		zap.String("UID", string(req.UID)),
@@ -86,9 +86,9 @@ func (c *admissionController) mutate(ar *v1beta1.AdmissionReview) *v1beta1.Admis
 			}
 		}
 
-		if labelAppValue, ok := pod.Labels[constants.LabelApp]; ok {
+		if labelAppValue, ok := pod.Labels[common.LabelApp]; ok {
 			if labelAppValue == "yunikorn" {
-				log.Logger.Info("ignore yunikorn pod")
+				log.Logger().Info("ignore yunikorn pod")
 				return &v1beta1.AdmissionResponse{
 					Allowed: true,
 				}
@@ -120,11 +120,11 @@ func (c *admissionController) mutate(ar *v1beta1.AdmissionReview) *v1beta1.Admis
 }
 
 func updateSchedulerName(patch []patchOperation) []patchOperation {
-	log.Logger.Info("updating scheduler name")
+	log.Logger().Info("updating scheduler name")
 	return append(patch, patchOperation{
 		Op:    "add",
 		Path:  "/spec/schedulerName",
-		Value: constants.SchedulerName,
+		Value: common.SchedulerName,
 	})
 }
 
@@ -141,7 +141,7 @@ func generateAppID(namespace string) string {
 }
 
 func updateLabels(namespace string, pod *v1.Pod, patch []patchOperation) []patchOperation {
-	log.Logger.Info("updating pod labels",
+	log.Logger().Info("updating pod labels",
 		zap.String("podName", pod.Name),
 		zap.String("generateName", pod.GenerateName),
 		zap.String("namespace", namespace),
@@ -152,22 +152,22 @@ func updateLabels(namespace string, pod *v1.Pod, patch []patchOperation) []patch
 		result[k] = v
 	}
 
-	if _, ok := existingLabels[constants.SparkLabelAppID]; !ok {
-		if _, ok := existingLabels[constants.LabelApplicationID]; !ok {
+	if _, ok := existingLabels[common.SparkLabelAppID]; !ok {
+		if _, ok := existingLabels[common.LabelApplicationID]; !ok {
 			// if app id not exist, generate one
 			// for each namespace, we group unnamed pods to one single app
 			// application ID convention: ${AUTO_GEN_PREFIX}-${NAMESPACE}-${AUTO_GEN_SUFFIX}
 			generatedID := generateAppID(namespace)
-			log.Logger.Debug("adding application ID",
+			log.Logger().Debug("adding application ID",
 				zap.String("generatedID", generatedID))
-			result[constants.LabelApplicationID] = generatedID
+			result[common.LabelApplicationID] = generatedID
 		}
 	}
 
-	if _, ok := existingLabels[constants.LabelQueueName]; !ok {
-		log.Logger.Debug("adding queue name",
+	if _, ok := existingLabels[common.LabelQueueName]; !ok {
+		log.Logger().Debug("adding queue name",
 			zap.String("defaultQueue", "root.default"))
-		result[constants.LabelQueueName] = "root.default"
+		result[common.LabelQueueName] = "root.default"
 	}
 
 	patch = append(patch, patchOperation{
@@ -181,7 +181,7 @@ func updateLabels(namespace string, pod *v1.Pod, patch []patchOperation) []patch
 
 func (c *admissionController) validateConf(ar *v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
 	req := ar.Request
-	log.Logger.Info("AdmissionReview",
+	log.Logger().Info("AdmissionReview",
 		zap.Any("Kind", req.Kind),
 		zap.String("Namespace", req.Namespace),
 		zap.String("UID", string(req.UID)),
@@ -200,7 +200,7 @@ func (c *admissionController) validateConf(ar *v1beta1.AdmissionReview) *v1beta1
 		}
 		// validate new/updated config map
 		if err := c.validateConfigMap(&configmap); err != nil {
-			log.Logger.Error("failed to validate yunikorn configs", zap.Error(err))
+			log.Logger().Error("failed to validate yunikorn configs", zap.Error(err))
 			return &v1beta1.AdmissionResponse{
 				Allowed: false,
 				Result: &metav1.Status{
@@ -216,8 +216,8 @@ func (c *admissionController) validateConf(ar *v1beta1.AdmissionReview) *v1beta1
 }
 
 func (c *admissionController) validateConfigMap(cm *v1.ConfigMap) error {
-	if cm.Name == constants.DefaultConfigMapName {
-		log.Logger.Info("validating yunikorn configs")
+	if cm.Name == common.DefaultConfigMapName {
+		log.Logger().Info("validating yunikorn configs")
 		if content, ok := cm.Data[c.configName]; ok {
 			response, err := http.Post(c.schedulerValidateConfURL, "application/json", bytes.NewBuffer([]byte(content)))
 			if err != nil {
@@ -243,7 +243,7 @@ func (c *admissionController) validateConfigMap(cm *v1.ConfigMap) error {
 }
 
 func (c *admissionController) serve(w http.ResponseWriter, r *http.Request) {
-	log.Logger.Debug("request", zap.Any("httpRequest", r))
+	log.Logger().Debug("request", zap.Any("httpRequest", r))
 	var body []byte
 	if r.Body != nil {
 		if data, err := ioutil.ReadAll(r.Body); err == nil {
@@ -265,7 +265,7 @@ func (c *admissionController) serve(w http.ResponseWriter, r *http.Request) {
 	var admissionResponse *v1beta1.AdmissionResponse
 	ar := v1beta1.AdmissionReview{}
 	if _, _, err := deserializer.Decode(body, nil, &ar); err != nil {
-		log.Logger.Error("Can't decode the body", zap.Error(err))
+		log.Logger().Error("Can't decode the body", zap.Error(err))
 		admissionResponse = &v1beta1.AdmissionResponse{
 			Allowed: false,
 			Result: &metav1.Status{
@@ -291,7 +291,7 @@ func (c *admissionController) serve(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("could not encode response: %v", err), http.StatusInternalServerError)
 	}
 
-	log.Logger.Info("writing response...")
+	log.Logger().Info("writing response...")
 	if _, err = w.Write(resp); err != nil {
 		http.Error(w, fmt.Sprintf("could not write response: %v", err), http.StatusInternalServerError)
 	}
