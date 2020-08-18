@@ -797,29 +797,32 @@ func findYKConfigMap(configMaps []*v1.ConfigMap) (*v1.ConfigMap, error) {
 	}
 	return ykconf, nil
 }
-
-func (ctx *Context) SaveConfigmap(data string) error {
+/*
+Save the configmap and returns the old one and an error if the process failed
+ */
+func (ctx *Context) SaveConfigmap(data string) (string, error) {
 	slt, err := createConfigMapSelector()
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	configMaps, err := ctx.apiProvider.GetAPIs().ConfigMapInformer.Lister().List(slt)
 	if err != nil {
-		return err
+		return "", err
 	}
 	ykconf, err := findYKConfigMap(configMaps)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	newConfData := map[string] string {"queues.yaml":strings.ReplaceAll(data, "\r\n", "\n")}
 	newConf := ykconf.DeepCopy()
+	oldConfData := ykconf.Data["queues.yaml"]
 	newConf.Data = newConfData
 	_, err = ctx.apiProvider.GetAPIs().KubeClient.GetClientSet().CoreV1().ConfigMaps(ykconf.Namespace).Update(newConf)
 	if err != nil {
-		return err
+		return "", err
 	}
 	log.Logger().Debug("ConfigMap updated successfully")
-	return nil
+	return oldConfData, nil
 }

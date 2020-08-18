@@ -33,6 +33,7 @@ import (
 	"github.com/apache/incubator-yunikorn-core/pkg/common"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
+	constants "github.com/apache/incubator-yunikorn-k8shim/pkg/common"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
@@ -672,4 +673,52 @@ func TestPublishEventsCorrectly(t *testing.T) {
 		}
 	}, 5*time.Millisecond, 20*time.Millisecond)
 	assert.NilError(t, err, "event should have been emitted")
+}
+
+func TestCreateConfigMapSelector(t *testing.T) {
+	selector, err := createConfigMapSelector()
+	requirements, selectable := selector.Requirements()
+	assert.NilError(t, err, "Error not expected")
+	assert.Assert(t, selectable, "Missing selector requirement")
+	assert.Assert(t, len(requirements) == 1, "Selector count mismatch")
+	assert.Assert(t, requirements[0].Key() == "app", "Missing selector key app")
+	assert.Assert(t, requirements[0].Values().Len() == 1, "Selector value count for key 'app' mismatch")
+	assert.Assert(t, requirements[0].Values().Has("yunikorn"), "'yunikorn' selector missing for kep = app")
+}
+
+func TestFindYKConfigMap(t *testing.T) {
+	goodYKConfigmap := v1.ConfigMap{
+		ObjectMeta: apis.ObjectMeta{
+			Name: constants.DefaultConfigMapName,
+			Labels: map[string]string{"app": "yunikorn"},
+		},
+		Data: map[string]string{"queues.yaml": "OldData"},
+	}
+	randomConfigMap := v1.ConfigMap{
+		ObjectMeta: apis.ObjectMeta{
+			Name: "configMap",
+		},
+	}
+	testCases := []struct {
+		name      string
+		expectedError bool
+		configMaps  []*v1.ConfigMap
+	}{
+		{"Nil configmaps", true, nil},
+		{"Empty configmaps", true, []*v1.ConfigMap{}},
+		{"Yunikorn configmap found", false, []*v1.ConfigMap {&goodYKConfigmap, &randomConfigMap}},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			configMap, err := findYKConfigMap(tc.configMaps)
+			if tc.expectedError {
+				assert.Assert(t, err != nil, "Error is expected")
+			} else {
+				assert.Assert(t, configMap.Name == constants.DefaultConfigMapName, "Returned configmap is wrong")
+				assert.Assert(t, len(configMap.Data) == 1, "Returned configmap has unexpected data")
+				assert.Assert(t, configMap.Name == constants.DefaultConfigMapName, "Returned configmap is wrong")
+				assert.Assert(t, configMap.Data["queues.yaml"] == "OldData", "Old configmap value is wrong")
+			}
+		})
+	}
 }
