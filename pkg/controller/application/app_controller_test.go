@@ -150,7 +150,6 @@ func TestHandleApplicationStateUpdate(t *testing.T) {
 			// no panic
 		})
 	}
-
 }
 
 func createApp(name string, namespace string, queue string) appv1.Application {
