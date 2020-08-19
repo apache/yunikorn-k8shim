@@ -118,6 +118,7 @@ func TestConvertShimAppStateToAppCRDState(t *testing.T) {
 		{"Waiting", "Waiting", appv1.WaitingState},
 		{"Rejected", "Rejected", appv1.RejectedState},
 		{"Completed", "Completed", appv1.CompletedState},
+		{"Killed", "Killed", appv1.KilledState},
 		{"Invalid", "invalidState", appv1.ApplicationStateType(undefinedState)},
 	}
 
@@ -127,6 +128,29 @@ func TestConvertShimAppStateToAppCRDState(t *testing.T) {
 			assert.Equal(t, tc.expected, state)
 		})
 	}
+}
+
+func TestHandleApplicationStateUpdate(t *testing.T) {
+	am := NewAppManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider())
+	app := createApp(defaultName, defaultNamespace, defaultQueue)
+	am.addApp(&app)
+	handleFunc := am.HandleApplicationStateUpdate()
+	appID := constructAppID(defaultName, defaultNamespace)
+	testCases := []struct {
+		name  string
+		event events.SchedulingEvent
+	}{
+		{"Not application event", cache.NewBindTaskEvent(appID, "taskID")},
+		{"Not AppStateChange event", cache.NewSimpleApplicationEvent(appID, events.AcceptApplication)},
+		{"AppStateChange event", cache.NewApplicationStatusChangeEvent(appID, events.AppStateChange, "New")},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			handleFunc(tc.event)
+			// no panic
+		})
+	}
+
 }
 
 func createApp(name string, namespace string, queue string) appv1.Application {

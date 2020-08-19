@@ -161,6 +161,10 @@ func (appMgr *AppManager) addApp(obj interface{}) {
 }
 
 func (appMgr *AppManager) updateAppCRDStatus(appCRD *appv1.Application, status appv1.ApplicationStateType) {
+	if appCRD == nil {
+		log.Logger().Error("AppCRD is nil, there is nothing to update")
+		return
+	}
 	appCopy := appCRD.DeepCopy()
 	appCopy.Status = appv1.ApplicationStatus{
 		AppStatus:  status,

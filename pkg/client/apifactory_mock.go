@@ -65,6 +65,7 @@ func NewMockedAPIProvider() *MockedAPIProvider {
 			PVCInformer:       &MockedPersistentVolumeClaimInformer{},
 			StorageInformer:   &MockedStorageClassInformer{},
 			VolumeBinder:      nil,
+			AppInformer:       test.NewAppInformerMock(),
 		},
 	}
 }
