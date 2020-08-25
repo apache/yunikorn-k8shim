@@ -21,7 +21,7 @@ FROM golang:1.12.13-alpine3.10
 RUN apk add curl
 RUN apk add jq
 RUN apk add --update openssl
-RUN curl -LO https://storage.googleapis.com/kubernetes-release/release/v1.14.7/bin/linux/amd64/kubectl
+RUN curl -LO https://storage.googleapis.com/kubernetes-release/release/v1.16.13/bin/linux/amd64/kubectl
 RUN chmod +x ./kubectl
 RUN mv ./kubectl /usr/local/bin/kubectl
 COPY admission-controller-init-scripts/admission_util.sh /
