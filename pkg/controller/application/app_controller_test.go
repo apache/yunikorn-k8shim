@@ -33,6 +33,7 @@ import (
 const defaultName = "example"
 const defaultNamespace = "default"
 const defaultQueue = "root.default"
+const defaultUser = "default"
 
 func TestDeleteApp(t *testing.T) {
 	am := NewAppManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider())
@@ -69,7 +70,7 @@ func TestGetAppMetadata(t *testing.T) {
 	assert.Equal(t, ok, true)
 	assert.Equal(t, metadata.ApplicationID, defaultNamespace+appIDDelimiter+defaultName)
 	assert.Equal(t, metadata.QueueName, defaultQueue)
-	assert.Equal(t, metadata.User, "default")
+	assert.Equal(t, metadata.User, defaultUser)
 	assert.DeepEqual(t, metadata.Tags, map[string]string{"namespace": defaultNamespace})
 }
 
