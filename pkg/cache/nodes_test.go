@@ -30,7 +30,7 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/cache/external"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/test"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
@@ -52,11 +52,11 @@ func TestAddNode(t *testing.T) {
 			t.Fatalf("unexpected node name %s", info.NodeID)
 		}
 
-		if memory := info.SchedulableResource.Resources[common.Memory].Value; memory != int64(1024) {
+		if memory := info.SchedulableResource.Resources[constants.Memory].Value; memory != int64(1024) {
 			t.Fatalf("unexpected node memory %d", memory)
 		}
 
-		if cpu := info.SchedulableResource.Resources[common.CPU].Value; cpu != int64(10000) {
+		if cpu := info.SchedulableResource.Resources[constants.CPU].Value; cpu != int64(10000) {
 			t.Fatalf("unexpected node CPU %d", cpu)
 		}
 
@@ -145,11 +145,11 @@ func TestUpdateNode(t *testing.T) {
 			t.Fatalf("unexpected node name %s", info.NodeID)
 		}
 
-		if memory := info.SchedulableResource.Resources[common.Memory].Value; memory != int64(1024) {
+		if memory := info.SchedulableResource.Resources[constants.Memory].Value; memory != int64(1024) {
 			t.Fatalf("unexpected node memory %d", memory)
 		}
 
-		if cpu := info.SchedulableResource.Resources[common.CPU].Value; cpu != int64(10000) {
+		if cpu := info.SchedulableResource.Resources[constants.CPU].Value; cpu != int64(10000) {
 			t.Fatalf("unexpected node CPU %d", cpu)
 		}
 
@@ -207,11 +207,11 @@ func TestUpdateNode(t *testing.T) {
 			t.Fatalf("unexpected node name %s", info.NodeID)
 		}
 
-		if memory := info.SchedulableResource.Resources[common.Memory].Value; memory != int64(2048) {
+		if memory := info.SchedulableResource.Resources[constants.Memory].Value; memory != int64(2048) {
 			t.Fatalf("unexpected node memory %d", memory)
 		}
 
-		if cpu := info.SchedulableResource.Resources[common.CPU].Value; cpu != int64(10000) {
+		if cpu := info.SchedulableResource.Resources[constants.CPU].Value; cpu != int64(10000) {
 			t.Fatalf("unexpected node CPU %d", cpu)
 		}
 
@@ -270,11 +270,11 @@ func TestUpdateWithoutNodeAdded(t *testing.T) {
 			t.Fatalf("unexpected node name %s", info.NodeID)
 		}
 
-		if memory := info.SchedulableResource.Resources[common.Memory].Value; memory != int64(1024) {
+		if memory := info.SchedulableResource.Resources[constants.Memory].Value; memory != int64(1024) {
 			t.Fatalf("unexpected node memory %d", memory)
 		}
 
-		if cpu := info.SchedulableResource.Resources[common.CPU].Value; cpu != int64(10000) {
+		if cpu := info.SchedulableResource.Resources[constants.CPU].Value; cpu != int64(10000) {
 			t.Fatalf("unexpected node CPU %d", cpu)
 		}
 
@@ -318,11 +318,11 @@ func TestUpdateWithoutNodeAdded(t *testing.T) {
 			t.Fatalf("unexpected node name %s", info.NodeID)
 		}
 
-		if memory := info.SchedulableResource.Resources[common.Memory].Value; memory != int64(2048) {
+		if memory := info.SchedulableResource.Resources[constants.Memory].Value; memory != int64(2048) {
 			t.Fatalf("unexpected node memory %d", memory)
 		}
 
-		if cpu := info.SchedulableResource.Resources[common.CPU].Value; cpu != int64(10000) {
+		if cpu := info.SchedulableResource.Resources[constants.CPU].Value; cpu != int64(10000) {
 			t.Fatalf("unexpected node CPU %d", cpu)
 		}
 

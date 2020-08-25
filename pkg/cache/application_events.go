@@ -48,6 +48,39 @@ func (st SimpleApplicationEvent) GetApplicationID() string {
 }
 
 // ------------------------
+// ApplicationStatusChangeEvent updates the status in the application CRD
+// ------------------------
+type ApplicationStatusChangeEvent struct {
+	applicationID string
+	event         events.ApplicationEventType
+	state         string
+}
+
+func NewApplicationStatusChangeEvent(appID string, eventType events.ApplicationEventType, state string) ApplicationStatusChangeEvent {
+	return ApplicationStatusChangeEvent{
+		applicationID: appID,
+		event:         eventType,
+		state:         state,
+	}
+}
+
+func (st ApplicationStatusChangeEvent) GetEvent() events.ApplicationEventType {
+	return st.event
+}
+
+func (st ApplicationStatusChangeEvent) GetArgs() []interface{} {
+	return nil
+}
+
+func (st ApplicationStatusChangeEvent) GetApplicationID() string {
+	return st.applicationID
+}
+
+func (st ApplicationStatusChangeEvent) GetState() string {
+	return st.state
+}
+
+// ------------------------
 // SubmitTask application
 // ------------------------
 type SubmitApplicationEvent struct {

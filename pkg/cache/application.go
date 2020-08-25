@@ -29,7 +29,7 @@ import (
 
 	"github.com/apache/incubator-yunikorn-core/pkg/api"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/dispatcher"
@@ -60,7 +60,7 @@ func NewApplication(appID, queueName, user string, tags map[string]string, sched
 	app := &Application{
 		applicationID: appID,
 		queue:         queueName,
-		partition:     common.DefaultPartition,
+		partition:     constants.DefaultPartition,
 		user:          user,
 		taskMap:       taskMap,
 		tags:          tags,
@@ -230,6 +230,10 @@ func (app *Application) getTasks(state string) []*Task {
 	})
 
 	return taskList
+}
+
+func (app *Application) GetTags() map[string]string {
+	return app.tags
 }
 
 func (app *Application) getNonTerminatedTaskAlias() []string {

@@ -120,6 +120,16 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 			zap.String("UUID", release.UUID))
 	}
 
+	// handle status changes
+	for _, updated := range response.UpdatedApplications {
+		log.Logger().Debug("status update callback received",
+			zap.String("appId", updated.ApplicationID),
+			zap.String("new status", updated.State))
+
+		//handle status update
+		dispatcher.Dispatch(cache.NewApplicationStatusChangeEvent(updated.ApplicationID, events.AppStateChange, updated.State))
+	}
+
 	return nil
 }
 

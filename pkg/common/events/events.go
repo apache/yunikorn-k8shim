@@ -42,6 +42,7 @@ const (
 	FailApplication     ApplicationEventType = "FailApplication"
 	KillApplication     ApplicationEventType = "KillApplication"
 	KilledApplication   ApplicationEventType = "KilledApplication"
+	AppStateChange      ApplicationEventType = "ApplicationStateChange"
 )
 
 type ApplicationEvent interface {
@@ -56,6 +57,13 @@ type ApplicationEvent interface {
 	// an event can have multiple arguments, these arguments will be passed to
 	// state machines' callbacks when doing state transition
 	GetArgs() []interface{}
+}
+
+// ------------------------
+// ApplicationStatusEvent updates the status in the application CRD
+// ------------------------
+type ApplicationStatusEvent interface {
+	GetState() string
 }
 
 //----------------------------------------------

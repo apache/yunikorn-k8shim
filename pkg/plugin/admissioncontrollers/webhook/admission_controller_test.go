@@ -29,7 +29,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 )
 
@@ -236,7 +236,7 @@ func TestUpdateSchedulerName(t *testing.T) {
 	assert.Equal(t, patch[0].Op, "add")
 	assert.Equal(t, patch[0].Path, "/spec/schedulerName")
 	if name, ok := patch[0].Value.(string); ok {
-		assert.Equal(t, name, common.SchedulerName)
+		assert.Equal(t, name, constants.SchedulerName)
 	} else {
 		t.Fatal("patch info content is not as expected")
 	}
@@ -249,7 +249,7 @@ func TestValidateConfigMap(t *testing.T) {
 	}
 	configmap := &v1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: common.DefaultConfigMapName,
+			Name: constants.DefaultConfigMapName,
 		},
 		Data: make(map[string]string),
 	}
@@ -316,7 +316,7 @@ func TestValidateConfigMapWrongRequest(t *testing.T) {
 func prepareConfigMap(data string) *v1.ConfigMap {
 	configmap := &v1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: common.DefaultConfigMapName,
+			Name: constants.DefaultConfigMapName,
 		},
 		Data: map[string]string{"queues.yaml": data},
 	}
