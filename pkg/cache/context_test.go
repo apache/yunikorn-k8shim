@@ -33,7 +33,7 @@ import (
 	"github.com/apache/incubator-yunikorn-core/pkg/common"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
-	constants "github.com/apache/incubator-yunikorn-k8shim/pkg/common"
+	constants "github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
@@ -675,22 +675,11 @@ func TestPublishEventsCorrectly(t *testing.T) {
 	assert.NilError(t, err, "event should have been emitted")
 }
 
-func TestCreateConfigMapSelector(t *testing.T) {
-	selector, err := createConfigMapSelector()
-	requirements, selectable := selector.Requirements()
-	assert.NilError(t, err, "Error not expected")
-	assert.Assert(t, selectable, "Missing selector requirement")
-	assert.Assert(t, len(requirements) == 1, "Selector count mismatch")
-	assert.Assert(t, requirements[0].Key() == "app", "Missing selector key app")
-	assert.Assert(t, requirements[0].Values().Len() == 1, "Selector value count for key 'app' mismatch")
-	assert.Assert(t, requirements[0].Values().Has("yunikorn"), "'yunikorn' selector missing for kep = app")
-}
-
 func TestFindYKConfigMap(t *testing.T) {
 	goodYKConfigmap := v1.ConfigMap{
 		ObjectMeta: apis.ObjectMeta{
-			Name: constants.DefaultConfigMapName,
-			Labels: map[string]string{"app": "yunikorn"},
+			Name:   constants.DefaultConfigMapName,
+			Labels: map[string]string{"app": "yunikorn", "label2": "value2"},
 		},
 		Data: map[string]string{"queues.yaml": "OldData"},
 	}
@@ -700,13 +689,13 @@ func TestFindYKConfigMap(t *testing.T) {
 		},
 	}
 	testCases := []struct {
-		name      string
+		name          string
 		expectedError bool
-		configMaps  []*v1.ConfigMap
+		configMaps    []*v1.ConfigMap
 	}{
 		{"Nil configmaps", true, nil},
 		{"Empty configmaps", true, []*v1.ConfigMap{}},
-		{"Yunikorn configmap found", false, []*v1.ConfigMap {&goodYKConfigmap, &randomConfigMap}},
+		{"Yunikorn configmap found", false, []*v1.ConfigMap{&goodYKConfigmap, &randomConfigMap}},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {

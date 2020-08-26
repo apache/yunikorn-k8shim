@@ -21,13 +21,12 @@ package cache
 import (
 	"encoding/json"
 	"fmt"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/selection"
 	"strings"
 	"sync"
 
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/tools/cache"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
 
@@ -769,61 +768,53 @@ func (ctx *Context) SchedulerNodeEventHandler() func(obj interface{}) {
 	return nil
 }
 
-func createConfigMapSelector() (labels.Selector, error) {
-	slt := labels.NewSelector()
-	appVals := [] string {"yunikorn"}
-	req, err := labels.NewRequirement(common.LabelApp, selection.Equals, appVals)
-	if err != nil {
-		return  nil, err
-	}
-	slt = slt.Add(*req)
-	return slt, nil
-}
-
 func findYKConfigMap(configMaps []*v1.ConfigMap) (*v1.ConfigMap, error) {
-	var ykconf *v1.ConfigMap
-	foundConf := false
 	if len(configMaps) == 0 {
 		return nil, fmt.Errorf("configmap with label app:yunikorn not found")
 	}
 	for _, c := range configMaps {
-		if c.Name == common.DefaultConfigMapName {
-			ykconf = c
-			foundConf = true
-			break
+		if c.Name == constants.DefaultConfigMapName {
+			return c, nil
 		}
 	}
-	if !foundConf {
-		return nil, fmt.Errorf("configmap with name %s not found", common.DefaultConfigMapName)
-	}
-	return ykconf, nil
+	return nil, fmt.Errorf("configmap with name %s not found", constants.DefaultConfigMapName)
 }
+
 /*
 Save the configmap and returns the old one and an error if the process failed
- */
-func (ctx *Context) SaveConfigmap(data string) (string, error) {
-	slt, err := createConfigMapSelector()
-	if err != nil {
-		return "", err
-	}
+*/
+func (ctx *Context) SaveConfigmap(request *si.UpdateConfigurationRequest) *si.UpdateConfigurationResponse {
+	slt := labels.SelectorFromSet(labels.Set{constants.LabelApp:"yunikorn"})
 
 	configMaps, err := ctx.apiProvider.GetAPIs().ConfigMapInformer.Lister().List(slt)
 	if err != nil {
-		return "", err
+		return &si.UpdateConfigurationResponse{
+			Success: false,
+			Reason:  err.Error(),
+		}
 	}
 	ykconf, err := findYKConfigMap(configMaps)
 	if err != nil {
-		return "", err
+		return &si.UpdateConfigurationResponse{
+			Success: false,
+			Reason:  err.Error(),
+		}
 	}
 
-	newConfData := map[string] string {"queues.yaml":strings.ReplaceAll(data, "\r\n", "\n")}
+	newConfData := map[string]string{"queues.yaml": strings.ReplaceAll(request.Configs, "\r\n", "\n")}
 	newConf := ykconf.DeepCopy()
 	oldConfData := ykconf.Data["queues.yaml"]
 	newConf.Data = newConfData
 	_, err = ctx.apiProvider.GetAPIs().KubeClient.GetClientSet().CoreV1().ConfigMaps(ykconf.Namespace).Update(newConf)
 	if err != nil {
-		return "", err
+		return &si.UpdateConfigurationResponse{
+			Success: false,
+			Reason:  err.Error(),
+		}
 	}
-	log.Logger().Debug("ConfigMap updated successfully")
-	return oldConfData, nil
+	log.Logger().Info("ConfigMap updated successfully")
+	return &si.UpdateConfigurationResponse {
+		Success: true,
+		OldConfig: oldConfData,
+	}
 }

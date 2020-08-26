@@ -167,7 +167,7 @@ func (callback *AsyncRMCallback) Update(request *si.UpdateContainerSchedulingSta
 	callback.context.HandleContainerStateUpdate(request)
 }
 
-func (callback *AsyncRMCallback) UpdateConfigMap(args *si.ConfigMapArgs) (string, error) {
-	return callback.context.SaveConfigmap(args.Configs)
+func (callback *AsyncRMCallback) UpdateConfiguration(args *si.UpdateConfigurationRequest) *si.UpdateConfigurationResponse {
+	return callback.context.SaveConfigmap(args)
 }
 
