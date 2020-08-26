@@ -27,7 +27,7 @@ import (
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/cache"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 )
 
@@ -48,7 +48,7 @@ func TestGetAppMetadata(t *testing.T) {
 				"queue":         "root.a",
 			},
 		},
-		Spec: v1.PodSpec{SchedulerName: common.SchedulerName},
+		Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
 		Status: v1.PodStatus{
 			Phase: v1.PodPending,
 		},
@@ -76,7 +76,7 @@ func TestGetAppMetadata(t *testing.T) {
 			},
 		},
 		Spec: v1.PodSpec{
-			SchedulerName:      common.SchedulerName,
+			SchedulerName:      constants.SchedulerName,
 			ServiceAccountName: "bob",
 		},
 		Status: v1.PodStatus{
@@ -102,7 +102,7 @@ func TestGetAppMetadata(t *testing.T) {
 			UID:       "UID-POD-00001",
 		},
 		Spec: v1.PodSpec{
-			SchedulerName:      common.SchedulerName,
+			SchedulerName:      constants.SchedulerName,
 			ServiceAccountName: "bob",
 		},
 		Status: v1.PodStatus{
@@ -131,7 +131,7 @@ func TestGetTaskMetadata(t *testing.T) {
 				"queue":         "root.a",
 			},
 		},
-		Spec: v1.PodSpec{SchedulerName: common.SchedulerName},
+		Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
 		Status: v1.PodStatus{
 			Phase: v1.PodPending,
 		},
@@ -152,7 +152,7 @@ func TestGetTaskMetadata(t *testing.T) {
 			Namespace: "default",
 			UID:       "UID-POD-00001",
 		},
-		Spec: v1.PodSpec{SchedulerName: common.SchedulerName},
+		Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
 		Status: v1.PodStatus{
 			Phase: v1.PodPending,
 		},
@@ -179,7 +179,7 @@ func TestAddPod(t *testing.T) {
 				"queue":         "root.a",
 			},
 		},
-		Spec: v1.PodSpec{SchedulerName: common.SchedulerName},
+		Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
 		Status: v1.PodStatus{
 			Phase: v1.PodPending,
 		},
@@ -216,7 +216,7 @@ func TestAddPod(t *testing.T) {
 				"queue":         "root.a",
 			},
 		},
-		Spec: v1.PodSpec{SchedulerName: common.SchedulerName},
+		Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
 		Status: v1.PodStatus{
 			Phase: v1.PodPending,
 		},
@@ -240,7 +240,7 @@ func TestAddPod(t *testing.T) {
 				"queue":         "root.a",
 			},
 		},
-		Spec: v1.PodSpec{SchedulerName: common.SchedulerName},
+		Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
 		Status: v1.PodStatus{
 			Phase: v1.PodPending,
 		},
@@ -273,7 +273,7 @@ func TestUpdatePodWhenSucceed(t *testing.T) {
 				"queue":         "root.a",
 			},
 		},
-		Spec: v1.PodSpec{SchedulerName: common.SchedulerName},
+		Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
 		Status: v1.PodStatus{
 			Phase: v1.PodPending,
 		},
@@ -311,7 +311,7 @@ func TestUpdatePodWhenSucceed(t *testing.T) {
 				"queue":         "root.a",
 			},
 		},
-		Spec: v1.PodSpec{SchedulerName: common.SchedulerName},
+		Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
 		Status: v1.PodStatus{
 			Phase: v1.PodSucceeded,
 		},
@@ -340,7 +340,7 @@ func TestUpdatePodWhenFailed(t *testing.T) {
 				"queue":         "root.a",
 			},
 		},
-		Spec: v1.PodSpec{SchedulerName: common.SchedulerName},
+		Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
 		Status: v1.PodStatus{
 			Phase: v1.PodPending,
 		},
@@ -364,7 +364,7 @@ func TestUpdatePodWhenFailed(t *testing.T) {
 				"queue":         "root.a",
 			},
 		},
-		Spec: v1.PodSpec{SchedulerName: common.SchedulerName},
+		Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
 		Status: v1.PodStatus{
 			Phase: v1.PodSucceeded,
 		},
@@ -399,7 +399,7 @@ func TestDeletePod(t *testing.T) {
 				"queue":         "root.a",
 			},
 		},
-		Spec: v1.PodSpec{SchedulerName: common.SchedulerName},
+		Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
 		Status: v1.PodStatus{
 			Phase: v1.PodPending,
 		},
@@ -453,7 +453,7 @@ func TestGetExistingAllocation(t *testing.T) {
 			},
 		},
 		Spec: v1.PodSpec{
-			SchedulerName: common.SchedulerName,
+			SchedulerName: constants.SchedulerName,
 			NodeName:      "allocated-node",
 		},
 		Status: v1.PodStatus{

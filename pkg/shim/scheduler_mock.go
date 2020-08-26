@@ -37,6 +37,7 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/callback"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
@@ -86,8 +87,8 @@ func (fc *MockScheduler) start() {
 
 func (fc *MockScheduler) addNode(nodeName string, memory, cpu int64) error {
 	nodeResource := common.NewResourceBuilder().
-		AddResource(common.Memory, memory).
-		AddResource(common.CPU, cpu).
+		AddResource(constants.Memory, memory).
+		AddResource(constants.CPU, cpu).
 		Build()
 	node := common.CreateFromNodeSpec(nodeName, nodeName, nodeResource)
 	request := common.CreateUpdateRequestForNewNode(node)

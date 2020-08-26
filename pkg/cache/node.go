@@ -26,6 +26,7 @@ import (
 
 	"github.com/apache/incubator-yunikorn-core/pkg/api"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/dispatcher"
@@ -153,8 +154,8 @@ func (n *SchedulerNode) handleNodeRecovery(event *fsm.Event) {
 				SchedulableResource: n.capacity,
 				OccupiedResource:    n.occupied,
 				Attributes: map[string]string{
-					common.DefaultNodeAttributeHostNameKey: n.name,
-					common.DefaultNodeAttributeRackNameKey: common.DefaultRackName,
+					constants.DefaultNodeAttributeHostNameKey: n.name,
+					constants.DefaultNodeAttributeRackNameKey: constants.DefaultRackName,
 				},
 				ExistingAllocations: n.existingAllocations,
 			},
@@ -181,8 +182,8 @@ func (n *SchedulerNode) handleDrainNode(event *fsm.Event) {
 				NodeID: n.name,
 				Action: si.UpdateNodeInfo_DRAIN_NODE,
 				Attributes: map[string]string{
-					common.DefaultNodeAttributeHostNameKey: n.name,
-					common.DefaultNodeAttributeRackNameKey: common.DefaultRackName,
+					constants.DefaultNodeAttributeHostNameKey: n.name,
+					constants.DefaultNodeAttributeRackNameKey: constants.DefaultRackName,
 				},
 			},
 		},
@@ -208,8 +209,8 @@ func (n *SchedulerNode) handleRestoreNode(event *fsm.Event) {
 				NodeID: n.name,
 				Action: si.UpdateNodeInfo_DRAIN_TO_SCHEDULABLE,
 				Attributes: map[string]string{
-					common.DefaultNodeAttributeHostNameKey: n.name,
-					common.DefaultNodeAttributeRackNameKey: common.DefaultRackName,
+					constants.DefaultNodeAttributeHostNameKey: n.name,
+					constants.DefaultNodeAttributeRackNameKey: constants.DefaultRackName,
 				},
 			},
 		},

@@ -30,6 +30,7 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
@@ -124,13 +125,13 @@ func (os *Manager) getAppMetadata(sparkApp *v1beta2.SparkApplication) interfaces
 	}
 
 	// set queue name if app labels it
-	queueName := common.ApplicationDefaultQueue
-	if an, ok := sparkApp.Labels[common.LabelQueueName]; ok {
+	queueName := constants.ApplicationDefaultQueue
+	if an, ok := sparkApp.Labels[constants.LabelQueueName]; ok {
 		queueName = an
 	}
 
 	// retrieve the namespace info from the CRD
-	tags[common.AppTagNamespace] = sparkApp.Namespace
+	tags[constants.AppTagNamespace] = sparkApp.Namespace
 
 	return interfaces.ApplicationMetadata{
 		ApplicationID: sparkApp.Name,
@@ -165,7 +166,7 @@ func (os *Manager) GetExistingAllocation(pod *v1.Pod) *si.Allocation {
 			QueueName:        utils.GetQueueNameFromPod(pod),
 			NodeID:           pod.Spec.NodeName,
 			ApplicationID:    meta.ApplicationID,
-			PartitionName:    common.DefaultPartition,
+			PartitionName:    constants.DefaultPartition,
 		}
 	}
 	return nil

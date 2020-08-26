@@ -16,7 +16,7 @@
  limitations under the License.
 */
 
-package common
+package constants
 
 // Cluster
 const DefaultNodeAttributeHostNameKey = "si.io/hostname"
@@ -45,3 +45,6 @@ const SparkLabelRoleDriver = "driver"
 // Configuration
 const DefaultConfigMapName = "yunikorn-configs"
 const SchedulerName = "yunikorn"
+
+//Application crd
+const AppManagerHandlerName = "yunikorn-app"
