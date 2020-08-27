@@ -22,8 +22,8 @@ go 1.15
 
 require (
 	github.com/GoogleCloudPlatform/spark-on-k8s-operator v0.0.0-20200817155620-c19d2b8660d8
-	github.com/apache/incubator-yunikorn-core v0.0.0-20200813074707-742e21611d15
-	github.com/apache/incubator-yunikorn-scheduler-interface v0.9.1-0.20200731171855-a731b08643db
+	github.com/apache/incubator-yunikorn-core v0.0.0-20200827055746-57d663e73cb1
+	github.com/apache/incubator-yunikorn-scheduler-interface v0.9.1-0.20200827013520-ec2f681ecb5b
 	github.com/google/uuid v1.1.1
 	github.com/looplab/fsm v0.1.0
 	github.com/onsi/ginkgo v1.11.0
@@ -39,8 +39,6 @@ require (
 )
 
 replace (
-	github.com/prometheus/client_golang => github.com/prometheus/client_golang v0.9.2
-	google.golang.org/grpc => google.golang.org/grpc v1.23.0
 	k8s.io/api => k8s.io/api v0.16.13
 	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.16.13
 	k8s.io/apimachinery => k8s.io/apimachinery v0.16.13
