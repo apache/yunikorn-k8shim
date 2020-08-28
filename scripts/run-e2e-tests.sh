@@ -60,6 +60,7 @@ function install_cluster() {
   go get -v github.com/onsi/ginkgo/ginkgo
   go get -v github.com/onsi/gomega
   export PATH=$PATH:$HOME/gopath/bin
+  check_cmd "ginkgo"
 
   # build docker images from latest code, so that we can install yunikorn with these latest images
   echo "step 1/6: building docker images from latest code"
