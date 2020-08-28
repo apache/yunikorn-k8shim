@@ -270,3 +270,74 @@ func TestPodUnderCondition(t *testing.T) {
 
 	assert.Equal(t, PodUnderCondition(pod, condition), false)
 }
+
+func TestGetApplicationIDFromPod(t *testing.T) {
+	appIDInLabel := "labelAppID"
+	appIDInAnnotation := "annotationAppID"
+	appIDInSelector := "selectorAppID"
+	sparkIDInAnnotation := "sparkAnnotationAppID"
+	testCases := []struct {
+		name          string
+		pod           *v1.Pod
+		expectedError bool
+		expectedAppID string
+	}{
+		{"AppID defined in label", &v1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Labels: map[string]string{constants.LabelApplicationID: appIDInLabel},
+			},
+		}, false, appIDInLabel},
+		{"AppID defined in annotation", &v1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Annotations: map[string]string{constants.LabelApplicationID: appIDInAnnotation},
+			},
+		}, false, appIDInAnnotation},
+		{"AppID defined in label and annotation", &v1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Annotations: map[string]string{constants.LabelApplicationID: appIDInAnnotation},
+				Labels:      map[string]string{constants.LabelApplicationID: appIDInLabel},
+			},
+		}, false, appIDInAnnotation},
+		{"Spark AppID defined in annotation", &v1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Annotations: map[string]string{constants.SparkAnnotationAppID: sparkIDInAnnotation},
+			},
+		}, false, sparkIDInAnnotation},
+		{"Spark AppID defined in label and annotation", &v1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Annotations: map[string]string{constants.SparkAnnotationAppID: sparkIDInAnnotation},
+				Labels:      map[string]string{constants.LabelApplicationID: appIDInLabel},
+			},
+		}, false, sparkIDInAnnotation},
+		{"Spark AppID defined in spark app selector", &v1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Labels: map[string]string{constants.SparkLabelAppID: appIDInSelector},
+			},
+		}, false, appIDInSelector},
+		{"Spark AppID defined in spark app selector and annotation", &v1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Labels:      map[string]string{constants.SparkLabelAppID: appIDInSelector},
+				Annotations: map[string]string{constants.SparkAnnotationAppID: sparkIDInAnnotation},
+			},
+		}, false, sparkIDInAnnotation},
+		{"Spark AppID defined in spark app selector, label and annotation", &v1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Labels:      map[string]string{constants.SparkLabelAppID: appIDInSelector, constants.LabelApplicationID: appIDInLabel},
+				Annotations: map[string]string{constants.SparkAnnotationAppID: sparkIDInAnnotation},
+			},
+		}, false, sparkIDInAnnotation},
+		{"No AppID defined", &v1.Pod{}, true, ""},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			appID, err := GetApplicationIDFromPod(tc.pod)
+			if tc.expectedError {
+				assert.Assert(t, err != nil, "An error is expected")
+			} else {
+				assert.NilError(t, err, "No error is expected")
+			}
+			assert.DeepEqual(t, appID, tc.expectedAppID)
+		})
+	}
+}

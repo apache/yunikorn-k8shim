@@ -41,6 +41,7 @@ const CPU = "vcore"
 const SparkLabelAppID = "spark-app-selector"
 const SparkLabelRole = "spark-role"
 const SparkLabelRoleDriver = "driver"
+const SparkAnnotationAppID = "yunikorn.apache.org/app-id"
 
 // Configuration
 const DefaultConfigMapName = "yunikorn-configs"
