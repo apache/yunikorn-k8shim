@@ -428,15 +428,35 @@ func (ctx *Context) NotifyTaskComplete(appID, taskID string) {
 	}
 }
 
-// get namespace resource quota and parent queue from annotation
-// if the namespace is unable to be listed from api-server, a nil and an empty string are returned
-// if the annotation doesn't have the quota defined, a nil and an empty string are returned
-// if cpu or memory quota is defined in the annotation, a corresponding si.Resource is returned
-// if the parent queue is defined in the annotation, this configured string is returned
-func (ctx *Context) getTagsFromNamespaceAnnotations(namespace string) (*si.Resource, string) {
+// update application tags in the AddApplicationRequest based on the namespace annotation
+// adds the following tags to request based on annotations:
+//    - namespace.resourcequota
+//    - namespace.parentqueue
+func (ctx *Context) updateApplicationTags(request *interfaces.AddApplicationRequest, namespace string) {
+	namespaceObj := ctx.getNamespaceObject(namespace)
+	if namespaceObj == nil {
+		return
+	}
+	// add resource quota info as an app tag
+	resourceQuota := utils.GetNamespaceQuotaFromAnnotation(namespaceObj)
+	if resourceQuota != nil && !common.IsZero(resourceQuota) {
+		if quotaStr, err := json.Marshal(resourceQuota); err == nil {
+			request.Metadata.Tags[constants.AppTagNamespaceResourceQuota] = string(quotaStr)
+		}
+	}
+	// add parent queue info as an app tag
+	parentQueue := namespaceObj.Annotations["yunikorn.apache.org/parentqueue"]
+	if parentQueue != "" {
+		request.Metadata.Tags[common.AppTagNamespaceParentQueue] = parentQueue
+	}
+}
+
+// returns the namespace object from the namespace's name
+// if the namespace is unable to be listed from api-server, a nil is returned
+func (ctx *Context) getNamespaceObject(namespace string) *v1.Namespace {
 	if namespace == "" {
-		log.Logger().Debug("skip getting resource quota because namespace is empty")
-		return nil, ""
+		log.Logger().Debug("could not get namespace from empty string")
+		return nil
 	}
 
 	nsLister := ctx.apiProvider.GetAPIs().NamespaceInformer.Lister()
@@ -446,10 +466,9 @@ func (ctx *Context) getTagsFromNamespaceAnnotations(namespace string) (*si.Resou
 		// if we cannot list the namespace here, probably something is wrong
 		// log an error here and skip retrieving the resource quota
 		log.Logger().Error("failed to get app namespace", zap.Error(err))
-		return nil, ""
+		return nil
 	}
-
-	return utils.GetNamespaceQuotaFromAnnotation(namespaceObj), namespaceObj.Annotations["yunikorn.apache.org/parentqueue"]
+	return namespaceObj
 }
 
 func (ctx *Context) AddApplication(request *interfaces.AddApplicationRequest) interfaces.ManagedApp {
@@ -465,17 +484,7 @@ func (ctx *Context) AddApplication(request *interfaces.AddApplicationRequest) in
 		log.Logger().Debug("app namespace info",
 			zap.String("appID", request.Metadata.ApplicationID),
 			zap.String("namespace", ns))
-		resourceQuota, parentQueue := ctx.getTagsFromNamespaceAnnotations(ns)
-		// add resource quota info as an app tag
-		if resourceQuota != nil && !common.IsZero(resourceQuota) {
-			if quotaStr, err := json.Marshal(resourceQuota); err == nil {
-				request.Metadata.Tags[constants.AppTagNamespaceResourceQuota] = string(quotaStr)
-			}
-		}
-		// add parent queue info as an app tag
-		if parentQueue != "" {
-			request.Metadata.Tags[common.AppTagNamespaceParentQueue] = parentQueue
-		}
+		ctx.updateApplicationTags(request, ns)
 	}
 
 	app := NewApplication(
