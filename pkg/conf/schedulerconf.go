@@ -67,6 +67,7 @@ type SchedulerConf struct {
 	KubeBurst            int           `json:"kubeBurst"`
 	Predicates           string        `json:"predicates"`
 	OperatorPlugins      string        `json:"operatorPlugins"`
+	EnableConfigHotRefresh bool 	   `json:"enableConfigHotRefresh"`
 	sync.RWMutex
 }
 
@@ -146,6 +147,9 @@ func initConfigs() {
 		"log encoding, json or console.")
 	logFile := flag.String("logFile", "",
 		"absolute log file path")
+	enableConfigHotRefresh := flag.Bool("enableConfigHotRefresh", false, "Flag for enabling configuration reload " +
+		"if the configMap is changed directly. If this value is true, the rest API cannot be used for configuration change.")
+
 
 	flag.Parse()
 
@@ -175,5 +179,6 @@ func initConfigs() {
 		KubeBurst:            *kubeBurst,
 		Predicates:           *predicateList,
 		OperatorPlugins:      *operatorPluginList,
+		EnableConfigHotRefresh: *enableConfigHotRefresh,
 	}
 }
