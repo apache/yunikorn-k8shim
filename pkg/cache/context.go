@@ -429,7 +429,7 @@ func (ctx *Context) NotifyTaskComplete(appID, taskID string) {
 }
 
 // update application tags in the AddApplicationRequest based on the namespace annotation
-// adds the following tags to request based on annotations:
+// adds the following tags to the request based on annotations (if exist):
 //    - namespace.resourcequota
 //    - namespace.parentqueue
 func (ctx *Context) updateApplicationTags(request *interfaces.AddApplicationRequest, namespace string) {
