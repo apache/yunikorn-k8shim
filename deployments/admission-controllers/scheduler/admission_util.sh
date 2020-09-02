@@ -52,6 +52,9 @@ fi
 if [ -z "$ADMISSION_CONTROLLER_IMAGE_PULL_POLICY" ]; then
   ADMISSION_CONTROLLER_IMAGE_PULL_POLICY=`cat ${CONF_FILE} | grep ^dockerImagePullPolicy | cut -d "=" -f 2`
 fi
+if [ -z "$ENABLE_CONFIG_HOT_REFRESH" ]; then
+  ENABLE_CONFIG_HOT_REFRESH=`cat ${CONF_FILE} | grep ^enableConfigHotRefresh | cut -d "=" -f 2`
+fi
 delete_resources() {
   kubectl delete -f server.yaml
   # cleanup admissions
@@ -134,6 +137,7 @@ create_resources() {
     -e 's@${ADMISSION_CONTROLLER_IMAGE_REGISTRY}@'"$ADMISSION_CONTROLLER_IMAGE_REGISTRY"'@g' \
     -e 's@${ADMISSION_CONTROLLER_IMAGE_TAG}@'"$ADMISSION_CONTROLLER_IMAGE_TAG"'@g' \
     -e 's@${ADMISSION_CONTROLLER_IMAGE_PULL_POLICY}@'"$ADMISSION_CONTROLLER_IMAGE_PULL_POLICY"'@g' \
+    -e 's@${ENABLE_CONFIG_HOT_REFRESH}@'"$ENABLE_CONFIG_HOT_REFRESH"'@g' \
     <"${basedir}/templates/server.yaml.template" > server.yaml
 
 if [ -n "$ADMISSION_CONTROLLER_IMAGE_PULL_SECRETS" ]; then
