@@ -35,7 +35,7 @@ import (
 )
 
 const (
-	HTTPPort                          = 8443
+	HTTPPort                          = 9089
 	tlsDir                            = `/run/secrets/tls`
 	tlsCertFile                       = `cert.pem`
 	tlsKeyFile                        = `key.pem`
