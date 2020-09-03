@@ -66,6 +66,7 @@ func NewMockedAPIProvider() *MockedAPIProvider {
 			StorageInformer:   &MockedStorageClassInformer{},
 			VolumeBinder:      nil,
 			AppInformer:       test.NewAppInformerMock(),
+			NamespaceInformer: test.NewMockNamespaceInformer(),
 		},
 	}
 }
