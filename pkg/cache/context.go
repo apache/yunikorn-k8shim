@@ -433,13 +433,34 @@ func (ctx *Context) NotifyTaskComplete(appID, taskID string) {
 	}
 }
 
-// get namespace resource quota from annotation
+// update application tags in the AddApplicationRequest based on the namespace annotation
+// adds the following tags to the request based on annotations (if exist):
+//    - namespace.resourcequota
+//    - namespace.parentqueue
+func (ctx *Context) updateApplicationTags(request *interfaces.AddApplicationRequest, namespace string) {
+	namespaceObj := ctx.getNamespaceObject(namespace)
+	if namespaceObj == nil {
+		return
+	}
+	// add resource quota info as an app tag
+	resourceQuota := utils.GetNamespaceQuotaFromAnnotation(namespaceObj)
+	if resourceQuota != nil && !common.IsZero(resourceQuota) {
+		if quotaStr, err := json.Marshal(resourceQuota); err == nil {
+			request.Metadata.Tags[constants.AppTagNamespaceResourceQuota] = string(quotaStr)
+		}
+	}
+	// add parent queue info as an app tag
+	parentQueue := namespaceObj.Annotations["yunikorn.apache.org/parentqueue"]
+	if parentQueue != "" {
+		request.Metadata.Tags[constants.AppTagNamespaceParentQueue] = parentQueue
+	}
+}
+
+// returns the namespace object from the namespace's name
 // if the namespace is unable to be listed from api-server, a nil is returned
-// if the annotation doesn't have the quota defined, a nil is returned
-// if cpu or memory quota is defined in the annotation, a corresponding si.Resource is returned
-func (ctx *Context) getNamespaceResourceQuota(namespace string) *si.Resource {
+func (ctx *Context) getNamespaceObject(namespace string) *v1.Namespace {
 	if namespace == "" {
-		log.Logger().Debug("skip getting resource quota because namespace is empty")
+		log.Logger().Debug("could not get namespace from empty string")
 		return nil
 	}
 
@@ -452,8 +473,7 @@ func (ctx *Context) getNamespaceResourceQuota(namespace string) *si.Resource {
 		log.Logger().Error("failed to get app namespace", zap.Error(err))
 		return nil
 	}
-
-	return utils.GetNamespaceQuotaFromAnnotation(namespaceObj)
+	return namespaceObj
 }
 
 func (ctx *Context) AddApplication(request *interfaces.AddApplicationRequest) interfaces.ManagedApp {
@@ -465,17 +485,11 @@ func (ctx *Context) AddApplication(request *interfaces.AddApplicationRequest) in
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
 
-	// add resource quota info as a app tag
 	if ns, ok := request.Metadata.Tags[constants.AppTagNamespace]; ok {
 		log.Logger().Debug("app namespace info",
 			zap.String("appID", request.Metadata.ApplicationID),
 			zap.String("namespace", ns))
-		resourceQuota := ctx.getNamespaceResourceQuota(ns)
-		if resourceQuota != nil && !common.IsZero(resourceQuota) {
-			if quotaStr, err := json.Marshal(resourceQuota); err == nil {
-				request.Metadata.Tags[constants.AppTagNamespaceResourceQuota] = string(quotaStr)
-			}
-		}
+		ctx.updateApplicationTags(request, ns)
 	}
 
 	app := NewApplication(

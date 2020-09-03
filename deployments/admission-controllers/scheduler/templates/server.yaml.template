@@ -34,7 +34,7 @@ spec:
           image: ${ADMISSION_CONTROLLER_IMAGE_REGISTRY}:${ADMISSION_CONTROLLER_IMAGE_TAG}
           imagePullPolicy: ${ADMISSION_CONTROLLER_IMAGE_PULL_POLICY}
           ports:
-          - containerPort: 8443
+          - containerPort: 9089
             name: webhook-api
           volumeMounts:
           - name: webhook-tls-certs
