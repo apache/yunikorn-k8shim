@@ -40,8 +40,9 @@ import (
 )
 
 const (
-	autoGenAppPrefix = "yunikorn"
-	autoGenAppSuffix = "autogen"
+	autoGenAppPrefix             = "yunikorn"
+	autoGenAppSuffix             = "autogen"
+	enableConfigHotRefreshEnvVar = "ENABLE_CONFIG_HOT_REFRESH"
 )
 
 var (
@@ -183,17 +184,14 @@ func updateLabels(namespace string, pod *v1.Pod, patch []patchOperation) []patch
 }
 
 func isConfigMapUpdateAllowed(userInfo string) bool {
-	hotRefreshEnabled := os.Getenv("ENABLE_CONFIG_HOT_REFRESH")
+	hotRefreshEnabled := os.Getenv(enableConfigHotRefreshEnvVar)
 	allowed, err := strconv.ParseBool(hotRefreshEnabled)
 	if err != nil {
 		log.Logger().Error("Failed to parse ENABLE_CONFIG_HOT_REFRESH value",
 			zap.String("ENABLE_CONFIG_HOT_REFRESH", hotRefreshEnabled))
 		return false
 	}
-	if allowed {
-		return true
-	}
-	if strings.Contains(userInfo, "yunikorn-admin") {
+	if allowed || strings.Contains(userInfo, "yunikorn-admin") {
 		return true
 	}
 	return false

@@ -147,9 +147,9 @@ func initConfigs() {
 		"log encoding, json or console.")
 	logFile := flag.String("logFile", "",
 		"absolute log file path")
-	enableConfigHotRefresh := flag.Bool("enableConfigHotRefresh", false, "Flag for enabling configuration reload " +
-		"if the configMap is changed directly. If this value is true, the rest API cannot be used for configuration change.")
-
+	enableConfigHotRefresh := flag.Bool("enableConfigHotRefresh", false, "Flag for enabling " +
+		"configuration hot-refresh. If this value is set to true, the configuration updates in the configmap will be " +
+		"automatically reloaded without restarting the scheduler.")
 
 	flag.Parse()
 

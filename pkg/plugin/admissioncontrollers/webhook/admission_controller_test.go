@@ -22,6 +22,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -377,4 +379,25 @@ func TestGenerateAppID(t *testing.T) {
 	appID = generateAppID(strings.Repeat("long", 100))
 	assert.Equal(t, strings.HasPrefix(appID, fmt.Sprintf("%s-long", autoGenAppPrefix)), true)
 	assert.Equal(t, len(appID), 63)
+}
+
+func TestIsConfigMapUpdateAllowed(t *testing.T) {
+	testCases := []struct {
+		name             string
+		allowed          bool
+		userInfo         string
+		enableHotRefresh bool
+	}{
+		{"Hot refresh enabled, yunikorn user", true, "default:yunikorn-admin", true},
+		{"Hot refresh enabled, non yunikorn user", true, "default:some-user", true},
+		{"Hot refresh disabled, non yunikorn user", false, "default:some-user", false},
+		{"Hot refresh disabled, yunikorn user", true, "default:yunikorn-admin", false},
+	}
+	for _, tc := range testCases {
+		os.Setenv(enableConfigHotRefreshEnvVar, strconv.FormatBool(tc.enableHotRefresh))
+		t.Run(tc.name, func(t *testing.T) {
+			allowed := isConfigMapUpdateAllowed(tc.userInfo)
+			assert.Equal(t, tc.allowed, allowed, "")
+		})
+	}
 }
