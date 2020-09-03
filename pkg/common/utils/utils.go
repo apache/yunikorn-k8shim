@@ -91,7 +91,6 @@ func GetApplicationIDFromPod(pod *v1.Pod) (string, error) {
 
 	// application ID can be defined in labels
 	for name, value := range pod.Labels {
-
 		// application ID can be defined as a label
 		if name == constants.LabelApplicationID {
 			return value, nil
