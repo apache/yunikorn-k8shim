@@ -26,6 +26,7 @@ const DefaultRackName = "/rack-default"
 // Application
 const LabelApp = "app"
 const LabelApplicationID = "applicationId"
+const AnnotationApplicationID = "yunikorn.apache.org/app-id"
 const LabelQueueName = "queue"
 const ApplicationDefaultQueue = "root.sandbox"
 const DefaultPartition = "default"
@@ -42,7 +43,6 @@ const CPU = "vcore"
 const SparkLabelAppID = "spark-app-selector"
 const SparkLabelRole = "spark-role"
 const SparkLabelRoleDriver = "driver"
-const SparkAnnotationAppID = "yunikorn.apache.org/app-id"
 
 // Configuration
 const DefaultConfigMapName = "yunikorn-configs"

@@ -289,26 +289,16 @@ func TestGetApplicationIDFromPod(t *testing.T) {
 		}, false, appIDInLabel},
 		{"AppID defined in annotation", &v1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
-				Annotations: map[string]string{constants.LabelApplicationID: appIDInAnnotation},
+				Annotations: map[string]string{constants.AnnotationApplicationID: appIDInAnnotation},
 			},
 		}, false, appIDInAnnotation},
 		{"AppID defined in label and annotation", &v1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
-				Annotations: map[string]string{constants.LabelApplicationID: appIDInAnnotation},
+				Annotations: map[string]string{constants.AnnotationApplicationID: appIDInAnnotation},
 				Labels:      map[string]string{constants.LabelApplicationID: appIDInLabel},
 			},
 		}, false, appIDInAnnotation},
-		{"Spark AppID defined in annotation", &v1.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Annotations: map[string]string{constants.SparkAnnotationAppID: sparkIDInAnnotation},
-			},
-		}, false, sparkIDInAnnotation},
-		{"Spark AppID defined in label and annotation", &v1.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Annotations: map[string]string{constants.SparkAnnotationAppID: sparkIDInAnnotation},
-				Labels:      map[string]string{constants.LabelApplicationID: appIDInLabel},
-			},
-		}, false, sparkIDInAnnotation},
+
 		{"Spark AppID defined in spark app selector", &v1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{constants.SparkLabelAppID: appIDInSelector},
@@ -317,13 +307,13 @@ func TestGetApplicationIDFromPod(t *testing.T) {
 		{"Spark AppID defined in spark app selector and annotation", &v1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels:      map[string]string{constants.SparkLabelAppID: appIDInSelector},
-				Annotations: map[string]string{constants.SparkAnnotationAppID: sparkIDInAnnotation},
+				Annotations: map[string]string{constants.AnnotationApplicationID: sparkIDInAnnotation},
 			},
 		}, false, sparkIDInAnnotation},
 		{"Spark AppID defined in spark app selector, label and annotation", &v1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels:      map[string]string{constants.SparkLabelAppID: appIDInSelector, constants.LabelApplicationID: appIDInLabel},
-				Annotations: map[string]string{constants.SparkAnnotationAppID: sparkIDInAnnotation},
+				Annotations: map[string]string{constants.AnnotationApplicationID: sparkIDInAnnotation},
 			},
 		}, false, sparkIDInAnnotation},
 		{"No AppID defined", &v1.Pod{}, true, ""},

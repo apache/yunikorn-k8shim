@@ -84,10 +84,7 @@ func GetQueueNameFromPod(pod *v1.Pod) string {
 func GetApplicationIDFromPod(pod *v1.Pod) (string, error) {
 	// application ID can be defined in annotations
 	for name, value := range pod.Annotations {
-		if name == constants.LabelApplicationID {
-			return value, nil
-		}
-		if name == constants.SparkAnnotationAppID {
+		if name == constants.AnnotationApplicationID {
 			return value, nil
 		}
 	}
