@@ -310,7 +310,7 @@ func TestGetApplicationIDFromPod(t *testing.T) {
 				Annotations: map[string]string{constants.AnnotationApplicationID: sparkIDInAnnotation},
 			},
 		}, false, sparkIDInAnnotation},
-		{"Spark AppID defined in spark app selector, label and annotation", &v1.Pod{
+		{"Spark AppID defined in spark app selector and annotation", &v1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels:      map[string]string{constants.SparkLabelAppID: appIDInSelector, constants.LabelApplicationID: appIDInLabel},
 				Annotations: map[string]string{constants.AnnotationApplicationID: sparkIDInAnnotation},
