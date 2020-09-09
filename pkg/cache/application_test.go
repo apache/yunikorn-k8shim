@@ -30,7 +30,6 @@ import (
 	"github.com/apache/incubator-yunikorn-core/pkg/api"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 )
 
@@ -91,93 +90,6 @@ func TestRunApplication(t *testing.T) {
 		t.Error("expecting error got 'nil'")
 	}
 	assertAppState(t, app, events.States().Application.Submitted, 3*time.Second)
-}
-
-func TestGetApplicationIDFromPod(t *testing.T) {
-	// defined in label
-	pod := v1.Pod{
-		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-		ObjectMeta: apis.ObjectMeta{
-			Name:      "pod00001",
-			Namespace: "default",
-			UID:       "UID-POD-00001",
-			Labels: map[string]string{
-				"applicationId": "app00001",
-				"queue":         "root.a",
-			},
-		},
-		Spec:   v1.PodSpec{},
-		Status: v1.PodStatus{},
-	}
-	appID, err := utils.GetApplicationIDFromPod(&pod)
-	assert.Equal(t, appID, "app00001")
-	assert.Equal(t, err, nil)
-
-	// defined in annotations
-	pod = v1.Pod{
-		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-		ObjectMeta: apis.ObjectMeta{
-			Name:      "pod00001",
-			Namespace: "default",
-			UID:       "UID-POD-00001",
-			Annotations: map[string]string{
-				"applicationId": "app00002",
-				"queue":         "root.a",
-			},
-		},
-		Spec:   v1.PodSpec{},
-		Status: v1.PodStatus{},
-	}
-	appID, err = utils.GetApplicationIDFromPod(&pod)
-	assert.Equal(t, appID, "app00002")
-	assert.Equal(t, err, nil)
-
-	// spark app-id
-	pod = v1.Pod{
-		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-		ObjectMeta: apis.ObjectMeta{
-			Name:      "pod00001",
-			Namespace: "default",
-			UID:       "UID-POD-00001",
-			Labels: map[string]string{
-				"spark-app-selector": "spark-0001",
-				"queue":              "root.a",
-			},
-		},
-		Spec:   v1.PodSpec{},
-		Status: v1.PodStatus{},
-	}
-	appID, err = utils.GetApplicationIDFromPod(&pod)
-	assert.Equal(t, appID, "spark-0001")
-	assert.Equal(t, err, nil)
-
-	// not found
-	pod = v1.Pod{
-		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-		ObjectMeta: apis.ObjectMeta{
-			Name:      "pod00001",
-			Namespace: "default",
-			UID:       "UID-POD-00001",
-		},
-		Spec:   v1.PodSpec{},
-		Status: v1.PodStatus{},
-	}
-
-	appID, err = utils.GetApplicationIDFromPod(&pod)
-	assert.Equal(t, appID, "")
-	assert.Assert(t, err != nil)
 }
 
 func newMockSchedulerAPI() *mockSchedulerAPI {
