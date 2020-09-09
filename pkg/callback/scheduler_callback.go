@@ -170,4 +170,3 @@ func (callback *AsyncRMCallback) Update(request *si.UpdateContainerSchedulingSta
 func (callback *AsyncRMCallback) UpdateConfiguration(args *si.UpdateConfigurationRequest) *si.UpdateConfigurationResponse {
 	return callback.context.SaveConfigmap(args)
 }
-

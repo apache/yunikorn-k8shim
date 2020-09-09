@@ -803,14 +803,14 @@ Save the configmap and returns the old one and an error if the process failed
 */
 func (ctx *Context) SaveConfigmap(request *si.UpdateConfigurationRequest) *si.UpdateConfigurationResponse {
 	// if hot-refresh is enabled, configMap change through the API is not allowed
-	if ctx.apiProvider.GetAPIs().Conf.EnableConfigHotRefresh{
+	if ctx.apiProvider.GetAPIs().Conf.EnableConfigHotRefresh {
 		return &si.UpdateConfigurationResponse{
 			Success: false,
-			Reason:  fmt.Sprintf("hot-refresh is enabled. To use the API for configuration update, " +
+			Reason: fmt.Sprintf("hot-refresh is enabled. To use the API for configuration update, " +
 				"set enableConfigHotRefresh = true and restart the scheduler"),
 		}
 	}
-	slt := labels.SelectorFromSet(labels.Set{constants.LabelApp:"yunikorn"})
+	slt := labels.SelectorFromSet(labels.Set{constants.LabelApp: "yunikorn"})
 
 	configMaps, err := ctx.apiProvider.GetAPIs().ConfigMapInformer.Lister().List(slt)
 	if err != nil {
@@ -839,8 +839,8 @@ func (ctx *Context) SaveConfigmap(request *si.UpdateConfigurationRequest) *si.Up
 		}
 	}
 	log.Logger().Info("ConfigMap updated successfully")
-	return &si.UpdateConfigurationResponse {
-		Success: true,
+	return &si.UpdateConfigurationResponse{
+		Success:   true,
 		OldConfig: oldConfData,
 	}
 }

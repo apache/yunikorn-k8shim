@@ -51,23 +51,23 @@ var once sync.Once
 var configuration *SchedulerConf
 
 type SchedulerConf struct {
-	ClusterID            string        `json:"clusterId"`
-	ClusterVersion       string        `json:"clusterVersion"`
-	PolicyGroup          string        `json:"policyGroup"`
-	Interval             time.Duration `json:"schedulingIntervalSecond"`
-	KubeConfig           string        `json:"absoluteKubeConfigFilePath"`
-	LoggingLevel         int           `json:"loggingLevel"`
-	LogEncoding          string        `json:"logEncoding"`
-	LogFile              string        `json:"logFilePath"`
-	VolumeBindTimeout    time.Duration `json:"volumeBindTimeout"`
-	TestMode             bool          `json:"testMode"`
-	EventChannelCapacity int           `json:"eventChannelCapacity"`
-	DispatchTimeout      time.Duration `json:"dispatchTimeout"`
-	KubeQPS              int           `json:"kubeQPS"`
-	KubeBurst            int           `json:"kubeBurst"`
-	Predicates           string        `json:"predicates"`
-	OperatorPlugins      string        `json:"operatorPlugins"`
-	EnableConfigHotRefresh bool 	   `json:"enableConfigHotRefresh"`
+	ClusterID              string        `json:"clusterId"`
+	ClusterVersion         string        `json:"clusterVersion"`
+	PolicyGroup            string        `json:"policyGroup"`
+	Interval               time.Duration `json:"schedulingIntervalSecond"`
+	KubeConfig             string        `json:"absoluteKubeConfigFilePath"`
+	LoggingLevel           int           `json:"loggingLevel"`
+	LogEncoding            string        `json:"logEncoding"`
+	LogFile                string        `json:"logFilePath"`
+	VolumeBindTimeout      time.Duration `json:"volumeBindTimeout"`
+	TestMode               bool          `json:"testMode"`
+	EventChannelCapacity   int           `json:"eventChannelCapacity"`
+	DispatchTimeout        time.Duration `json:"dispatchTimeout"`
+	KubeQPS                int           `json:"kubeQPS"`
+	KubeBurst              int           `json:"kubeBurst"`
+	Predicates             string        `json:"predicates"`
+	OperatorPlugins        string        `json:"operatorPlugins"`
+	EnableConfigHotRefresh bool          `json:"enableConfigHotRefresh"`
 	sync.RWMutex
 }
 
@@ -147,8 +147,8 @@ func initConfigs() {
 		"log encoding, json or console.")
 	logFile := flag.String("logFile", "",
 		"absolute log file path")
-	enableConfigHotRefresh := flag.Bool("enableConfigHotRefresh", false, "Flag for enabling " +
-		"configuration hot-refresh. If this value is set to true, the configuration updates in the configmap will be " +
+	enableConfigHotRefresh := flag.Bool("enableConfigHotRefresh", false, "Flag for enabling "+
+		"configuration hot-refresh. If this value is set to true, the configuration updates in the configmap will be "+
 		"automatically reloaded without restarting the scheduler.")
 
 	flag.Parse()
@@ -164,21 +164,21 @@ func initConfigs() {
 	}
 
 	configuration = &SchedulerConf{
-		ClusterID:            *clusterID,
-		ClusterVersion:       *clusterVersion,
-		PolicyGroup:          *policyGroup,
-		Interval:             *schedulingInterval,
-		KubeConfig:           *kubeConfig,
-		LoggingLevel:         *logLevel,
-		LogEncoding:          *encode,
-		LogFile:              *logFile,
-		VolumeBindTimeout:    *volumeBindTimeout,
-		EventChannelCapacity: *eventChannelCapacity,
-		DispatchTimeout:      *dispatchTimeout,
-		KubeQPS:              *kubeQPS,
-		KubeBurst:            *kubeBurst,
-		Predicates:           *predicateList,
-		OperatorPlugins:      *operatorPluginList,
+		ClusterID:              *clusterID,
+		ClusterVersion:         *clusterVersion,
+		PolicyGroup:            *policyGroup,
+		Interval:               *schedulingInterval,
+		KubeConfig:             *kubeConfig,
+		LoggingLevel:           *logLevel,
+		LogEncoding:            *encode,
+		LogFile:                *logFile,
+		VolumeBindTimeout:      *volumeBindTimeout,
+		EventChannelCapacity:   *eventChannelCapacity,
+		DispatchTimeout:        *dispatchTimeout,
+		KubeQPS:                *kubeQPS,
+		KubeBurst:              *kubeBurst,
+		Predicates:             *predicateList,
+		OperatorPlugins:        *operatorPluginList,
 		EnableConfigHotRefresh: *enableConfigHotRefresh,
 	}
 }
