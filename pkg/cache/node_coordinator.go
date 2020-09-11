@@ -82,10 +82,13 @@ func (c *nodeResourceCoordinator) updatePod(old, new interface{}) {
 				// if pod is running but not scheduled by us,
 				// we need to notify scheduler-core to re-sync the node resource
 				podResource := common.GetPodResource(newPod)
-				c.nodes.updateNodeOccupiedResources(newPod.Spec.NodeName, podResource, AddOccupiedResource)
-				if err := c.nodes.cache.AddPod(newPod); err != nil {
-					log.Logger().Warn("failed to update scheduler-cache",
-						zap.Error(err))
+				_, cached := c.nodes.cache.GetPod(string(newPod.UID))
+				if !cached {
+					c.nodes.updateNodeOccupiedResources(newPod.Spec.NodeName, podResource, AddOccupiedResource)
+					if err := c.nodes.cache.AddPod(newPod); err != nil {
+						log.Logger().Warn("failed to update scheduler-cache",
+							zap.Error(err))
+					}
 				}
 			} else if utils.IsPodTerminated(newPod) {
 				// this means pod is terminated

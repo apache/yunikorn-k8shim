@@ -248,3 +248,45 @@ func TestDeleteTerminatedPod(t *testing.T) {
 	coordinator.deletePod(pod2)
 	assert.Equal(t, executed, false)
 }
+
+func TestUpdatePodPendingRunningAlternatively(t *testing.T) {
+	mockedSchedulerAPI := newMockSchedulerAPI()
+	nodes := newSchedulerNodes(mockedSchedulerAPI, NewTestSchedulerCache())
+	host1 := utils.NodeForTest("HOST1", "10G", "10")
+	nodes.addNode(host1)
+	coordinator := newNodeResourceCoordinator(nodes)
+
+	// init pod (pod1) and changed pod (pod2)
+	pod1 := utils.PodForTest("pod1", "1G", "500m")
+	pod1.SetUID("UID-01")
+	pod2 := utils.PodForTest("pod1", "1G", "500m")
+	pod2.SetUID("UID-01")
+
+	// pod state changed from pending to running, trigger an update
+	pod1.Status.Phase = v1.PodPending
+	pod2.Status.Phase = v1.PodRunning
+	pod1.Spec.NodeName = "HOST1"
+	pod2.Spec.NodeName = "HOST1"
+	coordinator.updatePod(pod1, pod2)
+	node1 := coordinator.nodes.nodesMap["HOST1"]
+	assert.Equal(t, node1.occupied.Resources[constants.Memory].Value, int64(1000))
+	assert.Equal(t, node1.occupied.Resources[constants.CPU].Value, int64(500))
+
+	// pod state changed from running to pending,
+	// this won't trigger the update
+	pod1.Status.Phase = v1.PodRunning
+	pod2.Status.Phase = v1.PodPending
+	pod1.Spec.NodeName = "HOST1"
+	pod2.Spec.NodeName = "HOST1"
+	coordinator.updatePod(pod1, pod2)
+
+	// pod state changed from pending to running again,
+	// trigger an update but should not affect node occupied resource
+	pod1.Status.Phase = v1.PodPending
+	pod2.Status.Phase = v1.PodRunning
+	pod1.Spec.NodeName = "HOST1"
+	pod2.Spec.NodeName = "HOST1"
+	coordinator.updatePod(pod1, pod2)
+	assert.Equal(t, node1.occupied.Resources[constants.Memory].Value, int64(1000))
+	assert.Equal(t, node1.occupied.Resources[constants.CPU].Value, int64(500))
+}
