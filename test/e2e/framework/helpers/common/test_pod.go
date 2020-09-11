@@ -57,9 +57,10 @@ func InitSleepPod(conf SleepPodConfig) *v1.Pod {
 	}
 
 	testPodConfig := TestPodConfig{
-		Name:      conf.Name,
-		Namespace: conf.NS,
-		Command:   []string{"sleep", strconv.Itoa(conf.Time)},
+		Name:          conf.Name,
+		Namespace:     conf.NS,
+		RestartPolicy: v1.RestartPolicyNever,
+		Command:       []string{"sleep", strconv.Itoa(conf.Time)},
 		Labels: map[string]string{
 			"app":           "sleep",
 			"applicationId": conf.AppID,
@@ -90,6 +91,7 @@ type TestPodConfig struct {
 	DeletionGracePeriodSeconds        *int64
 	TopologySpreadConstraints         []v1.TopologySpreadConstraint
 	Image                             string
+	RestartPolicy                     v1.RestartPolicy
 	Command                           []string
 }
 
@@ -112,6 +114,7 @@ func InitTestPod(conf TestPodConfig) *v1.Pod {
 		},
 		Spec: v1.PodSpec{
 			SchedulerName:             configmanager.SchedulerName,
+			RestartPolicy:             conf.RestartPolicy,
 			NodeName:                  conf.NodeName,
 			NodeSelector:              conf.NodeSelector,
 			Affinity:                  conf.Affinity,

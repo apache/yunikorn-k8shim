@@ -41,7 +41,6 @@ var _ = ginkgo.Describe("", func() {
 	var dev = "dev" + common.RandSeq(5)
 	var appsInfo map[string]interface{}
 	var r = regexp.MustCompile(`memory:(\d+) vcore:(\d+)`)
-	var annotation = "ann-" + common.RandSeq(10)
 
 	// Define sleepPod
 	sleepPodConfigs := common.SleepPodConfig{Name: "sleepjob", NS: dev}
@@ -70,10 +69,6 @@ var _ = ginkgo.Describe("", func() {
 		var d, err3 = kClient.UpdateConfigMap(c, configmanager.YuniKornTestConfig.YkNamespace)
 		Ω(err3).NotTo(HaveOccurred())
 		Ω(d).NotTo(BeNil())
-
-		// Updating scheduler pod annotation to trigger force refresh of configmaps
-		// https://jira.cloudera.com/browse/COMPX-4042
-		Ω(kClient.UpdateYunikornSchedulerPodAnnotation(annotation)).NotTo(HaveOccurred())
 
 		ginkgo.By("create development namespace")
 		ns1, err := kClient.CreateNamespace(dev, nil)
@@ -139,8 +134,5 @@ var _ = ginkgo.Describe("", func() {
 		Ω(err3).NotTo(HaveOccurred())
 		Ω(e).NotTo(BeNil())
 
-		// Updating scheduler pod annotation to trigger force refresh of configmaps
-		// https://jira.cloudera.com/browse/COMPX-4042
-		Ω(kClient.RemoveYunikornSchedulerPodAnnotation(annotation)).NotTo(HaveOccurred())
 	})
 })

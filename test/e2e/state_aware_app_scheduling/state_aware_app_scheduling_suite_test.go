@@ -66,9 +66,6 @@ var _ = BeforeSuite(func() {
 	Ω(err3).NotTo(HaveOccurred())
 	Ω(d).NotTo(BeNil())
 
-	// Updating scheduler pod annotation to trigger force refresh of configmaps
-	// https://jira.cloudera.com/browse/COMPX-4042
-	Ω(k.UpdateYunikornSchedulerPodAnnotation(annotation)).NotTo(HaveOccurred())
 })
 
 var _ = AfterSuite(func() {
@@ -82,10 +79,6 @@ var _ = AfterSuite(func() {
 	var e, err3 = k.UpdateConfigMap(c, configmanager.YuniKornTestConfig.YkNamespace)
 	Ω(err3).NotTo(HaveOccurred())
 	Ω(e).NotTo(BeNil())
-
-	// Updating scheduler pod annotation to trigger force refresh of configmaps
-	// https://jira.cloudera.com/browse/COMPX-4042
-	Ω(k.RemoveYunikornSchedulerPodAnnotation(annotation)).NotTo(HaveOccurred())
 })
 
 func TestStateAwareAppScheduling(t *testing.T) {
