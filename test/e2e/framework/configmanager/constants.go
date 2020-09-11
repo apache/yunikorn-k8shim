@@ -30,6 +30,7 @@ const (
 	LogPerm = os.FileMode(0666)
 
 	YKScheduler = "yunikorn-scheduler"
+	SchedulerName = "yunikorn"
 	YKAdmCtrl   = "yunikorn-admission-controller"
 	// YuniKorn service name
 	YKSvcName = "yunikorn-service"

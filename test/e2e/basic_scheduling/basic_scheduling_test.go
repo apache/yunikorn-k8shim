@@ -23,6 +23,8 @@ import (
 	"regexp"
 	"strconv"
 
+	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/configmanager"
+
 	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/helpers/common"
 	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/helpers/k8s"
 	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
@@ -35,32 +37,51 @@ import (
 var _ = ginkgo.Describe("", func() {
 	var kClient k8s.KubeCtl
 	var restClient yunikorn.RClient
-	var sleepPodDef string
-	var err error
 	var sleepRespPod *v1.Pod
 	var dev = "dev" + common.RandSeq(5)
 	var appsInfo map[string]interface{}
 	var r = regexp.MustCompile(`memory:(\d+) vcore:(\d+)`)
+	var annotation = "ann-" + common.RandSeq(10)
+
+	// Define sleepPod
+	sleepPodConfigs := common.SleepPodConfig{Name: "sleepjob", NS: dev}
 
 	ginkgo.BeforeSuite(func() {
 		// Initializing kubectl client
-		sleepPodDef, err = common.GetAbsPath("../testdata/sleeppod_template.yaml")
-		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		kClient = k8s.KubeCtl{}
 		gomega.Ω(kClient.SetClient()).To(gomega.BeNil())
 		// Initializing rest client
 		restClient = yunikorn.RClient{}
+
+		By("Enable basic scheduling config over config maps")
+		var c, err = kClient.GetConfigMaps(configmanager.YuniKornTestConfig.YkNamespace,
+			configmanager.DefaultYuniKornConfigMap)
+		Ω(err).NotTo(HaveOccurred())
+		Ω(c).NotTo(BeNil())
+
+		oldConfigMap = c.DeepCopy()
+		Ω(c).Should(BeEquivalentTo(oldConfigMap))
+
+		// Define basic configMap
+		configStr, err2 := common.CreateBasicConfigMap().ToYAML()
+		Ω(err2).NotTo(HaveOccurred())
+
+		c.Data[configmanager.DefaultPolicyGroup] = configStr
+		var d, err3 = kClient.UpdateConfigMap(c, configmanager.YuniKornTestConfig.YkNamespace)
+		Ω(err3).NotTo(HaveOccurred())
+		Ω(d).NotTo(BeNil())
+
+		// Updating scheduler pod annotation to trigger force refresh of configmaps
+		// https://jira.cloudera.com/browse/COMPX-4042
+		Ω(kClient.UpdateYunikornSchedulerPodAnnotation(annotation)).NotTo(HaveOccurred())
+
 		ginkgo.By("create development namespace")
 		ns1, err := kClient.CreateNamespace(dev, nil)
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		gomega.Ω(ns1.Status.Phase).To(gomega.Equal(v1.NamespaceActive))
 
 		ginkgo.By("Deploy the sleep pod to the development namespace")
-		sleepObj, err := k8s.GetPodObj(sleepPodDef)
-		gomega.Ω(err).NotTo(gomega.HaveOccurred())
-		sleepObj.Namespace = dev
-		sleepObj.ObjectMeta.Labels["applicationId"] = common.GetUUID()
-		sleepRespPod, err = kClient.CreatePod(sleepObj, dev)
+		sleepRespPod, err = kClient.CreatePod(common.InitSleepPod(sleepPodConfigs), dev)
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		//Wait for pod to move to running state
 		err = kClient.WaitForPodBySelectorRunning(dev,
@@ -77,6 +98,11 @@ var _ = ginkgo.Describe("", func() {
 		ginkgo.By("Verify that the sleep pod is mapped to development queue")
 		gomega.Ω(appsInfo["applicationID"]).To(gomega.Equal(sleepRespPod.ObjectMeta.Labels["applicationId"]))
 		gomega.Ω(appsInfo["queueName"]).To(gomega.ContainSubstring(sleepRespPod.ObjectMeta.Namespace))
+	})
+
+	ginkgo.It("Verify_Job_State", func() {
+		ginkgo.By("Verify that the job is scheduled & starting by YuniKorn")
+		gomega.Ω(appsInfo["applicationState"]).To(gomega.Equal("Starting"))
 		gomega.Ω("yunikorn").To(gomega.Equal(sleepRespPod.Spec.SchedulerName))
 	})
 
@@ -99,12 +125,22 @@ var _ = ginkgo.Describe("", func() {
 	})
 
 	ginkgo.AfterSuite(func() {
-		ginkgo.By("Deleting pod with name - " + sleepRespPod.Name)
-		err := kClient.DeletePod(sleepRespPod.Name, dev)
-		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		ginkgo.By("Tear down namespace: " + dev)
+		err := kClient.TearDownNamespace(dev)
+		Ω(err).NotTo(HaveOccurred())
 
-		ginkgo.By("Deleting development namespaces")
-		err = kClient.DeleteNamespace(dev)
-		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		By("Restoring the old config maps")
+		var c, err1 = kClient.GetConfigMaps(configmanager.YuniKornTestConfig.YkNamespace,
+			configmanager.DefaultYuniKornConfigMap)
+		Ω(err1).NotTo(HaveOccurred())
+		Ω(c).NotTo(BeNil())
+		c.Data = oldConfigMap.Data
+		var e, err3 = kClient.UpdateConfigMap(c, configmanager.YuniKornTestConfig.YkNamespace)
+		Ω(err3).NotTo(HaveOccurred())
+		Ω(e).NotTo(BeNil())
+
+		// Updating scheduler pod annotation to trigger force refresh of configmaps
+		// https://jira.cloudera.com/browse/COMPX-4042
+		Ω(kClient.RemoveYunikornSchedulerPodAnnotation(annotation)).NotTo(HaveOccurred())
 	})
 })
