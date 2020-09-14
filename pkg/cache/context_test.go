@@ -813,3 +813,30 @@ func TestFindYKConfigMap(t *testing.T) {
 		})
 	}
 }
+
+func TestSaveConfigmap(t *testing.T) {
+	// YK configmap not found
+	context := initContextForTest()
+	newConf := si.UpdateConfigurationRequest{
+		Configs: "newConfig",
+	}
+	resp := context.SaveConfigmap(&newConf)
+	assert.Equal(t, false, resp.Success, "Successful update expected")
+	assert.Assert(t, strings.Contains(resp.Reason, "not found"), "Unexpected reason returned")
+
+	// successful update
+	configMaps, err := context.apiProvider.GetAPIs().ConfigMapInformer.Lister().List(nil)
+	assert.NilError(t, err, "No error expected")
+	for _, c := range configMaps {
+		_, err := context.apiProvider.GetAPIs().KubeClient.GetClientSet().CoreV1().ConfigMaps(c.Namespace).Create(c)
+		assert.NilError(t, err, "No error expected")
+	}
+	resp = context.SaveConfigmap(&newConf)
+	assert.Equal(t, true, resp.Success, "Successful update expected")
+
+	//hot-refresh enabled
+	context.apiProvider.GetAPIs().Conf.EnableConfigHotRefresh = true
+	resp = context.SaveConfigmap(&newConf)
+	assert.Equal(t, false, resp.Success, "Failure is expected")
+	assert.Assert(t, strings.Contains(resp.Reason, "hot-refresh is enabled"), "Unexpected reason")
+}
