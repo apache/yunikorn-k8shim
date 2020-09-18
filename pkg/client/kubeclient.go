@@ -69,7 +69,7 @@ func newSchedulerKubeClient(kc string) SchedulerKubeClient {
 	}
 }
 
-func (nc SchedulerKubeClient) GetClientSet() *kubernetes.Clientset {
+func (nc SchedulerKubeClient) GetClientSet() kubernetes.Interface {
 	return nc.clientSet
 }
 

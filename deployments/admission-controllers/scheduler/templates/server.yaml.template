@@ -45,6 +45,8 @@ spec:
             value: ${POLICY_GROUP}
           - name: SCHEDULER_SERVICE_ADDRESS
             value: ${SCHEDULER_SERVICE_ADDRESS}
+          - name: ENABLE_CONFIG_HOT_REFRESH
+            value: '${ENABLE_CONFIG_HOT_REFRESH}'
       dnsPolicy: ClusterFirstWithHostNet
       volumes:
       - name: webhook-tls-certs
