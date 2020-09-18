@@ -21,6 +21,10 @@ package callback
 import (
 	"fmt"
 
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/federation"
 	"go.uber.org/zap"
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/cache"
@@ -53,6 +57,30 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 			NodeID: node.NodeID,
 			Event:  events.NodeAccepted,
 		})
+
+		confirmedNode := callback.context.GetNode(node.NodeID)
+		if confirmedNode != nil {
+			log.Logger().Info("reporting new node to the head server",
+				zap.String("nodeID", node.NodeID))
+			dispatcher.Dispatch(federation.AsyncUpdateFederationEvent{
+				ConfirmedRequests: []*si.UpdateRequest{
+					{
+						NewSchedulableNodes:  []*si.NewNodeInfo{
+							{
+								NodeID: node.NodeID,
+								Attributes: map[string]string{ "compute-node": "yes"},
+								SchedulableResource: confirmedNode.GetCapacity(),
+								OccupiedResource: confirmedNode.GetOccupiedResources(),
+							},
+						},
+						RmID: conf.GetSchedulerConf().ClusterID,
+					},
+				},
+			})
+		} else {
+			log.Logger().Error("node accepted in sub cluster, but not found in cache",
+				zap.String("nodeID", node.NodeID))
+		}
 	}
 
 	for _, node := range response.RejectedNodes {
@@ -74,6 +102,31 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 		if app := callback.context.GetApplication(app.ApplicationID); app != nil {
 			ev := cache.NewSimpleApplicationEvent(app.GetApplicationID(), events.AcceptApplication)
 			dispatcher.Dispatch(ev)
+		}
+
+		if appInfo := callback.context.GetApplication(app.ApplicationID); appInfo != nil {
+			log.Logger().Info("reporting new application to the head server",
+				zap.String("appID", app.ApplicationID))
+			dispatcher.Dispatch(federation.AsyncUpdateFederationEvent{
+				ConfirmedRequests: []*si.UpdateRequest{
+					{
+						NewApplications:  []*si.AddApplicationRequest{
+							{
+								ApplicationID: app.ApplicationID,
+								QueueName: appInfo.GetQueue(),
+								PartitionName: "default",
+								Ugi: &si.UserGroupInformation{
+									User: "anonymous",
+								},
+							},
+						},
+						RmID: conf.GetSchedulerConf().ClusterID,
+					},
+				},
+			})
+		} else {
+			log.Logger().Error("app accepted in sub cluster, but not found in cache",
+				zap.String("appID", app.ApplicationID))
 		}
 	}
 
@@ -100,6 +153,38 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 		if app := callback.context.GetApplication(alloc.ApplicationID); app != nil {
 			ev := cache.NewAllocateTaskEvent(app.GetApplicationID(), alloc.AllocationKey, alloc.UUID, alloc.NodeID)
 			dispatcher.Dispatch(ev)
+
+			if updatedNode := callback.context.GetNode(alloc.NodeID); updatedNode != nil {
+				if task, err := app.GetTask(alloc.AllocationKey); err == nil {
+					dispatcher.Dispatch(federation.AsyncUpdateFederationEvent{
+						ConfirmedRequests: []*si.UpdateRequest{
+							{
+								UpdatedNodes: []*si.UpdateNodeInfo{
+									{
+										NodeID:              alloc.NodeID,
+										Attributes:          map[string]string{"compute-node": "yes"},
+										SchedulableResource: updatedNode.GetCapacity(),
+										OccupiedResource:    updatedNode.GetOccupiedResources(),
+										ExistingAllocations: []*si.Allocation{
+											{
+												AllocationKey:    string(task.GetTaskPod().UID),
+												UUID:             string(task.GetTaskPod().UID),
+												ResourcePerAlloc: common.GetPodResource(task.GetTaskPod()),
+												QueueName:        app.GetQueue(),
+												NodeID:           alloc.NodeID,
+												ApplicationID:    app.GetApplicationID(),
+												PartitionName:    constants.DefaultPartition,
+											},
+										},
+										Action: si.UpdateNodeInfo_UPDATE,
+									},
+								},
+								RmID: conf.GetSchedulerConf().ClusterID,
+							},
+						},
+					})
+				}
+			}
 		}
 	}
 

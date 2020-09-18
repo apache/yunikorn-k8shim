@@ -23,6 +23,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/federation"
 	"go.uber.org/zap"
 
 	"github.com/apache/incubator-yunikorn-core/pkg/api"
@@ -43,6 +44,13 @@ func main() {
 		zap.String("name", constants.SchedulerName))
 
 	serviceContext := entrypoint.StartAllServices()
+
+	// federation
+	member := federation.GetMembershipService()
+	// register itself to the head server
+	if err := member.ReconcileMembership(); err == nil {
+		member.Start()
+	}
 
 	if sa, ok := serviceContext.RMProxy.(api.SchedulerAPI); ok {
 		ss := newShimScheduler(sa, conf.GetSchedulerConf())

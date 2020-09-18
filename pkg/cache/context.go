@@ -508,6 +508,12 @@ func (ctx *Context) GetApplication(appID string) interfaces.ManagedApp {
 	return nil
 }
 
+func (ctx *Context) GetNode(nodeID string) *SchedulerNode {
+	ctx.lock.RLock()
+	defer ctx.lock.RUnlock()
+	return ctx.nodes.getNode(nodeID)
+}
+
 func (ctx *Context) RemoveApplication(appID string) error {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()

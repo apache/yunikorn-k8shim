@@ -18,6 +18,8 @@
 
 package events
 
+import "github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
+
 const EnterState = "enter_state"
 
 //----------------------------------------------
@@ -146,5 +148,20 @@ type SchedulerNodeEvent interface {
 
 	// an event can have multiple arguments, these arguments will be passed to
 	// state machines' callbacks when doing state transition
+	GetArgs() []interface{}
+}
+
+type FederationEventType string
+
+const (
+  Update FederationEventType = "Update"
+)
+
+type FederationEvent interface {
+	// the type of this event
+	GetEvent() FederationEventType
+
+	GetConfirmedUpdates() []*si.UpdateRequest
+
 	GetArgs() []interface{}
 }

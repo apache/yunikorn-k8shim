@@ -125,12 +125,7 @@ sched_image: scheduler
 	@coreSHA=$$(go list -m "github.com/apache/incubator-yunikorn-core" | cut -d "-" -f5) ; \
 	siSHA=$$(go list -m "github.com/apache/incubator-yunikorn-scheduler-interface" | cut -d "-" -f6) ; \
 	shimSHA=$$(git rev-parse --short=12 HEAD) ; \
-	docker build ./deployments/image/configmap -t ${REGISTRY}/yunikorn:scheduler-${VERSION} \
-	--label "yunikorn-core-revision=$${coreSHA}" \
-	--label "yunikorn-scheduler-interface-revision=$${siSHA}" \
-	--label "yunikorn-k8shim-revision=$${shimSHA}" \
-	--label "BuildTimeStamp=${DATE}" \
-	--label "Version=${VERSION}"
+	docker build ./deployments/image/configmap -t yunikorn/yunikorn-member:latest
 	@mv -f ./deployments/image/configmap/Dockerfile.bkp ./deployments/image/configmap/Dockerfile
 	@rm -f ./deployments/image/configmap/${BINARY}
 	@rm -rf ./deployments/image/configmap/admission-controller-init-scripts/
