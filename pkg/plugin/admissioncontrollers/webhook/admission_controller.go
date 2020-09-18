@@ -24,6 +24,9 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os"
+	"strconv"
+	"strings"
 
 	"go.uber.org/zap"
 	"k8s.io/api/admission/v1beta1"
@@ -37,8 +40,9 @@ import (
 )
 
 const (
-	autoGenAppPrefix = "yunikorn"
-	autoGenAppSuffix = "autogen"
+	autoGenAppPrefix             = "yunikorn"
+	autoGenAppSuffix             = "autogen"
+	enableConfigHotRefreshEnvVar = "ENABLE_CONFIG_HOT_REFRESH"
 )
 
 var (
@@ -179,8 +183,34 @@ func updateLabels(namespace string, pod *v1.Pod, patch []patchOperation) []patch
 	return patch
 }
 
+func isConfigMapUpdateAllowed(userInfo string) bool {
+	hotRefreshEnabled := os.Getenv(enableConfigHotRefreshEnvVar)
+	allowed, err := strconv.ParseBool(hotRefreshEnabled)
+	if err != nil {
+		log.Logger().Error("Failed to parse ENABLE_CONFIG_HOT_REFRESH value",
+			zap.String("ENABLE_CONFIG_HOT_REFRESH", hotRefreshEnabled))
+		return false
+	}
+	if allowed || strings.Contains(userInfo, "yunikorn-admin") {
+		return true
+	}
+	return false
+}
+
 func (c *admissionController) validateConf(ar *v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
 	req := ar.Request
+	if !isConfigMapUpdateAllowed(req.UserInfo.Username) {
+		return &v1beta1.AdmissionResponse{
+			Allowed: false,
+			Result: &metav1.Status{
+				Message: fmt.Sprintf("ConfigHotRefresh is disabled. " +
+					"Please use the REST API to update the configuration, or enable configHotRefresh"),
+			},
+		}
+	}
+	log.Logger().Error("User data:",
+		zap.String("name", req.Name),
+		zap.Any("UserInfo", req.UserInfo))
 	log.Logger().Info("AdmissionReview",
 		zap.Any("Kind", req.Kind),
 		zap.String("Namespace", req.Namespace),

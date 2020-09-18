@@ -60,12 +60,13 @@ func NewMockedAPIProvider() *MockedAPIProvider {
 			AppClient:         fake.NewSimpleClientset(),
 			PodInformer:       nil,
 			NodeInformer:      test.NewMockedNodeInformer(),
-			ConfigMapInformer: nil,
+			ConfigMapInformer: test.NewMockedConfigMapInformer(),
 			PVInformer:        &MockedPersistentVolumeInformer{},
 			PVCInformer:       &MockedPersistentVolumeClaimInformer{},
 			StorageInformer:   &MockedStorageClassInformer{},
 			VolumeBinder:      nil,
 			AppInformer:       test.NewAppInformerMock(),
+			NamespaceInformer: test.NewMockNamespaceInformer(),
 		},
 	}
 }

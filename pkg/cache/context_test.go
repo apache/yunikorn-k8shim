@@ -19,6 +19,7 @@
 package cache
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -33,7 +34,9 @@ import (
 	"github.com/apache/incubator-yunikorn-core/pkg/common"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/test"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/dispatcher"
@@ -672,4 +675,168 @@ func TestPublishEventsCorrectly(t *testing.T) {
 		}
 	}, 5*time.Millisecond, 20*time.Millisecond)
 	assert.NilError(t, err, "event should have been emitted")
+}
+
+func TestAddApplicationsWithTags(t *testing.T) {
+	context := initContextForTest()
+
+	lister, ok := context.apiProvider.GetAPIs().NamespaceInformer.Lister().(*test.MockNamespaceLister)
+	if !ok {
+		t.Fatalf("could not mock NamespaceLister")
+	}
+
+	// set up namespaces
+	ns1 := v1.Namespace{
+		ObjectMeta: apis.ObjectMeta{
+			Name: "test1",
+		},
+	}
+	lister.Add(&ns1)
+	ns2 := v1.Namespace{
+		ObjectMeta: apis.ObjectMeta{
+			Name: "test2",
+			Annotations: map[string]string{
+				"yunikorn.apache.org/namespace.max.memory": "256M",
+				"yunikorn.apache.org/parentqueue":          "root.test",
+			},
+		},
+	}
+	lister.Add(&ns2)
+
+	// add application with empty namespace
+	context.AddApplication(&interfaces.AddApplicationRequest{
+		Metadata: interfaces.ApplicationMetadata{
+			ApplicationID: "app00001",
+			QueueName:     "root.a",
+			User:          "test-user",
+			Tags: map[string]string{
+				constants.AppTagNamespace: "",
+			},
+		},
+		Recovery: false,
+	})
+
+	// add application with non-existing namespace
+	context.AddApplication(&interfaces.AddApplicationRequest{
+		Metadata: interfaces.ApplicationMetadata{
+			ApplicationID: "app00002",
+			QueueName:     "root.a",
+			User:          "test-user",
+			Tags: map[string]string{
+				constants.AppTagNamespace: "non-existing",
+			},
+		},
+		Recovery: false,
+	})
+
+	// add application with unannotated namespace
+	context.AddApplication(&interfaces.AddApplicationRequest{
+		Metadata: interfaces.ApplicationMetadata{
+			ApplicationID: "app00003",
+			QueueName:     "root.a",
+			User:          "test-user",
+			Tags: map[string]string{
+				constants.AppTagNamespace: "test1",
+			},
+		},
+		Recovery: false,
+	})
+
+	// add application with annotated namespace
+	request := &interfaces.AddApplicationRequest{
+		Metadata: interfaces.ApplicationMetadata{
+			ApplicationID: "app00004",
+			QueueName:     "root.a",
+			User:          "test-user",
+			Tags: map[string]string{
+				constants.AppTagNamespace: "test2",
+			},
+		},
+		Recovery: false,
+	}
+	context.AddApplication(request)
+
+	// check that request has additional annotations
+	quotaStr, ok := request.Metadata.Tags[constants.AppTagNamespaceResourceQuota]
+	if !ok {
+		t.Fatalf("resource quota tag is not updated from the namespace")
+	}
+	quotaRes := si.Resource{}
+	if err := json.Unmarshal([]byte(quotaStr), &quotaRes); err == nil {
+		if quotaRes.Resources == nil || quotaRes.Resources["memory"] == nil {
+			t.Fatalf("could not find parsed memory resource from annotation")
+		}
+		assert.Equal(t, quotaRes.Resources["memory"].Value, int64(256))
+	} else {
+		t.Fatalf("resource parsing failed")
+	}
+	parentQueue, ok := request.Metadata.Tags[constants.AppTagNamespaceParentQueue]
+	if !ok {
+		t.Fatalf("parent queue tag is not updated from the namespace")
+	}
+	assert.Equal(t, parentQueue, "root.test")
+}
+
+func TestFindYKConfigMap(t *testing.T) {
+	goodYKConfigmap := v1.ConfigMap{
+		ObjectMeta: apis.ObjectMeta{
+			Name:   constants.DefaultConfigMapName,
+			Labels: map[string]string{"app": "yunikorn", "label2": "value2"},
+		},
+		Data: map[string]string{"queues.yaml": "OldData"},
+	}
+	randomConfigMap := v1.ConfigMap{
+		ObjectMeta: apis.ObjectMeta{
+			Name: "configMap",
+		},
+	}
+	testCases := []struct {
+		name          string
+		expectedError bool
+		configMaps    []*v1.ConfigMap
+	}{
+		{"Nil configmaps", true, nil},
+		{"Empty configmaps", true, []*v1.ConfigMap{}},
+		{"Yunikorn configmap found", false, []*v1.ConfigMap{&goodYKConfigmap, &randomConfigMap}},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			configMap, err := findYKConfigMap(tc.configMaps)
+			if tc.expectedError {
+				assert.Assert(t, err != nil, "Error is expected")
+			} else {
+				assert.Assert(t, configMap.Name == constants.DefaultConfigMapName, "Returned configmap is wrong")
+				assert.Assert(t, len(configMap.Data) == 1, "Returned configmap has unexpected data")
+				assert.Assert(t, configMap.Name == constants.DefaultConfigMapName, "Returned configmap is wrong")
+				assert.Assert(t, configMap.Data["queues.yaml"] == "OldData", "Old configmap value is wrong")
+			}
+		})
+	}
+}
+
+func TestSaveConfigmap(t *testing.T) {
+	// YK configmap not found
+	context := initContextForTest()
+	newConf := si.UpdateConfigurationRequest{
+		Configs: "newConfig",
+	}
+	resp := context.SaveConfigmap(&newConf)
+	assert.Equal(t, false, resp.Success, "Successful update expected")
+	assert.Assert(t, strings.Contains(resp.Reason, "not found"), "Unexpected reason returned")
+
+	// successful update
+	configMaps, err := context.apiProvider.GetAPIs().ConfigMapInformer.Lister().List(nil)
+	assert.NilError(t, err, "No error expected")
+	for _, c := range configMaps {
+		_, err := context.apiProvider.GetAPIs().KubeClient.GetClientSet().CoreV1().ConfigMaps(c.Namespace).Create(c)
+		assert.NilError(t, err, "No error expected")
+	}
+	resp = context.SaveConfigmap(&newConf)
+	assert.Equal(t, true, resp.Success, "Successful update expected")
+
+	//hot-refresh enabled
+	context.apiProvider.GetAPIs().Conf.EnableConfigHotRefresh = true
+	resp = context.SaveConfigmap(&newConf)
+	assert.Equal(t, false, resp.Success, "Failure is expected")
+	assert.Assert(t, strings.Contains(resp.Reason, "hot-refresh is enabled"), "Unexpected reason")
 }

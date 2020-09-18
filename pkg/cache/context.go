@@ -26,6 +26,7 @@ import (
 
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/tools/cache"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
 
@@ -280,17 +281,21 @@ func (ctx *Context) addConfigMaps(obj interface{}) {
 
 // when detects the configMap for the scheduler is updated, trigger hot-refresh
 func (ctx *Context) updateConfigMaps(obj, newObj interface{}) {
-	log.Logger().Debug("trigger scheduler to reload configuration")
-	// When update event is received, it is not guaranteed the data mounted to the pod
-	// is also updated. This is because the actual update in pod's volume is ensured
-	// by kubelet, kubelet is checking whether the mounted ConfigMap is fresh on every
-	// periodic sync. As a result, the total delay from the moment when the ConfigMap
-	// is updated to the moment when new keys are projected to the pod can be as long
-	// as kubelet sync period + ttl of ConfigMaps cache in kubelet.
-	// We trigger configuration reload, on yunikorn-core side, it keeps checking config
-	// file state once this is called. And the actual reload happens when it detects
-	// actual changes on the content.
-	ctx.triggerReloadConfig()
+	if ctx.apiProvider.GetAPIs().Conf.EnableConfigHotRefresh {
+		log.Logger().Debug("trigger scheduler to reload configuration")
+		// When update event is received, it is not guaranteed the data mounted to the pod
+		// is also updated. This is because the actual update in pod's volume is ensured
+		// by kubelet, kubelet is checking whether the mounted ConfigMap is fresh on every
+		// periodic sync. As a result, the total delay from the moment when the ConfigMap
+		// is updated to the moment when new keys are projected to the pod can be as long
+		// as kubelet sync period + ttl of ConfigMaps cache in kubelet.
+		// We trigger configuration reload, on yunikorn-core side, it keeps checking config
+		// file state once this is called. And the actual reload happens when it detects
+		// actual changes on the content.
+		ctx.triggerReloadConfig()
+	} else {
+		log.Logger().Warn("Skip to reload scheduler configuration")
+	}
 }
 
 // when detects the configMap for the scheduler is deleted, no operation needed here
@@ -428,13 +433,34 @@ func (ctx *Context) NotifyTaskComplete(appID, taskID string) {
 	}
 }
 
-// get namespace resource quota from annotation
+// update application tags in the AddApplicationRequest based on the namespace annotation
+// adds the following tags to the request based on annotations (if exist):
+//    - namespace.resourcequota
+//    - namespace.parentqueue
+func (ctx *Context) updateApplicationTags(request *interfaces.AddApplicationRequest, namespace string) {
+	namespaceObj := ctx.getNamespaceObject(namespace)
+	if namespaceObj == nil {
+		return
+	}
+	// add resource quota info as an app tag
+	resourceQuota := utils.GetNamespaceQuotaFromAnnotation(namespaceObj)
+	if resourceQuota != nil && !common.IsZero(resourceQuota) {
+		if quotaStr, err := json.Marshal(resourceQuota); err == nil {
+			request.Metadata.Tags[constants.AppTagNamespaceResourceQuota] = string(quotaStr)
+		}
+	}
+	// add parent queue info as an app tag
+	parentQueue := namespaceObj.Annotations["yunikorn.apache.org/parentqueue"]
+	if parentQueue != "" {
+		request.Metadata.Tags[constants.AppTagNamespaceParentQueue] = parentQueue
+	}
+}
+
+// returns the namespace object from the namespace's name
 // if the namespace is unable to be listed from api-server, a nil is returned
-// if the annotation doesn't have the quota defined, a nil is returned
-// if cpu or memory quota is defined in the annotation, a corresponding si.Resource is returned
-func (ctx *Context) getNamespaceResourceQuota(namespace string) *si.Resource {
+func (ctx *Context) getNamespaceObject(namespace string) *v1.Namespace {
 	if namespace == "" {
-		log.Logger().Debug("skip getting resource quota because namespace is empty")
+		log.Logger().Debug("could not get namespace from empty string")
 		return nil
 	}
 
@@ -447,8 +473,7 @@ func (ctx *Context) getNamespaceResourceQuota(namespace string) *si.Resource {
 		log.Logger().Error("failed to get app namespace", zap.Error(err))
 		return nil
 	}
-
-	return utils.GetNamespaceQuotaFromAnnotation(namespaceObj)
+	return namespaceObj
 }
 
 func (ctx *Context) AddApplication(request *interfaces.AddApplicationRequest) interfaces.ManagedApp {
@@ -460,17 +485,11 @@ func (ctx *Context) AddApplication(request *interfaces.AddApplicationRequest) in
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
 
-	// add resource quota info as a app tag
 	if ns, ok := request.Metadata.Tags[constants.AppTagNamespace]; ok {
 		log.Logger().Debug("app namespace info",
 			zap.String("appID", request.Metadata.ApplicationID),
 			zap.String("namespace", ns))
-		resourceQuota := ctx.getNamespaceResourceQuota(ns)
-		if resourceQuota != nil && !common.IsZero(resourceQuota) {
-			if quotaStr, err := json.Marshal(resourceQuota); err == nil {
-				request.Metadata.Tags[constants.AppTagNamespaceResourceQuota] = string(quotaStr)
-			}
-		}
+		ctx.updateApplicationTags(request, ns)
 	}
 
 	app := NewApplication(
@@ -765,4 +784,63 @@ func (ctx *Context) SchedulerNodeEventHandler() func(obj interface{}) {
 	}
 	// this is not required in some tests
 	return nil
+}
+
+func findYKConfigMap(configMaps []*v1.ConfigMap) (*v1.ConfigMap, error) {
+	if len(configMaps) == 0 {
+		return nil, fmt.Errorf("configmap with label app:yunikorn not found")
+	}
+	for _, c := range configMaps {
+		if c.Name == constants.DefaultConfigMapName {
+			return c, nil
+		}
+	}
+	return nil, fmt.Errorf("configmap with name %s not found", constants.DefaultConfigMapName)
+}
+
+/*
+Save the configmap and returns the old one and an error if the process failed
+*/
+func (ctx *Context) SaveConfigmap(request *si.UpdateConfigurationRequest) *si.UpdateConfigurationResponse {
+	// if hot-refresh is enabled, configMap change through the API is not allowed
+	if ctx.apiProvider.GetAPIs().Conf.EnableConfigHotRefresh {
+		return &si.UpdateConfigurationResponse{
+			Success: false,
+			Reason: fmt.Sprintf("hot-refresh is enabled. To use the API for configuration update, " +
+				"set enableConfigHotRefresh = true and restart the scheduler"),
+		}
+	}
+	slt := labels.SelectorFromSet(labels.Set{constants.LabelApp: "yunikorn"})
+
+	configMaps, err := ctx.apiProvider.GetAPIs().ConfigMapInformer.Lister().List(slt)
+	if err != nil {
+		return &si.UpdateConfigurationResponse{
+			Success: false,
+			Reason:  err.Error(),
+		}
+	}
+	ykconf, err := findYKConfigMap(configMaps)
+	if err != nil {
+		return &si.UpdateConfigurationResponse{
+			Success: false,
+			Reason:  err.Error(),
+		}
+	}
+
+	newConfData := map[string]string{"queues.yaml": strings.ReplaceAll(request.Configs, "\r\n", "\n")}
+	newConf := ykconf.DeepCopy()
+	oldConfData := ykconf.Data["queues.yaml"]
+	newConf.Data = newConfData
+	_, err = ctx.apiProvider.GetAPIs().KubeClient.GetClientSet().CoreV1().ConfigMaps(ykconf.Namespace).Update(newConf)
+	if err != nil {
+		return &si.UpdateConfigurationResponse{
+			Success: false,
+			Reason:  err.Error(),
+		}
+	}
+	log.Logger().Info("ConfigMap updated successfully")
+	return &si.UpdateConfigurationResponse{
+		Success:   true,
+		OldConfig: oldConfData,
+	}
 }

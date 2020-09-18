@@ -21,7 +21,7 @@ metadata:
   name: yunikorn-rbac
 subjects:
   - kind: ServiceAccount
-    name: default
+    name: yunikorn-admin
     namespace: default
 roleRef:
   kind: ClusterRole

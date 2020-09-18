@@ -16,27 +16,38 @@
  limitations under the License.
 */
 
-package client
+package test
 
 import (
+	"fmt"
+
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
+	"k8s.io/apimachinery/pkg/labels"
+	listersV1 "k8s.io/client-go/listers/core/v1"
 )
 
-type KubeClient interface {
-	// bind a pod to a specific host
-	Bind(pod *v1.Pod, hostID string) error
-
-	// Delete a pod from a host
-	Delete(pod *v1.Pod) error
-
-	// minimal expose this, only informers factory needs it
-	GetClientSet() kubernetes.Interface
-
-	GetConfigs() *rest.Config
+type MockNamespaceLister struct {
+	namespaces map[string]*v1.Namespace
 }
 
-func NewKubeClient(kc string) KubeClient {
-	return newSchedulerKubeClient(kc)
+func NewMockNamespaceLister() listersV1.NamespaceLister {
+	return &MockNamespaceLister{
+		namespaces: make(map[string]*v1.Namespace),
+	}
+}
+
+func (nsl *MockNamespaceLister) List(labels.Selector) (ret []*v1.Namespace, err error) {
+	return nil, nil
+}
+
+func (nsl *MockNamespaceLister) Add(ns *v1.Namespace) {
+	nsl.namespaces[ns.Name] = ns
+}
+
+func (nsl *MockNamespaceLister) Get(name string) (*v1.Namespace, error) {
+	ns, ok := nsl.namespaces[name]
+	if !ok {
+		return nil, fmt.Errorf("namespace is not found")
+	}
+	return ns, nil
 }

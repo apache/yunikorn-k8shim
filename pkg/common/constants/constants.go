@@ -26,11 +26,13 @@ const DefaultRackName = "/rack-default"
 // Application
 const LabelApp = "app"
 const LabelApplicationID = "applicationId"
+const AnnotationApplicationID = "yunikorn.apache.org/app-id"
 const LabelQueueName = "queue"
 const ApplicationDefaultQueue = "root.sandbox"
 const DefaultPartition = "default"
 const AppTagNamespace = "namespace"
 const AppTagNamespaceResourceQuota = "namespace.resourcequota"
+const AppTagNamespaceParentQueue = "namespace.parentqueue"
 const DefaultAppNamespace = "default"
 
 // Resource

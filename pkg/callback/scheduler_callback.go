@@ -166,3 +166,7 @@ func (callback *AsyncRMCallback) SendEvent(eventRecords []*si.EventRecord) {
 func (callback *AsyncRMCallback) Update(request *si.UpdateContainerSchedulingStateRequest) {
 	callback.context.HandleContainerStateUpdate(request)
 }
+
+func (callback *AsyncRMCallback) UpdateConfiguration(args *si.UpdateConfigurationRequest) *si.UpdateConfigurationResponse {
+	return callback.context.SaveConfigmap(args)
+}
