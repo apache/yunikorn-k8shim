@@ -248,15 +248,3 @@ func (n *SchedulerNode) enterState(event *fsm.Event) {
 		zap.String("destination", event.Dst),
 		zap.String("event", event.Event))
 }
-
-func (n *SchedulerNode) GetCapacity() *si.Resource {
-	n.lock.RLock()
-	defer n.lock.RUnlock()
-	return n.capacity
-}
-
-func (n *SchedulerNode) GetOccupiedResources() *si.Resource {
-	n.lock.RLock()
-	defer n.lock.RUnlock()
-	return n.occupied
-}

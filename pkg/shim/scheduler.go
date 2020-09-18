@@ -22,7 +22,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/federation"
 	"github.com/looplab/fsm"
 	"go.uber.org/zap"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -112,7 +111,6 @@ func newShimSchedulerInternal(ctx *cache.Context, apiFactory client.APIProvider,
 	dispatcher.RegisterEventHandler(dispatcher.EventTypeNode, ctx.SchedulerNodeEventHandler())
 	dispatcher.RegisterEventHandler(dispatcher.EventTypeScheduler, ss.SchedulerEventHandler())
 	dispatcher.RegisterEventHandler(dispatcher.EventTypeAppStatus, am.ApplicationStateUpdateEventHandler())
-	dispatcher.RegisterEventHandler(dispatcher.EventTypeFederation, federation.GetMembershipService().FederationEventHandler())
 
 	return ss
 }

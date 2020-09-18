@@ -135,7 +135,7 @@ func initConfigs() {
 	predicateList := flag.String("predicates", "",
 		fmt.Sprintf("comma-separated list of predicates, valid predicates are: %s, "+
 			"the program will exit if any invalid predicates exist.", predicates.Ordering()))
-	operatorPluginList := flag.String("operatorPlugins", "general",
+	operatorPluginList := flag.String("operatorPlugins", "general,"+constants.AppManagerHandlerName,
 		"comma-separated list of operator plugin names, currently, only \"spark-operator-service\""+
 			"and"+constants.AppManagerHandlerName+"is supported.")
 
