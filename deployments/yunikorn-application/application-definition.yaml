@@ -50,14 +50,40 @@ spec:
         spec:
           type: object
           properties:
-            minMember:
-              type: integer
+            appId:
+              type: string
+            policy:
+              type: object
+              properties:
+                policy:
+                  type: string
+                timeout:
+                  type: integer
+                retrySecond:
+                  type: integer
             queue:
               type: string
               pattern: '^[a-zA-Z0-9_-]{1,64}([.]{1}[a-zA-Z0-9_-]{1,64})*$'
-            maxPendingSeconds:
-              type: integer
-              minimum: 1
+            taskGroups:
+              type: array
+              items:
+                type: object
+                properties:
+                  name: 
+                    type: string
+                  minMember:
+                    type: integer
+                  minResource:
+                    type: object
+                    properties:
+                      cpu:
+                        type: integer
+                        format: int32
+                        minimum: 1
+                      memory:
+                        type: integer
+                        format: int32
+                        minimum: 1    
         status:
           type: object
           properties:

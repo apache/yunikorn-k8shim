@@ -20,5 +20,19 @@ kind: Application
 metadata:
   name: example
 spec:
+  appId: "app0001"
+  schedulingPolicy:
+    name: TryOnce
+    timeout: 60
+    retrySecond: 0
   queue: root.default
-  maxPendingSeconds: 10
+  taskGroups:
+    - taskName: "test-task-0001"
+      taskResource:
+        cpu: 1
+        memory: 100
+    - taskName: "test-task-0002"
+      taskResource:
+        cpu: 2
+        memory: 200
+  

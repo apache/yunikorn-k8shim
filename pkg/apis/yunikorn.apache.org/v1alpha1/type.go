@@ -33,15 +33,42 @@ type Application struct {
 	Status ApplicationStatus `json:"status"`
 }
 
-//Spec part
+// Spec part
 
 type ApplicationSpec struct {
-	MinMember         int32  `json:"minMember"`
-	Queue             string `json:"queue"`
-	MaxPendingSeconds int32  `json:"maxPendingSeconds,omitempty"`
+	Appid     string         `json:"appId"`
+	Policy    SchedulePolicy `json:"schedulingPolicy"`
+	Queue     string         `json:"queue"`
+	TaskGroup []Task         `json:"taskGroups"`
 }
 
-//Status part
+type SchedulePolicy struct {
+	Policy      SchedulingPolicy `json:"name"`
+	Timeout     int64            `json:"timeout,omitempty"`
+	RetrySecond int64            `json:"retrySecond,omitempty"`
+}
+
+type SchedulingPolicy string
+
+const (
+	TryOnce    SchedulingPolicy = "TryOnce"
+	MaxRetry   SchedulingPolicy = "MaxRetry"
+	TryReserve SchedulingPolicy = "TryReserve"
+	TryPreempt SchedulingPolicy = "TryPreempt"
+)
+
+type Task struct {
+	Name        string       `json:"taskName"`
+	MinMember   int32        `json:"minMember"`
+	MinResource TaskResource `json:"minResource"`
+}
+
+type TaskResource struct {
+	CPU    int32 `json:"cpu"`
+	Memory int32 `json:"memory"`
+}
+
+// Status part
 
 type ApplicationStateType string
 
