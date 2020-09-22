@@ -19,6 +19,7 @@
 package v1alpha1
 
 import (
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -36,16 +37,14 @@ type Application struct {
 // Spec part
 
 type ApplicationSpec struct {
-	Appid     string         `json:"appId"`
 	Policy    SchedulePolicy `json:"schedulingPolicy"`
 	Queue     string         `json:"queue"`
 	TaskGroup []Task         `json:"taskGroups"`
 }
 
 type SchedulePolicy struct {
-	Policy      SchedulingPolicy `json:"name"`
-	Timeout     int64            `json:"timeout,omitempty"`
-	RetrySecond int64            `json:"retrySecond,omitempty"`
+	Policy    SchedulingPolicy      `json:"name"`
+	Parameter map[PolicyParam]int32 `json:"parameter,omitempty"`
 }
 
 type SchedulingPolicy string
@@ -57,15 +56,17 @@ const (
 	TryPreempt SchedulingPolicy = "TryPreempt"
 )
 
-type Task struct {
-	Name        string       `json:"taskName"`
-	MinMember   int32        `json:"minMember"`
-	MinResource TaskResource `json:"minResource"`
-}
+type PolicyParam string
 
-type TaskResource struct {
-	CPU    int32 `json:"cpu"`
-	Memory int32 `json:"memory"`
+const (
+	Timeout     PolicyParam = "Timeout"
+	RetrySecond PolicyParam = "RetrySecond"
+)
+
+type Task struct {
+	Name        string                       `json:"taskName"`
+	MinMember   int32                        `json:"minMember"`
+	MinResource map[string]resource.Quantity `json:"minResource"`
 }
 
 // Status part
