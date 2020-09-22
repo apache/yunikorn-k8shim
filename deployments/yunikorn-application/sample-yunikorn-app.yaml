@@ -28,11 +28,13 @@ spec:
   queue: root.default
   taskGroups:
     - taskName: "test-task-0001"
-      taskResource:
+      minMember: 1
+      minResource:
         cpu: "300m"
         memory: "128Mi"
     - taskName: "test-task-0002"
-      taskeRsource:
+      minMember: 2
+      minResource:
         cpu: "600m"
         memory: "128Mi"
   

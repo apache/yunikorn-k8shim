@@ -22,5 +22,12 @@ metadata:
   name: example_test
 spec:
   queue: //////
-  maxPendingSeconds: errortype
+  schedulingPolicy:
+    name: errorName
+  taskGroups:
+    - taskName: 123
+      minMember: "string"
+      minResource:
+        cpu: "ABC"
+        memory: "ABC"
   
