@@ -85,6 +85,7 @@ const (
 )
 
 type ApplicationStatus struct {
+	AppID      string               `json:"appID,,omitempty"`
 	AppStatus  ApplicationStateType `json:"applicationState,omitempty"`
 	Message    string               `json:"message,omitempty"`
 	LastUpdate metav1.Time          `json:"lastUpdate,omitempty"`

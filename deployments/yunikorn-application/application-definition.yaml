@@ -82,6 +82,8 @@ spec:
         status:
           type: object
           properties:
+            appID:
+              type: string
             appstatus:
               type: string
             message:
