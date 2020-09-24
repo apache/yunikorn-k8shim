@@ -171,7 +171,7 @@ func createApp(name string, namespace string, queue string) appv1.Application {
 			Queue: queue,
 			TaskGroup: []appv1.Task{
 				{
-					Name:      "test-task-001",
+					GroupName: "test-task-001",
 					MinMember: 0,
 				},
 			},
