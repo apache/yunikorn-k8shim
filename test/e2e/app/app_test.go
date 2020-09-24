@@ -76,7 +76,7 @@ var _ = ginkgo.Describe("App", func() {
 			gomega.Ω(appCRD.ObjectMeta.Namespace).To(gomega.Equal(dev))
 			policy := appCRD.Spec.Policy.Policy
 			gomega.Ω(string(policy)).To(gomega.Equal("TryOnce"))
-			gomega.Ω(appCRD.Spec.TaskGroup[0].Name).To(gomega.Equal("test-task-0001"))
+			gomega.Ω(appCRD.Spec.TaskGroup[0].GroupName).To(gomega.Equal("test-task-0001"))
 			gomega.Ω(appCRD.Spec.TaskGroup[0].MinMember).To(gomega.Equal(int32(1)))
 			anscpu := resource.MustParse("300m")
 			ansmem := resource.MustParse("128Mi")
