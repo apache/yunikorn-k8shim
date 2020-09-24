@@ -25,7 +25,7 @@ spec:
   schedulingPolicy:
     name: errorName
   taskGroups:
-    - taskName: 123
+    - groupName: 123
       minMember: "string"
       minResource:
         cpu: "ABC"

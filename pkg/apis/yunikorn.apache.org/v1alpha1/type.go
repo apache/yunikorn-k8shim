@@ -43,8 +43,8 @@ type ApplicationSpec struct {
 }
 
 type SchedulePolicy struct {
-	Policy    SchedulingPolicy      `json:"name"`
-	Parameter map[PolicyParam]int32 `json:"parameter,omitempty"`
+	Policy     SchedulingPolicy  `json:"name"`
+	Parameters map[string]string `json:"parameters,omitempty"`
 }
 
 type SchedulingPolicy string
@@ -56,15 +56,8 @@ const (
 	TryPreempt SchedulingPolicy = "TryPreempt"
 )
 
-type PolicyParam string
-
-const (
-	Timeout     PolicyParam = "Timeout"
-	RetrySecond PolicyParam = "RetrySecond"
-)
-
 type Task struct {
-	Name        string                       `json:"taskName"`
+	GroupName   string                       `json:"groupName"`
 	MinMember   int32                        `json:"minMember"`
 	MinResource map[string]resource.Quantity `json:"minResource"`
 }

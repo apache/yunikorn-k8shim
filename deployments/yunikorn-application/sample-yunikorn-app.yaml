@@ -22,17 +22,17 @@ metadata:
 spec:
   schedulingPolicy:
     name: TryOnce
-    parameter:
-      timeout: 60
-      retrySecond: 0
+    parameters:
+      timeout: "60"
+      retrySecond: "0"
   queue: root.default
   taskGroups:
-    - taskName: "test-task-0001"
+    - groupName: "test-task-0001"
       minMember: 1
       minResource:
         cpu: "300m"
         memory: "128Mi"
-    - taskName: "test-task-0002"
+    - groupName: "test-task-0002"
       minMember: 2
       minResource:
         cpu: "600m"

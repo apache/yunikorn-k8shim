@@ -55,10 +55,10 @@ spec:
               properties:
                 policy:
                   type: string
-                parameter:
+                parameters:
                   type: object
                   additionalProperties:
-                    type: integer
+                    type: string
             queue:
               type: string
               pattern: '^[a-zA-Z0-9_-]{1,64}([.]{1}[a-zA-Z0-9_-]{1,64})*$'
@@ -67,7 +67,7 @@ spec:
               items:
                 type: object
                 properties:
-                  name: 
+                  groupName: 
                     type: string
                   minMember:
                     type: integer

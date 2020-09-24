@@ -24,7 +24,7 @@ spec:
     name: TryOnce
   queue: root.default
   taskGroups:
-    - taskName: "test-task-0001"
+    - groupName: "test-task-0001"
       minMember: 1
       minResource:
         cpu: "300m"
