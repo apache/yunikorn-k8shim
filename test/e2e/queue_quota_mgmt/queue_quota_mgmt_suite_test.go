@@ -24,6 +24,8 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 
+	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/helpers/k8s"
+
 	"github.com/onsi/ginkgo/reporters"
 
 	"github.com/onsi/ginkgo"
@@ -31,7 +33,7 @@ import (
 	"github.com/onsi/gomega"
 
 	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/configmanager"
-	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/helpers/k8s"
+	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/helpers/common"
 )
 
 func init() {
@@ -40,8 +42,10 @@ func init() {
 
 var k = k8s.KubeCtl{}
 var oldConfigMap *v1.ConfigMap
+var annotation string
 
 var _ = BeforeSuite(func() {
+	annotation = "ann-" + common.RandSeq(10)
 	By("Enable basic scheduling config over config maps")
 	Ω(k.SetClient()).To(BeNil())
 	var c, err = k.GetConfigMaps(configmanager.YuniKornTestConfig.YkNamespace,
@@ -51,21 +55,12 @@ var _ = BeforeSuite(func() {
 
 	oldConfigMap = c.DeepCopy()
 	Ω(c).Should(BeEquivalentTo(oldConfigMap))
-	var configStr = `
-partitions:
-  -
-    name: default
-    placementrules:
-      - name: tag
-        value: namespace
-        create: true
-    queues:
-      - name: root
-        submitacl: '*'
-`
-	c.Data[configmanager.DefaultPolicyGroup] = configStr
-	var d, err2 = k.UpdateConfigMap(c, configmanager.YuniKornTestConfig.YkNamespace)
+	configStr, err2 := common.CreateBasicConfigMap().ToYAML()
 	Ω(err2).NotTo(HaveOccurred())
+
+	c.Data[configmanager.DefaultPolicyGroup] = configStr
+	var d, err3 = k.UpdateConfigMap(c, configmanager.YuniKornTestConfig.YkNamespace)
+	Ω(err3).NotTo(HaveOccurred())
 	Ω(d).NotTo(BeNil())
 })
 

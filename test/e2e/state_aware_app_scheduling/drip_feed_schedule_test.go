@@ -30,21 +30,6 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
 )
 
-func getSleepPodDef(namespace string, appName string, podName string) (*v1.Pod, error) {
-	var sleepPodDef, err = common.GetAbsPath("../testdata/sleeppod_template.yaml")
-	if err != nil {
-		return nil, err
-	}
-	var sleepObj, err2 = k8s.GetPodObj(sleepPodDef)
-	if err2 != nil {
-		return nil, err
-	}
-	sleepObj.Namespace = namespace
-	sleepObj.ObjectMeta.Labels["applicationId"] = appName
-	sleepObj.Name = podName
-	return sleepObj, nil
-}
-
 var _ = Describe("DripFeedSchedule:", func() {
 
 	var kClient k8s.KubeCtl
@@ -53,7 +38,7 @@ var _ = Describe("DripFeedSchedule:", func() {
 	var app1 = "app01-" + common.RandSeq(5)
 	var app2 = "app02-" + common.RandSeq(5)
 	var app3 = "app03-" + common.RandSeq(5)
-	var NS = "sleep-" + common.RandSeq(10)
+	var ns = "sleep-" + common.RandSeq(10)
 	var testTimeout float64 = 360
 	var running = yunikorn.States().Application.Running
 	var accepted = yunikorn.States().Application.Accepted
@@ -62,26 +47,29 @@ var _ = Describe("DripFeedSchedule:", func() {
 	BeforeEach(func() {
 		kClient = k8s.KubeCtl{}
 		Ω(kClient.SetClient()).To(BeNil())
-		By(fmt.Sprintf("Creating namespace: %s for sleep jobs", NS))
-		var ns1, err1 = kClient.CreateNamespace(NS, nil)
+		By(fmt.Sprintf("Creating namespace: %s for sleep jobs", ns))
+		var ns1, err1 = kClient.CreateNamespace(ns, nil)
 		Ω(err1).NotTo(HaveOccurred())
 		Ω(ns1.Status.Phase).To(Equal(v1.NamespaceActive))
 	})
 
+	// Disabling/Skipping the tests as per the comment in
+	// https://jira.cloudera.com/browse/COMPX-4041
+	// Product fix is implemented as part of YUNIKORN-317
 	PIt("Test_State_Aware_App_Sorting", func() {
 		By("Submit 3 apps(app01, app02, app03) with one pod each")
-		for _, each := range []string{app1, app2, app3} {
-			var def, err1 = getSleepPodDef(NS, each, "pod1-"+common.RandSeq(5))
-			Ω(err1).NotTo(HaveOccurred())
-			_, err = kClient.CreatePod(def, NS)
-			Ω(err1).NotTo(HaveOccurred())
+		for _, appID := range []string{app1, app2, app3} {
+			podName := "pod1-" + common.RandSeq(5)
+			sleepPodConf := common.SleepPodConfig{Name: podName, NS: ns, AppID: appID}
+			_, err = kClient.CreatePod(common.InitSleepPod(sleepPodConf), ns)
+			Ω(err).NotTo(HaveOccurred())
 		}
 
-		By(fmt.Sprintf("Get apps from specific queue: %s", NS))
+		By(fmt.Sprintf("Get apps from specific queue: %s", ns))
 		var appsFromQueue []map[string]interface{}
 		//Poll for apps to appear in the queue
 		err = wait.PollImmediate(time.Second, time.Duration(60)*time.Second, func() (done bool, err error) {
-			appsFromQueue, err = restClient.GetAppsFromSpecificQueue("root." + NS)
+			appsFromQueue, err = restClient.GetAppsFromSpecificQueue("root." + ns)
 			if len(appsFromQueue) == 3 {
 				return true, nil
 			}
@@ -127,33 +115,26 @@ var _ = Describe("DripFeedSchedule:", func() {
 			app2: {running, running, starting},
 			app3: {running, running, running},
 		}
-		for _, each := range []string{app1, app2, app3} {
-			By(fmt.Sprintf("Add one more pod to the app: %s", each))
-			var podDef, err = getSleepPodDef(NS, each, "pod2-"+common.RandSeq(5))
+		for _, appID := range []string{app1, app2, app3} {
+			By(fmt.Sprintf("Add one more pod to the app: %s", appID))
+			podName := "pod2-" + common.RandSeq(5)
+			sleepPodConf := common.SleepPodConfig{Name: podName, NS: ns, AppID: appID}
+			_, err = kClient.CreatePod(common.InitSleepPod(sleepPodConf), ns)
 			Ω(err).NotTo(HaveOccurred())
-			_, err = kClient.CreatePod(podDef, NS)
+			By(fmt.Sprintf("Verify that the app: %s is in running state", appID))
+			err = restClient.WaitForAppStateTransition(app1, appStates[appID][0], 60)
 			Ω(err).NotTo(HaveOccurred())
-			By(fmt.Sprintf("Verify that the app: %s is in running state", each))
-			err = restClient.WaitForAppStateTransition(app1, appStates[each][0], 60)
+			err = restClient.WaitForAppStateTransition(app2, appStates[appID][1], 60)
 			Ω(err).NotTo(HaveOccurred())
-			err = restClient.WaitForAppStateTransition(app2, appStates[each][1], 60)
-			Ω(err).NotTo(HaveOccurred())
-			err = restClient.WaitForAppStateTransition(app3, appStates[each][2], 60)
+			err = restClient.WaitForAppStateTransition(app3, appStates[appID][2], 60)
 			Ω(err).NotTo(HaveOccurred())
 		}
 
 	}, testTimeout)
 
 	AfterEach(func() {
-		By(fmt.Sprintf("Killing all jobs under %s namespace", NS))
-		var pods, err = kClient.GetPodNamesFromNS(NS)
-		Ω(err).NotTo(HaveOccurred())
-		for _, each := range pods {
-			err = kClient.DeletePod(each, NS)
-			Ω(err).NotTo(HaveOccurred())
-		}
-		By(fmt.Sprintf("Deleting %s namespaces", NS))
-		err = kClient.DeleteNamespace(NS)
+		By("Tearing down namespace: " + ns)
+		err := k.TearDownNamespace(ns)
 		Ω(err).NotTo(HaveOccurred())
 	})
 })

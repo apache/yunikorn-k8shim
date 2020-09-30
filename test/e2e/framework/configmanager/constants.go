@@ -29,8 +29,9 @@ const (
 	// that contain logs, outputs etc
 	LogPerm = os.FileMode(0666)
 
-	YKScheduler = "yunikorn-scheduler"
-	YKAdmCtrl   = "yunikorn-admission-controller"
+	YKScheduler   = "yunikorn-scheduler"
+	SchedulerName = "yunikorn"
+	YKAdmCtrl     = "yunikorn-admission-controller"
 	// YuniKorn service name
 	YKSvcName = "yunikorn-service"
 
