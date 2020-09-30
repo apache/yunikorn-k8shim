@@ -375,7 +375,6 @@ func (k *KubeCtl) CreateConfigMaps(namespace string, cMap *v1.ConfigMap) (*v1.Co
 	return k.clientSet.CoreV1().ConfigMaps(namespace).Create(cMap)
 }
 
-
 func (k *KubeCtl) GetEvents(namespace string) (*v1.EventList, error) {
 	return k.clientSet.CoreV1().Events(namespace).List(metav1.ListOptions{})
 }
