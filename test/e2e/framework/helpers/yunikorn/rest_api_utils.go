@@ -30,6 +30,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/wait"
 
+	"github.com/apache/incubator-yunikorn-core/pkg/webservice/dao"
 	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/configmanager"
 )
 
@@ -80,6 +81,16 @@ func (c *RClient) do(req *http.Request, v interface{}) (*http.Response, error) {
 	defer resp.Body.Close()
 	err = json.NewDecoder(resp.Body).Decode(v)
 	return resp, err
+}
+
+func (c *RClient) GetPartitions() (*dao.PartitionDAOInfo, error) {
+	req, err := c.newRequest("GET", configmanager.QueuesPath, nil)
+	if err != nil {
+		return nil, err
+	}
+	partitions := new(dao.PartitionDAOInfo)
+	_, err = c.do(req, partitions)
+	return partitions, err
 }
 
 func (c *RClient) GetQueues() (map[string]interface{}, error) {
@@ -189,4 +200,30 @@ func (c *RClient) AreAllExecPodsAllotted(appID string, execPodCount int) wait.Co
 		}
 		return false, nil
 	}
+}
+
+func isRootSched(policy string) wait.ConditionFunc {
+	return func() (bool, error) {
+		restClient := RClient{}
+		pInfo, err := restClient.GetPartitions()
+		if err != nil {
+			return false, err
+		}
+		if pInfo == nil {
+			return false, errors.New("no response from rest client")
+		}
+
+		rootInfo := pInfo.Queues
+		if policy == "default" {
+			return len(rootInfo.Properties) == 0, nil
+		} else if rootInfo.Properties["application.sort.policy"] == policy {
+			return true, nil
+		}
+
+		return false, nil
+	}
+}
+
+func WaitForSchedPolicy(policy string, timeout time.Duration) error {
+	return wait.PollImmediate(2*time.Second, timeout, isRootSched(policy))
 }
