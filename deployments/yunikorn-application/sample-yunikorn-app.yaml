@@ -20,5 +20,21 @@ kind: Application
 metadata:
   name: example
 spec:
+  schedulingPolicy:
+    name: TryOnce
+    parameters:
+      timeout: "60"
+      retrySecond: "0"
   queue: root.default
-  maxPendingSeconds: 10
+  taskGroups:
+    - groupName: "test-task-0001"
+      minMember: 1
+      minResource:
+        cpu: "300m"
+        memory: "128Mi"
+    - groupName: "test-task-0002"
+      minMember: 2
+      minResource:
+        cpu: "600m"
+        memory: "128Mi"
+  
