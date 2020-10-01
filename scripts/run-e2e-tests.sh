@@ -90,7 +90,7 @@ function install_cluster() {
 
   # create K8s cluster
   echo "step 5/6: installing K8s cluster using kind"
-  kind create cluster --name ${k8s_cluster_name} --image ${kind_node_image}
+  kind create cluster --name ${k8s_cluster_name} --image ${kind_node_image} --config=./scripts/kind.yaml
   exit_on_error "instal K8s cluster failed"
   kubectl cluster-info --context kind-${k8s_cluster_name}
   exit_on_error "set K8s cluster context failed"
