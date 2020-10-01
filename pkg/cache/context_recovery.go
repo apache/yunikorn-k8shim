@@ -149,8 +149,6 @@ func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) err
 				zap.String("nodeState", node.getNodeState()))
 			switch node.getNodeState() {
 			case events.States().Node.New:
-				log.Logger().Info("node recovering",
-					zap.String("nodeID", node.name))
 				dispatcher.Dispatch(CachedSchedulerNodeEvent{
 					NodeID: node.name,
 					Event:  events.RecoverNode,
