@@ -19,6 +19,7 @@
 package v1alpha1
 
 import (
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -33,15 +34,35 @@ type Application struct {
 	Status ApplicationStatus `json:"status"`
 }
 
-//Spec part
+// Spec part
 
 type ApplicationSpec struct {
-	MinMember         int32  `json:"minMember"`
-	Queue             string `json:"queue"`
-	MaxPendingSeconds int32  `json:"maxPendingSeconds,omitempty"`
+	Policy    SchedulePolicy `json:"schedulingPolicy"`
+	Queue     string         `json:"queue"`
+	TaskGroup []Task         `json:"taskGroups"`
 }
 
-//Status part
+type SchedulePolicy struct {
+	Policy     SchedulingPolicy  `json:"name"`
+	Parameters map[string]string `json:"parameters,omitempty"`
+}
+
+type SchedulingPolicy string
+
+const (
+	TryOnce    SchedulingPolicy = "TryOnce"
+	MaxRetry   SchedulingPolicy = "MaxRetry"
+	TryReserve SchedulingPolicy = "TryReserve"
+	TryPreempt SchedulingPolicy = "TryPreempt"
+)
+
+type Task struct {
+	GroupName   string                       `json:"groupName"`
+	MinMember   int32                        `json:"minMember"`
+	MinResource map[string]resource.Quantity `json:"minResource"`
+}
+
+// Status part
 
 type ApplicationStateType string
 
@@ -57,6 +78,7 @@ const (
 )
 
 type ApplicationStatus struct {
+	AppID      string               `json:"appID,,omitempty"`
 	AppStatus  ApplicationStateType `json:"applicationState,omitempty"`
 	Message    string               `json:"message,omitempty"`
 	LastUpdate metav1.Time          `json:"lastUpdate,omitempty"`

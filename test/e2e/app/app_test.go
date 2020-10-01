@@ -21,6 +21,7 @@ import (
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
 
@@ -71,9 +72,16 @@ var _ = ginkgo.Describe("App", func() {
 		ginkgo.It("Verify that the Application is created", func() {
 			ginkgo.By("Verify that the Application is created")
 			gomega.Ω(appCRD.Spec.Queue).To(gomega.Equal("root.default"))
-			gomega.Ω(appCRD.Spec.MaxPendingSeconds).To(gomega.Equal(int32(10)))
 			gomega.Ω(appCRD.ObjectMeta.Name).To(gomega.Equal("example"))
 			gomega.Ω(appCRD.ObjectMeta.Namespace).To(gomega.Equal(dev))
+			policy := appCRD.Spec.Policy.Policy
+			gomega.Ω(string(policy)).To(gomega.Equal("TryOnce"))
+			gomega.Ω(appCRD.Spec.TaskGroup[0].GroupName).To(gomega.Equal("test-task-0001"))
+			gomega.Ω(appCRD.Spec.TaskGroup[0].MinMember).To(gomega.Equal(int32(1)))
+			anscpu := resource.MustParse("300m")
+			ansmem := resource.MustParse("128Mi")
+			gomega.Ω(appCRD.Spec.TaskGroup[0].MinResource["cpu"]).To(gomega.Equal(anscpu))
+			gomega.Ω(appCRD.Spec.TaskGroup[0].MinResource["memory"]).To(gomega.Equal(ansmem))
 		})
 
 		ginkgo.AfterSuite(func() {
