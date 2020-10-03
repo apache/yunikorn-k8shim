@@ -33,6 +33,9 @@ fi
 if [ -z "$NAMESPACE" ]; then
   NAMESPACE=`cat ${CONF_FILE} | grep ^namespace | cut -d "=" -f 2`
 fi
+if [ -z "$SERVICE_ACCOUNT_NAME" ]; then
+  SERVICE_ACCOUNT_NAME=`cat ${CONF_FILE} | grep ^schedulerServiceAccountName | cut -d "=" -f 2`
+fi
 if [ -z "$POLICY_GROUP" ]; then
   POLICY_GROUP=`cat ${CONF_FILE} | grep ^policyGroup | cut -d "=" -f 2`
 fi
@@ -133,6 +136,7 @@ create_resources() {
   ca_pem_b64=$(kubectl get secret -o jsonpath="{.items[?(@.type==\"kubernetes.io/service-account-token\")].data['ca\.crt']}" | cut -d " " -f 1)
   sed -e 's@${NAMESPACE}@'"$NAMESPACE"'@g' -e 's@${SERVICE}@'"$SERVICE"'@g' \
     -e 's@${POLICY_GROUP}@'"$POLICY_GROUP"'@g' \
+    -e 's@${SERVICE_ACCOUNT_NAME}@'"$SERVICE_ACCOUNT_NAME"'@g' \
     -e 's@${SCHEDULER_SERVICE_ADDRESS}@'"$SCHEDULER_SERVICE_ADDRESS"'@g' \
     -e 's@${ADMISSION_CONTROLLER_IMAGE_REGISTRY}@'"$ADMISSION_CONTROLLER_IMAGE_REGISTRY"'@g' \
     -e 's@${ADMISSION_CONTROLLER_IMAGE_TAG}@'"$ADMISSION_CONTROLLER_IMAGE_TAG"'@g' \
