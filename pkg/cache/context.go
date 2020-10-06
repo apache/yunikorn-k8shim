@@ -670,7 +670,7 @@ func (ctx *Context) updatePodCondition(task *Task, podCondition *v1.PodCondition
 		// only update the pod when pod condition changes
 		// minimize the overhead added to the api-server/etcd
 		if !utils.PodUnderCondition(task.pod, podCondition) {
-			log.Logger().Info("updating pod condition",
+			log.Logger().Debug("updating pod condition",
 				zap.String("namespace", task.pod.Namespace),
 				zap.String("name", task.pod.Name),
 				zap.Any("podCondition", podCondition))

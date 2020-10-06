@@ -33,7 +33,6 @@ import (
 var _ = Describe("FallbackTest:", func() {
 	var kClient k8s.KubeCtl
 	var restClient yunikorn.RClient
-	var sleepPodDef string
 	var err error
 	var sleepRespPod *v1.Pod
 	var ns string
@@ -42,8 +41,6 @@ var _ = Describe("FallbackTest:", func() {
 
 	BeforeEach(func() {
 		// Initializing kubectl client
-		sleepPodDef, err = common.GetAbsPath("../testdata/sleeppod_template.yaml")
-		Ω(err).NotTo(HaveOccurred())
 		kClient = k8s.KubeCtl{}
 		Ω(kClient.SetClient()).To(BeNil())
 		// Initializing rest client
@@ -55,12 +52,10 @@ var _ = Describe("FallbackTest:", func() {
 		Ω(ns1.Status.Phase).To(Equal(v1.NamespaceActive))
 
 		By(fmt.Sprintf("Deploy the sleep pod to %s namespace", ns))
-		sleepObj, err2 := k8s.GetPodObj(sleepPodDef)
-		Ω(err2).NotTo(HaveOccurred())
-		sleepObj.Namespace = ns
-		sleepObj.ObjectMeta.Labels["applicationId"] = common.GetUUID()
-		sleepRespPod, err = kClient.CreatePod(sleepObj, ns)
+		sleepPodConf := common.SleepPodConfig{Name: "sleepjob", NS: ns, Time: 600}
+		sleepRespPod, err = kClient.CreatePod(common.InitSleepPod(sleepPodConf), ns)
 		Ω(err).NotTo(HaveOccurred())
+		//Wait for pod to move to running state
 	})
 
 	It("Verify_App_In_Starting_State", func() {
@@ -84,7 +79,7 @@ var _ = Describe("FallbackTest:", func() {
 		By("Wait for fallback timeout of 5mins")
 		err = restClient.WaitForAppStateTransition(sleepRespPod.ObjectMeta.Labels["applicationId"],
 			yunikorn.States().Application.Running,
-			420)
+			360)
 		Ω(err).NotTo(HaveOccurred())
 
 		// Get AppInfo again to check the allocations post running state.
@@ -106,12 +101,8 @@ var _ = Describe("FallbackTest:", func() {
 	}, 360)
 
 	AfterEach(func() {
-		By("Deleting pod with name - " + sleepRespPod.Name)
-		err := kClient.DeletePod(sleepRespPod.Name, ns)
-		Ω(err).NotTo(HaveOccurred())
-
-		By("Deleting test namespaces")
-		err = kClient.DeleteNamespace(ns)
+		By("Tearing down namespace: " + ns)
+		err := k.TearDownNamespace(ns)
 		Ω(err).NotTo(HaveOccurred())
 	})
 })
