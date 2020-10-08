@@ -15,6 +15,7 @@ spec:
       labels:
         app: yunikorn
     spec:
+      serviceAccountName: ${SERVICE_ACCOUNT_NAME}
       imagePullSecrets:
       hostNetwork: true
       tolerations:
