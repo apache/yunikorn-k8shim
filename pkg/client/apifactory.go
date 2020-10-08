@@ -22,6 +22,8 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/zap"
+
 	applicationclient "github.com/apache/incubator-yunikorn-k8shim/pkg/client/clientset/versioned"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client/informers/externalversions/yunikorn.apache.org/v1alpha1"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
@@ -34,6 +36,7 @@ import (
 	appclient "github.com/apache/incubator-yunikorn-k8shim/pkg/client/clientset/versioned"
 	appinformers "github.com/apache/incubator-yunikorn-k8shim/pkg/client/informers/externalversions"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 )
 
 type Type int
@@ -203,7 +206,10 @@ func (s *APIFactory) Start() {
 	// launch clients
 	if !s.IsTestingMode() {
 		s.clients.Run(s.stopChan)
-		s.WaitForSync()
+		if err := s.WaitForSync(); err != nil {
+			log.Logger().Warn("Failed to sync informers",
+				zap.Error(err))
+		}
 	}
 }
 
