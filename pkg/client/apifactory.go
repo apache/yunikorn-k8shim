@@ -203,6 +203,7 @@ func (s *APIFactory) Start() {
 	// launch clients
 	if !s.IsTestingMode() {
 		s.clients.Run(s.stopChan)
+		s.WaitForSync()
 	}
 }
 
