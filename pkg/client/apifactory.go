@@ -206,7 +206,7 @@ func (s *APIFactory) Start() {
 	// launch clients
 	if !s.IsTestingMode() {
 		s.clients.Run(s.stopChan)
-		if err := s.WaitForSync(); err != nil {
+		if err := s.clients.WaitForSync(time.Second, 30*time.Second); err != nil {
 			log.Logger().Warn("Failed to sync informers",
 				zap.Error(err))
 		}
