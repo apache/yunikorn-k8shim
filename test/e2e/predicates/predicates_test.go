@@ -22,16 +22,16 @@ var workerNodes []string
 
 func getNodeThatCanRunPodWithoutToleration(k *k8s.KubeCtl, namespace string) string {
 	By("Trying to launch a pod without a toleration to get a node which can launch it.")
-	return runPodAndGetNodeName(k, common.TestPodConfig{Name: "without-toleration", Namespace: namespace})
+	return runPodAndGetNodeName(k, common.SleepPodConfig{Name: "without-toleration", NS: namespace})
 }
 
 // GetNodeThatCanRunPod trying to launch a pod without a label to get a node which can launch it
 func GetNodeThatCanRunPod(k *k8s.KubeCtl, namespace string) string {
 	By("Trying to launch a pod without a label to get a node which can launch it.")
-	return runPodAndGetNodeName(k, common.TestPodConfig{Name: "without-label", Namespace: namespace})
+	return runPodAndGetNodeName(k, common.SleepPodConfig{Name: "without-label", NS: namespace})
 }
 
-func runPodAndGetNodeName(k *k8s.KubeCtl, conf common.TestPodConfig) string {
+func runPodAndGetNodeName(k *k8s.KubeCtl, conf common.SleepPodConfig) string {
 	// launch a pod to find a node which can launch a pod. We intentionally do
 	// not just take the node list and choose the first of them. Depending on the
 	// cluster and the scheduler it might be that a "normal" pod cannot be
@@ -44,8 +44,8 @@ func runPodAndGetNodeName(k *k8s.KubeCtl, conf common.TestPodConfig) string {
 	return pod.Spec.NodeName
 }
 
-func runTestPod(k *k8s.KubeCtl, conf common.TestPodConfig) *v1.Pod {
-	pod, err := k.CreatePod(common.InitTestPod(conf), conf.Namespace)
+func runTestPod(k *k8s.KubeCtl, conf common.SleepPodConfig) *v1.Pod {
+	pod, err := k.CreatePod(common.InitSleepPod(conf), conf.NS)
 	Ω(err).NotTo(HaveOccurred())
 	Ω(k.WaitForPodRunning(pod.Namespace, pod.Name, time.Duration(60)*time.Second)).NotTo(HaveOccurred())
 	pod1, err := k.GetPod(pod.Name, pod.Namespace)
@@ -412,11 +412,10 @@ var _ = Describe("Predicates", func() {
 
 		podLabel := map[string]string{"service": "securityscan"}
 		podLabel2 := map[string]string{"security": "S1"}
-		var nodeName, labelKey, labelKey2 string
+		var nodeName, labelKey string
 		sleepContainer := v1.Container{Name: "test-container", Image: "alpine:latest", Command: []string{"sleep", "60"}}
 
-		labelKey = "failure-domain.beta.kubernetes.io/region"
-		labelKey2 = "failure-domain.beta.kubernetes.io/zone"
+		labelKey = "kubernetes.io/hostname"
 
 		BeforeEach(func() {
 			By("Finding a node that can fit the pods")
@@ -426,6 +425,8 @@ var _ = Describe("Predicates", func() {
 		DescribeTable("", func(t PodAffinityStruct) {
 			By("Launching the pods with labels")
 			for _, pod := range t.pods {
+				pod.Labels["app"] = common.RandSeq(5)
+				pod.Labels["applicationId"] = common.RandSeq(10)
 				createdPod, err := kClient.CreatePod(pod, ns)
 				Ω(err).NotTo(HaveOccurred())
 
@@ -434,6 +435,8 @@ var _ = Describe("Predicates", func() {
 			}
 
 			By("Launching the pod with Pod (anti)-affinity")
+			t.pod.Labels["app"] = common.RandSeq(5)
+			t.pod.Labels["applicationId"] = common.RandSeq(10)
 			testPod, err := kClient.CreatePod(t.pod, ns)
 			Ω(err).NotTo(HaveOccurred())
 			var err1 error
@@ -801,7 +804,7 @@ var _ = Describe("Predicates", func() {
 													},
 												},
 											},
-											TopologyKey: labelKey2,
+											TopologyKey: labelKey,
 										},
 									},
 								},
@@ -881,8 +884,12 @@ var _ = Describe("Predicates", func() {
 		By("Trying to launch the pod, now with labels.")
 		PodName := "test-pod"
 		conf := common.TestPodConfig{
-			Name:      PodName,
-			NodeName:  nodeName,
+			Name:     PodName,
+			NodeName: nodeName,
+			Labels: map[string]string{
+				"app":           "podFitsHost-app-" + common.RandSeq(5),
+				"applicationId": common.RandSeq(10),
+			},
 			Namespace: ns,
 		}
 
@@ -924,6 +931,10 @@ var _ = Describe("Predicates", func() {
 			conf := common.TestPodConfig{
 				Name:      labelPodName,
 				Namespace: ns,
+				Labels: map[string]string{
+					"app":           "sameHostPort-app-" + common.RandSeq(5),
+					"applicationId": common.RandSeq(10),
+				},
 				NodeSelector: map[string]string{
 					key: value,
 				},
@@ -959,6 +970,10 @@ var _ = Describe("Predicates", func() {
 		conf := common.TestPodConfig{
 			Name:      labelPodName,
 			Namespace: ns,
+			Labels: map[string]string{
+				"app":           "sameHostPort-app-" + common.RandSeq(5),
+				"applicationId": common.RandSeq(10),
+			},
 			NodeSelector: map[string]string{
 				key: value,
 			},
@@ -981,6 +996,10 @@ var _ = Describe("Predicates", func() {
 		conf = common.TestPodConfig{
 			Name:      labelPodName2,
 			Namespace: anotherNS,
+			Labels: map[string]string{
+				"app":           "sameHostPort-app-" + common.RandSeq(5),
+				"applicationId": common.RandSeq(10),
+			},
 			NodeSelector: map[string]string{
 				key: value,
 			},
