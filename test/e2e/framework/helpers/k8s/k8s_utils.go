@@ -23,6 +23,8 @@ import (
 	"path/filepath"
 	"time"
 
+	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
+
 	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/helpers/common"
 
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -89,6 +91,10 @@ func (k *KubeCtl) SetClient() error {
 	return err
 }
 
+func (k *KubeCtl) GetClient() *kubernetes.Clientset {
+	return k.clientSet
+}
+
 func (k *KubeCtl) GetKubeConfig() (*rest.Config, error) {
 	if k.kubeConfig != nil {
 		return k.kubeConfig, nil
@@ -97,6 +103,27 @@ func (k *KubeCtl) GetKubeConfig() (*rest.Config, error) {
 }
 func (k *KubeCtl) GetPods(namespace string) (*v1.PodList, error) {
 	return k.clientSet.CoreV1().Pods(namespace).List(metav1.ListOptions{})
+}
+
+func (k *KubeCtl) GetPod(name, namespace string) (*v1.Pod, error) {
+	return k.clientSet.CoreV1().Pods(namespace).Get(name, metav1.GetOptions{})
+}
+
+func (k *KubeCtl) UpdatePodWithAnnotation(pod *v1.Pod, namespace, annotationKey, annotationVal string) (*v1.Pod, error) {
+	annotations := map[string]string{}
+	if pod.Annotations != nil {
+		annotations = pod.Annotations
+	}
+	annotations[annotationKey] = annotationVal
+	pod.Annotations = annotations
+	return k.clientSet.CoreV1().Pods(namespace).Update(pod)
+}
+
+func (k *KubeCtl) DeletePodAnnotation(pod *v1.Pod, namespace, annotation string) (*v1.Pod, error) {
+	annotations := pod.Annotations
+	delete(annotations, annotation)
+	pod.Annotations = annotations
+	return k.clientSet.CoreV1().Pods(namespace).Update(pod)
 }
 
 func (k *KubeCtl) GetPodNamesFromNS(namespace string) ([]string, error) {
@@ -346,4 +373,102 @@ func (k *KubeCtl) DeleteConfigMaps(namespace string, cMapName string) error {
 
 func (k *KubeCtl) CreateConfigMaps(namespace string, cMap *v1.ConfigMap) (*v1.ConfigMap, error) {
 	return k.clientSet.CoreV1().ConfigMaps(namespace).Create(cMap)
+}
+
+func (k *KubeCtl) GetEvents(namespace string) (*v1.EventList, error) {
+	return k.clientSet.CoreV1().Events(namespace).List(metav1.ListOptions{})
+}
+
+// CreateTestPodAction returns a closure that creates a pause pod upon invocation.
+func (k *KubeCtl) CreateTestPodAction(pod *v1.Pod, namespace string) Action {
+	return func() error {
+		_, err := k.CreatePod(pod, namespace)
+		return err
+	}
+}
+
+// WaitForSchedulerAfterAction performs the provided action and then waits for
+// scheduler to act on the given pod.
+func (k *KubeCtl) WaitForSchedulerAfterAction(action Action, ns, podName string, expectSuccess bool) (bool, error) {
+	predicate := ScheduleFailureEvent(podName)
+	if expectSuccess {
+		predicate = ScheduleSuccessEvent(ns, podName, "" /* any node */)
+	}
+	return ObserveEventAfterAction(k.clientSet, ns, predicate, action)
+}
+
+// PodScheduled checks if the pod has been scheduled
+func (k *KubeCtl) PodScheduled(podNamespace, podName string) wait.ConditionFunc {
+	return func() (bool, error) {
+		pod, err := k.GetPod(podName, podNamespace)
+		if err != nil {
+			// This could be a connection error so retry.
+			return false, nil
+		}
+		if pod.Spec.NodeName == "" {
+			return false, nil
+		}
+		return true, nil
+	}
+}
+
+func (k *KubeCtl) WaitForPodScheduled(namespace string, podName string, timeout time.Duration) error {
+	return wait.PollImmediate(time.Second, timeout, k.PodScheduled(namespace, podName))
+}
+
+// PodUnschedulable returns a condition function that returns true if the given pod
+// gets unschedulable status.
+func (k *KubeCtl) PodUnschedulable(podNamespace, podName string) wait.ConditionFunc {
+	return func() (bool, error) {
+		pod, err := k.GetPod(podName, podNamespace)
+		if err != nil {
+			// This could be a connection error so retry.
+			return false, nil
+		}
+		_, cond := podutil.GetPodCondition(&pod.Status, v1.PodScheduled)
+		return cond != nil && cond.Status == v1.ConditionFalse &&
+			cond.Reason == v1.PodReasonUnschedulable, nil
+	}
+}
+
+// WaitForPodUnschedulable waits for a pod to fail scheduling and returns
+// an error if it does not become unschedulable within the given timeout.
+func (k *KubeCtl) WaitForPodUnschedulable(pod *v1.Pod, timeout time.Duration) error {
+	return wait.PollImmediate(100*time.Millisecond, timeout, k.PodUnschedulable(pod.Namespace, pod.Name))
+}
+
+func (k *KubeCtl) UpdateYunikornSchedulerPodAnnotation(annotation string) error {
+	/*
+		https://github.com/kubernetes/website/commit/7fc323d45109d4213fcbfa44be04deae9a61e668#diff-7b0047f23923203a747765c0a99eeaa2
+		Force sync of the config map by updating any pod annotation.
+	*/
+	schedPodList, err := k.ListPods(configmanager.YuniKornTestConfig.YkNamespace, fmt.Sprintf("component=%s", configmanager.YKScheduler))
+	if err != nil {
+		return err
+	}
+
+	if len(schedPodList.Items) != 1 {
+		return errors.New("yunikorn scheduler pod is missing")
+	}
+	schedPod := schedPodList.Items[0]
+	_, err = k.UpdatePodWithAnnotation(&schedPod, configmanager.YuniKornTestConfig.YkNamespace, annotation, annotation)
+	return err
+}
+
+func (k *KubeCtl) RemoveYunikornSchedulerPodAnnotation(annotation string) error {
+	/*
+		https://github.com/kubernetes/website/commit/7fc323d45109d4213fcbfa44be04deae9a61e668#diff-7b0047f23923203a747765c0a99eeaa2
+		Force sync of the config map by updating any pod annotation.
+	*/
+	schedPodList, err := k.ListPods(configmanager.YuniKornTestConfig.YkNamespace, fmt.Sprintf("component=%s", configmanager.YKScheduler))
+	if err != nil {
+		return err
+	}
+
+	if len(schedPodList.Items) != 1 {
+		return errors.New("yunikorn scheduler pod is missing")
+	}
+	schedPod := schedPodList.Items[0]
+	_, err = k.DeletePodAnnotation(&schedPod, configmanager.YuniKornTestConfig.YkNamespace, annotation)
+	return err
 }
