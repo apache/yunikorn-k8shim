@@ -208,9 +208,6 @@ func (c *admissionController) validateConf(ar *v1beta1.AdmissionReview) *v1beta1
 			},
 		}
 	}
-	log.Logger().Error("User data:",
-		zap.String("name", req.Name),
-		zap.Any("UserInfo", req.UserInfo))
 	log.Logger().Info("AdmissionReview",
 		zap.Any("Kind", req.Kind),
 		zap.String("Namespace", req.Namespace),
