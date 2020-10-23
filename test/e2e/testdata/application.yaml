@@ -24,9 +24,11 @@ spec:
     name: TryOnce
   queue: root.default
   taskGroups:
-    - groupName: "test-task-0001"
-      minMember: 1
-      minResource:
-        cpu: "300m"
-        memory: "128Mi"
+    - schedulingPolicy: "TryReserve"
+    - groups:
+        - name: "test-task-0001"
+          minMember: 1
+          minResource:
+            cpu: "300m"
+            memory: "128Mi"
   
