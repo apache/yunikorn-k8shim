@@ -38,8 +38,8 @@ type Application struct {
 // Spec part
 
 type ApplicationSpec struct {
-	Queue      string      `json:"queue"`
-	TaskGroups TaskGroups  `json:"taskGroups"`
+	Queue      string     `json:"queue"`
+	TaskGroups TaskGroups `json:"taskGroups"`
 }
 
 type SchedulingPolicy struct {
