@@ -19,7 +19,6 @@
 package v1alpha1
 
 import (
-	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -38,35 +37,29 @@ type Application struct {
 // Spec part
 
 type ApplicationSpec struct {
-	Queue      string      `json:"queue"`
-	TaskGroups []TaskGroup `json:"taskGroups"`
+	Policy    SchedulePolicy `json:"schedulingPolicy"`
+	Queue     string         `json:"queue"`
+	TaskGroup []Task         `json:"taskGroups"`
 }
 
-type SchedulingPolicy struct {
-	Type       SchedulingPolicyType `json:"type"`
-	Parameters map[string]string    `json:"parameters,omitempty"`
+type SchedulePolicy struct {
+	Policy     SchedulingPolicy  `json:"name"`
+	Parameters map[string]string `json:"parameters,omitempty"`
 }
 
-type SchedulingPolicyType string
+type SchedulingPolicy string
 
 const (
-	TryOnce    SchedulingPolicyType = "TryOnce"
-	MaxRetry   SchedulingPolicyType = "MaxRetry"
-	TryReserve SchedulingPolicyType = "TryReserve"
-	TryPreempt SchedulingPolicyType = "TryPreempt"
+	TryOnce    SchedulingPolicy = "TryOnce"
+	MaxRetry   SchedulingPolicy = "MaxRetry"
+	TryReserve SchedulingPolicy = "TryReserve"
+	TryPreempt SchedulingPolicy = "TryPreempt"
 )
 
-type TaskGroups struct {
-	SchedulingPolicy SchedulingPolicy `json:"schedulingPolicy"`
-	TaskGroups       []TaskGroup      `json:"taskGroups"`
-}
-
-type TaskGroup struct {
-	Name         string                       `json:"name"`
-	MinMember    int32                        `json:"minMember"`
-	MinResource  map[string]resource.Quantity `json:"minResource"`
-	NodeSelector metav1.LabelSelector         `json:"nodeSelector,omitempty"`
-	Tolerations  []v1.Toleration              `json:"tolerations,omitempty"`
+type Task struct {
+	GroupName   string                       `json:"groupName"`
+	MinMember   int32                        `json:"minMember"`
+	MinResource map[string]resource.Quantity `json:"minResource"`
 }
 
 // Status part
