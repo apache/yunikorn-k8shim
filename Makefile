@@ -30,6 +30,9 @@ OUTPUT=_output
 RELEASE_BIN_DIR=${OUTPUT}/bin
 ADMISSION_CONTROLLER_BIN_DIR=${OUTPUT}/admission-controllers/
 POD_ADMISSION_CONTROLLER_BINARY=scheduler-admission-controller
+GANG_BIN_DIR=${OUTPUT}/gang
+GANG_CLIENT_BINARY=gangclient
+GANG_SERVER_BINARY=gangweb
 LOCAL_CONF=conf
 CONF_FILE=queues.yaml
 REPO=github.com/apache/incubator-yunikorn-k8shim/pkg
@@ -153,6 +156,32 @@ adm_image: admission
 	docker build ./deployments/image/admission -t ${REGISTRY}/yunikorn:admission-${VERSION}
 	@rm -f ./deployments/image/admission/${POD_ADMISSION_CONTROLLER_BINARY}
 
+# Build gang web server and client binary in a production ready version
+.PHONY: gang
+gang:
+	@echo "building gang web client binary"
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+	go build -a -o=${GANG_BIN_DIR}/${GANG_CLIENT_BINARY} -ldflags \
+	'-extldflags "-static" -X main.version=${VERSION} -X main.date=${DATE}' \
+	-tags netgo -installsuffix netgo \
+	./pkg/gang/gangclient
+	@echo "building gang web server binary"
+	go build -a -o=${GANG_BIN_DIR}/${GANG_SERVER_BINARY} -ldflags \
+	'-extldflags "-static" -X main.version=${VERSION} -X main.date=${DATE}' \
+	-tags netgo -installsuffix netgo \
+	./pkg/gang/webserver
+
+# Build gang test images based on the production ready version
+.PHONY: gang_image
+gang_image: gang
+	@echo "building gang test docker images"
+	@cp ${GANG_BIN_DIR}/${GANG_CLIENT_BINARY} ./deployments/image/gang/gangclient
+	@cp ${GANG_BIN_DIR}/${GANG_SERVER_BINARY} ./deployments/image/gang/webserver
+	docker build ./deployments/image/gang/gangclient -t ${REGISTRY}/gang:client
+	docker build ./deployments/image/gang/webserver -t ${REGISTRY}/gang:webserver
+	@rm -f ./deployments/image/gang/gangclient/${GANG_CLIENT_BINARY}
+	@rm -f ./deployments/image/gang/webserver/${GANG_SERVER_BINARY}
+	
 # Build all images based on the production ready version
 .PHONY: image
 image: sched_image adm_image

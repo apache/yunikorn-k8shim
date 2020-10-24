@@ -25,6 +25,7 @@ require (
 	github.com/apache/incubator-yunikorn-core v0.0.0-20200909001345-c2699e725c8a
 	github.com/apache/incubator-yunikorn-scheduler-interface v0.9.1-0.20200901200728-b9033558f319
 	github.com/google/uuid v1.1.1
+	github.com/gorilla/mux v1.7.3
 	github.com/looplab/fsm v0.1.0
 	github.com/onsi/ginkgo v1.11.0
 	github.com/onsi/gomega v1.7.0
