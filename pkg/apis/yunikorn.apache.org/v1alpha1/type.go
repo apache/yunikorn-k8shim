@@ -38,8 +38,9 @@ type Application struct {
 // Spec part
 
 type ApplicationSpec struct {
-	Queue      string     `json:"queue"`
-	TaskGroups TaskGroups `json:"taskGroups"`
+	SchedulingPolicy  SchedulingPolicy `json:"SchedulingPolicy"`
+	Queue             string           `json:"queue"`
+	TaskGroups        []TaskGroup      `json:"taskGroups"`
 }
 
 type SchedulingPolicy struct {
@@ -55,11 +56,6 @@ const (
 	TryReserve SchedulingPolicyType = "TryReserve"
 	TryPreempt SchedulingPolicyType = "TryPreempt"
 )
-
-type TaskGroups struct {
-	SchedulingPolicy SchedulingPolicy `json:"schedulingPolicy"`
-	Groups           []TaskGroup      `json:"groups"`
-}
 
 type TaskGroup struct {
 	Name         string                       `json:"name"`
