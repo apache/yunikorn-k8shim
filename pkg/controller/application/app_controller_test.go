@@ -166,18 +166,13 @@ func createApp(name string, namespace string, queue string) appv1.Application {
 		},
 		Spec: appv1.ApplicationSpec{
 			Queue: queue,
-			TaskGroups: appv1.TaskGroups{
-				SchedulingPolicy: appv1.SchedulingPolicy{
-					Type: "TryReserve",
-					Parameters: map[string]string{
-						"timeout": "2h",
-					},
-				},
-				Groups: []appv1.TaskGroup{
-					{
-						Name:      "test-task-001",
-						MinMember: 0,
-					},
+			SchedulingPolicy: appv1.SchedulingPolicy{
+				Type: appv1.TryReserve,
+			},
+			TaskGroups: []appv1.TaskGroup{
+				{
+					Name:      "test-task-001",
+					MinMember: 0,
 				},
 			},
 		},
