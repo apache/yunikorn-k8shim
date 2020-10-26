@@ -64,6 +64,7 @@ var reservationPredicates = []string{
 	predicates.PodToleratesNodeTaintsPred, // taint check
 	predicates.MatchInterPodAffinityPred,  // affinity check
 	predicates.CheckNodeUnschedulablePred, // unschedulable node are filtered
+	predicates.MatchNodeSelectorPred,      // node selector check
 }
 
 type Predictor struct {
