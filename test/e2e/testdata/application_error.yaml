@@ -23,11 +23,11 @@ metadata:
 spec:
   queue: //////
   schedulingPolicy:
-    name: errorName
+    type: TryReserve
   taskGroups:
-    - groupName: 123
+    - name: "test-task-0001"
       minMember: "string"
       minResource:
-        cpu: "ABC"
-        memory: "ABC"
+        cpu: "300m"
+        memory: "128Mi"
   
