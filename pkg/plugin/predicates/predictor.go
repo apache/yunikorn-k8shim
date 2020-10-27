@@ -52,6 +52,7 @@ var defaultSchedulerPolicy = schedulerapi.Policy{
 		// If replacing the default scheduler you must have the volume predicate included:
 		// https://docs.okd.io/latest/admin_guide/scheduling/scheduler.html#static-predicates
 		{Name: predicates.CheckVolumeBindingPred},
+		{Name: predicates.MatchNodeSelectorPred},
 	},
 }
 
