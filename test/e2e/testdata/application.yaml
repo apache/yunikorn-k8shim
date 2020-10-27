@@ -21,7 +21,7 @@ metadata:
   name: example
 spec:
   schedulingPolicy:
-    name: TryOnce
+    type: TryOnce
   queue: root.default
   taskGroups:
     - name: "test-task-0001"
