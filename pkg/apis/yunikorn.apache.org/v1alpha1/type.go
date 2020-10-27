@@ -38,7 +38,7 @@ type Application struct {
 // Spec part
 
 type ApplicationSpec struct {
-	SchedulingPolicy SchedulingPolicy `json:"SchedulingPolicy"`
+	SchedulingPolicy SchedulingPolicy `json:"schedulingPolicy"`
 	Queue            string           `json:"queue"`
 	TaskGroups       []TaskGroup      `json:"taskGroups"`
 }
