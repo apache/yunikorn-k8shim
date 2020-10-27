@@ -19,14 +19,14 @@
 apiVersion: "yunikorn.apache.org/v1alpha1"
 kind: Application
 metadata:
-  name: example.test
+  name: example_test
 spec:
   queue: //////
   schedulingPolicy:
-    name: errorName
+    type: TryReserve
   taskGroups:
     - name: "test-task-0001"
-      minMember: 1
+      minMember: "string"
       minResource:
         cpu: "300m"
         memory: "128Mi"
