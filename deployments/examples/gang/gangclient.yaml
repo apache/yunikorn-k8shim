@@ -37,8 +37,8 @@ spec:
         - name: SERVICE_NAME
           value: gangservice # The service name
         - name: MEMBER_AMOUNT
-          value: "10" # The gang member that you hope, must small than pod number. string.
+          value: "10" # The gang member that you hope, must small than pod number.must be string.
         - name: TASK_EXECUTION_SECONDS
-          value: "60" # The task execution time (sec), it will start to countdown when the gang member amount be satisfied. string.
+          value: "60" # The task execution time (sec), it will start to countdown when the gang member amount be satisfied. must be string.
       restartPolicy: Never
       schedulerName: yunikorn
