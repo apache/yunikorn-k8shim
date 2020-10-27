@@ -15,8 +15,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM golang:1.15.2
-WORKDIR /gang/server
-ADD . /gang/server
-EXPOSE 8863
-ENTRYPOINT ["./simulation-gang-coordinator"]
+apiVersion: v1
+kind: Service
+metadata:
+  name: gangservice
+  labels:
+    app: gang
+spec:
+  selector:
+    app: gang
+  type: ClusterIP
+  ports:
+  - protocol: TCP
+    port: 8863
+    targetPort: 8863

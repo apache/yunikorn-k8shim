@@ -34,13 +34,13 @@ var webRoutes = routes{
 	route{
 		"Counter",
 		"GET",
-		"/ws/v1/add/{jobName}",
+		"/ws/v1/add/{jobID}",
 		setTaskReady,
 	},
 	route{
 		"Counter",
 		"GET",
-		"/ws/v1/check/{jobName}",
+		"/ws/v1/check/{jobID}",
 		checkJobReady,
 	},
 }

@@ -18,7 +18,7 @@
 #limitations under the License.
 #
 
-# deploy.sh <job amount> <pod amount> <gang member> <job run time(min)>
+# gangDeploy.sh <job amount> <pod amount> <gang member> <task run time(sec)>
 set -o errexit
 set -o nounset
 set -o pipefail
@@ -60,10 +60,12 @@ metadata:
   name: gangweb
   labels:
     app: gang
+    queue: root.sandbox
 spec:
+  schedulerName: yunikorn
   containers:
     - name: gangweb
-      image: apache/gang:webserver
+      image: apache/yunikorn:simulation-gang-coordinator-latest
       imagePullPolicy: Never
       ports:
         - containerPort: 8863
@@ -81,6 +83,7 @@ metadata:
   name: gang-job-$i
   labels: 
     app: gang
+    queue: root.sandbox
 spec:
   completions: $PODAMOUNT
   parallelism: $PODAMOUNT
@@ -88,17 +91,18 @@ spec:
     spec:
       containers:
       - name: gang
-        image: apache/gang:client
+        image: apache/yunikorn:simulation-gang-worker-latest
         imagePullPolicy: Never
         env:
-        - name: jobName
+        - name: JOB_ID
           value: gang-job-$i
-        - name: serviceName
+        - name: SERVICE_NAME
           value: gangservice
-        - name: memberAmount
+        - name: MEMBER_AMOUNT
           value: "$GANGMEMBER"
-        - name: runtimeMin
+        - name: TASK_EXECUTION_SECONDS
           value: "$RUNTIMEMIN"
       restartPolicy: Never
+      schedulerName: yunikorn
 EOF)
 done

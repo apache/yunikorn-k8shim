@@ -49,6 +49,15 @@ Deployment files for the driver and executor:
 A simple example that runs a [kubeflow/tensorflow](./tfjob/tf-job-mnist.yaml) job.
 In this example it will run a distributed mnist model for e2e test, for full more detail see the [dist-mnist](https://github.com/kubeflow/tf-operator/tree/master/examples/v1/dist-mnist) section.
 
+## gang
+A sample application which implement gang in application level.
+Start via the [gangDeploy.sh](./gang/cmd/gangDeploy.sh) script, for full more detail see the [gang](./gang/README.md) section.
+
+Deployment file for service, gangweb and gangclient:
+* [service](./gang/service.yaml)
+* [gangweb](./gang/gangweb.yaml)
+* [gangclient](./gang/gangclient.yaml)
+
 ## volumes
 The volumes directory contains three examples:
 1. [local volumes](#local-volume)

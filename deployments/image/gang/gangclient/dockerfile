@@ -18,4 +18,4 @@
 FROM golang:1.15.2
 WORKDIR /gang/client
 ADD . /gang/client 
-ENTRYPOINT ["./gangclient"]
+ENTRYPOINT ["./simulation-gang-worker"]

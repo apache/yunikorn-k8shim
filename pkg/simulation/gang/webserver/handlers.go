@@ -39,18 +39,20 @@ func setTaskReady(w http.ResponseWriter, r *http.Request) {
 	lock.Lock()
 	defer lock.Unlock()
 	vars := mux.Vars(r)
-	jobName := vars["jobName"]
-	jobMember[jobName]++
+	jobID := vars["jobID"]
+	jobMember[jobID]++
 	if err := json.NewEncoder(w).Encode(jobMember); err != nil {
-		log.Printf("Add task %s fail.", jobName)
+		log.Printf("Add task %s fail.", jobID)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
 
 func checkJobReady(w http.ResponseWriter, r *http.Request) {
 	writeHeader(w)
 	vars := mux.Vars(r)
-	jobName := vars["jobName"]
-	if err := json.NewEncoder(w).Encode(jobMember[jobName]); err != nil {
-		log.Printf("Check job %s Member fail", jobName)
+	jobID := vars["jobID"]
+	if err := json.NewEncoder(w).Encode(jobMember[jobID]); err != nil {
+		log.Printf("Check job %s Member fail", jobID)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }

@@ -15,8 +15,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM golang:1.15.2
-WORKDIR /gang/server
-ADD . /gang/server
-EXPOSE 8863
-ENTRYPOINT ["./simulation-gang-coordinator"]
+apiVersion: v1
+kind: Pod
+metadata:
+  name: gangweb
+  labels:
+    app: gang
+    queue: root.sandbox
+spec:
+  schedulerName: yunikorn
+  containers:
+    - name: gangweb
+      image: apache/yunikorn:simulation-gang-coordinator-latest
+      imagePullPolicy: Never
+      ports:
+        - containerPort: 8863
