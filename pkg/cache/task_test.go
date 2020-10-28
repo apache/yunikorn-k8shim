@@ -413,13 +413,33 @@ func TestIsTerminated(t *testing.T) {
 		},
 	}
 	task := NewTask("task01", app, mockedContext, pod)
-	//set task states to non-terminated
+	// set task states to non-terminated
 	task.sm.SetState(events.States().Task.Pending)
 	res := task.isTerminated()
 	assert.Equal(t, res, false)
 
-	//set task states to terminated
+	// set task states to terminated
 	task.sm.SetState(events.States().Task.Failed)
 	res = task.isTerminated()
 	assert.Equal(t, res, true)
+}
+
+func TestSetTaskGroup(t *testing.T) {
+	mockedContext := initContextForTest()
+	mockedSchedulerAPI := newMockSchedulerAPI()
+	app := NewApplication("app01", "root.default",
+		"bob", map[string]string{}, mockedSchedulerAPI)
+	pod := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "pod-01",
+			UID:  "UID-01",
+		},
+	}
+	task := NewTask("task01", app, mockedContext, pod)
+	task.setTaskGroupName("test-group")
+	assert.Equal(t, task.getTaskGroupName(), "test-group")
 }

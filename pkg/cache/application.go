@@ -28,6 +28,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/apache/incubator-yunikorn-core/pkg/api"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
@@ -38,15 +39,17 @@ import (
 )
 
 type Application struct {
-	applicationID string
-	queue         string
-	partition     string
-	user          string
-	taskMap       map[string]*Task
-	tags          map[string]string
-	sm            *fsm.FSM
-	lock          *sync.RWMutex
-	schedulerAPI  api.SchedulerAPI
+	applicationID    string
+	queue            string
+	partition        string
+	user             string
+	taskMap          map[string]*Task
+	tags             map[string]string
+	schedulingPolicy *v1alpha1.SchedulingPolicy
+	taskGroups       []*v1alpha1.TaskGroup
+	sm               *fsm.FSM
+	lock             *sync.RWMutex
+	schedulerAPI     api.SchedulerAPI
 }
 
 func (app *Application) String() string {
@@ -58,14 +61,16 @@ func (app *Application) String() string {
 func NewApplication(appID, queueName, user string, tags map[string]string, scheduler api.SchedulerAPI) *Application {
 	taskMap := make(map[string]*Task)
 	app := &Application{
-		applicationID: appID,
-		queue:         queueName,
-		partition:     constants.DefaultPartition,
-		user:          user,
-		taskMap:       taskMap,
-		tags:          tags,
-		lock:          &sync.RWMutex{},
-		schedulerAPI:  scheduler,
+		applicationID:    appID,
+		queue:            queueName,
+		partition:        constants.DefaultPartition,
+		user:             user,
+		taskMap:          taskMap,
+		tags:             tags,
+		schedulingPolicy: nil,
+		taskGroups:       nil,
+		lock:             &sync.RWMutex{},
+		schedulerAPI:     scheduler,
 	}
 
 	var states = events.States().Application
@@ -81,8 +86,11 @@ func NewApplication(appID, queueName, user string, tags map[string]string, sched
 			{Name: string(events.AcceptApplication),
 				Src: []string{states.Submitted, states.Recovering},
 				Dst: states.Accepted},
+			{Name: string(events.TryReserve),
+				Src: []string{states.Accepted},
+				Dst: states.Reserving},
 			{Name: string(events.RunApplication),
-				Src: []string{states.Accepted, states.Running},
+				Src: []string{states.Accepted, states.Reserving, states.Running},
 				Dst: states.Running},
 			{Name: string(events.CompleteApplication),
 				Src: []string{states.Running},
@@ -101,11 +109,13 @@ func NewApplication(appID, queueName, user string, tags map[string]string, sched
 				Dst: states.Killed},
 		},
 		fsm.Callbacks{
-			string(events.SubmitApplication):   app.handleSubmitApplicationEvent,
-			string(events.RecoverApplication):  app.handleRecoverApplicationEvent,
-			string(events.RejectApplication):   app.handleRejectApplicationEvent,
-			string(events.CompleteApplication): app.handleCompleteApplicationEvent,
-			events.EnterState:                  app.enterState,
+			string(events.SubmitApplication):      app.handleSubmitApplicationEvent,
+			string(events.RecoverApplication):     app.handleRecoverApplicationEvent,
+			string(events.RejectApplication):      app.handleRejectApplicationEvent,
+			string(events.CompleteApplication):    app.handleCompleteApplicationEvent,
+			events.States().Application.Accepted:  app.onAccepted,
+			events.States().Application.Reserving: app.onReserving,
+			events.EnterState:                     app.enterState,
 		},
 	)
 
@@ -164,6 +174,30 @@ func (app *Application) GetUser() string {
 	app.lock.RLock()
 	defer app.lock.RUnlock()
 	return app.user
+}
+
+func (app *Application) setSchedulingPolicy(policy *v1alpha1.SchedulingPolicy) {
+	app.lock.Lock()
+	defer app.lock.Unlock()
+	app.schedulingPolicy = policy
+}
+
+func (app *Application) getSchedulingPolicy() *v1alpha1.SchedulingPolicy {
+	app.lock.RLock()
+	defer app.lock.RUnlock()
+	return app.schedulingPolicy
+}
+
+func (app *Application) setTaskGroups(taskGroups []*v1alpha1.TaskGroup) {
+	app.lock.Lock()
+	defer app.lock.Unlock()
+	app.taskGroups = taskGroups
+}
+
+func (app *Application) getTaskGroups() []*v1alpha1.TaskGroup {
+	app.lock.RLock()
+	defer app.lock.RUnlock()
+	return app.taskGroups
 }
 
 func (app *Application) addTask(task *Task) {
@@ -269,12 +303,6 @@ func (app *Application) Schedule() {
 			log.Logger().Warn("failed to handle SUBMIT app event",
 				zap.Error(err))
 		}
-	case states.Accepted:
-		ev := NewRunApplicationEvent(app.GetApplicationID())
-		if err := app.handle(ev); err != nil {
-			log.Logger().Warn("failed to handle RUN app event",
-				zap.Error(err))
-		}
 	case states.Running:
 		if len(app.GetNewTasks()) > 0 {
 			for _, task := range app.GetNewTasks() {
@@ -357,6 +385,34 @@ func (app *Application) handleRecoverApplicationEvent(event *fsm.Event) {
 		log.Logger().Warn("failed to submit app", zap.Error(err))
 		dispatcher.Dispatch(NewFailApplicationEvent(app.applicationID))
 	}
+}
+
+func (app *Application) onAccepted(event *fsm.Event) {
+	// if app has taskGroups defined, it goes to the Reserving state before getting to Running
+	var ev events.SchedulingEvent
+	if app.taskGroups != nil {
+		ev = NewSimpleApplicationEvent(app.applicationID, events.TryReserve)
+		dispatcher.Dispatch(ev)
+	} else {
+		ev = NewRunApplicationEvent(app.applicationID)
+	}
+	dispatcher.Dispatch(ev)
+}
+
+func (app *Application) onReserving(event *fsm.Event) {
+	go func() {
+		// while doing reserving
+		if err := GetPlaceholderManager().createAppPlaceholders(app); err != nil {
+			// creating placeholder failed
+			// put the app into recycling queue and turn the app to running state
+			GetPlaceholderManager().Recycle(app.applicationID)
+			ev := NewRunApplicationEvent(app.applicationID)
+			if err := app.handle(ev); err != nil {
+				log.Logger().Warn("failed to handle RUN app event",
+					zap.Error(err))
+			}
+		}
+	}()
 }
 
 func (app *Application) handleRejectApplicationEvent(event *fsm.Event) {

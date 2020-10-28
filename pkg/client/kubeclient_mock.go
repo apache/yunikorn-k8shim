@@ -63,6 +63,10 @@ func (c *KubeClientMock) Bind(pod *v1.Pod, hostID string) error {
 	return c.bindFn(pod, hostID)
 }
 
+func (c *KubeClientMock) Create(pod *v1.Pod) (*v1.Pod, error) {
+	return pod, nil
+}
+
 func (c *KubeClientMock) Delete(pod *v1.Pod) error {
 	return c.deleteFn(pod)
 }
