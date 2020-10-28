@@ -24,16 +24,8 @@ set -o nounset
 set -o pipefail
 
 JOBAMOUNT=$1
-PODAMOUNT=$2
-GANGMEMBER=$3
-RUNTIMEMIN=$4
-
-if [ $GANGMEMBER -gt $PODAMOUNT ]
-    then
-    GANGMEMBER=$PODAMOUNT
-    echo "gangMember > podAmount"
-    echo "Set GangMember to "$GANGMEMBER
-fi
+GANGMEMBER=$2
+RUNTIMESEC=$3
 
 # create service
 kubectl create -f <(cat << EOF
@@ -85,8 +77,8 @@ metadata:
     app: gang
     queue: root.sandbox
 spec:
-  completions: $PODAMOUNT
-  parallelism: $PODAMOUNT
+  completions: $GANGMEMBER
+  parallelism: $GANGMEMBER
   template:
     spec:
       containers:
@@ -101,7 +93,7 @@ spec:
         - name: MEMBER_AMOUNT
           value: "$GANGMEMBER"
         - name: TASK_EXECUTION_SECONDS
-          value: "$RUNTIMEMIN"
+          value: "$RUNTIMESEC"
       restartPolicy: Never
       schedulerName: yunikorn
 EOF)

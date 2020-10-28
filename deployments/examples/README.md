@@ -53,10 +53,9 @@ In this example it will run a distributed mnist model for e2e test, for full mor
 A sample application which implement gang in application level.
 Start via the [gangDeploy.sh](./gang/cmd/gangDeploy.sh) script, for full more detail see the [gang](./gang/README.md) section.
 
-Deployment file for service, gangweb and gangclient:
-* [service](./gang/service.yaml)
-* [gangweb](./gang/gangweb.yaml)
-* [gangclient](./gang/gangclient.yaml)
+Deployment file for gang-coordinator and gang-job:
+* [gang-coordinator](./gang/gang-coordinator.yaml)
+* [gang-job](./gang/gang-job.yaml)
 
 ## volumes
 The volumes directory contains three examples:

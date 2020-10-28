@@ -18,11 +18,11 @@
 
 # Gang in application level
 
-To run the `gangDeploy.sh` script with parameter:
+The following script runs a given number of jobs, and each one is a simulated job that requires gang scheduling support. Where the job only starts to execute its tasks when the cluster has the min member of instances running.
 
 ```shell script
-./cmd/gangDeploy.sh <job number> <pod amount> <gang member> <task run time(sec)>
+./cmd/gangDeploy.sh <job number> <gang member> <task run time(sec)>
 ```
->Note: If you want to deploy it without script, please follow the sequence of `service.yaml` `gangweb.yaml` `gangclient.yaml`
-
-Enjoy and have fun!
+Note: if you prefer to manually launch such jobs, please refer to the `gang-coordinator.yaml` `gang-job.yaml`. Where:
+* [gang-coordinator.yaml](./gang-coordinator.yaml): the coordinator service used to coordinate the execution of each job's tasks.
+* [gang-job](./gang-job.yaml): the simulated job that requires gang members to be started before executing its tasks.
