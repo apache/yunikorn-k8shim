@@ -25,6 +25,7 @@ import (
 
 	"gotest.tools/assert"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
@@ -330,4 +331,116 @@ func TestGetApplicationIDFromPod(t *testing.T) {
 			assert.DeepEqual(t, appID, tc.expectedAppID)
 		})
 	}
+}
+
+func TestGetTaskGroupFromAnnotation(t *testing.T) {
+	testGroup := `
+	[
+		{
+			"name": "test-group-1",
+			"minMember": 10,
+			"minResource": {
+				"Cpu": 1,
+				"Memory": "2Gi"
+			},
+			"nodeSelector": {
+				"matchLabels": {
+					"testLabel": "testnode"
+				},
+				"matchExpressions": [
+					{
+						"key": "app",
+						"operator": "In",
+						"values": [
+							"test_value"
+						]
+					}
+				]
+			},
+			"tolerations": [
+				{
+					"key": "key",
+					"operator": "Equal",
+					"value": "value",
+					"effect": "NoSchedule"
+				}
+			]
+		},
+		{
+			"name": "test-group-2",
+			"minMember": 5,
+			"minResource": {
+				"Cpu": 2,
+				"Memory": "4Gi"
+			}
+		}
+	]`
+	testGroupErr := `
+	[
+		{
+			"name": "test-group-err-1",
+			"minMember": "ERR",
+			"minResource": {
+				"Cpu": "ERR",
+				"Memory": "ERR"
+			},
+		}
+	]`
+	// Insert task group info to pod annotation
+	pod := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-pod-err",
+			Namespace: "test",
+			UID:       "test-pod-UID-err",
+		},
+		Spec: v1.PodSpec{},
+		Status: v1.PodStatus{
+			Phase: v1.PodPending,
+		},
+	}
+	// Empty case
+	taskGroupEmpty, err := GetTaskGroupsFromAnnotation(pod)
+	assert.Assert(t, taskGroupEmpty == nil)
+	assert.Assert(t, err != nil)
+	// Error case
+	pod.Annotations = map[string]string{constants.AnnotationTaskGroup: testGroupErr}
+	taskGroupErr, err := GetTaskGroupsFromAnnotation(pod)
+	assert.Assert(t, taskGroupErr == nil)
+	assert.Assert(t, err != nil)
+	// Correct case
+	pod.Annotations = map[string]string{constants.AnnotationTaskGroup: testGroup}
+	taskGroups, err := GetTaskGroupsFromAnnotation(pod)
+	assert.NilError(t, err)
+	// Group value check
+	assert.Equal(t, taskGroups[0].Name, "test-group-1")
+	assert.Equal(t, taskGroups[0].MinMember, int32(10))
+	assert.Equal(t, taskGroups[0].MinResource["Cpu"], resource.MustParse("1"))
+	assert.Equal(t, taskGroups[0].MinResource["Memory"], resource.MustParse("2Gi"))
+	assert.Equal(t, taskGroups[1].Name, "test-group-2")
+	assert.Equal(t, taskGroups[1].MinMember, int32(5))
+	assert.Equal(t, taskGroups[1].MinResource["Cpu"], resource.MustParse("2"))
+	assert.Equal(t, taskGroups[1].MinResource["Memory"], resource.MustParse("4Gi"))
+	// NodeSelector check
+	var requires []metav1.LabelSelectorRequirement
+	require := metav1.LabelSelectorRequirement{
+		Key:      "app",
+		Operator: "In",
+		Values:   []string{"test_value"},
+	}
+	requires = append(requires, require)
+	nodeSelector := metav1.LabelSelector{
+		MatchLabels:      map[string]string{"testLabel": "testnode"},
+		MatchExpressions: requires,
+	}
+	assert.DeepEqual(t, taskGroups[0].NodeSelector, nodeSelector)
+	// Toleration check
+	var tolerations []v1.Toleration
+	toleration := v1.Toleration{
+		Key:      "key",
+		Operator: "Equal",
+		Value:    "value",
+		Effect:   "NoSchedule",
+	}
+	tolerations = append(tolerations, toleration)
+	assert.DeepEqual(t, taskGroups[0].Tolerations, tolerations)
 }
