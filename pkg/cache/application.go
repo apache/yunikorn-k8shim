@@ -46,8 +46,8 @@ type Application struct {
 	user             string
 	taskMap          map[string]*Task
 	tags             map[string]string
-	schedulingPolicy *v1alpha1.SchedulingPolicy
-	taskGroups       []*v1alpha1.TaskGroup
+	schedulingPolicy v1alpha1.SchedulingPolicy
+	taskGroups       []v1alpha1.TaskGroup
 	sm               *fsm.FSM
 	lock             *sync.RWMutex
 	schedulerAPI     api.SchedulerAPI
@@ -68,8 +68,8 @@ func NewApplication(appID, queueName, user string, tags map[string]string, sched
 		user:             user,
 		taskMap:          taskMap,
 		tags:             tags,
-		schedulingPolicy: nil,
-		taskGroups:       nil,
+		schedulingPolicy: v1alpha1.SchedulingPolicy{},
+		taskGroups:       make([]v1alpha1.TaskGroup, 0),
 		lock:             &sync.RWMutex{},
 		schedulerAPI:     scheduler,
 	}
@@ -181,25 +181,25 @@ func (app *Application) GetUser() string {
 	return app.user
 }
 
-func (app *Application) setSchedulingPolicy(policy *v1alpha1.SchedulingPolicy) {
+func (app *Application) setSchedulingPolicy(policy v1alpha1.SchedulingPolicy) {
 	app.lock.Lock()
 	defer app.lock.Unlock()
 	app.schedulingPolicy = policy
 }
 
-func (app *Application) getSchedulingPolicy() *v1alpha1.SchedulingPolicy {
+func (app *Application) getSchedulingPolicy() v1alpha1.SchedulingPolicy {
 	app.lock.RLock()
 	defer app.lock.RUnlock()
 	return app.schedulingPolicy
 }
 
-func (app *Application) setTaskGroups(taskGroups []*v1alpha1.TaskGroup) {
+func (app *Application) setTaskGroups(taskGroups []v1alpha1.TaskGroup) {
 	app.lock.Lock()
 	defer app.lock.Unlock()
 	app.taskGroups = taskGroups
 }
 
-func (app *Application) getTaskGroups() []*v1alpha1.TaskGroup {
+func (app *Application) getTaskGroups() []v1alpha1.TaskGroup {
 	app.lock.RLock()
 	defer app.lock.RUnlock()
 	return app.taskGroups
@@ -405,7 +405,7 @@ func (app *Application) handleRecoverApplicationEvent(event *fsm.Event) {
 func (app *Application) postAppAccepted(event *fsm.Event) {
 	// if app has taskGroups defined, it goes to the Reserving state before getting to Running
 	var ev events.SchedulingEvent
-	if app.taskGroups != nil {
+	if len(app.taskGroups) != 0 {
 		ev = NewSimpleApplicationEvent(app.applicationID, events.TryReserve)
 		dispatcher.Dispatch(ev)
 	} else {

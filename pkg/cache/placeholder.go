@@ -43,7 +43,7 @@ const (
 	Acquired  PlaceholderState = "Acquired"
 )
 
-func newPlaceholder(placeholderName string, app *Application, taskGroup *v1alpha1.TaskGroup) *Placeholder {
+func newPlaceholder(placeholderName string, app *Application, taskGroup v1alpha1.TaskGroup) *Placeholder {
 	placeholderPod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      placeholderName,

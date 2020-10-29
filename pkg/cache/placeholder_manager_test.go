@@ -41,7 +41,7 @@ func TestCreateAppPlaceholders(t *testing.T) {
 	mockedSchedulerAPI := newMockSchedulerAPI()
 	app := NewApplication(appID, queue,
 		"bob", map[string]string{constants.AppTagNamespace: namespace}, mockedSchedulerAPI)
-	app.setTaskGroups([]*v1alpha1.TaskGroup{
+	app.setTaskGroups([]v1alpha1.TaskGroup{
 		{
 			Name:      "test-group-1",
 			MinMember: 10,

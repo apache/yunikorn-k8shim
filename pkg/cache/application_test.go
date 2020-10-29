@@ -209,10 +209,10 @@ func TestGetNonTerminatedTaskAlias(t *testing.T) {
 
 func TestSetTaskGroupsAndSchedulingPolicy(t *testing.T) {
 	app := NewApplication("app01", "root.a", "test-user", map[string]string{}, newMockSchedulerAPI())
-	assert.Assert(t, app.getSchedulingPolicy() == nil)
-	assert.Assert(t, app.getTaskGroups() == nil)
+	assert.Assert(t, app.getSchedulingPolicy().Type == "")
+	assert.Equal(t, len(app.getTaskGroups()), 0)
 
-	app.setSchedulingPolicy(&v1alpha1.SchedulingPolicy{
+	app.setSchedulingPolicy(v1alpha1.SchedulingPolicy{
 		Type: v1alpha1.TryReserve,
 		Parameters: map[string]string{
 			"option-1": "value-1",
@@ -222,25 +222,25 @@ func TestSetTaskGroupsAndSchedulingPolicy(t *testing.T) {
 
 	assert.Equal(t, app.getSchedulingPolicy().Type, v1alpha1.TryReserve)
 	assert.Equal(t, len(app.getSchedulingPolicy().Parameters), 2)
-	assert.Equal(t, app.getSchedulingPolicy().Parameters["option-1"], "value-1")
-	assert.Equal(t, app.getSchedulingPolicy().Parameters["option-2"], "value-2")
+	assert.Equal(t, app.getSchedulingPolicy().Parameters["option-1"], "value-1", "incorrect parameter value")
+	assert.Equal(t, app.getSchedulingPolicy().Parameters["option-2"], "value-2", "incorrect parameter value")
 
 	duration := int64(3000)
-	app.setTaskGroups([]*v1alpha1.TaskGroup{
+	app.setTaskGroups([]v1alpha1.TaskGroup{
 		{
 			Name:      "test-group-1",
 			MinMember: 10,
 			MinResource: map[string]resource.Quantity{
-				"cpu":    resource.MustParse("500m"),
-				"memory": resource.MustParse("500Mi"),
+				v1.ResourceCPU.String():    resource.MustParse("500m"),
+				v1.ResourceMemory.String(): resource.MustParse("500Mi"),
 			},
 		},
 		{
 			Name:      "test-group-2",
 			MinMember: 20,
 			MinResource: map[string]resource.Quantity{
-				"cpu":    resource.MustParse("1000m"),
-				"memory": resource.MustParse("1000Mi"),
+				v1.ResourceCPU.String():    resource.MustParse("1000m"),
+				v1.ResourceMemory.String(): resource.MustParse("1000Mi"),
 			},
 			NodeSelector: metav1.LabelSelector{
 				MatchExpressions: []metav1.LabelSelectorRequirement{
@@ -274,8 +274,8 @@ func TestSetTaskGroupsAndSchedulingPolicy(t *testing.T) {
 	tg1 := app.getTaskGroups()[0]
 	assert.Equal(t, tg1.Name, "test-group-1")
 	assert.Equal(t, tg1.MinMember, int32(10))
-	assert.Equal(t, tg1.MinResource["cpu"], resource.MustParse("500m"))
-	assert.Equal(t, tg1.MinResource["memory"], resource.MustParse("500Mi"))
+	assert.Equal(t, tg1.MinResource[v1.ResourceCPU.String()], resource.MustParse("500m"))
+	assert.Equal(t, tg1.MinResource[v1.ResourceMemory.String()], resource.MustParse("500Mi"))
 
 	tg2 := app.getTaskGroups()[1]
 	assert.Equal(t, tg2.Name, "test-group-2")
@@ -332,7 +332,7 @@ func TestTryReserve(t *testing.T) {
 	context.applications[app.applicationID] = app
 
 	// set app scheduling policy
-	app.setSchedulingPolicy(&v1alpha1.SchedulingPolicy{
+	app.setSchedulingPolicy(v1alpha1.SchedulingPolicy{
 		Type: v1alpha1.TryReserve,
 		Parameters: map[string]string{
 			"option-1": "value-1",
@@ -341,21 +341,21 @@ func TestTryReserve(t *testing.T) {
 	})
 
 	// set taskGroups
-	app.setTaskGroups([]*v1alpha1.TaskGroup{
+	app.setTaskGroups([]v1alpha1.TaskGroup{
 		{
 			Name:      "test-group-1",
 			MinMember: 10,
 			MinResource: map[string]resource.Quantity{
-				"cpu":    resource.MustParse("500m"),
-				"memory": resource.MustParse("500Mi"),
+				v1.ResourceCPU.String():    resource.MustParse("500m"),
+				v1.ResourceMemory.String(): resource.MustParse("500Mi"),
 			},
 		},
 		{
 			Name:      "test-group-2",
 			MinMember: 20,
 			MinResource: map[string]resource.Quantity{
-				"cpu":    resource.MustParse("1000m"),
-				"memory": resource.MustParse("1000Mi"),
+				v1.ResourceCPU.String():    resource.MustParse("1000m"),
+				v1.ResourceMemory.String(): resource.MustParse("1000Mi"),
 			},
 		},
 	})
