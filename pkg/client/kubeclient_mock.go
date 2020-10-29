@@ -32,6 +32,7 @@ import (
 type KubeClientMock struct {
 	bindFn    func(pod *v1.Pod, hostID string) error
 	deleteFn  func(pod *v1.Pod) error
+	createFn  func(pod *v1.Pod) (*v1.Pod, error)
 	clientSet kubernetes.Interface
 }
 
@@ -47,6 +48,11 @@ func NewKubeClientMock() *KubeClientMock {
 				zap.String("PodName", pod.Name))
 			return nil
 		},
+		createFn: func(pod *v1.Pod) (*v1.Pod, error) {
+			log.Logger().Info("pod created",
+				zap.String("PodName", pod.Name))
+			return pod, nil
+		},
 		clientSet: fake.NewSimpleClientset(),
 	}
 }
@@ -59,12 +65,16 @@ func (c *KubeClientMock) MockDeleteFn(dfn func(pod *v1.Pod) error) {
 	c.deleteFn = dfn
 }
 
+func (c *KubeClientMock) MockCreateFn(cfn func(pod *v1.Pod) (*v1.Pod, error)) {
+	c.createFn = cfn
+}
+
 func (c *KubeClientMock) Bind(pod *v1.Pod, hostID string) error {
 	return c.bindFn(pod, hostID)
 }
 
 func (c *KubeClientMock) Create(pod *v1.Pod) (*v1.Pod, error) {
-	return pod, nil
+	return c.createFn(pod)
 }
 
 func (c *KubeClientMock) Delete(pod *v1.Pod) error {

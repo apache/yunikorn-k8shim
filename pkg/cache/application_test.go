@@ -21,6 +21,7 @@ package cache
 import (
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -33,8 +34,11 @@ import (
 
 	"github.com/apache/incubator-yunikorn-core/pkg/api"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 )
 
@@ -282,4 +286,96 @@ func TestSetTaskGroupsAndSchedulingPolicy(t *testing.T) {
 	assert.Equal(t, tg2.Tolerations[0].Operator, v1.TolerationOpEqual)
 	assert.Equal(t, tg2.Tolerations[0].Effect, v1.TaintEffectNoSchedule)
 	assert.Equal(t, tg2.Tolerations[0].TolerationSeconds, &duration)
+}
+
+type threadSafePodsMap struct {
+	pods map[string]*v1.Pod
+	sync.RWMutex
+}
+
+func newThreadSafePodsMap() *threadSafePodsMap {
+	return &threadSafePodsMap{
+		pods: make(map[string]*v1.Pod),
+	}
+}
+
+func (t *threadSafePodsMap) add(pod *v1.Pod) {
+	t.Lock()
+	defer t.Unlock()
+	t.pods[pod.Name] = pod
+}
+
+func (t *threadSafePodsMap) count() int {
+	t.RLock()
+	defer t.RUnlock()
+	return len(t.pods)
+}
+
+func TestTryReserve(t *testing.T) {
+	context := initContextForTest()
+	dispatcher.RegisterEventHandler(dispatcher.EventTypeApp, context.ApplicationEventHandler())
+	dispatcher.Start()
+	defer dispatcher.Stop()
+
+	// inject the mocked clients to the placeholder manager
+	createdPods := newThreadSafePodsMap()
+	mockedAPIProvider := client.NewMockedAPIProvider()
+	mockedAPIProvider.MockCreateFn(func(pod *v1.Pod) (*v1.Pod, error) {
+		createdPods.add(pod)
+		return pod, nil
+	})
+	GetPlaceholderManager().setMockedClients(mockedAPIProvider.GetAPIs())
+
+	// create a new app
+	app := NewApplication("app00001", "root.abc", "test-user",
+		map[string]string{}, mockedAPIProvider.GetAPIs().SchedulerAPI)
+	context.applications[app.applicationID] = app
+
+	// set app scheduling policy
+	app.setSchedulingPolicy(&v1alpha1.SchedulingPolicy{
+		Type: v1alpha1.TryReserve,
+		Parameters: map[string]string{
+			"option-1": "value-1",
+			"option-2": "value-2",
+		},
+	})
+
+	// set taskGroups
+	app.setTaskGroups([]*v1alpha1.TaskGroup{
+		{
+			Name:      "test-group-1",
+			MinMember: 10,
+			MinResource: map[string]resource.Quantity{
+				"cpu":    resource.MustParse("500m"),
+				"memory": resource.MustParse("500Mi"),
+			},
+		},
+		{
+			Name:      "test-group-2",
+			MinMember: 20,
+			MinResource: map[string]resource.Quantity{
+				"cpu":    resource.MustParse("1000m"),
+				"memory": resource.MustParse("1000Mi"),
+			},
+		},
+	})
+
+	// submit the app
+	err := app.handle(NewSubmitApplicationEvent(app.applicationID))
+	assert.NilError(t, err)
+	assertAppState(t, app, events.States().Application.Submitted, 3*time.Second)
+
+	// accepted the app
+	err = app.handle(NewSimpleApplicationEvent(app.GetApplicationID(), events.AcceptApplication))
+	assert.NilError(t, err)
+
+	// since this app has taskGroups defined,
+	// once the app is accepted, it is expected to see this app goes to Reserving state
+	assertAppState(t, app, events.States().Application.Reserving, 3*time.Second)
+
+	// under Reserving state, the app will need to acquire all the placeholders it asks for
+	err = utils.WaitForCondition(func() bool {
+		return createdPods.count() == 30
+	}, 100*time.Millisecond, 3*time.Second)
+	assert.NilError(t, err, "placeholders are not created")
 }

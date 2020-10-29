@@ -75,3 +75,10 @@ func (mgr *PlaceholderManager) Recycle(appID string) {
 	log.Logger().Info("start to recycle app placeholders",
 		zap.String("appID", appID))
 }
+
+// this is only used in testing
+func (mgr *PlaceholderManager) setMockedClients(mockedClients *client.Clients) {
+	mgr.Lock()
+	defer mgr.Unlock()
+	mgr.clients = mockedClients
+}

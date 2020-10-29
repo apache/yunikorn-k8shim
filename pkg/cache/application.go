@@ -32,6 +32,7 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
@@ -89,6 +90,9 @@ func NewApplication(appID, queueName, user string, tags map[string]string, sched
 			{Name: string(events.TryReserve),
 				Src: []string{states.Accepted},
 				Dst: states.Reserving},
+			{Name: string(events.UpdateReservation),
+				Src: []string{states.Reserving},
+				Dst: states.Reserving},
 			{Name: string(events.RunApplication),
 				Src: []string{states.Accepted, states.Reserving, states.Running},
 				Dst: states.Running},
@@ -113,7 +117,8 @@ func NewApplication(appID, queueName, user string, tags map[string]string, sched
 			string(events.RecoverApplication):     app.handleRecoverApplicationEvent,
 			string(events.RejectApplication):      app.handleRejectApplicationEvent,
 			string(events.CompleteApplication):    app.handleCompleteApplicationEvent,
-			events.States().Application.Accepted:  app.onAccepted,
+			string(events.UpdateReservation):      app.onReservationStateChange,
+			events.States().Application.Accepted:  app.postAppAccepted,
 			events.States().Application.Reserving: app.onReserving,
 			events.EnterState:                     app.enterState,
 		},
@@ -303,33 +308,43 @@ func (app *Application) Schedule() {
 			log.Logger().Warn("failed to handle SUBMIT app event",
 				zap.Error(err))
 		}
+	case states.Reserving:
+		app.scheduleTasks(func(t *Task) bool {
+			return t.placeholder
+		})
 	case states.Running:
-		if len(app.GetNewTasks()) > 0 {
-			for _, task := range app.GetNewTasks() {
-				// for each new task, we do a sanity check before moving the state to Pending_Schedule
-				if err := task.sanityCheckBeforeScheduling(); err == nil {
-					// note, if we directly trigger submit task event, it may spawn too many duplicate
-					// events, because a task might be submitted multiple times before its state transits to PENDING.
-					if handleErr := task.handle(
-						NewSimpleTaskEvent(task.applicationID, task.taskID, events.InitTask)); handleErr != nil {
-						// something goes wrong when transit task to PENDING state,
-						// this should not happen because we already checked the state
-						// before calling the transition. Nowhere to go, just log the error.
-						log.Logger().Warn("init task failed", zap.Error(err))
-					}
-				} else {
-					events.GetRecorder().Event(task.GetTaskPod(), v1.EventTypeWarning, "FailedScheduling", err.Error())
-					log.Logger().Debug("task is not ready for scheduling",
-						zap.String("appID", task.applicationID),
-						zap.String("taskID", task.taskID),
-						zap.Error(err))
-				}
-			}
-		}
+		app.scheduleTasks(func(t *Task) bool {
+			return !t.placeholder
+		})
 	default:
 		log.Logger().Debug("skipping scheduling application",
 			zap.String("appID", app.GetApplicationID()),
 			zap.String("appState", app.GetApplicationState()))
+	}
+}
+
+func (app *Application) scheduleTasks(taskScheduleCondition func(t *Task) bool) {
+	for _, task := range app.GetNewTasks() {
+		if taskScheduleCondition(task) {
+			// for each new task, we do a sanity check before moving the state to Pending_Schedule
+			if err := task.sanityCheckBeforeScheduling(); err == nil {
+				// note, if we directly trigger submit task event, it may spawn too many duplicate
+				// events, because a task might be submitted multiple times before its state transits to PENDING.
+				if handleErr := task.handle(
+					NewSimpleTaskEvent(task.applicationID, task.taskID, events.InitTask)); handleErr != nil {
+					// something goes wrong when transit task to PENDING state,
+					// this should not happen because we already checked the state
+					// before calling the transition. Nowhere to go, just log the error.
+					log.Logger().Warn("init task failed", zap.Error(err))
+				}
+			} else {
+				events.GetRecorder().Event(task.GetTaskPod(), v1.EventTypeWarning, "FailedScheduling", err.Error())
+				log.Logger().Debug("task is not ready for scheduling",
+					zap.String("appID", task.applicationID),
+					zap.String("taskID", task.taskID),
+					zap.Error(err))
+			}
+		}
 	}
 }
 
@@ -387,7 +402,7 @@ func (app *Application) handleRecoverApplicationEvent(event *fsm.Event) {
 	}
 }
 
-func (app *Application) onAccepted(event *fsm.Event) {
+func (app *Application) postAppAccepted(event *fsm.Event) {
 	// if app has taskGroups defined, it goes to the Reserving state before getting to Running
 	var ev events.SchedulingEvent
 	if app.taskGroups != nil {
@@ -407,12 +422,28 @@ func (app *Application) onReserving(event *fsm.Event) {
 			// put the app into recycling queue and turn the app to running state
 			GetPlaceholderManager().Recycle(app.applicationID)
 			ev := NewRunApplicationEvent(app.applicationID)
-			if err := app.handle(ev); err != nil {
-				log.Logger().Warn("failed to handle RUN app event",
-					zap.Error(err))
-			}
+			dispatcher.Dispatch(ev)
 		}
 	}()
+}
+
+func (app *Application) onReservationStateChange(event *fsm.Event) {
+	// this event is called when there is a add or release of placeholders
+	desireCounts := utils.NewTaskGroupInstanceCountMap()
+	for _, tg := range app.taskGroups {
+		desireCounts.Add(tg.Name, tg.MinMember)
+	}
+
+	actualCounts := utils.NewTaskGroupInstanceCountMap()
+	for _, t := range app.getTasks(events.States().Task.Bound) {
+		actualCounts.AddOne(t.taskGroupName)
+	}
+
+	// min member all satisfied
+	if desireCounts.Equals(actualCounts) {
+		ev := NewRunApplicationEvent(app.GetApplicationID())
+		dispatcher.Dispatch(ev)
+	}
 }
 
 func (app *Application) handleRejectApplicationEvent(event *fsm.Event) {

@@ -37,6 +37,7 @@ const (
 	RecoverApplication  ApplicationEventType = "RecoverApplication"
 	AcceptApplication   ApplicationEventType = "AcceptApplication"
 	TryReserve          ApplicationEventType = "TryReserve"
+	UpdateReservation   ApplicationEventType = "UpdateReservation"
 	RunApplication      ApplicationEventType = "RunApplication"
 	RejectApplication   ApplicationEventType = "RejectApplication"
 	CompleteApplication ApplicationEventType = "CompleteApplication"

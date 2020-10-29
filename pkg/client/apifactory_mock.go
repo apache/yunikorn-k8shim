@@ -103,6 +103,12 @@ func (m *MockedAPIProvider) MockDeleteFn(dfn func(pod *v1.Pod) error) {
 	}
 }
 
+func (m *MockedAPIProvider) MockCreateFn(cfn func(pod *v1.Pod) (*v1.Pod, error)) {
+	if mock, ok := m.clients.KubeClient.(*KubeClientMock); ok {
+		mock.createFn = cfn
+	}
+}
+
 func (m *MockedAPIProvider) SetNodeLister(lister corev1.NodeLister) {
 	informer := m.clients.NodeInformer
 	if i, ok := informer.(*test.MockedNodeInformer); ok {

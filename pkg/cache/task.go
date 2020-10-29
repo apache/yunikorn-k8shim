@@ -125,6 +125,7 @@ func createTaskInternal(tid string, app *Application, resource *si.Resource,
 			states.Rejected:                 task.postTaskRejected,
 			beforeHook(events.CompleteTask): task.beforeTaskCompleted,
 			states.Failed:                   task.postTaskFailed,
+			states.Bound:                    task.postTaskBound,
 			events.EnterState:               task.enterState,
 		},
 	)
@@ -314,6 +315,16 @@ func (task *Task) postTaskAllocated(event *fsm.Event) {
 			v1.EventTypeNormal, "PodBindSuccessful",
 			"Pod %s is successfully bound to node %s", task.alias, nodeID)
 	}(event)
+}
+
+func (task *Task) postTaskBound(event *fsm.Event) {
+	if task.placeholder {
+		log.Logger().Info("placeholder is bound",
+			zap.String("appID", task.applicationID),
+			zap.String("taskName", task.alias),
+			zap.String("taskGroupName", task.taskGroupName))
+		dispatcher.Dispatch(NewUpdateApplicationReservationEvent(task.applicationID))
+	}
 }
 
 func (task *Task) postTaskRejected(event *fsm.Event) {
