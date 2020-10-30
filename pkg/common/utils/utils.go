@@ -15,9 +15,11 @@
  See the License for the specific language governing permissions and
  limitations under the License.
 */
+
 package utils
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -27,6 +29,7 @@ import (
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 	podv1 "k8s.io/kubernetes/pkg/api/v1/pod"
 
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
@@ -104,6 +107,31 @@ func GetApplicationIDFromPod(pod *v1.Pod) (string, error) {
 
 	return "", fmt.Errorf("unable to retrieve application ID from pod spec, %s",
 		pod.Spec.String())
+}
+
+func GetTaskGroupsFromAnnotation(pod *v1.Pod) ([]v1alpha1.TaskGroup, error) {
+	taskGroupInfo, ok := pod.Annotations[constants.AnnotationTaskGroups]
+	if !ok {
+		return nil, fmt.Errorf("unable to extract taskGroups info from pod annotations, %s",
+			pod.Annotations)
+	}
+	taskGroups := []v1alpha1.TaskGroup{}
+	err := json.Unmarshal([]byte(taskGroupInfo), &taskGroups)
+	if err != nil {
+		return nil, err
+	}
+	// json.Unmarchal won't return error if name or MinMember is empty, but will return error if MinResource is empty or error format.
+	for _, taskGroup := range taskGroups {
+		if taskGroup.Name == "" {
+			return nil, fmt.Errorf("can't get taskGroup Name from pod annotation, %s",
+				pod.Annotations[constants.AnnotationTaskGroups])
+		}
+		if taskGroup.MinMember == int32(0) {
+			return nil, fmt.Errorf("can't get taskGroup MinMember from pod annotation, %s",
+				pod.Annotations[constants.AnnotationTaskGroups])
+		}
+	}
+	return taskGroups, nil
 }
 
 // compare the existing pod condition with the given one, return true if the pod condition remains not changed.

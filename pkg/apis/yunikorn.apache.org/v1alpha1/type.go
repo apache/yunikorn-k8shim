@@ -61,7 +61,7 @@ type TaskGroup struct {
 	Name         string                       `json:"name"`
 	MinMember    int32                        `json:"minMember"`
 	MinResource  map[string]resource.Quantity `json:"minResource"`
-	NodeSelector metav1.LabelSelector         `json:"nodeSelector,omitempty"`
+	NodeSelector map[string]string            `json:"nodeSelector,omitempty"`
 	Tolerations  []v1.Toleration              `json:"tolerations,omitempty"`
 }
 
