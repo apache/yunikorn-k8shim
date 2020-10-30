@@ -1,0 +1,67 @@
+/*
+ Licensed to the Apache Software Foundation (ASF) under one
+ or more contributor license agreements.  See the NOTICE file
+ distributed with this work for additional information
+ regarding copyright ownership.  The ASF licenses this file
+ to you under the Apache License, Version 2.0 (the
+ "License"); you may not use this file except in compliance
+ with the License.  You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+*/
+
+package cache
+
+import (
+	"testing"
+
+	"gotest.tools/assert"
+	"k8s.io/apimachinery/pkg/api/resource"
+
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
+)
+
+func TestNewPlaceholder(t *testing.T) {
+	const (
+		appID     = "app01"
+		queue     = "root.default"
+		namespace = "test"
+	)
+	mockedSchedulerAPI := newMockSchedulerAPI()
+	app := NewApplication(appID, queue,
+		"bob", map[string]string{constants.AppTagNamespace: namespace}, mockedSchedulerAPI)
+	app.setTaskGroups([]v1alpha1.TaskGroup{
+		{
+			Name:      "test-group-1",
+			MinMember: 10,
+			MinResource: map[string]resource.Quantity{
+				"cpu":    resource.MustParse("500m"),
+				"memory": resource.MustParse("1024M"),
+			},
+		},
+	})
+
+	holder := newPlaceholder("ph-name", app, app.taskGroups[0])
+	assert.Equal(t, holder.appID, appID)
+	assert.Equal(t, holder.stage, Acquiring)
+	assert.Equal(t, holder.taskGroupName, app.taskGroups[0].Name)
+	assert.Equal(t, holder.pod.Spec.SchedulerName, constants.SchedulerName)
+	assert.Equal(t, holder.pod.Name, "ph-name")
+	assert.Equal(t, holder.pod.Namespace, namespace)
+	assert.Equal(t, len(holder.pod.Labels), 2)
+	assert.Equal(t, holder.pod.Labels[constants.LabelApplicationID], appID)
+	assert.Equal(t, holder.pod.Labels[constants.LabelQueueName], queue)
+	assert.Equal(t, len(holder.pod.Annotations), 1)
+	assert.Equal(t, holder.pod.Annotations[constants.AnnotationTaskGroupName], app.taskGroups[0].Name)
+	assert.Equal(t, common.GetPodResource(holder.pod).Resources[constants.CPU].Value, int64(500))
+	assert.Equal(t, common.GetPodResource(holder.pod).Resources[constants.Memory].Value, int64(1024))
+	assert.Equal(t, holder.String(), "appID: app01, taskGroup: test-group-1, podName: test/ph-name, stage: Acquiring")
+}

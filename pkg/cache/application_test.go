@@ -19,17 +19,26 @@
 package cache
 
 import (
+	"sort"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"gotest.tools/assert"
 	is "gotest.tools/assert/cmp"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/apache/incubator-yunikorn-core/pkg/api"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 )
 
@@ -181,7 +190,7 @@ func TestGetNonTerminatedTaskAlias(t *testing.T) {
 	assert.Assert(t, is.Contains(res, "/test-00001"))
 	assert.Assert(t, is.Contains(res, "/test-00002"))
 
-	//set two tasks to terminated states
+	// set two tasks to terminated states
 	task1.sm.SetState(events.States().Task.Rejected)
 	task2.sm.SetState(events.States().Task.Rejected)
 	// check the tasks both in terminated states
@@ -189,11 +198,184 @@ func TestGetNonTerminatedTaskAlias(t *testing.T) {
 	res = app.getNonTerminatedTaskAlias()
 	assert.Equal(t, len(res), 0)
 
-	//set two tasks to one is terminated, another is non-terminated
+	// set two tasks to one is terminated, another is non-terminated
 	task1.sm.SetState(events.States().Task.Rejected)
 	task2.sm.SetState(events.States().Task.Allocated)
 	// check the task, should only return task2's alias
 	res = app.getNonTerminatedTaskAlias()
 	assert.Equal(t, len(res), 1)
 	assert.Equal(t, res[0], "/test-00002")
+}
+
+func TestSetTaskGroupsAndSchedulingPolicy(t *testing.T) {
+	app := NewApplication("app01", "root.a", "test-user", map[string]string{}, newMockSchedulerAPI())
+	assert.Assert(t, app.getSchedulingPolicy().Type == "")
+	assert.Equal(t, len(app.getTaskGroups()), 0)
+
+	app.setSchedulingPolicy(v1alpha1.SchedulingPolicy{
+		Type: v1alpha1.TryReserve,
+		Parameters: map[string]string{
+			"option-1": "value-1",
+			"option-2": "value-2",
+		},
+	})
+
+	assert.Equal(t, app.getSchedulingPolicy().Type, v1alpha1.TryReserve)
+	assert.Equal(t, len(app.getSchedulingPolicy().Parameters), 2)
+	assert.Equal(t, app.getSchedulingPolicy().Parameters["option-1"], "value-1", "incorrect parameter value")
+	assert.Equal(t, app.getSchedulingPolicy().Parameters["option-2"], "value-2", "incorrect parameter value")
+
+	duration := int64(3000)
+	app.setTaskGroups([]v1alpha1.TaskGroup{
+		{
+			Name:      "test-group-1",
+			MinMember: 10,
+			MinResource: map[string]resource.Quantity{
+				v1.ResourceCPU.String():    resource.MustParse("500m"),
+				v1.ResourceMemory.String(): resource.MustParse("500Mi"),
+			},
+		},
+		{
+			Name:      "test-group-2",
+			MinMember: 20,
+			MinResource: map[string]resource.Quantity{
+				v1.ResourceCPU.String():    resource.MustParse("1000m"),
+				v1.ResourceMemory.String(): resource.MustParse("1000Mi"),
+			},
+			NodeSelector: metav1.LabelSelector{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{
+						Key:      "security",
+						Operator: metav1.LabelSelectorOpIn,
+						Values:   []string{"S1", "value2"},
+					},
+				},
+			},
+			Tolerations: []v1.Toleration{
+				{
+					Key:               "nodeType",
+					Operator:          v1.TolerationOpEqual,
+					Value:             "infra",
+					Effect:            v1.TaintEffectNoSchedule,
+					TolerationSeconds: &duration,
+				},
+			},
+		},
+	})
+
+	assert.Assert(t, app.getTaskGroups() != nil)
+	assert.Equal(t, len(app.getTaskGroups()), 2)
+
+	// sort the slice to give us a stable order
+	sort.Slice(app.getTaskGroups(), func(i, j int) bool {
+		return strings.Compare(app.getTaskGroups()[i].Name, app.getTaskGroups()[j].Name) < 0
+	})
+
+	tg1 := app.getTaskGroups()[0]
+	assert.Equal(t, tg1.Name, "test-group-1")
+	assert.Equal(t, tg1.MinMember, int32(10))
+	assert.Equal(t, tg1.MinResource[v1.ResourceCPU.String()], resource.MustParse("500m"))
+	assert.Equal(t, tg1.MinResource[v1.ResourceMemory.String()], resource.MustParse("500Mi"))
+
+	tg2 := app.getTaskGroups()[1]
+	assert.Equal(t, tg2.Name, "test-group-2")
+	assert.Equal(t, tg2.MinMember, int32(20))
+	assert.Equal(t, len(tg2.Tolerations), 1)
+	assert.Equal(t, tg2.Tolerations[0].Key, "nodeType")
+	assert.Equal(t, tg2.Tolerations[0].Value, "infra")
+	assert.Equal(t, tg2.Tolerations[0].Operator, v1.TolerationOpEqual)
+	assert.Equal(t, tg2.Tolerations[0].Effect, v1.TaintEffectNoSchedule)
+	assert.Equal(t, tg2.Tolerations[0].TolerationSeconds, &duration)
+}
+
+type threadSafePodsMap struct {
+	pods map[string]*v1.Pod
+	sync.RWMutex
+}
+
+func newThreadSafePodsMap() *threadSafePodsMap {
+	return &threadSafePodsMap{
+		pods: make(map[string]*v1.Pod),
+	}
+}
+
+func (t *threadSafePodsMap) add(pod *v1.Pod) {
+	t.Lock()
+	defer t.Unlock()
+	t.pods[pod.Name] = pod
+}
+
+func (t *threadSafePodsMap) count() int {
+	t.RLock()
+	defer t.RUnlock()
+	return len(t.pods)
+}
+
+func TestTryReserve(t *testing.T) {
+	context := initContextForTest()
+	dispatcher.RegisterEventHandler(dispatcher.EventTypeApp, context.ApplicationEventHandler())
+	dispatcher.Start()
+	defer dispatcher.Stop()
+
+	// inject the mocked clients to the placeholder manager
+	createdPods := newThreadSafePodsMap()
+	mockedAPIProvider := client.NewMockedAPIProvider()
+	mockedAPIProvider.MockCreateFn(func(pod *v1.Pod) (*v1.Pod, error) {
+		createdPods.add(pod)
+		return pod, nil
+	})
+	GetPlaceholderManager().setMockedClients(mockedAPIProvider.GetAPIs())
+
+	// create a new app
+	app := NewApplication("app00001", "root.abc", "test-user",
+		map[string]string{}, mockedAPIProvider.GetAPIs().SchedulerAPI)
+	context.applications[app.applicationID] = app
+
+	// set app scheduling policy
+	app.setSchedulingPolicy(v1alpha1.SchedulingPolicy{
+		Type: v1alpha1.TryReserve,
+		Parameters: map[string]string{
+			"option-1": "value-1",
+			"option-2": "value-2",
+		},
+	})
+
+	// set taskGroups
+	app.setTaskGroups([]v1alpha1.TaskGroup{
+		{
+			Name:      "test-group-1",
+			MinMember: 10,
+			MinResource: map[string]resource.Quantity{
+				v1.ResourceCPU.String():    resource.MustParse("500m"),
+				v1.ResourceMemory.String(): resource.MustParse("500Mi"),
+			},
+		},
+		{
+			Name:      "test-group-2",
+			MinMember: 20,
+			MinResource: map[string]resource.Quantity{
+				v1.ResourceCPU.String():    resource.MustParse("1000m"),
+				v1.ResourceMemory.String(): resource.MustParse("1000Mi"),
+			},
+		},
+	})
+
+	// submit the app
+	err := app.handle(NewSubmitApplicationEvent(app.applicationID))
+	assert.NilError(t, err)
+	assertAppState(t, app, events.States().Application.Submitted, 3*time.Second)
+
+	// accepted the app
+	err = app.handle(NewSimpleApplicationEvent(app.GetApplicationID(), events.AcceptApplication))
+	assert.NilError(t, err)
+
+	// since this app has taskGroups defined,
+	// once the app is accepted, it is expected to see this app goes to Reserving state
+	assertAppState(t, app, events.States().Application.Reserving, 3*time.Second)
+
+	// under Reserving state, the app will need to acquire all the placeholders it asks for
+	err = utils.WaitForCondition(func() bool {
+		return createdPods.count() == 30
+	}, 100*time.Millisecond, 3*time.Second)
+	assert.NilError(t, err, "placeholders are not created")
 }

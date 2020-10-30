@@ -28,6 +28,7 @@ import (
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
@@ -47,6 +48,8 @@ type Task struct {
 	context        *Context
 	nodeName       string
 	createTime     time.Time
+	taskGroupName  string
+	placeholder    bool
 	sm             *fsm.FSM
 	lock           *sync.RWMutex
 }
@@ -77,6 +80,7 @@ func createTaskInternal(tid string, app *Application, resource *si.Resource,
 		pod:           pod,
 		resource:      resource,
 		createTime:    pod.GetCreationTimestamp().Time,
+		placeholder:   false,
 		context:       ctx,
 		lock:          &sync.RWMutex{},
 	}
@@ -121,9 +125,14 @@ func createTaskInternal(tid string, app *Application, resource *si.Resource,
 			states.Rejected:                 task.postTaskRejected,
 			beforeHook(events.CompleteTask): task.beforeTaskCompleted,
 			states.Failed:                   task.postTaskFailed,
+			states.Bound:                    task.postTaskBound,
 			events.EnterState:               task.enterState,
 		},
 	)
+
+	if tgName := utils.GetTaskGroupFromPodSpec(pod); tgName != "" {
+		task.taskGroupName = tgName
+	}
 
 	return task
 }
@@ -165,6 +174,18 @@ func (task *Task) GetTaskID() string {
 func (task *Task) GetTaskState() string {
 	// fsm has its own internal lock, we don't need to hold node's lock here
 	return task.sm.Current()
+}
+
+func (task *Task) setTaskGroupName(groupName string) {
+	task.lock.Lock()
+	defer task.lock.Unlock()
+	task.taskGroupName = groupName
+}
+
+func (task *Task) getTaskGroupName() string {
+	task.lock.RLock()
+	defer task.lock.RUnlock()
+	return task.taskGroupName
 }
 
 func (task *Task) getTaskAllocationUUID() string {
@@ -294,6 +315,16 @@ func (task *Task) postTaskAllocated(event *fsm.Event) {
 			v1.EventTypeNormal, "PodBindSuccessful",
 			"Pod %s is successfully bound to node %s", task.alias, nodeID)
 	}(event)
+}
+
+func (task *Task) postTaskBound(event *fsm.Event) {
+	if task.placeholder {
+		log.Logger().Info("placeholder is bound",
+			zap.String("appID", task.applicationID),
+			zap.String("taskName", task.alias),
+			zap.String("taskGroupName", task.taskGroupName))
+		dispatcher.Dispatch(NewUpdateApplicationReservationEvent(task.applicationID))
+	}
 }
 
 func (task *Task) postTaskRejected(event *fsm.Event) {
