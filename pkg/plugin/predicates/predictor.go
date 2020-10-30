@@ -40,23 +40,21 @@ import (
 // this should be configurable, and can be dumped as part of the
 // scheduler configuration, which can be used to explicitly advertise
 // what are supported.
-var defaultSchedulerPolicy = schedulerapi.Policy{
-	Predicates: []schedulerapi.PredicatePolicy{
-		{Name: predicates.NoVolumeZoneConflictPred},
-		{Name: predicates.MaxCSIVolumeCountPred},
-		{Name: predicates.MatchInterPodAffinityPred},
-		{Name: predicates.NoDiskConflictPred},
-		{Name: predicates.PodToleratesNodeTaintsPred},
-		{Name: predicates.CheckNodeUnschedulablePred},
-		// If replacing the default scheduler you must have the volume predicate included:
-		// https://docs.okd.io/latest/admin_guide/scheduling/scheduler.html#static-predicates
-		{Name: predicates.CheckVolumeBindingPred},
-		//PodFitsResourcesPred, PodFitsHostPortsPred, MatchNodeSelectorPred and HostNamePred forms the GeneralPredicate
-		{Name: predicates.PodFitsResourcesPred},
-		{Name: predicates.HostNamePred},
-		{Name: predicates.PodFitsHostPortsPred},
-		{Name: predicates.MatchNodeSelectorPred},
-	},
+var defaultSchedulerPolicy = createDefaultSchedulerPolicy()
+
+func createDefaultSchedulerPolicy() schedulerapi.Policy {
+	predicates := make([]schedulerapi.PredicatePolicy, len(defaultAllocationPredicates))
+	i := 0
+	for predName := range defaultAllocationPredicates {
+		predicates[i] = schedulerapi.PredicatePolicy{
+			Name: predName,
+		}
+		i++
+	}
+	policy := schedulerapi.Policy{
+		Predicates: predicates,
+	}
+	return policy
 }
 
 // This is a hardcoded list of predicates to run when checking reservation proposals.
@@ -64,11 +62,27 @@ var defaultSchedulerPolicy = schedulerapi.Policy{
 // It should not include resources used as the pod is just reserved which means the node is
 // out of resources. At least one pod should stop before we can proceed with allocation and
 // that could change the resources used (including disk mount, pids, ports etc)
-var reservationPredicates = []string{
-	predicates.PodToleratesNodeTaintsPred, // taint check
-	predicates.MatchInterPodAffinityPred,  // affinity check
-	predicates.CheckNodeUnschedulablePred, // unschedulable node are filtered
-	predicates.MatchNodeSelectorPred,      // node selector check
+var defaultReservationPredicates = map[string]bool{
+	predicates.PodToleratesNodeTaintsPred: true, // taint check
+	predicates.MatchInterPodAffinityPred:  true, // affinity check
+	predicates.CheckNodeUnschedulablePred: true, // unschedulable node are filtered
+	predicates.MatchNodeSelectorPred:      true, // node selector check
+}
+
+var defaultAllocationPredicates = map[string]bool{
+	predicates.NoVolumeZoneConflictPred:   true,
+	predicates.MaxCSIVolumeCountPred:      true,
+	predicates.MatchInterPodAffinityPred:  true,
+	predicates.NoDiskConflictPred:         true,
+	predicates.PodToleratesNodeTaintsPred: true,
+	predicates.CheckNodeUnschedulablePred: true,
+	// If replacing the default scheduler you must have the volume predicate included:
+	// https://docs.okd.io/latest/admin_guide/scheduling/scheduler.html#static-predicates
+	predicates.CheckVolumeBindingPred: true,
+	predicates.GeneralPred:            true,
+	// Skip the node selector predicate because it is checked by the GeneralPredicate,
+	// but we need to register it because of the reservation list
+	predicates.MatchNodeSelectorPred: false,
 }
 
 type Predictor struct {
@@ -78,6 +92,8 @@ type Predictor struct {
 	predicateMetaProducer        predicates.PredicateMetadataProducer
 	mandatoryFitPredicates       sets.String
 	schedulerPolicy              schedulerapi.Policy
+	allocationPredicates         map[string]bool
+	reservationPredicates        map[string]bool
 
 	sync.RWMutex
 }
@@ -87,24 +103,54 @@ func NewPredictor(args *factory.PluginFactoryArgs, testMode bool) *Predictor {
 		// in test mode, disable all the predicates
 		return newPredictorInternal(args, schedulerapi.Policy{
 			Predicates: []schedulerapi.PredicatePolicy{},
-		})
+		}, false)
 	}
 	schedulerPolicy, err := parseConfiguredSchedulerPolicy()
 	if err != nil {
 		log.Logger().Fatal(err.Error())
 	}
+	defaultPolicy := false
 	if schedulerPolicy == nil {
 		schedulerPolicy = &defaultSchedulerPolicy
+		defaultPolicy = true
 	}
-	return newPredictorInternal(args, *schedulerPolicy)
+	return newPredictorInternal(args, *schedulerPolicy, defaultPolicy)
+}
+func getActualAllocationPredicates(policy schedulerapi.Policy) map[string]bool {
+	predMap := make(map[string]bool, len(policy.Predicates))
+	for _, pred := range policy.Predicates {
+		predMap[pred.Name] = true
+	}
+	return predMap
 }
 
-func newPredictorInternal(args *factory.PluginFactoryArgs, schedulerPolicy schedulerapi.Policy) *Predictor {
+func getActualReservationPredicates(policy schedulerapi.Policy) map[string]bool {
+	predMap := make(map[string]bool, len(defaultReservationPredicates))
+	for _, pred := range policy.Predicates {
+		if defaultReservationPredicates[pred.Name] {
+			predMap[pred.Name] = true
+		}
+	}
+	return predMap
+}
+
+func newPredictorInternal(args *factory.PluginFactoryArgs, schedulerPolicy schedulerapi.Policy, defaultPolicy bool) *Predictor {
+	var allocationPred map[string]bool
+	var reservationPred map[string]bool
+	if defaultPolicy {
+		allocationPred = defaultAllocationPredicates
+		reservationPred = defaultReservationPredicates
+	} else {
+		allocationPred = getActualAllocationPredicates(schedulerPolicy)
+		reservationPred = getActualReservationPredicates(schedulerPolicy)
+	}
 	p := &Predictor{
 		fitPredicateMap:        make(map[string]factory.FitPredicateFactory),
 		fitPredicateFunctions:  make(map[string]predicates.FitPredicate),
 		mandatoryFitPredicates: sets.NewString(),
 		schedulerPolicy:        schedulerPolicy,
+		allocationPredicates:   allocationPred,
+		reservationPredicates:  reservationPred,
 	}
 	// init all predicates
 	p.init()
@@ -252,7 +298,7 @@ func (p *Predictor) Predicates(pod *v1.Pod, meta predicates.PredicateMetadata, n
 }
 
 func (p *Predictor) predicatesReserve(pod *v1.Pod, meta predicates.PredicateMetadata, node *deschedulernode.NodeInfo) error {
-	for _, predicateKey := range reservationPredicates {
+	for predicateKey := range p.reservationPredicates {
 		if predicateFn, exist := p.fitPredicateFunctions[predicateKey]; exist {
 			fit, reasons, err := predicateFn(pod, meta, node)
 			if !fit {
@@ -269,7 +315,7 @@ func (p *Predictor) predicatesReserve(pod *v1.Pod, meta predicates.PredicateMeta
 func (p *Predictor) predicatesAllocate(pod *v1.Pod, meta predicates.PredicateMetadata, node *deschedulernode.NodeInfo) error {
 	// honor the ordering...
 	for _, predicateKey := range predicates.Ordering() {
-		if predicateFn, exist := p.fitPredicateFunctions[predicateKey]; exist {
+		if predicateFn, exist := p.fitPredicateFunctions[predicateKey]; exist && p.allocationPredicates[predicateKey] {
 			fit, reasons, err := predicateFn(pod, meta, node)
 			if err != nil {
 				events.GetRecorder().Eventf(pod, v1.EventTypeWarning,

@@ -47,7 +47,7 @@ func TestPodFitsHost(t *testing.T) {
 	predictor := newPredictorInternal(&factory.PluginFactoryArgs{}, schedulerapi.Policy{
 		Predicates: []schedulerapi.PredicatePolicy{
 			{Name: predicates.HostNamePred},
-		}})
+		}}, false)
 	tests := []struct {
 		pod  *v1.Pod
 		node *v1.Node
@@ -133,7 +133,7 @@ func TestPodFitsHostPorts(t *testing.T) {
 	predictor := newPredictorInternal(&factory.PluginFactoryArgs{}, schedulerapi.Policy{
 		Predicates: []schedulerapi.PredicatePolicy{
 			{Name: predicates.PodFitsHostPortsPred},
-		}})
+		}}, false)
 	tests := []struct {
 		pod      *v1.Pod
 		nodeInfo *deschedulernode.NodeInfo
@@ -246,7 +246,7 @@ func TestPodFitsSelector(t *testing.T) {
 	predictor := newPredictorInternal(&factory.PluginFactoryArgs{}, schedulerapi.Policy{
 		Predicates: []schedulerapi.PredicatePolicy{
 			{Name: predicates.MatchNodeSelectorPred},
-		}})
+		}}, false)
 	tests := []struct {
 		pod      *v1.Pod
 		labels   map[string]string
@@ -996,7 +996,7 @@ func TestRunGeneralPredicates(t *testing.T) {
 	predictor := newPredictorInternal(&factory.PluginFactoryArgs{}, schedulerapi.Policy{
 		Predicates: []schedulerapi.PredicatePolicy{
 			{Name: predicates.GeneralPred},
-		}})
+		}}, false)
 	resourceTests := []struct {
 		pod      *v1.Pod
 		nodeInfo *deschedulernode.NodeInfo
@@ -1074,7 +1074,7 @@ func TestInterPodAffinity(t *testing.T) {
 	predictor := newPredictorInternal(&factory.PluginFactoryArgs{}, schedulerapi.Policy{
 		Predicates: []schedulerapi.PredicatePolicy{
 			{Name: predicates.MatchInterPodAffinityPred},
-		}})
+		}}, false)
 	podLabel := map[string]string{"service": "securityscan"}
 	labels1 := map[string]string{
 		"region": "r1",
@@ -2061,7 +2061,7 @@ func TestReserveAlloc(t *testing.T) {
 	predictor := newPredictorInternal(&factory.PluginFactoryArgs{}, schedulerapi.Policy{
 		Predicates: []schedulerapi.PredicatePolicy{
 			{Name: predicates.HostNamePred},
-		}})
+		}}, false)
 	meta := predictor.GetPredicateMeta(pod, nodeInfoMap)
 	err := predictor.Predicates(pod, meta, nodeInfo, false)
 	assert.NilError(t, err, "error should have been nil, no predicates given")
@@ -2070,7 +2070,7 @@ func TestReserveAlloc(t *testing.T) {
 	predictor = newPredictorInternal(&factory.PluginFactoryArgs{}, schedulerapi.Policy{
 		Predicates: []schedulerapi.PredicatePolicy{
 			{Name: predicates.CheckNodeUnschedulablePred},
-		}})
+		}}, false)
 	err = predictor.Predicates(pod, meta, nodeInfo, false)
 	assert.NilError(t, err, "error should have been nil, node is schedulable")
 
@@ -2106,7 +2106,7 @@ func TestReserveNodeSelector(t *testing.T) {
 	predictor := newPredictorInternal(&factory.PluginFactoryArgs{}, schedulerapi.Policy{
 		Predicates: []schedulerapi.PredicatePolicy{
 			{Name: predicates.MatchNodeSelectorPred},
-		}})
+		}}, false)
 
 	testCases := []struct {
 		name          string
@@ -2130,6 +2130,51 @@ func TestReserveNodeSelector(t *testing.T) {
 			} else {
 				assert.NilError(t, err, "No error expected")
 			}
+		})
+	}
+}
+
+func TestNewPredictorInternalPredicates(t *testing.T) {
+	customPolicy := schedulerapi.Policy{
+		Predicates: []schedulerapi.PredicatePolicy{
+			{Name: predicates.MatchInterPodAffinityPred},
+			{Name: predicates.PodToleratesNodeTaintsPred},
+			{Name: predicates.GeneralPred},
+			{Name: predicates.CheckNodeDiskPressurePred},
+		},
+	}
+	expectedCustomAllocationPred := map[string]bool{
+		predicates.MatchInterPodAffinityPred:  true,
+		predicates.PodToleratesNodeTaintsPred: true,
+		predicates.GeneralPred:                true,
+		predicates.CheckNodeDiskPressurePred:  true,
+	}
+	expectedCustomReservationPred := map[string]bool{
+		predicates.MatchInterPodAffinityPred:  true,
+		predicates.PodToleratesNodeTaintsPred: true,
+	}
+	expectedAllocationPredForSameAsDefault := defaultAllocationPredicates
+	expectedAllocationPredForSameAsDefault[predicates.MatchNodeSelectorPred] = true
+
+	testCases := []struct {
+		name                          string
+		schedulerPolicy               schedulerapi.Policy
+		defaultPolicy                 bool
+		expectedAllocationPredicates  map[string]bool
+		expectedReservationPredicates map[string]bool
+	}{
+		{"Default policy", defaultSchedulerPolicy, true, defaultAllocationPredicates, defaultReservationPredicates},
+		{"Same as default policy", defaultSchedulerPolicy, false, expectedAllocationPredForSameAsDefault, defaultReservationPredicates},
+		{"Custom policy", customPolicy, false, expectedCustomAllocationPred, expectedCustomReservationPred},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			p := newPredictorInternal(&factory.PluginFactoryArgs{}, tc.schedulerPolicy, tc.defaultPolicy)
+			assert.Assert(t, p != nil, "Predictor should not be nil")
+			//nolint:staticcheck:  p is aleasy checked for nil
+			assert.DeepEqual(t, p.allocationPredicates, tc.expectedAllocationPredicates)
+			//nolint:staticcheck:  p is aleasy checked for nil
+			assert.DeepEqual(t, p.reservationPredicates, tc.expectedReservationPredicates)
 		})
 	}
 }
