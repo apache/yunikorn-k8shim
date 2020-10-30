@@ -30,7 +30,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/apache/incubator-yunikorn-core/pkg/api"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
@@ -242,14 +241,8 @@ func TestSetTaskGroupsAndSchedulingPolicy(t *testing.T) {
 				v1.ResourceCPU.String():    resource.MustParse("1000m"),
 				v1.ResourceMemory.String(): resource.MustParse("1000Mi"),
 			},
-			NodeSelector: metav1.LabelSelector{
-				MatchExpressions: []metav1.LabelSelectorRequirement{
-					{
-						Key:      "security",
-						Operator: metav1.LabelSelectorOpIn,
-						Values:   []string{"S1", "value2"},
-					},
-				},
+			NodeSelector: map[string]string{
+				"locate": "west",
 			},
 			Tolerations: []v1.Toleration{
 				{
