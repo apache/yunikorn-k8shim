@@ -120,6 +120,17 @@ func GetTaskGroupsFromAnnotation(pod *v1.Pod) ([]v1alpha1.TaskGroup, error) {
 	if err != nil {
 		return nil, err
 	}
+	// json.Unmarchal won't return error if name or MinMember is empty, but will return error if MinResource is empty or error format.
+	for _, taskGroup := range taskGroups {
+		if taskGroup.Name == "" {
+			return nil, fmt.Errorf("can't get taskGroup Name from pod annotation, %s",
+				pod.Annotations[constants.AnnotationTaskGroup])
+		}
+		if taskGroup.MinMember == int32(0) {
+			return nil, fmt.Errorf("can't get taskGroup MinMember from pod annotation, %s",
+				pod.Annotations[constants.AnnotationTaskGroup])
+		}
+	}
 	return taskGroups, nil
 }
 

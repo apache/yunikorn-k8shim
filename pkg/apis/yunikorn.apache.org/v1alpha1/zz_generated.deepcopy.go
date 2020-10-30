@@ -162,7 +162,13 @@ func (in *TaskGroup) DeepCopyInto(out *TaskGroup) {
 			(*out)[key] = val.DeepCopy()
 		}
 	}
-	in.NodeSelector.DeepCopyInto(&out.NodeSelector)
+	if in.NodeSelector != nil {
+		in, out := &in.NodeSelector, &out.NodeSelector
+		*out = make(map[string]string, len(*in))
+		for key, val := range *in {
+			(*out)[key] = val
+		}
+	}
 	if in.Tolerations != nil {
 		in, out := &in.Tolerations, &out.Tolerations
 		*out = make([]v1.Toleration, len(*in))

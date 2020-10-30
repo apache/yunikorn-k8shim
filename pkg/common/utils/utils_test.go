@@ -334,28 +334,19 @@ func TestGetApplicationIDFromPod(t *testing.T) {
 }
 
 func TestGetTaskGroupFromAnnotation(t *testing.T) {
+	// correct json
 	testGroup := `
 	[
 		{
 			"name": "test-group-1",
 			"minMember": 10,
 			"minResource": {
-				"Cpu": 1,
-				"Memory": "2Gi"
+				"cpu": 1,
+				"memory": "2Gi"
 			},
 			"nodeSelector": {
-				"matchLabels": {
-					"testLabel": "testnode"
-				},
-				"matchExpressions": [
-					{
-						"key": "app",
-						"operator": "In",
-						"values": [
-							"test_value"
-						]
-					}
-				]
+				"test": "testnode",
+				"locate": "west"
 			},
 			"tolerations": [
 				{
@@ -370,20 +361,62 @@ func TestGetTaskGroupFromAnnotation(t *testing.T) {
 			"name": "test-group-2",
 			"minMember": 5,
 			"minResource": {
-				"Cpu": 2,
-				"Memory": "4Gi"
+				"cpu": 2,
+				"memory": "4Gi"
 			}
 		}
 	]`
+	testGroup2 := `
+	[
+		{
+			"name": "test-group-3",
+			"minMember": 3,
+			"minResource": {
+				"cpu": 2,
+				"memory": "1Gi"
+			}
+		}
+	]`
+	// Error json
 	testGroupErr := `
 	[
 		{
 			"name": "test-group-err-1",
 			"minMember": "ERR",
 			"minResource": {
-				"Cpu": "ERR",
-				"Memory": "ERR"
+				"cpu": "ERR",
+				"memory": "ERR"
 			},
+		}
+	]`
+	// without name
+	testGroupErr2 := `
+	[
+		{
+			"minMember": 3,
+			"minResource": {
+				"cpu": 2,
+				"memory": "1Gi"
+			}
+		}
+	]`
+	// without minMember
+	testGroupErr3 := `
+	[
+		{
+			"name": "test-group-err-2",
+			"minResource": {
+				"cpu": 2,
+				"memory": "1Gi"
+			}
+		}
+	]`
+	// withot minResource
+	testGroupErr4 := `
+	[
+		{
+			"name": "test-group-err-3",
+			"minMember": 3,
 		}
 	]`
 	// Insert task group info to pod annotation
@@ -407,6 +440,18 @@ func TestGetTaskGroupFromAnnotation(t *testing.T) {
 	taskGroupErr, err := GetTaskGroupsFromAnnotation(pod)
 	assert.Assert(t, taskGroupErr == nil)
 	assert.Assert(t, err != nil)
+	pod.Annotations = map[string]string{constants.AnnotationTaskGroup: testGroupErr2}
+	taskGroupErr2, err := GetTaskGroupsFromAnnotation(pod)
+	assert.Assert(t, taskGroupErr2 == nil)
+	assert.Assert(t, err != nil)
+	pod.Annotations = map[string]string{constants.AnnotationTaskGroup: testGroupErr3}
+	taskGroupErr3, err := GetTaskGroupsFromAnnotation(pod)
+	assert.Assert(t, taskGroupErr3 == nil)
+	assert.Assert(t, err != nil)
+	pod.Annotations = map[string]string{constants.AnnotationTaskGroup: testGroupErr4}
+	taskGroupErr4, err := GetTaskGroupsFromAnnotation(pod)
+	assert.Assert(t, taskGroupErr4 == nil)
+	assert.Assert(t, err != nil)
 	// Correct case
 	pod.Annotations = map[string]string{constants.AnnotationTaskGroup: testGroup}
 	taskGroups, err := GetTaskGroupsFromAnnotation(pod)
@@ -414,25 +459,15 @@ func TestGetTaskGroupFromAnnotation(t *testing.T) {
 	// Group value check
 	assert.Equal(t, taskGroups[0].Name, "test-group-1")
 	assert.Equal(t, taskGroups[0].MinMember, int32(10))
-	assert.Equal(t, taskGroups[0].MinResource["Cpu"], resource.MustParse("1"))
-	assert.Equal(t, taskGroups[0].MinResource["Memory"], resource.MustParse("2Gi"))
+	assert.Equal(t, taskGroups[0].MinResource["cpu"], resource.MustParse("1"))
+	assert.Equal(t, taskGroups[0].MinResource["memory"], resource.MustParse("2Gi"))
 	assert.Equal(t, taskGroups[1].Name, "test-group-2")
 	assert.Equal(t, taskGroups[1].MinMember, int32(5))
-	assert.Equal(t, taskGroups[1].MinResource["Cpu"], resource.MustParse("2"))
-	assert.Equal(t, taskGroups[1].MinResource["Memory"], resource.MustParse("4Gi"))
+	assert.Equal(t, taskGroups[1].MinResource["cpu"], resource.MustParse("2"))
+	assert.Equal(t, taskGroups[1].MinResource["memory"], resource.MustParse("4Gi"))
 	// NodeSelector check
-	var requires []metav1.LabelSelectorRequirement
-	require := metav1.LabelSelectorRequirement{
-		Key:      "app",
-		Operator: "In",
-		Values:   []string{"test_value"},
-	}
-	requires = append(requires, require)
-	nodeSelector := metav1.LabelSelector{
-		MatchLabels:      map[string]string{"testLabel": "testnode"},
-		MatchExpressions: requires,
-	}
-	assert.DeepEqual(t, taskGroups[0].NodeSelector, nodeSelector)
+	assert.Equal(t, taskGroups[0].NodeSelector["test"], "testnode")
+	assert.Equal(t, taskGroups[0].NodeSelector["locate"], "west")
 	// Toleration check
 	var tolerations []v1.Toleration
 	toleration := v1.Toleration{
@@ -443,4 +478,12 @@ func TestGetTaskGroupFromAnnotation(t *testing.T) {
 	}
 	tolerations = append(tolerations, toleration)
 	assert.DeepEqual(t, taskGroups[0].Tolerations, tolerations)
+
+	pod.Annotations = map[string]string{constants.AnnotationTaskGroup: testGroup2}
+	taskGroups2, err := GetTaskGroupsFromAnnotation(pod)
+	assert.NilError(t, err)
+	assert.Equal(t, taskGroups2[0].Name, "test-group-3")
+	assert.Equal(t, taskGroups2[0].MinMember, int32(3))
+	assert.Equal(t, taskGroups2[0].MinResource["cpu"], resource.MustParse("2"))
+	assert.Equal(t, taskGroups2[0].MinResource["memory"], resource.MustParse("1Gi"))
 }
