@@ -50,10 +50,10 @@ spec:
         spec:
           type: object
           properties:
-            policy:
+            schedulingPolicy:
               type: object
               properties:
-                policy:
+                type:
                   type: string
                 parameters:
                   type: object
@@ -67,7 +67,7 @@ spec:
               items:
                 type: object
                 properties:
-                  groupName: 
+                  name: 
                     type: string
                   minMember:
                     type: integer
@@ -79,6 +79,25 @@ spec:
                       - type: string
                       pattern: '^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$'
                       x-kubernetes-int-or-string: true 
+                  nodeSelector:
+                    type: object
+                    additionalProperties:
+                      type: string
+                  tolerations:
+                    type: array
+                    items:
+                      properties:
+                        effect:
+                          type: string
+                        key:
+                          type: string
+                        operator:
+                          type: string
+                        value:
+                          type: string
+                        tolerationSeconds:
+                          format: int64
+                          type: integer             
         status:
           type: object
           properties:

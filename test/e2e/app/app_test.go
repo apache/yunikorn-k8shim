@@ -82,6 +82,11 @@ var _ = ginkgo.Describe("App", func() {
 			ansmem := resource.MustParse("128Mi")
 			gomega.Ω(appCRD.Spec.TaskGroups[0].MinResource["cpu"]).To(gomega.Equal(anscpu))
 			gomega.Ω(appCRD.Spec.TaskGroups[0].MinResource["memory"]).To(gomega.Equal(ansmem))
+			gomega.Ω(appCRD.Spec.TaskGroups[0].NodeSelector["locate"]).To(gomega.Equal("west"))
+			gomega.Ω(appCRD.Spec.TaskGroups[0].Tolerations[0].Key).To(gomega.Equal("key"))
+			gomega.Ω(appCRD.Spec.TaskGroups[0].Tolerations[0].Operator).To(gomega.Equal("Equal"))
+			gomega.Ω(appCRD.Spec.TaskGroups[0].Tolerations[0].Value).To(gomega.Equal("value"))
+			gomega.Ω(appCRD.Spec.TaskGroups[0].Tolerations[0].Effect).To(gomega.Equal("NoSchedule"))
 		})
 
 		ginkgo.AfterSuite(func() {

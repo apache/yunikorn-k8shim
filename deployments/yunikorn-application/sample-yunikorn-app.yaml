@@ -21,18 +21,25 @@ metadata:
   name: example
 spec:
   schedulingPolicy:
-    name: TryOnce
+    type: TryOnce
     parameters:
       timeout: "60"
       retrySecond: "0"
   queue: root.default
   taskGroups:
-    - groupName: "test-task-0001"
+    - name: "test-task-0001"
       minMember: 1
       minResource:
         cpu: "300m"
         memory: "128Mi"
-    - groupName: "test-task-0002"
+      nodeSelector:
+        locate: west
+      tolerations:
+        - key: "key"
+          operator: "Equal"
+          value: "value"
+          effect: "NoSchedule"
+    - name: "test-task-0002"
       minMember: 2
       minResource:
         cpu: "600m"

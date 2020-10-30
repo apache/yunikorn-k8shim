@@ -29,4 +29,11 @@ spec:
       minResource:
         cpu: "300m"
         memory: "128Mi"
+      nodeSelector:
+        locate: west
+      tolerations:
+        - key: "key"
+          operator: "Equal"
+          value: "value"
+          effect: "NoSchedule"
   
