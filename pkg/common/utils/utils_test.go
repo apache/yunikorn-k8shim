@@ -333,6 +333,7 @@ func TestGetApplicationIDFromPod(t *testing.T) {
 	}
 }
 
+// nolint: funlen
 func TestGetTaskGroupFromAnnotation(t *testing.T) {
 	// correct json
 	testGroup := `
@@ -436,24 +437,24 @@ func TestGetTaskGroupFromAnnotation(t *testing.T) {
 	assert.Assert(t, taskGroupEmpty == nil)
 	assert.Assert(t, err != nil)
 	// Error case
-	pod.Annotations = map[string]string{constants.AnnotationTaskGroup: testGroupErr}
+	pod.Annotations = map[string]string{constants.AnnotationTaskGroups: testGroupErr}
 	taskGroupErr, err := GetTaskGroupsFromAnnotation(pod)
 	assert.Assert(t, taskGroupErr == nil)
 	assert.Assert(t, err != nil)
-	pod.Annotations = map[string]string{constants.AnnotationTaskGroup: testGroupErr2}
+	pod.Annotations = map[string]string{constants.AnnotationTaskGroups: testGroupErr2}
 	taskGroupErr2, err := GetTaskGroupsFromAnnotation(pod)
 	assert.Assert(t, taskGroupErr2 == nil)
 	assert.Assert(t, err != nil)
-	pod.Annotations = map[string]string{constants.AnnotationTaskGroup: testGroupErr3}
+	pod.Annotations = map[string]string{constants.AnnotationTaskGroups: testGroupErr3}
 	taskGroupErr3, err := GetTaskGroupsFromAnnotation(pod)
 	assert.Assert(t, taskGroupErr3 == nil)
 	assert.Assert(t, err != nil)
-	pod.Annotations = map[string]string{constants.AnnotationTaskGroup: testGroupErr4}
+	pod.Annotations = map[string]string{constants.AnnotationTaskGroups: testGroupErr4}
 	taskGroupErr4, err := GetTaskGroupsFromAnnotation(pod)
 	assert.Assert(t, taskGroupErr4 == nil)
 	assert.Assert(t, err != nil)
 	// Correct case
-	pod.Annotations = map[string]string{constants.AnnotationTaskGroup: testGroup}
+	pod.Annotations = map[string]string{constants.AnnotationTaskGroups: testGroup}
 	taskGroups, err := GetTaskGroupsFromAnnotation(pod)
 	assert.NilError(t, err)
 	// Group value check
@@ -479,7 +480,7 @@ func TestGetTaskGroupFromAnnotation(t *testing.T) {
 	tolerations = append(tolerations, toleration)
 	assert.DeepEqual(t, taskGroups[0].Tolerations, tolerations)
 
-	pod.Annotations = map[string]string{constants.AnnotationTaskGroup: testGroup2}
+	pod.Annotations = map[string]string{constants.AnnotationTaskGroups: testGroup2}
 	taskGroups2, err := GetTaskGroupsFromAnnotation(pod)
 	assert.NilError(t, err)
 	assert.Equal(t, taskGroups2[0].Name, "test-group-3")

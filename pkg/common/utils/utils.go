@@ -110,7 +110,7 @@ func GetApplicationIDFromPod(pod *v1.Pod) (string, error) {
 }
 
 func GetTaskGroupsFromAnnotation(pod *v1.Pod) ([]v1alpha1.TaskGroup, error) {
-	taskGroupInfo, ok := pod.Annotations[constants.AnnotationTaskGroup]
+	taskGroupInfo, ok := pod.Annotations[constants.AnnotationTaskGroups]
 	if !ok {
 		return nil, fmt.Errorf("unable to extract taskGroups info from pod annotations, %s",
 			pod.Annotations)
@@ -124,11 +124,11 @@ func GetTaskGroupsFromAnnotation(pod *v1.Pod) ([]v1alpha1.TaskGroup, error) {
 	for _, taskGroup := range taskGroups {
 		if taskGroup.Name == "" {
 			return nil, fmt.Errorf("can't get taskGroup Name from pod annotation, %s",
-				pod.Annotations[constants.AnnotationTaskGroup])
+				pod.Annotations[constants.AnnotationTaskGroups])
 		}
 		if taskGroup.MinMember == int32(0) {
 			return nil, fmt.Errorf("can't get taskGroup MinMember from pod annotation, %s",
-				pod.Annotations[constants.AnnotationTaskGroup])
+				pod.Annotations[constants.AnnotationTaskGroups])
 		}
 	}
 	return taskGroups, nil

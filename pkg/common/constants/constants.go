@@ -51,7 +51,7 @@ const SchedulerName = "yunikorn"
 // Application crd
 const AppManagerHandlerName = "yunikorn-app"
 const AnnotationTaskGroupName = "yunikorn.apache.org/task-group-name"
-const AnnotationTaskGroup = "yunikorn.apache.org/taskGroup"
+const AnnotationTaskGroups = "yunikorn.apache.org/task-groups"
 
 // Gang scheduling
 const PlaceholderContainerImage = "k8s.gcr.io/pause"
