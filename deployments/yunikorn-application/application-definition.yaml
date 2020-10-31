@@ -86,6 +86,7 @@ spec:
                   tolerations:
                     type: array
                     items:
+                      type: object
                       properties:
                         effect:
                           type: string
