@@ -479,8 +479,14 @@ func ApplyYamlWithKubectl(path, namespace string) error {
 	cmd := exec.Command("kubectl", "apply", "-f", path, "-n", namespace)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
-	cmd.Run()
-	errStr := string(stderr.Bytes())
+	// if err != nil, isn't represent yaml format error.
+	// it only represent the cmd.Run() fail.
+	err := cmd.Run()
+	if err != nil {
+		return err
+	}
+	// if yaml format error, errStr will show the detail
+	errStr := stderr.String()
 	if errStr == "" {
 		return nil
 	}
