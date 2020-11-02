@@ -25,7 +25,7 @@ spec:
   schedulingPolicy:
     type: TryReserve
   taskGroups:
-    - name: 
+    - name: 100
       minMember: 1
       minResource:
         cpu: "300m"

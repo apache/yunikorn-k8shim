@@ -482,13 +482,10 @@ func ApplyYamlWithKubectl(path, namespace string) error {
 	// if err != nil, isn't represent yaml format error.
 	// it only represent the cmd.Run() fail.
 	err := cmd.Run()
-	if err != nil {
-		return err
-	}
 	// if yaml format error, errStr will show the detail
 	errStr := stderr.String()
-	if errStr == "" {
-		return nil
+	if err != nil && errStr != "" {
+		return fmt.Errorf("apply fail with %s", errStr)
 	}
-	return fmt.Errorf("apply fail with %s", errStr)
+	return nil
 }
