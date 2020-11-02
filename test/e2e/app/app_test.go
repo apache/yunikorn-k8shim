@@ -18,8 +18,6 @@
 package app
 
 import (
-	"os/exec"
-
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
@@ -53,16 +51,41 @@ var _ = ginkgo.Describe("App", func() {
 		appClient, err = yunikorn.NewApplicationClient()
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		// error test case
-		appCRDDef, err := common.GetAbsPath("../testdata/application_error.yaml")
+		// error queue
+		appCRDDef, err := common.GetAbsPath("../testdata/app/application_err_queue.yaml")
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
-		cmd := exec.Command("kubectl", "apply", "-f", appCRDDef, "-n", dev)
-		err = cmd.Run()
+		err = k8s.ApplyYamlWithKubectl(appCRDDef, dev)
 		gomega.Ω(err).To(gomega.HaveOccurred())
-		// correct test case
-		appCRDDef, err = common.GetAbsPath("../testdata/application.yaml")
+		// error gang name
+		appCRDDef, err = common.GetAbsPath("../testdata/app/application_err_name.yaml")
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
-		cmd2 := exec.Command("kubectl", "apply", "-f", appCRDDef, "-n", dev)
-		err = cmd2.Run()
+		err = k8s.ApplyYamlWithKubectl(appCRDDef, dev)
+		gomega.Ω(err).To(gomega.HaveOccurred())
+		// error minMember
+		appCRDDef, err = common.GetAbsPath("../testdata/app/application_err_minmember.yaml")
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		err = k8s.ApplyYamlWithKubectl(appCRDDef, dev)
+		gomega.Ω(err).To(gomega.HaveOccurred())
+		// error minResource
+		appCRDDef, err = common.GetAbsPath("../testdata/app/application_err_minresource.yaml")
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		err = k8s.ApplyYamlWithKubectl(appCRDDef, dev)
+		gomega.Ω(err).To(gomega.HaveOccurred())
+		// error NodeSelector
+		appCRDDef, err = common.GetAbsPath("../testdata/app/application_err_nodeselector.yaml")
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		err = k8s.ApplyYamlWithKubectl(appCRDDef, dev)
+		gomega.Ω(err).To(gomega.HaveOccurred())
+		// error tolerations
+		appCRDDef, err = common.GetAbsPath("../testdata/app/application_err_tolerations.yaml")
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		err = k8s.ApplyYamlWithKubectl(appCRDDef, dev)
+		gomega.Ω(err).To(gomega.HaveOccurred())
+
+		// correct test case
+		appCRDDef, err = common.GetAbsPath("../testdata/app/application.yaml")
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		err = k8s.ApplyYamlWithKubectl(appCRDDef, dev)
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		appCRD, err = yunikorn.GetApplication(appClient, dev, "example")
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
