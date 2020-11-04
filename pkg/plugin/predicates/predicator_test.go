@@ -2085,3 +2085,51 @@ func TestReserveAlloc(t *testing.T) {
 		t.Errorf("error should not have been nil, predicate should have failed")
 	}
 }
+
+func TestReserveNodeSelector(t *testing.T) {
+	labelMap1 := map[string]string{"foo": "bar"}
+	labelMap2 := map[string]string{"foo2": "bar2"}
+	emptyMap := map[string]string{}
+	pod := &v1.Pod{
+		Spec: v1.PodSpec{},
+	}
+	node := &v1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "node",
+		},
+	}
+	nodeInfo := deschedulernode.NewNodeInfo(pod)
+	err := nodeInfo.SetNode(node)
+	assert.NilError(t, err, "No error expected")
+	nodeInfoMap := map[string]*deschedulernode.NodeInfo{node.Name: nodeInfo}
+
+	predictor := newPredictorInternal(&factory.PluginFactoryArgs{}, schedulerapi.Policy{
+		Predicates: []schedulerapi.PredicatePolicy{
+			{Name: predicates.MatchNodeSelectorPred},
+		}})
+
+	testCases := []struct {
+		name          string
+		nodeLabels    map[string]string
+		nodeSelectors map[string]string
+		errorExpected bool
+	}{
+		{"Match labels", labelMap1, labelMap1, false},
+		{"Missing labels", labelMap1, labelMap2, true},
+		{"empty node labels", emptyMap, labelMap2, true},
+		{"empty node selectors", labelMap1, emptyMap, false},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			pod.Spec.NodeSelector = tc.nodeSelectors
+			node.Labels = tc.nodeLabels
+			meta := predictor.GetPredicateMeta(pod, nodeInfoMap)
+			err = predictor.Predicates(pod, meta, nodeInfo, false)
+			if tc.errorExpected {
+				assert.Assert(t, err != nil, "An error is expected")
+			} else {
+				assert.NilError(t, err, "No error expected")
+			}
+		})
+	}
+}
