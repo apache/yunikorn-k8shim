@@ -51,32 +51,32 @@ var _ = ginkgo.Describe("App", func() {
 		appClient, err = yunikorn.NewApplicationClient()
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		// error test case
-		// error queue
+		// error queue format
 		appCRDDef, err := common.GetAbsPath("../testdata/app/application_err_queue.yaml")
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		err = k8s.ApplyYamlWithKubectl(appCRDDef, dev)
 		gomega.Ω(err).To(gomega.HaveOccurred())
-		// error gang name
+		// error gang name format
 		appCRDDef, err = common.GetAbsPath("../testdata/app/application_err_name.yaml")
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		err = k8s.ApplyYamlWithKubectl(appCRDDef, dev)
 		gomega.Ω(err).To(gomega.HaveOccurred())
-		// error minMember
+		// error minMember format
 		appCRDDef, err = common.GetAbsPath("../testdata/app/application_err_minmember.yaml")
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		err = k8s.ApplyYamlWithKubectl(appCRDDef, dev)
 		gomega.Ω(err).To(gomega.HaveOccurred())
-		// error minResource
+		// error minResource format
 		appCRDDef, err = common.GetAbsPath("../testdata/app/application_err_minresource.yaml")
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		err = k8s.ApplyYamlWithKubectl(appCRDDef, dev)
 		gomega.Ω(err).To(gomega.HaveOccurred())
-		// error NodeSelector
+		// error NodeSelector format
 		appCRDDef, err = common.GetAbsPath("../testdata/app/application_err_nodeselector.yaml")
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		err = k8s.ApplyYamlWithKubectl(appCRDDef, dev)
 		gomega.Ω(err).To(gomega.HaveOccurred())
-		// error tolerations
+		// error tolerations format
 		appCRDDef, err = common.GetAbsPath("../testdata/app/application_err_tolerations.yaml")
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		err = k8s.ApplyYamlWithKubectl(appCRDDef, dev)
