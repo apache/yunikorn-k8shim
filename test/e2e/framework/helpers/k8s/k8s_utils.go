@@ -17,9 +17,11 @@
 package k8s
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"time"
 
@@ -471,4 +473,19 @@ func (k *KubeCtl) RemoveYunikornSchedulerPodAnnotation(annotation string) error 
 	schedPod := schedPodList.Items[0]
 	_, err = k.DeletePodAnnotation(&schedPod, configmanager.YuniKornTestConfig.YkNamespace, annotation)
 	return err
+}
+
+func ApplyYamlWithKubectl(path, namespace string) error {
+	cmd := exec.Command("kubectl", "apply", "-f", path, "-n", namespace)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	// if err != nil, isn't represent yaml format error.
+	// it only represent the cmd.Run() fail.
+	err := cmd.Run()
+	// if yaml format error, errStr will show the detail
+	errStr := stderr.String()
+	if err != nil && errStr != "" {
+		return fmt.Errorf("apply fail with %s", errStr)
+	}
+	return nil
 }

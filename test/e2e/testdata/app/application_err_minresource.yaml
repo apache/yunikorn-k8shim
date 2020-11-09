@@ -14,34 +14,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+# 
+#The error application example for error case
 apiVersion: "yunikorn.apache.org/v1alpha1"
 kind: Application
 metadata:
-  name: example
+  name: error-minResource
 spec:
-  schedulingPolicy:
-    type: TryOnce
-    parameters:
-      timeout: "60"
-      retrySecond: "0"
   queue: root.default
+  schedulingPolicy:
+    type: TryReserve
   taskGroups:
     - name: "test-task-0001"
       minMember: 1
       minResource:
-        cpu: "300m"
+        cpu: "300A"
         memory: "128Mi"
-      nodeSelector:
-        locate: west
-      tolerations:
-        - key: "key"
-          operator: "Equal"
-          value: "value"
-          effect: "NoSchedule"
-    - name: "test-task-0002"
-      minMember: 2
-      minResource:
-        cpu: "600m"
-        memory: "128Mi"
-  
