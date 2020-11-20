@@ -19,8 +19,9 @@
 package interfaces
 
 import (
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
 	v1 "k8s.io/api/core/v1"
+
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
 )
 
 // app management protocol defines all the APIs needed for app management,
