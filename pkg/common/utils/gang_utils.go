@@ -19,6 +19,7 @@
 package utils
 
 import (
+	"encoding/json"
 	"fmt"
 	"sync"
 
@@ -75,6 +76,30 @@ func GetTaskGroupFromPodSpec(pod *v1.Pod) string {
 		return value
 	}
 	return ""
+}
+
+func GetTaskGroupsFromAnnotation(pod *v1.Pod) ([]v1alpha1.TaskGroup, error) {
+	taskGroupInfo, ok := pod.Annotations[constants.AnnotationTaskGroups]
+	if !ok {
+		return nil, nil
+	}
+	taskGroups := []v1alpha1.TaskGroup{}
+	err := json.Unmarshal([]byte(taskGroupInfo), &taskGroups)
+	if err != nil {
+		return nil, err
+	}
+	// json.Unmarchal won't return error if name or MinMember is empty, but will return error if MinResource is empty or error format.
+	for _, taskGroup := range taskGroups {
+		if taskGroup.Name == "" {
+			return nil, fmt.Errorf("can't get taskGroup Name from pod annotation, %s",
+				pod.Annotations[constants.AnnotationTaskGroups])
+		}
+		if taskGroup.MinMember == int32(0) {
+			return nil, fmt.Errorf("can't get taskGroup MinMember from pod annotation, %s",
+				pod.Annotations[constants.AnnotationTaskGroups])
+		}
+	}
+	return taskGroups, nil
 }
 
 type TaskGroupInstanceCountMap struct {
