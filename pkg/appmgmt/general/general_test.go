@@ -23,6 +23,7 @@ import (
 
 	"gotest.tools/assert"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/cache"
@@ -30,6 +31,18 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 )
+
+const taskGroupInfo = `
+[
+	{
+		"name": "test-group-1",
+		"minMember": 3,
+		"minResource": {
+			"cpu": 2,
+			"memory": "1Gi"
+		}
+	}
+]`
 
 func TestGetAppMetadata(t *testing.T) {
 	am := NewManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider())
@@ -47,6 +60,9 @@ func TestGetAppMetadata(t *testing.T) {
 				"applicationId": "app00001",
 				"queue":         "root.a",
 			},
+			Annotations: map[string]string{
+				constants.AnnotationTaskGroups: taskGroupInfo,
+			},
 		},
 		Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
 		Status: v1.PodStatus{
@@ -60,6 +76,10 @@ func TestGetAppMetadata(t *testing.T) {
 	assert.Equal(t, app.QueueName, "root.a")
 	assert.Equal(t, app.User, "")
 	assert.DeepEqual(t, app.Tags, map[string]string{"namespace": "default"})
+	assert.Equal(t, app.TaskGroups[0].Name, "test-group-1")
+	assert.Equal(t, app.TaskGroups[0].MinMember, int32(3))
+	assert.Equal(t, app.TaskGroups[0].MinResource["cpu"], resource.MustParse("2"))
+	assert.Equal(t, app.TaskGroups[0].MinResource["memory"], resource.MustParse("1Gi"))
 
 	pod = v1.Pod{
 		TypeMeta: apis.TypeMeta{
@@ -90,6 +110,7 @@ func TestGetAppMetadata(t *testing.T) {
 	assert.Equal(t, app.QueueName, "root.b")
 	assert.Equal(t, app.User, "bob")
 	assert.DeepEqual(t, app.Tags, map[string]string{"namespace": "app-namespace-01"})
+	assert.DeepEqual(t, len(app.TaskGroups), 0)
 
 	pod = v1.Pod{
 		TypeMeta: apis.TypeMeta{
@@ -130,6 +151,9 @@ func TestGetTaskMetadata(t *testing.T) {
 				"applicationId": "app00001",
 				"queue":         "root.a",
 			},
+			Annotations: map[string]string{
+				constants.AnnotationTaskGroupName: "test-group-01",
+			},
 		},
 		Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
 		Status: v1.PodStatus{
@@ -141,6 +165,11 @@ func TestGetTaskMetadata(t *testing.T) {
 	assert.Equal(t, ok, true)
 	assert.Equal(t, task.ApplicationID, "app00001")
 	assert.Equal(t, task.TaskID, "UID-POD-00001")
+	assert.Equal(t, task.TaskGroupName, "test-group-01")
+	pod.Annotations = map[string]string{}
+	task, ok = am.getTaskMetadata(&pod)
+	assert.Equal(t, ok, true)
+	assert.Equal(t, task.TaskGroupName, "")
 
 	pod = v1.Pod{
 		TypeMeta: apis.TypeMeta{

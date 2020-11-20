@@ -182,3 +182,159 @@ func TestTaskGroupInstanceCountMap(t *testing.T) {
 	counts2.AddOne("g1")
 	assert.Equal(t, counts1.Equals(counts2), false)
 }
+
+// nolint: funlen
+func TestGetTaskGroupFromAnnotation(t *testing.T) {
+	// correct json
+	testGroup := `
+	[
+		{
+			"name": "test-group-1",
+			"minMember": 10,
+			"minResource": {
+				"cpu": 1,
+				"memory": "2Gi"
+			},
+			"nodeSelector": {
+				"test": "testnode",
+				"locate": "west"
+			},
+			"tolerations": [
+				{
+					"key": "key",
+					"operator": "Equal",
+					"value": "value",
+					"effect": "NoSchedule"
+				}
+			]
+		},
+		{
+			"name": "test-group-2",
+			"minMember": 5,
+			"minResource": {
+				"cpu": 2,
+				"memory": "4Gi"
+			}
+		}
+	]`
+	testGroup2 := `
+	[
+		{
+			"name": "test-group-3",
+			"minMember": 3,
+			"minResource": {
+				"cpu": 2,
+				"memory": "1Gi"
+			}
+		}
+	]`
+	// Error json
+	testGroupErr := `
+	[
+		{
+			"name": "test-group-err-1",
+			"minMember": "ERR",
+			"minResource": {
+				"cpu": "ERR",
+				"memory": "ERR"
+			},
+		}
+	]`
+	// without name
+	testGroupErr2 := `
+	[
+		{
+			"minMember": 3,
+			"minResource": {
+				"cpu": 2,
+				"memory": "1Gi"
+			}
+		}
+	]`
+	// without minMember
+	testGroupErr3 := `
+	[
+		{
+			"name": "test-group-err-2",
+			"minResource": {
+				"cpu": 2,
+				"memory": "1Gi"
+			}
+		}
+	]`
+	// withot minResource
+	testGroupErr4 := `
+	[
+		{
+			"name": "test-group-err-3",
+			"minMember": 3,
+		}
+	]`
+	// Insert task group info to pod annotation
+	pod := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-pod-err",
+			Namespace: "test",
+			UID:       "test-pod-UID-err",
+		},
+		Spec: v1.PodSpec{},
+		Status: v1.PodStatus{
+			Phase: v1.PodPending,
+		},
+	}
+	// Empty case
+	taskGroupEmpty, err := GetTaskGroupsFromAnnotation(pod)
+	assert.Assert(t, taskGroupEmpty == nil)
+	assert.Assert(t, err == nil)
+	// Error case
+	pod.Annotations = map[string]string{constants.AnnotationTaskGroups: testGroupErr}
+	taskGroupErr, err := GetTaskGroupsFromAnnotation(pod)
+	assert.Assert(t, taskGroupErr == nil)
+	assert.Assert(t, err != nil)
+	pod.Annotations = map[string]string{constants.AnnotationTaskGroups: testGroupErr2}
+	taskGroupErr2, err := GetTaskGroupsFromAnnotation(pod)
+	assert.Assert(t, taskGroupErr2 == nil)
+	assert.Assert(t, err != nil)
+	pod.Annotations = map[string]string{constants.AnnotationTaskGroups: testGroupErr3}
+	taskGroupErr3, err := GetTaskGroupsFromAnnotation(pod)
+	assert.Assert(t, taskGroupErr3 == nil)
+	assert.Assert(t, err != nil)
+	pod.Annotations = map[string]string{constants.AnnotationTaskGroups: testGroupErr4}
+	taskGroupErr4, err := GetTaskGroupsFromAnnotation(pod)
+	assert.Assert(t, taskGroupErr4 == nil)
+	assert.Assert(t, err != nil)
+	// Correct case
+	pod.Annotations = map[string]string{constants.AnnotationTaskGroups: testGroup}
+	taskGroups, err := GetTaskGroupsFromAnnotation(pod)
+	assert.NilError(t, err)
+	// Group value check
+	assert.Equal(t, taskGroups[0].Name, "test-group-1")
+	assert.Equal(t, taskGroups[0].MinMember, int32(10))
+	assert.Equal(t, taskGroups[0].MinResource["cpu"], resource.MustParse("1"))
+	assert.Equal(t, taskGroups[0].MinResource["memory"], resource.MustParse("2Gi"))
+	assert.Equal(t, taskGroups[1].Name, "test-group-2")
+	assert.Equal(t, taskGroups[1].MinMember, int32(5))
+	assert.Equal(t, taskGroups[1].MinResource["cpu"], resource.MustParse("2"))
+	assert.Equal(t, taskGroups[1].MinResource["memory"], resource.MustParse("4Gi"))
+	// NodeSelector check
+	assert.Equal(t, taskGroups[0].NodeSelector["test"], "testnode")
+	assert.Equal(t, taskGroups[0].NodeSelector["locate"], "west")
+	// Toleration check
+	var tolerations []v1.Toleration
+	toleration := v1.Toleration{
+		Key:      "key",
+		Operator: "Equal",
+		Value:    "value",
+		Effect:   "NoSchedule",
+	}
+	tolerations = append(tolerations, toleration)
+	assert.DeepEqual(t, taskGroups[0].Tolerations, tolerations)
+
+	pod.Annotations = map[string]string{constants.AnnotationTaskGroups: testGroup2}
+	taskGroups2, err := GetTaskGroupsFromAnnotation(pod)
+	assert.NilError(t, err)
+	assert.Equal(t, taskGroups2[0].Name, "test-group-3")
+	assert.Equal(t, taskGroups2[0].MinMember, int32(3))
+	assert.Equal(t, taskGroups2[0].MinResource["cpu"], resource.MustParse("2"))
+	assert.Equal(t, taskGroups2[0].MinResource["memory"], resource.MustParse("1Gi"))
+}
