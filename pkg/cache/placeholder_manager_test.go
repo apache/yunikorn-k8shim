@@ -24,8 +24,10 @@ import (
 	"testing"
 
 	"gotest.tools/assert"
+	is "gotest.tools/assert/cmp"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
@@ -85,4 +87,68 @@ func TestCreateAppPlaceholders(t *testing.T) {
 	})
 	err = placeholderMgr.createAppPlaceholders(app)
 	assert.Error(t, err, "failed to create pod tg-test-group-2-app01-15")
+}
+
+func TestCleanUp(t *testing.T) {
+	const (
+		appID     = "app01"
+		queue     = "root.default"
+		namespace = "test"
+	)
+	mockedContext := initContextForTest()
+	mockedSchedulerAPI := newMockSchedulerAPI()
+	app := NewApplication(appID, queue,
+		"bob", map[string]string{constants.AppTagNamespace: namespace}, mockedSchedulerAPI)
+	mockedContext.applications[appID] = app
+	res := app.getNonTerminatedTaskAlias()
+	assert.Equal(t, len(res), 0)
+
+	pod1 := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "pod-01",
+			UID:  "UID-01",
+		},
+	}
+	pod2 := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "pod-02",
+			UID:  "UID-02",
+		},
+	}
+	taskID1 := "task01"
+	task1 := NewTask(taskID1, app, mockedContext, pod1)
+	task1.placeholder = true
+	app.taskMap[taskID1] = task1
+	taskID2 := "task02"
+	task2 := NewTask(taskID2, app, mockedContext, pod2)
+	task2.placeholder = true
+	app.taskMap[taskID2] = task2
+	res = app.getNonTerminatedTaskAlias()
+	assert.Equal(t, len(res), 2)
+
+	deletePod := make([]string, 0)
+	mockedAPIProvider := client.NewMockedAPIProvider()
+	mockedAPIProvider.MockDeleteFn(func(pod *v1.Pod) error {
+		deletePod = append(deletePod, pod.Name)
+		return nil
+	})
+	placeholderMgr := &PlaceholderManager{
+		clients: mockedAPIProvider.GetAPIs(),
+		RWMutex: sync.RWMutex{},
+	}
+	placeholderMgr.CleanUp(app)
+	// check the taskMap of app is empty
+	res = app.getNonTerminatedTaskAlias()
+	assert.Equal(t, len(res), 0)
+	// check both pod have been deleted
+	assert.Assert(t, is.Contains(deletePod, "pod-01"))
+	assert.Assert(t, is.Contains(deletePod, "pod-02"))
 }

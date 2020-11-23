@@ -70,10 +70,28 @@ func (mgr *PlaceholderManager) createAppPlaceholders(app *Application) error {
 	return nil
 }
 
-// recycle all the placeholders for an application
-func (mgr *PlaceholderManager) Recycle(appID string) {
-	log.Logger().Info("start to recycle app placeholders",
-		zap.String("appID", appID))
+// clean up all the placeholders for an application
+func (mgr *PlaceholderManager) CleanUp(app *Application) {
+	log.Logger().Info("start to clean up app placeholders",
+		zap.String("appID", app.GetApplicationID()))
+	for taskID, task := range app.taskMap {
+		if task.GetTaskPlaceholder() {
+			// remove pod
+			err := mgr.clients.KubeClient.Delete(task.pod)
+			if err != nil {
+				log.Logger().Error("failed to clean up placeholder pod",
+					zap.Error(err))
+			}
+			// remove task from application
+			err = app.removeTask(taskID)
+			if err != nil {
+				log.Logger().Error("failed to remove task from application",
+					zap.Error(err))
+			}
+		}
+	}
+	log.Logger().Info("finish to clean up app placeholders",
+		zap.String("appID", app.GetApplicationID()))
 }
 
 // this is only used in testing

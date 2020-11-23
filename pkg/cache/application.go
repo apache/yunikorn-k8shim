@@ -420,7 +420,7 @@ func (app *Application) onReserving(event *fsm.Event) {
 		if err := GetPlaceholderManager().createAppPlaceholders(app); err != nil {
 			// creating placeholder failed
 			// put the app into recycling queue and turn the app to running state
-			GetPlaceholderManager().Recycle(app.applicationID)
+			GetPlaceholderManager().CleanUp(app)
 			ev := NewRunApplicationEvent(app.applicationID)
 			dispatcher.Dispatch(ev)
 		}
