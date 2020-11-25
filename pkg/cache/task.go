@@ -171,6 +171,12 @@ func (task *Task) GetTaskID() string {
 	return task.taskID
 }
 
+func (task *Task) GetTaskPlaceholder() bool {
+	task.lock.RLock()
+	defer task.lock.RUnlock()
+	return task.placeholder
+}
+
 func (task *Task) GetTaskState() string {
 	// fsm has its own internal lock, we don't need to hold node's lock here
 	return task.sm.Current()
