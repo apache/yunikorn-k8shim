@@ -123,6 +123,16 @@ func TestCleanUp(t *testing.T) {
 			UID:  "UID-02",
 		},
 	}
+	pod3 := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "pod-03",
+			UID:  "UID-03",
+		},
+	}
 	taskID1 := "task01"
 	task1 := NewTask(taskID1, app, mockedContext, pod1)
 	task1.placeholder = true
@@ -131,8 +141,12 @@ func TestCleanUp(t *testing.T) {
 	task2 := NewTask(taskID2, app, mockedContext, pod2)
 	task2.placeholder = true
 	app.taskMap[taskID2] = task2
+	taskID3 := "task03"
+	task3 := NewTask(taskID3, app, mockedContext, pod3)
+	task3.placeholder = false
+	app.taskMap[taskID3] = task3
 	res = app.getNonTerminatedTaskAlias()
-	assert.Equal(t, len(res), 2)
+	assert.Equal(t, len(res), 3)
 
 	deletePod := make([]string, 0)
 	mockedAPIProvider := client.NewMockedAPIProvider()
@@ -141,14 +155,21 @@ func TestCleanUp(t *testing.T) {
 		return nil
 	})
 	placeholderMgr := &PlaceholderManager{
-		clients: mockedAPIProvider.GetAPIs(),
-		RWMutex: sync.RWMutex{},
+		clients:   mockedAPIProvider.GetAPIs(),
+		orphanPod: make(map[string]*v1.Pod),
+		RWMutex:   sync.RWMutex{},
 	}
 	placeholderMgr.CleanUp(app)
-	// check the taskMap of app is empty
-	res = app.getNonTerminatedTaskAlias()
-	assert.Equal(t, len(res), 0)
-	// check both pod have been deleted
+
+	// check both pod-01 and pod-02 in deletePod list and pod-03 isn't contain
 	assert.Assert(t, is.Contains(deletePod, "pod-01"))
 	assert.Assert(t, is.Contains(deletePod, "pod-02"))
+	exist := false
+	for _, item := range deletePod {
+		if item == "pod-03" {
+			exist = true
+		}
+	}
+	assert.Equal(t, exist, false)
+	assert.Equal(t, len(placeholderMgr.orphanPod), 0)
 }

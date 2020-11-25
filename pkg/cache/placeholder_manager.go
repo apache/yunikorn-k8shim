@@ -22,6 +22,7 @@ import (
 	"sync"
 
 	"go.uber.org/zap"
+	v1 "k8s.io/api/core/v1"
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
@@ -30,7 +31,8 @@ import (
 
 // placeholder manager is a service to manage the lifecycle of app placeholders
 type PlaceholderManager struct {
-	clients *client.Clients
+	clients   *client.Clients
+	orphanPod map[string]*v1.Pod
 	sync.RWMutex
 }
 
@@ -81,12 +83,7 @@ func (mgr *PlaceholderManager) CleanUp(app *Application) {
 			if err != nil {
 				log.Logger().Error("failed to clean up placeholder pod",
 					zap.Error(err))
-			}
-			// remove task from application
-			err = app.removeTask(taskID)
-			if err != nil {
-				log.Logger().Error("failed to remove task from application",
-					zap.Error(err))
+				mgr.orphanPod[taskID] = task.pod
 			}
 		}
 	}
