@@ -20,6 +20,7 @@ package cache
 
 import (
 	"sync"
+	"time"
 
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
@@ -96,4 +97,22 @@ func (mgr *PlaceholderManager) setMockedClients(mockedClients *client.Clients) {
 	mgr.Lock()
 	defer mgr.Unlock()
 	mgr.clients = mockedClients
+}
+
+func (mgr *PlaceholderManager) cleanOrphanPlaceholders() {
+	for taskID, pod := range mgr.orphanPod {
+		err := mgr.clients.KubeClient.Delete(pod)
+		if err == nil {
+			delete(mgr.orphanPod, taskID)
+		}
+	}
+}
+
+func (mgr *PlaceholderManager) Start() {
+	go func() {
+		for {
+			mgr.cleanOrphanPlaceholders()
+			time.Sleep(5 * time.Second)
+		}
+	}()
 }

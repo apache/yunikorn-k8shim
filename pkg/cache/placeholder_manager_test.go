@@ -173,3 +173,27 @@ func TestCleanUp(t *testing.T) {
 	assert.Equal(t, exist, false)
 	assert.Equal(t, len(placeholderMgr.orphanPod), 0)
 }
+
+func TestCleanOrphanPlaceholders(t *testing.T) {
+	mockedAPIProvider := client.NewMockedAPIProvider()
+	placeholderMgr := &PlaceholderManager{
+		clients:   mockedAPIProvider.GetAPIs(),
+		orphanPod: make(map[string]*v1.Pod),
+		RWMutex:   sync.RWMutex{},
+	}
+	pod1 := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "pod-01",
+			UID:  "UID-01",
+		},
+	}
+	placeholderMgr.orphanPod["task01"] = pod1
+	assert.Equal(t, len(placeholderMgr.orphanPod), 1)
+
+	placeholderMgr.cleanOrphanPlaceholders()
+	assert.Equal(t, len(placeholderMgr.orphanPod), 0)
+}
