@@ -193,7 +193,6 @@ func TestCleanOrphanPlaceholders(t *testing.T) {
 	}
 	placeholderMgr.orphanPod["task01"] = pod1
 	assert.Equal(t, len(placeholderMgr.orphanPod), 1)
-
 	placeholderMgr.cleanOrphanPlaceholders()
 	assert.Equal(t, len(placeholderMgr.orphanPod), 0)
 }

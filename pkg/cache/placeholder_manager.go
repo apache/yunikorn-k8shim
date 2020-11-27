@@ -111,6 +111,7 @@ func (mgr *PlaceholderManager) cleanOrphanPlaceholders() {
 func (mgr *PlaceholderManager) Start() {
 	go func() {
 		for {
+			// clean orphan placeholders every 5 seconds
 			mgr.cleanOrphanPlaceholders()
 			time.Sleep(5 * time.Second)
 		}
