@@ -34,6 +34,7 @@ import (
 type PlaceholderManager struct {
 	clients   *client.Clients
 	orphanPod map[string]*v1.Pod
+	stopChan  chan struct{}
 	sync.RWMutex
 }
 
@@ -100,20 +101,40 @@ func (mgr *PlaceholderManager) setMockedClients(mockedClients *client.Clients) {
 }
 
 func (mgr *PlaceholderManager) cleanOrphanPlaceholders() {
+	mgr.Lock()
+	defer mgr.Unlock()
 	for taskID, pod := range mgr.orphanPod {
+		log.Logger().Debug("start to clean up orphan pod",
+			zap.String("taskID", taskID),
+			zap.String("podName", pod.Name))
 		err := mgr.clients.KubeClient.Delete(pod)
-		if err == nil {
+		if err != nil {
+			log.Logger().Warn("failed to clean up orphan pod", zap.Error(err))
+		} else {
 			delete(mgr.orphanPod, taskID)
 		}
 	}
 }
 
 func (mgr *PlaceholderManager) Start() {
+	log.Logger().Info("starting the Placeholder Manager")
+	mgr.stopChan = make(chan struct{})
 	go func() {
 		for {
-			// clean orphan placeholders every 5 seconds
-			mgr.cleanOrphanPlaceholders()
-			time.Sleep(5 * time.Second)
+			select {
+			case <-mgr.stopChan:
+				log.Logger().Info("PlaceholderManager has been stopped")
+				return
+			default:
+				// clean orphan placeholders every 5 seconds
+				mgr.cleanOrphanPlaceholders()
+				time.Sleep(5 * time.Second)
+			}
 		}
 	}()
+}
+
+func (mgr *PlaceholderManager) Stop() {
+	log.Logger().Info("stopping the Placeholder Manager")
+	mgr.stopChan <- struct{}{}
 }
