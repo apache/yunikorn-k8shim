@@ -21,7 +21,10 @@ os:
   - linux
 
 go:
-  - "1.12"
+  - "1.15"
+
+git:
+  depth: 2
 
 services:
   - 'docker'
@@ -36,7 +39,7 @@ jobs:
   include:
     - stage: pre-commit checks
       script:
-      - curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.22.2
+      - curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.33.0
       - make license-check
       - make test
       - make lint
