@@ -21,6 +21,7 @@ package cache
 import (
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"gotest.tools/assert"
@@ -195,4 +196,22 @@ func TestCleanOrphanPlaceholders(t *testing.T) {
 	assert.Equal(t, len(placeholderMgr.orphanPod), 1)
 	placeholderMgr.cleanOrphanPlaceholders()
 	assert.Equal(t, len(placeholderMgr.orphanPod), 0)
+}
+
+func TestPlaceholderManagerStartStop(t *testing.T) {
+	mockedAPIProvider := client.NewMockedAPIProvider()
+	placeholderMgr := &PlaceholderManager{
+		clients:   mockedAPIProvider.GetAPIs(),
+		orphanPod: make(map[string]*v1.Pod),
+		running:   atomic.Value{},
+		RWMutex:   sync.RWMutex{},
+	}
+	placeholderMgr.setRunning(false)
+	// start clean up goroutine
+	placeholderMgr.Start()
+	assert.Equal(t, placeholderMgr.isRunning(), true)
+
+	placeholderMgr.Stop()
+	// check orphan pod map is empty
+	assert.Equal(t, placeholderMgr.isRunning(), false)
 }

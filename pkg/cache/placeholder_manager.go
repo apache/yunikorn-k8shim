@@ -20,6 +20,7 @@ package cache
 
 import (
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"go.uber.org/zap"
@@ -35,6 +36,7 @@ type PlaceholderManager struct {
 	clients   *client.Clients
 	orphanPod map[string]*v1.Pod
 	stopChan  chan struct{}
+	running   atomic.Value
 	sync.RWMutex
 }
 
@@ -119,14 +121,21 @@ func (mgr *PlaceholderManager) cleanOrphanPlaceholders() {
 func (mgr *PlaceholderManager) Start() {
 	log.Logger().Info("starting the Placeholder Manager")
 	mgr.stopChan = make(chan struct{})
+	if mgr.isRunning() {
+		log.Logger().Info("The placeholder manager has been started")
+		return
+	}
+	mgr.setRunning(true)
 	go func() {
 		for {
 			select {
 			case <-mgr.stopChan:
 				log.Logger().Info("PlaceholderManager has been stopped")
+				mgr.setRunning(false)
 				return
 			default:
 				// clean orphan placeholders every 5 seconds
+				log.Logger().Info("clean up orphan pod")
 				mgr.cleanOrphanPlaceholders()
 				time.Sleep(5 * time.Second)
 			}
@@ -135,6 +144,19 @@ func (mgr *PlaceholderManager) Start() {
 }
 
 func (mgr *PlaceholderManager) Stop() {
+	if !mgr.isRunning() {
+		log.Logger().Info("The placeholder manager has been stopped")
+		return
+	}
 	log.Logger().Info("stopping the Placeholder Manager")
 	mgr.stopChan <- struct{}{}
+	time.Sleep(3 * time.Second)
+}
+
+func (mgr *PlaceholderManager) isRunning() bool {
+	return mgr.running.Load().(bool)
+}
+
+func (mgr *PlaceholderManager) setRunning(flag bool) {
+	mgr.running.Store(flag)
 }
