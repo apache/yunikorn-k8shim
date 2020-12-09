@@ -20,6 +20,8 @@ package cache
 
 import (
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
@@ -33,6 +35,8 @@ import (
 type PlaceholderManager struct {
 	clients   *client.Clients
 	orphanPod map[string]*v1.Pod
+	stopChan  chan struct{}
+	running   atomic.Value
 	sync.RWMutex
 }
 
@@ -96,4 +100,63 @@ func (mgr *PlaceholderManager) setMockedClients(mockedClients *client.Clients) {
 	mgr.Lock()
 	defer mgr.Unlock()
 	mgr.clients = mockedClients
+}
+
+func (mgr *PlaceholderManager) cleanOrphanPlaceholders() {
+	mgr.Lock()
+	defer mgr.Unlock()
+	for taskID, pod := range mgr.orphanPod {
+		log.Logger().Debug("start to clean up orphan pod",
+			zap.String("taskID", taskID),
+			zap.String("podName", pod.Name))
+		err := mgr.clients.KubeClient.Delete(pod)
+		if err != nil {
+			log.Logger().Warn("failed to clean up orphan pod", zap.Error(err))
+		} else {
+			delete(mgr.orphanPod, taskID)
+		}
+	}
+}
+
+func (mgr *PlaceholderManager) Start() {
+	log.Logger().Info("starting the Placeholder Manager")
+	mgr.stopChan = make(chan struct{})
+	if mgr.isRunning() {
+		log.Logger().Info("The placeholder manager has been started")
+		return
+	}
+	mgr.setRunning(true)
+	go func() {
+		for {
+			select {
+			case <-mgr.stopChan:
+				log.Logger().Info("PlaceholderManager has been stopped")
+				mgr.setRunning(false)
+				return
+			default:
+				// clean orphan placeholders every 5 seconds
+				log.Logger().Info("clean up orphan pod")
+				mgr.cleanOrphanPlaceholders()
+				time.Sleep(5 * time.Second)
+			}
+		}
+	}()
+}
+
+func (mgr *PlaceholderManager) Stop() {
+	if !mgr.isRunning() {
+		log.Logger().Info("The placeholder manager has been stopped")
+		return
+	}
+	log.Logger().Info("stopping the Placeholder Manager")
+	mgr.stopChan <- struct{}{}
+	time.Sleep(3 * time.Second)
+}
+
+func (mgr *PlaceholderManager) isRunning() bool {
+	return mgr.running.Load().(bool)
+}
+
+func (mgr *PlaceholderManager) setRunning(flag bool) {
+	mgr.running.Store(flag)
 }
