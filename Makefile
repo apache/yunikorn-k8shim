@@ -22,13 +22,13 @@ MOD_VERSION := $(shell awk '/^go/ {print $$2}' go.mod)
 
 GM := $(word 1,$(subst ., ,$(GO_VERSION)))
 MM := $(word 1,$(subst ., ,$(MOD_VERSION)))
-FAIL := $(shell if [[ $(GM) -lt $(MM) ]]; then echo MAJOR; fi)
+FAIL := $(shell if [ $(GM) -lt $(MM) ]; then echo MAJOR; fi)
 ifdef FAIL
 $(error Build should be run with at least go $(MOD_VERSION) or later, found $(GO_VERSION))
 endif
 GM := $(word 2,$(subst ., ,$(GO_VERSION)))
 MM := $(word 2,$(subst ., ,$(MOD_VERSION)))
-FAIL := $(shell if [[ $(GM) -lt $(MM) ]]; then echo MINOR; fi)
+FAIL := $(shell if [ $(GM) -lt $(MM) ]; then echo MINOR; fi)
 ifdef FAIL
 $(error Build should be run with at least go $(MOD_VERSION) or later, found $(GO_VERSION))
 endif
@@ -70,6 +70,8 @@ all:
 	$(MAKE) -C $(dir $(BASE_DIR)) build
 
 .PHONY: lint
+# Run lint against the previous commit for PR and branch build
+# In dev setup look at all changes on top of master
 lint:
 	@echo "running golangci-lint"
 	@lintBin=$$(go env GOPATH)/bin/golangci-lint ; \
@@ -80,7 +82,9 @@ lint:
 			exit 1; \
 		fi \
 	fi ; \
-	headSHA=$$(git rev-parse --short=12 origin/HEAD) ; \
+	git symbolic-ref -q HEAD && REV="origin/HEAD" || REV="HEAD^" ; \
+	headSHA=$$(git rev-parse --short=12 $${REV}) ; \
+	echo "checking against commit sha $${headSHA}" ; \
 	$${lintBin} run --new-from-rev=$${headSHA}
 
 .PHONY: license-check
