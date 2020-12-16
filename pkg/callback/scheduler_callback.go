@@ -122,9 +122,12 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 		app := callback.context.GetApplication(release.ApplicartionID)
 		for _, task := range app.taskMap {
 			if task.allocationUUID == release.UUID {
-				err := callback.context.apiProvider.GetAPIs().kubeClient.Delete(task.pod)
-				if err != nil {
-					log.Logger().Warn("failed to delete pod", zap.Error(err))
+				// TerminationType 0 mean STOPPED_BY_RM
+				if release.TerminationType != 0 {
+					err := task.DeleteTaskPod(task.pod)
+					if err != nil {
+						log.Logger().Error("failed to delete pod", zap.Error(err))
+					}
 				}
 			}
 		}
