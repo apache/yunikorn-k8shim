@@ -118,6 +118,16 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 	for _, release := range response.ReleasedAllocations {
 		log.Logger().Debug("callback: response to released allocations",
 			zap.String("UUID", release.UUID))
+		// delete the allocated pod
+		app := callback.context.GetApplication(release.ApplicartionID)
+		for _, task := range app.taskMap {
+			if task.allocationUUID == release.UUID {
+				err := callback.context.apiProvider.GetAPIs().kubeClient.Delete(task.pod)
+				if err != nil {
+					log.Logger().Warn("failed to delete pod", zap.Error(err))
+				}
+			}
+		}
 	}
 
 	// handle status changes
@@ -125,8 +135,11 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 		log.Logger().Debug("status update callback received",
 			zap.String("appId", updated.ApplicationID),
 			zap.String("new status", updated.State))
-
-		//handle status update
+		// delete application from context
+		if updated.State == events.States().Application.Completed {
+			delete(callback.context.applications, updated.ApplicartionID)
+		}
+		// handle status update
 		dispatcher.Dispatch(cache.NewApplicationStatusChangeEvent(updated.ApplicationID, events.AppStateChange, updated.State))
 	}
 
