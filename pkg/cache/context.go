@@ -552,6 +552,17 @@ func (ctx *Context) RemoveApplication(appID string) error {
 	}
 }
 
+func (ctx *Context) RemoveApplicationInternal(appID string) error {
+	ctx.lock.Lock()
+	defer ctx.lock.Unlock()
+	if _, exist := ctx.applications[appID]; exist {
+		delete(ctx.applications, appID)
+		return nil
+	} else {
+		return fmt.Errorf("application %s is not found in the context", appID)
+	}
+}
+
 // this implements ApplicationManagementProtocol
 func (ctx *Context) AddTask(request *interfaces.AddTaskRequest) interfaces.ManagedTask {
 	log.Logger().Debug("AddTask",

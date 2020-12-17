@@ -123,7 +123,7 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 		for _, task := range app.taskMap {
 			if task.allocationUUID == release.UUID {
 				// TerminationType 0 mean STOPPED_BY_RM
-				if release.TerminationType != 0 {
+				if release.TerminationType != si.AllocationRelease_STOPPED_BY_RM {
 					err := task.DeleteTaskPod(task.pod)
 					if err != nil {
 						log.Logger().Error("failed to delete pod", zap.Error(err))
@@ -140,7 +140,10 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 			zap.String("new status", updated.State))
 		// delete application from context
 		if updated.State == events.States().Application.Completed {
-			delete(callback.context.applications, updated.ApplicartionID)
+			err := callback.context.RemoveApplicationInternal(updated.ApplicartionID)
+			if err != nil {
+				log.Logger().Error("failed to delete application", zap.Error(err))
+			}
 		}
 		// handle status update
 		dispatcher.Dispatch(cache.NewApplicationStatusChangeEvent(updated.ApplicationID, events.AppStateChange, updated.State))
