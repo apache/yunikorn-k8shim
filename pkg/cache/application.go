@@ -148,6 +148,12 @@ func (app *Application) GetTask(taskID string) (interfaces.ManagedTask, error) {
 		taskID, app.applicationID)
 }
 
+func (app *Application) GetTaskMap() map[string]*Task {
+	app.lock.RLock()
+	defer app.lock.RUnlock()
+	return app.taskMap
+}
+
 func (app *Application) GetApplicationID() string {
 	app.lock.RLock()
 	defer app.lock.RUnlock()

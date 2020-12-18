@@ -118,15 +118,17 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 	for _, release := range response.ReleasedAllocations {
 		log.Logger().Debug("callback: response to released allocations",
 			zap.String("UUID", release.UUID))
+
 		// delete the allocated pod
-		app := callback.context.GetApplication(release.ApplicartionID)
-		for _, task := range app.taskMap {
-			if task.allocationUUID == release.UUID {
-				// TerminationType 0 mean STOPPED_BY_RM
-				if release.TerminationType != si.AllocationRelease_STOPPED_BY_RM {
-					err := task.DeleteTaskPod(task.pod)
-					if err != nil {
-						log.Logger().Error("failed to delete pod", zap.Error(err))
+		if app := callback.context.GetApplicationInternal(release.ApplicationID); app != nil {
+			// TerminationType 0 mean STOPPED_BY_RM
+			if release.TerminationType != si.AllocationRelease_STOPPED_BY_RM {
+				for _, task := range app.GetTaskMap() {
+					if task.GetTaskAllocationUUID() == release.UUID {
+						err := task.DeleteTaskPod(task.GetTaskPod())
+						if err != nil {
+							log.Logger().Error("failed to delete pod", zap.Error(err))
+						}
 					}
 				}
 			}
@@ -140,7 +142,7 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 			zap.String("new status", updated.State))
 		// delete application from context
 		if updated.State == events.States().Application.Completed {
-			err := callback.context.RemoveApplicationInternal(updated.ApplicartionID)
+			err := callback.context.RemoveApplicationInternal(updated.ApplicationID)
 			if err != nil {
 				log.Logger().Error("failed to delete application", zap.Error(err))
 			}

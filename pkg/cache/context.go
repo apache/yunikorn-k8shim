@@ -527,6 +527,15 @@ func (ctx *Context) GetApplication(appID string) interfaces.ManagedApp {
 	return nil
 }
 
+func (ctx *Context) GetApplicationInternal(appID string) *Application {
+	ctx.lock.RLock()
+	defer ctx.lock.RUnlock()
+	if app, ok := ctx.applications[appID]; ok {
+		return app
+	}
+	return nil
+}
+
 func (ctx *Context) RemoveApplication(appID string) error {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()

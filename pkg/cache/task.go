@@ -173,8 +173,12 @@ func (task *Task) getTaskAllocationUUID() string {
 	return task.allocationUUID
 }
 
+func (task *Task) GetTaskAllocationUUID() string {
+	return task.getTaskAllocationUUID()
+}
+
 func (task *Task) DeleteTaskPod(pod *v1.Pod) error {
-	return task.Context.apiProvider.GetAPIs().kubeClient.Delete(task.pod)
+	return task.context.apiProvider.GetAPIs().KubeClient.Delete(task.pod)
 }
 
 func (task *Task) isTerminated() bool {
