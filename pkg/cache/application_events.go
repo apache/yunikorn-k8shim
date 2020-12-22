@@ -18,7 +18,9 @@
 
 package cache
 
-import "github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
+import (
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
+)
 
 // ------------------------
 // SimpleApplicationEvent simples moves application states
@@ -159,4 +161,35 @@ func (fe FailApplicationEvent) GetArgs() []interface{} {
 
 func (fe FailApplicationEvent) GetApplicationID() string {
 	return fe.applicationID
+}
+
+// ------------------------
+// Release application
+// ------------------------
+type ReleaseApplicationEvent struct {
+	applicationID  string
+	allocationUUID string
+	event          events.ApplicationEventType
+}
+
+func NewReleaseApplicationEvent(appID, uuid string) ReleaseApplicationEvent {
+	return ReleaseApplicationEvent{
+		applicationID:  appID,
+		allocationUUID: uuid,
+		event:          events.ReleaseAppAllocation,
+	}
+}
+
+func (re ReleaseApplicationEvent) GetApplicationID() string {
+	return re.applicationID
+}
+
+func (re ReleaseApplicationEvent) GetArgs() []interface{} {
+	args := make([]interface{}, 1)
+	args[0] = re.allocationUUID
+	return args
+}
+
+func (re ReleaseApplicationEvent) GetEvent() events.ApplicationEventType {
+	return re.event
 }

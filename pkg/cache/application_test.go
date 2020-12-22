@@ -25,6 +25,7 @@ import (
 	"gotest.tools/assert"
 	is "gotest.tools/assert/cmp"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/apache/incubator-yunikorn-core/pkg/api"
@@ -90,6 +91,51 @@ func TestRunApplication(t *testing.T) {
 		t.Error("expecting error got 'nil'")
 	}
 	assertAppState(t, app, events.States().Application.Submitted, 3*time.Second)
+}
+
+func TestReleaseAppAllocation(t *testing.T) {
+	context := initContextForTest()
+	ms := &mockSchedulerAPI{}
+	resources := make(map[v1.ResourceName]resource.Quantity)
+	containers := make([]v1.Container, 0)
+	containers = append(containers, v1.Container{
+		Name: "container-01",
+		Resources: v1.ResourceRequirements{
+			Requests: resources,
+		},
+	})
+	pod := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "pod-test-00001",
+			UID:  "UID-00001",
+		},
+		Spec: v1.PodSpec{
+			Containers: containers,
+		},
+	}
+	appID := "app-test-001"
+	UUID := "testUUID001"
+	app := NewApplication(appID, "root.abc", "testuser", map[string]string{}, ms)
+	task := NewTask("task01", app, context, pod)
+	app.addTask(task)
+	task.allocationUUID = UUID
+	// app must be running states
+	err := app.handle(NewReleaseApplicationEvent(appID, UUID))
+	if err == nil {
+		// this should give an error
+		t.Error("expecting error got 'nil'")
+	}
+
+	app.SetState(events.States().Application.Running)
+	assertAppState(t, app, events.States().Application.Running, 3*time.Second)
+	err = app.handle(NewReleaseApplicationEvent(appID, UUID))
+	assert.NilError(t, err)
+	// after handle release event the states of app must be running
+	assertAppState(t, app, events.States().Application.Running, 3*time.Second)
 }
 
 func newMockSchedulerAPI() *mockSchedulerAPI {

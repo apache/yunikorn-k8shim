@@ -119,19 +119,11 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 		log.Logger().Debug("callback: response to released allocations",
 			zap.String("UUID", release.UUID))
 
-		// delete the allocated pod
-		if app := callback.context.GetApplicationInternal(release.ApplicationID); app != nil {
-			// TerminationType 0 mean STOPPED_BY_RM
-			if release.TerminationType != si.AllocationRelease_STOPPED_BY_RM {
-				for _, task := range app.GetTaskMap() {
-					if task.GetTaskAllocationUUID() == release.UUID {
-						err := task.DeleteTaskPod(task.GetTaskPod())
-						if err != nil {
-							log.Logger().Error("failed to delete pod", zap.Error(err))
-						}
-					}
-				}
-			}
+		// TerminationType 0 mean STOPPED_BY_RM
+		if release.TerminationType != si.AllocationRelease_STOPPED_BY_RM {
+			// send release app allocation to application states machine
+			ev := cache.NewReleaseApplicationEvent(release.ApplicationID, release.UUID)
+			dispatcher.Dispatch(ev)
 		}
 	}
 
@@ -146,9 +138,10 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 			if err != nil {
 				log.Logger().Error("failed to delete application", zap.Error(err))
 			}
+		} else {
+			// handle status update
+			dispatcher.Dispatch(cache.NewApplicationStatusChangeEvent(updated.ApplicationID, events.AppStateChange, updated.State))
 		}
-		// handle status update
-		dispatcher.Dispatch(cache.NewApplicationStatusChangeEvent(updated.ApplicationID, events.AppStateChange, updated.State))
 	}
 
 	return nil
