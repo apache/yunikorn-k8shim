@@ -374,7 +374,7 @@ func (app *Application) handleCompleteApplicationEvent(event *fsm.Event) {
 }
 
 func (app *Application) handleReleaseAppAllocationEvent(event *fsm.Event) {
-	eventArgs := make([]string, 1)
+	eventArgs := make([]string, 2)
 	if err := events.GetEventArgsAsStrings(eventArgs, event.Args); err != nil {
 		log.Logger().Error("fail to paser event arg", zap.Error(err))
 		return

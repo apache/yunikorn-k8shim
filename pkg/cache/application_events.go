@@ -20,6 +20,7 @@ package cache
 
 import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
+	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 )
 
 // ------------------------
@@ -164,19 +165,21 @@ func (fe FailApplicationEvent) GetApplicationID() string {
 }
 
 // ------------------------
-// Release application
+// Release application allocations
 // ------------------------
 type ReleaseApplicationEvent struct {
-	applicationID  string
-	allocationUUID string
-	event          events.ApplicationEventType
+	applicationID   string
+	allocationUUID  string
+	terminationType string
+	event           events.ApplicationEventType
 }
 
-func NewReleaseApplicationEvent(appID, uuid string) ReleaseApplicationEvent {
+func NewReleaseApplicationEvent(appID string, allocTermination si.AllocationRelease_TerminationType, uuid string) ReleaseApplicationEvent {
 	return ReleaseApplicationEvent{
-		applicationID:  appID,
-		allocationUUID: uuid,
-		event:          events.ReleaseAppAllocation,
+		applicationID:   appID,
+		allocationUUID:  uuid,
+		terminationType: si.AllocationRelease_TerminationType_name[int32(allocTermination)],
+		event:           events.ReleaseAppAllocation,
 	}
 }
 
@@ -185,8 +188,9 @@ func (re ReleaseApplicationEvent) GetApplicationID() string {
 }
 
 func (re ReleaseApplicationEvent) GetArgs() []interface{} {
-	args := make([]interface{}, 1)
+	args := make([]interface{}, 2)
 	args[0] = re.allocationUUID
+	args[1] = re.terminationType
 	return args
 }
 
