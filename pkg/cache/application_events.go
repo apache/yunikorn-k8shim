@@ -167,15 +167,15 @@ func (fe FailApplicationEvent) GetApplicationID() string {
 // ------------------------
 // Release application allocations
 // ------------------------
-type ReleaseApplicationEvent struct {
+type ReleaseAppAllocationEvent struct {
 	applicationID   string
 	allocationUUID  string
 	terminationType string
 	event           events.ApplicationEventType
 }
 
-func NewReleaseApplicationEvent(appID string, allocTermination si.AllocationRelease_TerminationType, uuid string) ReleaseApplicationEvent {
-	return ReleaseApplicationEvent{
+func NewReleaseAppAllocationEvent(appID string, allocTermination si.AllocationRelease_TerminationType, uuid string) ReleaseAppAllocationEvent {
+	return ReleaseAppAllocationEvent{
 		applicationID:   appID,
 		allocationUUID:  uuid,
 		terminationType: si.AllocationRelease_TerminationType_name[int32(allocTermination)],
@@ -183,17 +183,17 @@ func NewReleaseApplicationEvent(appID string, allocTermination si.AllocationRele
 	}
 }
 
-func (re ReleaseApplicationEvent) GetApplicationID() string {
+func (re ReleaseAppAllocationEvent) GetApplicationID() string {
 	return re.applicationID
 }
 
-func (re ReleaseApplicationEvent) GetArgs() []interface{} {
+func (re ReleaseAppAllocationEvent) GetArgs() []interface{} {
 	args := make([]interface{}, 2)
 	args[0] = re.allocationUUID
 	args[1] = re.terminationType
 	return args
 }
 
-func (re ReleaseApplicationEvent) GetEvent() events.ApplicationEventType {
+func (re ReleaseAppAllocationEvent) GetEvent() events.ApplicationEventType {
 	return re.event
 }

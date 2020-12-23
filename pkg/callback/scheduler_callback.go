@@ -122,7 +122,7 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 		// TerminationType 0 mean STOPPED_BY_RM
 		if release.TerminationType != si.AllocationRelease_STOPPED_BY_RM {
 			// send release app allocation to application states machine
-			ev := cache.NewReleaseApplicationEvent(release.ApplicationID, release.TerminationType, release.UUID)
+			ev := cache.NewReleaseAppAllocationEvent(release.ApplicationID, release.TerminationType, release.UUID)
 			dispatcher.Dispatch(ev)
 		}
 	}
