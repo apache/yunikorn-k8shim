@@ -84,6 +84,9 @@ func NewApplication(appID, queueName, user string, tags map[string]string, sched
 			{Name: string(events.RunApplication),
 				Src: []string{states.Accepted, states.Running},
 				Dst: states.Running},
+			{Name: string(events.ReleaseAppAllocation),
+				Src: []string{states.Running},
+				Dst: states.Running},
 			{Name: string(events.CompleteApplication),
 				Src: []string{states.Running},
 				Dst: states.Completed},
@@ -101,11 +104,12 @@ func NewApplication(appID, queueName, user string, tags map[string]string, sched
 				Dst: states.Killed},
 		},
 		fsm.Callbacks{
-			string(events.SubmitApplication):   app.handleSubmitApplicationEvent,
-			string(events.RecoverApplication):  app.handleRecoverApplicationEvent,
-			string(events.RejectApplication):   app.handleRejectApplicationEvent,
-			string(events.CompleteApplication): app.handleCompleteApplicationEvent,
-			events.EnterState:                  app.enterState,
+			string(events.SubmitApplication):    app.handleSubmitApplicationEvent,
+			string(events.RecoverApplication):   app.handleRecoverApplicationEvent,
+			string(events.RejectApplication):    app.handleRejectApplicationEvent,
+			string(events.CompleteApplication):  app.handleCompleteApplicationEvent,
+			string(events.ReleaseAppAllocation): app.handleReleaseAppAllocationEvent,
+			events.EnterState:                   app.enterState,
 		},
 	)
 
@@ -367,6 +371,27 @@ func (app *Application) handleRejectApplicationEvent(event *fsm.Event) {
 
 func (app *Application) handleCompleteApplicationEvent(event *fsm.Event) {
 	// TODO app lifecycle updates
+}
+
+func (app *Application) handleReleaseAppAllocationEvent(event *fsm.Event) {
+	eventArgs := make([]string, 2)
+	if err := events.GetEventArgsAsStrings(eventArgs, event.Args); err != nil {
+		log.Logger().Error("fail to paser event arg", zap.Error(err))
+		return
+	}
+	allocUUID := eventArgs[0]
+	log.Logger().Info("try to release pod from application",
+		zap.String("appID", app.applicationID),
+		zap.String("allocationUUID", allocUUID))
+
+	for _, task := range app.taskMap {
+		if task.allocationUUID == allocUUID {
+			err := task.DeleteTaskPod(task.pod)
+			if err != nil {
+				log.Logger().Error("failed to release allocation from application", zap.Error(err))
+			}
+		}
+	}
 }
 
 func (app *Application) enterState(event *fsm.Event) {
