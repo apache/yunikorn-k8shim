@@ -129,7 +129,7 @@ func TestReleaseAppAllocation(t *testing.T) {
 		// this should give an error
 		t.Error("expecting error got 'nil'")
 	}
-
+	// set app states to running, let event can be trigger
 	app.SetState(events.States().Application.Running)
 	assertAppState(t, app, events.States().Application.Running, 3*time.Second)
 	err = app.handle(NewReleaseApplicationEvent(appID, si.AllocationRelease_TIMEOUT, UUID))
