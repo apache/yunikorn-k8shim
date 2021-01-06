@@ -55,13 +55,13 @@ jobs:
       script: ./scripts/run-e2e-tests.sh -a "test" -n ${CLUSTER_NAME} -v ${KIND_NODE_IMAGE}
       after_script: ./scripts/run-e2e-tests.sh -a "cleanup" -n ${CLUSTER_NAME}
       env:
-        - KIND_NODE_IMAGE="kindest/node:v1.14.10"
+        - KIND_NODE_IMAGE="kindest/node:v1.18.8"
         - CLUSTER_NAME="yk8s"
     - stage: e2e tests
       script: ./scripts/run-e2e-tests.sh -a "test" -n ${CLUSTER_NAME} -v ${KIND_NODE_IMAGE}
       after_script: ./scripts/run-e2e-tests.sh -a "cleanup" -n ${CLUSTER_NAME}
       env:
-        - KIND_NODE_IMAGE="kindest/node:v1.15.11"
+        - KIND_NODE_IMAGE="kindest/node:v1.17.11"
         - CLUSTER_NAME="yk8s"
     - stage: e2e tests
       script: ./scripts/run-e2e-tests.sh -a "test" -n ${CLUSTER_NAME} -v ${KIND_NODE_IMAGE}

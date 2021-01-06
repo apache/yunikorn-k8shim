@@ -33,16 +33,17 @@ type SchedulingEvent interface {
 type ApplicationEventType string
 
 const (
-	SubmitApplication   ApplicationEventType = "SubmitApplication"
-	RecoverApplication  ApplicationEventType = "RecoverApplication"
-	AcceptApplication   ApplicationEventType = "AcceptApplication"
-	RunApplication      ApplicationEventType = "RunApplication"
-	RejectApplication   ApplicationEventType = "RejectApplication"
-	CompleteApplication ApplicationEventType = "CompleteApplication"
-	FailApplication     ApplicationEventType = "FailApplication"
-	KillApplication     ApplicationEventType = "KillApplication"
-	KilledApplication   ApplicationEventType = "KilledApplication"
-	AppStateChange      ApplicationEventType = "ApplicationStateChange"
+	SubmitApplication    ApplicationEventType = "SubmitApplication"
+	RecoverApplication   ApplicationEventType = "RecoverApplication"
+	AcceptApplication    ApplicationEventType = "AcceptApplication"
+	RunApplication       ApplicationEventType = "RunApplication"
+	RejectApplication    ApplicationEventType = "RejectApplication"
+	CompleteApplication  ApplicationEventType = "CompleteApplication"
+	FailApplication      ApplicationEventType = "FailApplication"
+	KillApplication      ApplicationEventType = "KillApplication"
+	KilledApplication    ApplicationEventType = "KilledApplication"
+	ReleaseAppAllocation ApplicationEventType = "ReleaseAppAllocation"
+	AppStateChange       ApplicationEventType = "ApplicationStateChange"
 )
 
 type ApplicationEvent interface {
