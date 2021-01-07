@@ -43,9 +43,21 @@ type PlaceholderManager struct {
 var placeholderMgr *PlaceholderManager
 var once sync.Once
 
+func NewPlaceholderManager(clients *client.Clients) *PlaceholderManager {
+	var r atomic.Value
+	r.Store(false)
+	placeholderMgr = &PlaceholderManager{
+		clients: clients,
+		running: r,
+	}
+	return placeholderMgr
+}
+
 func GetPlaceholderManager() *PlaceholderManager {
 	once.Do(func() {
-		placeholderMgr = &PlaceholderManager{}
+		if placeholderMgr == nil {
+			log.Logger().Fatal("PlaceholderManager is not initiated")
+		}
 	})
 	return placeholderMgr
 }

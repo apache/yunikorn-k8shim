@@ -50,6 +50,7 @@ const SchedulerName = "yunikorn"
 
 // Application crd
 const AppManagerHandlerName = "yunikorn-app"
+const AnnotationPlaceholderFlag = "yunikorn.apache.org/placeholder"
 const AnnotationTaskGroupName = "yunikorn.apache.org/task-group-name"
 const AnnotationTaskGroups = "yunikorn.apache.org/task-groups"
 

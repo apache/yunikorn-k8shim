@@ -440,12 +440,14 @@ func (app *Application) onReservationStateChange(event *fsm.Event) {
 
 	actualCounts := utils.NewTaskGroupInstanceCountMap()
 	for _, t := range app.getTasks(events.States().Task.Bound) {
-		actualCounts.AddOne(t.taskGroupName)
+		if t.placeholder {
+			actualCounts.AddOne(t.taskGroupName)
+		}
 	}
 
 	// min member all satisfied
 	if desireCounts.Equals(actualCounts) {
-		ev := NewRunApplicationEvent(app.GetApplicationID())
+		ev := NewRunApplicationEvent(app.applicationID)
 		dispatcher.Dispatch(ev)
 	}
 }
@@ -463,16 +465,19 @@ func (app *Application) handleCompleteApplicationEvent(event *fsm.Event) {
 func (app *Application) handleReleaseAppAllocationEvent(event *fsm.Event) {
 	eventArgs := make([]string, 2)
 	if err := events.GetEventArgsAsStrings(eventArgs, event.Args); err != nil {
-		log.Logger().Error("fail to paser event arg", zap.Error(err))
+		log.Logger().Error("fail to parse event arg", zap.Error(err))
 		return
 	}
 	allocUUID := eventArgs[0]
+	terminationTypeStr := eventArgs[1]
 	log.Logger().Info("try to release pod from application",
 		zap.String("appID", app.applicationID),
-		zap.String("allocationUUID", allocUUID))
+		zap.String("allocationUUID", allocUUID),
+		zap.String("terminationType", terminationTypeStr))
 
 	for _, task := range app.taskMap {
 		if task.allocationUUID == allocUUID {
+			task.setTaskTerminationType(terminationTypeStr)
 			err := task.DeleteTaskPod(task.pod)
 			if err != nil {
 				log.Logger().Error("failed to release allocation from application", zap.Error(err))

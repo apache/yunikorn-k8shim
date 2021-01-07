@@ -88,12 +88,14 @@ func (os *Manager) getTaskMetadata(pod *v1.Pod) (interfaces.TaskMetadata, bool) 
 		return interfaces.TaskMetadata{}, false
 	}
 
+	placeholder := utils.GetPlaceholderFlagFromPodSpec(pod)
 	taskGroupName := utils.GetTaskGroupFromPodSpec(pod)
 
 	return interfaces.TaskMetadata{
 		ApplicationID: appId,
 		TaskID:        string(pod.UID),
 		Pod:           pod,
+		Placeholder:   placeholder,
 		TaskGroupName: taskGroupName,
 	}, true
 }
@@ -303,6 +305,8 @@ func (os *Manager) GetExistingAllocation(pod *v1.Pod) *si.Allocation {
 		// when submit a task, we use pod UID as the allocationKey,
 		// to keep consistent, during recovery, the pod UID is also used
 		// for an Allocation.
+		placeholder := utils.GetPlaceholderFlagFromPodSpec(pod)
+		taskGroupName := utils.GetTaskGroupFromPodSpec(pod)
 		return &si.Allocation{
 			AllocationKey:    string(pod.UID),
 			AllocationTags:   meta.Tags,
@@ -311,6 +315,8 @@ func (os *Manager) GetExistingAllocation(pod *v1.Pod) *si.Allocation {
 			QueueName:        meta.QueueName,
 			NodeID:           pod.Spec.NodeName,
 			ApplicationID:    meta.ApplicationID,
+			Placeholder:      placeholder,
+			TaskGroupName:    taskGroupName,
 			PartitionName:    constants.DefaultPartition,
 		}
 	}

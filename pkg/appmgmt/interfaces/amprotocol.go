@@ -81,5 +81,6 @@ type TaskMetadata struct {
 	ApplicationID string
 	TaskID        string
 	Pod           *v1.Pod
+	Placeholder   bool
 	TaskGroupName string
 }

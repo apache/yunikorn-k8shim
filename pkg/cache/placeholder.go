@@ -53,6 +53,7 @@ func newPlaceholder(placeholderName string, app *Application, taskGroup v1alpha1
 				constants.LabelQueueName:     app.GetQueue(),
 			},
 			Annotations: map[string]string{
+				constants.AnnotationPlaceholderFlag: "true",
 				constants.AnnotationTaskGroupName: taskGroup.Name,
 			},
 		},

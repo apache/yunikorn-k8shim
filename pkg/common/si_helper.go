@@ -43,13 +43,15 @@ func createTagsForTask(pod *v1.Pod) map[string]string {
 	return tags
 }
 
-func CreateUpdateRequestForTask(appID, taskID string, resource *si.Resource, pod *v1.Pod) si.UpdateRequest {
+func CreateUpdateRequestForTask(appID, taskID string, resource *si.Resource, placeholder bool, taskGroupName string, pod *v1.Pod) si.UpdateRequest {
 	ask := si.AllocationAsk{
 		AllocationKey:  taskID,
 		ResourceAsk:    resource,
 		ApplicationID:  appID,
 		MaxAllocations: 1,
 		Tags:           createTagsForTask(pod),
+		Placeholder:    placeholder,
+		TaskGroupName:  taskGroupName,
 	}
 
 	result := si.UpdateRequest{
@@ -84,13 +86,21 @@ func CreateReleaseAskRequestForTask(appID, taskId, partition string) si.UpdateRe
 	return result
 }
 
-func CreateReleaseAllocationRequestForTask(appID, allocUUID, partition string) si.UpdateRequest {
+func GetTerminationTypeFromString(terminationTypeStr string) si.AllocationRelease_TerminationType{
+	if v, ok := si.AllocationRelease_TerminationType_value[terminationTypeStr]; ok {
+		return si.AllocationRelease_TerminationType(v)
+	}
+	return si.AllocationRelease_STOPPED_BY_RM
+}
+
+func CreateReleaseAllocationRequestForTask(appID, allocUUID, partition, terminationType string) si.UpdateRequest {
 	toReleases := make([]*si.AllocationRelease, 0)
 	toReleases = append(toReleases, &si.AllocationRelease{
-		ApplicationID: appID,
-		UUID:          allocUUID,
-		PartitionName: partition,
-		Message:       "task completed",
+		ApplicationID:   appID,
+		UUID:            allocUUID,
+		PartitionName:   partition,
+		TerminationType: GetTerminationTypeFromString(terminationType),
+		Message:         "task completed",
 	})
 
 	releaseRequest := si.AllocationReleasesRequest{
