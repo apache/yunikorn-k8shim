@@ -193,6 +193,33 @@ func TestRemoveApplication(t *testing.T) {
 	assert.Assert(t, app != nil)
 }
 
+func TestRemoveApplicationInternal(t *testing.T) {
+	context := initContextForTest()
+	appID1 := "app00001"
+	appID2 := "app00002"
+	app1 := NewApplication(appID1, "root.a", "testuser", map[string]string{}, newMockSchedulerAPI())
+	app2 := NewApplication(appID2, "root.b", "testuser", map[string]string{}, newMockSchedulerAPI())
+	context.applications[appID1] = app1
+	context.applications[appID2] = app2
+	assert.Equal(t, len(context.applications), 2)
+	// remove non-exist app
+	err := context.RemoveApplicationInternal("app00003")
+	assert.Assert(t, err != nil)
+	assert.Equal(t, len(context.applications), 2)
+	// remove app1
+	err = context.RemoveApplicationInternal(appID1)
+	assert.NilError(t, err)
+	assert.Equal(t, len(context.applications), 1)
+	_, ok := context.applications[appID1]
+	assert.Equal(t, ok, false)
+	// remove app2
+	err = context.RemoveApplicationInternal(appID2)
+	assert.NilError(t, err)
+	assert.Equal(t, len(context.applications), 0)
+	_, ok = context.applications[appID2]
+	assert.Equal(t, ok, false)
+}
+
 func TestAddTask(t *testing.T) {
 	context := initContextForTest()
 

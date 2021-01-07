@@ -40,17 +40,17 @@ import (
 )
 
 type Application struct {
-	applicationID    string
-	queue            string
-	partition        string
-	user             string
-	taskMap          map[string]*Task
-	tags             map[string]string
+	applicationID string
+	queue         string
+	partition     string
+	user          string
+	taskMap       map[string]*Task
+	tags          map[string]string
 	schedulingPolicy v1alpha1.SchedulingPolicy
 	taskGroups       []v1alpha1.TaskGroup
-	sm               *fsm.FSM
-	lock             *sync.RWMutex
-	schedulerAPI     api.SchedulerAPI
+	sm            *fsm.FSM
+	lock          *sync.RWMutex
+	schedulerAPI  api.SchedulerAPI
 }
 
 func (app *Application) String() string {
@@ -96,6 +96,9 @@ func NewApplication(appID, queueName, user string, tags map[string]string, sched
 			{Name: string(events.RunApplication),
 				Src: []string{states.Accepted, states.Reserving, states.Running},
 				Dst: states.Running},
+			{Name: string(events.ReleaseAppAllocation),
+				Src: []string{states.Running},
+				Dst: states.Running},
 			{Name: string(events.CompleteApplication),
 				Src: []string{states.Running},
 				Dst: states.Completed},
@@ -120,6 +123,7 @@ func NewApplication(appID, queueName, user string, tags map[string]string, sched
 			string(events.UpdateReservation):      app.onReservationStateChange,
 			events.States().Application.Accepted:  app.postAppAccepted,
 			events.States().Application.Reserving: app.onReserving,
+			string(events.ReleaseAppAllocation):   app.handleReleaseAppAllocationEvent,
 			events.EnterState:                     app.enterState,
 		},
 	)
@@ -454,6 +458,27 @@ func (app *Application) handleRejectApplicationEvent(event *fsm.Event) {
 
 func (app *Application) handleCompleteApplicationEvent(event *fsm.Event) {
 	// TODO app lifecycle updates
+}
+
+func (app *Application) handleReleaseAppAllocationEvent(event *fsm.Event) {
+	eventArgs := make([]string, 2)
+	if err := events.GetEventArgsAsStrings(eventArgs, event.Args); err != nil {
+		log.Logger().Error("fail to paser event arg", zap.Error(err))
+		return
+	}
+	allocUUID := eventArgs[0]
+	log.Logger().Info("try to release pod from application",
+		zap.String("appID", app.applicationID),
+		zap.String("allocationUUID", allocUUID))
+
+	for _, task := range app.taskMap {
+		if task.allocationUUID == allocUUID {
+			err := task.DeleteTaskPod(task.pod)
+			if err != nil {
+				log.Logger().Error("failed to release allocation from application", zap.Error(err))
+			}
+		}
+	}
 }
 
 func (app *Application) enterState(event *fsm.Event) {

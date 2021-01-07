@@ -85,8 +85,8 @@ func CreateReleaseAskRequestForTask(appID, taskId, partition string) si.UpdateRe
 }
 
 func CreateReleaseAllocationRequestForTask(appID, allocUUID, partition string) si.UpdateRequest {
-	toReleases := make([]*si.AllocationReleaseRequest, 0)
-	toReleases = append(toReleases, &si.AllocationReleaseRequest{
+	toReleases := make([]*si.AllocationRelease, 0)
+	toReleases = append(toReleases, &si.AllocationRelease{
 		ApplicationID: appID,
 		UUID:          allocUUID,
 		PartitionName: partition,
