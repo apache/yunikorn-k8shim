@@ -200,6 +200,10 @@ func (task *Task) getTaskAllocationUUID() string {
 	return task.allocationUUID
 }
 
+func (task *Task) DeleteTaskPod(pod *v1.Pod) error {
+	return task.context.apiProvider.GetAPIs().KubeClient.Delete(task.pod)
+}
+
 func (task *Task) isTerminated() bool {
 	for _, states := range events.States().Task.Terminated {
 		if task.GetTaskState() == states {

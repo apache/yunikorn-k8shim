@@ -229,8 +229,6 @@ func (k *KubeCtl) DeletePod(podName string, namespace string) error {
 // currently in desired state
 func (k *KubeCtl) isPodInDesiredState(podName string, namespace string, state v1.PodPhase) wait.ConditionFunc {
 	return func() (bool, error) {
-		fmt.Printf(".") // progress bar!
-
 		pod, err := k.clientSet.CoreV1().Pods(namespace).Get(podName, metav1.GetOptions{})
 		if err != nil {
 			return false, err
@@ -249,8 +247,6 @@ func (k *KubeCtl) isPodInDesiredState(podName string, namespace string, state v1
 // Return a condition function that indicates if the pod is NOT in the given namespace
 func (k *KubeCtl) isPodNotInNS(podName string, namespace string) wait.ConditionFunc {
 	return func() (bool, error) {
-		fmt.Printf(".") // progress bar!
-
 		podNames, err := k.GetPodNamesFromNS(namespace)
 		if err != nil {
 			return false, err

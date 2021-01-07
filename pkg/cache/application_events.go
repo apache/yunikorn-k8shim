@@ -18,7 +18,10 @@
 
 package cache
 
-import "github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
+import (
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
+	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
+)
 
 // ------------------------
 // SimpleApplicationEvent simples moves application states
@@ -186,4 +189,38 @@ func (ue UpdateApplicationReservationEvent) GetArgs() []interface{} {
 
 func (ue UpdateApplicationReservationEvent) GetApplicationID() string {
 	return ue.applicationID
+}
+
+// ------------------------
+// Release application allocations
+// ------------------------
+type ReleaseAppAllocationEvent struct {
+	applicationID   string
+	allocationUUID  string
+	terminationType string
+	event           events.ApplicationEventType
+}
+
+func NewReleaseAppAllocationEvent(appID string, allocTermination si.AllocationRelease_TerminationType, uuid string) ReleaseAppAllocationEvent {
+	return ReleaseAppAllocationEvent{
+		applicationID:   appID,
+		allocationUUID:  uuid,
+		terminationType: si.AllocationRelease_TerminationType_name[int32(allocTermination)],
+		event:           events.ReleaseAppAllocation,
+	}
+}
+
+func (re ReleaseAppAllocationEvent) GetApplicationID() string {
+	return re.applicationID
+}
+
+func (re ReleaseAppAllocationEvent) GetArgs() []interface{} {
+	args := make([]interface{}, 2)
+	args[0] = re.allocationUUID
+	args[1] = re.terminationType
+	return args
+}
+
+func (re ReleaseAppAllocationEvent) GetEvent() events.ApplicationEventType {
+	return re.event
 }

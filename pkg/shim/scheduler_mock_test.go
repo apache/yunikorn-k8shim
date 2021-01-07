@@ -179,7 +179,7 @@ func (fc *MockScheduler) waitAndAssertTaskState(t *testing.T, appID, taskID, exp
 	assert.Equal(t, appList[0].GetApplicationID(), appID)
 
 	task, err := appList[0].GetTask(taskID)
-	assert.Assert(t, err == nil)
+	assert.NilError(t, err, "Task retrieval failed")
 	deadline := time.Now().Add(10 * time.Second)
 	for {
 		if task.GetTaskState() == expectedState {
@@ -198,7 +198,7 @@ func (fc *MockScheduler) waitAndAssertTaskState(t *testing.T, appID, taskID, exp
 
 func (fc *MockScheduler) waitAndVerifySchedulerAllocations(
 	queueName, partitionName, applicationID string, expectedNumOfAllocations int) error {
-	partition := fc.coreContext.Cache.GetPartition(partitionName)
+	partition := fc.coreContext.Scheduler.GetClusterContext().GetPartition(partitionName)
 	if partition == nil {
 		return fmt.Errorf("partition %s is not found in the scheduler context", partitionName)
 	}
