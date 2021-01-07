@@ -498,6 +498,7 @@ func (ctx *Context) AddApplication(request *interfaces.AddApplicationRequest) in
 		request.Metadata.User,
 		request.Metadata.Tags,
 		ctx.apiProvider.GetAPIs().SchedulerAPI)
+	app.setTaskGroups(request.Metadata.TaskGroups)
 
 	// add into cache
 	ctx.applications[app.applicationID] = app
@@ -572,7 +573,7 @@ func (ctx *Context) AddTask(request *interfaces.AddTaskRequest) interfaces.Manag
 		if app, valid := managedApp.(*Application); valid {
 			existingTask, err := app.GetTask(request.Metadata.TaskID)
 			if err != nil {
-				task := NewTask(request.Metadata.TaskID, app, ctx, request.Metadata.Pod)
+				task := NewFromTaskMeta(request.Metadata.TaskID, app, ctx, request.Metadata)
 				// in recovery mode, task is considered as allocated
 				if request.Recovery {
 					// in scheduling, allocationUUID is assigned by scheduler-core
