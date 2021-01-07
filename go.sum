@@ -50,10 +50,13 @@ github.com/apache/incubator-yunikorn-core v0.0.0-20201218082332-5471d84cd619 h1:
 github.com/apache/incubator-yunikorn-core v0.0.0-20201218082332-5471d84cd619/go.mod h1:d/fn47kdGd094NHiysHAY+0d4evpYRFQ6q5b9eaBONo=
 github.com/apache/incubator-yunikorn-core v0.0.0-20210106054125-dcf631d5c6b5 h1:1cDvDjyqKce4U+Zvj7bmPSxU2ok1e+ynJsarFcp+JwQ=
 github.com/apache/incubator-yunikorn-core v0.0.0-20210106054125-dcf631d5c6b5/go.mod h1:d/fn47kdGd094NHiysHAY+0d4evpYRFQ6q5b9eaBONo=
+github.com/apache/incubator-yunikorn-scheduler-interface v0.0.0-20210106054514-49c4f33ed27b/go.mod h1:ObMs03XFbnmpGD81jYvdUDEVZbHvz8W6dWH5nGDCjc0=
 github.com/apache/incubator-yunikorn-scheduler-interface v0.9.1-0.20200901200728-b9033558f319 h1:I12nCcXdHe6W4oysVejFHfQDy0Ix0r+ZHdfooyEoldo=
 github.com/apache/incubator-yunikorn-scheduler-interface v0.9.1-0.20200901200728-b9033558f319/go.mod h1:ObMs03XFbnmpGD81jYvdUDEVZbHvz8W6dWH5nGDCjc0=
 github.com/apache/incubator-yunikorn-scheduler-interface v0.9.1-0.20201215141356-df4d86d2197b h1:dxncLtkTwtqUB6pgsVVw52+Ni3ZXG2BPnLrSrubcRZA=
 github.com/apache/incubator-yunikorn-scheduler-interface v0.9.1-0.20201215141356-df4d86d2197b/go.mod h1:ObMs03XFbnmpGD81jYvdUDEVZbHvz8W6dWH5nGDCjc0=
+github.com/apache/incubator-yunikorn-scheduler-interface v0.9.1-0.20210106054514-49c4f33ed27b h1:er61fRzIZuWejT9vUsHvb3ZyilJt6QCY7ZFdlAmVm7w=
+github.com/apache/incubator-yunikorn-scheduler-interface v0.9.1-0.20210106054514-49c4f33ed27b/go.mod h1:ObMs03XFbnmpGD81jYvdUDEVZbHvz8W6dWH5nGDCjc0=
 github.com/armon/circbuf v0.0.0-20150827004946-bbbad097214e/go.mod h1:3U/XgcO3hCbHZ8TKRvWD2dDTCfh9M9ya+I9JpbB7O8o=
 github.com/armon/consul-api v0.0.0-20180202201655-eb2c6b5be1b6/go.mod h1:grANhF5doyWs3UAsr3K4I6qtAmlQcZDesFNEHPZAzj8=
 github.com/asaskevich/govalidator v0.0.0-20180720115003-f9ffefc3facf/go.mod h1:lB+ZfQJz7igIIfQNfa7Ml4HSf2uFQQRzpGGRXenZAgY=

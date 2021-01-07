@@ -362,7 +362,9 @@ func TestTryReserve(t *testing.T) {
 		createdPods.add(pod)
 		return pod, nil
 	})
-	GetPlaceholderManager().setMockedClients(mockedAPIProvider.GetAPIs())
+	mgr := NewPlaceholderManager(mockedAPIProvider.GetAPIs())
+	mgr.Start()
+	defer mgr.Stop()
 
 	// create a new app
 	app := NewApplication("app00001", "root.abc", "test-user",

@@ -267,6 +267,10 @@ func (ss *KubernetesShim) run() {
 	}
 
 	ss.apiFactory.Start()
+
+	// run the placeholder manager
+	placeholderMgr := cache.NewPlaceholderManager(ss.apiFactory.GetAPIs())
+	placeholderMgr.Start()
 }
 
 func (ss *KubernetesShim) enterState(event *fsm.Event) {
