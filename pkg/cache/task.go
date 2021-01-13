@@ -23,9 +23,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"go.uber.org/zap"
 
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
@@ -55,7 +55,6 @@ type Task struct {
 	lock            *sync.RWMutex
 }
 
-// TODO to be removed
 func NewTask(tid string, app *Application, ctx *Context, pod *v1.Pod) *Task {
 	taskResource := common.GetPodResource(pod)
 	return createTaskInternal(tid, app, taskResource, pod, false, "", ctx)

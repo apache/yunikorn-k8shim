@@ -86,7 +86,7 @@ func TestNewPlaceholderWithNodeSelectors(t *testing.T) {
 				"memory": resource.MustParse("1024M"),
 			},
 			NodeSelector: map[string]string{
-				"nodeType": "test",
+				"nodeType":  "test",
 				"nodeState": "healthy",
 			},
 		},
@@ -94,8 +94,8 @@ func TestNewPlaceholderWithNodeSelectors(t *testing.T) {
 
 	holder := newPlaceholder("ph-name", app, app.taskGroups[0])
 	assert.Equal(t, len(holder.pod.Spec.NodeSelector), 2)
-	assert.Equal(t, holder.pod.Spec.NodeSelector["nodeType"],  "test")
-	assert.Equal(t, holder.pod.Spec.NodeSelector["nodeState"],  "healthy")
+	assert.Equal(t, holder.pod.Spec.NodeSelector["nodeType"], "test")
+	assert.Equal(t, holder.pod.Spec.NodeSelector["nodeState"], "healthy")
 }
 
 func TestNewPlaceholderWithTolerations(t *testing.T) {
@@ -115,12 +115,12 @@ func TestNewPlaceholderWithTolerations(t *testing.T) {
 				"cpu":    resource.MustParse("500m"),
 				"memory": resource.MustParse("1024M"),
 			},
-			Tolerations: []v1.Toleration {
+			Tolerations: []v1.Toleration{
 				{
-					Key: "key1",
+					Key:      "key1",
 					Operator: v1.TolerationOpEqual,
-					Value: "value1",
-					Effect: v1.TaintEffectNoSchedule,
+					Value:    "value1",
+					Effect:   v1.TaintEffectNoSchedule,
 				},
 			},
 		},
@@ -129,7 +129,7 @@ func TestNewPlaceholderWithTolerations(t *testing.T) {
 	holder := newPlaceholder("ph-name", app, app.taskGroups[0])
 	assert.Equal(t, len(holder.pod.Spec.Tolerations), 1)
 	tlr := holder.pod.Spec.Tolerations[0]
-	assert.Equal(t, tlr.Key,  "key1")
+	assert.Equal(t, tlr.Key, "key1")
 	assert.Equal(t, tlr.Value, "value1")
 	assert.Equal(t, tlr.Operator, v1.TolerationOpEqual)
 	assert.Equal(t, tlr.Effect, v1.TaintEffectNoSchedule)
