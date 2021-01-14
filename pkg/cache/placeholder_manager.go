@@ -107,13 +107,6 @@ func (mgr *PlaceholderManager) CleanUp(app *Application) {
 		zap.String("appID", app.GetApplicationID()))
 }
 
-// this is only used in testing
-func (mgr *PlaceholderManager) setMockedClients(mockedClients *client.Clients) {
-	mgr.Lock()
-	defer mgr.Unlock()
-	mgr.clients = mockedClients
-}
-
 func (mgr *PlaceholderManager) cleanOrphanPlaceholders() {
 	mgr.Lock()
 	defer mgr.Unlock()

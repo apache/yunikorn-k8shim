@@ -86,7 +86,7 @@ func CreateReleaseAskRequestForTask(appID, taskId, partition string) si.UpdateRe
 	return result
 }
 
-func GetTerminationTypeFromString(terminationTypeStr string) si.AllocationRelease_TerminationType{
+func GetTerminationTypeFromString(terminationTypeStr string) si.AllocationRelease_TerminationType {
 	if v, ok := si.AllocationRelease_TerminationType_value[terminationTypeStr]; ok {
 		return si.AllocationRelease_TerminationType(v)
 	}

@@ -33,15 +33,7 @@ type Placeholder struct {
 	appID         string
 	taskGroupName string
 	pod           *v1.Pod
-	stage         PlaceholderState
 }
-
-type PlaceholderState string
-
-const (
-	Acquiring PlaceholderState = "Acquiring"
-	Acquired  PlaceholderState = "Acquired"
-)
 
 func newPlaceholder(placeholderName string, app *Application, taskGroup v1alpha1.TaskGroup) *Placeholder {
 	placeholderPod := &v1.Pod{
@@ -54,7 +46,7 @@ func newPlaceholder(placeholderName string, app *Application, taskGroup v1alpha1
 			},
 			Annotations: map[string]string{
 				constants.AnnotationPlaceholderFlag: "true",
-				constants.AnnotationTaskGroupName: taskGroup.Name,
+				constants.AnnotationTaskGroupName:   taskGroup.Name,
 			},
 		},
 		Spec: v1.PodSpec{
@@ -69,6 +61,8 @@ func newPlaceholder(placeholderName string, app *Application, taskGroup v1alpha1
 			},
 			RestartPolicy: constants.PlaceholderPodRestartPolicy,
 			SchedulerName: constants.SchedulerName,
+			NodeSelector:  taskGroup.NodeSelector,
+			Tolerations:   taskGroup.Tolerations,
 		},
 	}
 
@@ -76,11 +70,10 @@ func newPlaceholder(placeholderName string, app *Application, taskGroup v1alpha1
 		appID:         app.GetApplicationID(),
 		taskGroupName: taskGroup.Name,
 		pod:           placeholderPod,
-		stage:         Acquiring,
 	}
 }
 
 func (p *Placeholder) String() string {
-	return fmt.Sprintf("appID: %s, taskGroup: %s, podName: %s/%s, stage: %s",
-		p.appID, p.taskGroupName, p.pod.Namespace, p.pod.Name, p.stage)
+	return fmt.Sprintf("appID: %s, taskGroup: %s, podName: %s/%s",
+		p.appID, p.taskGroupName, p.pod.Namespace, p.pod.Name)
 }

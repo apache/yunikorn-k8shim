@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	"gotest.tools/assert"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
@@ -51,7 +52,6 @@ func TestNewPlaceholder(t *testing.T) {
 
 	holder := newPlaceholder("ph-name", app, app.taskGroups[0])
 	assert.Equal(t, holder.appID, appID)
-	assert.Equal(t, holder.stage, Acquiring)
 	assert.Equal(t, holder.taskGroupName, app.taskGroups[0].Name)
 	assert.Equal(t, holder.pod.Spec.SchedulerName, constants.SchedulerName)
 	assert.Equal(t, holder.pod.Name, "ph-name")
@@ -63,5 +63,74 @@ func TestNewPlaceholder(t *testing.T) {
 	assert.Equal(t, holder.pod.Annotations[constants.AnnotationTaskGroupName], app.taskGroups[0].Name)
 	assert.Equal(t, common.GetPodResource(holder.pod).Resources[constants.CPU].Value, int64(500))
 	assert.Equal(t, common.GetPodResource(holder.pod).Resources[constants.Memory].Value, int64(1024))
-	assert.Equal(t, holder.String(), "appID: app01, taskGroup: test-group-1, podName: test/ph-name, stage: Acquiring")
+	assert.Equal(t, len(holder.pod.Spec.NodeSelector), 0)
+	assert.Equal(t, len(holder.pod.Spec.Tolerations), 0)
+	assert.Equal(t, holder.String(), "appID: app01, taskGroup: test-group-1, podName: test/ph-name")
+}
+
+func TestNewPlaceholderWithNodeSelectors(t *testing.T) {
+	const (
+		appID     = "app01"
+		queue     = "root.default"
+		namespace = "test"
+	)
+	mockedSchedulerAPI := newMockSchedulerAPI()
+	app := NewApplication(appID, queue,
+		"bob", map[string]string{constants.AppTagNamespace: namespace}, mockedSchedulerAPI)
+	app.setTaskGroups([]v1alpha1.TaskGroup{
+		{
+			Name:      "test-group-1",
+			MinMember: 10,
+			MinResource: map[string]resource.Quantity{
+				"cpu":    resource.MustParse("500m"),
+				"memory": resource.MustParse("1024M"),
+			},
+			NodeSelector: map[string]string{
+				"nodeType":  "test",
+				"nodeState": "healthy",
+			},
+		},
+	})
+
+	holder := newPlaceholder("ph-name", app, app.taskGroups[0])
+	assert.Equal(t, len(holder.pod.Spec.NodeSelector), 2)
+	assert.Equal(t, holder.pod.Spec.NodeSelector["nodeType"], "test")
+	assert.Equal(t, holder.pod.Spec.NodeSelector["nodeState"], "healthy")
+}
+
+func TestNewPlaceholderWithTolerations(t *testing.T) {
+	const (
+		appID     = "app01"
+		queue     = "root.default"
+		namespace = "test"
+	)
+	mockedSchedulerAPI := newMockSchedulerAPI()
+	app := NewApplication(appID, queue,
+		"bob", map[string]string{constants.AppTagNamespace: namespace}, mockedSchedulerAPI)
+	app.setTaskGroups([]v1alpha1.TaskGroup{
+		{
+			Name:      "test-group-1",
+			MinMember: 10,
+			MinResource: map[string]resource.Quantity{
+				"cpu":    resource.MustParse("500m"),
+				"memory": resource.MustParse("1024M"),
+			},
+			Tolerations: []v1.Toleration{
+				{
+					Key:      "key1",
+					Operator: v1.TolerationOpEqual,
+					Value:    "value1",
+					Effect:   v1.TaintEffectNoSchedule,
+				},
+			},
+		},
+	})
+
+	holder := newPlaceholder("ph-name", app, app.taskGroups[0])
+	assert.Equal(t, len(holder.pod.Spec.Tolerations), 1)
+	tlr := holder.pod.Spec.Tolerations[0]
+	assert.Equal(t, tlr.Key, "key1")
+	assert.Equal(t, tlr.Value, "value1")
+	assert.Equal(t, tlr.Operator, v1.TolerationOpEqual)
+	assert.Equal(t, tlr.Effect, v1.TaintEffectNoSchedule)
 }
