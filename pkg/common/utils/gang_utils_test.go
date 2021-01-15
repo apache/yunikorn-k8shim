@@ -181,6 +181,13 @@ func TestTaskGroupInstanceCountMap(t *testing.T) {
 	counts2.AddOne("g2")
 	counts2.AddOne("g1")
 	assert.Equal(t, counts1.Equals(counts2), false)
+
+	var nilOne *TaskGroupInstanceCountMap
+	var nilTwo *TaskGroupInstanceCountMap
+	assert.Equal(t, nilOne.Equals(nilTwo), true)
+
+	empty := NewTaskGroupInstanceCountMap()
+	assert.Equal(t, nilOne.Equals(empty), false)
 }
 
 // nolint: funlen

@@ -33,7 +33,10 @@ import (
 
 // placeholder manager is a service to manage the lifecycle of app placeholders
 type PlaceholderManager struct {
-	clients   *client.Clients
+	clients *client.Clients
+	// when the placeholder manager is unable to delete a pod,
+	// this pod becomes to be an "orphan" pod. We add them to a map
+	// and keep retrying deleting them in order to avoid wasting resources.
 	orphanPod map[string]*v1.Pod
 	stopChan  chan struct{}
 	running   atomic.Value
@@ -90,6 +93,8 @@ func (mgr *PlaceholderManager) createAppPlaceholders(app *Application) error {
 
 // clean up all the placeholders for an application
 func (mgr *PlaceholderManager) CleanUp(app *Application) {
+	mgr.Lock()
+	defer mgr.Unlock()
 	log.Logger().Info("start to clean up app placeholders",
 		zap.String("appID", app.GetApplicationID()))
 	for taskID, task := range app.taskMap {

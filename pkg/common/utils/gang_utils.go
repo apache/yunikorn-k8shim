@@ -158,6 +158,10 @@ func (t *TaskGroupInstanceCountMap) GetTaskGroupInstanceCount(groupName string) 
 }
 
 func (t *TaskGroupInstanceCountMap) Equals(target *TaskGroupInstanceCountMap) bool {
+	if t == nil {
+		return t == target
+	}
+
 	t.RLock()
 	defer t.RUnlock()
 
