@@ -273,8 +273,16 @@ func TestGetTaskGroupFromAnnotation(t *testing.T) {
 	testGroupErr4 := `
 	[
 		{
-			"name": "test-group-err-3",
+			"name": "test-group-err-4",
 			"minMember": 3,
+		}
+	]`
+	// negative minMember
+	testGroupErr5 := `
+	[
+		{
+			"name": "test-group-err-5",
+			"minMember": -100,
 		}
 	]`
 	// Insert task group info to pod annotation
@@ -309,6 +317,10 @@ func TestGetTaskGroupFromAnnotation(t *testing.T) {
 	pod.Annotations = map[string]string{constants.AnnotationTaskGroups: testGroupErr4}
 	taskGroupErr4, err := GetTaskGroupsFromAnnotation(pod)
 	assert.Assert(t, taskGroupErr4 == nil)
+	assert.Assert(t, err != nil)
+	pod.Annotations = map[string]string{constants.AnnotationTaskGroups: testGroupErr5}
+	taskGroupErr5, err := GetTaskGroupsFromAnnotation(pod)
+	assert.Assert(t, taskGroupErr5 == nil)
 	assert.Assert(t, err != nil)
 	// Correct case
 	pod.Annotations = map[string]string{constants.AnnotationTaskGroups: testGroup}

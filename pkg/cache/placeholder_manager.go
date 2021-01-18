@@ -129,12 +129,12 @@ func (mgr *PlaceholderManager) cleanOrphanPlaceholders() {
 }
 
 func (mgr *PlaceholderManager) Start() {
-	log.Logger().Info("starting the Placeholder Manager")
 	mgr.stopChan = make(chan struct{})
 	if mgr.isRunning() {
 		log.Logger().Info("The placeholder manager has been started")
 		return
 	}
+	log.Logger().Info("starting the Placeholder Manager")
 	mgr.setRunning(true)
 	go func() {
 		for {

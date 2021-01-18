@@ -53,11 +53,12 @@ func FindAppTaskGroup(appTaskGroups []*v1alpha1.TaskGroup, groupName string) (*v
 	return nil, fmt.Errorf("taskGroup %s is not defined in the application", groupName)
 }
 
-// the placeholder name is the pod name, pod name can not be longer than 63 chars
-// taskGroup name and appID will be truncated if they go over 20/28 chars respectively
+// the placeholder name is the pod name, pod name can not be longer than 63 chars,
+// taskGroup name and appID will be truncated if they go over 20/28 chars respectively,
+// each taskGroup is assigned with an incremental index starting from 0.
 func GeneratePlaceholderName(taskGroupName, appID string, index int32) string {
 	// taskGroup name no longer than 20 chars
-	// appID no longer than 35 chars
+	// appID no longer than 28 chars
 	// total length no longer than 20 + 28 + 5 + 10 = 63
 	shortTaskGroupName := fmt.Sprintf("%.20s", taskGroupName)
 	shortAppID := fmt.Sprintf("%.28s", appID)
@@ -106,6 +107,10 @@ func GetTaskGroupsFromAnnotation(pod *v1.Pod) ([]v1alpha1.TaskGroup, error) {
 		}
 		if taskGroup.MinMember == int32(0) {
 			return nil, fmt.Errorf("can't get taskGroup MinMember from pod annotation, %s",
+				pod.Annotations[constants.AnnotationTaskGroups])
+		}
+		if taskGroup.MinMember < int32(0) {
+			return nil, fmt.Errorf("minMember cannot be negative, %s",
 				pod.Annotations[constants.AnnotationTaskGroups])
 		}
 	}
