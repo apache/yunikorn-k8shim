@@ -278,6 +278,7 @@ func (ss *KubernetesShim) enterState(event *fsm.Event) {
 
 func (ss *KubernetesShim) stop() {
 	log.Logger().Info("stopping scheduler")
+	log.Logger().Info("this is a test")
 	select {
 	case ss.stopChan <- struct{}{}:
 		// stop the dispatcher
