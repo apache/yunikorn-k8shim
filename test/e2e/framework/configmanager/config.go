@@ -61,6 +61,6 @@ func (c *YuniKornTestConfigType) ParseFlags() {
 		"External Port of YuniKorn service")
 	flag.StringVar(&c.YkScheme, "yk-scheme", DefaultYuniKornScheme,
 		"Scheme of YuniKron Service")
-	flag.StringVar(&c.LogDir, "log-dir", "/yunikorn-qe/test-results/target/failsafe-reports",
+	flag.StringVar(&c.LogDir, "log-dir", "/tmp/test-results/target/failsafe-reports",
 		"Log location where the logs are stored")
 }
