@@ -23,10 +23,10 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 	"go.uber.org/zap"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
 
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/helpers/common"
 
 	"k8s.io/apimachinery/pkg/util/wait"
