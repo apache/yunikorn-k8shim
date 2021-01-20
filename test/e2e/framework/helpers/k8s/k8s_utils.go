@@ -23,6 +23,8 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
+	"go.uber.org/zap"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
 
 	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/helpers/common"
@@ -228,6 +230,7 @@ func (k *KubeCtl) DeletePod(podName string, namespace string) error {
 func (k *KubeCtl) isPodInDesiredState(podName string, namespace string, state v1.PodPhase) wait.ConditionFunc {
 	return func() (bool, error) {
 		pod, err := k.clientSet.CoreV1().Pods(namespace).Get(podName, metav1.GetOptions{})
+
 		if err != nil {
 			return false, err
 		}
@@ -238,7 +241,18 @@ func (k *KubeCtl) isPodInDesiredState(podName string, namespace string, state v1
 		case v1.PodUnknown:
 			return false, fmt.Errorf("pod is in unknown state")
 		}
-		return false, nil
+
+		events := k.clientSet.CoreV1().Events(namespace)
+		if podEvents, podEventError := events.List(metav1.ListOptions{
+			FieldSelector: fmt.Sprintf("involvedObject.name=%s", podName),
+		}); podEventError == nil {
+			for _, pe := range podEvents.Items {
+				log.Logger().Info("#####", zap.String("podEvent", pe.String()))
+			}
+		} else {
+			log.Logger().Error("Unable to get pod event")
+		}
+		return false, fmt.Errorf("expecting pod state %s, actual state %s, pod message %s", state, pod.Status.Phase, pod.Status.String())
 	}
 }
 
