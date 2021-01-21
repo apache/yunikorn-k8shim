@@ -23,10 +23,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"go.uber.org/zap"
+	"github.com/onsi/ginkgo"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
 
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/helpers/common"
 
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -241,18 +240,7 @@ func (k *KubeCtl) isPodInDesiredState(podName string, namespace string, state v1
 		case v1.PodUnknown:
 			return false, fmt.Errorf("pod is in unknown state")
 		}
-
-		events := k.clientSet.CoreV1().Events(namespace)
-		if podEvents, podEventError := events.List(metav1.ListOptions{
-			FieldSelector: fmt.Sprintf("involvedObject.name=%s", podName),
-		}); podEventError == nil {
-			for _, pe := range podEvents.Items {
-				log.Logger().Info("#####", zap.String("podEvent", pe.String()))
-			}
-		} else {
-			log.Logger().Error("Unable to get pod event")
-		}
-		return false, fmt.Errorf("expecting pod state %s, actual state %s, pod message %s", state, pod.Status.Phase, pod.Status.String())
+		return false, nil
 	}
 }
 
@@ -318,6 +306,16 @@ func (k *KubeCtl) WaitForPodBySelectorRunning(namespace string, selector string,
 
 	for _, pod := range podList.Items {
 		if err := k.WaitForPodRunning(namespace, pod.Name, time.Duration(timeout)*time.Second); err != nil {
+			ginkgo.By(fmt.Sprintf("expected pod state: Running, actual state: %s", pod.Status.Phase))
+			events := k.clientSet.CoreV1().Events(namespace)
+			if podEvents, podEventError := events.List(metav1.ListOptions{
+				FieldSelector: fmt.Sprintf("involvedObject.name=%s,involvedObject.namespace=%s", pod.Name, pod.Namespace)}); podEventError == nil {
+				for _, pe := range podEvents.Items {
+					ginkgo.By(fmt.Sprint(pe.String()))
+				}
+			} else {
+				ginkgo.By("Unable to get pod event")
+			}
 			return err
 		}
 	}
