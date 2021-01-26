@@ -145,7 +145,6 @@ func (mgr *PlaceholderManager) Start() {
 				return
 			default:
 				// clean orphan placeholders every 5 seconds
-				log.Logger().Info("clean up orphan pod")
 				mgr.cleanOrphanPlaceholders()
 				time.Sleep(5 * time.Second)
 			}
