@@ -165,6 +165,33 @@ func (fe FailApplicationEvent) GetApplicationID() string {
 }
 
 // ------------------------
+// Reservation Update Event
+// ------------------------
+type UpdateApplicationReservationEvent struct {
+	applicationID string
+	event         events.ApplicationEventType
+}
+
+func NewUpdateApplicationReservationEvent(appID string) UpdateApplicationReservationEvent {
+	return UpdateApplicationReservationEvent{
+		applicationID: appID,
+		event:         events.UpdateReservation,
+	}
+}
+
+func (ue UpdateApplicationReservationEvent) GetEvent() events.ApplicationEventType {
+	return ue.event
+}
+
+func (ue UpdateApplicationReservationEvent) GetArgs() []interface{} {
+	return nil
+}
+
+func (ue UpdateApplicationReservationEvent) GetApplicationID() string {
+	return ue.applicationID
+}
+
+// ------------------------
 // Release application allocations
 // ------------------------
 type ReleaseAppAllocationEvent struct {

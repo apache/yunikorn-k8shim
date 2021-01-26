@@ -34,7 +34,7 @@ import (
 var _ = ginkgo.Describe("App", func() {
 	var kClient k8s.KubeCtl
 	var appClient *crdclientset.Clientset
-	var appCRDDef string
+	// var appCRDDef string
 	var appCRD *v1alpha1.Application
 	var dev = "apptest"
 
@@ -51,17 +51,41 @@ var _ = ginkgo.Describe("App", func() {
 		appClient, err = yunikorn.NewApplicationClient()
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		// error test case
-		apperrDef, err := common.GetAbsPath("../testdata/application_error.yaml")
+		// error queue format
+		appCRDDef, err := common.GetAbsPath("../testdata/app/application_err_queue.yaml")
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
-		_, err = yunikorn.GetApplicationObj(apperrDef)
+		err = k8s.ApplyYamlWithKubectl(appCRDDef, dev)
 		gomega.Ω(err).To(gomega.HaveOccurred())
+		// error gang name format
+		appCRDDef, err = common.GetAbsPath("../testdata/app/application_err_name.yaml")
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		err = k8s.ApplyYamlWithKubectl(appCRDDef, dev)
+		gomega.Ω(err).To(gomega.HaveOccurred())
+		// error minMember format
+		appCRDDef, err = common.GetAbsPath("../testdata/app/application_err_minmember.yaml")
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		err = k8s.ApplyYamlWithKubectl(appCRDDef, dev)
+		gomega.Ω(err).To(gomega.HaveOccurred())
+		// error minResource format
+		appCRDDef, err = common.GetAbsPath("../testdata/app/application_err_minresource.yaml")
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		err = k8s.ApplyYamlWithKubectl(appCRDDef, dev)
+		gomega.Ω(err).To(gomega.HaveOccurred())
+		// error NodeSelector format
+		appCRDDef, err = common.GetAbsPath("../testdata/app/application_err_nodeselector.yaml")
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		err = k8s.ApplyYamlWithKubectl(appCRDDef, dev)
+		gomega.Ω(err).To(gomega.HaveOccurred())
+		// error tolerations format
+		appCRDDef, err = common.GetAbsPath("../testdata/app/application_err_tolerations.yaml")
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		err = k8s.ApplyYamlWithKubectl(appCRDDef, dev)
+		gomega.Ω(err).To(gomega.HaveOccurred())
+
 		// correct test case
-		appCRDDef, err = common.GetAbsPath("../testdata/application.yaml")
+		appCRDDef, err = common.GetAbsPath("../testdata/app/application.yaml")
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
-		appCRDObj, err := yunikorn.GetApplicationObj(appCRDDef)
-		gomega.Ω(err).NotTo(gomega.HaveOccurred())
-		appCRDObj.Namespace = dev
-		err = yunikorn.CreateApplication(appClient, appCRDObj, dev)
+		err = k8s.ApplyYamlWithKubectl(appCRDDef, dev)
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		appCRD, err = yunikorn.GetApplication(appClient, dev, "example")
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
@@ -74,14 +98,19 @@ var _ = ginkgo.Describe("App", func() {
 			gomega.Ω(appCRD.Spec.Queue).To(gomega.Equal("root.default"))
 			gomega.Ω(appCRD.ObjectMeta.Name).To(gomega.Equal("example"))
 			gomega.Ω(appCRD.ObjectMeta.Namespace).To(gomega.Equal(dev))
-			policy := appCRD.Spec.Policy.Policy
-			gomega.Ω(string(policy)).To(gomega.Equal("TryOnce"))
-			gomega.Ω(appCRD.Spec.TaskGroup[0].GroupName).To(gomega.Equal("test-task-0001"))
-			gomega.Ω(appCRD.Spec.TaskGroup[0].MinMember).To(gomega.Equal(int32(1)))
+			policy := appCRD.Spec.SchedulingPolicy
+			gomega.Ω(policy.Type).To(gomega.Equal(v1alpha1.TryOnce))
+			gomega.Ω(appCRD.Spec.TaskGroups[0].Name).To(gomega.Equal("test-task-0001"))
+			gomega.Ω(appCRD.Spec.TaskGroups[0].MinMember).To(gomega.Equal(int32(1)))
 			anscpu := resource.MustParse("300m")
 			ansmem := resource.MustParse("128Mi")
-			gomega.Ω(appCRD.Spec.TaskGroup[0].MinResource["cpu"]).To(gomega.Equal(anscpu))
-			gomega.Ω(appCRD.Spec.TaskGroup[0].MinResource["memory"]).To(gomega.Equal(ansmem))
+			gomega.Ω(appCRD.Spec.TaskGroups[0].MinResource["cpu"]).To(gomega.Equal(anscpu))
+			gomega.Ω(appCRD.Spec.TaskGroups[0].MinResource["memory"]).To(gomega.Equal(ansmem))
+			gomega.Ω(appCRD.Spec.TaskGroups[0].NodeSelector["locate"]).To(gomega.Equal("west"))
+			gomega.Ω(appCRD.Spec.TaskGroups[0].Tolerations[0].Key).To(gomega.Equal("key"))
+			gomega.Ω(appCRD.Spec.TaskGroups[0].Tolerations[0].Operator).To(gomega.Equal(v1.TolerationOpEqual))
+			gomega.Ω(appCRD.Spec.TaskGroups[0].Tolerations[0].Value).To(gomega.Equal("value"))
+			gomega.Ω(appCRD.Spec.TaskGroups[0].Tolerations[0].Effect).To(gomega.Equal(v1.TaintEffectNoSchedule))
 		})
 
 		ginkgo.AfterSuite(func() {

@@ -14,20 +14,20 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-# 
-#The error application example for error case
+# The error application example for error case
 apiVersion: "yunikorn.apache.org/v1alpha1"
 kind: Application
 metadata:
-  name: example_test
+  name: error-nodeselector
 spec:
-  queue: //////
   schedulingPolicy:
-    name: errorName
+    type: TryOnce
+  queue: root.default
   taskGroups:
-    - groupName: 123
-      minMember: "string"
+    - name: "test-task-0001"
+      minMember: 1
       minResource:
-        cpu: "ABC"
-        memory: "ABC"
-  
+        cpu: "300m"
+        memory: "128Mi"
+      nodeSelector:
+        locate: 1

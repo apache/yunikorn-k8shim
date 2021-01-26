@@ -48,5 +48,13 @@ const SparkLabelRoleDriver = "driver"
 const DefaultConfigMapName = "yunikorn-configs"
 const SchedulerName = "yunikorn"
 
-//Application crd
+// Application crd
 const AppManagerHandlerName = "yunikorn-app"
+const AnnotationPlaceholderFlag = "yunikorn.apache.org/placeholder"
+const AnnotationTaskGroupName = "yunikorn.apache.org/task-group-name"
+const AnnotationTaskGroups = "yunikorn.apache.org/task-groups"
+
+// Gang scheduling
+const PlaceholderContainerImage = "k8s.gcr.io/pause"
+const PlaceholderContainerName = "pause"
+const PlaceholderPodRestartPolicy = "Never"

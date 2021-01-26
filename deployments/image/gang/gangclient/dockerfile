@@ -15,33 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-apiVersion: "yunikorn.apache.org/v1alpha1"
-kind: Application
-metadata:
-  name: example
-spec:
-  schedulingPolicy:
-    type: TryOnce
-    parameters:
-      timeout: "60"
-      retrySecond: "0"
-  queue: root.default
-  taskGroups:
-    - name: "test-task-0001"
-      minMember: 1
-      minResource:
-        cpu: "300m"
-        memory: "128Mi"
-      nodeSelector:
-        locate: west
-      tolerations:
-        - key: "key"
-          operator: "Equal"
-          value: "value"
-          effect: "NoSchedule"
-    - name: "test-task-0002"
-      minMember: 2
-      minResource:
-        cpu: "600m"
-        memory: "128Mi"
-  
+FROM golang:1.15.2
+WORKDIR /gang/client
+ADD . /gang/client 
+ENTRYPOINT ["./simulation-gang-worker"]

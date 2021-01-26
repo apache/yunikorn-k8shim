@@ -20,7 +20,7 @@ package general
 
 import (
 	"go.uber.org/zap"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
 	k8sCache "k8s.io/client-go/tools/cache"
@@ -88,10 +88,15 @@ func (os *Manager) getTaskMetadata(pod *v1.Pod) (interfaces.TaskMetadata, bool) 
 		return interfaces.TaskMetadata{}, false
 	}
 
+	placeholder := utils.GetPlaceholderFlagFromPodSpec(pod)
+	taskGroupName := utils.GetTaskGroupFromPodSpec(pod)
+
 	return interfaces.TaskMetadata{
 		ApplicationID: appId,
 		TaskID:        string(pod.UID),
 		Pod:           pod,
+		Placeholder:   placeholder,
+		TaskGroupName: taskGroupName,
 	}, true
 }
 
@@ -114,11 +119,17 @@ func (os *Manager) getAppMetadata(pod *v1.Pod) (interfaces.ApplicationMetadata, 
 	// get the application owner (this is all that is available as far as we can find)
 	user := pod.Spec.ServiceAccountName
 
+	taskGroups, err := utils.GetTaskGroupsFromAnnotation(pod)
+	if err != nil {
+		log.Logger().Error("unable to get taskGroups by given pod", zap.Error(err))
+	}
+
 	return interfaces.ApplicationMetadata{
 		ApplicationID: appId,
 		QueueName:     utils.GetQueueNameFromPod(pod),
 		User:          user,
 		Tags:          tags,
+		TaskGroups:    taskGroups,
 	}, true
 }
 
@@ -294,6 +305,8 @@ func (os *Manager) GetExistingAllocation(pod *v1.Pod) *si.Allocation {
 		// when submit a task, we use pod UID as the allocationKey,
 		// to keep consistent, during recovery, the pod UID is also used
 		// for an Allocation.
+		placeholder := utils.GetPlaceholderFlagFromPodSpec(pod)
+		taskGroupName := utils.GetTaskGroupFromPodSpec(pod)
 		return &si.Allocation{
 			AllocationKey:    string(pod.UID),
 			AllocationTags:   meta.Tags,
@@ -302,6 +315,8 @@ func (os *Manager) GetExistingAllocation(pod *v1.Pod) *si.Allocation {
 			QueueName:        meta.QueueName,
 			NodeID:           pod.Spec.NodeName,
 			ApplicationID:    meta.ApplicationID,
+			Placeholder:      placeholder,
+			TaskGroupName:    taskGroupName,
 			PartitionName:    constants.DefaultPartition,
 		}
 	}

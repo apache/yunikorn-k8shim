@@ -24,10 +24,11 @@ import (
 	"time"
 
 	"go.uber.org/zap"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
@@ -37,38 +38,43 @@ import (
 )
 
 type Task struct {
-	taskID         string
-	alias          string
-	applicationID  string
-	application    *Application
-	allocationUUID string
-	resource       *si.Resource
-	pod            *v1.Pod
-	context        *Context
-	nodeName       string
-	createTime     time.Time
-	sm             *fsm.FSM
-	lock           *sync.RWMutex
+	taskID          string
+	alias           string
+	applicationID   string
+	application     *Application
+	allocationUUID  string
+	resource        *si.Resource
+	pod             *v1.Pod
+	context         *Context
+	nodeName        string
+	createTime      time.Time
+	taskGroupName   string
+	placeholder     bool
+	terminationType string
+	sm              *fsm.FSM
+	lock            *sync.RWMutex
 }
 
 func NewTask(tid string, app *Application, ctx *Context, pod *v1.Pod) *Task {
 	taskResource := common.GetPodResource(pod)
-	return createTaskInternal(tid, app, taskResource, pod, ctx)
+	return createTaskInternal(tid, app, taskResource, pod, false, "", ctx)
 }
 
-// test only
-func CreateTaskForTest(tid string, app *Application, resource *si.Resource, ctx *Context) *Task {
-	// for testing purpose, the pod name is same as the taskID
-	taskPod := &v1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: tid,
-		},
-	}
-	return createTaskInternal(tid, app, resource, taskPod, ctx)
+func NewFromTaskMeta(tid string, app *Application, ctx *Context, metadata interfaces.TaskMetadata) *Task {
+	taskPod := metadata.Pod
+	taskResource := common.GetPodResource(taskPod)
+	return createTaskInternal(
+		tid,
+		app,
+		taskResource,
+		metadata.Pod,
+		metadata.Placeholder,
+		metadata.TaskGroupName,
+		ctx)
 }
 
 func createTaskInternal(tid string, app *Application, resource *si.Resource,
-	pod *v1.Pod, ctx *Context) *Task {
+	pod *v1.Pod, placeholder bool, taskGroupName string, ctx *Context) *Task {
 	task := &Task{
 		taskID:        tid,
 		alias:         fmt.Sprintf("%s/%s", pod.Namespace, pod.Name),
@@ -77,6 +83,8 @@ func createTaskInternal(tid string, app *Application, resource *si.Resource,
 		pod:           pod,
 		resource:      resource,
 		createTime:    pod.GetCreationTimestamp().Time,
+		placeholder:   placeholder,
+		taskGroupName: taskGroupName,
 		context:       ctx,
 		lock:          &sync.RWMutex{},
 	}
@@ -121,9 +129,14 @@ func createTaskInternal(tid string, app *Application, resource *si.Resource,
 			states.Rejected:                 task.postTaskRejected,
 			beforeHook(events.CompleteTask): task.beforeTaskCompleted,
 			states.Failed:                   task.postTaskFailed,
+			states.Bound:                    task.postTaskBound,
 			events.EnterState:               task.enterState,
 		},
 	)
+
+	if tgName := utils.GetTaskGroupFromPodSpec(pod); tgName != "" {
+		task.taskGroupName = tgName
+	}
 
 	return task
 }
@@ -162,9 +175,33 @@ func (task *Task) GetTaskID() string {
 	return task.taskID
 }
 
+func (task *Task) GetTaskPlaceholder() bool {
+	task.lock.RLock()
+	defer task.lock.RUnlock()
+	return task.placeholder
+}
+
 func (task *Task) GetTaskState() string {
 	// fsm has its own internal lock, we don't need to hold node's lock here
 	return task.sm.Current()
+}
+
+func (task *Task) setTaskGroupName(groupName string) {
+	task.lock.Lock()
+	defer task.lock.Unlock()
+	task.taskGroupName = groupName
+}
+
+func (task *Task) setTaskTerminationType(terminationTyp string) {
+	task.lock.Lock()
+	defer task.lock.Unlock()
+	task.terminationType = terminationTyp
+}
+
+func (task *Task) getTaskGroupName() string {
+	task.lock.RLock()
+	defer task.lock.RUnlock()
+	return task.taskGroupName
 }
 
 func (task *Task) getTaskAllocationUUID() string {
@@ -213,7 +250,13 @@ func (task *Task) handleSubmitTaskEvent(event *fsm.Event) {
 	log.Logger().Debug("scheduling pod",
 		zap.String("podName", task.pod.Name))
 	// convert the request
-	rr := common.CreateUpdateRequestForTask(task.applicationID, task.taskID, task.resource, task.pod)
+	rr := common.CreateUpdateRequestForTask(
+		task.applicationID,
+		task.taskID,
+		task.resource,
+		task.placeholder,
+		task.taskGroupName,
+		task.pod)
 	log.Logger().Debug("send update request", zap.String("request", rr.String()))
 	if err := task.context.apiProvider.GetAPIs().SchedulerAPI.Update(&rr); err != nil {
 		log.Logger().Debug("failed to send scheduling request to scheduler", zap.Error(err))
@@ -300,6 +343,16 @@ func (task *Task) postTaskAllocated(event *fsm.Event) {
 	}(event)
 }
 
+func (task *Task) postTaskBound(event *fsm.Event) {
+	if task.placeholder {
+		log.Logger().Info("placeholder is bound",
+			zap.String("appID", task.applicationID),
+			zap.String("taskName", task.alias),
+			zap.String("taskGroupName", task.taskGroupName))
+		dispatcher.Dispatch(NewUpdateApplicationReservationEvent(task.applicationID))
+	}
+}
+
 func (task *Task) postTaskRejected(event *fsm.Event) {
 	// currently, once task is rejected by scheduler, we directly move task to failed state.
 	// so this function simply triggers the state transition when it is rejected.
@@ -341,7 +394,8 @@ func (task *Task) releaseAllocation() {
 			zap.String("taskID", task.taskID),
 			zap.String("taskAlias", task.alias),
 			zap.String("allocationUUID", task.allocationUUID),
-			zap.String("task", task.GetTaskState()))
+			zap.String("task", task.GetTaskState()),
+			zap.String("terminationType", task.terminationType))
 
 		// depends on current task state, generate requests accordingly.
 		// if task is already allocated, which means the scheduler core already,
@@ -369,7 +423,7 @@ func (task *Task) releaseAllocation() {
 				return
 			}
 			releaseRequest = common.CreateReleaseAllocationRequestForTask(
-				task.applicationID, task.allocationUUID, task.application.partition)
+				task.applicationID, task.allocationUUID, task.application.partition, task.terminationType)
 		}
 
 		if releaseRequest.Releases != nil {

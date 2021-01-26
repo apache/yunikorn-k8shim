@@ -27,7 +27,7 @@ import (
 )
 
 func TestCreateReleaseAllocationRequest(t *testing.T) {
-	request := CreateReleaseAllocationRequestForTask("app01", "alloc01", "default")
+	request := CreateReleaseAllocationRequestForTask("app01", "alloc01", "default", "STOPPED_BY_RM")
 	assert.Assert(t, request.Releases != nil)
 	assert.Assert(t, request.Releases.AllocationsToRelease != nil)
 	assert.Assert(t, request.Releases.AllocationAsksToRelease == nil)
@@ -83,7 +83,7 @@ func TestCreateUpdateRequestForTask(t *testing.T) {
 		},
 	}
 
-	updateRequest := CreateUpdateRequestForTask("appId1", "taskId1", res, pod)
+	updateRequest := CreateUpdateRequestForTask("appId1", "taskId1", res, false, "", pod)
 	asks := updateRequest.Asks
 	assert.Equal(t, len(asks), 1)
 	allocAsk := asks[0]

@@ -20,6 +20,8 @@ package interfaces
 
 import (
 	v1 "k8s.io/api/core/v1"
+
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
 )
 
 // app management protocol defines all the APIs needed for app management,
@@ -72,10 +74,13 @@ type ApplicationMetadata struct {
 	QueueName     string
 	User          string
 	Tags          map[string]string
+	TaskGroups    []v1alpha1.TaskGroup
 }
 
 type TaskMetadata struct {
 	ApplicationID string
 	TaskID        string
 	Pod           *v1.Pod
+	Placeholder   bool
+	TaskGroupName string
 }

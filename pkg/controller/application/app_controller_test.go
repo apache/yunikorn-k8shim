@@ -165,13 +165,13 @@ func createApp(name string, namespace string, queue string) appv1.Application {
 			UID:       "UID-APP-00001",
 		},
 		Spec: appv1.ApplicationSpec{
-			Policy: appv1.SchedulePolicy{
-				Policy: "TryOnce",
-			},
 			Queue: queue,
-			TaskGroup: []appv1.Task{
+			SchedulingPolicy: appv1.SchedulingPolicy{
+				Type: appv1.TryReserve,
+			},
+			TaskGroups: []appv1.TaskGroup{
 				{
-					GroupName: "test-task-001",
+					Name:      "test-task-001",
 					MinMember: 0,
 				},
 			},

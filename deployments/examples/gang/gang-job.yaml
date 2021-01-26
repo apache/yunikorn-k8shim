@@ -1,0 +1,44 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: gang-job-1
+  labels: 
+    app: gang
+    queue: root.sandbox
+spec:
+  completions: 10 # The pod number will create
+  parallelism: 10 # The pod number will create
+  template:
+    spec:
+      containers:
+      - name: gang
+        image: apache/yunikorn:simulation-gang-worker-latest
+        imagePullPolicy: Never
+        env:
+        - name: JOB_ID
+          value: gang-job-1 # This job's name
+        - name: SERVICE_NAME
+          value: gangservice # The service name
+        - name: MEMBER_AMOUNT
+          value: "10" # The gang member that you hope, must small than pod number.must be string.
+        - name: TASK_EXECUTION_SECONDS
+          value: "60" # The task execution time (sec), it will start to countdown when the gang member amount be satisfied. must be string.
+      restartPolicy: Never
+      schedulerName: yunikorn

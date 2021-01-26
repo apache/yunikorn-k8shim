@@ -16,30 +16,31 @@
  limitations under the License.
 */
 
-package client
+package main
 
 import (
-	v1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
+	"net/http"
 )
 
-type KubeClient interface {
-	// bind a pod to a specific host
-	Bind(pod *v1.Pod, hostID string) error
-
-	// Create a pod
-	Create(pod *v1.Pod) (*v1.Pod, error)
-
-	// Delete a pod from a host
-	Delete(pod *v1.Pod) error
-
-	// minimal expose this, only informers factory needs it
-	GetClientSet() kubernetes.Interface
-
-	GetConfigs() *rest.Config
+type route struct {
+	Name        string
+	Method      string
+	Pattern     string
+	HandlerFunc http.HandlerFunc
 }
+type routes []route
 
-func NewKubeClient(kc string) KubeClient {
-	return newSchedulerKubeClient(kc)
+var webRoutes = routes{
+	route{
+		"Counter",
+		"GET",
+		"/ws/v1/add/{jobID}",
+		setTaskReady,
+	},
+	route{
+		"Counter",
+		"GET",
+		"/ws/v1/check/{jobID}",
+		checkJobReady,
+	},
 }

@@ -267,6 +267,9 @@ func (ss *KubernetesShim) run() {
 	}
 
 	ss.apiFactory.Start()
+
+	// run the placeholder manager
+	cache.NewPlaceholderManager(ss.apiFactory.GetAPIs()).Start()
 }
 
 func (ss *KubernetesShim) enterState(event *fsm.Event) {
@@ -284,6 +287,8 @@ func (ss *KubernetesShim) stop() {
 		dispatcher.Stop()
 		// stop the app manager
 		ss.appManager.Stop()
+		// stop the placeholder manager
+		cache.GetPlaceholderManager().Stop()
 	default:
 		log.Logger().Info("scheduler is already stopped")
 	}
