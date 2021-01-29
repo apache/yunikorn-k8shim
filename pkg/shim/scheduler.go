@@ -44,6 +44,7 @@ type KubernetesShim struct {
 	apiFactory   client.APIProvider
 	context      *cache.Context
 	appManager   *appmgmt.AppManagementService
+	phManager    *cache.PlaceholderManager
 	callback     api.ResourceManagerCallback
 	stateMachine *fsm.FSM
 	stopChan     chan struct{}
@@ -66,6 +67,7 @@ func newShimSchedulerInternal(ctx *cache.Context, apiFactory client.APIProvider,
 		apiFactory: apiFactory,
 		context:    ctx,
 		appManager: am,
+		phManager:  cache.NewPlaceholderManager(apiFactory.GetAPIs()),
 		callback:   cb,
 		stopChan:   make(chan struct{}),
 		lock:       &sync.RWMutex{},
@@ -262,11 +264,11 @@ func (ss *KubernetesShim) run() {
 	// it needs to be started at first
 	dispatcher.Start()
 
+	// run the placeholder manager
+	ss.phManager.Start()
+
 	// run the client library code that communicates with Kubernetes
 	ss.apiFactory.Start()
-
-	// run the placeholder manager
-	cache.NewPlaceholderManager(ss.apiFactory.GetAPIs()).Start()
 
 	// register scheduler with scheduler core
 	// this triggers the scheduler state transition
@@ -300,7 +302,7 @@ func (ss *KubernetesShim) stop() {
 		// stop the app manager
 		ss.appManager.Stop()
 		// stop the placeholder manager
-		cache.GetPlaceholderManager().Stop()
+		ss.phManager.Stop()
 	default:
 		log.Logger().Info("scheduler is already stopped")
 	}

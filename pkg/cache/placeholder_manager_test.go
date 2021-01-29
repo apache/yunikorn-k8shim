@@ -160,7 +160,7 @@ func TestCleanUp(t *testing.T) {
 		orphanPod: make(map[string]*v1.Pod),
 		RWMutex:   sync.RWMutex{},
 	}
-	placeholderMgr.CleanUp(app)
+	placeholderMgr.cleanUp(app)
 
 	// check both pod-01 and pod-02 in deletePod list and pod-03 isn't contain
 	assert.Assert(t, is.Contains(deletePod, "pod-01"))
