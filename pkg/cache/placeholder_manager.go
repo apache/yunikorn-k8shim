@@ -44,7 +44,6 @@ type PlaceholderManager struct {
 }
 
 var placeholderMgr *PlaceholderManager
-var once sync.Once
 
 func NewPlaceholderManager(clients *client.Clients) *PlaceholderManager {
 	var r atomic.Value
@@ -56,12 +55,7 @@ func NewPlaceholderManager(clients *client.Clients) *PlaceholderManager {
 	return placeholderMgr
 }
 
-func GetPlaceholderManager() *PlaceholderManager {
-	once.Do(func() {
-		if placeholderMgr == nil {
-			log.Logger().Fatal("PlaceholderManager is not initiated")
-		}
-	})
+func getPlaceholderManager() *PlaceholderManager {
 	return placeholderMgr
 }
 
@@ -92,7 +86,7 @@ func (mgr *PlaceholderManager) createAppPlaceholders(app *Application) error {
 }
 
 // clean up all the placeholders for an application
-func (mgr *PlaceholderManager) CleanUp(app *Application) {
+func (mgr *PlaceholderManager) cleanUp(app *Application) {
 	mgr.Lock()
 	defer mgr.Unlock()
 	log.Logger().Info("start to clean up app placeholders",
