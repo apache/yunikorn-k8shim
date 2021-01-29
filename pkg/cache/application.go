@@ -421,10 +421,10 @@ func (app *Application) postAppAccepted(event *fsm.Event) {
 func (app *Application) onReserving(event *fsm.Event) {
 	go func() {
 		// while doing reserving
-		if err := GetPlaceholderManager().createAppPlaceholders(app); err != nil {
+		if err := getPlaceholderManager().createAppPlaceholders(app); err != nil {
 			// creating placeholder failed
 			// put the app into recycling queue and turn the app to running state
-			GetPlaceholderManager().CleanUp(app)
+			getPlaceholderManager().cleanUp(app)
 			ev := NewRunApplicationEvent(app.applicationID)
 			dispatcher.Dispatch(ev)
 		}
