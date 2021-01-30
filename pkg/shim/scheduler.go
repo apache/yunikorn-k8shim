@@ -44,6 +44,7 @@ type KubernetesShim struct {
 	apiFactory   client.APIProvider
 	context      *cache.Context
 	appManager   *appmgmt.AppManagementService
+	phManager    *cache.PlaceholderManager
 	callback     api.ResourceManagerCallback
 	stateMachine *fsm.FSM
 	stopChan     chan struct{}
@@ -66,6 +67,7 @@ func newShimSchedulerInternal(ctx *cache.Context, apiFactory client.APIProvider,
 		apiFactory: apiFactory,
 		context:    ctx,
 		appManager: am,
+		phManager:  cache.NewPlaceholderManager(apiFactory.GetAPIs()),
 		callback:   cb,
 		stopChan:   make(chan struct{}),
 		lock:       &sync.RWMutex{},
@@ -254,22 +256,34 @@ func (ss *KubernetesShim) schedule() {
 }
 
 func (ss *KubernetesShim) run() {
+	// NOTE: the order of starting these services matter,
+	// please look at the comments before modifying the orders
+
 	// run dispatcher
+	// the dispatcher handles the basic event dispatching,
+	// it needs to be started at first
 	dispatcher.Start()
 
+	// run the placeholder manager
+	ss.phManager.Start()
+
+	// run the client library code that communicates with Kubernetes
+	ss.apiFactory.Start()
+
 	// register scheduler with scheduler core
+	// this triggers the scheduler state transition
+	// it first registers with the core, then start to do recovery,
+	// after the recovery is succeed, it goes to the normal scheduling routine
 	dispatcher.Dispatch(newRegisterSchedulerEvent())
 
 	// run app managers
+	// the app manager launches the pod event handlers
+	// it needs to be started after the shim is registered with the core
 	if err := ss.appManager.Start(); err != nil {
 		log.Logger().Fatal("failed to start app manager", zap.Error(err))
 		ss.stop()
 	}
 
-	ss.apiFactory.Start()
-
-	// run the placeholder manager
-	cache.NewPlaceholderManager(ss.apiFactory.GetAPIs()).Start()
 }
 
 func (ss *KubernetesShim) enterState(event *fsm.Event) {
@@ -288,7 +302,7 @@ func (ss *KubernetesShim) stop() {
 		// stop the app manager
 		ss.appManager.Stop()
 		// stop the placeholder manager
-		cache.GetPlaceholderManager().Stop()
+		ss.phManager.Stop()
 	default:
 		log.Logger().Info("scheduler is already stopped")
 	}
