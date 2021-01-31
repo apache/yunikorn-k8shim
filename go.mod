@@ -22,7 +22,7 @@ go 1.12
 
 require (
 	github.com/GoogleCloudPlatform/spark-on-k8s-operator v0.0.0-20200817155620-c19d2b8660d8
-	github.com/apache/incubator-yunikorn-core v0.0.0-20210126213806-78bf4f684709
+	github.com/apache/incubator-yunikorn-core v0.0.0-20210130000555-5a1c19e280f6
 	github.com/apache/incubator-yunikorn-scheduler-interface v0.9.1-0.20210106054514-49c4f33ed27b
 	github.com/google/uuid v1.1.1
 	github.com/gorilla/mux v1.7.3
