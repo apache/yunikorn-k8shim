@@ -38,6 +38,9 @@ jobs:
       matrix:
         k8s: [v1.18.8, v1.17.11, v1.16.9]
     steps:
+      - uses: actions/setup-go@v2
+        with:
+          go-version: 1.15
       - uses: actions/checkout@v2
       - run: ./scripts/run-e2e-tests.sh -a "test" -n "yk8s" -v ${KIND_NODE_IMAGE}
         env:
