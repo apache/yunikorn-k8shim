@@ -312,7 +312,7 @@ func TestValidateConfigMapWrongRequest(t *testing.T) {
 	controller := prepareController(srv.URL)
 	err := controller.validateConfigMap(configmap)
 	assert.Equal(t, true, strings.Contains(err.Error(), "no such host"),
-		fmt.Printf("Other error returned than the expected one: %s", err.Error()))
+		fmt.Sprintf("Other error returned than the expected one: %s", err.Error()))
 }
 
 func prepareConfigMap(data string) *v1.ConfigMap {
