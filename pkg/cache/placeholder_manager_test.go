@@ -23,6 +23,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"gotest.tools/assert"
 	is "gotest.tools/assert/cmp"
@@ -212,6 +213,7 @@ func TestPlaceholderManagerStartStop(t *testing.T) {
 	assert.Equal(t, placeholderMgr.isRunning(), true)
 
 	placeholderMgr.Stop()
+	time.Sleep(3 * time.Second)
 	// check orphan pod map is empty
 	assert.Equal(t, placeholderMgr.isRunning(), false)
 }

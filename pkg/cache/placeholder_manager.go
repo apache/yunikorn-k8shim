@@ -153,7 +153,6 @@ func (mgr *PlaceholderManager) Stop() {
 	}
 	log.Logger().Info("stopping the Placeholder Manager")
 	mgr.stopChan <- struct{}{}
-	time.Sleep(3 * time.Second)
 }
 
 func (mgr *PlaceholderManager) isRunning() bool {
