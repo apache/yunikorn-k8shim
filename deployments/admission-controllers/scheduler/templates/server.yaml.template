@@ -37,6 +37,13 @@ spec:
           ports:
           - containerPort: 9089
             name: webhook-api
+          resources:
+            limits:
+              cpu: "100m"
+              memory: 500Mi
+            requests:
+              cpu: "500m"
+              memory: 500Mi
           volumeMounts:
           - name: webhook-tls-certs
             mountPath: /run/secrets/tls
