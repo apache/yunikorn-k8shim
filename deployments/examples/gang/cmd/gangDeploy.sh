@@ -33,7 +33,7 @@ WORKDIR=$(cd "$(dirname "$0")"; pwd)
 kubectl apply -f $WORKDIR/../gang-coordinator.yaml
 
 # wait for web server to be running
-until grep 'Running' <(kubectl get pod gangweb -o=jsonpath='{.status.phase}'); do
+until grep -q 'Running' <(kubectl get pod gangweb -o=jsonpath='{.status.phase}'); do
   sleep 1
   TIMEOUT=$(($TIMEOUT+1))
   if [ $TIMEOUT -ge 20 ]; then
@@ -72,5 +72,6 @@ spec:
           value: "$RUNTIMESEC"
       restartPolicy: Never
       schedulerName: yunikorn
-EOF)
+EOF
+)
 done
