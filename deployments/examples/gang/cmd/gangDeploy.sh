@@ -26,46 +26,22 @@ set -o pipefail
 JOBAMOUNT=$1
 GANGMEMBER=$2
 RUNTIMESEC=$3
+TIMEOUT=0
 
-# create service
-kubectl create -f <(cat << EOF
-apiVersion: v1
-kind: Service
-metadata:
-  name: gangservice
-  labels:
-    app: gang
-spec:
-  selector:
-    app: gang
-  type: ClusterIP
-  ports:
-  - protocol: TCP
-    port: 8863
-    targetPort: 8863
-EOF) 
-# create job counter web server
-kubectl create -f <(cat << EOF
-apiVersion: v1
-kind: Pod
-metadata:
-  name: gangweb
-  labels:
-    app: gang
-    queue: root.sandbox
-spec:
-  schedulerName: yunikorn
-  containers:
-    - name: gangweb
-      image: apache/yunikorn:simulation-gang-coordinator-latest
-      imagePullPolicy: Never
-      ports:
-        - containerPort: 8863
-EOF)
+# create service and job counter web server
+WORKDIR=$(cd "$(dirname "$0")"; pwd)
+kubectl apply -f $WORKDIR/../gang-coordinator.yaml
+
 # wait for web server to be running
 until grep 'Running' <(kubectl get pod gangweb -o=jsonpath='{.status.phase}'); do
   sleep 1
+  TIMEOUT=$(($TIMEOUT+1))
+  if [ $TIMEOUT -ge 20 ]; then
+    echo "Timeout for waiting web server"
+    exit
+  fi
 done
+
 # create gang jobs
 for i in $(seq "$JOBAMOUNT"); do
   kubectl create -f <(cat << EOF
