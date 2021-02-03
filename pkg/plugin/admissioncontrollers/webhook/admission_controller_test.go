@@ -311,8 +311,7 @@ func TestValidateConfigMapWrongRequest(t *testing.T) {
 	// the url is wrong, so the POST request will fail and an error will be returned
 	controller := prepareController(srv.URL)
 	err := controller.validateConfigMap(configmap)
-	assert.Equal(t, true, strings.Contains(err.Error(), "no such host"),
-		"Other error returned than the expected one")
+	assert.Assert(t, err != nil)
 }
 
 func prepareConfigMap(data string) *v1.ConfigMap {
