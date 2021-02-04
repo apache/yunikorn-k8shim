@@ -29,8 +29,8 @@ RUNTIMESEC=$3
 TIMEOUT=0
 
 # create service and job counter web server
-WORKDIR=$(cd "$(dirname "$0")"; pwd)
-kubectl apply -f $WORKDIR/../gang-coordinator.yaml
+WORKDIR=$(cd "$(dirname "$0")/../"; pwd)
+kubectl apply -f $WORKDIR/gang-coordinator.yaml
 
 # wait for web server to be running
 until grep -q 'Running' <(kubectl get pod gangweb -o=jsonpath='{.status.phase}'); do
@@ -38,6 +38,7 @@ until grep -q 'Running' <(kubectl get pod gangweb -o=jsonpath='{.status.phase}')
   TIMEOUT=$(($TIMEOUT+1))
   if [ $TIMEOUT -ge 20 ]; then
     echo "Timeout for waiting web server"
+    kubectl delete -f $WORKDIR/gang-coordinator.yaml
     exit
   fi
 done
