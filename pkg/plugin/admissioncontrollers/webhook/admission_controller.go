@@ -70,16 +70,16 @@ type ValidateConfResponse struct {
 func (c *admissionController) mutate(ar *v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
 	req := ar.Request
 	namespace := ar.Request.Namespace
-	log.Logger().Info("AdmissionReview",
-		zap.Any("Kind", req.Kind),
-		zap.String("Namespace", namespace),
-		zap.String("UID", string(req.UID)),
-		zap.String("Operation", string(req.Operation)),
-		zap.Any("UserInfo", req.UserInfo))
-
 	var patch []patchOperation
 
 	if req.Kind.Kind == "Pod" {
+		log.Logger().Info("AdmissionReview",
+			zap.Any("Kind", req.Kind),
+			zap.String("Namespace", namespace),
+			zap.String("UID", string(req.UID)),
+			zap.String("Operation", string(req.Operation)),
+			zap.Any("UserInfo", req.UserInfo))
+
 		var pod v1.Pod
 		if err := json.Unmarshal(req.Object.Raw, &pod); err != nil {
 			return &v1beta1.AdmissionResponse{
@@ -208,12 +208,6 @@ func (c *admissionController) validateConf(ar *v1beta1.AdmissionReview) *v1beta1
 			},
 		}
 	}
-	log.Logger().Info("AdmissionReview",
-		zap.Any("Kind", req.Kind),
-		zap.String("Namespace", req.Namespace),
-		zap.String("UID", string(req.UID)),
-		zap.String("Operation", string(req.Operation)),
-		zap.Any("UserInfo", req.UserInfo))
 
 	if req.Kind.Kind == "ConfigMap" {
 		var configmap v1.ConfigMap
@@ -307,6 +301,8 @@ func (c *admissionController) serve(w http.ResponseWriter, r *http.Request) {
 
 	admissionReview := v1beta1.AdmissionReview{}
 	if admissionResponse != nil {
+		log.Logger().Info("AdmissionReviewResponse",
+			zap.Bool("allowed", admissionResponse.Allowed))
 		admissionReview.Response = admissionResponse
 		if ar.Request != nil {
 			admissionReview.Response.UID = ar.Request.UID
@@ -318,7 +314,6 @@ func (c *admissionController) serve(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("could not encode response: %v", err), http.StatusInternalServerError)
 	}
 
-	log.Logger().Info("writing response...")
 	if _, err = w.Write(resp); err != nil {
 		http.Error(w, fmt.Sprintf("could not write response: %v", err), http.StatusInternalServerError)
 	}
