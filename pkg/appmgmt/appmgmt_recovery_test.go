@@ -27,9 +27,11 @@ import (
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/cache"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/callback"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 )
 
@@ -86,6 +88,70 @@ func TestAppManagerRecoveryExitCondition(t *testing.T) {
 	// this should not timeout
 	err = amService.waitForAppRecovery(apps, 3*time.Second)
 	assert.Equal(t, err, nil)
+}
+
+// test app state transition during recovery
+func TestAppStatesDuringRecovery(t *testing.T) {
+	conf.GetSchedulerConf().OperatorPlugins = "mocked-app-manager"
+	apiProvider := client.NewMockedAPIProvider()
+	ctx := cache.NewContext(apiProvider)
+	cb := callback.NewAsyncRMCallback(ctx)
+
+	dispatcher.RegisterEventHandler(dispatcher.EventTypeApp, ctx.ApplicationEventHandler())
+	dispatcher.Start()
+	defer dispatcher.Stop()
+
+	amService := NewAMService(ctx, apiProvider)
+	amService.register(&mockedAppManager{})
+
+	apps, err := amService.recoverApps()
+	assert.Assert(t, err == nil)
+	assert.Equal(t, len(apps), 2)
+
+	// when the recovery starts, all apps should be under Recovering state
+	app01 := ctx.GetApplication("app01")
+	app02 := ctx.GetApplication("app02")
+
+	// waitForAppRecovery call should be blocked
+	// because the scheduler is still doing recovery
+	err = amService.waitForAppRecovery(apps, 3*time.Second)
+	assert.Error(t, err, "timeout waiting for app recovery in 3s")
+	assert.Equal(t, app01.GetApplicationState(), events.States().Application.Recovering)
+	assert.Equal(t, app02.GetApplicationState(), events.States().Application.Recovering)
+
+	// mock the responses, simulate app01 has been accepted
+	err = cb.RecvUpdateResponse(&si.UpdateResponse{
+		AcceptedApplications: []*si.AcceptedApplication{
+			{
+				ApplicationID: "app01",
+			},
+		},
+	})
+	assert.NilError(t, err, "failed to handle UpdateResponse")
+
+	// since app02 is still under recovery
+	// waitForRecovery should timeout because the scheduler is still under recovery
+	err = amService.waitForAppRecovery(apps, 3*time.Second)
+	assert.Error(t, err, "timeout waiting for app recovery in 3s")
+	assert.Equal(t, app01.GetApplicationState(), events.States().Application.Accepted)
+	assert.Equal(t, app02.GetApplicationState(), events.States().Application.Recovering)
+
+	// mock the responses, simulate app02 has been accepted
+	err = cb.RecvUpdateResponse(&si.UpdateResponse{
+		AcceptedApplications: []*si.AcceptedApplication{
+			{
+				ApplicationID: "app02",
+			},
+		},
+	})
+	assert.NilError(t, err, "failed to handle UpdateResponse")
+
+	// the app recovery has finished,
+	// this should not timeout anymore
+	err = amService.waitForAppRecovery(apps, 3*time.Second)
+	assert.Equal(t, err, nil)
+	assert.Equal(t, app01.GetApplicationState(), events.States().Application.Accepted)
+	assert.Equal(t, app02.GetApplicationState(), events.States().Application.Accepted)
 }
 
 type mockedAppManager struct {
