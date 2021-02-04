@@ -42,9 +42,8 @@ func TestAppManagerRecoveryState(t *testing.T) {
 	amService := NewAMService(amProtocol, apiProvider)
 	amService.register(&mockedAppManager{})
 
-	// this should timeout
 	apps, err := amService.recoverApps()
-	assert.Assert(t, err == nil)
+	assert.NilError(t, err)
 	assert.Equal(t, len(apps), 2)
 
 	for appId, app := range apps {
@@ -60,9 +59,8 @@ func TestAppManagerRecoveryTimeout(t *testing.T) {
 	amService := NewAMService(amProtocol, apiProvider)
 	amService.register(&mockedAppManager{})
 
-	// this should timeout
 	apps, err := amService.recoverApps()
-	assert.Assert(t, err == nil)
+	assert.NilError(t, err)
 	assert.Equal(t, len(apps), 2)
 
 	err = amService.waitForAppRecovery(apps, 3*time.Second)
@@ -77,7 +75,7 @@ func TestAppManagerRecoveryExitCondition(t *testing.T) {
 	amService.register(&mockedAppManager{})
 
 	apps, err := amService.recoverApps()
-	assert.Assert(t, err == nil)
+	assert.NilError(t, err)
 	assert.Equal(t, len(apps), 2)
 
 	// simulate app recovery succeed
@@ -87,7 +85,7 @@ func TestAppManagerRecoveryExitCondition(t *testing.T) {
 
 	// this should not timeout
 	err = amService.waitForAppRecovery(apps, 3*time.Second)
-	assert.Equal(t, err, nil)
+	assert.NilError(t, err)
 }
 
 // test app state transition during recovery
@@ -105,7 +103,7 @@ func TestAppStatesDuringRecovery(t *testing.T) {
 	amService.register(&mockedAppManager{})
 
 	apps, err := amService.recoverApps()
-	assert.Assert(t, err == nil)
+	assert.NilError(t, err)
 	assert.Equal(t, len(apps), 2)
 
 	// when the recovery starts, all apps should be under Recovering state
@@ -149,7 +147,7 @@ func TestAppStatesDuringRecovery(t *testing.T) {
 	// the app recovery has finished,
 	// this should not timeout anymore
 	err = amService.waitForAppRecovery(apps, 3*time.Second)
-	assert.Equal(t, err, nil)
+	assert.NilError(t, err, "the app recovery is done, error is not expected")
 	assert.Equal(t, app01.GetApplicationState(), events.States().Application.Accepted)
 	assert.Equal(t, app02.GetApplicationState(), events.States().Application.Accepted)
 }
