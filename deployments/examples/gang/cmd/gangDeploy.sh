@@ -15,17 +15,25 @@
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
-#limitations under the License.
+# limitations under the License.
 #
 
-# gangDeploy.sh <job amount> <pod amount> <gang member> <task run time(sec)>
+# gangDeploy.sh <job amount> <gang member> <task run time(sec)>
 set -o errexit
 set -o nounset
 set -o pipefail
 
-JOBAMOUNT=$1
-GANGMEMBER=$2
-RUNTIMESEC=$3
+# check parameter is integer or not
+if ([ "$1" -gt 0 ] && [ "$2" -gt 0 ] && [ "$3" -gt 0 ]) 2>/dev/null
+then
+    JOBAMOUNT=$1
+    GANGMEMBER=$2
+    RUNTIMESEC=$3
+else    
+    echo "ERROR: input parameters must be an integer."
+    exit 1
+fi
+
 TIMEOUT=0
 
 # create service and job counter web server
@@ -75,4 +83,5 @@ spec:
       schedulerName: yunikorn
 EOF
 )
+
 done
