@@ -50,7 +50,7 @@ until grep -q 'Running' <(kubectl get pod gangweb -o=jsonpath='{.status.phase}')
   sleep 1
   TIMEOUT=$(($TIMEOUT+1))
   if [ $TIMEOUT -ge 20 ]; then
-    echo "Timeout for waiting web server"
+    echo "ERROR: Timeout for waiting web server"
     kubectl delete -f $WORKDIR/gang-coordinator.yaml
     exit
   fi
