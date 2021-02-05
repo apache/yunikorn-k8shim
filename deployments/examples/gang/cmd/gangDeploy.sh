@@ -38,7 +38,12 @@ TIMEOUT=0
 
 # create service and job counter web server
 WORKDIR=$(cd "$(dirname "$0")/../"; pwd)
-kubectl apply -f $WORKDIR/gang-coordinator.yaml
+if [[ -f $WORKDIR/gang-coordinator.yaml ]]; then
+  kubectl apply -f $WORKDIR/gang-coordinator.yaml
+else
+  echo "ERROR: gang-coordinator.yaml is not found in path $WORKDIR"
+  exit
+fi
 
 # wait for web server to be running
 until grep -q 'Running' <(kubectl get pod gangweb -o=jsonpath='{.status.phase}'); do
