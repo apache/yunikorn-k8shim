@@ -409,6 +409,9 @@ func TestTryReserve(t *testing.T) {
 	err = app.handle(NewSimpleApplicationEvent(app.GetApplicationID(), events.AcceptApplication))
 	assert.NilError(t, err)
 
+	// run app schedule
+	app.Schedule()
+
 	// since this app has taskGroups defined,
 	// once the app is accepted, it is expected to see this app goes to Reserving state
 	assertAppState(t, app, events.States().Application.Reserving, 3*time.Second)
