@@ -88,5 +88,4 @@ spec:
       schedulerName: yunikorn
 EOF
 )
-
 done
