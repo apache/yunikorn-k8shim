@@ -121,7 +121,6 @@ func NewApplication(appID, queueName, user string, tags map[string]string, sched
 			string(events.RejectApplication):      app.handleRejectApplicationEvent,
 			string(events.CompleteApplication):    app.handleCompleteApplicationEvent,
 			string(events.UpdateReservation):      app.onReservationStateChange,
-			events.States().Application.Accepted:  app.postAppAccepted,
 			events.States().Application.Reserving: app.onReserving,
 			string(events.ReleaseAppAllocation):   app.handleReleaseAppAllocationEvent,
 			events.EnterState:                     app.enterState,
@@ -312,11 +311,21 @@ func (app *Application) Schedule() {
 			log.Logger().Warn("failed to handle SUBMIT app event",
 				zap.Error(err))
 		}
+	case states.Accepted:
+		// once the app is accepted by the scheduler core,
+		// the next step is to send requests for scheduling
+		// the app state could be transited to Reserving or Running
+		// depends on if the app has gang members
+		app.postAppAccepted()
 	case states.Reserving:
+		// during the Reserving state, only the placeholders
+		// can be scheduled
 		app.scheduleTasks(func(t *Task) bool {
 			return t.placeholder
 		})
 	case states.Running:
+		// during the Running state, only the regular pods
+		// can be scheduled
 		app.scheduleTasks(func(t *Task) bool {
 			return !t.placeholder
 		})
@@ -406,7 +415,7 @@ func (app *Application) handleRecoverApplicationEvent(event *fsm.Event) {
 	}
 }
 
-func (app *Application) postAppAccepted(event *fsm.Event) {
+func (app *Application) postAppAccepted() {
 	// if app has taskGroups defined, it goes to the Reserving state before getting to Running
 	var ev events.SchedulingEvent
 	if len(app.taskGroups) != 0 {
