@@ -41,16 +41,17 @@ import (
 
 type Application struct {
 	applicationID    string
-	queue            string
-	partition        string
-	user             string
-	taskMap          map[string]*Task
-	tags             map[string]string
-	schedulingPolicy v1alpha1.SchedulingPolicy
-	taskGroups       []v1alpha1.TaskGroup
-	sm               *fsm.FSM
-	lock             *sync.RWMutex
-	schedulerAPI     api.SchedulerAPI
+	queue                   string
+	partition               string
+	user                    string
+	taskMap                 map[string]*Task
+	tags                    map[string]string
+	schedulingPolicy        v1alpha1.SchedulingPolicy
+	taskGroups              []v1alpha1.TaskGroup
+	sm                      *fsm.FSM
+	lock                    *sync.RWMutex
+	schedulerAPI            api.SchedulerAPI
+	placeholderTimeoutInSec int64
 }
 
 func (app *Application) String() string {
@@ -62,16 +63,17 @@ func (app *Application) String() string {
 func NewApplication(appID, queueName, user string, tags map[string]string, scheduler api.SchedulerAPI) *Application {
 	taskMap := make(map[string]*Task)
 	app := &Application{
-		applicationID:    appID,
-		queue:            queueName,
-		partition:        constants.DefaultPartition,
-		user:             user,
-		taskMap:          taskMap,
-		tags:             tags,
-		schedulingPolicy: v1alpha1.SchedulingPolicy{},
-		taskGroups:       make([]v1alpha1.TaskGroup, 0),
-		lock:             &sync.RWMutex{},
-		schedulerAPI:     scheduler,
+		applicationID:           appID,
+		queue:                   queueName,
+		partition:               constants.DefaultPartition,
+		user:                    user,
+		taskMap:                 taskMap,
+		tags:                    tags,
+		schedulingPolicy:        v1alpha1.SchedulingPolicy{},
+		taskGroups:              make([]v1alpha1.TaskGroup, 0),
+		lock:                    &sync.RWMutex{},
+		schedulerAPI:            scheduler,
+		placeholderTimeoutInSec: 0,
 	}
 
 	var states = events.States().Application
@@ -100,7 +102,7 @@ func NewApplication(appID, queueName, user string, tags map[string]string, sched
 				Src: []string{states.Running},
 				Dst: states.Running},
 			{Name: string(events.CompleteApplication),
-				Src: []string{states.Running},
+				Src: []string{states.Running, states.Reserving},
 				Dst: states.Completed},
 			{Name: string(events.RejectApplication),
 				Src: []string{states.Submitted},
@@ -376,6 +378,7 @@ func (app *Application) handleSubmitApplicationEvent(event *fsm.Event) {
 						User: app.user,
 					},
 					Tags: app.tags,
+					ExecutionTimeoutMilliSeconds: app.placeholderTimeoutInSec * 1000,
 				},
 			},
 			RmID: conf.GetSchedulerConf().ClusterID,
@@ -403,6 +406,7 @@ func (app *Application) handleRecoverApplicationEvent(event *fsm.Event) {
 						User: app.user,
 					},
 					Tags: app.tags,
+					ExecutionTimeoutMilliSeconds: app.placeholderTimeoutInSec * 1000,
 				},
 			},
 			RmID: conf.GetSchedulerConf().ClusterID,
@@ -468,7 +472,7 @@ func (app *Application) handleRejectApplicationEvent(event *fsm.Event) {
 }
 
 func (app *Application) handleCompleteApplicationEvent(event *fsm.Event) {
-	// TODO app lifecycle updates
+	getPlaceholderManager().cleanUp(app)
 }
 
 func (app *Application) handleReleaseAppAllocationEvent(event *fsm.Event) {
@@ -501,4 +505,10 @@ func (app *Application) enterState(event *fsm.Event) {
 		zap.String("source", event.Src),
 		zap.String("destination", event.Dst),
 		zap.String("event", event.Event))
+}
+
+func(app *Application) SetPlaceholderTimeout(timeout int64) {
+	app.lock.Lock()
+	defer app.lock.Unlock()
+	app.placeholderTimeoutInSec = timeout
 }

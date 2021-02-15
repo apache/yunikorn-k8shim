@@ -90,7 +90,7 @@ func (mgr *PlaceholderManager) cleanUp(app *Application) {
 	mgr.Lock()
 	defer mgr.Unlock()
 	log.Logger().Info("start to clean up app placeholders",
-		zap.String("appID", app.GetApplicationID()))
+		zap.String("appID", app.applicationID))
 	for taskID, task := range app.taskMap {
 		if task.GetTaskPlaceholder() {
 			// remove pod
@@ -100,10 +100,11 @@ func (mgr *PlaceholderManager) cleanUp(app *Application) {
 					zap.Error(err))
 				mgr.orphanPod[taskID] = task.pod
 			}
+			app.removeTask(task.taskID)
 		}
 	}
 	log.Logger().Info("finish to clean up app placeholders",
-		zap.String("appID", app.GetApplicationID()))
+		zap.String("appID", app.applicationID))
 }
 
 func (mgr *PlaceholderManager) cleanOrphanPlaceholders() {

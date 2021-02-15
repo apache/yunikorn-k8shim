@@ -499,6 +499,7 @@ func (ctx *Context) AddApplication(request *interfaces.AddApplicationRequest) in
 		request.Metadata.Tags,
 		ctx.apiProvider.GetAPIs().SchedulerAPI)
 	app.setTaskGroups(request.Metadata.TaskGroups)
+	app.SetPlaceholderTimeout(request.Metadata.PlaceholderTimeoutInSec)
 
 	// add into cache
 	ctx.applications[app.applicationID] = app
@@ -761,6 +762,12 @@ func (ctx *Context) ApplicationEventHandler() func(obj interface{}) {
 							zap.String("event", string(event.GetEvent())),
 							zap.Error(err))
 					}
+				}
+			}
+			if event.GetEvent() == events.CompleteApplication {
+				err := ctx.RemoveApplicationInternal(event.GetApplicationID())
+				if err != nil {
+					log.Logger().Error("failed to delete application", zap.Error(err))
 				}
 			}
 		}

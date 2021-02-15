@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 	"sync"
 
 	v1 "k8s.io/api/core/v1"
@@ -115,6 +116,28 @@ func GetTaskGroupsFromAnnotation(pod *v1.Pod) ([]v1alpha1.TaskGroup, error) {
 		}
 	}
 	return taskGroups, nil
+}
+
+func GetPlaceholderTimeoutParam(pod *v1.Pod) (int64, error) {
+	param, ok := pod.Annotations[constants.AnnotationSchedulingPolicyParam]
+	if !ok {
+		return 0, fmt.Errorf("no scheduling policy parameters defined for the pod")
+	}
+	params := strings.Split(param, constants.SchedulingPolicyParamDelimiter)
+	for _, p := range params {
+		if strings.HasPrefix(p, constants.SchedulingPolicyTimeoutParam) {
+			timeoutParam := strings.Split(p, "=")
+			if len(timeoutParam) != 2 {
+				return 0, fmt.Errorf("unable to parse timeout value from annotation")
+			}
+			timeout, err := strconv.ParseInt(timeoutParam[1], 10, 64)
+			if err != nil {
+				return 0, fmt.Errorf("failed to parse timeout value: %s", timeoutParam[1])
+			}
+			return timeout, nil
+		}
+	}
+	return 0, fmt.Errorf("no timeout parameter found")
 }
 
 type TaskGroupInstanceCountMap struct {
