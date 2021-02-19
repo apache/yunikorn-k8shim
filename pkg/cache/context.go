@@ -778,8 +778,14 @@ func (ctx *Context) TaskEventHandler() func(obj interface{}) {
 	return func(obj interface{}) {
 		if event, ok := obj.(events.TaskEvent); ok {
 			task, err := ctx.getTask(event.GetApplicationID(), event.GetTaskID())
+			// when the placeholder times out, or the application is completed,
+			// here the app not found error is expected, since the tasks and the app are
+			// already in the terminated state and it is removed from the context
+			// the cleanup is performed in the core as well, when the app transitioned into completed or killed state
 			if err != nil {
-				log.Logger().Error("failed to handle application event", zap.Error(err))
+				log.Logger().Error("failed to handle application event",
+					zap.Error(err),
+					zap.Any("event type", event.GetEvent()))
 				return
 			}
 

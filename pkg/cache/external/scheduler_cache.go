@@ -313,6 +313,18 @@ func (cache *SchedulerCache) ForgetPod(pod *v1.Pod) error {
 	return nil
 }
 
+func (cache *SchedulerCache) RemovePlaceholderPod(pod *v1.Pod) error {
+	key, err := schedulernode.GetPodKey(pod)
+	if err != nil {
+		return err
+	}
+	cache.lock.Lock()
+	defer cache.lock.Unlock()
+	delete(cache.assumedPods, key)
+	delete(cache.podsMap, key)
+	return nil
+}
+
 // Implement scheduler/algorithm/types.go#PodLister interface
 func (cache *SchedulerCache) List(selector labels.Selector) ([]*v1.Pod, error) {
 	alwaysTrue := func(p *v1.Pod) bool { return true }

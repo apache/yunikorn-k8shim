@@ -132,7 +132,6 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 		log.Logger().Debug("status update callback received",
 			zap.String("appId", updated.ApplicationID),
 			zap.String("new status", updated.State))
-		// delete application from context
 		if IsTerminatedState(updated.State) {
 			callback.context.NotifyApplicationComplete(updated.ApplicationID)
 		}

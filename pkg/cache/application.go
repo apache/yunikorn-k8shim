@@ -40,7 +40,7 @@ import (
 )
 
 type Application struct {
-	applicationID    string
+	applicationID           string
 	queue                   string
 	partition               string
 	user                    string
@@ -377,7 +377,7 @@ func (app *Application) handleSubmitApplicationEvent(event *fsm.Event) {
 					Ugi: &si.UserGroupInformation{
 						User: app.user,
 					},
-					Tags: app.tags,
+					Tags:                         app.tags,
 					ExecutionTimeoutMilliSeconds: app.placeholderTimeoutInSec * 1000,
 				},
 			},
@@ -405,7 +405,7 @@ func (app *Application) handleRecoverApplicationEvent(event *fsm.Event) {
 					Ugi: &si.UserGroupInformation{
 						User: app.user,
 					},
-					Tags: app.tags,
+					Tags:                         app.tags,
 					ExecutionTimeoutMilliSeconds: app.placeholderTimeoutInSec * 1000,
 				},
 			},
@@ -507,7 +507,7 @@ func (app *Application) enterState(event *fsm.Event) {
 		zap.String("event", event.Event))
 }
 
-func(app *Application) SetPlaceholderTimeout(timeout int64) {
+func (app *Application) SetPlaceholderTimeout(timeout int64) {
 	app.lock.Lock()
 	defer app.lock.Unlock()
 	app.placeholderTimeoutInSec = timeout
