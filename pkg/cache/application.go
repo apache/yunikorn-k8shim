@@ -26,6 +26,7 @@ import (
 	"github.com/looplab/fsm"
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/apache/incubator-yunikorn-core/pkg/api"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
@@ -40,17 +41,18 @@ import (
 )
 
 type Application struct {
-	applicationID    string
-	queue            string
-	partition        string
-	user             string
-	taskMap          map[string]*Task
-	tags             map[string]string
-	schedulingPolicy v1alpha1.SchedulingPolicy
-	taskGroups       []v1alpha1.TaskGroup
-	sm               *fsm.FSM
-	lock             *sync.RWMutex
-	schedulerAPI     api.SchedulerAPI
+	applicationID              string
+	queue                      string
+	partition                  string
+	user                       string
+	taskMap                    map[string]*Task
+	tags                       map[string]string
+	schedulingPolicy           v1alpha1.SchedulingPolicy
+	taskGroups                 []v1alpha1.TaskGroup
+	placeholderOwnerReferences []metav1.OwnerReference
+	sm                         *fsm.FSM
+	lock                       *sync.RWMutex
+	schedulerAPI               api.SchedulerAPI
 }
 
 func (app *Application) String() string {
@@ -206,6 +208,12 @@ func (app *Application) getTaskGroups() []v1alpha1.TaskGroup {
 	app.lock.RLock()
 	defer app.lock.RUnlock()
 	return app.taskGroups
+}
+
+func (app *Application) setPlaceholderOwnReference(ref []metav1.OwnerReference) {
+	app.lock.RLock()
+	defer app.lock.RUnlock()
+	app.placeholderOwnerReferences = ref
 }
 
 func (app *Application) addTask(task *Task) {

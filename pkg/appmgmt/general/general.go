@@ -130,6 +130,7 @@ func (os *Manager) getAppMetadata(pod *v1.Pod) (interfaces.ApplicationMetadata, 
 		User:          user,
 		Tags:          tags,
 		TaskGroups:    taskGroups,
+		PlaceholderOwnerReferences: pod.OwnerReferences,
 	}, true
 }
 

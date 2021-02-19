@@ -36,6 +36,11 @@ type Placeholder struct {
 }
 
 func newPlaceholder(placeholderName string, app *Application, taskGroup v1alpha1.TaskGroup) *Placeholder {
+	ownerRef := app.placeholderOwnerReferences
+	controller := false
+	for _, r := range ownerRef {
+		*r.Controller = controller
+	}
 	placeholderPod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      placeholderName,
@@ -48,6 +53,7 @@ func newPlaceholder(placeholderName string, app *Application, taskGroup v1alpha1
 				constants.AnnotationPlaceholderFlag: "true",
 				constants.AnnotationTaskGroupName:   taskGroup.Name,
 			},
+			OwnerReferences: ownerRef,
 		},
 		Spec: v1.PodSpec{
 			Containers: []v1.Container{
