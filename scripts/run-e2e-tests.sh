@@ -65,7 +65,7 @@ function install_cluster() {
   # build docker images from latest code, so that we can install yunikorn with these latest images
   echo "step 1/6: building docker images from latest code"
   make image REGISTRY=local VERSION=latest
-  exit_on_error "build docker images failed"
+  exit_on_error "buildslac docker images failed"
 
   echo "step 2/6: installing helm-v3"
   check_cmd "curl"
@@ -75,18 +75,35 @@ function install_cluster() {
 
   # install kubectl
   echo "step 3/6: installing kubectl"
-  stable_release=$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)
-  exit_on_error "unable to retrieve latest stable version of kubectl"
-  curl -LO https://storage.googleapis.com/kubernetes-release/release/${stable_release}/bin/linux/amd64/kubectl \
-    && chmod +x kubectl && sudo mv kubectl /usr/local/bin/
-  exit_on_error "install kubectl failed"
+
+  if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    echo "Installing Kubectl for Linux.."
+          stable_release=$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)
+          exit_on_error "unable to retrieve latest stable version of kubectl"
+          curl -LO https://storage.googleapis.com/kubernetes-release/release/${stable_release}/bin/linux/amd64/kubectl \
+          && chmod +x kubectl && sudo mv kubectl /usr/local/bin/
+          exit_on_error "install kubectl failed"
+  elif [[ "$OSTYPE" == "darwin"* ]]; then
+    echo "Installing Kubectl for Mac.."
+              curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/darwin/amd64/kubectl" \
+              && chmod +x kubectl && sudo mv kubectl /usr/local/bin
+  fi
+
 
   # install KIND
   echo "step 4/6: installing kind"
-  curl -Lo ./kind "https://kind.sigs.k8s.io/dl/v0.8.0/kind-linux-amd64" \
-    && chmod +x ./kind && mv ./kind $(go env GOPATH)/bin
-  exit_on_error "install KIND failed"
-  check_cmd "kind"
+
+  if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    echo "Installing KIND for Linux.."
+         curl -Lo ./kind "https://kind.sigs.k8s.io/dl/v0.8.0/kind-linux-amd64" \
+            && chmod +x ./kind && mv ./kind $(go env GOPATH)/bin
+         exit_on_error "install KIND failed"
+         check_cmd "kind"
+  elif [[ "$OSTYPE" == "darwin"* ]]; then
+    echo "Installing KIND for Mac.."
+       curl -Lo ./kind "https://kind.sigs.k8s.io/dl/v0.10.0/kind-darwin-amd64" \
+          && chmod +x ./kind && mv ./kind $(go env GOPATH)/bin
+  fi
 
   # create K8s cluster
   echo "step 5/6: installing K8s cluster using kind"
@@ -208,7 +225,7 @@ if [ "${action}" == "test" ]; then
   make e2e_test
   exit_on_error "e2e tests failed"
 elif [ "${action}" == "cleanup" ]; then
-  echo "cleaning up the evnvironment"
+  echo "cleaning up the environment"
   delete_cluster ${cluster_name}
 else
   echo "unknown action: ${action}"
