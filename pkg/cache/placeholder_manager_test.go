@@ -36,12 +36,69 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 )
 
+const (
+	appID     = "app01"
+	queue     = "root.default"
+	namespace = "test"
+)
+
 func TestCreateAppPlaceholders(t *testing.T) {
-	const (
-		appID     = "app01"
-		queue     = "root.default"
-		namespace = "test"
-	)
+	app := createAppWIthTaskGroupForTest()
+	mockedAPIProvider := client.NewMockedAPIProvider()
+	createdPods := createAndCheckPlaceholderCreate(mockedAPIProvider, app, t)
+	for _, pod := range createdPods {
+		assert.Assert(t, len(pod.OwnerReferences) == 0, "By default the pod should not have owner reference set")
+	}
+
+	// simulate placeholder creation failures
+	// failed to create one placeholder
+	mockedAPIProvider.MockCreateFn(func(pod *v1.Pod) (*v1.Pod, error) {
+		if pod.Name == "tg-test-group-2-app01-15" {
+			return nil, fmt.Errorf("failed to create pod %s", pod.Name)
+		}
+		return pod, nil
+	})
+	err := placeholderMgr.createAppPlaceholders(app)
+	assert.Error(t, err, "failed to create pod tg-test-group-2-app01-15")
+}
+
+func createAndCheckPlaceholderCreate(mockedAPIProvider *client.MockedAPIProvider, app *Application, t *testing.T) map[string]*v1.Pod {
+	createdPods := make(map[string]*v1.Pod)
+	mockedAPIProvider.MockCreateFn(func(pod *v1.Pod) (*v1.Pod, error) {
+		createdPods[pod.Name] = pod
+		return pod, nil
+	})
+	placeholderMgr = &PlaceholderManager{
+		clients: mockedAPIProvider.GetAPIs(),
+		RWMutex: sync.RWMutex{},
+	}
+
+	err := placeholderMgr.createAppPlaceholders(app)
+	assert.NilError(t, err, "create app placeholders should be successful")
+	assert.Equal(t, len(createdPods), 30)
+	return createdPods
+}
+
+func TestCreateAppPlaceholdersWithOwnReference(t *testing.T) {
+	app := createAppWIthTaskGroupForTest()
+	controller := true
+	ownRef := apis.OwnerReference{
+		Name:       "JobId",
+		UID:        "JobUid",
+		Controller: &controller,
+	}
+	app.setOwnReference([]apis.OwnerReference{ownRef})
+	mockedAPIProvider := client.NewMockedAPIProvider()
+	pods := createAndCheckPlaceholderCreate(mockedAPIProvider, app, t)
+	for _, pod := range pods {
+		assert.Assert(t, len(pod.OwnerReferences) == 1, "The pod should have exactly one owner reference set")
+		assert.Assert(t, *pod.OwnerReferences[0].Controller == false, "The owner reference should not be a controller")
+		assert.Assert(t, pod.OwnerReferences[0].Name == ownRef.Name, "The owner reference name does not match")
+		assert.Assert(t, pod.OwnerReferences[0].UID == ownRef.UID, "The owner reference UID does not match")
+	}
+}
+
+func createAppWIthTaskGroupForTest() *Application {
 	mockedSchedulerAPI := newMockSchedulerAPI()
 	app := NewApplication(appID, queue,
 		"bob", map[string]string{constants.AppTagNamespace: namespace}, mockedSchedulerAPI)
@@ -63,40 +120,10 @@ func TestCreateAppPlaceholders(t *testing.T) {
 			},
 		},
 	})
-
-	createdPods := make(map[string]*v1.Pod)
-	mockedAPIProvider := client.NewMockedAPIProvider()
-	mockedAPIProvider.MockCreateFn(func(pod *v1.Pod) (*v1.Pod, error) {
-		createdPods[pod.Name] = pod
-		return pod, nil
-	})
-	placeholderMgr := &PlaceholderManager{
-		clients: mockedAPIProvider.GetAPIs(),
-		RWMutex: sync.RWMutex{},
-	}
-
-	err := placeholderMgr.createAppPlaceholders(app)
-	assert.NilError(t, err, "create app placeholders should be successful")
-	assert.Equal(t, len(createdPods), 30)
-
-	// simulate placeholder creation failures
-	// failed to create one placeholder
-	mockedAPIProvider.MockCreateFn(func(pod *v1.Pod) (*v1.Pod, error) {
-		if pod.Name == "tg-test-group-2-app01-15" {
-			return nil, fmt.Errorf("failed to create pod %s", pod.Name)
-		}
-		return pod, nil
-	})
-	err = placeholderMgr.createAppPlaceholders(app)
-	assert.Error(t, err, "failed to create pod tg-test-group-2-app01-15")
+	return app
 }
 
 func TestCleanUp(t *testing.T) {
-	const (
-		appID     = "app01"
-		queue     = "root.default"
-		namespace = "test"
-	)
 	mockedContext := initContextForTest()
 	mockedSchedulerAPI := newMockSchedulerAPI()
 	app := NewApplication(appID, queue,

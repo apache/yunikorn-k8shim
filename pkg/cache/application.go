@@ -210,7 +210,7 @@ func (app *Application) getTaskGroups() []v1alpha1.TaskGroup {
 	return app.taskGroups
 }
 
-func (app *Application) setPlaceholderOwnReference(ref []metav1.OwnerReference) {
+func (app *Application) setOwnReference(ref []metav1.OwnerReference) {
 	app.lock.RLock()
 	defer app.lock.RUnlock()
 	app.placeholderOwnerReferences = ref

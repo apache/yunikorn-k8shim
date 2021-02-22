@@ -71,12 +71,12 @@ type AddTaskRequest struct {
 }
 
 type ApplicationMetadata struct {
-	ApplicationID string
-	QueueName     string
-	User          string
-	Tags          map[string]string
-	TaskGroups    []v1alpha1.TaskGroup
-	PlaceholderOwnerReferences []metav1.OwnerReference
+	ApplicationID   string
+	QueueName       string
+	User            string
+	Tags            map[string]string
+	TaskGroups      []v1alpha1.TaskGroup
+	OwnerReferences []metav1.OwnerReference
 }
 
 type TaskMetadata struct {

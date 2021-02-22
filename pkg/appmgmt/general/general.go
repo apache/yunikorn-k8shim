@@ -125,12 +125,12 @@ func (os *Manager) getAppMetadata(pod *v1.Pod) (interfaces.ApplicationMetadata, 
 	}
 
 	return interfaces.ApplicationMetadata{
-		ApplicationID: appId,
-		QueueName:     utils.GetQueueNameFromPod(pod),
-		User:          user,
-		Tags:          tags,
-		TaskGroups:    taskGroups,
-		PlaceholderOwnerReferences: pod.OwnerReferences,
+		ApplicationID:   appId,
+		QueueName:       utils.GetQueueNameFromPod(pod),
+		User:            user,
+		Tags:            tags,
+		TaskGroups:      taskGroups,
+		OwnerReferences: pod.OwnerReferences,
 	}, true
 }
 
