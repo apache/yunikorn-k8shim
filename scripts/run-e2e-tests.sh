@@ -50,35 +50,50 @@ function kind_installation() {
 
 
 function install_kubectl() {
-  if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+  if ! command -v kubectl &> /dev/null
+  then
+    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
         echo "Installing Kubectl for Linux.."
         kubectl_installation "linux"
-  elif [[ "$OSTYPE" == "darwin"* ]]; then
+    elif [[ "$OSTYPE" == "darwin"* ]]; then
         echo "Installing Kubectl for Mac.."
         kubectl_installation "darwin"
-  else
+    else
         echo "Cannot recognize the OS Type"
         exit 1
+    fi
+  else
+    echo "Kubectl already installed."
   fi
 }
 
 function install_kind() {
-  if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+  if ! command -v kind &> /dev/null
+  then
+    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
         echo "Installing KIND for Linux.."
         kind_installation "linux"
-  elif [[ "$OSTYPE" == "darwin"* ]]; then
+    elif [[ "$OSTYPE" == "darwin"* ]]; then
         echo "Installing KIND for Mac.."
         kind_installation "darwin"
-  else
+    else
         echo "Cannot recognize the OS Type"
         exit 1
+    fi
+  else
+    echo "KIND already installed."
   fi
 }
 
 function install_helm() {
-  curl -L https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash
-  exit_on_error "install helm-v3 failed"
-  check_cmd "helm"
+  if ! command -v helm &> /dev/null
+  then
+      curl -L https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash
+      exit_on_error "install helm-v3 failed"
+      check_cmd "helm"
+  else
+    echo "Helm already installed"
+  fi
 }
 
 function exit_on_error() {
@@ -124,32 +139,15 @@ function install_cluster() {
 
   echo "step 2/6: installing helm-v3"
   check_cmd "curl"
-  if ! command -v helm &> /dev/null
-  then
-      install_helm
-  else
-    echo "Helm already installed"
-  fi
+  install_helm
 
   # install kubectl
   echo "step 3/6: installing kubectl"
-
-  if ! command -v kubectl &> /dev/null
-  then
-      install_kubectl
-  else
-    echo "Kubectl already installed."
-  fi
+  install_kubectl
 
   # install KIND
   echo "step 4/6: installing kind"
-
-  if ! command -v kind &> /dev/null
-  then
-      install_kind
-  else
-    echo "KIND already installed."
-  fi
+  install_kind
 
   # create K8s cluster
   echo "step 5/6: installing K8s cluster using kind"
