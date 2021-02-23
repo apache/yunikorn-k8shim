@@ -27,22 +27,35 @@ function check_cmd() {
   fi
 }
 
-#
+# Install kubectl
+function kubectl_installation() {
+  os_type=$1
+  stable_release=$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)
+  exit_on_error "unable to retrieve latest stable version of kubectl"
+  curl -LO https://storage.googleapis.com/kubernetes-release/release/${stable_release}/bin/${os_type}/amd64/kubectl \
+            && chmod +x kubectl && sudo mv kubectl /usr/local/bin/
+  exit_on_error "install Kubectl failed"
+  check_cmd "kubectl"
+
+}
+
+# Install Kind
+function kind_installation() {
+    os_type=$1
+    curl -Lo ./kind "https://kind.sigs.k8s.io/dl/v0.10.0/kind-${os_type}-amd64" \
+                && chmod +x ./kind && mv ./kind $(go env GOPATH)/bin
+    exit_on_error "install KIND failed"
+    check_cmd "kind"
+}
+
+
 function install_kubectl() {
   if [[ "$OSTYPE" == "linux-gnu"* ]]; then
         echo "Installing Kubectl for Linux.."
-          stable_release=$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)
-          exit_on_error "unable to retrieve latest stable version of kubectl"
-          curl -LO https://storage.googleapis.com/kubernetes-release/release/${stable_release}/bin/linux/amd64/kubectl \
-            && chmod +x kubectl && sudo mv kubectl /usr/local/bin/
-          exit_on_error "install kubectl on Linux failed"
+        kubectl_installation "linux"
   elif [[ "$OSTYPE" == "darwin"* ]]; then
         echo "Installing Kubectl for Mac.."
-          stable_release=$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)
-          exit_on_error "unable to retrieve latest stable version of kubectl"
-          curl -LO https://storage.googleapis.com/kubernetes-release/release/${stable_release}/bin/darwin/amd64/kubectl \
-            && chmod +x kubectl && sudo mv kubectl /usr/local/bin
-          exit_on_error "install kubectl on Mac failed"
+        kubectl_installation "darwin"
   else
         echo "Cannot recognize the OS Type"
         exit 1
@@ -52,16 +65,10 @@ function install_kubectl() {
 function install_kind() {
   if [[ "$OSTYPE" == "linux-gnu"* ]]; then
         echo "Installing KIND for Linux.."
-            curl -Lo ./kind "https://kind.sigs.k8s.io/dl/v0.10.0/kind-linux-amd64" \
-                && chmod +x ./kind && mv ./kind $(go env GOPATH)/bin
-            exit_on_error "install KIND failed"
-            check_cmd "kind"
+        kind_installation "linux"
   elif [[ "$OSTYPE" == "darwin"* ]]; then
         echo "Installing KIND for Mac.."
-          curl -Lo ./kind "https://kind.sigs.k8s.io/dl/v0.10.0/kind-darwin-amd64" \
-              && chmod +x ./kind && mv ./kind $(go env GOPATH)/bin
-          exit_on_error "install KIND failed"
-          check_cmd "kind"
+        kind_installation "darwin"
   else
         echo "Cannot recognize the OS Type"
         exit 1
@@ -118,7 +125,7 @@ function install_cluster() {
   echo "step 2/6: installing helm-v3"
   check_cmd "curl"
   if ! command -v helm &> /dev/null
-    then
+  then
       install_helm
   else
     echo "Helm already installed"
@@ -127,9 +134,8 @@ function install_cluster() {
   # install kubectl
   echo "step 3/6: installing kubectl"
 
-  echo "Check if Kubectl already installed.."
   if ! command -v kubectl &> /dev/null
-    then
+  then
       install_kubectl
   else
     echo "Kubectl already installed."
@@ -139,7 +145,7 @@ function install_cluster() {
   echo "step 4/6: installing kind"
 
   if ! command -v kind &> /dev/null
-    then
+  then
       install_kind
   else
     echo "KIND already installed."
