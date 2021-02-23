@@ -27,6 +27,53 @@ function check_cmd() {
   fi
 }
 
+#
+function install_kubectl() {
+  if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        echo "Installing Kubectl for Linux.."
+          stable_release=$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)
+          exit_on_error "unable to retrieve latest stable version of kubectl"
+          curl -LO https://storage.googleapis.com/kubernetes-release/release/${stable_release}/bin/linux/amd64/kubectl \
+            && chmod +x kubectl && sudo mv kubectl /usr/local/bin/
+          exit_on_error "install kubectl on Linux failed"
+  elif [[ "$OSTYPE" == "darwin"* ]]; then
+        echo "Installing Kubectl for Mac.."
+          stable_release=$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)
+          exit_on_error "unable to retrieve latest stable version of kubectl"
+          curl -LO https://storage.googleapis.com/kubernetes-release/release/${stable_release}/bin/darwin/amd64/kubectl \
+            && chmod +x kubectl && sudo mv kubectl /usr/local/bin
+          exit_on_error "install kubectl on Mac failed"
+  else
+        echo "Cannot recognize the OS Type"
+        exit 1
+  fi
+}
+
+function install_kind() {
+  if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        echo "Installing KIND for Linux.."
+            curl -Lo ./kind "https://kind.sigs.k8s.io/dl/v0.8.0/kind-linux-amd64" \
+                && chmod +x ./kind && mv ./kind $(go env GOPATH)/bin
+            exit_on_error "install KIND failed"
+            check_cmd "kind"
+  elif [[ "$OSTYPE" == "darwin"* ]]; then
+        echo "Installing KIND for Mac.."
+          curl -Lo ./kind "https://kind.sigs.k8s.io/dl/v0.10.0/kind-darwin-amd64" \
+              && chmod +x ./kind && mv ./kind $(go env GOPATH)/bin
+          exit_on_error "install KIND failed"
+          check_cmd "kind"
+  else
+        echo "Cannot recognize the OS Type"
+        exit 1
+  fi
+}
+
+function install_helm() {
+  curl -L https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash
+  exit_on_error "install helm-v3 failed"
+  check_cmd "helm"
+}
+
 function exit_on_error() {
   cmd_code=$?
   err_msg=$1
@@ -55,54 +102,47 @@ function install_cluster() {
   k8s_cluster_name=$1
   kind_node_image=$2
 
-  # install ginkgo and gomega for e2e tests
+  # Check if go is installed.
   check_cmd "go"
+
+  # install ginkgo and gomega for e2e tests
   go get -v github.com/onsi/ginkgo/ginkgo
   go get -v github.com/onsi/gomega
-  export PATH=$PATH:$HOME/gopath/bin
   check_cmd "ginkgo"
 
   # build docker images from latest code, so that we can install yunikorn with these latest images
   echo "step 1/6: building docker images from latest code"
   make image REGISTRY=local VERSION=latest
-  exit_on_error "buildslac docker images failed"
+  exit_on_error "build docker images failed"
 
   echo "step 2/6: installing helm-v3"
   check_cmd "curl"
-  curl -L https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash
-  exit_on_error "install helm-v3 failed"
-  check_cmd "helm"
+  if ! command -v helm &> /dev/null
+    then
+      install_helm
+  else
+    echo "Helm already installed"
+  fi
 
   # install kubectl
   echo "step 3/6: installing kubectl"
 
-  if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-    echo "Installing Kubectl for Linux.."
-          stable_release=$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)
-          exit_on_error "unable to retrieve latest stable version of kubectl"
-          curl -LO https://storage.googleapis.com/kubernetes-release/release/${stable_release}/bin/linux/amd64/kubectl \
-          && chmod +x kubectl && sudo mv kubectl /usr/local/bin/
-          exit_on_error "install kubectl failed"
-  elif [[ "$OSTYPE" == "darwin"* ]]; then
-    echo "Installing Kubectl for Mac.."
-              curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/darwin/amd64/kubectl" \
-              && chmod +x kubectl && sudo mv kubectl /usr/local/bin
+  echo "Check if Kubectl already installed.."
+  if ! command -v kubectl &> /dev/null
+    then
+      install_kubectl
+  else
+    echo "Kubectl already installed."
   fi
-
 
   # install KIND
   echo "step 4/6: installing kind"
 
-  if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-    echo "Installing KIND for Linux.."
-         curl -Lo ./kind "https://kind.sigs.k8s.io/dl/v0.8.0/kind-linux-amd64" \
-            && chmod +x ./kind && mv ./kind $(go env GOPATH)/bin
-         exit_on_error "install KIND failed"
-         check_cmd "kind"
-  elif [[ "$OSTYPE" == "darwin"* ]]; then
-    echo "Installing KIND for Mac.."
-       curl -Lo ./kind "https://kind.sigs.k8s.io/dl/v0.10.0/kind-darwin-amd64" \
-          && chmod +x ./kind && mv ./kind $(go env GOPATH)/bin
+  if ! command -v kind &> /dev/null
+    then
+      install_kind
+  else
+    echo "KIND already installed."
   fi
 
   # create K8s cluster
