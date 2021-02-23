@@ -52,7 +52,7 @@ function install_kubectl() {
 function install_kind() {
   if [[ "$OSTYPE" == "linux-gnu"* ]]; then
         echo "Installing KIND for Linux.."
-            curl -Lo ./kind "https://kind.sigs.k8s.io/dl/v0.8.0/kind-linux-amd64" \
+            curl -Lo ./kind "https://kind.sigs.k8s.io/dl/v0.10.0/kind-linux-amd64" \
                 && chmod +x ./kind && mv ./kind $(go env GOPATH)/bin
             exit_on_error "install KIND failed"
             check_cmd "kind"
