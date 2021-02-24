@@ -127,7 +127,8 @@ function install_cluster() {
   # Check if go is installed.
   check_cmd "go"
 
-  # install ginkgo and gomega for e2e tests
+  # install ginkgo and gomega for e2e tests.
+  echo "Installing Ginkgo & Gomega at $(go env GOPATH)/bin"
   go get -v github.com/onsi/ginkgo/ginkgo
   go get -v github.com/onsi/gomega
   check_cmd "ginkgo"
