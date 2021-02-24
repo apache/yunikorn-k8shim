@@ -30,6 +30,7 @@ import (
 	"github.com/apache/incubator-yunikorn-core/pkg/api"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
@@ -51,6 +52,7 @@ type Application struct {
 	sm               *fsm.FSM
 	lock             *sync.RWMutex
 	schedulerAPI     api.SchedulerAPI
+	placeholderAsk   *si.Resource // total placeholder request for the app (all task groups)
 }
 
 func (app *Application) String() string {
@@ -200,6 +202,19 @@ func (app *Application) setTaskGroups(taskGroups []v1alpha1.TaskGroup) {
 	app.lock.Lock()
 	defer app.lock.Unlock()
 	app.taskGroups = taskGroups
+	for _, taskGroup := range app.taskGroups {
+		placeholderAskBuilder := common.NewResourceBuilder()
+		for resName, resvalue := range taskGroup.MinResource {
+			placeholderAskBuilder.AddResource(resName, int64(taskGroup.MinMember)*resvalue.Value())
+		}
+		app.placeholderAsk = common.Add(app.placeholderAsk, placeholderAskBuilder.Build())
+	}
+}
+
+func (app *Application) getPlaceholderAsk() *si.Resource {
+	app.lock.RLock()
+	defer app.lock.RUnlock()
+	return app.placeholderAsk
 }
 
 func (app *Application) getTaskGroups() []v1alpha1.TaskGroup {
@@ -375,7 +390,8 @@ func (app *Application) handleSubmitApplicationEvent(event *fsm.Event) {
 					Ugi: &si.UserGroupInformation{
 						User: app.user,
 					},
-					Tags: app.tags,
+					Tags:           app.tags,
+					PlaceholderAsk: app.placeholderAsk,
 				},
 			},
 			RmID: conf.GetSchedulerConf().ClusterID,
