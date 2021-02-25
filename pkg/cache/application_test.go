@@ -427,3 +427,21 @@ func TestTryReserve(t *testing.T) {
 	}, 100*time.Millisecond, 3*time.Second)
 	assert.NilError(t, err, "placeholders are not created")
 }
+
+func TestTriggerAppRecovery(t *testing.T) {
+	// Trigger app recovery should be successful if the app is in New state
+	app := NewApplication("app00001", "root.abc", "test-user",
+		map[string]string{}, newMockSchedulerAPI())
+	err := app.TriggerAppRecovery()
+	assert.NilError(t, err)
+	assert.Equal(t, app.GetApplicationState(), events.States().Application.Recovering)
+
+	// Trigger app recovery should be failed if the app already leaves New state
+	app = NewApplication("app00001", "root.abc", "test-user",
+		map[string]string{}, newMockSchedulerAPI())
+	err = app.handle(NewSubmitApplicationEvent(app.applicationID))
+	assert.NilError(t, err)
+	assertAppState(t, app, events.States().Application.Submitted, 3*time.Second)
+	err = app.TriggerAppRecovery()
+	assert.ErrorContains(t, err, "event RecoverApplication inappropriate in current state Submitted")
+}

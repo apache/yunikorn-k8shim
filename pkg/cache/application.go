@@ -311,6 +311,10 @@ func (app *Application) SetState(state string) {
 	app.sm.SetState(state)
 }
 
+func (app *Application) TriggerAppRecovery() error {
+	return app.handle(NewSimpleApplicationEvent(app.applicationID, events.RecoverApplication))
+}
+
 // This is called in every scheduling interval,
 // we are not using dispatcher here because we want to
 // make state transition in sync mode in order to prevent
