@@ -27,6 +27,7 @@ type ManagedApp interface {
 	GetQueue() string
 	GetUser() string
 	SetState(state string)
+	TriggerAppRecovery() error
 }
 
 type ManagedTask interface {

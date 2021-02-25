@@ -158,7 +158,6 @@ func (fc *MockScheduler) addApplication(appId string, queue string) {
 			User:          "test-user",
 			Tags:          map[string]string{"app-type": "test-app"},
 		},
-		Recovery: false,
 	})
 }
 

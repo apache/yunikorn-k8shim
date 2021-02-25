@@ -178,7 +178,6 @@ func (os *Manager) addApplication(obj interface{}) {
 	log.Logger().Info("spark app added", zap.Any("SparkApplication", app))
 	os.amProtocol.AddApplication(&interfaces.AddApplicationRequest{
 		Metadata: os.getAppMetadata(app),
-		Recovery: false,
 	})
 }
 
