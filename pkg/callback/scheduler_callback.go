@@ -132,19 +132,19 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 		log.Logger().Debug("status update callback received",
 			zap.String("appId", updated.ApplicationID),
 			zap.String("new status", updated.State))
-		if IsTerminatedState(updated.State) {
-			callback.context.NotifyApplicationComplete(updated.ApplicationID)
+		// delete application from context
+		if updated.State == events.States().Application.Completed {
+			err := callback.context.RemoveApplicationInternal(updated.ApplicationID)
+			if err != nil {
+				log.Logger().Error("failed to delete application", zap.Error(err))
+			}
+		} else {
+			// handle status update
+			dispatcher.Dispatch(cache.NewApplicationStatusChangeEvent(updated.ApplicationID, events.AppStateChange, updated.State))
 		}
-		// handle status update
-		dispatcher.Dispatch(cache.NewApplicationStatusChangeEvent(updated.ApplicationID, events.AppStateChange, updated.State))
 	}
 
 	return nil
-}
-
-func IsTerminatedState(state string) bool {
-	return state == events.States().Application.Completed || state == events.States().Application.Failed ||
-		state == events.States().Application.Killed
 }
 
 // this callback implements scheduler plugin interface PredicatesPlugin/

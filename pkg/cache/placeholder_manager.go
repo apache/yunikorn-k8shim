@@ -90,9 +90,9 @@ func (mgr *PlaceholderManager) cleanUp(app *Application) {
 	mgr.Lock()
 	defer mgr.Unlock()
 	log.Logger().Info("start to clean up app placeholders",
-		zap.String("appID", app.applicationID))
+		zap.String("appID", app.GetApplicationID()))
 	for taskID, task := range app.taskMap {
-		if task.IsPlaceholder() {
+		if task.GetTaskPlaceholder() {
 			// remove pod
 			err := mgr.clients.KubeClient.Delete(task.pod)
 			if err != nil {
@@ -100,16 +100,10 @@ func (mgr *PlaceholderManager) cleanUp(app *Application) {
 					zap.Error(err))
 				mgr.orphanPod[taskID] = task.pod
 			}
-			err = task.context.schedulerCache.RemovePlaceholderPod(task.pod)
-			if err != nil {
-				log.Logger().Error("failed to remove placeholder pod from scheduler cache",
-					zap.Error(err))
-			}
-			delete(app.taskMap, taskID)
 		}
 	}
 	log.Logger().Info("finish to clean up app placeholders",
-		zap.String("appID", app.applicationID))
+		zap.String("appID", app.GetApplicationID()))
 }
 
 func (mgr *PlaceholderManager) cleanOrphanPlaceholders() {
