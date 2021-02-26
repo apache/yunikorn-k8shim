@@ -61,7 +61,6 @@ type ApplicationManagementProtocol interface {
 
 type AddApplicationRequest struct {
 	Metadata ApplicationMetadata
-	Recovery bool
 }
 
 type AddTaskRequest struct {

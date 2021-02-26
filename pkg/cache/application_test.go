@@ -34,6 +34,7 @@ import (
 	"github.com/apache/incubator-yunikorn-core/pkg/api"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
@@ -324,6 +325,10 @@ func TestSetTaskGroupsAndSchedulingPolicy(t *testing.T) {
 	assert.Equal(t, tg2.Tolerations[0].Operator, v1.TolerationOpEqual)
 	assert.Equal(t, tg2.Tolerations[0].Effect, v1.TaintEffectNoSchedule)
 	assert.Equal(t, tg2.Tolerations[0].TolerationSeconds, &duration)
+
+	expectedPlaceholderAsk := common.NewResourceBuilder().AddResource(v1.ResourceMemory.String(), 26214400000).AddResource(v1.ResourceCPU.String(), 30).Build()
+	actualPlaceholderAsk := app.getPlaceholderAsk()
+	assert.DeepEqual(t, actualPlaceholderAsk, expectedPlaceholderAsk)
 }
 
 type threadSafePodsMap struct {
@@ -421,4 +426,22 @@ func TestTryReserve(t *testing.T) {
 		return createdPods.count() == 30
 	}, 100*time.Millisecond, 3*time.Second)
 	assert.NilError(t, err, "placeholders are not created")
+}
+
+func TestTriggerAppRecovery(t *testing.T) {
+	// Trigger app recovery should be successful if the app is in New state
+	app := NewApplication("app00001", "root.abc", "test-user",
+		map[string]string{}, newMockSchedulerAPI())
+	err := app.TriggerAppRecovery()
+	assert.NilError(t, err)
+	assert.Equal(t, app.GetApplicationState(), events.States().Application.Recovering)
+
+	// Trigger app recovery should be failed if the app already leaves New state
+	app = NewApplication("app00001", "root.abc", "test-user",
+		map[string]string{}, newMockSchedulerAPI())
+	err = app.handle(NewSubmitApplicationEvent(app.applicationID))
+	assert.NilError(t, err)
+	assertAppState(t, app, events.States().Application.Submitted, 3*time.Second)
+	err = app.TriggerAppRecovery()
+	assert.ErrorContains(t, err, "event RecoverApplication inappropriate in current state Submitted")
 }

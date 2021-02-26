@@ -20,6 +20,7 @@ package cache
 
 import (
 	"fmt"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
 	"sort"
 	"sync"
 
@@ -40,17 +41,18 @@ import (
 )
 
 type Application struct {
-	applicationID           string
-	queue                   string
-	partition               string
-	user                    string
-	taskMap                 map[string]*Task
-	tags                    map[string]string
-	schedulingPolicy        v1alpha1.SchedulingPolicy
-	taskGroups              []v1alpha1.TaskGroup
-	sm                      *fsm.FSM
-	lock                    *sync.RWMutex
-	schedulerAPI            api.SchedulerAPI
+	applicationID    string
+	queue            string
+	partition        string
+	user             string
+	taskMap          map[string]*Task
+	tags             map[string]string
+	schedulingPolicy v1alpha1.SchedulingPolicy
+	taskGroups       []v1alpha1.TaskGroup
+	sm               *fsm.FSM
+	lock             *sync.RWMutex
+	schedulerAPI     api.SchedulerAPI
+	placeholderAsk   *si.Resource // total placeholder request for the app (all task groups)
 	placeholderTimeoutInSec int64
 }
 
@@ -102,7 +104,7 @@ func NewApplication(appID, queueName, user string, tags map[string]string, sched
 				Src: []string{states.Running},
 				Dst: states.Running},
 			{Name: string(events.CompleteApplication),
-				Src: []string{states.Running, states.Reserving},
+				Src: []string{states.Running},
 				Dst: states.Completed},
 			{Name: string(events.RejectApplication),
 				Src: []string{states.Submitted},
@@ -202,6 +204,19 @@ func (app *Application) setTaskGroups(taskGroups []v1alpha1.TaskGroup) {
 	app.lock.Lock()
 	defer app.lock.Unlock()
 	app.taskGroups = taskGroups
+	for _, taskGroup := range app.taskGroups {
+		placeholderAskBuilder := common.NewResourceBuilder()
+		for resName, resvalue := range taskGroup.MinResource {
+			placeholderAskBuilder.AddResource(resName, int64(taskGroup.MinMember)*resvalue.Value())
+		}
+		app.placeholderAsk = common.Add(app.placeholderAsk, placeholderAskBuilder.Build())
+	}
+}
+
+func (app *Application) getPlaceholderAsk() *si.Resource {
+	app.lock.RLock()
+	defer app.lock.RUnlock()
+	return app.placeholderAsk
 }
 
 func (app *Application) getTaskGroups() []v1alpha1.TaskGroup {
@@ -298,6 +313,10 @@ func (app *Application) SetState(state string) {
 	app.sm.SetState(state)
 }
 
+func (app *Application) TriggerAppRecovery() error {
+	return app.handle(NewSimpleApplicationEvent(app.applicationID, events.RecoverApplication))
+}
+
 // This is called in every scheduling interval,
 // we are not using dispatcher here because we want to
 // make state transition in sync mode in order to prevent
@@ -377,7 +396,8 @@ func (app *Application) handleSubmitApplicationEvent(event *fsm.Event) {
 					Ugi: &si.UserGroupInformation{
 						User: app.user,
 					},
-					Tags:                         app.tags,
+					Tags:           app.tags,
+					PlaceholderAsk: app.placeholderAsk,
 					ExecutionTimeoutMilliSeconds: app.placeholderTimeoutInSec * 1000,
 				},
 			},
@@ -472,7 +492,7 @@ func (app *Application) handleRejectApplicationEvent(event *fsm.Event) {
 }
 
 func (app *Application) handleCompleteApplicationEvent(event *fsm.Event) {
-	getPlaceholderManager().cleanUp(app)
+	// TODO app lifecycle updates
 }
 
 func (app *Application) handleReleaseAppAllocationEvent(event *fsm.Event) {

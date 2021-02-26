@@ -22,6 +22,7 @@ import (
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/test"
 )
 
 // implements ApplicationManagementProtocol
@@ -51,17 +52,10 @@ func (m *MockedAMProtocol) AddApplication(request *interfaces.AddApplicationRequ
 		request.Metadata.QueueName,
 		request.Metadata.User,
 		request.Metadata.Tags,
-		nil)
+		test.NewSchedulerAPIMock())
 
 	// add into cache
 	m.applications[app.GetApplicationID()] = app
-
-	switch request.Recovery {
-	case true:
-		app.SetState(events.States().Application.Recovering)
-	case false:
-		app.SetState(events.States().Application.New)
-	}
 
 	return app
 }

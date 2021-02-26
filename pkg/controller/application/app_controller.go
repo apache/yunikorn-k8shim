@@ -150,7 +150,6 @@ func (appMgr *AppManager) addApp(obj interface{}) {
 		if app == nil {
 			appMgr.amProtocol.AddApplication(&interfaces.AddApplicationRequest{
 				Metadata: appMeta,
-				Recovery: false,
 			})
 			// set and save status = New in case it is not set. In case of recovery don't overwrite it
 			if len(appCRD.Status.AppStatus) == 0 {

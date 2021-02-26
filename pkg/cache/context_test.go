@@ -61,7 +61,6 @@ func TestAddApplications(t *testing.T) {
 			User:          "test-user",
 			Tags:          nil,
 		},
-		Recovery: false,
 	})
 	assert.Equal(t, len(context.applications), 1)
 	assert.Assert(t, context.applications["app00001"] != nil)
@@ -76,7 +75,6 @@ func TestAddApplications(t *testing.T) {
 			User:          "test-user",
 			Tags:          nil,
 		},
-		Recovery: false,
 	})
 
 	assert.Assert(t, app != nil)
@@ -92,7 +90,6 @@ func TestGetApplication(t *testing.T) {
 			User:          "test-user",
 			Tags:          nil,
 		},
-		Recovery: false,
 	})
 	context.AddApplication(&interfaces.AddApplicationRequest{
 		Metadata: interfaces.ApplicationMetadata{
@@ -101,7 +98,6 @@ func TestGetApplication(t *testing.T) {
 			User:          "test-user",
 			Tags:          nil,
 		},
-		Recovery: false,
 	})
 
 	app := context.GetApplication("app00001")
@@ -231,7 +227,6 @@ func TestAddTask(t *testing.T) {
 			User:          "test-user",
 			Tags:          nil,
 		},
-		Recovery: false,
 	})
 	assert.Equal(t, len(context.applications), 1)
 	assert.Assert(t, context.applications["app00001"] != nil)
@@ -305,7 +300,6 @@ func TestRecoverTask(t *testing.T) {
 			User:          "test-user",
 			Tags:          nil,
 		},
-		Recovery: true,
 	})
 	assert.Equal(t, len(context.applications), 1)
 	assert.Assert(t, context.applications[appID] != nil)
@@ -376,7 +370,6 @@ func TestTaskReleaseAfterRecovery(t *testing.T) {
 			User:          "test-user",
 			Tags:          nil,
 		},
-		Recovery: true,
 	})
 	assert.Equal(t, len(context.applications), 1)
 	assert.Assert(t, context.applications[appID] != nil)
@@ -468,7 +461,6 @@ func TestRemoveTask(t *testing.T) {
 			User:          "test-user",
 			Tags:          nil,
 		},
-		Recovery: false,
 	})
 
 	// add 2 tasks
@@ -618,7 +610,6 @@ func TestPublishEventsWithNotExistingAsk(t *testing.T) {
 			User:          "test-user",
 			Tags:          nil,
 		},
-		Recovery: false,
 	})
 	eventRecords := make([]*si.EventRecord, 0)
 	message := "event_related_text_msg"
@@ -664,7 +655,6 @@ func TestPublishEventsCorrectly(t *testing.T) {
 			User:          "test-user",
 			Tags:          nil,
 		},
-		Recovery: false,
 	})
 	context.AddTask(&interfaces.AddTaskRequest{
 		Metadata: interfaces.TaskMetadata{
@@ -740,7 +730,6 @@ func TestAddApplicationsWithTags(t *testing.T) {
 				constants.AppTagNamespace: "",
 			},
 		},
-		Recovery: false,
 	})
 
 	// add application with non-existing namespace
@@ -753,7 +742,6 @@ func TestAddApplicationsWithTags(t *testing.T) {
 				constants.AppTagNamespace: "non-existing",
 			},
 		},
-		Recovery: false,
 	})
 
 	// add application with unannotated namespace
@@ -766,7 +754,6 @@ func TestAddApplicationsWithTags(t *testing.T) {
 				constants.AppTagNamespace: "test1",
 			},
 		},
-		Recovery: false,
 	})
 
 	// add application with annotated namespace
@@ -779,7 +766,6 @@ func TestAddApplicationsWithTags(t *testing.T) {
 				constants.AppTagNamespace: "test2",
 			},
 		},
-		Recovery: false,
 	}
 	context.AddApplication(request)
 

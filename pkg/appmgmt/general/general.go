@@ -180,7 +180,6 @@ func (os *Manager) addPod(obj interface{}) {
 		if app := os.amProtocol.GetApplication(appMeta.ApplicationID); app == nil {
 			os.amProtocol.AddApplication(&interfaces.AddApplicationRequest{
 				Metadata: appMeta,
-				Recovery: recovery,
 			})
 		}
 	}
