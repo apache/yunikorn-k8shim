@@ -120,7 +120,7 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 			zap.String("UUID", release.UUID))
 
 		// TerminationType 0 mean STOPPED_BY_RM
-		if release.TerminationType != si.AllocationRelease_STOPPED_BY_RM {
+		if release.TerminationType != si.TerminationType_STOPPED_BY_RM {
 			// send release app allocation to application states machine
 			ev := cache.NewReleaseAppAllocationEvent(release.ApplicationID, release.TerminationType, release.UUID)
 			dispatcher.Dispatch(ev)

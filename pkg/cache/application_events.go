@@ -201,11 +201,11 @@ type ReleaseAppAllocationEvent struct {
 	event           events.ApplicationEventType
 }
 
-func NewReleaseAppAllocationEvent(appID string, allocTermination si.AllocationRelease_TerminationType, uuid string) ReleaseAppAllocationEvent {
+func NewReleaseAppAllocationEvent(appID string, allocTermination si.TerminationType, uuid string) ReleaseAppAllocationEvent {
 	return ReleaseAppAllocationEvent{
 		applicationID:   appID,
 		allocationUUID:  uuid,
-		terminationType: si.AllocationRelease_TerminationType_name[int32(allocTermination)],
+		terminationType: si.TerminationType_name[int32(allocTermination)],
 		event:           events.ReleaseAppAllocation,
 	}
 }
