@@ -224,3 +224,34 @@ func (re ReleaseAppAllocationEvent) GetArgs() []interface{} {
 func (re ReleaseAppAllocationEvent) GetEvent() events.ApplicationEventType {
 	return re.event
 }
+
+type ReleaseAppAllocationAskEvent struct {
+	applicationID   string
+	taskID          string
+	terminationType string
+	event           events.ApplicationEventType
+}
+
+func NewReleaseAppAllocationAskEvent(appID string, allocTermination si.TerminationType, taskID string) ReleaseAppAllocationAskEvent {
+	return ReleaseAppAllocationAskEvent{
+		applicationID:   appID,
+		taskID:          taskID,
+		terminationType: si.TerminationType_name[int32(allocTermination)],
+		event:           events.ReleaseAppAllocationAsk,
+	}
+}
+
+func (re ReleaseAppAllocationAskEvent) GetApplicationID() string {
+	return re.applicationID
+}
+
+func (re ReleaseAppAllocationAskEvent) GetArgs() []interface{} {
+	args := make([]interface{}, 2)
+	args[0] = re.taskID
+	args[1] = re.terminationType
+	return args
+}
+
+func (re ReleaseAppAllocationAskEvent) GetEvent() events.ApplicationEventType {
+	return re.event
+}
