@@ -117,6 +117,21 @@ func ParseResource(cpuStr, memStr string) *si.Resource {
 	return result.Build()
 }
 
+func GetTGResource(resMap map[string]resource.Quantity, members int64) *si.Resource {
+	result := NewResourceBuilder()
+	for resName, resValue := range resMap {
+		switch resName {
+		case v1.ResourceCPU.String():
+			result.AddResource(constants.CPU, members*resValue.MilliValue())
+		case v1.ResourceMemory.String():
+			result.AddResource(constants.Memory, members*resValue.ScaledValue(resource.Mega))
+		default:
+			result.AddResource(resName, members*resValue.Value())
+		}
+	}
+	return result.Build()
+}
+
 func getResource(resourceList v1.ResourceList) *si.Resource {
 	resources := NewResourceBuilder()
 	for name, value := range resourceList {
