@@ -66,8 +66,8 @@ func CreateUpdateRequestForTask(appID, taskID string, resource *si.Resource, pla
 }
 
 func CreateReleaseAskRequestForTask(appID, taskId, partition string) si.UpdateRequest {
-	toReleases := make([]*si.AllocationAskReleaseRequest, 0)
-	toReleases = append(toReleases, &si.AllocationAskReleaseRequest{
+	toReleases := make([]*si.AllocationAskRelease, 0)
+	toReleases = append(toReleases, &si.AllocationAskRelease{
 		ApplicationID: appID,
 		Allocationkey: taskId,
 		PartitionName: partition,
@@ -86,11 +86,11 @@ func CreateReleaseAskRequestForTask(appID, taskId, partition string) si.UpdateRe
 	return result
 }
 
-func GetTerminationTypeFromString(terminationTypeStr string) si.AllocationRelease_TerminationType {
-	if v, ok := si.AllocationRelease_TerminationType_value[terminationTypeStr]; ok {
-		return si.AllocationRelease_TerminationType(v)
+func GetTerminationTypeFromString(terminationTypeStr string) si.TerminationType {
+	if v, ok := si.TerminationType_value[terminationTypeStr]; ok {
+		return si.TerminationType(v)
 	}
-	return si.AllocationRelease_STOPPED_BY_RM
+	return si.TerminationType_STOPPED_BY_RM
 }
 
 func CreateReleaseAllocationRequestForTask(appID, allocUUID, partition, terminationType string) si.UpdateRequest {

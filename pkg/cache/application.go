@@ -41,18 +41,19 @@ import (
 )
 
 type Application struct {
-	applicationID    string
-	queue            string
-	partition        string
-	user             string
-	taskMap          map[string]*Task
-	tags             map[string]string
-	schedulingPolicy v1alpha1.SchedulingPolicy
-	taskGroups       []v1alpha1.TaskGroup
-	sm               *fsm.FSM
-	lock             *sync.RWMutex
-	schedulerAPI     api.SchedulerAPI
-	placeholderAsk   *si.Resource // total placeholder request for the app (all task groups)
+	applicationID           string
+	queue                   string
+	partition               string
+	user                    string
+	taskMap                 map[string]*Task
+	tags                    map[string]string
+	schedulingPolicy        v1alpha1.SchedulingPolicy
+	taskGroups              []v1alpha1.TaskGroup
+	sm                      *fsm.FSM
+	lock                    *sync.RWMutex
+	schedulerAPI            api.SchedulerAPI
+	placeholderAsk          *si.Resource // total placeholder request for the app (all task groups)
+	placeholderTimeoutInSec int64
 }
 
 func (app *Application) String() string {
@@ -64,16 +65,17 @@ func (app *Application) String() string {
 func NewApplication(appID, queueName, user string, tags map[string]string, scheduler api.SchedulerAPI) *Application {
 	taskMap := make(map[string]*Task)
 	app := &Application{
-		applicationID:    appID,
-		queue:            queueName,
-		partition:        constants.DefaultPartition,
-		user:             user,
-		taskMap:          taskMap,
-		tags:             tags,
-		schedulingPolicy: v1alpha1.SchedulingPolicy{},
-		taskGroups:       make([]v1alpha1.TaskGroup, 0),
-		lock:             &sync.RWMutex{},
-		schedulerAPI:     scheduler,
+		applicationID:           appID,
+		queue:                   queueName,
+		partition:               constants.DefaultPartition,
+		user:                    user,
+		taskMap:                 taskMap,
+		tags:                    tags,
+		schedulingPolicy:        v1alpha1.SchedulingPolicy{},
+		taskGroups:              make([]v1alpha1.TaskGroup, 0),
+		lock:                    &sync.RWMutex{},
+		schedulerAPI:            scheduler,
+		placeholderTimeoutInSec: 0,
 	}
 
 	var states = events.States().Application
@@ -101,6 +103,9 @@ func NewApplication(appID, queueName, user string, tags map[string]string, sched
 			{Name: string(events.ReleaseAppAllocation),
 				Src: []string{states.Running},
 				Dst: states.Running},
+			{Name: string(events.ReleaseAppAllocationAsk),
+				Src: []string{states.Running, states.Accepted, states.Reserving},
+				Dst: states.Running},
 			{Name: string(events.CompleteApplication),
 				Src: []string{states.Running},
 				Dst: states.Completed},
@@ -108,24 +113,25 @@ func NewApplication(appID, queueName, user string, tags map[string]string, sched
 				Src: []string{states.Submitted},
 				Dst: states.Rejected},
 			{Name: string(events.FailApplication),
-				Src: []string{states.Submitted, states.Rejected, states.Accepted, states.Running},
+				Src: []string{states.Submitted, states.Rejected, states.Accepted, states.Running, states.Reserving},
 				Dst: states.Failed},
 			{Name: string(events.KillApplication),
-				Src: []string{states.Accepted, states.Running},
+				Src: []string{states.Accepted, states.Running, states.Reserving},
 				Dst: states.Killing},
 			{Name: string(events.KilledApplication),
 				Src: []string{states.Killing},
 				Dst: states.Killed},
 		},
 		fsm.Callbacks{
-			string(events.SubmitApplication):      app.handleSubmitApplicationEvent,
-			string(events.RecoverApplication):     app.handleRecoverApplicationEvent,
-			string(events.RejectApplication):      app.handleRejectApplicationEvent,
-			string(events.CompleteApplication):    app.handleCompleteApplicationEvent,
-			string(events.UpdateReservation):      app.onReservationStateChange,
-			events.States().Application.Reserving: app.onReserving,
-			string(events.ReleaseAppAllocation):   app.handleReleaseAppAllocationEvent,
-			events.EnterState:                     app.enterState,
+			string(events.SubmitApplication):       app.handleSubmitApplicationEvent,
+			string(events.RecoverApplication):      app.handleRecoverApplicationEvent,
+			string(events.RejectApplication):       app.handleRejectApplicationEvent,
+			string(events.CompleteApplication):     app.handleCompleteApplicationEvent,
+			string(events.UpdateReservation):       app.onReservationStateChange,
+			events.States().Application.Reserving:  app.onReserving,
+			string(events.ReleaseAppAllocation):    app.handleReleaseAppAllocationEvent,
+			string(events.ReleaseAppAllocationAsk): app.handleReleaseAppAllocationAskEvent,
+			events.EnterState:                      app.enterState,
 		},
 	)
 
@@ -390,8 +396,9 @@ func (app *Application) handleSubmitApplicationEvent(event *fsm.Event) {
 					Ugi: &si.UserGroupInformation{
 						User: app.user,
 					},
-					Tags:           app.tags,
-					PlaceholderAsk: app.placeholderAsk,
+					Tags:                         app.tags,
+					PlaceholderAsk:               app.placeholderAsk,
+					ExecutionTimeoutMilliSeconds: app.placeholderTimeoutInSec * 1000,
 				},
 			},
 			RmID: conf.GetSchedulerConf().ClusterID,
@@ -418,7 +425,8 @@ func (app *Application) handleRecoverApplicationEvent(event *fsm.Event) {
 					Ugi: &si.UserGroupInformation{
 						User: app.user,
 					},
-					Tags: app.tags,
+					Tags:                         app.tags,
+					ExecutionTimeoutMilliSeconds: app.placeholderTimeoutInSec * 1000,
 				},
 			},
 			RmID: conf.GetSchedulerConf().ClusterID,
@@ -511,10 +519,47 @@ func (app *Application) handleReleaseAppAllocationEvent(event *fsm.Event) {
 	}
 }
 
+func (app *Application) handleReleaseAppAllocationAskEvent(event *fsm.Event) {
+	eventArgs := make([]string, 2)
+	if err := events.GetEventArgsAsStrings(eventArgs, event.Args); err != nil {
+		log.Logger().Error("fail to parse event arg", zap.Error(err))
+		return
+	}
+	taskID := eventArgs[0]
+	terminationTypeStr := eventArgs[1]
+	log.Logger().Info("try to release pod from application",
+		zap.String("appID", app.applicationID),
+		zap.String("taskID", taskID),
+		zap.String("terminationType", terminationTypeStr))
+	if task, ok := app.taskMap[taskID]; ok {
+		task.setTaskTerminationType(terminationTypeStr)
+		if task.IsPlaceholder() {
+			err := task.DeleteTaskPod(task.pod)
+			if err != nil {
+				log.Logger().Error("failed to release allocation ask from application", zap.Error(err))
+			}
+		} else {
+			log.Logger().Warn("skip to release allocation ask, ask is not a placeholder",
+				zap.String("appID", app.applicationID),
+				zap.String("taskID", taskID))
+		}
+	} else {
+		log.Logger().Warn("task not found",
+			zap.String("appID", app.applicationID),
+			zap.String("taskID", taskID))
+	}
+}
+
 func (app *Application) enterState(event *fsm.Event) {
 	log.Logger().Debug("shim app state transition",
 		zap.String("app", app.applicationID),
 		zap.String("source", event.Src),
 		zap.String("destination", event.Dst),
 		zap.String("event", event.Event))
+}
+
+func (app *Application) SetPlaceholderTimeout(timeout int64) {
+	app.lock.Lock()
+	defer app.lock.Unlock()
+	app.placeholderTimeoutInSec = timeout
 }

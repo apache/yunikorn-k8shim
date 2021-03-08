@@ -74,6 +74,7 @@ type ApplicationMetadata struct {
 	User          string
 	Tags          map[string]string
 	TaskGroups    []v1alpha1.TaskGroup
+	PlaceholderTimeoutInSec int64
 }
 
 type TaskMetadata struct {
