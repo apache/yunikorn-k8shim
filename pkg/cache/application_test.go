@@ -326,7 +326,12 @@ func TestSetTaskGroupsAndSchedulingPolicy(t *testing.T) {
 	assert.Equal(t, tg2.Tolerations[0].Effect, v1.TaintEffectNoSchedule)
 	assert.Equal(t, tg2.Tolerations[0].TolerationSeconds, &duration)
 
-	expectedPlaceholderAsk := common.NewResourceBuilder().AddResource(v1.ResourceMemory.String(), 26214400000).AddResource(v1.ResourceCPU.String(), 30).Build()
+	// This is a weird calculation for memory as the request is rounded up before multiplying.
+	// TG1: 500Mi, 10 members: each member 525M -> total 5250M
+	// TG2: 1000Mi, 20 members: each member 1049M -> total 20980
+	// overall usage 5250M + 20980M -> 26230M. This will also be the queue usage so the correct handling
+	// CPU is normal as it specifies milli cpu to start with
+	expectedPlaceholderAsk := common.NewResourceBuilder().AddResource(constants.Memory, 26230).AddResource(constants.CPU, 25000).Build()
 	actualPlaceholderAsk := app.getPlaceholderAsk()
 	assert.DeepEqual(t, actualPlaceholderAsk, expectedPlaceholderAsk)
 }

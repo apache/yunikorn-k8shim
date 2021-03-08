@@ -209,11 +209,7 @@ func (app *Application) setTaskGroups(taskGroups []v1alpha1.TaskGroup) {
 	defer app.lock.Unlock()
 	app.taskGroups = taskGroups
 	for _, taskGroup := range app.taskGroups {
-		placeholderAskBuilder := common.NewResourceBuilder()
-		for resName, resvalue := range taskGroup.MinResource {
-			placeholderAskBuilder.AddResource(resName, int64(taskGroup.MinMember)*resvalue.Value())
-		}
-		app.placeholderAsk = common.Add(app.placeholderAsk, placeholderAskBuilder.Build())
+		app.placeholderAsk = common.Add(app.placeholderAsk, common.GetTGResource(taskGroup.MinResource, int64(taskGroup.MinMember)))
 	}
 }
 
