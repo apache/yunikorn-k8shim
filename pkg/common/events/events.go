@@ -45,6 +45,7 @@ const (
 	KillApplication      ApplicationEventType = "KillApplication"
 	KilledApplication    ApplicationEventType = "KilledApplication"
 	ReleaseAppAllocation ApplicationEventType = "ReleaseAppAllocation"
+	ReleaseAppAllocationAsk ApplicationEventType = "ReleaseAppAllocationAsk"
 	AppStateChange       ApplicationEventType = "ApplicationStateChange"
 )
 
