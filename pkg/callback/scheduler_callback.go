@@ -151,7 +151,6 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 			}
 		} else {
 			if updated.State == events.States().Application.Killed {
-				//TODO: implement the killed event
 				ev := cache.NewFailApplicationEvent(updated.ApplicationID)
 				dispatcher.Dispatch(ev)
 			}

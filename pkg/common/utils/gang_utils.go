@@ -125,8 +125,8 @@ func GetPlaceholderTimeoutParam(pod *v1.Pod) (int64, error) {
 	}
 	params := strings.Split(param, constants.SchedulingPolicyParamDelimiter)
 	for _, p := range params {
-		if strings.HasPrefix(p, constants.SchedulingPolicyTimeoutParam) {
-			timeoutParam := strings.Split(p, "=")
+		timeoutParam := strings.Split(p, "=")
+		if timeoutParam[0] == constants.SchedulingPolicyTimeoutParam {
 			if len(timeoutParam) != 2 {
 				return 0, fmt.Errorf("unable to parse timeout value from annotation")
 			}

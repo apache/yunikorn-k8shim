@@ -113,7 +113,7 @@ func NewApplication(appID, queueName, user string, tags map[string]string, sched
 				Src: []string{states.Submitted},
 				Dst: states.Rejected},
 			{Name: string(events.FailApplication),
-				Src: []string{states.Submitted, states.Rejected, states.Accepted, states.Running},
+				Src: []string{states.Submitted, states.Rejected, states.Accepted, states.Running, states.Reserving},
 				Dst: states.Failed},
 			{Name: string(events.KillApplication),
 				Src: []string{states.Accepted, states.Running, states.Reserving},
