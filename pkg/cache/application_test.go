@@ -132,7 +132,7 @@ func TestReleaseAppAllocation(t *testing.T) {
 	app.addTask(task)
 	task.allocationUUID = UUID
 	// app must be running states
-	err := app.handle(NewReleaseAppAllocationEvent(appID, si.AllocationRelease_TIMEOUT, UUID))
+	err := app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, UUID))
 	if err == nil {
 		// this should give an error
 		t.Error("expecting error got 'nil'")
@@ -140,7 +140,7 @@ func TestReleaseAppAllocation(t *testing.T) {
 	// set app states to running, let event can be trigger
 	app.SetState(events.States().Application.Running)
 	assertAppState(t, app, events.States().Application.Running, 3*time.Second)
-	err = app.handle(NewReleaseAppAllocationEvent(appID, si.AllocationRelease_TIMEOUT, UUID))
+	err = app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, UUID))
 	assert.NilError(t, err)
 	// after handle release event the states of app must be running
 	assertAppState(t, app, events.States().Application.Running, 3*time.Second)
@@ -326,7 +326,12 @@ func TestSetTaskGroupsAndSchedulingPolicy(t *testing.T) {
 	assert.Equal(t, tg2.Tolerations[0].Effect, v1.TaintEffectNoSchedule)
 	assert.Equal(t, tg2.Tolerations[0].TolerationSeconds, &duration)
 
-	expectedPlaceholderAsk := common.NewResourceBuilder().AddResource(v1.ResourceMemory.String(), 26214400000).AddResource(v1.ResourceCPU.String(), 30).Build()
+	// This is a weird calculation for memory as the request is rounded up before multiplying.
+	// TG1: 500Mi, 10 members: each member 525M -> total 5250M
+	// TG2: 1000Mi, 20 members: each member 1049M -> total 20980
+	// overall usage 5250M + 20980M -> 26230M. This will also be the queue usage so the correct handling
+	// CPU is normal as it specifies milli cpu to start with
+	expectedPlaceholderAsk := common.NewResourceBuilder().AddResource(constants.Memory, 26230).AddResource(constants.CPU, 25000).Build()
 	actualPlaceholderAsk := app.getPlaceholderAsk()
 	assert.DeepEqual(t, actualPlaceholderAsk, expectedPlaceholderAsk)
 }
@@ -426,4 +431,22 @@ func TestTryReserve(t *testing.T) {
 		return createdPods.count() == 30
 	}, 100*time.Millisecond, 3*time.Second)
 	assert.NilError(t, err, "placeholders are not created")
+}
+
+func TestTriggerAppRecovery(t *testing.T) {
+	// Trigger app recovery should be successful if the app is in New state
+	app := NewApplication("app00001", "root.abc", "test-user",
+		map[string]string{}, newMockSchedulerAPI())
+	err := app.TriggerAppRecovery()
+	assert.NilError(t, err)
+	assert.Equal(t, app.GetApplicationState(), events.States().Application.Recovering)
+
+	// Trigger app recovery should be failed if the app already leaves New state
+	app = NewApplication("app00001", "root.abc", "test-user",
+		map[string]string{}, newMockSchedulerAPI())
+	err = app.handle(NewSubmitApplicationEvent(app.applicationID))
+	assert.NilError(t, err)
+	assertAppState(t, app, events.States().Application.Submitted, 3*time.Second)
+	err = app.TriggerAppRecovery()
+	assert.ErrorContains(t, err, "event RecoverApplication inappropriate in current state Submitted")
 }

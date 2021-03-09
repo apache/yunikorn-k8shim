@@ -92,7 +92,7 @@ func (mgr *PlaceholderManager) cleanUp(app *Application) {
 	log.Logger().Info("start to clean up app placeholders",
 		zap.String("appID", app.GetApplicationID()))
 	for taskID, task := range app.taskMap {
-		if task.GetTaskPlaceholder() {
+		if task.IsPlaceholder() {
 			// remove pod
 			err := mgr.clients.KubeClient.Delete(task.pod)
 			if err != nil {

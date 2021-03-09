@@ -499,22 +499,12 @@ func (ctx *Context) AddApplication(request *interfaces.AddApplicationRequest) in
 		request.Metadata.Tags,
 		ctx.apiProvider.GetAPIs().SchedulerAPI)
 	app.setTaskGroups(request.Metadata.TaskGroups)
+	app.SetPlaceholderTimeout(request.Metadata.PlaceholderTimeoutInSec)
 
 	// add into cache
 	ctx.applications[app.applicationID] = app
-
-	// trigger recovery
-	if request.Recovery {
-		if app.GetApplicationState() == events.States().Application.New {
-			log.Logger().Info("start to recover the app",
-				zap.String("appId", app.applicationID))
-			dispatcher.Dispatch(NewSimpleApplicationEvent(app.applicationID, events.RecoverApplication))
-		}
-	}
-
 	log.Logger().Info("app added",
-		zap.String("appID", app.applicationID),
-		zap.Bool("recovery", request.Recovery))
+		zap.String("appID", app.applicationID))
 
 	return app
 }

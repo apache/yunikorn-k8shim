@@ -58,9 +58,13 @@ func (svc *AppManagementService) recoverApps() (map[string]interfaces.ManagedApp
 				if app := svc.amProtocol.AddApplication(
 					&interfaces.AddApplicationRequest{
 						Metadata: appMeta,
-						Recovery: true,
 					}); app != nil {
 					recoveringApps[app.GetApplicationID()] = app
+					if err := app.TriggerAppRecovery(); err != nil {
+						log.Logger().Error("failed to recovery app", zap.Error(err))
+						return recoveringApps, fmt.Errorf("failed to recover app %s, reason: %v",
+							app.GetApplicationID(), err)
+					}
 				}
 			}
 		}

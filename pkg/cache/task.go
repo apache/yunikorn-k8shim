@@ -175,7 +175,7 @@ func (task *Task) GetTaskID() string {
 	return task.taskID
 }
 
-func (task *Task) GetTaskPlaceholder() bool {
+func (task *Task) IsPlaceholder() bool {
 	task.lock.RLock()
 	defer task.lock.RUnlock()
 	return task.placeholder
