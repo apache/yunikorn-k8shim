@@ -29,6 +29,10 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
 )
 
+// MUST: run the placeholder pod as non-root user
+var runAsUser int64 = 1000
+var runAsGroup int64 = 3000
+
 type Placeholder struct {
 	appID         string
 	taskGroupName string
@@ -50,6 +54,10 @@ func newPlaceholder(placeholderName string, app *Application, taskGroup v1alpha1
 			},
 		},
 		Spec: v1.PodSpec{
+			SecurityContext: &v1.PodSecurityContext{
+				RunAsUser:  &runAsUser,
+				RunAsGroup: &runAsGroup,
+			},
 			Containers: []v1.Container{
 				{
 					Name:  constants.PlaceholderContainerName,
