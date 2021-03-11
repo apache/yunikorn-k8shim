@@ -60,6 +60,8 @@ const (
 type TaskGroup struct {
 	Name         string                       `json:"name"`
 	MinMember    int32                        `json:"minMember"`
+	Labels       map[string]string            `json:"labels,omitempty"`
+	Annotations  map[string]string            `json:"annotations,omitempty"`
 	MinResource  map[string]resource.Quantity `json:"minResource"`
 	NodeSelector map[string]string            `json:"nodeSelector,omitempty"`
 	Tolerations  []v1.Toleration              `json:"tolerations,omitempty"`
