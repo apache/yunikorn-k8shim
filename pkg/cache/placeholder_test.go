@@ -66,6 +66,8 @@ func TestNewPlaceholder(t *testing.T) {
 	assert.Equal(t, len(holder.pod.Spec.NodeSelector), 0)
 	assert.Equal(t, len(holder.pod.Spec.Tolerations), 0)
 	assert.Equal(t, holder.String(), "appID: app01, taskGroup: test-group-1, podName: test/ph-name")
+	assert.Equal(t, holder.pod.Spec.SecurityContext.RunAsUser, &runAsUser)
+	assert.Equal(t, holder.pod.Spec.SecurityContext.RunAsGroup, &runAsGroup)
 }
 
 func TestNewPlaceholderWithNodeSelectors(t *testing.T) {
