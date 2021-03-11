@@ -30,6 +30,12 @@ import (
 )
 
 // MUST: run the placeholder pod as non-root user
+// It doesn't matter which user we use to start the placeholders,
+// as long as it is not the root user. This is because the placeholder
+// is just a dummy container, that doesn't run anything.
+// On most of Linux distributions, uid bigger than 1000 is recommended
+// for normal user uses. So we are using 1000(uid)/3000(gid) here to
+// launch all the placeholder pods.
 var runAsUser int64 = 1000
 var runAsGroup int64 = 3000
 
