@@ -40,14 +40,14 @@ func newPlaceholder(placeholderName string, app *Application, taskGroup v1alpha1
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      placeholderName,
 			Namespace: app.tags[constants.AppTagNamespace],
-			Labels: map[string]string{
+			Labels: mergeMaps(map[string]string{
 				constants.LabelApplicationID: app.GetApplicationID(),
 				constants.LabelQueueName:     app.GetQueue(),
-			},
-			Annotations: map[string]string{
+			}, taskGroup.Labels),
+			Annotations: mergeMaps(map[string]string{
 				constants.AnnotationPlaceholderFlag: "true",
 				constants.AnnotationTaskGroupName:   taskGroup.Name,
-			},
+			}, taskGroup.Annotations),
 		},
 		Spec: v1.PodSpec{
 			Containers: []v1.Container{
@@ -71,6 +71,22 @@ func newPlaceholder(placeholderName string, app *Application, taskGroup v1alpha1
 		taskGroupName: taskGroup.Name,
 		pod:           placeholderPod,
 	}
+}
+
+// merge two string maps
+// if the same key defined in the first and second maps
+// the value will be set by the second map
+func mergeMaps(first, second map[string]string) map[string]string {
+	// add default labels first
+	result := make(map[string]string)
+	for k, v := range first {
+		result[k] = v
+	}
+	// overwrite with the ones defined in the taskGroup
+	for k, v := range second {
+		result[k] = v
+	}
+	return result
 }
 
 func (p *Placeholder) String() string {

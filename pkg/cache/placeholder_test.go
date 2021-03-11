@@ -68,6 +68,82 @@ func TestNewPlaceholder(t *testing.T) {
 	assert.Equal(t, holder.String(), "appID: app01, taskGroup: test-group-1, podName: test/ph-name")
 }
 
+func TestNewPlaceholderWithLabelsAndAnnotations(t *testing.T) {
+	const (
+		appID     = "app01"
+		queue     = "root.default"
+		namespace = "test"
+	)
+	mockedSchedulerAPI := newMockSchedulerAPI()
+	app := NewApplication(appID, queue,
+		"bob", map[string]string{constants.AppTagNamespace: namespace}, mockedSchedulerAPI)
+	app.setTaskGroups([]v1alpha1.TaskGroup{
+		{
+			Name:      "test-group-1",
+			MinMember: 10,
+			MinResource: map[string]resource.Quantity{
+				"cpu":    resource.MustParse("500m"),
+				"memory": resource.MustParse("1024M"),
+			},
+			Labels: map[string]string{
+				"labelKey0" : "labelKeyValue0",
+				"labelKey1" : "labelKeyValue1",
+			},
+			Annotations: map[string]string{
+				"annotationKey0" : "annotationValue0",
+				"annotationKey1" : "annotationValue1",
+				"annotationKey2" : "annotationValue2",
+			},
+		},
+	})
+
+	holder := newPlaceholder("ph-name", app, app.taskGroups[0])
+	assert.Equal(t, len(holder.pod.Labels), 4)
+	assert.Equal(t, len(holder.pod.Annotations), 5)
+	assert.Equal(t, holder.pod.Labels["labelKey0"], "labelKeyValue0")
+	assert.Equal(t, holder.pod.Labels["labelKey1"], "labelKeyValue1")
+	assert.Equal(t, holder.pod.Annotations["annotationKey0"], "annotationValue0")
+	assert.Equal(t, holder.pod.Annotations["annotationKey1"], "annotationValue1")
+	assert.Equal(t, holder.pod.Annotations["annotationKey2"], "annotationValue2")
+}
+
+func TestMergeMaps(t *testing.T) {
+	result := mergeMaps(nil, nil)
+	assert.Assert(t, result != nil)
+	assert.Equal(t, len(result), 0)
+
+	result = mergeMaps(nil, map[string]string{"a":"b"})
+	assert.Assert(t, result != nil)
+	assert.Equal(t, len(result), 1)
+	assert.Equal(t, result["a"], "b")
+
+	result = mergeMaps(map[string]string{"a":"b"}, nil)
+	assert.Assert(t, result != nil)
+	assert.Equal(t, len(result), 1)
+	assert.Equal(t, result["a"], "b")
+
+	result = mergeMaps(map[string]string{"a":"a1"}, map[string]string{"a":"a2"})
+	assert.Assert(t, result != nil)
+	assert.Equal(t, len(result), 1)
+	assert.Equal(t, result["a"], "a2")
+
+	result = mergeMaps(map[string]string{
+		"a" : "a1",
+		"b" : "b1",
+		"c" : "c1",
+	}, map[string]string{
+		"a" : "a2",
+		"b" : "b2",
+		"d" : "d2",
+	})
+	assert.Assert(t, result != nil)
+	assert.Equal(t, len(result), 4)
+	assert.Equal(t, result["a"], "a2")
+	assert.Equal(t, result["b"], "b2")
+	assert.Equal(t, result["c"], "c1")
+	assert.Equal(t, result["d"], "d2")
+}
+
 func TestNewPlaceholderWithNodeSelectors(t *testing.T) {
 	const (
 		appID     = "app01"
