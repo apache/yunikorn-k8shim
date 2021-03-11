@@ -331,3 +331,39 @@ func TestGetApplicationIDFromPod(t *testing.T) {
 		})
 	}
 }
+
+func TestMergeMaps(t *testing.T) {
+	result := MergeMaps(nil, nil)
+	assert.Assert(t, result == nil)
+
+	result = MergeMaps(nil, map[string]string{"a": "b"})
+	assert.Assert(t, result != nil)
+	assert.Equal(t, len(result), 1)
+	assert.Equal(t, result["a"], "b")
+
+	result = MergeMaps(map[string]string{"a": "b"}, nil)
+	assert.Assert(t, result != nil)
+	assert.Equal(t, len(result), 1)
+	assert.Equal(t, result["a"], "b")
+
+	result = MergeMaps(map[string]string{"a": "a1"}, map[string]string{"a": "a2"})
+	assert.Assert(t, result != nil)
+	assert.Equal(t, len(result), 1)
+	assert.Equal(t, result["a"], "a2")
+
+	result = MergeMaps(map[string]string{
+		"a": "a1",
+		"b": "b1",
+		"c": "c1",
+	}, map[string]string{
+		"a": "a2",
+		"b": "b2",
+		"d": "d2",
+	})
+	assert.Assert(t, result != nil)
+	assert.Equal(t, len(result), 4)
+	assert.Equal(t, result["a"], "a2")
+	assert.Equal(t, result["b"], "b2")
+	assert.Equal(t, result["c"], "c1")
+	assert.Equal(t, result["d"], "d2")
+}

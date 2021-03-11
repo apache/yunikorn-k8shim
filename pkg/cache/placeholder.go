@@ -50,14 +50,14 @@ func newPlaceholder(placeholderName string, app *Application, taskGroup v1alpha1
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      placeholderName,
 			Namespace: app.tags[constants.AppTagNamespace],
-			Labels: map[string]string{
+			Labels: utils.MergeMaps(taskGroup.Labels, map[string]string{
 				constants.LabelApplicationID: app.GetApplicationID(),
 				constants.LabelQueueName:     app.GetQueue(),
-			},
-			Annotations: map[string]string{
+			}),
+			Annotations: utils.MergeMaps(taskGroup.Annotations, map[string]string{
 				constants.AnnotationPlaceholderFlag: "true",
 				constants.AnnotationTaskGroupName:   taskGroup.Name,
-			},
+			}),
 		},
 		Spec: v1.PodSpec{
 			SecurityContext: &v1.PodSecurityContext{
