@@ -499,7 +499,7 @@ func (ctx *Context) AddApplication(request *interfaces.AddApplicationRequest) in
 		request.Metadata.Tags,
 		ctx.apiProvider.GetAPIs().SchedulerAPI)
 	app.setTaskGroups(request.Metadata.TaskGroups)
-	app.setOwnReference(request.Metadata.OwnerReferences)
+	app.setOwnReferences(request.Metadata.OwnerReferences)
 
 	// add into cache
 	ctx.applications[app.applicationID] = app

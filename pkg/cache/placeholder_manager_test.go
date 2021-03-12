@@ -87,14 +87,14 @@ func TestCreateAppPlaceholdersWithOwnReference(t *testing.T) {
 		UID:        "JobUid",
 		Controller: &controller,
 	}
-	app.setOwnReference([]apis.OwnerReference{ownRef})
+	app.setOwnReferences([]apis.OwnerReference{ownRef})
 	mockedAPIProvider := client.NewMockedAPIProvider()
 	pods := createAndCheckPlaceholderCreate(mockedAPIProvider, app, t)
 	for _, pod := range pods {
 		assert.Assert(t, len(pod.OwnerReferences) == 1, "The pod should have exactly one owner reference set")
 		assert.Assert(t, *pod.OwnerReferences[0].Controller == false, "The owner reference should not be a controller")
-		assert.Assert(t, pod.OwnerReferences[0].Name == ownRef.Name, "The owner reference name does not match")
-		assert.Assert(t, pod.OwnerReferences[0].UID == ownRef.UID, "The owner reference UID does not match")
+		assert.Equal(t, pod.OwnerReferences[0].Name, ownRef.Name, "The owner reference name does not match")
+		assert.Equal(t, pod.OwnerReferences[0].UID, ownRef.UID, "The owner reference UID does not match")
 	}
 }
 
