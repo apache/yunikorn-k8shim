@@ -448,9 +448,13 @@ func (app *Application) handleRecoverApplicationEvent(event *fsm.Event) {
 }
 
 func (app *Application) postAppAccepted() {
-	// if app has taskGroups defined, it goes to the Reserving state before getting to Running
+	// if app has taskGroups defined, and it has no allocated tasks,
+	// it goes to the Reserving state before getting to Running.
+	// app could have allocated tasks upon a recovery, and in that case,
+	// the reserving phase has already passed, no need to trigger that again.
 	var ev events.SchedulingEvent
-	if len(app.taskGroups) != 0 {
+	if len(app.taskGroups) != 0 &&
+		len(app.getTasks(events.States().Task.Allocated)) == 0 {
 		ev = NewSimpleApplicationEvent(app.applicationID, events.TryReserve)
 		dispatcher.Dispatch(ev)
 	} else {
