@@ -500,6 +500,7 @@ func (ctx *Context) AddApplication(request *interfaces.AddApplicationRequest) in
 		ctx.apiProvider.GetAPIs().SchedulerAPI)
 	app.setTaskGroups(request.Metadata.TaskGroups)
 	app.SetPlaceholderTimeout(request.Metadata.PlaceholderTimeoutInSec)
+	app.setOwnReferences(request.Metadata.OwnerReferences)
 
 	// add into cache
 	ctx.applications[app.applicationID] = app
