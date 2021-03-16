@@ -283,7 +283,7 @@ func (p *Predictor) predicatesAllocate(pod *v1.Pod, meta predicates.PredicateMet
 			}
 
 			if !fit {
-				if isAllowed := limiter.AllowN(time.Now(), 1); isAllowed {
+				if limiter.Allow() {
 					events.GetRecorder().Eventf(pod, v1.EventTypeWarning,
 						"FailedScheduling", "%v", reasons)
 				}
