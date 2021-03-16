@@ -19,8 +19,11 @@
 package general
 
 import (
+	"reflect"
+
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
 	k8sCache "k8s.io/client-go/tools/cache"
@@ -123,18 +126,38 @@ func (os *Manager) getAppMetadata(pod *v1.Pod) (interfaces.ApplicationMetadata, 
 	if err != nil {
 		log.Logger().Error("unable to get taskGroups by given pod", zap.Error(err))
 	}
+	ownerReferences := getOwnerReferences(pod)
+
 	placeholderTimeout, err := utils.GetPlaceholderTimeoutParam(pod)
 	if err != nil {
 		log.Logger().Warn("unable to get placeholder timeout by given pod.", zap.Error(err))
 	}
 	return interfaces.ApplicationMetadata{
-		ApplicationID: appId,
-		QueueName:     utils.GetQueueNameFromPod(pod),
-		User:          user,
-		Tags:          tags,
-		TaskGroups:    taskGroups,
+		ApplicationID:           appId,
+		QueueName:               utils.GetQueueNameFromPod(pod),
+		User:                    user,
+		Tags:                    tags,
+		TaskGroups:              taskGroups,
 		PlaceholderTimeoutInSec: placeholderTimeout,
+		OwnerReferences:         ownerReferences,
 	}, true
+}
+
+func getOwnerReferences(pod *v1.Pod) []metav1.OwnerReference {
+	if len(pod.OwnerReferences) > 0 {
+		return pod.OwnerReferences
+	}
+	controller := false
+	blockOwnerDeletion := true
+	ref := metav1.OwnerReference{
+		APIVersion:         v1.SchemeGroupVersion.String(),
+		Kind:               reflect.TypeOf(v1.Pod{}).Name(),
+		Name:               pod.Name,
+		UID:                pod.UID,
+		Controller:         &controller,
+		BlockOwnerDeletion: &blockOwnerDeletion,
+	}
+	return []metav1.OwnerReference{ref}
 }
 
 // filter pods by scheduler name and state

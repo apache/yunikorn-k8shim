@@ -498,3 +498,31 @@ func TestGetExistingAllocation(t *testing.T) {
 	assert.Equal(t, alloc.UUID, string(pod.UID))
 	assert.Equal(t, alloc.NodeID, "allocated-node")
 }
+
+func TestGetOwnerReferences(t *testing.T) {
+	ownerRef := apis.OwnerReference{
+		APIVersion: apis.SchemeGroupVersion.String(),
+		Name:       "owner ref",
+	}
+	podWithOwnerRef := &v1.Pod{
+		ObjectMeta: apis.ObjectMeta{
+			OwnerReferences: []apis.OwnerReference{ownerRef},
+		},
+	}
+	podWithNoOwnerRef := &v1.Pod{
+		ObjectMeta: apis.ObjectMeta{
+			Name: "pod",
+			UID:  "uid",
+		},
+	}
+	returnedOwnerRefs := getOwnerReferences(podWithOwnerRef)
+	assert.Assert(t, len(returnedOwnerRefs) == 1, "Only one owner reference is expected")
+	assert.DeepEqual(t, ownerRef, returnedOwnerRefs[0])
+
+	returnedOwnerRefs = getOwnerReferences(podWithNoOwnerRef)
+	assert.Assert(t, len(returnedOwnerRefs) == 1, "Only one owner reference is expected")
+	assert.Equal(t, returnedOwnerRefs[0].Name, podWithNoOwnerRef.Name, "Unexpected owner reference name")
+	assert.Equal(t, returnedOwnerRefs[0].UID, podWithNoOwnerRef.UID, "Unexpected owner reference UID")
+	assert.Equal(t, returnedOwnerRefs[0].Kind, "Pod", "Unexpected owner reference Kind")
+	assert.Equal(t, returnedOwnerRefs[0].APIVersion, v1.SchemeGroupVersion.String(), "Unexpected owner reference Kind")
+}

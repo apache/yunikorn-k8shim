@@ -20,6 +20,7 @@ package interfaces
 
 import (
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
 )
@@ -69,12 +70,13 @@ type AddTaskRequest struct {
 }
 
 type ApplicationMetadata struct {
-	ApplicationID string
-	QueueName     string
-	User          string
-	Tags          map[string]string
-	TaskGroups    []v1alpha1.TaskGroup
+	ApplicationID           string
+	QueueName               string
+	User                    string
+	Tags                    map[string]string
+	TaskGroups              []v1alpha1.TaskGroup
 	PlaceholderTimeoutInSec int64
+	OwnerReferences         []metav1.OwnerReference
 }
 
 type TaskMetadata struct {
