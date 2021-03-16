@@ -22,8 +22,10 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"go.uber.org/zap"
+	"golang.org/x/time/rate"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/kubernetes/pkg/scheduler/algorithm/predicates"
@@ -70,6 +72,9 @@ var reservationPredicates = []string{
 	predicates.CheckNodeUnschedulablePred, // unschedulable node are filtered
 	predicates.MatchNodeSelectorPred,      // node selector check
 }
+
+var limit = rate.Every(time.Second)
+var limiter = rate.NewLimiter(limit, 1)
 
 type Predictor struct {
 	fitPredicateMap              map[string]factory.FitPredicateFactory
@@ -278,8 +283,10 @@ func (p *Predictor) predicatesAllocate(pod *v1.Pod, meta predicates.PredicateMet
 			}
 
 			if !fit {
-				events.GetRecorder().Eventf(pod, v1.EventTypeWarning,
-					"FailedScheduling", "%v", reasons)
+				if limiter.Allow() {
+					events.GetRecorder().Eventf(pod, v1.EventTypeWarning,
+						"FailedScheduling", "%v", reasons)
+				}
 				return fmt.Errorf("predicate %s cannot be satisfied, reason: %v", predicateKey, reasons)
 			}
 		}
