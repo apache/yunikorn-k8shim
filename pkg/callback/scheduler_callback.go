@@ -120,9 +120,20 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 			zap.String("UUID", release.UUID))
 
 		// TerminationType 0 mean STOPPED_BY_RM
-		if release.TerminationType != si.AllocationRelease_STOPPED_BY_RM {
+		if release.TerminationType != si.TerminationType_STOPPED_BY_RM {
 			// send release app allocation to application states machine
 			ev := cache.NewReleaseAppAllocationEvent(release.ApplicationID, release.TerminationType, release.UUID)
+			dispatcher.Dispatch(ev)
+		}
+	}
+
+	for _, ask := range response.ReleasedAllocationAsks {
+		log.Logger().Debug("callback: response to released allocations",
+			zap.String("allocation key", ask.Allocationkey))
+
+		// TerminationType 0 mean STOPPED_BY_RM
+		if ask.TerminationType == si.TerminationType_TIMEOUT {
+			ev := cache.NewReleaseAppAllocationAskEvent(ask.ApplicationID, ask.TerminationType, ask.Allocationkey)
 			dispatcher.Dispatch(ev)
 		}
 	}
@@ -139,6 +150,10 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 				log.Logger().Error("failed to delete application", zap.Error(err))
 			}
 		} else {
+			if updated.State == events.States().Application.Killed {
+				ev := cache.NewFailApplicationEvent(updated.ApplicationID)
+				dispatcher.Dispatch(ev)
+			}
 			// handle status update
 			dispatcher.Dispatch(cache.NewApplicationStatusChangeEvent(updated.ApplicationID, events.AppStateChange, updated.State))
 		}

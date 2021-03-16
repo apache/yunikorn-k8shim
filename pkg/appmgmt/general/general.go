@@ -128,13 +128,18 @@ func (os *Manager) getAppMetadata(pod *v1.Pod) (interfaces.ApplicationMetadata, 
 	}
 	ownerReferences := getOwnerReferences(pod)
 
+	placeholderTimeout, err := utils.GetPlaceholderTimeoutParam(pod)
+	if err != nil {
+		log.Logger().Warn("unable to get placeholder timeout by given pod.", zap.Error(err))
+	}
 	return interfaces.ApplicationMetadata{
-		ApplicationID:   appId,
-		QueueName:       utils.GetQueueNameFromPod(pod),
-		User:            user,
-		Tags:            tags,
-		TaskGroups:      taskGroups,
-		OwnerReferences: ownerReferences,
+		ApplicationID:           appId,
+		QueueName:               utils.GetQueueNameFromPod(pod),
+		User:                    user,
+		Tags:                    tags,
+		TaskGroups:              taskGroups,
+		PlaceholderTimeoutInSec: placeholderTimeout,
+		OwnerReferences:         ownerReferences,
 	}, true
 }
 
@@ -198,7 +203,6 @@ func (os *Manager) addPod(obj interface{}) {
 		if app := os.amProtocol.GetApplication(appMeta.ApplicationID); app == nil {
 			os.amProtocol.AddApplication(&interfaces.AddApplicationRequest{
 				Metadata: appMeta,
-				Recovery: recovery,
 			})
 		}
 	}

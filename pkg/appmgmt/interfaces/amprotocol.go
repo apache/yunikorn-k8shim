@@ -62,7 +62,6 @@ type ApplicationManagementProtocol interface {
 
 type AddApplicationRequest struct {
 	Metadata ApplicationMetadata
-	Recovery bool
 }
 
 type AddTaskRequest struct {
@@ -71,12 +70,13 @@ type AddTaskRequest struct {
 }
 
 type ApplicationMetadata struct {
-	ApplicationID   string
-	QueueName       string
-	User            string
-	Tags            map[string]string
-	TaskGroups      []v1alpha1.TaskGroup
-	OwnerReferences []metav1.OwnerReference
+	ApplicationID           string
+	QueueName               string
+	User                    string
+	Tags                    map[string]string
+	TaskGroups              []v1alpha1.TaskGroup
+	PlaceholderTimeoutInSec int64
+	OwnerReferences         []metav1.OwnerReference
 }
 
 type TaskMetadata struct {

@@ -201,3 +201,20 @@ func NodeForTest(nodeID, memory, cpu string) *v1.Node {
 		},
 	}
 }
+
+// merge two string maps
+// if the same key defined in the first and second maps
+// the value will be set by the second map
+func MergeMaps(first, second map[string]string) map[string]string {
+	if first == nil && second == nil {
+		return nil
+	}
+	result := make(map[string]string)
+	for k, v := range first {
+		result[k] = v
+	}
+	for k, v := range second {
+		result[k] = v
+	}
+	return result
+}

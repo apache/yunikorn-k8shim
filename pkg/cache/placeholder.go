@@ -29,6 +29,16 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
 )
 
+// MUST: run the placeholder pod as non-root user
+// It doesn't matter which user we use to start the placeholders,
+// as long as it is not the root user. This is because the placeholder
+// is just a dummy container, that doesn't run anything.
+// On most of Linux distributions, uid bigger than 1000 is recommended
+// for normal user uses. So we are using 1000(uid)/3000(gid) here to
+// launch all the placeholder pods.
+var runAsUser int64 = 1000
+var runAsGroup int64 = 3000
+
 type Placeholder struct {
 	appID         string
 	taskGroupName string
@@ -45,17 +55,21 @@ func newPlaceholder(placeholderName string, app *Application, taskGroup v1alpha1
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      placeholderName,
 			Namespace: app.tags[constants.AppTagNamespace],
-			Labels: map[string]string{
+			Labels: utils.MergeMaps(taskGroup.Labels, map[string]string{
 				constants.LabelApplicationID: app.GetApplicationID(),
 				constants.LabelQueueName:     app.GetQueue(),
-			},
-			Annotations: map[string]string{
+			}),
+			Annotations: utils.MergeMaps(taskGroup.Annotations, map[string]string{
 				constants.AnnotationPlaceholderFlag: "true",
 				constants.AnnotationTaskGroupName:   taskGroup.Name,
-			},
+			}),
 			OwnerReferences: ownerRefs,
 		},
 		Spec: v1.PodSpec{
+			SecurityContext: &v1.PodSecurityContext{
+				RunAsUser:  &runAsUser,
+				RunAsGroup: &runAsGroup,
+			},
 			Containers: []v1.Container{
 				{
 					Name:  constants.PlaceholderContainerName,
