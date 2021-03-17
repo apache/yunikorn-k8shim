@@ -64,10 +64,11 @@ func newPlaceholder(placeholderName string, app *Application, taskGroup v1alpha1
 			Labels: utils.MergeMaps(taskGroup.Labels, map[string]string{
 				constants.LabelApplicationID: app.GetApplicationID(),
 				constants.LabelQueueName:     app.GetQueue(),
+				constants.PlaceholderFlag:    "true",
 			}),
 			Annotations: utils.MergeMaps(taskGroup.Annotations, map[string]string{
-				constants.AnnotationPlaceholderFlag: "true",
-				constants.AnnotationTaskGroupName:   taskGroup.Name,
+				constants.PlaceholderFlag:         "true",
+				constants.AnnotationTaskGroupName: taskGroup.Name,
 			}),
 			OwnerReferences: ownerRefs,
 		},

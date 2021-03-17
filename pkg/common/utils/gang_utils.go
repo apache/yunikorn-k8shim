@@ -75,7 +75,7 @@ func GetPlaceholderResourceRequest(resources map[string]resource.Quantity) v1.Re
 }
 
 func GetPlaceholderFlagFromPodSpec(pod *v1.Pod) bool {
-	if value, ok := pod.Annotations[constants.AnnotationPlaceholderFlag]; ok {
+	if value, ok := pod.Annotations[constants.PlaceholderFlag]; ok {
 		if v, err := strconv.ParseBool(value); err == nil {
 			return v
 		}
