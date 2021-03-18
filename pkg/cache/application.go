@@ -274,12 +274,6 @@ func (app *Application) GetNewTasks() []*Task {
 	return app.getTasks(events.States().Task.New)
 }
 
-func (app *Application) GetSchedulingTask() []*Task {
-	app.lock.RLock()
-	defer app.lock.RUnlock()
-	return app.getTasks(events.States().Task.Scheduling)
-}
-
 func (app *Application) GetAllocatedTasks() []*Task {
 	app.lock.RLock()
 	defer app.lock.RUnlock()
