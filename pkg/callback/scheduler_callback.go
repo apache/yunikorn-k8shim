@@ -88,27 +88,6 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 		}
 	}
 
-	// handle status changes
-	for _, updated := range response.UpdatedApplications {
-		log.Logger().Debug("status update callback received",
-			zap.String("appId", updated.ApplicationID),
-			zap.String("new status", updated.State))
-		// delete application from context
-		if updated.State == events.States().Application.Completed {
-			err := callback.context.RemoveApplicationInternal(updated.ApplicationID)
-			if err != nil {
-				log.Logger().Error("failed to delete application", zap.Error(err))
-			}
-		} else {
-			if updated.State == "Failing" || updated.State == events.States().Application.Failed {
-				ev := cache.NewFailApplicationEvent(updated.ApplicationID)
-				dispatcher.Dispatch(ev)
-			}
-			// handle status update
-			dispatcher.Dispatch(cache.NewApplicationStatusChangeEvent(updated.ApplicationID, events.AppStateChange, updated.State))
-		}
-	}
-
 	// handle new allocations
 	for _, alloc := range response.NewAllocations {
 		// got allocation for pod, bind pod to the scheduled node
@@ -155,6 +134,27 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 		if ask.TerminationType == si.TerminationType_TIMEOUT {
 			ev := cache.NewReleaseAppAllocationAskEvent(ask.ApplicationID, ask.TerminationType, ask.Allocationkey)
 			dispatcher.Dispatch(ev)
+		}
+	}
+
+	// handle status changes
+	for _, updated := range response.UpdatedApplications {
+		log.Logger().Debug("status update callback received",
+			zap.String("appId", updated.ApplicationID),
+			zap.String("new status", updated.State))
+		// delete application from context
+		if updated.State == events.States().Application.Completed {
+			err := callback.context.RemoveApplicationInternal(updated.ApplicationID)
+			if err != nil {
+				log.Logger().Error("failed to delete application", zap.Error(err))
+			}
+		} else {
+			if updated.State == "Failing" || updated.State == events.States().Application.Failed {
+				ev := cache.NewFailApplicationEvent(updated.ApplicationID)
+				dispatcher.Dispatch(ev)
+			}
+			// handle status update
+			dispatcher.Dispatch(cache.NewApplicationStatusChangeEvent(updated.ApplicationID, events.AppStateChange, updated.State))
 		}
 	}
 
