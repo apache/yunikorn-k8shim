@@ -129,6 +129,7 @@ func NewApplication(appID, queueName, user string, tags map[string]string, sched
 			string(events.RecoverApplication):      app.handleRecoverApplicationEvent,
 			string(events.RejectApplication):       app.handleRejectApplicationEvent,
 			string(events.CompleteApplication):     app.handleCompleteApplicationEvent,
+			string(events.FailApplication):         app.handleFailApplicationEvent,
 			string(events.UpdateReservation):       app.onReservationStateChange,
 			events.States().Application.Reserving:  app.onReserving,
 			string(events.ReleaseAppAllocation):    app.handleReleaseAppAllocationEvent,
@@ -271,6 +272,12 @@ func (app *Application) GetNewTasks() []*Task {
 	app.lock.RLock()
 	defer app.lock.RUnlock()
 	return app.getTasks(events.States().Task.New)
+}
+
+func (app *Application) GetSchedulingTask() []*Task {
+	app.lock.RLock()
+	defer app.lock.RUnlock()
+	return app.getTasks(events.States().Task.Scheduling)
 }
 
 func (app *Application) GetAllocatedTasks() []*Task {
@@ -505,6 +512,19 @@ func (app *Application) handleRejectApplicationEvent(event *fsm.Event) {
 
 func (app *Application) handleCompleteApplicationEvent(event *fsm.Event) {
 	// TODO app lifecycle updates
+}
+
+func (app *Application) handleFailApplicationEvent(event *fsm.Event) {
+	// unallocated task states include New, Pending and Scheduling
+	unalloc := app.GetNewTasks()
+	unalloc = append(unalloc, app.GetPendingTasks()...)
+	unalloc = append(unalloc, app.GetSchedulingTask()...)
+	// publish pod level event to unallocated pods
+	for _, task := range unalloc {
+		events.GetRecorder().Eventf(task.GetTaskPod(), v1.EventTypeWarning, "ApplicationFailed",
+			"Application %s scheduling failed", app.applicationID)
+	}
+	log.Logger().Warn("failed to schedule app", zap.String("appID", app.applicationID))
 }
 
 func (app *Application) handleReleaseAppAllocationEvent(event *fsm.Event) {
