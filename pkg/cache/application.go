@@ -516,9 +516,9 @@ func (app *Application) handleCompleteApplicationEvent(event *fsm.Event) {
 
 func (app *Application) handleFailApplicationEvent(event *fsm.Event) {
 	// unallocated task states include New, Pending and Scheduling
-	unalloc := app.GetNewTasks()
-	unalloc = append(unalloc, app.GetPendingTasks()...)
-	unalloc = append(unalloc, app.GetSchedulingTask()...)
+	unalloc := app.getTasks(events.States().Task.New)
+	unalloc = append(unalloc, app.getTasks(events.States().Task.Pending)...)
+	unalloc = append(unalloc, app.getTasks(events.States().Task.Scheduling)...)
 	// publish pod level event to unallocated pods
 	for _, task := range unalloc {
 		events.GetRecorder().Eventf(task.GetTaskPod(), v1.EventTypeWarning, "ApplicationFailed",
