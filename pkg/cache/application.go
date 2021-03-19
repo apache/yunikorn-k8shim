@@ -105,9 +105,15 @@ func NewApplication(appID, queueName, user string, tags map[string]string, sched
 			{Name: string(events.ReleaseAppAllocation),
 				Src: []string{states.Running},
 				Dst: states.Running},
+			{Name: string(events.ReleaseAppAllocation),
+				Src: []string{states.Failed},
+				Dst: states.Failed},
 			{Name: string(events.ReleaseAppAllocationAsk),
 				Src: []string{states.Running, states.Accepted, states.Reserving},
 				Dst: states.Running},
+			{Name: string(events.ReleaseAppAllocationAsk),
+				Src: []string{states.Failed},
+				Dst: states.Failed},
 			{Name: string(events.CompleteApplication),
 				Src: []string{states.Running},
 				Dst: states.Completed},
@@ -448,9 +454,13 @@ func (app *Application) handleRecoverApplicationEvent(event *fsm.Event) {
 }
 
 func (app *Application) postAppAccepted() {
-	// if app has taskGroups defined, it goes to the Reserving state before getting to Running
+	// if app has taskGroups defined, and it has no allocated tasks,
+	// it goes to the Reserving state before getting to Running.
+	// app could have allocated tasks upon a recovery, and in that case,
+	// the reserving phase has already passed, no need to trigger that again.
 	var ev events.SchedulingEvent
-	if len(app.taskGroups) != 0 {
+	if len(app.taskGroups) != 0 &&
+		len(app.getTasks(events.States().Task.Allocated)) == 0 {
 		ev = NewSimpleApplicationEvent(app.applicationID, events.TryReserve)
 		dispatcher.Dispatch(ev)
 	} else {

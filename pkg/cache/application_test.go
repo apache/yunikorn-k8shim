@@ -433,6 +433,127 @@ func TestTryReserve(t *testing.T) {
 	assert.NilError(t, err, "placeholders are not created")
 }
 
+func TestTryReservePostRestart(t *testing.T) {
+	context := initContextForTest()
+	dispatcher.RegisterEventHandler(dispatcher.EventTypeApp, context.ApplicationEventHandler())
+	dispatcher.Start()
+	defer dispatcher.Stop()
+
+	// inject the mocked clients to the placeholder manager
+	createdPods := newThreadSafePodsMap()
+	mockedAPIProvider := client.NewMockedAPIProvider()
+	mockedAPIProvider.MockCreateFn(func(pod *v1.Pod) (*v1.Pod, error) {
+		createdPods.add(pod)
+		return pod, nil
+	})
+	mgr := NewPlaceholderManager(mockedAPIProvider.GetAPIs())
+	mgr.Start()
+	defer mgr.Stop()
+
+	// create a new app
+	app := NewApplication("app00001", "root.abc", "test-user",
+		map[string]string{}, mockedAPIProvider.GetAPIs().SchedulerAPI)
+	context.applications[app.applicationID] = app
+
+	// set taskGroups
+	app.setTaskGroups([]v1alpha1.TaskGroup{
+		{
+			Name:      "test-group-1",
+			MinMember: 10,
+			MinResource: map[string]resource.Quantity{
+				v1.ResourceCPU.String():    resource.MustParse("500m"),
+				v1.ResourceMemory.String(): resource.MustParse("500Mi"),
+			},
+		},
+		{
+			Name:      "test-group-2",
+			MinMember: 20,
+			MinResource: map[string]resource.Quantity{
+				v1.ResourceCPU.String():    resource.MustParse("1000m"),
+				v1.ResourceMemory.String(): resource.MustParse("1000Mi"),
+			},
+		},
+	})
+
+	// submit the app
+	err := app.handle(NewSubmitApplicationEvent(app.applicationID))
+	assert.NilError(t, err)
+	assertAppState(t, app, events.States().Application.Submitted, 3*time.Second)
+
+	// accepted the app
+	err = app.handle(NewSimpleApplicationEvent(app.GetApplicationID(), events.AcceptApplication))
+	assert.NilError(t, err)
+
+	// simulate some tasks are recovered during the restart
+	// create 3 pods, 1 of them is Allocated and the other 2 are New
+	resources := make(map[v1.ResourceName]resource.Quantity)
+	containers := make([]v1.Container, 0)
+	containers = append(containers, v1.Container{
+		Name: "container-01",
+		Resources: v1.ResourceRequirements{
+			Requests: resources,
+		},
+	})
+	task0 := NewTask("task00", app, context, &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "pod-test-00000",
+			UID:  "UID-00000",
+		},
+		Spec: v1.PodSpec{
+			Containers: containers,
+		},
+	})
+	task1 := NewTask("task01", app, context, &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "pod-test-00001",
+			UID:  "UID-00001",
+		},
+		Spec: v1.PodSpec{
+			Containers: containers,
+		},
+	})
+	task2 := NewTask("task02", app, context, &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "pod-test-00002",
+			UID:  "UID-00002",
+		},
+		Spec: v1.PodSpec{
+			Containers: containers,
+		},
+	})
+	task0.setAllocated("fake-host", string(task0.pod.UID))
+	app.addTask(task0)
+	app.addTask(task1)
+	app.addTask(task2)
+
+	// there should be 1 Allocated task, i.e task0
+	// there should be 2 New tasks, i.e task1 and task2
+	assert.Equal(t, len(app.getTasks(events.States().Task.Allocated)), 1)
+	assert.Equal(t, len(app.getTasks(events.States().Task.New)), 2)
+
+	// run app schedule
+	app.Schedule()
+
+	// since this app has Allocated tasks, the Reserving state will be skipped
+	assertAppState(t, app, events.States().Application.Running, 3*time.Second)
+
+	// verify there will be no placeholders created
+	time.Sleep(time.Second)
+	assert.Equal(t, createdPods.count(), 0)
+}
+
 func TestTriggerAppRecovery(t *testing.T) {
 	// Trigger app recovery should be successful if the app is in New state
 	app := NewApplication("app00001", "root.abc", "test-user",

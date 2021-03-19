@@ -130,7 +130,7 @@ func (os *Manager) getAppMetadata(pod *v1.Pod) (interfaces.ApplicationMetadata, 
 
 	placeholderTimeout, err := utils.GetPlaceholderTimeoutParam(pod)
 	if err != nil {
-		log.Logger().Warn("unable to get placeholder timeout by given pod.", zap.Error(err))
+		log.Logger().Debug("unable to get placeholder timeout by given pod.", zap.Error(err))
 	}
 	return interfaces.ApplicationMetadata{
 		ApplicationID:           appId,
