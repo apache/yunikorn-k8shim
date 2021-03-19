@@ -528,6 +528,7 @@ func TestGetOwnerReferences(t *testing.T) {
 	assert.Equal(t, returnedOwnerRefs[0].APIVersion, v1.SchemeGroupVersion.String(), "Unexpected owner reference Kind")
 }
 
+// nolint: funlen
 func TestListApplication(t *testing.T) {
 	var app01, app02, app03, app04, app05, app06 = "app00001",
 		"app00002", "app00003", "app00004", "app00005", "app00006"
@@ -535,9 +536,9 @@ func TestListApplication(t *testing.T) {
 	var ns01, ns02 = "namespace01", "namespace02"
 
 	// mock the pod lister for this test
-	mockedApiProvider := client.NewMockedAPIProvider()
+	mockedAPIProvider := client.NewMockedAPIProvider()
 	mockedPodLister := test.NewPodListerMock()
-	mockedApiProvider.SetPodLister(mockedPodLister)
+	mockedAPIProvider.SetPodLister(mockedPodLister)
 
 	// app01 pods, running in namespace01 and queue01
 	// all pods are having applicationID and queue name specified
@@ -753,7 +754,7 @@ func TestListApplication(t *testing.T) {
 	})
 
 	// init the app manager and run listApp
-	am := NewManager(cache.NewMockedAMProtocol(), mockedApiProvider)
+	am := NewManager(cache.NewMockedAMProtocol(), mockedAPIProvider)
 	apps, err := am.ListApplications()
 	assert.NilError(t, err)
 	assert.Equal(t, len(apps), 3)
