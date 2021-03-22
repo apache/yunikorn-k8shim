@@ -25,7 +25,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/selection"
 	k8sCache "k8s.io/client-go/tools/cache"
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
@@ -293,15 +292,8 @@ func (os *Manager) deletePod(obj interface{}) {
 }
 
 func (os *Manager) ListApplications() (map[string]interfaces.ApplicationMetadata, error) {
-	// selector: applicationID exist
-	slt := labels.NewSelector()
-	req, err := labels.NewRequirement(constants.LabelApplicationID, selection.Exists, nil)
-	if err != nil {
-		return nil, err
-	}
-	slt = slt.Add(*req)
-
 	// list all pods on this cluster
+	slt := labels.NewSelector()
 	appPods, err := os.apiProvider.GetAPIs().PodInformer.Lister().List(slt)
 	if err != nil {
 		return nil, err

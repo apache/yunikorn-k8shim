@@ -41,7 +41,13 @@ func (n *PodListerMock) AddPod(pod *v1.Pod) {
 }
 
 func (n *PodListerMock) List(selector labels.Selector) (ret []*v1.Pod, err error) {
-	return n.allPods, nil
+	result := make([]*v1.Pod, 0)
+	for _, pod := range n.allPods {
+		if selector.Matches(labels.Set(pod.Labels)) {
+			result = append(result, pod)
+		}
+	}
+	return result, nil
 }
 
 func (n *PodListerMock) Get(name string) (*v1.Pod, error) {
