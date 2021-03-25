@@ -150,11 +150,7 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 			}
 		} else {
 			if updated.State == "Failing" || updated.State == events.States().Application.Failed {
-<<<<<<< HEAD
 				ev := cache.NewFailApplicationEvent(updated.ApplicationID, updated.Message)
-=======
-				ev := cache.NewFailApplicationEvent(updated.ApplicationID)
->>>>>>> master
 				dispatcher.Dispatch(ev)
 			}
 			// handle status update
