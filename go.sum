@@ -64,6 +64,8 @@ github.com/apache/incubator-yunikorn-core v0.0.0-20210130000713-b5a3d9c541eb/go.
 github.com/apache/incubator-yunikorn-core v0.0.0-20210308173810-8fe16905ef31 h1:gRVzXDnIi+r98/ASeb8WgK1EdaDvmbpQrfJefQUGVDE=
 github.com/apache/incubator-yunikorn-core v0.0.0-20210308173810-8fe16905ef31/go.mod h1:kjGPgQG+XptQwLf7TSbvYnejYa4mWxQYKhl785/+u/w=
 github.com/apache/incubator-yunikorn-core v0.9.0 h1:08+ptyYzl8U6CskQoUa6S00X2eGmDRD31jqmFKqKPSk=
+github.com/apache/incubator-yunikorn-core v0.10.0 h1:27IFvM589SHwNYZ8+8LjqJoUjG0zUuoPR3FfgEP7f2E=
+github.com/apache/incubator-yunikorn-core v0.10.0/go.mod h1:h+xLwC2qBDqawZcg5J9vqdxV1xX4DM79GwlaHnvPufk=
 github.com/apache/incubator-yunikorn-scheduler-interface v0.0.0-20210106054514-49c4f33ed27b/go.mod h1:ObMs03XFbnmpGD81jYvdUDEVZbHvz8W6dWH5nGDCjc0=
 github.com/apache/incubator-yunikorn-scheduler-interface v0.0.0-20210226143918-19a5cca5e428/go.mod h1:I61hISMIenZhepBL0fZ3UPXklb4WiSCjjX2JoRwxS+I=
 github.com/apache/incubator-yunikorn-scheduler-interface v0.9.0 h1:8B5fYkjol04f4wxa5SYZ3apXEDoZ2mXoYa0IWqLJLEQ=
@@ -75,6 +77,8 @@ github.com/apache/incubator-yunikorn-scheduler-interface v0.9.1-0.20210106054514
 github.com/apache/incubator-yunikorn-scheduler-interface v0.9.1-0.20210106054514-49c4f33ed27b/go.mod h1:ObMs03XFbnmpGD81jYvdUDEVZbHvz8W6dWH5nGDCjc0=
 github.com/apache/incubator-yunikorn-scheduler-interface v0.9.1-0.20210226144448-2d4d09a6e53e h1:0V03cEX4W+VUfzYPY32UyqeACD7QUjBT7dOQ1GveP3o=
 github.com/apache/incubator-yunikorn-scheduler-interface v0.9.1-0.20210226144448-2d4d09a6e53e/go.mod h1:I61hISMIenZhepBL0fZ3UPXklb4WiSCjjX2JoRwxS+I=
+github.com/apache/incubator-yunikorn-scheduler-interface v0.10.0 h1:/OU5ieW+kTwoNYF0NwDC0zOYSC/s71h0V52zmSOO1SM=
+github.com/apache/incubator-yunikorn-scheduler-interface v0.10.0/go.mod h1:I61hISMIenZhepBL0fZ3UPXklb4WiSCjjX2JoRwxS+I=
 github.com/armon/circbuf v0.0.0-20150827004946-bbbad097214e/go.mod h1:3U/XgcO3hCbHZ8TKRvWD2dDTCfh9M9ya+I9JpbB7O8o=
 github.com/armon/consul-api v0.0.0-20180202201655-eb2c6b5be1b6/go.mod h1:grANhF5doyWs3UAsr3K4I6qtAmlQcZDesFNEHPZAzj8=
 github.com/asaskevich/govalidator v0.0.0-20180720115003-f9ffefc3facf/go.mod h1:lB+ZfQJz7igIIfQNfa7Ml4HSf2uFQQRzpGGRXenZAgY=
