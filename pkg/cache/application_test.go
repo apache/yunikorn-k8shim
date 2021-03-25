@@ -120,7 +120,7 @@ func TestFailApplication(t *testing.T) {
 	// set test mode
 	conf.GetSchedulerConf().SetTestMode(true)
 	// set recorder to mockrecorder
-	mr := NewMockRecorder()
+	mr := newMockRecorder()
 	mr.updateFn = func() {
 		rt.lock.Lock()
 		defer rt.lock.Unlock()
@@ -267,27 +267,26 @@ type mockRecorder struct {
 	updateFn func()
 }
 
-func NewMockRecorder() *mockRecorder {
+func newMockRecorder() *mockRecorder {
 	return &mockRecorder{
 		updateFn: func() {},
 	}
 }
 
 func (mr *mockRecorder) Event(object runtime.Object, eventtype, reason, message string) {
-	// return
+
 }
 
 func (mr *mockRecorder) Eventf(object runtime.Object, eventtype, reason, messageFmt string, args ...interface{}) {
 	mr.updateFn()
-	// return
 }
 
 func (mr *mockRecorder) AnnotatedEventf(object runtime.Object, annotations map[string]string, eventtype, reason, messageFmt string, args ...interface{}) {
-	// return
+
 }
 
 func (mr *mockRecorder) PastEventf(object runtime.Object, timestamp metav1.Time, eventtype, reason, messageFmt string, args ...interface{}) {
-	// return
+
 }
 
 func assertAppState(t *testing.T, app *Application, expectedState string, duration time.Duration) {
