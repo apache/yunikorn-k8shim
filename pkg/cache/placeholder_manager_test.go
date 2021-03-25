@@ -20,8 +20,6 @@ package cache
 
 import (
 	"fmt"
-	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -41,6 +39,19 @@ const (
 	queue     = "root.default"
 	namespace = "test"
 )
+
+func TestNewPlaceholderManager(t *testing.T) {
+	// the shim does not startup if it cannot get a kubeclient, no need to check for nil
+	mockedAPIProvider := client.NewMockedAPIProvider()
+	mgr := NewPlaceholderManager(mockedAPIProvider.GetAPIs())
+	assert.Equal(t, mgr.running.Load(), false, "new manager should not run")
+	if mgr.orphanPods == nil && len(mgr.orphanPods) != 0 {
+		t.Fatal("orphanPods map should be initialised and empty")
+	}
+	if mgr.stopChan == nil {
+		t.Fatal("stop channel should be initialised")
+	}
+}
 
 func TestCreateAppPlaceholders(t *testing.T) {
 	app := createAppWIthTaskGroupForTest()
@@ -68,10 +79,7 @@ func createAndCheckPlaceholderCreate(mockedAPIProvider *client.MockedAPIProvider
 		createdPods[pod.Name] = pod
 		return pod, nil
 	})
-	placeholderMgr = &PlaceholderManager{
-		clients: mockedAPIProvider.GetAPIs(),
-		RWMutex: sync.RWMutex{},
-	}
+	placeholderMgr := NewPlaceholderManager(mockedAPIProvider.GetAPIs())
 
 	err := placeholderMgr.createAppPlaceholders(app)
 	assert.NilError(t, err, "create app placeholders should be successful")
@@ -183,11 +191,7 @@ func TestCleanUp(t *testing.T) {
 		deletePod = append(deletePod, pod.Name)
 		return nil
 	})
-	placeholderMgr := &PlaceholderManager{
-		clients:   mockedAPIProvider.GetAPIs(),
-		orphanPod: make(map[string]*v1.Pod),
-		RWMutex:   sync.RWMutex{},
-	}
+	placeholderMgr := NewPlaceholderManager(mockedAPIProvider.GetAPIs())
 	placeholderMgr.cleanUp(app)
 
 	// check both pod-01 and pod-02 in deletePod list and pod-03 isn't contain
@@ -200,16 +204,12 @@ func TestCleanUp(t *testing.T) {
 		}
 	}
 	assert.Equal(t, exist, false)
-	assert.Equal(t, len(placeholderMgr.orphanPod), 0)
+	assert.Equal(t, len(placeholderMgr.orphanPods), 0)
 }
 
 func TestCleanOrphanPlaceholders(t *testing.T) {
 	mockedAPIProvider := client.NewMockedAPIProvider()
-	placeholderMgr := &PlaceholderManager{
-		clients:   mockedAPIProvider.GetAPIs(),
-		orphanPod: make(map[string]*v1.Pod),
-		RWMutex:   sync.RWMutex{},
-	}
+	placeholderMgr := NewPlaceholderManager(mockedAPIProvider.GetAPIs())
 	pod1 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
@@ -220,27 +220,44 @@ func TestCleanOrphanPlaceholders(t *testing.T) {
 			UID:  "UID-01",
 		},
 	}
-	placeholderMgr.orphanPod["task01"] = pod1
-	assert.Equal(t, len(placeholderMgr.orphanPod), 1)
+	placeholderMgr.orphanPods["task01"] = pod1
+	assert.Equal(t, len(placeholderMgr.orphanPods), 1)
 	placeholderMgr.cleanOrphanPlaceholders()
-	assert.Equal(t, len(placeholderMgr.orphanPod), 0)
+	assert.Equal(t, len(placeholderMgr.orphanPods), 0)
 }
 
 func TestPlaceholderManagerStartStop(t *testing.T) {
 	mockedAPIProvider := client.NewMockedAPIProvider()
-	placeholderMgr := &PlaceholderManager{
-		clients:   mockedAPIProvider.GetAPIs(),
-		orphanPod: make(map[string]*v1.Pod),
-		running:   atomic.Value{},
-		RWMutex:   sync.RWMutex{},
-	}
-	placeholderMgr.setRunning(false)
+	mgr := NewPlaceholderManager(mockedAPIProvider.GetAPIs())
+	assert.Equal(t, mgr.running.Load(), false, "new manager should not run")
 	// start clean up goroutine
-	placeholderMgr.Start()
-	assert.Equal(t, placeholderMgr.isRunning(), true)
+	mgr.Start()
+	assert.Equal(t, mgr.isRunning(), true, "manager should be running after start")
 
-	placeholderMgr.Stop()
-	time.Sleep(3 * time.Second)
-	// check orphan pod map is empty
-	assert.Equal(t, placeholderMgr.isRunning(), false)
+	// starting a second time should do nothing
+	mgr.Start()
+	assert.Equal(t, mgr.isRunning(), true, "sending start 2nd time should not do anything")
+
+	// this is a blocking call
+	mgr.Stop()
+	// allow time for processing as the call can return faster than the flag is set
+	time.Sleep(5 * time.Millisecond)
+	// check manager has stopped
+	assert.Equal(t, mgr.isRunning(), false, "placeholder manager has not stopped")
+	// this should not block anymore, flag should be set
+	mgr.Stop()
+	assert.Equal(t, mgr.isRunning(), false, "stopping already stopped manager failed")
+
+	// make sure stop doesn't do anything on a non running manager
+	mgr = NewPlaceholderManager(mockedAPIProvider.GetAPIs())
+	assert.Equal(t, mgr.running.Load(), false, "new manager should not run")
+	mgr.Stop()
+	assert.Equal(t, mgr.isRunning(), false, "stopping new manager: nothing should happen")
+	mgr.Start()
+	assert.Equal(t, mgr.isRunning(), true, "manager should be running after start (stop start sequence)")
+	// lets stop it again now things should stop correctly
+	mgr.Stop()
+	// allow time for processing as the call can return faster than the flag is set
+	time.Sleep(5 * time.Millisecond)
+	assert.Equal(t, mgr.isRunning(), false, "placeholder manager has not stopped")
 }
