@@ -131,7 +131,6 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 		log.Logger().Debug("callback: response to released allocations",
 			zap.String("allocation key", ask.Allocationkey))
 
-		// TerminationType 0 mean STOPPED_BY_RM
 		if ask.TerminationType == si.TerminationType_TIMEOUT {
 			ev := cache.NewReleaseAppAllocationAskEvent(ask.ApplicationID, ask.TerminationType, ask.Allocationkey)
 			dispatcher.Dispatch(ev)
@@ -151,7 +150,11 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 			}
 		} else {
 			if updated.State == "Failing" || updated.State == events.States().Application.Failed {
+<<<<<<< HEAD
 				ev := cache.NewFailApplicationEvent(updated.ApplicationID, updated.Message)
+=======
+				ev := cache.NewFailApplicationEvent(updated.ApplicationID)
+>>>>>>> master
 				dispatcher.Dispatch(ev)
 			}
 			// handle status update
