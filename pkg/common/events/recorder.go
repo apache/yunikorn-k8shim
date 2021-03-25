@@ -31,7 +31,7 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 )
 
-var eventRecorder record.EventRecorder = record.NewFakeRecorder(1024)
+var EventRecorder record.EventRecorder = record.NewFakeRecorder(1024)
 var once sync.Once
 
 func GetRecorder() record.EventRecorder {
@@ -44,10 +44,10 @@ func GetRecorder() record.EventRecorder {
 			eventBroadcaster := record.NewBroadcaster()
 			eventBroadcaster.StartRecordingToSink(&v1.EventSinkImpl{
 				Interface: k8sClient.GetClientSet().CoreV1().Events("")})
-			eventRecorder = eventBroadcaster.NewRecorder(scheme.Scheme,
+			EventRecorder = eventBroadcaster.NewRecorder(scheme.Scheme,
 				corev1.EventSource{Component: constants.SchedulerName})
 		}
 	})
 
-	return eventRecorder
+	return EventRecorder
 }

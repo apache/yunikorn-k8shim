@@ -30,6 +30,9 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/record"
 
 	"github.com/apache/incubator-yunikorn-core/pkg/api"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
@@ -38,9 +41,15 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 )
+
+type recorderTime struct {
+	time int64
+	lock *sync.RWMutex
+}
 
 func TestNewApplication(t *testing.T) {
 	app := NewApplication("app00001", "root.queue", "testuser", map[string]string{}, newMockSchedulerAPI())
@@ -99,6 +108,83 @@ func TestRunApplication(t *testing.T) {
 		t.Error("expecting error got 'nil'")
 	}
 	assertAppState(t, app, events.States().Application.Submitted, 3*time.Second)
+}
+
+func TestFailApplication(t *testing.T) {
+	context := initContextForTest()
+	rt := &recorderTime{
+		time: int64(0),
+		lock: &sync.RWMutex{},
+	}
+	ms := &mockSchedulerAPI{}
+	// set test mode
+	conf.GetSchedulerConf().SetTestMode(true)
+	// set recorder to mockrecorder
+	mr := NewMockRecorder()
+	mr.updateFn = func() {
+		rt.lock.Lock()
+		defer rt.lock.Unlock()
+		rt.time++
+	}
+	events.EventRecorder = mr
+	resources := make(map[v1.ResourceName]resource.Quantity)
+	containers := make([]v1.Container, 0)
+	containers = append(containers, v1.Container{
+		Name: "container-01",
+		Resources: v1.ResourceRequirements{
+			Requests: resources,
+		},
+	})
+	pod := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "pod-test-00001",
+			UID:  "UID-00001",
+		},
+		Spec: v1.PodSpec{
+			Containers: containers,
+		},
+	}
+	appID := "app-test-001"
+	app := NewApplication(appID, "root.abc", "testuser", map[string]string{}, ms)
+	task1 := NewTask("task01", app, context, pod)
+	task2 := NewTask("task02", app, context, pod)
+	task3 := NewTask("task03", app, context, pod)
+	task4 := NewTask("task04", app, context, pod)
+	// set task states to new/pending/scheduling/running
+	task1.sm.SetState(events.States().Task.New)
+	task2.sm.SetState(events.States().Task.Pending)
+	task3.sm.SetState(events.States().Task.Scheduling)
+	task4.sm.SetState(events.States().Task.Allocated)
+	app.addTask(task1)
+	app.addTask(task2)
+	app.addTask(task3)
+	app.addTask(task4)
+	app.SetState(events.States().Application.Accepted)
+	errMess := "Test Error Message"
+	err := app.handle(NewFailApplicationEvent(app.applicationID, errMess))
+	assert.NilError(t, err)
+	assertAppState(t, app, events.States().Application.Failed, 3*time.Second)
+	assert.Equal(t, rt.time, int64(3))
+	// reset time to 0
+	rt.time = 0
+	appID2 := "app-test-002"
+	app2 := NewApplication(appID2, "root.abc", "testuser", map[string]string{}, ms)
+	app2.SetState(events.States().Application.New)
+	err = app2.handle(NewFailApplicationEvent(app2.applicationID, errMess))
+	if err == nil {
+		t.Error("expecting error got 'nil'")
+	}
+	assertAppState(t, app2, events.States().Application.New, 3*time.Second)
+	app2.SetState(events.States().Application.Submitted)
+	err = app2.handle(NewFailApplicationEvent(app2.applicationID, errMess))
+	assert.NilError(t, err)
+	assertAppState(t, app2, events.States().Application.Failed, 3*time.Second)
+	assert.Equal(t, rt.time, int64(0))
+	events.EventRecorder = record.NewFakeRecorder(1024)
 }
 
 func TestReleaseAppAllocation(t *testing.T) {
@@ -175,6 +261,33 @@ func (ms *mockSchedulerAPI) Update(request *si.UpdateRequest) error {
 
 func (ms *mockSchedulerAPI) ReloadConfiguration(rmID string) error {
 	return nil
+}
+
+type mockRecorder struct {
+	updateFn func()
+}
+
+func NewMockRecorder() *mockRecorder {
+	return &mockRecorder{
+		updateFn: func() {},
+	}
+}
+
+func (mr *mockRecorder) Event(object runtime.Object, eventtype, reason, message string) {
+	// return
+}
+
+func (mr *mockRecorder) Eventf(object runtime.Object, eventtype, reason, messageFmt string, args ...interface{}) {
+	mr.updateFn()
+	// return
+}
+
+func (mr *mockRecorder) AnnotatedEventf(object runtime.Object, annotations map[string]string, eventtype, reason, messageFmt string, args ...interface{}) {
+	// return
+}
+
+func (mr *mockRecorder) PastEventf(object runtime.Object, timestamp metav1.Time, eventtype, reason, messageFmt string, args ...interface{}) {
+	// return
 }
 
 func assertAppState(t *testing.T, app *Application, expectedState string, duration time.Duration) {

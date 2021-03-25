@@ -150,8 +150,8 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 				log.Logger().Error("failed to delete application", zap.Error(err))
 			}
 		} else {
-			if updated.State == events.States().Application.Failed {
-				ev := cache.NewFailApplicationEvent(updated.ApplicationID)
+			if updated.State == "Failing" || updated.State == events.States().Application.Failed {
+				ev := cache.NewFailApplicationEvent(updated.ApplicationID, updated.Message)
 				dispatcher.Dispatch(ev)
 			}
 			// handle status update
