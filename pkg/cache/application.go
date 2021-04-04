@@ -531,7 +531,6 @@ func (app *Application) handleFailApplicationEvent(event *fsm.Event) {
 		events.GetRecorder().Eventf(task.GetTaskPod(), v1.EventTypeWarning, "ApplicationFailed",
 			"Application %s scheduling failed, reason: %s", app.applicationID, errMess)
 	}
-	log.Logger().Warn("failed to schedule app", zap.String("appID", app.applicationID))
 }
 
 func (app *Application) handleReleaseAppAllocationEvent(event *fsm.Event) {

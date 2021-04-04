@@ -30,8 +30,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 
 	"github.com/apache/incubator-yunikorn-core/pkg/api"
@@ -119,14 +117,14 @@ func TestFailApplication(t *testing.T) {
 	ms := &mockSchedulerAPI{}
 	// set test mode
 	conf.GetSchedulerConf().SetTestMode(true)
-	// set recorder to mockrecorder
-	mr := newMockRecorder()
-	mr.updateFn = func() {
+	// set Recorder to mocked type
+	mr := events.NewMockedRecorder()
+	mr.OnEventf = func() {
 		rt.lock.Lock()
 		defer rt.lock.Unlock()
 		rt.time++
 	}
-	events.EventRecorder = mr
+	events.SetRecorderForTest(mr)
 	resources := make(map[v1.ResourceName]resource.Quantity)
 	containers := make([]v1.Container, 0)
 	containers = append(containers, v1.Container{
@@ -184,7 +182,8 @@ func TestFailApplication(t *testing.T) {
 	assert.NilError(t, err)
 	assertAppState(t, app2, events.States().Application.Failed, 3*time.Second)
 	assert.Equal(t, rt.time, int64(0))
-	events.EventRecorder = record.NewFakeRecorder(1024)
+	// Test over, set Recorder back fake type
+	events.SetRecorderForTest(record.NewFakeRecorder(1024))
 }
 
 func TestReleaseAppAllocation(t *testing.T) {
@@ -261,32 +260,6 @@ func (ms *mockSchedulerAPI) Update(request *si.UpdateRequest) error {
 
 func (ms *mockSchedulerAPI) ReloadConfiguration(rmID string) error {
 	return nil
-}
-
-type mockRecorder struct {
-	updateFn func()
-}
-
-func newMockRecorder() *mockRecorder {
-	return &mockRecorder{
-		updateFn: func() {},
-	}
-}
-
-func (mr *mockRecorder) Event(object runtime.Object, eventtype, reason, message string) {
-
-}
-
-func (mr *mockRecorder) Eventf(object runtime.Object, eventtype, reason, messageFmt string, args ...interface{}) {
-	mr.updateFn()
-}
-
-func (mr *mockRecorder) AnnotatedEventf(object runtime.Object, annotations map[string]string, eventtype, reason, messageFmt string, args ...interface{}) {
-
-}
-
-func (mr *mockRecorder) PastEventf(object runtime.Object, timestamp metav1.Time, eventtype, reason, messageFmt string, args ...interface{}) {
-
 }
 
 func assertAppState(t *testing.T, app *Application, expectedState string, duration time.Duration) {
