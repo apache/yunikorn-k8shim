@@ -143,12 +143,14 @@ func (re RunApplicationEvent) GetApplicationID() string {
 type FailApplicationEvent struct {
 	applicationID string
 	event         events.ApplicationEventType
+	errorMessage  string
 }
 
-func NewFailApplicationEvent(appID string) FailApplicationEvent {
+func NewFailApplicationEvent(appID, message string) FailApplicationEvent {
 	return FailApplicationEvent{
 		applicationID: appID,
 		event:         events.FailApplication,
+		errorMessage:  message,
 	}
 }
 
@@ -157,7 +159,9 @@ func (fe FailApplicationEvent) GetEvent() events.ApplicationEventType {
 }
 
 func (fe FailApplicationEvent) GetArgs() []interface{} {
-	return nil
+	args := make([]interface{}, 1)
+	args[0] = fe.errorMessage
+	return args
 }
 
 func (fe FailApplicationEvent) GetApplicationID() string {

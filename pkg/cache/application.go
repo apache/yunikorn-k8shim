@@ -135,6 +135,7 @@ func NewApplication(appID, queueName, user string, tags map[string]string, sched
 			string(events.RecoverApplication):      app.handleRecoverApplicationEvent,
 			string(events.RejectApplication):       app.handleRejectApplicationEvent,
 			string(events.CompleteApplication):     app.handleCompleteApplicationEvent,
+			string(events.FailApplication):         app.handleFailApplicationEvent,
 			string(events.UpdateReservation):       app.onReservationStateChange,
 			events.States().Application.Reserving:  app.onReserving,
 			string(events.ReleaseAppAllocation):    app.handleReleaseAppAllocationEvent,
@@ -421,7 +422,7 @@ func (app *Application) handleSubmitApplicationEvent(event *fsm.Event) {
 	if err != nil {
 		// submission failed
 		log.Logger().Warn("failed to submit app", zap.Error(err))
-		dispatcher.Dispatch(NewFailApplicationEvent(app.applicationID))
+		dispatcher.Dispatch(NewFailApplicationEvent(app.applicationID, err.Error()))
 	}
 }
 
@@ -449,7 +450,7 @@ func (app *Application) handleRecoverApplicationEvent(event *fsm.Event) {
 	if err != nil {
 		// submission failed
 		log.Logger().Warn("failed to submit app", zap.Error(err))
-		dispatcher.Dispatch(NewFailApplicationEvent(app.applicationID))
+		dispatcher.Dispatch(NewFailApplicationEvent(app.applicationID, err.Error()))
 	}
 }
 
@@ -506,11 +507,30 @@ func (app *Application) onReservationStateChange(event *fsm.Event) {
 func (app *Application) handleRejectApplicationEvent(event *fsm.Event) {
 	log.Logger().Info("app is rejected by scheduler", zap.String("appID", app.applicationID))
 	// for rejected apps, we directly move them to failed state
-	dispatcher.Dispatch(NewFailApplicationEvent(app.applicationID))
+	dispatcher.Dispatch(NewFailApplicationEvent(app.applicationID,
+		fmt.Sprintf("application %s is rejected by scheduler", app.applicationID)))
 }
 
 func (app *Application) handleCompleteApplicationEvent(event *fsm.Event) {
 	// TODO app lifecycle updates
+}
+
+func (app *Application) handleFailApplicationEvent(event *fsm.Event) {
+	eventArgs := make([]string, 1)
+	if err := events.GetEventArgsAsStrings(eventArgs, event.Args); err != nil {
+		log.Logger().Error("fail to parse event arg", zap.Error(err))
+		return
+	}
+	errMess := eventArgs[0]
+	// unallocated task states include New, Pending and Scheduling
+	unalloc := app.getTasks(events.States().Task.New)
+	unalloc = append(unalloc, app.getTasks(events.States().Task.Pending)...)
+	unalloc = append(unalloc, app.getTasks(events.States().Task.Scheduling)...)
+	// publish pod level event to unallocated pods
+	for _, task := range unalloc {
+		events.GetRecorder().Eventf(task.GetTaskPod(), v1.EventTypeWarning, "ApplicationFailed",
+			"Application %s scheduling failed, reason: %s", app.applicationID, errMess)
+	}
 }
 
 func (app *Application) handleReleaseAppAllocationEvent(event *fsm.Event) {

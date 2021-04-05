@@ -51,3 +51,7 @@ func GetRecorder() record.EventRecorder {
 
 	return eventRecorder
 }
+
+func SetRecorderForTest(recorder record.EventRecorder) {
+	eventRecorder = recorder
+}
