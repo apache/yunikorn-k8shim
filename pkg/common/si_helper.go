@@ -58,7 +58,6 @@ func CreateUpdateRequestForTask(appID, taskID string, resource *si.Resource, pla
 		Asks:                []*si.AllocationAsk{&ask},
 		NewSchedulableNodes: nil,
 		UpdatedNodes:        nil,
-		UtilizationReports:  nil,
 		RmID:                conf.GetSchedulerConf().ClusterID,
 	}
 
