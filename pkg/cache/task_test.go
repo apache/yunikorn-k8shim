@@ -19,6 +19,7 @@
 package cache
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -28,12 +29,20 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/record"
 
 	"github.com/apache/incubator-yunikorn-core/pkg/common"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 )
+
+// type recorderTime struct {
+// 	time int64
+// 	lock *sync.RWMutex
+// }
 
 func TestTaskStateTransitions(t *testing.T) {
 	mockedSchedulerApi := newMockSchedulerAPI()
@@ -442,4 +451,80 @@ func TestSetTaskGroup(t *testing.T) {
 	task := NewTask("task01", app, mockedContext, pod)
 	task.setTaskGroupName("test-group")
 	assert.Equal(t, task.getTaskGroupName(), "test-group")
+}
+
+func TestPostTaskAllocated(t *testing.T) {
+	mockedContext := initContextForTest()
+	mockedSchedulerAPI := newMockSchedulerAPI()
+	rt := &recorderTime{
+		time: int64(0),
+		lock: &sync.RWMutex{},
+	}
+	conf.GetSchedulerConf().SetTestMode(true)
+	mr := events.NewMockedRecorder()
+	mr.OnEventf = func() {
+		rt.lock.Lock()
+		defer rt.lock.Unlock()
+		rt.time++
+	}
+	events.SetRecorderForTest(mr)
+	resources := make(map[v1.ResourceName]resource.Quantity)
+	containers := make([]v1.Container, 0)
+	containers = append(containers, v1.Container{
+		Name: "container-01",
+		Resources: v1.ResourceRequirements{
+			Requests: resources,
+		},
+	})
+	pod1 := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "pod-test-00001",
+			UID:  "UID-00001",
+		},
+		Spec: v1.PodSpec{
+			Containers: containers,
+		},
+	}
+	pod2 := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "pod-test-00002",
+			UID:  "UID-00002",
+			Annotations: map[string]string{
+				constants.AnnotationTaskGroupName: "test-task-group",
+			},
+		},
+		Spec: v1.PodSpec{
+			Containers: containers,
+		},
+	}
+	appID := "app-test-001"
+	app := NewApplication(appID, "root.abc", "testuser", map[string]string{}, mockedSchedulerAPI)
+	task1 := NewTask("task01", app, mockedContext, pod1)
+	task2 := NewTask("task02", app, mockedContext, pod2)
+	task1.sm.SetState(events.States().Task.Pending)
+	task2.sm.SetState(events.States().Task.Pending)
+	// pod without taskGroup name
+	event1 := NewSubmitTaskEvent(app.applicationID, task1.taskID)
+	err := task1.handle(event1)
+	assert.NilError(t, err, "failed to handle SubmitTask event")
+	assert.Equal(t, task1.GetTaskState(), events.States().Task.Scheduling)
+	assert.Equal(t, rt.time, int64(1))
+	rt.time = 0
+	// pod with taskGroup name
+	event2 := NewSubmitTaskEvent(app.applicationID, task2.taskID)
+	err = task2.handle(event2)
+	assert.NilError(t, err, "failed to handle SubmitTask event")
+	assert.Equal(t, task2.GetTaskState(), events.States().Task.Scheduling)
+	assert.Equal(t, rt.time, int64(2))
+
+	// Test over, set Recorder back fake type
+	events.SetRecorderForTest(record.NewFakeRecorder(1024))
 }
