@@ -265,11 +265,12 @@ func (task *Task) handleSubmitTaskEvent(event *fsm.Event) {
 
 	events.GetRecorder().Eventf(task.pod, v1.EventTypeNormal, "Scheduling",
 		"%s is queued and waiting for allocation", task.alias)
-	// if this task is belong to the gang member, then post a message to indicate the pod will being scheduled as gang member
+	// if this task belongs to a task group, that means the app has gang scheduling enabled
+	// in this case, post an event to indicate the task is being gang scheduled
 	if !task.placeholder && task.taskGroupName != "" {
 		events.GetRecorder().Eventf(task.pod,
 			v1.EventTypeNormal, "GangScheduling",
-			"Pod belongs to the taskGroup %s, it will being scheduled as a gang member", task.taskGroupName)
+			"Pod belongs to the taskGroup %s, it will be scheduled as a gang member", task.taskGroupName)
 	}
 }
 

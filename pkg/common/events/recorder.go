@@ -33,8 +33,11 @@ import (
 
 var eventRecorder record.EventRecorder = record.NewFakeRecorder(1024)
 var once sync.Once
+var lock sync.RWMutex
 
 func GetRecorder() record.EventRecorder {
+	lock.Lock()
+	defer lock.Unlock()
 	once.Do(func() {
 		// note, the initiation of the event recorder requires on a workable Kubernetes client,
 		// in test mode we should skip this and just use a fake recorder instead.
@@ -53,5 +56,7 @@ func GetRecorder() record.EventRecorder {
 }
 
 func SetRecorderForTest(recorder record.EventRecorder) {
+	lock.Lock()
+	defer lock.Unlock()
 	eventRecorder = recorder
 }

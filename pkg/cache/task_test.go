@@ -39,11 +39,6 @@ import (
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 )
 
-// type recorderTime struct {
-// 	time int64
-// 	lock *sync.RWMutex
-// }
-
 func TestTaskStateTransitions(t *testing.T) {
 	mockedSchedulerApi := newMockSchedulerAPI()
 	mockedContext := initContextForTest()
@@ -453,7 +448,7 @@ func TestSetTaskGroup(t *testing.T) {
 	assert.Equal(t, task.getTaskGroupName(), "test-group")
 }
 
-func TestPostTaskAllocated(t *testing.T) {
+func TestHandleSubmitTaskEvent(t *testing.T) {
 	mockedContext := initContextForTest()
 	mockedSchedulerAPI := newMockSchedulerAPI()
 	rt := &recorderTime{
