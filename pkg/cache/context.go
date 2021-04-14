@@ -549,9 +549,8 @@ func (ctx *Context) RemoveApplication(appID string) error {
 			zap.String("appID", appID))
 
 		return nil
-	} else {
-		return fmt.Errorf("application %s is not found in the context", appID)
 	}
+	return fmt.Errorf("application %s is not found in the context", appID)
 }
 
 func (ctx *Context) RemoveApplicationInternal(appID string) error {
@@ -600,9 +599,8 @@ func (ctx *Context) RemoveTask(appID, taskID string) error {
 	defer ctx.lock.RUnlock()
 	if app, ok := ctx.applications[appID]; ok {
 		return app.removeTask(taskID)
-	} else {
-		return fmt.Errorf("application %s is not found in the context", appID)
-	}
+	} else
+	return fmt.Errorf("application %s is not found in the context", appID)
 }
 
 func (ctx *Context) getTask(appID string, taskID string) (*Task, error) {

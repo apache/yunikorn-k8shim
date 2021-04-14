@@ -84,7 +84,7 @@ func (os *Manager) Stop() {
 }
 
 func (os *Manager) getTaskMetadata(pod *v1.Pod) (interfaces.TaskMetadata, bool) {
-	appId, err := utils.GetApplicationIDFromPod(pod)
+	appID, err := utils.GetApplicationIDFromPod(pod)
 	if err != nil {
 		log.Logger().Debug("unable to get task by given pod", zap.Error(err))
 		return interfaces.TaskMetadata{}, false
@@ -94,7 +94,7 @@ func (os *Manager) getTaskMetadata(pod *v1.Pod) (interfaces.TaskMetadata, bool) 
 	taskGroupName := utils.GetTaskGroupFromPodSpec(pod)
 
 	return interfaces.TaskMetadata{
-		ApplicationID: appId,
+		ApplicationID: appID,
 		TaskID:        string(pod.UID),
 		Pod:           pod,
 		Placeholder:   placeholder,
@@ -103,7 +103,7 @@ func (os *Manager) getTaskMetadata(pod *v1.Pod) (interfaces.TaskMetadata, bool) 
 }
 
 func (os *Manager) getAppMetadata(pod *v1.Pod) (interfaces.ApplicationMetadata, bool) {
-	appId, err := utils.GetApplicationIDFromPod(pod)
+	appID, err := utils.GetApplicationIDFromPod(pod)
 	if err != nil {
 		log.Logger().Debug("unable to get application for pod",
 			zap.String("namespace", pod.Namespace),
@@ -141,7 +141,7 @@ func (os *Manager) getAppMetadata(pod *v1.Pod) (interfaces.ApplicationMetadata, 
 			zap.Error(err))
 	}
 	return interfaces.ApplicationMetadata{
-		ApplicationID:           appId,
+		ApplicationID:           appID,
 		QueueName:               utils.GetQueueNameFromPod(pod),
 		User:                    user,
 		Tags:                    tags,
@@ -310,7 +310,7 @@ func (os *Manager) ListApplications() (map[string]interfaces.ApplicationMetadata
 
 	// get existing apps
 	existingApps := make(map[string]interfaces.ApplicationMetadata)
-	if appPods != nil && len(appPods) > 0 {
+	if len(appPods) > 0 {
 		for _, pod := range appPods {
 			log.Logger().Debug("Looking at pod for recovery candidates", zap.String("podNamespace", pod.Namespace), zap.String("podName", pod.Name))
 			// general filter passes, and pod is assigned
