@@ -21,8 +21,6 @@ package general
 import (
 	"reflect"
 
-	"go.uber.org/zap"
-	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	k8sCache "k8s.io/client-go/tools/cache"
@@ -34,6 +32,8 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
+	"go.uber.org/zap"
+	v1 "k8s.io/api/core/v1"
 )
 
 // implements interfaces#Recoverable, interfaces#AppManager
@@ -105,7 +105,10 @@ func (os *Manager) getTaskMetadata(pod *v1.Pod) (interfaces.TaskMetadata, bool) 
 func (os *Manager) getAppMetadata(pod *v1.Pod) (interfaces.ApplicationMetadata, bool) {
 	appId, err := utils.GetApplicationIDFromPod(pod)
 	if err != nil {
-		log.Logger().Debug("unable to get application by given pod", zap.Error(err))
+		log.Logger().Debug("unable to get application for pod",
+			zap.String("namespace", pod.Namespace),
+			zap.String("name", pod.Name),
+			zap.Error(err))
 		return interfaces.ApplicationMetadata{}, false
 	}
 
@@ -123,13 +126,19 @@ func (os *Manager) getAppMetadata(pod *v1.Pod) (interfaces.ApplicationMetadata, 
 
 	taskGroups, err := utils.GetTaskGroupsFromAnnotation(pod)
 	if err != nil {
-		log.Logger().Error("unable to get taskGroups by given pod", zap.Error(err))
+		log.Logger().Error("unable to get taskGroups for pod",
+			zap.String("namespace", pod.Namespace),
+			zap.String("name", pod.Name),
+			zap.Error(err))
 	}
 	ownerReferences := getOwnerReferences(pod)
 
 	placeholderTimeout, err := utils.GetPlaceholderTimeoutParam(pod)
 	if err != nil {
-		log.Logger().Debug("unable to get placeholder timeout by given pod.", zap.Error(err))
+		log.Logger().Debug("unable to get placeholder timeout for pod.",
+			zap.String("namespace", pod.Namespace),
+			zap.String("name", pod.Name),
+			zap.Error(err))
 	}
 	return interfaces.ApplicationMetadata{
 		ApplicationID:           appId,
@@ -303,10 +312,12 @@ func (os *Manager) ListApplications() (map[string]interfaces.ApplicationMetadata
 	existingApps := make(map[string]interfaces.ApplicationMetadata)
 	if appPods != nil && len(appPods) > 0 {
 		for _, pod := range appPods {
+			log.Logger().Debug("Looking at pod for recovery candidates", zap.String("podNamespace", pod.Namespace), zap.String("podName", pod.Name))
 			// general filter passes, and pod is assigned
 			// this means the pod is already scheduled by scheduler for an existing app
 			if utils.GeneralPodFilter(pod) && utils.IsAssignedPod(pod) {
 				if meta, ok := os.getAppMetadata(pod); ok {
+					log.Logger().Debug("Adding appID as recovery candidate", zap.String("appID", meta.ApplicationID))
 					if _, exist := existingApps[meta.ApplicationID]; !exist {
 						existingApps[meta.ApplicationID] = meta
 					}

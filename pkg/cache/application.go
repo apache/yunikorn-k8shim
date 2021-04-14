@@ -320,7 +320,7 @@ func (app *Application) getNonTerminatedTaskAlias() []string {
 	return nonTerminatedTaskAlias
 }
 
-// only for testing
+// SetState is only for testing
 // this is just used for testing, it is not supposed to change state like this
 func (app *Application) SetState(state string) {
 	app.lock.Lock()
@@ -332,7 +332,7 @@ func (app *Application) TriggerAppRecovery() error {
 	return app.handle(NewSimpleApplicationEvent(app.applicationID, events.RecoverApplication))
 }
 
-// This is called in every scheduling interval,
+// Schedule is called in every scheduling interval,
 // we are not using dispatcher here because we want to
 // make state transition in sync mode in order to prevent
 // generating too many duplicate events. However, it must
@@ -367,6 +367,7 @@ func (app *Application) Schedule() {
 		})
 	default:
 		log.Logger().Debug("skipping scheduling application",
+			zap.String("appState", app.GetApplicationState()),
 			zap.String("appID", app.GetApplicationID()),
 			zap.String("appState", app.GetApplicationState()))
 	}
@@ -460,9 +461,14 @@ func (app *Application) postAppAccepted() {
 	// app could have allocated tasks upon a recovery, and in that case,
 	// the reserving phase has already passed, no need to trigger that again.
 	var ev events.SchedulingEvent
+	log.Logger().Info("postAppAccepted",
+		zap.String("appID", app.applicationID),
+		zap.Int("numTaskGroups", len(app.taskGroups)),
+		zap.Int("numAllocatedTasks", len(app.getTasks(events.States().Task.Allocated))))
 	if len(app.taskGroups) != 0 &&
 		len(app.getTasks(events.States().Task.Allocated)) == 0 {
 		ev = NewSimpleApplicationEvent(app.applicationID, events.TryReserve)
+		log.Logger().Info("tryReserve")
 		dispatcher.Dispatch(ev)
 	} else {
 		ev = NewRunApplicationEvent(app.applicationID)
@@ -511,11 +517,24 @@ func (app *Application) handleRejectApplicationEvent(event *fsm.Event) {
 		fmt.Sprintf("application %s is rejected by scheduler", app.applicationID)))
 }
 
+func placeholderCleanup(app *Application) {
+	placeholderManager := getPlaceholderManager()
+	if placeholderManager != nil {
+		placeholderManager.cleanUp(app)
+	}
+}
+
 func (app *Application) handleCompleteApplicationEvent(event *fsm.Event) {
 	// TODO app lifecycle updates
+	go func() {
+		placeholderCleanup(app)
+	}()
 }
 
 func (app *Application) handleFailApplicationEvent(event *fsm.Event) {
+	go func() {
+		placeholderCleanup(app)
+	}()
 	eventArgs := make([]string, 1)
 	if err := events.GetEventArgsAsStrings(eventArgs, event.Args); err != nil {
 		log.Logger().Error("fail to parse event arg", zap.Error(err))

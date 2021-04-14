@@ -18,20 +18,20 @@
 
 module github.com/apache/incubator-yunikorn-k8shim
 
-go 1.12
+go 1.14
 
 require (
-	github.com/GoogleCloudPlatform/spark-on-k8s-operator v0.0.0-20200817155620-c19d2b8660d8
-	github.com/apache/incubator-yunikorn-core v0.0.0-20210308173435-79a60272f12f
-	github.com/apache/incubator-yunikorn-scheduler-interface v0.9.1-0.20210226143918-19a5cca5e428
+	github.com/GoogleCloudPlatform/spark-on-k8s-operator v0.0.0-20201215015655-2e8b733f5ad0
+	github.com/apache/incubator-yunikorn-core v0.0.0-20210412120202-73fdc11674a5
+	github.com/apache/incubator-yunikorn-scheduler-interface v0.9.1-0.20210412034924-44e8abeff79e
 	github.com/google/uuid v1.1.1
 	github.com/gorilla/mux v1.7.3
 	github.com/looplab/fsm v0.1.0
-	github.com/onsi/ginkgo v1.11.0
-	github.com/onsi/gomega v1.7.0
-	go.uber.org/zap v1.13.0
+	github.com/onsi/ginkgo v1.15.1
+	github.com/onsi/gomega v1.11.0
+	go.uber.org/zap v1.16.0
 	golang.org/x/time v0.0.0-20190308202827-9d24e82272b4
-	gopkg.in/yaml.v2 v2.2.8
+	gopkg.in/yaml.v2 v2.4.0
 	gotest.tools v2.2.0+incompatible
 	k8s.io/api v0.16.13
 	k8s.io/apimachinery v0.16.13

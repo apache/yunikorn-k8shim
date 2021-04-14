@@ -420,6 +420,16 @@ func (ctx *Context) NotifyApplicationComplete(appID string) {
 	}
 }
 
+func (ctx *Context) NotifyApplicationFail(appID string) {
+	if app := ctx.GetApplication(appID); app != nil {
+		log.Logger().Debug("NotifyApplicationFail",
+			zap.String("appID", appID),
+			zap.String("currentAppState", app.GetApplicationState()))
+		ev := NewSimpleApplicationEvent(appID, events.FailApplication)
+		dispatcher.Dispatch(ev)
+	}
+}
+
 func (ctx *Context) NotifyTaskComplete(appID, taskID string) {
 	log.Logger().Debug("NotifyTaskComplete",
 		zap.String("appID", appID),

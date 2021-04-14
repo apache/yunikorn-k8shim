@@ -54,6 +54,10 @@ type ApplicationManagementProtocol interface {
 	// this will trigger some consequent operations for the given app
 	NotifyApplicationComplete(appID string)
 
+	// notify the context that an app has failed,
+	// this will trigger some consequent operations for the given app
+	NotifyApplicationFail(appID string)
+
 	// notify the context that an task is completed,
 	// this will trigger some consequent operations for a given task,
 	// e.g release the allocations that assigned for this task.

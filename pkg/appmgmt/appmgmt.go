@@ -47,7 +47,10 @@ func NewAMService(amProtocol interfaces.ApplicationManagementProtocol,
 		managers:    make([]interfaces.AppManager, 0),
 	}
 
+	log.Logger().Info("Initializing new AppMgmt service")
+
 	if !apiProvider.IsTestingMode() {
+		log.Logger().Info("Registered Spark operator with the AppMgmt service")
 		appManager.register(
 			// registered app plugins
 			// for general apps

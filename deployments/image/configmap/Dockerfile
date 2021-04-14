@@ -21,7 +21,7 @@ FROM alpine:latest
 RUN apk add curl
 RUN apk add jq
 RUN apk add --update openssl
-RUN curl -LO https://storage.googleapis.com/kubernetes-release/release/v1.15.12/bin/linux/amd64/kubectl
+RUN curl -LO https://storage.googleapis.com/kubernetes-release/release/v1.18.16/bin/linux/amd64/kubectl
 RUN chmod +x ./kubectl
 RUN mv ./kubectl /usr/local/bin/kubectl
 COPY admission-controller-init-scripts/admission_util.sh /
@@ -46,8 +46,8 @@ ENV DISPATCHER_TIMEOUT "300s"
 ENV KUBE_CLIENT_QPS "1000"
 ENV KUBE_CLIENT_BURST "1000"
 ENV PREDICATES ""
-ENV OPERATOR_PLUGINS "general"
 ENV ENABLE_CONFIG_HOT_REFRESH "true"
+ENV OPERATOR_PLUGINS "general,spark-k8s-operator"
 ENTRYPOINT ["sh", "-c", "/k8s_yunikorn_scheduler \
 -clusterId=${CLUSTER_ID} \
 -clusterVersion=${CLUSTER_VERSION} \
