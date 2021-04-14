@@ -32,7 +32,7 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 )
 
-// placeholder manager is a service to manage the lifecycle of app placeholders
+// PlaceholderManager is a service to manage the lifecycle of app placeholders
 type PlaceholderManager struct {
 	// clients can neve be nil, even the kubeclient cannot be nil as the shim will not start without it
 	clients *client.Clients
@@ -47,10 +47,13 @@ type PlaceholderManager struct {
 }
 
 var placeholderMgr *PlaceholderManager
+var placeholderManagerLock sync.Mutex
 
 func NewPlaceholderManager(clients *client.Clients) *PlaceholderManager {
 	var r atomic.Value
 	r.Store(false)
+	placeholderManagerLock.Lock()
+	defer placeholderManagerLock.Unlock()
 	placeholderMgr = &PlaceholderManager{
 		clients:    clients,
 		running:    r,
@@ -61,6 +64,8 @@ func NewPlaceholderManager(clients *client.Clients) *PlaceholderManager {
 }
 
 func getPlaceholderManager() *PlaceholderManager {
+	placeholderManagerLock.Lock()
+	defer placeholderManagerLock.Unlock()
 	return placeholderMgr
 }
 
