@@ -40,7 +40,6 @@ type Manager struct {
 }
 
 func NewManager(amProtocol interfaces.ApplicationManagementProtocol, apiProvider client.APIProvider) *Manager {
-	log.Logger().Info("New AppMgr initialized")
 	return &Manager{
 		amProtocol:  amProtocol,
 		apiProvider: apiProvider,

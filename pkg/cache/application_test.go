@@ -114,7 +114,7 @@ func TestFailApplication(t *testing.T) {
 	dispatcher.Start()
 	defer dispatcher.Stop()
 
-	//// inject the mocked clients to the placeholder manager
+	// inject the mocked clients to the placeholder manager
 	createdPods := newThreadSafePodsMap()
 	mockedAPIProvider := client.NewMockedAPIProvider()
 	mockedAPIProvider.MockCreateFn(func(pod *v1.Pod) (*v1.Pod, error) {
