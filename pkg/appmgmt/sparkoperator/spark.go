@@ -30,7 +30,7 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 )
 
-// implements interfaces#Recoverable, interfaces#AppManager
+// Manager implements interfaces#Recoverable, interfaces#AppManager
 type Manager struct {
 	amProtocol         interfaces.ApplicationManagementProtocol
 	apiProvider        client.APIProvider
@@ -48,7 +48,7 @@ func NewManager(amProtocol interfaces.ApplicationManagementProtocol, apiProvider
 	}
 }
 
-// this implements AppManagementService interface
+// ServiceInit implements AppManagementService interface
 func (os *Manager) ServiceInit() error {
 	crClient, err := crcClientSet.NewForConfig(
 		os.apiProvider.GetAPIs().KubeClient.GetConfigs())
@@ -93,9 +93,8 @@ func (os *Manager) updateApplication(old, new interface{}) {
 	currState := appNew.Status.AppState.State
 	log.Logger().Debug("spark app updated",
 		zap.Any("old", appOld),
-		zap.Any("new", appNew))
-	log.Logger().Debug("spark app state",
-		zap.String("current state", string(currState)))
+		zap.Any("new", appNew),
+		zap.Any("new state", string(currState)))
 	if currState == v1beta2.FailedState {
 		log.Logger().Debug("SparkApp has failed. Ready to initiate app cleanup")
 		os.amProtocol.NotifyApplicationFail(appNew.Status.SparkApplicationID)

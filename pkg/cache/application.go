@@ -461,7 +461,7 @@ func (app *Application) postAppAccepted() {
 	// app could have allocated tasks upon a recovery, and in that case,
 	// the reserving phase has already passed, no need to trigger that again.
 	var ev events.SchedulingEvent
-	log.Logger().Info("postAppAccepted",
+	log.Logger().Info("postAppAccepted on cached app",
 		zap.String("appID", app.applicationID),
 		zap.Int("numTaskGroups", len(app.taskGroups)),
 		zap.Int("numAllocatedTasks", len(app.getTasks(events.States().Task.Allocated))))
@@ -517,23 +517,16 @@ func (app *Application) handleRejectApplicationEvent(event *fsm.Event) {
 		fmt.Sprintf("application %s is rejected by scheduler", app.applicationID)))
 }
 
-func placeholderCleanup(app *Application) {
-	placeholderManager := getPlaceholderManager()
-	if placeholderManager != nil {
-		placeholderManager.cleanUp(app)
-	}
-}
-
 func (app *Application) handleCompleteApplicationEvent(event *fsm.Event) {
 	// TODO app lifecycle updates
 	go func() {
-		placeholderCleanup(app)
+		getPlaceholderManager().cleanUp(app)
 	}()
 }
 
 func (app *Application) handleFailApplicationEvent(event *fsm.Event) {
 	go func() {
-		placeholderCleanup(app)
+		getPlaceholderManager().cleanUp(app)
 	}()
 	eventArgs := make([]string, 1)
 	if err := events.GetEventArgsAsStrings(eventArgs, event.Args); err != nil {

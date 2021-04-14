@@ -37,7 +37,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// implements interfaces#Recoverable, interfaces#AppManager
+// Manager implements interfaces#Recoverable, interfaces#AppManager
 // generic app management service watches events from all the pods,
 // it recognize apps by reading pod's spec labels, if there are proper info such as
 // applicationID, queue name found, and claim it as an app or a app task,
@@ -311,17 +311,15 @@ func (os *Manager) ListApplications() (map[string]interfaces.ApplicationMetadata
 
 	// get existing apps
 	existingApps := make(map[string]interfaces.ApplicationMetadata)
-	if len(appPods) > 0 {
-		for _, pod := range appPods {
-			log.Logger().Debug("Looking at pod for recovery candidates", zap.String("podNamespace", pod.Namespace), zap.String("podName", pod.Name))
-			// general filter passes, and pod is assigned
-			// this means the pod is already scheduled by scheduler for an existing app
-			if utils.GeneralPodFilter(pod) && utils.IsAssignedPod(pod) {
-				if meta, ok := os.getAppMetadata(pod); ok {
-					log.Logger().Debug("Adding appID as recovery candidate", zap.String("appID", meta.ApplicationID))
-					if _, exist := existingApps[meta.ApplicationID]; !exist {
-						existingApps[meta.ApplicationID] = meta
-					}
+	for _, pod := range appPods {
+		log.Logger().Debug("Looking at pod for recovery candidates", zap.String("podNamespace", pod.Namespace), zap.String("podName", pod.Name))
+		// general filter passes, and pod is assigned
+		// this means the pod is already scheduled by scheduler for an existing app
+		if utils.GeneralPodFilter(pod) && utils.IsAssignedPod(pod) {
+			if meta, ok := os.getAppMetadata(pod); ok {
+				log.Logger().Debug("Adding appID as recovery candidate", zap.String("appID", meta.ApplicationID))
+				if _, exist := existingApps[meta.ApplicationID]; !exist {
+					existingApps[meta.ApplicationID] = meta
 				}
 			}
 		}
