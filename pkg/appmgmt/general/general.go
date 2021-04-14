@@ -21,6 +21,7 @@ package general
 import (
 	"reflect"
 
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	k8sCache "k8s.io/client-go/tools/cache"
@@ -32,8 +33,8 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
+
 	"go.uber.org/zap"
-	v1 "k8s.io/api/core/v1"
 )
 
 // implements interfaces#Recoverable, interfaces#AppManager

@@ -599,7 +599,7 @@ func (ctx *Context) RemoveTask(appID, taskID string) error {
 	defer ctx.lock.RUnlock()
 	if app, ok := ctx.applications[appID]; ok {
 		return app.removeTask(taskID)
-	} else
+	}
 	return fmt.Errorf("application %s is not found in the context", appID)
 }
 

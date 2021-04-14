@@ -74,8 +74,9 @@ func (m *MockedAMProtocol) AddTask(request *interfaces.AddTaskRequest) interface
 			task := NewTask(request.Metadata.TaskID, app, nil, request.Metadata.Pod)
 			app.addTask(task)
 			return task
+		} else {
+			return existingTask
 		}
-		return existingTask
 	} else {
 		return nil
 	}
@@ -84,8 +85,9 @@ func (m *MockedAMProtocol) AddTask(request *interfaces.AddTaskRequest) interface
 func (m *MockedAMProtocol) RemoveTask(appID, taskID string) error {
 	if app, ok := m.applications[appID]; ok {
 		return app.removeTask(taskID)
+	} else {
+		return fmt.Errorf("app not found")
 	}
-	return fmt.Errorf("app not found")
 }
 
 func (m *MockedAMProtocol) NotifyApplicationComplete(appID string) {
