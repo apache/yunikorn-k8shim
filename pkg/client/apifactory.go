@@ -28,15 +28,14 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client/informers/externalversions/yunikorn.apache.org/v1alpha1"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 
-	"k8s.io/client-go/informers"
-	"k8s.io/client-go/tools/cache"
-	"k8s.io/kubernetes/pkg/scheduler/volumebinder"
-
-	"github.com/apache/incubator-yunikorn-core/pkg/api"
 	appclient "github.com/apache/incubator-yunikorn-k8shim/pkg/client/clientset/versioned"
 	appinformers "github.com/apache/incubator-yunikorn-k8shim/pkg/client/informers/externalversions"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
+	apiCommon "github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/api"
+	"k8s.io/client-go/informers"
+	"k8s.io/client-go/tools/cache"
+	"k8s.io/kubernetes/pkg/scheduler/volumebinder"
 )
 
 type Type int
@@ -79,7 +78,7 @@ type APIFactory struct {
 	lock     *sync.RWMutex
 }
 
-func NewAPIFactory(scheduler api.SchedulerAPI, configs *conf.SchedulerConf, testMode bool) *APIFactory {
+func NewAPIFactory(scheduler apiCommon.SchedulerAPI, configs *conf.SchedulerConf, testMode bool) *APIFactory {
 	kubeClient := NewKubeClient(configs.KubeConfig)
 
 	// we have disabled re-sync to keep ourselves up-to-date

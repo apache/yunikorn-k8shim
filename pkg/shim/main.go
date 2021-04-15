@@ -25,11 +25,11 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/apache/incubator-yunikorn-core/pkg/api"
 	"github.com/apache/incubator-yunikorn-core/pkg/entrypoint"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
+	apiCommon "github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/api"
 )
 
 var (
@@ -44,7 +44,7 @@ func main() {
 
 	serviceContext := entrypoint.StartAllServices()
 
-	if sa, ok := serviceContext.RMProxy.(api.SchedulerAPI); ok {
+	if sa, ok := serviceContext.RMProxy.(apiCommon.SchedulerAPI); ok {
 		ss := newShimScheduler(sa, conf.GetSchedulerConf())
 		ss.run()
 

@@ -32,7 +32,6 @@ import (
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/record"
 
-	"github.com/apache/incubator-yunikorn-core/pkg/api"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
@@ -41,6 +40,7 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/dispatcher"
+	apiCommon "github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/api"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 )
 
@@ -233,7 +233,7 @@ func TestReleaseAppAllocation(t *testing.T) {
 
 func newMockSchedulerAPI() *mockSchedulerAPI {
 	return &mockSchedulerAPI{
-		registerFn: func(request *si.RegisterResourceManagerRequest, callback api.ResourceManagerCallback) (response *si.RegisterResourceManagerResponse, e error) {
+		registerFn: func(request *si.RegisterResourceManagerRequest, callback apiCommon.ResourceManagerCallback) (response *si.RegisterResourceManagerResponse, e error) {
 			return nil, nil
 		},
 		updateFn: func(request *si.UpdateRequest) error {
@@ -243,14 +243,14 @@ func newMockSchedulerAPI() *mockSchedulerAPI {
 }
 
 type mockSchedulerAPI struct {
-	callback   api.ResourceManagerCallback //nolint:structcheck,unused
+	callback   apiCommon.ResourceManagerCallback //nolint:structcheck,unused
 	registerFn func(request *si.RegisterResourceManagerRequest,
-		callback api.ResourceManagerCallback) (*si.RegisterResourceManagerResponse, error)
+		callback apiCommon.ResourceManagerCallback) (*si.RegisterResourceManagerResponse, error)
 	updateFn func(request *si.UpdateRequest) error
 }
 
 func (ms *mockSchedulerAPI) RegisterResourceManager(request *si.RegisterResourceManagerRequest,
-	callback api.ResourceManagerCallback) (*si.RegisterResourceManagerResponse, error) {
+	callback apiCommon.ResourceManagerCallback) (*si.RegisterResourceManagerResponse, error) {
 	return ms.registerFn(request, callback)
 }
 

@@ -28,7 +28,6 @@ import (
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/apache/incubator-yunikorn-core/pkg/api"
 	coreconfigs "github.com/apache/incubator-yunikorn-core/pkg/common/configs"
 	"github.com/apache/incubator-yunikorn-core/pkg/entrypoint"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt"
@@ -41,6 +40,7 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
+	apiCommon "github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/api"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 )
 
@@ -61,7 +61,7 @@ func (fc *MockScheduler) init(queues string) {
 	serviceContext := entrypoint.StartAllServices()
 	rmProxy := serviceContext.RMProxy
 	coreconfigs.MockSchedulerConfigByData([]byte(queues))
-	schedulerAPI, ok := rmProxy.(api.SchedulerAPI)
+	schedulerAPI, ok := rmProxy.(apiCommon.SchedulerAPI)
 	if !ok {
 		log.Logger().Debug("cast failed unexpected object",
 			zap.Any("schedulerAPI", rmProxy))

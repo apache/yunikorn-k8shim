@@ -25,12 +25,12 @@ import (
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/apache/incubator-yunikorn-core/pkg/api"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/cache/external"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
+	apiCommon "github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/api"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 )
 
@@ -43,13 +43,13 @@ const (
 
 // scheduler nodes maintain cluster nodes and their status for the scheduler
 type schedulerNodes struct {
-	proxy    api.SchedulerAPI
+	proxy    apiCommon.SchedulerAPI
 	nodesMap map[string]*SchedulerNode
 	cache    *external.SchedulerCache
 	lock     *sync.RWMutex
 }
 
-func newSchedulerNodes(schedulerAPI api.SchedulerAPI, cache *external.SchedulerCache) *schedulerNodes {
+func newSchedulerNodes(schedulerAPI apiCommon.SchedulerAPI, cache *external.SchedulerCache) *schedulerNodes {
 	return &schedulerNodes{
 		proxy:    schedulerAPI,
 		nodesMap: make(map[string]*SchedulerNode),

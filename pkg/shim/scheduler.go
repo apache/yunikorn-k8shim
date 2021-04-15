@@ -26,7 +26,6 @@ import (
 	"go.uber.org/zap"
 	"k8s.io/apimachinery/pkg/util/wait"
 
-	"github.com/apache/incubator-yunikorn-core/pkg/api"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/cache"
@@ -36,6 +35,7 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
+	apiCommon "github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/api"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 )
 
@@ -45,13 +45,13 @@ type KubernetesShim struct {
 	context      *cache.Context
 	appManager   *appmgmt.AppManagementService
 	phManager    *cache.PlaceholderManager
-	callback     api.ResourceManagerCallback
+	callback     apiCommon.ResourceManagerCallback
 	stateMachine *fsm.FSM
 	stopChan     chan struct{}
 	lock         *sync.RWMutex
 }
 
-func newShimScheduler(scheduler api.SchedulerAPI, configs *conf.SchedulerConf) *KubernetesShim {
+func newShimScheduler(scheduler apiCommon.SchedulerAPI, configs *conf.SchedulerConf) *KubernetesShim {
 	apiFactory := client.NewAPIFactory(scheduler, configs, false)
 	context := cache.NewContext(apiFactory)
 	rmCallback := callback.NewAsyncRMCallback(context)
@@ -61,7 +61,7 @@ func newShimScheduler(scheduler api.SchedulerAPI, configs *conf.SchedulerConf) *
 
 // this is visible for testing
 func newShimSchedulerInternal(ctx *cache.Context, apiFactory client.APIProvider,
-	am *appmgmt.AppManagementService, cb api.ResourceManagerCallback) *KubernetesShim {
+	am *appmgmt.AppManagementService, cb apiCommon.ResourceManagerCallback) *KubernetesShim {
 	var states = events.States().Scheduler
 	ss := &KubernetesShim{
 		apiFactory: apiFactory,
