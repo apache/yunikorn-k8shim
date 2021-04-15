@@ -461,14 +461,14 @@ func (app *Application) postAppAccepted() {
 	// app could have allocated tasks upon a recovery, and in that case,
 	// the reserving phase has already passed, no need to trigger that again.
 	var ev events.SchedulingEvent
-	log.Logger().Info("postAppAccepted on cached app",
+	log.Logger().Debug("postAppAccepted on cached app",
 		zap.String("appID", app.applicationID),
 		zap.Int("numTaskGroups", len(app.taskGroups)),
 		zap.Int("numAllocatedTasks", len(app.getTasks(events.States().Task.Allocated))))
 	if len(app.taskGroups) != 0 &&
 		len(app.getTasks(events.States().Task.Allocated)) == 0 {
 		ev = NewSimpleApplicationEvent(app.applicationID, events.TryReserve)
-		log.Logger().Info("tryReserve")
+		log.Logger().Info("app has taskGroups defined, trying to reserve resources for gang members")
 		dispatcher.Dispatch(ev)
 	} else {
 		ev = NewRunApplicationEvent(app.applicationID)

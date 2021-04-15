@@ -48,6 +48,13 @@ func NewManager(amProtocol interfaces.ApplicationManagementProtocol, apiProvider
 }
 
 // ServiceInit implements AppManagementService interface
+/*
+It watches for changes to the SparkApplications CRD objects
+Two event handlers are defined to react accordingly when an SparkApplication is updated or deleted.
+Note that there's no need for an event handler for AddFunc because when a SparkApplication object
+is first created, the application ID has not been generated yet. It will only be available after the driver
+pod starts and then the Spark K8s backend will assign a string that starts with "spark-" as the app ID
+*/
 func (os *Manager) ServiceInit() error {
 	crClient, err := crcClientSet.NewForConfig(
 		os.apiProvider.GetAPIs().KubeClient.GetConfigs())
@@ -86,6 +93,11 @@ func (os *Manager) Stop() {
 	os.stopCh <- struct{}{}
 }
 
+/*
+When a SparkApplication's state is updated and the new state is one of
+FailedState or CompletedState, send the ApplicationFail and ApplicationComplete
+message, respectively, through the app mgmt protocol
+*/
 func (os *Manager) updateApplication(old, new interface{}) {
 	appOld := old.(*v1beta2.SparkApplication)
 	appNew := new.(*v1beta2.SparkApplication)
@@ -103,6 +115,10 @@ func (os *Manager) updateApplication(old, new interface{}) {
 	}
 }
 
+/*
+When a request to delete a SparkApplicaiton is detected,
+send an ApplicationComplete message through the app mgmt protocol
+*/
 func (os *Manager) deleteApplication(obj interface{}) {
 	app := obj.(*v1beta2.SparkApplication)
 	log.Logger().Info("spark app deleted", zap.Any("SparkApplication", app))

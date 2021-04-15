@@ -47,7 +47,7 @@ ENV KUBE_CLIENT_QPS "1000"
 ENV KUBE_CLIENT_BURST "1000"
 ENV PREDICATES ""
 ENV ENABLE_CONFIG_HOT_REFRESH "true"
-ENV OPERATOR_PLUGINS "general,spark-k8s-operator"
+ENV OPERATOR_PLUGINS "general"
 ENTRYPOINT ["sh", "-c", "/k8s_yunikorn_scheduler \
 -clusterId=${CLUSTER_ID} \
 -clusterVersion=${CLUSTER_VERSION} \
