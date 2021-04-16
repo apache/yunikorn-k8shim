@@ -19,6 +19,7 @@
 package cache
 
 import (
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -31,7 +32,7 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 )
 
-// placeholder manager is a service to manage the lifecycle of app placeholders
+// PlaceholderManager is a service to manage the lifecycle of app placeholders
 type PlaceholderManager struct {
 	// clients can neve be nil, even the kubeclient cannot be nil as the shim will not start without it
 	clients *client.Clients
@@ -75,8 +76,6 @@ func (mgr *PlaceholderManager) createAppPlaceholders(app *Application) error {
 			// create the placeholder on K8s
 			_, err := mgr.clients.KubeClient.Create(placeholder.pod)
 			if err != nil {
-				// if failed to create the place holder pod
-				// caller should handle this error
 				log.Logger().Error("failed to create placeholder pod",
 					zap.Error(err))
 				return err
@@ -100,13 +99,15 @@ func (mgr *PlaceholderManager) cleanUp(app *Application) {
 			// remove pod
 			err := mgr.clients.KubeClient.Delete(task.pod)
 			if err != nil {
-				log.Logger().Error("failed to clean up placeholder pod",
+				log.Logger().Warn("failed to clean up placeholder pod",
 					zap.Error(err))
-				mgr.orphanPods[taskID] = task.pod
+				if !strings.Contains(err.Error(), "not found") {
+					mgr.orphanPods[taskID] = task.pod
+				}
 			}
 		}
 	}
-	log.Logger().Info("finish to clean up app placeholders",
+	log.Logger().Info("finished cleaning up app placeholders",
 		zap.String("appID", app.GetApplicationID()))
 }
 

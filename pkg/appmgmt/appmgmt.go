@@ -31,7 +31,7 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 )
 
-// app manager service is a central service that interacts with
+// AppManagementService is a central service that interacts with
 // one or more K8s operators for app scheduling.
 type AppManagementService struct {
 	apiProvider client.APIProvider
@@ -47,7 +47,10 @@ func NewAMService(amProtocol interfaces.ApplicationManagementProtocol,
 		managers:    make([]interfaces.AppManager, 0),
 	}
 
+	log.Logger().Info("Initializing new AppMgmt service")
+
 	if !apiProvider.IsTestingMode() {
+		log.Logger().Info("Registering Spark operator with the AppMgmt service")
 		appManager.register(
 			// registered app plugins
 			// for general apps
