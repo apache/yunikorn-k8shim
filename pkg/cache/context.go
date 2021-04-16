@@ -809,7 +809,7 @@ func (ctx *Context) SaveConfigmap(request *si.UpdateConfigurationRequest) *si.Up
 		return &si.UpdateConfigurationResponse{
 			Success: false,
 			Reason: fmt.Sprintf("hot-refresh is enabled. To use the API for configuration update, " +
-				"set enableConfigHotRefresh = true and restart the scheduler"),
+				"set enableConfigHotRefresh = false and restart the scheduler"),
 		}
 	}
 	slt := labels.SelectorFromSet(labels.Set{constants.LabelApp: "yunikorn"})
