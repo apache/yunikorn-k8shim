@@ -420,6 +420,16 @@ func (ctx *Context) NotifyApplicationComplete(appID string) {
 	}
 }
 
+func (ctx *Context) NotifyApplicationFail(appID string) {
+	if app := ctx.GetApplication(appID); app != nil {
+		log.Logger().Debug("NotifyApplicationFail",
+			zap.String("appID", appID),
+			zap.String("currentAppState", app.GetApplicationState()))
+		ev := NewSimpleApplicationEvent(appID, events.FailApplication)
+		dispatcher.Dispatch(ev)
+	}
+}
+
 func (ctx *Context) NotifyTaskComplete(appID, taskID string) {
 	log.Logger().Debug("NotifyTaskComplete",
 		zap.String("appID", appID),
@@ -539,9 +549,8 @@ func (ctx *Context) RemoveApplication(appID string) error {
 			zap.String("appID", appID))
 
 		return nil
-	} else {
-		return fmt.Errorf("application %s is not found in the context", appID)
 	}
+	return fmt.Errorf("application %s is not found in the context", appID)
 }
 
 func (ctx *Context) RemoveApplicationInternal(appID string) error {
@@ -590,9 +599,8 @@ func (ctx *Context) RemoveTask(appID, taskID string) error {
 	defer ctx.lock.RUnlock()
 	if app, ok := ctx.applications[appID]; ok {
 		return app.removeTask(taskID)
-	} else {
-		return fmt.Errorf("application %s is not found in the context", appID)
 	}
+	return fmt.Errorf("application %s is not found in the context", appID)
 }
 
 func (ctx *Context) getTask(appID string, taskID string) (*Task, error) {
@@ -809,7 +817,7 @@ func (ctx *Context) SaveConfigmap(request *si.UpdateConfigurationRequest) *si.Up
 		return &si.UpdateConfigurationResponse{
 			Success: false,
 			Reason: fmt.Sprintf("hot-refresh is enabled. To use the API for configuration update, " +
-				"set enableConfigHotRefresh = true and restart the scheduler"),
+				"set enableConfigHotRefresh = false and restart the scheduler"),
 		}
 	}
 	slt := labels.SelectorFromSet(labels.Set{constants.LabelApp: "yunikorn"})

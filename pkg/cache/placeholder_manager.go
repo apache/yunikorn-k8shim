@@ -19,6 +19,7 @@
 package cache
 
 import (
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -31,16 +32,18 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 )
 
-// placeholder manager is a service to manage the lifecycle of app placeholders
+// PlaceholderManager is a service to manage the lifecycle of app placeholders
 type PlaceholderManager struct {
+	// clients can neve be nil, even the kubeclient cannot be nil as the shim will not start without it
 	clients *client.Clients
 	// when the placeholder manager is unable to delete a pod,
 	// this pod becomes to be an "orphan" pod. We add them to a map
 	// and keep retrying deleting them in order to avoid wasting resources.
-	orphanPod map[string]*v1.Pod
-	stopChan  chan struct{}
-	running   atomic.Value
-	sync.RWMutex
+	orphanPods map[string]*v1.Pod
+	stopChan   chan struct{}
+	running    atomic.Value
+	// a simple mutex will do we do not have separate read and write paths
+	sync.Mutex
 }
 
 var placeholderMgr *PlaceholderManager
@@ -49,8 +52,10 @@ func NewPlaceholderManager(clients *client.Clients) *PlaceholderManager {
 	var r atomic.Value
 	r.Store(false)
 	placeholderMgr = &PlaceholderManager{
-		clients: clients,
-		running: r,
+		clients:    clients,
+		running:    r,
+		orphanPods: make(map[string]*v1.Pod),
+		stopChan:   make(chan struct{}),
 	}
 	return placeholderMgr
 }
@@ -71,8 +76,6 @@ func (mgr *PlaceholderManager) createAppPlaceholders(app *Application) error {
 			// create the placeholder on K8s
 			_, err := mgr.clients.KubeClient.Create(placeholder.pod)
 			if err != nil {
-				// if failed to create the place holder pod
-				// caller should handle this error
 				log.Logger().Error("failed to create placeholder pod",
 					zap.Error(err))
 				return err
@@ -96,20 +99,22 @@ func (mgr *PlaceholderManager) cleanUp(app *Application) {
 			// remove pod
 			err := mgr.clients.KubeClient.Delete(task.pod)
 			if err != nil {
-				log.Logger().Error("failed to clean up placeholder pod",
+				log.Logger().Warn("failed to clean up placeholder pod",
 					zap.Error(err))
-				mgr.orphanPod[taskID] = task.pod
+				if !strings.Contains(err.Error(), "not found") {
+					mgr.orphanPods[taskID] = task.pod
+				}
 			}
 		}
 	}
-	log.Logger().Info("finish to clean up app placeholders",
+	log.Logger().Info("finished cleaning up app placeholders",
 		zap.String("appID", app.GetApplicationID()))
 }
 
 func (mgr *PlaceholderManager) cleanOrphanPlaceholders() {
 	mgr.Lock()
 	defer mgr.Unlock()
-	for taskID, pod := range mgr.orphanPod {
+	for taskID, pod := range mgr.orphanPods {
 		log.Logger().Debug("start to clean up orphan pod",
 			zap.String("taskID", taskID),
 			zap.String("podName", pod.Name))
@@ -117,30 +122,31 @@ func (mgr *PlaceholderManager) cleanOrphanPlaceholders() {
 		if err != nil {
 			log.Logger().Warn("failed to clean up orphan pod", zap.Error(err))
 		} else {
-			delete(mgr.orphanPod, taskID)
+			delete(mgr.orphanPods, taskID)
 		}
 	}
 }
 
 func (mgr *PlaceholderManager) Start() {
 	if mgr.isRunning() {
-		log.Logger().Info("The placeholder manager has been started")
+		log.Logger().Info("PlaceholderManager is already started")
 		return
 	}
-	log.Logger().Info("starting the Placeholder Manager")
-	mgr.stopChan = make(chan struct{})
+	log.Logger().Info("starting the PlaceholderManager")
 	mgr.setRunning(true)
 	go func() {
+		// clean orphan placeholders approximately every 5 seconds, check for stop every 100 milliseconds
 		for {
-			select {
-			case <-mgr.stopChan:
-				log.Logger().Info("PlaceholderManager has been stopped")
-				mgr.setRunning(false)
-				return
-			default:
-				// clean orphan placeholders every 5 seconds
-				mgr.cleanOrphanPlaceholders()
-				time.Sleep(5 * time.Second)
+			mgr.cleanOrphanPlaceholders()
+			for i := 0; i < 50; i++ {
+				select {
+				case <-mgr.stopChan:
+					mgr.setRunning(false)
+					log.Logger().Info("PlaceholderManager has been stopped")
+					return
+				default:
+					time.Sleep(100 * time.Millisecond)
+				}
 			}
 		}
 	}()
@@ -148,10 +154,10 @@ func (mgr *PlaceholderManager) Start() {
 
 func (mgr *PlaceholderManager) Stop() {
 	if !mgr.isRunning() {
-		log.Logger().Info("The placeholder manager has been stopped")
+		log.Logger().Info("PlaceholderManager already stopped")
 		return
 	}
-	log.Logger().Info("stopping the Placeholder Manager")
+	log.Logger().Info("stopping the PlaceholderManager")
 	mgr.stopChan <- struct{}{}
 }
 

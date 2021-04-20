@@ -97,4 +97,3 @@ func initLogger() {
 	//nolint:errcheck
 	defer logger.Sync()
 }
-

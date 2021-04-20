@@ -72,6 +72,7 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 			zap.String("appID", app.ApplicationID))
 
 		if app := callback.context.GetApplication(app.ApplicationID); app != nil {
+			log.Logger().Info("Accepting app", zap.String("appID", app.GetApplicationID()))
 			ev := cache.NewSimpleApplicationEvent(app.GetApplicationID(), events.AcceptApplication)
 			dispatcher.Dispatch(ev)
 		}
@@ -150,7 +151,7 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 			}
 		} else {
 			if updated.State == "Failing" || updated.State == events.States().Application.Failed {
-				ev := cache.NewFailApplicationEvent(updated.ApplicationID)
+				ev := cache.NewFailApplicationEvent(updated.ApplicationID, updated.Message)
 				dispatcher.Dispatch(ev)
 			}
 			// handle status update

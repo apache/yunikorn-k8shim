@@ -56,7 +56,7 @@ func TestNewPlaceholder(t *testing.T) {
 	assert.Equal(t, holder.pod.Spec.SchedulerName, constants.SchedulerName)
 	assert.Equal(t, holder.pod.Name, "ph-name")
 	assert.Equal(t, holder.pod.Namespace, namespace)
-	assert.Equal(t, len(holder.pod.Labels), 2)
+	assert.Equal(t, len(holder.pod.Labels), 3)
 	assert.Equal(t, holder.pod.Labels[constants.LabelApplicationID], appID)
 	assert.Equal(t, holder.pod.Labels[constants.LabelQueueName], queue)
 	assert.Equal(t, len(holder.pod.Annotations), 2)
@@ -100,7 +100,7 @@ func TestNewPlaceholderWithLabelsAndAnnotations(t *testing.T) {
 	})
 
 	holder := newPlaceholder("ph-name", app, app.taskGroups[0])
-	assert.Equal(t, len(holder.pod.Labels), 4)
+	assert.Equal(t, len(holder.pod.Labels), 5)
 	assert.Equal(t, len(holder.pod.Annotations), 5)
 	assert.Equal(t, holder.pod.Labels["labelKey0"], "labelKeyValue0")
 	assert.Equal(t, holder.pod.Labels["labelKey1"], "labelKeyValue1")

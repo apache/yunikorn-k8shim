@@ -61,7 +61,7 @@ func (svc *AppManagementService) recoverApps() (map[string]interfaces.ManagedApp
 					}); app != nil {
 					recoveringApps[app.GetApplicationID()] = app
 					if err := app.TriggerAppRecovery(); err != nil {
-						log.Logger().Error("failed to recovery app", zap.Error(err))
+						log.Logger().Error("failed to recover app", zap.Error(err))
 						return recoveringApps, fmt.Errorf("failed to recover app %s, reason: %v",
 							app.GetApplicationID(), err)
 					}
