@@ -48,6 +48,7 @@ ENV KUBE_CLIENT_BURST "1000"
 ENV PREDICATES ""
 ENV OPERATOR_PLUGINS "general"
 ENV ENABLE_CONFIG_HOT_REFRESH "true"
+ENV USER_LABEL_KEY "yunikorn.apache.org/user"
 ENTRYPOINT ["sh", "-c", "/k8s_yunikorn_scheduler \
 -clusterId=${CLUSTER_ID} \
 -clusterVersion=${CLUSTER_VERSION} \
@@ -62,4 +63,5 @@ ENTRYPOINT ["sh", "-c", "/k8s_yunikorn_scheduler \
 -kubeBurst=${KUBE_CLIENT_BURST} \
 -predicates=${PREDICATES} \
 -operatorPlugins=${OPERATOR_PLUGINS} \
--enableConfigHotRefresh=${ENABLE_CONFIG_HOT_REFRESH}"]
+-enableConfigHotRefresh=${ENABLE_CONFIG_HOT_REFRESH} \
+-userLabelKey=${USER_LABEL_KEY}"]
