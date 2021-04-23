@@ -152,7 +152,7 @@ func initConfigs() {
 		"configuration hot-refresh. If this value is set to true, the configuration updates in the configmap will be "+
 		"automatically reloaded without restarting the scheduler.")
 	userLabelKey := flag.String("userLabelKey", constants.DefaultUserLabel,
-		"provides label key to be used to identify user")
+		"provide pod label key to be used to identify an user")
 
 	flag.Parse()
 
