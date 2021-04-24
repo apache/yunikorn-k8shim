@@ -75,7 +75,7 @@ func TestGetAppMetadata(t *testing.T) {
 	assert.Equal(t, ok, true)
 	assert.Equal(t, app.ApplicationID, "app00001")
 	assert.Equal(t, app.QueueName, "root.a")
-	assert.Equal(t, app.User, "default")
+	assert.Equal(t, app.User, constants.DefaultUser)
 	assert.DeepEqual(t, app.Tags, map[string]string{"namespace": "default"})
 	assert.Equal(t, app.TaskGroups[0].Name, "test-group-1")
 	assert.Equal(t, app.TaskGroups[0].MinMember, int32(3))
@@ -109,7 +109,7 @@ func TestGetAppMetadata(t *testing.T) {
 	assert.Equal(t, ok, true)
 	assert.Equal(t, app.ApplicationID, "app00002")
 	assert.Equal(t, app.QueueName, "root.b")
-	assert.Equal(t, app.User, "testuser")
+	assert.Equal(t, app.User, constants.DefaultUser)
 	assert.DeepEqual(t, app.Tags, map[string]string{"namespace": "app-namespace-01"})
 	assert.DeepEqual(t, len(app.TaskGroups), 0)
 
