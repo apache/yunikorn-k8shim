@@ -48,7 +48,7 @@ ENV KUBE_CLIENT_BURST "1000"
 ENV PREDICATES ""
 ENV OPERATOR_PLUGINS "general"
 ENV ENABLE_CONFIG_HOT_REFRESH "true"
-ENV USER_LABEL_KEY "yunikorn.apache.org/user"
+ENV USER_LABEL_KEY "yunikorn.apache.org/username"
 ENTRYPOINT ["sh", "-c", "/k8s_yunikorn_scheduler \
 -clusterId=${CLUSTER_ID} \
 -clusterVersion=${CLUSTER_VERSION} \
