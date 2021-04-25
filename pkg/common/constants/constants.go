@@ -34,6 +34,8 @@ const AppTagNamespace = "namespace"
 const AppTagNamespaceResourceQuota = "namespace.resourcequota"
 const AppTagNamespaceParentQueue = "namespace.parentqueue"
 const DefaultAppNamespace = "default"
+const DefaultUserLabel = "yunikorn.apache.org/username"
+const DefaultUser = "nobody"
 
 // Resource
 const Memory = "memory"

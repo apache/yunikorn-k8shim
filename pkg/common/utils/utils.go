@@ -23,6 +23,8 @@ import (
 	"strings"
 	"time"
 
+	"go.uber.org/zap"
+
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -30,6 +32,8 @@ import (
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 )
 
@@ -217,4 +221,23 @@ func MergeMaps(first, second map[string]string) map[string]string {
 		result[k] = v
 	}
 	return result
+}
+
+// find user name from pod label
+func GetUserFromPod(pod *v1.Pod) string {
+	userLabelKey := conf.GetSchedulerConf().UserLabelKey
+	// User name to be defined in labels
+	for name, value := range pod.Labels {
+		if name == userLabelKey {
+			log.Logger().Info("Found user name from pod labels.",
+				zap.String("userLabel", userLabelKey), zap.String("user", value))
+			return value
+		}
+	}
+	value := constants.DefaultUser
+
+	log.Logger().Info("Unable to retrieve user name from pod labels. Empty user label",
+		zap.String("userLabel", constants.DefaultUserLabel))
+
+	return value
 }

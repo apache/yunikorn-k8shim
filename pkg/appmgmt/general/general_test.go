@@ -75,7 +75,7 @@ func TestGetAppMetadata(t *testing.T) {
 	assert.Equal(t, ok, true)
 	assert.Equal(t, app.ApplicationID, "app00001")
 	assert.Equal(t, app.QueueName, "root.a")
-	assert.Equal(t, app.User, "")
+	assert.Equal(t, app.User, constants.DefaultUser)
 	assert.DeepEqual(t, app.Tags, map[string]string{"namespace": "default"})
 	assert.Equal(t, app.TaskGroups[0].Name, "test-group-1")
 	assert.Equal(t, app.TaskGroups[0].MinMember, int32(3))
@@ -92,13 +92,13 @@ func TestGetAppMetadata(t *testing.T) {
 			Namespace: "app-namespace-01",
 			UID:       "UID-POD-00001",
 			Labels: map[string]string{
-				"applicationId": "app00002",
-				"queue":         "root.b",
+				"applicationId":            "app00002",
+				"queue":                    "root.b",
+				"yunikorn.apache.org/user": "testuser",
 			},
 		},
 		Spec: v1.PodSpec{
-			SchedulerName:      constants.SchedulerName,
-			ServiceAccountName: "bob",
+			SchedulerName: constants.SchedulerName,
 		},
 		Status: v1.PodStatus{
 			Phase: v1.PodPending,
@@ -109,7 +109,7 @@ func TestGetAppMetadata(t *testing.T) {
 	assert.Equal(t, ok, true)
 	assert.Equal(t, app.ApplicationID, "app00002")
 	assert.Equal(t, app.QueueName, "root.b")
-	assert.Equal(t, app.User, "bob")
+	assert.Equal(t, app.User, constants.DefaultUser)
 	assert.DeepEqual(t, app.Tags, map[string]string{"namespace": "app-namespace-01"})
 	assert.DeepEqual(t, len(app.TaskGroups), 0)
 
@@ -124,8 +124,7 @@ func TestGetAppMetadata(t *testing.T) {
 			UID:       "UID-POD-00001",
 		},
 		Spec: v1.PodSpec{
-			SchedulerName:      constants.SchedulerName,
-			ServiceAccountName: "bob",
+			SchedulerName: constants.SchedulerName,
 		},
 		Status: v1.PodStatus{
 			Phase: v1.PodPending,
