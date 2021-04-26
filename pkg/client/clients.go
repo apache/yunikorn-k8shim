@@ -31,7 +31,7 @@ import (
 	appclient "github.com/apache/incubator-yunikorn-k8shim/pkg/client/clientset/versioned"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
-	apiCommon "github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/api"
+	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/api"
 )
 
 // clients encapsulates a set of useful client APIs
@@ -43,7 +43,7 @@ type Clients struct {
 
 	// client apis
 	KubeClient   KubeClient
-	SchedulerAPI apiCommon.SchedulerAPI
+	SchedulerAPI api.SchedulerAPI
 	AppClient    appclient.Interface
 
 	// informer factory

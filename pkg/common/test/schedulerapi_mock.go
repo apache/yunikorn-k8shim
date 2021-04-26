@@ -22,7 +22,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	apiCommon "github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/api"
+	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/api"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 )
 
@@ -30,7 +30,7 @@ type SchedulerAPIMock struct {
 	registerCount int32
 	updateCount   int32
 	registerFn    func(request *si.RegisterResourceManagerRequest,
-		callback apiCommon.ResourceManagerCallback) (*si.RegisterResourceManagerResponse, error)
+		callback api.ResourceManagerCallback) (*si.RegisterResourceManagerResponse, error)
 	updateFn func(request *si.UpdateRequest) error
 	lock     sync.Mutex
 }
@@ -40,7 +40,7 @@ func NewSchedulerAPIMock() *SchedulerAPIMock {
 		registerCount: int32(0),
 		updateCount:   int32(0),
 		registerFn: func(request *si.RegisterResourceManagerRequest,
-			callback apiCommon.ResourceManagerCallback) (response *si.RegisterResourceManagerResponse, e error) {
+			callback api.ResourceManagerCallback) (response *si.RegisterResourceManagerResponse, e error) {
 			return nil, nil
 		},
 		updateFn: func(request *si.UpdateRequest) error {
@@ -51,7 +51,7 @@ func NewSchedulerAPIMock() *SchedulerAPIMock {
 }
 
 func (api *SchedulerAPIMock) RegisterFunction(rfn func(request *si.RegisterResourceManagerRequest,
-	callback apiCommon.ResourceManagerCallback) (*si.RegisterResourceManagerResponse, error)) *SchedulerAPIMock {
+	callback api.ResourceManagerCallback) (*si.RegisterResourceManagerResponse, error)) *SchedulerAPIMock {
 	api.registerFn = rfn
 	return api
 }
@@ -64,7 +64,7 @@ func (api *SchedulerAPIMock) UpdateFunction(ufn func(request *si.UpdateRequest) 
 }
 
 func (api *SchedulerAPIMock) RegisterResourceManager(request *si.RegisterResourceManagerRequest,
-	callback apiCommon.ResourceManagerCallback) (*si.RegisterResourceManagerResponse, error) {
+	callback api.ResourceManagerCallback) (*si.RegisterResourceManagerResponse, error) {
 	api.lock.Lock()
 	defer api.lock.Unlock()
 	atomic.AddInt32(&api.registerCount, 1)

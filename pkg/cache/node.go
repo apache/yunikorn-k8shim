@@ -30,7 +30,7 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
-	apiCommon "github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/api"
+	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/api"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 )
 
@@ -42,13 +42,13 @@ type SchedulerNode struct {
 	occupied            *si.Resource
 	schedulable         bool
 	existingAllocations []*si.Allocation
-	schedulerAPI        apiCommon.SchedulerAPI
+	schedulerAPI        api.SchedulerAPI
 	fsm                 *fsm.FSM
 	lock                *sync.RWMutex
 }
 
 func newSchedulerNode(nodeName string, nodeUID string,
-	nodeResource *si.Resource, schedulerAPI apiCommon.SchedulerAPI, schedulable bool) *SchedulerNode {
+	nodeResource *si.Resource, schedulerAPI api.SchedulerAPI, schedulable bool) *SchedulerNode {
 	schedulerNode := &SchedulerNode{
 		name:         nodeName,
 		uid:          nodeUID,

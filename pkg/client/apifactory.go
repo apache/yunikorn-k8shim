@@ -24,7 +24,6 @@ import (
 
 	"go.uber.org/zap"
 
-	applicationclient "github.com/apache/incubator-yunikorn-k8shim/pkg/client/clientset/versioned"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client/informers/externalversions/yunikorn.apache.org/v1alpha1"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 
@@ -32,7 +31,7 @@ import (
 	appinformers "github.com/apache/incubator-yunikorn-k8shim/pkg/client/informers/externalversions"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
-	apiCommon "github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/api"
+	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/api"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubernetes/pkg/scheduler/volumebinder"
@@ -78,7 +77,7 @@ type APIFactory struct {
 	lock     *sync.RWMutex
 }
 
-func NewAPIFactory(scheduler apiCommon.SchedulerAPI, configs *conf.SchedulerConf, testMode bool) *APIFactory {
+func NewAPIFactory(scheduler api.SchedulerAPI, configs *conf.SchedulerConf, testMode bool) *APIFactory {
 	kubeClient := NewKubeClient(configs.KubeConfig)
 
 	// we have disabled re-sync to keep ourselves up-to-date
@@ -98,7 +97,7 @@ func NewAPIFactory(scheduler apiCommon.SchedulerAPI, configs *conf.SchedulerConf
 	var applicationInformer v1alpha1.ApplicationInformer = nil
 
 	if configs.IsOperatorPluginEnabled(constants.AppManagerHandlerName) {
-		appClient = applicationclient.NewForConfigOrDie(kubeClient.GetConfigs())
+		appClient = appclient.NewForConfigOrDie(kubeClient.GetConfigs())
 		applicationInformer = appinformers.NewSharedInformerFactory(appClient, time.Minute*1).Apache().V1alpha1().Applications()
 	}
 

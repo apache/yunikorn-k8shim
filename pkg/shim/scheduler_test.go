@@ -35,7 +35,7 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/test"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
-	apiCommon "github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/api"
+	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/api"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 )
 
@@ -149,13 +149,13 @@ partitions:
 }
 
 func TestSchedulerRegistrationFailed(t *testing.T) {
-	var callback apiCommon.ResourceManagerCallback
+	var callback api.ResourceManagerCallback
 
 	mockedAMProtocol := cache.NewMockedAMProtocol()
 	mockedAPIProvider := client.NewMockedAPIProvider()
 	mockedAPIProvider.GetAPIs().SchedulerAPI = test.NewSchedulerAPIMock().RegisterFunction(
 		func(request *si.RegisterResourceManagerRequest,
-			callback apiCommon.ResourceManagerCallback) (response *si.RegisterResourceManagerResponse, e error) {
+			callback api.ResourceManagerCallback) (response *si.RegisterResourceManagerResponse, e error) {
 			return nil, fmt.Errorf("some error")
 		})
 

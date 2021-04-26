@@ -37,7 +37,7 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
-	apiCommon "github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/api"
+	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/api"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 )
 
@@ -53,7 +53,7 @@ type Application struct {
 	placeholderOwnerReferences []metav1.OwnerReference
 	sm                         *fsm.FSM
 	lock                       *sync.RWMutex
-	schedulerAPI               apiCommon.SchedulerAPI
+	schedulerAPI               api.SchedulerAPI
 	placeholderAsk             *si.Resource // total placeholder request for the app (all task groups)
 	placeholderTimeoutInSec    int64
 }
@@ -64,7 +64,7 @@ func (app *Application) String() string {
 		app.applicationID, app.queue, app.partition, len(app.taskMap), app.GetApplicationState())
 }
 
-func NewApplication(appID, queueName, user string, tags map[string]string, scheduler apiCommon.SchedulerAPI) *Application {
+func NewApplication(appID, queueName, user string, tags map[string]string, scheduler api.SchedulerAPI) *Application {
 	taskMap := make(map[string]*Task)
 	app := &Application{
 		applicationID:           appID,

@@ -30,7 +30,7 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
-	apiCommon "github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/api"
+	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/api"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 )
 
@@ -43,13 +43,13 @@ const (
 
 // scheduler nodes maintain cluster nodes and their status for the scheduler
 type schedulerNodes struct {
-	proxy    apiCommon.SchedulerAPI
+	proxy    api.SchedulerAPI
 	nodesMap map[string]*SchedulerNode
 	cache    *external.SchedulerCache
 	lock     *sync.RWMutex
 }
 
-func newSchedulerNodes(schedulerAPI apiCommon.SchedulerAPI, cache *external.SchedulerCache) *schedulerNodes {
+func newSchedulerNodes(schedulerAPI api.SchedulerAPI, cache *external.SchedulerCache) *schedulerNodes {
 	return &schedulerNodes{
 		proxy:    schedulerAPI,
 		nodesMap: make(map[string]*SchedulerNode),
