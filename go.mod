@@ -21,7 +21,7 @@ module github.com/apache/incubator-yunikorn-k8shim
 go 1.12
 
 require (
-	github.com/GoogleCloudPlatform/spark-on-k8s-operator v0.0.0-20200817155620-c19d2b8660d8
+	github.com/GoogleCloudPlatform/spark-on-k8s-operator v0.0.0-20201215015655-2e8b733f5ad0
 	github.com/apache/incubator-yunikorn-core v0.0.0-20210308173435-79a60272f12f
 	github.com/apache/incubator-yunikorn-scheduler-interface v0.0.0-20210420020902-c2149f9635f6
 	github.com/google/uuid v1.1.1

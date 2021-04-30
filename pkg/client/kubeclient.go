@@ -110,7 +110,7 @@ func (nc SchedulerKubeClient) Delete(pod *v1.Pod) error {
 	if err := nc.clientSet.CoreV1().Pods(pod.Namespace).Delete(pod.Name, &apis.DeleteOptions{
 		GracePeriodSeconds: &gracefulSeconds,
 	}); err != nil {
-		log.Logger().Error("failed to delete pod",
+		log.Logger().Warn("failed to delete pod",
 			zap.String("namespace", pod.Namespace),
 			zap.String("podName", pod.Name),
 			zap.Error(err))

@@ -367,3 +367,27 @@ func TestMergeMaps(t *testing.T) {
 	assert.Equal(t, result["c"], "c1")
 	assert.Equal(t, result["d"], "d2")
 }
+
+func TestGetUserFromPod(t *testing.T) {
+	userInLabel := "testuser"
+	userNotInLabel := constants.DefaultUser
+	testCases := []struct {
+		name         string
+		pod          *v1.Pod
+		expectedUser string
+	}{
+		{"User defined in label with default key", &v1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Labels: map[string]string{constants.DefaultUserLabel: userInLabel},
+			},
+		}, userInLabel},
+		{"User not defined in label", &v1.Pod{}, userNotInLabel},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			userID := GetUserFromPod(tc.pod)
+			assert.DeepEqual(t, userID, tc.expectedUser)
+		})
+	}
+}

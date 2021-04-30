@@ -50,12 +50,11 @@ func newPlaceholder(placeholderName string, app *Application, taskGroup v1alpha1
 	// we need to set the controller field to false, because since we don't know what exactly the controller will do,
 	// we might have some unexpected behaviour.
 	// For example if it is a replication controller, some pods (placeholders and/or real pods) might be deleted
-	// in order to met the requested replication factor.
+	// in order to meet the requested replication factor.
 	// Since we need the owner reference only for having the placeholders garbage collected,
 	// we can just set the controller field = false, so we can avoid any kind of side effects.
-	controller := false
 	for _, r := range ownerRefs {
-		*r.Controller = controller
+		*r.Controller = false
 	}
 	placeholderPod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
