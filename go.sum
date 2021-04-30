@@ -85,6 +85,8 @@ github.com/anmitsu/go-shlex v0.0.0-20161002113705-648efa622239 h1:kFOfPq6dUM1hTo
 github.com/anmitsu/go-shlex v0.0.0-20161002113705-648efa622239/go.mod h1:2FmKhYUyUczH0OGQWaF5ceTx0UBShxjsH6f8oGKYe2c=
 github.com/apache/incubator-yunikorn-core v0.0.0-20210308173435-79a60272f12f h1:+fxx2QU3as8v8RQ0afuZf6SSpvPnkQ7O2jLF1abiV/4=
 github.com/apache/incubator-yunikorn-core v0.0.0-20210308173435-79a60272f12f/go.mod h1:kjGPgQG+XptQwLf7TSbvYnejYa4mWxQYKhl785/+u/w=
+github.com/apache/incubator-yunikorn-core v0.0.0-20210427073029-c220a295d7bc h1:rUV/BqS8yN0f+/d6WMAlHTmBKrM45pxc/Yuf/JyS7jw=
+github.com/apache/incubator-yunikorn-core v0.0.0-20210427073029-c220a295d7bc/go.mod h1:9wJhEMsmQ+PRAFZDo1efjfmdN4Gsm2ije5RLG+tqIwc=
 github.com/apache/incubator-yunikorn-scheduler-interface v0.0.0-20210226143918-19a5cca5e428/go.mod h1:I61hISMIenZhepBL0fZ3UPXklb4WiSCjjX2JoRwxS+I=
 github.com/apache/incubator-yunikorn-scheduler-interface v0.0.0-20210420020902-c2149f9635f6 h1:aj5DLmUP4ynEzkPNxL7CXwWENpQvLO+zm8quq0HKHAs=
 github.com/apache/incubator-yunikorn-scheduler-interface v0.0.0-20210420020902-c2149f9635f6/go.mod h1:I61hISMIenZhepBL0fZ3UPXklb4WiSCjjX2JoRwxS+I=
