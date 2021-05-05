@@ -234,7 +234,17 @@ func (ss *KubernetesShim) GetSchedulerState() string {
 func (ss *KubernetesShim) handle(se events.SchedulerEvent) error {
 	ss.lock.Lock()
 	defer ss.lock.Unlock()
-	err := ss.stateMachine.Event(string(se.GetEvent()))
+	var err error
+	if len(se.GetArgs()) >= 1 {
+		eventArgs := make([]string, 2)
+		if err = events.GetEventArgsAsStrings(eventArgs, se.GetArgs()); err != nil {
+			log.Logger().Error("fail to parse event arg", zap.Error(err))
+		}
+		message := eventArgs[1]
+		err = ss.stateMachine.Event(string(se.GetEvent()), message)
+	} else {
+		err = ss.stateMachine.Event(string(se.GetEvent()))
+	}
 	if err != nil && err.Error() == "no transition" {
 		return err
 	}

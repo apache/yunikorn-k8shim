@@ -60,6 +60,11 @@ func NewTask(tid string, app *Application, ctx *Context, pod *v1.Pod) *Task {
 	return createTaskInternal(tid, app, taskResource, pod, false, "", ctx)
 }
 
+func NewTaskPlaceholder(tid string, app *Application, ctx *Context, pod *v1.Pod) *Task {
+	taskResource := common.GetPodResource(pod)
+	return createTaskInternal(tid, app, taskResource, pod, true, "", ctx)
+}
+
 func NewFromTaskMeta(tid string, app *Application, ctx *Context, metadata interfaces.TaskMetadata) *Task {
 	taskPod := metadata.Pod
 	taskResource := common.GetPodResource(taskPod)
@@ -212,6 +217,10 @@ func (task *Task) getTaskAllocationUUID() string {
 
 func (task *Task) DeleteTaskPod(pod *v1.Pod) error {
 	return task.context.apiProvider.GetAPIs().KubeClient.Delete(task.pod)
+}
+
+func (task *Task) UpdateTaskPod(pod *v1.Pod) (*v1.Pod, error) {
+	return task.context.apiProvider.GetAPIs().KubeClient.Update(pod)
 }
 
 func (task *Task) isTerminated() bool {

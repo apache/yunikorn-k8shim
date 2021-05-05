@@ -21,6 +21,7 @@ package cache
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 
 	"github.com/looplab/fsm"
@@ -512,9 +513,15 @@ func (app *Application) onReservationStateChange(event *fsm.Event) {
 
 func (app *Application) handleRejectApplicationEvent(event *fsm.Event) {
 	log.Logger().Info("app is rejected by scheduler", zap.String("appID", app.applicationID))
+	eventArgs := make([]string, 1)
+	if err := events.GetEventArgsAsStrings(eventArgs, event.Args); err != nil {
+		log.Logger().Error("fail to parse event arg", zap.Error(err))
+		return
+	}
+	reason := eventArgs[0]
 	// for rejected apps, we directly move them to failed state
 	dispatcher.Dispatch(NewFailApplicationEvent(app.applicationID,
-		fmt.Sprintf("application %s is rejected by scheduler", app.applicationID)))
+		fmt.Sprintf("%s: %s", constants.ApplicationRejectedFailure, reason)))
 }
 
 func (app *Application) handleCompleteApplicationEvent(event *fsm.Event) {
@@ -522,6 +529,22 @@ func (app *Application) handleCompleteApplicationEvent(event *fsm.Event) {
 	go func() {
 		getPlaceholderManager().cleanUp(app)
 	}()
+}
+
+func failTaskPodWithReasonAndMsg(task *Task, reason string, msg string) {
+	podCopy := task.GetTaskPod().DeepCopy()
+	podCopy.Status = v1.PodStatus{
+		Phase:   v1.PodFailed,
+		Reason:  reason,
+		Message: msg,
+	}
+	log.Logger().Info("setting pod to failed", zap.String("podName", task.GetTaskPod().Name))
+	pod, err := task.UpdateTaskPod(podCopy)
+	if err != nil {
+		log.Logger().Error("failed to update task pod status", zap.Error(err))
+	} else {
+		log.Logger().Info("new pod status", zap.String("status", string(pod.Status.Phase)))
+	}
 }
 
 func (app *Application) handleFailApplicationEvent(event *fsm.Event) {
@@ -533,15 +556,24 @@ func (app *Application) handleFailApplicationEvent(event *fsm.Event) {
 		log.Logger().Error("fail to parse event arg", zap.Error(err))
 		return
 	}
-	errMess := eventArgs[0]
+	errMsg := eventArgs[0]
+	log.Logger().Info("failApplication reason", zap.String("errMsg", errMsg))
 	// unallocated task states include New, Pending and Scheduling
 	unalloc := app.getTasks(events.States().Task.New)
 	unalloc = append(unalloc, app.getTasks(events.States().Task.Pending)...)
 	unalloc = append(unalloc, app.getTasks(events.States().Task.Scheduling)...)
+
 	// publish pod level event to unallocated pods
 	for _, task := range unalloc {
+		// Only need to fail the non-placeholder pod(s)
+		if strings.Contains(errMsg, constants.ApplicationInsufficientResourcesFailure) {
+			failTaskPodWithReasonAndMsg(task, constants.ApplicationInsufficientResourcesFailure, "Scheduling has timed out due to insufficient resources")
+		} else if strings.Contains(errMsg, constants.ApplicationRejectedFailure) {
+			errMsgArr := strings.Split(errMsg, ":")
+			failTaskPodWithReasonAndMsg(task, constants.ApplicationRejectedFailure, errMsgArr[1])
+		}
 		events.GetRecorder().Eventf(task.GetTaskPod(), v1.EventTypeWarning, "ApplicationFailed",
-			"Application %s scheduling failed, reason: %s", app.applicationID, errMess)
+			"Application %s scheduling failed, reason: %s", app.applicationID, errMsg)
 	}
 }
 
