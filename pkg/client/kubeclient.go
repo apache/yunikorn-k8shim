@@ -131,11 +131,11 @@ func (nc SchedulerKubeClient) Get(podNamespace string, podName string) (*v1.Pod,
 	return pod, nil
 }
 
-func (nc SchedulerKubeClient) Update(pod *v1.Pod) (*v1.Pod, error) {
+func (nc SchedulerKubeClient) UpdateStatus(pod *v1.Pod) (*v1.Pod, error) {
 	var updatedPod *v1.Pod
 	var err error
 	if updatedPod, err = nc.clientSet.CoreV1().Pods(pod.Namespace).UpdateStatus(pod); err != nil {
-		log.Logger().Warn("failed to update pod",
+		log.Logger().Warn("failed to update pod status",
 			zap.String("namespace", pod.Namespace),
 			zap.String("podName", pod.Name),
 			zap.Error(err))

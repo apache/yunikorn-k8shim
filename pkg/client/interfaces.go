@@ -34,8 +34,8 @@ type KubeClient interface {
 	// Delete a pod from a host
 	Delete(pod *v1.Pod) error
 
-	// Update a pod from a host
-	Update(pod *v1.Pod) (*v1.Pod, error)
+	// Update the status of a pod
+	UpdateStatus(pod *v1.Pod) (*v1.Pod, error)
 
 	// Get a pod
 	Get(podNamespace string, podName string) (*v1.Pod, error)

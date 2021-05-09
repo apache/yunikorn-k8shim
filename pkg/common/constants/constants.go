@@ -65,5 +65,5 @@ const AnnotationSchedulingPolicyParam = "yunikorn.apache.org/schedulingPolicyPar
 const SchedulingPolicyTimeoutParam = "placeholderTimeoutInSeconds"
 const SchedulingPolicyParamDelimiter = " "
 
-const ApplicationInsufficientResourcesFailure = "InsufficientResources"
+const ApplicationInsufficientResourcesFailure = "ResourceReservationTimeout"
 const ApplicationRejectedFailure = "ApplicationRejected"

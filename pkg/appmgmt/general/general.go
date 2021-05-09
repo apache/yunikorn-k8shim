@@ -125,7 +125,6 @@ func (os *Manager) getAppMetadata(pod *v1.Pod) (interfaces.ApplicationMetadata, 
 	// get the user from Pod Labels
 	user := utils.GetUserFromPod(pod)
 
-
 	taskGroups, err := utils.GetTaskGroupsFromAnnotation(pod)
 	if err != nil {
 		log.Logger().Error("unable to get taskGroups for pod",

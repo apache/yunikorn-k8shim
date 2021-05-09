@@ -33,13 +33,13 @@ import (
 
 // KubeClientMock allows us to inject customized bind/delete pod functions
 type KubeClientMock struct {
-	bindFn    func(pod *v1.Pod, hostID string) error
-	deleteFn  func(pod *v1.Pod) error
-	createFn  func(pod *v1.Pod) (*v1.Pod, error)
-	updateFn  func(pod *v1.Pod) (*v1.Pod, error)
-	getFn     func(podName string) (*v1.Pod, error)
-	clientSet kubernetes.Interface
-	pods      map[string]*v1.Pod
+	bindFn         func(pod *v1.Pod, hostID string) error
+	deleteFn       func(pod *v1.Pod) error
+	createFn       func(pod *v1.Pod) (*v1.Pod, error)
+	updateStatusFn func(pod *v1.Pod) (*v1.Pod, error)
+	getFn          func(podName string) (*v1.Pod, error)
+	clientSet      kubernetes.Interface
+	pods           map[string]*v1.Pod
 }
 
 func NewKubeClientMock() *KubeClientMock {
@@ -59,8 +59,8 @@ func NewKubeClientMock() *KubeClientMock {
 				zap.String("PodName", pod.Name))
 			return pod, nil
 		},
-		updateFn: func(pod *v1.Pod) (*v1.Pod, error) {
-			log.Logger().Info("pod updated",
+		updateStatusFn: func(pod *v1.Pod) (*v1.Pod, error) {
+			log.Logger().Info("pod status updated",
 				zap.String("PodName", pod.Name))
 			return pod, nil
 		},
@@ -95,9 +95,9 @@ func (c *KubeClientMock) Create(pod *v1.Pod) (*v1.Pod, error) {
 	return c.createFn(pod)
 }
 
-func (c *KubeClientMock) Update(pod *v1.Pod) (*v1.Pod, error) {
+func (c *KubeClientMock) UpdateStatus(pod *v1.Pod) (*v1.Pod, error) {
 	c.pods[getPodKey(pod)] = pod
-	return c.updateFn(pod)
+	return c.updateStatusFn(pod)
 }
 
 func (c *KubeClientMock) Get(podNamespace string, podName string) (*v1.Pod, error) {

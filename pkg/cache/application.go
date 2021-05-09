@@ -539,7 +539,7 @@ func failTaskPodWithReasonAndMsg(task *Task, reason string, msg string) {
 		Message: msg,
 	}
 	log.Logger().Info("setting pod to failed", zap.String("podName", task.GetTaskPod().Name))
-	pod, err := task.UpdateTaskPod(podCopy)
+	pod, err := task.UpdateTaskPodStatus(podCopy)
 	if err != nil {
 		log.Logger().Error("failed to update task pod status", zap.Error(err))
 	} else {

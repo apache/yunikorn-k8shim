@@ -58,7 +58,7 @@ func NeedRecovery(pod *v1.Pod) (bool, error) {
 		return true, nil
 	}
 
-	if pod.Status.Phase == v1.PodFailed && pod.Status.Reason == constants.ApplicationRejectedFailure || pod.Status.Reason == constants.ApplicationInsufficientResourcesFailure {
+	if pod.Status.Phase == v1.PodFailed {
 		return false, nil
 	}
 
