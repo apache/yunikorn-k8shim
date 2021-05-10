@@ -19,21 +19,27 @@
 package client
 
 import (
-	"go.uber.org/zap"
+	"fmt"
+
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/rest"
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
+
+	"go.uber.org/zap"
 )
 
-// fake client allows us to inject customized bind/delete pod functions
+// KubeClientMock allows us to inject customized bind/delete pod functions
 type KubeClientMock struct {
-	bindFn    func(pod *v1.Pod, hostID string) error
-	deleteFn  func(pod *v1.Pod) error
-	createFn  func(pod *v1.Pod) (*v1.Pod, error)
-	clientSet kubernetes.Interface
+	bindFn         func(pod *v1.Pod, hostID string) error
+	deleteFn       func(pod *v1.Pod) error
+	createFn       func(pod *v1.Pod) (*v1.Pod, error)
+	updateStatusFn func(pod *v1.Pod) (*v1.Pod, error)
+	getFn          func(podName string) (*v1.Pod, error)
+	clientSet      kubernetes.Interface
+	pods           map[string]*v1.Pod
 }
 
 func NewKubeClientMock() *KubeClientMock {
@@ -53,7 +59,18 @@ func NewKubeClientMock() *KubeClientMock {
 				zap.String("PodName", pod.Name))
 			return pod, nil
 		},
+		updateStatusFn: func(pod *v1.Pod) (*v1.Pod, error) {
+			log.Logger().Info("pod status updated",
+				zap.String("PodName", pod.Name))
+			return pod, nil
+		},
+		getFn: func(podName string) (*v1.Pod, error) {
+			log.Logger().Info("Getting pod",
+				zap.String("PodName", podName))
+			return nil, nil
+		},
 		clientSet: fake.NewSimpleClientset(),
+		pods:      make(map[string]*v1.Pod),
 	}
 }
 
@@ -74,10 +91,26 @@ func (c *KubeClientMock) Bind(pod *v1.Pod, hostID string) error {
 }
 
 func (c *KubeClientMock) Create(pod *v1.Pod) (*v1.Pod, error) {
+	c.pods[getPodKey(pod)] = pod
 	return c.createFn(pod)
 }
 
+func (c *KubeClientMock) UpdateStatus(pod *v1.Pod) (*v1.Pod, error) {
+	c.pods[getPodKey(pod)] = pod
+	return c.updateStatusFn(pod)
+}
+
+func (c *KubeClientMock) Get(podNamespace string, podName string) (*v1.Pod, error) {
+	podKey := podNamespace + "/" + podName
+	pod, ok := c.pods[podKey]
+	if ok {
+		return pod, nil
+	}
+	return nil, fmt.Errorf("pod not found: %s/%s", podNamespace, podName)
+}
+
 func (c *KubeClientMock) Delete(pod *v1.Pod) error {
+	delete(c.pods, getPodKey(pod))
 	return c.deleteFn(pod)
 }
 
@@ -87,4 +120,8 @@ func (c *KubeClientMock) GetClientSet() kubernetes.Interface {
 
 func (c *KubeClientMock) GetConfigs() *rest.Config {
 	return nil
+}
+
+func getPodKey(pod *v1.Pod) string {
+	return pod.Namespace + "/" + pod.Name
 }

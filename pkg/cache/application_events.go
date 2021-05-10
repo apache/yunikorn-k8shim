@@ -23,12 +23,16 @@ import (
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 )
 
-// ------------------------
-// SimpleApplicationEvent simples moves application states
-// ------------------------
+// SimpleApplicationEvent simply moves application states
 type SimpleApplicationEvent struct {
 	applicationID string
 	event         events.ApplicationEventType
+}
+
+type ApplicationEvent struct {
+	applicationID string
+	event         events.ApplicationEventType
+	message       string
 }
 
 func NewSimpleApplicationEvent(appID string, eventType events.ApplicationEventType) SimpleApplicationEvent {
@@ -47,6 +51,28 @@ func (st SimpleApplicationEvent) GetArgs() []interface{} {
 }
 
 func (st SimpleApplicationEvent) GetApplicationID() string {
+	return st.applicationID
+}
+
+func NewApplicationEvent(appID string, eventType events.ApplicationEventType, msg string) ApplicationEvent {
+	return ApplicationEvent{
+		applicationID: appID,
+		event:         eventType,
+		message:       msg,
+	}
+}
+
+func (st ApplicationEvent) GetEvent() events.ApplicationEventType {
+	return st.event
+}
+
+func (st ApplicationEvent) GetArgs() []interface{} {
+	args := make([]interface{}, 1)
+	args[0] = st.message
+	return args
+}
+
+func (st ApplicationEvent) GetApplicationID() string {
 	return st.applicationID
 }
 

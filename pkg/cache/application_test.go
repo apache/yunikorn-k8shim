@@ -19,6 +19,7 @@
 package cache
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 	"sync"
@@ -33,6 +34,7 @@ import (
 	"k8s.io/client-go/tools/record"
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
@@ -197,6 +199,213 @@ func TestFailApplication(t *testing.T) {
 	assert.NilError(t, err)
 	assertAppState(t, app2, events.States().Application.Failed, 3*time.Second)
 	assert.Equal(t, rt.time, int64(0))
+	// Test over, set Recorder back fake type
+	events.SetRecorderForTest(record.NewFakeRecorder(1024))
+}
+
+func TestSetUnallocatedPodsToFailedWhenFailApplication(t *testing.T) {
+	context := initContextForTest()
+	dispatcher.RegisterEventHandler(dispatcher.EventTypeApp, context.ApplicationEventHandler())
+	dispatcher.Start()
+	defer dispatcher.Stop()
+
+	// inject the mocked clients to the placeholder manager
+	createdPods := newThreadSafePodsMap()
+	mockedAPIProvider := client.NewMockedAPIProvider()
+	mockedAPIProvider.MockCreateFn(func(pod *v1.Pod) (*v1.Pod, error) {
+		createdPods.add(pod)
+		return pod, nil
+	})
+	mgr := NewPlaceholderManager(mockedAPIProvider.GetAPIs())
+	mgr.Start()
+	defer mgr.Stop()
+
+	mockClient := mockedAPIProvider.GetAPIs().KubeClient
+	context.apiProvider.GetAPIs().KubeClient = mockClient
+
+	ms := &mockSchedulerAPI{}
+	// set test mode
+	conf.GetSchedulerConf().SetTestMode(true)
+	// set Recorder to mocked type
+	mr := events.NewMockedRecorder()
+	events.SetRecorderForTest(mr)
+	resources := make(map[v1.ResourceName]resource.Quantity)
+	containers := make([]v1.Container, 0)
+	containers = append(containers, v1.Container{
+		Name: "container-01",
+		Resources: v1.ResourceRequirements{
+			Requests: resources,
+		},
+	})
+	pod1, err := mockClient.Create(&v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "pod-test-00001",
+			UID:  "UID-00001",
+		},
+		Spec: v1.PodSpec{
+			Containers: containers,
+		},
+	})
+	assert.NilError(t, err)
+	pod2, err := mockClient.Create(&v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "pod-test-00002",
+			UID:  "UID-00002",
+		},
+		Spec: v1.PodSpec{
+			Containers: containers,
+		},
+	})
+	assert.NilError(t, err)
+	pod3, err := mockClient.Create(&v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "pod-test-00003",
+			UID:  "UID-00003",
+		},
+		Spec: v1.PodSpec{
+			Containers: containers,
+		},
+	})
+	assert.NilError(t, err)
+	appID := "app-test-001"
+	app := NewApplication(appID, "root.abc", "testuser", map[string]string{}, ms)
+	task1 := NewTask("task01", app, context, pod1)
+	task2 := NewTaskPlaceholder("task02", app, context, pod2)
+	task3 := NewTask("task03", app, context, pod3)
+	task1.sm.SetState(events.States().Task.Pending)
+	task2.sm.SetState(events.States().Task.Scheduling)
+	task3.sm.SetState(events.States().Task.Scheduling)
+	app.addTask(task1)
+	app.addTask(task2)
+	app.addTask(task3)
+	app.SetState(events.States().Application.Accepted)
+	errMess := constants.ApplicationInsufficientResourcesFailure
+	err = app.handle(NewFailApplicationEvent(app.applicationID, errMess))
+	assert.NilError(t, err)
+	assertAppState(t, app, events.States().Application.Failed, 3*time.Second)
+
+	// Note that the status of pod 2, a placeholder pod, doesn't matter because it will be cleaned up
+	newPod1, err := mockClient.Get(pod1.Namespace, pod1.Name)
+	assert.NilError(t, err)
+	assert.Equal(t, newPod1.Status.Phase, v1.PodFailed, 3*time.Second)
+	assert.Equal(t, newPod1.Status.Reason, constants.ApplicationInsufficientResourcesFailure, 3*time.Second)
+	newPod3, err := mockClient.Get(pod3.Namespace, pod3.Name)
+	assert.NilError(t, err)
+	assert.Equal(t, newPod3.Status.Phase, v1.PodFailed, 3*time.Second)
+	assert.Equal(t, newPod3.Status.Reason, constants.ApplicationInsufficientResourcesFailure, 3*time.Second)
+	// Test over, set Recorder back fake type
+	events.SetRecorderForTest(record.NewFakeRecorder(1024))
+}
+
+func TestSetUnallocatedPodsToFailedWhenRejectApplication(t *testing.T) {
+	context := initContextForTest()
+	dispatcher.RegisterEventHandler(dispatcher.EventTypeApp, context.ApplicationEventHandler())
+	dispatcher.Start()
+	defer dispatcher.Stop()
+
+	// inject the mocked clients to the placeholder manager
+	createdPods := newThreadSafePodsMap()
+	mockedAPIProvider := client.NewMockedAPIProvider()
+	mockedAPIProvider.MockCreateFn(func(pod *v1.Pod) (*v1.Pod, error) {
+		createdPods.add(pod)
+		return pod, nil
+	})
+
+	mockClient := mockedAPIProvider.GetAPIs().KubeClient
+	context.apiProvider.GetAPIs().KubeClient = mockClient
+	mgr := NewPlaceholderManager(mockedAPIProvider.GetAPIs())
+	mgr.Start()
+	defer mgr.Stop()
+
+	ms := &mockSchedulerAPI{}
+	// set test mode
+	conf.GetSchedulerConf().SetTestMode(true)
+	// set Recorder to mocked type
+	mr := events.NewMockedRecorder()
+	events.SetRecorderForTest(mr)
+	resources := make(map[v1.ResourceName]resource.Quantity)
+	containers := make([]v1.Container, 0)
+	containers = append(containers, v1.Container{
+		Name: "container-01",
+		Resources: v1.ResourceRequirements{
+			Requests: resources,
+		},
+	})
+	pod1, err := mockClient.Create(&v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "pod-test-00001",
+			UID:  "UID-00001",
+		},
+		Spec: v1.PodSpec{
+			Containers: containers,
+		},
+	})
+	assert.NilError(t, err)
+	pod2, err := mockClient.Create(&v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "pod-test-00002",
+			UID:  "UID-00002",
+		},
+		Spec: v1.PodSpec{
+			Containers: containers,
+		},
+	})
+	assert.NilError(t, err)
+	appID := "app-test-001"
+	app := NewApplication(appID, "root.abc", "testuser", map[string]string{}, ms)
+	task1 := NewTask("task01", app, context, pod1)
+	task2 := NewTask("task02", app, context, pod2)
+	task1.sm.SetState(events.States().Task.Pending)
+	task2.sm.SetState(events.States().Task.Pending)
+	app.addTask(task1)
+	app.addTask(task2)
+	app.SetState(events.States().Application.Submitted)
+	context.AddApplication(&interfaces.AddApplicationRequest{
+		Metadata: interfaces.ApplicationMetadata{
+			ApplicationID: app.applicationID,
+			QueueName:     app.queue,
+			User:          app.user,
+			Tags:          app.tags,
+		},
+	})
+	errMess := "app rejected"
+	err = app.handle(NewApplicationEvent(app.applicationID, events.RejectApplication, errMess))
+	assert.NilError(t, err)
+	assertAppState(t, app, events.States().Application.Rejected, 3*time.Second)
+
+	err = app.handle(NewFailApplicationEvent(app.applicationID,
+		fmt.Sprintf("%s: %s", constants.ApplicationRejectedFailure, errMess)))
+	assert.NilError(t, err)
+	assertAppState(t, app, events.States().Application.Failed, 3*time.Second)
+
+	newPod1, err := mockClient.Get(pod1.Namespace, pod1.Name)
+	assert.NilError(t, err)
+	assert.Equal(t, newPod1.Status.Phase, v1.PodFailed, 3*time.Second)
+	assert.Equal(t, newPod1.Status.Reason, constants.ApplicationRejectedFailure, 3*time.Second)
+	newPod2, err := mockClient.Get(pod2.Namespace, pod2.Name)
+	assert.NilError(t, err)
+	assert.Equal(t, newPod2.Status.Phase, v1.PodFailed, 3*time.Second)
+	assert.Equal(t, newPod2.Status.Reason, constants.ApplicationRejectedFailure, 3*time.Second)
 	// Test over, set Recorder back fake type
 	events.SetRecorderForTest(record.NewFakeRecorder(1024))
 }

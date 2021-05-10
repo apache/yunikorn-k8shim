@@ -58,6 +58,10 @@ func NeedRecovery(pod *v1.Pod) (bool, error) {
 		return true, nil
 	}
 
+	if pod.Status.Phase == v1.PodFailed {
+		return false, nil
+	}
+
 	return false, fmt.Errorf("unknown pod state %v", pod)
 }
 
