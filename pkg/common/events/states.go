@@ -50,6 +50,7 @@ type ApplicationStates struct {
 	Completed  string
 	Killing    string
 	Killed     string
+	Failing    string
 	Failed     string
 }
 
