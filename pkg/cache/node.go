@@ -105,6 +105,7 @@ func (n *SchedulerNode) addExistingAllocation(allocation *si.Allocation) {
 	n.lock.Lock()
 	defer n.lock.Unlock()
 	log.Logger().Info("add existing allocation",
+		zap.String("nodeID", n.name),
 		zap.Any("allocation", allocation))
 	n.existingAllocations = append(n.existingAllocations, allocation)
 }
@@ -113,6 +114,7 @@ func (n *SchedulerNode) setOccupiedResource(resource *si.Resource) {
 	n.lock.Lock()
 	defer n.lock.Unlock()
 	log.Logger().Info("set node occupied resource",
+		zap.String("nodeID", n.name),
 		zap.String("occupied", resource.String()))
 	n.occupied = resource
 }
@@ -243,7 +245,7 @@ func (n *SchedulerNode) canHandle(ev events.SchedulerNodeEvent) bool {
 
 func (n *SchedulerNode) enterState(event *fsm.Event) {
 	log.Logger().Debug("shim node state transition",
-		zap.String("node", n.name),
+		zap.String("nodeID", n.name),
 		zap.String("source", event.Src),
 		zap.String("destination", event.Dst),
 		zap.String("event", event.Event))
