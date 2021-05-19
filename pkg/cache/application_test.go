@@ -182,8 +182,11 @@ func TestFailApplication(t *testing.T) {
 	errMess := "Test Error Message"
 	err := app.handle(NewFailApplicationEvent(app.applicationID, errMess))
 	assert.NilError(t, err)
+	assertAppState(t, app, events.States().Application.Failing, 3*time.Second)
+	err = app.handle(NewFailApplicationEvent(app.applicationID, errMess))
+	assert.NilError(t, err)
 	assertAppState(t, app, events.States().Application.Failed, 3*time.Second)
-	assert.Equal(t, rt.time, int64(3))
+	assert.Equal(t, rt.time, int64(6))
 	// reset time to 0
 	rt.time = 0
 	appID2 := "app-test-002"
@@ -195,6 +198,9 @@ func TestFailApplication(t *testing.T) {
 	}
 	assertAppState(t, app2, events.States().Application.New, 3*time.Second)
 	app2.SetState(events.States().Application.Submitted)
+	err = app2.handle(NewFailApplicationEvent(app2.applicationID, errMess))
+	assert.NilError(t, err)
+	assertAppState(t, app2, events.States().Application.Failing, 3*time.Second)
 	err = app2.handle(NewFailApplicationEvent(app2.applicationID, errMess))
 	assert.NilError(t, err)
 	assertAppState(t, app2, events.States().Application.Failed, 3*time.Second)
@@ -292,6 +298,9 @@ func TestSetUnallocatedPodsToFailedWhenFailApplication(t *testing.T) {
 	app.addTask(task3)
 	app.SetState(events.States().Application.Accepted)
 	errMess := constants.ApplicationInsufficientResourcesFailure
+	err = app.handle(NewFailApplicationEvent(app.applicationID, errMess))
+	assert.NilError(t, err)
+	assertAppState(t, app, events.States().Application.Failing, 3*time.Second)
 	err = app.handle(NewFailApplicationEvent(app.applicationID, errMess))
 	assert.NilError(t, err)
 	assertAppState(t, app, events.States().Application.Failed, 3*time.Second)
@@ -395,6 +404,9 @@ func TestSetUnallocatedPodsToFailedWhenRejectApplication(t *testing.T) {
 
 	err = app.handle(NewFailApplicationEvent(app.applicationID,
 		fmt.Sprintf("%s: %s", constants.ApplicationRejectedFailure, errMess)))
+	assert.NilError(t, err)
+	assertAppState(t, app, events.States().Application.Failing, 3*time.Second)
+	err = app.handle(NewFailApplicationEvent(app.applicationID, errMess))
 	assert.NilError(t, err)
 	assertAppState(t, app, events.States().Application.Failed, 3*time.Second)
 
@@ -979,97 +991,12 @@ func TestReleaseAppAllocationInFailingState(t *testing.T) {
 	app.SetState(events.States().Application.Failing)
 	err = app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, UUID))
 	assert.NilError(t, err)
-	// after handle release event the states of app must be failed
-	assertAppState(t, app, events.States().Application.Failed, 3*time.Second)
-}
+	// after handle release event the states of app must be failing
+	assertAppState(t, app, events.States().Application.Failing, 3*time.Second)
 
-func TestFailApplicationInFailingState(t *testing.T) {
-	context := initContextForTest()
-	dispatcher.RegisterEventHandler(dispatcher.EventTypeApp, context.ApplicationEventHandler())
-	dispatcher.Start()
-	defer dispatcher.Stop()
-
-	// inject the mocked clients to the placeholder manager
-	createdPods := newThreadSafePodsMap()
-	mockedAPIProvider := client.NewMockedAPIProvider()
-	mockedAPIProvider.MockCreateFn(func(pod *v1.Pod) (*v1.Pod, error) {
-		createdPods.add(pod)
-		return pod, nil
-	})
-	mgr := NewPlaceholderManager(mockedAPIProvider.GetAPIs())
-	mgr.Start()
-	defer mgr.Stop()
-
-	rt := &recorderTime{
-		time: int64(0),
-		lock: &sync.RWMutex{},
-	}
-	ms := &mockSchedulerAPI{}
-	// set test mode
-	conf.GetSchedulerConf().SetTestMode(true)
-	// set Recorder to mocked type
-	mr := events.NewMockedRecorder()
-	mr.OnEventf = func() {
-		rt.lock.Lock()
-		defer rt.lock.Unlock()
-		rt.time++
-	}
-	events.SetRecorderForTest(mr)
-	resources := make(map[v1.ResourceName]resource.Quantity)
-	containers := make([]v1.Container, 0)
-	containers = append(containers, v1.Container{
-		Name: "container-01",
-		Resources: v1.ResourceRequirements{
-			Requests: resources,
-		},
-	})
-	pod := &v1.Pod{
-		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-		ObjectMeta: apis.ObjectMeta{
-			Name: "pod-test-00001",
-			UID:  "UID-00001",
-		},
-		Spec: v1.PodSpec{
-			Containers: containers,
-		},
-	}
-	appID := "app-test-001"
-	UUID := "testUUID001"
-	app := NewApplication(appID, "root.abc", "testuser", map[string]string{}, ms)
-	task1 := NewTask("task01", app, context, pod)
-	task2 := NewTask("task02", app, context, pod)
-	task3 := NewTask("task03", app, context, pod)
-	task4 := NewTask("task04", app, context, pod)
-	// set task states to new/pending/scheduling/running
-	task1.sm.SetState(events.States().Task.New)
-	task2.sm.SetState(events.States().Task.Pending)
-	task3.sm.SetState(events.States().Task.Scheduling)
-	task4.sm.SetState(events.States().Task.Allocated)
-	app.addTask(task1)
-	app.addTask(task2)
-	app.addTask(task3)
-	app.addTask(task4)
-	task1.allocationUUID = UUID
-	app.SetState(events.States().Application.Accepted)
-
-	app.SetState(events.States().Application.Running)
-	err := app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, UUID))
-	assert.NilError(t, err)
-	// after handle release event the states of app must be running
-	assertAppState(t, app, events.States().Application.Running, 3*time.Second)
-
-	app.SetState(events.States().Application.Failing)
 	errMess := "Test Error Message"
 	err = app.handle(NewFailApplicationEvent(app.applicationID, errMess))
 	assert.NilError(t, err)
 	// after handle fail event the states of app must be failed
 	assertAppState(t, app, events.States().Application.Failed, 3*time.Second)
-	assert.Equal(t, rt.time, int64(3))
-	// reset time to 0
-	rt.time = 0
-	// Test over, set Recorder back fake type
-	events.SetRecorderForTest(record.NewFakeRecorder(1024))
 }
