@@ -68,6 +68,7 @@ type SchedulerConf struct {
 	Predicates             string        `json:"predicates"`
 	OperatorPlugins        string        `json:"operatorPlugins"`
 	EnableConfigHotRefresh bool          `json:"enableConfigHotRefresh"`
+	UserLabelKey           string        `json:"userLabelKey"`
 	sync.RWMutex
 }
 
@@ -150,6 +151,8 @@ func initConfigs() {
 	enableConfigHotRefresh := flag.Bool("enableConfigHotRefresh", false, "Flag for enabling "+
 		"configuration hot-refresh. If this value is set to true, the configuration updates in the configmap will be "+
 		"automatically reloaded without restarting the scheduler.")
+	userLabelKey := flag.String("userLabelKey", constants.DefaultUserLabel,
+		"provide pod label key to be used to identify an user")
 
 	flag.Parse()
 
@@ -180,5 +183,6 @@ func initConfigs() {
 		Predicates:             *predicateList,
 		OperatorPlugins:        *operatorPluginList,
 		EnableConfigHotRefresh: *enableConfigHotRefresh,
+		UserLabelKey:           *userLabelKey,
 	}
 }

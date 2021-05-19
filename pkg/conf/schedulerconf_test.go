@@ -21,6 +21,8 @@ import (
 	"testing"
 
 	"gotest.tools/assert"
+
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 )
 
 func TestDefaultValues(t *testing.T) {
@@ -35,4 +37,5 @@ func TestDefaultValues(t *testing.T) {
 	assert.Equal(t, conf.KubeQPS, DefaultKubeQPS)
 	assert.Equal(t, conf.KubeBurst, DefaultKubeBurst)
 	assert.Equal(t, conf.Predicates, "")
+	assert.Equal(t, conf.UserLabelKey, constants.DefaultUserLabel)
 }

@@ -118,3 +118,28 @@ func (nc SchedulerKubeClient) Delete(pod *v1.Pod) error {
 	}
 	return nil
 }
+
+func (nc SchedulerKubeClient) Get(podNamespace string, podName string) (*v1.Pod, error) {
+	pod, err := nc.clientSet.CoreV1().Pods(podNamespace).Get(podName, apis.GetOptions{})
+	if err != nil {
+		log.Logger().Warn("failed to get pod",
+			zap.String("namespace", pod.Namespace),
+			zap.String("podName", pod.Name),
+			zap.Error(err))
+		return nil, err
+	}
+	return pod, nil
+}
+
+func (nc SchedulerKubeClient) UpdateStatus(pod *v1.Pod) (*v1.Pod, error) {
+	var updatedPod *v1.Pod
+	var err error
+	if updatedPod, err = nc.clientSet.CoreV1().Pods(pod.Namespace).UpdateStatus(pod); err != nil {
+		log.Logger().Warn("failed to update pod status",
+			zap.String("namespace", pod.Namespace),
+			zap.String("podName", pod.Name),
+			zap.Error(err))
+		return pod, err
+	}
+	return updatedPod, nil
+}

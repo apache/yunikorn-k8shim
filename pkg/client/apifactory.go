@@ -23,20 +23,17 @@ import (
 	"time"
 
 	"go.uber.org/zap"
-
-	applicationclient "github.com/apache/incubator-yunikorn-k8shim/pkg/client/clientset/versioned"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/client/informers/externalversions/yunikorn.apache.org/v1alpha1"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
-
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubernetes/pkg/scheduler/volumebinder"
 
-	"github.com/apache/incubator-yunikorn-core/pkg/api"
 	appclient "github.com/apache/incubator-yunikorn-k8shim/pkg/client/clientset/versioned"
 	appinformers "github.com/apache/incubator-yunikorn-k8shim/pkg/client/informers/externalversions"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/client/informers/externalversions/yunikorn.apache.org/v1alpha1"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
+	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/api"
 )
 
 type Type int
@@ -99,7 +96,7 @@ func NewAPIFactory(scheduler api.SchedulerAPI, configs *conf.SchedulerConf, test
 	var applicationInformer v1alpha1.ApplicationInformer = nil
 
 	if configs.IsOperatorPluginEnabled(constants.AppManagerHandlerName) {
-		appClient = applicationclient.NewForConfigOrDie(kubeClient.GetConfigs())
+		appClient = appclient.NewForConfigOrDie(kubeClient.GetConfigs())
 		applicationInformer = appinformers.NewSharedInformerFactory(appClient, time.Minute*1).Apache().V1alpha1().Applications()
 	}
 

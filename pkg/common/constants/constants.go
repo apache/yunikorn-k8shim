@@ -34,6 +34,8 @@ const AppTagNamespace = "namespace"
 const AppTagNamespaceResourceQuota = "namespace.resourcequota"
 const AppTagNamespaceParentQueue = "namespace.parentqueue"
 const DefaultAppNamespace = "default"
+const DefaultUserLabel = "yunikorn.apache.org/username"
+const DefaultUser = "nobody"
 
 // Resource
 const Memory = "memory"
@@ -62,3 +64,6 @@ const AnnotationTaskGroups = "yunikorn.apache.org/task-groups"
 const AnnotationSchedulingPolicyParam = "yunikorn.apache.org/schedulingPolicyParameters"
 const SchedulingPolicyTimeoutParam = "placeholderTimeoutInSeconds"
 const SchedulingPolicyParamDelimiter = " "
+
+const ApplicationInsufficientResourcesFailure = "ResourceReservationTimeout"
+const ApplicationRejectedFailure = "ApplicationRejected"

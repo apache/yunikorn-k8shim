@@ -78,13 +78,13 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 		}
 	}
 
-	for _, app := range response.RejectedApplications {
+	for _, rejectedApp := range response.RejectedApplications {
 		// update context
 		log.Logger().Debug("callback: response to rejected application",
-			zap.String("appID", app.ApplicationID))
+			zap.String("appID", rejectedApp.ApplicationID))
 
-		if app := callback.context.GetApplication(app.ApplicationID); app != nil {
-			ev := cache.NewSimpleApplicationEvent(app.GetApplicationID(), events.RejectApplication)
+		if app := callback.context.GetApplication(rejectedApp.ApplicationID); app != nil {
+			ev := cache.NewApplicationEvent(app.GetApplicationID(), events.RejectApplication, rejectedApp.Reason)
 			dispatcher.Dispatch(ev)
 		}
 	}
