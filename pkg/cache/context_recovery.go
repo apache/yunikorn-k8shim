@@ -54,10 +54,8 @@ func (ctx *Context) WaitForRecovery(recoverableAppManagers []interfaces.Recovera
 // for a given pod, return an allocation if found
 func getExistingAllocation(recoverableAppManagers []interfaces.Recoverable, pod *corev1.Pod) *si.Allocation {
 	for _, mgr := range recoverableAppManagers {
-		// only collect pod that is in running state,
-		// if pod is pending, the scheduling has not happened yet,
-		// if pod is succeed or failed, the resource should be already released
-		if utils.IsPodRunning(pod) {
+		// only collect pod that needs recovery
+		if !utils.IsPodTerminated(pod) {
 			if alloc := mgr.GetExistingAllocation(pod); alloc != nil {
 				return alloc
 			}
@@ -111,8 +109,10 @@ func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) err
 						log.Logger().Warn("add existing allocation failed", zap.Error(err))
 					}
 				}
-			} else if utils.IsPodRunning(&pod) {
-				// pod is running but not scheduled by us
+			} else if !utils.IsPodTerminated(&pod) {
+				// pod is not terminated (succeed or failed) state,
+				// and it has a node assigned, that means the scheduler
+				// has already allocated the pod onto a node
 				// we should report this occupied resource to scheduler-core
 				occupiedResource := nodeOccupiedResources[pod.Spec.NodeName]
 				if occupiedResource == nil {

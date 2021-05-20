@@ -193,13 +193,7 @@ func (os *Manager) addPod(obj interface{}) {
 		return
 	}
 
-	recovery, err := utils.NeedRecovery(pod)
-	if err != nil {
-		log.Logger().Error("we can't tell to add or recover this pod",
-			zap.Error(err))
-		return
-	}
-
+	recovery := utils.NeedRecovery(pod)
 	log.Logger().Debug("pod added",
 		zap.String("appType", os.Name()),
 		zap.String("Name", pod.Name),

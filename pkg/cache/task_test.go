@@ -523,3 +523,88 @@ func TestHandleSubmitTaskEvent(t *testing.T) {
 	// Test over, set Recorder back fake type
 	events.SetRecorderForTest(record.NewFakeRecorder(1024))
 }
+
+func TestSimultaneousTaskCompleteAndAllocate(t *testing.T) {
+	const (
+		podUID         = "UID-00001"
+		appID          = "app-test-001"
+		queueName      = "root.abc"
+		allocationUUID = "uuid-xyz"
+	)
+	mockedContext := initContextForTest()
+	mockedAPIProvider, ok := mockedContext.apiProvider.(*client.MockedAPIProvider)
+	assert.Equal(t, ok, true)
+
+	conf.GetSchedulerConf().SetTestMode(true)
+	resources := make(map[v1.ResourceName]resource.Quantity)
+	containers := make([]v1.Container, 0)
+	containers = append(containers, v1.Container{
+		Name: "container-01",
+		Resources: v1.ResourceRequirements{
+			Requests: resources,
+		},
+	})
+
+	pod1 := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "pod-test-00001",
+			UID:  podUID,
+		},
+		Spec: v1.PodSpec{
+			Containers: containers,
+		},
+	}
+
+	// simulate app has one task waiting for core's allocation
+	app := NewApplication(appID, queueName, "user", map[string]string{}, mockedAPIProvider.GetAPIs().SchedulerAPI)
+	task1 := NewTask(podUID, app, mockedContext, pod1)
+	task1.sm.SetState(events.States().Task.Scheduling)
+
+	// notify task complete
+	// because the task is in Scheduling state,
+	// here we expect to trigger a UpdateRequest that contains a releaseAllocationAsk request
+	mockedAPIProvider.MockSchedulerApiUpdateFn(func(request *si.UpdateRequest) error {
+		assert.Equal(t, len(request.Releases.AllocationAsksToRelease), 1,
+			"allocationAskToRelease is not in the expected length")
+		assert.Equal(t, len(request.Releases.AllocationsToRelease), 0,
+			"allocationsToRelease is not in the expected length")
+		askToRelease := request.Releases.AllocationAsksToRelease[0]
+		assert.Equal(t, askToRelease.ApplicationID, appID)
+		assert.Equal(t, askToRelease.Allocationkey, podUID)
+		return nil
+	})
+	ev := NewSimpleTaskEvent(appID, task1.GetTaskID(), events.CompleteTask)
+	err := task1.handle(ev)
+	assert.NilError(t, err, "failed to handle CompleteTask event")
+	assert.Equal(t, task1.GetTaskState(), events.States().Task.Completed)
+
+	// simulate the core responses us an allocation
+	// the task is already completed, we need to make sure the allocation
+	// can be released from the core to avoid resource leak
+	alloc := &si.Allocation{
+		AllocationKey: string(pod1.UID),
+		UUID:          allocationUUID,
+		QueueName:     queueName,
+		NodeID:        "fake-node",
+		ApplicationID: appID,
+		PartitionName: "default",
+	}
+	mockedAPIProvider.MockSchedulerApiUpdateFn(func(request *si.UpdateRequest) error {
+		assert.Equal(t, len(request.Releases.AllocationAsksToRelease), 0,
+			"allocationAskToRelease is not in the expected length")
+		assert.Equal(t, len(request.Releases.AllocationsToRelease), 1,
+			"allocationsToRelease is not in the expected length")
+		allocToRelease := request.Releases.AllocationsToRelease[0]
+		assert.Equal(t, allocToRelease.ApplicationID, alloc.ApplicationID)
+		assert.Equal(t, allocToRelease.UUID, alloc.UUID)
+		return nil
+	})
+	ev1 := NewAllocateTaskEvent(app.GetApplicationID(), alloc.AllocationKey, alloc.UUID, alloc.NodeID)
+	err = task1.handle(ev1)
+	assert.NilError(t, err, "failed to handle AllocateTask event")
+	assert.Equal(t, task1.GetTaskState(), events.States().Task.Completed)
+}
