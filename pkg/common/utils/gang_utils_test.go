@@ -289,3 +289,45 @@ func TestGetTaskGroupFromAnnotation(t *testing.T) {
 	assert.Equal(t, taskGroups2[0].MinResource["cpu"], resource.MustParse("2"))
 	assert.Equal(t, taskGroups2[0].MinResource["memory"], resource.MustParse("1Gi"))
 }
+
+func TestGetPlaceholderTimeoutParam(t *testing.T) {
+	//multiple params are declared in placeholderTimeoutInSeconds.
+	testErr01 := "unknownPara=unkown  placeholderTimeoutInSeconds=50=25"
+	//placeholderTimeoutInSeconds value isn't int.
+	testErr02 := "unknownPara=unkown  placeholderTimeoutInSeconds=oneSecond"
+	//placeholderTimeoutInSeconds isn't defined.
+	testNoTimeoutParam := "unknownPara=unkown"
+	testTimeoutParam := "unknownPara=unkown placeholderTimeoutInSeconds=50"
+	pod := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-pod-err",
+			Namespace: "test",
+			UID:       "test-pod-UID-err",
+		},
+		Spec: v1.PodSpec{},
+		Status: v1.PodStatus{
+			Phase: v1.PodPending,
+		},
+	}
+	pod.Annotations = map[string]string{constants.AnnotationSchedulingPolicyParam: testErr01}
+	sec, err := GetPlaceholderTimeoutParam(pod)
+	assert.Equal(t, true, err != nil)
+	assert.Equal(t, int64(0), sec)
+	pod.Annotations = map[string]string{constants.AnnotationSchedulingPolicyParam: testErr02}
+	sec, err = GetPlaceholderTimeoutParam(pod)
+	assert.Equal(t, true, err != nil)
+	assert.Equal(t, int64(0), sec)
+	pod.Annotations = map[string]string{constants.AnnotationSchedulingPolicyParam: testNoTimeoutParam}
+	sec, err = GetPlaceholderTimeoutParam(pod)
+	assert.Equal(t, true, err == nil)
+	assert.Equal(t, int64(0), sec)
+
+	pod.Annotations = map[string]string{"policyParamUndefined": testTimeoutParam}
+	sec, err = GetPlaceholderTimeoutParam(pod)
+	assert.Equal(t, true, err == nil)
+	assert.Equal(t, int64(0), sec)
+	pod.Annotations = map[string]string{constants.AnnotationSchedulingPolicyParam: testTimeoutParam}
+	sec, err = GetPlaceholderTimeoutParam(pod)
+	assert.Equal(t, true, err == nil)
+	assert.Equal(t, int64(50), sec)
+}

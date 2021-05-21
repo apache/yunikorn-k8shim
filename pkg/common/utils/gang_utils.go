@@ -126,7 +126,7 @@ func GetTaskGroupsFromAnnotation(pod *v1.Pod) ([]v1alpha1.TaskGroup, error) {
 func GetPlaceholderTimeoutParam(pod *v1.Pod) (int64, error) {
 	param, ok := pod.Annotations[constants.AnnotationSchedulingPolicyParam]
 	if !ok {
-		return 0, fmt.Errorf("no scheduling policy parameters defined for the pod")
+		return 0, nil
 	}
 	params := strings.Split(param, constants.SchedulingPolicyParamDelimiter)
 	for _, p := range params {
@@ -142,5 +142,5 @@ func GetPlaceholderTimeoutParam(pod *v1.Pod) (int64, error) {
 			return timeout, nil
 		}
 	}
-	return 0, fmt.Errorf("no timeout parameter found")
+	return 0, nil
 }
