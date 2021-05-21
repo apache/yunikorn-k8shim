@@ -391,3 +391,74 @@ func TestGetUserFromPod(t *testing.T) {
 		})
 	}
 }
+
+func TestNeedRecovery(t *testing.T) {
+	const fakeNodeID = "fake-node"
+	testCases := []struct {
+		description          string
+		pod                  *v1.Pod
+		expectedRecoveryFlag bool
+	}{
+		{"New pod pending for scheduling",
+			&v1.Pod{
+				Spec: v1.PodSpec{
+					SchedulerName: constants.SchedulerName,
+					NodeName:      "",
+				},
+				Status: v1.PodStatus{
+					Phase: v1.PodPending,
+				}}, false},
+		{"Succeed pod",
+			&v1.Pod{
+				Spec: v1.PodSpec{
+					SchedulerName: constants.SchedulerName,
+					NodeName:      fakeNodeID,
+				},
+				Status: v1.PodStatus{
+					Phase: v1.PodSucceeded,
+				}}, false},
+		{"Failed pod",
+			&v1.Pod{
+				Spec: v1.PodSpec{
+					SchedulerName: constants.SchedulerName,
+					NodeName:      fakeNodeID,
+				},
+				Status: v1.PodStatus{
+					Phase: v1.PodFailed,
+				}}, false},
+		{"Non YK pod",
+			&v1.Pod{
+				Spec: v1.PodSpec{
+					SchedulerName: "default-scheduler",
+					NodeName:      fakeNodeID,
+				},
+				Status: v1.PodStatus{
+					Phase: v1.PodRunning,
+				}}, false},
+		{"Assigned pod and Running",
+			&v1.Pod{
+				Spec: v1.PodSpec{
+					SchedulerName: constants.SchedulerName,
+					NodeName:      fakeNodeID,
+				},
+				Status: v1.PodStatus{
+					Phase: v1.PodRunning,
+				}}, true},
+		{"Assigned pod but Pending",
+			&v1.Pod{
+				Spec: v1.PodSpec{
+					SchedulerName: constants.SchedulerName,
+					NodeName:      fakeNodeID,
+				},
+				Status: v1.PodStatus{
+					Phase: v1.PodPending,
+				}}, true},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.description, func(t *testing.T) {
+			recovery := NeedRecovery(tc.pod)
+			assert.Equal(t, recovery, tc.expectedRecoveryFlag, tc.description)
+		})
+	}
+}
