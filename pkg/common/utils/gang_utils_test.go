@@ -289,3 +289,40 @@ func TestGetTaskGroupFromAnnotation(t *testing.T) {
 	assert.Equal(t, taskGroups2[0].MinResource["cpu"], resource.MustParse("2"))
 	assert.Equal(t, taskGroups2[0].MinResource["memory"], resource.MustParse("1Gi"))
 }
+
+func TestGetPlaceholderTimeoutParam(t *testing.T) {
+	tests := []struct {
+		key, timeoutParam string
+		isErr             bool
+		want              int64
+	}{
+		{constants.AnnotationSchedulingPolicyParam, "unknownPara=unkown  placeholderTimeoutInSeconds=50=25", true, int64(0)},
+		{constants.AnnotationSchedulingPolicyParam, "unknownPara=unkown  placeholderTimeoutInSeconds=oneSecond", true, int64(0)},
+		{constants.AnnotationSchedulingPolicyParam, "unknownPara=unkown", false, int64(0)},
+		{"policyParamUndefined", "unknownPara=unkown placeholderTimeoutInSeconds=50", false, int64(0)},
+		{constants.AnnotationSchedulingPolicyParam, "unknownPara=unkown placeholderTimeoutInSeconds=50", false, int64(50)},
+	}
+
+	pod := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-pod-err",
+			Namespace: "test",
+			UID:       "test-pod-UID-err",
+		},
+		Spec: v1.PodSpec{},
+		Status: v1.PodStatus{
+			Phase: v1.PodPending,
+		},
+	}
+
+	for testID, tt := range tests {
+		t.Run(tt.timeoutParam, func(t *testing.T) {
+			pod.Annotations = map[string]string{tt.key: tt.timeoutParam}
+			sec, err := GetPlaceholderTimeoutParam(pod)
+			isErr := err != nil
+			if (isErr != tt.isErr) || (sec != tt.want) {
+				t.Errorf("%d:got %v %d,want %v %d", testID, isErr, sec, tt.isErr, tt.want)
+			}
+		})
+	}
+}
