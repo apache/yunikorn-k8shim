@@ -291,13 +291,18 @@ func TestGetTaskGroupFromAnnotation(t *testing.T) {
 }
 
 func TestGetPlaceholderTimeoutParam(t *testing.T) {
-	//multiple params are declared in placeholderTimeoutInSeconds.
-	testErr01 := "unknownPara=unkown  placeholderTimeoutInSeconds=50=25"
-	//placeholderTimeoutInSeconds value isn't int.
-	testErr02 := "unknownPara=unkown  placeholderTimeoutInSeconds=oneSecond"
-	//placeholderTimeoutInSeconds isn't defined.
-	testNoTimeoutParam := "unknownPara=unkown"
-	testTimeoutParam := "unknownPara=unkown placeholderTimeoutInSeconds=50"
+	tests := []struct {
+		key, timeoutParam string
+		isErr             bool
+		want              int64
+	}{
+		{constants.AnnotationSchedulingPolicyParam, "unknownPara=unkown  placeholderTimeoutInSeconds=50=25", true, int64(0)},
+		{constants.AnnotationSchedulingPolicyParam, "unknownPara=unkown  placeholderTimeoutInSeconds=oneSecond", true, int64(0)},
+		{constants.AnnotationSchedulingPolicyParam, "unknownPara=unkown", false, int64(0)},
+		{"policyParamUndefined", "unknownPara=unkown placeholderTimeoutInSeconds=50", false, int64(0)},
+		{constants.AnnotationSchedulingPolicyParam, "unknownPara=unkown placeholderTimeoutInSeconds=50", false, int64(50)},
+	}
+
 	pod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-pod-err",
@@ -309,25 +314,15 @@ func TestGetPlaceholderTimeoutParam(t *testing.T) {
 			Phase: v1.PodPending,
 		},
 	}
-	pod.Annotations = map[string]string{constants.AnnotationSchedulingPolicyParam: testErr01}
-	sec, err := GetPlaceholderTimeoutParam(pod)
-	assert.Equal(t, true, err != nil)
-	assert.Equal(t, int64(0), sec)
-	pod.Annotations = map[string]string{constants.AnnotationSchedulingPolicyParam: testErr02}
-	sec, err = GetPlaceholderTimeoutParam(pod)
-	assert.Equal(t, true, err != nil)
-	assert.Equal(t, int64(0), sec)
-	pod.Annotations = map[string]string{constants.AnnotationSchedulingPolicyParam: testNoTimeoutParam}
-	sec, err = GetPlaceholderTimeoutParam(pod)
-	assert.Equal(t, true, err == nil)
-	assert.Equal(t, int64(0), sec)
 
-	pod.Annotations = map[string]string{"policyParamUndefined": testTimeoutParam}
-	sec, err = GetPlaceholderTimeoutParam(pod)
-	assert.Equal(t, true, err == nil)
-	assert.Equal(t, int64(0), sec)
-	pod.Annotations = map[string]string{constants.AnnotationSchedulingPolicyParam: testTimeoutParam}
-	sec, err = GetPlaceholderTimeoutParam(pod)
-	assert.Equal(t, true, err == nil)
-	assert.Equal(t, int64(50), sec)
+	for testID, tt := range tests {
+		t.Run(tt.timeoutParam, func(t *testing.T) {
+			pod.Annotations = map[string]string{tt.key: tt.timeoutParam}
+			sec, err := GetPlaceholderTimeoutParam(pod)
+			isErr := err != nil
+			if (isErr != tt.isErr) || (sec != tt.want) {
+				t.Errorf("%d:got %v %d,want %v %d", testID, isErr, sec, tt.isErr, tt.want)
+			}
+		})
+	}
 }
