@@ -70,7 +70,6 @@ type AddApplicationRequest struct {
 
 type AddTaskRequest struct {
 	Metadata TaskMetadata
-	Recovery bool
 }
 
 type ApplicationMetadata struct {

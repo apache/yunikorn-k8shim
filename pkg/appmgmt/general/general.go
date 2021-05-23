@@ -193,12 +193,10 @@ func (os *Manager) addPod(obj interface{}) {
 		return
 	}
 
-	recovery := utils.NeedRecovery(pod)
 	log.Logger().Debug("pod added",
 		zap.String("appType", os.Name()),
 		zap.String("Name", pod.Name),
-		zap.String("Namespace", pod.Namespace),
-		zap.Bool("NeedsRecovery", recovery))
+		zap.String("Namespace", pod.Namespace))
 
 	// add app
 	if appMeta, ok := os.getAppMetadata(pod); ok {
@@ -216,7 +214,6 @@ func (os *Manager) addPod(obj interface{}) {
 			if _, taskErr := app.GetTask(string(pod.UID)); taskErr != nil {
 				os.amProtocol.AddTask(&interfaces.AddTaskRequest{
 					Metadata: taskMeta,
-					Recovery: recovery,
 				})
 			}
 		}

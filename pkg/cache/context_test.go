@@ -50,6 +50,27 @@ func initContextForTest() *Context {
 	return context
 }
 
+func newPodHelper(name, namespace, podUID, nodeName string, podPhase v1.PodPhase) *v1.Pod {
+	return &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+			UID:       types.UID(podUID),
+		},
+		Spec: v1.PodSpec{
+			NodeName:      nodeName,
+			SchedulerName: constants.SchedulerName,
+		},
+		Status: v1.PodStatus{
+			Phase: podPhase,
+		},
+	}
+}
+
 func TestAddApplications(t *testing.T) {
 	context := initContextForTest()
 
@@ -240,7 +261,6 @@ func TestAddTask(t *testing.T) {
 			TaskID:        "task00001",
 			Pod:           &v1.Pod{},
 		},
-		Recovery: false,
 	})
 	assert.Assert(t, task != nil)
 	assert.Equal(t, task.GetTaskID(), "task00001")
@@ -252,7 +272,6 @@ func TestAddTask(t *testing.T) {
 			TaskID:        "task00002",
 			Pod:           &v1.Pod{},
 		},
-		Recovery: false,
 	})
 	assert.Assert(t, task != nil)
 	assert.Equal(t, task.GetTaskID(), "task00002")
@@ -264,7 +283,6 @@ func TestAddTask(t *testing.T) {
 			TaskID:        "task00002",
 			Pod:           &v1.Pod{},
 		},
-		Recovery: false,
 	})
 	assert.Assert(t, task != nil)
 	assert.Equal(t, task.GetTaskID(), "task00002")
@@ -276,7 +294,6 @@ func TestAddTask(t *testing.T) {
 			TaskID:        "task00003",
 			Pod:           &v1.Pod{},
 		},
-		Recovery: false,
 	})
 	assert.Assert(t, task == nil)
 
@@ -287,17 +304,24 @@ func TestAddTask(t *testing.T) {
 func TestRecoverTask(t *testing.T) {
 	context := initContextForTest()
 
-	const appID = "app00001"
-	const queue = "root.a"
-	const podUID = "task00001"
-	const podName = "my-pod"
+	const (
+		appID        = "app00001"
+		queue        = "root.a"
+		podNamespace = "yk"
+		user         = "test-user"
+		taskUID1     = "task00001"
+		taskUID2     = "task00002"
+		taskUID3     = "task00003"
+		taskUID4     = "task00004"
+		fakeNodeName = "fake-node"
+	)
 
 	// add a new application
 	context.AddApplication(&interfaces.AddApplicationRequest{
 		Metadata: interfaces.ApplicationMetadata{
 			ApplicationID: appID,
 			QueueName:     queue,
-			User:          "test-user",
+			User:          user,
 			Tags:          nil,
 		},
 	})
@@ -306,44 +330,90 @@ func TestRecoverTask(t *testing.T) {
 	assert.Equal(t, len(context.applications[appID].GetPendingTasks()), 0)
 
 	// add a tasks to the existing application
+	// this task was already allocated and Running
 	task := context.AddTask(&interfaces.AddTaskRequest{
 		Metadata: interfaces.TaskMetadata{
 			ApplicationID: appID,
-			TaskID:        podUID,
-			Pod: &v1.Pod{
-				TypeMeta: apis.TypeMeta{
-					Kind:       "Pod",
-					APIVersion: "v1",
-				},
-				ObjectMeta: apis.ObjectMeta{
-					Name:      podName,
-					Namespace: "yk",
-					UID:       podUID,
-				},
-				Spec: v1.PodSpec{},
-			},
+			TaskID:        taskUID1,
+			Pod:           newPodHelper("pod1", podNamespace, taskUID1, fakeNodeName, v1.PodRunning),
 		},
-		Recovery: true,
 	})
 	assert.Assert(t, task != nil)
-	assert.Equal(t, task.GetTaskID(), podUID)
+	assert.Equal(t, task.GetTaskID(), taskUID1)
 	assert.Equal(t, task.GetTaskState(), events.States().Task.Allocated)
+
+	// add a tasks to the existing application
+	// this task was already completed with state: Succeed
+	task = context.AddTask(&interfaces.AddTaskRequest{
+		Metadata: interfaces.TaskMetadata{
+			ApplicationID: appID,
+			TaskID:        taskUID2,
+			Pod:           newPodHelper("pod2", podNamespace, taskUID2, fakeNodeName, v1.PodSucceeded),
+		},
+	})
+	assert.Assert(t, task != nil)
+	assert.Equal(t, task.GetTaskID(), taskUID2)
+	assert.Equal(t, task.GetTaskState(), events.States().Task.Completed)
+
+	// add a tasks to the existing application
+	// this task was already completed with state: Succeed
+	task = context.AddTask(&interfaces.AddTaskRequest{
+		Metadata: interfaces.TaskMetadata{
+			ApplicationID: appID,
+			TaskID:        taskUID3,
+			Pod:           newPodHelper("pod3", podNamespace, taskUID3, fakeNodeName, v1.PodFailed),
+		},
+	})
+	assert.Assert(t, task != nil)
+	assert.Equal(t, task.GetTaskID(), taskUID3)
+	assert.Equal(t, task.GetTaskState(), events.States().Task.Completed)
+
+	// add a tasks to the existing application
+	// this task pod is still Pending
+	task = context.AddTask(&interfaces.AddTaskRequest{
+		Metadata: interfaces.TaskMetadata{
+			ApplicationID: appID,
+			TaskID:        taskUID4,
+			Pod:           newPodHelper("pod4", podNamespace, taskUID4, "", v1.PodPending),
+		},
+	})
+	assert.Assert(t, task != nil)
+	assert.Equal(t, task.GetTaskID(), taskUID4)
+	assert.Equal(t, task.GetTaskState(), events.States().Task.New)
 
 	// make sure the recovered task is added to the app
 	app, exist := context.applications[appID]
 	assert.Equal(t, exist, true)
-	assert.Equal(t, len(app.GetAllocatedTasks()), 1)
+	assert.Equal(t, len(app.getTasks(events.States().Task.Allocated)), 1)
+	assert.Equal(t, len(app.getTasks(events.States().Task.Completed)), 2)
+	assert.Equal(t, len(app.getTasks(events.States().Task.New)), 1)
 
-	// verify the info for the recovered task
-	recoveredTask, err := app.GetTask(podUID)
-	assert.NilError(t, err)
-	tt, ok := recoveredTask.(*Task)
-	assert.Equal(t, ok, true)
-	assert.Equal(t, tt.taskID, podUID)
-	assert.Equal(t, tt.allocationUUID, podUID)
-	assert.Equal(t, tt.GetTaskState(), events.States().Task.Allocated)
-	assert.Equal(t, tt.alias, fmt.Sprintf("yk/%s", podName))
-	assert.Equal(t, tt.pod.UID, types.UID(podUID))
+	taskInfoVerifiers := []struct {
+		taskID                 string
+		expectedState          string
+		expectedAllocationUUID string
+		expectedPodName        string
+		expectedNodeName       string
+	}{
+		{taskUID1, events.States().Task.Allocated, taskUID1, "pod1", fakeNodeName},
+		{taskUID2, events.States().Task.Completed, taskUID2, "pod2", fakeNodeName},
+		{taskUID3, events.States().Task.Completed, taskUID3, "pod3", fakeNodeName},
+		{taskUID4, events.States().Task.New, "", "pod4", ""},
+	}
+
+	for _, tt := range taskInfoVerifiers {
+		t.Run(tt.taskID, func(t *testing.T) {
+			// verify the info for the recovered task
+			recoveredTask, err := app.GetTask(tt.taskID)
+			assert.NilError(t, err)
+			rt, ok := recoveredTask.(*Task)
+			assert.Equal(t, ok, true)
+			assert.Equal(t, rt.GetTaskState(), tt.expectedState)
+			assert.Equal(t, rt.allocationUUID, tt.expectedAllocationUUID)
+			assert.Equal(t, rt.pod.Name, tt.expectedPodName)
+			assert.Equal(t, rt.alias, fmt.Sprintf("%s/%s", podNamespace, tt.expectedPodName))
+		})
+	}
 }
 
 func TestTaskReleaseAfterRecovery(t *testing.T) {
@@ -360,6 +430,7 @@ func TestTaskReleaseAfterRecovery(t *testing.T) {
 	const pod2UID = "task00002"
 	const pod2Name = "my-pod-2"
 	const namespace = "yk"
+	const fakeNodeName = "fake-node"
 
 	// do app recovery, first recover app, then tasks
 	// add application to recovery
@@ -380,20 +451,8 @@ func TestTaskReleaseAfterRecovery(t *testing.T) {
 		Metadata: interfaces.TaskMetadata{
 			ApplicationID: appID,
 			TaskID:        pod1UID,
-			Pod: &v1.Pod{
-				TypeMeta: apis.TypeMeta{
-					Kind:       "Pod",
-					APIVersion: "v1",
-				},
-				ObjectMeta: apis.ObjectMeta{
-					Name:      pod1Name,
-					Namespace: namespace,
-					UID:       pod1UID,
-				},
-				Spec: v1.PodSpec{},
-			},
+			Pod:           newPodHelper(pod1Name, namespace, pod1UID, fakeNodeName, v1.PodRunning),
 		},
-		Recovery: true,
 	})
 
 	assert.Assert(t, task0 != nil)
@@ -404,20 +463,8 @@ func TestTaskReleaseAfterRecovery(t *testing.T) {
 		Metadata: interfaces.TaskMetadata{
 			ApplicationID: appID,
 			TaskID:        pod2UID,
-			Pod: &v1.Pod{
-				TypeMeta: apis.TypeMeta{
-					Kind:       "Pod",
-					APIVersion: "v1",
-				},
-				ObjectMeta: apis.ObjectMeta{
-					Name:      pod2Name,
-					Namespace: namespace,
-					UID:       pod2UID,
-				},
-				Spec: v1.PodSpec{},
-			},
+			Pod:           newPodHelper(pod2Name, namespace, pod2UID, fakeNodeName, v1.PodRunning),
 		},
-		Recovery: true,
 	})
 
 	assert.Assert(t, task1 != nil)
@@ -470,7 +517,6 @@ func TestRemoveTask(t *testing.T) {
 			TaskID:        "task00001",
 			Pod:           &v1.Pod{},
 		},
-		Recovery: false,
 	})
 	context.AddTask(&interfaces.AddTaskRequest{
 		Metadata: interfaces.TaskMetadata{
@@ -478,7 +524,6 @@ func TestRemoveTask(t *testing.T) {
 			TaskID:        "task00002",
 			Pod:           &v1.Pod{},
 		},
-		Recovery: false,
 	})
 
 	// verify app and tasks
@@ -662,7 +707,6 @@ func TestPublishEventsCorrectly(t *testing.T) {
 			TaskID:        "task_event",
 			Pod:           &v1.Pod{},
 		},
-		Recovery: false,
 	})
 
 	// create an event belonging to that task
