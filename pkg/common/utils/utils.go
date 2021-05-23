@@ -45,24 +45,16 @@ func Convert2Pod(obj interface{}) (*v1.Pod, error) {
 	return pod, nil
 }
 
-func NeedRecovery(pod *v1.Pod) (bool, error) {
-	if pod.Status.Phase == v1.PodPending {
-		return false, nil
+func NeedRecovery(pod *v1.Pod) bool {
+	// pod requires recovery needs to satisfy both conditions
+	// 1. Pod is scheduled by us
+	// 2. pod is already assigned to a node
+	// 3. pod is not in terminated state
+	if GeneralPodFilter(pod) && IsAssignedPod(pod) && !IsPodTerminated(pod) {
+		return true
 	}
 
-	if !GeneralPodFilter(pod) {
-		return false, nil
-	}
-
-	if pod.Spec.NodeName != "" {
-		return true, nil
-	}
-
-	if pod.Status.Phase == v1.PodFailed {
-		return false, nil
-	}
-
-	return false, fmt.Errorf("unknown pod state %v", pod)
+	return false
 }
 
 func IsPodRunning(pod *v1.Pod) bool {

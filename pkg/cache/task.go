@@ -107,6 +107,9 @@ func createTaskInternal(tid string, app *Application, resource *si.Resource,
 			{Name: string(events.TaskAllocated),
 				Src: []string{states.Scheduling},
 				Dst: states.Allocated},
+			{Name: string(events.TaskAllocated),
+				Src: []string{states.Completed},
+				Dst: states.Completed},
 			{Name: string(events.TaskBound),
 				Src: []string{states.Allocated},
 				Dst: states.Bound},
@@ -129,6 +132,7 @@ func createTaskInternal(tid string, app *Application, resource *si.Resource,
 		fsm.Callbacks{
 			string(events.SubmitTask):       task.handleSubmitTaskEvent,
 			string(events.TaskFail):         task.handleFailEvent,
+			beforeHook(events.TaskAllocated):task.beforeTaskAllocated,
 			states.Pending:                  task.postTaskPending,
 			states.Allocated:                task.postTaskAllocated,
 			states.Rejected:                 task.postTaskRejected,
@@ -357,6 +361,41 @@ func (task *Task) postTaskAllocated(event *fsm.Event) {
 			v1.EventTypeNormal, "PodBindSuccessful",
 			"Pod %s is successfully bound to node %s", task.alias, nodeID)
 	}(event)
+}
+
+// this callback is called before handling the TaskAllocated event,
+// when we receive the new allocation from the core, normally the task
+// should be in Scheduling state and waiting for the allocation to come.
+// but in some cases, the task could be canceled (e.g pod deleted) before
+// getting the response. Such task transited to the Completed state.
+// If we find the task is already in Completed state while handling TaskAllocated
+// event, we need to explicitly release this allocation because it is no
+// longer valid.
+func (task *Task) beforeTaskAllocated(event *fsm.Event) {
+	// if task is already completed and we got a TaskAllocated event
+	// that means this allocation is no longer valid, we should
+	// notify the core to release this allocation to avoid resource leak
+	if event.Src == events.States().Task.Completed {
+		var errorMessage string
+		eventArgs := make([]string, 2)
+		if err := events.GetEventArgsAsStrings(eventArgs, event.Args); err != nil {
+			errorMessage = err.Error()
+			log.Logger().Error("error", zap.Error(err))
+			dispatcher.Dispatch(NewFailTaskEvent(task.applicationID, task.taskID, errorMessage))
+			return
+		}
+
+		allocUUID := eventArgs[0]
+		nodeID := eventArgs[1]
+
+		log.Logger().Info("task is already completed, invalidate the allocation",
+			zap.String("currentTaskState", event.Src),
+			zap.String("allocUUID", allocUUID),
+			zap.String("allocatedNode", nodeID))
+
+		task.allocationUUID = allocUUID
+		task.releaseAllocation()
+	}
 }
 
 func (task *Task) postTaskBound(event *fsm.Event) {
