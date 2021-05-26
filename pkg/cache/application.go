@@ -459,7 +459,8 @@ func (app *Application) handleRecoverApplicationEvent(event *fsm.Event) {
 func (app *Application) skipReservationStage() bool {
 	// no task groups defined, skip reservation
 	if len(app.taskGroups) == 0 {
-		log.Logger().Debug("Skip reservation stage: no task groups defined")
+		log.Logger().Debug("Skip reservation stage: no task groups defined",
+			zap.String("appID", app.applicationID))
 		return true
 	}
 
@@ -470,6 +471,7 @@ func (app *Application) skipReservationStage() bool {
 		for _, task := range app.taskMap {
 			if task.GetTaskState() != events.States().Task.New {
 				log.Logger().Debug("Skip reservation stage: found task already has been scheduled before.",
+					zap.String("appID", app.applicationID),
 					zap.String("taskID", task.GetTaskID()),
 					zap.String("taskState", task.GetTaskState()))
 				return true
