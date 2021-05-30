@@ -52,6 +52,7 @@ type ApplicationStates struct {
 	Killed     string
 	Failing    string
 	Failed     string
+	Resuming   string
 }
 
 type NodeStates struct {

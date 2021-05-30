@@ -64,6 +64,10 @@ const AnnotationTaskGroups = "yunikorn.apache.org/task-groups"
 const AnnotationSchedulingPolicyParam = "yunikorn.apache.org/schedulingPolicyParameters"
 const SchedulingPolicyTimeoutParam = "placeholderTimeoutInSeconds"
 const SchedulingPolicyParamDelimiter = " "
+const SchedulingPolicyStyleParam = "gangSchedulingStyle"
+const SchedulingPolicyStyleParamDefault = "Hard"
+
+var SchedulingPolicyStyleParamValues = map[string]string{"Hard": "Hard", "Soft": "Soft"}
 
 const ApplicationInsufficientResourcesFailure = "ResourceReservationTimeout"
 const ApplicationRejectedFailure = "ApplicationRejected"

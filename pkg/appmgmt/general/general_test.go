@@ -62,7 +62,8 @@ func TestGetAppMetadata(t *testing.T) {
 				"queue":         "root.a",
 			},
 			Annotations: map[string]string{
-				constants.AnnotationTaskGroups: taskGroupInfo,
+				constants.AnnotationTaskGroups:            taskGroupInfo,
+				constants.AnnotationSchedulingPolicyParam: "gangSchedulingStyle=Soft",
 			},
 		},
 		Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
@@ -81,6 +82,7 @@ func TestGetAppMetadata(t *testing.T) {
 	assert.Equal(t, app.TaskGroups[0].MinMember, int32(3))
 	assert.Equal(t, app.TaskGroups[0].MinResource["cpu"], resource.MustParse("2"))
 	assert.Equal(t, app.TaskGroups[0].MinResource["memory"], resource.MustParse("1Gi"))
+	assert.Equal(t, app.SchedulingStyle, "Soft")
 
 	pod = v1.Pod{
 		TypeMeta: apis.TypeMeta{
@@ -95,6 +97,9 @@ func TestGetAppMetadata(t *testing.T) {
 				"applicationId":            "app00002",
 				"queue":                    "root.b",
 				"yunikorn.apache.org/user": "testuser",
+			},
+			Annotations: map[string]string{
+				constants.SchedulingPolicyStyleParam: "gangSchedulingStyle=Hard",
 			},
 		},
 		Spec: v1.PodSpec{
@@ -112,6 +117,34 @@ func TestGetAppMetadata(t *testing.T) {
 	assert.Equal(t, app.User, constants.DefaultUser)
 	assert.DeepEqual(t, app.Tags, map[string]string{"namespace": "app-namespace-01"})
 	assert.DeepEqual(t, len(app.TaskGroups), 0)
+	assert.Equal(t, app.SchedulingStyle, "Hard")
+
+	pod = v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name:      "pod00001",
+			Namespace: "default",
+			UID:       "UID-POD-00001",
+			Labels: map[string]string{
+				"applicationId": "app00001",
+				"queue":         "root.a",
+			},
+			Annotations: map[string]string{
+				constants.AnnotationTaskGroups: taskGroupInfo,
+			},
+		},
+		Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
+		Status: v1.PodStatus{
+			Phase: v1.PodPending,
+		},
+	}
+
+	app, ok = am.getAppMetadata(&pod)
+	assert.Equal(t, ok, true)
+	assert.Equal(t, app.SchedulingStyle, "Hard")
 
 	pod = v1.Pod{
 		TypeMeta: apis.TypeMeta{

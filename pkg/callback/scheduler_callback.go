@@ -149,6 +149,16 @@ func (callback *AsyncRMCallback) RecvUpdateResponse(response *si.UpdateResponse)
 			if err != nil {
 				log.Logger().Error("failed to delete application", zap.Error(err))
 			}
+		} else if updated.State == events.States().Application.Resuming {
+			app := callback.context.GetApplication(updated.ApplicationID)
+			if app != nil && app.GetApplicationState() == events.States().Application.Reserving {
+				ev := cache.NewRunApplicationEvent(updated.ApplicationID)
+				dispatcher.Dispatch(ev)
+
+				// handle status update
+				dispatcher.Dispatch(cache.NewApplicationStatusChangeEvent(updated.ApplicationID, events.AppStateChange, updated.State))
+			}
+
 		} else {
 			if updated.State == events.States().Application.Failing || updated.State == events.States().Application.Failed {
 				ev := cache.NewFailApplicationEvent(updated.ApplicationID, updated.Message)

@@ -290,17 +290,21 @@ func TestGetTaskGroupFromAnnotation(t *testing.T) {
 	assert.Equal(t, taskGroups2[0].MinResource["memory"], resource.MustParse("1Gi"))
 }
 
-func TestGetPlaceholderTimeoutParam(t *testing.T) {
+func TestGetSchedulingPolicyParams(t *testing.T) {
 	tests := []struct {
 		key, timeoutParam string
 		isErr             bool
 		want              int64
+		isStyleErr        bool
+		expectedStyle     string
 	}{
-		{constants.AnnotationSchedulingPolicyParam, "unknownPara=unkown  placeholderTimeoutInSeconds=50=25", true, int64(0)},
-		{constants.AnnotationSchedulingPolicyParam, "unknownPara=unkown  placeholderTimeoutInSeconds=oneSecond", true, int64(0)},
-		{constants.AnnotationSchedulingPolicyParam, "unknownPara=unkown", false, int64(0)},
-		{"policyParamUndefined", "unknownPara=unkown placeholderTimeoutInSeconds=50", false, int64(0)},
-		{constants.AnnotationSchedulingPolicyParam, "unknownPara=unkown placeholderTimeoutInSeconds=50", false, int64(50)},
+		{constants.AnnotationSchedulingPolicyParam, "unknownPara=unkown placeholderTimeoutInSeconds=50=25 gangSchedulingStyle=Soft=Hard", true, int64(0), true, "Hard"},
+		{constants.AnnotationSchedulingPolicyParam, "unknownPara=unkown placeholderTimeoutInSeconds=50 gangSchedulingStyle=Soft=Hard", false, int64(50), true, "Hard"},
+		{constants.AnnotationSchedulingPolicyParam, "unknownPara=unkown placeholderTimeoutInSeconds=oneSecond gangSchedulingStyle=Soft", true, int64(0), false, "Soft"},
+		{constants.AnnotationSchedulingPolicyParam, "unknownPara=unkown", false, int64(0), false, "Hard"},
+		{"policyParamUndefined", "unknownPara=unkown placeholderTimeoutInSeconds=50", false, int64(0), false, "Hard"},
+		{constants.AnnotationSchedulingPolicyParam, "unknownPara=unkown placeholderTimeoutInSeconds=50  gangSchedulingStyle=Hard", false, int64(50), false, "Hard"},
+		{constants.AnnotationSchedulingPolicyParam, "unknownPara=unkown gangSchedulingStyle=Soft", false, int64(0), false, "Soft"},
 	}
 
 	pod := &v1.Pod{
@@ -318,10 +322,14 @@ func TestGetPlaceholderTimeoutParam(t *testing.T) {
 	for testID, tt := range tests {
 		t.Run(tt.timeoutParam, func(t *testing.T) {
 			pod.Annotations = map[string]string{tt.key: tt.timeoutParam}
-			sec, err := GetPlaceholderTimeoutParam(pod)
+			sec, err, style, styleErr := GetSchedulingPolicyParam(pod)
 			isErr := err != nil
+			isStyleErr := styleErr != nil
 			if (isErr != tt.isErr) || (sec != tt.want) {
 				t.Errorf("%d:got %v %d,want %v %d", testID, isErr, sec, tt.isErr, tt.want)
+			}
+			if (isStyleErr != tt.isStyleErr) || (style != tt.expectedStyle) {
+				t.Errorf("%d:got %v %s,want %v %s", testID, isStyleErr, style, tt.isStyleErr, tt.expectedStyle)
 			}
 		})
 	}

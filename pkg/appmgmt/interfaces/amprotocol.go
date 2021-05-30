@@ -80,6 +80,7 @@ type ApplicationMetadata struct {
 	TaskGroups              []v1alpha1.TaskGroup
 	PlaceholderTimeoutInSec int64
 	OwnerReferences         []metav1.OwnerReference
+	SchedulingStyle         string
 }
 
 type TaskMetadata struct {

@@ -24,11 +24,13 @@ import (
 	"strconv"
 	"strings"
 
+	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 )
 
 func FindAppTaskGroup(appTaskGroups []*v1alpha1.TaskGroup, groupName string) (*v1alpha1.TaskGroup, error) {
@@ -123,24 +125,42 @@ func GetTaskGroupsFromAnnotation(pod *v1.Pod) ([]v1alpha1.TaskGroup, error) {
 	return taskGroups, nil
 }
 
-func GetPlaceholderTimeoutParam(pod *v1.Pod) (int64, error) {
+func GetSchedulingPolicyParam(pod *v1.Pod) (int64, error, string, error) {
+	style := constants.SchedulingPolicyStyleParamDefault
 	param, ok := pod.Annotations[constants.AnnotationSchedulingPolicyParam]
 	if !ok {
-		return 0, nil
+		return 0, nil, style, nil
 	}
 	params := strings.Split(param, constants.SchedulingPolicyParamDelimiter)
+	timeout := int64(0)
+	var timeoutErr error
+	var styleErr error
+	var err error
+	var styleExists bool
 	for _, p := range params {
-		timeoutParam := strings.Split(p, "=")
-		if timeoutParam[0] == constants.SchedulingPolicyTimeoutParam {
-			if len(timeoutParam) != 2 {
-				return 0, fmt.Errorf("unable to parse timeout value from annotation")
+		param := strings.Split(p, "=")
+		if param[0] == constants.SchedulingPolicyTimeoutParam {
+			if len(param) != 2 {
+				timeoutErr = fmt.Errorf("unable to parse timeout value from annotation")
 			}
-			timeout, err := strconv.ParseInt(timeoutParam[1], 10, 64)
-			if err != nil {
-				return 0, fmt.Errorf("failed to parse timeout value: %s", timeoutParam[1])
+			if timeoutErr == nil {
+				timeout, err = strconv.ParseInt(param[1], 10, 64)
+				if err != nil {
+					timeoutErr = fmt.Errorf("failed to parse timeout value: %s", param[1])
+				}
 			}
-			return timeout, nil
+		} else if param[0] == constants.SchedulingPolicyStyleParam {
+			if len(param) != 2 {
+				styleErr = fmt.Errorf("unable to parse scheduling style value from annotation")
+			}
+			if styleErr == nil {
+				style, styleExists = constants.SchedulingPolicyStyleParamValues[param[1]]
+				if !styleExists {
+					log.Logger().Info("Unknown gang scheduling style, using "+constants.SchedulingPolicyStyleParamDefault+" style as default",
+						zap.String("gang scheduling style", param[1]))
+				}
+			}
 		}
 	}
-	return 0, nil
+	return timeout, timeoutErr, style, styleErr
 }
