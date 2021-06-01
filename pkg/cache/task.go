@@ -251,10 +251,14 @@ func (task *Task) initialize() {
 	// scheduled by us with an allocation, instead of starting
 	// from New, directly set the task to Allocated.
 	if utils.NeedRecovery(task.pod) {
-		log.Logger().Info("init allocated task")
 		task.allocationUUID = string(task.pod.UID)
 		task.nodeName = task.pod.Spec.NodeName
 		task.sm.SetState(events.States().Task.Allocated)
+		log.Logger().Info("set task as Allocated",
+			zap.String("appID", task.applicationID),
+			zap.String("taskID", task.taskID),
+			zap.String("allocationUUID", task.allocationUUID),
+			zap.String("nodeName", task.nodeName))
 	}
 
 	// task already terminated, succeed or failed
@@ -265,6 +269,11 @@ func (task *Task) initialize() {
 		task.allocationUUID = string(task.pod.UID)
 		task.nodeName = task.pod.Spec.NodeName
 		task.sm.SetState(events.States().Task.Completed)
+		log.Logger().Info("set task as Completed",
+			zap.String("appID", task.applicationID),
+			zap.String("taskID", task.taskID),
+			zap.String("allocationUUID", task.allocationUUID),
+			zap.String("nodeName", task.nodeName))
 	}
 }
 
