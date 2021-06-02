@@ -107,7 +107,6 @@ func (fc *MockScheduler) addTask(appID string, taskID string, ask *si.Resource) 
 				},
 			},
 		},
-		Recovery: false,
 	})
 }
 

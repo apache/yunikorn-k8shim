@@ -880,3 +880,55 @@ func TestTriggerAppRecovery(t *testing.T) {
 	err = app.TriggerAppRecovery()
 	assert.ErrorContains(t, err, "event RecoverApplication inappropriate in current state Submitted")
 }
+
+func TestSkipReservationStage(t *testing.T) {
+	context := initContextForTest()
+	app := NewApplication("app00001", "root.queue", "test-user", map[string]string{}, newMockSchedulerAPI())
+	app.addTask(NewTask("task0001", app, context, &v1.Pod{}))
+	skip := app.skipReservationStage()
+	assert.Equal(t, skip, true, "expected to skip reservation because there is no task groups defined")
+
+	// app has task groups defined, and contains 2 tasks, 1 Pending and 1 Allocated
+	// expect: skip reservation
+	app = NewApplication("app00001", "root.queue", "test-user", map[string]string{}, newMockSchedulerAPI())
+	task1 := NewTask("task0001", app, context, &v1.Pod{})
+	task1.sm.SetState(events.States().Task.New)
+	task2 := NewTask("task0002", app, context, &v1.Pod{})
+	task2.sm.SetState(events.States().Task.Allocated)
+	app.addTask(task1)
+	app.addTask(task2)
+	app.setTaskGroups([]v1alpha1.TaskGroup{
+		{
+			Name:      "test-group-1",
+			MinMember: 10,
+			MinResource: map[string]resource.Quantity{
+				v1.ResourceCPU.String():    resource.MustParse("500m"),
+				v1.ResourceMemory.String(): resource.MustParse("500Mi"),
+			},
+		}},
+	)
+	skip = app.skipReservationStage()
+	assert.Equal(t, skip, true, "expected to skip reservation because there is task in Allocated state")
+
+	// app has task groups defined, and contains 2 tasks, both are New
+	// expect: do not skip reservation
+	app = NewApplication("app00001", "root.queue", "test-user", map[string]string{}, newMockSchedulerAPI())
+	task1 = NewTask("task0001", app, context, &v1.Pod{})
+	task1.sm.SetState(events.States().Task.New)
+	task2 = NewTask("task0002", app, context, &v1.Pod{})
+	task2.sm.SetState(events.States().Task.New)
+	app.addTask(task1)
+	app.addTask(task2)
+	app.setTaskGroups([]v1alpha1.TaskGroup{
+		{
+			Name:      "test-group-1",
+			MinMember: 10,
+			MinResource: map[string]resource.Quantity{
+				v1.ResourceCPU.String():    resource.MustParse("500m"),
+				v1.ResourceMemory.String(): resource.MustParse("500Mi"),
+			},
+		}},
+	)
+	skip = app.skipReservationStage()
+	assert.Equal(t, skip, false, "expected not to skip reservation")
+}

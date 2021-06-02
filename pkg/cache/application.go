@@ -456,6 +456,31 @@ func (app *Application) handleRecoverApplicationEvent(event *fsm.Event) {
 	}
 }
 
+func (app *Application) skipReservationStage() bool {
+	// no task groups defined, skip reservation
+	if len(app.taskGroups) == 0 {
+		log.Logger().Debug("Skip reservation stage: no task groups defined",
+			zap.String("appID", app.applicationID))
+		return true
+	}
+
+	// if there is any task already passed New state,
+	// that means the scheduler has already tried to schedule it
+	// in this case, we should skip the reservation stage
+	if len(app.taskMap) > 0 {
+		for _, task := range app.taskMap {
+			if task.GetTaskState() != events.States().Task.New {
+				log.Logger().Debug("Skip reservation stage: found task already has been scheduled before.",
+					zap.String("appID", app.applicationID),
+					zap.String("taskID", task.GetTaskID()),
+					zap.String("taskState", task.GetTaskState()))
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func (app *Application) postAppAccepted() {
 	// if app has taskGroups defined, and it has no allocated tasks,
 	// it goes to the Reserving state before getting to Running.
@@ -466,13 +491,14 @@ func (app *Application) postAppAccepted() {
 		zap.String("appID", app.applicationID),
 		zap.Int("numTaskGroups", len(app.taskGroups)),
 		zap.Int("numAllocatedTasks", len(app.getTasks(events.States().Task.Allocated))))
-	if len(app.taskGroups) != 0 &&
-		len(app.getTasks(events.States().Task.Allocated)) == 0 {
-		ev = NewSimpleApplicationEvent(app.applicationID, events.TryReserve)
-		log.Logger().Info("app has taskGroups defined, trying to reserve resources for gang members")
-		dispatcher.Dispatch(ev)
-	} else {
+	if app.skipReservationStage() {
 		ev = NewRunApplicationEvent(app.applicationID)
+		log.Logger().Info("Skip the reservation stage",
+			zap.String("appID", app.applicationID))
+	} else {
+		ev = NewSimpleApplicationEvent(app.applicationID, events.TryReserve)
+		log.Logger().Info("app has taskGroups defined, trying to reserve resources for gang members",
+			zap.String("appID", app.applicationID))
 	}
 	dispatcher.Dispatch(ev)
 }

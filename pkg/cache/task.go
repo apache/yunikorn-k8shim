@@ -147,6 +147,8 @@ func createTaskInternal(tid string, app *Application, resource *si.Resource,
 		task.taskGroupName = tgName
 	}
 
+	task.initialize()
+
 	return task
 }
 
@@ -234,6 +236,45 @@ func (task *Task) isTerminated() bool {
 		}
 	}
 	return false
+}
+
+// task object initialization
+// normally when task is added, the task state is New
+// but during recovery, we need to init the task state according to
+// the task pod status. if the pod is already terminated,
+// we should mark the task as completed according.
+func (task *Task) initialize() {
+	task.lock.Lock()
+	defer task.lock.Unlock()
+
+	// task needs recovery means the task has already been
+	// scheduled by us with an allocation, instead of starting
+	// from New, directly set the task to Allocated.
+	if utils.NeedRecovery(task.pod) {
+		task.allocationUUID = string(task.pod.UID)
+		task.nodeName = task.pod.Spec.NodeName
+		task.sm.SetState(events.States().Task.Allocated)
+		log.Logger().Info("set task as Allocated",
+			zap.String("appID", task.applicationID),
+			zap.String("taskID", task.taskID),
+			zap.String("allocationUUID", task.allocationUUID),
+			zap.String("nodeName", task.nodeName))
+	}
+
+	// task already terminated, succeed or failed
+	// that means the task was already allocated and completed
+	// the resources were already released, instead of starting
+	// from New, directly set the task to Completed
+	if utils.IsPodTerminated(task.pod) {
+		task.allocationUUID = string(task.pod.UID)
+		task.nodeName = task.pod.Spec.NodeName
+		task.sm.SetState(events.States().Task.Completed)
+		log.Logger().Info("set task as Completed",
+			zap.String("appID", task.applicationID),
+			zap.String("taskID", task.taskID),
+			zap.String("allocationUUID", task.allocationUUID),
+			zap.String("nodeName", task.nodeName))
+	}
 }
 
 func (task *Task) setAllocated(nodeName, allocationUUID string) {
