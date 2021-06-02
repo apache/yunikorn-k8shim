@@ -557,7 +557,7 @@ func (app *Application) handleFailApplicationEvent(event *fsm.Event) {
 		return
 	}
 	errMsg := eventArgs[0]
-	log.Logger().Info("failApplication reason", zap.String("errMsg", errMsg))
+	log.Logger().Info("failApplication reason", zap.String("applicationID", app.applicationID), zap.String("errMsg", errMsg))
 	// unallocated task states include New, Pending and Scheduling
 	unalloc := app.getTasks(events.States().Task.New)
 	unalloc = append(unalloc, app.getTasks(events.States().Task.Pending)...)
