@@ -132,7 +132,7 @@ partitions:
 
 	// wait for scheduling app and tasks
 	// verify app state
-	cluster.waitAndAssertApplicationState(t, appID, events.States().Application.Failed)
+	cluster.waitAndAssertApplicationState(t, appID, events.States().Application.Failing)
 
 	// remove the application
 	// remove task first or removeApplication will fail
