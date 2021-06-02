@@ -543,7 +543,7 @@ func TestFailApplicationEventGetArgs(t *testing.T) {
 		name            string
 		appID, errorMsg string
 		wantLen         int
-		isString        []bool
+		castOk          []bool
 		wantArg         []string
 	}{
 		{TestArgsName, "testAppId001", "test error msg", 1, []bool{true}, []string{"test error msg"}},
@@ -558,8 +558,8 @@ func TestFailApplicationEventGetArgs(t *testing.T) {
 
 				for index, arg := range args {
 					info, ok := arg.(string)
-					if ok != tt.isString[index] {
-						t.Errorf("want %v, got %v", tt.isString[index], ok)
+					if ok != tt.castOk[index] {
+						t.Errorf("want %v, got %v", tt.castOk[index], ok)
 					}
 					if info != tt.wantArg[index] {
 						t.Errorf("want %s, got %s", tt.wantArg[index], info)
@@ -720,7 +720,7 @@ func TestReleaseAppAllocationEventGetArgs(t *testing.T) {
 		appID, allocationUUID string
 		terminationType       si.TerminationType
 		wantLen               int
-		isString              []bool
+		castOk                []bool
 		wantArg               []string
 	}{
 		{TestArgsName, "testAppId001", "testUUID001", si.TerminationType_TIMEOUT, 2, []bool{true, true}, []string{"testUUID001", "TIMEOUT"}},
@@ -735,8 +735,8 @@ func TestReleaseAppAllocationEventGetArgs(t *testing.T) {
 
 				for index, arg := range args {
 					info, ok := arg.(string)
-					if ok != tt.isString[index] {
-						t.Errorf("want %v, got %v", tt.isString[index], ok)
+					if ok != tt.castOk[index] {
+						t.Errorf("want %v, got %v", tt.castOk[index], ok)
 					}
 					if info != tt.wantArg[index] {
 						t.Errorf("want %s, got %s", tt.wantArg[index], info)
@@ -819,8 +819,10 @@ func TestReleaseAppAllocationAskEventGetArgs(t *testing.T) {
 		terminationType      si.TerminationType
 		wantLen              int
 		wantTaskID, wantType string
+		castOk               []bool
+		wantArg              []string
 	}{
-		{TestArgsName, "testAppId001", "testTaskId001", si.TerminationType_TIMEOUT, 2, "testTaskId001", "TIMEOUT"},
+		{TestArgsName, "testAppId001", "testTaskId001", si.TerminationType_TIMEOUT, 2, "testTaskId001", "TIMEOUT", []bool{true, true}, []string{"testTaskId001", "TIMEOUT"}},
 	}
 
 	for _, tt := range tests {
@@ -829,6 +831,16 @@ func TestReleaseAppAllocationAskEventGetArgs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if len(args) != tt.wantLen {
 				t.Errorf("want %d, got %d", tt.wantLen, len(args))
+
+				for index, arg := range args {
+					info, ok := arg.(string)
+					if ok != tt.castOk[index] {
+						t.Errorf("want %v, got %v", tt.castOk[index], ok)
+					}
+					if info != tt.wantArg[index] {
+						t.Errorf("want %s, got %s", tt.wantArg[index], info)
+					}
+				}
 			}
 		})
 	}
