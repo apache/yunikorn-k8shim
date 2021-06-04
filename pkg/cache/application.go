@@ -57,6 +57,7 @@ type Application struct {
 	schedulerAPI               api.SchedulerAPI
 	placeholderAsk             *si.Resource // total placeholder request for the app (all task groups)
 	placeholderTimeoutInSec    int64
+	schedulingStyle            string
 }
 
 func (app *Application) String() string {
@@ -79,6 +80,7 @@ func NewApplication(appID, queueName, user string, tags map[string]string, sched
 		lock:                    &sync.RWMutex{},
 		schedulerAPI:            scheduler,
 		placeholderTimeoutInSec: 0,
+		schedulingStyle:         constants.SchedulingPolicyStyleParamDefault,
 	}
 
 	var states = events.States().Application
@@ -100,8 +102,11 @@ func NewApplication(appID, queueName, user string, tags map[string]string, sched
 			{Name: string(events.UpdateReservation),
 				Src: []string{states.Reserving},
 				Dst: states.Reserving},
+			{Name: string(events.ResumingApplication),
+				Src: []string{states.Reserving},
+				Dst: states.Resuming},
 			{Name: string(events.RunApplication),
-				Src: []string{states.Accepted, states.Reserving, states.Running},
+				Src: []string{states.Accepted, states.Reserving, states.Resuming, states.Running},
 				Dst: states.Running},
 			{Name: string(events.ReleaseAppAllocation),
 				Src: []string{states.Running},
@@ -109,12 +114,18 @@ func NewApplication(appID, queueName, user string, tags map[string]string, sched
 			{Name: string(events.ReleaseAppAllocation),
 				Src: []string{states.Failing},
 				Dst: states.Failing},
+			{Name: string(events.ReleaseAppAllocation),
+				Src: []string{states.Resuming},
+				Dst: states.Resuming},
 			{Name: string(events.ReleaseAppAllocationAsk),
 				Src: []string{states.Running, states.Accepted, states.Reserving},
 				Dst: states.Running},
 			{Name: string(events.ReleaseAppAllocationAsk),
 				Src: []string{states.Failing},
 				Dst: states.Failing},
+			{Name: string(events.ReleaseAppAllocationAsk),
+				Src: []string{states.Resuming},
+				Dst: states.Resuming},
 			{Name: string(events.CompleteApplication),
 				Src: []string{states.Running},
 				Dst: states.Completed},
@@ -242,6 +253,12 @@ func (app *Application) setOwnReferences(ref []metav1.OwnerReference) {
 	app.lock.RLock()
 	defer app.lock.RUnlock()
 	app.placeholderOwnerReferences = ref
+}
+
+func (app *Application) setSchedulingStyle(schedulingStyle string) {
+	app.lock.RLock()
+	defer app.lock.RUnlock()
+	app.schedulingStyle = schedulingStyle
 }
 
 func (app *Application) addTask(task *Task) {
@@ -419,6 +436,7 @@ func (app *Application) handleSubmitApplicationEvent(event *fsm.Event) {
 					Tags:                         app.tags,
 					PlaceholderAsk:               app.placeholderAsk,
 					ExecutionTimeoutMilliSeconds: app.placeholderTimeoutInSec * 1000,
+					GangSchedulingStyle:          app.schedulingStyle,
 				},
 			},
 			RmID: conf.GetSchedulerConf().ClusterID,
@@ -447,6 +465,7 @@ func (app *Application) handleRecoverApplicationEvent(event *fsm.Event) {
 					},
 					Tags:                         app.tags,
 					ExecutionTimeoutMilliSeconds: app.placeholderTimeoutInSec * 1000,
+					GangSchedulingStyle:          app.schedulingStyle,
 				},
 			},
 			RmID: conf.GetSchedulerConf().ClusterID,
@@ -628,6 +647,19 @@ func (app *Application) handleReleaseAppAllocationEvent(event *fsm.Event) {
 			}
 		}
 	}
+	app.postAppReleased()
+}
+
+func (app *Application) postAppReleased() {
+	canRunApplication := true
+	for _, task := range app.taskMap {
+		if !utils.IsPodTerminated(task.GetTaskPod()) {
+			canRunApplication = false
+		}
+	}
+	if canRunApplication {
+		dispatcher.Dispatch(NewRunApplicationEvent(app.applicationID))
+	}
 }
 
 func (app *Application) handleReleaseAppAllocationAskEvent(event *fsm.Event) {
@@ -659,6 +691,7 @@ func (app *Application) handleReleaseAppAllocationAskEvent(event *fsm.Event) {
 			zap.String("appID", app.applicationID),
 			zap.String("taskID", taskID))
 	}
+	app.postAppReleased()
 }
 
 func (app *Application) enterState(event *fsm.Event) {

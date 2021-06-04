@@ -134,14 +134,14 @@ func (os *Manager) getAppMetadata(pod *v1.Pod) (interfaces.ApplicationMetadata, 
 	}
 	ownerReferences := getOwnerReferences(pod)
 
-	placeholderTimeout, placeholderTimeoutErr, schedulingStyle, schedulingStyleErr := utils.GetSchedulingPolicyParam(pod)
-	if placeholderTimeoutErr != nil {
+	schedulingPolicyParams := utils.GetSchedulingPolicyParam(pod)
+	if placeholderTimeoutErr, ok := schedulingPolicyParams["placeholderTimeoutErr"].(error); ok {
 		log.Logger().Debug("unable to get placeholder timeout for pod.",
 			zap.String("namespace", pod.Namespace),
 			zap.String("name", pod.Name),
 			zap.Error(placeholderTimeoutErr))
 	}
-	if schedulingStyleErr != nil {
+	if schedulingStyleErr, ok := schedulingPolicyParams["schedulingStyleErr"].(error); ok {
 		log.Logger().Debug("unable to get scheduling style for pod.",
 			zap.String("namespace", pod.Namespace),
 			zap.String("name", pod.Name),
@@ -153,9 +153,9 @@ func (os *Manager) getAppMetadata(pod *v1.Pod) (interfaces.ApplicationMetadata, 
 		User:                    user,
 		Tags:                    tags,
 		TaskGroups:              taskGroups,
-		PlaceholderTimeoutInSec: placeholderTimeout,
+		PlaceholderTimeoutInSec: schedulingPolicyParams["placeholderTimeout"].(int64),
 		OwnerReferences:         ownerReferences,
-		SchedulingStyle:         schedulingStyle,
+		SchedulingStyle:         schedulingPolicyParams["schedulingStyle"].(string),
 	}, true
 }
 

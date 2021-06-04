@@ -99,7 +99,7 @@ func TestGetAppMetadata(t *testing.T) {
 				"yunikorn.apache.org/user": "testuser",
 			},
 			Annotations: map[string]string{
-				constants.SchedulingPolicyStyleParam: "gangSchedulingStyle=Hard",
+				constants.AnnotationSchedulingPolicyParam: "gangSchedulingStyle=Hard",
 			},
 		},
 		Spec: v1.PodSpec{
@@ -137,6 +137,36 @@ func TestGetAppMetadata(t *testing.T) {
 			},
 		},
 		Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
+		Status: v1.PodStatus{
+			Phase: v1.PodPending,
+		},
+	}
+
+	app, ok = am.getAppMetadata(&pod)
+	assert.Equal(t, ok, true)
+	assert.Equal(t, app.SchedulingStyle, "Hard")
+
+	pod = v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name:      "pod00002",
+			Namespace: "app-namespace-01",
+			UID:       "UID-POD-00001",
+			Labels: map[string]string{
+				"applicationId":            "app00002",
+				"queue":                    "root.b",
+				"yunikorn.apache.org/user": "testuser",
+			},
+			Annotations: map[string]string{
+				constants.AnnotationSchedulingPolicyParam: "gangSchedulingStyle=Soft=Hard",
+			},
+		},
+		Spec: v1.PodSpec{
+			SchedulerName: constants.SchedulerName,
+		},
 		Status: v1.PodStatus{
 			Phase: v1.PodPending,
 		},

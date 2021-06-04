@@ -125,16 +125,21 @@ func GetTaskGroupsFromAnnotation(pod *v1.Pod) ([]v1alpha1.TaskGroup, error) {
 	return taskGroups, nil
 }
 
-func GetSchedulingPolicyParam(pod *v1.Pod) (int64, error, string, error) {
+func GetSchedulingPolicyParam(pod *v1.Pod) map[string]interface{} {
+	schedulingPolicyParams := make(map[string]interface{})
+	timeout := int64(0)
+	var timeoutErr = fmt.Errorf("")
+	var styleErr = fmt.Errorf("")
 	style := constants.SchedulingPolicyStyleParamDefault
 	param, ok := pod.Annotations[constants.AnnotationSchedulingPolicyParam]
 	if !ok {
-		return 0, nil, style, nil
+		schedulingPolicyParams["placeholderTimeout"] = timeout
+		schedulingPolicyParams["placeholderTimeoutErr"] = timeoutErr
+		schedulingPolicyParams["schedulingStyle"] = style
+		schedulingPolicyParams["schedulingStyleErr"] = styleErr
+		return schedulingPolicyParams
 	}
 	params := strings.Split(param, constants.SchedulingPolicyParamDelimiter)
-	timeout := int64(0)
-	var timeoutErr error
-	var styleErr error
 	var err error
 	var styleExists bool
 	for _, p := range params {
@@ -143,7 +148,7 @@ func GetSchedulingPolicyParam(pod *v1.Pod) (int64, error, string, error) {
 			if len(param) != 2 {
 				timeoutErr = fmt.Errorf("unable to parse timeout value from annotation")
 			}
-			if timeoutErr == nil {
+			if timeoutErr.Error() == "" {
 				timeout, err = strconv.ParseInt(param[1], 10, 64)
 				if err != nil {
 					timeoutErr = fmt.Errorf("failed to parse timeout value: %s", param[1])
@@ -152,8 +157,10 @@ func GetSchedulingPolicyParam(pod *v1.Pod) (int64, error, string, error) {
 		} else if param[0] == constants.SchedulingPolicyStyleParam {
 			if len(param) != 2 {
 				styleErr = fmt.Errorf("unable to parse scheduling style value from annotation")
+				log.Logger().Info("Unable to parse scheduling style value from annotation, using "+constants.SchedulingPolicyStyleParamDefault+" style as default",
+					zap.String("gang scheduling style", param[1]))
 			}
-			if styleErr == nil {
+			if styleErr.Error() == "" {
 				style, styleExists = constants.SchedulingPolicyStyleParamValues[param[1]]
 				if !styleExists {
 					log.Logger().Info("Unknown gang scheduling style, using "+constants.SchedulingPolicyStyleParamDefault+" style as default",
@@ -162,5 +169,9 @@ func GetSchedulingPolicyParam(pod *v1.Pod) (int64, error, string, error) {
 			}
 		}
 	}
-	return timeout, timeoutErr, style, styleErr
+	schedulingPolicyParams["placeholderTimeout"] = timeout
+	schedulingPolicyParams["placeholderTimeoutErr"] = timeoutErr
+	schedulingPolicyParams["schedulingStyle"] = style
+	schedulingPolicyParams["schedulingStyleErr"] = styleErr
+	return schedulingPolicyParams
 }

@@ -321,12 +321,26 @@ func TestGetSchedulingPolicyParams(t *testing.T) {
 
 	for testID, tt := range tests {
 		t.Run(tt.timeoutParam, func(t *testing.T) {
+			var isStyleErr bool
+			var isErr bool
 			pod.Annotations = map[string]string{tt.key: tt.timeoutParam}
-			sec, err, style, styleErr := GetSchedulingPolicyParam(pod)
-			isErr := err != nil
-			isStyleErr := styleErr != nil
+			schedulingPolicyParams := GetSchedulingPolicyParam(pod)
+			if timeoutErr, ok := schedulingPolicyParams["placeholderTimeoutErr"].(error); ok {
+				isErr = timeoutErr.Error() != ""
+			}
+			if schedulingStyleErr, ok := schedulingPolicyParams["schedulingStyleErr"].(error); ok {
+				isStyleErr = schedulingStyleErr.Error() != ""
+			}
+			var sec int64
+			if timeout, ok := schedulingPolicyParams["placeholderTimeout"].(int64); ok {
+				sec = timeout
+			}
 			if (isErr != tt.isErr) || (sec != tt.want) {
 				t.Errorf("%d:got %v %d,want %v %d", testID, isErr, sec, tt.isErr, tt.want)
+			}
+			var style string
+			if schedulingStyle, ok := schedulingPolicyParams["schedulingStyle"].(string); ok {
+				style = schedulingStyle
 			}
 			if (isStyleErr != tt.isStyleErr) || (style != tt.expectedStyle) {
 				t.Errorf("%d:got %v %s,want %v %s", testID, isStyleErr, style, tt.isStyleErr, tt.expectedStyle)
