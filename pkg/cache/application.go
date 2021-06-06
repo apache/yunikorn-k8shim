@@ -256,8 +256,8 @@ func (app *Application) setOwnReferences(ref []metav1.OwnerReference) {
 }
 
 func (app *Application) setSchedulingStyle(schedulingStyle string) {
-	app.lock.RLock()
-	defer app.lock.RUnlock()
+	app.lock.Lock()
+	defer app.lock.Unlock()
 	app.schedulingStyle = schedulingStyle
 }
 

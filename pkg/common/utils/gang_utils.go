@@ -33,6 +33,24 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 )
 
+type SchedulingPolicyParameters struct {
+	placeholderTimeout int64
+	gangSchedulingStyle string
+}
+
+func NewSchedulingPolicyParameters(placeholderTimeout int64, gangSchedulingStyle string) *SchedulingPolicyParameters {
+	spp := &SchedulingPolicyParameters{placeholderTimeout: placeholderTimeout, gangSchedulingStyle: gangSchedulingStyle}
+	return spp
+}
+
+func (spp *SchedulingPolicyParameters) GetPlaceholderTimeout() int64 {
+	return spp.placeholderTimeout
+}
+
+func (spp *SchedulingPolicyParameters) GetGangSchedulingStyle() string{
+	return spp.gangSchedulingStyle
+}
+
 func FindAppTaskGroup(appTaskGroups []*v1alpha1.TaskGroup, groupName string) (*v1alpha1.TaskGroup, error) {
 	if groupName == "" {
 		// task has no group defined
@@ -125,53 +143,47 @@ func GetTaskGroupsFromAnnotation(pod *v1.Pod) ([]v1alpha1.TaskGroup, error) {
 	return taskGroups, nil
 }
 
-func GetSchedulingPolicyParam(pod *v1.Pod) map[string]interface{} {
-	schedulingPolicyParams := make(map[string]interface{})
+func GetSchedulingPolicyParam(pod *v1.Pod) *SchedulingPolicyParameters {
 	timeout := int64(0)
-	var timeoutErr = fmt.Errorf("")
-	var styleErr = fmt.Errorf("")
 	style := constants.SchedulingPolicyStyleParamDefault
+	schedulingPolicyParams := NewSchedulingPolicyParameters(timeout, style)
 	param, ok := pod.Annotations[constants.AnnotationSchedulingPolicyParam]
 	if !ok {
-		schedulingPolicyParams["placeholderTimeout"] = timeout
-		schedulingPolicyParams["placeholderTimeoutErr"] = timeoutErr
-		schedulingPolicyParams["schedulingStyle"] = style
-		schedulingPolicyParams["schedulingStyleErr"] = styleErr
 		return schedulingPolicyParams
 	}
 	params := strings.Split(param, constants.SchedulingPolicyParamDelimiter)
+	var timeoutErr bool
+	var styleErr bool
 	var err error
 	var styleExists bool
 	for _, p := range params {
 		param := strings.Split(p, "=")
 		if param[0] == constants.SchedulingPolicyTimeoutParam {
 			if len(param) != 2 {
-				timeoutErr = fmt.Errorf("unable to parse timeout value from annotation")
+				timeoutErr = true
+				log.Logger().Info("Unable to parse timeout value from annotation", zap.String("namespace", pod.Namespace), zap.String("name", pod.Name), zap.Int64("Using Placeholder timeout: ", timeout), zap.String("Placeholder timeout passed in annotation: ", p))
 			}
-			if timeoutErr.Error() == "" {
+			if ! timeoutErr {
 				timeout, err = strconv.ParseInt(param[1], 10, 64)
 				if err != nil {
-					timeoutErr = fmt.Errorf("failed to parse timeout value: %s", param[1])
+					log.Logger().Info("Failed to parse timeout value from annotation", zap.String("namespace", pod.Namespace), zap.String("name", pod.Name), zap.Int64("Using Placeholder timeout: ", timeout), zap.String("Placeholder timeout passed in annotation: ", p))
 				}
 			}
 		} else if param[0] == constants.SchedulingPolicyStyleParam {
 			if len(param) != 2 {
-				styleErr = fmt.Errorf("unable to parse scheduling style value from annotation")
+				styleErr = true
 				log.Logger().Info("Unable to parse scheduling style value from annotation, using "+constants.SchedulingPolicyStyleParamDefault+" style as default",
-					zap.String("gang scheduling style", param[1]))
+					zap.String("namespace", pod.Namespace), zap.String("name", pod.Name), zap.String("Gang scheduling style passed in annotation: ", p))
 			}
-			if styleErr.Error() == "" {
+			if ! styleErr {
 				style, styleExists = constants.SchedulingPolicyStyleParamValues[param[1]]
 				if !styleExists {
 					log.Logger().Info("Unknown gang scheduling style, using "+constants.SchedulingPolicyStyleParamDefault+" style as default",
-						zap.String("gang scheduling style", param[1]))
+						zap.String("namespace", pod.Namespace), zap.String("name", pod.Name), zap.String("Gang scheduling style passed in annotation: ", p))
 				}
 			}
 		}
 	}
-	schedulingPolicyParams["placeholderTimeout"] = timeout
-	schedulingPolicyParams["placeholderTimeoutErr"] = timeoutErr
-	schedulingPolicyParams["schedulingStyle"] = style
-	schedulingPolicyParams["schedulingStyleErr"] = styleErr
+	schedulingPolicyParams = NewSchedulingPolicyParameters(timeout, style)
 	return schedulingPolicyParams
 }

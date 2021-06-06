@@ -293,18 +293,16 @@ func TestGetTaskGroupFromAnnotation(t *testing.T) {
 func TestGetSchedulingPolicyParams(t *testing.T) {
 	tests := []struct {
 		key, timeoutParam string
-		isErr             bool
 		want              int64
-		isStyleErr        bool
 		expectedStyle     string
 	}{
-		{constants.AnnotationSchedulingPolicyParam, "unknownPara=unkown placeholderTimeoutInSeconds=50=25 gangSchedulingStyle=Soft=Hard", true, int64(0), true, "Hard"},
-		{constants.AnnotationSchedulingPolicyParam, "unknownPara=unkown placeholderTimeoutInSeconds=50 gangSchedulingStyle=Soft=Hard", false, int64(50), true, "Hard"},
-		{constants.AnnotationSchedulingPolicyParam, "unknownPara=unkown placeholderTimeoutInSeconds=oneSecond gangSchedulingStyle=Soft", true, int64(0), false, "Soft"},
-		{constants.AnnotationSchedulingPolicyParam, "unknownPara=unkown", false, int64(0), false, "Hard"},
-		{"policyParamUndefined", "unknownPara=unkown placeholderTimeoutInSeconds=50", false, int64(0), false, "Hard"},
-		{constants.AnnotationSchedulingPolicyParam, "unknownPara=unkown placeholderTimeoutInSeconds=50  gangSchedulingStyle=Hard", false, int64(50), false, "Hard"},
-		{constants.AnnotationSchedulingPolicyParam, "unknownPara=unkown gangSchedulingStyle=Soft", false, int64(0), false, "Soft"},
+		{constants.AnnotationSchedulingPolicyParam, "unknownPara=unkown placeholderTimeoutInSeconds=50=25 gangSchedulingStyle=Soft=Hard", int64(0), "Hard"},
+		{constants.AnnotationSchedulingPolicyParam, "unknownPara=unkown placeholderTimeoutInSeconds=50 gangSchedulingStyle=Soft=Hard", int64(50), "Hard"},
+		{constants.AnnotationSchedulingPolicyParam, "unknownPara=unkown placeholderTimeoutInSeconds=oneSecond gangSchedulingStyle=Soft", int64(0), "Soft"},
+		{constants.AnnotationSchedulingPolicyParam, "unknownPara=unkown", int64(0), "Hard"},
+		{"policyParamUndefined", "unknownPara=unkown placeholderTimeoutInSeconds=50", int64(0), "Hard"},
+		{constants.AnnotationSchedulingPolicyParam, "unknownPara=unkown placeholderTimeoutInSeconds=50  gangSchedulingStyle=Hard", int64(50), "Hard"},
+		{constants.AnnotationSchedulingPolicyParam, "unknownPara=unkown gangSchedulingStyle=Soft", int64(0), "Soft"},
 	}
 
 	pod := &v1.Pod{
@@ -321,29 +319,13 @@ func TestGetSchedulingPolicyParams(t *testing.T) {
 
 	for testID, tt := range tests {
 		t.Run(tt.timeoutParam, func(t *testing.T) {
-			var isStyleErr bool
-			var isErr bool
 			pod.Annotations = map[string]string{tt.key: tt.timeoutParam}
 			schedulingPolicyParams := GetSchedulingPolicyParam(pod)
-			if timeoutErr, ok := schedulingPolicyParams["placeholderTimeoutErr"].(error); ok {
-				isErr = timeoutErr.Error() != ""
+			if schedulingPolicyParams.placeholderTimeout != tt.want {
+				t.Errorf("%d:got %d,want %d", testID, schedulingPolicyParams.placeholderTimeout, tt.want)
 			}
-			if schedulingStyleErr, ok := schedulingPolicyParams["schedulingStyleErr"].(error); ok {
-				isStyleErr = schedulingStyleErr.Error() != ""
-			}
-			var sec int64
-			if timeout, ok := schedulingPolicyParams["placeholderTimeout"].(int64); ok {
-				sec = timeout
-			}
-			if (isErr != tt.isErr) || (sec != tt.want) {
-				t.Errorf("%d:got %v %d,want %v %d", testID, isErr, sec, tt.isErr, tt.want)
-			}
-			var style string
-			if schedulingStyle, ok := schedulingPolicyParams["schedulingStyle"].(string); ok {
-				style = schedulingStyle
-			}
-			if (isStyleErr != tt.isStyleErr) || (style != tt.expectedStyle) {
-				t.Errorf("%d:got %v %s,want %v %s", testID, isStyleErr, style, tt.isStyleErr, tt.expectedStyle)
+			if schedulingPolicyParams.gangSchedulingStyle != tt.expectedStyle {
+				t.Errorf("%d:got %s,want %s", testID, schedulingPolicyParams.gangSchedulingStyle, tt.expectedStyle)
 			}
 		})
 	}
