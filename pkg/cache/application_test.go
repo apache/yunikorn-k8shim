@@ -405,9 +405,6 @@ func TestSetUnallocatedPodsToFailedWhenRejectApplication(t *testing.T) {
 	err = app.handle(NewFailApplicationEvent(app.applicationID,
 		fmt.Sprintf("%s: %s", constants.ApplicationRejectedFailure, errMess)))
 	assert.NilError(t, err)
-	assertAppState(t, app, events.States().Application.Failing, 3*time.Second)
-	err = app.handle(NewFailApplicationEvent(app.applicationID, errMess))
-	assert.NilError(t, err)
 	assertAppState(t, app, events.States().Application.Failed, 3*time.Second)
 
 	newPod1, err := mockClient.Get(pod1.Namespace, pod1.Name)
