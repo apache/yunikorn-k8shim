@@ -651,9 +651,12 @@ func (app *Application) handleReleaseAppAllocationEvent(event *fsm.Event) {
 }
 
 func (app *Application) postAppReleased() {
+	if app.GetApplicationState() != events.States().Application.Resuming {
+		return
+	}
 	canRunApplication := true
 	for _, task := range app.taskMap {
-		if !utils.IsPodTerminated(task.GetTaskPod()) {
+		if task.GetTaskState() != events.States().Task.Completed {
 			canRunApplication = false
 		}
 	}

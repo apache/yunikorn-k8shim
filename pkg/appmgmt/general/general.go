@@ -140,9 +140,8 @@ func (os *Manager) getAppMetadata(pod *v1.Pod) (interfaces.ApplicationMetadata, 
 		User:                    user,
 		Tags:                    tags,
 		TaskGroups:              taskGroups,
-		PlaceholderTimeoutInSec: schedulingPolicyParams.GetPlaceholderTimeout(),
-		OwnerReferences:         ownerReferences,
-		SchedulingStyle:         schedulingPolicyParams.GetGangSchedulingStyle(),
+		OwnerReferences:		 ownerReferences,
+		SchedulingPolicyParameters:			schedulingPolicyParams,
 	}, true
 }
 

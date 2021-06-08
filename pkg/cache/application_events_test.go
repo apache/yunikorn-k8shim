@@ -866,3 +866,25 @@ func TestReleaseAppAllocationAskEventGetApplicationID(t *testing.T) {
 		})
 	}
 }
+
+func TestNewResumingApplicationEvent(t *testing.T) {
+	tests := []struct {
+		name      string
+		appID     string
+		wantID    string
+		wantEvent events.ApplicationEventType
+	}{
+		{TestCreateName, "testAppId001", "testAppId001", events.ResumingApplication},
+	}
+
+	for _, tt := range tests {
+		instance := NewResumingApplicationEvent(tt.appID)
+		t.Run(tt.name, func(t *testing.T) {
+			if instance.applicationID != tt.wantID || instance.event != tt.wantEvent {
+				t.Errorf("want %s %s, got %s %s",
+					tt.wantID, tt.wantEvent,
+					instance.applicationID, instance.event)
+			}
+		})
+	}
+}

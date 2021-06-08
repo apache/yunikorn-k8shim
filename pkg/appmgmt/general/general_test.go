@@ -82,7 +82,7 @@ func TestGetAppMetadata(t *testing.T) {
 	assert.Equal(t, app.TaskGroups[0].MinMember, int32(3))
 	assert.Equal(t, app.TaskGroups[0].MinResource["cpu"], resource.MustParse("2"))
 	assert.Equal(t, app.TaskGroups[0].MinResource["memory"], resource.MustParse("1Gi"))
-	assert.Equal(t, app.SchedulingStyle, "Soft")
+	assert.Equal(t, app.SchedulingPolicyParameters.GetGangSchedulingStyle(), "Soft")
 
 	pod = v1.Pod{
 		TypeMeta: apis.TypeMeta{
@@ -117,7 +117,7 @@ func TestGetAppMetadata(t *testing.T) {
 	assert.Equal(t, app.User, constants.DefaultUser)
 	assert.DeepEqual(t, app.Tags, map[string]string{"namespace": "app-namespace-01"})
 	assert.DeepEqual(t, len(app.TaskGroups), 0)
-	assert.Equal(t, app.SchedulingStyle, "Hard")
+	assert.Equal(t, app.SchedulingPolicyParameters.GetGangSchedulingStyle(), "Hard")
 
 	pod = v1.Pod{
 		TypeMeta: apis.TypeMeta{
@@ -144,7 +144,7 @@ func TestGetAppMetadata(t *testing.T) {
 
 	app, ok = am.getAppMetadata(&pod)
 	assert.Equal(t, ok, true)
-	assert.Equal(t, app.SchedulingStyle, "Hard")
+	assert.Equal(t, app.SchedulingPolicyParameters.GetGangSchedulingStyle(), "Hard")
 
 	pod = v1.Pod{
 		TypeMeta: apis.TypeMeta{
@@ -174,7 +174,7 @@ func TestGetAppMetadata(t *testing.T) {
 
 	app, ok = am.getAppMetadata(&pod)
 	assert.Equal(t, ok, true)
-	assert.Equal(t, app.SchedulingStyle, "Hard")
+	assert.Equal(t, app.SchedulingPolicyParameters.GetGangSchedulingStyle(), "Hard")
 
 	pod = v1.Pod{
 		TypeMeta: apis.TypeMeta{

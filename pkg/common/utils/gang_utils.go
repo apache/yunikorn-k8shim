@@ -29,27 +29,10 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 )
-
-type SchedulingPolicyParameters struct {
-	placeholderTimeout int64
-	gangSchedulingStyle string
-}
-
-func NewSchedulingPolicyParameters(placeholderTimeout int64, gangSchedulingStyle string) *SchedulingPolicyParameters {
-	spp := &SchedulingPolicyParameters{placeholderTimeout: placeholderTimeout, gangSchedulingStyle: gangSchedulingStyle}
-	return spp
-}
-
-func (spp *SchedulingPolicyParameters) GetPlaceholderTimeout() int64 {
-	return spp.placeholderTimeout
-}
-
-func (spp *SchedulingPolicyParameters) GetGangSchedulingStyle() string{
-	return spp.gangSchedulingStyle
-}
 
 func FindAppTaskGroup(appTaskGroups []*v1alpha1.TaskGroup, groupName string) (*v1alpha1.TaskGroup, error) {
 	if groupName == "" {
@@ -143,47 +126,35 @@ func GetTaskGroupsFromAnnotation(pod *v1.Pod) ([]v1alpha1.TaskGroup, error) {
 	return taskGroups, nil
 }
 
-func GetSchedulingPolicyParam(pod *v1.Pod) *SchedulingPolicyParameters {
+func GetSchedulingPolicyParam(pod *v1.Pod) *interfaces.SchedulingPolicyParameters {
 	timeout := int64(0)
 	style := constants.SchedulingPolicyStyleParamDefault
-	schedulingPolicyParams := NewSchedulingPolicyParameters(timeout, style)
+	schedulingPolicyParams := interfaces.NewSchedulingPolicyParameters(timeout, style)
 	param, ok := pod.Annotations[constants.AnnotationSchedulingPolicyParam]
 	if !ok {
 		return schedulingPolicyParams
 	}
 	params := strings.Split(param, constants.SchedulingPolicyParamDelimiter)
-	var timeoutErr bool
-	var styleErr bool
 	var err error
-	var styleExists bool
 	for _, p := range params {
 		param := strings.Split(p, "=")
+		if len(param) != 2 {
+			log.Logger().Warn("Skipping malformed scheduling policy parameter: ", zap.String("namespace", pod.Namespace), zap.String("name", pod.Name), zap.String("Scheduling Policy parameters passed in annotation: ", p))
+			continue;
+		}
 		if param[0] == constants.SchedulingPolicyTimeoutParam {
-			if len(param) != 2 {
-				timeoutErr = true
-				log.Logger().Info("Unable to parse timeout value from annotation", zap.String("namespace", pod.Namespace), zap.String("name", pod.Name), zap.Int64("Using Placeholder timeout: ", timeout), zap.String("Placeholder timeout passed in annotation: ", p))
-			}
-			if ! timeoutErr {
-				timeout, err = strconv.ParseInt(param[1], 10, 64)
-				if err != nil {
-					log.Logger().Info("Failed to parse timeout value from annotation", zap.String("namespace", pod.Namespace), zap.String("name", pod.Name), zap.Int64("Using Placeholder timeout: ", timeout), zap.String("Placeholder timeout passed in annotation: ", p))
-				}
+			timeout, err = strconv.ParseInt(param[1], 10, 64)
+			if err != nil {
+				log.Logger().Warn("Failed to parse timeout value from annotation", zap.String("namespace", pod.Namespace), zap.String("name", pod.Name), zap.Int64("Using Placeholder timeout: ", timeout), zap.String("Placeholder timeout passed in annotation: ", p))
 			}
 		} else if param[0] == constants.SchedulingPolicyStyleParam {
-			if len(param) != 2 {
-				styleErr = true
-				log.Logger().Info("Unable to parse scheduling style value from annotation, using "+constants.SchedulingPolicyStyleParamDefault+" style as default",
+			if style, ok = constants.SchedulingPolicyStyleParamValues[param[1]]; !ok {
+				style = constants.SchedulingPolicyStyleParamDefault
+				log.Logger().Warn("Unknown gang scheduling style, using "+constants.SchedulingPolicyStyleParamDefault+" style as default",
 					zap.String("namespace", pod.Namespace), zap.String("name", pod.Name), zap.String("Gang scheduling style passed in annotation: ", p))
-			}
-			if ! styleErr {
-				style, styleExists = constants.SchedulingPolicyStyleParamValues[param[1]]
-				if !styleExists {
-					log.Logger().Info("Unknown gang scheduling style, using "+constants.SchedulingPolicyStyleParamDefault+" style as default",
-						zap.String("namespace", pod.Namespace), zap.String("name", pod.Name), zap.String("Gang scheduling style passed in annotation: ", p))
-				}
 			}
 		}
 	}
-	schedulingPolicyParams = NewSchedulingPolicyParameters(timeout, style)
+	schedulingPolicyParams = interfaces.NewSchedulingPolicyParameters(timeout, style)
 	return schedulingPolicyParams
 }

@@ -303,6 +303,8 @@ func TestGetSchedulingPolicyParams(t *testing.T) {
 		{"policyParamUndefined", "unknownPara=unkown placeholderTimeoutInSeconds=50", int64(0), "Hard"},
 		{constants.AnnotationSchedulingPolicyParam, "unknownPara=unkown placeholderTimeoutInSeconds=50  gangSchedulingStyle=Hard", int64(50), "Hard"},
 		{constants.AnnotationSchedulingPolicyParam, "unknownPara=unkown gangSchedulingStyle=Soft", int64(0), "Soft"},
+		{constants.AnnotationSchedulingPolicyParam, "unknownPara=unkown gangSchedulingStyle=abc", int64(0), "Hard"},
+		{constants.AnnotationSchedulingPolicyParam, "placeholderTimeoutInSeconds gangSchedulingStyle", int64(0), "Hard"},
 	}
 
 	pod := &v1.Pod{
@@ -321,11 +323,11 @@ func TestGetSchedulingPolicyParams(t *testing.T) {
 		t.Run(tt.timeoutParam, func(t *testing.T) {
 			pod.Annotations = map[string]string{tt.key: tt.timeoutParam}
 			schedulingPolicyParams := GetSchedulingPolicyParam(pod)
-			if schedulingPolicyParams.placeholderTimeout != tt.want {
-				t.Errorf("%d:got %d,want %d", testID, schedulingPolicyParams.placeholderTimeout, tt.want)
+			if schedulingPolicyParams.GetPlaceholderTimeout() != tt.want {
+				t.Errorf("%d:got %d,want %d", testID, schedulingPolicyParams.GetPlaceholderTimeout(), tt.want)
 			}
-			if schedulingPolicyParams.gangSchedulingStyle != tt.expectedStyle {
-				t.Errorf("%d:got %s,want %s", testID, schedulingPolicyParams.gangSchedulingStyle, tt.expectedStyle)
+			if schedulingPolicyParams.GetGangSchedulingStyle() != tt.expectedStyle {
+				t.Errorf("%d:got %s,want %s", testID, schedulingPolicyParams.GetGangSchedulingStyle(), tt.expectedStyle)
 			}
 		})
 	}

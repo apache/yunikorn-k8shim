@@ -509,9 +509,12 @@ func (ctx *Context) AddApplication(request *interfaces.AddApplicationRequest) in
 		request.Metadata.Tags,
 		ctx.apiProvider.GetAPIs().SchedulerAPI)
 	app.setTaskGroups(request.Metadata.TaskGroups)
-	app.SetPlaceholderTimeout(request.Metadata.PlaceholderTimeoutInSec)
+	if request.Metadata.SchedulingPolicyParameters != nil {
+		app.SetPlaceholderTimeout(request.Metadata.SchedulingPolicyParameters.GetPlaceholderTimeout())
+		app.setSchedulingStyle(request.Metadata.SchedulingPolicyParameters.GetGangSchedulingStyle())
+	}
 	app.setOwnReferences(request.Metadata.OwnerReferences)
-	app.setSchedulingStyle(request.Metadata.SchedulingStyle)
+
 
 	// add into cache
 	ctx.applications[app.applicationID] = app
