@@ -182,8 +182,11 @@ func TestFailApplication(t *testing.T) {
 	errMess := "Test Error Message"
 	err := app.handle(NewFailApplicationEvent(app.applicationID, errMess))
 	assert.NilError(t, err)
+	assertAppState(t, app, events.States().Application.Failing, 3*time.Second)
+	err = app.handle(NewFailApplicationEvent(app.applicationID, errMess))
+	assert.NilError(t, err)
 	assertAppState(t, app, events.States().Application.Failed, 3*time.Second)
-	assert.Equal(t, rt.time, int64(3))
+	assert.Equal(t, rt.time, int64(6))
 	// reset time to 0
 	rt.time = 0
 	appID2 := "app-test-002"
@@ -195,6 +198,9 @@ func TestFailApplication(t *testing.T) {
 	}
 	assertAppState(t, app2, events.States().Application.New, 3*time.Second)
 	app2.SetState(events.States().Application.Submitted)
+	err = app2.handle(NewFailApplicationEvent(app2.applicationID, errMess))
+	assert.NilError(t, err)
+	assertAppState(t, app2, events.States().Application.Failing, 3*time.Second)
 	err = app2.handle(NewFailApplicationEvent(app2.applicationID, errMess))
 	assert.NilError(t, err)
 	assertAppState(t, app2, events.States().Application.Failed, 3*time.Second)
@@ -292,6 +298,9 @@ func TestSetUnallocatedPodsToFailedWhenFailApplication(t *testing.T) {
 	app.addTask(task3)
 	app.SetState(events.States().Application.Accepted)
 	errMess := constants.ApplicationInsufficientResourcesFailure
+	err = app.handle(NewFailApplicationEvent(app.applicationID, errMess))
+	assert.NilError(t, err)
+	assertAppState(t, app, events.States().Application.Failing, 3*time.Second)
 	err = app.handle(NewFailApplicationEvent(app.applicationID, errMess))
 	assert.NilError(t, err)
 	assertAppState(t, app, events.States().Application.Failed, 3*time.Second)
@@ -931,4 +940,60 @@ func TestSkipReservationStage(t *testing.T) {
 	)
 	skip = app.skipReservationStage()
 	assert.Equal(t, skip, false, "expected not to skip reservation")
+}
+
+func TestReleaseAppAllocationInFailingState(t *testing.T) {
+	context := initContextForTest()
+	ms := &mockSchedulerAPI{}
+	resources := make(map[v1.ResourceName]resource.Quantity)
+	containers := make([]v1.Container, 0)
+	containers = append(containers, v1.Container{
+		Name: "container-01",
+		Resources: v1.ResourceRequirements{
+			Requests: resources,
+		},
+	})
+	pod := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "pod-test-00001",
+			UID:  "UID-00001",
+		},
+		Spec: v1.PodSpec{
+			Containers: containers,
+		},
+	}
+	appID := "app-test-001"
+	UUID := "testUUID001"
+	app := NewApplication(appID, "root.abc", "testuser", map[string]string{}, ms)
+	task := NewTask("task01", app, context, pod)
+	app.addTask(task)
+	task.allocationUUID = UUID
+	// app must be running states
+	err := app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, UUID))
+	if err == nil {
+		// this should give an error
+		t.Error("expecting error got 'nil'")
+	}
+	// set app states to running, let event can be trigger
+	app.SetState(events.States().Application.Running)
+	assertAppState(t, app, events.States().Application.Running, 3*time.Second)
+	err = app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, UUID))
+	assert.NilError(t, err)
+	// after handle release event the states of app must be running
+	assertAppState(t, app, events.States().Application.Running, 3*time.Second)
+	app.SetState(events.States().Application.Failing)
+	err = app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, UUID))
+	assert.NilError(t, err)
+	// after handle release event the states of app must be failing
+	assertAppState(t, app, events.States().Application.Failing, 3*time.Second)
+
+	errMess := "Test Error Message"
+	err = app.handle(NewFailApplicationEvent(app.applicationID, errMess))
+	assert.NilError(t, err)
+	// after handle fail event the states of app must be failed
+	assertAppState(t, app, events.States().Application.Failed, 3*time.Second)
 }
