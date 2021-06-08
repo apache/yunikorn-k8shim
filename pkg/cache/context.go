@@ -515,7 +515,6 @@ func (ctx *Context) AddApplication(request *interfaces.AddApplicationRequest) in
 	}
 	app.setOwnReferences(request.Metadata.OwnerReferences)
 
-
 	// add into cache
 	ctx.applications[app.applicationID] = app
 	log.Logger().Info("app added",

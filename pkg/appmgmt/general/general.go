@@ -135,13 +135,13 @@ func (os *Manager) getAppMetadata(pod *v1.Pod) (interfaces.ApplicationMetadata, 
 	ownerReferences := getOwnerReferences(pod)
 	schedulingPolicyParams := utils.GetSchedulingPolicyParam(pod)
 	return interfaces.ApplicationMetadata{
-		ApplicationID:           appID,
-		QueueName:               utils.GetQueueNameFromPod(pod),
-		User:                    user,
-		Tags:                    tags,
-		TaskGroups:              taskGroups,
-		OwnerReferences:		 ownerReferences,
-		SchedulingPolicyParameters:			schedulingPolicyParams,
+		ApplicationID:              appID,
+		QueueName:                  utils.GetQueueNameFromPod(pod),
+		User:                       user,
+		Tags:                       tags,
+		TaskGroups:                 taskGroups,
+		OwnerReferences:            ownerReferences,
+		SchedulingPolicyParameters: schedulingPolicyParams,
 	}, true
 }
 

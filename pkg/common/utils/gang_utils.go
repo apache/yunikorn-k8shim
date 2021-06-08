@@ -140,7 +140,7 @@ func GetSchedulingPolicyParam(pod *v1.Pod) *interfaces.SchedulingPolicyParameter
 		param := strings.Split(p, "=")
 		if len(param) != 2 {
 			log.Logger().Warn("Skipping malformed scheduling policy parameter: ", zap.String("namespace", pod.Namespace), zap.String("name", pod.Name), zap.String("Scheduling Policy parameters passed in annotation: ", p))
-			continue;
+			continue
 		}
 		if param[0] == constants.SchedulingPolicyTimeoutParam {
 			timeout, err = strconv.ParseInt(param[1], 10, 64)
