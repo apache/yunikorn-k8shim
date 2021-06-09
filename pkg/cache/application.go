@@ -647,10 +647,10 @@ func (app *Application) handleReleaseAppAllocationEvent(event *fsm.Event) {
 			}
 		}
 	}
-	app.postAppReleased(eventArgs)
+	app.postAppReleased()
 }
 
-func (app *Application) postAppReleased(eventArgs []string) {
+func (app *Application) postAppReleased() {
 	if app.GetApplicationState() != events.States().Application.Resuming {
 		return
 	}
@@ -660,8 +660,7 @@ func (app *Application) postAppReleased(eventArgs []string) {
 		}
 	}
 	log.Logger().Info("Resuming completed, start to run the app",
-		zap.String("appID", app.applicationID),
-		zap.String("reason", eventArgs[1]))
+		zap.String("appID", app.applicationID))
 	dispatcher.Dispatch(NewRunApplicationEvent(app.applicationID))
 }
 
@@ -694,7 +693,7 @@ func (app *Application) handleReleaseAppAllocationAskEvent(event *fsm.Event) {
 			zap.String("appID", app.applicationID),
 			zap.String("taskID", taskID))
 	}
-	app.postAppReleased(eventArgs)
+	app.postAppReleased()
 }
 
 func (app *Application) enterState(event *fsm.Event) {
