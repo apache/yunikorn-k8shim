@@ -65,7 +65,7 @@ const AnnotationSchedulingPolicyParam = "yunikorn.apache.org/schedulingPolicyPar
 const SchedulingPolicyTimeoutParam = "placeholderTimeoutInSeconds"
 const SchedulingPolicyParamDelimiter = " "
 const SchedulingPolicyStyleParam = "gangSchedulingStyle"
-const SchedulingPolicyStyleParamDefault = "Hard"
+const SchedulingPolicyStyleParamDefault = "Soft"
 
 var SchedulingPolicyStyleParamValues = map[string]string{"Hard": "Hard", "Soft": "Soft"}
 

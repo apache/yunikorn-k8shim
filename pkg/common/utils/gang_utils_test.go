@@ -296,15 +296,15 @@ func TestGetSchedulingPolicyParams(t *testing.T) {
 		want              int64
 		expectedStyle     string
 	}{
-		{constants.AnnotationSchedulingPolicyParam, "unknownPara=unkown placeholderTimeoutInSeconds=50=25 gangSchedulingStyle=Soft=Hard", int64(0), "Hard"},
-		{constants.AnnotationSchedulingPolicyParam, "unknownPara=unkown placeholderTimeoutInSeconds=50 gangSchedulingStyle=Soft=Hard", int64(50), "Hard"},
+		{constants.AnnotationSchedulingPolicyParam, "unknownPara=unkown placeholderTimeoutInSeconds=50=25 gangSchedulingStyle=Hard=Soft", int64(0), "Soft"},
+		{constants.AnnotationSchedulingPolicyParam, "unknownPara=unkown placeholderTimeoutInSeconds=50 gangSchedulingStyle=Hard=Soft", int64(50), "Soft"},
 		{constants.AnnotationSchedulingPolicyParam, "unknownPara=unkown placeholderTimeoutInSeconds=oneSecond gangSchedulingStyle=Soft", int64(0), "Soft"},
-		{constants.AnnotationSchedulingPolicyParam, "unknownPara=unkown", int64(0), "Hard"},
-		{"policyParamUndefined", "unknownPara=unkown placeholderTimeoutInSeconds=50", int64(0), "Hard"},
+		{constants.AnnotationSchedulingPolicyParam, "unknownPara=unkown", int64(0), "Soft"},
+		{"policyParamUndefined", "unknownPara=unkown placeholderTimeoutInSeconds=50", int64(0), "Soft"},
 		{constants.AnnotationSchedulingPolicyParam, "unknownPara=unkown placeholderTimeoutInSeconds=50  gangSchedulingStyle=Hard", int64(50), "Hard"},
 		{constants.AnnotationSchedulingPolicyParam, "unknownPara=unkown gangSchedulingStyle=Soft", int64(0), "Soft"},
-		{constants.AnnotationSchedulingPolicyParam, "unknownPara=unkown gangSchedulingStyle=abc", int64(0), "Hard"},
-		{constants.AnnotationSchedulingPolicyParam, "placeholderTimeoutInSeconds gangSchedulingStyle", int64(0), "Hard"},
+		{constants.AnnotationSchedulingPolicyParam, "unknownPara=unkown gangSchedulingStyle=abc", int64(0), "Soft"},
+		{constants.AnnotationSchedulingPolicyParam, "placeholderTimeoutInSeconds gangSchedulingStyle", int64(0), "Soft"},
 	}
 
 	pod := &v1.Pod{
