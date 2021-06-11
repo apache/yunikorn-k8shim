@@ -49,6 +49,8 @@ github.com/apache/incubator-yunikorn-core v0.0.0-20210427073029-c220a295d7bc h1:
 github.com/apache/incubator-yunikorn-core v0.0.0-20210427073029-c220a295d7bc/go.mod h1:9wJhEMsmQ+PRAFZDo1efjfmdN4Gsm2ije5RLG+tqIwc=
 github.com/apache/incubator-yunikorn-core v0.0.0-20210605035610-23af8303ccda h1:uHEN06mvpenv5Vz4DMUjj9dpZUKyoJPcy8nCRkdZa5Y=
 github.com/apache/incubator-yunikorn-core v0.0.0-20210605035610-23af8303ccda/go.mod h1:vdNFH9CY4kQs0kBQ+0qwVbpGFmQ+95zUWYT3MssAxjU=
+github.com/apache/incubator-yunikorn-core v0.0.0-20210610162734-22a46becdfa0 h1:aBiO2wDy9R/itvrqa1LZGfP+Yad1Z/c1lmqIIaKWjno=
+github.com/apache/incubator-yunikorn-core v0.0.0-20210610162734-22a46becdfa0/go.mod h1:2Y9S04fXZv3Gidxs9BhkE9tKtmoMQ43JgrnopNfDsA8=
 github.com/apache/incubator-yunikorn-core v0.9.0 h1:08+ptyYzl8U6CskQoUa6S00X2eGmDRD31jqmFKqKPSk=
 github.com/apache/incubator-yunikorn-core v0.10.0 h1:27IFvM589SHwNYZ8+8LjqJoUjG0zUuoPR3FfgEP7f2E=
 github.com/apache/incubator-yunikorn-core v0.10.0/go.mod h1:h+xLwC2qBDqawZcg5J9vqdxV1xX4DM79GwlaHnvPufk=
@@ -322,6 +324,7 @@ github.com/google/uuid v1.0.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+
 github.com/google/uuid v1.1.1/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
 github.com/google/uuid v1.2.0 h1:qJYtXnJRWmpe7m/3XlyhrsLrEURqHRM2kxzoxXqyUDs=
 github.com/google/uuid v1.2.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
+github.com/googleapis/gax-go v1.0.0 h1:JnjRrtym4tFyMe2kvEN1vyuG482TwL0dKqb+UWsZB1U=
 github.com/googleapis/gax-go v1.0.0/go.mod h1:SFVmujtThgffbyetf+mdk2eWhX2bMyUtNHzFKcPA9HY=
 github.com/googleapis/gax-go/v2 v2.0.4/go.mod h1:0Wqv26UfaUD9n4G6kQubkQ+KchISgw+vpHVxEJEs9eg=
 github.com/googleapis/gnostic v0.0.0-20170729233727-0c5108395e2d/go.mod h1:sJBsCZ4ayReDTBIg8b9dl28c5xFWyhBTVRp3pOg5EKY=

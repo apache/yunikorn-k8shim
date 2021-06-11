@@ -655,7 +655,7 @@ func (app *Application) postAppReleased() {
 		return
 	}
 	for _, task := range app.taskMap {
-		if task.placeholder && task.GetTaskState() != events.States().Task.Completed {
+		if task.placeholder && task.terminationType == si.TerminationType_TIMEOUT.String() {
 			return
 		}
 	}
