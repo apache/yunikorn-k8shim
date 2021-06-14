@@ -59,6 +59,11 @@ if [ -z "$ENABLE_CONFIG_HOT_REFRESH" ]; then
   ENABLE_CONFIG_HOT_REFRESH=`cat ${CONF_FILE} | grep ^enableConfigHotRefresh | cut -d "=" -f 2`
 fi
 delete_resources() {
+  readyReplicas=$(kubectl -n ${NAMESPACE} get deployment yunikorn-scheduler -o=jsonpath='{.status.readyReplicas}')
+  if [ "$readyReplicas" -eq "1" ]; then
+    echo "scheduler deployment has 1 replica ready. Aborting deleting resources";
+    return 0
+  fi
   kubectl delete -f server.yaml
   # cleanup admissions
   for admission in $REGISTERED_ADMISSIONS
