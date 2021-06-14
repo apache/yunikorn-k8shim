@@ -86,7 +86,7 @@ func GetFileContents(filename string) ([]byte, error) {
 }
 
 func GetUUID() string {
-	return uuid.New().String()
+	return uuid.NewString()
 }
 
 func RandSeq(n int) string {
