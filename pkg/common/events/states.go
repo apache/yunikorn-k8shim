@@ -95,7 +95,7 @@ func States() *AllStates {
 				Killing:    "Killing",
 				Killed:     "Killed",
 				Failed:     "Failed",
-				Resuming:	"Resuming",
+				Resuming:   "Resuming",
 			},
 			Task: &TaskStates{
 				New:        "New",

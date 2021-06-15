@@ -153,7 +153,7 @@ func NewApplication(appID, queueName, user string, tags map[string]string, sched
 			string(events.ReleaseAppAllocation):    app.handleReleaseAppAllocationEvent,
 			string(events.ReleaseAppAllocationAsk): app.handleReleaseAppAllocationAskEvent,
 			events.EnterState:                      app.enterState,
-			string(events.AppTaskCompleted): 		app.handleAppTaskCompletedEvent,
+			string(events.AppTaskCompleted):        app.handleAppTaskCompletedEvent,
 		},
 	)
 
@@ -682,9 +682,6 @@ func (app *Application) handleAppTaskCompletedEvent(event *fsm.Event) {
 	eventArgs := make([]string, 2)
 	if err := events.GetEventArgsAsStrings(eventArgs, event.Args); err != nil {
 		log.Logger().Error("fail to parse event arg", zap.Error(err))
-		return
-	}
-	if app.GetApplicationState() != events.States().Application.Resuming {
 		return
 	}
 	for _, task := range app.taskMap {
