@@ -105,6 +105,9 @@ func NewApplication(appID, queueName, user string, tags map[string]string, sched
 			{Name: string(events.ResumingApplication),
 				Src: []string{states.Reserving},
 				Dst: states.Resuming},
+			{Name: string(events.AppTaskCompleted),
+				Src: []string{states.Resuming},
+				Dst: states.Resuming},
 			{Name: string(events.RunApplication),
 				Src: []string{states.Accepted, states.Reserving, states.Resuming, states.Running},
 				Dst: states.Running},
@@ -114,18 +117,12 @@ func NewApplication(appID, queueName, user string, tags map[string]string, sched
 			{Name: string(events.ReleaseAppAllocation),
 				Src: []string{states.Failing},
 				Dst: states.Failing},
-			{Name: string(events.ReleaseAppAllocation),
-				Src: []string{states.Resuming},
-				Dst: states.Resuming},
 			{Name: string(events.ReleaseAppAllocationAsk),
 				Src: []string{states.Running, states.Accepted, states.Reserving},
 				Dst: states.Running},
 			{Name: string(events.ReleaseAppAllocationAsk),
 				Src: []string{states.Failing},
 				Dst: states.Failing},
-			{Name: string(events.ReleaseAppAllocationAsk),
-				Src: []string{states.Resuming},
-				Dst: states.Resuming},
 			{Name: string(events.CompleteApplication),
 				Src: []string{states.Running},
 				Dst: states.Completed},
@@ -156,6 +153,7 @@ func NewApplication(appID, queueName, user string, tags map[string]string, sched
 			string(events.ReleaseAppAllocation):    app.handleReleaseAppAllocationEvent,
 			string(events.ReleaseAppAllocationAsk): app.handleReleaseAppAllocationAskEvent,
 			events.EnterState:                      app.enterState,
+			string(events.AppTaskCompleted): 		app.handleAppTaskCompletedEvent,
 		},
 	)
 
@@ -647,21 +645,6 @@ func (app *Application) handleReleaseAppAllocationEvent(event *fsm.Event) {
 			}
 		}
 	}
-	app.postAppReleased()
-}
-
-func (app *Application) postAppReleased() {
-	if app.GetApplicationState() != events.States().Application.Resuming {
-		return
-	}
-	for _, task := range app.taskMap {
-		if task.placeholder && task.terminationType == si.TerminationType_TIMEOUT.String() {
-			return
-		}
-	}
-	log.Logger().Info("Resuming completed, start to run the app",
-		zap.String("appID", app.applicationID))
-	dispatcher.Dispatch(NewRunApplicationEvent(app.applicationID))
 }
 
 func (app *Application) handleReleaseAppAllocationAskEvent(event *fsm.Event) {
@@ -693,7 +676,25 @@ func (app *Application) handleReleaseAppAllocationAskEvent(event *fsm.Event) {
 			zap.String("appID", app.applicationID),
 			zap.String("taskID", taskID))
 	}
-	app.postAppReleased()
+}
+
+func (app *Application) handleAppTaskCompletedEvent(event *fsm.Event) {
+	eventArgs := make([]string, 2)
+	if err := events.GetEventArgsAsStrings(eventArgs, event.Args); err != nil {
+		log.Logger().Error("fail to parse event arg", zap.Error(err))
+		return
+	}
+	if app.GetApplicationState() != events.States().Application.Resuming {
+		return
+	}
+	for _, task := range app.taskMap {
+		if task.placeholder && task.GetTaskState() != events.States().Task.Completed {
+			return
+		}
+	}
+	log.Logger().Info("Resuming completed, start to run the app",
+		zap.String("appID", app.applicationID))
+	dispatcher.Dispatch(NewRunApplicationEvent(app.applicationID))
 }
 
 func (app *Application) enterState(event *fsm.Event) {

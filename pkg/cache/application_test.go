@@ -1039,14 +1039,21 @@ func TestResumingStateTransitions(t *testing.T) {
 	assertAppState(t, app, events.States().Application.Resuming, 3*time.Second)
 
 	// Set 1st task status alone to "completed"
-	task1.sm.SetState(events.States().Task.Completed)
+	event1 := NewSimpleTaskEvent(app.applicationID, task1.taskID, events.CompleteTask)
+	err = task1.handle(event1)
+	assert.NilError(t, err, "failed to handle CompleteTask event")
+	assert.Equal(t, task1.GetTaskState(), events.States().Task.Completed)
 
 	// Still app state is "resuming"
 	assertAppState(t, app, events.States().Application.Resuming, 3*time.Second)
 
 	// Setting 2nd task status also to "completed". Now, app state changes from "resuming" to "running"
-	task2.sm.SetState(events.States().Task.Completed)
-	err = app.handle(NewReleaseAppAllocationEvent(app.applicationID, si.TerminationType_TIMEOUT, UUID))
+	event2 := NewSimpleTaskEvent(app.applicationID, task2.taskID, events.CompleteTask)
+	err = task2.handle(event2)
+	assert.NilError(t, err, "failed to handle CompleteTask event")
+	assert.Equal(t, task2.GetTaskState(), events.States().Task.Completed)
+
+	err = app.handle(NewSimpleApplicationEvent(app.applicationID, events.AppTaskCompleted))
 	assert.NilError(t, err)
 	assertAppState(t, app, events.States().Application.Running, 3*time.Second)
 }

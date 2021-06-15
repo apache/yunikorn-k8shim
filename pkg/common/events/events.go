@@ -48,6 +48,7 @@ const (
 	ReleaseAppAllocationAsk ApplicationEventType = "ReleaseAppAllocationAsk"
 	AppStateChange          ApplicationEventType = "ApplicationStateChange"
 	ResumingApplication     ApplicationEventType = "ResumingApplication"
+	AppTaskCompleted     ApplicationEventType = "AppTaskCompleted"
 )
 
 type ApplicationEvent interface {

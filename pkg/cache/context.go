@@ -440,6 +440,8 @@ func (ctx *Context) NotifyTaskComplete(appID, taskID string) {
 			zap.String("taskID", taskID))
 		ev := NewSimpleTaskEvent(appID, taskID, events.CompleteTask)
 		dispatcher.Dispatch(ev)
+		appEv := NewSimpleApplicationEvent(appID, events.AppTaskCompleted)
+		dispatcher.Dispatch(appEv)
 	}
 }
 
