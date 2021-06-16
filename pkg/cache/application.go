@@ -117,12 +117,18 @@ func NewApplication(appID, queueName, user string, tags map[string]string, sched
 			{Name: string(events.ReleaseAppAllocation),
 				Src: []string{states.Failing},
 				Dst: states.Failing},
+			{Name: string(events.ReleaseAppAllocation),
+				Src: []string{states.Resuming},
+				Dst: states.Resuming},
 			{Name: string(events.ReleaseAppAllocationAsk),
 				Src: []string{states.Running, states.Accepted, states.Reserving},
 				Dst: states.Running},
 			{Name: string(events.ReleaseAppAllocationAsk),
 				Src: []string{states.Failing},
 				Dst: states.Failing},
+			{Name: string(events.ReleaseAppAllocationAsk),
+				Src: []string{states.Resuming},
+				Dst: states.Resuming},
 			{Name: string(events.CompleteApplication),
 				Src: []string{states.Running},
 				Dst: states.Completed},
@@ -679,11 +685,6 @@ func (app *Application) handleReleaseAppAllocationAskEvent(event *fsm.Event) {
 }
 
 func (app *Application) handleAppTaskCompletedEvent(event *fsm.Event) {
-	eventArgs := make([]string, 2)
-	if err := events.GetEventArgsAsStrings(eventArgs, event.Args); err != nil {
-		log.Logger().Error("fail to parse event arg", zap.Error(err))
-		return
-	}
 	for _, task := range app.taskMap {
 		if task.placeholder && task.GetTaskState() != events.States().Task.Completed {
 			return
