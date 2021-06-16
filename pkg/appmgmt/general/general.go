@@ -133,22 +133,15 @@ func (os *Manager) getAppMetadata(pod *v1.Pod) (interfaces.ApplicationMetadata, 
 			zap.Error(err))
 	}
 	ownerReferences := getOwnerReferences(pod)
-
-	placeholderTimeout, err := utils.GetPlaceholderTimeoutParam(pod)
-	if err != nil {
-		log.Logger().Debug("unable to get placeholder timeout for pod.",
-			zap.String("namespace", pod.Namespace),
-			zap.String("name", pod.Name),
-			zap.Error(err))
-	}
+	schedulingPolicyParams := utils.GetSchedulingPolicyParam(pod)
 	return interfaces.ApplicationMetadata{
-		ApplicationID:           appID,
-		QueueName:               utils.GetQueueNameFromPod(pod),
-		User:                    user,
-		Tags:                    tags,
-		TaskGroups:              taskGroups,
-		PlaceholderTimeoutInSec: placeholderTimeout,
-		OwnerReferences:         ownerReferences,
+		ApplicationID:              appID,
+		QueueName:                  utils.GetQueueNameFromPod(pod),
+		User:                       user,
+		Tags:                       tags,
+		TaskGroups:                 taskGroups,
+		OwnerReferences:            ownerReferences,
+		SchedulingPolicyParameters: schedulingPolicyParams,
 	}, true
 }
 

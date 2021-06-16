@@ -997,3 +997,63 @@ func TestReleaseAppAllocationInFailingState(t *testing.T) {
 	// after handle fail event the states of app must be failed
 	assertAppState(t, app, events.States().Application.Failed, 3*time.Second)
 }
+
+func TestResumingStateTransitions(t *testing.T) {
+	context := initContextForTest()
+	dispatcher.RegisterEventHandler(dispatcher.EventTypeApp, context.ApplicationEventHandler())
+	dispatcher.Start()
+	defer dispatcher.Stop()
+
+	// inject the mocked clients to the placeholder manager
+	createdPods := newThreadSafePodsMap()
+	mockedAPIProvider := client.NewMockedAPIProvider()
+	mockedAPIProvider.MockCreateFn(func(pod *v1.Pod) (*v1.Pod, error) {
+		createdPods.add(pod)
+		return pod, nil
+	})
+	mgr := NewPlaceholderManager(mockedAPIProvider.GetAPIs())
+	mgr.Start()
+	defer mgr.Stop()
+
+	// create a new app
+	app := NewApplication("app00001", "root.abc", "test-user",
+		map[string]string{}, mockedAPIProvider.GetAPIs().SchedulerAPI)
+	task1 := NewTask("task0001", app, context, &v1.Pod{})
+	task1.sm.SetState(events.States().Task.New)
+	task2 := NewTask("task0002", app, context, &v1.Pod{})
+	task2.sm.SetState(events.States().Task.Allocated)
+
+	// Add tasks
+	app.addTask(task1)
+	app.addTask(task2)
+	UUID := "testUUID001"
+	task1.allocationUUID = UUID
+	context.applications[app.applicationID] = app
+
+	// Set app state to "reserving"
+	app.SetState(events.States().Application.Reserving)
+
+	// Fire ResumingApplicationEvent for state change from "reserving" to "resuming"
+	err := app.handle(NewResumingApplicationEvent(app.applicationID))
+	assert.NilError(t, err)
+	assertAppState(t, app, events.States().Application.Resuming, 3*time.Second)
+
+	// Set 1st task status alone to "completed"
+	event1 := NewSimpleTaskEvent(app.applicationID, task1.taskID, events.CompleteTask)
+	err = task1.handle(event1)
+	assert.NilError(t, err, "failed to handle CompleteTask event")
+	assert.Equal(t, task1.GetTaskState(), events.States().Task.Completed)
+
+	// Still app state is "resuming"
+	assertAppState(t, app, events.States().Application.Resuming, 3*time.Second)
+
+	// Setting 2nd task status also to "completed". Now, app state changes from "resuming" to "running"
+	event2 := NewSimpleTaskEvent(app.applicationID, task2.taskID, events.CompleteTask)
+	err = task2.handle(event2)
+	assert.NilError(t, err, "failed to handle CompleteTask event")
+	assert.Equal(t, task2.GetTaskState(), events.States().Task.Completed)
+
+	err = app.handle(NewSimpleApplicationEvent(app.applicationID, events.AppTaskCompleted))
+	assert.NilError(t, err)
+	assertAppState(t, app, events.States().Application.Running, 3*time.Second)
+}

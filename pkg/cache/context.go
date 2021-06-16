@@ -440,6 +440,8 @@ func (ctx *Context) NotifyTaskComplete(appID, taskID string) {
 			zap.String("taskID", taskID))
 		ev := NewSimpleTaskEvent(appID, taskID, events.CompleteTask)
 		dispatcher.Dispatch(ev)
+		appEv := NewSimpleApplicationEvent(appID, events.AppTaskCompleted)
+		dispatcher.Dispatch(appEv)
 	}
 }
 
@@ -509,7 +511,10 @@ func (ctx *Context) AddApplication(request *interfaces.AddApplicationRequest) in
 		request.Metadata.Tags,
 		ctx.apiProvider.GetAPIs().SchedulerAPI)
 	app.setTaskGroups(request.Metadata.TaskGroups)
-	app.SetPlaceholderTimeout(request.Metadata.PlaceholderTimeoutInSec)
+	if request.Metadata.SchedulingPolicyParameters != nil {
+		app.SetPlaceholderTimeout(request.Metadata.SchedulingPolicyParameters.GetPlaceholderTimeout())
+		app.setSchedulingStyle(request.Metadata.SchedulingPolicyParameters.GetGangSchedulingStyle())
+	}
 	app.setOwnReferences(request.Metadata.OwnerReferences)
 
 	// add into cache

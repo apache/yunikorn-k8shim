@@ -73,13 +73,13 @@ type AddTaskRequest struct {
 }
 
 type ApplicationMetadata struct {
-	ApplicationID           string
-	QueueName               string
-	User                    string
-	Tags                    map[string]string
-	TaskGroups              []v1alpha1.TaskGroup
-	PlaceholderTimeoutInSec int64
-	OwnerReferences         []metav1.OwnerReference
+	ApplicationID              string
+	QueueName                  string
+	User                       string
+	Tags                       map[string]string
+	TaskGroups                 []v1alpha1.TaskGroup
+	OwnerReferences            []metav1.OwnerReference
+	SchedulingPolicyParameters *SchedulingPolicyParameters
 }
 
 type TaskMetadata struct {
@@ -88,4 +88,22 @@ type TaskMetadata struct {
 	Pod           *v1.Pod
 	Placeholder   bool
 	TaskGroupName string
+}
+
+type SchedulingPolicyParameters struct {
+	placeholderTimeout  int64
+	gangSchedulingStyle string
+}
+
+func NewSchedulingPolicyParameters(placeholderTimeout int64, gangSchedulingStyle string) *SchedulingPolicyParameters {
+	spp := &SchedulingPolicyParameters{placeholderTimeout: placeholderTimeout, gangSchedulingStyle: gangSchedulingStyle}
+	return spp
+}
+
+func (spp *SchedulingPolicyParameters) GetPlaceholderTimeout() int64 {
+	return spp.placeholderTimeout
+}
+
+func (spp *SchedulingPolicyParameters) GetGangSchedulingStyle() string {
+	return spp.gangSchedulingStyle
 }

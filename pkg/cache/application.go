@@ -57,6 +57,7 @@ type Application struct {
 	schedulerAPI               api.SchedulerAPI
 	placeholderAsk             *si.Resource // total placeholder request for the app (all task groups)
 	placeholderTimeoutInSec    int64
+	schedulingStyle            string
 }
 
 func (app *Application) String() string {
@@ -79,6 +80,7 @@ func NewApplication(appID, queueName, user string, tags map[string]string, sched
 		lock:                    &sync.RWMutex{},
 		schedulerAPI:            scheduler,
 		placeholderTimeoutInSec: 0,
+		schedulingStyle:         constants.SchedulingPolicyStyleParamDefault,
 	}
 
 	var states = events.States().Application
@@ -100,8 +102,14 @@ func NewApplication(appID, queueName, user string, tags map[string]string, sched
 			{Name: string(events.UpdateReservation),
 				Src: []string{states.Reserving},
 				Dst: states.Reserving},
+			{Name: string(events.ResumingApplication),
+				Src: []string{states.Reserving},
+				Dst: states.Resuming},
+			{Name: string(events.AppTaskCompleted),
+				Src: []string{states.Resuming},
+				Dst: states.Resuming},
 			{Name: string(events.RunApplication),
-				Src: []string{states.Accepted, states.Reserving, states.Running},
+				Src: []string{states.Accepted, states.Reserving, states.Resuming, states.Running},
 				Dst: states.Running},
 			{Name: string(events.ReleaseAppAllocation),
 				Src: []string{states.Running},
@@ -109,12 +117,18 @@ func NewApplication(appID, queueName, user string, tags map[string]string, sched
 			{Name: string(events.ReleaseAppAllocation),
 				Src: []string{states.Failing},
 				Dst: states.Failing},
+			{Name: string(events.ReleaseAppAllocation),
+				Src: []string{states.Resuming},
+				Dst: states.Resuming},
 			{Name: string(events.ReleaseAppAllocationAsk),
 				Src: []string{states.Running, states.Accepted, states.Reserving},
 				Dst: states.Running},
 			{Name: string(events.ReleaseAppAllocationAsk),
 				Src: []string{states.Failing},
 				Dst: states.Failing},
+			{Name: string(events.ReleaseAppAllocationAsk),
+				Src: []string{states.Resuming},
+				Dst: states.Resuming},
 			{Name: string(events.CompleteApplication),
 				Src: []string{states.Running},
 				Dst: states.Completed},
@@ -145,6 +159,7 @@ func NewApplication(appID, queueName, user string, tags map[string]string, sched
 			string(events.ReleaseAppAllocation):    app.handleReleaseAppAllocationEvent,
 			string(events.ReleaseAppAllocationAsk): app.handleReleaseAppAllocationAskEvent,
 			events.EnterState:                      app.enterState,
+			string(events.AppTaskCompleted):        app.handleAppTaskCompletedEvent,
 		},
 	)
 
@@ -242,6 +257,12 @@ func (app *Application) setOwnReferences(ref []metav1.OwnerReference) {
 	app.lock.RLock()
 	defer app.lock.RUnlock()
 	app.placeholderOwnerReferences = ref
+}
+
+func (app *Application) setSchedulingStyle(schedulingStyle string) {
+	app.lock.Lock()
+	defer app.lock.Unlock()
+	app.schedulingStyle = schedulingStyle
 }
 
 func (app *Application) addTask(task *Task) {
@@ -419,6 +440,7 @@ func (app *Application) handleSubmitApplicationEvent(event *fsm.Event) {
 					Tags:                         app.tags,
 					PlaceholderAsk:               app.placeholderAsk,
 					ExecutionTimeoutMilliSeconds: app.placeholderTimeoutInSec * 1000,
+					GangSchedulingStyle:          app.schedulingStyle,
 				},
 			},
 			RmID: conf.GetSchedulerConf().ClusterID,
@@ -447,6 +469,7 @@ func (app *Application) handleRecoverApplicationEvent(event *fsm.Event) {
 					},
 					Tags:                         app.tags,
 					ExecutionTimeoutMilliSeconds: app.placeholderTimeoutInSec * 1000,
+					GangSchedulingStyle:          app.schedulingStyle,
 				},
 			},
 			RmID: conf.GetSchedulerConf().ClusterID,
@@ -659,6 +682,17 @@ func (app *Application) handleReleaseAppAllocationAskEvent(event *fsm.Event) {
 			zap.String("appID", app.applicationID),
 			zap.String("taskID", taskID))
 	}
+}
+
+func (app *Application) handleAppTaskCompletedEvent(event *fsm.Event) {
+	for _, task := range app.taskMap {
+		if task.placeholder && task.GetTaskState() != events.States().Task.Completed {
+			return
+		}
+	}
+	log.Logger().Info("Resuming completed, start to run the app",
+		zap.String("appID", app.applicationID))
+	dispatcher.Dispatch(NewRunApplicationEvent(app.applicationID))
 }
 
 func (app *Application) enterState(event *fsm.Event) {
