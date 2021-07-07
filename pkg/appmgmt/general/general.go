@@ -133,22 +133,15 @@ func (os *Manager) getAppMetadata(pod *v1.Pod) (interfaces.ApplicationMetadata, 
 			zap.Error(err))
 	}
 	ownerReferences := getOwnerReferences(pod)
-
-	placeholderTimeout, err := utils.GetPlaceholderTimeoutParam(pod)
-	if err != nil {
-		log.Logger().Debug("unable to get placeholder timeout for pod.",
-			zap.String("namespace", pod.Namespace),
-			zap.String("name", pod.Name),
-			zap.Error(err))
-	}
+	schedulingPolicyParams := utils.GetSchedulingPolicyParam(pod)
 	return interfaces.ApplicationMetadata{
-		ApplicationID:           appID,
-		QueueName:               utils.GetQueueNameFromPod(pod),
-		User:                    user,
-		Tags:                    tags,
-		TaskGroups:              taskGroups,
-		PlaceholderTimeoutInSec: placeholderTimeout,
-		OwnerReferences:         ownerReferences,
+		ApplicationID:              appID,
+		QueueName:                  utils.GetQueueNameFromPod(pod),
+		User:                       user,
+		Tags:                       tags,
+		TaskGroups:                 taskGroups,
+		OwnerReferences:            ownerReferences,
+		SchedulingPolicyParameters: schedulingPolicyParams,
 	}, true
 }
 
@@ -193,12 +186,10 @@ func (os *Manager) addPod(obj interface{}) {
 		return
 	}
 
-	recovery := utils.NeedRecovery(pod)
 	log.Logger().Debug("pod added",
 		zap.String("appType", os.Name()),
 		zap.String("Name", pod.Name),
-		zap.String("Namespace", pod.Namespace),
-		zap.Bool("NeedsRecovery", recovery))
+		zap.String("Namespace", pod.Namespace))
 
 	// add app
 	if appMeta, ok := os.getAppMetadata(pod); ok {
@@ -216,7 +207,6 @@ func (os *Manager) addPod(obj interface{}) {
 			if _, taskErr := app.GetTask(string(pod.UID)); taskErr != nil {
 				os.amProtocol.AddTask(&interfaces.AddTaskRequest{
 					Metadata: taskMeta,
-					Recovery: recovery,
 				})
 			}
 		}

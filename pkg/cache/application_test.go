@@ -182,8 +182,11 @@ func TestFailApplication(t *testing.T) {
 	errMess := "Test Error Message"
 	err := app.handle(NewFailApplicationEvent(app.applicationID, errMess))
 	assert.NilError(t, err)
+	assertAppState(t, app, events.States().Application.Failing, 3*time.Second)
+	err = app.handle(NewFailApplicationEvent(app.applicationID, errMess))
+	assert.NilError(t, err)
 	assertAppState(t, app, events.States().Application.Failed, 3*time.Second)
-	assert.Equal(t, rt.time, int64(3))
+	assert.Equal(t, rt.time, int64(6))
 	// reset time to 0
 	rt.time = 0
 	appID2 := "app-test-002"
@@ -195,6 +198,9 @@ func TestFailApplication(t *testing.T) {
 	}
 	assertAppState(t, app2, events.States().Application.New, 3*time.Second)
 	app2.SetState(events.States().Application.Submitted)
+	err = app2.handle(NewFailApplicationEvent(app2.applicationID, errMess))
+	assert.NilError(t, err)
+	assertAppState(t, app2, events.States().Application.Failing, 3*time.Second)
 	err = app2.handle(NewFailApplicationEvent(app2.applicationID, errMess))
 	assert.NilError(t, err)
 	assertAppState(t, app2, events.States().Application.Failed, 3*time.Second)
@@ -292,6 +298,9 @@ func TestSetUnallocatedPodsToFailedWhenFailApplication(t *testing.T) {
 	app.addTask(task3)
 	app.SetState(events.States().Application.Accepted)
 	errMess := constants.ApplicationInsufficientResourcesFailure
+	err = app.handle(NewFailApplicationEvent(app.applicationID, errMess))
+	assert.NilError(t, err)
+	assertAppState(t, app, events.States().Application.Failing, 3*time.Second)
 	err = app.handle(NewFailApplicationEvent(app.applicationID, errMess))
 	assert.NilError(t, err)
 	assertAppState(t, app, events.States().Application.Failed, 3*time.Second)
@@ -879,4 +888,172 @@ func TestTriggerAppRecovery(t *testing.T) {
 	assertAppState(t, app, events.States().Application.Submitted, 3*time.Second)
 	err = app.TriggerAppRecovery()
 	assert.ErrorContains(t, err, "event RecoverApplication inappropriate in current state Submitted")
+}
+
+func TestSkipReservationStage(t *testing.T) {
+	context := initContextForTest()
+	app := NewApplication("app00001", "root.queue", "test-user", map[string]string{}, newMockSchedulerAPI())
+	app.addTask(NewTask("task0001", app, context, &v1.Pod{}))
+	skip := app.skipReservationStage()
+	assert.Equal(t, skip, true, "expected to skip reservation because there is no task groups defined")
+
+	// app has task groups defined, and contains 2 tasks, 1 Pending and 1 Allocated
+	// expect: skip reservation
+	app = NewApplication("app00001", "root.queue", "test-user", map[string]string{}, newMockSchedulerAPI())
+	task1 := NewTask("task0001", app, context, &v1.Pod{})
+	task1.sm.SetState(events.States().Task.New)
+	task2 := NewTask("task0002", app, context, &v1.Pod{})
+	task2.sm.SetState(events.States().Task.Allocated)
+	app.addTask(task1)
+	app.addTask(task2)
+	app.setTaskGroups([]v1alpha1.TaskGroup{
+		{
+			Name:      "test-group-1",
+			MinMember: 10,
+			MinResource: map[string]resource.Quantity{
+				v1.ResourceCPU.String():    resource.MustParse("500m"),
+				v1.ResourceMemory.String(): resource.MustParse("500Mi"),
+			},
+		}},
+	)
+	skip = app.skipReservationStage()
+	assert.Equal(t, skip, true, "expected to skip reservation because there is task in Allocated state")
+
+	// app has task groups defined, and contains 2 tasks, both are New
+	// expect: do not skip reservation
+	app = NewApplication("app00001", "root.queue", "test-user", map[string]string{}, newMockSchedulerAPI())
+	task1 = NewTask("task0001", app, context, &v1.Pod{})
+	task1.sm.SetState(events.States().Task.New)
+	task2 = NewTask("task0002", app, context, &v1.Pod{})
+	task2.sm.SetState(events.States().Task.New)
+	app.addTask(task1)
+	app.addTask(task2)
+	app.setTaskGroups([]v1alpha1.TaskGroup{
+		{
+			Name:      "test-group-1",
+			MinMember: 10,
+			MinResource: map[string]resource.Quantity{
+				v1.ResourceCPU.String():    resource.MustParse("500m"),
+				v1.ResourceMemory.String(): resource.MustParse("500Mi"),
+			},
+		}},
+	)
+	skip = app.skipReservationStage()
+	assert.Equal(t, skip, false, "expected not to skip reservation")
+}
+
+func TestReleaseAppAllocationInFailingState(t *testing.T) {
+	context := initContextForTest()
+	ms := &mockSchedulerAPI{}
+	resources := make(map[v1.ResourceName]resource.Quantity)
+	containers := make([]v1.Container, 0)
+	containers = append(containers, v1.Container{
+		Name: "container-01",
+		Resources: v1.ResourceRequirements{
+			Requests: resources,
+		},
+	})
+	pod := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "pod-test-00001",
+			UID:  "UID-00001",
+		},
+		Spec: v1.PodSpec{
+			Containers: containers,
+		},
+	}
+	appID := "app-test-001"
+	UUID := "testUUID001"
+	app := NewApplication(appID, "root.abc", "testuser", map[string]string{}, ms)
+	task := NewTask("task01", app, context, pod)
+	app.addTask(task)
+	task.allocationUUID = UUID
+	// app must be running states
+	err := app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, UUID))
+	if err == nil {
+		// this should give an error
+		t.Error("expecting error got 'nil'")
+	}
+	// set app states to running, let event can be trigger
+	app.SetState(events.States().Application.Running)
+	assertAppState(t, app, events.States().Application.Running, 3*time.Second)
+	err = app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, UUID))
+	assert.NilError(t, err)
+	// after handle release event the states of app must be running
+	assertAppState(t, app, events.States().Application.Running, 3*time.Second)
+	app.SetState(events.States().Application.Failing)
+	err = app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, UUID))
+	assert.NilError(t, err)
+	// after handle release event the states of app must be failing
+	assertAppState(t, app, events.States().Application.Failing, 3*time.Second)
+
+	errMess := "Test Error Message"
+	err = app.handle(NewFailApplicationEvent(app.applicationID, errMess))
+	assert.NilError(t, err)
+	// after handle fail event the states of app must be failed
+	assertAppState(t, app, events.States().Application.Failed, 3*time.Second)
+}
+
+func TestResumingStateTransitions(t *testing.T) {
+	context := initContextForTest()
+	dispatcher.RegisterEventHandler(dispatcher.EventTypeApp, context.ApplicationEventHandler())
+	dispatcher.Start()
+	defer dispatcher.Stop()
+
+	// inject the mocked clients to the placeholder manager
+	createdPods := newThreadSafePodsMap()
+	mockedAPIProvider := client.NewMockedAPIProvider()
+	mockedAPIProvider.MockCreateFn(func(pod *v1.Pod) (*v1.Pod, error) {
+		createdPods.add(pod)
+		return pod, nil
+	})
+	mgr := NewPlaceholderManager(mockedAPIProvider.GetAPIs())
+	mgr.Start()
+	defer mgr.Stop()
+
+	// create a new app
+	app := NewApplication("app00001", "root.abc", "test-user",
+		map[string]string{}, mockedAPIProvider.GetAPIs().SchedulerAPI)
+	task1 := NewTask("task0001", app, context, &v1.Pod{})
+	task1.sm.SetState(events.States().Task.New)
+	task2 := NewTask("task0002", app, context, &v1.Pod{})
+	task2.sm.SetState(events.States().Task.Allocated)
+
+	// Add tasks
+	app.addTask(task1)
+	app.addTask(task2)
+	UUID := "testUUID001"
+	task1.allocationUUID = UUID
+	context.applications[app.applicationID] = app
+
+	// Set app state to "reserving"
+	app.SetState(events.States().Application.Reserving)
+
+	// Fire ResumingApplicationEvent for state change from "reserving" to "resuming"
+	err := app.handle(NewResumingApplicationEvent(app.applicationID))
+	assert.NilError(t, err)
+	assertAppState(t, app, events.States().Application.Resuming, 3*time.Second)
+
+	// Set 1st task status alone to "completed"
+	event1 := NewSimpleTaskEvent(app.applicationID, task1.taskID, events.CompleteTask)
+	err = task1.handle(event1)
+	assert.NilError(t, err, "failed to handle CompleteTask event")
+	assert.Equal(t, task1.GetTaskState(), events.States().Task.Completed)
+
+	// Still app state is "resuming"
+	assertAppState(t, app, events.States().Application.Resuming, 3*time.Second)
+
+	// Setting 2nd task status also to "completed". Now, app state changes from "resuming" to "running"
+	event2 := NewSimpleTaskEvent(app.applicationID, task2.taskID, events.CompleteTask)
+	err = task2.handle(event2)
+	assert.NilError(t, err, "failed to handle CompleteTask event")
+	assert.Equal(t, task2.GetTaskState(), events.States().Task.Completed)
+
+	err = app.handle(NewSimpleApplicationEvent(app.applicationID, events.AppTaskCompleted))
+	assert.NilError(t, err)
+	assertAppState(t, app, events.States().Application.Running, 3*time.Second)
 }

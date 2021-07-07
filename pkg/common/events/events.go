@@ -33,20 +33,22 @@ type SchedulingEvent interface {
 type ApplicationEventType string
 
 const (
-	SubmitApplication    ApplicationEventType = "SubmitApplication"
-	RecoverApplication   ApplicationEventType = "RecoverApplication"
-	AcceptApplication    ApplicationEventType = "AcceptApplication"
-	TryReserve           ApplicationEventType = "TryReserve"
-	UpdateReservation    ApplicationEventType = "UpdateReservation"
-	RunApplication       ApplicationEventType = "RunApplication"
-	RejectApplication    ApplicationEventType = "RejectApplication"
-	CompleteApplication  ApplicationEventType = "CompleteApplication"
-	FailApplication      ApplicationEventType = "FailApplication"
-	KillApplication      ApplicationEventType = "KillApplication"
-	KilledApplication    ApplicationEventType = "KilledApplication"
-	ReleaseAppAllocation ApplicationEventType = "ReleaseAppAllocation"
+	SubmitApplication       ApplicationEventType = "SubmitApplication"
+	RecoverApplication      ApplicationEventType = "RecoverApplication"
+	AcceptApplication       ApplicationEventType = "AcceptApplication"
+	TryReserve              ApplicationEventType = "TryReserve"
+	UpdateReservation       ApplicationEventType = "UpdateReservation"
+	RunApplication          ApplicationEventType = "RunApplication"
+	RejectApplication       ApplicationEventType = "RejectApplication"
+	CompleteApplication     ApplicationEventType = "CompleteApplication"
+	FailApplication         ApplicationEventType = "FailApplication"
+	KillApplication         ApplicationEventType = "KillApplication"
+	KilledApplication       ApplicationEventType = "KilledApplication"
+	ReleaseAppAllocation    ApplicationEventType = "ReleaseAppAllocation"
 	ReleaseAppAllocationAsk ApplicationEventType = "ReleaseAppAllocationAsk"
-	AppStateChange       ApplicationEventType = "ApplicationStateChange"
+	AppStateChange          ApplicationEventType = "ApplicationStateChange"
+	ResumingApplication     ApplicationEventType = "ResumingApplication"
+	AppTaskCompleted        ApplicationEventType = "AppTaskCompleted"
 )
 
 type ApplicationEvent interface {

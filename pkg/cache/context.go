@@ -440,6 +440,8 @@ func (ctx *Context) NotifyTaskComplete(appID, taskID string) {
 			zap.String("taskID", taskID))
 		ev := NewSimpleTaskEvent(appID, taskID, events.CompleteTask)
 		dispatcher.Dispatch(ev)
+		appEv := NewSimpleApplicationEvent(appID, events.AppTaskCompleted)
+		dispatcher.Dispatch(appEv)
 	}
 }
 
@@ -509,7 +511,10 @@ func (ctx *Context) AddApplication(request *interfaces.AddApplicationRequest) in
 		request.Metadata.Tags,
 		ctx.apiProvider.GetAPIs().SchedulerAPI)
 	app.setTaskGroups(request.Metadata.TaskGroups)
-	app.SetPlaceholderTimeout(request.Metadata.PlaceholderTimeoutInSec)
+	if request.Metadata.SchedulingPolicyParameters != nil {
+		app.SetPlaceholderTimeout(request.Metadata.SchedulingPolicyParameters.GetPlaceholderTimeout())
+		app.setSchedulingStyle(request.Metadata.SchedulingPolicyParameters.GetGangSchedulingStyle())
+	}
 	app.setOwnReferences(request.Metadata.OwnerReferences)
 
 	// add into cache
@@ -567,19 +572,12 @@ func (ctx *Context) RemoveApplicationInternal(appID string) error {
 func (ctx *Context) AddTask(request *interfaces.AddTaskRequest) interfaces.ManagedTask {
 	log.Logger().Debug("AddTask",
 		zap.String("appID", request.Metadata.ApplicationID),
-		zap.String("taskID", request.Metadata.TaskID),
-		zap.Bool("isRecovery", request.Recovery))
+		zap.String("taskID", request.Metadata.TaskID))
 	if managedApp := ctx.GetApplication(request.Metadata.ApplicationID); managedApp != nil {
 		if app, valid := managedApp.(*Application); valid {
 			existingTask, err := app.GetTask(request.Metadata.TaskID)
 			if err != nil {
 				task := NewFromTaskMeta(request.Metadata.TaskID, app, ctx, request.Metadata)
-				// in recovery mode, task is considered as allocated
-				if request.Recovery {
-					// in scheduling, allocationUUID is assigned by scheduler-core
-					// in recovery mode, allocationUuid equals to taskID, which also equals to the pod UID
-					task.setAllocated(request.Metadata.Pod.Spec.NodeName, request.Metadata.TaskID)
-				}
 				app.addTask(task)
 				log.Logger().Info("task added",
 					zap.String("appID", app.applicationID),

@@ -24,11 +24,14 @@ import (
 	"strconv"
 	"strings"
 
+	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 )
 
 func FindAppTaskGroup(appTaskGroups []*v1alpha1.TaskGroup, groupName string) (*v1alpha1.TaskGroup, error) {
@@ -123,24 +126,35 @@ func GetTaskGroupsFromAnnotation(pod *v1.Pod) ([]v1alpha1.TaskGroup, error) {
 	return taskGroups, nil
 }
 
-func GetPlaceholderTimeoutParam(pod *v1.Pod) (int64, error) {
+func GetSchedulingPolicyParam(pod *v1.Pod) *interfaces.SchedulingPolicyParameters {
+	timeout := int64(0)
+	style := constants.SchedulingPolicyStyleParamDefault
+	schedulingPolicyParams := interfaces.NewSchedulingPolicyParameters(timeout, style)
 	param, ok := pod.Annotations[constants.AnnotationSchedulingPolicyParam]
 	if !ok {
-		return 0, nil
+		return schedulingPolicyParams
 	}
 	params := strings.Split(param, constants.SchedulingPolicyParamDelimiter)
+	var err error
 	for _, p := range params {
-		timeoutParam := strings.Split(p, "=")
-		if timeoutParam[0] == constants.SchedulingPolicyTimeoutParam {
-			if len(timeoutParam) != 2 {
-				return 0, fmt.Errorf("unable to parse timeout value from annotation")
-			}
-			timeout, err := strconv.ParseInt(timeoutParam[1], 10, 64)
+		param := strings.Split(p, "=")
+		if len(param) != 2 {
+			log.Logger().Warn("Skipping malformed scheduling policy parameter: ", zap.String("namespace", pod.Namespace), zap.String("name", pod.Name), zap.String("Scheduling Policy parameters passed in annotation: ", p))
+			continue
+		}
+		if param[0] == constants.SchedulingPolicyTimeoutParam {
+			timeout, err = strconv.ParseInt(param[1], 10, 64)
 			if err != nil {
-				return 0, fmt.Errorf("failed to parse timeout value: %s", timeoutParam[1])
+				log.Logger().Warn("Failed to parse timeout value from annotation", zap.String("namespace", pod.Namespace), zap.String("name", pod.Name), zap.Int64("Using Placeholder timeout: ", timeout), zap.String("Placeholder timeout passed in annotation: ", p))
 			}
-			return timeout, nil
+		} else if param[0] == constants.SchedulingPolicyStyleParam {
+			if style, ok = constants.SchedulingPolicyStyleParamValues[param[1]]; !ok {
+				style = constants.SchedulingPolicyStyleParamDefault
+				log.Logger().Warn("Unknown gang scheduling style, using "+constants.SchedulingPolicyStyleParamDefault+" style as default",
+					zap.String("namespace", pod.Namespace), zap.String("name", pod.Name), zap.String("Gang scheduling style passed in annotation: ", p))
+			}
 		}
 	}
-	return 0, nil
+	schedulingPolicyParams = interfaces.NewSchedulingPolicyParameters(timeout, style)
+	return schedulingPolicyParams
 }

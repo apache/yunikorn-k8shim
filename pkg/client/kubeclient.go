@@ -25,6 +25,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/util/retry"
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
@@ -133,13 +134,39 @@ func (nc SchedulerKubeClient) Get(podNamespace string, podName string) (*v1.Pod,
 
 func (nc SchedulerKubeClient) UpdateStatus(pod *v1.Pod) (*v1.Pod, error) {
 	var updatedPod *v1.Pod
-	var err error
-	if updatedPod, err = nc.clientSet.CoreV1().Pods(pod.Namespace).UpdateStatus(pod); err != nil {
-		log.Logger().Warn("failed to update pod status",
+	var updateErr error
+	newPodStatus := pod.Status
+	// In case of conflicts, retry using the logic in
+	// https://github.com/kubernetes/client-go/blob/v0.21.1/examples/create-update-delete-deployment/main.go#L118-L121
+	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		// Retrieve the latest version of Pod before attempting status update
+		// RetryOnConflict uses exponential backoff to avoid exhausting the API server
+		latestPod, getErr := nc.clientSet.CoreV1().Pods(pod.Namespace).Get(pod.Name, apis.GetOptions{})
+		if getErr != nil {
+			log.Logger().Warn("failed to get latest version of Pod",
+				zap.Error(getErr))
+		}
+		latestPod.Status = newPodStatus
+
+		if updatedPod, updateErr = nc.clientSet.CoreV1().Pods(pod.Namespace).UpdateStatus(latestPod); updateErr != nil {
+			log.Logger().Warn("failed to update pod status",
+				zap.String("namespace", pod.Namespace),
+				zap.String("podName", pod.Name),
+				zap.Error(updateErr))
+			return updateErr
+		}
+		return nil
+	})
+	if retryErr != nil {
+		log.Logger().Error("Update pod status failed",
 			zap.String("namespace", pod.Namespace),
 			zap.String("podName", pod.Name),
-			zap.Error(err))
-		return pod, err
+			zap.Error(retryErr))
+		return pod, retryErr
 	}
+	log.Logger().Info("Successfully updated pod status",
+		zap.String("namespace", pod.Namespace),
+		zap.String("podName", pod.Name),
+		zap.String("newStatus", pod.Status.String()))
 	return updatedPod, nil
 }
