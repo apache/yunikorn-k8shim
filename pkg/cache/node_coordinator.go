@@ -70,34 +70,46 @@ func (c *nodeResourceCoordinator) updatePod(old, new interface{}) {
 		return
 	}
 
-	// triggered when pod status phase changes
-	if oldPod.Status.Phase != newPod.Status.Phase {
-		if utils.IsAssignedPod(newPod) {
-			log.Logger().Debug("pod phase changes",
-				zap.String("namespace", newPod.Namespace),
-				zap.String("podName", newPod.Name),
-				zap.String("podStatusBefore", string(oldPod.Status.Phase)),
-				zap.String("podStatusCurrent", string(newPod.Status.Phase)))
-			if utils.IsPodRunning(newPod) {
-				// if pod is running but not scheduled by us,
-				// we need to notify scheduler-core to re-sync the node resource
-				podResource := common.GetPodResource(newPod)
-				c.nodes.updateNodeOccupiedResources(newPod.Spec.NodeName, podResource, AddOccupiedResource)
-				if err := c.nodes.cache.AddPod(newPod); err != nil {
-					log.Logger().Warn("failed to update scheduler-cache",
-						zap.Error(err))
-				}
-			} else if utils.IsPodTerminated(newPod) {
-				// this means pod is terminated
-				// we need sub the occupied resource and re-sync with the scheduler-core
-				podResource := common.GetPodResource(newPod)
-				c.nodes.updateNodeOccupiedResources(newPod.Spec.NodeName, podResource, SubOccupiedResource)
-				if err := c.nodes.cache.RemovePod(newPod); err != nil {
-					log.Logger().Warn("failed to update scheduler-cache",
-						zap.Error(err))
-				}
-			}
+	// this handles the allocate and release of a pod that not scheduled by yunikorn
+	// the check is triggered when a pod status changes
+	// conditions for allocate:
+	//   1. pod got assigned to a node
+	//   2. pod is not in terminated state
+	if !utils.IsAssignedPod(oldPod) && utils.IsAssignedPod(newPod) && !utils.IsPodTerminated(newPod) {
+		log.Logger().Debug("pod is assigned to a node, trigger occupied resource update",
+			zap.String("namespace", newPod.Namespace),
+			zap.String("podName", newPod.Name),
+			zap.String("podStatusBefore", string(oldPod.Status.Phase)),
+			zap.String("podStatusCurrent", string(newPod.Status.Phase)))
+		// if pod is running but not scheduled by us,
+		// we need to notify scheduler-core to re-sync the node resource
+		podResource := common.GetPodResource(newPod)
+		c.nodes.updateNodeOccupiedResources(newPod.Spec.NodeName, podResource, AddOccupiedResource)
+		if err := c.nodes.cache.AddPod(newPod); err != nil {
+			log.Logger().Warn("failed to update scheduler-cache",
+				zap.Error(err))
 		}
+		return
+	}
+
+	// conditions for release:
+	//   1. pod is already assigned to a node
+	//   2. pod status changes from non-terminated to terminated state
+	if utils.IsAssignedPod(newPod) && oldPod.Status.Phase != newPod.Status.Phase && utils.IsPodTerminated(newPod) {
+		log.Logger().Debug("pod terminated, trigger occupied resource update",
+			zap.String("namespace", newPod.Namespace),
+			zap.String("podName", newPod.Name),
+			zap.String("podStatusBefore", string(oldPod.Status.Phase)),
+			zap.String("podStatusCurrent", string(newPod.Status.Phase)))
+		// this means pod is terminated
+		// we need sub the occupied resource and re-sync with the scheduler-core
+		podResource := common.GetPodResource(newPod)
+		c.nodes.updateNodeOccupiedResources(newPod.Spec.NodeName, podResource, SubOccupiedResource)
+		if err := c.nodes.cache.RemovePod(newPod); err != nil {
+			log.Logger().Warn("failed to update scheduler-cache",
+				zap.Error(err))
+		}
+		return
 	}
 }
 
