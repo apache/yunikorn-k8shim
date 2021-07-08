@@ -30,8 +30,8 @@ import (
 )
 
 const (
-	Host1 = "HOST1"
-	Host2 = "HOST2"
+	Host1     = "HOST1"
+	Host2     = "HOST2"
 	HostEmpty = ""
 )
 
