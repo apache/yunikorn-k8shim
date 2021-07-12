@@ -82,21 +82,17 @@ func GetPodResource(pod *v1.Pod) (resource *si.Resource) {
 }
 
 func IsNeedMoreResourceAndSet(pod *v1.Pod, containersResources *si.Resource) {
-	var initContainersResource *si.Resource
-
 	for _, c := range pod.Spec.InitContainers {
 		resourceList := c.Resources.Requests
-		containerResource := getResource(resourceList)
-		initContainersResource = Add(initContainersResource, containerResource)
-	}
-
-	for resouceName, v1 := range initContainersResource.Resources {
-		v2, exist := containersResources.Resources[resouceName]
-		if !exist {
-			continue
-		}
-		if v1.GetValue() > v2.GetValue() {
-			containersResources.Resources[resouceName] = v1
+		initCResource := getResource(resourceList)
+		for resouceName, v1 := range initCResource.Resources {
+			v2, exist := containersResources.Resources[resouceName]
+			if !exist {
+				continue
+			}
+			if v1.GetValue() > v2.GetValue() {
+				containersResources.Resources[resouceName] = v1
+			}
 		}
 	}
 }

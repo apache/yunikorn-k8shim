@@ -194,7 +194,7 @@ func TestParsePodResource(t *testing.T) {
 	//test initcontainer and container resouce compare
 	initContainers := make([]v1.Container, 0)
 	initc1Resources := make(map[v1.ResourceName]resource.Quantity)
-	initc1Resources[v1.ResourceMemory] = resource.MustParse("1024M")
+	initc1Resources[v1.ResourceMemory] = resource.MustParse("4096M")
 	initc1Resources[v1.ResourceCPU] = resource.MustParse("2")
 	initc1Resources[v1.ResourceName("nvidia.com/gpu")] = resource.MustParse("2")
 	initContainers = append(initContainers, v1.Container{
@@ -206,7 +206,7 @@ func TestParsePodResource(t *testing.T) {
 
 	initc2Resources := make(map[v1.ResourceName]resource.Quantity)
 	initc2Resources[v1.ResourceMemory] = resource.MustParse("1024M")
-	initc2Resources[v1.ResourceCPU] = resource.MustParse("2")
+	initc2Resources[v1.ResourceCPU] = resource.MustParse("5")
 	initc2Resources[v1.ResourceName("nvidia.com/gpu")] = resource.MustParse("2")
 	initContainers = append(initContainers, v1.Container{
 		Name: "initcontainer-02",
@@ -230,8 +230,8 @@ func TestParsePodResource(t *testing.T) {
 		},
 	}
 	res = GetPodResource(pod)
-	assert.Equal(t, res.Resources[constants.Memory].GetValue(), int64(2048))
-	assert.Equal(t, res.Resources[constants.CPU].GetValue(), int64(4000))
+	assert.Equal(t, res.Resources[constants.Memory].GetValue(), int64(4096))
+	assert.Equal(t, res.Resources[constants.CPU].GetValue(), int64(5000))
 	assert.Equal(t, res.Resources["nvidia.com/gpu"].GetValue(), int64(5))
 
 }
