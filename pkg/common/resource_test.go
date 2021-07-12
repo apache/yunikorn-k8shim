@@ -233,7 +233,6 @@ func TestParsePodResource(t *testing.T) {
 	assert.Equal(t, res.Resources[constants.Memory].GetValue(), int64(4096))
 	assert.Equal(t, res.Resources[constants.CPU].GetValue(), int64(5000))
 	assert.Equal(t, res.Resources["nvidia.com/gpu"].GetValue(), int64(5))
-
 }
 
 func TestBestEffortPod(t *testing.T) {
