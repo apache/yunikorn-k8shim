@@ -72,7 +72,33 @@ func GetPodResource(pod *v1.Pod) (resource *si.Resource) {
 		containerResource := getResource(resourceList)
 		podResource = Add(podResource, containerResource)
 	}
+
+	//vcore, mem compare between initcontainers and containers and replace(choose bigger one)
+	if pod.Spec.InitContainers != nil {
+		IsNeedMoreResourceAndSet(pod, podResource)
+	}
+
 	return podResource
+}
+
+func IsNeedMoreResourceAndSet(pod *v1.Pod, containersResources *si.Resource) {
+	var initContainersResource *si.Resource
+
+	for _, c := range pod.Spec.InitContainers {
+		resourceList := c.Resources.Requests
+		containerResource := getResource(resourceList)
+		initContainersResource = Add(initContainersResource, containerResource)
+	}
+
+	for resouceName, v1 := range initContainersResource.Resources {
+		v2, exist := containersResources.Resources[resouceName]
+		if !exist {
+			continue
+		}
+		if v1.GetValue() > v2.GetValue() {
+			containersResources.Resources[resouceName] = v1
+		}
+	}
 }
 
 func GetNodeResource(nodeStatus *v1.NodeStatus) *si.Resource {
