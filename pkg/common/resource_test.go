@@ -191,7 +191,7 @@ func TestParsePodResource(t *testing.T) {
 	assert.Equal(t, res.Resources[constants.CPU].GetValue(), int64(3000))
 	assert.Equal(t, res.Resources["nvidia.com/gpu"].GetValue(), int64(5))
 
-	//test initcontainer and container resouce compare
+	// test initcontainer and container resouce compare
 	initContainers := make([]v1.Container, 0)
 	initc1Resources := make(map[v1.ResourceName]resource.Quantity)
 	initc1Resources[v1.ResourceMemory] = resource.MustParse("4096M")

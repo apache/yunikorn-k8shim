@@ -73,7 +73,7 @@ func GetPodResource(pod *v1.Pod) (resource *si.Resource) {
 		podResource = Add(podResource, containerResource)
 	}
 
-	//vcore, mem compare between initcontainers and containers and replace(choose bigger one)
+	// vcore, mem compare between initcontainer and containers and replace(choose bigger one)
 	if pod.Spec.InitContainers != nil {
 		IsNeedMoreResourceAndSet(pod, podResource)
 	}
