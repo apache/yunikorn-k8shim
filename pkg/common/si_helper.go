@@ -43,6 +43,10 @@ func createTagsForTask(pod *v1.Pod) map[string]string {
 	return tags
 }
 
+func CreateTagsForTask(pod *v1.Pod) map[string]string {
+	return createTagsForTask(pod)
+}
+
 func CreateUpdateRequestForTask(appID, taskID string, resource *si.Resource, placeholder bool, taskGroupName string, pod *v1.Pod) si.UpdateRequest {
 	ask := si.AllocationAsk{
 		AllocationKey:  taskID,

@@ -106,6 +106,7 @@ func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) err
 						zap.String("appID", existingAlloc.ApplicationID),
 						zap.String("podUID", string(pod.UID)),
 						zap.String("podNodeName", existingAlloc.NodeID))
+					existingAlloc.AllocationTags = common.CreateTagsForTask(&pod)
 					if err = ctx.nodes.addExistingAllocation(existingAlloc); err != nil {
 						log.Logger().Warn("add existing allocation failed", zap.Error(err))
 					}
