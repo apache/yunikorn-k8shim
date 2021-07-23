@@ -30,10 +30,18 @@ import (
 func CreateTagsForTask(pod *v1.Pod) map[string]string {
 	metaPrefix := common.DomainK8s + common.GroupMeta
 	tags := map[string]string{
-		metaPrefix + common.KeyNamespace: pod.Namespace,
-		metaPrefix + common.KeyPodName:   pod.Name,
+		metaPrefix + common.KeyNamespace:                      pod.Namespace,
+		metaPrefix + common.KeyPodName:                        pod.Name,
+		common.DomainYuniKorn + common.KeyIgnoreUnschedulable: "false",
 	}
-
+	owners := pod.GetOwnerReferences()
+	if len(owners) > 0 {
+		for _, value := range owners {
+			if value.Kind == "DaemonSet" {
+				tags[common.DomainYuniKorn+common.KeyIgnoreUnschedulable] = "true"
+			}
+		}
+	}
 	// add Pod labels to Task tags
 	labelPrefix := common.DomainK8s + common.GroupLabel
 	for k, v := range pod.Labels {
