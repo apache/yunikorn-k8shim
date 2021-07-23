@@ -27,7 +27,7 @@ import (
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 )
 
-func createTagsForTask(pod *v1.Pod) map[string]string {
+func CreateTagsForTask(pod *v1.Pod) map[string]string {
 	metaPrefix := common.DomainK8s + common.GroupMeta
 	tags := map[string]string{
 		metaPrefix + common.KeyNamespace: pod.Namespace,
@@ -43,17 +43,13 @@ func createTagsForTask(pod *v1.Pod) map[string]string {
 	return tags
 }
 
-func CreateTagsForTask(pod *v1.Pod) map[string]string {
-	return createTagsForTask(pod)
-}
-
 func CreateUpdateRequestForTask(appID, taskID string, resource *si.Resource, placeholder bool, taskGroupName string, pod *v1.Pod) si.UpdateRequest {
 	ask := si.AllocationAsk{
 		AllocationKey:  taskID,
 		ResourceAsk:    resource,
 		ApplicationID:  appID,
 		MaxAllocations: 1,
-		Tags:           createTagsForTask(pod),
+		Tags:           CreateTagsForTask(pod),
 		Placeholder:    placeholder,
 		TaskGroupName:  taskGroupName,
 	}
