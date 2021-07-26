@@ -120,7 +120,7 @@ func TestCreateTagsForTask(t *testing.T) {
 	metaPrefix := common.DomainK8s + common.GroupMeta
 	labelPrefix := common.DomainK8s + common.GroupLabel
 	// pod without ownerReference
-	result1 := createTagsForTask(pod)
+	result1 := CreateTagsForTask(pod)
 	assert.Equal(t, len(result1), 5)
 	assert.Equal(t, result1[metaPrefix+common.KeyNamespace], podNamespace)
 	assert.Equal(t, result1[metaPrefix+common.KeyPodName], podName1)
@@ -140,7 +140,7 @@ func TestCreateTagsForTask(t *testing.T) {
 		owner,
 	}
 	pod.SetOwnerReferences(refer)
-	result2 := createTagsForTask(pod)
+	result2 := CreateTagsForTask(pod)
 	assert.Equal(t, len(result2), 5)
 	assert.Equal(t, result2[metaPrefix+common.KeyNamespace], podNamespace)
 	assert.Equal(t, result2[metaPrefix+common.KeyPodName], podName2)
@@ -159,7 +159,7 @@ func TestCreateTagsForTask(t *testing.T) {
 		owner2,
 	}
 	pod.SetOwnerReferences(refer2)
-	result3 := createTagsForTask(pod)
+	result3 := CreateTagsForTask(pod)
 	assert.Equal(t, len(result3), 5)
 	assert.Equal(t, result3[common.DomainYuniKorn+common.KeyIgnoreUnschedulable], "false")
 }
