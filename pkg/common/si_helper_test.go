@@ -96,3 +96,70 @@ func TestCreateUpdateRequestForTask(t *testing.T) {
 	assert.Equal(t, tags[common.DomainK8s+common.GroupLabel+"label1"], "val1")
 	assert.Equal(t, tags[common.DomainK8s+common.GroupLabel+"label2"], "val2")
 }
+
+func TestCreateTagsForTask(t *testing.T) {
+	podName1 := "test1"
+	podName2 := "test2"
+	podNamespace := "default"
+	labels := map[string]string{
+		"label1": "val1",
+		"label2": "val2",
+	}
+	pod := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name:      podName1,
+			UID:       "UID-00001",
+			Namespace: podNamespace,
+			Labels:    labels,
+		},
+	}
+	metaPrefix := common.DomainK8s + common.GroupMeta
+	labelPrefix := common.DomainK8s + common.GroupLabel
+	// pod without ownerReference
+	result1 := CreateTagsForTask(pod)
+	assert.Equal(t, len(result1), 5)
+	assert.Equal(t, result1[metaPrefix+common.KeyNamespace], podNamespace)
+	assert.Equal(t, result1[metaPrefix+common.KeyPodName], podName1)
+	assert.Equal(t, result1[common.DomainYuniKorn+common.KeyIgnoreUnschedulable], "false")
+	for k, v := range pod.Labels {
+		assert.Equal(t, result1[labelPrefix+k], v)
+	}
+	// pod with DaemonSet ownerReference
+	pod.Name = podName2
+	owner := apis.OwnerReference{
+		APIVersion: "v1",
+		Kind:       "DaemonSet",
+		Name:       "DaemonSetPod",
+		UID:        "UID-001",
+	}
+	refer := []apis.OwnerReference{
+		owner,
+	}
+	pod.SetOwnerReferences(refer)
+	result2 := CreateTagsForTask(pod)
+	assert.Equal(t, len(result2), 5)
+	assert.Equal(t, result2[metaPrefix+common.KeyNamespace], podNamespace)
+	assert.Equal(t, result2[metaPrefix+common.KeyPodName], podName2)
+	assert.Equal(t, result2[common.DomainYuniKorn+common.KeyIgnoreUnschedulable], "true")
+	for k, v := range pod.Labels {
+		assert.Equal(t, result2[labelPrefix+k], v)
+	}
+	// pod with ReplicaSet ownerReference
+	owner2 := apis.OwnerReference{
+		APIVersion: "v1",
+		Kind:       "ReplicaSet",
+		Name:       "ReplicaSetPod",
+		UID:        "UID-002",
+	}
+	refer2 := []apis.OwnerReference{
+		owner2,
+	}
+	pod.SetOwnerReferences(refer2)
+	result3 := CreateTagsForTask(pod)
+	assert.Equal(t, len(result3), 5)
+	assert.Equal(t, result3[common.DomainYuniKorn+common.KeyIgnoreUnschedulable], "false")
+}
