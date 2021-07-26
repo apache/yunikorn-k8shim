@@ -37,7 +37,7 @@ func CreateTagsForTask(pod *v1.Pod) map[string]string {
 	owners := pod.GetOwnerReferences()
 	if len(owners) > 0 {
 		for _, value := range owners {
-			if value.Kind == "DaemonSet" {
+			if value.Kind == constants.DaemonSetType {
 				tags[common.DomainYuniKorn+common.KeyIgnoreUnschedulable] = "true"
 			}
 		}

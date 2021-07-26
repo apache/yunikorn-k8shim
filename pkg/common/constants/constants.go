@@ -50,6 +50,9 @@ const SparkLabelRoleDriver = "driver"
 const DefaultConfigMapName = "yunikorn-configs"
 const SchedulerName = "yunikorn"
 
+// OwnerReferences
+const DaemonSetType = "DaemonSet"
+
 // Application crd
 const AppManagerHandlerName = "yunikorn-app"
 
