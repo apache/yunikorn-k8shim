@@ -73,25 +73,26 @@ func GetPodResource(pod *v1.Pod) (resource *si.Resource) {
 		podResource = Add(podResource, containerResource)
 	}
 
-	// vcore, mem compare between initcontainer and containers and replace(choose bigger one)
+	// vcore, mem compare between initcontainer and containers and replace
+	// For each resource, podResourceRequest = max(sum(Containers requirement), InitContainers requirement)
 	if pod.Spec.InitContainers != nil {
-		IsNeedMoreResourceAndSet(pod, podResource)
+		isNeedMoreResourceAndSet(pod, podResource)
 	}
 
 	return podResource
 }
 
-func IsNeedMoreResourceAndSet(pod *v1.Pod, containersResources *si.Resource) {
+func isNeedMoreResourceAndSet(pod *v1.Pod, containersResources *si.Resource) {
 	for _, c := range pod.Spec.InitContainers {
 		resourceList := c.Resources.Requests
 		initCResource := getResource(resourceList)
-		for resouceName, v1 := range initCResource.Resources {
-			v2, exist := containersResources.Resources[resouceName]
+		for resourceName, initCRequest := range initCResource.Resources {
+			containersRequests, exist := containersResources.Resources[resourceName]
 			if !exist {
 				continue
 			}
-			if v1.GetValue() > v2.GetValue() {
-				containersResources.Resources[resouceName] = v1
+			if initCRequest.GetValue() > containersRequests.GetValue() {
+				containersResources.Resources[resourceName] = initCRequest
 			}
 		}
 	}

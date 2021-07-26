@@ -229,6 +229,14 @@ func TestParsePodResource(t *testing.T) {
 			InitContainers: initContainers,
 		},
 	}
+	// pod
+	// initcontainers
+	// IC1{500mi, 1000m, 1}
+	// IC2{1024mi, 2000m, 4}
+	// containers
+	// C1{4096mi, 2000m, 2}
+	// C2{1024mi, 5000m, 2}
+	// result is {4096mi, 5000m, 5}
 	res = GetPodResource(pod)
 	assert.Equal(t, res.Resources[constants.Memory].GetValue(), int64(4096))
 	assert.Equal(t, res.Resources[constants.CPU].GetValue(), int64(5000))
