@@ -83,7 +83,6 @@ func GetQueueNameFromPod(pod *v1.Pod) string {
 }
 
 func GetApplicationIDFromPod(pod *v1.Pod) (string, error) {
-
 	// application ID can be defined in annotations
 	if value, found := pod.Annotations[constants.AnnotationApplicationID]; found {
 		return value, nil
