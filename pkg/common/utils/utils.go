@@ -91,13 +91,11 @@ func GetApplicationIDFromPod(pod *v1.Pod) (string, error) {
 
 	// application ID can be defined in labels
 	if value, found := pod.Labels[constants.LabelApplicationID]; found {
-		fmt.Printf("[CHIA] name: %+v value: %+v\n", constants.LabelApplicationID, value)
 		return value, nil
 	}
 
 	// if a pod for spark already provided appID, reuse it
 	if value, found := pod.Labels[constants.SparkLabelAppID]; found {
-		fmt.Printf("[CHIA] name: %+v value: %+v\n", constants.SparkLabelAppID, value)
 		return value, nil
 	}
 
