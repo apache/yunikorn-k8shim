@@ -319,7 +319,7 @@ func TestGetApplicationIDFromPod(t *testing.T) {
 		{"No AppID defined", &v1.Pod{}, true, ""},
 		{"Spark AppID defined in spark app selector and label", &v1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
-				Labels:      map[string]string{constants.SparkLabelAppID: appIDInSelector, constants.LabelApplicationID: appIDInLabel},
+				Labels: map[string]string{constants.SparkLabelAppID: appIDInSelector, constants.LabelApplicationID: appIDInLabel},
 			},
 		}, false, appIDInLabel},
 	}
