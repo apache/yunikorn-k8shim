@@ -33,6 +33,7 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/configmanager"
 	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/helpers/common"
 	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/helpers/k8s"
+	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
 )
 
 // variable populated in BeforeEach, never modified afterwards
@@ -1055,5 +1056,13 @@ var _ = Describe("Predicates", func() {
 			}
 		}
 	})
-
+	It("Verify the Yunikorn Scheduler healthy", func() {
+		ginkgo.By("Call the HealthCheck API")
+		healthCheck, err := yunikorn.GetHealthCheck()
+		Ω(err).NotTo(gomega.HaveOccurred())
+		Ω(healthCheck.Healthy).Should(BeTrue())
+		for _, check := range healthCheck.HealthChecks {
+			Ω(check.Succeeded).Should(BeTrue())
+		}
+	})
 })

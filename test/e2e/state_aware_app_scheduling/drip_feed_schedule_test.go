@@ -132,6 +132,16 @@ var _ = Describe("DripFeedSchedule:", func() {
 
 	}, testTimeout)
 
+	It("Verify the Yunikorn Scheduler healthy", func() {
+		ginkgo.By("Call the HealthCheck API")
+		healthCheck, err := yunikorn.GetHealthCheck()
+		Ω(err).NotTo(gomega.HaveOccurred())
+		Ω(healthCheck.Healthy).Should(BeTrue())
+		for _, check := range healthCheck.HealthChecks {
+			Ω(check.Succeeded).Should(BeTrue())
+		}
+	})
+
 	AfterEach(func() {
 		By("Tearing down namespace: " + ns)
 		err := k.TearDownNamespace(ns)

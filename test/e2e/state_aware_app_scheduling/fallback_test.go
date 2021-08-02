@@ -100,6 +100,16 @@ var _ = Describe("FallbackTest:", func() {
 		Ω(matches[2]).To(ContainSubstring(core))
 	}, 360)
 
+	It("Verify the Yunikorn Scheduler healthy", func() {
+		ginkgo.By("Call the HealthCheck API")
+		healthCheck, err := yunikorn.GetHealthCheck()
+		Ω(err).NotTo(gomega.HaveOccurred())
+		Ω(healthCheck.Healthy).Should(BeTrue())
+		for _, check := range healthCheck.HealthChecks {
+			Ω(check.Succeeded).Should(BeTrue())
+		}
+	})
+
 	AfterEach(func() {
 		By("Tearing down namespace: " + ns)
 		err := k.TearDownNamespace(ns)

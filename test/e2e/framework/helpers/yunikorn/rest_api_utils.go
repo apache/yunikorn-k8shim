@@ -224,6 +224,17 @@ func isRootSched(policy string) wait.ConditionFunc {
 	}
 }
 
+func GetHealthCheck() (dao.SchedulerHealthDAOInfo, error) {
+	restClient := RClient{}
+	req, err := restClient.newRequest("GET", configmanager.HealthCheckPath, nil)
+	if err != nil {
+		return dao.SchedulerHealthDAOInfo{}, err
+	}
+	healthCheck := dao.SchedulerHealthDAOInfo{}
+	_, err = restClient.do(req, &healthCheck)
+	return healthCheck, err
+}
+
 func WaitForSchedPolicy(policy string, timeout time.Duration) error {
 	return wait.PollImmediate(2*time.Second, timeout, isRootSched(policy))
 }
