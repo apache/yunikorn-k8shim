@@ -123,9 +123,9 @@ var _ = ginkgo.Describe("", func() {
 		ginkgo.By("Call the HealthCheck API")
 		healthCheck, err := yunikorn.GetHealthCheck()
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
-		gomega.Ω(healthCheck.Healthy).To(gomega.Equal(true))
+		gomega.Ω(healthCheck.Healthy).To(gomega.BeTrue())
 		for _, check := range healthCheck.HealthChecks {
-			gomega.Ω(check.Succeeded).To(gomega.Equal(true))
+			gomega.Ω(check.Succeeded).To(gomega.BeTrue())
 		}
 	})
 

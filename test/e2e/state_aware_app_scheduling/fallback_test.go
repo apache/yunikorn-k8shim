@@ -101,9 +101,9 @@ var _ = Describe("FallbackTest:", func() {
 	}, 360)
 
 	It("Verify the Yunikorn Scheduler healthy", func() {
-		ginkgo.By("Call the HealthCheck API")
+		By("Call the HealthCheck API")
 		healthCheck, err := yunikorn.GetHealthCheck()
-		Ω(err).NotTo(gomega.HaveOccurred())
+		Ω(err).NotTo(HaveOccurred())
 		Ω(healthCheck.Healthy).Should(BeTrue())
 		for _, check := range healthCheck.HealthChecks {
 			Ω(check.Succeeded).Should(BeTrue())
