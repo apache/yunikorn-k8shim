@@ -123,7 +123,7 @@ var _ = ginkgo.Describe("", func() {
 		// call the healthCheck api to check scheduler health
 		ginkgo.By("Check Yunikorn's health")
 		yunikorn.HealthCheck())
-	}
+	})
 
 	ginkgo.AfterSuite(func() {
 		ginkgo.By("Tear down namespace: " + dev)
