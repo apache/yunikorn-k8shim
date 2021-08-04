@@ -113,14 +113,10 @@ var _ = ginkgo.Describe("App", func() {
 			gomega.Ω(appCRD.Spec.TaskGroups[0].Tolerations[0].Effect).To(gomega.Equal(v1.TaintEffectNoSchedule))
 		})
 
-		ginkgo.It("Verify the Yunikorn Scheduler healthy", func() {
-			ginkgo.By("Call the HealthCheck API")
-			healthCheck, err := yunikorn.GetHealthCheck()
-			gomega.Ω(err).NotTo(gomega.HaveOccurred())
-			gomega.Ω(healthCheck.Healthy).To(gomega.BeTrue())
-			for _, check := range healthCheck.HealthChecks {
-				gomega.Ω(check.Succeeded).To(gomega.BeTrue())
-			}
+		ginkgo.AfterEach(func() {
+			// call the healthCheck api to check scheduler health
+			ginkgo.By("Check Yunikorn's health")
+			yunikorn.HealthCheck()
 		})
 
 		ginkgo.AfterSuite(func() {

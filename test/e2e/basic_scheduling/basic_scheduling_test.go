@@ -119,15 +119,11 @@ var _ = ginkgo.Describe("", func() {
 		gomega.Ω(matches[2]).To(gomega.ContainSubstring(core))
 	})
 
-	ginkgo.It("Verify the Yunikorn Scheduler healthy", func() {
-		ginkgo.By("Call the HealthCheck API")
-		healthCheck, err := yunikorn.GetHealthCheck()
-		gomega.Ω(err).NotTo(gomega.HaveOccurred())
-		gomega.Ω(healthCheck.Healthy).To(gomega.BeTrue())
-		for _, check := range healthCheck.HealthChecks {
-			gomega.Ω(check.Succeeded).To(gomega.BeTrue())
-		}
-	})
+	ginkgo.AfterEach(func() {
+		// call the healthCheck api to check scheduler health
+		ginkgo.By("Check Yunikorn's health")
+		yunikorn.HealthCheck())
+	}
 
 	ginkgo.AfterSuite(func() {
 		ginkgo.By("Tear down namespace: " + dev)

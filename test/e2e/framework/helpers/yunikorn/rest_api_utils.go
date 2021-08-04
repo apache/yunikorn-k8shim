@@ -28,6 +28,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/apache/incubator-yunikorn-core/pkg/webservice/dao"
@@ -121,6 +122,16 @@ func (c *RClient) GetSpecificQueueInfo(queueName string) (map[string]interface{}
 		}
 	}
 	return nil, fmt.Errorf("QueueInfo not found: %s", queueName)
+}
+
+func (c *RClient) GetHealthCheck() (dao.SchedulerHealthDAOInfo, error) {
+	req, err := c.newRequest("GET", configmanager.HealthCheckPath, nil)
+	if err != nil {
+		return dao.SchedulerHealthDAOInfo{}, err
+	}
+	healthCheck := dao.SchedulerHealthDAOInfo{}
+	_, err = c.do(req, &healthCheck)
+	return healthCheck, err
 }
 
 func (c *RClient) GetApps() ([]map[string]interface{}, error) {
@@ -224,17 +235,19 @@ func isRootSched(policy string) wait.ConditionFunc {
 	}
 }
 
-func GetHealthCheck() (dao.SchedulerHealthDAOInfo, error) {
-	restClient := RClient{}
-	req, err := restClient.newRequest("GET", configmanager.HealthCheckPath, nil)
-	if err != nil {
-		return dao.SchedulerHealthDAOInfo{}, err
-	}
-	healthCheck := dao.SchedulerHealthDAOInfo{}
-	_, err = restClient.do(req, &healthCheck)
-	return healthCheck, err
-}
-
 func WaitForSchedPolicy(policy string, timeout time.Duration) error {
 	return wait.PollImmediate(2*time.Second, timeout, isRootSched(policy))
+}
+
+func HealthCheck() {
+	restClient := RClient{}
+	healthCheck, err := restClient.GetHealthCheck()
+	gomega.Ω(err).NotTo(gomega.HaveOccurred())
+	// some health check failed
+	if healthCheck.Healthy != true {
+		for _, check := range healthCheck.HealthChecks {
+			gomega.Ω(check.Succeeded).To(gomega.BeTrue(), check.DiagnosisMessage)
+		}
+	}
+	gomega.Ω(healthCheck.Healthy).To(gomega.BeTrue())
 }

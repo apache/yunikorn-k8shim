@@ -132,17 +132,10 @@ var _ = Describe("DripFeedSchedule:", func() {
 
 	}, testTimeout)
 
-	It("Verify the Yunikorn Scheduler healthy", func() {
-		By("Call the HealthCheck API")
-		healthCheck, err := yunikorn.GetHealthCheck()
-		Ω(err).NotTo(HaveOccurred())
-		Ω(healthCheck.Healthy).Should(BeTrue())
-		for _, check := range healthCheck.HealthChecks {
-			Ω(check.Succeeded).Should(BeTrue())
-		}
-	})
-
 	AfterEach(func() {
+		By("Check Yunikorn's health")
+		yunikorn.HealthCheck()
+
 		By("Tearing down namespace: " + ns)
 		err := k.TearDownNamespace(ns)
 		Ω(err).NotTo(HaveOccurred())
