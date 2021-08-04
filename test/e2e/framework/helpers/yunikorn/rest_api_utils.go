@@ -246,7 +246,7 @@ func HealthCheck() {
 	// some health check failed
 	if healthCheck.Healthy != true {
 		for _, check := range healthCheck.HealthChecks {
-			gomega.Ω(check.Succeeded).To(gomega.BeTrue(), check.DiagnosisMessage)
+			gomega.Ω(check.Succeeded).To(gomega.BeTrue(), check.Name+": "+check.DiagnosisMessage)
 		}
 	}
 	gomega.Ω(healthCheck.Healthy).To(gomega.BeTrue())
