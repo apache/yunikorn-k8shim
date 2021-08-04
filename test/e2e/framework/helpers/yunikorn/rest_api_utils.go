@@ -244,7 +244,7 @@ func HealthCheck() {
 	healthCheck, err := restClient.GetHealthCheck()
 	gomega.Ω(err).NotTo(gomega.HaveOccurred())
 	// some health check failed
-	if healthCheck.Healthy != true {
+	if !healthCheck.Healthy {
 		for _, check := range healthCheck.HealthChecks {
 			gomega.Ω(check.Succeeded).To(gomega.BeTrue(), check.Name+": "+check.DiagnosisMessage)
 		}

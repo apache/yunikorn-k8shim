@@ -105,5 +105,4 @@ var Ω = gomega.Expect
 var BeNil = gomega.BeNil
 var HaveOccurred = gomega.HaveOccurred
 var BeEmpty = gomega.BeEmpty
-var BeTrue = gomega.BeTrue
 var BeEquivalentTo = gomega.BeEquivalentTo
