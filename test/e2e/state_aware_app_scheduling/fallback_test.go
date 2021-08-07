@@ -102,10 +102,12 @@ var _ = Describe("FallbackTest:", func() {
 
 	AfterEach(func() {
 		By("Check Yunikorn's health")
-		yunikorn.HealthCheck()
+		checks, err := yunikorn.GetFailedHealthChecks()
+		Ω(err).NotTo(HaveOccurred())
+		Ω(checks).To(Equal(""), checks)
 
 		By("Tearing down namespace: " + ns)
-		err := k.TearDownNamespace(ns)
+		err = k.TearDownNamespace(ns)
 		Ω(err).NotTo(HaveOccurred())
 	})
 })

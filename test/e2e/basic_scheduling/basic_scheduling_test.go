@@ -122,7 +122,9 @@ var _ = ginkgo.Describe("", func() {
 	ginkgo.AfterEach(func() {
 		// call the healthCheck api to check scheduler health
 		ginkgo.By("Check Yunikorn's health")
-		yunikorn.HealthCheck()
+		checks, err := yunikorn.GetFailedHealthChecks()
+		Ω(err).NotTo(HaveOccurred())
+		Ω(checks).To(gomega.Equal(""), checks)
 	})
 
 	ginkgo.AfterSuite(func() {

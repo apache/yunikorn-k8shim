@@ -28,7 +28,6 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/apache/incubator-yunikorn-core/pkg/webservice/dao"
@@ -239,15 +238,19 @@ func WaitForSchedPolicy(policy string, timeout time.Duration) error {
 	return wait.PollImmediate(2*time.Second, timeout, isRootSched(policy))
 }
 
-func HealthCheck() {
+func GetFailedHealthChecks() (string, error) {
 	restClient := RClient{}
+	var failCheck string
 	healthCheck, err := restClient.GetHealthCheck()
-	gomega.Ω(err).NotTo(gomega.HaveOccurred())
-	// some health check failed
+	if err != nil {
+		return "", fmt.Errorf("Failed to get scheduler health check from API")
+	}
 	if !healthCheck.Healthy {
 		for _, check := range healthCheck.HealthChecks {
-			gomega.Ω(check.Succeeded).To(gomega.BeTrue(), check.Name+": "+check.DiagnosisMessage)
+			if !check.Succeeded {
+				failCheck += fmt.Sprintln("Name:", check.Name, "Message:", check.DiagnosisMessage)
+			}
 		}
 	}
-	gomega.Ω(healthCheck.Healthy).To(gomega.BeTrue())
+	return failCheck, nil
 }

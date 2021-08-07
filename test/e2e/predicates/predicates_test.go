@@ -1059,6 +1059,8 @@ var _ = Describe("Predicates", func() {
 
 	AfterEach(func() {
 		By("Check Yunikorn's health")
-		yunikorn.HealthCheck()
+		checks, err := yunikorn.GetFailedHealthChecks()
+		Ω(err).NotTo(HaveOccurred())
+		Ω(checks).To(Equal(""), checks)
 	})
 })
