@@ -119,6 +119,14 @@ var _ = ginkgo.Describe("", func() {
 		gomega.Ω(matches[2]).To(gomega.ContainSubstring(core))
 	})
 
+	ginkgo.AfterEach(func() {
+		// call the healthCheck api to check scheduler health
+		ginkgo.By("Check Yunikorn's health")
+		checks, err := yunikorn.GetFailedHealthChecks()
+		Ω(err).NotTo(HaveOccurred())
+		Ω(checks).To(gomega.Equal(""), checks)
+	})
+
 	ginkgo.AfterSuite(func() {
 		ginkgo.By("Tear down namespace: " + dev)
 		err := kClient.TearDownNamespace(dev)

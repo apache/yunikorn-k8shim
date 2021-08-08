@@ -33,6 +33,7 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/configmanager"
 	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/helpers/common"
 	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/helpers/k8s"
+	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
 )
 
 // variable populated in BeforeEach, never modified afterwards
@@ -1056,4 +1057,10 @@ var _ = Describe("Predicates", func() {
 		}
 	})
 
+	AfterEach(func() {
+		By("Check Yunikorn's health")
+		checks, err := yunikorn.GetFailedHealthChecks()
+		Ω(err).NotTo(HaveOccurred())
+		Ω(checks).To(Equal(""), checks)
+	})
 })
