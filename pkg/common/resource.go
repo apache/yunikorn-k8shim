@@ -73,21 +73,22 @@ func GetPodResource(pod *v1.Pod) (resource *si.Resource) {
 		podResource = Add(podResource, containerResource)
 	}
 
-	// vcore, mem compare between initcontainer and containers and replace
-	// For each resource, podResourceRequest = max(sum(Containers requirement), InitContainers requirement)
+	// each resource compare between initcontainer and sum of containers
+	// max(sum(Containers requirement), InitContainers requirement)
 	if pod.Spec.InitContainers != nil {
-		isNeedMoreResourceAndSet(pod, podResource)
+		checkInitContainerRequest(pod, podResource)
 	}
 
 	return podResource
 }
 
-func isNeedMoreResourceAndSet(pod *v1.Pod, containersResources *si.Resource) {
+func checkInitContainerRequest(pod *v1.Pod, containersResources *si.Resource) {
 	for _, c := range pod.Spec.InitContainers {
 		resourceList := c.Resources.Requests
 		ICResource := getResource(resourceList)
 		for resourceName, ICRequest := range ICResource.Resources {
 			containersRequests, exist := containersResources.Resources[resourceName]
+			// addtional resource request from init cont, add it to request.
 			if !exist {
 				containersResources.Resources[resourceName] = ICRequest
 				continue

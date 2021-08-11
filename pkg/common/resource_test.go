@@ -223,25 +223,18 @@ func TestParsePodResource(t *testing.T) {
 	containers[1].Resources.Requests[v1.ResourceCPU] = resource.MustParse("1.024")
 	containers[1].Resources.Requests[v1.ResourceName("nvidia.com/gpu")] = resource.MustParse("2")
 
-	pod = &v1.Pod{
-		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-		ObjectMeta: apis.ObjectMeta{
-			Name: "pod-resource-test-00002",
-			UID:  "UID-00002",
-		},
-		Spec: v1.PodSpec{
-			Containers:     containers,
-			InitContainers: initContainers,
-		},
+	pod.ObjectMeta = apis.ObjectMeta{
+		Name: "pod-resource-test-00002",
+		UID:  "UID-00002",
 	}
-
+	pod.Spec = v1.PodSpec{
+		Containers:     containers,
+		InitContainers: initContainers,
+	}
 	// initcontainers
 	// IC1{500mi, 1000m, 1}
 	// IC2{5120mi, 10000m, 4}
-	// containers
+	// sum of containers{5120mi, 7000m, 4}
 	// C1{4096mi, 2000m, 2}
 	// C2{1024mi, 5000m, 2}
 	// result {5120mi, 10000m, 4}
@@ -258,6 +251,9 @@ func TestParsePodResource(t *testing.T) {
 		Containers:     containers,
 		InitContainers: initContainers,
 	}
+	// IC1{500mi, 1000m, 1}
+	// IC2{0mi, 10000m}
+	// sum of containers{5120mi, 7000m}
 	// result {5120mi, 10000m, 1}
 	res = GetPodResource(pod)
 	assert.Equal(t, res.Resources[constants.Memory].GetValue(), int64(10000))
