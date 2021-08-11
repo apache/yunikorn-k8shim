@@ -89,6 +89,7 @@ func isNeedMoreResourceAndSet(pod *v1.Pod, containersResources *si.Resource) {
 		for resourceName, ICRequest := range ICResource.Resources {
 			containersRequests, exist := containersResources.Resources[resourceName]
 			if !exist {
+				containersResources.Resources[resourceName] = ICRequest
 				continue
 			}
 			if ICRequest.GetValue() > containersRequests.GetValue() {
