@@ -699,7 +699,8 @@ func (ctx *Context) AddTask(request *interfaces.AddTaskRequest) interfaces.Manag
 					zap.String("taskState", task.GetTaskState()))
 				if app.requestOriginatingTask == nil {
 					for _, ownerReference := range app.placeholderOwnerReferences {
-						if task, taskErr := app.GetTask(string(ownerReference.UID)); task != nil && taskErr == nil {								log.Logger().Info("app request originating pod added",
+						if task, taskErr := app.GetTask(string(ownerReference.UID)); task != nil && taskErr == nil {
+							log.Logger().Info("app request originating pod added",
 								zap.String("appID", app.applicationID),
 								zap.String("original task", task.GetTaskID()))
 							app.setRequestOriginatingTask(task)
