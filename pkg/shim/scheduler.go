@@ -146,7 +146,9 @@ func (ss *KubernetesShim) register(e *fsm.Event) {
 
 func (ss *KubernetesShim) handleSchedulerFailure(e *fsm.Event) {
 	ss.stop()
-	os.Exit(1)
+	if !conf.GetSchedulerConf().TestMode {
+		os.Exit(1)
+	}
 }
 
 func (ss *KubernetesShim) triggerSchedulerStateRecovery(e *fsm.Event) {
