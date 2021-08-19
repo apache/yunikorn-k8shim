@@ -135,18 +135,15 @@ func (mgr *PlaceholderManager) Start() {
 	log.Logger().Info("starting the PlaceholderManager")
 	mgr.setRunning(true)
 	go func() {
-		// clean orphan placeholders approximately every 5 seconds, check for stop every 100 milliseconds
+		// clean orphan placeholders approximately every 5 seconds
 		for {
-			mgr.cleanOrphanPlaceholders()
-			for i := 0; i < 50; i++ {
-				select {
-				case <-mgr.stopChan:
-					mgr.setRunning(false)
-					log.Logger().Info("PlaceholderManager has been stopped")
-					return
-				default:
-					time.Sleep(100 * time.Millisecond)
-				}
+			select {
+			case <-mgr.stopChan:
+				mgr.setRunning(false)
+				log.Logger().Info("PlaceholderManager has been stopped")
+				return
+			case <-time.After(5 * time.Second):
+				mgr.cleanOrphanPlaceholders()
 			}
 		}
 	}()
