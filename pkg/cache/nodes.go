@@ -31,6 +31,7 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/api"
+	siCommon "github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/common"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 )
 
@@ -104,7 +105,7 @@ func (nc *schedulerNodes) addAndReportNode(node *v1.Node, reportNode bool) {
 			zap.String("nodeName", node.Name),
 			zap.Bool("schedulable", !node.Spec.Unschedulable))
 		newNode := newSchedulerNode(node.Name, string(node.UID),
-			common.GetNodeResource(&node.Status), nc.proxy, !node.Spec.Unschedulable)
+			common.GetNodeResource(&node.Status), nc.proxy, !node.Spec.Unschedulable, node.Labels)
 		nc.nodesMap[node.Name] = newNode
 	}
 
@@ -166,7 +167,7 @@ func (nc *schedulerNodes) updateNodeOccupiedResources(name string, resource *si.
 			return
 		}
 
-		node := common.NewNode(schedulerNode.name, schedulerNode.uid, schedulerNode.capacity, schedulerNode.occupied)
+		node := common.NewNode(schedulerNode.name, schedulerNode.uid, schedulerNode.capacity, schedulerNode.occupied, schedulerNode.labels)
 		request := common.CreateUpdateRequestForUpdatedNode(node)
 		log.Logger().Info("report occupied resources updates",
 			zap.String("node", schedulerNode.name),
@@ -194,6 +195,16 @@ func (nc *schedulerNodes) updateNode(oldNode, newNode *v1.Node) {
 		nc.drainNode(newNode)
 	} else if oldNode.Spec.Unschedulable && !newNode.Spec.Unschedulable {
 		nc.restoreNode(newNode)
+	}
+
+	// yunikorn-core is not ready for changing partition of node
+	// see YUNIKORN-802 for more details
+	if oldNode.Labels[siCommon.NodePartition] != newNode.Labels[siCommon.NodePartition] {
+		log.Logger().Warn("It is disallowed to changing partition assignment",
+			zap.String("node", oldNode.Name),
+			zap.String("old partition", oldNode.Labels[siCommon.NodePartition]),
+			zap.String("new partition", newNode.Labels[siCommon.NodePartition]))
+		return
 	}
 
 	// node resource changes

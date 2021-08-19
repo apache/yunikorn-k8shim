@@ -19,6 +19,7 @@
 package common
 
 import (
+	"reflect"
 	"testing"
 
 	"gotest.tools/assert"
@@ -88,4 +89,14 @@ func TestCreateNodeWithCustomResource(t *testing.T) {
 	assert.Equal(t, node.capacity.Resources[constants.Memory].Value, int64(999))
 	assert.Equal(t, node.capacity.Resources[constants.CPU].Value, int64(9000))
 	assert.Equal(t, node.capacity.Resources["nvidia.com/gpu"].Value, int64(3))
+}
+
+func TestLabelsOfNewNode(t *testing.T) {
+	labels := map[string]string{
+		"a": "b",
+		"k": "v",
+	}
+
+	node := NewNode("name", "id", nil, nil, labels)
+	assert.Assert(t, reflect.DeepEqual(labels, node.labels))
 }

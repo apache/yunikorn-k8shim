@@ -30,10 +30,15 @@ type Node struct {
 	uid      string
 	capacity *si.Resource
 	occupied *si.Resource
+	labels   map[string]string
 }
 
-func NewNode(name, uid string, capacity *si.Resource, occupied *si.Resource) Node {
-	return Node{name, uid, capacity, occupied}
+func NewNode(name, uid string, capacity *si.Resource, occupied *si.Resource, labels map[string]string) Node {
+	copyLabels := make(map[string]string, len(labels))
+	for k, v := range labels {
+		copyLabels[k] = v
+	}
+	return Node{name, uid, capacity, occupied, copyLabels}
 }
 
 func CreateFrom(node *v1.Node) Node {
@@ -41,6 +46,7 @@ func CreateFrom(node *v1.Node) Node {
 		name:     node.Name,
 		uid:      string(node.UID),
 		capacity: GetNodeResource(&node.Status),
+		labels:   make(map[string]string),
 	}
 }
 
@@ -49,5 +55,6 @@ func CreateFromNodeSpec(nodeName string, nodeUID string, nodeResource *si.Resour
 		name:     nodeName,
 		uid:      nodeUID,
 		capacity: nodeResource,
+		labels:   make(map[string]string),
 	}
 }

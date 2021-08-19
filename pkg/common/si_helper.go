@@ -128,11 +128,7 @@ func CreateUpdateRequestForNewNode(node Node) si.UpdateRequest {
 	nodeInfo := &si.NewNodeInfo{
 		NodeID:              node.name,
 		SchedulableResource: node.capacity,
-		// TODO is this required?
-		Attributes: map[string]string{
-			constants.DefaultNodeAttributeHostNameKey: node.name,
-			constants.DefaultNodeAttributeRackNameKey: constants.DefaultRackName,
-		},
+		Attributes:          node.labels,
 	}
 
 	nodes := make([]*si.NewNodeInfo, 1)
@@ -148,7 +144,7 @@ func CreateUpdateRequestForUpdatedNode(node Node) si.UpdateRequest {
 	// Currently only includes resource in the update request
 	nodeInfo := &si.UpdateNodeInfo{
 		NodeID:              node.name,
-		Attributes:          make(map[string]string),
+		Attributes:          node.labels,
 		SchedulableResource: node.capacity,
 		OccupiedResource:    node.occupied,
 		Action:              si.UpdateNodeInfo_UPDATE,
@@ -169,7 +165,7 @@ func CreateUpdateRequestForDeleteNode(node Node) si.UpdateRequest {
 		NodeID:              node.name,
 		SchedulableResource: node.capacity,
 		OccupiedResource:    node.occupied,
-		Attributes:          make(map[string]string),
+		Attributes:          node.labels,
 		Action:              si.UpdateNodeInfo_DECOMISSION,
 	}
 
