@@ -83,6 +83,12 @@ func (conf *SchedulerConf) SetTestMode(testMode bool) {
 	conf.TestMode = testMode
 }
 
+func (conf *SchedulerConf) IsTestMode() bool {
+	conf.RLock()
+	defer conf.RUnlock()
+	return conf.TestMode
+}
+
 func (conf *SchedulerConf) GetSchedulingInterval() time.Duration {
 	conf.RLock()
 	defer conf.RUnlock()
