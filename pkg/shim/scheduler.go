@@ -146,7 +146,8 @@ func (ss *KubernetesShim) register(e *fsm.Event) {
 
 func (ss *KubernetesShim) handleSchedulerFailure(e *fsm.Event) {
 	ss.stop()
-	if !conf.GetSchedulerConf().IsTestMode() {
+	// testmode will be true when mock scheduler intailize
+	if configured := conf.GetSchedulerConf(); !configured.IsTestMode() {
 		os.Exit(1)
 	}
 }
