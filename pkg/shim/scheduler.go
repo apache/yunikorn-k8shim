@@ -167,7 +167,7 @@ func (ss *KubernetesShim) recoverSchedulerState(e *fsm.Event) {
 		// this step, we collect all the existing allocated pods from api-server,
 		// identify the scheduling identity (aka applicationInfo) from the pod,
 		// and then add these applications to the scheduler.
-		if err := ss.appManager.WaitForRecovery(3 * time.Minute); err != nil {
+		if err := ss.appManager.WaitForRecovery(30 * time.Second); err != nil {
 			// failed
 			log.Logger().Error("scheduler recovery failed", zap.Error(err))
 			dispatcher.Dispatch(ShimSchedulerEvent{
@@ -186,7 +186,7 @@ func (ss *KubernetesShim) recoverSchedulerState(e *fsm.Event) {
 				recoverableAppManagers = append(recoverableAppManagers, m)
 			}
 		}
-		if err := ss.context.WaitForRecovery(recoverableAppManagers, 3*time.Minute); err != nil {
+		if err := ss.context.WaitForRecovery(recoverableAppManagers, 30*time.Second); err != nil {
 			// failed
 			log.Logger().Error("scheduler recovery failed", zap.Error(err))
 			dispatcher.Dispatch(ShimSchedulerEvent{
