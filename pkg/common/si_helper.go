@@ -30,15 +30,21 @@ import (
 func CreateTagsForTask(pod *v1.Pod) map[string]string {
 	metaPrefix := common.DomainK8s + common.GroupMeta
 	tags := map[string]string{
-		metaPrefix + common.KeyNamespace:                      pod.Namespace,
-		metaPrefix + common.KeyPodName:                        pod.Name,
-		common.DomainYuniKorn + common.KeyIgnoreUnschedulable: "false",
+		metaPrefix + common.KeyNamespace: pod.Namespace,
+		metaPrefix + common.KeyPodName:   pod.Name,
 	}
 	owners := pod.GetOwnerReferences()
 	if len(owners) > 0 {
 		for _, value := range owners {
 			if value.Kind == constants.DaemonSetType {
-				tags[common.DomainYuniKorn+common.KeyIgnoreUnschedulable] = "true"
+				nodeSelectorTerms := pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms
+				for _, term := range nodeSelectorTerms {
+					for _, match := range term.MatchFields {
+						if match.Key == "metadata.name" {
+							tags[common.DomainYuniKorn+common.KeyRequiredNode] = match.Values[0]
+						}
+					}
+				}
 			}
 		}
 	}
