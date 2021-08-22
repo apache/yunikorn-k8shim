@@ -227,7 +227,7 @@ func GetUserFromPod(pod *v1.Pod) string {
 	}
 	value := constants.DefaultUser
 
-	log.Logger().Info("Unable to retrieve user name from pod labels. Empty user label",
+	log.Logger().Debug("Unable to retrieve user name from pod labels. Empty user label",
 		zap.String("userLabel", constants.DefaultUserLabel))
 
 	return value
