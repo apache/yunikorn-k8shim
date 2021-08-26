@@ -121,10 +121,9 @@ func TestCreateTagsForTask(t *testing.T) {
 	labelPrefix := common.DomainK8s + common.GroupLabel
 	// pod without ownerReference
 	result1 := CreateTagsForTask(pod)
-	assert.Equal(t, len(result1), 5)
+	assert.Equal(t, len(result1), 4)
 	assert.Equal(t, result1[metaPrefix+common.KeyNamespace], podNamespace)
 	assert.Equal(t, result1[metaPrefix+common.KeyPodName], podName1)
-	assert.Equal(t, result1[common.DomainYuniKorn+common.KeyIgnoreUnschedulable], "false")
 	for k, v := range pod.Labels {
 		assert.Equal(t, result1[labelPrefix+k], v)
 	}
@@ -140,14 +139,50 @@ func TestCreateTagsForTask(t *testing.T) {
 		owner,
 	}
 	pod.SetOwnerReferences(refer)
+	// pod with nodeAffinity wich add by daemonSet controller
+	requiremant1 := v1.NodeSelectorRequirement{
+		Key:      "key1",
+		Operator: v1.NodeSelectorOpIn,
+		Values:   []string{"value1"},
+	}
+	requiremant2 := v1.NodeSelectorRequirement{
+		Key:      "metadata.name",
+		Operator: v1.NodeSelectorOpIn,
+		Values:   []string{"nodeName"},
+	}
+	fields := []v1.NodeSelectorRequirement{requiremant1, requiremant2}
+	terms := []v1.NodeSelectorTerm{
+		{
+			MatchFields: fields,
+		},
+	}
+	affinity := &v1.Affinity{
+		NodeAffinity: &v1.NodeAffinity{
+			RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+				NodeSelectorTerms: terms,
+			},
+		},
+	}
+	pod.Spec.Affinity = affinity
 	result2 := CreateTagsForTask(pod)
 	assert.Equal(t, len(result2), 5)
 	assert.Equal(t, result2[metaPrefix+common.KeyNamespace], podNamespace)
 	assert.Equal(t, result2[metaPrefix+common.KeyPodName], podName2)
-	assert.Equal(t, result2[common.DomainYuniKorn+common.KeyIgnoreUnschedulable], "true")
+	assert.Equal(t, result2[common.DomainYuniKorn+common.KeyRequiredNode], "nodeName")
 	for k, v := range pod.Labels {
 		assert.Equal(t, result2[labelPrefix+k], v)
 	}
+	// Affinity is nil
+	pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution = nil
+	result3 := CreateTagsForTask(pod)
+	assert.Equal(t, len(result3), 4)
+	pod.Spec.Affinity.NodeAffinity = nil
+	result3 = CreateTagsForTask(pod)
+	assert.Equal(t, len(result3), 4)
+	pod.Spec.Affinity = nil
+	result3 = CreateTagsForTask(pod)
+	assert.Equal(t, len(result3), 4)
+
 	// pod with ReplicaSet ownerReference
 	owner2 := apis.OwnerReference{
 		APIVersion: "v1",
@@ -159,7 +194,6 @@ func TestCreateTagsForTask(t *testing.T) {
 		owner2,
 	}
 	pod.SetOwnerReferences(refer2)
-	result3 := CreateTagsForTask(pod)
-	assert.Equal(t, len(result3), 5)
-	assert.Equal(t, result3[common.DomainYuniKorn+common.KeyIgnoreUnschedulable], "false")
+	result4 := CreateTagsForTask(pod)
+	assert.Equal(t, len(result4), 4)
 }
