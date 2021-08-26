@@ -172,6 +172,17 @@ func TestCreateTagsForTask(t *testing.T) {
 	for k, v := range pod.Labels {
 		assert.Equal(t, result2[labelPrefix+k], v)
 	}
+	// Affinity is nil
+	pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution = nil
+	result3 := CreateTagsForTask(pod)
+	assert.Equal(t, len(result3), 4)
+	pod.Spec.Affinity.NodeAffinity = nil
+	result3 = CreateTagsForTask(pod)
+	assert.Equal(t, len(result3), 4)
+	pod.Spec.Affinity = nil
+	result3 = CreateTagsForTask(pod)
+	assert.Equal(t, len(result3), 4)
+
 	// pod with ReplicaSet ownerReference
 	owner2 := apis.OwnerReference{
 		APIVersion: "v1",
@@ -183,6 +194,6 @@ func TestCreateTagsForTask(t *testing.T) {
 		owner2,
 	}
 	pod.SetOwnerReferences(refer2)
-	result3 := CreateTagsForTask(pod)
-	assert.Equal(t, len(result3), 4)
+	result4 := CreateTagsForTask(pod)
+	assert.Equal(t, len(result4), 4)
 }

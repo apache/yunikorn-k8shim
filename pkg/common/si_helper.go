@@ -23,6 +23,7 @@ import (
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/common"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 )
@@ -37,6 +38,11 @@ func CreateTagsForTask(pod *v1.Pod) map[string]string {
 	if len(owners) > 0 {
 		for _, value := range owners {
 			if value.Kind == constants.DaemonSetType {
+				if pod.Spec.Affinity == nil || pod.Spec.Affinity.NodeAffinity == nil ||
+					pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution == nil {
+					log.Logger().Debug("DaemonSet pod's Affinity, NodeAffinity, RequiredDuringSchedulingIgnoredDuringExecution might empty")
+					continue
+				}
 				nodeSelectorTerms := pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms
 				for _, term := range nodeSelectorTerms {
 					for _, match := range term.MatchFields {
