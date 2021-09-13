@@ -261,3 +261,24 @@ func TestPlaceholderManagerStartStop(t *testing.T) {
 	time.Sleep(5 * time.Millisecond)
 	assert.Equal(t, mgr.isRunning(), false, "placeholder manager has not stopped")
 }
+
+func TestPlaceholderManagerCleanup(t *testing.T) {
+	mockedAPIProvider := client.NewMockedAPIProvider()
+	pod1 := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "pod-01",
+			UID:  "UID-01",
+		},
+	}
+	mgr := NewPlaceholderManager(mockedAPIProvider.GetAPIs())
+	mgr.Start()
+	assert.Equal(t, mgr.isRunning(), true, "manager should be running after start")
+	mgr.orphanPods["task01"] = pod1
+	assert.Equal(t, len(mgr.orphanPods), 1)
+	<- time.After(5 * time.Second)
+	assert.Equal(t, len(mgr.orphanPods), 0)
+}
