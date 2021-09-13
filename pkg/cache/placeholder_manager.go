@@ -61,6 +61,8 @@ func NewPlaceholderManager(clients *client.Clients) *PlaceholderManager {
 }
 
 func getPlaceholderManager() *PlaceholderManager {
+	placeholderMgr.Lock()
+	defer placeholderMgr.Unlock()
 	return placeholderMgr
 }
 
