@@ -279,6 +279,6 @@ func TestPlaceholderManagerCleanup(t *testing.T) {
 	assert.Equal(t, mgr.isRunning(), true, "manager should be running after start")
 	mgr.orphanPods["task01"] = pod1
 	assert.Equal(t, len(mgr.orphanPods), 1)
-	<- time.After(5 * time.Second)
+	<-time.After(5 * time.Second)
 	assert.Equal(t, len(mgr.orphanPods), 0)
 }
