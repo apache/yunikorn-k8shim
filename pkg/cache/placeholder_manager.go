@@ -43,7 +43,7 @@ type PlaceholderManager struct {
 	stopChan   chan struct{}
 	running    atomic.Value
 	// a simple mutex will do we do not have separate read and write paths
-	sync.Mutex
+	sync.RWMutex
 }
 
 var placeholderMgr *PlaceholderManager
@@ -61,8 +61,11 @@ func NewPlaceholderManager(clients *client.Clients) *PlaceholderManager {
 }
 
 func getPlaceholderManager() *PlaceholderManager {
-	placeholderMgr.Lock()
-	defer placeholderMgr.Unlock()
+	if placeholderMgr == nil {
+		return nil
+	}
+	placeholderMgr.RLock()
+	defer placeholderMgr.RUnlock()
 	return placeholderMgr
 }
 
