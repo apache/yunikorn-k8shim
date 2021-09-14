@@ -61,11 +61,11 @@ func NewPlaceholderManager(clients *client.Clients) *PlaceholderManager {
 }
 
 func getPlaceholderManager() *PlaceholderManager {
+	placeholderMgr.RLock()
+	defer placeholderMgr.RUnlock()
 	if placeholderMgr == nil {
 		return nil
 	}
-	placeholderMgr.RLock()
-	defer placeholderMgr.RUnlock()
 	return placeholderMgr
 }
 
