@@ -46,9 +46,14 @@ type PlaceholderManager struct {
 	sync.Mutex
 }
 
-var placeholderMgr *PlaceholderManager
+var (
+	placeholderMgr *PlaceholderManager
+	mu             sync.Mutex
+)
 
 func NewPlaceholderManager(clients *client.Clients) *PlaceholderManager {
+	mu.Lock()
+	defer mu.Unlock()
 	var r atomic.Value
 	r.Store(false)
 	placeholderMgr = &PlaceholderManager{
@@ -61,6 +66,8 @@ func NewPlaceholderManager(clients *client.Clients) *PlaceholderManager {
 }
 
 func getPlaceholderManager() *PlaceholderManager {
+	mu.Lock()
+	defer mu.Unlock()
 	return placeholderMgr
 }
 
