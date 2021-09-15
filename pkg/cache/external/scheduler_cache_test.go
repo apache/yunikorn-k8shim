@@ -103,6 +103,14 @@ func TestAssignedPod(t *testing.T) {
 	}
 }
 
+func TestRemovePodWithoutNodeName(t *testing.T) {
+	cache := NewSchedulerCache(client.NewMockedAPIProvider().GetAPIs())
+	err := cache.removePod(&v1.Pod{
+		Spec: v1.PodSpec{},
+	})
+	assert.NilError(t, err, "It should be ok to remove a pod having empty node name")
+}
+
 // this test verifies that no matter which comes first, pod or node,
 // the cache should be updated correctly to contain the correct references
 // for unassigned pod, it will not be stored in the cached node.
