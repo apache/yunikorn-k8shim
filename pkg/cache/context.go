@@ -324,7 +324,7 @@ func (ctx *Context) IsPodFitNode(name, node string, allocate bool) error {
 	if pod, ok := ctx.schedulerCache.GetPod(name); ok {
 		// if pod exists in cache, try to run predicates
 		if targetNode := ctx.schedulerCache.GetNode(node); targetNode != nil {
-			meta := ctx.predictor.GetPredicateMeta(pod, ctx.schedulerCache.GetNodesInfoMap())
+			meta := ctx.predictor.GetPredicateMeta(pod, ctx.schedulerCache.GetNodesInfoMapCopy())
 			return ctx.predictor.Predicates(pod, meta, targetNode, allocate)
 		}
 	}
