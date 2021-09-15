@@ -307,7 +307,7 @@ func TestGetNodesInfoMapCopy(t *testing.T) {
 	copyOfMap := cache.GetNodesInfoMapCopy()
 	assert.Equal(t, len(copyOfMap), 0)
 
-	for i:=0; i<10; i++ {
+	for i := 0; i < 10; i++ {
 		cache.AddNode(&v1.Node{
 			ObjectMeta: apis.ObjectMeta{
 				Name: fmt.Sprintf("node-%d", i),
