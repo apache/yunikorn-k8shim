@@ -42,6 +42,7 @@ type PlaceholderManager struct {
 	orphanPods map[string]*v1.Pod
 	stopChan   chan struct{}
 	running    atomic.Value
+	cleanupTime time.Duration
 	// a simple mutex will do we do not have separate read and write paths
 	sync.Mutex
 }
@@ -56,6 +57,7 @@ func NewPlaceholderManager(clients *client.Clients) *PlaceholderManager {
 		running:    r,
 		orphanPods: make(map[string]*v1.Pod),
 		stopChan:   make(chan struct{}),
+		cleanupTime: 5 * time.Second,
 	}
 	return placeholderMgr
 }
@@ -142,7 +144,7 @@ func (mgr *PlaceholderManager) Start() {
 				mgr.setRunning(false)
 				log.Logger().Info("PlaceholderManager has been stopped")
 				return
-			case <-time.After(5 * time.Second):
+			case <-time.After(mgr.cleanupTime):
 				mgr.cleanOrphanPlaceholders()
 			}
 		}
