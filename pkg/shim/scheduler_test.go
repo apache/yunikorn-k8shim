@@ -34,7 +34,6 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/test"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/api"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
@@ -162,7 +161,7 @@ func TestSchedulerRegistrationFailed(t *testing.T) {
 
 	ctx := cache.NewContext(mockedAPIProvider)
 	shim := newShimSchedulerInternal(ctx, mockedAPIProvider,
-		appmgmt.NewAMService(mockedAMProtocol, mockedAPIProvider, conf.GetSchedulerConf()), callback)
+		appmgmt.NewAMService(mockedAMProtocol, mockedAPIProvider), callback)
 	shim.run()
 	defer shim.stop()
 

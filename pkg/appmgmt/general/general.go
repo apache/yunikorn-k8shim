@@ -50,11 +50,11 @@ type Manager struct {
 	gangSchedulingDisabled bool
 }
 
-func NewManager(amProtocol interfaces.ApplicationManagementProtocol, apiProvider client.APIProvider, configs *conf.SchedulerConf) *Manager {
+func NewManager(amProtocol interfaces.ApplicationManagementProtocol, apiProvider client.APIProvider) *Manager {
 	return &Manager{
 		apiProvider: apiProvider,
 		amProtocol:  amProtocol,
-		gangSchedulingDisabled: configs.DisableGangScheduling,
+		gangSchedulingDisabled: conf.GetSchedulerConf().DisableGangScheduling,
 	}
 }
 

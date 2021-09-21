@@ -31,7 +31,6 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/test"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 )
 
 const taskGroupInfo = `
@@ -47,7 +46,7 @@ const taskGroupInfo = `
 ]`
 
 func TestGetAppMetadata(t *testing.T) {
-	am := NewManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider(), conf.GetSchedulerConf())
+	am := NewManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider())
 
 	pod := v1.Pod{
 		TypeMeta: apis.TypeMeta{
@@ -200,7 +199,7 @@ func TestGetAppMetadata(t *testing.T) {
 }
 
 func TestGetTaskMetadata(t *testing.T) {
-	am := NewManager(&cache.MockedAMProtocol{}, client.NewMockedAPIProvider(), conf.GetSchedulerConf())
+	am := NewManager(&cache.MockedAMProtocol{}, client.NewMockedAPIProvider())
 
 	pod := v1.Pod{
 		TypeMeta: apis.TypeMeta{
@@ -256,7 +255,7 @@ func TestGetTaskMetadata(t *testing.T) {
 }
 
 func TestAddPod(t *testing.T) {
-	am := NewManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider(), conf.GetSchedulerConf())
+	am := NewManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider())
 
 	pod := v1.Pod{
 		TypeMeta: apis.TypeMeta{
@@ -350,7 +349,7 @@ func TestAddPod(t *testing.T) {
 }
 
 func TestUpdatePodWhenSucceed(t *testing.T) {
-	am := NewManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider(), conf.GetSchedulerConf())
+	am := NewManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider())
 
 	pod := v1.Pod{
 		TypeMeta: apis.TypeMeta{
@@ -417,7 +416,7 @@ func TestUpdatePodWhenSucceed(t *testing.T) {
 }
 
 func TestUpdatePodWhenFailed(t *testing.T) {
-	am := NewManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider(), conf.GetSchedulerConf())
+	am := NewManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider())
 
 	pod := v1.Pod{
 		TypeMeta: apis.TypeMeta{
@@ -476,7 +475,7 @@ func TestUpdatePodWhenFailed(t *testing.T) {
 }
 
 func TestDeletePod(t *testing.T) {
-	am := NewManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider(), conf.GetSchedulerConf())
+	am := NewManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider())
 
 	pod := v1.Pod{
 		TypeMeta: apis.TypeMeta{
@@ -529,7 +528,7 @@ func toApplication(something interface{}) (*cache.Application, bool) {
 }
 
 func TestGetExistingAllocation(t *testing.T) {
-	am := NewManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider(), conf.GetSchedulerConf())
+	am := NewManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider())
 
 	pod := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
@@ -817,7 +816,7 @@ func TestListApplication(t *testing.T) {
 	})
 
 	// init the app manager and run listApp
-	am := NewManager(cache.NewMockedAMProtocol(), mockedAPIProvider, conf.GetSchedulerConf())
+	am := NewManager(cache.NewMockedAMProtocol(), mockedAPIProvider)
 	apps, err := am.ListApplications()
 	assert.NilError(t, err)
 	assert.Equal(t, len(apps), 3)

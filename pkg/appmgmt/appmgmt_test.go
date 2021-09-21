@@ -32,7 +32,7 @@ func TestAppManagementService_GetManagerByName(t *testing.T) {
 	conf.GetSchedulerConf().OperatorPlugins = "mocked-app-manager"
 	amProtocol := cache.NewMockedAMProtocol()
 	apiProvider := client.NewMockedAPIProvider()
-	amService := NewAMService(amProtocol, apiProvider, conf.GetSchedulerConf())
+	amService := NewAMService(amProtocol, apiProvider)
 	amService.register(&mockedAppManager{})
 
 	testCases := []struct {
