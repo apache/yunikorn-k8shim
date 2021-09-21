@@ -40,7 +40,8 @@ type AppManagementService struct {
 }
 
 func NewAMService(amProtocol interfaces.ApplicationManagementProtocol,
-	apiProvider client.APIProvider) *AppManagementService {
+	apiProvider client.APIProvider,
+	configs *conf.SchedulerConf) *AppManagementService {
 	appManager := &AppManagementService{
 		amProtocol:  amProtocol,
 		apiProvider: apiProvider,
@@ -54,7 +55,7 @@ func NewAMService(amProtocol interfaces.ApplicationManagementProtocol,
 		appManager.register(
 			// registered app plugins
 			// for general apps
-			general.NewManager(amProtocol, apiProvider),
+			general.NewManager(amProtocol, apiProvider, configs),
 			// for spark operator - SparkApplication
 			sparkoperator.NewManager(amProtocol, apiProvider),
 			// for application crds

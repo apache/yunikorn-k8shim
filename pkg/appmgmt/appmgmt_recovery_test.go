@@ -39,7 +39,7 @@ func TestAppManagerRecoveryState(t *testing.T) {
 	conf.GetSchedulerConf().OperatorPlugins = "mocked-app-manager"
 	amProtocol := cache.NewMockedAMProtocol()
 	apiProvider := client.NewMockedAPIProvider()
-	amService := NewAMService(amProtocol, apiProvider)
+	amService := NewAMService(amProtocol, apiProvider, conf.GetSchedulerConf())
 	amService.register(&mockedAppManager{})
 
 	apps, err := amService.recoverApps()
@@ -56,7 +56,7 @@ func TestAppManagerRecoveryTimeout(t *testing.T) {
 	conf.GetSchedulerConf().OperatorPlugins = "mocked-app-manager"
 	amProtocol := cache.NewMockedAMProtocol()
 	apiProvider := client.NewMockedAPIProvider()
-	amService := NewAMService(amProtocol, apiProvider)
+	amService := NewAMService(amProtocol, apiProvider, conf.GetSchedulerConf())
 	amService.register(&mockedAppManager{})
 
 	apps, err := amService.recoverApps()
@@ -71,7 +71,7 @@ func TestAppManagerRecoveryExitCondition(t *testing.T) {
 	conf.GetSchedulerConf().OperatorPlugins = "mocked-app-manager"
 	amProtocol := cache.NewMockedAMProtocol()
 	apiProvider := client.NewMockedAPIProvider()
-	amService := NewAMService(amProtocol, apiProvider)
+	amService := NewAMService(amProtocol, apiProvider, conf.GetSchedulerConf())
 	amService.register(&mockedAppManager{})
 
 	apps, err := amService.recoverApps()
@@ -99,7 +99,7 @@ func TestAppStatesDuringRecovery(t *testing.T) {
 	dispatcher.Start()
 	defer dispatcher.Stop()
 
-	amService := NewAMService(ctx, apiProvider)
+	amService := NewAMService(ctx, apiProvider, conf.GetSchedulerConf())
 	amService.register(&mockedAppManager{})
 
 	apps, err := amService.recoverApps()

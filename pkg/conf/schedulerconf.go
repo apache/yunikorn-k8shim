@@ -68,6 +68,7 @@ type SchedulerConf struct {
 	Predicates             string        `json:"predicates"`
 	OperatorPlugins        string        `json:"operatorPlugins"`
 	EnableConfigHotRefresh bool          `json:"enableConfigHotRefresh"`
+	DisableGangScheduling  bool          `json:"disableGangScheduling"`
 	UserLabelKey           string        `json:"userLabelKey"`
 	sync.RWMutex
 }

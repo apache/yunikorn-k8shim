@@ -56,7 +56,7 @@ func newShimScheduler(scheduler api.SchedulerAPI, configs *conf.SchedulerConf) *
 	apiFactory := client.NewAPIFactory(scheduler, configs, false)
 	context := cache.NewContext(apiFactory)
 	rmCallback := callback.NewAsyncRMCallback(context)
-	appManager := appmgmt.NewAMService(context, apiFactory)
+	appManager := appmgmt.NewAMService(context, apiFactory, configs)
 	return newShimSchedulerInternal(context, apiFactory, appManager, rmCallback)
 }
 

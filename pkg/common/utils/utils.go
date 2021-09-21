@@ -20,8 +20,6 @@ package utils
 
 import (
 	"fmt"
-	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -233,19 +231,4 @@ func GetUserFromPod(pod *v1.Pod) string {
 		zap.String("userLabel", constants.DefaultUserLabel))
 
 	return value
-}
-
-func GetBoolEnvVar(key string, defaultVal bool) bool {
-	if value, ok := os.LookupEnv(key); ok {
-		boolValue, err := strconv.ParseBool(value)
-		if err != nil {
-			log.Logger().Debug("Failed to parse ENV variable, using the default one",
-				zap.String("name", key),
-				zap.String("value", value),
-				zap.Bool("default", defaultVal))
-			return defaultVal
-		}
-		return boolValue
-	}
-	return defaultVal
 }

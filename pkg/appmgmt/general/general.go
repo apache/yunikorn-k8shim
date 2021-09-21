@@ -32,13 +32,12 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 
 	"go.uber.org/zap"
 )
-
-const DisableGangSchedulingVarName = "DISABLE_GANG_SCHEDULING"
 
 // Manager implements interfaces#Recoverable, interfaces#AppManager
 // generic app management service watches events from all the pods,
@@ -51,11 +50,11 @@ type Manager struct {
 	gangSchedulingDisabled bool
 }
 
-func NewManager(amProtocol interfaces.ApplicationManagementProtocol, apiProvider client.APIProvider) *Manager {
+func NewManager(amProtocol interfaces.ApplicationManagementProtocol, apiProvider client.APIProvider, configs *conf.SchedulerConf) *Manager {
 	return &Manager{
 		apiProvider: apiProvider,
 		amProtocol:  amProtocol,
-		gangSchedulingDisabled: utils.GetBoolEnvVar(DisableGangSchedulingVarName, false),
+		gangSchedulingDisabled: configs.DisableGangScheduling,
 	}
 }
 
