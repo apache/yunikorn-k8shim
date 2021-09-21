@@ -26,6 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	k8sCache "k8s.io/client-go/tools/cache"
 
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
@@ -37,20 +38,24 @@ import (
 	"go.uber.org/zap"
 )
 
+const DisableGangSchedulingVarName = "DISABLE_GANG_SCHEDULING"
+
 // Manager implements interfaces#Recoverable, interfaces#AppManager
 // generic app management service watches events from all the pods,
 // it recognize apps by reading pod's spec labels, if there are proper info such as
 // applicationID, queue name found, and claim it as an app or a app task,
 // then report them to scheduler cache by calling am protocol
 type Manager struct {
-	apiProvider client.APIProvider
-	amProtocol  interfaces.ApplicationManagementProtocol
+	apiProvider            client.APIProvider
+	amProtocol             interfaces.ApplicationManagementProtocol
+	gangSchedulingDisabled bool
 }
 
 func NewManager(amProtocol interfaces.ApplicationManagementProtocol, apiProvider client.APIProvider) *Manager {
 	return &Manager{
 		apiProvider: apiProvider,
 		amProtocol:  amProtocol,
+		gangSchedulingDisabled: utils.GetBoolEnvVar(DisableGangSchedulingVarName, false),
 	}
 }
 
@@ -92,7 +97,11 @@ func (os *Manager) getTaskMetadata(pod *v1.Pod) (interfaces.TaskMetadata, bool) 
 	}
 
 	placeholder := utils.GetPlaceholderFlagFromPodSpec(pod)
-	taskGroupName := utils.GetTaskGroupFromPodSpec(pod)
+
+	var taskGroupName string
+	if !os.gangSchedulingDisabled {
+		taskGroupName = utils.GetTaskGroupFromPodSpec(pod)
+	}
 
 	return interfaces.TaskMetadata{
 		ApplicationID: appID,
@@ -125,13 +134,17 @@ func (os *Manager) getAppMetadata(pod *v1.Pod) (interfaces.ApplicationMetadata, 
 	// get the user from Pod Labels
 	user := utils.GetUserFromPod(pod)
 
-	taskGroups, err := utils.GetTaskGroupsFromAnnotation(pod)
-	if err != nil {
-		log.Logger().Error("unable to get taskGroups for pod",
-			zap.String("namespace", pod.Namespace),
-			zap.String("name", pod.Name),
-			zap.Error(err))
+	var taskGroups []v1alpha1.TaskGroup = nil
+	if !os.gangSchedulingDisabled {
+		taskGroups, err = utils.GetTaskGroupsFromAnnotation(pod)
+		if err != nil {
+			log.Logger().Error("unable to get taskGroups for pod",
+				zap.String("namespace", pod.Namespace),
+				zap.String("name", pod.Name),
+				zap.Error(err))
+		}
 	}
+
 	ownerReferences := getOwnerReferences(pod)
 	schedulingPolicyParams := utils.GetSchedulingPolicyParam(pod)
 	return interfaces.ApplicationMetadata{

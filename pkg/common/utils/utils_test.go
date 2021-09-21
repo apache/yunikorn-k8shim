@@ -20,6 +20,7 @@ package utils
 
 import (
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -464,6 +465,28 @@ func TestNeedRecovery(t *testing.T) {
 		t.Run(tc.description, func(t *testing.T) {
 			recovery := NeedRecovery(tc.pod)
 			assert.Equal(t, recovery, tc.expectedRecoveryFlag, tc.description)
+		})
+	}
+}
+
+func TestGetBoolEnvVar(t *testing.T) {
+	envVarName := "VAR"
+	defaultValue := true
+	testCases := []struct {
+		name     string
+		value    string
+		expected bool
+	}{
+		{"ENV var not set", "", defaultValue},
+		{"ENV var set", "false", false},
+		{"Invalid value", "someValue", defaultValue},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			os.Setenv(envVarName, tc.value)
+			val := GetBoolEnvVar(envVarName, defaultValue)
+			assert.DeepEqual(t, val, tc.expected)
+			os.Unsetenv(envVarName)
 		})
 	}
 }
