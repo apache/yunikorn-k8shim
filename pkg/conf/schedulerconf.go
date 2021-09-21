@@ -68,6 +68,7 @@ type SchedulerConf struct {
 	Predicates             string        `json:"predicates"`
 	OperatorPlugins        string        `json:"operatorPlugins"`
 	EnableConfigHotRefresh bool          `json:"enableConfigHotRefresh"`
+	DisableGangScheduling  bool          `json:"disableGangScheduling"`
 	UserLabelKey           string        `json:"userLabelKey"`
 	sync.RWMutex
 }
@@ -157,6 +158,8 @@ func initConfigs() {
 	enableConfigHotRefresh := flag.Bool("enableConfigHotRefresh", false, "Flag for enabling "+
 		"configuration hot-refresh. If this value is set to true, the configuration updates in the configmap will be "+
 		"automatically reloaded without restarting the scheduler.")
+	disableGangScheduling := flag.Bool("disableGangScheduling", false, "Flag for disabling "+
+		"gang scheduling. If this value is set to true, task-group metadata will be ignored by the scheduler.")
 	userLabelKey := flag.String("userLabelKey", constants.DefaultUserLabel,
 		"provide pod label key to be used to identify an user")
 
@@ -189,6 +192,7 @@ func initConfigs() {
 		Predicates:             *predicateList,
 		OperatorPlugins:        *operatorPluginList,
 		EnableConfigHotRefresh: *enableConfigHotRefresh,
+		DisableGangScheduling:  *disableGangScheduling,
 		UserLabelKey:           *userLabelKey,
 	}
 }
