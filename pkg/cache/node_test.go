@@ -19,6 +19,7 @@
 package cache
 
 import (
+	"reflect"
 	"testing"
 
 	"gotest.tools/assert"
@@ -62,11 +63,30 @@ func TestSetOccupiedResource(t *testing.T) {
 }
 
 func NewTestSchedulerNode() *SchedulerNode {
+	return NewTestSchedulerNodeWithLabels(nil)
+}
+
+func NewTestSchedulerNodeWithLabels(label map[string]string) *SchedulerNode {
 	api := test.NewSchedulerAPIMock()
 	r1 := common.NewResourceBuilder().
 		AddResource(constants.Memory, 1).
 		AddResource(constants.CPU, 1).
 		Build()
-	node := newSchedulerNode("host001", "UID001", r1, api, false)
+	node := newSchedulerNode("host001", "UID001", r1, api, false, label)
 	return node
+}
+
+func TestAttributes(t *testing.T) {
+	labels := map[string]string{
+		"a": "b",
+		"k": "v",
+	}
+	node := NewTestSchedulerNodeWithLabels(labels)
+
+	assert.Assert(t, reflect.DeepEqual(labels, node.labels))
+
+	attributes := node.toAttributes()
+	for k, v := range labels {
+		assert.Equal(t, v, attributes[k])
+	}
 }

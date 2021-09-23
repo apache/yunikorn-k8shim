@@ -116,6 +116,9 @@ func TestUpdateNode(t *testing.T) {
 			Name:      "host0001",
 			Namespace: "default",
 			UID:       "uid_0001",
+			Labels: map[string]string{
+				"si/node-partition": "default",
+			},
 		},
 		Status: v1.NodeStatus{
 			Allocatable: resourceList,
@@ -127,6 +130,9 @@ func TestUpdateNode(t *testing.T) {
 			Name:      "host0001",
 			Namespace: "default",
 			UID:       "uid_0001",
+			Labels: map[string]string{
+				"si/node-partition": "default",
+			},
 		},
 		Status: v1.NodeStatus{
 			Allocatable: resourceList,
@@ -191,6 +197,9 @@ func TestUpdateNode(t *testing.T) {
 			Name:      "host0001",
 			Namespace: "default",
 			UID:       "uid_0001",
+			Labels: map[string]string{
+				"si/node-partition": "default",
+			},
 		},
 		Status: v1.NodeStatus{
 			Allocatable: newResourceList,
@@ -220,6 +229,25 @@ func TestUpdateNode(t *testing.T) {
 
 	api.UpdateFunction(checkFn)
 
+	nodes.updateNode(&oldNode, &newNode)
+	assert.Equal(t, api.GetRegisterCount(), int32(0))
+	assert.Equal(t, api.GetUpdateCount(), int32(1))
+
+	// change both resources and partition.
+	// the request should be skipped as changing partition is not supported
+	newNode = v1.Node{
+		ObjectMeta: apis.ObjectMeta{
+			Name:      "host0001",
+			Namespace: "default",
+			UID:       "uid_0001",
+			Labels: map[string]string{
+				"si/node-partition": "default2",
+			},
+		},
+		Status: v1.NodeStatus{
+			Allocatable: resourceList,
+		},
+	}
 	nodes.updateNode(&oldNode, &newNode)
 	assert.Equal(t, api.GetRegisterCount(), int32(0))
 	assert.Equal(t, api.GetUpdateCount(), int32(1))

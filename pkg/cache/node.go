@@ -43,12 +43,13 @@ type SchedulerNode struct {
 	schedulable         bool
 	existingAllocations []*si.Allocation
 	schedulerAPI        api.SchedulerAPI
+	labels              map[string]string
 	fsm                 *fsm.FSM
 	lock                *sync.RWMutex
 }
 
-func newSchedulerNode(nodeName string, nodeUID string,
-	nodeResource *si.Resource, schedulerAPI api.SchedulerAPI, schedulable bool) *SchedulerNode {
+func newSchedulerNode(nodeName string, nodeUID string, nodeResource *si.Resource, schedulerAPI api.SchedulerAPI,
+	schedulable bool, labels map[string]string) *SchedulerNode {
 	schedulerNode := &SchedulerNode{
 		name:         nodeName,
 		uid:          nodeUID,
@@ -56,8 +57,13 @@ func newSchedulerNode(nodeName string, nodeUID string,
 		occupied:     common.NewResourceBuilder().Build(),
 		schedulerAPI: schedulerAPI,
 		schedulable:  schedulable,
+		labels:       make(map[string]string),
 		lock:         &sync.RWMutex{},
 	}
+	for k, v := range labels {
+		schedulerNode.labels[k] = v
+	}
+
 	schedulerNode.initFSM()
 	return schedulerNode
 }
@@ -142,6 +148,16 @@ func (n *SchedulerNode) postNodeAccepted(event *fsm.Event) {
 	}
 }
 
+func (n *SchedulerNode) toAttributes() map[string]string {
+	attributes := make(map[string]string, len(n.labels)+2)
+	for k, v := range n.labels {
+		attributes[k] = v
+	}
+	attributes[constants.DefaultNodeAttributeHostNameKey] = n.name
+	attributes[constants.DefaultNodeAttributeRackNameKey] = constants.DefaultRackName
+	return attributes
+}
+
 func (n *SchedulerNode) handleNodeRecovery(event *fsm.Event) {
 	log.Logger().Info("node recovering",
 		zap.String("nodeID", n.name),
@@ -155,10 +171,7 @@ func (n *SchedulerNode) handleNodeRecovery(event *fsm.Event) {
 				NodeID:              n.name,
 				SchedulableResource: n.capacity,
 				OccupiedResource:    n.occupied,
-				Attributes: map[string]string{
-					constants.DefaultNodeAttributeHostNameKey: n.name,
-					constants.DefaultNodeAttributeRackNameKey: constants.DefaultRackName,
-				},
+				Attributes:          n.toAttributes(),
 				ExistingAllocations: n.existingAllocations,
 			},
 		},
@@ -181,12 +194,9 @@ func (n *SchedulerNode) handleDrainNode(event *fsm.Event) {
 		Releases: nil,
 		UpdatedNodes: []*si.UpdateNodeInfo{
 			{
-				NodeID: n.name,
-				Action: si.UpdateNodeInfo_DRAIN_NODE,
-				Attributes: map[string]string{
-					constants.DefaultNodeAttributeHostNameKey: n.name,
-					constants.DefaultNodeAttributeRackNameKey: constants.DefaultRackName,
-				},
+				NodeID:     n.name,
+				Action:     si.UpdateNodeInfo_DRAIN_NODE,
+				Attributes: n.toAttributes(),
 			},
 		},
 		RmID: conf.GetSchedulerConf().ClusterID,
@@ -208,12 +218,9 @@ func (n *SchedulerNode) handleRestoreNode(event *fsm.Event) {
 		Releases: nil,
 		UpdatedNodes: []*si.UpdateNodeInfo{
 			{
-				NodeID: n.name,
-				Action: si.UpdateNodeInfo_DRAIN_TO_SCHEDULABLE,
-				Attributes: map[string]string{
-					constants.DefaultNodeAttributeHostNameKey: n.name,
-					constants.DefaultNodeAttributeRackNameKey: constants.DefaultRackName,
-				},
+				NodeID:     n.name,
+				Action:     si.UpdateNodeInfo_DRAIN_TO_SCHEDULABLE,
+				Attributes: n.toAttributes(),
 			},
 		},
 		RmID: conf.GetSchedulerConf().ClusterID,
