@@ -167,3 +167,16 @@ func (mgr *PlaceholderManager) isRunning() bool {
 func (mgr *PlaceholderManager) setRunning(flag bool) {
 	mgr.running.Store(flag)
 }
+
+func (mgr *PlaceholderManager) getOrphanPodsLength() int{
+	mgr.Lock()
+	defer mgr.Unlock()
+	orphanPodsLength := len(mgr.orphanPods)
+	return orphanPodsLength
+}
+
+func (mgr *PlaceholderManager) setCleanupTime(value time.Duration) {
+	mgr.Lock()
+	defer mgr.Unlock()
+	mgr.cleanupTime = value
+}
