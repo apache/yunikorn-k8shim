@@ -294,8 +294,8 @@ func TestPlaceholderManagerCleanup(t *testing.T) {
 	<-time.After(100 * time.Millisecond)
 	time.Sleep(5 * time.Millisecond)
 	assert.Equal(t, mgr.getOrphanPodsLength(), 0)
-	mgr.setCleanupTime(5 * time.Second)
 	mgr.Stop()
 	time.Sleep(5 * time.Millisecond)
 	assert.Equal(t, mgr.isRunning(), false, "placeholder manager has stopped")
+	mgr.setCleanupTime(5 * time.Second)
 }
