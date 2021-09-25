@@ -101,9 +101,12 @@ func (nc *schedulerNodes) addAndReportNode(node *v1.Node, reportNode bool) {
 
 	// add node to nodes map
 	if _, ok := nc.nodesMap[node.Name]; !ok {
-		nodeLabels, err := json.Marshal(node.Labels)
+
+		var nodeLabels []byte
+		nodeLabels, err := json.Marshal(node.Labels) // A nil pointer encodes as the "null" JSON value.
 		if err != nil {
 			log.Logger().Error("failed to marshall node labels to json", zap.Error(err))
+			nodeLabels = make([]byte, 0)
 		}
 
 		log.Logger().Info("adding node to context",
