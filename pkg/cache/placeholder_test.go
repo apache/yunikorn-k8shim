@@ -24,6 +24,7 @@ import (
 	"gotest.tools/assert"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
@@ -174,4 +175,54 @@ func TestNewPlaceholderWithTolerations(t *testing.T) {
 	assert.Equal(t, tlr.Value, "value1")
 	assert.Equal(t, tlr.Operator, v1.TolerationOpEqual)
 	assert.Equal(t, tlr.Effect, v1.TaintEffectNoSchedule)
+}
+
+func TestNewPlaceholderWithAffinity(t *testing.T) {
+	const (
+		appID     = "app01"
+		queue     = "root.default"
+		namespace = "test"
+	)
+	mockedSchedulerAPI := newMockSchedulerAPI()
+	app := NewApplication(appID, queue,
+		"bob", map[string]string{constants.AppTagNamespace: namespace}, mockedSchedulerAPI)
+	app.setTaskGroups([]v1alpha1.TaskGroup{
+		{
+			Name:      "test-group-1",
+			MinMember: 10,
+			MinResource: map[string]resource.Quantity{
+				"cpu":    resource.MustParse("500m"),
+				"memory": resource.MustParse("1024M"),
+			},
+			Affinity: &v1.Affinity{
+				PodAffinity: &v1.PodAffinity{
+					RequiredDuringSchedulingIgnoredDuringExecution: []v1.PodAffinityTerm{
+						{
+							TopologyKey: "topologyKey",
+							LabelSelector: &metav1.LabelSelector{
+								MatchExpressions: []metav1.LabelSelectorRequirement{
+									{
+										Key:      "service",
+										Operator: metav1.LabelSelectorOpIn,
+										Values:   []string{"securityscan", "value2"},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	})
+
+	holder := newPlaceholder("ph-name", app, app.taskGroups[0])
+	assert.Equal(t, len(holder.pod.Spec.Affinity.PodAffinity.RequiredDuringSchedulingIgnoredDuringExecution), 1)
+	term := holder.pod.Spec.Affinity.PodAffinity.RequiredDuringSchedulingIgnoredDuringExecution
+	assert.Equal(t, term[0].TopologyKey, "topologyKey")
+
+	assert.Equal(t, len(term[0].LabelSelector.MatchExpressions), 1)
+	assert.Equal(t, term[0].LabelSelector.MatchExpressions[0].Key, "service")
+	assert.Equal(t, term[0].LabelSelector.MatchExpressions[0].Operator, metav1.LabelSelectorOpIn)
+	assert.Equal(t, term[0].LabelSelector.MatchExpressions[0].Values[0], "securityscan")
+
 }
