@@ -38,6 +38,7 @@ import (
 type SchedulerNode struct {
 	name                string
 	uid                 string
+	labels              string
 	capacity            *si.Resource
 	occupied            *si.Resource
 	schedulable         bool
@@ -47,11 +48,12 @@ type SchedulerNode struct {
 	lock                *sync.RWMutex
 }
 
-func newSchedulerNode(nodeName string, nodeUID string,
+func newSchedulerNode(nodeName string, nodeUID string, nodeLabels string,
 	nodeResource *si.Resource, schedulerAPI api.SchedulerAPI, schedulable bool) *SchedulerNode {
 	schedulerNode := &SchedulerNode{
 		name:         nodeName,
 		uid:          nodeUID,
+		labels:       nodeLabels,
 		capacity:     nodeResource,
 		occupied:     common.NewResourceBuilder().Build(),
 		schedulerAPI: schedulerAPI,
@@ -156,8 +158,9 @@ func (n *SchedulerNode) handleNodeRecovery(event *fsm.Event) {
 				SchedulableResource: n.capacity,
 				OccupiedResource:    n.occupied,
 				Attributes: map[string]string{
-					constants.DefaultNodeAttributeHostNameKey: n.name,
-					constants.DefaultNodeAttributeRackNameKey: constants.DefaultRackName,
+					constants.DefaultNodeAttributeHostNameKey:   n.name,
+					constants.DefaultNodeAttributeRackNameKey:   constants.DefaultRackName,
+					constants.DefaultNodeAttributeNodeLabelsKey: n.labels,
 				},
 				ExistingAllocations: n.existingAllocations,
 			},
@@ -184,8 +187,9 @@ func (n *SchedulerNode) handleDrainNode(event *fsm.Event) {
 				NodeID: n.name,
 				Action: si.UpdateNodeInfo_DRAIN_NODE,
 				Attributes: map[string]string{
-					constants.DefaultNodeAttributeHostNameKey: n.name,
-					constants.DefaultNodeAttributeRackNameKey: constants.DefaultRackName,
+					constants.DefaultNodeAttributeHostNameKey:   n.name,
+					constants.DefaultNodeAttributeRackNameKey:   constants.DefaultRackName,
+					constants.DefaultNodeAttributeNodeLabelsKey: n.labels,
 				},
 			},
 		},
@@ -211,8 +215,9 @@ func (n *SchedulerNode) handleRestoreNode(event *fsm.Event) {
 				NodeID: n.name,
 				Action: si.UpdateNodeInfo_DRAIN_TO_SCHEDULABLE,
 				Attributes: map[string]string{
-					constants.DefaultNodeAttributeHostNameKey: n.name,
-					constants.DefaultNodeAttributeRackNameKey: constants.DefaultRackName,
+					constants.DefaultNodeAttributeHostNameKey:   n.name,
+					constants.DefaultNodeAttributeRackNameKey:   constants.DefaultRackName,
+					constants.DefaultNodeAttributeNodeLabelsKey: n.labels,
 				},
 			},
 		},
