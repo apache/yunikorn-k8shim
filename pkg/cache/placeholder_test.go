@@ -224,5 +224,4 @@ func TestNewPlaceholderWithAffinity(t *testing.T) {
 	assert.Equal(t, term[0].LabelSelector.MatchExpressions[0].Key, "service")
 	assert.Equal(t, term[0].LabelSelector.MatchExpressions[0].Operator, metav1.LabelSelectorOpIn)
 	assert.Equal(t, term[0].LabelSelector.MatchExpressions[0].Values[0], "securityscan")
-
 }
