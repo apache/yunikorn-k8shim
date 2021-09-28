@@ -44,7 +44,7 @@ type PlaceholderManager struct {
 	running     atomic.Value
 	cleanupTime time.Duration
 	// a simple mutex will do we do not have separate read and write paths
-	sync.Mutex
+	sync.RWMutex
 }
 
 var placeholderMgr *PlaceholderManager
@@ -169,10 +169,9 @@ func (mgr *PlaceholderManager) setRunning(flag bool) {
 }
 
 func (mgr *PlaceholderManager) getOrphanPodsLength() int {
-	mgr.Lock()
-	defer mgr.Unlock()
-	orphanPodsLength := len(mgr.orphanPods)
-	return orphanPodsLength
+	mgr.RLock()
+	defer mgr.RUnlock()
+	return len(mgr.orphanPods)
 }
 
 func (mgr *PlaceholderManager) setCleanupTime(value time.Duration) {

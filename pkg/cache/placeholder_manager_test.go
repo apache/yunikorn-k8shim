@@ -286,6 +286,7 @@ func TestPlaceholderManagerCleanup(t *testing.T) {
 	}
 	mgr := NewPlaceholderManager(mockedAPIProvider.GetAPIs())
 	mgr.setCleanupTime(100 * time.Millisecond)
+	defer mgr.setCleanupTime(5 * time.Second)
 	mgr.Start()
 	assert.Equal(t, mgr.isRunning(), true, "manager should be running after start")
 	mgr.orphanPods["task01"] = pod1
@@ -297,5 +298,4 @@ func TestPlaceholderManagerCleanup(t *testing.T) {
 	mgr.Stop()
 	time.Sleep(5 * time.Millisecond)
 	assert.Equal(t, mgr.isRunning(), false, "placeholder manager has stopped")
-	mgr.setCleanupTime(5 * time.Second)
 }
