@@ -23,7 +23,6 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	clientv1 "k8s.io/client-go/listers/core/v1"
 )
 
 type NodeListerMock struct {
@@ -53,7 +52,9 @@ func (n *NodeListerMock) Get(name string) (*v1.Node, error) {
 	return nil, fmt.Errorf("node %s is not found", name)
 }
 
+/** TODO YUNIKORN-872 address this in YUNIKORN-874
 func (n *NodeListerMock) ListWithPredicate(predicate clientv1.NodeConditionPredicate) ([]*v1.Node, error) {
 	// ignore predicates for now
 	return n.allNodes, nil
 }
+*/

@@ -22,7 +22,7 @@ package versioned
 import (
 	"fmt"
 
-	apachev1alpha1 "github.com/apache/incubator-yunikorn-k8shim/pkg/client/clientset/versioned/typed/yunikorn.apache.org/v1alpha1"
+	sparkoperatorv1beta2 "github.com/apache/incubator-yunikorn-k8shim/pkg/sparkclient/clientset/versioned/typed/sparkoperator.k8s.io/v1beta2"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
 	flowcontrol "k8s.io/client-go/util/flowcontrol"
@@ -30,19 +30,19 @@ import (
 
 type Interface interface {
 	Discovery() discovery.DiscoveryInterface
-	ApacheV1alpha1() apachev1alpha1.ApacheV1alpha1Interface
+	SparkoperatorV1beta2() sparkoperatorv1beta2.SparkoperatorV1beta2Interface
 }
 
 // Clientset contains the clients for groups. Each group has exactly one
 // version included in a Clientset.
 type Clientset struct {
 	*discovery.DiscoveryClient
-	apacheV1alpha1 *apachev1alpha1.ApacheV1alpha1Client
+	sparkoperatorV1beta2 *sparkoperatorv1beta2.SparkoperatorV1beta2Client
 }
 
-// ApacheV1alpha1 retrieves the ApacheV1alpha1Client
-func (c *Clientset) ApacheV1alpha1() apachev1alpha1.ApacheV1alpha1Interface {
-	return c.apacheV1alpha1
+// SparkoperatorV1beta2 retrieves the SparkoperatorV1beta2Client
+func (c *Clientset) SparkoperatorV1beta2() sparkoperatorv1beta2.SparkoperatorV1beta2Interface {
+	return c.sparkoperatorV1beta2
 }
 
 // Discovery retrieves the DiscoveryClient
@@ -66,7 +66,7 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 	}
 	var cs Clientset
 	var err error
-	cs.apacheV1alpha1, err = apachev1alpha1.NewForConfig(&configShallowCopy)
+	cs.sparkoperatorV1beta2, err = sparkoperatorv1beta2.NewForConfig(&configShallowCopy)
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +82,7 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 // panics if there is an error in the config.
 func NewForConfigOrDie(c *rest.Config) *Clientset {
 	var cs Clientset
-	cs.apacheV1alpha1 = apachev1alpha1.NewForConfigOrDie(c)
+	cs.sparkoperatorV1beta2 = sparkoperatorv1beta2.NewForConfigOrDie(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClientForConfigOrDie(c)
 	return &cs
@@ -91,7 +91,7 @@ func NewForConfigOrDie(c *rest.Config) *Clientset {
 // New creates a new Clientset for the given RESTClient.
 func New(c rest.Interface) *Clientset {
 	var cs Clientset
-	cs.apacheV1alpha1 = apachev1alpha1.New(c)
+	cs.sparkoperatorV1beta2 = sparkoperatorv1beta2.New(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClient(c)
 	return &cs

@@ -20,6 +20,7 @@
 package v1alpha1
 
 import (
+	"context"
 	time "time"
 
 	yunikornapacheorgv1alpha1 "github.com/apache/incubator-yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
@@ -62,13 +63,13 @@ func NewFilteredApplicationInformer(client versioned.Interface, namespace string
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.ApacheV1alpha1().Applications(namespace).List(options)
+				return client.ApacheV1alpha1().Applications(namespace).List(context.TODO(), options)
 			},
 			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.ApacheV1alpha1().Applications(namespace).Watch(options)
+				return client.ApacheV1alpha1().Applications(namespace).Watch(context.TODO(), options)
 			},
 		},
 		&yunikornapacheorgv1alpha1.Application{},

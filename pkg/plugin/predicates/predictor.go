@@ -1,3 +1,6 @@
+// TODO YUNIKORN-872 replace this with predicate_manager.go (new implementation) in YUNIKORN-874
+// +build ignore
+
 /*
  Licensed to the Apache Software Foundation (ASF) under one
  or more contributor license agreements.  See the NOTICE file

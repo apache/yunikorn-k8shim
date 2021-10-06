@@ -20,14 +20,12 @@ package conf
 
 import (
 	"flag"
-	"fmt"
 	"strings"
 	"sync"
 	"time"
 
 	"go.uber.org/zap/zapcore"
 	"k8s.io/klog"
-	"k8s.io/kubernetes/pkg/scheduler/algorithm/predicates"
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 )
@@ -142,8 +140,7 @@ func initConfigs() {
 	kubeBurst := flag.Int("kubeBurst", DefaultKubeBurst,
 		"the maximum burst for throttle to kubernetes master from this client")
 	predicateList := flag.String("predicates", "",
-		fmt.Sprintf("comma-separated list of predicates, valid predicates are: %s, "+
-			"the program will exit if any invalid predicates exist.", predicates.Ordering()))
+		"comma-separated list of predicates")
 	operatorPluginList := flag.String("operatorPlugins", "general,"+constants.AppManagerHandlerName,
 		"comma-separated list of operator plugin names, currently, only \"spark-k8s-operator\""+
 			"and"+constants.AppManagerHandlerName+"is supported.")

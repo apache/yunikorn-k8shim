@@ -26,7 +26,7 @@ import (
 	"k8s.io/client-go/informers"
 	coreInformerV1 "k8s.io/client-go/informers/core/v1"
 	storageInformerV1 "k8s.io/client-go/informers/storage/v1"
-	"k8s.io/kubernetes/pkg/scheduler/volumebinder"
+	"k8s.io/kubernetes/pkg/controller/volume/scheduling"
 
 	appclient "github.com/apache/incubator-yunikorn-k8shim/pkg/client/clientset/versioned"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
@@ -60,7 +60,7 @@ type Clients struct {
 	AppInformer       v1alpha1.ApplicationInformer
 
 	// volume binder handles PV/PVC related operations
-	VolumeBinder *volumebinder.VolumeBinder
+	VolumeBinder scheduling.SchedulerVolumeBinder
 }
 
 func (c *Clients) WaitForSync(interval time.Duration, timeout time.Duration) error {
