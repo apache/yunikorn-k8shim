@@ -37,6 +37,7 @@ require (
 	k8s.io/apiserver v0.20.11
 	k8s.io/client-go v0.20.11
 	k8s.io/klog v1.0.0
+	k8s.io/kube-scheduler v0.20.11
 	k8s.io/kubernetes v1.20.11
 )
 
