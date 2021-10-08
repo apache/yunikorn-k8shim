@@ -256,7 +256,7 @@ func TestValidateConfigMap(t *testing.T) {
 		Data: make(map[string]string),
 	}
 	// specified config "queues.yaml" not found
-	err, _ := controller.validateConfigMap(configmap)
+	err := controller.validateConfigMap(configmap)
 	assert.Assert(t, err != nil, "expecting error when specified config is not found")
 	assert.Equal(t, err.Error(), "required config 'queues.yaml' not found in this configmap")
 	// skip further validations which depends on the webservice of yunikorn-core
@@ -283,7 +283,7 @@ func TestValidateConfigMapValidConfig(t *testing.T) {
 	defer srv.Close()
 	// both server and url pattern contains http://, so we need to delete one
 	controller := prepareController(strings.Replace(srv.URL, "http://", "", 1))
-	err, _ := controller.validateConfigMap(configmap)
+	err := controller.validateConfigMap(configmap)
 	assert.NilError(t, err, "No error expected")
 }
 
@@ -296,7 +296,7 @@ func TestValidateConfigMapInValidConfig(t *testing.T) {
 	defer srv.Close()
 	// both server and url pattern contains http://, so we need to delete one
 	controller := prepareController(strings.Replace(srv.URL, "http://", "", 1))
-	err, _ := controller.validateConfigMap(configmap)
+	err := controller.validateConfigMap(configmap)
 	assert.Equal(t, "Invalid config", err.Error(),
 		"Other error returned than the expected one")
 }
@@ -310,19 +310,8 @@ func TestValidateConfigMapWrongRequest(t *testing.T) {
 	defer srv.Close()
 	// the url is wrong, so the POST request will fail and an error will be returned
 	controller := prepareController(srv.URL)
-	err,_ := controller.validateConfigMap(configmap)
+	err := controller.validateConfigMap(configmap)
 	assert.Assert(t, err != nil)
-}
-
-func TestValidateConfigMapNotFromYunikorn(t *testing.T) {
-	var configmap *v1.ConfigMap = prepareConfigMap(ConfigData)
-	configmap.Name = "notfromyunikorn"
-	srv := serverMock(true)
-	defer srv.Close()
-	controller := prepareController(srv.URL)
-	err, skipped := controller.validateConfigMap(configmap)
-	assert.Assert(t, skipped)
-	assert.Assert(t, err == nil)
 }
 
 func prepareConfigMap(data string) *v1.ConfigMap {
@@ -332,7 +321,6 @@ func prepareConfigMap(data string) *v1.ConfigMap {
 		},
 		Data: map[string]string{"queues.yaml": data},
 	}
-
 	return configmap
 }
 

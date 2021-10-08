@@ -43,7 +43,6 @@ const (
 	autoGenAppPrefix             = "yunikorn"
 	autoGenAppSuffix             = "autogen"
 	enableConfigHotRefreshEnvVar = "ENABLE_CONFIG_HOT_REFRESH"
-	skippedByController          = "Skipped by Yunikorn admission controller"
 )
 
 var (
@@ -220,26 +219,13 @@ func (c *admissionController) validateConf(ar *v1beta1.AdmissionReview) *v1beta1
 				},
 			}
 		}
-
 		// validate new/updated config map
-		var err error
-		var skipped bool
-		err, skipped = c.validateConfigMap(&configmap)
-		if err != nil {
+		if err := c.validateConfigMap(&configmap); err != nil {
 			log.Logger().Error("failed to validate yunikorn configs", zap.Error(err))
 			return &v1beta1.AdmissionResponse{
 				Allowed: false,
 				Result: &metav1.Status{
 					Message: err.Error(),
-				},
-			}
-		}
-
-		if skipped {
-			return &v1beta1.AdmissionResponse{
-				Allowed: true,
-				Result: &metav1.Status{
-					Message: skippedByController,
 				},
 			}
 		}
@@ -250,31 +236,33 @@ func (c *admissionController) validateConf(ar *v1beta1.AdmissionReview) *v1beta1
 	}
 }
 
-func (c *admissionController) validateConfigMap(cm *v1.ConfigMap) (error, bool) {
+func (c *admissionController) validateConfigMap(cm *v1.ConfigMap) error {
 	if cm.Name == constants.DefaultConfigMapName {
 		log.Logger().Info("validating yunikorn configs")
 		if content, ok := cm.Data[c.configName]; ok {
 			response, err := http.Post(c.schedulerValidateConfURL, "application/json", bytes.NewBuffer([]byte(content)))
 			if err != nil {
-				return err, false
+				return err
 			}
 			defer response.Body.Close()
 			responseBytes, err := ioutil.ReadAll(response.Body)
 			if err != nil {
-				return err, false
+				return err
 			}
 			var responseData ValidateConfResponse
 			if err := json.Unmarshal(responseBytes, &responseData); err != nil {
-				return err, false
+				return err
 			}
 			if !responseData.Allowed {
-				return fmt.Errorf(responseData.Reason), false
+				return fmt.Errorf(responseData.Reason)
 			}
 		} else {
-			return fmt.Errorf("required config '%s' not found in this configmap", c.configName), false
+			return fmt.Errorf("required config '%s' not found in this configmap", c.configName)
 		}
+	} else {
+		log.Logger().Debug("Configmap does not belong to Yunikorn", zap.String("Name", cm.Name))
 	}
-	return nil, true
+	return nil
 }
 
 func (c *admissionController) serve(w http.ResponseWriter, r *http.Request) {
@@ -315,10 +303,6 @@ func (c *admissionController) serve(w http.ResponseWriter, r *http.Request) {
 
 	admissionReview := v1beta1.AdmissionReview{}
 	if admissionResponse != nil {
-		if admissionResponse.Result.Message != skippedByController {
-			log.Logger().Info("AdmissionReviewResponse",
-				zap.Bool("allowed", admissionResponse.Allowed))
-		}
 		admissionReview.Response = admissionResponse
 		if ar.Request != nil {
 			admissionReview.Response.UID = ar.Request.UID
