@@ -19,6 +19,8 @@
 package client
 
 import (
+	"context"
+
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -85,13 +87,15 @@ func (nc SchedulerKubeClient) Bind(pod *v1.Pod, hostID string) error {
 		zap.String("nodeID", hostID))
 
 	if err := nc.clientSet.CoreV1().Pods(pod.Namespace).Bind(
+		context.TODO(),
 		&v1.Binding{ObjectMeta: apis.ObjectMeta{
 			Namespace: pod.Namespace, Name: pod.Name, UID: pod.UID},
 			Target: v1.ObjectReference{
 				Kind: "Node",
 				Name: hostID,
 			},
-		}); err != nil {
+		},
+		apis.CreateOptions{}); err != nil {
 		log.Logger().Error("failed to bind pod",
 			zap.String("namespace", pod.Namespace),
 			zap.String("podName", pod.Name),
@@ -102,13 +106,13 @@ func (nc SchedulerKubeClient) Bind(pod *v1.Pod, hostID string) error {
 }
 
 func (nc SchedulerKubeClient) Create(pod *v1.Pod) (*v1.Pod, error) {
-	return nc.clientSet.CoreV1().Pods(pod.Namespace).Create(pod)
+	return nc.clientSet.CoreV1().Pods(pod.Namespace).Create(context.TODO(), pod, apis.CreateOptions{})
 }
 
 func (nc SchedulerKubeClient) Delete(pod *v1.Pod) error {
 	// TODO make this configurable for pods
 	gracefulSeconds := int64(3)
-	if err := nc.clientSet.CoreV1().Pods(pod.Namespace).Delete(pod.Name, &apis.DeleteOptions{
+	if err := nc.clientSet.CoreV1().Pods(pod.Namespace).Delete(context.TODO(), pod.Name, apis.DeleteOptions{
 		GracePeriodSeconds: &gracefulSeconds,
 	}); err != nil {
 		log.Logger().Warn("failed to delete pod",
@@ -121,7 +125,7 @@ func (nc SchedulerKubeClient) Delete(pod *v1.Pod) error {
 }
 
 func (nc SchedulerKubeClient) Get(podNamespace string, podName string) (*v1.Pod, error) {
-	pod, err := nc.clientSet.CoreV1().Pods(podNamespace).Get(podName, apis.GetOptions{})
+	pod, err := nc.clientSet.CoreV1().Pods(podNamespace).Get(context.TODO(), podName, apis.GetOptions{})
 	if err != nil {
 		log.Logger().Warn("failed to get pod",
 			zap.String("namespace", pod.Namespace),
@@ -141,14 +145,14 @@ func (nc SchedulerKubeClient) UpdateStatus(pod *v1.Pod) (*v1.Pod, error) {
 	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		// Retrieve the latest version of Pod before attempting status update
 		// RetryOnConflict uses exponential backoff to avoid exhausting the API server
-		latestPod, getErr := nc.clientSet.CoreV1().Pods(pod.Namespace).Get(pod.Name, apis.GetOptions{})
+		latestPod, getErr := nc.clientSet.CoreV1().Pods(pod.Namespace).Get(context.TODO(), pod.Name, apis.GetOptions{})
 		if getErr != nil {
 			log.Logger().Warn("failed to get latest version of Pod",
 				zap.Error(getErr))
 		}
 		latestPod.Status = newPodStatus
 
-		if updatedPod, updateErr = nc.clientSet.CoreV1().Pods(pod.Namespace).UpdateStatus(latestPod); updateErr != nil {
+		if updatedPod, updateErr = nc.clientSet.CoreV1().Pods(pod.Namespace).UpdateStatus(context.TODO(), latestPod, apis.UpdateOptions{}); updateErr != nil {
 			log.Logger().Warn("failed to update pod status",
 				zap.String("namespace", pod.Namespace),
 				zap.String("podName", pod.Name),

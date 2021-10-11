@@ -22,8 +22,14 @@
 # Please make sure the directory structure must be the example.
 # ex: github.com/apache/incubator-yunikorn-k8shim  
 
- ./scripts/generate-groups.sh "all" \
+./scripts/generate-groups.sh "all" \
   github.com/apache/incubator-yunikorn-k8shim/pkg/client github.com/apache/incubator-yunikorn-k8shim/pkg/apis \
   "yunikorn.apache.org:v1alpha1" \
+  --go-header-file $(dirname "${BASH_SOURCE}")/custom-boilerplate.go.txt \
+  --output-base "$(dirname "${BASH_SOURCE}")/../../../.."
+
+./scripts/generate-groups.sh "all" \
+  github.com/apache/incubator-yunikorn-k8shim/pkg/sparkclient github.com/GoogleCloudPlatform/spark-on-k8s-operator/pkg/apis \
+  "sparkoperator.k8s.io:v1beta2" \
   --go-header-file $(dirname "${BASH_SOURCE}")/custom-boilerplate.go.txt \
   --output-base "$(dirname "${BASH_SOURCE}")/../../../.."

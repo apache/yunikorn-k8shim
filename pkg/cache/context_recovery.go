@@ -19,6 +19,7 @@
 package cache
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -87,7 +88,7 @@ func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) err
 		var podList *corev1.PodList
 		podList, err = ctx.apiProvider.GetAPIs().KubeClient.GetClientSet().
 			CoreV1().Pods("").
-			List(metav1.ListOptions{})
+			List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
 			return err
 		}
