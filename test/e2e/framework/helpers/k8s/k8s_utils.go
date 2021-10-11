@@ -18,6 +18,7 @@ package k8s
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -104,11 +105,11 @@ func (k *KubeCtl) GetKubeConfig() (*rest.Config, error) {
 	return nil, errors.New("kubeconfig is nil")
 }
 func (k *KubeCtl) GetPods(namespace string) (*v1.PodList, error) {
-	return k.clientSet.CoreV1().Pods(namespace).List(metav1.ListOptions{})
+	return k.clientSet.CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{})
 }
 
 func (k *KubeCtl) GetPod(name, namespace string) (*v1.Pod, error) {
-	return k.clientSet.CoreV1().Pods(namespace).Get(name, metav1.GetOptions{})
+	return k.clientSet.CoreV1().Pods(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 }
 
 func (k *KubeCtl) UpdatePodWithAnnotation(pod *v1.Pod, namespace, annotationKey, annotationVal string) (*v1.Pod, error) {
@@ -118,14 +119,14 @@ func (k *KubeCtl) UpdatePodWithAnnotation(pod *v1.Pod, namespace, annotationKey,
 	}
 	annotations[annotationKey] = annotationVal
 	pod.Annotations = annotations
-	return k.clientSet.CoreV1().Pods(namespace).Update(pod)
+	return k.clientSet.CoreV1().Pods(namespace).Update(context.TODO(), pod, metav1.UpdateOptions{})
 }
 
 func (k *KubeCtl) DeletePodAnnotation(pod *v1.Pod, namespace, annotation string) (*v1.Pod, error) {
 	annotations := pod.Annotations
 	delete(annotations, annotation)
 	pod.Annotations = annotations
-	return k.clientSet.CoreV1().Pods(namespace).Update(pod)
+	return k.clientSet.CoreV1().Pods(namespace).Update(context.TODO(), pod, metav1.UpdateOptions{})
 }
 
 func (k *KubeCtl) GetPodNamesFromNS(namespace string) ([]string, error) {
@@ -141,12 +142,12 @@ func (k *KubeCtl) GetPodNamesFromNS(namespace string) ([]string, error) {
 }
 
 func (k *KubeCtl) GetService(serviceName string, namespace string) (*v1.Service, error) {
-	return k.clientSet.CoreV1().Services(namespace).Get(serviceName, metav1.GetOptions{})
+	return k.clientSet.CoreV1().Services(namespace).Get(context.TODO(), serviceName, metav1.GetOptions{})
 }
 
 // Func to create a namespace provided a name
 func (k *KubeCtl) CreateNamespace(namespace string, annotations map[string]string) (*v1.Namespace, error) {
-	return k.clientSet.CoreV1().Namespaces().Create(&v1.Namespace{
+	return k.clientSet.CoreV1().Namespaces().Create(context.TODO(), &v1.Namespace{
 		TypeMeta: metav1.TypeMeta{},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        namespace,
@@ -155,11 +156,11 @@ func (k *KubeCtl) CreateNamespace(namespace string, annotations map[string]strin
 		},
 		Spec:   v1.NamespaceSpec{},
 		Status: v1.NamespaceStatus{},
-	})
+	}, metav1.CreateOptions{})
 }
 
 func (k *KubeCtl) DeleteNamespace(namespace string) error {
-	return k.clientSet.CoreV1().Namespaces().Delete(namespace, &metav1.DeleteOptions{})
+	return k.clientSet.CoreV1().Namespaces().Delete(context.TODO(), namespace, metav1.DeleteOptions{})
 }
 
 func (k *KubeCtl) TearDownNamespace(namespace string) error {
@@ -176,7 +177,7 @@ func (k *KubeCtl) TearDownNamespace(namespace string) error {
 	}
 
 	// Delete namespace
-	return k.clientSet.CoreV1().Namespaces().Delete(namespace, &metav1.DeleteOptions{})
+	return k.clientSet.CoreV1().Namespaces().Delete(context.TODO(), namespace, metav1.DeleteOptions{})
 }
 
 func GetConfigMapObj(yamlPath string) (*v1.ConfigMap, error) {
@@ -188,19 +189,19 @@ func GetConfigMapObj(yamlPath string) (*v1.ConfigMap, error) {
 }
 
 func (k *KubeCtl) CreateConfigMap(cMap *v1.ConfigMap, namespace string) (*v1.ConfigMap, error) {
-	return k.clientSet.CoreV1().ConfigMaps(namespace).Create(cMap)
+	return k.clientSet.CoreV1().ConfigMaps(namespace).Create(context.TODO(), cMap, metav1.CreateOptions{})
 }
 
 func (k *KubeCtl) GetConfigMap(name string, namespace string) (*v1.ConfigMap, error) {
-	return k.clientSet.CoreV1().ConfigMaps(namespace).Get(name, metav1.GetOptions{})
+	return k.clientSet.CoreV1().ConfigMaps(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 }
 
 func (k *KubeCtl) UpdateConfigMap(cMap *v1.ConfigMap, namespace string) (*v1.ConfigMap, error) {
-	return k.clientSet.CoreV1().ConfigMaps(namespace).Update(cMap)
+	return k.clientSet.CoreV1().ConfigMaps(namespace).Update(context.TODO(), cMap, metav1.UpdateOptions{})
 }
 
 func (k *KubeCtl) DeleteConfigMap(cName string, namespace string) error {
-	return k.clientSet.CoreV1().ConfigMaps(namespace).Delete(cName, &metav1.DeleteOptions{})
+	return k.clientSet.CoreV1().ConfigMaps(namespace).Delete(context.TODO(), cName, metav1.DeleteOptions{})
 }
 
 func GetPodObj(yamlPath string) (*v1.Pod, error) {
@@ -212,11 +213,11 @@ func GetPodObj(yamlPath string) (*v1.Pod, error) {
 }
 
 func (k *KubeCtl) CreatePod(pod *v1.Pod, namespace string) (*v1.Pod, error) {
-	return k.clientSet.CoreV1().Pods(namespace).Create(pod)
+	return k.clientSet.CoreV1().Pods(namespace).Create(context.TODO(), pod, metav1.CreateOptions{})
 }
 
 func (k *KubeCtl) DeletePod(podName string, namespace string) error {
-	err := k.clientSet.CoreV1().Pods(namespace).Delete(podName, &metav1.DeleteOptions{})
+	err := k.clientSet.CoreV1().Pods(namespace).Delete(context.TODO(), podName, metav1.DeleteOptions{})
 	if err != nil {
 		return err
 	}
@@ -229,7 +230,7 @@ func (k *KubeCtl) DeletePod(podName string, namespace string) error {
 // currently in desired state
 func (k *KubeCtl) isPodInDesiredState(podName string, namespace string, state v1.PodPhase) wait.ConditionFunc {
 	return func() (bool, error) {
-		pod, err := k.clientSet.CoreV1().Pods(namespace).Get(podName, metav1.GetOptions{})
+		pod, err := k.clientSet.CoreV1().Pods(namespace).Get(context.TODO(), podName, metav1.GetOptions{})
 		if err != nil {
 			return false, err
 		}
@@ -285,7 +286,7 @@ func (k *KubeCtl) WaitForPodFailed(namespace string, podName string, timeout tim
 // Returns the list of currently scheduled or running pods in `namespace` with the given selector
 func (k *KubeCtl) ListPods(namespace string, selector string) (*v1.PodList, error) {
 	listOptions := metav1.ListOptions{LabelSelector: selector}
-	podList, err := k.clientSet.CoreV1().Pods(namespace).List(listOptions)
+	podList, err := k.clientSet.CoreV1().Pods(namespace).List(context.TODO(), listOptions)
 
 	if err != nil {
 		return nil, err
@@ -313,7 +314,7 @@ func (k *KubeCtl) WaitForPodBySelectorRunning(namespace string, selector string,
 }
 
 func (k *KubeCtl) CreateSecret(secret *v1.Secret, namespace string) (*v1.Secret, error) {
-	return k.clientSet.CoreV1().Secrets(namespace).Create(secret)
+	return k.clientSet.CoreV1().Secrets(namespace).Create(context.TODO(), secret, metav1.CreateOptions{})
 }
 
 func GetSecretObj(yamlPath string) (*v1.Secret, error) {
@@ -325,13 +326,13 @@ func GetSecretObj(yamlPath string) (*v1.Secret, error) {
 }
 
 func (k *KubeCtl) CreateServiceAccount(accountName string, namespace string) (*v1.ServiceAccount, error) {
-	return k.clientSet.CoreV1().ServiceAccounts(namespace).Create(&v1.ServiceAccount{
+	return k.clientSet.CoreV1().ServiceAccounts(namespace).Create(context.TODO(), &v1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{Name: accountName},
-	})
+	}, metav1.CreateOptions{})
 }
 
 func (k *KubeCtl) DeleteServiceAccount(accountName string, namespace string) error {
-	return k.clientSet.CoreV1().ServiceAccounts(namespace).Delete(accountName, &metav1.DeleteOptions{})
+	return k.clientSet.CoreV1().ServiceAccounts(namespace).Delete(context.TODO(), accountName, metav1.DeleteOptions{})
 }
 
 func (k *KubeCtl) CreateClusterRoleBinding(
@@ -339,7 +340,7 @@ func (k *KubeCtl) CreateClusterRoleBinding(
 	role string,
 	namespace string,
 	serviceAccount string) (*authv1.ClusterRoleBinding, error) {
-	return k.clientSet.RbacV1().ClusterRoleBindings().Create(&authv1.ClusterRoleBinding{
+	return k.clientSet.RbacV1().ClusterRoleBindings().Create(context.TODO(), &authv1.ClusterRoleBinding{
 		TypeMeta:   metav1.TypeMeta{},
 		ObjectMeta: metav1.ObjectMeta{Name: roleName},
 		Subjects: []authv1.Subject{
@@ -350,31 +351,31 @@ func (k *KubeCtl) CreateClusterRoleBinding(
 			},
 		},
 		RoleRef: authv1.RoleRef{Name: role, Kind: "ClusterRole"},
-	})
+	}, metav1.CreateOptions{})
 }
 
 func (k *KubeCtl) DeleteClusterRoleBindings(roleName string) error {
-	return k.clientSet.RbacV1().ClusterRoleBindings().Delete(roleName, &metav1.DeleteOptions{})
+	return k.clientSet.RbacV1().ClusterRoleBindings().Delete(context.TODO(), roleName, metav1.DeleteOptions{})
 }
 
 func (k *KubeCtl) GetConfigMaps(namespace string, cMapName string) (*v1.ConfigMap, error) {
-	return k.clientSet.CoreV1().ConfigMaps(namespace).Get(cMapName, metav1.GetOptions{})
+	return k.clientSet.CoreV1().ConfigMaps(namespace).Get(context.TODO(), cMapName, metav1.GetOptions{})
 }
 
 func (k *KubeCtl) UpdateConfigMaps(namespace string, cMap *v1.ConfigMap) (*v1.ConfigMap, error) {
-	return k.clientSet.CoreV1().ConfigMaps(namespace).Update(cMap)
+	return k.clientSet.CoreV1().ConfigMaps(namespace).Update(context.TODO(), cMap, metav1.UpdateOptions{})
 }
 
 func (k *KubeCtl) DeleteConfigMaps(namespace string, cMapName string) error {
-	return k.clientSet.CoreV1().ConfigMaps(namespace).Delete(cMapName, &metav1.DeleteOptions{})
+	return k.clientSet.CoreV1().ConfigMaps(namespace).Delete(context.TODO(), cMapName, metav1.DeleteOptions{})
 }
 
 func (k *KubeCtl) CreateConfigMaps(namespace string, cMap *v1.ConfigMap) (*v1.ConfigMap, error) {
-	return k.clientSet.CoreV1().ConfigMaps(namespace).Create(cMap)
+	return k.clientSet.CoreV1().ConfigMaps(namespace).Create(context.TODO(), cMap, metav1.CreateOptions{})
 }
 
 func (k *KubeCtl) GetEvents(namespace string) (*v1.EventList, error) {
-	return k.clientSet.CoreV1().Events(namespace).List(metav1.ListOptions{})
+	return k.clientSet.CoreV1().Events(namespace).List(context.TODO(), metav1.ListOptions{})
 }
 
 // CreateTestPodAction returns a closure that creates a pause pod upon invocation.

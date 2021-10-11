@@ -1,4 +1,4 @@
-// TODO YUNIKORN-872 remove this file in YUNIKORN-874. It exists only to allow the package to compile when all code is ignored.
+// FUTURE YUNIKORN-872 remove this file in YUNIKORN-874. It exists only to allow the package to compile when all code is ignored.
 /*
  Licensed to the Apache Software Foundation (ASF) under one
  or more contributor license agreements.  See the NOTICE file

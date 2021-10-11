@@ -19,6 +19,7 @@
 package yunikorn
 
 import (
+	"context"
 	"os"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -43,7 +44,7 @@ func GetApplicationObj(yamlPath string) (*v1alpha1.Application, error) {
 }
 
 func CreateApplication(crdclientset crdclientset.Interface, app *v1alpha1.Application, namespace string) error {
-	_, err := crdclientset.ApacheV1alpha1().Applications(namespace).Create(app)
+	_, err := crdclientset.ApacheV1alpha1().Applications(namespace).Create(context.TODO(), app, metav1.CreateOptions{})
 	if err != nil {
 		return err
 	}
@@ -51,7 +52,7 @@ func CreateApplication(crdclientset crdclientset.Interface, app *v1alpha1.Applic
 }
 
 func UpdateApplication(crdclientset crdclientset.Interface, app *v1alpha1.Application, namespace string) error {
-	_, err := crdclientset.ApacheV1alpha1().Applications(namespace).Update(app)
+	_, err := crdclientset.ApacheV1alpha1().Applications(namespace).Update(context.TODO(), app, metav1.UpdateOptions{})
 	if err != nil {
 		return err
 	}
@@ -59,7 +60,7 @@ func UpdateApplication(crdclientset crdclientset.Interface, app *v1alpha1.Applic
 }
 
 func GetApplication(crdclientset crdclientset.Interface, namespace, name string) (*v1alpha1.Application, error) {
-	app, err := crdclientset.ApacheV1alpha1().Applications(namespace).Get(name, metav1.GetOptions{})
+	app, err := crdclientset.ApacheV1alpha1().Applications(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +68,7 @@ func GetApplication(crdclientset crdclientset.Interface, namespace, name string)
 }
 
 func DeleteApplication(crdclientset crdclientset.Interface, namespace, name string) error {
-	err := crdclientset.ApacheV1alpha1().Applications(namespace).Delete(name, &metav1.DeleteOptions{})
+	err := crdclientset.ApacheV1alpha1().Applications(namespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
 	if err != nil {
 		return err
 	}

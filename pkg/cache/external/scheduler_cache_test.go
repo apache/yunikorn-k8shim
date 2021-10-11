@@ -91,7 +91,8 @@ func TestAssignedPod(t *testing.T) {
 			assert.Check(t, cachedNode.Node() != nil, "host0001 exists in cache but the ref to v1.Node doesn't exist")
 			assert.Equal(t, cachedNode.Node().Name, node.Name)
 			assert.Equal(t, cachedNode.Node().UID, node.UID)
-			assert.Equal(t, len(cachedNode.Pods()), 1)
+			assert.Assert(t, cachedNode != nil && cachedNode.Pods != nil, "pods was nil")
+			assert.Equal(t, len(cachedNode.Pods), 1)
 
 			// verify the pod is added to cache
 			// the pod should be added to the node as well
@@ -169,7 +170,7 @@ func TestAddUnassignedPod(t *testing.T) {
 			assert.Check(t, cachedNode.Node() != nil, "host0001 exists in cache but the ref to v1.Node doesn't exist")
 			assert.Equal(t, cachedNode.Node().Name, node.Name)
 			assert.Equal(t, cachedNode.Node().UID, node.UID)
-			assert.Equal(t, len(cachedNode.Pods()), 0)
+			assert.Assert(t, cachedNode != nil && cachedNode.Pods == nil, "pods was not null")
 
 			// verify the pod is added to cache
 			// the pod should be added to the node as well
