@@ -41,7 +41,6 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
-	_ "github.com/apache/incubator-yunikorn-k8shim/pkg/plugin/predicates"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 )
 
@@ -51,10 +50,10 @@ type Context struct {
 	nodes          *schedulerNodes                // nodes
 	schedulerCache *schedulercache.SchedulerCache // external cache
 	apiProvider    client.APIProvider             // apis to interact with api-server, scheduler-core, etc
-	/* TODO YUNIKORN-872 replace this with predicateManager in YUNIKORN-874
+	/* FUTURE YUNIKORN-872 replace this with predicateManager in YUNIKORN-874
 	predictor      *plugin.Predictor              // K8s predicates
-	 */
-	lock           *sync.RWMutex                  // lock
+	*/
+	lock *sync.RWMutex // lock
 }
 
 // Create a new context for the scheduler.
@@ -76,9 +75,9 @@ func NewContext(apis client.APIProvider) *Context {
 	// init the controllers and plugins (need the cache)
 	ctx.nodes = newSchedulerNodes(apis.GetAPIs().SchedulerAPI, ctx.schedulerCache)
 
-	/* TODO YUNIKORN-872 replace this with predicateManager initilization in YUNIKORN-874
+	/* FUTURE YUNIKORN-872 replace this with predicateManager initilization in YUNIKORN-874
 	ctx.predictor = plugin.NewPredictor(schedulercache.GetPluginArgs(), apis.IsTestingMode())
-	 */
+	*/
 	return ctx
 }
 
@@ -321,7 +320,7 @@ func (ctx *Context) triggerReloadConfig() {
 // evaluate given predicates based on current context
 func (ctx *Context) IsPodFitNode(name, node string, allocate bool) error {
 	return nil
-	/* TODO YUNIKORN-872 replace this with calls to the predicateManager in YUNIKORN-874
+	/* FUTURE YUNIKORN-872 replace this with calls to the predicateManager in YUNIKORN-874
 	// simply skip if predicates are not enabled
 	if !ctx.predictor.Enabled() {
 		return nil

@@ -19,6 +19,7 @@
 package cache
 
 import (
+	ctx "context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -885,7 +886,8 @@ func TestSaveConfigmap(t *testing.T) {
 	configMaps, err := context.apiProvider.GetAPIs().ConfigMapInformer.Lister().List(nil)
 	assert.NilError(t, err, "No error expected")
 	for _, c := range configMaps {
-		_, err := context.apiProvider.GetAPIs().KubeClient.GetClientSet().CoreV1().ConfigMaps(c.Namespace).Create(c)
+		_, err := context.apiProvider.GetAPIs().KubeClient.GetClientSet().CoreV1().ConfigMaps(c.Namespace).
+			Create(ctx.TODO(), c, apis.CreateOptions{})
 		assert.NilError(t, err, "No error expected")
 	}
 	resp = context.SaveConfigmap(&newConf)
