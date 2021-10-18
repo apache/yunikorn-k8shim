@@ -225,7 +225,7 @@ func NewPredicateManager(handle framework.Handle) PredicateManager {
 		"*": true,
 	}
 
-	return newPredicateManagerInternal(handle, reservationPreFilters, reservationFilters, allocationPreFilters, allocationFilters)
+	return newPredicateManagerInternal(handle, reservationPreFilters, allocationPreFilters, reservationFilters, allocationFilters)
 }
 
 func newPredicateManagerInternal(
