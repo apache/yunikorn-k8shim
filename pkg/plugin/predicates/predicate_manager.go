@@ -20,7 +20,6 @@ package predicates
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"go.uber.org/zap"
@@ -91,7 +90,7 @@ func (p *predicateManagerImpl) podFitsNode(ctx context.Context, state *framework
 		if !s.IsUnschedulable() {
 			return plugin, s.AsError()
 		}
-		return plugin, errors.New("pod is unschedulable")
+		return plugin, s.AsError()
 	}
 
 	// Run "filter" plugins on node
@@ -101,7 +100,7 @@ func (p *predicateManagerImpl) podFitsNode(ctx context.Context, state *framework
 		if !s.IsUnschedulable() {
 			return plugin, s.AsError()
 		}
-		return plugin, errors.New("node is unschedulable")
+		return plugin, s.AsError()
 	}
 	return "", nil
 }
