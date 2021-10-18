@@ -139,8 +139,6 @@ func initConfigs() {
 		"the maximum QPS to kubernetes master from this client")
 	kubeBurst := flag.Int("kubeBurst", DefaultKubeBurst,
 		"the maximum burst for throttle to kubernetes master from this client")
-	predicateList := flag.String("predicates", "",
-		"comma-separated list of predicates")
 	operatorPluginList := flag.String("operatorPlugins", "general,"+constants.AppManagerHandlerName,
 		"comma-separated list of operator plugin names, currently, only \"spark-k8s-operator\""+
 			"and"+constants.AppManagerHandlerName+"is supported.")
@@ -186,7 +184,6 @@ func initConfigs() {
 		DispatchTimeout:        *dispatchTimeout,
 		KubeQPS:                *kubeQPS,
 		KubeBurst:              *kubeBurst,
-		Predicates:             *predicateList,
 		OperatorPlugins:        *operatorPluginList,
 		EnableConfigHotRefresh: *enableConfigHotRefresh,
 		DisableGangScheduling:  *disableGangScheduling,
