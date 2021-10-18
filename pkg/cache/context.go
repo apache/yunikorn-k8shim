@@ -29,7 +29,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
 
@@ -40,7 +39,6 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/plugin/predicates"
@@ -80,9 +78,8 @@ func NewContext(apis client.APIProvider) *Context {
 	// create the predicate manager
 	if !apis.IsTestingMode() {
 		sharedLister := support.NewSharedLister(ctx.schedulerCache)
-		k8sClient := client.NewKubeClient(conf.GetSchedulerConf().KubeConfig)
-		clientSet := k8sClient.GetClientSet()
-		informerFactory := informers.NewSharedInformerFactory(clientSet, 0)
+		clientSet := apis.GetAPIs().KubeClient.GetClientSet()
+		informerFactory := apis.GetAPIs().InformerFactory
 		ctx.predManager = predicates.NewPredicateManager(support.NewFrameworkHandle(sharedLister, informerFactory, clientSet))
 	}
 

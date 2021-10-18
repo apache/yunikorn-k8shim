@@ -36,13 +36,13 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/nodeaffinity"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/nodename"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/nodeports"
-	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/noderesources"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/nodeunschedulable"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/podtopologyspread"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/tainttoleration"
 	fwruntime "k8s.io/kubernetes/pkg/scheduler/framework/runtime"
 
 	"github.com/apache/incubator-yunikorn-core/pkg/log"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 )
 
 type PredicateManager interface {
@@ -76,7 +76,12 @@ func (p *predicateManagerImpl) predicatesReserve(pod *v1.Pod, node *framework.No
 func (p *predicateManagerImpl) predicatesAllocate(pod *v1.Pod, node *framework.NodeInfo) (plugin string, error error) {
 	ctx := context.TODO()
 	state := framework.NewCycleState()
-	return p.podFitsNode(ctx, state, *p.allocationPreFilters, *p.allocationFilters, pod, node)
+	plugin, err := p.podFitsNode(ctx, state, *p.allocationPreFilters, *p.allocationFilters, pod, node)
+	if err != nil {
+		events.GetRecorder().Eventf(pod, v1.EventTypeWarning,
+			"FailedScheduling", "predicate is not satisfied, error: %s", err.Error())
+	}
+	return plugin, err
 }
 
 func (p *predicateManagerImpl) podFitsNode(ctx context.Context, state *framework.CycleState, preFilters []framework.PreFilterPlugin, filters []framework.FilterPlugin, pod *v1.Pod, node *framework.NodeInfo) (plugin string, error error) {
@@ -165,7 +170,7 @@ func NewPredicateManager(handle framework.Handle) PredicateManager {
 
 	// run only the simpler PreFilter plugins during reservation phase
 	reservationPreFilters := map[string]bool{
-		noderesources.FitName:  true,
+		// NodeResourcesFit : skip because during reservation, node resources are not enough
 		nodeports.Name:         true,
 		podtopologyspread.Name: true,
 		interpodaffinity.Name:  true,
@@ -203,7 +208,7 @@ func NewPredicateManager(handle framework.Handle) PredicateManager {
 		tainttoleration.Name:   true,
 		nodeaffinity.Name:      true,
 		nodeports.Name:         true,
-		noderesources.FitName:  true,
+		// NodeResourcesFit : skip because during reservation, node resources are not enough
 		// VolumeRestrictions
 		// EBSLimits
 		// GCEPDLimits
