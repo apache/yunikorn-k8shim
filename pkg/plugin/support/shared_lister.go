@@ -1,4 +1,3 @@
-// FUTURE YUNIKORN-872 remove this file in YUNIKORN-874. It exists only to allow the package to compile when all code is ignored.
 /*
  Licensed to the Apache Software Foundation (ASF) under one
  or more contributor license agreements.  See the NOTICE file
@@ -17,4 +16,26 @@
  limitations under the License.
 */
 
-package predicates
+package support
+
+import (
+	"k8s.io/kubernetes/pkg/scheduler/framework"
+
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/cache/external"
+)
+
+type sharedListerImpl struct {
+	nodeInfos framework.NodeInfoLister
+}
+
+func (s sharedListerImpl) NodeInfos() framework.NodeInfoLister {
+	return s.nodeInfos
+}
+
+var _ framework.SharedLister = &sharedListerImpl{}
+
+func NewSharedLister(cache *external.SchedulerCache) framework.SharedLister {
+	return &sharedListerImpl{
+		nodeInfos: NewNodeInfoLister(cache),
+	}
+}

@@ -54,9 +54,6 @@ func NewSchedulerCache(clients *client.Clients) *SchedulerCache {
 		assumedPods: make(map[string]bool),
 		clients:     clients,
 	}
-	/* FUTURE YUNIKORN-872 refactor this in YUNIKORN-874
-	cache.assignArgs(GetPluginArgs())
-	*/
 	return cache
 }
 
@@ -73,19 +70,6 @@ func (cache *SchedulerCache) GetNodesInfoMapCopy() map[string]*framework.NodeInf
 	}
 	return copyOfMap
 }
-
-/* FUTURE YUNIKORN-872 replace this with the equivalent in YUNIKORN-874
-func (cache *SchedulerCache) assignArgs(args *factory.PluginFactoryArgs) {
-	// nodes cache implemented PodLister and NodeInfo interface
-	log.Logger().Debug("Initialising PluginFactoryArgs using SchedulerCache")
-	args.PodLister = cache
-	args.NodeInfo = cache
-	args.VolumeBinder = cache.clients.VolumeBinder
-	args.PVInfo = &predicates.CachedPersistentVolumeInfo{PersistentVolumeLister: cache.clients.PVInformer.Lister()}
-	args.PVCInfo = &predicates.CachedPersistentVolumeClaimInfo{PersistentVolumeClaimLister: cache.clients.PVCInformer.Lister()}
-	args.StorageClassInfo = &predicates.CachedStorageClassInfo{StorageClassLister: cache.clients.StorageInformer.Lister()}
-}
-*/
 
 func (cache *SchedulerCache) GetNode(name string) *framework.NodeInfo {
 	cache.lock.RLock()

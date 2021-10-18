@@ -41,6 +41,8 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/plugin/predicates"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/plugin/support"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 )
 
@@ -50,10 +52,8 @@ type Context struct {
 	nodes          *schedulerNodes                // nodes
 	schedulerCache *schedulercache.SchedulerCache // external cache
 	apiProvider    client.APIProvider             // apis to interact with api-server, scheduler-core, etc
-	/* FUTURE YUNIKORN-872 replace this with predicateManager in YUNIKORN-874
-	predictor      *plugin.Predictor              // K8s predicates
-	*/
-	lock *sync.RWMutex // lock
+	predManager    predicates.PredicateManager    // K8s predicates
+	lock           *sync.RWMutex                  // lock
 }
 
 // Create a new context for the scheduler.
@@ -75,9 +75,14 @@ func NewContext(apis client.APIProvider) *Context {
 	// init the controllers and plugins (need the cache)
 	ctx.nodes = newSchedulerNodes(apis.GetAPIs().SchedulerAPI, ctx.schedulerCache)
 
-	/* FUTURE YUNIKORN-872 replace this with predicateManager initilization in YUNIKORN-874
-	ctx.predictor = plugin.NewPredictor(schedulercache.GetPluginArgs(), apis.IsTestingMode())
-	*/
+	// create the predicate manager
+	if !apis.IsTestingMode() {
+		sharedLister := support.NewSharedLister(ctx.schedulerCache)
+		clientSet := apis.GetAPIs().KubeClient.GetClientSet()
+		informerFactory := apis.GetAPIs().InformerFactory
+		ctx.predManager = predicates.NewPredicateManager(support.NewFrameworkHandle(sharedLister, informerFactory, clientSet))
+	}
+
 	return ctx
 }
 
@@ -319,10 +324,8 @@ func (ctx *Context) triggerReloadConfig() {
 
 // evaluate given predicates based on current context
 func (ctx *Context) IsPodFitNode(name, node string, allocate bool) error {
-	return nil
-	/* FUTURE YUNIKORN-872 replace this with calls to the predicateManager in YUNIKORN-874
 	// simply skip if predicates are not enabled
-	if !ctx.predictor.Enabled() {
+	if ctx.apiProvider.IsTestingMode() {
 		return nil
 	}
 
@@ -331,12 +334,11 @@ func (ctx *Context) IsPodFitNode(name, node string, allocate bool) error {
 	if pod, ok := ctx.schedulerCache.GetPod(name); ok {
 		// if pod exists in cache, try to run predicates
 		if targetNode := ctx.schedulerCache.GetNode(node); targetNode != nil {
-			meta := ctx.predictor.GetPredicateMeta(pod, ctx.schedulerCache.GetNodesInfoMapCopy())
-			return ctx.predictor.Predicates(pod, meta, targetNode, allocate)
+			_, err := ctx.predManager.Predicates(pod, targetNode, allocate)
+			return err
 		}
 	}
 	return fmt.Errorf("predicates were not running because pod or node was not found in cache")
-	*/
 }
 
 // call volume binder to bind pod volumes if necessary,

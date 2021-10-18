@@ -1,6 +1,3 @@
-// TODO YUNIKORN-872 replace this with ete tests for PredicateManager in YUNIKORN-874
-// +build ignore
-
 /*
  Licensed to the Apache Software Foundation (ASF) under one
  or more contributor license agreements.  See the NOTICE file
@@ -22,6 +19,7 @@
 package predicates_test
 
 import (
+	ctx "context"
 	"fmt"
 	"reflect"
 	"strings"
@@ -30,6 +28,8 @@ import (
 	"github.com/onsi/ginkgo"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/kubernetes/pkg/controller"
 	"k8s.io/kubernetes/test/e2e/framework"
 	e2enode "k8s.io/kubernetes/test/e2e/framework/node"
 
@@ -41,6 +41,12 @@ import (
 
 // variable populated in BeforeEach, never modified afterwards
 var workerNodes []string
+
+func getNode(k *k8s.KubeCtl, nodeName string) *v1.Node {
+	node, err := k.GetClient().CoreV1().Nodes().Get(ctx.TODO(), nodeName, metav1.GetOptions{})
+	Ω(err).NotTo(HaveOccurred())
+	return node
+}
 
 func getNodeThatCanRunPodWithoutToleration(k *k8s.KubeCtl, namespace string) string {
 	By("Trying to launch a pod without a toleration to get a node which can launch it.")
@@ -92,7 +98,7 @@ var _ = Describe("Predicates", func() {
 		// Initializing rest client
 		//restClient = yunikorn.RClient{}
 		nodeList = &v1.NodeList{}
-		nodeList, err = e2enode.GetReadySchedulableNodesOrDie(kClient.GetClient())
+		nodeList, err = e2enode.GetReadySchedulableNodes(kClient.GetClient())
 		Ω(err).NotTo(HaveOccurred(), fmt.Sprintf("Unexpected error occurred: %v", err))
 		for _, n := range nodeList.Items {
 			workerNodes = append(workerNodes, n.Name)
@@ -320,15 +326,20 @@ var _ = Describe("Predicates", func() {
 	// Tests for Taints & Tolerations
 	It("Verify_Matching_Taint_Tolerations_Respected", func() {
 		nodeName := getNodeThatCanRunPodWithoutToleration(&kClient, ns)
+		node := getNode(&kClient, nodeName)
 		By("Trying to apply a random taint on the found node.")
-		testTaint := v1.Taint{
+		testTaint := &v1.Taint{
 			Key:    fmt.Sprintf("kubernetes.io/e2e-taint-key-%s", common.RandSeq(10)),
 			Value:  "testing-taint-value",
 			Effect: v1.TaintEffectNoSchedule,
 		}
-		framework.AddOrUpdateTaintOnNode(kClient.GetClient(), nodeName, testTaint)
-		framework.ExpectNodeHasTaint(kClient.GetClient(), nodeName, &testTaint)
-		defer framework.RemoveTaintOffNode(kClient.GetClient(), nodeName, testTaint)
+		err := controller.AddOrUpdateTaintOnNode(kClient.GetClient(), nodeName, testTaint)
+		Ω(err).NotTo(HaveOccurred())
+		framework.ExpectNodeHasTaint(kClient.GetClient(), nodeName, testTaint)
+		defer func(c kubernetes.Interface, nodeName string, node *v1.Node, taint *v1.Taint) {
+			err = controller.RemoveTaintOffNode(c, nodeName, node, taint)
+			Ω(err).NotTo(HaveOccurred())
+		}(kClient.GetClient(), nodeName, node, testTaint)
 
 		ginkgo.By("Trying to apply a random label on the found node.")
 		labelKey := fmt.Sprintf("kubernetes.io/e2e-label-key-%s", common.RandSeq(10))
@@ -361,15 +372,23 @@ var _ = Describe("Predicates", func() {
 
 	It("Verify_Not_Matching_Taint_Tolerations_Respected", func() {
 		nodeName := getNodeThatCanRunPodWithoutToleration(&kClient, ns)
+		node, err := kClient.GetClient().CoreV1().Nodes().Get(ctx.TODO(), nodeName, metav1.GetOptions{})
+		Ω(err).NotTo(HaveOccurred())
+
 		By("Trying to apply a random taint on the found node.")
-		testTaint := v1.Taint{
+		testTaint := &v1.Taint{
 			Key:    fmt.Sprintf("kubernetes.io/e2e-taint-key-%s", common.RandSeq(10)),
 			Value:  "testing-taint-value",
 			Effect: v1.TaintEffectNoSchedule,
 		}
-		framework.AddOrUpdateTaintOnNode(kClient.GetClient(), nodeName, testTaint)
-		framework.ExpectNodeHasTaint(kClient.GetClient(), nodeName, &testTaint)
-		defer framework.RemoveTaintOffNode(kClient.GetClient(), nodeName, testTaint)
+		err = controller.AddOrUpdateTaintOnNode(kClient.GetClient(), nodeName, testTaint)
+		Ω(err).NotTo(HaveOccurred())
+
+		framework.ExpectNodeHasTaint(kClient.GetClient(), nodeName, testTaint)
+		defer func(c kubernetes.Interface, nodeName string, node *v1.Node, taint *v1.Taint) {
+			err = controller.RemoveTaintOffNode(c, nodeName, node, taint)
+			Ω(err).NotTo(HaveOccurred())
+		}(kClient.GetClient(), nodeName, node, testTaint)
 
 		ginkgo.By("Trying to apply a random label on the found node.")
 		labelKey := fmt.Sprintf("kubernetes.io/e2e-label-key-%s", common.RandSeq(10))
@@ -415,7 +434,8 @@ var _ = Describe("Predicates", func() {
 		}
 
 		// Remove taint off the node and verify the pod is scheduled on node.
-		framework.RemoveTaintOffNode(kClient.GetClient(), nodeName, testTaint)
+		err = controller.RemoveTaintOffNode(kClient.GetClient(), nodeName, node, testTaint)
+		Ω(err).NotTo(HaveOccurred())
 		Ω(kClient.WaitForPodRunning(ns, podNameNoTolerations, time.Duration(60)*time.Second)).NotTo(HaveOccurred())
 
 		labelPod, err := kClient.GetPod(podNameNoTolerations, ns)

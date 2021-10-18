@@ -1,6 +1,3 @@
-// TODO YUNIKORN-872 replace this with tests for predicate_manager.go in YUNIKORN-874
-// +build ignore
-
 /*
  Licensed to the Apache Software Foundation (ASF) under one
  or more contributor license agreements.  See the NOTICE file
@@ -22,22 +19,35 @@
 package predicates
 
 import (
-	"fmt"
+	"errors"
 	"strconv"
 	"strings"
 	"testing"
 
+	"go.uber.org/zap"
 	"gotest.tools/assert"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/informers"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/kubernetes/pkg/apis/core"
 	v1helper "k8s.io/kubernetes/pkg/apis/core/v1/helper"
-	"k8s.io/kubernetes/pkg/scheduler/algorithm/predicates"
-	schedulerapi "k8s.io/kubernetes/pkg/scheduler/api"
-	"k8s.io/kubernetes/pkg/scheduler/factory"
-	deschedulernode "k8s.io/kubernetes/pkg/scheduler/nodeinfo"
+	"k8s.io/kubernetes/pkg/scheduler/framework"
+	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/interpodaffinity"
+	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/nodeaffinity"
+	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/nodename"
+	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/nodeports"
+	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/noderesources"
+	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/nodeunschedulable"
+	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/nodevolumelimits"
+	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/podtopologyspread"
+	"k8s.io/kubernetes/pkg/util/taints"
 
+	"github.com/apache/incubator-yunikorn-core/pkg/log"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/plugin/support"
 )
 
 var (
@@ -47,10 +57,13 @@ var (
 
 func TestPodFitsHost(t *testing.T) {
 	conf.GetSchedulerConf().SetTestMode(true)
-	predictor := newPredictorInternal(&factory.PluginFactoryArgs{}, schedulerapi.Policy{
-		Predicates: []schedulerapi.PredicatePolicy{
-			{Name: predicates.HostNamePred},
-		}})
+	clientSet := clientSet()
+	informerFactory := informerFactory(clientSet)
+	lister := lister()
+	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet)
+
+	ep := enabledPlugins(nodename.Name)
+	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
 	tests := []struct {
 		pod  *v1.Pod
 		node *v1.Node
@@ -95,13 +108,13 @@ func TestPodFitsHost(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			nodeInfo := deschedulernode.NewNodeInfo()
+			nodeInfo := framework.NewNodeInfo()
 			// API call always returns nil, never an error
 			//nolint:errcheck
 			_ = nodeInfo.SetNode(test.node)
-			err := predictor.Predicates(test.pod, nil, nodeInfo, true)
+			plugin, err := predicateManager.Predicates(test.pod, nodeInfo, true)
 			if (err == nil) != test.fits {
-				t.Errorf("%s expected fit state '%t' did not match real state and err = %v", test.name, test.fits, err)
+				t.Errorf("%s expected fit state '%t' did not match real state and err = %v, plugin = %v", test.name, test.fits, err, plugin)
 			}
 		})
 	}
@@ -133,102 +146,105 @@ func newPod(host string, hostPortInfos ...string) *v1.Pod {
 }
 
 func TestPodFitsHostPorts(t *testing.T) {
-	predictor := newPredictorInternal(&factory.PluginFactoryArgs{}, schedulerapi.Policy{
-		Predicates: []schedulerapi.PredicatePolicy{
-			{Name: predicates.PodFitsHostPortsPred},
-		}})
+	clientSet := clientSet()
+	informerFactory := informerFactory(clientSet)
+	lister := lister()
+	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet)
+	ep := enabledPlugins(nodeports.Name)
+	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
+
 	tests := []struct {
 		pod      *v1.Pod
-		nodeInfo *deschedulernode.NodeInfo
+		nodeInfo *framework.NodeInfo
 		fits     bool
 		name     string
 	}{
 		{
 			pod:      &v1.Pod{},
-			nodeInfo: deschedulernode.NewNodeInfo(),
+			nodeInfo: framework.NewNodeInfo(),
 			fits:     true,
 			name:     "nothing running",
 		},
 		{
 			pod: newPod("m1", "UDP/127.0.0.1/8080"),
-			nodeInfo: deschedulernode.NewNodeInfo(
+			nodeInfo: framework.NewNodeInfo(
 				newPod("m1", "UDP/127.0.0.1/9090")),
 			fits: true,
 			name: "other port",
 		},
 		{
 			pod: newPod("m1", "UDP/127.0.0.1/8080"),
-			nodeInfo: deschedulernode.NewNodeInfo(
+			nodeInfo: framework.NewNodeInfo(
 				newPod("m1", "UDP/127.0.0.1/8080")),
 			fits: false,
 			name: "same udp port",
 		},
 		{
 			pod: newPod("m1", "TCP/127.0.0.1/8080"),
-			nodeInfo: deschedulernode.NewNodeInfo(
+			nodeInfo: framework.NewNodeInfo(
 				newPod("m1", "TCP/127.0.0.1/8080")),
 			fits: false,
 			name: "same tcp port",
 		},
 		{
 			pod: newPod("m1", "TCP/127.0.0.1/8080"),
-			nodeInfo: deschedulernode.NewNodeInfo(
+			nodeInfo: framework.NewNodeInfo(
 				newPod("m1", "TCP/127.0.0.2/8080")),
 			fits: true,
 			name: "different host ip",
 		},
 		{
 			pod: newPod("m1", "UDP/127.0.0.1/8080"),
-			nodeInfo: deschedulernode.NewNodeInfo(
+			nodeInfo: framework.NewNodeInfo(
 				newPod("m1", "TCP/127.0.0.1/8080")),
 			fits: true,
 			name: "different protocol",
 		},
 		{
 			pod: newPod("m1", "UDP/127.0.0.1/8000", "UDP/127.0.0.1/8080"),
-			nodeInfo: deschedulernode.NewNodeInfo(
+			nodeInfo: framework.NewNodeInfo(
 				newPod("m1", "UDP/127.0.0.1/8080")),
 			fits: false,
 			name: "second udp port conflict",
 		},
 		{
 			pod: newPod("m1", "TCP/127.0.0.1/8001", "UDP/127.0.0.1/8080"),
-			nodeInfo: deschedulernode.NewNodeInfo(
+			nodeInfo: framework.NewNodeInfo(
 				newPod("m1", "TCP/127.0.0.1/8001", "UDP/127.0.0.1/8081")),
 			fits: false,
 			name: "first tcp port conflict",
 		},
 		{
 			pod: newPod("m1", "TCP/0.0.0.0/8001"),
-			nodeInfo: deschedulernode.NewNodeInfo(
+			nodeInfo: framework.NewNodeInfo(
 				newPod("m1", "TCP/127.0.0.1/8001")),
 			fits: false,
 			name: "first tcp port conflict due to 0.0.0.0 hostIP",
 		},
 		{
 			pod: newPod("m1", "TCP/10.0.10.10/8001", "TCP/0.0.0.0/8001"),
-			nodeInfo: deschedulernode.NewNodeInfo(
+			nodeInfo: framework.NewNodeInfo(
 				newPod("m1", "TCP/127.0.0.1/8001")),
 			fits: false,
 			name: "TCP hostPort conflict due to 0.0.0.0 hostIP",
 		},
 		{
 			pod: newPod("m1", "TCP/127.0.0.1/8001"),
-			nodeInfo: deschedulernode.NewNodeInfo(
+			nodeInfo: framework.NewNodeInfo(
 				newPod("m1", "TCP/0.0.0.0/8001")),
 			fits: false,
 			name: "second tcp port conflict to 0.0.0.0 hostIP",
 		},
 		{
 			pod: newPod("m1", "UDP/127.0.0.1/8001"),
-			nodeInfo: deschedulernode.NewNodeInfo(
+			nodeInfo: framework.NewNodeInfo(
 				newPod("m1", "TCP/0.0.0.0/8001")),
 			fits: true,
 			name: "second different protocol",
 		},
 		{
 			pod: newPod("m1", "UDP/127.0.0.1/8001"),
-			nodeInfo: deschedulernode.NewNodeInfo(
+			nodeInfo: framework.NewNodeInfo(
 				newPod("m1", "TCP/0.0.0.0/8001", "UDP/0.0.0.0/8001")),
 			fits: false,
 			name: "UDP hostPort conflict due to 0.0.0.0 hostIP",
@@ -237,19 +253,22 @@ func TestPodFitsHostPorts(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			err := predictor.Predicates(test.pod, nil, test.nodeInfo, true)
+			plugin, err := predicateManager.Predicates(test.pod, test.nodeInfo, true)
 			if (err == nil) != test.fits {
-				t.Errorf("%s expected fit state '%t' did not match real state and err = %v", test.name, test.fits, err)
+				t.Errorf("%s expected fit state '%t' did not match real state and err = %v, plugin = %v", test.name, test.fits, err, plugin)
 			}
 		})
 	}
 }
 
 func TestPodFitsSelector(t *testing.T) {
-	predictor := newPredictorInternal(&factory.PluginFactoryArgs{}, schedulerapi.Policy{
-		Predicates: []schedulerapi.PredicatePolicy{
-			{Name: predicates.MatchNodeSelectorPred},
-		}})
+	clientSet := clientSet()
+	informerFactory := informerFactory(clientSet)
+	lister := lister()
+	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet)
+	ep := enabledPlugins(nodeports.Name, nodeaffinity.Name)
+	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
+
 	tests := []struct {
 		pod      *v1.Pod
 		labels   map[string]string
@@ -738,7 +757,7 @@ func TestPodFitsSelector(t *testing.T) {
 									{
 										MatchFields: []v1.NodeSelectorRequirement{
 											{
-												Key:      schedulerapi.NodeFieldSelectorKeyNodeName,
+												Key:      core.ObjectNameField,
 												Operator: v1.NodeSelectorOpIn,
 												Values:   []string{"node_1"},
 											},
@@ -764,7 +783,7 @@ func TestPodFitsSelector(t *testing.T) {
 									{
 										MatchFields: []v1.NodeSelectorRequirement{
 											{
-												Key:      schedulerapi.NodeFieldSelectorKeyNodeName,
+												Key:      core.ObjectNameField,
 												Operator: v1.NodeSelectorOpIn,
 												Values:   []string{"node_1"},
 											},
@@ -790,7 +809,7 @@ func TestPodFitsSelector(t *testing.T) {
 									{
 										MatchFields: []v1.NodeSelectorRequirement{
 											{
-												Key:      schedulerapi.NodeFieldSelectorKeyNodeName,
+												Key:      core.ObjectNameField,
 												Operator: v1.NodeSelectorOpIn,
 												Values:   []string{"node_1"},
 											},
@@ -826,7 +845,7 @@ func TestPodFitsSelector(t *testing.T) {
 									{
 										MatchFields: []v1.NodeSelectorRequirement{
 											{
-												Key:      schedulerapi.NodeFieldSelectorKeyNodeName,
+												Key:      core.ObjectNameField,
 												Operator: v1.NodeSelectorOpIn,
 												Values:   []string{"node_1"},
 											},
@@ -860,7 +879,7 @@ func TestPodFitsSelector(t *testing.T) {
 									{
 										MatchFields: []v1.NodeSelectorRequirement{
 											{
-												Key:      schedulerapi.NodeFieldSelectorKeyNodeName,
+												Key:      core.ObjectNameField,
 												Operator: v1.NodeSelectorOpIn,
 												Values:   []string{"node_1"},
 											},
@@ -894,7 +913,7 @@ func TestPodFitsSelector(t *testing.T) {
 									{
 										MatchFields: []v1.NodeSelectorRequirement{
 											{
-												Key:      schedulerapi.NodeFieldSelectorKeyNodeName,
+												Key:      core.ObjectNameField,
 												Operator: v1.NodeSelectorOpIn,
 												Values:   []string{"node_1"},
 											},
@@ -928,20 +947,20 @@ func TestPodFitsSelector(t *testing.T) {
 				Name:   test.nodeName,
 				Labels: test.labels,
 			}}
-			nodeInfo := deschedulernode.NewNodeInfo()
+			nodeInfo := framework.NewNodeInfo()
 			// API call always returns nil, never an error
 			//nolint:errcheck
 			_ = nodeInfo.SetNode(&node)
 
-			err := predictor.Predicates(test.pod, nil, nodeInfo, true)
+			plugin, err := predicateManager.Predicates(test.pod, nodeInfo, true)
 			if (err == nil) != test.fits {
-				t.Errorf("%s expected fit state '%t' did not match real state and err = %v", test.name, test.fits, err)
+				t.Errorf("%s expected fit state '%t' did not match real state and err = %v, plugin = %v", test.name, test.fits, err, plugin)
 			}
 		})
 	}
 }
 
-func newResourcePod(usage ...deschedulernode.Resource) *v1.Pod {
+func newResourcePod(usage ...framework.Resource) *v1.Pod {
 	var containers []v1.Container
 	for _, req := range usage {
 		containers = append(containers, v1.Container{
@@ -996,23 +1015,25 @@ func newPodWithPort(hostPorts ...int) *v1.Pod {
 }
 
 func TestRunGeneralPredicates(t *testing.T) {
-	predictor := newPredictorInternal(&factory.PluginFactoryArgs{}, schedulerapi.Policy{
-		Predicates: []schedulerapi.PredicatePolicy{
-			{Name: predicates.GeneralPred},
-		}})
+	clientSet := clientSet()
+	informerFactory := informerFactory(clientSet)
+	lister := lister()
+	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet)
+	ep := enabledPlugins(noderesources.FitName, nodename.Name, nodeports.Name, nodevolumelimits.CSIName)
+	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
+
 	resourceTests := []struct {
 		pod      *v1.Pod
-		nodeInfo *deschedulernode.NodeInfo
+		nodeInfo *framework.NodeInfo
 		node     *v1.Node
 		fits     bool
 		name     string
 		wErr     error
-		reasons  []predicates.PredicateFailureReason
 	}{
 		{
 			pod: &v1.Pod{},
-			nodeInfo: deschedulernode.NewNodeInfo(
-				newResourcePod(deschedulernode.Resource{MilliCPU: 9, Memory: 19})),
+			nodeInfo: framework.NewNodeInfo(
+				newResourcePod(framework.Resource{MilliCPU: 9, Memory: 19})),
 			node: &v1.Node{
 				ObjectMeta: metav1.ObjectMeta{Name: "machine1"},
 				Status:     v1.NodeStatus{Capacity: makeResources(10, 20, 32, 0, 0, 0).Capacity, Allocatable: makeAllocatableResources(10, 20, 32, 0, 0, 0)},
@@ -1022,9 +1043,9 @@ func TestRunGeneralPredicates(t *testing.T) {
 			name: "no resources/port/host requested always fits",
 		},
 		{
-			pod: newResourcePod(deschedulernode.Resource{MilliCPU: 8, Memory: 10}),
-			nodeInfo: deschedulernode.NewNodeInfo(
-				newResourcePod(deschedulernode.Resource{MilliCPU: 5, Memory: 19})),
+			pod: newResourcePod(framework.Resource{MilliCPU: 8, Memory: 10}),
+			nodeInfo: framework.NewNodeInfo(
+				newResourcePod(framework.Resource{MilliCPU: 5, Memory: 19})),
 			node: &v1.Node{
 				ObjectMeta: metav1.ObjectMeta{Name: "machine1"},
 				Status:     v1.NodeStatus{Capacity: makeResources(10, 20, 32, 0, 0, 0).Capacity, Allocatable: makeAllocatableResources(10, 20, 32, 0, 0, 0)},
@@ -1039,7 +1060,7 @@ func TestRunGeneralPredicates(t *testing.T) {
 					NodeName: "machine2",
 				},
 			},
-			nodeInfo: deschedulernode.NewNodeInfo(),
+			nodeInfo: framework.NewNodeInfo(),
 			node: &v1.Node{
 				ObjectMeta: metav1.ObjectMeta{Name: "machine1"},
 				Status:     v1.NodeStatus{Capacity: makeResources(10, 20, 32, 0, 0, 0).Capacity, Allocatable: makeAllocatableResources(10, 20, 32, 0, 0, 0)},
@@ -1050,7 +1071,7 @@ func TestRunGeneralPredicates(t *testing.T) {
 		},
 		{
 			pod:      newPodWithPort(123),
-			nodeInfo: deschedulernode.NewNodeInfo(newPodWithPort(123)),
+			nodeInfo: framework.NewNodeInfo(newPodWithPort(123)),
 			node: &v1.Node{
 				ObjectMeta: metav1.ObjectMeta{Name: "machine1"},
 				Status:     v1.NodeStatus{Capacity: makeResources(10, 20, 32, 0, 0, 0).Capacity, Allocatable: makeAllocatableResources(10, 20, 32, 0, 0, 0)},
@@ -1065,19 +1086,22 @@ func TestRunGeneralPredicates(t *testing.T) {
 			// API call always returns nil, never an error
 			//nolint:errcheck
 			_ = test.nodeInfo.SetNode(test.node)
-			err := predictor.Predicates(test.pod, nil, test.nodeInfo, true)
+			plugin, err := predicateManager.Predicates(test.pod, test.nodeInfo, true)
 			if (err == nil) != test.fits {
-				t.Errorf("%s expected fit state '%t' did not match real state and err = %v", test.name, test.fits, err)
+				t.Errorf("%s expected fit state '%t' did not match real state and err = %v, plugin = %v", test.name, test.fits, err, plugin)
 			}
 		})
 	}
 }
 
 func TestInterPodAffinity(t *testing.T) {
-	predictor := newPredictorInternal(&factory.PluginFactoryArgs{}, schedulerapi.Policy{
-		Predicates: []schedulerapi.PredicatePolicy{
-			{Name: predicates.MatchInterPodAffinityPred},
-		}})
+	clientSet := clientSet()
+	informerFactory := informerFactory(clientSet)
+	lister := lister()
+	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet)
+	ep := enabledPlugins(interpodaffinity.Name, nodeaffinity.Name)
+	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
+
 	podLabel := map[string]string{"service": "securityscan"}
 	labels1 := map[string]string{
 		"region": "r1",
@@ -2006,41 +2030,17 @@ func TestInterPodAffinity(t *testing.T) {
 				}
 			}
 
-			nodeInfo := deschedulernode.NewNodeInfo(podsOnNode...)
+			nodeInfo := framework.NewNodeInfo(podsOnNode...)
 			// API call always returns nil, never an error
 			//nolint:errcheck
 			_ = nodeInfo.SetNode(test.node)
-			nodeInfoMap := map[string]*deschedulernode.NodeInfo{test.node.Name: nodeInfo}
-			meta := predictor.GetPredicateMeta(test.pod, nodeInfoMap)
-			err := predictor.Predicates(test.pod, meta, nodeInfo, true)
+			lister.nodeLister.nodeInfos = []*framework.NodeInfo{nodeInfo}
+			plugin, err := predicateManager.Predicates(test.pod, nodeInfo, true)
 			if (err == nil) != test.fits {
-				t.Errorf("%s expected fit state '%t' did not match real state and err = %v", test.name, test.fits, err)
+				t.Errorf("%s expected fit state '%t' did not match real state and err = %v, plugin = %v", test.name, test.fits, err, plugin)
 			}
 		})
 	}
-}
-
-func TestConfiguredPredicates(t *testing.T) {
-	schedulerConf := conf.GetSchedulerConf()
-	testPredicates := []string{predicates.MatchNodeSelectorPred,
-		predicates.CheckVolumeBindingPred, predicates.PodFitsResourcesPred}
-	schedulerConf.Predicates = strings.Join(testPredicates, ",")
-	predictor := NewPredictor(&factory.PluginFactoryArgs{}, false)
-	assert.Equal(t, len(predictor.fitPredicateFunctions), len(testPredicates))
-	for _, pred := range testPredicates {
-		_, ok := predictor.fitPredicateFunctions[pred]
-		assert.Assert(t, ok, "configured predicate '%s' is not found", pred)
-	}
-}
-
-func TestInvalidConfiguredPredicates(t *testing.T) {
-	schedulerConf := conf.GetSchedulerConf()
-	testPredicates := []string{predicates.MatchNodeSelectorPred,
-		"xxx", predicates.CheckVolumeBindingPred}
-	schedulerConf.Predicates = strings.Join(testPredicates, ",")
-	_, err := parseConfiguredSchedulerPolicy()
-	assert.Error(t, err, fmt.Sprintf("configured predicate 'xxx' is invalid, valid predicates are: %v",
-		predicates.Ordering()))
 }
 
 func TestReserveAlloc(t *testing.T) {
@@ -2054,36 +2054,37 @@ func TestReserveAlloc(t *testing.T) {
 			Name: "foo",
 		},
 	}
-	nodeInfo := deschedulernode.NewNodeInfo(pod)
+	nodeInfo := framework.NewNodeInfo(pod)
 	// API call always returns nil, never an error
 	//nolint:errcheck
 	_ = nodeInfo.SetNode(node)
-	nodeInfoMap := map[string]*deschedulernode.NodeInfo{node.Name: nodeInfo}
 
 	// no predicates configured that are run by reservations
-	predictor := newPredictorInternal(&factory.PluginFactoryArgs{}, schedulerapi.Policy{
-		Predicates: []schedulerapi.PredicatePolicy{
-			{Name: predicates.HostNamePred},
-		}})
-	meta := predictor.GetPredicateMeta(pod, nodeInfoMap)
-	err := predictor.Predicates(pod, meta, nodeInfo, false)
+	clientSet := clientSet()
+	informerFactory := informerFactory(clientSet)
+	lister := lister()
+	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet)
+	ep := enabledPlugins()
+	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
+	_, err := predicateManager.Predicates(pod, nodeInfo, false)
 	assert.NilError(t, err, "error should have been nil, no predicates given")
 
 	// add one predicate also run by reservations
-	predictor = newPredictorInternal(&factory.PluginFactoryArgs{}, schedulerapi.Policy{
-		Predicates: []schedulerapi.PredicatePolicy{
-			{Name: predicates.CheckNodeUnschedulablePred},
-		}})
-	err = predictor.Predicates(pod, meta, nodeInfo, false)
+	ep[nodeunschedulable.Name] = true
+	predicateManager = newPredicateManagerInternal(handle, ep, ep, ep, ep)
+	_, err = predicateManager.Predicates(pod, nodeInfo, false)
 	assert.NilError(t, err, "error should have been nil, node is schedulable")
 
 	// make the node unschedulable
-	nodeInfo.SetTaints([]v1.Taint{{
-		Key:    schedulerapi.TaintNodeUnschedulable,
+	node, _, err = taints.AddOrUpdateTaint(nodeInfo.Node(), &v1.Taint{
+		Key:    v1.TaintNodeUnschedulable,
 		Effect: v1.TaintEffectNoSchedule,
-	}})
+	})
 	node.Spec.Unschedulable = true
-	err = predictor.Predicates(pod, meta, nodeInfo, false)
+	assert.NilError(t, err, "failed to add taint")
+	err = nodeInfo.SetNode(node)
+	assert.NilError(t, err, "failed to set node")
+	_, err = predicateManager.Predicates(pod, nodeInfo, false)
 	if err == nil {
 		t.Errorf("error should not have been nil, predicate should have failed")
 	}
@@ -2101,15 +2102,16 @@ func TestReserveNodeSelector(t *testing.T) {
 			Name: "node",
 		},
 	}
-	nodeInfo := deschedulernode.NewNodeInfo(pod)
+	nodeInfo := framework.NewNodeInfo(pod)
 	err := nodeInfo.SetNode(node)
 	assert.NilError(t, err, "No error expected")
-	nodeInfoMap := map[string]*deschedulernode.NodeInfo{node.Name: nodeInfo}
 
-	predictor := newPredictorInternal(&factory.PluginFactoryArgs{}, schedulerapi.Policy{
-		Predicates: []schedulerapi.PredicatePolicy{
-			{Name: predicates.MatchNodeSelectorPred},
-		}})
+	clientSet := clientSet()
+	informerFactory := informerFactory(clientSet)
+	lister := lister()
+	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet)
+	ep := enabledPlugins(nodename.Name, nodeports.Name, podtopologyspread.Name, nodeaffinity.Name)
+	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
 
 	testCases := []struct {
 		name          string
@@ -2126,8 +2128,8 @@ func TestReserveNodeSelector(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			pod.Spec.NodeSelector = tc.nodeSelectors
 			node.Labels = tc.nodeLabels
-			meta := predictor.GetPredicateMeta(pod, nodeInfoMap)
-			err = predictor.Predicates(pod, meta, nodeInfo, false)
+			plugin, err := predicateManager.Predicates(pod, nodeInfo, false)
+			log.Logger().Info("reservation predicates called", zap.Error(err), zap.String("plugin", plugin))
 			if tc.errorExpected {
 				assert.Assert(t, err != nil, "An error is expected")
 			} else {
@@ -2136,3 +2138,75 @@ func TestReserveNodeSelector(t *testing.T) {
 		})
 	}
 }
+
+func lister() *sharedListerMock {
+	return &sharedListerMock{
+		nodeLister: &nodeListerMock{
+			nodeInfos: make([]*framework.NodeInfo, 0),
+		},
+	}
+}
+
+func informerFactory(clientSet kubernetes.Interface) informers.SharedInformerFactory {
+	return informers.NewSharedInformerFactory(clientSet, 0)
+}
+
+func clientSet() kubernetes.Interface {
+	return client.NewKubeClientMock().GetClientSet()
+}
+
+func enabledPlugins(name ...string) map[string]bool {
+	pm := make(map[string]bool)
+	for _, k := range name {
+		pm[k] = true
+	}
+	return pm
+}
+
+type sharedListerMock struct {
+	nodeLister *nodeListerMock
+}
+
+func (s *sharedListerMock) NodeInfos() framework.NodeInfoLister {
+	return s.nodeLister
+}
+
+type nodeListerMock struct {
+	nodeInfos []*framework.NodeInfo
+}
+
+func (n *nodeListerMock) List() ([]*framework.NodeInfo, error) {
+	return n.nodeInfos, nil
+}
+
+func (n *nodeListerMock) HavePodsWithAffinityList() ([]*framework.NodeInfo, error) {
+	result := make([]*framework.NodeInfo, 0, len(n.nodeInfos))
+	for _, node := range n.nodeInfos {
+		if len(node.PodsWithAffinity) > 0 {
+			result = append(result, node)
+		}
+	}
+	return result, nil
+}
+
+func (n *nodeListerMock) HavePodsWithRequiredAntiAffinityList() ([]*framework.NodeInfo, error) {
+	result := make([]*framework.NodeInfo, 0, len(n.nodeInfos))
+	for _, node := range n.nodeInfos {
+		if len(node.PodsWithRequiredAntiAffinity) > 0 {
+			result = append(result, node)
+		}
+	}
+	return result, nil
+}
+
+func (n *nodeListerMock) Get(nodeName string) (*framework.NodeInfo, error) {
+	for _, node := range n.nodeInfos {
+		if node.Node().Name == nodeName {
+			return node, nil
+		}
+	}
+	return nil, errors.New("node not found")
+}
+
+var _ framework.SharedLister = &sharedListerMock{}
+var _ framework.NodeInfoLister = &nodeListerMock{}
