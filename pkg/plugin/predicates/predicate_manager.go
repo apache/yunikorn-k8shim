@@ -87,9 +87,6 @@ func (p *predicateManagerImpl) podFitsNode(ctx context.Context, state *framework
 	// Run "prefilter" plugins.
 	s, plugin := p.runPreFilterPlugins(ctx, state, preFilters, pod)
 	if !s.IsSuccess() {
-		if !s.IsUnschedulable() {
-			return plugin, s.AsError()
-		}
 		return plugin, s.AsError()
 	}
 
@@ -97,9 +94,6 @@ func (p *predicateManagerImpl) podFitsNode(ctx context.Context, state *framework
 	statuses, plugin := p.runFilterPlugins(ctx, filters, state, pod, node)
 	s = statuses.Merge()
 	if !s.IsSuccess() {
-		if !s.IsUnschedulable() {
-			return plugin, s.AsError()
-		}
 		return plugin, s.AsError()
 	}
 	return "", nil
