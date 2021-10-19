@@ -325,7 +325,7 @@ var _ = Describe("Predicates", func() {
 			Value:  "testing-taint-value",
 			Effect: v1.TaintEffectNoSchedule,
 		}
-		err := controller.AddOrUpdateTaintOnNode(kClient.GetClient(), nodeName, testTaint)
+		err = controller.AddOrUpdateTaintOnNode(kClient.GetClient(), nodeName, testTaint)
 		Ω(err).NotTo(HaveOccurred())
 		framework.ExpectNodeHasTaint(kClient.GetClient(), nodeName, testTaint)
 		defer func(c kubernetes.Interface, nodeName string, taint *v1.Taint) {
