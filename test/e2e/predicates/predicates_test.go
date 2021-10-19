@@ -19,7 +19,6 @@
 package predicates_test
 
 import (
-	ctx "context"
 	"fmt"
 	"reflect"
 	"strings"
@@ -41,12 +40,6 @@ import (
 
 // variable populated in BeforeEach, never modified afterwards
 var workerNodes []string
-
-func getNode(k *k8s.KubeCtl, nodeName string) *v1.Node {
-	node, err := k.GetClient().CoreV1().Nodes().Get(ctx.TODO(), nodeName, metav1.GetOptions{})
-	Ω(err).NotTo(HaveOccurred())
-	return node
-}
 
 func getNodeThatCanRunPodWithoutToleration(k *k8s.KubeCtl, namespace string) string {
 	By("Trying to launch a pod without a toleration to get a node which can launch it.")
@@ -169,7 +162,7 @@ var _ = Describe("Predicates", func() {
 				framework.Logf("Yunikorn Event Reason: %s", event.Reason)
 				Ω(event.Reason).Should(Equal("FailedScheduling"), "Event reason mismatch")
 				framework.Logf("Yunikorn Event Message: %s", event.Message)
-				Ω(event.Message).Should(MatchRegexp("Predicate MatchNodeSelector failed"), "Event message mismatch")
+				Ω(event.Message).Should(MatchRegexp("predicate is not satisfied.*didn't match Pod's node affinity"), "Event message mismatch")
 			}
 		}
 	})
@@ -272,7 +265,7 @@ var _ = Describe("Predicates", func() {
 				framework.Logf("Yunikorn Event Reason: %s", event.Reason)
 				Ω(event.Reason).Should(Equal("FailedScheduling"), "Event reason mismatch")
 				framework.Logf("Yunikorn Event Message: %s", event.Message)
-				Ω(event.Message).Should(MatchRegexp("Predicate MatchNodeSelector failed"), "Event message mismatch")
+				Ω(event.Message).Should(MatchRegexp("predicate is not satisfied.*didn't match Pod's node affinity"), "Event message mismatch")
 			}
 		}
 	})
@@ -326,7 +319,6 @@ var _ = Describe("Predicates", func() {
 	// Tests for Taints & Tolerations
 	It("Verify_Matching_Taint_Tolerations_Respected", func() {
 		nodeName := getNodeThatCanRunPodWithoutToleration(&kClient, ns)
-		node := getNode(&kClient, nodeName)
 		By("Trying to apply a random taint on the found node.")
 		testTaint := &v1.Taint{
 			Key:    fmt.Sprintf("kubernetes.io/e2e-taint-key-%s", common.RandSeq(10)),
@@ -336,10 +328,10 @@ var _ = Describe("Predicates", func() {
 		err := controller.AddOrUpdateTaintOnNode(kClient.GetClient(), nodeName, testTaint)
 		Ω(err).NotTo(HaveOccurred())
 		framework.ExpectNodeHasTaint(kClient.GetClient(), nodeName, testTaint)
-		defer func(c kubernetes.Interface, nodeName string, node *v1.Node, taint *v1.Taint) {
-			err = controller.RemoveTaintOffNode(c, nodeName, node, taint)
+		defer func(c kubernetes.Interface, nodeName string, taint *v1.Taint) {
+			err = controller.RemoveTaintOffNode(c, nodeName, nil, taint)
 			Ω(err).NotTo(HaveOccurred())
-		}(kClient.GetClient(), nodeName, node, testTaint)
+		}(kClient.GetClient(), nodeName, testTaint)
 
 		ginkgo.By("Trying to apply a random label on the found node.")
 		labelKey := fmt.Sprintf("kubernetes.io/e2e-label-key-%s", common.RandSeq(10))
@@ -372,9 +364,6 @@ var _ = Describe("Predicates", func() {
 
 	It("Verify_Not_Matching_Taint_Tolerations_Respected", func() {
 		nodeName := getNodeThatCanRunPodWithoutToleration(&kClient, ns)
-		node, err := kClient.GetClient().CoreV1().Nodes().Get(ctx.TODO(), nodeName, metav1.GetOptions{})
-		Ω(err).NotTo(HaveOccurred())
-
 		By("Trying to apply a random taint on the found node.")
 		testTaint := &v1.Taint{
 			Key:    fmt.Sprintf("kubernetes.io/e2e-taint-key-%s", common.RandSeq(10)),
@@ -385,10 +374,10 @@ var _ = Describe("Predicates", func() {
 		Ω(err).NotTo(HaveOccurred())
 
 		framework.ExpectNodeHasTaint(kClient.GetClient(), nodeName, testTaint)
-		defer func(c kubernetes.Interface, nodeName string, node *v1.Node, taint *v1.Taint) {
-			err = controller.RemoveTaintOffNode(c, nodeName, node, taint)
+		defer func(c kubernetes.Interface, nodeName string, taint *v1.Taint) {
+			err = controller.RemoveTaintOffNode(c, nodeName, nil, taint)
 			Ω(err).NotTo(HaveOccurred())
-		}(kClient.GetClient(), nodeName, node, testTaint)
+		}(kClient.GetClient(), nodeName, testTaint)
 
 		ginkgo.By("Trying to apply a random label on the found node.")
 		labelKey := fmt.Sprintf("kubernetes.io/e2e-label-key-%s", common.RandSeq(10))
@@ -425,16 +414,16 @@ var _ = Describe("Predicates", func() {
 		Ω(len(events.Items)).NotTo(BeZero(), "Events cant be empty")
 		for _, event := range events.Items {
 			framework.Logf("Event source is : %s", event.Source.Component)
-			if event.Source.Component == configmanager.SchedulerName && event.Type == WARNING && !strings.Contains(event.Message, "MatchNodeSelector") {
+			if event.Source.Component == configmanager.SchedulerName && event.Type == WARNING && !strings.Contains(event.Message, "node affinity") {
 				framework.Logf("Yunikorn Event Reason: %s", event.Reason)
 				Ω(event.Reason).Should(Equal("FailedScheduling"), "Event reason mismatch")
 				framework.Logf("Yunikorn Event Message: %s", event.Message)
-				Ω(event.Message).Should(MatchRegexp("Predicate PodToleratesNodeTaints failed"), "Event message mismatch")
+				Ω(event.Message).Should(MatchRegexp("predicate is not satisfied.*taint.*"), "Event message mismatch")
 			}
 		}
 
 		// Remove taint off the node and verify the pod is scheduled on node.
-		err = controller.RemoveTaintOffNode(kClient.GetClient(), nodeName, node, testTaint)
+		err = controller.RemoveTaintOffNode(kClient.GetClient(), nodeName, nil, testTaint)
 		Ω(err).NotTo(HaveOccurred())
 		Ω(kClient.WaitForPodRunning(ns, podNameNoTolerations, time.Duration(60)*time.Second)).NotTo(HaveOccurred())
 
@@ -1071,11 +1060,11 @@ var _ = Describe("Predicates", func() {
 		Ω(len(events.Items)).NotTo(BeZero(), "Events cant be empty")
 		for _, event := range events.Items {
 			framework.Logf("Event source is : %s", event.Source.Component)
-			if event.Source.Component == configmanager.SchedulerName && event.Type == WARNING && !strings.Contains(event.Message, "MatchNodeSelector") {
+			if event.Source.Component == configmanager.SchedulerName && event.Type == WARNING && !strings.Contains(event.Message, "node affinity") {
 				framework.Logf("Yunikorn Event Reason: %s", event.Reason)
 				Ω(event.Reason).Should(Equal("FailedScheduling"), "Event reason mismatch")
 				framework.Logf("Yunikorn Event Message: %s", event.Message)
-				Ω(event.Message).Should(MatchRegexp("Predicate PodFitsHostPorts failed"), "Event message mismatch")
+				Ω(event.Message).Should(MatchRegexp("predicate is not satisfied.*free ports.*"), "Event message mismatch")
 			}
 		}
 	})
