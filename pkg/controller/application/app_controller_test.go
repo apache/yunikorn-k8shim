@@ -52,7 +52,7 @@ func TestDeleteApp(t *testing.T) {
 func TestAddApp(t *testing.T) {
 	am := NewAppManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider())
 	app := createApp(defaultName, defaultNamespace, defaultQueue)
-	savedApp, err := am.apiProvider.GetAPIs().AppClient.ApacheV1alpha1().Applications(defaultNamespace).Create(context.TODO(), &app, apis.CreateOptions{})
+	savedApp, err := am.apiProvider.GetAPIs().AppClient.ApacheV1alpha1().Applications(defaultNamespace).Create(context.Background(), &app, apis.CreateOptions{})
 	assert.NilError(t, err)
 	assert.Equal(t, savedApp.Name, app.Name)
 	am.addApp(&app)

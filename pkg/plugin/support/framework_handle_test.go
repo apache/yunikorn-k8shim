@@ -60,62 +60,6 @@ func TestClientSet(t *testing.T) {
 	assert.Equal(t, cs, cs2, "wrong clientset")
 }
 
-func TestIterateOverWaitingPodsPanic(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Errorf("IterateOverWaitingPods did not panic")
-		}
-	}()
-	clientSet := clientSet()
-	handle := NewFrameworkHandle(lister(), informerFactory(clientSet), clientSet)
-	handle.IterateOverWaitingPods(func(_ framework.WaitingPod) {})
-}
-
-func TestGetWaitingPodPanic(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Errorf("GetWaitingPod did not panic")
-		}
-	}()
-	clientSet := clientSet()
-	handle := NewFrameworkHandle(lister(), informerFactory(clientSet), clientSet)
-	handle.GetWaitingPod("")
-}
-
-func TestRejectWaitingPodPanic(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Errorf("RejectWaitingPod did not panic")
-		}
-	}()
-	clientSet := clientSet()
-	handle := NewFrameworkHandle(lister(), informerFactory(clientSet), clientSet)
-	handle.RejectWaitingPod("")
-}
-
-func TestEventRecorderPanic(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Errorf("EventRecorder did not panic")
-		}
-	}()
-	clientSet := clientSet()
-	handle := NewFrameworkHandle(lister(), informerFactory(clientSet), clientSet)
-	handle.EventRecorder()
-}
-
-func TestPreemptHandle(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Errorf("PreemtHandle did not panic")
-		}
-	}()
-
-	clientSet := clientSet()
-	handle := NewFrameworkHandle(lister(), informerFactory(clientSet), clientSet)
-	handle.PreemptHandle()
-}
-
 func lister() framework.SharedLister {
 	cache := external.NewSchedulerCache(client.NewMockedAPIProvider().GetAPIs())
 	return NewSharedLister(cache)

@@ -24,6 +24,8 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/events"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
+
+	"github.com/apache/incubator-yunikorn-core/pkg/log"
 )
 
 type frameworkHandle struct {
@@ -47,23 +49,26 @@ func (p frameworkHandle) ClientSet() kubernetes.Interface {
 // stubbed out to fulfill framework.Handle contract; these are all currently unused by upstream K8S predicates
 
 func (p frameworkHandle) IterateOverWaitingPods(callback func(framework.WaitingPod)) {
-	panic("BUG: Not used by plugins")
+	log.Logger().Fatal("BUG: Should not be used by plugins")
 }
 
 func (p frameworkHandle) GetWaitingPod(uid types.UID) framework.WaitingPod {
-	panic("BUG: Not used by plugins")
+	log.Logger().Fatal("BUG: Should not be used by plugins")
+	return nil
 }
 
 func (p frameworkHandle) RejectWaitingPod(uid types.UID) {
-	panic("BUG: Not used by plugins")
+	log.Logger().Fatal("BUG: Should not be used by plugins")
 }
 
 func (p frameworkHandle) EventRecorder() events.EventRecorder {
-	panic("BUG: Not used by plugins")
+	log.Logger().Fatal("BUG: Should not be used by plugins")
+	return nil
 }
 
 func (p frameworkHandle) PreemptHandle() framework.PreemptHandle {
-	panic("BUG: Not used by plugins")
+	log.Logger().Fatal("BUG: Should not be used by plugins")
+	return nil
 }
 
 var _ framework.Handle = frameworkHandle{}

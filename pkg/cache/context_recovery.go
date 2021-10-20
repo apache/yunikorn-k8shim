@@ -88,7 +88,7 @@ func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) err
 		var podList *corev1.PodList
 		podList, err = ctx.apiProvider.GetAPIs().KubeClient.GetClientSet().
 			CoreV1().Pods("").
-			List(context.TODO(), metav1.ListOptions{})
+			List(context.Background(), metav1.ListOptions{})
 		if err != nil {
 			return err
 		}

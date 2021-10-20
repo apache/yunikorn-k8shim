@@ -67,13 +67,13 @@ func (p *predicateManagerImpl) Predicates(pod *v1.Pod, node *framework.NodeInfo,
 }
 
 func (p *predicateManagerImpl) predicatesReserve(pod *v1.Pod, node *framework.NodeInfo) (plugin string, error error) {
-	ctx := context.TODO()
+	ctx := context.Background()
 	state := framework.NewCycleState()
 	return p.podFitsNode(ctx, state, *p.reservationPreFilters, *p.reservationFilters, pod, node)
 }
 
 func (p *predicateManagerImpl) predicatesAllocate(pod *v1.Pod, node *framework.NodeInfo) (plugin string, error error) {
-	ctx := context.TODO()
+	ctx := context.Background()
 	state := framework.NewCycleState()
 	plugin, err := p.podFitsNode(ctx, state, *p.allocationPreFilters, *p.allocationFilters, pod, node)
 	if err != nil {
@@ -233,7 +233,7 @@ func newPredicateManagerInternal(
 
 	if !exist {
 		// this is unrecoverable
-		panic(fmt.Sprintf("BUG: Can't get default scheduler provider: %s", apiConfig.SchedulerDefaultProviderName))
+		log.Logger().Fatal(fmt.Sprintf("BUG: Can't get default scheduler provider: %s", apiConfig.SchedulerDefaultProviderName))
 	}
 
 	createdPlugins := make(map[string]framework.Plugin)
