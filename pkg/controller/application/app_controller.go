@@ -171,7 +171,7 @@ func (appMgr *AppManager) updateAppCRDStatus(appCRD *appv1.Application, status a
 		Message:    "app CRD status change",
 		LastUpdate: v1.NewTime(time.Now()),
 	}
-	_, err := appMgr.apiProvider.GetAPIs().AppClient.ApacheV1alpha1().Applications(appCRD.Namespace).UpdateStatus(context.TODO(), appCopy, v1.UpdateOptions{})
+	_, err := appMgr.apiProvider.GetAPIs().AppClient.ApacheV1alpha1().Applications(appCRD.Namespace).UpdateStatus(context.Background(), appCopy, v1.UpdateOptions{})
 	if err != nil {
 		log.Logger().Error("Failed to update application CRD",
 			zap.String("AppId", appCopy.Name))

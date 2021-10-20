@@ -716,7 +716,7 @@ func (ctx *Context) updatePodCondition(task *Task, podCondition *v1.PodCondition
 			if podutil.UpdatePodCondition(&task.pod.Status, podCondition) {
 				if !ctx.apiProvider.IsTestingMode() {
 					_, err := ctx.apiProvider.GetAPIs().KubeClient.GetClientSet().CoreV1().
-						Pods(task.pod.Namespace).UpdateStatus(context.TODO(), task.pod, metav1.UpdateOptions{})
+						Pods(task.pod.Namespace).UpdateStatus(context.Background(), task.pod, metav1.UpdateOptions{})
 					if err == nil {
 						return true
 					}
@@ -869,7 +869,7 @@ func (ctx *Context) SaveConfigmap(request *si.UpdateConfigurationRequest) *si.Up
 	newConf := ykconf.DeepCopy()
 	oldConfData := ykconf.Data["queues.yaml"]
 	newConf.Data = newConfData
-	_, err = ctx.apiProvider.GetAPIs().KubeClient.GetClientSet().CoreV1().ConfigMaps(ykconf.Namespace).Update(context.TODO(), newConf, metav1.UpdateOptions{})
+	_, err = ctx.apiProvider.GetAPIs().KubeClient.GetClientSet().CoreV1().ConfigMaps(ykconf.Namespace).Update(context.Background(), newConf, metav1.UpdateOptions{})
 	if err != nil {
 		return &si.UpdateConfigurationResponse{
 			Success: false,
