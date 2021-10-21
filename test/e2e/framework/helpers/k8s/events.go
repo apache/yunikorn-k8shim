@@ -19,6 +19,7 @@
 package k8s
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"sync"
@@ -67,13 +68,13 @@ func ObserveEventAfterAction(c clientset.Interface, ns string, eventPredicate fu
 	_, controller := cache.NewInformer(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				ls, err := c.CoreV1().Events(ns).List(options)
+				ls, err := c.CoreV1().Events(ns).List(context.TODO(), options)
 				return ls, err
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				// Signal parent goroutine that watching has begun.
 				defer informerStartedGuard.Do(func() { close(informerStartedChan) })
-				w, err := c.CoreV1().Events(ns).Watch(options)
+				w, err := c.CoreV1().Events(ns).Watch(context.TODO(), options)
 				return w, err
 			},
 		},

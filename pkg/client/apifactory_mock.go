@@ -53,7 +53,6 @@ func NewMockedAPIProvider() *MockedAPIProvider {
 				DispatchTimeout:      0,
 				KubeQPS:              0,
 				KubeBurst:            0,
-				Predicates:           "",
 			},
 			KubeClient:        NewKubeClientMock(),
 			SchedulerAPI:      test.NewSchedulerAPIMock(),

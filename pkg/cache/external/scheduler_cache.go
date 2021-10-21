@@ -26,10 +26,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	storageV1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/kubernetes/pkg/scheduler/algorithm"
-	"k8s.io/kubernetes/pkg/scheduler/algorithm/predicates"
-	"k8s.io/kubernetes/pkg/scheduler/factory"
-	schedulernode "k8s.io/kubernetes/pkg/scheduler/nodeinfo"
+	"k8s.io/kubernetes/pkg/scheduler/framework"
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
@@ -40,7 +37,7 @@ import (
 // we replicate nodes info from de-scheduler, in order to re-use predicates functions.
 type SchedulerCache struct {
 	// node name to NodeInfo map
-	nodesMap map[string]*schedulernode.NodeInfo
+	nodesMap map[string]*framework.NodeInfo
 	podsMap  map[string]*v1.Pod
 	// this is a map of assumed pods,
 	// the value indicates if a pod volumes are all bound
@@ -52,41 +49,29 @@ type SchedulerCache struct {
 
 func NewSchedulerCache(clients *client.Clients) *SchedulerCache {
 	cache := &SchedulerCache{
-		nodesMap:    make(map[string]*schedulernode.NodeInfo),
+		nodesMap:    make(map[string]*framework.NodeInfo),
 		podsMap:     make(map[string]*v1.Pod),
 		assumedPods: make(map[string]bool),
 		clients:     clients,
 	}
-	cache.assignArgs(GetPluginArgs())
 	return cache
 }
 
-func (cache *SchedulerCache) GetNodesInfoMap() map[string]*schedulernode.NodeInfo {
+func (cache *SchedulerCache) GetNodesInfoMap() map[string]*framework.NodeInfo {
 	return cache.nodesMap
 }
 
-func (cache *SchedulerCache) GetNodesInfoMapCopy() map[string]*schedulernode.NodeInfo {
+func (cache *SchedulerCache) GetNodesInfoMapCopy() map[string]*framework.NodeInfo {
 	cache.lock.RLock()
 	defer cache.lock.RUnlock()
-	copyOfMap := make(map[string]*schedulernode.NodeInfo, len(cache.nodesMap))
+	copyOfMap := make(map[string]*framework.NodeInfo, len(cache.nodesMap))
 	for k, v := range cache.nodesMap {
 		copyOfMap[k] = v.Clone()
 	}
 	return copyOfMap
 }
 
-func (cache *SchedulerCache) assignArgs(args *factory.PluginFactoryArgs) {
-	// nodes cache implemented PodLister and NodeInfo interface
-	log.Logger().Debug("Initialising PluginFactoryArgs using SchedulerCache")
-	args.PodLister = cache
-	args.NodeInfo = cache
-	args.VolumeBinder = cache.clients.VolumeBinder
-	args.PVInfo = &predicates.CachedPersistentVolumeInfo{PersistentVolumeLister: cache.clients.PVInformer.Lister()}
-	args.PVCInfo = &predicates.CachedPersistentVolumeClaimInfo{PersistentVolumeClaimLister: cache.clients.PVCInformer.Lister()}
-	args.StorageClassInfo = &predicates.CachedStorageClassInfo{StorageClassLister: cache.clients.StorageInformer.Lister()}
-}
-
-func (cache *SchedulerCache) GetNode(name string) *schedulernode.NodeInfo {
+func (cache *SchedulerCache) GetNode(name string) *framework.NodeInfo {
 	cache.lock.RLock()
 	defer cache.lock.RUnlock()
 
@@ -102,7 +87,7 @@ func (cache *SchedulerCache) AddNode(node *v1.Node) {
 
 	_, ok := cache.nodesMap[node.Name]
 	if !ok {
-		n := schedulernode.NewNodeInfo()
+		n := framework.NewNodeInfo()
 		cache.nodesMap[node.Name] = n
 	}
 
@@ -123,7 +108,7 @@ func (cache *SchedulerCache) UpdateNode(oldNode, newNode *v1.Node) error {
 	if !ok {
 		log.Logger().Warn("updated node info not found, adding it to the cache",
 			zap.String("nodeName", newNode.Name))
-		n = schedulernode.NewNodeInfo()
+		n = framework.NewNodeInfo()
 		cache.nodesMap[newNode.Name] = n
 	}
 
@@ -163,7 +148,7 @@ func (cache *SchedulerCache) ArePodVolumesAllBound(podKey string) bool {
 // if pod is assigned to a node, update the cached nodes map too so that scheduler
 // knows which pod is running before pod is bound to that node.
 func (cache *SchedulerCache) AddPod(pod *v1.Pod) error {
-	key, err := schedulernode.GetPodKey(pod)
+	key, err := framework.GetPodKey(pod)
 	if err != nil {
 		return err
 	}
@@ -201,7 +186,7 @@ func (cache *SchedulerCache) AddPod(pod *v1.Pod) error {
 }
 
 func (cache *SchedulerCache) UpdatePod(oldPod, newPod *v1.Pod) error {
-	key, err := schedulernode.GetPodKey(oldPod)
+	key, err := framework.GetPodKey(oldPod)
 	if err != nil {
 		return err
 	}
@@ -233,7 +218,7 @@ func (cache *SchedulerCache) addPod(pod *v1.Pod) {
 	if pod.Spec.NodeName != "" {
 		n, ok := cache.nodesMap[pod.Spec.NodeName]
 		if !ok {
-			n = schedulernode.NewNodeInfo()
+			n = framework.NewNodeInfo()
 			cache.nodesMap[pod.Spec.NodeName] = n
 		}
 		n.AddPod(pod)
@@ -277,7 +262,7 @@ func (cache *SchedulerCache) GetPod(uid string) (*v1.Pod, bool) {
 }
 
 func (cache *SchedulerCache) AssumePod(pod *v1.Pod, allBound bool) error {
-	key, err := schedulernode.GetPodKey(pod)
+	key, err := framework.GetPodKey(pod)
 	if err != nil {
 		return err
 	}
@@ -296,7 +281,7 @@ func (cache *SchedulerCache) AssumePod(pod *v1.Pod, allBound bool) error {
 }
 
 func (cache *SchedulerCache) ForgetPod(pod *v1.Pod) error {
-	key, err := schedulernode.GetPodKey(pod)
+	key, err := framework.GetPodKey(pod)
 	if err != nil {
 		return err
 	}
@@ -325,28 +310,19 @@ func (cache *SchedulerCache) ForgetPod(pod *v1.Pod) error {
 	return nil
 }
 
-// Implement scheduler/algorithm/types.go#PodLister interface
+// Implement k8s.io/client-go/listers/core/v1#PodLister interface
 func (cache *SchedulerCache) List(selector labels.Selector) ([]*v1.Pod, error) {
-	alwaysTrue := func(p *v1.Pod) bool { return true }
-	return cache.FilteredList(alwaysTrue, selector)
-}
-
-// Implement scheduler/algorithm/types.go#PodLister interface
-func (cache *SchedulerCache) FilteredList(podFilter algorithm.PodFilter, selector labels.Selector) ([]*v1.Pod, error) {
 	cache.lock.RLock()
 	defer cache.lock.RUnlock()
-	// podFilter is expected to return true for most or all of the pods. We
-	// can avoid expensive array growth without wasting too much memory by
-	// pre-allocating capacity.
 	maxSize := 0
 	for _, nodeInfo := range cache.nodesMap {
-		maxSize += len(nodeInfo.Pods())
+		maxSize += len(nodeInfo.Pods)
 	}
 	pods := make([]*v1.Pod, 0, maxSize)
 	for _, nodeInfo := range cache.nodesMap {
-		for _, pod := range nodeInfo.Pods() {
-			if podFilter(pod) && selector.Matches(labels.Set(pod.Labels)) {
-				pods = append(pods, pod)
+		for _, pod := range nodeInfo.Pods {
+			if selector.Matches(labels.Set(pod.Pod.Labels)) {
+				pods = append(pods, pod.Pod)
 			}
 		}
 	}
