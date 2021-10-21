@@ -49,6 +49,12 @@ spec:
               mountPath: /etc/yunikorn/
           ports:
             - containerPort: 9080
+          livenessProbe:
+            httpGet:
+              path: /ws/v1/scheduler/healthcheck
+              port: 9080
+            initialDelaySeconds: 20
+            periodSeconds: 600
         - name: yunikorn-scheduler-web
           image: apache/yunikorn:web-latest
           imagePullPolicy: IfNotPresent
