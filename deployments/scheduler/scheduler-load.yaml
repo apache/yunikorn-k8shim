@@ -55,6 +55,7 @@ spec:
               port: 9080
             initialDelaySeconds: 20
             periodSeconds: 600
+            failureThreshold: 1
         - name: yunikorn-scheduler-web
           image: apache/yunikorn:web-latest
           imagePullPolicy: IfNotPresent
