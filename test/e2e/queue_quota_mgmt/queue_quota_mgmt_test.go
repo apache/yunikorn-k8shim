@@ -104,7 +104,7 @@ var _ = Describe("", func() {
 			var capacities = queueInfo["capacities"].(map[string]interface{})
 			Ω(maxResource.ParseResourceUsageString(capacities["maxCapacity"].(string))).NotTo(HaveOccurred())
 			Ω(usedResource.ParseResourceUsageString(capacities["usedCapacity"].(string))).NotTo(HaveOccurred())
-			Ω(usedPerctResource.ParseResourceUsageString(capacities["absusedCapacity"].(string))).NotTo(HaveOccurred())
+			Ω(usedPerctResource.ParseResourceUsageString(capacities["absUsedCapacity"].(string))).NotTo(HaveOccurred())
 
 			By(fmt.Sprintf("App-%d: Verify max capacity on the queue is accurate", iter))
 			Ω(maxResource.GetVCPU()).Should(Equal(strconv.FormatInt(maxCPU, 10)))
