@@ -28,22 +28,34 @@ import (
 
 type SchedulerAPIMock struct {
 	registerCount int32
-	updateCount   int32
+	UpdateAllocationCount   int32
+	UpdateApplicationCount   int32
+	UpdateNodeCount   int32
 	registerFn    func(request *si.RegisterResourceManagerRequest,
 		callback api.ResourceManagerCallback) (*si.RegisterResourceManagerResponse, error)
-	updateFn func(request *si.UpdateRequest) error
+	UpdateAllocationFn func(request *si.AllocationRequest) error
+	UpdateApplicationFn func(request *si.ApplicationRequest) error
+	UpdateNodeFn func(request *si.NodeRequest) error
 	lock     sync.Mutex
 }
 
 func NewSchedulerAPIMock() *SchedulerAPIMock {
 	return &SchedulerAPIMock{
 		registerCount: int32(0),
-		updateCount:   int32(0),
+		UpdateAllocationCount:   int32(0),
+		UpdateApplicationCount:   int32(0),
+		UpdateNodeCount:   int32(0),
 		registerFn: func(request *si.RegisterResourceManagerRequest,
 			callback api.ResourceManagerCallback) (response *si.RegisterResourceManagerResponse, e error) {
 			return nil, nil
 		},
-		updateFn: func(request *si.UpdateRequest) error {
+		UpdateAllocationFn: func(request *si.AllocationRequest) error {
+			return nil
+		},
+		UpdateApplicationFn: func(request *si.ApplicationRequest) error {
+			return nil
+		},
+		UpdateNodeFn: func(request *si.NodeRequest) error {
 			return nil
 		},
 		lock: sync.Mutex{},
@@ -56,10 +68,24 @@ func (api *SchedulerAPIMock) RegisterFunction(rfn func(request *si.RegisterResou
 	return api
 }
 
-func (api *SchedulerAPIMock) UpdateFunction(ufn func(request *si.UpdateRequest) error) *SchedulerAPIMock {
+func (api *SchedulerAPIMock) UpdateAllocationFunction(ufn func(request *si.AllocationRequest) error) *SchedulerAPIMock {
 	api.lock.Lock()
 	defer api.lock.Unlock()
-	api.updateFn = ufn
+	api.UpdateAllocationFn = ufn
+	return api
+}
+
+func (api *SchedulerAPIMock) UpdateApplicationFunction(ufn func(request *si.ApplicationRequest) error) *SchedulerAPIMock {
+	api.lock.Lock()
+	defer api.lock.Unlock()
+	api.UpdateApplicationFn = ufn
+	return api
+}
+
+func (api *SchedulerAPIMock) UpdateNodeFunction(ufn func(request *si.NodeRequest) error) *SchedulerAPIMock {
+	api.lock.Lock()
+	defer api.lock.Unlock()
+	api.UpdateNodeFn = ufn
 	return api
 }
 
@@ -71,11 +97,25 @@ func (api *SchedulerAPIMock) RegisterResourceManager(request *si.RegisterResourc
 	return api.registerFn(request, callback)
 }
 
-func (api *SchedulerAPIMock) Update(request *si.UpdateRequest) error {
+func (api *SchedulerAPIMock) UpdateAllocation(request *si.AllocationRequest) error {
 	api.lock.Lock()
 	defer api.lock.Unlock()
-	atomic.AddInt32(&api.updateCount, 1)
-	return api.updateFn(request)
+	atomic.AddInt32(&api.UpdateAllocationCount, 1)
+	return api.UpdateAllocationFn(request)
+}
+
+func (api *SchedulerAPIMock) UpdateApplication(request *si.ApplicationRequest) error {
+	api.lock.Lock()
+	defer api.lock.Unlock()
+	atomic.AddInt32(&api.UpdateApplicationCount, 1)
+	return api.UpdateApplicationFn(request)
+}
+
+func (api *SchedulerAPIMock) UpdateNode(request *si.NodeRequest) error {
+	api.lock.Lock()
+	defer api.lock.Unlock()
+	atomic.AddInt32(&api.UpdateNodeCount, 1)
+	return api.UpdateNodeFn(request)
 }
 
 func (api *SchedulerAPIMock) ReloadConfiguration(rmID string) error {
@@ -88,11 +128,21 @@ func (api *SchedulerAPIMock) GetRegisterCount() int32 {
 	return atomic.LoadInt32(&api.registerCount)
 }
 
-func (api *SchedulerAPIMock) GetUpdateCount() int32 {
-	return atomic.LoadInt32(&api.updateCount)
+func (api *SchedulerAPIMock) GetUpdateAllocationCount() int32 {
+	return atomic.LoadInt32(&api.UpdateAllocationCount)
+}
+
+func (api *SchedulerAPIMock) GetUpdateApplicationCount() int32 {
+	return atomic.LoadInt32(&api.UpdateApplicationCount)
+}
+
+func (api *SchedulerAPIMock) GetUpdateNodeCount() int32 {
+	return atomic.LoadInt32(&api.UpdateNodeCount)
 }
 
 func (api *SchedulerAPIMock) ResetAllCounters() {
 	atomic.StoreInt32(&api.registerCount, 0)
-	atomic.StoreInt32(&api.updateCount, 0)
+	atomic.StoreInt32(&api.UpdateAllocationCount, 0)
+	atomic.StoreInt32(&api.UpdateApplicationCount, 0)
+	atomic.StoreInt32(&api.UpdateNodeCount, 0)
 }

@@ -182,7 +182,7 @@ func (nc *schedulerNodes) updateNodeOccupiedResources(name string, resource *si.
 		log.Logger().Info("report occupied resources updates",
 			zap.String("node", schedulerNode.name),
 			zap.Any("request", request))
-		if err := nc.proxy.Update(&request); err != nil {
+		if err := nc.proxy.UpdateNode(&request); err != nil {
 			log.Logger().Info("hitting error while handling UpdateNode", zap.Error(err))
 		}
 	}
@@ -215,7 +215,7 @@ func (nc *schedulerNodes) updateNode(oldNode, newNode *v1.Node) {
 	node := common.CreateFrom(newNode)
 	request := common.CreateUpdateRequestForUpdatedNode(node)
 	log.Logger().Info("report updated nodes to scheduler", zap.Any("request", request))
-	if err := nc.proxy.Update(&request); err != nil {
+	if err := nc.proxy.UpdateNode(&request); err != nil {
 		log.Logger().Info("hitting error while handling UpdateNode", zap.Error(err))
 	}
 }
@@ -229,7 +229,7 @@ func (nc *schedulerNodes) deleteNode(node *v1.Node) {
 	n := common.CreateFrom(node)
 	request := common.CreateUpdateRequestForDeleteNode(n)
 	log.Logger().Info("report updated nodes to scheduler", zap.Any("request", request.String()))
-	if err := nc.proxy.Update(&request); err != nil {
+	if err := nc.proxy.UpdateNode(&request); err != nil {
 		log.Logger().Error("hitting error while handling UpdateNode", zap.Error(err))
 	}
 }

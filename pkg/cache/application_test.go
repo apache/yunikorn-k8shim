@@ -79,10 +79,10 @@ func TestSubmitApplication(t *testing.T) {
 
 func TestRunApplication(t *testing.T) {
 	ms := &mockSchedulerAPI{}
-	ms.updateFn = func(request *si.UpdateRequest) error {
-		assert.Equal(t, len(request.NewApplications), 1)
-		assert.Equal(t, request.NewApplications[0].ApplicationID, "app00001")
-		assert.Equal(t, request.NewApplications[0].QueueName, "root.abc")
+	ms.UpdateApplicationFn = func(request *si.ApplicationRequest) error {
+		assert.Equal(t, len(request.New), 1)
+		assert.Equal(t, request.New[0].ApplicationID, "app00001")
+		assert.Equal(t, request.New[0].QueueName, "root.abc")
 		return nil
 	}
 
@@ -469,7 +469,13 @@ func newMockSchedulerAPI() *mockSchedulerAPI {
 		registerFn: func(request *si.RegisterResourceManagerRequest, callback api.ResourceManagerCallback) (response *si.RegisterResourceManagerResponse, e error) {
 			return nil, nil
 		},
-		updateFn: func(request *si.UpdateRequest) error {
+		UpdateAllocationFn: func(request *si.AllocationRequest) error {
+			return nil
+		},
+		UpdateApplicationFn: func(request *si.ApplicationRequest) error {
+			return nil
+		},
+		UpdateNodeFn: func(request *si.NodeRequest) error {
 			return nil
 		},
 	}
@@ -479,7 +485,9 @@ type mockSchedulerAPI struct {
 	callback   api.ResourceManagerCallback //nolint:structcheck,unused
 	registerFn func(request *si.RegisterResourceManagerRequest,
 		callback api.ResourceManagerCallback) (*si.RegisterResourceManagerResponse, error)
-	updateFn func(request *si.UpdateRequest) error
+	UpdateAllocationFn func(request *si.AllocationRequest) error
+	UpdateApplicationFn func(request *si.ApplicationRequest) error
+	UpdateNodeFn func(request *si.NodeRequest) error
 }
 
 func (ms *mockSchedulerAPI) RegisterResourceManager(request *si.RegisterResourceManagerRequest,
@@ -487,8 +495,16 @@ func (ms *mockSchedulerAPI) RegisterResourceManager(request *si.RegisterResource
 	return ms.registerFn(request, callback)
 }
 
-func (ms *mockSchedulerAPI) Update(request *si.UpdateRequest) error {
-	return ms.updateFn(request)
+func (ms *mockSchedulerAPI) UpdateAllocation(request *si.AllocationRequest) error {
+	return ms.UpdateAllocationFn(request)
+}
+
+func (ms *mockSchedulerAPI) UpdateApplication(request *si.ApplicationRequest) error {
+	return ms.UpdateApplicationFn(request)
+}
+
+func (ms *mockSchedulerAPI) UpdateNode(request *si.NodeRequest) error {
+	return ms.UpdateNodeFn(request)
 }
 
 func (ms *mockSchedulerAPI) ReloadConfiguration(rmID string) error {

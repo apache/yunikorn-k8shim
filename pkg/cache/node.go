@@ -149,10 +149,13 @@ func (n *SchedulerNode) handleNodeRecovery(event *fsm.Event) {
 		zap.String("nodeID", n.name),
 		zap.Bool("schedulable", n.schedulable))
 
-	request := &si.UpdateRequest{
+	allocRequest := &si.AllocationRequest{
 		Asks:     nil,
 		Releases: nil,
-		NewSchedulableNodes: []*si.NewNodeInfo{
+		RmID: conf.GetSchedulerConf().ClusterID,
+	}
+	nodeRequest := &si.NodeRequest{
+		Nodes: []*si.NodeInfo{
 			{
 				NodeID:              n.name,
 				SchedulableResource: n.capacity,
@@ -163,15 +166,21 @@ func (n *SchedulerNode) handleNodeRecovery(event *fsm.Event) {
 					constants.DefaultNodeAttributeNodeLabelsKey: n.labels,
 				},
 				ExistingAllocations: n.existingAllocations,
+				Action: si.NodeInfo_CREATE,
 			},
 		},
 		RmID: conf.GetSchedulerConf().ClusterID,
 	}
 
-	// send request to scheduler-core
-	if err := n.schedulerAPI.Update(request); err != nil {
-		log.Logger().Error("failed to send request",
-			zap.Any("request", request))
+	// send alloc request to scheduler-core
+	if err := n.schedulerAPI.UpdateAllocation(allocRequest); err != nil {
+		log.Logger().Error("failed to send UpdateAllocation request",
+			zap.Any("request", allocRequest))
+	}
+	// send node request to scheduler-core
+	if err := n.schedulerAPI.UpdateNode(nodeRequest); err != nil {
+		log.Logger().Error("failed to send UpdateNode request",
+			zap.Any("request", nodeRequest))
 	}
 }
 
@@ -179,13 +188,16 @@ func (n *SchedulerNode) handleDrainNode(event *fsm.Event) {
 	log.Logger().Info("node enters draining mode",
 		zap.String("nodeID", n.name))
 
-	request := &si.UpdateRequest{
+	allocRequest := &si.AllocationRequest{
 		Asks:     nil,
 		Releases: nil,
-		UpdatedNodes: []*si.UpdateNodeInfo{
+		RmID: conf.GetSchedulerConf().ClusterID,
+	}
+	nodeRequest := &si.NodeRequest{
+		Nodes: []*si.NodeInfo{
 			{
 				NodeID: n.name,
-				Action: si.UpdateNodeInfo_DRAIN_NODE,
+				Action: si.NodeInfo_DRAIN_NODE,
 				Attributes: map[string]string{
 					constants.DefaultNodeAttributeHostNameKey:   n.name,
 					constants.DefaultNodeAttributeRackNameKey:   constants.DefaultRackName,
@@ -197,9 +209,15 @@ func (n *SchedulerNode) handleDrainNode(event *fsm.Event) {
 	}
 
 	// send request to scheduler-core
-	if err := n.schedulerAPI.Update(request); err != nil {
-		log.Logger().Error("failed to send request",
-			zap.Any("request", request))
+	if err := n.schedulerAPI.UpdateAllocation(allocRequest); err != nil {
+		log.Logger().Error("failed to send UpdateAllocation request",
+			zap.Any("request", allocRequest))
+	}
+
+	// send request to scheduler-core
+	if err := n.schedulerAPI.UpdateNode(nodeRequest); err != nil {
+		log.Logger().Error("failed to send UpdateNode request",
+			zap.Any("request", nodeRequest))
 	}
 }
 
@@ -207,13 +225,16 @@ func (n *SchedulerNode) handleRestoreNode(event *fsm.Event) {
 	log.Logger().Info("restore node from draining mode",
 		zap.String("nodeID", n.name))
 
-	request := &si.UpdateRequest{
+	allocRequest := &si.AllocationRequest{
 		Asks:     nil,
 		Releases: nil,
-		UpdatedNodes: []*si.UpdateNodeInfo{
+		RmID: conf.GetSchedulerConf().ClusterID,
+	}
+	nodeRequest := &si.NodeRequest{
+		Nodes: []*si.NodeInfo{
 			{
 				NodeID: n.name,
-				Action: si.UpdateNodeInfo_DRAIN_TO_SCHEDULABLE,
+				Action: si.NodeInfo_DRAIN_TO_SCHEDULABLE,
 				Attributes: map[string]string{
 					constants.DefaultNodeAttributeHostNameKey:   n.name,
 					constants.DefaultNodeAttributeRackNameKey:   constants.DefaultRackName,
@@ -225,9 +246,14 @@ func (n *SchedulerNode) handleRestoreNode(event *fsm.Event) {
 	}
 
 	// send request to scheduler-core
-	if err := n.schedulerAPI.Update(request); err != nil {
-		log.Logger().Error("failed to send request",
-			zap.Any("request", request))
+	if err := n.schedulerAPI.UpdateAllocation(allocRequest); err != nil {
+		log.Logger().Error("failed to send UpdateAllocation request",
+			zap.Any("request", allocRequest))
+	}
+	// send request to scheduler-core
+	if err := n.schedulerAPI.UpdateNode(nodeRequest); err != nil {
+		log.Logger().Error("failed to send UpdateNode request",
+			zap.Any("request", nodeRequest))
 	}
 }
 
