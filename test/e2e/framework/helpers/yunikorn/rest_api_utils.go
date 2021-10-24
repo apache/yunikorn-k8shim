@@ -123,6 +123,16 @@ func (c *RClient) GetSpecificQueueInfo(queueName string) (map[string]interface{}
 	return nil, fmt.Errorf("QueueInfo not found: %s", queueName)
 }
 
+func (c *RClient) GetHealthCheck() (dao.SchedulerHealthDAOInfo, error) {
+	req, err := c.newRequest("GET", configmanager.HealthCheckPath, nil)
+	if err != nil {
+		return dao.SchedulerHealthDAOInfo{}, err
+	}
+	healthCheck := dao.SchedulerHealthDAOInfo{}
+	_, err = c.do(req, &healthCheck)
+	return healthCheck, err
+}
+
 func (c *RClient) GetApps() ([]map[string]interface{}, error) {
 	req, err := c.newRequest("GET", configmanager.AppsPath, nil)
 	if err != nil {
@@ -226,4 +236,21 @@ func isRootSched(policy string) wait.ConditionFunc {
 
 func WaitForSchedPolicy(policy string, timeout time.Duration) error {
 	return wait.PollImmediate(2*time.Second, timeout, isRootSched(policy))
+}
+
+func GetFailedHealthChecks() (string, error) {
+	restClient := RClient{}
+	var failCheck string
+	healthCheck, err := restClient.GetHealthCheck()
+	if err != nil {
+		return "", fmt.Errorf("Failed to get scheduler health check from API")
+	}
+	if !healthCheck.Healthy {
+		for _, check := range healthCheck.HealthChecks {
+			if !check.Succeeded {
+				failCheck += fmt.Sprintln("Name:", check.Name, "Message:", check.DiagnosisMessage)
+			}
+		}
+	}
+	return failCheck, nil
 }

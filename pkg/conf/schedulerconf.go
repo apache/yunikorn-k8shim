@@ -20,14 +20,12 @@ package conf
 
 import (
 	"flag"
-	"fmt"
 	"strings"
 	"sync"
 	"time"
 
 	"go.uber.org/zap/zapcore"
 	"k8s.io/klog"
-	"k8s.io/kubernetes/pkg/scheduler/algorithm/predicates"
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 )
@@ -68,6 +66,7 @@ type SchedulerConf struct {
 	Predicates             string        `json:"predicates"`
 	OperatorPlugins        string        `json:"operatorPlugins"`
 	EnableConfigHotRefresh bool          `json:"enableConfigHotRefresh"`
+	DisableGangScheduling  bool          `json:"disableGangScheduling"`
 	UserLabelKey           string        `json:"userLabelKey"`
 	sync.RWMutex
 }
@@ -81,6 +80,12 @@ func (conf *SchedulerConf) SetTestMode(testMode bool) {
 	conf.Lock()
 	defer conf.Unlock()
 	conf.TestMode = testMode
+}
+
+func (conf *SchedulerConf) IsTestMode() bool {
+	conf.RLock()
+	defer conf.RUnlock()
+	return conf.TestMode
 }
 
 func (conf *SchedulerConf) GetSchedulingInterval() time.Duration {
@@ -134,9 +139,6 @@ func initConfigs() {
 		"the maximum QPS to kubernetes master from this client")
 	kubeBurst := flag.Int("kubeBurst", DefaultKubeBurst,
 		"the maximum burst for throttle to kubernetes master from this client")
-	predicateList := flag.String("predicates", "",
-		fmt.Sprintf("comma-separated list of predicates, valid predicates are: %s, "+
-			"the program will exit if any invalid predicates exist.", predicates.Ordering()))
 	operatorPluginList := flag.String("operatorPlugins", "general,"+constants.AppManagerHandlerName,
 		"comma-separated list of operator plugin names, currently, only \"spark-k8s-operator\""+
 			"and"+constants.AppManagerHandlerName+"is supported.")
@@ -151,6 +153,8 @@ func initConfigs() {
 	enableConfigHotRefresh := flag.Bool("enableConfigHotRefresh", false, "Flag for enabling "+
 		"configuration hot-refresh. If this value is set to true, the configuration updates in the configmap will be "+
 		"automatically reloaded without restarting the scheduler.")
+	disableGangScheduling := flag.Bool("disableGangScheduling", false, "Flag for disabling "+
+		"gang scheduling. If this value is set to true, task-group metadata will be ignored by the scheduler.")
 	userLabelKey := flag.String("userLabelKey", constants.DefaultUserLabel,
 		"provide pod label key to be used to identify an user")
 
@@ -180,9 +184,9 @@ func initConfigs() {
 		DispatchTimeout:        *dispatchTimeout,
 		KubeQPS:                *kubeQPS,
 		KubeBurst:              *kubeBurst,
-		Predicates:             *predicateList,
 		OperatorPlugins:        *operatorPluginList,
 		EnableConfigHotRefresh: *enableConfigHotRefresh,
+		DisableGangScheduling:  *disableGangScheduling,
 		UserLabelKey:           *userLabelKey,
 	}
 }

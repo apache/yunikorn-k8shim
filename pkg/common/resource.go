@@ -57,7 +57,7 @@ func (w *ResourceBuilder) Build() *si.Resource {
 // values, limits are ignored in the current setup.
 // BestEffort pods are scheduled using a minimum resource of 1MB only.
 func GetPodResource(pod *v1.Pod) (resource *si.Resource) {
-	//var memory, vcore = int64(0), int64(0)
+	// var memory, vcore = int64(0), int64(0)
 	var podResource *si.Resource
 	// A QosBestEffort pod does not request any resources and thus cannot be
 	// scheduled. Handle a QosBestEffort pod by setting a tiny memory value.
@@ -72,7 +72,32 @@ func GetPodResource(pod *v1.Pod) (resource *si.Resource) {
 		containerResource := getResource(resourceList)
 		podResource = Add(podResource, containerResource)
 	}
+
+	// each resource compare between initcontainer and sum of containers
+	// max(sum(Containers requirement), InitContainers requirement)
+	if pod.Spec.InitContainers != nil {
+		checkInitContainerRequest(pod, podResource)
+	}
+
 	return podResource
+}
+
+func checkInitContainerRequest(pod *v1.Pod, containersResources *si.Resource) {
+	for _, c := range pod.Spec.InitContainers {
+		resourceList := c.Resources.Requests
+		ICResource := getResource(resourceList)
+		for resourceName, ICRequest := range ICResource.Resources {
+			containersRequests, exist := containersResources.Resources[resourceName]
+			// addtional resource request from init cont, add it to request.
+			if !exist {
+				containersResources.Resources[resourceName] = ICRequest
+				continue
+			}
+			if ICRequest.GetValue() > containersRequests.GetValue() {
+				containersResources.Resources[resourceName] = ICRequest
+			}
+		}
+	}
 }
 
 func GetNodeResource(nodeStatus *v1.NodeStatus) *si.Resource {

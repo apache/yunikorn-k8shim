@@ -34,6 +34,7 @@ spec:
       name: yunikorn-scheduler
     spec:
       hostNetwork: true
+      serviceAccountName: yunikorn-admin
       containers:
         - name: yunikorn-scheduler-k8s
           image: apache/yunikorn:scheduler-latest

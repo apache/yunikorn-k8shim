@@ -1,3 +1,21 @@
+/*
+ Licensed to the Apache Software Foundation (ASF) under one
+ or more contributor license agreements.  See the NOTICE file
+ distributed with this work for additional information
+ regarding copyright ownership.  The ASF licenses this file
+ to you under the Apache License, Version 2.0 (the
+ "License"); you may not use this file except in compliance
+ with the License.  You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+*/
+
 package predicates_test
 
 import (
@@ -9,12 +27,15 @@ import (
 	"github.com/onsi/ginkgo"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/kubernetes/pkg/controller"
 	"k8s.io/kubernetes/test/e2e/framework"
 	e2enode "k8s.io/kubernetes/test/e2e/framework/node"
 
 	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/configmanager"
 	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/helpers/common"
 	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/helpers/k8s"
+	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
 )
 
 // variable populated in BeforeEach, never modified afterwards
@@ -70,7 +91,7 @@ var _ = Describe("Predicates", func() {
 		// Initializing rest client
 		//restClient = yunikorn.RClient{}
 		nodeList = &v1.NodeList{}
-		nodeList, err = e2enode.GetReadySchedulableNodesOrDie(kClient.GetClient())
+		nodeList, err = e2enode.GetReadySchedulableNodes(kClient.GetClient())
 		Ω(err).NotTo(HaveOccurred(), fmt.Sprintf("Unexpected error occurred: %v", err))
 		for _, n := range nodeList.Items {
 			workerNodes = append(workerNodes, n.Name)
@@ -141,7 +162,7 @@ var _ = Describe("Predicates", func() {
 				framework.Logf("Yunikorn Event Reason: %s", event.Reason)
 				Ω(event.Reason).Should(Equal("FailedScheduling"), "Event reason mismatch")
 				framework.Logf("Yunikorn Event Message: %s", event.Message)
-				Ω(event.Message).Should(MatchRegexp("Predicate MatchNodeSelector failed"), "Event message mismatch")
+				Ω(event.Message).Should(MatchRegexp("predicate is not satisfied.*didn't match Pod's node affinity"), "Event message mismatch")
 			}
 		}
 	})
@@ -244,7 +265,7 @@ var _ = Describe("Predicates", func() {
 				framework.Logf("Yunikorn Event Reason: %s", event.Reason)
 				Ω(event.Reason).Should(Equal("FailedScheduling"), "Event reason mismatch")
 				framework.Logf("Yunikorn Event Message: %s", event.Message)
-				Ω(event.Message).Should(MatchRegexp("Predicate MatchNodeSelector failed"), "Event message mismatch")
+				Ω(event.Message).Should(MatchRegexp("predicate is not satisfied.*didn't match Pod's node affinity"), "Event message mismatch")
 			}
 		}
 	})
@@ -299,14 +320,18 @@ var _ = Describe("Predicates", func() {
 	It("Verify_Matching_Taint_Tolerations_Respected", func() {
 		nodeName := getNodeThatCanRunPodWithoutToleration(&kClient, ns)
 		By("Trying to apply a random taint on the found node.")
-		testTaint := v1.Taint{
+		testTaint := &v1.Taint{
 			Key:    fmt.Sprintf("kubernetes.io/e2e-taint-key-%s", common.RandSeq(10)),
 			Value:  "testing-taint-value",
 			Effect: v1.TaintEffectNoSchedule,
 		}
-		framework.AddOrUpdateTaintOnNode(kClient.GetClient(), nodeName, testTaint)
-		framework.ExpectNodeHasTaint(kClient.GetClient(), nodeName, &testTaint)
-		defer framework.RemoveTaintOffNode(kClient.GetClient(), nodeName, testTaint)
+		err = controller.AddOrUpdateTaintOnNode(kClient.GetClient(), nodeName, testTaint)
+		Ω(err).NotTo(HaveOccurred())
+		framework.ExpectNodeHasTaint(kClient.GetClient(), nodeName, testTaint)
+		defer func(c kubernetes.Interface, nodeName string, taint *v1.Taint) {
+			err = controller.RemoveTaintOffNode(c, nodeName, nil, taint)
+			Ω(err).NotTo(HaveOccurred())
+		}(kClient.GetClient(), nodeName, testTaint)
 
 		ginkgo.By("Trying to apply a random label on the found node.")
 		labelKey := fmt.Sprintf("kubernetes.io/e2e-label-key-%s", common.RandSeq(10))
@@ -340,14 +365,19 @@ var _ = Describe("Predicates", func() {
 	It("Verify_Not_Matching_Taint_Tolerations_Respected", func() {
 		nodeName := getNodeThatCanRunPodWithoutToleration(&kClient, ns)
 		By("Trying to apply a random taint on the found node.")
-		testTaint := v1.Taint{
+		testTaint := &v1.Taint{
 			Key:    fmt.Sprintf("kubernetes.io/e2e-taint-key-%s", common.RandSeq(10)),
 			Value:  "testing-taint-value",
 			Effect: v1.TaintEffectNoSchedule,
 		}
-		framework.AddOrUpdateTaintOnNode(kClient.GetClient(), nodeName, testTaint)
-		framework.ExpectNodeHasTaint(kClient.GetClient(), nodeName, &testTaint)
-		defer framework.RemoveTaintOffNode(kClient.GetClient(), nodeName, testTaint)
+		err = controller.AddOrUpdateTaintOnNode(kClient.GetClient(), nodeName, testTaint)
+		Ω(err).NotTo(HaveOccurred())
+
+		framework.ExpectNodeHasTaint(kClient.GetClient(), nodeName, testTaint)
+		defer func(c kubernetes.Interface, nodeName string, taint *v1.Taint) {
+			err = controller.RemoveTaintOffNode(c, nodeName, nil, taint)
+			Ω(err).NotTo(HaveOccurred())
+		}(kClient.GetClient(), nodeName, testTaint)
 
 		ginkgo.By("Trying to apply a random label on the found node.")
 		labelKey := fmt.Sprintf("kubernetes.io/e2e-label-key-%s", common.RandSeq(10))
@@ -384,16 +414,17 @@ var _ = Describe("Predicates", func() {
 		Ω(len(events.Items)).NotTo(BeZero(), "Events cant be empty")
 		for _, event := range events.Items {
 			framework.Logf("Event source is : %s", event.Source.Component)
-			if event.Source.Component == configmanager.SchedulerName && event.Type == WARNING && !strings.Contains(event.Message, "MatchNodeSelector") {
+			if event.Source.Component == configmanager.SchedulerName && event.Type == WARNING && !strings.Contains(event.Message, "node affinity") {
 				framework.Logf("Yunikorn Event Reason: %s", event.Reason)
 				Ω(event.Reason).Should(Equal("FailedScheduling"), "Event reason mismatch")
 				framework.Logf("Yunikorn Event Message: %s", event.Message)
-				Ω(event.Message).Should(MatchRegexp("Predicate PodToleratesNodeTaints failed"), "Event message mismatch")
+				Ω(event.Message).Should(MatchRegexp("predicate is not satisfied.*taint.*"), "Event message mismatch")
 			}
 		}
 
 		// Remove taint off the node and verify the pod is scheduled on node.
-		framework.RemoveTaintOffNode(kClient.GetClient(), nodeName, testTaint)
+		err = controller.RemoveTaintOffNode(kClient.GetClient(), nodeName, nil, testTaint)
+		Ω(err).NotTo(HaveOccurred())
 		Ω(kClient.WaitForPodRunning(ns, podNameNoTolerations, time.Duration(60)*time.Second)).NotTo(HaveOccurred())
 
 		labelPod, err := kClient.GetPod(podNameNoTolerations, ns)
@@ -1029,13 +1060,19 @@ var _ = Describe("Predicates", func() {
 		Ω(len(events.Items)).NotTo(BeZero(), "Events cant be empty")
 		for _, event := range events.Items {
 			framework.Logf("Event source is : %s", event.Source.Component)
-			if event.Source.Component == configmanager.SchedulerName && event.Type == WARNING && !strings.Contains(event.Message, "MatchNodeSelector") {
+			if event.Source.Component == configmanager.SchedulerName && event.Type == WARNING && !strings.Contains(event.Message, "node affinity") {
 				framework.Logf("Yunikorn Event Reason: %s", event.Reason)
 				Ω(event.Reason).Should(Equal("FailedScheduling"), "Event reason mismatch")
 				framework.Logf("Yunikorn Event Message: %s", event.Message)
-				Ω(event.Message).Should(MatchRegexp("Predicate PodFitsHostPorts failed"), "Event message mismatch")
+				Ω(event.Message).Should(MatchRegexp("predicate is not satisfied.*free ports.*"), "Event message mismatch")
 			}
 		}
 	})
 
+	AfterEach(func() {
+		By("Check Yunikorn's health")
+		checks, err := yunikorn.GetFailedHealthChecks()
+		Ω(err).NotTo(HaveOccurred())
+		Ω(checks).To(Equal(""), checks)
+	})
 })

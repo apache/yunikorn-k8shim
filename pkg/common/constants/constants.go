@@ -21,6 +21,7 @@ package constants
 // Cluster
 const DefaultNodeAttributeHostNameKey = "si.io/hostname"
 const DefaultNodeAttributeRackNameKey = "si.io/rackname"
+const DefaultNodeAttributeNodeLabelsKey = "si.io/nodelabels"
 const DefaultRackName = "/rack-default"
 
 // Application
@@ -50,6 +51,9 @@ const SparkLabelRoleDriver = "driver"
 const DefaultConfigMapName = "yunikorn-configs"
 const SchedulerName = "yunikorn"
 
+// OwnerReferences
+const DaemonSetType = "DaemonSet"
+
 // Application crd
 const AppManagerHandlerName = "yunikorn-app"
 
@@ -64,6 +68,10 @@ const AnnotationTaskGroups = "yunikorn.apache.org/task-groups"
 const AnnotationSchedulingPolicyParam = "yunikorn.apache.org/schedulingPolicyParameters"
 const SchedulingPolicyTimeoutParam = "placeholderTimeoutInSeconds"
 const SchedulingPolicyParamDelimiter = " "
+const SchedulingPolicyStyleParam = "gangSchedulingStyle"
+const SchedulingPolicyStyleParamDefault = "Soft"
+
+var SchedulingPolicyStyleParamValues = map[string]string{"Hard": "Hard", "Soft": "Soft"}
 
 const ApplicationInsufficientResourcesFailure = "ResourceReservationTimeout"
 const ApplicationRejectedFailure = "ApplicationRejected"

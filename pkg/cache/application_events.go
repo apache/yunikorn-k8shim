@@ -285,3 +285,30 @@ func (re ReleaseAppAllocationAskEvent) GetArgs() []interface{} {
 func (re ReleaseAppAllocationAskEvent) GetEvent() events.ApplicationEventType {
 	return re.event
 }
+
+// ------------------------
+// Resuming application
+// ------------------------
+type ResumingApplicationEvent struct {
+	applicationID string
+	event         events.ApplicationEventType
+}
+
+func NewResumingApplicationEvent(appID string) ResumingApplicationEvent {
+	return ResumingApplicationEvent{
+		applicationID: appID,
+		event:         events.ResumingApplication,
+	}
+}
+
+func (re ResumingApplicationEvent) GetEvent() events.ApplicationEventType {
+	return re.event
+}
+
+func (re ResumingApplicationEvent) GetArgs() []interface{} {
+	return nil
+}
+
+func (re ResumingApplicationEvent) GetApplicationID() string {
+	return re.applicationID
+}

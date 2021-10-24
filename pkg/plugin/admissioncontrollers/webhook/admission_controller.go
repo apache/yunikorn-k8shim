@@ -259,6 +259,8 @@ func (c *admissionController) validateConfigMap(cm *v1.ConfigMap) error {
 		} else {
 			return fmt.Errorf("required config '%s' not found in this configmap", c.configName)
 		}
+	} else {
+		log.Logger().Debug("Configmap does not belong to Yunikorn", zap.String("Name", cm.Name))
 	}
 	return nil
 }
@@ -301,8 +303,6 @@ func (c *admissionController) serve(w http.ResponseWriter, r *http.Request) {
 
 	admissionReview := v1beta1.AdmissionReview{}
 	if admissionResponse != nil {
-		log.Logger().Info("AdmissionReviewResponse",
-			zap.Bool("allowed", admissionResponse.Allowed))
 		admissionReview.Response = admissionResponse
 		if ar.Request != nil {
 			admissionReview.Response.UID = ar.Request.UID

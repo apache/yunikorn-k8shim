@@ -42,7 +42,7 @@ func GetRecorder() record.EventRecorder {
 		// note, the initiation of the event recorder requires on a workable Kubernetes client,
 		// in test mode we should skip this and just use a fake recorder instead.
 		configs := conf.GetSchedulerConf()
-		if !configs.TestMode {
+		if !configs.IsTestMode() {
 			k8sClient := client.NewKubeClient(configs.KubeConfig)
 			eventBroadcaster := record.NewBroadcaster()
 			eventBroadcaster.StartRecordingToSink(&v1.EventSinkImpl{

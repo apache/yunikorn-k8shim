@@ -190,6 +190,75 @@ func TestParsePodResource(t *testing.T) {
 	assert.Equal(t, res.Resources[constants.Memory].GetValue(), int64(1524))
 	assert.Equal(t, res.Resources[constants.CPU].GetValue(), int64(3000))
 	assert.Equal(t, res.Resources["nvidia.com/gpu"].GetValue(), int64(5))
+
+	// test initcontainer and container resouce compare
+	initContainers := make([]v1.Container, 0)
+	initc1Resources := make(map[v1.ResourceName]resource.Quantity)
+	initc1Resources[v1.ResourceMemory] = resource.MustParse("4096M")
+	initc1Resources[v1.ResourceCPU] = resource.MustParse("0.5")
+	initc1Resources[v1.ResourceName("nvidia.com/gpu")] = resource.MustParse("1")
+	initContainers = append(initContainers, v1.Container{
+		Name: "initcontainer-01",
+		Resources: v1.ResourceRequirements{
+			Requests: initc1Resources,
+		},
+	})
+
+	initc2Resources := make(map[v1.ResourceName]resource.Quantity)
+	initc2Resources[v1.ResourceMemory] = resource.MustParse("10000M")
+	initc2Resources[v1.ResourceCPU] = resource.MustParse("5.12")
+	initc2Resources[v1.ResourceName("nvidia.com/gpu")] = resource.MustParse("4")
+	initContainers = append(initContainers, v1.Container{
+		Name: "initcontainer-02",
+		Resources: v1.ResourceRequirements{
+			Requests: initc2Resources,
+		},
+	})
+
+	containers[0].Resources.Requests[v1.ResourceMemory] = resource.MustParse("2000M")
+	containers[0].Resources.Requests[v1.ResourceCPU] = resource.MustParse("4.096")
+	containers[0].Resources.Requests[v1.ResourceName("nvidia.com/gpu")] = resource.MustParse("2")
+
+	containers[1].Resources.Requests[v1.ResourceMemory] = resource.MustParse("5000M")
+	containers[1].Resources.Requests[v1.ResourceCPU] = resource.MustParse("1.024")
+	containers[1].Resources.Requests[v1.ResourceName("nvidia.com/gpu")] = resource.MustParse("2")
+
+	pod.ObjectMeta = apis.ObjectMeta{
+		Name: "pod-resource-test-00002",
+		UID:  "UID-00002",
+	}
+	pod.Spec = v1.PodSpec{
+		Containers:     containers,
+		InitContainers: initContainers,
+	}
+	// initcontainers
+	// IC1{500mi, 1000m, 1}
+	// IC2{5120mi, 10000m, 4}
+	// sum of containers{5120mi, 7000m, 4}
+	// C1{4096mi, 2000m, 2}
+	// C2{1024mi, 5000m, 2}
+	// result {5120mi, 10000m, 4}
+	res = GetPodResource(pod)
+	assert.Equal(t, res.Resources[constants.Memory].GetValue(), int64(10000))
+	assert.Equal(t, res.Resources[constants.CPU].GetValue(), int64(5120))
+	assert.Equal(t, res.Resources["nvidia.com/gpu"].GetValue(), int64(4))
+
+	delete(containers[0].Resources.Requests, v1.ResourceName("nvidia.com/gpu"))
+	delete(containers[1].Resources.Requests, v1.ResourceName("nvidia.com/gpu"))
+	delete(initContainers[1].Resources.Requests, v1.ResourceCPU)
+	delete(initContainers[1].Resources.Requests, v1.ResourceName("nvidia.com/gpu"))
+	pod.Spec = v1.PodSpec{
+		Containers:     containers,
+		InitContainers: initContainers,
+	}
+	// IC1{500mi, 1000m, 1}
+	// IC2{0mi, 10000m}
+	// sum of containers{5120mi, 7000m}
+	// result {5120mi, 10000m, 1}
+	res = GetPodResource(pod)
+	assert.Equal(t, res.Resources[constants.Memory].GetValue(), int64(10000))
+	assert.Equal(t, res.Resources[constants.CPU].GetValue(), int64(5120))
+	assert.Equal(t, res.Resources["nvidia.com/gpu"].GetValue(), int64(1))
 }
 
 func TestBestEffortPod(t *testing.T) {

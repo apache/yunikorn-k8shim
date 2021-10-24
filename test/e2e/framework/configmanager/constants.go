@@ -39,9 +39,10 @@ const (
 	YKAdmCtrlName = "yunikorn-admission-controller-service"
 
 	// REST endpoints of YuniKorn
-	QueuesPath   = "ws/v1/queues"
-	AppsPath     = "ws/v1/apps"
-	ClustersPath = "ws/v1/clusters"
+	QueuesPath      = "ws/v1/queues"
+	AppsPath        = "ws/v1/apps"
+	ClustersPath    = "ws/v1/clusters"
+	HealthCheckPath = "ws/v1/scheduler/healthcheck"
 
 	//YuniKorn Service Details
 	DefaultYuniKornHost   = "localhost"

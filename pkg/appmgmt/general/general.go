@@ -26,11 +26,13 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	k8sCache "k8s.io/client-go/tools/cache"
 
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 
@@ -43,14 +45,16 @@ import (
 // applicationID, queue name found, and claim it as an app or a app task,
 // then report them to scheduler cache by calling am protocol
 type Manager struct {
-	apiProvider client.APIProvider
-	amProtocol  interfaces.ApplicationManagementProtocol
+	apiProvider            client.APIProvider
+	amProtocol             interfaces.ApplicationManagementProtocol
+	gangSchedulingDisabled bool
 }
 
 func NewManager(amProtocol interfaces.ApplicationManagementProtocol, apiProvider client.APIProvider) *Manager {
 	return &Manager{
 		apiProvider: apiProvider,
 		amProtocol:  amProtocol,
+		gangSchedulingDisabled: conf.GetSchedulerConf().DisableGangScheduling,
 	}
 }
 
@@ -92,7 +96,11 @@ func (os *Manager) getTaskMetadata(pod *v1.Pod) (interfaces.TaskMetadata, bool) 
 	}
 
 	placeholder := utils.GetPlaceholderFlagFromPodSpec(pod)
-	taskGroupName := utils.GetTaskGroupFromPodSpec(pod)
+
+	var taskGroupName string
+	if !os.gangSchedulingDisabled {
+		taskGroupName = utils.GetTaskGroupFromPodSpec(pod)
+	}
 
 	return interfaces.TaskMetadata{
 		ApplicationID: appID,
@@ -125,30 +133,27 @@ func (os *Manager) getAppMetadata(pod *v1.Pod) (interfaces.ApplicationMetadata, 
 	// get the user from Pod Labels
 	user := utils.GetUserFromPod(pod)
 
-	taskGroups, err := utils.GetTaskGroupsFromAnnotation(pod)
-	if err != nil {
-		log.Logger().Error("unable to get taskGroups for pod",
-			zap.String("namespace", pod.Namespace),
-			zap.String("name", pod.Name),
-			zap.Error(err))
+	var taskGroups []v1alpha1.TaskGroup = nil
+	if !os.gangSchedulingDisabled {
+		taskGroups, err = utils.GetTaskGroupsFromAnnotation(pod)
+		if err != nil {
+			log.Logger().Error("unable to get taskGroups for pod",
+				zap.String("namespace", pod.Namespace),
+				zap.String("name", pod.Name),
+				zap.Error(err))
+		}
 	}
-	ownerReferences := getOwnerReferences(pod)
 
-	placeholderTimeout, err := utils.GetPlaceholderTimeoutParam(pod)
-	if err != nil {
-		log.Logger().Debug("unable to get placeholder timeout for pod.",
-			zap.String("namespace", pod.Namespace),
-			zap.String("name", pod.Name),
-			zap.Error(err))
-	}
+	ownerReferences := getOwnerReferences(pod)
+	schedulingPolicyParams := utils.GetSchedulingPolicyParam(pod)
 	return interfaces.ApplicationMetadata{
-		ApplicationID:           appID,
-		QueueName:               utils.GetQueueNameFromPod(pod),
-		User:                    user,
-		Tags:                    tags,
-		TaskGroups:              taskGroups,
-		PlaceholderTimeoutInSec: placeholderTimeout,
-		OwnerReferences:         ownerReferences,
+		ApplicationID:              appID,
+		QueueName:                  utils.GetQueueNameFromPod(pod),
+		User:                       user,
+		Tags:                       tags,
+		TaskGroups:                 taskGroups,
+		OwnerReferences:            ownerReferences,
+		SchedulingPolicyParameters: schedulingPolicyParams,
 	}, true
 }
 
@@ -193,12 +198,10 @@ func (os *Manager) addPod(obj interface{}) {
 		return
 	}
 
-	recovery := utils.NeedRecovery(pod)
 	log.Logger().Debug("pod added",
 		zap.String("appType", os.Name()),
 		zap.String("Name", pod.Name),
-		zap.String("Namespace", pod.Namespace),
-		zap.Bool("NeedsRecovery", recovery))
+		zap.String("Namespace", pod.Namespace))
 
 	// add app
 	if appMeta, ok := os.getAppMetadata(pod); ok {
@@ -216,7 +219,6 @@ func (os *Manager) addPod(obj interface{}) {
 			if _, taskErr := app.GetTask(string(pod.UID)); taskErr != nil {
 				os.amProtocol.AddTask(&interfaces.AddTaskRequest{
 					Metadata: taskMeta,
-					Recovery: recovery,
 				})
 			}
 		}

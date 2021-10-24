@@ -89,6 +89,7 @@ func newPlaceholder(placeholderName string, app *Application, taskGroup v1alpha1
 			SchedulerName: constants.SchedulerName,
 			NodeSelector:  taskGroup.NodeSelector,
 			Tolerations:   taskGroup.Tolerations,
+			Affinity:      taskGroup.Affinity,
 		},
 	}
 

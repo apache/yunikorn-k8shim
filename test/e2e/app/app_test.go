@@ -113,6 +113,14 @@ var _ = ginkgo.Describe("App", func() {
 			gomega.Ω(appCRD.Spec.TaskGroups[0].Tolerations[0].Effect).To(gomega.Equal(v1.TaintEffectNoSchedule))
 		})
 
+		ginkgo.AfterEach(func() {
+			// call the healthCheck api to check scheduler health
+			ginkgo.By("Check Yunikorn's health")
+			checks, err := yunikorn.GetFailedHealthChecks()
+			gomega.Ω(err).NotTo(gomega.HaveOccurred())
+			gomega.Ω(checks).To(gomega.Equal(""), checks)
+		})
+
 		ginkgo.AfterSuite(func() {
 			ginkgo.By("Deleting application CRD")
 			err := yunikorn.DeleteApplication(appClient, dev, "example")

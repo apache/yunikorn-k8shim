@@ -19,12 +19,15 @@
 package client
 
 import (
+	"context"
+
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/util/retry"
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
@@ -84,13 +87,15 @@ func (nc SchedulerKubeClient) Bind(pod *v1.Pod, hostID string) error {
 		zap.String("nodeID", hostID))
 
 	if err := nc.clientSet.CoreV1().Pods(pod.Namespace).Bind(
+		context.Background(),
 		&v1.Binding{ObjectMeta: apis.ObjectMeta{
 			Namespace: pod.Namespace, Name: pod.Name, UID: pod.UID},
 			Target: v1.ObjectReference{
 				Kind: "Node",
 				Name: hostID,
 			},
-		}); err != nil {
+		},
+		apis.CreateOptions{}); err != nil {
 		log.Logger().Error("failed to bind pod",
 			zap.String("namespace", pod.Namespace),
 			zap.String("podName", pod.Name),
@@ -101,13 +106,13 @@ func (nc SchedulerKubeClient) Bind(pod *v1.Pod, hostID string) error {
 }
 
 func (nc SchedulerKubeClient) Create(pod *v1.Pod) (*v1.Pod, error) {
-	return nc.clientSet.CoreV1().Pods(pod.Namespace).Create(pod)
+	return nc.clientSet.CoreV1().Pods(pod.Namespace).Create(context.Background(), pod, apis.CreateOptions{})
 }
 
 func (nc SchedulerKubeClient) Delete(pod *v1.Pod) error {
 	// TODO make this configurable for pods
 	gracefulSeconds := int64(3)
-	if err := nc.clientSet.CoreV1().Pods(pod.Namespace).Delete(pod.Name, &apis.DeleteOptions{
+	if err := nc.clientSet.CoreV1().Pods(pod.Namespace).Delete(context.Background(), pod.Name, apis.DeleteOptions{
 		GracePeriodSeconds: &gracefulSeconds,
 	}); err != nil {
 		log.Logger().Warn("failed to delete pod",
@@ -120,7 +125,7 @@ func (nc SchedulerKubeClient) Delete(pod *v1.Pod) error {
 }
 
 func (nc SchedulerKubeClient) Get(podNamespace string, podName string) (*v1.Pod, error) {
-	pod, err := nc.clientSet.CoreV1().Pods(podNamespace).Get(podName, apis.GetOptions{})
+	pod, err := nc.clientSet.CoreV1().Pods(podNamespace).Get(context.Background(), podName, apis.GetOptions{})
 	if err != nil {
 		log.Logger().Warn("failed to get pod",
 			zap.String("namespace", pod.Namespace),
@@ -133,13 +138,39 @@ func (nc SchedulerKubeClient) Get(podNamespace string, podName string) (*v1.Pod,
 
 func (nc SchedulerKubeClient) UpdateStatus(pod *v1.Pod) (*v1.Pod, error) {
 	var updatedPod *v1.Pod
-	var err error
-	if updatedPod, err = nc.clientSet.CoreV1().Pods(pod.Namespace).UpdateStatus(pod); err != nil {
-		log.Logger().Warn("failed to update pod status",
+	var updateErr error
+	newPodStatus := pod.Status
+	// In case of conflicts, retry using the logic in
+	// https://github.com/kubernetes/client-go/blob/v0.21.1/examples/create-update-delete-deployment/main.go#L118-L121
+	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		// Retrieve the latest version of Pod before attempting status update
+		// RetryOnConflict uses exponential backoff to avoid exhausting the API server
+		latestPod, getErr := nc.clientSet.CoreV1().Pods(pod.Namespace).Get(context.Background(), pod.Name, apis.GetOptions{})
+		if getErr != nil {
+			log.Logger().Warn("failed to get latest version of Pod",
+				zap.Error(getErr))
+		}
+		latestPod.Status = newPodStatus
+
+		if updatedPod, updateErr = nc.clientSet.CoreV1().Pods(pod.Namespace).UpdateStatus(context.Background(), latestPod, apis.UpdateOptions{}); updateErr != nil {
+			log.Logger().Warn("failed to update pod status",
+				zap.String("namespace", pod.Namespace),
+				zap.String("podName", pod.Name),
+				zap.Error(updateErr))
+			return updateErr
+		}
+		return nil
+	})
+	if retryErr != nil {
+		log.Logger().Error("Update pod status failed",
 			zap.String("namespace", pod.Namespace),
 			zap.String("podName", pod.Name),
-			zap.Error(err))
-		return pod, err
+			zap.Error(retryErr))
+		return pod, retryErr
 	}
+	log.Logger().Info("Successfully updated pod status",
+		zap.String("namespace", pod.Namespace),
+		zap.String("podName", pod.Name),
+		zap.String("newStatus", pod.Status.String()))
 	return updatedPod, nil
 }

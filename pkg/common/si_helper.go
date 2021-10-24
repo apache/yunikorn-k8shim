@@ -23,17 +23,37 @@ import (
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/common"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 )
 
-func createTagsForTask(pod *v1.Pod) map[string]string {
+func CreateTagsForTask(pod *v1.Pod) map[string]string {
 	metaPrefix := common.DomainK8s + common.GroupMeta
 	tags := map[string]string{
 		metaPrefix + common.KeyNamespace: pod.Namespace,
 		metaPrefix + common.KeyPodName:   pod.Name,
 	}
-
+	owners := pod.GetOwnerReferences()
+	if len(owners) > 0 {
+		for _, value := range owners {
+			if value.Kind == constants.DaemonSetType {
+				if pod.Spec.Affinity == nil || pod.Spec.Affinity.NodeAffinity == nil ||
+					pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution == nil {
+					log.Logger().Debug("DaemonSet pod's Affinity, NodeAffinity, RequiredDuringSchedulingIgnoredDuringExecution might empty")
+					continue
+				}
+				nodeSelectorTerms := pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms
+				for _, term := range nodeSelectorTerms {
+					for _, match := range term.MatchFields {
+						if match.Key == "metadata.name" {
+							tags[common.DomainYuniKorn+common.KeyRequiredNode] = match.Values[0]
+						}
+					}
+				}
+			}
+		}
+	}
 	// add Pod labels to Task tags
 	labelPrefix := common.DomainK8s + common.GroupLabel
 	for k, v := range pod.Labels {
@@ -49,7 +69,7 @@ func CreateUpdateRequestForTask(appID, taskID string, resource *si.Resource, pla
 		ResourceAsk:    resource,
 		ApplicationID:  appID,
 		MaxAllocations: 1,
-		Tags:           createTagsForTask(pod),
+		Tags:           CreateTagsForTask(pod),
 		Placeholder:    placeholder,
 		TaskGroupName:  taskGroupName,
 	}

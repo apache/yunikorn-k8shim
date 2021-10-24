@@ -19,6 +19,7 @@
 package cache
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -26,6 +27,7 @@ import (
 
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/tools/cache"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
@@ -39,7 +41,8 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
-	plugin "github.com/apache/incubator-yunikorn-k8shim/pkg/plugin/predicates"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/plugin/predicates"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/plugin/support"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 )
 
@@ -49,7 +52,7 @@ type Context struct {
 	nodes          *schedulerNodes                // nodes
 	schedulerCache *schedulercache.SchedulerCache // external cache
 	apiProvider    client.APIProvider             // apis to interact with api-server, scheduler-core, etc
-	predictor      *plugin.Predictor              // K8s predicates
+	predManager    predicates.PredicateManager    // K8s predicates
 	lock           *sync.RWMutex                  // lock
 }
 
@@ -71,7 +74,14 @@ func NewContext(apis client.APIProvider) *Context {
 
 	// init the controllers and plugins (need the cache)
 	ctx.nodes = newSchedulerNodes(apis.GetAPIs().SchedulerAPI, ctx.schedulerCache)
-	ctx.predictor = plugin.NewPredictor(schedulercache.GetPluginArgs(), apis.IsTestingMode())
+
+	// create the predicate manager
+	if !apis.IsTestingMode() {
+		sharedLister := support.NewSharedLister(ctx.schedulerCache)
+		clientSet := apis.GetAPIs().KubeClient.GetClientSet()
+		informerFactory := apis.GetAPIs().InformerFactory
+		ctx.predManager = predicates.NewPredicateManager(support.NewFrameworkHandle(sharedLister, informerFactory, clientSet))
+	}
 
 	return ctx
 }
@@ -315,7 +325,7 @@ func (ctx *Context) triggerReloadConfig() {
 // evaluate given predicates based on current context
 func (ctx *Context) IsPodFitNode(name, node string, allocate bool) error {
 	// simply skip if predicates are not enabled
-	if !ctx.predictor.Enabled() {
+	if ctx.apiProvider.IsTestingMode() {
 		return nil
 	}
 
@@ -324,8 +334,8 @@ func (ctx *Context) IsPodFitNode(name, node string, allocate bool) error {
 	if pod, ok := ctx.schedulerCache.GetPod(name); ok {
 		// if pod exists in cache, try to run predicates
 		if targetNode := ctx.schedulerCache.GetNode(node); targetNode != nil {
-			meta := ctx.predictor.GetPredicateMeta(pod, ctx.schedulerCache.GetNodesInfoMap())
-			return ctx.predictor.Predicates(pod, meta, targetNode, allocate)
+			_, err := ctx.predManager.Predicates(pod, targetNode, allocate)
+			return err
 		}
 	}
 	return fmt.Errorf("predicates were not running because pod or node was not found in cache")
@@ -346,7 +356,19 @@ func (ctx *Context) bindPodVolumes(pod *v1.Pod) error {
 				zap.String("podName", pod.Name))
 		} else {
 			log.Logger().Info("Binding Pod Volumes", zap.String("podName", pod.Name))
-			return ctx.apiProvider.GetAPIs().VolumeBinder.Binder.BindPodVolumes(assumedPod)
+			boundClaims, claimsToBind, _, err := ctx.apiProvider.GetAPIs().VolumeBinder.GetPodVolumes(assumedPod)
+			if err != nil {
+				return err
+			}
+			node, err := ctx.schedulerCache.GetNodeInfo(assumedPod.Spec.NodeName)
+			if err != nil {
+				return err
+			}
+			volumes, _, err := ctx.apiProvider.GetAPIs().VolumeBinder.FindPodVolumes(assumedPod, boundClaims, claimsToBind, node)
+			if err != nil {
+				return err
+			}
+			return ctx.apiProvider.GetAPIs().VolumeBinder.BindPodVolumes(assumedPod, volumes)
 		}
 	}
 	return nil
@@ -373,7 +395,15 @@ func (ctx *Context) AssumePod(name string, node string) error {
 			// volume builder might be null in UTs
 			if ctx.apiProvider.GetAPIs().VolumeBinder != nil {
 				var err error
-				allBound, err = ctx.apiProvider.GetAPIs().VolumeBinder.Binder.AssumePodVolumes(pod, node)
+				boundClaims, claimsToBind, _, err := ctx.apiProvider.GetAPIs().VolumeBinder.GetPodVolumes(assumedPod)
+				if err != nil {
+					return err
+				}
+				volumes, _, err := ctx.apiProvider.GetAPIs().VolumeBinder.FindPodVolumes(pod, boundClaims, claimsToBind, targetNode.Node())
+				if err != nil {
+					return err
+				}
+				allBound, err = ctx.apiProvider.GetAPIs().VolumeBinder.AssumePodVolumes(pod, node, volumes)
 				if err != nil {
 					return err
 				}
@@ -440,6 +470,8 @@ func (ctx *Context) NotifyTaskComplete(appID, taskID string) {
 			zap.String("taskID", taskID))
 		ev := NewSimpleTaskEvent(appID, taskID, events.CompleteTask)
 		dispatcher.Dispatch(ev)
+		appEv := NewSimpleApplicationEvent(appID, events.AppTaskCompleted)
+		dispatcher.Dispatch(appEv)
 	}
 }
 
@@ -509,7 +541,10 @@ func (ctx *Context) AddApplication(request *interfaces.AddApplicationRequest) in
 		request.Metadata.Tags,
 		ctx.apiProvider.GetAPIs().SchedulerAPI)
 	app.setTaskGroups(request.Metadata.TaskGroups)
-	app.SetPlaceholderTimeout(request.Metadata.PlaceholderTimeoutInSec)
+	if request.Metadata.SchedulingPolicyParameters != nil {
+		app.SetPlaceholderTimeout(request.Metadata.SchedulingPolicyParameters.GetPlaceholderTimeout())
+		app.setSchedulingStyle(request.Metadata.SchedulingPolicyParameters.GetGangSchedulingStyle())
+	}
 	app.setOwnReferences(request.Metadata.OwnerReferences)
 
 	// add into cache
@@ -567,19 +602,12 @@ func (ctx *Context) RemoveApplicationInternal(appID string) error {
 func (ctx *Context) AddTask(request *interfaces.AddTaskRequest) interfaces.ManagedTask {
 	log.Logger().Debug("AddTask",
 		zap.String("appID", request.Metadata.ApplicationID),
-		zap.String("taskID", request.Metadata.TaskID),
-		zap.Bool("isRecovery", request.Recovery))
+		zap.String("taskID", request.Metadata.TaskID))
 	if managedApp := ctx.GetApplication(request.Metadata.ApplicationID); managedApp != nil {
 		if app, valid := managedApp.(*Application); valid {
 			existingTask, err := app.GetTask(request.Metadata.TaskID)
 			if err != nil {
 				task := NewFromTaskMeta(request.Metadata.TaskID, app, ctx, request.Metadata)
-				// in recovery mode, task is considered as allocated
-				if request.Recovery {
-					// in scheduling, allocationUUID is assigned by scheduler-core
-					// in recovery mode, allocationUuid equals to taskID, which also equals to the pod UID
-					task.setAllocated(request.Metadata.Pod.Spec.NodeName, request.Metadata.TaskID)
-				}
 				app.addTask(task)
 				log.Logger().Info("task added",
 					zap.String("appID", app.applicationID),
@@ -688,7 +716,7 @@ func (ctx *Context) updatePodCondition(task *Task, podCondition *v1.PodCondition
 			if podutil.UpdatePodCondition(&task.pod.Status, podCondition) {
 				if !ctx.apiProvider.IsTestingMode() {
 					_, err := ctx.apiProvider.GetAPIs().KubeClient.GetClientSet().CoreV1().
-						Pods(task.pod.Namespace).UpdateStatus(task.pod)
+						Pods(task.pod.Namespace).UpdateStatus(context.Background(), task.pod, metav1.UpdateOptions{})
 					if err == nil {
 						return true
 					}
@@ -841,7 +869,7 @@ func (ctx *Context) SaveConfigmap(request *si.UpdateConfigurationRequest) *si.Up
 	newConf := ykconf.DeepCopy()
 	oldConfData := ykconf.Data["queues.yaml"]
 	newConf.Data = newConfData
-	_, err = ctx.apiProvider.GetAPIs().KubeClient.GetClientSet().CoreV1().ConfigMaps(ykconf.Namespace).Update(newConf)
+	_, err = ctx.apiProvider.GetAPIs().KubeClient.GetClientSet().CoreV1().ConfigMaps(ykconf.Namespace).Update(context.Background(), newConf, metav1.UpdateOptions{})
 	if err != nil {
 		return &si.UpdateConfigurationResponse{
 			Success: false,
