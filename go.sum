@@ -84,6 +84,8 @@ github.com/alecthomas/units v0.0.0-20190717042225-c3de453c63f4/go.mod h1:ybxpYRF
 github.com/andreyvit/diff v0.0.0-20170406064948-c7f18ee00883/go.mod h1:rCTlJbsFo29Kk6CurOXKm700vrz8f0KW0JNfpkRJY/8=
 github.com/apache/incubator-yunikorn-core v0.0.0-20210826051046-dc7141f1740a h1:Tc8AGTJ+LaJjIVnOOHavRRxuOGHr5ItL+QMj1YJsq/g=
 github.com/apache/incubator-yunikorn-core v0.0.0-20210826051046-dc7141f1740a/go.mod h1:rikvdJ1ufqGnLgmU7A9YvMzKh8YBECQcQfetrHl2UZk=
+github.com/apache/incubator-yunikorn-core v0.0.0-20211020004620-9e151829e147 h1:s5dwI4WsDtNf0EZu7xLk/d5JMOHEddBKVaYCxAFTddA=
+github.com/apache/incubator-yunikorn-core v0.0.0-20211020004620-9e151829e147/go.mod h1:ULPldxsrteq0L3Gl+BXTdX+dRZ4EogroL+GH92j8Ybw=
 github.com/apache/incubator-yunikorn-scheduler-interface v0.11.1-0.20210825113556-88f21e44dc01 h1:oU0+6l0g3NjFAnXPJRaTbxDEgxhW37ogvGPL0/y4X9M=
 github.com/apache/incubator-yunikorn-scheduler-interface v0.11.1-0.20210825113556-88f21e44dc01/go.mod h1:t5QdMEL8rq6rI2XzpJ8S/BFIgiJGIQ6V1Zh90ZvhSXc=
 github.com/armon/circbuf v0.0.0-20150827004946-bbbad097214e h1:QEF07wC0T1rKkctt1RINW/+RMTVmiwxETico2l3gxJA=
@@ -353,6 +355,8 @@ github.com/golangplus/testing v0.0.0-20180327235837-af21d9c3145e/go.mod h1:0AA//
 github.com/google/btree v0.0.0-20180813153112-4030bb1f1f0c/go.mod h1:lNA+9X1NB3Zf8V7Ke586lFgjr2dZNuvo3lPJSGZ5JPQ=
 github.com/google/btree v1.0.0 h1:0udJVsspx3VBr5FwtLhQQtuAsVc79tTq0ocGIPAU6qo=
 github.com/google/btree v1.0.0/go.mod h1:lNA+9X1NB3Zf8V7Ke586lFgjr2dZNuvo3lPJSGZ5JPQ=
+github.com/google/btree v1.0.1 h1:gK4Kx5IaGY9CD5sPJ36FHiBJ6ZXl0kilRiiCj+jdYp4=
+github.com/google/btree v1.0.1/go.mod h1:xXMiIv4Fb/0kKde4SpL7qlzvu5cMJDRkFDxJfI9uaxA=
 github.com/google/cadvisor v0.34.0/go.mod h1:1nql6U13uTHaLYB8rLS5x9IJc2qT6Xd/Tr1sTX6NE48=
 github.com/google/cadvisor v0.38.8/go.mod h1:1OFB9sOOMkBdUBGCO/1SArawTnDscgMzTodacVDe8mA=
 github.com/google/certificate-transparency-go v1.0.21/go.mod h1:QeJfpSbVSfYc7RgB3gJFj9cbuQMMchQxrWXz8Ruopmg=
