@@ -180,12 +180,10 @@ func (callback *AsyncRMCallback) UpdateNode(response *si.NodeResponse) error {
 	return nil
 }
 
-// this callback implements scheduler plugin interface PredicatesPlugin/
 func (callback *AsyncRMCallback) Predicates(args *si.PredicatesArgs) error {
 	return callback.context.IsPodFitNode(args.AllocationKey, args.NodeID, args.Allocate)
 }
 
-// this callback implements scheduler plugin interface ReconcilePlugin.
 func (callback *AsyncRMCallback) ReSyncSchedulerCache(args *si.ReSyncSchedulerCacheArgs) error {
 	for _, assumedAlloc := range args.AssumedAllocations {
 		if err := callback.context.AssumePod(assumedAlloc.AllocationKey, assumedAlloc.NodeID); err != nil {
@@ -201,7 +199,6 @@ func (callback *AsyncRMCallback) ReSyncSchedulerCache(args *si.ReSyncSchedulerCa
 	return nil
 }
 
-// this callback implement scheduler plugin interface EventPlugin.
 func (callback *AsyncRMCallback) SendEvent(eventRecords []*si.EventRecord) {
 	if len(eventRecords) > 0 {
 		log.Logger().Debug(fmt.Sprintf("prepare to publish %d events", len(eventRecords)))
@@ -210,7 +207,7 @@ func (callback *AsyncRMCallback) SendEvent(eventRecords []*si.EventRecord) {
 }
 
 // this callback implements scheduler plugin interface ContainerSchedulingStateUpdater.
-func (callback *AsyncRMCallback) Update(request *si.UpdateContainerSchedulingStateRequest) {
+func (callback *AsyncRMCallback) UpdateContainerSchedulingState(request *si.UpdateContainerSchedulingStateRequest) {
 	callback.context.HandleContainerStateUpdate(request)
 }
 
