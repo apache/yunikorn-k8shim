@@ -31,6 +31,7 @@ import (
 
 var once sync.Once
 var logger *zap.Logger
+var zapConfigs *zap.Config
 
 func Logger() *zap.Logger {
 	once.Do(initLogger)
@@ -45,7 +46,7 @@ func initLogger() {
 		outputPaths = append(outputPaths, configs.LogFile)
 	}
 
-	zapConfigs := zap.Config{
+	zapConfigs = &zap.Config{
 		Level:             zap.NewAtomicLevelAt(zapcore.Level(configs.LoggingLevel)),
 		Development:       false,
 		DisableCaller:     false,
@@ -79,11 +80,6 @@ func initLogger() {
 		logger = zap.NewNop()
 	}
 
-	// set as global logging
-	// when k8s-shim runs with core, core side can directly reuse this logger,
-	// this way we are making consistent logging configs in shim and core.
-	zap.ReplaceGlobals(logger)
-
 	// dump configuration
 	var c []byte
 	c, err = json.MarshalIndent(&configs, "", " ")
@@ -96,4 +92,8 @@ func initLogger() {
 	// make sure logs are flushed
 	//nolint:errcheck
 	defer logger.Sync()
+}
+
+func GetZapConfigs() *zap.Config {
+	return zapConfigs
 }
