@@ -20,6 +20,7 @@ package general
 
 import (
 	"reflect"
+	"strconv"
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -130,6 +131,10 @@ func (os *Manager) getAppMetadata(pod *v1.Pod) (interfaces.ApplicationMetadata, 
 	} else {
 		tags[constants.AppTagNamespace] = pod.Namespace
 	}
+	if isStateAwareDisabled(pod) {
+		tags[constants.AppTagStateAwareDisable] = "true"
+	}
+
 	// get the user from Pod Labels
 	user := utils.GetUserFromPod(pod)
 
@@ -155,6 +160,23 @@ func (os *Manager) getAppMetadata(pod *v1.Pod) (interfaces.ApplicationMetadata, 
 		OwnerReferences:            ownerReferences,
 		SchedulingPolicyParameters: schedulingPolicyParams,
 	}, true
+}
+
+func isStateAwareDisabled(pod *v1.Pod) bool {
+	value, ok := pod.Labels[constants.LabelDisableStateAware]
+	if !ok {
+		return false
+	}
+	result, err := strconv.ParseBool(value)
+	if err != nil {
+		log.Logger().Debug("unable to parse label for pod",
+			zap.String("namespace", pod.Namespace),
+			zap.String("name", pod.Name),
+			zap.String("label", constants.LabelDisableStateAware),
+			zap.Error(err))
+		return false
+	}
+	return result
 }
 
 func getOwnerReferences(pod *v1.Pod) []metav1.OwnerReference {
