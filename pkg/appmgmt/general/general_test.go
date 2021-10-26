@@ -97,6 +97,7 @@ func TestGetAppMetadata(t *testing.T) {
 				"applicationId":            "app00002",
 				"queue":                    "root.b",
 				"yunikorn.apache.org/user": "testuser",
+				"disableStateAware":        "true",
 			},
 			Annotations: map[string]string{
 				constants.AnnotationSchedulingPolicyParam: "gangSchedulingStyle=Hard",
@@ -115,7 +116,10 @@ func TestGetAppMetadata(t *testing.T) {
 	assert.Equal(t, app.ApplicationID, "app00002")
 	assert.Equal(t, app.QueueName, "root.b")
 	assert.Equal(t, app.User, constants.DefaultUser)
-	assert.DeepEqual(t, app.Tags, map[string]string{"namespace": "app-namespace-01"})
+	assert.DeepEqual(t, app.Tags, map[string]string{
+		"application.stateaware.disable": "true",
+		"namespace":                      "app-namespace-01",
+	})
 	assert.DeepEqual(t, len(app.TaskGroups), 0)
 	assert.Equal(t, app.SchedulingPolicyParameters.GetGangSchedulingStyle(), "Hard")
 
@@ -176,6 +180,26 @@ func TestGetAppMetadata(t *testing.T) {
 	assert.Equal(t, ok, true)
 	assert.Equal(t, app.SchedulingPolicyParameters.GetGangSchedulingStyle(), "Soft")
 
+	pod = v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name:      "pod00002",
+			Namespace: "app-namespace-01",
+			UID:       "UID-POD-00001",
+		},
+		Spec: v1.PodSpec{
+			SchedulerName: constants.SchedulerName,
+		},
+		Status: v1.PodStatus{
+			Phase: v1.PodPending,
+		},
+	}
+
+	app, ok = am.getAppMetadata(&pod)
+	assert.Equal(t, ok, false)
 	pod = v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",

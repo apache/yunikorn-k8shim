@@ -165,6 +165,11 @@ func updateLabels(namespace string, pod *v1.Pod, patch []patchOperation) []patch
 			log.Logger().Debug("adding application ID",
 				zap.String("generatedID", generatedID))
 			result[constants.LabelApplicationID] = generatedID
+
+			// if we generate an app ID, disable state-aware scheduling for this app
+			if _, ok := existingLabels[constants.LabelDisableStateAware]; !ok {
+				result[constants.LabelDisableStateAware] = "true"
+			}
 		}
 	}
 
