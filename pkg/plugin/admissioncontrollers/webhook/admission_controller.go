@@ -43,6 +43,8 @@ const (
 	autoGenAppPrefix             = "yunikorn"
 	autoGenAppSuffix             = "autogen"
 	enableConfigHotRefreshEnvVar = "ENABLE_CONFIG_HOT_REFRESH"
+	yunikornPod                  = "yunikorn"
+	defaultQueue                 = "root.default"
 )
 
 var (
@@ -72,16 +74,20 @@ func (c *admissionController) mutate(ar *v1beta1.AdmissionReview) *v1beta1.Admis
 	namespace := ar.Request.Namespace
 	var patch []patchOperation
 
-	if req.Kind.Kind == "Pod" {
+	var requestKind = req.Kind.Kind
+	var uid = string(req.UID)
+
+	if requestKind == "Pod" {
 		log.Logger().Info("AdmissionReview",
 			zap.Any("Kind", req.Kind),
 			zap.String("Namespace", namespace),
-			zap.String("UID", string(req.UID)),
+			zap.String("UID", uid),
 			zap.String("Operation", string(req.Operation)),
 			zap.Any("UserInfo", req.UserInfo))
 
 		var pod v1.Pod
 		if err := json.Unmarshal(req.Object.Raw, &pod); err != nil {
+			log.Logger().Error("unmarshal failed", zap.Error(err))
 			return &v1beta1.AdmissionResponse{
 				Allowed: false,
 				Result: &metav1.Status{
@@ -91,7 +97,7 @@ func (c *admissionController) mutate(ar *v1beta1.AdmissionReview) *v1beta1.Admis
 		}
 
 		if labelAppValue, ok := pod.Labels[constants.LabelApp]; ok {
-			if labelAppValue == "yunikorn" {
+			if labelAppValue == yunikornPod {
 				log.Logger().Info("ignore yunikorn pod")
 				return &v1beta1.AdmissionResponse{
 					Allowed: true,
@@ -101,10 +107,16 @@ func (c *admissionController) mutate(ar *v1beta1.AdmissionReview) *v1beta1.Admis
 
 		patch = updateSchedulerName(patch)
 		patch = updateLabels(namespace, &pod, patch)
+		log.Logger().Info(fmt.Sprintf("generated patch for pod %s\n", pod.Name),
+			zap.Any("patch", patch))
+	} else {
+		log.Logger().Info(fmt.Sprintf("request kind (%s) is not pod, but %s. Ignored.\n",
+			uid, requestKind))
 	}
 
 	patchBytes, err := json.Marshal(patch)
 	if err != nil {
+		log.Logger().Error("failed to marshal patch", zap.Error(err))
 		return &v1beta1.AdmissionResponse{
 			Allowed: false,
 			Result: &metav1.Status{
@@ -162,16 +174,12 @@ func updateLabels(namespace string, pod *v1.Pod, patch []patchOperation) []patch
 			// for each namespace, we group unnamed pods to one single app
 			// application ID convention: ${AUTO_GEN_PREFIX}-${NAMESPACE}-${AUTO_GEN_SUFFIX}
 			generatedID := generateAppID(namespace)
-			log.Logger().Debug("adding application ID",
-				zap.String("generatedID", generatedID))
 			result[constants.LabelApplicationID] = generatedID
 		}
 	}
 
 	if _, ok := existingLabels[constants.LabelQueueName]; !ok {
-		log.Logger().Debug("adding queue name",
-			zap.String("defaultQueue", "root.default"))
-		result[constants.LabelQueueName] = "root.default"
+		result[constants.LabelQueueName] = defaultQueue
 	}
 
 	patch = append(patch, patchOperation{
@@ -209,9 +217,11 @@ func (c *admissionController) validateConf(ar *v1beta1.AdmissionReview) *v1beta1
 		}
 	}
 
-	if req.Kind.Kind == "ConfigMap" {
+	var requestKind = req.Kind.Kind
+	if requestKind == "ConfigMap" {
 		var configmap v1.ConfigMap
 		if err := json.Unmarshal(req.Object.Raw, &configmap); err != nil {
+			log.Logger().Error("failed to unmarshal configmap", zap.Error(err))
 			return &v1beta1.AdmissionResponse{
 				Allowed: false,
 				Result: &metav1.Status{
@@ -229,6 +239,8 @@ func (c *admissionController) validateConf(ar *v1beta1.AdmissionReview) *v1beta1
 				},
 			}
 		}
+	} else {
+		log.Logger().Warn(fmt.Sprintf("request kind is not configmap, but %s. Ignored.\n", requestKind))
 	}
 
 	return &v1beta1.AdmissionResponse{
@@ -287,6 +299,8 @@ func (c *admissionController) serve(w http.ResponseWriter, r *http.Request) {
 
 	var admissionResponse *v1beta1.AdmissionResponse
 	ar := v1beta1.AdmissionReview{}
+	urlPath := r.URL.Path
+
 	if _, _, err := deserializer.Decode(body, nil, &ar); err != nil {
 		log.Logger().Error("Can't decode the body", zap.Error(err))
 		admissionResponse = &v1beta1.AdmissionResponse{
@@ -295,10 +309,13 @@ func (c *admissionController) serve(w http.ResponseWriter, r *http.Request) {
 				Message: err.Error(),
 			},
 		}
-	} else if r.URL.Path == mutateURL {
+	} else if urlPath == mutateURL {
 		admissionResponse = c.mutate(&ar)
-	} else if r.URL.Path == validateConfURL {
+	} else if urlPath == validateConfURL {
 		admissionResponse = c.validateConf(&ar)
+	} else {
+		log.Logger().Warn(fmt.Sprintf("Request is neither mutation nor validation: %s\n",
+			urlPath))
 	}
 
 	admissionReview := v1beta1.AdmissionReview{}
@@ -311,10 +328,14 @@ func (c *admissionController) serve(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := json.Marshal(admissionReview)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("could not encode response: %v", err), http.StatusInternalServerError)
+		errMessage := fmt.Sprintf("could not encode response: %v", err)
+		log.Logger().Error(errMessage)
+		http.Error(w, errMessage, http.StatusInternalServerError)
 	}
 
 	if _, err = w.Write(resp); err != nil {
-		http.Error(w, fmt.Sprintf("could not write response: %v", err), http.StatusInternalServerError)
+		errMessage := fmt.Sprintf("could not write response: %v", err)
+		log.Logger().Error(errMessage)
+		http.Error(w, errMessage, http.StatusInternalServerError)
 	}
 }
