@@ -77,42 +77,45 @@ func (c *admissionController) mutate(ar *v1beta1.AdmissionReview) *v1beta1.Admis
 	var requestKind = req.Kind.Kind
 	var uid = string(req.UID)
 
-	if requestKind == "Pod" {
-		log.Logger().Info("AdmissionReview",
-			zap.Any("Kind", req.Kind),
-			zap.String("Namespace", namespace),
-			zap.String("UID", uid),
-			zap.String("Operation", string(req.Operation)),
-			zap.Any("UserInfo", req.UserInfo))
+	if requestKind != "Pod" {
+		log.Logger().Warn("request kind is not pod", zap.String("uid", uid),
+			zap.String("requestKind", requestKind))
 
-		var pod v1.Pod
-		if err := json.Unmarshal(req.Object.Raw, &pod); err != nil {
-			log.Logger().Error("unmarshal failed", zap.Error(err))
-			return &v1beta1.AdmissionResponse{
-				Allowed: false,
-				Result: &metav1.Status{
-					Message: err.Error(),
-				},
-			}
+		return &v1beta1.AdmissionResponse{
+			Allowed: true,
 		}
-
-		if labelAppValue, ok := pod.Labels[constants.LabelApp]; ok {
-			if labelAppValue == yunikornPod {
-				log.Logger().Info("ignore yunikorn pod")
-				return &v1beta1.AdmissionResponse{
-					Allowed: true,
-				}
-			}
-		}
-
-		patch = updateSchedulerName(patch)
-		patch = updateLabels(namespace, &pod, patch)
-		log.Logger().Info(fmt.Sprintf("generated patch for pod %s\n", pod.Name),
-			zap.Any("patch", patch))
-	} else {
-		log.Logger().Info(fmt.Sprintf("request kind (%s) is not pod, but %s. Ignored.\n",
-			uid, requestKind))
 	}
+
+	log.Logger().Info("AdmissionReview",
+		zap.String("Namespace", namespace),
+		zap.String("UID", uid),
+		zap.String("Operation", string(req.Operation)),
+		zap.Any("UserInfo", req.UserInfo))
+
+	var pod v1.Pod
+	if err := json.Unmarshal(req.Object.Raw, &pod); err != nil {
+		log.Logger().Error("unmarshal failed", zap.Error(err))
+		return &v1beta1.AdmissionResponse{
+			Allowed: false,
+			Result: &metav1.Status{
+				Message: err.Error(),
+			},
+		}
+	}
+
+	if labelAppValue, ok := pod.Labels[constants.LabelApp]; ok {
+		if labelAppValue == yunikornPod {
+			log.Logger().Info("ignore yunikorn pod")
+			return &v1beta1.AdmissionResponse{
+				Allowed: true,
+			}
+		}
+	}
+
+	patch = updateSchedulerName(patch)
+	patch = updateLabels(namespace, &pod, patch)
+	log.Logger().Info("generated patch", zap.String("podName", pod.Name),
+		zap.Any("patch", patch))
 
 	patchBytes, err := json.Marshal(patch)
 	if err != nil {
@@ -218,29 +221,33 @@ func (c *admissionController) validateConf(ar *v1beta1.AdmissionReview) *v1beta1
 	}
 
 	var requestKind = req.Kind.Kind
-	if requestKind == "ConfigMap" {
-		var configmap v1.ConfigMap
-		if err := json.Unmarshal(req.Object.Raw, &configmap); err != nil {
-			log.Logger().Error("failed to unmarshal configmap", zap.Error(err))
-			return &v1beta1.AdmissionResponse{
-				Allowed: false,
-				Result: &metav1.Status{
-					Message: err.Error(),
-				},
-			}
+	if requestKind != "ConfigMap" {
+		log.Logger().Warn("request kind is not configmap", zap.String("requestKind", requestKind))
+		return &v1beta1.AdmissionResponse{
+			Allowed: true,
 		}
-		// validate new/updated config map
-		if err := c.validateConfigMap(&configmap); err != nil {
-			log.Logger().Error("failed to validate yunikorn configs", zap.Error(err))
-			return &v1beta1.AdmissionResponse{
-				Allowed: false,
-				Result: &metav1.Status{
-					Message: err.Error(),
-				},
-			}
+	}
+
+	var configmap v1.ConfigMap
+	if err := json.Unmarshal(req.Object.Raw, &configmap); err != nil {
+		log.Logger().Error("failed to unmarshal configmap", zap.Error(err))
+		return &v1beta1.AdmissionResponse{
+			Allowed: false,
+			Result: &metav1.Status{
+				Message: err.Error(),
+			},
 		}
-	} else {
-		log.Logger().Warn(fmt.Sprintf("request kind is not configmap, but %s. Ignored.\n", requestKind))
+	}
+
+	// validate new/updated config map
+	if err := c.validateConfigMap(&configmap); err != nil {
+		log.Logger().Error("failed to validate yunikorn configs", zap.Error(err))
+		return &v1beta1.AdmissionResponse{
+			Allowed: false,
+			Result: &metav1.Status{
+				Message: err.Error(),
+			},
+		}
 	}
 
 	return &v1beta1.AdmissionResponse{
@@ -314,8 +321,7 @@ func (c *admissionController) serve(w http.ResponseWriter, r *http.Request) {
 	} else if urlPath == validateConfURL {
 		admissionResponse = c.validateConf(&ar)
 	} else {
-		log.Logger().Warn(fmt.Sprintf("Request is neither mutation nor validation: %s\n",
-			urlPath))
+		log.Logger().Warn("request is neither mutation nor validation", zap.String("urlPath", urlPath))
 	}
 
 	admissionReview := v1beta1.AdmissionReview{}
