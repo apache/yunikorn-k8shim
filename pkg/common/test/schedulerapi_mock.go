@@ -118,7 +118,7 @@ func (api *SchedulerAPIMock) UpdateNode(request *si.NodeRequest) error {
 	return api.UpdateNodeFn(request)
 }
 
-func (api *SchedulerAPIMock) ReloadConfiguration(rmID string) error {
+func (api *SchedulerAPIMock) UpdateConfiguration(rmID string) error {
 	api.lock.Lock()
 	defer api.lock.Unlock()
 	return nil

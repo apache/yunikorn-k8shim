@@ -317,7 +317,7 @@ func (ctx *Context) deleteConfigMaps(obj interface{}) {
 func (ctx *Context) triggerReloadConfig() {
 	log.Logger().Info("trigger scheduler configuration reloading")
 	clusterId := ctx.apiProvider.GetAPIs().Conf.ClusterID
-	if err := ctx.apiProvider.GetAPIs().SchedulerAPI.ReloadConfiguration(clusterId); err != nil {
+	if err := ctx.apiProvider.GetAPIs().SchedulerAPI.UpdateConfiguration(clusterId); err != nil {
 		log.Logger().Error("reload configuration failed", zap.Error(err))
 	}
 }
