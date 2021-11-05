@@ -152,7 +152,7 @@ func (n *SchedulerNode) handleNodeRecovery(event *fsm.Event) {
 	allocRequest := &si.AllocationRequest{
 		Asks:     nil,
 		Releases: nil,
-		RmID: conf.GetSchedulerConf().ClusterID,
+		RmID:     conf.GetSchedulerConf().ClusterID,
 	}
 	nodeRequest := &si.NodeRequest{
 		Nodes: []*si.NodeInfo{
@@ -166,7 +166,7 @@ func (n *SchedulerNode) handleNodeRecovery(event *fsm.Event) {
 					constants.DefaultNodeAttributeNodeLabelsKey: n.labels,
 				},
 				ExistingAllocations: n.existingAllocations,
-				Action: si.NodeInfo_CREATE,
+				Action:              si.NodeInfo_CREATE,
 			},
 		},
 		RmID: conf.GetSchedulerConf().ClusterID,
@@ -191,7 +191,7 @@ func (n *SchedulerNode) handleDrainNode(event *fsm.Event) {
 	allocRequest := &si.AllocationRequest{
 		Asks:     nil,
 		Releases: nil,
-		RmID: conf.GetSchedulerConf().ClusterID,
+		RmID:     conf.GetSchedulerConf().ClusterID,
 	}
 	nodeRequest := &si.NodeRequest{
 		Nodes: []*si.NodeInfo{
@@ -228,7 +228,7 @@ func (n *SchedulerNode) handleRestoreNode(event *fsm.Event) {
 	allocRequest := &si.AllocationRequest{
 		Asks:     nil,
 		Releases: nil,
-		RmID: conf.GetSchedulerConf().ClusterID,
+		RmID:     conf.GetSchedulerConf().ClusterID,
 	}
 	nodeRequest := &si.NodeRequest{
 		Nodes: []*si.NodeInfo{

@@ -128,27 +128,27 @@ func (callback *AsyncRMCallback) UpdateApplication(response *si.ApplicationRespo
 			zap.String("appId", updated.ApplicationID),
 			zap.String("new status", updated.State))
 		switch updated.State {
-			case events.States().Application.Completed:
-				err := callback.context.RemoveApplicationInternal(updated.ApplicationID)
-				if err != nil {
-					log.Logger().Error("failed to delete application", zap.Error(err))
-				}
-			case events.States().Application.Resuming:
-				app := callback.context.GetApplication(updated.ApplicationID)
-				if app != nil && app.GetApplicationState() == events.States().Application.Reserving {
-					ev := cache.NewResumingApplicationEvent(updated.ApplicationID)
-					dispatcher.Dispatch(ev)
+		case events.States().Application.Completed:
+			err := callback.context.RemoveApplicationInternal(updated.ApplicationID)
+			if err != nil {
+				log.Logger().Error("failed to delete application", zap.Error(err))
+			}
+		case events.States().Application.Resuming:
+			app := callback.context.GetApplication(updated.ApplicationID)
+			if app != nil && app.GetApplicationState() == events.States().Application.Reserving {
+				ev := cache.NewResumingApplicationEvent(updated.ApplicationID)
+				dispatcher.Dispatch(ev)
 
-					// handle status update
-					dispatcher.Dispatch(cache.NewApplicationStatusChangeEvent(updated.ApplicationID, events.AppStateChange, updated.State))
-				}
-			default:
-				if updated.State == events.States().Application.Failing || updated.State == events.States().Application.Failed {
-					ev := cache.NewFailApplicationEvent(updated.ApplicationID, updated.Message)
-					dispatcher.Dispatch(ev)
-				}
 				// handle status update
 				dispatcher.Dispatch(cache.NewApplicationStatusChangeEvent(updated.ApplicationID, events.AppStateChange, updated.State))
+			}
+		default:
+			if updated.State == events.States().Application.Failing || updated.State == events.States().Application.Failed {
+				ev := cache.NewFailApplicationEvent(updated.ApplicationID, updated.Message)
+				dispatcher.Dispatch(ev)
+			}
+			// handle status update
+			dispatcher.Dispatch(cache.NewApplicationStatusChangeEvent(updated.ApplicationID, events.AppStateChange, updated.State))
 		}
 	}
 	return nil

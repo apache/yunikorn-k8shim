@@ -212,7 +212,7 @@ func TestReleaseTaskAllocation(t *testing.T) {
 
 	// the mocked update function does nothing than verify the coming messages
 	// this is to verify we are sending correct info to the scheduler core
-	mockedApiProvider.MockSchedulerApiUpdateAllocationFn(func(request *si.AllocationRequest) error {
+	mockedApiProvider.MockSchedulerAPIUpdateAllocationFn(func(request *si.AllocationRequest) error {
 		assert.Assert(t, request.Releases != nil)
 		assert.Assert(t, request.Releases.AllocationsToRelease != nil)
 		assert.Equal(t, request.Releases.AllocationsToRelease[0].ApplicationID, app.applicationID)
@@ -226,7 +226,7 @@ func TestReleaseTaskAllocation(t *testing.T) {
 	assert.NilError(t, err, "failed to handle CompleteTask event")
 	assert.Equal(t, task.GetTaskState(), events.States().Task.Completed)
 	// 2 updates call, 1 for submit, 1 for release
-	assert.Equal(t, mockedApiProvider.GetSchedulerApiUpdateAllocationCount(), int32(2))
+	assert.Equal(t, mockedApiProvider.GetSchedulerAPIUpdateAllocationCount(), int32(2))
 }
 
 func TestReleaseTaskAsk(t *testing.T) {
@@ -281,7 +281,7 @@ func TestReleaseTaskAsk(t *testing.T) {
 
 	// the mocked update function does nothing than verify the coming messages
 	// this is to verify we are sending correct info to the scheduler core
-	mockedApiProvider.MockSchedulerApiUpdateAllocationFn(func(request *si.AllocationRequest) error {
+	mockedApiProvider.MockSchedulerAPIUpdateAllocationFn(func(request *si.AllocationRequest) error {
 		assert.Assert(t, request.Releases != nil)
 		assert.Assert(t, request.Releases.AllocationsToRelease == nil)
 		assert.Assert(t, request.Releases.AllocationAsksToRelease != nil)
@@ -297,7 +297,7 @@ func TestReleaseTaskAsk(t *testing.T) {
 	assert.NilError(t, err, "failed to handle CompleteTask event")
 	assert.Equal(t, task.GetTaskState(), events.States().Task.Completed)
 	// 2 updates call, 1 for submit, 1 for release
-	assert.Equal(t, mockedApiProvider.GetSchedulerApiUpdateAllocationCount(), int32(2))
+	assert.Equal(t, mockedApiProvider.GetSchedulerAPIUpdateAllocationCount(), int32(2))
 }
 
 func TestCreateTask(t *testing.T) {
@@ -567,7 +567,7 @@ func TestSimultaneousTaskCompleteAndAllocate(t *testing.T) {
 	// notify task complete
 	// because the task is in Scheduling state,
 	// here we expect to trigger a UpdateRequest that contains a releaseAllocationAsk request
-	mockedAPIProvider.MockSchedulerApiUpdateAllocationFn(func(request *si.AllocationRequest) error {
+	mockedAPIProvider.MockSchedulerAPIUpdateAllocationFn(func(request *si.AllocationRequest) error {
 		assert.Equal(t, len(request.Releases.AllocationAsksToRelease), 1,
 			"allocationAskToRelease is not in the expected length")
 		assert.Equal(t, len(request.Releases.AllocationsToRelease), 0,
@@ -593,7 +593,7 @@ func TestSimultaneousTaskCompleteAndAllocate(t *testing.T) {
 		ApplicationID: appID,
 		PartitionName: "default",
 	}
-	mockedAPIProvider.MockSchedulerApiUpdateAllocationFn(func(request *si.AllocationRequest) error {
+	mockedAPIProvider.MockSchedulerAPIUpdateAllocationFn(func(request *si.AllocationRequest) error {
 		assert.Equal(t, len(request.Releases.AllocationAsksToRelease), 0,
 			"allocationAskToRelease is not in the expected length")
 		assert.Equal(t, len(request.Releases.AllocationsToRelease), 1,

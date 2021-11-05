@@ -75,18 +75,18 @@ func CreateAllocationRequestForTask(appID, taskID string, resource *si.Resource,
 	}
 
 	result := si.AllocationRequest{
-		Asks:                []*si.AllocationAsk{&ask},
-		RmID:                conf.GetSchedulerConf().ClusterID,
+		Asks: []*si.AllocationAsk{&ask},
+		RmID: conf.GetSchedulerConf().ClusterID,
 	}
 
 	return result
 }
 
-func CreateReleaseAskRequestForTask(appID, taskId, partition string) si.AllocationRequest {
+func CreateReleaseAskRequestForTask(appID, taskID, partition string) si.AllocationRequest {
 	toReleases := make([]*si.AllocationAskRelease, 0)
 	toReleases = append(toReleases, &si.AllocationAskRelease{
 		ApplicationID: appID,
-		Allocationkey: taskId,
+		Allocationkey: taskID,
 		PartitionName: partition,
 		Message:       "task request is canceled",
 	})
@@ -150,7 +150,7 @@ func CreateUpdateRequestForNewNode(node Node) si.NodeRequest {
 	nodes[0] = nodeInfo
 	request := si.NodeRequest{
 		Nodes: nodes,
-		RmID:                conf.GetSchedulerConf().ClusterID,
+		RmID:  conf.GetSchedulerConf().ClusterID,
 	}
 	return request
 }
@@ -169,7 +169,7 @@ func CreateUpdateRequestForUpdatedNode(node Node) si.NodeRequest {
 	nodes[0] = nodeInfo
 	request := si.NodeRequest{
 		Nodes: nodes,
-		RmID:         conf.GetSchedulerConf().ClusterID,
+		RmID:  conf.GetSchedulerConf().ClusterID,
 	}
 	return request
 }
@@ -187,7 +187,7 @@ func CreateUpdateRequestForDeleteNode(node Node) si.NodeRequest {
 	deletedNodes[0] = nodeInfo
 	request := si.NodeRequest{
 		Nodes: deletedNodes,
-		RmID:         conf.GetSchedulerConf().ClusterID,
+		RmID:  conf.GetSchedulerConf().ClusterID,
 	}
 	return request
 }
@@ -200,7 +200,7 @@ func CreateUpdateRequestForRemoveApplication(appID, partition string) si.Applica
 	})
 	request := si.ApplicationRequest{
 		Remove: removeApp,
-		RmID:               conf.GetSchedulerConf().ClusterID,
+		RmID:   conf.GetSchedulerConf().ClusterID,
 	}
 
 	return request

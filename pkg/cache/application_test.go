@@ -488,9 +488,9 @@ type mockSchedulerAPI struct {
 	callback   api.ResourceManagerCallback //nolint:structcheck,unused
 	registerFn func(request *si.RegisterResourceManagerRequest,
 		callback api.ResourceManagerCallback) (*si.RegisterResourceManagerResponse, error)
-	UpdateAllocationFn func(request *si.AllocationRequest) error
-	UpdateApplicationFn func(request *si.ApplicationRequest) error
-	UpdateNodeFn func(request *si.NodeRequest) error
+	UpdateAllocationFn    func(request *si.AllocationRequest) error
+	UpdateApplicationFn   func(request *si.ApplicationRequest) error
+	UpdateNodeFn          func(request *si.NodeRequest) error
 	UpdateConfigurationFn func(clusterID string) error
 }
 

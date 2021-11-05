@@ -27,24 +27,24 @@ import (
 )
 
 type SchedulerAPIMock struct {
-	registerCount int32
-	UpdateAllocationCount   int32
-	UpdateApplicationCount   int32
-	UpdateNodeCount   int32
-	registerFn    func(request *si.RegisterResourceManagerRequest,
+	registerCount          int32
+	UpdateAllocationCount  int32
+	UpdateApplicationCount int32
+	UpdateNodeCount        int32
+	registerFn             func(request *si.RegisterResourceManagerRequest,
 		callback api.ResourceManagerCallback) (*si.RegisterResourceManagerResponse, error)
-	UpdateAllocationFn func(request *si.AllocationRequest) error
+	UpdateAllocationFn  func(request *si.AllocationRequest) error
 	UpdateApplicationFn func(request *si.ApplicationRequest) error
-	UpdateNodeFn func(request *si.NodeRequest) error
-	lock     sync.Mutex
+	UpdateNodeFn        func(request *si.NodeRequest) error
+	lock                sync.Mutex
 }
 
 func NewSchedulerAPIMock() *SchedulerAPIMock {
 	return &SchedulerAPIMock{
-		registerCount: int32(0),
-		UpdateAllocationCount:   int32(0),
-		UpdateApplicationCount:   int32(0),
-		UpdateNodeCount:   int32(0),
+		registerCount:          int32(0),
+		UpdateAllocationCount:  int32(0),
+		UpdateApplicationCount: int32(0),
+		UpdateNodeCount:        int32(0),
 		registerFn: func(request *si.RegisterResourceManagerRequest,
 			callback api.ResourceManagerCallback) (response *si.RegisterResourceManagerResponse, e error) {
 			return nil, nil

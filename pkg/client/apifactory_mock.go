@@ -70,46 +70,46 @@ func NewMockedAPIProvider() *MockedAPIProvider {
 	}
 }
 
-func (m *MockedAPIProvider) MockSchedulerApiUpdateAllocationFn(ufn func(request *si.AllocationRequest) error) {
+func (m *MockedAPIProvider) MockSchedulerAPIUpdateAllocationFn(ufn func(request *si.AllocationRequest) error) {
 	if mock, ok := m.clients.SchedulerAPI.(*test.SchedulerAPIMock); ok {
 		mock.UpdateAllocationFunction(ufn)
 	}
 }
 
-func (m *MockedAPIProvider) GetSchedulerApiUpdateAllocationCount() int32 {
+func (m *MockedAPIProvider) GetSchedulerAPIUpdateAllocationCount() int32 {
 	if mock, ok := m.clients.SchedulerAPI.(*test.SchedulerAPIMock); ok {
 		return mock.GetUpdateAllocationCount()
 	}
 	return int32(0)
 }
 
-func (m *MockedAPIProvider) MockSchedulerApiUpdateApplicationFn(ufn func(request *si.ApplicationRequest) error) {
+func (m *MockedAPIProvider) MockSchedulerAPIUpdateApplicationFn(ufn func(request *si.ApplicationRequest) error) {
 	if mock, ok := m.clients.SchedulerAPI.(*test.SchedulerAPIMock); ok {
 		mock.UpdateApplicationFunction(ufn)
 	}
 }
 
-func (m *MockedAPIProvider) GetSchedulerApiUpdateApplicationCount() int32 {
+func (m *MockedAPIProvider) GetSchedulerAPIUpdateApplicationCount() int32 {
 	if mock, ok := m.clients.SchedulerAPI.(*test.SchedulerAPIMock); ok {
 		return mock.GetUpdateApplicationCount()
 	}
 	return int32(0)
 }
 
-func (m *MockedAPIProvider) MockSchedulerApiUpdateNodeFn(ufn func(request *si.NodeRequest) error) {
+func (m *MockedAPIProvider) MockSchedulerAPIUpdateNodeFn(ufn func(request *si.NodeRequest) error) {
 	if mock, ok := m.clients.SchedulerAPI.(*test.SchedulerAPIMock); ok {
 		mock.UpdateNodeFunction(ufn)
 	}
 }
 
-func (m *MockedAPIProvider) GetSchedulerApiUpdateNodeCount() int32 {
+func (m *MockedAPIProvider) GetSchedulerAPIUpdateNodeCount() int32 {
 	if mock, ok := m.clients.SchedulerAPI.(*test.SchedulerAPIMock); ok {
 		return mock.GetUpdateNodeCount()
 	}
 	return int32(0)
 }
 
-func (m *MockedAPIProvider) GetSchedulerApiRegisterCount() int32 {
+func (m *MockedAPIProvider) GetSchedulerAPIRegisterCount() int32 {
 	if mock, ok := m.clients.SchedulerAPI.(*test.SchedulerAPIMock); ok {
 		return mock.GetRegisterCount()
 	}
