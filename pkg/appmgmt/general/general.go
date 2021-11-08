@@ -320,13 +320,14 @@ func (os *Manager) deletePod(obj interface{}) {
 }
 
 func (os *Manager) ListApplications() (map[string]interfaces.ApplicationMetadata, error) {
+	log.Logger().Info("Listing recoverable apps")
 	// list all pods on this cluster
 	slt := labels.NewSelector()
 	appPods, err := os.apiProvider.GetAPIs().PodInformer.Lister().List(slt)
 	if err != nil {
 		return nil, err
 	}
-
+	log.Logger().Info("Got the list of pods from the api server", zap.Int("nr of pods", len(appPods)))
 	// get existing apps
 	existingApps := make(map[string]interfaces.ApplicationMetadata)
 	for _, pod := range appPods {
@@ -342,6 +343,7 @@ func (os *Manager) ListApplications() (map[string]interfaces.ApplicationMetadata
 			}
 		}
 	}
+	log.Logger().Info("Listing recoverable apps finished", zap.Int("nr of recoverable apps", len(existingApps)))
 
 	return existingApps, nil
 }

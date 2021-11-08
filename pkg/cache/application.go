@@ -363,7 +363,8 @@ func (app *Application) TriggerAppRecovery() error {
 // generating too many duplicate events. However, it must
 // ensure non of these calls is expensive, usually, they
 // do nothing more than just triggering the state transition.
-func (app *Application) Schedule() {
+// return true if the app needs scheduling or false if not
+func (app *Application) Schedule() bool {
 	var states = events.States().Application
 	switch app.GetApplicationState() {
 	case states.New:
@@ -384,18 +385,26 @@ func (app *Application) Schedule() {
 		app.scheduleTasks(func(t *Task) bool {
 			return t.placeholder
 		})
+		if len(app.GetNewTasks()) == 0 {
+			return false
+		}
 	case states.Running:
 		// during the Running state, only the regular pods
 		// can be scheduled
 		app.scheduleTasks(func(t *Task) bool {
 			return !t.placeholder
 		})
+		if len(app.GetNewTasks()) == 0 {
+			return false
+		}
 	default:
 		log.Logger().Debug("skipping scheduling application",
 			zap.String("appState", app.GetApplicationState()),
 			zap.String("appID", app.GetApplicationID()),
 			zap.String("appState", app.GetApplicationState()))
+		return false
 	}
+	return true
 }
 
 func (app *Application) scheduleTasks(taskScheduleCondition func(t *Task) bool) {
