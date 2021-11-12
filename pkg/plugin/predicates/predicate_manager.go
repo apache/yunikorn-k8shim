@@ -21,9 +21,9 @@ package predicates
 import (
 	"context"
 	"fmt"
-	admissionV1 "k8s.io/api/admission/v1"
 
 	"go.uber.org/zap"
+	admissionV1 "k8s.io/api/admission/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/kubernetes/pkg/scheduler/algorithmprovider"
