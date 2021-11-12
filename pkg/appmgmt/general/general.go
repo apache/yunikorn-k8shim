@@ -53,8 +53,8 @@ type Manager struct {
 
 func NewManager(amProtocol interfaces.ApplicationManagementProtocol, apiProvider client.APIProvider) *Manager {
 	return &Manager{
-		apiProvider: apiProvider,
-		amProtocol:  amProtocol,
+		apiProvider:            apiProvider,
+		amProtocol:             amProtocol,
 		gangSchedulingDisabled: conf.GetSchedulerConf().DisableGangScheduling,
 	}
 }
@@ -320,30 +320,39 @@ func (os *Manager) deletePod(obj interface{}) {
 }
 
 func (os *Manager) ListApplications() (map[string]interfaces.ApplicationMetadata, error) {
-	log.Logger().Info("Listing recoverable apps")
+	log.Logger().Info("Retrieving pod list")
 	// list all pods on this cluster
 	slt := labels.NewSelector()
 	appPods, err := os.apiProvider.GetAPIs().PodInformer.Lister().List(slt)
 	if err != nil {
 		return nil, err
 	}
-	log.Logger().Info("Got the list of pods from the api server", zap.Int("nr of pods", len(appPods)))
+	log.Logger().Info("Pod list retrieved from api server", zap.Int("nr of pods", len(appPods)))
 	// get existing apps
 	existingApps := make(map[string]interfaces.ApplicationMetadata)
+	podsRecovered := 0
+	podsWithoutMetaData := 0
 	for _, pod := range appPods {
 		log.Logger().Debug("Looking at pod for recovery candidates", zap.String("podNamespace", pod.Namespace), zap.String("podName", pod.Name))
 		// general filter passes, and pod is assigned
 		// this means the pod is already scheduled by scheduler for an existing app
 		if utils.GeneralPodFilter(pod) && utils.IsAssignedPod(pod) {
 			if meta, ok := os.getAppMetadata(pod); ok {
+				podsRecovered += 1
 				log.Logger().Debug("Adding appID as recovery candidate", zap.String("appID", meta.ApplicationID))
 				if _, exist := existingApps[meta.ApplicationID]; !exist {
 					existingApps[meta.ApplicationID] = meta
 				}
+			} else {
+				podsWithoutMetaData += 1
 			}
 		}
 	}
-	log.Logger().Info("Listing recoverable apps finished", zap.Int("nr of recoverable apps", len(existingApps)))
+	log.Logger().Info("Application recovery statistics",
+		zap.Int("nr of recoverable apps", len(existingApps)),
+		zap.Int("nr of total pods", len(appPods)),
+		zap.Int("nr of pods without application metadata", podsWithoutMetaData),
+		zap.Int("nr of pods to be recovered", podsRecovered))
 
 	return existingApps, nil
 }
