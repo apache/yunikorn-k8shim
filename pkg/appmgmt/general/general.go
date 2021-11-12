@@ -338,13 +338,13 @@ func (os *Manager) ListApplications() (map[string]interfaces.ApplicationMetadata
 		// this means the pod is already scheduled by scheduler for an existing app
 		if utils.GeneralPodFilter(pod) && utils.IsAssignedPod(pod) {
 			if meta, ok := os.getAppMetadata(pod); ok {
-				podsRecovered += 1
+				podsRecovered++
 				log.Logger().Debug("Adding appID as recovery candidate", zap.String("appID", meta.ApplicationID))
 				if _, exist := existingApps[meta.ApplicationID]; !exist {
 					existingApps[meta.ApplicationID] = meta
 				}
 			} else {
-				podsWithoutMetaData += 1
+				podsWithoutMetaData++
 			}
 		}
 	}
