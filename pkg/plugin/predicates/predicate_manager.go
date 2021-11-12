@@ -21,11 +21,11 @@ package predicates
 import (
 	"context"
 	"fmt"
+	admissionV1 "k8s.io/api/admission/v1"
 
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/kube-scheduler/config/v1beta1"
 	"k8s.io/kubernetes/pkg/scheduler/algorithmprovider"
 	apiConfig "k8s.io/kubernetes/pkg/scheduler/apis/config"
 	"k8s.io/kubernetes/pkg/scheduler/apis/config/scheme"
@@ -382,7 +382,7 @@ func getPluginArgsOrDefault(pluginConfig map[string]runtime.Object, name string)
 		return res, nil
 	}
 	// Use defaults from latest config API version.
-	gvk := v1beta1.SchemeGroupVersion.WithKind(name + "Args")
+	gvk := admissionV1.SchemeGroupVersion.WithKind(name + "Args")
 	obj, _, err := configDecoder.Decode(nil, &gvk, nil)
 	if runtime.IsNotRegisteredError(err) {
 		// This plugin doesn't require configuration.
