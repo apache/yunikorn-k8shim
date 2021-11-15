@@ -150,7 +150,7 @@ func (n *SchedulerNode) handleNodeRecovery(event *fsm.Event) {
 		zap.Bool("schedulable", n.schedulable))
 
 	allocRequest := &si.AllocationRequest{
-		RmID:     conf.GetSchedulerConf().ClusterID,
+		RmID: conf.GetSchedulerConf().ClusterID,
 	}
 	nodeRequest := &si.NodeRequest{
 		Nodes: []*si.NodeInfo{
@@ -187,7 +187,7 @@ func (n *SchedulerNode) handleDrainNode(event *fsm.Event) {
 		zap.String("nodeID", n.name))
 
 	allocRequest := &si.AllocationRequest{
-		RmID:     conf.GetSchedulerConf().ClusterID,
+		RmID: conf.GetSchedulerConf().ClusterID,
 	}
 	nodeRequest := &si.NodeRequest{
 		Nodes: []*si.NodeInfo{
@@ -222,7 +222,7 @@ func (n *SchedulerNode) handleRestoreNode(event *fsm.Event) {
 		zap.String("nodeID", n.name))
 
 	allocRequest := &si.AllocationRequest{
-		RmID:     conf.GetSchedulerConf().ClusterID,
+		RmID: conf.GetSchedulerConf().ClusterID,
 	}
 	nodeRequest := &si.NodeRequest{
 		Nodes: []*si.NodeInfo{
