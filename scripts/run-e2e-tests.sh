@@ -129,8 +129,8 @@ function install_cluster() {
 
   # install ginkgo and gomega for e2e tests.
   echo "Installing Ginkgo & Gomega at $(go env GOPATH)/bin"
-  go get -v github.com/onsi/ginkgo/ginkgo
-  go get -v github.com/onsi/gomega
+  go install github.com/onsi/ginkgo/ginkgo
+  go install github.com/onsi/gomega
   check_cmd "ginkgo"
 
   # build docker images from latest code, so that we can install yunikorn with these latest images
