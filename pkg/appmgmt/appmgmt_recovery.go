@@ -43,6 +43,7 @@ func (svc *AppManagementService) WaitForRecovery(maxTimeout time.Duration) error
 }
 
 func (svc *AppManagementService) recoverApps() (map[string]interfaces.ManagedApp, error) {
+	log.Logger().Info("Starting app recovery")
 	recoveringApps := make(map[string]interfaces.ManagedApp)
 	for _, mgr := range svc.managers {
 		if m, ok := mgr.(interfaces.Recoverable); ok {
