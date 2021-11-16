@@ -93,7 +93,7 @@ func (fc *MockScheduler) addNode(nodeName string, memory, cpu int64) error {
 	node := common.CreateFromNodeSpec(nodeName, nodeName, nodeResource)
 	request := common.CreateUpdateRequestForNewNode(node)
 	fmt.Printf("report new nodes to scheduler, request: %s", request.String())
-	return fc.apiProvider.GetAPIs().SchedulerAPI.Update(&request)
+	return fc.apiProvider.GetAPIs().SchedulerAPI.UpdateNode(&request)
 }
 
 func (fc *MockScheduler) addTask(appID string, taskID string, ask *si.Resource) {

@@ -70,20 +70,46 @@ func NewMockedAPIProvider() *MockedAPIProvider {
 	}
 }
 
-func (m *MockedAPIProvider) MockSchedulerApiUpdateFn(ufn func(request *si.UpdateRequest) error) {
+func (m *MockedAPIProvider) MockSchedulerAPIUpdateAllocationFn(ufn func(request *si.AllocationRequest) error) {
 	if mock, ok := m.clients.SchedulerAPI.(*test.SchedulerAPIMock); ok {
-		mock.UpdateFunction(ufn)
+		mock.UpdateAllocationFunction(ufn)
 	}
 }
 
-func (m *MockedAPIProvider) GetSchedulerApiUpdateCount() int32 {
+func (m *MockedAPIProvider) GetSchedulerAPIUpdateAllocationCount() int32 {
 	if mock, ok := m.clients.SchedulerAPI.(*test.SchedulerAPIMock); ok {
-		return mock.GetUpdateCount()
+		return mock.GetUpdateAllocationCount()
 	}
 	return int32(0)
 }
 
-func (m *MockedAPIProvider) GetSchedulerApiRegisterCount() int32 {
+func (m *MockedAPIProvider) MockSchedulerAPIUpdateApplicationFn(ufn func(request *si.ApplicationRequest) error) {
+	if mock, ok := m.clients.SchedulerAPI.(*test.SchedulerAPIMock); ok {
+		mock.UpdateApplicationFunction(ufn)
+	}
+}
+
+func (m *MockedAPIProvider) GetSchedulerAPIUpdateApplicationCount() int32 {
+	if mock, ok := m.clients.SchedulerAPI.(*test.SchedulerAPIMock); ok {
+		return mock.GetUpdateApplicationCount()
+	}
+	return int32(0)
+}
+
+func (m *MockedAPIProvider) MockSchedulerAPIUpdateNodeFn(ufn func(request *si.NodeRequest) error) {
+	if mock, ok := m.clients.SchedulerAPI.(*test.SchedulerAPIMock); ok {
+		mock.UpdateNodeFunction(ufn)
+	}
+}
+
+func (m *MockedAPIProvider) GetSchedulerAPIUpdateNodeCount() int32 {
+	if mock, ok := m.clients.SchedulerAPI.(*test.SchedulerAPIMock); ok {
+		return mock.GetUpdateNodeCount()
+	}
+	return int32(0)
+}
+
+func (m *MockedAPIProvider) GetSchedulerAPIRegisterCount() int32 {
 	if mock, ok := m.clients.SchedulerAPI.(*test.SchedulerAPIMock); ok {
 		return mock.GetRegisterCount()
 	}

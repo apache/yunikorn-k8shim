@@ -42,12 +42,12 @@ func TestAddNode(t *testing.T) {
 	api := test.NewSchedulerAPIMock()
 
 	// register fn doesn't nothing than checking input
-	inputCheckerUpdateFn := func(request *si.UpdateRequest) error {
-		if request.NewSchedulableNodes == nil || len(request.NewSchedulableNodes) != 1 {
+	inputCheckerUpdateFn := func(request *si.NodeRequest) error {
+		if request.Nodes == nil || len(request.Nodes) != 1 {
 			t.Fatalf("unexpected new nodes info from the request")
 		}
 
-		info := request.NewSchedulableNodes[0]
+		info := request.Nodes[0]
 		if info.NodeID != "host0001" {
 			t.Fatalf("unexpected node name %s", info.NodeID)
 		}
@@ -63,7 +63,7 @@ func TestAddNode(t *testing.T) {
 		return nil
 	}
 
-	api.UpdateFunction(inputCheckerUpdateFn)
+	api.UpdateNodeFunction(inputCheckerUpdateFn)
 
 	nodes := newSchedulerNodes(api, NewTestSchedulerCache())
 	dispatcher.RegisterEventHandler(dispatcher.EventTypeNode, nodes.schedulerNodeEventHandler())
@@ -94,7 +94,7 @@ func TestAddNode(t *testing.T) {
 	assert.NilError(t, err)
 
 	err = utils.WaitForCondition(func() bool {
-		return api.GetUpdateCount() == 1
+		return api.GetUpdateNodeCount() == 1
 	}, time.Second, 5*time.Second)
 	assert.NilError(t, err)
 }
@@ -135,12 +135,12 @@ func TestUpdateNode(t *testing.T) {
 
 	// this function validates the new node can be added
 	// this verifies the shim sends the si.UpdateRequest to core with the new node info
-	api.UpdateFunction(func(request *si.UpdateRequest) error {
-		if request.NewSchedulableNodes == nil || len(request.NewSchedulableNodes) != 1 {
+	api.UpdateNodeFunction(func(request *si.NodeRequest) error {
+		if request.Nodes == nil || len(request.Nodes) != 1 {
 			t.Fatalf("unexpected new nodes info from the request")
 		}
 
-		info := request.NewSchedulableNodes[0]
+		info := request.Nodes[0]
 		if info.NodeID != "host0001" {
 			t.Fatalf("unexpected node name %s", info.NodeID)
 		}
@@ -161,7 +161,7 @@ func TestUpdateNode(t *testing.T) {
 
 	// wait for node being added
 	assert.NilError(t, utils.WaitForCondition(func() bool {
-		return api.GetUpdateCount() == 1
+		return api.GetUpdateNodeCount() == 1
 	}, time.Second, 5*time.Second))
 	assert.Assert(t, nodes.getNode("host0001") != nil)
 	assert.Equal(t, nodes.getNode("host0001").name, "host0001")
@@ -170,17 +170,17 @@ func TestUpdateNode(t *testing.T) {
 	api.ResetAllCounters()
 
 	// if node resource stays same, update update should be ignored
-	ignoreNodeUpdateFn := func(request *si.UpdateRequest) error {
-		if request.UpdatedNodes != nil && len(request.UpdatedNodes) > 0 {
+	ignoreNodeUpdateFn := func(request *si.NodeRequest) error {
+		if request.Nodes != nil && len(request.Nodes) > 0 {
 			t.Fatalf("expecting no update nodes sent to scheduler as node resource has no change")
 		}
 
 		return nil
 	}
-	api.UpdateFunction(ignoreNodeUpdateFn)
+	api.UpdateNodeFunction(ignoreNodeUpdateFn)
 	nodes.updateNode(&oldNode, &newNode)
 	assert.Equal(t, api.GetRegisterCount(), int32(0))
-	assert.Equal(t, api.GetUpdateCount(), int32(0))
+	assert.Equal(t, api.GetUpdateNodeCount(), int32(0))
 
 	// change new node's resource, afterwards the update request should be sent to the scheduler
 	newResourceList := make(map[v1.ResourceName]resource.Quantity)
@@ -197,12 +197,12 @@ func TestUpdateNode(t *testing.T) {
 		},
 	}
 
-	checkFn := func(request *si.UpdateRequest) error {
-		if request.UpdatedNodes == nil || len(request.UpdatedNodes) != 1 {
+	checkFn := func(request *si.NodeRequest) error {
+		if request.Nodes == nil || len(request.Nodes) != 1 {
 			t.Fatalf("unexpected new nodes info from the request")
 		}
 
-		info := request.UpdatedNodes[0]
+		info := request.Nodes[0]
 		if info.NodeID != "host0001" {
 			t.Fatalf("unexpected node name %s", info.NodeID)
 		}
@@ -218,11 +218,11 @@ func TestUpdateNode(t *testing.T) {
 		return nil
 	}
 
-	api.UpdateFunction(checkFn)
+	api.UpdateNodeFunction(checkFn)
 
 	nodes.updateNode(&oldNode, &newNode)
 	assert.Equal(t, api.GetRegisterCount(), int32(0))
-	assert.Equal(t, api.GetUpdateCount(), int32(1))
+	assert.Equal(t, api.GetUpdateNodeCount(), int32(1))
 }
 
 func TestUpdateWithoutNodeAdded(t *testing.T) {
@@ -260,12 +260,12 @@ func TestUpdateWithoutNodeAdded(t *testing.T) {
 	}
 
 	//
-	api.UpdateFunction(func(request *si.UpdateRequest) error {
-		if request.NewSchedulableNodes == nil || len(request.NewSchedulableNodes) != 1 {
+	api.UpdateNodeFunction(func(request *si.NodeRequest) error {
+		if request.Nodes == nil || len(request.Nodes) != 1 {
 			t.Fatalf("unexpected new nodes info from the request")
 		}
 
-		info := request.NewSchedulableNodes[0]
+		info := request.Nodes[0]
 		if info.NodeID != "host0001" {
 			t.Fatalf("unexpected node name %s", info.NodeID)
 		}
@@ -287,11 +287,11 @@ func TestUpdateWithoutNodeAdded(t *testing.T) {
 
 	// wait for node being added
 	assert.NilError(t, utils.WaitForCondition(func() bool {
-		return api.GetUpdateCount() == 1
+		return api.GetUpdateNodeCount() == 1
 	}, time.Second, 5*time.Second))
 	assert.Assert(t, nodes.getNode("host0001") != nil)
 	assert.Equal(t, nodes.getNode("host0001").name, "host0001")
-	assert.Equal(t, api.GetUpdateCount(), int32(1))
+	assert.Equal(t, api.GetUpdateNodeCount(), int32(1))
 
 	// change new node's resource, afterwards the update request should be sent to the scheduler
 	newResourceList := make(map[v1.ResourceName]resource.Quantity)
@@ -308,12 +308,12 @@ func TestUpdateWithoutNodeAdded(t *testing.T) {
 		},
 	}
 
-	checkFn := func(request *si.UpdateRequest) error {
-		if request.UpdatedNodes == nil || len(request.UpdatedNodes) != 1 {
+	checkFn := func(request *si.NodeRequest) error {
+		if request.Nodes == nil || len(request.Nodes) != 1 {
 			t.Fatalf("unexpected new nodes info from the request")
 		}
 
-		info := request.UpdatedNodes[0]
+		info := request.Nodes[0]
 		if info.NodeID != "host0001" {
 			t.Fatalf("unexpected node name %s", info.NodeID)
 		}
@@ -329,11 +329,11 @@ func TestUpdateWithoutNodeAdded(t *testing.T) {
 		return nil
 	}
 
-	api.UpdateFunction(checkFn)
+	api.UpdateNodeFunction(checkFn)
 
 	nodes.updateNode(&oldNode, &newNode)
 	assert.Equal(t, api.GetRegisterCount(), int32(0))
-	assert.Equal(t, api.GetUpdateCount(), int32(2))
+	assert.Equal(t, api.GetUpdateNodeCount(), int32(2))
 }
 
 func TestDeleteNode(t *testing.T) {
@@ -358,11 +358,11 @@ func TestDeleteNode(t *testing.T) {
 		},
 	}
 
-	ignoreNodeUpdateFn := func(request *si.UpdateRequest) error {
+	ignoreNodeUpdateFn := func(request *si.NodeRequest) error {
 		// fake update
 		return nil
 	}
-	api.UpdateFunction(ignoreNodeUpdateFn)
+	api.UpdateNodeFunction(ignoreNodeUpdateFn)
 
 	// add node to the cache
 	nodes.addNode(&node)
@@ -371,14 +371,14 @@ func TestDeleteNode(t *testing.T) {
 	}, 1*time.Second, 5*time.Second)
 	assert.NilError(t, err)
 	err = utils.WaitForCondition(func() bool {
-		return api.GetUpdateCount() == 1
+		return api.GetUpdateNodeCount() == 1
 	}, 100*time.Millisecond, 1000*time.Millisecond)
 	assert.NilError(t, err)
 
 	// delete node should trigger another update
 	nodes.deleteNode(&node)
 	err = utils.WaitForCondition(func() bool {
-		return api.GetUpdateCount() == 2
+		return api.GetUpdateNodeCount() == 2
 	}, 100*time.Millisecond, 1000*time.Millisecond)
 	assert.NilError(t, err)
 
@@ -398,7 +398,7 @@ func TestDeleteNode(t *testing.T) {
 	}
 	nodes.addNode(&nodeNew)
 	err = utils.WaitForCondition(func() bool {
-		return api.GetUpdateCount() == 3
+		return api.GetUpdateNodeCount() == 3
 	}, 100*time.Millisecond, 1000*time.Millisecond)
 	assert.NilError(t, err)
 
@@ -409,7 +409,7 @@ func TestDeleteNode(t *testing.T) {
 	// remove the node again, and then try update
 	nodes.deleteNode(&nodeNew)
 	err = utils.WaitForCondition(func() bool {
-		return api.GetUpdateCount() == 4
+		return api.GetUpdateNodeCount() == 4
 	}, 100*time.Millisecond, 1000*time.Millisecond)
 	assert.NilError(t, err)
 
@@ -430,7 +430,7 @@ func TestDeleteNode(t *testing.T) {
 	// update the node, this will trigger a update to add the node
 	nodes.updateNode(&nodeNew, &nodeNew2)
 	err = utils.WaitForCondition(func() bool {
-		return api.GetUpdateCount() == 5
+		return api.GetUpdateNodeCount() == 5
 	}, 100*time.Millisecond, 1000*time.Millisecond)
 	assert.NilError(t, err)
 
@@ -448,18 +448,18 @@ func TestCordonNode(t *testing.T) {
 	api := test.NewSchedulerAPIMock()
 
 	// register fn doesn't nothing than checking input
-	inputCheckerUpdateFn := func(request *si.UpdateRequest) error {
-		if request.UpdatedNodes == nil {
+	inputCheckerUpdateFn := func(request *si.NodeRequest) error {
+		if request.Nodes == nil {
 			t.Fatalf("updated nodes should not be nil")
 		}
 
-		if len(request.UpdatedNodes) != 1 {
+		if len(request.Nodes) != 1 {
 			t.Fatalf("expecting 1 updated node")
 		}
 
-		if request.UpdatedNodes[0].Action != si.UpdateNodeInfo_DRAIN_NODE {
-			t.Fatalf("expecting UpdateNodeInfo_DRAIN_NODE but get %s",
-				request.UpdatedNodes[0].Action.String())
+		if request.Nodes[0].Action != si.NodeInfo_DRAIN_NODE {
+			t.Fatalf("expecting NodeInfo_DRAIN_NODE but get %s",
+				request.Nodes[0].Action.String())
 		}
 		return nil
 	}
@@ -501,10 +501,10 @@ func TestCordonNode(t *testing.T) {
 		},
 	}
 
-	api.UpdateFunction(inputCheckerUpdateFn)
+	api.UpdateNodeFunction(inputCheckerUpdateFn)
 	nodes.addAndReportNode(&oldNode, false)
 	nodes.getNode("host0001").fsm.SetState(events.States().Node.Healthy)
-	api.UpdateFunction(inputCheckerUpdateFn)
+	api.UpdateNodeFunction(inputCheckerUpdateFn)
 	nodes.updateNode(&oldNode, &newNode)
 
 	// wait until node reaches Draining state
@@ -529,23 +529,23 @@ func TestCordonNode(t *testing.T) {
 	}
 
 	// register fn doesn't nothing than checking input
-	inputCheckerUpdateFn2 := func(request *si.UpdateRequest) error {
-		if request.UpdatedNodes == nil {
+	inputCheckerUpdateFn2 := func(request *si.NodeRequest) error {
+		if request.Nodes == nil {
 			t.Fatalf("updated nodes should not be nil")
 		}
 
-		if len(request.UpdatedNodes) != 1 {
+		if len(request.Nodes) != 1 {
 			t.Fatalf("expecting 1 updated node")
 		}
 
-		if request.UpdatedNodes[0].Action != si.UpdateNodeInfo_DRAIN_TO_SCHEDULABLE {
+		if request.Nodes[0].Action != si.NodeInfo_DRAIN_TO_SCHEDULABLE {
 			t.Fatalf("expecting UpdateNodeInfo_DRAIN_NODE but get %s",
-				request.UpdatedNodes[0].Action.String())
+				request.Nodes[0].Action.String())
 		}
 		return nil
 	}
 
-	api.UpdateFunction(inputCheckerUpdateFn2)
+	api.UpdateNodeFunction(inputCheckerUpdateFn2)
 	nodes.updateNode(&newNode, &newNode2)
 
 	// wait until node reaches Draining state

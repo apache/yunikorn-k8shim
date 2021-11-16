@@ -317,7 +317,7 @@ func (ctx *Context) deleteConfigMaps(obj interface{}) {
 func (ctx *Context) triggerReloadConfig() {
 	log.Logger().Info("trigger scheduler configuration reloading")
 	clusterId := ctx.apiProvider.GetAPIs().Conf.ClusterID
-	if err := ctx.apiProvider.GetAPIs().SchedulerAPI.ReloadConfiguration(clusterId); err != nil {
+	if err := ctx.apiProvider.GetAPIs().SchedulerAPI.UpdateConfiguration(clusterId); err != nil {
 		log.Logger().Error("reload configuration failed", zap.Error(err))
 	}
 }
@@ -576,7 +576,7 @@ func (ctx *Context) RemoveApplication(appID string) error {
 		}
 		// send the update request to scheduler core
 		rr := common.CreateUpdateRequestForRemoveApplication(app.applicationID, app.partition)
-		if err := ctx.apiProvider.GetAPIs().SchedulerAPI.Update(&rr); err != nil {
+		if err := ctx.apiProvider.GetAPIs().SchedulerAPI.UpdateApplication(&rr); err != nil {
 			log.Logger().Error("failed to send remove application request to core", zap.Error(err))
 		}
 		delete(ctx.applications, appID)

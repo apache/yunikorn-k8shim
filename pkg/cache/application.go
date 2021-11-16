@@ -436,9 +436,9 @@ func (app *Application) handleSubmitApplicationEvent(event *fsm.Event) {
 	log.Logger().Info("handle app submission",
 		zap.String("app", app.String()),
 		zap.String("clusterID", conf.GetSchedulerConf().ClusterID))
-	err := app.schedulerAPI.Update(
-		&si.UpdateRequest{
-			NewApplications: []*si.AddApplicationRequest{
+	err := app.schedulerAPI.UpdateApplication(
+		&si.ApplicationRequest{
+			New: []*si.AddApplicationRequest{
 				{
 					ApplicationID: app.applicationID,
 					QueueName:     app.queue,
@@ -466,9 +466,9 @@ func (app *Application) handleRecoverApplicationEvent(event *fsm.Event) {
 	log.Logger().Info("handle app recovering",
 		zap.String("app", app.String()),
 		zap.String("clusterID", conf.GetSchedulerConf().ClusterID))
-	err := app.schedulerAPI.Update(
-		&si.UpdateRequest{
-			NewApplications: []*si.AddApplicationRequest{
+	err := app.schedulerAPI.UpdateApplication(
+		&si.ApplicationRequest{
+			New: []*si.AddApplicationRequest{
 				{
 					ApplicationID: app.applicationID,
 					QueueName:     app.queue,
