@@ -29,7 +29,7 @@ import (
 	"strings"
 
 	"go.uber.org/zap"
-	"k8s.io/api/admission/v1beta1"
+	admissionV1 "k8s.io/api/admission/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -69,7 +69,7 @@ type ValidateConfResponse struct {
 	Reason  string `json:"reason"`
 }
 
-func (c *admissionController) mutate(ar *v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
+func (c *admissionController) mutate(ar *admissionV1.AdmissionReview) *admissionV1.AdmissionResponse {
 	req := ar.Request
 	namespace := ar.Request.Namespace
 	var patch []patchOperation
@@ -81,7 +81,7 @@ func (c *admissionController) mutate(ar *v1beta1.AdmissionReview) *v1beta1.Admis
 		log.Logger().Warn("request kind is not pod", zap.String("uid", uid),
 			zap.String("requestKind", requestKind))
 
-		return &v1beta1.AdmissionResponse{
+		return &admissionV1.AdmissionResponse{
 			Allowed: true,
 		}
 	}
@@ -95,7 +95,7 @@ func (c *admissionController) mutate(ar *v1beta1.AdmissionReview) *v1beta1.Admis
 	var pod v1.Pod
 	if err := json.Unmarshal(req.Object.Raw, &pod); err != nil {
 		log.Logger().Error("unmarshal failed", zap.Error(err))
-		return &v1beta1.AdmissionResponse{
+		return &admissionV1.AdmissionResponse{
 			Allowed: false,
 			Result: &metav1.Status{
 				Message: err.Error(),
@@ -106,7 +106,7 @@ func (c *admissionController) mutate(ar *v1beta1.AdmissionReview) *v1beta1.Admis
 	if labelAppValue, ok := pod.Labels[constants.LabelApp]; ok {
 		if labelAppValue == yunikornPod {
 			log.Logger().Info("ignore yunikorn pod")
-			return &v1beta1.AdmissionResponse{
+			return &admissionV1.AdmissionResponse{
 				Allowed: true,
 			}
 		}
@@ -120,7 +120,7 @@ func (c *admissionController) mutate(ar *v1beta1.AdmissionReview) *v1beta1.Admis
 	patchBytes, err := json.Marshal(patch)
 	if err != nil {
 		log.Logger().Error("failed to marshal patch", zap.Error(err))
-		return &v1beta1.AdmissionResponse{
+		return &admissionV1.AdmissionResponse{
 			Allowed: false,
 			Result: &metav1.Status{
 				Message: err.Error(),
@@ -128,11 +128,11 @@ func (c *admissionController) mutate(ar *v1beta1.AdmissionReview) *v1beta1.Admis
 		}
 	}
 
-	return &v1beta1.AdmissionResponse{
+	return &admissionV1.AdmissionResponse{
 		Allowed: true,
 		Patch:   patchBytes,
-		PatchType: func() *v1beta1.PatchType {
-			pt := v1beta1.PatchTypeJSONPatch
+		PatchType: func() *admissionV1.PatchType {
+			pt := admissionV1.PatchTypeJSONPatch
 			return &pt
 		}(),
 	}
@@ -213,10 +213,10 @@ func isConfigMapUpdateAllowed(userInfo string) bool {
 	return false
 }
 
-func (c *admissionController) validateConf(ar *v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
+func (c *admissionController) validateConf(ar *admissionV1.AdmissionReview) *admissionV1.AdmissionResponse {
 	req := ar.Request
 	if !isConfigMapUpdateAllowed(req.UserInfo.Username) {
-		return &v1beta1.AdmissionResponse{
+		return &admissionV1.AdmissionResponse{
 			Allowed: false,
 			Result: &metav1.Status{
 				Message: fmt.Sprintf("ConfigHotRefresh is disabled. " +
@@ -228,7 +228,7 @@ func (c *admissionController) validateConf(ar *v1beta1.AdmissionReview) *v1beta1
 	var requestKind = req.Kind.Kind
 	if requestKind != "ConfigMap" {
 		log.Logger().Warn("request kind is not configmap", zap.String("requestKind", requestKind))
-		return &v1beta1.AdmissionResponse{
+		return &admissionV1.AdmissionResponse{
 			Allowed: true,
 		}
 	}
@@ -236,7 +236,7 @@ func (c *admissionController) validateConf(ar *v1beta1.AdmissionReview) *v1beta1
 	var configmap v1.ConfigMap
 	if err := json.Unmarshal(req.Object.Raw, &configmap); err != nil {
 		log.Logger().Error("failed to unmarshal configmap", zap.Error(err))
-		return &v1beta1.AdmissionResponse{
+		return &admissionV1.AdmissionResponse{
 			Allowed: false,
 			Result: &metav1.Status{
 				Message: err.Error(),
@@ -247,7 +247,7 @@ func (c *admissionController) validateConf(ar *v1beta1.AdmissionReview) *v1beta1
 	// validate new/updated config map
 	if err := c.validateConfigMap(&configmap); err != nil {
 		log.Logger().Error("failed to validate yunikorn configs", zap.Error(err))
-		return &v1beta1.AdmissionResponse{
+		return &admissionV1.AdmissionResponse{
 			Allowed: false,
 			Result: &metav1.Status{
 				Message: err.Error(),
@@ -255,7 +255,7 @@ func (c *admissionController) validateConf(ar *v1beta1.AdmissionReview) *v1beta1
 		}
 	}
 
-	return &v1beta1.AdmissionResponse{
+	return &admissionV1.AdmissionResponse{
 		Allowed: true,
 	}
 }
@@ -309,13 +309,13 @@ func (c *admissionController) serve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var admissionResponse *v1beta1.AdmissionResponse
-	ar := v1beta1.AdmissionReview{}
+	var admissionResponse *admissionV1.AdmissionResponse
+	ar := admissionV1.AdmissionReview{}
 	urlPath := r.URL.Path
 
 	if _, _, err := deserializer.Decode(body, nil, &ar); err != nil {
 		log.Logger().Error("Can't decode the body", zap.Error(err))
-		admissionResponse = &v1beta1.AdmissionResponse{
+		admissionResponse = &admissionV1.AdmissionResponse{
 			Allowed: false,
 			Result: &metav1.Status{
 				Message: err.Error(),
@@ -329,7 +329,7 @@ func (c *admissionController) serve(w http.ResponseWriter, r *http.Request) {
 		log.Logger().Warn("request is neither mutation nor validation", zap.String("urlPath", urlPath))
 	}
 
-	admissionReview := v1beta1.AdmissionReview{}
+	admissionReview := admissionV1.AdmissionReview{}
 	if admissionResponse != nil {
 		admissionReview.Response = admissionResponse
 		if ar.Request != nil {
