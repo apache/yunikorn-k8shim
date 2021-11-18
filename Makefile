@@ -149,8 +149,6 @@ scheduler: init
 sched_image: scheduler
 	@echo "building scheduler docker image"
 	@cp ${RELEASE_BIN_DIR}/${BINARY} ./deployments/image/configmap
-	@mkdir -p ./deployments/image/configmap/admission-controller-init-scripts
-	@cp -r ./deployments/admission-controllers/scheduler/*  deployments/image/configmap/admission-controller-init-scripts/
 	@sed -i'.bkp' 's/clusterVersion=.*"/clusterVersion=${VERSION}"/' deployments/image/configmap/Dockerfile
 	@coreSHA=$$(go list -m "github.com/apache/incubator-yunikorn-core" | cut -d "-" -f5) ; \
 	siSHA=$$(go list -m "github.com/apache/incubator-yunikorn-scheduler-interface" | cut -d "-" -f6) ; \
@@ -163,7 +161,6 @@ sched_image: scheduler
 	--label "Version=${VERSION}"
 	@mv -f ./deployments/image/configmap/Dockerfile.bkp ./deployments/image/configmap/Dockerfile
 	@rm -f ./deployments/image/configmap/${BINARY}
-	@rm -rf ./deployments/image/configmap/admission-controller-init-scripts/
 
 # Build admission controller binary in a production ready version
 .PHONY: admission
@@ -179,9 +176,12 @@ admission: init
 .PHONY: adm_image
 adm_image: admission
 	@echo "building admission controller docker images"
+	@mkdir -p ./deployments/image/admission/admission-controller-init-scripts
+	@cp -r ./deployments/admission-controllers/scheduler/*  deployments/image/admission/admission-controller-init-scripts/
 	@cp ${ADMISSION_CONTROLLER_BIN_DIR}/${POD_ADMISSION_CONTROLLER_BINARY} ./deployments/image/admission
 	docker build ./deployments/image/admission -t ${REGISTRY}/yunikorn:admission-${VERSION}
 	@rm -f ./deployments/image/admission/${POD_ADMISSION_CONTROLLER_BINARY}
+	@rm -rf ./deployments/image/admission/admission-controller-init-scripts/
 
 # Build gang web server and client binary in a production ready version
 .PHONY: simulation

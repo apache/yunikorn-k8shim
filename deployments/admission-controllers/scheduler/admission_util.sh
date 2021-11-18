@@ -134,28 +134,6 @@ create_resources() {
 
   # Replace the certificate in the template with a valid CA parsed from security tokens
   ca_pem_b64=$(kubectl get secret -o jsonpath="{.items[?(@.type==\"kubernetes.io/service-account-token\")].data['ca\.crt']}" | cut -d " " -f 1)
-  sed -e 's@${NAMESPACE}@'"$NAMESPACE"'@g' -e 's@${SERVICE}@'"$SERVICE"'@g' \
-    -e 's@${POLICY_GROUP}@'"$POLICY_GROUP"'@g' \
-    -e 's@${SERVICE_ACCOUNT_NAME}@'"$SERVICE_ACCOUNT_NAME"'@g' \
-    -e 's@${SCHEDULER_SERVICE_ADDRESS}@'"$SCHEDULER_SERVICE_ADDRESS"'@g' \
-    -e 's@${ADMISSION_CONTROLLER_IMAGE_REGISTRY}@'"$ADMISSION_CONTROLLER_IMAGE_REGISTRY"'@g' \
-    -e 's@${ADMISSION_CONTROLLER_IMAGE_TAG}@'"$ADMISSION_CONTROLLER_IMAGE_TAG"'@g' \
-    -e 's@${ADMISSION_CONTROLLER_IMAGE_PULL_POLICY}@'"$ADMISSION_CONTROLLER_IMAGE_PULL_POLICY"'@g' \
-    -e 's@${ENABLE_CONFIG_HOT_REFRESH}@'"$ENABLE_CONFIG_HOT_REFRESH"'@g' \
-    <"${basedir}/templates/server.yaml.template" > server.yaml
-
-if [ -n "$ADMISSION_CONTROLLER_IMAGE_PULL_SECRETS" ]; then
-  touch .server_yaml_tmp_file
-  secrets_array=`echo "${ADMISSION_CONTROLLER_IMAGE_PULL_SECRETS}" | cut -d']' -f 1 | cut -d'[' -f 2`
-  echo ${secrets_array} | awk -F" " '{ split($0, arr, " "); }END{ for ( i in arr ) { print arr[i] } }' | while read line ; do
-    echo "      - name: ${line}" >> .server_yaml_tmp_file
-  done
-  sed -i '/[\s]*imagePullSecrets:/r .server_yaml_tmp_file' server.yaml
-  rm -rf .server_yaml_tmp_file
-fi
-  # ImagePullSecrets is an array with format [secret1 secret2 ...]
-
-  kubectl create -f server.yaml
 
   # register admissions
   for admission in $REGISTERED_ADMISSIONS
