@@ -18,5 +18,8 @@ webhooks:
         apiVersions: ["v1"]
         resources: ["pods"]
     failurePolicy: Ignore
-    admissionReviewVersions: ["v1", "v1beta1"]
+    matchPolicy: Exact
+    admissionReviewVersions: ["v1beta1", "v1"]
     sideEffects: None
+    timeoutSeconds: 30
+
