@@ -25,6 +25,7 @@ metadata:
     queue: "root.sandbox"
   name: task0
 spec:
+  schedulerName: yunikorn
   containers:
     - name: sleep-30s
       image: "alpine:latest"
@@ -43,6 +44,7 @@ metadata:
     queue: "root.sandbox"
   name: task1
 spec:
+  schedulerName: yunikorn
   containers:
     - name: sleep-30s
       image: "alpine:latest"
@@ -61,6 +63,7 @@ metadata:
     queue: "root.sandbox"
   name: task2
 spec:
+  schedulerName: yunikorn
   containers:
     - name: sleep-30s
       image: "alpine:latest"
