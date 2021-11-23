@@ -60,6 +60,12 @@ func main() {
 		policyGroup = conf.DefaultPolicyGroup
 	}
 	schedulerServiceAddress := os.Getenv(schedulerServiceAddressEnvVarName)
+	if len(schedulerServiceAddress) == 0 {
+		schedulerServiceName := os.Getenv("SCHEDULER_SERVICE_NAME")
+		namespace := os.Getenv("NAMESPACE")
+		schedulerServicePort := os.Getenv("SCHEDULER_SERVICE_PORT")
+		schedulerServiceAddress = fmt.Sprintf("%s.%s.svc:%s", schedulerServiceName, namespace, schedulerServicePort)
+	}
 
 	webHook := admissionController{
 		configName:               fmt.Sprintf("%s.yaml", policyGroup),
