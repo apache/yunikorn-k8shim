@@ -216,8 +216,8 @@ func (ss *KubernetesShim) doScheduling(e *fsm.Event) {
 
 	// run main scheduling loop
 	go wait.Until(ss.schedule, conf.GetSchedulerConf().GetSchedulingInterval(), ss.stopChan)
-	// log a message if no outstanding requests weere found for a while
-	go wait.Until(ss.checkOutstaningApps, outstandingAppLogTimeout, ss.stopChan)
+	// log a message if no outstanding requests were found for a while
+	go wait.Until(ss.checkOutstandingApps, outstandingAppLogTimeout, ss.stopChan)
 }
 
 func (ss *KubernetesShim) registerShimLayer() error {
@@ -266,7 +266,7 @@ func (ss *KubernetesShim) schedule() {
 	apps := ss.context.SelectApplications(nil)
 	for _, app := range apps {
 		if app.Schedule() {
-			ss.outstandingAppsFound = true
+			ss.setOutstandingAppsFound(true)
 		}
 	}
 }
@@ -323,10 +323,22 @@ func (ss *KubernetesShim) stop() {
 	}
 }
 
-func (ss *KubernetesShim) checkOutstaningApps() {
-	if !ss.outstandingAppsFound {
+func (ss *KubernetesShim) checkOutstandingApps() {
+	if !ss.getOutstandingAppsFound() {
 		log.Logger().Info("No outstanding apps found for a while", zap.Duration("timeout", outstandingAppLogTimeout))
 		return
 	}
-	ss.outstandingAppsFound = false
+	ss.setOutstandingAppsFound(false)
+}
+
+func (ss *KubernetesShim) getOutstandingAppsFound() bool {
+	ss.lock.RLock()
+	defer ss.lock.RUnlock()
+	return ss.outstandingAppsFound
+}
+
+func (ss *KubernetesShim) setOutstandingAppsFound(value bool) {
+	ss.lock.Lock()
+	defer ss.lock.Unlock()
+	ss.outstandingAppsFound = value
 }
