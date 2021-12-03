@@ -173,9 +173,9 @@ function install_cluster() {
     --set image.repository=local/yunikorn \
     --set image.tag=scheduler-latest \
     --set image.pullPolicy=Never \
-    --set admission_controller_image.repository=local/yunikorn \
-    --set admission_controller_image.tag=admission-latest \
-    --set admission_controller_image.pullPolicy=Never
+    --set admissionControllerImage.repository=local/yunikorn \
+    --set admissionControllerImage.tag=admission-latest \
+    --set admissionControllerImage.pullPolicy=Never
   exit_on_error "failed to install yunikorn"
   kubectl wait --for=condition=available --timeout=300s deployment/yunikorn-scheduler -n yunikorn
   exit_on_error "failed to wait for yunikorn scheduler deployment being deployed"
