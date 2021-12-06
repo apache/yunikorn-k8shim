@@ -180,6 +180,8 @@ function install_cluster() {
   kubectl wait --for=condition=available --timeout=300s deployment/yunikorn-scheduler -n yunikorn
   exit_on_error "failed to wait for yunikorn scheduler deployment being deployed"
   kubectl wait --for=condition=ready --timeout=300s pod -l app=yunikorn -n yunikorn
+  kubectl describe pod yunikorn-admission-controller -n yunikorn
+  kubectl describe pod yunikorn-scheduler -n yunikorn
   exit_on_error "failed to wait for yunikorn scheduler pods being deployed"
 
   # forward rest server port 9080 as long as yk ns exists, so the e2e test code can verify cluster state via rest calls.
