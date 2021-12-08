@@ -84,6 +84,8 @@ github.com/alecthomas/units v0.0.0-20190717042225-c3de453c63f4/go.mod h1:ybxpYRF
 github.com/andreyvit/diff v0.0.0-20170406064948-c7f18ee00883/go.mod h1:rCTlJbsFo29Kk6CurOXKm700vrz8f0KW0JNfpkRJY/8=
 github.com/apache/incubator-yunikorn-core v0.0.0-20211109005500-2b30a6d30c69 h1:FxwDCgfu4mNdNvWLH0HLQC/seMqd8IT1vHKA3c01lCQ=
 github.com/apache/incubator-yunikorn-core v0.0.0-20211109005500-2b30a6d30c69/go.mod h1:VV5bR5hqBaGH+Kq6F1IYh6skg0d5QP51I/MR5pl6FNY=
+github.com/apache/incubator-yunikorn-core v0.0.0-20211207190138-7ccbebf8230d h1:ZZakHM0zsTwBOcgDkrCFXAqdWs0UOwNPwqWgHweZh4U=
+github.com/apache/incubator-yunikorn-core v0.0.0-20211207190138-7ccbebf8230d/go.mod h1:VV5bR5hqBaGH+Kq6F1IYh6skg0d5QP51I/MR5pl6FNY=
 github.com/apache/incubator-yunikorn-scheduler-interface v0.0.0-20211103035638-29e980cee5f1/go.mod h1:ROEIBh0q4fO34cX/6EJvkbmKkIev1plOsEPtVQlddUw=
 github.com/apache/incubator-yunikorn-scheduler-interface v0.11.1-0.20211103035638-29e980cee5f1 h1:4tHPFmtN/Bb355jZgd+joR/LvoS2Fx9YnEoTGTjDZRU=
 github.com/apache/incubator-yunikorn-scheduler-interface v0.11.1-0.20211103035638-29e980cee5f1/go.mod h1:ROEIBh0q4fO34cX/6EJvkbmKkIev1plOsEPtVQlddUw=
