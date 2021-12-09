@@ -52,10 +52,10 @@ func TestCreateReleaseAskRequestForTask(t *testing.T) {
 
 func TestCreateUpdateRequestForRemoveApplication(t *testing.T) {
 	request := CreateUpdateRequestForRemoveApplication("app01", "default")
-	assert.Assert(t, request.RemoveApplications != nil)
-	assert.Equal(t, len(request.RemoveApplications), 1)
-	assert.Equal(t, request.RemoveApplications[0].ApplicationID, "app01")
-	assert.Equal(t, request.RemoveApplications[0].PartitionName, "default")
+	assert.Assert(t, request.Remove != nil)
+	assert.Equal(t, len(request.Remove), 1)
+	assert.Equal(t, request.Remove[0].ApplicationID, "app01")
+	assert.Equal(t, request.Remove[0].PartitionName, "default")
 }
 
 func TestCreateUpdateRequestForTask(t *testing.T) {
@@ -83,7 +83,7 @@ func TestCreateUpdateRequestForTask(t *testing.T) {
 		},
 	}
 
-	updateRequest := CreateUpdateRequestForTask("appId1", "taskId1", res, false, "", pod)
+	updateRequest := CreateAllocationRequestForTask("appId1", "taskId1", res, false, "", pod)
 	asks := updateRequest.Asks
 	assert.Equal(t, len(asks), 1)
 	allocAsk := asks[0]

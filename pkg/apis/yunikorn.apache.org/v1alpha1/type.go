@@ -65,6 +65,7 @@ type TaskGroup struct {
 	MinResource  map[string]resource.Quantity `json:"minResource"`
 	NodeSelector map[string]string            `json:"nodeSelector,omitempty"`
 	Tolerations  []v1.Toleration              `json:"tolerations,omitempty"`
+	Affinity     *v1.Affinity                 `json:"affinity,omitempty"`
 }
 
 // Status part

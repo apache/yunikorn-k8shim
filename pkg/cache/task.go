@@ -304,7 +304,7 @@ func (task *Task) handleSubmitTaskEvent(event *fsm.Event) {
 	log.Logger().Debug("scheduling pod",
 		zap.String("podName", task.pod.Name))
 	// convert the request
-	rr := common.CreateUpdateRequestForTask(
+	rr := common.CreateAllocationRequestForTask(
 		task.applicationID,
 		task.taskID,
 		task.resource,
@@ -312,7 +312,7 @@ func (task *Task) handleSubmitTaskEvent(event *fsm.Event) {
 		task.taskGroupName,
 		task.pod)
 	log.Logger().Debug("send update request", zap.String("request", rr.String()))
-	if err := task.context.apiProvider.GetAPIs().SchedulerAPI.Update(&rr); err != nil {
+	if err := task.context.apiProvider.GetAPIs().SchedulerAPI.UpdateAllocation(&rr); err != nil {
 		log.Logger().Debug("failed to send scheduling request to scheduler", zap.Error(err))
 		return
 	}
@@ -497,7 +497,7 @@ func (task *Task) releaseAllocation() {
 		// if task is already allocated, which means the scheduler core already,
 		// places an allocation for it, we need to send AllocationReleaseRequest,
 		// if task is not allocated yet, we need to send AllocationAskReleaseRequest
-		var releaseRequest si.UpdateRequest
+		var releaseRequest si.AllocationRequest
 		s := events.States().Task
 		switch task.GetTaskState() {
 		case s.New, s.Pending, s.Scheduling:
@@ -527,7 +527,7 @@ func (task *Task) releaseAllocation() {
 				zap.Int("numOfAsksToRelease", len(releaseRequest.Releases.AllocationAsksToRelease)),
 				zap.Int("numOfAllocationsToRelease", len(releaseRequest.Releases.AllocationsToRelease)))
 		}
-		if err := task.context.apiProvider.GetAPIs().SchedulerAPI.Update(&releaseRequest); err != nil {
+		if err := task.context.apiProvider.GetAPIs().SchedulerAPI.UpdateAllocation(&releaseRequest); err != nil {
 			log.Logger().Debug("failed to send scheduling request to scheduler", zap.Error(err))
 		}
 	}

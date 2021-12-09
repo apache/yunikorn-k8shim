@@ -63,7 +63,7 @@ func CreateTagsForTask(pod *v1.Pod) map[string]string {
 	return tags
 }
 
-func CreateUpdateRequestForTask(appID, taskID string, resource *si.Resource, placeholder bool, taskGroupName string, pod *v1.Pod) si.UpdateRequest {
+func CreateAllocationRequestForTask(appID, taskID string, resource *si.Resource, placeholder bool, taskGroupName string, pod *v1.Pod) si.AllocationRequest {
 	ask := si.AllocationAsk{
 		AllocationKey:  taskID,
 		ResourceAsk:    resource,
@@ -74,21 +74,19 @@ func CreateUpdateRequestForTask(appID, taskID string, resource *si.Resource, pla
 		TaskGroupName:  taskGroupName,
 	}
 
-	result := si.UpdateRequest{
-		Asks:                []*si.AllocationAsk{&ask},
-		NewSchedulableNodes: nil,
-		UpdatedNodes:        nil,
-		RmID:                conf.GetSchedulerConf().ClusterID,
+	result := si.AllocationRequest{
+		Asks: []*si.AllocationAsk{&ask},
+		RmID: conf.GetSchedulerConf().ClusterID,
 	}
 
 	return result
 }
 
-func CreateReleaseAskRequestForTask(appID, taskId, partition string) si.UpdateRequest {
+func CreateReleaseAskRequestForTask(appID, taskID, partition string) si.AllocationRequest {
 	toReleases := make([]*si.AllocationAskRelease, 0)
 	toReleases = append(toReleases, &si.AllocationAskRelease{
 		ApplicationID: appID,
-		Allocationkey: taskId,
+		Allocationkey: taskID,
 		PartitionName: partition,
 		Message:       "task request is canceled",
 	})
@@ -97,7 +95,7 @@ func CreateReleaseAskRequestForTask(appID, taskId, partition string) si.UpdateRe
 		AllocationAsksToRelease: toReleases,
 	}
 
-	result := si.UpdateRequest{
+	result := si.AllocationRequest{
 		Releases: &releaseRequest,
 		RmID:     conf.GetSchedulerConf().ClusterID,
 	}
@@ -112,7 +110,7 @@ func GetTerminationTypeFromString(terminationTypeStr string) si.TerminationType 
 	return si.TerminationType_STOPPED_BY_RM
 }
 
-func CreateReleaseAllocationRequestForTask(appID, allocUUID, partition, terminationType string) si.UpdateRequest {
+func CreateReleaseAllocationRequestForTask(appID, allocUUID, partition, terminationType string) si.AllocationRequest {
 	toReleases := make([]*si.AllocationRelease, 0)
 	toReleases = append(toReleases, &si.AllocationRelease{
 		ApplicationID:   appID,
@@ -126,7 +124,7 @@ func CreateReleaseAllocationRequestForTask(appID, allocUUID, partition, terminat
 		AllocationsToRelease: toReleases,
 	}
 
-	result := si.UpdateRequest{
+	result := si.AllocationRequest{
 		Releases: &releaseRequest,
 		RmID:     conf.GetSchedulerConf().ClusterID,
 	}
@@ -134,10 +132,10 @@ func CreateReleaseAllocationRequestForTask(appID, allocUUID, partition, terminat
 	return result
 }
 
-func CreateUpdateRequestForNewNode(node Node) si.UpdateRequest {
+func CreateUpdateRequestForNewNode(node Node) si.NodeRequest {
 	// Use node's name as the NodeID, this is because when bind pod to node,
 	// name of node is required but uid is optional.
-	nodeInfo := &si.NewNodeInfo{
+	nodeInfo := &si.NodeInfo{
 		NodeID:              node.name,
 		SchedulableResource: node.capacity,
 		// TODO is this required?
@@ -145,63 +143,64 @@ func CreateUpdateRequestForNewNode(node Node) si.UpdateRequest {
 			constants.DefaultNodeAttributeHostNameKey: node.name,
 			constants.DefaultNodeAttributeRackNameKey: constants.DefaultRackName,
 		},
+		Action: si.NodeInfo_CREATE,
 	}
 
-	nodes := make([]*si.NewNodeInfo, 1)
+	nodes := make([]*si.NodeInfo, 1)
 	nodes[0] = nodeInfo
-	request := si.UpdateRequest{
-		NewSchedulableNodes: nodes,
-		RmID:                conf.GetSchedulerConf().ClusterID,
+	request := si.NodeRequest{
+		Nodes: nodes,
+		RmID:  conf.GetSchedulerConf().ClusterID,
 	}
 	return request
 }
 
-func CreateUpdateRequestForUpdatedNode(node Node) si.UpdateRequest {
+func CreateUpdateRequestForUpdatedNode(node Node) si.NodeRequest {
 	// Currently only includes resource in the update request
-	nodeInfo := &si.UpdateNodeInfo{
+	nodeInfo := &si.NodeInfo{
 		NodeID:              node.name,
 		Attributes:          make(map[string]string),
 		SchedulableResource: node.capacity,
 		OccupiedResource:    node.occupied,
-		Action:              si.UpdateNodeInfo_UPDATE,
+		Action:              si.NodeInfo_UPDATE,
 	}
 
-	nodes := make([]*si.UpdateNodeInfo, 1)
+	nodes := make([]*si.NodeInfo, 1)
 	nodes[0] = nodeInfo
-	request := si.UpdateRequest{
-		UpdatedNodes: nodes,
-		RmID:         conf.GetSchedulerConf().ClusterID,
+	request := si.NodeRequest{
+		Nodes: nodes,
+		RmID:  conf.GetSchedulerConf().ClusterID,
 	}
 	return request
 }
 
-func CreateUpdateRequestForDeleteNode(node Node) si.UpdateRequest {
-	deletedNodes := make([]*si.UpdateNodeInfo, 1)
-	nodeInfo := &si.UpdateNodeInfo{
+func CreateUpdateRequestForDeleteNode(node Node) si.NodeRequest {
+	deletedNodes := make([]*si.NodeInfo, 1)
+	nodeInfo := &si.NodeInfo{
 		NodeID:              node.name,
 		SchedulableResource: node.capacity,
 		OccupiedResource:    node.occupied,
 		Attributes:          make(map[string]string),
-		Action:              si.UpdateNodeInfo_DECOMISSION,
+		Action:              si.NodeInfo_DECOMISSION,
 	}
 
 	deletedNodes[0] = nodeInfo
-	request := si.UpdateRequest{
-		UpdatedNodes: deletedNodes,
-		RmID:         conf.GetSchedulerConf().ClusterID,
+	request := si.NodeRequest{
+		Nodes: deletedNodes,
+		RmID:  conf.GetSchedulerConf().ClusterID,
 	}
 	return request
 }
 
-func CreateUpdateRequestForRemoveApplication(appID, partition string) si.UpdateRequest {
+func CreateUpdateRequestForRemoveApplication(appID, partition string) si.ApplicationRequest {
 	removeApp := make([]*si.RemoveApplicationRequest, 0)
 	removeApp = append(removeApp, &si.RemoveApplicationRequest{
 		ApplicationID: appID,
 		PartitionName: partition,
 	})
-	request := si.UpdateRequest{
-		RemoveApplications: removeApp,
-		RmID:               conf.GetSchedulerConf().ClusterID,
+	request := si.ApplicationRequest{
+		Remove: removeApp,
+		RmID:   conf.GetSchedulerConf().ClusterID,
 	}
 
 	return request

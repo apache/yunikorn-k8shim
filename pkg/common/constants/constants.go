@@ -21,6 +21,7 @@ package constants
 // Cluster
 const DefaultNodeAttributeHostNameKey = "si.io/hostname"
 const DefaultNodeAttributeRackNameKey = "si.io/rackname"
+const DefaultNodeAttributeNodeLabelsKey = "si.io/nodelabels"
 const DefaultRackName = "/rack-default"
 
 // Application
@@ -28,11 +29,13 @@ const LabelApp = "app"
 const LabelApplicationID = "applicationId"
 const AnnotationApplicationID = "yunikorn.apache.org/app-id"
 const LabelQueueName = "queue"
+const LabelDisableStateAware = "disableStateAware"
 const ApplicationDefaultQueue = "root.sandbox"
 const DefaultPartition = "default"
 const AppTagNamespace = "namespace"
 const AppTagNamespaceResourceQuota = "namespace.resourcequota"
 const AppTagNamespaceParentQueue = "namespace.parentqueue"
+const AppTagStateAwareDisable = "application.stateaware.disable"
 const DefaultAppNamespace = "default"
 const DefaultUserLabel = "yunikorn.apache.org/username"
 const DefaultUser = "nobody"

@@ -42,15 +42,21 @@ import (
 
 // shim scheduler watches api server and interacts with unity scheduler to allocate pods
 type KubernetesShim struct {
-	apiFactory   client.APIProvider
-	context      *cache.Context
-	appManager   *appmgmt.AppManagementService
-	phManager    *cache.PlaceholderManager
-	callback     api.ResourceManagerCallback
-	stateMachine *fsm.FSM
-	stopChan     chan struct{}
-	lock         *sync.RWMutex
+	apiFactory           client.APIProvider
+	context              *cache.Context
+	appManager           *appmgmt.AppManagementService
+	phManager            *cache.PlaceholderManager
+	callback             api.ResourceManagerCallback
+	stateMachine         *fsm.FSM
+	stopChan             chan struct{}
+	lock                 *sync.RWMutex
+	outstandingAppsFound bool
 }
+
+var (
+	// timeout for logging a message if no outstanding apps were found for scheduling
+	outstandingAppLogTimeout = 2 * time.Minute
+)
 
 func newShimScheduler(scheduler api.SchedulerAPI, configs *conf.SchedulerConf) *KubernetesShim {
 	apiFactory := client.NewAPIFactory(scheduler, configs, false)
@@ -65,13 +71,14 @@ func newShimSchedulerInternal(ctx *cache.Context, apiFactory client.APIProvider,
 	am *appmgmt.AppManagementService, cb api.ResourceManagerCallback) *KubernetesShim {
 	var states = events.States().Scheduler
 	ss := &KubernetesShim{
-		apiFactory: apiFactory,
-		context:    ctx,
-		appManager: am,
-		phManager:  cache.NewPlaceholderManager(apiFactory.GetAPIs()),
-		callback:   cb,
-		stopChan:   make(chan struct{}),
-		lock:       &sync.RWMutex{},
+		apiFactory:           apiFactory,
+		context:              ctx,
+		appManager:           am,
+		phManager:            cache.NewPlaceholderManager(apiFactory.GetAPIs()),
+		callback:             cb,
+		stopChan:             make(chan struct{}),
+		lock:                 &sync.RWMutex{},
+		outstandingAppsFound: false,
 	}
 
 	// init state machine
@@ -209,6 +216,8 @@ func (ss *KubernetesShim) doScheduling(e *fsm.Event) {
 
 	// run main scheduling loop
 	go wait.Until(ss.schedule, conf.GetSchedulerConf().GetSchedulingInterval(), ss.stopChan)
+	// log a message if no outstanding requests were found for a while
+	go wait.Until(ss.checkOutstandingApps, outstandingAppLogTimeout, ss.stopChan)
 }
 
 func (ss *KubernetesShim) registerShimLayer() error {
@@ -256,7 +265,9 @@ func (ss *KubernetesShim) canHandle(se events.SchedulerEvent) bool {
 func (ss *KubernetesShim) schedule() {
 	apps := ss.context.SelectApplications(nil)
 	for _, app := range apps {
-		app.Schedule()
+		if app.Schedule() {
+			ss.setOutstandingAppsFound(true)
+		}
 	}
 }
 
@@ -310,4 +321,24 @@ func (ss *KubernetesShim) stop() {
 	default:
 		log.Logger().Info("scheduler is already stopped")
 	}
+}
+
+func (ss *KubernetesShim) checkOutstandingApps() {
+	if !ss.getOutstandingAppsFound() {
+		log.Logger().Info("No outstanding apps found for a while", zap.Duration("timeout", outstandingAppLogTimeout))
+		return
+	}
+	ss.setOutstandingAppsFound(false)
+}
+
+func (ss *KubernetesShim) getOutstandingAppsFound() bool {
+	ss.lock.RLock()
+	defer ss.lock.RUnlock()
+	return ss.outstandingAppsFound
+}
+
+func (ss *KubernetesShim) setOutstandingAppsFound(value bool) {
+	ss.lock.Lock()
+	defer ss.lock.Unlock()
+	ss.outstandingAppsFound = value
 }

@@ -42,7 +42,7 @@ func main() {
 	log.Logger().Info("starting scheduler",
 		zap.String("name", constants.SchedulerName))
 
-	serviceContext := entrypoint.StartAllServices()
+	serviceContext := entrypoint.StartAllServicesWithLogger(log.Logger(), log.GetZapConfigs())
 
 	if sa, ok := serviceContext.RMProxy.(api.SchedulerAPI); ok {
 		ss := newShimScheduler(sa, conf.GetSchedulerConf())

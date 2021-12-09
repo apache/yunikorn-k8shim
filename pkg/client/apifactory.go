@@ -23,9 +23,11 @@ import (
 	"time"
 
 	"go.uber.org/zap"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/kubernetes/pkg/scheduler/volumebinder"
+	"k8s.io/kubernetes/pkg/controller/volume/scheduling"
+	"k8s.io/kubernetes/pkg/features"
 
 	appclient "github.com/apache/incubator-yunikorn-k8shim/pkg/client/clientset/versioned"
 	appinformers "github.com/apache/incubator-yunikorn-k8shim/pkg/client/informers/externalversions"
@@ -88,9 +90,17 @@ func NewAPIFactory(scheduler api.SchedulerAPI, configs *conf.SchedulerConf, test
 	podInformer := informerFactory.Core().V1().Pods()
 	configMapInformer := informerFactory.Core().V1().ConfigMaps()
 	storageInformer := informerFactory.Storage().V1().StorageClasses()
+	csiNodeInformer := informerFactory.Storage().V1().CSINodes()
 	pvInformer := informerFactory.Core().V1().PersistentVolumes()
 	pvcInformer := informerFactory.Core().V1().PersistentVolumeClaims()
 	namespaceInformer := informerFactory.Core().V1().Namespaces()
+	var capacityCheck *scheduling.CapacityCheck
+	if utilfeature.DefaultFeatureGate.Enabled(features.CSIStorageCapacity) {
+		capacityCheck = &scheduling.CapacityCheck{
+			CSIDriverInformer:          informerFactory.Storage().V1().CSIDrivers(),
+			CSIStorageCapacityInformer: informerFactory.Storage().V1alpha1().CSIStorageCapacities(),
+		}
+	}
 
 	var appClient *appclient.Clientset = nil
 	var applicationInformer v1alpha1.ApplicationInformer = nil
@@ -101,11 +111,15 @@ func NewAPIFactory(scheduler api.SchedulerAPI, configs *conf.SchedulerConf, test
 	}
 
 	// create a volume binder (needs the informers)
-	volumeBinder := volumebinder.NewVolumeBinder(
+	volumeBinder := scheduling.NewVolumeBinder(
 		kubeClient.GetClientSet(),
-		nodeInformer, pvcInformer,
+		podInformer,
+		nodeInformer,
+		csiNodeInformer,
+		pvcInformer,
 		pvInformer,
 		storageInformer,
+		capacityCheck,
 		configs.VolumeBindTimeout)
 
 	return &APIFactory{

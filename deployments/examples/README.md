@@ -47,7 +47,7 @@ Deployment files for the driver and executor:
 
 ## Tensorflow job
 A simple example that runs a [kubeflow/tensorflow](./tfjob/tf-job-mnist.yaml) job.
-In this example it will run a distributed mnist model for e2e test, for full more detail see the [dist-mnist](https://github.com/kubeflow/tf-operator/tree/master/examples/v1/dist-mnist) section.
+In this example it will run a distributed mnist model for e2e test, for full more detail see the [dist-mnist](https://github.com/kubeflow/training-operator/tree/master/examples/tensorflow/dist-mnist) section.
 
 ## gang
 A sample application which implement gang in application level.

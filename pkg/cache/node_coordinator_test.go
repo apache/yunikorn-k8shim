@@ -52,7 +52,7 @@ func TestUpdatePod(t *testing.T) {
 	pod1.Status.Phase = v1.PodPending
 	pod1.Spec.NodeName = ""
 	pod2.Spec.NodeName = ""
-	mockedSchedulerApi.updateFn = func(request *si.UpdateRequest) error {
+	mockedSchedulerApi.UpdateNodeFn = func(request *si.NodeRequest) error {
 		t.Fatalf("update should not run because state is not changed")
 		return nil
 	}
@@ -64,7 +64,7 @@ func TestUpdatePod(t *testing.T) {
 	pod1.Status.Phase = v1.PodRunning
 	pod1.Spec.NodeName = Host1
 	pod2.Spec.NodeName = Host1
-	mockedSchedulerApi.updateFn = func(request *si.UpdateRequest) error {
+	mockedSchedulerApi.UpdateNodeFn = func(request *si.NodeRequest) error {
 		t.Fatalf("update should not run because state is not changed")
 		return nil
 	}
@@ -78,12 +78,12 @@ func TestUpdatePod(t *testing.T) {
 	pod1.Spec.NodeName = HostEmpty
 	pod2.Spec.NodeName = Host1
 	executed := false
-	mockedSchedulerApi.updateFn = func(request *si.UpdateRequest) error {
+	mockedSchedulerApi.UpdateNodeFn = func(request *si.NodeRequest) error {
 		executed = true
-		assert.Equal(t, len(request.UpdatedNodes), 1)
-		updatedNode := request.UpdatedNodes[0]
+		assert.Equal(t, len(request.Nodes), 1)
+		updatedNode := request.Nodes[0]
 		assert.Equal(t, updatedNode.NodeID, Host1)
-		assert.Equal(t, updatedNode.Action, si.UpdateNodeInfo_UPDATE)
+		assert.Equal(t, updatedNode.Action, si.NodeInfo_UPDATE)
 		assert.Equal(t, updatedNode.SchedulableResource.Resources[constants.Memory].Value, int64(10000))
 		assert.Equal(t, updatedNode.SchedulableResource.Resources[constants.CPU].Value, int64(10000))
 		assert.Equal(t, updatedNode.OccupiedResource.Resources[constants.Memory].Value, int64(1000))
@@ -100,12 +100,12 @@ func TestUpdatePod(t *testing.T) {
 	pod1.Spec.NodeName = Host1
 	pod2.Spec.NodeName = Host1
 	executed = false
-	mockedSchedulerApi.updateFn = func(request *si.UpdateRequest) error {
+	mockedSchedulerApi.UpdateNodeFn = func(request *si.NodeRequest) error {
 		executed = true
-		assert.Equal(t, len(request.UpdatedNodes), 1)
-		updatedNode := request.UpdatedNodes[0]
+		assert.Equal(t, len(request.Nodes), 1)
+		updatedNode := request.Nodes[0]
 		assert.Equal(t, updatedNode.NodeID, Host1)
-		assert.Equal(t, updatedNode.Action, si.UpdateNodeInfo_UPDATE)
+		assert.Equal(t, updatedNode.Action, si.NodeInfo_UPDATE)
 		assert.Equal(t, updatedNode.SchedulableResource.Resources[constants.Memory].Value, int64(10000))
 		assert.Equal(t, updatedNode.SchedulableResource.Resources[constants.CPU].Value, int64(10000))
 		assert.Equal(t, updatedNode.OccupiedResource.Resources[constants.Memory].Value, int64(0))
@@ -121,7 +121,7 @@ func TestUpdatePod(t *testing.T) {
 	pod2.Status.Phase = v1.PodRunning
 	pod1.Spec.NodeName = Host2
 	pod2.Spec.NodeName = Host2
-	mockedSchedulerApi.updateFn = func(request *si.UpdateRequest) error {
+	mockedSchedulerApi.UpdateNodeFn = func(request *si.NodeRequest) error {
 		t.Fatalf("update should not run because pod is already allocated")
 		return nil
 	}
@@ -134,12 +134,12 @@ func TestUpdatePod(t *testing.T) {
 	pod1.Spec.NodeName = ""
 	pod2.Spec.NodeName = Host2
 	executed = false
-	mockedSchedulerApi.updateFn = func(request *si.UpdateRequest) error {
+	mockedSchedulerApi.UpdateNodeFn = func(request *si.NodeRequest) error {
 		executed = true
-		assert.Equal(t, len(request.UpdatedNodes), 1)
-		updatedNode := request.UpdatedNodes[0]
+		assert.Equal(t, len(request.Nodes), 1)
+		updatedNode := request.Nodes[0]
 		assert.Equal(t, updatedNode.NodeID, Host2)
-		assert.Equal(t, updatedNode.Action, si.UpdateNodeInfo_UPDATE)
+		assert.Equal(t, updatedNode.Action, si.NodeInfo_UPDATE)
 		assert.Equal(t, updatedNode.SchedulableResource.Resources[constants.Memory].Value, int64(10000))
 		assert.Equal(t, updatedNode.SchedulableResource.Resources[constants.CPU].Value, int64(10000))
 		assert.Equal(t, updatedNode.OccupiedResource.Resources[constants.Memory].Value, int64(1000))
@@ -156,12 +156,12 @@ func TestUpdatePod(t *testing.T) {
 	pod1.Spec.NodeName = Host2
 	pod2.Spec.NodeName = Host2
 	executed = false
-	mockedSchedulerApi.updateFn = func(request *si.UpdateRequest) error {
+	mockedSchedulerApi.UpdateNodeFn = func(request *si.NodeRequest) error {
 		executed = true
-		assert.Equal(t, len(request.UpdatedNodes), 1)
-		updatedNode := request.UpdatedNodes[0]
+		assert.Equal(t, len(request.Nodes), 1)
+		updatedNode := request.Nodes[0]
 		assert.Equal(t, updatedNode.NodeID, Host2)
-		assert.Equal(t, updatedNode.Action, si.UpdateNodeInfo_UPDATE)
+		assert.Equal(t, updatedNode.Action, si.NodeInfo_UPDATE)
 		assert.Equal(t, updatedNode.SchedulableResource.Resources[constants.Memory].Value, int64(10000))
 		assert.Equal(t, updatedNode.SchedulableResource.Resources[constants.CPU].Value, int64(10000))
 		assert.Equal(t, updatedNode.OccupiedResource.Resources[constants.Memory].Value, int64(0))
@@ -177,7 +177,7 @@ func TestUpdatePod(t *testing.T) {
 	pod2.Status.Phase = v1.PodFailed
 	pod1.Spec.NodeName = HostEmpty
 	pod2.Spec.NodeName = Host2
-	mockedSchedulerApi.updateFn = func(request *si.UpdateRequest) error {
+	mockedSchedulerApi.UpdateNodeFn = func(request *si.NodeRequest) error {
 		t.Fatalf("update should not run because pod is already allocated")
 		return nil
 	}
@@ -200,12 +200,12 @@ func TestDeletePod(t *testing.T) {
 	pod1.Spec.NodeName = HostEmpty
 	pod2.Spec.NodeName = Host1
 	executed := false
-	mockedSchedulerApi.updateFn = func(request *si.UpdateRequest) error {
+	mockedSchedulerApi.UpdateNodeFn = func(request *si.NodeRequest) error {
 		executed = true
-		assert.Equal(t, len(request.UpdatedNodes), 1)
-		updatedNode := request.UpdatedNodes[0]
+		assert.Equal(t, len(request.Nodes), 1)
+		updatedNode := request.Nodes[0]
 		assert.Equal(t, updatedNode.NodeID, Host1)
-		assert.Equal(t, updatedNode.Action, si.UpdateNodeInfo_UPDATE)
+		assert.Equal(t, updatedNode.Action, si.NodeInfo_UPDATE)
 		assert.Equal(t, updatedNode.SchedulableResource.Resources[constants.Memory].Value, int64(10000))
 		assert.Equal(t, updatedNode.SchedulableResource.Resources[constants.CPU].Value, int64(10000))
 		assert.Equal(t, updatedNode.OccupiedResource.Resources[constants.Memory].Value, int64(1000))
@@ -217,12 +217,12 @@ func TestDeletePod(t *testing.T) {
 
 	// delete pod from the running state
 	executed = false
-	mockedSchedulerApi.updateFn = func(request *si.UpdateRequest) error {
+	mockedSchedulerApi.UpdateNodeFn = func(request *si.NodeRequest) error {
 		executed = true
-		assert.Equal(t, len(request.UpdatedNodes), 1)
-		updatedNode := request.UpdatedNodes[0]
+		assert.Equal(t, len(request.Nodes), 1)
+		updatedNode := request.Nodes[0]
 		assert.Equal(t, updatedNode.NodeID, Host1)
-		assert.Equal(t, updatedNode.Action, si.UpdateNodeInfo_UPDATE)
+		assert.Equal(t, updatedNode.Action, si.NodeInfo_UPDATE)
 		assert.Equal(t, updatedNode.SchedulableResource.Resources[constants.Memory].Value, int64(10000))
 		assert.Equal(t, updatedNode.SchedulableResource.Resources[constants.CPU].Value, int64(10000))
 		assert.Equal(t, updatedNode.OccupiedResource.Resources[constants.Memory].Value, int64(0))
@@ -248,12 +248,12 @@ func TestDeleteTerminatedPod(t *testing.T) {
 	pod1.Spec.NodeName = HostEmpty
 	pod2.Spec.NodeName = Host1
 	executed := false
-	mockedSchedulerApi.updateFn = func(request *si.UpdateRequest) error {
+	mockedSchedulerApi.UpdateNodeFn = func(request *si.NodeRequest) error {
 		executed = true
-		assert.Equal(t, len(request.UpdatedNodes), 1)
-		updatedNode := request.UpdatedNodes[0]
+		assert.Equal(t, len(request.Nodes), 1)
+		updatedNode := request.Nodes[0]
 		assert.Equal(t, updatedNode.NodeID, Host1)
-		assert.Equal(t, updatedNode.Action, si.UpdateNodeInfo_UPDATE)
+		assert.Equal(t, updatedNode.Action, si.NodeInfo_UPDATE)
 		assert.Equal(t, updatedNode.SchedulableResource.Resources[constants.Memory].Value, int64(10000))
 		assert.Equal(t, updatedNode.SchedulableResource.Resources[constants.CPU].Value, int64(10000))
 		assert.Equal(t, updatedNode.OccupiedResource.Resources[constants.Memory].Value, int64(1000))
@@ -270,12 +270,12 @@ func TestDeleteTerminatedPod(t *testing.T) {
 	pod1.Spec.NodeName = Host1
 	pod2.Spec.NodeName = Host1
 	executed = false
-	mockedSchedulerApi.updateFn = func(request *si.UpdateRequest) error {
+	mockedSchedulerApi.UpdateNodeFn = func(request *si.NodeRequest) error {
 		executed = true
-		assert.Equal(t, len(request.UpdatedNodes), 1)
-		updatedNode := request.UpdatedNodes[0]
+		assert.Equal(t, len(request.Nodes), 1)
+		updatedNode := request.Nodes[0]
 		assert.Equal(t, updatedNode.NodeID, Host1)
-		assert.Equal(t, updatedNode.Action, si.UpdateNodeInfo_UPDATE)
+		assert.Equal(t, updatedNode.Action, si.NodeInfo_UPDATE)
 		assert.Equal(t, updatedNode.SchedulableResource.Resources[constants.Memory].Value, int64(10000))
 		assert.Equal(t, updatedNode.SchedulableResource.Resources[constants.CPU].Value, int64(10000))
 		assert.Equal(t, updatedNode.OccupiedResource.Resources[constants.Memory].Value, int64(0))
@@ -287,7 +287,7 @@ func TestDeleteTerminatedPod(t *testing.T) {
 
 	// delete pod from the succeed state
 	executed = false
-	mockedSchedulerApi.updateFn = func(request *si.UpdateRequest) error {
+	mockedSchedulerApi.UpdateNodeFn = func(request *si.NodeRequest) error {
 		executed = true
 		t.Fatalf("update should not be triggered as it should have already done")
 		return nil

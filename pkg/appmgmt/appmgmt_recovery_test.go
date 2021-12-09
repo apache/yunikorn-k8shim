@@ -118,8 +118,8 @@ func TestAppStatesDuringRecovery(t *testing.T) {
 	assert.Equal(t, app02.GetApplicationState(), events.States().Application.Recovering)
 
 	// mock the responses, simulate app01 has been accepted
-	err = cb.RecvUpdateResponse(&si.UpdateResponse{
-		AcceptedApplications: []*si.AcceptedApplication{
+	err = cb.UpdateApplication(&si.ApplicationResponse{
+		Accepted: []*si.AcceptedApplication{
 			{
 				ApplicationID: "app01",
 			},
@@ -135,8 +135,8 @@ func TestAppStatesDuringRecovery(t *testing.T) {
 	assert.Equal(t, app02.GetApplicationState(), events.States().Application.Recovering)
 
 	// mock the responses, simulate app02 has been accepted
-	err = cb.RecvUpdateResponse(&si.UpdateResponse{
-		AcceptedApplications: []*si.AcceptedApplication{
+	err = cb.UpdateApplication(&si.ApplicationResponse{
+		Accepted: []*si.AcceptedApplication{
 			{
 				ApplicationID: "app02",
 			},

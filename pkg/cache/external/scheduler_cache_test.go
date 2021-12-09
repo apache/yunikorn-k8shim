@@ -91,7 +91,8 @@ func TestAssignedPod(t *testing.T) {
 			assert.Check(t, cachedNode.Node() != nil, "host0001 exists in cache but the ref to v1.Node doesn't exist")
 			assert.Equal(t, cachedNode.Node().Name, node.Name)
 			assert.Equal(t, cachedNode.Node().UID, node.UID)
-			assert.Equal(t, len(cachedNode.Pods()), 1)
+			// nolint:staticcheck
+			assert.Equal(t, len(cachedNode.Pods), 1)
 
 			// verify the pod is added to cache
 			// the pod should be added to the node as well
@@ -169,7 +170,8 @@ func TestAddUnassignedPod(t *testing.T) {
 			assert.Check(t, cachedNode.Node() != nil, "host0001 exists in cache but the ref to v1.Node doesn't exist")
 			assert.Equal(t, cachedNode.Node().Name, node.Name)
 			assert.Equal(t, cachedNode.Node().UID, node.UID)
-			assert.Equal(t, len(cachedNode.Pods()), 0)
+			// nolint:staticcheck
+			assert.Equal(t, len(cachedNode.Pods), 0)
 
 			// verify the pod is added to cache
 			// the pod should be added to the node as well
@@ -299,4 +301,36 @@ func add2Cache(cache *SchedulerCache, objects ...interface{}) error {
 		}
 	}
 	return nil
+}
+
+func TestGetNodesInfoMapCopy(t *testing.T) {
+	// empty map
+	cache := NewSchedulerCache(client.NewMockedAPIProvider().GetAPIs())
+	copyOfMap := cache.GetNodesInfoMapCopy()
+	assert.Equal(t, len(copyOfMap), 0)
+
+	for i := 0; i < 10; i++ {
+		cache.AddNode(&v1.Node{
+			ObjectMeta: apis.ObjectMeta{
+				Name: fmt.Sprintf("node-%d", i),
+				Labels: map[string]string{
+					"a": "a1",
+					"b": "b1",
+				},
+				Annotations: map[string]string{
+					"a": "a1",
+					"b": "b1",
+					"c": "c1",
+				},
+			},
+		})
+	}
+
+	copyOfMap = cache.GetNodesInfoMapCopy()
+	assert.Equal(t, len(copyOfMap), 10)
+	for k, v := range copyOfMap {
+		assert.Assert(t, v.Node() != nil, "node %s should not be nil", k)
+		assert.Equal(t, len(v.Node().Labels), 2)
+		assert.Equal(t, len(v.Node().Annotations), 3)
+	}
 }

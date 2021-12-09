@@ -42,7 +42,7 @@ function kubectl_installation() {
 # Install Kind
 function kind_installation() {
     os_type=$1
-    curl -Lo ./kind "https://kind.sigs.k8s.io/dl/v0.10.0/kind-${os_type}-amd64" \
+    curl -Lo ./kind "https://kind.sigs.k8s.io/dl/v0.11.1/kind-${os_type}-amd64" \
                 && chmod +x ./kind && mv ./kind $(go env GOPATH)/bin
     exit_on_error "install KIND failed"
     check_cmd "kind"
@@ -129,8 +129,8 @@ function install_cluster() {
 
   # install ginkgo and gomega for e2e tests.
   echo "Installing Ginkgo & Gomega at $(go env GOPATH)/bin"
-  go get -v github.com/onsi/ginkgo/ginkgo
-  go get -v github.com/onsi/gomega
+  go install github.com/onsi/ginkgo/ginkgo
+  go install github.com/onsi/gomega
   check_cmd "ginkgo"
 
   # build docker images from latest code, so that we can install yunikorn with these latest images
@@ -216,7 +216,9 @@ Usage: $(basename "$0") -a <action> -n <kind-cluster-name> -v <kind-node-image-v
   <kind-node-image-version>    the kind node image used to provision the K8s cluster.
 
 Examples:
-  $(basename "$0") -n "yk8s" -v "kindest/node:v1.15.11"
+  $(basename "$0") -a test -n "yk8s" -v "kindest/node:v1.19.11"
+  $(basename "$0") -a test -n "yk8s" -v "kindest/node:v1.20.7"
+  $(basename "$0") -a test -n "yk8s" -v "kindest/node:v1.21.2"
 EOF
 }
 

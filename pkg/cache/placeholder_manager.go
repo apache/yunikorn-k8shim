@@ -39,11 +39,12 @@ type PlaceholderManager struct {
 	// when the placeholder manager is unable to delete a pod,
 	// this pod becomes to be an "orphan" pod. We add them to a map
 	// and keep retrying deleting them in order to avoid wasting resources.
-	orphanPods map[string]*v1.Pod
-	stopChan   chan struct{}
-	running    atomic.Value
+	orphanPods  map[string]*v1.Pod
+	stopChan    chan struct{}
+	running     atomic.Value
+	cleanupTime time.Duration
 	// a simple mutex will do we do not have separate read and write paths
-	sync.Mutex
+	sync.RWMutex
 }
 
 var (
@@ -57,10 +58,11 @@ func NewPlaceholderManager(clients *client.Clients) *PlaceholderManager {
 	var r atomic.Value
 	r.Store(false)
 	placeholderMgr = &PlaceholderManager{
-		clients:    clients,
-		running:    r,
-		orphanPods: make(map[string]*v1.Pod),
-		stopChan:   make(chan struct{}),
+		clients:     clients,
+		running:     r,
+		orphanPods:  make(map[string]*v1.Pod),
+		stopChan:    make(chan struct{}),
+		cleanupTime: 5 * time.Second,
 	}
 	return placeholderMgr
 }
@@ -149,7 +151,7 @@ func (mgr *PlaceholderManager) Start() {
 				mgr.setRunning(false)
 				log.Logger().Info("PlaceholderManager has been stopped")
 				return
-			case <-time.After(5 * time.Second):
+			case <-time.After(mgr.cleanupTime):
 				mgr.cleanOrphanPlaceholders()
 			}
 		}
@@ -171,4 +173,16 @@ func (mgr *PlaceholderManager) isRunning() bool {
 
 func (mgr *PlaceholderManager) setRunning(flag bool) {
 	mgr.running.Store(flag)
+}
+
+func (mgr *PlaceholderManager) getOrphanPodsLength() int {
+	mgr.RLock()
+	defer mgr.RUnlock()
+	return len(mgr.orphanPods)
+}
+
+func (mgr *PlaceholderManager) setCleanupTime(value time.Duration) {
+	mgr.Lock()
+	defer mgr.Unlock()
+	mgr.cleanupTime = value
 }

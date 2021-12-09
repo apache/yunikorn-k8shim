@@ -20,17 +20,20 @@ package general
 
 import (
 	"reflect"
+	"strconv"
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	k8sCache "k8s.io/client-go/tools/cache"
 
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 
@@ -43,14 +46,16 @@ import (
 // applicationID, queue name found, and claim it as an app or a app task,
 // then report them to scheduler cache by calling am protocol
 type Manager struct {
-	apiProvider client.APIProvider
-	amProtocol  interfaces.ApplicationManagementProtocol
+	apiProvider            client.APIProvider
+	amProtocol             interfaces.ApplicationManagementProtocol
+	gangSchedulingDisabled bool
 }
 
 func NewManager(amProtocol interfaces.ApplicationManagementProtocol, apiProvider client.APIProvider) *Manager {
 	return &Manager{
-		apiProvider: apiProvider,
-		amProtocol:  amProtocol,
+		apiProvider:            apiProvider,
+		amProtocol:             amProtocol,
+		gangSchedulingDisabled: conf.GetSchedulerConf().DisableGangScheduling,
 	}
 }
 
@@ -92,7 +97,11 @@ func (os *Manager) getTaskMetadata(pod *v1.Pod) (interfaces.TaskMetadata, bool) 
 	}
 
 	placeholder := utils.GetPlaceholderFlagFromPodSpec(pod)
-	taskGroupName := utils.GetTaskGroupFromPodSpec(pod)
+
+	var taskGroupName string
+	if !os.gangSchedulingDisabled {
+		taskGroupName = utils.GetTaskGroupFromPodSpec(pod)
+	}
 
 	return interfaces.TaskMetadata{
 		ApplicationID: appID,
@@ -122,16 +131,24 @@ func (os *Manager) getAppMetadata(pod *v1.Pod) (interfaces.ApplicationMetadata, 
 	} else {
 		tags[constants.AppTagNamespace] = pod.Namespace
 	}
+	if isStateAwareDisabled(pod) {
+		tags[constants.AppTagStateAwareDisable] = "true"
+	}
+
 	// get the user from Pod Labels
 	user := utils.GetUserFromPod(pod)
 
-	taskGroups, err := utils.GetTaskGroupsFromAnnotation(pod)
-	if err != nil {
-		log.Logger().Error("unable to get taskGroups for pod",
-			zap.String("namespace", pod.Namespace),
-			zap.String("name", pod.Name),
-			zap.Error(err))
+	var taskGroups []v1alpha1.TaskGroup = nil
+	if !os.gangSchedulingDisabled {
+		taskGroups, err = utils.GetTaskGroupsFromAnnotation(pod)
+		if err != nil {
+			log.Logger().Error("unable to get taskGroups for pod",
+				zap.String("namespace", pod.Namespace),
+				zap.String("name", pod.Name),
+				zap.Error(err))
+		}
 	}
+
 	ownerReferences := getOwnerReferences(pod)
 	schedulingPolicyParams := utils.GetSchedulingPolicyParam(pod)
 	return interfaces.ApplicationMetadata{
@@ -143,6 +160,23 @@ func (os *Manager) getAppMetadata(pod *v1.Pod) (interfaces.ApplicationMetadata, 
 		OwnerReferences:            ownerReferences,
 		SchedulingPolicyParameters: schedulingPolicyParams,
 	}, true
+}
+
+func isStateAwareDisabled(pod *v1.Pod) bool {
+	value, ok := pod.Labels[constants.LabelDisableStateAware]
+	if !ok {
+		return false
+	}
+	result, err := strconv.ParseBool(value)
+	if err != nil {
+		log.Logger().Debug("unable to parse label for pod",
+			zap.String("namespace", pod.Namespace),
+			zap.String("name", pod.Name),
+			zap.String("label", constants.LabelDisableStateAware),
+			zap.Error(err))
+		return false
+	}
+	return result
 }
 
 func getOwnerReferences(pod *v1.Pod) []metav1.OwnerReference {
@@ -286,28 +320,39 @@ func (os *Manager) deletePod(obj interface{}) {
 }
 
 func (os *Manager) ListApplications() (map[string]interfaces.ApplicationMetadata, error) {
+	log.Logger().Info("Retrieving pod list")
 	// list all pods on this cluster
 	slt := labels.NewSelector()
 	appPods, err := os.apiProvider.GetAPIs().PodInformer.Lister().List(slt)
 	if err != nil {
 		return nil, err
 	}
-
+	log.Logger().Info("Pod list retrieved from api server", zap.Int("nr of pods", len(appPods)))
 	// get existing apps
 	existingApps := make(map[string]interfaces.ApplicationMetadata)
+	podsRecovered := 0
+	podsWithoutMetaData := 0
 	for _, pod := range appPods {
 		log.Logger().Debug("Looking at pod for recovery candidates", zap.String("podNamespace", pod.Namespace), zap.String("podName", pod.Name))
 		// general filter passes, and pod is assigned
 		// this means the pod is already scheduled by scheduler for an existing app
 		if utils.GeneralPodFilter(pod) && utils.IsAssignedPod(pod) {
 			if meta, ok := os.getAppMetadata(pod); ok {
+				podsRecovered++
 				log.Logger().Debug("Adding appID as recovery candidate", zap.String("appID", meta.ApplicationID))
 				if _, exist := existingApps[meta.ApplicationID]; !exist {
 					existingApps[meta.ApplicationID] = meta
 				}
+			} else {
+				podsWithoutMetaData++
 			}
 		}
 	}
+	log.Logger().Info("Application recovery statistics",
+		zap.Int("nr of recoverable apps", len(existingApps)),
+		zap.Int("nr of total pods", len(appPods)),
+		zap.Int("nr of pods without application metadata", podsWithoutMetaData),
+		zap.Int("nr of pods to be recovered", podsRecovered))
 
 	return existingApps, nil
 }
