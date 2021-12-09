@@ -23,7 +23,7 @@ import (
 	"time"
 )
 
-// YuniKornTestConfigType holds all configurable elements of the testsuite
+// YuniKornTestConfigType holds all of the configurable elements of the testsuite
 type YuniKornTestConfigType struct {
 	JSONLogs    bool
 	LogLevel    string
@@ -44,23 +44,23 @@ var YuniKornTestConfig = YuniKornTestConfigType{}
 // ParseFlags parses commandline flags relevant to testing.
 func (c *YuniKornTestConfigType) ParseFlags() {
 	flag.BoolVar(&c.JSONLogs, "json-logs-enabled", false,
-		"Enable json log format")
+		"Enables logging in json format")
 	flag.StringVar(&c.LogLevel, "log-level", "debug",
-		"log level one of: debug|info|error|critical")
+		"log level(debug|info|error|critical")
 	flag.StringVar(&c.KubeConfig, "kube-config", "~/.kube/config",
 		"Kubeconfig to be used for tests")
 	flag.StringVar(&c.LogFile, "log-file", "test-output.log",
-		"Log filename")
+		"Log location")
 	flag.DurationVar(&c.Timeout, "timeout", 24*time.Hour,
 		"Specifies timeout for test run")
 	flag.StringVar(&c.YkNamespace, "yk-namespace", "yunikorn",
-		"K8s Namespace in which YuniKorn service is deployed")
+		"K8s Namespace in which YuniKorn service deployed")
 	flag.StringVar(&c.YkHost, "yk-host", DefaultYuniKornHost,
 		"Hostname/IP of YuniKorn service")
 	flag.StringVar(&c.YkPort, "yk-port", DefaultYuniKornPort,
 		"External Port of YuniKorn service")
 	flag.StringVar(&c.YkScheme, "yk-scheme", DefaultYuniKornScheme,
-		"Scheme of YuniKorn web service")
-	flag.StringVar(&c.LogDir, "log-dir", "/tmp/e2e-test-reports",
-		"Directory for test log reports")
+		"Scheme of YuniKron Service")
+	flag.StringVar(&c.LogDir, "log-dir", "/yunikorn-qe/test-results/target/failsafe-reports",
+		"Log location where the logs are stored")
 }
