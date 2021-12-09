@@ -39,7 +39,7 @@ Two sample deployments using sleep jobs:
 ## spark
 A sample application using Apache Spark.
 
-Start via the [run.sh](spark/cmd/run.sh) script, for full details see the [user guide](https://github.com/apache/incubator-yunikorn-core/blob/master/docs/user-guide.md) in the yunikorn-core.
+Start via the [run.sh](spark/cmd/run.sh) script, for full details see the [user guide](https://yunikorn.apache.org/docs/user_guide/workloads/run_spark) in the yunikorn-core.
 
 Deployment files for the driver and executor: 
 * [driver](spark/driver.yaml).
@@ -103,7 +103,7 @@ _NOTE_: dynamic provisioning can interfere with the existing volume examples giv
 ## namespace
 The namespace example uses a placement rule and special queue configuration. The pods are a simple sleep pod which will be scheduled based on the namespace it runs in. The pod specification does not have a queue set.
 
-* create the configmap as explained in the [user guide](https://github.com/apache/incubator-yunikorn-core/blob/master/docs/user-guide.md#create-the-configmap) using the local [queues.yaml](./namespace/queues.yaml) file not the standard one.
+* create the configmap as explained in the [user guide](https://yunikorn.apache.org/docs/user_guide/queue_config#queues) using the local [queues.yaml](./namespace/queues.yaml) file not the standard one.
 * add the namespaces development and production using [namespaces.yaml](namespace/namespaces.yaml) file: `kubectl create -f namespaces.yaml`
 * run the sleep pod in the development namespace which gets added to the `development` queue using the local [sleeppod_dev.yaml](namespace/sleeppod_dev.yaml): `kubectl create -f sleeppod_dev.yaml`.
   The pod spec does not specify a queue just a namespace but the application will be run in the `root.development` queue. 
