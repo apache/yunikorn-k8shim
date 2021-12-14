@@ -16,7 +16,7 @@
  limitations under the License.
 */
 
-package main
+package shim
 
 import "github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 

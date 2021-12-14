@@ -37,6 +37,7 @@ endif
 BASE_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
 BINARY=k8s_yunikorn_scheduler
+PLUGIN_BINARY=kube-scheduler
 OUTPUT=_output
 RELEASE_BIN_DIR=${OUTPUT}/bin
 ADMISSION_CONTROLLER_BIN_DIR=${OUTPUT}/admission-controllers/
@@ -124,6 +125,23 @@ run: build
 	-clusterId=mycluster -clusterVersion=${VERSION} -policyGroup=queues \
 	-logEncoding=console -logLevel=-1
 
+.PHONY: run_plugin
+run_plugin: build_plugin
+	@echo "running scheduler plugin locally"
+	@cp ${LOCAL_CONF}/${CONF_FILE} ${RELEASE_BIN_DIR}
+	./scripts/plugin-conf-gen.sh $(KUBECONFIG) ${RELEASE_BIN_DIR}
+	cd ${RELEASE_BIN_DIR} && \
+	  ./${PLUGIN_BINARY} \
+	    --address=0.0.0.0 \
+	    --leader-elect=false \
+	    --config=scheduler-config.yaml \
+	    -v=2 \
+	    --yk-scheduler-name=yunikorn \
+	    --yk-kube-config=$(KUBECONFIG) \
+	    --yk-cluster-id=yk \
+	    --yk-scheduling-interval=1s \
+	    --yk-log-level=1
+
 # Create output directories
 .PHONY: init
 init:
@@ -136,8 +154,16 @@ build: init
 	@echo "building scheduler binary"
 	go build -o=${RELEASE_BIN_DIR}/${BINARY} -race -ldflags \
 	'-X main.version=${VERSION} -X main.date=${DATE}' \
-    ./pkg/shim/
+	./pkg/cmd/shim/
 	@chmod +x ${RELEASE_BIN_DIR}/${BINARY}
+
+.PHONY: build_plugin
+build_plugin: init
+	@echo "building scheduler plugin"
+	go build -o=${RELEASE_BIN_DIR}/${PLUGIN_BINARY} -race -ldflags \
+	'-X main.version=${VERSION} -X main.date=${DATE}' \
+	./pkg/cmd/schedulerplugin/
+	@chmod +x ${RELEASE_BIN_DIR}/${PLUGIN_BINARY}
 
 # Build scheduler binary in a production ready version
 .PHONY: scheduler
@@ -147,14 +173,23 @@ scheduler: init
 	go build -a -o=${RELEASE_BIN_DIR}/${BINARY} -ldflags \
 	'-extldflags "-static" -X main.version=${VERSION} -X main.date=${DATE}' \
 	-tags netgo -installsuffix netgo \
-	./pkg/shim/
+	./pkg/cmd/shim/
 
+# Build plugin binary in a production ready version
+.PHONY: plugin
+plugin: init
+	@echo "building binary for scheduler docker image"
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+	go build -a -o=${RELEASE_BIN_DIR}/${PLUGIN_BINARY} -ldflags \
+	'-extldflags "-static" -X main.version=${VERSION} -X main.date=${DATE}' \
+	-tags netgo -installsuffix netgo \
+	./pkg/cmd/schedulerplugin/
+	
 # Build a scheduler image based on the production ready version
 .PHONY: sched_image
 sched_image: scheduler
 	@echo "building scheduler docker image"
 	@cp ${RELEASE_BIN_DIR}/${BINARY} ./deployments/image/configmap
-	@mkdir -p ./deployments/image/configmap/admission-controller-init-scripts
 	@sed -i'.bkp' 's/clusterVersion=.*"/clusterVersion=${VERSION}"/' deployments/image/configmap/Dockerfile
 	docker build ./deployments/image/configmap -t ${REGISTRY}/yunikorn:scheduler-${VERSION} \
 	--label "yunikorn-core-revision=${CORE_SHA}" \
@@ -164,7 +199,26 @@ sched_image: scheduler
 	--label "Version=${VERSION}"
 	@mv -f ./deployments/image/configmap/Dockerfile.bkp ./deployments/image/configmap/Dockerfile
 	@rm -f ./deployments/image/configmap/${BINARY}
-	@rm -rf ./deployments/image/configmap/admission-controller-init-scripts/
+
+# Build a plugin image based on the production ready version
+.PHONY: plugin_image
+plugin_image: plugin
+	@echo "building plugin docker image"
+	@cp ${RELEASE_BIN_DIR}/${PLUGIN_BINARY} ./deployments/image/plugin
+	@cp conf/scheduler-config.yaml ./deployments/image/plugin/scheduler-config.yaml
+	@sed -i'.bkp' 's/clusterVersion=.*"/clusterVersion=${VERSION}"/' deployments/image/plugin/Dockerfile
+	@coreSHA=$$(go list -m "github.com/apache/incubator-yunikorn-core" | cut -d "-" -f5) ; \
+	siSHA=$$(go list -m "github.com/apache/incubator-yunikorn-scheduler-interface" | cut -d "-" -f6) ; \
+	shimSHA=$$(git rev-parse --short=12 HEAD) ; \
+	docker build ./deployments/image/plugin -t ${REGISTRY}/yunikorn:scheduler-plugin-${VERSION} \
+	--label "yunikorn-core-revision=$${coreSHA}" \
+	--label "yunikorn-scheduler-interface-revision=$${siSHA}" \
+	--label "yunikorn-k8shim-revision=$${shimSHA}" \
+	--label "BuildTimeStamp=${DATE}" \
+	--label "Version=${VERSION}"
+	@mv -f ./deployments/image/plugin/Dockerfile.bkp ./deployments/image/plugin/Dockerfile
+	@rm -f ./deployments/image/plugin/${PLUGIN_BINARY}
+	@rm -f ./deployments/image/plugin/scheduler-config.yaml
 
 # Build admission controller binary in a production ready version
 .PHONY: admission
@@ -217,7 +271,7 @@ simulation_image: simulation
 	
 # Build all images based on the production ready version
 .PHONY: image
-image: sched_image adm_image
+image: sched_image plugin_image adm_image
 
 .PHONY: push
 push: image

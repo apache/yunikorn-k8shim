@@ -16,7 +16,7 @@
  limitations under the License.
 */
 
-package main
+package shim
 
 import (
 	"os"
@@ -26,6 +26,7 @@ import (
 	"github.com/looplab/fsm"
 	"go.uber.org/zap"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/informers"
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
@@ -58,9 +59,23 @@ var (
 	outstandingAppLogTimeout = 2 * time.Minute
 )
 
-func newShimScheduler(scheduler api.SchedulerAPI, configs *conf.SchedulerConf) *KubernetesShim {
-	apiFactory := client.NewAPIFactory(scheduler, configs, false)
+func NewShimScheduler(scheduler api.SchedulerAPI, configs *conf.SchedulerConf) *KubernetesShim {
+	kubeClient := client.NewKubeClient(configs.KubeConfig)
+
+	// we have disabled re-sync to keep ourselves up-to-date
+	informerFactory := informers.NewSharedInformerFactory(kubeClient.GetClientSet(), 0)
+
+	apiFactory := client.NewAPIFactory(scheduler, informerFactory, configs, false)
 	context := cache.NewContext(apiFactory)
+	rmCallback := callback.NewAsyncRMCallback(context)
+	appManager := appmgmt.NewAMService(context, apiFactory)
+	return newShimSchedulerInternal(context, apiFactory, appManager, rmCallback)
+}
+
+func NewShimSchedulerForPlugin(scheduler api.SchedulerAPI, informerFactory informers.SharedInformerFactory, configs *conf.SchedulerConf) *KubernetesShim {
+	apiFactory := client.NewAPIFactory(scheduler, informerFactory, configs, false)
+	context := cache.NewContext(apiFactory)
+	context.SetPluginMode(true)
 	rmCallback := callback.NewAsyncRMCallback(context)
 	appManager := appmgmt.NewAMService(context, apiFactory)
 	return newShimSchedulerInternal(context, apiFactory, appManager, rmCallback)
@@ -125,6 +140,10 @@ func newShimSchedulerInternal(ctx *cache.Context, apiFactory client.APIProvider,
 	return ss
 }
 
+func (ss *KubernetesShim) GetContext() *cache.Context {
+	return ss.context
+}
+
 func (ss *KubernetesShim) SchedulerEventHandler() func(obj interface{}) {
 	return func(obj interface{}) {
 		if event, ok := obj.(events.SchedulerEvent); ok {
@@ -152,7 +171,7 @@ func (ss *KubernetesShim) register(e *fsm.Event) {
 }
 
 func (ss *KubernetesShim) handleSchedulerFailure(e *fsm.Event) {
-	ss.stop()
+	ss.Stop()
 	// testmode will be true when mock scheduler intailize
 	if !conf.GetSchedulerConf().IsTestMode() {
 		os.Exit(1)
@@ -271,7 +290,7 @@ func (ss *KubernetesShim) schedule() {
 	}
 }
 
-func (ss *KubernetesShim) run() {
+func (ss *KubernetesShim) Run() {
 	// NOTE: the order of starting these services matter,
 	// please look at the comments before modifying the orders
 
@@ -297,7 +316,7 @@ func (ss *KubernetesShim) run() {
 	// it needs to be started after the shim is registered with the core
 	if err := ss.appManager.Start(); err != nil {
 		log.Logger().Fatal("failed to start app manager", zap.Error(err))
-		ss.stop()
+		ss.Stop()
 	}
 }
 
@@ -308,7 +327,7 @@ func (ss *KubernetesShim) enterState(event *fsm.Event) {
 		zap.String("event", event.Event))
 }
 
-func (ss *KubernetesShim) stop() {
+func (ss *KubernetesShim) Stop() {
 	log.Logger().Info("stopping scheduler")
 	select {
 	case ss.stopChan <- struct{}{}:

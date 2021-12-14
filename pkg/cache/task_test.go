@@ -462,7 +462,7 @@ func TestHandleSubmitTaskEvent(t *testing.T) {
 		defer rt.lock.Unlock()
 		rt.time++
 	}
-	events.SetRecorderForTest(mr)
+	events.SetRecorder(mr)
 	resources := make(map[v1.ResourceName]resource.Quantity)
 	containers := make([]v1.Container, 0)
 	containers = append(containers, v1.Container{
@@ -521,7 +521,7 @@ func TestHandleSubmitTaskEvent(t *testing.T) {
 	assert.Equal(t, rt.time, int64(2))
 
 	// Test over, set Recorder back fake type
-	events.SetRecorderForTest(k8sEvents.NewFakeRecorder(1024))
+	events.SetRecorder(k8sEvents.NewFakeRecorder(1024))
 }
 
 func TestSimultaneousTaskCompleteAndAllocate(t *testing.T) {

@@ -36,23 +36,23 @@ import (
 // nodes are cached in the form of de-scheduler nodeInfo, instead of re-creating all nodes info from scratch,
 // we replicate nodes info from de-scheduler, in order to re-use predicates functions.
 type SchedulerCache struct {
-	// node name to NodeInfo map
-	nodesMap map[string]*framework.NodeInfo
-	podsMap  map[string]*v1.Pod
-	// this is a map of assumed pods,
-	// the value indicates if a pod volumes are all bound
-	assumedPods map[string]bool
-	lock        sync.RWMutex
-	// client APIs
-	clients *client.Clients
+	nodesMap              map[string]*framework.NodeInfo // node name to NodeInfo map
+	podsMap               map[string]*v1.Pod
+	assumedPods           map[string]bool   // map of assumed pods, value indicates if pod volumes are all bound
+	pendingAllocations    map[string]string // map of pod to node ID, presence indicates a pending allocation for scheduler
+	inProgressAllocations map[string]string // map of pod to node ID, presence indicates an in-process allocation for scheduler
+	lock                  sync.RWMutex
+	clients               *client.Clients // client APIs
 }
 
 func NewSchedulerCache(clients *client.Clients) *SchedulerCache {
 	cache := &SchedulerCache{
-		nodesMap:    make(map[string]*framework.NodeInfo),
-		podsMap:     make(map[string]*v1.Pod),
-		assumedPods: make(map[string]bool),
-		clients:     clients,
+		nodesMap:              make(map[string]*framework.NodeInfo),
+		podsMap:               make(map[string]*v1.Pod),
+		assumedPods:           make(map[string]bool),
+		pendingAllocations:    make(map[string]string),
+		inProgressAllocations: make(map[string]string),
+		clients:               clients,
 	}
 	return cache
 }
@@ -130,6 +130,45 @@ func (cache *SchedulerCache) removeNode(node *v1.Node) error {
 
 	delete(cache.nodesMap, node.Name)
 	return nil
+}
+
+func (cache *SchedulerCache) AddPendingPodAllocation(podKey string, nodeID string) {
+	cache.lock.Lock()
+	defer cache.lock.Unlock()
+	delete(cache.inProgressAllocations, podKey)
+	cache.pendingAllocations[podKey] = nodeID
+}
+
+func (cache *SchedulerCache) RemovePendingPodAllocation(podKey string) {
+	cache.lock.Lock()
+	defer cache.lock.Unlock()
+	delete(cache.pendingAllocations, podKey)
+	delete(cache.inProgressAllocations, podKey)
+}
+
+func (cache *SchedulerCache) GetPendingPodAllocation(podKey string) (nodeID string, ok bool) {
+	cache.lock.RLock()
+	defer cache.lock.RUnlock()
+	res, ok := cache.pendingAllocations[podKey]
+	return res, ok
+}
+
+func (cache *SchedulerCache) GetInProgressPodAllocation(podKey string) (nodeID string, ok bool) {
+	cache.lock.RLock()
+	defer cache.lock.RUnlock()
+	res, ok := cache.inProgressAllocations[podKey]
+	return res, ok
+}
+
+func (cache *SchedulerCache) StartPodAllocation(podKey string, nodeID string) bool {
+	cache.lock.Lock()
+	defer cache.lock.Unlock()
+	expectedNodeID, ok := cache.pendingAllocations[podKey]
+	if ok && expectedNodeID == nodeID {
+		delete(cache.pendingAllocations, podKey)
+		cache.inProgressAllocations[podKey] = nodeID
+	}
+	return ok
 }
 
 // return if pod is assumed in cache, avoid nil
@@ -249,6 +288,8 @@ func (cache *SchedulerCache) removePod(pod *v1.Pod) error {
 			return err
 		}
 	}
+	delete(cache.pendingAllocations, string(pod.UID))
+	delete(cache.inProgressAllocations, string(pod.UID))
 	return nil
 }
 

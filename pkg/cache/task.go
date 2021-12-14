@@ -51,6 +51,7 @@ type Task struct {
 	taskGroupName   string
 	placeholder     bool
 	terminationType string
+	pluginMode      bool
 	sm              *fsm.FSM
 	lock            *sync.RWMutex
 }
@@ -80,6 +81,10 @@ func NewFromTaskMeta(tid string, app *Application, ctx *Context, metadata interf
 
 func createTaskInternal(tid string, app *Application, resource *si.Resource,
 	pod *v1.Pod, placeholder bool, taskGroupName string, ctx *Context) *Task {
+	var pluginMode bool
+	if ctx != nil {
+		pluginMode = ctx.IsPluginMode()
+	}
 	task := &Task{
 		taskID:        tid,
 		alias:         fmt.Sprintf("%s/%s", pod.Namespace, pod.Name),
@@ -90,6 +95,7 @@ func createTaskInternal(tid string, app *Application, resource *si.Resource,
 		createTime:    pod.GetCreationTimestamp().Time,
 		placeholder:   placeholder,
 		taskGroupName: taskGroupName,
+		pluginMode:    pluginMode,
 		context:       ctx,
 		lock:          &sync.RWMutex{},
 	}
@@ -361,46 +367,60 @@ func (task *Task) postTaskAllocated(event *fsm.Event) {
 		allocUUID := eventArgs[0]
 		nodeID := eventArgs[1]
 
-		// post a message to indicate the pod gets its allocation
-		events.GetRecorder().Eventf(task.pod, task.pod,
-			v1.EventTypeNormal, "Scheduled", "Scheduled",
-			"Successfully assigned %s to node %s", task.alias, nodeID)
-
 		// task allocation UID is assigned once we get allocation decision from scheduler core
 		task.allocationUUID = allocUUID
 
-		// before binding pod to node, first bind volumes to pod
-		log.Logger().Debug("bind pod volumes",
-			zap.String("podName", task.pod.Name),
-			zap.String("podUID", string(task.pod.UID)))
-		if task.context.apiProvider.GetAPIs().VolumeBinder != nil {
-			if err := task.context.bindPodVolumes(task.pod); err != nil {
+		// plugin mode means we delegate this work to the default scheduler
+		if task.pluginMode {
+			log.Logger().Debug("allocating pod",
+				zap.String("podName", task.pod.Name),
+				zap.String("podUID", string(task.pod.UID)))
+
+			task.context.AddPendingPodAllocation(string(task.pod.UID), nodeID)
+
+			dispatcher.Dispatch(NewBindTaskEvent(task.applicationID, task.taskID))
+			events.GetRecorder().Eventf(task.pod,
+				nil, v1.EventTypeNormal, "QuotaApproved", "QuotaApproved",
+				"Pod %s is ready for scheduling on node %s", task.alias, nodeID)
+		} else {
+			// post a message to indicate the pod gets its allocation
+			events.GetRecorder().Eventf(task.pod,
+				nil, v1.EventTypeNormal, "Scheduled", "Scheduled",
+				"Successfully assigned %s to node %s", task.alias, nodeID)
+
+			// before binding pod to node, first bind volumes to pod
+			log.Logger().Debug("bind pod volumes",
+				zap.String("podName", task.pod.Name),
+				zap.String("podUID", string(task.pod.UID)))
+			if task.context.apiProvider.GetAPIs().VolumeBinder != nil {
+				if err := task.context.bindPodVolumes(task.pod); err != nil {
+					errorMessage = fmt.Sprintf("bind pod volumes failed, name: %s, %s", task.alias, err.Error())
+					dispatcher.Dispatch(NewFailTaskEvent(task.applicationID, task.taskID, errorMessage))
+					events.GetRecorder().Eventf(task.pod,
+						nil, v1.EventTypeWarning, "PodVolumesBindFailure", "PodVolumesBindFailure", errorMessage)
+					return
+				}
+			}
+
+			log.Logger().Debug("bind pod",
+				zap.String("podName", task.pod.Name),
+				zap.String("podUID", string(task.pod.UID)))
+
+			if err := task.context.apiProvider.GetAPIs().KubeClient.Bind(task.pod, nodeID); err != nil {
 				errorMessage = fmt.Sprintf("bind pod volumes failed, name: %s, %s", task.alias, err.Error())
+				log.Logger().Error(errorMessage)
 				dispatcher.Dispatch(NewFailTaskEvent(task.applicationID, task.taskID, errorMessage))
 				events.GetRecorder().Eventf(task.pod, nil,
-					v1.EventTypeWarning, "PodVolumesBindFailure", "PodVolumesBindFailure", errorMessage)
+					v1.EventTypeWarning, "PodBindFailure", "PodBindFailure", errorMessage)
 				return
 			}
-		}
 
-		log.Logger().Debug("bind pod",
-			zap.String("podName", task.pod.Name),
-			zap.String("podUID", string(task.pod.UID)))
-
-		if err := task.context.apiProvider.GetAPIs().KubeClient.Bind(task.pod, nodeID); err != nil {
-			errorMessage = fmt.Sprintf("bind pod volumes failed, name: %s, %s", task.alias, err.Error())
-			log.Logger().Error(errorMessage)
-			dispatcher.Dispatch(NewFailTaskEvent(task.applicationID, task.taskID, errorMessage))
+			log.Logger().Info("successfully bound pod", zap.String("podName", task.pod.Name))
+			dispatcher.Dispatch(NewBindTaskEvent(task.applicationID, task.taskID))
 			events.GetRecorder().Eventf(task.pod, nil,
-				v1.EventTypeWarning, "PodBindFailure", "PodBindFailure", errorMessage)
-			return
+				v1.EventTypeNormal, "PodBindSuccessful", "PodBindSuccessful",
+				"Pod %s is successfully bound to node %s", task.alias, nodeID)
 		}
-
-		log.Logger().Info("successfully bound pod", zap.String("podName", task.pod.Name))
-		dispatcher.Dispatch(NewBindTaskEvent(task.applicationID, task.taskID))
-		events.GetRecorder().Eventf(task.pod, nil,
-			v1.EventTypeNormal, "PodBindSuccessful", "PodBindSuccessful",
-			"Pod %s is successfully bound to node %s", task.alias, nodeID)
 	}(event)
 }
 
@@ -440,6 +460,23 @@ func (task *Task) beforeTaskAllocated(event *fsm.Event) {
 }
 
 func (task *Task) postTaskBound(event *fsm.Event) {
+	if task.pluginMode {
+		// when the pod is scheduling by yunikorn, it is moved to the default-scheduler's
+		// unschedulable queue, if nothing changes, the pod will be staying in the unschedulable
+		// queue for unschedulableQTimeInterval long (default 1 minute). hence, we are updating
+		// the pod status explicitly, when there is a status change, the default scheduler will
+		// move the pod back to the active queue immediately.
+		podCopy := task.pod.DeepCopy()
+		podCopy.Status = v1.PodStatus{
+			Phase:   podCopy.Status.Phase,
+			Reason:  "QuotaApproved",
+			Message: "pod fits into the queue quota and it is ready for scheduling",
+		}
+		if _, err := task.UpdateTaskPodStatus(podCopy); err != nil {
+			log.Logger().Warn("failed to update pod status", zap.Error(err))
+		}
+	}
+
 	if task.placeholder {
 		log.Logger().Info("placeholder is bound",
 			zap.String("appID", task.applicationID),

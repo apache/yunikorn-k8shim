@@ -16,7 +16,7 @@
  limitations under the License.
 */
 
-package main
+package shim
 
 import (
 	"fmt"
@@ -162,8 +162,8 @@ func TestSchedulerRegistrationFailed(t *testing.T) {
 	ctx := cache.NewContext(mockedAPIProvider)
 	shim := newShimSchedulerInternal(ctx, mockedAPIProvider,
 		appmgmt.NewAMService(mockedAMProtocol, mockedAPIProvider), callback)
-	shim.run()
-	defer shim.stop()
+	shim.Run()
+	defer shim.Stop()
 
 	err := waitShimSchedulerState(shim, events.States().Scheduler.Stopped, 5*time.Second)
 	assert.NilError(t, err)
