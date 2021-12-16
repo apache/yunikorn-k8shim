@@ -34,6 +34,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
+	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
@@ -69,9 +70,23 @@ type ValidateConfResponse struct {
 	Reason  string `json:"reason"`
 }
 
-func (c *admissionController) mutate(ar *v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
-	req := ar.Request
-	namespace := ar.Request.Namespace
+func admissionResponseBuilder(uid string, allowed bool, resultMessage string, patch []byte) *v1beta1.AdmissionResponse {
+	res := &v1beta1.AdmissionResponse{
+		Allowed: allowed,
+		UID:     types.UID(uid),
+		Result: &metav1.Status{
+			Message: resultMessage,
+		},
+		Patch: patch,
+		PatchType: func() *v1beta1.PatchType {
+			pt := v1beta1.PatchTypeJSONPatch
+			return &pt
+		}(),
+	}
+	return res
+}
+func (c *admissionController) mutate(req *v1beta1.AdmissionRequest) *v1beta1.AdmissionResponse {
+	namespace := req.Namespace
 	var patch []patchOperation
 
 	var requestKind = req.Kind.Kind
@@ -81,9 +96,7 @@ func (c *admissionController) mutate(ar *v1beta1.AdmissionReview) *v1beta1.Admis
 		log.Logger().Warn("request kind is not pod", zap.String("uid", uid),
 			zap.String("requestKind", requestKind))
 
-		return &v1beta1.AdmissionResponse{
-			Allowed: true,
-		}
+		return admissionResponseBuilder(uid, true, "", []byte(""))
 	}
 
 	log.Logger().Info("AdmissionReview",
@@ -95,20 +108,13 @@ func (c *admissionController) mutate(ar *v1beta1.AdmissionReview) *v1beta1.Admis
 	var pod v1.Pod
 	if err := json.Unmarshal(req.Object.Raw, &pod); err != nil {
 		log.Logger().Error("unmarshal failed", zap.Error(err))
-		return &v1beta1.AdmissionResponse{
-			Allowed: false,
-			Result: &metav1.Status{
-				Message: err.Error(),
-			},
-		}
+		return admissionResponseBuilder(uid, false, err.Error(), []byte(""))
 	}
 
 	if labelAppValue, ok := pod.Labels[constants.LabelApp]; ok {
 		if labelAppValue == yunikornPod {
 			log.Logger().Info("ignore yunikorn pod")
-			return &v1beta1.AdmissionResponse{
-				Allowed: true,
-			}
+			admissionResponseBuilder(uid, true, "", []byte(""))
 		}
 	}
 
@@ -120,22 +126,10 @@ func (c *admissionController) mutate(ar *v1beta1.AdmissionReview) *v1beta1.Admis
 	patchBytes, err := json.Marshal(patch)
 	if err != nil {
 		log.Logger().Error("failed to marshal patch", zap.Error(err))
-		return &v1beta1.AdmissionResponse{
-			Allowed: false,
-			Result: &metav1.Status{
-				Message: err.Error(),
-			},
-		}
+		return admissionResponseBuilder(uid, false, err.Error(), []byte(""))
 	}
 
-	return &v1beta1.AdmissionResponse{
-		Allowed: true,
-		Patch:   patchBytes,
-		PatchType: func() *v1beta1.PatchType {
-			pt := v1beta1.PatchTypeJSONPatch
-			return &pt
-		}(),
-	}
+	return admissionResponseBuilder(uid, true, "", patchBytes)
 }
 
 func updateSchedulerName(patch []patchOperation) []patchOperation {
@@ -213,51 +207,32 @@ func isConfigMapUpdateAllowed(userInfo string) bool {
 	return false
 }
 
-func (c *admissionController) validateConf(ar *v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
-	req := ar.Request
+func (c *admissionController) validateConf(req *v1beta1.AdmissionRequest) *v1beta1.AdmissionResponse {
+	uid := string(req.UID)
 	if !isConfigMapUpdateAllowed(req.UserInfo.Username) {
-		return &v1beta1.AdmissionResponse{
-			Allowed: false,
-			Result: &metav1.Status{
-				Message: fmt.Sprintf("ConfigHotRefresh is disabled. " +
-					"Please use the REST API to update the configuration, or enable configHotRefresh"),
-			},
-		}
+		return admissionResponseBuilder(uid, false, fmt.Sprintf("ConfigHotRefresh is disabled. "+
+			"Please use the REST API to update the configuration, or enable configHotRefresh"), []byte(""))
 	}
 
 	var requestKind = req.Kind.Kind
 	if requestKind != "ConfigMap" {
 		log.Logger().Warn("request kind is not configmap", zap.String("requestKind", requestKind))
-		return &v1beta1.AdmissionResponse{
-			Allowed: true,
-		}
+		admissionResponseBuilder(uid, true, "", []byte(""))
 	}
 
 	var configmap v1.ConfigMap
 	if err := json.Unmarshal(req.Object.Raw, &configmap); err != nil {
 		log.Logger().Error("failed to unmarshal configmap", zap.Error(err))
-		return &v1beta1.AdmissionResponse{
-			Allowed: false,
-			Result: &metav1.Status{
-				Message: err.Error(),
-			},
-		}
+		return admissionResponseBuilder(uid, false, err.Error(), []byte(""))
 	}
 
 	// validate new/updated config map
 	if err := c.validateConfigMap(&configmap); err != nil {
 		log.Logger().Error("failed to validate yunikorn configs", zap.Error(err))
-		return &v1beta1.AdmissionResponse{
-			Allowed: false,
-			Result: &metav1.Status{
-				Message: err.Error(),
-			},
-		}
+		return admissionResponseBuilder(uid, false, err.Error(), []byte(""))
 	}
 
-	return &v1beta1.AdmissionResponse{
-		Allowed: true,
-	}
+	return admissionResponseBuilder(uid, true, "", []byte(""))
 }
 
 func (c *admissionController) validateConfigMap(cm *v1.ConfigMap) error {
@@ -311,20 +286,18 @@ func (c *admissionController) serve(w http.ResponseWriter, r *http.Request) {
 
 	var admissionResponse *v1beta1.AdmissionResponse
 	ar := v1beta1.AdmissionReview{}
+	req := ar.Request
 	urlPath := r.URL.Path
 
 	if _, _, err := deserializer.Decode(body, nil, &ar); err != nil {
 		log.Logger().Error("Can't decode the body", zap.Error(err))
-		admissionResponse = &v1beta1.AdmissionResponse{
-			Allowed: false,
-			Result: &metav1.Status{
-				Message: err.Error(),
-			},
+		admissionResponse = admissionResponseBuilder(string(req.UID), false, err.Error(), []byte(""))
+	} else if req != nil {
+		if urlPath == mutateURL {
+			admissionResponse = c.mutate(req)
+		} else if urlPath == validateConfURL {
+			admissionResponse = c.validateConf(req)
 		}
-	} else if urlPath == mutateURL {
-		admissionResponse = c.mutate(&ar)
-	} else if urlPath == validateConfURL {
-		admissionResponse = c.validateConf(&ar)
 	} else {
 		log.Logger().Warn("request is neither mutation nor validation", zap.String("urlPath", urlPath))
 	}
