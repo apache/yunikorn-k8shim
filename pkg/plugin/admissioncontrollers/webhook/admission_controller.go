@@ -294,16 +294,18 @@ func (c *admissionController) serve(w http.ResponseWriter, r *http.Request) {
 	req := ar.Request
 	urlPath := r.URL.Path
 	if urlPath == mutateURL || urlPath == validateConfURL {
-		if _, _, err := deserializer.Decode(body, nil, &ar); err != nil {
+		_, _, err := deserializer.Decode(body, nil, &ar)
+		switch {
+		case err != nil:
 			log.Logger().Error("Can't decode the body", zap.Error(err))
 			admissionResponse = admissionResponseBuilder("4qjvp2775w", false, err.Error(), nil)
-		} else if req != nil {
+		case req != nil:
 			if urlPath == mutateURL {
 				admissionResponse = c.mutate(req)
 			} else if urlPath == validateConfURL {
 				admissionResponse = c.validateConf(req)
 			}
-		} else {
+		default:
 			log.Logger().Warn("request is not exist", zap.String("urlPath", urlPath))
 		}
 	} else {
