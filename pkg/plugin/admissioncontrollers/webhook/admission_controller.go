@@ -216,7 +216,8 @@ func isConfigMapUpdateAllowed(userInfo string) bool {
 func (c *admissionController) validateConf(req *v1beta1.AdmissionRequest) *v1beta1.AdmissionResponse {
 	uid := string(req.UID)
 	if !isConfigMapUpdateAllowed(req.UserInfo.Username) {
-		return admissionResponseBuilder(uid, false, fmt.Sprintf(configHotFreshResponse), nil)
+		errMessage := fmt.Sprintf(configHotFreshResponse)
+		return admissionResponseBuilder(uid, false, errMessage, nil)
 	}
 
 	var requestKind = req.Kind.Kind
