@@ -115,14 +115,16 @@ function check_opt() {
 }
 
 function install_cluster() {
-  # both arguments are required
-  if [[ $# -ne 2 ]]; then
-    echo "expecting exact 2 parameters for function install_cluster()"
+  # 4 arguments are required
+  if [[ $# -ne 4 ]]; then
+    echo "expecting exactly parameters for function install_cluster()"
     return 1
   fi
 
   k8s_cluster_name=$1
   kind_node_image=$2
+  git_clone=$3
+  charts_path=$4
 
   # Check if go is installed.
   check_cmd "go"
@@ -167,9 +169,13 @@ function install_cluster() {
 
   kubectl create namespace yunikorn
   exit_on_error "failed to create yunikorn namespace"
-  # use latest helm charts from the release repo to install yunikorn
-  git clone https://github.com/apache/incubator-yunikorn-release.git
-  helm install yunikorn ./incubator-yunikorn-release/helm-charts/yunikorn --namespace yunikorn \
+
+  if [ "${git_clone}" = "true" ]; then
+    # use latest helm charts from the release repo to install yunikorn
+    git clone https://github.com/apache/incubator-yunikorn-release.git ./incubator-yunikorn-release
+  fi
+
+  helm install yunikorn "${charts_path}" --namespace yunikorn \
     --set image.repository=local/yunikorn \
     --set image.tag=scheduler-latest \
     --set image.pullPolicy=Never \
@@ -210,17 +216,24 @@ function delete_cluster() {
 
 function print_usage() {
     cat <<EOF
-Usage: $(basename "$0") -a <action> -n <kind-cluster-name> -v <kind-node-image-version>
+Usage: $(basename "$0") -a <action> -n <kind-cluster-name> -v <kind-node-image-version> -p <chart-path>
   <action>                     the action that needs to be executed, must be either "test" or "cleanup".
   <kind-cluster-name>          the name of the K8s cluster that created by kind.
   <kind-node-image-version>    the kind node image used to provision the K8s cluster.
+  <release-repo
 
 Examples:
   $(basename "$0") -a test -n "yk8s" -v "kindest/node:v1.19.11"
   $(basename "$0") -a test -n "yk8s" -v "kindest/node:v1.20.7"
   $(basename "$0") -a test -n "yk8s" -v "kindest/node:v1.21.2"
+
+  Use a local helm chart path:
+    $(basename "$0") -a test -n "yk8s" -v "kindest/node:v1.21.2" -p ../incubator-yunikorn-release/helm-charts/yunikorn
 EOF
 }
+
+charts_path=./incubator-yunikorn-release/helm-charts/yunikorn
+git_clone=true
 
 while [[ $# -gt 0 ]]; do
 key="$1"
@@ -237,6 +250,12 @@ case ${key} in
     ;;
   -v|--cluster-version)
     cluster_version="$2"
+    shift
+    shift
+    ;;
+  -p|--charts-path)
+    charts_path="$2"
+    git_clone=false
     shift
     shift
     ;;
@@ -257,6 +276,10 @@ check_opt "${action}"
 echo "kind cluster name: ${cluster_name}"
 check_opt "${cluster_name}"
 echo "kind node image version ${cluster_version}"
+check_opt "${git_clone}"
+echo "git clone ${git_clone}"
+check_opt "${charts_path}"
+echo "charts path ${charts_path}"
 
 # this script only supports 2 actions
 #   1) test
@@ -267,7 +290,7 @@ echo "kind node image version ${cluster_version}"
 #     - delete yunikorn
 #     - delete k8s cluster
 if [ "${action}" == "test" ]; then
-  install_cluster ${cluster_name} ${cluster_version}
+  install_cluster "${cluster_name}" "${cluster_version}" "${git_clone}" "${charts_path}"
   echo "running e2e tests"
   make e2e_test
   exit_on_error "e2e tests failed"

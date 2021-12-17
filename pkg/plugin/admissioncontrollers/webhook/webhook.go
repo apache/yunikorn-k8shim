@@ -25,7 +25,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 
 	"go.uber.org/zap"
@@ -36,25 +35,42 @@ import (
 
 const (
 	HTTPPort                          = 9089
-	tlsDir                            = `/run/secrets/tls`
-	tlsCertFile                       = `cert.pem`
-	tlsKeyFile                        = `key.pem`
 	policyGroupEnvVarName             = "POLICY_GROUP"
 	schedulerServiceAddressEnvVarName = "SCHEDULER_SERVICE_ADDRESS"
 	schedulerValidateConfURLPattern   = "http://%s/ws/v1/validate-conf"
+	admissionControllerNamespace      = "ADMISSION_CONTROLLER_NAMESPACE"
+	admissionControllerService        = "ADMISSION_CONTROLLER_SERVICE"
 
 	// legal URLs
 	mutateURL       = "/mutate"
 	validateConfURL = "/validate-conf"
+	healthURL       = "/health"
 )
 
 func main() {
-	certPath := filepath.Join(tlsDir, tlsCertFile)
-	keyPath := filepath.Join(tlsDir, tlsKeyFile)
-	pair, err := tls.LoadX509KeyPair(certPath, keyPath)
+	namespace := os.Getenv(admissionControllerNamespace)
+	serviceName := os.Getenv(admissionControllerService)
+
+	wm, err := NewWebhookManager(namespace, serviceName)
 	if err != nil {
-		log.Logger().Fatal("Failed to load key pair", zap.Error(err))
+		log.Logger().Fatal("Failed to initialize webhook manager", zap.Error(err))
 	}
+
+	err = wm.LoadCACertificates()
+	if err != nil {
+		log.Logger().Fatal("Failed to initialize CA certificates", zap.Error(err))
+	}
+
+	pair, err := wm.GenerateServerCertificate()
+	if err != nil {
+		log.Logger().Fatal("Unable to generate server certificate", zap.Error(err))
+	}
+
+	err = wm.InstallWebhooks()
+	if err != nil {
+		log.Logger().Fatal("Unable to install webhooks for admission controller", zap.Error(err))
+	}
+
 	policyGroup := os.Getenv(policyGroupEnvVarName)
 	if policyGroup == "" {
 		policyGroup = conf.DefaultPolicyGroup
@@ -66,12 +82,15 @@ func main() {
 		schedulerValidateConfURL: fmt.Sprintf(schedulerValidateConfURLPattern, schedulerServiceAddress),
 	}
 	mux := http.NewServeMux()
+	mux.HandleFunc(healthURL, webHook.health)
 	mux.HandleFunc(mutateURL, webHook.serve)
 	mux.HandleFunc(validateConfURL, webHook.serve)
 	server := &http.Server{
-		Addr:      fmt.Sprintf(":%v", HTTPPort),
-		TLSConfig: &tls.Config{Certificates: []tls.Certificate{pair}},
-		Handler:   mux,
+		Addr: fmt.Sprintf(":%v", HTTPPort),
+		TLSConfig: &tls.Config{
+			MinVersion:   tls.VersionTLS12,
+			Certificates: []tls.Certificate{*pair}},
+		Handler: mux,
 	}
 
 	go func() {
@@ -82,7 +101,7 @@ func main() {
 
 	log.Logger().Info("the admission controller started",
 		zap.Int("port", HTTPPort),
-		zap.Strings("listeningOn", []string{mutateURL, validateConfURL}))
+		zap.Strings("listeningOn", []string{healthURL, mutateURL, validateConfURL}))
 
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)

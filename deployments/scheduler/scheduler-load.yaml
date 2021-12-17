@@ -33,6 +33,7 @@ spec:
         component: yunikorn-scheduler
       name: yunikorn-scheduler
     spec:
+      serviceAccountName: yunikorn-admin
       containers:
         - name: yunikorn-scheduler-k8s
           image: apache/yunikorn:scheduler-latest
