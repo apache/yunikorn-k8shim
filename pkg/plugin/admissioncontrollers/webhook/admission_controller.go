@@ -46,6 +46,8 @@ const (
 	enableConfigHotRefreshEnvVar = "ENABLE_CONFIG_HOT_REFRESH"
 	yunikornPod                  = "yunikorn"
 	defaultQueue                 = "root.default"
+	configHotFreshResponse       = "ConfigHotRefresh is disabled. " +
+		"Please use the REST API to update the configuration, or enable configHotRefresh"
 )
 
 var (
@@ -71,17 +73,21 @@ type ValidateConfResponse struct {
 }
 
 func admissionResponseBuilder(uid string, allowed bool, resultMessage string, patch []byte) *v1beta1.AdmissionResponse {
-	res := &v1beta1.AdmissionResponse{
-		Allowed: allowed,
-		UID:     types.UID(uid),
-		Result: &metav1.Status{
+	res := &v1beta1.AdmissionResponse{}
+	res.Allowed = allowed
+	res.UID = types.UID(uid)
+
+	if len(resultMessage) != 0 {
+		res.Result = &metav1.Status{
 			Message: resultMessage,
-		},
-		Patch: patch,
-		PatchType: func() *v1beta1.PatchType {
+		}
+	}
+	if len(patch) != 0 {
+		res.Patch = patch
+		res.PatchType = func() *v1beta1.PatchType {
 			pt := v1beta1.PatchTypeJSONPatch
 			return &pt
-		}(),
+		}()
 	}
 	return res
 }
@@ -96,7 +102,7 @@ func (c *admissionController) mutate(req *v1beta1.AdmissionRequest) *v1beta1.Adm
 		log.Logger().Warn("request kind is not pod", zap.String("uid", uid),
 			zap.String("requestKind", requestKind))
 
-		return admissionResponseBuilder(uid, true, "", []byte(""))
+		return admissionResponseBuilder(uid, true, "", nil)
 	}
 
 	log.Logger().Info("AdmissionReview",
@@ -108,13 +114,13 @@ func (c *admissionController) mutate(req *v1beta1.AdmissionRequest) *v1beta1.Adm
 	var pod v1.Pod
 	if err := json.Unmarshal(req.Object.Raw, &pod); err != nil {
 		log.Logger().Error("unmarshal failed", zap.Error(err))
-		return admissionResponseBuilder(uid, false, err.Error(), []byte(""))
+		return admissionResponseBuilder(uid, false, err.Error(), nil)
 	}
 
 	if labelAppValue, ok := pod.Labels[constants.LabelApp]; ok {
 		if labelAppValue == yunikornPod {
 			log.Logger().Info("ignore yunikorn pod")
-			admissionResponseBuilder(uid, true, "", []byte(""))
+			admissionResponseBuilder(uid, true, "", nil)
 		}
 	}
 
@@ -126,7 +132,7 @@ func (c *admissionController) mutate(req *v1beta1.AdmissionRequest) *v1beta1.Adm
 	patchBytes, err := json.Marshal(patch)
 	if err != nil {
 		log.Logger().Error("failed to marshal patch", zap.Error(err))
-		return admissionResponseBuilder(uid, false, err.Error(), []byte(""))
+		return admissionResponseBuilder(uid, false, err.Error(), nil)
 	}
 
 	return admissionResponseBuilder(uid, true, "", patchBytes)
@@ -210,29 +216,28 @@ func isConfigMapUpdateAllowed(userInfo string) bool {
 func (c *admissionController) validateConf(req *v1beta1.AdmissionRequest) *v1beta1.AdmissionResponse {
 	uid := string(req.UID)
 	if !isConfigMapUpdateAllowed(req.UserInfo.Username) {
-		return admissionResponseBuilder(uid, false, fmt.Sprintf("ConfigHotRefresh is disabled. "+
-			"Please use the REST API to update the configuration, or enable configHotRefresh"), []byte(""))
+		return admissionResponseBuilder(uid, false, fmt.Sprintf(configHotFreshResponse), nil)
 	}
 
 	var requestKind = req.Kind.Kind
 	if requestKind != "ConfigMap" {
 		log.Logger().Warn("request kind is not configmap", zap.String("requestKind", requestKind))
-		admissionResponseBuilder(uid, true, "", []byte(""))
+		admissionResponseBuilder(uid, true, "", nil)
 	}
 
 	var configmap v1.ConfigMap
 	if err := json.Unmarshal(req.Object.Raw, &configmap); err != nil {
 		log.Logger().Error("failed to unmarshal configmap", zap.Error(err))
-		return admissionResponseBuilder(uid, false, err.Error(), []byte(""))
+		return admissionResponseBuilder(uid, false, err.Error(), nil)
 	}
 
 	// validate new/updated config map
 	if err := c.validateConfigMap(&configmap); err != nil {
 		log.Logger().Error("failed to validate yunikorn configs", zap.Error(err))
-		return admissionResponseBuilder(uid, false, err.Error(), []byte(""))
+		return admissionResponseBuilder(uid, false, err.Error(), nil)
 	}
 
-	return admissionResponseBuilder(uid, true, "", []byte(""))
+	return admissionResponseBuilder(uid, true, "", nil)
 }
 
 func (c *admissionController) validateConfigMap(cm *v1.ConfigMap) error {
@@ -288,20 +293,23 @@ func (c *admissionController) serve(w http.ResponseWriter, r *http.Request) {
 	ar := v1beta1.AdmissionReview{}
 	req := ar.Request
 	urlPath := r.URL.Path
-
-	if _, _, err := deserializer.Decode(body, nil, &ar); err != nil {
-		log.Logger().Error("Can't decode the body", zap.Error(err))
-		admissionResponse = admissionResponseBuilder(string(req.UID), false, err.Error(), []byte(""))
-	} else if req != nil {
-		if urlPath == mutateURL {
-			admissionResponse = c.mutate(req)
-		} else if urlPath == validateConfURL {
-			admissionResponse = c.validateConf(req)
+	if urlPath == mutateURL || urlPath == validateConfURL {
+		if _, _, err := deserializer.Decode(body, nil, &ar); err != nil {
+			log.Logger().Error("Can't decode the body", zap.Error(err))
+			admissionResponse = admissionResponseBuilder("4qjvp2775w", false, err.Error(), nil)
+		} else if req != nil {
+			if urlPath == mutateURL {
+				admissionResponse = c.mutate(req)
+			} else if urlPath == validateConfURL {
+				admissionResponse = c.validateConf(req)
+			}
+		} else {
+			log.Logger().Warn("request is not exist", zap.String("urlPath", urlPath))
 		}
 	} else {
-		log.Logger().Warn("request is neither mutation nor validation", zap.String("urlPath", urlPath))
+		http.Error(w, "request is neither mutation nor validation", http.StatusNotFound)
+		return
 	}
-
 	admissionReview := v1beta1.AdmissionReview{}
 	if admissionResponse != nil {
 		admissionReview.Response = admissionResponse
