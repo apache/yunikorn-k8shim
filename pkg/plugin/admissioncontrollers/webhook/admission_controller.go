@@ -47,7 +47,7 @@ const (
 	yunikornPod                  = "yunikorn"
 	defaultQueue                 = "root.default"
 	configHotFreshResponse       = "ConfigHotRefresh is disabled. " +
-		"Please use the REST API to update the configuration, or enable configHotRefresh"
+		"Please use the REST API to update the configuration, or enable configHotRefresh. "
 )
 
 var (
@@ -216,8 +216,7 @@ func isConfigMapUpdateAllowed(userInfo string) bool {
 func (c *admissionController) validateConf(req *v1beta1.AdmissionRequest) *v1beta1.AdmissionResponse {
 	uid := string(req.UID)
 	if !isConfigMapUpdateAllowed(req.UserInfo.Username) {
-		errMessage := fmt.Sprintf("%s", configHotFreshResponse)
-		return admissionResponseBuilder(uid, false, errMessage, nil)
+		return admissionResponseBuilder(uid, false, configHotFreshResponse, nil)
 	}
 
 	var requestKind = req.Kind.Kind
@@ -295,8 +294,7 @@ func (c *admissionController) serve(w http.ResponseWriter, r *http.Request) {
 	req := ar.Request
 	urlPath := r.URL.Path
 	if urlPath == mutateURL || urlPath == validateConfURL {
-		_, _, err := deserializer.Decode(body, nil, &ar)
-		if err != nil {
+		if _, _, err := deserializer.Decode(body, nil, &ar); err != nil {
 			log.Logger().Error("Can't decode the body", zap.Error(err))
 			admissionResponse = admissionResponseBuilder("4qjvp2775w", false, err.Error(), nil)
 		} else if req != nil {
