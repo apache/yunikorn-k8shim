@@ -46,8 +46,7 @@ const (
 	enableConfigHotRefreshEnvVar = "ENABLE_CONFIG_HOT_REFRESH"
 	yunikornPod                  = "yunikorn"
 	defaultQueue                 = "root.default"
-	configHotFreshResponse       = "ConfigHotRefresh is disabled. " +
-		"Please use the REST API to update the configuration, or enable configHotRefresh. "
+	configHotFreshResponse       = "ConfigHotRefresh is disabled. Please use the REST API to update the configuration, or enable configHotRefresh. "
 )
 
 var (
@@ -84,10 +83,8 @@ func admissionResponseBuilder(uid string, allowed bool, resultMessage string, pa
 	}
 	if len(patch) != 0 {
 		res.Patch = patch
-		res.PatchType = func() *v1beta1.PatchType {
-			pt := v1beta1.PatchTypeJSONPatch
-			return &pt
-		}()
+		pt := v1beta1.PatchTypeJSONPatch
+		res.PatchType = &pt
 	}
 	return res
 }
