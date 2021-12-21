@@ -270,6 +270,7 @@ func (c *admissionController) serve(w http.ResponseWriter, r *http.Request) {
 	log.Logger().Debug("request", zap.Any("httpRequest", r))
 	var body []byte
 	if r.Body != nil {
+		var err error
 		body, err := ioutil.ReadAll(r.Body)
 		if err != nil || len(body) == 0 {
 			log.Logger().Debug("illegal request received: body invalid", zap.Error(err))
@@ -308,7 +309,8 @@ func (c *admissionController) serve(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	admissionReview := v1beta1.AdmissionReview{Response: admissionResponse}
-	resp, err := json.Marshal(admissionReview)
+	var resp []byte
+	resp, err = json.Marshal(admissionReview)
 	if err != nil {
 		errMessage := fmt.Sprintf("could not encode response: %v", err)
 		log.Logger().Error(errMessage)
