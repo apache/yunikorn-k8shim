@@ -270,53 +270,44 @@ func (c *admissionController) serve(w http.ResponseWriter, r *http.Request) {
 	log.Logger().Debug("request", zap.Any("httpRequest", r))
 	var body []byte
 	if r.Body != nil {
-		if data, err := ioutil.ReadAll(r.Body); err == nil {
-			body = data
+		body, err := ioutil.ReadAll(r.Body)
+		if err != nil || len(body) == 0 {
+			log.Logger().Debug("illegal request received: body invalid", zap.Error(err))
+			http.Error(w, "empty or invalid body", http.StatusBadRequest)
+			return
 		}
-	}
-	if len(body) == 0 {
-		http.Error(w, "empty body", http.StatusBadRequest)
-		return
 	}
 
 	// verify the content type is accurate
 	contentType := r.Header.Get("Content-Type")
 	if contentType != "application/json" {
+		log.Logger().Debug("illegal request received: invalid content type", zap.String("requested content type", contentType))
 		http.Error(w, "invalid Content-Type, expect `application/json`", http.StatusUnsupportedMediaType)
 		return
 	}
 
-	var admissionResponse *v1beta1.AdmissionResponse
-	ar := v1beta1.AdmissionReview{}
-	req := ar.Request
 	urlPath := r.URL.Path
 	if urlPath == mutateURL || urlPath == validateConfURL {
-		_, _, err := deserializer.Decode(body, nil, &ar)
-		switch {
-		case err != nil:
-			log.Logger().Error("Can't decode the body", zap.Error(err))
-			admissionResponse = admissionResponseBuilder("4qjvp2775w", false, err.Error(), nil)
-		case req != nil:
-			if urlPath == mutateURL {
-				admissionResponse = c.mutate(req)
-			} else if urlPath == validateConfURL {
-				admissionResponse = c.validateConf(req)
-			}
-		default:
-			log.Logger().Warn("request is not exist", zap.String("urlPath", urlPath))
-		}
-	} else {
+		log.Logger().Debug("unsupported request received", zap.String("urlPath", urlPath))
 		http.Error(w, "request is neither mutation nor validation", http.StatusNotFound)
 		return
 	}
-	admissionReview := v1beta1.AdmissionReview{}
-	if admissionResponse != nil {
-		admissionReview.Response = admissionResponse
-		if ar.Request != nil {
-			admissionReview.Response.UID = ar.Request.UID
+	ar := v1beta1.AdmissionReview{}
+	req := ar.Request
+	var admissionResponse *v1beta1.AdmissionResponse
+	_, _, err := deserializer.Decode(body, nil, &ar)
+	if err != nil || ar.Request == nil {
+		log.Logger().Error("request body decode failed or request empty", zap.Error(err))
+		admissionResponse = admissionResponseBuilder("yunikorn-invalid-body", false, "body decode failed", nil)
+	} else {
+		switch urlPath {
+		case mutateURL:
+			admissionResponse = c.mutate(req)
+		case validateConfURL:
+			admissionResponse = c.validateConf(req)
 		}
 	}
-
+	admissionReview := v1beta1.AdmissionReview{Response: admissionResponse}
 	resp, err := json.Marshal(admissionReview)
 	if err != nil {
 		errMessage := fmt.Sprintf("could not encode response: %v", err)
