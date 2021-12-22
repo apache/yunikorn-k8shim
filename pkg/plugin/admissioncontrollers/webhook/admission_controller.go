@@ -34,6 +34,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
+	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
@@ -45,6 +46,7 @@ const (
 	enableConfigHotRefreshEnvVar = "ENABLE_CONFIG_HOT_REFRESH"
 	yunikornPod                  = "yunikorn"
 	defaultQueue                 = "root.default"
+	configHotFreshResponse       = "ConfigHotRefresh is disabled. Please use the REST API to update the configuration, or enable configHotRefresh. "
 )
 
 var (
@@ -69,9 +71,25 @@ type ValidateConfResponse struct {
 	Reason  string `json:"reason"`
 }
 
-func (c *admissionController) mutate(ar *v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
-	req := ar.Request
-	namespace := ar.Request.Namespace
+func admissionResponseBuilder(uid string, allowed bool, resultMessage string, patch []byte) *v1beta1.AdmissionResponse {
+	res := &v1beta1.AdmissionResponse{}
+	res.Allowed = allowed
+	res.UID = types.UID(uid)
+
+	if len(resultMessage) != 0 {
+		res.Result = &metav1.Status{
+			Message: resultMessage,
+		}
+	}
+	if len(patch) != 0 {
+		res.Patch = patch
+		pt := v1beta1.PatchTypeJSONPatch
+		res.PatchType = &pt
+	}
+	return res
+}
+func (c *admissionController) mutate(req *v1beta1.AdmissionRequest) *v1beta1.AdmissionResponse {
+	namespace := req.Namespace
 	var patch []patchOperation
 
 	var requestKind = req.Kind.Kind
@@ -81,9 +99,7 @@ func (c *admissionController) mutate(ar *v1beta1.AdmissionReview) *v1beta1.Admis
 		log.Logger().Warn("request kind is not pod", zap.String("uid", uid),
 			zap.String("requestKind", requestKind))
 
-		return &v1beta1.AdmissionResponse{
-			Allowed: true,
-		}
+		return admissionResponseBuilder(uid, true, "", nil)
 	}
 
 	log.Logger().Info("AdmissionReview",
@@ -95,20 +111,13 @@ func (c *admissionController) mutate(ar *v1beta1.AdmissionReview) *v1beta1.Admis
 	var pod v1.Pod
 	if err := json.Unmarshal(req.Object.Raw, &pod); err != nil {
 		log.Logger().Error("unmarshal failed", zap.Error(err))
-		return &v1beta1.AdmissionResponse{
-			Allowed: false,
-			Result: &metav1.Status{
-				Message: err.Error(),
-			},
-		}
+		return admissionResponseBuilder(uid, false, err.Error(), nil)
 	}
 
 	if labelAppValue, ok := pod.Labels[constants.LabelApp]; ok {
 		if labelAppValue == yunikornPod {
 			log.Logger().Info("ignore yunikorn pod")
-			return &v1beta1.AdmissionResponse{
-				Allowed: true,
-			}
+			admissionResponseBuilder(uid, true, "", nil)
 		}
 	}
 
@@ -120,22 +129,10 @@ func (c *admissionController) mutate(ar *v1beta1.AdmissionReview) *v1beta1.Admis
 	patchBytes, err := json.Marshal(patch)
 	if err != nil {
 		log.Logger().Error("failed to marshal patch", zap.Error(err))
-		return &v1beta1.AdmissionResponse{
-			Allowed: false,
-			Result: &metav1.Status{
-				Message: err.Error(),
-			},
-		}
+		return admissionResponseBuilder(uid, false, err.Error(), nil)
 	}
 
-	return &v1beta1.AdmissionResponse{
-		Allowed: true,
-		Patch:   patchBytes,
-		PatchType: func() *v1beta1.PatchType {
-			pt := v1beta1.PatchTypeJSONPatch
-			return &pt
-		}(),
-	}
+	return admissionResponseBuilder(uid, true, "", patchBytes)
 }
 
 func updateSchedulerName(patch []patchOperation) []patchOperation {
@@ -213,51 +210,31 @@ func isConfigMapUpdateAllowed(userInfo string) bool {
 	return false
 }
 
-func (c *admissionController) validateConf(ar *v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
-	req := ar.Request
+func (c *admissionController) validateConf(req *v1beta1.AdmissionRequest) *v1beta1.AdmissionResponse {
+	uid := string(req.UID)
 	if !isConfigMapUpdateAllowed(req.UserInfo.Username) {
-		return &v1beta1.AdmissionResponse{
-			Allowed: false,
-			Result: &metav1.Status{
-				Message: fmt.Sprintf("ConfigHotRefresh is disabled. " +
-					"Please use the REST API to update the configuration, or enable configHotRefresh"),
-			},
-		}
+		return admissionResponseBuilder(uid, false, configHotFreshResponse, nil)
 	}
 
 	var requestKind = req.Kind.Kind
 	if requestKind != "ConfigMap" {
 		log.Logger().Warn("request kind is not configmap", zap.String("requestKind", requestKind))
-		return &v1beta1.AdmissionResponse{
-			Allowed: true,
-		}
+		admissionResponseBuilder(uid, true, "", nil)
 	}
 
 	var configmap v1.ConfigMap
 	if err := json.Unmarshal(req.Object.Raw, &configmap); err != nil {
 		log.Logger().Error("failed to unmarshal configmap", zap.Error(err))
-		return &v1beta1.AdmissionResponse{
-			Allowed: false,
-			Result: &metav1.Status{
-				Message: err.Error(),
-			},
-		}
+		return admissionResponseBuilder(uid, false, err.Error(), nil)
 	}
 
 	// validate new/updated config map
 	if err := c.validateConfigMap(&configmap); err != nil {
 		log.Logger().Error("failed to validate yunikorn configs", zap.Error(err))
-		return &v1beta1.AdmissionResponse{
-			Allowed: false,
-			Result: &metav1.Status{
-				Message: err.Error(),
-			},
-		}
+		return admissionResponseBuilder(uid, false, err.Error(), nil)
 	}
 
-	return &v1beta1.AdmissionResponse{
-		Allowed: true,
-	}
+	return admissionResponseBuilder(uid, true, "", nil)
 }
 
 func (c *admissionController) validateConfigMap(cm *v1.ConfigMap) error {
@@ -293,51 +270,47 @@ func (c *admissionController) serve(w http.ResponseWriter, r *http.Request) {
 	log.Logger().Debug("request", zap.Any("httpRequest", r))
 	var body []byte
 	if r.Body != nil {
-		if data, err := ioutil.ReadAll(r.Body); err == nil {
-			body = data
+		var err error
+		body, err = ioutil.ReadAll(r.Body)
+		if err != nil || len(body) == 0 {
+			log.Logger().Debug("illegal request received: body invalid", zap.Error(err))
+			http.Error(w, "empty or invalid body", http.StatusBadRequest)
+			return
 		}
-	}
-	if len(body) == 0 {
-		http.Error(w, "empty body", http.StatusBadRequest)
-		return
 	}
 
 	// verify the content type is accurate
 	contentType := r.Header.Get("Content-Type")
 	if contentType != "application/json" {
+		log.Logger().Debug("illegal request received: invalid content type", zap.String("requested content type", contentType))
 		http.Error(w, "invalid Content-Type, expect `application/json`", http.StatusUnsupportedMediaType)
 		return
 	}
 
-	var admissionResponse *v1beta1.AdmissionResponse
-	ar := v1beta1.AdmissionReview{}
 	urlPath := r.URL.Path
-
-	if _, _, err := deserializer.Decode(body, nil, &ar); err != nil {
-		log.Logger().Error("Can't decode the body", zap.Error(err))
-		admissionResponse = &v1beta1.AdmissionResponse{
-			Allowed: false,
-			Result: &metav1.Status{
-				Message: err.Error(),
-			},
-		}
-	} else if urlPath == mutateURL {
-		admissionResponse = c.mutate(&ar)
-	} else if urlPath == validateConfURL {
-		admissionResponse = c.validateConf(&ar)
+	if urlPath != mutateURL && urlPath != validateConfURL {
+		log.Logger().Debug("unsupported request received", zap.String("urlPath", urlPath))
+		http.Error(w, "request is neither mutation nor validation", http.StatusNotFound)
+		return
+	}
+	ar := v1beta1.AdmissionReview{}
+	req := ar.Request
+	var admissionResponse *v1beta1.AdmissionResponse
+	_, _, err := deserializer.Decode(body, nil, &ar)
+	if err != nil || ar.Request == nil {
+		log.Logger().Error("request body decode failed or request empty", zap.Error(err))
+		admissionResponse = admissionResponseBuilder("yunikorn-invalid-body", false, "body decode failed", nil)
 	} else {
-		log.Logger().Warn("request is neither mutation nor validation", zap.String("urlPath", urlPath))
-	}
-
-	admissionReview := v1beta1.AdmissionReview{}
-	if admissionResponse != nil {
-		admissionReview.Response = admissionResponse
-		if ar.Request != nil {
-			admissionReview.Response.UID = ar.Request.UID
+		switch urlPath {
+		case mutateURL:
+			admissionResponse = c.mutate(req)
+		case validateConfURL:
+			admissionResponse = c.validateConf(req)
 		}
 	}
-
-	resp, err := json.Marshal(admissionReview)
+	admissionReview := v1beta1.AdmissionReview{Response: admissionResponse}
+	var resp []byte
+	resp, err = json.Marshal(admissionReview)
 	if err != nil {
 		errMessage := fmt.Sprintf("could not encode response: %v", err)
 		log.Logger().Error(errMessage)
