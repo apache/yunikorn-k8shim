@@ -53,9 +53,6 @@ var _ = Describe("DripFeedSchedule:", func() {
 		Ω(ns1.Status.Phase).To(Equal(v1.NamespaceActive))
 	})
 
-	// Disabling/Skipping the tests as per the comment in
-	// https://jira.cloudera.com/browse/COMPX-4041
-	// Product fix is implemented as part of YUNIKORN-317
 	PIt("Test_State_Aware_App_Sorting", func() {
 		By("Submit 3 apps(app01, app02, app03) with one pod each")
 		for _, appID := range []string{app1, app2, app3} {
@@ -67,7 +64,7 @@ var _ = Describe("DripFeedSchedule:", func() {
 
 		By(fmt.Sprintf("Get apps from specific queue: %s", ns))
 		var appsFromQueue []map[string]interface{}
-		//Poll for apps to appear in the queue
+		// Poll for apps to appear in the queue
 		err = wait.PollImmediate(time.Second, time.Duration(60)*time.Second, func() (done bool, err error) {
 			appsFromQueue, err = restClient.GetAppsFromSpecificQueue("root." + ns)
 			if len(appsFromQueue) == 3 {
