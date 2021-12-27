@@ -64,7 +64,6 @@ var _ = BeforeSuite(func() {
 	Ω(err3).NotTo(HaveOccurred())
 	Ω(d).NotTo(BeNil())
 	// Updating scheduler pod annotation to trigger force refresh of configmaps
-	// https://jira.cloudera.com/browse/COMPX-4042
 	Ω(k.UpdateYunikornSchedulerPodAnnotation(annotation)).NotTo(HaveOccurred())
 	err = yunikorn.WaitForSchedPolicy("default", 2*time.Minute)
 	Ω(err).NotTo(HaveOccurred())
@@ -81,7 +80,6 @@ var _ = AfterSuite(func() {
 	Ω(err3).NotTo(HaveOccurred())
 	Ω(e).NotTo(BeNil())
 	// Updating scheduler pod annotation to trigger force refresh of configmaps
-	// https://jira.cloudera.com/browse/COMPX-4042
 	Ω(k.RemoveYunikornSchedulerPodAnnotation(annotation)).NotTo(HaveOccurred())
 })
 
@@ -92,7 +90,7 @@ func TestPredicates(t *testing.T) {
 	ginkgo.RunSpecsWithDefaultAndCustomReporters(t, "TestPredicates", []ginkgo.Reporter{junitReporter})
 }
 
-//type Benchmarker ginkgo.Benchmarker
+// type Benchmarker ginkgo.Benchmarker
 var Fail = ginkgo.Fail
 
 var Describe = ginkgo.Describe
