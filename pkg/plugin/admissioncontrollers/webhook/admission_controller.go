@@ -29,7 +29,7 @@ import (
 	"strings"
 
 	"go.uber.org/zap"
-	"k8s.io/api/admission/v1beta1"
+	admissionV1 "k8s.io/api/admission/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -71,8 +71,8 @@ type ValidateConfResponse struct {
 	Reason  string `json:"reason"`
 }
 
-func admissionResponseBuilder(uid string, allowed bool, resultMessage string, patch []byte) *v1beta1.AdmissionResponse {
-	res := &v1beta1.AdmissionResponse{}
+func admissionResponseBuilder(uid string, allowed bool, resultMessage string, patch []byte) *admissionV1.AdmissionResponse {
+	res := &admissionV1.AdmissionResponse{}
 	res.Allowed = allowed
 	res.UID = types.UID(uid)
 
@@ -83,12 +83,12 @@ func admissionResponseBuilder(uid string, allowed bool, resultMessage string, pa
 	}
 	if len(patch) != 0 {
 		res.Patch = patch
-		pt := v1beta1.PatchTypeJSONPatch
+		pt := admissionV1.PatchTypeJSONPatch
 		res.PatchType = &pt
 	}
 	return res
 }
-func (c *admissionController) mutate(req *v1beta1.AdmissionRequest) *v1beta1.AdmissionResponse {
+func (c *admissionController) mutate(req *admissionV1.AdmissionRequest) *admissionV1.AdmissionResponse {
 	namespace := req.Namespace
 	var patch []patchOperation
 
@@ -210,7 +210,7 @@ func isConfigMapUpdateAllowed(userInfo string) bool {
 	return false
 }
 
-func (c *admissionController) validateConf(req *v1beta1.AdmissionRequest) *v1beta1.AdmissionResponse {
+func (c *admissionController) validateConf(req *admissionV1.AdmissionRequest) *admissionV1.AdmissionResponse {
 	uid := string(req.UID)
 	if !isConfigMapUpdateAllowed(req.UserInfo.Username) {
 		return admissionResponseBuilder(uid, false, configHotFreshResponse, nil)
@@ -293,9 +293,9 @@ func (c *admissionController) serve(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "request is neither mutation nor validation", http.StatusNotFound)
 		return
 	}
-	ar := v1beta1.AdmissionReview{}
+	ar := admissionV1.AdmissionReview{}
 	req := ar.Request
-	var admissionResponse *v1beta1.AdmissionResponse
+	var admissionResponse *admissionV1.AdmissionResponse
 	_, _, err := deserializer.Decode(body, nil, &ar)
 	if err != nil || ar.Request == nil {
 		log.Logger().Error("request body decode failed or request empty", zap.Error(err))
@@ -308,7 +308,7 @@ func (c *admissionController) serve(w http.ResponseWriter, r *http.Request) {
 			admissionResponse = c.validateConf(req)
 		}
 	}
-	admissionReview := v1beta1.AdmissionReview{Response: admissionResponse}
+	admissionReview := admissionV1.AdmissionReview{Response: admissionResponse}
 	var resp []byte
 	resp, err = json.Marshal(admissionReview)
 	if err != nil {

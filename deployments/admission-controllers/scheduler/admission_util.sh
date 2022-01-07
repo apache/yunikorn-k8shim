@@ -113,7 +113,7 @@ precheck() {
 create_resources() {
   KEY_DIR=$1
   # Generate keys into a temporary directory.
-  if ! ${basedir}/generate-signed-ca.sh "${KEY_DIR}"
+  if ! /bin/sh ${basedir}/generate-signed-ca.sh "${KEY_DIR}"
   then
     echo "failed to generate signed ca!"
     exit 1
