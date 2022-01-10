@@ -289,7 +289,7 @@ func (task *Task) handleFailEvent(event *fsm.Event) {
 	eventArgs := make([]string, 1)
 	if err := events.GetEventArgsAsStrings(eventArgs, event.Args); err != nil {
 		dispatcher.Dispatch(NewFailTaskEvent(task.applicationID, task.taskID, err.Error()))
-		events.GetRecorder().Eventf(task.pod, v1.EventTypeWarning, "SchedulingFailed",
+		events.GetRecorder().Eventf(task.pod, nil, v1.EventTypeWarning, "SchedulingFailed", "SchedulingFailed",
 			"%s scheduling failed, reason: %s", task.alias, err.Error())
 		return
 	}
@@ -317,13 +317,13 @@ func (task *Task) handleSubmitTaskEvent(event *fsm.Event) {
 		return
 	}
 
-	events.GetRecorder().Eventf(task.pod, v1.EventTypeNormal, "Scheduling",
+	events.GetRecorder().Eventf(task.pod, nil, v1.EventTypeNormal, "Scheduling", "Scheduling",
 		"%s is queued and waiting for allocation", task.alias)
 	// if this task belongs to a task group, that means the app has gang scheduling enabled
 	// in this case, post an event to indicate the task is being gang scheduled
 	if !task.placeholder && task.taskGroupName != "" {
-		events.GetRecorder().Eventf(task.pod,
-			v1.EventTypeNormal, "GangScheduling",
+		events.GetRecorder().Eventf(task.pod, nil,
+			v1.EventTypeNormal, "GangScheduling", "GangScheduling",
 			"Pod belongs to the taskGroup %s, it will be scheduled as a gang member", task.taskGroupName)
 	}
 }
@@ -362,8 +362,8 @@ func (task *Task) postTaskAllocated(event *fsm.Event) {
 		nodeID := eventArgs[1]
 
 		// post a message to indicate the pod gets its allocation
-		events.GetRecorder().Eventf(task.pod,
-			v1.EventTypeNormal, "Scheduled",
+		events.GetRecorder().Eventf(task.pod, task.pod,
+			v1.EventTypeNormal, "Scheduled", "Scheduled",
 			"Successfully assigned %s to node %s", task.alias, nodeID)
 
 		// task allocation UID is assigned once we get allocation decision from scheduler core
@@ -377,8 +377,8 @@ func (task *Task) postTaskAllocated(event *fsm.Event) {
 			if err := task.context.bindPodVolumes(task.pod); err != nil {
 				errorMessage = fmt.Sprintf("bind pod volumes failed, name: %s, %s", task.alias, err.Error())
 				dispatcher.Dispatch(NewFailTaskEvent(task.applicationID, task.taskID, errorMessage))
-				events.GetRecorder().Eventf(task.pod,
-					v1.EventTypeWarning, "PodVolumesBindFailure", errorMessage)
+				events.GetRecorder().Eventf(task.pod, nil,
+					v1.EventTypeWarning, "PodVolumesBindFailure", "PodVolumesBindFailure", errorMessage)
 				return
 			}
 		}
@@ -391,15 +391,15 @@ func (task *Task) postTaskAllocated(event *fsm.Event) {
 			errorMessage = fmt.Sprintf("bind pod volumes failed, name: %s, %s", task.alias, err.Error())
 			log.Logger().Error(errorMessage)
 			dispatcher.Dispatch(NewFailTaskEvent(task.applicationID, task.taskID, errorMessage))
-			events.GetRecorder().Eventf(task.pod,
-				v1.EventTypeWarning, "PodBindFailure", errorMessage)
+			events.GetRecorder().Eventf(task.pod, nil,
+				v1.EventTypeWarning, "PodBindFailure", "PodBindFailure", errorMessage)
 			return
 		}
 
 		log.Logger().Info("successfully bound pod", zap.String("podName", task.pod.Name))
 		dispatcher.Dispatch(NewBindTaskEvent(task.applicationID, task.taskID))
-		events.GetRecorder().Eventf(task.pod,
-			v1.EventTypeNormal, "PodBindSuccessful",
+		events.GetRecorder().Eventf(task.pod, nil,
+			v1.EventTypeNormal, "PodBindSuccessful", "PodBindSuccessful",
 			"Pod %s is successfully bound to node %s", task.alias, nodeID)
 	}(event)
 }
@@ -456,8 +456,8 @@ func (task *Task) postTaskRejected(event *fsm.Event) {
 	dispatcher.Dispatch(NewFailTaskEvent(task.applicationID, task.taskID,
 		fmt.Sprintf("task %s failed because it is rejected by scheduler", task.alias)))
 
-	events.GetRecorder().Eventf(task.pod,
-		v1.EventTypeWarning, "TaskRejected",
+	events.GetRecorder().Eventf(task.pod, nil,
+		v1.EventTypeWarning, "TaskRejected", "TaskRejected",
 		"Task %s is rejected by the scheduler", task.alias)
 }
 
@@ -466,8 +466,8 @@ func (task *Task) postTaskFailed(event *fsm.Event) {
 	// we need to release the allocation from scheduler core
 	task.releaseAllocation()
 
-	events.GetRecorder().Eventf(task.pod,
-		v1.EventTypeNormal, "TaskFailed",
+	events.GetRecorder().Eventf(task.pod, nil,
+		v1.EventTypeNormal, "TaskFailed", "TaskFailed",
 		"Task %s is failed", task.alias)
 }
 
@@ -477,8 +477,8 @@ func (task *Task) beforeTaskCompleted(event *fsm.Event) {
 	// send different requests to scheduler-core, depending on current task state
 	task.releaseAllocation()
 
-	events.GetRecorder().Eventf(task.pod,
-		v1.EventTypeNormal, "TaskCompleted",
+	events.GetRecorder().Eventf(task.pod, nil,
+		v1.EventTypeNormal, "TaskCompleted", "TaskCompleted",
 		"Task %s is completed", task.alias)
 }
 

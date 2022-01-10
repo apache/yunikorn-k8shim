@@ -31,7 +31,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/tools/record"
+	k8sEvents "k8s.io/client-go/tools/events"
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
@@ -206,7 +206,7 @@ func TestFailApplication(t *testing.T) {
 	assertAppState(t, app2, events.States().Application.Failed, 3*time.Second)
 	assert.Equal(t, rt.time, int64(0))
 	// Test over, set Recorder back fake type
-	events.SetRecorderForTest(record.NewFakeRecorder(1024))
+	events.SetRecorderForTest(k8sEvents.NewFakeRecorder(1024))
 }
 
 func TestSetUnallocatedPodsToFailedWhenFailApplication(t *testing.T) {
@@ -315,7 +315,7 @@ func TestSetUnallocatedPodsToFailedWhenFailApplication(t *testing.T) {
 	assert.Equal(t, newPod3.Status.Phase, v1.PodFailed, 3*time.Second)
 	assert.Equal(t, newPod3.Status.Reason, constants.ApplicationInsufficientResourcesFailure, 3*time.Second)
 	// Test over, set Recorder back fake type
-	events.SetRecorderForTest(record.NewFakeRecorder(1024))
+	events.SetRecorderForTest(k8sEvents.NewFakeRecorder(1024))
 }
 
 func TestSetUnallocatedPodsToFailedWhenRejectApplication(t *testing.T) {
@@ -416,7 +416,7 @@ func TestSetUnallocatedPodsToFailedWhenRejectApplication(t *testing.T) {
 	assert.Equal(t, newPod2.Status.Phase, v1.PodFailed, 3*time.Second)
 	assert.Equal(t, newPod2.Status.Reason, constants.ApplicationRejectedFailure, 3*time.Second)
 	// Test over, set Recorder back fake type
-	events.SetRecorderForTest(record.NewFakeRecorder(1024))
+	events.SetRecorderForTest(k8sEvents.NewFakeRecorder(1024))
 }
 
 func TestReleaseAppAllocation(t *testing.T) {

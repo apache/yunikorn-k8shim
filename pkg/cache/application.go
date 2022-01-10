@@ -422,7 +422,7 @@ func (app *Application) scheduleTasks(taskScheduleCondition func(t *Task) bool) 
 					log.Logger().Warn("init task failed", zap.Error(err))
 				}
 			} else {
-				events.GetRecorder().Event(task.GetTaskPod(), v1.EventTypeWarning, "FailedScheduling", err.Error())
+				events.GetRecorder().Eventf(task.GetTaskPod(), nil, v1.EventTypeWarning, "FailedScheduling", "FailedScheduling", err.Error())
 				log.Logger().Debug("task is not ready for scheduling",
 					zap.String("appID", task.applicationID),
 					zap.String("taskID", task.taskID),
@@ -633,7 +633,7 @@ func (app *Application) handleFailApplicationEvent(event *fsm.Event) {
 			errMsgArr := strings.Split(errMsg, ":")
 			failTaskPodWithReasonAndMsg(task, constants.ApplicationRejectedFailure, errMsgArr[1])
 		}
-		events.GetRecorder().Eventf(task.GetTaskPod(), v1.EventTypeWarning, "ApplicationFailed",
+		events.GetRecorder().Eventf(task.GetTaskPod(), nil, v1.EventTypeWarning, "ApplicationFailed", "ApplicationFailed",
 			"Application %s scheduling failed, reason: %s", app.applicationID, errMsg)
 	}
 }

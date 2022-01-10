@@ -29,7 +29,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/tools/record"
+	k8sEvents "k8s.io/client-go/tools/events"
 
 	"github.com/apache/incubator-yunikorn-core/pkg/common"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
@@ -521,7 +521,7 @@ func TestHandleSubmitTaskEvent(t *testing.T) {
 	assert.Equal(t, rt.time, int64(2))
 
 	// Test over, set Recorder back fake type
-	events.SetRecorderForTest(record.NewFakeRecorder(1024))
+	events.SetRecorderForTest(k8sEvents.NewFakeRecorder(1024))
 }
 
 func TestSimultaneousTaskCompleteAndAllocate(t *testing.T) {

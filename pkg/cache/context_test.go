@@ -30,7 +30,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
+	k8sEvents "k8s.io/client-go/tools/events"
 
 	"github.com/apache/incubator-yunikorn-core/pkg/common"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
@@ -568,7 +568,7 @@ func TestRemoveTask(t *testing.T) {
 
 func TestNodeEventFailsPublishingWithoutNode(t *testing.T) {
 	conf.GetSchedulerConf().SetTestMode(true)
-	recorder, ok := events.GetRecorder().(*record.FakeRecorder)
+	recorder, ok := events.GetRecorder().(*k8sEvents.FakeRecorder)
 	if !ok {
 		t.Fatal("the EventRecorder is expected to be of type FakeRecorder")
 	}
@@ -599,7 +599,7 @@ func TestNodeEventFailsPublishingWithoutNode(t *testing.T) {
 
 func TestNodeEventPublishedCorrectly(t *testing.T) {
 	conf.GetSchedulerConf().SetTestMode(true)
-	recorder, ok := events.GetRecorder().(*record.FakeRecorder)
+	recorder, ok := events.GetRecorder().(*k8sEvents.FakeRecorder)
 	if !ok {
 		t.Fatal("the EventRecorder is expected to be of type FakeRecorder")
 	}
@@ -644,7 +644,7 @@ func TestNodeEventPublishedCorrectly(t *testing.T) {
 
 func TestPublishEventsWithNotExistingAsk(t *testing.T) {
 	conf.GetSchedulerConf().SetTestMode(true)
-	recorder, ok := events.GetRecorder().(*record.FakeRecorder)
+	recorder, ok := events.GetRecorder().(*k8sEvents.FakeRecorder)
 	if !ok {
 		t.Fatal("the EventRecorder is expected to be of type FakeRecorder")
 	}
@@ -687,7 +687,7 @@ func TestPublishEventsWithNotExistingAsk(t *testing.T) {
 
 func TestPublishEventsCorrectly(t *testing.T) {
 	conf.GetSchedulerConf().SetTestMode(true)
-	recorder, ok := events.GetRecorder().(*record.FakeRecorder)
+	recorder, ok := events.GetRecorder().(*k8sEvents.FakeRecorder)
 	if !ok {
 		t.Fatal("the EventRecorder is expected to be of type FakeRecorder")
 	}

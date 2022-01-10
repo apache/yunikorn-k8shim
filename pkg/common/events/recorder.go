@@ -21,21 +21,19 @@ package events
 import (
 	"sync"
 
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes/scheme"
-	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 )
 
-var eventRecorder record.EventRecorder = record.NewFakeRecorder(1024)
+var eventRecorder events.EventRecorder = events.NewFakeRecorder(1024)
 var once sync.Once
 var lock sync.RWMutex
 
-func GetRecorder() record.EventRecorder {
+func GetRecorder() events.EventRecorder {
 	lock.Lock()
 	defer lock.Unlock()
 	once.Do(func() {
@@ -44,18 +42,17 @@ func GetRecorder() record.EventRecorder {
 		configs := conf.GetSchedulerConf()
 		if !configs.IsTestMode() {
 			k8sClient := client.NewKubeClient(configs.KubeConfig)
-			eventBroadcaster := record.NewBroadcaster()
-			eventBroadcaster.StartRecordingToSink(&v1.EventSinkImpl{
-				Interface: k8sClient.GetClientSet().CoreV1().Events("")})
-			eventRecorder = eventBroadcaster.NewRecorder(scheme.Scheme,
-				corev1.EventSource{Component: constants.SchedulerName})
+			eventBroadcaster := events.NewBroadcaster(&events.EventSinkImpl{
+				Interface: k8sClient.GetClientSet().EventsV1()})
+			eventBroadcaster.StartRecordingToSink(make(<-chan struct{}))
+			eventRecorder = eventBroadcaster.NewRecorder(scheme.Scheme, constants.SchedulerName)
 		}
 	})
 
 	return eventRecorder
 }
 
-func SetRecorderForTest(recorder record.EventRecorder) {
+func SetRecorderForTest(recorder events.EventRecorder) {
 	lock.Lock()
 	defer lock.Unlock()
 	eventRecorder = recorder
