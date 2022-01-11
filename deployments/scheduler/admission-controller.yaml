@@ -54,6 +54,8 @@ spec:
             value: queues
           - name: ADMISSION_CONTROLLER_SERVICE
             value: yunikorn-admission-controller-service
+          - name: ADMISSION_CONTROLLER_NAMESPACE_BLACKLIST
+            value: "^kube-system$"
           - name: SCHEDULER_SERVICE_ADDRESS
             value: yunikorn-service
           - name: ENABLE_CONFIG_HOT_REFRESH

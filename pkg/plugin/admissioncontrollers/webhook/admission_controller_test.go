@@ -36,6 +36,8 @@ import (
 )
 
 func TestUpdateLabels(t *testing.T) {
+	ac := prepareController(t, "", "")
+
 	// verify when appId/queue are not given,
 	// we patch it correctly
 	var patch []patchOperation
@@ -58,7 +60,7 @@ func TestUpdateLabels(t *testing.T) {
 		Status: v1.PodStatus{},
 	}
 
-	patch = updateLabels("default", pod, patch)
+	patch = ac.updateLabels("default", pod, patch)
 
 	assert.Equal(t, len(patch), 1)
 	assert.Equal(t, patch[0].Op, "add")
@@ -95,7 +97,7 @@ func TestUpdateLabels(t *testing.T) {
 		Spec:   v1.PodSpec{},
 		Status: v1.PodStatus{},
 	}
-	patch = updateLabels("default", pod, patch)
+	patch = ac.updateLabels("default", pod, patch)
 
 	assert.Equal(t, len(patch), 1)
 	assert.Equal(t, patch[0].Op, "add")
@@ -108,6 +110,29 @@ func TestUpdateLabels(t *testing.T) {
 	} else {
 		t.Fatal("patch info content is not as expected")
 	}
+
+	// verify if pod is in kube-system namespace we won't modify it
+	patch = make([]patchOperation, 0)
+
+	pod = &v1.Pod{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            "a-test-pod",
+			Namespace:       "kube-system",
+			UID:             "7f5fd6c5d5",
+			ResourceVersion: "10654",
+			Labels: map[string]string{
+				"random": "random",
+			},
+		},
+		Spec:   v1.PodSpec{},
+		Status: v1.PodStatus{},
+	}
+	patch = ac.updateLabels("kube-system", pod, patch)
+	assert.Equal(t, len(patch), 0)
 
 	// verify if queue is given in the labels,
 	// we won't modify it
@@ -132,7 +157,7 @@ func TestUpdateLabels(t *testing.T) {
 		Status: v1.PodStatus{},
 	}
 
-	patch = updateLabels("default", pod, patch)
+	patch = ac.updateLabels("default", pod, patch)
 
 	assert.Equal(t, len(patch), 1)
 	assert.Equal(t, patch[0].Op, "add")
@@ -165,7 +190,7 @@ func TestUpdateLabels(t *testing.T) {
 		Status: v1.PodStatus{},
 	}
 
-	patch = updateLabels("default", pod, patch)
+	patch = ac.updateLabels("default", pod, patch)
 
 	assert.Equal(t, len(patch), 1)
 	assert.Equal(t, patch[0].Op, "add")
@@ -194,7 +219,7 @@ func TestUpdateLabels(t *testing.T) {
 		Status: v1.PodStatus{},
 	}
 
-	patch = updateLabels("default", pod, patch)
+	patch = ac.updateLabels("default", pod, patch)
 
 	assert.Equal(t, len(patch), 1)
 	assert.Equal(t, patch[0].Op, "add")
@@ -221,7 +246,7 @@ func TestUpdateLabels(t *testing.T) {
 		Status:     v1.PodStatus{},
 	}
 
-	patch = updateLabels("default", pod, patch)
+	patch = ac.updateLabels("default", pod, patch)
 
 	assert.Equal(t, len(patch), 1)
 	assert.Equal(t, patch[0].Op, "add")
@@ -251,8 +276,9 @@ func TestUpdateSchedulerName(t *testing.T) {
 
 func TestValidateConfigMap(t *testing.T) {
 	configName := fmt.Sprintf("%s.yaml", conf.DefaultPolicyGroup)
-	controller := &admissionController{
-		configName: configName,
+	controller, err := initAdmissionController(configName, "", "")
+	if err != nil {
+		t.Fatal("failed to init admission controller", err)
 	}
 	configmap := &v1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
@@ -261,7 +287,7 @@ func TestValidateConfigMap(t *testing.T) {
 		Data: make(map[string]string),
 	}
 	// specified config "queues.yaml" not found
-	err := controller.validateConfigMap(configmap)
+	err = controller.validateConfigMap(configmap)
 	assert.Assert(t, err != nil, "expecting error when specified config is not found")
 	assert.Equal(t, err.Error(), "required config 'queues.yaml' not found in this configmap")
 	// skip further validations which depends on the webservice of yunikorn-core
@@ -287,7 +313,7 @@ func TestValidateConfigMapValidConfig(t *testing.T) {
 	srv := serverMock(true)
 	defer srv.Close()
 	// both server and url pattern contains http://, so we need to delete one
-	controller := prepareController(strings.Replace(srv.URL, "http://", "", 1))
+	controller := prepareController(t, strings.Replace(srv.URL, "http://", "", 1), "")
 	err := controller.validateConfigMap(configmap)
 	assert.NilError(t, err, "No error expected")
 }
@@ -300,7 +326,7 @@ func TestValidateConfigMapInValidConfig(t *testing.T) {
 	srv := serverMock(false)
 	defer srv.Close()
 	// both server and url pattern contains http://, so we need to delete one
-	controller := prepareController(strings.Replace(srv.URL, "http://", "", 1))
+	controller := prepareController(t, strings.Replace(srv.URL, "http://", "", 1), "")
 	err := controller.validateConfigMap(configmap)
 	assert.Equal(t, "Invalid config", err.Error(),
 		"Other error returned than the expected one")
@@ -314,7 +340,7 @@ func TestValidateConfigMapWrongRequest(t *testing.T) {
 	srv := serverMock(false)
 	defer srv.Close()
 	// the url is wrong, so the POST request will fail and an error will be returned
-	controller := prepareController(srv.URL)
+	controller := prepareController(t, srv.URL, "")
 	err := controller.validateConfigMap(configmap)
 	assert.Assert(t, err != nil)
 }
@@ -329,12 +355,18 @@ func prepareConfigMap(data string) *v1.ConfigMap {
 	return configmap
 }
 
-func prepareController(url string) *admissionController {
+func prepareController(t *testing.T, url string, nsBlacklist string) *admissionController {
 	configName := fmt.Sprintf("%s.yaml", conf.DefaultPolicyGroup)
-	controller := &admissionController{
-		configName: configName,
+	if nsBlacklist == "" {
+		nsBlacklist = "^kube-system$"
 	}
-	controller.schedulerValidateConfURL = fmt.Sprintf(schedulerValidateConfURLPattern, url)
+	controller, err := initAdmissionController(
+		configName,
+		fmt.Sprintf(schedulerValidateConfURLPattern, url),
+		nsBlacklist)
+	if err != nil {
+		t.Fatal("failed to prepare controller", err)
+	}
 	return controller
 }
 
@@ -404,4 +436,15 @@ func TestIsConfigMapUpdateAllowed(t *testing.T) {
 			assert.Equal(t, tc.allowed, allowed, "")
 		})
 	}
+}
+
+func TestIsNamespaceAllowed(t *testing.T) {
+	ac := prepareController(t, "", "^kube-system$,^pre-,-post$")
+
+	assert.Check(t, ac.isNamespaceAllowed("test"), "test namespace allowed")
+	assert.Check(t, !ac.isNamespaceAllowed("kube-system"), "kube-system namespace not allowed")
+	assert.Check(t, ac.isNamespaceAllowed("x-kube-system"), "x-kube-system namespace allowed")
+	assert.Check(t, ac.isNamespaceAllowed("kube-system-x"), "kube-system-x namespace allowed")
+	assert.Check(t, !ac.isNamespaceAllowed("pre-ns"), "pre-ns namespace not allowed")
+	assert.Check(t, !ac.isNamespaceAllowed("ns-post"), "ns-post namespace not allowed")
 }

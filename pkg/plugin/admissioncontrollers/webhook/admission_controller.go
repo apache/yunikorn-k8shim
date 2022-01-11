@@ -25,6 +25,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -60,6 +61,7 @@ var (
 type admissionController struct {
 	configName               string
 	schedulerValidateConfURL string
+	namespaceBlacklist       []*regexp.Regexp
 }
 
 type patchOperation struct {
@@ -71,6 +73,29 @@ type patchOperation struct {
 type ValidateConfResponse struct {
 	Allowed bool   `json:"allowed"`
 	Reason  string `json:"reason"`
+}
+
+func initAdmissionController(configName string, schedulerValidateConfURL string, namespaceBlacklist string) (*admissionController, error) {
+	hook := admissionController{
+		configName:               configName,
+		schedulerValidateConfURL: schedulerValidateConfURL,
+		namespaceBlacklist:       make([]*regexp.Regexp, 0),
+	}
+
+	for _, pattern := range strings.Split(namespaceBlacklist, ",") {
+		pattern = strings.TrimSpace(pattern)
+		if len(pattern) == 0 {
+			continue
+		}
+		re, err := regexp.Compile(pattern)
+		if err != nil {
+			log.Logger().Error("Unable to compile regular expression", zap.String("pattern", pattern), zap.Error(err))
+			return nil, err
+		}
+		hook.namespaceBlacklist = append(hook.namespaceBlacklist, re)
+	}
+
+	return &hook, nil
 }
 
 func admissionResponseBuilder(uid string, allowed bool, resultMessage string, patch []byte) *admissionv1.AdmissionResponse {
@@ -129,7 +154,7 @@ func (c *admissionController) mutate(req *admissionv1.AdmissionRequest) *admissi
 	}
 
 	patch = updateSchedulerName(patch)
-	patch = updateLabels(namespace, &pod, patch)
+	patch = c.updateLabels(namespace, &pod, patch)
 	log.Logger().Info("generated patch", zap.String("podName", pod.Name),
 		zap.Any("patch", patch))
 
@@ -163,12 +188,20 @@ func generateAppID(namespace string) string {
 	return appID
 }
 
-func updateLabels(namespace string, pod *v1.Pod, patch []patchOperation) []patchOperation {
+func (c *admissionController) updateLabels(namespace string, pod *v1.Pod, patch []patchOperation) []patchOperation {
+	if !c.isNamespaceAllowed(pod.Namespace) {
+		log.Logger().Info("skipping update of pod labels since namespace is blacklisted",
+			zap.String("podName", pod.Name),
+			zap.String("namespace", namespace))
+		return patch
+	}
+
 	log.Logger().Info("updating pod labels",
 		zap.String("podName", pod.Name),
 		zap.String("generateName", pod.GenerateName),
 		zap.String("namespace", namespace),
 		zap.Any("labels", pod.Labels))
+
 	existingLabels := pod.Labels
 	result := make(map[string]string)
 	for k, v := range existingLabels {
@@ -247,6 +280,15 @@ func (c *admissionController) validateConf(req *admissionv1.AdmissionRequest) *a
 	}
 
 	return admissionResponseBuilder(uid, true, "", nil)
+}
+
+func (c *admissionController) isNamespaceAllowed(namespace string) bool {
+	for _, re := range c.namespaceBlacklist {
+		if re.MatchString(namespace) {
+			return false
+		}
+	}
+	return true
 }
 
 func (c *admissionController) validateConfigMap(cm *v1.ConfigMap) error {

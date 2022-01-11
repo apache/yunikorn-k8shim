@@ -34,12 +34,14 @@ import (
 )
 
 const (
-	HTTPPort                          = 9089
-	policyGroupEnvVarName             = "POLICY_GROUP"
-	schedulerServiceAddressEnvVarName = "SCHEDULER_SERVICE_ADDRESS"
-	schedulerValidateConfURLPattern   = "http://%s/ws/v1/validate-conf"
-	admissionControllerNamespace      = "ADMISSION_CONTROLLER_NAMESPACE"
-	admissionControllerService        = "ADMISSION_CONTROLLER_SERVICE"
+	HTTPPort                              = 9089
+	policyGroupEnvVarName                 = "POLICY_GROUP"
+	schedulerServiceAddressEnvVarName     = "SCHEDULER_SERVICE_ADDRESS"
+	schedulerValidateConfURLPattern       = "http://%s/ws/v1/validate-conf"
+	admissionControllerNamespace          = "ADMISSION_CONTROLLER_NAMESPACE"
+	admissionControllerService            = "ADMISSION_CONTROLLER_SERVICE"
+	admissionControllerNamespaceBlacklist = "ADMISSION_CONTROLLER_NAMESPACE_BLACKLIST"
+	defaultNamespaceBlacklist             = "^kube-system$"
 
 	// legal URLs
 	mutateURL       = "/mutate"
@@ -50,6 +52,10 @@ const (
 func main() {
 	namespace := os.Getenv(admissionControllerNamespace)
 	serviceName := os.Getenv(admissionControllerService)
+	namespaceBlacklist, ok := os.LookupEnv(admissionControllerNamespaceBlacklist)
+	if !ok {
+		namespaceBlacklist = defaultNamespaceBlacklist
+	}
 
 	wm, err := NewWebhookManager(namespace, serviceName)
 	if err != nil {
@@ -77,10 +83,14 @@ func main() {
 	}
 	schedulerServiceAddress := os.Getenv(schedulerServiceAddressEnvVarName)
 
-	webHook := admissionController{
-		configName:               fmt.Sprintf("%s.yaml", policyGroup),
-		schedulerValidateConfURL: fmt.Sprintf(schedulerValidateConfURLPattern, schedulerServiceAddress),
+	webHook, err := initAdmissionController(
+		fmt.Sprintf("%s.yaml", policyGroup),
+		fmt.Sprintf(schedulerValidateConfURLPattern, schedulerServiceAddress),
+		namespaceBlacklist)
+	if err != nil {
+		log.Logger().Fatal("failed to configure admission controller", zap.Error(err))
 	}
+
 	mux := http.NewServeMux()
 	mux.HandleFunc(healthURL, webHook.health)
 	mux.HandleFunc(mutateURL, webHook.serve)
