@@ -117,7 +117,7 @@ function check_opt() {
 function install_cluster() {
   # 4 arguments are required
   if [[ $# -ne 4 ]]; then
-    echo "expecting exactly parameters for function install_cluster()"
+    echo "expecting exactly 4 parameters for function install_cluster()"
     return 1
   fi
 
