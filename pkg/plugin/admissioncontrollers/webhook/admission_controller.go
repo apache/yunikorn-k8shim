@@ -29,7 +29,7 @@ import (
 	"strings"
 
 	"go.uber.org/zap"
-	"k8s.io/api/admission/v1beta1"
+	admissionv1 "k8s.io/api/admission/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -47,6 +47,8 @@ const (
 	yunikornPod                  = "yunikorn"
 	defaultQueue                 = "root.default"
 	configHotFreshResponse       = "ConfigHotRefresh is disabled. Please use the REST API to update the configuration, or enable configHotRefresh. "
+	admissionReviewAPIVersion    = "admission.k8s.io/v1"
+	admissionReviewKind          = "AdmissionReview"
 )
 
 var (
@@ -71,8 +73,8 @@ type ValidateConfResponse struct {
 	Reason  string `json:"reason"`
 }
 
-func admissionResponseBuilder(uid string, allowed bool, resultMessage string, patch []byte) *v1beta1.AdmissionResponse {
-	res := &v1beta1.AdmissionResponse{}
+func admissionResponseBuilder(uid string, allowed bool, resultMessage string, patch []byte) *admissionv1.AdmissionResponse {
+	res := &admissionv1.AdmissionResponse{}
 	res.Allowed = allowed
 	res.UID = types.UID(uid)
 
@@ -83,12 +85,17 @@ func admissionResponseBuilder(uid string, allowed bool, resultMessage string, pa
 	}
 	if len(patch) != 0 {
 		res.Patch = patch
-		pt := v1beta1.PatchTypeJSONPatch
+		pt := admissionv1.PatchTypeJSONPatch
 		res.PatchType = &pt
 	}
 	return res
 }
-func (c *admissionController) mutate(req *v1beta1.AdmissionRequest) *v1beta1.AdmissionResponse {
+func (c *admissionController) mutate(req *admissionv1.AdmissionRequest) *admissionv1.AdmissionResponse {
+	if req == nil {
+		log.Logger().Warn("empty request received")
+		return admissionResponseBuilder("", false, "", nil)
+	}
+
 	namespace := req.Namespace
 	var patch []patchOperation
 
@@ -210,7 +217,12 @@ func isConfigMapUpdateAllowed(userInfo string) bool {
 	return false
 }
 
-func (c *admissionController) validateConf(req *v1beta1.AdmissionRequest) *v1beta1.AdmissionResponse {
+func (c *admissionController) validateConf(req *admissionv1.AdmissionRequest) *admissionv1.AdmissionResponse {
+	if req == nil {
+		log.Logger().Warn("empty request received")
+		return admissionResponseBuilder("", false, "", nil)
+	}
+
 	uid := string(req.UID)
 	if !isConfigMapUpdateAllowed(req.UserInfo.Username) {
 		return admissionResponseBuilder(uid, false, configHotFreshResponse, nil)
@@ -219,7 +231,7 @@ func (c *admissionController) validateConf(req *v1beta1.AdmissionRequest) *v1bet
 	var requestKind = req.Kind.Kind
 	if requestKind != "ConfigMap" {
 		log.Logger().Warn("request kind is not configmap", zap.String("requestKind", requestKind))
-		admissionResponseBuilder(uid, true, "", nil)
+		return admissionResponseBuilder(uid, true, "", nil)
 	}
 
 	var configmap v1.ConfigMap
@@ -266,6 +278,17 @@ func (c *admissionController) validateConfigMap(cm *v1.ConfigMap) error {
 	return nil
 }
 
+func (c *admissionController) health(w http.ResponseWriter, r *http.Request) {
+	// for now, always healthy
+	w.Header().Set("Content-type", "text/plain")
+	w.WriteHeader(200)
+	_, err := w.Write([]byte("OK\r\n"))
+	if err != nil {
+		log.Logger().Error("Unable to write health check result", zap.Error(err))
+		return
+	}
+}
+
 func (c *admissionController) serve(w http.ResponseWriter, r *http.Request) {
 	log.Logger().Debug("request", zap.Any("httpRequest", r))
 	var body []byte
@@ -293,14 +316,18 @@ func (c *admissionController) serve(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "request is neither mutation nor validation", http.StatusNotFound)
 		return
 	}
-	ar := v1beta1.AdmissionReview{}
-	req := ar.Request
-	var admissionResponse *v1beta1.AdmissionResponse
+	ar := admissionv1.AdmissionReview{TypeMeta: metav1.TypeMeta{
+		APIVersion: admissionReviewAPIVersion,
+		Kind:       admissionReviewKind,
+	}}
+
+	var admissionResponse *admissionv1.AdmissionResponse
 	_, _, err := deserializer.Decode(body, nil, &ar)
 	if err != nil || ar.Request == nil {
 		log.Logger().Error("request body decode failed or request empty", zap.Error(err))
 		admissionResponse = admissionResponseBuilder("yunikorn-invalid-body", false, "body decode failed", nil)
 	} else {
+		req := ar.Request
 		switch urlPath {
 		case mutateURL:
 			admissionResponse = c.mutate(req)
@@ -308,7 +335,14 @@ func (c *admissionController) serve(w http.ResponseWriter, r *http.Request) {
 			admissionResponse = c.validateConf(req)
 		}
 	}
-	admissionReview := v1beta1.AdmissionReview{Response: admissionResponse}
+	admissionReview := admissionv1.AdmissionReview{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: admissionReviewAPIVersion,
+			Kind:       admissionReviewKind,
+		},
+		Response: admissionResponse,
+	}
+
 	var resp []byte
 	resp, err = json.Marshal(admissionReview)
 	if err != nil {
