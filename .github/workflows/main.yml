@@ -36,7 +36,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        k8s: [v1.21.2, v1.20.7, v1.19.11]
+        k8s: [v1.23.1, v1.22.4, v1.21.2, v1.20.7, v1.19.11]
     steps:
       - uses: actions/setup-go@v2
         with:

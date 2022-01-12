@@ -226,9 +226,11 @@ Examples:
   $(basename "$0") -a test -n "yk8s" -v "kindest/node:v1.19.11"
   $(basename "$0") -a test -n "yk8s" -v "kindest/node:v1.20.7"
   $(basename "$0") -a test -n "yk8s" -v "kindest/node:v1.21.2"
+  $(basename "$0") -a test -n "yk8s" -v "kindest/node:v1.22.4"
+  $(basename "$0") -a test -n "yk8s" -v "kindest/node:v1.23.1"
 
   Use a local helm chart path:
-    $(basename "$0") -a test -n "yk8s" -v "kindest/node:v1.21.2" -p ../incubator-yunikorn-release/helm-charts/yunikorn
+    $(basename "$0") -a test -n "yk8s" -v "kindest/node:v1.23.1" -p ../incubator-yunikorn-release/helm-charts/yunikorn
 EOF
 }
 
