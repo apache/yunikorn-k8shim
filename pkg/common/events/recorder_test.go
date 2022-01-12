@@ -33,5 +33,5 @@ func TestInit(t *testing.T) {
 	// skips initiating a real event recorder
 	conf.GetSchedulerConf().SetTestMode(true)
 	recorder := GetRecorder()
-	assert.Equal(t, reflect.TypeOf(recorder).String(), "*record.FakeRecorder")
+	assert.Equal(t, reflect.TypeOf(recorder).String(), "*events.FakeRecorder")
 }
