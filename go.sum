@@ -81,10 +81,10 @@ github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751/go.mod h1:LOuy
 github.com/alecthomas/units v0.0.0-20151022065526-2efee857e7cf/go.mod h1:ybxpYRFXyAe+OPACYpWeL0wqObRcbAqCMya13uyzqw0=
 github.com/alecthomas/units v0.0.0-20190717042225-c3de453c63f4/go.mod h1:ybxpYRFXyAe+OPACYpWeL0wqObRcbAqCMya13uyzqw0=
 github.com/andreyvit/diff v0.0.0-20170406064948-c7f18ee00883/go.mod h1:rCTlJbsFo29Kk6CurOXKm700vrz8f0KW0JNfpkRJY/8=
-github.com/apache/incubator-yunikorn-core v0.12.1 h1:50mMwVzkxbeqq5zJWTeW8QcfYm0y3GkiXqK6sM09x6c=
-github.com/apache/incubator-yunikorn-core v0.12.1/go.mod h1:y9titZc13lvJgV0uA4rnjopfVFD7XW2fM6QhWDWZpto=
-github.com/apache/incubator-yunikorn-scheduler-interface v0.12.1 h1:JmqC0H6ATxaOAROZucJm/RZucYS7j8ZAdfjKKq1QfBQ=
-github.com/apache/incubator-yunikorn-scheduler-interface v0.12.1/go.mod h1:3tRnilDaaJISjaG8REYnsnRsfr+NymQ02Yjs983zRYY=
+github.com/apache/incubator-yunikorn-core v0.12.2-1 h1:fWNFfDXeFOslmhChzv/OnAxfNjiGPNM+Y514oB/2Bmw=
+github.com/apache/incubator-yunikorn-core v0.12.2-1/go.mod h1:VkJol+4bEGlGGxDh8NKiec7exTV1l41US507ecUJjaw=
+github.com/apache/incubator-yunikorn-scheduler-interface v0.12.2-1 h1:xc0CeJc3NF5CyB1QzvD2tGSatiXzqJXV2QdE3ll6ywA=
+github.com/apache/incubator-yunikorn-scheduler-interface v0.12.2-1/go.mod h1:3tRnilDaaJISjaG8REYnsnRsfr+NymQ02Yjs983zRYY=
 github.com/armon/circbuf v0.0.0-20150827004946-bbbad097214e/go.mod h1:3U/XgcO3hCbHZ8TKRvWD2dDTCfh9M9ya+I9JpbB7O8o=
 github.com/armon/consul-api v0.0.0-20180202201655-eb2c6b5be1b6/go.mod h1:grANhF5doyWs3UAsr3K4I6qtAmlQcZDesFNEHPZAzj8=
 github.com/armon/go-metrics v0.0.0-20180917152333-f0300d1749da/go.mod h1:Q73ZrmVTwzkszR9V5SSuryQ31EELlFMUz1kKyl939pY=
