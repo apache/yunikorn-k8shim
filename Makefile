@@ -179,7 +179,15 @@ admission: init
 adm_image: admission
 	@echo "building admission controller docker images"
 	@cp ${ADMISSION_CONTROLLER_BIN_DIR}/${POD_ADMISSION_CONTROLLER_BINARY} ./deployments/image/admission
-	docker build ./deployments/image/admission -t ${REGISTRY}/yunikorn:admission-${VERSION}
+	@coreSHA=$$(go list -m "github.com/apache/incubator-yunikorn-core" | cut -d "-" -f5) ; \
+	siSHA=$$(go list -m "github.com/apache/incubator-yunikorn-scheduler-interface" | cut -d "-" -f6) ; \
+	shimSHA=$$(git rev-parse --short=12 HEAD) ; \
+	docker build ./deployments/image/admission -t ${REGISTRY}/yunikorn:admission-${VERSION} \
+	--label "yunikorn-core-revision=$${coreSHA}" \
+	--label "yunikorn-scheduler-interface-revision=$${siSHA}" \
+	--label "yunikorn-k8shim-revision=$${shimSHA}" \
+	--label "BuildTimeStamp=${DATE}" \
+	--label "Version=${VERSION}"
 	@rm -f ./deployments/image/admission/${POD_ADMISSION_CONTROLLER_BINARY}
 
 # Build gang web server and client binary in a production ready version
