@@ -45,6 +45,28 @@ const (
 	SchedulerPluginName = "YuniKornPlugin"
 )
 
+// YuniKornSchedulerPlugin provides an implementation of several lifecycle methods of the Kubernetes scheduling framework:
+//   https://kubernetes.io/docs/concepts/scheduling-eviction/scheduling-framework/
+//
+// PreFilter: Used to notify the default scheduler that a particular pod has been marked ready for scheduling by YuniKorn
+//
+// Filter: Used to notify the default scheduler that a particular pod/node combination is ready to be scheduled
+//
+// PostBind: Used to notify YuniKorn that a pod has been scheduled successfully
+//
+// Pod Allocations:
+//
+// The YuniKorn scheduler is always running in the background, making decisions about which pods to allocate to which
+// nodes. When a decision is made, that pod is marked as having a "pending" pod allocation, which means YuniKorn has
+// allocated the pod, but the default scheduler (via the plugin interface) has not yet been notified.
+//
+// Once PreFilter() has been called for a particular pod, that allocation is marked as "in progress" meaning it has been
+// communicated to the default scheduler, but has not yet been fulfilled.
+//
+// Finally, in PostBind(), the allocation is removed as we now know that the pod has been allocated successfully.
+// If a pending or in-progress allocation is detected for a pod in PreFilter(), we remove the allocation and force the
+// pod to be rescheduled, as this means the prior allocation could not be completed successfully by the default
+// scheduler for some reason.
 type YuniKornSchedulerPlugin struct {
 	sync.RWMutex
 	context *cache.Context
@@ -81,17 +103,13 @@ func (sp *YuniKornSchedulerPlugin) PreFilter(_ context.Context, _ *framework.Cyc
 				log.Logger().Info("Task failed scheduling, marking as rejected",
 					zap.String("pod", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)),
 					zap.String("taskID", task.GetTaskID()))
-				sp.context.RemovePendingPodAllocation(string(pod.UID))
+				sp.context.RemovePodAllocation(string(pod.UID))
 				dispatcher.Dispatch(cache.NewRejectTaskEvent(app.GetApplicationID(), task.GetTaskID(),
 					fmt.Sprintf("task %s rejected by scheduler", task.GetTaskID())))
 				return framework.NewStatus(framework.Unschedulable, "Pod is not ready for scheduling")
 			}
 
 			nodeID, ok := sp.context.GetPendingPodAllocation(string(pod.UID))
-			if !ok {
-				nodeID = "<none>"
-			}
-
 			if task.GetTaskState() == events.States().Task.Bound && ok {
 				log.Logger().Info("Releasing pod for scheduling (prefilter phase)",
 					zap.String("pod", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)),
@@ -162,7 +180,7 @@ func (sp *YuniKornSchedulerPlugin) PostBind(_ context.Context, _ *framework.Cycl
 				zap.String("pod", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)),
 				zap.String("taskID", task.GetTaskID()),
 				zap.String("assignedNode", nodeName))
-			sp.context.RemovePendingPodAllocation(string(pod.UID))
+			sp.context.RemovePodAllocation(string(pod.UID))
 		}
 	}
 }

@@ -450,8 +450,8 @@ func (ctx *Context) AddPendingPodAllocation(podKey string, nodeID string) {
 	ctx.schedulerCache.AddPendingPodAllocation(podKey, nodeID)
 }
 
-func (ctx *Context) RemovePendingPodAllocation(podKey string) {
-	ctx.schedulerCache.RemovePendingPodAllocation(podKey)
+func (ctx *Context) RemovePodAllocation(podKey string) {
+	ctx.schedulerCache.RemovePodAllocation(podKey)
 }
 
 func (ctx *Context) GetPendingPodAllocation(podKey string) (nodeID string, ok bool) {
@@ -599,7 +599,7 @@ func (ctx *Context) RemoveApplication(appID string) error {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
 	if app, exist := ctx.applications[appID]; exist {
-		//get the non-terminated task alias
+		// get the non-terminated task alias
 		nonTerminatedTaskAlias := app.getNonTerminatedTaskAlias()
 		// check there are any non-terminated task or not
 		if len(nonTerminatedTaskAlias) > 0 {
