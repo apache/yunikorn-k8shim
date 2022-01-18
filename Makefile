@@ -207,13 +207,10 @@ plugin_image: plugin
 	@cp ${RELEASE_BIN_DIR}/${PLUGIN_BINARY} ./deployments/image/plugin
 	@cp conf/scheduler-config.yaml ./deployments/image/plugin/scheduler-config.yaml
 	@sed -i'.bkp' 's/clusterVersion=.*"/clusterVersion=${VERSION}"/' deployments/image/plugin/Dockerfile
-	@coreSHA=$$(go list -m "github.com/apache/incubator-yunikorn-core" | cut -d "-" -f5) ; \
-	siSHA=$$(go list -m "github.com/apache/incubator-yunikorn-scheduler-interface" | cut -d "-" -f6) ; \
-	shimSHA=$$(git rev-parse --short=12 HEAD) ; \
 	docker build ./deployments/image/plugin -t ${REGISTRY}/yunikorn:scheduler-plugin-${VERSION} \
-	--label "yunikorn-core-revision=$${coreSHA}" \
-	--label "yunikorn-scheduler-interface-revision=$${siSHA}" \
-	--label "yunikorn-k8shim-revision=$${shimSHA}" \
+	--label "yunikorn-core-revision=${CORE_SHA}" \
+	--label "yunikorn-scheduler-interface-revision=${SI_SHA}" \
+	--label "yunikorn-k8shim-revision=${SHIM_SHA}" \
 	--label "BuildTimeStamp=${DATE}" \
 	--label "Version=${VERSION}"
 	@mv -f ./deployments/image/plugin/Dockerfile.bkp ./deployments/image/plugin/Dockerfile
