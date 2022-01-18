@@ -54,6 +54,11 @@ ifeq ($(VERSION),)
 VERSION := latest
 endif
 
+# Image hashes
+CORE_SHA=$$(go list -m "github.com/apache/incubator-yunikorn-core" | cut -d "-" -f5)
+SI_SHA=$$(go list -m "github.com/apache/incubator-yunikorn-scheduler-interface" | cut -d "-" -f6)
+SHIM_SHA=$$(git rev-parse --short=12 HEAD)
+
 # Kubeconfig
 ifeq ($(KUBECONFIG),)
 KUBECONFIG := $(HOME)/.kube/config
@@ -151,13 +156,10 @@ sched_image: scheduler
 	@cp ${RELEASE_BIN_DIR}/${BINARY} ./deployments/image/configmap
 	@mkdir -p ./deployments/image/configmap/admission-controller-init-scripts
 	@sed -i'.bkp' 's/clusterVersion=.*"/clusterVersion=${VERSION}"/' deployments/image/configmap/Dockerfile
-	@coreSHA=$$(go list -m "github.com/apache/incubator-yunikorn-core" | cut -d "-" -f5) ; \
-	siSHA=$$(go list -m "github.com/apache/incubator-yunikorn-scheduler-interface" | cut -d "-" -f6) ; \
-	shimSHA=$$(git rev-parse --short=12 HEAD) ; \
 	docker build ./deployments/image/configmap -t ${REGISTRY}/yunikorn:scheduler-${VERSION} \
-	--label "yunikorn-core-revision=$${coreSHA}" \
-	--label "yunikorn-scheduler-interface-revision=$${siSHA}" \
-	--label "yunikorn-k8shim-revision=$${shimSHA}" \
+	--label "yunikorn-core-revision=${CORE_SHA}" \
+	--label "yunikorn-scheduler-interface-revision=${SI_SHA}" \
+	--label "yunikorn-k8shim-revision=${SHIM_SHA}" \
 	--label "BuildTimeStamp=${DATE}" \
 	--label "Version=${VERSION}"
 	@mv -f ./deployments/image/configmap/Dockerfile.bkp ./deployments/image/configmap/Dockerfile
@@ -179,13 +181,10 @@ admission: init
 adm_image: admission
 	@echo "building admission controller docker images"
 	@cp ${ADMISSION_CONTROLLER_BIN_DIR}/${POD_ADMISSION_CONTROLLER_BINARY} ./deployments/image/admission
-	@coreSHA=$$(go list -m "github.com/apache/incubator-yunikorn-core" | cut -d "-" -f5) ; \
-	siSHA=$$(go list -m "github.com/apache/incubator-yunikorn-scheduler-interface" | cut -d "-" -f6) ; \
-	shimSHA=$$(git rev-parse --short=12 HEAD) ; \
 	docker build ./deployments/image/admission -t ${REGISTRY}/yunikorn:admission-${VERSION} \
-	--label "yunikorn-core-revision=$${coreSHA}" \
-	--label "yunikorn-scheduler-interface-revision=$${siSHA}" \
-	--label "yunikorn-k8shim-revision=$${shimSHA}" \
+	--label "yunikorn-core-revision=${CORE_SHA}" \
+	--label "yunikorn-scheduler-interface-revision=${SI_SHA}" \
+	--label "yunikorn-k8shim-revision=${SHIM_SHA}" \
 	--label "BuildTimeStamp=${DATE}" \
 	--label "Version=${VERSION}"
 	@rm -f ./deployments/image/admission/${POD_ADMISSION_CONTROLLER_BINARY}
