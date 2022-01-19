@@ -53,6 +53,7 @@ type Context struct {
 	schedulerCache *schedulercache.SchedulerCache // external cache
 	apiProvider    client.APIProvider             // apis to interact with api-server, scheduler-core, etc
 	predManager    predicates.PredicateManager    // K8s predicates
+	pluginMode     bool                           // true if we are configured as a scheduler plugin
 	lock           *sync.RWMutex                  // lock
 }
 
@@ -117,6 +118,14 @@ func (ctx *Context) AddSchedulingEventHandlers() {
 		UpdateFn: ctx.updateConfigMaps,
 		DeleteFn: ctx.deleteConfigMaps,
 	})
+}
+
+func (ctx *Context) IsPluginMode() bool {
+	return ctx.pluginMode
+}
+
+func (ctx *Context) SetPluginMode(pluginMode bool) {
+	ctx.pluginMode = pluginMode
 }
 
 func (ctx *Context) addNode(obj interface{}) {
@@ -437,6 +446,28 @@ func (ctx *Context) UpdateApplication(app *Application) {
 	ctx.applications[app.applicationID] = app
 }
 
+func (ctx *Context) AddPendingPodAllocation(podKey string, nodeID string) {
+	ctx.schedulerCache.AddPendingPodAllocation(podKey, nodeID)
+}
+
+func (ctx *Context) RemovePodAllocation(podKey string) {
+	ctx.schedulerCache.RemovePodAllocation(podKey)
+}
+
+func (ctx *Context) GetPendingPodAllocation(podKey string) (nodeID string, ok bool) {
+	nodeID, ok = ctx.schedulerCache.GetPendingPodAllocation(podKey)
+	return nodeID, ok
+}
+
+func (ctx *Context) GetInProgressPodAllocation(podKey string) (nodeID string, ok bool) {
+	nodeID, ok = ctx.schedulerCache.GetInProgressPodAllocation(podKey)
+	return nodeID, ok
+}
+
+func (ctx *Context) StartPodAllocation(podKey string, nodeID string) bool {
+	return ctx.schedulerCache.StartPodAllocation(podKey, nodeID)
+}
+
 // inform the scheduler that the application is completed,
 // the complete state may further explained to completed_with_errors(failed) or successfully_completed,
 // either way we need to release all allocations (if exists) for this application
@@ -568,7 +599,7 @@ func (ctx *Context) RemoveApplication(appID string) error {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
 	if app, exist := ctx.applications[appID]; exist {
-		//get the non-terminated task alias
+		// get the non-terminated task alias
 		nonTerminatedTaskAlias := app.getNonTerminatedTaskAlias()
 		// check there are any non-terminated task or not
 		if len(nonTerminatedTaskAlias) > 0 {

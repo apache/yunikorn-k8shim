@@ -141,7 +141,7 @@ func TestFailApplication(t *testing.T) {
 		defer rt.lock.Unlock()
 		rt.time++
 	}
-	events.SetRecorderForTest(mr)
+	events.SetRecorder(mr)
 	resources := make(map[v1.ResourceName]resource.Quantity)
 	containers := make([]v1.Container, 0)
 	containers = append(containers, v1.Container{
@@ -206,7 +206,7 @@ func TestFailApplication(t *testing.T) {
 	assertAppState(t, app2, events.States().Application.Failed, 3*time.Second)
 	assert.Equal(t, rt.time, int64(0))
 	// Test over, set Recorder back fake type
-	events.SetRecorderForTest(k8sEvents.NewFakeRecorder(1024))
+	events.SetRecorder(k8sEvents.NewFakeRecorder(1024))
 }
 
 func TestSetUnallocatedPodsToFailedWhenFailApplication(t *testing.T) {
@@ -234,7 +234,7 @@ func TestSetUnallocatedPodsToFailedWhenFailApplication(t *testing.T) {
 	conf.GetSchedulerConf().SetTestMode(true)
 	// set Recorder to mocked type
 	mr := events.NewMockedRecorder()
-	events.SetRecorderForTest(mr)
+	events.SetRecorder(mr)
 	resources := make(map[v1.ResourceName]resource.Quantity)
 	containers := make([]v1.Container, 0)
 	containers = append(containers, v1.Container{
@@ -315,7 +315,7 @@ func TestSetUnallocatedPodsToFailedWhenFailApplication(t *testing.T) {
 	assert.Equal(t, newPod3.Status.Phase, v1.PodFailed, 3*time.Second)
 	assert.Equal(t, newPod3.Status.Reason, constants.ApplicationInsufficientResourcesFailure, 3*time.Second)
 	// Test over, set Recorder back fake type
-	events.SetRecorderForTest(k8sEvents.NewFakeRecorder(1024))
+	events.SetRecorder(k8sEvents.NewFakeRecorder(1024))
 }
 
 func TestSetUnallocatedPodsToFailedWhenRejectApplication(t *testing.T) {
@@ -343,7 +343,7 @@ func TestSetUnallocatedPodsToFailedWhenRejectApplication(t *testing.T) {
 	conf.GetSchedulerConf().SetTestMode(true)
 	// set Recorder to mocked type
 	mr := events.NewMockedRecorder()
-	events.SetRecorderForTest(mr)
+	events.SetRecorder(mr)
 	resources := make(map[v1.ResourceName]resource.Quantity)
 	containers := make([]v1.Container, 0)
 	containers = append(containers, v1.Container{
@@ -416,7 +416,7 @@ func TestSetUnallocatedPodsToFailedWhenRejectApplication(t *testing.T) {
 	assert.Equal(t, newPod2.Status.Phase, v1.PodFailed, 3*time.Second)
 	assert.Equal(t, newPod2.Status.Reason, constants.ApplicationRejectedFailure, 3*time.Second)
 	// Test over, set Recorder back fake type
-	events.SetRecorderForTest(k8sEvents.NewFakeRecorder(1024))
+	events.SetRecorder(k8sEvents.NewFakeRecorder(1024))
 }
 
 func TestReleaseAppAllocation(t *testing.T) {

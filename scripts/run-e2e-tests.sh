@@ -115,9 +115,9 @@ function check_opt() {
 }
 
 function install_cluster() {
-  # 4 arguments are required
-  if [[ $# -ne 4 ]]; then
-    echo "expecting exactly 4 parameters for function install_cluster()"
+  # 5 arguments are required
+  if [[ $# -ne 5 ]]; then
+    echo "expecting exactly 5 parameters for function install_cluster()"
     return 1
   fi
 
@@ -125,6 +125,7 @@ function install_cluster() {
   kind_node_image=$2
   git_clone=$3
   charts_path=$4
+  scheduler_image=$5
 
   # Check if go is installed.
   check_cmd "go"
@@ -164,7 +165,7 @@ function install_cluster() {
   # install yunikorn
   echo "step 6/6: installing yunikorn scheduler"
   # load latest yunikorn docker images to kind
-  kind load docker-image local/yunikorn:scheduler-latest --name ${k8s_cluster_name}
+  kind load docker-image "local/yunikorn:${scheduler_image}" --name ${k8s_cluster_name}
   kind load docker-image local/yunikorn:admission-latest --name ${k8s_cluster_name}
 
   kubectl create namespace yunikorn
@@ -177,7 +178,7 @@ function install_cluster() {
 
   helm install yunikorn "${charts_path}" --namespace yunikorn \
     --set image.repository=local/yunikorn \
-    --set image.tag=scheduler-latest \
+    --set image.tag="${scheduler_image}" \
     --set image.pullPolicy=Never \
     --set admissionControllerImage.repository=local/yunikorn \
     --set admissionControllerImage.tag=admission-latest \
@@ -216,11 +217,12 @@ function delete_cluster() {
 
 function print_usage() {
     cat <<EOF
-Usage: $(basename "$0") -a <action> -n <kind-cluster-name> -v <kind-node-image-version> -p <chart-path>
+Usage: $(basename "$0") -a <action> -n <kind-cluster-name> -v <kind-node-image-version> [-p <chart-path>] [--plugin]
   <action>                     the action that needs to be executed, must be either "test" or "cleanup".
   <kind-cluster-name>          the name of the K8s cluster that created by kind.
   <kind-node-image-version>    the kind node image used to provision the K8s cluster.
-  <release-repo
+  <chart-path>                 local path to helm charts path (default is to pull from GitHub master)
+  --plugin                     use scheduler-plugin-latest image instead of scheduler-latest
 
 Examples:
   $(basename "$0") -a test -n "yk8s" -v "kindest/node:v1.19.11"
@@ -236,6 +238,7 @@ EOF
 
 charts_path=./incubator-yunikorn-release/helm-charts/yunikorn
 git_clone=true
+scheduler_image=scheduler-latest
 
 while [[ $# -gt 0 ]]; do
 key="$1"
@@ -261,6 +264,10 @@ case ${key} in
     shift
     shift
     ;;
+  --plugin)
+    scheduler_image="scheduler-plugin-latest"
+    shift
+    ;;
   -h|--help)
     print_usage
     exit 0
@@ -277,11 +284,13 @@ echo "action: ${action}"
 check_opt "${action}"
 echo "kind cluster name: ${cluster_name}"
 check_opt "${cluster_name}"
-echo "kind node image version ${cluster_version}"
+echo "kind node image version: ${cluster_version}"
 check_opt "${git_clone}"
-echo "git clone ${git_clone}"
+echo "git clone: ${git_clone}"
 check_opt "${charts_path}"
-echo "charts path ${charts_path}"
+echo "charts path: ${charts_path}"
+check_opt "${scheduler_image}"
+echo "scheduler image: ${scheduler_image}"
 
 # this script only supports 2 actions
 #   1) test
@@ -292,7 +301,7 @@ echo "charts path ${charts_path}"
 #     - delete yunikorn
 #     - delete k8s cluster
 if [ "${action}" == "test" ]; then
-  install_cluster "${cluster_name}" "${cluster_version}" "${git_clone}" "${charts_path}"
+  install_cluster "${cluster_name}" "${cluster_version}" "${git_clone}" "${charts_path}" "${scheduler_image}"
   echo "running e2e tests"
   make e2e_test
   exit_on_error "e2e tests failed"

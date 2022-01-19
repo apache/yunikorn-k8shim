@@ -32,27 +32,35 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 )
 
-// scheduler cache maintains some critical information about nodes and pods used for scheduling
-// nodes are cached in the form of de-scheduler nodeInfo, instead of re-creating all nodes info from scratch,
+// SchedulerCache maintains some critical information about nodes and pods used for scheduling.
+// Nodes are cached in the form of de-scheduler nodeInfo. Instead of re-creating all nodes info from scratch,
 // we replicate nodes info from de-scheduler, in order to re-use predicates functions.
+//
+// When running YuniKorn as a scheduler plugin, we also track pod allocations that YuniKorn has decided upon, but which
+// have not yet been fulfilled by the default scheduler. This tracking is needed to ensure that we pass along
+// allocations to the default scheduler once (and only) once. Allocations can be in one of two states, either pending or
+// in-progress. A pending allocation is one which has been decided upon by YuniKorn but has not yet been communicated
+// to the default scheduler via PreFilter() / Filter(). Once PreFilter() / Filter() pass, the allocation transitions
+// to in-progress to signify that the default scheduler is responsible for fulfilling the allocation. Once PostBind()
+// is called in the plugin to signify completion of the allocation, it is removed.
 type SchedulerCache struct {
-	// node name to NodeInfo map
-	nodesMap map[string]*framework.NodeInfo
-	podsMap  map[string]*v1.Pod
-	// this is a map of assumed pods,
-	// the value indicates if a pod volumes are all bound
-	assumedPods map[string]bool
-	lock        sync.RWMutex
-	// client APIs
-	clients *client.Clients
+	nodesMap              map[string]*framework.NodeInfo // node name to NodeInfo map
+	podsMap               map[string]*v1.Pod
+	assumedPods           map[string]bool   // map of assumed pods, value indicates if pod volumes are all bound
+	pendingAllocations    map[string]string // map of pod to node ID, presence indicates a pending allocation for scheduler
+	inProgressAllocations map[string]string // map of pod to node ID, presence indicates an in-process allocation for scheduler
+	lock                  sync.RWMutex
+	clients               *client.Clients // client APIs
 }
 
 func NewSchedulerCache(clients *client.Clients) *SchedulerCache {
 	cache := &SchedulerCache{
-		nodesMap:    make(map[string]*framework.NodeInfo),
-		podsMap:     make(map[string]*v1.Pod),
-		assumedPods: make(map[string]bool),
-		clients:     clients,
+		nodesMap:              make(map[string]*framework.NodeInfo),
+		podsMap:               make(map[string]*v1.Pod),
+		assumedPods:           make(map[string]bool),
+		pendingAllocations:    make(map[string]string),
+		inProgressAllocations: make(map[string]string),
+		clients:               clients,
 	}
 	return cache
 }
@@ -130,6 +138,58 @@ func (cache *SchedulerCache) removeNode(node *v1.Node) error {
 
 	delete(cache.nodesMap, node.Name)
 	return nil
+}
+
+// AddPendingPodAllocation is used to add a new pod -> node mapping to the cache when running in scheduler plugin mode.
+// This function is called (in plugin mode) after a task is allocated by the YuniKorn scheduler.
+func (cache *SchedulerCache) AddPendingPodAllocation(podKey string, nodeID string) {
+	cache.lock.Lock()
+	defer cache.lock.Unlock()
+	delete(cache.inProgressAllocations, podKey)
+	cache.pendingAllocations[podKey] = nodeID
+}
+
+// RemovePodAllocation is used to remove a pod -> node mapping from the cache when running in scheduler plugin
+// mode. It removes both pending and in-progress allocations. This function is called (via cache) from the scheduler
+// plugin in PreFilter() if a previous allocation was found, and in PostBind() to cleanup the allocation since it is no
+// longer relevant.
+func (cache *SchedulerCache) RemovePodAllocation(podKey string) {
+	cache.lock.Lock()
+	defer cache.lock.Unlock()
+	delete(cache.pendingAllocations, podKey)
+	delete(cache.inProgressAllocations, podKey)
+}
+
+// GetPendingPodAllocation is used in scheduler plugin mode to retrieve a pending pod allocation. A pending
+// allocation is one which has been decided upon by YuniKorn but has not yet been communicated to the default scheduler.
+func (cache *SchedulerCache) GetPendingPodAllocation(podKey string) (nodeID string, ok bool) {
+	cache.lock.RLock()
+	defer cache.lock.RUnlock()
+	res, ok := cache.pendingAllocations[podKey]
+	return res, ok
+}
+
+// GetInProgressPodAllocation is used in scheduler plugin mode to retrieve an in-progress pod allocation. An in-progress
+// allocation is one which has been communicated to the default scheduler, but has not yet been bound.
+func (cache *SchedulerCache) GetInProgressPodAllocation(podKey string) (nodeID string, ok bool) {
+	cache.lock.RLock()
+	defer cache.lock.RUnlock()
+	res, ok := cache.inProgressAllocations[podKey]
+	return res, ok
+}
+
+// StartPodAllocation is used in scheduler plugin mode to transition a pod allocation from pending to in-progress. If
+// the given pod has a pending allocation on the given node, the allocation is marked as in-progress and this function
+// returns true. If the pod is not pending or is pending on another node, this function does nothing and returns false.
+func (cache *SchedulerCache) StartPodAllocation(podKey string, nodeID string) bool {
+	cache.lock.Lock()
+	defer cache.lock.Unlock()
+	expectedNodeID, ok := cache.pendingAllocations[podKey]
+	if ok && expectedNodeID == nodeID {
+		delete(cache.pendingAllocations, podKey)
+		cache.inProgressAllocations[podKey] = nodeID
+	}
+	return ok
 }
 
 // return if pod is assumed in cache, avoid nil
@@ -249,6 +309,8 @@ func (cache *SchedulerCache) removePod(pod *v1.Pod) error {
 			return err
 		}
 	}
+	delete(cache.pendingAllocations, string(pod.UID))
+	delete(cache.inProgressAllocations, string(pod.UID))
 	return nil
 }
 
@@ -269,9 +331,9 @@ func (cache *SchedulerCache) AssumePod(pod *v1.Pod, allBound bool) error {
 
 	cache.lock.Lock()
 	defer cache.lock.Unlock()
-	//if _, ok := cache.podsMap[key]; ok {
+	// if _, ok := cache.podsMap[key]; ok {
 	//	return fmt.Errorf("pod %v is in the cache, so can't be assumed", key)
-	//}
+	// }
 
 	cache.addPod(pod)
 	cache.podsMap[key] = pod
