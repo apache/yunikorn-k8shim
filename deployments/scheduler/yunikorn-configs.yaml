@@ -30,3 +30,4 @@ data:
         queues:
           - name: root
             submitacl: '*'
+  stateDumpFilePath: "yunikorn-state.txt"

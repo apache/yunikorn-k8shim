@@ -47,6 +47,11 @@ spec:
               value: myCluster
             - name: CLUSTER_VERSION
               value: latest
+            - name: STATE_DUMP_FILE_PATH
+              valueFrom:
+                configMapKeyRef:
+                  name: yunikorn-configs
+                  key: stateDumpFilePath
           resources:
             requests:
               cpu: 200m
