@@ -225,7 +225,6 @@ Usage: $(basename "$0") -a <action> -n <kind-cluster-name> -v <kind-node-image-v
   --plugin                     use scheduler-plugin-latest image instead of scheduler-latest
 
 Examples:
-  $(basename "$0") -a test -n "yk8s" -v "kindest/node:v1.19.11"
   $(basename "$0") -a test -n "yk8s" -v "kindest/node:v1.20.7"
   $(basename "$0") -a test -n "yk8s" -v "kindest/node:v1.21.2"
   $(basename "$0") -a test -n "yk8s" -v "kindest/node:v1.22.4"
