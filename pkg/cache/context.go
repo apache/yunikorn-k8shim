@@ -31,6 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/tools/cache"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
+	"k8s.io/kubernetes/pkg/controller/volume/scheduling"
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
 	schedulercache "github.com/apache/incubator-yunikorn-k8shim/pkg/cache/external"
@@ -53,6 +54,7 @@ type Context struct {
 	schedulerCache *schedulercache.SchedulerCache // external cache
 	apiProvider    client.APIProvider             // apis to interact with api-server, scheduler-core, etc
 	predManager    predicates.PredicateManager    // K8s predicates
+	pluginMode     bool                           // true if we are configured as a scheduler plugin
 	lock           *sync.RWMutex                  // lock
 }
 
@@ -117,6 +119,14 @@ func (ctx *Context) AddSchedulingEventHandlers() {
 		UpdateFn: ctx.updateConfigMaps,
 		DeleteFn: ctx.deleteConfigMaps,
 	})
+}
+
+func (ctx *Context) IsPluginMode() bool {
+	return ctx.pluginMode
+}
+
+func (ctx *Context) SetPluginMode(pluginMode bool) {
+	ctx.pluginMode = pluginMode
 }
 
 func (ctx *Context) addNode(obj interface{}) {
@@ -356,19 +366,68 @@ func (ctx *Context) bindPodVolumes(pod *v1.Pod) error {
 				zap.String("podName", pod.Name))
 		} else {
 			log.Logger().Info("Binding Pod Volumes", zap.String("podName", pod.Name))
-			boundClaims, claimsToBind, _, err := ctx.apiProvider.GetAPIs().VolumeBinder.GetPodVolumes(assumedPod)
+			boundClaims, claimsToBind, unboundClaimsImmediate, err := ctx.apiProvider.GetAPIs().VolumeBinder.GetPodVolumes(assumedPod)
 			if err != nil {
+				log.Logger().Error("Failed to get pod volumes",
+					zap.String("podName", assumedPod.Name),
+					zap.Error(err))
+				return err
+			}
+			if len(unboundClaimsImmediate) > 0 {
+				err = fmt.Errorf("pod %s has unbound immediate claims", pod.Name)
+				log.Logger().Error("Pod has unbound immediate claims",
+					zap.String("podName", assumedPod.Name),
+					zap.Error(err))
 				return err
 			}
 			node, err := ctx.schedulerCache.GetNodeInfo(assumedPod.Spec.NodeName)
 			if err != nil {
+				log.Logger().Error("Failed to get node info",
+					zap.String("podName", assumedPod.Name),
+					zap.String("nodeName", assumedPod.Spec.NodeName),
+					zap.Error(err))
 				return err
 			}
-			volumes, _, err := ctx.apiProvider.GetAPIs().VolumeBinder.FindPodVolumes(assumedPod, boundClaims, claimsToBind, node)
+			volumes, reasons, err := ctx.apiProvider.GetAPIs().VolumeBinder.FindPodVolumes(assumedPod, boundClaims, claimsToBind, node)
 			if err != nil {
+				log.Logger().Error("Failed to find pod volumes",
+					zap.String("podName", assumedPod.Name),
+					zap.String("nodeName", assumedPod.Spec.NodeName),
+					zap.Int("claimsToBind", len(claimsToBind)),
+					zap.Error(err))
 				return err
 			}
-			return ctx.apiProvider.GetAPIs().VolumeBinder.BindPodVolumes(assumedPod, volumes)
+			if len(reasons) > 0 {
+				sReasons := make([]string, 0)
+				for _, reason := range reasons {
+					sReasons = append(sReasons, string(reason))
+				}
+				sReason := strings.Join(sReasons, ", ")
+				err = fmt.Errorf("pod %s has conflicting volume claims: %s", pod.Name, sReason)
+				log.Logger().Error("Pod has conflicting volume claims",
+					zap.String("podName", assumedPod.Name),
+					zap.String("nodeName", assumedPod.Spec.NodeName),
+					zap.Int("claimsToBind", len(claimsToBind)),
+					zap.Error(err))
+				return err
+			}
+			if volumes.StaticBindings == nil {
+				// convert nil to empty array
+				volumes.StaticBindings = make([]*scheduling.BindingInfo, 0)
+			}
+			if volumes.DynamicProvisions == nil {
+				// convert nil to empty array
+				volumes.DynamicProvisions = make([]*v1.PersistentVolumeClaim, 0)
+			}
+			err = ctx.apiProvider.GetAPIs().VolumeBinder.BindPodVolumes(assumedPod, volumes)
+			if err != nil {
+				log.Logger().Error("Failed to bind pod volumes",
+					zap.String("podName", assumedPod.Name),
+					zap.String("nodeName", assumedPod.Spec.NodeName),
+					zap.Int("dynamicProvisions", len(volumes.DynamicProvisions)),
+					zap.Int("staticBindings", len(volumes.StaticBindings)))
+				return err
+			}
 		}
 	}
 	return nil
@@ -435,6 +494,28 @@ func (ctx *Context) UpdateApplication(app *Application) {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
 	ctx.applications[app.applicationID] = app
+}
+
+func (ctx *Context) AddPendingPodAllocation(podKey string, nodeID string) {
+	ctx.schedulerCache.AddPendingPodAllocation(podKey, nodeID)
+}
+
+func (ctx *Context) RemovePodAllocation(podKey string) {
+	ctx.schedulerCache.RemovePodAllocation(podKey)
+}
+
+func (ctx *Context) GetPendingPodAllocation(podKey string) (nodeID string, ok bool) {
+	nodeID, ok = ctx.schedulerCache.GetPendingPodAllocation(podKey)
+	return nodeID, ok
+}
+
+func (ctx *Context) GetInProgressPodAllocation(podKey string) (nodeID string, ok bool) {
+	nodeID, ok = ctx.schedulerCache.GetInProgressPodAllocation(podKey)
+	return nodeID, ok
+}
+
+func (ctx *Context) StartPodAllocation(podKey string, nodeID string) bool {
+	return ctx.schedulerCache.StartPodAllocation(podKey, nodeID)
 }
 
 // inform the scheduler that the application is completed,
@@ -568,7 +649,7 @@ func (ctx *Context) RemoveApplication(appID string) error {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
 	if app, exist := ctx.applications[appID]; exist {
-		//get the non-terminated task alias
+		// get the non-terminated task alias
 		nonTerminatedTaskAlias := app.getNonTerminatedTaskAlias()
 		// check there are any non-terminated task or not
 		if len(nonTerminatedTaskAlias) > 0 {

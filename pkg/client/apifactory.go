@@ -78,11 +78,8 @@ type APIFactory struct {
 	lock     *sync.RWMutex
 }
 
-func NewAPIFactory(scheduler api.SchedulerAPI, configs *conf.SchedulerConf, testMode bool) *APIFactory {
+func NewAPIFactory(scheduler api.SchedulerAPI, informerFactory informers.SharedInformerFactory, configs *conf.SchedulerConf, testMode bool) *APIFactory {
 	kubeClient := NewKubeClient(configs.KubeConfig)
-
-	// we have disabled re-sync to keep ourselves up-to-date
-	informerFactory := informers.NewSharedInformerFactory(kubeClient.GetClientSet(), 0)
 
 	// init informers
 	// volume informers are also used to get the Listers for the predicates

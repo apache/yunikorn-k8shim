@@ -52,6 +52,13 @@ func GetRecorder() events.EventRecorder {
 	return eventRecorder
 }
 
+func SetRecorder(recorder events.EventRecorder) {
+	lock.Lock()
+	defer lock.Unlock()
+	eventRecorder = recorder
+	once.Do(func() {}) // make sure Do() doesn't fire elsewhere
+}
+
 func SetRecorderForTest(recorder events.EventRecorder) {
 	lock.Lock()
 	defer lock.Unlock()

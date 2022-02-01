@@ -29,6 +29,8 @@ require (
 	github.com/looplab/fsm v0.1.0
 	github.com/onsi/ginkgo v1.11.0
 	github.com/onsi/gomega v1.7.0
+	github.com/spf13/cobra v1.1.1
+	github.com/spf13/pflag v1.0.5
 	go.uber.org/zap v1.13.0
 	gopkg.in/yaml.v2 v2.2.8
 	gotest.tools v2.2.0+incompatible
@@ -36,6 +38,7 @@ require (
 	k8s.io/apimachinery v0.20.11
 	k8s.io/apiserver v0.20.11
 	k8s.io/client-go v0.20.11
+	k8s.io/component-base v0.20.11
 	k8s.io/klog v1.0.0
 	k8s.io/kube-scheduler v0.20.11
 	k8s.io/kubernetes v1.20.11

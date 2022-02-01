@@ -115,6 +115,7 @@ func admissionResponseBuilder(uid string, allowed bool, resultMessage string, pa
 	}
 	return res
 }
+
 func (c *admissionController) mutate(req *admissionv1.AdmissionRequest) *admissionv1.AdmissionResponse {
 	if req == nil {
 		log.Logger().Warn("empty request received")
@@ -149,7 +150,7 @@ func (c *admissionController) mutate(req *admissionv1.AdmissionRequest) *admissi
 	if labelAppValue, ok := pod.Labels[constants.LabelApp]; ok {
 		if labelAppValue == yunikornPod {
 			log.Logger().Info("ignore yunikorn pod")
-			admissionResponseBuilder(uid, true, "", nil)
+			return admissionResponseBuilder(uid, true, "", nil)
 		}
 	}
 

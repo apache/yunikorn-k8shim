@@ -29,6 +29,7 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/shim"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/api"
 )
 
@@ -45,14 +46,14 @@ func main() {
 	serviceContext := entrypoint.StartAllServicesWithLogger(log.Logger(), log.GetZapConfigs())
 
 	if sa, ok := serviceContext.RMProxy.(api.SchedulerAPI); ok {
-		ss := newShimScheduler(sa, conf.GetSchedulerConf())
-		ss.run()
+		ss := shim.NewShimScheduler(sa, conf.GetSchedulerConf())
+		ss.Run()
 
 		signalChan := make(chan os.Signal, 1)
 		signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
 		for range signalChan {
 			log.Logger().Info("Shutdown signal received, exiting...")
-			ss.stop()
+			ss.Stop()
 			os.Exit(0)
 		}
 	}

@@ -30,6 +30,8 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 )
 
+type SchedulerConfFactory = func() *SchedulerConf
+
 // default configuration values, these can be override by CLI options
 const (
 	DefaultClusterID            = "my-kube-cluster"
@@ -47,8 +49,10 @@ const (
 
 var once sync.Once
 var configuration *SchedulerConf
+var factory = initConfigs
 
 type SchedulerConf struct {
+	SchedulerName          string        `json:"schedulerName"`
 	ClusterID              string        `json:"clusterId"`
 	ClusterVersion         string        `json:"clusterVersion"`
 	PolicyGroup            string        `json:"policyGroup"`
@@ -71,8 +75,12 @@ type SchedulerConf struct {
 	sync.RWMutex
 }
 
+func SetSchedulerConfFactory(confFactory SchedulerConfFactory) {
+	factory = confFactory
+}
+
 func GetSchedulerConf() *SchedulerConf {
-	once.Do(initConfigs)
+	once.Do(createConfigs)
 	return configuration
 }
 
@@ -117,7 +125,11 @@ func (conf *SchedulerConf) IsOperatorPluginEnabled(name string) bool {
 	return false
 }
 
-func initConfigs() {
+func createConfigs() {
+	configuration = factory()
+}
+
+func initConfigs() *SchedulerConf {
 	// scheduler options
 	kubeConfig := flag.String("kubeConfig", "",
 		"absolute path to the kubeconfig file")
@@ -170,7 +182,8 @@ func initConfigs() {
 		_ = flag.Set("v", "4")
 	}
 
-	configuration = &SchedulerConf{
+	return &SchedulerConf{
+		SchedulerName:          constants.SchedulerName,
 		ClusterID:              *clusterID,
 		ClusterVersion:         *clusterVersion,
 		PolicyGroup:            *policyGroup,

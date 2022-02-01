@@ -16,7 +16,7 @@
  limitations under the License.
 */
 
-package main
+package shim
 
 import (
 	"fmt"
@@ -82,7 +82,7 @@ func (fc *MockScheduler) init(queues string) {
 }
 
 func (fc *MockScheduler) start() {
-	fc.scheduler.run()
+	fc.scheduler.Run()
 }
 
 func (fc *MockScheduler) addNode(nodeName string, memory, cpu int64) error {
@@ -215,5 +215,5 @@ func (fc *MockScheduler) waitAndVerifySchedulerAllocations(
 
 func (fc *MockScheduler) stop() {
 	close(fc.stopChan)
-	fc.scheduler.stop()
+	fc.scheduler.Stop()
 }
