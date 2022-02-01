@@ -1,4 +1,5 @@
 //go:build graphviz
+// +build graphviz
 
 /*
  Licensed to the Apache Software Foundation (ASF) under one
