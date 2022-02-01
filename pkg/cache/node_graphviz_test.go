@@ -1,4 +1,4 @@
-// +build graphviz
+//go:build graphviz
 
 /*
  Licensed to the Apache Software Foundation (ASF) under one
@@ -21,7 +21,6 @@
 package cache
 
 import (
-	"io/ioutil"
 	"os"
 	"testing"
 
@@ -44,6 +43,6 @@ func TestNodeFsmGraph(t *testing.T) {
 
 	err := os.MkdirAll("../../_output/fsm", 0755)
 	assert.NilError(t, err, "Creating output dir failed")
-	ioutil.WriteFile("../../_output/fsm/k8shim-node-state.dot", []byte(graph), 0644)
+	os.WriteFile("../../_output/fsm/k8shim-node-state.dot", []byte(graph), 0644)
 	assert.NilError(t, err, "Writing graph failed")
 }

@@ -22,7 +22,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"regexp"
@@ -301,7 +301,7 @@ func (c *admissionController) validateConfigMap(cm *v1.ConfigMap) error {
 				return err
 			}
 			defer response.Body.Close()
-			responseBytes, err := ioutil.ReadAll(response.Body)
+			responseBytes, err := io.ReadAll(response.Body)
 			if err != nil {
 				return err
 			}
@@ -337,7 +337,7 @@ func (c *admissionController) serve(w http.ResponseWriter, r *http.Request) {
 	var body []byte
 	if r.Body != nil {
 		var err error
-		body, err = ioutil.ReadAll(r.Body)
+		body, err = io.ReadAll(r.Body)
 		if err != nil || len(body) == 0 {
 			log.Logger().Debug("illegal request received: body invalid", zap.Error(err))
 			http.Error(w, "empty or invalid body", http.StatusBadRequest)

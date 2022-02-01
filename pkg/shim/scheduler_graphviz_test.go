@@ -1,4 +1,4 @@
-// +build graphviz
+//go:build graphviz
 
 /*
  Licensed to the Apache Software Foundation (ASF) under one
@@ -22,7 +22,6 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"testing"
 
@@ -56,7 +55,6 @@ func TestSchedulerFsmGraph(t *testing.T) {
 
 	err := os.MkdirAll("../../_output/fsm", 0755)
 	assert.NilError(t, err, "Creating output dir failed")
-	ioutil.WriteFile("../../_output/fsm/k8shim-scheduler-state.dot", []byte(graph), 0644)
+	os.WriteFile("../../_output/fsm/k8shim-scheduler-state.dot", []byte(graph), 0644)
 	assert.NilError(t, err, "Writing graph failed")
 }
-
