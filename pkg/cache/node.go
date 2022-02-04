@@ -19,6 +19,7 @@
 package cache
 
 import (
+	"strconv"
 	"sync"
 
 	"github.com/looplab/fsm"
@@ -42,6 +43,7 @@ type SchedulerNode struct {
 	capacity            *si.Resource
 	occupied            *si.Resource
 	schedulable         bool
+	ready               bool
 	existingAllocations []*si.Allocation
 	schedulerAPI        api.SchedulerAPI
 	fsm                 *fsm.FSM
@@ -49,7 +51,7 @@ type SchedulerNode struct {
 }
 
 func newSchedulerNode(nodeName string, nodeUID string, nodeLabels string,
-	nodeResource *si.Resource, schedulerAPI api.SchedulerAPI, schedulable bool) *SchedulerNode {
+	nodeResource *si.Resource, schedulerAPI api.SchedulerAPI, schedulable bool, ready bool) *SchedulerNode {
 	schedulerNode := &SchedulerNode{
 		name:         nodeName,
 		uid:          nodeUID,
@@ -59,6 +61,7 @@ func newSchedulerNode(nodeName string, nodeUID string, nodeLabels string,
 		schedulerAPI: schedulerAPI,
 		schedulable:  schedulable,
 		lock:         &sync.RWMutex{},
+		ready:        ready,
 	}
 	schedulerNode.initFSM()
 	return schedulerNode
@@ -162,6 +165,7 @@ func (n *SchedulerNode) handleNodeRecovery(event *fsm.Event) {
 					constants.DefaultNodeAttributeHostNameKey:   n.name,
 					constants.DefaultNodeAttributeRackNameKey:   constants.DefaultRackName,
 					constants.DefaultNodeAttributeNodeLabelsKey: n.labels,
+					"ready": strconv.FormatBool(n.ready),
 				},
 				ExistingAllocations: n.existingAllocations,
 				Action:              si.NodeInfo_CREATE,

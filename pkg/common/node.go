@@ -28,12 +28,13 @@ import (
 type Node struct {
 	name     string
 	uid      string
+	ready    bool
 	capacity *si.Resource
 	occupied *si.Resource
 }
 
 func NewNode(name, uid string, capacity *si.Resource, occupied *si.Resource) Node {
-	return Node{name, uid, capacity, occupied}
+	return Node{name, uid, true, capacity, occupied}
 }
 
 func CreateFrom(node *v1.Node) Node {
@@ -41,6 +42,7 @@ func CreateFrom(node *v1.Node) Node {
 		name:     node.Name,
 		uid:      string(node.UID),
 		capacity: GetNodeResource(&node.Status),
+		ready:    HasReadyCondition(node),
 	}
 }
 
@@ -50,4 +52,13 @@ func CreateFromNodeSpec(nodeName string, nodeUID string, nodeResource *si.Resour
 		uid:      nodeUID,
 		capacity: nodeResource,
 	}
+}
+
+func HasReadyCondition(node *v1.Node) bool {
+	for _, condition := range node.Status.Conditions {
+		if condition.Type == v1.NodeReady && condition.Status == v1.ConditionTrue {
+			return true
+		}
+	}
+	return false
 }

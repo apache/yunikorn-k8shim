@@ -67,6 +67,6 @@ func NewTestSchedulerNode() *SchedulerNode {
 		AddResource(constants.Memory, 1).
 		AddResource(constants.CPU, 1).
 		Build()
-	node := newSchedulerNode("host001", "UID001", "{\"label1\":\"key1\",\"label2\":\"key2\"}", r1, api, false)
+	node := newSchedulerNode("host001", "UID001", "{\"label1\":\"key1\",\"label2\":\"key2\"}", r1, api, false, true)
 	return node
 }
