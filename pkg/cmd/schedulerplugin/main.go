@@ -40,6 +40,9 @@ func main() {
 	pluginconf.BuildVersion = version
 	pluginconf.BuildDate = date
 
+	conf.Version = version
+	conf.Date = date
+
 	command := app.NewSchedulerCommand(
 		app.WithPlugin(schedulerplugin.SchedulerPluginName, schedulerplugin.NewSchedulerPlugin))
 

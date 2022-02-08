@@ -54,7 +54,7 @@ spec:
             limits:
               cpu: 4
               memory: 2Gi
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Never
           ports:
             - containerPort: 9080
             - containerPort: 9090
