@@ -215,6 +215,14 @@ func (ctx *Context) addPodToCache(obj interface{}) {
 		return
 	}
 
+	// if a terminated pod is added to cache, it will
+	// add requested resource to the cached node, causing
+	// the node uses more resources that it actually is,
+	// this can only be fixed after the pod is removed.
+	if utils.IsPodTerminated(pod) {
+		return
+	}
+
 	log.Logger().Debug("adding pod to cache", zap.String("podName", pod.Name))
 	if err := ctx.schedulerCache.AddPod(pod); err != nil {
 		log.Logger().Error("add pod to scheduler cache failed",
@@ -241,11 +249,7 @@ func (ctx *Context) removePodFromCache(obj interface{}) {
 	}
 
 	log.Logger().Debug("removing pod from cache", zap.String("podName", pod.Name))
-	if err := ctx.schedulerCache.RemovePod(pod); err != nil {
-		log.Logger().Debug("failed to remove pod from scheduler cache",
-			zap.String("podName", pod.Name),
-			zap.Error(err))
-	}
+	ctx.schedulerCache.RemovePod(pod)
 }
 
 func (ctx *Context) updatePodInCache(oldObj, newObj interface{}) {
@@ -260,6 +264,11 @@ func (ctx *Context) updatePodInCache(oldObj, newObj interface{}) {
 		return
 	}
 
+	// ignore terminated pods
+	if utils.IsPodTerminated(newPod) {
+		return
+	}
+
 	if err := ctx.schedulerCache.UpdatePod(oldPod, newPod); err != nil {
 		log.Logger().Debug("failed to update pod in cache",
 			zap.String("podName", oldPod.Name),
@@ -271,13 +280,7 @@ func (ctx *Context) updatePodInCache(oldObj, newObj interface{}) {
 func (ctx *Context) filterPods(obj interface{}) bool {
 	switch obj := obj.(type) {
 	case *v1.Pod:
-		// if a terminated pod is added to cache, it will
-		// add requested resource to the cached node, causing
-		// the node uses more resources that it actually is,
-		// this can only be fixed after the pod is removed.
-		// (trigger the delete pod)
-		return utils.GeneralPodFilter(obj) &&
-			!utils.IsPodTerminated(obj)
+		return utils.GeneralPodFilter(obj)
 	default:
 		return false
 	}

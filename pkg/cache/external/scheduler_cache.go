@@ -217,30 +217,26 @@ func (cache *SchedulerCache) AddPod(pod *v1.Pod) error {
 	defer cache.lock.Unlock()
 
 	currState, ok := cache.podsMap[key]
-	switch {
-	case ok && cache.isAssumedPod(key):
-		if currState.Spec.NodeName != pod.Spec.NodeName {
-			// The pod was added to a different node than it was assumed to.
-			log.Logger().Warn("inconsistent pod location",
-				zap.String("assumedLocation", pod.Spec.NodeName),
-				zap.String("actualLocation", currState.Spec.NodeName))
-
-			// Clean this up.
-			err = cache.removePod(currState)
-			if err != nil {
-				log.Logger().Debug("node not in cache",
-					zap.Error(err))
+	if ok {
+		// pod exists
+		if cache.isAssumedPod(key) {
+			if currState.Spec.NodeName != pod.Spec.NodeName {
+				// pod was added to a different node than it was assumed to
+				log.Logger().Warn("inconsistent pod location",
+					zap.String("assumedLocation", pod.Spec.NodeName),
+					zap.String("actualLocation", currState.Spec.NodeName))
+				cache.removePod(currState, false)
+				cache.addPod(pod, key)
 			}
-			cache.addPod(pod)
+			delete(cache.assumedPods, key)
+			cache.podsMap[key] = pod
+		} else {
+			// update pod instead
+			cache.updatePod(currState, pod, key)
 		}
-		delete(cache.assumedPods, key)
-		cache.podsMap[key] = pod
-	case !ok:
-		// Pod was expired. We should add it back.
-		cache.addPod(pod)
-		cache.podsMap[key] = pod
-	default:
-		log.Logger().Debug("pod was already in added state", zap.String("pod", key))
+	} else {
+		// add pod
+		cache.addPod(pod, key)
 	}
 	return nil
 }
@@ -255,26 +251,31 @@ func (cache *SchedulerCache) UpdatePod(oldPod, newPod *v1.Pod) error {
 	defer cache.lock.Unlock()
 
 	currState, ok := cache.podsMap[key]
-	switch {
-	// An assumed pod won't have Update/Remove event. It needs to have Add event
-	// before Update event, in which case the state would change from Assumed to Added.
-	case ok && !cache.isAssumedPod(key):
-		if currState.Spec.NodeName != newPod.Spec.NodeName {
-			log.Logger().Error("pod updated on a different node than previously added to", zap.String("pod", key))
-			log.Logger().Error("scheduler cache is corrupted and can badly affect scheduling decisions")
+	if ok {
+		// pod exists and is assumed
+		if cache.isAssumedPod(key) {
+			if currState.Spec.NodeName != newPod.Spec.NodeName {
+				// pod was added to a different node than it was assumed to
+				log.Logger().Warn("pod updated on different node than previously added to",
+					zap.String("assumedLocation", newPod.Spec.NodeName),
+					zap.String("actualLocation", currState.Spec.NodeName))
+				cache.removePod(oldPod, false)
+				cache.addPod(newPod, key)
+				delete(cache.assumedPods, key)
+				cache.podsMap[key] = newPod
+			}
 		}
-		if err = cache.updatePod(oldPod, newPod); err != nil {
-			return err
-		}
-		cache.podsMap[key] = newPod
-	default:
-		return fmt.Errorf("pod %v is not added to scheduler cache, so cannot be updated", key)
+		// update it
+		cache.updatePod(oldPod, newPod, key)
+	} else {
+		// pod does not exist yet, add it
+		cache.addPod(newPod, key)
 	}
 	return nil
 }
 
 // Assumes that lock is already acquired.
-func (cache *SchedulerCache) addPod(pod *v1.Pod) {
+func (cache *SchedulerCache) addPod(pod *v1.Pod, key string) {
 	if pod.Spec.NodeName != "" {
 		n, ok := cache.nodesMap[pod.Spec.NodeName]
 		if !ok {
@@ -283,35 +284,49 @@ func (cache *SchedulerCache) addPod(pod *v1.Pod) {
 		}
 		n.AddPod(pod)
 	}
+	cache.podsMap[key] = pod
 }
 
-func (cache *SchedulerCache) updatePod(oldPod, newPod *v1.Pod) error {
-	if err := cache.removePod(oldPod); err != nil {
-		return err
-	}
-	cache.addPod(newPod)
-	return nil
+func (cache *SchedulerCache) updatePod(oldPod, newPod *v1.Pod, key string) {
+	// remove old version from cache
+	cache.removePod(oldPod, false)
+
+	// add new version to cache
+	cache.addPod(newPod, key)
 }
 
-func (cache *SchedulerCache) RemovePod(pod *v1.Pod) error {
+func (cache *SchedulerCache) RemovePod(pod *v1.Pod) {
 	cache.lock.Lock()
 	defer cache.lock.Unlock()
-	return cache.removePod(pod)
+	cache.removePod(pod, true)
 }
 
-func (cache *SchedulerCache) removePod(pod *v1.Pod) error {
+func (cache *SchedulerCache) removePod(pod *v1.Pod, removeAlloc bool) {
+	if removeAlloc {
+		// remove pod from any pending or in-progress allocations
+		delete(cache.pendingAllocations, string(pod.UID))
+		delete(cache.inProgressAllocations, string(pod.UID))
+	}
+
+	// remove pod from cache
+	delete(cache.podsMap, string(pod.UID))
+
+	// remove pod from node
 	if pod.Spec.NodeName != "" {
 		n, ok := cache.nodesMap[pod.Spec.NodeName]
-		if !ok {
-			return fmt.Errorf("node %v is not found", pod.Spec.NodeName)
-		}
-		if err := n.RemovePod(pod); err != nil {
-			return err
+		if ok {
+			if err := n.RemovePod(pod); err != nil {
+				log.Logger().Warn("unable to remove pod from node",
+					zap.String("pod", pod.Name),
+					zap.String("node", pod.Spec.NodeName),
+					zap.Error(err))
+			}
+		} else {
+			log.Logger().Warn("unable to find node for pod removal",
+				zap.String("pod", pod.Name),
+				zap.String("node", pod.Spec.NodeName))
 		}
 	}
-	delete(cache.pendingAllocations, string(pod.UID))
-	delete(cache.inProgressAllocations, string(pod.UID))
-	return nil
 }
 
 func (cache *SchedulerCache) GetPod(uid string) (*v1.Pod, bool) {
@@ -331,12 +346,8 @@ func (cache *SchedulerCache) AssumePod(pod *v1.Pod, allBound bool) error {
 
 	cache.lock.Lock()
 	defer cache.lock.Unlock()
-	// if _, ok := cache.podsMap[key]; ok {
-	//	return fmt.Errorf("pod %v is in the cache, so can't be assumed", key)
-	// }
 
-	cache.addPod(pod)
-	cache.podsMap[key] = pod
+	cache.addPod(pod, key)
 	cache.assumedPods[key] = allBound
 
 	return nil
@@ -353,22 +364,15 @@ func (cache *SchedulerCache) ForgetPod(pod *v1.Pod) error {
 
 	currState, ok := cache.podsMap[key]
 	if ok && currState.Spec.NodeName != pod.Spec.NodeName {
-		return fmt.Errorf("pod %v was assumed on %v but assigned to %v",
-			key, pod.Spec.NodeName, currState.Spec.NodeName)
+		log.Logger().Warn("pod was assumed on one node but found on another",
+			zap.String("pod", key),
+			zap.String("expectedNode", currState.Spec.NodeName),
+			zap.String("actualNode", pod.Spec.NodeName))
 	}
 
-	switch {
-	// Only assumed pod can be forgotten.
-	case ok && cache.isAssumedPod(key):
-		err = cache.removePod(pod)
-		if err != nil {
-			return err
-		}
-		delete(cache.assumedPods, key)
-		delete(cache.podsMap, key)
-	default:
-		return fmt.Errorf("pod %v wasn't assumed so cannot be forgotten", key)
-	}
+	delete(cache.assumedPods, key)
+	delete(cache.pendingAllocations, key)
+	delete(cache.inProgressAllocations, key)
 	return nil
 }
 
