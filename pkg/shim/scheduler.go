@@ -243,22 +243,22 @@ func (ss *KubernetesShim) doScheduling(e *fsm.Event) {
 func (ss *KubernetesShim) registerShimLayer() error {
 	configuration := conf.GetSchedulerConf()
 
-	var buildInfo map[string]string
-	buildInfo["version"] = conf.Version
-	buildInfo["date"] = conf.Date
+	var buildInfoMap map[string]string
+	buildInfoMap["version"] = conf.Version
+	buildInfoMap["date"] = conf.Date
 
 	registerMessage := si.RegisterResourceManagerRequest{
 		RmID:        configuration.ClusterID,
 		Version:     configuration.ClusterVersion,
 		PolicyGroup: configuration.PolicyGroup,
-		BuildInfo:   buildInfo,
+		BuildInfo:   buildInfoMap,
 	}
 
 	log.Logger().Info("register RM to the scheduler",
 		zap.String("clusterID", configuration.ClusterID),
 		zap.String("clusterVersion", configuration.ClusterVersion),
 		zap.String("policyGroup", configuration.PolicyGroup),
-		zap.String("buildInfo", fmt.Sprintf("%v", buildInfo)))
+		zap.String("buildInfo", fmt.Sprintf("%v", buildInfoMap)))
 	if _, err := ss.apiFactory.GetAPIs().SchedulerAPI.
 		RegisterResourceManager(&registerMessage, ss.callback); err != nil {
 		return err

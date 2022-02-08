@@ -268,7 +268,7 @@ simulation_image: simulation
 	
 # Build all images based on the production ready version
 .PHONY: image
-image: sched_image
+image: sched_image plugin_image adm_image
 
 .PHONY: push
 push: image
