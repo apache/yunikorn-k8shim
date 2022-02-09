@@ -136,31 +136,31 @@ function install_cluster() {
   go install github.com/onsi/gomega
   check_cmd "ginkgo"
 
-  # build docker images from latest code, so that we can install yunikorn with these latest images
-  echo "step 1/6: building docker images from latest code"
-  make image REGISTRY=local VERSION=latest
-  exit_on_error "build docker images failed"
-
-  echo "step 2/6: installing helm-v3"
+  echo "step 1/6: installing helm-v3"
   check_cmd "curl"
   install_helm
 
   # install kubectl
-  echo "step 3/6: installing kubectl"
+  echo "step 2/6: installing kubectl"
   install_kubectl
 
   # install KIND
-  echo "step 4/6: installing kind"
+  echo "step 3/6: installing kind"
   install_kind
 
   # create K8s cluster
-  echo "step 5/6: installing K8s cluster using kind"
+  echo "step 4/6: installing K8s cluster using kind"
   kind create cluster --name ${k8s_cluster_name} --image ${kind_node_image} --config=./scripts/kind.yaml
   exit_on_error "instal K8s cluster failed"
   kubectl cluster-info --context kind-${k8s_cluster_name}
   exit_on_error "set K8s cluster context failed"
   echo "k8s installed, version:"
   kubectl version
+
+  # build docker images from latest code, so that we can install yunikorn with these latest images
+  echo "step 5/6: building docker images from latest code"
+  make image REGISTRY=local VERSION=latest
+  exit_on_error "build docker images failed"
 
   # install yunikorn
   echo "step 6/6: installing yunikorn scheduler"
