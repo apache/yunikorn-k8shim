@@ -84,10 +84,10 @@ func (callback *AsyncRMCallback) UpdateAllocation(response *si.AllocationRespons
 
 	for _, ask := range response.ReleasedAsks {
 		log.Logger().Debug("callback: response to released allocations",
-			zap.String("allocation key", ask.allocationKey))
+			zap.String("allocation key", ask.AllocationKey))
 
 		if ask.TerminationType == si.TerminationType_TIMEOUT {
-			ev := cache.NewReleaseAppAllocationAskEvent(ask.ApplicationID, ask.TerminationType, ask.allocationKey)
+			ev := cache.NewReleaseAppAllocationAskEvent(ask.ApplicationID, ask.TerminationType, ask.AllocationKey)
 			dispatcher.Dispatch(ev)
 		}
 	}
