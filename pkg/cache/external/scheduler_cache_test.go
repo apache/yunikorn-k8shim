@@ -378,7 +378,7 @@ func TestAddPod(t *testing.T) {
 	assert.Check(t, cache.isAssumedPod("Pod-UID-00001"), "pod is not assumed")
 	err = cache.AddPod(pod1)
 	assert.NilError(t, err, "unable to add assumed pod")
-	assert.Check(t, !cache.isAssumedPod("Pod-UID-00001"), "pod is still assumed after re-add")
+	assert.Check(t, cache.isAssumedPod("Pod-UID-00001"), "pod is not assumed after re-add")
 }
 
 func TestUpdatePod(t *testing.T) {
@@ -486,7 +486,7 @@ func TestUpdatePod(t *testing.T) {
 	pod1Copy.Spec.NodeName = node2.Name
 	err = cache.UpdatePod(pod1, pod1Copy)
 	assert.NilError(t, err, "unable to update pod1")
-	assert.Check(t, !cache.isAssumedPod("Pod-UID-00001"), "pod is still assumed after re-add")
+	assert.Check(t, cache.isAssumedPod("Pod-UID-00001"), "pod is not assumed after re-add")
 }
 
 func TestRemovePod(t *testing.T) {

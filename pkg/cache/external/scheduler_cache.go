@@ -222,18 +222,13 @@ func (cache *SchedulerCache) AddPod(pod *v1.Pod) error {
 		if cache.isAssumedPod(key) {
 			if currState.Spec.NodeName != pod.Spec.NodeName {
 				// pod was added to a different node than it was assumed to
-				log.Logger().Warn("inconsistent pod location",
+				log.Logger().Warn("added pod has inconsistent pod location",
 					zap.String("assumedLocation", pod.Spec.NodeName),
 					zap.String("actualLocation", currState.Spec.NodeName))
-				cache.removePod(currState, false)
-				cache.addPod(pod, key)
 			}
-			delete(cache.assumedPods, key)
-			cache.podsMap[key] = pod
-		} else {
-			// update pod instead
-			cache.updatePod(currState, pod, key)
 		}
+		// update pod
+		cache.updatePod(currState, pod, key)
 	} else {
 		// add pod
 		cache.addPod(pod, key)
@@ -253,17 +248,11 @@ func (cache *SchedulerCache) UpdatePod(oldPod, newPod *v1.Pod) error {
 	currState, ok := cache.podsMap[key]
 	if ok {
 		// pod exists and is assumed
-		if cache.isAssumedPod(key) {
-			if currState.Spec.NodeName != newPod.Spec.NodeName {
-				// pod was added to a different node than it was assumed to
-				log.Logger().Warn("pod updated on different node than previously added to",
-					zap.String("assumedLocation", newPod.Spec.NodeName),
-					zap.String("actualLocation", currState.Spec.NodeName))
-				cache.removePod(oldPod, false)
-				cache.addPod(newPod, key)
-				delete(cache.assumedPods, key)
-				cache.podsMap[key] = newPod
-			}
+		if !cache.isAssumedPod(key) && currState.Spec.NodeName != newPod.Spec.NodeName {
+			// pod was added to a different node than it was assumed to
+			log.Logger().Warn("updated pod found on different node than assigned to",
+				zap.String("assumedLocation", newPod.Spec.NodeName),
+				zap.String("actualLocation", currState.Spec.NodeName))
 		}
 		// update it
 		cache.updatePod(oldPod, newPod, key)
