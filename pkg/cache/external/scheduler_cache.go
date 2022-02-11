@@ -25,6 +25,7 @@ import (
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
 	storageV1 "k8s.io/api/storage/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
@@ -247,7 +248,7 @@ func (cache *SchedulerCache) UpdatePod(oldPod, newPod *v1.Pod) error {
 
 	currState, ok := cache.podsMap[key]
 	if ok {
-		// pod exists and is assumed
+		// pod exists and is not assumed
 		if !cache.isAssumedPod(key) && currState.Spec.NodeName != newPod.Spec.NodeName {
 			// pod was added to a different node than it was assumed to
 			log.Logger().Warn("updated pod found on different node than assigned to",
@@ -270,6 +271,13 @@ func (cache *SchedulerCache) addPod(pod *v1.Pod, key string) {
 		if !ok {
 			n = framework.NewNodeInfo()
 			cache.nodesMap[pod.Spec.NodeName] = n
+			// work around a crash bug in NodeInfo.RemoveNode() when Node is unset
+			if err := n.SetNode(&v1.Node{ObjectMeta: metav1.ObjectMeta{Name: pod.Spec.NodeName}}); err != nil {
+				log.Logger().Warn("Unable to add pod to synthetic node",
+					zap.String("pod", pod.Name),
+					zap.String("node", pod.Spec.NodeName),
+					zap.Error(err))
+			}
 		}
 		n.AddPod(pod)
 	}

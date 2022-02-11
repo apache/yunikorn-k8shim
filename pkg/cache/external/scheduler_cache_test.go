@@ -383,11 +383,9 @@ func TestAddPod(t *testing.T) {
 
 func TestUpdatePod(t *testing.T) {
 	cache := NewSchedulerCache(client.NewMockedAPIProvider().GetAPIs())
-
 	resourceList := make(map[v1.ResourceName]resource.Quantity)
 	resourceList[v1.ResourceName("memory")] = *resource.NewQuantity(1024*1000*1000, resource.DecimalSI)
 	resourceList[v1.ResourceName("cpu")] = *resource.NewQuantity(10, resource.DecimalSI)
-
 	node1 := &v1.Node{
 		ObjectMeta: apis.ObjectMeta{
 			Name:      "host0001",
@@ -415,49 +413,38 @@ func TestUpdatePod(t *testing.T) {
 		},
 	}
 
-	// add nodes
 	cache.AddNode(node1)
 	cache.AddNode(node2)
 
-	pod1 := &v1.Pod{
+	podTemplate := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
-			Name:        "pod0001",
-			UID:         "Pod-UID-00001",
-			Annotations: map[string]string{"state": "new"},
-		},
-		Spec: v1.PodSpec{},
-	}
-	pod2 := &v1.Pod{
-		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-		ObjectMeta: apis.ObjectMeta{
-			Name:        "pod0002",
-			UID:         "Pod-UID-00002",
 			Annotations: map[string]string{"state": "new"},
 		},
 		Spec: v1.PodSpec{},
 	}
 
-	// add pod1
+	pod1 := podTemplate.DeepCopy()
+	pod1.ObjectMeta.Name = "pod0001"
+	pod1.ObjectMeta.UID = "Pod-UID-00001"
 	err := cache.AddPod(pod1)
 	assert.NilError(t, err, "unable to add pod1")
 	assert.Equal(t, len(cache.podsMap), 1, "wrong pod count after add of pod1")
 	_, ok := cache.GetPod("Pod-UID-00001")
 	assert.Check(t, ok, "pod1 not found")
 
-	// check for missing UID
 	pod1Copy := pod1.DeepCopy()
 	pod1Copy.ObjectMeta.UID = ""
 	err = cache.UpdatePod(pod1Copy, pod1Copy)
 	assert.Check(t, err != nil, "error not returned when updating invalid pod")
 
 	// update of non-existent pod should be equivalent to an add
+	pod2 := podTemplate.DeepCopy()
+	pod2.ObjectMeta.Name = "pod0002"
+	pod2.ObjectMeta.UID = "Pod-UID-00002"
 	err = cache.UpdatePod(pod2, pod2)
 	assert.NilError(t, err, "unable to update pod1")
 	assert.Equal(t, len(cache.podsMap), 2, "wrong pod count after add of pod2")
@@ -474,19 +461,33 @@ func TestUpdatePod(t *testing.T) {
 	assert.Equal(t, found.GetAnnotations()["state"], "updated", "wrong state after update")
 	cache.RemovePod(pod1Copy)
 
-	// assumed pod should no longer be assumed if node changes
+	// assumed pod should still be assumed if node changes
 	pod1.Spec.NodeName = node1.Name
 	err = cache.AddPod(pod1)
 	assert.NilError(t, err, "unable to add pod1")
 	err = cache.AssumePod(pod1, true)
 	assert.NilError(t, err, "unable to assume pod1")
 	assert.Check(t, cache.isAssumedPod("Pod-UID-00001"), "pod is not assumed")
-
 	pod1Copy = pod1.DeepCopy()
 	pod1Copy.Spec.NodeName = node2.Name
 	err = cache.UpdatePod(pod1, pod1Copy)
 	assert.NilError(t, err, "unable to update pod1")
 	assert.Check(t, cache.isAssumedPod("Pod-UID-00001"), "pod is not assumed after re-add")
+
+	// unassumed pod should survive node changing without crashing
+	pod3 := podTemplate.DeepCopy()
+	pod3.ObjectMeta.Name = "pod00003"
+	pod3.ObjectMeta.UID = "Pod-UID-00003"
+	pod3.Spec.NodeName = "orig-node"
+	err = cache.AddPod(pod3)
+	assert.NilError(t, err, "unable to add pod3")
+	pod3Copy := pod3.DeepCopy()
+	pod3Copy.Spec.NodeName = "new-node"
+	err = cache.UpdatePod(pod3, pod3Copy)
+	assert.NilError(t, err, "unable to update pod3")
+	pod3Result, ok := cache.GetPod("Pod-UID-00003")
+	assert.Check(t, ok, "unable to get pod3")
+	assert.Equal(t, pod3Result.Spec.NodeName, "new-node", "node name not updated")
 }
 
 func TestRemovePod(t *testing.T) {
@@ -531,4 +532,20 @@ func TestRemovePod(t *testing.T) {
 	_, ok = cache.GetPod("Pod-UID-00001")
 	assert.Check(t, !ok, "pod1 still found")
 	assert.Equal(t, len(cache.podsMap), 0, "wrong pod count after remove of pod1 with node")
+
+	// removal of pod added to synthetic node should succeed
+	pod1.Spec.NodeName = "unknown-node"
+	err = cache.AddPod(pod1)
+	assert.Equal(t, len(cache.podsMap), 1, "wrong pod count after add of pod1 with synthetic node")
+	assert.NilError(t, err, "unable to add pod1")
+	cache.RemovePod(pod1)
+	assert.Equal(t, len(cache.podsMap), 0, "wrong pod count after remove of pod1 with synthetic node")
+
+	// verify removal again doesn't crash
+	cache.RemovePod(pod1)
+	assert.Equal(t, len(cache.podsMap), 0, "wrong pod count after remove of pod1 with synthetic node")
+
+	// verify removal of pod with unknown node doesn't crash
+	pod1.Spec.NodeName = "missing-node"
+	cache.RemovePod(pod1)
 }
