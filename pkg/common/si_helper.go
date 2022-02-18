@@ -86,7 +86,7 @@ func CreateReleaseAskRequestForTask(appID, taskID, partition string) si.Allocati
 	toReleases := make([]*si.AllocationAskRelease, 0)
 	toReleases = append(toReleases, &si.AllocationAskRelease{
 		ApplicationID: appID,
-		Allocationkey: taskID,
+		AllocationKey: taskID,
 		PartitionName: partition,
 		Message:       "task request is canceled",
 	})

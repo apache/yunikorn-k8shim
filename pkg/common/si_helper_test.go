@@ -46,7 +46,7 @@ func TestCreateReleaseAskRequestForTask(t *testing.T) {
 	assert.Equal(t, len(request.Releases.AllocationsToRelease), 0)
 	assert.Equal(t, len(request.Releases.AllocationAsksToRelease), 1)
 	assert.Equal(t, request.Releases.AllocationAsksToRelease[0].ApplicationID, "app01")
-	assert.Equal(t, request.Releases.AllocationAsksToRelease[0].Allocationkey, "task01")
+	assert.Equal(t, request.Releases.AllocationAsksToRelease[0].AllocationKey, "task01")
 	assert.Equal(t, request.Releases.AllocationAsksToRelease[0].PartitionName, "default")
 }
 
