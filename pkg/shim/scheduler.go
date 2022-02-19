@@ -38,6 +38,7 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
+	pluginconf "github.com/apache/incubator-yunikorn-k8shim/pkg/schedulerplugin/conf"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/api"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 )
@@ -244,9 +245,9 @@ func (ss *KubernetesShim) registerShimLayer() error {
 	configuration := conf.GetSchedulerConf()
 
 	buildInfoMap := make(map[string]string)
-	buildInfoMap["buildVersion"] = conf.BuildVersion
-	buildInfoMap["buildDate"] = conf.BuildDate
-	buildInfoMap["isPluginVersion"] = strconv.FormatBool(conf.IsPluginVersion)
+	buildInfoMap["buildVersion"] = pluginconf.BuildVersion
+	buildInfoMap["buildDate"] = pluginconf.BuildDate
+	buildInfoMap["isPluginVersion"] = strconv.FormatBool(pluginconf.IsPluginVersion)
 
 	registerMessage := si.RegisterResourceManagerRequest{
 		RmID:        configuration.ClusterID,
