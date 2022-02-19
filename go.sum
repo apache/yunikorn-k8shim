@@ -87,8 +87,13 @@ github.com/alecthomas/units v0.0.0-20190717042225-c3de453c63f4/go.mod h1:ybxpYRF
 github.com/andreyvit/diff v0.0.0-20170406064948-c7f18ee00883/go.mod h1:rCTlJbsFo29Kk6CurOXKm700vrz8f0KW0JNfpkRJY/8=
 github.com/apache/incubator-yunikorn-core v0.0.0-20220204165339-fbf1c4f21f90 h1:hv0UCkXaLOsM7ebqTjJb65az3ci5YBbDjFMn67jtJtE=
 github.com/apache/incubator-yunikorn-core v0.0.0-20220204165339-fbf1c4f21f90/go.mod h1:WmWZqa69IzFa4bs7nFLbqAAwhjgl8arRfY3vBQHdwYk=
-github.com/apache/incubator-yunikorn-scheduler-interface v0.0.0-20220113193536-681c62202d1f h1:f3GXhG1uxhD78puHJKTDb58o3QC9E/ooJFTuEaBZo1M=
+github.com/apache/incubator-yunikorn-core v0.0.0-20220217233407-74f9743dab2d h1:iHgCKlzbA0VZPQrdALHXjyQZguaJjugLkUDyuI9IKU4=
+github.com/apache/incubator-yunikorn-core v0.0.0-20220217233407-74f9743dab2d/go.mod h1:tItzekMIgfXLNxVBdAAA7nxFo6PXHpbaHzheWG5U7kA=
 github.com/apache/incubator-yunikorn-scheduler-interface v0.0.0-20220113193536-681c62202d1f/go.mod h1:3tRnilDaaJISjaG8REYnsnRsfr+NymQ02Yjs983zRYY=
+github.com/apache/incubator-yunikorn-scheduler-interface v0.0.0-20220213042529-cbb22cb43f3c h1:dn3U3M6GoGL7KvG9Y6Xrmv6iPfTDYNxUc4tui9ZwiOE=
+github.com/apache/incubator-yunikorn-scheduler-interface v0.0.0-20220213042529-cbb22cb43f3c/go.mod h1:3tRnilDaaJISjaG8REYnsnRsfr+NymQ02Yjs983zRYY=
+github.com/apache/incubator-yunikorn-scheduler-interface v0.0.0-20220214023648-0de002ac41d3 h1:J8pawaZ96w6B4HYt4wIKZJJfWijlc0kTtRrqcLtQi9g=
+github.com/apache/incubator-yunikorn-scheduler-interface v0.0.0-20220214023648-0de002ac41d3/go.mod h1:3tRnilDaaJISjaG8REYnsnRsfr+NymQ02Yjs983zRYY=
 github.com/armon/circbuf v0.0.0-20150827004946-bbbad097214e/go.mod h1:3U/XgcO3hCbHZ8TKRvWD2dDTCfh9M9ya+I9JpbB7O8o=
 github.com/armon/consul-api v0.0.0-20180202201655-eb2c6b5be1b6/go.mod h1:grANhF5doyWs3UAsr3K4I6qtAmlQcZDesFNEHPZAzj8=
 github.com/armon/go-metrics v0.0.0-20180917152333-f0300d1749da/go.mod h1:Q73ZrmVTwzkszR9V5SSuryQ31EELlFMUz1kKyl939pY=
@@ -215,7 +220,6 @@ github.com/elazarl/goproxy v0.0.0-20170405201442-c4fc26588b6e/go.mod h1:/Zj4wYkg
 github.com/elazarl/goproxy v0.0.0-20180725130230-947c36da3153/go.mod h1:/Zj4wYkgs4iZTTu3o/KG3Itv/qCCa8VVMlb3i9OVuzc=
 github.com/elazarl/goproxy v0.0.0-20200421181703-e76ad31c14f6 h1:GhNw/V+7mWhxPyD/n7STfwp/MJJ+Z/sa6wmzYXr96Ls=
 github.com/elazarl/goproxy v0.0.0-20200421181703-e76ad31c14f6/go.mod h1:Ro8st/ElPeALwNFlcTpWmkr6IoMFfkjXAvTHpevnDsM=
-github.com/elazarl/goproxy/ext v0.0.0-20190711103511-473e67f1d7d2 h1:dWB6v3RcOy03t/bUadywsbyrQwCqZeNIEX6M1OtSZOM=
 github.com/elazarl/goproxy/ext v0.0.0-20190711103511-473e67f1d7d2/go.mod h1:gNh8nYJoAm43RfaxurUnxr+N1PwuFV3ZMl/efxlIlY8=
 github.com/emicklei/go-restful v0.0.0-20170410110728-ff4f55a20633/go.mod h1:otzb+WCGbkyDHkqmQmT5YD2WR4BBwUdeQoFo8l/7tVs=
 github.com/emicklei/go-restful v2.9.5+incompatible h1:spTtZBk5DYEvbxMVutUuTyh1Ao2r4iyvLdACqsl/Ljk=

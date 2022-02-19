@@ -287,7 +287,7 @@ func TestReleaseTaskAsk(t *testing.T) {
 		assert.Assert(t, request.Releases.AllocationAsksToRelease != nil)
 		assert.Equal(t, request.Releases.AllocationAsksToRelease[0].ApplicationID, app.applicationID)
 		assert.Equal(t, request.Releases.AllocationAsksToRelease[0].PartitionName, "default")
-		assert.Equal(t, request.Releases.AllocationAsksToRelease[0].Allocationkey, task.taskID)
+		assert.Equal(t, request.Releases.AllocationAsksToRelease[0].AllocationKey, task.taskID)
 		return nil
 	})
 
@@ -574,7 +574,7 @@ func TestSimultaneousTaskCompleteAndAllocate(t *testing.T) {
 			"allocationsToRelease is not in the expected length")
 		askToRelease := request.Releases.AllocationAsksToRelease[0]
 		assert.Equal(t, askToRelease.ApplicationID, appID)
-		assert.Equal(t, askToRelease.Allocationkey, podUID)
+		assert.Equal(t, askToRelease.AllocationKey, podUID)
 		return nil
 	})
 	ev := NewSimpleTaskEvent(appID, task1.GetTaskID(), events.CompleteTask)

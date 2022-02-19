@@ -30,6 +30,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/cache"
 	k8sEvents "k8s.io/client-go/tools/events"
 
 	"github.com/apache/incubator-yunikorn-core/pkg/common"
@@ -176,7 +177,7 @@ func TestRemoveApplication(t *testing.T) {
 	task1 := NewTask("task01", app1, context, pod1)
 	app1.taskMap["task01"] = task1
 	task1.sm.SetState(events.States().Task.Pending)
-	//New task to application 2
+	// New task to application 2
 	// set task state in Failed (terminated)
 	task2 := NewTask("task02", app2, context, pod2)
 	app2.taskMap["task02"] = task2
@@ -200,8 +201,8 @@ func TestRemoveApplication(t *testing.T) {
 	app = context.GetApplication(appID2)
 	assert.Assert(t, app == nil)
 
-	//try remove again
-	//this should fail
+	// try remove again
+	// this should fail
 	err = context.RemoveApplication(appID2)
 	assert.Assert(t, err != nil)
 	assert.ErrorContains(t, err, "application app00002 is not found in the context")
@@ -236,6 +237,186 @@ func TestRemoveApplicationInternal(t *testing.T) {
 	assert.Equal(t, len(context.applications), 0)
 	_, ok = context.applications[appID2]
 	assert.Equal(t, ok, false)
+}
+
+func TestFilterPods(t *testing.T) {
+	context := initContextForTest()
+	pod1 := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "yunikorn-test-00001",
+			UID:  "UID-00001",
+		},
+		Spec: v1.PodSpec{SchedulerName: "yunikorn"},
+	}
+	pod2 := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "yunikorn-test-00002",
+			UID:  "UID-00002",
+		},
+		Spec: v1.PodSpec{SchedulerName: "default-scheduler"},
+	}
+	assert.Check(t, !context.filterPods(nil), "nil object was allowed")
+	assert.Check(t, context.filterPods(pod1), "yunikorn-managed pod was filtered")
+	assert.Check(t, !context.filterPods(pod2), "non-yunikorn-managed pod was allowed")
+}
+
+func TestAddPodToCache(t *testing.T) {
+	context := initContextForTest()
+
+	pod1 := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "yunikorn-test-00001",
+			UID:  "UID-00001",
+		},
+		Spec: v1.PodSpec{SchedulerName: "yunikorn"},
+	}
+	pod2 := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "yunikorn-test-00002",
+			UID:  "UID-00002",
+		},
+		Spec: v1.PodSpec{SchedulerName: "yunikorn"},
+		Status: v1.PodStatus{
+			Phase: v1.PodSucceeded,
+		},
+	}
+
+	context.addPodToCache(nil)  // no-op, but should not crash
+	context.addPodToCache(pod1) // should be added
+	context.addPodToCache(pod2) // should skip as pod is terminated
+
+	_, ok := context.schedulerCache.GetPod("UID-00001")
+	assert.Check(t, ok, "active pod was not added")
+	_, ok = context.schedulerCache.GetPod("UID-00002")
+	assert.Check(t, !ok, "terminated pod was added")
+}
+
+func TestUpdatePodInCache(t *testing.T) {
+	context := initContextForTest()
+
+	pod1 := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name:        "yunikorn-test-00001",
+			UID:         "UID-00001",
+			Annotations: map[string]string{"test.state": "new"},
+		},
+		Spec: v1.PodSpec{SchedulerName: "yunikorn"},
+	}
+	pod2 := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name:        "yunikorn-test-00001",
+			UID:         "UID-00001",
+			Annotations: map[string]string{"test.state": "updated"},
+		},
+		Spec: v1.PodSpec{SchedulerName: "yunikorn"},
+	}
+	pod3 := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "yunikorn-test-00001",
+			UID:  "UID-00001",
+		},
+		Spec: v1.PodSpec{SchedulerName: "yunikorn"},
+		Status: v1.PodStatus{
+			Phase: v1.PodSucceeded,
+		},
+	}
+
+	context.addPodToCache(pod1)
+	_, ok := context.schedulerCache.GetPod("UID-00001")
+	assert.Assert(t, ok, "pod1 is not present after adding")
+
+	// these should not fail, but are no-ops
+	context.updatePodInCache(nil, nil)
+	context.updatePodInCache(nil, pod1)
+	context.updatePodInCache(pod1, nil)
+
+	// ensure a terminated pod doesn't result in an update
+	context.updatePodInCache(pod1, pod3)
+	found, ok := context.schedulerCache.GetPod("UID-00001")
+	if assert.Check(t, ok, "pod not found after update") {
+		assert.Check(t, found.GetAnnotations()["test.state"] == "new", "pod state updated when new pod is terminated")
+	}
+
+	// ensure a non-terminated pod is updated
+	context.updatePodInCache(pod1, pod2)
+	found, ok = context.schedulerCache.GetPod("UID-00001")
+	if assert.Check(t, ok, "pod not found after update") {
+		assert.Check(t, found.GetAnnotations()["test.state"] == "updated", "pod state not updated")
+	}
+}
+
+func TestRemovePodFromCache(t *testing.T) {
+	context := initContextForTest()
+
+	pod1 := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "yunikorn-test-00001",
+			UID:  "UID-00001",
+		},
+		Spec: v1.PodSpec{SchedulerName: "yunikorn"},
+	}
+	pod2 := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "yunikorn-test-00002",
+			UID:  "UID-00002",
+		},
+		Spec: v1.PodSpec{SchedulerName: "yunikorn"},
+	}
+
+	context.addPodToCache(pod1)
+	context.addPodToCache(pod2)
+	_, ok := context.schedulerCache.GetPod("UID-00001")
+	assert.Assert(t, ok, "pod1 is not present after adding")
+	_, ok = context.schedulerCache.GetPod("UID-00002")
+	assert.Assert(t, ok, "pod2 is not present after adding")
+
+	// these should not fail, but here for completeness
+	context.removePodFromCache(nil)
+	context.removePodFromCache(cache.DeletedFinalStateUnknown{Key: "UID-00000", Obj: nil})
+
+	context.removePodFromCache(pod1)
+	_, ok = context.schedulerCache.GetPod("UID-00001")
+	assert.Check(t, !ok, "pod1 is still present")
+
+	context.removePodFromCache(cache.DeletedFinalStateUnknown{Key: "UID-00002", Obj: pod2})
+	_, ok = context.schedulerCache.GetPod("UID-00002")
+	assert.Check(t, !ok, "pod2 is still present")
 }
 
 func TestAddTask(t *testing.T) {
@@ -893,7 +1074,7 @@ func TestSaveConfigmap(t *testing.T) {
 	resp = context.SaveConfigmap(&newConf)
 	assert.Equal(t, true, resp.Success, "Successful update expected")
 
-	//hot-refresh enabled
+	// hot-refresh enabled
 	context.apiProvider.GetAPIs().Conf.EnableConfigHotRefresh = true
 	resp = context.SaveConfigmap(&newConf)
 	assert.Equal(t, false, resp.Success, "Failure is expected")

@@ -105,10 +105,7 @@ func (c *nodeResourceCoordinator) updatePod(old, new interface{}) {
 		// we need sub the occupied resource and re-sync with the scheduler-core
 		podResource := common.GetPodResource(newPod)
 		c.nodes.updateNodeOccupiedResources(newPod.Spec.NodeName, podResource, SubOccupiedResource)
-		if err := c.nodes.cache.RemovePod(newPod); err != nil {
-			log.Logger().Warn("failed to update scheduler-cache",
-				zap.Error(err))
-		}
+		c.nodes.cache.RemovePod(newPod)
 		return
 	}
 }
@@ -142,8 +139,5 @@ func (c *nodeResourceCoordinator) deletePod(obj interface{}) {
 
 	podResource := common.GetPodResource(pod)
 	c.nodes.updateNodeOccupiedResources(pod.Spec.NodeName, podResource, SubOccupiedResource)
-	if err := c.nodes.cache.RemovePod(pod); err != nil {
-		log.Logger().Debug("failed to update scheduler-cache",
-			zap.Error(err))
-	}
+	c.nodes.cache.RemovePod(pod)
 }
