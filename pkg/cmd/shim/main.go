@@ -29,6 +29,7 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
+	pluginconf "github.com/apache/incubator-yunikorn-k8shim/pkg/schedulerplugin/conf"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/shim"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/api"
 )
@@ -43,9 +44,9 @@ func main() {
 	log.Logger().Info("starting scheduler",
 		zap.String("name", constants.SchedulerName))
 
-	conf.BuildVersion = version
-	conf.BuildDate = date
-	conf.IsPluginVersion = false
+	pluginconf.BuildVersion = version
+	pluginconf.BuildDate = date
+	pluginconf.IsPluginVersion = false
 
 	serviceContext := entrypoint.StartAllServicesWithLogger(log.Logger(), log.GetZapConfigs())
 

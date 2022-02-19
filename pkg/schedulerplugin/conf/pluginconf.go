@@ -37,8 +37,9 @@ const (
 )
 
 var (
-	BuildVersion string
-	BuildDate    string
+	BuildVersion    string
+	BuildDate       string
+	IsPluginVersion bool
 )
 
 // command line argument names
