@@ -43,8 +43,9 @@ func main() {
 	log.Logger().Info("starting scheduler",
 		zap.String("name", constants.SchedulerName))
 
-	conf.Version = version
-	conf.Date = date
+	conf.BuildVersion = version
+	conf.BuildDate = date
+	conf.IsPluginVersion = false
 
 	serviceContext := entrypoint.StartAllServicesWithLogger(log.Logger(), log.GetZapConfigs())
 

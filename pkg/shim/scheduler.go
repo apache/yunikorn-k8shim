@@ -19,8 +19,8 @@
 package shim
 
 import (
-	"fmt"
 	"os"
+	"strconv"
 	"sync"
 	"time"
 
@@ -243,9 +243,10 @@ func (ss *KubernetesShim) doScheduling(e *fsm.Event) {
 func (ss *KubernetesShim) registerShimLayer() error {
 	configuration := conf.GetSchedulerConf()
 
-	var buildInfoMap map[string]string
-	buildInfoMap["version"] = conf.Version
-	buildInfoMap["date"] = conf.Date
+	buildInfoMap := make(map[string]string)
+	buildInfoMap["buildVersion"] = conf.BuildVersion
+	buildInfoMap["buildDate"] = conf.BuildDate
+	buildInfoMap["isPluginVersion"] = strconv.FormatBool(conf.IsPluginVersion)
 
 	registerMessage := si.RegisterResourceManagerRequest{
 		RmID:        configuration.ClusterID,
@@ -258,7 +259,7 @@ func (ss *KubernetesShim) registerShimLayer() error {
 		zap.String("clusterID", configuration.ClusterID),
 		zap.String("clusterVersion", configuration.ClusterVersion),
 		zap.String("policyGroup", configuration.PolicyGroup),
-		zap.String("buildInfo", fmt.Sprintf("%v", buildInfoMap)))
+		zap.Any("buildInfo", buildInfoMap))
 	if _, err := ss.apiFactory.GetAPIs().SchedulerAPI.
 		RegisterResourceManager(&registerMessage, ss.callback); err != nil {
 		return err
