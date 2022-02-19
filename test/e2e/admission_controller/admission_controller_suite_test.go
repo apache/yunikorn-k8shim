@@ -56,11 +56,6 @@ var _ = BeforeSuite(func() {
 	namespace, err := kClient.CreateNamespace(ns, nil)
 	Ω(err).ShouldNot(HaveOccurred())
 	Ω(namespace.Status.Phase).Should(Equal(v1.NamespaceActive))
-
-	By(fmt.Sprintf("Creating namepsace %s on blacklist", blackNs))
-	blackNamespace, err := kClient.CreateNamespace(blackNs, nil)
-	Ω(err).ShouldNot(HaveOccurred())
-	Ω(blackNamespace.Status.Phase).Should(Equal(v1.NamespaceActive))
 })
 
 var _ = AfterSuite(func() {
@@ -71,7 +66,7 @@ var _ = AfterSuite(func() {
 	err := kClient.DeleteNamespace(ns)
 	Ω(err).ShouldNot(HaveOccurred())
 
-	By(fmt.Sprintf("Deleting namepsace %s on blacklist", blackNs))
-	err = kClient.DeleteNamespace(blackNs)
+	By("Deleting the pod in blacklist")
+	err = kClient.DeletePod(sleepPodName, blackNs)
 	Ω(err).ShouldNot(HaveOccurred())
 })
