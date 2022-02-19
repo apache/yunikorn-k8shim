@@ -19,13 +19,59 @@
 package admission_controller_test
 
 import (
-    "testing"
+	"fmt"
+	"testing"
 
-    . "github.com/onsi/ginkgo"
-    . "github.com/onsi/gomega"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+	v1 "k8s.io/api/core/v1"
+
+	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/configmanager"
+	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/helpers/k8s"
+	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
 )
 
-func TestAdmissionController(t *testing.T) {
-    RegisterFailHandler(Fail)
-    RunSpecs(t, "Admission Controller Suite")
+func init() {
+	configmanager.YuniKornTestConfig.ParseFlags()
 }
+
+var kClient k8s.KubeCtl
+var ns = "admission-controller-test"
+var sleepPodName = "sleepjob"
+var blackNs = "kube-system"
+var restClient yunikorn.RClient
+
+func TestAdmissionController(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "Admission Controller Suite")
+}
+
+var _ = BeforeSuite(func() {
+	restClient = yunikorn.RClient{}
+
+	kClient = k8s.KubeCtl{}
+	Expect(kClient.SetClient()).To(BeNil())
+
+	By(fmt.Sprintf("Creating test namepsace %s", ns))
+	namespace, err := kClient.CreateNamespace(ns, nil)
+	Ω(err).ShouldNot(HaveOccurred())
+	Ω(namespace.Status.Phase).Should(Equal(v1.NamespaceActive))
+
+	By(fmt.Sprintf("Creating namepsace %s on blacklist", blackNs))
+	blackNamespace, err := kClient.CreateNamespace(blackNs, nil)
+	Ω(err).ShouldNot(HaveOccurred())
+	Ω(blackNamespace.Status.Phase).Should(Equal(v1.NamespaceActive))
+})
+
+var _ = AfterSuite(func() {
+	kClient = k8s.KubeCtl{}
+	Expect(kClient.SetClient()).To(BeNil())
+
+	By(fmt.Sprintf("Deleting test namepsace %s", ns))
+	err := kClient.DeleteNamespace(ns)
+	Ω(err).ShouldNot(HaveOccurred())
+
+	By(fmt.Sprintf("Deleting namepsace %s on blacklist", blackNs))
+	err = kClient.DeleteNamespace(blackNs)
+	Ω(err).ShouldNot(HaveOccurred())
+})

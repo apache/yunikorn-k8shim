@@ -35,16 +35,17 @@ const (
 	// YuniKorn service name
 	YKSvcName = "yunikorn-service"
 
-	//YuniKorn Admission controller serivce name
+	// YuniKorn Admission controller serivce name
 	YKAdmCtrlName = "yunikorn-admission-controller-service"
 
 	// REST endpoints of YuniKorn
-	QueuesPath      = "ws/v1/queues"
-	AppsPath        = "ws/v1/apps"
-	ClustersPath    = "ws/v1/clusters"
-	HealthCheckPath = "ws/v1/scheduler/healthcheck"
+	QueuesPath       = "ws/v1/queues"
+	AppsPath         = "ws/v1/apps"
+	ClustersPath     = "ws/v1/clusters"
+	HealthCheckPath  = "ws/v1/scheduler/healthcheck"
+	ValidateConfPath = "ws/v1/validate-conf"
 
-	//YuniKorn Service Details
+	// YuniKorn Service Details
 	DefaultYuniKornHost   = "localhost"
 	DefaultYuniKornPort   = "9080"
 	DefaultYuniKornScheme = "http"
