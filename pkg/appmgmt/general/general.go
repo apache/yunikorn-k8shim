@@ -32,11 +32,11 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
-
 	"go.uber.org/zap"
 )
 
@@ -146,6 +146,8 @@ func (os *Manager) getAppMetadata(pod *v1.Pod) (interfaces.ApplicationMetadata, 
 				zap.String("namespace", pod.Namespace),
 				zap.String("name", pod.Name),
 				zap.Error(err))
+			events.GetRecorder().Eventf(pod, nil, v1.EventTypeWarning, "TaskGroupFormatError", "TaskGroupFormatError",
+				"unable to get taskGroups for pod, pod namespace: %s, pod name: %s, reason: %s", appID, pod.Namespace, pod.Name, err.Error())
 		}
 	}
 
