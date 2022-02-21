@@ -76,12 +76,10 @@ func (callback *AsyncRMCallback) UpdateAllocation(response *si.AllocationRespons
 	for _, release := range response.Released {
 		log.Logger().Debug("callback: response to released allocations",
 			zap.String("UUID", release.UUID))
-
+		
 		// update cache
-		if release.GetUpdateCache() {
-			if err := callback.context.ForgetPod(release.GetAllocationkey()); err != nil {
-				return err
-			}
+		if err := callback.context.ForgetPod(release.GetAllocationKey()); err != nil {
+			return err
 		}
 
 		// TerminationType 0 mean STOPPED_BY_RM
