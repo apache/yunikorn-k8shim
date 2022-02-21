@@ -36,18 +36,19 @@ import (
 var _ = ginkgo.Describe("AdmissionController", func() {
 
 	ginkgo.BeforeEach(func() {
-		kClient = k8s.KubeCtl{}
-		gomega.Expect(kClient.SetClient()).To(gomega.BeNil())
+		kubeClient = k8s.KubeCtl{}
+		gomega.Expect(kubeClient.SetClient()).To(gomega.BeNil())
 	})
 
 	ginkgo.It("Verifying a pod is created in the test namespace", func() {
 
 		ginkgo.By("has 1 running pod whose SchedulerName is yunikorn")
 		sleepPodConfigs := common.SleepPodConfig{Name: sleepPodName, NS: ns}
-		sleepRespPod, err := kClient.CreatePod(common.InitSleepPod(sleepPodConfigs), ns)
+		sleepRespPod, err := kubeClient.CreatePod(common.InitSleepPod(sleepPodConfigs), ns)
+		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
 
 		// Wait for pod to move into running state
-		err = kClient.WaitForPodBySelectorRunning(ns,
+		err = kubeClient.WaitForPodBySelectorRunning(ns,
 			fmt.Sprintf("app=%s", sleepRespPod.ObjectMeta.Labels["app"]), 10)
 		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
 		gomega.Ω(sleepRespPod.Spec.SchedulerName).Should(gomega.BeEquivalentTo(constants.SchedulerName))
@@ -56,7 +57,7 @@ var _ = ginkgo.Describe("AdmissionController", func() {
 	ginkgo.It("Verifying a pod is created on namespace blacklist", func() {
 		ginkgo.By("Create a pod in namespace blacklist")
 		podConfigs := common.SleepPodConfig{Name: sleepPodName, NS: blackNs}
-		pod, err := kClient.CreatePod(common.InitSleepPod(podConfigs), blackNs)
+		pod, err := kubeClient.CreatePod(common.InitSleepPod(podConfigs), blackNs)
 		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
 		gomega.Ω(pod.Spec.SchedulerName).ShouldNot(gomega.BeEquivalentTo(constants.SchedulerName))
 	})

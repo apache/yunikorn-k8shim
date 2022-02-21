@@ -35,7 +35,7 @@ func init() {
 	configmanager.YuniKornTestConfig.ParseFlags()
 }
 
-var kClient k8s.KubeCtl
+var kubeClient k8s.KubeCtl
 var ns = "admission-controller-test"
 var sleepPodName = "sleepjob"
 var blackNs = "kube-system"
@@ -49,24 +49,24 @@ func TestAdmissionController(t *testing.T) {
 var _ = BeforeSuite(func() {
 	restClient = yunikorn.RClient{}
 
-	kClient = k8s.KubeCtl{}
-	Expect(kClient.SetClient()).To(BeNil())
+	kubeClient = k8s.KubeCtl{}
+	Expect(kubeClient.SetClient()).To(BeNil())
 
 	By(fmt.Sprintf("Creating test namepsace %s", ns))
-	namespace, err := kClient.CreateNamespace(ns, nil)
+	namespace, err := kubeClient.CreateNamespace(ns, nil)
 	Ω(err).ShouldNot(HaveOccurred())
 	Ω(namespace.Status.Phase).Should(Equal(v1.NamespaceActive))
 })
 
 var _ = AfterSuite(func() {
-	kClient = k8s.KubeCtl{}
-	Expect(kClient.SetClient()).To(BeNil())
+	kubeClient = k8s.KubeCtl{}
+	Expect(kubeClient.SetClient()).To(BeNil())
 
 	By(fmt.Sprintf("Deleting test namepsace %s", ns))
-	err := kClient.DeleteNamespace(ns)
+	err := kubeClient.DeleteNamespace(ns)
 	Ω(err).ShouldNot(HaveOccurred())
 
 	By("Deleting the pod in blacklist")
-	err = kClient.DeletePod(sleepPodName, blackNs)
+	err = kubeClient.DeletePod(sleepPodName, blackNs)
 	Ω(err).ShouldNot(HaveOccurred())
 })
