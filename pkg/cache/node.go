@@ -165,7 +165,7 @@ func (n *SchedulerNode) handleNodeRecovery(event *fsm.Event) {
 					constants.DefaultNodeAttributeHostNameKey:   n.name,
 					constants.DefaultNodeAttributeRackNameKey:   constants.DefaultRackName,
 					constants.DefaultNodeAttributeNodeLabelsKey: n.labels,
-					"ready": strconv.FormatBool(n.ready),
+					constants.NodeReadyAttribute:                strconv.FormatBool(n.ready),
 				},
 				ExistingAllocations: n.existingAllocations,
 				Action:              si.NodeInfo_CREATE,

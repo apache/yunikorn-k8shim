@@ -159,9 +159,9 @@ func CreateUpdateRequestForNewNode(node Node) si.NodeRequest {
 func CreateUpdateRequestForUpdatedNode(node Node) si.NodeRequest {
 	// Currently only includes resource in the update request
 	nodeInfo := &si.NodeInfo{
-		NodeID:              node.name,
-		Attributes:          map[string]string {
-			"ready":		 strconv.FormatBool(node.ready),
+		NodeID: node.name,
+		Attributes: map[string]string{
+			constants.NodeReadyAttribute: strconv.FormatBool(node.ready),
 		},
 		SchedulableResource: node.capacity,
 		OccupiedResource:    node.occupied,
