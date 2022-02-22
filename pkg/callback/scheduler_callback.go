@@ -184,21 +184,6 @@ func (callback *AsyncRMCallback) Predicates(args *si.PredicatesArgs) error {
 	return callback.context.IsPodFitNode(args.AllocationKey, args.NodeID, args.Allocate)
 }
 
-func (callback *AsyncRMCallback) ReSyncSchedulerCache(args *si.ReSyncSchedulerCacheArgs) error {
-	for _, assumedAlloc := range args.AssumedAllocations {
-		if err := callback.context.AssumePod(assumedAlloc.AllocationKey, assumedAlloc.NodeID); err != nil {
-			return err
-		}
-	}
-
-	for _, forgetAlloc := range args.ForgetAllocations {
-		if err := callback.context.ForgetPod(forgetAlloc.AllocationKey); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func (callback *AsyncRMCallback) SendEvent(eventRecords []*si.EventRecord) {
 	if len(eventRecords) > 0 {
 		log.Logger().Debug(fmt.Sprintf("prepare to publish %d events", len(eventRecords)))

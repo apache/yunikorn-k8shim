@@ -21,11 +21,10 @@ package main
 import (
 	"os"
 
-	"k8s.io/kubernetes/cmd/kube-scheduler/app"
-
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/schedulerplugin"
 	pluginconf "github.com/apache/incubator-yunikorn-k8shim/pkg/schedulerplugin/conf"
+	"k8s.io/kubernetes/cmd/kube-scheduler/app"
 )
 
 var (
@@ -37,9 +36,9 @@ func main() {
 	// override the default config handling when in plugin mode
 	conf.SetSchedulerConfFactory(pluginconf.NewSchedulerConf)
 
-	pluginconf.BuildVersion = version
-	pluginconf.BuildDate = date
-	pluginconf.IsPluginVersion = true
+	conf.BuildVersion = version
+	conf.BuildDate = date
+	conf.IsPluginVersion = true
 
 	command := app.NewSchedulerCommand(
 		app.WithPlugin(schedulerplugin.SchedulerPluginName, schedulerplugin.NewSchedulerPlugin))

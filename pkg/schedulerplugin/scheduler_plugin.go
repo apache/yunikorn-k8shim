@@ -36,7 +36,6 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
-	pluginconf "github.com/apache/incubator-yunikorn-k8shim/pkg/schedulerplugin/conf"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/shim"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/api"
 )
@@ -191,7 +190,7 @@ func (sp *YuniKornSchedulerPlugin) PostBind(_ context.Context, _ *framework.Cycl
 
 // NewSchedulerPlugin initializes a new plugin and returns it
 func NewSchedulerPlugin(_ runtime.Object, handle framework.Handle) (framework.Plugin, error) {
-	log.Logger().Info("Build info", zap.String("version", pluginconf.BuildVersion), zap.String("date", pluginconf.BuildDate))
+	log.Logger().Info("Build info", zap.String("version", conf.BuildVersion), zap.String("date", conf.BuildDate))
 
 	// start the YK core scheduler
 	serviceContext := entrypoint.StartAllServices()
