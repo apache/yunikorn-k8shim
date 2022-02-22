@@ -21,10 +21,11 @@ package main
 import (
 	"os"
 
+	"k8s.io/kubernetes/cmd/kube-scheduler/app"
+
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/schedulerplugin"
 	pluginconf "github.com/apache/incubator-yunikorn-k8shim/pkg/schedulerplugin/conf"
-	"k8s.io/kubernetes/cmd/kube-scheduler/app"
 )
 
 var (
