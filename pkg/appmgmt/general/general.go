@@ -146,8 +146,8 @@ func (os *Manager) getAppMetadata(pod *v1.Pod) (interfaces.ApplicationMetadata, 
 				zap.String("namespace", pod.Namespace),
 				zap.String("name", pod.Name),
 				zap.Error(err))
-			events.GetRecorder().Eventf(pod, nil, v1.EventTypeWarning, "TaskGroupFormatError", "TaskGroupFormatError",
-				"unable to get taskGroups for pod, pod namespace: %s, pod name: %s, reason: %s", appID, pod.Namespace, pod.Name, err.Error())
+			events.GetRecorder().Eventf(pod, nil, v1.EventTypeWarning, "TaskGroupsError", "TaskGroupsError",
+				"unable to get taskGroups for pod, reason: %s", err.Error())
 		}
 	}
 
