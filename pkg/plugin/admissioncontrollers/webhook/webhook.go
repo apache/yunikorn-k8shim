@@ -34,14 +34,17 @@ import (
 )
 
 const (
-	HTTPPort                              = 9089
-	policyGroupEnvVarName                 = "POLICY_GROUP"
-	schedulerServiceAddressEnvVarName     = "SCHEDULER_SERVICE_ADDRESS"
-	schedulerValidateConfURLPattern       = "http://%s/ws/v1/validate-conf"
-	admissionControllerNamespace          = "ADMISSION_CONTROLLER_NAMESPACE"
-	admissionControllerService            = "ADMISSION_CONTROLLER_SERVICE"
-	admissionControllerNamespaceBlacklist = "ADMISSION_CONTROLLER_NAMESPACE_BLACKLIST"
-	defaultNamespaceBlacklist             = "^kube-system$"
+	HTTPPort                             = 9089
+	policyGroupEnvVarName                = "POLICY_GROUP"
+	schedulerServiceAddressEnvVarName    = "SCHEDULER_SERVICE_ADDRESS"
+	schedulerValidateConfURLPattern      = "http://%s/ws/v1/validate-conf"
+	admissionControllerNamespace         = "ADMISSION_CONTROLLER_NAMESPACE"
+	admissionControllerService           = "ADMISSION_CONTROLLER_SERVICE"
+	admissionControllerProcessNamespaces = "ADMISSION_CONTROLLER_PROCESS_NAMESPACES"
+	admissionControllerBypassNamespaces  = "ADMISSION_CONTROLLER_BYPASS_NAMESPACES"
+	admissionControllerLabelNamespaces   = "ADMISSION_CONTROLLER_LABEL_NAMESPACES"
+	admissionControllerNoLabelNamespaces = "ADMISSION_CONTROLLER_NO_LABEL_NAMESPACES"
+	defaultBypassNamespaces              = "^kube-system$"
 
 	// legal URLs
 	mutateURL       = "/mutate"
@@ -52,9 +55,21 @@ const (
 func main() {
 	namespace := os.Getenv(admissionControllerNamespace)
 	serviceName := os.Getenv(admissionControllerService)
-	namespaceBlacklist, ok := os.LookupEnv(admissionControllerNamespaceBlacklist)
+	processNamespaces, ok := os.LookupEnv(admissionControllerProcessNamespaces)
 	if !ok {
-		namespaceBlacklist = defaultNamespaceBlacklist
+		processNamespaces = ""
+	}
+	bypassNamespaces, ok := os.LookupEnv(admissionControllerBypassNamespaces)
+	if !ok {
+		bypassNamespaces = defaultBypassNamespaces
+	}
+	labelNamespaces, ok := os.LookupEnv(admissionControllerLabelNamespaces)
+	if !ok {
+		labelNamespaces = ""
+	}
+	noLabelNamespaces, ok := os.LookupEnv(admissionControllerNoLabelNamespaces)
+	if !ok {
+		noLabelNamespaces = ""
 	}
 
 	wm, err := NewWebhookManager(namespace, serviceName)
@@ -86,7 +101,7 @@ func main() {
 	webHook, err := initAdmissionController(
 		fmt.Sprintf("%s.yaml", policyGroup),
 		fmt.Sprintf(schedulerValidateConfURLPattern, schedulerServiceAddress),
-		namespaceBlacklist)
+		processNamespaces, bypassNamespaces, labelNamespaces, noLabelNamespaces)
 	if err != nil {
 		log.Logger().Fatal("failed to configure admission controller", zap.Error(err))
 	}
