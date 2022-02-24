@@ -114,8 +114,9 @@ func (nc *schedulerNodes) addAndReportNode(node *v1.Node, reportNode bool) {
 			zap.String("nodeLabels", string(nodeLabels)),
 			zap.Bool("schedulable", !node.Spec.Unschedulable))
 
+		ready := common.HasReadyCondition(node)
 		newNode := newSchedulerNode(node.Name, string(node.UID), string(nodeLabels),
-			common.GetNodeResource(&node.Status), nc.proxy, !node.Spec.Unschedulable)
+			common.GetNodeResource(&node.Status), nc.proxy, !node.Spec.Unschedulable, ready)
 		nc.nodesMap[node.Name] = newNode
 	}
 
@@ -212,6 +213,15 @@ func (nc *schedulerNodes) updateNode(oldNode, newNode *v1.Node) {
 		return
 	}
 
+	if schedulerNode, ok := nc.nodesMap[newNode.Name]; ok {
+		schedulerNode.ready = common.HasReadyCondition(newNode)
+		if !schedulerNode.ready {
+			log.Logger().Debug("Node is not ready", zap.String("Node name", newNode.Name))
+		}
+	} else {
+		log.Logger().Error("Unable to find scheduler node in nodes map", zap.String("node name",
+			newNode.Name))
+	}
 	node := common.CreateFrom(newNode)
 	request := common.CreateUpdateRequestForUpdatedNode(node)
 	log.Logger().Info("report updated nodes to scheduler", zap.Any("request", request))
