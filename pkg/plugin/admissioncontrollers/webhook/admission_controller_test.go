@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -580,4 +581,54 @@ func TestShouldLabelNamespace(t *testing.T) {
 	assert.Check(t, !ac.shouldLabelNamespace("test"), "test namespace allowed when not on label list")
 	assert.Check(t, ac.shouldLabelNamespace("allow-this"), "allow-this namespace not allowed when on label list")
 	assert.Check(t, !ac.shouldLabelNamespace("allow-except-this"), "allow-except-this namespace allowed when on no-label list")
+}
+
+func TestParseRegexes(t *testing.T) {
+	var regexes []*regexp.Regexp
+	var err error
+
+	regexes, err = parseRegexes("")
+	assert.NilError(t, err, "failed to parse empty pattern")
+	assert.Equal(t, len(regexes), 0, "got results for empty pattern")
+
+	regexes, err = parseRegexes("^test$")
+	assert.NilError(t, err, "failed to parse simple pattern")
+	assert.Equal(t, len(regexes), 1, "wrong count for simple pattern")
+	assert.Check(t, regexes[0].MatchString("test"), "didn't match test")
+	assert.Check(t, !regexes[0].MatchString("testx"), "matched testx")
+	assert.Check(t, !regexes[0].MatchString("xtest"), "matched xtest")
+
+	regexes, err = parseRegexes(" ^this$, ^that$ ")
+	assert.NilError(t, err, "failed to parse compound pattern")
+	assert.Equal(t, len(regexes), 2, "wrong count for compound pattern")
+	assert.Check(t, regexes[0].MatchString("this"), "didn't match this")
+	assert.Check(t, regexes[1].MatchString("that"), "didn't match that")
+
+	regexes, err = parseRegexes("^a\\s+b$")
+	assert.NilError(t, err, "failed to parse escaped pattern")
+	assert.Equal(t, len(regexes), 1, "wrong count for escaped pattern")
+	assert.Check(t, regexes[0].MatchString("a \t b"), "didn't match 'a \t b'")
+	assert.Check(t, !regexes[0].MatchString("ab"), "matched 'ab'")
+
+	_, err = parseRegexes("^($")
+	assert.ErrorContains(t, err, "error parsing regexp", "bad pattern doesn't fail")
+}
+
+func TestInitAdmissionControllerRegexErrorHandling(t *testing.T) {
+	var err error
+
+	_, err = initAdmissionController("", "", "", "", "", "")
+	assert.NilError(t, err, "error returned from simple init")
+
+	_, err = initAdmissionController("", "", "(", "", "", "")
+	assert.ErrorContains(t, err, "error parsing regexp", "didn't fail on bad processNamespaces list")
+
+	_, err = initAdmissionController("", "", "", "(", "", "")
+	assert.ErrorContains(t, err, "error parsing regexp", "didn't fail on bad bypassNamespaces list")
+
+	_, err = initAdmissionController("", "", "", "", "(", "")
+	assert.ErrorContains(t, err, "error parsing regexp", "didn't fail on bad labelNamespaces list")
+
+	_, err = initAdmissionController("", "", "", "", "", "(")
+	assert.ErrorContains(t, err, "error parsing regexp", "didn't fail on bad noLabelNamespaces list")
 }
