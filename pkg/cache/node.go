@@ -19,6 +19,7 @@
 package cache
 
 import (
+	"strconv"
 	"sync"
 
 	"github.com/looplab/fsm"
@@ -42,6 +43,7 @@ type SchedulerNode struct {
 	capacity            *si.Resource
 	occupied            *si.Resource
 	schedulable         bool
+	ready               bool
 	existingAllocations []*si.Allocation
 	schedulerAPI        api.SchedulerAPI
 	fsm                 *fsm.FSM
@@ -49,7 +51,7 @@ type SchedulerNode struct {
 }
 
 func newSchedulerNode(nodeName string, nodeUID string, nodeLabels string,
-	nodeResource *si.Resource, schedulerAPI api.SchedulerAPI, schedulable bool) *SchedulerNode {
+	nodeResource *si.Resource, schedulerAPI api.SchedulerAPI, schedulable bool, ready bool) *SchedulerNode {
 	schedulerNode := &SchedulerNode{
 		name:         nodeName,
 		uid:          nodeUID,
@@ -59,6 +61,7 @@ func newSchedulerNode(nodeName string, nodeUID string, nodeLabels string,
 		schedulerAPI: schedulerAPI,
 		schedulable:  schedulable,
 		lock:         &sync.RWMutex{},
+		ready:        ready,
 	}
 	schedulerNode.initFSM()
 	return schedulerNode
@@ -149,9 +152,6 @@ func (n *SchedulerNode) handleNodeRecovery(event *fsm.Event) {
 		zap.String("nodeID", n.name),
 		zap.Bool("schedulable", n.schedulable))
 
-	allocRequest := &si.AllocationRequest{
-		RmID: conf.GetSchedulerConf().ClusterID,
-	}
 	nodeRequest := &si.NodeRequest{
 		Nodes: []*si.NodeInfo{
 			{
@@ -162,6 +162,7 @@ func (n *SchedulerNode) handleNodeRecovery(event *fsm.Event) {
 					constants.DefaultNodeAttributeHostNameKey:   n.name,
 					constants.DefaultNodeAttributeRackNameKey:   constants.DefaultRackName,
 					constants.DefaultNodeAttributeNodeLabelsKey: n.labels,
+					constants.NodeReadyAttribute:                strconv.FormatBool(n.ready),
 				},
 				ExistingAllocations: n.existingAllocations,
 				Action:              si.NodeInfo_CREATE,
@@ -170,11 +171,6 @@ func (n *SchedulerNode) handleNodeRecovery(event *fsm.Event) {
 		RmID: conf.GetSchedulerConf().ClusterID,
 	}
 
-	// send alloc request to scheduler-core
-	if err := n.schedulerAPI.UpdateAllocation(allocRequest); err != nil {
-		log.Logger().Error("failed to send UpdateAllocation request",
-			zap.Any("request", allocRequest))
-	}
 	// send node request to scheduler-core
 	if err := n.schedulerAPI.UpdateNode(nodeRequest); err != nil {
 		log.Logger().Error("failed to send UpdateNode request",
@@ -186,9 +182,6 @@ func (n *SchedulerNode) handleDrainNode(event *fsm.Event) {
 	log.Logger().Info("node enters draining mode",
 		zap.String("nodeID", n.name))
 
-	allocRequest := &si.AllocationRequest{
-		RmID: conf.GetSchedulerConf().ClusterID,
-	}
 	nodeRequest := &si.NodeRequest{
 		Nodes: []*si.NodeInfo{
 			{
@@ -205,12 +198,6 @@ func (n *SchedulerNode) handleDrainNode(event *fsm.Event) {
 	}
 
 	// send request to scheduler-core
-	if err := n.schedulerAPI.UpdateAllocation(allocRequest); err != nil {
-		log.Logger().Error("failed to send UpdateAllocation request",
-			zap.Any("request", allocRequest))
-	}
-
-	// send request to scheduler-core
 	if err := n.schedulerAPI.UpdateNode(nodeRequest); err != nil {
 		log.Logger().Error("failed to send UpdateNode request",
 			zap.Any("request", nodeRequest))
@@ -221,9 +208,6 @@ func (n *SchedulerNode) handleRestoreNode(event *fsm.Event) {
 	log.Logger().Info("restore node from draining mode",
 		zap.String("nodeID", n.name))
 
-	allocRequest := &si.AllocationRequest{
-		RmID: conf.GetSchedulerConf().ClusterID,
-	}
 	nodeRequest := &si.NodeRequest{
 		Nodes: []*si.NodeInfo{
 			{
@@ -239,11 +223,6 @@ func (n *SchedulerNode) handleRestoreNode(event *fsm.Event) {
 		RmID: conf.GetSchedulerConf().ClusterID,
 	}
 
-	// send request to scheduler-core
-	if err := n.schedulerAPI.UpdateAllocation(allocRequest); err != nil {
-		log.Logger().Error("failed to send UpdateAllocation request",
-			zap.Any("request", allocRequest))
-	}
 	// send request to scheduler-core
 	if err := n.schedulerAPI.UpdateNode(nodeRequest); err != nil {
 		log.Logger().Error("failed to send UpdateNode request",

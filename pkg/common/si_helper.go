@@ -20,6 +20,7 @@ package common
 
 import (
 	v1 "k8s.io/api/core/v1"
+	"strconv"
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
@@ -158,8 +159,10 @@ func CreateUpdateRequestForNewNode(node Node) si.NodeRequest {
 func CreateUpdateRequestForUpdatedNode(node Node) si.NodeRequest {
 	// Currently only includes resource in the update request
 	nodeInfo := &si.NodeInfo{
-		NodeID:              node.name,
-		Attributes:          make(map[string]string),
+		NodeID: node.name,
+		Attributes: map[string]string{
+			constants.NodeReadyAttribute: strconv.FormatBool(node.ready),
+		},
 		SchedulableResource: node.capacity,
 		OccupiedResource:    node.occupied,
 		Action:              si.NodeInfo_UPDATE,
