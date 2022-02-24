@@ -52,6 +52,10 @@ func (callback *AsyncRMCallback) UpdateAllocation(response *si.AllocationRespons
 			zap.String("applicationID", alloc.ApplicationID),
 			zap.String("nodeID", alloc.NodeID))
 
+		// update cache
+		if err := callback.context.AssumePod(alloc.AllocationKey, alloc.NodeID); err != nil {
+			return err
+		}
 		if app := callback.context.GetApplication(alloc.ApplicationID); app != nil {
 			ev := cache.NewAllocateTaskEvent(app.GetApplicationID(), alloc.AllocationKey, alloc.UUID, alloc.NodeID)
 			dispatcher.Dispatch(ev)
@@ -62,7 +66,6 @@ func (callback *AsyncRMCallback) UpdateAllocation(response *si.AllocationRespons
 		// request rejected by the scheduler, put it back and try scheduling again
 		log.Logger().Debug("callback: response to rejected allocation",
 			zap.String("allocationKey", reject.AllocationKey))
-
 		if app := callback.context.GetApplication(reject.ApplicationID); app != nil {
 			dispatcher.Dispatch(cache.NewRejectTaskEvent(app.GetApplicationID(), reject.AllocationKey,
 				fmt.Sprintf("task %s from application %s is rejected by scheduler",
@@ -73,6 +76,11 @@ func (callback *AsyncRMCallback) UpdateAllocation(response *si.AllocationRespons
 	for _, release := range response.Released {
 		log.Logger().Debug("callback: response to released allocations",
 			zap.String("UUID", release.UUID))
+
+		// update cache
+		if err := callback.context.ForgetPod(release.GetAllocationKey()); err != nil {
+			return err
+		}
 
 		// TerminationType 0 mean STOPPED_BY_RM
 		if release.TerminationType != si.TerminationType_STOPPED_BY_RM {
@@ -182,21 +190,6 @@ func (callback *AsyncRMCallback) UpdateNode(response *si.NodeResponse) error {
 
 func (callback *AsyncRMCallback) Predicates(args *si.PredicatesArgs) error {
 	return callback.context.IsPodFitNode(args.AllocationKey, args.NodeID, args.Allocate)
-}
-
-func (callback *AsyncRMCallback) ReSyncSchedulerCache(args *si.ReSyncSchedulerCacheArgs) error {
-	for _, assumedAlloc := range args.AssumedAllocations {
-		if err := callback.context.AssumePod(assumedAlloc.AllocationKey, assumedAlloc.NodeID); err != nil {
-			return err
-		}
-	}
-
-	for _, forgetAlloc := range args.ForgetAllocations {
-		if err := callback.context.ForgetPod(forgetAlloc.AllocationKey); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func (callback *AsyncRMCallback) SendEvent(eventRecords []*si.EventRecord) {
