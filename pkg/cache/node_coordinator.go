@@ -85,10 +85,7 @@ func (c *nodeResourceCoordinator) updatePod(old, new interface{}) {
 		// we need to notify scheduler-core to re-sync the node resource
 		podResource := common.GetPodResource(newPod)
 		c.nodes.updateNodeOccupiedResources(newPod.Spec.NodeName, podResource, AddOccupiedResource)
-		if err := c.nodes.cache.AddPod(newPod); err != nil {
-			log.Logger().Warn("failed to update scheduler-cache",
-				zap.Error(err))
-		}
+		c.nodes.cache.AddPod(newPod)
 		return
 	}
 

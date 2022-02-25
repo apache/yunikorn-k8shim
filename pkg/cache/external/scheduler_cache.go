@@ -23,6 +23,7 @@ import (
 	"sync"
 
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	v1 "k8s.io/api/core/v1"
 	storageV1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -30,6 +31,7 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 )
 
@@ -47,6 +49,7 @@ import (
 type SchedulerCache struct {
 	nodesMap              map[string]*framework.NodeInfo // node name to NodeInfo map
 	podsMap               map[string]*v1.Pod
+	assignedPods          map[string]string // map of pods to the node they are currently assigned to
 	assumedPods           map[string]bool   // map of assumed pods, value indicates if pod volumes are all bound
 	pendingAllocations    map[string]string // map of pod to node ID, presence indicates a pending allocation for scheduler
 	inProgressAllocations map[string]string // map of pod to node ID, presence indicates an in-process allocation for scheduler
@@ -58,6 +61,7 @@ func NewSchedulerCache(clients *client.Clients) *SchedulerCache {
 	cache := &SchedulerCache{
 		nodesMap:              make(map[string]*framework.NodeInfo),
 		podsMap:               make(map[string]*v1.Pod),
+		assignedPods:          make(map[string]string),
 		assumedPods:           make(map[string]bool),
 		pendingAllocations:    make(map[string]string),
 		inProgressAllocations: make(map[string]string),
@@ -93,52 +97,62 @@ func (cache *SchedulerCache) GetNode(name string) *framework.NodeInfo {
 func (cache *SchedulerCache) AddNode(node *v1.Node) {
 	cache.lock.Lock()
 	defer cache.lock.Unlock()
+	cache.dumpState("AddNode.Pre")
+	defer cache.dumpState("AddNode.Post")
 
-	_, ok := cache.nodesMap[node.Name]
-	if !ok {
-		n := framework.NewNodeInfo()
-		cache.nodesMap[node.Name] = n
-	}
-
-	// make sure the node is always linked to the cached node object
-	// Currently, SetNode API call always returns nil, never an error
-	if err := cache.nodesMap[node.Name].SetNode(node); err != nil {
-		// currently, this may never reached because SetNode always return nil
-		// keep the check around to prevent the API changes to provide an error in some cases
-		log.Logger().Error("failed to store v1.Node in cache", zap.Error(err))
-	}
+	cache.updateNode(node)
 }
 
-func (cache *SchedulerCache) UpdateNode(oldNode, newNode *v1.Node) error {
+func (cache *SchedulerCache) UpdateNode(_, newNode *v1.Node) {
 	cache.lock.Lock()
 	defer cache.lock.Unlock()
+	cache.dumpState("UpdateNode.Pre")
+	defer cache.dumpState("UpdateNode.Post")
 
-	n, ok := cache.nodesMap[newNode.Name]
-	if !ok {
-		log.Logger().Warn("updated node info not found, adding it to the cache",
-			zap.String("nodeName", newNode.Name))
-		n = framework.NewNodeInfo()
-		cache.nodesMap[newNode.Name] = n
-	}
-
-	return n.SetNode(newNode)
+	cache.updateNode(newNode)
 }
 
-func (cache *SchedulerCache) RemoveNode(node *v1.Node) error {
+func (cache *SchedulerCache) updateNode(node *v1.Node) {
+	nodeInfo, ok := cache.nodesMap[node.Name]
+	if !ok {
+		log.Logger().Debug("Adding node to cache", zap.String("nodeName", node.Name))
+		nodeInfo = framework.NewNodeInfo()
+		cache.nodesMap[node.Name] = nodeInfo
+	} else {
+		log.Logger().Debug("Updating node in cache", zap.String("nodeName", node.Name))
+	}
+	if err := nodeInfo.SetNode(node); err != nil {
+		// this should be unreachable code, as SetNode() always returns nil
+		log.Logger().Warn("BUG: Unexpected failure in nodeInfo.SetNode()", zap.String("nodeName", node.Name), zap.Error(err))
+	}
+}
+
+func (cache *SchedulerCache) RemoveNode(node *v1.Node) {
 	cache.lock.Lock()
 	defer cache.lock.Unlock()
+	cache.dumpState("RemoveNode.Pre")
+	defer cache.dumpState("RemoveNode.Post")
 
-	return cache.removeNode(node)
+	cache.removeNode(node)
 }
 
-func (cache *SchedulerCache) removeNode(node *v1.Node) error {
-	_, ok := cache.nodesMap[node.Name]
+func (cache *SchedulerCache) removeNode(node *v1.Node) {
+	nodeInfo, ok := cache.nodesMap[node.Name]
 	if !ok {
-		return fmt.Errorf("node %v is not found", node.Name)
+		log.Logger().Debug("Attempted to remove non-existent node", zap.String("nodeName", node.Name))
+		return
 	}
 
+	for _, pod := range nodeInfo.Pods {
+		key := string(pod.Pod.UID)
+		delete(cache.assignedPods, key)
+		delete(cache.assumedPods, key)
+		delete(cache.pendingAllocations, key)
+		delete(cache.inProgressAllocations, key)
+	}
+
+	log.Logger().Debug("Removing node from cache", zap.String("nodeName", node.Name))
 	delete(cache.nodesMap, node.Name)
-	return nil
 }
 
 // AddPendingPodAllocation is used to add a new pod -> node mapping to the cache when running in scheduler plugin mode.
@@ -146,6 +160,8 @@ func (cache *SchedulerCache) removeNode(node *v1.Node) error {
 func (cache *SchedulerCache) AddPendingPodAllocation(podKey string, nodeID string) {
 	cache.lock.Lock()
 	defer cache.lock.Unlock()
+	cache.dumpState("AddPendingPodAllocation.Pre")
+	defer cache.dumpState("AddPendingPodAllocation.Post")
 	delete(cache.inProgressAllocations, podKey)
 	cache.pendingAllocations[podKey] = nodeID
 }
@@ -157,6 +173,8 @@ func (cache *SchedulerCache) AddPendingPodAllocation(podKey string, nodeID strin
 func (cache *SchedulerCache) RemovePodAllocation(podKey string) {
 	cache.lock.Lock()
 	defer cache.lock.Unlock()
+	cache.dumpState("RemovePendingPodAllocation.Pre")
+	defer cache.dumpState("RemovePendingPodAllocation.Post")
 	delete(cache.pendingAllocations, podKey)
 	delete(cache.inProgressAllocations, podKey)
 }
@@ -185,6 +203,8 @@ func (cache *SchedulerCache) GetInProgressPodAllocation(podKey string) (nodeID s
 func (cache *SchedulerCache) StartPodAllocation(podKey string, nodeID string) bool {
 	cache.lock.Lock()
 	defer cache.lock.Unlock()
+	cache.dumpState("StartPendingPodAllocation.Pre")
+	defer cache.dumpState("StartPendingPodAllocation.Post")
 	expectedNodeID, ok := cache.pendingAllocations[podKey]
 	if ok && expectedNodeID == nodeID {
 		delete(cache.pendingAllocations, podKey)
@@ -205,125 +225,119 @@ func (cache *SchedulerCache) ArePodVolumesAllBound(podKey string) bool {
 	return cache.assumedPods[podKey]
 }
 
-// cache pod in the scheduler internal map, so it can be fast retrieved by UID,
-// if pod is assigned to a node, update the cached nodes map too so that scheduler
-// knows which pod is running before pod is bound to that node.
-func (cache *SchedulerCache) AddPod(pod *v1.Pod) error {
-	key, err := framework.GetPodKey(pod)
-	if err != nil {
-		return err
-	}
-
+// AddPod adds a pod to the scheduler cache
+func (cache *SchedulerCache) AddPod(pod *v1.Pod) {
 	cache.lock.Lock()
 	defer cache.lock.Unlock()
+	cache.dumpState("AddPod.Pre")
+	defer cache.dumpState("AddPod.Post")
+	cache.updatePod(pod)
+}
+
+// UpdatePod updates a pod in the cache
+func (cache *SchedulerCache) UpdatePod(_, newPod *v1.Pod) {
+	cache.lock.Lock()
+	defer cache.lock.Unlock()
+	cache.dumpState("UpdatePod.Pre")
+	defer cache.dumpState("UpdatePod.Post")
+	cache.updatePod(newPod)
+}
+
+func (cache *SchedulerCache) updatePod(pod *v1.Pod) {
+	key := string(pod.UID)
 
 	currState, ok := cache.podsMap[key]
 	if ok {
-		// pod exists
-		if cache.isAssumedPod(key) {
-			if currState.Spec.NodeName != pod.Spec.NodeName {
-				// pod was added to a different node than it was assumed to
-				log.Logger().Warn("added pod has inconsistent pod location",
-					zap.String("assumedLocation", pod.Spec.NodeName),
-					zap.String("actualLocation", currState.Spec.NodeName))
+		// remove current version of pod
+		delete(cache.podsMap, key)
+		nodeName, ok := cache.assignedPods[key]
+		if ok {
+			nodeInfo, ok := cache.nodesMap[nodeName]
+			if ok {
+				if err := nodeInfo.RemovePod(currState); err != nil {
+					log.Logger().Warn("BUG: Failed to remove pod from node",
+						zap.String("podName", currState.Name),
+						zap.String("nodeName", nodeName),
+						zap.Error(err))
+				}
+			}
+			if pod.Spec.NodeName == "" {
+				// new pod wasn't assigned to a node, so use existing assignment
+				pod.Spec.NodeName = nodeName
 			}
 		}
-		// update pod
-		cache.updatePod(currState, pod, key)
-	} else {
-		// add pod
-		cache.addPod(pod, key)
-	}
-	return nil
-}
-
-func (cache *SchedulerCache) UpdatePod(oldPod, newPod *v1.Pod) error {
-	key, err := framework.GetPodKey(oldPod)
-	if err != nil {
-		return err
+		delete(cache.assignedPods, key)
 	}
 
-	cache.lock.Lock()
-	defer cache.lock.Unlock()
-
-	currState, ok := cache.podsMap[key]
-	if ok {
-		// pod exists and is not assumed
-		if !cache.isAssumedPod(key) && currState.Spec.NodeName != newPod.Spec.NodeName {
-			// pod was added to a different node than it was assumed to
-			log.Logger().Warn("updated pod found on different node than assigned to",
-				zap.String("assumedLocation", newPod.Spec.NodeName),
-				zap.String("actualLocation", currState.Spec.NodeName))
-		}
-		// update it
-		cache.updatePod(oldPod, newPod, key)
-	} else {
-		// pod does not exist yet, add it
-		cache.addPod(newPod, key)
+	if utils.IsPodRunning(pod) || utils.IsPodTerminated(pod) {
+		// delete all assumed state from cache, as pod has now been bound
+		delete(cache.assumedPods, key)
+		delete(cache.pendingAllocations, key)
+		delete(cache.inProgressAllocations, key)
 	}
-	return nil
-}
 
-// Assumes that lock is already acquired.
-func (cache *SchedulerCache) addPod(pod *v1.Pod, key string) {
-	if pod.Spec.NodeName != "" {
-		n, ok := cache.nodesMap[pod.Spec.NodeName]
+	if utils.IsAssignedPod(pod) && !utils.IsPodTerminated(pod) {
+		// assign to node
+		nodeInfo, ok := cache.nodesMap[pod.Spec.NodeName]
 		if !ok {
-			n = framework.NewNodeInfo()
-			cache.nodesMap[pod.Spec.NodeName] = n
+			// node doesn't exist, create a synthetic one for now
+			nodeInfo = framework.NewNodeInfo()
+			cache.nodesMap[pod.Spec.NodeName] = nodeInfo
 			// work around a crash bug in NodeInfo.RemoveNode() when Node is unset
-			if err := n.SetNode(&v1.Node{ObjectMeta: metav1.ObjectMeta{Name: pod.Spec.NodeName}}); err != nil {
-				log.Logger().Warn("Unable to add pod to synthetic node",
+			if err := nodeInfo.SetNode(&v1.Node{ObjectMeta: metav1.ObjectMeta{Name: pod.Spec.NodeName}}); err != nil {
+				log.Logger().Warn("BUG: Failed to add pod to synthetic node",
 					zap.String("pod", pod.Name),
 					zap.String("node", pod.Spec.NodeName),
 					zap.Error(err))
 			}
 		}
-		n.AddPod(pod)
+		nodeInfo.AddPod(pod)
+		cache.assignedPods[key] = pod.Spec.NodeName
 	}
-	cache.podsMap[key] = pod
+
+	// if pod is not in a terminal state, add it back into cache
+	if !utils.IsPodTerminated(pod) {
+		log.Logger().Debug("Putting pod in cache", zap.String("podName", pod.Name), zap.String("podKey", key))
+		cache.podsMap[key] = pod
+	} else {
+		log.Logger().Debug("Removing terminated pod from cache", zap.String("podName", pod.Name), zap.String("podKey", key))
+		delete(cache.podsMap, key)
+		delete(cache.assignedPods, key)
+		delete(cache.assumedPods, key)
+		delete(cache.pendingAllocations, key)
+		delete(cache.inProgressAllocations, key)
+	}
 }
 
-func (cache *SchedulerCache) updatePod(oldPod, newPod *v1.Pod, key string) {
-	// remove old version from cache
-	cache.removePod(oldPod, false)
-
-	// add new version to cache
-	cache.addPod(newPod, key)
-}
-
+// RemovePod removes a pod from the cache
 func (cache *SchedulerCache) RemovePod(pod *v1.Pod) {
 	cache.lock.Lock()
 	defer cache.lock.Unlock()
-	cache.removePod(pod, true)
+	cache.dumpState("RemovePod.Pre")
+	defer cache.dumpState("RemovePod.Post")
+	cache.removePod(pod)
 }
 
-func (cache *SchedulerCache) removePod(pod *v1.Pod, removeAlloc bool) {
-	if removeAlloc {
-		// remove pod from any pending or in-progress allocations
-		delete(cache.pendingAllocations, string(pod.UID))
-		delete(cache.inProgressAllocations, string(pod.UID))
-	}
-
-	// remove pod from cache
-	delete(cache.podsMap, string(pod.UID))
-
-	// remove pod from node
-	if pod.Spec.NodeName != "" {
-		n, ok := cache.nodesMap[pod.Spec.NodeName]
+func (cache *SchedulerCache) removePod(pod *v1.Pod) {
+	key := string(pod.UID)
+	log.Logger().Debug("Removing deleted pod from cache", zap.String("podName", pod.Name), zap.String("podKey", key))
+	nodeName, ok := cache.assignedPods[key]
+	if ok {
+		nodeInfo, ok := cache.nodesMap[nodeName]
 		if ok {
-			if err := n.RemovePod(pod); err != nil {
-				log.Logger().Warn("unable to remove pod from node",
-					zap.String("pod", pod.Name),
-					zap.String("node", pod.Spec.NodeName),
+			if err := nodeInfo.RemovePod(pod); err != nil {
+				log.Logger().Warn("BUG: Failed to remove pod from node",
+					zap.String("podName", pod.Name),
+					zap.String("nodeName", nodeName),
 					zap.Error(err))
 			}
-		} else {
-			log.Logger().Warn("unable to find node for pod removal",
-				zap.String("pod", pod.Name),
-				zap.String("node", pod.Spec.NodeName))
 		}
 	}
+	delete(cache.podsMap, key)
+	delete(cache.assignedPods, key)
+	delete(cache.assumedPods, key)
+	delete(cache.pendingAllocations, key)
+	delete(cache.inProgressAllocations, key)
 }
 
 func (cache *SchedulerCache) GetPod(uid string) (*v1.Pod, bool) {
@@ -335,42 +349,49 @@ func (cache *SchedulerCache) GetPod(uid string) (*v1.Pod, bool) {
 	return nil, false
 }
 
-func (cache *SchedulerCache) AssumePod(pod *v1.Pod, allBound bool) error {
-	key, err := framework.GetPodKey(pod)
-	if err != nil {
-		return err
-	}
-
+func (cache *SchedulerCache) AssumePod(pod *v1.Pod, allBound bool) {
 	cache.lock.Lock()
 	defer cache.lock.Unlock()
-
-	cache.addPod(pod, key)
-	cache.assumedPods[key] = allBound
-
-	return nil
+	cache.dumpState("AssumePod.Pre")
+	defer cache.dumpState("AssumePod.Post")
+	cache.assumePod(pod, allBound)
 }
 
-func (cache *SchedulerCache) ForgetPod(pod *v1.Pod) error {
-	key, err := framework.GetPodKey(pod)
-	if err != nil {
-		return err
-	}
+func (cache *SchedulerCache) assumePod(pod *v1.Pod, allBound bool) {
+	key := string(pod.UID)
 
+	log.Logger().Debug("Adding assumed pod to cache",
+		zap.String("podName", pod.Name),
+		zap.String("podKey", key),
+		zap.String("node", pod.Spec.NodeName),
+		zap.Bool("allBound", allBound))
+	cache.updatePod(pod)
+	cache.assumedPods[key] = allBound
+}
+
+func (cache *SchedulerCache) ForgetPod(pod *v1.Pod) {
 	cache.lock.Lock()
 	defer cache.lock.Unlock()
+	cache.dumpState("ForgetPod.Pre")
+	defer cache.dumpState("ForgetPod.Post")
 
-	currState, ok := cache.podsMap[key]
-	if ok && currState.Spec.NodeName != pod.Spec.NodeName {
-		log.Logger().Warn("pod was assumed on one node but found on another",
-			zap.String("pod", key),
-			zap.String("expectedNode", currState.Spec.NodeName),
-			zap.String("actualNode", pod.Spec.NodeName))
-	}
+	cache.forgetPod(pod)
+}
+
+func (cache *SchedulerCache) forgetPod(pod *v1.Pod) {
+	key := string(pod.UID)
+
+	// update the pod in cache
+	cache.updatePod(pod)
+
+	// remove assigned allocation
+	log.Logger().Debug("Removing assumed pod from cache",
+		zap.String("podName", pod.Name),
+		zap.String("podKey", key))
 
 	delete(cache.assumedPods, key)
 	delete(cache.pendingAllocations, key)
 	delete(cache.inProgressAllocations, key)
-	return nil
 }
 
 // Implement k8s.io/client-go/listers/core/v1#PodLister interface
@@ -416,4 +437,41 @@ func (cache *SchedulerCache) GetPersistentVolumeClaimInfo(nameSpace, name string
 // Implement scheduler/algorithm/predicates/predicates.go#PersistentVolumeClaimInfo interface
 func (cache *SchedulerCache) GetPersistentVolumeInfo(name string) (*v1.PersistentVolume, error) {
 	return cache.clients.PVInformer.Lister().Get(name)
+}
+
+// dumpState dumps summary statistics for the cache. Must be called with lock already acquired
+func (cache *SchedulerCache) dumpState(context string) {
+	if log.Logger().Core().Enabled(zapcore.DebugLevel) {
+		log.Logger().Debug("Scheduler cache state ("+context+")",
+			zap.Int("nodes", len(cache.nodesMap)),
+			zap.Int("pods", len(cache.podsMap)),
+			zap.Int("assumed", len(cache.assumedPods)),
+			zap.Int("pendingAllocs", len(cache.pendingAllocations)),
+			zap.Int("inProgressAllocs", len(cache.inProgressAllocations)),
+			zap.Int("podsAssigned", cache.nodePodCount()),
+			zap.Any("phases", cache.podPhases()))
+	}
+}
+
+func (cache *SchedulerCache) podPhases() map[string]int {
+	result := make(map[string]int)
+
+	for _, pod := range cache.podsMap {
+		key := string(pod.Status.Phase)
+		count, ok := result[key]
+		if !ok {
+			count = 0
+		}
+		count++
+		result[key] = count
+	}
+	return result
+}
+
+func (cache *SchedulerCache) nodePodCount() int {
+	result := 0
+	for _, node := range cache.nodesMap {
+		result += len(node.Pods)
+	}
+	return result
 }

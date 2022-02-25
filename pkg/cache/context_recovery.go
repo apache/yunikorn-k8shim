@@ -123,10 +123,7 @@ func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) err
 				}
 				occupiedResource = common.Add(occupiedResource, common.GetPodResource(&pod))
 				nodeOccupiedResources[pod.Spec.NodeName] = occupiedResource
-				if err = ctx.nodes.cache.AddPod(&pod); err != nil {
-					log.Logger().Warn("failed to update scheduler-cache",
-						zap.Error(err))
-				}
+				ctx.nodes.cache.AddPod(&pod)
 			}
 		}
 

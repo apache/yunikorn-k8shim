@@ -165,11 +165,7 @@ func (ctx *Context) updateNode(oldObj, newObj interface{}) {
 	}
 
 	// update secondary cache
-	if err := ctx.schedulerCache.UpdateNode(oldNode, newNode); err != nil {
-		log.Logger().Error("unable to update node in scheduler cache",
-			zap.Error(err))
-		return
-	}
+	ctx.schedulerCache.UpdateNode(oldNode, newNode)
 
 	// update primary cache
 	ctx.nodes.updateNode(oldNode, newNode)
@@ -194,11 +190,7 @@ func (ctx *Context) deleteNode(obj interface{}) {
 
 	// delete node from secondary cache
 	log.Logger().Debug("delete node from cache", zap.String("nodeName", node.Name))
-	if err := ctx.schedulerCache.RemoveNode(node); err != nil {
-		log.Logger().Error("unable to delete node from scheduler cache",
-			zap.Error(err))
-		return
-	}
+	ctx.schedulerCache.RemoveNode(node)
 
 	// delete node from primary cache
 	ctx.nodes.deleteNode(node)
@@ -215,20 +207,15 @@ func (ctx *Context) addPodToCache(obj interface{}) {
 		return
 	}
 
-	// if a terminated pod is added to cache, it will
-	// add requested resource to the cached node, causing
-	// the node uses more resources that it actually is,
-	// this can only be fixed after the pod is removed.
+	// treat a terminated pod like a removal
 	if utils.IsPodTerminated(pod) {
+		log.Logger().Debug("Request to add terminated pod, removing from cache", zap.String("podName", pod.Name))
+		ctx.schedulerCache.RemovePod(pod)
 		return
 	}
 
 	log.Logger().Debug("adding pod to cache", zap.String("podName", pod.Name))
-	if err := ctx.schedulerCache.AddPod(pod); err != nil {
-		log.Logger().Error("add pod to scheduler cache failed",
-			zap.String("podName", pod.Name),
-			zap.Error(err))
-	}
+	ctx.schedulerCache.AddPod(pod)
 }
 
 func (ctx *Context) removePodFromCache(obj interface{}) {
@@ -264,16 +251,14 @@ func (ctx *Context) updatePodInCache(oldObj, newObj interface{}) {
 		return
 	}
 
-	// ignore terminated pods
+	// treat terminated pods like a remove
 	if utils.IsPodTerminated(newPod) {
+		log.Logger().Debug("Request to update terminated pod, removing from cache", zap.String("podName", newPod.Name))
+		ctx.schedulerCache.RemovePod(newPod)
 		return
 	}
 
-	if err := ctx.schedulerCache.UpdatePod(oldPod, newPod); err != nil {
-		log.Logger().Debug("failed to update pod in cache",
-			zap.String("podName", oldPod.Name),
-			zap.Error(err))
-	}
+	ctx.schedulerCache.UpdatePod(oldPod, newPod)
 }
 
 // filter pods by scheduler name and state
@@ -472,7 +457,8 @@ func (ctx *Context) AssumePod(name string, node string) error {
 			}
 			// assign the node name for pod
 			assumedPod.Spec.NodeName = node
-			return ctx.schedulerCache.AssumePod(assumedPod, allBound)
+			ctx.schedulerCache.AssumePod(assumedPod, allBound)
+			return nil
 		}
 	}
 	return nil
@@ -480,17 +466,17 @@ func (ctx *Context) AssumePod(name string, node string) error {
 
 // forget pod must be called when a pod is assumed to be running on a node,
 // but then for some reason it is failed to bind or released.
-func (ctx *Context) ForgetPod(name string) error {
+func (ctx *Context) ForgetPod(name string) {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
 
 	if pod, ok := ctx.schedulerCache.GetPod(name); ok {
 		log.Logger().Debug("forget pod", zap.String("pod", pod.Name))
-		return ctx.schedulerCache.ForgetPod(pod)
+		ctx.schedulerCache.ForgetPod(pod)
+		return
 	}
 	log.Logger().Debug("unable to forget pod",
 		zap.String("reason", fmt.Sprintf("pod %s not found in scheduler cache", name)))
-	return nil
 }
 
 func (ctx *Context) UpdateApplication(app *Application) {
