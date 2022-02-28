@@ -19,25 +19,27 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
 
 	"gotest.tools/assert"
+	admissionv1 "k8s.io/api/admission/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 )
 
 func TestUpdateLabels(t *testing.T) {
-	ac := prepareController(t, "", "")
-
 	// verify when appId/queue are not given,
 	// we patch it correctly
 	var patch []patchOperation
@@ -60,7 +62,7 @@ func TestUpdateLabels(t *testing.T) {
 		Status: v1.PodStatus{},
 	}
 
-	patch = ac.updateLabels("default", pod, patch)
+	patch = updateLabels("default", pod, patch)
 
 	assert.Equal(t, len(patch), 1)
 	assert.Equal(t, patch[0].Op, "add")
@@ -97,7 +99,7 @@ func TestUpdateLabels(t *testing.T) {
 		Spec:   v1.PodSpec{},
 		Status: v1.PodStatus{},
 	}
-	patch = ac.updateLabels("default", pod, patch)
+	patch = updateLabels("default", pod, patch)
 
 	assert.Equal(t, len(patch), 1)
 	assert.Equal(t, patch[0].Op, "add")
@@ -110,29 +112,6 @@ func TestUpdateLabels(t *testing.T) {
 	} else {
 		t.Fatal("patch info content is not as expected")
 	}
-
-	// verify if pod is in kube-system namespace we won't modify it
-	patch = make([]patchOperation, 0)
-
-	pod = &v1.Pod{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:            "a-test-pod",
-			Namespace:       "kube-system",
-			UID:             "7f5fd6c5d5",
-			ResourceVersion: "10654",
-			Labels: map[string]string{
-				"random": "random",
-			},
-		},
-		Spec:   v1.PodSpec{},
-		Status: v1.PodStatus{},
-	}
-	patch = ac.updateLabels("kube-system", pod, patch)
-	assert.Equal(t, len(patch), 0)
 
 	// verify if queue is given in the labels,
 	// we won't modify it
@@ -157,7 +136,7 @@ func TestUpdateLabels(t *testing.T) {
 		Status: v1.PodStatus{},
 	}
 
-	patch = ac.updateLabels("default", pod, patch)
+	patch = updateLabels("default", pod, patch)
 
 	assert.Equal(t, len(patch), 1)
 	assert.Equal(t, patch[0].Op, "add")
@@ -190,7 +169,7 @@ func TestUpdateLabels(t *testing.T) {
 		Status: v1.PodStatus{},
 	}
 
-	patch = ac.updateLabels("default", pod, patch)
+	patch = updateLabels("default", pod, patch)
 
 	assert.Equal(t, len(patch), 1)
 	assert.Equal(t, patch[0].Op, "add")
@@ -219,7 +198,7 @@ func TestUpdateLabels(t *testing.T) {
 		Status: v1.PodStatus{},
 	}
 
-	patch = ac.updateLabels("default", pod, patch)
+	patch = updateLabels("default", pod, patch)
 
 	assert.Equal(t, len(patch), 1)
 	assert.Equal(t, patch[0].Op, "add")
@@ -246,7 +225,7 @@ func TestUpdateLabels(t *testing.T) {
 		Status:     v1.PodStatus{},
 	}
 
-	patch = ac.updateLabels("default", pod, patch)
+	patch = updateLabels("default", pod, patch)
 
 	assert.Equal(t, len(patch), 1)
 	assert.Equal(t, patch[0].Op, "add")
@@ -276,7 +255,7 @@ func TestUpdateSchedulerName(t *testing.T) {
 
 func TestValidateConfigMap(t *testing.T) {
 	configName := fmt.Sprintf("%s.yaml", conf.DefaultPolicyGroup)
-	controller, err := initAdmissionController(configName, "", "")
+	controller, err := initAdmissionController(configName, "", "", "", "", "")
 	if err != nil {
 		t.Fatal("failed to init admission controller", err)
 	}
@@ -313,7 +292,7 @@ func TestValidateConfigMapValidConfig(t *testing.T) {
 	srv := serverMock(true)
 	defer srv.Close()
 	// both server and url pattern contains http://, so we need to delete one
-	controller := prepareController(t, strings.Replace(srv.URL, "http://", "", 1), "")
+	controller := prepareController(t, strings.Replace(srv.URL, "http://", "", 1), "", "", "", "")
 	err := controller.validateConfigMap(configmap)
 	assert.NilError(t, err, "No error expected")
 }
@@ -326,7 +305,7 @@ func TestValidateConfigMapInValidConfig(t *testing.T) {
 	srv := serverMock(false)
 	defer srv.Close()
 	// both server and url pattern contains http://, so we need to delete one
-	controller := prepareController(t, strings.Replace(srv.URL, "http://", "", 1), "")
+	controller := prepareController(t, strings.Replace(srv.URL, "http://", "", 1), "", "", "", "")
 	err := controller.validateConfigMap(configmap)
 	assert.Equal(t, "Invalid config", err.Error(),
 		"Other error returned than the expected one")
@@ -340,7 +319,7 @@ func TestValidateConfigMapWrongRequest(t *testing.T) {
 	srv := serverMock(false)
 	defer srv.Close()
 	// the url is wrong, so the POST request will fail and an error will be returned
-	controller := prepareController(t, srv.URL, "")
+	controller := prepareController(t, srv.URL, "", "", "", "")
 	err := controller.validateConfigMap(configmap)
 	assert.Assert(t, err != nil)
 }
@@ -355,15 +334,15 @@ func prepareConfigMap(data string) *v1.ConfigMap {
 	return configmap
 }
 
-func prepareController(t *testing.T, url string, nsBlacklist string) *admissionController {
+func prepareController(t *testing.T, url string, processNs string, bypassNs string, labelNs string, noLabelNs string) *admissionController {
 	configName := fmt.Sprintf("%s.yaml", conf.DefaultPolicyGroup)
-	if nsBlacklist == "" {
-		nsBlacklist = "^kube-system$"
+	if bypassNs == "" {
+		bypassNs = "^kube-system$"
 	}
 	controller, err := initAdmissionController(
 		configName,
 		fmt.Sprintf(schedulerValidateConfURLPattern, url),
-		nsBlacklist)
+		processNs, bypassNs, labelNs, noLabelNs)
 	if err != nil {
 		t.Fatal("failed to prepare controller", err)
 	}
@@ -438,13 +417,218 @@ func TestIsConfigMapUpdateAllowed(t *testing.T) {
 	}
 }
 
-func TestIsNamespaceAllowed(t *testing.T) {
-	ac := prepareController(t, "", "^kube-system$,^pre-,-post$")
+func TestMutate(t *testing.T) {
+	var ac *admissionController
+	var pod v1.Pod
+	var req *admissionv1.AdmissionRequest
+	var resp *admissionv1.AdmissionResponse
+	var podJSON []byte
+	var err error
 
-	assert.Check(t, ac.isNamespaceAllowed("test"), "test namespace allowed")
-	assert.Check(t, !ac.isNamespaceAllowed("kube-system"), "kube-system namespace not allowed")
-	assert.Check(t, ac.isNamespaceAllowed("x-kube-system"), "x-kube-system namespace allowed")
-	assert.Check(t, ac.isNamespaceAllowed("kube-system-x"), "kube-system-x namespace allowed")
-	assert.Check(t, !ac.isNamespaceAllowed("pre-ns"), "pre-ns namespace not allowed")
-	assert.Check(t, !ac.isNamespaceAllowed("ns-post"), "ns-post namespace not allowed")
+	ac = prepareController(t, "", "", "^kube-system$,^bypass$", "", "^nolabel$")
+
+	// nil request
+	resp = ac.mutate(nil)
+	assert.Check(t, !resp.Allowed, "response allowed with nil request")
+
+	// yunikorn pod
+	pod = v1.Pod{ObjectMeta: metav1.ObjectMeta{
+		Namespace: "test-ns",
+		Labels:    map[string]string{"app": "yunikorn"},
+	}}
+	req = &admissionv1.AdmissionRequest{
+		UID:       "test-uid",
+		Namespace: "test-ns",
+		Kind:      metav1.GroupVersionKind{Kind: "Pod"},
+	}
+	podJSON, err = json.Marshal(pod)
+	assert.NilError(t, err, "failed to marshal pod")
+	req.Object = runtime.RawExtension{Raw: podJSON}
+	resp = ac.mutate(req)
+	assert.Check(t, resp.Allowed, "response not allowed for yunikorn pod")
+	assert.Equal(t, len(resp.Patch), 0, "non-empty patch for yunikorn pod")
+
+	// pod without applicationID
+	pod = v1.Pod{ObjectMeta: metav1.ObjectMeta{
+		Namespace: "test-ns",
+	}}
+	req = &admissionv1.AdmissionRequest{
+		UID:       "test-uid",
+		Namespace: "test-ns",
+		Kind:      metav1.GroupVersionKind{Kind: "Pod"},
+	}
+	podJSON, err = json.Marshal(pod)
+	assert.NilError(t, err, "failed to marshal pod")
+	req.Object = runtime.RawExtension{Raw: podJSON}
+	resp = ac.mutate(req)
+	assert.Check(t, resp.Allowed, "response not allowed for pod")
+	assert.Equal(t, schedulerName(t, resp.Patch), "yunikorn", "yunikorn not set as scheduler for pod")
+	assert.Equal(t, labels(t, resp.Patch)["applicationId"], "yunikorn-test-ns-autogen", "wrong applicationId label")
+	assert.Equal(t, labels(t, resp.Patch)["disableStateAware"], "true", "missing disableStateAware label")
+
+	// pod with applicationId
+	pod.ObjectMeta.Labels = map[string]string{"applicationId": "test-app"}
+	podJSON, err = json.Marshal(pod)
+	assert.NilError(t, err, "failed to marshal pod")
+	req.Object = runtime.RawExtension{Raw: podJSON}
+	resp = ac.mutate(req)
+	assert.Check(t, resp.Allowed, "response not allowed for pod")
+	assert.Equal(t, schedulerName(t, resp.Patch), "yunikorn", "yunikorn not set as scheduler for pod")
+	assert.Equal(t, labels(t, resp.Patch)["applicationId"], "test-app", "wrong applicationId label")
+
+	// pod in bypassed namespace
+	pod = v1.Pod{ObjectMeta: metav1.ObjectMeta{
+		Namespace: "bypass",
+	}}
+	req = &admissionv1.AdmissionRequest{
+		UID:       "test-uid",
+		Namespace: "bypass",
+		Kind:      metav1.GroupVersionKind{Kind: "Pod"},
+	}
+	podJSON, err = json.Marshal(pod)
+	assert.NilError(t, err, "failed to marshal pod")
+	req.Object = runtime.RawExtension{Raw: podJSON}
+	resp = ac.mutate(req)
+	assert.Check(t, resp.Allowed, "response not allowed for bypassed pod")
+	assert.Equal(t, len(resp.Patch), 0, "non-empty patch for bypassed pod")
+
+	// pod in no-label namespace
+	pod = v1.Pod{ObjectMeta: metav1.ObjectMeta{
+		Namespace: "nolabel",
+	}}
+	req = &admissionv1.AdmissionRequest{
+		UID:       "test-uid",
+		Namespace: "nolabel",
+		Kind:      metav1.GroupVersionKind{Kind: "Pod"},
+	}
+	podJSON, err = json.Marshal(pod)
+	assert.NilError(t, err, "failed to marshal pod")
+	req.Object = runtime.RawExtension{Raw: podJSON}
+	resp = ac.mutate(req)
+	assert.Check(t, resp.Allowed, "response not allowed for nolabel pod")
+	assert.Equal(t, schedulerName(t, resp.Patch), "yunikorn", "yunikorn not set as scheduler for nolabel pod")
+	assert.Equal(t, len(labels(t, resp.Patch)), 0, "non-empty labels for nolabel pod")
+
+	// unknown object type
+	pod = v1.Pod{ObjectMeta: metav1.ObjectMeta{
+		Namespace: "test-ns",
+	}}
+	req = &admissionv1.AdmissionRequest{
+		UID:       "test-uid",
+		Namespace: "test-ns",
+		Kind:      metav1.GroupVersionKind{Kind: "Pod"},
+	}
+	podJSON, err = json.Marshal(pod)
+	assert.NilError(t, err, "failed to marshal pod")
+	req.Object = runtime.RawExtension{Raw: podJSON}
+	req.Kind = metav1.GroupVersionKind{Kind: "Unknown"}
+	resp = ac.mutate(req)
+	assert.Check(t, resp.Allowed, "response not allowed for unknown object type")
+	assert.Equal(t, len(resp.Patch), 0, "non-empty patch for unknown object type")
+}
+
+func parsePatch(t *testing.T, patch []byte) []patchOperation {
+	res := make([]patchOperation, 0)
+	if len(patch) == 0 {
+		return res
+	}
+	err := json.Unmarshal(patch, &res)
+	assert.NilError(t, err, "error unmarshalling patch")
+	return res
+}
+
+func schedulerName(t *testing.T, patch []byte) string {
+	ops := parsePatch(t, patch)
+	for _, op := range ops {
+		if op.Path == "/spec/schedulerName" {
+			return op.Value.(string)
+		}
+	}
+	return ""
+}
+
+func labels(t *testing.T, patch []byte) map[string]interface{} {
+	ops := parsePatch(t, patch)
+	for _, op := range ops {
+		if op.Path == "/metadata/labels" {
+			return op.Value.(map[string]interface{})
+		}
+	}
+	return make(map[string]interface{})
+}
+
+func TestShouldProcessNamespace(t *testing.T) {
+	ac := prepareController(t, "", "", "^kube-system$,^pre-,-post$", "", "")
+	assert.Check(t, ac.shouldProcessNamespace("test"), "test namespace not allowed")
+	assert.Check(t, !ac.shouldProcessNamespace("kube-system"), "kube-system namespace allowed")
+	assert.Check(t, ac.shouldProcessNamespace("x-kube-system"), "x-kube-system namespace not allowed")
+	assert.Check(t, ac.shouldProcessNamespace("kube-system-x"), "kube-system-x namespace not allowed")
+	assert.Check(t, !ac.shouldProcessNamespace("pre-ns"), "pre-ns namespace allowed")
+	assert.Check(t, !ac.shouldProcessNamespace("ns-post"), "ns-post namespace allowed")
+
+	ac = prepareController(t, "", "^allow-", "^allow-except-", "", "")
+	assert.Check(t, !ac.shouldProcessNamespace("test"), "test namespace allowed when not on process list")
+	assert.Check(t, ac.shouldProcessNamespace("allow-this"), "allow-this namespace not allowed when on process list")
+	assert.Check(t, !ac.shouldProcessNamespace("allow-except-this"), "allow-except-this namespace allowed when on bypass list")
+}
+
+func TestShouldLabelNamespace(t *testing.T) {
+	ac := prepareController(t, "", "", "", "", "^skip$")
+	assert.Check(t, ac.shouldLabelNamespace("test"), "test namespace not allowed")
+	assert.Check(t, !ac.shouldLabelNamespace("skip"), "skip namespace allowed when on no-label list")
+
+	ac = prepareController(t, "", "", "", "^allow-", "^allow-except-")
+	assert.Check(t, !ac.shouldLabelNamespace("test"), "test namespace allowed when not on label list")
+	assert.Check(t, ac.shouldLabelNamespace("allow-this"), "allow-this namespace not allowed when on label list")
+	assert.Check(t, !ac.shouldLabelNamespace("allow-except-this"), "allow-except-this namespace allowed when on no-label list")
+}
+
+func TestParseRegexes(t *testing.T) {
+	var regexes []*regexp.Regexp
+	var err error
+
+	regexes, err = parseRegexes("")
+	assert.NilError(t, err, "failed to parse empty pattern")
+	assert.Equal(t, len(regexes), 0, "got results for empty pattern")
+
+	regexes, err = parseRegexes("^test$")
+	assert.NilError(t, err, "failed to parse simple pattern")
+	assert.Equal(t, len(regexes), 1, "wrong count for simple pattern")
+	assert.Check(t, regexes[0].MatchString("test"), "didn't match test")
+	assert.Check(t, !regexes[0].MatchString("testx"), "matched testx")
+	assert.Check(t, !regexes[0].MatchString("xtest"), "matched xtest")
+
+	regexes, err = parseRegexes(" ^this$, ^that$ ")
+	assert.NilError(t, err, "failed to parse compound pattern")
+	assert.Equal(t, len(regexes), 2, "wrong count for compound pattern")
+	assert.Check(t, regexes[0].MatchString("this"), "didn't match this")
+	assert.Check(t, regexes[1].MatchString("that"), "didn't match that")
+
+	regexes, err = parseRegexes("^a\\s+b$")
+	assert.NilError(t, err, "failed to parse escaped pattern")
+	assert.Equal(t, len(regexes), 1, "wrong count for escaped pattern")
+	assert.Check(t, regexes[0].MatchString("a \t b"), "didn't match 'a \t b'")
+	assert.Check(t, !regexes[0].MatchString("ab"), "matched 'ab'")
+
+	_, err = parseRegexes("^($")
+	assert.ErrorContains(t, err, "error parsing regexp", "bad pattern doesn't fail")
+}
+
+func TestInitAdmissionControllerRegexErrorHandling(t *testing.T) {
+	var err error
+
+	_, err = initAdmissionController("", "", "", "", "", "")
+	assert.NilError(t, err, "error returned from simple init")
+
+	_, err = initAdmissionController("", "", "(", "", "", "")
+	assert.ErrorContains(t, err, "error parsing regexp", "didn't fail on bad processNamespaces list")
+
+	_, err = initAdmissionController("", "", "", "(", "", "")
+	assert.ErrorContains(t, err, "error parsing regexp", "didn't fail on bad bypassNamespaces list")
+
+	_, err = initAdmissionController("", "", "", "", "(", "")
+	assert.ErrorContains(t, err, "error parsing regexp", "didn't fail on bad labelNamespaces list")
+
+	_, err = initAdmissionController("", "", "", "", "", "(")
+	assert.ErrorContains(t, err, "error parsing regexp", "didn't fail on bad noLabelNamespaces list")
 }

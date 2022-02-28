@@ -61,7 +61,10 @@ var (
 type admissionController struct {
 	configName               string
 	schedulerValidateConfURL string
-	namespaceBlacklist       []*regexp.Regexp
+	processNamespaces        []*regexp.Regexp
+	bypassNamespaces         []*regexp.Regexp
+	labelNamespaces          []*regexp.Regexp
+	noLabelNamespaces        []*regexp.Regexp
 }
 
 type patchOperation struct {
@@ -75,14 +78,37 @@ type ValidateConfResponse struct {
 	Reason  string `json:"reason"`
 }
 
-func initAdmissionController(configName string, schedulerValidateConfURL string, namespaceBlacklist string) (*admissionController, error) {
+func initAdmissionController(configName string, schedulerValidateConfURL string, processNamespaces string, bypassNamespaces string, labelNamespaces string, noLabelNamespaces string) (*admissionController, error) {
+	processRegexes, err := parseRegexes(processNamespaces)
+	if err != nil {
+		return nil, err
+	}
+	bypassRegexes, err := parseRegexes(bypassNamespaces)
+	if err != nil {
+		return nil, err
+	}
+	labelRegexes, err := parseRegexes(labelNamespaces)
+	if err != nil {
+		return nil, err
+	}
+	noLabelRegexes, err := parseRegexes(noLabelNamespaces)
+	if err != nil {
+		return nil, err
+	}
 	hook := admissionController{
 		configName:               configName,
 		schedulerValidateConfURL: schedulerValidateConfURL,
-		namespaceBlacklist:       make([]*regexp.Regexp, 0),
+		processNamespaces:        processRegexes,
+		bypassNamespaces:         bypassRegexes,
+		labelNamespaces:          labelRegexes,
+		noLabelNamespaces:        noLabelRegexes,
 	}
+	return &hook, nil
+}
 
-	for _, pattern := range strings.Split(namespaceBlacklist, ",") {
+func parseRegexes(patterns string) ([]*regexp.Regexp, error) {
+	result := make([]*regexp.Regexp, 0)
+	for _, pattern := range strings.Split(patterns, ",") {
 		pattern = strings.TrimSpace(pattern)
 		if len(pattern) == 0 {
 			continue
@@ -92,10 +118,9 @@ func initAdmissionController(configName string, schedulerValidateConfURL string,
 			log.Logger().Error("Unable to compile regular expression", zap.String("pattern", pattern), zap.Error(err))
 			return nil, err
 		}
-		hook.namespaceBlacklist = append(hook.namespaceBlacklist, re)
+		result = append(result, re)
 	}
-
-	return &hook, nil
+	return result, nil
 }
 
 func admissionResponseBuilder(uid string, allowed bool, resultMessage string, patch []byte) *admissionv1.AdmissionResponse {
@@ -154,10 +179,20 @@ func (c *admissionController) mutate(req *admissionv1.AdmissionRequest) *admissi
 		}
 	}
 
+	if !c.shouldProcessNamespace(namespace) {
+		log.Logger().Info("bypassing namespace", zap.String("namespace", namespace))
+		return admissionResponseBuilder(uid, true, "", nil)
+	}
 	patch = updateSchedulerName(patch)
-	patch = c.updateLabels(namespace, &pod, patch)
-	log.Logger().Info("generated patch", zap.String("podName", pod.Name),
-		zap.Any("patch", patch))
+
+	if c.shouldLabelNamespace(pod.Namespace) {
+		patch = updateLabels(namespace, &pod, patch)
+	} else {
+		log.Logger().Info("skipping update of pod labels since namespace is set to no-label",
+			zap.String("podName", pod.Name),
+			zap.String("namespace", namespace))
+	}
+	log.Logger().Info("generated patch", zap.String("podName", pod.Name), zap.Any("patch", patch))
 
 	patchBytes, err := json.Marshal(patch)
 	if err != nil {
@@ -189,14 +224,7 @@ func generateAppID(namespace string) string {
 	return appID
 }
 
-func (c *admissionController) updateLabels(namespace string, pod *v1.Pod, patch []patchOperation) []patchOperation {
-	if !c.isNamespaceAllowed(pod.Namespace) {
-		log.Logger().Info("skipping update of pod labels since namespace is blacklisted",
-			zap.String("podName", pod.Name),
-			zap.String("namespace", namespace))
-		return patch
-	}
-
+func updateLabels(namespace string, pod *v1.Pod, patch []patchOperation) []patchOperation {
 	log.Logger().Info("updating pod labels",
 		zap.String("podName", pod.Name),
 		zap.String("generateName", pod.GenerateName),
@@ -283,13 +311,54 @@ func (c *admissionController) validateConf(req *admissionv1.AdmissionRequest) *a
 	return admissionResponseBuilder(uid, true, "", nil)
 }
 
-func (c *admissionController) isNamespaceAllowed(namespace string) bool {
-	for _, re := range c.namespaceBlacklist {
+func (c *admissionController) namespaceMatchesProcessList(namespace string) bool {
+	if len(c.processNamespaces) == 0 {
+		return true
+	}
+	for _, re := range c.processNamespaces {
 		if re.MatchString(namespace) {
-			return false
+			return true
 		}
 	}
-	return true
+	return false
+}
+
+func (c *admissionController) namespaceMatchesBypassList(namespace string) bool {
+	for _, re := range c.bypassNamespaces {
+		if re.MatchString(namespace) {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *admissionController) namespaceMatchesLabelList(namespace string) bool {
+	if len(c.labelNamespaces) == 0 {
+		return true
+	}
+	for _, re := range c.labelNamespaces {
+		if re.MatchString(namespace) {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *admissionController) namespaceMatchesNoLabelList(namespace string) bool {
+	for _, re := range c.noLabelNamespaces {
+		if re.MatchString(namespace) {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *admissionController) shouldProcessNamespace(namespace string) bool {
+	return c.namespaceMatchesProcessList(namespace) && !c.namespaceMatchesBypassList(namespace)
+}
+
+func (c *admissionController) shouldLabelNamespace(namespace string) bool {
+	return c.namespaceMatchesLabelList(namespace) && !c.namespaceMatchesNoLabelList(namespace)
 }
 
 func (c *admissionController) validateConfigMap(cm *v1.ConfigMap) error {
