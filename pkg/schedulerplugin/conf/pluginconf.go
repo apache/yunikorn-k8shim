@@ -36,11 +36,6 @@ const (
 	DefaultSchedulerName = "yunikorn"
 )
 
-var (
-	BuildVersion string
-	BuildDate    string
-)
-
 // command line argument names
 const (
 	ArgClusterID              = "yk-cluster-id"

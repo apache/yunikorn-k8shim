@@ -37,8 +37,9 @@ func main() {
 	// override the default config handling when in plugin mode
 	conf.SetSchedulerConfFactory(pluginconf.NewSchedulerConf)
 
-	pluginconf.BuildVersion = version
-	pluginconf.BuildDate = date
+	conf.BuildVersion = version
+	conf.BuildDate = date
+	conf.IsPluginVersion = true
 
 	command := app.NewSchedulerCommand(
 		app.WithPlugin(schedulerplugin.SchedulerPluginName, schedulerplugin.NewSchedulerPlugin))

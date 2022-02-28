@@ -51,6 +51,12 @@ var once sync.Once
 var configuration *SchedulerConf
 var factory = initConfigs
 
+var (
+	BuildVersion    string
+	BuildDate       string
+	IsPluginVersion bool
+)
+
 type SchedulerConf struct {
 	SchedulerName          string        `json:"schedulerName"`
 	ClusterID              string        `json:"clusterId"`

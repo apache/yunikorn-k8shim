@@ -43,6 +43,10 @@ func main() {
 	log.Logger().Info("starting scheduler",
 		zap.String("name", constants.SchedulerName))
 
+	conf.BuildVersion = version
+	conf.BuildDate = date
+	conf.IsPluginVersion = false
+
 	serviceContext := entrypoint.StartAllServicesWithLogger(log.Logger(), log.GetZapConfigs())
 
 	if sa, ok := serviceContext.RMProxy.(api.SchedulerAPI); ok {
