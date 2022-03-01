@@ -475,8 +475,7 @@ func (ctx *Context) ForgetPod(name string) {
 		ctx.schedulerCache.ForgetPod(pod)
 		return
 	}
-	log.Logger().Debug("unable to forget pod",
-		zap.String("reason", fmt.Sprintf("pod %s not found in scheduler cache", name)))
+	log.Logger().Debug("unable to forget pod: not found in cache", zap.String("pod", name))
 }
 
 func (ctx *Context) UpdateApplication(app *Application) {
