@@ -78,9 +78,7 @@ func (callback *AsyncRMCallback) UpdateAllocation(response *si.AllocationRespons
 			zap.String("UUID", release.UUID))
 
 		// update cache
-		if err := callback.context.ForgetPod(release.GetAllocationKey()); err != nil {
-			return err
-		}
+		callback.context.ForgetPod(release.GetAllocationKey())
 
 		// TerminationType 0 mean STOPPED_BY_RM
 		if release.TerminationType != si.TerminationType_STOPPED_BY_RM {

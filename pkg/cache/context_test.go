@@ -358,12 +358,10 @@ func TestUpdatePodInCache(t *testing.T) {
 	context.updatePodInCache(nil, pod1)
 	context.updatePodInCache(pod1, nil)
 
-	// ensure a terminated pod doesn't result in an update
+	// ensure a terminated pod is removed
 	context.updatePodInCache(pod1, pod3)
 	found, ok := context.schedulerCache.GetPod("UID-00001")
-	if assert.Check(t, ok, "pod not found after update") {
-		assert.Check(t, found.GetAnnotations()["test.state"] == "new", "pod state updated when new pod is terminated")
-	}
+	assert.Check(t, !ok, "pod still found after termination")
 
 	// ensure a non-terminated pod is updated
 	context.updatePodInCache(pod1, pod2)
