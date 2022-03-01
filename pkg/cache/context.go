@@ -165,7 +165,7 @@ func (ctx *Context) updateNode(oldObj, newObj interface{}) {
 	}
 
 	// update secondary cache
-	ctx.schedulerCache.UpdateNode(oldNode, newNode)
+	ctx.schedulerCache.UpdateNode(newNode)
 
 	// update primary cache
 	ctx.nodes.updateNode(oldNode, newNode)
@@ -240,7 +240,7 @@ func (ctx *Context) removePodFromCache(obj interface{}) {
 }
 
 func (ctx *Context) updatePodInCache(oldObj, newObj interface{}) {
-	oldPod, err := utils.Convert2Pod(oldObj)
+	_, err := utils.Convert2Pod(oldObj)
 	if err != nil {
 		log.Logger().Error("failed to update pod in cache", zap.Error(err))
 		return
@@ -258,7 +258,7 @@ func (ctx *Context) updatePodInCache(oldObj, newObj interface{}) {
 		return
 	}
 
-	ctx.schedulerCache.UpdatePod(oldPod, newPod)
+	ctx.schedulerCache.UpdatePod(newPod)
 }
 
 // filter pods by scheduler name and state

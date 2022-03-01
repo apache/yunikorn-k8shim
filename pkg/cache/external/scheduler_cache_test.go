@@ -227,7 +227,7 @@ func TestUpdateNode(t *testing.T) {
 	assert.Equal(t, nodeInCache.Node().Spec.Unschedulable, true)
 
 	// then update the node
-	cache.UpdateNode(oldNode, newNode)
+	cache.UpdateNode(newNode)
 
 	// make sure the node in cache also gets updated
 	// unschedulable -> schedulable
@@ -242,21 +242,6 @@ func TestUpdateNonExistNode(t *testing.T) {
 	resourceList := make(map[v1.ResourceName]resource.Quantity)
 	resourceList[v1.ResourceName("memory")] = *resource.NewQuantity(1024*1000*1000, resource.DecimalSI)
 	resourceList[v1.ResourceName("cpu")] = *resource.NewQuantity(10, resource.DecimalSI)
-
-	// old node, state: unschedulable
-	oldNode := &v1.Node{
-		ObjectMeta: apis.ObjectMeta{
-			Name:      "host0001",
-			Namespace: "default",
-			UID:       "Node-UID-00001",
-		},
-		Status: v1.NodeStatus{
-			Allocatable: resourceList,
-		},
-		Spec: v1.NodeSpec{
-			Unschedulable: true,
-		},
-	}
 
 	// old node, state: schedulable
 	newNode := &v1.Node{
@@ -273,7 +258,7 @@ func TestUpdateNonExistNode(t *testing.T) {
 		},
 	}
 
-	cache.UpdateNode(oldNode, newNode)
+	cache.UpdateNode(newNode)
 
 	nodeInCache := cache.GetNode("host0001")
 	assert.Assert(t, nodeInCache.Node() != nil)
@@ -423,7 +408,7 @@ func TestUpdatePod(t *testing.T) {
 	pod2 := podTemplate.DeepCopy()
 	pod2.ObjectMeta.Name = "pod0002"
 	pod2.ObjectMeta.UID = "Pod-UID-00002"
-	cache.UpdatePod(pod2, pod2)
+	cache.UpdatePod(pod2)
 	assert.Equal(t, len(cache.podsMap), 2, "wrong pod count after add of pod2")
 	_, ok = cache.GetPod("Pod-UID-00002")
 	assert.Check(t, ok, "pod2 not found")
@@ -431,7 +416,7 @@ func TestUpdatePod(t *testing.T) {
 	// normal pod update should succeed
 	pod1Copy := pod1.DeepCopy()
 	pod1Copy.ObjectMeta.Annotations["state"] = "updated"
-	cache.UpdatePod(pod1, pod1Copy)
+	cache.UpdatePod(pod1Copy)
 	found, ok := cache.GetPod("Pod-UID-00001")
 	assert.Check(t, ok, "pod1 not found")
 	assert.Equal(t, found.GetAnnotations()["state"], "updated", "wrong state after update")
@@ -444,7 +429,7 @@ func TestUpdatePod(t *testing.T) {
 	assert.Check(t, cache.isAssumedPod("Pod-UID-00001"), "pod is not assumed")
 	pod1Copy = pod1.DeepCopy()
 	pod1Copy.Spec.NodeName = node2.Name
-	cache.UpdatePod(pod1, pod1Copy)
+	cache.UpdatePod(pod1Copy)
 	assert.Check(t, cache.isAssumedPod("Pod-UID-00001"), "pod is not assumed after re-add")
 
 	// unassumed pod should survive node changing without crashing
@@ -455,7 +440,7 @@ func TestUpdatePod(t *testing.T) {
 	cache.AddPod(pod3)
 	pod3Copy := pod3.DeepCopy()
 	pod3Copy.Spec.NodeName = "new-node"
-	cache.UpdatePod(pod3, pod3Copy)
+	cache.UpdatePod(pod3Copy)
 	pod3Result, ok := cache.GetPod("Pod-UID-00003")
 	assert.Check(t, ok, "unable to get pod3")
 	assert.Equal(t, pod3Result.Spec.NodeName, "new-node", "node name not updated")

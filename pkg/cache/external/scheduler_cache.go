@@ -103,7 +103,7 @@ func (cache *SchedulerCache) AddNode(node *v1.Node) {
 	cache.updateNode(node)
 }
 
-func (cache *SchedulerCache) UpdateNode(_, newNode *v1.Node) {
+func (cache *SchedulerCache) UpdateNode(newNode *v1.Node) {
 	cache.lock.Lock()
 	defer cache.lock.Unlock()
 	cache.dumpState("UpdateNode.Pre")
@@ -235,7 +235,7 @@ func (cache *SchedulerCache) AddPod(pod *v1.Pod) {
 }
 
 // UpdatePod updates a pod in the cache
-func (cache *SchedulerCache) UpdatePod(_, newPod *v1.Pod) {
+func (cache *SchedulerCache) UpdatePod(newPod *v1.Pod) {
 	cache.lock.Lock()
 	defer cache.lock.Unlock()
 	cache.dumpState("UpdatePod.Pre")
