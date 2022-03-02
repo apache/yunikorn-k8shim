@@ -56,8 +56,23 @@ var _ = ginkgo.Describe("AdmissionController", func() {
 
 	ginkgo.It("Verifying a pod is created on namespace blacklist", func() {
 		ginkgo.By("Create a pod in namespace blacklist")
-		podConfigs := common.SleepPodConfig{Name: sleepPodName, NS: blackNs}
-		pod, err := kubeClient.CreatePod(common.InitSleepPod(podConfigs), blackNs)
+
+		pod := &v1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: sleepPodName,
+			},
+			Spec: v1.PodSpec{
+				Containers: []v1.Container{
+					{
+						Name:    sleepPodName,
+						Image:   "alpine:latest",
+						Command: []string{"sleep", "30"},
+					},
+				},
+			},
+		}
+
+		pod, err := kubeClient.CreatePod(pod, blackNs)
 		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
 		gomega.Ω(pod.Spec.SchedulerName).ShouldNot(gomega.BeEquivalentTo(constants.SchedulerName))
 	})
