@@ -28,6 +28,7 @@ import (
 	"net/url"
 	"time"
 
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/apache/incubator-yunikorn-core/pkg/webservice/dao"
@@ -108,7 +109,7 @@ func (c *RClient) GetSpecificQueueInfo(queueName string) (map[string]interface{}
 	if err != nil {
 		return nil, err
 	}
-	//root queue
+	// root queue
 	var rootQ = queues["queues"].(map[string]interface{})
 	var allSubQueues = rootQ["queues"].([]interface{})
 	for _, s := range allSubQueues {
@@ -178,7 +179,7 @@ func (c *RClient) isAppInDesiredState(appID string, state string) wait.Condition
 	return func() (bool, error) {
 		appInfo, err := c.GetAppInfo(appID)
 		if err != nil {
-			return false, nil //returning nil here for wait & loop
+			return false, nil // returning nil here for wait & loop
 		}
 
 		switch appInfo["applicationState"] {
@@ -210,6 +211,16 @@ func (c *RClient) AreAllExecPodsAllotted(appID string, execPodCount int) wait.Co
 		}
 		return false, nil
 	}
+}
+
+func (c *RClient) ValidateSchedulerConfig(cm v1.ConfigMap) (*dao.ValidateConfResponse, error) {
+	validateConfResponse := new(dao.ValidateConfResponse)
+	req, err := c.newRequest("POST", configmanager.ValidateConfPath, &cm)
+	if err != nil {
+		return validateConfResponse, err
+	}
+	_, err = c.do(req, validateConfResponse)
+	return validateConfResponse, err
 }
 
 func isRootSched(policy string) wait.ConditionFunc {
