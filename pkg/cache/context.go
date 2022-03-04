@@ -703,12 +703,14 @@ func (ctx *Context) RemoveTask(appID, taskID string) error {
 func (ctx *Context) getTask(appID string, taskID string) (*Task, error) {
 	ctx.lock.RLock()
 	defer ctx.lock.RUnlock()
-	if app, ok := ctx.applications[appID]; ok {
+	if app := ctx.GetApplication(appID); app != nil {
 		if managedTask, err := app.GetTask(taskID); err == nil {
 			if task, valid := managedTask.(*Task); valid {
 				return task, nil
 			}
+			return nil, fmt.Errorf("task %s cannot convert to *Task", taskID)
 		}
+		return nil, fmt.Errorf("task %s is not found in application %s", taskID, appID)
 	}
 	return nil, fmt.Errorf("application %s is not found in context", appID)
 }
