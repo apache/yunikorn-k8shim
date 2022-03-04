@@ -660,11 +660,8 @@ func (ctx *Context) RemoveApplication(appID string) error {
 func (ctx *Context) RemoveApplicationInternal(appID string) error {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
-	if _, exist := ctx.applications[appID]; exist {
-		delete(ctx.applications, appID)
-		return nil
-	}
-	return fmt.Errorf("application %s is not found in the context", appID)
+	delete(ctx.applications, appID)
+	return nil
 }
 
 // this implements ApplicationManagementProtocol
@@ -695,9 +692,10 @@ func (ctx *Context) RemoveTask(appID, taskID string) error {
 	ctx.lock.RLock()
 	defer ctx.lock.RUnlock()
 	if app, ok := ctx.applications[appID]; ok {
-		return app.removeTask(taskID)
+		app.removeTask(taskID)
+		return nil
 	}
-	return fmt.Errorf("application %s is not found in the context", appID)
+	return nil
 }
 
 func (ctx *Context) getTask(appID string, taskID string) (*Task, error) {

@@ -223,7 +223,7 @@ func TestRemoveApplicationInternal(t *testing.T) {
 	assert.Equal(t, len(context.applications), 2)
 	// remove non-exist app
 	err := context.RemoveApplicationInternal("app00003")
-	assert.Assert(t, err != nil)
+	assert.Assert(t, err == nil)
 	assert.Equal(t, len(context.applications), 2)
 	// remove app1
 	err = context.RemoveApplicationInternal(appID1)
@@ -723,12 +723,12 @@ func TestRemoveTask(t *testing.T) {
 	// try to remove a non-exist task
 	// this should fail
 	err := context.RemoveTask("app00001", "non-exist-task")
-	assert.Assert(t, err != nil)
+	assert.Assert(t, err == nil)
 
 	// try to remove a task from non-exist application
 	// this should also fail
 	err = context.RemoveTask("app-non-exist", "task00001")
-	assert.Assert(t, err != nil)
+	assert.Assert(t, err == nil)
 
 	// this should success
 	err = context.RemoveTask("app00001", "task00001")
