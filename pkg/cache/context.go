@@ -692,8 +692,11 @@ func (ctx *Context) RemoveTask(appID, taskID string) error {
 	ctx.lock.RLock()
 	defer ctx.lock.RUnlock()
 	if app, ok := ctx.applications[appID]; ok {
-		app.removeTask(taskID)
-		return nil
+		err := app.removeTask(taskID)
+		if err != nil {
+			log.Logger().Info(" not found, it has been deleted",
+				zap.String("task", taskID))
+		}
 	}
 	return nil
 }
