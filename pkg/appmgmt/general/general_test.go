@@ -750,9 +750,11 @@ func TestListApplication(t *testing.T) {
 		},
 	}
 	expectOutput := make(map[string]bool)
+	descriptionMap := make(map[string]string)
 	for index, _ := range listAppTestCase {
 		mockedPodLister.AddPod(listAppTestCase[index].input)
 		expectOutput[listAppTestCase[index].applicationID] = listAppTestCase[index].expectedOutput
+		descriptionMap[listAppTestCase[index].applicationID] = listAppTestCase[index].description
 	}
 	// init the app manager and run listApp
 	am := NewManager(cache.NewMockedAMProtocol(), mockedAPIProvider)
@@ -761,7 +763,7 @@ func TestListApplication(t *testing.T) {
 	assert.Equal(t, len(apps), 3)
 	for name, _ := range apps {
 		_, exist := apps[name]
-		assert.Equal(t, exist, expectOutput[name])
+		assert.Equal(t, exist, expectOutput[name], descriptionMap[name])
 	}
 }
 
