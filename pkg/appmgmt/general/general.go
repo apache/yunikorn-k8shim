@@ -325,8 +325,7 @@ func (os *Manager) deletePod(obj interface{}) {
 func (os *Manager) ListApplications() (map[string]interfaces.ApplicationMetadata, error) {
 	log.Logger().Info("Retrieving pod list")
 	// list all pods on this cluster
-	slt := labels.NewSelector()
-	appPods, err := os.apiProvider.GetAPIs().PodInformer.Lister().List(slt)
+	appPods, err := os.apiProvider.GetAPIs().PodInformer.Lister().List(labels.NewSelector())
 	if err != nil {
 		return nil, err
 	}

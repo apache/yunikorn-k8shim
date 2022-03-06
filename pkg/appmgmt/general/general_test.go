@@ -614,268 +614,179 @@ func TestGetOwnerReferences(t *testing.T) {
 	assert.Equal(t, returnedOwnerRefs[0].APIVersion, v1.SchemeGroupVersion.String(), "Unexpected owner reference Kind")
 }
 
+type Templete struct {
+	podName    string
+	namespace  string
+	label      map[string]string
+	annotation map[string]string
+	scheduler  bool
+	node       bool
+}
+
 // nolint: funlen
 func TestListApplication(t *testing.T) {
-	var app01, app02, app03, app04, app05, app06 = "app00001",
-		"app00002", "app00003", "app00004", "app00005", "app00006"
-	var queue01, queue02 = "root.queue01", "root.queue02"
-	var ns01, ns02 = "namespace01", "namespace02"
-
 	// mock the pod lister for this test
 	mockedAPIProvider := client.NewMockedAPIProvider()
 	mockedPodLister := test.NewPodListerMock()
 	mockedAPIProvider.SetPodLister(mockedPodLister)
-
-	// app01 pods, running in namespace01 and queue01
-	// all pods are having applicationID and queue name specified
-	// 2 pods have assigned nodes, 1 pod is pending for scheduling
-	// allocated pod
-	mockedPodLister.AddPod(&v1.Pod{
-		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-		ObjectMeta: apis.ObjectMeta{
-			Name:      "app01pod00001",
-			Namespace: ns01,
-			Labels: map[string]string{
-				constants.LabelApplicationID: app01,
+	appName := []string{"app00001", "app00002", "app00003", "app00004", "app00005"}
+	var queue01 = "root.queue01"
+	var ns01 = "namespace01"
+	var ns02 = "namespace02"
+	type testcase struct {
+		description    string
+		applicationID  string
+		input          *v1.Pod
+		expectedOutput bool
+	}
+	podCase := []Templete{
+		// Application 1
+		{
+			podName:   "app01pod01",
+			namespace: ns01,
+			label: map[string]string{
+				constants.LabelApplicationID: appName[0],
 				constants.LabelQueueName:     queue01,
 			},
+			annotation: nil,
+			scheduler:  true,
+			node:       true,
 		},
-		Spec: v1.PodSpec{
-			SchedulerName: constants.SchedulerName,
-			NodeName:      "allocated-node",
-		},
-	})
-
-	mockedPodLister.AddPod(&v1.Pod{
-		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-		ObjectMeta: apis.ObjectMeta{
-			Name:      "app01pod00002",
-			Namespace: ns01,
-			Labels: map[string]string{
-				constants.LabelApplicationID: app01,
+		{
+			podName:   "app01pod02",
+			namespace: ns01,
+			label: map[string]string{
+				constants.LabelApplicationID: appName[0],
 				constants.LabelQueueName:     queue01,
 			},
+			annotation: nil,
+			scheduler:  true,
+			node:       false,
 		},
-		Spec: v1.PodSpec{
-			SchedulerName: constants.SchedulerName,
-			NodeName:      "allocated-node",
-		},
-	})
-
-	mockedPodLister.AddPod(&v1.Pod{
-		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-		ObjectMeta: apis.ObjectMeta{
-			Name:      "app01pod00003",
-			Namespace: ns01,
-			Labels: map[string]string{
-				constants.LabelApplicationID: app01,
-				constants.LabelQueueName:     queue01,
+		// Application 2
+		{
+			podName:   "app02pod01",
+			namespace: ns02,
+			label: map[string]string{
+				constants.SparkLabelAppID: appName[1],
 			},
+			annotation: nil,
+			scheduler:  true,
+			node:       true,
 		},
-		Spec: v1.PodSpec{
-			SchedulerName: constants.SchedulerName,
-		},
-	})
-
-	// app02 pods, running in queue02 and namespace02
-	// 2 pods are having applicationID and queue name specified
-	// both 2 pods are pending
-	mockedPodLister.AddPod(&v1.Pod{
-		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-		ObjectMeta: apis.ObjectMeta{
-			Name:      "app02pod0001",
-			Namespace: ns02,
-			Labels: map[string]string{
-				constants.LabelApplicationID: app02,
-				constants.LabelQueueName:     queue02,
+		// Application 3
+		{
+			podName:   "app03pod01",
+			namespace: ns01,
+			label:     nil,
+			annotation: map[string]string{
+				constants.AnnotationApplicationID: appName[2],
 			},
+			scheduler: true,
+			node:      true,
 		},
-		Spec: v1.PodSpec{
-			SchedulerName: constants.SchedulerName,
+		// Application 4
+		{
+			podName:    "app04pod01",
+			namespace:  ns01,
+			label:      nil,
+			annotation: nil,
+			scheduler:  true,
+			node:       true,
 		},
-	})
-
-	mockedPodLister.AddPod(&v1.Pod{
-		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-		ObjectMeta: apis.ObjectMeta{
-			Name:      "app02pod0002",
-			Namespace: ns02,
-			Labels: map[string]string{
-				constants.LabelApplicationID: app02,
-				constants.LabelQueueName:     queue02,
+		// Application 5
+		{
+			podName:   "app05pod01",
+			namespace: ns01,
+			label: map[string]string{
+				constants.SparkLabelAppID: appName[4],
 			},
+			annotation: nil,
+			scheduler:  false,
+			node:       true,
 		},
-		Spec: v1.PodSpec{
-			SchedulerName: constants.SchedulerName,
+	}
+	listAppTestCase := []testcase{
+		// Application 1
+		{
+			description:    "running in queue01 and namespace01, with labels, schedulerName, nodeName",
+			applicationID:  appName[0],
+			input:          podCase[0].InjectPod(),
+			expectedOutput: true,
 		},
-	})
-
-	// app03 pods, running in queue02 and namespace02
-	// 2 pods do not have label applicationID specified, but have spark-app-selector
-	// both 2 pods are allocated
-	mockedPodLister.AddPod(&v1.Pod{
-		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
+		{
+			description:    "running in queue01 and namespace01, with labels, schedulerName",
+			applicationID:  appName[0],
+			input:          podCase[1].InjectPod(),
+			expectedOutput: true,
 		},
-		ObjectMeta: apis.ObjectMeta{
-			Name:      "app03pod0001",
-			Namespace: ns01,
-			Labels: map[string]string{
-				constants.SparkLabelAppID: app03,
-			},
+		// Application 2
+		{
+			description:    "running in default queue and namespace02, with spark labels, schedulerName, and nodeName",
+			applicationID:  appName[1],
+			input:          podCase[2].InjectPod(),
+			expectedOutput: true,
 		},
-		Spec: v1.PodSpec{
-			SchedulerName: constants.SchedulerName,
-			NodeName:      "some-node",
+		// Application 3
+		{
+			description:    "running in default queue and namespace01, with annotation, schedulerName, and nodeName",
+			applicationID:  appName[2],
+			input:          podCase[3].InjectPod(),
+			expectedOutput: true,
 		},
-	})
-
-	mockedPodLister.AddPod(&v1.Pod{
-		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
+		// Application 4
+		{
+			description:    "running in default queue and namespace01, without label and annotation",
+			applicationID:  appName[3],
+			input:          podCase[4].InjectPod(),
+			expectedOutput: false,
 		},
-		ObjectMeta: apis.ObjectMeta{
-			Name:      "app03pod0002",
-			Namespace: ns02,
-			Labels: map[string]string{
-				constants.SparkLabelAppID: app03,
-			},
+		// Application 5
+		{
+			description:    "running in default queue and namespace01, with label and nodeName",
+			applicationID:  appName[4],
+			input:          podCase[5].InjectPod(),
+			expectedOutput: false,
 		},
-		Spec: v1.PodSpec{
-			SchedulerName: constants.SchedulerName,
-			NodeName:      "some-node",
-		},
-	})
-
-	// app04 pods, running in queue01 and namespace01
-	// app04 has 2 pods which only has annotation yunikorn.apache.org/app-id specified
-	// both 2 pods are allocated
-	mockedPodLister.AddPod(&v1.Pod{
-		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-		ObjectMeta: apis.ObjectMeta{
-			Name:      "app04pod0001",
-			Namespace: ns01,
-			Annotations: map[string]string{
-				constants.AnnotationApplicationID: app04,
-			},
-		},
-		Spec: v1.PodSpec{
-			SchedulerName: constants.SchedulerName,
-			NodeName:      "some-node",
-		},
-	})
-
-	mockedPodLister.AddPod(&v1.Pod{
-		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-		ObjectMeta: apis.ObjectMeta{
-			Name:      "app04pod0002",
-			Namespace: ns01,
-			Annotations: map[string]string{
-				constants.AnnotationApplicationID: app04,
-			},
-		},
-		Spec: v1.PodSpec{
-			SchedulerName: constants.SchedulerName,
-			NodeName:      "some-node",
-		},
-	})
-
-	// app05 pods, running in queue01 and namespace01
-	// app05 pod has no label or annotation specified
-	mockedPodLister.AddPod(&v1.Pod{
-		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-		ObjectMeta: apis.ObjectMeta{
-			Name:      "app05pod0001",
-			Namespace: ns01,
-		},
-		Spec: v1.PodSpec{
-			SchedulerName: constants.SchedulerName,
-			NodeName:      "some-node",
-		},
-	})
-
-	// app06 pods, running in queue01 and namespace01
-	// pod has spark-app-selector set and it is allocated but not scheduled by yunikorn
-	mockedPodLister.AddPod(&v1.Pod{
-		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-		ObjectMeta: apis.ObjectMeta{
-			Name:      "app06pod0001",
-			Namespace: ns01,
-			Labels: map[string]string{
-				constants.SparkLabelAppID: app06,
-			},
-		},
-		Spec: v1.PodSpec{
-			NodeName: "some-node",
-		},
-	})
-
+	}
+	expectOutput := make(map[string]bool)
+	for index, _ := range listAppTestCase {
+		mockedPodLister.AddPod(listAppTestCase[index].input)
+		expectOutput[listAppTestCase[index].applicationID] = listAppTestCase[index].expectedOutput
+	}
 	// init the app manager and run listApp
 	am := NewManager(cache.NewMockedAMProtocol(), mockedAPIProvider)
 	apps, err := am.ListApplications()
 	assert.NilError(t, err)
 	assert.Equal(t, len(apps), 3)
-	_, exist := apps[app01]
-	assert.Equal(t, exist, true,
-		"app01 should be included in the list because "+
-			"it has applicationID and queue namespace specified in the"+
-			"queue and it has 2 pods allocated.")
+	for name, _ := range apps {
+		_, exist := apps[name]
+		assert.Equal(t, exist, expectOutput[name])
+	}
+}
 
-	_, exist = apps[app02]
-	assert.Equal(t, exist, false,
-		"app02 should be excluded from the list because"+
-			" it has no allocated pods found.")
-
-	_, exist = apps[app03]
-	assert.Equal(t, exist, true,
-		"app03 should be included in the list because"+
-			" it has 2 pods allocated and both pods have "+
-			"spark-app-selector set.")
-
-	_, exist = apps[app04]
-	assert.Equal(t, exist, true,
-		"app04 should be included in the list because"+
-			" it has 2 pods allocated and both pods have "+
-			"annotation yunikorn.apache.org/app-id specified set.")
-
-	_, exist = apps[app05]
-	assert.Equal(t, exist, false,
-		"app05 should be excluded in the list because"+
-			" pods have no appID set in annotation/label and "+
-			"spark-app-selector doesn't exist either")
-
-	_, exist = apps[app06]
-	assert.Equal(t, exist, false,
-		"app06 should be excluded in the list because"+
-			" pods have spark-app-selector but the schedulerName "+
-			"is not yunikorn, which is not scheduled by yunikorn.")
+func (temp Templete) InjectPod() *v1.Pod {
+	tempPod := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name:      temp.podName,
+			Namespace: temp.namespace,
+		},
+	}
+	if temp.label != nil {
+		tempPod.Labels = temp.label
+	}
+	if temp.annotation != nil {
+		tempPod.Annotations = temp.annotation
+	}
+	if temp.scheduler {
+		tempPod.Spec.SchedulerName = constants.SchedulerName
+	}
+	if temp.node {
+		tempPod.Spec.NodeName = "some-node"
+	}
+	return tempPod
 }
