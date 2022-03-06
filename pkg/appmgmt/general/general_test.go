@@ -751,7 +751,7 @@ func TestListApplication(t *testing.T) {
 	}
 	expectOutput := make(map[string]bool)
 	descriptionMap := make(map[string]string)
-	for index, _ := range listAppTestCase {
+	for index := range listAppTestCase {
 		mockedPodLister.AddPod(listAppTestCase[index].input)
 		expectOutput[listAppTestCase[index].applicationID] = listAppTestCase[index].expectedOutput
 		descriptionMap[listAppTestCase[index].applicationID] = listAppTestCase[index].description
@@ -761,7 +761,7 @@ func TestListApplication(t *testing.T) {
 	apps, err := am.ListApplications()
 	assert.NilError(t, err)
 	assert.Equal(t, len(apps), 3)
-	for name, _ := range apps {
+	for name := range apps {
 		_, exist := apps[name]
 		assert.Equal(t, exist, expectOutput[name], descriptionMap[name])
 	}
