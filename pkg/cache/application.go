@@ -275,18 +275,17 @@ func (app *Application) addTask(task *Task) {
 	app.taskMap[task.taskID] = task
 }
 
-func (app *Application) removeTask(taskID string) error {
+func (app *Application) removeTask(taskID string) {
 	app.lock.Lock()
 	defer app.lock.Unlock()
-	if _, ok := app.taskMap[taskID]; ok {
-		delete(app.taskMap, taskID)
-		log.Logger().Info("task removed",
-			zap.String("appID", app.applicationID),
-			zap.String("taskID", taskID))
-		return nil
+	if _, ok := app.taskMap[taskID]; !ok {
+		log.Logger().Debug("Attempted to remove non-existent task", zap.String("taskID", taskID))
+		return
 	}
-	return fmt.Errorf("task %s is not found in application %s",
-		taskID, app.applicationID)
+	delete(app.taskMap, taskID)
+	log.Logger().Info("task removed",
+		zap.String("appID", app.applicationID),
+		zap.String("taskID", taskID))
 }
 
 func (app *Application) GetApplicationState() string {

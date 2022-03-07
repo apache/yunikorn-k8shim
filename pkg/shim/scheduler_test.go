@@ -136,8 +136,7 @@ partitions:
 
 	// remove the application
 	// remove task first or removeApplication will fail
-	err = cluster.context.RemoveTask(appID, "task0001")
-	assert.Assert(t, err == nil)
+	cluster.context.RemoveTask(appID, "task0001")
 	err = cluster.removeApplication(appID)
 	assert.Assert(t, err == nil)
 
