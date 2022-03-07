@@ -788,17 +788,17 @@ func TestGetTask(t *testing.T) {
 	app2.taskMap["task02"] = task2
 	task2.sm.SetState(events.States().Task.Failed)
 
-	task, err := context.getTask(appID1, "task01")
+	task := context.getTask(appID1, "task01")
 	assert.Assert(t, task == task1)
-	assert.Assert(t, err == nil)
 
-	task, err = context.getTask("non_existing_appID", "task01")
+	task = context.getTask("non_existing_appID", "task01")
 	assert.Assert(t, task == nil)
-	assert.ErrorContains(t, err, "application non_existing_appID is not found in context")
 
-	task, err = context.getTask(appID1, "non_existing_taskID")
+	task = context.getTask(appID1, "non_existing_taskID")
 	assert.Assert(t, task == nil)
-	assert.ErrorContains(t, err, "task non_existing_taskID is not found in application app00001")
+
+	task = context.getTask(appID3, "task03")
+	assert.Assert(t, task == nil)
 }
 
 func TestNodeEventFailsPublishingWithoutNode(t *testing.T) {

@@ -700,19 +700,24 @@ func (ctx *Context) RemoveTask(appID, taskID string) error {
 	return fmt.Errorf("application %s is not found in the context", appID)
 }
 
-func (ctx *Context) getTask(appID string, taskID string) (*Task, error) {
+func (ctx *Context) getTask(appID string, taskID string) *Task {
 	ctx.lock.RLock()
 	defer ctx.lock.RUnlock()
 	if app := ctx.GetApplication(appID); app != nil {
 		if managedTask, err := app.GetTask(taskID); err == nil {
 			if task, valid := managedTask.(*Task); valid {
-				return task, nil
+				return task
 			}
-			return nil, fmt.Errorf("task %s cannot convert to *Task", taskID)
+			log.Logger().Debug("managedTask conversion failed",
+				zap.String("taskID", taskID))
 		}
-		return nil, fmt.Errorf("task %s is not found in application %s", taskID, appID)
+		log.Logger().Debug("task is not found in applications",
+			zap.String("taskID", taskID),
+			zap.String("appID", appID))
 	}
-	return nil, fmt.Errorf("application %s is not found in context", appID)
+	log.Logger().Debug("application is not found in the context",
+		zap.String("appID", appID))
+	return nil
 }
 
 func (ctx *Context) SelectApplications(filter func(app *Application) bool) []*Application {
@@ -737,7 +742,7 @@ func (ctx *Context) PublishEvents(eventRecords []*si.EventRecord) {
 			case si.EventRecord_REQUEST:
 				taskID := record.ObjectID
 				appID := record.GroupID
-				if task, err := ctx.getTask(appID, taskID); err == nil {
+				if task := ctx.getTask(appID, taskID); task != nil {
 					events.GetRecorder().Eventf(task.GetTaskPod(), nil,
 						v1.EventTypeNormal, record.Reason, record.Reason, record.Message)
 				} else {
@@ -806,7 +811,7 @@ func (ctx *Context) updatePodCondition(task *Task, podCondition *v1.PodCondition
 // pod condition in order to trigger auto-scaling.
 func (ctx *Context) HandleContainerStateUpdate(request *si.UpdateContainerSchedulingStateRequest) {
 	// the allocationKey equals to the taskID
-	if task, err := ctx.getTask(request.ApplicartionID, request.AllocationKey); err == nil {
+	if task := ctx.getTask(request.ApplicartionID, request.AllocationKey); task != nil {
 		switch request.State {
 		case si.UpdateContainerSchedulingStateRequest_SKIPPED:
 			// auto-scaler scans pods whose pod condition is PodScheduled=false && reason=Unschedulable
@@ -868,14 +873,14 @@ func (ctx *Context) ApplicationEventHandler() func(obj interface{}) {
 func (ctx *Context) TaskEventHandler() func(obj interface{}) {
 	return func(obj interface{}) {
 		if event, ok := obj.(events.TaskEvent); ok {
-			task, err := ctx.getTask(event.GetApplicationID(), event.GetTaskID())
-			if err != nil {
-				log.Logger().Error("failed to handle application event", zap.Error(err))
+			task := ctx.getTask(event.GetApplicationID(), event.GetTaskID())
+			if task == nil {
+				log.Logger().Error("failed to handle application event")
 				return
 			}
 
 			if task.canHandle(event) {
-				if err = task.handle(event); err != nil {
+				if err := task.handle(event); err != nil {
 					log.Logger().Error("failed to handle task event",
 						zap.String("applicationID", task.applicationID),
 						zap.String("taskID", task.taskID),
