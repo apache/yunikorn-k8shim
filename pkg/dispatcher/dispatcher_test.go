@@ -116,12 +116,12 @@ func TestDispatcherStartStop(t *testing.T) {
 	// wait until all events are handled
 	dispatcher.drain()
 
+	// stop the dispatcher,
+	Stop()
+
 	assert.Equal(t, recorder.size(), 2)
 	assert.Equal(t, recorder.contains("test-app-001"), true)
 	assert.Equal(t, recorder.contains("test-app-002"), true)
-
-	// stop the dispatcher,
-	Stop()
 
 	// ensure state is stopped
 	assert.Equal(t, dispatcher.isRunning(), false)
@@ -178,12 +178,12 @@ func TestEventWillNotBeLostWhenEventChannelIsFull(t *testing.T) {
 	// wait until all events are handled
 	dispatcher.drain()
 
+	// stop the dispatcher
+	Stop()
+
 	// assert all event are handled
 	assert.Equal(t, recorder.size(), numEvents)
 	assert.Assert(t, atomic.LoadInt32(&asyncDispatchCount) == 0)
-
-	// stop the dispatcher
-	Stop()
 
 	// ensure state is stopped
 	assert.Equal(t, dispatcher.isRunning(), false)
