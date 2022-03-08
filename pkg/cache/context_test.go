@@ -745,6 +745,62 @@ func TestRemoveTask(t *testing.T) {
 	assert.Equal(t, len(app.GetNewTasks()), 0)
 }
 
+func TestGetTask(t *testing.T) {
+	// add 3 applications
+	context := initContextForTest()
+	appID1 := "app00001"
+	appID2 := "app00002"
+	appID3 := "app00003"
+	app1 := NewApplication(appID1, "root.a", "testuser", map[string]string{}, newMockSchedulerAPI())
+	app2 := NewApplication(appID2, "root.b", "testuser", map[string]string{}, newMockSchedulerAPI())
+	app3 := NewApplication(appID3, "root.c", "testuser", map[string]string{}, newMockSchedulerAPI())
+	context.applications[appID1] = app1
+	context.applications[appID2] = app2
+	context.applications[appID3] = app3
+	pod1 := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "getTask-test-00001",
+			UID:  "UID-00001",
+		},
+	}
+	pod2 := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "getTask-test-00002",
+			UID:  "UID-00002",
+		},
+	}
+	// New task to application 1
+	// set task state in Pending (non-terminated)
+	task1 := NewTask("task01", app1, context, pod1)
+	app1.taskMap["task01"] = task1
+	task1.sm.SetState(events.States().Task.Pending)
+	// New task to application 2
+	// set task state in Failed (terminated)
+	task2 := NewTask("task02", app2, context, pod2)
+	app2.taskMap["task02"] = task2
+	task2.sm.SetState(events.States().Task.Failed)
+
+	task := context.getTask(appID1, "task01")
+	assert.Assert(t, task == task1)
+
+	task = context.getTask("non_existing_appID", "task01")
+	assert.Assert(t, task == nil)
+
+	task = context.getTask(appID1, "non_existing_taskID")
+	assert.Assert(t, task == nil)
+
+	task = context.getTask(appID3, "task03")
+	assert.Assert(t, task == nil)
+}
+
 func TestNodeEventFailsPublishingWithoutNode(t *testing.T) {
 	conf.GetSchedulerConf().SetTestMode(true)
 	recorder, ok := events.GetRecorder().(*k8sEvents.FakeRecorder)
