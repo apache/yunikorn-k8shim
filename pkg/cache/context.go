@@ -703,21 +703,26 @@ func (ctx *Context) RemoveTask(appID, taskID string) error {
 func (ctx *Context) getTask(appID string, taskID string) *Task {
 	ctx.lock.RLock()
 	defer ctx.lock.RUnlock()
-	if app := ctx.GetApplication(appID); app != nil {
-		if managedTask, err := app.GetTask(taskID); err == nil {
-			if task, valid := managedTask.(*Task); valid {
-				return task
-			}
-			log.Logger().Debug("managedTask conversion failed",
-				zap.String("taskID", taskID))
-		}
+	app := ctx.GetApplication(appID)
+	if app == nil {
+		log.Logger().Debug("application is not found in the context",
+			zap.String("appID", appID))
+		return nil
+	}
+	managedTask, err := app.GetTask(taskID)
+	if err != nil {
 		log.Logger().Debug("task is not found in applications",
 			zap.String("taskID", taskID),
 			zap.String("appID", appID))
+		return nil
 	}
-	log.Logger().Debug("application is not found in the context",
-		zap.String("appID", appID))
-	return nil
+	task, valid := managedTask.(*Task)
+	if !valid {
+		log.Logger().Debug("managedTask conversion failed",
+			zap.String("taskID", taskID))
+		return nil
+	}
+	return task
 }
 
 func (ctx *Context) SelectApplications(filter func(app *Application) bool) []*Application {
