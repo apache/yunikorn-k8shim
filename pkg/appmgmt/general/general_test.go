@@ -614,7 +614,7 @@ func TestGetOwnerReferences(t *testing.T) {
 	assert.Equal(t, returnedOwnerRefs[0].APIVersion, v1.SchemeGroupVersion.String(), "Unexpected owner reference Kind")
 }
 
-type Templete struct {
+type Template struct {
 	podName    string
 	namespace  string
 	label      map[string]string
@@ -639,7 +639,7 @@ func TestListApplication(t *testing.T) {
 		input          *v1.Pod
 		expectedOutput bool
 	}
-	podCase := []Templete{
+	podCase := []Template{
 		// Application 1
 		{
 			podName:   "app01pod01",
@@ -767,7 +767,7 @@ func TestListApplication(t *testing.T) {
 	}
 }
 
-func (temp Templete) InjectPod() *v1.Pod {
+func (temp Template) InjectPod() *v1.Pod {
 	tempPod := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
