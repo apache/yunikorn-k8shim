@@ -17,10 +17,17 @@
 
 FROM alpine:latest
 
-# scheduler binary
-ADD kube-scheduler /bin/kube-scheduler
-ADD scheduler-config.yaml /bin/scheduler-config.yaml
-WORKDIR /bin
+RUN addgroup -S -g 4444 yunikorn && \
+    adduser -S -h /opt/yunikorn/work -G yunikorn -u 4444 yunikorn -s /bin/sh && \
+    mkdir -p /opt/yunikorn/bin /opt/yunikorn/work && \
+    chown -R yunikorn:yunikorn /opt/yunikorn/work && \
+    chmod 755 /opt/yunikorn/work
+
+ADD kube-scheduler /opt/yunikorn/bin/kube-scheduler
+ADD start-yunikorn-plugin.sh /opt/yunikorn/bin/start-yunikorn-plugin.sh
+ADD scheduler-config.yaml /opt/yunikorn/work/scheduler-config.yaml
+RUN chmod 755 /opt/yunikorn/bin/*
+
 ENV CLUSTER_ID "mycluster"
 ENV CLUSTER_VERSION "latest"
 ENV POLICY_GROUP "queues"
@@ -41,23 +48,7 @@ ENV SCHEDULER_CONFIG "scheduler-config.yaml"
 ENV VERBOSITY "2"
 ENV SCHEDULER_NAME "yunikorn"
 
-ENTRYPOINT ["/bin/sh", "-c", "/bin/kube-scheduler \
---address=\"${ADDRESS}\" \
---leader-elect=\"${LEADER_ELECT}\" \
---config=\"${SCHEDULER_CONFIG}\" \
--v=\"${VERBOSITY}\" \
---scheduler-name=\"${SCHEDULER_NAME}\" \
---yk-cluster-id=\"${CLUSTER_ID}\" \
---yk-cluster-version=\"${CLUSTER_VERSION}\" \
---yk-policy-group=\"${POLICY_GROUP}\" \
---yk-scheduling-interval=\"${SCHEDULING_INTERVAL}\" \
---yk-log-level=\"${LOG_LEVEL}\" \
---yk-log-encoding=\"${LOG_ENCODING}\" \
---yk-event-channel-capacity=\"${EVENT_CHANNEL_CAPACITY}\" \
---yk-dispatcher-timeout=\"${DISPATCHER_TIMEOUT}\" \
---yk-kube-qps=\"${KUBE_CLIENT_QPS}\" \
---yk-kube-burst=\"${KUBE_CLIENT_BURST}\" \
---yk-enable-config-hot-refresh=\"${ENABLE_CONFIG_HOT_REFRESH}\" \
---yk-disable-gang-scheduling=\"${DISABLE_GANG_SCHEDULING}\" \
---yk-user-label-key=\"${USER_LABEL_KEY}\" \
---yk-scheduler-name=\"${SCHEDULER_NAME}\""]
+
+WORKDIR /opt/yunikorn/work
+USER yunikorn
+ENTRYPOINT /opt/yunikorn/bin/start-yunikorn-plugin.sh
