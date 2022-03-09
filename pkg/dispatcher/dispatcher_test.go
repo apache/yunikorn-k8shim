@@ -53,6 +53,8 @@ func (t TestAppEvent) GetArgs() []interface{} {
 }
 
 func TestRegisterEventHandler(t *testing.T) {
+	initDispatcher()
+
 	RegisterEventHandler(EventTypeApp, func(obj interface{}) {})
 	RegisterEventHandler(EventTypeTask, func(obj interface{}) {})
 	RegisterEventHandler(EventTypeTask, func(obj interface{}) {})
@@ -88,6 +90,7 @@ func (a *appEventsRecorder) size() int {
 }
 
 func TestDispatcherStartStop(t *testing.T) {
+	initDispatcher()
 	// thread safe
 	recorder := &appEventsRecorder{
 		apps: make([]string, 0),
@@ -140,6 +143,7 @@ func TestDispatcherStartStop(t *testing.T) {
 // Test sending events from multiple senders in parallel,
 // verify that events won't be lost
 func TestEventWillNotBeLostWhenEventChannelIsFull(t *testing.T) {
+	initDispatcher()
 	// reset event channel with small capacity for testing
 	backupCapacity := cap(dispatcher.eventChan)
 	dispatcher.eventChan = make(chan events.SchedulingEvent, 1)
@@ -192,6 +196,7 @@ func TestEventWillNotBeLostWhenEventChannelIsFull(t *testing.T) {
 // Test dispatch timeout, verify that Dispatcher#asyncDispatch is called when event channel is full
 // and will disappear after timeout.
 func TestDispatchTimeout(t *testing.T) {
+	initDispatcher()
 	// reset event channel with small capacity for testing
 	backupCapacity := cap(dispatcher.eventChan)
 	backupAsyncDispatchCheckInterval := AsyncDispatchCheckInterval
@@ -255,6 +260,7 @@ func TestDispatchTimeout(t *testing.T) {
 
 // Test exceeding the async-dispatch limit, should panic immediately.
 func TestExceedAsyncDispatchLimit(t *testing.T) {
+	initDispatcher()
 	// reset event channel with small capacity for testing
 	dispatcher.eventChan = make(chan events.SchedulingEvent, 1)
 	AsyncDispatchLimit = 1

@@ -62,16 +62,14 @@ type Dispatcher struct {
 
 func initDispatcher() {
 	eventChannelCapacity := conf.GetSchedulerConf().EventChannelCapacity
-	if dispatcher == nil {
-		dispatcher = &Dispatcher{
-			eventChan: make(chan events.SchedulingEvent, eventChannelCapacity),
-			handlers:  make(map[EventType]func(interface{})),
-			stopChan:  make(chan struct{}),
-			running:   atomic.Value{},
-			lock:      sync.RWMutex{},
-		}
-		dispatcher.setRunning(false)
+	dispatcher = &Dispatcher{
+		eventChan: make(chan events.SchedulingEvent, eventChannelCapacity),
+		handlers:  make(map[EventType]func(interface{})),
+		stopChan:  make(chan struct{}),
+		running:   atomic.Value{},
+		lock:      sync.RWMutex{},
 	}
+	dispatcher.setRunning(false)
 	DispatchTimeout = conf.GetSchedulerConf().DispatchTimeout
 	AsyncDispatchLimit = int32(eventChannelCapacity / 10)
 	if AsyncDispatchLimit < 10000 {
