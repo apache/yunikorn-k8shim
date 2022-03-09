@@ -48,7 +48,7 @@ type ApplicationManagementProtocol interface {
 	// remove task from the app
 	// return an error if for some reason the task cannot be removed
 	// e.g app that owns this task is not found in context.
-	RemoveTask(appID, taskID string) error
+	RemoveTask(appID, taskID string)
 
 	// notify the context that an app is completed,
 	// this will trigger some consequent operations for the given app

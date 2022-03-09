@@ -657,14 +657,14 @@ func (ctx *Context) RemoveApplication(appID string) error {
 	return fmt.Errorf("application %s is not found in the context", appID)
 }
 
-func (ctx *Context) RemoveApplicationInternal(appID string) error {
+func (ctx *Context) RemoveApplicationInternal(appID string) {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
-	if _, exist := ctx.applications[appID]; exist {
-		delete(ctx.applications, appID)
-		return nil
+	if _, exist := ctx.applications[appID]; !exist {
+		log.Logger().Debug("Attempted to remove non-existent application", zap.String("appID", appID))
+		return
 	}
-	return fmt.Errorf("application %s is not found in the context", appID)
+	delete(ctx.applications, appID)
 }
 
 // this implements ApplicationManagementProtocol
@@ -691,13 +691,15 @@ func (ctx *Context) AddTask(request *interfaces.AddTaskRequest) interfaces.Manag
 	return nil
 }
 
-func (ctx *Context) RemoveTask(appID, taskID string) error {
+func (ctx *Context) RemoveTask(appID, taskID string) {
 	ctx.lock.RLock()
 	defer ctx.lock.RUnlock()
-	if app, ok := ctx.applications[appID]; ok {
-		return app.removeTask(taskID)
+	app, ok := ctx.applications[appID]
+	if !ok {
+		log.Logger().Debug("Attempted to remove task from non-existent application", zap.String("appID", appID))
+		return
 	}
-	return fmt.Errorf("application %s is not found in the context", appID)
+	app.removeTask(taskID)
 }
 
 func (ctx *Context) getTask(appID string, taskID string) *Task {

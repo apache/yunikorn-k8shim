@@ -135,10 +135,7 @@ func (callback *AsyncRMCallback) UpdateApplication(response *si.ApplicationRespo
 			zap.String("new status", updated.State))
 		switch updated.State {
 		case events.States().Application.Completed:
-			err := callback.context.RemoveApplicationInternal(updated.ApplicationID)
-			if err != nil {
-				log.Logger().Error("failed to delete application", zap.Error(err))
-			}
+			callback.context.RemoveApplicationInternal(updated.ApplicationID)
 		case events.States().Application.Resuming:
 			app := callback.context.GetApplication(updated.ApplicationID)
 			if app != nil && app.GetApplicationState() == events.States().Application.Reserving {

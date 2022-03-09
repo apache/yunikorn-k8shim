@@ -221,19 +221,19 @@ func TestRemoveApplicationInternal(t *testing.T) {
 	context.applications[appID1] = app1
 	context.applications[appID2] = app2
 	assert.Equal(t, len(context.applications), 2)
+
 	// remove non-exist app
-	err := context.RemoveApplicationInternal("app00003")
-	assert.Assert(t, err != nil)
+	context.RemoveApplicationInternal("app00003")
 	assert.Equal(t, len(context.applications), 2)
+
 	// remove app1
-	err = context.RemoveApplicationInternal(appID1)
-	assert.NilError(t, err)
+	context.RemoveApplicationInternal(appID1)
 	assert.Equal(t, len(context.applications), 1)
 	_, ok := context.applications[appID1]
 	assert.Equal(t, ok, false)
+
 	// remove app2
-	err = context.RemoveApplicationInternal(appID2)
-	assert.NilError(t, err)
+	context.RemoveApplicationInternal(appID2)
 	assert.Equal(t, len(context.applications), 0)
 	_, ok = context.applications[appID2]
 	assert.Equal(t, ok, false)
@@ -721,25 +721,21 @@ func TestRemoveTask(t *testing.T) {
 	assert.Equal(t, len(app.GetNewTasks()), 2)
 
 	// try to remove a non-exist task
-	// this should fail
-	err := context.RemoveTask("app00001", "non-exist-task")
-	assert.Assert(t, err != nil)
+	context.RemoveTask("app00001", "non-exist-task")
+	assert.Equal(t, len(app.GetNewTasks()), 2)
 
 	// try to remove a task from non-exist application
-	// this should also fail
-	err = context.RemoveTask("app-non-exist", "task00001")
-	assert.Assert(t, err != nil)
+	context.RemoveTask("app-non-exist", "task00001")
+	assert.Equal(t, len(app.GetNewTasks()), 2)
 
 	// this should success
-	err = context.RemoveTask("app00001", "task00001")
-	assert.Assert(t, err == nil)
+	context.RemoveTask("app00001", "task00001")
 
 	// now only 1 task left
 	assert.Equal(t, len(app.GetNewTasks()), 1)
 
 	// this should success
-	err = context.RemoveTask("app00001", "task00002")
-	assert.Assert(t, err == nil)
+	context.RemoveTask("app00001", "task00002")
 
 	// now there is no task left
 	assert.Equal(t, len(app.GetNewTasks()), 0)

@@ -82,11 +82,9 @@ func (m *MockedAMProtocol) AddTask(request *interfaces.AddTaskRequest) interface
 	}
 }
 
-func (m *MockedAMProtocol) RemoveTask(appID, taskID string) error {
+func (m *MockedAMProtocol) RemoveTask(appID, taskID string) {
 	if app, ok := m.applications[appID]; ok {
-		return app.removeTask(taskID)
-	} else {
-		return fmt.Errorf("app not found")
+		app.removeTask(taskID)
 	}
 }
 
