@@ -17,9 +17,16 @@
 
 FROM alpine:latest
 
-# scheduler binary
-ADD k8s_yunikorn_scheduler /k8s_yunikorn_scheduler
-WORKDIR /
+RUN addgroup -S -g 4444 yunikorn && \
+    adduser -S -h /opt/yunikorn/work -G yunikorn -u 4444 yunikorn -s /bin/sh && \
+    mkdir -p /opt/yunikorn/bin /opt/yunikorn/work && \
+    chown -R yunikorn:yunikorn /opt/yunikorn/work && \
+    chmod 755 /opt/yunikorn/work
+
+ADD k8s_yunikorn_scheduler /opt/yunikorn/bin/k8s_yunikorn_scheduler
+ADD start-yunikorn.sh /opt/yunikorn/bin/start-yunikorn.sh
+RUN chmod 755 /opt/yunikorn/bin/*
+
 ENV CLUSTER_ID "mycluster"
 ENV CLUSTER_VERSION "latest"
 ENV POLICY_GROUP "queues"
@@ -35,19 +42,7 @@ ENV OPERATOR_PLUGINS "general"
 ENV ENABLE_CONFIG_HOT_REFRESH "true"
 ENV DISABLE_GANG_SCHEDULING "false"
 ENV USER_LABEL_KEY "yunikorn.apache.org/username"
-ENTRYPOINT ["sh", "-c", "/k8s_yunikorn_scheduler \
--clusterId=${CLUSTER_ID} \
--clusterVersion=${CLUSTER_VERSION} \
--policyGroup=${POLICY_GROUP} \
--interval=${SCHEDULING_INTERVAL} \
--logLevel=${LOG_LEVEL} \
--logEncoding=${LOG_ENCODING} \
--volumeBindTimeout=${VOLUME_BINDING_TIMEOUT} \
--eventChannelCapacity=${EVENT_CHANNEL_CAPACITY} \
--dispatchTimeout=${DISPATCHER_TIMEOUT} \
--kubeQPS=${KUBE_CLIENT_QPS} \
--kubeBurst=${KUBE_CLIENT_BURST} \
--operatorPlugins=${OPERATOR_PLUGINS} \
--enableConfigHotRefresh=${ENABLE_CONFIG_HOT_REFRESH} \
--disableGangScheduling=${DISABLE_GANG_SCHEDULING} \
--userLabelKey=${USER_LABEL_KEY}"]
+
+WORKDIR /opt/yunikorn/work
+USER yunikorn
+ENTRYPOINT /opt/yunikorn/bin/start-yunikorn.sh

@@ -17,5 +17,16 @@
 
 FROM alpine:latest
 
-ADD scheduler-admission-controller /scheduler-admission-controller
-ENTRYPOINT ["./scheduler-admission-controller"]
+RUN addgroup -S -g 4444 yunikorn && \
+    adduser -S -h /opt/yunikorn/work -G yunikorn -u 4444 yunikorn -s /bin/sh && \
+    mkdir -p /opt/yunikorn/bin /opt/yunikorn/work && \
+    chown -R yunikorn:yunikorn /opt/yunikorn/work && \
+    chmod 755 /opt/yunikorn/work
+
+ADD scheduler-admission-controller /opt/yunikorn/bin/scheduler-admission-controller
+
+RUN chmod 755 /opt/yunikorn/bin/scheduler-admission-controller
+
+WORKDIR /opt/yunikorn/work
+USER yunikorn
+ENTRYPOINT /opt/yunikorn/bin/scheduler-admission-controller
