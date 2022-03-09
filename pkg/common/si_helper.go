@@ -134,23 +134,23 @@ func CreateReleaseAllocationRequestForTask(appID, allocUUID, partition, terminat
 	return result
 }
 
-func CreateUpdateRequestForNewNode(nodeId string, capacity *si.Resource, occupied *si.Resource,
+func CreateUpdateRequestForNewNode(nodeID string, capacity *si.Resource, occupied *si.Resource,
 	existingAllocations []*si.Allocation, labels string, ready bool) si.NodeRequest {
 	// Use node's name as the NodeID, this is because when bind pod to node,
 	// name of node is required but uid is optional.
 	nodeInfo := &si.NodeInfo{
-		NodeID:              nodeId,
+		NodeID:              nodeID,
 		SchedulableResource: capacity,
 		OccupiedResource:    occupied,
 		// TODO is this required?
 		Attributes: map[string]string{
-			constants.DefaultNodeAttributeHostNameKey: nodeId,
-			constants.DefaultNodeAttributeRackNameKey: constants.DefaultRackName,
+			constants.DefaultNodeAttributeHostNameKey:   nodeID,
+			constants.DefaultNodeAttributeRackNameKey:   constants.DefaultRackName,
 			constants.DefaultNodeAttributeNodeLabelsKey: labels,
 			constants.NodeReadyAttribute:                strconv.FormatBool(ready),
 		},
 		ExistingAllocations: existingAllocations,
-		Action: si.NodeInfo_CREATE,
+		Action:              si.NodeInfo_CREATE,
 	}
 
 	nodes := make([]*si.NodeInfo, 1)
@@ -162,11 +162,11 @@ func CreateUpdateRequestForNewNode(nodeId string, capacity *si.Resource, occupie
 	return request
 }
 
-func CreateUpdateRequestForUpdatedNode(nodeId string, capacity *si.Resource, occupied *si.Resource,
+func CreateUpdateRequestForUpdatedNode(nodeID string, capacity *si.Resource, occupied *si.Resource,
 	ready bool) si.NodeRequest {
 	// Currently only includes resource in the update request
 	nodeInfo := &si.NodeInfo{
-		NodeID: nodeId,
+		NodeID: nodeID,
 		Attributes: map[string]string{
 			constants.NodeReadyAttribute: strconv.FormatBool(ready),
 		},
@@ -184,11 +184,11 @@ func CreateUpdateRequestForUpdatedNode(nodeId string, capacity *si.Resource, occ
 	return request
 }
 
-func CreateUpdateRequestForDeleteNode(nodeId string, action si.NodeInfo_ActionFromRM) si.NodeRequest {
+func CreateUpdateRequestForDeleteNode(nodeID string, action si.NodeInfo_ActionFromRM) si.NodeRequest {
 	deletedNodes := make([]*si.NodeInfo, 1)
 	nodeInfo := &si.NodeInfo{
-		NodeID:              nodeId,
-		Action:              action,
+		NodeID: nodeID,
+		Action: action,
 	}
 
 	deletedNodes[0] = nodeInfo

@@ -24,7 +24,9 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/common"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
+
 	"gotest.tools/assert"
+
 	v1 "k8s.io/api/core/v1"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -201,59 +203,59 @@ func TestCreateTagsForTask(t *testing.T) {
 	assert.Equal(t, len(result4), 4)
 }
 
-func TestCreateUpdateRequestForNewNode(T *testing.T) {
-	nodeId := "node-01"
+func TestCreateUpdateRequestForNewNode(t *testing.T) {
+	nodeID := "node-01"
 	capacity := NewResourceBuilder().AddResource(constants.Memory, 200).AddResource(constants.CPU, 2).Build()
 	occupied := NewResourceBuilder().AddResource(constants.Memory, 50).AddResource(constants.CPU, 1).Build()
 	var existingAllocations []*si.Allocation
 	labels := ""
 	ready := true
-	request := CreateUpdateRequestForNewNode(nodeId, capacity, occupied, existingAllocations, labels, ready)
-	assert.Equal(T, len(request.Nodes), 1)
-	assert.Equal(T, request.Nodes[0].NodeID, nodeId)
-	assert.Equal(T, request.Nodes[0].SchedulableResource, capacity)
-	assert.Equal(T, request.Nodes[0].OccupiedResource, occupied)
-	assert.Equal(T, len(request.Nodes[0].Attributes), 4)
-	assert.Equal(T, request.Nodes[0].Attributes[constants.DefaultNodeAttributeHostNameKey], nodeId)
-	assert.Equal(T, request.Nodes[0].Attributes[constants.DefaultNodeAttributeRackNameKey], constants.DefaultRackName)
-	assert.Equal(T, request.Nodes[0].Attributes[constants.DefaultNodeAttributeNodeLabelsKey], labels)
-	assert.Equal(T, request.Nodes[0].Attributes[constants.NodeReadyAttribute], strconv.FormatBool(ready))
+	request := CreateUpdateRequestForNewNode(nodeID, capacity, occupied, existingAllocations, labels, ready)
+	assert.Equal(t, len(request.Nodes), 1)
+	assert.Equal(t, request.Nodes[0].NodeID, nodeID)
+	assert.Equal(t, request.Nodes[0].SchedulableResource, capacity)
+	assert.Equal(t, request.Nodes[0].OccupiedResource, occupied)
+	assert.Equal(t, len(request.Nodes[0].Attributes), 4)
+	assert.Equal(t, request.Nodes[0].Attributes[constants.DefaultNodeAttributeHostNameKey], nodeID)
+	assert.Equal(t, request.Nodes[0].Attributes[constants.DefaultNodeAttributeRackNameKey], constants.DefaultRackName)
+	assert.Equal(t, request.Nodes[0].Attributes[constants.DefaultNodeAttributeNodeLabelsKey], labels)
+	assert.Equal(t, request.Nodes[0].Attributes[constants.NodeReadyAttribute], strconv.FormatBool(ready))
 }
 
-func TestCreateUpdateRequestForUpdatedNode(T *testing.T) {
-	nodeId := "node-01"
+func TestCreateUpdateRequestForUpdatedNode(t *testing.T) {
+	nodeID := "node-01"
 	capacity := NewResourceBuilder().AddResource(constants.Memory, 200).AddResource(constants.CPU, 2).Build()
 	occupied := NewResourceBuilder().AddResource(constants.Memory, 50).AddResource(constants.CPU, 1).Build()
 	ready := true
-	request := CreateUpdateRequestForUpdatedNode(nodeId, capacity, occupied, ready)
-	assert.Equal(T, len(request.Nodes), 1)
-	assert.Equal(T, request.Nodes[0].NodeID, nodeId)
-	assert.Equal(T, request.Nodes[0].SchedulableResource, capacity)
-	assert.Equal(T, request.Nodes[0].OccupiedResource, occupied)
-	assert.Equal(T, len(request.Nodes[0].Attributes), 1)
-	assert.Equal(T, request.Nodes[0].Attributes[constants.NodeReadyAttribute], strconv.FormatBool(ready))
+	request := CreateUpdateRequestForUpdatedNode(nodeID, capacity, occupied, ready)
+	assert.Equal(t, len(request.Nodes), 1)
+	assert.Equal(t, request.Nodes[0].NodeID, nodeID)
+	assert.Equal(t, request.Nodes[0].SchedulableResource, capacity)
+	assert.Equal(t, request.Nodes[0].OccupiedResource, occupied)
+	assert.Equal(t, len(request.Nodes[0].Attributes), 1)
+	assert.Equal(t, request.Nodes[0].Attributes[constants.NodeReadyAttribute], strconv.FormatBool(ready))
 }
 
-func TestCreateUpdateRequestForDeleteNode(T *testing.T) {
-	nodeId := "node-01"
+func TestCreateUpdateRequestForDeleteNode(t *testing.T) {
+	nodeID := "node-01"
 	action := si.NodeInfo_DECOMISSION
-	request := CreateUpdateRequestForDeleteNode(nodeId, action)
-	assert.Equal(T, len(request.Nodes), 1)
-	assert.Equal(T, request.Nodes[0].NodeID, nodeId)
-	assert.Equal(T, request.Nodes[0].Action, action)
-	assert.Equal(T, len(request.Nodes[0].Attributes), 0)
+	request := CreateUpdateRequestForDeleteNode(nodeID, action)
+	assert.Equal(t, len(request.Nodes), 1)
+	assert.Equal(t, request.Nodes[0].NodeID, nodeID)
+	assert.Equal(t, request.Nodes[0].Action, action)
+	assert.Equal(t, len(request.Nodes[0].Attributes), 0)
 
 	action1 := si.NodeInfo_DRAIN_NODE
-	request1 := CreateUpdateRequestForDeleteNode(nodeId, action1)
-	assert.Equal(T, len(request1.Nodes), 1)
-	assert.Equal(T, request1.Nodes[0].NodeID, nodeId)
-	assert.Equal(T, request1.Nodes[0].Action, action1)
-	assert.Equal(T, len(request1.Nodes[0].Attributes), 0)
+	request1 := CreateUpdateRequestForDeleteNode(nodeID, action1)
+	assert.Equal(t, len(request1.Nodes), 1)
+	assert.Equal(t, request1.Nodes[0].NodeID, nodeID)
+	assert.Equal(t, request1.Nodes[0].Action, action1)
+	assert.Equal(t, len(request1.Nodes[0].Attributes), 0)
 
 	action2 := si.NodeInfo_DRAIN_TO_SCHEDULABLE
-	request2 := CreateUpdateRequestForDeleteNode(nodeId, action2)
-	assert.Equal(T, len(request2.Nodes), 1)
-	assert.Equal(T, request2.Nodes[0].NodeID, nodeId)
-	assert.Equal(T, request2.Nodes[0].Action, action2)
-	assert.Equal(T, len(request2.Nodes[0].Attributes), 0)
+	request2 := CreateUpdateRequestForDeleteNode(nodeID, action2)
+	assert.Equal(t, len(request2.Nodes), 1)
+	assert.Equal(t, request2.Nodes[0].NodeID, nodeID)
+	assert.Equal(t, request2.Nodes[0].Action, action2)
+	assert.Equal(t, len(request2.Nodes[0].Attributes), 0)
 }
