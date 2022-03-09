@@ -19,6 +19,7 @@
 package cache
 
 import (
+	"os"
 	"testing"
 
 	"gotest.tools/assert"
@@ -224,4 +225,40 @@ func TestNewPlaceholderWithAffinity(t *testing.T) {
 	assert.Equal(t, term[0].LabelSelector.MatchExpressions[0].Key, "service")
 	assert.Equal(t, term[0].LabelSelector.MatchExpressions[0].Operator, metav1.LabelSelectorOpIn)
 	assert.Equal(t, term[0].LabelSelector.MatchExpressions[0].Values[0], "securityscan")
+}
+
+func TestPlaceHolderImageSetFromEnvVar(t *testing.T) {
+	os.Setenv("PLACEHOLDER_IMAGE", "abcd")
+	placeHolderImage = ""
+	defer func() {
+		placeHolderImage = ""
+		os.Unsetenv("PLACEHOLDER_IMAGE")
+	}()
+
+	// first call
+	imgName := getPlaceHolderImage()
+	assert.Equal(t, imgName, "abcd")
+	assert.Equal(t, placeHolderImage, "abcd")
+
+	// second call should have no effect
+	os.Setenv("PLACEHOLDER_IMAGE", "xyz")
+	imgName = getPlaceHolderImage()
+	assert.Equal(t, imgName, "abcd")
+	assert.Equal(t, placeHolderImage, "abcd")
+}
+
+func TestPlaceHolderImageSetFromDefault(t *testing.T) {
+	defer func() {
+		placeHolderImage = ""
+	}()
+
+	// first call
+	imgName := getPlaceHolderImage()
+	assert.Equal(t, imgName, "k8s.gcr.io/pause")
+	assert.Equal(t, imgName, placeHolderImage)
+
+	// second call, set it directly
+	placeHolderImage = "test"
+	imgName = getPlaceHolderImage()
+	assert.Equal(t, imgName, "test")
 }
