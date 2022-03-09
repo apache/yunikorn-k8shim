@@ -31,6 +31,8 @@ import (
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+const nodeID = "node-01"
+
 func TestCreateReleaseAllocationRequest(t *testing.T) {
 	request := CreateReleaseAllocationRequestForTask("app01", "alloc01", "default", "STOPPED_BY_RM")
 	assert.Assert(t, request.Releases != nil)
@@ -204,7 +206,6 @@ func TestCreateTagsForTask(t *testing.T) {
 }
 
 func TestCreateUpdateRequestForNewNode(t *testing.T) {
-	nodeID := "node-01"
 	capacity := NewResourceBuilder().AddResource(constants.Memory, 200).AddResource(constants.CPU, 2).Build()
 	occupied := NewResourceBuilder().AddResource(constants.Memory, 50).AddResource(constants.CPU, 1).Build()
 	var existingAllocations []*si.Allocation
@@ -223,7 +224,6 @@ func TestCreateUpdateRequestForNewNode(t *testing.T) {
 }
 
 func TestCreateUpdateRequestForUpdatedNode(t *testing.T) {
-	nodeID := "node-01"
 	capacity := NewResourceBuilder().AddResource(constants.Memory, 200).AddResource(constants.CPU, 2).Build()
 	occupied := NewResourceBuilder().AddResource(constants.Memory, 50).AddResource(constants.CPU, 1).Build()
 	ready := true
@@ -237,7 +237,6 @@ func TestCreateUpdateRequestForUpdatedNode(t *testing.T) {
 }
 
 func TestCreateUpdateRequestForDeleteNode(t *testing.T) {
-	nodeID := "node-01"
 	action := si.NodeInfo_DECOMISSION
 	request := CreateUpdateRequestForDeleteNode(nodeID, action)
 	assert.Equal(t, len(request.Nodes), 1)
