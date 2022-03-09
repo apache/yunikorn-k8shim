@@ -90,8 +90,8 @@ func (fc *MockScheduler) addNode(nodeName string, memory, cpu int64) error {
 		AddResource(constants.Memory, memory).
 		AddResource(constants.CPU, cpu).
 		Build()
-	node := common.CreateFromNodeSpec(nodeName, nodeName, nodeResource)
-	request := common.CreateUpdateRequestForNewNode(node)
+	request := common.CreateUpdateRequestForNewNode(nodeName, nodeResource, nil,
+		nil, "", true)
 	fmt.Printf("report new nodes to scheduler, request: %s", request.String())
 	return fc.apiProvider.GetAPIs().SchedulerAPI.UpdateNode(&request)
 }

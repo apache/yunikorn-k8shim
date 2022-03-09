@@ -114,7 +114,7 @@ func (nc *schedulerNodes) addAndReportNode(node *v1.Node, reportNode bool) {
 			zap.String("nodeLabels", string(nodeLabels)),
 			zap.Bool("schedulable", !node.Spec.Unschedulable))
 
-		ready := common.HasReadyCondition(node)
+		ready := hasReadyCondition(node)
 		newNode := newSchedulerNode(node.Name, string(node.UID), string(nodeLabels),
 			common.GetNodeResource(&node.Status), nc.proxy, !node.Spec.Unschedulable, ready)
 		nc.nodesMap[node.Name] = newNode
@@ -178,8 +178,7 @@ func (nc *schedulerNodes) updateNodeOccupiedResources(name string, resource *si.
 			return
 		}
 
-		node := common.NewNode(schedulerNode.name, schedulerNode.uid, schedulerNode.capacity, schedulerNode.occupied)
-		request := common.CreateUpdateRequestForUpdatedNode(node)
+		request := common.CreateUpdateRequestForUpdatedNode(name, schedulerNode.capacity, schedulerNode.occupied, schedulerNode.ready)
 		log.Logger().Info("report occupied resources updates",
 			zap.String("node", schedulerNode.name),
 			zap.Any("request", request))
@@ -213,20 +212,21 @@ func (nc *schedulerNodes) updateNode(oldNode, newNode *v1.Node) {
 		return
 	}
 
-	if schedulerNode, ok := nc.nodesMap[newNode.Name]; ok {
-		schedulerNode.ready = common.HasReadyCondition(newNode)
+	schedulerNode, ok := nc.nodesMap[newNode.Name]
+	if ok {
+		schedulerNode.ready = hasReadyCondition(newNode)
 		if !schedulerNode.ready {
 			log.Logger().Debug("Node is not ready", zap.String("Node name", newNode.Name))
+		}
+		request := common.CreateUpdateRequestForUpdatedNode(newNode.Name, common.GetNodeResource(&newNode.Status),
+			schedulerNode.occupied, schedulerNode.ready)
+		log.Logger().Info("report updated nodes to scheduler", zap.Any("request", request))
+		if err := nc.proxy.UpdateNode(&request); err != nil {
+			log.Logger().Info("hitting error while handling UpdateNode", zap.Error(err))
 		}
 	} else {
 		log.Logger().Error("Unable to find scheduler node in nodes map", zap.String("node name",
 			newNode.Name))
-	}
-	node := common.CreateFrom(newNode)
-	request := common.CreateUpdateRequestForUpdatedNode(node)
-	log.Logger().Info("report updated nodes to scheduler", zap.Any("request", request))
-	if err := nc.proxy.UpdateNode(&request); err != nil {
-		log.Logger().Info("hitting error while handling UpdateNode", zap.Error(err))
 	}
 }
 
@@ -236,8 +236,7 @@ func (nc *schedulerNodes) deleteNode(node *v1.Node) {
 
 	delete(nc.nodesMap, node.Name)
 
-	n := common.CreateFrom(node)
-	request := common.CreateUpdateRequestForDeleteNode(n)
+	request := common.CreateUpdateRequestForDeleteNode(node.Name, si.NodeInfo_DECOMISSION)
 	log.Logger().Info("report updated nodes to scheduler", zap.Any("request", request.String()))
 	if err := nc.proxy.UpdateNode(&request); err != nil {
 		log.Logger().Error("hitting error while handling UpdateNode", zap.Error(err))
@@ -258,4 +257,13 @@ func (nc *schedulerNodes) schedulerNodeEventHandler() func(obj interface{}) {
 			}
 		}
 	}
+}
+
+func hasReadyCondition(node *v1.Node) bool {
+	for _, condition := range node.Status.Conditions {
+		if condition.Type == v1.NodeReady && condition.Status == v1.ConditionTrue {
+			return true
+		}
+	}
+	return false
 }
