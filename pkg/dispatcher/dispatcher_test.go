@@ -53,8 +53,8 @@ func (t TestAppEvent) GetArgs() []interface{} {
 }
 
 func TestRegisterEventHandler(t *testing.T) {
-	initDispatcher()
-	defer initDispatcher()
+	createDispatcher()
+	defer createDispatcher()
 
 	RegisterEventHandler(EventTypeApp, func(obj interface{}) {})
 	RegisterEventHandler(EventTypeTask, func(obj interface{}) {})
@@ -91,8 +91,8 @@ func (a *appEventsRecorder) size() int {
 }
 
 func TestDispatcherStartStop(t *testing.T) {
-	initDispatcher()
-	defer initDispatcher()
+	createDispatcher()
+	defer createDispatcher()
 	// thread safe
 	recorder := &appEventsRecorder{
 		apps: make([]string, 0),
@@ -145,8 +145,8 @@ func TestDispatcherStartStop(t *testing.T) {
 // Test sending events from multiple senders in parallel,
 // verify that events won't be lost
 func TestEventWillNotBeLostWhenEventChannelIsFull(t *testing.T) {
-	initDispatcher()
-	defer initDispatcher()
+	createDispatcher()
+	defer createDispatcher()
 	dispatcher.eventChan = make(chan events.SchedulingEvent, 1)
 
 	// thread safe
@@ -194,8 +194,8 @@ func TestEventWillNotBeLostWhenEventChannelIsFull(t *testing.T) {
 // Test dispatch timeout, verify that Dispatcher#asyncDispatch is called when event channel is full
 // and will disappear after timeout.
 func TestDispatchTimeout(t *testing.T) {
-	initDispatcher()
-	defer initDispatcher()
+	createDispatcher()
+	defer createDispatcher()
 	// reset event channel with small capacity for testing
 	dispatcher.eventChan = make(chan events.SchedulingEvent, 1)
 	AsyncDispatchCheckInterval = 100 * time.Millisecond
@@ -251,8 +251,8 @@ func TestDispatchTimeout(t *testing.T) {
 
 // Test exceeding the async-dispatch limit, should panic immediately.
 func TestExceedAsyncDispatchLimit(t *testing.T) {
-	initDispatcher()
-	defer initDispatcher()
+	createDispatcher()
+	defer createDispatcher()
 	// reset event channel with small capacity for testing
 	dispatcher.eventChan = make(chan events.SchedulingEvent, 1)
 	AsyncDispatchLimit = 1
@@ -284,4 +284,9 @@ func TestExceedAsyncDispatchLimit(t *testing.T) {
 			eventType: events.RunApplication,
 		})
 	}
+}
+
+func createDispatcher() {
+	once.Do(func() {}) // run nop, so that functions like RegisterEventHandler() won't run initDispatcher() again
+	initDispatcher()
 }
