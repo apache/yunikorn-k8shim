@@ -184,7 +184,7 @@ func CreateUpdateRequestForUpdatedNode(nodeID string, capacity *si.Resource, occ
 	return request
 }
 
-func CreateUpdateRequestForDeleteNode(nodeID string, action si.NodeInfo_ActionFromRM) si.NodeRequest {
+func CreateUpdateRequestForDeleteOrRestoreNode(nodeID string, action si.NodeInfo_ActionFromRM) si.NodeRequest {
 	deletedNodes := make([]*si.NodeInfo, 1)
 	nodeInfo := &si.NodeInfo{
 		NodeID: nodeID,

@@ -236,7 +236,7 @@ func (nc *schedulerNodes) deleteNode(node *v1.Node) {
 
 	delete(nc.nodesMap, node.Name)
 
-	request := common.CreateUpdateRequestForDeleteNode(node.Name, si.NodeInfo_DECOMISSION)
+	request := common.CreateUpdateRequestForDeleteOrRestoreNode(node.Name, si.NodeInfo_DECOMISSION)
 	log.Logger().Info("report updated nodes to scheduler", zap.Any("request", request.String()))
 	if err := nc.proxy.UpdateNode(&request); err != nil {
 		log.Logger().Error("hitting error while handling UpdateNode", zap.Error(err))

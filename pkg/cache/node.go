@@ -163,7 +163,7 @@ func (n *SchedulerNode) handleDrainNode(event *fsm.Event) {
 	log.Logger().Info("node enters draining mode",
 		zap.String("nodeID", n.name))
 
-	nodeRequest := common.CreateUpdateRequestForDeleteNode(n.name, si.NodeInfo_DRAIN_NODE)
+	nodeRequest := common.CreateUpdateRequestForDeleteOrRestoreNode(n.name, si.NodeInfo_DRAIN_NODE)
 
 	// send request to scheduler-core
 	if err := n.schedulerAPI.UpdateNode(&nodeRequest); err != nil {
@@ -176,7 +176,7 @@ func (n *SchedulerNode) handleRestoreNode(event *fsm.Event) {
 	log.Logger().Info("restore node from draining mode",
 		zap.String("nodeID", n.name))
 
-	nodeRequest := common.CreateUpdateRequestForDeleteNode(n.name, si.NodeInfo_DRAIN_TO_SCHEDULABLE)
+	nodeRequest := common.CreateUpdateRequestForDeleteOrRestoreNode(n.name, si.NodeInfo_DRAIN_TO_SCHEDULABLE)
 
 	// send request to scheduler-core
 	if err := n.schedulerAPI.UpdateNode(&nodeRequest); err != nil {
