@@ -20,16 +20,14 @@ package cache
 
 import (
 	"fmt"
-	"os"
 
-	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 )
 
 // MUST: run the placeholder pod as non-root user
@@ -41,7 +39,6 @@ import (
 // launch all the placeholder pods.
 var runAsUser int64 = 1000
 var runAsGroup int64 = 3000
-var placeHolderImage string
 
 type Placeholder struct {
 	appID         string
@@ -83,7 +80,7 @@ func newPlaceholder(placeholderName string, app *Application, taskGroup v1alpha1
 			Containers: []v1.Container{
 				{
 					Name:  constants.PlaceholderContainerName,
-					Image: getPlaceHolderImage(),
+					Image: conf.GetSchedulerConf().PlaceHolderImage,
 					Resources: v1.ResourceRequirements{
 						Requests: utils.GetPlaceholderResourceRequest(taskGroup.MinResource),
 					},
@@ -107,21 +104,4 @@ func newPlaceholder(placeholderName string, app *Application, taskGroup v1alpha1
 func (p *Placeholder) String() string {
 	return fmt.Sprintf("appID: %s, taskGroup: %s, podName: %s/%s",
 		p.appID, p.taskGroupName, p.pod.Namespace, p.pod.Name)
-}
-
-func getPlaceHolderImage() string {
-	if placeHolderImage == "" {
-		imageEnvSetting := os.Getenv(constants.PlaceHolderImageEnvVar)
-		if imageEnvSetting != "" {
-			placeHolderImage = imageEnvSetting
-			log.Logger().Info("Using placeholder image from environment variable", zap.String("imageName",
-				placeHolderImage))
-		} else {
-			placeHolderImage = constants.PlaceholderContainerImage
-			log.Logger().Info("Using default placeholder image", zap.String("imageName",
-				placeHolderImage))
-		}
-	}
-
-	return placeHolderImage
 }

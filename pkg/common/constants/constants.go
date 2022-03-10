@@ -62,7 +62,6 @@ const AppManagerHandlerName = "yunikorn-app"
 
 // Gang scheduling
 const PlaceholderContainerImage = "k8s.gcr.io/pause"
-const PlaceHolderImageEnvVar = "PLACEHOLDER_IMAGE"
 const PlaceholderContainerName = "pause"
 const PlaceholderPodRestartPolicy = "Never"
 const LabelPlaceholderFlag = "placeholder"
