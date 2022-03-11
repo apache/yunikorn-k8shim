@@ -37,6 +37,8 @@ const (
 	HTTPPort                             = 9089
 	policyGroupEnvVarName                = "POLICY_GROUP"
 	schedulerServiceAddressEnvVarName    = "SCHEDULER_SERVICE_ADDRESS"
+	yunikornServiceHostEnvVarName        = "YUNIKORN_SERVICE_SERVICE_HOST"
+	yunikornServicePortEnvVarName        = "YUNIKORN_SERVICE_SERVICE_PORT"
 	schedulerValidateConfURLPattern      = "http://%s/ws/v1/validate-conf"
 	admissionControllerNamespace         = "ADMISSION_CONTROLLER_NAMESPACE"
 	admissionControllerService           = "ADMISSION_CONTROLLER_SERVICE"
@@ -96,7 +98,15 @@ func main() {
 	if policyGroup == "" {
 		policyGroup = conf.DefaultPolicyGroup
 	}
-	schedulerServiceAddress := os.Getenv(schedulerServiceAddressEnvVarName)
+
+	var schedulerServiceAddress string
+	ykHost, hostOk := os.LookupEnv(yunikornServiceHostEnvVarName)
+	ykPort, portOk := os.LookupEnv(yunikornServicePortEnvVarName)
+	if hostOk && portOk {
+		schedulerServiceAddress = fmt.Sprintf("%s:%s", ykHost, ykPort)
+	} else {
+		schedulerServiceAddress = os.Getenv(schedulerServiceAddressEnvVarName)
+	}
 
 	webHook, err := initAdmissionController(
 		fmt.Sprintf("%s.yaml", policyGroup),
