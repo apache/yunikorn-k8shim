@@ -121,6 +121,24 @@ func (n *SchedulerNode) setOccupiedResource(resource *si.Resource) {
 	n.occupied = resource
 }
 
+func (n *SchedulerNode) setCapacity(capacity *si.Resource) {
+	n.lock.Lock()
+	defer n.lock.Unlock()
+	log.Logger().Debug("set node capacity",
+		zap.String("nodeID", n.name),
+		zap.String("capacity", capacity.String()))
+	n.capacity = capacity
+}
+
+func (n *SchedulerNode) setReadyStatus(ready bool) {
+	n.lock.Lock()
+	defer n.lock.Unlock()
+	log.Logger().Debug("set node ready status",
+		zap.String("nodeID", n.name),
+		zap.Bool("ready", ready))
+	n.ready = ready
+}
+
 func (n *SchedulerNode) getNodeState() string {
 	// fsm has its own internal lock, we don't need to hold node's lock here
 	return n.fsm.Current()

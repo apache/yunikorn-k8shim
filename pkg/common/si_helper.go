@@ -134,6 +134,7 @@ func CreateReleaseAllocationRequestForTask(appID, allocUUID, partition, terminat
 	return result
 }
 
+// CreateUpdateRequestForNewNode builds a NodeRequest for new node addition and restoring existing node
 func CreateUpdateRequestForNewNode(nodeID string, capacity *si.Resource, occupied *si.Resource,
 	existingAllocations []*si.Allocation, labels string, ready bool) si.NodeRequest {
 	// Use node's name as the NodeID, this is because when bind pod to node,
@@ -142,7 +143,6 @@ func CreateUpdateRequestForNewNode(nodeID string, capacity *si.Resource, occupie
 		NodeID:              nodeID,
 		SchedulableResource: capacity,
 		OccupiedResource:    occupied,
-		// TODO is this required?
 		Attributes: map[string]string{
 			constants.DefaultNodeAttributeHostNameKey:   nodeID,
 			constants.DefaultNodeAttributeRackNameKey:   constants.DefaultRackName,
@@ -162,9 +162,10 @@ func CreateUpdateRequestForNewNode(nodeID string, capacity *si.Resource, occupie
 	return request
 }
 
+// CreateUpdateRequestForUpdatedNode builds a NodeRequest for any node updates like capacity,
+// ready status flag etc
 func CreateUpdateRequestForUpdatedNode(nodeID string, capacity *si.Resource, occupied *si.Resource,
 	ready bool) si.NodeRequest {
-	// Currently only includes resource in the update request
 	nodeInfo := &si.NodeInfo{
 		NodeID: nodeID,
 		Attributes: map[string]string{
@@ -184,6 +185,8 @@ func CreateUpdateRequestForUpdatedNode(nodeID string, capacity *si.Resource, occ
 	return request
 }
 
+// CreateUpdateRequestForDeleteOrRestoreNode builds a NodeRequest for Node actions like drain,
+// decommissioning & restore
 func CreateUpdateRequestForDeleteOrRestoreNode(nodeID string, action si.NodeInfo_ActionFromRM) si.NodeRequest {
 	deletedNodes := make([]*si.NodeInfo, 1)
 	nodeInfo := &si.NodeInfo{
