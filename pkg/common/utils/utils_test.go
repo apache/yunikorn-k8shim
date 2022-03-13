@@ -397,6 +397,59 @@ func TestGetUserFromPod(t *testing.T) {
 	}
 }
 
+func TestGetQueueNameFromPod(t *testing.T) {
+	queueInLabel := "sandboxLabel"
+	queueInAnnotation := "sandboxAnnotation"
+	testCases := []struct {
+		name          string
+		pod           *v1.Pod
+		expectedQueue string
+	}{
+		{
+			name: "With queue label",
+			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{constants.LabelQueueName: queueInLabel},
+				},
+			},
+			expectedQueue: queueInLabel,
+		},
+		{
+			name: "With queue annotation",
+			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{constants.AnnotationQueueName: queueInAnnotation},
+				},
+			},
+			expectedQueue: queueInAnnotation,
+		},
+		{
+			name: "With queue label and annotation",
+			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels:      map[string]string{constants.LabelQueueName: queueInLabel},
+					Annotations: map[string]string{constants.AnnotationQueueName: queueInAnnotation},
+				},
+			},
+			expectedQueue: queueInLabel,
+		},
+		{
+			name: "Without queue label and annotation",
+			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{},
+			},
+			expectedQueue: constants.ApplicationDefaultQueue,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			queue := GetQueueNameFromPod(tc.pod)
+			assert.Equal(t, queue, tc.expectedQueue)
+		})
+	}
+}
+
 func TestNeedRecovery(t *testing.T) {
 	const fakeNodeID = "fake-node"
 	testCases := []struct {
