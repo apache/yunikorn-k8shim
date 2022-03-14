@@ -289,7 +289,7 @@ func TestBestEffortPod(t *testing.T) {
 	// best effort pod all resources are nil or zero
 	res := GetPodResource(pod)
 	assert.Equal(t, len(res.Resources), 1)
-	assert.Equal(t, res.Resources[constants.Memory].GetValue(), int64(1))
+	assert.Equal(t, res.Resources[constants.Memory].GetValue(), int64(1000000))
 
 	// Add a resource to existing container (other than mem)
 	resources[v1.ResourceCPU] = resource.MustParse("1")
@@ -304,7 +304,7 @@ func TestBestEffortPod(t *testing.T) {
 
 	res = GetPodResource(pod)
 	assert.Equal(t, len(res.Resources), 1)
-	assert.Equal(t, res.Resources[constants.Memory].GetValue(), int64(1))
+	assert.Equal(t, res.Resources[constants.Memory].GetValue(), int64(1000000))
 }
 
 func TestNodeResource(t *testing.T) {

@@ -63,7 +63,7 @@ func GetPodResource(pod *v1.Pod) (resource *si.Resource) {
 	// scheduled. Handle a QosBestEffort pod by setting a tiny memory value.
 	if qos.GetPodQOS(pod) == v1.PodQOSBestEffort {
 		resources := NewResourceBuilder()
-		resources.AddResource(constants.Memory, 1)
+		resources.AddResource(constants.Memory, 1000000)
 		return resources.Build()
 	}
 
