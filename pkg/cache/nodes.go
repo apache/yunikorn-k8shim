@@ -101,7 +101,6 @@ func (nc *schedulerNodes) addAndReportNode(node *v1.Node, reportNode bool) {
 
 	// add node to nodes map
 	if _, ok := nc.nodesMap[node.Name]; !ok {
-
 		var nodeLabels []byte
 		nodeLabels, err := json.Marshal(node.Labels) // A nil pointer encodes as the "null" JSON value.
 		if err != nil {
@@ -114,7 +113,7 @@ func (nc *schedulerNodes) addAndReportNode(node *v1.Node, reportNode bool) {
 			zap.String("nodeLabels", string(nodeLabels)),
 			zap.Bool("schedulable", !node.Spec.Unschedulable))
 
-		ready := common.HasReadyCondition(node)
+		ready := hasReadyCondition(node)
 		newNode := newSchedulerNode(node.Name, string(node.UID), string(nodeLabels),
 			common.GetNodeResource(&node.Status), nc.proxy, !node.Spec.Unschedulable, ready)
 		nc.nodesMap[node.Name] = newNode
@@ -125,36 +124,7 @@ func (nc *schedulerNodes) addAndReportNode(node *v1.Node, reportNode bool) {
 	// do not trigger recover again in this case.
 	if reportNode {
 		if node, ok := nc.nodesMap[node.Name]; ok {
-			if node.getNodeState() == events.States().Node.New {
-				dispatcher.Dispatch(CachedSchedulerNodeEvent{
-					NodeID: node.name,
-					Event:  events.RecoverNode,
-				})
-			}
-		}
-	}
-}
-
-func (nc *schedulerNodes) drainNode(node *v1.Node) {
-	log.Logger().Info("draining node", zap.String("name", node.Name))
-	if node, ok := nc.nodesMap[node.Name]; ok {
-		if node.getNodeState() == events.States().Node.Healthy {
-			dispatcher.Dispatch(CachedSchedulerNodeEvent{
-				NodeID: node.name,
-				Event:  events.DrainNode,
-			})
-		}
-	}
-}
-
-func (nc *schedulerNodes) restoreNode(node *v1.Node) {
-	log.Logger().Info("restoring node", zap.String("name", node.Name))
-	if node, ok := nc.nodesMap[node.Name]; ok {
-		if node.getNodeState() == events.States().Node.Draining {
-			dispatcher.Dispatch(CachedSchedulerNodeEvent{
-				NodeID: node.name,
-				Event:  events.RestoreNode,
-			})
+			triggerEvent(node, events.States().Node.New, events.RecoverNode)
 		}
 	}
 }
@@ -178,8 +148,7 @@ func (nc *schedulerNodes) updateNodeOccupiedResources(name string, resource *si.
 			return
 		}
 
-		node := common.NewNode(schedulerNode.name, schedulerNode.uid, schedulerNode.capacity, schedulerNode.occupied)
-		request := common.CreateUpdateRequestForUpdatedNode(node)
+		request := common.CreateUpdateRequestForUpdatedNode(name, schedulerNode.capacity, schedulerNode.occupied, schedulerNode.ready)
 		log.Logger().Info("report occupied resources updates",
 			zap.String("node", schedulerNode.name),
 			zap.Any("request", request))
@@ -193,7 +162,8 @@ func (nc *schedulerNodes) updateNode(oldNode, newNode *v1.Node) {
 	// before updating a node, check if it exists in the cache or not
 	// if we receive a update node event but the node doesn't exist,
 	// we need to add it instead of updating it.
-	if cachedNode := nc.getNode(newNode.Name); cachedNode == nil {
+	cachedNode := nc.getNode(newNode.Name)
+	if cachedNode == nil {
 		nc.addNode(newNode)
 		return
 	}
@@ -203,27 +173,33 @@ func (nc *schedulerNodes) updateNode(oldNode, newNode *v1.Node) {
 
 	// cordon or restore node
 	if (!oldNode.Spec.Unschedulable) && newNode.Spec.Unschedulable {
-		nc.drainNode(newNode)
+		triggerEvent(cachedNode, events.States().Node.Healthy, events.DrainNode)
 	} else if oldNode.Spec.Unschedulable && !newNode.Spec.Unschedulable {
-		nc.restoreNode(newNode)
+		triggerEvent(cachedNode, events.States().Node.Draining, events.RestoreNode)
 	}
 
-	// node resource changes
-	if equals(oldNode, newNode) {
+	ready := hasReadyCondition(newNode)
+	capacityUpdated := equals(oldNode, newNode)
+	readyUpdated := cachedNode.ready == ready
+
+	if capacityUpdated && readyUpdated {
 		return
 	}
 
-	if schedulerNode, ok := nc.nodesMap[newNode.Name]; ok {
-		schedulerNode.ready = common.HasReadyCondition(newNode)
-		if !schedulerNode.ready {
-			log.Logger().Debug("Node is not ready", zap.String("Node name", newNode.Name))
-		}
-	} else {
-		log.Logger().Error("Unable to find scheduler node in nodes map", zap.String("node name",
-			newNode.Name))
+	// Has node resource updated?
+	if !capacityUpdated {
+		cachedNode.setCapacity(common.GetNodeResource(&newNode.Status))
 	}
-	node := common.CreateFrom(newNode)
-	request := common.CreateUpdateRequestForUpdatedNode(node)
+
+	// Has node ready status flag updated?
+	if !readyUpdated {
+		cachedNode.setReadyStatus(ready)
+	}
+
+	log.Logger().Info("Node's ready status flag", zap.String("Node name", newNode.Name),
+		zap.Bool("ready", ready), zap.Bool("ready1111", cachedNode.ready))
+	request := common.CreateUpdateRequestForUpdatedNode(newNode.Name, cachedNode.capacity,
+		cachedNode.occupied, cachedNode.ready)
 	log.Logger().Info("report updated nodes to scheduler", zap.Any("request", request))
 	if err := nc.proxy.UpdateNode(&request); err != nil {
 		log.Logger().Info("hitting error while handling UpdateNode", zap.Error(err))
@@ -236,8 +212,7 @@ func (nc *schedulerNodes) deleteNode(node *v1.Node) {
 
 	delete(nc.nodesMap, node.Name)
 
-	n := common.CreateFrom(node)
-	request := common.CreateUpdateRequestForDeleteNode(n)
+	request := common.CreateUpdateRequestForDeleteOrRestoreNode(node.Name, si.NodeInfo_DECOMISSION)
 	log.Logger().Info("report updated nodes to scheduler", zap.Any("request", request.String()))
 	if err := nc.proxy.UpdateNode(&request); err != nil {
 		log.Logger().Error("hitting error while handling UpdateNode", zap.Error(err))
@@ -257,5 +232,27 @@ func (nc *schedulerNodes) schedulerNodeEventHandler() func(obj interface{}) {
 				}
 			}
 		}
+	}
+}
+
+func hasReadyCondition(node *v1.Node) bool {
+	if node != nil && node.Status.String() != "nil" {
+		for _, condition := range node.Status.Conditions {
+			if condition.Type == v1.NodeReady && condition.Status == v1.ConditionTrue {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func triggerEvent(node *SchedulerNode, currentState string, eventType events.SchedulerNodeEventType) {
+	log.Logger().Info("scheduler node event ", zap.String("name", node.name),
+		zap.String("current state ", currentState), zap.String("transition to ", string(eventType)))
+	if node.getNodeState() == currentState {
+		dispatcher.Dispatch(CachedSchedulerNodeEvent{
+			NodeID: node.name,
+			Event:  eventType,
+		})
 	}
 }

@@ -19,8 +19,9 @@
 package common
 
 import (
-	v1 "k8s.io/api/core/v1"
 	"strconv"
+
+	v1 "k8s.io/api/core/v1"
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
@@ -133,18 +134,23 @@ func CreateReleaseAllocationRequestForTask(appID, allocUUID, partition, terminat
 	return result
 }
 
-func CreateUpdateRequestForNewNode(node Node) si.NodeRequest {
+// CreateUpdateRequestForNewNode builds a NodeRequest for new node addition and restoring existing node
+func CreateUpdateRequestForNewNode(nodeID string, capacity *si.Resource, occupied *si.Resource,
+	existingAllocations []*si.Allocation, labels string, ready bool) si.NodeRequest {
 	// Use node's name as the NodeID, this is because when bind pod to node,
 	// name of node is required but uid is optional.
 	nodeInfo := &si.NodeInfo{
-		NodeID:              node.name,
-		SchedulableResource: node.capacity,
-		// TODO is this required?
+		NodeID:              nodeID,
+		SchedulableResource: capacity,
+		OccupiedResource:    occupied,
 		Attributes: map[string]string{
-			constants.DefaultNodeAttributeHostNameKey: node.name,
-			constants.DefaultNodeAttributeRackNameKey: constants.DefaultRackName,
+			constants.DefaultNodeAttributeHostNameKey:   nodeID,
+			constants.DefaultNodeAttributeRackNameKey:   constants.DefaultRackName,
+			constants.DefaultNodeAttributeNodeLabelsKey: labels,
+			constants.NodeReadyAttribute:                strconv.FormatBool(ready),
 		},
-		Action: si.NodeInfo_CREATE,
+		ExistingAllocations: existingAllocations,
+		Action:              si.NodeInfo_CREATE,
 	}
 
 	nodes := make([]*si.NodeInfo, 1)
@@ -156,15 +162,17 @@ func CreateUpdateRequestForNewNode(node Node) si.NodeRequest {
 	return request
 }
 
-func CreateUpdateRequestForUpdatedNode(node Node) si.NodeRequest {
-	// Currently only includes resource in the update request
+// CreateUpdateRequestForUpdatedNode builds a NodeRequest for any node updates like capacity,
+// ready status flag etc
+func CreateUpdateRequestForUpdatedNode(nodeID string, capacity *si.Resource, occupied *si.Resource,
+	ready bool) si.NodeRequest {
 	nodeInfo := &si.NodeInfo{
-		NodeID: node.name,
+		NodeID: nodeID,
 		Attributes: map[string]string{
-			constants.NodeReadyAttribute: strconv.FormatBool(node.ready),
+			constants.NodeReadyAttribute: strconv.FormatBool(ready),
 		},
-		SchedulableResource: node.capacity,
-		OccupiedResource:    node.occupied,
+		SchedulableResource: capacity,
+		OccupiedResource:    occupied,
 		Action:              si.NodeInfo_UPDATE,
 	}
 
@@ -177,14 +185,13 @@ func CreateUpdateRequestForUpdatedNode(node Node) si.NodeRequest {
 	return request
 }
 
-func CreateUpdateRequestForDeleteNode(node Node) si.NodeRequest {
+// CreateUpdateRequestForDeleteOrRestoreNode builds a NodeRequest for Node actions like drain,
+// decommissioning & restore
+func CreateUpdateRequestForDeleteOrRestoreNode(nodeID string, action si.NodeInfo_ActionFromRM) si.NodeRequest {
 	deletedNodes := make([]*si.NodeInfo, 1)
 	nodeInfo := &si.NodeInfo{
-		NodeID:              node.name,
-		SchedulableResource: node.capacity,
-		OccupiedResource:    node.occupied,
-		Attributes:          make(map[string]string),
-		Action:              si.NodeInfo_DECOMISSION,
+		NodeID: nodeID,
+		Action: action,
 	}
 
 	deletedNodes[0] = nodeInfo

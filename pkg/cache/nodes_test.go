@@ -19,6 +19,7 @@
 package cache
 
 import (
+	"strconv"
 	"testing"
 	"time"
 
@@ -27,9 +28,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
-
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/cache/external"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/test"
@@ -42,28 +42,7 @@ func TestAddNode(t *testing.T) {
 	api := test.NewSchedulerAPIMock()
 
 	// register fn doesn't nothing than checking input
-	inputCheckerUpdateFn := func(request *si.NodeRequest) error {
-		if request.Nodes == nil || len(request.Nodes) != 1 {
-			t.Fatalf("unexpected new nodes info from the request")
-		}
-
-		info := request.Nodes[0]
-		if info.NodeID != "host0001" {
-			t.Fatalf("unexpected node name %s", info.NodeID)
-		}
-
-		if memory := info.SchedulableResource.Resources[constants.Memory].Value; memory != int64(1024) {
-			t.Fatalf("unexpected node memory %d", memory)
-		}
-
-		if cpu := info.SchedulableResource.Resources[constants.CPU].Value; cpu != int64(10000) {
-			t.Fatalf("unexpected node CPU %d", cpu)
-		}
-
-		return nil
-	}
-
-	api.UpdateNodeFunction(inputCheckerUpdateFn)
+	api.UpdateNodeFunction(getUpdateNodeFunction(t, "host0001", 1024, 10000, false))
 
 	nodes := newSchedulerNodes(api, NewTestSchedulerCache())
 	dispatcher.RegisterEventHandler(dispatcher.EventTypeNode, nodes.schedulerNodeEventHandler())
@@ -135,26 +114,7 @@ func TestUpdateNode(t *testing.T) {
 
 	// this function validates the new node can be added
 	// this verifies the shim sends the si.UpdateRequest to core with the new node info
-	api.UpdateNodeFunction(func(request *si.NodeRequest) error {
-		if request.Nodes == nil || len(request.Nodes) != 1 {
-			t.Fatalf("unexpected new nodes info from the request")
-		}
-
-		info := request.Nodes[0]
-		if info.NodeID != "host0001" {
-			t.Fatalf("unexpected node name %s", info.NodeID)
-		}
-
-		if memory := info.SchedulableResource.Resources[constants.Memory].Value; memory != int64(1024) {
-			t.Fatalf("unexpected node memory %d", memory)
-		}
-
-		if cpu := info.SchedulableResource.Resources[constants.CPU].Value; cpu != int64(10000) {
-			t.Fatalf("unexpected node CPU %d", cpu)
-		}
-
-		return nil
-	})
+	api.UpdateNodeFunction(getUpdateNodeFunction(t, "host0001", 1024, 10000, false))
 
 	// add the node first
 	nodes.addNode(&oldNode)
@@ -197,32 +157,33 @@ func TestUpdateNode(t *testing.T) {
 		},
 	}
 
-	checkFn := func(request *si.NodeRequest) error {
-		if request.Nodes == nil || len(request.Nodes) != 1 {
-			t.Fatalf("unexpected new nodes info from the request")
-		}
-
-		info := request.Nodes[0]
-		if info.NodeID != "host0001" {
-			t.Fatalf("unexpected node name %s", info.NodeID)
-		}
-
-		if memory := info.SchedulableResource.Resources[constants.Memory].Value; memory != int64(2048) {
-			t.Fatalf("unexpected node memory %d", memory)
-		}
-
-		if cpu := info.SchedulableResource.Resources[constants.CPU].Value; cpu != int64(10000) {
-			t.Fatalf("unexpected node CPU %d", cpu)
-		}
-
-		return nil
-	}
-
-	api.UpdateNodeFunction(checkFn)
+	api.UpdateNodeFunction(getUpdateNodeFunction(t, "host0001", 2048, 10000, false))
 
 	nodes.updateNode(&oldNode, &newNode)
 	assert.Equal(t, api.GetRegisterCount(), int32(0))
 	assert.Equal(t, api.GetUpdateNodeCount(), int32(1))
+
+	condition := v1.NodeCondition{Type: v1.NodeReady, Status: v1.ConditionTrue}
+	var conditions []v1.NodeCondition
+	conditions = append(conditions, condition)
+
+	newNode1 := v1.Node{
+		ObjectMeta: apis.ObjectMeta{
+			Name:      "host0001",
+			Namespace: "default",
+			UID:       "uid_0001",
+		},
+		Status: v1.NodeStatus{
+			Allocatable: newResourceList,
+			Conditions:  conditions,
+		},
+	}
+
+	api.UpdateNodeFunction(getUpdateNodeFunction(t, "host0001", 2048, 10000, true))
+
+	nodes.updateNode(&oldNode, &newNode1)
+	assert.Equal(t, api.GetRegisterCount(), int32(0))
+	assert.Equal(t, api.GetUpdateNodeCount(), int32(2))
 }
 
 func TestUpdateWithoutNodeAdded(t *testing.T) {
@@ -259,27 +220,7 @@ func TestUpdateWithoutNodeAdded(t *testing.T) {
 		},
 	}
 
-	//
-	api.UpdateNodeFunction(func(request *si.NodeRequest) error {
-		if request.Nodes == nil || len(request.Nodes) != 1 {
-			t.Fatalf("unexpected new nodes info from the request")
-		}
-
-		info := request.Nodes[0]
-		if info.NodeID != "host0001" {
-			t.Fatalf("unexpected node name %s", info.NodeID)
-		}
-
-		if memory := info.SchedulableResource.Resources[constants.Memory].Value; memory != int64(1024) {
-			t.Fatalf("unexpected node memory %d", memory)
-		}
-
-		if cpu := info.SchedulableResource.Resources[constants.CPU].Value; cpu != int64(10000) {
-			t.Fatalf("unexpected node CPU %d", cpu)
-		}
-
-		return nil
-	})
+	api.UpdateNodeFunction(getUpdateNodeFunction(t, "host0001", 1024, 10000, false))
 
 	// directly trigger an update
 	// if the node was not seeing in the cache, we should see the node be added
@@ -308,28 +249,7 @@ func TestUpdateWithoutNodeAdded(t *testing.T) {
 		},
 	}
 
-	checkFn := func(request *si.NodeRequest) error {
-		if request.Nodes == nil || len(request.Nodes) != 1 {
-			t.Fatalf("unexpected new nodes info from the request")
-		}
-
-		info := request.Nodes[0]
-		if info.NodeID != "host0001" {
-			t.Fatalf("unexpected node name %s", info.NodeID)
-		}
-
-		if memory := info.SchedulableResource.Resources[constants.Memory].Value; memory != int64(2048) {
-			t.Fatalf("unexpected node memory %d", memory)
-		}
-
-		if cpu := info.SchedulableResource.Resources[constants.CPU].Value; cpu != int64(10000) {
-			t.Fatalf("unexpected node CPU %d", cpu)
-		}
-
-		return nil
-	}
-
-	api.UpdateNodeFunction(checkFn)
+	api.UpdateNodeFunction(getUpdateNodeFunction(t, "host0001", 2048, 10000, false))
 
 	nodes.updateNode(&oldNode, &newNode)
 	assert.Equal(t, api.GetRegisterCount(), int32(0))
@@ -553,4 +473,32 @@ func TestCordonNode(t *testing.T) {
 		return nodes.getNode("host0001").getNodeState() == events.States().Node.Healthy
 	}, 1*time.Second, 5*time.Second)
 	assert.NilError(t, err)
+}
+
+func getUpdateNodeFunction(t *testing.T, expectedNodeID string, expectedMem int32,
+	expectedCores int32, expectedReady bool) func(request *si.NodeRequest) error {
+	updateFn := func(request *si.NodeRequest) error {
+		if request.Nodes == nil || len(request.Nodes) != 1 {
+			t.Fatalf("unexpected new nodes info from the request")
+		}
+
+		info := request.Nodes[0]
+		if info.NodeID != expectedNodeID {
+			t.Fatalf("unexpected node name %s", info.NodeID)
+		}
+
+		if memory := info.SchedulableResource.Resources[constants.Memory].Value; memory != int64(expectedMem) {
+			t.Fatalf("unexpected node memory %d", memory)
+		}
+
+		if cpu := info.SchedulableResource.Resources[constants.CPU].Value; cpu != int64(expectedCores) {
+			t.Fatalf("unexpected node CPU %d", cpu)
+		}
+
+		if ready := info.Attributes[constants.NodeReadyAttribute]; ready != strconv.FormatBool(expectedReady) {
+			t.Fatalf("unexpected node ready flag %s", ready)
+		}
+		return nil
+	}
+	return updateFn
 }

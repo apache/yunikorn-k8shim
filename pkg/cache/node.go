@@ -19,16 +19,13 @@
 package cache
 
 import (
-	"strconv"
 	"sync"
 
 	"github.com/looplab/fsm"
 	"go.uber.org/zap"
 
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
 	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/api"
@@ -124,6 +121,24 @@ func (n *SchedulerNode) setOccupiedResource(resource *si.Resource) {
 	n.occupied = resource
 }
 
+func (n *SchedulerNode) setCapacity(capacity *si.Resource) {
+	n.lock.Lock()
+	defer n.lock.Unlock()
+	log.Logger().Debug("set node capacity",
+		zap.String("nodeID", n.name),
+		zap.String("capacity", capacity.String()))
+	n.capacity = capacity
+}
+
+func (n *SchedulerNode) setReadyStatus(ready bool) {
+	n.lock.Lock()
+	defer n.lock.Unlock()
+	log.Logger().Debug("set node ready status",
+		zap.String("nodeID", n.name),
+		zap.Bool("ready", ready))
+	n.ready = ready
+}
+
 func (n *SchedulerNode) getNodeState() string {
 	// fsm has its own internal lock, we don't need to hold node's lock here
 	return n.fsm.Current()
@@ -152,27 +167,11 @@ func (n *SchedulerNode) handleNodeRecovery(event *fsm.Event) {
 		zap.String("nodeID", n.name),
 		zap.Bool("schedulable", n.schedulable))
 
-	nodeRequest := &si.NodeRequest{
-		Nodes: []*si.NodeInfo{
-			{
-				NodeID:              n.name,
-				SchedulableResource: n.capacity,
-				OccupiedResource:    n.occupied,
-				Attributes: map[string]string{
-					constants.DefaultNodeAttributeHostNameKey:   n.name,
-					constants.DefaultNodeAttributeRackNameKey:   constants.DefaultRackName,
-					constants.DefaultNodeAttributeNodeLabelsKey: n.labels,
-					constants.NodeReadyAttribute:                strconv.FormatBool(n.ready),
-				},
-				ExistingAllocations: n.existingAllocations,
-				Action:              si.NodeInfo_CREATE,
-			},
-		},
-		RmID: conf.GetSchedulerConf().ClusterID,
-	}
+	nodeRequest := common.CreateUpdateRequestForNewNode(n.name, n.capacity, n.occupied, n.existingAllocations,
+		n.labels, n.ready)
 
 	// send node request to scheduler-core
-	if err := n.schedulerAPI.UpdateNode(nodeRequest); err != nil {
+	if err := n.schedulerAPI.UpdateNode(&nodeRequest); err != nil {
 		log.Logger().Error("failed to send UpdateNode request",
 			zap.Any("request", nodeRequest))
 	}
@@ -182,23 +181,10 @@ func (n *SchedulerNode) handleDrainNode(event *fsm.Event) {
 	log.Logger().Info("node enters draining mode",
 		zap.String("nodeID", n.name))
 
-	nodeRequest := &si.NodeRequest{
-		Nodes: []*si.NodeInfo{
-			{
-				NodeID: n.name,
-				Action: si.NodeInfo_DRAIN_NODE,
-				Attributes: map[string]string{
-					constants.DefaultNodeAttributeHostNameKey:   n.name,
-					constants.DefaultNodeAttributeRackNameKey:   constants.DefaultRackName,
-					constants.DefaultNodeAttributeNodeLabelsKey: n.labels,
-				},
-			},
-		},
-		RmID: conf.GetSchedulerConf().ClusterID,
-	}
+	nodeRequest := common.CreateUpdateRequestForDeleteOrRestoreNode(n.name, si.NodeInfo_DRAIN_NODE)
 
 	// send request to scheduler-core
-	if err := n.schedulerAPI.UpdateNode(nodeRequest); err != nil {
+	if err := n.schedulerAPI.UpdateNode(&nodeRequest); err != nil {
 		log.Logger().Error("failed to send UpdateNode request",
 			zap.Any("request", nodeRequest))
 	}
@@ -208,23 +194,10 @@ func (n *SchedulerNode) handleRestoreNode(event *fsm.Event) {
 	log.Logger().Info("restore node from draining mode",
 		zap.String("nodeID", n.name))
 
-	nodeRequest := &si.NodeRequest{
-		Nodes: []*si.NodeInfo{
-			{
-				NodeID: n.name,
-				Action: si.NodeInfo_DRAIN_TO_SCHEDULABLE,
-				Attributes: map[string]string{
-					constants.DefaultNodeAttributeHostNameKey:   n.name,
-					constants.DefaultNodeAttributeRackNameKey:   constants.DefaultRackName,
-					constants.DefaultNodeAttributeNodeLabelsKey: n.labels,
-				},
-			},
-		},
-		RmID: conf.GetSchedulerConf().ClusterID,
-	}
+	nodeRequest := common.CreateUpdateRequestForDeleteOrRestoreNode(n.name, si.NodeInfo_DRAIN_TO_SCHEDULABLE)
 
 	// send request to scheduler-core
-	if err := n.schedulerAPI.UpdateNode(nodeRequest); err != nil {
+	if err := n.schedulerAPI.UpdateNode(&nodeRequest); err != nil {
 		log.Logger().Error("failed to send UpdateNode request",
 			zap.Any("request", nodeRequest))
 	}
