@@ -55,7 +55,7 @@ var _ = Describe("FallbackTest:", func() {
 		sleepPodConf := common.SleepPodConfig{Name: "sleepjob", NS: ns, Time: 600}
 		sleepRespPod, err = kClient.CreatePod(common.InitSleepPod(sleepPodConf), ns)
 		Ω(err).NotTo(HaveOccurred())
-		//Wait for pod to move to running state
+		// Wait for pod to move to running state
 	})
 
 	It("Verify_App_In_Starting_State", func() {
@@ -94,9 +94,9 @@ var _ = Describe("FallbackTest:", func() {
 		Ω(allocations["applicationId"]).To(Equal(sleepRespPod.ObjectMeta.Labels["applicationId"]))
 		Ω(allocations["queueName"]).To(ContainSubstring(sleepRespPod.ObjectMeta.Namespace))
 		core := strconv.FormatInt(sleepRespPod.Spec.Containers[0].Resources.Requests.Cpu().MilliValue(), 10)
-		mem := sleepRespPod.Spec.Containers[0].Resources.Requests.Memory().String()
+		mem := strconv.FormatInt(sleepRespPod.Spec.Containers[0].Resources.Requests.Memory().Value(), 10)
 		matches := r.FindStringSubmatch(allocations["resource"].(string))
-		Ω(matches[1] + "M").To(Equal(mem))
+		Ω(matches[1]).To(Equal(mem))
 		Ω(matches[2]).To(ContainSubstring(core))
 	}, 360)
 
