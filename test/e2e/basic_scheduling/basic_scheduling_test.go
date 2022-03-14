@@ -78,7 +78,7 @@ var _ = ginkgo.Describe("", func() {
 		ginkgo.By("Deploy the sleep pod to the development namespace")
 		sleepRespPod, err = kClient.CreatePod(common.InitSleepPod(sleepPodConfigs), dev)
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
-		//Wait for pod to move to running state
+		// Wait for pod to move to running state
 		err = kClient.WaitForPodBySelectorRunning(dev,
 			fmt.Sprintf("app=%s", sleepRespPod.ObjectMeta.Labels["app"]),
 			10)
@@ -113,9 +113,9 @@ var _ = ginkgo.Describe("", func() {
 		gomega.Ω(allocations["applicationId"]).To(gomega.Equal(sleepRespPod.ObjectMeta.Labels["applicationId"]))
 		gomega.Ω(allocations["queueName"]).To(gomega.ContainSubstring(sleepRespPod.ObjectMeta.Namespace))
 		core := strconv.FormatInt(sleepRespPod.Spec.Containers[0].Resources.Requests.Cpu().MilliValue(), 10)
-		mem := sleepRespPod.Spec.Containers[0].Resources.Requests.Memory().String()
+		mem := strconv.FormatInt(sleepRespPod.Spec.Containers[0].Resources.Requests.Memory().Value(), 10)
 		matches := r.FindStringSubmatch(allocations["resource"].(string))
-		gomega.Ω(matches[1] + "M").To(gomega.Equal(mem))
+		gomega.Ω(matches[1]).To(gomega.Equal(mem))
 		gomega.Ω(matches[2]).To(gomega.ContainSubstring(core))
 	})
 

@@ -73,7 +73,7 @@ var _ = Describe("", func() {
 		annotations[maxMemAnnotation] = strconv.FormatInt(maxMem, 10) + "M"
 
 		ns = "ns-" + common.RandSeq(10)
-		By(fmt.Sprintf("create %s namespace with maxCPU: %d and maxMem: %d", ns, maxCPU, maxMem))
+		By(fmt.Sprintf("create %s namespace with maxCPU: %dm and maxMem: %dM", ns, maxCPU, maxMem))
 		ns1, err1 := kClient.CreateNamespace(ns, annotations)
 		Ω(err1).NotTo(HaveOccurred())
 		Ω(ns1.Status.Phase).To(Equal(v1.NamespaceActive))
@@ -108,11 +108,11 @@ var _ = Describe("", func() {
 
 			By(fmt.Sprintf("App-%d: Verify max capacity on the queue is accurate", iter))
 			Ω(maxResource.GetVCPU()).Should(Equal(strconv.FormatInt(maxCPU, 10)))
-			Ω(maxResource.GetMemory()).Should(Equal(strconv.FormatInt(maxMem, 10)))
+			Ω(maxResource.GetMemory()).Should(Equal(strconv.FormatInt(maxMem*1000*1000, 10)))
 
 			By(fmt.Sprintf("App-%d: Verify used capacity on the queue is accurate after 1st pod deployment", iter))
 			Ω(usedResource.GetVCPU()).Should(Equal(strconv.FormatInt(reqCPU*iter, 10)))
-			Ω(usedResource.GetMemory()).Should(Equal(strconv.FormatInt(reqMem*iter, 10)))
+			Ω(usedResource.GetMemory()).Should(Equal(strconv.FormatInt(reqMem*iter*1000*1000, 10)))
 
 			var perctCPU = strconv.FormatFloat(math.Floor((float64(reqCPU*iter)/float64(maxCPU))*100), 'g', -4, 64)
 			var perctMem = strconv.FormatFloat(math.Floor((float64(reqMem*iter)/float64(maxMem))*100), 'g', -4, 64)
@@ -130,7 +130,7 @@ var _ = Describe("", func() {
 		pods = append(pods, sleepObj.Name)
 
 		By(fmt.Sprintf("App-4: Verify app:%s in accepted state", sleepObj.Name))
-		//Wait for pod to move to accepted state
+		// Wait for pod to move to accepted state
 		err = restClient.WaitForAppStateTransition(sleepRespPod.ObjectMeta.Labels["applicationId"],
 			yunikorn.States().Application.Accepted,
 			120)
@@ -141,7 +141,7 @@ var _ = Describe("", func() {
 		Ω(err).NotTo(HaveOccurred())
 
 		By(fmt.Sprintf("App-1: Wait for 1st app:%s to complete, to make enough capacity to run the last app", pods[0]))
-		//Wait for pod to move to accepted state
+		// Wait for pod to move to accepted state
 		err = kClient.WaitForPodSucceeded(ns, pods[0], time.Duration(360)*time.Second)
 		Ω(err).NotTo(HaveOccurred())
 
@@ -185,11 +185,11 @@ var _ = Describe("", func() {
 	// Hierarchical Queues - Quota enforcement
 	// For now, these cases are skipped
 	PIt("Verify_Child_Max_Resource_Must_Be_Less_Than_Parent_Max", func() {
-		//P2 case - addressed later
+		// P2 case - addressed later
 	})
 
 	PIt("Verify_Sum_Of_All_Child_Resource_Must_Be_Less_Than_Parent_Max", func() {
-		//P2 case - addressed later
+		// P2 case - addressed later
 	})
 
 	AfterEach(func() {
