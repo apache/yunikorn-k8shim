@@ -84,9 +84,9 @@ func TestUpdatePod(t *testing.T) {
 		updatedNode := request.Nodes[0]
 		assert.Equal(t, updatedNode.NodeID, Host1)
 		assert.Equal(t, updatedNode.Action, si.NodeInfo_UPDATE)
-		assert.Equal(t, updatedNode.SchedulableResource.Resources[constants.Memory].Value, int64(10000))
+		assert.Equal(t, updatedNode.SchedulableResource.Resources[constants.Memory].Value, int64(10000*1000*1000))
 		assert.Equal(t, updatedNode.SchedulableResource.Resources[constants.CPU].Value, int64(10000))
-		assert.Equal(t, updatedNode.OccupiedResource.Resources[constants.Memory].Value, int64(1000))
+		assert.Equal(t, updatedNode.OccupiedResource.Resources[constants.Memory].Value, int64(1000*1000*1000))
 		assert.Equal(t, updatedNode.OccupiedResource.Resources[constants.CPU].Value, int64(500))
 		return nil
 	}
@@ -106,7 +106,7 @@ func TestUpdatePod(t *testing.T) {
 		updatedNode := request.Nodes[0]
 		assert.Equal(t, updatedNode.NodeID, Host1)
 		assert.Equal(t, updatedNode.Action, si.NodeInfo_UPDATE)
-		assert.Equal(t, updatedNode.SchedulableResource.Resources[constants.Memory].Value, int64(10000))
+		assert.Equal(t, updatedNode.SchedulableResource.Resources[constants.Memory].Value, int64(10000*1000*1000))
 		assert.Equal(t, updatedNode.SchedulableResource.Resources[constants.CPU].Value, int64(10000))
 		assert.Equal(t, updatedNode.OccupiedResource.Resources[constants.Memory].Value, int64(0))
 		assert.Equal(t, updatedNode.OccupiedResource.Resources[constants.CPU].Value, int64(0))
@@ -140,9 +140,9 @@ func TestUpdatePod(t *testing.T) {
 		updatedNode := request.Nodes[0]
 		assert.Equal(t, updatedNode.NodeID, Host2)
 		assert.Equal(t, updatedNode.Action, si.NodeInfo_UPDATE)
-		assert.Equal(t, updatedNode.SchedulableResource.Resources[constants.Memory].Value, int64(10000))
+		assert.Equal(t, updatedNode.SchedulableResource.Resources[constants.Memory].Value, int64(10000*1000*1000))
 		assert.Equal(t, updatedNode.SchedulableResource.Resources[constants.CPU].Value, int64(10000))
-		assert.Equal(t, updatedNode.OccupiedResource.Resources[constants.Memory].Value, int64(1000))
+		assert.Equal(t, updatedNode.OccupiedResource.Resources[constants.Memory].Value, int64(1000*1000*1000))
 		assert.Equal(t, updatedNode.OccupiedResource.Resources[constants.CPU].Value, int64(500))
 		return nil
 	}
@@ -162,7 +162,7 @@ func TestUpdatePod(t *testing.T) {
 		updatedNode := request.Nodes[0]
 		assert.Equal(t, updatedNode.NodeID, Host2)
 		assert.Equal(t, updatedNode.Action, si.NodeInfo_UPDATE)
-		assert.Equal(t, updatedNode.SchedulableResource.Resources[constants.Memory].Value, int64(10000))
+		assert.Equal(t, updatedNode.SchedulableResource.Resources[constants.Memory].Value, int64(10000*1000*1000))
 		assert.Equal(t, updatedNode.SchedulableResource.Resources[constants.CPU].Value, int64(10000))
 		assert.Equal(t, updatedNode.OccupiedResource.Resources[constants.Memory].Value, int64(0))
 		assert.Equal(t, updatedNode.OccupiedResource.Resources[constants.CPU].Value, int64(0))
@@ -206,9 +206,9 @@ func TestDeletePod(t *testing.T) {
 		updatedNode := request.Nodes[0]
 		assert.Equal(t, updatedNode.NodeID, Host1)
 		assert.Equal(t, updatedNode.Action, si.NodeInfo_UPDATE)
-		assert.Equal(t, updatedNode.SchedulableResource.Resources[constants.Memory].Value, int64(10000))
+		assert.Equal(t, updatedNode.SchedulableResource.Resources[constants.Memory].Value, int64(10000*1000*1000))
 		assert.Equal(t, updatedNode.SchedulableResource.Resources[constants.CPU].Value, int64(10000))
-		assert.Equal(t, updatedNode.OccupiedResource.Resources[constants.Memory].Value, int64(1000))
+		assert.Equal(t, updatedNode.OccupiedResource.Resources[constants.Memory].Value, int64(1000*1000*1000))
 		assert.Equal(t, updatedNode.OccupiedResource.Resources[constants.CPU].Value, int64(500))
 		return nil
 	}
@@ -254,9 +254,9 @@ func TestDeleteTerminatedPod(t *testing.T) {
 		updatedNode := request.Nodes[0]
 		assert.Equal(t, updatedNode.NodeID, Host1)
 		assert.Equal(t, updatedNode.Action, si.NodeInfo_UPDATE)
-		assert.Equal(t, updatedNode.SchedulableResource.Resources[constants.Memory].Value, int64(10000))
+		assert.Equal(t, updatedNode.SchedulableResource.Resources[constants.Memory].Value, int64(10000*1000*1000))
 		assert.Equal(t, updatedNode.SchedulableResource.Resources[constants.CPU].Value, int64(10000))
-		assert.Equal(t, updatedNode.OccupiedResource.Resources[constants.Memory].Value, int64(1000))
+		assert.Equal(t, updatedNode.OccupiedResource.Resources[constants.Memory].Value, int64(1000*1000*1000))
 		assert.Equal(t, updatedNode.OccupiedResource.Resources[constants.CPU].Value, int64(500))
 		return nil
 	}
@@ -276,7 +276,7 @@ func TestDeleteTerminatedPod(t *testing.T) {
 		updatedNode := request.Nodes[0]
 		assert.Equal(t, updatedNode.NodeID, Host1)
 		assert.Equal(t, updatedNode.Action, si.NodeInfo_UPDATE)
-		assert.Equal(t, updatedNode.SchedulableResource.Resources[constants.Memory].Value, int64(10000))
+		assert.Equal(t, updatedNode.SchedulableResource.Resources[constants.Memory].Value, int64(10000*1000*1000))
 		assert.Equal(t, updatedNode.SchedulableResource.Resources[constants.CPU].Value, int64(10000))
 		assert.Equal(t, updatedNode.OccupiedResource.Resources[constants.Memory].Value, int64(0))
 		assert.Equal(t, updatedNode.OccupiedResource.Resources[constants.CPU].Value, int64(0))

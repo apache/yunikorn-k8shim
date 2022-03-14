@@ -187,7 +187,7 @@ func TestParsePodResource(t *testing.T) {
 
 	// verify we get aggregated resource from containers
 	res := GetPodResource(pod)
-	assert.Equal(t, res.Resources[constants.Memory].GetValue(), int64(1524))
+	assert.Equal(t, res.Resources[constants.Memory].GetValue(), int64(1524*1000*1000))
 	assert.Equal(t, res.Resources[constants.CPU].GetValue(), int64(3000))
 	assert.Equal(t, res.Resources["nvidia.com/gpu"].GetValue(), int64(5))
 
@@ -239,7 +239,7 @@ func TestParsePodResource(t *testing.T) {
 	// C2{1024mi, 5000m, 2}
 	// result {5120mi, 10000m, 4}
 	res = GetPodResource(pod)
-	assert.Equal(t, res.Resources[constants.Memory].GetValue(), int64(10000))
+	assert.Equal(t, res.Resources[constants.Memory].GetValue(), int64(10000000000))
 	assert.Equal(t, res.Resources[constants.CPU].GetValue(), int64(5120))
 	assert.Equal(t, res.Resources["nvidia.com/gpu"].GetValue(), int64(4))
 
@@ -256,7 +256,7 @@ func TestParsePodResource(t *testing.T) {
 	// sum of containers{5120mi, 7000m}
 	// result {5120mi, 10000m, 1}
 	res = GetPodResource(pod)
-	assert.Equal(t, res.Resources[constants.Memory].GetValue(), int64(10000))
+	assert.Equal(t, res.Resources[constants.Memory].GetValue(), int64(10000000000))
 	assert.Equal(t, res.Resources[constants.CPU].GetValue(), int64(5120))
 	assert.Equal(t, res.Resources["nvidia.com/gpu"].GetValue(), int64(1))
 }
@@ -417,17 +417,17 @@ func TestParseResourceString(t *testing.T) {
 		{"-10", "", true, false, -10000, 0},
 		{"100m", "", true, false, 100, 0},
 		// memory values
-		{"", "65536", false, true, 0, 1},
-		{"", "129M", false, true, 0, 129},
-		{"", "123Mi", false, true, 0, 129},
-		{"", "128974848", false, true, 0, 129},
-		{"", "1G", false, true, 0, 1000},
-		{"", "1Gi", false, true, 0, 1074},
-		{"", "1T", false, true, 0, 1000000},
-		{"", "1P", false, true, 0, 1000000000},
-		{"", "1E", false, true, 0, 1000000000000},
+		{"", "65536", false, true, 0, 65536},
+		{"", "129M", false, true, 0, 129 * 1000 * 1000},
+		{"", "123Mi", false, true, 0, 123 * 1024 * 1024},
+		{"", "128974848", false, true, 0, 128974848},
+		{"", "1G", false, true, 0, 1000 * 1000 * 1000},
+		{"", "1Gi", false, true, 0, 1024 * 1024 * 1024},
+		{"", "1T", false, true, 0, 1000 * 1000 * 1000 * 1000},
+		{"", "1P", false, true, 0, 1000 * 1000 * 1000 * 1000 * 1000},
+		{"", "1E", false, true, 0, 1000 * 1000 * 1000 * 1000 * 1000 * 1000},
 		// cpu and memory
-		{"0.5", "64M", true, true, 500, 64},
+		{"0.5", "64M", true, true, 500, 64 * 1000 * 1000},
 		// parsing error on cpu
 		{"xyz", "64M", false, false, 0, 0},
 		// parsing error on memory
