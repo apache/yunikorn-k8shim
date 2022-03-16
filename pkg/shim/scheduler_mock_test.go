@@ -26,6 +26,7 @@ import (
 	"go.uber.org/zap"
 	"gotest.tools/assert"
 	"k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	coreconfigs "github.com/apache/incubator-yunikorn-core/pkg/common/configs"
@@ -97,6 +98,17 @@ func (fc *MockScheduler) addNode(nodeName string, memory, cpu int64) error {
 }
 
 func (fc *MockScheduler) addTask(appID string, taskID string, ask *si.Resource) {
+	resources := make(map[v1.ResourceName]resource.Quantity)
+	for k, v := range ask.Resources {
+		resources[v1.ResourceName(k)] = *resource.NewQuantity(v.Value, resource.DecimalSI)
+	}
+	containers := make([]v1.Container, 0)
+	containers = append(containers, v1.Container{
+		Name: "container-01",
+		Resources: v1.ResourceRequirements{
+			Requests: resources,
+		},
+	})
 	fc.context.AddTask(&interfaces.AddTaskRequest{
 		Metadata: interfaces.TaskMetadata{
 			ApplicationID: appID,
@@ -104,6 +116,9 @@ func (fc *MockScheduler) addTask(appID string, taskID string, ask *si.Resource) 
 			Pod: &v1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: taskID,
+				},
+				Spec: v1.PodSpec{
+					Containers: containers,
 				},
 			},
 		},
