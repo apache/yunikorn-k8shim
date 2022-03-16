@@ -214,11 +214,12 @@ func TestDispatchTimeout(t *testing.T) {
 	Start()
 
 	// dispatch 3 events, the third event will be dispatched asynchronously
+	stop := make(chan bool)
 	for i := 0; i < 3; i++ {
 		Dispatch(TestAppEvent{
 			appID:     fmt.Sprintf("test-%d", i),
 			eventType: events.RunApplication,
-			flag:      make(chan bool),
+			flag:      stop,
 		})
 	}
 
@@ -246,6 +247,7 @@ func TestDispatchTimeout(t *testing.T) {
 	assert.Assert(t, !strings.Contains(string(buf), "asyncDispatch"))
 
 	// stop the dispatcher
+	close(stop)
 	Stop()
 }
 
@@ -253,15 +255,14 @@ func TestDispatchTimeout(t *testing.T) {
 func TestExceedAsyncDispatchLimit(t *testing.T) {
 	createDispatcher()
 	defer createDispatcher()
+
 	// reset event channel with small capacity for testing
 	dispatcher.eventChan = make(chan events.SchedulingEvent, 1)
 	AsyncDispatchLimit = 1
 	// pretend to be an time-consuming event-handler
-	handledChan := make(chan bool)
 	RegisterEventHandler(EventTypeApp, func(obj interface{}) {
 		if _, ok := obj.(events.ApplicationEvent); ok {
 			time.Sleep(2 * time.Second)
-			handledChan <- true
 		}
 	})
 	// Handle errors in defer func with recover.
