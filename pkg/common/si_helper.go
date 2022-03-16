@@ -192,6 +192,7 @@ func CreateUpdateRequestForDeleteOrRestoreNode(nodeID string, action si.NodeInfo
 	nodeInfo := &si.NodeInfo{
 		NodeID: nodeID,
 		Action: action,
+		Attributes: make(map[string]string),
 	}
 
 	deletedNodes[0] = nodeInfo

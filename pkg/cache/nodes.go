@@ -197,7 +197,7 @@ func (nc *schedulerNodes) updateNode(oldNode, newNode *v1.Node) {
 	}
 
 	log.Logger().Info("Node's ready status flag", zap.String("Node name", newNode.Name),
-		zap.Bool("ready", ready), zap.Bool("ready1111", cachedNode.ready))
+		zap.Bool("ready", ready))
 	request := common.CreateUpdateRequestForUpdatedNode(newNode.Name, cachedNode.capacity,
 		cachedNode.occupied, cachedNode.ready)
 	log.Logger().Info("report updated nodes to scheduler", zap.Any("request", request))
