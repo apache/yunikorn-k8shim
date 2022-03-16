@@ -237,23 +237,25 @@ func TestCreateUpdateRequestForUpdatedNode(t *testing.T) {
 
 func TestCreateUpdateRequestForDeleteNode(t *testing.T) {
 	action := si.NodeInfo_DECOMISSION
+	// asserting against this empty map ensures core doesn't have any issues
+	attributes := make(map[string]string)
 	request := CreateUpdateRequestForDeleteOrRestoreNode(nodeID, action)
 	assert.Equal(t, len(request.Nodes), 1)
 	assert.Equal(t, request.Nodes[0].NodeID, nodeID)
 	assert.Equal(t, request.Nodes[0].Action, action)
-	assert.Equal(t, len(request.Nodes[0].Attributes), 0)
+	assert.DeepEqual(t, request.Nodes[0].Attributes, attributes)
 
 	action1 := si.NodeInfo_DRAIN_NODE
 	request1 := CreateUpdateRequestForDeleteOrRestoreNode(nodeID, action1)
 	assert.Equal(t, len(request1.Nodes), 1)
 	assert.Equal(t, request1.Nodes[0].NodeID, nodeID)
 	assert.Equal(t, request1.Nodes[0].Action, action1)
-	assert.Equal(t, len(request1.Nodes[0].Attributes), 0)
+	assert.DeepEqual(t, request1.Nodes[0].Attributes, attributes)
 
 	action2 := si.NodeInfo_DRAIN_TO_SCHEDULABLE
 	request2 := CreateUpdateRequestForDeleteOrRestoreNode(nodeID, action2)
 	assert.Equal(t, len(request2.Nodes), 1)
 	assert.Equal(t, request2.Nodes[0].NodeID, nodeID)
 	assert.Equal(t, request2.Nodes[0].Action, action2)
-	assert.Equal(t, len(request2.Nodes[0].Attributes), 0)
+	assert.DeepEqual(t, request2.Nodes[0].Attributes, attributes)
 }
