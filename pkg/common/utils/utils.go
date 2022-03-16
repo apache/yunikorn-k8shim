@@ -78,6 +78,8 @@ func GetQueueNameFromPod(pod *v1.Pod) string {
 	queueName := constants.ApplicationDefaultQueue
 	if an, ok := pod.Labels[constants.LabelQueueName]; ok {
 		queueName = an
+	} else if qu, ok := pod.Annotations[constants.AnnotationQueueName]; ok {
+		queueName = qu
 	}
 	return queueName
 }
