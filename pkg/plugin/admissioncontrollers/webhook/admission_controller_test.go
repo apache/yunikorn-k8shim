@@ -39,6 +39,14 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 )
 
+type responseMode int
+
+const (
+	Success = responseMode(0)
+	Failure = responseMode(1)
+	Error   = responseMode(2)
+)
+
 func TestUpdateLabels(t *testing.T) {
 	// verify when appId/queue are not given,
 	// we patch it correctly
@@ -289,7 +297,7 @@ Test for the case when the POST request is successful, and the config change is 
 */
 func TestValidateConfigMapValidConfig(t *testing.T) {
 	configmap := prepareConfigMap(ConfigData)
-	srv := serverMock(true)
+	srv := serverMock(Success)
 	defer srv.Close()
 	// both server and url pattern contains http://, so we need to delete one
 	controller := prepareController(t, strings.Replace(srv.URL, "http://", "", 1), "", "", "", "")
@@ -302,7 +310,7 @@ Test for the case when the POST request is successful, but the config change is 
 */
 func TestValidateConfigMapInValidConfig(t *testing.T) {
 	configmap := prepareConfigMap(ConfigData)
-	srv := serverMock(false)
+	srv := serverMock(Failure)
 	defer srv.Close()
 	// both server and url pattern contains http://, so we need to delete one
 	controller := prepareController(t, strings.Replace(srv.URL, "http://", "", 1), "", "", "", "")
@@ -316,12 +324,25 @@ Test for the case when the POST request fails
 */
 func TestValidateConfigMapWrongRequest(t *testing.T) {
 	configmap := prepareConfigMap(ConfigData)
-	srv := serverMock(false)
+	srv := serverMock(Failure)
 	defer srv.Close()
-	// the url is wrong, so the POST request will fail and an error will be returned
+	// the url is wrong, so the POST request will fail, and success will be assumed
 	controller := prepareController(t, srv.URL, "", "", "", "")
 	err := controller.validateConfigMap(configmap)
-	assert.Assert(t, err != nil)
+	assert.NilError(t, err, "No error expected")
+}
+
+/**
+Test for the case of server error
+*/
+func TestValidateConfigMapServerError(t *testing.T) {
+	configmap := prepareConfigMap(ConfigData)
+	srv := serverMock(Error)
+	defer srv.Close()
+	// both server and url pattern contains http://, so we need to delete one
+	controller := prepareController(t, strings.Replace(srv.URL, "http://", "", 1), "", "", "", "")
+	err := controller.validateConfigMap(configmap)
+	assert.NilError(t, err, "No error expected")
 }
 
 func prepareConfigMap(data string) *v1.ConfigMap {
@@ -349,12 +370,15 @@ func prepareController(t *testing.T, url string, processNs string, bypassNs stri
 	return controller
 }
 
-func serverMock(valid bool) *httptest.Server {
+func serverMock(mode responseMode) *httptest.Server {
 	handler := http.NewServeMux()
-	if valid {
+	switch mode {
+	case Success:
 		handler.HandleFunc("/ws/v1/validate-conf", successResponseMock)
-	} else {
+	case Failure:
 		handler.HandleFunc("/ws/v1/validate-conf", failedResponseMock)
+	case Error:
+		handler.HandleFunc("/ws/v1/validate-conf", errorResponseMock)
 	}
 	srv := httptest.NewServer(handler)
 	return srv
@@ -375,6 +399,12 @@ func failedResponseMock(w http.ResponseWriter, r *http.Request) {
 		"allowed": false,
 		"reason": "Invalid config"
 		}`
+	w.Write([]byte(resp)) //nolint:errcheck
+}
+
+func errorResponseMock(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(500)
+	resp := `{}`
 	w.Write([]byte(resp)) //nolint:errcheck
 }
 
