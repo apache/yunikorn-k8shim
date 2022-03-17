@@ -20,6 +20,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -363,29 +364,44 @@ func (c *admissionController) shouldLabelNamespace(namespace string) bool {
 
 func (c *admissionController) validateConfigMap(cm *v1.ConfigMap) error {
 	if cm.Name == constants.DefaultConfigMapName {
-		log.Logger().Info("validating yunikorn configs")
 		if content, ok := cm.Data[c.configName]; ok {
+			checksum := fmt.Sprintf("%X", sha256.Sum256([]byte(content)))
+			log.Logger().Info("Validating YuniKorn configuration", zap.String("checksum", checksum))
+			log.Logger().Debug("Configmap data", zap.ByteString("content", []byte(content)))
 			response, err := http.Post(c.schedulerValidateConfURL, "application/json", bytes.NewBuffer([]byte(content)))
 			if err != nil {
-				return err
+				log.Logger().Error("YuniKorn scheduler is unreachable, assuming configmap is valid", zap.Error(err))
+				return nil
 			}
 			defer response.Body.Close()
+			if response.StatusCode < 200 || response.StatusCode > 299 {
+				log.Logger().Error("YuniKorn scheduler responded with unexpected status, assuming configmap is valid",
+					zap.Int("status", response.StatusCode))
+				return nil
+			}
 			responseBytes, err := io.ReadAll(response.Body)
 			if err != nil {
-				return err
+				log.Logger().Error("Unable to read response from YuniKorn scheduler, assuming configmap is valid", zap.Error(err))
+				return nil
 			}
 			var responseData ValidateConfResponse
 			if err := json.Unmarshal(responseBytes, &responseData); err != nil {
-				return err
+				log.Logger().Error("Unable to parse response from YuniKorn scheduler, assuming configmap is valid", zap.Error(err))
+				return nil
 			}
 			if !responseData.Allowed {
-				return fmt.Errorf(responseData.Reason)
+				err = fmt.Errorf(responseData.Reason)
+				log.Logger().Error("Configmap validation failed, aborting", zap.Error(err))
+				return err
 			}
 		} else {
-			return fmt.Errorf("required config '%s' not found in this configmap", c.configName)
+			err := fmt.Errorf("required config '%s' not found in this configmap", c.configName)
+			log.Logger().Error("Unable to parse YuniKorn configmap", zap.Error(err))
+			return err
 		}
+		log.Logger().Info("Successfully validated YuniKorn configuration")
 	} else {
-		log.Logger().Debug("Configmap does not belong to Yunikorn", zap.String("Name", cm.Name))
+		log.Logger().Debug("Configmap does not belong to YuniKorn", zap.String("Name", cm.Name))
 	}
 	return nil
 }
