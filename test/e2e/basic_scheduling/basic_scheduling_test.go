@@ -20,8 +20,6 @@ package basicscheduling_test
 
 import (
 	"fmt"
-	"regexp"
-	"strconv"
 
 	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/configmanager"
 
@@ -40,7 +38,6 @@ var _ = ginkgo.Describe("", func() {
 	var sleepRespPod *v1.Pod
 	var dev = "dev" + common.RandSeq(5)
 	var appsInfo map[string]interface{}
-	var r = regexp.MustCompile(`memory:(\d+) vcore:(\d+)`)
 
 	// Define sleepPod
 	sleepPodConfigs := common.SleepPodConfig{Name: "sleepjob", NS: dev}
@@ -112,11 +109,11 @@ var _ = ginkgo.Describe("", func() {
 		gomega.Ω(allocations["uuid"]).NotTo(gomega.BeNil())
 		gomega.Ω(allocations["applicationId"]).To(gomega.Equal(sleepRespPod.ObjectMeta.Labels["applicationId"]))
 		gomega.Ω(allocations["queueName"]).To(gomega.ContainSubstring(sleepRespPod.ObjectMeta.Namespace))
-		core := strconv.FormatInt(sleepRespPod.Spec.Containers[0].Resources.Requests.Cpu().MilliValue(), 10)
-		mem := strconv.FormatInt(sleepRespPod.Spec.Containers[0].Resources.Requests.Memory().Value(), 10)
-		matches := r.FindStringSubmatch(allocations["resource"].(string))
-		gomega.Ω(matches[1]).To(gomega.Equal(mem))
-		gomega.Ω(matches[2]).To(gomega.ContainSubstring(core))
+		core := sleepRespPod.Spec.Containers[0].Resources.Requests.Cpu().MilliValue()
+		mem := sleepRespPod.Spec.Containers[0].Resources.Requests.Memory().Value()
+		resMap := allocations["resource"].(map[string]interface{})
+		gomega.Ω(int64(resMap["memory"].(float64))).To(gomega.Equal(mem))
+		gomega.Ω(int64(resMap["vcore"].(float64))).To(gomega.Equal(core))
 	})
 
 	ginkgo.AfterEach(func() {

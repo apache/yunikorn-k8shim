@@ -20,8 +20,6 @@ package stateawareappscheduling_test
 
 import (
 	"fmt"
-	"regexp"
-	"strconv"
 
 	v1 "k8s.io/api/core/v1"
 
@@ -37,7 +35,6 @@ var _ = Describe("FallbackTest:", func() {
 	var sleepRespPod *v1.Pod
 	var ns string
 	var appsInfo map[string]interface{}
-	var r = regexp.MustCompile(`memory:(\d+) vcore:(\d+)`)
 
 	BeforeEach(func() {
 		// Initializing kubectl client
@@ -93,11 +90,11 @@ var _ = Describe("FallbackTest:", func() {
 		Ω(allocations["uuid"]).NotTo(BeNil())
 		Ω(allocations["applicationId"]).To(Equal(sleepRespPod.ObjectMeta.Labels["applicationId"]))
 		Ω(allocations["queueName"]).To(ContainSubstring(sleepRespPod.ObjectMeta.Namespace))
-		core := strconv.FormatInt(sleepRespPod.Spec.Containers[0].Resources.Requests.Cpu().MilliValue(), 10)
-		mem := strconv.FormatInt(sleepRespPod.Spec.Containers[0].Resources.Requests.Memory().Value(), 10)
-		matches := r.FindStringSubmatch(allocations["resource"].(string))
-		Ω(matches[1]).To(Equal(mem))
-		Ω(matches[2]).To(ContainSubstring(core))
+		core := sleepRespPod.Spec.Containers[0].Resources.Requests.Cpu().MilliValue()
+		mem := sleepRespPod.Spec.Containers[0].Resources.Requests.Memory().Value()
+		res := allocations["resource"].(map[string]interface{})
+		Ω(int64(res["memory"].(float64))).To(Equal(mem))
+		Ω(int64(res["vcore"].(float64))).To(Equal(core))
 	}, 360)
 
 	AfterEach(func() {
