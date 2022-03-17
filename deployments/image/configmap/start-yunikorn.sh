@@ -32,4 +32,5 @@ exec /opt/yunikorn/bin/k8s_yunikorn_scheduler \
   -operatorPlugins="${OPERATOR_PLUGINS}" \
   -enableConfigHotRefresh="${ENABLE_CONFIG_HOT_REFRESH}" \
   -disableGangScheduling="${DISABLE_GANG_SCHEDULING}" \
-  -userLabelKey="${USER_LABEL_KEY}"
+  -userLabelKey="${USER_LABEL_KEY}" \
+  -placeHolderImage="${PLACEHOLDER_IMAGE}"

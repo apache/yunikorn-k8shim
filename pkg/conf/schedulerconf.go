@@ -78,6 +78,7 @@ type SchedulerConf struct {
 	EnableConfigHotRefresh bool          `json:"enableConfigHotRefresh"`
 	DisableGangScheduling  bool          `json:"disableGangScheduling"`
 	UserLabelKey           string        `json:"userLabelKey"`
+	PlaceHolderImage       string        `json:"placeHolderImage"`
 	sync.RWMutex
 }
 
@@ -160,6 +161,8 @@ func initConfigs() *SchedulerConf {
 	operatorPluginList := flag.String("operatorPlugins", "general,"+constants.AppManagerHandlerName,
 		"comma-separated list of operator plugin names, currently, only \"spark-k8s-operator\""+
 			"and"+constants.AppManagerHandlerName+"is supported.")
+	placeHolderImage := flag.String("placeHolderImage", constants.PlaceholderContainerImage,
+		"docker image of the placeholder pod")
 
 	// logging options
 	logLevel := flag.Int("logLevel", DefaultLoggingLevel,
@@ -207,5 +210,6 @@ func initConfigs() *SchedulerConf {
 		EnableConfigHotRefresh: *enableConfigHotRefresh,
 		DisableGangScheduling:  *disableGangScheduling,
 		UserLabelKey:           *userLabelKey,
+		PlaceHolderImage:       *placeHolderImage,
 	}
 }

@@ -27,6 +27,7 @@ import (
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
+	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
 )
 
 // MUST: run the placeholder pod as non-root user
@@ -79,7 +80,7 @@ func newPlaceholder(placeholderName string, app *Application, taskGroup v1alpha1
 			Containers: []v1.Container{
 				{
 					Name:  constants.PlaceholderContainerName,
-					Image: constants.PlaceholderContainerImage,
+					Image: conf.GetSchedulerConf().PlaceHolderImage,
 					Resources: v1.ResourceRequirements{
 						Requests: utils.GetPlaceholderResourceRequest(taskGroup.MinResource),
 					},

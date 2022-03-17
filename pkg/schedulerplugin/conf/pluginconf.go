@@ -55,6 +55,7 @@ const (
 	ArgDisableGangScheduling  = "yk-disable-gang-scheduling"
 	ArgUserLabelKey           = "yk-user-label-key"
 	ArgSchedulerName          = "yk-scheduler-name"
+	ArgPlaceHolderImage       = "yk-placeholder-image"
 )
 
 func getStringArg(flag *pflag.Flag, defaultValue string) string {
@@ -161,6 +162,8 @@ func InitCliFlagSet(command *cobra.Command) {
 	ykFlags.String(ArgOperatorPlugins, "general,"+constants.AppManagerHandlerName,
 		"comma-separated list of operator plugin names, currently, only \"spark-k8s-operator\" and \""+
 			constants.AppManagerHandlerName+"\" is supported.")
+	ykFlags.String(ArgPlaceHolderImage, constants.PlaceholderContainerImage,
+		"docker image of the placeholder pod")
 
 	ykNamedFlagSets := flag.NamedFlagSets{
 		Order: []string{"YuniKorn"},

@@ -36,4 +36,5 @@ exec /opt/yunikorn/bin/kube-scheduler \
   --yk-enable-config-hot-refresh="${ENABLE_CONFIG_HOT_REFRESH}" \
   --yk-disable-gang-scheduling="${DISABLE_GANG_SCHEDULING}" \
   --yk-user-label-key="${USER_LABEL_KEY}" \
-  --yk-scheduler-name="${SCHEDULER_NAME}"
+  --yk-scheduler-name="${SCHEDULER_NAME}" \
+  --yk-placeholder-image="${PLACEHOLDER_IMAGE}"
