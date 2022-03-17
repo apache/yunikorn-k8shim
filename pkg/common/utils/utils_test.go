@@ -90,7 +90,7 @@ func TestGetNamespaceQuotaFromAnnotation(t *testing.T) {
 				},
 			},
 		}, common.NewResourceBuilder().
-			AddResource(constants.Memory, 128).
+			AddResource(constants.Memory, 128*1000*1000).
 			Build()},
 		{&v1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
@@ -133,7 +133,7 @@ func TestGetNamespaceQuotaFromAnnotation(t *testing.T) {
 			},
 		}, common.NewResourceBuilder().
 			AddResource(constants.CPU, 1000).
-			AddResource(constants.Memory, 64).
+			AddResource(constants.Memory, 64*1000*1000).
 			Build()},
 	}
 

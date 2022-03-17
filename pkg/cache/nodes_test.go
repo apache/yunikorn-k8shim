@@ -42,7 +42,7 @@ func TestAddNode(t *testing.T) {
 	api := test.NewSchedulerAPIMock()
 
 	// register fn doesn't nothing than checking input
-	api.UpdateNodeFunction(getUpdateNodeFunction(t, "host0001", 1024, 10000, false))
+	api.UpdateNodeFunction(getUpdateNodeFunction(t, "host0001", 1024*1000*1000, 10000, false))
 
 	nodes := newSchedulerNodes(api, NewTestSchedulerCache())
 	dispatcher.RegisterEventHandler(dispatcher.EventTypeNode, nodes.schedulerNodeEventHandler())
@@ -114,7 +114,7 @@ func TestUpdateNode(t *testing.T) {
 
 	// this function validates the new node can be added
 	// this verifies the shim sends the si.UpdateRequest to core with the new node info
-	api.UpdateNodeFunction(getUpdateNodeFunction(t, "host0001", 1024, 10000, false))
+	api.UpdateNodeFunction(getUpdateNodeFunction(t, "host0001", 1024*1000*1000, 10000, false))
 
 	// add the node first
 	nodes.addNode(&oldNode)
@@ -157,7 +157,7 @@ func TestUpdateNode(t *testing.T) {
 		},
 	}
 
-	api.UpdateNodeFunction(getUpdateNodeFunction(t, "host0001", 2048, 10000, false))
+	api.UpdateNodeFunction(getUpdateNodeFunction(t, "host0001", 2048*1000*1000, 10000, false))
 
 	nodes.updateNode(&oldNode, &newNode)
 	assert.Equal(t, api.GetRegisterCount(), int32(0))
@@ -179,7 +179,7 @@ func TestUpdateNode(t *testing.T) {
 		},
 	}
 
-	api.UpdateNodeFunction(getUpdateNodeFunction(t, "host0001", 2048, 10000, true))
+	api.UpdateNodeFunction(getUpdateNodeFunction(t, "host0001", 2048*1000*1000, 10000, true))
 
 	nodes.updateNode(&oldNode, &newNode1)
 	assert.Equal(t, api.GetRegisterCount(), int32(0))
@@ -220,7 +220,7 @@ func TestUpdateWithoutNodeAdded(t *testing.T) {
 		},
 	}
 
-	api.UpdateNodeFunction(getUpdateNodeFunction(t, "host0001", 1024, 10000, false))
+	api.UpdateNodeFunction(getUpdateNodeFunction(t, "host0001", 1024*1000*1000, 10000, false))
 
 	// directly trigger an update
 	// if the node was not seeing in the cache, we should see the node be added
@@ -249,7 +249,7 @@ func TestUpdateWithoutNodeAdded(t *testing.T) {
 		},
 	}
 
-	api.UpdateNodeFunction(getUpdateNodeFunction(t, "host0001", 2048, 10000, false))
+	api.UpdateNodeFunction(getUpdateNodeFunction(t, "host0001", 2048*1000*1000, 10000, false))
 
 	nodes.updateNode(&oldNode, &newNode)
 	assert.Equal(t, api.GetRegisterCount(), int32(0))

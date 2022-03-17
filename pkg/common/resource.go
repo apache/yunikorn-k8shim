@@ -63,7 +63,7 @@ func GetPodResource(pod *v1.Pod) (resource *si.Resource) {
 	// scheduled. Handle a QosBestEffort pod by setting a tiny memory value.
 	if qos.GetPodQOS(pod) == v1.PodQOSBestEffort {
 		resources := NewResourceBuilder()
-		resources.AddResource(constants.Memory, 1)
+		resources.AddResource(constants.Memory, 1000000)
 		return resources.Build()
 	}
 
@@ -130,7 +130,7 @@ func ParseResource(cpuStr, memStr string) *si.Resource {
 
 	if memStr != "" {
 		if mem, err := resource.ParseQuantity(memStr); err == nil {
-			result.AddResource(constants.Memory, mem.ScaledValue(resource.Mega))
+			result.AddResource(constants.Memory, mem.Value())
 		} else {
 			log.Logger().Error("failed to parse memory resource",
 				zap.String("memStr", memStr),
@@ -148,8 +148,6 @@ func GetTGResource(resMap map[string]resource.Quantity, members int64) *si.Resou
 		switch resName {
 		case v1.ResourceCPU.String():
 			result.AddResource(constants.CPU, members*resValue.MilliValue())
-		case v1.ResourceMemory.String():
-			result.AddResource(constants.Memory, members*resValue.ScaledValue(resource.Mega))
 		default:
 			result.AddResource(resName, members*resValue.Value())
 		}
@@ -161,9 +159,6 @@ func getResource(resourceList v1.ResourceList) *si.Resource {
 	resources := NewResourceBuilder()
 	for name, value := range resourceList {
 		switch name {
-		case v1.ResourceMemory:
-			memory := value.ScaledValue(resource.Mega)
-			resources.AddResource(constants.Memory, memory)
 		case v1.ResourceCPU:
 			vcore := value.MilliValue()
 			resources.AddResource(constants.CPU, vcore)

@@ -50,10 +50,10 @@ partitions:
           - name: a
             resources:
               guaranteed:
-                memory: 100
+                memory: 100000000
                 vcore: 10
               max:
-                memory: 150
+                memory: 150000000
                 vcore: 20
 `
 	// init and register scheduler
@@ -66,15 +66,15 @@ partitions:
 	cluster.waitForSchedulerState(t, events.States().Scheduler.Running)
 
 	// register nodes
-	err := cluster.addNode("test.host.01", 100, 10)
+	err := cluster.addNode("test.host.01", 100000000, 10)
 	assert.NilError(t, err, "add node failed")
-	err = cluster.addNode("test.host.02", 100, 10)
+	err = cluster.addNode("test.host.02", 100000000, 10)
 	assert.NilError(t, err, "add node failed")
 
 	// create app and tasks
 	cluster.addApplication("app0001", "root.a")
 	taskResource := common.NewResourceBuilder().
-		AddResource(constants.Memory, 10).
+		AddResource(constants.Memory, 10000000).
 		AddResource(constants.CPU, 1).
 		Build()
 	cluster.addTask("app0001", "task0001", taskResource)
@@ -98,10 +98,10 @@ partitions:
           - name: a
             resources:
               guaranteed:
-                memory: 100
+                memory: 100000000
                 vcore: 10
               max:
-                memory: 150
+                memory: 150000000
                 vcore: 20
 `
 	// init and register scheduler
@@ -114,9 +114,9 @@ partitions:
 	cluster.waitForSchedulerState(t, events.States().Scheduler.Running)
 
 	// register nodes
-	err := cluster.addNode("test.host.01", 100, 10)
+	err := cluster.addNode("test.host.01", 100000000, 10)
 	assert.NilError(t, err)
-	err = cluster.addNode("test.host.02", 100, 10)
+	err = cluster.addNode("test.host.02", 100000000, 10)
 	assert.NilError(t, err)
 
 	// add app to context
@@ -125,7 +125,7 @@ partitions:
 
 	// create app and tasks
 	taskResource := common.NewResourceBuilder().
-		AddResource(constants.Memory, 10).
+		AddResource(constants.Memory, 10000000).
 		AddResource(constants.CPU, 1).
 		Build()
 	cluster.addTask(appID, "task0001", taskResource)
@@ -182,10 +182,10 @@ partitions:
            name: a
            resources:
              guaranteed:
-               memory: 100
+               memory: 100000000
                vcore: 10
              max:
-               memory: 100
+               memory: 100000000
                vcore: 10
 `
 	// init and register scheduler
@@ -206,15 +206,15 @@ partitions:
 	cluster.waitForSchedulerState(t, events.States().Scheduler.Running)
 
 	// register nodes
-	err := cluster.addNode("test.host.01", 100, 10)
+	err := cluster.addNode("test.host.01", 100000000, 10)
 	assert.NilError(t, err, "add node failed")
-	err = cluster.addNode("test.host.02", 100, 10)
+	err = cluster.addNode("test.host.02", 100000000, 10)
 	assert.NilError(t, err, "add node failed")
 
 	// create app and tasks
 	cluster.addApplication("app0001", "root.a")
 	taskResource := common.NewResourceBuilder().
-		AddResource(constants.Memory, 50).
+		AddResource(constants.Memory, 50000000).
 		AddResource(constants.CPU, 5).
 		Build()
 	cluster.addTask("app0001", "task0001", taskResource)

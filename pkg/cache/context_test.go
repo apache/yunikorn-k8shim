@@ -1055,7 +1055,7 @@ func TestAddApplicationsWithTags(t *testing.T) {
 		if quotaRes.Resources == nil || quotaRes.Resources["memory"] == nil {
 			t.Fatalf("could not find parsed memory resource from annotation")
 		}
-		assert.Equal(t, quotaRes.Resources["memory"].Value, int64(256))
+		assert.Equal(t, quotaRes.Resources["memory"].Value, int64(256*1000*1000))
 	} else {
 		t.Fatalf("resource parsing failed")
 	}
