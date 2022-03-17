@@ -58,7 +58,6 @@ type Dispatcher struct {
 	handlers  map[EventType]func(interface{})
 	running   atomic.Value
 	lock      sync.RWMutex
-	asyncStop chan struct{}
 }
 
 func initDispatcher() {
@@ -69,7 +68,6 @@ func initDispatcher() {
 		stopChan:  make(chan struct{}),
 		running:   atomic.Value{},
 		lock:      sync.RWMutex{},
-		asyncStop: make(chan struct{}),
 	}
 	dispatcher.setRunning(false)
 	DispatchTimeout = conf.GetSchedulerConf().DispatchTimeout
@@ -167,7 +165,7 @@ func (p *Dispatcher) asyncDispatch(event events.SchedulingEvent) {
 					zap.Float64("elapseSeconds", elapseTime.Seconds()))
 			}
 		}
-	}(time.Now(), p.asyncStop)
+	}(time.Now(), p.stopChan)
 }
 
 func (p *Dispatcher) drain() {
@@ -186,7 +184,6 @@ func Start() {
 		return
 	}
 	getDispatcher().stopChan = make(chan struct{})
-	getDispatcher().asyncStop = make(chan struct{})
 	go func() {
 		for {
 			select {
@@ -219,28 +216,24 @@ func Start() {
 // stop the dispatcher and wait at most 5 seconds gracefully
 func Stop() {
 	log.Logger().Info("stopping the dispatcher")
-	stopChan := getDispatcher().stopChan
-	asyncStopChan := getDispatcher().asyncStop
 
 	var chanClosed bool
-
 	select {
-	case <-stopChan:
+	case <-getDispatcher().stopChan:
 		chanClosed = true
 	default:
 	}
 
 	if chanClosed {
 		if getDispatcher().isRunning() {
-			log.Logger().Info("dispatcher shutdown is in progress")
+			log.Logger().Info("dispatcher shutdown in progress")
 		} else {
 			log.Logger().Info("dispatcher is already stopped")
 		}
 		return
 	}
 
-	close(asyncStopChan)
-	close(stopChan)
+	close(getDispatcher().stopChan)
 	maxTimeout := 5
 	for getDispatcher().isRunning() && maxTimeout > 0 {
 		log.Logger().Info("waiting for dispatcher to be stopped",
