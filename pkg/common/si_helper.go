@@ -135,19 +135,17 @@ func CreateReleaseAllocationRequestForTask(appID, allocUUID, partition, terminat
 }
 
 // CreateUpdateRequestForNewNode builds a NodeRequest for new node addition and restoring existing node
-func CreateUpdateRequestForNewNode(nodeID string, capacity *si.Resource, occupied *si.Resource,
-	existingAllocations []*si.Allocation, labels string, ready bool) si.NodeRequest {
+func CreateUpdateRequestForNewNode(nodeID string, capacity *si.Resource, existingAllocations []*si.Allocation,
+	ready bool) si.NodeRequest {
 	// Use node's name as the NodeID, this is because when bind pod to node,
 	// name of node is required but uid is optional.
 	nodeInfo := &si.NodeInfo{
 		NodeID:              nodeID,
 		SchedulableResource: capacity,
-		OccupiedResource:    occupied,
 		Attributes: map[string]string{
-			constants.DefaultNodeAttributeHostNameKey:   nodeID,
-			constants.DefaultNodeAttributeRackNameKey:   constants.DefaultRackName,
-			constants.DefaultNodeAttributeNodeLabelsKey: labels,
-			constants.NodeReadyAttribute:                strconv.FormatBool(ready),
+			constants.DefaultNodeAttributeHostNameKey: nodeID,
+			constants.DefaultNodeAttributeRackNameKey: constants.DefaultRackName,
+			constants.NodeReadyAttribute:              strconv.FormatBool(ready),
 		},
 		ExistingAllocations: existingAllocations,
 		Action:              si.NodeInfo_CREATE,
@@ -190,9 +188,8 @@ func CreateUpdateRequestForUpdatedNode(nodeID string, capacity *si.Resource, occ
 func CreateUpdateRequestForDeleteOrRestoreNode(nodeID string, action si.NodeInfo_ActionFromRM) si.NodeRequest {
 	deletedNodes := make([]*si.NodeInfo, 1)
 	nodeInfo := &si.NodeInfo{
-		NodeID:     nodeID,
-		Action:     action,
-		Attributes: make(map[string]string),
+		NodeID: nodeID,
+		Action: action,
 	}
 
 	deletedNodes[0] = nodeInfo
