@@ -62,16 +62,14 @@ type Dispatcher struct {
 
 func initDispatcher() {
 	eventChannelCapacity := conf.GetSchedulerConf().EventChannelCapacity
-	if dispatcher == nil {
-		dispatcher = &Dispatcher{
-			eventChan: make(chan events.SchedulingEvent, eventChannelCapacity),
-			handlers:  make(map[EventType]func(interface{})),
-			stopChan:  make(chan struct{}),
-			running:   atomic.Value{},
-			lock:      sync.RWMutex{},
-		}
-		dispatcher.setRunning(false)
+	dispatcher = &Dispatcher{
+		eventChan: make(chan events.SchedulingEvent, eventChannelCapacity),
+		handlers:  make(map[EventType]func(interface{})),
+		stopChan:  make(chan struct{}),
+		running:   atomic.Value{},
+		lock:      sync.RWMutex{},
 	}
+	dispatcher.setRunning(false)
 	DispatchTimeout = conf.GetSchedulerConf().DispatchTimeout
 	AsyncDispatchLimit = int32(eventChannelCapacity / 10)
 	if AsyncDispatchLimit < 10000 {
@@ -181,6 +179,11 @@ func (p *Dispatcher) drain() {
 
 func Start() {
 	log.Logger().Info("starting the dispatcher")
+	if getDispatcher().isRunning() {
+		log.Logger().Info("dispatcher is already running")
+		return
+	}
+	getDispatcher().stopChan = make(chan struct{})
 	go func() {
 		for {
 			select {
@@ -213,19 +216,34 @@ func Start() {
 // stop the dispatcher and wait at most 5 seconds gracefully
 func Stop() {
 	log.Logger().Info("stopping the dispatcher")
+
+	var chanClosed bool
 	select {
-	case getDispatcher().stopChan <- struct{}{}:
-		maxTimeout := 5
-		for getDispatcher().isRunning() && maxTimeout > 0 {
-			log.Logger().Info("waiting for dispatcher to be stopped",
-				zap.Int("remainingSeconds", maxTimeout))
-			time.Sleep(1 * time.Second)
-			maxTimeout--
-		}
-		if !getDispatcher().isRunning() {
-			log.Logger().Info("dispatcher stopped")
-		}
+	case <-getDispatcher().stopChan:
+		chanClosed = true
 	default:
-		log.Logger().Info("dispatcher is already stopped")
+	}
+
+	if chanClosed {
+		if getDispatcher().isRunning() {
+			log.Logger().Info("dispatcher shutdown in progress")
+		} else {
+			log.Logger().Info("dispatcher is already stopped")
+		}
+		return
+	}
+
+	close(getDispatcher().stopChan)
+	maxTimeout := 5
+	for getDispatcher().isRunning() && maxTimeout > 0 {
+		log.Logger().Info("waiting for dispatcher to be stopped",
+			zap.Int("remainingSeconds", maxTimeout))
+		time.Sleep(1 * time.Second)
+		maxTimeout--
+	}
+	if getDispatcher().isRunning() {
+		log.Logger().Warn("dispatcher even processing did not stop properly")
+	} else {
+		log.Logger().Info("dispatcher stopped successfully")
 	}
 }
