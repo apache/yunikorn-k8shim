@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 
 	"go.uber.org/zap"
@@ -52,6 +53,13 @@ const (
 	healthURL       = "/health"
 )
 
+type WebHook struct {
+	ac     *admissionController
+	port   int
+	server *http.Server
+	sync.Mutex
+}
+
 func main() {
 	namespace := os.Getenv(admissionControllerNamespace)
 	serviceName := os.Getenv(admissionControllerService)
@@ -77,12 +85,58 @@ func main() {
 		log.Logger().Fatal("Failed to initialize webhook manager", zap.Error(err))
 	}
 
-	err = wm.LoadCACertificates()
+	policyGroup := os.Getenv(policyGroupEnvVarName)
+	if policyGroup == "" {
+		policyGroup = conf.DefaultPolicyGroup
+	}
+	schedulerServiceAddress := os.Getenv(schedulerServiceAddressEnvVarName)
+
+	ac, err := initAdmissionController(
+		fmt.Sprintf("%s.yaml", policyGroup),
+		fmt.Sprintf(schedulerValidateConfURLPattern, schedulerServiceAddress),
+		processNamespaces, bypassNamespaces, labelNamespaces, noLabelNamespaces)
+	if err != nil {
+		log.Logger().Fatal("failed to configure admission controller", zap.Error(err))
+	}
+
+	webhook := CreateWebhook(ac, HTTPPort)
+
+	certs := UpdateWebhookConfiguration(wm)
+	webhook.Startup(certs)
+
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGUSR1)
+
+	WaitForCertExpiration(wm, signalChan)
+
+	for {
+		switch <-signalChan {
+		case syscall.SIGUSR1: // reload certificates
+			certs := UpdateWebhookConfiguration(wm)
+			webhook.Shutdown()
+			webhook.Startup(certs)
+			WaitForCertExpiration(wm, signalChan)
+		default: // terminate
+			webhook.Shutdown()
+			os.Exit(0)
+		}
+	}
+}
+
+func WaitForCertExpiration(wm WebhookManager, ch chan os.Signal) {
+	go func() {
+		wm.WaitForCertificateExpiration()
+		ch <- syscall.SIGUSR1
+	}()
+}
+
+func UpdateWebhookConfiguration(wm WebhookManager) *tls.Certificate {
+	err := wm.LoadCACertificates()
 	if err != nil {
 		log.Logger().Fatal("Failed to initialize CA certificates", zap.Error(err))
 	}
 
-	pair, err := wm.GenerateServerCertificate()
+	certs, err := wm.GenerateServerCertificate()
 	if err != nil {
 		log.Logger().Fatal("Unable to generate server certificate", zap.Error(err))
 	}
@@ -92,50 +146,58 @@ func main() {
 		log.Logger().Fatal("Unable to install webhooks for admission controller", zap.Error(err))
 	}
 
-	policyGroup := os.Getenv(policyGroupEnvVarName)
-	if policyGroup == "" {
-		policyGroup = conf.DefaultPolicyGroup
-	}
-	schedulerServiceAddress := os.Getenv(schedulerServiceAddressEnvVarName)
+	return certs
+}
 
-	webHook, err := initAdmissionController(
-		fmt.Sprintf("%s.yaml", policyGroup),
-		fmt.Sprintf(schedulerValidateConfURLPattern, schedulerServiceAddress),
-		processNamespaces, bypassNamespaces, labelNamespaces, noLabelNamespaces)
-	if err != nil {
-		log.Logger().Fatal("failed to configure admission controller", zap.Error(err))
+func CreateWebhook(ac *admissionController, port int) *WebHook {
+	return &WebHook{
+		ac:   ac,
+		port: port,
 	}
+}
+
+func (wh *WebHook) Startup(certs *tls.Certificate) {
+	wh.Lock()
+	defer wh.Unlock()
 
 	mux := http.NewServeMux()
-	mux.HandleFunc(healthURL, webHook.health)
-	mux.HandleFunc(mutateURL, webHook.serve)
-	mux.HandleFunc(validateConfURL, webHook.serve)
-	server := &http.Server{
-		Addr: fmt.Sprintf(":%v", HTTPPort),
+	mux.HandleFunc(healthURL, wh.ac.health)
+	mux.HandleFunc(mutateURL, wh.ac.serve)
+	mux.HandleFunc(validateConfURL, wh.ac.serve)
+
+	wh.server = &http.Server{
+		Addr: fmt.Sprintf(":%v", wh.port),
 		TLSConfig: &tls.Config{
 			MinVersion:   tls.VersionTLS12,
-			Certificates: []tls.Certificate{*pair}},
+			Certificates: []tls.Certificate{*certs}},
 		Handler: mux,
 	}
 
 	go func() {
-		if err = server.ListenAndServeTLS("", ""); err != nil {
-			log.Logger().Fatal("failed to start admission controller", zap.Error(err))
+		if err := wh.server.ListenAndServeTLS("", ""); err != nil {
+			if err == http.ErrServerClosed {
+				log.Logger().Info("existing server closed")
+			} else {
+				log.Logger().Fatal("failed to start admission controller", zap.Error(err))
+			}
 		}
 	}()
 
 	log.Logger().Info("the admission controller started",
 		zap.Int("port", HTTPPort),
 		zap.Strings("listeningOn", []string{healthURL, mutateURL, validateConfURL}))
+}
 
-	signalChan := make(chan os.Signal, 1)
-	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
-	<-signalChan
+func (wh *WebHook) Shutdown() {
+	wh.Lock()
+	defer wh.Unlock()
 
-	log.Logger().Info("shutting down the admission controller...")
-	err = server.Shutdown(context.Background())
-	if err != nil {
-		log.Logger().Warn("failed to stop the admission controller",
-			zap.Error(err))
+	if wh.server != nil {
+		log.Logger().Info("shutting down the admission controller...")
+		err := wh.server.Shutdown(context.Background())
+		if err != nil {
+			log.Logger().Fatal("failed to stop the admission controller", zap.Error(err))
+		}
+		wh.server = nil
 	}
 }
