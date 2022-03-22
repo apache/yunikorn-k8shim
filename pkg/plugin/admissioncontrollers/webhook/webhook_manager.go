@@ -62,6 +62,9 @@ type WebhookManager interface {
 
 	// GenerateServerCertificate is used to generate a server certificate chain
 	GenerateServerCertificate() (*tls.Certificate, error)
+
+	// WaitForCertificateExpiration blocks until certificates need to be renewed
+	WaitForCertificateExpiration()
 }
 
 type webhookManagerImpl struct {
@@ -71,10 +74,11 @@ type webhookManagerImpl struct {
 	conflictAttempts int
 
 	// mutable values (require locking)
-	caCert1 *x509.Certificate
-	caKey1  *rsa.PrivateKey
-	caCert2 *x509.Certificate
-	caKey2  *rsa.PrivateKey
+	caCert1    *x509.Certificate
+	caKey1     *rsa.PrivateKey
+	caCert2    *x509.Certificate
+	caKey2     *rsa.PrivateKey
+	expiration time.Time
 
 	sync.RWMutex
 }
@@ -212,6 +216,17 @@ func (wm *webhookManagerImpl) InstallWebhooks() error {
 	}
 
 	return nil
+}
+
+func (wm *webhookManagerImpl) WaitForCertificateExpiration() {
+	renewTime := wm.getExpiration().AddDate(0, 0, -30)
+	time.Sleep(time.Until(renewTime))
+}
+
+func (wm *webhookManagerImpl) getExpiration() time.Time {
+	wm.RLock()
+	defer wm.RUnlock()
+	return wm.expiration
 }
 
 func (wm *webhookManagerImpl) installValidatingWebhook() (bool, error) {
@@ -733,6 +748,10 @@ func (wm *webhookManagerImpl) loadCaCertificatesInternal() (bool, error) {
 	wm.caKey1 = key1
 	wm.caCert2 = cert2
 	wm.caKey2 = key2
+	wm.expiration = cert1.NotAfter
+	if cert2.NotAfter.Before(cert1.NotAfter) {
+		wm.expiration = cert2.NotAfter
+	}
 
 	return false, nil
 }
