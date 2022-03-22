@@ -19,34 +19,26 @@
 package yunikorn
 
 import (
-	"errors"
 	"fmt"
-	"regexp"
 
 	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/configmanager"
 )
 
 type ResourceUsage struct {
-	memory string
-	vCPU   string
+	memory int64
+	vCPU   int64
 }
 
-func (r *ResourceUsage) ParseResourceUsageString(resource string) error {
-	var expression = regexp.MustCompile(`memory:(\d+) vcore:(\d+)`)
-	matches := expression.FindStringSubmatch(resource)
-	if matches == nil {
-		return errors.New("no match found")
-	}
-	r.memory = matches[1]
-	r.vCPU = matches[2]
-	return nil
+func (r *ResourceUsage) ParseResourceUsage(resource map[string]interface{}) {
+	r.memory = int64(resource["memory"].(float64))
+	r.vCPU = int64(resource["vcore"].(float64))
 }
 
-func (r *ResourceUsage) GetMemory() string {
+func (r *ResourceUsage) GetMemory() int64 {
 	return r.memory
 }
 
-func (r *ResourceUsage) GetVCPU() string {
+func (r *ResourceUsage) GetVCPU() int64 {
 	return r.vCPU
 }
 
