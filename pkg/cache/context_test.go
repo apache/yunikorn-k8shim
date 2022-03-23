@@ -48,7 +48,7 @@ import (
 
 func initContextForTest() *Context {
 	conf.GetSchedulerConf().SetTestMode(true)
-	context := NewContext(client.NewMockedAPIProvider())
+	context := NewContext(client.NewMockedAPIProvider(false))
 	return context
 }
 

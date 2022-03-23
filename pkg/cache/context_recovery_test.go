@@ -38,7 +38,7 @@ import (
 )
 
 func TestNodeRecoveringState(t *testing.T) {
-	apiProvider4test := client.NewMockedAPIProvider()
+	apiProvider4test := client.NewMockedAPIProvider(false)
 	context := NewContext(apiProvider4test)
 	dispatcher.RegisterEventHandler(dispatcher.EventTypeNode, context.nodes.schedulerNodeEventHandler())
 	dispatcher.Start()
@@ -103,7 +103,7 @@ func TestNodeRecoveringState(t *testing.T) {
 }
 
 func TestNodesRecovery(t *testing.T) {
-	apiProvide4test := client.NewMockedAPIProvider()
+	apiProvide4test := client.NewMockedAPIProvider(false)
 	context := NewContext(apiProvide4test)
 	dispatcher.RegisterEventHandler(dispatcher.EventTypeNode, context.nodes.schedulerNodeEventHandler())
 	dispatcher.Start()

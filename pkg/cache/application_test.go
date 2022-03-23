@@ -118,7 +118,7 @@ func TestFailApplication(t *testing.T) {
 
 	// inject the mocked clients to the placeholder manager
 	createdPods := newThreadSafePodsMap()
-	mockedAPIProvider := client.NewMockedAPIProvider()
+	mockedAPIProvider := client.NewMockedAPIProvider(false)
 	mockedAPIProvider.MockCreateFn(func(pod *v1.Pod) (*v1.Pod, error) {
 		createdPods.add(pod)
 		return pod, nil
@@ -217,7 +217,7 @@ func TestSetUnallocatedPodsToFailedWhenFailApplication(t *testing.T) {
 
 	// inject the mocked clients to the placeholder manager
 	createdPods := newThreadSafePodsMap()
-	mockedAPIProvider := client.NewMockedAPIProvider()
+	mockedAPIProvider := client.NewMockedAPIProvider(false)
 	mockedAPIProvider.MockCreateFn(func(pod *v1.Pod) (*v1.Pod, error) {
 		createdPods.add(pod)
 		return pod, nil
@@ -326,7 +326,7 @@ func TestSetUnallocatedPodsToFailedWhenRejectApplication(t *testing.T) {
 
 	// inject the mocked clients to the placeholder manager
 	createdPods := newThreadSafePodsMap()
-	mockedAPIProvider := client.NewMockedAPIProvider()
+	mockedAPIProvider := client.NewMockedAPIProvider(false)
 	mockedAPIProvider.MockCreateFn(func(pod *v1.Pod) (*v1.Pod, error) {
 		createdPods.add(pod)
 		return pod, nil
@@ -704,7 +704,7 @@ func TestTryReserve(t *testing.T) {
 
 	// inject the mocked clients to the placeholder manager
 	createdPods := newThreadSafePodsMap()
-	mockedAPIProvider := client.NewMockedAPIProvider()
+	mockedAPIProvider := client.NewMockedAPIProvider(false)
 	mockedAPIProvider.MockCreateFn(func(pod *v1.Pod) (*v1.Pod, error) {
 		createdPods.add(pod)
 		return pod, nil
@@ -778,7 +778,7 @@ func TestTryReservePostRestart(t *testing.T) {
 
 	// inject the mocked clients to the placeholder manager
 	createdPods := newThreadSafePodsMap()
-	mockedAPIProvider := client.NewMockedAPIProvider()
+	mockedAPIProvider := client.NewMockedAPIProvider(false)
 	mockedAPIProvider.MockCreateFn(func(pod *v1.Pod) (*v1.Pod, error) {
 		createdPods.add(pod)
 		return pod, nil
@@ -1025,7 +1025,7 @@ func TestResumingStateTransitions(t *testing.T) {
 
 	// inject the mocked clients to the placeholder manager
 	createdPods := newThreadSafePodsMap()
-	mockedAPIProvider := client.NewMockedAPIProvider()
+	mockedAPIProvider := client.NewMockedAPIProvider(false)
 	mockedAPIProvider.MockCreateFn(func(pod *v1.Pod) (*v1.Pod, error) {
 		createdPods.add(pod)
 		return pod, nil

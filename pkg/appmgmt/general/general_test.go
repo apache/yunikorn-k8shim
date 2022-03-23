@@ -46,7 +46,7 @@ const taskGroupInfo = `
 ]`
 
 func TestGetAppMetadata(t *testing.T) {
-	am := NewManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider())
+	am := NewManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider(false))
 
 	pod := v1.Pod{
 		TypeMeta: apis.TypeMeta{
@@ -223,7 +223,7 @@ func TestGetAppMetadata(t *testing.T) {
 }
 
 func TestGetTaskMetadata(t *testing.T) {
-	am := NewManager(&cache.MockedAMProtocol{}, client.NewMockedAPIProvider())
+	am := NewManager(&cache.MockedAMProtocol{}, client.NewMockedAPIProvider(false))
 
 	pod := v1.Pod{
 		TypeMeta: apis.TypeMeta{
@@ -279,7 +279,7 @@ func TestGetTaskMetadata(t *testing.T) {
 }
 
 func TestAddPod(t *testing.T) {
-	am := NewManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider())
+	am := NewManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider(false))
 
 	pod := v1.Pod{
 		TypeMeta: apis.TypeMeta{
@@ -373,7 +373,7 @@ func TestAddPod(t *testing.T) {
 }
 
 func TestUpdatePodWhenSucceed(t *testing.T) {
-	am := NewManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider())
+	am := NewManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider(false))
 
 	pod := v1.Pod{
 		TypeMeta: apis.TypeMeta{
@@ -440,7 +440,7 @@ func TestUpdatePodWhenSucceed(t *testing.T) {
 }
 
 func TestUpdatePodWhenFailed(t *testing.T) {
-	am := NewManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider())
+	am := NewManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider(false))
 
 	pod := v1.Pod{
 		TypeMeta: apis.TypeMeta{
@@ -499,7 +499,7 @@ func TestUpdatePodWhenFailed(t *testing.T) {
 }
 
 func TestDeletePod(t *testing.T) {
-	am := NewManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider())
+	am := NewManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider(false))
 
 	pod := v1.Pod{
 		TypeMeta: apis.TypeMeta{
@@ -552,7 +552,7 @@ func toApplication(something interface{}) (*cache.Application, bool) {
 }
 
 func TestGetExistingAllocation(t *testing.T) {
-	am := NewManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider())
+	am := NewManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider(false))
 
 	pod := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
@@ -626,7 +626,7 @@ type Template struct {
 // nolint: funlen
 func TestListApplication(t *testing.T) {
 	// mock the pod lister for this test
-	mockedAPIProvider := client.NewMockedAPIProvider()
+	mockedAPIProvider := client.NewMockedAPIProvider(false)
 	mockedPodLister := test.NewPodListerMock()
 	mockedAPIProvider.SetPodLister(mockedPodLister)
 	appName := []string{"app00001", "app00002", "app00003", "app00004", "app00005"}

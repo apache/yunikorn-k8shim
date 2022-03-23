@@ -37,7 +37,7 @@ const defaultQueue = "root.default"
 const defaultUser = "default"
 
 func TestDeleteApp(t *testing.T) {
-	am := NewAppManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider())
+	am := NewAppManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider(false))
 	app := createApp(defaultName, defaultNamespace, defaultQueue)
 	appID := constructAppID(defaultName, defaultNamespace)
 	am.addApp(&app)
@@ -50,7 +50,7 @@ func TestDeleteApp(t *testing.T) {
 }
 
 func TestAddApp(t *testing.T) {
-	am := NewAppManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider())
+	am := NewAppManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider(false))
 	app := createApp(defaultName, defaultNamespace, defaultQueue)
 	savedApp, err := am.apiProvider.GetAPIs().AppClient.ApacheV1alpha1().Applications(defaultNamespace).Create(context.Background(), &app, apis.CreateOptions{})
 	assert.NilError(t, err)
@@ -65,7 +65,7 @@ func TestAddApp(t *testing.T) {
 }
 
 func TestGetAppMetadata(t *testing.T) {
-	am := NewAppManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider())
+	am := NewAppManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider(false))
 	app := createApp(defaultName, defaultNamespace, defaultQueue)
 	metadata, ok := am.getAppMetadata(&app)
 	assert.Equal(t, ok, true)
@@ -133,7 +133,7 @@ func TestConvertShimAppStateToAppCRDState(t *testing.T) {
 }
 
 func TestHandleApplicationStateUpdate(t *testing.T) {
-	am := NewAppManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider())
+	am := NewAppManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider(false))
 	app := createApp(defaultName, defaultNamespace, defaultQueue)
 	am.addApp(&app)
 	handleFunc := am.HandleApplicationStateUpdate()

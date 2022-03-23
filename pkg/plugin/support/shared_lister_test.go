@@ -30,7 +30,7 @@ import (
 )
 
 func TestNewSharedLister(t *testing.T) {
-	cache := external.NewSchedulerCache(client.NewMockedAPIProvider().GetAPIs())
+	cache := external.NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
 	lister := NewSharedLister(cache)
 
 	node := &v1.Node{

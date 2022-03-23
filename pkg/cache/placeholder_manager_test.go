@@ -42,7 +42,7 @@ const (
 
 func TestNewPlaceholderManager(t *testing.T) {
 	// the shim does not startup if it cannot get a kubeclient, no need to check for nil
-	mockedAPIProvider := client.NewMockedAPIProvider()
+	mockedAPIProvider := client.NewMockedAPIProvider(false)
 	mgr := NewPlaceholderManager(mockedAPIProvider.GetAPIs())
 	assert.Equal(t, mgr.running.Load(), false, "new manager should not run")
 	if mgr.orphanPods == nil && len(mgr.orphanPods) != 0 {
@@ -55,7 +55,7 @@ func TestNewPlaceholderManager(t *testing.T) {
 
 func TestCreateAppPlaceholders(t *testing.T) {
 	app := createAppWIthTaskGroupForTest()
-	mockedAPIProvider := client.NewMockedAPIProvider()
+	mockedAPIProvider := client.NewMockedAPIProvider(false)
 	createdPods := createAndCheckPlaceholderCreate(mockedAPIProvider, app, t)
 	for _, pod := range createdPods {
 		assert.Assert(t, len(pod.OwnerReferences) == 0, "By default the pod should not have owner reference set")
@@ -96,7 +96,7 @@ func TestCreateAppPlaceholdersWithOwnReference(t *testing.T) {
 		Controller: &controller,
 	}
 	app.setOwnReferences([]apis.OwnerReference{ownRef})
-	mockedAPIProvider := client.NewMockedAPIProvider()
+	mockedAPIProvider := client.NewMockedAPIProvider(false)
 	pods := createAndCheckPlaceholderCreate(mockedAPIProvider, app, t)
 	for _, pod := range pods {
 		assert.Assert(t, len(pod.OwnerReferences) == 1, "The pod should have exactly one owner reference set")
@@ -186,7 +186,7 @@ func TestCleanUp(t *testing.T) {
 	assert.Equal(t, len(res), 3)
 
 	deletePod := make([]string, 0)
-	mockedAPIProvider := client.NewMockedAPIProvider()
+	mockedAPIProvider := client.NewMockedAPIProvider(false)
 	mockedAPIProvider.MockDeleteFn(func(pod *v1.Pod) error {
 		deletePod = append(deletePod, pod.Name)
 		return nil
@@ -208,7 +208,7 @@ func TestCleanUp(t *testing.T) {
 }
 
 func TestCleanOrphanPlaceholders(t *testing.T) {
-	mockedAPIProvider := client.NewMockedAPIProvider()
+	mockedAPIProvider := client.NewMockedAPIProvider(false)
 	placeholderMgr := NewPlaceholderManager(mockedAPIProvider.GetAPIs())
 	pod1 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
@@ -227,7 +227,7 @@ func TestCleanOrphanPlaceholders(t *testing.T) {
 }
 
 func TestPlaceholderManagerStartStop(t *testing.T) {
-	mockedAPIProvider := client.NewMockedAPIProvider()
+	mockedAPIProvider := client.NewMockedAPIProvider(false)
 	mgr := NewPlaceholderManager(mockedAPIProvider.GetAPIs())
 	assert.Equal(t, mgr.running.Load(), false, "new manager should not run")
 	// start clean up goroutine
@@ -263,7 +263,7 @@ func TestPlaceholderManagerStartStop(t *testing.T) {
 }
 
 func TestPlaceholderManagerCleanup(t *testing.T) {
-	mockedAPIProvider := client.NewMockedAPIProvider()
+	mockedAPIProvider := client.NewMockedAPIProvider(false)
 	pod1 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",

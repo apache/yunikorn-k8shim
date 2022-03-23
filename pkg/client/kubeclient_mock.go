@@ -44,29 +44,44 @@ type KubeClientMock struct {
 	lock           sync.RWMutex
 }
 
-func NewKubeClientMock() *KubeClientMock {
+func NewKubeClientMock(showError bool) *KubeClientMock {
 	return &KubeClientMock{
 		bindFn: func(pod *v1.Pod, hostID string) error {
+			if showError {
+				return fmt.Errorf("fake error")
+			}
 			log.Logger().Info("pod bound",
 				zap.String("PodName", pod.Name))
 			return nil
 		},
 		deleteFn: func(pod *v1.Pod) error {
+			if showError {
+				return fmt.Errorf("fake error")
+			}
 			log.Logger().Info("pod deleted",
 				zap.String("PodName", pod.Name))
 			return nil
 		},
 		createFn: func(pod *v1.Pod) (*v1.Pod, error) {
+			if showError {
+				return pod, fmt.Errorf("fake error")
+			}
 			log.Logger().Info("pod created",
 				zap.String("PodName", pod.Name))
 			return pod, nil
 		},
 		updateStatusFn: func(pod *v1.Pod) (*v1.Pod, error) {
+			if showError {
+				return pod, fmt.Errorf("fake error")
+			}
 			log.Logger().Info("pod status updated",
 				zap.String("PodName", pod.Name))
 			return pod, nil
 		},
 		getFn: func(podName string) (*v1.Pod, error) {
+			if showError {
+				return nil, fmt.Errorf("fake error")
+			}
 			log.Logger().Info("Getting pod",
 				zap.String("PodName", podName))
 			return nil, nil

@@ -61,7 +61,7 @@ func TestClientSet(t *testing.T) {
 }
 
 func lister() framework.SharedLister {
-	cache := external.NewSchedulerCache(client.NewMockedAPIProvider().GetAPIs())
+	cache := external.NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
 	return NewSharedLister(cache)
 }
 
@@ -70,5 +70,5 @@ func informerFactory(clientSet kubernetes.Interface) informers.SharedInformerFac
 }
 
 func clientSet() kubernetes.Interface {
-	return client.NewKubeClientMock().GetClientSet()
+	return client.NewKubeClientMock(false).GetClientSet()
 }

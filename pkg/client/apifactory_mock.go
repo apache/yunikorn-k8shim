@@ -35,7 +35,7 @@ type MockedAPIProvider struct {
 	clients *Clients
 }
 
-func NewMockedAPIProvider() *MockedAPIProvider {
+func NewMockedAPIProvider(showError bool) *MockedAPIProvider {
 	return &MockedAPIProvider{
 		clients: &Clients{
 			Conf: &conf.SchedulerConf{
@@ -54,7 +54,7 @@ func NewMockedAPIProvider() *MockedAPIProvider {
 				KubeQPS:              0,
 				KubeBurst:            0,
 			},
-			KubeClient:        NewKubeClientMock(),
+			KubeClient:        NewKubeClientMock(showError),
 			SchedulerAPI:      test.NewSchedulerAPIMock(),
 			AppClient:         fake.NewSimpleClientset(),
 			PodInformer:       test.NewMockedPodInformer(),

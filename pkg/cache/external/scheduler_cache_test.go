@@ -35,7 +35,7 @@ import (
 // the cache should be updated correctly to contain the correct references
 // for assigned pod, it is stored in the cached node too.
 func TestAssignedPod(t *testing.T) {
-	cache := NewSchedulerCache(client.NewMockedAPIProvider().GetAPIs())
+	cache := NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
 
 	resourceList := make(map[v1.ResourceName]resource.Quantity)
 	resourceList[v1.ResourceName("memory")] = *resource.NewQuantity(1024*1000*1000, resource.DecimalSI)
@@ -105,7 +105,7 @@ func TestAssignedPod(t *testing.T) {
 }
 
 func TestRemovePodWithoutNodeName(t *testing.T) {
-	cache := NewSchedulerCache(client.NewMockedAPIProvider().GetAPIs())
+	cache := NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
 	cache.removePod(&v1.Pod{Spec: v1.PodSpec{}})
 }
 
@@ -113,7 +113,7 @@ func TestRemovePodWithoutNodeName(t *testing.T) {
 // the cache should be updated correctly to contain the correct references
 // for unassigned pod, it will not be stored in the cached node.
 func TestAddUnassignedPod(t *testing.T) {
-	cache := NewSchedulerCache(client.NewMockedAPIProvider().GetAPIs())
+	cache := NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
 
 	resourceList := make(map[v1.ResourceName]resource.Quantity)
 	resourceList[v1.ResourceName("memory")] = *resource.NewQuantity(1024*1000*1000, resource.DecimalSI)
@@ -181,7 +181,7 @@ func TestAddUnassignedPod(t *testing.T) {
 }
 
 func TestUpdateNode(t *testing.T) {
-	cache := NewSchedulerCache(client.NewMockedAPIProvider().GetAPIs())
+	cache := NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
 
 	resourceList := make(map[v1.ResourceName]resource.Quantity)
 	resourceList[v1.ResourceName("memory")] = *resource.NewQuantity(1024*1000*1000, resource.DecimalSI)
@@ -237,7 +237,7 @@ func TestUpdateNode(t *testing.T) {
 }
 
 func TestUpdateNonExistNode(t *testing.T) {
-	cache := NewSchedulerCache(client.NewMockedAPIProvider().GetAPIs())
+	cache := NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
 
 	resourceList := make(map[v1.ResourceName]resource.Quantity)
 	resourceList[v1.ResourceName("memory")] = *resource.NewQuantity(1024*1000*1000, resource.DecimalSI)
@@ -282,7 +282,7 @@ func add2Cache(cache *SchedulerCache, objects ...interface{}) error {
 
 func TestGetNodesInfoMapCopy(t *testing.T) {
 	// empty map
-	cache := NewSchedulerCache(client.NewMockedAPIProvider().GetAPIs())
+	cache := NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
 	copyOfMap := cache.GetNodesInfoMapCopy()
 	assert.Equal(t, len(copyOfMap), 0)
 
@@ -313,7 +313,7 @@ func TestGetNodesInfoMapCopy(t *testing.T) {
 }
 
 func TestAddPod(t *testing.T) {
-	cache := NewSchedulerCache(client.NewMockedAPIProvider().GetAPIs())
+	cache := NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
 
 	pod1 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
@@ -351,7 +351,7 @@ func TestAddPod(t *testing.T) {
 }
 
 func TestUpdatePod(t *testing.T) {
-	cache := NewSchedulerCache(client.NewMockedAPIProvider().GetAPIs())
+	cache := NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
 	resourceList := make(map[v1.ResourceName]resource.Quantity)
 	resourceList[v1.ResourceName("memory")] = *resource.NewQuantity(1024*1000*1000, resource.DecimalSI)
 	resourceList[v1.ResourceName("cpu")] = *resource.NewQuantity(10, resource.DecimalSI)
@@ -447,7 +447,7 @@ func TestUpdatePod(t *testing.T) {
 }
 
 func TestRemovePod(t *testing.T) {
-	cache := NewSchedulerCache(client.NewMockedAPIProvider().GetAPIs())
+	cache := NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
 
 	pod1 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
