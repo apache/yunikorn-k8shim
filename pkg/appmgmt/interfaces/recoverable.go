@@ -19,8 +19,9 @@
 package interfaces
 
 import (
-	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 	v1 "k8s.io/api/core/v1"
+
+	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
 )
 
 // recoverable interface defines a certain type of app that can be recovered upon scheduler' restart
