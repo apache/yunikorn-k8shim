@@ -627,6 +627,10 @@ func (ctx *Context) AddApplication(request *interfaces.AddApplicationRequest) in
 func (ctx *Context) GetApplication(appID string) interfaces.ManagedApp {
 	ctx.lock.RLock()
 	defer ctx.lock.RUnlock()
+	return ctx.getApplication(appID)
+}
+
+func (ctx *Context) getApplication(appID string) interfaces.ManagedApp {
 	if app, ok := ctx.applications[appID]; ok {
 		return app
 	}
@@ -705,7 +709,7 @@ func (ctx *Context) RemoveTask(appID, taskID string) {
 func (ctx *Context) getTask(appID string, taskID string) *Task {
 	ctx.lock.RLock()
 	defer ctx.lock.RUnlock()
-	app := ctx.GetApplication(appID)
+	app := ctx.getApplication(appID)
 	if app == nil {
 		log.Logger().Debug("application is not found in the context",
 			zap.String("appID", appID))
