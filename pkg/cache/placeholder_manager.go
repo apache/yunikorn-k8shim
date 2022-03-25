@@ -27,9 +27,9 @@ import (
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
+	"github.com/apache/yunikorn-k8shim/pkg/client"
+	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
+	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
 
 // PlaceholderManager is a service to manage the lifecycle of app placeholders

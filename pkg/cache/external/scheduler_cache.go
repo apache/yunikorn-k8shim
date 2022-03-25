@@ -30,9 +30,9 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
+	"github.com/apache/yunikorn-k8shim/pkg/client"
+	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
+	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
 
 // SchedulerCache maintains some critical information about nodes and pods used for scheduling.

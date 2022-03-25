@@ -36,8 +36,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/pki"
+	"github.com/apache/yunikorn-k8shim/pkg/log"
+	"github.com/apache/yunikorn-k8shim/pkg/pki"
 )
 
 const (

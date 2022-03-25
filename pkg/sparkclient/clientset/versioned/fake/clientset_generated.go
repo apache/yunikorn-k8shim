@@ -20,9 +20,9 @@
 package fake
 
 import (
-	clientset "github.com/apache/incubator-yunikorn-k8shim/pkg/sparkclient/clientset/versioned"
-	sparkoperatorv1beta2 "github.com/apache/incubator-yunikorn-k8shim/pkg/sparkclient/clientset/versioned/typed/sparkoperator.k8s.io/v1beta2"
-	fakesparkoperatorv1beta2 "github.com/apache/incubator-yunikorn-k8shim/pkg/sparkclient/clientset/versioned/typed/sparkoperator.k8s.io/v1beta2/fake"
+	clientset "github.com/apache/yunikorn-k8shim/pkg/sparkclient/clientset/versioned"
+	sparkoperatorv1beta2 "github.com/apache/yunikorn-k8shim/pkg/sparkclient/clientset/versioned/typed/sparkoperator.k8s.io/v1beta2"
+	fakesparkoperatorv1beta2 "github.com/apache/yunikorn-k8shim/pkg/sparkclient/clientset/versioned/typed/sparkoperator.k8s.io/v1beta2/fake"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"

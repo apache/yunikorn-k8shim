@@ -44,10 +44,10 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/podtopologyspread"
 	"k8s.io/kubernetes/pkg/util/taints"
 
-	"github.com/apache/incubator-yunikorn-core/pkg/log"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/plugin/support"
+	"github.com/apache/yunikorn-core/pkg/log"
+	"github.com/apache/yunikorn-k8shim/pkg/client"
+	"github.com/apache/yunikorn-k8shim/pkg/conf"
+	"github.com/apache/yunikorn-k8shim/pkg/plugin/support"
 )
 
 var (

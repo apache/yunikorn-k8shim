@@ -23,9 +23,9 @@ import (
 	v1 "k8s.io/api/core/v1"
 	k8sCache "k8s.io/client-go/tools/cache"
 
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
+	"github.com/apache/yunikorn-k8shim/pkg/common"
+	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
+	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
 
 // nodeResourceCoordinator looks at the resources that are not allocated by yunikorn,

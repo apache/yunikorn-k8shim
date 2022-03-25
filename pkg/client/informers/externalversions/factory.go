@@ -24,9 +24,9 @@ import (
 	sync "sync"
 	time "time"
 
-	versioned "github.com/apache/incubator-yunikorn-k8shim/pkg/client/clientset/versioned"
-	internalinterfaces "github.com/apache/incubator-yunikorn-k8shim/pkg/client/informers/externalversions/internalinterfaces"
-	yunikornapacheorg "github.com/apache/incubator-yunikorn-k8shim/pkg/client/informers/externalversions/yunikorn.apache.org"
+	versioned "github.com/apache/yunikorn-k8shim/pkg/client/clientset/versioned"
+	internalinterfaces "github.com/apache/yunikorn-k8shim/pkg/client/informers/externalversions/internalinterfaces"
+	yunikornapacheorg "github.com/apache/yunikorn-k8shim/pkg/client/informers/externalversions/yunikorn.apache.org"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"

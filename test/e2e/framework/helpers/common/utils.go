@@ -31,7 +31,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/onsi/ginkgo"
 
-	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/configmanager"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 )
 
 func GetAbsPath(p string) (string, error) {

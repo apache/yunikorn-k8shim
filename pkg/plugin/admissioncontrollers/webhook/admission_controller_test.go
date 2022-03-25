@@ -35,8 +35,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
+	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
+	"github.com/apache/yunikorn-k8shim/pkg/conf"
 )
 
 type responseMode int

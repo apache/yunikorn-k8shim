@@ -20,8 +20,8 @@
 package sparkoperator
 
 import (
-	internalinterfaces "github.com/apache/incubator-yunikorn-k8shim/pkg/sparkclient/informers/externalversions/internalinterfaces"
-	v1beta2 "github.com/apache/incubator-yunikorn-k8shim/pkg/sparkclient/informers/externalversions/sparkoperator.k8s.io/v1beta2"
+	internalinterfaces "github.com/apache/yunikorn-k8shim/pkg/sparkclient/informers/externalversions/internalinterfaces"
+	v1beta2 "github.com/apache/yunikorn-k8shim/pkg/sparkclient/informers/externalversions/sparkoperator.k8s.io/v1beta2"
 )
 
 // Interface provides access to each of this group's versions.

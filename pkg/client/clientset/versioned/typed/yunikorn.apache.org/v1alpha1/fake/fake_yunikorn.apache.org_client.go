@@ -20,7 +20,7 @@
 package fake
 
 import (
-	v1alpha1 "github.com/apache/incubator-yunikorn-k8shim/pkg/client/clientset/versioned/typed/yunikorn.apache.org/v1alpha1"
+	v1alpha1 "github.com/apache/yunikorn-k8shim/pkg/client/clientset/versioned/typed/yunikorn.apache.org/v1alpha1"
 	rest "k8s.io/client-go/rest"
 	testing "k8s.io/client-go/testing"
 )

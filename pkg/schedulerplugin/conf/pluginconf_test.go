@@ -23,8 +23,8 @@ import (
 	"github.com/spf13/cobra"
 	"gotest.tools/assert"
 
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
-	defaults "github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
+	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
+	defaults "github.com/apache/yunikorn-k8shim/pkg/conf"
 )
 
 func TestDefaultValues(t *testing.T) {

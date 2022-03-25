@@ -21,8 +21,8 @@ package cache
 import (
 	"testing"
 
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
-	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
+	"github.com/apache/yunikorn-k8shim/pkg/common/events"
+	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
 
 const (

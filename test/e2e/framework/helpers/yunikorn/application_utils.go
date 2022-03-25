@@ -26,9 +26,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/tools/clientcmd"
 
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
-	crdclientset "github.com/apache/incubator-yunikorn-k8shim/pkg/client/clientset/versioned"
-	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/configmanager"
+	"github.com/apache/yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
+	crdclientset "github.com/apache/yunikorn-k8shim/pkg/client/clientset/versioned"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 )
 
 func GetApplicationObj(yamlPath string) (*v1alpha1.Application, error) {

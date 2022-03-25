@@ -28,7 +28,7 @@ import (
 
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
 
-	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/helpers/common"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 
 	"k8s.io/apimachinery/pkg/util/wait"
 
@@ -39,7 +39,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
-	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/configmanager"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 )
 
 type KubeCtl struct {

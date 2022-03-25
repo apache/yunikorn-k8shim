@@ -22,8 +22,8 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
-	lister "github.com/apache/incubator-yunikorn-k8shim/pkg/client/listers/yunikorn.apache.org/v1alpha1"
+	"github.com/apache/yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
+	lister "github.com/apache/yunikorn-k8shim/pkg/client/listers/yunikorn.apache.org/v1alpha1"
 )
 
 type MockedAppInformer struct {

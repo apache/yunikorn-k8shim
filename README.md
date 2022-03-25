@@ -18,11 +18,11 @@
 
 # YuniKorn Scheduler for Kubernetes (yunikorn-k8shim)
 
-[![Build Status](https://github.com/apache/incubator-yunikorn-k8shim/actions/workflows/main.yml/badge.svg)](https://github.com/apache/incubator-yunikorn-k8shim/actions)
-[![codecov](https://codecov.io/gh/apache/incubator-yunikorn-k8shim/branch/master/graph/badge.svg)](https://codecov.io/gh/apache/incubator-yunikorn-k8shim)
-[![Go Report Card](https://goreportcard.com/badge/github.com/apache/incubator-yunikorn-k8shim)](https://goreportcard.com/report/github.com/apache/incubator-yunikorn-k8shim)
+[![Build Status](https://github.com/apache/yunikorn-k8shim/actions/workflows/main.yml/badge.svg)](https://github.com/apache/yunikorn-k8shim/actions)
+[![codecov](https://codecov.io/gh/apache/yunikorn-k8shim/branch/master/graph/badge.svg)](https://codecov.io/gh/apache/yunikorn-k8shim)
+[![Go Report Card](https://goreportcard.com/badge/github.com/apache/yunikorn-k8shim)](https://goreportcard.com/report/github.com/apache/yunikorn-k8shim)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Repo Size](https://img.shields.io/github/repo-size/apache/incubator-yunikorn-k8shim)](https://img.shields.io/github/repo-size/apache/incubator-yunikorn-k8shim)
+[![Repo Size](https://img.shields.io/github/repo-size/apache/yunikorn-k8shim)](https://img.shields.io/github/repo-size/apache/yunikorn-k8shim)
 
 YuniKorn scheduler shim for kubernetes is a customized k8s scheduler, it can be deployed in a K8s cluster and work as the scheduler.
 This project contains the k8s shim layer code for k8s, it depends on `yunikorn-core` which encapsulates all the actual scheduling logic.

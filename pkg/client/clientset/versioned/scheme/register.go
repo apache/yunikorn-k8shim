@@ -20,7 +20,7 @@
 package scheme
 
 import (
-	apachev1alpha1 "github.com/apache/incubator-yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
+	apachev1alpha1 "github.com/apache/yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"

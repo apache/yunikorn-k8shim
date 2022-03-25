@@ -29,13 +29,13 @@ import (
 	"k8s.io/kubernetes/pkg/controller/volume/scheduling"
 	"k8s.io/kubernetes/pkg/features"
 
-	appclient "github.com/apache/incubator-yunikorn-k8shim/pkg/client/clientset/versioned"
-	appinformers "github.com/apache/incubator-yunikorn-k8shim/pkg/client/informers/externalversions"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/client/informers/externalversions/yunikorn.apache.org/v1alpha1"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
-	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/api"
+	appclient "github.com/apache/yunikorn-k8shim/pkg/client/clientset/versioned"
+	appinformers "github.com/apache/yunikorn-k8shim/pkg/client/informers/externalversions"
+	"github.com/apache/yunikorn-k8shim/pkg/client/informers/externalversions/yunikorn.apache.org/v1alpha1"
+	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
+	"github.com/apache/yunikorn-k8shim/pkg/conf"
+	"github.com/apache/yunikorn-k8shim/pkg/log"
+	"github.com/apache/yunikorn-scheduler-interface/lib/go/api"
 )
 
 type Type int

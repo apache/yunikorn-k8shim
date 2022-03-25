@@ -28,14 +28,14 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/cache/external"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/test"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/dispatcher"
-	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
+	"github.com/apache/yunikorn-k8shim/pkg/cache/external"
+	"github.com/apache/yunikorn-k8shim/pkg/client"
+	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
+	"github.com/apache/yunikorn-k8shim/pkg/common/events"
+	"github.com/apache/yunikorn-k8shim/pkg/common/test"
+	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
+	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
+	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
 
 func TestAddNode(t *testing.T) {

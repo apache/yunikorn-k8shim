@@ -38,8 +38,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/types"
 
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
+	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
+	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
 
 const (

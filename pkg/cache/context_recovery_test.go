@@ -29,12 +29,12 @@ import (
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/test"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/dispatcher"
+	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
+	"github.com/apache/yunikorn-k8shim/pkg/client"
+	"github.com/apache/yunikorn-k8shim/pkg/common/events"
+	"github.com/apache/yunikorn-k8shim/pkg/common/test"
+	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
+	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 )
 
 func TestNodeRecoveringState(t *testing.T) {

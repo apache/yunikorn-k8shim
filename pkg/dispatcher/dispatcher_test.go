@@ -29,8 +29,8 @@ import (
 
 	"gotest.tools/assert"
 
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
+	"github.com/apache/yunikorn-k8shim/pkg/common/events"
+	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 )
 
 // app event for testing

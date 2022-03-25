@@ -25,13 +25,13 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/dispatcher"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
-	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
+	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
+	"github.com/apache/yunikorn-k8shim/pkg/common"
+	"github.com/apache/yunikorn-k8shim/pkg/common/events"
+	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
+	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
+	"github.com/apache/yunikorn-k8shim/pkg/log"
+	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 
 	"github.com/looplab/fsm"
 	v1 "k8s.io/api/core/v1"

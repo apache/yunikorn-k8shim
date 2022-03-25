@@ -29,17 +29,17 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/informers"
 
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/cache"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/callback"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/dispatcher"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
-	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/api"
-	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
+	"github.com/apache/yunikorn-k8shim/pkg/appmgmt"
+	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
+	"github.com/apache/yunikorn-k8shim/pkg/cache"
+	"github.com/apache/yunikorn-k8shim/pkg/callback"
+	"github.com/apache/yunikorn-k8shim/pkg/client"
+	"github.com/apache/yunikorn-k8shim/pkg/common/events"
+	"github.com/apache/yunikorn-k8shim/pkg/conf"
+	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
+	"github.com/apache/yunikorn-k8shim/pkg/log"
+	"github.com/apache/yunikorn-scheduler-interface/lib/go/api"
+	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
 
 // shim scheduler watches api server and interacts with unity scheduler to allocate pods

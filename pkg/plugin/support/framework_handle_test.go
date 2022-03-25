@@ -26,8 +26,8 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/cache/external"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
+	"github.com/apache/yunikorn-k8shim/pkg/cache/external"
+	"github.com/apache/yunikorn-k8shim/pkg/client"
 )
 
 func TestNewFrameworkHandle(t *testing.T) {
