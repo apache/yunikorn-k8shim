@@ -434,20 +434,14 @@ func (task *Task) beforeTaskAllocated(eventSrc string, allocUUID string, nodeID 
 
 func (task *Task) postTaskBound() {
 	if task.pluginMode {
-		// when the pod is scheduling by yunikorn, it is moved to the default-scheduler's
-		// unschedulable queue, if nothing changes, the pod will be staying in the unschedulable
-		// queue for unschedulableQTimeInterval long (default 1 minute). hence, we are updating
-		// the pod status explicitly, when there is a status change, the default scheduler will
-		// move the pod back to the active queue immediately.
+		// When the pod is actively scheduled by YuniKorn, it can be  moved to the default-scheduler's
+		// UnschedulablePods structure. If the pod does not change, the pod will stay in the UnschedulablePods
+		// structure for podMaxInUnschedulablePodsDuration (default 5 minutes). Here we update the pod
+		// explicitly to move it back to the active queue.
+		// See: pkg/scheduler/internal/queue/scheduling_queue.go:isPodUpdated() for what is considered updated.
 		podCopy := task.pod.DeepCopy()
 		if _, err := task.UpdateTaskPod(podCopy, func(pod *v1.Pod) {
-			pod.Status = v1.PodStatus{
-				Phase:   podCopy.Status.Phase,
-				Reason:  "Pending",
-				Message: "pod fits into the queue quota and it is ready for scheduling",
-			}
-
-			// this is a bit of a hack, but ensures that the default scheduler detects the pod as having changed
+			// Ensure that the default scheduler detects the pod as having changed
 			if pod.Annotations == nil {
 				pod.Annotations = make(map[string]string)
 			}
