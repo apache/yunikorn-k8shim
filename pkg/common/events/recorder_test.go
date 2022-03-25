@@ -24,7 +24,7 @@ import (
 
 	"gotest.tools/assert"
 
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
+	"github.com/apache/yunikorn-k8shim/pkg/conf"
 )
 
 func TestInit(t *testing.T) {

@@ -27,7 +27,7 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/rest"
 
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
+	"github.com/apache/yunikorn-k8shim/pkg/log"
 
 	"go.uber.org/zap"
 )

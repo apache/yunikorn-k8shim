@@ -20,8 +20,8 @@
 package yunikorn
 
 import (
-	internalinterfaces "github.com/apache/incubator-yunikorn-k8shim/pkg/client/informers/externalversions/internalinterfaces"
-	v1alpha1 "github.com/apache/incubator-yunikorn-k8shim/pkg/client/informers/externalversions/yunikorn.apache.org/v1alpha1"
+	internalinterfaces "github.com/apache/yunikorn-k8shim/pkg/client/informers/externalversions/internalinterfaces"
+	v1alpha1 "github.com/apache/yunikorn-k8shim/pkg/client/informers/externalversions/yunikorn.apache.org/v1alpha1"
 )
 
 // Interface provides access to each of this group's versions.

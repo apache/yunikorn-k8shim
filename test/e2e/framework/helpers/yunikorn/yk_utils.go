@@ -21,7 +21,7 @@ package yunikorn
 import (
 	"fmt"
 
-	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/configmanager"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 )
 
 type ResourceUsage struct {

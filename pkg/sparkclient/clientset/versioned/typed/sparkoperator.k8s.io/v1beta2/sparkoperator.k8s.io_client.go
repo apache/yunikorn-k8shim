@@ -21,7 +21,7 @@ package v1beta2
 
 import (
 	v1beta2 "github.com/GoogleCloudPlatform/spark-on-k8s-operator/pkg/apis/sparkoperator.k8s.io/v1beta2"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/sparkclient/clientset/versioned/scheme"
+	"github.com/apache/yunikorn-k8shim/pkg/sparkclient/clientset/versioned/scheme"
 	rest "k8s.io/client-go/rest"
 )
 

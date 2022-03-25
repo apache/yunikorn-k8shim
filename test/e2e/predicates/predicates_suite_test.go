@@ -28,10 +28,10 @@ import (
 	"github.com/onsi/ginkgo/extensions/table"
 	"github.com/onsi/ginkgo/reporters"
 
-	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/configmanager"
-	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/helpers/common"
-	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/helpers/k8s"
-	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
 
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"

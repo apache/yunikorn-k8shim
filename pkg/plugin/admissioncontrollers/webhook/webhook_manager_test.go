@@ -40,7 +40,7 @@ import (
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	fakecorev1 "k8s.io/client-go/kubernetes/typed/core/v1/fake"
 
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/pki"
+	"github.com/apache/yunikorn-k8shim/pkg/pki"
 )
 
 var (

@@ -40,8 +40,8 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/tainttoleration"
 	fwruntime "k8s.io/kubernetes/pkg/scheduler/framework/runtime"
 
-	"github.com/apache/incubator-yunikorn-core/pkg/log"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
+	"github.com/apache/yunikorn-core/pkg/log"
+	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 )
 
 type PredicateManager interface {

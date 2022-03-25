@@ -23,9 +23,9 @@ import (
 
 	"k8s.io/kubernetes/cmd/kube-scheduler/app"
 
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/schedulerplugin"
-	pluginconf "github.com/apache/incubator-yunikorn-k8shim/pkg/schedulerplugin/conf"
+	"github.com/apache/yunikorn-k8shim/pkg/conf"
+	"github.com/apache/yunikorn-k8shim/pkg/schedulerplugin"
+	pluginconf "github.com/apache/yunikorn-k8shim/pkg/schedulerplugin/conf"
 )
 
 var (

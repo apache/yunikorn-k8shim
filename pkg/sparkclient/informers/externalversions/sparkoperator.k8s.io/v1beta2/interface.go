@@ -20,7 +20,7 @@
 package v1beta2
 
 import (
-	internalinterfaces "github.com/apache/incubator-yunikorn-k8shim/pkg/sparkclient/informers/externalversions/internalinterfaces"
+	internalinterfaces "github.com/apache/yunikorn-k8shim/pkg/sparkclient/informers/externalversions/internalinterfaces"
 )
 
 // Interface provides access to all the informers in this group version.

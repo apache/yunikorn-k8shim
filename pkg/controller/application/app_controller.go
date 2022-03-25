@@ -24,17 +24,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
+	"github.com/apache/yunikorn-k8shim/pkg/client"
 
 	"go.uber.org/zap"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	appv1 "github.com/apache/incubator-yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
-	shimcache "github.com/apache/incubator-yunikorn-k8shim/pkg/cache"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
+	appv1 "github.com/apache/yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
+	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
+	shimcache "github.com/apache/yunikorn-k8shim/pkg/cache"
+	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
+	"github.com/apache/yunikorn-k8shim/pkg/common/events"
+	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
 
 type AppManager struct {

@@ -173,7 +173,7 @@ function install_cluster() {
 
   if [ "${git_clone}" = "true" ]; then
     # use latest helm charts from the release repo to install yunikorn
-    git clone https://github.com/apache/incubator-yunikorn-release.git ./incubator-yunikorn-release
+    git clone https://github.com/apache/yunikorn-release.git ./yunikorn-release
   fi
 
   helm install yunikorn "${charts_path}" --namespace yunikorn \
@@ -231,11 +231,11 @@ Examples:
   $(basename "$0") -a test -n "yk8s" -v "kindest/node:v1.23.1"
 
   Use a local helm chart path:
-    $(basename "$0") -a test -n "yk8s" -v "kindest/node:v1.23.1" -p ../incubator-yunikorn-release/helm-charts/yunikorn
+    $(basename "$0") -a test -n "yk8s" -v "kindest/node:v1.23.1" -p ../yunikorn-release/helm-charts/yunikorn
 EOF
 }
 
-charts_path=./incubator-yunikorn-release/helm-charts/yunikorn
+charts_path=./yunikorn-release/helm-charts/yunikorn
 git_clone=true
 scheduler_image=scheduler-latest
 

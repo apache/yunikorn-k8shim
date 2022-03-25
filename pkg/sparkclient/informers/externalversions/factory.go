@@ -24,9 +24,9 @@ import (
 	sync "sync"
 	time "time"
 
-	versioned "github.com/apache/incubator-yunikorn-k8shim/pkg/sparkclient/clientset/versioned"
-	internalinterfaces "github.com/apache/incubator-yunikorn-k8shim/pkg/sparkclient/informers/externalversions/internalinterfaces"
-	sparkoperatork8sio "github.com/apache/incubator-yunikorn-k8shim/pkg/sparkclient/informers/externalversions/sparkoperator.k8s.io"
+	versioned "github.com/apache/yunikorn-k8shim/pkg/sparkclient/clientset/versioned"
+	internalinterfaces "github.com/apache/yunikorn-k8shim/pkg/sparkclient/informers/externalversions/internalinterfaces"
+	sparkoperatork8sio "github.com/apache/yunikorn-k8shim/pkg/sparkclient/informers/externalversions/sparkoperator.k8s.io"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"

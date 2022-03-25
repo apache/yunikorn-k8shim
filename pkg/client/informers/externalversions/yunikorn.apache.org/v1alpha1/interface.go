@@ -20,7 +20,7 @@
 package v1alpha1
 
 import (
-	internalinterfaces "github.com/apache/incubator-yunikorn-k8shim/pkg/client/informers/externalversions/internalinterfaces"
+	internalinterfaces "github.com/apache/yunikorn-k8shim/pkg/client/informers/externalversions/internalinterfaces"
 )
 
 // Interface provides access to all the informers in this group version.

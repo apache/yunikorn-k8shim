@@ -25,7 +25,7 @@ import (
 	"k8s.io/client-go/tools/events"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
-	"github.com/apache/incubator-yunikorn-core/pkg/log"
+	"github.com/apache/yunikorn-core/pkg/log"
 )
 
 type frameworkHandle struct {

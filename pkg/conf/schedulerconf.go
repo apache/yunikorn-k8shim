@@ -27,7 +27,7 @@ import (
 	"go.uber.org/zap/zapcore"
 	"k8s.io/klog"
 
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
+	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 )
 
 type SchedulerConfFactory = func() *SchedulerConf

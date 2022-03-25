@@ -31,8 +31,8 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 
-	"github.com/apache/incubator-yunikorn-core/pkg/webservice/dao"
-	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/configmanager"
+	"github.com/apache/yunikorn-core/pkg/webservice/dao"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 )
 
 type RClient struct {
