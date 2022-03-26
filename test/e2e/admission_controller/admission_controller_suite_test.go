@@ -22,13 +22,14 @@ import (
 	"fmt"
 	"testing"
 
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
-	v1 "k8s.io/api/core/v1"
-
+	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func init() {
@@ -37,9 +38,24 @@ func init() {
 
 var kubeClient k8s.KubeCtl
 var ns = "admission-controller-test"
-var sleepPodName = "sleepjob"
 var blackNs = "kube-system"
 var restClient yunikorn.RClient
+var oldConfigMap *v1.ConfigMap
+var testPod = v1.Pod{
+	ObjectMeta: metav1.ObjectMeta{
+		Name:   "sleepjob",
+		Labels: map[string]string{"app": "sleep"},
+	},
+	Spec: v1.PodSpec{
+		Containers: []v1.Container{
+			{
+				Name:    "sleepjob",
+				Image:   "alpine:latest",
+				Command: []string{"sleep", "30"},
+			},
+		},
+	},
+}
 
 func TestAdmissionController(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -56,6 +72,13 @@ var _ = BeforeSuite(func() {
 	namespace, err := kubeClient.CreateNamespace(ns, nil)
 	Ω(err).ShouldNot(HaveOccurred())
 	Ω(namespace.Status.Phase).Should(Equal(v1.NamespaceActive))
+
+	By("Get the default ConfigMap and copy it")
+	cm, err := kubeClient.GetConfigMaps(configmanager.YuniKornTestConfig.YkNamespace, constants.DefaultConfigMapName)
+	Ω(err).ShouldNot(HaveOccurred())
+
+	oldConfigMap = cm.DeepCopy()
+	Ω(cm).Should(BeEquivalentTo(oldConfigMap))
 })
 
 var _ = AfterSuite(func() {
@@ -66,7 +89,12 @@ var _ = AfterSuite(func() {
 	err := kubeClient.DeleteNamespace(ns)
 	Ω(err).ShouldNot(HaveOccurred())
 
-	By("Deleting the pod in blacklist")
-	err = kubeClient.DeletePod(sleepPodName, blackNs)
+	By("Restore the old config maps")
+	c, err := kubeClient.GetConfigMaps(configmanager.YuniKornTestConfig.YkNamespace, configmanager.DefaultYuniKornConfigMap)
 	Ω(err).ShouldNot(HaveOccurred())
+
+	c.Data = oldConfigMap.Data
+	cm, err := kubeClient.UpdateConfigMap(c, configmanager.YuniKornTestConfig.YkNamespace)
+	Ω(err).NotTo(HaveOccurred())
+	Ω(cm).NotTo(BeNil())
 })
