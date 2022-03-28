@@ -35,6 +35,48 @@ const (
 	HostEmpty = ""
 )
 
+func TestAddPod(t *testing.T) {
+	mockedSchedulerAPI := newMockSchedulerAPI()
+	nodes := newSchedulerNodes(mockedSchedulerAPI, NewTestSchedulerCache())
+	host1 := utils.NodeForTest(Host1, "10G", "10")
+	host2 := utils.NodeForTest(Host2, "10G", "10")
+	nodes.addNode(host1)
+	nodes.addNode(host2)
+	coordinator := newNodeResourceCoordinator(nodes)
+
+	// pod is not assigned to any node
+	// this won't trigger an update
+	pod := utils.PodForTest("pod1", "1G", "500m")
+	pod.Status.Phase = v1.PodPending
+	pod.Status.Phase = v1.PodPending
+	pod.Spec.NodeName = ""
+	mockedSchedulerAPI.UpdateNodeFn = func(request *si.NodeRequest) error {
+		t.Fatalf("update should not run because state is not changed")
+		return nil
+	}
+	coordinator.addPod(pod)
+
+	// pod is already assigned to a node and state is running
+	// this will trigger an update
+	pod.Status.Phase = v1.PodRunning
+	pod.Spec.NodeName = Host1
+	executed := false
+	mockedSchedulerAPI.UpdateNodeFn = func(request *si.NodeRequest) error {
+		executed = true
+		assert.Equal(t, len(request.Nodes), 1)
+		updatedNode := request.Nodes[0]
+		assert.Equal(t, updatedNode.NodeID, Host1)
+		assert.Equal(t, updatedNode.Action, si.NodeInfo_UPDATE)
+		assert.Equal(t, updatedNode.SchedulableResource.Resources[constants.Memory].Value, int64(10000*1000*1000))
+		assert.Equal(t, updatedNode.SchedulableResource.Resources[constants.CPU].Value, int64(10000))
+		assert.Equal(t, updatedNode.OccupiedResource.Resources[constants.Memory].Value, int64(1000*1000*1000))
+		assert.Equal(t, updatedNode.OccupiedResource.Resources[constants.CPU].Value, int64(500))
+		return nil
+	}
+	coordinator.addPod(pod)
+	assert.Assert(t, executed)
+}
+
 func TestUpdatePod(t *testing.T) {
 	mockedSchedulerApi := newMockSchedulerAPI()
 	nodes := newSchedulerNodes(mockedSchedulerApi, NewTestSchedulerCache())
