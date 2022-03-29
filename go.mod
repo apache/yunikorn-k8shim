@@ -71,7 +71,3 @@ replace (
 	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.20.11
 	vbom.ml/util => github.com/fvbommel/util v0.0.0-20160121211510-db5cfe13f5cc
 )
-
-replace github.com/apache/yunikorn-core => ../yunikorn-core
-
-replace github.com/apache/yunikorn-scheduler-interface => ../yunikorn-scheduler-interface
