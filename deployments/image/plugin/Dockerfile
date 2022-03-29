@@ -28,11 +28,26 @@ ADD start-yunikorn-plugin.sh /opt/yunikorn/bin/start-yunikorn-plugin.sh
 ADD scheduler-config.yaml /opt/yunikorn/work/scheduler-config.yaml
 RUN chmod 755 /opt/yunikorn/bin/*
 
+ENV CLUSTER_ID "mycluster"
+ENV CLUSTER_VERSION "latest"
+ENV POLICY_GROUP "queues"
+ENV SCHEDULING_INTERVAL "1s"
+ENV LOG_LEVEL "0"
+ENV LOG_ENCODING "console"
+ENV EVENT_CHANNEL_CAPACITY "1048576"
+ENV DISPATCHER_TIMEOUT "300s"
+ENV KUBE_CLIENT_QPS "1000"
+ENV KUBE_CLIENT_BURST "1000"
+ENV OPERATOR_PLUGINS "general"
+ENV ENABLE_CONFIG_HOT_REFRESH "true"
+ENV DISABLE_GANG_SCHEDULING "false"
+ENV USER_LABEL_KEY "yunikorn.apache.org/username"
 ENV ADDRESS "0.0.0.0"
 ENV LEADER_ELECT "false"
 ENV SCHEDULER_CONFIG "scheduler-config.yaml"
 ENV VERBOSITY "2"
 ENV SCHEDULER_NAME "yunikorn"
+ENV PLACEHOLDER_IMAGE "k8s.gcr.io/pause"
 
 WORKDIR /opt/yunikorn/work
 USER yunikorn
