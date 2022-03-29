@@ -132,6 +132,8 @@ func NewSchedulerConf() *conf.SchedulerConf {
 			configuration.UserLabelKey = getStringArg(flag, constants.DefaultUserLabel)
 		case ArgOperatorPlugins:
 			configuration.OperatorPlugins = getStringArg(flag, "general,"+constants.AppManagerHandlerName)
+		case ArgPlaceHolderImage:
+			configuration.PlaceHolderImage = getStringArg(flag, constants.PlaceholderContainerImage)
 		}
 	})
 

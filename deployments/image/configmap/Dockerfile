@@ -27,22 +27,6 @@ ADD k8s_yunikorn_scheduler /opt/yunikorn/bin/k8s_yunikorn_scheduler
 ADD start-yunikorn.sh /opt/yunikorn/bin/start-yunikorn.sh
 RUN chmod 755 /opt/yunikorn/bin/*
 
-ENV CLUSTER_ID "mycluster"
-ENV CLUSTER_VERSION "latest"
-ENV POLICY_GROUP "queues"
-ENV SCHEDULING_INTERVAL "1s"
-ENV LOG_LEVEL "0"
-ENV LOG_ENCODING "console"
-ENV VOLUME_BINDING_TIMEOUT "10s"
-ENV EVENT_CHANNEL_CAPACITY "1048576"
-ENV DISPATCHER_TIMEOUT "300s"
-ENV KUBE_CLIENT_QPS "1000"
-ENV KUBE_CLIENT_BURST "1000"
-ENV OPERATOR_PLUGINS "general"
-ENV ENABLE_CONFIG_HOT_REFRESH "true"
-ENV DISABLE_GANG_SCHEDULING "false"
-ENV USER_LABEL_KEY "yunikorn.apache.org/username"
-
 WORKDIR /opt/yunikorn/work
 USER yunikorn
 ENTRYPOINT /opt/yunikorn/bin/start-yunikorn.sh

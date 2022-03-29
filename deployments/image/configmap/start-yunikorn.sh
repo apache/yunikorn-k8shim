@@ -17,20 +17,23 @@
 # limitations under the License.
 
 cd /opt/yunikorn/work
-exec /opt/yunikorn/bin/k8s_yunikorn_scheduler \
-  -clusterId="${CLUSTER_ID}" \
-  -clusterVersion="${CLUSTER_VERSION}" \
-  -policyGroup="${POLICY_GROUP}" \
-  -interval="${SCHEDULING_INTERVAL}" \
-  -logLevel="${LOG_LEVEL}" \
-  -logEncoding="${LOG_ENCODING}" \
-  -volumeBindTimeout="${VOLUME_BINDING_TIMEOUT}" \
-  -eventChannelCapacity="${EVENT_CHANNEL_CAPACITY}" \
-  -dispatchTimeout="${DISPATCHER_TIMEOUT}" \
-  -kubeQPS="${KUBE_CLIENT_QPS}" \
-  -kubeBurst="${KUBE_CLIENT_BURST}" \
-  -operatorPlugins="${OPERATOR_PLUGINS}" \
-  -enableConfigHotRefresh="${ENABLE_CONFIG_HOT_REFRESH}" \
-  -disableGangScheduling="${DISABLE_GANG_SCHEDULING}" \
-  -userLabelKey="${USER_LABEL_KEY}" \
-  -placeHolderImage="${PLACEHOLDER_IMAGE}"
+
+[ -n "$CLUSTER_ID" ] && ARGS="$ARGS -clusterId=$CLUSTER_ID"
+[ -n "$CLUSTER_VERSION" ] && ARGS="$ARGS -clusterVersion=$CLUSTER_VERSION"
+[ -n "$POLICY_GROUP" ] && ARGS="$ARGS -policyGroup=$POLICY_GROUP"
+[ -n "$SCHEDULING_INTERVAL" ] && ARGS="$ARGS -interval=$SCHEDULING_INTERVAL"
+[ -n "$LOG_LEVEL" ] && ARGS="$ARGS -logLevel=$LOG_LEVEL"
+[ -n "$LOG_ENCODING" ] && ARGS="$ARGS -logEncoding=$LOG_ENCODING"
+[ -n "$VOLUME_BINDING_TIMEOUT" ] && ARGS="$ARGS -volumeBindTimeout=$VOLUME_BINDING_TIMEOUT"
+[ -n "$EVENT_CHANNEL_CAPACITY" ] && ARGS="$ARGS -eventChannelCapacity=$EVENT_CHANNEL_CAPACITY"
+[ -n "$DISPATCHER_TIMEOUT" ] && ARGS="$ARGS -dispatchTimeout=$DISPATCHER_TIMEOUT"
+[ -n "$KUBE_CLIENT_QPS" ] && ARGS="$ARGS -kubeQPS=$KUBE_CLIENT_QPS"
+[ -n "$KUBE_CLIENT_BURST" ] && ARGS="$ARGS -kubeBurst=$KUBE_CLIENT_BURST"
+[ -n "$OPERATOR_PLUGINS" ] && ARGS="$ARGS -operatorPlugins=$OPERATOR_PLUGINS"
+[ -n "$ENABLE_CONFIG_HOT_REFRESH" ] && ARGS="$ARGS -enableConfigHotRefresh=$ENABLE_CONFIG_HOT_REFRESH"
+[ -n "$DISABLE_GANG_SCHEDULING" ] && ARGS="$ARGS -disableGangScheduling=$DISABLE_GANG_SCHEDULING"
+[ -n "$USER_LABEL_KEY" ] && ARGS="$ARGS -userLabelKey=$USER_LABEL_KEY"
+[ -n "$PLACEHOLDER_IMAGE" ] && ARGS="$ARGS -placeHolderImage=$PLACEHOLDER_IMAGE"
+
+echo "Arguments passed to Yunikorn: $ARGS"
+exec /opt/yunikorn/bin/k8s_yunikorn_scheduler $ARGS
