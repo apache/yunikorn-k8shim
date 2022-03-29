@@ -42,6 +42,7 @@ ENV OPERATOR_PLUGINS "general"
 ENV ENABLE_CONFIG_HOT_REFRESH "true"
 ENV DISABLE_GANG_SCHEDULING "false"
 ENV USER_LABEL_KEY "yunikorn.apache.org/username"
+ENV PLACEHOLDER_IMAGE "k8s.gcr.io/pause"
 
 WORKDIR /opt/yunikorn/work
 USER yunikorn
