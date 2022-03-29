@@ -39,9 +39,7 @@ func TestAddPod(t *testing.T) {
 	mockedSchedulerAPI := newMockSchedulerAPI()
 	nodes := newSchedulerNodes(mockedSchedulerAPI, NewTestSchedulerCache())
 	host1 := utils.NodeForTest(Host1, "10G", "10")
-	host2 := utils.NodeForTest(Host2, "10G", "10")
 	nodes.addNode(host1)
-	nodes.addNode(host2)
 	coordinator := newNodeResourceCoordinator(nodes)
 
 	// pod is not assigned to any node
