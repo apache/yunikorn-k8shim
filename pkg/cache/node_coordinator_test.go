@@ -48,7 +48,6 @@ func TestAddPod(t *testing.T) {
 	// this won't trigger an update
 	pod := utils.PodForTest("pod1", "1G", "500m")
 	pod.Status.Phase = v1.PodPending
-	pod.Status.Phase = v1.PodPending
 	pod.Spec.NodeName = ""
 	mockedSchedulerAPI.UpdateNodeFn = func(request *si.NodeRequest) error {
 		t.Fatalf("update should not run because state is not changed")
