@@ -209,8 +209,9 @@ func (cache *SchedulerCache) StartPodAllocation(podKey string, nodeID string) bo
 	if ok && expectedNodeID == nodeID {
 		delete(cache.pendingAllocations, podKey)
 		cache.inProgressAllocations[podKey] = nodeID
+		return true
 	}
-	return ok
+	return false
 }
 
 // return if pod is assumed in cache, avoid nil
