@@ -188,14 +188,6 @@ function install_cluster() {
   exit_on_error "failed to wait for yunikorn scheduler deployment being deployed"
   kubectl wait --for=condition=ready --timeout=300s pod -l app=yunikorn -n yunikorn
   exit_on_error "failed to wait for yunikorn scheduler pods being deployed"
-
-  # forward rest server port 9080 as long as yk ns exists, so the e2e test code can verify cluster state via rest calls.
-  while kubectl get namespace | grep yunikorn >/dev/null 2>&1; \
-    do kubectl port-forward svc/yunikorn-service 9080:9080 -n yunikorn > /dev/null 2>&1; \
-    done &
-  exit_on_error "failed to forward rest server port 9080"
-  kubectl describe deployment yunikorn-scheduler -n yunikorn
-  exit_on_error "failed to describe yunikorn scheduler deployment"
 }
 
 function delete_cluster() {

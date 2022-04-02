@@ -46,9 +46,12 @@ var annotation string
 
 var _ = BeforeSuite(func() {
 	annotation = "ann-" + common.RandSeq(10)
-	By("Enable basic scheduling config over config maps")
 	Ω(k.SetClient()).To(BeNil())
-	var c, err = k.GetConfigMaps(configmanager.YuniKornTestConfig.YkNamespace,
+	By("Port-forward the scheduler pod")
+	err := k.PortForwardYkSchedulerPod()
+	Ω(err).NotTo(HaveOccurred())
+	By("Enable basic scheduling config over config maps")
+	c, err := k.GetConfigMaps(configmanager.YuniKornTestConfig.YkNamespace,
 		configmanager.DefaultYuniKornConfigMap)
 	Ω(err).NotTo(HaveOccurred())
 	Ω(c).NotTo(BeNil())

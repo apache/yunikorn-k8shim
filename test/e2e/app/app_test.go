@@ -42,6 +42,11 @@ var _ = ginkgo.Describe("App", func() {
 		// Initializing kubectl client and create test namespace
 		kClient = k8s.KubeCtl{}
 		gomega.Ω(kClient.SetClient()).To(gomega.BeNil())
+
+		ginkgo.By("Port-forward the scheduler pod")
+		err := kClient.PortForwardYkSchedulerPod()
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+
 		ginkgo.By("create apptest namespace")
 		ns, err := kClient.CreateNamespace(dev, nil)
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
