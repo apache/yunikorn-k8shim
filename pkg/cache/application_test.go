@@ -893,11 +893,43 @@ func TestTryReservePostRestart(t *testing.T) {
 
 func TestTriggerAppRecovery(t *testing.T) {
 	// Trigger app recovery should be successful if the app is in New state
+	mockScheduler := newMockSchedulerAPI()
+	var savedAppRequest *si.ApplicationRequest
+	mockScheduler.UpdateApplicationFn = func(request *si.ApplicationRequest) error {
+		savedAppRequest = request
+		return nil
+	}
+
 	app := NewApplication("app00001", "root.abc", "test-user",
-		map[string]string{}, newMockSchedulerAPI())
+		map[string]string{}, mockScheduler)
+	app.placeholderAsk = &si.Resource{
+		Resources: map[string]*si.Quantity{
+			"memory": {Value: 100},
+		},
+	}
+	app.placeholderTimeoutInSec = 1
+	app.tags = map[string]string{
+		"testkey": "testvalue",
+	}
+	app.schedulingStyle = "soft"
+
 	err := app.TriggerAppRecovery()
 	assert.NilError(t, err)
 	assert.Equal(t, app.GetApplicationState(), events.States().Application.Recovering)
+	assert.Assert(t, savedAppRequest != nil, "update function was not called")
+	assert.Equal(t, 1, len(savedAppRequest.New))
+	appRequest := savedAppRequest.New[0]
+	assert.Assert(t, appRequest.PlaceholderAsk != nil, "PlaceholderAsk is not set")
+	assert.Equal(t, appRequest.PlaceholderAsk.Resources["memory"].Value, int64(100))
+	assert.Equal(t, "app00001", appRequest.ApplicationID)
+	assert.Equal(t, appRequest.QueueName, "root.abc")
+	assert.Equal(t, appRequest.PartitionName, "default")
+	assert.Equal(t, appRequest.ExecutionTimeoutMilliSeconds, int64(1000))
+	assert.Equal(t, appRequest.GangSchedulingStyle, "soft")
+	assert.Assert(t, appRequest.Tags != nil, "Tags are not set")
+	assert.Equal(t, appRequest.Tags["testkey"], "testvalue")
+	assert.Assert(t, appRequest.Ugi != nil, "Ugi is not set")
+	assert.Equal(t, appRequest.Ugi.User, "test-user")
 
 	// Trigger app recovery should be failed if the app already leaves New state
 	app = NewApplication("app00001", "root.abc", "test-user",

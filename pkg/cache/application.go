@@ -51,6 +51,7 @@ type Application struct {
 	tags                       map[string]string
 	schedulingPolicy           v1alpha1.SchedulingPolicy
 	taskGroups                 []v1alpha1.TaskGroup
+	taskGroupsDefinition       string
 	placeholderOwnerReferences []metav1.OwnerReference
 	sm                         *fsm.FSM
 	lock                       *sync.RWMutex
@@ -230,6 +231,18 @@ func (app *Application) getSchedulingPolicy() v1alpha1.SchedulingPolicy {
 	app.lock.RLock()
 	defer app.lock.RUnlock()
 	return app.schedulingPolicy
+}
+
+func (app *Application) setTaskGroupsDefinition(taskGroupsDef string) {
+	app.lock.Lock()
+	defer app.lock.Unlock()
+	app.taskGroupsDefinition = taskGroupsDef
+}
+
+func (app *Application) GetTaskGroupsDefinition() string {
+	app.lock.RLock()
+	defer app.lock.RUnlock()
+	return app.taskGroupsDefinition
 }
 
 func (app *Application) setTaskGroups(taskGroups []v1alpha1.TaskGroup) {
@@ -476,6 +489,7 @@ func (app *Application) handleRecoverApplicationEvent(event *fsm.Event) {
 						User: app.user,
 					},
 					Tags:                         app.tags,
+					PlaceholderAsk:               app.placeholderAsk,
 					ExecutionTimeoutMilliSeconds: app.placeholderTimeoutInSec * 1000,
 					GangSchedulingStyle:          app.schedulingStyle,
 				},
