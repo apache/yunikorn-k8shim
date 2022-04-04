@@ -108,7 +108,6 @@ func (ctx *Context) AddSchedulingEventHandlers() {
 	ctx.apiProvider.AddEventHandler(&client.ResourceEventHandlers{
 		Type:     client.PodInformerHandlers,
 		FilterFn: nodeCoordinator.filterPods,
-		AddFn:    nodeCoordinator.addPod,
 		UpdateFn: nodeCoordinator.updatePod,
 		DeleteFn: nodeCoordinator.deletePod,
 	})

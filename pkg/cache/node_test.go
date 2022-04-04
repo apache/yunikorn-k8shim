@@ -51,14 +51,24 @@ func TestAddExistingAllocation(t *testing.T) {
 	assert.Equal(t, alloc02.PartitionName, alloc01.PartitionName)
 }
 
-func TestSetOccupiedResource(t *testing.T) {
+func TestUpdateOccupiedResource(t *testing.T) {
 	node := NewTestSchedulerNode()
 	r1 := common.NewResourceBuilder().
-		AddResource(constants.Memory, 2).
-		AddResource(constants.CPU, 2).
+		AddResource(constants.Memory, 5).
+		AddResource(constants.CPU, 5).
 		Build()
-	node.setOccupiedResource(r1)
-	assert.Equal(t, node.occupied, r1)
+	r2 := common.NewResourceBuilder().
+		AddResource(constants.Memory, 1).
+		AddResource(constants.CPU, 1).
+		Build()
+	r3 := common.NewResourceBuilder().
+		AddResource(constants.Memory, 4).
+		AddResource(constants.CPU, 4).
+		Build()
+	node.updateOccupiedResource(r1, AddOccupiedResource)
+	assert.DeepEqual(t, node.occupied, r1)
+	node.updateOccupiedResource(r2, SubOccupiedResource)
+	assert.DeepEqual(t, node.occupied, r3)
 }
 
 func NewTestSchedulerNode() *SchedulerNode {

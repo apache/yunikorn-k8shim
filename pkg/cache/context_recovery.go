@@ -98,19 +98,31 @@ func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) err
 			pod := podList.Items[i]
 			// only handle assigned pods
 			if !utils.IsAssignedPod(&pod) {
+				log.Logger().Info("Skipping unassigned pod",
+					zap.String("podUID", string(pod.UID)),
+					zap.String("podName", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)))
 				continue
 			}
 			// yunikorn scheduled pods add to existing allocations
 			if utils.GeneralPodFilter(&pod) {
 				if existingAlloc := getExistingAllocation(mgr, &pod); existingAlloc != nil {
-					log.Logger().Debug("existing allocation",
+					log.Logger().Debug("Adding resources for existing pod",
 						zap.String("appID", existingAlloc.ApplicationID),
 						zap.String("podUID", string(pod.UID)),
-						zap.String("podNodeName", existingAlloc.NodeID))
+						zap.String("podName", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)),
+						zap.String("nodeName", existingAlloc.NodeID),
+						zap.Stringer("resources", common.GetPodResource(&pod)))
 					existingAlloc.AllocationTags = common.CreateTagsForTask(&pod)
 					if err = ctx.nodes.addExistingAllocation(existingAlloc); err != nil {
-						log.Logger().Warn("add existing allocation failed", zap.Error(err))
+						log.Logger().Warn("Failed to add existing allocation", zap.Error(err))
 					}
+				} else {
+					log.Logger().Warn("No allocation found for existing pod",
+						zap.String("appID", existingAlloc.ApplicationID),
+						zap.String("podUID", string(pod.UID)),
+						zap.String("podName", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)),
+						zap.String("nodeName", existingAlloc.NodeID),
+						zap.Stringer("resources", common.GetPodResource(&pod)))
 				}
 			} else if !utils.IsPodTerminated(&pod) {
 				// pod is not terminated (succeed or failed) state,
@@ -121,9 +133,19 @@ func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) err
 				if occupiedResource == nil {
 					occupiedResource = common.NewResourceBuilder().Build()
 				}
-				occupiedResource = common.Add(occupiedResource, common.GetPodResource(&pod))
+				podResource := common.GetPodResource(&pod)
+				log.Logger().Debug("Adding resources for occupied pod",
+					zap.String("podUID", string(pod.UID)),
+					zap.String("podName", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)),
+					zap.String("nodeName", pod.Spec.NodeName),
+					zap.Stringer("resources", podResource))
+				occupiedResource = common.Add(occupiedResource, podResource)
 				nodeOccupiedResources[pod.Spec.NodeName] = occupiedResource
 				ctx.nodes.cache.AddPod(&pod)
+			} else {
+				log.Logger().Debug("Skipping terminated pod",
+					zap.String("podUID", string(pod.UID)),
+					zap.String("podName", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)))
 			}
 		}
 
@@ -136,11 +158,25 @@ func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) err
 		// doesn't have enough capacity (occupied resources not yet reported).
 		for nodeName, occupiedResource := range nodeOccupiedResources {
 			if cachedNode := ctx.nodes.getNode(nodeName); cachedNode != nil {
-				cachedNode.setOccupiedResource(occupiedResource)
+				cachedNode.updateOccupiedResource(occupiedResource, AddOccupiedResource)
 			}
 		}
 	}
 
+	// start new nodes
+	for _, node := range ctx.nodes.nodesMap {
+		log.Logger().Info("node state",
+			zap.String("nodeName", node.name),
+			zap.String("nodeState", node.getNodeState()))
+		if node.getNodeState() == events.States().Node.New {
+			dispatcher.Dispatch(CachedSchedulerNodeEvent{
+				NodeID: node.name,
+				Event:  events.RecoverNode,
+			})
+		}
+	}
+
+	// wait for nodes to be recovered
 	if err = utils.WaitForCondition(func() bool {
 		nodesRecovered := 0
 		for _, node := range ctx.nodes.nodesMap {
@@ -148,11 +184,6 @@ func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) err
 				zap.String("nodeName", node.name),
 				zap.String("nodeState", node.getNodeState()))
 			switch node.getNodeState() {
-			case events.States().Node.New:
-				dispatcher.Dispatch(CachedSchedulerNodeEvent{
-					NodeID: node.name,
-					Event:  events.RecoverNode,
-				})
 			case events.States().Node.Healthy:
 				nodesRecovered++
 			case events.States().Node.Draining:

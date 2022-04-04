@@ -206,12 +206,14 @@ func TestCreateTagsForTask(t *testing.T) {
 
 func TestCreateUpdateRequestForNewNode(t *testing.T) {
 	capacity := NewResourceBuilder().AddResource(constants.Memory, 200).AddResource(constants.CPU, 2).Build()
+	occupied := NewResourceBuilder().AddResource(constants.Memory, 50).AddResource(constants.CPU, 1).Build()
 	var existingAllocations []*si.Allocation
 	ready := true
-	request := CreateUpdateRequestForNewNode(nodeID, capacity, existingAllocations, ready)
+	request := CreateUpdateRequestForNewNode(nodeID, capacity, occupied, existingAllocations, ready)
 	assert.Equal(t, len(request.Nodes), 1)
 	assert.Equal(t, request.Nodes[0].NodeID, nodeID)
 	assert.Equal(t, request.Nodes[0].SchedulableResource, capacity)
+	assert.Equal(t, request.Nodes[0].OccupiedResource, occupied)
 	assert.Equal(t, len(request.Nodes[0].Attributes), 3)
 	assert.Equal(t, request.Nodes[0].Attributes[constants.DefaultNodeAttributeHostNameKey], nodeID)
 	assert.Equal(t, request.Nodes[0].Attributes[constants.DefaultNodeAttributeRackNameKey], constants.DefaultRackName)

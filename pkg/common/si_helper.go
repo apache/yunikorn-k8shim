@@ -135,13 +135,14 @@ func CreateReleaseAllocationRequestForTask(appID, allocUUID, partition, terminat
 }
 
 // CreateUpdateRequestForNewNode builds a NodeRequest for new node addition and restoring existing node
-func CreateUpdateRequestForNewNode(nodeID string, capacity *si.Resource, existingAllocations []*si.Allocation,
-	ready bool) si.NodeRequest {
+func CreateUpdateRequestForNewNode(nodeID string, capacity *si.Resource, occupied *si.Resource,
+	existingAllocations []*si.Allocation, ready bool) si.NodeRequest {
 	// Use node's name as the NodeID, this is because when bind pod to node,
 	// name of node is required but uid is optional.
 	nodeInfo := &si.NodeInfo{
 		NodeID:              nodeID,
 		SchedulableResource: capacity,
+		OccupiedResource:    occupied,
 		Attributes: map[string]string{
 			constants.DefaultNodeAttributeHostNameKey: nodeID,
 			constants.DefaultNodeAttributeRackNameKey: constants.DefaultRackName,
