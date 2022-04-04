@@ -38,6 +38,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	authv1 "k8s.io/api/rbac/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/httpstream"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
@@ -276,7 +277,8 @@ func (k *KubeCtl) GetService(serviceName string, namespace string) (*v1.Service,
 
 // Func to create a namespace provided a name
 func (k *KubeCtl) CreateNamespace(namespace string, annotations map[string]string) (*v1.Namespace, error) {
-	return k.clientSet.CoreV1().Namespaces().Create(context.TODO(), &v1.Namespace{
+	// create namespace
+	ns, err := k.clientSet.CoreV1().Namespaces().Create(context.TODO(), &v1.Namespace{
 		TypeMeta: metav1.TypeMeta{},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        namespace,
@@ -286,6 +288,33 @@ func (k *KubeCtl) CreateNamespace(namespace string, annotations map[string]strin
 		Spec:   v1.NamespaceSpec{},
 		Status: v1.NamespaceStatus{},
 	}, metav1.CreateOptions{})
+	if err != nil {
+		return ns, err
+	}
+
+	// wait for default service account to be present
+	if err = k.WaitForServiceAccountPresent(namespace, "default", 60*time.Second); err != nil {
+		return nil, err
+	}
+
+	return ns, nil
+}
+
+func (k *KubeCtl) WaitForServiceAccountPresent(namespace string, svcAcctName string, timeout time.Duration) error {
+	return wait.PollImmediate(time.Second, timeout, k.isServiceAccountPresent(namespace, svcAcctName))
+}
+
+func (k *KubeCtl) isServiceAccountPresent(namespace string, svcAcctName string) wait.ConditionFunc {
+	return func() (bool, error) {
+		_, err := k.clientSet.CoreV1().ServiceAccounts(namespace).Get(context.Background(), svcAcctName, metav1.GetOptions{})
+		if err != nil {
+			if k8serrors.IsNotFound(err) {
+				return false, nil
+			}
+			return false, err
+		}
+		return true, nil
+	}
 }
 
 func (k *KubeCtl) DeleteNamespace(namespace string) error {
@@ -391,7 +420,7 @@ func (k *KubeCtl) isPodNotInNS(podName string, namespace string) wait.ConditionF
 }
 
 func (k *KubeCtl) WaitForPodTerminated(namespace string, podName string, timeout time.Duration) error {
-	return wait.PollImmediate(time.Second, timeout*time.Second, k.isPodNotInNS(podName, namespace))
+	return wait.PollImmediate(time.Second, timeout, k.isPodNotInNS(podName, namespace))
 }
 
 // Poll up to timeout seconds for pod to enter running state.
