@@ -20,7 +20,6 @@ package cache
 
 import (
 	"fmt"
-
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -69,6 +68,7 @@ func newPlaceholder(placeholderName string, app *Application, taskGroup v1alpha1
 			Annotations: utils.MergeMaps(taskGroup.Annotations, map[string]string{
 				constants.AnnotationPlaceholderFlag: "true",
 				constants.AnnotationTaskGroupName:   taskGroup.Name,
+				constants.AnnotationTaskGroups:      app.GetTaskGroupsDefinition(),
 			}),
 			OwnerReferences: ownerRefs,
 		},

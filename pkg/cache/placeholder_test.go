@@ -19,6 +19,7 @@
 package cache
 
 import (
+	"encoding/json"
 	"testing"
 
 	"gotest.tools/assert"
@@ -60,7 +61,7 @@ func TestNewPlaceholder(t *testing.T) {
 	assert.Equal(t, len(holder.pod.Labels), 3)
 	assert.Equal(t, holder.pod.Labels[constants.LabelApplicationID], appID)
 	assert.Equal(t, holder.pod.Labels[constants.LabelQueueName], queue)
-	assert.Equal(t, len(holder.pod.Annotations), 2)
+	assert.Equal(t, len(holder.pod.Annotations), 3)
 	assert.Equal(t, holder.pod.Annotations[constants.AnnotationTaskGroupName], app.taskGroups[0].Name)
 	assert.Equal(t, common.GetPodResource(holder.pod).Resources[constants.CPU].Value, int64(500))
 	assert.Equal(t, common.GetPodResource(holder.pod).Resources[constants.Memory].Value, int64(1024*1000*1000))
@@ -80,7 +81,7 @@ func TestNewPlaceholderWithLabelsAndAnnotations(t *testing.T) {
 	mockedSchedulerAPI := newMockSchedulerAPI()
 	app := NewApplication(appID, queue,
 		"bob", map[string]string{constants.AppTagNamespace: namespace}, mockedSchedulerAPI)
-	app.setTaskGroups([]v1alpha1.TaskGroup{
+	taskGroups := []v1alpha1.TaskGroup{
 		{
 			Name:      "test-group-1",
 			MinMember: 10,
@@ -98,16 +99,23 @@ func TestNewPlaceholderWithLabelsAndAnnotations(t *testing.T) {
 				"annotationKey2": "annotationValue2",
 			},
 		},
-	})
+	}
+	app.setTaskGroups(taskGroups)
+	marshalledTaskGroups, err := json.Marshal(taskGroups)
+	assert.NilError(t, err, "taskGroups marshalling failed")
+	app.setTaskGroupsDefinition(string(marshalledTaskGroups))
 
 	holder := newPlaceholder("ph-name", app, app.taskGroups[0])
 	assert.Equal(t, len(holder.pod.Labels), 5)
-	assert.Equal(t, len(holder.pod.Annotations), 5)
+	assert.Equal(t, len(holder.pod.Annotations), 6)
 	assert.Equal(t, holder.pod.Labels["labelKey0"], "labelKeyValue0")
 	assert.Equal(t, holder.pod.Labels["labelKey1"], "labelKeyValue1")
 	assert.Equal(t, holder.pod.Annotations["annotationKey0"], "annotationValue0")
 	assert.Equal(t, holder.pod.Annotations["annotationKey1"], "annotationValue1")
 	assert.Equal(t, holder.pod.Annotations["annotationKey2"], "annotationValue2")
+	var taskGroupsDef []v1alpha1.TaskGroup
+	err = json.Unmarshal([]byte(holder.pod.Annotations["yunikorn.apache.org/task-groups"]), &taskGroupsDef)
+	assert.NilError(t, err, "taskGroupsDef unmarshal failed")
 }
 
 func TestNewPlaceholderWithNodeSelectors(t *testing.T) {
