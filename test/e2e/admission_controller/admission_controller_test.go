@@ -28,7 +28,6 @@ import (
 
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
-	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
 )
@@ -43,39 +42,30 @@ var _ = ginkgo.Describe("AdmissionController", func() {
 	ginkgo.It("Verifying a pod is created in the test namespace", func() {
 
 		ginkgo.By("has 1 running pod whose SchedulerName is yunikorn")
-		sleepPodConfigs := common.SleepPodConfig{Name: sleepPodName, NS: ns}
-		sleepRespPod, err := kubeClient.CreatePod(common.InitSleepPod(sleepPodConfigs), ns)
+		pod, err := kubeClient.CreatePod(&testPod, ns)
 		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
 
 		// Wait for pod to move into running state
 		err = kubeClient.WaitForPodBySelectorRunning(ns,
-			fmt.Sprintf("app=%s", sleepRespPod.ObjectMeta.Labels["app"]), 10)
+			fmt.Sprintf("app=%s", pod.ObjectMeta.Labels["app"]), 10)
 		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
-		gomega.Ω(sleepRespPod.Spec.SchedulerName).Should(gomega.BeEquivalentTo(constants.SchedulerName))
+		gomega.Ω(pod.Spec.SchedulerName).Should(gomega.BeEquivalentTo(constants.SchedulerName))
 	})
 
 	ginkgo.It("Verifying a pod is created on namespace blacklist", func() {
 		ginkgo.By("Create a pod in namespace blacklist")
+		pod, err := kubeClient.CreatePod(&testPod, blackNs)
+		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
 
-		pod := &v1.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: sleepPodName,
-			},
-			Spec: v1.PodSpec{
-				Containers: []v1.Container{
-					{
-						Name:    sleepPodName,
-						Image:   "alpine:latest",
-						Command: []string{"sleep", "30"},
-					},
-				},
-			},
-		}
-
-		pod, err := kubeClient.CreatePod(pod, blackNs)
+		err = kubeClient.WaitForPodBySelectorRunning(blackNs,
+			fmt.Sprintf("app=%s", pod.ObjectMeta.Labels["app"]), 10)
 		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
 		gomega.Ω(pod.Spec.SchedulerName).ShouldNot(gomega.BeEquivalentTo(constants.SchedulerName))
+
+		err = kubeClient.DeletePod(pod.Name, blackNs)
+		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
 	})
+
 	ginkgo.It("Verifying the scheduler configuration is overridden", func() {
 
 		invalidConfigMap := v1.ConfigMap{
@@ -89,6 +79,19 @@ var _ = ginkgo.Describe("AdmissionController", func() {
 		res, err := restClient.ValidateSchedulerConfig(invalidConfigMap)
 		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
 		gomega.Ω(res.Allowed).Should(gomega.BeEquivalentTo(false))
+	})
+
+	ginkgo.It("Configure the scheduler with invalid configmap", func() {
+		invalidConfigMap := v1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      constants.DefaultConfigMapName,
+				Namespace: configmanager.YuniKornTestConfig.YkNamespace,
+			},
+			Data: make(map[string]string),
+		}
+		invalidCm, err := kubeClient.UpdateConfigMap(&invalidConfigMap, configmanager.YuniKornTestConfig.YkNamespace)
+		gomega.Ω(err).Should(gomega.HaveOccurred())
+		gomega.Ω(invalidCm).ShouldNot(gomega.BeNil())
 	})
 
 	ginkgo.AfterEach(func() {
