@@ -318,7 +318,10 @@ func (k *KubeCtl) isServiceAccountPresent(namespace string, svcAcctName string) 
 }
 
 func (k *KubeCtl) DeleteNamespace(namespace string) error {
-	return k.clientSet.CoreV1().Namespaces().Delete(context.TODO(), namespace, metav1.DeleteOptions{})
+	var secs int64 = 0
+	return k.clientSet.CoreV1().Namespaces().Delete(context.TODO(), namespace, metav1.DeleteOptions{
+		GracePeriodSeconds: &secs,
+	})
 }
 
 func (k *KubeCtl) TearDownNamespace(namespace string) error {
@@ -375,12 +378,25 @@ func (k *KubeCtl) CreatePod(pod *v1.Pod, namespace string) (*v1.Pod, error) {
 }
 
 func (k *KubeCtl) DeletePod(podName string, namespace string) error {
-	err := k.clientSet.CoreV1().Pods(namespace).Delete(context.TODO(), podName, metav1.DeleteOptions{})
+	var secs int64 = 0
+	err := k.clientSet.CoreV1().Pods(namespace).Delete(context.TODO(), podName, metav1.DeleteOptions{
+		GracePeriodSeconds: &secs,
+	})
 	if err != nil {
 		return err
 	}
 
 	err = k.WaitForPodTerminated(namespace, podName, 60*time.Second)
+	return err
+}
+
+func (k *KubeCtl) DeletePodGracefully(podName string, namespace string) error {
+	err := k.clientSet.CoreV1().Pods(namespace).Delete(context.TODO(), podName, metav1.DeleteOptions{})
+	if err != nil {
+		return err
+	}
+
+	err = k.WaitForPodTerminated(namespace, podName, 120*time.Second)
 	return err
 }
 
