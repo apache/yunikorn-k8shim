@@ -85,7 +85,7 @@ var _ = ginkgo.Describe("", func() {
 		ginkgo.By("Restart the scheduler pod")
 		schedulerPodName, err := kClient.GetSchedulerPod()
 		Ω(err).NotTo(gomega.HaveOccurred())
-		err = kClient.DeletePod(schedulerPodName, configmanager.YuniKornTestConfig.YkNamespace)
+		err = kClient.DeletePodGracefully(schedulerPodName, configmanager.YuniKornTestConfig.YkNamespace)
 		Ω(err).NotTo(gomega.HaveOccurred())
 		err = kClient.WaitForPodBySelectorRunning(configmanager.YuniKornTestConfig.YkNamespace, fmt.Sprintf("component=%s", configmanager.YKScheduler), 10)
 		Ω(err).NotTo(gomega.HaveOccurred())
