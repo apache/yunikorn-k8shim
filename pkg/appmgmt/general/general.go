@@ -113,7 +113,7 @@ func (os *Manager) getTaskMetadata(pod *v1.Pod) (interfaces.TaskMetadata, bool) 
 	}, true
 }
 
-func (os *Manager) getAppMetadata(pod *v1.Pod) (interfaces.ApplicationMetadata, bool) {
+func (os *Manager) getAppMetadataInternal(pod *v1.Pod, recovery bool) (interfaces.ApplicationMetadata, bool) {
 	appID, err := utils.GetApplicationIDFromPod(pod)
 	if err != nil {
 		log.Logger().Debug("unable to get application for pod",
@@ -154,6 +154,12 @@ func (os *Manager) getAppMetadata(pod *v1.Pod) (interfaces.ApplicationMetadata, 
 
 	ownerReferences := getOwnerReferences(pod)
 	schedulingPolicyParams := utils.GetSchedulingPolicyParam(pod)
+
+	var creationTime int64
+	if recovery {
+		creationTime = pod.CreationTimestamp.Time.Unix()
+	}
+
 	return interfaces.ApplicationMetadata{
 		ApplicationID:              appID,
 		QueueName:                  utils.GetQueueNameFromPod(pod),
@@ -162,7 +168,12 @@ func (os *Manager) getAppMetadata(pod *v1.Pod) (interfaces.ApplicationMetadata, 
 		TaskGroups:                 taskGroups,
 		OwnerReferences:            ownerReferences,
 		SchedulingPolicyParameters: schedulingPolicyParams,
+		CreationTime:               creationTime,
 	}, true
+}
+
+func (os *Manager) getAppMetadata(pod *v1.Pod) (interfaces.ApplicationMetadata, bool) {
+	return os.getAppMetadataInternal(pod, false)
 }
 
 func isStateAwareDisabled(pod *v1.Pod) bool {
@@ -339,7 +350,7 @@ func (os *Manager) ListApplications() (map[string]interfaces.ApplicationMetadata
 		// general filter passes, and pod is assigned
 		// this means the pod is already scheduled by scheduler for an existing app
 		if utils.GeneralPodFilter(pod) && utils.IsAssignedPod(pod) {
-			if meta, ok := os.getAppMetadata(pod); ok {
+			if meta, ok := os.getAppMetadataInternal(pod, true); ok {
 				podsRecovered++
 				log.Logger().Debug("Adding appID as recovery candidate", zap.String("appID", meta.ApplicationID))
 				if _, exist := existingApps[meta.ApplicationID]; !exist {

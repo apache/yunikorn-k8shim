@@ -22,6 +22,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -612,6 +613,9 @@ func (ctx *Context) AddApplication(request *interfaces.AddApplicationRequest) in
 		ctx.apiProvider.GetAPIs().SchedulerAPI)
 	app.setTaskGroups(request.Metadata.TaskGroups)
 	app.setTaskGroupsDefinition(request.Metadata.Tags[constants.AnnotationTaskGroups])
+	if request.Metadata.CreationTime != 0 {
+		app.tags["creationTime"] = strconv.FormatInt(request.Metadata.CreationTime, 10)
+	}
 	if request.Metadata.SchedulingPolicyParameters != nil {
 		app.SetPlaceholderTimeout(request.Metadata.SchedulingPolicyParameters.GetPlaceholderTimeout())
 		app.setSchedulingStyle(request.Metadata.SchedulingPolicyParameters.GetGangSchedulingStyle())
