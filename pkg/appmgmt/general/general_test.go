@@ -72,7 +72,7 @@ func TestGetAppMetadata(t *testing.T) {
 		},
 	}
 
-	app, ok := am.getAppMetadata(&pod)
+	app, ok := am.getAppMetadata(&pod, false)
 	assert.Equal(t, ok, true)
 	assert.Equal(t, app.ApplicationID, "app00001")
 	assert.Equal(t, app.QueueName, "root.a")
@@ -111,7 +111,7 @@ func TestGetAppMetadata(t *testing.T) {
 		},
 	}
 
-	app, ok = am.getAppMetadata(&pod)
+	app, ok = am.getAppMetadata(&pod, false)
 	assert.Equal(t, ok, true)
 	assert.Equal(t, app.ApplicationID, "app00002")
 	assert.Equal(t, app.QueueName, "root.b")
@@ -146,7 +146,7 @@ func TestGetAppMetadata(t *testing.T) {
 		},
 	}
 
-	app, ok = am.getAppMetadata(&pod)
+	app, ok = am.getAppMetadata(&pod, false)
 	assert.Equal(t, ok, true)
 	assert.Equal(t, app.SchedulingPolicyParameters.GetGangSchedulingStyle(), "Soft")
 
@@ -176,7 +176,7 @@ func TestGetAppMetadata(t *testing.T) {
 		},
 	}
 
-	app, ok = am.getAppMetadata(&pod)
+	app, ok = am.getAppMetadata(&pod, false)
 	assert.Equal(t, ok, true)
 	assert.Equal(t, app.SchedulingPolicyParameters.GetGangSchedulingStyle(), "Soft")
 
@@ -198,7 +198,7 @@ func TestGetAppMetadata(t *testing.T) {
 		},
 	}
 
-	app, ok = am.getAppMetadata(&pod)
+	app, ok = am.getAppMetadata(&pod, false)
 	assert.Equal(t, ok, false)
 	pod = v1.Pod{
 		TypeMeta: apis.TypeMeta{
@@ -218,7 +218,7 @@ func TestGetAppMetadata(t *testing.T) {
 		},
 	}
 
-	app, ok = am.getAppMetadata(&pod)
+	app, ok = am.getAppMetadata(&pod, false)
 	assert.Equal(t, ok, false)
 }
 

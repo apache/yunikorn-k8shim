@@ -113,7 +113,7 @@ func (os *Manager) getTaskMetadata(pod *v1.Pod) (interfaces.TaskMetadata, bool) 
 	}, true
 }
 
-func (os *Manager) getAppMetadataInternal(pod *v1.Pod, recovery bool) (interfaces.ApplicationMetadata, bool) {
+func (os *Manager) getAppMetadata(pod *v1.Pod, recovery bool) (interfaces.ApplicationMetadata, bool) {
 	appID, err := utils.GetApplicationIDFromPod(pod)
 	if err != nil {
 		log.Logger().Debug("unable to get application for pod",
@@ -157,7 +157,7 @@ func (os *Manager) getAppMetadataInternal(pod *v1.Pod, recovery bool) (interface
 
 	var creationTime int64
 	if recovery {
-		creationTime = pod.CreationTimestamp.Time.Unix()
+		creationTime = pod.CreationTimestamp.Unix()
 	}
 
 	return interfaces.ApplicationMetadata{
@@ -170,10 +170,6 @@ func (os *Manager) getAppMetadataInternal(pod *v1.Pod, recovery bool) (interface
 		SchedulingPolicyParameters: schedulingPolicyParams,
 		CreationTime:               creationTime,
 	}, true
-}
-
-func (os *Manager) getAppMetadata(pod *v1.Pod) (interfaces.ApplicationMetadata, bool) {
-	return os.getAppMetadataInternal(pod, false)
 }
 
 func isStateAwareDisabled(pod *v1.Pod) bool {
@@ -240,7 +236,7 @@ func (os *Manager) addPod(obj interface{}) {
 		zap.String("Namespace", pod.Namespace))
 
 	// add app
-	if appMeta, ok := os.getAppMetadata(pod); ok {
+	if appMeta, ok := os.getAppMetadata(pod, false); ok {
 		// check if app already exist
 		if app := os.amProtocol.GetApplication(appMeta.ApplicationID); app == nil {
 			os.amProtocol.AddApplication(&interfaces.AddApplicationRequest{
@@ -350,7 +346,7 @@ func (os *Manager) ListApplications() (map[string]interfaces.ApplicationMetadata
 		// general filter passes, and pod is assigned
 		// this means the pod is already scheduled by scheduler for an existing app
 		if utils.GeneralPodFilter(pod) && utils.IsAssignedPod(pod) {
-			if meta, ok := os.getAppMetadataInternal(pod, true); ok {
+			if meta, ok := os.getAppMetadata(pod, true); ok {
 				podsRecovered++
 				log.Logger().Debug("Adding appID as recovery candidate", zap.String("appID", meta.ApplicationID))
 				if _, exist := existingApps[meta.ApplicationID]; !exist {
@@ -371,7 +367,7 @@ func (os *Manager) ListApplications() (map[string]interfaces.ApplicationMetadata
 }
 
 func (os *Manager) GetExistingAllocation(pod *v1.Pod) *si.Allocation {
-	if meta, valid := os.getAppMetadata(pod); valid {
+	if meta, valid := os.getAppMetadata(pod, false); valid {
 		// when submit a task, we use pod UID as the allocationKey,
 		// to keep consistent, during recovery, the pod UID is also used
 		// for an Allocation.
