@@ -29,12 +29,12 @@ import (
 	"github.com/looplab/fsm"
 	"gotest.tools/assert"
 
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/cache"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/test"
-	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/api"
-	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
+	"github.com/apache/yunikorn-k8shim/pkg/appmgmt"
+	"github.com/apache/yunikorn-k8shim/pkg/cache"
+	"github.com/apache/yunikorn-k8shim/pkg/client"
+	"github.com/apache/yunikorn-k8shim/pkg/common/test"
+	"github.com/apache/yunikorn-scheduler-interface/lib/go/api"
+	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
 
 func TestSchedulerFsmGraph(t *testing.T) {

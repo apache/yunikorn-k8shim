@@ -18,7 +18,7 @@
 
 package cache
 
-import "github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
+import "github.com/apache/yunikorn-k8shim/pkg/common/events"
 
 // ------------------------
 // Simple task Event simply moves task to next state, it has no arguments provided

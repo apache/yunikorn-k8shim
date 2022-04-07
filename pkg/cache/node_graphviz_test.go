@@ -28,9 +28,9 @@ import (
 	"github.com/looplab/fsm"
 	"gotest.tools/assert"
 
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/test"
+	"github.com/apache/yunikorn-k8shim/pkg/common"
+	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
+	"github.com/apache/yunikorn-k8shim/pkg/common/test"
 )
 
 func TestNodeFsmGraph(t *testing.T) {

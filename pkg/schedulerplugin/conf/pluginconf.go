@@ -27,8 +27,8 @@ import (
 	"k8s.io/component-base/cli/flag"
 	"k8s.io/component-base/term"
 
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
+	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
+	"github.com/apache/yunikorn-k8shim/pkg/conf"
 )
 
 // default configuration options, can be overridden by command-line args
@@ -132,6 +132,8 @@ func NewSchedulerConf() *conf.SchedulerConf {
 			configuration.UserLabelKey = getStringArg(flag, constants.DefaultUserLabel)
 		case ArgOperatorPlugins:
 			configuration.OperatorPlugins = getStringArg(flag, "general,"+constants.AppManagerHandlerName)
+		case ArgPlaceHolderImage:
+			configuration.PlaceHolderImage = getStringArg(flag, constants.PlaceholderContainerImage)
 		}
 	})
 

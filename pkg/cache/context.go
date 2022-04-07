@@ -33,18 +33,18 @@ import (
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
 	"k8s.io/kubernetes/pkg/controller/volume/scheduling"
 
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
-	schedulercache "github.com/apache/incubator-yunikorn-k8shim/pkg/cache/external"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/dispatcher"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/plugin/predicates"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/plugin/support"
-	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
+	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
+	schedulercache "github.com/apache/yunikorn-k8shim/pkg/cache/external"
+	"github.com/apache/yunikorn-k8shim/pkg/client"
+	"github.com/apache/yunikorn-k8shim/pkg/common"
+	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
+	"github.com/apache/yunikorn-k8shim/pkg/common/events"
+	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
+	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
+	"github.com/apache/yunikorn-k8shim/pkg/log"
+	"github.com/apache/yunikorn-k8shim/pkg/plugin/predicates"
+	"github.com/apache/yunikorn-k8shim/pkg/plugin/support"
+	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
 
 // context maintains scheduling state, like apps and apps' tasks.
@@ -108,6 +108,7 @@ func (ctx *Context) AddSchedulingEventHandlers() {
 	ctx.apiProvider.AddEventHandler(&client.ResourceEventHandlers{
 		Type:     client.PodInformerHandlers,
 		FilterFn: nodeCoordinator.filterPods,
+		AddFn:    nodeCoordinator.addPod,
 		UpdateFn: nodeCoordinator.updatePod,
 		DeleteFn: nodeCoordinator.deletePod,
 	})
@@ -627,6 +628,10 @@ func (ctx *Context) AddApplication(request *interfaces.AddApplicationRequest) in
 func (ctx *Context) GetApplication(appID string) interfaces.ManagedApp {
 	ctx.lock.RLock()
 	defer ctx.lock.RUnlock()
+	return ctx.getApplication(appID)
+}
+
+func (ctx *Context) getApplication(appID string) interfaces.ManagedApp {
 	if app, ok := ctx.applications[appID]; ok {
 		return app
 	}
@@ -705,7 +710,7 @@ func (ctx *Context) RemoveTask(appID, taskID string) {
 func (ctx *Context) getTask(appID string, taskID string) *Task {
 	ctx.lock.RLock()
 	defer ctx.lock.RUnlock()
-	app := ctx.GetApplication(appID)
+	app := ctx.getApplication(appID)
 	if app == nil {
 		log.Logger().Debug("application is not found in the context",
 			zap.String("appID", appID))

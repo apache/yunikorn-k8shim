@@ -47,7 +47,7 @@ GANG_CLIENT_BINARY=simulation-gang-worker
 GANG_SERVER_BINARY=simulation-gang-coordinator
 LOCAL_CONF=conf
 CONF_FILE=queues.yaml
-REPO=github.com/apache/incubator-yunikorn-k8shim/pkg
+REPO=github.com/apache/yunikorn-k8shim/pkg
 
 # Version parameters
 DATE=$(shell date +%FT%T%z)
@@ -56,8 +56,8 @@ VERSION := latest
 endif
 
 # Image hashes
-CORE_SHA=$$(go list -m "github.com/apache/incubator-yunikorn-core" | cut -d "-" -f5)
-SI_SHA=$$(go list -m "github.com/apache/incubator-yunikorn-scheduler-interface" | cut -d "-" -f6)
+CORE_SHA=$$(go list -m "github.com/apache/yunikorn-core" | cut -d "-" -f5)
+SI_SHA=$$(go list -m "github.com/apache/yunikorn-scheduler-interface" | cut -d "-" -f6)
 SHIM_SHA=$$(git rev-parse --short=12 HEAD)
 
 # Kubeconfig
@@ -281,7 +281,7 @@ push: image
 
 # If you want to re-run the code-generator to generate code,
 # Please make sure the directory structure must be the example.
-# ex: github.com/apache/incubator-yunikorn-k8shim
+# ex: github.com/apache/yunikorn-k8shim
 # Also you need to set you GOPATH environmental variables first.
 # If GOPATH is empty, we will set it to "$HOME/go".
 .PHONY: code_gen

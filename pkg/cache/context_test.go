@@ -33,17 +33,17 @@ import (
 	"k8s.io/client-go/tools/cache"
 	k8sEvents "k8s.io/client-go/tools/events"
 
-	"github.com/apache/incubator-yunikorn-core/pkg/common"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/appmgmt/interfaces"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/test"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/dispatcher"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
-	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/si"
+	"github.com/apache/yunikorn-core/pkg/common"
+	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
+	"github.com/apache/yunikorn-k8shim/pkg/client"
+	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
+	"github.com/apache/yunikorn-k8shim/pkg/common/events"
+	"github.com/apache/yunikorn-k8shim/pkg/common/test"
+	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
+	"github.com/apache/yunikorn-k8shim/pkg/conf"
+	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
+	"github.com/apache/yunikorn-k8shim/pkg/log"
+	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
 
 func initContextForTest() *Context {
@@ -1129,4 +1129,104 @@ func TestSaveConfigmap(t *testing.T) {
 	resp = context.SaveConfigmap(&newConf)
 	assert.Equal(t, false, resp.Success, "Failure is expected")
 	assert.Assert(t, strings.Contains(resp.Reason, "hot-refresh is enabled"), "Unexpected reason")
+}
+
+func TestPendingPodAllocations(t *testing.T) {
+	context := initContextForTest()
+	context.SetPluginMode(true)
+
+	node1 := v1.Node{
+		ObjectMeta: apis.ObjectMeta{
+			Name:      "host0001",
+			Namespace: "default",
+			UID:       "uid_0001",
+		},
+	}
+	context.addNode(&node1)
+
+	node2 := v1.Node{
+		ObjectMeta: apis.ObjectMeta{
+			Name:      "host0002",
+			Namespace: "default",
+			UID:       "uid_0002",
+		},
+	}
+	context.addNode(&node2)
+
+	// add a new application
+	context.AddApplication(&interfaces.AddApplicationRequest{
+		Metadata: interfaces.ApplicationMetadata{
+			ApplicationID: "app00001",
+			QueueName:     "root.a",
+			User:          "test-user",
+			Tags:          nil,
+		},
+	})
+
+	pod := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "test-00001",
+			UID:  "UID-00001",
+		},
+	}
+
+	// add a tasks to the existing application
+	task := context.AddTask(&interfaces.AddTaskRequest{
+		Metadata: interfaces.TaskMetadata{
+			ApplicationID: "app00001",
+			TaskID:        "task00001",
+			Pod:           pod,
+		},
+	})
+	assert.Assert(t, task != nil, "task was nil")
+
+	// add the allocation
+	context.AddPendingPodAllocation("UID-00001", "host0001")
+
+	// validate that the pending allocation matches
+	nodeID, ok := context.GetPendingPodAllocation("UID-00001")
+	if !ok {
+		t.Fatalf("no pending pod allocation found")
+	}
+	assert.Equal(t, nodeID, "host0001", "wrong host")
+
+	// validate that there is not an in-progress allocation
+	if _, ok = context.GetInProgressPodAllocation("UID-00001"); ok {
+		t.Fatalf("in-progress allocation exists when it should be pending")
+	}
+
+	if context.StartPodAllocation("UID-00001", "host0002") {
+		t.Fatalf("attempt to start pod allocation on wrong node succeeded")
+	}
+
+	if !context.StartPodAllocation("UID-00001", "host0001") {
+		t.Fatalf("attempt to start pod allocation on correct node failed")
+	}
+
+	if _, ok = context.GetPendingPodAllocation("UID-00001"); ok {
+		t.Fatalf("pending pod allocation still exists after transition to in-progress")
+	}
+
+	nodeID, ok = context.GetInProgressPodAllocation("UID-00001")
+	if !ok {
+		t.Fatalf("in-progress allocation does not exist")
+	}
+	assert.Equal(t, nodeID, "host0001", "wrong host")
+
+	context.RemovePodAllocation("UID-00001")
+	if _, ok = context.GetInProgressPodAllocation("UID-00001"); ok {
+		t.Fatalf("in-progress pod allocation still exists after removal")
+	}
+
+	// re-add to validate pending pod removal
+	context.AddPendingPodAllocation("UID-00001", "host0001")
+	context.RemovePodAllocation("UID-00001")
+
+	if _, ok = context.GetPendingPodAllocation("UID-00001"); ok {
+		t.Fatalf("pending pod allocation still exists after removal")
+	}
 }

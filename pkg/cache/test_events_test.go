@@ -23,7 +23,7 @@ import (
 
 	"gotest.tools/assert"
 
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/events"
+	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 )
 
 func TestAllocateTaskEventArgs(t *testing.T) {

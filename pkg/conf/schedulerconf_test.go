@@ -22,7 +22,7 @@ import (
 
 	"gotest.tools/assert"
 
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
+	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 )
 
 func TestDefaultValues(t *testing.T) {

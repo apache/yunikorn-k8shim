@@ -24,9 +24,9 @@ import (
 	time "time"
 
 	sparkoperatork8siov1beta2 "github.com/GoogleCloudPlatform/spark-on-k8s-operator/pkg/apis/sparkoperator.k8s.io/v1beta2"
-	versioned "github.com/apache/incubator-yunikorn-k8shim/pkg/sparkclient/clientset/versioned"
-	internalinterfaces "github.com/apache/incubator-yunikorn-k8shim/pkg/sparkclient/informers/externalversions/internalinterfaces"
-	v1beta2 "github.com/apache/incubator-yunikorn-k8shim/pkg/sparkclient/listers/sparkoperator.k8s.io/v1beta2"
+	versioned "github.com/apache/yunikorn-k8shim/pkg/sparkclient/clientset/versioned"
+	internalinterfaces "github.com/apache/yunikorn-k8shim/pkg/sparkclient/informers/externalversions/internalinterfaces"
+	v1beta2 "github.com/apache/yunikorn-k8shim/pkg/sparkclient/listers/sparkoperator.k8s.io/v1beta2"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"

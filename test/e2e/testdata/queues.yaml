@@ -25,11 +25,11 @@ partitions:
           - name: development
             resources:
               guaranteed:
-                memory: 500000
-                vcore: 50000
+                memory: 500G
+                vcore: 50
           - name: default
             resources:
               guaranteed:
-                memory: 500000
-                vcore: 50000
+                memory: 500G
+                vcore: 50
         submitacl: "*"

@@ -173,7 +173,7 @@ function install_cluster() {
 
   if [ "${git_clone}" = "true" ]; then
     # use latest helm charts from the release repo to install yunikorn
-    git clone https://github.com/apache/incubator-yunikorn-release.git ./incubator-yunikorn-release
+    git clone https://github.com/apache/yunikorn-release.git ./yunikorn-release
   fi
 
   helm install yunikorn "${charts_path}" --namespace yunikorn \
@@ -188,14 +188,6 @@ function install_cluster() {
   exit_on_error "failed to wait for yunikorn scheduler deployment being deployed"
   kubectl wait --for=condition=ready --timeout=300s pod -l app=yunikorn -n yunikorn
   exit_on_error "failed to wait for yunikorn scheduler pods being deployed"
-
-  # forward rest server port 9080 as long as yk ns exists, so the e2e test code can verify cluster state via rest calls.
-  while kubectl get namespace | grep yunikorn >/dev/null 2>&1; \
-    do kubectl port-forward svc/yunikorn-service 9080:9080 -n yunikorn > /dev/null 2>&1; \
-    done &
-  exit_on_error "failed to forward rest server port 9080"
-  kubectl describe deployment yunikorn-scheduler -n yunikorn
-  exit_on_error "failed to describe yunikorn scheduler deployment"
 }
 
 function delete_cluster() {
@@ -231,11 +223,11 @@ Examples:
   $(basename "$0") -a test -n "yk8s" -v "kindest/node:v1.23.1"
 
   Use a local helm chart path:
-    $(basename "$0") -a test -n "yk8s" -v "kindest/node:v1.23.1" -p ../incubator-yunikorn-release/helm-charts/yunikorn
+    $(basename "$0") -a test -n "yk8s" -v "kindest/node:v1.23.1" -p ../yunikorn-release/helm-charts/yunikorn
 EOF
 }
 
-charts_path=./incubator-yunikorn-release/helm-charts/yunikorn
+charts_path=./yunikorn-release/helm-charts/yunikorn
 git_clone=true
 scheduler_image=scheduler-latest
 

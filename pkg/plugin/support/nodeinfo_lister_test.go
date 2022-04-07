@@ -26,8 +26,8 @@ import (
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/cache/external"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
+	"github.com/apache/yunikorn-k8shim/pkg/cache/external"
+	"github.com/apache/yunikorn-k8shim/pkg/client"
 )
 
 func TestList(t *testing.T) {

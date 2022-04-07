@@ -28,7 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/client"
+	"github.com/apache/yunikorn-k8shim/pkg/client"
 )
 
 // this test verifies that no matter which comes first, pod or node,

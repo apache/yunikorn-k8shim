@@ -81,7 +81,7 @@ Run times should be limited or the disk usage must be monitored for longer runs.
 1. create the client pod that uses the exported nfs volume.
 
 _NOTE_: The NFS server will not work on a Docker Desktop in a Mac OS-X environment. Even with kubernetes turned on. The image used by Docker Desktop does not support the kernel NFS driver used by the server.
-Use [minikube](https://kubernetes.io/docs/tasks/tools/install-minikube/) as a workaround and follow the [environment setup](https://github.com/apache/incubator-yunikorn-core/blob/master/docs/setup/env-setup.md#installing-minikube) to add it to Docker Desktop.
+Use [minikube](https://kubernetes.io/docs/tasks/tools/install-minikube/) as a workaround and follow the [environment setup](https://github.com/apache/yunikorn-core/blob/master/docs/setup/env-setup.md#installing-minikube) to add it to Docker Desktop.
 
 ### EBS volume
 EBS volumes cannot be used outside of AWS. Therefor you must have an EKS cluster on AWS.

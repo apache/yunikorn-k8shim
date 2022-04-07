@@ -24,7 +24,7 @@ import (
 	"time"
 
 	v1beta2 "github.com/GoogleCloudPlatform/spark-on-k8s-operator/pkg/apis/sparkoperator.k8s.io/v1beta2"
-	scheme "github.com/apache/incubator-yunikorn-k8shim/pkg/sparkclient/clientset/versioned/scheme"
+	scheme "github.com/apache/yunikorn-k8shim/pkg/sparkclient/clientset/versioned/scheme"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"

@@ -21,31 +21,61 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
+	"sync"
 	"time"
 
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
 
-	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/helpers/common"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	v1 "k8s.io/api/core/v1"
 	authv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/httpstream"
+	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/tools/portforward"
+	"k8s.io/client-go/transport/spdy"
 
-	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/configmanager"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 )
+
+const portForwardPort = 9080
+
+var fw *portforward.PortForwarder
+var lock = &sync.Mutex{}
 
 type KubeCtl struct {
 	clientSet      *kubernetes.Clientset
 	kubeConfigPath string
 	kubeConfig     *rest.Config
+}
+
+type PortForwardAPodRequest struct {
+	// Kube config
+	RestConfig *rest.Config
+	// Pod to port-forward traffic for
+	Pod v1.Pod
+	// Local port to expose traffic to pod's target port
+	LocalPort int
+	// Target port for the pod
+	PodPort int
+	// Streams to configure where to read/write input and output
+	Streams genericclioptions.IOStreams
+	// StopCh is the channel used to stop the port forward process
+	StopCh <-chan struct{}
+	// ReadyCh communicates when the tunnel is ready to receive traffic
+	ReadyCh chan struct{}
 }
 
 // findKubeConfig finds path from env:KUBECONFIG or ~/.kube/config
@@ -104,12 +134,33 @@ func (k *KubeCtl) GetKubeConfig() (*rest.Config, error) {
 	}
 	return nil, errors.New("kubeconfig is nil")
 }
+
 func (k *KubeCtl) GetPods(namespace string) (*v1.PodList, error) {
 	return k.clientSet.CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{})
 }
 
 func (k *KubeCtl) GetPod(name, namespace string) (*v1.Pod, error) {
 	return k.clientSet.CoreV1().Pods(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+}
+
+func (k *KubeCtl) GetSchedulerPod() (string, error) {
+	podNameList, err := k.GetPodNamesFromNS(configmanager.YuniKornTestConfig.YkNamespace)
+	if err != nil {
+		return "", err
+	}
+	for _, podName := range podNameList {
+		if strings.Contains(podName, configmanager.YKScheduler) {
+			return podName, nil
+		}
+	}
+	return "", errors.New("YK scheduler pod not found")
+}
+
+func (k *KubeCtl) KillPortForwardProcess() {
+	if fw != nil {
+		fw.Close()
+		fw = nil
+	}
 }
 
 func (k *KubeCtl) UpdatePodWithAnnotation(pod *v1.Pod, namespace, annotationKey, annotationVal string) (*v1.Pod, error) {
@@ -139,6 +190,84 @@ func (k *KubeCtl) GetPodNamesFromNS(namespace string) ([]string, error) {
 		s = append(s, each.Name)
 	}
 	return s, nil
+}
+
+func SetPortForwarder(req PortForwardAPodRequest, dialer httpstream.Dialer, ports []string) error {
+	lock.Lock()
+	defer lock.Unlock()
+
+	var err error
+	if fw == nil {
+		fw, err = portforward.New(dialer, []string{fmt.Sprintf("%d:%d", req.LocalPort, req.PodPort)}, req.StopCh, req.ReadyCh, req.Streams.Out, req.Streams.ErrOut)
+	}
+	return err
+}
+
+func (k *KubeCtl) PortForwardPod(req PortForwardAPodRequest) error {
+	path := fmt.Sprintf("/api/v1/namespaces/%s/pods/%s/portforward",
+		req.Pod.Namespace, req.Pod.Name)
+	hostIP := strings.TrimLeft(req.RestConfig.Host, "htps:/")
+
+	transport, upgrader, err := spdy.RoundTripperFor(req.RestConfig)
+	if err != nil {
+		return err
+	}
+
+	dialer := spdy.NewDialer(upgrader, &http.Client{Transport: transport}, http.MethodPost, &url.URL{Scheme: "https", Path: path, Host: hostIP})
+	err = SetPortForwarder(req, dialer, []string{fmt.Sprintf("%d:%d", req.LocalPort, req.PodPort)})
+	if err != nil {
+		return err
+	}
+	return fw.ForwardPorts()
+}
+
+func (k *KubeCtl) PortForwardYkSchedulerPod() error {
+	if fw != nil {
+		fmt.Printf("port-forward is already running")
+		return nil
+	}
+	stopCh := make(chan struct{}, 1)
+	readyCh := make(chan struct{})
+	errCh := make(chan error)
+
+	stream := genericclioptions.IOStreams{
+		In:     os.Stdin,
+		Out:    os.Stdout,
+		ErrOut: os.Stderr,
+	}
+
+	go func() {
+		schedulerPodName, err := k.GetSchedulerPod()
+		if err != nil {
+			errCh <- fmt.Errorf("unable to get %s to begin port-forwarding", schedulerPodName)
+			return
+		}
+		err = k.PortForwardPod(PortForwardAPodRequest{
+			RestConfig: k.kubeConfig,
+			Pod: v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      schedulerPodName,
+					Namespace: configmanager.YuniKornTestConfig.YkNamespace,
+				},
+			},
+			LocalPort: portForwardPort,
+			PodPort:   portForwardPort,
+			Streams:   stream,
+			StopCh:    stopCh,
+			ReadyCh:   readyCh,
+		})
+		if err != nil {
+			errCh <- fmt.Errorf("unable to port-forward %s", schedulerPodName)
+		}
+	}()
+
+	select {
+	case <-readyCh:
+		fmt.Printf("Port-forwarding traffic for %s...", configmanager.YKScheduler)
+	case err := <-errCh:
+		return err
+	}
+	return nil
 }
 
 func (k *KubeCtl) GetService(serviceName string, namespace string) (*v1.Service, error) {

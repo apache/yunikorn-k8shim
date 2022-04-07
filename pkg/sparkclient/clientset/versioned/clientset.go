@@ -22,7 +22,7 @@ package versioned
 import (
 	"fmt"
 
-	sparkoperatorv1beta2 "github.com/apache/incubator-yunikorn-k8shim/pkg/sparkclient/clientset/versioned/typed/sparkoperator.k8s.io/v1beta2"
+	sparkoperatorv1beta2 "github.com/apache/yunikorn-k8shim/pkg/sparkclient/clientset/versioned/typed/sparkoperator.k8s.io/v1beta2"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
 	flowcontrol "k8s.io/client-go/util/flowcontrol"

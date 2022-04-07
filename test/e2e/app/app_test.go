@@ -23,12 +23,12 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
 
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
-	crdclientset "github.com/apache/incubator-yunikorn-k8shim/pkg/client/clientset/versioned"
-	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/helpers/common"
-	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/helpers/k8s"
+	"github.com/apache/yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
+	crdclientset "github.com/apache/yunikorn-k8shim/pkg/client/clientset/versioned"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
 )
 
 var _ = ginkgo.Describe("App", func() {
@@ -42,6 +42,11 @@ var _ = ginkgo.Describe("App", func() {
 		// Initializing kubectl client and create test namespace
 		kClient = k8s.KubeCtl{}
 		gomega.Ω(kClient.SetClient()).To(gomega.BeNil())
+
+		ginkgo.By("Port-forward the scheduler pod")
+		err := kClient.PortForwardYkSchedulerPod()
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+
 		ginkgo.By("create apptest namespace")
 		ns, err := kClient.CreateNamespace(dev, nil)
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())

@@ -26,11 +26,11 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/constants"
-	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/configmanager"
-	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/helpers/common"
-	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/helpers/k8s"
-	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
+	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
 )
 
 var _ = ginkgo.Describe("AdmissionController", func() {

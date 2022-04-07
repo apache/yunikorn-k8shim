@@ -20,7 +20,7 @@
 package fake
 
 import (
-	v1beta2 "github.com/apache/incubator-yunikorn-k8shim/pkg/sparkclient/clientset/versioned/typed/sparkoperator.k8s.io/v1beta2"
+	v1beta2 "github.com/apache/yunikorn-k8shim/pkg/sparkclient/clientset/versioned/typed/sparkoperator.k8s.io/v1beta2"
 	rest "k8s.io/client-go/rest"
 	testing "k8s.io/client-go/testing"
 )

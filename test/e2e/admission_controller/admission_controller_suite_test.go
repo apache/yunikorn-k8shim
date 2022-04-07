@@ -26,9 +26,9 @@ import (
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/configmanager"
-	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/helpers/k8s"
-	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
 )
 
 func init() {
@@ -51,6 +51,10 @@ var _ = BeforeSuite(func() {
 
 	kubeClient = k8s.KubeCtl{}
 	Expect(kubeClient.SetClient()).To(BeNil())
+
+	By("Port-forward the scheduler pod")
+	err := kubeClient.PortForwardYkSchedulerPod()
+	Ω(err).NotTo(HaveOccurred())
 
 	By(fmt.Sprintf("Creating test namepsace %s", ns))
 	namespace, err := kubeClient.CreateNamespace(ns, nil)

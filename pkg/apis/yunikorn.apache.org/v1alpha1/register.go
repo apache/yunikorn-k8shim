@@ -19,7 +19,7 @@
 package v1alpha1
 
 import (
-	yunikorn "github.com/apache/incubator-yunikorn-k8shim/pkg/apis/yunikorn.apache.org"
+	yunikorn "github.com/apache/yunikorn-k8shim/pkg/apis/yunikorn.apache.org"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"

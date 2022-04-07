@@ -24,7 +24,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/helpers/k8s"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
 
 	"github.com/onsi/ginkgo/reporters"
 
@@ -32,8 +32,8 @@ import (
 	"github.com/onsi/ginkgo/extensions/table"
 	"github.com/onsi/gomega"
 
-	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/configmanager"
-	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/helpers/common"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 )
 
 func init() {
@@ -46,9 +46,12 @@ var annotation string
 
 var _ = BeforeSuite(func() {
 	annotation = "ann-" + common.RandSeq(10)
-	By("Enable basic scheduling config over config maps")
 	Ω(k.SetClient()).To(BeNil())
-	var c, err = k.GetConfigMaps(configmanager.YuniKornTestConfig.YkNamespace,
+	By("Port-forward the scheduler pod")
+	err := k.PortForwardYkSchedulerPod()
+	Ω(err).NotTo(HaveOccurred())
+	By("Enable basic scheduling config over config maps")
+	c, err := k.GetConfigMaps(configmanager.YuniKornTestConfig.YkNamespace,
 		configmanager.DefaultYuniKornConfigMap)
 	Ω(err).NotTo(HaveOccurred())
 	Ω(c).NotTo(BeNil())

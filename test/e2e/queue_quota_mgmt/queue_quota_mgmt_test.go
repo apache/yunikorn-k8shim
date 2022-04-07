@@ -24,9 +24,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/helpers/common"
-	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/helpers/k8s"
-	"github.com/apache/incubator-yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
 
 	v1 "k8s.io/api/core/v1"
 )

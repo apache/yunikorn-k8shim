@@ -23,9 +23,9 @@ import (
 	v1 "k8s.io/api/core/v1"
 	k8sCache "k8s.io/client-go/tools/cache"
 
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/log"
+	"github.com/apache/yunikorn-k8shim/pkg/common"
+	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
+	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
 
 // nodeResourceCoordinator looks at the resources that are not allocated by yunikorn,
@@ -54,6 +54,26 @@ func (c *nodeResourceCoordinator) filterPods(obj interface{}) bool {
 		return !utils.GeneralPodFilter(pod)
 	default:
 		return false
+	}
+}
+
+func (c *nodeResourceCoordinator) addPod(new interface{}) {
+	newPod, err := utils.Convert2Pod(new)
+	if err != nil {
+		log.Logger().Error("expecting a pod object", zap.Error(err))
+		return
+	}
+
+	if utils.IsAssignedPod(newPod) && !utils.IsPodTerminated(newPod) {
+		log.Logger().Debug("pod is assigned to a node, trigger occupied resource update",
+			zap.String("namespace", newPod.Namespace),
+			zap.String("podName", newPod.Name),
+			zap.String("podStatusCurrent", string(newPod.Status.Phase)))
+		// if pod is running but not scheduled by us,
+		// we need to notify scheduler-core to re-sync the node resource
+		podResource := common.GetPodResource(newPod)
+		c.nodes.updateNodeOccupiedResources(newPod.Spec.NodeName, podResource, AddOccupiedResource)
+		c.nodes.cache.AddPod(newPod)
 	}
 }
 

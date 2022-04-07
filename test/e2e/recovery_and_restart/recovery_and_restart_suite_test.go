@@ -16,22 +16,24 @@
  limitations under the License.
 */
 
-package events
+package recoveryandrestart_test
 
 import (
-	"reflect"
 	"testing"
 
-	"gotest.tools/assert"
+	"github.com/onsi/ginkgo"
+	"github.com/onsi/gomega"
 
-	"github.com/apache/yunikorn-k8shim/pkg/conf"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 )
 
-func TestInit(t *testing.T) {
-	// simply test the get won't fail
-	// which means the get function honors the testMode and
-	// skips initiating a real event recorder
-	conf.GetSchedulerConf().SetTestMode(true)
-	recorder := GetRecorder()
-	assert.Equal(t, reflect.TypeOf(recorder).String(), "*events.FakeRecorder")
+func init() {
+	configmanager.YuniKornTestConfig.ParseFlags()
 }
+
+func TestRecoveryAndRestart(t *testing.T) {
+	gomega.RegisterFailHandler(ginkgo.Fail)
+	ginkgo.RunSpecs(t, "RecoveryAndRestart Suite")
+}
+
+var Ω = gomega.Ω

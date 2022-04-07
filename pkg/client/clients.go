@@ -21,17 +21,17 @@ package client
 import (
 	"time"
 
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/client/informers/externalversions/yunikorn.apache.org/v1alpha1"
+	"github.com/apache/yunikorn-k8shim/pkg/client/informers/externalversions/yunikorn.apache.org/v1alpha1"
 
 	"k8s.io/client-go/informers"
 	coreInformerV1 "k8s.io/client-go/informers/core/v1"
 	storageInformerV1 "k8s.io/client-go/informers/storage/v1"
 	"k8s.io/kubernetes/pkg/controller/volume/scheduling"
 
-	appclient "github.com/apache/incubator-yunikorn-k8shim/pkg/client/clientset/versioned"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/common/utils"
-	"github.com/apache/incubator-yunikorn-k8shim/pkg/conf"
-	"github.com/apache/incubator-yunikorn-scheduler-interface/lib/go/api"
+	appclient "github.com/apache/yunikorn-k8shim/pkg/client/clientset/versioned"
+	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
+	"github.com/apache/yunikorn-k8shim/pkg/conf"
+	"github.com/apache/yunikorn-scheduler-interface/lib/go/api"
 )
 
 // clients encapsulates a set of useful client APIs
