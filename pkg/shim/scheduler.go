@@ -213,7 +213,7 @@ func (ss *KubernetesShim) recoverSchedulerState(e *fsm.Event) {
 				recoverableAppManagers = append(recoverableAppManagers, m)
 			}
 		}
-		if err := ss.context.WaitForRecovery(recoverableAppManagers, 30*time.Second); err != nil {
+		if err := ss.context.WaitForRecovery(recoverableAppManagers, 5*time.Minute); err != nil {
 			// failed
 			log.Logger().Error("scheduler recovery failed", zap.Error(err))
 			dispatcher.Dispatch(ShimSchedulerEvent{

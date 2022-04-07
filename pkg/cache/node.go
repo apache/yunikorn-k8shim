@@ -112,13 +112,24 @@ func (n *SchedulerNode) addExistingAllocation(allocation *si.Allocation) {
 	n.existingAllocations = append(n.existingAllocations, allocation)
 }
 
-func (n *SchedulerNode) setOccupiedResource(resource *si.Resource) {
+func (n *SchedulerNode) updateOccupiedResource(resource *si.Resource, opt updateType) {
 	n.lock.Lock()
 	defer n.lock.Unlock()
-	log.Logger().Info("set node occupied resource",
-		zap.String("nodeID", n.name),
-		zap.String("occupied", resource.String()))
-	n.occupied = resource
+	switch opt {
+	case AddOccupiedResource:
+		log.Logger().Info("add node occupied resource",
+			zap.String("nodeID", n.name),
+			zap.String("occupied", resource.String()))
+		n.occupied = common.Add(n.occupied, resource)
+	case SubOccupiedResource:
+		log.Logger().Info("subtract node occupied resource",
+			zap.String("nodeID", n.name),
+			zap.String("occupied", resource.String()))
+		n.occupied = common.Sub(n.occupied, resource)
+	default:
+		// noop
+		return
+	}
 }
 
 func (n *SchedulerNode) setCapacity(capacity *si.Resource) {
@@ -167,7 +178,7 @@ func (n *SchedulerNode) handleNodeRecovery(event *fsm.Event) {
 		zap.String("nodeID", n.name),
 		zap.Bool("schedulable", n.schedulable))
 
-	nodeRequest := common.CreateUpdateRequestForNewNode(n.name, n.capacity, n.existingAllocations, n.ready)
+	nodeRequest := common.CreateUpdateRequestForNewNode(n.name, n.capacity, n.occupied, n.existingAllocations, n.ready)
 
 	// send node request to scheduler-core
 	if err := n.schedulerAPI.UpdateNode(&nodeRequest); err != nil {
