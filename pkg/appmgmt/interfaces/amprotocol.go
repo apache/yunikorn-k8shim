@@ -80,6 +80,7 @@ type ApplicationMetadata struct {
 	TaskGroups                 []v1alpha1.TaskGroup
 	OwnerReferences            []metav1.OwnerReference
 	SchedulingPolicyParameters *SchedulingPolicyParameters
+	CreationTime               int64
 }
 
 type TaskMetadata struct {
