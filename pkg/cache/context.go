@@ -614,7 +614,7 @@ func (ctx *Context) AddApplication(request *interfaces.AddApplicationRequest) in
 	app.setTaskGroups(request.Metadata.TaskGroups)
 	app.setTaskGroupsDefinition(request.Metadata.Tags[constants.AnnotationTaskGroups])
 	if request.Metadata.CreationTime != 0 {
-		app.tags[siCommon.DomainYuniKorn+constants.CreationTime] = strconv.FormatInt(request.Metadata.CreationTime, 10)
+		app.tags[siCommon.DomainYuniKorn+siCommon.CreationTime] = strconv.FormatInt(request.Metadata.CreationTime, 10)
 	}
 	if request.Metadata.SchedulingPolicyParameters != nil {
 		app.SetPlaceholderTimeout(request.Metadata.SchedulingPolicyParameters.GetPlaceholderTimeout())

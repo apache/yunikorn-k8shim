@@ -74,7 +74,6 @@ const SchedulingPolicyTimeoutParam = "placeholderTimeoutInSeconds"
 const SchedulingPolicyParamDelimiter = " "
 const SchedulingPolicyStyleParam = "gangSchedulingStyle"
 const SchedulingPolicyStyleParamDefault = "Soft"
-const CreationTime = "CreationTime"
 
 var SchedulingPolicyStyleParamValues = map[string]string{"Hard": "Hard", "Soft": "Soft"}
 
