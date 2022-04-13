@@ -118,10 +118,9 @@ func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) err
 					}
 				} else {
 					log.Logger().Warn("No allocation found for existing pod",
-						zap.String("appID", existingAlloc.ApplicationID),
 						zap.String("podUID", string(pod.UID)),
 						zap.String("podName", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)),
-						zap.String("nodeName", existingAlloc.NodeID),
+						zap.String("nodeName", pod.Spec.NodeName),
 						zap.Stringer("resources", common.GetPodResource(&pod)))
 				}
 			} else if !utils.IsPodTerminated(&pod) {
