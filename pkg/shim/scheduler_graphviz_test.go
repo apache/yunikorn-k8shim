@@ -41,7 +41,7 @@ func TestSchedulerFsmGraph(t *testing.T) {
 	var callback api.ResourceManagerCallback
 
 	mockedAMProtocol := cache.NewMockedAMProtocol()
-	mockedAPIProvider := client.NewMockedAPIProvider()
+	mockedAPIProvider := client.NewMockedAPIProvider(false)
 	mockedAPIProvider.GetAPIs().SchedulerAPI = test.NewSchedulerAPIMock().RegisterFunction(
 		func(request *si.RegisterResourceManagerRequest,
 			callback api.ResourceManagerCallback) (response *si.RegisterResourceManagerResponse, e error) {

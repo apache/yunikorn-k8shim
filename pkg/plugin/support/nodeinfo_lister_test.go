@@ -76,7 +76,7 @@ func TestHavePodsWithRequiredAntiAffinityList(t *testing.T) {
 }
 
 func initLister(t *testing.T) *nodeInfoListerImpl {
-	cache := external.NewSchedulerCache(client.NewMockedAPIProvider().GetAPIs())
+	cache := external.NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
 	lister, ok := NewSharedLister(cache).NodeInfos().(*nodeInfoListerImpl)
 	assert.Assert(t, ok, "wrong type for node lister")
 

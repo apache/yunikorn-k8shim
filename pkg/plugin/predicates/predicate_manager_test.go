@@ -2152,7 +2152,7 @@ func informerFactory(clientSet kubernetes.Interface) informers.SharedInformerFac
 }
 
 func clientSet() kubernetes.Interface {
-	return client.NewKubeClientMock().GetClientSet()
+	return client.NewKubeClientMock(false).GetClientSet()
 }
 
 func enabledPlugins(name ...string) map[string]bool {

@@ -361,7 +361,7 @@ func TestDeleteNode(t *testing.T) {
 
 // A wrapper around the scheduler cache which does not initialise the lister and volumebinder
 func NewTestSchedulerCache() *external.SchedulerCache {
-	return external.NewSchedulerCache(client.NewMockedAPIProvider().GetAPIs())
+	return external.NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
 }
 
 func TestCordonNode(t *testing.T) {

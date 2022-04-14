@@ -38,7 +38,7 @@ import (
 func TestAppManagerRecoveryState(t *testing.T) {
 	conf.GetSchedulerConf().OperatorPlugins = "mocked-app-manager"
 	amProtocol := cache.NewMockedAMProtocol()
-	apiProvider := client.NewMockedAPIProvider()
+	apiProvider := client.NewMockedAPIProvider(false)
 	amService := NewAMService(amProtocol, apiProvider)
 	amService.register(&mockedAppManager{})
 
@@ -55,7 +55,7 @@ func TestAppManagerRecoveryState(t *testing.T) {
 func TestAppManagerRecoveryTimeout(t *testing.T) {
 	conf.GetSchedulerConf().OperatorPlugins = "mocked-app-manager"
 	amProtocol := cache.NewMockedAMProtocol()
-	apiProvider := client.NewMockedAPIProvider()
+	apiProvider := client.NewMockedAPIProvider(false)
 	amService := NewAMService(amProtocol, apiProvider)
 	amService.register(&mockedAppManager{})
 
@@ -70,7 +70,7 @@ func TestAppManagerRecoveryTimeout(t *testing.T) {
 func TestAppManagerRecoveryExitCondition(t *testing.T) {
 	conf.GetSchedulerConf().OperatorPlugins = "mocked-app-manager"
 	amProtocol := cache.NewMockedAMProtocol()
-	apiProvider := client.NewMockedAPIProvider()
+	apiProvider := client.NewMockedAPIProvider(false)
 	amService := NewAMService(amProtocol, apiProvider)
 	amService.register(&mockedAppManager{})
 
@@ -91,7 +91,7 @@ func TestAppManagerRecoveryExitCondition(t *testing.T) {
 // test app state transition during recovery
 func TestAppStatesDuringRecovery(t *testing.T) {
 	conf.GetSchedulerConf().OperatorPlugins = "mocked-app-manager"
-	apiProvider := client.NewMockedAPIProvider()
+	apiProvider := client.NewMockedAPIProvider(false)
 	ctx := cache.NewContext(apiProvider)
 	cb := callback.NewAsyncRMCallback(ctx)
 
