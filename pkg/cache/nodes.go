@@ -135,19 +135,7 @@ func (nc *schedulerNodes) updateNodeOccupiedResources(name string, resource *si.
 	}
 
 	if schedulerNode := nc.getNode(name); schedulerNode != nil {
-		nc.lock.Lock()
-		defer nc.lock.Unlock()
-
-		switch opt {
-		case AddOccupiedResource:
-			schedulerNode.occupied = common.Add(schedulerNode.occupied, resource)
-		case SubOccupiedResource:
-			schedulerNode.occupied = common.Sub(schedulerNode.occupied, resource)
-		default:
-			// noop
-			return
-		}
-
+		schedulerNode.updateOccupiedResource(resource, opt)
 		request := common.CreateUpdateRequestForUpdatedNode(name, schedulerNode.capacity, schedulerNode.occupied, schedulerNode.ready)
 		log.Logger().Info("report occupied resources updates",
 			zap.String("node", schedulerNode.name),
