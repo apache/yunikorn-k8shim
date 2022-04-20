@@ -56,6 +56,16 @@ func newPlaceholder(placeholderName string, app *Application, taskGroup v1alpha1
 	for _, r := range ownerRefs {
 		*r.Controller = false
 	}
+	annotations := utils.MergeMaps(taskGroup.Annotations, map[string]string{
+		constants.AnnotationPlaceholderFlag: "true",
+		constants.AnnotationTaskGroupName:   taskGroup.Name,
+	})
+	tgDef := app.GetTaskGroupsDefinition()
+	if tgDef != "" {
+		annotations = utils.MergeMaps(annotations, map[string]string{
+			constants.AnnotationTaskGroups: tgDef,
+		})
+	}
 	placeholderPod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      placeholderName,
@@ -65,11 +75,7 @@ func newPlaceholder(placeholderName string, app *Application, taskGroup v1alpha1
 				constants.LabelQueueName:       app.GetQueue(),
 				constants.LabelPlaceholderFlag: "true",
 			}),
-			Annotations: utils.MergeMaps(taskGroup.Annotations, map[string]string{
-				constants.AnnotationPlaceholderFlag: "true",
-				constants.AnnotationTaskGroupName:   taskGroup.Name,
-				constants.AnnotationTaskGroups:      app.GetTaskGroupsDefinition(),
-			}),
+			Annotations:     annotations,
 			OwnerReferences: ownerRefs,
 		},
 		Spec: v1.PodSpec{
