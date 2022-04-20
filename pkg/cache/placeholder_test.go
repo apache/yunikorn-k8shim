@@ -61,7 +61,7 @@ func TestNewPlaceholder(t *testing.T) {
 	assert.Equal(t, len(holder.pod.Labels), 3)
 	assert.Equal(t, holder.pod.Labels[constants.LabelApplicationID], appID)
 	assert.Equal(t, holder.pod.Labels[constants.LabelQueueName], queue)
-	assert.Equal(t, len(holder.pod.Annotations), 3)
+	assert.Equal(t, len(holder.pod.Annotations), 2)
 	assert.Equal(t, holder.pod.Annotations[constants.AnnotationTaskGroupName], app.taskGroups[0].Name)
 	assert.Equal(t, common.GetPodResource(holder.pod).Resources[constants.CPU].Value, int64(500))
 	assert.Equal(t, common.GetPodResource(holder.pod).Resources[constants.Memory].Value, int64(1024*1000*1000))
@@ -232,4 +232,30 @@ func TestNewPlaceholderWithAffinity(t *testing.T) {
 	assert.Equal(t, term[0].LabelSelector.MatchExpressions[0].Key, "service")
 	assert.Equal(t, term[0].LabelSelector.MatchExpressions[0].Operator, metav1.LabelSelectorOpIn)
 	assert.Equal(t, term[0].LabelSelector.MatchExpressions[0].Values[0], "securityscan")
+}
+
+func TestNewPlaceholderTaskGroupsDefinition(t *testing.T) {
+	mockedSchedulerAPI := newMockSchedulerAPI()
+	taskGroup := []v1alpha1.TaskGroup{
+		{
+			Name:      "test-group-1",
+			MinMember: 10,
+			MinResource: map[string]resource.Quantity{
+				"cpu":    resource.MustParse("500m"),
+				"memory": resource.MustParse("1024M"),
+			},
+		},
+	}
+	app := NewApplication(appID, queue,
+		"bob", map[string]string{constants.AppTagNamespace: namespace}, mockedSchedulerAPI)
+	app.setTaskGroups(taskGroup)
+	holder := newPlaceholder("ph-name", app, app.taskGroups[0])
+	assert.Equal(t, "", holder.pod.Annotations[constants.AnnotationTaskGroups])
+
+	app = NewApplication(appID, queue,
+		"bob", map[string]string{constants.AppTagNamespace: namespace}, mockedSchedulerAPI)
+	app.setTaskGroups(taskGroup)
+	app.setTaskGroupsDefinition("taskGroupsDef")
+	holder = newPlaceholder("ph-name", app, app.taskGroups[0])
+	assert.Equal(t, "taskGroupsDef", holder.pod.Annotations[constants.AnnotationTaskGroups])
 }
