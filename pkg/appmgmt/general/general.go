@@ -150,10 +150,12 @@ func (os *Manager) getAppMetadata(pod *v1.Pod, recovery bool) (interfaces.Applic
 			events.GetRecorder().Eventf(pod, nil, v1.EventTypeWarning, "TaskGroupsError", "TaskGroupsError",
 				"unable to get taskGroups for pod, reason: %s", err.Error())
 		}
+		tags[constants.AnnotationTaskGroups] = pod.Annotations[constants.AnnotationTaskGroups]
 	}
 
 	ownerReferences := getOwnerReferences(pod)
 	schedulingPolicyParams := utils.GetSchedulingPolicyParam(pod)
+	tags[constants.AnnotationSchedulingPolicyParam] = pod.Annotations[constants.AnnotationSchedulingPolicyParam]
 
 	var creationTime int64
 	if recovery {

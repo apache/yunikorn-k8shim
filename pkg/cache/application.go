@@ -52,6 +52,7 @@ type Application struct {
 	schedulingPolicy           v1alpha1.SchedulingPolicy
 	taskGroups                 []v1alpha1.TaskGroup
 	taskGroupsDefinition       string
+	schedulingParamsDefinition string
 	placeholderOwnerReferences []metav1.OwnerReference
 	sm                         *fsm.FSM
 	lock                       *sync.RWMutex
@@ -243,6 +244,18 @@ func (app *Application) GetTaskGroupsDefinition() string {
 	app.lock.RLock()
 	defer app.lock.RUnlock()
 	return app.taskGroupsDefinition
+}
+
+func (app *Application) setSchedulingParamsDefinition(schedParamsDef string) {
+	app.lock.Lock()
+	defer app.lock.Unlock()
+	app.schedulingParamsDefinition = schedParamsDef
+}
+
+func (app *Application) GetSchedulingParamsDefinition() string {
+	app.lock.RLock()
+	defer app.lock.RUnlock()
+	return app.schedulingParamsDefinition
 }
 
 func (app *Application) setTaskGroups(taskGroups []v1alpha1.TaskGroup) {
