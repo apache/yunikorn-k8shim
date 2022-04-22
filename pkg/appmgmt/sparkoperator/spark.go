@@ -20,20 +20,18 @@ package sparkoperator
 
 import (
 	"github.com/GoogleCloudPlatform/spark-on-k8s-operator/pkg/apis/sparkoperator.k8s.io/v1beta2"
-	k8shimv1beta2 "github.com/apache/yunikorn-k8shim/pkg/sparkclient/listers/sparkoperator.k8s.io/v1beta2"
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
 	k8sCache "k8s.io/client-go/tools/cache"
 
 	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
-	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	crcClientSet "github.com/apache/yunikorn-k8shim/pkg/sparkclient/clientset/versioned"
 	crInformers "github.com/apache/yunikorn-k8shim/pkg/sparkclient/informers/externalversions"
 )
 
-var lister k8shimv1beta2.SparkApplicationLister
+var crdInformerFactory crInformers.SharedInformerFactory
 
 // Manager implements interfaces#Recoverable, interfaces#AppManager
 type Manager struct {
@@ -70,20 +68,19 @@ func (os *Manager) ServiceInit() error {
 	var factoryOpts []crInformers.SharedInformerOption
 	os.crdInformerFactory = crInformers.NewSharedInformerFactoryWithOptions(
 		crClient, 0, factoryOpts...)
-	os.crdInformerFactory.Sparkoperator().V1beta2().SparkApplications().Informer()
+	crdInformerFactory = os.crdInformerFactory
 	os.crdInformer = os.crdInformerFactory.Sparkoperator().V1beta2().SparkApplications().Informer()
 	os.crdInformer.AddEventHandler(k8sCache.ResourceEventHandlerFuncs{
 		UpdateFunc: os.updateApplication,
 		DeleteFunc: os.deleteApplication,
 	})
-	lister = os.crdInformerFactory.Sparkoperator().V1beta2().SparkApplications().Lister()
 	log.Logger().Info("Spark operator AppMgmt service initialized")
 
 	return nil
 }
 
 func (os *Manager) Name() string {
-	return constants.SparkAppManagerHandlerName
+	return "spark-k8s-operator"
 }
 
 func (os *Manager) Start() error {
@@ -132,7 +129,7 @@ func (os *Manager) deleteApplication(obj interface{}) {
 }
 
 func GetProxyUser(pod *v1.Pod) string {
-	app, err := lister.SparkApplications(pod.Namespace).Get(pod.Name)
+	app, err := crdInformerFactory.Sparkoperator().V1beta2().SparkApplications().Lister().SparkApplications(pod.Namespace).Get(pod.Name)
 	if err != nil{
 		log.Logger().Error("unable to get saprk app user name",zap.Error(err))
 		return ""
