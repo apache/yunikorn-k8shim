@@ -50,6 +50,8 @@ const CPU = "vcore"
 const SparkLabelAppID = "spark-app-selector"
 const SparkLabelRole = "spark-role"
 const SparkLabelRoleDriver = "driver"
+const SparkDefaultUser = "root"
+const SparkAppManagerHandlerName = "spark-k8s-operator"
 
 // Configuration
 const DefaultConfigMapName = "yunikorn-configs"

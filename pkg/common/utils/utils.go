@@ -20,6 +20,7 @@ package utils
 
 import (
 	"fmt"
+	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/sparkoperator"
 	"strings"
 	"time"
 
@@ -218,6 +219,13 @@ func MergeMaps(first, second map[string]string) map[string]string {
 
 // find user name from pod label
 func GetUserFromPod(pod *v1.Pod) string {
+	_, isSparkApp := pod.Labels[constants.SparkLabelAppID]
+	if isSparkApp {
+		value := sparkoperator.GetProxyUser(pod)
+		if value != ""{
+			return value
+		}
+	}
 	userLabelKey := conf.GetSchedulerConf().UserLabelKey
 	// User name to be defined in labels
 	for name, value := range pod.Labels {
@@ -226,6 +234,9 @@ func GetUserFromPod(pod *v1.Pod) string {
 				zap.String("userLabel", userLabelKey), zap.String("user", value))
 			return value
 		}
+	}
+	if isSparkApp {
+		return constants.SparkDefaultUser
 	}
 	value := constants.DefaultUser
 
