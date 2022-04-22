@@ -22,6 +22,8 @@ import (
 	"reflect"
 	"strconv"
 
+	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/sparkoperator"
+
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -137,7 +139,19 @@ func (os *Manager) getAppMetadata(pod *v1.Pod, recovery bool) (interfaces.Applic
 	}
 
 	// get the user from Pod Labels
-	user := utils.GetUserFromPod(pod)
+	user := ""
+	// proxyUser of spark operator should be taken as the username.
+	// If none is specified, resort to using the value defined in the yunikorn.apache.org/username label of the CRD.
+	// If that doesn't exist either, then use "root".
+	if _, ok := pod.Labels[constants.SparkLabelAppID]; ok {
+		if user = sparkoperator.GetProxyUser(pod); user == "" {
+			if user = utils.GetUserFromPod(pod); user == constants.DefaultUser {
+				user = constants.SparkDefaultUser
+			}
+		}
+	} else {
+		user = utils.GetUserFromPod(pod)
+	}
 
 	var taskGroups []v1alpha1.TaskGroup = nil
 	if !os.gangSchedulingDisabled {

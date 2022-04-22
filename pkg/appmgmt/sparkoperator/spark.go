@@ -129,9 +129,13 @@ func (os *Manager) deleteApplication(obj interface{}) {
 }
 
 func GetProxyUser(pod *v1.Pod) string {
+	// When testing, crdInformerFactory will be nil
+	if crdInformerFactory == nil {
+		return ""
+	}
 	app, err := crdInformerFactory.Sparkoperator().V1beta2().SparkApplications().Lister().SparkApplications(pod.Namespace).Get(pod.Name)
-	if err != nil{
-		log.Logger().Error("unable to get saprk app user name",zap.Error(err))
+	if err != nil {
+		log.Logger().Error("unable to get saprk app user name", zap.Error(err))
 		return ""
 	}
 	return *app.Spec.ProxyUser
