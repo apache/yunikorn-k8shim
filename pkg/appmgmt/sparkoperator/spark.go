@@ -129,7 +129,6 @@ func (os *Manager) deleteApplication(obj interface{}) {
 }
 
 func GetProxyUser(pod *v1.Pod) string {
-	// When testing, crdInformerFactory will be nil
 	if crdInformerFactory == nil {
 		return ""
 	}
