@@ -613,6 +613,7 @@ func (ctx *Context) AddApplication(request *interfaces.AddApplicationRequest) in
 		ctx.apiProvider.GetAPIs().SchedulerAPI)
 	app.setTaskGroups(request.Metadata.TaskGroups)
 	app.setTaskGroupsDefinition(request.Metadata.Tags[constants.AnnotationTaskGroups])
+	app.setSchedulingParamsDefinition(request.Metadata.Tags[constants.AnnotationSchedulingPolicyParam])
 	if request.Metadata.CreationTime != 0 {
 		app.tags[siCommon.DomainYuniKorn+siCommon.CreationTime] = strconv.FormatInt(request.Metadata.CreationTime, 10)
 	}
