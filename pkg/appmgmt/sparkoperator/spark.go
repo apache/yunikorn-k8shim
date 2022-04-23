@@ -20,13 +20,13 @@ package sparkoperator
 
 import (
 	"github.com/GoogleCloudPlatform/spark-on-k8s-operator/pkg/apis/sparkoperator.k8s.io/v1beta2"
-	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
 	k8sCache "k8s.io/client-go/tools/cache"
 
 	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
+	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	crcClientSet "github.com/apache/yunikorn-k8shim/pkg/sparkclient/clientset/versioned"
 	crInformers "github.com/apache/yunikorn-k8shim/pkg/sparkclient/informers/externalversions"
@@ -141,8 +141,7 @@ func GetProxyUser(pod *v1.Pod) string {
 			return ""
 		}
 		proxyUser := *app.Spec.ProxyUser
-		log.Logger().Info("Found user name from proxy user.",
-			zap.String("proxyUser", proxyUser))
+		log.Logger().Info("found user name from proxy user", zap.String("proxyUser", proxyUser))
 		return proxyUser
 	}
 	return ""

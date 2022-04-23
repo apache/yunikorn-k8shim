@@ -22,8 +22,6 @@ import (
 	"reflect"
 	"strconv"
 
-	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/sparkoperator"
-
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -31,6 +29,7 @@ import (
 
 	"github.com/apache/yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
 	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
+	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/sparkoperator"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
@@ -140,7 +139,7 @@ func (os *Manager) getAppMetadata(pod *v1.Pod, recovery bool) (interfaces.Applic
 
 	// get the user from Pod Labels
 	user := ""
-	// proxyUser of spark operator should be taken as the username.
+	// proxyUser defined in the SparkApplicationSpec should be taken as the username.
 	// If none is specified, resort to using the value defined in the yunikorn.apache.org/username label of the CRD.
 	// If that doesn't exist either, then use "root".
 	if val, ok := pod.Labels[constants.SparkOperatorLabelLaunch]; ok && val == "true" {
