@@ -130,12 +130,16 @@ func (os *Manager) deleteApplication(obj interface{}) {
 
 func GetProxyUser(pod *v1.Pod) string {
 	if crdInformerFactory == nil {
-		return ""
+		log.Logger().Info("Spark operator AppMgmt service is not initialized, so the username from the SparkApp CRD cannot be obtained")
+		return "nil"
 	}
 	app, err := crdInformerFactory.Sparkoperator().V1beta2().SparkApplications().Lister().SparkApplications(pod.Namespace).Get(pod.Name)
 	if err != nil {
-		log.Logger().Error("unable to get saprk app user name", zap.Error(err))
+		log.Logger().Error("unable to get spark app", zap.Error(err))
 		return ""
 	}
-	return *app.Spec.ProxyUser
+	proxyUser := *app.Spec.ProxyUser
+	log.Logger().Info("Found user name from proxy user.",
+		zap.String("proxyUser", proxyUser))
+	return proxyUser
 }

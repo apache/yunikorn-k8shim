@@ -51,6 +51,7 @@ const SparkLabelAppID = "spark-app-selector"
 const SparkLabelRole = "spark-role"
 const SparkLabelRoleDriver = "driver"
 const SparkDefaultUser = "root"
+const SparkOperatorLaunch = "launched-by-spark-operator"
 
 // Configuration
 const DefaultConfigMapName = "yunikorn-configs"

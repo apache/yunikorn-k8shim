@@ -143,7 +143,7 @@ func (os *Manager) getAppMetadata(pod *v1.Pod, recovery bool) (interfaces.Applic
 	// proxyUser of spark operator should be taken as the username.
 	// If none is specified, resort to using the value defined in the yunikorn.apache.org/username label of the CRD.
 	// If that doesn't exist either, then use "root".
-	if _, ok := pod.Labels[constants.SparkLabelAppID]; ok {
+	if val, ok := pod.Labels[constants.SparkOperatorLaunch]; ok && val == "true" {
 		if user = sparkoperator.GetProxyUser(pod); user == "" {
 			if user = utils.GetUserFromPod(pod); user == constants.DefaultUser {
 				user = constants.SparkDefaultUser
