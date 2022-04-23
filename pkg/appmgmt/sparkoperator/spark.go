@@ -141,7 +141,7 @@ func GetProxyUser(pod *v1.Pod) string {
 			return ""
 		}
 		proxyUser := *app.Spec.ProxyUser
-		log.Logger().Info("found user name from proxy user", zap.String("proxyUser", proxyUser))
+		log.Logger().Info("found user name from proxyUser defined in the SparkApplicationSpec", zap.String("proxyUser", proxyUser))
 		return proxyUser
 	}
 	return ""
