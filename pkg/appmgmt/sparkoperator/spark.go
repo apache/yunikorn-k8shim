@@ -20,6 +20,7 @@ package sparkoperator
 
 import (
 	"github.com/GoogleCloudPlatform/spark-on-k8s-operator/pkg/apis/sparkoperator.k8s.io/v1beta2"
+	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
 	k8sCache "k8s.io/client-go/tools/cache"
@@ -131,15 +132,18 @@ func (os *Manager) deleteApplication(obj interface{}) {
 func GetProxyUser(pod *v1.Pod) string {
 	if crdInformerFactory == nil {
 		log.Logger().Info("Spark operator AppMgmt service is not initialized, so the username from the SparkApp CRD cannot be obtained")
-		return "nil"
-	}
-	app, err := crdInformerFactory.Sparkoperator().V1beta2().SparkApplications().Lister().SparkApplications(pod.Namespace).Get(pod.Name)
-	if err != nil {
-		log.Logger().Error("unable to get spark app", zap.Error(err))
 		return ""
 	}
-	proxyUser := *app.Spec.ProxyUser
-	log.Logger().Info("Found user name from proxy user.",
-		zap.String("proxyUser", proxyUser))
-	return proxyUser
+	if appName, ok := pod.Labels[constants.SparkOperatorLabelAppName]; ok {
+		app, err := crdInformerFactory.Sparkoperator().V1beta2().SparkApplications().Lister().SparkApplications(pod.Namespace).Get(appName)
+		if err != nil {
+			log.Logger().Error("unable to get spark app", zap.Error(err))
+			return ""
+		}
+		proxyUser := *app.Spec.ProxyUser
+		log.Logger().Info("Found user name from proxy user.",
+			zap.String("proxyUser", proxyUser))
+		return proxyUser
+	}
+	return ""
 }
