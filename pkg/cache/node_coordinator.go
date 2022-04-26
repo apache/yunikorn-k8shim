@@ -48,10 +48,13 @@ func newNodeResourceCoordinator(nodes *schedulerNodes) *nodeResourceCoordinator 
 
 // filter pods that not scheduled by us
 func (c *nodeResourceCoordinator) filterPods(obj interface{}) bool {
-	switch obj.(type) {
+	switch obj := obj.(type) {
 	case *v1.Pod:
-		pod := obj.(*v1.Pod)
-		return !utils.GeneralPodFilter(pod)
+		if utils.GeneralPodFilter(obj) {
+			_, err := utils.GetApplicationIDFromPod(obj)
+			return err != nil
+		}
+		return true
 	default:
 		return false
 	}
