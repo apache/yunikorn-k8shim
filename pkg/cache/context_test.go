@@ -263,9 +263,22 @@ func TestFilterPods(t *testing.T) {
 		},
 		Spec: v1.PodSpec{SchedulerName: "default-scheduler"},
 	}
+	pod3 := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name:   "yunikorn-test-00003",
+			UID:    "UID-00003",
+			Labels: map[string]string{"applicationId": "test-00003"},
+		},
+		Spec: v1.PodSpec{SchedulerName: "yunikorn"},
+	}
 	assert.Check(t, !context.filterPods(nil), "nil object was allowed")
-	assert.Check(t, context.filterPods(pod1), "yunikorn-managed pod was filtered")
+	assert.Check(t, !context.filterPods(pod1), "yunikorn-managed pod with no app id was allowed")
 	assert.Check(t, !context.filterPods(pod2), "non-yunikorn-managed pod was allowed")
+	assert.Check(t, context.filterPods(pod3), "yunikorn-managed pod was filtered")
 }
 
 func TestAddPodToCache(t *testing.T) {

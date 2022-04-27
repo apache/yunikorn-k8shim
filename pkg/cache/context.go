@@ -267,7 +267,11 @@ func (ctx *Context) updatePodInCache(oldObj, newObj interface{}) {
 func (ctx *Context) filterPods(obj interface{}) bool {
 	switch obj := obj.(type) {
 	case *v1.Pod:
-		return utils.GeneralPodFilter(obj)
+		if utils.GeneralPodFilter(obj) {
+			_, err := utils.GetApplicationIDFromPod(obj)
+			return err == nil
+		}
+		return false
 	default:
 		return false
 	}

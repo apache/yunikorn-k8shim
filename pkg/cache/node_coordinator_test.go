@@ -23,6 +23,7 @@ import (
 
 	"gotest.tools/assert"
 	v1 "k8s.io/api/core/v1"
+	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
@@ -294,4 +295,51 @@ func TestDeleteTerminatedPod(t *testing.T) {
 	}
 	coordinator.deletePod(pod2)
 	assert.Equal(t, executed, false)
+}
+
+func TestNodeCoordinatorFilterPods(t *testing.T) {
+	mockedSchedulerAPI := newMockSchedulerAPI()
+	nodes := newSchedulerNodes(mockedSchedulerAPI, NewTestSchedulerCache())
+	host1 := utils.NodeForTest(Host1, "10G", "10")
+	nodes.addNode(host1)
+	coordinator := newNodeResourceCoordinator(nodes)
+
+	pod1 := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "yunikorn-test-00001",
+			UID:  "UID-00001",
+		},
+		Spec: v1.PodSpec{SchedulerName: "yunikorn"},
+	}
+	pod2 := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "yunikorn-test-00002",
+			UID:  "UID-00002",
+		},
+		Spec: v1.PodSpec{SchedulerName: "default-scheduler"},
+	}
+	pod3 := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name:   "yunikorn-test-00003",
+			UID:    "UID-00003",
+			Labels: map[string]string{"applicationId": "test-00003"},
+		},
+		Spec: v1.PodSpec{SchedulerName: "yunikorn"},
+	}
+	assert.Check(t, !coordinator.filterPods(nil), "nil object was allowed")
+	assert.Check(t, coordinator.filterPods(pod1), "yunikorn-managed pod with no app id was filtered")
+	assert.Check(t, coordinator.filterPods(pod2), "non-yunikorn-managed pod was filtered")
+	assert.Check(t, !coordinator.filterPods(pod3), "yunikorn-managed pod was allowed")
 }
