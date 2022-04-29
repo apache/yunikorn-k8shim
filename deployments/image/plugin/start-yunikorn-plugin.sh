@@ -17,13 +17,12 @@
 # limitations under the License.
 
 cd "${HOME}" || exit
+
 exec "${HOME}"/bin/kube-scheduler \
-  --address="${ADDRESS}" \
+  --bind-address="${ADDRESS}" \
   --leader-elect="${LEADER_ELECT}" \
   --config="${SCHEDULER_CONFIG}" \
   -v="${VERBOSITY}" \
-  --feature-gates=PodDisruptionBudget=false \
-  --scheduler-name="${SCHEDULER_NAME}" \
   --yk-cluster-id="${CLUSTER_ID}" \
   --yk-cluster-version="${CLUSTER_VERSION}" \
   --yk-policy-group="${POLICY_GROUP}" \
@@ -37,5 +36,5 @@ exec "${HOME}"/bin/kube-scheduler \
   --yk-enable-config-hot-refresh="${ENABLE_CONFIG_HOT_REFRESH}" \
   --yk-disable-gang-scheduling="${DISABLE_GANG_SCHEDULING}" \
   --yk-user-label-key="${USER_LABEL_KEY}" \
-  --yk-scheduler-name="${SCHEDULER_NAME}" \
+  --yk-scheduler-name=yunikorn \
   --yk-placeholder-image="${PLACEHOLDER_IMAGE}"

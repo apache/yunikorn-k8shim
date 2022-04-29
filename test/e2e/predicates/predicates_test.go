@@ -19,6 +19,7 @@
 package predicates_test
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"time"
@@ -318,11 +319,11 @@ var _ = Describe("Predicates", func() {
 			Value:  "testing-taint-value",
 			Effect: v1.TaintEffectNoSchedule,
 		}
-		err = controller.AddOrUpdateTaintOnNode(kClient.GetClient(), nodeName, testTaint)
+		err = controller.AddOrUpdateTaintOnNode(context.Background(), kClient.GetClient(), nodeName, testTaint)
 		Ω(err).NotTo(HaveOccurred())
 		framework.ExpectNodeHasTaint(kClient.GetClient(), nodeName, testTaint)
 		defer func(c kubernetes.Interface, nodeName string, taint *v1.Taint) {
-			err = controller.RemoveTaintOffNode(c, nodeName, nil, taint)
+			err = controller.RemoveTaintOffNode(context.Background(), c, nodeName, nil, taint)
 			Ω(err).NotTo(HaveOccurred())
 		}(kClient.GetClient(), nodeName, testTaint)
 
@@ -365,12 +366,12 @@ var _ = Describe("Predicates", func() {
 			Value:  "testing-taint-value",
 			Effect: v1.TaintEffectNoSchedule,
 		}
-		err = controller.AddOrUpdateTaintOnNode(kClient.GetClient(), nodeName, testTaint)
+		err = controller.AddOrUpdateTaintOnNode(context.Background(), kClient.GetClient(), nodeName, testTaint)
 		Ω(err).NotTo(HaveOccurred())
 
 		framework.ExpectNodeHasTaint(kClient.GetClient(), nodeName, testTaint)
 		defer func(c kubernetes.Interface, nodeName string, taint *v1.Taint) {
-			err = controller.RemoveTaintOffNode(c, nodeName, nil, taint)
+			err = controller.RemoveTaintOffNode(context.Background(), c, nodeName, nil, taint)
 			Ω(err).NotTo(HaveOccurred())
 		}(kClient.GetClient(), nodeName, testTaint)
 
@@ -413,7 +414,7 @@ var _ = Describe("Predicates", func() {
 		Ω(logEntries).To(ContainElement(MatchRegexp(".*taint.*")), "Log entry message mismatch")
 
 		// Remove taint off the node and verify the pod is scheduled on node.
-		err = controller.RemoveTaintOffNode(kClient.GetClient(), nodeName, nil, testTaint)
+		err = controller.RemoveTaintOffNode(context.Background(), kClient.GetClient(), nodeName, nil, testTaint)
 		Ω(err).NotTo(HaveOccurred())
 		Ω(kClient.WaitForPodRunning(ns, podNameNoTolerations, time.Duration(60)*time.Second)).NotTo(HaveOccurred())
 

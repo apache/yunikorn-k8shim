@@ -140,6 +140,10 @@ func (k *KubeCtl) GetPods(namespace string) (*v1.PodList, error) {
 	return k.clientSet.CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{})
 }
 
+func (k *KubeCtl) GetJobs(namespace string) (*batchv1.JobList, error) {
+	return k.clientSet.BatchV1().Jobs(namespace).List(context.TODO(), metav1.ListOptions{})
+}
+
 func (k *KubeCtl) GetPod(name, namespace string) (*v1.Pod, error) {
 	return k.clientSet.CoreV1().Pods(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 }
@@ -188,6 +192,18 @@ func (k *KubeCtl) GetPodNamesFromNS(namespace string) ([]string, error) {
 		return nil, err
 	}
 	for _, each := range Pods.Items {
+		s = append(s, each.Name)
+	}
+	return s, nil
+}
+
+func (k *KubeCtl) GetJobNamesFromNS(namespace string) ([]string, error) {
+	var s []string
+	jobs, err := k.GetJobs(namespace)
+	if err != nil {
+		return nil, err
+	}
+	for _, each := range jobs.Items {
 		s = append(s, each.Name)
 	}
 	return s, nil
@@ -407,6 +423,20 @@ func (k *KubeCtl) DeletePodGracefully(podName string, namespace string) error {
 	return err
 }
 
+func (k *KubeCtl) DeleteJob(jobName string, namespace string) error {
+	var secs int64 = 0
+	var policy = metav1.DeletePropagationForeground
+	err := k.clientSet.BatchV1().Jobs(namespace).Delete(context.TODO(), jobName, metav1.DeleteOptions{
+		GracePeriodSeconds: &secs,
+		PropagationPolicy:  &policy,
+	})
+	if err != nil {
+		return err
+	}
+	err = k.WaitForJobTerminated(namespace, jobName, 120*time.Second)
+	return err
+}
+
 // return a condition function that indicates whether the given pod is
 // currently in desired state
 func (k *KubeCtl) isPodInDesiredState(podName string, namespace string, state v1.PodPhase) wait.ConditionFunc {
@@ -426,6 +456,19 @@ func (k *KubeCtl) isPodInDesiredState(podName string, namespace string, state v1
 	}
 }
 
+func (k *KubeCtl) isPodSelectorInNs(selector string, namespace string) wait.ConditionFunc {
+	return func() (bool, error) {
+		podList, err := k.ListPods(namespace, selector)
+		if err != nil {
+			return false, err
+		}
+		if len(podList.Items) > 0 {
+			return true, nil
+		}
+		return false, nil
+	}
+}
+
 // Return a condition function that indicates if the pod is NOT in the given namespace
 func (k *KubeCtl) isPodNotInNS(podName string, namespace string) wait.ConditionFunc {
 	return func() (bool, error) {
@@ -435,6 +478,22 @@ func (k *KubeCtl) isPodNotInNS(podName string, namespace string) wait.ConditionF
 		}
 		for _, name := range podNames {
 			if podName == name {
+				return false, nil
+			}
+		}
+		return true, nil
+	}
+}
+
+// Return a condition function that indicates if the job is NOT in the given namespace
+func (k *KubeCtl) isJobNotInNS(jobName string, namespace string) wait.ConditionFunc {
+	return func() (bool, error) {
+		jobNames, err := k.GetJobNamesFromNS(namespace)
+		if err != nil {
+			return false, err
+		}
+		for _, name := range jobNames {
+			if jobName == name {
 				return false, nil
 			}
 		}
@@ -465,6 +524,10 @@ func (k *KubeCtl) WaitForPodEvent(namespace string, podName string, expectedReas
 
 func (k *KubeCtl) WaitForPodTerminated(namespace string, podName string, timeout time.Duration) error {
 	return wait.PollImmediate(time.Second, timeout, k.isPodNotInNS(podName, namespace))
+}
+
+func (k *KubeCtl) WaitForJobTerminated(namespace string, jobName string, timeout time.Duration) error {
+	return wait.PollImmediate(time.Second, timeout, k.isJobNotInNS(jobName, namespace))
 }
 
 // Poll up to timeout seconds for pod to enter running state.
@@ -513,6 +576,11 @@ func (k *KubeCtl) WaitForPodBySelectorRunning(namespace string, selector string,
 		}
 	}
 	return nil
+}
+
+// Wait up to timeout seconds for a pod in 'namespace' with given 'selector' to exist
+func (k *KubeCtl) WaitForPodBySelector(namespace string, selector string, timeout time.Duration) error {
+	return wait.PollImmediate(time.Second, timeout, k.isPodSelectorInNs(selector, namespace))
 }
 
 func (k *KubeCtl) CreateSecret(secret *v1.Secret, namespace string) (*v1.Secret, error) {

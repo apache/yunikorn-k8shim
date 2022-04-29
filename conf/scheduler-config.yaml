@@ -15,19 +15,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-apiVersion: kubescheduler.config.k8s.io/v1beta1
+apiVersion: kubescheduler.config.k8s.io/v1beta3
 kind: KubeSchedulerConfiguration
 leaderElection:
   leaderElect: false
 profiles:
   - schedulerName: yunikorn
     plugins:
-      preFilter:
-        enabled:
-        - name: YuniKornPlugin
-      filter:
-        enabled:
-        - name: YuniKornPlugin
-      postBind:
+      multiPoint:
         enabled:
         - name: YuniKornPlugin
