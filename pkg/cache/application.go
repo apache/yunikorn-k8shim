@@ -88,7 +88,7 @@ func NewApplication(appID, queueName, user string, tags map[string]string, sched
 	return app
 }
 
-func (app *Application) handleApplicationEvent(event applicationEvent) error {
+func (app *Application) HandleApplicationEvent(event applicationEvent) error {
 	// Locking mechanism:
 	// 1) when handle event transitions, we first obtain the object's lock,
 	//    this helps us to place a pre-check before entering here, in case
@@ -108,16 +108,7 @@ func (app *Application) handleApplicationEvent(event applicationEvent) error {
 	return nil
 }
 
-func (app *Application) handleApplicationEventWithInfo(event applicationEvent, eventnfo []string) error {
-	// Locking mechanism:
-	// 1) when handle event transitions, we first obtain the object's lock,
-	//    this helps us to place a pre-check before entering here, in case
-	//    we receive some invalidate events. If this introduces performance
-	//    regression, a possible way to optimize is to use a separate lock
-	//    to protect the transition phase.
-	// 2) Note, state machine calls those callbacks here, we must ensure
-	//    they are lock-free calls. Otherwise the callback will be blocked
-	//    because the lock is already held here.
+func (app *Application) HandleApplicationEventWithInfo(event applicationEvent, eventnfo []string) error {
 	app.lock.Lock()
 	defer app.lock.Unlock()
 	err := app.stateMachine.Event(event.String(), app, eventnfo)
@@ -319,7 +310,7 @@ func (app *Application) SetState(state string) {
 }
 
 func (app *Application) TriggerAppRecovery() error {
-	return app.handleApplicationEvent(RecoverApplication)
+	return app.HandleApplicationEvent(RecoverApplication)
 }
 
 // Schedule is called in every scheduling interval,
@@ -332,7 +323,7 @@ func (app *Application) TriggerAppRecovery() error {
 func (app *Application) Schedule() bool {
 	switch app.GetApplicationState() {
 	case New.String():
-		if err := app.handleApplicationEvent(SubmitApplication); err != nil {
+		if err := app.HandleApplicationEvent(SubmitApplication); err != nil {
 			log.Logger().Warn("failed to handle SUBMIT app event",
 				zap.Error(err))
 		}
@@ -514,7 +505,7 @@ func (app *Application) onReserving(event *fsm.Event) {
 	}()
 }
 
-func (app *Application) onReservationStateChange(event *fsm.Event) {
+func (app *Application) onReservationStateChange() {
 	// this event is called when there is a add or release of placeholders
 	desireCounts := utils.NewTaskGroupInstanceCountMap()
 	for _, tg := range app.taskGroups {
@@ -548,7 +539,7 @@ func (app *Application) handleRejectApplicationEvent(event *fsm.Event) {
 		fmt.Sprintf("%s: %s", constants.ApplicationRejectedFailure, reason)))
 }
 
-func (app *Application) handleCompleteApplicationEvent(event *fsm.Event) {
+func (app *Application) handleCompleteApplicationEvent() {
 	// TODO app lifecycle updates
 	go func() {
 		getPlaceholderManager().cleanUp(app)
@@ -625,14 +616,7 @@ func (app *Application) handleReleaseAppAllocationEvent(event *fsm.Event) {
 	}
 }
 
-func (app *Application) handleReleaseAppAllocationAskEvent(event *fsm.Event) {
-	eventArgs := make([]string, 2)
-	if err := events.GetEventArgsAsStrings(eventArgs, event.Args); err != nil {
-		log.Logger().Error("fail to parse event arg", zap.Error(err))
-		return
-	}
-	taskID := eventArgs[0]
-	terminationTypeStr := eventArgs[1]
+func (app *Application) handleReleaseAppAllocationAskEvent(taskID string, terminationTypeStr string) {
 	log.Logger().Info("try to release pod from application",
 		zap.String("appID", app.applicationID),
 		zap.String("taskID", taskID),
@@ -656,7 +640,7 @@ func (app *Application) handleReleaseAppAllocationAskEvent(event *fsm.Event) {
 	}
 }
 
-func (app *Application) handleAppTaskCompletedEvent(event *fsm.Event) {
+func (app *Application) handleAppTaskCompletedEvent() {
 	for _, task := range app.taskMap {
 		if task.placeholder && task.GetTaskState() != events.States().Task.Completed {
 			return

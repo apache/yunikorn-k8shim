@@ -93,8 +93,13 @@ func (callback *AsyncRMCallback) UpdateAllocation(response *si.AllocationRespons
 			zap.String("allocation key", ask.AllocationKey))
 
 		if ask.TerminationType == si.TerminationType_TIMEOUT {
-			ev := cache.NewReleaseAppAllocationAskEvent(ask.ApplicationID, ask.TerminationType, ask.AllocationKey)
-			dispatcher.Dispatch(ev)
+			app:= callback.context.GetApplication(ask.ApplicationID).(*cache.Application)
+			err := app.HandleApplicationEventWithInfo(cache.ReleaseAppAllocationAsk, []string{ask.TerminationType.String(), ask.AllocationKey})
+			if err != nil {
+				log.Logger().Warn("BUG: Unexpected failure: Application state change failed",
+					zap.String("currentState", app.GetApplicationState()),
+					zap.Error(err))
+			}
 		}
 	}
 	return nil
