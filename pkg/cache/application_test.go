@@ -518,7 +518,7 @@ func (ms *mockSchedulerAPI) UpdateConfiguration(clusterID string) error {
 func assertAppState(t *testing.T, app *Application, expectedState string, duration time.Duration) {
 	deadline := time.Now().Add(duration)
 	for {
-		if app.sm.Current() == expectedState {
+		if app.stateMachine.Current() == expectedState {
 			return
 		}
 

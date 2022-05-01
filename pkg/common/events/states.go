@@ -23,10 +23,9 @@ var (
 )
 
 type AllStates struct {
-	Application *ApplicationStates
-	Task        *TaskStates
-	Scheduler   *SchedulerStates
-	Node        *NodeStates
+	Task      *TaskStates
+	Scheduler *SchedulerStates
+	Node      *NodeStates
 }
 
 type SchedulerStates struct {
@@ -37,22 +36,6 @@ type SchedulerStates struct {
 	Running     string
 	Draining    string
 	Stopped     string
-}
-
-type ApplicationStates struct {
-	New        string
-	Recovering string
-	Submitted  string
-	Accepted   string
-	Reserving  string
-	Running    string
-	Rejected   string
-	Completed  string
-	Killing    string
-	Killed     string
-	Failing    string
-	Failed     string
-	Resuming   string
 }
 
 type NodeStates struct {
@@ -82,21 +65,6 @@ type TaskStates struct {
 func States() *AllStates {
 	if states == nil {
 		states = &AllStates{
-			Application: &ApplicationStates{
-				New:        "New",
-				Recovering: "Recovering",
-				Submitted:  "Submitted",
-				Accepted:   "Accepted",
-				Reserving:  "Reserving",
-				Running:    "Running",
-				Rejected:   "Rejected",
-				Completed:  "Completed",
-				Killing:    "Killing",
-				Killed:     "Killed",
-				Failed:     "Failed",
-				Failing:    "Failing",
-				Resuming:   "Resuming",
-			},
 			Task: &TaskStates{
 				New:        "New",
 				Pending:    "Pending",

@@ -31,7 +31,7 @@ import (
 
 func TestApplicationFsmGraph(t *testing.T) {
 	app := NewApplication("app00001", "root.queue", "testuser", map[string]string{}, newMockSchedulerAPI())
-	graph := fsm.Visualize(app.sm)
+	graph := fsm.Visualize(app.stateMachine)
 
 	err := os.MkdirAll("../../_output/fsm", 0755)
 	assert.NilError(t, err, "Creating output dir failed")
