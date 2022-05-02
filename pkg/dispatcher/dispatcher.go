@@ -191,8 +191,6 @@ func Start() {
 				switch v := event.(type) {
 				case events.ApplicationStatusEvent:
 					getEventHandler(EventTypeAppStatus)(v)
-				case events.ApplicationEvent:
-					getEventHandler(EventTypeApp)(v)
 				case events.TaskEvent:
 					getEventHandler(EventTypeTask)(v)
 				case events.SchedulerEvent:

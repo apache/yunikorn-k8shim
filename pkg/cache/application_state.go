@@ -49,8 +49,7 @@ const (
 )
 
 func (ae applicationEvent) String() string {
-	return [...]string{"SubmitApplication", "RecoverApplication", "AcceptApplication", "TryReserve", "UpdateReservation", "RunApplication", "RejectApplication",
-		"CompleteApplication", "FailApplication", "KillApplication", "KilledApplication", "ReleaseAppAllocation", "ReleaseAppAllocationAsk", "AppStateChange", "ResumingApplication", "AppTaskCompleted"}[ae]
+	return [...]string{"SubmitApplication", "RecoverApplication", "AcceptApplication", "TryReserve", "UpdateReservation", "RunApplication", "RejectApplication", "CompleteApplication", "FailApplication", "KillApplication", "KilledApplication", "ReleaseAppAllocation", "ReleaseAppAllocationAsk", "AppStateChange", "ResumingApplication", "AppTaskCompleted"}[ae]
 }
 
 // ----------------------------------
@@ -194,6 +193,7 @@ func NewAppState() *fsm.FSM {
 			// called after enter state
 			Reserving.String(): func(event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
+				app.onReserving()
 			},
 			// called after event
 			SubmitApplication.String(): func(event *fsm.Event) {
@@ -206,6 +206,8 @@ func NewAppState() *fsm.FSM {
 			},
 			RejectApplication.String(): func(event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
+				eventInfo := event.Args[1].([]string)
+				app.handleRejectApplicationEvent(eventInfo[0])
 			},
 			CompleteApplication.String(): func(event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
@@ -213,6 +215,8 @@ func NewAppState() *fsm.FSM {
 			},
 			FailApplication.String(): func(event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
+				eventInfo := event.Args[1].([]string)
+				app.handleFailApplicationEvent(eventInfo[0])
 			},
 			UpdateReservation.String(): func(event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
@@ -220,11 +224,13 @@ func NewAppState() *fsm.FSM {
 			},
 			ReleaseAppAllocation.String(): func(event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
+				eventInfo := event.Args[1].([]string)
+				app.handleReleaseAppAllocationEvent(eventInfo[0], eventInfo[1])
 			},
 			ReleaseAppAllocationAsk.String(): func(event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
 				eventInfo := event.Args[1].([]string)
-				app.handleReleaseAppAllocationAskEvent(eventInfo[0],eventInfo[1])
+				app.handleReleaseAppAllocationAskEvent(eventInfo[0], eventInfo[1])
 			},
 			AppTaskCompleted.String(): func(event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck

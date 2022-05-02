@@ -87,7 +87,7 @@ func TestAddApplications(t *testing.T) {
 	})
 	assert.Equal(t, len(context.applications), 1)
 	assert.Assert(t, context.applications["app00001"] != nil)
-	assert.Equal(t, context.applications["app00001"].GetApplicationState(), events.States().Application.New)
+	assert.Equal(t, context.applications["app00001"].GetApplicationState(), New.String())
 	assert.Equal(t, len(context.applications["app00001"].GetPendingTasks()), 0)
 
 	// add an app but app already exists
@@ -444,7 +444,7 @@ func TestAddTask(t *testing.T) {
 	})
 	assert.Equal(t, len(context.applications), 1)
 	assert.Assert(t, context.applications["app00001"] != nil)
-	assert.Equal(t, context.applications["app00001"].GetApplicationState(), events.States().Application.New)
+	assert.Equal(t, context.applications["app00001"].GetApplicationState(), New.String())
 	assert.Equal(t, len(context.applications["app00001"].GetPendingTasks()), 0)
 
 	// add a tasks to the existing application
@@ -611,7 +611,6 @@ func TestRecoverTask(t *testing.T) {
 
 func TestTaskReleaseAfterRecovery(t *testing.T) {
 	context := initContextForTest()
-	dispatcher.RegisterEventHandler(dispatcher.EventTypeApp, context.ApplicationEventHandler())
 	dispatcher.RegisterEventHandler(dispatcher.EventTypeTask, context.TaskEventHandler())
 	dispatcher.Start()
 	defer dispatcher.Stop()

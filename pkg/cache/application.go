@@ -98,8 +98,8 @@ func (app *Application) HandleApplicationEvent(event applicationEvent) error {
 	// 2) Note, state machine calls those callbacks here, we must ensure
 	//    they are lock-free calls. Otherwise the callback will be blocked
 	//    because the lock is already held here.
-	app.lock.Lock()
-	defer app.lock.Unlock()
+	//app.lock.Lock()
+	//defer app.lock.Unlock()
 	err := app.stateMachine.Event(event.String(), app)
 	// handle the same state transition not nil error (limit of fsm).
 	if err != nil && err.Error() != "no transition" {
@@ -109,20 +109,14 @@ func (app *Application) HandleApplicationEvent(event applicationEvent) error {
 }
 
 func (app *Application) HandleApplicationEventWithInfo(event applicationEvent, eventnfo []string) error {
-	app.lock.Lock()
-	defer app.lock.Unlock()
+	//app.lock.Lock()
+	//defer app.lock.Unlock()
 	err := app.stateMachine.Event(event.String(), app, eventnfo)
 	// handle the same state transition not nil error (limit of fsm).
 	if err != nil && err.Error() != "no transition" {
 		return err
 	}
 	return nil
-}
-
-func (app *Application) canHandle(ev events.ApplicationEvent) bool {
-	app.lock.RLock()
-	defer app.lock.RUnlock()
-	return app.stateMachine.Can(string(ev.GetEvent()))
 }
 
 func (app *Application) GetTask(taskID string) (interfaces.ManagedTask, error) {
@@ -411,7 +405,12 @@ func (app *Application) handleSubmitApplicationEvent() {
 	if err != nil {
 		// submission failed
 		log.Logger().Warn("failed to submit app", zap.Error(err))
-		dispatcher.Dispatch(NewFailApplicationEvent(app.applicationID, err.Error()))
+		err := app.HandleApplicationEvent(FailApplication)
+		if err != nil {
+			log.Logger().Warn("BUG: Unexpected failure: Application state change failed",
+				zap.String("currentState", app.GetApplicationState()),
+				zap.Error(err))
+		}
 	}
 }
 
@@ -441,7 +440,12 @@ func (app *Application) handleRecoverApplicationEvent() {
 	if err != nil {
 		// recovery failed
 		log.Logger().Warn("failed to recover app", zap.Error(err))
-		dispatcher.Dispatch(NewFailApplicationEvent(app.applicationID, err.Error()))
+		err := app.HandleApplicationEvent(FailApplication)
+		if err != nil {
+			log.Logger().Warn("BUG: Unexpected failure: Application state change failed",
+				zap.String("currentState", app.GetApplicationState()),
+				zap.Error(err))
+		}
 	}
 }
 
@@ -481,26 +485,40 @@ func (app *Application) postAppAccepted() {
 		zap.Int("numTaskGroups", len(app.taskGroups)),
 		zap.Int("numAllocatedTasks", len(app.getTasks(events.States().Task.Allocated))))
 	if app.skipReservationStage() {
-		ev = NewRunApplicationEvent(app.applicationID)
+		err := app.HandleApplicationEvent(RunApplication)
+		if err != nil {
+			log.Logger().Warn("BUG: Unexpected failure: Application state change failed",
+				zap.String("currentState", app.GetApplicationState()),
+				zap.Error(err))
+		}
 		log.Logger().Info("Skip the reservation stage",
 			zap.String("appID", app.applicationID))
 	} else {
-		ev = NewSimpleApplicationEvent(app.applicationID, TryReserve.String())
+		err := app.HandleApplicationEvent(TryReserve)
+		if err != nil {
+			log.Logger().Warn("BUG: Unexpected failure: Application state change failed",
+				zap.String("currentState", app.GetApplicationState()),
+				zap.Error(err))
+		}
 		log.Logger().Info("app has taskGroups defined, trying to reserve resources for gang members",
 			zap.String("appID", app.applicationID))
 	}
 	dispatcher.Dispatch(ev)
 }
 
-func (app *Application) onReserving(event *fsm.Event) {
+func (app *Application) onReserving() {
 	go func() {
 		// while doing reserving
 		if err := getPlaceholderManager().createAppPlaceholders(app); err != nil {
 			// creating placeholder failed
 			// put the app into recycling queue and turn the app to running state
 			getPlaceholderManager().cleanUp(app)
-			ev := NewRunApplicationEvent(app.applicationID)
-			dispatcher.Dispatch(ev)
+			err := app.HandleApplicationEvent(RunApplication)
+			if err != nil {
+				log.Logger().Warn("BUG: Unexpected failure: Application state change failed",
+					zap.String("currentState", app.GetApplicationState()),
+					zap.Error(err))
+			}
 		}
 	}()
 }
@@ -521,22 +539,24 @@ func (app *Application) onReservationStateChange() {
 
 	// min member all satisfied
 	if desireCounts.Equals(actualCounts) {
-		ev := NewRunApplicationEvent(app.applicationID)
-		dispatcher.Dispatch(ev)
+		err := app.HandleApplicationEvent(RunApplication)
+		if err != nil {
+			log.Logger().Warn("BUG: Unexpected failure: Application state change failed",
+				zap.String("currentState", app.GetApplicationState()),
+				zap.Error(err))
+		}
 	}
 }
 
-func (app *Application) handleRejectApplicationEvent(event *fsm.Event) {
+func (app *Application) handleRejectApplicationEvent(reason string) {
 	log.Logger().Info("app is rejected by scheduler", zap.String("appID", app.applicationID))
-	eventArgs := make([]string, 1)
-	if err := events.GetEventArgsAsStrings(eventArgs, event.Args); err != nil {
-		log.Logger().Error("fail to parse event arg", zap.Error(err))
-		return
-	}
-	reason := eventArgs[0]
 	// for rejected apps, we directly move them to failed state
-	dispatcher.Dispatch(NewFailApplicationEvent(app.applicationID,
-		fmt.Sprintf("%s: %s", constants.ApplicationRejectedFailure, reason)))
+	err := app.HandleApplicationEventWithInfo(FailApplication, []string{fmt.Sprintf("%s: %s", constants.ApplicationRejectedFailure, reason)})
+	if err != nil {
+		log.Logger().Warn("BUG: Unexpected failure: Application state change failed",
+			zap.String("currentState", app.GetApplicationState()),
+			zap.Error(err))
+	}
 }
 
 func (app *Application) handleCompleteApplicationEvent() {
@@ -562,16 +582,10 @@ func failTaskPodWithReasonAndMsg(task *Task, reason string, msg string) {
 	}
 }
 
-func (app *Application) handleFailApplicationEvent(event *fsm.Event) {
+func (app *Application) handleFailApplicationEvent(errMsg string) {
 	go func() {
 		getPlaceholderManager().cleanUp(app)
 	}()
-	eventArgs := make([]string, 1)
-	if err := events.GetEventArgsAsStrings(eventArgs, event.Args); err != nil {
-		log.Logger().Error("fail to parse event arg", zap.Error(err))
-		return
-	}
-	errMsg := eventArgs[0]
 	log.Logger().Info("failApplication reason", zap.String("applicationID", app.applicationID), zap.String("errMsg", errMsg))
 	// unallocated task states include New, Pending and Scheduling
 	unalloc := app.getTasks(events.States().Task.New)
@@ -592,14 +606,7 @@ func (app *Application) handleFailApplicationEvent(event *fsm.Event) {
 	}
 }
 
-func (app *Application) handleReleaseAppAllocationEvent(event *fsm.Event) {
-	eventArgs := make([]string, 2)
-	if err := events.GetEventArgsAsStrings(eventArgs, event.Args); err != nil {
-		log.Logger().Error("fail to parse event arg", zap.Error(err))
-		return
-	}
-	allocUUID := eventArgs[0]
-	terminationTypeStr := eventArgs[1]
+func (app *Application) handleReleaseAppAllocationEvent(allocUUID string, terminationTypeStr string) {
 	log.Logger().Info("try to release pod from application",
 		zap.String("appID", app.applicationID),
 		zap.String("allocationUUID", allocUUID),
@@ -648,7 +655,13 @@ func (app *Application) handleAppTaskCompletedEvent() {
 	}
 	log.Logger().Info("Resuming completed, start to run the app",
 		zap.String("appID", app.applicationID))
-	dispatcher.Dispatch(NewRunApplicationEvent(app.applicationID))
+
+	//err := app.HandleApplicationEvent(RunApplication)
+	//if err != nil {
+	//	log.Logger().Warn("BUG: Unexpected failure: Application state change failed",
+	//		zap.String("currentState", app.GetApplicationState()),
+	//		zap.Error(err))
+	//}
 }
 
 func (app *Application) SetPlaceholderTimeout(timeout int64) {
