@@ -190,12 +190,10 @@ func NewAppState() *fsm.FSM {
 					zap.String("destination", event.Dst),
 					zap.String("event", event.Event))
 			},
-			// called after enter state
 			Reserving.String(): func(event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
 				app.onReserving()
 			},
-			// called after event
 			SubmitApplication.String(): func(event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
 				app.handleSubmitApplicationEvent()

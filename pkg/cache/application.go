@@ -36,7 +36,6 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
-	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/api"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
@@ -479,7 +478,6 @@ func (app *Application) postAppAccepted() {
 	// it goes to the Reserving state before getting to Running.
 	// app could have allocated tasks upon a recovery, and in that case,
 	// the reserving phase has already passed, no need to trigger that again.
-	var ev events.SchedulingEvent
 	log.Logger().Debug("postAppAccepted on cached app",
 		zap.String("appID", app.applicationID),
 		zap.Int("numTaskGroups", len(app.taskGroups)),
@@ -503,7 +501,6 @@ func (app *Application) postAppAccepted() {
 		log.Logger().Info("app has taskGroups defined, trying to reserve resources for gang members",
 			zap.String("appID", app.applicationID))
 	}
-	dispatcher.Dispatch(ev)
 }
 
 func (app *Application) onReserving() {

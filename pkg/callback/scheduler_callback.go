@@ -137,7 +137,7 @@ func (callback *AsyncRMCallback) UpdateApplication(response *si.ApplicationRespo
 			zap.String("appID", rejectedApp.ApplicationID))
 
 		if app := callback.context.GetApplication(rejectedApp.ApplicationID); app != nil {
-			err := app.(*cache.Application).HandleApplicationEvent(cache.RejectApplication)
+			err := app.(*cache.Application).HandleApplicationEventWithInfo(cache.RejectApplication, []string{rejectedApp.Reason})
 			if err != nil {
 				log.Logger().Warn("BUG: Unexpected failure: Application state change failed",
 					zap.String("currentState", app.GetApplicationState()),
@@ -157,9 +157,12 @@ func (callback *AsyncRMCallback) UpdateApplication(response *si.ApplicationRespo
 		case cache.Resuming.String():
 			app := callback.context.GetApplication(updated.ApplicationID)
 			if app != nil && app.GetApplicationState() == cache.Reserving.String() {
-				ev := cache.NewResumingApplicationEvent(updated.ApplicationID)
-				dispatcher.Dispatch(ev)
-
+				err := app.(*cache.Application).HandleApplicationEvent(cache.ResumingApplication)
+				if err != nil {
+					log.Logger().Warn("BUG: Unexpected failure: Application state change failed",
+						zap.String("currentState", app.GetApplicationState()),
+						zap.Error(err))
+				}
 				// handle status update
 				dispatcher.Dispatch(cache.NewApplicationStatusChangeEvent(updated.ApplicationID, cache.AppStateChange.String(), updated.State))
 			}
