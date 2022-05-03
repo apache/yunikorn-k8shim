@@ -108,7 +108,7 @@ var _ = ginkgo.Describe("", func() {
 	})
 
 	ginkgo.It("Verify_Pod_Alloc_Props", func() {
-		appsInfo, err := restClient.GetAppInfo(sleepRespPod.ObjectMeta.Labels["applicationId"])
+		appsInfo, err := restClient.GetAppInfo("default", "root."+dev, sleepRespPod.ObjectMeta.Labels["applicationId"])
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		gomega.Ω(appsInfo).NotTo(gomega.BeNil())
 		ginkgo.By("Verify the pod allocation properties")

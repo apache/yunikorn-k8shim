@@ -84,41 +84,25 @@ func (c *RClient) do(req *http.Request, v interface{}) (*http.Response, error) {
 	return resp, err
 }
 
-func (c *RClient) GetPartitions() (*dao.PartitionDAOInfo, error) {
-	req, err := c.newRequest("GET", configmanager.QueuesPath, nil)
+func (c *RClient) GetQueues(partition string) (*dao.PartitionQueueDAOInfo, error) {
+	req, err := c.newRequest("GET", fmt.Sprintf(configmanager.QueuesPath, partition), nil)
 	if err != nil {
 		return nil, err
 	}
-	partitions := new(dao.PartitionDAOInfo)
-	_, err = c.do(req, partitions)
-	return partitions, err
-}
-
-func (c *RClient) GetQueues() (map[string]interface{}, error) {
-	req, err := c.newRequest("GET", configmanager.QueuesPath, nil)
-	if err != nil {
-		return nil, err
-	}
-	var queues map[string]interface{}
+	var queues *dao.PartitionQueueDAOInfo
 	_, err = c.do(req, &queues)
 	return queues, err
 }
 
-func (c *RClient) GetSpecificQueueInfo(queueName string) (map[string]interface{}, error) {
-	queues, err := c.GetQueues()
+func (c *RClient) GetSpecificQueueInfo(partition string, queueName string) (*dao.PartitionQueueDAOInfo, error) {
+	queues, err := c.GetQueues(partition)
 	if err != nil {
 		return nil, err
 	}
-	// root queue
-	var rootQ = queues["queues"].(map[string]interface{})
-	var allSubQueues = rootQ["queues"].([]interface{})
-	for _, s := range allSubQueues {
-		var subQ, success = s.(map[string]interface{})
-		if !success {
-			return nil, errors.New("map typecast failed")
-		}
-		if subQ["queuename"] == queueName {
-			return subQ, nil
+	var allSubQueues = queues.Children
+	for _, subQ := range allSubQueues {
+		if subQ.QueueName == queueName {
+			return &subQ, nil
 		}
 	}
 	return nil, fmt.Errorf("QueueInfo not found: %s", queueName)
@@ -134,8 +118,8 @@ func (c *RClient) GetHealthCheck() (dao.SchedulerHealthDAOInfo, error) {
 	return healthCheck, err
 }
 
-func (c *RClient) GetApps() ([]map[string]interface{}, error) {
-	req, err := c.newRequest("GET", configmanager.AppsPath, nil)
+func (c *RClient) GetApps(partition string, queueName string) ([]map[string]interface{}, error) {
+	req, err := c.newRequest("GET", fmt.Sprintf(configmanager.AppsPath, partition, queueName), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -144,8 +128,8 @@ func (c *RClient) GetApps() ([]map[string]interface{}, error) {
 	return apps, err
 }
 
-func (c *RClient) GetAppInfo(appID string) (map[string]interface{}, error) {
-	apps, err := c.GetApps()
+func (c *RClient) GetAppInfo(partition string, queueName string, appID string) (map[string]interface{}, error) {
+	apps, err := c.GetApps(partition, queueName)
 	if err != nil {
 		return nil, err
 	}
@@ -159,25 +143,21 @@ func (c *RClient) GetAppInfo(appID string) (map[string]interface{}, error) {
 	return nil, fmt.Errorf("AppInfo not found: %s", appID)
 }
 
-func (c *RClient) GetAppsFromSpecificQueue(queueName string) ([]map[string]interface{}, error) {
-	apps, err := c.GetApps()
+func (c *RClient) GetAppsFromSpecificQueue(partition string, queueName string) ([]map[string]interface{}, error) {
+	apps, err := c.GetApps(partition, queueName)
 	if err != nil {
 		return nil, err
 	}
 	var appsOfQueue []map[string]interface{}
 	for _, appInfo := range apps {
-		for key, element := range appInfo {
-			if key == "queueName" && element == queueName {
-				appsOfQueue = append(appsOfQueue, appInfo)
-			}
-		}
+		appsOfQueue = append(appsOfQueue, appInfo)
 	}
 	return appsOfQueue, nil
 }
 
-func (c *RClient) isAppInDesiredState(appID string, state string) wait.ConditionFunc {
+func (c *RClient) isAppInDesiredState(partition string, queueName string, appID string, state string) wait.ConditionFunc {
 	return func() (bool, error) {
-		appInfo, err := c.GetAppInfo(appID)
+		appInfo, err := c.GetAppInfo(partition, queueName, appID)
 		if err != nil {
 			return false, nil // returning nil here for wait & loop
 		}
@@ -192,13 +172,13 @@ func (c *RClient) isAppInDesiredState(appID string, state string) wait.Condition
 	}
 }
 
-func (c *RClient) WaitForAppStateTransition(appID string, state string, timeout int) error {
-	return wait.PollImmediate(time.Second, time.Duration(timeout)*time.Second, c.isAppInDesiredState(appID, state))
+func (c *RClient) WaitForAppStateTransition(partition string, queueName string, appID string, state string, timeout int) error {
+	return wait.PollImmediate(time.Second, time.Duration(timeout)*time.Second, c.isAppInDesiredState(partition, queueName, appID, state))
 }
 
-func (c *RClient) AreAllExecPodsAllotted(appID string, execPodCount int) wait.ConditionFunc {
+func (c *RClient) AreAllExecPodsAllotted(partition string, queueName string, appID string, execPodCount int) wait.ConditionFunc {
 	return func() (bool, error) {
-		appInfo, err := c.GetAppInfo(appID)
+		appInfo, err := c.GetAppInfo(partition, queueName, appID)
 		if err != nil {
 			return false, err
 		}
@@ -226,18 +206,17 @@ func (c *RClient) ValidateSchedulerConfig(cm v1.ConfigMap) (*dao.ValidateConfRes
 func isRootSched(policy string) wait.ConditionFunc {
 	return func() (bool, error) {
 		restClient := RClient{}
-		pInfo, err := restClient.GetPartitions()
+		qInfo, err := restClient.GetQueues("default")
 		if err != nil {
 			return false, err
 		}
-		if pInfo == nil {
+		if qInfo == nil {
 			return false, errors.New("no response from rest client")
 		}
 
-		rootInfo := pInfo.Queues
 		if policy == "default" {
-			return len(rootInfo.Properties) == 0, nil
-		} else if rootInfo.Properties["application.sort.policy"] == policy {
+			return len(qInfo.Properties) == 0, nil
+		} else if qInfo.Properties["application.sort.policy"] == policy {
 			return true, nil
 		}
 

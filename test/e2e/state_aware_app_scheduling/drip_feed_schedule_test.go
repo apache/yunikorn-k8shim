@@ -66,7 +66,7 @@ var _ = Describe("DripFeedSchedule:", func() {
 		var appsFromQueue []map[string]interface{}
 		// Poll for apps to appear in the queue
 		err = wait.PollImmediate(time.Second, time.Duration(60)*time.Second, func() (done bool, err error) {
-			appsFromQueue, err = restClient.GetAppsFromSpecificQueue("root." + ns)
+			appsFromQueue, err = restClient.GetAppsFromSpecificQueue("default", "root."+ns)
 			if len(appsFromQueue) == 3 {
 				return true, nil
 			}
@@ -82,13 +82,13 @@ var _ = Describe("DripFeedSchedule:", func() {
 			app03 - Accepted
 		*/
 		By(fmt.Sprintf("Verify the app %s are in Starting state", app1))
-		err = restClient.WaitForAppStateTransition(app1, starting, 60)
+		err = restClient.WaitForAppStateTransition("default", "root."+ns, app1, starting, 60)
 		Ω(err).NotTo(HaveOccurred())
 		By(fmt.Sprintf("Verify the app %s are in Accepted state", app2))
-		err = restClient.WaitForAppStateTransition(app2, accepted, 60)
+		err = restClient.WaitForAppStateTransition("default", "root."+ns, app2, accepted, 60)
 		Ω(err).NotTo(HaveOccurred())
 		By(fmt.Sprintf("Verify the app %s are in Accepted state", app3))
-		err = restClient.WaitForAppStateTransition(app3, accepted, 60)
+		err = restClient.WaitForAppStateTransition("default", "root."+ns, app3, accepted, 60)
 		Ω(err).NotTo(HaveOccurred())
 
 		/*
@@ -119,11 +119,11 @@ var _ = Describe("DripFeedSchedule:", func() {
 			_, err = kClient.CreatePod(common.InitSleepPod(sleepPodConf), ns)
 			Ω(err).NotTo(HaveOccurred())
 			By(fmt.Sprintf("Verify that the app: %s is in running state", appID))
-			err = restClient.WaitForAppStateTransition(app1, appStates[appID][0], 60)
+			err = restClient.WaitForAppStateTransition("default", "root."+ns, app1, appStates[appID][0], 60)
 			Ω(err).NotTo(HaveOccurred())
-			err = restClient.WaitForAppStateTransition(app2, appStates[appID][1], 60)
+			err = restClient.WaitForAppStateTransition("default", "root."+ns, app2, appStates[appID][1], 60)
 			Ω(err).NotTo(HaveOccurred())
-			err = restClient.WaitForAppStateTransition(app3, appStates[appID][2], 60)
+			err = restClient.WaitForAppStateTransition("default", "root."+ns, app3, appStates[appID][2], 60)
 			Ω(err).NotTo(HaveOccurred())
 		}
 

@@ -61,7 +61,7 @@ var _ = Describe("FallbackTest:", func() {
 			10)
 		Ω(err).NotTo(HaveOccurred())
 
-		appsInfo, err = restClient.GetAppInfo(sleepRespPod.ObjectMeta.Labels["applicationId"])
+		appsInfo, err = restClient.GetAppInfo("default", "root."+ns, sleepRespPod.ObjectMeta.Labels["applicationId"])
 		Ω(err).NotTo(HaveOccurred())
 		Ω(appsInfo).NotTo(BeNil())
 		By(fmt.Sprintf("Verify that the sleep pod is mapped to %s queue", ns))
@@ -74,13 +74,13 @@ var _ = Describe("FallbackTest:", func() {
 
 	It("Verify_App_State_Transition_To_Running_Post_Timeout", func() {
 		By("Wait for fallback timeout of 5mins")
-		err = restClient.WaitForAppStateTransition(sleepRespPod.ObjectMeta.Labels["applicationId"],
+		err = restClient.WaitForAppStateTransition("default", "root."+ns, sleepRespPod.ObjectMeta.Labels["applicationId"],
 			yunikorn.States().Application.Running,
 			360)
 		Ω(err).NotTo(HaveOccurred())
 
 		// Get AppInfo again to check the allocations post running state.
-		appsInfo, err = restClient.GetAppInfo(sleepRespPod.ObjectMeta.Labels["applicationId"])
+		appsInfo, err = restClient.GetAppInfo("default", "root."+ns, sleepRespPod.ObjectMeta.Labels["applicationId"])
 		Ω(appsInfo["allocations"]).NotTo(BeNil())
 		allocations, ok := appsInfo["allocations"].([]interface{})[0].(map[string]interface{})
 		Ω(ok).Should(BeTrue())
