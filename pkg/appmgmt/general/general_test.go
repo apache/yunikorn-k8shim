@@ -309,7 +309,7 @@ func TestAddPod(t *testing.T) {
 	app, valid := toApplication(managedApp)
 	assert.Equal(t, valid, true)
 	assert.Equal(t, app.GetApplicationID(), "app00001")
-	assert.Equal(t, app.GetApplicationState(), events.States().Application.New)
+	assert.Equal(t, app.GetApplicationState(), cache.New.String())
 	assert.Equal(t, app.GetQueue(), "root.a")
 	assert.Equal(t, len(app.GetNewTasks()), 1)
 
@@ -403,7 +403,7 @@ func TestUpdatePodWhenSucceed(t *testing.T) {
 	app, valid := toApplication(managedApp)
 	assert.Equal(t, valid, true)
 	assert.Equal(t, app.GetApplicationID(), "app00001")
-	assert.Equal(t, app.GetApplicationState(), events.States().Application.New)
+	assert.Equal(t, app.GetApplicationState(), cache.New.String())
 	assert.Equal(t, app.GetQueue(), "root.a")
 	assert.Equal(t, len(app.GetNewTasks()), 1)
 
@@ -529,7 +529,7 @@ func TestDeletePod(t *testing.T) {
 	app, valid := toApplication(managedApp)
 	assert.Equal(t, valid, true)
 	assert.Equal(t, app.GetApplicationID(), "app00001")
-	assert.Equal(t, app.GetApplicationState(), events.States().Application.New)
+	assert.Equal(t, app.GetApplicationState(), cache.New.String())
 	assert.Equal(t, app.GetQueue(), "root.a")
 	assert.Equal(t, len(app.GetNewTasks()), 1)
 

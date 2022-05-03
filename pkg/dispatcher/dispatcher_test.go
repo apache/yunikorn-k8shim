@@ -27,6 +27,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/apache/yunikorn-k8shim/pkg/cache"
+
 	"gotest.tools/assert"
 
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
@@ -36,7 +38,7 @@ import (
 // app event for testing
 type TestAppEvent struct {
 	appID     string
-	eventType events.ApplicationEventType
+	eventType string
 	flag      chan bool
 }
 
@@ -44,7 +46,7 @@ func (t TestAppEvent) GetApplicationID() string {
 	return t.appID
 }
 
-func (t TestAppEvent) GetEvent() events.ApplicationEventType {
+func (t TestAppEvent) GetEvent() string {
 	return t.eventType
 }
 
@@ -111,11 +113,11 @@ func TestDispatcherStartStop(t *testing.T) {
 	// dispatch an event
 	Dispatch(TestAppEvent{
 		appID:     "test-app-001",
-		eventType: events.RunApplication,
+		eventType: cache.Running.String(),
 	})
 	Dispatch(TestAppEvent{
 		appID:     "test-app-002",
-		eventType: events.RunApplication,
+		eventType: cache.Running.String(),
 	})
 
 	// wait until all events are handled
@@ -134,7 +136,7 @@ func TestDispatcherStartStop(t *testing.T) {
 	// dispatch new events should fail
 	if err := dispatcher.dispatch(TestAppEvent{
 		appID:     "test-app-002",
-		eventType: events.RunApplication,
+		eventType: cache.RunApplication.String(),
 	}); err == nil {
 		t.Fatalf("dispatch is not running, this should fail")
 	} else {
@@ -170,7 +172,7 @@ func TestEventWillNotBeLostWhenEventChannelIsFull(t *testing.T) {
 	for i := 0; i < numEvents; i++ {
 		Dispatch(TestAppEvent{
 			appID:     "test",
-			eventType: events.RunApplication,
+			eventType: cache.RunApplication.String(),
 		})
 	}
 
@@ -218,7 +220,7 @@ func TestDispatchTimeout(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		Dispatch(TestAppEvent{
 			appID:     fmt.Sprintf("test-%d", i),
-			eventType: events.RunApplication,
+			eventType: cache.RunApplication.String(),
 			flag:      stop,
 		})
 	}
@@ -282,7 +284,7 @@ func TestExceedAsyncDispatchLimit(t *testing.T) {
 	for i := 0; i < 4; i++ {
 		Dispatch(TestAppEvent{
 			appID:     "test",
-			eventType: events.RunApplication,
+			eventType: cache.RunApplication.String(),
 		})
 	}
 }

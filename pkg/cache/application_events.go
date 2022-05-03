@@ -18,6 +18,12 @@
 
 package cache
 
+type ApplicationEvent struct {
+	applicationID string
+	event         string
+	message       string
+}
+
 // ApplicationStatusChangeEvent updates the status in the application CRD
 type ApplicationStatusChangeEvent struct {
 	applicationID string
@@ -101,4 +107,27 @@ func (ue UpdateApplicationReservationEvent) GetArgs() []interface{} {
 
 func (ue UpdateApplicationReservationEvent) GetApplicationID() string {
 	return ue.applicationID
+}
+
+// ------------------------
+// Run application
+// ------------------------
+type RunApplicationEvent struct {
+	applicationID string
+	event         string
+}
+
+func NewRunApplicationEvent(appID string) RunApplicationEvent {
+	return RunApplicationEvent{
+		applicationID: appID,
+		event:         RunApplication.String(),
+	}
+}
+
+func (re RunApplicationEvent) GetArgs() []interface{} {
+	return nil
+}
+
+func (re RunApplicationEvent) GetApplicationID() string {
+	return re.applicationID
 }

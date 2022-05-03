@@ -98,8 +98,8 @@ func (app *Application) HandleApplicationEvent(event applicationEvent) error {
 	// 2) Note, state machine calls those callbacks here, we must ensure
 	//    they are lock-free calls. Otherwise the callback will be blocked
 	//    because the lock is already held here.
-	//app.lock.Lock()
-	//defer app.lock.Unlock()
+	app.lock.Lock()
+	defer app.lock.Unlock()
 	err := app.stateMachine.Event(event.String(), app)
 	// handle the same state transition not nil error (limit of fsm).
 	if err != nil && err.Error() != "no transition" {
@@ -109,8 +109,8 @@ func (app *Application) HandleApplicationEvent(event applicationEvent) error {
 }
 
 func (app *Application) HandleApplicationEventWithInfo(event applicationEvent, eventnfo []string) error {
-	//app.lock.Lock()
-	//defer app.lock.Unlock()
+	app.lock.Lock()
+	defer app.lock.Unlock()
 	err := app.stateMachine.Event(event.String(), app, eventnfo)
 	// handle the same state transition not nil error (limit of fsm).
 	if err != nil && err.Error() != "no transition" {
@@ -551,12 +551,14 @@ func (app *Application) onReservationStateChange() {
 func (app *Application) handleRejectApplicationEvent(reason string) {
 	log.Logger().Info("app is rejected by scheduler", zap.String("appID", app.applicationID))
 	// for rejected apps, we directly move them to failed state
-	err := app.HandleApplicationEventWithInfo(FailApplication, []string{fmt.Sprintf("%s: %s", constants.ApplicationRejectedFailure, reason)})
-	if err != nil {
-		log.Logger().Warn("BUG: Unexpected failure: Application state change failed",
-			zap.String("currentState", app.GetApplicationState()),
-			zap.Error(err))
-	}
+	go func() {
+		err := app.HandleApplicationEventWithInfo(FailApplication, []string{fmt.Sprintf("%s: %s", constants.ApplicationRejectedFailure, reason)})
+		if err != nil {
+			log.Logger().Warn("BUG: Unexpected failure: Application state change failed",
+				zap.String("currentState", app.GetApplicationState()),
+				zap.Error(err))
+		}
+	}()
 }
 
 func (app *Application) handleCompleteApplicationEvent() {
@@ -656,12 +658,14 @@ func (app *Application) handleAppTaskCompletedEvent() {
 	log.Logger().Info("Resuming completed, start to run the app",
 		zap.String("appID", app.applicationID))
 
-	//err := app.HandleApplicationEvent(RunApplication)
-	//if err != nil {
-	//	log.Logger().Warn("BUG: Unexpected failure: Application state change failed",
-	//		zap.String("currentState", app.GetApplicationState()),
-	//		zap.Error(err))
-	//}
+	go func() {
+		err := app.HandleApplicationEvent(RunApplication)
+		if err != nil {
+			log.Logger().Warn("BUG: Unexpected failure: Application state change failed",
+				zap.String("currentState", app.GetApplicationState()),
+				zap.Error(err))
+		}
+	}()
 }
 
 func (app *Application) SetPlaceholderTimeout(timeout int64) {

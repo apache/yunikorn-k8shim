@@ -22,10 +22,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/apache/yunikorn-k8shim/pkg/cache"
+
 	"go.uber.org/zap"
 
 	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
-	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
@@ -84,7 +85,7 @@ func (svc *AppManagementService) waitForAppRecovery(
 				log.Logger().Debug("appInfo",
 					zap.String("appId", app.GetApplicationID()),
 					zap.String("state", app.GetApplicationState()))
-				if app.GetApplicationState() == events.States().Application.Accepted {
+				if app.GetApplicationState() == cache.Accepted.String() {
 					delete(recoveringApps, app.GetApplicationID())
 				}
 			}
