@@ -72,7 +72,7 @@ func TestGetAppMetadata(t *testing.T) {
 		},
 	}
 
-	app, ok := am.getAppMetadata(&pod, false)
+	app, ok := am.GetAppMetadata(&pod, false)
 	assert.Equal(t, ok, true)
 	assert.Equal(t, app.ApplicationID, "app00001")
 	assert.Equal(t, app.QueueName, "root.a")
@@ -113,7 +113,7 @@ func TestGetAppMetadata(t *testing.T) {
 		},
 	}
 
-	app, ok = am.getAppMetadata(&pod, false)
+	app, ok = am.GetAppMetadata(&pod, false)
 	assert.Equal(t, ok, true)
 	assert.Equal(t, app.ApplicationID, "app00002")
 	assert.Equal(t, app.QueueName, "root.b")
@@ -146,7 +146,7 @@ func TestGetAppMetadata(t *testing.T) {
 		},
 	}
 
-	app, ok = am.getAppMetadata(&pod, false)
+	app, ok = am.GetAppMetadata(&pod, false)
 	assert.Equal(t, ok, true)
 	assert.Equal(t, app.SchedulingPolicyParameters.GetGangSchedulingStyle(), "Soft")
 
@@ -176,7 +176,7 @@ func TestGetAppMetadata(t *testing.T) {
 		},
 	}
 
-	app, ok = am.getAppMetadata(&pod, false)
+	app, ok = am.GetAppMetadata(&pod, false)
 	assert.Equal(t, ok, true)
 	assert.Equal(t, app.SchedulingPolicyParameters.GetGangSchedulingStyle(), "Soft")
 
@@ -198,7 +198,7 @@ func TestGetAppMetadata(t *testing.T) {
 		},
 	}
 
-	app, ok = am.getAppMetadata(&pod, false)
+	app, ok = am.GetAppMetadata(&pod, false)
 	assert.Equal(t, ok, false)
 	pod = v1.Pod{
 		TypeMeta: apis.TypeMeta{
@@ -218,7 +218,7 @@ func TestGetAppMetadata(t *testing.T) {
 		},
 	}
 
-	app, ok = am.getAppMetadata(&pod, false)
+	app, ok = am.GetAppMetadata(&pod, false)
 	assert.Equal(t, ok, false)
 }
 
@@ -248,13 +248,13 @@ func TestGetTaskMetadata(t *testing.T) {
 		},
 	}
 
-	task, ok := am.getTaskMetadata(&pod)
+	task, ok := am.GetTaskMetadata(&pod)
 	assert.Equal(t, ok, true)
 	assert.Equal(t, task.ApplicationID, "app00001")
 	assert.Equal(t, task.TaskID, "UID-POD-00001")
 	assert.Equal(t, task.TaskGroupName, "test-group-01")
 	pod.Annotations = map[string]string{}
-	task, ok = am.getTaskMetadata(&pod)
+	task, ok = am.GetTaskMetadata(&pod)
 	assert.Equal(t, ok, true)
 	assert.Equal(t, task.TaskGroupName, "")
 
@@ -274,7 +274,7 @@ func TestGetTaskMetadata(t *testing.T) {
 		},
 	}
 
-	task, ok = am.getTaskMetadata(&pod)
+	task, ok = am.GetTaskMetadata(&pod)
 	assert.Equal(t, ok, false)
 }
 
@@ -758,7 +758,7 @@ func TestListApplication(t *testing.T) {
 	}
 	// init the app manager and run listApp
 	am := NewManager(cache.NewMockedAMProtocol(), mockedAPIProvider)
-	apps, err := am.ListApplications()
+	apps, _, err := am.ListApplications()
 	assert.NilError(t, err)
 	assert.Equal(t, len(apps), 3)
 	for name := range apps {

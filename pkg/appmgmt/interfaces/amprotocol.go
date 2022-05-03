@@ -65,7 +65,8 @@ type ApplicationManagementProtocol interface {
 }
 
 type AddApplicationRequest struct {
-	Metadata ApplicationMetadata
+	Metadata    ApplicationMetadata
+	ForceUpdate bool
 }
 
 type AddTaskRequest struct {

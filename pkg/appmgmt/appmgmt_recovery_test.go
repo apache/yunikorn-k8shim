@@ -171,7 +171,7 @@ func (ma *mockedAppManager) Stop() {
 	// noop
 }
 
-func (ma *mockedAppManager) ListApplications() (map[string]interfaces.ApplicationMetadata, error) {
+func (ma *mockedAppManager) ListApplications() (map[string]interfaces.ApplicationMetadata, []*v1.Pod, error) {
 	apps := make(map[string]interfaces.ApplicationMetadata)
 	apps["app01"] = interfaces.ApplicationMetadata{
 		ApplicationID: "app01",
@@ -185,7 +185,7 @@ func (ma *mockedAppManager) ListApplications() (map[string]interfaces.Applicatio
 		User:          "",
 		Tags:          nil,
 	}
-	return apps, nil
+	return apps, nil, nil
 }
 
 func (ma *mockedAppManager) GetExistingAllocation(pod *v1.Pod) *si.Allocation {

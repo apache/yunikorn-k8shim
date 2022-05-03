@@ -24,7 +24,7 @@ import (
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
 
-// recoverable interface defines a certain type of app that can be recovered upon scheduler' restart
+// Recoverable interface defines a certain type of app that can be recovered upon scheduler' restart
 // each app manager needs to implement this interface in order to support fault recovery
 //
 // why we need this?
@@ -35,7 +35,7 @@ import (
 // and then properly recover these applications before recovering nodes.
 type Recoverable interface {
 	// list applications returns all existing applications known to this app manager.
-	ListApplications() (map[string]ApplicationMetadata, error)
+	ListApplications() (map[string]ApplicationMetadata, []*v1.Pod, error)
 
 	// this is called during recovery
 	// for a given pod, return an allocation if found

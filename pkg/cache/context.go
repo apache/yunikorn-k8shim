@@ -595,7 +595,9 @@ func (ctx *Context) getNamespaceObject(namespace string) *v1.Namespace {
 
 func (ctx *Context) AddApplication(request *interfaces.AddApplicationRequest) interfaces.ManagedApp {
 	log.Logger().Debug("AddApplication", zap.Any("Request", request))
-	if app := ctx.GetApplication(request.Metadata.ApplicationID); app != nil {
+	appID := request.Metadata.ApplicationID
+	if app := ctx.GetApplication(request.Metadata.ApplicationID); app != nil && !request.ForceUpdate {
+		log.Logger().Debug("Application already in the context", zap.String("appID", appID))
 		return app
 	}
 
@@ -604,13 +606,13 @@ func (ctx *Context) AddApplication(request *interfaces.AddApplicationRequest) in
 
 	if ns, ok := request.Metadata.Tags[constants.AppTagNamespace]; ok {
 		log.Logger().Debug("app namespace info",
-			zap.String("appID", request.Metadata.ApplicationID),
+			zap.String("appID", appID),
 			zap.String("namespace", ns))
 		ctx.updateApplicationTags(request, ns)
 	}
 
 	app := NewApplication(
-		request.Metadata.ApplicationID,
+		appID,
 		request.Metadata.QueueName,
 		request.Metadata.User,
 		request.Metadata.Tags,
@@ -628,6 +630,9 @@ func (ctx *Context) AddApplication(request *interfaces.AddApplicationRequest) in
 	app.setOwnReferences(request.Metadata.OwnerReferences)
 
 	// add into cache
+	if _, ok := ctx.applications[app.applicationID]; ok {
+		log.Logger().Debug("Replacing existing application")
+	}
 	ctx.applications[app.applicationID] = app
 	log.Logger().Info("app added",
 		zap.String("appID", app.applicationID))

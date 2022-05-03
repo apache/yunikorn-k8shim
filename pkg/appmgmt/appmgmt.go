@@ -37,24 +37,28 @@ type AppManagementService struct {
 	apiProvider client.APIProvider
 	amProtocol  interfaces.ApplicationManagementProtocol
 	managers    []interfaces.AppManager
+	generalMgr  *general.Manager
 }
 
 func NewAMService(amProtocol interfaces.ApplicationManagementProtocol,
 	apiProvider client.APIProvider) *AppManagementService {
+	generalMgr := general.NewManager(amProtocol, apiProvider)
 	appManager := &AppManagementService{
 		amProtocol:  amProtocol,
 		apiProvider: apiProvider,
 		managers:    make([]interfaces.AppManager, 0),
+		generalMgr:  generalMgr,
 	}
 
 	log.Logger().Info("Initializing new AppMgmt service")
 
 	if !apiProvider.IsTestingMode() {
 		log.Logger().Info("Registering Spark operator with the AppMgmt service")
+
 		appManager.register(
 			// registered app plugins
 			// for general apps
-			general.NewManager(amProtocol, apiProvider),
+			generalMgr,
 			// for spark operator - SparkApplication
 			sparkoperator.NewManager(amProtocol, apiProvider),
 			// for application crds

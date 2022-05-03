@@ -33,8 +33,8 @@ func NewMockedRecoverableAppManager() *MockedRecoverableAppManager {
 	return &MockedRecoverableAppManager{}
 }
 
-func (m *MockedRecoverableAppManager) ListApplications() (map[string]interfaces.ApplicationMetadata, error) {
-	return nil, nil
+func (m *MockedRecoverableAppManager) ListApplications() (map[string]interfaces.ApplicationMetadata, []*v1.Pod, error) {
+	return nil, nil, nil
 }
 
 func (m *MockedRecoverableAppManager) GetExistingAllocation(pod *v1.Pod) *si.Allocation {

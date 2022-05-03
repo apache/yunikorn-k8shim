@@ -90,7 +90,7 @@ func (os *Manager) Stop() {
 	// noop
 }
 
-func (os *Manager) getTaskMetadata(pod *v1.Pod) (interfaces.TaskMetadata, bool) {
+func (os *Manager) GetTaskMetadata(pod *v1.Pod) (interfaces.TaskMetadata, bool) {
 	appID, err := utils.GetApplicationIDFromPod(pod)
 	if err != nil {
 		log.Logger().Debug("unable to get task by given pod", zap.Error(err))
@@ -113,7 +113,7 @@ func (os *Manager) getTaskMetadata(pod *v1.Pod) (interfaces.TaskMetadata, bool) 
 	}, true
 }
 
-func (os *Manager) getAppMetadata(pod *v1.Pod, recovery bool) (interfaces.ApplicationMetadata, bool) {
+func (os *Manager) GetAppMetadata(pod *v1.Pod, recovery bool) (interfaces.ApplicationMetadata, bool) {
 	appID, err := utils.GetApplicationIDFromPod(pod)
 	if err != nil {
 		log.Logger().Debug("unable to get application for pod",
@@ -238,7 +238,7 @@ func (os *Manager) addPod(obj interface{}) {
 		zap.String("Namespace", pod.Namespace))
 
 	// add app
-	if appMeta, ok := os.getAppMetadata(pod, false); ok {
+	if appMeta, ok := os.GetAppMetadata(pod, false); ok {
 		// check if app already exist
 		if app := os.amProtocol.GetApplication(appMeta.ApplicationID); app == nil {
 			os.amProtocol.AddApplication(&interfaces.AddApplicationRequest{
@@ -248,7 +248,7 @@ func (os *Manager) addPod(obj interface{}) {
 	}
 
 	// add task
-	if taskMeta, ok := os.getTaskMetadata(pod); ok {
+	if taskMeta, ok := os.GetTaskMetadata(pod); ok {
 		if app := os.amProtocol.GetApplication(taskMeta.ApplicationID); app != nil {
 			if _, taskErr := app.GetTask(string(pod.UID)); taskErr != nil {
 				os.amProtocol.AddTask(&interfaces.AddTaskRequest{
@@ -286,7 +286,7 @@ func (os *Manager) updatePod(old, new interface{}) {
 				zap.String("podName", newPod.Name),
 				zap.String("podUID", string(newPod.UID)),
 				zap.String("podStatus", string(newPod.Status.Phase)))
-			if taskMeta, ok := os.getTaskMetadata(newPod); ok {
+			if taskMeta, ok := os.GetTaskMetadata(newPod); ok {
 				if app := os.amProtocol.GetApplication(taskMeta.ApplicationID); app != nil {
 					os.amProtocol.NotifyTaskComplete(taskMeta.ApplicationID, taskMeta.TaskID)
 				}
@@ -324,32 +324,34 @@ func (os *Manager) deletePod(obj interface{}) {
 		zap.String("podName", pod.Name),
 		zap.String("podUID", string(pod.UID)))
 
-	if taskMeta, ok := os.getTaskMetadata(pod); ok {
+	if taskMeta, ok := os.GetTaskMetadata(pod); ok {
 		if app := os.amProtocol.GetApplication(taskMeta.ApplicationID); app != nil {
 			os.amProtocol.NotifyTaskComplete(taskMeta.ApplicationID, taskMeta.TaskID)
 		}
 	}
 }
 
-func (os *Manager) ListApplications() (map[string]interfaces.ApplicationMetadata, error) {
+func (os *Manager) ListApplications() (map[string]interfaces.ApplicationMetadata, []*v1.Pod, error) {
 	log.Logger().Info("Retrieving pod list")
 	// list all pods on this cluster
 	appPods, err := os.apiProvider.GetAPIs().PodInformer.Lister().List(labels.NewSelector())
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	log.Logger().Info("Pod list retrieved from api server", zap.Int("nr of pods", len(appPods)))
 	// get existing apps
 	existingApps := make(map[string]interfaces.ApplicationMetadata)
 	podsRecovered := 0
 	podsWithoutMetaData := 0
+	pods := make([]*v1.Pod, 0)
 	for _, pod := range appPods {
 		log.Logger().Debug("Looking at pod for recovery candidates", zap.String("podNamespace", pod.Namespace), zap.String("podName", pod.Name))
 		// general filter passes, and pod is assigned
 		// this means the pod is already scheduled by scheduler for an existing app
 		if utils.GeneralPodFilter(pod) && utils.IsAssignedPod(pod) {
-			if meta, ok := os.getAppMetadata(pod, true); ok {
+			if meta, ok := os.GetAppMetadata(pod, true); ok {
 				podsRecovered++
+				pods = append(pods, pod)
 				log.Logger().Debug("Adding appID as recovery candidate", zap.String("appID", meta.ApplicationID))
 				if _, exist := existingApps[meta.ApplicationID]; !exist {
 					existingApps[meta.ApplicationID] = meta
@@ -365,11 +367,11 @@ func (os *Manager) ListApplications() (map[string]interfaces.ApplicationMetadata
 		zap.Int("nr of pods without application metadata", podsWithoutMetaData),
 		zap.Int("nr of pods to be recovered", podsRecovered))
 
-	return existingApps, nil
+	return existingApps, pods, nil
 }
 
 func (os *Manager) GetExistingAllocation(pod *v1.Pod) *si.Allocation {
-	if meta, valid := os.getAppMetadata(pod, false); valid {
+	if meta, valid := os.GetAppMetadata(pod, false); valid {
 		// when submit a task, we use pod UID as the allocationKey,
 		// to keep consistent, during recovery, the pod UID is also used
 		// for an Allocation.
