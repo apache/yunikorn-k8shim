@@ -169,7 +169,7 @@ func (callback *AsyncRMCallback) UpdateApplication(response *si.ApplicationRespo
 		default:
 			if updated.State == cache.Failing.String() || updated.State == cache.Failed.String() {
 				app := callback.context.GetApplication(updated.ApplicationID)
-				err := app.(*cache.Application).HandleApplicationEventWithInfo(cache.FailApplication, []string{updated.ApplicationID, updated.Message})
+				err := app.(*cache.Application).HandleApplicationEventWithInfo(cache.FailApplication, []string{updated.Message})
 				if err != nil {
 					log.Logger().Warn("BUG: Unexpected failure: Application state change failed",
 						zap.String("currentState", app.GetApplicationState()),
