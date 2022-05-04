@@ -27,12 +27,9 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	k8sCache "k8s.io/client-go/tools/cache"
 
-	"github.com/apache/yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
-	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
-	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
@@ -48,15 +45,15 @@ import (
 // then report them to scheduler cache by calling am protocol
 type Manager struct {
 	apiProvider            client.APIProvider
-	amProtocol             interfaces.ApplicationManagementProtocol
 	gangSchedulingDisabled bool
+	podEventHandler        *PodEventHandler
 }
 
-func NewManager(amProtocol interfaces.ApplicationManagementProtocol, apiProvider client.APIProvider) *Manager {
+func NewManager(apiProvider client.APIProvider, podEventHandler *PodEventHandler) *Manager {
 	return &Manager{
 		apiProvider:            apiProvider,
-		amProtocol:             amProtocol,
 		gangSchedulingDisabled: conf.GetSchedulerConf().DisableGangScheduling,
+		podEventHandler:        podEventHandler,
 	}
 }
 
@@ -88,90 +85,6 @@ func (os *Manager) Start() error {
 // this implements AppManagementService interface
 func (os *Manager) Stop() {
 	// noop
-}
-
-func (os *Manager) getTaskMetadata(pod *v1.Pod) (interfaces.TaskMetadata, bool) {
-	appID, err := utils.GetApplicationIDFromPod(pod)
-	if err != nil {
-		log.Logger().Debug("unable to get task by given pod", zap.Error(err))
-		return interfaces.TaskMetadata{}, false
-	}
-
-	placeholder := utils.GetPlaceholderFlagFromPodSpec(pod)
-
-	var taskGroupName string
-	if !os.gangSchedulingDisabled {
-		taskGroupName = utils.GetTaskGroupFromPodSpec(pod)
-	}
-
-	return interfaces.TaskMetadata{
-		ApplicationID: appID,
-		TaskID:        string(pod.UID),
-		Pod:           pod,
-		Placeholder:   placeholder,
-		TaskGroupName: taskGroupName,
-	}, true
-}
-
-func (os *Manager) getAppMetadata(pod *v1.Pod, recovery bool) (interfaces.ApplicationMetadata, bool) {
-	appID, err := utils.GetApplicationIDFromPod(pod)
-	if err != nil {
-		log.Logger().Debug("unable to get application for pod",
-			zap.String("namespace", pod.Namespace),
-			zap.String("name", pod.Name),
-			zap.Error(err))
-		return interfaces.ApplicationMetadata{}, false
-	}
-
-	// tags will at least have namespace info
-	// labels or annotations from the pod can be added when needed
-	// user info is retrieved via service account
-	tags := map[string]string{}
-	if pod.Namespace == "" {
-		tags[constants.AppTagNamespace] = constants.DefaultAppNamespace
-	} else {
-		tags[constants.AppTagNamespace] = pod.Namespace
-	}
-	if isStateAwareDisabled(pod) {
-		tags[constants.AppTagStateAwareDisable] = "true"
-	}
-
-	// get the user from Pod Labels
-	user := utils.GetUserFromPod(pod)
-
-	var taskGroups []v1alpha1.TaskGroup = nil
-	if !os.gangSchedulingDisabled {
-		taskGroups, err = utils.GetTaskGroupsFromAnnotation(pod)
-		if err != nil {
-			log.Logger().Error("unable to get taskGroups for pod",
-				zap.String("namespace", pod.Namespace),
-				zap.String("name", pod.Name),
-				zap.Error(err))
-			events.GetRecorder().Eventf(pod, nil, v1.EventTypeWarning, "TaskGroupsError", "TaskGroupsError",
-				"unable to get taskGroups for pod, reason: %s", err.Error())
-		}
-		tags[constants.AnnotationTaskGroups] = pod.Annotations[constants.AnnotationTaskGroups]
-	}
-
-	ownerReferences := getOwnerReferences(pod)
-	schedulingPolicyParams := utils.GetSchedulingPolicyParam(pod)
-	tags[constants.AnnotationSchedulingPolicyParam] = pod.Annotations[constants.AnnotationSchedulingPolicyParam]
-
-	var creationTime int64
-	if recovery {
-		creationTime = pod.CreationTimestamp.Unix()
-	}
-
-	return interfaces.ApplicationMetadata{
-		ApplicationID:              appID,
-		QueueName:                  utils.GetQueueNameFromPod(pod),
-		User:                       user,
-		Tags:                       tags,
-		TaskGroups:                 taskGroups,
-		OwnerReferences:            ownerReferences,
-		SchedulingPolicyParameters: schedulingPolicyParams,
-		CreationTime:               creationTime,
-	}, true
 }
 
 func isStateAwareDisabled(pod *v1.Pod) bool {
@@ -239,26 +152,7 @@ func (os *Manager) AddPod(obj interface{}) {
 		zap.String("Name", pod.Name),
 		zap.String("Namespace", pod.Namespace))
 
-	// add app
-	if appMeta, ok := os.getAppMetadata(pod, false); ok {
-		// check if app already exist
-		if app := os.amProtocol.GetApplication(appMeta.ApplicationID); app == nil {
-			os.amProtocol.AddApplication(&interfaces.AddApplicationRequest{
-				Metadata: appMeta,
-			})
-		}
-	}
-
-	// add task
-	if taskMeta, ok := os.getTaskMetadata(pod); ok {
-		if app := os.amProtocol.GetApplication(taskMeta.ApplicationID); app != nil {
-			if _, taskErr := app.GetTask(string(pod.UID)); taskErr != nil {
-				os.amProtocol.AddTask(&interfaces.AddTaskRequest{
-					Metadata: taskMeta,
-				})
-			}
-		}
-	}
+	os.podEventHandler.HandleEvent(AddPod, Informers, pod)
 }
 
 // when pod resource is modified, we need to act accordingly
@@ -288,11 +182,7 @@ func (os *Manager) updatePod(old, new interface{}) {
 				zap.String("podName", newPod.Name),
 				zap.String("podUID", string(newPod.UID)),
 				zap.String("podStatus", string(newPod.Status.Phase)))
-			if taskMeta, ok := os.getTaskMetadata(newPod); ok {
-				if app := os.amProtocol.GetApplication(taskMeta.ApplicationID); app != nil {
-					os.amProtocol.NotifyTaskComplete(taskMeta.ApplicationID, taskMeta.TaskID)
-				}
-			}
+			os.podEventHandler.HandleEvent(UpdatePod, Informers, newPod)
 		}
 	}
 }
@@ -326,14 +216,10 @@ func (os *Manager) deletePod(obj interface{}) {
 		zap.String("podName", pod.Name),
 		zap.String("podUID", string(pod.UID)))
 
-	if taskMeta, ok := os.getTaskMetadata(pod); ok {
-		if app := os.amProtocol.GetApplication(taskMeta.ApplicationID); app != nil {
-			os.amProtocol.NotifyTaskComplete(taskMeta.ApplicationID, taskMeta.TaskID)
-		}
-	}
+	os.podEventHandler.HandleEvent(DeletePod, Informers, pod)
 }
 
-func (os *Manager) ListApplications() (map[string]interfaces.ApplicationMetadata, error) {
+func (os *Manager) ListPods() ([]*v1.Pod, error) {
 	log.Logger().Info("Retrieving pod list")
 	// list all pods on this cluster
 	appPods, err := os.apiProvider.GetAPIs().PodInformer.Lister().List(labels.NewSelector())
@@ -342,20 +228,20 @@ func (os *Manager) ListApplications() (map[string]interfaces.ApplicationMetadata
 	}
 	log.Logger().Info("Pod list retrieved from api server", zap.Int("nr of pods", len(appPods)))
 	// get existing apps
-	existingApps := make(map[string]interfaces.ApplicationMetadata)
+	existingApps := make(map[string]struct{})
 	podsRecovered := 0
 	podsWithoutMetaData := 0
+	pods := make([]*v1.Pod, 0)
 	for _, pod := range appPods {
 		log.Logger().Debug("Looking at pod for recovery candidates", zap.String("podNamespace", pod.Namespace), zap.String("podName", pod.Name))
 		// general filter passes, and pod is assigned
 		// this means the pod is already scheduled by scheduler for an existing app
 		if utils.GeneralPodFilter(pod) && utils.IsAssignedPod(pod) {
-			if meta, ok := os.getAppMetadata(pod, true); ok {
+			if meta, ok := getAppMetadata(pod, true); ok {
 				podsRecovered++
+				pods = append(pods, pod)
 				log.Logger().Debug("Adding appID as recovery candidate", zap.String("appID", meta.ApplicationID))
-				if _, exist := existingApps[meta.ApplicationID]; !exist {
-					existingApps[meta.ApplicationID] = meta
-				}
+				existingApps[meta.ApplicationID] = struct{}{}
 			} else {
 				podsWithoutMetaData++
 			}
@@ -367,11 +253,11 @@ func (os *Manager) ListApplications() (map[string]interfaces.ApplicationMetadata
 		zap.Int("nr of pods without application metadata", podsWithoutMetaData),
 		zap.Int("nr of pods to be recovered", podsRecovered))
 
-	return existingApps, nil
+	return pods, nil
 }
 
 func (os *Manager) GetExistingAllocation(pod *v1.Pod) *si.Allocation {
-	if meta, valid := os.getAppMetadata(pod, false); valid {
+	if meta, valid := getAppMetadata(pod, false); valid {
 		// when submit a task, we use pod UID as the allocationKey,
 		// to keep consistent, during recovery, the pod UID is also used
 		// for an Allocation.

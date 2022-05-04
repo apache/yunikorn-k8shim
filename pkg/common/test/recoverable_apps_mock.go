@@ -22,7 +22,6 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"k8s.io/api/core/v1"
 
-	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
 
@@ -33,7 +32,7 @@ func NewMockedRecoverableAppManager() *MockedRecoverableAppManager {
 	return &MockedRecoverableAppManager{}
 }
 
-func (m *MockedRecoverableAppManager) ListApplications() (map[string]interfaces.ApplicationMetadata, error) {
+func (m *MockedRecoverableAppManager) ListPods() ([]*v1.Pod, error) {
 	return nil, nil
 }
 
