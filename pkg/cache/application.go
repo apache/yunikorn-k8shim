@@ -404,12 +404,14 @@ func (app *Application) handleSubmitApplicationEvent() {
 	if err != nil {
 		// submission failed
 		log.Logger().Warn("failed to submit app", zap.Error(err))
-		err := app.HandleApplicationEvent(FailApplication)
-		if err != nil {
-			log.Logger().Warn("BUG: Unexpected failure: Application state change failed",
-				zap.String("currentState", app.GetApplicationState()),
-				zap.Error(err))
-		}
+		go func() {
+			err := app.HandleApplicationEvent(FailApplication)
+			if err != nil {
+				log.Logger().Warn("BUG: Unexpected failure: Application state change failed",
+					zap.String("currentState", app.GetApplicationState()),
+					zap.Error(err))
+			}
+		}()
 	}
 }
 
@@ -439,12 +441,14 @@ func (app *Application) handleRecoverApplicationEvent() {
 	if err != nil {
 		// recovery failed
 		log.Logger().Warn("failed to recover app", zap.Error(err))
-		err := app.HandleApplicationEvent(FailApplication)
-		if err != nil {
-			log.Logger().Warn("BUG: Unexpected failure: Application state change failed",
-				zap.String("currentState", app.GetApplicationState()),
-				zap.Error(err))
-		}
+		go func() {
+			err := app.HandleApplicationEvent(FailApplication)
+			if err != nil {
+				log.Logger().Warn("BUG: Unexpected failure: Application state change failed",
+					zap.String("currentState", app.GetApplicationState()),
+					zap.Error(err))
+			}
+		}()
 	}
 }
 
@@ -536,12 +540,14 @@ func (app *Application) onReservationStateChange() {
 
 	// min member all satisfied
 	if desireCounts.Equals(actualCounts) {
-		err := app.HandleApplicationEvent(RunApplication)
-		if err != nil {
-			log.Logger().Warn("BUG: Unexpected failure: Application state change failed",
-				zap.String("currentState", app.GetApplicationState()),
-				zap.Error(err))
-		}
+		go func() {
+			err := app.HandleApplicationEvent(RunApplication)
+			if err != nil {
+				log.Logger().Warn("BUG: Unexpected failure: Application state change failed",
+					zap.String("currentState", app.GetApplicationState()),
+					zap.Error(err))
+			}
+		}()
 	}
 }
 
