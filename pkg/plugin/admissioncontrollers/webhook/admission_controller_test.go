@@ -409,11 +409,7 @@ func errorResponseMock(w http.ResponseWriter, r *http.Request) {
 }
 
 func TestGenerateAppID(t *testing.T) {
-	appID := generateAppID("")
-	assert.Equal(t, strings.HasPrefix(appID, fmt.Sprintf("%s-default", autoGenAppPrefix)), true)
-	assert.Equal(t, len(appID), 24)
-
-	appID = generateAppID("this-is-a-namespace")
+	appID := generateAppID("this-is-a-namespace")
 	assert.Equal(t, strings.HasPrefix(appID, fmt.Sprintf("%s-this-is-a-namespace", autoGenAppPrefix)), true)
 	assert.Equal(t, len(appID), 36)
 
