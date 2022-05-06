@@ -29,9 +29,9 @@ type ResourceUsage struct {
 	vCPU   int64
 }
 
-func (r *ResourceUsage) ParseResourceUsage(resource map[string]interface{}) {
-	r.memory = int64(resource["memory"].(float64))
-	r.vCPU = int64(resource["vcore"].(float64))
+func (r *ResourceUsage) ParseResourceUsage(resource map[string]int64) {
+	r.memory = resource["memory"]
+	r.vCPU = resource["vcore"]
 }
 
 func (r *ResourceUsage) GetMemory() int64 {
