@@ -27,7 +27,7 @@ type ApplicationEvent interface {
 	GetApplicationID() string
 
 	// the type of this event
-	GetEvent() string
+	GetEvent() int
 
 	// an event can have multiple arguments, these arguments will be passed to
 	// state machines' callbacks when doing state transition

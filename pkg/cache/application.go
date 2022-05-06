@@ -24,6 +24,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
+
 	"github.com/looplab/fsm"
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
@@ -87,7 +89,7 @@ func NewApplication(appID, queueName, user string, tags map[string]string, sched
 	return app
 }
 
-func (app *Application) HandleApplicationEvent(event applicationEvent) error {
+func (app *Application) handle(ev events.ApplicationEvent) error {
 	// Locking mechanism:
 	// 1) when handle event transitions, we first obtain the object's lock,
 	//    this helps us to place a pre-check before entering here, in case
@@ -99,7 +101,7 @@ func (app *Application) HandleApplicationEvent(event applicationEvent) error {
 	//    because the lock is already held here.
 	app.lock.Lock()
 	defer app.lock.Unlock()
-	err := app.stateMachine.Event(event.String(), app)
+	err := app.stateMachine.Event(ApplicationEventType(ev.GetEvent()).String(), app, ev.GetArgs())
 	// handle the same state transition not nil error (limit of fsm).
 	if err != nil && err.Error() != "no transition" {
 		return err
@@ -107,15 +109,10 @@ func (app *Application) HandleApplicationEvent(event applicationEvent) error {
 	return nil
 }
 
-func (app *Application) HandleApplicationEventWithInfo(event applicationEvent, eventnfo []string) error {
-	app.lock.Lock()
-	defer app.lock.Unlock()
-	err := app.stateMachine.Event(event.String(), app, eventnfo)
-	// handle the same state transition not nil error (limit of fsm).
-	if err != nil && err.Error() != "no transition" {
-		return err
-	}
-	return nil
+func (app *Application) canHandle(ev events.ApplicationEvent) bool {
+	app.lock.RLock()
+	defer app.lock.RUnlock()
+	return app.stateMachine.Can(ApplicationEventType(ev.GetEvent()).String())
 }
 
 func (app *Application) GetTask(taskID string) (interfaces.ManagedTask, error) {
@@ -303,7 +300,7 @@ func (app *Application) SetState(state string) {
 }
 
 func (app *Application) TriggerAppRecovery() error {
-	return app.HandleApplicationEvent(RecoverApplication)
+	return app.handle(NewSimpleApplicationEvent(app.applicationID, RecoverApplication))
 }
 
 // Schedule is called in every scheduling interval,
@@ -316,7 +313,8 @@ func (app *Application) TriggerAppRecovery() error {
 func (app *Application) Schedule() bool {
 	switch app.GetApplicationState() {
 	case New.String():
-		if err := app.HandleApplicationEvent(SubmitApplication); err != nil {
+		ev := NewSubmitApplicationEvent(app.GetApplicationID())
+		if err := app.handle(ev); err != nil {
 			log.Logger().Warn("failed to handle SUBMIT app event",
 				zap.Error(err))
 		}
@@ -346,6 +344,7 @@ func (app *Application) Schedule() bool {
 		}
 	default:
 		log.Logger().Debug("skipping scheduling application",
+			zap.String("appState", app.GetApplicationState()),
 			zap.String("appID", app.GetApplicationID()),
 			zap.String("appState", app.GetApplicationState()))
 		return false
@@ -404,14 +403,7 @@ func (app *Application) handleSubmitApplicationEvent() {
 	if err != nil {
 		// submission failed
 		log.Logger().Warn("failed to submit app", zap.Error(err))
-		go func() {
-			err := app.HandleApplicationEvent(FailApplication)
-			if err != nil {
-				log.Logger().Warn("BUG: Unexpected failure: Application state change failed",
-					zap.String("currentState", app.GetApplicationState()),
-					zap.Error(err))
-			}
-		}()
+		dispatcher.Dispatch(NewFailApplicationEvent(app.applicationID, err.Error()))
 	}
 }
 
@@ -441,14 +433,7 @@ func (app *Application) handleRecoverApplicationEvent() {
 	if err != nil {
 		// recovery failed
 		log.Logger().Warn("failed to recover app", zap.Error(err))
-		go func() {
-			err := app.HandleApplicationEvent(FailApplication)
-			if err != nil {
-				log.Logger().Warn("BUG: Unexpected failure: Application state change failed",
-					zap.String("currentState", app.GetApplicationState()),
-					zap.Error(err))
-			}
-		}()
+		dispatcher.Dispatch(NewFailApplicationEvent(app.applicationID, err.Error()))
 	}
 }
 
@@ -482,29 +467,21 @@ func (app *Application) postAppAccepted() {
 	// it goes to the Reserving state before getting to Running.
 	// app could have allocated tasks upon a recovery, and in that case,
 	// the reserving phase has already passed, no need to trigger that again.
+	var ev events.SchedulingEvent
 	log.Logger().Debug("postAppAccepted on cached app",
 		zap.String("appID", app.applicationID),
 		zap.Int("numTaskGroups", len(app.taskGroups)),
 		zap.Int("numAllocatedTasks", len(app.getTasks(events.States().Task.Allocated))))
 	if app.skipReservationStage() {
-		err := app.HandleApplicationEvent(RunApplication)
-		if err != nil {
-			log.Logger().Warn("BUG: Unexpected failure: Application state change failed",
-				zap.String("currentState", app.GetApplicationState()),
-				zap.Error(err))
-		}
+		ev = NewRunApplicationEvent(app.applicationID)
 		log.Logger().Info("Skip the reservation stage",
 			zap.String("appID", app.applicationID))
 	} else {
-		err := app.HandleApplicationEvent(TryReserve)
-		if err != nil {
-			log.Logger().Warn("BUG: Unexpected failure: Application state change failed",
-				zap.String("currentState", app.GetApplicationState()),
-				zap.Error(err))
-		}
+		ev = NewSimpleApplicationEvent(app.applicationID, TryReserve)
 		log.Logger().Info("app has taskGroups defined, trying to reserve resources for gang members",
 			zap.String("appID", app.applicationID))
 	}
+	dispatcher.Dispatch(ev)
 }
 
 func (app *Application) onReserving() {
@@ -514,12 +491,8 @@ func (app *Application) onReserving() {
 			// creating placeholder failed
 			// put the app into recycling queue and turn the app to running state
 			getPlaceholderManager().cleanUp(app)
-			err := app.HandleApplicationEvent(RunApplication)
-			if err != nil {
-				log.Logger().Warn("BUG: Unexpected failure: Application state change failed",
-					zap.String("currentState", app.GetApplicationState()),
-					zap.Error(err))
-			}
+			ev := NewRunApplicationEvent(app.applicationID)
+			dispatcher.Dispatch(ev)
 		}
 	}()
 }
@@ -540,28 +513,15 @@ func (app *Application) onReservationStateChange() {
 
 	// min member all satisfied
 	if desireCounts.Equals(actualCounts) {
-		go func() {
-			err := app.HandleApplicationEvent(RunApplication)
-			if err != nil {
-				log.Logger().Warn("BUG: Unexpected failure: Application state change failed",
-					zap.String("currentState", app.GetApplicationState()),
-					zap.Error(err))
-			}
-		}()
+		ev := NewRunApplicationEvent(app.applicationID)
+		dispatcher.Dispatch(ev)
 	}
 }
 
 func (app *Application) handleRejectApplicationEvent(reason string) {
 	log.Logger().Info("app is rejected by scheduler", zap.String("appID", app.applicationID))
-	// for rejected apps, we directly move them to failed state
-	go func() {
-		err := app.HandleApplicationEventWithInfo(FailApplication, []string{fmt.Sprintf("%s: %s", constants.ApplicationRejectedFailure, reason)})
-		if err != nil {
-			log.Logger().Warn("BUG: Unexpected failure: Application state change failed",
-				zap.String("currentState", app.GetApplicationState()),
-				zap.Error(err))
-		}
-	}()
+	dispatcher.Dispatch(NewFailApplicationEvent(app.applicationID,
+		fmt.Sprintf("%s: %s", constants.ApplicationRejectedFailure, reason)))
 }
 
 func (app *Application) handleCompleteApplicationEvent() {
@@ -660,15 +620,7 @@ func (app *Application) handleAppTaskCompletedEvent() {
 	}
 	log.Logger().Info("Resuming completed, start to run the app",
 		zap.String("appID", app.applicationID))
-
-	go func() {
-		err := app.HandleApplicationEvent(RunApplication)
-		if err != nil {
-			log.Logger().Warn("BUG: Unexpected failure: Application state change failed",
-				zap.String("currentState", app.GetApplicationState()),
-				zap.Error(err))
-		}
-	}()
+	dispatcher.Dispatch(NewRunApplicationEvent(app.applicationID))
 }
 
 func (app *Application) SetPlaceholderTimeout(timeout int64) {

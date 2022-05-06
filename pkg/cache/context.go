@@ -520,13 +520,8 @@ func (ctx *Context) NotifyApplicationComplete(appID string) {
 		log.Logger().Debug("NotifyApplicationComplete",
 			zap.String("appID", appID),
 			zap.String("currentAppState", app.GetApplicationState()))
-
-		err := app.(*Application).HandleApplicationEvent(CompleteApplication)
-		if err != nil {
-			log.Logger().Warn("BUG: Unexpected failure: Application state change failed",
-				zap.String("currentState", app.GetApplicationState()),
-				zap.Error(err))
-		}
+		ev := NewSimpleApplicationEvent(appID, CompleteApplication)
+		dispatcher.Dispatch(ev)
 	}
 }
 
@@ -535,12 +530,8 @@ func (ctx *Context) NotifyApplicationFail(appID string) {
 		log.Logger().Debug("NotifyApplicationFail",
 			zap.String("appID", appID),
 			zap.String("currentAppState", app.GetApplicationState()))
-		err := app.(*Application).HandleApplicationEvent(FailApplication)
-		if err != nil {
-			log.Logger().Warn("BUG: Unexpected failure: Application state change failed",
-				zap.String("currentState", app.GetApplicationState()),
-				zap.Error(err))
-		}
+		ev := NewSimpleApplicationEvent(appID, FailApplication)
+		dispatcher.Dispatch(ev)
 	}
 }
 
@@ -554,12 +545,8 @@ func (ctx *Context) NotifyTaskComplete(appID, taskID string) {
 			zap.String("taskID", taskID))
 		ev := NewSimpleTaskEvent(appID, taskID, events.CompleteTask)
 		dispatcher.Dispatch(ev)
-		err := app.(*Application).HandleApplicationEvent(AppTaskCompleted)
-		if err != nil {
-			log.Logger().Warn("BUG: Unexpected failure: Application state change failed",
-				zap.String("currentState", app.GetApplicationState()),
-				zap.Error(err))
-		}
+		appEv := NewSimpleApplicationEvent(appID, AppTaskCompleted)
+		dispatcher.Dispatch(appEv)
 	}
 }
 
@@ -878,6 +865,29 @@ func (ctx *Context) HandleContainerStateUpdate(request *si.UpdateContainerSchedu
 		default:
 			log.Logger().Warn("no handler for container scheduling state",
 				zap.String("state", request.State.String()))
+		}
+	}
+}
+
+func (ctx *Context) ApplicationEventHandler() func(obj interface{}) {
+	return func(obj interface{}) {
+		if event, ok := obj.(events.ApplicationEvent); ok {
+			managedApp := ctx.GetApplication(event.GetApplicationID())
+			if managedApp == nil {
+				log.Logger().Error("failed to handle application event",
+					zap.String("reason", "application not exist"))
+				return
+			}
+
+			if app, ok := managedApp.(*Application); ok {
+				if app.canHandle(event) {
+					if err := app.handle(event); err != nil {
+						log.Logger().Error("failed to handle application event",
+							zap.String("event", ApplicationEventType(event.GetEvent()).String()),
+							zap.Error(err))
+					}
+				}
+			}
 		}
 	}
 }

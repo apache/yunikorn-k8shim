@@ -143,7 +143,8 @@ func TestHandleApplicationStateUpdate(t *testing.T) {
 		event events.SchedulingEvent
 	}{
 		{"Not application event", cache.NewBindTaskEvent(appID, "taskID")},
-		{"AppStateChange event", cache.NewApplicationStatusChangeEvent(appID, cache.AppStateChange.String(), "New")},
+		{"Not AppStateChange event", cache.NewSimpleApplicationEvent(appID, cache.AcceptApplication)},
+		{"AppStateChange event", cache.NewApplicationStatusChangeEvent(appID, cache.AppStateChange, "New")},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {

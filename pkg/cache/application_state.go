@@ -19,7 +19,9 @@
 package cache
 
 import (
+	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
+	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 	"github.com/looplab/fsm"
 	"go.uber.org/zap"
 )
@@ -27,10 +29,10 @@ import (
 //----------------------------------------------
 // Application events
 //----------------------------------------------
-type applicationEvent int
+type ApplicationEventType int
 
 const (
-	SubmitApplication applicationEvent = iota
+	SubmitApplication ApplicationEventType = iota
 	RecoverApplication
 	AcceptApplication
 	TryReserve
@@ -48,8 +50,298 @@ const (
 	AppTaskCompleted
 )
 
-func (ae applicationEvent) String() string {
+func (ae ApplicationEventType) String() string {
 	return [...]string{"SubmitApplication", "RecoverApplication", "AcceptApplication", "TryReserve", "UpdateReservation", "RunApplication", "RejectApplication", "CompleteApplication", "FailApplication", "KillApplication", "KilledApplication", "ReleaseAppAllocation", "ReleaseAppAllocationAsk", "AppStateChange", "ResumingApplication", "AppTaskCompleted"}[ae]
+}
+
+// SimpleApplicationEvent simply moves application states
+type SimpleApplicationEvent struct {
+	applicationID string
+	event         ApplicationEventType
+}
+
+type ApplicationEvent struct {
+	applicationID string
+	event         ApplicationEventType
+	message       string
+}
+
+func NewSimpleApplicationEvent(appID string, eventType ApplicationEventType) SimpleApplicationEvent {
+	return SimpleApplicationEvent{
+		applicationID: appID,
+		event:         eventType,
+	}
+}
+
+func (st SimpleApplicationEvent) GetEvent() int {
+	return int(st.event)
+}
+
+func (st SimpleApplicationEvent) GetArgs() []interface{} {
+	return nil
+}
+
+func (st SimpleApplicationEvent) GetApplicationID() string {
+	return st.applicationID
+}
+
+func NewApplicationEvent(appID string, eventType ApplicationEventType, msg string) ApplicationEvent {
+	return ApplicationEvent{
+		applicationID: appID,
+		event:         eventType,
+		message:       msg,
+	}
+}
+
+func (st ApplicationEvent) GetEvent() int {
+	return int(st.event)
+}
+
+func (st ApplicationEvent) GetArgs() []interface{} {
+	args := make([]interface{}, 1)
+	args[0] = st.message
+	return args
+}
+
+func (st ApplicationEvent) GetApplicationID() string {
+	return st.applicationID
+}
+
+// ------------------------
+// ApplicationStatusChangeEvent updates the status in the application CRD
+// ------------------------
+type ApplicationStatusChangeEvent struct {
+	applicationID string
+	event         ApplicationEventType
+	state         string
+}
+
+func NewApplicationStatusChangeEvent(appID string, eventType ApplicationEventType, state string) ApplicationStatusChangeEvent {
+	return ApplicationStatusChangeEvent{
+		applicationID: appID,
+		event:         eventType,
+		state:         state,
+	}
+}
+
+func (st ApplicationStatusChangeEvent) GetEvent() int {
+	return int(st.event)
+}
+
+func (st ApplicationStatusChangeEvent) GetArgs() []interface{} {
+	return nil
+}
+
+func (st ApplicationStatusChangeEvent) GetApplicationID() string {
+	return st.applicationID
+}
+
+func (st ApplicationStatusChangeEvent) GetState() string {
+	return st.state
+}
+
+// ------------------------
+// SubmitTask application
+// ------------------------
+type SubmitApplicationEvent struct {
+	applicationID string
+	event         ApplicationEventType
+}
+
+func NewSubmitApplicationEvent(appID string) SubmitApplicationEvent {
+	return SubmitApplicationEvent{
+		applicationID: appID,
+		event:         SubmitApplication,
+	}
+}
+
+func (se SubmitApplicationEvent) GetEvent() int {
+	return int(se.event)
+}
+
+func (se SubmitApplicationEvent) GetArgs() []interface{} {
+	return nil
+}
+
+func (se SubmitApplicationEvent) GetApplicationID() string {
+	return se.applicationID
+}
+
+// ------------------------
+// Run application
+// ------------------------
+type RunApplicationEvent struct {
+	applicationID string
+	event         ApplicationEventType
+}
+
+func NewRunApplicationEvent(appID string) RunApplicationEvent {
+	return RunApplicationEvent{
+		applicationID: appID,
+		event:         RunApplication,
+	}
+}
+
+func (re RunApplicationEvent) GetEvent() int {
+	return int(re.event)
+}
+
+func (re RunApplicationEvent) GetArgs() []interface{} {
+	return nil
+}
+
+func (re RunApplicationEvent) GetApplicationID() string {
+	return re.applicationID
+}
+
+// ------------------------
+// Fail application
+// ------------------------
+type FailApplicationEvent struct {
+	applicationID string
+	event         ApplicationEventType
+	errorMessage  string
+}
+
+func NewFailApplicationEvent(appID, message string) FailApplicationEvent {
+	return FailApplicationEvent{
+		applicationID: appID,
+		event:         FailApplication,
+		errorMessage:  message,
+	}
+}
+
+func (fe FailApplicationEvent) GetEvent() int {
+	return int(fe.event)
+}
+
+func (fe FailApplicationEvent) GetArgs() []interface{} {
+	args := make([]interface{}, 1)
+	args[0] = fe.errorMessage
+	return args
+}
+
+func (fe FailApplicationEvent) GetApplicationID() string {
+	return fe.applicationID
+}
+
+// ------------------------
+// Reservation Update Event
+// ------------------------
+type UpdateApplicationReservationEvent struct {
+	applicationID string
+	event         ApplicationEventType
+}
+
+func NewUpdateApplicationReservationEvent(appID string) UpdateApplicationReservationEvent {
+	return UpdateApplicationReservationEvent{
+		applicationID: appID,
+		event:         UpdateReservation,
+	}
+}
+
+func (ue UpdateApplicationReservationEvent) GetEvent() int {
+	return int(ue.event)
+}
+
+func (ue UpdateApplicationReservationEvent) GetArgs() []interface{} {
+	return nil
+}
+
+func (ue UpdateApplicationReservationEvent) GetApplicationID() string {
+	return ue.applicationID
+}
+
+// ------------------------
+// Release application allocations
+// ------------------------
+type ReleaseAppAllocationEvent struct {
+	applicationID   string
+	allocationUUID  string
+	terminationType string
+	event           ApplicationEventType
+}
+
+func NewReleaseAppAllocationEvent(appID string, allocTermination si.TerminationType, uuid string) ReleaseAppAllocationEvent {
+	return ReleaseAppAllocationEvent{
+		applicationID:   appID,
+		allocationUUID:  uuid,
+		terminationType: si.TerminationType_name[int32(allocTermination)],
+		event:           ReleaseAppAllocation,
+	}
+}
+
+func (re ReleaseAppAllocationEvent) GetApplicationID() string {
+	return re.applicationID
+}
+
+func (re ReleaseAppAllocationEvent) GetArgs() []interface{} {
+	args := make([]interface{}, 2)
+	args[0] = re.allocationUUID
+	args[1] = re.terminationType
+	return args
+}
+
+func (re ReleaseAppAllocationEvent) GetEvent() int {
+	return int(re.event)
+}
+
+type ReleaseAppAllocationAskEvent struct {
+	applicationID   string
+	taskID          string
+	terminationType string
+	event           ApplicationEventType
+}
+
+func NewReleaseAppAllocationAskEvent(appID string, allocTermination si.TerminationType, taskID string) ReleaseAppAllocationAskEvent {
+	return ReleaseAppAllocationAskEvent{
+		applicationID:   appID,
+		taskID:          taskID,
+		terminationType: si.TerminationType_name[int32(allocTermination)],
+		event:           ReleaseAppAllocationAsk,
+	}
+}
+
+func (re ReleaseAppAllocationAskEvent) GetApplicationID() string {
+	return re.applicationID
+}
+
+func (re ReleaseAppAllocationAskEvent) GetArgs() []interface{} {
+	args := make([]interface{}, 2)
+	args[0] = re.taskID
+	args[1] = re.terminationType
+	return args
+}
+
+func (re ReleaseAppAllocationAskEvent) GetEvent() int {
+	return int(re.event)
+}
+
+// ------------------------
+// Resuming application
+// ------------------------
+type ResumingApplicationEvent struct {
+	applicationID string
+	event         ApplicationEventType
+}
+
+func NewResumingApplicationEvent(appID string) ResumingApplicationEvent {
+	return ResumingApplicationEvent{
+		applicationID: appID,
+		event:         ResumingApplication,
+	}
+}
+
+func (re ResumingApplicationEvent) GetEvent() int {
+	return int(re.event)
+}
+
+func (re ResumingApplicationEvent) GetArgs() []interface{} {
+	return nil
+}
+
+func (re ResumingApplicationEvent) GetApplicationID() string {
+	return re.applicationID
 }
 
 // ----------------------------------
@@ -182,7 +474,7 @@ func NewAppState() *fsm.FSM {
 			},
 		},
 		fsm.Callbacks{
-			"enter_state": func(event *fsm.Event) {
+			events.EnterState: func(event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
 				log.Logger().Debug("shim app state transition",
 					zap.String("app", app.applicationID),
@@ -204,8 +496,14 @@ func NewAppState() *fsm.FSM {
 			},
 			RejectApplication.String(): func(event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
-				eventInfo := event.Args[1].([]string)
-				app.handleRejectApplicationEvent(eventInfo[0])
+				eventInfo := event.Args[1].([]interface{})
+				eventArgs := make([]string, 1)
+				if err := events.GetEventArgsAsStrings(eventArgs, eventInfo); err != nil {
+					log.Logger().Error("fail to parse event arg", zap.Error(err))
+					return
+				}
+				reason := eventArgs[0]
+				app.handleRejectApplicationEvent(reason)
 			},
 			CompleteApplication.String(): func(event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
@@ -213,8 +511,14 @@ func NewAppState() *fsm.FSM {
 			},
 			FailApplication.String(): func(event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
-				eventInfo := event.Args[1].([]string)
-				app.handleFailApplicationEvent(eventInfo[0])
+				eventInfo := event.Args[1].([]interface{})
+				eventArgs := make([]string, 1)
+				if err := events.GetEventArgsAsStrings(eventArgs, eventInfo); err != nil {
+					log.Logger().Error("fail to parse event arg", zap.Error(err))
+					return
+				}
+				errMsg := eventArgs[0]
+				app.handleFailApplicationEvent(errMsg)
 			},
 			UpdateReservation.String(): func(event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
@@ -222,13 +526,27 @@ func NewAppState() *fsm.FSM {
 			},
 			ReleaseAppAllocation.String(): func(event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
-				eventInfo := event.Args[1].([]string)
-				app.handleReleaseAppAllocationEvent(eventInfo[0], eventInfo[1])
+				eventInfo := event.Args[1].([]interface{})
+				eventArgs := make([]string, 2)
+				if err := events.GetEventArgsAsStrings(eventArgs, eventInfo); err != nil {
+					log.Logger().Error("fail to parse event arg", zap.Error(err))
+					return
+				}
+				allocUUID := eventArgs[0]
+				terminationTypeStr := eventArgs[1]
+				app.handleReleaseAppAllocationEvent(allocUUID, terminationTypeStr)
 			},
 			ReleaseAppAllocationAsk.String(): func(event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
-				eventInfo := event.Args[1].([]string)
-				app.handleReleaseAppAllocationAskEvent(eventInfo[0], eventInfo[1])
+				eventInfo := event.Args[1].([]interface{})
+				eventArgs := make([]string, 2)
+				if err := events.GetEventArgsAsStrings(eventArgs, eventInfo); err != nil {
+					log.Logger().Error("fail to parse event arg", zap.Error(err))
+					return
+				}
+				taskID := eventArgs[0]
+				terminationTypeStr := eventArgs[1]
+				app.handleReleaseAppAllocationAskEvent(taskID, terminationTypeStr)
 			},
 			AppTaskCompleted.String(): func(event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck

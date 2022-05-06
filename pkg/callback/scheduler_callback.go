@@ -83,13 +83,8 @@ func (callback *AsyncRMCallback) UpdateAllocation(response *si.AllocationRespons
 		// TerminationType 0 mean STOPPED_BY_RM
 		if release.TerminationType != si.TerminationType_STOPPED_BY_RM {
 			// send release app allocation to application states machine
-			app := callback.context.GetApplication(release.ApplicationID).(*cache.Application)
-			err := app.HandleApplicationEventWithInfo(cache.ReleaseAppAllocation, []string{release.TerminationType.String(), release.AllocationKey})
-			if err != nil {
-				log.Logger().Warn("BUG: Unexpected failure: Application state change failed",
-					zap.String("currentState", app.GetApplicationState()),
-					zap.Error(err))
-			}
+			ev := cache.NewReleaseAppAllocationEvent(release.ApplicationID, release.TerminationType, release.UUID)
+			dispatcher.Dispatch(ev)
 		}
 	}
 
@@ -98,13 +93,8 @@ func (callback *AsyncRMCallback) UpdateAllocation(response *si.AllocationRespons
 			zap.String("allocation key", ask.AllocationKey))
 
 		if ask.TerminationType == si.TerminationType_TIMEOUT {
-			app := callback.context.GetApplication(ask.ApplicationID).(*cache.Application)
-			err := app.HandleApplicationEventWithInfo(cache.ReleaseAppAllocationAsk, []string{ask.TerminationType.String(), ask.AllocationKey})
-			if err != nil {
-				log.Logger().Warn("BUG: Unexpected failure: Application state change failed",
-					zap.String("currentState", app.GetApplicationState()),
-					zap.Error(err))
-			}
+			ev := cache.NewReleaseAppAllocationAskEvent(ask.ApplicationID, ask.TerminationType, ask.AllocationKey)
+			dispatcher.Dispatch(ev)
 		}
 	}
 	return nil
@@ -122,12 +112,8 @@ func (callback *AsyncRMCallback) UpdateApplication(response *si.ApplicationRespo
 
 		if app := callback.context.GetApplication(app.ApplicationID); app != nil {
 			log.Logger().Info("Accepting app", zap.String("appID", app.GetApplicationID()))
-			err := app.(*cache.Application).HandleApplicationEvent(cache.AcceptApplication)
-			if err != nil {
-				log.Logger().Warn("BUG: Unexpected failure: Application state change failed",
-					zap.String("currentState", app.GetApplicationState()),
-					zap.Error(err))
-			}
+			ev := cache.NewSimpleApplicationEvent(app.GetApplicationID(), cache.AcceptApplication)
+			dispatcher.Dispatch(ev)
 		}
 	}
 
@@ -137,12 +123,8 @@ func (callback *AsyncRMCallback) UpdateApplication(response *si.ApplicationRespo
 			zap.String("appID", rejectedApp.ApplicationID))
 
 		if app := callback.context.GetApplication(rejectedApp.ApplicationID); app != nil {
-			err := app.(*cache.Application).HandleApplicationEventWithInfo(cache.RejectApplication, []string{rejectedApp.Reason})
-			if err != nil {
-				log.Logger().Warn("BUG: Unexpected failure: Application state change failed",
-					zap.String("currentState", app.GetApplicationState()),
-					zap.Error(err))
-			}
+			ev := cache.NewApplicationEvent(app.GetApplicationID(), cache.RejectApplication, rejectedApp.Reason)
+			dispatcher.Dispatch(ev)
 		}
 	}
 
@@ -157,27 +139,19 @@ func (callback *AsyncRMCallback) UpdateApplication(response *si.ApplicationRespo
 		case cache.Resuming.String():
 			app := callback.context.GetApplication(updated.ApplicationID)
 			if app != nil && app.GetApplicationState() == cache.Reserving.String() {
-				err := app.(*cache.Application).HandleApplicationEvent(cache.ResumingApplication)
-				if err != nil {
-					log.Logger().Warn("BUG: Unexpected failure: Application state change failed",
-						zap.String("currentState", app.GetApplicationState()),
-						zap.Error(err))
-				}
+				ev := cache.NewResumingApplicationEvent(updated.ApplicationID)
+				dispatcher.Dispatch(ev)
+
 				// handle status update
-				dispatcher.Dispatch(cache.NewApplicationStatusChangeEvent(updated.ApplicationID, cache.AppStateChange.String(), updated.State))
+				dispatcher.Dispatch(cache.NewApplicationStatusChangeEvent(updated.ApplicationID, cache.AppStateChange, updated.State))
 			}
 		default:
 			if updated.State == cache.Failing.String() || updated.State == cache.Failed.String() {
-				app := callback.context.GetApplication(updated.ApplicationID)
-				err := app.(*cache.Application).HandleApplicationEventWithInfo(cache.FailApplication, []string{updated.Message})
-				if err != nil {
-					log.Logger().Warn("BUG: Unexpected failure: Application state change failed",
-						zap.String("currentState", app.GetApplicationState()),
-						zap.Error(err))
-				}
+				ev := cache.NewFailApplicationEvent(updated.ApplicationID, updated.Message)
+				dispatcher.Dispatch(ev)
 			}
 			// handle status update
-			dispatcher.Dispatch(cache.NewApplicationStatusChangeEvent(updated.ApplicationID, cache.AppStateChange.String(), updated.State))
+			dispatcher.Dispatch(cache.NewApplicationStatusChangeEvent(updated.ApplicationID, cache.AppStateChange, updated.State))
 		}
 	}
 	return nil
