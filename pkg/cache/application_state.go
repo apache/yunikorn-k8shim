@@ -19,6 +19,7 @@
 package cache
 
 import (
+	"fmt"
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
@@ -102,7 +103,7 @@ type GeneralApplicationEvent struct {
 	message       string
 }
 
-func NewApplicationEvent(appID string, eventType ApplicationEventType, msg string) GeneralApplicationEvent {
+func NewGeneralApplicationEvent(appID string, eventType ApplicationEventType, msg string) GeneralApplicationEvent {
 	return GeneralApplicationEvent{
 		applicationID: appID,
 		event:         eventType,
@@ -503,7 +504,11 @@ func NewAppState() *fsm.FSM {
 				app := event.Args[0].(*Application) //nolint:errcheck
 				app.OnReserving()
 			},
-			SubmitApplication.String(): func(event *fsm.Event) {
+			"enter_event": func(event *fsm.Event) {
+				log.Logger().Error("SubmitApplication SubmitApplication SubmitApplication???????")
+			},
+			fmt.Sprintf("enter_%s", SubmitApplication.String()): func(event *fsm.Event) {
+				log.Logger().Error("SubmitApplication SubmitApplication SubmitApplication")
 				app := event.Args[0].(*Application) //nolint:errcheck
 				app.HandleSubmitApplicationEvent()
 			},

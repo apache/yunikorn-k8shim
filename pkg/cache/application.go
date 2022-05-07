@@ -97,14 +97,21 @@ func (app *Application) handle(ev ApplicationEvent) error {
 	// 2) Note, state machine calls those callbacks here, we must ensure
 	//    they are lock-free calls. Otherwise the callback will be blocked
 	//    because the lock is already held here.
-	app.lock.Lock()
-	defer app.lock.Unlock()
+	//app.lock.Lock()
+	//defer app.lock.Unlock()
+	log.Logger().Error("SubmitApplication SubmitApplication SubmitApplication",zap.String("event",ev.GetEvent().String()))
 	err := app.stateMachine.Event(ev.GetEvent().String(), app, ev.GetArgs())
 	// handle the same state transition not nil error (limit of fsm).
 	if err != nil && err.Error() != "no transition" {
 		return err
 	}
 	return nil
+}
+
+func (app *Application) GetStateMachine(taskID string) *fsm.FSM {
+	app.lock.RLock()
+	defer app.lock.RUnlock()
+	return app.stateMachine
 }
 
 func (app *Application) canHandle(ev ApplicationEvent) bool {

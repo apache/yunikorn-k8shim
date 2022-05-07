@@ -219,7 +219,6 @@ partitions:
 		Build()
 	cluster.addTask("app0001", "task0001", taskResource)
 	cluster.addTask("app0001", "task0002", taskResource)
-
 	// wait for scheduling app and tasks
 	// verify app state
 	cluster.waitAndAssertApplicationState(t, "app0001", cache.Running.String())

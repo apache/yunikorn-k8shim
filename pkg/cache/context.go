@@ -882,7 +882,7 @@ func (ctx *Context) ApplicationEventHandler() func(obj interface{}) {
 				if app.canHandle(event) {
 					if err := app.handle(event); err != nil {
 						log.Logger().Error("failed to handle application event",
-							zap.String("event", ApplicationEventType(event.GetEvent()).String()),
+							zap.String("event", event.GetEvent().String()),
 							zap.Error(err))
 					}
 				}

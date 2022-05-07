@@ -122,7 +122,7 @@ func (callback *AsyncRMCallback) UpdateApplication(response *si.ApplicationRespo
 			zap.String("appID", rejectedApp.ApplicationID))
 
 		if app := callback.context.GetApplication(rejectedApp.ApplicationID); app != nil {
-			ev := cache.NewApplicationEvent(app.GetApplicationID(), cache.RejectApplication, rejectedApp.Reason)
+			ev := cache.NewGeneralApplicationEvent(app.GetApplicationID(), cache.RejectApplication, rejectedApp.Reason)
 			cache.Dispatch(ev)
 		}
 	}

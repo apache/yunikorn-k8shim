@@ -80,7 +80,7 @@ func (appMgr *AppManager) Stop() {
 func (appMgr *AppManager) HandleApplicationStateUpdate() func(obj interface{}) {
 	return func(obj interface{}) {
 		if event, ok := obj.(shimcache.ApplicationEvent); ok {
-			if shimcache.AppStateChange.String() == event.GetEvent().String() {
+			if shimcache.AppStateChange == event.GetEvent() {
 				if shimEvent, ok := event.(shimcache.ApplicationStatusChangeEvent); ok {
 					appID := event.GetApplicationID()
 					log.Logger().Info("Status Change callback received",

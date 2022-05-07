@@ -610,6 +610,7 @@ func TestRecoverTask(t *testing.T) {
 
 func TestTaskReleaseAfterRecovery(t *testing.T) {
 	context := initContextForTest()
+	RegisterEventHandler(EventTypeApp, context.ApplicationEventHandler())
 	RegisterEventHandler(EventTypeTask, context.TaskEventHandler())
 	Start()
 	defer Stop()

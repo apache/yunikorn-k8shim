@@ -130,7 +130,7 @@ func TestNewApplicationEvent(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		instance := NewApplicationEvent(tt.appID, tt.event, tt.msg)
+		instance := NewGeneralApplicationEvent(tt.appID, tt.event, tt.msg)
 		t.Run(tt.name, func(t *testing.T) {
 			if instance.applicationID != tt.wantID || instance.event != tt.wantEvent || instance.message != tt.wantMsg {
 				t.Errorf("want %s %s %s, got %s %s %s",
@@ -152,7 +152,7 @@ func TestApplicationEventGetEvent(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		instance := NewApplicationEvent(tt.appID, tt.event, tt.msg)
+		instance := NewGeneralApplicationEvent(tt.appID, tt.event, tt.msg)
 		event := instance.GetEvent()
 		t.Run(tt.name, func(t *testing.T) {
 			if event != tt.want {
@@ -175,7 +175,7 @@ func TestApplicationEventGetArgs(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		instance := NewApplicationEvent(tt.appID, tt.event, tt.msg)
+		instance := NewGeneralApplicationEvent(tt.appID, tt.event, tt.msg)
 		args := instance.GetArgs()
 		t.Run(tt.name, func(t *testing.T) {
 			if len(args) != tt.wantLen {
@@ -207,7 +207,7 @@ func TestApplicationEventGetApplicationID(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		instance := NewApplicationEvent(tt.appID, tt.event, tt.msg)
+		instance := NewGeneralApplicationEvent(tt.appID, tt.event, tt.msg)
 		id := instance.GetApplicationID()
 		t.Run(tt.name, func(t *testing.T) {
 			if id != tt.wantID {

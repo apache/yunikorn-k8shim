@@ -136,7 +136,6 @@ func newShimSchedulerInternal(ctx *cache.Context, apiFactory client.APIProvider,
 	cache.RegisterEventHandler(cache.EventTypeNode, ctx.SchedulerNodeEventHandler())
 	cache.RegisterEventHandler(cache.EventTypeScheduler, ss.SchedulerEventHandler())
 	cache.RegisterEventHandler(cache.EventTypeAppStatus, am.ApplicationStateUpdateEventHandler())
-
 	return ss
 }
 
