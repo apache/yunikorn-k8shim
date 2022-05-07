@@ -16,7 +16,7 @@
  limitations under the License.
 */
 
-package dispatcher
+package cache
 
 import (
 	"fmt"
@@ -191,7 +191,7 @@ func Start() {
 				switch v := event.(type) {
 				case events.ApplicationStatusEvent:
 					getEventHandler(EventTypeAppStatus)(v)
-				case events.ApplicationEvent:
+				case ApplicationEvent:
 					getEventHandler(EventTypeApp)(v)
 				case events.TaskEvent:
 					getEventHandler(EventTypeTask)(v)

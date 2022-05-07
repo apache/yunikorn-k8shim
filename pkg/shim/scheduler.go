@@ -36,7 +36,6 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
-	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/api"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
@@ -132,11 +131,11 @@ func newShimSchedulerInternal(ctx *cache.Context, apiFactory client.APIProvider,
 	)
 
 	// init dispatcher
-	dispatcher.RegisterEventHandler(dispatcher.EventTypeApp, ctx.ApplicationEventHandler())
-	dispatcher.RegisterEventHandler(dispatcher.EventTypeTask, ctx.TaskEventHandler())
-	dispatcher.RegisterEventHandler(dispatcher.EventTypeNode, ctx.SchedulerNodeEventHandler())
-	dispatcher.RegisterEventHandler(dispatcher.EventTypeScheduler, ss.SchedulerEventHandler())
-	dispatcher.RegisterEventHandler(dispatcher.EventTypeAppStatus, am.ApplicationStateUpdateEventHandler())
+	cache.RegisterEventHandler(cache.EventTypeApp, ctx.ApplicationEventHandler())
+	cache.RegisterEventHandler(cache.EventTypeTask, ctx.TaskEventHandler())
+	cache.RegisterEventHandler(cache.EventTypeNode, ctx.SchedulerNodeEventHandler())
+	cache.RegisterEventHandler(cache.EventTypeScheduler, ss.SchedulerEventHandler())
+	cache.RegisterEventHandler(cache.EventTypeAppStatus, am.ApplicationStateUpdateEventHandler())
 
 	return ss
 }
@@ -161,11 +160,11 @@ func (ss *KubernetesShim) SchedulerEventHandler() func(obj interface{}) {
 
 func (ss *KubernetesShim) register(e *fsm.Event) {
 	if err := ss.registerShimLayer(); err != nil {
-		dispatcher.Dispatch(ShimSchedulerEvent{
+		cache.Dispatch(ShimSchedulerEvent{
 			event: events.RegisterSchedulerFailed,
 		})
 	} else {
-		dispatcher.Dispatch(ShimSchedulerEvent{
+		cache.Dispatch(ShimSchedulerEvent{
 			event: events.RegisterSchedulerSucceed,
 		})
 	}
@@ -180,7 +179,7 @@ func (ss *KubernetesShim) handleSchedulerFailure(e *fsm.Event) {
 }
 
 func (ss *KubernetesShim) triggerSchedulerStateRecovery(e *fsm.Event) {
-	dispatcher.Dispatch(ShimSchedulerEvent{
+	cache.Dispatch(ShimSchedulerEvent{
 		event: events.RecoverScheduler,
 	})
 }
@@ -197,7 +196,7 @@ func (ss *KubernetesShim) recoverSchedulerState(e *fsm.Event) {
 		if err := ss.appManager.WaitForRecovery(30 * time.Second); err != nil {
 			// failed
 			log.Logger().Error("scheduler recovery failed", zap.Error(err))
-			dispatcher.Dispatch(ShimSchedulerEvent{
+			cache.Dispatch(ShimSchedulerEvent{
 				event: events.RecoverSchedulerFailed,
 			})
 			return
@@ -216,7 +215,7 @@ func (ss *KubernetesShim) recoverSchedulerState(e *fsm.Event) {
 		if err := ss.context.WaitForRecovery(recoverableAppManagers, 5*time.Minute); err != nil {
 			// failed
 			log.Logger().Error("scheduler recovery failed", zap.Error(err))
-			dispatcher.Dispatch(ShimSchedulerEvent{
+			cache.Dispatch(ShimSchedulerEvent{
 				event: events.RecoverSchedulerFailed,
 			})
 			return
@@ -224,7 +223,7 @@ func (ss *KubernetesShim) recoverSchedulerState(e *fsm.Event) {
 
 		// success
 		log.Logger().Info("scheduler recovery succeed")
-		dispatcher.Dispatch(ShimSchedulerEvent{
+		cache.Dispatch(ShimSchedulerEvent{
 			event: events.RecoverSchedulerSucceed,
 		})
 	}()
@@ -306,7 +305,7 @@ func (ss *KubernetesShim) Run() {
 	// run dispatcher
 	// the dispatcher handles the basic event dispatching,
 	// it needs to be started at first
-	dispatcher.Start()
+	cache.Start()
 
 	// run the placeholder manager
 	ss.phManager.Start()
@@ -318,7 +317,7 @@ func (ss *KubernetesShim) Run() {
 	// this triggers the scheduler state transition
 	// it first registers with the core, then start to do recovery,
 	// after the recovery is succeed, it goes to the normal scheduling routine
-	dispatcher.Dispatch(newRegisterSchedulerEvent())
+	cache.Dispatch(newRegisterSchedulerEvent())
 
 	// run app managers
 	// the app manager launches the pod event handlers
@@ -341,7 +340,7 @@ func (ss *KubernetesShim) Stop() {
 	select {
 	case ss.stopChan <- struct{}{}:
 		// stop the dispatcher
-		dispatcher.Stop()
+		cache.Stop()
 		// stop the app manager
 		ss.appManager.Stop()
 		// stop the placeholder manager

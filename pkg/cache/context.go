@@ -41,7 +41,6 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
-	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-k8shim/pkg/plugin/predicates"
 	"github.com/apache/yunikorn-k8shim/pkg/plugin/support"
@@ -521,7 +520,7 @@ func (ctx *Context) NotifyApplicationComplete(appID string) {
 			zap.String("appID", appID),
 			zap.String("currentAppState", app.GetApplicationState()))
 		ev := NewSimpleApplicationEvent(appID, CompleteApplication)
-		dispatcher.Dispatch(ev)
+		Dispatch(ev)
 	}
 }
 
@@ -531,7 +530,7 @@ func (ctx *Context) NotifyApplicationFail(appID string) {
 			zap.String("appID", appID),
 			zap.String("currentAppState", app.GetApplicationState()))
 		ev := NewSimpleApplicationEvent(appID, FailApplication)
-		dispatcher.Dispatch(ev)
+		Dispatch(ev)
 	}
 }
 
@@ -544,9 +543,9 @@ func (ctx *Context) NotifyTaskComplete(appID, taskID string) {
 			zap.String("appID", appID),
 			zap.String("taskID", taskID))
 		ev := NewSimpleTaskEvent(appID, taskID, events.CompleteTask)
-		dispatcher.Dispatch(ev)
+		Dispatch(ev)
 		appEv := NewSimpleApplicationEvent(appID, AppTaskCompleted)
-		dispatcher.Dispatch(appEv)
+		Dispatch(appEv)
 	}
 }
 
@@ -871,7 +870,7 @@ func (ctx *Context) HandleContainerStateUpdate(request *si.UpdateContainerSchedu
 
 func (ctx *Context) ApplicationEventHandler() func(obj interface{}) {
 	return func(obj interface{}) {
-		if event, ok := obj.(events.ApplicationEvent); ok {
+		if event, ok := obj.(ApplicationEvent); ok {
 			managedApp := ctx.GetApplication(event.GetApplicationID())
 			if managedApp == nil {
 				log.Logger().Error("failed to handle application event",

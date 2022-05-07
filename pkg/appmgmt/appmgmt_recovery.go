@@ -20,9 +20,8 @@ package appmgmt
 
 import (
 	"fmt"
-	"time"
-
 	"github.com/apache/yunikorn-k8shim/pkg/cache"
+	"time"
 
 	"go.uber.org/zap"
 

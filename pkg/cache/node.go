@@ -26,7 +26,6 @@ import (
 
 	"github.com/apache/yunikorn-k8shim/pkg/common"
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
-	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/api"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
@@ -161,12 +160,12 @@ func (n *SchedulerNode) postNodeAccepted(event *fsm.Event) {
 	// we need to check the K8s node state, if it is not schedulable, then we should notify
 	// the scheduler to not schedule new pods onto it.
 	if n.schedulable {
-		dispatcher.Dispatch(CachedSchedulerNodeEvent{
+		Dispatch(CachedSchedulerNodeEvent{
 			NodeID: n.name,
 			Event:  events.NodeReady,
 		})
 	} else {
-		dispatcher.Dispatch(CachedSchedulerNodeEvent{
+		Dispatch(CachedSchedulerNodeEvent{
 			NodeID: n.name,
 			Event:  events.DrainNode,
 		})

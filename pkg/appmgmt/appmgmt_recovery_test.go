@@ -93,6 +93,10 @@ func TestAppStatesDuringRecovery(t *testing.T) {
 	ctx := cache.NewContext(apiProvider)
 	cb := callback.NewAsyncRMCallback(ctx)
 
+	cache.RegisterEventHandler(cache.EventTypeApp, ctx.ApplicationEventHandler())
+	cache.Start()
+	defer cache.Stop()
+
 	amService := NewAMService(ctx, apiProvider)
 	amService.register(&mockedAppManager{})
 

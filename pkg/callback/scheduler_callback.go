@@ -25,7 +25,6 @@ import (
 
 	"github.com/apache/yunikorn-k8shim/pkg/cache"
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
-	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
@@ -58,7 +57,7 @@ func (callback *AsyncRMCallback) UpdateAllocation(response *si.AllocationRespons
 		}
 		if app := callback.context.GetApplication(alloc.ApplicationID); app != nil {
 			ev := cache.NewAllocateTaskEvent(app.GetApplicationID(), alloc.AllocationKey, alloc.UUID, alloc.NodeID)
-			dispatcher.Dispatch(ev)
+			cache.Dispatch(ev)
 		}
 	}
 
@@ -67,7 +66,7 @@ func (callback *AsyncRMCallback) UpdateAllocation(response *si.AllocationRespons
 		log.Logger().Debug("callback: response to rejected allocation",
 			zap.String("allocationKey", reject.AllocationKey))
 		if app := callback.context.GetApplication(reject.ApplicationID); app != nil {
-			dispatcher.Dispatch(cache.NewRejectTaskEvent(app.GetApplicationID(), reject.AllocationKey,
+			cache.Dispatch(cache.NewRejectTaskEvent(app.GetApplicationID(), reject.AllocationKey,
 				fmt.Sprintf("task %s from application %s is rejected by scheduler",
 					reject.AllocationKey, reject.ApplicationID)))
 		}
@@ -84,7 +83,7 @@ func (callback *AsyncRMCallback) UpdateAllocation(response *si.AllocationRespons
 		if release.TerminationType != si.TerminationType_STOPPED_BY_RM {
 			// send release app allocation to application states machine
 			ev := cache.NewReleaseAppAllocationEvent(release.ApplicationID, release.TerminationType, release.UUID)
-			dispatcher.Dispatch(ev)
+			cache.Dispatch(ev)
 		}
 	}
 
@@ -94,7 +93,7 @@ func (callback *AsyncRMCallback) UpdateAllocation(response *si.AllocationRespons
 
 		if ask.TerminationType == si.TerminationType_TIMEOUT {
 			ev := cache.NewReleaseAppAllocationAskEvent(ask.ApplicationID, ask.TerminationType, ask.AllocationKey)
-			dispatcher.Dispatch(ev)
+			cache.Dispatch(ev)
 		}
 	}
 	return nil
@@ -113,7 +112,7 @@ func (callback *AsyncRMCallback) UpdateApplication(response *si.ApplicationRespo
 		if app := callback.context.GetApplication(app.ApplicationID); app != nil {
 			log.Logger().Info("Accepting app", zap.String("appID", app.GetApplicationID()))
 			ev := cache.NewSimpleApplicationEvent(app.GetApplicationID(), cache.AcceptApplication)
-			dispatcher.Dispatch(ev)
+			cache.Dispatch(ev)
 		}
 	}
 
@@ -124,7 +123,7 @@ func (callback *AsyncRMCallback) UpdateApplication(response *si.ApplicationRespo
 
 		if app := callback.context.GetApplication(rejectedApp.ApplicationID); app != nil {
 			ev := cache.NewApplicationEvent(app.GetApplicationID(), cache.RejectApplication, rejectedApp.Reason)
-			dispatcher.Dispatch(ev)
+			cache.Dispatch(ev)
 		}
 	}
 
@@ -140,18 +139,18 @@ func (callback *AsyncRMCallback) UpdateApplication(response *si.ApplicationRespo
 			app := callback.context.GetApplication(updated.ApplicationID)
 			if app != nil && app.GetApplicationState() == cache.Reserving.String() {
 				ev := cache.NewResumingApplicationEvent(updated.ApplicationID)
-				dispatcher.Dispatch(ev)
+				cache.Dispatch(ev)
 
 				// handle status update
-				dispatcher.Dispatch(cache.NewApplicationStatusChangeEvent(updated.ApplicationID, cache.AppStateChange, updated.State))
+				cache.Dispatch(cache.NewApplicationStatusChangeEvent(updated.ApplicationID, cache.AppStateChange, updated.State))
 			}
 		default:
 			if updated.State == cache.Failing.String() || updated.State == cache.Failed.String() {
 				ev := cache.NewFailApplicationEvent(updated.ApplicationID, updated.Message)
-				dispatcher.Dispatch(ev)
+				cache.Dispatch(ev)
 			}
 			// handle status update
-			dispatcher.Dispatch(cache.NewApplicationStatusChangeEvent(updated.ApplicationID, cache.AppStateChange, updated.State))
+			cache.Dispatch(cache.NewApplicationStatusChangeEvent(updated.ApplicationID, cache.AppStateChange, updated.State))
 		}
 	}
 	return nil
@@ -165,7 +164,7 @@ func (callback *AsyncRMCallback) UpdateNode(response *si.NodeResponse) error {
 		log.Logger().Debug("callback: response to accepted node",
 			zap.String("nodeID", node.NodeID))
 
-		dispatcher.Dispatch(cache.CachedSchedulerNodeEvent{
+		cache.Dispatch(cache.CachedSchedulerNodeEvent{
 			NodeID: node.NodeID,
 			Event:  events.NodeAccepted,
 		})
@@ -175,7 +174,7 @@ func (callback *AsyncRMCallback) UpdateNode(response *si.NodeResponse) error {
 		log.Logger().Debug("callback: response to rejected node",
 			zap.String("nodeID", node.NodeID))
 
-		dispatcher.Dispatch(cache.CachedSchedulerNodeEvent{
+		cache.Dispatch(cache.CachedSchedulerNodeEvent{
 			NodeID: node.NodeID,
 			Event:  events.NodeRejected,
 		})

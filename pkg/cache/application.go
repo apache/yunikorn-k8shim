@@ -24,8 +24,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
-
 	"github.com/looplab/fsm"
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
@@ -89,7 +87,7 @@ func NewApplication(appID, queueName, user string, tags map[string]string, sched
 	return app
 }
 
-func (app *Application) handle(ev events.ApplicationEvent) error {
+func (app *Application) handle(ev ApplicationEvent) error {
 	// Locking mechanism:
 	// 1) when handle event transitions, we first obtain the object's lock,
 	//    this helps us to place a pre-check before entering here, in case
@@ -101,7 +99,7 @@ func (app *Application) handle(ev events.ApplicationEvent) error {
 	//    because the lock is already held here.
 	app.lock.Lock()
 	defer app.lock.Unlock()
-	err := app.stateMachine.Event(ApplicationEventType(ev.GetEvent()).String(), app, ev.GetArgs())
+	err := app.stateMachine.Event(ev.GetEvent().String(), app, ev.GetArgs())
 	// handle the same state transition not nil error (limit of fsm).
 	if err != nil && err.Error() != "no transition" {
 		return err
@@ -109,10 +107,10 @@ func (app *Application) handle(ev events.ApplicationEvent) error {
 	return nil
 }
 
-func (app *Application) canHandle(ev events.ApplicationEvent) bool {
+func (app *Application) canHandle(ev ApplicationEvent) bool {
 	app.lock.RLock()
 	defer app.lock.RUnlock()
-	return app.stateMachine.Can(ApplicationEventType(ev.GetEvent()).String())
+	return app.stateMachine.Can(ev.GetEvent().String())
 }
 
 func (app *Application) GetTask(taskID string) (interfaces.ManagedTask, error) {
@@ -377,7 +375,7 @@ func (app *Application) scheduleTasks(taskScheduleCondition func(t *Task) bool) 
 	}
 }
 
-func (app *Application) handleSubmitApplicationEvent() {
+func (app *Application) HandleSubmitApplicationEvent() {
 	log.Logger().Info("handle app submission",
 		zap.String("app", app.String()),
 		zap.String("clusterID", conf.GetSchedulerConf().ClusterID))
@@ -403,11 +401,11 @@ func (app *Application) handleSubmitApplicationEvent() {
 	if err != nil {
 		// submission failed
 		log.Logger().Warn("failed to submit app", zap.Error(err))
-		dispatcher.Dispatch(NewFailApplicationEvent(app.applicationID, err.Error()))
+		Dispatch(NewFailApplicationEvent(app.applicationID, err.Error()))
 	}
 }
 
-func (app *Application) handleRecoverApplicationEvent() {
+func (app *Application) HandleRecoverApplicationEvent() {
 	log.Logger().Info("handle app recovering",
 		zap.String("app", app.String()),
 		zap.String("clusterID", conf.GetSchedulerConf().ClusterID))
@@ -433,7 +431,7 @@ func (app *Application) handleRecoverApplicationEvent() {
 	if err != nil {
 		// recovery failed
 		log.Logger().Warn("failed to recover app", zap.Error(err))
-		dispatcher.Dispatch(NewFailApplicationEvent(app.applicationID, err.Error()))
+		Dispatch(NewFailApplicationEvent(app.applicationID, err.Error()))
 	}
 }
 
@@ -481,10 +479,10 @@ func (app *Application) postAppAccepted() {
 		log.Logger().Info("app has taskGroups defined, trying to reserve resources for gang members",
 			zap.String("appID", app.applicationID))
 	}
-	dispatcher.Dispatch(ev)
+	Dispatch(ev)
 }
 
-func (app *Application) onReserving() {
+func (app *Application) OnReserving() {
 	go func() {
 		// while doing reserving
 		if err := getPlaceholderManager().createAppPlaceholders(app); err != nil {
@@ -492,12 +490,12 @@ func (app *Application) onReserving() {
 			// put the app into recycling queue and turn the app to running state
 			getPlaceholderManager().cleanUp(app)
 			ev := NewRunApplicationEvent(app.applicationID)
-			dispatcher.Dispatch(ev)
+			Dispatch(ev)
 		}
 	}()
 }
 
-func (app *Application) onReservationStateChange() {
+func (app *Application) OnReservationStateChange() {
 	// this event is called when there is a add or release of placeholders
 	desireCounts := utils.NewTaskGroupInstanceCountMap()
 	for _, tg := range app.taskGroups {
@@ -514,17 +512,17 @@ func (app *Application) onReservationStateChange() {
 	// min member all satisfied
 	if desireCounts.Equals(actualCounts) {
 		ev := NewRunApplicationEvent(app.applicationID)
-		dispatcher.Dispatch(ev)
+		Dispatch(ev)
 	}
 }
 
-func (app *Application) handleRejectApplicationEvent(reason string) {
+func (app *Application) HandleRejectApplicationEvent(reason string) {
 	log.Logger().Info("app is rejected by scheduler", zap.String("appID", app.applicationID))
-	dispatcher.Dispatch(NewFailApplicationEvent(app.applicationID,
+	Dispatch(NewFailApplicationEvent(app.applicationID,
 		fmt.Sprintf("%s: %s", constants.ApplicationRejectedFailure, reason)))
 }
 
-func (app *Application) handleCompleteApplicationEvent() {
+func (app *Application) HandleCompleteApplicationEvent() {
 	// TODO app lifecycle updates
 	go func() {
 		getPlaceholderManager().cleanUp(app)
@@ -547,7 +545,7 @@ func failTaskPodWithReasonAndMsg(task *Task, reason string, msg string) {
 	}
 }
 
-func (app *Application) handleFailApplicationEvent(errMsg string) {
+func (app *Application) HandleFailApplicationEvent(errMsg string) {
 	go func() {
 		getPlaceholderManager().cleanUp(app)
 	}()
@@ -571,7 +569,7 @@ func (app *Application) handleFailApplicationEvent(errMsg string) {
 	}
 }
 
-func (app *Application) handleReleaseAppAllocationEvent(allocUUID string, terminationTypeStr string) {
+func (app *Application) HandleReleaseAppAllocationEvent(allocUUID string, terminationTypeStr string) {
 	log.Logger().Info("try to release pod from application",
 		zap.String("appID", app.applicationID),
 		zap.String("allocationUUID", allocUUID),
@@ -588,7 +586,7 @@ func (app *Application) handleReleaseAppAllocationEvent(allocUUID string, termin
 	}
 }
 
-func (app *Application) handleReleaseAppAllocationAskEvent(taskID string, terminationTypeStr string) {
+func (app *Application) HandleReleaseAppAllocationAskEvent(taskID string, terminationTypeStr string) {
 	log.Logger().Info("try to release pod from application",
 		zap.String("appID", app.applicationID),
 		zap.String("taskID", taskID),
@@ -612,7 +610,7 @@ func (app *Application) handleReleaseAppAllocationAskEvent(taskID string, termin
 	}
 }
 
-func (app *Application) handleAppTaskCompletedEvent() {
+func (app *Application) HandleAppTaskCompletedEvent() {
 	for _, task := range app.taskMap {
 		if task.placeholder && task.GetTaskState() != events.States().Task.Completed {
 			return
@@ -620,7 +618,7 @@ func (app *Application) handleAppTaskCompletedEvent() {
 	}
 	log.Logger().Info("Resuming completed, start to run the app",
 		zap.String("appID", app.applicationID))
-	dispatcher.Dispatch(NewRunApplicationEvent(app.applicationID))
+	Dispatch(NewRunApplicationEvent(app.applicationID))
 }
 
 func (app *Application) SetPlaceholderTimeout(timeout int64) {

@@ -33,7 +33,6 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/common"
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
-	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
@@ -171,7 +170,7 @@ func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) err
 			zap.String("nodeName", node.name),
 			zap.String("nodeState", node.getNodeState()))
 		if node.getNodeState() == events.States().Node.New {
-			dispatcher.Dispatch(CachedSchedulerNodeEvent{
+			Dispatch(CachedSchedulerNodeEvent{
 				NodeID: node.name,
 				Event:  events.RecoverNode,
 			})

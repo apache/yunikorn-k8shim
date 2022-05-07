@@ -34,7 +34,6 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/common/test"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
-	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
 
@@ -45,9 +44,9 @@ func TestAddNode(t *testing.T) {
 	api.UpdateNodeFunction(getUpdateNodeFunction(t, "host0001", 1024*1000*1000, 10000, false))
 
 	nodes := newSchedulerNodes(api, NewTestSchedulerCache())
-	dispatcher.RegisterEventHandler(dispatcher.EventTypeNode, nodes.schedulerNodeEventHandler())
-	dispatcher.Start()
-	defer dispatcher.Stop()
+	RegisterEventHandler(EventTypeNode, nodes.schedulerNodeEventHandler())
+	Start()
+	defer Stop()
 
 	resourceList := make(map[v1.ResourceName]resource.Quantity)
 	resourceList[v1.ResourceName("memory")] = *resource.NewQuantity(1024*1000*1000, resource.DecimalSI)
@@ -82,9 +81,9 @@ func TestUpdateNode(t *testing.T) {
 	api := test.NewSchedulerAPIMock()
 
 	nodes := newSchedulerNodes(api, NewTestSchedulerCache())
-	dispatcher.RegisterEventHandler(dispatcher.EventTypeNode, nodes.schedulerNodeEventHandler())
-	dispatcher.Start()
-	defer dispatcher.Stop()
+	RegisterEventHandler(EventTypeNode, nodes.schedulerNodeEventHandler())
+	Start()
+	defer Stop()
 
 	resourceList := make(map[v1.ResourceName]resource.Quantity)
 	resourceList[v1.ResourceName("memory")] = *resource.NewQuantity(1024*1000*1000, resource.DecimalSI)
@@ -190,9 +189,9 @@ func TestUpdateWithoutNodeAdded(t *testing.T) {
 	api := test.NewSchedulerAPIMock()
 
 	nodes := newSchedulerNodes(api, NewTestSchedulerCache())
-	dispatcher.RegisterEventHandler(dispatcher.EventTypeNode, nodes.schedulerNodeEventHandler())
-	dispatcher.Start()
-	defer dispatcher.Stop()
+	RegisterEventHandler(EventTypeNode, nodes.schedulerNodeEventHandler())
+	Start()
+	defer Stop()
 
 	resourceList := make(map[v1.ResourceName]resource.Quantity)
 	resourceList[v1.ResourceName("memory")] = *resource.NewQuantity(1024*1000*1000, resource.DecimalSI)
@@ -259,9 +258,9 @@ func TestUpdateWithoutNodeAdded(t *testing.T) {
 func TestDeleteNode(t *testing.T) {
 	api := test.NewSchedulerAPIMock()
 	nodes := newSchedulerNodes(api, NewTestSchedulerCache())
-	dispatcher.RegisterEventHandler(dispatcher.EventTypeNode, nodes.schedulerNodeEventHandler())
-	dispatcher.Start()
-	defer dispatcher.Stop()
+	RegisterEventHandler(EventTypeNode, nodes.schedulerNodeEventHandler())
+	Start()
+	defer Stop()
 
 	resourceList := make(map[v1.ResourceName]resource.Quantity)
 	resourceList[v1.ResourceName("memory")] = *resource.NewQuantity(1024*1000*1000, resource.DecimalSI)
@@ -385,9 +384,9 @@ func TestCordonNode(t *testing.T) {
 	}
 
 	nodes := newSchedulerNodes(api, NewTestSchedulerCache())
-	dispatcher.RegisterEventHandler(dispatcher.EventTypeNode, nodes.schedulerNodeEventHandler())
-	dispatcher.Start()
-	defer dispatcher.Stop()
+	RegisterEventHandler(EventTypeNode, nodes.schedulerNodeEventHandler())
+	Start()
+	defer Stop()
 
 	resourceList := make(map[v1.ResourceName]resource.Quantity)
 	resourceList[v1.ResourceName("memory")] = *resource.NewQuantity(1024*1000*1000, resource.DecimalSI)

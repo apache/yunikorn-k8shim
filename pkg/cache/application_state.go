@@ -31,6 +31,20 @@ import (
 //----------------------------------------------
 type ApplicationEventType int
 
+type ApplicationEvent interface {
+	// an application event is associated with an application Id,
+	// dispatcher finds out actual application based on this id
+	// to handle this event
+	GetApplicationID() string
+
+	// the type of this event
+	GetEvent() ApplicationEventType
+
+	// an event can have multiple arguments, these arguments will be passed to
+	// state machines' callbacks when doing state transition
+	GetArgs() []interface{}
+}
+
 const (
 	SubmitApplication ApplicationEventType = iota
 	RecoverApplication
@@ -60,12 +74,6 @@ type SimpleApplicationEvent struct {
 	event         ApplicationEventType
 }
 
-type ApplicationEvent struct {
-	applicationID string
-	event         ApplicationEventType
-	message       string
-}
-
 func NewSimpleApplicationEvent(appID string, eventType ApplicationEventType) SimpleApplicationEvent {
 	return SimpleApplicationEvent{
 		applicationID: appID,
@@ -73,8 +81,8 @@ func NewSimpleApplicationEvent(appID string, eventType ApplicationEventType) Sim
 	}
 }
 
-func (st SimpleApplicationEvent) GetEvent() int {
-	return int(st.event)
+func (st SimpleApplicationEvent) GetEvent() ApplicationEventType {
+	return st.event
 }
 
 func (st SimpleApplicationEvent) GetArgs() []interface{} {
@@ -85,25 +93,34 @@ func (st SimpleApplicationEvent) GetApplicationID() string {
 	return st.applicationID
 }
 
-func NewApplicationEvent(appID string, eventType ApplicationEventType, msg string) ApplicationEvent {
-	return ApplicationEvent{
+// ------------------------
+// GeneralApplicationEvent is used for testing and rejected app events
+// ------------------------
+type GeneralApplicationEvent struct {
+	applicationID string
+	event         ApplicationEventType
+	message       string
+}
+
+func NewApplicationEvent(appID string, eventType ApplicationEventType, msg string) GeneralApplicationEvent {
+	return GeneralApplicationEvent{
 		applicationID: appID,
 		event:         eventType,
 		message:       msg,
 	}
 }
 
-func (st ApplicationEvent) GetEvent() int {
-	return int(st.event)
+func (st GeneralApplicationEvent) GetEvent() ApplicationEventType {
+	return st.event
 }
 
-func (st ApplicationEvent) GetArgs() []interface{} {
+func (st GeneralApplicationEvent) GetArgs() []interface{} {
 	args := make([]interface{}, 1)
 	args[0] = st.message
 	return args
 }
 
-func (st ApplicationEvent) GetApplicationID() string {
+func (st GeneralApplicationEvent) GetApplicationID() string {
 	return st.applicationID
 }
 
@@ -124,8 +141,8 @@ func NewApplicationStatusChangeEvent(appID string, eventType ApplicationEventTyp
 	}
 }
 
-func (st ApplicationStatusChangeEvent) GetEvent() int {
-	return int(st.event)
+func (st ApplicationStatusChangeEvent) GetEvent() ApplicationEventType {
+	return st.event
 }
 
 func (st ApplicationStatusChangeEvent) GetArgs() []interface{} {
@@ -155,8 +172,8 @@ func NewSubmitApplicationEvent(appID string) SubmitApplicationEvent {
 	}
 }
 
-func (se SubmitApplicationEvent) GetEvent() int {
-	return int(se.event)
+func (se SubmitApplicationEvent) GetEvent() ApplicationEventType {
+	return se.event
 }
 
 func (se SubmitApplicationEvent) GetArgs() []interface{} {
@@ -182,8 +199,8 @@ func NewRunApplicationEvent(appID string) RunApplicationEvent {
 	}
 }
 
-func (re RunApplicationEvent) GetEvent() int {
-	return int(re.event)
+func (re RunApplicationEvent) GetEvent() ApplicationEventType {
+	return re.event
 }
 
 func (re RunApplicationEvent) GetArgs() []interface{} {
@@ -211,8 +228,8 @@ func NewFailApplicationEvent(appID, message string) FailApplicationEvent {
 	}
 }
 
-func (fe FailApplicationEvent) GetEvent() int {
-	return int(fe.event)
+func (fe FailApplicationEvent) GetEvent() ApplicationEventType {
+	return fe.event
 }
 
 func (fe FailApplicationEvent) GetArgs() []interface{} {
@@ -240,8 +257,8 @@ func NewUpdateApplicationReservationEvent(appID string) UpdateApplicationReserva
 	}
 }
 
-func (ue UpdateApplicationReservationEvent) GetEvent() int {
-	return int(ue.event)
+func (ue UpdateApplicationReservationEvent) GetEvent() ApplicationEventType {
+	return ue.event
 }
 
 func (ue UpdateApplicationReservationEvent) GetArgs() []interface{} {
@@ -282,8 +299,8 @@ func (re ReleaseAppAllocationEvent) GetArgs() []interface{} {
 	return args
 }
 
-func (re ReleaseAppAllocationEvent) GetEvent() int {
-	return int(re.event)
+func (re ReleaseAppAllocationEvent) GetEvent() ApplicationEventType {
+	return re.event
 }
 
 type ReleaseAppAllocationAskEvent struct {
@@ -313,8 +330,8 @@ func (re ReleaseAppAllocationAskEvent) GetArgs() []interface{} {
 	return args
 }
 
-func (re ReleaseAppAllocationAskEvent) GetEvent() int {
-	return int(re.event)
+func (re ReleaseAppAllocationAskEvent) GetEvent() ApplicationEventType {
+	return re.event
 }
 
 // ------------------------
@@ -332,8 +349,8 @@ func NewResumingApplicationEvent(appID string) ResumingApplicationEvent {
 	}
 }
 
-func (re ResumingApplicationEvent) GetEvent() int {
-	return int(re.event)
+func (re ResumingApplicationEvent) GetEvent() ApplicationEventType {
+	return re.event
 }
 
 func (re ResumingApplicationEvent) GetArgs() []interface{} {
@@ -477,22 +494,22 @@ func NewAppState() *fsm.FSM {
 			events.EnterState: func(event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
 				log.Logger().Debug("shim app state transition",
-					zap.String("app", app.applicationID),
+					zap.String("app", app.GetApplicationID()),
 					zap.String("source", event.Src),
 					zap.String("destination", event.Dst),
 					zap.String("event", event.Event))
 			},
 			Reserving.String(): func(event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
-				app.onReserving()
+				app.OnReserving()
 			},
 			SubmitApplication.String(): func(event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
-				app.handleSubmitApplicationEvent()
+				app.HandleSubmitApplicationEvent()
 			},
 			RecoverApplication.String(): func(event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
-				app.handleRecoverApplicationEvent()
+				app.HandleRecoverApplicationEvent()
 			},
 			RejectApplication.String(): func(event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
@@ -503,11 +520,11 @@ func NewAppState() *fsm.FSM {
 					return
 				}
 				reason := eventArgs[0]
-				app.handleRejectApplicationEvent(reason)
+				app.HandleRejectApplicationEvent(reason)
 			},
 			CompleteApplication.String(): func(event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
-				app.handleCompleteApplicationEvent()
+				app.HandleCompleteApplicationEvent()
 			},
 			FailApplication.String(): func(event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
@@ -518,11 +535,11 @@ func NewAppState() *fsm.FSM {
 					return
 				}
 				errMsg := eventArgs[0]
-				app.handleFailApplicationEvent(errMsg)
+				app.HandleFailApplicationEvent(errMsg)
 			},
 			UpdateReservation.String(): func(event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
-				app.onReservationStateChange()
+				app.OnReservationStateChange()
 			},
 			ReleaseAppAllocation.String(): func(event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
@@ -534,7 +551,7 @@ func NewAppState() *fsm.FSM {
 				}
 				allocUUID := eventArgs[0]
 				terminationTypeStr := eventArgs[1]
-				app.handleReleaseAppAllocationEvent(allocUUID, terminationTypeStr)
+				app.HandleReleaseAppAllocationEvent(allocUUID, terminationTypeStr)
 			},
 			ReleaseAppAllocationAsk.String(): func(event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
@@ -546,11 +563,11 @@ func NewAppState() *fsm.FSM {
 				}
 				taskID := eventArgs[0]
 				terminationTypeStr := eventArgs[1]
-				app.handleReleaseAppAllocationAskEvent(taskID, terminationTypeStr)
+				app.HandleReleaseAppAllocationAskEvent(taskID, terminationTypeStr)
 			},
 			AppTaskCompleted.String(): func(event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
-				app.handleAppTaskCompletedEvent()
+				app.HandleAppTaskCompletedEvent()
 			},
 		},
 	)

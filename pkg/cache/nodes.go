@@ -29,7 +29,6 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/cache/external"
 	"github.com/apache/yunikorn-k8shim/pkg/common"
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
-	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/api"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
@@ -238,7 +237,7 @@ func triggerEvent(node *SchedulerNode, currentState string, eventType events.Sch
 	log.Logger().Info("scheduler node event ", zap.String("name", node.name),
 		zap.String("current state ", currentState), zap.String("transition to ", string(eventType)))
 	if node.getNodeState() == currentState {
-		dispatcher.Dispatch(CachedSchedulerNodeEvent{
+		Dispatch(CachedSchedulerNodeEvent{
 			NodeID: node.name,
 			Event:  eventType,
 		})
