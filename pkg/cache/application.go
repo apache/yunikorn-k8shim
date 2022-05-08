@@ -99,7 +99,7 @@ func (app *Application) handle(ev ApplicationEvent) error {
 	//    because the lock is already held here.
 	//app.lock.Lock()
 	//defer app.lock.Unlock()
-	log.Logger().Error("SubmitApplication SubmitApplication SubmitApplication",zap.String("event",ev.GetEvent().String()))
+	//log.Logger().Error("SubmitApplication SubmitApplication SubmitApplication",zap.String("event",ev.GetEvent().String()))
 	err := app.stateMachine.Event(ev.GetEvent().String(), app, ev.GetArgs())
 	// handle the same state transition not nil error (limit of fsm).
 	if err != nil && err.Error() != "no transition" {
