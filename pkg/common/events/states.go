@@ -23,7 +23,6 @@ var (
 )
 
 type AllStates struct {
-	Task      *TaskStates
 	Scheduler *SchedulerStates
 	Node      *NodeStates
 }
@@ -47,46 +46,9 @@ type NodeStates struct {
 	Draining   string
 }
 
-type TaskStates struct {
-	New        string
-	Pending    string
-	Scheduling string
-	Allocated  string
-	Rejected   string
-	Bound      string
-	Killing    string
-	Killed     string
-	Failed     string
-	Completed  string
-	Any        []string // Any refers to all possible states
-	Terminated []string // Rejected, Killed, Failed, Completed
-}
-
 func States() *AllStates {
 	if states == nil {
 		states = &AllStates{
-			Task: &TaskStates{
-				New:        "New",
-				Pending:    "Pending",
-				Scheduling: "Scheduling",
-				Allocated:  "TaskAllocated",
-				Rejected:   "Rejected",
-				Bound:      "Bound",
-				Killing:    "Killing",
-				Killed:     "Killed",
-				Failed:     "Failed",
-				Completed:  "Completed",
-				Any: []string{
-					"New", "Pending", "Scheduling",
-					"TaskAllocated", "Rejected",
-					"Bound", "Killing", "Killed",
-					"Failed", "Completed",
-				},
-				Terminated: []string{
-					"Rejected", "Killed", "Failed",
-					"Completed",
-				},
-			},
 			Scheduler: &SchedulerStates{
 				New:         "New",
 				Registered:  "Registered",

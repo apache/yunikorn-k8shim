@@ -193,7 +193,7 @@ func Start() {
 					getEventHandler(EventTypeAppStatus)(v)
 				case ApplicationEvent:
 					getEventHandler(EventTypeApp)(v)
-				case events.TaskEvent:
+				case TaskEvent:
 					getEventHandler(EventTypeTask)(v)
 				case events.SchedulerEvent:
 					getEventHandler(EventTypeScheduler)(v)

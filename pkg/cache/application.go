@@ -53,7 +53,7 @@ type Application struct {
 	taskGroupsDefinition       string
 	schedulingParamsDefinition string
 	placeholderOwnerReferences []metav1.OwnerReference
-	stateMachine               *fsm.FSM
+	sm                         *fsm.FSM
 	lock                       *sync.RWMutex
 	schedulerAPI               api.SchedulerAPI
 	placeholderAsk             *si.Resource // total placeholder request for the app (all task groups)
@@ -77,7 +77,7 @@ func NewApplication(appID, queueName, user string, tags map[string]string, sched
 		taskMap:                 taskMap,
 		tags:                    tags,
 		schedulingPolicy:        v1alpha1.SchedulingPolicy{},
-		stateMachine:            NewAppState(),
+		sm:                      NewAppState(),
 		taskGroups:              make([]v1alpha1.TaskGroup, 0),
 		lock:                    &sync.RWMutex{},
 		schedulerAPI:            scheduler,
@@ -97,10 +97,9 @@ func (app *Application) handle(ev ApplicationEvent) error {
 	// 2) Note, state machine calls those callbacks here, we must ensure
 	//    they are lock-free calls. Otherwise the callback will be blocked
 	//    because the lock is already held here.
-	//app.lock.Lock()
-	//defer app.lock.Unlock()
-	//log.Logger().Error("SubmitApplication SubmitApplication SubmitApplication",zap.String("event",ev.GetEvent().String()))
-	err := app.stateMachine.Event(ev.GetEvent().String(), app, ev.GetArgs())
+	app.lock.Lock()
+	defer app.lock.Unlock()
+	err := app.sm.Event(ev.GetEvent().String(), app, ev.GetArgs())
 	// handle the same state transition not nil error (limit of fsm).
 	if err != nil && err.Error() != "no transition" {
 		return err
@@ -111,13 +110,13 @@ func (app *Application) handle(ev ApplicationEvent) error {
 func (app *Application) GetStateMachine(taskID string) *fsm.FSM {
 	app.lock.RLock()
 	defer app.lock.RUnlock()
-	return app.stateMachine
+	return app.sm
 }
 
 func (app *Application) canHandle(ev ApplicationEvent) bool {
 	app.lock.RLock()
 	defer app.lock.RUnlock()
-	return app.stateMachine.Can(ev.GetEvent().String())
+	return app.sm.Can(ev.GetEvent().String())
 }
 
 func (app *Application) GetTask(taskID string) (interfaces.ManagedTask, error) {
@@ -241,25 +240,25 @@ func (app *Application) removeTask(taskID string) {
 }
 
 func (app *Application) GetApplicationState() string {
-	return app.stateMachine.Current()
+	return app.sm.Current()
 }
 
 func (app *Application) GetPendingTasks() []*Task {
 	app.lock.RLock()
 	defer app.lock.RUnlock()
-	return app.getTasks(events.States().Task.Pending)
+	return app.getTasks(TaskStates().Pending)
 }
 
 func (app *Application) GetNewTasks() []*Task {
 	app.lock.RLock()
 	defer app.lock.RUnlock()
-	return app.getTasks(events.States().Task.New)
+	return app.getTasks(TaskStates().New)
 }
 
 func (app *Application) GetAllocatedTasks() []*Task {
 	app.lock.RLock()
 	defer app.lock.RUnlock()
-	return app.getTasks(events.States().Task.Allocated)
+	return app.getTasks(TaskStates().Allocated)
 }
 
 func (app *Application) getTasks(state string) []*Task {
@@ -301,7 +300,7 @@ func (app *Application) getNonTerminatedTaskAlias() []string {
 func (app *Application) SetState(state string) {
 	app.lock.Lock()
 	defer app.lock.Unlock()
-	app.stateMachine.SetState(state)
+	app.sm.SetState(state)
 }
 
 func (app *Application) TriggerAppRecovery() error {
@@ -317,19 +316,19 @@ func (app *Application) TriggerAppRecovery() error {
 // return true if the app needs scheduling or false if not
 func (app *Application) Schedule() bool {
 	switch app.GetApplicationState() {
-	case New.String():
+	case ApplicationStates().New:
 		ev := NewSubmitApplicationEvent(app.GetApplicationID())
 		if err := app.handle(ev); err != nil {
 			log.Logger().Warn("failed to handle SUBMIT app event",
 				zap.Error(err))
 		}
-	case Accepted.String():
+	case ApplicationStates().Accepted:
 		// once the app is accepted by the scheduler core,
 		// the next step is to send requests for scheduling
 		// the app state could be transited to Reserving or Running
 		// depends on if the app has gang members
 		app.postAppAccepted()
-	case Reserving.String():
+	case ApplicationStates().Reserving:
 		// during the Reserving state, only the placeholders
 		// can be scheduled
 		app.scheduleTasks(func(t *Task) bool {
@@ -338,7 +337,7 @@ func (app *Application) Schedule() bool {
 		if len(app.GetNewTasks()) == 0 {
 			return false
 		}
-	case Running.String():
+	case ApplicationStates().Running:
 		// during the Running state, only the regular pods
 		// can be scheduled
 		app.scheduleTasks(func(t *Task) bool {
@@ -365,7 +364,7 @@ func (app *Application) scheduleTasks(taskScheduleCondition func(t *Task) bool) 
 				// note, if we directly trigger submit task event, it may spawn too many duplicate
 				// events, because a task might be submitted multiple times before its state transits to PENDING.
 				if handleErr := task.handle(
-					NewSimpleTaskEvent(task.applicationID, task.taskID, events.InitTask)); handleErr != nil {
+					NewSimpleTaskEvent(task.applicationID, task.taskID, InitTask)); handleErr != nil {
 					// something goes wrong when transit task to PENDING state,
 					// this should not happen because we already checked the state
 					// before calling the transition. Nowhere to go, just log the error.
@@ -455,7 +454,7 @@ func (app *Application) skipReservationStage() bool {
 	// in this case, we should skip the reservation stage
 	if len(app.taskMap) > 0 {
 		for _, task := range app.taskMap {
-			if task.GetTaskState() != events.States().Task.New {
+			if task.GetTaskState() != TaskStates().New {
 				log.Logger().Debug("Skip reservation stage: found task already has been scheduled before.",
 					zap.String("appID", app.applicationID),
 					zap.String("taskID", task.GetTaskID()),
@@ -476,7 +475,7 @@ func (app *Application) postAppAccepted() {
 	log.Logger().Debug("postAppAccepted on cached app",
 		zap.String("appID", app.applicationID),
 		zap.Int("numTaskGroups", len(app.taskGroups)),
-		zap.Int("numAllocatedTasks", len(app.getTasks(events.States().Task.Allocated))))
+		zap.Int("numAllocatedTasks", len(app.getTasks(TaskStates().Allocated))))
 	if app.skipReservationStage() {
 		ev = NewRunApplicationEvent(app.applicationID)
 		log.Logger().Info("Skip the reservation stage",
@@ -510,7 +509,7 @@ func (app *Application) OnReservationStateChange() {
 	}
 
 	actualCounts := utils.NewTaskGroupInstanceCountMap()
-	for _, t := range app.getTasks(events.States().Task.Bound) {
+	for _, t := range app.getTasks(TaskStates().Bound) {
 		if t.placeholder {
 			actualCounts.AddOne(t.taskGroupName)
 		}
@@ -558,9 +557,9 @@ func (app *Application) HandleFailApplicationEvent(errMsg string) {
 	}()
 	log.Logger().Info("failApplication reason", zap.String("applicationID", app.applicationID), zap.String("errMsg", errMsg))
 	// unallocated task states include New, Pending and Scheduling
-	unalloc := app.getTasks(events.States().Task.New)
-	unalloc = append(unalloc, app.getTasks(events.States().Task.Pending)...)
-	unalloc = append(unalloc, app.getTasks(events.States().Task.Scheduling)...)
+	unalloc := app.getTasks(TaskStates().New)
+	unalloc = append(unalloc, app.getTasks(TaskStates().Pending)...)
+	unalloc = append(unalloc, app.getTasks(TaskStates().Scheduling)...)
 
 	// publish pod level event to unallocated pods
 	for _, task := range unalloc {
@@ -619,7 +618,7 @@ func (app *Application) HandleReleaseAppAllocationAskEvent(taskID string, termin
 
 func (app *Application) HandleAppTaskCompletedEvent() {
 	for _, task := range app.taskMap {
-		if task.placeholder && task.GetTaskState() != events.States().Task.Completed {
+		if task.placeholder && task.GetTaskState() != TaskStates().Completed {
 			return
 		}
 	}

@@ -133,11 +133,11 @@ func (callback *AsyncRMCallback) UpdateApplication(response *si.ApplicationRespo
 			zap.String("appId", updated.ApplicationID),
 			zap.String("new status", updated.State))
 		switch updated.State {
-		case cache.Completed.String():
+		case cache.ApplicationStates().Completed:
 			callback.context.RemoveApplicationInternal(updated.ApplicationID)
-		case cache.Resuming.String():
+		case cache.ApplicationStates().Resuming:
 			app := callback.context.GetApplication(updated.ApplicationID)
-			if app != nil && app.GetApplicationState() == cache.Reserving.String() {
+			if app != nil && app.GetApplicationState() == cache.ApplicationStates().Reserving {
 				ev := cache.NewResumingApplicationEvent(updated.ApplicationID)
 				cache.Dispatch(ev)
 
@@ -145,7 +145,7 @@ func (callback *AsyncRMCallback) UpdateApplication(response *si.ApplicationRespo
 				cache.Dispatch(cache.NewApplicationStatusChangeEvent(updated.ApplicationID, cache.AppStateChange, updated.State))
 			}
 		default:
-			if updated.State == cache.Failing.String() || updated.State == cache.Failed.String() {
+			if updated.State == cache.ApplicationStates().Failing || updated.State == cache.ApplicationStates().Failed {
 				ev := cache.NewFailApplicationEvent(updated.ApplicationID, updated.Message)
 				cache.Dispatch(ev)
 			}

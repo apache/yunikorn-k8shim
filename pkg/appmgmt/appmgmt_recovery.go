@@ -84,7 +84,7 @@ func (svc *AppManagementService) waitForAppRecovery(
 				log.Logger().Debug("appInfo",
 					zap.String("appId", app.GetApplicationID()),
 					zap.String("state", app.GetApplicationState()))
-				if app.GetApplicationState() == cache.Accepted.String() {
+				if app.GetApplicationState() == cache.ApplicationStates().Accepted {
 					delete(recoveringApps, app.GetApplicationID())
 				}
 			}

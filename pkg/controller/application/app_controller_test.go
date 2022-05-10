@@ -59,7 +59,7 @@ func TestAddApp(t *testing.T) {
 	appID := constructAppID(defaultName, defaultNamespace)
 	managedApp := am.amProtocol.GetApplication(appID)
 	assert.Assert(t, managedApp != nil)
-	assert.Equal(t, managedApp.GetApplicationState(), cache.New.String())
+	assert.Equal(t, managedApp.GetApplicationState(), cache.ApplicationStates().New)
 	assert.Equal(t, managedApp.GetQueue(), app.Spec.Queue)
 	assert.Equal(t, managedApp.GetApplicationID(), appID)
 }

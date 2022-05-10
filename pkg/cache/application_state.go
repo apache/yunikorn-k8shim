@@ -31,20 +31,6 @@ import (
 //----------------------------------------------
 type ApplicationEventType int
 
-type ApplicationEvent interface {
-	// an application event is associated with an application Id,
-	// dispatcher finds out actual application based on this id
-	// to handle this event
-	GetApplicationID() string
-
-	// the type of this event
-	GetEvent() ApplicationEventType
-
-	// an event can have multiple arguments, these arguments will be passed to
-	// state machines' callbacks when doing state transition
-	GetArgs() []interface{}
-}
-
 const (
 	SubmitApplication ApplicationEventType = iota
 	RecoverApplication
@@ -66,6 +52,20 @@ const (
 
 func (ae ApplicationEventType) String() string {
 	return [...]string{"SubmitApplication", "RecoverApplication", "AcceptApplication", "TryReserve", "UpdateReservation", "RunApplication", "RejectApplication", "CompleteApplication", "FailApplication", "KillApplication", "KilledApplication", "ReleaseAppAllocation", "ReleaseAppAllocationAsk", "AppStateChange", "ResumingApplication", "AppTaskCompleted"}[ae]
+}
+
+type ApplicationEvent interface {
+	// an application event is associated with an application Id,
+	// dispatcher finds out actual application based on this id
+	// to handle this event
+	GetApplicationID() string
+
+	// the type of this event
+	GetEvent() ApplicationEventType
+
+	// an event can have multiple arguments, these arguments will be passed to
+	// state machines' callbacks when doing state transition
+	GetArgs() []interface{}
 }
 
 // SimpleApplicationEvent simply moves application states
@@ -364,142 +364,162 @@ func (re ResumingApplicationEvent) GetApplicationID() string {
 // ----------------------------------
 // Application states
 // ----------------------------------
-type applicationState int
+var storeApplicationStates *applicationStates
 
-const (
-	New applicationState = iota
-	Recovering
-	Submitted
-	Accepted
-	Reserving
-	Running
-	Rejected
-	Completed
-	Killing
-	Killed
-	Failing
-	Failed
-	Resuming
-)
+type applicationStates struct {
+	New        string
+	Recovering string
+	Submitted  string
+	Accepted   string
+	Reserving  string
+	Running    string
+	Rejected   string
+	Completed  string
+	Killing    string
+	Killed     string
+	Failing    string
+	Failed     string
+	Resuming   string
+}
 
-func (as applicationState) String() string {
-	return [...]string{"New", "Recovering", "Submitted", "Accepted", "Reserving", "Running", "Rejected", "Completed", "Killing", "Killed", "Failing", "Failed", "Resuming"}[as]
+func ApplicationStates() *applicationStates{
+	if storeApplicationStates == nil {
+		storeApplicationStates = &applicationStates{
+			New:        "New",
+			Recovering: "Recovering",
+			Submitted:  "Submitted",
+			Accepted:   "Accepted",
+			Reserving:  "Reserving",
+			Running:    "Running",
+			Rejected:   "Rejected",
+			Completed:  "Completed",
+			Killing:    "Killing",
+			Killed:     "Killed",
+			Failed:     "Failed",
+			Failing:    "Failing",
+			Resuming:   "Resuming",
+		}
+	}
+	return storeApplicationStates
 }
 
 func NewAppState() *fsm.FSM {
+	states := ApplicationStates()
 	return fsm.NewFSM(
-		New.String(), fsm.Events{
+		states.New, fsm.Events{
 			{
 				Name: SubmitApplication.String(),
-				Src:  []string{New.String()},
-				Dst:  Submitted.String(),
+				Src:  []string{states.New},
+				Dst:  states.Submitted,
 			},
 			{
 				Name: RecoverApplication.String(),
-				Src:  []string{New.String()},
-				Dst:  Recovering.String(),
+				Src:  []string{states.New},
+				Dst:  states.Recovering,
 			},
 			{
 				Name: AcceptApplication.String(),
-				Src:  []string{Submitted.String(), Recovering.String()},
-				Dst:  Accepted.String(),
+				Src:  []string{states.Submitted, states.Recovering},
+				Dst:  states.Accepted,
 			},
 			{
 				Name: TryReserve.String(),
-				Src:  []string{Accepted.String()},
-				Dst:  Reserving.String(),
+				Src:  []string{states.Accepted},
+				Dst:  states.Reserving,
 			},
 			{
 				Name: UpdateReservation.String(),
-				Src:  []string{Reserving.String()},
-				Dst:  Reserving.String(),
+				Src:  []string{states.Reserving},
+				Dst:  states.Reserving,
 			},
 			{
 				Name: ResumingApplication.String(),
-				Src:  []string{Reserving.String()},
-				Dst:  Resuming.String(),
+				Src:  []string{states.Reserving},
+				Dst:  states.Resuming,
 			},
 			{
 				Name: AppTaskCompleted.String(),
-				Src:  []string{Resuming.String()},
-				Dst:  Resuming.String(),
+				Src:  []string{states.Resuming},
+				Dst:  states.Resuming,
 			},
 			{
 				Name: RunApplication.String(),
-				Src:  []string{Accepted.String(), Reserving.String(), Resuming.String(), Running.String()},
-				Dst:  Running.String(),
+				Src:  []string{states.Accepted, states.Reserving, states.Resuming, states.Running},
+				Dst:  states.Running,
 			},
 			{
 				Name: ReleaseAppAllocation.String(),
-				Src:  []string{Running.String()},
-				Dst:  Running.String(),
+				Src:  []string{states.Running},
+				Dst:  states.Running,
 			},
 			{
 				Name: ReleaseAppAllocation.String(),
-				Src:  []string{Failing.String()},
-				Dst:  Failing.String(),
+				Src:  []string{states.Failing},
+				Dst:  states.Failing,
 			},
 			{
 				Name: ReleaseAppAllocation.String(),
-				Src:  []string{Resuming.String()},
-				Dst:  Resuming.String(),
+				Src:  []string{states.Resuming},
+				Dst:  states.Resuming,
 			},
 			{
 				Name: ReleaseAppAllocationAsk.String(),
-				Src:  []string{Running.String(), Accepted.String(), Reserving.String()},
-				Dst:  Running.String(),
+				Src:  []string{states.Running, states.Accepted, states.Reserving},
+				Dst:  states.Running,
 			},
 			{
 				Name: ReleaseAppAllocationAsk.String(),
-				Src:  []string{Failing.String()},
-				Dst:  Failing.String(),
+				Src:  []string{states.Failing},
+				Dst:  states.Failing,
 			},
 			{
 				Name: ReleaseAppAllocationAsk.String(),
-				Src:  []string{Resuming.String()},
-				Dst:  Resuming.String(),
+				Src:  []string{states.Resuming},
+				Dst:  states.Resuming,
 			},
 			{
 				Name: CompleteApplication.String(),
-				Src:  []string{Running.String()},
-				Dst:  Completed.String(),
+				Src:  []string{states.Running},
+				Dst:  states.Completed,
 			},
 			{
 				Name: RejectApplication.String(),
-				Src:  []string{Submitted.String()},
-				Dst:  Rejected.String(),
+				Src:  []string{states.Submitted},
+				Dst:  states.Rejected,
 			},
 			{
 				Name: FailApplication.String(),
-				Src:  []string{Submitted.String(), Accepted.String(), Running.String(), Reserving.String()},
-				Dst:  Failing.String(),
+				Src:  []string{states.Submitted, states.Accepted, states.Running, states.Reserving},
+				Dst:  states.Failing,
 			},
 			{
 				Name: FailApplication.String(),
-				Src:  []string{Failing.String(), Rejected.String()},
-				Dst:  Failed.String(),
+				Src:  []string{states.Failing, states.Rejected},
+				Dst:  states.Failed,
 			},
 			{
 				Name: KillApplication.String(),
-				Src:  []string{Accepted.String(), Running.String(), Reserving.String()},
-				Dst:  Killing.String(),
+				Src:  []string{states.Accepted, states.Running, states.Reserving},
+				Dst:  states.Killing,
 			},
 			{
 				Name: KilledApplication.String(),
-				Src:  []string{Killing.String()},
-				Dst:  Killed.String(),
+				Src:  []string{states.Killing},
+				Dst:  states.Killed,
 			},
 		},
 		fsm.Callbacks{
-			events.EnterState: func(event *fsm.Event) {
-				app := event.Args[0].(*Application) //nolint:errcheck
-				log.Logger().Debug("shim app state transition",
-					zap.String("app", app.GetApplicationID()),
-					zap.String("source", event.Src),
-					zap.String("destination", event.Dst),
-					zap.String("event", event.Event))
+			"enter_state": func(event *fsm.Event) {
+				go func() {
+					app := event.Args[0].(*Application) //nolint:errcheck
+					log.Logger().Debug("shim app state transition",
+						zap.String("app", app.GetApplicationID()),
+						zap.String("source", event.Src),
+						zap.String("destination", event.Dst),
+						zap.String("event", event.Event))
+				}()
 			},
-			Reserving.String(): func(event *fsm.Event) {
+			states.Reserving: func(event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
 				app.OnReserving()
 			},

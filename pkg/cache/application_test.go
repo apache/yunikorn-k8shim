@@ -53,19 +53,18 @@ type recorderTime struct {
 func TestNewApplication(t *testing.T) {
 	app := NewApplication("app00001", "root.queue", "testuser", map[string]string{}, newMockSchedulerAPI())
 	assert.Equal(t, app.GetApplicationID(), "app00001")
-	assert.Equal(t, app.GetApplicationState(), New.String())
+	assert.Equal(t, app.GetApplicationState(), ApplicationStates().New)
 	assert.Equal(t, app.partition, constants.DefaultPartition)
 	assert.Equal(t, len(app.taskMap), 0)
-	assert.Equal(t, app.GetApplicationState(), New.String())
+	assert.Equal(t, app.GetApplicationState(), ApplicationStates().New)
 	assert.Equal(t, app.queue, "root.queue")
 }
 
 func TestSubmitApplication(t *testing.T) {
 	app := NewApplication("app00001", "root.abc", "testuser", map[string]string{}, newMockSchedulerAPI())
-
 	err := app.handle(NewSubmitApplicationEvent(app.applicationID))
 	assert.NilError(t, err)
-	assertAppState(t, app, Submitted.String(), 10*time.Second)
+	assertAppState(t, app, ApplicationStates().Submitted, 10*time.Second)
 
 	// app already submitted
 	err = app.handle(NewSubmitApplicationEvent(app.applicationID))
@@ -73,7 +72,7 @@ func TestSubmitApplication(t *testing.T) {
 		// this should give an error
 		t.Error("expecting error got 'nil'")
 	}
-	assertAppState(t, app, Submitted.String(), 10*time.Second)
+	assertAppState(t, app, ApplicationStates().Submitted, 10*time.Second)
 }
 
 func TestRunApplication(t *testing.T) {
@@ -93,12 +92,12 @@ func TestRunApplication(t *testing.T) {
 		// this should give an error
 		t.Error("expecting error got 'nil'")
 	}
-	assertAppState(t, app, New.String(), 3*time.Second)
+	assertAppState(t, app, ApplicationStates().New, 3*time.Second)
 
 	// submit the app
 	err = app.handle(NewSubmitApplicationEvent(app.applicationID))
 	assert.NilError(t, err)
-	assertAppState(t, app, Submitted.String(), 3*time.Second)
+	assertAppState(t, app, ApplicationStates().Submitted, 3*time.Second)
 
 	// app must be accepted first
 	err = app.handle(NewRunApplicationEvent(app.applicationID))
@@ -106,7 +105,7 @@ func TestRunApplication(t *testing.T) {
 		// this should give an error
 		t.Error("expecting error got 'nil'")
 	}
-	assertAppState(t, app, Submitted.String(), 3*time.Second)
+	assertAppState(t, app, ApplicationStates().Submitted, 3*time.Second)
 }
 
 func TestFailApplication(t *testing.T) {
@@ -169,40 +168,40 @@ func TestFailApplication(t *testing.T) {
 	task3 := NewTask("task03", app, context, pod)
 	task4 := NewTask("task04", app, context, pod)
 	// set task states to new/pending/scheduling/running
-	task1.sm.SetState(events.States().Task.New)
-	task2.sm.SetState(events.States().Task.Pending)
-	task3.sm.SetState(events.States().Task.Scheduling)
-	task4.sm.SetState(events.States().Task.Allocated)
+	task1.sm.SetState(TaskStates().New)
+	task2.sm.SetState(TaskStates().Pending)
+	task3.sm.SetState(TaskStates().Scheduling)
+	task4.sm.SetState(TaskStates().Allocated)
 	app.addTask(task1)
 	app.addTask(task2)
 	app.addTask(task3)
 	app.addTask(task4)
-	app.SetState(Accepted.String())
+	app.SetState(ApplicationStates().Accepted)
 	errMess := "Test Error Message"
 	err := app.handle(NewFailApplicationEvent(app.applicationID, errMess))
 	assert.NilError(t, err)
-	assertAppState(t, app, Failing.String(), 3*time.Second)
+	assertAppState(t, app, ApplicationStates().Failing, 3*time.Second)
 	err = app.handle(NewFailApplicationEvent(app.applicationID, errMess))
 	assert.NilError(t, err)
-	assertAppState(t, app, Failed.String(), 3*time.Second)
+	assertAppState(t, app, ApplicationStates().Failed, 3*time.Second)
 	assert.Equal(t, rt.time, int64(6))
 	// reset time to 0
 	rt.time = 0
 	appID2 := "app-test-002"
 	app2 := NewApplication(appID2, "root.abc", "testuser", map[string]string{}, ms)
-	app2.SetState(New.String())
+	app2.SetState(ApplicationStates().New)
 	err = app2.handle(NewFailApplicationEvent(app2.applicationID, errMess))
 	if err == nil {
 		t.Error("expecting error got 'nil'")
 	}
-	assertAppState(t, app2, New.String(), 3*time.Second)
-	app2.SetState(Submitted.String())
+	assertAppState(t, app2, ApplicationStates().New, 3*time.Second)
+	app2.SetState(ApplicationStates().Submitted)
 	err = app2.handle(NewFailApplicationEvent(app2.applicationID, errMess))
 	assert.NilError(t, err)
-	assertAppState(t, app2, Failing.String(), 3*time.Second)
+	assertAppState(t, app2, ApplicationStates().Failing, 3*time.Second)
 	err = app2.handle(NewFailApplicationEvent(app2.applicationID, errMess))
 	assert.NilError(t, err)
-	assertAppState(t, app2, Failed.String(), 3*time.Second)
+	assertAppState(t, app2, ApplicationStates().Failed, 3*time.Second)
 	assert.Equal(t, rt.time, int64(0))
 	// Test over, set Recorder back fake type
 	events.SetRecorder(k8sEvents.NewFakeRecorder(1024))
@@ -289,20 +288,20 @@ func TestSetUnallocatedPodsToFailedWhenFailApplication(t *testing.T) {
 	task1 := NewTask("task01", app, context, pod1)
 	task2 := NewTaskPlaceholder("task02", app, context, pod2)
 	task3 := NewTask("task03", app, context, pod3)
-	task1.sm.SetState(events.States().Task.Pending)
-	task2.sm.SetState(events.States().Task.Scheduling)
-	task3.sm.SetState(events.States().Task.Scheduling)
+	task1.sm.SetState(TaskStates().Pending)
+	task2.sm.SetState(TaskStates().Scheduling)
+	task3.sm.SetState(TaskStates().Scheduling)
 	app.addTask(task1)
 	app.addTask(task2)
 	app.addTask(task3)
-	app.SetState(Accepted.String())
+	app.SetState(ApplicationStates().Accepted)
 	errMess := constants.ApplicationInsufficientResourcesFailure
 	err = app.handle(NewFailApplicationEvent(app.applicationID, errMess))
 	assert.NilError(t, err)
-	assertAppState(t, app, Failing.String(), 3*time.Second)
+	assertAppState(t, app, ApplicationStates().Failing, 3*time.Second)
 	err = app.handle(NewFailApplicationEvent(app.applicationID, errMess))
 	assert.NilError(t, err)
-	assertAppState(t, app, Failed.String(), 3*time.Second)
+	assertAppState(t, app, ApplicationStates().Failed, 3*time.Second)
 
 	// Note that the status of pod 2, a placeholder pod, doesn't matter because it will be cleaned up
 	newPod1, err := mockClient.Get(pod1.Namespace, pod1.Name)
@@ -383,11 +382,11 @@ func TestSetUnallocatedPodsToFailedWhenRejectApplication(t *testing.T) {
 	app := NewApplication(appID, "root.abc", "testuser", map[string]string{}, ms)
 	task1 := NewTask("task01", app, context, pod1)
 	task2 := NewTask("task02", app, context, pod2)
-	task1.sm.SetState(events.States().Task.Pending)
-	task2.sm.SetState(events.States().Task.Pending)
+	task1.sm.SetState(TaskStates().Pending)
+	task2.sm.SetState(TaskStates().Pending)
 	app.addTask(task1)
 	app.addTask(task2)
-	app.SetState(Submitted.String())
+	app.SetState(ApplicationStates().Submitted)
 	context.AddApplication(&interfaces.AddApplicationRequest{
 		Metadata: interfaces.ApplicationMetadata{
 			ApplicationID: app.applicationID,
@@ -399,12 +398,12 @@ func TestSetUnallocatedPodsToFailedWhenRejectApplication(t *testing.T) {
 	errMess := "app rejected"
 	err = app.handle(NewGeneralApplicationEvent(app.applicationID, RejectApplication, errMess))
 	assert.NilError(t, err)
-	assertAppState(t, app, Rejected.String(), 3*time.Second)
+	assertAppState(t, app, ApplicationStates().Rejected, 3*time.Second)
 
 	err = app.handle(NewFailApplicationEvent(app.applicationID,
 		fmt.Sprintf("%s: %s", constants.ApplicationRejectedFailure, errMess)))
 	assert.NilError(t, err)
-	assertAppState(t, app, Failed.String(), 3*time.Second)
+	assertAppState(t, app, ApplicationStates().Failed, 3*time.Second)
 
 	newPod1, err := mockClient.Get(pod1.Namespace, pod1.Name)
 	assert.NilError(t, err)
@@ -455,12 +454,12 @@ func TestReleaseAppAllocation(t *testing.T) {
 		t.Error("expecting error got 'nil'")
 	}
 	// set app states to running, let event can be trigger
-	app.SetState(Running.String())
-	assertAppState(t, app, Running.String(), 3*time.Second)
+	app.SetState(ApplicationStates().Running)
+	assertAppState(t, app, ApplicationStates().Running, 3*time.Second)
 	err = app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, UUID))
 	assert.NilError(t, err)
 	// after handle release event the states of app must be running
-	assertAppState(t, app, Running.String(), 3*time.Second)
+	assertAppState(t, app, ApplicationStates().Running, 3*time.Second)
 }
 
 func newMockSchedulerAPI() *mockSchedulerAPI {
@@ -517,7 +516,7 @@ func (ms *mockSchedulerAPI) UpdateConfiguration(clusterID string) error {
 func assertAppState(t *testing.T, app *Application, expectedState string, duration time.Duration) {
 	deadline := time.Now().Add(duration)
 	for {
-		if app.stateMachine.Current() == expectedState {
+		if app.sm.Current() == expectedState {
 			return
 		}
 
@@ -560,11 +559,11 @@ func TestGetNonTerminatedTaskAlias(t *testing.T) {
 	taskID1 := "task01"
 	task1 := NewTask(taskID1, app, context, pod1)
 	app.taskMap[taskID1] = task1
-	task1.sm.SetState(events.States().Task.Pending)
+	task1.sm.SetState(TaskStates().Pending)
 	taskID2 := "task02"
 	task2 := NewTask(taskID2, app, context, pod2)
 	app.taskMap[taskID2] = task2
-	task2.sm.SetState(events.States().Task.Pending)
+	task2.sm.SetState(TaskStates().Pending)
 	// check the tasks both in non-terminated states
 	// res should return both task's alias
 	res = app.getNonTerminatedTaskAlias()
@@ -573,16 +572,16 @@ func TestGetNonTerminatedTaskAlias(t *testing.T) {
 	assert.Assert(t, is.Contains(res, "/test-00002"))
 
 	// set two tasks to terminated states
-	task1.sm.SetState(events.States().Task.Rejected)
-	task2.sm.SetState(events.States().Task.Rejected)
+	task1.sm.SetState(TaskStates().Rejected)
+	task2.sm.SetState(TaskStates().Rejected)
 	// check the tasks both in terminated states
 	// res should retuen empty
 	res = app.getNonTerminatedTaskAlias()
 	assert.Equal(t, len(res), 0)
 
 	// set two tasks to one is terminated, another is non-terminated
-	task1.sm.SetState(events.States().Task.Rejected)
-	task2.sm.SetState(events.States().Task.Allocated)
+	task1.sm.SetState(TaskStates().Rejected)
+	task2.sm.SetState(TaskStates().Allocated)
 	// check the task, should only return task2's alias
 	res = app.getNonTerminatedTaskAlias()
 	assert.Equal(t, len(res), 1)
@@ -747,10 +746,10 @@ func TestTryReserve(t *testing.T) {
 	})
 
 	// submit the app
-	assert.Assert(t,app.stateMachine!=nil)
+	assert.Assert(t,app.sm !=nil)
 	err := app.handle(NewSubmitApplicationEvent(app.applicationID))
 	assert.NilError(t, err)
-	assertAppState(t, app, Submitted.String(), 3*time.Second)
+	assertAppState(t, app, ApplicationStates().Submitted, 3*time.Second)
 
 	// accepted the app
 	err = app.handle(NewSimpleApplicationEvent(app.GetApplicationID(), AcceptApplication))
@@ -761,7 +760,7 @@ func TestTryReserve(t *testing.T) {
 
 	// since this app has taskGroups defined,
 	// once the app is accepted, it is expected to see this app goes to Reserving state
-	assertAppState(t, app, Reserving.String(), 3*time.Second)
+	assertAppState(t, app, ApplicationStates().Reserving, 3*time.Second)
 
 	// under Reserving state, the app will need to acquire all the placeholders it asks for
 	err = utils.WaitForCondition(func() bool {
@@ -815,7 +814,7 @@ func TestTryReservePostRestart(t *testing.T) {
 	// submit the app
 	err := app.handle(NewSubmitApplicationEvent(app.applicationID))
 	assert.NilError(t, err)
-	assertAppState(t, app, Submitted.String(), 3*time.Second)
+	assertAppState(t, app, ApplicationStates().Submitted, 3*time.Second)
 
 	// accepted the app
 	err = app.handle(NewSimpleApplicationEvent(app.GetApplicationID(), AcceptApplication))
@@ -877,14 +876,14 @@ func TestTryReservePostRestart(t *testing.T) {
 
 	// there should be 1 Allocated task, i.e task0
 	// there should be 2 New tasks, i.e task1 and task2
-	assert.Equal(t, len(app.getTasks(events.States().Task.Allocated)), 1)
-	assert.Equal(t, len(app.getTasks(events.States().Task.New)), 2)
+	assert.Equal(t, len(app.getTasks(TaskStates().Allocated)), 1)
+	assert.Equal(t, len(app.getTasks(TaskStates().New)), 2)
 
 	// run app schedule
 	app.Schedule()
 
 	// since this app has Allocated tasks, the Reserving state will be skipped
-	assertAppState(t, app, Running.String(), 3*time.Second)
+	assertAppState(t, app, ApplicationStates().Running, 3*time.Second)
 
 	// verify there will be no placeholders created
 	time.Sleep(time.Second)
@@ -915,7 +914,7 @@ func TestTriggerAppRecovery(t *testing.T) {
 
 	err := app.TriggerAppRecovery()
 	assert.NilError(t, err)
-	assert.Equal(t, app.GetApplicationState(), Recovering.String())
+	assert.Equal(t, app.GetApplicationState(), ApplicationStates().Recovering)
 	assert.Assert(t, savedAppRequest != nil, "update function was not called")
 	assert.Equal(t, 1, len(savedAppRequest.New))
 	appRequest := savedAppRequest.New[0]
@@ -936,7 +935,7 @@ func TestTriggerAppRecovery(t *testing.T) {
 		map[string]string{}, newMockSchedulerAPI())
 	err = app.handle(NewSubmitApplicationEvent(app.applicationID))
 	assert.NilError(t, err)
-	assertAppState(t, app, Submitted.String(), 3*time.Second)
+	assertAppState(t, app, ApplicationStates().Submitted, 3*time.Second)
 	err = app.TriggerAppRecovery()
 	assert.ErrorContains(t, err, "event RecoverApplication inappropriate in current state Submitted")
 }
@@ -952,9 +951,9 @@ func TestSkipReservationStage(t *testing.T) {
 	// expect: skip reservation
 	app = NewApplication("app00001", "root.queue", "test-user", map[string]string{}, newMockSchedulerAPI())
 	task1 := NewTask("task0001", app, context, &v1.Pod{})
-	task1.sm.SetState(events.States().Task.New)
+	task1.sm.SetState(TaskStates().New)
 	task2 := NewTask("task0002", app, context, &v1.Pod{})
-	task2.sm.SetState(events.States().Task.Allocated)
+	task2.sm.SetState(TaskStates().Allocated)
 	app.addTask(task1)
 	app.addTask(task2)
 	app.setTaskGroups([]v1alpha1.TaskGroup{
@@ -974,9 +973,9 @@ func TestSkipReservationStage(t *testing.T) {
 	// expect: do not skip reservation
 	app = NewApplication("app00001", "root.queue", "test-user", map[string]string{}, newMockSchedulerAPI())
 	task1 = NewTask("task0001", app, context, &v1.Pod{})
-	task1.sm.SetState(events.States().Task.New)
+	task1.sm.SetState(TaskStates().New)
 	task2 = NewTask("task0002", app, context, &v1.Pod{})
-	task2.sm.SetState(events.States().Task.New)
+	task2.sm.SetState(TaskStates().New)
 	app.addTask(task1)
 	app.addTask(task2)
 	app.setTaskGroups([]v1alpha1.TaskGroup{
@@ -1030,23 +1029,23 @@ func TestReleaseAppAllocationInFailingState(t *testing.T) {
 		t.Error("expecting error got 'nil'")
 	}
 	// set app states to running, let event can be trigger
-	app.SetState(Running.String())
-	assertAppState(t, app, Running.String(), 3*time.Second)
+	app.SetState(ApplicationStates().Running)
+	assertAppState(t, app, ApplicationStates().Running, 3*time.Second)
 	err = app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, UUID))
 	assert.NilError(t, err)
 	// after handle release event the states of app must be running
-	assertAppState(t, app, Running.String(), 3*time.Second)
-	app.SetState(Failing.String())
+	assertAppState(t, app, ApplicationStates().Running, 3*time.Second)
+	app.SetState(ApplicationStates().Failing)
 	err = app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, UUID))
 	assert.NilError(t, err)
 	// after handle release event the states of app must be failing
-	assertAppState(t, app, Failing.String(), 3*time.Second)
+	assertAppState(t, app, ApplicationStates().Failing, 3*time.Second)
 
 	errMess := "Test Error Message"
 	err = app.handle(NewFailApplicationEvent(app.applicationID, errMess))
 	assert.NilError(t, err)
 	// after handle fail event the states of app must be failed
-	assertAppState(t, app, Failed.String(), 3*time.Second)
+	assertAppState(t, app, ApplicationStates().Failed, 3*time.Second)
 }
 
 func TestResumingStateTransitions(t *testing.T) {
@@ -1070,9 +1069,9 @@ func TestResumingStateTransitions(t *testing.T) {
 	app := NewApplication("app00001", "root.abc", "test-user",
 		map[string]string{}, mockedAPIProvider.GetAPIs().SchedulerAPI)
 	task1 := NewTask("task0001", app, context, &v1.Pod{})
-	task1.sm.SetState(events.States().Task.New)
+	task1.sm.SetState(TaskStates().New)
 	task2 := NewTask("task0002", app, context, &v1.Pod{})
-	task2.sm.SetState(events.States().Task.Allocated)
+	task2.sm.SetState(TaskStates().Allocated)
 
 	// Add tasks
 	app.addTask(task1)
@@ -1082,29 +1081,29 @@ func TestResumingStateTransitions(t *testing.T) {
 	context.applications[app.applicationID] = app
 
 	// Set app state to "reserving"
-	app.SetState(Reserving.String())
+	app.SetState(ApplicationStates().Reserving)
 
 	// Fire ResumingApplicationEvent for state change from "reserving" to "resuming"
 	err := app.handle(NewResumingApplicationEvent(app.applicationID))
 	assert.NilError(t, err)
-	assertAppState(t, app, Resuming.String(), 3*time.Second)
+	assertAppState(t, app, ApplicationStates().Resuming, 3*time.Second)
 
 	// Set 1st task status alone to "completed"
-	event1 := NewSimpleTaskEvent(app.applicationID, task1.taskID, events.CompleteTask)
+	event1 := NewSimpleTaskEvent(app.applicationID, task1.taskID, CompleteTask)
 	err = task1.handle(event1)
 	assert.NilError(t, err, "failed to handle CompleteTask event")
-	assert.Equal(t, task1.GetTaskState(), events.States().Task.Completed)
+	assert.Equal(t, task1.GetTaskState(), TaskStates().Completed)
 
 	// Still app state is "resuming"
-	assertAppState(t, app, Resuming.String(), 3*time.Second)
+	assertAppState(t, app, ApplicationStates().Resuming, 3*time.Second)
 
 	// Setting 2nd task status also to "completed". Now, app state changes from "resuming" to "running"
-	event2 := NewSimpleTaskEvent(app.applicationID, task2.taskID, events.CompleteTask)
+	event2 := NewSimpleTaskEvent(app.applicationID, task2.taskID, CompleteTask)
 	err = task2.handle(event2)
 	assert.NilError(t, err, "failed to handle CompleteTask event")
-	assert.Equal(t, task2.GetTaskState(), events.States().Task.Completed)
+	assert.Equal(t, task2.GetTaskState(), TaskStates().Completed)
 
 	err = app.handle(NewSimpleApplicationEvent(app.applicationID, AppTaskCompleted))
 	assert.NilError(t, err)
-	assertAppState(t, app, Running.String(), 3*time.Second)
+	assertAppState(t, app, ApplicationStates().Running, 3*time.Second)
 }

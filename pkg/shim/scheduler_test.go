@@ -82,9 +82,9 @@ partitions:
 
 	// wait for scheduling app and tasks
 	// verify app state
-	cluster.waitAndAssertApplicationState(t, "app0001", cache.Running.String())
-	cluster.waitAndAssertTaskState(t, "app0001", "task0001", events.States().Task.Bound)
-	cluster.waitAndAssertTaskState(t, "app0001", "task0002", events.States().Task.Bound)
+	cluster.waitAndAssertApplicationState(t, "app0001", cache.ApplicationStates().Running)
+	cluster.waitAndAssertTaskState(t, "app0001", "task0001", cache.TaskStates().Bound)
+	cluster.waitAndAssertTaskState(t, "app0001", "task0002", cache.TaskStates().Bound)
 }
 
 func TestRejectApplications(t *testing.T) {
@@ -132,7 +132,7 @@ partitions:
 
 	// wait for scheduling app and tasks
 	// verify app state
-	cluster.waitAndAssertApplicationState(t, appID, cache.Failed.String())
+	cluster.waitAndAssertApplicationState(t, appID, cache.ApplicationStates().Failed)
 
 	// remove the application
 	// remove task first or removeApplication will fail
@@ -143,8 +143,8 @@ partitions:
 	// submit the app again
 	cluster.addApplication(appID, "root.a")
 	cluster.addTask(appID, "task0001", taskResource)
-	cluster.waitAndAssertApplicationState(t, appID, cache.Running.String())
-	cluster.waitAndAssertTaskState(t, appID, "task0001", events.States().Task.Bound)
+	cluster.waitAndAssertApplicationState(t, appID, cache.ApplicationStates().Running)
+	cluster.waitAndAssertTaskState(t, appID, "task0001", cache.TaskStates().Bound)
 }
 
 func TestSchedulerRegistrationFailed(t *testing.T) {
@@ -221,9 +221,9 @@ partitions:
 	cluster.addTask("app0001", "task0002", taskResource)
 	// wait for scheduling app and tasks
 	// verify app state
-	cluster.waitAndAssertApplicationState(t, "app0001", cache.Running.String())
-	cluster.waitAndAssertTaskState(t, "app0001", "task0001", events.States().Task.Failed)
-	cluster.waitAndAssertTaskState(t, "app0001", "task0002", events.States().Task.Bound)
+	cluster.waitAndAssertApplicationState(t, "app0001", cache.ApplicationStates().Running)
+	cluster.waitAndAssertTaskState(t, "app0001", "task0001", cache.TaskStates().Failed)
+	cluster.waitAndAssertTaskState(t, "app0001", "task0002", cache.TaskStates().Bound)
 
 	// one task get bound, one ask failed, so we are expecting only 1 allocation in the scheduler
 	err = cluster.waitAndVerifySchedulerAllocations("root.a",

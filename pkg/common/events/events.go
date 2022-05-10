@@ -34,40 +34,6 @@ type ApplicationStatusEvent interface {
 	GetState() string
 }
 
-//----------------------------------------------
-// Task events
-//----------------------------------------------
-type TaskEventType string
-
-const (
-	InitTask      TaskEventType = "InitTask"
-	SubmitTask    TaskEventType = "SubmitTask"
-	TaskAllocated TaskEventType = "TaskAllocated"
-	TaskRejected  TaskEventType = "TaskRejected"
-	TaskBound     TaskEventType = "TaskBound"
-	CompleteTask  TaskEventType = "CompleteTask"
-	TaskFail      TaskEventType = "TaskFail"
-	KillTask      TaskEventType = "KillTask"
-	TaskKilled    TaskEventType = "TaskKilled"
-)
-
-type TaskEvent interface {
-	// application ID which this task belongs to
-	GetApplicationID() string
-
-	// a task event must be associated with an application ID
-	// and a task ID, dispatcher need them to dispatch this event
-	// to the actual task
-	GetTaskID() string
-
-	// type of this event
-	GetEvent() TaskEventType
-
-	// an event can have multiple arguments, these arguments will be passed to
-	// state machines' callbacks when doing state transition
-	GetArgs() []interface{}
-}
-
 // --------------------------------------
 // scheduler events
 // --------------------------------------

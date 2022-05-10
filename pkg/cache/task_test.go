@@ -67,37 +67,37 @@ func TestTaskStateTransitions(t *testing.T) {
 	app := NewApplication("app01", "root.default",
 		"bob", map[string]string{}, mockedSchedulerApi)
 	task := NewTask("task01", app, mockedContext, pod)
-	assert.Equal(t, task.GetTaskState(), events.States().Task.New)
+	assert.Equal(t, task.GetTaskState(), TaskStates().New)
 
 	// new task
-	event0 := NewSimpleTaskEvent(task.applicationID, task.taskID, events.InitTask)
+	event0 := NewSimpleTaskEvent(task.applicationID, task.taskID, InitTask)
 	err := task.handle(event0)
 	assert.NilError(t, err, "failed to handle InitTask event")
-	assert.Equal(t, task.GetTaskState(), events.States().Task.Pending)
+	assert.Equal(t, task.GetTaskState(), TaskStates().Pending)
 
 	// submit task to the scheduler-core
 	event1 := NewSubmitTaskEvent(app.applicationID, task.taskID)
 	err = task.handle(event1)
 	assert.NilError(t, err, "failed to handle SubmitTask event")
-	assert.Equal(t, task.GetTaskState(), events.States().Task.Scheduling)
+	assert.Equal(t, task.GetTaskState(), TaskStates().Scheduling)
 
 	// allocated
 	event2 := NewAllocateTaskEvent(app.applicationID, task.taskID, string(pod.UID), "node-1")
 	err = task.handle(event2)
 	assert.NilError(t, err, "failed to handle AllocateTask event")
-	assert.Equal(t, task.GetTaskState(), events.States().Task.Allocated)
+	assert.Equal(t, task.GetTaskState(), TaskStates().Allocated)
 
 	// bound
 	event3 := NewBindTaskEvent(app.applicationID, task.taskID)
 	err = task.handle(event3)
 	assert.NilError(t, err, "failed to handle BindTask event")
-	assert.Equal(t, task.GetTaskState(), events.States().Task.Bound)
+	assert.Equal(t, task.GetTaskState(), TaskStates().Bound)
 
 	// complete
-	event4 := NewSimpleTaskEvent(app.applicationID, task.taskID, events.CompleteTask)
+	event4 := NewSimpleTaskEvent(app.applicationID, task.taskID, CompleteTask)
 	err = task.handle(event4)
 	assert.NilError(t, err, "failed to handle CompleteTask event")
-	assert.Equal(t, task.GetTaskState(), events.States().Task.Completed)
+	assert.Equal(t, task.GetTaskState(), TaskStates().Completed)
 }
 
 func TestTaskIllegalEventHandling(t *testing.T) {
@@ -128,13 +128,13 @@ func TestTaskIllegalEventHandling(t *testing.T) {
 	app := NewApplication("app01", "root.default",
 		"bob", map[string]string{}, mockedSchedulerApi)
 	task := NewTask("task01", app, mockedContext, pod)
-	assert.Equal(t, task.GetTaskState(), events.States().Task.New)
+	assert.Equal(t, task.GetTaskState(), TaskStates().New)
 
 	// new task
-	event0 := NewSimpleTaskEvent(task.applicationID, task.taskID, events.InitTask)
+	event0 := NewSimpleTaskEvent(task.applicationID, task.taskID, InitTask)
 	err := task.handle(event0)
 	assert.NilError(t, err, "failed to handle InitTask event")
-	assert.Equal(t, task.GetTaskState(), events.States().Task.Pending)
+	assert.Equal(t, task.GetTaskState(), TaskStates().Pending)
 
 	// verify illegal event handling logic
 	event2 := NewAllocateTaskEvent(app.applicationID, task.taskID, string(pod.UID), "node-1")
@@ -144,7 +144,7 @@ func TestTaskIllegalEventHandling(t *testing.T) {
 	}
 
 	// task state should not have changed
-	assert.Equal(t, task.GetTaskState(), events.States().Task.Pending)
+	assert.Equal(t, task.GetTaskState(), TaskStates().Pending)
 }
 
 func TestReleaseTaskAllocation(t *testing.T) {
@@ -179,25 +179,25 @@ func TestReleaseTaskAllocation(t *testing.T) {
 	app := NewApplication("app01", "root.default",
 		"bob", map[string]string{}, mockedSchedulerApi)
 	task := NewTask("task01", app, mockedContext, pod)
-	assert.Equal(t, task.GetTaskState(), events.States().Task.New)
+	assert.Equal(t, task.GetTaskState(), TaskStates().New)
 
 	// new task
-	event0 := NewSimpleTaskEvent(task.applicationID, task.taskID, events.InitTask)
+	event0 := NewSimpleTaskEvent(task.applicationID, task.taskID, InitTask)
 	err := task.handle(event0)
 	assert.NilError(t, err, "failed to handle InitTask event")
-	assert.Equal(t, task.GetTaskState(), events.States().Task.Pending)
+	assert.Equal(t, task.GetTaskState(), TaskStates().Pending)
 
 	// submit task to the scheduler-core
 	event1 := NewSubmitTaskEvent(app.applicationID, task.taskID)
 	err = task.handle(event1)
 	assert.NilError(t, err, "failed to handle SubmitTask event")
-	assert.Equal(t, task.GetTaskState(), events.States().Task.Scheduling)
+	assert.Equal(t, task.GetTaskState(), TaskStates().Scheduling)
 
 	// allocated
 	event2 := NewAllocateTaskEvent(app.applicationID, task.taskID, string(pod.UID), "node-1")
 	err = task.handle(event2)
 	assert.NilError(t, err, "failed to handle AllocateTask event")
-	assert.Equal(t, task.GetTaskState(), events.States().Task.Allocated)
+	assert.Equal(t, task.GetTaskState(), TaskStates().Allocated)
 	// bind a task is a async process, wait for it to happen
 	err = common.WaitFor(100*time.Millisecond, 3*time.Second, func() bool {
 		return task.getTaskAllocationUUID() == string(pod.UID)
@@ -208,7 +208,7 @@ func TestReleaseTaskAllocation(t *testing.T) {
 	event3 := NewBindTaskEvent(app.applicationID, task.taskID)
 	err = task.handle(event3)
 	assert.NilError(t, err, "failed to handle BindTask event")
-	assert.Equal(t, task.GetTaskState(), events.States().Task.Bound)
+	assert.Equal(t, task.GetTaskState(), TaskStates().Bound)
 
 	// the mocked update function does nothing than verify the coming messages
 	// this is to verify we are sending correct info to the scheduler core
@@ -221,10 +221,10 @@ func TestReleaseTaskAllocation(t *testing.T) {
 	})
 
 	// complete
-	event4 := NewSimpleTaskEvent(app.applicationID, task.taskID, events.CompleteTask)
+	event4 := NewSimpleTaskEvent(app.applicationID, task.taskID, CompleteTask)
 	err = task.handle(event4)
 	assert.NilError(t, err, "failed to handle CompleteTask event")
-	assert.Equal(t, task.GetTaskState(), events.States().Task.Completed)
+	assert.Equal(t, task.GetTaskState(), TaskStates().Completed)
 	// 2 updates call, 1 for submit, 1 for release
 	assert.Equal(t, mockedApiProvider.GetSchedulerAPIUpdateAllocationCount(), int32(2))
 }
@@ -263,21 +263,21 @@ func TestReleaseTaskAsk(t *testing.T) {
 	app := NewApplication("app01", "root.default",
 		"bob", map[string]string{}, mockedSchedulerApi)
 	task := NewTask("task01", app, mockedContext, pod)
-	assert.Equal(t, task.GetTaskState(), events.States().Task.New)
+	assert.Equal(t, task.GetTaskState(), TaskStates().New)
 
 	// new task
-	event0 := NewSimpleTaskEvent(task.applicationID, task.taskID, events.InitTask)
+	event0 := NewSimpleTaskEvent(task.applicationID, task.taskID, InitTask)
 	err := task.handle(event0)
 	assert.NilError(t, err, "failed to handle InitTask event")
 
-	assert.Equal(t, task.GetTaskState(), events.States().Task.Pending)
+	assert.Equal(t, task.GetTaskState(), TaskStates().Pending)
 
 	// submit task to the scheduler-core
 	// the task will be at scheduling state from this point on
 	event1 := NewSubmitTaskEvent(app.applicationID, task.taskID)
 	err = task.handle(event1)
 	assert.NilError(t, err, "failed to handle SubmitTask event")
-	assert.Equal(t, task.GetTaskState(), events.States().Task.Scheduling)
+	assert.Equal(t, task.GetTaskState(), TaskStates().Scheduling)
 
 	// the mocked update function does nothing than verify the coming messages
 	// this is to verify we are sending correct info to the scheduler core
@@ -292,10 +292,10 @@ func TestReleaseTaskAsk(t *testing.T) {
 	})
 
 	// complete
-	event4 := NewSimpleTaskEvent(app.applicationID, task.taskID, events.CompleteTask)
+	event4 := NewSimpleTaskEvent(app.applicationID, task.taskID, CompleteTask)
 	err = task.handle(event4)
 	assert.NilError(t, err, "failed to handle CompleteTask event")
-	assert.Equal(t, task.GetTaskState(), events.States().Task.Completed)
+	assert.Equal(t, task.GetTaskState(), TaskStates().Completed)
 	// 2 updates call, 1 for submit, 1 for release
 	assert.Equal(t, mockedApiProvider.GetSchedulerAPIUpdateAllocationCount(), int32(2))
 }
@@ -418,12 +418,12 @@ func TestIsTerminated(t *testing.T) {
 	}
 	task := NewTask("task01", app, mockedContext, pod)
 	// set task states to non-terminated
-	task.sm.SetState(events.States().Task.Pending)
+	task.sm.SetState(TaskStates().Pending)
 	res := task.isTerminated()
 	assert.Equal(t, res, false)
 
 	// set task states to terminated
-	task.sm.SetState(events.States().Task.Failed)
+	task.sm.SetState(TaskStates().Failed)
 	res = task.isTerminated()
 	assert.Equal(t, res, true)
 }
@@ -504,20 +504,20 @@ func TestHandleSubmitTaskEvent(t *testing.T) {
 	app := NewApplication(appID, "root.abc", "testuser", map[string]string{}, mockedSchedulerAPI)
 	task1 := NewTask("task01", app, mockedContext, pod1)
 	task2 := NewTask("task02", app, mockedContext, pod2)
-	task1.sm.SetState(events.States().Task.Pending)
-	task2.sm.SetState(events.States().Task.Pending)
+	task1.sm.SetState(TaskStates().Pending)
+	task2.sm.SetState(TaskStates().Pending)
 	// pod without taskGroup name
 	event1 := NewSubmitTaskEvent(app.applicationID, task1.taskID)
 	err := task1.handle(event1)
 	assert.NilError(t, err, "failed to handle SubmitTask event")
-	assert.Equal(t, task1.GetTaskState(), events.States().Task.Scheduling)
+	assert.Equal(t, task1.GetTaskState(), TaskStates().Scheduling)
 	assert.Equal(t, rt.time, int64(1))
 	rt.time = 0
 	// pod with taskGroup name
 	event2 := NewSubmitTaskEvent(app.applicationID, task2.taskID)
 	err = task2.handle(event2)
 	assert.NilError(t, err, "failed to handle SubmitTask event")
-	assert.Equal(t, task2.GetTaskState(), events.States().Task.Scheduling)
+	assert.Equal(t, task2.GetTaskState(), TaskStates().Scheduling)
 	assert.Equal(t, rt.time, int64(2))
 
 	// Test over, set Recorder back fake type
@@ -562,7 +562,7 @@ func TestSimultaneousTaskCompleteAndAllocate(t *testing.T) {
 	// simulate app has one task waiting for core's allocation
 	app := NewApplication(appID, queueName, "user", map[string]string{}, mockedAPIProvider.GetAPIs().SchedulerAPI)
 	task1 := NewTask(podUID, app, mockedContext, pod1)
-	task1.sm.SetState(events.States().Task.Scheduling)
+	task1.sm.SetState(TaskStates().Scheduling)
 
 	// notify task complete
 	// because the task is in Scheduling state,
@@ -577,10 +577,10 @@ func TestSimultaneousTaskCompleteAndAllocate(t *testing.T) {
 		assert.Equal(t, askToRelease.AllocationKey, podUID)
 		return nil
 	})
-	ev := NewSimpleTaskEvent(appID, task1.GetTaskID(), events.CompleteTask)
+	ev := NewSimpleTaskEvent(appID, task1.GetTaskID(), CompleteTask)
 	err := task1.handle(ev)
 	assert.NilError(t, err, "failed to handle CompleteTask event")
-	assert.Equal(t, task1.GetTaskState(), events.States().Task.Completed)
+	assert.Equal(t, task1.GetTaskState(), TaskStates().Completed)
 
 	// simulate the core responses us an allocation
 	// the task is already completed, we need to make sure the allocation
@@ -606,5 +606,5 @@ func TestSimultaneousTaskCompleteAndAllocate(t *testing.T) {
 	ev1 := NewAllocateTaskEvent(app.GetApplicationID(), alloc.AllocationKey, alloc.UUID, alloc.NodeID)
 	err = task1.handle(ev1)
 	assert.NilError(t, err, "failed to handle AllocateTask event")
-	assert.Equal(t, task1.GetTaskState(), events.States().Task.Completed)
+	assert.Equal(t, task1.GetTaskState(), TaskStates().Completed)
 }
