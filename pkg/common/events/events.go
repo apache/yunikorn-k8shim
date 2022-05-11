@@ -27,9 +27,81 @@ type SchedulingEvent interface {
 	GetArgs() []interface{}
 }
 
+//----------------------------------------------
+// Application events
+//----------------------------------------------
+type ApplicationEventType int
+
+type ApplicationEvent interface {
+	// an application event is associated with an application Id,
+	// dispatcher finds out actual application based on this id
+	// to handle this event
+	GetApplicationID() string
+
+	// the type of this event
+	GetEvent() ApplicationEventType
+
+	// an event can have multiple arguments, these arguments will be passed to
+	// state machines' callbacks when doing state transition
+	GetArgs() []interface{}
+}
+
 // ------------------------
 // ApplicationStatusEvent updates the status in the application CRD
 // ------------------------
 type ApplicationStatusEvent interface {
 	GetState() string
+}
+
+//----------------------------------------------
+// Task events
+//----------------------------------------------
+type TaskEventType int
+
+type TaskEvent interface {
+	// application ID which this task belongs to
+	GetApplicationID() string
+
+	// a task event must be associated with an application ID
+	// and a task ID, dispatcher need them to dispatch this event
+	// to the actual task
+	GetTaskID() string
+
+	// type of this event
+	GetEvent() TaskEventType
+
+	// an event can have multiple arguments, these arguments will be passed to
+	// state machines' callbacks when doing state transition
+	GetArgs() []interface{}
+}
+
+// --------------------------------------
+// scheduler events
+// --------------------------------------
+type SchedulerEventType int
+
+type SchedulerEvent interface {
+	// the type of this event
+	GetEvent() SchedulerEventType
+
+	// an event can have multiple arguments, these arguments will be passed to
+	// state machines' callbacks when doing state transition
+	GetArgs() []interface{}
+}
+
+// --------------------------------------
+// scheduler node events
+// --------------------------------------
+type SchedulerNodeEventType int
+
+type SchedulerNodeEvent interface {
+	// returns the node ID
+	GetNodeID() string
+
+	// the type of this event
+	GetEvent() SchedulerNodeEventType
+
+	// an event can have multiple arguments, these arguments will be passed to
+	// state machines' callbacks when doing state transition
+	GetArgs() []interface{}
 }

@@ -20,7 +20,6 @@ package cache
 
 import (
 	"fmt"
-	"github.com/apache/yunikorn-k8shim/pkg/shim"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -192,13 +191,13 @@ func Start() {
 				switch v := event.(type) {
 				case events.ApplicationStatusEvent:
 					getEventHandler(EventTypeAppStatus)(v)
-				case ApplicationEvent:
+				case events.ApplicationEvent:
 					getEventHandler(EventTypeApp)(v)
-				case TaskEvent:
+				case events.TaskEvent:
 					getEventHandler(EventTypeTask)(v)
-				case shim.SchedulerEvent:
+				case events.SchedulerEvent:
 					getEventHandler(EventTypeScheduler)(v)
-				case SchedulerNodeEvent:
+				case events.SchedulerNodeEvent:
 					getEventHandler(EventTypeNode)(v)
 				default:
 					log.Logger().Fatal("unsupported event",

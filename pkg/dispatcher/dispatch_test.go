@@ -36,7 +36,7 @@ import (
 // app event for testing
 type TestAppEvent struct {
 	appID     string
-	eventType ApplicationEventType
+	eventType events.ApplicationEventType
 	flag      chan bool
 }
 
@@ -44,12 +44,22 @@ func (t TestAppEvent) GetApplicationID() string {
 	return t.appID
 }
 
-func (t TestAppEvent) GetEvent() ApplicationEventType {
+func (t TestAppEvent) GetEvent() events.ApplicationEventType {
 	return t.eventType
 }
 
 func (t TestAppEvent) GetArgs() []interface{} {
 	return nil
+}
+
+type ApplicationEventType events.ApplicationEventType
+
+const (
+	RunApplication events.ApplicationEventType = iota
+)
+
+func (ae ApplicationEventType) String() string {
+	return [...]string{"RunApplication"}[ae]
 }
 
 func TestRegisterEventHandler(t *testing.T) {
@@ -100,7 +110,7 @@ func TestDispatcherStartStop(t *testing.T) {
 	}
 
 	RegisterEventHandler(EventTypeApp, func(obj interface{}) {
-		if event, ok := obj.(ApplicationEvent); ok {
+		if event, ok := obj.(events.ApplicationEvent); ok {
 			recorder.addApp(event.GetApplicationID())
 		}
 	})
@@ -156,7 +166,7 @@ func TestEventWillNotBeLostWhenEventChannelIsFull(t *testing.T) {
 	}
 	// pretend to be an time-consuming event-handler
 	RegisterEventHandler(EventTypeApp, func(obj interface{}) {
-		if event, ok := obj.(ApplicationEvent); ok {
+		if event, ok := obj.(events.ApplicationEvent); ok {
 			recorder.addApp(event.GetApplicationID())
 			time.Sleep(1 * time.Millisecond)
 		}
@@ -261,7 +271,7 @@ func TestExceedAsyncDispatchLimit(t *testing.T) {
 	AsyncDispatchLimit = 1
 	// pretend to be an time-consuming event-handler
 	RegisterEventHandler(EventTypeApp, func(obj interface{}) {
-		if _, ok := obj.(ApplicationEvent); ok {
+		if _, ok := obj.(events.ApplicationEvent); ok {
 			time.Sleep(2 * time.Second)
 		}
 	})

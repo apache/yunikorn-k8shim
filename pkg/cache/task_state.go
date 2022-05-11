@@ -28,7 +28,7 @@ import (
 //----------------------------------------------
 // Task events
 //----------------------------------------------
-type TaskEventType int
+type TaskEventType events.TaskEventType
 
 const (
 	InitTask TaskEventType = iota
@@ -44,23 +44,6 @@ const (
 
 func (ae TaskEventType) String() string {
 	return [...]string{"InitTask", "SubmitTask", "TaskAllocated", "TaskRejected", "TaskBound", "CompleteTask", "TaskFail", "KillTask", "TaskKilled"}[ae]
-}
-
-type TaskEvent interface {
-	// application ID which this task belongs to
-	GetApplicationID() string
-
-	// a task event must be associated with an application ID
-	// and a task ID, dispatcher need them to dispatch this event
-	// to the actual task
-	GetTaskID() string
-
-	// type of this event
-	GetEvent() TaskEventType
-
-	// an event can have multiple arguments, these arguments will be passed to
-	// state machines' callbacks when doing state transition
-	GetArgs() []interface{}
 }
 
 // ------------------------

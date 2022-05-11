@@ -29,7 +29,7 @@ import (
 //----------------------------------------------
 // Application events
 //----------------------------------------------
-type ApplicationEventType int
+type ApplicationEventType events.ApplicationEventType
 
 const (
 	SubmitApplication ApplicationEventType = iota

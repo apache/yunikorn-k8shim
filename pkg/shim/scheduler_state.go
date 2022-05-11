@@ -1,6 +1,7 @@
 package shim
 
 import (
+	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/looplab/fsm"
 	"go.uber.org/zap"
@@ -10,7 +11,7 @@ import (
 // scheduler events
 //----------------------------------------------
 
-type SchedulerEventType int
+type SchedulerEventType events.SchedulerEventType
 
 const (
 	RegisterScheduler SchedulerEventType = iota
@@ -23,15 +24,6 @@ const (
 
 func (ae SchedulerEventType) String() string {
 	return [...]string{"RegisterScheduler", "RegisterSchedulerSucceed", "RegisterSchedulerFailed", "RecoverScheduler", "RecoverSchedulerSucceed", "RecoverSchedulerFailed"}[ae]
-}
-
-type SchedulerEvent interface {
-	// the type of this event
-	GetEvent() SchedulerEventType
-
-	// an event can have multiple arguments, these arguments will be passed to
-	// state machines' callbacks when doing state transition
-	GetArgs() []interface{}
 }
 
 type ShimSchedulerEvent struct {
@@ -82,7 +74,7 @@ type schedulerStates struct {
 	Stopped     string
 }
 
-func SchedulerStates() *schedulerStates{
+func SchedulerStates() *schedulerStates {
 	if storeScheduleStates == nil {
 		storeScheduleStates = &schedulerStates{
 			New:         "New",
@@ -103,33 +95,33 @@ func newSchedulerState() *fsm.FSM {
 		states.New, fsm.Events{
 			{
 				Name: RegisterScheduler.String(),
-				Src: []string{states.New},
-				Dst: states.Registering,
+				Src:  []string{states.New},
+				Dst:  states.Registering,
 			},
 			{
 				Name: RegisterSchedulerSucceed.String(),
-				Src: []string{states.Registering},
-				Dst: states.Registered,
+				Src:  []string{states.Registering},
+				Dst:  states.Registered,
 			},
 			{
 				Name: RegisterSchedulerFailed.String(),
-				Src: []string{states.Registering},
-				Dst: states.Stopped,
+				Src:  []string{states.Registering},
+				Dst:  states.Stopped,
 			},
 			{
 				Name: RecoverScheduler.String(),
-				Src: []string{states.Registered},
-				Dst: states.Recovering,
+				Src:  []string{states.Registered},
+				Dst:  states.Recovering,
 			},
 			{
 				Name: RecoverSchedulerSucceed.String(),
-				Src: []string{states.Recovering},
-				Dst: states.Running,
+				Src:  []string{states.Recovering},
+				Dst:  states.Running,
 			},
 			{
 				Name: RecoverSchedulerFailed.String(),
-				Src: []string{states.Recovering},
-				Dst: states.Stopped,
+				Src:  []string{states.Recovering},
+				Dst:  states.Stopped,
 			},
 		},
 		fsm.Callbacks{

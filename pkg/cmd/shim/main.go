@@ -19,6 +19,7 @@
 package main
 
 import (
+	"github.com/apache/yunikorn-k8shim/pkg/shim"
 	"os"
 	"os/signal"
 	"syscall"
@@ -29,7 +30,6 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
-	"github.com/apache/yunikorn-k8shim/pkg/shim"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/api"
 )
 

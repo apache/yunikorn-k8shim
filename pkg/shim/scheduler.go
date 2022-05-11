@@ -92,7 +92,7 @@ func newShimSchedulerInternal(ctx *cache.Context, apiFactory client.APIProvider,
 		stopChan:             make(chan struct{}),
 		lock:                 &sync.RWMutex{},
 		outstandingAppsFound: false,
-		stateMachine: newSchedulerState(),
+		stateMachine:         newSchedulerState(),
 	}
 	// init dispatcher
 	cache.RegisterEventHandler(cache.EventTypeApp, ctx.ApplicationEventHandler())
