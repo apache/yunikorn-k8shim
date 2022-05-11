@@ -172,7 +172,7 @@ func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) err
 		if node.getNodeState() == events.States().Node.New {
 			Dispatch(CachedSchedulerNodeEvent{
 				NodeID: node.name,
-				Event:  events.RecoverNode,
+				Event:  RecoverNode,
 			})
 		}
 	}

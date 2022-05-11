@@ -208,12 +208,12 @@ func (nc *schedulerNodes) deleteNode(node *v1.Node) {
 
 func (nc *schedulerNodes) schedulerNodeEventHandler() func(obj interface{}) {
 	return func(obj interface{}) {
-		if event, ok := obj.(events.SchedulerNodeEvent); ok {
+		if event, ok := obj.(SchedulerNodeEvent); ok {
 			if node := nc.getNode(event.GetNodeID()); node != nil {
 				if node.canHandle(event) {
 					if err := node.handle(event); err != nil {
 						log.Logger().Error("failed to handle scheduler node event",
-							zap.String("event", string(event.GetEvent())),
+							zap.String("event", event.GetEvent().String()),
 							zap.Error(err))
 					}
 				}

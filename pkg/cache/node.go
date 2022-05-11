@@ -25,7 +25,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/apache/yunikorn-k8shim/pkg/common"
-	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/api"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
@@ -58,48 +57,9 @@ func newSchedulerNode(nodeName string, nodeUID string, nodeLabels string,
 		schedulable:  schedulable,
 		lock:         &sync.RWMutex{},
 		ready:        ready,
+		fsm:          newSchedulerNodeState(),
 	}
-	schedulerNode.initFSM()
 	return schedulerNode
-}
-
-func (n *SchedulerNode) initFSM() {
-	var states = events.States().Node
-	n.fsm = fsm.NewFSM(
-		states.New,
-		fsm.Events{
-			{Name: string(events.RecoverNode),
-				Src: []string{states.New},
-				Dst: states.Recovering,
-			},
-			{Name: string(events.NodeAccepted),
-				Src: []string{states.Recovering},
-				Dst: states.Accepted,
-			},
-			{Name: string(events.NodeReady),
-				Src: []string{states.Accepted},
-				Dst: states.Healthy,
-			},
-			{Name: string(events.NodeRejected),
-				Src: []string{states.New, states.Recovering},
-				Dst: states.Rejected,
-			},
-			{Name: string(events.DrainNode),
-				Src: []string{states.Healthy, states.Accepted},
-				Dst: states.Draining,
-			},
-			{Name: string(events.RestoreNode),
-				Src: []string{states.Draining},
-				Dst: states.Healthy,
-			},
-		},
-		fsm.Callbacks{
-			string(states.Recovering):  n.handleNodeRecovery,
-			string(events.DrainNode):   n.handleDrainNode,
-			string(events.RestoreNode): n.handleRestoreNode,
-			string(states.Accepted):    n.postNodeAccepted,
-			events.EnterState:          n.enterState,
-		})
 }
 
 func (n *SchedulerNode) addExistingAllocation(allocation *si.Allocation) {
@@ -154,7 +114,7 @@ func (n *SchedulerNode) getNodeState() string {
 	return n.fsm.Current()
 }
 
-func (n *SchedulerNode) postNodeAccepted(event *fsm.Event) {
+func (n *SchedulerNode) postNodeAccepted() {
 	// when node is accepted, it means the node is already registered to the scheduler,
 	// this doesn't mean this node is ready for scheduling, there is a step away.
 	// we need to check the K8s node state, if it is not schedulable, then we should notify
@@ -162,17 +122,17 @@ func (n *SchedulerNode) postNodeAccepted(event *fsm.Event) {
 	if n.schedulable {
 		Dispatch(CachedSchedulerNodeEvent{
 			NodeID: n.name,
-			Event:  events.NodeReady,
+			Event:  NodeReady,
 		})
 	} else {
 		Dispatch(CachedSchedulerNodeEvent{
 			NodeID: n.name,
-			Event:  events.DrainNode,
+			Event:  DrainNode,
 		})
 	}
 }
 
-func (n *SchedulerNode) handleNodeRecovery(event *fsm.Event) {
+func (n *SchedulerNode) handleNodeRecovery() {
 	log.Logger().Info("node recovering",
 		zap.String("nodeID", n.name),
 		zap.Bool("schedulable", n.schedulable))
@@ -186,7 +146,7 @@ func (n *SchedulerNode) handleNodeRecovery(event *fsm.Event) {
 	}
 }
 
-func (n *SchedulerNode) handleDrainNode(event *fsm.Event) {
+func (n *SchedulerNode) handleDrainNode() {
 	log.Logger().Info("node enters draining mode",
 		zap.String("nodeID", n.name))
 
@@ -199,7 +159,7 @@ func (n *SchedulerNode) handleDrainNode(event *fsm.Event) {
 	}
 }
 
-func (n *SchedulerNode) handleRestoreNode(event *fsm.Event) {
+func (n *SchedulerNode) handleRestoreNode() {
 	log.Logger().Info("restore node from draining mode",
 		zap.String("nodeID", n.name))
 
@@ -212,10 +172,10 @@ func (n *SchedulerNode) handleRestoreNode(event *fsm.Event) {
 	}
 }
 
-func (n *SchedulerNode) handle(ev events.SchedulerNodeEvent) error {
+func (n *SchedulerNode) handle(ev SchedulerNodeEvent) error {
 	n.lock.Lock()
 	defer n.lock.Unlock()
-	err := n.fsm.Event(string(ev.GetEvent()), ev.GetArgs()...)
+	err := n.fsm.Event(ev.GetEvent().String(), n, ev.GetArgs())
 	// handle the same state transition not nil error (limit of fsm).
 	if err != nil && err.Error() != "no transition" {
 		return err
@@ -223,16 +183,9 @@ func (n *SchedulerNode) handle(ev events.SchedulerNodeEvent) error {
 	return nil
 }
 
-func (n *SchedulerNode) canHandle(ev events.SchedulerNodeEvent) bool {
+func (n *SchedulerNode) canHandle(ev SchedulerNodeEvent) bool {
 	n.lock.RLock()
 	defer n.lock.RUnlock()
-	return n.fsm.Can(string(ev.GetEvent()))
+	return n.fsm.Can(ev.GetEvent().String())
 }
 
-func (n *SchedulerNode) enterState(event *fsm.Event) {
-	log.Logger().Debug("shim node state transition",
-		zap.String("nodeID", n.name),
-		zap.String("source", event.Src),
-		zap.String("destination", event.Dst),
-		zap.String("event", event.Event))
-}

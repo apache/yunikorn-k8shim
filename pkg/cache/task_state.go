@@ -1,3 +1,21 @@
+/*
+ Licensed to the Apache Software Foundation (ASF) under one
+ or more contributor license agreements.  See the NOTICE file
+ distributed with this work for additional information
+ regarding copyright ownership.  The ASF licenses this file
+ to you under the Apache License, Version 2.0 (the
+ "License"); you may not use this file except in compliance
+ with the License.  You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+*/
+
 package cache
 
 import (
@@ -364,13 +382,11 @@ func newTaskState() *fsm.FSM {
 		},
 		fsm.Callbacks{
 			"enter_state": func(event *fsm.Event) {
-				go func() {
 					log.Logger().Info("object transition",
 						zap.Any("object", event.Args[0]),
 						zap.String("source", event.Src),
 						zap.String("destination", event.Dst),
 						zap.String("event", event.Event))
-				}()
 			},
 			states.Pending: func(event *fsm.Event) {
 				task := event.Args[0].(*Task) //nolint:errcheck
@@ -380,7 +396,7 @@ func newTaskState() *fsm.FSM {
 				task := event.Args[0].(*Task) //nolint:errcheck
 				eventArgs := make([]string, 2)
 				if err := events.GetEventArgsAsStrings(eventArgs, event.Args[1].([]interface{})); err != nil {
-					task.handleFailEvent(err.Error(),true)
+					task.handleFailEvent(err.Error(),false)
 					return
 				}
 				allocUUID := eventArgs[0]
@@ -401,9 +417,9 @@ func newTaskState() *fsm.FSM {
 			},
 			beforeHook(TaskAllocated): func(event *fsm.Event) {
 				task := event.Args[0].(*Task) //nolint:errcheck
-				eventArgs := make([]string, 1)
+				eventArgs := make([]string, 2)
 				if err := events.GetEventArgsAsStrings(eventArgs, event.Args[1].([]interface{})); err != nil {
-					task.handleFailEvent(err.Error(),true)
+					task.handleFailEvent(err.Error(),false)
 					return
 				}
 				allocUUID := eventArgs[0]

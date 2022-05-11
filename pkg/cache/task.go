@@ -114,7 +114,7 @@ func beforeHook(event TaskEventType) string {
 func (task *Task) handle(te TaskEvent) error {
 	task.lock.Lock()
 	defer task.lock.Unlock()
-	err := task.sm.Event(te.GetEvent().String(), te, te.GetArgs())
+	err := task.sm.Event(te.GetEvent().String(), task, te.GetArgs())
 	// handle the same state transition not nil error (limit of fsm).
 	if err != nil && err.Error() != "no transition" {
 		return err

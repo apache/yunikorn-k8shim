@@ -57,28 +57,4 @@ type SchedulerEvent interface {
 	GetArgs() []interface{}
 }
 
-// --------------------------------------
-// scheduler node events
-// --------------------------------------
-type SchedulerNodeEventType string
 
-const (
-	RecoverNode  SchedulerNodeEventType = "RecoverNode"
-	NodeAccepted SchedulerNodeEventType = "NodeAccepted"
-	NodeRejected SchedulerNodeEventType = "NodeRejected"
-	DrainNode    SchedulerNodeEventType = "DrainNode"
-	RestoreNode  SchedulerNodeEventType = "RestoreNode"
-	NodeReady    SchedulerNodeEventType = "NodeReady"
-)
-
-type SchedulerNodeEvent interface {
-	// returns the node ID
-	GetNodeID() string
-
-	// the type of this event
-	GetEvent() SchedulerNodeEventType
-
-	// an event can have multiple arguments, these arguments will be passed to
-	// state machines' callbacks when doing state transition
-	GetArgs() []interface{}
-}
