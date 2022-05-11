@@ -24,7 +24,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/apache/yunikorn-k8shim/pkg/cache"
-	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
@@ -166,7 +165,7 @@ func (callback *AsyncRMCallback) UpdateNode(response *si.NodeResponse) error {
 
 		cache.Dispatch(cache.CachedSchedulerNodeEvent{
 			NodeID: node.NodeID,
-			Event:  events.NodeAccepted,
+			Event:  cache.NodeAccepted,
 		})
 	}
 
@@ -176,7 +175,7 @@ func (callback *AsyncRMCallback) UpdateNode(response *si.NodeResponse) error {
 
 		cache.Dispatch(cache.CachedSchedulerNodeEvent{
 			NodeID: node.NodeID,
-			Event:  events.NodeRejected,
+			Event: cache.NodeRejected,
 		})
 	}
 	return nil

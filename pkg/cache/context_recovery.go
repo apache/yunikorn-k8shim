@@ -31,7 +31,6 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common"
-	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
@@ -169,7 +168,7 @@ func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) err
 		log.Logger().Info("node state",
 			zap.String("nodeName", node.name),
 			zap.String("nodeState", node.getNodeState()))
-		if node.getNodeState() == events.States().Node.New {
+		if node.getNodeState() == SchedulerNodeStates().New {
 			Dispatch(CachedSchedulerNodeEvent{
 				NodeID: node.name,
 				Event:  RecoverNode,
@@ -185,11 +184,11 @@ func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) err
 				zap.String("nodeName", node.name),
 				zap.String("nodeState", node.getNodeState()))
 			switch node.getNodeState() {
-			case events.States().Node.Healthy:
+			case SchedulerNodeStates().Healthy:
 				nodesRecovered++
-			case events.States().Node.Draining:
+			case SchedulerNodeStates().Draining:
 				nodesRecovered++
-			case events.States().Node.Rejected:
+			case SchedulerNodeStates().Rejected:
 				nodesRecovered++
 			}
 		}

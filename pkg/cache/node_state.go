@@ -50,6 +50,23 @@ type SchedulerNodeEvent interface {
 	GetEvent() SchedulerNodeEventType
 }
 
+type CachedSchedulerNodeEvent struct {
+	NodeID    string
+	Event     SchedulerNodeEventType
+}
+
+func (sn CachedSchedulerNodeEvent) GetEvent() SchedulerNodeEventType {
+	return sn.Event
+}
+
+func (sn CachedSchedulerNodeEvent) GetNodeID() string {
+	return sn.NodeID
+}
+
+func (re CachedSchedulerNodeEvent) GetArgs() []interface{} {
+	return nil
+}
+
 // ----------------------------------
 // scheduler node states
 // ----------------------------------

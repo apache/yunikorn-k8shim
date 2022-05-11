@@ -20,6 +20,7 @@ package cache
 
 import (
 	"fmt"
+	"github.com/apache/yunikorn-k8shim/pkg/shim"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -195,7 +196,7 @@ func Start() {
 					getEventHandler(EventTypeApp)(v)
 				case TaskEvent:
 					getEventHandler(EventTypeTask)(v)
-				case events.SchedulerEvent:
+				case shim.SchedulerEvent:
 					getEventHandler(EventTypeScheduler)(v)
 				case SchedulerNodeEvent:
 					getEventHandler(EventTypeNode)(v)

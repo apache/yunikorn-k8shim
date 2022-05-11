@@ -33,28 +33,3 @@ type SchedulingEvent interface {
 type ApplicationStatusEvent interface {
 	GetState() string
 }
-
-// --------------------------------------
-// scheduler events
-// --------------------------------------
-type SchedulerEventType string
-
-const (
-	RegisterScheduler        SchedulerEventType = "RegisterScheduler"
-	RegisterSchedulerSucceed SchedulerEventType = "RegisterSchedulerSucceed"
-	RegisterSchedulerFailed  SchedulerEventType = "RegisterSchedulerFailed"
-	RecoverScheduler         SchedulerEventType = "RecoverScheduler"
-	RecoverSchedulerSucceed  SchedulerEventType = "RecoverSchedulerSucceed"
-	RecoverSchedulerFailed   SchedulerEventType = "RecoverSchedulerFailed"
-)
-
-type SchedulerEvent interface {
-	// the type of this event
-	GetEvent() SchedulerEventType
-
-	// an event can have multiple arguments, these arguments will be passed to
-	// state machines' callbacks when doing state transition
-	GetArgs() []interface{}
-}
-
-

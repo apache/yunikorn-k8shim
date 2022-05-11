@@ -32,7 +32,6 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
-	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/common/test"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/api"
@@ -63,7 +62,7 @@ partitions:
 	defer cluster.stop()
 
 	// ensure scheduler state
-	cluster.waitForSchedulerState(t, events.States().Scheduler.Running)
+	cluster.waitForSchedulerState(t, SchedulerStates().Running)
 
 	// register nodes
 	err := cluster.addNode("test.host.01", 100000000, 10)
@@ -111,7 +110,7 @@ partitions:
 	defer cluster.stop()
 
 	// ensure scheduler state
-	cluster.waitForSchedulerState(t, events.States().Scheduler.Running)
+	cluster.waitForSchedulerState(t, SchedulerStates().Running)
 
 	// register nodes
 	err := cluster.addNode("test.host.01", 100000000, 10)
@@ -164,7 +163,7 @@ func TestSchedulerRegistrationFailed(t *testing.T) {
 	shim.Run()
 	defer shim.Stop()
 
-	err := waitShimSchedulerState(shim, events.States().Scheduler.Stopped, 5*time.Second)
+	err := waitShimSchedulerState(shim, SchedulerStates().Stopped, 5*time.Second)
 	assert.NilError(t, err)
 }
 
@@ -203,7 +202,7 @@ partitions:
 	})
 
 	// ensure scheduler state
-	cluster.waitForSchedulerState(t, events.States().Scheduler.Running)
+	cluster.waitForSchedulerState(t, SchedulerStates().Running)
 
 	// register nodes
 	err := cluster.addNode("test.host.01", 100000000, 10)

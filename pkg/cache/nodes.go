@@ -28,7 +28,6 @@ import (
 
 	"github.com/apache/yunikorn-k8shim/pkg/cache/external"
 	"github.com/apache/yunikorn-k8shim/pkg/common"
-	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/api"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
@@ -123,7 +122,7 @@ func (nc *schedulerNodes) addAndReportNode(node *v1.Node, reportNode bool) {
 	// do not trigger recover again in this case.
 	if reportNode {
 		if node, ok := nc.nodesMap[node.Name]; ok {
-			triggerEvent(node, events.States().Node.New, events.RecoverNode)
+			triggerEvent(node, SchedulerNodeStates().New, RecoverNode)
 		}
 	}
 }
@@ -160,9 +159,9 @@ func (nc *schedulerNodes) updateNode(oldNode, newNode *v1.Node) {
 
 	// cordon or restore node
 	if (!oldNode.Spec.Unschedulable) && newNode.Spec.Unschedulable {
-		triggerEvent(cachedNode, events.States().Node.Healthy, events.DrainNode)
+		triggerEvent(cachedNode, SchedulerNodeStates().Healthy, DrainNode)
 	} else if oldNode.Spec.Unschedulable && !newNode.Spec.Unschedulable {
-		triggerEvent(cachedNode, events.States().Node.Draining, events.RestoreNode)
+		triggerEvent(cachedNode, SchedulerNodeStates().Draining, RestoreNode)
 	}
 
 	ready := hasReadyCondition(newNode)
@@ -233,9 +232,9 @@ func hasReadyCondition(node *v1.Node) bool {
 	return false
 }
 
-func triggerEvent(node *SchedulerNode, currentState string, eventType events.SchedulerNodeEventType) {
+func triggerEvent(node *SchedulerNode, currentState string, eventType SchedulerNodeEventType) {
 	log.Logger().Info("scheduler node event ", zap.String("name", node.name),
-		zap.String("current state ", currentState), zap.String("transition to ", string(eventType)))
+		zap.String("current state ", currentState), zap.String("transition to ", eventType.String()))
 	if node.getNodeState() == currentState {
 		Dispatch(CachedSchedulerNodeEvent{
 			NodeID: node.name,
