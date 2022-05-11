@@ -20,6 +20,7 @@ package cache
 
 import (
 	"fmt"
+	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"sort"
 	"strings"
 	"sync"
@@ -35,7 +36,6 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
-	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/api"
@@ -88,7 +88,7 @@ func NewApplication(appID, queueName, user string, tags map[string]string, sched
 	return app
 }
 
-func (app *Application) handle(ev ApplicationEvent) error {
+func (app *Application) handle(ev events.ApplicationEvent) error {
 	// Locking mechanism:
 	// 1) when handle event transitions, we first obtain the object's lock,
 	//    this helps us to place a pre-check before entering here, in case
@@ -100,7 +100,7 @@ func (app *Application) handle(ev ApplicationEvent) error {
 	//    because the lock is already held here.
 	app.lock.Lock()
 	defer app.lock.Unlock()
-	err := app.sm.Event(ev.GetEvent().String(), app, ev.GetArgs())
+	err := app.sm.Event(ev.GetEvent(), app, ev.GetArgs())
 	// handle the same state transition not nil error (limit of fsm).
 	if err != nil && err.Error() != "no transition" {
 		return err
@@ -114,10 +114,10 @@ func (app *Application) GetStateMachine(taskID string) *fsm.FSM {
 	return app.sm
 }
 
-func (app *Application) canHandle(ev ApplicationEvent) bool {
+func (app *Application) canHandle(ev events.ApplicationEvent) bool {
 	app.lock.RLock()
 	defer app.lock.RUnlock()
-	return app.sm.Can(ev.GetEvent().String())
+	return app.sm.Can(ev.GetEvent())
 }
 
 func (app *Application) GetTask(taskID string) (interfaces.ManagedTask, error) {
@@ -438,7 +438,7 @@ func (app *Application) HandleRecoverApplicationEvent() {
 	if err != nil {
 		// recovery failed
 		log.Logger().Warn("failed to recover app", zap.Error(err))
-		Dispatch(NewFailApplicationEvent(app.applicationID, err.Error()))
+		dispatcher.Dispatch(NewFailApplicationEvent(app.applicationID, err.Error()))
 	}
 }
 
@@ -486,7 +486,7 @@ func (app *Application) postAppAccepted() {
 		log.Logger().Info("app has taskGroups defined, trying to reserve resources for gang members",
 			zap.String("appID", app.applicationID))
 	}
-	Dispatch(ev)
+	dispatcher.Dispatch(ev)
 }
 
 func (app *Application) OnReserving() {
@@ -497,7 +497,7 @@ func (app *Application) OnReserving() {
 			// put the app into recycling queue and turn the app to running state
 			getPlaceholderManager().cleanUp(app)
 			ev := NewRunApplicationEvent(app.applicationID)
-			Dispatch(ev)
+			dispatcher.Dispatch(ev)
 		}
 	}()
 }
@@ -519,13 +519,13 @@ func (app *Application) OnReservationStateChange() {
 	// min member all satisfied
 	if desireCounts.Equals(actualCounts) {
 		ev := NewRunApplicationEvent(app.applicationID)
-		Dispatch(ev)
+		dispatcher.Dispatch(ev)
 	}
 }
 
 func (app *Application) HandleRejectApplicationEvent(reason string) {
 	log.Logger().Info("app is rejected by scheduler", zap.String("appID", app.applicationID))
-	Dispatch(NewFailApplicationEvent(app.applicationID,
+	dispatcher.Dispatch(NewFailApplicationEvent(app.applicationID,
 		fmt.Sprintf("%s: %s", constants.ApplicationRejectedFailure, reason)))
 }
 
@@ -625,7 +625,7 @@ func (app *Application) HandleAppTaskCompletedEvent() {
 	}
 	log.Logger().Info("Resuming completed, start to run the app",
 		zap.String("appID", app.applicationID))
-	Dispatch(NewRunApplicationEvent(app.applicationID))
+	dispatcher.Dispatch(NewRunApplicationEvent(app.applicationID))
 }
 
 func (app *Application) SetPlaceholderTimeout(timeout int64) {

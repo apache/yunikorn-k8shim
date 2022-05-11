@@ -21,6 +21,7 @@ package application
 import (
 	"context"
 	"fmt"
+	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"strings"
 	"time"
 
@@ -79,8 +80,8 @@ func (appMgr *AppManager) Stop() {
 // handle the updates from the scheduler and sync the status change
 func (appMgr *AppManager) HandleApplicationStateUpdate() func(obj interface{}) {
 	return func(obj interface{}) {
-		if event, ok := obj.(shimcache.ApplicationEvent); ok {
-			if shimcache.AppStateChange == event.GetEvent() {
+		if event, ok := obj.(events.ApplicationEvent); ok {
+			if shimcache.AppStateChange.String() == event.GetEvent() {
 				if shimEvent, ok := event.(shimcache.ApplicationStatusChangeEvent); ok {
 					appID := event.GetApplicationID()
 					log.Logger().Info("Status Change callback received",

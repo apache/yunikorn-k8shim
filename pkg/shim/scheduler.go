@@ -19,6 +19,8 @@
 package shim
 
 import (
+	"github.com/apache/yunikorn-k8shim/pkg/common/events"
+	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"os"
 	"strconv"
 	"sync"
@@ -95,11 +97,11 @@ func newShimSchedulerInternal(ctx *cache.Context, apiFactory client.APIProvider,
 		stateMachine:         newSchedulerState(),
 	}
 	// init dispatcher
-	cache.RegisterEventHandler(cache.EventTypeApp, ctx.ApplicationEventHandler())
-	cache.RegisterEventHandler(cache.EventTypeTask, ctx.TaskEventHandler())
-	cache.RegisterEventHandler(cache.EventTypeNode, ctx.SchedulerNodeEventHandler())
-	cache.RegisterEventHandler(cache.EventTypeScheduler, ss.SchedulerEventHandler())
-	cache.RegisterEventHandler(cache.EventTypeAppStatus, am.ApplicationStateUpdateEventHandler())
+	dispatcher.RegisterEventHandler(dispatcher.EventTypeApp, ctx.ApplicationEventHandler())
+	dispatcher.RegisterEventHandler(dispatcher.EventTypeTask, ctx.TaskEventHandler())
+	dispatcher.RegisterEventHandler(dispatcher.EventTypeNode, ctx.SchedulerNodeEventHandler())
+	dispatcher.RegisterEventHandler(dispatcher.EventTypeScheduler, ss.SchedulerEventHandler())
+	dispatcher.RegisterEventHandler(dispatcher.EventTypeAppStatus, am.ApplicationStateUpdateEventHandler())
 	return ss
 }
 
@@ -109,11 +111,11 @@ func (ss *KubernetesShim) GetContext() *cache.Context {
 
 func (ss *KubernetesShim) SchedulerEventHandler() func(obj interface{}) {
 	return func(obj interface{}) {
-		if event, ok := obj.(SchedulerEvent); ok {
+		if event, ok := obj.(events.SchedulerEvent); ok {
 			if ss.canHandle(event) {
 				if err := ss.handle(event); err != nil {
 					log.Logger().Error("failed to handle scheduler event",
-						zap.String("event", event.GetEvent().String()),
+						zap.String("event", event.GetEvent()),
 						zap.Error(err))
 				}
 			}
@@ -123,11 +125,11 @@ func (ss *KubernetesShim) SchedulerEventHandler() func(obj interface{}) {
 
 func (ss *KubernetesShim) register() {
 	if err := ss.registerShimLayer(); err != nil {
-		cache.Dispatch(ShimSchedulerEvent{
+		dispatcher.Dispatch(ShimSchedulerEvent{
 			event: RegisterSchedulerFailed,
 		})
 	} else {
-		cache.Dispatch(ShimSchedulerEvent{
+		dispatcher.Dispatch(ShimSchedulerEvent{
 			event: RegisterSchedulerSucceed,
 		})
 	}
@@ -142,7 +144,7 @@ func (ss *KubernetesShim) handleSchedulerFailure() {
 }
 
 func (ss *KubernetesShim) triggerSchedulerStateRecovery() {
-	cache.Dispatch(ShimSchedulerEvent{
+	dispatcher.Dispatch(ShimSchedulerEvent{
 		event: RecoverScheduler,
 	})
 }
@@ -159,7 +161,7 @@ func (ss *KubernetesShim) recoverSchedulerState() {
 		if err := ss.appManager.WaitForRecovery(30 * time.Second); err != nil {
 			// failed
 			log.Logger().Error("scheduler recovery failed", zap.Error(err))
-			cache.Dispatch(ShimSchedulerEvent{
+			dispatcher.Dispatch(ShimSchedulerEvent{
 				event: RecoverSchedulerFailed,
 			})
 			return
@@ -178,7 +180,7 @@ func (ss *KubernetesShim) recoverSchedulerState() {
 		if err := ss.context.WaitForRecovery(recoverableAppManagers, 5*time.Minute); err != nil {
 			// failed
 			log.Logger().Error("scheduler recovery failed", zap.Error(err))
-			cache.Dispatch(ShimSchedulerEvent{
+			dispatcher.Dispatch(ShimSchedulerEvent{
 				event: RecoverSchedulerFailed,
 			})
 			return
@@ -186,7 +188,7 @@ func (ss *KubernetesShim) recoverSchedulerState() {
 
 		// success
 		log.Logger().Info("scheduler recovery succeed")
-		cache.Dispatch(ShimSchedulerEvent{
+		dispatcher.Dispatch(ShimSchedulerEvent{
 			event: RecoverSchedulerSucceed,
 		})
 	}()
@@ -235,20 +237,20 @@ func (ss *KubernetesShim) GetSchedulerState() string {
 }
 
 // event handling
-func (ss *KubernetesShim) handle(se SchedulerEvent) error {
+func (ss *KubernetesShim) handle(se events.SchedulerEvent) error {
 	ss.lock.Lock()
 	defer ss.lock.Unlock()
-	err := ss.stateMachine.Event(se.GetEvent().String(), se.GetArgs())
+	err := ss.stateMachine.Event(se.GetEvent(), ss, se.GetArgs())
 	if err != nil && err.Error() == "no transition" {
 		return err
 	}
 	return nil
 }
 
-func (ss *KubernetesShim) canHandle(se SchedulerEvent) bool {
+func (ss *KubernetesShim) canHandle(se events.SchedulerEvent) bool {
 	ss.lock.RLock()
 	defer ss.lock.RUnlock()
-	return ss.stateMachine.Can(se.GetEvent().String())
+	return ss.stateMachine.Can(se.GetEvent())
 }
 
 // each schedule iteration, we scan all apps and triggers app state transition
@@ -268,7 +270,7 @@ func (ss *KubernetesShim) Run() {
 	// run dispatcher
 	// the dispatcher handles the basic event dispatching,
 	// it needs to be started at first
-	cache.Start()
+	dispatcher.Start()
 
 	// run the placeholder manager
 	ss.phManager.Start()
@@ -280,7 +282,7 @@ func (ss *KubernetesShim) Run() {
 	// this triggers the scheduler state transition
 	// it first registers with the core, then start to do recovery,
 	// after the recovery is succeed, it goes to the normal scheduling routine
-	cache.Dispatch(newRegisterSchedulerEvent())
+	dispatcher.Dispatch(newRegisterSchedulerEvent())
 
 	// run app managers
 	// the app manager launches the pod event handlers
@@ -296,7 +298,7 @@ func (ss *KubernetesShim) Stop() {
 	select {
 	case ss.stopChan <- struct{}{}:
 		// stop the dispatcher
-		cache.Stop()
+		dispatcher.Stop()
 		// stop the app manager
 		ss.appManager.Stop()
 		// stop the placeholder manager

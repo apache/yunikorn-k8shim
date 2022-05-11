@@ -30,8 +30,6 @@ type SchedulingEvent interface {
 //----------------------------------------------
 // Application events
 //----------------------------------------------
-type ApplicationEventType int
-
 type ApplicationEvent interface {
 	// an application event is associated with an application Id,
 	// dispatcher finds out actual application based on this id
@@ -39,7 +37,7 @@ type ApplicationEvent interface {
 	GetApplicationID() string
 
 	// the type of this event
-	GetEvent() ApplicationEventType
+	GetEvent() string
 
 	// an event can have multiple arguments, these arguments will be passed to
 	// state machines' callbacks when doing state transition
@@ -68,7 +66,7 @@ type TaskEvent interface {
 	GetTaskID() string
 
 	// type of this event
-	GetEvent() TaskEventType
+	GetEvent() string
 
 	// an event can have multiple arguments, these arguments will be passed to
 	// state machines' callbacks when doing state transition
@@ -82,7 +80,7 @@ type SchedulerEventType int
 
 type SchedulerEvent interface {
 	// the type of this event
-	GetEvent() SchedulerEventType
+	GetEvent() string
 
 	// an event can have multiple arguments, these arguments will be passed to
 	// state machines' callbacks when doing state transition
@@ -92,14 +90,13 @@ type SchedulerEvent interface {
 // --------------------------------------
 // scheduler node events
 // --------------------------------------
-type SchedulerNodeEventType int
 
 type SchedulerNodeEvent interface {
 	// returns the node ID
 	GetNodeID() string
 
 	// the type of this event
-	GetEvent() SchedulerNodeEventType
+	GetEvent() string
 
 	// an event can have multiple arguments, these arguments will be passed to
 	// state machines' callbacks when doing state transition

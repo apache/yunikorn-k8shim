@@ -20,6 +20,7 @@ package cache
 
 import (
 	"fmt"
+	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"sync"
 	"time"
 
@@ -111,10 +112,10 @@ func beforeHook(event TaskEventType) string {
 }
 
 // event handling
-func (task *Task) handle(te TaskEvent) error {
+func (task *Task) handle(te events.TaskEvent) error {
 	task.lock.Lock()
 	defer task.lock.Unlock()
-	err := task.sm.Event(te.GetEvent().String(), task, te.GetArgs())
+	err := task.sm.Event(te.GetEvent(), task, te.GetArgs())
 	// handle the same state transition not nil error (limit of fsm).
 	if err != nil && err.Error() != "no transition" {
 		return err
@@ -122,10 +123,10 @@ func (task *Task) handle(te TaskEvent) error {
 	return nil
 }
 
-func (task *Task) canHandle(te TaskEvent) bool {
+func (task *Task) canHandle(te events.TaskEvent) bool {
 	task.lock.RLock()
 	defer task.lock.RUnlock()
-	return task.sm.Can(te.GetEvent().String())
+	return task.sm.Can(te.GetEvent())
 }
 
 func (task *Task) GetTaskPod() *v1.Pod {
@@ -241,7 +242,7 @@ func (task *Task) setAllocated(nodeName, allocationUUID string) {
 
 func (task *Task) handleFailEvent(reason string, err bool) {
 	if err == true {
-		Dispatch(NewFailTaskEvent(task.applicationID, task.taskID, reason))
+		dispatcher.Dispatch(NewFailTaskEvent(task.applicationID, task.taskID, reason))
 		events.GetRecorder().Eventf(task.pod, nil, v1.EventTypeWarning, "SchedulingFailed", "SchedulingFailed",
 			"%s scheduling failed, reason: %s", task.alias, reason)
 		return
@@ -283,7 +284,7 @@ func (task *Task) handleSubmitTaskEvent() {
 // this is called after task reaches PENDING state,
 // submit the resource asks from this task to the scheduler core
 func (task *Task) postTaskPending() {
-	Dispatch(NewSubmitTaskEvent(task.applicationID, task.taskID))
+	dispatcher.Dispatch(NewSubmitTaskEvent(task.applicationID, task.taskID))
 }
 
 // this is called after task reaches ALLOCATED state,
@@ -312,7 +313,7 @@ func (task *Task) postTaskAllocated(allocUUID string, nodeID string) {
 
 			task.context.AddPendingPodAllocation(string(task.pod.UID), nodeID)
 
-			Dispatch(NewBindTaskEvent(task.applicationID, task.taskID))
+			dispatcher.Dispatch(NewBindTaskEvent(task.applicationID, task.taskID))
 			events.GetRecorder().Eventf(task.pod,
 				nil, v1.EventTypeNormal, "QuotaApproved", "QuotaApproved",
 				"Pod %s is ready for scheduling on node %s", task.alias, nodeID)
@@ -329,7 +330,7 @@ func (task *Task) postTaskAllocated(allocUUID string, nodeID string) {
 			if task.context.apiProvider.GetAPIs().VolumeBinder != nil {
 				if err := task.context.bindPodVolumes(task.pod); err != nil {
 					errorMessage = fmt.Sprintf("bind pod volumes failed, name: %s, %s", task.alias, err.Error())
-					Dispatch(NewFailTaskEvent(task.applicationID, task.taskID, errorMessage))
+					dispatcher.Dispatch(NewFailTaskEvent(task.applicationID, task.taskID, errorMessage))
 					events.GetRecorder().Eventf(task.pod,
 						nil, v1.EventTypeWarning, "PodVolumesBindFailure", "PodVolumesBindFailure", errorMessage)
 					return
@@ -343,14 +344,14 @@ func (task *Task) postTaskAllocated(allocUUID string, nodeID string) {
 			if err := task.context.apiProvider.GetAPIs().KubeClient.Bind(task.pod, nodeID); err != nil {
 				errorMessage = fmt.Sprintf("bind pod volumes failed, name: %s, %s", task.alias, err.Error())
 				log.Logger().Error(errorMessage)
-				Dispatch(NewFailTaskEvent(task.applicationID, task.taskID, errorMessage))
+				dispatcher.Dispatch(NewFailTaskEvent(task.applicationID, task.taskID, errorMessage))
 				events.GetRecorder().Eventf(task.pod, nil,
 					v1.EventTypeWarning, "PodBindFailure", "PodBindFailure", errorMessage)
 				return
 			}
 
 			log.Logger().Info("successfully bound pod", zap.String("podName", task.pod.Name))
-			Dispatch(NewBindTaskEvent(task.applicationID, task.taskID))
+			dispatcher.Dispatch(NewBindTaskEvent(task.applicationID, task.taskID))
 			events.GetRecorder().Eventf(task.pod, nil,
 				v1.EventTypeNormal, "PodBindSuccessful", "PodBindSuccessful",
 				"Pod %s is successfully bound to node %s", task.alias, nodeID)
@@ -403,7 +404,7 @@ func (task *Task) postTaskBound() {
 			zap.String("appID", task.applicationID),
 			zap.String("taskName", task.alias),
 			zap.String("taskGroupName", task.taskGroupName))
-		Dispatch(NewUpdateApplicationReservationEvent(task.applicationID))
+		dispatcher.Dispatch(NewUpdateApplicationReservationEvent(task.applicationID))
 	}
 }
 
@@ -411,7 +412,7 @@ func (task *Task) postTaskRejected() {
 	// currently, once task is rejected by scheduler, we directly move task to failed state.
 	// so this function simply triggers the state transition when it is rejected.
 	// but further, we can introduce retry mechanism if necessary.
-	Dispatch(NewFailTaskEvent(task.applicationID, task.taskID,
+	dispatcher.Dispatch(NewFailTaskEvent(task.applicationID, task.taskID,
 		fmt.Sprintf("task %s failed because it is rejected by scheduler", task.alias)))
 
 	events.GetRecorder().Eventf(task.pod, nil,

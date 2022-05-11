@@ -41,6 +41,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/common/test"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
+	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
@@ -610,10 +611,10 @@ func TestRecoverTask(t *testing.T) {
 
 func TestTaskReleaseAfterRecovery(t *testing.T) {
 	context := initContextForTest()
-	RegisterEventHandler(EventTypeApp, context.ApplicationEventHandler())
-	RegisterEventHandler(EventTypeTask, context.TaskEventHandler())
-	Start()
-	defer Stop()
+	dispatcher.RegisterEventHandler(dispatcher.EventTypeApp, context.ApplicationEventHandler())
+	dispatcher.RegisterEventHandler(dispatcher.EventTypeTask, context.TaskEventHandler())
+	dispatcher.Start()
+	defer dispatcher.Stop()
 
 	const appID = "app00001"
 	const queue = "root.a"

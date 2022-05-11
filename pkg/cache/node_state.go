@@ -19,7 +19,6 @@
 package cache
 
 import (
-	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/looplab/fsm"
 	"go.uber.org/zap"
@@ -28,7 +27,7 @@ import (
 //----------------------------------------------
 // scheduler node events
 //----------------------------------------------
-type SchedulerNodeEventType events.SchedulerNodeEventType
+type SchedulerNodeEventType int
 
 const (
 	RecoverNode SchedulerNodeEventType = iota
@@ -48,8 +47,8 @@ type CachedSchedulerNodeEvent struct {
 	Event     SchedulerNodeEventType
 }
 
-func (sn CachedSchedulerNodeEvent) GetEvent() SchedulerNodeEventType {
-	return sn.Event
+func (sn CachedSchedulerNodeEvent) GetEvent() string {
+	return sn.Event.String()
 }
 
 func (sn CachedSchedulerNodeEvent) GetNodeID() string {

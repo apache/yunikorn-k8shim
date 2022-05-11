@@ -16,7 +16,7 @@
  limitations under the License.
 */
 
-package cache
+package dispatcher
 
 import (
 	"fmt"
@@ -36,7 +36,7 @@ import (
 // app event for testing
 type TestAppEvent struct {
 	appID     string
-	eventType events.ApplicationEventType
+	eventType string
 	flag      chan bool
 }
 
@@ -44,7 +44,7 @@ func (t TestAppEvent) GetApplicationID() string {
 	return t.appID
 }
 
-func (t TestAppEvent) GetEvent() events.ApplicationEventType {
+func (t TestAppEvent) GetEvent() string {
 	return t.eventType
 }
 
@@ -52,15 +52,7 @@ func (t TestAppEvent) GetArgs() []interface{} {
 	return nil
 }
 
-type ApplicationEventType events.ApplicationEventType
-
-const (
-	RunApplication events.ApplicationEventType = iota
-)
-
-func (ae ApplicationEventType) String() string {
-	return [...]string{"RunApplication"}[ae]
-}
+const RunApplication string = "RunApplication"
 
 func TestRegisterEventHandler(t *testing.T) {
 	createDispatcher()

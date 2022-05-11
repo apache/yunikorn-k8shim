@@ -63,8 +63,8 @@ func NewSimpleTaskEvent(appID string, taskID string, taskType TaskEventType) Sim
 	}
 }
 
-func (st SimpleTaskEvent) GetEvent() TaskEventType {
-	return st.event
+func (st SimpleTaskEvent) GetEvent() string {
+	return st.event.String()
 }
 
 func (st SimpleTaskEvent) GetArgs() []interface{} {
@@ -96,8 +96,8 @@ func NewSubmitTaskEvent(appID string, taskID string) SubmitTaskEvent {
 	}
 }
 
-func (st SubmitTaskEvent) GetEvent() TaskEventType {
-	return st.event
+func (st SubmitTaskEvent) GetEvent() string {
+	return st.event.String()
 }
 
 func (st SubmitTaskEvent) GetArgs() []interface{} {
@@ -133,8 +133,8 @@ func NewAllocateTaskEvent(appID string, taskID string, allocUUID string, nid str
 	}
 }
 
-func (ae AllocatedTaskEvent) GetEvent() TaskEventType {
-	return ae.event
+func (ae AllocatedTaskEvent) GetEvent() string {
+	return ae.event.String()
 }
 
 func (ae AllocatedTaskEvent) GetArgs() []interface{} {
@@ -169,8 +169,8 @@ func NewBindTaskEvent(appID string, taskID string) BindTaskEvent {
 	}
 }
 
-func (bt BindTaskEvent) GetEvent() TaskEventType {
-	return bt.event
+func (bt BindTaskEvent) GetEvent() string {
+	return bt.event.String()
 }
 
 func (bt BindTaskEvent) GetArgs() []interface{} {
@@ -204,8 +204,8 @@ func NewFailTaskEvent(appID string, taskID string, failedMessage string) FailTas
 	}
 }
 
-func (fe FailTaskEvent) GetEvent() TaskEventType {
-	return fe.event
+func (fe FailTaskEvent) GetEvent() string {
+	return fe.event.String()
 }
 
 func (fe FailTaskEvent) GetArgs() []interface{} {
@@ -241,8 +241,8 @@ func NewRejectTaskEvent(appID string, taskID string, rejectedMessage string) Rej
 	}
 }
 
-func (re RejectTaskEvent) GetEvent() TaskEventType {
-	return re.event
+func (re RejectTaskEvent) GetEvent() string {
+	return re.event.String()
 }
 
 func (re RejectTaskEvent) GetArgs() []interface{} {

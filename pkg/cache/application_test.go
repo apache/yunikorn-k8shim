@@ -20,6 +20,7 @@ package cache
 
 import (
 	"fmt"
+	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"sort"
 	"strings"
 	"sync"
@@ -110,9 +111,9 @@ func TestRunApplication(t *testing.T) {
 
 func TestFailApplication(t *testing.T) {
 	context := initContextForTest()
-	RegisterEventHandler(EventTypeApp, context.ApplicationEventHandler())
-	Start()
-	defer Stop()
+	dispatcher.RegisterEventHandler(dispatcher.EventTypeApp, context.ApplicationEventHandler())
+	dispatcher.Start()
+	defer dispatcher.Stop()
 
 	// inject the mocked clients to the placeholder manager
 	createdPods := newThreadSafePodsMap()
@@ -209,9 +210,9 @@ func TestFailApplication(t *testing.T) {
 
 func TestSetUnallocatedPodsToFailedWhenFailApplication(t *testing.T) {
 	context := initContextForTest()
-	RegisterEventHandler(EventTypeApp, context.ApplicationEventHandler())
-	Start()
-	defer Stop()
+	dispatcher.RegisterEventHandler(dispatcher.EventTypeApp, context.ApplicationEventHandler())
+	dispatcher.Start()
+	defer dispatcher.Stop()
 
 	// inject the mocked clients to the placeholder manager
 	createdPods := newThreadSafePodsMap()
@@ -318,9 +319,9 @@ func TestSetUnallocatedPodsToFailedWhenFailApplication(t *testing.T) {
 
 func TestSetUnallocatedPodsToFailedWhenRejectApplication(t *testing.T) {
 	context := initContextForTest()
-	RegisterEventHandler(EventTypeApp, context.ApplicationEventHandler())
-	Start()
-	defer Stop()
+	dispatcher.RegisterEventHandler(dispatcher.EventTypeApp, context.ApplicationEventHandler())
+	dispatcher.Start()
+	defer dispatcher.Stop()
 
 	// inject the mocked clients to the placeholder manager
 	createdPods := newThreadSafePodsMap()
@@ -696,9 +697,9 @@ func (t *threadSafePodsMap) count() int {
 
 func TestTryReserve(t *testing.T) {
 	context := initContextForTest()
-	RegisterEventHandler(EventTypeApp, context.ApplicationEventHandler())
-	Start()
-	defer Stop()
+	dispatcher.RegisterEventHandler(dispatcher.EventTypeApp, context.ApplicationEventHandler())
+	dispatcher.Start()
+	defer dispatcher.Stop()
 
 	// inject the mocked clients to the placeholder manager
 	createdPods := newThreadSafePodsMap()
@@ -771,9 +772,9 @@ func TestTryReserve(t *testing.T) {
 
 func TestTryReservePostRestart(t *testing.T) {
 	context := initContextForTest()
-	RegisterEventHandler(EventTypeApp, context.ApplicationEventHandler())
-	Start()
-	defer Stop()
+	dispatcher.RegisterEventHandler(dispatcher.EventTypeApp, context.ApplicationEventHandler())
+	dispatcher.Start()
+	defer dispatcher.Stop()
 
 	// inject the mocked clients to the placeholder manager
 	createdPods := newThreadSafePodsMap()
@@ -1050,9 +1051,9 @@ func TestReleaseAppAllocationInFailingState(t *testing.T) {
 
 func TestResumingStateTransitions(t *testing.T) {
 	context := initContextForTest()
-	RegisterEventHandler(EventTypeApp, context.ApplicationEventHandler())
-	Start()
-	defer Stop()
+	dispatcher.RegisterEventHandler(dispatcher.EventTypeApp, context.ApplicationEventHandler())
+	dispatcher.Start()
+	defer dispatcher.Stop()
 
 	// inject the mocked clients to the placeholder manager
 	createdPods := newThreadSafePodsMap()

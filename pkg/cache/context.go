@@ -22,6 +22,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"strconv"
 	"strings"
 	"sync"
@@ -520,7 +521,7 @@ func (ctx *Context) NotifyApplicationComplete(appID string) {
 			zap.String("appID", appID),
 			zap.String("currentAppState", app.GetApplicationState()))
 		ev := NewSimpleApplicationEvent(appID, CompleteApplication)
-		Dispatch(ev)
+		dispatcher.Dispatch(ev)
 	}
 }
 
@@ -530,7 +531,7 @@ func (ctx *Context) NotifyApplicationFail(appID string) {
 			zap.String("appID", appID),
 			zap.String("currentAppState", app.GetApplicationState()))
 		ev := NewSimpleApplicationEvent(appID, FailApplication)
-		Dispatch(ev)
+		dispatcher.Dispatch(ev)
 	}
 }
 
@@ -543,9 +544,9 @@ func (ctx *Context) NotifyTaskComplete(appID, taskID string) {
 			zap.String("appID", appID),
 			zap.String("taskID", taskID))
 		ev := NewSimpleTaskEvent(appID, taskID, CompleteTask)
-		Dispatch(ev)
+		dispatcher.Dispatch(ev)
 		appEv := NewSimpleApplicationEvent(appID, AppTaskCompleted)
-		Dispatch(appEv)
+		dispatcher.Dispatch(appEv)
 	}
 }
 
@@ -870,7 +871,7 @@ func (ctx *Context) HandleContainerStateUpdate(request *si.UpdateContainerSchedu
 
 func (ctx *Context) ApplicationEventHandler() func(obj interface{}) {
 	return func(obj interface{}) {
-		if event, ok := obj.(ApplicationEvent); ok {
+		if event, ok := obj.(events.ApplicationEvent); ok {
 			managedApp := ctx.GetApplication(event.GetApplicationID())
 			if managedApp == nil {
 				log.Logger().Error("failed to handle application event",
@@ -882,7 +883,7 @@ func (ctx *Context) ApplicationEventHandler() func(obj interface{}) {
 				if app.canHandle(event) {
 					if err := app.handle(event); err != nil {
 						log.Logger().Error("failed to handle application event",
-							zap.String("event", event.GetEvent().String()),
+							zap.String("event", event.GetEvent()),
 							zap.Error(err))
 					}
 				}
@@ -893,7 +894,7 @@ func (ctx *Context) ApplicationEventHandler() func(obj interface{}) {
 
 func (ctx *Context) TaskEventHandler() func(obj interface{}) {
 	return func(obj interface{}) {
-		if event, ok := obj.(TaskEvent); ok {
+		if event, ok := obj.(events.TaskEvent); ok {
 			task := ctx.getTask(event.GetApplicationID(), event.GetTaskID())
 			if task == nil {
 				log.Logger().Error("failed to handle application event")
@@ -905,7 +906,7 @@ func (ctx *Context) TaskEventHandler() func(obj interface{}) {
 					log.Logger().Error("failed to handle task event",
 						zap.String("applicationID", task.applicationID),
 						zap.String("taskID", task.taskID),
-						zap.String("event", event.GetEvent().String()),
+						zap.String("event", event.GetEvent()),
 						zap.Error(err))
 				}
 			}

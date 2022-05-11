@@ -19,6 +19,7 @@
 package appmgmt
 
 import (
+	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"testing"
 	"time"
 
@@ -93,9 +94,9 @@ func TestAppStatesDuringRecovery(t *testing.T) {
 	ctx := cache.NewContext(apiProvider)
 	cb := callback.NewAsyncRMCallback(ctx)
 
-	cache.RegisterEventHandler(cache.EventTypeApp, ctx.ApplicationEventHandler())
-	cache.Start()
-	defer cache.Stop()
+	dispatcher.RegisterEventHandler(dispatcher.EventTypeApp, ctx.ApplicationEventHandler())
+	dispatcher.Start()
+	defer dispatcher.Stop()
 
 	amService := NewAMService(ctx, apiProvider)
 	amService.register(&mockedAppManager{})

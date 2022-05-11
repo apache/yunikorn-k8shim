@@ -19,6 +19,7 @@
 package cache
 
 import (
+	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"reflect"
 	"strconv"
 	"testing"
@@ -38,9 +39,9 @@ import (
 func TestNodeRecoveringState(t *testing.T) {
 	apiProvider4test := client.NewMockedAPIProvider(false)
 	context := NewContext(apiProvider4test)
-	RegisterEventHandler(EventTypeNode, context.nodes.schedulerNodeEventHandler())
-	Start()
-	defer Stop()
+	dispatcher.RegisterEventHandler(dispatcher.EventTypeNode, context.nodes.schedulerNodeEventHandler())
+	dispatcher.Start()
+	defer dispatcher.Stop()
 
 	var node1 = v1.Node{
 		ObjectMeta: apis.ObjectMeta{
@@ -103,9 +104,9 @@ func TestNodeRecoveringState(t *testing.T) {
 func TestNodesRecovery(t *testing.T) {
 	apiProvide4test := client.NewMockedAPIProvider(false)
 	context := NewContext(apiProvide4test)
-	RegisterEventHandler(EventTypeNode, context.nodes.schedulerNodeEventHandler())
-	Start()
-	defer Stop()
+	dispatcher.RegisterEventHandler(dispatcher.EventTypeNode, context.nodes.schedulerNodeEventHandler())
+	dispatcher.Start()
+	defer dispatcher.Stop()
 
 	numNodes := 3
 	nodes := make([]*v1.Node, numNodes)
@@ -150,7 +151,7 @@ func TestNodesRecovery(t *testing.T) {
 	}
 
 	// dispatch NodeAccepted event for the first node, its expected state should be Healthy
-	Dispatch(CachedSchedulerNodeEvent{
+	dispatcher.Dispatch(CachedSchedulerNodeEvent{
 		NodeID: schedulerNodes[0].name,
 		Event:  NodeAccepted,
 	})
@@ -161,7 +162,7 @@ func TestNodesRecovery(t *testing.T) {
 	assert.NilError(t, err, "unexpected node states, actual: %v, expected: %v", getNodeStates(schedulerNodes), expectedStates)
 
 	// dispatch NodeRejected event for the second node, its expected state should be Rejected
-	Dispatch(CachedSchedulerNodeEvent{
+	dispatcher.Dispatch(CachedSchedulerNodeEvent{
 		NodeID: schedulerNodes[1].name,
 		Event:  NodeRejected,
 	})
@@ -173,7 +174,7 @@ func TestNodesRecovery(t *testing.T) {
 
 	// dispatch DrainNode event for the third node, its expected state should be Draining
 	schedulerNodes[2].schedulable = false
-	Dispatch(CachedSchedulerNodeEvent{
+	dispatcher.Dispatch(CachedSchedulerNodeEvent{
 		NodeID: schedulerNodes[2].name,
 		Event:  NodeAccepted,
 	})

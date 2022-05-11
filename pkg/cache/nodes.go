@@ -21,6 +21,8 @@ package cache
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/apache/yunikorn-k8shim/pkg/common/events"
+	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"sync"
 
 	"go.uber.org/zap"
@@ -207,12 +209,12 @@ func (nc *schedulerNodes) deleteNode(node *v1.Node) {
 
 func (nc *schedulerNodes) schedulerNodeEventHandler() func(obj interface{}) {
 	return func(obj interface{}) {
-		if event, ok := obj.(SchedulerNodeEvent); ok {
+		if event, ok := obj.(events.SchedulerNodeEvent); ok {
 			if node := nc.getNode(event.GetNodeID()); node != nil {
 				if node.canHandle(event) {
 					if err := node.handle(event); err != nil {
 						log.Logger().Error("failed to handle scheduler node event",
-							zap.String("event", event.GetEvent().String()),
+							zap.String("event", event.GetEvent()),
 							zap.Error(err))
 					}
 				}
@@ -236,7 +238,7 @@ func triggerEvent(node *SchedulerNode, currentState string, eventType SchedulerN
 	log.Logger().Info("scheduler node event ", zap.String("name", node.name),
 		zap.String("current state ", currentState), zap.String("transition to ", eventType.String()))
 	if node.getNodeState() == currentState {
-		Dispatch(CachedSchedulerNodeEvent{
+		dispatcher.Dispatch(CachedSchedulerNodeEvent{
 			NodeID: node.name,
 			Event:  eventType,
 		})

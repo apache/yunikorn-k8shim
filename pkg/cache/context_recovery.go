@@ -21,6 +21,7 @@ package cache
 import (
 	"context"
 	"fmt"
+	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"time"
 
 	"go.uber.org/zap"
@@ -169,7 +170,7 @@ func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) err
 			zap.String("nodeName", node.name),
 			zap.String("nodeState", node.getNodeState()))
 		if node.getNodeState() == SchedulerNodeStates().New {
-			Dispatch(CachedSchedulerNodeEvent{
+			dispatcher.Dispatch(CachedSchedulerNodeEvent{
 				NodeID: node.name,
 				Event:  RecoverNode,
 			})

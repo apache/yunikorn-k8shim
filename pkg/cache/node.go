@@ -19,6 +19,8 @@
 package cache
 
 import (
+	"github.com/apache/yunikorn-k8shim/pkg/common/events"
+	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"sync"
 
 	"github.com/looplab/fsm"
@@ -120,12 +122,12 @@ func (n *SchedulerNode) postNodeAccepted() {
 	// we need to check the K8s node state, if it is not schedulable, then we should notify
 	// the scheduler to not schedule new pods onto it.
 	if n.schedulable {
-		Dispatch(CachedSchedulerNodeEvent{
+		dispatcher.Dispatch(CachedSchedulerNodeEvent{
 			NodeID: n.name,
 			Event:  NodeReady,
 		})
 	} else {
-		Dispatch(CachedSchedulerNodeEvent{
+		dispatcher.Dispatch(CachedSchedulerNodeEvent{
 			NodeID: n.name,
 			Event:  DrainNode,
 		})
@@ -172,10 +174,10 @@ func (n *SchedulerNode) handleRestoreNode() {
 	}
 }
 
-func (n *SchedulerNode) handle(ev SchedulerNodeEvent) error {
+func (n *SchedulerNode) handle(ev events.SchedulerNodeEvent) error {
 	n.lock.Lock()
 	defer n.lock.Unlock()
-	err := n.fsm.Event(ev.GetEvent().String(), n)
+	err := n.fsm.Event(ev.GetEvent(), n)
 	// handle the same state transition not nil error (limit of fsm).
 	if err != nil && err.Error() != "no transition" {
 		return err
@@ -183,9 +185,9 @@ func (n *SchedulerNode) handle(ev SchedulerNodeEvent) error {
 	return nil
 }
 
-func (n *SchedulerNode) canHandle(ev SchedulerNodeEvent) bool {
+func (n *SchedulerNode) canHandle(ev events.SchedulerNodeEvent) bool {
 	n.lock.RLock()
 	defer n.lock.RUnlock()
-	return n.fsm.Can(ev.GetEvent().String())
+	return n.fsm.Can(ev.GetEvent())
 }
 

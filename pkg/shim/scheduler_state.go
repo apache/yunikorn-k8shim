@@ -30,8 +30,8 @@ type ShimSchedulerEvent struct {
 	event SchedulerEventType
 }
 
-func (rs ShimSchedulerEvent) GetEvent() SchedulerEventType {
-	return rs.event
+func (rs ShimSchedulerEvent) GetEvent() string {
+	return rs.event.String()
 }
 
 func (rs ShimSchedulerEvent) GetArgs() []interface{} {
@@ -51,8 +51,8 @@ func newRegisterSchedulerEvent() RegisterSchedulerEvent {
 	}
 }
 
-func (rs RegisterSchedulerEvent) GetEvent() SchedulerEventType {
-	return rs.event
+func (rs RegisterSchedulerEvent) GetEvent() string {
+	return rs.event.String()
 }
 
 func (rs RegisterSchedulerEvent) GetArgs() []interface{} {
@@ -126,22 +126,22 @@ func newSchedulerState() *fsm.FSM {
 		},
 		fsm.Callbacks{
 			"enter_state": func(event *fsm.Event) {
-				log.Logger().Debug("scheduler shim state transition",
-					zap.String("source", event.Src),
-					zap.String("destination", event.Dst),
-					zap.String("event", event.Event))
+					log.Logger().Debug("scheduler shim state transition",
+						zap.String("source", event.Src),
+						zap.String("destination", event.Dst),
+						zap.String("event", event.Event))
 			},
 			states.Registered: func(event *fsm.Event) {
-				scheduler := event.Args[0].(*KubernetesShim) //nolint:errcheck
-				scheduler.triggerSchedulerStateRecovery()
+					scheduler := event.Args[0].(*KubernetesShim) //nolint:errcheck
+					scheduler.triggerSchedulerStateRecovery()
 			},
 			states.Recovering: func(event *fsm.Event) {
-				scheduler := event.Args[0].(*KubernetesShim) //nolint:errcheck
-				scheduler.recoverSchedulerState()
+					scheduler := event.Args[0].(*KubernetesShim) //nolint:errcheck
+					scheduler.recoverSchedulerState()
 			},
 			states.Running: func(event *fsm.Event) {
-				scheduler := event.Args[0].(*KubernetesShim) //nolint:errcheck
-				scheduler.doScheduling()
+					scheduler := event.Args[0].(*KubernetesShim) //nolint:errcheck
+					scheduler.doScheduling()
 			},
 			RegisterScheduler.String(): func(event *fsm.Event) {
 				scheduler := event.Args[0].(*KubernetesShim) //nolint:errcheck

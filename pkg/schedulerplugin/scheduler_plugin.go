@@ -21,6 +21,7 @@ package schedulerplugin
 import (
 	"context"
 	"fmt"
+	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/yunikorn-k8shim/pkg/shim"
 	"sync"
 
@@ -102,7 +103,7 @@ func (sp *YuniKornSchedulerPlugin) PreFilter(_ context.Context, _ *framework.Cyc
 					zap.String("pod", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)),
 					zap.String("taskID", task.GetTaskID()))
 				sp.context.RemovePodAllocation(string(pod.UID))
-				cache.Dispatch(cache.NewRejectTaskEvent(app.GetApplicationID(), task.GetTaskID(),
+				dispatcher.Dispatch(cache.NewRejectTaskEvent(app.GetApplicationID(), task.GetTaskID(),
 					fmt.Sprintf("task %s rejected by scheduler", task.GetTaskID())))
 				return framework.NewStatus(framework.Unschedulable, "Pod is not ready for scheduling")
 			}

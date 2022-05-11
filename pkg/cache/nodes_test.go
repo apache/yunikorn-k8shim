@@ -19,6 +19,7 @@
 package cache
 
 import (
+	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"strconv"
 	"testing"
 	"time"
@@ -31,7 +32,6 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/cache/external"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
-	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/common/test"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
@@ -44,9 +44,9 @@ func TestAddNode(t *testing.T) {
 	api.UpdateNodeFunction(getUpdateNodeFunction(t, "host0001", 1024*1000*1000, 10000, false))
 
 	nodes := newSchedulerNodes(api, NewTestSchedulerCache())
-	RegisterEventHandler(EventTypeNode, nodes.schedulerNodeEventHandler())
-	Start()
-	defer Stop()
+	dispatcher.RegisterEventHandler(dispatcher.EventTypeNode, nodes.schedulerNodeEventHandler())
+	dispatcher.Start()
+	defer dispatcher.Stop()
 
 	resourceList := make(map[v1.ResourceName]resource.Quantity)
 	resourceList[v1.ResourceName("memory")] = *resource.NewQuantity(1024*1000*1000, resource.DecimalSI)
@@ -81,9 +81,9 @@ func TestUpdateNode(t *testing.T) {
 	api := test.NewSchedulerAPIMock()
 
 	nodes := newSchedulerNodes(api, NewTestSchedulerCache())
-	RegisterEventHandler(EventTypeNode, nodes.schedulerNodeEventHandler())
-	Start()
-	defer Stop()
+	dispatcher.RegisterEventHandler(dispatcher.EventTypeNode, nodes.schedulerNodeEventHandler())
+	dispatcher.Start()
+	defer dispatcher.Stop()
 
 	resourceList := make(map[v1.ResourceName]resource.Quantity)
 	resourceList[v1.ResourceName("memory")] = *resource.NewQuantity(1024*1000*1000, resource.DecimalSI)
@@ -189,9 +189,9 @@ func TestUpdateWithoutNodeAdded(t *testing.T) {
 	api := test.NewSchedulerAPIMock()
 
 	nodes := newSchedulerNodes(api, NewTestSchedulerCache())
-	RegisterEventHandler(EventTypeNode, nodes.schedulerNodeEventHandler())
-	Start()
-	defer Stop()
+	dispatcher.RegisterEventHandler(dispatcher.EventTypeNode, nodes.schedulerNodeEventHandler())
+	dispatcher.Start()
+	defer dispatcher.Stop()
 
 	resourceList := make(map[v1.ResourceName]resource.Quantity)
 	resourceList[v1.ResourceName("memory")] = *resource.NewQuantity(1024*1000*1000, resource.DecimalSI)
@@ -258,9 +258,9 @@ func TestUpdateWithoutNodeAdded(t *testing.T) {
 func TestDeleteNode(t *testing.T) {
 	api := test.NewSchedulerAPIMock()
 	nodes := newSchedulerNodes(api, NewTestSchedulerCache())
-	RegisterEventHandler(EventTypeNode, nodes.schedulerNodeEventHandler())
-	Start()
-	defer Stop()
+	dispatcher.RegisterEventHandler(dispatcher.EventTypeNode, nodes.schedulerNodeEventHandler())
+	dispatcher.Start()
+	defer dispatcher.Stop()
 
 	resourceList := make(map[v1.ResourceName]resource.Quantity)
 	resourceList[v1.ResourceName("memory")] = *resource.NewQuantity(1024*1000*1000, resource.DecimalSI)
@@ -384,9 +384,9 @@ func TestCordonNode(t *testing.T) {
 	}
 
 	nodes := newSchedulerNodes(api, NewTestSchedulerCache())
-	RegisterEventHandler(EventTypeNode, nodes.schedulerNodeEventHandler())
-	Start()
-	defer Stop()
+	dispatcher.RegisterEventHandler(dispatcher.EventTypeNode, nodes.schedulerNodeEventHandler())
+	dispatcher.Start()
+	defer dispatcher.Stop()
 
 	resourceList := make(map[v1.ResourceName]resource.Quantity)
 	resourceList[v1.ResourceName("memory")] = *resource.NewQuantity(1024*1000*1000, resource.DecimalSI)
@@ -422,13 +422,13 @@ func TestCordonNode(t *testing.T) {
 
 	api.UpdateNodeFunction(inputCheckerUpdateFn)
 	nodes.addAndReportNode(&oldNode, false)
-	nodes.getNode("host0001").fsm.SetState(events.States().Node.Healthy)
+	nodes.getNode("host0001").fsm.SetState(SchedulerNodeStates().Healthy)
 	api.UpdateNodeFunction(inputCheckerUpdateFn)
 	nodes.updateNode(&oldNode, &newNode)
 
 	// wait until node reaches Draining state
 	err := utils.WaitForCondition(func() bool {
-		return nodes.getNode("host0001").getNodeState() == events.States().Node.Draining
+		return nodes.getNode("host0001").getNodeState() == SchedulerNodeStates().Draining
 	}, 1*time.Second, 5*time.Second)
 	assert.NilError(t, err)
 
@@ -469,7 +469,7 @@ func TestCordonNode(t *testing.T) {
 
 	// wait until node reaches Draining state
 	err = utils.WaitForCondition(func() bool {
-		return nodes.getNode("host0001").getNodeState() == events.States().Node.Healthy
+		return nodes.getNode("host0001").getNodeState() == SchedulerNodeStates().Healthy
 	}, 1*time.Second, 5*time.Second)
 	assert.NilError(t, err)
 }

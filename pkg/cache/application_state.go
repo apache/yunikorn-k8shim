@@ -29,7 +29,7 @@ import (
 //----------------------------------------------
 // Application events
 //----------------------------------------------
-type ApplicationEventType events.ApplicationEventType
+type ApplicationEventType int
 
 const (
 	SubmitApplication ApplicationEventType = iota
@@ -54,20 +54,6 @@ func (ae ApplicationEventType) String() string {
 	return [...]string{"SubmitApplication", "RecoverApplication", "AcceptApplication", "TryReserve", "UpdateReservation", "RunApplication", "RejectApplication", "CompleteApplication", "FailApplication", "KillApplication", "KilledApplication", "ReleaseAppAllocation", "ReleaseAppAllocationAsk", "AppStateChange", "ResumingApplication", "AppTaskCompleted"}[ae]
 }
 
-type ApplicationEvent interface {
-	// an application event is associated with an application Id,
-	// dispatcher finds out actual application based on this id
-	// to handle this event
-	GetApplicationID() string
-
-	// the type of this event
-	GetEvent() ApplicationEventType
-
-	// an event can have multiple arguments, these arguments will be passed to
-	// state machines' callbacks when doing state transition
-	GetArgs() []interface{}
-}
-
 // SimpleApplicationEvent simply moves application states
 type SimpleApplicationEvent struct {
 	applicationID string
@@ -81,8 +67,8 @@ func NewSimpleApplicationEvent(appID string, eventType ApplicationEventType) Sim
 	}
 }
 
-func (st SimpleApplicationEvent) GetEvent() ApplicationEventType {
-	return st.event
+func (st SimpleApplicationEvent) GetEvent() string {
+	return st.event.String()
 }
 
 func (st SimpleApplicationEvent) GetArgs() []interface{} {
@@ -110,8 +96,8 @@ func NewGeneralApplicationEvent(appID string, eventType ApplicationEventType, ms
 	}
 }
 
-func (st GeneralApplicationEvent) GetEvent() ApplicationEventType {
-	return st.event
+func (st GeneralApplicationEvent) GetEvent() string {
+	return st.event.String()
 }
 
 func (st GeneralApplicationEvent) GetArgs() []interface{} {
@@ -141,8 +127,8 @@ func NewApplicationStatusChangeEvent(appID string, eventType ApplicationEventTyp
 	}
 }
 
-func (st ApplicationStatusChangeEvent) GetEvent() ApplicationEventType {
-	return st.event
+func (st ApplicationStatusChangeEvent) GetEvent() string {
+	return st.event.String()
 }
 
 func (st ApplicationStatusChangeEvent) GetArgs() []interface{} {
@@ -172,8 +158,8 @@ func NewSubmitApplicationEvent(appID string) SubmitApplicationEvent {
 	}
 }
 
-func (se SubmitApplicationEvent) GetEvent() ApplicationEventType {
-	return se.event
+func (se SubmitApplicationEvent) GetEvent() string {
+	return se.event.String()
 }
 
 func (se SubmitApplicationEvent) GetArgs() []interface{} {
@@ -199,8 +185,8 @@ func NewRunApplicationEvent(appID string) RunApplicationEvent {
 	}
 }
 
-func (re RunApplicationEvent) GetEvent() ApplicationEventType {
-	return re.event
+func (re RunApplicationEvent) GetEvent() string {
+	return re.event.String()
 }
 
 func (re RunApplicationEvent) GetArgs() []interface{} {
@@ -228,8 +214,8 @@ func NewFailApplicationEvent(appID, message string) FailApplicationEvent {
 	}
 }
 
-func (fe FailApplicationEvent) GetEvent() ApplicationEventType {
-	return fe.event
+func (fe FailApplicationEvent) GetEvent() string {
+	return fe.event.String()
 }
 
 func (fe FailApplicationEvent) GetArgs() []interface{} {
@@ -257,8 +243,8 @@ func NewUpdateApplicationReservationEvent(appID string) UpdateApplicationReserva
 	}
 }
 
-func (ue UpdateApplicationReservationEvent) GetEvent() ApplicationEventType {
-	return ue.event
+func (ue UpdateApplicationReservationEvent) GetEvent() string {
+	return ue.event.String()
 }
 
 func (ue UpdateApplicationReservationEvent) GetArgs() []interface{} {
@@ -299,8 +285,8 @@ func (re ReleaseAppAllocationEvent) GetArgs() []interface{} {
 	return args
 }
 
-func (re ReleaseAppAllocationEvent) GetEvent() ApplicationEventType {
-	return re.event
+func (re ReleaseAppAllocationEvent) GetEvent() string {
+	return re.event.String()
 }
 
 type ReleaseAppAllocationAskEvent struct {
@@ -330,8 +316,8 @@ func (re ReleaseAppAllocationAskEvent) GetArgs() []interface{} {
 	return args
 }
 
-func (re ReleaseAppAllocationAskEvent) GetEvent() ApplicationEventType {
-	return re.event
+func (re ReleaseAppAllocationAskEvent) GetEvent() string {
+	return re.event.String()
 }
 
 // ------------------------
@@ -349,8 +335,8 @@ func NewResumingApplicationEvent(appID string) ResumingApplicationEvent {
 	}
 }
 
-func (re ResumingApplicationEvent) GetEvent() ApplicationEventType {
-	return re.event
+func (re ResumingApplicationEvent) GetEvent() string {
+	return re.event.String()
 }
 
 func (re ResumingApplicationEvent) GetArgs() []interface{} {
