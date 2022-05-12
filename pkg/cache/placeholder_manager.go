@@ -77,10 +77,21 @@ func (mgr *PlaceholderManager) createAppPlaceholders(app *Application) error {
 	mgr.Lock()
 	defer mgr.Unlock()
 
+	existingPlaceHolders := map[string]struct{}{}
+	for _, phTasks := range app.GetPlaceHolderTasks() {
+		existingPlaceHolders[phTasks.GetTaskPod().GetName()] = struct{}{}
+	}
+
 	// iterate all task groups, create placeholders for all the min members
 	for _, tg := range app.getTaskGroups() {
 		for i := int32(0); i < tg.MinMember; i++ {
 			placeholderName := utils.GeneratePlaceholderName(tg.Name, app.GetApplicationID(), i)
+			// when performing recovery, do not create pods that are already running
+			if _, ok := existingPlaceHolders[placeholderName]; ok {
+				log.Logger().Info("Placeholder pod already exists",
+					zap.String("name", placeholderName))
+				continue
+			}
 			placeholder := newPlaceholder(placeholderName, app, tg)
 			// create the placeholder on K8s
 			_, err := mgr.clients.KubeClient.Create(placeholder.pod)
