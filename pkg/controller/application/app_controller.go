@@ -21,7 +21,6 @@ package application
 import (
 	"context"
 	"fmt"
-	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"strings"
 	"time"
 
@@ -34,6 +33,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
 	shimcache "github.com/apache/yunikorn-k8shim/pkg/cache"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
+	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
 

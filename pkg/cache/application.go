@@ -24,8 +24,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
-
 	"github.com/looplab/fsm"
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
@@ -38,6 +36,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
+	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/api"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
@@ -377,7 +376,7 @@ func (app *Application) scheduleTasks(taskScheduleCondition func(t *Task) bool) 
 	}
 }
 
-func (app *Application) HandleSubmitApplicationEvent() {
+func (app *Application) handleSubmitApplicationEvent() {
 	log.Logger().Info("handle app submission",
 		zap.String("app", app.String()),
 		zap.String("clusterID", conf.GetSchedulerConf().ClusterID))
@@ -407,7 +406,7 @@ func (app *Application) HandleSubmitApplicationEvent() {
 	}
 }
 
-func (app *Application) HandleRecoverApplicationEvent() {
+func (app *Application) handleRecoverApplicationEvent() {
 	log.Logger().Info("handle app recovering",
 		zap.String("app", app.String()),
 		zap.String("clusterID", conf.GetSchedulerConf().ClusterID))
@@ -484,7 +483,7 @@ func (app *Application) postAppAccepted() {
 	dispatcher.Dispatch(ev)
 }
 
-func (app *Application) OnReserving() {
+func (app *Application) onReserving() {
 	go func() {
 		// while doing reserving
 		if err := getPlaceholderManager().createAppPlaceholders(app); err != nil {
@@ -497,7 +496,7 @@ func (app *Application) OnReserving() {
 	}()
 }
 
-func (app *Application) OnReservationStateChange() {
+func (app *Application) onReservationStateChange() {
 	// this event is called when there is a add or release of placeholders
 	desireCounts := utils.NewTaskGroupInstanceCountMap()
 	for _, tg := range app.taskGroups {
@@ -518,13 +517,13 @@ func (app *Application) OnReservationStateChange() {
 	}
 }
 
-func (app *Application) HandleRejectApplicationEvent(reason string) {
+func (app *Application) handleRejectApplicationEvent(reason string) {
 	log.Logger().Info("app is rejected by scheduler", zap.String("appID", app.applicationID))
 	dispatcher.Dispatch(NewFailApplicationEvent(app.applicationID,
 		fmt.Sprintf("%s: %s", constants.ApplicationRejectedFailure, reason)))
 }
 
-func (app *Application) HandleCompleteApplicationEvent() {
+func (app *Application) handleCompleteApplicationEvent() {
 	// TODO app lifecycle updates
 	go func() {
 		getPlaceholderManager().cleanUp(app)
@@ -547,7 +546,7 @@ func failTaskPodWithReasonAndMsg(task *Task, reason string, msg string) {
 	}
 }
 
-func (app *Application) HandleFailApplicationEvent(errMsg string) {
+func (app *Application) handleFailApplicationEvent(errMsg string) {
 	go func() {
 		getPlaceholderManager().cleanUp(app)
 	}()
@@ -571,7 +570,7 @@ func (app *Application) HandleFailApplicationEvent(errMsg string) {
 	}
 }
 
-func (app *Application) HandleReleaseAppAllocationEvent(allocUUID string, terminationTypeStr string) {
+func (app *Application) handleReleaseAppAllocationEvent(allocUUID string, terminationTypeStr string) {
 	log.Logger().Info("try to release pod from application",
 		zap.String("appID", app.applicationID),
 		zap.String("allocationUUID", allocUUID),
@@ -588,7 +587,7 @@ func (app *Application) HandleReleaseAppAllocationEvent(allocUUID string, termin
 	}
 }
 
-func (app *Application) HandleReleaseAppAllocationAskEvent(taskID string, terminationTypeStr string) {
+func (app *Application) handleReleaseAppAllocationAskEvent(taskID string, terminationTypeStr string) {
 	log.Logger().Info("try to release pod from application",
 		zap.String("appID", app.applicationID),
 		zap.String("taskID", taskID),
@@ -612,7 +611,7 @@ func (app *Application) HandleReleaseAppAllocationAskEvent(taskID string, termin
 	}
 }
 
-func (app *Application) HandleAppTaskCompletedEvent() {
+func (app *Application) handleAppTaskCompletedEvent() {
 	for _, task := range app.taskMap {
 		if task.placeholder && task.GetTaskState() != TaskStates().Completed {
 			return

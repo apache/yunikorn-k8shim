@@ -20,11 +20,11 @@ package callback
 
 import (
 	"fmt"
-	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 
 	"go.uber.org/zap"
 
 	"github.com/apache/yunikorn-k8shim/pkg/cache"
+	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
@@ -122,7 +122,7 @@ func (callback *AsyncRMCallback) UpdateApplication(response *si.ApplicationRespo
 			zap.String("appID", rejectedApp.ApplicationID))
 
 		if app := callback.context.GetApplication(rejectedApp.ApplicationID); app != nil {
-			ev := cache.NewGeneralApplicationEvent(app.GetApplicationID(), cache.RejectApplication, rejectedApp.Reason)
+			ev := cache.NewApplicationEvent(app.GetApplicationID(), cache.RejectApplication, rejectedApp.Reason)
 			dispatcher.Dispatch(ev)
 		}
 	}

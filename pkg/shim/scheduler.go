@@ -24,9 +24,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/apache/yunikorn-k8shim/pkg/common/events"
-	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
-
 	"github.com/looplab/fsm"
 	"go.uber.org/zap"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -37,7 +34,9 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/cache"
 	"github.com/apache/yunikorn-k8shim/pkg/callback"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
+	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
+	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/api"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
@@ -239,8 +238,8 @@ func (ss *KubernetesShim) GetSchedulerState() string {
 
 // event handling
 func (ss *KubernetesShim) handle(se events.SchedulerEvent) error {
-	//ss.lock.Lock()
-	//defer ss.lock.Unlock()
+	ss.lock.Lock()
+	defer ss.lock.Unlock()
 	err := ss.stateMachine.Event(se.GetEvent(), ss, se.GetArgs())
 	if err != nil && err.Error() == "no transition" {
 		return err

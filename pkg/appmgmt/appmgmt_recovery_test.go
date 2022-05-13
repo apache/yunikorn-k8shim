@@ -22,8 +22,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
-
 	"gotest.tools/assert"
 	v1 "k8s.io/api/core/v1"
 
@@ -32,6 +30,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/callback"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
+	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
 

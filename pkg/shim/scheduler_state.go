@@ -8,9 +8,8 @@ import (
 )
 
 //----------------------------------------------
-// scheduler events
+// Scheduler events
 //----------------------------------------------
-
 type SchedulerEventType int
 
 const (
@@ -60,7 +59,7 @@ func (rs RegisterSchedulerEvent) GetArgs() []interface{} {
 }
 
 // ----------------------------------
-// scheduler states
+// Scheduler states
 // ----------------------------------
 var storeScheduleStates *schedulerStates
 

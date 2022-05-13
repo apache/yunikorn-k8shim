@@ -54,7 +54,9 @@ func (ae ApplicationEventType) String() string {
 	return [...]string{"SubmitApplication", "RecoverApplication", "AcceptApplication", "TryReserve", "UpdateReservation", "RunApplication", "RejectApplication", "CompleteApplication", "FailApplication", "KillApplication", "KilledApplication", "ReleaseAppAllocation", "ReleaseAppAllocationAsk", "AppStateChange", "ResumingApplication", "AppTaskCompleted"}[ae]
 }
 
+// ------------------------
 // SimpleApplicationEvent simply moves application states
+// ------------------------
 type SimpleApplicationEvent struct {
 	applicationID string
 	event         ApplicationEventType
@@ -80,33 +82,33 @@ func (st SimpleApplicationEvent) GetApplicationID() string {
 }
 
 // ------------------------
-// GeneralApplicationEvent is used for testing and rejected app events
+// ApplicationEvent is used for testing and rejected app's events
 // ------------------------
-type GeneralApplicationEvent struct {
+type ApplicationEvent struct {
 	applicationID string
 	event         ApplicationEventType
 	message       string
 }
 
-func NewGeneralApplicationEvent(appID string, eventType ApplicationEventType, msg string) GeneralApplicationEvent {
-	return GeneralApplicationEvent{
+func NewApplicationEvent(appID string, eventType ApplicationEventType, msg string) ApplicationEvent {
+	return ApplicationEvent{
 		applicationID: appID,
 		event:         eventType,
 		message:       msg,
 	}
 }
 
-func (st GeneralApplicationEvent) GetEvent() string {
+func (st ApplicationEvent) GetEvent() string {
 	return st.event.String()
 }
 
-func (st GeneralApplicationEvent) GetArgs() []interface{} {
+func (st ApplicationEvent) GetArgs() []interface{} {
 	args := make([]interface{}, 1)
 	args[0] = st.message
 	return args
 }
 
-func (st GeneralApplicationEvent) GetApplicationID() string {
+func (st ApplicationEvent) GetApplicationID() string {
 	return st.applicationID
 }
 
@@ -505,73 +507,69 @@ func newAppState() *fsm.FSM {
 			},
 			states.Reserving: func(event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
-				app.OnReserving()
+				app.onReserving()
 			},
 			SubmitApplication.String(): func(event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
-				app.HandleSubmitApplicationEvent()
+				app.handleSubmitApplicationEvent()
 			},
 			RecoverApplication.String(): func(event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
-				app.HandleRecoverApplicationEvent()
+				app.handleRecoverApplicationEvent()
 			},
 			RejectApplication.String(): func(event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
-				eventInfo := event.Args[1].([]interface{})
 				eventArgs := make([]string, 1)
-				if err := events.GetEventArgsAsStrings(eventArgs, eventInfo); err != nil {
+				if err := events.GetEventArgsAsStrings(eventArgs, event.Args[1].([]interface{})); err != nil {
 					log.Logger().Error("fail to parse event arg", zap.Error(err))
 					return
 				}
 				reason := eventArgs[0]
-				app.HandleRejectApplicationEvent(reason)
+				app.handleRejectApplicationEvent(reason)
 			},
 			CompleteApplication.String(): func(event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
-				app.HandleCompleteApplicationEvent()
+				app.handleCompleteApplicationEvent()
 			},
 			FailApplication.String(): func(event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
-				eventInfo := event.Args[1].([]interface{})
 				eventArgs := make([]string, 1)
-				if err := events.GetEventArgsAsStrings(eventArgs, eventInfo); err != nil {
+				if err := events.GetEventArgsAsStrings(eventArgs, event.Args[1].([]interface{})); err != nil {
 					log.Logger().Error("fail to parse event arg", zap.Error(err))
 					return
 				}
 				errMsg := eventArgs[0]
-				app.HandleFailApplicationEvent(errMsg)
+				app.handleFailApplicationEvent(errMsg)
 			},
 			UpdateReservation.String(): func(event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
-				app.OnReservationStateChange()
+				app.onReservationStateChange()
 			},
 			ReleaseAppAllocation.String(): func(event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
-				eventInfo := event.Args[1].([]interface{})
 				eventArgs := make([]string, 2)
-				if err := events.GetEventArgsAsStrings(eventArgs, eventInfo); err != nil {
+				if err := events.GetEventArgsAsStrings(eventArgs, event.Args[1].([]interface{})); err != nil {
 					log.Logger().Error("fail to parse event arg", zap.Error(err))
 					return
 				}
 				allocUUID := eventArgs[0]
 				terminationTypeStr := eventArgs[1]
-				app.HandleReleaseAppAllocationEvent(allocUUID, terminationTypeStr)
+				app.handleReleaseAppAllocationEvent(allocUUID, terminationTypeStr)
 			},
 			ReleaseAppAllocationAsk.String(): func(event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
-				eventInfo := event.Args[1].([]interface{})
 				eventArgs := make([]string, 2)
-				if err := events.GetEventArgsAsStrings(eventArgs, eventInfo); err != nil {
+				if err := events.GetEventArgsAsStrings(eventArgs, event.Args[1].([]interface{})); err != nil {
 					log.Logger().Error("fail to parse event arg", zap.Error(err))
 					return
 				}
 				taskID := eventArgs[0]
 				terminationTypeStr := eventArgs[1]
-				app.HandleReleaseAppAllocationAskEvent(taskID, terminationTypeStr)
+				app.handleReleaseAppAllocationAskEvent(taskID, terminationTypeStr)
 			},
 			AppTaskCompleted.String(): func(event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
-				app.HandleAppTaskCompletedEvent()
+				app.handleAppTaskCompletedEvent()
 			},
 		},
 	)

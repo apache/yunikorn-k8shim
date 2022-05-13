@@ -262,7 +262,6 @@ func (re RejectTaskEvent) GetApplicationID() string {
 // ----------------------------------
 // task states
 // ----------------------------------
-
 var storeTaskStates *taskStates
 
 type taskStates struct {

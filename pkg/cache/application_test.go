@@ -398,7 +398,7 @@ func TestSetUnallocatedPodsToFailedWhenRejectApplication(t *testing.T) {
 		},
 	})
 	errMess := "app rejected"
-	err = app.handle(NewGeneralApplicationEvent(app.applicationID, RejectApplication, errMess))
+	err = app.handle(NewApplicationEvent(app.applicationID, RejectApplication, errMess))
 	assert.NilError(t, err)
 	assertAppState(t, app, ApplicationStates().Rejected, 3*time.Second)
 

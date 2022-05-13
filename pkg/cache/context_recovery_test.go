@@ -24,8 +24,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
-
 	"gotest.tools/assert"
 	v1 "k8s.io/api/core/v1"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -35,6 +33,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common/test"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
+	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 )
 
 func TestNodeRecoveringState(t *testing.T) {

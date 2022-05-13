@@ -21,8 +21,6 @@ package schedulerplugin
 import (
 	"context"
 	"fmt"
-	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
-	"github.com/apache/yunikorn-k8shim/pkg/shim"
 	"sync"
 
 	"go.uber.org/zap"
@@ -36,7 +34,9 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
+	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
+	"github.com/apache/yunikorn-k8shim/pkg/shim"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/api"
 )
 

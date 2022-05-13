@@ -26,7 +26,7 @@ import (
 )
 
 //----------------------------------------------
-// scheduler node events
+// SchedulerNode events
 //----------------------------------------------
 type SchedulerNodeEventType int
 
@@ -61,9 +61,8 @@ func (re CachedSchedulerNodeEvent) GetArgs() []interface{} {
 }
 
 // ----------------------------------
-// scheduler node states
+// SchedulerNode states
 // ----------------------------------
-
 var storeSchedulerNodeStates *schedulerNodeStates
 
 type schedulerNodeStates struct {

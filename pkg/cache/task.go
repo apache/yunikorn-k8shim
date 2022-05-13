@@ -23,14 +23,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
-
 	"go.uber.org/zap"
 
 	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/yunikorn-k8shim/pkg/common"
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
+	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 
@@ -116,8 +115,6 @@ func beforeHook(event TaskEventType) string {
 func (task *Task) handle(te events.TaskEvent) error {
 	task.lock.Lock()
 	defer task.lock.Unlock()
-	//log.Logger().Info("handle task event",
-	//zap.String("te", task.taskID))
 	err := task.sm.Event(te.GetEvent(), task, te.GetArgs())
 	// handle the same state transition not nil error (limit of fsm).
 	if err != nil && err.Error() != "no transition" {
@@ -302,8 +299,8 @@ func (task *Task) postTaskAllocated(allocUUID string, nodeID string) {
 	go func() {
 		// we need to obtain task's lock first,
 		// this ensures no other threads modifying task state at the time being
-		//task.lock.Lock()
-		//defer task.lock.Unlock()
+		task.lock.Lock()
+		defer task.lock.Unlock()
 		var errorMessage string
 		// task allocation UID is assigned once we get allocation decision from scheduler core
 		task.allocationUUID = allocUUID

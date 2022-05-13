@@ -125,8 +125,6 @@ func (p *Dispatcher) setRunning(flag bool) {
 }
 
 func (p *Dispatcher) dispatch(event events.SchedulingEvent) error {
-
-	fmt.Errorf("eventChan")
 	if !p.isRunning() {
 		return fmt.Errorf("dispatcher is not running")
 	}
@@ -212,9 +210,6 @@ func Start() {
 			}
 		}
 	}()
-	if getEventHandler(EventTypeScheduler) != nil {
-		log.Logger().Info("EventTypeScheduler exist")
-	}
 	getDispatcher().setRunning(true)
 }
 
