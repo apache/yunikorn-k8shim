@@ -19,6 +19,7 @@
 package cache
 
 import (
+	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/looplab/fsm"
 	"go.uber.org/zap"
@@ -43,8 +44,8 @@ func (ae SchedulerNodeEventType) String() string {
 }
 
 type CachedSchedulerNodeEvent struct {
-	NodeID    string
-	Event     SchedulerNodeEventType
+	NodeID string
+	Event  SchedulerNodeEventType
 }
 
 func (sn CachedSchedulerNodeEvent) GetEvent() string {
@@ -74,7 +75,7 @@ type schedulerNodeStates struct {
 	Draining   string
 }
 
-func SchedulerNodeStates() *schedulerNodeStates{
+func SchedulerNodeStates() *schedulerNodeStates {
 	if storeSchedulerNodeStates == nil {
 		storeSchedulerNodeStates = &schedulerNodeStates{
 			New:        "New",
@@ -94,37 +95,37 @@ func newSchedulerNodeState() *fsm.FSM {
 		states.New, fsm.Events{
 			{
 				Name: RecoverNode.String(),
-				Src: []string{states.New},
-				Dst: states.Recovering,
+				Src:  []string{states.New},
+				Dst:  states.Recovering,
 			},
 			{
 				Name: NodeAccepted.String(),
-				Src: []string{states.Recovering},
-				Dst: states.Accepted,
+				Src:  []string{states.Recovering},
+				Dst:  states.Accepted,
 			},
 			{
 				Name: NodeReady.String(),
-				Src: []string{states.Accepted},
-				Dst: states.Healthy,
+				Src:  []string{states.Accepted},
+				Dst:  states.Healthy,
 			},
 			{
 				Name: NodeRejected.String(),
-				Src: []string{states.New, states.Recovering},
-				Dst: states.Rejected,
+				Src:  []string{states.New, states.Recovering},
+				Dst:  states.Rejected,
 			},
 			{
 				Name: DrainNode.String(),
-				Src: []string{states.Healthy, states.Accepted},
-				Dst: states.Draining,
+				Src:  []string{states.Healthy, states.Accepted},
+				Dst:  states.Draining,
 			},
 			{
 				Name: RestoreNode.String(),
-				Src: []string{states.Draining},
-				Dst: states.Healthy,
+				Src:  []string{states.Draining},
+				Dst:  states.Healthy,
 			},
 		},
 		fsm.Callbacks{
-			"enter_state": func(event *fsm.Event) {
+			events.EnterState: func(event *fsm.Event) {
 				node := event.Args[0].(*SchedulerNode)
 				log.Logger().Debug("shim node state transition",
 					zap.String("nodeID", node.name),

@@ -21,8 +21,9 @@ package cache
 import (
 	"context"
 	"fmt"
-	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"time"
+
+	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 
 	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"

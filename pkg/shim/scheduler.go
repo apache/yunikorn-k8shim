@@ -19,12 +19,13 @@
 package shim
 
 import (
-	"github.com/apache/yunikorn-k8shim/pkg/common/events"
-	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"os"
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/apache/yunikorn-k8shim/pkg/common/events"
+	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 
 	"github.com/looplab/fsm"
 	"go.uber.org/zap"
@@ -238,8 +239,8 @@ func (ss *KubernetesShim) GetSchedulerState() string {
 
 // event handling
 func (ss *KubernetesShim) handle(se events.SchedulerEvent) error {
-	ss.lock.Lock()
-	defer ss.lock.Unlock()
+	//ss.lock.Lock()
+	//defer ss.lock.Unlock()
 	err := ss.stateMachine.Event(se.GetEvent(), ss, se.GetArgs())
 	if err != nil && err.Error() == "no transition" {
 		return err

@@ -21,9 +21,10 @@ package cache
 import (
 	"encoding/json"
 	"fmt"
+	"sync"
+
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
-	"sync"
 
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"

@@ -19,11 +19,12 @@
 package cache
 
 import (
-	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"reflect"
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 
 	"gotest.tools/assert"
 	v1 "k8s.io/api/core/v1"

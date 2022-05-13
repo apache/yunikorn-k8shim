@@ -19,9 +19,10 @@
 package cache
 
 import (
+	"sync"
+
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
-	"sync"
 
 	"github.com/looplab/fsm"
 	"go.uber.org/zap"
@@ -190,4 +191,3 @@ func (n *SchedulerNode) canHandle(ev events.SchedulerNodeEvent) bool {
 	defer n.lock.RUnlock()
 	return n.fsm.Can(ev.GetEvent())
 }
-

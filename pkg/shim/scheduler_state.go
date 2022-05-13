@@ -11,7 +11,7 @@ import (
 // scheduler events
 //----------------------------------------------
 
-type SchedulerEventType events.SchedulerEventType
+type SchedulerEventType int
 
 const (
 	RegisterScheduler SchedulerEventType = iota
@@ -125,35 +125,35 @@ func newSchedulerState() *fsm.FSM {
 			},
 		},
 		fsm.Callbacks{
-			"enter_state": func(event *fsm.Event) {
-					log.Logger().Debug("scheduler shim state transition",
-						zap.String("source", event.Src),
-						zap.String("destination", event.Dst),
-						zap.String("event", event.Event))
+			events.EnterState: func(event *fsm.Event) {
+				log.Logger().Debug("scheduler shim state transition",
+					zap.String("source", event.Src),
+					zap.String("destination", event.Dst),
+					zap.String("event", event.Event))
 			},
 			states.Registered: func(event *fsm.Event) {
-					scheduler := event.Args[0].(*KubernetesShim) //nolint:errcheck
-					scheduler.triggerSchedulerStateRecovery()
+				scheduler := event.Args[0].(*KubernetesShim) //nolint:errcheck
+				scheduler.triggerSchedulerStateRecovery()    // if reaches registered, trigger recovering
 			},
 			states.Recovering: func(event *fsm.Event) {
-					scheduler := event.Args[0].(*KubernetesShim) //nolint:errcheck
-					scheduler.recoverSchedulerState()
+				scheduler := event.Args[0].(*KubernetesShim) //nolint:errcheck
+				scheduler.recoverSchedulerState()            // do recovering
 			},
 			states.Running: func(event *fsm.Event) {
-					scheduler := event.Args[0].(*KubernetesShim) //nolint:errcheck
-					scheduler.doScheduling()
+				scheduler := event.Args[0].(*KubernetesShim) //nolint:errcheck
+				scheduler.doScheduling()                     // do scheduling
 			},
 			RegisterScheduler.String(): func(event *fsm.Event) {
 				scheduler := event.Args[0].(*KubernetesShim) //nolint:errcheck
-				scheduler.register()
+				scheduler.register()                         // trigger registration
 			},
 			RegisterSchedulerFailed.String(): func(event *fsm.Event) {
 				scheduler := event.Args[0].(*KubernetesShim) //nolint:errcheck
-				scheduler.handleSchedulerFailure()
+				scheduler.handleSchedulerFailure()           // registration failed, stop the scheduler
 			},
 			RecoverSchedulerFailed.String(): func(event *fsm.Event) {
 				scheduler := event.Args[0].(*KubernetesShim) //nolint:errcheck
-				scheduler.handleSchedulerFailure()
+				scheduler.handleSchedulerFailure()           // recovery failed
 			},
 		},
 	)

@@ -54,8 +54,6 @@ type ApplicationStatusEvent interface {
 //----------------------------------------------
 // Task events
 //----------------------------------------------
-type TaskEventType int
-
 type TaskEvent interface {
 	// application ID which this task belongs to
 	GetApplicationID() string
@@ -76,8 +74,6 @@ type TaskEvent interface {
 // --------------------------------------
 // scheduler events
 // --------------------------------------
-type SchedulerEventType int
-
 type SchedulerEvent interface {
 	// the type of this event
 	GetEvent() string

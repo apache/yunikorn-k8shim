@@ -20,7 +20,7 @@ package test
 
 import (
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 
 	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"

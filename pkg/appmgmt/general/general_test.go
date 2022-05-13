@@ -314,7 +314,7 @@ func TestAddPod(t *testing.T) {
 
 	task, err := app.GetTask("UID-POD-00001")
 	assert.Assert(t, err == nil)
-	assert.Equal(t, task.GetTaskState(), cache.ApplicationStates().New)
+	assert.Equal(t, task.GetTaskState(), cache.TaskStates().New)
 
 	// add another pod for same application
 	pod1 := v1.Pod{
@@ -408,7 +408,7 @@ func TestUpdatePodWhenSucceed(t *testing.T) {
 
 	task, err := app.GetTask("UID-POD-00001")
 	assert.Assert(t, err == nil)
-	assert.Equal(t, task.GetTaskState(), cache.ApplicationStates().New)
+	assert.Equal(t, task.GetTaskState(), cache.TaskStates().New)
 
 	// try update the pod
 

@@ -22,10 +22,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
@@ -900,12 +901,12 @@ func (ctx *Context) TaskEventHandler() func(obj interface{}) {
 				log.Logger().Error("failed to handle application event")
 				return
 			}
-
 			if task.canHandle(event) {
 				if err := task.handle(event); err != nil {
 					log.Logger().Error("failed to handle task event",
 						zap.String("applicationID", task.applicationID),
 						zap.String("taskID", task.taskID),
+						zap.String("event", string(event.GetEvent())),
 						zap.String("event", event.GetEvent()),
 						zap.Error(err))
 				}

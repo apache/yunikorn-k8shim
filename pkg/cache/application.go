@@ -20,10 +20,11 @@ package cache
 
 import (
 	"fmt"
-	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"sort"
 	"strings"
 	"sync"
+
+	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 
 	"github.com/looplab/fsm"
 	"go.uber.org/zap"
@@ -78,7 +79,7 @@ func NewApplication(appID, queueName, user string, tags map[string]string, sched
 		taskMap:                 taskMap,
 		tags:                    tags,
 		schedulingPolicy:        v1alpha1.SchedulingPolicy{},
-		sm:                      NewAppState(),
+		sm:                      newAppState(),
 		taskGroups:              make([]v1alpha1.TaskGroup, 0),
 		lock:                    &sync.RWMutex{},
 		schedulerAPI:            scheduler,
@@ -106,12 +107,6 @@ func (app *Application) handle(ev events.ApplicationEvent) error {
 		return err
 	}
 	return nil
-}
-
-func (app *Application) GetStateMachine(taskID string) *fsm.FSM {
-	app.lock.RLock()
-	defer app.lock.RUnlock()
-	return app.sm
 }
 
 func (app *Application) canHandle(ev events.ApplicationEvent) bool {

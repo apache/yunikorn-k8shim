@@ -368,7 +368,7 @@ type applicationStates struct {
 	Resuming   string
 }
 
-func ApplicationStates() *applicationStates{
+func ApplicationStates() *applicationStates {
 	if storeApplicationStates == nil {
 		storeApplicationStates = &applicationStates{
 			New:        "New",
@@ -389,7 +389,7 @@ func ApplicationStates() *applicationStates{
 	return storeApplicationStates
 }
 
-func NewAppState() *fsm.FSM {
+func newAppState() *fsm.FSM {
 	states := ApplicationStates()
 	return fsm.NewFSM(
 		states.New, fsm.Events{
@@ -495,15 +495,13 @@ func NewAppState() *fsm.FSM {
 			},
 		},
 		fsm.Callbacks{
-			"enter_state": func(event *fsm.Event) {
-				go func() {
-					app := event.Args[0].(*Application) //nolint:errcheck
-					log.Logger().Debug("shim app state transition",
-						zap.String("app", app.GetApplicationID()),
-						zap.String("source", event.Src),
-						zap.String("destination", event.Dst),
-						zap.String("event", event.Event))
-				}()
+			events.EnterState: func(event *fsm.Event) {
+				app := event.Args[0].(*Application) //nolint:errcheck
+				log.Logger().Debug("shim app state transition",
+					zap.String("app", app.applicationID),
+					zap.String("source", event.Src),
+					zap.String("destination", event.Dst),
+					zap.String("event", event.Event))
 			},
 			states.Reserving: func(event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck

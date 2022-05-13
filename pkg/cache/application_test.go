@@ -20,12 +20,13 @@ package cache
 
 import (
 	"fmt"
-	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"sort"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 
 	"gotest.tools/assert"
 	is "gotest.tools/assert/cmp"
@@ -747,7 +748,7 @@ func TestTryReserve(t *testing.T) {
 	})
 
 	// submit the app
-	assert.Assert(t,app.sm !=nil)
+	assert.Assert(t, app.sm != nil)
 	err := app.handle(NewSubmitApplicationEvent(app.applicationID))
 	assert.NilError(t, err)
 	assertAppState(t, app, ApplicationStates().Submitted, 3*time.Second)

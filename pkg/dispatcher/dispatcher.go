@@ -125,6 +125,8 @@ func (p *Dispatcher) setRunning(flag bool) {
 }
 
 func (p *Dispatcher) dispatch(event events.SchedulingEvent) error {
+
+	fmt.Errorf("eventChan")
 	if !p.isRunning() {
 		return fmt.Errorf("dispatcher is not running")
 	}
@@ -191,14 +193,14 @@ func Start() {
 				switch v := event.(type) {
 				case events.ApplicationStatusEvent:
 					getEventHandler(EventTypeAppStatus)(v)
-				case events.ApplicationEvent:
-					getEventHandler(EventTypeApp)(v)
 				case events.TaskEvent:
 					getEventHandler(EventTypeTask)(v)
-				case events.SchedulerEvent:
-					getEventHandler(EventTypeScheduler)(v)
+				case events.ApplicationEvent:
+					getEventHandler(EventTypeApp)(v)
 				case events.SchedulerNodeEvent:
 					getEventHandler(EventTypeNode)(v)
+				case events.SchedulerEvent:
+					getEventHandler(EventTypeScheduler)(v)
 				default:
 					log.Logger().Fatal("unsupported event",
 						zap.Any("event", v))
@@ -210,6 +212,9 @@ func Start() {
 			}
 		}
 	}()
+	if getEventHandler(EventTypeScheduler) != nil {
+		log.Logger().Info("EventTypeScheduler exist")
+	}
 	getDispatcher().setRunning(true)
 }
 

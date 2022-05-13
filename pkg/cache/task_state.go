@@ -28,7 +28,7 @@ import (
 //----------------------------------------------
 // Task events
 //----------------------------------------------
-type TaskEventType events.TaskEventType
+type TaskEventType int
 
 const (
 	InitTask TaskEventType = iota
@@ -280,29 +280,29 @@ type taskStates struct {
 	Terminated []string // Rejected, Killed, Failed, Completed
 }
 
-func TaskStates() *taskStates{
+func TaskStates() *taskStates {
 	if storeTaskStates == nil {
 		storeTaskStates = &taskStates{
-				New:        "New",
-				Pending:    "Pending",
-				Scheduling: "Scheduling",
-				Allocated:  "TaskAllocated",
-				Rejected:   "Rejected",
-				Bound:      "Bound",
-				Killing:    "Killing",
-				Killed:     "Killed",
-				Failed:     "Failed",
-				Completed:  "Completed",
-				Any: []string{
-					"New", "Pending", "Scheduling",
-					"TaskAllocated", "Rejected",
-					"Bound", "Killing", "Killed",
-					"Failed", "Completed",
-				},
-				Terminated: []string{
-					"Rejected", "Killed", "Failed",
-					"Completed",
-				},
+			New:        "New",
+			Pending:    "Pending",
+			Scheduling: "Scheduling",
+			Allocated:  "Allocated",
+			Rejected:   "Rejected",
+			Bound:      "Bound",
+			Killing:    "Killing",
+			Killed:     "Killed",
+			Failed:     "Failed",
+			Completed:  "Completed",
+			Any: []string{
+				"New", "Pending", "Scheduling",
+				"Allocated", "Rejected",
+				"Bound", "Killing", "Killed",
+				"Failed", "Completed",
+			},
+			Terminated: []string{
+				"Rejected", "Killed", "Failed",
+				"Completed",
+			},
 		}
 	}
 	return storeTaskStates
@@ -314,62 +314,62 @@ func newTaskState() *fsm.FSM {
 		states.New, fsm.Events{
 			{
 				Name: InitTask.String(),
-				Src: []string{states.New},
-				Dst: states.Pending,
+				Src:  []string{states.New},
+				Dst:  states.Pending,
 			},
 			{
 				Name: SubmitTask.String(),
-				Src: []string{states.Pending},
-				Dst: states.Scheduling,
+				Src:  []string{states.Pending},
+				Dst:  states.Scheduling,
 			},
 			{
 				Name: TaskAllocated.String(),
-				Src: []string{states.Scheduling},
-				Dst: states.Allocated,
+				Src:  []string{states.Scheduling},
+				Dst:  states.Allocated,
 			},
 			{
 				Name: TaskAllocated.String(),
-				Src: []string{states.Completed},
-				Dst: states.Completed,
+				Src:  []string{states.Completed},
+				Dst:  states.Completed,
 			},
 			{
 				Name: TaskBound.String(),
-				Src: []string{states.Allocated},
-				Dst: states.Bound,
+				Src:  []string{states.Allocated},
+				Dst:  states.Bound,
 			},
 			{
 				Name: CompleteTask.String(),
-				Src: states.Any,
-				Dst: states.Completed,
+				Src:  states.Any,
+				Dst:  states.Completed,
 			},
 			{
 				Name: KillTask.String(),
-				Src: []string{states.Pending, states.Scheduling, states.Allocated, states.Bound},
-				Dst: states.Killing,
+				Src:  []string{states.Pending, states.Scheduling, states.Allocated, states.Bound},
+				Dst:  states.Killing,
 			},
 			{
 				Name: TaskKilled.String(),
-				Src: []string{states.Killing},
-				Dst: states.Killed,
+				Src:  []string{states.Killing},
+				Dst:  states.Killed,
 			},
 			{
 				Name: TaskRejected.String(),
-				Src: []string{states.New, states.Pending, states.Scheduling},
-				Dst: states.Rejected,
+				Src:  []string{states.New, states.Pending, states.Scheduling},
+				Dst:  states.Rejected,
 			},
 			{
 				Name: TaskFail.String(),
-				Src: []string{states.Rejected, states.Allocated},
-				Dst: states.Failed,
+				Src:  []string{states.Rejected, states.Allocated},
+				Dst:  states.Failed,
 			},
 		},
 		fsm.Callbacks{
-			"enter_state": func(event *fsm.Event) {
-					log.Logger().Info("object transition",
-						zap.Any("object", event.Args[0]),
-						zap.String("source", event.Src),
-						zap.String("destination", event.Dst),
-						zap.String("event", event.Event))
+			events.EnterState: func(event *fsm.Event) {
+				log.Logger().Info("object transition",
+					zap.Any("object", event.Args[0]),
+					zap.String("source", event.Src),
+					zap.String("destination", event.Dst),
+					zap.String("event", event.Event))
 			},
 			states.Pending: func(event *fsm.Event) {
 				task := event.Args[0].(*Task) //nolint:errcheck
@@ -379,12 +379,12 @@ func newTaskState() *fsm.FSM {
 				task := event.Args[0].(*Task) //nolint:errcheck
 				eventArgs := make([]string, 2)
 				if err := events.GetEventArgsAsStrings(eventArgs, event.Args[1].([]interface{})); err != nil {
-					task.handleFailEvent(err.Error(),false)
+					task.handleFailEvent(err.Error(), false)
 					return
 				}
 				allocUUID := eventArgs[0]
 				nodeID := eventArgs[1]
-				task.postTaskAllocated(allocUUID,nodeID)
+				task.postTaskAllocated(allocUUID, nodeID)
 			},
 			states.Rejected: func(event *fsm.Event) {
 				task := event.Args[0].(*Task) //nolint:errcheck
@@ -402,12 +402,12 @@ func newTaskState() *fsm.FSM {
 				task := event.Args[0].(*Task) //nolint:errcheck
 				eventArgs := make([]string, 2)
 				if err := events.GetEventArgsAsStrings(eventArgs, event.Args[1].([]interface{})); err != nil {
-					task.handleFailEvent(err.Error(),false)
+					task.handleFailEvent(err.Error(), false)
 					return
 				}
 				allocUUID := eventArgs[0]
 				nodeID := eventArgs[1]
-				task.beforeTaskAllocated(event.Src,allocUUID, nodeID)
+				task.beforeTaskAllocated(event.Src, allocUUID, nodeID)
 			},
 			beforeHook(CompleteTask): func(event *fsm.Event) {
 				task := event.Args[0].(*Task) //nolint:errcheck
@@ -421,11 +421,11 @@ func newTaskState() *fsm.FSM {
 				task := event.Args[0].(*Task) //nolint:errcheck
 				eventArgs := make([]string, 1)
 				if err := events.GetEventArgsAsStrings(eventArgs, event.Args[1].([]interface{})); err != nil {
-					task.handleFailEvent(err.Error(),true)
+					task.handleFailEvent(err.Error(), true)
 					return
 				}
 				reason := eventArgs[0]
-				task.handleFailEvent(reason,false)
+				task.handleFailEvent(reason, false)
 			},
 		},
 	)

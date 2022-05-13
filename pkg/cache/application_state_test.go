@@ -268,9 +268,9 @@ func TestApplicationStatusChangeEventGetEvent(t *testing.T) {
 func TestApplicationStatusChangeEventGetArgs(t *testing.T) {
 	tests := []struct {
 		name    string
-		appID string
-		event ApplicationEventType
-		state string
+		appID   string
+		event   ApplicationEventType
+		state   string
 		wantLen int
 	}{
 		{TestArgsName, "testAppId001", SubmitApplication, "SubmitApplication", 0},
@@ -290,9 +290,9 @@ func TestApplicationStatusChangeEventGetArgs(t *testing.T) {
 func TestApplicationStatusChangeEventGetApplicationID(t *testing.T) {
 	tests := []struct {
 		name      string
-		appID string
-		event ApplicationEventType
-		state string
+		appID     string
+		event     ApplicationEventType
+		state     string
 		wantAppID string
 	}{
 		{TestAppIDName, "testAppId001", SubmitApplication, "SubmitApplication", "testAppId001"},
@@ -311,10 +311,10 @@ func TestApplicationStatusChangeEventGetApplicationID(t *testing.T) {
 
 func TestApplicationStatusChangeEventGetState(t *testing.T) {
 	tests := []struct {
-		name  string
-		appID string
-		event ApplicationEventType
-		state string
+		name      string
+		appID     string
+		event     ApplicationEventType
+		state     string
 		wantState string
 	}{
 		{TestStateName, "testAppId001", SubmitApplication, "SubmitApplication", "SubmitApplication"},
@@ -696,8 +696,8 @@ func TestReleaseAppAllocationEventGetEvent(t *testing.T) {
 	tests := []struct {
 		name                  string
 		appID, allocationUUID string
-		terminationType si.TerminationType
-		wantEvent       ApplicationEventType
+		terminationType       si.TerminationType
+		wantEvent             ApplicationEventType
 	}{
 		{TestEventName, "testAppId001", "testUUID001", si.TerminationType_TIMEOUT, ReleaseAppAllocation},
 	}

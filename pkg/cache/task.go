@@ -20,9 +20,10 @@ package cache
 
 import (
 	"fmt"
-	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"sync"
 	"time"
+
+	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 
 	"go.uber.org/zap"
 
@@ -115,6 +116,8 @@ func beforeHook(event TaskEventType) string {
 func (task *Task) handle(te events.TaskEvent) error {
 	task.lock.Lock()
 	defer task.lock.Unlock()
+	//log.Logger().Info("handle task event",
+	//zap.String("te", task.taskID))
 	err := task.sm.Event(te.GetEvent(), task, te.GetArgs())
 	// handle the same state transition not nil error (limit of fsm).
 	if err != nil && err.Error() != "no transition" {
@@ -299,8 +302,8 @@ func (task *Task) postTaskAllocated(allocUUID string, nodeID string) {
 	go func() {
 		// we need to obtain task's lock first,
 		// this ensures no other threads modifying task state at the time being
-		task.lock.Lock()
-		defer task.lock.Unlock()
+		//task.lock.Lock()
+		//defer task.lock.Unlock()
 		var errorMessage string
 		// task allocation UID is assigned once we get allocation decision from scheduler core
 		task.allocationUUID = allocUUID
@@ -367,7 +370,7 @@ func (task *Task) postTaskAllocated(allocUUID string, nodeID string) {
 // If we find the task is already in Completed state while handling TaskAllocated
 // event, we need to explicitly release this allocation because it is no
 // longer valid.
-func (task *Task) beforeTaskAllocated(eventSrc string,allocUUID string, nodeID string) {
+func (task *Task) beforeTaskAllocated(eventSrc string, allocUUID string, nodeID string) {
 	// if task is already completed and we got a TaskAllocated event
 	// that means this allocation is no longer valid, we should
 	// notify the core to release this allocation to avoid resource leak
