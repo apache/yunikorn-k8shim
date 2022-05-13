@@ -336,6 +336,19 @@ func (app *Application) GetAllocatedTasks() []*Task {
 	return app.getTasks(events.States().Task.Allocated)
 }
 
+func (app *Application) GetPlaceHolderTasks() []*Task {
+	app.lock.RLock()
+	defer app.lock.RUnlock()
+	placeholders := make([]*Task, 0)
+	for _, task := range app.taskMap {
+		if task.placeholder {
+			placeholders = append(placeholders, task)
+		}
+	}
+
+	return placeholders
+}
+
 func (app *Application) getTasks(state string) []*Task {
 	taskList := make([]*Task, 0)
 	if len(app.taskMap) > 0 {
@@ -530,7 +543,7 @@ func (app *Application) skipReservationStage() bool {
 	// in this case, we should skip the reservation stage
 	if len(app.taskMap) > 0 {
 		for _, task := range app.taskMap {
-			if task.GetTaskState() != events.States().Task.New {
+			if !task.IsPlaceholder() && task.GetTaskState() != events.States().Task.New {
 				log.Logger().Debug("Skip reservation stage: found task already has been scheduled before.",
 					zap.String("appID", app.applicationID),
 					zap.String("taskID", task.GetTaskID()),

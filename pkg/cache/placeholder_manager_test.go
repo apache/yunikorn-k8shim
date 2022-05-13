@@ -73,6 +73,24 @@ func TestCreateAppPlaceholders(t *testing.T) {
 	assert.Error(t, err, "failed to create pod tg-test-group-2-app01-15")
 }
 
+func TestCreateAppPlaceholdersWithExistingPods(t *testing.T) {
+	createdPods := make(map[string]*v1.Pod)
+	mockedAPIProvider := client.NewMockedAPIProvider(false)
+	mockedAPIProvider.MockCreateFn(func(pod *v1.Pod) (*v1.Pod, error) {
+		createdPods[pod.Name] = pod
+		return pod, nil
+	})
+
+	placeholderMgr = NewPlaceholderManager(mockedAPIProvider.GetAPIs())
+	app := createAppWIthTaskGroupAndPodsForTest()
+	err := placeholderMgr.createAppPlaceholders(app)
+	assert.NilError(t, err)
+	assert.Equal(t, 27, len(createdPods))
+	assert.Equal(t, (*v1.Pod)(nil), createdPods["tg-test-group-1-app01-0"], "Pod should not have been created")
+	assert.Equal(t, (*v1.Pod)(nil), createdPods["tg-test-group-1-app01-1"], "Pod should not have been created")
+	assert.Equal(t, (*v1.Pod)(nil), createdPods["tg-test-group-1-app02-0"], "Pod should not have been created")
+}
+
 func createAndCheckPlaceholderCreate(mockedAPIProvider *client.MockedAPIProvider, app *Application, t *testing.T) map[string]*v1.Pod {
 	createdPods := make(map[string]*v1.Pod)
 	mockedAPIProvider.MockCreateFn(func(pod *v1.Pod) (*v1.Pod, error) {
@@ -128,6 +146,61 @@ func createAppWIthTaskGroupForTest() *Application {
 			},
 		},
 	})
+	return app
+}
+
+func createAppWIthTaskGroupAndPodsForTest() *Application {
+	app := createAppWIthTaskGroupForTest()
+	mockedContext := initContextForTest()
+	pod1 := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "tg-test-group-1-app01-0",
+			UID:  "UID-01",
+		},
+	}
+	pod2 := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "tg-test-group-1-app01-1",
+			UID:  "UID-02",
+		},
+	}
+	pod3 := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "tg-test-group-2-app01-0",
+			UID:  "UID-03",
+		},
+	}
+
+	taskID1 := "task1-01"
+	task1 := NewTask(taskID1, app, mockedContext, pod1)
+	task1.placeholder = true
+	task1.pod = pod1
+	app.taskMap[taskID1] = task1
+
+	taskID2 := "task1-02"
+	task2 := NewTask(taskID2, app, mockedContext, pod2)
+	task2.placeholder = true
+	task2.pod = pod2
+	app.taskMap[taskID2] = task2
+
+	taskID3 := "task2-01"
+	task3 := NewTask(taskID3, app, mockedContext, pod3)
+	task3.placeholder = true
+	task3.pod = pod3
+	app.taskMap[taskID3] = task3
+
 	return app
 }
 
