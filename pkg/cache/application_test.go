@@ -1108,3 +1108,27 @@ func TestResumingStateTransitions(t *testing.T) {
 	assert.NilError(t, err)
 	assertAppState(t, app, events.States().Application.Running, 3*time.Second)
 }
+
+func TestGetPlaceholderTasks(t *testing.T) {
+	context := initContextForTest()
+	app := NewApplication(appID, "root.a", "testuser", map[string]string{}, newMockSchedulerAPI())
+	task1 := NewTask("task0001", app, context, &v1.Pod{})
+	task1.placeholder = true
+	task2 := NewTask("task0002", app, context, &v1.Pod{})
+	task2.placeholder = true
+	task3 := NewTask("task0003", app, context, &v1.Pod{})
+
+	app.addTask(task1)
+	app.addTask(task2)
+	app.addTask(task3)
+
+	phTasks := app.GetPlaceHolderTasks()
+	assert.Equal(t, 2, len(phTasks))
+	phTasksMap := map[string]bool{
+		phTasks[0].GetTaskID(): true,
+		phTasks[1].GetTaskID(): true,
+	}
+
+	assert.Assert(t, phTasksMap["task0001"])
+	assert.Assert(t, phTasksMap["task0002"])
+}
