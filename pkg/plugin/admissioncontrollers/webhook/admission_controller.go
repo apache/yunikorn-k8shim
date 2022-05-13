@@ -104,6 +104,13 @@ func initAdmissionController(configName string, schedulerValidateConfURL string,
 		labelNamespaces:          labelRegexes,
 		noLabelNamespaces:        noLabelRegexes,
 	}
+
+	log.Logger().Info("Initialized YuniKorn Admission Controller",
+		zap.String("processNs", processNamespaces),
+		zap.String("bypassNs", bypassNamespaces),
+		zap.String("labelNs", labelNamespaces),
+		zap.String("noLabelNs", noLabelNamespaces))
+
 	return &hook, nil
 }
 
@@ -149,6 +156,10 @@ func (c *admissionController) mutate(req *admissionv1.AdmissionRequest) *admissi
 	}
 
 	namespace := req.Namespace
+	if namespace == "" {
+		namespace = "default"
+	}
+
 	var patch []patchOperation
 
 	var requestKind = req.Kind.Kind
@@ -186,14 +197,18 @@ func (c *admissionController) mutate(req *admissionv1.AdmissionRequest) *admissi
 	}
 	patch = updateSchedulerName(patch)
 
-	if c.shouldLabelNamespace(pod.Namespace) {
+	if c.shouldLabelNamespace(namespace) {
 		patch = updateLabels(namespace, &pod, patch)
 	} else {
 		log.Logger().Info("skipping update of pod labels since namespace is set to no-label",
 			zap.String("podName", pod.Name),
+			zap.String("generateName", pod.GenerateName),
 			zap.String("namespace", namespace))
 	}
-	log.Logger().Info("generated patch", zap.String("podName", pod.Name), zap.Any("patch", patch))
+	log.Logger().Info("generated patch",
+		zap.String("podName", pod.Name),
+		zap.String("generateName", pod.GenerateName),
+		zap.Any("patch", patch))
 
 	patchBytes, err := json.Marshal(patch)
 	if err != nil {
@@ -216,11 +231,7 @@ func updateSchedulerName(patch []patchOperation) []patchOperation {
 // generate appID based on the namespace value,
 // and the max length of the ID is 63 chars.
 func generateAppID(namespace string) string {
-	ns := "default"
-	if namespace != "" {
-		ns = namespace
-	}
-	generatedID := fmt.Sprintf("%s-%s-%s", autoGenAppPrefix, ns, autoGenAppSuffix)
+	generatedID := fmt.Sprintf("%s-%s-%s", autoGenAppPrefix, namespace, autoGenAppSuffix)
 	appID := fmt.Sprintf("%.63s", generatedID)
 	return appID
 }

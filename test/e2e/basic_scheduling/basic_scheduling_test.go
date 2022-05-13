@@ -85,7 +85,7 @@ var _ = ginkgo.Describe("", func() {
 			10)
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 
-		appsInfo, err = restClient.GetAppInfo(sleepRespPod.ObjectMeta.Labels["applicationId"])
+		appsInfo, err = restClient.GetAppInfo("default", "root."+dev, sleepRespPod.ObjectMeta.Labels["applicationId"])
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		gomega.Ω(appsInfo).NotTo(gomega.BeNil())
 	})
