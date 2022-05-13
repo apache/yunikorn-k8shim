@@ -21,6 +21,7 @@ package common
 import (
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -75,12 +76,12 @@ func CreateLogFile(filename string, data []byte) error {
 	}
 
 	finalPath := filepath.Join(path, filename)
-	err = os.WriteFile(finalPath, data, configmanager.LogPerm)
+	err = ioutil.WriteFile(finalPath, data, configmanager.LogPerm)
 	return err
 }
 
 func GetFileContents(filename string) ([]byte, error) {
-	data, err := os.ReadFile(filename)
+	data, err := ioutil.ReadFile(filename)
 	return data, err
 }
 

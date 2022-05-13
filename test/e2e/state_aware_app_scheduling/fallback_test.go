@@ -49,8 +49,10 @@ var _ = Describe("FallbackTest:", func() {
 		Ω(ns1.Status.Phase).To(Equal(v1.NamespaceActive))
 
 		By(fmt.Sprintf("Deploy the sleep pod to %s namespace", ns))
-		sleepPodConf := common.SleepPodConfig{Name: "sleepjob", NS: ns, Time: 600}
-		sleepRespPod, err = kClient.CreatePod(common.InitSleepPod(sleepPodConf), ns)
+		sleepPodConf := k8s.SleepPodConfig{Name: "sleepjob", NS: ns, Time: 600}
+		initPod, podErr := k8s.InitSleepPod(sleepPodConf)
+		Ω(podErr).NotTo(HaveOccurred())
+		sleepRespPod, err = kClient.CreatePod(initPod, ns)
 		Ω(err).NotTo(HaveOccurred())
 		// Wait for pod to move to running state
 	})
@@ -105,7 +107,7 @@ var _ = Describe("FallbackTest:", func() {
 		Ω(checks).To(Equal(""), checks)
 
 		By("Tearing down namespace: " + ns)
-		err = k.TearDownNamespace(ns)
+		err = kClient.TearDownNamespace(ns)
 		Ω(err).NotTo(HaveOccurred())
 	})
 })

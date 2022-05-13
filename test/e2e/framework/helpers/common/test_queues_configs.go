@@ -20,14 +20,17 @@ package common
 
 import (
 	"errors"
+	"github.com/apache/yunikorn-core/pkg/common/configs"
+	"strconv"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v2"
 )
 
 // Converts partitionsWrapper to YAML string
-func (pw *PartitionsWrapper) ToYAML() (string, error) {
-	d, err := yaml.Marshal(pw)
+func ToYAML(sc *configs.SchedulerConfig) (string, error) {
+	d, err := yaml.Marshal(sc)
 	if err != nil {
 		return "", err
 	}
@@ -35,21 +38,21 @@ func (pw *PartitionsWrapper) ToYAML() (string, error) {
 	return string(d), nil
 }
 
-func CreateBasicConfigMap() *PartitionsWrapper {
-	p1 := PartitionConfigType{
+func CreateBasicConfigMap() *configs.SchedulerConfig {
+	p1 := configs.PartitionConfig{
 		Name: "default",
-		PlacementRules: []*PlacementRuleConfigType{{
+		PlacementRules: []configs.PlacementRule{{
 			Name:   "tag",
 			Value:  "namespace",
 			Create: true,
 		}},
-		Queues: []*QueueConfigType{{
+		Queues: []configs.QueueConfig{{
 			Name:      "root",
 			SubmitACL: "*",
 		}},
 	}
-	partitions := PartitionsWrapper{
-		Partitions: []*PartitionConfigType{&p1},
+	partitions := configs.SchedulerConfig{
+		Partitions: []configs.PartitionConfig{p1},
 	}
 
 	return &partitions
@@ -57,39 +60,72 @@ func CreateBasicConfigMap() *PartitionsWrapper {
 
 // Returns pointer to corresponding queue.
 // Expects queuePath to be slice of queue names in order.
-func findQueue(subQs []*QueueConfigType, queuePath []string) (*QueueConfigType, error) {
-	for _, subQ := range subQs {
+func getQueue(subQs []configs.QueueConfig, queuePath []string) (*configs.QueueConfig, error) {
+	for i, subQ := range subQs {
 		if subQ.Name == queuePath[0] {
 			if len(queuePath) == 1 { // path is single queue
-				return subQ, nil
+				return &subQs[i], nil
 			}
-			return findQueue(subQ.Queues, queuePath[1:]) // recursive call to check children
+			return getQueue(subQ.Queues, queuePath[1:]) // recursive call to check children
 		}
 	}
 	return nil, errors.New("queue not in path")
 }
 
+func getPartition(sc *configs.SchedulerConfig, partition string) (*configs.PartitionConfig, error) {
+	for i, p := range sc.Partitions {
+		if p.Name == partition {
+			return &sc.Partitions[i], nil
+		}
+	}
+	return nil, errors.New("partition does not exist")
+}
+
 // Expects queuePath to use periods as delimiters. ie "root.queueA.child"
-func (pw *PartitionsWrapper) SetSchedulingPolicy(partition string, queuePathStr string, policy string) error {
+func SetSchedulingPolicy(sc *configs.SchedulerConfig, partition string, queuePathStr string, policy string) error {
 	path := strings.Split(queuePathStr, ".")
-	for _, p := range pw.Partitions {
+	for _, p := range sc.Partitions {
 		if p.Name == partition { // find correct partition
-			q, err := findQueue(p.Queues, path)
+			q, err := getQueue(p.Queues, path)
 			if err != nil {
 				return err
 			}
-			q.Properties = map[string]string{"application.sort.policy": policy}
+			if q.Properties == nil {
+				q.Properties = map[string]string{}
+			}
+			q.Properties["application.sort.policy"] = policy
 			return nil
 		}
 	}
 	return errors.New("partition not found")
 }
 
-func (pw *PartitionsWrapper) AddQueue(partition string, parentPathStr string, newQ *QueueConfigType) error {
+//Expects queuePath to use periods as delimiters. ie "root.queueA.child"
+//Adds timestamp property to queue with current timestamp
+func SetQueueTimestamp(sc *configs.SchedulerConfig, partition string, queuePathStr string) (string, error) {
+	ts := strconv.FormatInt(time.Now().Unix(), 10)
+	path := strings.Split(queuePathStr, ".")
+	for _, p := range sc.Partitions {
+		if p.Name == partition { // find correct partition
+			q, err := getQueue(p.Queues, path)
+			if err != nil {
+				return "", err
+			}
+			if q.Properties == nil {
+				q.Properties = map[string]string{}
+			}
+			q.Properties["timestamp"] = ts
+			return ts, nil
+		}
+	}
+	return "", errors.New("partition not found")
+}
+
+func AddQueue(sc *configs.SchedulerConfig, partition string, parentPathStr string, newQ configs.QueueConfig) error {
 	parentPath := strings.Split(parentPathStr, ".")
-	for _, p := range pw.Partitions {
+	for _, p := range sc.Partitions {
 		if p.Name == partition {
-			parentQ, err := findQueue(p.Queues, parentPath)
+			parentQ, err := getQueue(p.Queues, parentPath)
 			if err != nil {
 				return err
 			}
@@ -100,50 +136,11 @@ func (pw *PartitionsWrapper) AddQueue(partition string, parentPathStr string, ne
 	return errors.New("partition not found")
 }
 
-/* -- Data structures below -- */
-
-// Holds all partitions
-type PartitionsWrapper struct {
-	Partitions []*PartitionConfigType
-}
-
-type PartitionConfigType struct {
-	Name   string
-	Queues []*QueueConfigType `yaml:",omitempty"`
-
-	//Optional args
-	PlacementRules []*PlacementRuleConfigType `yaml:",omitempty"`
-	Limits         LimitsConfigType           `yaml:",omitempty"`
-	Preemption     bool                       `yaml:",omitempty"`
-}
-
-type QueueConfigType struct {
-	Name       string
-	Parent     bool               `yaml:",omitempty"`
-	Queues     []*QueueConfigType `yaml:",omitempty"`
-	Properties map[string]string  `yaml:",omitempty"`
-	AdminACL   string             `yaml:",omitempty"`
-	SubmitACL  string             `yaml:",omitempty"`
-	Limits     *LimitsConfigType  `yaml:",omitempty"`
-
-	// Add structs
-	Resources string `yaml:",omitempty"`
-}
-
-type PlacementRuleConfigType struct {
-	Name   string
-	Create bool   `yaml:",omitempty"`
-	Value  string `yaml:",omitempty"`
-
-	// Add structs
-	Parent string `yaml:",omitempty"`
-	Filter string `yaml:",omitempty"`
-}
-
-type LimitsConfigType struct {
-	Limit           string         `yaml:",omitempty"`
-	Users           []string       `yaml:",omitempty"`
-	Groups          []string       `yaml:",omitempty"`
-	MaxApplications int            `yaml:",omitempty"`
-	MaxResources    map[string]int `yaml:",omitempty"`
+func SetNodeSortPolicy(sc *configs.SchedulerConfig, partition string, policy configs.NodeSortingPolicy) error {
+	p, err := getPartition(sc, partition)
+	if err != nil {
+		return err
+	}
+	p.NodeSortPolicy = policy
+	return nil
 }

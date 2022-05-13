@@ -43,16 +43,16 @@ var workerNodes []string
 
 func getNodeThatCanRunPodWithoutToleration(k *k8s.KubeCtl, namespace string) string {
 	By("Trying to launch a pod without a toleration to get a node which can launch it.")
-	return runPodAndGetNodeName(k, common.SleepPodConfig{Name: "without-toleration", NS: namespace})
+	return runPodAndGetNodeName(k, k8s.SleepPodConfig{Name: "without-toleration", NS: namespace})
 }
 
 // GetNodeThatCanRunPod trying to launch a pod without a label to get a node which can launch it
 func GetNodeThatCanRunPod(k *k8s.KubeCtl, namespace string) string {
 	By("Trying to launch a pod without a label to get a node which can launch it.")
-	return runPodAndGetNodeName(k, common.SleepPodConfig{Name: "without-label", NS: namespace})
+	return runPodAndGetNodeName(k, k8s.SleepPodConfig{Name: "without-toleration", NS: namespace})
 }
 
-func runPodAndGetNodeName(k *k8s.KubeCtl, conf common.SleepPodConfig) string {
+func runPodAndGetNodeName(k *k8s.KubeCtl, conf k8s.SleepPodConfig) string {
 	// launch a pod to find a node which can launch a pod. We intentionally do
 	// not just take the node list and choose the first of them. Depending on the
 	// cluster and the scheduler it might be that a "normal" pod cannot be
@@ -65,8 +65,10 @@ func runPodAndGetNodeName(k *k8s.KubeCtl, conf common.SleepPodConfig) string {
 	return pod.Spec.NodeName
 }
 
-func runTestPod(k *k8s.KubeCtl, conf common.SleepPodConfig) *v1.Pod {
-	pod, err := k.CreatePod(common.InitSleepPod(conf), conf.NS)
+func runTestPod(k *k8s.KubeCtl, conf k8s.SleepPodConfig) *v1.Pod {
+	initPod, podErr := k8s.InitSleepPod(conf)
+	Ω(podErr).NotTo(HaveOccurred())
+	pod, err := k.CreatePod(initPod, conf.NS)
 	Ω(err).NotTo(HaveOccurred())
 	Ω(k.WaitForPodRunning(pod.Namespace, pod.Name, time.Duration(60)*time.Second)).NotTo(HaveOccurred())
 	pod1, err := k.GetPod(pod.Name, pod.Namespace)
@@ -130,7 +132,7 @@ var _ = Describe("Predicates", func() {
 		By("Trying to schedule Pod with nonempty NodeSelector.")
 		podName := "blocked-pod"
 
-		conf := common.TestPodConfig{
+		conf := k8s.TestPodConfig{
 			Name: podName,
 			Labels: map[string]string{
 				"name":          "blocked",
@@ -143,7 +145,9 @@ var _ = Describe("Predicates", func() {
 		}
 
 		var success bool
-		success, err = kClient.WaitForSchedulerAfterAction(kClient.CreateTestPodAction(common.InitTestPod(conf), ns), ns, podName, false)
+		initPod, podErr := k8s.InitTestPod(conf)
+		Ω(podErr).NotTo(HaveOccurred())
+		success, err = kClient.WaitForSchedulerAfterAction(kClient.CreateTestPodAction(initPod, ns), ns, podName, false)
 		Ω(err).NotTo(HaveOccurred())
 		Ω(success).Should(BeTrue())
 
@@ -185,7 +189,7 @@ var _ = Describe("Predicates", func() {
 
 		By("Trying to launch the pod, now with labels.")
 		labelPodName := "with-labels"
-		conf := common.TestPodConfig{
+		conf := k8s.TestPodConfig{
 			Name:      labelPodName,
 			Namespace: ns,
 			Labels: map[string]string{
@@ -197,7 +201,9 @@ var _ = Describe("Predicates", func() {
 			},
 		}
 
-		_, err = kClient.CreatePod(common.InitTestPod(conf), ns)
+		initPod, podErr := k8s.InitTestPod(conf)
+		Ω(podErr).NotTo(HaveOccurred())
+		_, err = kClient.CreatePod(initPod, ns)
 		Ω(err).NotTo(HaveOccurred())
 		Ω(kClient.WaitForPodRunning(ns, labelPodName, time.Duration(60)*time.Second)).NotTo(HaveOccurred())
 
@@ -211,7 +217,7 @@ var _ = Describe("Predicates", func() {
 		By("Trying to schedule Pod with nonempty NodeAffinity.")
 		podName := "blocked-pod"
 
-		conf := common.TestPodConfig{
+		conf := k8s.TestPodConfig{
 			Name: podName,
 			Affinity: &v1.Affinity{
 				NodeAffinity: &v1.NodeAffinity{
@@ -246,7 +252,9 @@ var _ = Describe("Predicates", func() {
 		}
 
 		var success bool
-		success, err = kClient.WaitForSchedulerAfterAction(kClient.CreateTestPodAction(common.InitTestPod(conf), ns), ns, podName, false)
+		initPod, podErr := k8s.InitTestPod(conf)
+		Ω(podErr).NotTo(HaveOccurred())
+		success, err = kClient.WaitForSchedulerAfterAction(kClient.CreateTestPodAction(initPod, ns), ns, podName, false)
 		Ω(err).NotTo(HaveOccurred())
 		Ω(success).Should(BeTrue())
 
@@ -281,7 +289,7 @@ var _ = Describe("Predicates", func() {
 
 		By("Trying to launch the pod, now with labels.")
 		labelPodName := "with-labels"
-		conf := common.TestPodConfig{
+		conf := k8s.TestPodConfig{
 			Name:      labelPodName,
 			Namespace: ns,
 			Labels: map[string]string{
@@ -307,7 +315,9 @@ var _ = Describe("Predicates", func() {
 			},
 		}
 
-		_, err = kClient.CreatePod(common.InitTestPod(conf), ns)
+		initPod, podErr := k8s.InitTestPod(conf)
+		Ω(podErr).NotTo(HaveOccurred())
+		_, err = kClient.CreatePod(initPod, ns)
 		Ω(err).NotTo(HaveOccurred())
 		Ω(kClient.WaitForPodRunning(ns, labelPodName, time.Duration(60)*time.Second)).NotTo(HaveOccurred())
 
@@ -342,7 +352,7 @@ var _ = Describe("Predicates", func() {
 
 		ginkgo.By("Trying to relaunch the pod, now with tolerations.")
 		tolerationPodName := "with-tolerations"
-		conf := common.TestPodConfig{
+		conf := k8s.TestPodConfig{
 			Name:      tolerationPodName,
 			Namespace: ns,
 			Labels: map[string]string{
@@ -353,7 +363,9 @@ var _ = Describe("Predicates", func() {
 			NodeSelector: map[string]string{labelKey: labelValue},
 		}
 
-		_, err = kClient.CreatePod(common.InitTestPod(conf), ns)
+		initPod, podErr := k8s.InitTestPod(conf)
+		Ω(podErr).NotTo(HaveOccurred())
+		_, err = kClient.CreatePod(initPod, ns)
 		Ω(err).NotTo(HaveOccurred())
 		Ω(kClient.WaitForPodRunning(ns, tolerationPodName, time.Duration(60)*time.Second)).NotTo(HaveOccurred())
 
@@ -388,7 +400,7 @@ var _ = Describe("Predicates", func() {
 
 		ginkgo.By("Trying to relaunch the pod with no tolerations.")
 		podNameNoTolerations := "with-no-tolerations"
-		conf := common.TestPodConfig{
+		conf := k8s.TestPodConfig{
 			Name:      podNameNoTolerations,
 			Namespace: ns,
 			Labels: map[string]string{
@@ -399,7 +411,9 @@ var _ = Describe("Predicates", func() {
 		}
 
 		var success bool
-		success, err = kClient.WaitForSchedulerAfterAction(kClient.CreateTestPodAction(common.InitTestPod(conf), ns), ns, podNameNoTolerations, false)
+		initPod, podErr := k8s.InitTestPod(conf)
+		Ω(podErr).NotTo(HaveOccurred())
+		success, err = kClient.WaitForSchedulerAfterAction(kClient.CreateTestPodAction(initPod, ns), ns, podNameNoTolerations, false)
 		Ω(err).NotTo(HaveOccurred())
 		Ω(success).Should(BeTrue())
 
@@ -914,7 +928,7 @@ var _ = Describe("Predicates", func() {
 
 		By("Trying to launch the pod, now with labels.")
 		PodName := "test-pod"
-		conf := common.TestPodConfig{
+		conf := k8s.TestPodConfig{
 			Name:     PodName,
 			NodeName: nodeName,
 			Labels: map[string]string{
@@ -924,7 +938,9 @@ var _ = Describe("Predicates", func() {
 			Namespace: ns,
 		}
 
-		_, err := kClient.CreatePod(common.InitTestPod(conf), ns)
+		initPod, podErr := k8s.InitTestPod(conf)
+		Ω(podErr).NotTo(HaveOccurred())
+		_, err := kClient.CreatePod(initPod, ns)
 		Ω(err).NotTo(HaveOccurred())
 		Ω(kClient.WaitForPodRunning(ns, PodName, time.Duration(60)*time.Second)).NotTo(HaveOccurred())
 
@@ -959,7 +975,7 @@ var _ = Describe("Predicates", func() {
 			Ω(success).To(BeTrue())
 			labelPodName := "same-hostport-" + common.RandSeq(10)
 			By(fmt.Sprintf("Trying to create a pod(%s) with hostport %v, protocol %v and hostIP %v and expect scheduled", labelPodName, Port, Protocol, HostIP))
-			conf := common.TestPodConfig{
+			conf := k8s.TestPodConfig{
 				Name:      labelPodName,
 				Namespace: ns,
 				Labels: map[string]string{
@@ -979,7 +995,9 @@ var _ = Describe("Predicates", func() {
 				},
 			}
 
-			_, err := kClient.CreatePod(common.InitTestPod(conf), ns)
+			initPod, podErr := k8s.InitTestPod(conf)
+			Ω(podErr).NotTo(HaveOccurred())
+			_, err := kClient.CreatePod(initPod, ns)
 			Ω(err).NotTo(HaveOccurred())
 			Ω(kClient.WaitForPodRunning(ns, labelPodName, time.Duration(60)*time.Second)).NotTo(HaveOccurred())
 		}
@@ -998,7 +1016,7 @@ var _ = Describe("Predicates", func() {
 		port := int32(54322)
 		labelPodName := "same-hostport-" + common.RandSeq(10)
 		By(fmt.Sprintf("Trying to create a pod(%s) with hostport %v, protocol %v and hostIP %v and expect scheduled", labelPodName, port, v1.ProtocolTCP, "0.0.0.0"))
-		conf := common.TestPodConfig{
+		conf := k8s.TestPodConfig{
 			Name:      labelPodName,
 			Namespace: ns,
 			Labels: map[string]string{
@@ -1018,13 +1036,15 @@ var _ = Describe("Predicates", func() {
 			},
 		}
 
-		_, err := kClient.CreatePod(common.InitTestPod(conf), ns)
+		initPod, podErr := k8s.InitTestPod(conf)
+		Ω(podErr).NotTo(HaveOccurred())
+		_, err := kClient.CreatePod(initPod, ns)
 		Ω(err).NotTo(HaveOccurred())
 		Ω(kClient.WaitForPodRunning(ns, labelPodName, time.Duration(60)*time.Second)).NotTo(HaveOccurred())
 
 		labelPodName2 := "same-hostport-" + common.RandSeq(10)
 		By(fmt.Sprintf("Trying to create a pod(%s) with hostport %v, protocol %v and hostIP %v and expect not scheduled", labelPodName2, port, v1.ProtocolTCP, "127.0.0.1"))
-		conf = common.TestPodConfig{
+		conf = k8s.TestPodConfig{
 			Name:      labelPodName2,
 			Namespace: anotherNS,
 			Labels: map[string]string{
@@ -1045,7 +1065,9 @@ var _ = Describe("Predicates", func() {
 		}
 
 		var success bool
-		success, err = kClient.WaitForSchedulerAfterAction(kClient.CreateTestPodAction(common.InitTestPod(conf), anotherNS), anotherNS, labelPodName2, false)
+		initPod, podErr = k8s.InitTestPod(conf)
+		Ω(podErr).NotTo(HaveOccurred())
+		success, err = kClient.WaitForSchedulerAfterAction(kClient.CreateTestPodAction(initPod, anotherNS), anotherNS, labelPodName2, false)
 		Ω(err).NotTo(HaveOccurred())
 		Ω(success).Should(BeTrue())
 

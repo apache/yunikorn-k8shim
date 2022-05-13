@@ -29,11 +29,13 @@ const (
 	// that contain logs, outputs etc
 	LogPerm = os.FileMode(0666)
 
-	YKScheduler   = "yunikorn-scheduler"
-	SchedulerName = "yunikorn"
-	YKAdmCtrl     = "yunikorn-admission-controller"
+	YKScheduler          = "yunikorn-scheduler"
+	YKSchedulerContainer = "yunikorn-scheduler-k8s"
+	SchedulerName        = "yunikorn"
+	YKAdmCtrl            = "yunikorn-admission-controller"
 	// YuniKorn service name
-	YKSvcName = "yunikorn-service"
+	YKSvcName        = "yunikorn-service"
+	YKDeploymentName = "yunikorn-scheduler"
 
 	// YuniKorn Admission controller serivce name
 	YKAdmCtrlName = "yunikorn-admission-controller-service"
@@ -43,6 +45,7 @@ const (
 	QueuesPath       = "ws/v1/partition/%s/queues"
 	AppsPath         = "ws/v1/partition/%s/queue/%s/applications"
 	ClustersPath     = "ws/v1/clusters"
+	NodesPath        = "ws/v1/nodes"
 	HealthCheckPath  = "ws/v1/scheduler/healthcheck"
 	ValidateConfPath = "ws/v1/validate-conf"
 

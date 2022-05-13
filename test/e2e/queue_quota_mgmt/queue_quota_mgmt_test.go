@@ -85,15 +85,16 @@ var _ = Describe("", func() {
 
 		var iter int64
 		for iter = 1; iter <= 3; iter++ {
-			sleepPodConfigs := common.SleepPodConfig{NS: ns, Time: 60, CPU: reqCPU, Mem: reqMem}
-			sleepObj := common.InitSleepPod(sleepPodConfigs)
+			sleepPodConfigs := k8s.SleepPodConfig{NS: ns, Time: 60, CPU: reqCPU, Mem: reqMem}
+			sleepObj, podErr := k8s.InitSleepPod(sleepPodConfigs)
+			Ω(podErr).NotTo(HaveOccurred())
 
 			pods = append(pods, sleepObj.Name)
 			By(fmt.Sprintf("App-%d: Deploy the sleep app:%s to %s namespace", iter, sleepObj.Name, ns))
 			sleepRespPod, err = kClient.CreatePod(sleepObj, ns)
 			Ω(err).NotTo(HaveOccurred())
 
-			Ω(k.WaitForPodRunning(sleepRespPod.Namespace, sleepRespPod.Name, time.Duration(60)*time.Second)).NotTo(HaveOccurred())
+			Ω(kClient.WaitForPodRunning(sleepRespPod.Namespace, sleepRespPod.Name, time.Duration(60)*time.Second)).NotTo(HaveOccurred())
 
 			// Verify that the resources requested by above sleep pod is accounted for in the queues response
 			queueInfo, err = restClient.GetSpecificQueueInfo("default", "root."+ns)
@@ -122,8 +123,10 @@ var _ = Describe("", func() {
 		}
 
 		By("App-4: Submit another app which exceeds the queue quota limitation")
-		sleepPodConfigs := common.SleepPodConfig{NS: ns, Time: 60, CPU: reqCPU, Mem: reqMem}
-		sleepObj := common.InitSleepPod(sleepPodConfigs)
+		sleepPodConfigs := k8s.SleepPodConfig{NS: ns, Time: 60, CPU: reqCPU, Mem: reqMem}
+		sleepObj, app4PodErr := k8s.InitSleepPod(sleepPodConfigs)
+		Ω(app4PodErr).NotTo(HaveOccurred())
+
 		By(fmt.Sprintf("App-4: Deploy the sleep app:%s to %s namespace", sleepObj.Name, ns))
 		sleepRespPod, err = kClient.CreatePod(sleepObj, ns)
 		Ω(err).NotTo(HaveOccurred())
@@ -141,12 +144,12 @@ var _ = Describe("", func() {
 		Ω(err).NotTo(HaveOccurred())
 
 		By(fmt.Sprintf("App-1: Wait for 1st app:%s to complete, to make enough capacity to run the last app", pods[0]))
-		// Wait for pod to move to accepted state
+		//Wait for pod to move to accepted state
 		err = kClient.WaitForPodSucceeded(ns, pods[0], time.Duration(360)*time.Second)
 		Ω(err).NotTo(HaveOccurred())
 
 		By(fmt.Sprintf("Pod-4: Verify Pod:%s moved to running state", sleepObj.Name))
-		Ω(k.WaitForPodRunning(sleepRespPod.Namespace, sleepRespPod.Name, time.Duration(60)*time.Second)).NotTo(HaveOccurred())
+		Ω(kClient.WaitForPodRunning(sleepRespPod.Namespace, sleepRespPod.Name, time.Duration(60)*time.Second)).NotTo(HaveOccurred())
 
 	}, 360)
 
@@ -170,13 +173,13 @@ var _ = Describe("", func() {
 		// Create sleep pod
 		var reqCPU int64 = 300
 		var reqMem int64 = 300
-		sleepPodConfigs := common.SleepPodConfig{NS: ns, Time: 60, CPU: reqCPU, Mem: reqMem}
-		sleepObj := common.InitSleepPod(sleepPodConfigs)
-
+		sleepPodConfigs := k8s.SleepPodConfig{NS: ns, Time: 60, CPU: reqCPU, Mem: reqMem}
+		sleepObj, podErr := k8s.InitSleepPod(sleepPodConfigs)
+		Ω(podErr).NotTo(HaveOccurred())
 		By(fmt.Sprintf("Deploy the sleep app:%s to %s namespace", sleepObj.Name, ns))
 		sleepRespPod, err = kClient.CreatePod(sleepObj, ns)
 		Ω(err).NotTo(HaveOccurred())
-		Ω(k.WaitForPodRunning(sleepRespPod.Namespace, sleepRespPod.Name, time.Duration(60)*time.Second)).NotTo(HaveOccurred())
+		Ω(kClient.WaitForPodRunning(sleepRespPod.Namespace, sleepRespPod.Name, time.Duration(60)*time.Second)).NotTo(HaveOccurred())
 	},
 		Entry("Verify_NS_With_Empty_Quota_Annotations", nil, nil),
 		Entry("Verify_NS_With_Wrong_Quota_Annotations", "a", "b"),
@@ -199,7 +202,7 @@ var _ = Describe("", func() {
 		Ω(checks).To(Equal(""), checks)
 
 		By("Tearing down namespace: " + ns)
-		err = k.TearDownNamespace(ns)
+		err = kClient.TearDownNamespace(ns)
 		Ω(err).NotTo(HaveOccurred())
 	})
 })

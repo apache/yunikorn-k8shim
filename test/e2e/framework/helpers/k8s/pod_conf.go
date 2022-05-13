@@ -16,12 +16,14 @@
  limitations under the License.
 */
 
-package common
+package k8s
 
 import (
+	"encoding/json"
 	"strconv"
 
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -37,14 +39,14 @@ type SleepPodConfig struct {
 	Mem   int64
 }
 
-// TestPodConfig template for sleepPods
-func InitSleepPod(conf SleepPodConfig) *v1.Pod {
+// TestPodConfig template for  sleepPods
+func InitSleepPod(conf SleepPodConfig) (*v1.Pod, error) {
 	// Initialize default values
 	if conf.Name == "" {
-		conf.Name = "sleep-" + RandSeq(5)
+		conf.Name = "sleep-" + common.RandSeq(5)
 	}
 	if conf.AppID == "" {
-		conf.AppID = GetUUID()
+		conf.AppID = common.GetUUID()
 	}
 	if conf.Time == 0 {
 		conf.Time = 600
@@ -77,31 +79,38 @@ func InitSleepPod(conf SleepPodConfig) *v1.Pod {
 }
 
 type TestPodConfig struct {
-	Name                              string
-	Namespace                         string
-	Affinity                          *v1.Affinity
-	Annotations, Labels, NodeSelector map[string]string
-	Resources                         *v1.ResourceRequirements
-	RuntimeClassHandler               *string
-	Tolerations                       []v1.Toleration
-	NodeName                          string
-	Ports                             []v1.ContainerPort
-	OwnerReferences                   []metav1.OwnerReference
-	PriorityClassName                 string
-	DeletionGracePeriodSeconds        *int64
-	TopologySpreadConstraints         []v1.TopologySpreadConstraint
-	Image                             string
-	RestartPolicy                     v1.RestartPolicy
-	Command                           []string
+	Name                       string
+	Namespace                  string
+	Affinity                   *v1.Affinity
+	Annotations                *PodAnnotation
+	Labels, NodeSelector       map[string]string
+	Resources                  *v1.ResourceRequirements
+	RuntimeClassHandler        *string
+	Tolerations                []v1.Toleration
+	NodeName                   string
+	Ports                      []v1.ContainerPort
+	OwnerReferences            []metav1.OwnerReference
+	PriorityClassName          string
+	DeletionGracePeriodSeconds *int64
+	TopologySpreadConstraints  []v1.TopologySpreadConstraint
+	Image                      string
+	RestartPolicy              v1.RestartPolicy
+	Command                    []string
+	InitContainerSleepSecs     int
 }
 
-func InitTestPod(conf TestPodConfig) *v1.Pod {
+func InitTestPod(conf TestPodConfig) (*v1.Pod, error) { //nolint:funlen
 	var gracePeriod = int64(1)
 	if conf.Image == "" {
-		conf.Image = "alpine:latest"
+		conf.Image = "docker-private.infra.cloudera.com/cloudera_base/alpine"
 	}
 	if conf.Command == nil {
-		conf.Command = []string{"sleep", "30"}
+		conf.Command = []string{"sleep", "300"}
+	}
+
+	PodAnnotation, err := PodAnnotationToMap(conf.Annotations)
+	if err != nil {
+		return nil, err
 	}
 
 	pod := &v1.Pod{
@@ -109,7 +118,7 @@ func InitTestPod(conf TestPodConfig) *v1.Pod {
 			Name:            conf.Name,
 			Namespace:       conf.Namespace,
 			Labels:          conf.Labels,
-			Annotations:     conf.Annotations,
+			Annotations:     PodAnnotation,
 			OwnerReferences: conf.OwnerReferences,
 		},
 		Spec: v1.PodSpec{
@@ -122,10 +131,11 @@ func InitTestPod(conf TestPodConfig) *v1.Pod {
 			RuntimeClassName:          conf.RuntimeClassHandler,
 			Containers: []v1.Container{
 				{
-					Name:    conf.Name,
-					Image:   conf.Image,
-					Ports:   conf.Ports,
-					Command: conf.Command,
+					Name:            "sleepcontainer",
+					Image:           conf.Image,
+					ImagePullPolicy: v1.PullIfNotPresent,
+					Ports:           conf.Ports,
+					Command:         conf.Command,
 				},
 			},
 			Tolerations:                   conf.Tolerations,
@@ -139,5 +149,55 @@ func InitTestPod(conf TestPodConfig) *v1.Pod {
 	if conf.DeletionGracePeriodSeconds != nil {
 		pod.ObjectMeta.DeletionGracePeriodSeconds = conf.DeletionGracePeriodSeconds
 	}
-	return pod
+	if conf.InitContainerSleepSecs > 0 {
+		containerReqs := v1.ResourceRequirements{
+			Requests: v1.ResourceList{
+				"cpu":    resource.MustParse(strconv.FormatInt(20, 10) + "m"),
+				"memory": resource.MustParse(strconv.FormatInt(20, 10) + "M"),
+			},
+		}
+		pod.Spec.InitContainers = []v1.Container{
+			{
+				Name:            "init-sleep",
+				Image:           conf.Image,
+				ImagePullPolicy: v1.PullIfNotPresent,
+				Command:         []string{"sleep", strconv.Itoa(conf.InitContainerSleepSecs)},
+				Resources:       containerReqs,
+			},
+		}
+	}
+	return pod, nil
+}
+
+// Pod.ObjectMeta.Annotations expect map[string]string. Converts struct to map[string]string
+func PodAnnotationToMap(annotations *PodAnnotation) (map[string]string, error) {
+	// Check for empty annotations
+	if annotations == nil {
+		return make(map[string]string), nil
+	}
+
+	// Convert string vals first
+	var annotationsMap map[string]string
+	annotationsJSON, err := json.Marshal(annotations)
+	if err != nil {
+		return nil, err
+	}
+	err = json.Unmarshal(annotationsJSON, &annotationsMap)
+	if err != nil {
+		return nil, err
+	}
+
+	// Add TaskGroup definition with string
+	taskGroupJSON, err := json.Marshal(annotations.TaskGroups)
+	if err != nil {
+		return nil, err
+	}
+	annotationsMap[TaskGroups] = string(taskGroupJSON)
+
+	// Add non-YK annotations
+	for annKey, annVal := range annotations.Other {
+		annotationsMap[annKey] = annVal
+	}
+
+	return annotationsMap, nil
 }
