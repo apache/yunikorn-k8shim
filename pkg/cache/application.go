@@ -406,7 +406,7 @@ func (app *Application) handleSubmitApplicationEvent() {
 	}
 }
 
-func (app *Application) handleRecoverApplicationEvent(event *fsm.Event) {
+func (app *Application) handleRecoverApplicationEvent() {
 	log.Logger().Info("handle app recovering",
 		zap.String("app", app.String()),
 		zap.String("clusterID", conf.GetSchedulerConf().ClusterID))
