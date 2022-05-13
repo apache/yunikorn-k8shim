@@ -406,7 +406,7 @@ func (app *Application) handleSubmitApplicationEvent() {
 	}
 }
 
-func (app *Application) handleRecoverApplicationEvent() {
+func (app *Application) handleRecoverApplicationEvent(event *fsm.Event) {
 	log.Logger().Info("handle app recovering",
 		zap.String("app", app.String()),
 		zap.String("clusterID", conf.GetSchedulerConf().ClusterID))
@@ -430,8 +430,8 @@ func (app *Application) handleRecoverApplicationEvent() {
 		})
 
 	if err != nil {
-		// recovery failed
-		log.Logger().Warn("failed to recover app", zap.Error(err))
+		// submission failed
+		log.Logger().Warn("failed to submit app", zap.Error(err))
 		dispatcher.Dispatch(NewFailApplicationEvent(app.applicationID, err.Error()))
 	}
 }
