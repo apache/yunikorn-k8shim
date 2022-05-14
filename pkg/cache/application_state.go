@@ -55,7 +55,9 @@ func (ae ApplicationEventType) String() string {
 	return [...]string{"SubmitApplication", "RecoverApplication", "AcceptApplication", "TryReserve", "UpdateReservation", "RunApplication", "RejectApplication", "CompleteApplication", "FailApplication", "KillApplication", "KilledApplication", "ReleaseAppAllocation", "ReleaseAppAllocationAsk", "AppStateChange", "ResumingApplication", "AppTaskCompleted"}[ae]
 }
 
+// ------------------------
 // SimpleApplicationEvent simply moves application states
+// ------------------------
 type SimpleApplicationEvent struct {
 	applicationID string
 	event         ApplicationEventType

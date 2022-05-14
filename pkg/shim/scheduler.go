@@ -102,6 +102,7 @@ func newShimSchedulerInternal(ctx *cache.Context, apiFactory client.APIProvider,
 	dispatcher.RegisterEventHandler(dispatcher.EventTypeNode, ctx.SchedulerNodeEventHandler())
 	dispatcher.RegisterEventHandler(dispatcher.EventTypeScheduler, ss.SchedulerEventHandler())
 	dispatcher.RegisterEventHandler(dispatcher.EventTypeAppStatus, am.ApplicationStateUpdateEventHandler())
+
 	return ss
 }
 
@@ -240,7 +241,7 @@ func (ss *KubernetesShim) GetSchedulerState() string {
 func (ss *KubernetesShim) handle(se events.SchedulerEvent) error {
 	ss.lock.Lock()
 	defer ss.lock.Unlock()
-	err := ss.stateMachine.Event(se.GetEvent(), ss, se.GetArgs())
+	err := ss.stateMachine.Event(se.GetEvent(), ss)
 	if err != nil && err.Error() == "no transition" {
 		return err
 	}
