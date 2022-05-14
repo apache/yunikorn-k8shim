@@ -19,10 +19,11 @@
 package shim
 
 import (
-	"github.com/apache/yunikorn-k8shim/pkg/common/events"
-	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/looplab/fsm"
 	"go.uber.org/zap"
+
+	"github.com/apache/yunikorn-k8shim/pkg/common/events"
+	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
 
 //----------------------------------------------
@@ -43,7 +44,7 @@ func (ae SchedulerEventType) String() string {
 	return [...]string{"RegisterScheduler", "RegisterSchedulerSucceed", "RegisterSchedulerFailed", "RecoverScheduler", "RecoverSchedulerSucceed", "RecoverSchedulerFailed"}[ae]
 }
 
-type ShimSchedulerEvent struct {
+type ShimSchedulerEvent struct { //nolint:golint
 	event SchedulerEventType
 }
 
@@ -79,9 +80,9 @@ func (rs RegisterSchedulerEvent) GetArgs() []interface{} {
 // ----------------------------------
 // Scheduler states
 // ----------------------------------
-var storeScheduleStates *schedulerStates
+var storeScheduleStates *SStates
 
-type schedulerStates struct {
+type SStates struct {
 	New         string
 	Registered  string
 	Registering string
@@ -91,9 +92,9 @@ type schedulerStates struct {
 	Stopped     string
 }
 
-func SchedulerStates() *schedulerStates {
+func SchedulerStates() *SStates {
 	if storeScheduleStates == nil {
-		storeScheduleStates = &schedulerStates{
+		storeScheduleStates = &SStates{
 			New:         "New",
 			Registered:  "Registered",
 			Registering: "Registering",

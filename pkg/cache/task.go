@@ -241,7 +241,7 @@ func (task *Task) setAllocated(nodeName, allocationUUID string) {
 }
 
 func (task *Task) handleFailEvent(reason string, err bool) {
-	if err == true {
+	if err {
 		dispatcher.Dispatch(NewFailTaskEvent(task.applicationID, task.taskID, reason))
 		events.GetRecorder().Eventf(task.pod, nil, v1.EventTypeWarning, "SchedulingFailed", "SchedulingFailed",
 			"%s scheduling failed, reason: %s", task.alias, reason)

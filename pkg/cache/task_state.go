@@ -19,10 +19,11 @@
 package cache
 
 import (
-	"github.com/apache/yunikorn-k8shim/pkg/common/events"
-	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/looplab/fsm"
 	"go.uber.org/zap"
+
+	"github.com/apache/yunikorn-k8shim/pkg/common/events"
+	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
 
 //----------------------------------------------
@@ -262,9 +263,9 @@ func (re RejectTaskEvent) GetApplicationID() string {
 // ----------------------------------
 // task states
 // ----------------------------------
-var storeTaskStates *taskStates
+var storeTaskStates *TStates
 
-type taskStates struct {
+type TStates struct {
 	New        string
 	Pending    string
 	Scheduling string
@@ -279,9 +280,9 @@ type taskStates struct {
 	Terminated []string // Rejected, Killed, Failed, Completed
 }
 
-func TaskStates() *taskStates {
+func TaskStates() *TStates {
 	if storeTaskStates == nil {
-		storeTaskStates = &taskStates{
+		storeTaskStates = &TStates{
 			New:        "New",
 			Pending:    "Pending",
 			Scheduling: "Scheduling",

@@ -19,11 +19,12 @@
 package cache
 
 import (
+	"github.com/looplab/fsm"
+	"go.uber.org/zap"
+
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
-	"github.com/looplab/fsm"
-	"go.uber.org/zap"
 )
 
 //----------------------------------------------
@@ -350,9 +351,9 @@ func (re ResumingApplicationEvent) GetApplicationID() string {
 // ----------------------------------
 // Application states
 // ----------------------------------
-var storeApplicationStates *applicationStates
+var storeApplicationStates *AStates
 
-type applicationStates struct {
+type AStates struct {
 	New        string
 	Recovering string
 	Submitted  string
@@ -368,9 +369,9 @@ type applicationStates struct {
 	Resuming   string
 }
 
-func ApplicationStates() *applicationStates {
+func ApplicationStates() *AStates {
 	if storeApplicationStates == nil {
-		storeApplicationStates = &applicationStates{
+		storeApplicationStates = &AStates{
 			New:        "New",
 			Recovering: "Recovering",
 			Submitted:  "Submitted",
@@ -389,7 +390,7 @@ func ApplicationStates() *applicationStates {
 	return storeApplicationStates
 }
 
-func newAppState() *fsm.FSM {
+func newAppState() *fsm.FSM { //nolint:funlen
 	states := ApplicationStates()
 	return fsm.NewFSM(
 		states.New, fsm.Events{

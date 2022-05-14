@@ -19,10 +19,11 @@
 package cache
 
 import (
-	"github.com/apache/yunikorn-k8shim/pkg/common/events"
-	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/looplab/fsm"
 	"go.uber.org/zap"
+
+	"github.com/apache/yunikorn-k8shim/pkg/common/events"
+	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
 
 //----------------------------------------------
@@ -56,16 +57,16 @@ func (sn CachedSchedulerNodeEvent) GetNodeID() string {
 	return sn.NodeID
 }
 
-func (re CachedSchedulerNodeEvent) GetArgs() []interface{} {
+func (sn CachedSchedulerNodeEvent) GetArgs() []interface{} {
 	return nil
 }
 
 // ----------------------------------
 // SchedulerNode states
 // ----------------------------------
-var storeSchedulerNodeStates *schedulerNodeStates
+var storeSchedulerNodeStates *NStates
 
-type schedulerNodeStates struct {
+type NStates struct {
 	New        string
 	Recovering string
 	Accepted   string
@@ -74,9 +75,9 @@ type schedulerNodeStates struct {
 	Draining   string
 }
 
-func SchedulerNodeStates() *schedulerNodeStates {
+func SchedulerNodeStates() *NStates {
 	if storeSchedulerNodeStates == nil {
-		storeSchedulerNodeStates = &schedulerNodeStates{
+		storeSchedulerNodeStates = &NStates{
 			New:        "New",
 			Recovering: "Recovering",
 			Accepted:   "Accepted",
@@ -125,7 +126,7 @@ func newSchedulerNodeState() *fsm.FSM {
 		},
 		fsm.Callbacks{
 			events.EnterState: func(event *fsm.Event) {
-				node := event.Args[0].(*SchedulerNode)
+				node := event.Args[0].(*SchedulerNode) //nolint:errcheck
 				log.Logger().Debug("shim node state transition",
 					zap.String("nodeID", node.name),
 					zap.String("source", event.Src),

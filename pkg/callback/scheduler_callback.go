@@ -176,7 +176,7 @@ func (callback *AsyncRMCallback) UpdateNode(response *si.NodeResponse) error {
 
 		dispatcher.Dispatch(cache.CachedSchedulerNodeEvent{
 			NodeID: node.NodeID,
-			Event: cache.NodeRejected,
+			Event:  cache.NodeRejected,
 		})
 	}
 	return nil
