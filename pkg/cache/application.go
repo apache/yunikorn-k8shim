@@ -524,8 +524,8 @@ func (app *Application) handleRecoverApplicationEvent(event *fsm.Event) {
 		})
 
 	if err != nil {
-		// submission failed
-		log.Logger().Warn("failed to submit app", zap.Error(err))
+		// recovery failed
+		log.Logger().Warn("failed to recover app", zap.Error(err))
 		dispatcher.Dispatch(NewFailApplicationEvent(app.applicationID, err.Error()))
 	}
 }
