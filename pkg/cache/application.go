@@ -759,8 +759,8 @@ func (app *Application) publishPlaceholderTimeoutEvents(task *Task) {
 			zap.String("app request originating pod", app.requestOriginatingTask.GetTaskPod().String()),
 			zap.String("taskID", task.taskID),
 			zap.String("terminationType", task.terminationType))
-		events.GetRecorder().Eventf(app.requestOriginatingTask.GetTaskPod(), v1.EventTypeWarning, "Placeholder timed out",
-			"Application %s placeholder has been timed out, task: %s", app.applicationID, task.taskID)
+		events.GetRecorder().Eventf(app.requestOriginatingTask.GetTaskPod(), nil, v1.EventTypeWarning, "Placeholder timed out",
+			"Placeholder timed out", "Application %s placeholder has been timed out", app.applicationID)
 	}
 }
 
