@@ -71,7 +71,7 @@ func (os *Manager) ServiceInit() error {
 		&client.ResourceEventHandlers{
 			Type:     client.PodInformerHandlers,
 			FilterFn: os.filterPods,
-			AddFn:    os.AddPod,
+			AddFn:    os.addPod,
 			UpdateFn: os.updatePod,
 			DeleteFn: os.deletePod,
 		})
@@ -225,7 +225,7 @@ func (os *Manager) filterPods(obj interface{}) bool {
 	}
 }
 
-func (os *Manager) AddPod(obj interface{}) {
+func (os *Manager) addPod(obj interface{}) {
 	pod, err := utils.Convert2Pod(obj)
 	if err != nil {
 		log.Logger().Error("failed to add pod", zap.Error(err))

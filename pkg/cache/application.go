@@ -60,7 +60,6 @@ type Application struct {
 	placeholderAsk             *si.Resource // total placeholder request for the app (all task groups)
 	placeholderTimeoutInSec    int64
 	schedulingStyle            string
-	requestOriginatingTask     interfaces.ManagedTask // Original Pod which creates the requests
 }
 
 func (app *Application) String() string {
@@ -281,8 +280,8 @@ func (app *Application) getTaskGroups() []v1alpha1.TaskGroup {
 }
 
 func (app *Application) setOwnReferences(ref []metav1.OwnerReference) {
-	app.lock.Lock()
-	defer app.lock.Unlock()
+	app.lock.RLock()
+	defer app.lock.RUnlock()
 	app.placeholderOwnerReferences = ref
 }
 
@@ -290,12 +289,6 @@ func (app *Application) setSchedulingStyle(schedulingStyle string) {
 	app.lock.Lock()
 	defer app.lock.Unlock()
 	app.schedulingStyle = schedulingStyle
-}
-
-func (app *Application) setRequestOriginatingTask(task interfaces.ManagedTask) {
-	app.lock.Lock()
-	defer app.lock.Unlock()
-	app.requestOriginatingTask = task
 }
 
 func (app *Application) addTask(task *Task) {
@@ -704,7 +697,6 @@ func (app *Application) handleReleaseAppAllocationEvent(event *fsm.Event) {
 			if err != nil {
 				log.Logger().Error("failed to release allocation from application", zap.Error(err))
 			}
-			app.publishPlaceholderTimeoutEvents(task)
 		}
 	}
 }
@@ -728,7 +720,6 @@ func (app *Application) handleReleaseAppAllocationAskEvent(event *fsm.Event) {
 			if err != nil {
 				log.Logger().Error("failed to release allocation ask from application", zap.Error(err))
 			}
-			app.publishPlaceholderTimeoutEvents(task)
 		} else {
 			log.Logger().Warn("skip to release allocation ask, ask is not a placeholder",
 				zap.String("appID", app.applicationID),
@@ -750,18 +741,6 @@ func (app *Application) handleAppTaskCompletedEvent(event *fsm.Event) {
 	log.Logger().Info("Resuming completed, start to run the app",
 		zap.String("appID", app.applicationID))
 	dispatcher.Dispatch(NewRunApplicationEvent(app.applicationID))
-}
-
-func (app *Application) publishPlaceholderTimeoutEvents(task *Task) {
-	if app.requestOriginatingTask != nil && task.IsPlaceholder() && task.terminationType == si.TerminationType_name[int32(si.TerminationType_TIMEOUT)] {
-		log.Logger().Info("trying to send placeholder timeout events to the original pod from application",
-			zap.String("appID", app.applicationID),
-			zap.String("app request originating pod", app.requestOriginatingTask.GetTaskPod().String()),
-			zap.String("taskID", task.taskID),
-			zap.String("terminationType", task.terminationType))
-		events.GetRecorder().Eventf(app.requestOriginatingTask.GetTaskPod(), nil, v1.EventTypeWarning, "Placeholder timed out",
-			"Placeholder timed out", "Application %s placeholder has been timed out", app.applicationID)
-	}
 }
 
 func (app *Application) enterState(event *fsm.Event) {
