@@ -1215,13 +1215,9 @@ func TestPlaceholderTimeoutEvents(t *testing.T) {
 	_, taskErr := app.GetTask("task02")
 	if taskErr != nil {
 		// this should give an error
-		t.Error("Task should exist")
+		t.Error("expecting error got 'nil'")
 	}
-	task2, task2Err := task1.(*Task)
-	if !task2Err {
-		// this should give an error
-		t.Error("task1 is expected to be of type Task")
-	}
+	task2 := task1.(*Task)
 	task2.allocationUUID = UUID
 
 	// app must be running states
