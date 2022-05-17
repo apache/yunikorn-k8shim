@@ -697,6 +697,7 @@ func (ctx *Context) AddTask(request *interfaces.AddTaskRequest) interfaces.Manag
 					zap.String("appID", app.applicationID),
 					zap.String("taskID", task.taskID),
 					zap.String("taskState", task.GetTaskState()))
+
 				return task
 			}
 			return existingTask
