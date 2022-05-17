@@ -60,7 +60,10 @@ type Application struct {
 	placeholderAsk             *si.Resource // total placeholder request for the app (all task groups)
 	placeholderTimeoutInSec    int64
 	schedulingStyle            string
+<<<<<<< HEAD
 	requestOriginatingTask     interfaces.ManagedTask // Original Pod which creates the requests
+=======
+>>>>>>> parent of 2bdec408 (YUNIKORN-641: Add events for placeholder timeout to pod)
 }
 
 func (app *Application) String() string {
@@ -281,8 +284,8 @@ func (app *Application) getTaskGroups() []v1alpha1.TaskGroup {
 }
 
 func (app *Application) setOwnReferences(ref []metav1.OwnerReference) {
-	app.lock.Lock()
-	defer app.lock.Unlock()
+	app.lock.RLock()
+	defer app.lock.RUnlock()
 	app.placeholderOwnerReferences = ref
 }
 
@@ -292,12 +295,15 @@ func (app *Application) setSchedulingStyle(schedulingStyle string) {
 	app.schedulingStyle = schedulingStyle
 }
 
+<<<<<<< HEAD
 func (app *Application) setRequestOriginatingTask(task interfaces.ManagedTask) {
 	app.lock.Lock()
 	defer app.lock.Unlock()
 	app.requestOriginatingTask = task
 }
 
+=======
+>>>>>>> parent of 2bdec408 (YUNIKORN-641: Add events for placeholder timeout to pod)
 func (app *Application) addTask(task *Task) {
 	app.lock.Lock()
 	defer app.lock.Unlock()
@@ -704,7 +710,6 @@ func (app *Application) handleReleaseAppAllocationEvent(event *fsm.Event) {
 			if err != nil {
 				log.Logger().Error("failed to release allocation from application", zap.Error(err))
 			}
-			app.publishPlaceholderTimeoutEvents(task)
 		}
 	}
 }
@@ -728,7 +733,6 @@ func (app *Application) handleReleaseAppAllocationAskEvent(event *fsm.Event) {
 			if err != nil {
 				log.Logger().Error("failed to release allocation ask from application", zap.Error(err))
 			}
-			app.publishPlaceholderTimeoutEvents(task)
 		} else {
 			log.Logger().Warn("skip to release allocation ask, ask is not a placeholder",
 				zap.String("appID", app.applicationID),
@@ -752,6 +756,7 @@ func (app *Application) handleAppTaskCompletedEvent(event *fsm.Event) {
 	dispatcher.Dispatch(NewRunApplicationEvent(app.applicationID))
 }
 
+<<<<<<< HEAD
 func (app *Application) publishPlaceholderTimeoutEvents(task *Task) {
 	if app.requestOriginatingTask != nil && task.IsPlaceholder() && task.terminationType == si.TerminationType_name[int32(si.TerminationType_TIMEOUT)] {
 		log.Logger().Info("trying to send placeholder timeout events to the original pod from application",
@@ -764,6 +769,8 @@ func (app *Application) publishPlaceholderTimeoutEvents(task *Task) {
 	}
 }
 
+=======
+>>>>>>> parent of 2bdec408 (YUNIKORN-641: Add events for placeholder timeout to pod)
 func (app *Application) enterState(event *fsm.Event) {
 	log.Logger().Debug("shim app state transition",
 		zap.String("app", app.applicationID),

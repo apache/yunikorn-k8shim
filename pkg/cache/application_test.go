@@ -34,7 +34,6 @@ import (
 	k8sEvents "k8s.io/client-go/tools/events"
 
 	"github.com/apache/yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
-	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/general"
 	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common"
@@ -1133,6 +1132,7 @@ func TestGetPlaceholderTasks(t *testing.T) {
 	assert.Assert(t, phTasksMap["task0001"])
 	assert.Assert(t, phTasksMap["task0002"])
 }
+<<<<<<< HEAD
 
 func TestPlaceholderTimeoutEvents(t *testing.T) {
 	context := initContextForTest()
@@ -1255,3 +1255,5 @@ func TestPlaceholderTimeoutEvents(t *testing.T) {
 	}, 5*time.Millisecond, 20*time.Millisecond)
 	assert.NilError(t, err, "event should have been emitted")
 }
+=======
+>>>>>>> parent of 2bdec408 (YUNIKORN-641: Add events for placeholder timeout to pod)

@@ -697,6 +697,7 @@ func (ctx *Context) AddTask(request *interfaces.AddTaskRequest) interfaces.Manag
 					zap.String("appID", app.applicationID),
 					zap.String("taskID", task.taskID),
 					zap.String("taskState", task.GetTaskState()))
+<<<<<<< HEAD
 				if app.requestOriginatingTask == nil {
 					for _, ownerReference := range app.placeholderOwnerReferences {
 						if task, taskErr := app.GetTask(string(ownerReference.UID)); task != nil && taskErr == nil {
@@ -708,6 +709,9 @@ func (ctx *Context) AddTask(request *interfaces.AddTaskRequest) interfaces.Manag
 						}
 					}
 				}
+=======
+
+>>>>>>> parent of 2bdec408 (YUNIKORN-641: Add events for placeholder timeout to pod)
 				return task
 			}
 			return existingTask

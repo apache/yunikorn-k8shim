@@ -15,7 +15,6 @@
  See the License for the specific language governing permissions and
  limitations under the License.
 */
-
 package cache
 
 import (
@@ -54,7 +53,6 @@ func (m *MockedAMProtocol) AddApplication(request *interfaces.AddApplicationRequ
 		request.Metadata.User,
 		request.Metadata.Tags,
 		test.NewSchedulerAPIMock())
-	app.setOwnReferences(request.Metadata.OwnerReferences)
 
 	// add into cache
 	m.applications[app.GetApplicationID()] = app
