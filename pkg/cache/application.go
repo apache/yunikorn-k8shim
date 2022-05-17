@@ -60,10 +60,6 @@ type Application struct {
 	placeholderAsk             *si.Resource // total placeholder request for the app (all task groups)
 	placeholderTimeoutInSec    int64
 	schedulingStyle            string
-<<<<<<< HEAD
-	requestOriginatingTask     interfaces.ManagedTask // Original Pod which creates the requests
-=======
->>>>>>> parent of 2bdec408 (YUNIKORN-641: Add events for placeholder timeout to pod)
 }
 
 func (app *Application) String() string {
@@ -295,15 +291,6 @@ func (app *Application) setSchedulingStyle(schedulingStyle string) {
 	app.schedulingStyle = schedulingStyle
 }
 
-<<<<<<< HEAD
-func (app *Application) setRequestOriginatingTask(task interfaces.ManagedTask) {
-	app.lock.Lock()
-	defer app.lock.Unlock()
-	app.requestOriginatingTask = task
-}
-
-=======
->>>>>>> parent of 2bdec408 (YUNIKORN-641: Add events for placeholder timeout to pod)
 func (app *Application) addTask(task *Task) {
 	app.lock.Lock()
 	defer app.lock.Unlock()
@@ -756,21 +743,6 @@ func (app *Application) handleAppTaskCompletedEvent(event *fsm.Event) {
 	dispatcher.Dispatch(NewRunApplicationEvent(app.applicationID))
 }
 
-<<<<<<< HEAD
-func (app *Application) publishPlaceholderTimeoutEvents(task *Task) {
-	if app.requestOriginatingTask != nil && task.IsPlaceholder() && task.terminationType == si.TerminationType_name[int32(si.TerminationType_TIMEOUT)] {
-		log.Logger().Info("trying to send placeholder timeout events to the original pod from application",
-			zap.String("appID", app.applicationID),
-			zap.String("app request originating pod", app.requestOriginatingTask.GetTaskPod().String()),
-			zap.String("taskID", task.taskID),
-			zap.String("terminationType", task.terminationType))
-		events.GetRecorder().Eventf(app.requestOriginatingTask.GetTaskPod(), v1.EventTypeWarning, "Placeholder timed out",
-			"Application %s placeholder has been timed out, task: %s", app.applicationID, task.taskID)
-	}
-}
-
-=======
->>>>>>> parent of 2bdec408 (YUNIKORN-641: Add events for placeholder timeout to pod)
 func (app *Application) enterState(event *fsm.Event) {
 	log.Logger().Debug("shim app state transition",
 		zap.String("app", app.applicationID),
