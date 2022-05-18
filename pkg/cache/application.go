@@ -60,7 +60,7 @@ type Application struct {
 	placeholderAsk             *si.Resource // total placeholder request for the app (all task groups)
 	placeholderTimeoutInSec    int64
 	schedulingStyle            string
-	requestOriginatingTask     interfaces.ManagedTask // Original Pod which creates the requests
+	originatingTask            interfaces.ManagedTask // Original Pod which creates the requests
 }
 
 func (app *Application) String() string {
@@ -292,10 +292,10 @@ func (app *Application) setSchedulingStyle(schedulingStyle string) {
 	app.schedulingStyle = schedulingStyle
 }
 
-func (app *Application) setRequestOriginatingTask(task interfaces.ManagedTask) {
+func (app *Application) setOriginatingTask(task interfaces.ManagedTask) {
 	app.lock.Lock()
 	defer app.lock.Unlock()
-	app.requestOriginatingTask = task
+	app.originatingTask = task
 }
 
 func (app *Application) addTask(task *Task) {
@@ -753,13 +753,13 @@ func (app *Application) handleAppTaskCompletedEvent(event *fsm.Event) {
 }
 
 func (app *Application) publishPlaceholderTimeoutEvents(task *Task) {
-	if app.requestOriginatingTask != nil && task.IsPlaceholder() && task.terminationType == si.TerminationType_name[int32(si.TerminationType_TIMEOUT)] {
-		log.Logger().Info("trying to send placeholder timeout events to the original pod from application",
+	if app.originatingTask != nil && task.IsPlaceholder() && task.terminationType == si.TerminationType_name[int32(si.TerminationType_TIMEOUT)] {
+		log.Logger().Debug("trying to send placeholder timeout events to the original pod from application",
 			zap.String("appID", app.applicationID),
-			zap.String("app request originating pod", app.requestOriginatingTask.GetTaskPod().String()),
+			zap.String("app request originating pod", app.originatingTask.GetTaskPod().String()),
 			zap.String("taskID", task.taskID),
 			zap.String("terminationType", task.terminationType))
-		events.GetRecorder().Eventf(app.requestOriginatingTask.GetTaskPod(), nil, v1.EventTypeWarning, "Placeholder timed out",
+		events.GetRecorder().Eventf(app.originatingTask.GetTaskPod(), nil, v1.EventTypeWarning, "Placeholder timed out",
 			"Placeholder timed out", "Application %s placeholder has been timed out", app.applicationID)
 	}
 }

@@ -225,6 +225,8 @@ func (os *Manager) filterPods(obj interface{}) bool {
 	}
 }
 
+// AddPod Add application and task using pod metadata
+// Visibility: Public only for testing
 func (os *Manager) AddPod(obj interface{}) {
 	pod, err := utils.Convert2Pod(obj)
 	if err != nil {
