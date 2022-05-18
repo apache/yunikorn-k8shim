@@ -39,6 +39,7 @@ BASE_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 BINARY=k8s_yunikorn_scheduler
 PLUGIN_BINARY=kube-scheduler
 OUTPUT=_output
+DEV_BIN_DIR=${OUTPUT}/dev
 RELEASE_BIN_DIR=${OUTPUT}/bin
 ADMISSION_CONTROLLER_BIN_DIR=${OUTPUT}/admission-controllers/
 POD_ADMISSION_CONTROLLER_BINARY=scheduler-admission-controller
@@ -53,6 +54,23 @@ REPO=github.com/apache/yunikorn-k8shim/pkg
 DATE=$(shell date +%FT%T%z)
 ifeq ($(VERSION),)
 VERSION := latest
+endif
+
+# Build architecture
+HOST_ARCH := $(shell uname -m)
+ifeq (x86_64, $(HOST_ARCH))
+HOST_ARCH := amd64
+else ifeq (i386, $(HOST_ARCH))
+HOST_ARCH := 386
+else ifeq (aarch64, $(HOST_ARCH))
+HOST_ARCH := arm64
+else ifeq (armv7l, $(HOST_ARCH))
+HOST_ARCH := arm
+endif
+
+# Docker architecture
+ifeq ($(DOCKER_ARCH),)
+DOCKER_ARCH := $(HOST_ARCH)
 endif
 
 # Image hashes
@@ -120,17 +138,17 @@ endif
 .PHONY: run
 run: build
 	@echo "running scheduler locally"
-	@cp ${LOCAL_CONF}/${CONF_FILE} ${RELEASE_BIN_DIR}
-	cd ${RELEASE_BIN_DIR} && ./${BINARY} -kubeConfig=$(KUBECONFIG) -interval=1s \
+	@cp ${LOCAL_CONF}/${CONF_FILE} ${DEV_BIN_DIR}
+	cd ${DEV_BIN_DIR} && ./${BINARY} -kubeConfig=$(KUBECONFIG) -interval=1s \
 	-clusterId=mycluster -clusterVersion=${VERSION} -policyGroup=queues \
 	-logEncoding=console -logLevel=-1
 
 .PHONY: run_plugin
 run_plugin: build_plugin
 	@echo "running scheduler plugin locally"
-	@cp ${LOCAL_CONF}/${CONF_FILE} ${RELEASE_BIN_DIR}
-	./scripts/plugin-conf-gen.sh $(KUBECONFIG) ${RELEASE_BIN_DIR}
-	cd ${RELEASE_BIN_DIR} && \
+	@cp ${LOCAL_CONF}/${CONF_FILE} ${DEV_BIN_DIR}
+	./scripts/plugin-conf-gen.sh $(KUBECONFIG) ${DEV_BIN_DIR}
+	cd ${DEV_BIN_DIR} && \
 	  ./${PLUGIN_BINARY} \
 	    --address=0.0.0.0 \
 	    --leader-elect=false \
@@ -145,6 +163,7 @@ run_plugin: build_plugin
 # Create output directories
 .PHONY: init
 init:
+	mkdir -p ${DEV_BIN_DIR}
 	mkdir -p ${RELEASE_BIN_DIR}
 	mkdir -p ${ADMISSION_CONTROLLER_BIN_DIR}
 
@@ -152,24 +171,24 @@ init:
 .PHONY: build
 build: init
 	@echo "building scheduler binary"
-	go build -o=${RELEASE_BIN_DIR}/${BINARY} -race -ldflags \
+	go build -o=${DEV_BIN_DIR}/${BINARY} -race -ldflags \
 	'-X main.version=${VERSION} -X main.date=${DATE}' \
 	./pkg/cmd/shim/
-	@chmod +x ${RELEASE_BIN_DIR}/${BINARY}
+	@chmod +x ${DEV_BIN_DIR}/${BINARY}
 
 .PHONY: build_plugin
 build_plugin: init
 	@echo "building scheduler plugin"
-	go build -o=${RELEASE_BIN_DIR}/${PLUGIN_BINARY} -race -ldflags \
+	go build -o=${DEV_BIN_DIR}/${PLUGIN_BINARY} -race -ldflags \
 	'-X main.version=${VERSION} -X main.date=${DATE}' \
 	./pkg/cmd/schedulerplugin/
-	@chmod +x ${RELEASE_BIN_DIR}/${PLUGIN_BINARY}
+	@chmod +x ${DEV_BIN_DIR}/${PLUGIN_BINARY}
 
 # Build scheduler binary in a production ready version
 .PHONY: scheduler
 scheduler: init
 	@echo "building binary for scheduler docker image"
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+	CGO_ENABLED=0 GOOS=linux GOARCH="${DOCKER_ARCH}" \
 	go build -a -o=${RELEASE_BIN_DIR}/${BINARY} -ldflags \
 	'-extldflags "-static" -X main.version=${VERSION} -X main.date=${DATE}' \
 	-tags netgo -installsuffix netgo \
@@ -179,7 +198,7 @@ scheduler: init
 .PHONY: plugin
 plugin: init
 	@echo "building binary for scheduler docker image"
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+	CGO_ENABLED=0 GOOS=linux GOARCH="${DOCKER_ARCH}" \
 	go build -a -o=${RELEASE_BIN_DIR}/${PLUGIN_BINARY} -ldflags \
 	'-extldflags "-static" -X main.version=${VERSION} -X main.date=${DATE}' \
 	-tags netgo -installsuffix netgo \
@@ -221,7 +240,7 @@ plugin_image: plugin
 .PHONY: admission
 admission: init
 	@echo "building admission controller binary"
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+	CGO_ENABLED=0 GOOS=linux GOARCH="${DOCKER_ARCH}" \
 	go build -a -o=${ADMISSION_CONTROLLER_BIN_DIR}/${POD_ADMISSION_CONTROLLER_BINARY} -ldflags \
     '-extldflags "-static" -X main.version=${VERSION} -X main.date=${DATE}' \
     -tags netgo -installsuffix netgo \
@@ -244,7 +263,7 @@ adm_image: admission
 .PHONY: simulation
 simulation:
 	@echo "building gang web client binary"
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+	CGO_ENABLED=0 GOOS=linux GOARCH="${DOCKER_ARCH}" \
 	go build -a -o=${GANG_BIN_DIR}/${GANG_CLIENT_BINARY} -ldflags \
 	'-extldflags "-static" -X main.version=${VERSION} -X main.date=${DATE}' \
 	-tags netgo -installsuffix netgo \
