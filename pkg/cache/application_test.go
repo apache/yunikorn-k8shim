@@ -34,6 +34,7 @@ import (
 	k8sEvents "k8s.io/client-go/tools/events"
 
 	"github.com/apache/yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
+	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/general"
 	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common"
@@ -1131,4 +1132,122 @@ func TestGetPlaceholderTasks(t *testing.T) {
 
 	assert.Assert(t, phTasksMap["task0001"])
 	assert.Assert(t, phTasksMap["task0002"])
+}
+
+func TestPlaceholderTimeoutEvents(t *testing.T) {
+	context := initContextForTest()
+	recorder, ok := events.GetRecorder().(*k8sEvents.FakeRecorder)
+	if !ok {
+		t.Fatal("the EventRecorder is expected to be of type FakeRecorder")
+	}
+
+	amprotocol := NewMockedAMProtocol()
+	am := general.NewManager(amprotocol, context.apiProvider)
+	pod1 := v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name:      "pod00001",
+			Namespace: "default",
+			UID:       "UID-POD-00001",
+			Labels: map[string]string{
+				"queue":         "root.a",
+				"applicationId": "app00001",
+			},
+		},
+		Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
+		Status: v1.PodStatus{
+			Phase: v1.PodPending,
+		},
+	}
+
+	// add a pending pod through the AM service
+	am.AddPod(&pod1)
+
+	pod := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name:      "pod00002",
+			Namespace: "default",
+			UID:       "UID-POD-00002",
+			Labels: map[string]string{
+				"queue":         "root.a",
+				"applicationId": "app00001",
+			},
+		},
+		Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
+		Status: v1.PodStatus{
+			Phase: v1.PodPending,
+		},
+	}
+	managedApp := amprotocol.GetApplication("app00001")
+	assert.Assert(t, managedApp != nil)
+	app, valid := managedApp.(*Application)
+	if !valid {
+		t.Fatal("application is expected to be of type Application")
+	}
+	assert.Equal(t, valid, true)
+	assert.Equal(t, app.GetApplicationID(), "app00001")
+	assert.Equal(t, app.GetApplicationState(), events.States().Application.New)
+	assert.Equal(t, app.GetQueue(), "root.a")
+	assert.Equal(t, len(app.GetNewTasks()), 1)
+
+	appID := "app00001"
+	UUID := "UID-POD-00002"
+
+	context.applications[appID] = app
+	task1 := context.AddTask(&interfaces.AddTaskRequest{
+		Metadata: interfaces.TaskMetadata{
+			ApplicationID: "app00001",
+			TaskID:        "task02",
+			Pod:           pod,
+			Placeholder:   true,
+		},
+	})
+	assert.Assert(t, task1 != nil)
+	assert.Equal(t, task1.GetTaskID(), "task02")
+
+	_, taskErr := app.GetTask("task02")
+	assert.NilError(t, taskErr, "Task should exist")
+
+	task2, task2Err := task1.(*Task)
+	if !task2Err {
+		// this should give an error
+		t.Error("task1 is expected to be of type Task")
+	}
+	task2.allocationUUID = UUID
+
+	// app must be running states
+	err := app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, UUID))
+	assert.Error(t, err, "event ReleaseAppAllocation inappropriate in current state New")
+
+	// set app states to running, let event can be trigger
+	app.SetState(events.States().Application.Running)
+	assertAppState(t, app, events.States().Application.Running, 3*time.Second)
+	err = app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, UUID))
+	assert.NilError(t, err)
+	// after handle release event the states of app must be running
+	assertAppState(t, app, events.States().Application.Running, 3*time.Second)
+
+	message := "Placeholder timed out"
+	reason := "placeholder has been timed out"
+	// check that the event has been published
+	err = utils.WaitForCondition(func() bool {
+		for {
+			select {
+			case event := <-recorder.Events:
+				if strings.Contains(event, reason) && strings.Contains(event, message) {
+					return true
+				}
+			default:
+				return false
+			}
+		}
+	}, 5*time.Millisecond, 20*time.Millisecond)
+	assert.NilError(t, err, "event should have been emitted")
 }
