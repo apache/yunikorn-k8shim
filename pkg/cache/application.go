@@ -280,10 +280,16 @@ func (app *Application) getTaskGroups() []v1alpha1.TaskGroup {
 	return app.taskGroups
 }
 
-func (app *Application) setOwnReferences(ref []metav1.OwnerReference) {
+func (app *Application) setPlaceholderOwnerReferences(ref []metav1.OwnerReference) {
 	app.lock.Lock()
 	defer app.lock.Unlock()
 	app.placeholderOwnerReferences = ref
+}
+
+func (app *Application) getPlaceholderOwnerReferences() []metav1.OwnerReference {
+	app.lock.RLock()
+	defer app.lock.RUnlock()
+	return app.placeholderOwnerReferences
 }
 
 func (app *Application) setSchedulingStyle(schedulingStyle string) {
@@ -296,6 +302,12 @@ func (app *Application) setOriginatingTask(task interfaces.ManagedTask) {
 	app.lock.Lock()
 	defer app.lock.Unlock()
 	app.originatingTask = task
+}
+
+func (app *Application) getOriginatingTask() interfaces.ManagedTask {
+	app.lock.RLock()
+	defer app.lock.RUnlock()
+	return app.originatingTask
 }
 
 func (app *Application) addTask(task *Task) {

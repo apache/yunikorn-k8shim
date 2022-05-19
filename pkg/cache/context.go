@@ -625,7 +625,7 @@ func (ctx *Context) AddApplication(request *interfaces.AddApplicationRequest) in
 		app.SetPlaceholderTimeout(request.Metadata.SchedulingPolicyParameters.GetPlaceholderTimeout())
 		app.setSchedulingStyle(request.Metadata.SchedulingPolicyParameters.GetGangSchedulingStyle())
 	}
-	app.setOwnReferences(request.Metadata.OwnerReferences)
+	app.setPlaceholderOwnerReferences(request.Metadata.OwnerReferences)
 
 	// add into cache
 	ctx.applications[app.applicationID] = app
@@ -697,8 +697,8 @@ func (ctx *Context) AddTask(request *interfaces.AddTaskRequest) interfaces.Manag
 					zap.String("appID", app.applicationID),
 					zap.String("taskID", task.taskID),
 					zap.String("taskState", task.GetTaskState()))
-				if app.originatingTask == nil {
-					for _, ownerReference := range app.placeholderOwnerReferences {
+				if app.getOriginatingTask() == nil {
+					for _, ownerReference := range app.getPlaceholderOwnerReferences() {
 						if task, taskErr := app.GetTask(string(ownerReference.UID)); task != nil && taskErr == nil {
 							log.Logger().Info("app request originating pod added",
 								zap.String("appID", app.applicationID),

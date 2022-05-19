@@ -1213,10 +1213,8 @@ func TestPlaceholderTimeoutEvents(t *testing.T) {
 	assert.Equal(t, task1.GetTaskID(), "task02")
 
 	_, taskErr := app.GetTask("task02")
-	if taskErr != nil {
-		// this should give an error
-		t.Error("Task should exist")
-	}
+	assert.NilError(t, taskErr, "Task should exist")
+
 	task2, task2Err := task1.(*Task)
 	if !task2Err {
 		// this should give an error
@@ -1226,10 +1224,8 @@ func TestPlaceholderTimeoutEvents(t *testing.T) {
 
 	// app must be running states
 	err := app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, UUID))
-	if err == nil {
-		// this should give an error
-		t.Error("expecting error got 'nil'")
-	}
+	assert.Error(t, err, "event ReleaseAppAllocation inappropriate in current state New")
+
 	// set app states to running, let event can be trigger
 	app.SetState(events.States().Application.Running)
 	assertAppState(t, app, events.States().Application.Running, 3*time.Second)

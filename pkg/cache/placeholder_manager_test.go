@@ -113,7 +113,7 @@ func TestCreateAppPlaceholdersWithOwnReference(t *testing.T) {
 		UID:        "JobUid",
 		Controller: &controller,
 	}
-	app.setOwnReferences([]apis.OwnerReference{ownRef})
+	app.setPlaceholderOwnerReferences([]apis.OwnerReference{ownRef})
 	mockedAPIProvider := client.NewMockedAPIProvider(false)
 	pods := createAndCheckPlaceholderCreate(mockedAPIProvider, app, t)
 	for _, pod := range pods {

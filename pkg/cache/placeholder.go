@@ -46,7 +46,7 @@ type Placeholder struct {
 }
 
 func newPlaceholder(placeholderName string, app *Application, taskGroup v1alpha1.TaskGroup) *Placeholder {
-	ownerRefs := app.placeholderOwnerReferences
+	ownerRefs := app.getPlaceholderOwnerReferences()
 	// we need to set the controller field to false, because since we don't know what exactly the controller will do,
 	// we might have some unexpected behaviour.
 	// For example if it is a replication controller, some pods (placeholders and/or real pods) might be deleted
