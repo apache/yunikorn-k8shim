@@ -72,7 +72,7 @@ func (os *Manager) ServiceInit() error {
 		&client.ResourceEventHandlers{
 			Type:     client.PodInformerHandlers,
 			FilterFn: os.filterPods,
-			AddFn:    os.addPod,
+			AddFn:    os.AddPod,
 			UpdateFn: os.updatePod,
 			DeleteFn: os.deletePod,
 		})
@@ -163,10 +163,12 @@ func (os *Manager) getAppMetadata(pod *v1.Pod, recovery bool) (interfaces.Applic
 			events.GetRecorder().Eventf(pod, nil, v1.EventTypeWarning, "TaskGroupsError", "TaskGroupsError",
 				"unable to get taskGroups for pod, reason: %s", err.Error())
 		}
+		tags[constants.AnnotationTaskGroups] = pod.Annotations[constants.AnnotationTaskGroups]
 	}
 
 	ownerReferences := getOwnerReferences(pod)
 	schedulingPolicyParams := utils.GetSchedulingPolicyParam(pod)
+	tags[constants.AnnotationSchedulingPolicyParam] = pod.Annotations[constants.AnnotationSchedulingPolicyParam]
 
 	var creationTime int64
 	if recovery {
@@ -236,7 +238,9 @@ func (os *Manager) filterPods(obj interface{}) bool {
 	}
 }
 
-func (os *Manager) addPod(obj interface{}) {
+// AddPod Add application and task using pod metadata
+// Visibility: Public only for testing
+func (os *Manager) AddPod(obj interface{}) {
 	pod, err := utils.Convert2Pod(obj)
 	if err != nil {
 		log.Logger().Error("failed to add pod", zap.Error(err))

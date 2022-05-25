@@ -267,7 +267,11 @@ func (ctx *Context) updatePodInCache(oldObj, newObj interface{}) {
 func (ctx *Context) filterPods(obj interface{}) bool {
 	switch obj := obj.(type) {
 	case *v1.Pod:
-		return utils.GeneralPodFilter(obj)
+		if utils.GeneralPodFilter(obj) {
+			_, err := utils.GetApplicationIDFromPod(obj)
+			return err == nil
+		}
+		return false
 	default:
 		return false
 	}
@@ -613,6 +617,7 @@ func (ctx *Context) AddApplication(request *interfaces.AddApplicationRequest) in
 		ctx.apiProvider.GetAPIs().SchedulerAPI)
 	app.setTaskGroups(request.Metadata.TaskGroups)
 	app.setTaskGroupsDefinition(request.Metadata.Tags[constants.AnnotationTaskGroups])
+	app.setSchedulingParamsDefinition(request.Metadata.Tags[constants.AnnotationSchedulingPolicyParam])
 	if request.Metadata.CreationTime != 0 {
 		app.tags[siCommon.DomainYuniKorn+siCommon.CreationTime] = strconv.FormatInt(request.Metadata.CreationTime, 10)
 	}
@@ -620,7 +625,7 @@ func (ctx *Context) AddApplication(request *interfaces.AddApplicationRequest) in
 		app.SetPlaceholderTimeout(request.Metadata.SchedulingPolicyParameters.GetPlaceholderTimeout())
 		app.setSchedulingStyle(request.Metadata.SchedulingPolicyParameters.GetGangSchedulingStyle())
 	}
-	app.setOwnReferences(request.Metadata.OwnerReferences)
+	app.setPlaceholderOwnerReferences(request.Metadata.OwnerReferences)
 
 	// add into cache
 	ctx.applications[app.applicationID] = app
@@ -692,7 +697,17 @@ func (ctx *Context) AddTask(request *interfaces.AddTaskRequest) interfaces.Manag
 					zap.String("appID", app.applicationID),
 					zap.String("taskID", task.taskID),
 					zap.String("taskState", task.GetTaskState()))
-
+				if app.getOriginatingTask() == nil {
+					for _, ownerReference := range app.getPlaceholderOwnerReferences() {
+						if task, taskErr := app.GetTask(string(ownerReference.UID)); task != nil && taskErr == nil {
+							log.Logger().Info("app request originating pod added",
+								zap.String("appID", app.applicationID),
+								zap.String("original task", task.GetTaskID()))
+							app.setOriginatingTask(task)
+							break
+						}
+					}
+				}
 				return task
 			}
 			return existingTask

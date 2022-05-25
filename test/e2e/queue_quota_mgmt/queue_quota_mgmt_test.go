@@ -24,6 +24,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/apache/yunikorn-core/pkg/webservice/dao"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
@@ -42,7 +43,7 @@ var _ = Describe("", func() {
 	var maxMemAnnotation = "yunikorn.apache.org/namespace.max.memory"
 	var annotations map[string]string
 	var ns string
-	var queueInfo map[string]interface{}
+	var queueInfo *dao.PartitionQueueDAOInfo
 	var maxResource yunikorn.ResourceUsage
 	var usedResource yunikorn.ResourceUsage
 	var usedPerctResource yunikorn.ResourceUsage
@@ -95,16 +96,15 @@ var _ = Describe("", func() {
 			Ω(k.WaitForPodRunning(sleepRespPod.Namespace, sleepRespPod.Name, time.Duration(60)*time.Second)).NotTo(HaveOccurred())
 
 			// Verify that the resources requested by above sleep pod is accounted for in the queues response
-			queueInfo, err = restClient.GetSpecificQueueInfo(ns)
+			queueInfo, err = restClient.GetSpecificQueueInfo("default", "root."+ns)
 			Ω(err).NotTo(HaveOccurred())
-			Ω(queueInfo).NotTo(BeEmpty())
-			Ω(queueInfo["queuename"]).Should(Equal(ns))
-			Ω(queueInfo["status"]).Should(Equal("Active"))
-			Ω(queueInfo["properties"]).Should(BeEmpty())
-			var capacities = queueInfo["capacities"].(map[string]interface{})
-			maxResource.ParseResourceUsage(capacities["maxCapacity"].(map[string]interface{}))
-			usedResource.ParseResourceUsage(capacities["usedCapacity"].(map[string]interface{}))
-			usedPerctResource.ParseResourceUsage(capacities["absUsedCapacity"].(map[string]interface{}))
+			Ω(queueInfo).NotTo(BeNil())
+			Ω(queueInfo.QueueName).Should(Equal("root." + ns))
+			Ω(queueInfo.Status).Should(Equal("Active"))
+			Ω(queueInfo.Properties).Should(BeEmpty())
+			maxResource.ParseResourceUsage(queueInfo.MaxResource)
+			usedResource.ParseResourceUsage(queueInfo.AllocatedResource)
+			usedPerctResource.ParseResourceUsage(queueInfo.AbsUsedCapacity)
 
 			By(fmt.Sprintf("App-%d: Verify max capacity on the queue is accurate", iter))
 			Ω(maxResource.GetVCPU()).Should(Equal(maxCPU))
@@ -131,7 +131,7 @@ var _ = Describe("", func() {
 
 		By(fmt.Sprintf("App-4: Verify app:%s in accepted state", sleepObj.Name))
 		// Wait for pod to move to accepted state
-		err = restClient.WaitForAppStateTransition(sleepRespPod.ObjectMeta.Labels["applicationId"],
+		err = restClient.WaitForAppStateTransition("default", "root."+ns, sleepRespPod.ObjectMeta.Labels["applicationId"],
 			yunikorn.States().Application.Accepted,
 			120)
 		Ω(err).NotTo(HaveOccurred())

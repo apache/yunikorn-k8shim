@@ -193,7 +193,7 @@ func NewSchedulerPlugin(_ runtime.Object, handle framework.Handle) (framework.Pl
 	log.Logger().Info("Build info", zap.String("version", conf.BuildVersion), zap.String("date", conf.BuildDate))
 
 	// start the YK core scheduler
-	serviceContext := entrypoint.StartAllServices()
+	serviceContext := entrypoint.StartAllServicesWithLogger(log.Logger(), log.GetZapConfigs())
 	if sa, ok := serviceContext.RMProxy.(api.SchedulerAPI); ok {
 		// we need our own informer factory here because the informers we get from the framework handle aren't yet initialized
 		informerFactory := informers.NewSharedInformerFactory(handle.ClientSet(), 0)

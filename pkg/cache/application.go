@@ -52,6 +52,7 @@ type Application struct {
 	schedulingPolicy           v1alpha1.SchedulingPolicy
 	taskGroups                 []v1alpha1.TaskGroup
 	taskGroupsDefinition       string
+	schedulingParamsDefinition string
 	placeholderOwnerReferences []metav1.OwnerReference
 	sm                         *fsm.FSM
 	lock                       *sync.RWMutex
@@ -59,6 +60,7 @@ type Application struct {
 	placeholderAsk             *si.Resource // total placeholder request for the app (all task groups)
 	placeholderTimeoutInSec    int64
 	schedulingStyle            string
+	originatingTask            interfaces.ManagedTask // Original Pod which creates the requests
 }
 
 func (app *Application) String() string {
@@ -245,6 +247,18 @@ func (app *Application) GetTaskGroupsDefinition() string {
 	return app.taskGroupsDefinition
 }
 
+func (app *Application) setSchedulingParamsDefinition(schedParamsDef string) {
+	app.lock.Lock()
+	defer app.lock.Unlock()
+	app.schedulingParamsDefinition = schedParamsDef
+}
+
+func (app *Application) GetSchedulingParamsDefinition() string {
+	app.lock.RLock()
+	defer app.lock.RUnlock()
+	return app.schedulingParamsDefinition
+}
+
 func (app *Application) setTaskGroups(taskGroups []v1alpha1.TaskGroup) {
 	app.lock.Lock()
 	defer app.lock.Unlock()
@@ -266,16 +280,34 @@ func (app *Application) getTaskGroups() []v1alpha1.TaskGroup {
 	return app.taskGroups
 }
 
-func (app *Application) setOwnReferences(ref []metav1.OwnerReference) {
+func (app *Application) setPlaceholderOwnerReferences(ref []metav1.OwnerReference) {
+	app.lock.Lock()
+	defer app.lock.Unlock()
+	app.placeholderOwnerReferences = ref
+}
+
+func (app *Application) getPlaceholderOwnerReferences() []metav1.OwnerReference {
 	app.lock.RLock()
 	defer app.lock.RUnlock()
-	app.placeholderOwnerReferences = ref
+	return app.placeholderOwnerReferences
 }
 
 func (app *Application) setSchedulingStyle(schedulingStyle string) {
 	app.lock.Lock()
 	defer app.lock.Unlock()
 	app.schedulingStyle = schedulingStyle
+}
+
+func (app *Application) setOriginatingTask(task interfaces.ManagedTask) {
+	app.lock.Lock()
+	defer app.lock.Unlock()
+	app.originatingTask = task
+}
+
+func (app *Application) getOriginatingTask() interfaces.ManagedTask {
+	app.lock.RLock()
+	defer app.lock.RUnlock()
+	return app.originatingTask
 }
 
 func (app *Application) addTask(task *Task) {
@@ -321,6 +353,19 @@ func (app *Application) GetAllocatedTasks() []*Task {
 	app.lock.RLock()
 	defer app.lock.RUnlock()
 	return app.getTasks(events.States().Task.Allocated)
+}
+
+func (app *Application) GetPlaceHolderTasks() []*Task {
+	app.lock.RLock()
+	defer app.lock.RUnlock()
+	placeholders := make([]*Task, 0)
+	for _, task := range app.taskMap {
+		if task.placeholder {
+			placeholders = append(placeholders, task)
+		}
+	}
+
+	return placeholders
 }
 
 func (app *Application) getTasks(state string) []*Task {
@@ -498,8 +543,8 @@ func (app *Application) handleRecoverApplicationEvent(event *fsm.Event) {
 		})
 
 	if err != nil {
-		// submission failed
-		log.Logger().Warn("failed to submit app", zap.Error(err))
+		// recovery failed
+		log.Logger().Warn("failed to recover app", zap.Error(err))
 		dispatcher.Dispatch(NewFailApplicationEvent(app.applicationID, err.Error()))
 	}
 }
@@ -517,7 +562,7 @@ func (app *Application) skipReservationStage() bool {
 	// in this case, we should skip the reservation stage
 	if len(app.taskMap) > 0 {
 		for _, task := range app.taskMap {
-			if task.GetTaskState() != events.States().Task.New {
+			if !task.IsPlaceholder() && task.GetTaskState() != events.States().Task.New {
 				log.Logger().Debug("Skip reservation stage: found task already has been scheduled before.",
 					zap.String("appID", app.applicationID),
 					zap.String("taskID", task.GetTaskID()),
@@ -671,6 +716,7 @@ func (app *Application) handleReleaseAppAllocationEvent(event *fsm.Event) {
 			if err != nil {
 				log.Logger().Error("failed to release allocation from application", zap.Error(err))
 			}
+			app.publishPlaceholderTimeoutEvents(task)
 		}
 	}
 }
@@ -694,6 +740,7 @@ func (app *Application) handleReleaseAppAllocationAskEvent(event *fsm.Event) {
 			if err != nil {
 				log.Logger().Error("failed to release allocation ask from application", zap.Error(err))
 			}
+			app.publishPlaceholderTimeoutEvents(task)
 		} else {
 			log.Logger().Warn("skip to release allocation ask, ask is not a placeholder",
 				zap.String("appID", app.applicationID),
@@ -715,6 +762,18 @@ func (app *Application) handleAppTaskCompletedEvent(event *fsm.Event) {
 	log.Logger().Info("Resuming completed, start to run the app",
 		zap.String("appID", app.applicationID))
 	dispatcher.Dispatch(NewRunApplicationEvent(app.applicationID))
+}
+
+func (app *Application) publishPlaceholderTimeoutEvents(task *Task) {
+	if app.originatingTask != nil && task.IsPlaceholder() && task.terminationType == si.TerminationType_name[int32(si.TerminationType_TIMEOUT)] {
+		log.Logger().Debug("trying to send placeholder timeout events to the original pod from application",
+			zap.String("appID", app.applicationID),
+			zap.String("app request originating pod", app.originatingTask.GetTaskPod().String()),
+			zap.String("taskID", task.taskID),
+			zap.String("terminationType", task.terminationType))
+		events.GetRecorder().Eventf(app.originatingTask.GetTaskPod(), nil, v1.EventTypeWarning, "Placeholder timed out",
+			"Placeholder timed out", "Application %s placeholder has been timed out", app.applicationID)
+	}
 }
 
 func (app *Application) enterState(event *fsm.Event) {

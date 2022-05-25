@@ -77,7 +77,9 @@ func TestGetAppMetadata(t *testing.T) {
 	assert.Equal(t, app.ApplicationID, "app00001")
 	assert.Equal(t, app.QueueName, "root.a")
 	assert.Equal(t, app.User, constants.DefaultUser)
-	assert.DeepEqual(t, app.Tags, map[string]string{"namespace": "default"})
+	assert.Equal(t, app.Tags["namespace"], "default")
+	assert.Equal(t, app.Tags[constants.AnnotationSchedulingPolicyParam], "gangSchedulingStyle=Soft")
+	assert.Assert(t, app.Tags[constants.AnnotationTaskGroups] != "")
 	assert.Equal(t, app.TaskGroups[0].Name, "test-group-1")
 	assert.Equal(t, app.TaskGroups[0].MinMember, int32(3))
 	assert.Equal(t, app.TaskGroups[0].MinResource["cpu"], resource.MustParse("2"))
@@ -116,10 +118,8 @@ func TestGetAppMetadata(t *testing.T) {
 	assert.Equal(t, app.ApplicationID, "app00002")
 	assert.Equal(t, app.QueueName, "root.b")
 	assert.Equal(t, app.User, constants.DefaultUser)
-	assert.DeepEqual(t, app.Tags, map[string]string{
-		"application.stateaware.disable": "true",
-		"namespace":                      "app-namespace-01",
-	})
+	assert.Equal(t, app.Tags["application.stateaware.disable"], "true")
+	assert.Equal(t, app.Tags["namespace"], "app-namespace-01")
 	assert.DeepEqual(t, len(app.TaskGroups), 0)
 	assert.Equal(t, app.SchedulingPolicyParameters.GetGangSchedulingStyle(), "Hard")
 
@@ -302,7 +302,7 @@ func TestAddPod(t *testing.T) {
 	}
 
 	// add a pending pod through the AM service
-	am.addPod(&pod)
+	am.AddPod(&pod)
 
 	managedApp := am.amProtocol.GetApplication("app00001")
 	assert.Assert(t, managedApp != nil)
@@ -338,7 +338,7 @@ func TestAddPod(t *testing.T) {
 		},
 	}
 
-	am.addPod(&pod1)
+	am.AddPod(&pod1)
 	assert.Equal(t, len(app.GetNewTasks()), 2)
 
 	// add another pod from another app
@@ -362,7 +362,7 @@ func TestAddPod(t *testing.T) {
 		},
 	}
 
-	am.addPod(&pod2)
+	am.AddPod(&pod2)
 	app02 := am.amProtocol.GetApplication("app00002")
 	assert.Assert(t, app02 != nil)
 	app, valid = toApplication(app02)
@@ -396,7 +396,7 @@ func TestUpdatePodWhenSucceed(t *testing.T) {
 	}
 
 	// add a pending pod through the AM service
-	am.addPod(&pod)
+	am.AddPod(&pod)
 
 	managedApp := am.amProtocol.GetApplication("app00001")
 	assert.Assert(t, managedApp != nil)
@@ -463,7 +463,7 @@ func TestUpdatePodWhenFailed(t *testing.T) {
 	}
 
 	// add a pending pod through the AM service
-	am.addPod(&pod)
+	am.AddPod(&pod)
 
 	// try update the pod to Failed status
 	newPod := v1.Pod{
@@ -522,7 +522,7 @@ func TestDeletePod(t *testing.T) {
 	}
 
 	// add a pending pod through the AM service
-	am.addPod(&pod)
+	am.AddPod(&pod)
 
 	managedApp := am.amProtocol.GetApplication("app00001")
 	assert.Assert(t, managedApp != nil)

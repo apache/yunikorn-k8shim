@@ -17,6 +17,7 @@
 # See the License for the specific language governing permissions and
 #limitations under the License.
 #
+KIND="$(go env GOPATH)/bin/kind"
 
 function check_cmd() {
   cmd=$1
@@ -42,7 +43,7 @@ function kubectl_installation() {
 # Install Kind
 function kind_installation() {
     os_type=$1
-    curl -Lo ./kind "https://kind.sigs.k8s.io/dl/v0.11.1/kind-${os_type}-amd64" \
+    curl -Lo ./kind "https://kind.sigs.k8s.io/dl/v0.13.0/kind-${os_type}-amd64" \
                 && chmod +x ./kind && mv ./kind $(go env GOPATH)/bin
     exit_on_error "install KIND failed"
     check_cmd "kind"
@@ -68,7 +69,18 @@ function install_kubectl() {
 }
 
 function install_kind() {
-  if ! command -v kind &> /dev/null
+  # 1 arguments are required
+  if [[ $# -ne 1 ]]; then
+    echo "expecting exactly 1 parameters for function install_kind()"
+    return 1
+  fi
+  force_kind_install=$1
+
+  if [ ! -x "${KIND}" ]; then
+    force_kind_install=true
+  fi
+
+  if [ "${force_kind_install}" == "true" ]
   then
     if [[ "$OSTYPE" == "linux-gnu"* ]]; then
         echo "Installing KIND for Linux.."
@@ -115,9 +127,9 @@ function check_opt() {
 }
 
 function install_cluster() {
-  # 5 arguments are required
-  if [[ $# -ne 5 ]]; then
-    echo "expecting exactly 5 parameters for function install_cluster()"
+  # 6 arguments are required
+  if [[ $# -ne 6 ]]; then
+    echo "expecting exactly 6 parameters for function install_cluster()"
     return 1
   fi
 
@@ -126,6 +138,7 @@ function install_cluster() {
   git_clone=$3
   charts_path=$4
   scheduler_image=$5
+  force_kind_install=$6
 
   # Check if go is installed.
   check_cmd "go"
@@ -146,12 +159,12 @@ function install_cluster() {
 
   # install KIND
   echo "step 3/6: installing kind"
-  install_kind
+  install_kind "${force_kind_install}"
 
   # create K8s cluster
   echo "step 4/6: installing K8s cluster using kind"
-  kind create cluster --name ${k8s_cluster_name} --image ${kind_node_image} --config=./scripts/kind.yaml
-  exit_on_error "instal K8s cluster failed"
+  "${KIND}" create cluster --name ${k8s_cluster_name} --image ${kind_node_image} --config=./scripts/kind.yaml
+  exit_on_error "install K8s cluster failed"
   kubectl cluster-info --context kind-${k8s_cluster_name}
   exit_on_error "set K8s cluster context failed"
   echo "k8s installed, version:"
@@ -165,8 +178,8 @@ function install_cluster() {
   # install yunikorn
   echo "step 6/6: installing yunikorn scheduler"
   # load latest yunikorn docker images to kind
-  kind load docker-image "local/yunikorn:${scheduler_image}" --name ${k8s_cluster_name}
-  kind load docker-image local/yunikorn:admission-latest --name ${k8s_cluster_name}
+  "${KIND}" load docker-image "local/yunikorn:${scheduler_image}" --name ${k8s_cluster_name}
+  "${KIND}" load docker-image local/yunikorn:admission-latest --name ${k8s_cluster_name}
 
   kubectl create namespace yunikorn
   exit_on_error "failed to create yunikorn namespace"
@@ -202,7 +215,7 @@ function delete_cluster() {
   helm uninstall yunikorn --namespace yunikorn
   exit_on_error "failed to uninstall helm charts"
   echo "step 2/2: deleting K8s cluster: ${k8s_cluster_name}"
-  kind delete cluster --name ${k8s_cluster_name}
+  "${KIND}" delete cluster --name ${k8s_cluster_name}
   exit_on_error "failed to delete the cluster"
 
 }
@@ -214,22 +227,25 @@ Usage: $(basename "$0") -a <action> -n <kind-cluster-name> -v <kind-node-image-v
   <kind-cluster-name>          the name of the K8s cluster that created by kind.
   <kind-node-image-version>    the kind node image used to provision the K8s cluster.
   <chart-path>                 local path to helm charts path (default is to pull from GitHub master)
+  --force-kind-install         force Kind to be installed even if already present
   --plugin                     use scheduler-plugin-latest image instead of scheduler-latest
 
 Examples:
-  $(basename "$0") -a test -n "yk8s" -v "kindest/node:v1.20.7"
-  $(basename "$0") -a test -n "yk8s" -v "kindest/node:v1.21.2"
-  $(basename "$0") -a test -n "yk8s" -v "kindest/node:v1.22.4"
-  $(basename "$0") -a test -n "yk8s" -v "kindest/node:v1.23.1"
+  $(basename "$0") -a test -n "yk8s" -v "kindest/node:v1.20.15"
+  $(basename "$0") -a test -n "yk8s" -v "kindest/node:v1.21.10"
+  $(basename "$0") -a test -n "yk8s" -v "kindest/node:v1.22.9"
+  $(basename "$0") -a test -n "yk8s" -v "kindest/node:v1.23.6"
+  $(basename "$0") -a test -n "yk8s" -v "kindest/node:v1.24.0"
 
   Use a local helm chart path:
-    $(basename "$0") -a test -n "yk8s" -v "kindest/node:v1.23.1" -p ../yunikorn-release/helm-charts/yunikorn
+    $(basename "$0") -a test -n "yk8s" -v "kindest/node:v1.24.0" -p ../yunikorn-release/helm-charts/yunikorn
 EOF
 }
 
 charts_path=./yunikorn-release/helm-charts/yunikorn
 git_clone=true
 scheduler_image=scheduler-latest
+force_kind_install=false
 
 while [[ $# -gt 0 ]]; do
 key="$1"
@@ -255,6 +271,10 @@ case ${key} in
     shift
     shift
     ;;
+  --force-kind-install)
+    force_kind_install=true
+    shift
+    ;;
   --plugin)
     scheduler_image="scheduler-plugin-latest"
     shift
@@ -271,17 +291,21 @@ case ${key} in
 esac
 done
 
+
 echo "action: ${action}"
 check_opt "${action}"
+echo "force kind install: ${force_kind_install}"
+check_opt "${force_kind_install}"
 echo "kind cluster name: ${cluster_name}"
 check_opt "${cluster_name}"
 echo "kind node image version: ${cluster_version}"
-check_opt "${git_clone}"
+check_opt "${cluster_version}"
 echo "git clone: ${git_clone}"
-check_opt "${charts_path}"
+check_opt "${git_clone}"
 echo "charts path: ${charts_path}"
-check_opt "${scheduler_image}"
+check_opt "${charts_path}"
 echo "scheduler image: ${scheduler_image}"
+check_opt "${scheduler_image}"
 
 # this script only supports 2 actions
 #   1) test
@@ -292,13 +316,13 @@ echo "scheduler image: ${scheduler_image}"
 #     - delete yunikorn
 #     - delete k8s cluster
 if [ "${action}" == "test" ]; then
-  install_cluster "${cluster_name}" "${cluster_version}" "${git_clone}" "${charts_path}" "${scheduler_image}"
+  install_cluster "${cluster_name}" "${cluster_version}" "${git_clone}" "${charts_path}" "${scheduler_image}" "${force_kind_install}"
   echo "running e2e tests"
   make e2e_test
   exit_on_error "e2e tests failed"
 elif [ "${action}" == "cleanup" ]; then
   echo "cleaning up the environment"
-  delete_cluster ${cluster_name}
+  delete_cluster "${cluster_name}"
 else
   echo "unknown action: ${action}"
   print_usage

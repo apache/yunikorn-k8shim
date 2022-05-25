@@ -104,7 +104,10 @@ func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) err
 				continue
 			}
 			// yunikorn scheduled pods add to existing allocations
-			if utils.GeneralPodFilter(&pod) {
+			_, err = utils.GetApplicationIDFromPod(&pod)
+			ykPod := utils.GeneralPodFilter(&pod) && err == nil
+			switch {
+			case ykPod:
 				if existingAlloc := getExistingAllocation(mgr, &pod); existingAlloc != nil {
 					log.Logger().Debug("Adding resources for existing pod",
 						zap.String("appID", existingAlloc.ApplicationID),
@@ -123,7 +126,7 @@ func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) err
 						zap.String("nodeName", pod.Spec.NodeName),
 						zap.Stringer("resources", common.GetPodResource(&pod)))
 				}
-			} else if !utils.IsPodTerminated(&pod) {
+			case !utils.IsPodTerminated(&pod):
 				// pod is not terminated (succeed or failed) state,
 				// and it has a node assigned, that means the scheduler
 				// has already allocated the pod onto a node
@@ -141,7 +144,7 @@ func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) err
 				occupiedResource = common.Add(occupiedResource, podResource)
 				nodeOccupiedResources[pod.Spec.NodeName] = occupiedResource
 				ctx.nodes.cache.AddPod(&pod)
-			} else {
+			default:
 				log.Logger().Debug("Skipping terminated pod",
 					zap.String("podUID", string(pod.UID)),
 					zap.String("podName", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)))

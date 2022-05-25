@@ -46,7 +46,7 @@ type Placeholder struct {
 }
 
 func newPlaceholder(placeholderName string, app *Application, taskGroup v1alpha1.TaskGroup) *Placeholder {
-	ownerRefs := app.placeholderOwnerReferences
+	ownerRefs := app.getPlaceholderOwnerReferences()
 	// we need to set the controller field to false, because since we don't know what exactly the controller will do,
 	// we might have some unexpected behaviour.
 	// For example if it is a replication controller, some pods (placeholders and/or real pods) might be deleted
@@ -60,12 +60,23 @@ func newPlaceholder(placeholderName string, app *Application, taskGroup v1alpha1
 		constants.AnnotationPlaceholderFlag: "true",
 		constants.AnnotationTaskGroupName:   taskGroup.Name,
 	})
+
+	// Add "yunikorn.apache.org/task-groups" annotation to the placeholder to aid recovery
 	tgDef := app.GetTaskGroupsDefinition()
 	if tgDef != "" {
 		annotations = utils.MergeMaps(annotations, map[string]string{
 			constants.AnnotationTaskGroups: tgDef,
 		})
 	}
+
+	// Add "yunikorn.apache.org/schedulingPolicyParameters" to the placeholder to aid recovery
+	schedParamsDef := app.GetSchedulingParamsDefinition()
+	if schedParamsDef != "" {
+		annotations = utils.MergeMaps(annotations, map[string]string{
+			constants.AnnotationSchedulingPolicyParam: schedParamsDef,
+		})
+	}
+
 	placeholderPod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      placeholderName,
