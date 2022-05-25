@@ -1194,7 +1194,7 @@ func TestPlaceholderTimeoutEvents(t *testing.T) {
 	}
 	assert.Equal(t, valid, true)
 	assert.Equal(t, app.GetApplicationID(), "app00001")
-	assert.Equal(t, app.GetApplicationState(), events.States().Application.New)
+	assert.Equal(t, app.GetApplicationState(), ApplicationStates().New)
 	assert.Equal(t, app.GetQueue(), "root.a")
 	assert.Equal(t, len(app.GetNewTasks()), 1)
 
@@ -1228,12 +1228,12 @@ func TestPlaceholderTimeoutEvents(t *testing.T) {
 	assert.Error(t, err, "event ReleaseAppAllocation inappropriate in current state New")
 
 	// set app states to running, let event can be trigger
-	app.SetState(events.States().Application.Running)
-	assertAppState(t, app, events.States().Application.Running, 3*time.Second)
+	app.SetState(ApplicationStates().Running)
+	assertAppState(t, app, ApplicationStates().Running, 3*time.Second)
 	err = app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, UUID))
 	assert.NilError(t, err)
 	// after handle release event the states of app must be running
-	assertAppState(t, app, events.States().Application.Running, 3*time.Second)
+	assertAppState(t, app, ApplicationStates().Running, 3*time.Second)
 
 	message := "Placeholder timed out"
 	reason := "placeholder has been timed out"
