@@ -67,11 +67,11 @@ Build docker image can be triggered by running following command.
 make image
 ```
 
-You can set `REGISTRY` and `VERSION` in the commandline to build docker image with a specified tag and version. For example,
+You can set `DOCKER_ARCH`, `REGISTRY` and `VERSION` in the commandline to build docker image with a specified arch, tag and version. For example,
 ```
-make image REGISTRY=yunikorn VERSION=latest
+make image DOCKER_ARCH=amd64 REGISTRY=yunikorn VERSION=latest
 ```
-This command will build a binary executable with version `latest` and the docker image tag is `yunikorn/yunikorn:scheduler-latest`.
+This command will build an amd64 binary executable with version `latest` and the docker image tag is `yunikorn/yunikorn:scheduler-latest`. If not specified, `DOCKER_ARCH` defaults to the build host's architecture.
 
 You can run following command to retrieve the meta info for a docker image build, such as component revisions, date of the build, etc.
 
