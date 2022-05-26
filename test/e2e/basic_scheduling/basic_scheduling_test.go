@@ -19,11 +19,11 @@
 package basicscheduling_test
 
 import (
-	"fmt"
 	tests "github.com/apache/yunikorn-k8shim/test"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
+	"time"
 
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
@@ -66,9 +66,7 @@ var _ = ginkgo.Describe("", func() {
 		sleepRespPod, err = kClient.CreatePod(initPod, dev)
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		// Wait for pod to move to running state
-		err = kClient.WaitForPodBySelectorRunning(dev,
-			fmt.Sprintf("app=%s", sleepRespPod.ObjectMeta.Labels["app"]),
-			10)
+		err = kClient.WaitForPodRunning(dev, sleepPodConfigs.Name, 30*time.Second)
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 
 		appsInfo, err = restClient.GetAppInfo("default", "root."+dev, sleepRespPod.ObjectMeta.Labels["applicationId"])
@@ -117,8 +115,8 @@ var _ = ginkgo.Describe("", func() {
 
 	ginkgo.AfterSuite(func() {
 		ginkgo.By("Tear down namespace: " + dev)
-		err := kClient.TearDownNamespace(dev)
-		Ω(err).NotTo(HaveOccurred())
+		//err := kClient.TearDownNamespace(dev)
+		//Ω(err).NotTo(HaveOccurred())
 
 		tests.RestoreConfigMapWrapper(oldConfigMap, annotation)
 	})
