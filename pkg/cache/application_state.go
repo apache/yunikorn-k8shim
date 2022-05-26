@@ -558,8 +558,8 @@ func newAppState() *fsm.FSM { //nolint:funlen
 					return
 				}
 				allocUUID := eventArgs[0]
-				terminationTypeStr := eventArgs[1]
-				app.handleReleaseAppAllocationEvent(allocUUID, terminationTypeStr)
+				terminationType := eventArgs[1]
+				app.handleReleaseAppAllocationEvent(allocUUID, terminationType)
 			},
 			ReleaseAppAllocationAsk.String(): func(event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
@@ -569,8 +569,8 @@ func newAppState() *fsm.FSM { //nolint:funlen
 					return
 				}
 				taskID := eventArgs[0]
-				terminationTypeStr := eventArgs[1]
-				app.handleReleaseAppAllocationAskEvent(taskID, terminationTypeStr)
+				terminationType := eventArgs[1]
+				app.handleReleaseAppAllocationAskEvent(taskID, terminationType)
 			},
 			AppTaskCompleted.String(): func(event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck

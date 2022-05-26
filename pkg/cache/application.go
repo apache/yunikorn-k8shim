@@ -603,15 +603,15 @@ func (app *Application) handleFailApplicationEvent(errMsg string) {
 	}
 }
 
-func (app *Application) handleReleaseAppAllocationEvent(allocUUID string, terminationTypeStr string) {
+func (app *Application) handleReleaseAppAllocationEvent(allocUUID string, terminationType string) {
 	log.Logger().Info("try to release pod from application",
 		zap.String("appID", app.applicationID),
 		zap.String("allocationUUID", allocUUID),
-		zap.String("terminationType", terminationTypeStr))
+		zap.String("terminationType", terminationType))
 
 	for _, task := range app.taskMap {
 		if task.allocationUUID == allocUUID {
-			task.setTaskTerminationType(terminationTypeStr)
+			task.setTaskTerminationType(terminationType)
 			err := task.DeleteTaskPod(task.pod)
 			if err != nil {
 				log.Logger().Error("failed to release allocation from application", zap.Error(err))
@@ -621,13 +621,13 @@ func (app *Application) handleReleaseAppAllocationEvent(allocUUID string, termin
 	}
 }
 
-func (app *Application) handleReleaseAppAllocationAskEvent(taskID string, terminationTypeStr string) {
+func (app *Application) handleReleaseAppAllocationAskEvent(taskID string, terminationType string) {
 	log.Logger().Info("try to release pod from application",
 		zap.String("appID", app.applicationID),
 		zap.String("taskID", taskID),
-		zap.String("terminationType", terminationTypeStr))
+		zap.String("terminationType", terminationType))
 	if task, ok := app.taskMap[taskID]; ok {
-		task.setTaskTerminationType(terminationTypeStr)
+		task.setTaskTerminationType(terminationType)
 		if task.IsPlaceholder() {
 			err := task.DeleteTaskPod(task.pod)
 			if err != nil {
