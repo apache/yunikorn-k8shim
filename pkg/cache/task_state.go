@@ -21,10 +21,13 @@ package cache
 import (
 	"github.com/looplab/fsm"
 	"go.uber.org/zap"
+	"sync"
 
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
+
+var taskStatesOnce sync.Once
 
 //----------------------------------------------
 // Task events
@@ -281,7 +284,7 @@ type TStates struct {
 }
 
 func TaskStates() *TStates {
-	if storeTaskStates == nil {
+	taskStatesOnce.Do(func() {
 		storeTaskStates = &TStates{
 			New:        "New",
 			Pending:    "Pending",
@@ -304,7 +307,7 @@ func TaskStates() *TStates {
 				"Completed",
 			},
 		}
-	}
+	})
 	return storeTaskStates
 }
 

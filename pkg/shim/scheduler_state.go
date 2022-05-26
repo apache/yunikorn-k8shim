@@ -21,10 +21,13 @@ package shim
 import (
 	"github.com/looplab/fsm"
 	"go.uber.org/zap"
+	"sync"
 
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
+
+var once sync.Once
 
 //----------------------------------------------
 // Scheduler events
@@ -93,7 +96,7 @@ type SStates struct {
 }
 
 func SchedulerStates() *SStates {
-	if storeScheduleStates == nil {
+	once.Do(func() {
 		storeScheduleStates = &SStates{
 			New:         "New",
 			Registered:  "Registered",
@@ -103,7 +106,7 @@ func SchedulerStates() *SStates {
 			Draining:    "Draining",
 			Stopped:     "Stopped",
 		}
-	}
+	})
 	return storeScheduleStates
 }
 

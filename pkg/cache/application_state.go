@@ -21,11 +21,14 @@ package cache
 import (
 	"github.com/looplab/fsm"
 	"go.uber.org/zap"
+	"sync"
 
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
+
+var applicationStatesOnce sync.Once
 
 //----------------------------------------------
 // Application events
@@ -372,7 +375,7 @@ type AStates struct {
 }
 
 func ApplicationStates() *AStates {
-	if storeApplicationStates == nil {
+	applicationStatesOnce.Do(func() {
 		storeApplicationStates = &AStates{
 			New:        "New",
 			Recovering: "Recovering",
@@ -388,7 +391,7 @@ func ApplicationStates() *AStates {
 			Failing:    "Failing",
 			Resuming:   "Resuming",
 		}
-	}
+	})
 	return storeApplicationStates
 }
 

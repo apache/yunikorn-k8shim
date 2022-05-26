@@ -236,7 +236,7 @@ func hasReadyCondition(node *v1.Node) bool {
 
 func triggerEvent(node *SchedulerNode, currentState string, eventType SchedulerNodeEventType) {
 	log.Logger().Info("scheduler node event ", zap.String("name", node.name),
-		zap.String("current state ", currentState), zap.String("transition to ", eventType.String()))
+		zap.String("current state ", currentState), zap.Stringer("transition to ", eventType))
 	if node.getNodeState() == currentState {
 		dispatcher.Dispatch(CachedSchedulerNodeEvent{
 			NodeID: node.name,

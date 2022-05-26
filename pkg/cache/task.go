@@ -108,7 +108,7 @@ func createTaskInternal(tid string, app *Application, resource *si.Resource,
 }
 
 func beforeHook(event TaskEventType) string {
-	return fmt.Sprintf("before_%s", event.String())
+	return fmt.Sprintf("before_%s", event)
 }
 
 // event handling

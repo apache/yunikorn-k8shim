@@ -21,10 +21,13 @@ package cache
 import (
 	"github.com/looplab/fsm"
 	"go.uber.org/zap"
+	"sync"
 
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
+
+var nodeStatesOnce sync.Once
 
 //----------------------------------------------
 // SchedulerNode events
@@ -76,7 +79,7 @@ type NStates struct {
 }
 
 func SchedulerNodeStates() *NStates {
-	if storeSchedulerNodeStates == nil {
+	nodeStatesOnce.Do(func() {
 		storeSchedulerNodeStates = &NStates{
 			New:        "New",
 			Recovering: "Recovering",
@@ -85,7 +88,7 @@ func SchedulerNodeStates() *NStates {
 			Rejected:   "Rejected",
 			Draining:   "Draining",
 		}
-	}
+	})
 	return storeSchedulerNodeStates
 }
 
