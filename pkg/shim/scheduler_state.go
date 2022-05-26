@@ -28,7 +28,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
 
-var once sync.Once
+var schedulerStatesOnce sync.Once
 
 //----------------------------------------------
 // Scheduler events
@@ -97,7 +97,7 @@ type SStates struct {
 }
 
 func SchedulerStates() *SStates {
-	once.Do(func() {
+	schedulerStatesOnce.Do(func() {
 		storeScheduleStates = &SStates{
 			New:         "New",
 			Registered:  "Registered",
