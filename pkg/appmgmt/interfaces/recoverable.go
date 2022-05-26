@@ -35,7 +35,7 @@ import (
 // and then properly recover these applications before recovering nodes.
 type Recoverable interface {
 	// list applications returns all existing applications known to this app manager.
-	ListApplications() (map[string]ApplicationMetadata, error)
+	ListPods() ([]*v1.Pod, error)
 
 	// this is called during recovery
 	// for a given pod, return an allocation if found

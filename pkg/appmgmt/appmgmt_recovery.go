@@ -24,6 +24,7 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/general"
 	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
@@ -47,29 +48,21 @@ func (svc *AppManagementService) recoverApps() (map[string]interfaces.ManagedApp
 	recoveringApps := make(map[string]interfaces.ManagedApp)
 	for _, mgr := range svc.managers {
 		if m, ok := mgr.(interfaces.Recoverable); ok {
-			appMetas, err := m.ListApplications()
+			pods, err := m.ListPods()
 			if err != nil {
 				log.Logger().Error("failed to list apps", zap.Error(err))
 				return recoveringApps, err
 			}
 
-			// trigger recovery of the apps
-			// this is simply submit the app again
-			for _, appMeta := range appMetas {
-				if app := svc.amProtocol.AddApplication(
-					&interfaces.AddApplicationRequest{
-						Metadata: appMeta,
-					}); app != nil {
-					recoveringApps[app.GetApplicationID()] = app
-					if err := app.TriggerAppRecovery(); err != nil {
-						log.Logger().Error("failed to recover app", zap.Error(err))
-						return recoveringApps, fmt.Errorf("failed to recover app %s, reason: %v",
-							app.GetApplicationID(), err)
-					}
-				}
+			for _, pod := range pods {
+				app := svc.podEventHandler.HandleEvent(general.AddPod, general.Recovery, pod)
+				recoveringApps[app.GetApplicationID()] = app
 			}
+			log.Logger().Info("Recovery finished")
+			svc.podEventHandler.RecoveryDone()
 		}
 	}
+
 	return recoveringApps, nil
 }
 
