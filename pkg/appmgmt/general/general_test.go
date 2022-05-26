@@ -19,6 +19,7 @@
 package general
 
 import (
+	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/sparkoperator"
 	"testing"
 
 	"gotest.tools/assert"
@@ -220,6 +221,50 @@ func TestGetAppMetadata(t *testing.T) {
 
 	app, ok = am.getAppMetadata(&pod, false)
 	assert.Equal(t, ok, false)
+}
+
+func TestGetSparkAppMetadata(t *testing.T) {
+	am := NewManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider(false))
+	sparkManager := sparkoperator.NewManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider(false))
+
+	pod := v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name:      "pod00001",
+			Namespace: "default",
+			UID:       "UID-POD-00001",
+			Labels: map[string]string{
+				"applicationId": "app00001",
+				"queue":         "root.a",
+				"sparkoperator.k8s.io/launched-by-spark-operator": "true",
+			},
+			Annotations: map[string]string{
+				constants.AnnotationTaskGroups:            taskGroupInfo,
+				constants.AnnotationSchedulingPolicyParam: "gangSchedulingStyle=Soft",
+			},
+		},
+		Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
+		Status: v1.PodStatus{
+			Phase: v1.PodPending,
+		},
+	}
+
+	app, ok := am.getAppMetadata(&pod, false)
+	assert.Equal(t, ok, true)
+	assert.Equal(t, app.ApplicationID, "app00001")
+	assert.Equal(t, app.QueueName, "root.a")
+	assert.Equal(t, app.User, constants.DefaultUser)
+	assert.Equal(t, app.Tags["namespace"], "default")
+	assert.Equal(t, app.Tags[constants.AnnotationSchedulingPolicyParam], "gangSchedulingStyle=Soft")
+	assert.Assert(t, app.Tags[constants.AnnotationTaskGroups] != "")
+	assert.Equal(t, app.TaskGroups[0].Name, "test-group-1")
+	assert.Equal(t, app.TaskGroups[0].MinMember, int32(3))
+	assert.Equal(t, app.TaskGroups[0].MinResource["cpu"], resource.MustParse("2"))
+	assert.Equal(t, app.TaskGroups[0].MinResource["memory"], resource.MustParse("1Gi"))
+	assert.Equal(t, app.SchedulingPolicyParameters.GetGangSchedulingStyle(), "Soft")
 }
 
 func TestGetTaskMetadata(t *testing.T) {

@@ -65,7 +65,6 @@ func (os *Manager) ServiceInit() error {
 	if err != nil {
 		return err
 	}
-
 	var factoryOpts []crInformers.SharedInformerOption
 	os.crdInformerFactory = crInformers.NewSharedInformerFactoryWithOptions(
 		crClient, 0, factoryOpts...)

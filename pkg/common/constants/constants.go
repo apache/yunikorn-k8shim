@@ -50,7 +50,6 @@ const CPU = "vcore"
 const SparkLabelAppID = "spark-app-selector"
 const SparkLabelRole = "spark-role"
 const SparkLabelRoleDriver = "driver"
-const SparkDefaultUser = "root"
 const SparkOperatorLabelLaunch = "sparkoperator.k8s.io/launched-by-spark-operator"
 const SparkOperatorLabelAppName = "sparkoperator.k8s.io/app-name"
 
