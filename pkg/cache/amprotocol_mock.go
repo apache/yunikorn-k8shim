@@ -22,7 +22,6 @@ import (
 	"fmt"
 
 	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
-	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/common/test"
 )
 
@@ -93,7 +92,7 @@ func (m *MockedAMProtocol) RemoveTask(appID, taskID string) {
 func (m *MockedAMProtocol) NotifyApplicationComplete(appID string) {
 	if app := m.GetApplication(appID); app != nil {
 		if p, valid := app.(*Application); valid {
-			p.SetState(events.States().Application.Completed)
+			p.SetState(ApplicationStates().Completed)
 		}
 	}
 }
@@ -101,7 +100,7 @@ func (m *MockedAMProtocol) NotifyApplicationComplete(appID string) {
 func (m *MockedAMProtocol) NotifyApplicationFail(appID string) {
 	if app := m.GetApplication(appID); app != nil {
 		if p, valid := app.(*Application); valid {
-			p.SetState(events.States().Application.Failed)
+			p.SetState(ApplicationStates().Failed)
 		}
 	}
 }
@@ -110,7 +109,7 @@ func (m *MockedAMProtocol) NotifyTaskComplete(appID, taskID string) {
 	if app := m.GetApplication(appID); app != nil {
 		if task, err := app.GetTask(taskID); err == nil {
 			if t, ok := task.(*Task); ok {
-				t.sm.SetState(events.States().Task.Completed)
+				t.sm.SetState(TaskStates().Completed)
 			}
 		}
 	}

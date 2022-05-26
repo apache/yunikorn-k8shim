@@ -31,7 +31,6 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/cache/external"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
-	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/common/test"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
@@ -423,13 +422,13 @@ func TestCordonNode(t *testing.T) {
 
 	api.UpdateNodeFunction(inputCheckerUpdateFn)
 	nodes.addAndReportNode(&oldNode, false)
-	nodes.getNode("host0001").fsm.SetState(events.States().Node.Healthy)
+	nodes.getNode("host0001").fsm.SetState(SchedulerNodeStates().Healthy)
 	api.UpdateNodeFunction(inputCheckerUpdateFn)
 	nodes.updateNode(&oldNode, &newNode)
 
 	// wait until node reaches Draining state
 	err := utils.WaitForCondition(func() bool {
-		return nodes.getNode("host0001").getNodeState() == events.States().Node.Draining
+		return nodes.getNode("host0001").getNodeState() == SchedulerNodeStates().Draining
 	}, 1*time.Second, 5*time.Second)
 	assert.NilError(t, err)
 
@@ -470,7 +469,7 @@ func TestCordonNode(t *testing.T) {
 
 	// wait until node reaches Draining state
 	err = utils.WaitForCondition(func() bool {
-		return nodes.getNode("host0001").getNodeState() == events.States().Node.Healthy
+		return nodes.getNode("host0001").getNodeState() == SchedulerNodeStates().Healthy
 	}, 1*time.Second, 5*time.Second)
 	assert.NilError(t, err)
 }

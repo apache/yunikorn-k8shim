@@ -97,76 +97,25 @@ func createTaskInternal(tid string, app *Application, resource *si.Resource,
 		taskGroupName: taskGroupName,
 		pluginMode:    pluginMode,
 		context:       ctx,
+		sm:            newTaskState(),
 		lock:          &sync.RWMutex{},
 	}
-
-	var states = events.States().Task
-	task.sm = fsm.NewFSM(
-		states.New,
-		fsm.Events{
-			{Name: string(events.InitTask),
-				Src: []string{states.New},
-				Dst: states.Pending},
-			{Name: string(events.SubmitTask),
-				Src: []string{states.Pending},
-				Dst: states.Scheduling},
-			{Name: string(events.TaskAllocated),
-				Src: []string{states.Scheduling},
-				Dst: states.Allocated},
-			{Name: string(events.TaskAllocated),
-				Src: []string{states.Completed},
-				Dst: states.Completed},
-			{Name: string(events.TaskBound),
-				Src: []string{states.Allocated},
-				Dst: states.Bound},
-			{Name: string(events.CompleteTask),
-				Src: states.Any,
-				Dst: states.Completed},
-			{Name: string(events.KillTask),
-				Src: []string{states.Pending, states.Scheduling, states.Allocated, states.Bound},
-				Dst: states.Killing},
-			{Name: string(events.TaskKilled),
-				Src: []string{states.Killing},
-				Dst: states.Killed},
-			{Name: string(events.TaskRejected),
-				Src: []string{states.New, states.Pending, states.Scheduling},
-				Dst: states.Rejected},
-			{Name: string(events.TaskFail),
-				Src: []string{states.Rejected, states.Allocated},
-				Dst: states.Failed},
-		},
-		fsm.Callbacks{
-			string(events.SubmitTask):        task.handleSubmitTaskEvent,
-			string(events.TaskFail):          task.handleFailEvent,
-			beforeHook(events.TaskAllocated): task.beforeTaskAllocated,
-			states.Pending:                   task.postTaskPending,
-			states.Allocated:                 task.postTaskAllocated,
-			states.Rejected:                  task.postTaskRejected,
-			beforeHook(events.CompleteTask):  task.beforeTaskCompleted,
-			states.Failed:                    task.postTaskFailed,
-			states.Bound:                     task.postTaskBound,
-			events.EnterState:                task.enterState,
-		},
-	)
-
 	if tgName := utils.GetTaskGroupFromPodSpec(pod); tgName != "" {
 		task.taskGroupName = tgName
 	}
-
 	task.initialize()
-
 	return task
 }
 
-func beforeHook(event events.TaskEventType) string {
-	return fmt.Sprintf("before_%s", string(event))
+func beforeHook(event TaskEventType) string {
+	return fmt.Sprintf("before_%s", event)
 }
 
 // event handling
 func (task *Task) handle(te events.TaskEvent) error {
 	task.lock.Lock()
 	defer task.lock.Unlock()
-	err := task.sm.Event(string(te.GetEvent()), te.GetArgs()...)
+	err := task.sm.Event(te.GetEvent(), task, te.GetArgs())
 	// handle the same state transition not nil error (limit of fsm).
 	if err != nil && err.Error() != "no transition" {
 		return err
@@ -177,7 +126,7 @@ func (task *Task) handle(te events.TaskEvent) error {
 func (task *Task) canHandle(te events.TaskEvent) bool {
 	task.lock.RLock()
 	defer task.lock.RUnlock()
-	return task.sm.Can(string(te.GetEvent()))
+	return task.sm.Can(te.GetEvent())
 }
 
 func (task *Task) GetTaskPod() *v1.Pod {
@@ -236,7 +185,7 @@ func (task *Task) UpdateTaskPodStatus(pod *v1.Pod) (*v1.Pod, error) {
 }
 
 func (task *Task) isTerminated() bool {
-	for _, states := range events.States().Task.Terminated {
+	for _, states := range TaskStates().Terminated {
 		if task.GetTaskState() == states {
 			return true
 		}
@@ -259,7 +208,7 @@ func (task *Task) initialize() {
 	if utils.NeedRecovery(task.pod) {
 		task.allocationUUID = string(task.pod.UID)
 		task.nodeName = task.pod.Spec.NodeName
-		task.sm.SetState(events.States().Task.Allocated)
+		task.sm.SetState(TaskStates().Allocated)
 		log.Logger().Info("set task as Allocated",
 			zap.String("appID", task.applicationID),
 			zap.String("taskID", task.taskID),
@@ -274,7 +223,7 @@ func (task *Task) initialize() {
 	if utils.IsPodTerminated(task.pod) {
 		task.allocationUUID = string(task.pod.UID)
 		task.nodeName = task.pod.Spec.NodeName
-		task.sm.SetState(events.States().Task.Completed)
+		task.sm.SetState(TaskStates().Completed)
 		log.Logger().Info("set task as Completed",
 			zap.String("appID", task.applicationID),
 			zap.String("taskID", task.taskID),
@@ -288,25 +237,23 @@ func (task *Task) setAllocated(nodeName, allocationUUID string) {
 	defer task.lock.Unlock()
 	task.allocationUUID = allocationUUID
 	task.nodeName = nodeName
-	task.sm.SetState(events.States().Task.Allocated)
+	task.sm.SetState(TaskStates().Allocated)
 }
 
-func (task *Task) handleFailEvent(event *fsm.Event) {
-	eventArgs := make([]string, 1)
-	if err := events.GetEventArgsAsStrings(eventArgs, event.Args); err != nil {
-		dispatcher.Dispatch(NewFailTaskEvent(task.applicationID, task.taskID, err.Error()))
+func (task *Task) handleFailEvent(reason string, err bool) {
+	if err {
+		dispatcher.Dispatch(NewFailTaskEvent(task.applicationID, task.taskID, reason))
 		events.GetRecorder().Eventf(task.pod, nil, v1.EventTypeWarning, "SchedulingFailed", "SchedulingFailed",
-			"%s scheduling failed, reason: %s", task.alias, err.Error())
+			"%s scheduling failed, reason: %s", task.alias, reason)
 		return
 	}
-
 	log.Logger().Error("task failed",
 		zap.String("appID", task.applicationID),
 		zap.String("taskID", task.taskID),
-		zap.String("reason", eventArgs[0]))
+		zap.String("reason", reason))
 }
 
-func (task *Task) handleSubmitTaskEvent(event *fsm.Event) {
+func (task *Task) handleSubmitTaskEvent() {
 	log.Logger().Debug("scheduling pod",
 		zap.String("podName", task.pod.Name))
 	// convert the request
@@ -336,7 +283,7 @@ func (task *Task) handleSubmitTaskEvent(event *fsm.Event) {
 
 // this is called after task reaches PENDING state,
 // submit the resource asks from this task to the scheduler core
-func (task *Task) postTaskPending(event *fsm.Event) {
+func (task *Task) postTaskPending() {
 	dispatcher.Dispatch(NewSubmitTaskEvent(task.applicationID, task.taskID))
 }
 
@@ -344,29 +291,17 @@ func (task *Task) postTaskPending(event *fsm.Event) {
 // we run this in a go routine to bind pod to the allocated node,
 // if successful, we move task to next state BOUND,
 // otherwise we fail the task
-func (task *Task) postTaskAllocated(event *fsm.Event) {
+func (task *Task) postTaskAllocated(allocUUID string, nodeID string) {
 	// delay binding task
 	// this calls K8s api to bind a pod to the assigned node, this may need some time,
 	// so we do a delay binding to avoid blocking main process. we tracks the result
 	// of the binding and properly handle failures.
-	go func(event *fsm.Event) {
+	go func() {
 		// we need to obtain task's lock first,
 		// this ensures no other threads modifying task state at the time being
 		task.lock.Lock()
 		defer task.lock.Unlock()
-
 		var errorMessage string
-		eventArgs := make([]string, 2)
-		if err := events.GetEventArgsAsStrings(eventArgs, event.Args); err != nil {
-			errorMessage = err.Error()
-			log.Logger().Error("error", zap.Error(err))
-			dispatcher.Dispatch(NewFailTaskEvent(task.applicationID, task.taskID, errorMessage))
-			return
-		}
-
-		allocUUID := eventArgs[0]
-		nodeID := eventArgs[1]
-
 		// task allocation UID is assigned once we get allocation decision from scheduler core
 		task.allocationUUID = allocUUID
 
@@ -421,7 +356,7 @@ func (task *Task) postTaskAllocated(event *fsm.Event) {
 				v1.EventTypeNormal, "PodBindSuccessful", "PodBindSuccessful",
 				"Pod %s is successfully bound to node %s", task.alias, nodeID)
 		}
-	}(event)
+	}()
 }
 
 // this callback is called before handling the TaskAllocated event,
@@ -432,34 +367,21 @@ func (task *Task) postTaskAllocated(event *fsm.Event) {
 // If we find the task is already in Completed state while handling TaskAllocated
 // event, we need to explicitly release this allocation because it is no
 // longer valid.
-func (task *Task) beforeTaskAllocated(event *fsm.Event) {
+func (task *Task) beforeTaskAllocated(eventSrc string, allocUUID string, nodeID string) {
 	// if task is already completed and we got a TaskAllocated event
 	// that means this allocation is no longer valid, we should
 	// notify the core to release this allocation to avoid resource leak
-	if event.Src == events.States().Task.Completed {
-		var errorMessage string
-		eventArgs := make([]string, 2)
-		if err := events.GetEventArgsAsStrings(eventArgs, event.Args); err != nil {
-			errorMessage = err.Error()
-			log.Logger().Error("error", zap.Error(err))
-			dispatcher.Dispatch(NewFailTaskEvent(task.applicationID, task.taskID, errorMessage))
-			return
-		}
-
-		allocUUID := eventArgs[0]
-		nodeID := eventArgs[1]
-
+	if eventSrc == TaskStates().Completed {
 		log.Logger().Info("task is already completed, invalidate the allocation",
-			zap.String("currentTaskState", event.Src),
+			zap.String("currentTaskState", eventSrc),
 			zap.String("allocUUID", allocUUID),
 			zap.String("allocatedNode", nodeID))
-
 		task.allocationUUID = allocUUID
 		task.releaseAllocation()
 	}
 }
 
-func (task *Task) postTaskBound(event *fsm.Event) {
+func (task *Task) postTaskBound() {
 	if task.pluginMode {
 		// when the pod is scheduling by yunikorn, it is moved to the default-scheduler's
 		// unschedulable queue, if nothing changes, the pod will be staying in the unschedulable
@@ -486,7 +408,7 @@ func (task *Task) postTaskBound(event *fsm.Event) {
 	}
 }
 
-func (task *Task) postTaskRejected(event *fsm.Event) {
+func (task *Task) postTaskRejected() {
 	// currently, once task is rejected by scheduler, we directly move task to failed state.
 	// so this function simply triggers the state transition when it is rejected.
 	// but further, we can introduce retry mechanism if necessary.
@@ -498,7 +420,7 @@ func (task *Task) postTaskRejected(event *fsm.Event) {
 		"Task %s is rejected by the scheduler", task.alias)
 }
 
-func (task *Task) postTaskFailed(event *fsm.Event) {
+func (task *Task) postTaskFailed() {
 	// when task is failed, we need to do the cleanup,
 	// we need to release the allocation from scheduler core
 	task.releaseAllocation()
@@ -508,7 +430,7 @@ func (task *Task) postTaskFailed(event *fsm.Event) {
 		"Task %s is failed", task.alias)
 }
 
-func (task *Task) beforeTaskCompleted(event *fsm.Event) {
+func (task *Task) beforeTaskCompleted() {
 	// before task transits to completed, release its allocation from scheduler core
 	// this is done as a before hook because the releaseAllocation() call needs to
 	// send different requests to scheduler-core, depending on current task state
@@ -535,7 +457,7 @@ func (task *Task) releaseAllocation() {
 		// places an allocation for it, we need to send AllocationReleaseRequest,
 		// if task is not allocated yet, we need to send AllocationAskReleaseRequest
 		var releaseRequest si.AllocationRequest
-		s := events.States().Task
+		s := TaskStates()
 		switch task.GetTaskState() {
 		case s.New, s.Pending, s.Scheduling:
 			releaseRequest = common.CreateReleaseAskRequestForTask(

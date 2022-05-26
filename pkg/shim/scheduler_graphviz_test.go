@@ -19,7 +19,7 @@
  limitations under the License.
 */
 
-package main
+package shim
 
 import (
 	"fmt"

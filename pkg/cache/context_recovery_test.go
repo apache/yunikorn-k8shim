@@ -31,7 +31,6 @@ import (
 
 	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
-	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/common/test"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
@@ -98,8 +97,8 @@ func TestNodeRecoveringState(t *testing.T) {
 	assert.Assert(t, sn1 != nil)
 	assert.Assert(t, sn2 != nil)
 
-	assert.Equal(t, sn1.getNodeState(), string(events.States().Node.Recovering))
-	assert.Equal(t, sn2.getNodeState(), string(events.States().Node.Recovering))
+	assert.Equal(t, sn1.getNodeState(), SchedulerNodeStates().Recovering)
+	assert.Equal(t, sn2.getNodeState(), SchedulerNodeStates().Recovering)
 }
 
 func TestNodesRecovery(t *testing.T) {
@@ -130,7 +129,7 @@ func TestNodesRecovery(t *testing.T) {
 					}),
 			},
 		}
-		expectedStates[i] = events.States().Node.Recovering
+		expectedStates[i] = SchedulerNodeStates().Recovering
 	}
 
 	nodeLister := test.NewNodeListerMock()
@@ -154,9 +153,9 @@ func TestNodesRecovery(t *testing.T) {
 	// dispatch NodeAccepted event for the first node, its expected state should be Healthy
 	dispatcher.Dispatch(CachedSchedulerNodeEvent{
 		NodeID: schedulerNodes[0].name,
-		Event:  events.NodeAccepted,
+		Event:  NodeAccepted,
 	})
-	expectedStates[0] = events.States().Node.Healthy
+	expectedStates[0] = SchedulerNodeStates().Healthy
 	err := utils.WaitForCondition(func() bool {
 		return reflect.DeepEqual(getNodeStates(schedulerNodes), expectedStates)
 	}, 100*time.Millisecond, 3*time.Second)
@@ -165,9 +164,9 @@ func TestNodesRecovery(t *testing.T) {
 	// dispatch NodeRejected event for the second node, its expected state should be Rejected
 	dispatcher.Dispatch(CachedSchedulerNodeEvent{
 		NodeID: schedulerNodes[1].name,
-		Event:  events.NodeRejected,
+		Event:  NodeRejected,
 	})
-	expectedStates[1] = events.States().Node.Rejected
+	expectedStates[1] = SchedulerNodeStates().Rejected
 	err = utils.WaitForCondition(func() bool {
 		return reflect.DeepEqual(getNodeStates(schedulerNodes), expectedStates)
 	}, 100*time.Millisecond, 3*time.Second)
@@ -177,9 +176,9 @@ func TestNodesRecovery(t *testing.T) {
 	schedulerNodes[2].schedulable = false
 	dispatcher.Dispatch(CachedSchedulerNodeEvent{
 		NodeID: schedulerNodes[2].name,
-		Event:  events.NodeAccepted,
+		Event:  NodeAccepted,
 	})
-	expectedStates[2] = events.States().Node.Draining
+	expectedStates[2] = SchedulerNodeStates().Draining
 	err = context.recover([]interfaces.Recoverable{mockedAppRecover}, 3*time.Second)
 	assert.NilError(t, err, "recovery should be successful, however got error")
 	assert.DeepEqual(t, getNodeStates(schedulerNodes), expectedStates)

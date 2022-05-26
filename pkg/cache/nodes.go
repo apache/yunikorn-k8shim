@@ -124,7 +124,7 @@ func (nc *schedulerNodes) addAndReportNode(node *v1.Node, reportNode bool) {
 	// do not trigger recover again in this case.
 	if reportNode {
 		if node, ok := nc.nodesMap[node.Name]; ok {
-			triggerEvent(node, events.States().Node.New, events.RecoverNode)
+			triggerEvent(node, SchedulerNodeStates().New, RecoverNode)
 		}
 	}
 }
@@ -161,9 +161,9 @@ func (nc *schedulerNodes) updateNode(oldNode, newNode *v1.Node) {
 
 	// cordon or restore node
 	if (!oldNode.Spec.Unschedulable) && newNode.Spec.Unschedulable {
-		triggerEvent(cachedNode, events.States().Node.Healthy, events.DrainNode)
+		triggerEvent(cachedNode, SchedulerNodeStates().Healthy, DrainNode)
 	} else if oldNode.Spec.Unschedulable && !newNode.Spec.Unschedulable {
-		triggerEvent(cachedNode, events.States().Node.Draining, events.RestoreNode)
+		triggerEvent(cachedNode, SchedulerNodeStates().Draining, RestoreNode)
 	}
 
 	ready := hasReadyCondition(newNode)
@@ -214,7 +214,7 @@ func (nc *schedulerNodes) schedulerNodeEventHandler() func(obj interface{}) {
 				if node.canHandle(event) {
 					if err := node.handle(event); err != nil {
 						log.Logger().Error("failed to handle scheduler node event",
-							zap.String("event", string(event.GetEvent())),
+							zap.String("event", event.GetEvent()),
 							zap.Error(err))
 					}
 				}
@@ -234,9 +234,9 @@ func hasReadyCondition(node *v1.Node) bool {
 	return false
 }
 
-func triggerEvent(node *SchedulerNode, currentState string, eventType events.SchedulerNodeEventType) {
+func triggerEvent(node *SchedulerNode, currentState string, eventType SchedulerNodeEventType) {
 	log.Logger().Info("scheduler node event ", zap.String("name", node.name),
-		zap.String("current state ", currentState), zap.String("transition to ", string(eventType)))
+		zap.String("current state ", currentState), zap.Stringer("transition to ", eventType))
 	if node.getNodeState() == currentState {
 		dispatcher.Dispatch(CachedSchedulerNodeEvent{
 			NodeID: node.name,

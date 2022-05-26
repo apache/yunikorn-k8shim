@@ -85,7 +85,6 @@ func NewShimSchedulerForPlugin(scheduler api.SchedulerAPI, informerFactory infor
 // this is visible for testing
 func newShimSchedulerInternal(ctx *cache.Context, apiFactory client.APIProvider,
 	am *appmgmt.AppManagementService, cb api.ResourceManagerCallback) *KubernetesShim {
-	var states = events.States().Scheduler
 	ss := &KubernetesShim{
 		apiFactory:           apiFactory,
 		context:              ctx,
@@ -95,42 +94,8 @@ func newShimSchedulerInternal(ctx *cache.Context, apiFactory client.APIProvider,
 		stopChan:             make(chan struct{}),
 		lock:                 &sync.RWMutex{},
 		outstandingAppsFound: false,
+		stateMachine:         newSchedulerState(),
 	}
-
-	// init state machine
-	ss.stateMachine = fsm.NewFSM(
-		states.New,
-		fsm.Events{
-			{Name: string(events.RegisterScheduler),
-				Src: []string{states.New},
-				Dst: states.Registering},
-			{Name: string(events.RegisterSchedulerSucceed),
-				Src: []string{states.Registering},
-				Dst: states.Registered},
-			{Name: string(events.RegisterSchedulerFailed),
-				Src: []string{states.Registering},
-				Dst: states.Stopped},
-			{Name: string(events.RecoverScheduler),
-				Src: []string{states.Registered},
-				Dst: states.Recovering},
-			{Name: string(events.RecoverSchedulerSucceed),
-				Src: []string{states.Recovering},
-				Dst: states.Running},
-			{Name: string(events.RecoverSchedulerFailed),
-				Src: []string{states.Recovering},
-				Dst: states.Stopped},
-		},
-		fsm.Callbacks{
-			string(events.RegisterScheduler):       ss.register,                      // trigger registration
-			string(events.RegisterSchedulerFailed): ss.handleSchedulerFailure,        // registration failed, stop the scheduler
-			string(events.RecoverSchedulerFailed):  ss.handleSchedulerFailure,        // recovery failed
-			string(states.Registered):              ss.triggerSchedulerStateRecovery, // if reaches registered, trigger recovering
-			string(states.Recovering):              ss.recoverSchedulerState,         // do recovering
-			string(states.Running):                 ss.doScheduling,                  // do scheduling
-			events.EnterState:                      ss.enterState,
-		},
-	)
-
 	// init dispatcher
 	dispatcher.RegisterEventHandler(dispatcher.EventTypeApp, ctx.ApplicationEventHandler())
 	dispatcher.RegisterEventHandler(dispatcher.EventTypeTask, ctx.TaskEventHandler())
@@ -151,7 +116,7 @@ func (ss *KubernetesShim) SchedulerEventHandler() func(obj interface{}) {
 			if ss.canHandle(event) {
 				if err := ss.handle(event); err != nil {
 					log.Logger().Error("failed to handle scheduler event",
-						zap.String("event", string(event.GetEvent())),
+						zap.String("event", event.GetEvent()),
 						zap.Error(err))
 				}
 			}
@@ -159,19 +124,19 @@ func (ss *KubernetesShim) SchedulerEventHandler() func(obj interface{}) {
 	}
 }
 
-func (ss *KubernetesShim) register(e *fsm.Event) {
+func (ss *KubernetesShim) register() {
 	if err := ss.registerShimLayer(); err != nil {
 		dispatcher.Dispatch(ShimSchedulerEvent{
-			event: events.RegisterSchedulerFailed,
+			event: RegisterSchedulerFailed,
 		})
 	} else {
 		dispatcher.Dispatch(ShimSchedulerEvent{
-			event: events.RegisterSchedulerSucceed,
+			event: RegisterSchedulerSucceed,
 		})
 	}
 }
 
-func (ss *KubernetesShim) handleSchedulerFailure(e *fsm.Event) {
+func (ss *KubernetesShim) handleSchedulerFailure() {
 	ss.Stop()
 	// testmode will be true when mock scheduler intailize
 	if !conf.GetSchedulerConf().IsTestMode() {
@@ -179,13 +144,13 @@ func (ss *KubernetesShim) handleSchedulerFailure(e *fsm.Event) {
 	}
 }
 
-func (ss *KubernetesShim) triggerSchedulerStateRecovery(e *fsm.Event) {
+func (ss *KubernetesShim) triggerSchedulerStateRecovery() {
 	dispatcher.Dispatch(ShimSchedulerEvent{
-		event: events.RecoverScheduler,
+		event: RecoverScheduler,
 	})
 }
 
-func (ss *KubernetesShim) recoverSchedulerState(e *fsm.Event) {
+func (ss *KubernetesShim) recoverSchedulerState() {
 	// run recovery process in a go routine
 	// do not block main thread
 	go func() {
@@ -198,7 +163,7 @@ func (ss *KubernetesShim) recoverSchedulerState(e *fsm.Event) {
 			// failed
 			log.Logger().Error("scheduler recovery failed", zap.Error(err))
 			dispatcher.Dispatch(ShimSchedulerEvent{
-				event: events.RecoverSchedulerFailed,
+				event: RecoverSchedulerFailed,
 			})
 			return
 		}
@@ -217,7 +182,7 @@ func (ss *KubernetesShim) recoverSchedulerState(e *fsm.Event) {
 			// failed
 			log.Logger().Error("scheduler recovery failed", zap.Error(err))
 			dispatcher.Dispatch(ShimSchedulerEvent{
-				event: events.RecoverSchedulerFailed,
+				event: RecoverSchedulerFailed,
 			})
 			return
 		}
@@ -225,12 +190,12 @@ func (ss *KubernetesShim) recoverSchedulerState(e *fsm.Event) {
 		// success
 		log.Logger().Info("scheduler recovery succeed")
 		dispatcher.Dispatch(ShimSchedulerEvent{
-			event: events.RecoverSchedulerSucceed,
+			event: RecoverSchedulerSucceed,
 		})
 	}()
 }
 
-func (ss *KubernetesShim) doScheduling(e *fsm.Event) {
+func (ss *KubernetesShim) doScheduling() {
 	// add event handlers to the context
 	ss.context.AddSchedulingEventHandlers()
 
@@ -276,7 +241,7 @@ func (ss *KubernetesShim) GetSchedulerState() string {
 func (ss *KubernetesShim) handle(se events.SchedulerEvent) error {
 	ss.lock.Lock()
 	defer ss.lock.Unlock()
-	err := ss.stateMachine.Event(string(se.GetEvent()), se.GetArgs())
+	err := ss.stateMachine.Event(se.GetEvent(), ss)
 	if err != nil && err.Error() == "no transition" {
 		return err
 	}
@@ -286,7 +251,7 @@ func (ss *KubernetesShim) handle(se events.SchedulerEvent) error {
 func (ss *KubernetesShim) canHandle(se events.SchedulerEvent) bool {
 	ss.lock.RLock()
 	defer ss.lock.RUnlock()
-	return ss.stateMachine.Can(string(se.GetEvent()))
+	return ss.stateMachine.Can(se.GetEvent())
 }
 
 // each schedule iteration, we scan all apps and triggers app state transition
@@ -327,13 +292,6 @@ func (ss *KubernetesShim) Run() {
 		log.Logger().Fatal("failed to start app manager", zap.Error(err))
 		ss.Stop()
 	}
-}
-
-func (ss *KubernetesShim) enterState(event *fsm.Event) {
-	log.Logger().Debug("scheduler shim state transition",
-		zap.String("source", event.Src),
-		zap.String("destination", event.Dst),
-		zap.String("event", event.Event))
 }
 
 func (ss *KubernetesShim) Stop() {

@@ -59,7 +59,7 @@ func TestAddApp(t *testing.T) {
 	appID := constructAppID(defaultName, defaultNamespace)
 	managedApp := am.amProtocol.GetApplication(appID)
 	assert.Assert(t, managedApp != nil)
-	assert.Equal(t, managedApp.GetApplicationState(), events.States().Application.New)
+	assert.Equal(t, managedApp.GetApplicationState(), cache.ApplicationStates().New)
 	assert.Equal(t, managedApp.GetQueue(), app.Spec.Queue)
 	assert.Equal(t, managedApp.GetApplicationID(), appID)
 }
@@ -143,8 +143,8 @@ func TestHandleApplicationStateUpdate(t *testing.T) {
 		event events.SchedulingEvent
 	}{
 		{"Not application event", cache.NewBindTaskEvent(appID, "taskID")},
-		{"Not AppStateChange event", cache.NewSimpleApplicationEvent(appID, events.AcceptApplication)},
-		{"AppStateChange event", cache.NewApplicationStatusChangeEvent(appID, events.AppStateChange, "New")},
+		{"Not AppStateChange event", cache.NewSimpleApplicationEvent(appID, cache.AcceptApplication)},
+		{"AppStateChange event", cache.NewApplicationStatusChangeEvent(appID, cache.AppStateChange, "New")},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {

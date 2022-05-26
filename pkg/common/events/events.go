@@ -30,27 +30,6 @@ type SchedulingEvent interface {
 //----------------------------------------------
 // Application events
 //----------------------------------------------
-type ApplicationEventType string
-
-const (
-	SubmitApplication       ApplicationEventType = "SubmitApplication"
-	RecoverApplication      ApplicationEventType = "RecoverApplication"
-	AcceptApplication       ApplicationEventType = "AcceptApplication"
-	TryReserve              ApplicationEventType = "TryReserve"
-	UpdateReservation       ApplicationEventType = "UpdateReservation"
-	RunApplication          ApplicationEventType = "RunApplication"
-	RejectApplication       ApplicationEventType = "RejectApplication"
-	CompleteApplication     ApplicationEventType = "CompleteApplication"
-	FailApplication         ApplicationEventType = "FailApplication"
-	KillApplication         ApplicationEventType = "KillApplication"
-	KilledApplication       ApplicationEventType = "KilledApplication"
-	ReleaseAppAllocation    ApplicationEventType = "ReleaseAppAllocation"
-	ReleaseAppAllocationAsk ApplicationEventType = "ReleaseAppAllocationAsk"
-	AppStateChange          ApplicationEventType = "ApplicationStateChange"
-	ResumingApplication     ApplicationEventType = "ResumingApplication"
-	AppTaskCompleted        ApplicationEventType = "AppTaskCompleted"
-)
-
 type ApplicationEvent interface {
 	// an application event is associated with an application Id,
 	// dispatcher finds out actual application based on this id
@@ -58,7 +37,7 @@ type ApplicationEvent interface {
 	GetApplicationID() string
 
 	// the type of this event
-	GetEvent() ApplicationEventType
+	GetEvent() string
 
 	// an event can have multiple arguments, these arguments will be passed to
 	// state machines' callbacks when doing state transition
@@ -75,20 +54,6 @@ type ApplicationStatusEvent interface {
 //----------------------------------------------
 // Task events
 //----------------------------------------------
-type TaskEventType string
-
-const (
-	InitTask      TaskEventType = "InitTask"
-	SubmitTask    TaskEventType = "SubmitTask"
-	TaskAllocated TaskEventType = "TaskAllocated"
-	TaskRejected  TaskEventType = "TaskRejected"
-	TaskBound     TaskEventType = "TaskBound"
-	CompleteTask  TaskEventType = "CompleteTask"
-	TaskFail      TaskEventType = "TaskFail"
-	KillTask      TaskEventType = "KillTask"
-	TaskKilled    TaskEventType = "TaskKilled"
-)
-
 type TaskEvent interface {
 	// application ID which this task belongs to
 	GetApplicationID() string
@@ -99,7 +64,7 @@ type TaskEvent interface {
 	GetTaskID() string
 
 	// type of this event
-	GetEvent() TaskEventType
+	GetEvent() string
 
 	// an event can have multiple arguments, these arguments will be passed to
 	// state machines' callbacks when doing state transition
@@ -109,20 +74,9 @@ type TaskEvent interface {
 // --------------------------------------
 // scheduler events
 // --------------------------------------
-type SchedulerEventType string
-
-const (
-	RegisterScheduler        SchedulerEventType = "RegisterScheduler"
-	RegisterSchedulerSucceed SchedulerEventType = "RegisterSchedulerSucceed"
-	RegisterSchedulerFailed  SchedulerEventType = "RegisterSchedulerFailed"
-	RecoverScheduler         SchedulerEventType = "RecoverScheduler"
-	RecoverSchedulerSucceed  SchedulerEventType = "RecoverSchedulerSucceed"
-	RecoverSchedulerFailed   SchedulerEventType = "RecoverSchedulerFailed"
-)
-
 type SchedulerEvent interface {
 	// the type of this event
-	GetEvent() SchedulerEventType
+	GetEvent() string
 
 	// an event can have multiple arguments, these arguments will be passed to
 	// state machines' callbacks when doing state transition
@@ -132,23 +86,13 @@ type SchedulerEvent interface {
 // --------------------------------------
 // scheduler node events
 // --------------------------------------
-type SchedulerNodeEventType string
-
-const (
-	RecoverNode  SchedulerNodeEventType = "RecoverNode"
-	NodeAccepted SchedulerNodeEventType = "NodeAccepted"
-	NodeRejected SchedulerNodeEventType = "NodeRejected"
-	DrainNode    SchedulerNodeEventType = "DrainNode"
-	RestoreNode  SchedulerNodeEventType = "RestoreNode"
-	NodeReady    SchedulerNodeEventType = "NodeReady"
-)
 
 type SchedulerNodeEvent interface {
 	// returns the node ID
 	GetNodeID() string
 
 	// the type of this event
-	GetEvent() SchedulerNodeEventType
+	GetEvent() string
 
 	// an event can have multiple arguments, these arguments will be passed to
 	// state machines' callbacks when doing state transition

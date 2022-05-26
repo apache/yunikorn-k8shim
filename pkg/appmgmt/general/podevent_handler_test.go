@@ -27,7 +27,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/apache/yunikorn-k8shim/pkg/cache"
-	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 )
 
 const appID = "app00001"
@@ -50,7 +49,7 @@ func TestHandleAsyncEventDuringRecovery(t *testing.T) {
 	assert.Equal(t, int(podEventHandler.asyncEvents[1].eventType), UpdatePod)
 	assert.Equal(t, nil, app1)
 	assert.Equal(t, nil, app2)
-	assert.Equal(t, events.States().Application.Recovering, app3.GetApplicationState())
+	assert.Equal(t, cache.ApplicationStates().Recovering, app3.GetApplicationState())
 }
 
 func TestHandleAsyncEventWhenNotRecovering(t *testing.T) {
@@ -83,7 +82,7 @@ func TestRecoveryDone(t *testing.T) {
 	app := amProtocol.GetApplication(appID)
 	task, err := app.GetTask("pod1")
 	assert.NilError(t, err)
-	assert.Equal(t, events.States().Task.Completed, task.GetTaskState())
+	assert.Equal(t, cache.TaskStates().Completed, task.GetTaskState())
 	assert.Equal(t, false, podEventHandler.recoveryRunning)
 }
 
