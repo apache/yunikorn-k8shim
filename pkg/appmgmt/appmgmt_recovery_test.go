@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	"gotest.tools/assert"
 	v1 "k8s.io/api/core/v1"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -34,8 +35,6 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
-
-	"gotest.tools/assert"
 )
 
 func TestAppManagerRecoveryState(t *testing.T) {

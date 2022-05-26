@@ -19,6 +19,10 @@
 package general
 
 import (
+	v1 "k8s.io/api/core/v1"
+
+	"go.uber.org/zap"
+
 	"github.com/apache/yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
 	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
@@ -26,10 +30,6 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
-
-	"go.uber.org/zap"
-
-	v1 "k8s.io/api/core/v1"
 )
 
 func getTaskMetadata(pod *v1.Pod) (interfaces.TaskMetadata, bool) {

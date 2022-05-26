@@ -21,13 +21,12 @@ package general
 import (
 	"testing"
 
-	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
-
 	"gotest.tools/assert"
-
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 )
 
 func TestGetTaskMetadata(t *testing.T) {

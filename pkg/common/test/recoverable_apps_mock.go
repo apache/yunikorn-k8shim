@@ -19,9 +19,9 @@
 package test
 
 import (
-	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"k8s.io/api/core/v1"
 
+	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
 
