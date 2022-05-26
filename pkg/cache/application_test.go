@@ -1143,7 +1143,9 @@ func TestPlaceholderTimeoutEvents(t *testing.T) {
 	}
 
 	amprotocol := NewMockedAMProtocol()
-	am := general.NewManager(amprotocol, context.apiProvider)
+	podEvent := general.NewPodEventHandler(amprotocol, false)
+
+	am := general.NewManager(client.NewMockedAPIProvider(false), podEvent)
 	pod1 := v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",

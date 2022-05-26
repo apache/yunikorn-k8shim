@@ -24,11 +24,13 @@ import (
 
 	"gotest.tools/assert"
 	v1 "k8s.io/api/core/v1"
+	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 
-	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/yunikorn-k8shim/pkg/cache"
 	"github.com/apache/yunikorn-k8shim/pkg/callback"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
+	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
@@ -170,23 +172,38 @@ func (ma *mockedAppManager) Stop() {
 	// noop
 }
 
-func (ma *mockedAppManager) ListApplications() (map[string]interfaces.ApplicationMetadata, error) {
-	apps := make(map[string]interfaces.ApplicationMetadata)
-	apps["app01"] = interfaces.ApplicationMetadata{
-		ApplicationID: "app01",
-		QueueName:     "root.a",
-		User:          "",
-		Tags:          nil,
-	}
-	apps["app02"] = interfaces.ApplicationMetadata{
-		ApplicationID: "app02",
-		QueueName:     "root.a",
-		User:          "",
-		Tags:          nil,
-	}
-	return apps, nil
+func (ma *mockedAppManager) ListPods() ([]*v1.Pod, error) {
+	pods := make([]*v1.Pod, 2)
+	pods[0] = newPodHelper("pod1", "task01", "app01")
+	pods[1] = newPodHelper("pod2", "task02", "app02")
+
+	return pods, nil
 }
 
 func (ma *mockedAppManager) GetExistingAllocation(pod *v1.Pod) *si.Allocation {
 	return nil
+}
+
+func newPodHelper(name, podUID, appID string) *v1.Pod {
+	return &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name:      name,
+			Namespace: "yk",
+			UID:       types.UID(podUID),
+			Annotations: map[string]string{
+				constants.AnnotationApplicationID: appID,
+			},
+		},
+		Spec: v1.PodSpec{
+			NodeName:      "fake-node",
+			SchedulerName: constants.SchedulerName,
+		},
+		Status: v1.PodStatus{
+			Phase: v1.PodRunning,
+		},
+	}
 }
