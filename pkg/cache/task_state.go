@@ -19,9 +19,10 @@
 package cache
 
 import (
+	"sync"
+
 	"github.com/looplab/fsm"
 	"go.uber.org/zap"
-	"sync"
 
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
