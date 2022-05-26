@@ -162,7 +162,7 @@ func (mgr *PlaceholderManager) Start() {
 				mgr.setRunning(false)
 				log.Logger().Info("PlaceholderManager has been stopped")
 				return
-			case <-time.After(mgr.cleanupTime):
+			case <-time.After(mgr.getCleanupTime()):
 				mgr.cleanOrphanPlaceholders()
 			}
 		}
@@ -196,4 +196,10 @@ func (mgr *PlaceholderManager) setCleanupTime(value time.Duration) {
 	mgr.Lock()
 	defer mgr.Unlock()
 	mgr.cleanupTime = value
+}
+
+func (mgr *PlaceholderManager) getCleanupTime() time.Duration {
+	mgr.RLock()
+	defer mgr.RUnlock()
+	return mgr.cleanupTime
 }
