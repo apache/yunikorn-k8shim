@@ -551,6 +551,7 @@ func (app *Application) onReservationStateChange() {
 
 func (app *Application) handleRejectApplicationEvent(reason string) {
 	log.Logger().Info("app is rejected by scheduler", zap.String("appID", app.applicationID))
+	// for rejected apps, we directly move them to failed state
 	dispatcher.Dispatch(NewFailApplicationEvent(app.applicationID,
 		fmt.Sprintf("%s: %s", constants.ApplicationRejectedFailure, reason)))
 }
