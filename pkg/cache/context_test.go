@@ -87,7 +87,7 @@ func TestAddApplications(t *testing.T) {
 	})
 	assert.Equal(t, len(context.applications), 1)
 	assert.Assert(t, context.applications["app00001"] != nil)
-	assert.Equal(t, context.applications["app00001"].GetApplicationState(), events.States().Application.New)
+	assert.Equal(t, context.applications["app00001"].GetApplicationState(), ApplicationStates().New)
 	assert.Equal(t, len(context.applications["app00001"].GetPendingTasks()), 0)
 
 	// add an app but app already exists
@@ -176,12 +176,12 @@ func TestRemoveApplication(t *testing.T) {
 	// set task state in Pending (non-terminated)
 	task1 := NewTask("task01", app1, context, pod1)
 	app1.taskMap["task01"] = task1
-	task1.sm.SetState(events.States().Task.Pending)
+	task1.sm.SetState(TaskStates().Pending)
 	// New task to application 2
 	// set task state in Failed (terminated)
 	task2 := NewTask("task02", app2, context, pod2)
 	app2.taskMap["task02"] = task2
-	task2.sm.SetState(events.States().Task.Failed)
+	task2.sm.SetState(TaskStates().Failed)
 
 	// remove application 1 which have non-terminated task
 	// this should fail
@@ -444,7 +444,7 @@ func TestAddTask(t *testing.T) {
 	})
 	assert.Equal(t, len(context.applications), 1)
 	assert.Assert(t, context.applications["app00001"] != nil)
-	assert.Equal(t, context.applications["app00001"].GetApplicationState(), events.States().Application.New)
+	assert.Equal(t, context.applications["app00001"].GetApplicationState(), ApplicationStates().New)
 	assert.Equal(t, len(context.applications["app00001"].GetPendingTasks()), 0)
 
 	// add a tasks to the existing application
@@ -533,7 +533,7 @@ func TestRecoverTask(t *testing.T) {
 	})
 	assert.Assert(t, task != nil)
 	assert.Equal(t, task.GetTaskID(), taskUID1)
-	assert.Equal(t, task.GetTaskState(), events.States().Task.Allocated)
+	assert.Equal(t, task.GetTaskState(), TaskStates().Allocated)
 
 	// add a tasks to the existing application
 	// this task was already completed with state: Succeed
@@ -546,7 +546,7 @@ func TestRecoverTask(t *testing.T) {
 	})
 	assert.Assert(t, task != nil)
 	assert.Equal(t, task.GetTaskID(), taskUID2)
-	assert.Equal(t, task.GetTaskState(), events.States().Task.Completed)
+	assert.Equal(t, task.GetTaskState(), TaskStates().Completed)
 
 	// add a tasks to the existing application
 	// this task was already completed with state: Succeed
@@ -559,7 +559,7 @@ func TestRecoverTask(t *testing.T) {
 	})
 	assert.Assert(t, task != nil)
 	assert.Equal(t, task.GetTaskID(), taskUID3)
-	assert.Equal(t, task.GetTaskState(), events.States().Task.Completed)
+	assert.Equal(t, task.GetTaskState(), TaskStates().Completed)
 
 	// add a tasks to the existing application
 	// this task pod is still Pending
@@ -572,14 +572,14 @@ func TestRecoverTask(t *testing.T) {
 	})
 	assert.Assert(t, task != nil)
 	assert.Equal(t, task.GetTaskID(), taskUID4)
-	assert.Equal(t, task.GetTaskState(), events.States().Task.New)
+	assert.Equal(t, task.GetTaskState(), TaskStates().New)
 
 	// make sure the recovered task is added to the app
 	app, exist := context.applications[appID]
 	assert.Equal(t, exist, true)
-	assert.Equal(t, len(app.getTasks(events.States().Task.Allocated)), 1)
-	assert.Equal(t, len(app.getTasks(events.States().Task.Completed)), 2)
-	assert.Equal(t, len(app.getTasks(events.States().Task.New)), 1)
+	assert.Equal(t, len(app.getTasks(TaskStates().Allocated)), 1)
+	assert.Equal(t, len(app.getTasks(TaskStates().Completed)), 2)
+	assert.Equal(t, len(app.getTasks(TaskStates().New)), 1)
 
 	taskInfoVerifiers := []struct {
 		taskID                 string
@@ -588,10 +588,10 @@ func TestRecoverTask(t *testing.T) {
 		expectedPodName        string
 		expectedNodeName       string
 	}{
-		{taskUID1, events.States().Task.Allocated, taskUID1, "pod1", fakeNodeName},
-		{taskUID2, events.States().Task.Completed, taskUID2, "pod2", fakeNodeName},
-		{taskUID3, events.States().Task.Completed, taskUID3, "pod3", fakeNodeName},
-		{taskUID4, events.States().Task.New, "", "pod4", ""},
+		{taskUID1, TaskStates().Allocated, taskUID1, "pod1", fakeNodeName},
+		{taskUID2, TaskStates().Completed, taskUID2, "pod2", fakeNodeName},
+		{taskUID3, TaskStates().Completed, taskUID3, "pod3", fakeNodeName},
+		{taskUID4, TaskStates().New, "", "pod4", ""},
 	}
 
 	for _, tt := range taskInfoVerifiers {
@@ -650,7 +650,7 @@ func TestTaskReleaseAfterRecovery(t *testing.T) {
 
 	assert.Assert(t, task0 != nil)
 	assert.Equal(t, task0.GetTaskID(), pod1UID)
-	assert.Equal(t, task0.GetTaskState(), events.States().Task.Allocated)
+	assert.Equal(t, task0.GetTaskState(), TaskStates().Allocated)
 
 	task1 := context.AddTask(&interfaces.AddTaskRequest{
 		Metadata: interfaces.TaskMetadata{
@@ -662,7 +662,7 @@ func TestTaskReleaseAfterRecovery(t *testing.T) {
 
 	assert.Assert(t, task1 != nil)
 	assert.Equal(t, task1.GetTaskID(), pod2UID)
-	assert.Equal(t, task1.GetTaskState(), events.States().Task.Allocated)
+	assert.Equal(t, task1.GetTaskState(), TaskStates().Allocated)
 
 	// app should have 2 tasks recovered
 	app, exist := context.applications[appID]
@@ -679,15 +679,15 @@ func TestTaskReleaseAfterRecovery(t *testing.T) {
 	assert.Equal(t, ok, true)
 
 	err := common.WaitFor(100*time.Millisecond, 3*time.Second, func() bool {
-		return t1.GetTaskState() == events.States().Task.Completed
+		return t1.GetTaskState() == TaskStates().Completed
 	})
 	assert.NilError(t, err, "release should be completed for task1")
 
 	// expect to see:
 	//  - task0 is still there
 	//  - task1 gets released
-	assert.Equal(t, t0.GetTaskState(), events.States().Task.Allocated)
-	assert.Equal(t, t1.GetTaskState(), events.States().Task.Completed)
+	assert.Equal(t, t0.GetTaskState(), TaskStates().Allocated)
+	assert.Equal(t, t1.GetTaskState(), TaskStates().Completed)
 }
 
 func TestRemoveTask(t *testing.T) {
@@ -790,12 +790,12 @@ func TestGetTask(t *testing.T) {
 	// set task state in Pending (non-terminated)
 	task1 := NewTask("task01", app1, context, pod1)
 	app1.taskMap["task01"] = task1
-	task1.sm.SetState(events.States().Task.Pending)
+	task1.sm.SetState(TaskStates().Pending)
 	// New task to application 2
 	// set task state in Failed (terminated)
 	task2 := NewTask("task02", app2, context, pod2)
 	app2.taskMap["task02"] = task2
-	task2.sm.SetState(events.States().Task.Failed)
+	task2.sm.SetState(TaskStates().Failed)
 
 	task := context.getTask(appID1, "task01")
 	assert.Assert(t, task == task1)

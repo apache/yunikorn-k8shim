@@ -28,7 +28,6 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/cache"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
-	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/common/test"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 )
@@ -77,13 +76,13 @@ func TestAddPod(t *testing.T) {
 	app, valid := toApplication(managedApp)
 	assert.Equal(t, valid, true)
 	assert.Equal(t, app.GetApplicationID(), "app00001")
-	assert.Equal(t, app.GetApplicationState(), events.States().Application.New)
+	assert.Equal(t, app.GetApplicationState(), cache.ApplicationStates().New)
 	assert.Equal(t, app.GetQueue(), "root.a")
 	assert.Equal(t, len(app.GetNewTasks()), 1)
 
 	task, err := app.GetTask("UID-POD-00001")
 	assert.Assert(t, err == nil)
-	assert.Equal(t, task.GetTaskState(), events.States().Task.New)
+	assert.Equal(t, task.GetTaskState(), cache.TaskStates().New)
 
 	// add another pod for same application
 	pod1 := v1.Pod{
@@ -172,13 +171,13 @@ func TestUpdatePodWhenSucceed(t *testing.T) {
 	app, valid := toApplication(managedApp)
 	assert.Equal(t, valid, true)
 	assert.Equal(t, app.GetApplicationID(), "app00001")
-	assert.Equal(t, app.GetApplicationState(), events.States().Application.New)
+	assert.Equal(t, app.GetApplicationState(), cache.ApplicationStates().New)
 	assert.Equal(t, app.GetQueue(), "root.a")
 	assert.Equal(t, len(app.GetNewTasks()), 1)
 
 	task, err := app.GetTask("UID-POD-00001")
 	assert.Assert(t, err == nil)
-	assert.Equal(t, task.GetTaskState(), events.States().Task.New)
+	assert.Equal(t, task.GetTaskState(), cache.TaskStates().New)
 
 	// try update the pod
 
@@ -205,7 +204,7 @@ func TestUpdatePodWhenSucceed(t *testing.T) {
 	am.updatePod(&pod, &newPod)
 
 	// this is to verify NotifyTaskComplete is called
-	assert.Equal(t, task.GetTaskState(), events.States().Task.Completed)
+	assert.Equal(t, task.GetTaskState(), cache.TaskStates().Completed)
 }
 
 func TestUpdatePodWhenFailed(t *testing.T) {
@@ -265,7 +264,7 @@ func TestUpdatePodWhenFailed(t *testing.T) {
 	task, err := app.GetTask("UID-POD-00001")
 	assert.Assert(t, err == nil)
 	// this is to verify NotifyTaskComplete is called
-	assert.Equal(t, task.GetTaskState(), events.States().Task.Completed)
+	assert.Equal(t, task.GetTaskState(), cache.TaskStates().Completed)
 }
 
 func TestDeletePod(t *testing.T) {
@@ -300,19 +299,19 @@ func TestDeletePod(t *testing.T) {
 	app, valid := toApplication(managedApp)
 	assert.Equal(t, valid, true)
 	assert.Equal(t, app.GetApplicationID(), "app00001")
-	assert.Equal(t, app.GetApplicationState(), events.States().Application.New)
+	assert.Equal(t, app.GetApplicationState(), cache.ApplicationStates().New)
 	assert.Equal(t, app.GetQueue(), "root.a")
 	assert.Equal(t, len(app.GetNewTasks()), 1)
 
 	task, err := app.GetTask("UID-POD-00001")
 	assert.Assert(t, err == nil)
-	assert.Equal(t, task.GetTaskState(), events.States().Task.New)
+	assert.Equal(t, task.GetTaskState(), cache.TaskStates().New)
 
 	// try delete the pod
 	am.deletePod(&pod)
 
 	// this is to verify NotifyTaskComplete is called
-	assert.Equal(t, task.GetTaskState(), events.States().Task.Completed)
+	assert.Equal(t, task.GetTaskState(), cache.TaskStates().Completed)
 }
 
 func toApplication(something interface{}) (*cache.Application, bool) {

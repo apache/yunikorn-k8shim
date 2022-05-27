@@ -21,7 +21,6 @@ package cache
 import (
 	"testing"
 
-	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
 
@@ -37,11 +36,11 @@ func TestNewSimpleApplicationEvent(t *testing.T) {
 	tests := []struct {
 		name      string
 		appID     string
-		event     events.ApplicationEventType
+		event     ApplicationEventType
 		wantID    string
-		wantEvent events.ApplicationEventType
+		wantEvent ApplicationEventType
 	}{
-		{TestCreateName, "testAppId001", events.SubmitApplication, "testAppId001", events.SubmitApplication},
+		{TestCreateName, "testAppId001", SubmitApplication, "testAppId001", SubmitApplication},
 	}
 
 	for _, tt := range tests {
@@ -60,17 +59,17 @@ func TestSimpleApplicationEventGetEvent(t *testing.T) {
 	tests := []struct {
 		name      string
 		appID     string
-		event     events.ApplicationEventType
-		wantEvent events.ApplicationEventType
+		event     ApplicationEventType
+		wantEvent ApplicationEventType
 	}{
-		{TestEventName, "testAppId001", events.SubmitApplication, events.SubmitApplication},
+		{TestEventName, "testAppId001", SubmitApplication, SubmitApplication},
 	}
 
 	for _, tt := range tests {
 		instance := NewSimpleApplicationEvent(tt.appID, tt.event)
 		event := instance.GetEvent()
 		t.Run(tt.name, func(t *testing.T) {
-			if event != tt.wantEvent {
+			if event != tt.wantEvent.String() {
 				t.Errorf("want %s, got %s", tt.wantEvent, event)
 			}
 		})
@@ -81,10 +80,10 @@ func TestSimpleApplicationEventGetArgs(t *testing.T) {
 	tests := []struct {
 		name  string
 		appID string
-		event events.ApplicationEventType
+		event ApplicationEventType
 		want  int
 	}{
-		{TestArgsName, "testAppId001", events.SubmitApplication, 0},
+		{TestArgsName, "testAppId001", SubmitApplication, 0},
 	}
 
 	for _, tt := range tests {
@@ -102,10 +101,10 @@ func TestSimpleApplicationEventGetApplicationID(t *testing.T) {
 	tests := []struct {
 		name   string
 		appID  string
-		event  events.ApplicationEventType
+		event  ApplicationEventType
 		wantID string
 	}{
-		{TestAppIDName, "testAppId001", events.SubmitApplication, "testAppId001"},
+		{TestAppIDName, "testAppId001", SubmitApplication, "testAppId001"},
 	}
 
 	for _, tt := range tests {
@@ -123,11 +122,11 @@ func TestNewApplicationEvent(t *testing.T) {
 	tests := []struct {
 		name            string
 		appID, msg      string
-		event           events.ApplicationEventType
+		event           ApplicationEventType
 		wantID, wantMsg string
-		wantEvent       events.ApplicationEventType
+		wantEvent       ApplicationEventType
 	}{
-		{TestCreateName, "testAppId001", "testTask001", events.SubmitApplication, "testAppId001", "testTask001", events.SubmitApplication},
+		{TestCreateName, "testAppId001", "testTask001", SubmitApplication, "testAppId001", "testTask001", SubmitApplication},
 	}
 
 	for _, tt := range tests {
@@ -146,17 +145,17 @@ func TestApplicationEventGetEvent(t *testing.T) {
 	tests := []struct {
 		name       string
 		appID, msg string
-		event      events.ApplicationEventType
-		want       events.ApplicationEventType
+		event      ApplicationEventType
+		want       ApplicationEventType
 	}{
-		{TestEventName, "testAppId001", "testTask001", events.SubmitApplication, events.SubmitApplication},
+		{TestEventName, "testAppId001", "testTask001", SubmitApplication, SubmitApplication},
 	}
 
 	for _, tt := range tests {
 		instance := NewApplicationEvent(tt.appID, tt.event, tt.msg)
 		event := instance.GetEvent()
 		t.Run(tt.name, func(t *testing.T) {
-			if event != tt.want {
+			if event != tt.want.String() {
 				t.Errorf("want %s, got %s", tt.want, event)
 			}
 		})
@@ -167,12 +166,12 @@ func TestApplicationEventGetArgs(t *testing.T) {
 	tests := []struct {
 		name       string
 		appID, msg string
-		event      events.ApplicationEventType
+		event      ApplicationEventType
 		wantLen    int
 		isString   []bool
 		wantArg    []string
 	}{
-		{TestArgsName, "testAppId001", "testTask001", events.SubmitApplication, 1, []bool{true}, []string{"testTask001"}},
+		{TestArgsName, "testAppId001", "testTask001", SubmitApplication, 1, []bool{true}, []string{"testTask001"}},
 	}
 
 	for _, tt := range tests {
@@ -201,10 +200,10 @@ func TestApplicationEventGetApplicationID(t *testing.T) {
 	tests := []struct {
 		name       string
 		appID, msg string
-		event      events.ApplicationEventType
+		event      ApplicationEventType
 		wantID     string
 	}{
-		{TestAppIDName, "testAppId001", "testTask001", events.SubmitApplication, "testAppId001"},
+		{TestAppIDName, "testAppId001", "testTask001", SubmitApplication, "testAppId001"},
 	}
 
 	for _, tt := range tests {
@@ -222,20 +221,20 @@ func TestNewApplicationStatusChangeEvent(t *testing.T) {
 	tests := []struct {
 		name      string
 		appID     string
-		event     events.ApplicationEventType
+		event     ApplicationEventType
 		state     string
 		wantID    string
-		wantEvent events.ApplicationEventType
+		wantEvent ApplicationEventType
 		wantState string
 	}{
-		{TestCreateName, "testAppId001", events.SubmitApplication, "SubmitApplication", "testAppId001", events.SubmitApplication, "SubmitApplication"},
+		{TestCreateName, "testAppId001", SubmitApplication, "SubmitApplication", "testAppId001", SubmitApplication, "SubmitApplication"},
 	}
 
 	for _, tt := range tests {
 		instance := NewApplicationStatusChangeEvent(tt.appID, tt.event, tt.state)
 		event := instance.GetEvent()
 		t.Run(tt.name, func(t *testing.T) {
-			if event != tt.wantEvent {
+			if event != tt.wantEvent.String() {
 				t.Errorf("want %s %s %s, got %s %s %s",
 					tt.wantID, tt.wantEvent, tt.wantState,
 					instance.applicationID, instance.event, instance.state)
@@ -248,18 +247,18 @@ func TestApplicationStatusChangeEventGetEvent(t *testing.T) {
 	tests := []struct {
 		name      string
 		appID     string
-		event     events.ApplicationEventType
+		event     ApplicationEventType
 		state     string
-		wantEvent events.ApplicationEventType
+		wantEvent ApplicationEventType
 	}{
-		{TestEventName, "testAppId001", events.SubmitApplication, "SubmitApplication", events.SubmitApplication},
+		{TestEventName, "testAppId001", SubmitApplication, "SubmitApplication", SubmitApplication},
 	}
 
 	for _, tt := range tests {
 		instance := NewApplicationStatusChangeEvent(tt.appID, tt.event, tt.state)
 		event := instance.GetEvent()
 		t.Run(tt.name, func(t *testing.T) {
-			if event != tt.wantEvent {
+			if event != tt.wantEvent.String() {
 				t.Errorf("want %s, got %s", tt.wantEvent, event)
 			}
 		})
@@ -270,11 +269,11 @@ func TestApplicationStatusChangeEventGetArgs(t *testing.T) {
 	tests := []struct {
 		name    string
 		appID   string
-		event   events.ApplicationEventType
+		event   ApplicationEventType
 		state   string
 		wantLen int
 	}{
-		{TestArgsName, "testAppId001", events.SubmitApplication, "SubmitApplication", 0},
+		{TestArgsName, "testAppId001", SubmitApplication, "SubmitApplication", 0},
 	}
 
 	for _, tt := range tests {
@@ -292,11 +291,11 @@ func TestApplicationStatusChangeEventGetApplicationID(t *testing.T) {
 	tests := []struct {
 		name      string
 		appID     string
-		event     events.ApplicationEventType
+		event     ApplicationEventType
 		state     string
 		wantAppID string
 	}{
-		{TestAppIDName, "testAppId001", events.SubmitApplication, "SubmitApplication", "testAppId001"},
+		{TestAppIDName, "testAppId001", SubmitApplication, "SubmitApplication", "testAppId001"},
 	}
 
 	for _, tt := range tests {
@@ -314,11 +313,11 @@ func TestApplicationStatusChangeEventGetState(t *testing.T) {
 	tests := []struct {
 		name      string
 		appID     string
-		event     events.ApplicationEventType
+		event     ApplicationEventType
 		state     string
 		wantState string
 	}{
-		{TestStateName, "testAppId001", events.SubmitApplication, "SubmitApplication", "SubmitApplication"},
+		{TestStateName, "testAppId001", SubmitApplication, "SubmitApplication", "SubmitApplication"},
 	}
 
 	for _, tt := range tests {
@@ -337,9 +336,9 @@ func TestNewSubmitApplicationEvent(t *testing.T) {
 		name      string
 		appID     string
 		wantID    string
-		wantEvent events.ApplicationEventType
+		wantEvent ApplicationEventType
 	}{
-		{TestCreateName, "testAppId001", "testAppId001", events.SubmitApplication},
+		{TestCreateName, "testAppId001", "testAppId001", SubmitApplication},
 	}
 
 	for _, tt := range tests {
@@ -358,16 +357,16 @@ func TestSubmitApplicationEventGetEvent(t *testing.T) {
 	tests := []struct {
 		name      string
 		appID     string
-		wantEvent events.ApplicationEventType
+		wantEvent ApplicationEventType
 	}{
-		{TestEventName, "testAppId001", events.SubmitApplication},
+		{TestEventName, "testAppId001", SubmitApplication},
 	}
 
 	for _, tt := range tests {
 		instance := NewSubmitApplicationEvent(tt.appID)
 		event := instance.GetEvent()
 		t.Run(tt.name, func(t *testing.T) {
-			if event != tt.wantEvent {
+			if event != tt.wantEvent.String() {
 				t.Errorf("want %s, got %s", tt.wantEvent, event)
 			}
 		})
@@ -419,9 +418,9 @@ func TestNewRunApplicationEvent(t *testing.T) {
 		name      string
 		appID     string
 		wantID    string
-		wantEvent events.ApplicationEventType
+		wantEvent ApplicationEventType
 	}{
-		{TestCreateName, "testAppId001", "testAppId001", events.RunApplication},
+		{TestCreateName, "testAppId001", "testAppId001", RunApplication},
 	}
 
 	for _, tt := range tests {
@@ -440,16 +439,16 @@ func TestRunApplicationEventGetEvent(t *testing.T) {
 	tests := []struct {
 		name      string
 		appID     string
-		wantEvent events.ApplicationEventType
+		wantEvent ApplicationEventType
 	}{
-		{TestEventName, "testAppId001", events.RunApplication},
+		{TestEventName, "testAppId001", RunApplication},
 	}
 
 	for _, tt := range tests {
 		instance := NewRunApplicationEvent(tt.appID)
 		event := instance.GetEvent()
 		t.Run(tt.name, func(t *testing.T) {
-			if event != tt.wantEvent {
+			if event != tt.wantEvent.String() {
 				t.Errorf("want %s, got %s", tt.wantEvent, event)
 			}
 		})
@@ -501,9 +500,9 @@ func TestNewFailApplicationEvent(t *testing.T) {
 		name                 string
 		appID, errorMsg      string
 		wantID, wantErrorMsg string
-		wantEvent            events.ApplicationEventType
+		wantEvent            ApplicationEventType
 	}{
-		{TestCreateName, "testAppId001", "test error msg", "testAppId001", "test error msg", events.FailApplication},
+		{TestCreateName, "testAppId001", "test error msg", "testAppId001", "test error msg", FailApplication},
 	}
 
 	for _, tt := range tests {
@@ -522,9 +521,9 @@ func TestFailApplicationEventGetEvent(t *testing.T) {
 	tests := []struct {
 		name            string
 		appID, errorMsg string
-		wantEvent       events.ApplicationEventType
+		wantEvent       ApplicationEventType
 	}{
-		{TestEventName, "testAppId001", "test error msg", events.FailApplication},
+		{TestEventName, "testAppId001", "test error msg", FailApplication},
 	}
 
 	for _, tt := range tests {
@@ -595,9 +594,9 @@ func TestNewUpdateApplicationReservationEvent(t *testing.T) {
 		name      string
 		appID     string
 		wantID    string
-		wantEvent events.ApplicationEventType
+		wantEvent ApplicationEventType
 	}{
-		{TestCreateName, "testAppId001", "testAppId001", events.UpdateReservation},
+		{TestCreateName, "testAppId001", "testAppId001", UpdateReservation},
 	}
 
 	for _, tt := range tests {
@@ -614,16 +613,16 @@ func TestUpdateApplicationReservationEventGetEvent(t *testing.T) {
 	tests := []struct {
 		name      string
 		appID     string
-		wantEvent events.ApplicationEventType
+		wantEvent ApplicationEventType
 	}{
-		{TestEventName, "testAppId001", events.UpdateReservation},
+		{TestEventName, "testAppId001", UpdateReservation},
 	}
 
 	for _, tt := range tests {
 		instance := NewUpdateApplicationReservationEvent(tt.appID)
 		event := instance.GetEvent()
 		t.Run(tt.name, func(t *testing.T) {
-			if event != tt.wantEvent {
+			if event != tt.wantEvent.String() {
 				t.Errorf("want %s, got %s", event, tt.wantEvent)
 			}
 		})
@@ -676,9 +675,9 @@ func TestNewReleaseAppAllocationEvent(t *testing.T) {
 		appID, allocationUUID      string
 		terminationType            si.TerminationType
 		wantID, wantUUID, wantType string
-		wantEvent                  events.ApplicationEventType
+		wantEvent                  ApplicationEventType
 	}{
-		{TestCreateName, "testAppId001", "testUUID001", si.TerminationType_TIMEOUT, "testAppId001", "testUUID001", "TIMEOUT", events.ReleaseAppAllocation},
+		{TestCreateName, "testAppId001", "testUUID001", si.TerminationType_TIMEOUT, "testAppId001", "testUUID001", "TIMEOUT", ReleaseAppAllocation},
 	}
 
 	for _, tt := range tests {
@@ -698,16 +697,16 @@ func TestReleaseAppAllocationEventGetEvent(t *testing.T) {
 		name                  string
 		appID, allocationUUID string
 		terminationType       si.TerminationType
-		wantEvent             events.ApplicationEventType
+		wantEvent             ApplicationEventType
 	}{
-		{TestEventName, "testAppId001", "testUUID001", si.TerminationType_TIMEOUT, events.ReleaseAppAllocation},
+		{TestEventName, "testAppId001", "testUUID001", si.TerminationType_TIMEOUT, ReleaseAppAllocation},
 	}
 
 	for _, tt := range tests {
 		instance := NewReleaseAppAllocationEvent(tt.appID, tt.terminationType, tt.allocationUUID)
 		event := instance.GetEvent()
 		t.Run(tt.name, func(t *testing.T) {
-			if event != tt.wantEvent {
+			if event != tt.wantEvent.String() {
 				t.Errorf("want %s, got %s", tt.wantEvent, event)
 			}
 		})
@@ -774,9 +773,9 @@ func TestNewReleaseAppAllocationAskEvent(t *testing.T) {
 		appID, taskID                string
 		terminationType              si.TerminationType
 		wantID, wantTaskID, wantType string
-		wantEvent                    events.ApplicationEventType
+		wantEvent                    ApplicationEventType
 	}{
-		{TestCreateName, "testAppId001", "testTaskId001", si.TerminationType_TIMEOUT, "testAppId001", "testTaskId001", "TIMEOUT", events.ReleaseAppAllocationAsk},
+		{TestCreateName, "testAppId001", "testTaskId001", si.TerminationType_TIMEOUT, "testAppId001", "testTaskId001", "TIMEOUT", ReleaseAppAllocationAsk},
 	}
 
 	for _, tt := range tests {
@@ -796,16 +795,16 @@ func TestReleaseAppAllocationAskEventGetEvent(t *testing.T) {
 		name            string
 		appID, taskID   string
 		terminationType si.TerminationType
-		wantEvent       events.ApplicationEventType
+		wantEvent       ApplicationEventType
 	}{
-		{TestEventName, "testAppId001", "testTaskId001", si.TerminationType_TIMEOUT, events.ReleaseAppAllocationAsk},
+		{TestEventName, "testAppId001", "testTaskId001", si.TerminationType_TIMEOUT, ReleaseAppAllocationAsk},
 	}
 
 	for _, tt := range tests {
 		instance := NewReleaseAppAllocationAskEvent(tt.appID, tt.terminationType, tt.taskID)
 		event := instance.GetEvent()
 		t.Run(tt.name, func(t *testing.T) {
-			if event != tt.wantEvent {
+			if event != tt.wantEvent.String() {
 				t.Errorf("want %s, got %s", tt.wantEvent, event)
 			}
 		})
@@ -872,9 +871,9 @@ func TestNewResumingApplicationEvent(t *testing.T) {
 		name      string
 		appID     string
 		wantID    string
-		wantEvent events.ApplicationEventType
+		wantEvent ApplicationEventType
 	}{
-		{TestCreateName, "testAppId001", "testAppId001", events.ResumingApplication},
+		{TestCreateName, "testAppId001", "testAppId001", ResumingApplication},
 	}
 
 	for _, tt := range tests {

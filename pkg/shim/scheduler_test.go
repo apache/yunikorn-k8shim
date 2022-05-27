@@ -32,7 +32,6 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
-	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/common/test"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/api"
@@ -63,7 +62,7 @@ partitions:
 	defer cluster.stop()
 
 	// ensure scheduler state
-	cluster.waitForSchedulerState(t, events.States().Scheduler.Running)
+	cluster.waitForSchedulerState(t, SchedulerStates().Running)
 
 	// register nodes
 	err := cluster.addNode("test.host.01", 100000000, 10)
@@ -82,9 +81,9 @@ partitions:
 
 	// wait for scheduling app and tasks
 	// verify app state
-	cluster.waitAndAssertApplicationState(t, "app0001", events.States().Application.Running)
-	cluster.waitAndAssertTaskState(t, "app0001", "task0001", events.States().Task.Bound)
-	cluster.waitAndAssertTaskState(t, "app0001", "task0002", events.States().Task.Bound)
+	cluster.waitAndAssertApplicationState(t, "app0001", cache.ApplicationStates().Running)
+	cluster.waitAndAssertTaskState(t, "app0001", "task0001", cache.TaskStates().Bound)
+	cluster.waitAndAssertTaskState(t, "app0001", "task0002", cache.TaskStates().Bound)
 }
 
 func TestRejectApplications(t *testing.T) {
@@ -111,7 +110,7 @@ partitions:
 	defer cluster.stop()
 
 	// ensure scheduler state
-	cluster.waitForSchedulerState(t, events.States().Scheduler.Running)
+	cluster.waitForSchedulerState(t, SchedulerStates().Running)
 
 	// register nodes
 	err := cluster.addNode("test.host.01", 100000000, 10)
@@ -132,7 +131,7 @@ partitions:
 
 	// wait for scheduling app and tasks
 	// verify app state
-	cluster.waitAndAssertApplicationState(t, appID, events.States().Application.Failed)
+	cluster.waitAndAssertApplicationState(t, appID, cache.ApplicationStates().Failed)
 
 	// remove the application
 	// remove task first or removeApplication will fail
@@ -143,8 +142,8 @@ partitions:
 	// submit the app again
 	cluster.addApplication(appID, "root.a")
 	cluster.addTask(appID, "task0001", taskResource)
-	cluster.waitAndAssertApplicationState(t, appID, events.States().Application.Running)
-	cluster.waitAndAssertTaskState(t, appID, "task0001", events.States().Task.Bound)
+	cluster.waitAndAssertApplicationState(t, appID, cache.ApplicationStates().Running)
+	cluster.waitAndAssertTaskState(t, appID, "task0001", cache.TaskStates().Bound)
 }
 
 func TestSchedulerRegistrationFailed(t *testing.T) {
@@ -164,7 +163,7 @@ func TestSchedulerRegistrationFailed(t *testing.T) {
 	shim.Run()
 	defer shim.Stop()
 
-	err := waitShimSchedulerState(shim, events.States().Scheduler.Stopped, 5*time.Second)
+	err := waitShimSchedulerState(shim, SchedulerStates().Stopped, 5*time.Second)
 	assert.NilError(t, err)
 }
 
@@ -203,7 +202,7 @@ partitions:
 	})
 
 	// ensure scheduler state
-	cluster.waitForSchedulerState(t, events.States().Scheduler.Running)
+	cluster.waitForSchedulerState(t, SchedulerStates().Running)
 
 	// register nodes
 	err := cluster.addNode("test.host.01", 100000000, 10)
@@ -219,12 +218,11 @@ partitions:
 		Build()
 	cluster.addTask("app0001", "task0001", taskResource)
 	cluster.addTask("app0001", "task0002", taskResource)
-
 	// wait for scheduling app and tasks
 	// verify app state
-	cluster.waitAndAssertApplicationState(t, "app0001", events.States().Application.Running)
-	cluster.waitAndAssertTaskState(t, "app0001", "task0001", events.States().Task.Failed)
-	cluster.waitAndAssertTaskState(t, "app0001", "task0002", events.States().Task.Bound)
+	cluster.waitAndAssertApplicationState(t, "app0001", cache.ApplicationStates().Running)
+	cluster.waitAndAssertTaskState(t, "app0001", "task0001", cache.TaskStates().Failed)
+	cluster.waitAndAssertTaskState(t, "app0001", "task0002", cache.TaskStates().Bound)
 
 	// one task get bound, one ask failed, so we are expecting only 1 allocation in the scheduler
 	err = cluster.waitAndVerifySchedulerAllocations("root.a",

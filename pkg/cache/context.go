@@ -520,7 +520,7 @@ func (ctx *Context) NotifyApplicationComplete(appID string) {
 		log.Logger().Debug("NotifyApplicationComplete",
 			zap.String("appID", appID),
 			zap.String("currentAppState", app.GetApplicationState()))
-		ev := NewSimpleApplicationEvent(appID, events.CompleteApplication)
+		ev := NewSimpleApplicationEvent(appID, CompleteApplication)
 		dispatcher.Dispatch(ev)
 	}
 }
@@ -530,7 +530,7 @@ func (ctx *Context) NotifyApplicationFail(appID string) {
 		log.Logger().Debug("NotifyApplicationFail",
 			zap.String("appID", appID),
 			zap.String("currentAppState", app.GetApplicationState()))
-		ev := NewSimpleApplicationEvent(appID, events.FailApplication)
+		ev := NewSimpleApplicationEvent(appID, FailApplication)
 		dispatcher.Dispatch(ev)
 	}
 }
@@ -543,9 +543,9 @@ func (ctx *Context) NotifyTaskComplete(appID, taskID string) {
 		log.Logger().Debug("release allocation",
 			zap.String("appID", appID),
 			zap.String("taskID", taskID))
-		ev := NewSimpleTaskEvent(appID, taskID, events.CompleteTask)
+		ev := NewSimpleTaskEvent(appID, taskID, CompleteTask)
 		dispatcher.Dispatch(ev)
-		appEv := NewSimpleApplicationEvent(appID, events.AppTaskCompleted)
+		appEv := NewSimpleApplicationEvent(appID, AppTaskCompleted)
 		dispatcher.Dispatch(appEv)
 	}
 }
@@ -812,7 +812,7 @@ func (ctx *Context) PublishEvents(eventRecords []*si.EventRecord) {
 // update task's pod condition when the condition has not yet updated,
 // return true if the update was done and false if the update is skipped due to any error, or a dup operation
 func (ctx *Context) updatePodCondition(task *Task, podCondition *v1.PodCondition) bool {
-	if task.GetTaskState() == events.States().Task.Scheduling {
+	if task.GetTaskState() == TaskStates().Scheduling {
 		// only update the pod when pod condition changes
 		// minimize the overhead added to the api-server/etcd
 		if !utils.PodUnderCondition(task.pod, podCondition) {
@@ -893,7 +893,7 @@ func (ctx *Context) ApplicationEventHandler() func(obj interface{}) {
 				if app.canHandle(event) {
 					if err := app.handle(event); err != nil {
 						log.Logger().Error("failed to handle application event",
-							zap.String("event", string(event.GetEvent())),
+							zap.String("event", event.GetEvent()),
 							zap.Error(err))
 					}
 				}
@@ -910,13 +910,12 @@ func (ctx *Context) TaskEventHandler() func(obj interface{}) {
 				log.Logger().Error("failed to handle application event")
 				return
 			}
-
 			if task.canHandle(event) {
 				if err := task.handle(event); err != nil {
 					log.Logger().Error("failed to handle task event",
 						zap.String("applicationID", task.applicationID),
 						zap.String("taskID", task.taskID),
-						zap.String("event", string(event.GetEvent())),
+						zap.String("event", event.GetEvent()),
 						zap.Error(err))
 				}
 			}

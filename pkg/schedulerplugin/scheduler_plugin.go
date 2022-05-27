@@ -109,7 +109,7 @@ func (sp *YuniKornSchedulerPlugin) PreFilter(_ context.Context, _ *framework.Cyc
 			}
 
 			nodeID, ok := sp.context.GetPendingPodAllocation(string(pod.UID))
-			if task.GetTaskState() == events.States().Task.Bound && ok {
+			if task.GetTaskState() == cache.TaskStates().Bound && ok {
 				log.Logger().Info("Releasing pod for scheduling (prefilter phase)",
 					zap.String("pod", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)),
 					zap.String("taskID", task.GetTaskID()),
@@ -144,7 +144,7 @@ func (sp *YuniKornSchedulerPlugin) Filter(_ context.Context, _ *framework.CycleS
 
 	if app := sp.context.GetApplication(appID); app != nil {
 		if task, err := app.GetTask(string(pod.UID)); err == nil {
-			if task.GetTaskState() == events.States().Task.Bound {
+			if task.GetTaskState() == cache.TaskStates().Bound {
 				// attempt to start a pod allocation. Filter() gets called once per {Pod,Node} candidate; we only want
 				// to proceed in the case where the Node we are asked about matches the one YuniKorn has selected.
 				// this check is fairly cheap (one map lookup); if we fail the check here the scheduling framework will

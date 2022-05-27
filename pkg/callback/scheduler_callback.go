@@ -24,7 +24,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/apache/yunikorn-k8shim/pkg/cache"
-	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
@@ -112,7 +111,7 @@ func (callback *AsyncRMCallback) UpdateApplication(response *si.ApplicationRespo
 
 		if app := callback.context.GetApplication(app.ApplicationID); app != nil {
 			log.Logger().Info("Accepting app", zap.String("appID", app.GetApplicationID()))
-			ev := cache.NewSimpleApplicationEvent(app.GetApplicationID(), events.AcceptApplication)
+			ev := cache.NewSimpleApplicationEvent(app.GetApplicationID(), cache.AcceptApplication)
 			dispatcher.Dispatch(ev)
 		}
 	}
@@ -123,7 +122,7 @@ func (callback *AsyncRMCallback) UpdateApplication(response *si.ApplicationRespo
 			zap.String("appID", rejectedApp.ApplicationID))
 
 		if app := callback.context.GetApplication(rejectedApp.ApplicationID); app != nil {
-			ev := cache.NewApplicationEvent(app.GetApplicationID(), events.RejectApplication, rejectedApp.Reason)
+			ev := cache.NewApplicationEvent(app.GetApplicationID(), cache.RejectApplication, rejectedApp.Reason)
 			dispatcher.Dispatch(ev)
 		}
 	}
@@ -134,24 +133,24 @@ func (callback *AsyncRMCallback) UpdateApplication(response *si.ApplicationRespo
 			zap.String("appId", updated.ApplicationID),
 			zap.String("new status", updated.State))
 		switch updated.State {
-		case events.States().Application.Completed:
+		case cache.ApplicationStates().Completed:
 			callback.context.RemoveApplicationInternal(updated.ApplicationID)
-		case events.States().Application.Resuming:
+		case cache.ApplicationStates().Resuming:
 			app := callback.context.GetApplication(updated.ApplicationID)
-			if app != nil && app.GetApplicationState() == events.States().Application.Reserving {
+			if app != nil && app.GetApplicationState() == cache.ApplicationStates().Reserving {
 				ev := cache.NewResumingApplicationEvent(updated.ApplicationID)
 				dispatcher.Dispatch(ev)
 
 				// handle status update
-				dispatcher.Dispatch(cache.NewApplicationStatusChangeEvent(updated.ApplicationID, events.AppStateChange, updated.State))
+				dispatcher.Dispatch(cache.NewApplicationStatusChangeEvent(updated.ApplicationID, cache.AppStateChange, updated.State))
 			}
 		default:
-			if updated.State == events.States().Application.Failing || updated.State == events.States().Application.Failed {
+			if updated.State == cache.ApplicationStates().Failing || updated.State == cache.ApplicationStates().Failed {
 				ev := cache.NewFailApplicationEvent(updated.ApplicationID, updated.Message)
 				dispatcher.Dispatch(ev)
 			}
 			// handle status update
-			dispatcher.Dispatch(cache.NewApplicationStatusChangeEvent(updated.ApplicationID, events.AppStateChange, updated.State))
+			dispatcher.Dispatch(cache.NewApplicationStatusChangeEvent(updated.ApplicationID, cache.AppStateChange, updated.State))
 		}
 	}
 	return nil
@@ -167,7 +166,7 @@ func (callback *AsyncRMCallback) UpdateNode(response *si.NodeResponse) error {
 
 		dispatcher.Dispatch(cache.CachedSchedulerNodeEvent{
 			NodeID: node.NodeID,
-			Event:  events.NodeAccepted,
+			Event:  cache.NodeAccepted,
 		})
 	}
 
@@ -177,7 +176,7 @@ func (callback *AsyncRMCallback) UpdateNode(response *si.NodeResponse) error {
 
 		dispatcher.Dispatch(cache.CachedSchedulerNodeEvent{
 			NodeID: node.NodeID,
-			Event:  events.NodeRejected,
+			Event:  cache.NodeRejected,
 		})
 	}
 	return nil
