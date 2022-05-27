@@ -60,6 +60,9 @@ is first created, the application ID has not been generated yet. It will only be
 pod starts and then the Spark K8s backend will assign a string that starts with "spark-" as the app ID
 */
 func (os *Manager) ServiceInit() error {
+	log.Logger().Info("ServiceInit", zap.Any("os.apiProvider.GetAPIs()", os.apiProvider.GetAPIs()))
+	log.Logger().Info("ServiceInit", zap.Any("os.apiProvider.GetAPIs().KubeClient", os.apiProvider.GetAPIs().KubeClient))
+	log.Logger().Info("ServiceInit", zap.Any("os.apiProvider.GetAPIs().KubeClient.GetConfigs()", os.apiProvider.GetAPIs().KubeClient.GetConfigs()))
 	crClient, err := crcClientSet.NewForConfig(
 		os.apiProvider.GetAPIs().KubeClient.GetConfigs())
 	if err != nil {
@@ -129,11 +132,11 @@ func (os *Manager) deleteApplication(obj interface{}) {
 }
 
 func GetProxyUser(pod *v1.Pod) string {
-	if crdInformerFactory == nil {
-		log.Logger().Info("Spark operator AppMgmt service is not initialized, so the username from the SparkApp CRD cannot be obtained")
-		return ""
-	}
 	if appName, ok := pod.Labels[constants.SparkOperatorLabelAppName]; ok {
+		if crdInformerFactory == nil {
+			log.Logger().Info("Spark operator AppMgmt service is not initialized, so the username from the SparkApp CRD cannot be obtained")
+			return ""
+		}
 		app, err := crdInformerFactory.Sparkoperator().V1beta2().SparkApplications().Lister().SparkApplications(pod.Namespace).Get(appName)
 		if err != nil {
 			log.Logger().Error("unable to get spark app", zap.Error(err))

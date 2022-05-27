@@ -19,12 +19,10 @@
 package general
 
 import (
-	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/sparkoperator"
 	"testing"
 
 	"gotest.tools/assert"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/apache/yunikorn-k8shim/pkg/cache"
@@ -32,6 +30,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/common/test"
+	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 )
 
 const taskGroupInfo = `
@@ -46,285 +45,9 @@ const taskGroupInfo = `
 	}
 ]`
 
-func TestGetAppMetadata(t *testing.T) {
-	am := NewManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider(false))
-
-	pod := v1.Pod{
-		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-		ObjectMeta: apis.ObjectMeta{
-			Name:      "pod00001",
-			Namespace: "default",
-			UID:       "UID-POD-00001",
-			Labels: map[string]string{
-				"applicationId": "app00001",
-				"queue":         "root.a",
-			},
-			Annotations: map[string]string{
-				constants.AnnotationTaskGroups:            taskGroupInfo,
-				constants.AnnotationSchedulingPolicyParam: "gangSchedulingStyle=Soft",
-			},
-		},
-		Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
-		Status: v1.PodStatus{
-			Phase: v1.PodPending,
-		},
-	}
-
-	app, ok := am.getAppMetadata(&pod, false)
-	assert.Equal(t, ok, true)
-	assert.Equal(t, app.ApplicationID, "app00001")
-	assert.Equal(t, app.QueueName, "root.a")
-	assert.Equal(t, app.User, constants.DefaultUser)
-	assert.Equal(t, app.Tags["namespace"], "default")
-	assert.Equal(t, app.Tags[constants.AnnotationSchedulingPolicyParam], "gangSchedulingStyle=Soft")
-	assert.Assert(t, app.Tags[constants.AnnotationTaskGroups] != "")
-	assert.Equal(t, app.TaskGroups[0].Name, "test-group-1")
-	assert.Equal(t, app.TaskGroups[0].MinMember, int32(3))
-	assert.Equal(t, app.TaskGroups[0].MinResource["cpu"], resource.MustParse("2"))
-	assert.Equal(t, app.TaskGroups[0].MinResource["memory"], resource.MustParse("1Gi"))
-	assert.Equal(t, app.SchedulingPolicyParameters.GetGangSchedulingStyle(), "Soft")
-
-	pod = v1.Pod{
-		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-		ObjectMeta: apis.ObjectMeta{
-			Name:      "pod00002",
-			Namespace: "app-namespace-01",
-			UID:       "UID-POD-00001",
-			Labels: map[string]string{
-				"applicationId":            "app00002",
-				"queue":                    "root.b",
-				"yunikorn.apache.org/user": "testuser",
-				"disableStateAware":        "true",
-			},
-			Annotations: map[string]string{
-				constants.AnnotationSchedulingPolicyParam: "gangSchedulingStyle=Hard",
-			},
-		},
-		Spec: v1.PodSpec{
-			SchedulerName: constants.SchedulerName,
-		},
-		Status: v1.PodStatus{
-			Phase: v1.PodPending,
-		},
-	}
-
-	app, ok = am.getAppMetadata(&pod, false)
-	assert.Equal(t, ok, true)
-	assert.Equal(t, app.ApplicationID, "app00002")
-	assert.Equal(t, app.QueueName, "root.b")
-	assert.Equal(t, app.User, constants.DefaultUser)
-	assert.Equal(t, app.Tags["application.stateaware.disable"], "true")
-	assert.Equal(t, app.Tags["namespace"], "app-namespace-01")
-	assert.DeepEqual(t, len(app.TaskGroups), 0)
-	assert.Equal(t, app.SchedulingPolicyParameters.GetGangSchedulingStyle(), "Hard")
-
-	pod = v1.Pod{
-		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-		ObjectMeta: apis.ObjectMeta{
-			Name:      "pod00001",
-			Namespace: "default",
-			UID:       "UID-POD-00001",
-			Labels: map[string]string{
-				"applicationId": "app00001",
-				"queue":         "root.a",
-			},
-			Annotations: map[string]string{
-				constants.AnnotationTaskGroups: taskGroupInfo,
-			},
-		},
-		Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
-		Status: v1.PodStatus{
-			Phase: v1.PodPending,
-		},
-	}
-
-	app, ok = am.getAppMetadata(&pod, false)
-	assert.Equal(t, ok, true)
-	assert.Equal(t, app.SchedulingPolicyParameters.GetGangSchedulingStyle(), "Soft")
-
-	pod = v1.Pod{
-		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-		ObjectMeta: apis.ObjectMeta{
-			Name:      "pod00002",
-			Namespace: "app-namespace-01",
-			UID:       "UID-POD-00001",
-			Labels: map[string]string{
-				"applicationId":            "app00002",
-				"queue":                    "root.b",
-				"yunikorn.apache.org/user": "testuser",
-			},
-			Annotations: map[string]string{
-				constants.AnnotationSchedulingPolicyParam: "gangSchedulingStyle=Hard=Soft",
-			},
-		},
-		Spec: v1.PodSpec{
-			SchedulerName: constants.SchedulerName,
-		},
-		Status: v1.PodStatus{
-			Phase: v1.PodPending,
-		},
-	}
-
-	app, ok = am.getAppMetadata(&pod, false)
-	assert.Equal(t, ok, true)
-	assert.Equal(t, app.SchedulingPolicyParameters.GetGangSchedulingStyle(), "Soft")
-
-	pod = v1.Pod{
-		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-		ObjectMeta: apis.ObjectMeta{
-			Name:      "pod00002",
-			Namespace: "app-namespace-01",
-			UID:       "UID-POD-00001",
-		},
-		Spec: v1.PodSpec{
-			SchedulerName: constants.SchedulerName,
-		},
-		Status: v1.PodStatus{
-			Phase: v1.PodPending,
-		},
-	}
-
-	app, ok = am.getAppMetadata(&pod, false)
-	assert.Equal(t, ok, false)
-	pod = v1.Pod{
-		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-		ObjectMeta: apis.ObjectMeta{
-			Name:      "pod00002",
-			Namespace: "app-namespace-01",
-			UID:       "UID-POD-00001",
-		},
-		Spec: v1.PodSpec{
-			SchedulerName: constants.SchedulerName,
-		},
-		Status: v1.PodStatus{
-			Phase: v1.PodPending,
-		},
-	}
-
-	app, ok = am.getAppMetadata(&pod, false)
-	assert.Equal(t, ok, false)
-}
-
-func TestGetSparkAppMetadata(t *testing.T) {
-	am := NewManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider(false))
-	sparkManager := sparkoperator.NewManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider(false))
-
-	pod := v1.Pod{
-		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-		ObjectMeta: apis.ObjectMeta{
-			Name:      "pod00001",
-			Namespace: "default",
-			UID:       "UID-POD-00001",
-			Labels: map[string]string{
-				"applicationId": "app00001",
-				"queue":         "root.a",
-				"sparkoperator.k8s.io/launched-by-spark-operator": "true",
-			},
-			Annotations: map[string]string{
-				constants.AnnotationTaskGroups:            taskGroupInfo,
-				constants.AnnotationSchedulingPolicyParam: "gangSchedulingStyle=Soft",
-			},
-		},
-		Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
-		Status: v1.PodStatus{
-			Phase: v1.PodPending,
-		},
-	}
-
-	app, ok := am.getAppMetadata(&pod, false)
-	assert.Equal(t, ok, true)
-	assert.Equal(t, app.ApplicationID, "app00001")
-	assert.Equal(t, app.QueueName, "root.a")
-	assert.Equal(t, app.User, constants.DefaultUser)
-	assert.Equal(t, app.Tags["namespace"], "default")
-	assert.Equal(t, app.Tags[constants.AnnotationSchedulingPolicyParam], "gangSchedulingStyle=Soft")
-	assert.Assert(t, app.Tags[constants.AnnotationTaskGroups] != "")
-	assert.Equal(t, app.TaskGroups[0].Name, "test-group-1")
-	assert.Equal(t, app.TaskGroups[0].MinMember, int32(3))
-	assert.Equal(t, app.TaskGroups[0].MinResource["cpu"], resource.MustParse("2"))
-	assert.Equal(t, app.TaskGroups[0].MinResource["memory"], resource.MustParse("1Gi"))
-	assert.Equal(t, app.SchedulingPolicyParameters.GetGangSchedulingStyle(), "Soft")
-}
-
-func TestGetTaskMetadata(t *testing.T) {
-	am := NewManager(&cache.MockedAMProtocol{}, client.NewMockedAPIProvider(false))
-
-	pod := v1.Pod{
-		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-		ObjectMeta: apis.ObjectMeta{
-			Name:      "pod00001",
-			Namespace: "default",
-			UID:       "UID-POD-00001",
-			Labels: map[string]string{
-				"applicationId": "app00001",
-				"queue":         "root.a",
-			},
-			Annotations: map[string]string{
-				constants.AnnotationTaskGroupName: "test-group-01",
-			},
-		},
-		Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
-		Status: v1.PodStatus{
-			Phase: v1.PodPending,
-		},
-	}
-
-	task, ok := am.getTaskMetadata(&pod)
-	assert.Equal(t, ok, true)
-	assert.Equal(t, task.ApplicationID, "app00001")
-	assert.Equal(t, task.TaskID, "UID-POD-00001")
-	assert.Equal(t, task.TaskGroupName, "test-group-01")
-	pod.Annotations = map[string]string{}
-	task, ok = am.getTaskMetadata(&pod)
-	assert.Equal(t, ok, true)
-	assert.Equal(t, task.TaskGroupName, "")
-
-	pod = v1.Pod{
-		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-		ObjectMeta: apis.ObjectMeta{
-			Name:      "pod00001",
-			Namespace: "default",
-			UID:       "UID-POD-00001",
-		},
-		Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
-		Status: v1.PodStatus{
-			Phase: v1.PodPending,
-		},
-	}
-
-	task, ok = am.getTaskMetadata(&pod)
-	assert.Equal(t, ok, false)
-}
-
 func TestAddPod(t *testing.T) {
-	am := NewManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider(false))
+	amProtocol := cache.NewMockedAMProtocol()
+	am := NewManager(client.NewMockedAPIProvider(false), NewPodEventHandler(amProtocol, false))
 
 	pod := v1.Pod{
 		TypeMeta: apis.TypeMeta{
@@ -349,7 +72,7 @@ func TestAddPod(t *testing.T) {
 	// add a pending pod through the AM service
 	am.AddPod(&pod)
 
-	managedApp := am.amProtocol.GetApplication("app00001")
+	managedApp := amProtocol.GetApplication("app00001")
 	assert.Assert(t, managedApp != nil)
 	app, valid := toApplication(managedApp)
 	assert.Equal(t, valid, true)
@@ -408,7 +131,7 @@ func TestAddPod(t *testing.T) {
 	}
 
 	am.AddPod(&pod2)
-	app02 := am.amProtocol.GetApplication("app00002")
+	app02 := amProtocol.GetApplication("app00002")
 	assert.Assert(t, app02 != nil)
 	app, valid = toApplication(app02)
 	assert.Equal(t, valid, true)
@@ -418,7 +141,8 @@ func TestAddPod(t *testing.T) {
 }
 
 func TestUpdatePodWhenSucceed(t *testing.T) {
-	am := NewManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider(false))
+	amProtocol := cache.NewMockedAMProtocol()
+	am := NewManager(client.NewMockedAPIProvider(false), NewPodEventHandler(amProtocol, false))
 
 	pod := v1.Pod{
 		TypeMeta: apis.TypeMeta{
@@ -443,7 +167,7 @@ func TestUpdatePodWhenSucceed(t *testing.T) {
 	// add a pending pod through the AM service
 	am.AddPod(&pod)
 
-	managedApp := am.amProtocol.GetApplication("app00001")
+	managedApp := amProtocol.GetApplication("app00001")
 	assert.Assert(t, managedApp != nil)
 	app, valid := toApplication(managedApp)
 	assert.Equal(t, valid, true)
@@ -485,7 +209,8 @@ func TestUpdatePodWhenSucceed(t *testing.T) {
 }
 
 func TestUpdatePodWhenFailed(t *testing.T) {
-	am := NewManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider(false))
+	amProtocol := cache.NewMockedAMProtocol()
+	am := NewManager(client.NewMockedAPIProvider(false), NewPodEventHandler(amProtocol, false))
 
 	pod := v1.Pod{
 		TypeMeta: apis.TypeMeta{
@@ -533,7 +258,7 @@ func TestUpdatePodWhenFailed(t *testing.T) {
 
 	am.updatePod(&pod, &newPod)
 
-	managedApp := am.amProtocol.GetApplication("app00001")
+	managedApp := amProtocol.GetApplication("app00001")
 	assert.Assert(t, managedApp != nil)
 	app, valid := toApplication(managedApp)
 	assert.Equal(t, valid, true)
@@ -544,7 +269,8 @@ func TestUpdatePodWhenFailed(t *testing.T) {
 }
 
 func TestDeletePod(t *testing.T) {
-	am := NewManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider(false))
+	amProtocol := cache.NewMockedAMProtocol()
+	am := NewManager(client.NewMockedAPIProvider(false), NewPodEventHandler(amProtocol, false))
 
 	pod := v1.Pod{
 		TypeMeta: apis.TypeMeta{
@@ -569,7 +295,7 @@ func TestDeletePod(t *testing.T) {
 	// add a pending pod through the AM service
 	am.AddPod(&pod)
 
-	managedApp := am.amProtocol.GetApplication("app00001")
+	managedApp := amProtocol.GetApplication("app00001")
 	assert.Assert(t, managedApp != nil)
 	app, valid := toApplication(managedApp)
 	assert.Equal(t, valid, true)
@@ -597,7 +323,8 @@ func toApplication(something interface{}) (*cache.Application, bool) {
 }
 
 func TestGetExistingAllocation(t *testing.T) {
-	am := NewManager(cache.NewMockedAMProtocol(), client.NewMockedAPIProvider(false))
+	amProtocol := cache.NewMockedAMProtocol()
+	am := NewManager(client.NewMockedAPIProvider(false), NewPodEventHandler(amProtocol, true))
 
 	pod := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
@@ -802,13 +529,17 @@ func TestListApplication(t *testing.T) {
 		descriptionMap[listAppTestCase[index].applicationID] = listAppTestCase[index].description
 	}
 	// init the app manager and run listApp
-	am := NewManager(cache.NewMockedAMProtocol(), mockedAPIProvider)
-	apps, err := am.ListApplications()
+	amProtocol := cache.NewMockedAMProtocol()
+	am := NewManager(mockedAPIProvider, NewPodEventHandler(amProtocol, true))
+	pods, err := am.ListPods()
 	assert.NilError(t, err)
-	assert.Equal(t, len(apps), 3)
-	for name := range apps {
-		_, exist := apps[name]
-		assert.Equal(t, exist, expectOutput[name], descriptionMap[name])
+	assert.Equal(t, len(pods), 3)
+	for _, pod := range pods {
+		name, err := utils.GetApplicationIDFromPod(pod)
+		assert.NilError(t, err, "Could not retrieve application id from pod")
+		expected := expectOutput[name]
+		description := descriptionMap[name]
+		assert.Assert(t, expected, description)
 	}
 }
 

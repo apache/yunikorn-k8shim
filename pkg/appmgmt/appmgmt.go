@@ -34,17 +34,22 @@ import (
 // AppManagementService is a central service that interacts with
 // one or more K8s operators for app scheduling.
 type AppManagementService struct {
-	apiProvider client.APIProvider
-	amProtocol  interfaces.ApplicationManagementProtocol
-	managers    []interfaces.AppManager
+	apiProvider     client.APIProvider
+	amProtocol      interfaces.ApplicationManagementProtocol
+	managers        []interfaces.AppManager
+	podEventHandler *general.PodEventHandler
 }
 
 func NewAMService(amProtocol interfaces.ApplicationManagementProtocol,
 	apiProvider client.APIProvider) *AppManagementService {
+
+	podEventHandler := general.NewPodEventHandler(amProtocol, true)
+
 	appManager := &AppManagementService{
-		amProtocol:  amProtocol,
-		apiProvider: apiProvider,
-		managers:    make([]interfaces.AppManager, 0),
+		amProtocol:      amProtocol,
+		apiProvider:     apiProvider,
+		managers:        make([]interfaces.AppManager, 0),
+		podEventHandler: podEventHandler,
 	}
 
 	log.Logger().Info("Initializing new AppMgmt service")
@@ -54,7 +59,7 @@ func NewAMService(amProtocol interfaces.ApplicationManagementProtocol,
 		appManager.register(
 			// registered app plugins
 			// for general apps
-			general.NewManager(amProtocol, apiProvider),
+			general.NewManager(apiProvider, podEventHandler),
 			// for spark operator - SparkApplication
 			sparkoperator.NewManager(amProtocol, apiProvider),
 			// for application crds
