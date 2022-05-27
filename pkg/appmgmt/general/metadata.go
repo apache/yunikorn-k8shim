@@ -19,13 +19,13 @@
 package general
 
 import (
-	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/sparkoperator"
 	v1 "k8s.io/api/core/v1"
 
 	"go.uber.org/zap"
 
 	"github.com/apache/yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
 	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
+	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/sparkoperator"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
