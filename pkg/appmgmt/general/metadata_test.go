@@ -283,7 +283,6 @@ func TestGetUserFromPod(t *testing.T) {
 			pod: &v1.Pod{
 				ObjectMeta: apis.ObjectMeta{
 					Labels: map[string]string{
-						constants.SparkLabelAppID:           "spark-01",
 						constants.SparkOperatorLabelAppName: "spark-pi-01",
 						constants.SparkOperatorLabelLaunch:  "true",
 					},

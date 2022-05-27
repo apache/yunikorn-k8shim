@@ -60,9 +60,6 @@ is first created, the application ID has not been generated yet. It will only be
 pod starts and then the Spark K8s backend will assign a string that starts with "spark-" as the app ID
 */
 func (os *Manager) ServiceInit() error {
-	log.Logger().Info("ServiceInit", zap.Any("os.apiProvider.GetAPIs()", os.apiProvider.GetAPIs()))
-	log.Logger().Info("ServiceInit", zap.Any("os.apiProvider.GetAPIs().KubeClient", os.apiProvider.GetAPIs().KubeClient))
-	log.Logger().Info("ServiceInit", zap.Any("os.apiProvider.GetAPIs().KubeClient.GetConfigs()", os.apiProvider.GetAPIs().KubeClient.GetConfigs()))
 	crClient, err := crcClientSet.NewForConfig(
 		os.apiProvider.GetAPIs().KubeClient.GetConfigs())
 	if err != nil {
