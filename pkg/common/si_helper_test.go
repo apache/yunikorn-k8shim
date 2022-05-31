@@ -89,7 +89,7 @@ func TestCreateUpdateRequestForTask(t *testing.T) {
 		},
 	}
 
-	updateRequest := CreateAllocationRequestForTask("appId1", "taskId1", res, false, "", pod)
+	updateRequest := CreateAllocationRequestForTask("appId1", "taskId1", res, false, "", pod, false)
 	asks := updateRequest.Asks
 	assert.Equal(t, len(asks), 1)
 	allocAsk := asks[0]
