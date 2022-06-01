@@ -53,6 +53,7 @@ type SchedulerCache struct {
 	assumedPods           map[string]bool   // map of assumed pods, value indicates if pod volumes are all bound
 	pendingAllocations    map[string]string // map of pod to node ID, presence indicates a pending allocation for scheduler
 	inProgressAllocations map[string]string // map of pod to node ID, presence indicates an in-process allocation for scheduler
+	snapshot              *SchedulerCache   // snapshot of current scheduler cache; nil if not set / no longer valid
 	lock                  sync.RWMutex
 	clients               *client.Clients // client APIs
 }
@@ -65,9 +66,60 @@ func NewSchedulerCache(clients *client.Clients) *SchedulerCache {
 		assumedPods:           make(map[string]bool),
 		pendingAllocations:    make(map[string]string),
 		inProgressAllocations: make(map[string]string),
+		snapshot:              nil,
 		clients:               clients,
 	}
 	return cache
+}
+
+// Snapshot creates a static clone of the current scheduler cache state.
+// This is NOT guaranteed to be unique between calls; if the current scheduler cache has not been modified, repeated
+// calls may return the same object. The only guarantee is that the returned object will not be modified again. This is
+// primarily needed for K8s predicate support. In the default scheduler, a snapshot of pods and nodes is created between
+// scheduler runs, so we need to emulate that behavior here to avoid race conditions.
+func (cache *SchedulerCache) Snapshot() *SchedulerCache {
+	cache.lock.Lock()
+	defer cache.lock.Unlock()
+
+	// If a valid snapshot does not exist, create one. Since this is somewhat expensive, only do it if the existing
+	// snapshot is no longer valid. Any mutations of the cache need to clear the snapshot field to ensure that we
+	// update it here.
+	if cache.snapshot == nil {
+		cache.snapshot = NewSchedulerCache(cache.clients)
+		for k, v := range cache.nodesMap {
+			nodeInfoClone := v.Clone()
+			// NodeInfo.Clone() is too shallow, so copy more of it here. Specifically, we need the pods within the
+			// PodInfo struct to be cloned, so we have to clone the PodInfo itself.
+			for i, podInfo := range nodeInfoClone.Pods {
+				nodeInfoClone.Pods[i] = &framework.PodInfo{
+					Pod:                        podInfo.Pod.DeepCopy(),
+					RequiredAffinityTerms:      podInfo.RequiredAffinityTerms,
+					RequiredAntiAffinityTerms:  podInfo.RequiredAntiAffinityTerms,
+					PreferredAffinityTerms:     podInfo.PreferredAffinityTerms,
+					PreferredAntiAffinityTerms: podInfo.PreferredAntiAffinityTerms,
+					ParseError:                 podInfo.ParseError,
+				}
+			}
+			cache.snapshot.nodesMap[k] = nodeInfoClone
+		}
+		for k, v := range cache.podsMap {
+			cache.snapshot.podsMap[k] = v.DeepCopy()
+		}
+		for k, v := range cache.assignedPods {
+			cache.snapshot.assignedPods[k] = v
+		}
+		for k, v := range cache.assumedPods {
+			cache.snapshot.assumedPods[k] = v
+		}
+		for k, v := range cache.pendingAllocations {
+			cache.snapshot.pendingAllocations[k] = v
+		}
+		for k, v := range cache.inProgressAllocations {
+			cache.snapshot.inProgressAllocations[k] = v
+		}
+	}
+
+	return cache.snapshot
 }
 
 func (cache *SchedulerCache) GetNodesInfoMap() map[string]*framework.NodeInfo {
@@ -101,6 +153,7 @@ func (cache *SchedulerCache) AddNode(node *v1.Node) {
 	defer cache.dumpState("AddNode.Post")
 
 	cache.updateNode(node)
+	cache.snapshot = nil
 }
 
 func (cache *SchedulerCache) UpdateNode(newNode *v1.Node) {
@@ -110,6 +163,7 @@ func (cache *SchedulerCache) UpdateNode(newNode *v1.Node) {
 	defer cache.dumpState("UpdateNode.Post")
 
 	cache.updateNode(newNode)
+	cache.snapshot = nil
 }
 
 func (cache *SchedulerCache) updateNode(node *v1.Node) {
@@ -134,6 +188,7 @@ func (cache *SchedulerCache) RemoveNode(node *v1.Node) {
 	defer cache.dumpState("RemoveNode.Post")
 
 	cache.removeNode(node)
+	cache.snapshot = nil
 }
 
 func (cache *SchedulerCache) removeNode(node *v1.Node) {
@@ -164,6 +219,7 @@ func (cache *SchedulerCache) AddPendingPodAllocation(podKey string, nodeID strin
 	defer cache.dumpState("AddPendingPodAllocation.Post")
 	delete(cache.inProgressAllocations, podKey)
 	cache.pendingAllocations[podKey] = nodeID
+	cache.snapshot = nil
 }
 
 // RemovePodAllocation is used to remove a pod -> node mapping from the cache when running in scheduler plugin
@@ -177,6 +233,7 @@ func (cache *SchedulerCache) RemovePodAllocation(podKey string) {
 	defer cache.dumpState("RemovePendingPodAllocation.Post")
 	delete(cache.pendingAllocations, podKey)
 	delete(cache.inProgressAllocations, podKey)
+	cache.snapshot = nil
 }
 
 // GetPendingPodAllocation is used in scheduler plugin mode to retrieve a pending pod allocation. A pending
@@ -209,6 +266,7 @@ func (cache *SchedulerCache) StartPodAllocation(podKey string, nodeID string) bo
 	if ok && expectedNodeID == nodeID {
 		delete(cache.pendingAllocations, podKey)
 		cache.inProgressAllocations[podKey] = nodeID
+		cache.snapshot = nil
 		return true
 	}
 	return false
@@ -233,6 +291,7 @@ func (cache *SchedulerCache) AddPod(pod *v1.Pod) {
 	cache.dumpState("AddPod.Pre")
 	defer cache.dumpState("AddPod.Post")
 	cache.updatePod(pod)
+	cache.snapshot = nil
 }
 
 // UpdatePod updates a pod in the cache
@@ -242,6 +301,7 @@ func (cache *SchedulerCache) UpdatePod(newPod *v1.Pod) {
 	cache.dumpState("UpdatePod.Pre")
 	defer cache.dumpState("UpdatePod.Post")
 	cache.updatePod(newPod)
+	cache.snapshot = nil
 }
 
 func (cache *SchedulerCache) updatePod(pod *v1.Pod) {
@@ -317,6 +377,7 @@ func (cache *SchedulerCache) RemovePod(pod *v1.Pod) {
 	cache.dumpState("RemovePod.Pre")
 	defer cache.dumpState("RemovePod.Post")
 	cache.removePod(pod)
+	cache.snapshot = nil
 }
 
 func (cache *SchedulerCache) removePod(pod *v1.Pod) {
@@ -356,6 +417,7 @@ func (cache *SchedulerCache) AssumePod(pod *v1.Pod, allBound bool) {
 	cache.dumpState("AssumePod.Pre")
 	defer cache.dumpState("AssumePod.Post")
 	cache.assumePod(pod, allBound)
+	cache.snapshot = nil
 }
 
 func (cache *SchedulerCache) assumePod(pod *v1.Pod, allBound bool) {
@@ -377,6 +439,7 @@ func (cache *SchedulerCache) ForgetPod(pod *v1.Pod) {
 	defer cache.dumpState("ForgetPod.Post")
 
 	cache.forgetPod(pod)
+	cache.snapshot = nil
 }
 
 func (cache *SchedulerCache) forgetPod(pod *v1.Pod) {
