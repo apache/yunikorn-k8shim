@@ -27,6 +27,7 @@ import (
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
+	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/yunikorn-k8shim/pkg/cache"
 	"github.com/apache/yunikorn-k8shim/pkg/callback"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
@@ -153,6 +154,30 @@ func TestAppStatesDuringRecovery(t *testing.T) {
 	assert.Equal(t, app02.GetApplicationState(), cache.ApplicationStates().Accepted)
 }
 
+func TestPodsSortedDuringRecovery(t *testing.T) {
+	conf.GetSchedulerConf().OperatorPlugins = "mocked-app-manager"
+	amProtocol := cache.NewMockedAMProtocol()
+	taskRequests := make([]*interfaces.AddTaskRequest, 0)
+	amProtocol.UseAddTaskFn(func(request *interfaces.AddTaskRequest) {
+		taskRequests = append(taskRequests, request)
+	})
+	apiProvider := client.NewMockedAPIProvider(false)
+	amService := NewAMService(amProtocol, apiProvider)
+	amService.register(&mockedAppManager{})
+
+	_, err := amService.recoverApps()
+	assert.NilError(t, err)
+
+	assert.Equal(t, 4, len(taskRequests))
+	var previous int64
+	previous = -1
+	for _, req := range taskRequests {
+		current := req.Metadata.Pod.CreationTimestamp.Unix()
+		assert.Assert(t, current > previous, "Pods were not processed in sorted order")
+		previous = current
+	}
+}
+
 type mockedAppManager struct {
 }
 
@@ -173,9 +198,11 @@ func (ma *mockedAppManager) Stop() {
 }
 
 func (ma *mockedAppManager) ListPods() ([]*v1.Pod, error) {
-	pods := make([]*v1.Pod, 2)
-	pods[0] = newPodHelper("pod1", "task01", "app01")
-	pods[1] = newPodHelper("pod2", "task02", "app02")
+	pods := make([]*v1.Pod, 4)
+	pods[0] = newPodHelper("pod1", "task01", "app01", time.Unix(100, 0))
+	pods[1] = newPodHelper("pod2", "task02", "app01", time.Unix(500, 0))
+	pods[2] = newPodHelper("pod3", "task03", "app02", time.Unix(200, 0))
+	pods[3] = newPodHelper("pod4", "task04", "app02", time.Unix(300, 0))
 
 	return pods, nil
 }
@@ -184,7 +211,7 @@ func (ma *mockedAppManager) GetExistingAllocation(pod *v1.Pod) *si.Allocation {
 	return nil
 }
 
-func newPodHelper(name, podUID, appID string) *v1.Pod {
+func newPodHelper(name, podUID, appID string, creationTimeStamp time.Time) *v1.Pod {
 	return &v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
@@ -197,6 +224,7 @@ func newPodHelper(name, podUID, appID string) *v1.Pod {
 			Annotations: map[string]string{
 				constants.AnnotationApplicationID: appID,
 			},
+			CreationTimestamp: apis.NewTime(creationTimeStamp),
 		},
 		Spec: v1.PodSpec{
 			NodeName:      "fake-node",

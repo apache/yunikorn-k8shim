@@ -28,6 +28,7 @@ import (
 // implements ApplicationManagementProtocol
 type MockedAMProtocol struct {
 	applications map[string]*Application
+	addTaskFn    func(request *interfaces.AddTaskRequest)
 }
 
 func NewMockedAMProtocol() *MockedAMProtocol {
@@ -70,6 +71,9 @@ func (m *MockedAMProtocol) RemoveApplication(appID string) error {
 }
 
 func (m *MockedAMProtocol) AddTask(request *interfaces.AddTaskRequest) interfaces.ManagedTask {
+	if m.addTaskFn != nil {
+		m.addTaskFn(request)
+	}
 	if app, ok := m.applications[request.Metadata.ApplicationID]; ok {
 		if existingTask, err := app.GetTask(request.Metadata.TaskID); err != nil {
 			task := NewTask(request.Metadata.TaskID, app, nil, request.Metadata.Pod)
@@ -113,4 +117,8 @@ func (m *MockedAMProtocol) NotifyTaskComplete(appID, taskID string) {
 			}
 		}
 	}
+}
+
+func (m *MockedAMProtocol) UseAddTaskFn(fn func(request *interfaces.AddTaskRequest)) {
+	m.addTaskFn = fn
 }
