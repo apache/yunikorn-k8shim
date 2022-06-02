@@ -224,7 +224,7 @@ func (app *Application) setOriginatingTask(task interfaces.ManagedTask) {
 	app.originatingTask = task
 }
 
-func (app *Application) getOriginatingTask() interfaces.ManagedTask {
+func (app *Application) GetOriginatingTask() interfaces.ManagedTask {
 	app.lock.RLock()
 	defer app.lock.RUnlock()
 	return app.originatingTask

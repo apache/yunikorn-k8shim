@@ -139,6 +139,82 @@ func TestAddPod(t *testing.T) {
 	assert.Equal(t, app.GetNewTasks()[0].GetTaskPod().Name, "pod00004")
 }
 
+func TestOriginatorPod(t *testing.T) {
+	amProtocol := cache.NewMockedAMProtocol()
+	am := NewManager(client.NewMockedAPIProvider(false), NewPodEventHandler(amProtocol, false))
+
+	pod := v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name:      "pod00001",
+			Namespace: "default",
+			UID:       "UID-POD-00001",
+			Labels: map[string]string{
+				"applicationId": "app00001",
+				"queue":         "root.a",
+			},
+		},
+		Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
+		Status: v1.PodStatus{
+			Phase: v1.PodPending,
+		},
+	}
+
+	// add pod 2 as owner for pod 1
+	owner := apis.OwnerReference{
+		APIVersion: "v1",
+		UID:        "UID-POD-00002",
+	}
+	refer := []apis.OwnerReference{
+		owner,
+	}
+	pod.SetOwnerReferences(refer)
+
+	// add a pending pod through the AM service
+	am.AddPod(&pod)
+
+	managedApp := amProtocol.GetApplication("app00001")
+	assert.Assert(t, managedApp != nil)
+	app, valid := toApplication(managedApp)
+	assert.Equal(t, valid, true)
+	assert.Equal(t, len(app.GetNewTasks()), 1)
+
+	task, err := app.GetTask("UID-POD-00001")
+	assert.Assert(t, err == nil)
+	assert.Equal(t, task.GetTaskState(), cache.TaskStates().New)
+
+	// add another pod, pod 2 (owner) for same application
+	pod1 := v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name:      "pod00002",
+			Namespace: "default",
+			UID:       "UID-POD-00002",
+			Labels: map[string]string{
+				"applicationId": "app00001",
+				"queue":         "root.a",
+			},
+		},
+		Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
+		Status: v1.PodStatus{
+			Phase: v1.PodPending,
+		},
+	}
+	am.AddPod(&pod1)
+	assert.Equal(t, len(app.GetNewTasks()), 2)
+	task, err = app.GetTask("UID-POD-00002")
+	assert.Assert(t, err == nil)
+
+	// app originator task should be pod 2
+	assert.Equal(t, app.GetOriginatingTask().GetTaskID(), task.GetTaskID())
+}
+
 func TestUpdatePodWhenSucceed(t *testing.T) {
 	amProtocol := cache.NewMockedAMProtocol()
 	am := NewManager(client.NewMockedAPIProvider(false), NewPodEventHandler(amProtocol, false))

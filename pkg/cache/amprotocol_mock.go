@@ -86,7 +86,6 @@ func (m *MockedAMProtocol) AddTask(request *interfaces.AddTaskRequest) interface
 			// If yes, then make it as "first pod/owner/driver" of the application and set the task as originator
 			for _, ownerReference := range app.getPlaceholderOwnerReferences() {
 				referenceID := string(ownerReference.UID)
-				log.Logger().Info("task added", zap.String("dd", request.Metadata.TaskID), zap.String("dd", referenceID))
 				if request.Metadata.TaskID == referenceID {
 					originator = true
 					ownerReferenceUID = referenceID
@@ -94,14 +93,12 @@ func (m *MockedAMProtocol) AddTask(request *interfaces.AddTaskRequest) interface
 				}
 			}
 			task := NewFromTaskMeta(request.Metadata.TaskID, app, nil, request.Metadata, originator)
-
 			app.addTask(task)
 			log.Logger().Info("task added",
 				zap.String("appID", app.applicationID),
 				zap.String("taskID", task.taskID),
 				zap.String("taskState", task.GetTaskState()))
-			if app.getOriginatingTask() == nil {
-				log.Logger().Info("task added", zap.String("dd", ownerReferenceUID))
+			if app.GetOriginatingTask() == nil {
 				if task, taskErr := app.GetTask(ownerReferenceUID); task != nil && taskErr == nil {
 					log.Logger().Info("app request originating pod added",
 						zap.String("appID", app.applicationID),
