@@ -82,7 +82,6 @@ func getPartition(sc *configs.SchedulerConfig, partition string) (*configs.Parti
 	return nil, errors.New("partition does not exist")
 }
 
-// Expects queuePath to use periods as delimiters. ie "root.queueA.child"
 func SetSchedulingPolicy(sc *configs.SchedulerConfig, partition string, queuePathStr string, policy string) error {
 	path := strings.Split(queuePathStr, ".")
 	for _, p := range sc.Partitions {
