@@ -144,7 +144,7 @@ var _ = Describe("", func() {
 		Ω(err).NotTo(HaveOccurred())
 
 		By(fmt.Sprintf("App-1: Wait for 1st app:%s to complete, to make enough capacity to run the last app", pods[0]))
-		//Wait for pod to move to accepted state
+		// Wait for pod to move to accepted state
 		err = kClient.WaitForPodSucceeded(ns, pods[0], time.Duration(360)*time.Second)
 		Ω(err).NotTo(HaveOccurred())
 

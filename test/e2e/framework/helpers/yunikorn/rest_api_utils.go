@@ -26,7 +26,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
@@ -246,18 +245,8 @@ func GetFailedHealthChecks() (string, error) {
 	return failCheck, nil
 }
 
-func (c *RClient) GetQueues2(partition string) (*dao.PartitionQueueDAOInfo, error) {
-	req, err := c.newRequest("GET", fmt.Sprintf(configmanager.QueuesPath, partition), nil)
-	if err != nil {
-		return nil, err
-	}
-	var queues *dao.PartitionQueueDAOInfo
-	_, err = c.do(req, &queues)
-	return queues, err
-}
-
-func (c *RClient) GetQueue2(partition string, queueName string) (*dao.PartitionQueueDAOInfo, error) {
-	queues, err := c.GetQueues2(partition)
+func (c *RClient) GetQueue(partition string, queueName string) (*dao.PartitionQueueDAOInfo, error) {
+	queues, err := c.GetQueues(partition)
 	if err != nil {
 		return nil, err
 	}
@@ -274,53 +263,12 @@ func (c *RClient) GetQueue2(partition string, queueName string) (*dao.PartitionQ
 	return nil, fmt.Errorf("QueueInfo not found: %s", queueName)
 }
 
-// Returns pointer to corresponding queue.
-// Expects queuePath to be slice of queue names in order.
-func getQueueHelper(subQs []dao.QueueDAOInfo, queuePath []string) (*dao.QueueDAOInfo, error) {
-	for i, subQ := range subQs {
-		if subQ.QueueName == queuePath[0] {
-			if len(queuePath) == 1 { // path is single queue
-				return &subQs[i], nil
-			}
-			return getQueueHelper(subQ.ChildQueues, queuePath[1:])
-		}
-	}
-	return nil, errors.New("queue not in path")
-}
-
-// GetQueue returns pointer to corresponding queue.
-// Expects queuePath to use periods as delimiters. ie "root.queueA.child"
-func GetQueue(partition *dao.PartitionDAOInfo, queuePathStr string) (*dao.QueueDAOInfo, error) {
-	if partition.Queues.QueueName == "" {
-		return &dao.QueueDAOInfo{}, errors.New("partition has no queues")
-	}
-
-	path := strings.Split(queuePathStr, ".")
-	if len(path) == 1 && path[0] == "root" {
-		return &partition.Queues, nil
-	}
-
-	return getQueueHelper(partition.Queues.ChildQueues, path[1:])
-}
-
 // ConditionFunc returns true if queue timestamp property equals ts
 // Expects queuePath to use periods as delimiters. ie "root.queueA.child"
 func compareQueueTS(queuePathStr string, ts string) wait.ConditionFunc {
 	return func() (bool, error) {
 		restClient := RClient{}
-		//pInfo, err := restClient.GetPartitions()
-		//if err != nil {
-		//	return false, err
-		//}
-		//if pInfo == nil {
-		//	return false, errors.New("no response from rest client")
-		//}
-		//
-		//qInfo, qErr := GetQueue(pInfo, queuePathStr)
-		//if qErr != nil {
-		//	return false, err
-		//}
-		qInfo, err := restClient.GetQueue2("default", "root")
+		qInfo, err := restClient.GetQueue("default", "root")
 		if err != nil {
 			return false, err
 		}

@@ -19,10 +19,11 @@
 package predicates_test
 
 import (
-	tests "github.com/apache/yunikorn-k8shim/test"
-	v1 "k8s.io/api/core/v1"
 	"path/filepath"
 	"testing"
+
+	tests "github.com/apache/yunikorn-k8shim/test"
+	v1 "k8s.io/api/core/v1"
 
 	"github.com/onsi/ginkgo/extensions/table"
 	"github.com/onsi/ginkgo/reporters"

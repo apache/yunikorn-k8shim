@@ -20,10 +20,11 @@ package common
 
 import (
 	"errors"
-	"github.com/apache/yunikorn-core/pkg/common/configs"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/apache/yunikorn-core/pkg/common/configs"
 
 	"gopkg.in/yaml.v2"
 )

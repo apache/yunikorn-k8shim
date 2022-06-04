@@ -19,9 +19,10 @@
 package queuequotamgmt_test
 
 import (
-	tests "github.com/apache/yunikorn-k8shim/test"
 	"path/filepath"
 	"testing"
+
+	tests "github.com/apache/yunikorn-k8shim/test"
 
 	v1 "k8s.io/api/core/v1"
 

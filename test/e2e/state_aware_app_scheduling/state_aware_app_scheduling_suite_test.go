@@ -19,10 +19,11 @@
 package stateawareappscheduling_test
 
 import (
-	tests "github.com/apache/yunikorn-k8shim/test"
-	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 	"path/filepath"
 	"testing"
+
+	tests "github.com/apache/yunikorn-k8shim/test"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 
 	v1 "k8s.io/api/core/v1"
 

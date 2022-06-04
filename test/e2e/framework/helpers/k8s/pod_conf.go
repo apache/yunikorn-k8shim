@@ -102,7 +102,7 @@ type TestPodConfig struct {
 func InitTestPod(conf TestPodConfig) (*v1.Pod, error) { //nolint:funlen
 	var gracePeriod = int64(1)
 	if conf.Image == "" {
-		conf.Image = "docker-private.infra.cloudera.com/cloudera_base/alpine"
+		conf.Image = "alpine:latest"
 	}
 	if conf.Command == nil {
 		conf.Command = []string{"sleep", "300"}
