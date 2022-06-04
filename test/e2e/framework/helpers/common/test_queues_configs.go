@@ -100,8 +100,6 @@ func SetSchedulingPolicy(sc *configs.SchedulerConfig, partition string, queuePat
 	return errors.New("partition not found")
 }
 
-//Expects queuePath to use periods as delimiters. ie "root.queueA.child"
-//Adds timestamp property to queue with current timestamp
 func SetQueueTimestamp(sc *configs.SchedulerConfig, partition string, queuePathStr string) (string, error) {
 	ts := strconv.FormatInt(time.Now().Unix(), 10)
 	path := strings.Split(queuePathStr, ".")
