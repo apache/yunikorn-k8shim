@@ -33,12 +33,10 @@ const (
 	YKSchedulerContainer = "yunikorn-scheduler-k8s"
 	SchedulerName        = "yunikorn"
 	YKAdmCtrl            = "yunikorn-admission-controller"
-	// YuniKorn service name
-	YKSvcName        = "yunikorn-service"
-	YKDeploymentName = "yunikorn-scheduler"
+	YKSvcName            = "yunikorn-service" // YuniKorn service name
+	YKDeploymentName     = "yunikorn-scheduler"
 
-	// YuniKorn Admission controller serivce name
-	YKAdmCtrlName = "yunikorn-admission-controller-service"
+	YKAdmCtrlName = "yunikorn-admission-controller-service" // YuniKorn Admission controller serivce name
 
 	// REST endpoints of YuniKorn
 	PartitionsPath   = "ws/v1/partitions"

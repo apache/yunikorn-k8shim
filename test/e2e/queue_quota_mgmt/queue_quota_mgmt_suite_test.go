@@ -22,8 +22,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	tests "github.com/apache/yunikorn-k8shim/test"
-
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/onsi/ginkgo/reporters"
@@ -34,6 +32,7 @@ import (
 
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
 )
 
 func init() {
@@ -44,11 +43,11 @@ var oldConfigMap = new(v1.ConfigMap)
 var annotation = "ann-" + common.RandSeq(10)
 
 var _ = BeforeSuite(func() {
-	tests.UpdateConfigMapWrapper(oldConfigMap, "", annotation)
+	yunikorn.UpdateConfigMapWrapper(oldConfigMap, "", annotation)
 })
 
 var _ = AfterSuite(func() {
-	tests.RestoreConfigMapWrapper(oldConfigMap, annotation)
+	yunikorn.RestoreConfigMapWrapper(oldConfigMap, annotation)
 })
 
 func TestStateAwareAppScheduling(t *testing.T) {

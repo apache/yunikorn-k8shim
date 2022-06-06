@@ -27,10 +27,10 @@ import (
 	"github.com/onsi/ginkgo/extensions/table"
 	"github.com/onsi/ginkgo/reporters"
 
-	tests "github.com/apache/yunikorn-k8shim/test"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
 
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
@@ -46,11 +46,11 @@ var annotation string
 
 var _ = BeforeSuite(func() {
 	annotation = "ann-" + common.RandSeq(10)
-	tests.UpdateConfigMapWrapper(oldConfigMap, "fifo", annotation)
+	yunikorn.UpdateConfigMapWrapper(oldConfigMap, "fifo", annotation)
 })
 
 var _ = AfterSuite(func() {
-	tests.RestoreConfigMapWrapper(oldConfigMap, annotation)
+	yunikorn.RestoreConfigMapWrapper(oldConfigMap, annotation)
 })
 
 func TestPredicates(t *testing.T) {

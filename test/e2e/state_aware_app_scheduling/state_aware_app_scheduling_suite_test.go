@@ -22,7 +22,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	tests "github.com/apache/yunikorn-k8shim/test"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 
 	v1 "k8s.io/api/core/v1"
@@ -33,6 +32,7 @@ import (
 	"github.com/onsi/gomega"
 
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
 )
 
 func init() {
@@ -44,11 +44,11 @@ var annotation string
 
 var _ = BeforeSuite(func() {
 	annotation = "ann-" + common.RandSeq(10)
-	tests.UpdateConfigMapWrapper(oldConfigMap, "stateaware", annotation)
+	yunikorn.UpdateConfigMapWrapper(oldConfigMap, "stateaware", annotation)
 })
 
 var _ = AfterSuite(func() {
-	tests.RestoreConfigMapWrapper(oldConfigMap, annotation)
+	yunikorn.RestoreConfigMapWrapper(oldConfigMap, annotation)
 })
 
 func TestStateAwareAppScheduling(t *testing.T) {

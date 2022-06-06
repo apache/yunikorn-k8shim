@@ -108,7 +108,7 @@ func InitTestPod(conf TestPodConfig) (*v1.Pod, error) { //nolint:funlen
 		conf.Command = []string{"sleep", "300"}
 	}
 
-	PodAnnotation, err := PodAnnotationToMap(conf.Annotations)
+	podAnnotation, err := PodAnnotationToMap(conf.Annotations)
 	if err != nil {
 		return nil, err
 	}
@@ -118,7 +118,7 @@ func InitTestPod(conf TestPodConfig) (*v1.Pod, error) { //nolint:funlen
 			Name:            conf.Name,
 			Namespace:       conf.Namespace,
 			Labels:          conf.Labels,
-			Annotations:     PodAnnotation,
+			Annotations:     podAnnotation,
 			OwnerReferences: conf.OwnerReferences,
 		},
 		Spec: v1.PodSpec{

@@ -19,10 +19,8 @@
 package basicscheduling_test
 
 import (
-	"fmt"
 	"time"
 
-	tests "github.com/apache/yunikorn-k8shim/test"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
@@ -55,7 +53,7 @@ var _ = ginkgo.Describe("", func() {
 		err := kClient.PortForwardYkSchedulerPod()
 		Ω(err).NotTo(HaveOccurred())
 
-		tests.UpdateConfigMapWrapper(oldConfigMap, "fifo", annotation)
+		yunikorn.UpdateConfigMapWrapper(oldConfigMap, "fifo", annotation)
 
 		ginkgo.By("create development namespace")
 		ns1, err := kClient.CreateNamespace(dev, nil)
@@ -69,10 +67,6 @@ var _ = ginkgo.Describe("", func() {
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		// Wait for pod to move to running state
 		err = kClient.WaitForPodRunning(dev, sleepPodConfigs.Name, 30*time.Second)
-		pod, err2 := kClient.GetPod(sleepPodConfigs.Name, dev)
-		fmt.Printf("%v", pod.Status)
-		gomega.Ω(err2).NotTo(gomega.HaveOccurred())
-
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 
 		appsInfo, err = restClient.GetAppInfo("default", "root."+dev, sleepRespPod.ObjectMeta.Labels["applicationId"])
@@ -124,6 +118,6 @@ var _ = ginkgo.Describe("", func() {
 		err := kClient.TearDownNamespace(dev)
 		Ω(err).NotTo(HaveOccurred())
 
-		tests.RestoreConfigMapWrapper(oldConfigMap, annotation)
+		yunikorn.RestoreConfigMapWrapper(oldConfigMap, annotation)
 	})
 })

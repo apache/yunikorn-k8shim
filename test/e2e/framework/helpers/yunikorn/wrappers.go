@@ -16,7 +16,7 @@
  limitations under the License.
 */
 
-package tests
+package yunikorn
 
 import (
 	"time"
@@ -29,7 +29,6 @@ import (
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
-	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
 
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
@@ -70,9 +69,8 @@ func UpdateConfigMapWrapper(oldConfigMap *v1.ConfigMap, schedPolicy string, anno
 	Ω(d).NotTo(BeNil())
 
 	// Updating scheduler pod annotation to trigger force refresh of configmaps
-	// YUNIKORN-334
 	Ω(k.UpdateYunikornSchedulerPodAnnotation(annotation)).NotTo(HaveOccurred())
-	err = yunikorn.WaitForQueueTS("root", ts, 2*time.Minute)
+	err = WaitForQueueTS("root", ts, 2*time.Minute)
 	Ω(err).NotTo(HaveOccurred())
 }
 
@@ -96,9 +94,8 @@ func RestoreConfigMapWrapper(oldConfigMap *v1.ConfigMap, annotation string) {
 	Ω(err3).NotTo(HaveOccurred())
 	Ω(e).NotTo(BeNil())
 	// Updating scheduler pod annotation to trigger force refresh of configmaps
-	// YUNIKORN-334
 	Ω(k.RemoveYunikornSchedulerPodAnnotation(annotation)).NotTo(HaveOccurred())
-	err = yunikorn.WaitForQueueTS("root", ts, 2*time.Minute)
+	err = WaitForQueueTS("root", ts, 2*time.Minute)
 	Ω(err).NotTo(HaveOccurred())
 }
 
