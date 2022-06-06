@@ -243,7 +243,7 @@ func (task *Task) setAllocated(nodeName, allocationUUID string) {
 func (task *Task) handleFailEvent(reason string, err bool) {
 	if err {
 		dispatcher.Dispatch(NewFailTaskEvent(task.applicationID, task.taskID, reason))
-		events.GetRecorder().Eventf(task.pod, nil, v1.EventTypeWarning, "SchedulingFailed", "SchedulingFailed",
+		events.GetRecorder().Eventf(task.pod.DeepCopy(), nil, v1.EventTypeWarning, "SchedulingFailed", "SchedulingFailed",
 			"%s scheduling failed, reason: %s", task.alias, reason)
 		return
 	}
@@ -270,12 +270,12 @@ func (task *Task) handleSubmitTaskEvent() {
 		return
 	}
 
-	events.GetRecorder().Eventf(task.pod, nil, v1.EventTypeNormal, "Scheduling", "Scheduling",
+	events.GetRecorder().Eventf(task.pod.DeepCopy(), nil, v1.EventTypeNormal, "Scheduling", "Scheduling",
 		"%s is queued and waiting for allocation", task.alias)
 	// if this task belongs to a task group, that means the app has gang scheduling enabled
 	// in this case, post an event to indicate the task is being gang scheduled
 	if !task.placeholder && task.taskGroupName != "" {
-		events.GetRecorder().Eventf(task.pod, nil,
+		events.GetRecorder().Eventf(task.pod.DeepCopy(), nil,
 			v1.EventTypeNormal, "GangScheduling", "GangScheduling",
 			"Pod belongs to the taskGroup %s, it will be scheduled as a gang member", task.taskGroupName)
 	}
@@ -314,12 +314,12 @@ func (task *Task) postTaskAllocated(allocUUID string, nodeID string) {
 			task.context.AddPendingPodAllocation(string(task.pod.UID), nodeID)
 
 			dispatcher.Dispatch(NewBindTaskEvent(task.applicationID, task.taskID))
-			events.GetRecorder().Eventf(task.pod,
+			events.GetRecorder().Eventf(task.pod.DeepCopy(),
 				nil, v1.EventTypeNormal, "QuotaApproved", "QuotaApproved",
 				"Pod %s is ready for scheduling on node %s", task.alias, nodeID)
 		} else {
 			// post a message to indicate the pod gets its allocation
-			events.GetRecorder().Eventf(task.pod,
+			events.GetRecorder().Eventf(task.pod.DeepCopy(),
 				nil, v1.EventTypeNormal, "Scheduled", "Scheduled",
 				"Successfully assigned %s to node %s", task.alias, nodeID)
 
@@ -331,7 +331,7 @@ func (task *Task) postTaskAllocated(allocUUID string, nodeID string) {
 				if err := task.context.bindPodVolumes(task.pod); err != nil {
 					errorMessage = fmt.Sprintf("bind pod volumes failed, name: %s, %s", task.alias, err.Error())
 					dispatcher.Dispatch(NewFailTaskEvent(task.applicationID, task.taskID, errorMessage))
-					events.GetRecorder().Eventf(task.pod,
+					events.GetRecorder().Eventf(task.pod.DeepCopy(),
 						nil, v1.EventTypeWarning, "PodVolumesBindFailure", "PodVolumesBindFailure", errorMessage)
 					return
 				}
@@ -345,14 +345,14 @@ func (task *Task) postTaskAllocated(allocUUID string, nodeID string) {
 				errorMessage = fmt.Sprintf("bind pod volumes failed, name: %s, %s", task.alias, err.Error())
 				log.Logger().Error(errorMessage)
 				dispatcher.Dispatch(NewFailTaskEvent(task.applicationID, task.taskID, errorMessage))
-				events.GetRecorder().Eventf(task.pod, nil,
+				events.GetRecorder().Eventf(task.pod.DeepCopy(), nil,
 					v1.EventTypeWarning, "PodBindFailure", "PodBindFailure", errorMessage)
 				return
 			}
 
 			log.Logger().Info("successfully bound pod", zap.String("podName", task.pod.Name))
 			dispatcher.Dispatch(NewBindTaskEvent(task.applicationID, task.taskID))
-			events.GetRecorder().Eventf(task.pod, nil,
+			events.GetRecorder().Eventf(task.pod.DeepCopy(), nil,
 				v1.EventTypeNormal, "PodBindSuccessful", "PodBindSuccessful",
 				"Pod %s is successfully bound to node %s", task.alias, nodeID)
 		}
@@ -415,7 +415,7 @@ func (task *Task) postTaskRejected() {
 	dispatcher.Dispatch(NewFailTaskEvent(task.applicationID, task.taskID,
 		fmt.Sprintf("task %s failed because it is rejected by scheduler", task.alias)))
 
-	events.GetRecorder().Eventf(task.pod, nil,
+	events.GetRecorder().Eventf(task.pod.DeepCopy(), nil,
 		v1.EventTypeWarning, "TaskRejected", "TaskRejected",
 		"Task %s is rejected by the scheduler", task.alias)
 }
@@ -425,7 +425,7 @@ func (task *Task) postTaskFailed() {
 	// we need to release the allocation from scheduler core
 	task.releaseAllocation()
 
-	events.GetRecorder().Eventf(task.pod, nil,
+	events.GetRecorder().Eventf(task.pod.DeepCopy(), nil,
 		v1.EventTypeNormal, "TaskFailed", "TaskFailed",
 		"Task %s is failed", task.alias)
 }
@@ -436,7 +436,7 @@ func (task *Task) beforeTaskCompleted() {
 	// send different requests to scheduler-core, depending on current task state
 	task.releaseAllocation()
 
-	events.GetRecorder().Eventf(task.pod, nil,
+	events.GetRecorder().Eventf(task.pod.DeepCopy(), nil,
 		v1.EventTypeNormal, "TaskCompleted", "TaskCompleted",
 		"Task %s is completed", task.alias)
 }

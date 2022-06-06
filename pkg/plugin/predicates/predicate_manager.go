@@ -77,7 +77,7 @@ func (p *predicateManagerImpl) predicatesAllocate(pod *v1.Pod, node *framework.N
 	state := framework.NewCycleState()
 	plugin, err := p.podFitsNode(ctx, state, *p.allocationPreFilters, *p.allocationFilters, pod, node)
 	if err != nil {
-		events.GetRecorder().Eventf(pod, nil, v1.EventTypeWarning,
+		events.GetRecorder().Eventf(pod.DeepCopy(), nil, v1.EventTypeWarning,
 			"FailedScheduling", "FailedScheduling", "predicate is not satisfied, error: %s", err.Error())
 	}
 	return plugin, err
