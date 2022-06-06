@@ -312,6 +312,76 @@ func TestGetNodesInfoMapCopy(t *testing.T) {
 	}
 }
 
+func TestSnapshot(t *testing.T) {
+	// snapshot on empty cache should be empty
+	cache := NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
+	snapshot := cache.Snapshot()
+	assert.Equal(t, len(snapshot.podsMap), 0)
+
+	// second snapshot should be the same as first if state has not changed
+	snapshot2 := cache.Snapshot()
+	assert.Check(t, snapshot == snapshot2, "snapshots are not the same")
+
+	// add node
+	resourceList := make(map[v1.ResourceName]resource.Quantity)
+	resourceList[v1.ResourceName("memory")] = *resource.NewQuantity(1024*1000*1000, resource.DecimalSI)
+	resourceList[v1.ResourceName("cpu")] = *resource.NewQuantity(10, resource.DecimalSI)
+
+	node := &v1.Node{
+		ObjectMeta: apis.ObjectMeta{
+			Name:      "host0001",
+			Namespace: "default",
+			UID:       "Node-UID-00001",
+		},
+		Status: v1.NodeStatus{
+			Allocatable: resourceList,
+		},
+		Spec: v1.NodeSpec{
+			Unschedulable: true,
+		},
+	}
+	cache.AddNode(node)
+
+	// add pod
+	pod := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "pod0001",
+			UID:  "Pod-UID-00001",
+		},
+		Spec: v1.PodSpec{
+			NodeName: "host0001",
+		},
+	}
+	cache.AddPod(pod)
+
+	// new snapshot should not be same as previous, and should contain the pod and node
+	snapshot3 := cache.Snapshot()
+	assert.Check(t, snapshot2 != snapshot3, "snapshots are not unique after pod / node add")
+
+	_, ok := snapshot3.GetPod("Pod-UID-00001")
+	assert.Equal(t, len(snapshot3.podsMap), 1, "wrong snapshot pod count after add of pod")
+	assert.Check(t, ok, "pod not found")
+
+	nodeInfo := snapshot3.GetNode("host0001")
+	assert.Check(t, nodeInfo != nil, "node not found")
+	assert.Equal(t, len(snapshot3.nodesMap), 1, "wrong snapshot node count after add of node")
+
+	// snapshot should still contain pod after removal from original
+	cache.RemovePod(pod)
+	assert.Equal(t, len(cache.podsMap), 0, "wrong pod count after removal of pod")
+	assert.Equal(t, len(snapshot3.podsMap), 1, "wrong snapshot pod count after pod removal")
+
+	// snapshot should still contain node after removal from original
+	cache.RemoveNode(node)
+	nodeInfo = snapshot3.GetNode("host0001")
+	assert.Check(t, nodeInfo != nil, "node not found in snapshot after removal")
+	assert.Equal(t, len(snapshot3.nodesMap), 1, "wrong snapshot node count after remove of node")
+}
+
 func TestAddPod(t *testing.T) {
 	cache := NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
 

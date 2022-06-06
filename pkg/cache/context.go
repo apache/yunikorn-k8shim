@@ -333,11 +333,12 @@ func (ctx *Context) IsPodFitNode(name, node string, allocate bool) error {
 		return nil
 	}
 
-	ctx.lock.RLock()
-	defer ctx.lock.RUnlock()
-	if pod, ok := ctx.schedulerCache.GetPod(name); ok {
+	// get a snapshot of the scheduler cache so that the entire predicate run is consistent
+	snapshot := ctx.schedulerCache.Snapshot()
+
+	if pod, ok := snapshot.GetPod(name); ok {
 		// if pod exists in cache, try to run predicates
-		if targetNode := ctx.schedulerCache.GetNode(node); targetNode != nil {
+		if targetNode := snapshot.GetNode(node); targetNode != nil {
 			_, err := ctx.predManager.Predicates(pod, targetNode, allocate)
 			return err
 		}
