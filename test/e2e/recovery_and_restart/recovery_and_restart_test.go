@@ -40,8 +40,8 @@ var _ = ginkgo.Describe("", func() {
 	var dev = "dev" + common.RandSeq(5)
 
 	// Define sleepPod
-	sleepPodConfigs := common.SleepPodConfig{Name: "sleepjob", NS: dev}
-	sleepPod2Configs := common.SleepPodConfig{Name: "sleepjob2", NS: dev}
+	sleepPodConfigs := k8s.SleepPodConfig{Name: "sleepjob", NS: dev}
+	sleepPod2Configs := k8s.SleepPodConfig{Name: "sleepjob2", NS: dev}
 
 	ginkgo.BeforeSuite(func() {
 		// Initializing kubectl client
@@ -60,8 +60,9 @@ var _ = ginkgo.Describe("", func() {
 		Ω(c).Should(gomega.BeEquivalentTo(oldConfigMap))
 
 		// Define basic configMap
-		configStr, err2 := common.CreateBasicConfigMap().ToYAML()
-		Ω(err2).NotTo(gomega.HaveOccurred())
+		sc := common.CreateBasicConfigMap()
+		configStr, yamlErr := common.ToYAML(sc)
+		Ω(yamlErr).NotTo(gomega.HaveOccurred())
 
 		c.Data[configmanager.DefaultPolicyGroup] = configStr
 		var d, err3 = kClient.UpdateConfigMap(c, configmanager.YuniKornTestConfig.YkNamespace)
@@ -74,7 +75,9 @@ var _ = ginkgo.Describe("", func() {
 		gomega.Ω(ns1.Status.Phase).To(gomega.Equal(v1.NamespaceActive))
 
 		ginkgo.By("Deploy the sleep pod to the development namespace")
-		sleepRespPod, err = kClient.CreatePod(common.InitSleepPod(sleepPodConfigs), dev)
+		sleepObj, podErr := k8s.InitSleepPod(sleepPodConfigs)
+		Ω(podErr).NotTo(gomega.HaveOccurred())
+		sleepRespPod, err = kClient.CreatePod(sleepObj, dev)
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		// Wait for pod to move to running state
 		err = kClient.WaitForPodBySelectorRunning(dev,
@@ -98,7 +101,9 @@ var _ = ginkgo.Describe("", func() {
 		Ω(err).NotTo(gomega.HaveOccurred())
 
 		ginkgo.By("Deploy 2nd sleep pod to the development namespace")
-		sleepRespPod2, err := kClient.CreatePod(common.InitSleepPod(sleepPod2Configs), dev)
+		sleepObj2, podErr := k8s.InitSleepPod(sleepPod2Configs)
+		Ω(podErr).NotTo(gomega.HaveOccurred())
+		sleepRespPod2, err := kClient.CreatePod(sleepObj2, dev)
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		// Wait for pod to move to running state
 		err = kClient.WaitForPodBySelectorRunning(dev,

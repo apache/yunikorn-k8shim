@@ -21,7 +21,6 @@ package predicates_test
 import (
 	"path/filepath"
 	"testing"
-	"time"
 
 	v1 "k8s.io/api/core/v1"
 
@@ -42,48 +41,16 @@ func init() {
 }
 
 var k = k8s.KubeCtl{}
-var oldConfigMap *v1.ConfigMap
+var oldConfigMap = new(v1.ConfigMap)
 var annotation string
 
 var _ = BeforeSuite(func() {
 	annotation = "ann-" + common.RandSeq(10)
-	Ω(k.SetClient()).To(BeNil())
-	By("Port-forward the scheduler pod")
-	err := k.PortForwardYkSchedulerPod()
-	Ω(err).NotTo(HaveOccurred())
-	By("Enable basic scheduling config over config maps")
-	c, err := k.GetConfigMaps(configmanager.YuniKornTestConfig.YkNamespace,
-		configmanager.DefaultYuniKornConfigMap)
-	Ω(err).NotTo(HaveOccurred())
-	Ω(c).NotTo(BeNil())
-
-	oldConfigMap = c.DeepCopy()
-	Ω(c).Should(BeEquivalentTo(oldConfigMap))
-	configStr, err2 := common.CreateBasicConfigMap().ToYAML()
-	Ω(err2).NotTo(HaveOccurred())
-
-	c.Data[configmanager.DefaultPolicyGroup] = configStr
-	var d, err3 = k.UpdateConfigMap(c, configmanager.YuniKornTestConfig.YkNamespace)
-	Ω(err3).NotTo(HaveOccurred())
-	Ω(d).NotTo(BeNil())
-	// Updating scheduler pod annotation to trigger force refresh of configmaps
-	Ω(k.UpdateYunikornSchedulerPodAnnotation(annotation)).NotTo(HaveOccurred())
-	err = yunikorn.WaitForSchedPolicy("default", 2*time.Minute)
-	Ω(err).NotTo(HaveOccurred())
+	yunikorn.UpdateConfigMapWrapper(oldConfigMap, "fifo", annotation)
 })
 
 var _ = AfterSuite(func() {
-	By("Restoring the old config maps")
-	var c, err = k.GetConfigMaps(configmanager.YuniKornTestConfig.YkNamespace,
-		configmanager.DefaultYuniKornConfigMap)
-	Ω(err).NotTo(HaveOccurred())
-	Ω(c).NotTo(BeNil())
-	c.Data = oldConfigMap.Data
-	var e, err3 = k.UpdateConfigMap(c, configmanager.YuniKornTestConfig.YkNamespace)
-	Ω(err3).NotTo(HaveOccurred())
-	Ω(e).NotTo(BeNil())
-	// Updating scheduler pod annotation to trigger force refresh of configmaps
-	Ω(k.RemoveYunikornSchedulerPodAnnotation(annotation)).NotTo(HaveOccurred())
+	yunikorn.RestoreConfigMapWrapper(oldConfigMap, annotation)
 })
 
 func TestPredicates(t *testing.T) {

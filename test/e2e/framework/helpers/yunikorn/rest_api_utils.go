@@ -244,3 +244,40 @@ func GetFailedHealthChecks() (string, error) {
 	}
 	return failCheck, nil
 }
+
+func (c *RClient) GetQueue(partition string, queueName string) (*dao.PartitionQueueDAOInfo, error) {
+	queues, err := c.GetQueues(partition)
+	if err != nil {
+		return nil, err
+	}
+	if queueName == "root" {
+		return queues, nil
+	}
+
+	var allSubQueues = queues.Children
+	for _, subQ := range allSubQueues {
+		if subQ.QueueName == queueName {
+			return &subQ, nil
+		}
+	}
+	return nil, fmt.Errorf("QueueInfo not found: %s", queueName)
+}
+
+// ConditionFunc returns true if queue timestamp property equals ts
+// Expects queuePath to use periods as delimiters. ie "root.queueA.child"
+func compareQueueTS(queuePathStr string, ts string) wait.ConditionFunc {
+	return func() (bool, error) {
+		restClient := RClient{}
+		qInfo, err := restClient.GetQueue("default", "root")
+		if err != nil {
+			return false, err
+		}
+
+		return qInfo.Properties["timestamp"] == ts, nil
+	}
+}
+
+// Expects queuePath to use periods as delimiters. ie "root.queueA.child"
+func WaitForQueueTS(queuePathStr string, ts string, timeout time.Duration) error {
+	return wait.PollImmediate(2*time.Second, timeout, compareQueueTS(queuePathStr, ts))
+}

@@ -57,9 +57,13 @@ var _ = Describe("DripFeedSchedule:", func() {
 		By("Submit 3 apps(app01, app02, app03) with one pod each")
 		for _, appID := range []string{app1, app2, app3} {
 			podName := "pod1-" + common.RandSeq(5)
-			sleepPodConf := common.SleepPodConfig{Name: podName, NS: ns, AppID: appID}
-			_, err = kClient.CreatePod(common.InitSleepPod(sleepPodConf), ns)
+			sleepPodConf := k8s.SleepPodConfig{Name: podName, NS: ns, AppID: appID}
+			initPod, podErr := k8s.InitSleepPod(sleepPodConf)
+			Ω(podErr).NotTo(HaveOccurred())
 			Ω(err).NotTo(HaveOccurred())
+			_, err = kClient.CreatePod(initPod, ns)
+			Ω(err).NotTo(HaveOccurred())
+			time.Sleep(3 * time.Second) // Buffer time between pod submission
 		}
 
 		By(fmt.Sprintf("Get apps from specific queue: %s", ns))
@@ -115,8 +119,10 @@ var _ = Describe("DripFeedSchedule:", func() {
 		for _, appID := range []string{app1, app2, app3} {
 			By(fmt.Sprintf("Add one more pod to the app: %s", appID))
 			podName := "pod2-" + common.RandSeq(5)
-			sleepPodConf := common.SleepPodConfig{Name: podName, NS: ns, AppID: appID}
-			_, err = kClient.CreatePod(common.InitSleepPod(sleepPodConf), ns)
+			sleepPodConf := k8s.SleepPodConfig{Name: podName, NS: ns, AppID: appID}
+			initPod, podErr := k8s.InitSleepPod(sleepPodConf)
+			Ω(podErr).NotTo(HaveOccurred())
+			_, err = kClient.CreatePod(initPod, ns)
 			Ω(err).NotTo(HaveOccurred())
 			By(fmt.Sprintf("Verify that the app: %s is in running state", appID))
 			err = restClient.WaitForAppStateTransition("default", "root."+ns, app1, appStates[appID][0], 60)
@@ -136,7 +142,7 @@ var _ = Describe("DripFeedSchedule:", func() {
 		Ω(checks).To(Equal(""), checks)
 
 		By("Tearing down namespace: " + ns)
-		err = k.TearDownNamespace(ns)
+		err = kClient.TearDownNamespace(ns)
 		Ω(err).NotTo(HaveOccurred())
 	})
 })

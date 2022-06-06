@@ -19,9 +19,7 @@
 package basicscheduling_test
 
 import (
-	"fmt"
-
-	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
+	"time"
 
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
@@ -38,9 +36,11 @@ var _ = ginkgo.Describe("", func() {
 	var sleepRespPod *v1.Pod
 	var dev = "dev" + common.RandSeq(5)
 	var appsInfo map[string]interface{}
+	var annotation = "ann-" + common.RandSeq(10)
+	var oldConfigMap = new(v1.ConfigMap)
 
 	// Define sleepPod
-	sleepPodConfigs := common.SleepPodConfig{Name: "sleepjob", NS: dev}
+	sleepPodConfigs := k8s.SleepPodConfig{Name: "sleepjob", NS: dev}
 
 	ginkgo.BeforeSuite(func() {
 		// Initializing kubectl client
@@ -53,23 +53,7 @@ var _ = ginkgo.Describe("", func() {
 		err := kClient.PortForwardYkSchedulerPod()
 		Ω(err).NotTo(HaveOccurred())
 
-		By("Enable basic scheduling config over config maps")
-		c, err := kClient.GetConfigMaps(configmanager.YuniKornTestConfig.YkNamespace,
-			configmanager.DefaultYuniKornConfigMap)
-		Ω(err).NotTo(HaveOccurred())
-		Ω(c).NotTo(BeNil())
-
-		oldConfigMap = c.DeepCopy()
-		Ω(c).Should(BeEquivalentTo(oldConfigMap))
-
-		// Define basic configMap
-		configStr, err2 := common.CreateBasicConfigMap().ToYAML()
-		Ω(err2).NotTo(HaveOccurred())
-
-		c.Data[configmanager.DefaultPolicyGroup] = configStr
-		var d, err3 = kClient.UpdateConfigMap(c, configmanager.YuniKornTestConfig.YkNamespace)
-		Ω(err3).NotTo(HaveOccurred())
-		Ω(d).NotTo(BeNil())
+		yunikorn.UpdateConfigMapWrapper(oldConfigMap, "fifo", annotation)
 
 		ginkgo.By("create development namespace")
 		ns1, err := kClient.CreateNamespace(dev, nil)
@@ -77,12 +61,12 @@ var _ = ginkgo.Describe("", func() {
 		gomega.Ω(ns1.Status.Phase).To(gomega.Equal(v1.NamespaceActive))
 
 		ginkgo.By("Deploy the sleep pod to the development namespace")
-		sleepRespPod, err = kClient.CreatePod(common.InitSleepPod(sleepPodConfigs), dev)
+		initPod, podErr := k8s.InitSleepPod(sleepPodConfigs)
+		gomega.Ω(podErr).NotTo(gomega.HaveOccurred())
+		sleepRespPod, err = kClient.CreatePod(initPod, dev)
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		// Wait for pod to move to running state
-		err = kClient.WaitForPodBySelectorRunning(dev,
-			fmt.Sprintf("app=%s", sleepRespPod.ObjectMeta.Labels["app"]),
-			10)
+		err = kClient.WaitForPodRunning(dev, sleepPodConfigs.Name, 30*time.Second)
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 
 		appsInfo, err = restClient.GetAppInfo("default", "root."+dev, sleepRespPod.ObjectMeta.Labels["applicationId"])
@@ -134,15 +118,6 @@ var _ = ginkgo.Describe("", func() {
 		err := kClient.TearDownNamespace(dev)
 		Ω(err).NotTo(HaveOccurred())
 
-		By("Restoring the old config maps")
-		var c, err1 = kClient.GetConfigMaps(configmanager.YuniKornTestConfig.YkNamespace,
-			configmanager.DefaultYuniKornConfigMap)
-		Ω(err1).NotTo(HaveOccurred())
-		Ω(c).NotTo(BeNil())
-		c.Data = oldConfigMap.Data
-		var e, err3 = kClient.UpdateConfigMap(c, configmanager.YuniKornTestConfig.YkNamespace)
-		Ω(err3).NotTo(HaveOccurred())
-		Ω(e).NotTo(BeNil())
-
+		yunikorn.RestoreConfigMapWrapper(oldConfigMap, annotation)
 	})
 })

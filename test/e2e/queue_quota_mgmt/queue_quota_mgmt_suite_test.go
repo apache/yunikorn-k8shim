@@ -24,8 +24,6 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
-
 	"github.com/onsi/ginkgo/reporters"
 
 	"github.com/onsi/ginkgo"
@@ -34,49 +32,22 @@ import (
 
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
 )
 
 func init() {
 	configmanager.YuniKornTestConfig.ParseFlags()
 }
 
-var k = k8s.KubeCtl{}
-var oldConfigMap *v1.ConfigMap
-var annotation string
+var oldConfigMap = new(v1.ConfigMap)
+var annotation = "ann-" + common.RandSeq(10)
 
 var _ = BeforeSuite(func() {
-	annotation = "ann-" + common.RandSeq(10)
-	Ω(k.SetClient()).To(BeNil())
-	By("Port-forward the scheduler pod")
-	err := k.PortForwardYkSchedulerPod()
-	Ω(err).NotTo(HaveOccurred())
-	By("Enable basic scheduling config over config maps")
-	c, err := k.GetConfigMaps(configmanager.YuniKornTestConfig.YkNamespace,
-		configmanager.DefaultYuniKornConfigMap)
-	Ω(err).NotTo(HaveOccurred())
-	Ω(c).NotTo(BeNil())
-
-	oldConfigMap = c.DeepCopy()
-	Ω(c).Should(BeEquivalentTo(oldConfigMap))
-	configStr, err2 := common.CreateBasicConfigMap().ToYAML()
-	Ω(err2).NotTo(HaveOccurred())
-
-	c.Data[configmanager.DefaultPolicyGroup] = configStr
-	var d, err3 = k.UpdateConfigMap(c, configmanager.YuniKornTestConfig.YkNamespace)
-	Ω(err3).NotTo(HaveOccurred())
-	Ω(d).NotTo(BeNil())
+	yunikorn.UpdateConfigMapWrapper(oldConfigMap, "", annotation)
 })
 
 var _ = AfterSuite(func() {
-	By("Restoring the old config maps")
-	var c, err = k.GetConfigMaps(configmanager.YuniKornTestConfig.YkNamespace,
-		configmanager.DefaultYuniKornConfigMap)
-	Ω(err).NotTo(HaveOccurred())
-	Ω(c).NotTo(BeNil())
-	c.Data = oldConfigMap.Data
-	var e, err3 = k.UpdateConfigMap(c, configmanager.YuniKornTestConfig.YkNamespace)
-	Ω(err3).NotTo(HaveOccurred())
-	Ω(e).NotTo(BeNil())
+	yunikorn.RestoreConfigMapWrapper(oldConfigMap, annotation)
 })
 
 func TestStateAwareAppScheduling(t *testing.T) {

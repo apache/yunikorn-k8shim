@@ -22,8 +22,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	v1 "k8s.io/api/core/v1"
-
 	"github.com/onsi/ginkgo/reporters"
 
 	"github.com/onsi/ginkgo"
@@ -35,8 +33,6 @@ import (
 func init() {
 	configmanager.YuniKornTestConfig.ParseFlags()
 }
-
-var oldConfigMap *v1.ConfigMap
 
 func TestBasicScheduling(t *testing.T) {
 	gomega.RegisterFailHandler(ginkgo.Fail)

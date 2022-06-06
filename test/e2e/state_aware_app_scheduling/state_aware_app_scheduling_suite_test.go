@@ -22,9 +22,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	v1 "k8s.io/api/core/v1"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 
-	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
+	v1 "k8s.io/api/core/v1"
 
 	"github.com/onsi/ginkgo/reporters"
 
@@ -32,56 +32,23 @@ import (
 	"github.com/onsi/gomega"
 
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
-	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
 )
 
 func init() {
 	configmanager.YuniKornTestConfig.ParseFlags()
 }
 
-var k = k8s.KubeCtl{}
-var oldConfigMap *v1.ConfigMap
+var oldConfigMap = new(v1.ConfigMap)
 var annotation string
 
 var _ = BeforeSuite(func() {
 	annotation = "ann-" + common.RandSeq(10)
-	Ω(k.SetClient()).To(BeNil())
-	By("Port-forward the scheduler pod")
-	err := k.PortForwardYkSchedulerPod()
-	Ω(err).NotTo(HaveOccurred())
-	By("Enabling state aware app scheduling config over config maps")
-	c, err := k.GetConfigMaps(configmanager.YuniKornTestConfig.YkNamespace,
-		configmanager.DefaultYuniKornConfigMap)
-	Ω(err).NotTo(HaveOccurred())
-	Ω(c).NotTo(BeNil())
-
-	oldConfigMap = c.DeepCopy()
-	Ω(c).Should(BeEquivalentTo(oldConfigMap))
-
-	partitions := common.CreateBasicConfigMap()
-	err = partitions.SetSchedulingPolicy("default", "root", "stateaware")
-	Ω(err).NotTo(HaveOccurred())
-	stateAwareStr, err2 := partitions.ToYAML()
-	Ω(err2).NotTo(HaveOccurred())
-
-	c.Data[configmanager.DefaultPolicyGroup] = stateAwareStr
-	var d, err3 = k.UpdateConfigMap(c, configmanager.YuniKornTestConfig.YkNamespace)
-	Ω(err3).NotTo(HaveOccurred())
-	Ω(d).NotTo(BeNil())
-
+	yunikorn.UpdateConfigMapWrapper(oldConfigMap, "stateaware", annotation)
 })
 
 var _ = AfterSuite(func() {
-	annotation = "ann-" + common.RandSeq(10)
-	By("Restoring the old config maps")
-	var c, err = k.GetConfigMaps(configmanager.YuniKornTestConfig.YkNamespace,
-		configmanager.DefaultYuniKornConfigMap)
-	Ω(err).NotTo(HaveOccurred())
-	Ω(c).NotTo(BeNil())
-	c.Data = oldConfigMap.Data
-	var e, err3 = k.UpdateConfigMap(c, configmanager.YuniKornTestConfig.YkNamespace)
-	Ω(err3).NotTo(HaveOccurred())
-	Ω(e).NotTo(BeNil())
+	yunikorn.RestoreConfigMapWrapper(oldConfigMap, annotation)
 })
 
 func TestStateAwareAppScheduling(t *testing.T) {
