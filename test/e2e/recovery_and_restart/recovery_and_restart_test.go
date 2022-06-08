@@ -169,11 +169,28 @@ var _ = ginkgo.Describe("", func() {
 			fmt.Fprintf(ginkgo.GinkgoWriter, "Pod name: %-40s\tStatus: %s\n", pod.GetName(), pod.Status.Phase)
 		}
 
-		ginkgo.By("Waiting for sleep pods to finish")
-		err = kClient.WaitForJobPodsSucceeded(dev, job1.Name, parallelism, 60*time.Second)
+		ginkgo.By("Waiting for sleep pods to be running")
+		err = kClient.WaitForJobPodsRunning(dev, job1.Name, parallelism, 30*time.Second)
 		Ω(err).NotTo(gomega.HaveOccurred())
-		err = kClient.WaitForJobPodsSucceeded(dev, job2.Name, parallelism, 60*time.Second)
+		err = kClient.WaitForJobPodsRunning(dev, job2.Name, parallelism, 30*time.Second)
 		Ω(err).NotTo(gomega.HaveOccurred())
+
+		ginkgo.By("Deleting sleep pods")
+		sleep1Pods, err2 := kClient.ListPods(dev, "applicationId="+sleepPodConfig1.AppID)
+		Ω(err2).NotTo(gomega.HaveOccurred())
+		sleep2Pods, err3 := kClient.ListPods(dev, "applicationId="+sleepPodConfig2.AppID)
+		Ω(err3).NotTo(gomega.HaveOccurred())
+
+		sleepPods := make([]v1.Pod, 0)
+		sleepPods = append(sleepPods, sleep1Pods.Items...)
+		sleepPods = append(sleepPods, sleep2Pods.Items...)
+
+		for _, pod := range sleepPods {
+			podName := pod.GetName()
+			err := kClient.DeletePod(podName, dev)
+			Ω(err).NotTo(gomega.HaveOccurred())
+			fmt.Fprintf(ginkgo.GinkgoWriter, "Deleted pod %s\n", podName)
+		}
 	})
 
 	ginkgo.It("Verify_GangScheduling_TwoGangs_Restart_YK", func() {
@@ -254,7 +271,8 @@ var _ = ginkgo.Describe("", func() {
 		Ω(groupAPlaceholderCount).To(gomega.Equal(parallelism))
 		Ω(groupBPlaceholderCount).To(gomega.Equal(parallelism + 1))
 
-		ginkgo.By("Waiting for sleep pods to finish")
+		// Wait for placeholder timeout & replacement to real pod
+		ginkgo.By("Waiting for placeholder timeout & sleep pods to finish")
 		err = kClient.WaitForJobPodsSucceeded(dev, job.Name, parallelism, 30*time.Second)
 		Ω(err).NotTo(gomega.HaveOccurred())
 	})
