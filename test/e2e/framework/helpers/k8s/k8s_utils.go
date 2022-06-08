@@ -30,12 +30,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/onsi/ginkgo"
+	"k8s.io/apimachinery/pkg/util/wait"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
 
-	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
-
-	"k8s.io/apimachinery/pkg/util/wait"
-
+	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
 	authv1 "k8s.io/api/rbac/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -49,6 +48,7 @@ import (
 	"k8s.io/client-go/transport/spdy"
 
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 )
 
 const portForwardPort = 9080
@@ -333,6 +333,13 @@ func (k *KubeCtl) TearDownNamespace(namespace string) error {
 	for _, each := range pods {
 		err = k.DeletePod(each, namespace)
 		if err != nil {
+			if statusErr, ok := err.(*k8serrors.StatusError); ok {
+				if statusErr.ErrStatus.Reason == metav1.StatusReasonNotFound {
+					fmt.Fprintf(ginkgo.GinkgoWriter, "Failed to delete pod %s - reason is %s, it "+
+						"has been deleted in the meantime\n", each, statusErr.ErrStatus.Reason)
+					continue
+				}
+			}
 			return err
 		}
 	}
@@ -644,6 +651,82 @@ func (k *KubeCtl) RemoveYunikornSchedulerPodAnnotation(annotation string) error 
 	schedPod := schedPodList.Items[0]
 	_, err = k.DeletePodAnnotation(&schedPod, configmanager.YuniKornTestConfig.YkNamespace, annotation)
 	return err
+}
+
+func (k *KubeCtl) CreateJob(job *batchv1.Job, namespace string) (*batchv1.Job, error) {
+	return k.clientSet.BatchV1().Jobs(namespace).Create(context.TODO(), job, metav1.CreateOptions{})
+}
+
+func (k *KubeCtl) WaitForJobPodsCreated(namespace string, jobName string, numPods int, timeout time.Duration) error {
+	return wait.PollImmediate(time.Second, timeout, k.isNumJobPodsCreated(jobName, namespace, numPods))
+}
+
+func (k *KubeCtl) WaitForJobPodsRunning(namespace string, jobName string, numPods int, timeout time.Duration) error {
+	return wait.PollImmediate(time.Second, timeout, k.isNumJobPodsInDesiredState(jobName, namespace, numPods, v1.PodRunning))
+}
+
+func (k *KubeCtl) WaitForJobPodsSucceeded(namespace string, jobName string, numPods int, timeout time.Duration) error {
+	return wait.PollImmediate(time.Second, timeout, k.isNumJobPodsInDesiredState(jobName, namespace, numPods, v1.PodSucceeded))
+}
+
+func (k *KubeCtl) WaitForPlaceholders(namespace string, podPrefix string, numPods int, timeout time.Duration, podPhase v1.PodPhase) error {
+	return wait.PollImmediate(time.Second, timeout, k.isNumPlaceholdersRunning(namespace, podPrefix, numPods, podPhase))
+}
+
+func (k *KubeCtl) isNumPlaceholdersRunning(namespace string, podPrefix string, num int, podPhase v1.PodPhase) wait.ConditionFunc {
+	return func() (bool, error) {
+		jobPods, lstErr := k.ListPods(namespace, "placeholder=true")
+		if lstErr != nil {
+			return false, lstErr
+		}
+
+		var count int
+		for _, pod := range jobPods.Items {
+			if strings.HasPrefix(pod.Name, podPrefix) && pod.Status.Phase == podPhase {
+				count++
+			}
+		}
+
+		return count == num, nil
+	}
+}
+
+// Returns ConditionFunc that checks if at least num pods of jobName are created
+func (k *KubeCtl) isNumJobPodsCreated(jobName string, namespace string, num int) wait.ConditionFunc {
+	return func() (bool, error) {
+		jobPods, lstErr := k.ListPods(namespace, fmt.Sprintf("job-name=%s", jobName))
+		if lstErr != nil {
+			return false, lstErr
+		}
+
+		return len(jobPods.Items) >= num, nil
+	}
+}
+
+// Returns ConditionFunc that checks if at least num pods of jobName are running
+func (k *KubeCtl) isNumJobPodsInDesiredState(jobName string, namespace string, num int, podPhase v1.PodPhase) wait.ConditionFunc {
+	return func() (bool, error) {
+		jobPods, lstErr := k.ListPods(namespace, fmt.Sprintf("job-name=%s", jobName))
+		if lstErr != nil {
+			return false, lstErr
+		}
+		if len(jobPods.Items) < num {
+			return false, nil
+		}
+
+		counter := 0
+		for _, pod := range jobPods.Items {
+			isRunning, err := k.isPodInDesiredState(pod.Name, namespace, podPhase)()
+			if err != nil {
+				return false, err
+			}
+			if isRunning {
+				counter++
+			}
+		}
+
+		return counter >= num, nil
+	}
 }
 
 func ApplyYamlWithKubectl(path, namespace string) error {
