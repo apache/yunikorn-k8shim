@@ -398,7 +398,7 @@ func (app *Application) scheduleTasks(taskScheduleCondition func(t *Task) bool) 
 					log.Logger().Warn("init task failed", zap.Error(err))
 				}
 			} else {
-				events.GetRecorder().Eventf(task.GetTaskPod(), nil, v1.EventTypeWarning, "FailedScheduling", "FailedScheduling", err.Error())
+				events.GetRecorder().Eventf(task.GetTaskPod().DeepCopy(), nil, v1.EventTypeWarning, "FailedScheduling", "FailedScheduling", err.Error())
 				log.Logger().Debug("task is not ready for scheduling",
 					zap.String("appID", task.applicationID),
 					zap.String("taskID", task.taskID),
@@ -598,7 +598,7 @@ func (app *Application) handleFailApplicationEvent(errMsg string) {
 			errMsgArr := strings.Split(errMsg, ":")
 			failTaskPodWithReasonAndMsg(task, constants.ApplicationRejectedFailure, errMsgArr[1])
 		}
-		events.GetRecorder().Eventf(task.GetTaskPod(), nil, v1.EventTypeWarning, "ApplicationFailed", "ApplicationFailed",
+		events.GetRecorder().Eventf(task.GetTaskPod().DeepCopy(), nil, v1.EventTypeWarning, "ApplicationFailed", "ApplicationFailed",
 			"Application %s scheduling failed, reason: %s", app.applicationID, errMsg)
 	}
 }
@@ -664,7 +664,7 @@ func (app *Application) publishPlaceholderTimeoutEvents(task *Task) {
 			zap.String("app request originating pod", app.originatingTask.GetTaskPod().String()),
 			zap.String("taskID", task.taskID),
 			zap.String("terminationType", task.terminationType))
-		events.GetRecorder().Eventf(app.originatingTask.GetTaskPod(), nil, v1.EventTypeWarning, "Placeholder timed out",
+		events.GetRecorder().Eventf(app.originatingTask.GetTaskPod().DeepCopy(), nil, v1.EventTypeWarning, "Placeholder timed out",
 			"Placeholder timed out", "Application %s placeholder has been timed out", app.applicationID)
 	}
 }

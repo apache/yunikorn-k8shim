@@ -146,7 +146,7 @@ func (ctx *Context) addNode(obj interface{}) {
 	ctx.nodes.addNode(node)
 
 	// post the event
-	events.GetRecorder().Eventf(node, nil, v1.EventTypeNormal, "NodeAccepted", "NodeAccepted",
+	events.GetRecorder().Eventf(node.DeepCopy(), nil, v1.EventTypeNormal, "NodeAccepted", "NodeAccepted",
 		fmt.Sprintf("node %s is accepted by the scheduler", node.Name))
 }
 
@@ -198,7 +198,7 @@ func (ctx *Context) deleteNode(obj interface{}) {
 	ctx.nodes.deleteNode(node)
 
 	// post the event
-	events.GetRecorder().Eventf(node, nil, v1.EventTypeNormal, "NodeDeleted", "NodeDeleted",
+	events.GetRecorder().Eventf(node.DeepCopy(), nil, v1.EventTypeNormal, "NodeDeleted", "NodeDeleted",
 		fmt.Sprintf("node %s is deleted from the scheduler", node.Name))
 }
 
@@ -776,7 +776,7 @@ func (ctx *Context) PublishEvents(eventRecords []*si.EventRecord) {
 				taskID := record.ObjectID
 				appID := record.GroupID
 				if task := ctx.getTask(appID, taskID); task != nil {
-					events.GetRecorder().Eventf(task.GetTaskPod(), nil,
+					events.GetRecorder().Eventf(task.GetTaskPod().DeepCopy(), nil,
 						v1.EventTypeNormal, record.Reason, record.Reason, record.Message)
 				} else {
 					log.Logger().Warn("task event is not published because task is not found",
@@ -800,7 +800,7 @@ func (ctx *Context) PublishEvents(eventRecords []*si.EventRecord) {
 						zap.String("event", record.String()))
 					continue
 				}
-				events.GetRecorder().Eventf(node, nil,
+				events.GetRecorder().Eventf(node.DeepCopy(), nil,
 					v1.EventTypeNormal, record.Reason, record.Reason, record.Message)
 			default:
 				log.Logger().Warn("Unsupported event type, currently only supports to publish request event records",
@@ -824,8 +824,9 @@ func (ctx *Context) updatePodCondition(task *Task, podCondition *v1.PodCondition
 			// call api-server to do the pod condition update
 			if podutil.UpdatePodCondition(&task.pod.Status, podCondition) {
 				if !ctx.apiProvider.IsTestingMode() {
+					podCopy := task.pod.DeepCopy()
 					_, err := ctx.apiProvider.GetAPIs().KubeClient.GetClientSet().CoreV1().
-						Pods(task.pod.Namespace).UpdateStatus(context.Background(), task.pod, metav1.UpdateOptions{})
+						Pods(podCopy.Namespace).UpdateStatus(context.Background(), podCopy, metav1.UpdateOptions{})
 					if err == nil {
 						return true
 					}
@@ -856,7 +857,7 @@ func (ctx *Context) HandleContainerStateUpdate(request *si.UpdateContainerSchedu
 					Reason:  "SchedulingSkipped",
 					Message: request.Reason,
 				}) {
-				events.GetRecorder().Eventf(task.pod, nil,
+				events.GetRecorder().Eventf(task.pod.DeepCopy(), nil,
 					v1.EventTypeNormal, "PodUnschedulable", "PodUnschedulable",
 					"Task %s is skipped from scheduling because the queue quota has been exceed", task.alias)
 			}
@@ -869,7 +870,7 @@ func (ctx *Context) HandleContainerStateUpdate(request *si.UpdateContainerSchedu
 					Reason:  v1.PodReasonUnschedulable,
 					Message: request.Reason,
 				}) {
-				events.GetRecorder().Eventf(task.pod, nil,
+				events.GetRecorder().Eventf(task.pod.DeepCopy(), nil,
 					v1.EventTypeNormal, "PodUnschedulable", "PodUnschedulable",
 					"Task %s is pending for the requested resources become available", task.alias)
 			}
