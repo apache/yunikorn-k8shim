@@ -170,9 +170,9 @@ var _ = ginkgo.Describe("", func() {
 		}
 
 		ginkgo.By("Waiting for sleep pods to finish")
-		err = kClient.WaitForJobPodsSucceeded(dev, job1.Name, parallelism, 30*time.Second)
+		err = kClient.WaitForJobPodsSucceeded(dev, job1.Name, parallelism, 60*time.Second)
 		Ω(err).NotTo(gomega.HaveOccurred())
-		err = kClient.WaitForJobPodsSucceeded(dev, job2.Name, parallelism, 30*time.Second)
+		err = kClient.WaitForJobPodsSucceeded(dev, job2.Name, parallelism, 60*time.Second)
 		Ω(err).NotTo(gomega.HaveOccurred())
 	})
 
