@@ -20,6 +20,7 @@ package appmgmt
 
 import (
 	"fmt"
+	"sort"
 	"time"
 
 	"go.uber.org/zap"
@@ -53,6 +54,10 @@ func (svc *AppManagementService) recoverApps() (map[string]interfaces.ManagedApp
 				log.Logger().Error("failed to list apps", zap.Error(err))
 				return recoveringApps, err
 			}
+
+			sort.Slice(pods, func(i, j int) bool {
+				return pods[i].CreationTimestamp.Unix() < pods[j].CreationTimestamp.Unix()
+			})
 
 			for _, pod := range pods {
 				app := svc.podEventHandler.HandleEvent(general.AddPod, general.Recovery, pod)
