@@ -52,21 +52,22 @@ type Task struct {
 	placeholder     bool
 	terminationType string
 	pluginMode      bool
+	originator      bool
 	sm              *fsm.FSM
 	lock            *sync.RWMutex
 }
 
 func NewTask(tid string, app *Application, ctx *Context, pod *v1.Pod) *Task {
 	taskResource := common.GetPodResource(pod)
-	return createTaskInternal(tid, app, taskResource, pod, false, "", ctx)
+	return createTaskInternal(tid, app, taskResource, pod, false, "", ctx, false)
 }
 
 func NewTaskPlaceholder(tid string, app *Application, ctx *Context, pod *v1.Pod) *Task {
 	taskResource := common.GetPodResource(pod)
-	return createTaskInternal(tid, app, taskResource, pod, true, "", ctx)
+	return createTaskInternal(tid, app, taskResource, pod, true, "", ctx, false)
 }
 
-func NewFromTaskMeta(tid string, app *Application, ctx *Context, metadata interfaces.TaskMetadata) *Task {
+func NewFromTaskMeta(tid string, app *Application, ctx *Context, metadata interfaces.TaskMetadata, originator bool) *Task {
 	taskPod := metadata.Pod
 	taskResource := common.GetPodResource(taskPod)
 	return createTaskInternal(
@@ -76,11 +77,12 @@ func NewFromTaskMeta(tid string, app *Application, ctx *Context, metadata interf
 		metadata.Pod,
 		metadata.Placeholder,
 		metadata.TaskGroupName,
-		ctx)
+		ctx,
+		originator)
 }
 
 func createTaskInternal(tid string, app *Application, resource *si.Resource,
-	pod *v1.Pod, placeholder bool, taskGroupName string, ctx *Context) *Task {
+	pod *v1.Pod, placeholder bool, taskGroupName string, ctx *Context, originator bool) *Task {
 	var pluginMode bool
 	if ctx != nil {
 		pluginMode = ctx.IsPluginMode()
@@ -96,6 +98,7 @@ func createTaskInternal(tid string, app *Application, resource *si.Resource,
 		placeholder:   placeholder,
 		taskGroupName: taskGroupName,
 		pluginMode:    pluginMode,
+		originator:    originator,
 		context:       ctx,
 		sm:            newTaskState(),
 		lock:          &sync.RWMutex{},
@@ -240,6 +243,12 @@ func (task *Task) setAllocated(nodeName, allocationUUID string) {
 	task.sm.SetState(TaskStates().Allocated)
 }
 
+func (task *Task) IsOriginator() bool {
+	task.lock.RLock()
+	defer task.lock.RUnlock()
+	return task.originator
+}
+
 func (task *Task) handleFailEvent(reason string, err bool) {
 	if err {
 		dispatcher.Dispatch(NewFailTaskEvent(task.applicationID, task.taskID, reason))
@@ -263,7 +272,8 @@ func (task *Task) handleSubmitTaskEvent() {
 		task.resource,
 		task.placeholder,
 		task.taskGroupName,
-		task.pod)
+		task.pod,
+		task.originator)
 	log.Logger().Debug("send update request", zap.String("request", rr.String()))
 	if err := task.context.apiProvider.GetAPIs().SchedulerAPI.UpdateAllocation(&rr); err != nil {
 		log.Logger().Debug("failed to send scheduling request to scheduler", zap.Error(err))

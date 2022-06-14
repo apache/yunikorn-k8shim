@@ -692,22 +692,34 @@ func (ctx *Context) AddTask(request *interfaces.AddTaskRequest) interfaces.Manag
 		if app, valid := managedApp.(*Application); valid {
 			existingTask, err := app.GetTask(request.Metadata.TaskID)
 			if err != nil {
-				task := NewFromTaskMeta(request.Metadata.TaskID, app, ctx, request.Metadata)
+				var originator bool
+
+				// Is this task the originator of the application?
+				// If yes, then make it as "first pod/owner/driver" of the application and set the task as originator
+				if app.GetOriginatingTask() == nil {
+					for _, ownerReference := range app.getPlaceholderOwnerReferences() {
+						referenceID := string(ownerReference.UID)
+						if request.Metadata.TaskID == referenceID {
+							originator = true
+							break
+						}
+					}
+				}
+				task := NewFromTaskMeta(request.Metadata.TaskID, app, ctx, request.Metadata, originator)
 				app.addTask(task)
 				log.Logger().Info("task added",
 					zap.String("appID", app.applicationID),
 					zap.String("taskID", task.taskID),
 					zap.String("taskState", task.GetTaskState()))
-				if app.getOriginatingTask() == nil {
-					for _, ownerReference := range app.getPlaceholderOwnerReferences() {
-						if task, taskErr := app.GetTask(string(ownerReference.UID)); task != nil && taskErr == nil {
-							log.Logger().Info("app request originating pod added",
-								zap.String("appID", app.applicationID),
-								zap.String("original task", task.GetTaskID()))
-							app.setOriginatingTask(task)
-							break
-						}
+				if originator {
+					if app.GetOriginatingTask() != nil {
+						log.Logger().Error("Inconsistent state - found another originator task for an application",
+							zap.String("taskId", task.GetTaskID()))
 					}
+					app.setOriginatingTask(task)
+					log.Logger().Info("app request originating pod added",
+						zap.String("appID", app.applicationID),
+						zap.String("original task", task.GetTaskID()))
 				}
 				return task
 			}

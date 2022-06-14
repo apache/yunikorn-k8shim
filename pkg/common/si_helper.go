@@ -59,13 +59,17 @@ func CreateTagsForTask(pod *v1.Pod) map[string]string {
 	// add Pod labels to Task tags
 	labelPrefix := common.DomainK8s + common.GroupLabel
 	for k, v := range pod.Labels {
-		tags[labelPrefix+k] = v
+		if k == common.DomainYuniKorn+common.KeyAllowPreemption {
+			tags[common.DomainYuniKorn+common.KeyAllowPreemption] = v
+		} else {
+			tags[labelPrefix+k] = v
+		}
 	}
 
 	return tags
 }
 
-func CreateAllocationRequestForTask(appID, taskID string, resource *si.Resource, placeholder bool, taskGroupName string, pod *v1.Pod) si.AllocationRequest {
+func CreateAllocationRequestForTask(appID, taskID string, resource *si.Resource, placeholder bool, taskGroupName string, pod *v1.Pod, originator bool) si.AllocationRequest {
 	ask := si.AllocationAsk{
 		AllocationKey:  taskID,
 		ResourceAsk:    resource,
@@ -74,6 +78,7 @@ func CreateAllocationRequestForTask(appID, taskID string, resource *si.Resource,
 		Tags:           CreateTagsForTask(pod),
 		Placeholder:    placeholder,
 		TaskGroupName:  taskGroupName,
+		Originator:     originator,
 	}
 
 	result := si.AllocationRequest{
