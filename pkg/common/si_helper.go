@@ -69,6 +69,13 @@ func CreateTagsForTask(pod *v1.Pod) map[string]string {
 	return tags
 }
 
+func CreatePriorityForTask(pod *v1.Pod) int32 {
+	if pod.Spec.Priority != nil {
+		return *pod.Spec.Priority
+	}
+	return 0
+}
+
 func CreateAllocationRequestForTask(appID, taskID string, resource *si.Resource, placeholder bool, taskGroupName string, pod *v1.Pod, originator bool) si.AllocationRequest {
 	ask := si.AllocationAsk{
 		AllocationKey:  taskID,
@@ -79,6 +86,7 @@ func CreateAllocationRequestForTask(appID, taskID string, resource *si.Resource,
 		Placeholder:    placeholder,
 		TaskGroupName:  taskGroupName,
 		Originator:     originator,
+		Priority:       CreatePriorityForTask(pod),
 	}
 
 	result := si.AllocationRequest{

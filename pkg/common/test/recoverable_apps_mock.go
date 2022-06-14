@@ -19,7 +19,7 @@
 package test
 
 import (
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
@@ -42,7 +42,7 @@ func (m *MockedRecoverableAppManager) GetExistingAllocation(pod *v1.Pod) *si.All
 		AllocationTags:   nil,
 		UUID:             string(pod.UID),
 		ResourcePerAlloc: nil,
-		Priority:         nil,
+		Priority:         0,
 		QueueName:        "",
 		NodeID:           pod.Spec.NodeName,
 		ApplicationID:    "",
