@@ -278,7 +278,9 @@ func TestCreateAllocationRequestForTask(t *testing.T) {
 	asks := updateRequest.Asks
 	assert.Equal(t, len(asks), 1)
 	allocAsk := asks[0]
-	assert.Assert(t, allocAsk != nil)
+	if allocAsk == nil {
+		t.Fatal("ask cannot be nil")
+	}
 	assert.Equal(t, allocAsk.Priority, int32(0))
 
 	podName1 := "pod-resource-test-00002"
@@ -301,9 +303,10 @@ func TestCreateAllocationRequestForTask(t *testing.T) {
 	asks1 := updateRequest1.Asks
 	assert.Equal(t, len(asks1), 1)
 	allocAsk1 := asks1[0]
-	assert.Assert(t, allocAsk1 != nil)
+	if allocAsk1 == nil {
+		t.Fatal("ask cannot be nil")
+	}
 	tags := allocAsk1.Tags
-	assert.Assert(t, tags != nil)
 	assert.Equal(t, tags[common.DomainK8s+common.GroupMeta+"podName"], podName1)
 	assert.Equal(t, allocAsk1.Priority, int32(100))
 }
