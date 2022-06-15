@@ -36,7 +36,7 @@ func TestAddExistingAllocation(t *testing.T) {
 		AllocationTags:   nil,
 		UUID:             "podUID001",
 		ResourcePerAlloc: nil,
-		Priority:         nil,
+		Priority:         0,
 		QueueName:        "",
 		NodeID:           "host001",
 		ApplicationID:    "",

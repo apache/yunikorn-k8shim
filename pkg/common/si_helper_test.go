@@ -253,3 +253,60 @@ func TestCreateUpdateRequestForDeleteNode(t *testing.T) {
 	assert.Equal(t, request2.Nodes[0].NodeID, nodeID)
 	assert.Equal(t, request2.Nodes[0].Action, action2)
 }
+
+func TestCreateAllocationRequestForTask(t *testing.T) {
+	res := NewResourceBuilder().Build()
+	podName := "pod-resource-test-00001"
+	namespace := "important"
+	annotations := map[string]string{
+		"key": "value",
+	}
+	pod := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name:        podName,
+			UID:         "UID-00001",
+			Namespace:   namespace,
+			Annotations: annotations,
+		},
+	}
+
+	updateRequest := CreateAllocationRequestForTask("appId1", "taskId1", res, false, "", pod, false)
+	asks := updateRequest.Asks
+	assert.Equal(t, len(asks), 1)
+	allocAsk := asks[0]
+	if allocAsk == nil {
+		t.Fatal("ask cannot be nil")
+	}
+	assert.Equal(t, allocAsk.Priority, int32(0))
+
+	podName1 := "pod-resource-test-00002"
+	var pri = int32(100)
+	pod1 := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name:        podName1,
+			UID:         "UID-00002",
+			Namespace:   namespace,
+			Annotations: annotations,
+		},
+		Spec: v1.PodSpec{Priority: &pri},
+	}
+
+	updateRequest1 := CreateAllocationRequestForTask("appId1", "taskId1", res, false, "", pod1, false)
+	asks1 := updateRequest1.Asks
+	assert.Equal(t, len(asks1), 1)
+	allocAsk1 := asks1[0]
+	if allocAsk1 == nil {
+		t.Fatal("ask cannot be nil")
+	}
+	tags := allocAsk1.Tags
+	assert.Equal(t, tags[common.DomainK8s+common.GroupMeta+"podName"], podName1)
+	assert.Equal(t, allocAsk1.Priority, int32(100))
+}
