@@ -127,9 +127,9 @@ function check_opt() {
 }
 
 function install_cluster() {
-  # 6 arguments are required
-  if [[ $# -ne 6 ]]; then
-    echo "expecting exactly 6 parameters for function install_cluster()"
+  # 7 arguments are required
+  if [[ $# -ne 7 ]]; then
+    echo "expecting exactly 7 parameters for function install_cluster()"
     return 1
   fi
 
@@ -138,7 +138,8 @@ function install_cluster() {
   git_clone=$3
   charts_path=$4
   scheduler_image=$5
-  force_kind_install=$6
+  admission_image=$6
+  force_kind_install=$7
 
   # Check if go is installed.
   check_cmd "go"
@@ -179,7 +180,7 @@ function install_cluster() {
   echo "step 6/6: installing yunikorn scheduler"
   # load latest yunikorn docker images to kind
   "${KIND}" load docker-image "local/yunikorn:${scheduler_image}" --name ${k8s_cluster_name}
-  "${KIND}" load docker-image local/yunikorn:admission-latest --name ${k8s_cluster_name}
+  "${KIND}" load docker-image "local/yunikorn:${admission_image}" --name ${k8s_cluster_name}
 
   kubectl create namespace yunikorn
   exit_on_error "failed to create yunikorn namespace"
@@ -194,7 +195,7 @@ function install_cluster() {
     --set image.tag="${scheduler_image}" \
     --set image.pullPolicy=Never \
     --set admissionController.image.repository=local/yunikorn \
-    --set admissionController.image.tag=admission-latest \
+    --set admissionController.image.tag="${admission_image}" \
     --set admissionController.image.pullPolicy=Never
   exit_on_error "failed to install yunikorn"
   kubectl wait --for=condition=available --timeout=300s deployment/yunikorn-scheduler -n yunikorn
@@ -242,9 +243,12 @@ Examples:
 EOF
 }
 
+eval `make arch`
+docker_arch="${DOCKER_ARCH}"
 charts_path=./yunikorn-release/helm-charts/yunikorn
 git_clone=true
-scheduler_image=scheduler-latest
+scheduler_image="scheduler-${docker_arch}-latest"
+admission_image="admission-${docker_arch}-latest"
 force_kind_install=false
 
 while [[ $# -gt 0 ]]; do
@@ -276,7 +280,7 @@ case ${key} in
     shift
     ;;
   --plugin)
-    scheduler_image="scheduler-plugin-latest"
+    scheduler_image="scheduler-plugin-${docker_arch}-latest"
     shift
     ;;
   -h|--help)
@@ -304,8 +308,12 @@ echo "git clone: ${git_clone}"
 check_opt "${git_clone}"
 echo "charts path: ${charts_path}"
 check_opt "${charts_path}"
+echo "docker arch: ${docker_arch}"
+check_opt "${scheduler_image}"
 echo "scheduler image: ${scheduler_image}"
 check_opt "${scheduler_image}"
+echo "admission image: ${admission_image}"
+check_opt "${admission_image}"
 
 # this script only supports 2 actions
 #   1) test
@@ -316,7 +324,7 @@ check_opt "${scheduler_image}"
 #     - delete yunikorn
 #     - delete k8s cluster
 if [ "${action}" == "test" ]; then
-  install_cluster "${cluster_name}" "${cluster_version}" "${git_clone}" "${charts_path}" "${scheduler_image}" "${force_kind_install}"
+  install_cluster "${cluster_name}" "${cluster_version}" "${git_clone}" "${charts_path}" "${scheduler_image}" "${admission_image}" "${force_kind_install}"
   echo "running e2e tests"
   make e2e_test
   exit_on_error "e2e tests failed"

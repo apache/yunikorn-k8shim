@@ -336,6 +336,12 @@ clean:
 	./deployments/image/configmap/${CONF_FILE} \
 	./deployments/image/admission/${POD_ADMISSION_CONTROLLER_BINARY}
 
+# Print arch variables
+.PHONE: arch
+arch:
+	@echo DOCKER_ARCH=$(DOCKER_ARCH)
+	@echo EXEC_ARCH=$(EXEC_ARCH)
+
 # Run the e2e tests, this assumes yunikorn is running under yunikorn-ns namespace
 .PHONY: e2e_test
 e2e_test:
