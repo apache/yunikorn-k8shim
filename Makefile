@@ -337,7 +337,7 @@ clean:
 	./deployments/image/admission/${POD_ADMISSION_CONTROLLER_BINARY}
 
 # Print arch variables
-.PHONE: arch
+.PHONY: arch
 arch:
 	@echo DOCKER_ARCH=$(DOCKER_ARCH)
 	@echo EXEC_ARCH=$(EXEC_ARCH)
