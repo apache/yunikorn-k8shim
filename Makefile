@@ -56,21 +56,26 @@ ifeq ($(VERSION),)
 VERSION := latest
 endif
 
-# Build architecture
+# Allow architecture to be overwritten
+ifeq ($(HOST_ARCH),)
 HOST_ARCH := $(shell uname -m)
-ifeq (x86_64, $(HOST_ARCH))
-HOST_ARCH := amd64
-else ifeq (i386, $(HOST_ARCH))
-HOST_ARCH := 386
-else ifeq (aarch64, $(HOST_ARCH))
-HOST_ARCH := arm64
-else ifeq (armv7l, $(HOST_ARCH))
-HOST_ARCH := arm
 endif
 
-# Docker architecture
-ifeq ($(DOCKER_ARCH),)
-DOCKER_ARCH := $(HOST_ARCH)
+# Build architecture settings:
+# EXEC_ARCH defines the architecture of the executables that gets compiled
+# DOCKER_ARCH defines the architecture of the docker image
+ifeq (x86_64, $(HOST_ARCH))
+EXEC_ARCH := amd64
+DOCKER_ARCH := amd64
+else ifeq (i386, $(HOST_ARCH))
+EXEC_ARCH := 386
+DOCKER_ARCH := i386
+else ifeq (aarch64, $(HOST_ARCH))
+EXEC_ARCH := arm64
+DOCKER_ARCH := arm64v8
+else ifeq (armv7l, $(HOST_ARCH))
+EXEC_ARCH := arm
+DOCKER_ARCH := arm32v7
 endif
 
 # Image hashes
@@ -188,7 +193,7 @@ build_plugin: init
 .PHONY: scheduler
 scheduler: init
 	@echo "building binary for scheduler docker image"
-	CGO_ENABLED=0 GOOS=linux GOARCH="${DOCKER_ARCH}" \
+	CGO_ENABLED=0 GOOS=linux GOARCH="${EXEC_ARCH}" \
 	go build -a -o=${RELEASE_BIN_DIR}/${BINARY} -ldflags \
 	'-extldflags "-static" -X main.version=${VERSION} -X main.date=${DATE}' \
 	-tags netgo -installsuffix netgo \
@@ -198,7 +203,7 @@ scheduler: init
 .PHONY: plugin
 plugin: init
 	@echo "building binary for scheduler docker image"
-	CGO_ENABLED=0 GOOS=linux GOARCH="${DOCKER_ARCH}" \
+	CGO_ENABLED=0 GOOS=linux GOARCH="${EXEC_ARCH}" \
 	go build -a -o=${RELEASE_BIN_DIR}/${PLUGIN_BINARY} -ldflags \
 	'-extldflags "-static" -X main.version=${VERSION} -X main.date=${DATE}' \
 	-tags netgo -installsuffix netgo \
@@ -210,12 +215,13 @@ sched_image: scheduler
 	@echo "building scheduler docker image"
 	@cp ${RELEASE_BIN_DIR}/${BINARY} ./deployments/image/configmap
 	@sed -i'.bkp' 's/clusterVersion=.*"/clusterVersion=${VERSION}"/' deployments/image/configmap/Dockerfile
-	docker build ./deployments/image/configmap -t ${REGISTRY}/yunikorn:scheduler-${VERSION} \
+	docker build ./deployments/image/configmap -t ${REGISTRY}/yunikorn:scheduler-${DOCKER_ARCH}-${VERSION} \
 	--label "yunikorn-core-revision=${CORE_SHA}" \
 	--label "yunikorn-scheduler-interface-revision=${SI_SHA}" \
 	--label "yunikorn-k8shim-revision=${SHIM_SHA}" \
 	--label "BuildTimeStamp=${DATE}" \
-	--label "Version=${VERSION}"
+	--label "Version=${VERSION}" \
+	${QUIET} --build-arg ARCH=${DOCKER_ARCH}/
 	@mv -f ./deployments/image/configmap/Dockerfile.bkp ./deployments/image/configmap/Dockerfile
 	@rm -f ./deployments/image/configmap/${BINARY}
 
@@ -226,12 +232,13 @@ plugin_image: plugin
 	@cp ${RELEASE_BIN_DIR}/${PLUGIN_BINARY} ./deployments/image/plugin
 	@cp conf/scheduler-config.yaml ./deployments/image/plugin/scheduler-config.yaml
 	@sed -i'.bkp' 's/clusterVersion=.*"/clusterVersion=${VERSION}"/' deployments/image/plugin/Dockerfile
-	docker build ./deployments/image/plugin -t ${REGISTRY}/yunikorn:scheduler-plugin-${VERSION} \
+	docker build ./deployments/image/plugin -t ${REGISTRY}/yunikorn:scheduler-plugin-${DOCKER_ARCH}-${VERSION} \
 	--label "yunikorn-core-revision=${CORE_SHA}" \
 	--label "yunikorn-scheduler-interface-revision=${SI_SHA}" \
 	--label "yunikorn-k8shim-revision=${SHIM_SHA}" \
 	--label "BuildTimeStamp=${DATE}" \
-	--label "Version=${VERSION}"
+	--label "Version=${VERSION}" \
+	${QUIET} --build-arg ARCH=${DOCKER_ARCH}/
 	@mv -f ./deployments/image/plugin/Dockerfile.bkp ./deployments/image/plugin/Dockerfile
 	@rm -f ./deployments/image/plugin/${PLUGIN_BINARY}
 	@rm -f ./deployments/image/plugin/scheduler-config.yaml
@@ -240,7 +247,7 @@ plugin_image: plugin
 .PHONY: admission
 admission: init
 	@echo "building admission controller binary"
-	CGO_ENABLED=0 GOOS=linux GOARCH="${DOCKER_ARCH}" \
+	CGO_ENABLED=0 GOOS=linux GOARCH="${EXEC_ARCH}" \
 	go build -a -o=${ADMISSION_CONTROLLER_BIN_DIR}/${POD_ADMISSION_CONTROLLER_BINARY} -ldflags \
     '-extldflags "-static" -X main.version=${VERSION} -X main.date=${DATE}' \
     -tags netgo -installsuffix netgo \
@@ -251,24 +258,26 @@ admission: init
 adm_image: admission
 	@echo "building admission controller docker images"
 	@cp ${ADMISSION_CONTROLLER_BIN_DIR}/${POD_ADMISSION_CONTROLLER_BINARY} ./deployments/image/admission
-	docker build ./deployments/image/admission -t ${REGISTRY}/yunikorn:admission-${VERSION} \
+	docker build ./deployments/image/admission -t ${REGISTRY}/yunikorn:admission-${DOCKER_ARCH}-${VERSION} \
 	--label "yunikorn-core-revision=${CORE_SHA}" \
 	--label "yunikorn-scheduler-interface-revision=${SI_SHA}" \
 	--label "yunikorn-k8shim-revision=${SHIM_SHA}" \
 	--label "BuildTimeStamp=${DATE}" \
-	--label "Version=${VERSION}"
+	--label "Version=${VERSION}" \
+	${QUIET} --build-arg ARCH=${DOCKER_ARCH}/
 	@rm -f ./deployments/image/admission/${POD_ADMISSION_CONTROLLER_BINARY}
 
 # Build gang web server and client binary in a production ready version
 .PHONY: simulation
 simulation:
 	@echo "building gang web client binary"
-	CGO_ENABLED=0 GOOS=linux GOARCH="${DOCKER_ARCH}" \
+	CGO_ENABLED=0 GOOS=linux GOARCH="${EXEC_ARCH}" \
 	go build -a -o=${GANG_BIN_DIR}/${GANG_CLIENT_BINARY} -ldflags \
 	'-extldflags "-static" -X main.version=${VERSION} -X main.date=${DATE}' \
 	-tags netgo -installsuffix netgo \
 	./pkg/simulation/gang/gangclient
 	@echo "building gang web server binary"
+	CGO_ENABLED=0 GOOS=linux GOARCH="${EXEC_ARCH}" \
 	go build -a -o=${GANG_BIN_DIR}/${GANG_SERVER_BINARY} -ldflags \
 	'-extldflags "-static" -X main.version=${VERSION} -X main.date=${DATE}' \
 	-tags netgo -installsuffix netgo \
@@ -280,21 +289,16 @@ simulation_image: simulation
 	@echo "building gang test docker images"
 	@cp ${GANG_BIN_DIR}/${GANG_CLIENT_BINARY} ./deployments/image/gang/gangclient
 	@cp ${GANG_BIN_DIR}/${GANG_SERVER_BINARY} ./deployments/image/gang/webserver
-	docker build ./deployments/image/gang/gangclient -t ${REGISTRY}/yunikorn:simulation-gang-worker-latest
-	docker build ./deployments/image/gang/webserver -t ${REGISTRY}/yunikorn:simulation-gang-coordinator-latest
+	docker build ./deployments/image/gang/gangclient -t ${REGISTRY}/yunikorn:simulation-gang-worker-${VERSION} \
+	${QUIET} --build-arg ARCH=${DOCKER_ARCH}/
+	docker build ./deployments/image/gang/webserver -t ${REGISTRY}/yunikorn:simulation-gang-coordinator-${VERSION} \
+	${QUIET} --build-arg ARCH=${DOCKER_ARCH}/
 	@rm -f ./deployments/image/gang/gangclient/${GANG_CLIENT_BINARY}
 	@rm -f ./deployments/image/gang/webserver/${GANG_SERVER_BINARY}
 	
 # Build all images based on the production ready version
 .PHONY: image
 image: sched_image plugin_image adm_image
-
-.PHONY: push
-push: image
-	@echo "push docker images"
-	echo "${DOCKER_PASSWORD}" | docker login -u "${DOCKER_USERNAME}" --password-stdin
-	docker push ${REGISTRY}/yunikorn:scheduler-${VERSION}
-	docker push ${REGISTRY}/yunikorn:admission-${VERSION}
 
 #Generate the CRD code with code-generator (release-1.14)
 
@@ -331,6 +335,12 @@ clean:
 	./deployments/image/configmap/${BINARY} \
 	./deployments/image/configmap/${CONF_FILE} \
 	./deployments/image/admission/${POD_ADMISSION_CONTROLLER_BINARY}
+
+# Print arch variables
+.PHONY: arch
+arch:
+	@echo DOCKER_ARCH=$(DOCKER_ARCH)
+	@echo EXEC_ARCH=$(EXEC_ARCH)
 
 # Run the e2e tests, this assumes yunikorn is running under yunikorn-ns namespace
 .PHONY: e2e_test

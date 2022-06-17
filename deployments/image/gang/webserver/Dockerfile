@@ -15,7 +15,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM alpine:latest
-WORKDIR /gang/client
-ADD . /gang/client 
-ENTRYPOINT ["./simulation-gang-worker"]
+ARG ARCH=
+FROM ${ARCH}alpine:latest
+WORKDIR /gang/server
+ADD . /gang/server
+EXPOSE 8863
+ENTRYPOINT ["./simulation-gang-coordinator"]
