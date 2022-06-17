@@ -15,7 +15,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM alpine:latest
+ARG ARCH=
+FROM ${ARCH}alpine:latest
 
 RUN addgroup -S -g 4444 yunikorn && \
     adduser -S -h /opt/yunikorn/work -G yunikorn -u 4444 yunikorn -s /bin/sh && \
