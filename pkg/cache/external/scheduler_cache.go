@@ -70,18 +70,10 @@ func NewSchedulerCache(clients *client.Clients) *SchedulerCache {
 	return cache
 }
 
+// GetNodesInfoMap returns a reference to the internal node map. This is explicitly for the use of the predicate
+// shared lister and requires that the scheduler cache lock be held while accessing.
 func (cache *SchedulerCache) GetNodesInfoMap() map[string]*framework.NodeInfo {
 	return cache.nodesMap
-}
-
-func (cache *SchedulerCache) GetNodesInfoMapCopy() map[string]*framework.NodeInfo {
-	cache.lock.RLock()
-	defer cache.lock.RUnlock()
-	copyOfMap := make(map[string]*framework.NodeInfo, len(cache.nodesMap))
-	for k, v := range cache.nodesMap {
-		copyOfMap[k] = v.Clone()
-	}
-	return copyOfMap
 }
 
 func (cache *SchedulerCache) LockForReads() {

@@ -280,11 +280,11 @@ func add2Cache(cache *SchedulerCache, objects ...interface{}) error {
 	return nil
 }
 
-func TestGetNodesInfoMapCopy(t *testing.T) {
+func TestGetNodesInfoMap(t *testing.T) {
 	// empty map
 	cache := NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
-	copyOfMap := cache.GetNodesInfoMapCopy()
-	assert.Equal(t, len(copyOfMap), 0)
+	ref := cache.GetNodesInfoMap()
+	assert.Equal(t, len(ref), 0)
 
 	for i := 0; i < 10; i++ {
 		cache.AddNode(&v1.Node{
@@ -303,9 +303,9 @@ func TestGetNodesInfoMapCopy(t *testing.T) {
 		})
 	}
 
-	copyOfMap = cache.GetNodesInfoMapCopy()
-	assert.Equal(t, len(copyOfMap), 10)
-	for k, v := range copyOfMap {
+	ref = cache.GetNodesInfoMap()
+	assert.Equal(t, len(ref), 10)
+	for k, v := range ref {
 		assert.Assert(t, v.Node() != nil, "node %s should not be nil", k)
 		assert.Equal(t, len(v.Node().Labels), 2)
 		assert.Equal(t, len(v.Node().Annotations), 3)
