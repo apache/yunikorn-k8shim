@@ -69,7 +69,7 @@ var _ = ginkgo.Describe("SimplePreemptor", func() {
 		gomega.Ω(ns1.Status.Phase).To(gomega.Equal(v1.NamespaceActive))
 	})
 
-	ginkgo.It("Verify_basic_simple_preemption", func() {
+	ginkgo.It("Verify_basic_simple_preemption. Use case: Only one pod is running and same pod has been selected as victim", func() {
 
 		ginkgo.By("Deploy the sleep pod to the development namespace")
 		sleepObj, podErr := k8s.InitSleepPod(sleepPodConfigs)
@@ -161,7 +161,7 @@ var _ = ginkgo.Describe("SimplePreemptor", func() {
 		gomega.Ω(allocations["applicationId"]).To(gomega.Equal(sleepRespPod3.ObjectMeta.Labels["applicationId"]))
 	})
 
-	ginkgo.It("Verify_simple_preemption. Use case: When 3 sleep pods (gang, opted out, regular) are running, regular pod should be victim to free up resources for 4th sleep pod", func() {
+	ginkgo.It("Verify_simple_preemption. Use case: When 3 sleep pods (2 opted out, regular) are running, regular pod should be victim to free up resources for 4th sleep pod", func() {
 
 		// Define sleepPod
 		sleepPodConfigs := k8s.SleepPodConfig{Name: "sleepjob", NS: dev, Mem: 2000, Time: 600, RequiredNode: "yk8s-worker"}
