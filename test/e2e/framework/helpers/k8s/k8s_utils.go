@@ -442,6 +442,27 @@ func (k *KubeCtl) isPodNotInNS(podName string, namespace string) wait.ConditionF
 	}
 }
 
+// return a condition function that indicates whether the given pod has received the expected event
+func (k *KubeCtl) isPodEventTriggered(namespace string, podName string, expectedReason string) wait.ConditionFunc {
+	return func() (bool, error) {
+		events, err := k.clientSet.CoreV1().Events(namespace).List(context.TODO(), metav1.ListOptions{})
+		if err == nil {
+			eventItems := events.Items
+			for _, event := range eventItems {
+				fmt.Fprintf(ginkgo.GinkgoWriter, "Failed to delete pod %s - reason is %s\n", event.InvolvedObject.Name, event.Reason)
+				if event.InvolvedObject.Name == podName && strings.Contains(event.Reason, expectedReason) {
+					return true, nil
+				}
+			}
+		}
+		return false, nil
+	}
+}
+
+func (k *KubeCtl) WaitForPodEvent(namespace string, podName string, expectedReason string, timeout time.Duration) error {
+	return wait.PollImmediate(time.Second, timeout, k.isPodEventTriggered(namespace, podName, expectedReason))
+}
+
 func (k *KubeCtl) WaitForPodTerminated(namespace string, podName string, timeout time.Duration) error {
 	return wait.PollImmediate(time.Second, timeout, k.isPodNotInNS(podName, namespace))
 }
