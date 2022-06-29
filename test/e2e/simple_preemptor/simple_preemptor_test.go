@@ -134,7 +134,7 @@ var _ = ginkgo.Describe("SimplePreemptor", func() {
 		// Wait for pod to move to running state
 		err = kClient.WaitForPodBySelectorRunning(dev,
 			fmt.Sprintf("app=%s", sleepRespPod.ObjectMeta.Labels["app"]),
-			240)
+			600)
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 
 		// assert sleeppod6 is killed
