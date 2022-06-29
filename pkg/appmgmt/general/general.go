@@ -33,8 +33,8 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
+	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
-
 	"go.uber.org/zap"
 )
 
@@ -263,6 +263,10 @@ func (os *Manager) GetExistingAllocation(pod *v1.Pod) *si.Allocation {
 		// for an Allocation.
 		placeholder := utils.GetPlaceholderFlagFromPodSpec(pod)
 		taskGroupName := utils.GetTaskGroupFromPodSpec(pod)
+
+		creationTime := pod.CreationTimestamp.Unix()
+		meta.Tags[siCommon.CreationTime] = strconv.FormatInt(creationTime, 10)
+
 		return &si.Allocation{
 			AllocationKey:    string(pod.UID),
 			AllocationTags:   meta.Tags,
