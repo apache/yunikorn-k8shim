@@ -64,18 +64,23 @@ endif
 # Build architecture settings:
 # EXEC_ARCH defines the architecture of the executables that gets compiled
 # DOCKER_ARCH defines the architecture of the docker image
+# Both vars must be set, an unknown architecture defaults to amd64
 ifeq (x86_64, $(HOST_ARCH))
 EXEC_ARCH := amd64
 DOCKER_ARCH := amd64
 else ifeq (i386, $(HOST_ARCH))
 EXEC_ARCH := 386
 DOCKER_ARCH := i386
-else ifeq (aarch64, $(HOST_ARCH))
+else ifneq (,$(filter $(HOST_ARCH), arm64 aarch64))
 EXEC_ARCH := arm64
 DOCKER_ARCH := arm64v8
 else ifeq (armv7l, $(HOST_ARCH))
 EXEC_ARCH := arm
 DOCKER_ARCH := arm32v7
+else
+$(info Unknown architecture "${HOST_ARCH}" defaulting to: amd64)
+EXEC_ARCH := amd64
+DOCKER_ARCH := amd64
 endif
 
 # Image hashes
