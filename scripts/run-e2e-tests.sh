@@ -36,11 +36,11 @@ function exit_on_error() {
 
 # check options that must have values
 function check_opt() {
-	OPTION=$1
+  OPTION=$1
   VALUE=$2
   if [[ "${VALUE}" == "" ]]; then
     echo "ERROR: option ${OPTION} cannot be empty"
-		echo
+    echo
     print_usage
     exit 1
   fi
@@ -48,15 +48,15 @@ function check_opt() {
 
 # only support linux and darwin to run e2e tests
 function check_os() {
-	if [ "${OS}" != "linux" ] && [ "${OS}" != "darwin" ]; then
-		echo "unsupported OS: ${OS}"
-		exit 1
-	fi
+  if [ "${OS}" != "linux" ] && [ "${OS}" != "darwin" ]; then
+    echo "unsupported OS: ${OS}"
+    exit 1
+  fi
 }
 
 # check docker available and up
 function check_docker() {
-	check_cmd "docker"
+  check_cmd "docker"
   DOCKER_UP=`docker version | grep "^Server:"`
   if [ -z "${DOCKER_UP}" ]; then
     echo "docker daemon must be running"
@@ -67,12 +67,12 @@ function check_docker() {
 function install_kubectl() {
   if ! command -v kubectl &> /dev/null
   then
-	  check_cmd "curl"
-		STABLE_RELEASE=$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)
-		exit_on_error "unable to retrieve latest stable version of kubectl"
-		curl -LO https://storage.googleapis.com/kubernetes-release/release/${STABLE_RELEASE}/bin/${OS}/${EXEC_ARCH}/kubectl \
-							&& chmod +x kubectl && sudo mv kubectl /usr/local/bin/
-		exit_on_error "install Kubectl failed"
+    check_cmd "curl"
+    STABLE_RELEASE=$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)
+    exit_on_error "unable to retrieve latest stable version of kubectl"
+    curl -LO https://storage.googleapis.com/kubernetes-release/release/${STABLE_RELEASE}/bin/${OS}/${EXEC_ARCH}/kubectl \
+              && chmod +x kubectl && sudo mv kubectl /usr/local/bin/
+    exit_on_error "install Kubectl failed"
   fi
   check_cmd "kubectl"
 }
@@ -82,18 +82,18 @@ function install_kind() {
   if [ ! -x "${KIND}" ]; then
     FORCE_KIND_INSTALL=true
   else
-		# check kind version: v0.13.0 or later required for 1.24 tests
-		KIND_MINOR=`${KIND} version | cut -f2 -d" " | cut -f2 -d"."`
-		if [ ${KIND_MINOR} -lt 13 ]; then
-			FORCE_KIND_INSTALL=true
-			echo "kind version found is too old: force new install"
-		fi
+    # check kind version: v0.13.0 or later required for 1.24 tests
+    KIND_MINOR=`${KIND} version | cut -f2 -d" " | cut -f2 -d"."`
+    if [ ${KIND_MINOR} -lt 13 ]; then
+      FORCE_KIND_INSTALL=true
+      echo "kind version found is too old: force new install"
+    fi
   fi
 
   if [ "${FORCE_KIND_INSTALL}" == "true" ]
   then
     check_cmd "curl"
-		curl -Lo ./kind "https://kind.sigs.k8s.io/dl/v0.14.0/kind-${OS}-${EXEC_ARCH}" \
+    curl -Lo ./kind "https://kind.sigs.k8s.io/dl/v0.14.0/kind-${OS}-${EXEC_ARCH}" \
       && chmod +x ./kind && mv ./kind $(go env GOPATH)/bin
     exit_on_error "install KIND failed"
   fi
@@ -104,38 +104,38 @@ function install_helm() {
   FORCE_HELM_INSTALL=false
   if ! command -v helm &> /dev/null
   then
-  	FORCE_HELM_INSTALL=true
+    FORCE_HELM_INSTALL=true
   else
-  	# get the major helm version, must be v3
-  	HELM_VERSION=`helm version --short | cut -f1 -d"."`
-		if [ ${HELM_VERSION} != "v3" ]; then
-			FORCE_HELM_INSTALL=true
-			echo "helm version found is too old: force new install"
-		fi
-	fi
+    # get the major helm version, must be v3
+    HELM_VERSION=`helm version --short | cut -f1 -d"."`
+    if [ ${HELM_VERSION} != "v3" ]; then
+      FORCE_HELM_INSTALL=true
+      echo "helm version found is too old: force new install"
+    fi
+  fi
 
   if [ "${FORCE_HELM_INSTALL}" == "true" ]
   then
-	  check_cmd "curl"
+    check_cmd "curl"
     curl -L https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash
     exit_on_error "install helm-v3 failed"
   fi
-	check_cmd "helm"
+  check_cmd "helm"
 }
 
 function install_cluster() {
   echo "step 1/9: checking required configuration"
   KIND_CONFIG=./scripts/kind.yaml
   if [ ! -r ${KIND_CONFIG} ]; then
-  	exit_on_error "kind config not found: ${KIND_CONFIG}"
+    exit_on_error "kind config not found: ${KIND_CONFIG}"
   fi
   # use latest helm charts from the release repo to install yunikorn unless path is provided
   if [ "${GIT_CLONE}" = "true" ]; then
-	  check_cmd "git"
+    check_cmd "git"
     git clone --depth 1 https://github.com/apache/yunikorn-release.git ./yunikorn-release
   fi
   if [ ! -d ${CHART_PATH} ]; then
-  	exit_on_error "helm charts not found in path: ${CHART_PATH}"
+    exit_on_error "helm charts not found in path: ${CHART_PATH}"
   fi
 
   # build docker images from latest code, so that we can install yunikorn with these latest images
@@ -189,9 +189,9 @@ function install_cluster() {
     --set admissionController.image.repository=local/yunikorn \
     --set admissionController.image.tag="${ADMISSION_IMAGE}" \
     --set admissionController.image.pullPolicy=IfNotPresent \
-		--set web.image.repository=local/yunikorn \
-		--set web.image.tag="${WEBTEST_IMAGE}" \
-		--set web.image.pullPolicy=IfNotPresent
+    --set web.image.repository=local/yunikorn \
+    --set web.image.tag="${WEBTEST_IMAGE}" \
+    --set web.image.pullPolicy=IfNotPresent
   exit_on_error "failed to install yunikorn"
   kubectl wait --for=condition=available --timeout=300s deployment/yunikorn-scheduler -n yunikorn
   exit_on_error "failed to wait for yunikorn scheduler deployment being deployed"
@@ -201,13 +201,13 @@ function install_cluster() {
 
 function delete_cluster() {
   echo "deleting K8s cluster: ${CLUSTER_NAME}"
-	install_kind
+  install_kind
   "${KIND}" delete cluster --name ${CLUSTER_NAME}
   exit_on_error "failed to delete the cluster"
 }
 
 function print_usage() {
-	NAME=`basename "$0"`
+  NAME=`basename "$0"`
   cat <<EOF
 Usage: ${NAME} -a <action> -n <kind-cluster-name> -v <kind-node-image-version> [-p <chart-path>] [--plugin] [--force-kind-install]
   <action>                     the action to be executed, must be either "test" or "cleanup".
@@ -310,10 +310,10 @@ check_opt "kind-cluster-name" "${CLUSTER_NAME}"
 #   2) cleanup
 #     - delete k8s cluster
 if [ "${ACTION}" == "test" ]; then
-	# make will fail without go installed but we call it before that...
-	check_cmd "go"
-	check_opt "kind-node-image-version" "${CLUSTER_VERSION}"
-	check_opt "chart-path" "${CHART_PATH}"
+  # make will fail without go installed but we call it before that...
+  check_cmd "go"
+  check_opt "kind-node-image-version" "${CLUSTER_VERSION}"
+  check_opt "chart-path" "${CHART_PATH}"
   install_cluster
   echo "starting e2e tests"
   # Noticed regular unexplained failures in the tests when run directly after
@@ -321,7 +321,7 @@ if [ "${ACTION}" == "test" ]; then
   # following the failed run passes. A short sleep seems to settle things down
   # and prevent the unexplained failures.
   if [ "${OS}" == "darwin" ]; then
-  	sleep 5
+    sleep 5
   fi
   make e2e_test
   exit_on_error "e2e tests failed"
