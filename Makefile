@@ -124,10 +124,10 @@ lint:
 # from the Makefile. That caused the pull-request license check run from the github action to
 # always pass. The syntax for find is slightly different too but that at least works in a similar
 # way on both Mac and Linux. Excluding all .git* files from the checks.
-OS := $(shell uname -s)
+OS := $(shell uname -s | tr '[:upper:]' '[:lower:]')
 license-check:
 	@echo "checking license headers:"
-ifeq (Darwin,$(OS))
+ifeq (darwin,$(OS))
 	$(shell find -E . -not -path "./.git*" -regex ".*\.(go|sh|md|yaml|yml|mod)" -exec grep -L "Licensed to the Apache Software Foundation" {} \; > LICRES)
 else
 	$(shell find . -not -path "./.git*" -regex ".*\.\(go\|sh\|md\|yaml\|yml\|mod\)" -exec grep -L "Licensed to the Apache Software Foundation" {} \; > LICRES)
@@ -183,7 +183,7 @@ build: init
 
 .PHONY: build_plugin
 build_plugin: init
-	@echo "building scheduler plugin"
+	@echo "building scheduler plugin binary"
 	go build -o=${DEV_BIN_DIR}/${PLUGIN_BINARY} -race -ldflags \
 	'-X main.version=${VERSION} -X main.date=${DATE}' \
 	./pkg/cmd/schedulerplugin/
@@ -202,7 +202,7 @@ scheduler: init
 # Build plugin binary in a production ready version
 .PHONY: plugin
 plugin: init
-	@echo "building binary for scheduler docker image"
+	@echo "building binary for plugin docker image"
 	CGO_ENABLED=0 GOOS=linux GOARCH="${EXEC_ARCH}" \
 	go build -a -o=${RELEASE_BIN_DIR}/${PLUGIN_BINARY} -ldflags \
 	'-extldflags "-static" -X main.version=${VERSION} -X main.date=${DATE}' \
@@ -256,7 +256,7 @@ admission: init
 # Build an admission controller image based on the production ready version
 .PHONY: adm_image
 adm_image: admission
-	@echo "building admission controller docker images"
+	@echo "building admission controller docker image"
 	@cp ${ADMISSION_CONTROLLER_BIN_DIR}/${POD_ADMISSION_CONTROLLER_BINARY} ./deployments/image/admission
 	docker build ./deployments/image/admission -t ${REGISTRY}/yunikorn:admission-${DOCKER_ARCH}-${VERSION} \
 	--label "yunikorn-core-revision=${CORE_SHA}" \
@@ -295,10 +295,18 @@ simulation_image: simulation
 	${QUIET} --build-arg ARCH=${DOCKER_ARCH}/
 	@rm -f ./deployments/image/gang/gangclient/${GANG_CLIENT_BINARY}
 	@rm -f ./deployments/image/gang/webserver/${GANG_SERVER_BINARY}
-	
+
 # Build all images based on the production ready version
 .PHONY: image
 image: sched_image plugin_image adm_image
+
+# Build a web server image ONLY to be used in e2e tests
+.PHONY: webtest_image
+webtest_image:
+	@echo "building web server image for automated e2e tests"
+	docker build ./deployments/image/webtest -t ${REGISTRY}/yunikorn:webtest-${DOCKER_ARCH}-${VERSION} \
+	--label "yunikorn-e2e-web-image" \
+	${QUIET} --build-arg ARCH=${DOCKER_ARCH}/
 
 #Generate the CRD code with code-generator (release-1.14)
 
@@ -342,7 +350,7 @@ arch:
 	@echo DOCKER_ARCH=$(DOCKER_ARCH)
 	@echo EXEC_ARCH=$(EXEC_ARCH)
 
-# Run the e2e tests, this assumes yunikorn is running under yunikorn-ns namespace
+# Run the e2e tests, this assumes yunikorn is running under yunikorn namespace
 .PHONY: e2e_test
 e2e_test:
 	@echo "running e2e tests"
