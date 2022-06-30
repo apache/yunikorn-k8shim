@@ -125,7 +125,6 @@ function install_helm() {
 
 function install_cluster() {
   echo "step 1/9: checking required configuration"
-  KIND_CONFIG=./scripts/kind.yaml
   if [ ! -r ${KIND_CONFIG} ]; then
     exit_on_error "kind config not found: ${KIND_CONFIG}"
   fi
@@ -171,6 +170,8 @@ function install_cluster() {
   exit_on_error "set K8s cluster context failed"
   kubectl create namespace yunikorn
   exit_on_error "failed to create yunikorn namespace"
+  echo "cluster node definitions:"
+  kubectl describe nodes
 
   # pre-load yunikorn docker images to kind
   echo "step 8/9: pre-load yunikorn images"
@@ -235,6 +236,7 @@ eval `make arch`
 OS=`uname -s | tr '[:upper:]' '[:lower:]'`
 check_os
 
+KIND_CONFIG=./scripts/kind.yaml
 CHART_PATH="./yunikorn-release/helm-charts/yunikorn"
 GIT_CLONE=true
 SCHEDULER_IMAGE="scheduler-${DOCKER_ARCH}-latest"
@@ -291,6 +293,7 @@ echo "  action             : ${ACTION}"
 echo "  force kind install : ${FORCE_KIND_INSTALL}"
 echo "  kind cluster name  : ${CLUSTER_NAME}"
 echo "  kind node version  : ${CLUSTER_VERSION}"
+echo "  kind config        : ${KIND_CONFIG}"
 echo "  git clone release  : ${GIT_CLONE}"
 echo "  chart path         : ${CHART_PATH}"
 echo "  operating system   : ${OS}"
