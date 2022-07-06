@@ -764,3 +764,7 @@ func ApplyYamlWithKubectl(path, namespace string) error {
 	}
 	return nil
 }
+
+func (k *KubeCtl) GetNodes() (*v1.NodeList, error) {
+	return k.clientSet.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
+}

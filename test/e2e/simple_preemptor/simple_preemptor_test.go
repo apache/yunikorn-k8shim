@@ -26,6 +26,7 @@ import (
 	"github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -41,10 +42,13 @@ var _ = ginkgo.Describe("SimplePreemptor", func() {
 	var oldConfigMap *v1.ConfigMap
 	var dev = "dev" + common.RandSeq(5)
 
-	// Define sleepPod
-	sleepPodConfigs := k8s.SleepPodConfig{Name: "sleepjob", NS: dev, Mem: 5000, Time: 600, RequiredNode: "yk8s-worker"}
-	sleepPod2Configs := k8s.SleepPodConfig{Name: "sleepjob2", NS: dev, Mem: 5000, Time: 600}
-	sleepPod3Configs := k8s.SleepPodConfig{Name: "sleepjob3", NS: dev, RequiredNode: "yk8s-worker2", Mem: 4000, Time: 600}
+	// Nodes
+	Worker1 := "yk8s-worker"
+	Worker2 := "yk8s-worker2"
+	Worker1Res := resource.NewQuantity(8*1000*1000, resource.DecimalSI)
+	Worker2Res := resource.NewQuantity(8*1000*1000, resource.DecimalSI)
+	var sleepPodMemLimit1 int64
+	var sleepPodMemLimit2 int64
 
 	ginkgo.BeforeSuite(func() {
 		// Initializing kubectl client
@@ -74,9 +78,48 @@ var _ = ginkgo.Describe("SimplePreemptor", func() {
 		ns, err = kClient.CreateNamespace(dev, nil)
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		gomega.Ω(ns.Status.Phase).To(gomega.Equal(v1.NamespaceActive))
+
+		var nodes *v1.NodeList
+		nodes, err = kClient.GetNodes()
+		Ω(err).NotTo(gomega.HaveOccurred())
+		Ω(len(nodes.Items)).NotTo(gomega.BeZero(), "Events cant be empty")
+
+		// Extract node allocatable resources
+		for _, node := range nodes.Items {
+			if node.Name == Worker1 {
+				Worker1Res = node.Status.Allocatable.Memory()
+			} else if node.Name == Worker2 {
+				Worker2Res = node.Status.Allocatable.Memory()
+			}
+		}
+
+		var pods *v1.PodList
+		totalPodQuantity1 := *resource.NewQuantity(0, resource.DecimalSI)
+		totalPodQuantity2 := *resource.NewQuantity(0, resource.DecimalSI)
+		pods, err = kClient.GetPods("yunikorn")
+		if err == nil {
+			for _, pod := range pods.Items {
+				for _, c := range pod.Spec.Containers {
+					if pod.Spec.NodeName == Worker1 {
+						totalPodQuantity1.Add(*resource.NewQuantity(c.Resources.Requests.Memory().Value(), resource.DecimalSI))
+					} else if pod.Spec.NodeName == Worker2 {
+						totalPodQuantity2.Add(*resource.NewQuantity(c.Resources.Requests.Memory().Value(), resource.DecimalSI))
+					}
+				}
+			}
+		}
+		Worker1Res.Sub(totalPodQuantity1)
+		sleepPodMemLimit1 = int64(float64(Worker1Res.Value()/4)) / (1000 * 1000)
+		Worker2Res.Sub(totalPodQuantity2)
+		sleepPodMemLimit2 = int64(float64(Worker2Res.Value()/4)) / (1000 * 1000)
 	})
 
 	ginkgo.It("Verify_basic_simple_preemption. Use case: Only one pod is running and same pod has been selected as victim", func() {
+
+		// Define sleepPod
+		sleepPodConfigs := k8s.SleepPodConfig{Name: "sleepjob", NS: dev, Mem: sleepPodMemLimit1 * 2, Time: 600, RequiredNode: "yk8s-worker"}
+		sleepPod2Configs := k8s.SleepPodConfig{Name: "sleepjob2", NS: dev, Mem: sleepPodMemLimit2 * 2, Time: 600}
+		sleepPod3Configs := k8s.SleepPodConfig{Name: "sleepjob3", NS: dev, RequiredNode: "yk8s-worker2", Mem: sleepPodMemLimit2 * 2, Time: 600}
 
 		for _, config := range []k8s.SleepPodConfig{sleepPodConfigs, sleepPod2Configs, sleepPod3Configs} {
 			ginkgo.By("Deploy the sleep pod " + config.Name + " to the development namespace")
@@ -99,15 +142,15 @@ var _ = ginkgo.Describe("SimplePreemptor", func() {
 	ginkgo.It("Verify_simple_preemption. Use case: When 3 sleep pods (2 opted out, regular) are running, regular pod should be victim to free up resources for 4th sleep pod", func() {
 
 		// Define sleepPod
-		sleepPodConfigs := k8s.SleepPodConfig{Name: "sleepjob", NS: dev, Mem: 2000, Time: 600, RequiredNode: "yk8s-worker"}
-		sleepPod2Configs := k8s.SleepPodConfig{Name: "sleepjob2", NS: dev, Mem: 2000, Time: 600, RequiredNode: "yk8s-worker"}
-		sleepPod3Configs := k8s.SleepPodConfig{Name: "sleepjob3", NS: dev, Mem: 2000, Time: 600, RequiredNode: "yk8s-worker"}
+		sleepPodConfigs := k8s.SleepPodConfig{Name: "sleepjob", NS: dev, Mem: sleepPodMemLimit1, Time: 600, RequiredNode: "yk8s-worker"}
+		sleepPod2Configs := k8s.SleepPodConfig{Name: "sleepjob2", NS: dev, Mem: sleepPodMemLimit1, Time: 600, RequiredNode: "yk8s-worker"}
+		sleepPod3Configs := k8s.SleepPodConfig{Name: "sleepjob3", NS: dev, Mem: sleepPodMemLimit1, Time: 600, RequiredNode: "yk8s-worker"}
 
 		// random uid in pod spec to ensure this Non-opted pod doesn't become originator
-		sleepPod4Configs := k8s.SleepPodConfig{Name: "sleepjob4", NS: dev, Mem: 2500, Time: 600, Optedout: true, UID: types.UID("ddd")}
-		sleepPod5Configs := k8s.SleepPodConfig{Name: "sleepjob5", NS: dev, Mem: 2500, Time: 600, Optedout: false}
-		sleepPod6Configs := k8s.SleepPodConfig{Name: "sleepjob6", NS: dev, Mem: 2500, Time: 600, Optedout: false}
-		sleepPod7Configs := k8s.SleepPodConfig{Name: "sleepjob7", NS: dev, Mem: 2500, Time: 600, RequiredNode: "yk8s-worker2"}
+		sleepPod4Configs := k8s.SleepPodConfig{Name: "sleepjob4", NS: dev, Mem: sleepPodMemLimit2, Time: 600, Optedout: true, UID: types.UID("ddd")}
+		sleepPod5Configs := k8s.SleepPodConfig{Name: "sleepjob5", NS: dev, Mem: sleepPodMemLimit2, Time: 600, Optedout: false}
+		sleepPod6Configs := k8s.SleepPodConfig{Name: "sleepjob6", NS: dev, Mem: sleepPodMemLimit2, Time: 600, Optedout: false}
+		sleepPod7Configs := k8s.SleepPodConfig{Name: "sleepjob7", NS: dev, Mem: sleepPodMemLimit2, Time: 600, RequiredNode: "yk8s-worker2"}
 
 		for _, config := range []k8s.SleepPodConfig{sleepPodConfigs, sleepPod2Configs,
 			sleepPod3Configs, sleepPod4Configs, sleepPod5Configs, sleepPod6Configs} {
@@ -178,5 +221,15 @@ var _ = ginkgo.Describe("SimplePreemptor", func() {
 		ginkgo.By("Tearing down namespace: " + ns.Name)
 		err = kClient.TearDownNamespace(ns.Name)
 		Ω(err).NotTo(gomega.HaveOccurred())
+
+		ginkgo.By("Restoring the old config maps")
+		var c, err1 = kClient.GetConfigMaps(configmanager.YuniKornTestConfig.YkNamespace,
+			configmanager.DefaultYuniKornConfigMap)
+		Ω(err1).NotTo(gomega.HaveOccurred())
+		Ω(c).NotTo(gomega.BeNil())
+		c.Data = oldConfigMap.Data
+		var e, err3 = kClient.UpdateConfigMap(c, configmanager.YuniKornTestConfig.YkNamespace)
+		Ω(err3).NotTo(gomega.HaveOccurred())
+		Ω(e).NotTo(gomega.BeNil())
 	})
 })
