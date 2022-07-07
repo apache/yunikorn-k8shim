@@ -446,13 +446,13 @@ func (k *KubeCtl) isPodNotInNS(podName string, namespace string) wait.ConditionF
 func (k *KubeCtl) isPodEventTriggered(namespace string, podName string, expectedReason string) wait.ConditionFunc {
 	return func() (bool, error) {
 		events, err := k.clientSet.CoreV1().Events(namespace).List(context.TODO(), metav1.ListOptions{})
-		if err == nil {
-			eventItems := events.Items
-			for _, event := range eventItems {
-				fmt.Fprintf(ginkgo.GinkgoWriter, "Failed to delete pod %s - reason is %s\n", event.InvolvedObject.Name, event.Reason)
-				if event.InvolvedObject.Name == podName && strings.Contains(event.Reason, expectedReason) {
-					return true, nil
-				}
+		if err != nil {
+			return false, err
+		}
+		eventItems := events.Items
+		for _, event := range eventItems {
+			if event.InvolvedObject.Name == podName && strings.Contains(event.Reason, expectedReason) {
+				return true, nil
 			}
 		}
 		return false, nil
