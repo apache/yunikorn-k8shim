@@ -109,9 +109,9 @@ var _ = ginkgo.Describe("SimplePreemptor", func() {
 			}
 		}
 		Worker1Res.Sub(totalPodQuantity1)
-		sleepPodMemLimit1 = int64(float64(Worker1Res.Value()/4)) / (1000 * 1000)
+		sleepPodMemLimit1 = int64(float64(Worker1Res.Value())/3.5) / (1000 * 1000)
 		Worker2Res.Sub(totalPodQuantity2)
-		sleepPodMemLimit2 = int64(float64(Worker2Res.Value()/4)) / (1000 * 1000)
+		sleepPodMemLimit2 = int64(float64(Worker2Res.Value())/3.5) / (1000 * 1000)
 	})
 
 	ginkgo.It("Verify_basic_simple_preemption. Use case: Only one pod is running and same pod has been selected as victim", func() {
