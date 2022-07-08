@@ -38,6 +38,7 @@ import (
 
 var _ = ginkgo.Describe("SimplePreemptor", func() {
 	var kClient k8s.KubeCtl
+	var restClient yunikorn.RClient
 	var ns *v1.Namespace
 	var oldConfigMap *v1.ConfigMap
 	var dev = "dev" + common.RandSeq(5)
@@ -54,6 +55,9 @@ var _ = ginkgo.Describe("SimplePreemptor", func() {
 		// Initializing kubectl client
 		kClient = k8s.KubeCtl{}
 		Ω(kClient.SetClient()).To(gomega.BeNil())
+		// Initializing rest client
+		restClient = yunikorn.RClient{}
+		Ω(restClient).NotTo(gomega.BeNil())
 
 		ginkgo.By("Enable basic scheduling config over config maps")
 		var c, err = kClient.GetConfigMaps(configmanager.YuniKornTestConfig.YkNamespace,
