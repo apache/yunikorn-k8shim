@@ -59,10 +59,14 @@ var _ = ginkgo.Describe("SimplePreemptor", func() {
 		restClient = yunikorn.RClient{}
 		Ω(restClient).NotTo(gomega.BeNil())
 
-		ginkgo.By("Enable basic scheduling config over config maps")
-		var c, err = kClient.GetConfigMaps(configmanager.YuniKornTestConfig.YkNamespace,
-			configmanager.DefaultYuniKornConfigMap)
+		ginkgo.By("Port-forward the scheduler pod")
+		var err = kClient.PortForwardYkSchedulerPod()
 		Ω(err).NotTo(gomega.HaveOccurred())
+
+		ginkgo.By("Enable basic scheduling config over config maps")
+		var c, configErr = kClient.GetConfigMaps(configmanager.YuniKornTestConfig.YkNamespace,
+			configmanager.DefaultYuniKornConfigMap)
+		Ω(configErr).NotTo(gomega.HaveOccurred())
 		Ω(c).NotTo(gomega.BeNil())
 
 		oldConfigMap = c.DeepCopy()
