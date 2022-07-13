@@ -111,10 +111,12 @@ func (c *RClient) GetSpecificQueueInfo(partition string, queueName string) (*dao
 func (c *RClient) GetHealthCheck() (dao.SchedulerHealthDAOInfo, error) {
 	req, err := c.newRequest("GET", configmanager.HealthCheckPath, nil)
 	if err != nil {
+		fmt.Println("step 1" + err.Error())
 		return dao.SchedulerHealthDAOInfo{}, err
 	}
 	healthCheck := dao.SchedulerHealthDAOInfo{}
 	_, err = c.do(req, &healthCheck)
+	fmt.Println("step 2" + err.Error())
 	return healthCheck, err
 }
 
@@ -233,7 +235,7 @@ func GetFailedHealthChecks() (string, error) {
 	var failCheck string
 	healthCheck, err := restClient.GetHealthCheck()
 	if err != nil {
-		return "", fmt.Errorf("Failed to get scheduler health check from API")
+		return "", err
 	}
 	if !healthCheck.Healthy {
 		for _, check := range healthCheck.HealthChecks {
