@@ -116,7 +116,9 @@ func (c *RClient) GetHealthCheck() (dao.SchedulerHealthDAOInfo, error) {
 	}
 	healthCheck := dao.SchedulerHealthDAOInfo{}
 	_, err = c.do(req, &healthCheck)
-	fmt.Println("step 2" + err.Error())
+	if err != nil {
+		fmt.Println("step 2" + err.Error())
+	}
 	return healthCheck, err
 }
 
