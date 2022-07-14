@@ -39,14 +39,14 @@ jobs:
         k8s: [v1.24.0, v1.23.6, v1.22.9, v1.21.10, v1.20.15]
         plugin: ['', '--plugin']
     steps:
-      - name: Set up Go
-        uses: actions/setup-go@v3
-        with:
-          go-version-file: .go_version
       - name: Checkout source code
         uses: actions/checkout@v3
         with:
           fetch-depth: 2
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version-file: .go_version
       - run: ./scripts/run-e2e-tests.sh -a "test" -n "yk8s" -v "kindest/node:${KIND_NODE_IMAGE}" --force-kind-install ${KIND_EXTRA_ARGS}
         env:
           KIND_NODE_IMAGE: ${{ matrix.k8s }}
