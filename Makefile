@@ -106,23 +106,21 @@ export GO111MODULE
 all:
 	$(MAKE) -C $(dir $(BASE_DIR)) build
 
+LINTBASE := $(shell go env GOPATH)/bin
+LINTBIN  := $(LINTBASE)/golangci-lint
+$(LINTBIN):
+	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(LINTBASE) v1.46.2
+	stat $@ > /dev/null 2>&1
+
 .PHONY: lint
 # Run lint against the previous commit for PR and branch build
 # In dev setup look at all changes on top of master
-lint:
+lint: $(LINTBIN)
 	@echo "running golangci-lint"
-	@lintBin=$$(go env GOPATH)/bin/golangci-lint ; \
-	if [ ! -f "$${lintBin}" ]; then \
-		lintBin=$$(echo ./bin/golangci-lint) ; \
-		if [ ! -f "$${lintBin}" ]; then \
-			echo "golangci-lint executable not found" ; \
-			exit 1; \
-		fi \
-	fi ; \
 	git symbolic-ref -q HEAD && REV="origin/HEAD" || REV="HEAD^" ; \
 	headSHA=$$(git rev-parse --short=12 $${REV}) ; \
 	echo "checking against commit sha $${headSHA}" ; \
-	$${lintBin} run --new-from-rev=$${headSHA}
+	${LINTBIN} run --new-from-rev=$${headSHA}
 
 .PHONY: license-check
 # This is a bit convoluted but using a recursive grep on linux fails to write anything when run
