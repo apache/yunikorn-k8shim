@@ -18,33 +18,37 @@
 ARG ARCH=
 FROM ${ARCH}alpine:latest
 
+# Home location for all data and executables
+ENV HOME=/opt/yunikorn
+
+# config for the scheduler
+ENV CLUSTER_ID="mycluster"
+ENV CLUSTER_VERSION="latest"
+ENV POLICY_GROUP="queues"
+ENV SCHEDULING_INTERVAL="1s"
+ENV LOG_LEVEL="0"
+ENV LOG_ENCODING="console"
+ENV VOLUME_BINDING_TIMEOUT="10s"
+ENV EVENT_CHANNEL_CAPACITY="1048576"
+ENV DISPATCHER_TIMEOUT="300s"
+ENV KUBE_CLIENT_QPS="1000"
+ENV KUBE_CLIENT_BURST="1000"
+ENV OPERATOR_PLUGINS="general"
+ENV ENABLE_CONFIG_HOT_REFRESH="true"
+ENV DISABLE_GANG_SCHEDULING="false"
+ENV USER_LABEL_KEY="yunikorn.apache.org/username"
+ENV PLACEHOLDER_IMAGE="k8s.gcr.io/pause"
+
+# Always run everything as yunikorn
 RUN addgroup -S -g 4444 yunikorn && \
-    adduser -S -h /opt/yunikorn/work -G yunikorn -u 4444 yunikorn -s /bin/sh && \
-    mkdir -p /opt/yunikorn/bin /opt/yunikorn/work && \
-    chown -R yunikorn:yunikorn /opt/yunikorn/work && \
-    chmod 755 /opt/yunikorn/work
+    adduser -S -h $HOME -G yunikorn -u 4444 yunikorn -s /bin/sh && \
+    mkdir -p $HOME && \
+    chown -R 4444:0 $HOME && \
+    chmod -R g=u $HOME
 
-ADD k8s_yunikorn_scheduler /opt/yunikorn/bin/k8s_yunikorn_scheduler
-ADD start-yunikorn.sh /opt/yunikorn/bin/start-yunikorn.sh
-RUN chmod 755 /opt/yunikorn/bin/*
+COPY --chown=4444:0 k8s_yunikorn_scheduler $HOME/bin/
+COPY --chown=4444:0 start-yunikorn.sh $HOME/bin/
 
-ENV CLUSTER_ID "mycluster"
-ENV CLUSTER_VERSION "latest"
-ENV POLICY_GROUP "queues"
-ENV SCHEDULING_INTERVAL "1s"
-ENV LOG_LEVEL "0"
-ENV LOG_ENCODING "console"
-ENV VOLUME_BINDING_TIMEOUT "10s"
-ENV EVENT_CHANNEL_CAPACITY "1048576"
-ENV DISPATCHER_TIMEOUT "300s"
-ENV KUBE_CLIENT_QPS "1000"
-ENV KUBE_CLIENT_BURST "1000"
-ENV OPERATOR_PLUGINS "general"
-ENV ENABLE_CONFIG_HOT_REFRESH "true"
-ENV DISABLE_GANG_SCHEDULING "false"
-ENV USER_LABEL_KEY "yunikorn.apache.org/username"
-ENV PLACEHOLDER_IMAGE "k8s.gcr.io/pause"
-
-WORKDIR /opt/yunikorn/work
+WORKDIR $HOME
 USER yunikorn
-ENTRYPOINT /opt/yunikorn/bin/start-yunikorn.sh
+ENTRYPOINT $HOME/bin/start-yunikorn.sh

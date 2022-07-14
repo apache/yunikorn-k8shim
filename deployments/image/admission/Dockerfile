@@ -18,16 +18,18 @@
 ARG ARCH=
 FROM ${ARCH}alpine:latest
 
+# Home location for all data and configs
+ENV HOME=/opt/yunikorn
+
+# Always run everything as yunikorn
 RUN addgroup -S -g 4444 yunikorn && \
-    adduser -S -h /opt/yunikorn/work -G yunikorn -u 4444 yunikorn -s /bin/sh && \
-    mkdir -p /opt/yunikorn/bin /opt/yunikorn/work && \
-    chown -R yunikorn:yunikorn /opt/yunikorn/work && \
-    chmod 755 /opt/yunikorn/work
+    adduser -S -h $HOME -G yunikorn -u 4444 yunikorn -s /bin/sh && \
+    mkdir -p $HOME && \
+    chown -R 4444:0 $HOME && \
+    chmod -R g=u $HOME
 
-ADD scheduler-admission-controller /opt/yunikorn/bin/scheduler-admission-controller
+COPY --chown=4444:0 scheduler-admission-controller $HOME/bin/
 
-RUN chmod 755 /opt/yunikorn/bin/scheduler-admission-controller
-
-WORKDIR /opt/yunikorn/work
+WORKDIR $HOME
 USER yunikorn
-ENTRYPOINT /opt/yunikorn/bin/scheduler-admission-controller
+ENTRYPOINT $HOME/bin/scheduler-admission-controller
