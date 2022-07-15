@@ -40,14 +40,14 @@ ENV USER_LABEL_KEY="yunikorn.apache.org/username"
 ENV PLACEHOLDER_IMAGE="k8s.gcr.io/pause"
 
 # Always run everything as yunikorn
-RUN addgroup -S -g 4444 yunikorn && \
+RUN mkdir -p $HOME && \
+    addgroup -S -g 4444 yunikorn && \
     adduser -S -h $HOME -G yunikorn -u 4444 yunikorn -s /bin/sh && \
-    mkdir -p $HOME && \
     chown -R 4444:0 $HOME && \
     chmod -R g=u $HOME
 
-COPY --chown=4444:0 k8s_yunikorn_scheduler $HOME/bin/
 COPY --chown=4444:0 start-yunikorn.sh $HOME/bin/
+COPY --chown=4444:0 k8s_yunikorn_scheduler $HOME/bin/
 
 WORKDIR $HOME
 USER yunikorn

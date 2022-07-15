@@ -22,9 +22,9 @@ FROM ${ARCH}alpine:latest
 ENV HOME=/opt/yunikorn
 
 # Always run everything as yunikorn
-RUN addgroup -S -g 4444 yunikorn && \
+RUN mkdir -p $HOME && \
+    addgroup -S -g 4444 yunikorn && \
     adduser -S -h $HOME -G yunikorn -u 4444 yunikorn -s /bin/sh && \
-    mkdir -p $HOME && \
     chown -R 4444:0 $HOME && \
     chmod -R g=u $HOME
 

@@ -43,15 +43,15 @@ ENV VERBOSITY="2"
 ENV SCHEDULER_NAME="yunikorn"
 ENV PLACEHOLDER_IMAGE="k8s.gcr.io/pause"
 
-RUN addgroup -S -g 4444 yunikorn && \
+RUN mkdir -p $HOME && \
+    addgroup -S -g 4444 yunikorn && \
     adduser -S -h $HOME -G yunikorn -u 4444 yunikorn -s /bin/sh && \
-    mkdir -p $HOME && \
     chown -R 4444:0 $HOME && \
     chmod -R g=u $HOME
 
-COPY --chown=4444:0 kube-scheduler $HOME/bin/
 COPY --chown=4444:0 start-yunikorn-plugin.sh $HOME/bin/
 COPY --chown=4444:0 scheduler-config.yaml $HOME/
+COPY --chown=4444:0 kube-scheduler $HOME/bin/
 
 WORKDIR $HOME
 USER yunikorn
