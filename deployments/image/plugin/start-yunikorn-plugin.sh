@@ -16,8 +16,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-cd /opt/yunikorn/work
-exec /opt/yunikorn/bin/kube-scheduler \
+cd ${HOME}
+exec ${HOME}/bin/kube-scheduler \
   --address="${ADDRESS}" \
   --leader-elect="${LEADER_ELECT}" \
   --config="${SCHEDULER_CONFIG}" \

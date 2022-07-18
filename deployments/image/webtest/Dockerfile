@@ -18,17 +18,20 @@
 ARG ARCH=
 FROM ${ARCH}nginx:1.22-alpine
 
-RUN addgroup -S -g 4444 yunikorn && \
-    adduser -S -h /opt/yunikorn/ -G yunikorn -u 4444 yunikorn -s /bin/sh && \
-    mkdir -p /opt/yunikorn/html && \
-    chown -R 4444:0 /opt/yunikorn && \
-    chmod -R g+r /opt/yunikorn
-
-COPY ./nginx/nginx.conf /opt/yunikorn/nginx.conf
-COPY ./nginx/index.html /opt/yunikorn/html/index.html
-
+# Home location for all data and configs
 ENV HOME=/opt/yunikorn
+EXPOSE 9889
+
+# Always run everything as yunikorn
+RUN mkdir -p $HOME && \
+    addgroup -S -g 4444 yunikorn && \
+    adduser -S -h $HOME -G yunikorn -u 4444 yunikorn -s /bin/sh && \
+    chown -R 4444:0 $HOME && \
+    chmod -R g=u $HOME
+
+COPY --chown=4444:0 ./nginx/nginx.conf $HOME/
+COPY --chown=4444:0 ./nginx/index.html $HOME/html/
+
 WORKDIR $HOME
 USER yunikorn
-EXPOSE 9889
-ENTRYPOINT [ "nginx", "-c", "/opt/yunikorn/nginx.conf"]
+ENTRYPOINT nginx -c $HOME/nginx.conf

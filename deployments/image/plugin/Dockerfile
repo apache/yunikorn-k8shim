@@ -18,38 +18,41 @@
 ARG ARCH=
 FROM ${ARCH}alpine:latest
 
-RUN addgroup -S -g 4444 yunikorn && \
-    adduser -S -h /opt/yunikorn/work -G yunikorn -u 4444 yunikorn -s /bin/sh && \
-    mkdir -p /opt/yunikorn/bin /opt/yunikorn/work && \
-    chown -R yunikorn:yunikorn /opt/yunikorn/work && \
-    chmod 755 /opt/yunikorn/work
+# Home location for all data and executables
+ENV HOME=/opt/yunikorn
 
-ADD kube-scheduler /opt/yunikorn/bin/kube-scheduler
-ADD start-yunikorn-plugin.sh /opt/yunikorn/bin/start-yunikorn-plugin.sh
-ADD scheduler-config.yaml /opt/yunikorn/work/scheduler-config.yaml
-RUN chmod 755 /opt/yunikorn/bin/*
+# config for the scheduler
+ENV CLUSTER_ID="mycluster"
+ENV CLUSTER_VERSION="latest"
+ENV POLICY_GROUP="queues"
+ENV SCHEDULING_INTERVAL="1s"
+ENV LOG_LEVEL="0"
+ENV LOG_ENCODING="console"
+ENV EVENT_CHANNEL_CAPACITY="1048576"
+ENV DISPATCHER_TIMEOUT="300s"
+ENV KUBE_CLIENT_QPS="1000"
+ENV KUBE_CLIENT_BURST="1000"
+ENV OPERATOR_PLUGINS="general"
+ENV ENABLE_CONFIG_HOT_REFRESH="true"
+ENV DISABLE_GANG_SCHEDULING="false"
+ENV USER_LABEL_KEY="yunikorn.apache.org/username"
+ENV ADDRESS="0.0.0.0"
+ENV LEADER_ELECT="false"
+ENV SCHEDULER_CONFIG="scheduler-config.yaml"
+ENV VERBOSITY="2"
+ENV SCHEDULER_NAME="yunikorn"
+ENV PLACEHOLDER_IMAGE="k8s.gcr.io/pause"
 
-ENV CLUSTER_ID "mycluster"
-ENV CLUSTER_VERSION "latest"
-ENV POLICY_GROUP "queues"
-ENV SCHEDULING_INTERVAL "1s"
-ENV LOG_LEVEL "0"
-ENV LOG_ENCODING "console"
-ENV EVENT_CHANNEL_CAPACITY "1048576"
-ENV DISPATCHER_TIMEOUT "300s"
-ENV KUBE_CLIENT_QPS "1000"
-ENV KUBE_CLIENT_BURST "1000"
-ENV OPERATOR_PLUGINS "general"
-ENV ENABLE_CONFIG_HOT_REFRESH "true"
-ENV DISABLE_GANG_SCHEDULING "false"
-ENV USER_LABEL_KEY "yunikorn.apache.org/username"
-ENV ADDRESS "0.0.0.0"
-ENV LEADER_ELECT "false"
-ENV SCHEDULER_CONFIG "scheduler-config.yaml"
-ENV VERBOSITY "2"
-ENV SCHEDULER_NAME "yunikorn"
-ENV PLACEHOLDER_IMAGE "k8s.gcr.io/pause"
+RUN mkdir -p $HOME && \
+    addgroup -S -g 4444 yunikorn && \
+    adduser -S -h $HOME -G yunikorn -u 4444 yunikorn -s /bin/sh && \
+    chown -R 4444:0 $HOME && \
+    chmod -R g=u $HOME
 
-WORKDIR /opt/yunikorn/work
+COPY --chown=4444:0 start-yunikorn-plugin.sh $HOME/bin/
+COPY --chown=4444:0 scheduler-config.yaml $HOME/
+COPY --chown=4444:0 kube-scheduler $HOME/bin/
+
+WORKDIR $HOME
 USER yunikorn
-ENTRYPOINT /opt/yunikorn/bin/start-yunikorn-plugin.sh
+ENTRYPOINT $HOME/bin/start-yunikorn-plugin.sh

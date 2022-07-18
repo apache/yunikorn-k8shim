@@ -17,7 +17,12 @@
 
 ARG ARCH=
 FROM ${ARCH}alpine:latest
-WORKDIR /gang/server
-ADD . /gang/server
+
+# Home location for all data and executables
+ENV HOME=/opt/yunikorn
 EXPOSE 8863
+
+COPY simulation-gang-coordinator $HOME/
+
+WORKDIR $HOME
 ENTRYPOINT ["./simulation-gang-coordinator"]
