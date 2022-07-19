@@ -442,6 +442,27 @@ func (k *KubeCtl) isPodNotInNS(podName string, namespace string) wait.ConditionF
 	}
 }
 
+// return a condition function that indicates whether the given pod has received the expected event
+func (k *KubeCtl) isPodEventTriggered(namespace string, podName string, expectedReason string) wait.ConditionFunc {
+	return func() (bool, error) {
+		events, err := k.clientSet.CoreV1().Events(namespace).List(context.TODO(), metav1.ListOptions{})
+		if err != nil {
+			return false, err
+		}
+		eventItems := events.Items
+		for _, event := range eventItems {
+			if event.InvolvedObject.Name == podName && strings.Contains(event.Reason, expectedReason) {
+				return true, nil
+			}
+		}
+		return false, nil
+	}
+}
+
+func (k *KubeCtl) WaitForPodEvent(namespace string, podName string, expectedReason string, timeout time.Duration) error {
+	return wait.PollImmediate(time.Second, timeout, k.isPodEventTriggered(namespace, podName, expectedReason))
+}
+
 func (k *KubeCtl) WaitForPodTerminated(namespace string, podName string, timeout time.Duration) error {
 	return wait.PollImmediate(time.Second, timeout, k.isPodNotInNS(podName, namespace))
 }
@@ -742,4 +763,8 @@ func ApplyYamlWithKubectl(path, namespace string) error {
 		return fmt.Errorf("apply fail with %s", errStr)
 	}
 	return nil
+}
+
+func (k *KubeCtl) GetNodes() (*v1.NodeList, error) {
+	return k.clientSet.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 }

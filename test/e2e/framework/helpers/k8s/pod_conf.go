@@ -22,21 +22,26 @@ import (
 	"encoding/json"
 	"strconv"
 
-	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
-	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
-
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+
+	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 )
 
 type SleepPodConfig struct {
-	Name  string
-	NS    string
-	AppID string
-	Time  int
-	CPU   int64
-	Mem   int64
+	Name         string
+	NS           string
+	AppID        string
+	Time         int
+	CPU          int64
+	Mem          int64
+	RequiredNode string
+	Optedout     bool
+	UID          types.UID
 }
 
 // TestPodConfig template for  sleepPods
@@ -58,14 +63,51 @@ func InitSleepPod(conf SleepPodConfig) (*v1.Pod, error) {
 		conf.Mem = 50
 	}
 
+	var owners []metav1.OwnerReference
+	affinity := &v1.Affinity{}
+	if conf.RequiredNode != "" {
+		owner := metav1.OwnerReference{APIVersion: "v1", Kind: constants.DaemonSetType, Name: "daemonset job", UID: "daemonset"}
+		owners = []metav1.OwnerReference{owner}
+
+		requirement := v1.NodeSelectorRequirement{
+			Key:      "metadata.name",
+			Operator: v1.NodeSelectorOpIn,
+			Values:   []string{conf.RequiredNode},
+		}
+		fields := []v1.NodeSelectorRequirement{requirement}
+		terms := []v1.NodeSelectorTerm{
+			{
+				MatchFields: fields,
+			},
+		}
+		affinity = &v1.Affinity{
+			NodeAffinity: &v1.NodeAffinity{
+				RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+					NodeSelectorTerms: terms,
+				},
+			},
+		}
+	}
+
+	if conf.UID != "" {
+		owner := metav1.OwnerReference{APIVersion: "v1", Kind: "ReplicaSet", Name: "ReplicaSetJob", UID: conf.UID}
+		owners = []metav1.OwnerReference{owner}
+	}
+
+	optedOut := "true"
+	if !conf.Optedout {
+		optedOut = "false"
+	}
+
 	testPodConfig := TestPodConfig{
 		Name:          conf.Name,
 		Namespace:     conf.NS,
 		RestartPolicy: v1.RestartPolicyNever,
 		Command:       []string{"sleep", strconv.Itoa(conf.Time)},
 		Labels: map[string]string{
-			"app":           "sleep",
-			"applicationId": conf.AppID,
+			"app":                                  "sleep",
+			"applicationId":                        conf.AppID,
+			"yunikorn.apache.org/allow-preemption": optedOut,
 		},
 		Resources: &v1.ResourceRequirements{
 			Requests: v1.ResourceList{
@@ -73,6 +115,8 @@ func InitSleepPod(conf SleepPodConfig) (*v1.Pod, error) {
 				"memory": resource.MustParse(strconv.FormatInt(conf.Mem, 10) + "M"),
 			},
 		},
+		Affinity:        affinity,
+		OwnerReferences: owners,
 	}
 
 	return InitTestPod(testPodConfig)
