@@ -16,8 +16,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-cd ${HOME}
-exec ${HOME}/bin/k8s_yunikorn_scheduler \
+cd "${HOME}" || exit
+exec "${HOME}"/bin/k8s_yunikorn_scheduler \
   -clusterId="${CLUSTER_ID}" \
   -clusterVersion="${CLUSTER_VERSION}" \
   -policyGroup="${POLICY_GROUP}" \

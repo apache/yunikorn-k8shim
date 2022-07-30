@@ -24,7 +24,7 @@ set -o nounset
 set -o pipefail
 
 # check parameter is integer or not
-if ([ "$1" -gt 0 ] && [ "$2" -gt 0 ] && [ "$3" -gt 0 ]) 2>/dev/null
+if { [ "$1" -gt 0 ] && [ "$2" -gt 0 ] && [ "$3" -gt 0 ]; } 2>/dev/null
 then
     JOBAMOUNT=$1
     GANGMEMBER=$2
@@ -39,7 +39,7 @@ TIMEOUT=0
 # create service and job counter web server
 WORKDIR=$(cd "$(dirname "$0")/../"; pwd)
 if [[ -f $WORKDIR/gang-coordinator.yaml ]]; then
-  kubectl apply -f $WORKDIR/gang-coordinator.yaml
+  kubectl apply -f "$WORKDIR"/gang-coordinator.yaml
 else
   echo "ERROR: gang-coordinator.yaml is not found in path $WORKDIR"
   exit
@@ -48,10 +48,10 @@ fi
 # wait for web server to be running
 until grep -q 'Running' <(kubectl get pod gangweb -o=jsonpath='{.status.phase}'); do
   sleep 1
-  TIMEOUT=$(($TIMEOUT+1))
+  TIMEOUT=$((TIMEOUT + 1))
   if [ $TIMEOUT -ge 20 ]; then
     echo "ERROR: Timeout for waiting web server"
-    kubectl delete -f $WORKDIR/gang-coordinator.yaml
+    kubectl delete -f "$WORKDIR"/gang-coordinator.yaml
     exit
   fi
 done
