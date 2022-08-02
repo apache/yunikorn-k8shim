@@ -56,6 +56,9 @@ ifeq ($(VERSION),)
 VERSION := latest
 endif
 
+# Kernel (OS) Name
+OS := $(shell uname -s | tr '[:upper:]' '[:lower:]')
+
 # Allow architecture to be overwritten
 ifeq ($(HOST_ARCH),)
 HOST_ARCH := $(shell uname -m)
@@ -112,6 +115,30 @@ $(LINTBIN):
 	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(LINTBASE) v1.46.2
 	stat $@ > /dev/null 2>&1
 
+.PHONY:
+SHELLCHECK_PATH := "$(BASE_DIR)shellcheck"
+SHELLCHECK_VERSION := "v0.8.0"
+SHELLCHECK_ARCHIVE := "shellcheck-$(SHELLCHECK_VERSION).$(OS).$(HOST_ARCH).tar.xz"
+install_shellcheck:
+	@if ! command -v -- "shellcheck" > /dev/null 2>&1 && [ ! -e $(SHELLCHECK_PATH) ]; then \
+		echo "shellcheck is not installed"; \
+		if [ "$(HOST_ARCH)" = "arm64" ]; then \
+			echo "arm is not supported"; \
+ 			exit 1; \
+		else \
+			echo "Installing shellcheck $(SHELLCHECK_VERSION) ..." \
+			&& curl -sSfL https://github.com/koalaman/shellcheck/releases/download/$(SHELLCHECK_VERSION)/$(SHELLCHECK_ARCHIVE) | tar -x -J --strip-components=1 shellcheck-$(SHELLCHECK_VERSION)/shellcheck \
+			&& echo "shellcheck $(SHELLCHECK_VERSION) has been installed at $(SHELLCHECK_PATH)"; \
+        fi \
+	else \
+		echo "shellcheck has been installed"; \
+	fi
+#	@if [ -e $(CHECK_SHELLCHECK) ] && [ ! -e $(SHELLCHECK_PATH) ]; then \
+#
+#	else \
+#		echo "shellcheck has been installed"; \
+#	fi
+
 .PHONY: lint
 # Run lint against the previous commit for PR and branch build
 # In dev setup look at all changes on top of master
@@ -127,7 +154,6 @@ lint: $(LINTBIN)
 # from the Makefile. That caused the pull-request license check run from the github action to
 # always pass. The syntax for find is slightly different too but that at least works in a similar
 # way on both Mac and Linux. Excluding all .git* files from the checks.
-OS := $(shell uname -s | tr '[:upper:]' '[:lower:]')
 license-check:
 	@echo "checking license headers:"
 ifeq (darwin,$(OS))
@@ -359,36 +385,15 @@ e2e_test:
 	@echo "running e2e tests"
 	cd ./test/e2e && ginkgo -r -v -timeout=2h -- -yk-namespace "yunikorn" -kube-config $(KUBECONFIG)
 
-.PHONY: install_shellcheck
-SHELLCHECK_PATH := $(BASE_DIR)scripts/shellcheck
-SHELLCHECK_VERSION := "v0.8.0"
-SHELLCHECK_ARCHIVE := "shellcheck-$(SHELLCHECK_VERSION).$(OS).$(HOST_ARCH).tar.xz"
-install_shellcheck: $(eval SHELL:=/bin/bash)
-	@if [[ ! -f $(SHELLCHECK_PATH) && "$(shell which shellcheck)" == "" ]]; then \
-		echo "shellcheck is not installed"; \
-		if [[ $(HOST_ARCH) == "arm64" ]]; then \
-        	echo "Can't find shellcheck for arm64 from https://github.com/koalaman/shellcheck/releases/$(SHELLCHECK_VERSION)"; \
-			exit 1; \
-		else \
-			echo "Installing shellcheck $(SHELLCHECK_VERSION) ..." \
-			&& set -x \
-			&& wget https://github.com/koalaman/shellcheck/releases/download/$(SHELLCHECK_VERSION)/$(SHELLCHECK_ARCHIVE) \
-			&& tar -xf $(SHELLCHECK_ARCHIVE) shellcheck-$(SHELLCHECK_VERSION)/shellcheck \
-			&& rm $(SHELLCHECK_ARCHIVE) \
-			&& mv shellcheck-$(SHELLCHECK_VERSION)/shellcheck $(SHELLCHECK_PATH) \
-			&& chmod +x $(SHELLCHECK_PATH) \
-			&& rmdir shellcheck-$(SHELLCHECK_VERSION) \
-			&& set +x \
-			&& echo "Shellcheck $(SHELLCHECK_VERSION) has been installed at $(SHELLCHECK_PATH)"; \
-		fi \
-	else \
-		echo "shellcheck has been installed"; \
-	fi
-
 # Check scripts
 .PHONY: check_scripts
 ALLSCRIPTS := $(shell find . -name '*.sh')
 check_scripts: install_shellcheck
 	@echo "running shellcheck"
-	@if ! $(shell which shellcheck) $(ALLSCRIPTS); then exit 1; fi
-	@if [ -e $(SHELLCHECK_PATH) ]; then rm $(SHELLCHECK_PATH) ; fi
+	@if command -v -- "shellcheck" > /dev/null 2>&1; then \
+		if ! shellcheck $(ALLSCRIPTS); then exit 1; fi \
+	elif [ -e $(SHELLCHECK_PATH) ]; then \
+		if ! $(SHELLCHECK_PATH) $(ALLSCRIPTS); then exit 1; fi \
+	else \
+		echo "shellcheck script is not found" && exit 1; \
+	fi
