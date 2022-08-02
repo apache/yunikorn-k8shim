@@ -124,20 +124,15 @@ install_shellcheck:
 		echo "shellcheck is not installed"; \
 		if [ "$(HOST_ARCH)" = "arm64" ]; then \
 			echo "arm is not supported"; \
- 			exit 1; \
+			exit 1; \
 		else \
 			echo "Installing shellcheck $(SHELLCHECK_VERSION) ..." \
 			&& curl -sSfL https://github.com/koalaman/shellcheck/releases/download/$(SHELLCHECK_VERSION)/$(SHELLCHECK_ARCHIVE) | tar -x -J --strip-components=1 shellcheck-$(SHELLCHECK_VERSION)/shellcheck \
 			&& echo "shellcheck $(SHELLCHECK_VERSION) has been installed at $(SHELLCHECK_PATH)"; \
-        fi \
+		fi \
 	else \
 		echo "shellcheck has been installed"; \
 	fi
-#	@if [ -e $(CHECK_SHELLCHECK) ] && [ ! -e $(SHELLCHECK_PATH) ]; then \
-#
-#	else \
-#		echo "shellcheck has been installed"; \
-#	fi
 
 .PHONY: lint
 # Run lint against the previous commit for PR and branch build
