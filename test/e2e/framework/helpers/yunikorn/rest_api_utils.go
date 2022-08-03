@@ -143,6 +143,53 @@ func (c *RClient) GetAppInfo(partition string, queueName string, appID string) (
 	return nil, fmt.Errorf("AppInfo not found: %s", appID)
 }
 
+func (c *RClient) GetRequests(partition string, queueName string, appID string) ([]interface{}, error) {
+	app, err := c.GetAppInfo(partition, queueName, appID)
+	if err != nil {
+		return nil, err
+	}
+	reqs, ok := app["requests"].([]interface{})
+	if !ok {
+		return nil, errors.New("Unable to cast requests to array")
+	}
+	return reqs, err
+}
+
+func (c *RClient) GetAllocationLog(partition string, queueName string, appID string, podName string) ([]interface{}, error) {
+	reqs, err := c.GetRequests(partition, queueName, appID)
+	if err != nil {
+		return nil, err
+	}
+	for _, reqInfo := range reqs {
+		reqMap, ok := reqInfo.(map[string]interface{})
+		if !ok {
+			return nil, errors.New("Unable to cast request to map")
+		}
+		tags, ok := reqMap["allocationTags"].(map[string]interface{})
+		if !ok {
+			return nil, errors.New("Unabel to cast allocationTags to map")
+		}
+		if tags["kubernetes.io/meta/podName"] == podName {
+			return reqMap["allocationLog"].([]interface{}), nil
+		}
+	}
+	return nil, err
+}
+
+func (c *RClient) isAllocLogPresent(partition string, queueName string, appID string, podName string) wait.ConditionFunc {
+	return func() (bool, error) {
+		log, err := c.GetAllocationLog(partition, queueName, appID, podName)
+		if err != nil {
+			return false, nil
+		}
+		return log != nil, nil
+	}
+}
+
+func (c *RClient) WaitForAllocationLog(partition string, queueName string, appID string, podName string, timeout int) error {
+	return wait.PollImmediate(time.Second, time.Duration(timeout)*time.Second, c.isAllocLogPresent(partition, queueName, appID, podName))
+}
+
 func (c *RClient) GetAppsFromSpecificQueue(partition string, queueName string) ([]map[string]interface{}, error) {
 	apps, err := c.GetApps(partition, queueName)
 	if err != nil {

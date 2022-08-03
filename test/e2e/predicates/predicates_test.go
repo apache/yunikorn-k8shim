@@ -21,7 +21,6 @@ package predicates_test
 import (
 	"fmt"
 	"reflect"
-	"strings"
 	"time"
 
 	"github.com/onsi/ginkgo"
@@ -78,20 +77,19 @@ func runTestPod(k *k8s.KubeCtl, conf k8s.SleepPodConfig) *v1.Pod {
 
 var _ = Describe("Predicates", func() {
 	var kClient k8s.KubeCtl
-	//var restClient yunikorn.RClient
+	var restClient yunikorn.RClient
 	var err error
 	var ns, anotherNS string
 	var nodeList *v1.NodeList
 	const LABELVALUE = "testing-label-value"
-	const WARNING = "Warning"
-	//var sleepRespPod *v1.Pod
+	// var sleepRespPod *v1.Pod
 
 	BeforeEach(func() {
 		// Initializing kubectl client
 		kClient = k8s.KubeCtl{}
 		Ω(kClient.SetClient()).To(BeNil())
 		// Initializing rest client
-		//restClient = yunikorn.RClient{}
+		restClient = yunikorn.RClient{}
 		nodeList = &v1.NodeList{}
 		nodeList, err = e2enode.GetReadySchedulableNodes(kClient.GetClient())
 		Ω(err).NotTo(HaveOccurred(), fmt.Sprintf("Unexpected error occurred: %v", err))
@@ -144,31 +142,25 @@ var _ = Describe("Predicates", func() {
 			},
 		}
 
-		var success bool
 		initPod, podErr := k8s.InitTestPod(conf)
 		Ω(podErr).NotTo(HaveOccurred())
-		success, err = kClient.WaitForSchedulerAfterAction(kClient.CreateTestPodAction(initPod, ns), ns, podName, false)
-		Ω(err).NotTo(HaveOccurred())
-		Ω(success).Should(BeTrue())
+		_, podErr = kClient.CreatePod(initPod, ns)
+		Ω(podErr).NotTo(HaveOccurred())
 
 		By(fmt.Sprintf("Verify pod:%s is in pending state", podName))
-		err = kClient.WaitForPodPending(ns, podName, time.Duration(60)*time.Second)
-		Ω(err).NotTo(HaveOccurred())
+		podErr = kClient.WaitForPodPending(ns, podName, time.Duration(60)*time.Second)
+		Ω(podErr).NotTo(HaveOccurred())
 
-		By("Verify the Yunikorn events: failed scheduling")
-		var events *v1.EventList
-		events, err = kClient.GetEvents(ns)
-		Ω(err).NotTo(HaveOccurred())
-		Ω(len(events.Items)).NotTo(BeZero(), "Events cant be empty")
-		for _, event := range events.Items {
-			framework.Logf("Event source is : %s", event.Source.Component)
-			if event.Source.Component == configmanager.SchedulerName && event.Type == WARNING {
-				framework.Logf("Yunikorn Event Reason: %s", event.Reason)
-				Ω(event.Reason).Should(Equal("FailedScheduling"), "Event reason mismatch")
-				framework.Logf("Yunikorn Event Message: %s", event.Message)
-				Ω(event.Message).Should(MatchRegexp("predicate is not satisfied.*didn't match Pod's node affinity"), "Event message mismatch")
-			}
-		}
+		By("Verify the YuniKorn request failed scheduling")
+
+		podErr = restClient.WaitForAllocationLog("default", "root."+ns, initPod.ObjectMeta.Labels["applicationId"], podName, 60)
+		Ω(podErr).NotTo(HaveOccurred())
+		log, podErr := restClient.GetAllocationLog("default", "root."+ns, initPod.ObjectMeta.Labels["applicationId"], podName)
+		Ω(podErr).NotTo(HaveOccurred())
+		Ω(len(log)).NotTo(BeZero(), "Log can't be empty")
+
+		Ω(log).Should(ContainElement(HaveKeyWithValue("message", MatchRegexp(".*didn't match Pod's node affinity"))),
+			"Log entry message mismatch")
 	})
 
 	/*
@@ -251,31 +243,25 @@ var _ = Describe("Predicates", func() {
 			},
 		}
 
-		var success bool
 		initPod, podErr := k8s.InitTestPod(conf)
 		Ω(podErr).NotTo(HaveOccurred())
-		success, err = kClient.WaitForSchedulerAfterAction(kClient.CreateTestPodAction(initPod, ns), ns, podName, false)
-		Ω(err).NotTo(HaveOccurred())
-		Ω(success).Should(BeTrue())
+		_, podErr = kClient.CreatePod(initPod, ns)
+		Ω(podErr).NotTo(HaveOccurred())
 
 		By(fmt.Sprintf("Verify pod:%s is in pending state", podName))
-		err = kClient.WaitForPodPending(ns, podName, time.Duration(60)*time.Second)
-		Ω(err).NotTo(HaveOccurred())
+		podErr = kClient.WaitForPodPending(ns, podName, time.Duration(60)*time.Second)
+		Ω(podErr).NotTo(HaveOccurred())
 
-		By("Verify the Yunikorn events: failed scheduling")
-		var events *v1.EventList
-		events, err = kClient.GetEvents(ns)
-		Ω(err).NotTo(HaveOccurred())
-		Ω(len(events.Items)).NotTo(BeZero(), "Events cant be empty")
-		for _, event := range events.Items {
-			framework.Logf("Event source is : %s", event.Source.Component)
-			if event.Source.Component == configmanager.SchedulerName && event.Type == WARNING {
-				framework.Logf("Yunikorn Event Reason: %s", event.Reason)
-				Ω(event.Reason).Should(Equal("FailedScheduling"), "Event reason mismatch")
-				framework.Logf("Yunikorn Event Message: %s", event.Message)
-				Ω(event.Message).Should(MatchRegexp("predicate is not satisfied.*didn't match Pod's node affinity"), "Event message mismatch")
-			}
-		}
+		By("Verify the YuniKorn request failed scheduling")
+
+		podErr = restClient.WaitForAllocationLog("default", "root."+ns, initPod.ObjectMeta.Labels["applicationId"], podName, 60)
+		Ω(podErr).NotTo(HaveOccurred())
+		log, podErr := restClient.GetAllocationLog("default", "root."+ns, initPod.ObjectMeta.Labels["applicationId"], podName)
+		Ω(podErr).NotTo(HaveOccurred())
+		Ω(len(log)).NotTo(BeZero(), "Log can't be empty")
+
+		Ω(log).Should(ContainElement(HaveKeyWithValue("message", MatchRegexp(".*didn't match Pod's node affinity"))),
+			"Log entry message mismatch")
 	})
 
 	It("Verify_Matching_NodeAffinity_Respected", func() {
@@ -410,31 +396,25 @@ var _ = Describe("Predicates", func() {
 			NodeSelector: map[string]string{labelKey: labelValue},
 		}
 
-		var success bool
 		initPod, podErr := k8s.InitTestPod(conf)
 		Ω(podErr).NotTo(HaveOccurred())
-		success, err = kClient.WaitForSchedulerAfterAction(kClient.CreateTestPodAction(initPod, ns), ns, podNameNoTolerations, false)
+		_, err := kClient.CreatePod(initPod, ns)
 		Ω(err).NotTo(HaveOccurred())
-		Ω(success).Should(BeTrue())
 
 		By(fmt.Sprintf("Verify pod:%s is in pending state", podNameNoTolerations))
 		err = kClient.WaitForPodPending(ns, podNameNoTolerations, time.Duration(60)*time.Second)
 		Ω(err).NotTo(HaveOccurred())
 
-		By("Verify the Yunikorn events: failed scheduling")
-		var events *v1.EventList
-		events, err = kClient.GetEvents(ns)
+		By("Verify the YuniKorn request failed scheduling")
+
+		err = restClient.WaitForAllocationLog("default", "root."+ns, initPod.ObjectMeta.Labels["applicationId"], podNameNoTolerations, 60)
 		Ω(err).NotTo(HaveOccurred())
-		Ω(len(events.Items)).NotTo(BeZero(), "Events cant be empty")
-		for _, event := range events.Items {
-			framework.Logf("Event source is : %s", event.Source.Component)
-			if event.Source.Component == configmanager.SchedulerName && event.Type == WARNING && !strings.Contains(event.Message, "node affinity") {
-				framework.Logf("Yunikorn Event Reason: %s", event.Reason)
-				Ω(event.Reason).Should(Equal("FailedScheduling"), "Event reason mismatch")
-				framework.Logf("Yunikorn Event Message: %s", event.Message)
-				Ω(event.Message).Should(MatchRegexp("predicate is not satisfied.*taint.*"), "Event message mismatch")
-			}
-		}
+		log, err := restClient.GetAllocationLog("default", "root."+ns, initPod.ObjectMeta.Labels["applicationId"], podNameNoTolerations)
+		Ω(err).NotTo(HaveOccurred())
+		Ω(len(log)).NotTo(BeZero(), "Log can't be empty")
+
+		Ω(log).Should(ContainElement(HaveKeyWithValue("message", MatchRegexp(".*taint.*"))),
+			"Log entry message mismatch")
 
 		// Remove taint off the node and verify the pod is scheduled on node.
 		err = controller.RemoveTaintOffNode(kClient.GetClient(), nodeName, nil, testTaint)
@@ -1064,31 +1044,25 @@ var _ = Describe("Predicates", func() {
 			},
 		}
 
-		var success bool
 		initPod, podErr = k8s.InitTestPod(conf)
 		Ω(podErr).NotTo(HaveOccurred())
-		success, err = kClient.WaitForSchedulerAfterAction(kClient.CreateTestPodAction(initPod, anotherNS), anotherNS, labelPodName2, false)
+		_, err = kClient.CreatePod(initPod, anotherNS)
 		Ω(err).NotTo(HaveOccurred())
-		Ω(success).Should(BeTrue())
 
 		By(fmt.Sprintf("Verify pod:%s is in pending state", labelPodName2))
 		err = kClient.WaitForPodPending(anotherNS, labelPodName2, time.Duration(60)*time.Second)
 		Ω(err).NotTo(HaveOccurred())
 
-		By("Verify the Yunikorn events: failed scheduling")
-		var events *v1.EventList
-		events, err = kClient.GetEvents(anotherNS)
+		By("Verify the YuniKorn request failed scheduling")
+
+		err = restClient.WaitForAllocationLog("default", "root."+anotherNS, initPod.ObjectMeta.Labels["applicationId"], labelPodName2, 60)
 		Ω(err).NotTo(HaveOccurred())
-		Ω(len(events.Items)).NotTo(BeZero(), "Events cant be empty")
-		for _, event := range events.Items {
-			framework.Logf("Event source is : %s", event.Source.Component)
-			if event.Source.Component == configmanager.SchedulerName && event.Type == WARNING && !strings.Contains(event.Message, "node affinity") {
-				framework.Logf("Yunikorn Event Reason: %s", event.Reason)
-				Ω(event.Reason).Should(Equal("FailedScheduling"), "Event reason mismatch")
-				framework.Logf("Yunikorn Event Message: %s", event.Message)
-				Ω(event.Message).Should(MatchRegexp("predicate is not satisfied.*free ports.*"), "Event message mismatch")
-			}
-		}
+		log, err := restClient.GetAllocationLog("default", "root."+anotherNS, initPod.ObjectMeta.Labels["applicationId"], labelPodName2)
+		Ω(err).NotTo(HaveOccurred())
+		Ω(len(log)).NotTo(BeZero(), "Log can't be empty")
+
+		Ω(log).Should(ContainElement(HaveKeyWithValue("message", MatchRegexp(".*free ports.*"))),
+			"Log entry message mismatch")
 	})
 
 	AfterEach(func() {

@@ -41,7 +41,6 @@ import (
 	fwruntime "k8s.io/kubernetes/pkg/scheduler/framework/runtime"
 
 	"github.com/apache/yunikorn-core/pkg/log"
-	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 )
 
 type PredicateManager interface {
@@ -75,12 +74,7 @@ func (p *predicateManagerImpl) predicatesReserve(pod *v1.Pod, node *framework.No
 func (p *predicateManagerImpl) predicatesAllocate(pod *v1.Pod, node *framework.NodeInfo) (plugin string, error error) {
 	ctx := context.Background()
 	state := framework.NewCycleState()
-	plugin, err := p.podFitsNode(ctx, state, *p.allocationPreFilters, *p.allocationFilters, pod, node)
-	if err != nil {
-		events.GetRecorder().Eventf(pod.DeepCopy(), nil, v1.EventTypeWarning,
-			"FailedScheduling", "FailedScheduling", "predicate is not satisfied, error: %s", err.Error())
-	}
-	return plugin, err
+	return p.podFitsNode(ctx, state, *p.allocationPreFilters, *p.allocationFilters, pod, node)
 }
 
 func (p *predicateManagerImpl) podFitsNode(ctx context.Context, state *framework.CycleState, preFilters []framework.PreFilterPlugin, filters []framework.FilterPlugin, pod *v1.Pod, node *framework.NodeInfo) (plugin string, error error) {
