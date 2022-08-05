@@ -272,7 +272,6 @@ func (os *Manager) GetExistingAllocation(pod *v1.Pod) *si.Allocation {
 			AllocationTags:   meta.Tags,
 			UUID:             string(pod.UID),
 			ResourcePerAlloc: common.GetPodResource(pod),
-			QueueName:        meta.QueueName,
 			NodeID:           pod.Spec.NodeName,
 			ApplicationID:    meta.ApplicationID,
 			Placeholder:      placeholder,
