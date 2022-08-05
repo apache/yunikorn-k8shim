@@ -56,6 +56,9 @@ ifeq ($(VERSION),)
 VERSION := latest
 endif
 
+# Kernel (OS) Name
+OS := $(shell uname -s | tr '[:upper:]' '[:lower:]')
+
 # Allow architecture to be overwritten
 ifeq ($(HOST_ARCH),)
 HOST_ARCH := $(shell uname -m)
@@ -112,9 +115,9 @@ $(LINTBIN):
 	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(LINTBASE) v1.46.2
 	stat $@ > /dev/null 2>&1
 
-.PHONY: lint
 # Run lint against the previous commit for PR and branch build
 # In dev setup look at all changes on top of master
+.PHONY: lint
 lint: $(LINTBIN)
 	@echo "running golangci-lint"
 	git symbolic-ref -q HEAD && REV="origin/HEAD" || REV="HEAD^" ; \
@@ -122,12 +125,42 @@ lint: $(LINTBIN)
 	echo "checking against commit sha $${headSHA}" ; \
 	${LINTBIN} run --new-from-rev=$${headSHA}
 
+.PHONY: install_shellcheck
+SHELLCHECK_PATH := "$(BASE_DIR)shellcheck"
+SHELLCHECK_VERSION := "v0.8.0"
+SHELLCHECK_ARCHIVE := "shellcheck-$(SHELLCHECK_VERSION).$(OS).$(HOST_ARCH).tar.xz"
+install_shellcheck:
+	@echo ${SHELLCHECK_PATH}
+	@if command -v "shellcheck" &> /dev/null; then \
+		exit 0 ; \
+	elif [ -x ${SHELLCHECK_PATH} ]; then \
+		exit 0 ; \
+	elif [ "${HOST_ARCH}" = "arm64" ]; then \
+		echo "Unsupported architecture 'arm64'" \
+		exit 1 ; \
+	else \
+		curl -sSfL https://github.com/koalaman/shellcheck/releases/download/${SHELLCHECK_VERSION}/${SHELLCHECK_ARCHIVE} | tar -x -J --strip-components=1 shellcheck-${SHELLCHECK_VERSION}/shellcheck ; \
+	fi
+
+# Check scripts
+.PHONY: check_scripts
+ALLSCRIPTS := $(shell find . -name '*.sh')
+check_scripts: install_shellcheck
+	@echo "running shellcheck"
+	@if command -v "shellcheck" &> /dev/null; then \
+		shellcheck ${ALLSCRIPTS} ; \
+	elif [ -x ${SHELLCHECK_PATH} ]; then \
+		${SHELLCHECK_PATH} ${ALLSCRIPTS} ; \
+	else \
+		echo "shellcheck not found: failing target" \
+		exit 1; \
+	fi
+
 .PHONY: license-check
 # This is a bit convoluted but using a recursive grep on linux fails to write anything when run
 # from the Makefile. That caused the pull-request license check run from the github action to
 # always pass. The syntax for find is slightly different too but that at least works in a similar
 # way on both Mac and Linux. Excluding all .git* files from the checks.
-OS := $(shell uname -s | tr '[:upper:]' '[:lower:]')
 license-check:
 	@echo "checking license headers:"
 ifeq (darwin,$(OS))

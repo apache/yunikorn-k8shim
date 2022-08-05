@@ -18,7 +18,7 @@
 
 function check_cmd() {
   CMD=$1
-  if ! command -v ${CMD} &> /dev/null
+  if ! command -v "${CMD}" &> /dev/null
   then
     echo "command ${CMD} could not be found"
     exit 1
@@ -57,7 +57,7 @@ function check_os() {
 # check docker available and up
 function check_docker() {
   check_cmd "docker"
-  DOCKER_UP=`docker version | grep "^Server:"`
+  DOCKER_UP=$(docker version | grep "^Server:")
   if [ -z "${DOCKER_UP}" ]; then
     echo "docker daemon must be running"
     return 1
@@ -70,7 +70,7 @@ function install_kubectl() {
     check_cmd "curl"
     STABLE_RELEASE=$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)
     exit_on_error "unable to retrieve latest stable version of kubectl"
-    curl -LO https://storage.googleapis.com/kubernetes-release/release/${STABLE_RELEASE}/bin/${OS}/${EXEC_ARCH}/kubectl \
+    curl -LO https://storage.googleapis.com/kubernetes-release/release/"${STABLE_RELEASE}"/bin/"${OS}"/"${EXEC_ARCH}"/kubectl \
               && chmod +x kubectl && sudo mv kubectl /usr/local/bin/
     exit_on_error "install Kubectl failed"
   fi
@@ -83,8 +83,8 @@ function install_kind() {
     FORCE_KIND_INSTALL=true
   else
     # check kind version: v0.13.0 or later required for 1.24 tests
-    KIND_MINOR=`${KIND} version | cut -f2 -d" " | cut -f2 -d"."`
-    if [ ${KIND_MINOR} -lt 13 ]; then
+    KIND_MINOR=$(${KIND} version | cut -f2 -d" " | cut -f2 -d".")
+    if [ "${KIND_MINOR}" -lt 13 ]; then
       FORCE_KIND_INSTALL=true
       echo "kind version found is too old: force new install"
     fi
@@ -94,7 +94,7 @@ function install_kind() {
   then
     check_cmd "curl"
     curl -Lo ./kind "https://kind.sigs.k8s.io/dl/v0.14.0/kind-${OS}-${EXEC_ARCH}" \
-      && chmod +x ./kind && mv ./kind $(go env GOPATH)/bin
+      && chmod +x ./kind && mv ./kind "$(go env GOPATH)"/bin
     exit_on_error "install KIND failed"
   fi
   check_cmd "${KIND}"
@@ -107,8 +107,8 @@ function install_helm() {
     FORCE_HELM_INSTALL=true
   else
     # get the major helm version, must be v3
-    HELM_VERSION=`helm version --short | cut -f1 -d"."`
-    if [ ${HELM_VERSION} != "v3" ]; then
+    HELM_VERSION=$(helm version --short | cut -f1 -d".")
+    if [ "${HELM_VERSION}" != "v3" ]; then
       FORCE_HELM_INSTALL=true
       echo "helm version found is too old: force new install"
     fi
@@ -125,7 +125,7 @@ function install_helm() {
 
 function install_cluster() {
   echo "step 1/9: checking required configuration"
-  if [ ! -r ${KIND_CONFIG} ]; then
+  if [ ! -r "${KIND_CONFIG}" ]; then
     exit_on_error "kind config not found: ${KIND_CONFIG}"
   fi
   # use latest helm charts from the release repo to install yunikorn unless path is provided
@@ -133,7 +133,7 @@ function install_cluster() {
     check_cmd "git"
     git clone --depth 1 https://github.com/apache/yunikorn-release.git ./yunikorn-release
   fi
-  if [ ! -d ${CHART_PATH} ]; then
+  if [ ! -d "${CHART_PATH}" ]; then
     exit_on_error "helm charts not found in path: ${CHART_PATH}"
   fi
 
@@ -164,9 +164,9 @@ function install_cluster() {
 
   # create K8s cluster
   echo "step 7/9: installing K8s cluster using kind"
-  "${KIND}" create cluster --name ${CLUSTER_NAME} --image ${CLUSTER_VERSION} --config=${KIND_CONFIG}
+  "${KIND}" create cluster --name "${CLUSTER_NAME}" --image "${CLUSTER_VERSION}" --config="${KIND_CONFIG}"
   exit_on_error "install K8s cluster failed"
-  kubectl cluster-info --context kind-${CLUSTER_NAME}
+  kubectl cluster-info --context kind-"${CLUSTER_NAME}"
   exit_on_error "set K8s cluster context failed"
   kubectl create namespace yunikorn
   exit_on_error "failed to create yunikorn namespace"
@@ -175,11 +175,11 @@ function install_cluster() {
 
   # pre-load yunikorn docker images to kind
   echo "step 8/9: pre-load yunikorn images"
-  "${KIND}" load docker-image "local/yunikorn:${SCHEDULER_IMAGE}" --name ${CLUSTER_NAME}
+  "${KIND}" load docker-image "local/yunikorn:${SCHEDULER_IMAGE}" --name "${CLUSTER_NAME}"
   exit_on_error "pre-load scheduler image failed: ${SCHEDULER_IMAGE}"
-  "${KIND}" load docker-image "local/yunikorn:${ADMISSION_IMAGE}" --name ${CLUSTER_NAME}
+  "${KIND}" load docker-image "local/yunikorn:${ADMISSION_IMAGE}" --name "${CLUSTER_NAME}"
   exit_on_error "pre-load admission controller image failed: ${ADMISSION_IMAGE}"
-  "${KIND}" load docker-image "local/yunikorn:${WEBTEST_IMAGE}" --name ${CLUSTER_NAME}
+  "${KIND}" load docker-image "local/yunikorn:${WEBTEST_IMAGE}" --name "${CLUSTER_NAME}"
   exit_on_error "pre-load web image failed: ${WEBTEST_IMAGE}"
 
   echo "step 9/9: installing yunikorn"
@@ -203,12 +203,12 @@ function install_cluster() {
 function delete_cluster() {
   echo "deleting K8s cluster: ${CLUSTER_NAME}"
   install_kind
-  "${KIND}" delete cluster --name ${CLUSTER_NAME}
+  "${KIND}" delete cluster --name "${CLUSTER_NAME}"
   exit_on_error "failed to delete the cluster"
 }
 
 function print_usage() {
-  NAME=`basename "$0"`
+  NAME=$(basename "$0")
   cat <<EOF
 Usage: ${NAME} -a <action> -n <kind-cluster-name> -v <kind-node-image-version> [-p <chart-path>] [--plugin] [--force-kind-install]
   <action>                     the action to be executed, must be either "test" or "cleanup".
@@ -232,8 +232,8 @@ EOF
 
 # setup architectures and OS type
 check_cmd "make"
-eval `make arch`
-OS=`uname -s | tr '[:upper:]' '[:lower:]'`
+eval "$(make arch)"
+OS=$(uname -s | tr '[:upper:]' '[:lower:]')
 check_os
 
 KIND_CONFIG=./scripts/kind.yaml

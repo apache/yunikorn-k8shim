@@ -2,3 +2,4 @@
 _output/
 coverage.txt
 yunikorn-release
+shellcheck
