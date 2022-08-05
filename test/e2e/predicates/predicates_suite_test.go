@@ -86,3 +86,5 @@ var HaveOccurred = gomega.HaveOccurred
 var MatchRegexp = gomega.MatchRegexp
 var BeZero = gomega.BeZero
 var BeEquivalentTo = gomega.BeEquivalentTo
+var ContainElement = gomega.ContainElement
+var HaveKeyWithValue = gomega.HaveKeyWithValue
