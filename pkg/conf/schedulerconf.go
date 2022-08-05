@@ -137,46 +137,50 @@ func createConfigs() {
 }
 
 func initConfigs() *SchedulerConf {
+	conf := &SchedulerConf{
+		SchedulerName: constants.SchedulerName,
+	}
+
 	// scheduler options
-	kubeConfig := flag.String("kubeConfig", "",
+	flag.StringVar(&conf.KubeConfig, "kubeConfig", "",
 		"absolute path to the kubeconfig file")
-	schedulingInterval := flag.Duration("interval", DefaultSchedulingInterval,
+	flag.DurationVar(&conf.Interval, "interval", DefaultSchedulingInterval,
 		"scheduling interval in seconds")
-	clusterID := flag.String("clusterId", DefaultClusterID,
+	flag.StringVar(&conf.ClusterID, "clusterId", DefaultClusterID,
 		"cluster id")
-	clusterVersion := flag.String("clusterVersion", DefaultClusterVersion,
+	flag.StringVar(&conf.ClusterVersion, "clusterVersion", DefaultClusterVersion,
 		"cluster version")
-	policyGroup := flag.String("policyGroup", DefaultPolicyGroup,
+	flag.StringVar(&conf.PolicyGroup, "policyGroup", DefaultPolicyGroup,
 		"policy group")
-	volumeBindTimeout := flag.Duration("volumeBindTimeout", DefaultVolumeBindTimeout,
+	flag.DurationVar(&conf.VolumeBindTimeout, "volumeBindTimeout", DefaultVolumeBindTimeout,
 		"timeout in seconds when binding a volume")
-	eventChannelCapacity := flag.Int("eventChannelCapacity", DefaultEventChannelCapacity,
+	flag.IntVar(&conf.EventChannelCapacity, "eventChannelCapacity", DefaultEventChannelCapacity,
 		"event channel capacity of dispatcher")
-	dispatchTimeout := flag.Duration("dispatchTimeout", DefaultDispatchTimeout,
+	flag.DurationVar(&conf.DispatchTimeout, "dispatchTimeout", DefaultDispatchTimeout,
 		"timeout in seconds when dispatching an event")
-	kubeQPS := flag.Int("kubeQPS", DefaultKubeQPS,
+	flag.IntVar(&conf.KubeQPS, "kubeQPS", DefaultKubeQPS,
 		"the maximum QPS to kubernetes master from this client")
-	kubeBurst := flag.Int("kubeBurst", DefaultKubeBurst,
+	flag.IntVar(&conf.KubeBurst, "kubeBurst", DefaultKubeBurst,
 		"the maximum burst for throttle to kubernetes master from this client")
-	operatorPluginList := flag.String("operatorPlugins", "general,"+constants.AppManagerHandlerName,
+	flag.StringVar(&conf.OperatorPlugins, "operatorPlugins", "general,"+constants.AppManagerHandlerName,
 		"comma-separated list of operator plugin names, currently, only \"spark-k8s-operator\""+
 			"and"+constants.AppManagerHandlerName+"is supported.")
-	placeHolderImage := flag.String("placeHolderImage", constants.PlaceholderContainerImage,
+	flag.StringVar(&conf.PlaceHolderImage, "placeHolderImage", constants.PlaceholderContainerImage,
 		"docker image of the placeholder pod")
 
 	// logging options
-	logLevel := flag.Int("logLevel", DefaultLoggingLevel,
+	flag.IntVar(&conf.LoggingLevel, "logLevel", DefaultLoggingLevel,
 		"logging level, available range [-1, 5], from DEBUG to FATAL.")
-	encode := flag.String("logEncoding", DefaultLogEncoding,
+	flag.StringVar(&conf.LogEncoding, "logEncoding", DefaultLogEncoding,
 		"log encoding, json or console.")
-	logFile := flag.String("logFile", "",
+	flag.StringVar(&conf.LogFile, "logFile", "",
 		"absolute log file path")
-	enableConfigHotRefresh := flag.Bool("enableConfigHotRefresh", false, "Flag for enabling "+
+	flag.BoolVar(&conf.EnableConfigHotRefresh, "enableConfigHotRefresh", false, "Flag for enabling "+
 		"configuration hot-refresh. If this value is set to true, the configuration updates in the configmap will be "+
 		"automatically reloaded without restarting the scheduler.")
-	disableGangScheduling := flag.Bool("disableGangScheduling", false, "Flag for disabling "+
+	flag.BoolVar(&conf.DisableGangScheduling, "disableGangScheduling", false, "Flag for disabling "+
 		"gang scheduling. If this value is set to true, task-group metadata will be ignored by the scheduler.")
-	userLabelKey := flag.String("userLabelKey", constants.DefaultUserLabel,
+	flag.StringVar(&conf.UserLabelKey, "userLabelKey", constants.DefaultUserLabel,
 		"provide pod label key to be used to identify an user")
 
 	flag.Parse()
@@ -184,32 +188,12 @@ func initConfigs() *SchedulerConf {
 	// if log level is debug, enable klog and set its log level verbosity to 4 (represents debug level),
 	// For details refer to the Logging Conventions of klog at
 	// https://github.com/kubernetes/community/blob/master/contributors/devel/sig-instrumentation/logging.md
-	if zapcore.Level(*logLevel).Enabled(zapcore.DebugLevel) {
+	if zapcore.Level(conf.LoggingLevel).Enabled(zapcore.DebugLevel) {
 		klog.InitFlags(nil)
 		// cannot really handle the error here ignore it
 		//nolint:errcheck
 		_ = flag.Set("v", "4")
 	}
 
-	return &SchedulerConf{
-		SchedulerName:          constants.SchedulerName,
-		ClusterID:              *clusterID,
-		ClusterVersion:         *clusterVersion,
-		PolicyGroup:            *policyGroup,
-		Interval:               *schedulingInterval,
-		KubeConfig:             *kubeConfig,
-		LoggingLevel:           *logLevel,
-		LogEncoding:            *encode,
-		LogFile:                *logFile,
-		VolumeBindTimeout:      *volumeBindTimeout,
-		EventChannelCapacity:   *eventChannelCapacity,
-		DispatchTimeout:        *dispatchTimeout,
-		KubeQPS:                *kubeQPS,
-		KubeBurst:              *kubeBurst,
-		OperatorPlugins:        *operatorPluginList,
-		EnableConfigHotRefresh: *enableConfigHotRefresh,
-		DisableGangScheduling:  *disableGangScheduling,
-		UserLabelKey:           *userLabelKey,
-		PlaceHolderImage:       *placeHolderImage,
-	}
+	return conf
 }
