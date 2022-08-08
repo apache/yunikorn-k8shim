@@ -131,9 +131,9 @@ OS := $(shell uname -s | tr '[:upper:]' '[:lower:]')
 license-check:
 	@echo "checking license headers:"
 ifeq (darwin,$(OS))
-	$(shell find -E . -not -path "./.git*" -regex ".*\.(go|sh|md|yaml|yml|mod)" -exec grep -L "Licensed to the Apache Software Foundation" {} \; > LICRES)
+	$(shell find -E . -not -path "./.git*" -regex ".*\.(go|sh|md|conf|yaml|yml|html|mod)" -exec grep -L "Licensed to the Apache Software Foundation" {} \; > LICRES)
 else
-	$(shell find . -not -path "./.git*" -regex ".*\.\(go\|sh\|md\|yaml\|yml\|mod\)" -exec grep -L "Licensed to the Apache Software Foundation" {} \; > LICRES)
+	$(shell find . -not -path "./.git*" -regex ".*\.\(go\|sh\|md\|conf\|yaml\|yml\|html\|mod\)" -exec grep -L "Licensed to the Apache Software Foundation" {} \; > LICRES)
 endif
 	@if [ -s LICRES ]; then \
 		echo "following files are missing license header:" ; \
@@ -142,6 +142,7 @@ endif
 		exit 1; \
 	fi ; \
 	rm -f LICRES
+	@echo "  all OK"
 
 .PHONY: run
 run: build
