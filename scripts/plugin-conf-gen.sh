@@ -20,7 +20,7 @@
 
 KCFG=$1
 BIN=$2
-cat > ${BIN}/scheduler-config.yaml <<EOL
+cat > "${BIN}"/scheduler-config.yaml <<EOL
 apiVersion: kubescheduler.config.k8s.io/v1beta1
 kind: KubeSchedulerConfiguration
 leaderElection:

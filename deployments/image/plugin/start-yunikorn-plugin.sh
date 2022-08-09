@@ -16,8 +16,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-cd ${HOME}
-exec ${HOME}/bin/kube-scheduler \
+cd "${HOME}" || exit
+exec "${HOME}"/bin/kube-scheduler \
   --address="${ADDRESS}" \
   --leader-elect="${LEADER_ELECT}" \
   --config="${SCHEDULER_CONFIG}" \
