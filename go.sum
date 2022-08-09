@@ -85,8 +85,9 @@ github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751/go.mod h1:LOuy
 github.com/alecthomas/units v0.0.0-20151022065526-2efee857e7cf/go.mod h1:ybxpYRFXyAe+OPACYpWeL0wqObRcbAqCMya13uyzqw0=
 github.com/alecthomas/units v0.0.0-20190717042225-c3de453c63f4/go.mod h1:ybxpYRFXyAe+OPACYpWeL0wqObRcbAqCMya13uyzqw0=
 github.com/andreyvit/diff v0.0.0-20170406064948-c7f18ee00883/go.mod h1:rCTlJbsFo29Kk6CurOXKm700vrz8f0KW0JNfpkRJY/8=
-github.com/apache/yunikorn-core v0.0.0-20220628030259-fc1bdfff2a54 h1:SULjgMW0xqsXS6ijzXLNQsxMYfqGm03HvHZH0t9gEvo=
-github.com/apache/yunikorn-core v0.0.0-20220628030259-fc1bdfff2a54/go.mod h1:ZMAqWCxUthmsgOuHFd8R0OnrqTCezDasHqBc1s9ff4k=
+github.com/apache/yunikorn-core v0.0.0-20220729163128-c6faba228dcc h1:V2XSbDlP5YeRqL7yK9+zzpGHkC20vgG7ntEquBANIfA=
+github.com/apache/yunikorn-core v0.0.0-20220729163128-c6faba228dcc/go.mod h1:ZMAqWCxUthmsgOuHFd8R0OnrqTCezDasHqBc1s9ff4k=
+github.com/apache/yunikorn-scheduler-interface v0.0.0-20220610073228-3b5a637363ab/go.mod h1:Pboapmj82OLjl65yVNaKit1l0Jd1GJrSUaUVr13h68s=
 github.com/apache/yunikorn-scheduler-interface v0.0.0-20220809012126-eb6deed39f5e h1:vgYbIovYhodG+UWrmZqnPNG/vzXYnsRj8BFfvVnb+7I=
 github.com/apache/yunikorn-scheduler-interface v0.0.0-20220809012126-eb6deed39f5e/go.mod h1:Pboapmj82OLjl65yVNaKit1l0Jd1GJrSUaUVr13h68s=
 github.com/armon/circbuf v0.0.0-20150827004946-bbbad097214e/go.mod h1:3U/XgcO3hCbHZ8TKRvWD2dDTCfh9M9ya+I9JpbB7O8o=
