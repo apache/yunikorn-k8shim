@@ -43,7 +43,6 @@ func (m *MockedRecoverableAppManager) GetExistingAllocation(pod *v1.Pod) *si.All
 		UUID:             string(pod.UID),
 		ResourcePerAlloc: nil,
 		Priority:         0,
-		QueueName:        "",
 		NodeID:           pod.Spec.NodeName,
 		ApplicationID:    "",
 		PartitionName:    constants.DefaultPartition,

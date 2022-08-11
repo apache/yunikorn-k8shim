@@ -427,7 +427,6 @@ func TestGetExistingAllocation(t *testing.T) {
 	// verifies the existing allocation is correctly returned
 	alloc := am.GetExistingAllocation(pod)
 	assert.Equal(t, alloc.ApplicationID, "app00001")
-	assert.Equal(t, alloc.QueueName, "root.a")
 	assert.Equal(t, alloc.AllocationKey, string(pod.UID))
 	assert.Equal(t, alloc.UUID, string(pod.UID))
 	assert.Equal(t, alloc.NodeID, "allocated-node")

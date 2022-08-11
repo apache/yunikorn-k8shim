@@ -23,7 +23,7 @@ go 1.16
 require (
 	github.com/GoogleCloudPlatform/spark-on-k8s-operator v0.0.0-20201215015655-2e8b733f5ad0
 	github.com/apache/yunikorn-core v0.0.0-20220729163128-c6faba228dcc
-	github.com/apache/yunikorn-scheduler-interface v0.0.0-20220610073228-3b5a637363ab
+	github.com/apache/yunikorn-scheduler-interface v0.0.0-20220809012126-eb6deed39f5e
 	github.com/google/uuid v1.2.0
 	github.com/gorilla/mux v1.8.0
 	github.com/looplab/fsm v0.1.0

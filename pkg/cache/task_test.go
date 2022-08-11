@@ -588,7 +588,6 @@ func TestSimultaneousTaskCompleteAndAllocate(t *testing.T) {
 	alloc := &si.Allocation{
 		AllocationKey: string(pod1.UID),
 		UUID:          allocationUUID,
-		QueueName:     queueName,
 		NodeID:        "fake-node",
 		ApplicationID: appID,
 		PartitionName: "default",
