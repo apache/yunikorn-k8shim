@@ -128,19 +128,14 @@ func (c *RClient) GetApps(partition string, queueName string) ([]map[string]inte
 	return apps, err
 }
 
-func (c *RClient) GetAppInfo(partition string, queueName string, appID string) (map[string]interface{}, error) {
-	apps, err := c.GetApps(partition, queueName)
+func (c *RClient) GetAppInfo(partition string, queueName string, appID string) (*dao.ApplicationDAOInfo, error) {
+	req, err := c.newRequest("GET", fmt.Sprintf(configmanager.AppPath, partition, queueName, appID), nil)
 	if err != nil {
 		return nil, err
 	}
-	for _, appInfo := range apps {
-		for key, element := range appInfo {
-			if key == "applicationID" && element == appID {
-				return appInfo, nil
-			}
-		}
-	}
-	return nil, fmt.Errorf("AppInfo not found: %s", appID)
+	var app *dao.ApplicationDAOInfo
+	_, err = c.do(req, &app)
+	return app, fmt.Errorf("application not found: %s", appID)
 }
 
 func (c *RClient) GetRequests(partition string, queueName string, appID string) ([]interface{}, error) {
@@ -209,7 +204,7 @@ func (c *RClient) isAppInDesiredState(partition string, queueName string, appID 
 			return false, nil // returning nil here for wait & loop
 		}
 
-		switch appInfo["applicationState"] {
+		switch appInfo.State {
 		case state:
 			return true, nil
 		case States().Application.Rejected:
@@ -229,11 +224,10 @@ func (c *RClient) AreAllExecPodsAllotted(partition string, queueName string, app
 		if err != nil {
 			return false, err
 		}
-
-		if appInfo["allocations"] == nil {
+		if appInfo.Allocations == nil {
 			return false, fmt.Errorf(fmt.Sprintf("Allocations are not yet complete for appID: %s", appID))
 		}
-		if len(appInfo["allocations"].([]interface{})) >= execPodCount {
+		if len(appInfo.Allocations) >= execPodCount {
 			return true, nil
 		}
 		return false, nil

@@ -42,6 +42,7 @@ const (
 	PartitionsPath   = "ws/v1/partitions"
 	QueuesPath       = "ws/v1/partition/%s/queues"
 	AppsPath         = "ws/v1/partition/%s/queue/%s/applications"
+	AppPath          = "ws/v1/partition/%s/queue/%s/application/%s"
 	ClustersPath     = "ws/v1/clusters"
 	NodesPath        = "ws/v1/nodes"
 	HealthCheckPath  = "ws/v1/scheduler/healthcheck"
