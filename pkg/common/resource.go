@@ -142,6 +142,35 @@ func ParseResource(cpuStr, memStr string) *si.Resource {
 	return result.Build()
 }
 
+func GetResource(resMap map[string]string) *si.Resource {
+	result := NewResourceBuilder()
+	for resName, resValue := range resMap {
+		switch resName {
+		case v1.ResourceCPU.String():
+			if actualValue, err := resource.ParseQuantity(resValue); err == nil {
+				result.AddResource(siCommon.CPU, actualValue.MilliValue())
+			} else {
+				log.Logger().Error("failed to parse cpu resource",
+					zap.String("res name", "cpu"),
+					zap.String("res value", resValue),
+					zap.Error(err))
+				return nil
+			}
+		default:
+			if actualValue, err := resource.ParseQuantity(resValue); err == nil {
+				result.AddResource(resName, actualValue.Value())
+			} else {
+				log.Logger().Error("failed to parse resource",
+					zap.String("res name", resName),
+					zap.String("res value", resValue),
+					zap.Error(err))
+				return nil
+			}
+		}
+	}
+	return result.Build()
+}
+
 func GetTGResource(resMap map[string]resource.Quantity, members int64) *si.Resource {
 	result := NewResourceBuilder()
 	for resName, resValue := range resMap {

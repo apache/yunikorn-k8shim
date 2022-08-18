@@ -19,6 +19,7 @@
 package utils
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -115,13 +116,22 @@ func GetNamespaceQuotaFromAnnotation(namespaceObj *v1.Namespace) *si.Resource {
 	// retrieve resource quota info from annotations
 	cpuQuota := namespaceObj.Annotations["yunikorn.apache.org/namespace.max.cpu"]
 	memQuota := namespaceObj.Annotations["yunikorn.apache.org/namespace.max.memory"]
+	namespaceQuota := namespaceObj.Annotations["yunikorn.apache.org/namespace.quota"]
 
-	// no quota found
-	if cpuQuota == "" && memQuota == "" {
+	// order of annotation preference
+	// 1. namespace.quota
+	// 2. namespace.max.* (Retaining for backwards compatibility. Need to be removed in next major release)
+	if namespaceQuota != "" {
+		var namespaceQuotaMap map[string]string
+		json.Unmarshal([]byte(namespaceQuota), &namespaceQuotaMap)
+		return common.GetResource(namespaceQuotaMap)
+	} else if cpuQuota != "" || memQuota != "" {
+		log.Logger().Warn("Using deprecated namespace.max.* annotations to set cpu and/or memory for namespace.",
+			zap.String("namespace", namespaceObj.Name))
+		return common.ParseResource(cpuQuota, memQuota)
+	} else {
 		return nil
 	}
-
-	return common.ParseResource(cpuQuota, memQuota)
 }
 
 type K8sResource struct {

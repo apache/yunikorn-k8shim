@@ -76,7 +76,7 @@ func TestGetNamespaceQuotaFromAnnotation(t *testing.T) {
 				Name:      "test",
 				Namespace: "test",
 				Annotations: map[string]string{
-					"yunikorn.apache.org/namespace.max.cpu": "1",
+					"yunikorn.apache.org/namespace.quota": "{\"cpu\": \"1\"}",
 				},
 			},
 		}, common.NewResourceBuilder().
@@ -87,7 +87,7 @@ func TestGetNamespaceQuotaFromAnnotation(t *testing.T) {
 				Name:      "test",
 				Namespace: "test",
 				Annotations: map[string]string{
-					"yunikorn.apache.org/namespace.max.memory": "128M",
+					"yunikorn.apache.org/namespace.quota": "{\"memory\": \"128M\"}",
 				},
 			},
 		}, common.NewResourceBuilder().
@@ -98,31 +98,61 @@ func TestGetNamespaceQuotaFromAnnotation(t *testing.T) {
 				Name:      "test",
 				Namespace: "test",
 				Annotations: map[string]string{
-					"yunikorn.apache.org/namespace.max.cpu":    "error",
-					"yunikorn.apache.org/namespace.max.memory": "128M",
+					"yunikorn.apache.org/namespace.quota": "{\"cpu\": \"error\", \"memory\": \"128M\"}",
 				},
 			},
 		}, nil},
+		{&v1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test",
+				Namespace: "test",
+				Annotations: map[string]string{
+					"yunikorn.apache.org/namespace.quota": "{\"cpu\": \"1\", \"memory\": \"error\"}",
+				},
+			},
+		}, nil},
+		{&v1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test",
+				Namespace: "test",
+				Annotations: map[string]string{
+					"yunikorn.apache.org/namespace.quota": "{\"cpu\": \"error\", \"memory\": \"error\"}",
+				},
+			},
+		}, nil},
+
+		// Ensure order of preference for annotations has been followed using below test cases
+		{&v1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test",
+				Namespace: "test",
+				Annotations: map[string]string{
+					"yunikorn.apache.org/namespace.max.cpu":    "5",
+					"yunikorn.apache.org/namespace.max.memory": "32M",
+					"yunikorn.apache.org/namespace.quota":      "{\"cpu\": \"1\", \"memory\": \"64M\"}",
+				},
+			},
+		}, common.NewResourceBuilder().
+			AddResource(siCommon.CPU, 1000).
+			AddResource(siCommon.Memory, 64*1000*1000).
+			Build()},
 		{&v1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "test",
 				Namespace: "test",
 				Annotations: map[string]string{
 					"yunikorn.apache.org/namespace.max.cpu":    "1",
-					"yunikorn.apache.org/namespace.max.memory": "error",
+					"yunikorn.apache.org/namespace.max.memory": "64M",
+					"yunikorn.apache.org/namespace.quota":      "{\"cpu\": \"1\", \"memory\": \"64M\", \"nvidia.com/gpu\": \"1\"}",
 				},
 			},
-		}, nil},
-		{&v1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "test",
-				Namespace: "test",
-				Annotations: map[string]string{
-					"yunikorn.apache.org/namespace.max.cpu":    "error",
-					"yunikorn.apache.org/namespace.max.memory": "error",
-				},
-			},
-		}, nil},
+		}, common.NewResourceBuilder().
+			AddResource(siCommon.CPU, 1000).
+			AddResource(siCommon.Memory, 64*1000*1000).
+			AddResource("nvidia.com/gpu", 1).
+			Build()},
+
+		// Retaining the below test cases for backwards compatibility. Need to be removed in next major release
 		{&v1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "test",
@@ -135,6 +165,27 @@ func TestGetNamespaceQuotaFromAnnotation(t *testing.T) {
 		}, common.NewResourceBuilder().
 			AddResource(siCommon.CPU, 1000).
 			AddResource(siCommon.Memory, 64*1000*1000).
+			Build()},
+		{&v1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test",
+				Namespace: "test",
+				Annotations: map[string]string{
+					"yunikorn.apache.org/namespace.max.cpu":    "1",
+					"yunikorn.apache.org/namespace.max.memory": "error",
+				},
+			},
+		}, nil},
+		{&v1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test",
+				Namespace: "test",
+				Annotations: map[string]string{
+					"yunikorn.apache.org/namespace.max.cpu": "1",
+				},
+			},
+		}, common.NewResourceBuilder().
+			AddResource(siCommon.CPU, 1000).
 			Build()},
 	}
 
