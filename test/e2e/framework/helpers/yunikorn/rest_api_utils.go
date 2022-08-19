@@ -145,8 +145,10 @@ func (c *RClient) GetAllocationLog(partition string, queueName string, appID str
 	}
 
 	if len(reqs.Requests) > 0 {
-		if len(reqs.Requests[0].AllocationLog) > 0 {
-			return &reqs.Requests[0].AllocationLog[0], nil
+		for _, req := range reqs.Requests {
+			if len(req.AllocationTags) > 0 && len(req.AllocationLog) > 0 && req.AllocationTags["kubernetes.io/meta/podName"] == podName {
+				return &req.AllocationLog[0], nil
+			}
 		}
 	}
 	return nil, errors.New("allocation is empty")
