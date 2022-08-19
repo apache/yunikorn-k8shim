@@ -21,8 +21,10 @@ package stateawareappscheduling_test
 import (
 	"fmt"
 
+	"github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 
+	"github.com/apache/yunikorn-core/pkg/webservice/dao"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
@@ -34,7 +36,7 @@ var _ = Describe("FallbackTest:", func() {
 	var err error
 	var sleepRespPod *v1.Pod
 	var ns string
-	var appsInfo map[string]interface{}
+	var appsInfo *dao.ApplicationDAOInfo
 
 	BeforeEach(func() {
 		// Initializing kubectl client
@@ -67,10 +69,10 @@ var _ = Describe("FallbackTest:", func() {
 		Ω(err).NotTo(HaveOccurred())
 		Ω(appsInfo).NotTo(BeNil())
 		By(fmt.Sprintf("Verify that the sleep pod is mapped to %s queue", ns))
-		Ω(appsInfo["applicationID"]).To(Equal(sleepRespPod.ObjectMeta.Labels["applicationId"]))
-		Ω(appsInfo["queueName"]).To(ContainSubstring(sleepRespPod.ObjectMeta.Namespace))
+		Ω(appsInfo.ApplicationID).To(Equal(sleepRespPod.ObjectMeta.Labels["applicationId"]))
+		Ω(appsInfo.QueueName).To(ContainSubstring(sleepRespPod.ObjectMeta.Namespace))
 		By("Verify that the job is scheduled by YuniKorn & is in starting state")
-		Ω(appsInfo["applicationState"]).To(Equal("Starting"))
+		Ω(appsInfo.State).To(Equal("Starting"))
 		Ω("yunikorn").To(Equal(sleepRespPod.Spec.SchedulerName))
 	}, 60)
 
@@ -83,20 +85,21 @@ var _ = Describe("FallbackTest:", func() {
 
 		// Get AppInfo again to check the allocations post running state.
 		appsInfo, err = restClient.GetAppInfo("default", "root."+ns, sleepRespPod.ObjectMeta.Labels["applicationId"])
-		Ω(appsInfo["allocations"]).NotTo(BeNil())
-		allocations, ok := appsInfo["allocations"].([]interface{})[0].(map[string]interface{})
-		Ω(ok).Should(BeTrue())
-		Ω(allocations["allocationKey"]).NotTo(BeNil())
-		Ω(allocations["nodeId"]).NotTo(BeNil())
-		Ω(allocations["partition"]).NotTo(BeNil())
-		Ω(allocations["uuid"]).NotTo(BeNil())
-		Ω(allocations["applicationId"]).To(Equal(sleepRespPod.ObjectMeta.Labels["applicationId"]))
+		Ω(appsInfo.Allocations).NotTo(BeNil())
+		Ω(len(appsInfo.Allocations)).NotTo(gomega.BeZero())
+		allocation := appsInfo.Allocations[0]
+		Ω(allocation).NotTo(gomega.BeNil())
+		Ω(allocation.AllocationKey).NotTo(BeNil())
+		Ω(allocation.NodeID).NotTo(BeNil())
+		Ω(allocation.Partition).NotTo(BeNil())
+		Ω(allocation.UUID).NotTo(BeNil())
+		Ω(allocation.ApplicationID).To(Equal(sleepRespPod.ObjectMeta.Labels["applicationId"]))
 		core := sleepRespPod.Spec.Containers[0].Resources.Requests.Cpu().MilliValue()
 		mem := sleepRespPod.Spec.Containers[0].Resources.Requests.Memory().Value()
-		res, ok := allocations["resource"].(map[string]interface{})
-		Ω(ok).Should(BeTrue())
-		Ω(int64(res["memory"].(float64))).To(Equal(mem))
-		Ω(int64(res["vcore"].(float64))).To(Equal(core))
+		resMap := allocation.ResourcePerAlloc
+		Ω(len(resMap)).NotTo(gomega.BeZero())
+		Ω(resMap["memory"]).To(gomega.Equal(mem))
+		Ω(resMap["vcore"]).To(gomega.Equal(core))
 	}, 360)
 
 	AfterEach(func() {

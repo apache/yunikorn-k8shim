@@ -23,14 +23,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/onsi/ginkgo"
+	"github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
-	"github.com/onsi/ginkgo"
-	"github.com/onsi/gomega"
 )
 
 const (
@@ -120,6 +120,7 @@ var _ = ginkgo.Describe("", func() {
 		gomega.Ω(appsInfo).NotTo(gomega.BeNil())
 		ginkgo.By("Verify the pod allocation properties")
 		gomega.Ω(appsInfo).NotTo(gomega.BeNil())
+		gomega.Ω(len(appsInfo.Allocations)).NotTo(gomega.BeZero())
 		allocations := appsInfo.Allocations[0]
 		gomega.Ω(allocations).NotTo(gomega.BeNil())
 		gomega.Ω(allocations.AllocationKey).NotTo(gomega.BeNil())
@@ -130,7 +131,7 @@ var _ = ginkgo.Describe("", func() {
 		core := sleepRespPod.Spec.Containers[0].Resources.Requests.Cpu().MilliValue()
 		mem := sleepRespPod.Spec.Containers[0].Resources.Requests.Memory().Value()
 		resMap := allocations.ResourcePerAlloc
-		gomega.Ω(resMap).NotTo(gomega.BeNil())
+		gomega.Ω(len(resMap)).NotTo(gomega.BeZero())
 		gomega.Ω(resMap["memory"]).To(gomega.Equal(mem))
 		gomega.Ω(resMap["vcore"]).To(gomega.Equal(core))
 	})

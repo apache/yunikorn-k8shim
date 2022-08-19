@@ -70,7 +70,7 @@ var _ = Describe("DripFeedSchedule:", func() {
 		var appsFromQueue []map[string]interface{}
 		// Poll for apps to appear in the queue
 		err = wait.PollImmediate(time.Second, time.Duration(60)*time.Second, func() (done bool, err error) {
-			appsFromQueue, err = restClient.GetAppsFromSpecificQueue("default", "root."+ns)
+			appsFromQueue, err = restClient.GetApps("default", "root."+ns)
 			if len(appsFromQueue) == 3 {
 				return true, nil
 			}
