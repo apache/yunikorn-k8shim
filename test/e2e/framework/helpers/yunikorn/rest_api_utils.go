@@ -138,7 +138,7 @@ func (c *RClient) GetAppInfo(partition string, queueName string, appID string) (
 	return app, err
 }
 
-func (c *RClient) GetAllocationLog(partition string, queueName string, appID string, podName string) (*dao.AllocationAskLogDAOInfo, error) {
+func (c *RClient) GetAllocationLog(partition string, queueName string, appID string, podName string) ([]dao.AllocationAskLogDAOInfo, error) {
 	reqs, err := c.GetAppInfo(partition, queueName, appID)
 	if err != nil {
 		return nil, err
@@ -147,7 +147,7 @@ func (c *RClient) GetAllocationLog(partition string, queueName string, appID str
 	if len(reqs.Requests) > 0 {
 		for _, req := range reqs.Requests {
 			if len(req.AllocationTags) > 0 && len(req.AllocationLog) > 0 && req.AllocationTags["kubernetes.io/meta/podName"] == podName {
-				return &req.AllocationLog[0], nil
+				return req.AllocationLog, nil
 			}
 		}
 	}
@@ -165,7 +165,13 @@ func (c *RClient) isAllocLogPresent(partition string, queueName string, appID st
 }
 
 func (c *RClient) WaitForAllocationLog(partition string, queueName string, appID string, podName string, timeout int) error {
-	return wait.PollImmediate(time.Second, time.Duration(timeout)*time.Second, c.isAllocLogPresent(partition, queueName, appID, podName))
+	if err := wait.PollImmediate(time.Second, time.Duration(timeout)*time.Second, c.isAllocLogPresent(partition, queueName, appID, podName)); err != nil {
+		return err
+	}
+
+	// got at least one entry, wait a few seconds to ensure we get all the entries
+	time.Sleep(2 * time.Second)
+	return nil
 }
 
 func (c *RClient) isAppInDesiredState(partition string, queueName string, appID string, state string) wait.ConditionFunc {
@@ -292,4 +298,12 @@ func compareQueueTS(queuePathStr string, ts string) wait.ConditionFunc {
 // Expects queuePath to use periods as delimiters. ie "root.queueA.child"
 func WaitForQueueTS(queuePathStr string, ts string, timeout time.Duration) error {
 	return wait.PollImmediate(2*time.Second, timeout, compareQueueTS(queuePathStr, ts))
+}
+
+func AllocLogToStrings(log []dao.AllocationAskLogDAOInfo) []string {
+	result := make([]string, 0)
+	for _, entry := range log {
+		result = append(result, entry.Message)
+	}
+	return result
 }

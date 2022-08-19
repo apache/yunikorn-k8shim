@@ -157,7 +157,8 @@ var _ = Describe("Predicates", func() {
 		log, podErr := restClient.GetAllocationLog("default", "root."+ns, initPod.ObjectMeta.Labels["applicationId"], podName)
 		Ω(podErr).NotTo(HaveOccurred())
 		Ω(log).NotTo(BeNil(), "Log can't be empty")
-		Ω(log.Message).To(MatchRegexp(".*didn't match Pod's node affinity"), "Log entry message mismatch")
+		logEntries := yunikorn.AllocLogToStrings(log)
+		Ω(logEntries).To(ContainElement(MatchRegexp(".*didn't match Pod's node affinity")), "Log entry message mismatch")
 	})
 
 	/*
@@ -256,7 +257,8 @@ var _ = Describe("Predicates", func() {
 		log, podErr := restClient.GetAllocationLog("default", "root."+ns, initPod.ObjectMeta.Labels["applicationId"], podName)
 		Ω(podErr).NotTo(HaveOccurred())
 		Ω(log).NotTo(BeNil(), "Log can't be empty")
-		Ω(log.Message).To(MatchRegexp(".*didn't match Pod's node affinity"), "Log entry message mismatch")
+		logEntries := yunikorn.AllocLogToStrings(log)
+		Ω(logEntries).To(ContainElement(MatchRegexp(".*didn't match Pod's node affinity")), "Log entry message mismatch")
 	})
 
 	It("Verify_Matching_NodeAffinity_Respected", func() {
@@ -407,7 +409,8 @@ var _ = Describe("Predicates", func() {
 		log, err := restClient.GetAllocationLog("default", "root."+ns, initPod.ObjectMeta.Labels["applicationId"], podNameNoTolerations)
 		Ω(err).NotTo(HaveOccurred())
 		Ω(log).NotTo(BeNil(), "Log can't be empty")
-		Ω(log.Message).To(MatchRegexp(".*taint.*"), "Log entry message mismatch")
+		logEntries := yunikorn.AllocLogToStrings(log)
+		Ω(logEntries).To(ContainElement(MatchRegexp(".*taint.*")), "Log entry message mismatch")
 
 		// Remove taint off the node and verify the pod is scheduled on node.
 		err = controller.RemoveTaintOffNode(kClient.GetClient(), nodeName, nil, testTaint)
@@ -1053,7 +1056,8 @@ var _ = Describe("Predicates", func() {
 		log, err := restClient.GetAllocationLog("default", "root."+anotherNS, initPod.ObjectMeta.Labels["applicationId"], labelPodName2)
 		Ω(err).NotTo(HaveOccurred())
 		Ω(log).NotTo(BeNil(), "Log can't be empty")
-		Ω(log.Message).To(MatchRegexp(".*free ports.*"), "Log entry message mismatch")
+		logEntries := yunikorn.AllocLogToStrings(log)
+		Ω(logEntries).To(ContainElement(MatchRegexp(".*free ports.*")), "Log entry message mismatch")
 	})
 
 	AfterEach(func() {
