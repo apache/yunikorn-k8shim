@@ -156,10 +156,9 @@ var _ = Describe("Predicates", func() {
 		Ω(podErr).NotTo(HaveOccurred())
 		log, podErr := restClient.GetAllocationLog("default", "root."+ns, initPod.ObjectMeta.Labels["applicationId"], podName)
 		Ω(podErr).NotTo(HaveOccurred())
-		Ω(len(log)).NotTo(BeZero(), "Log can't be empty")
-
-		Ω(log).Should(ContainElement(HaveKeyWithValue("message", MatchRegexp(".*didn't match Pod's node affinity"))),
-			"Log entry message mismatch")
+		Ω(log).NotTo(BeNil(), "Log can't be empty")
+		logEntries := yunikorn.AllocLogToStrings(log)
+		Ω(logEntries).To(ContainElement(MatchRegexp(".*didn't match Pod's node affinity")), "Log entry message mismatch")
 	})
 
 	/*
@@ -257,10 +256,9 @@ var _ = Describe("Predicates", func() {
 		Ω(podErr).NotTo(HaveOccurred())
 		log, podErr := restClient.GetAllocationLog("default", "root."+ns, initPod.ObjectMeta.Labels["applicationId"], podName)
 		Ω(podErr).NotTo(HaveOccurred())
-		Ω(len(log)).NotTo(BeZero(), "Log can't be empty")
-
-		Ω(log).Should(ContainElement(HaveKeyWithValue("message", MatchRegexp(".*didn't match Pod's node affinity"))),
-			"Log entry message mismatch")
+		Ω(log).NotTo(BeNil(), "Log can't be empty")
+		logEntries := yunikorn.AllocLogToStrings(log)
+		Ω(logEntries).To(ContainElement(MatchRegexp(".*didn't match Pod's node affinity")), "Log entry message mismatch")
 	})
 
 	It("Verify_Matching_NodeAffinity_Respected", func() {
@@ -410,10 +408,9 @@ var _ = Describe("Predicates", func() {
 		Ω(err).NotTo(HaveOccurred())
 		log, err := restClient.GetAllocationLog("default", "root."+ns, initPod.ObjectMeta.Labels["applicationId"], podNameNoTolerations)
 		Ω(err).NotTo(HaveOccurred())
-		Ω(len(log)).NotTo(BeZero(), "Log can't be empty")
-
-		Ω(log).Should(ContainElement(HaveKeyWithValue("message", MatchRegexp(".*taint.*"))),
-			"Log entry message mismatch")
+		Ω(log).NotTo(BeNil(), "Log can't be empty")
+		logEntries := yunikorn.AllocLogToStrings(log)
+		Ω(logEntries).To(ContainElement(MatchRegexp(".*taint.*")), "Log entry message mismatch")
 
 		// Remove taint off the node and verify the pod is scheduled on node.
 		err = controller.RemoveTaintOffNode(kClient.GetClient(), nodeName, nil, testTaint)
@@ -1058,10 +1055,9 @@ var _ = Describe("Predicates", func() {
 		Ω(err).NotTo(HaveOccurred())
 		log, err := restClient.GetAllocationLog("default", "root."+anotherNS, initPod.ObjectMeta.Labels["applicationId"], labelPodName2)
 		Ω(err).NotTo(HaveOccurred())
-		Ω(len(log)).NotTo(BeZero(), "Log can't be empty")
-
-		Ω(log).Should(ContainElement(HaveKeyWithValue("message", MatchRegexp(".*free ports.*"))),
-			"Log entry message mismatch")
+		Ω(log).NotTo(BeNil(), "Log can't be empty")
+		logEntries := yunikorn.AllocLogToStrings(log)
+		Ω(logEntries).To(ContainElement(MatchRegexp(".*free ports.*")), "Log entry message mismatch")
 	})
 
 	AfterEach(func() {
