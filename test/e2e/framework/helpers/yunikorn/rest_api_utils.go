@@ -128,52 +128,30 @@ func (c *RClient) GetApps(partition string, queueName string) ([]map[string]inte
 	return apps, err
 }
 
-func (c *RClient) GetAppInfo(partition string, queueName string, appID string) (map[string]interface{}, error) {
-	apps, err := c.GetApps(partition, queueName)
+func (c *RClient) GetAppInfo(partition string, queueName string, appID string) (*dao.ApplicationDAOInfo, error) {
+	req, err := c.newRequest("GET", fmt.Sprintf(configmanager.AppPath, partition, queueName, appID), nil)
 	if err != nil {
 		return nil, err
 	}
-	for _, appInfo := range apps {
-		for key, element := range appInfo {
-			if key == "applicationID" && element == appID {
-				return appInfo, nil
+	var app *dao.ApplicationDAOInfo
+	_, err = c.do(req, &app)
+	return app, err
+}
+
+func (c *RClient) GetAllocationLog(partition string, queueName string, appID string, podName string) ([]dao.AllocationAskLogDAOInfo, error) {
+	reqs, err := c.GetAppInfo(partition, queueName, appID)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(reqs.Requests) > 0 {
+		for _, req := range reqs.Requests {
+			if len(req.AllocationTags) > 0 && len(req.AllocationLog) > 0 && req.AllocationTags["kubernetes.io/meta/podName"] == podName {
+				return req.AllocationLog, nil
 			}
 		}
 	}
-	return nil, fmt.Errorf("AppInfo not found: %s", appID)
-}
-
-func (c *RClient) GetRequests(partition string, queueName string, appID string) ([]interface{}, error) {
-	app, err := c.GetAppInfo(partition, queueName, appID)
-	if err != nil {
-		return nil, err
-	}
-	reqs, ok := app["requests"].([]interface{})
-	if !ok {
-		return nil, errors.New("Unable to cast requests to array")
-	}
-	return reqs, err
-}
-
-func (c *RClient) GetAllocationLog(partition string, queueName string, appID string, podName string) ([]interface{}, error) {
-	reqs, err := c.GetRequests(partition, queueName, appID)
-	if err != nil {
-		return nil, err
-	}
-	for _, reqInfo := range reqs {
-		reqMap, ok := reqInfo.(map[string]interface{})
-		if !ok {
-			return nil, errors.New("Unable to cast request to map")
-		}
-		tags, ok := reqMap["allocationTags"].(map[string]interface{})
-		if !ok {
-			return nil, errors.New("Unabel to cast allocationTags to map")
-		}
-		if tags["kubernetes.io/meta/podName"] == podName {
-			return reqMap["allocationLog"].([]interface{}), nil
-		}
-	}
-	return nil, err
+	return nil, errors.New("allocation is empty")
 }
 
 func (c *RClient) isAllocLogPresent(partition string, queueName string, appID string, podName string) wait.ConditionFunc {
@@ -187,19 +165,13 @@ func (c *RClient) isAllocLogPresent(partition string, queueName string, appID st
 }
 
 func (c *RClient) WaitForAllocationLog(partition string, queueName string, appID string, podName string, timeout int) error {
-	return wait.PollImmediate(time.Second, time.Duration(timeout)*time.Second, c.isAllocLogPresent(partition, queueName, appID, podName))
-}
+	if err := wait.PollImmediate(time.Second, time.Duration(timeout)*time.Second, c.isAllocLogPresent(partition, queueName, appID, podName)); err != nil {
+		return err
+	}
 
-func (c *RClient) GetAppsFromSpecificQueue(partition string, queueName string) ([]map[string]interface{}, error) {
-	apps, err := c.GetApps(partition, queueName)
-	if err != nil {
-		return nil, err
-	}
-	var appsOfQueue []map[string]interface{}
-	for _, appInfo := range apps {
-		appsOfQueue = append(appsOfQueue, appInfo)
-	}
-	return appsOfQueue, nil
+	// got at least one entry, wait a few seconds to ensure we get all the entries
+	time.Sleep(2 * time.Second)
+	return nil
 }
 
 func (c *RClient) isAppInDesiredState(partition string, queueName string, appID string, state string) wait.ConditionFunc {
@@ -209,7 +181,7 @@ func (c *RClient) isAppInDesiredState(partition string, queueName string, appID 
 			return false, nil // returning nil here for wait & loop
 		}
 
-		switch appInfo["applicationState"] {
+		switch appInfo.State {
 		case state:
 			return true, nil
 		case States().Application.Rejected:
@@ -229,11 +201,10 @@ func (c *RClient) AreAllExecPodsAllotted(partition string, queueName string, app
 		if err != nil {
 			return false, err
 		}
-
-		if appInfo["allocations"] == nil {
+		if appInfo.Allocations == nil {
 			return false, fmt.Errorf(fmt.Sprintf("Allocations are not yet complete for appID: %s", appID))
 		}
-		if len(appInfo["allocations"].([]interface{})) >= execPodCount {
+		if len(appInfo.Allocations) >= execPodCount {
 			return true, nil
 		}
 		return false, nil
@@ -327,4 +298,12 @@ func compareQueueTS(queuePathStr string, ts string) wait.ConditionFunc {
 // Expects queuePath to use periods as delimiters. ie "root.queueA.child"
 func WaitForQueueTS(queuePathStr string, ts string, timeout time.Duration) error {
 	return wait.PollImmediate(2*time.Second, timeout, compareQueueTS(queuePathStr, ts))
+}
+
+func AllocLogToStrings(log []dao.AllocationAskLogDAOInfo) []string {
+	result := make([]string, 0)
+	for _, entry := range log {
+		result = append(result, entry.Message)
+	}
+	return result
 }

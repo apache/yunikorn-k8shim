@@ -21,13 +21,14 @@ package basicscheduling_test
 import (
 	"time"
 
-	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
-	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
-	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
-
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
+
+	"github.com/apache/yunikorn-core/pkg/webservice/dao"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
 )
 
 var _ = ginkgo.Describe("", func() {
@@ -35,7 +36,7 @@ var _ = ginkgo.Describe("", func() {
 	var restClient yunikorn.RClient
 	var sleepRespPod *v1.Pod
 	var dev = "dev" + common.RandSeq(5)
-	var appsInfo map[string]interface{}
+	var appsInfo *dao.ApplicationDAOInfo
 	var annotation = "ann-" + common.RandSeq(10)
 	var oldConfigMap = new(v1.ConfigMap)
 
@@ -76,32 +77,33 @@ var _ = ginkgo.Describe("", func() {
 
 	ginkgo.It("Verify_App_Queue_Info", func() {
 		ginkgo.By("Verify that the sleep pod is mapped to development queue")
-		gomega.Ω(appsInfo["applicationID"]).To(gomega.Equal(sleepRespPod.ObjectMeta.Labels["applicationId"]))
-		gomega.Ω(appsInfo["queueName"]).To(gomega.ContainSubstring(sleepRespPod.ObjectMeta.Namespace))
+		gomega.Ω(appsInfo.ApplicationID).To(gomega.Equal(sleepRespPod.ObjectMeta.Labels["applicationId"]))
+		gomega.Ω(appsInfo.QueueName).To(gomega.ContainSubstring(sleepRespPod.ObjectMeta.Namespace))
 	})
 
 	ginkgo.It("Verify_Job_State", func() {
 		ginkgo.By("Verify that the job is scheduled & starting by YuniKorn")
-		gomega.Ω(appsInfo["applicationState"]).To(gomega.Equal("Starting"))
+		gomega.Ω(appsInfo.State).To(gomega.Equal("Starting"))
 		gomega.Ω("yunikorn").To(gomega.Equal(sleepRespPod.Spec.SchedulerName))
 	})
 
 	ginkgo.It("Verify_Pod_Alloc_Props", func() {
 		ginkgo.By("Verify the pod allocation properties")
-		gomega.Ω(appsInfo["allocations"]).NotTo(gomega.BeNil())
-		allocations, ok := appsInfo["allocations"].([]interface{})[0].(map[string]interface{})
-		gomega.Ω(ok).Should(gomega.BeTrue())
-		gomega.Ω(allocations["allocationKey"]).NotTo(gomega.BeNil())
-		gomega.Ω(allocations["nodeId"]).NotTo(gomega.BeNil())
-		gomega.Ω(allocations["partition"]).NotTo(gomega.BeNil())
-		gomega.Ω(allocations["uuid"]).NotTo(gomega.BeNil())
-		gomega.Ω(allocations["applicationId"]).To(gomega.Equal(sleepRespPod.ObjectMeta.Labels["applicationId"]))
+		gomega.Ω(appsInfo.Allocations).NotTo(gomega.BeNil())
+		gomega.Ω(len(appsInfo.Allocations)).NotTo(gomega.BeZero())
+		allocation := appsInfo.Allocations[0]
+		gomega.Ω(allocation).NotTo(gomega.BeNil())
+		gomega.Ω(allocation.AllocationKey).NotTo(gomega.BeNil())
+		gomega.Ω(allocation.NodeID).NotTo(gomega.BeNil())
+		gomega.Ω(allocation.Partition).NotTo(gomega.BeNil())
+		gomega.Ω(allocation.UUID).NotTo(gomega.BeNil())
+		gomega.Ω(allocation.ApplicationID).To(gomega.Equal(sleepRespPod.ObjectMeta.Labels["applicationId"]))
 		core := sleepRespPod.Spec.Containers[0].Resources.Requests.Cpu().MilliValue()
 		mem := sleepRespPod.Spec.Containers[0].Resources.Requests.Memory().Value()
-		resMap, ok := allocations["resource"].(map[string]interface{})
-		gomega.Ω(ok).Should(gomega.BeTrue())
-		gomega.Ω(int64(resMap["memory"].(float64))).To(gomega.Equal(mem))
-		gomega.Ω(int64(resMap["vcore"].(float64))).To(gomega.Equal(core))
+		resMap := allocation.ResourcePerAlloc
+		Ω(len(resMap)).NotTo(gomega.BeZero())
+		Ω(resMap["memory"]).To(gomega.Equal(mem))
+		Ω(resMap["vcore"]).To(gomega.Equal(core))
 	})
 
 	ginkgo.AfterEach(func() {

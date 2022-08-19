@@ -23,14 +23,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/onsi/ginkgo"
+	"github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
-	"github.com/onsi/ginkgo"
-	"github.com/onsi/gomega"
 )
 
 const (
@@ -119,20 +119,21 @@ var _ = ginkgo.Describe("", func() {
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		gomega.Ω(appsInfo).NotTo(gomega.BeNil())
 		ginkgo.By("Verify the pod allocation properties")
-		gomega.Ω(appsInfo["allocations"]).NotTo(gomega.BeNil())
-		allocations, ok := appsInfo["allocations"].([]interface{})[0].(map[string]interface{})
-		gomega.Ω(ok).Should(gomega.BeTrue())
-		gomega.Ω(allocations["allocationKey"]).NotTo(gomega.BeNil())
-		gomega.Ω(allocations["nodeId"]).NotTo(gomega.BeNil())
-		gomega.Ω(allocations["partition"]).NotTo(gomega.BeNil())
-		gomega.Ω(allocations["uuid"]).NotTo(gomega.BeNil())
-		gomega.Ω(allocations["applicationId"]).To(gomega.Equal(sleepRespPod.ObjectMeta.Labels["applicationId"]))
+		gomega.Ω(appsInfo).NotTo(gomega.BeNil())
+		gomega.Ω(len(appsInfo.Allocations)).NotTo(gomega.BeZero())
+		allocations := appsInfo.Allocations[0]
+		gomega.Ω(allocations).NotTo(gomega.BeNil())
+		gomega.Ω(allocations.AllocationKey).NotTo(gomega.BeNil())
+		gomega.Ω(allocations.NodeID).NotTo(gomega.BeNil())
+		gomega.Ω(allocations.Partition).NotTo(gomega.BeNil())
+		gomega.Ω(allocations.UUID).NotTo(gomega.BeNil())
+		gomega.Ω(allocations.ApplicationID).To(gomega.Equal(sleepRespPod.ObjectMeta.Labels["applicationId"]))
 		core := sleepRespPod.Spec.Containers[0].Resources.Requests.Cpu().MilliValue()
 		mem := sleepRespPod.Spec.Containers[0].Resources.Requests.Memory().Value()
-		resMap, ok := allocations["resource"].(map[string]interface{})
-		gomega.Ω(ok).Should(gomega.BeTrue())
-		gomega.Ω(int64(resMap["memory"].(float64))).To(gomega.Equal(mem))
-		gomega.Ω(int64(resMap["vcore"].(float64))).To(gomega.Equal(core))
+		resMap := allocations.ResourcePerAlloc
+		gomega.Ω(len(resMap)).NotTo(gomega.BeZero())
+		gomega.Ω(resMap["memory"]).To(gomega.Equal(mem))
+		gomega.Ω(resMap["vcore"]).To(gomega.Equal(core))
 	})
 
 	ginkgo.It("Verify_SleepJobs_Restart_YK", func() {
