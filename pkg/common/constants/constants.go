@@ -23,7 +23,6 @@ const DefaultNodeAttributeHostNameKey = "si.io/hostname"
 const DefaultNodeAttributeRackNameKey = "si.io/rackname"
 const DefaultNodeAttributeNodeLabelsKey = "si.io/nodelabels"
 const DefaultRackName = "/rack-default"
-const NodeReadyAttribute = "ready"
 
 // Application
 const LabelApp = "app"
@@ -35,16 +34,10 @@ const LabelDisableStateAware = "disableStateAware"
 const ApplicationDefaultQueue = "root.sandbox"
 const DefaultPartition = "default"
 const AppTagNamespace = "namespace"
-const AppTagNamespaceResourceQuota = "namespace.resourcequota"
 const AppTagNamespaceParentQueue = "namespace.parentqueue"
-const AppTagStateAwareDisable = "application.stateaware.disable"
 const DefaultAppNamespace = "default"
 const DefaultUserLabel = "yunikorn.apache.org/username"
 const DefaultUser = "nobody"
-
-// Resource
-const Memory = "memory"
-const CPU = "vcore"
 
 // Spark
 const SparkLabelAppID = "spark-app-selector"

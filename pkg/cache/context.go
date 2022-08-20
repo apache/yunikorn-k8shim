@@ -566,7 +566,7 @@ func (ctx *Context) updateApplicationTags(request *interfaces.AddApplicationRequ
 	resourceQuota := utils.GetNamespaceQuotaFromAnnotation(namespaceObj)
 	if resourceQuota != nil && !common.IsZero(resourceQuota) {
 		if quotaStr, err := json.Marshal(resourceQuota); err == nil {
-			request.Metadata.Tags[constants.AppTagNamespaceResourceQuota] = string(quotaStr)
+			request.Metadata.Tags[siCommon.AppTagNamespaceResourceQuota] = string(quotaStr)
 		}
 	}
 	// add parent queue info as an app tag

@@ -30,10 +30,10 @@ import (
 
 	"github.com/apache/yunikorn-k8shim/pkg/cache/external"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
-	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/test"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
+	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
 
@@ -486,15 +486,15 @@ func getUpdateNodeFunction(t *testing.T, expectedNodeID string, expectedMem int3
 			t.Fatalf("unexpected node name %s", info.NodeID)
 		}
 
-		if memory := info.SchedulableResource.Resources[constants.Memory].Value; memory != int64(expectedMem) {
+		if memory := info.SchedulableResource.Resources[siCommon.Memory].Value; memory != int64(expectedMem) {
 			t.Fatalf("unexpected node memory %d", memory)
 		}
 
-		if cpu := info.SchedulableResource.Resources[constants.CPU].Value; cpu != int64(expectedCores) {
+		if cpu := info.SchedulableResource.Resources[siCommon.CPU].Value; cpu != int64(expectedCores) {
 			t.Fatalf("unexpected node CPU %d", cpu)
 		}
 
-		if ready := info.Attributes[constants.NodeReadyAttribute]; ready != strconv.FormatBool(expectedReady) {
+		if ready := info.Attributes[siCommon.NodeReadyAttribute]; ready != strconv.FormatBool(expectedReady) {
 			t.Fatalf("unexpected node ready flag %s", ready)
 		}
 		return nil

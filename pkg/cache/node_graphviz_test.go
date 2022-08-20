@@ -29,15 +29,15 @@ import (
 	"gotest.tools/assert"
 
 	"github.com/apache/yunikorn-k8shim/pkg/common"
-	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/test"
+	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 )
 
 func TestNodeFsmGraph(t *testing.T) {
 	api := test.NewSchedulerAPIMock()
 	r1 := common.NewResourceBuilder().
-		AddResource(constants.Memory, 1).
-		AddResource(constants.CPU, 1).
+		AddResource(siCommon.Memory, 1).
+		AddResource(siCommon.CPU, 1).
 		Build()
 	node := newSchedulerNode("host001", "UID001", "{}", r1, api, false)
 	graph := fsm.Visualize(node.fsm)

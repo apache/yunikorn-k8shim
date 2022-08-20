@@ -25,8 +25,8 @@ import (
 	v1 "k8s.io/api/core/v1"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
+	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
 
@@ -85,10 +85,10 @@ func TestUpdatePod(t *testing.T) {
 		updatedNode := request.Nodes[0]
 		assert.Equal(t, updatedNode.NodeID, Host1)
 		assert.Equal(t, updatedNode.Action, si.NodeInfo_UPDATE)
-		assert.Equal(t, updatedNode.SchedulableResource.Resources[constants.Memory].Value, int64(10000*1000*1000))
-		assert.Equal(t, updatedNode.SchedulableResource.Resources[constants.CPU].Value, int64(10000))
-		assert.Equal(t, updatedNode.OccupiedResource.Resources[constants.Memory].Value, int64(1000*1000*1000))
-		assert.Equal(t, updatedNode.OccupiedResource.Resources[constants.CPU].Value, int64(500))
+		assert.Equal(t, updatedNode.SchedulableResource.Resources[siCommon.Memory].Value, int64(10000*1000*1000))
+		assert.Equal(t, updatedNode.SchedulableResource.Resources[siCommon.CPU].Value, int64(10000))
+		assert.Equal(t, updatedNode.OccupiedResource.Resources[siCommon.Memory].Value, int64(1000*1000*1000))
+		assert.Equal(t, updatedNode.OccupiedResource.Resources[siCommon.CPU].Value, int64(500))
 		return nil
 	}
 	coordinator.updatePod(pod1, pod2)
@@ -107,10 +107,10 @@ func TestUpdatePod(t *testing.T) {
 		updatedNode := request.Nodes[0]
 		assert.Equal(t, updatedNode.NodeID, Host1)
 		assert.Equal(t, updatedNode.Action, si.NodeInfo_UPDATE)
-		assert.Equal(t, updatedNode.SchedulableResource.Resources[constants.Memory].Value, int64(10000*1000*1000))
-		assert.Equal(t, updatedNode.SchedulableResource.Resources[constants.CPU].Value, int64(10000))
-		assert.Equal(t, updatedNode.OccupiedResource.Resources[constants.Memory].Value, int64(0))
-		assert.Equal(t, updatedNode.OccupiedResource.Resources[constants.CPU].Value, int64(0))
+		assert.Equal(t, updatedNode.SchedulableResource.Resources[siCommon.Memory].Value, int64(10000*1000*1000))
+		assert.Equal(t, updatedNode.SchedulableResource.Resources[siCommon.CPU].Value, int64(10000))
+		assert.Equal(t, updatedNode.OccupiedResource.Resources[siCommon.Memory].Value, int64(0))
+		assert.Equal(t, updatedNode.OccupiedResource.Resources[siCommon.CPU].Value, int64(0))
 		return nil
 	}
 	coordinator.updatePod(pod1, pod2)
@@ -141,10 +141,10 @@ func TestUpdatePod(t *testing.T) {
 		updatedNode := request.Nodes[0]
 		assert.Equal(t, updatedNode.NodeID, Host2)
 		assert.Equal(t, updatedNode.Action, si.NodeInfo_UPDATE)
-		assert.Equal(t, updatedNode.SchedulableResource.Resources[constants.Memory].Value, int64(10000*1000*1000))
-		assert.Equal(t, updatedNode.SchedulableResource.Resources[constants.CPU].Value, int64(10000))
-		assert.Equal(t, updatedNode.OccupiedResource.Resources[constants.Memory].Value, int64(1000*1000*1000))
-		assert.Equal(t, updatedNode.OccupiedResource.Resources[constants.CPU].Value, int64(500))
+		assert.Equal(t, updatedNode.SchedulableResource.Resources[siCommon.Memory].Value, int64(10000*1000*1000))
+		assert.Equal(t, updatedNode.SchedulableResource.Resources[siCommon.CPU].Value, int64(10000))
+		assert.Equal(t, updatedNode.OccupiedResource.Resources[siCommon.Memory].Value, int64(1000*1000*1000))
+		assert.Equal(t, updatedNode.OccupiedResource.Resources[siCommon.CPU].Value, int64(500))
 		return nil
 	}
 	coordinator.updatePod(pod1, pod2)
@@ -163,10 +163,10 @@ func TestUpdatePod(t *testing.T) {
 		updatedNode := request.Nodes[0]
 		assert.Equal(t, updatedNode.NodeID, Host2)
 		assert.Equal(t, updatedNode.Action, si.NodeInfo_UPDATE)
-		assert.Equal(t, updatedNode.SchedulableResource.Resources[constants.Memory].Value, int64(10000*1000*1000))
-		assert.Equal(t, updatedNode.SchedulableResource.Resources[constants.CPU].Value, int64(10000))
-		assert.Equal(t, updatedNode.OccupiedResource.Resources[constants.Memory].Value, int64(0))
-		assert.Equal(t, updatedNode.OccupiedResource.Resources[constants.CPU].Value, int64(0))
+		assert.Equal(t, updatedNode.SchedulableResource.Resources[siCommon.Memory].Value, int64(10000*1000*1000))
+		assert.Equal(t, updatedNode.SchedulableResource.Resources[siCommon.CPU].Value, int64(10000))
+		assert.Equal(t, updatedNode.OccupiedResource.Resources[siCommon.Memory].Value, int64(0))
+		assert.Equal(t, updatedNode.OccupiedResource.Resources[siCommon.CPU].Value, int64(0))
 		return nil
 	}
 	coordinator.updatePod(pod1, pod2)
@@ -207,10 +207,10 @@ func TestDeletePod(t *testing.T) {
 		updatedNode := request.Nodes[0]
 		assert.Equal(t, updatedNode.NodeID, Host1)
 		assert.Equal(t, updatedNode.Action, si.NodeInfo_UPDATE)
-		assert.Equal(t, updatedNode.SchedulableResource.Resources[constants.Memory].Value, int64(10000*1000*1000))
-		assert.Equal(t, updatedNode.SchedulableResource.Resources[constants.CPU].Value, int64(10000))
-		assert.Equal(t, updatedNode.OccupiedResource.Resources[constants.Memory].Value, int64(1000*1000*1000))
-		assert.Equal(t, updatedNode.OccupiedResource.Resources[constants.CPU].Value, int64(500))
+		assert.Equal(t, updatedNode.SchedulableResource.Resources[siCommon.Memory].Value, int64(10000*1000*1000))
+		assert.Equal(t, updatedNode.SchedulableResource.Resources[siCommon.CPU].Value, int64(10000))
+		assert.Equal(t, updatedNode.OccupiedResource.Resources[siCommon.Memory].Value, int64(1000*1000*1000))
+		assert.Equal(t, updatedNode.OccupiedResource.Resources[siCommon.CPU].Value, int64(500))
 		return nil
 	}
 	coordinator.updatePod(pod1, pod2)
@@ -224,10 +224,10 @@ func TestDeletePod(t *testing.T) {
 		updatedNode := request.Nodes[0]
 		assert.Equal(t, updatedNode.NodeID, Host1)
 		assert.Equal(t, updatedNode.Action, si.NodeInfo_UPDATE)
-		assert.Equal(t, updatedNode.SchedulableResource.Resources[constants.Memory].Value, int64(10000))
-		assert.Equal(t, updatedNode.SchedulableResource.Resources[constants.CPU].Value, int64(10000))
-		assert.Equal(t, updatedNode.OccupiedResource.Resources[constants.Memory].Value, int64(0))
-		assert.Equal(t, updatedNode.OccupiedResource.Resources[constants.CPU].Value, int64(0))
+		assert.Equal(t, updatedNode.SchedulableResource.Resources[siCommon.Memory].Value, int64(10000))
+		assert.Equal(t, updatedNode.SchedulableResource.Resources[siCommon.CPU].Value, int64(10000))
+		assert.Equal(t, updatedNode.OccupiedResource.Resources[siCommon.Memory].Value, int64(0))
+		assert.Equal(t, updatedNode.OccupiedResource.Resources[siCommon.CPU].Value, int64(0))
 		return nil
 	}
 	coordinator.deletePod(pod1)
@@ -255,10 +255,10 @@ func TestDeleteTerminatedPod(t *testing.T) {
 		updatedNode := request.Nodes[0]
 		assert.Equal(t, updatedNode.NodeID, Host1)
 		assert.Equal(t, updatedNode.Action, si.NodeInfo_UPDATE)
-		assert.Equal(t, updatedNode.SchedulableResource.Resources[constants.Memory].Value, int64(10000*1000*1000))
-		assert.Equal(t, updatedNode.SchedulableResource.Resources[constants.CPU].Value, int64(10000))
-		assert.Equal(t, updatedNode.OccupiedResource.Resources[constants.Memory].Value, int64(1000*1000*1000))
-		assert.Equal(t, updatedNode.OccupiedResource.Resources[constants.CPU].Value, int64(500))
+		assert.Equal(t, updatedNode.SchedulableResource.Resources[siCommon.Memory].Value, int64(10000*1000*1000))
+		assert.Equal(t, updatedNode.SchedulableResource.Resources[siCommon.CPU].Value, int64(10000))
+		assert.Equal(t, updatedNode.OccupiedResource.Resources[siCommon.Memory].Value, int64(1000*1000*1000))
+		assert.Equal(t, updatedNode.OccupiedResource.Resources[siCommon.CPU].Value, int64(500))
 		return nil
 	}
 	coordinator.updatePod(pod1, pod2)
@@ -277,10 +277,10 @@ func TestDeleteTerminatedPod(t *testing.T) {
 		updatedNode := request.Nodes[0]
 		assert.Equal(t, updatedNode.NodeID, Host1)
 		assert.Equal(t, updatedNode.Action, si.NodeInfo_UPDATE)
-		assert.Equal(t, updatedNode.SchedulableResource.Resources[constants.Memory].Value, int64(10000*1000*1000))
-		assert.Equal(t, updatedNode.SchedulableResource.Resources[constants.CPU].Value, int64(10000))
-		assert.Equal(t, updatedNode.OccupiedResource.Resources[constants.Memory].Value, int64(0))
-		assert.Equal(t, updatedNode.OccupiedResource.Resources[constants.CPU].Value, int64(0))
+		assert.Equal(t, updatedNode.SchedulableResource.Resources[siCommon.Memory].Value, int64(10000*1000*1000))
+		assert.Equal(t, updatedNode.SchedulableResource.Resources[siCommon.CPU].Value, int64(10000))
+		assert.Equal(t, updatedNode.OccupiedResource.Resources[siCommon.Memory].Value, int64(0))
+		assert.Equal(t, updatedNode.OccupiedResource.Resources[siCommon.CPU].Value, int64(0))
 		return nil
 	}
 	coordinator.updatePod(pod1, pod2)

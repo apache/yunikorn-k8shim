@@ -30,6 +30,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
 	"github.com/apache/yunikorn-k8shim/pkg/common"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
+	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 )
 
 func TestNewPlaceholder(t *testing.T) {
@@ -63,8 +64,8 @@ func TestNewPlaceholder(t *testing.T) {
 	assert.Equal(t, holder.pod.Labels[constants.LabelQueueName], queue)
 	assert.Equal(t, len(holder.pod.Annotations), 2)
 	assert.Equal(t, holder.pod.Annotations[constants.AnnotationTaskGroupName], app.taskGroups[0].Name)
-	assert.Equal(t, common.GetPodResource(holder.pod).Resources[constants.CPU].Value, int64(500))
-	assert.Equal(t, common.GetPodResource(holder.pod).Resources[constants.Memory].Value, int64(1024*1000*1000))
+	assert.Equal(t, common.GetPodResource(holder.pod).Resources[siCommon.CPU].Value, int64(500))
+	assert.Equal(t, common.GetPodResource(holder.pod).Resources[siCommon.Memory].Value, int64(1024*1000*1000))
 	assert.Equal(t, len(holder.pod.Spec.NodeSelector), 0)
 	assert.Equal(t, len(holder.pod.Spec.Tolerations), 0)
 	assert.Equal(t, holder.String(), "appID: app01, taskGroup: test-group-1, podName: test/ph-name")

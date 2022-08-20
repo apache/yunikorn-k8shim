@@ -30,6 +30,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
+	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 )
 
 func getTaskMetadata(pod *v1.Pod) (interfaces.TaskMetadata, bool) {
@@ -75,7 +76,7 @@ func getAppMetadata(pod *v1.Pod, recovery bool) (interfaces.ApplicationMetadata,
 		tags[constants.AppTagNamespace] = pod.Namespace
 	}
 	if isStateAwareDisabled(pod) {
-		tags[constants.AppTagStateAwareDisable] = "true"
+		tags[siCommon.AppTagStateAwareDisable] = "true"
 	}
 
 	// get the user from Pod Labels
