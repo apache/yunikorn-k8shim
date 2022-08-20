@@ -29,6 +29,7 @@ import (
 
 	"github.com/apache/yunikorn-k8shim/pkg/common"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
+	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
 
@@ -79,7 +80,7 @@ func TestGetNamespaceQuotaFromAnnotation(t *testing.T) {
 				},
 			},
 		}, common.NewResourceBuilder().
-			AddResource(constants.CPU, 1000).
+			AddResource(siCommon.CPU, 1000).
 			Build()},
 		{&v1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
@@ -90,7 +91,7 @@ func TestGetNamespaceQuotaFromAnnotation(t *testing.T) {
 				},
 			},
 		}, common.NewResourceBuilder().
-			AddResource(constants.Memory, 128*1000*1000).
+			AddResource(siCommon.Memory, 128*1000*1000).
 			Build()},
 		{&v1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
@@ -132,8 +133,8 @@ func TestGetNamespaceQuotaFromAnnotation(t *testing.T) {
 				},
 			},
 		}, common.NewResourceBuilder().
-			AddResource(constants.CPU, 1000).
-			AddResource(constants.Memory, 64*1000*1000).
+			AddResource(siCommon.CPU, 1000).
+			AddResource(siCommon.Memory, 64*1000*1000).
 			Build()},
 	}
 

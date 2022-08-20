@@ -45,6 +45,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/api"
+	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
 
@@ -669,7 +670,7 @@ func TestSetTaskGroupsAndSchedulingPolicy(t *testing.T) {
 	// TG2: 1000Mi, 20 members -> total 20000Mi
 	// overall usage 5000Mi + 20000Mi = 25000Mi. This will also be the queue usage so the correct handling
 	// CPU is normal as it specifies milli cpu to start with
-	expectedPlaceholderAsk := common.NewResourceBuilder().AddResource(constants.Memory, 25000*1024*1024).AddResource(constants.CPU, 25000).Build()
+	expectedPlaceholderAsk := common.NewResourceBuilder().AddResource(siCommon.Memory, 25000*1024*1024).AddResource(siCommon.CPU, 25000).Build()
 	actualPlaceholderAsk := app.getPlaceholderAsk()
 	assert.DeepEqual(t, actualPlaceholderAsk, expectedPlaceholderAsk)
 }

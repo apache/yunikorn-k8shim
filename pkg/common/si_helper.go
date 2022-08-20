@@ -159,7 +159,7 @@ func CreateUpdateRequestForNewNode(nodeID string, capacity *si.Resource, occupie
 		Attributes: map[string]string{
 			constants.DefaultNodeAttributeHostNameKey: nodeID,
 			constants.DefaultNodeAttributeRackNameKey: constants.DefaultRackName,
-			constants.NodeReadyAttribute:              strconv.FormatBool(ready),
+			common.NodeReadyAttribute:                 strconv.FormatBool(ready),
 		},
 		ExistingAllocations: existingAllocations,
 		Action:              si.NodeInfo_CREATE,
@@ -181,7 +181,7 @@ func CreateUpdateRequestForUpdatedNode(nodeID string, capacity *si.Resource, occ
 	nodeInfo := &si.NodeInfo{
 		NodeID: nodeID,
 		Attributes: map[string]string{
-			constants.NodeReadyAttribute: strconv.FormatBool(ready),
+			common.NodeReadyAttribute: strconv.FormatBool(ready),
 		},
 		SchedulableResource: capacity,
 		OccupiedResource:    occupied,

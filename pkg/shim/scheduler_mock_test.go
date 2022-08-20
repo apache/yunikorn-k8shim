@@ -37,11 +37,11 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/callback"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common"
-	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/api"
+	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
 
@@ -88,8 +88,8 @@ func (fc *MockScheduler) start() {
 
 func (fc *MockScheduler) addNode(nodeName string, memory, cpu int64) error {
 	nodeResource := common.NewResourceBuilder().
-		AddResource(constants.Memory, memory).
-		AddResource(constants.CPU, cpu).
+		AddResource(siCommon.Memory, memory).
+		AddResource(siCommon.CPU, cpu).
 		Build()
 	request := common.CreateUpdateRequestForNewNode(nodeName, nodeResource, nil, nil, true)
 	fmt.Printf("report new nodes to scheduler, request: %s", request.String())

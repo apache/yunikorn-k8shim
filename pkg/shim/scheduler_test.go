@@ -31,10 +31,10 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/cache"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common"
-	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/test"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/api"
+	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
 
@@ -73,8 +73,8 @@ partitions:
 	// create app and tasks
 	cluster.addApplication("app0001", "root.a")
 	taskResource := common.NewResourceBuilder().
-		AddResource(constants.Memory, 10000000).
-		AddResource(constants.CPU, 1).
+		AddResource(siCommon.Memory, 10000000).
+		AddResource(siCommon.CPU, 1).
 		Build()
 	cluster.addTask("app0001", "task0001", taskResource)
 	cluster.addTask("app0001", "task0002", taskResource)
@@ -124,8 +124,8 @@ partitions:
 
 	// create app and tasks
 	taskResource := common.NewResourceBuilder().
-		AddResource(constants.Memory, 10000000).
-		AddResource(constants.CPU, 1).
+		AddResource(siCommon.Memory, 10000000).
+		AddResource(siCommon.CPU, 1).
 		Build()
 	cluster.addTask(appID, "task0001", taskResource)
 
@@ -213,8 +213,8 @@ partitions:
 	// create app and tasks
 	cluster.addApplication("app0001", "root.a")
 	taskResource := common.NewResourceBuilder().
-		AddResource(constants.Memory, 50000000).
-		AddResource(constants.CPU, 5).
+		AddResource(siCommon.Memory, 50000000).
+		AddResource(siCommon.CPU, 5).
 		Build()
 	cluster.addTask("app0001", "task0001", taskResource)
 	cluster.addTask("app0001", "task0002", taskResource)

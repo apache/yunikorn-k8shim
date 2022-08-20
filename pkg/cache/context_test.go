@@ -43,6 +43,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
+	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
 
@@ -1059,7 +1060,7 @@ func TestAddApplicationsWithTags(t *testing.T) {
 	context.AddApplication(request)
 
 	// check that request has additional annotations
-	quotaStr, ok := request.Metadata.Tags[constants.AppTagNamespaceResourceQuota]
+	quotaStr, ok := request.Metadata.Tags[siCommon.AppTagNamespaceResourceQuota]
 	if !ok {
 		t.Fatalf("resource quota tag is not updated from the namespace")
 	}

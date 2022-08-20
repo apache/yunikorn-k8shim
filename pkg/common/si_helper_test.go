@@ -205,8 +205,8 @@ func TestCreateTagsForTask(t *testing.T) {
 }
 
 func TestCreateUpdateRequestForNewNode(t *testing.T) {
-	capacity := NewResourceBuilder().AddResource(constants.Memory, 200).AddResource(constants.CPU, 2).Build()
-	occupied := NewResourceBuilder().AddResource(constants.Memory, 50).AddResource(constants.CPU, 1).Build()
+	capacity := NewResourceBuilder().AddResource(common.Memory, 200).AddResource(common.CPU, 2).Build()
+	occupied := NewResourceBuilder().AddResource(common.Memory, 50).AddResource(common.CPU, 1).Build()
 	var existingAllocations []*si.Allocation
 	ready := true
 	request := CreateUpdateRequestForNewNode(nodeID, capacity, occupied, existingAllocations, ready)
@@ -217,12 +217,12 @@ func TestCreateUpdateRequestForNewNode(t *testing.T) {
 	assert.Equal(t, len(request.Nodes[0].Attributes), 3)
 	assert.Equal(t, request.Nodes[0].Attributes[constants.DefaultNodeAttributeHostNameKey], nodeID)
 	assert.Equal(t, request.Nodes[0].Attributes[constants.DefaultNodeAttributeRackNameKey], constants.DefaultRackName)
-	assert.Equal(t, request.Nodes[0].Attributes[constants.NodeReadyAttribute], strconv.FormatBool(ready))
+	assert.Equal(t, request.Nodes[0].Attributes[common.NodeReadyAttribute], strconv.FormatBool(ready))
 }
 
 func TestCreateUpdateRequestForUpdatedNode(t *testing.T) {
-	capacity := NewResourceBuilder().AddResource(constants.Memory, 200).AddResource(constants.CPU, 2).Build()
-	occupied := NewResourceBuilder().AddResource(constants.Memory, 50).AddResource(constants.CPU, 1).Build()
+	capacity := NewResourceBuilder().AddResource(common.Memory, 200).AddResource(common.CPU, 2).Build()
+	occupied := NewResourceBuilder().AddResource(common.Memory, 50).AddResource(common.CPU, 1).Build()
 	ready := true
 	request := CreateUpdateRequestForUpdatedNode(nodeID, capacity, occupied, ready)
 	assert.Equal(t, len(request.Nodes), 1)
@@ -230,7 +230,7 @@ func TestCreateUpdateRequestForUpdatedNode(t *testing.T) {
 	assert.Equal(t, request.Nodes[0].SchedulableResource, capacity)
 	assert.Equal(t, request.Nodes[0].OccupiedResource, occupied)
 	assert.Equal(t, len(request.Nodes[0].Attributes), 1)
-	assert.Equal(t, request.Nodes[0].Attributes[constants.NodeReadyAttribute], strconv.FormatBool(ready))
+	assert.Equal(t, request.Nodes[0].Attributes[common.NodeReadyAttribute], strconv.FormatBool(ready))
 }
 
 func TestCreateUpdateRequestForDeleteNode(t *testing.T) {
