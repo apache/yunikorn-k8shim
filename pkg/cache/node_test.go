@@ -26,6 +26,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/common"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/test"
+	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
 
@@ -53,16 +54,16 @@ func TestAddExistingAllocation(t *testing.T) {
 func TestUpdateOccupiedResource(t *testing.T) {
 	node := NewTestSchedulerNode()
 	r1 := common.NewResourceBuilder().
-		AddResource(constants.Memory, 5).
-		AddResource(constants.CPU, 5).
+		AddResource(siCommon.Memory, 5).
+		AddResource(siCommon.CPU, 5).
 		Build()
 	r2 := common.NewResourceBuilder().
-		AddResource(constants.Memory, 1).
-		AddResource(constants.CPU, 1).
+		AddResource(siCommon.Memory, 1).
+		AddResource(siCommon.CPU, 1).
 		Build()
 	r3 := common.NewResourceBuilder().
-		AddResource(constants.Memory, 4).
-		AddResource(constants.CPU, 4).
+		AddResource(siCommon.Memory, 4).
+		AddResource(siCommon.CPU, 4).
 		Build()
 	node.updateOccupiedResource(r1, AddOccupiedResource)
 	assert.DeepEqual(t, node.occupied, r1)
@@ -73,8 +74,8 @@ func TestUpdateOccupiedResource(t *testing.T) {
 func NewTestSchedulerNode() *SchedulerNode {
 	api := test.NewSchedulerAPIMock()
 	r1 := common.NewResourceBuilder().
-		AddResource(constants.Memory, 1).
-		AddResource(constants.CPU, 1).
+		AddResource(siCommon.Memory, 1).
+		AddResource(siCommon.CPU, 1).
 		Build()
 	node := newSchedulerNode("host001", "UID001", "{\"label1\":\"key1\",\"label2\":\"key2\"}", r1, api, false, true)
 	return node
