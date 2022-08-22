@@ -186,7 +186,7 @@ SI_REF := $(shell go list -m -f '{{ .Version }}' github.com/apache/yunikorn-sche
 SI_MATCH := $(shell expr "${SI_REF}" : "v0.0.0-")
 pseudo:
 	@echo "pseudo version check"
-	@if [ "${BRANCH}" = "branch-1.1" ]; then \
+	@if [ "${BRANCH}" = "master" ]; then \
 		if [ ${SI_MATCH} -ne 7 ] || [ ${CORE_MATCH} -ne 7 ]; then \
 			echo "YuniKorn references MUST all be pseudo versions:" ; \
 			echo " core ref: ${CORE_REF}" ; \
