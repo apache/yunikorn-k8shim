@@ -137,7 +137,154 @@ func TestGetNamespaceQuotaFromAnnotation(t *testing.T) {
 			AddResource(siCommon.Memory, 64*1000*1000).
 			Build()},
 	}
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("namespace: %v", tc.namespace), func(t *testing.T) {
+			res := GetNamespaceQuotaFromAnnotation(tc.namespace)
+			assert.Assert(t, common.Equals(res, tc.expectedResource))
+		})
+	}
+}
 
+func TestGetNamespaceQuotaFromAnnotationUsingNewAnnotations(t *testing.T) {
+	testCases := []struct {
+		namespace        *v1.Namespace
+		expectedResource *si.Resource
+	}{
+		{&v1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test",
+				Namespace: "test",
+				Annotations: map[string]string{
+					"yunikorn.apache.org/namespace.quota": "{\"cpu\": \"5\"}",
+				},
+			},
+		}, common.NewResourceBuilder().
+			AddResource(siCommon.CPU, 5000).
+			Build()},
+		{&v1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test",
+				Namespace: "test",
+				Annotations: map[string]string{
+					"yunikorn.apache.org/namespace.quota": "{\"memory\": \"256M\"}",
+				},
+			},
+		}, common.NewResourceBuilder().
+			AddResource(siCommon.Memory, 256*1000*1000).
+			Build()},
+		{&v1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test",
+				Namespace: "test",
+				Annotations: map[string]string{
+					"yunikorn.apache.org/namespace.quota": "{\"cpu\": \"1\", \"memory\": \"64M\"}",
+				},
+			},
+		}, common.NewResourceBuilder().
+			AddResource(siCommon.CPU, 1000).
+			AddResource(siCommon.Memory, 64*1000*1000).
+			Build()},
+		{&v1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test",
+				Namespace: "test",
+				Annotations: map[string]string{
+					"yunikorn.apache.org/namespace.quota": "{\"cpu\": \"1\", \"memory\": \"64M\", \"nvidia.com/gpu\": \"1\"}",
+				},
+			},
+		}, common.NewResourceBuilder().
+			AddResource(siCommon.CPU, 1000).
+			AddResource(siCommon.Memory, 64*1000*1000).
+			AddResource("nvidia.com/gpu", 1).
+			Build()},
+		{&v1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test",
+				Namespace: "test",
+				Annotations: map[string]string{
+					"yunikorn.apache.org/namespace.quota": "{\"cpu\": \"error\", \"memory\": \"error\"}",
+				},
+			},
+		}, nil},
+	}
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("namespace: %v", tc.namespace), func(t *testing.T) {
+			res := GetNamespaceQuotaFromAnnotation(tc.namespace)
+			assert.Assert(t, common.Equals(res, tc.expectedResource))
+		})
+	}
+}
+
+func TestGetNamespaceQuotaFromAnnotationUsingNewAndOldAnnotations(t *testing.T) {
+	testCases := []struct {
+		namespace        *v1.Namespace
+		expectedResource *si.Resource
+	}{
+		{&v1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test",
+				Namespace: "test",
+				Annotations: map[string]string{
+					"yunikorn.apache.org/namespace.max.cpu": "1",
+					"yunikorn.apache.org/namespace.quota":   "{\"cpu\": \"5\"}",
+				},
+			},
+		}, common.NewResourceBuilder().
+			AddResource(siCommon.CPU, 5000).
+			Build()},
+		{&v1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test",
+				Namespace: "test",
+				Annotations: map[string]string{
+					"yunikorn.apache.org/namespace.max.memory": "128M",
+					"yunikorn.apache.org/namespace.quota":      "{\"memory\": \"256M\"}",
+				},
+			},
+		}, common.NewResourceBuilder().
+			AddResource(siCommon.Memory, 256*1000*1000).
+			Build()},
+		{&v1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test",
+				Namespace: "test",
+				Annotations: map[string]string{
+					"yunikorn.apache.org/namespace.max.cpu":    "5",
+					"yunikorn.apache.org/namespace.max.memory": "32M",
+					"yunikorn.apache.org/namespace.quota":      "{\"cpu\": \"1\", \"memory\": \"64M\"}",
+				},
+			},
+		}, common.NewResourceBuilder().
+			AddResource(siCommon.CPU, 1000).
+			AddResource(siCommon.Memory, 64*1000*1000).
+			Build()},
+		{&v1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test",
+				Namespace: "test",
+				Annotations: map[string]string{
+					"yunikorn.apache.org/namespace.max.cpu":    "1",
+					"yunikorn.apache.org/namespace.max.memory": "64M",
+					"yunikorn.apache.org/namespace.quota":      "{\"cpu\": \"1\", \"memory\": \"64M\", \"nvidia.com/gpu\": \"1\"}",
+				},
+			},
+		}, common.NewResourceBuilder().
+			AddResource(siCommon.CPU, 1000).
+			AddResource(siCommon.Memory, 64*1000*1000).
+			AddResource("nvidia.com/gpu", 1).
+			Build()},
+		{&v1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test",
+				Namespace: "test",
+				Annotations: map[string]string{
+					"yunikorn.apache.org/namespace.max.cpu":    "1",
+					"yunikorn.apache.org/namespace.max.memory": "64M",
+					"yunikorn.apache.org/namespace.quota":      "{\"cpu\": \"error\", \"memory\": \"error\"}",
+				},
+			},
+		}, nil},
+	}
 	for _, tc := range testCases {
 		t.Run(fmt.Sprintf("namespace: %v", tc.namespace), func(t *testing.T) {
 			res := GetNamespaceQuotaFromAnnotation(tc.namespace)
