@@ -121,19 +121,26 @@ func GetNamespaceQuotaFromAnnotation(namespaceObj *v1.Namespace) *si.Resource {
 	// order of annotation preference
 	// 1. namespace.quota
 	// 2. namespace.max.* (Retaining for backwards compatibility. Need to be removed in next major release)
-	if namespaceQuota != "" {
+	switch {
+	case namespaceQuota != "":
 		if cpuQuota != "" || memQuota != "" {
 			log.Logger().Warn("Using namespace.quota instead of namespace.max.* (deprecated) annotation to set cpu and/or memory for namespace though both are available.",
 				zap.String("namespace", namespaceObj.Name))
 		}
 		var namespaceQuotaMap map[string]string
-		json.Unmarshal([]byte(namespaceQuota), &namespaceQuotaMap)
+		err := json.Unmarshal([]byte(namespaceQuota), &namespaceQuotaMap)
+		if err != nil {
+			log.Logger().Warn("Unable to process namespace.quota annotation",
+				zap.String("namespace", namespaceObj.Name),
+				zap.String("namespace.quota val is", namespaceQuota))
+			return nil
+		}
 		return common.GetResource(namespaceQuotaMap)
-	} else if cpuQuota != "" || memQuota != "" {
+	case cpuQuota != "" || memQuota != "":
 		log.Logger().Warn("Please use namespace.quota instead of namespace.max.* (deprecated) annotation. Using deprecated annotation to set cpu and/or memory for namespace. ",
 			zap.String("namespace", namespaceObj.Name))
 		return common.ParseResource(cpuQuota, memQuota)
-	} else {
+	default:
 		return nil
 	}
 }
