@@ -39,7 +39,8 @@ var _ = Describe("", func() {
 	var sleepRespPod *v1.Pod
 	var maxCPU int64
 	var maxMem int64
-	var namespaceQuotaAnnotation = "yunikorn.apache.org/namespace.quota"
+	var maxCPUAnnotation = "yunikorn.apache.org/namespace.max.cpu"
+	var maxMemAnnotation = "yunikorn.apache.org/namespace.max.memory"
 	var annotations map[string]string
 	var ns string
 	var queueInfo *dao.PartitionQueueDAOInfo
@@ -69,9 +70,8 @@ var _ = Describe("", func() {
 	It("Verify_Queue_Quota_Allocation", func() {
 		maxMem = 300
 		maxCPU = 300
-		maxCPUAnnotation := strconv.FormatInt(maxCPU, 10) + "m"
-		maxMemAnnotation := strconv.FormatInt(maxMem, 10) + "M"
-		namespaceQuotaAnnotation = "{\"cpu\": \"" + maxCPUAnnotation + "\", \"memory\": \"" + maxMemAnnotation + "\"}"
+		annotations[maxCPUAnnotation] = strconv.FormatInt(maxCPU, 10) + "m"
+		annotations[maxMemAnnotation] = strconv.FormatInt(maxMem, 10) + "M"
 
 		ns = "ns-" + common.RandSeq(10)
 		By(fmt.Sprintf("create %s namespace with maxCPU: %dm and maxMem: %dM", ns, maxCPU, maxMem))
@@ -162,7 +162,8 @@ var _ = Describe("", func() {
 	})
 
 	DescribeTable("", func(x string, y string) {
-		annotations[namespaceQuotaAnnotation] = "{\"cpu\": \"" + x + "\", \"memory\": \"" + y + "\"}"
+		annotations[maxCPUAnnotation] = x
+		annotations[maxMemAnnotation] = y
 		ns = "ns-" + common.RandSeq(10)
 		By(fmt.Sprintf("create %s namespace with empty annotations", ns))
 		ns1, err1 := kClient.CreateNamespace(ns, annotations)
