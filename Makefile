@@ -177,6 +177,25 @@ endif
 	rm -f LICRES
 	@echo "  all OK"
 
+# Check that we use pseudo versions in master
+.PHONY: pseudo
+BRANCH := $(shell git branch --show-current)
+CORE_REF := $(shell go list -m -f '{{ .Version }}' github.com/apache/yunikorn-core)
+CORE_MATCH := $(shell expr "${CORE_REF}" : "v0.0.0-")
+SI_REF := $(shell go list -m -f '{{ .Version }}' github.com/apache/yunikorn-scheduler-interface)
+SI_MATCH := $(shell expr "${SI_REF}" : "v0.0.0-")
+pseudo:
+	@echo "pseudo version check"
+	@if [ "${BRANCH}" = "master" ]; then \
+		if [ ${SI_MATCH} -ne 7 ] || [ ${CORE_MATCH} -ne 7 ]; then \
+			echo "YuniKorn references MUST all be pseudo versions:" ; \
+			echo " core ref: ${CORE_REF}" ; \
+			echo " SI ref:   ${SI_REF}" ; \
+			exit 1; \
+		fi \
+	fi
+	@echo "  all OK"
+
 .PHONY: run
 run: build
 	@echo "running scheduler locally"
