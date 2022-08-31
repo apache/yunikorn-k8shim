@@ -1,0 +1,23 @@
+name: Push to master
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 2
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version-file: .go_version
+      - name: Unit tests
+        run: make test
+      - name: Code coverage
+        uses: codecov/codecov-action@v3
