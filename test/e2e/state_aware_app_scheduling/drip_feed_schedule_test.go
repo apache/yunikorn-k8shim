@@ -53,7 +53,7 @@ var _ = Describe("DripFeedSchedule:", func() {
 		Ω(ns1.Status.Phase).To(Equal(v1.NamespaceActive))
 	})
 
-	PIt("Test_State_Aware_App_Sorting", func() {
+	It("Test_State_Aware_App_Sorting", func() {
 		By("Submit 3 apps(app01, app02, app03) with one pod each")
 		for _, appID := range []string{app1, app2, app3} {
 			podName := "pod1-" + common.RandSeq(5)
