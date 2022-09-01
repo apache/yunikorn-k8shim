@@ -29,6 +29,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"go.uber.org/zap"
 	admissionv1 "k8s.io/api/admission/v1"
@@ -228,12 +229,38 @@ func updateSchedulerName(patch []patchOperation) []patchOperation {
 	})
 }
 
+func isUniqueAppIdEnabled() bool {
+	enableAutogenUniqueAppId := os.Getenv(constants.EnableAutogenUniqueAppId)
+	if enableAutogenUniqueAppId == "" {
+		return false
+	}
+
+	enabled, err := strconv.ParseBool(enableAutogenUniqueAppId)
+	if err != nil {
+		log.Logger().Error("Failed to parse ENABLE_AUTOGEN_UNIQUE_APP_ID value",
+			zap.String("ENABLE_AUTOGEN_UNIQUE_APP_ID", enableAutogenUniqueAppId))
+		return false
+	}
+	if enabled {
+		return true
+	}
+	return false
+}
+
 // generate appID based on the namespace value,
 // and the max length of the ID is 63 chars.
 func generateAppID(namespace string) string {
-	generatedID := fmt.Sprintf("%s-%s-%s", autoGenAppPrefix, namespace, autoGenAppSuffix)
-	appID := fmt.Sprintf("%.63s", generatedID)
-	return appID
+	var generatedID string
+
+	if isUniqueAppIdEnabled() {
+		timestamp := strconv.FormatInt(time.Now().UnixNano(), 10)
+		generatedID = fmt.Sprintf("%.43s_%.19s", namespace, timestamp)
+	} else {
+		generatedID = fmt.Sprintf("%s-%.46s-%s", autoGenAppPrefix, namespace, autoGenAppSuffix)
+	}
+	log.Logger().Debug("generated app id: ", zap.String("id", generatedID))
+
+	return generatedID
 }
 
 func updateLabels(namespace string, pod *v1.Pod, patch []patchOperation) []patchOperation {

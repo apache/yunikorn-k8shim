@@ -66,6 +66,8 @@ spec:
             value: yunikorn-service
           - name: ENABLE_CONFIG_HOT_REFRESH
             value: "true"
+          - name: ENABLE_AUTOGEN_UNIQUE_APP_ID
+            value: "false"
           - name: ADMISSION_CONTROLLER_NAMESPACE
             valueFrom:
               fieldRef:

@@ -28,6 +28,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"gotest.tools/assert"
 	admissionv1 "k8s.io/api/admission/v1"
@@ -420,6 +421,35 @@ func TestGenerateAppID(t *testing.T) {
 	appID = generateAppID(strings.Repeat("long", 100))
 	assert.Equal(t, strings.HasPrefix(appID, fmt.Sprintf("%s-long", autoGenAppPrefix)), true)
 	assert.Equal(t, len(appID), 63)
+
+	// Enable Autogen Unique App Id
+	os.Setenv(constants.EnableAutogenUniqueAppId, constants.True)
+	nsName := "this-is-a-namespace"
+	appID = generateAppID(nsName)
+	assert.Equal(t, strings.HasPrefix(appID, nsName), true)
+	assert.Equal(t, len(appID), len(nsName)+len("_")+len(strconv.FormatInt(time.Now().UnixNano(), 10)))
+
+	nsName = "short"
+	appID = generateAppID(nsName)
+	assert.Equal(t, strings.HasPrefix(appID, nsName), true)
+	assert.Equal(t, len(appID), len(nsName)+len("_")+len(strconv.FormatInt(time.Now().UnixNano(), 10)))
+
+	nsName = strings.Repeat("long", 100)
+	appID = generateAppID(nsName)
+	assert.Equal(t, strings.HasPrefix(appID, "long"), true)
+	assert.Equal(t, len(appID), 63)
+
+	// Set non-boolean value for ENABLE_AUTOGEN_UNIQUE_APP_ID
+	os.Setenv(constants.EnableAutogenUniqueAppId, "INVALID_VALUE")
+	appID = generateAppID("this-is-a-namespace")
+	assert.Equal(t, strings.HasPrefix(appID, fmt.Sprintf("%s-this-is-a-namespace", autoGenAppPrefix)), true)
+	assert.Equal(t, len(appID), 36)
+
+	// Disable Autogen Unique App Id
+	os.Setenv(constants.EnableAutogenUniqueAppId, "")
+	appID = generateAppID("this-is-a-namespace")
+	assert.Equal(t, strings.HasPrefix(appID, fmt.Sprintf("%s-this-is-a-namespace", autoGenAppPrefix)), true)
+	assert.Equal(t, len(appID), 36)
 }
 
 func TestIsConfigMapUpdateAllowed(t *testing.T) {

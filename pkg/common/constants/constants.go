@@ -41,6 +41,8 @@ const AppTagStateAwareDisable = "application.stateaware.disable"
 const DefaultAppNamespace = "default"
 const DefaultUserLabel = "yunikorn.apache.org/username"
 const DefaultUser = "nobody"
+const EnableAutogenUniqueAppId = "ENABLE_AUTOGEN_UNIQUE_APP_ID"
+const True = "true"
 
 // Resource
 const Memory = "memory"
