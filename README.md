@@ -18,7 +18,7 @@
 
 # YuniKorn Scheduler for Kubernetes (yunikorn-k8shim)
 
-[![Build Status](https://github.com/apache/yunikorn-k8shim/actions/workflows/main.yml/badge.svg)](https://github.com/apache/yunikorn-k8shim/actions)
+[![Build Status](https://github.com/apache/yunikorn-k8shim/actions/workflows/pre-commit.yml/badge.svg)](https://github.com/apache/yunikorn-k8shim/actions)
 [![codecov](https://codecov.io/gh/apache/yunikorn-k8shim/branch/master/graph/badge.svg)](https://codecov.io/gh/apache/yunikorn-k8shim)
 [![Go Report Card](https://goreportcard.com/badge/github.com/apache/yunikorn-k8shim)](https://goreportcard.com/report/github.com/apache/yunikorn-k8shim)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
