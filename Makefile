@@ -87,9 +87,9 @@ DOCKER_ARCH := amd64
 endif
 
 # Image hashes
-CORE_SHA=$$(go list -m "github.com/apache/yunikorn-core" | cut -d "-" -f4)
-SI_SHA=$$(go list -m "github.com/apache/yunikorn-scheduler-interface" | cut -d "-" -f5)
-SHIM_SHA=$$(git rev-parse --short=12 HEAD)
+CORE_SHA=$(shell go list -m "github.com/apache/yunikorn-core" | cut -d "-" -f4)
+SI_SHA=$(shell go list -m "github.com/apache/yunikorn-scheduler-interface" | cut -d "-" -f5)
+SHIM_SHA=$(shell git rev-parse --short=12 HEAD)
 
 # Kubeconfig
 ifeq ($(KUBECONFIG),)
