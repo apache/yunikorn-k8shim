@@ -25,21 +25,15 @@ import (
 )
 
 type ResourceUsage struct {
-	memory int64
-	vCPU   int64
+	resource map[string]int64
 }
 
 func (r *ResourceUsage) ParseResourceUsage(resource map[string]int64) {
-	r.memory = resource["memory"]
-	r.vCPU = resource["vcore"]
+	r.resource = resource
 }
 
-func (r *ResourceUsage) GetMemory() int64 {
-	return r.memory
-}
-
-func (r *ResourceUsage) GetVCPU() int64 {
-	return r.vCPU
+func (r *ResourceUsage) GetResourceValue(resourceName string) int64 {
+	return r.resource[resourceName]
 }
 
 func GetYKUrl() string {
