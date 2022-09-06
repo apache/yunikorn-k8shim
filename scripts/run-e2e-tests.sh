@@ -82,9 +82,9 @@ function install_kind() {
   if [ ! -x "${KIND}" ]; then
     FORCE_KIND_INSTALL=true
   else
-    # check kind version: v0.13.0 or later required for 1.24 tests
+    # check kind version: v0.15.0 or later required for 1.25 tests
     KIND_MINOR=$(${KIND} version | cut -f2 -d" " | cut -f2 -d".")
-    if [ "${KIND_MINOR}" -lt 13 ]; then
+    if [ "${KIND_MINOR}" -lt 15 ]; then
       FORCE_KIND_INSTALL=true
       echo "kind version found is too old: force new install"
     fi
@@ -93,7 +93,7 @@ function install_kind() {
   if [ "${FORCE_KIND_INSTALL}" == "true" ]
   then
     check_cmd "curl"
-    curl -Lo ./kind "https://kind.sigs.k8s.io/dl/v0.14.0/kind-${OS}-${EXEC_ARCH}" \
+    curl -Lo ./kind "https://kind.sigs.k8s.io/dl/v0.15.0/kind-${OS}-${EXEC_ARCH}" \
       && chmod +x ./kind && mv ./kind "$(go env GOPATH)"/bin
     exit_on_error "install KIND failed"
   fi
@@ -220,13 +220,14 @@ Usage: ${NAME} -a <action> -n <kind-cluster-name> -v <kind-node-image-version> [
 
 Examples:
   ${NAME} -a test -n yk8s -v kindest/node:v1.20.15
-  ${NAME} -a test -n yk8s -v kindest/node:v1.21.10
-  ${NAME} -a test -n yk8s -v kindest/node:v1.22.9
-  ${NAME} -a test -n yk8s -v kindest/node:v1.23.6
-  ${NAME} -a test -n yk8s -v kindest/node:v1.24.0
+  ${NAME} -a test -n yk8s -v kindest/node:v1.21.14
+  ${NAME} -a test -n yk8s -v kindest/node:v1.22.13
+  ${NAME} -a test -n yk8s -v kindest/node:v1.23.10
+  ${NAME} -a test -n yk8s -v kindest/node:v1.24.4
+  ${NAME} -a test -n yk8s -v kindest/node:v1.25.0
 
   Use a local helm chart path:
-    ${NAME} -a test -n yk8s -v kindest/node:v1.24.0 -p ./yunikorn-release/helm-charts/yunikorn
+    ${NAME} -a test -n yk8s -v kindest/node:v1.25.0 -p ./yunikorn-release/helm-charts/yunikorn
 EOF
 }
 
