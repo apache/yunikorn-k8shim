@@ -1,0 +1,48 @@
+
+apiVersion: v
+kind: Pod
+metadata:
+  labels:
+    app: sleep
+    applicationId: "prvoided-rule-example01"
+    yunikorn.apache.org/username: developer
+  name: task0
+spec:
+  schedulerName: yunikorn
+  containers:
+    - name: sleep-30s
+      image: "alpine:latest"
+      command: ["sleep", "30"]
+      resources:
+        requests:
+          cpu: "100m"
+          memory: "500M"
+---
+kind: Pod
+metadata:
+  namespace: testing
+  labels:
+    app: sleep
+    applicationId: "prvoided-rule-example02"
+    yunikorn.apache.org/username: developer
+  name: task1
+spec:
+  schedulerName: yunikorn
+  containers:
+    - name: sleep-30s
+      image: "alpine:latest"
+      command: ["sleep", "30"]
+      resources:
+        requests:
+          cpu: "100m"
+          memory: "500M"
+
+#  partitions:
+#    - name: default
+#      placementrules:
+#        - name: tag
+#          value: namespace
+#          create: true
+#      queues:
+#      - name: root
+#        submitacl: '*'
