@@ -1,5 +1,4 @@
-
-apiVersion: v
+apiVersion: v1
 kind: Pod
 metadata:
   labels:
@@ -27,3 +26,5 @@ spec:
 #      queues:
 #      - name: root
 #        submitacl: '*'
+#        queues:
+#        - name: last_resort

@@ -1,5 +1,5 @@
 
-apiVersion: v
+apiVersion: v1
 kind: Pod
 metadata:
   labels:
@@ -18,6 +18,7 @@ spec:
           cpu: "100m"
           memory: "500M"
 ---
+apiVersion: v1
 kind: Pod
 metadata:
   namespace: testing
