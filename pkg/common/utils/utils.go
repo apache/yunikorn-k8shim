@@ -243,10 +243,9 @@ func GetUserFromPod(pod *v1.Pod) string {
 	// UserLabelKey should not be empty
 	if len(userLabelKey) == 0 {
 		userLabelKey = constants.DefaultUserLabel
-		log.Logger().Debug("userLabelKey is empty and replaced by default setting",
-			zap.String("userLabel", userLabelKey))
 	}
 
+        username := constants.DefaultUser
 	// User name to be defined in labels
 	if username, ok := pod.Labels[userLabelKey]; ok {
 		log.Logger().Info("Found user name from pod labels.",
@@ -256,5 +255,5 @@ func GetUserFromPod(pod *v1.Pod) string {
 	log.Logger().Debug("Unable to retrieve user name from pod labels. Empty user label",
 		zap.String("userLabel", userLabelKey))
 
-	return constants.DefaultUser
+	return username
 }
