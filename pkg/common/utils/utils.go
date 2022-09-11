@@ -245,7 +245,7 @@ func GetUserFromPod(pod *v1.Pod) string {
 		userLabelKey = constants.DefaultUserLabel
 	}
 
-        username := constants.DefaultUser
+	username := constants.DefaultUser
 	// User name to be defined in labels
 	if username, ok := pod.Labels[userLabelKey]; ok {
 		log.Logger().Info("Found user name from pod labels.",

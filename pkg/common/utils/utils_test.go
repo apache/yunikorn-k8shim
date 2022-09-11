@@ -555,12 +555,14 @@ func TestGetUserFromPod(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			conf := conf.GetSchedulerConf()
+			// The default UserLabelKey could be set with the custom UserLabelKey.
 			if tc.userLabelKey != constants.DefaultUserLabel {
 				conf.UserLabelKey = tc.userLabelKey
 			}
 
 			userID := GetUserFromPod(tc.pod)
 			assert.DeepEqual(t, userID, tc.expectedUser)
+			// The order of test cases is allowed to impact other test case.
 			conf.UserLabelKey = constants.DefaultUserLabel
 		})
 	}
