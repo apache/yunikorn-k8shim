@@ -244,16 +244,16 @@ func GetUserFromPod(pod *v1.Pod) string {
 	if len(userLabelKey) == 0 {
 		userLabelKey = constants.DefaultUserLabel
 	}
-
-	username := constants.DefaultUser
 	// User name to be defined in labels
 	if username, ok := pod.Labels[userLabelKey]; ok {
 		log.Logger().Info("Found user name from pod labels.",
 			zap.String("userLabel", userLabelKey), zap.String("user", username))
 		return username
 	}
+	value := constants.DefaultUser
+
 	log.Logger().Debug("Unable to retrieve user name from pod labels. Empty user label",
 		zap.String("userLabel", userLabelKey))
 
-	return username
+	return value
 }
