@@ -39,6 +39,8 @@ spec:
           cpu: "100m"
           memory: "500M"
 
+# The configutarion in value.yaml should be replaced by the following configuration before this yaml is applied.
+#configuration: |
 #  partitions:
 #    - name: default
 #      placementrules:
