@@ -22,6 +22,7 @@ exec "${HOME}"/bin/kube-scheduler \
   --leader-elect="${LEADER_ELECT}" \
   --config="${SCHEDULER_CONFIG}" \
   -v="${VERBOSITY}" \
+  --feature-gates=PodDisruptionBudget=false \
   --scheduler-name="${SCHEDULER_NAME}" \
   --yk-cluster-id="${CLUSTER_ID}" \
   --yk-cluster-version="${CLUSTER_VERSION}" \
