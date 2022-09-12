@@ -121,6 +121,7 @@ var _ = Describe("", func() {
 		var reqMem int64 = 100
 
 		var iter int64
+		nextPod := podCount + 1
 		for iter = 1; iter <= podCount; iter++ {
 			sleepPodConfigs := k8s.SleepPodConfig{NS: ns, Time: 60, CPU: reqCPU, Mem: reqMem}
 			sleepObj, podErr := k8s.InitSleepPod(sleepPodConfigs)
@@ -160,24 +161,24 @@ var _ = Describe("", func() {
 			Ω(usedPerctResource.GetResourceValue(siCommon.Memory)).Should(Equal(perctMem))
 		}
 
-		By("App-4: Submit another app which exceeds the queue quota limitation")
+		By(fmt.Sprintf("App-%d: Submit another app which exceeds the queue quota limitation", nextPod))
 		sleepPodConfigs := k8s.SleepPodConfig{NS: ns, Time: 60, CPU: reqCPU, Mem: reqMem}
 		sleepObj, app4PodErr := k8s.InitSleepPod(sleepPodConfigs)
 		Ω(app4PodErr).NotTo(HaveOccurred())
 
-		By(fmt.Sprintf("App-N: Deploy the sleep app:%s to %s namespace", sleepObj.Name, ns))
+		By(fmt.Sprintf("App-%d: Deploy the sleep app:%s to %s namespace", nextPod, sleepObj.Name, ns))
 		sleepRespPod, err = kClient.CreatePod(sleepObj, ns)
 		Ω(err).NotTo(HaveOccurred())
 		pods = append(pods, sleepObj.Name)
 
-		By(fmt.Sprintf("App-N: Verify app:%s in accepted state", sleepObj.Name))
+		By(fmt.Sprintf("App-%d: Verify app:%s in accepted state", nextPod, sleepObj.Name))
 		// Wait for pod to move to accepted state
 		err = restClient.WaitForAppStateTransition("default", "root."+ns, sleepRespPod.ObjectMeta.Labels["applicationId"],
 			yunikorn.States().Application.Accepted,
 			240)
 		Ω(err).NotTo(HaveOccurred())
 
-		By(fmt.Sprintf("Pod-N: Verify pod:%s is in pending state", sleepObj.Name))
+		By(fmt.Sprintf("Pod-%d: Verify pod:%s is in pending state", nextPod, sleepObj.Name))
 		err = kClient.WaitForPodPending(ns, sleepObj.Name, time.Duration(60)*time.Second)
 		Ω(err).NotTo(HaveOccurred())
 
@@ -186,7 +187,7 @@ var _ = Describe("", func() {
 		err = kClient.WaitForPodSucceeded(ns, pods[0], time.Duration(360)*time.Second)
 		Ω(err).NotTo(HaveOccurred())
 
-		By(fmt.Sprintf("Pod-N: Verify Pod:%s moved to running state", sleepObj.Name))
+		By(fmt.Sprintf("Pod-%d: Verify Pod:%s moved to running state", nextPod, sleepObj.Name))
 		Ω(kClient.WaitForPodRunning(sleepRespPod.Namespace, sleepRespPod.Name, time.Duration(60)*time.Second)).NotTo(HaveOccurred())
 
 	}
