@@ -111,6 +111,7 @@ The namespace example uses a placement rule and special queue configuration. The
   The pod spec does not specify a queue just a namespace but the application will be run in the newly created `root.production` queue. This queue does not exist in the queue configuration. 
 
 ### placements
+The placements' rules are described in [Yunikorn website](https://yunikorn.apache.org/docs/user_guide/placement_rules).
 App placements rules in Yunikorn contains `Provided Rule`, `User Name Rule`, `Fixed Rule`, `Tag Rule`.
 Every placement example includes a example yaml file and a config yaml file.
 The sleep pod is described in the example file and the partition is provided in the config yaml file.
