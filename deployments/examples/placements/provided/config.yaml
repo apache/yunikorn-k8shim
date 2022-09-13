@@ -15,22 +15,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-apiVersion: v1
-kind: Pod
-metadata:
-  labels:
-    app: sleep
-    applicationId: "prvoided-rule-example01"
-    queue: "my_special_queue"
-    yunikorn.apache.org/username: "developer"
-  name: task0
-spec:
-  schedulerName: yunikorn
-  containers:
-    - name: sleep-30s
-      image: "alpine:latest"
-      command: ["sleep", "30"]
-      resources:
-        requests:
-          cpu: "100m"
-          memory: "500M"
+# The configutarion in value.yaml should be replaced by the following configuration before this yaml is applied.
+configuration: |
+  partitions:
+    - name: default
+      placementrules:
+        - name: provided
+          create: true
+          parent:
+            name: user
+            create: true
+      queues:
+      - name: root
+        submitacl: '*'
