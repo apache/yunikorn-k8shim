@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"sync"
 	"syscall"
 
@@ -45,7 +46,18 @@ const (
 	admissionControllerBypassNamespaces  = "ADMISSION_CONTROLLER_BYPASS_NAMESPACES"
 	admissionControllerLabelNamespaces   = "ADMISSION_CONTROLLER_LABEL_NAMESPACES"
 	admissionControllerNoLabelNamespaces = "ADMISSION_CONTROLLER_NO_LABEL_NAMESPACES"
-	defaultBypassNamespaces              = "^kube-system$"
+
+	// user & group resolution settings
+	admissionControllerBypassAuth        = "ADMISSION_CONTROLLER_BYPASS_AUTH"
+	admissionControllerBypassControllers = "ADMISSION_CONTROLLER_BYPASS_CONTROLLERS"
+	admissionControllerSystemUsers       = "ADMISSION_CONTROLLER_SYSTEM_USERS"
+	admissionControllerExternalUsers     = "ADMISSION_CONTROLLER_EXTERNAL_USERS"
+	admissionControllerExternalGroups    = "ADMISSION_CONTROLLER_EXTERNAL_GROUPS"
+
+	defaultBypassNamespaces  = "^kube-system$"
+	defaultBypassAuth        = false
+	defaultBypassControllers = true
+	defaultSystemUsers       = "system:serviceaccount:kube-system:*"
 
 	// legal URLs
 	mutateURL       = "/mutate"
@@ -80,6 +92,44 @@ func main() {
 		noLabelNamespaces = ""
 	}
 
+	bypassAuth := defaultBypassAuth
+	bypassAuthEnv, ok := os.LookupEnv(admissionControllerBypassAuth)
+	if ok {
+		parsed, err := strconv.ParseBool(bypassAuthEnv)
+		if err != nil {
+			log.Logger().Warn("Unable to parse value, using default",
+				zap.String("env var", admissionControllerBypassAuth),
+				zap.Bool("default", defaultBypassAuth))
+		} else {
+			bypassAuth = parsed
+		}
+	}
+	systemUsers, ok := os.LookupEnv(admissionControllerSystemUsers)
+	if !ok {
+		systemUsers = defaultSystemUsers
+	}
+	externalUsers, ok := os.LookupEnv(admissionControllerExternalUsers)
+	if !ok {
+		externalUsers = ""
+	}
+	externalGroups, ok := os.LookupEnv(admissionControllerExternalGroups)
+	if !ok {
+		externalUsers = ""
+	}
+
+	bypassControllers := defaultBypassControllers
+	bypassControllersEnv, ok := os.LookupEnv(admissionControllerBypassControllers)
+	if ok {
+		parsed, err := strconv.ParseBool(bypassControllersEnv)
+		if err != nil {
+			log.Logger().Warn("Unable to parse value, using default",
+				zap.String("env var", admissionControllerBypassControllers),
+				zap.Bool("default", defaultBypassControllers))
+		} else {
+			bypassAuth = parsed
+		}
+	}
+
 	wm, err := NewWebhookManager(namespace, serviceName)
 	if err != nil {
 		log.Logger().Fatal("Failed to initialize webhook manager", zap.Error(err))
@@ -94,7 +144,8 @@ func main() {
 	ac, err := initAdmissionController(
 		fmt.Sprintf("%s.yaml", policyGroup),
 		fmt.Sprintf(schedulerValidateConfURLPattern, schedulerServiceAddress),
-		processNamespaces, bypassNamespaces, labelNamespaces, noLabelNamespaces)
+		processNamespaces, bypassNamespaces, labelNamespaces, noLabelNamespaces,
+		bypassAuth, bypassControllers, systemUsers, externalUsers, externalGroups)
 	if err != nil {
 		log.Logger().Fatal("failed to configure admission controller", zap.Error(err))
 	}

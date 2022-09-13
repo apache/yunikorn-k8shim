@@ -51,6 +51,7 @@ const (
 	configHotFreshResponse       = "ConfigHotRefresh is disabled. Please use the REST API to update the configuration, or enable configHotRefresh. "
 	admissionReviewAPIVersion    = "admission.k8s.io/v1"
 	admissionReviewKind          = "AdmissionReview"
+	userInfoAnnotation           = "yunikorn.apache.org/user.info"
 )
 
 var (
@@ -62,10 +63,15 @@ var (
 type admissionController struct {
 	configName               string
 	schedulerValidateConfURL string
+	bypassAuth               bool
+	bypassControllers        bool
 	processNamespaces        []*regexp.Regexp
 	bypassNamespaces         []*regexp.Regexp
 	labelNamespaces          []*regexp.Regexp
 	noLabelNamespaces        []*regexp.Regexp
+	systemUsers              []*regexp.Regexp
+	externalUsers            []*regexp.Regexp
+	externalGroups           []*regexp.Regexp
 }
 
 type patchOperation struct {
@@ -79,7 +85,17 @@ type ValidateConfResponse struct {
 	Reason  string `json:"reason"`
 }
 
-func initAdmissionController(configName string, schedulerValidateConfURL string, processNamespaces string, bypassNamespaces string, labelNamespaces string, noLabelNamespaces string) (*admissionController, error) {
+func initAdmissionController(configName string,
+	schedulerValidateConfURL string,
+	processNamespaces string,
+	bypassNamespaces string,
+	labelNamespaces string,
+	noLabelNamespaces string,
+	bypassAuth bool,
+	bypassControllers bool,
+	systemUsers string,
+	externalUsers string,
+	externalGroups string) (*admissionController, error) {
 	processRegexes, err := parseRegexes(processNamespaces)
 	if err != nil {
 		return nil, err
@@ -96,20 +112,59 @@ func initAdmissionController(configName string, schedulerValidateConfURL string,
 	if err != nil {
 		return nil, err
 	}
+
+	var systemUsersRegexes []*regexp.Regexp
+	if systemUsers != "" {
+		regexps, err := parseRegexes(systemUsers)
+		if err != nil {
+			return nil, err
+		}
+		systemUsersRegexes = regexps
+	}
+
+	var externalUsersRegexes []*regexp.Regexp
+	if externalUsers != "" {
+		regexps, err := parseRegexes(externalUsers)
+		if err != nil {
+			return nil, err
+		}
+		externalUsersRegexes = regexps
+	}
+
+	var externalGroupsRegexes []*regexp.Regexp
+	if externalGroups != "" {
+		regexps, err := parseRegexes(externalGroups)
+		if err != nil {
+			return nil, err
+		}
+		externalGroupsRegexes = regexps
+	}
+
 	hook := admissionController{
 		configName:               configName,
 		schedulerValidateConfURL: schedulerValidateConfURL,
+		bypassAuth:               bypassAuth,
+		bypassControllers:        bypassControllers,
 		processNamespaces:        processRegexes,
 		bypassNamespaces:         bypassRegexes,
 		labelNamespaces:          labelRegexes,
 		noLabelNamespaces:        noLabelRegexes,
+		systemUsers:              systemUsersRegexes,
+		externalGroups:           externalGroupsRegexes,
+		externalUsers:            externalUsersRegexes,
 	}
 
 	log.Logger().Info("Initialized YuniKorn Admission Controller",
 		zap.String("processNs", processNamespaces),
 		zap.String("bypassNs", bypassNamespaces),
 		zap.String("labelNs", labelNamespaces),
-		zap.String("noLabelNs", noLabelNamespaces))
+		zap.String("noLabelNs", noLabelNamespaces),
+		zap.Bool("bypassAuth", bypassAuth),
+		zap.Bool("bypassControllers", bypassControllers),
+		zap.String("systemUsers", systemUsers),
+		zap.String("externalUsers", externalUsers),
+		zap.String("externalGroups", externalGroups),
+	)
 
 	return &hook, nil
 }
@@ -182,6 +237,13 @@ func (c *admissionController) mutate(req *admissionv1.AdmissionRequest) *admissi
 	if err := json.Unmarshal(req.Object.Raw, &pod); err != nil {
 		log.Logger().Error("unmarshal failed", zap.Error(err))
 		return admissionResponseBuilder(uid, false, err.Error(), nil)
+	}
+
+	if annotation, ok := pod.Annotations[userInfoAnnotation]; ok && !c.bypassAuth {
+		if err := c.validateExternalUserInfo(req, annotation); err != nil {
+			log.Logger().Error("external authentication failed", zap.Error(err))
+			return admissionResponseBuilder(uid, false, err.Error(), nil)
+		}
 	}
 
 	if labelAppValue, ok := pod.Labels[constants.LabelApp]; ok {
