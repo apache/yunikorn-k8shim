@@ -75,7 +75,7 @@ func TestExternalAuthenticationDenied(t *testing.T) {
 	req.UserInfo.Username = "yunikorn"
 
 	err := ac.validateExternalUserInfo(req, testAnnotation)
-	assert.ErrorContains(t, err, "external authentication rejected")
+	assert.ErrorContains(t, err, "user yunikorn with groups [system:authenticated,devs] is not allowed to set user annotation")
 }
 
 func getDefaultAdmissionController() *admissionController {

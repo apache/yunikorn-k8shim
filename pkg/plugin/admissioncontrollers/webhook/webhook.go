@@ -72,7 +72,67 @@ type WebHook struct {
 	sync.Mutex
 }
 
+type envSettings struct {
+	namespace         string
+	serviceName       string
+	processNamespaces string
+	bypassNamespaces  string
+	labelNamespaces   string
+	noLabelNamespaces string
+	bypassAuth        bool
+	systemUsers       string
+	externalUsers     string
+	externalGroups    string
+	bypassControllers bool
+}
+
 func main() {
+	settings := getEnvSettings()
+	wm, err := NewWebhookManager(settings.namespace, settings.serviceName)
+	if err != nil {
+		log.Logger().Fatal("Failed to initialize webhook manager", zap.Error(err))
+	}
+
+	policyGroup := os.Getenv(policyGroupEnvVarName)
+	if policyGroup == "" {
+		policyGroup = conf.DefaultPolicyGroup
+	}
+	schedulerServiceAddress := os.Getenv(schedulerServiceAddressEnvVarName)
+
+	ac, err := initAdmissionController(
+		fmt.Sprintf("%s.yaml", policyGroup),
+		fmt.Sprintf(schedulerValidateConfURLPattern, schedulerServiceAddress),
+		settings.processNamespaces, settings.bypassNamespaces, settings.labelNamespaces, settings.noLabelNamespaces,
+		settings.bypassAuth, settings.bypassControllers, settings.systemUsers, settings.externalUsers, settings.externalGroups)
+	if err != nil {
+		log.Logger().Fatal("failed to configure admission controller", zap.Error(err))
+	}
+
+	webhook := CreateWebhook(ac, HTTPPort)
+
+	certs := UpdateWebhookConfiguration(wm)
+	webhook.Startup(certs)
+
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGUSR1)
+
+	WaitForCertExpiration(wm, signalChan)
+
+	for {
+		switch <-signalChan {
+		case syscall.SIGUSR1: // reload certificates
+			certs := UpdateWebhookConfiguration(wm)
+			webhook.Shutdown()
+			webhook.Startup(certs)
+			WaitForCertExpiration(wm, signalChan)
+		default: // terminate
+			webhook.Shutdown()
+			os.Exit(0)
+		}
+	}
+}
+
+func getEnvSettings() *envSettings {
 	namespace := os.Getenv(admissionControllerNamespace)
 	serviceName := os.Getenv(admissionControllerService)
 	processNamespaces, ok := os.LookupEnv(admissionControllerProcessNamespaces)
@@ -99,6 +159,7 @@ func main() {
 		if err != nil {
 			log.Logger().Warn("Unable to parse value, using default",
 				zap.String("env var", admissionControllerBypassAuth),
+				zap.String("value", bypassAuthEnv),
 				zap.Bool("default", defaultBypassAuth))
 		} else {
 			bypassAuth = parsed
@@ -114,7 +175,7 @@ func main() {
 	}
 	externalGroups, ok := os.LookupEnv(admissionControllerExternalGroups)
 	if !ok {
-		externalUsers = ""
+		externalGroups = ""
 	}
 
 	bypassControllers := defaultBypassControllers
@@ -124,53 +185,24 @@ func main() {
 		if err != nil {
 			log.Logger().Warn("Unable to parse value, using default",
 				zap.String("env var", admissionControllerBypassControllers),
+				zap.String("value", bypassControllersEnv),
 				zap.Bool("default", defaultBypassControllers))
 		} else {
-			bypassAuth = parsed
+			bypassControllers = parsed
 		}
 	}
-
-	wm, err := NewWebhookManager(namespace, serviceName)
-	if err != nil {
-		log.Logger().Fatal("Failed to initialize webhook manager", zap.Error(err))
-	}
-
-	policyGroup := os.Getenv(policyGroupEnvVarName)
-	if policyGroup == "" {
-		policyGroup = conf.DefaultPolicyGroup
-	}
-	schedulerServiceAddress := os.Getenv(schedulerServiceAddressEnvVarName)
-
-	ac, err := initAdmissionController(
-		fmt.Sprintf("%s.yaml", policyGroup),
-		fmt.Sprintf(schedulerValidateConfURLPattern, schedulerServiceAddress),
-		processNamespaces, bypassNamespaces, labelNamespaces, noLabelNamespaces,
-		bypassAuth, bypassControllers, systemUsers, externalUsers, externalGroups)
-	if err != nil {
-		log.Logger().Fatal("failed to configure admission controller", zap.Error(err))
-	}
-
-	webhook := CreateWebhook(ac, HTTPPort)
-
-	certs := UpdateWebhookConfiguration(wm)
-	webhook.Startup(certs)
-
-	signalChan := make(chan os.Signal, 1)
-	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGUSR1)
-
-	WaitForCertExpiration(wm, signalChan)
-
-	for {
-		switch <-signalChan {
-		case syscall.SIGUSR1: // reload certificates
-			certs := UpdateWebhookConfiguration(wm)
-			webhook.Shutdown()
-			webhook.Startup(certs)
-			WaitForCertExpiration(wm, signalChan)
-		default: // terminate
-			webhook.Shutdown()
-			os.Exit(0)
-		}
+	return &envSettings{
+		namespace:         namespace,
+		serviceName:       serviceName,
+		processNamespaces: processNamespaces,
+		bypassNamespaces:  bypassNamespaces,
+		labelNamespaces:   labelNamespaces,
+		noLabelNamespaces: noLabelNamespaces,
+		bypassAuth:        bypassAuth,
+		systemUsers:       systemUsers,
+		externalUsers:     externalUsers,
+		externalGroups:    externalGroups,
+		bypassControllers: bypassControllers,
 	}
 }
 

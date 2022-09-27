@@ -40,6 +40,7 @@ import (
 
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
+	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 )
 
 const (
@@ -51,7 +52,7 @@ const (
 	configHotFreshResponse       = "ConfigHotRefresh is disabled. Please use the REST API to update the configuration, or enable configHotRefresh. "
 	admissionReviewAPIVersion    = "admission.k8s.io/v1"
 	admissionReviewKind          = "AdmissionReview"
-	userInfoAnnotation           = "yunikorn.apache.org/user.info"
+	userInfoAnnotation           = siCommon.DomainYuniKorn + "user.info"
 )
 
 var (
@@ -241,7 +242,7 @@ func (c *admissionController) mutate(req *admissionv1.AdmissionRequest) *admissi
 
 	if annotation, ok := pod.Annotations[userInfoAnnotation]; ok && !c.bypassAuth {
 		if err := c.validateExternalUserInfo(req, annotation); err != nil {
-			log.Logger().Error("external authentication failed", zap.Error(err))
+			log.Logger().Error("user info validation failed", zap.Error(err))
 			return admissionResponseBuilder(uid, false, err.Error(), nil)
 		}
 	}

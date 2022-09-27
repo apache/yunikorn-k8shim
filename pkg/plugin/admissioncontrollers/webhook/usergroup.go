@@ -72,6 +72,6 @@ func (c *admissionController) validateExternalUserInfo(req *admissionv1.Admissio
 		}
 	}
 
-	return fmt.Errorf("external authentication rejected - workload was submitted by user %s from groups [%s],"+
-		" none of which are allowed to add user information", userName, strings.Join(groups, ","))
+	return fmt.Errorf("user %s with groups [%s] is not allowed to set user annotation", userName,
+		strings.Join(groups, ","))
 }
