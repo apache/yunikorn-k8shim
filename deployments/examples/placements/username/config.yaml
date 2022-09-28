@@ -27,3 +27,4 @@ configuration: |
         submitacl: '*'
         queues:
         - name: finance_dot_test
+

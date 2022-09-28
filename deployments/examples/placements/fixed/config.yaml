@@ -27,3 +27,4 @@ configuration: |
         submitacl: '*'
         queues:
         - name: last_resort
+

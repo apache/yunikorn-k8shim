@@ -28,3 +28,4 @@ configuration: |
       queues:
       - name: root
         submitacl: '*'
+
