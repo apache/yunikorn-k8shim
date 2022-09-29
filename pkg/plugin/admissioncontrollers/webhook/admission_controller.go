@@ -245,6 +245,11 @@ func (c *admissionController) mutate(req *admissionv1.AdmissionRequest) *admissi
 			log.Logger().Error("user info validation failed", zap.Error(err))
 			return admissionResponseBuilder(uid, false, err.Error(), nil)
 		}
+
+		if err := c.validateAnnotation(annotation); err != nil {
+			log.Logger().Error("invalid user info annotation", zap.Error(err))
+			return admissionResponseBuilder(uid, false, err.Error(), nil)
+		}
 	}
 
 	if labelAppValue, ok := pod.Labels[constants.LabelApp]; ok {

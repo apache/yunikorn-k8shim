@@ -29,12 +29,14 @@ import (
 
 const testAnnotation = "{\"user\":\"test\",\"groups\":[\"devops\",\"system:authenticated\"]}"
 
-func TestUnmarshalAnnotationFails(t *testing.T) {
+func TestValidateAnnotation(t *testing.T) {
 	ac := getDefaultAdmissionController()
-	req := getAdmissionRequest()
 
-	err := ac.validateExternalUserInfo(req, "xyzxyz")
+	err := ac.validateAnnotation("xyzxyz")
 	assert.ErrorContains(t, err, "invalid character 'x'")
+
+	err = ac.validateAnnotation(testAnnotation)
+	assert.NilError(t, err)
 }
 
 func TestBypassControllers(t *testing.T) {

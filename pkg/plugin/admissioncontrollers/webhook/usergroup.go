@@ -31,15 +31,6 @@ import (
 )
 
 func (c *admissionController) validateExternalUserInfo(req *admissionv1.AdmissionRequest, userInfo string) error {
-	var userGroups si.UserGroupInformation
-	err := json.Unmarshal([]byte(userInfo), &userGroups)
-	if err != nil {
-		return err
-	}
-
-	log.Logger().Debug("Checking external user info", zap.String("externally provided user", userGroups.User),
-		zap.String("externally provided groups", strings.Join(userGroups.Groups, ",")))
-
 	userName := req.UserInfo.Username
 	groups := req.UserInfo.Groups
 
@@ -74,4 +65,17 @@ func (c *admissionController) validateExternalUserInfo(req *admissionv1.Admissio
 
 	return fmt.Errorf("user %s with groups [%s] is not allowed to set user annotation", userName,
 		strings.Join(groups, ","))
+}
+
+func (c *admissionController) validateAnnotation(userInfoAnnotation string) error {
+	var userGroups si.UserGroupInformation
+	err := json.Unmarshal([]byte(userInfoAnnotation), &userGroups)
+	if err != nil {
+		return err
+	}
+
+	log.Logger().Debug("Successfully validated user info annotation", zap.String("externally provided user", userGroups.User),
+		zap.String("externally provided groups", strings.Join(userGroups.Groups, ",")))
+
+	return nil
 }
