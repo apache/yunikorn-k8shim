@@ -537,6 +537,11 @@ func TestGetUserFromPod(t *testing.T) {
 				Labels: map[string]string{constants.DefaultUserLabel: userInLabel},
 			},
 		}, userInLabel},
+		{"The length of UserKeyLabel value is 0", constants.DefaultUserLabel, &v1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Labels: map[string]string{customUserKeyLabel: ""},
+			},
+		}, userNotInLabel},
 		{"User not defined in label", constants.DefaultUserLabel, &v1.Pod{}, userNotInLabel},
 		{"UserKeyLabel is empty and the user definded in the pod labels with default key", "", &v1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
