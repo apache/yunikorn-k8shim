@@ -20,26 +20,21 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"strings"
 
 	"go.uber.org/zap"
-	admissionv1 "k8s.io/api/admission/v1"
 
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
 
-func (c *admissionController) validateExternalUserInfo(req *admissionv1.AdmissionRequest, userInfo string) error {
-	userName := req.UserInfo.Username
-	groups := req.UserInfo.Groups
-
+func (c *admissionController) isAnnotationAllowed(userName string, groups []string) bool {
 	if c.bypassControllers {
 		for _, sysUser := range c.systemUsers {
 			if sysUser.MatchString(userName) {
 				log.Logger().Debug("Request submitted from a system user, bypassing",
 					zap.String("userName", userName))
-				return nil
+				return true
 			}
 		}
 	}
@@ -48,7 +43,7 @@ func (c *admissionController) validateExternalUserInfo(req *admissionv1.Admissio
 		if allowedUser.MatchString(userName) {
 			log.Logger().Debug("Request submitted from an allowed external user",
 				zap.String("userName", userName))
-			return nil
+			return true
 		}
 	}
 
@@ -58,16 +53,15 @@ func (c *admissionController) validateExternalUserInfo(req *admissionv1.Admissio
 				log.Logger().Debug("Request submitted from an allowed external group",
 					zap.String("userName", userName),
 					zap.String("group", group))
-				return nil
+				return true
 			}
 		}
 	}
 
-	return fmt.Errorf("user %s with groups [%s] is not allowed to set user annotation", userName,
-		strings.Join(groups, ","))
+	return false
 }
 
-func (c *admissionController) validateAnnotation(userInfoAnnotation string) error {
+func (c *admissionController) isAnnotationValid(userInfoAnnotation string) error {
 	var userGroups si.UserGroupInformation
 	err := json.Unmarshal([]byte(userInfoAnnotation), &userGroups)
 	if err != nil {

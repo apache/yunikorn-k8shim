@@ -241,12 +241,19 @@ func (c *admissionController) mutate(req *admissionv1.AdmissionRequest) *admissi
 	}
 
 	if annotation, ok := pod.Annotations[userInfoAnnotation]; ok && !c.bypassAuth {
-		if err := c.validateExternalUserInfo(req, annotation); err != nil {
-			log.Logger().Error("user info validation failed", zap.Error(err))
+		userName := req.UserInfo.Username
+		groups := req.UserInfo.Groups
+
+		if allowed := c.isAnnotationAllowed(userName, groups); !allowed {
+			err := fmt.Errorf("user %s with groups [%s] is not allowed to set user annotation", userName,
+				strings.Join(groups, ","))
+			log.Logger().Error("user info validation failed - submitter is not allowed to set user annotation",
+				zap.String("user", userName),
+				zap.Strings("groups", groups))
 			return admissionResponseBuilder(uid, false, err.Error(), nil)
 		}
 
-		if err := c.validateAnnotation(annotation); err != nil {
+		if err := c.isAnnotationValid(annotation); err != nil {
 			log.Logger().Error("invalid user info annotation", zap.Error(err))
 			return admissionResponseBuilder(uid, false, err.Error(), nil)
 		}

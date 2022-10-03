@@ -581,7 +581,7 @@ func TestExternalAuthentication(t *testing.T) {
 	req.Kind = metav1.GroupVersionKind{Kind: "Pod"}
 	resp := ac.mutate(req)
 	assert.Check(t, !resp.Allowed, "response was allowed")
-	assert.Check(t, strings.Contains(resp.Result.Message, "user test with groups [dev] is not allowed to set user annotation"))
+	assert.Check(t, strings.Contains(resp.Result.Message, "not allowed to set user annotation"))
 
 	// should pass as "testExtUser" is allowed to add the userInfo annotation
 	req = &admissionv1.AdmissionRequest{

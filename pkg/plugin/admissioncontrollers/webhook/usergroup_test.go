@@ -23,61 +23,57 @@ import (
 	"testing"
 
 	"gotest.tools/assert"
-	admissionv1 "k8s.io/api/admission/v1"
-	authv1 "k8s.io/api/authentication/v1"
 )
 
-const testAnnotation = "{\"user\":\"test\",\"groups\":[\"devops\",\"system:authenticated\"]}"
+const (
+	userName       = "test"
+	testAnnotation = "{\"user\":\"test\",\"groups\":[\"devops\",\"system:authenticated\"]}"
+)
+
+var (
+	groups = []string{"system:authenticated", "devs"}
+)
 
 func TestValidateAnnotation(t *testing.T) {
 	ac := getDefaultAdmissionController()
 
-	err := ac.validateAnnotation("xyzxyz")
+	err := ac.isAnnotationValid("xyzxyz")
 	assert.ErrorContains(t, err, "invalid character 'x'")
 
-	err = ac.validateAnnotation(testAnnotation)
+	err = ac.isAnnotationValid(testAnnotation)
 	assert.NilError(t, err)
 }
 
 func TestBypassControllers(t *testing.T) {
 	ac := getDefaultAdmissionController()
-	req := getAdmissionRequest()
-	req.UserInfo.Username = "system:serviceaccount:kube-system:job-controller"
-
-	err := ac.validateExternalUserInfo(req, testAnnotation)
-	assert.NilError(t, err)
+	allowed := ac.isAnnotationAllowed("system:serviceaccount:kube-system:job-controller", groups)
+	assert.Assert(t, allowed)
 }
 
 func TestExternalUsers(t *testing.T) {
 	ac := getDefaultAdmissionController()
-	req := getAdmissionRequest()
-	req.UserInfo.Username = "yunikorn"
 	extUsersRegexps := make([]*regexp.Regexp, 1)
 	extUsersRegexps[0] = regexp.MustCompile("yunikorn")
 	ac.externalUsers = extUsersRegexps
 
-	err := ac.validateExternalUserInfo(req, testAnnotation)
-	assert.NilError(t, err)
+	allowed := ac.isAnnotationAllowed("yunikorn", groups)
+	assert.Assert(t, allowed)
 }
 
 func TestExternalGroups(t *testing.T) {
 	ac := getDefaultAdmissionController()
-	req := getAdmissionRequest()
 	extGroupsRegexps := make([]*regexp.Regexp, 1)
 	extGroupsRegexps[0] = regexp.MustCompile("devs")
 	ac.externalGroups = extGroupsRegexps
 
-	err := ac.validateExternalUserInfo(req, testAnnotation)
-	assert.NilError(t, err)
+	allowed := ac.isAnnotationAllowed(userName, groups)
+	assert.Assert(t, allowed)
 }
 
 func TestExternalAuthenticationDenied(t *testing.T) {
 	ac := getDefaultAdmissionController()
-	req := getAdmissionRequest()
-	req.UserInfo.Username = "yunikorn"
-
-	err := ac.validateExternalUserInfo(req, testAnnotation)
-	assert.ErrorContains(t, err, "user yunikorn with groups [system:authenticated,devs] is not allowed to set user annotation")
+	allowed := ac.isAnnotationAllowed("yunikorn", groups)
+	assert.Assert(t, !allowed)
 }
 
 func getDefaultAdmissionController() *admissionController {
@@ -97,17 +93,4 @@ func getDefaultAdmissionController() *admissionController {
 	}
 
 	return &ac
-}
-
-func getAdmissionRequest() *admissionv1.AdmissionRequest {
-	req := &admissionv1.AdmissionRequest{
-		UserInfo: authv1.UserInfo{
-			Username: "test",
-			UID:      "uid-1",
-			Groups:   []string{"system:authenticated", "devs"},
-			Extra:    nil,
-		},
-	}
-
-	return req
 }
