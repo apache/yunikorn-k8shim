@@ -240,18 +240,20 @@ func MergeMaps(first, second map[string]string) map[string]string {
 // find user name from pod label
 func GetUserFromPod(pod *v1.Pod) string {
 	userLabelKey := conf.GetSchedulerConf().UserLabelKey
+	// UserLabelKey should not be empty
+	if len(userLabelKey) == 0 {
+		userLabelKey = constants.DefaultUserLabel
+	}
 	// User name to be defined in labels
-	for name, value := range pod.Labels {
-		if name == userLabelKey {
-			log.Logger().Info("Found user name from pod labels.",
-				zap.String("userLabel", userLabelKey), zap.String("user", value))
-			return value
-		}
+	if username, ok := pod.Labels[userLabelKey]; ok && len(username) > 0 {
+		log.Logger().Info("Found user name from pod labels.",
+			zap.String("userLabel", userLabelKey), zap.String("user", username))
+		return username
 	}
 	value := constants.DefaultUser
 
 	log.Logger().Debug("Unable to retrieve user name from pod labels. Empty user label",
-		zap.String("userLabel", constants.DefaultUserLabel))
+		zap.String("userLabel", userLabelKey))
 
 	return value
 }
