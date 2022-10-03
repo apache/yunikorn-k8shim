@@ -20,6 +20,8 @@ package cache
 
 import (
 	"fmt"
+	"strings"
+
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -77,6 +79,14 @@ func newPlaceholder(placeholderName string, app *Application, taskGroup v1alpha1
 		})
 	}
 
+	// Add imagePullSecrets to the placeholder
+	imagePullSecrets := make([]v1.LocalObjectReference, 0)
+	if secrets, ok := app.tags[constants.AppTagImagePullSecrets]; ok {
+		for _, secret := range strings.Split(secrets, ",") {
+			imagePullSecrets = append(imagePullSecrets, v1.LocalObjectReference{Name: secret})
+		}
+	}
+
 	placeholderPod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      placeholderName,
@@ -94,10 +104,12 @@ func newPlaceholder(placeholderName string, app *Application, taskGroup v1alpha1
 				RunAsUser:  &runAsUser,
 				RunAsGroup: &runAsGroup,
 			},
+			ImagePullSecrets: imagePullSecrets,
 			Containers: []v1.Container{
 				{
-					Name:  constants.PlaceholderContainerName,
-					Image: conf.GetSchedulerConf().PlaceHolderImage,
+					Name:            constants.PlaceholderContainerName,
+					Image:           conf.GetSchedulerConf().PlaceHolderImage,
+					ImagePullPolicy: v1.PullIfNotPresent,
 					Resources: v1.ResourceRequirements{
 						Requests: utils.GetPlaceholderResourceRequest(taskGroup.MinResource),
 					},

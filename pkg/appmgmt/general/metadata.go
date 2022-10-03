@@ -19,6 +19,8 @@
 package general
 
 import (
+	"strings"
+
 	v1 "k8s.io/api/core/v1"
 
 	"go.uber.org/zap"
@@ -77,6 +79,16 @@ func getAppMetadata(pod *v1.Pod, recovery bool) (interfaces.ApplicationMetadata,
 	}
 	if isStateAwareDisabled(pod) {
 		tags[siCommon.AppTagStateAwareDisable] = "true"
+	}
+
+	// attach imagePullSecrets if present
+	secrets := pod.Spec.ImagePullSecrets
+	if len(secrets) > 0 {
+		arr := make([]string, len(secrets))
+		for i, secret := range secrets {
+			arr[i] = secret.Name
+		}
+		tags[constants.AppTagImagePullSecrets] = strings.Join(arr, ",")
 	}
 
 	// get the user from Pod Labels
