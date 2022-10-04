@@ -245,12 +245,12 @@ func (c *admissionController) mutate(req *admissionv1.AdmissionRequest) *admissi
 		groups := req.UserInfo.Groups
 
 		if allowed := c.isAnnotationAllowed(userName, groups); !allowed {
-			err := fmt.Errorf("user %s with groups [%s] is not allowed to set user annotation", userName,
+			errMsg := fmt.Sprintf("user %s with groups [%s] is not allowed to set user annotation", userName,
 				strings.Join(groups, ","))
 			log.Logger().Error("user info validation failed - submitter is not allowed to set user annotation",
 				zap.String("user", userName),
 				zap.Strings("groups", groups))
-			return admissionResponseBuilder(uid, false, err.Error(), nil)
+			return admissionResponseBuilder(uid, false, errMsg, nil)
 		}
 
 		if err := c.isAnnotationValid(annotation); err != nil {
