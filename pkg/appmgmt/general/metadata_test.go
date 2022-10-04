@@ -102,7 +102,10 @@ func TestGetAppMetadata(t *testing.T) { //nolint:funlen
 				constants.AnnotationSchedulingPolicyParam: "gangSchedulingStyle=Soft",
 			},
 		},
-		Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
+		Spec: v1.PodSpec{
+			SchedulerName:    constants.SchedulerName,
+			ImagePullSecrets: []v1.LocalObjectReference{{Name: "secret1"}, {Name: "secret2"}},
+		},
 		Status: v1.PodStatus{
 			Phase: v1.PodPending,
 		},
@@ -115,6 +118,7 @@ func TestGetAppMetadata(t *testing.T) { //nolint:funlen
 	assert.Equal(t, app.User, constants.DefaultUser)
 	assert.Equal(t, app.Tags["namespace"], "default")
 	assert.Equal(t, app.Tags[constants.AnnotationSchedulingPolicyParam], "gangSchedulingStyle=Soft")
+	assert.Equal(t, app.Tags[constants.AppTagImagePullSecrets], "secret1,secret2")
 	assert.Assert(t, app.Tags[constants.AnnotationTaskGroups] != "")
 	assert.Equal(t, app.TaskGroups[0].Name, "test-group-1")
 	assert.Equal(t, app.TaskGroups[0].MinMember, int32(3))

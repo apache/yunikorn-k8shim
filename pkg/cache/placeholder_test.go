@@ -40,8 +40,9 @@ func TestNewPlaceholder(t *testing.T) {
 		namespace = "test"
 	)
 	mockedSchedulerAPI := newMockSchedulerAPI()
-	app := NewApplication(appID, queue,
-		"bob", map[string]string{constants.AppTagNamespace: namespace}, mockedSchedulerAPI)
+	app := NewApplication(appID, queue, "bob",
+		map[string]string{constants.AppTagNamespace: namespace, constants.AppTagImagePullSecrets: "secret1,secret2"},
+		mockedSchedulerAPI)
 	app.setTaskGroups([]v1alpha1.TaskGroup{
 		{
 			Name:      "test-group-1",
@@ -71,6 +72,9 @@ func TestNewPlaceholder(t *testing.T) {
 	assert.Equal(t, holder.String(), "appID: app01, taskGroup: test-group-1, podName: test/ph-name")
 	assert.Equal(t, holder.pod.Spec.SecurityContext.RunAsUser, &runAsUser)
 	assert.Equal(t, holder.pod.Spec.SecurityContext.RunAsGroup, &runAsGroup)
+	assert.Equal(t, len(holder.pod.Spec.ImagePullSecrets), 2)
+	assert.Equal(t, "secret1", holder.pod.Spec.ImagePullSecrets[0].Name)
+	assert.Equal(t, "secret2", holder.pod.Spec.ImagePullSecrets[1].Name)
 }
 
 func TestNewPlaceholderWithLabelsAndAnnotations(t *testing.T) {
