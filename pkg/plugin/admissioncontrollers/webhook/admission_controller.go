@@ -40,6 +40,7 @@ import (
 
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
+	"github.com/apache/yunikorn-k8shim/pkg/plugin/admissioncontrollers/webhook/annotation"
 	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 )
 
@@ -65,14 +66,11 @@ type admissionController struct {
 	configName               string
 	schedulerValidateConfURL string
 	bypassAuth               bool
-	bypassControllers        bool
 	processNamespaces        []*regexp.Regexp
 	bypassNamespaces         []*regexp.Regexp
 	labelNamespaces          []*regexp.Regexp
 	noLabelNamespaces        []*regexp.Regexp
-	systemUsers              []*regexp.Regexp
-	externalUsers            []*regexp.Regexp
-	externalGroups           []*regexp.Regexp
+	annotationHandler        *annotation.UserGroupAnnotationHandler
 }
 
 type patchOperation struct {
@@ -141,18 +139,22 @@ func initAdmissionController(configName string,
 		externalGroupsRegexes = regexps
 	}
 
+	annotationHandler := &annotation.UserGroupAnnotationHandler{
+		BypassControllers: bypassControllers,
+		SystemUsers:       systemUsersRegexes,
+		ExternalGroups:    externalGroupsRegexes,
+		ExternalUsers:     externalUsersRegexes,
+	}
+
 	hook := admissionController{
 		configName:               configName,
 		schedulerValidateConfURL: schedulerValidateConfURL,
 		bypassAuth:               bypassAuth,
-		bypassControllers:        bypassControllers,
 		processNamespaces:        processRegexes,
 		bypassNamespaces:         bypassRegexes,
 		labelNamespaces:          labelRegexes,
 		noLabelNamespaces:        noLabelRegexes,
-		systemUsers:              systemUsersRegexes,
-		externalGroups:           externalGroupsRegexes,
-		externalUsers:            externalUsersRegexes,
+		annotationHandler:        annotationHandler,
 	}
 
 	log.Logger().Info("Initialized YuniKorn Admission Controller",
@@ -211,21 +213,19 @@ func (c *admissionController) mutate(req *admissionv1.AdmissionRequest) *admissi
 		return admissionResponseBuilder("", false, "", nil)
 	}
 
+	if req.Kind.Kind == "Pod" {
+		return c.processPod(req)
+	}
+
+	return c.processWorkload(req)
+}
+
+func (c *admissionController) processPod(req *admissionv1.AdmissionRequest) *admissionv1.AdmissionResponse {
+	var patch []patchOperation
+	var uid = string(req.UID)
 	namespace := req.Namespace
 	if namespace == "" {
 		namespace = "default"
-	}
-
-	var patch []patchOperation
-
-	var requestKind = req.Kind.Kind
-	var uid = string(req.UID)
-
-	if requestKind != "Pod" {
-		log.Logger().Warn("request kind is not pod", zap.String("uid", uid),
-			zap.String("requestKind", requestKind))
-
-		return admissionResponseBuilder(uid, true, "", nil)
 	}
 
 	log.Logger().Info("AdmissionReview",
@@ -244,7 +244,7 @@ func (c *admissionController) mutate(req *admissionv1.AdmissionRequest) *admissi
 		userName := req.UserInfo.Username
 		groups := req.UserInfo.Groups
 
-		if allowed := c.isAnnotationAllowed(userName, groups); !allowed {
+		if allowed := c.annotationHandler.IsAnnotationAllowed(userName, groups); !allowed {
 			errMsg := fmt.Sprintf("user %s with groups [%s] is not allowed to set user annotation", userName,
 				strings.Join(groups, ","))
 			log.Logger().Error("user info validation failed - submitter is not allowed to set user annotation",
@@ -253,7 +253,7 @@ func (c *admissionController) mutate(req *admissionv1.AdmissionRequest) *admissi
 			return admissionResponseBuilder(uid, false, errMsg, nil)
 		}
 
-		if err := c.isAnnotationValid(annotation); err != nil {
+		if err := c.annotationHandler.IsAnnotationValid(annotation); err != nil {
 			log.Logger().Error("invalid user info annotation", zap.Error(err))
 			return admissionResponseBuilder(uid, false, err.Error(), nil)
 		}
@@ -292,6 +292,41 @@ func (c *admissionController) mutate(req *admissionv1.AdmissionRequest) *admissi
 	}
 
 	return admissionResponseBuilder(uid, true, "", patchBytes)
+}
+
+func (c *admissionController) processWorkload(req *admissionv1.AdmissionRequest) *admissionv1.AdmissionResponse {
+	var uid = string(req.UID)
+	requestKind := req.Kind.Kind
+
+	annotations, supported, err := c.annotationHandler.GetAnnotationsFromRequestKind(requestKind, req)
+	if !supported {
+		// Unknown request kind - pass
+		return admissionResponseBuilder(uid, true, "", nil)
+	}
+	if err != nil {
+		return admissionResponseBuilder(uid, false, err.Error(), nil)
+	}
+
+	if annotation, ok := annotations[userInfoAnnotation]; ok && !c.bypassAuth {
+		userName := req.UserInfo.Username
+		groups := req.UserInfo.Groups
+
+		if allowed := c.annotationHandler.IsAnnotationAllowed(userName, groups); !allowed {
+			errMsg := fmt.Sprintf("user %s with groups [%s] is not allowed to set user annotation", userName,
+				strings.Join(groups, ","))
+			log.Logger().Error("user info validation failed - submitter is not allowed to set user annotation",
+				zap.String("user", userName),
+				zap.Strings("groups", groups))
+			return admissionResponseBuilder(uid, false, errMsg, nil)
+		}
+
+		if err := c.annotationHandler.IsAnnotationValid(annotation); err != nil {
+			log.Logger().Error("invalid user info annotation", zap.Error(err))
+			return admissionResponseBuilder(uid, false, err.Error(), nil)
+		}
+	}
+
+	return admissionResponseBuilder(uid, true, "", nil)
 }
 
 func updateSchedulerName(patch []patchOperation) []patchOperation {

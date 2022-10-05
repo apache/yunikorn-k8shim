@@ -31,6 +31,7 @@ import (
 
 	"gotest.tools/assert"
 	admissionv1 "k8s.io/api/admission/v1"
+	appsv1 "k8s.io/api/apps/v1"
 	authv1 "k8s.io/api/authentication/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -43,9 +44,10 @@ import (
 type responseMode int
 
 const (
-	Success = responseMode(0)
-	Failure = responseMode(1)
-	Error   = responseMode(2)
+	Success                 = responseMode(0)
+	Failure                 = responseMode(1)
+	Error                   = responseMode(2)
+	validUserInfoAnnotation = "{\"user\":\"test\",\"groups\":[\"devops\",\"system:authenticated\"]}"
 )
 
 func TestUpdateLabels(t *testing.T) {
@@ -455,6 +457,7 @@ func TestMutate(t *testing.T) {
 	var err error
 
 	ac = prepareController(t, "", "", "^kube-system$,^bypass$", "", "^nolabel$")
+	ac.bypassAuth = true
 
 	// nil request
 	resp = ac.mutate(nil)
@@ -563,7 +566,7 @@ func TestExternalAuthentication(t *testing.T) {
 	pod := v1.Pod{ObjectMeta: metav1.ObjectMeta{
 		Namespace: "test-ns",
 		Annotations: map[string]string{
-			userInfoAnnotation: "{\"user\":\"test\",\"groups\":[\"devops\",\"system:authenticated\"]}",
+			userInfoAnnotation: validUserInfoAnnotation,
 		},
 	}}
 	podJSON, err := json.Marshal(pod)
@@ -609,6 +612,36 @@ func TestExternalAuthentication(t *testing.T) {
 	assert.NilError(t, err, "failed to marshal pod")
 	req.Object = runtime.RawExtension{Raw: podJSON}
 	req.Kind = metav1.GroupVersionKind{Kind: "Pod"}
+	resp = ac.mutate(req)
+	assert.Check(t, !resp.Allowed, "response was allowed")
+	assert.Check(t, strings.Contains(resp.Result.Message, "invalid character 'x'"))
+
+	// deployment
+	deployment := appsv1.Deployment{
+		Spec: appsv1.DeploymentSpec{
+			Template: v1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "test-ns",
+					Annotations: map[string]string{
+						userInfoAnnotation: validUserInfoAnnotation,
+					},
+				},
+			},
+		},
+	}
+	deploymentJSON, err2 := json.Marshal(deployment)
+	assert.NilError(t, err2, "failed to marshal deployment")
+	req.Object = runtime.RawExtension{Raw: deploymentJSON}
+	req.Kind = metav1.GroupVersionKind{Kind: "Deployment"}
+	resp = ac.mutate(req)
+	assert.Check(t, resp.Allowed, "response not allowed")
+
+	// deployment - invalid annotation
+	deployment.Spec.Template.Annotations[userInfoAnnotation] = "xyzxyz"
+	deploymentJSON, err = json.Marshal(deployment)
+	req.Object = runtime.RawExtension{Raw: deploymentJSON}
+	req.Kind = metav1.GroupVersionKind{Kind: "Deployment"}
+	assert.NilError(t, err, "failed to marshal deployment")
 	resp = ac.mutate(req)
 	assert.Check(t, !resp.Allowed, "response was allowed")
 	assert.Check(t, strings.Contains(resp.Result.Message, "invalid character 'x'"))
