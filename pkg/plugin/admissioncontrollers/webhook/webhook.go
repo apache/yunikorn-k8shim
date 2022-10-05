@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"sync"
 	"syscall"
 
@@ -45,7 +46,18 @@ const (
 	admissionControllerBypassNamespaces  = "ADMISSION_CONTROLLER_BYPASS_NAMESPACES"
 	admissionControllerLabelNamespaces   = "ADMISSION_CONTROLLER_LABEL_NAMESPACES"
 	admissionControllerNoLabelNamespaces = "ADMISSION_CONTROLLER_NO_LABEL_NAMESPACES"
-	defaultBypassNamespaces              = "^kube-system$"
+
+	// user & group resolution settings
+	admissionControllerBypassAuth        = "ADMISSION_CONTROLLER_BYPASS_AUTH"
+	admissionControllerBypassControllers = "ADMISSION_CONTROLLER_BYPASS_CONTROLLERS"
+	admissionControllerSystemUsers       = "ADMISSION_CONTROLLER_SYSTEM_USERS"
+	admissionControllerExternalUsers     = "ADMISSION_CONTROLLER_EXTERNAL_USERS"
+	admissionControllerExternalGroups    = "ADMISSION_CONTROLLER_EXTERNAL_GROUPS"
+
+	defaultBypassNamespaces  = "^kube-system$"
+	defaultBypassAuth        = false
+	defaultBypassControllers = true
+	defaultSystemUsers       = "system:serviceaccount:kube-system:*"
 
 	// legal URLs
 	mutateURL       = "/mutate"
@@ -60,27 +72,23 @@ type WebHook struct {
 	sync.Mutex
 }
 
-func main() {
-	namespace := os.Getenv(admissionControllerNamespace)
-	serviceName := os.Getenv(admissionControllerService)
-	processNamespaces, ok := os.LookupEnv(admissionControllerProcessNamespaces)
-	if !ok {
-		processNamespaces = ""
-	}
-	bypassNamespaces, ok := os.LookupEnv(admissionControllerBypassNamespaces)
-	if !ok {
-		bypassNamespaces = defaultBypassNamespaces
-	}
-	labelNamespaces, ok := os.LookupEnv(admissionControllerLabelNamespaces)
-	if !ok {
-		labelNamespaces = ""
-	}
-	noLabelNamespaces, ok := os.LookupEnv(admissionControllerNoLabelNamespaces)
-	if !ok {
-		noLabelNamespaces = ""
-	}
+type envSettings struct {
+	namespace         string
+	serviceName       string
+	processNamespaces string
+	bypassNamespaces  string
+	labelNamespaces   string
+	noLabelNamespaces string
+	bypassAuth        bool
+	systemUsers       string
+	externalUsers     string
+	externalGroups    string
+	bypassControllers bool
+}
 
-	wm, err := NewWebhookManager(namespace, serviceName)
+func main() {
+	settings := getEnvSettings()
+	wm, err := NewWebhookManager(settings.namespace, settings.serviceName)
 	if err != nil {
 		log.Logger().Fatal("Failed to initialize webhook manager", zap.Error(err))
 	}
@@ -94,7 +102,8 @@ func main() {
 	ac, err := initAdmissionController(
 		fmt.Sprintf("%s.yaml", policyGroup),
 		fmt.Sprintf(schedulerValidateConfURLPattern, schedulerServiceAddress),
-		processNamespaces, bypassNamespaces, labelNamespaces, noLabelNamespaces)
+		settings.processNamespaces, settings.bypassNamespaces, settings.labelNamespaces, settings.noLabelNamespaces,
+		settings.bypassAuth, settings.bypassControllers, settings.systemUsers, settings.externalUsers, settings.externalGroups)
 	if err != nil {
 		log.Logger().Fatal("failed to configure admission controller", zap.Error(err))
 	}
@@ -120,6 +129,80 @@ func main() {
 			webhook.Shutdown()
 			os.Exit(0)
 		}
+	}
+}
+
+func getEnvSettings() *envSettings {
+	namespace := os.Getenv(admissionControllerNamespace)
+	serviceName := os.Getenv(admissionControllerService)
+	processNamespaces, ok := os.LookupEnv(admissionControllerProcessNamespaces)
+	if !ok {
+		processNamespaces = ""
+	}
+	bypassNamespaces, ok := os.LookupEnv(admissionControllerBypassNamespaces)
+	if !ok {
+		bypassNamespaces = defaultBypassNamespaces
+	}
+	labelNamespaces, ok := os.LookupEnv(admissionControllerLabelNamespaces)
+	if !ok {
+		labelNamespaces = ""
+	}
+	noLabelNamespaces, ok := os.LookupEnv(admissionControllerNoLabelNamespaces)
+	if !ok {
+		noLabelNamespaces = ""
+	}
+
+	bypassAuth := defaultBypassAuth
+	bypassAuthEnv, ok := os.LookupEnv(admissionControllerBypassAuth)
+	if ok {
+		parsed, err := strconv.ParseBool(bypassAuthEnv)
+		if err != nil {
+			log.Logger().Warn("Unable to parse value, using default",
+				zap.String("env var", admissionControllerBypassAuth),
+				zap.String("value", bypassAuthEnv),
+				zap.Bool("default", defaultBypassAuth))
+		} else {
+			bypassAuth = parsed
+		}
+	}
+	systemUsers, ok := os.LookupEnv(admissionControllerSystemUsers)
+	if !ok {
+		systemUsers = defaultSystemUsers
+	}
+	externalUsers, ok := os.LookupEnv(admissionControllerExternalUsers)
+	if !ok {
+		externalUsers = ""
+	}
+	externalGroups, ok := os.LookupEnv(admissionControllerExternalGroups)
+	if !ok {
+		externalGroups = ""
+	}
+
+	bypassControllers := defaultBypassControllers
+	bypassControllersEnv, ok := os.LookupEnv(admissionControllerBypassControllers)
+	if ok {
+		parsed, err := strconv.ParseBool(bypassControllersEnv)
+		if err != nil {
+			log.Logger().Warn("Unable to parse value, using default",
+				zap.String("env var", admissionControllerBypassControllers),
+				zap.String("value", bypassControllersEnv),
+				zap.Bool("default", defaultBypassControllers))
+		} else {
+			bypassControllers = parsed
+		}
+	}
+	return &envSettings{
+		namespace:         namespace,
+		serviceName:       serviceName,
+		processNamespaces: processNamespaces,
+		bypassNamespaces:  bypassNamespaces,
+		labelNamespaces:   labelNamespaces,
+		noLabelNamespaces: noLabelNamespaces,
+		bypassAuth:        bypassAuth,
+		systemUsers:       systemUsers,
+		externalUsers:     externalUsers,
+		externalGroups:    externalGroups,
+		bypassControllers: bypassControllers,
 	}
 }
 

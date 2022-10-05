@@ -31,6 +31,7 @@ import (
 
 	"gotest.tools/assert"
 	admissionv1 "k8s.io/api/admission/v1"
+	authv1 "k8s.io/api/authentication/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -263,7 +264,7 @@ func TestUpdateSchedulerName(t *testing.T) {
 
 func TestValidateConfigMap(t *testing.T) {
 	configName := fmt.Sprintf("%s.yaml", conf.DefaultPolicyGroup)
-	controller, err := initAdmissionController(configName, "", "", "", "", "")
+	controller, err := initAdmissionController(configName, "", "", "", "", "", false, true, "", "", "")
 	if err != nil {
 		t.Fatal("failed to init admission controller", err)
 	}
@@ -363,7 +364,9 @@ func prepareController(t *testing.T, url string, processNs string, bypassNs stri
 	controller, err := initAdmissionController(
 		configName,
 		fmt.Sprintf(schedulerValidateConfURLPattern, url),
-		processNs, bypassNs, labelNs, noLabelNs)
+		processNs, bypassNs, labelNs, noLabelNs,
+		false, true,
+		"system:serviceaccount:kube-system:job-controller", "testExtUser", "testExtGroup")
 	if err != nil {
 		t.Fatal("failed to prepare controller", err)
 	}
@@ -553,6 +556,64 @@ func TestMutate(t *testing.T) {
 	assert.Equal(t, len(resp.Patch), 0, "non-empty patch for unknown object type")
 }
 
+func TestExternalAuthentication(t *testing.T) {
+	ac := prepareController(t, "", "", "^kube-system$,^bypass$", "", "^nolabel$")
+
+	// validation fails, submitter user is not whitelisted
+	pod := v1.Pod{ObjectMeta: metav1.ObjectMeta{
+		Namespace: "test-ns",
+		Annotations: map[string]string{
+			userInfoAnnotation: "{\"user\":\"test\",\"groups\":[\"devops\",\"system:authenticated\"]}",
+		},
+	}}
+	podJSON, err := json.Marshal(pod)
+	assert.NilError(t, err, "failed to marshal pod")
+	req := &admissionv1.AdmissionRequest{
+		UID:       "test-uid",
+		Namespace: "test-ns",
+		Kind:      metav1.GroupVersionKind{Kind: "Pod"},
+		UserInfo: authv1.UserInfo{
+			Username: "test",
+			Groups:   []string{"dev"},
+		},
+	}
+	req.Object = runtime.RawExtension{Raw: podJSON}
+	req.Kind = metav1.GroupVersionKind{Kind: "Pod"}
+	resp := ac.mutate(req)
+	assert.Check(t, !resp.Allowed, "response was allowed")
+	assert.Check(t, strings.Contains(resp.Result.Message, "not allowed to set user annotation"))
+
+	// should pass as "testExtUser" is allowed to add the userInfo annotation
+	req = &admissionv1.AdmissionRequest{
+		UID:       "test-uid",
+		Namespace: "test-ns",
+		Kind:      metav1.GroupVersionKind{Kind: "Pod"},
+		UserInfo: authv1.UserInfo{
+			Username: "testExtUser",
+			Groups:   []string{"dev"},
+		},
+	}
+	req.Object = runtime.RawExtension{Raw: podJSON}
+	req.Kind = metav1.GroupVersionKind{Kind: "Pod"}
+	resp = ac.mutate(req)
+	assert.Check(t, resp.Allowed, "response not allowed")
+
+	// invalid annotation
+	pod = v1.Pod{ObjectMeta: metav1.ObjectMeta{
+		Namespace: "test-ns",
+		Annotations: map[string]string{
+			userInfoAnnotation: "xyzxyz",
+		},
+	}}
+	podJSON, err = json.Marshal(pod)
+	assert.NilError(t, err, "failed to marshal pod")
+	req.Object = runtime.RawExtension{Raw: podJSON}
+	req.Kind = metav1.GroupVersionKind{Kind: "Pod"}
+	resp = ac.mutate(req)
+	assert.Check(t, !resp.Allowed, "response was allowed")
+	assert.Check(t, strings.Contains(resp.Result.Message, "invalid character 'x'"))
+}
+
 func parsePatch(t *testing.T, patch []byte) []patchOperation {
 	res := make([]patchOperation, 0)
 	if len(patch) == 0 {
@@ -643,18 +704,97 @@ func TestParseRegexes(t *testing.T) {
 func TestInitAdmissionControllerRegexErrorHandling(t *testing.T) {
 	var err error
 
-	_, err = initAdmissionController("", "", "", "", "", "")
+	_, err = initAdmissionController("", "", "", "", "", "", false, true, "", "", "")
 	assert.NilError(t, err, "error returned from simple init")
 
-	_, err = initAdmissionController("", "", "(", "", "", "")
+	_, err = initAdmissionController("", "", "(", "", "", "", false, true, "", "", "")
 	assert.ErrorContains(t, err, "error parsing regexp", "didn't fail on bad processNamespaces list")
 
-	_, err = initAdmissionController("", "", "", "(", "", "")
+	_, err = initAdmissionController("", "", "", "(", "", "", false, true, "", "", "")
 	assert.ErrorContains(t, err, "error parsing regexp", "didn't fail on bad bypassNamespaces list")
 
-	_, err = initAdmissionController("", "", "", "", "(", "")
+	_, err = initAdmissionController("", "", "", "", "(", "", false, true, "", "", "")
 	assert.ErrorContains(t, err, "error parsing regexp", "didn't fail on bad labelNamespaces list")
 
-	_, err = initAdmissionController("", "", "", "", "", "(")
+	_, err = initAdmissionController("", "", "", "", "", "(", false, true, "", "", "")
 	assert.ErrorContains(t, err, "error parsing regexp", "didn't fail on bad noLabelNamespaces list")
+
+	_, err = initAdmissionController("", "", "", "", "", "", false, true, "(", "", "")
+	assert.ErrorContains(t, err, "error parsing regexp", "didn't fail on bad systemUsers list")
+
+	_, err = initAdmissionController("", "", "", "", "", "", false, true, "", "(", "")
+	assert.ErrorContains(t, err, "error parsing regexp", "didn't fail on bad externalUsers list")
+
+	_, err = initAdmissionController("", "", "", "", "", "", false, true, "", "", "(")
+	assert.ErrorContains(t, err, "error parsing regexp", "didn't fail on bad externalGroups list")
+}
+
+func TestEnvSettings(t *testing.T) {
+	originalEnv := getEnvSettings()
+	defer func() {
+		os.Setenv(admissionControllerNamespace, originalEnv.namespace)
+		os.Setenv(admissionControllerService, originalEnv.serviceName)
+		os.Setenv(admissionControllerProcessNamespaces, originalEnv.processNamespaces)
+		os.Setenv(admissionControllerBypassNamespaces, originalEnv.bypassNamespaces)
+		os.Setenv(admissionControllerLabelNamespaces, originalEnv.labelNamespaces)
+		os.Setenv(admissionControllerNoLabelNamespaces, originalEnv.noLabelNamespaces)
+		os.Setenv(admissionControllerBypassAuth, strconv.FormatBool(originalEnv.bypassAuth))
+		os.Setenv(admissionControllerSystemUsers, originalEnv.systemUsers)
+		os.Setenv(admissionControllerExternalUsers, originalEnv.externalUsers)
+		os.Setenv(admissionControllerExternalGroups, originalEnv.externalGroups)
+		os.Setenv(admissionControllerBypassControllers, strconv.FormatBool(originalEnv.bypassControllers))
+	}()
+
+	// test valid settings
+	os.Setenv(admissionControllerNamespace, "testNamespace")
+	os.Setenv(admissionControllerService, "testYunikornService")
+	os.Setenv(admissionControllerProcessNamespaces, "testProcessNamespaces")
+	os.Setenv(admissionControllerBypassNamespaces, "testBypassNamespaces")
+	os.Setenv(admissionControllerLabelNamespaces, "testLabelNamespaces")
+	os.Setenv(admissionControllerNoLabelNamespaces, "testNolabelNamespaces")
+	os.Setenv(admissionControllerBypassAuth, "false")
+	os.Setenv(admissionControllerSystemUsers, "systemuser")
+	os.Setenv(admissionControllerExternalUsers, "yunikorn")
+	os.Setenv(admissionControllerExternalGroups, "devs")
+	os.Setenv(admissionControllerBypassControllers, "true")
+	env := getEnvSettings()
+	assert.Equal(t, env.namespace, "testNamespace")
+	assert.Equal(t, env.serviceName, "testYunikornService")
+	assert.Equal(t, env.processNamespaces, "testProcessNamespaces")
+	assert.Equal(t, env.bypassNamespaces, "testBypassNamespaces")
+	assert.Equal(t, env.labelNamespaces, "testLabelNamespaces")
+	assert.Equal(t, env.noLabelNamespaces, "testNolabelNamespaces")
+	assert.Equal(t, env.bypassAuth, false)
+	assert.Equal(t, env.systemUsers, "systemuser")
+	assert.Equal(t, env.externalUsers, "yunikorn")
+	assert.Equal(t, env.externalGroups, "devs")
+	assert.Equal(t, env.bypassControllers, true)
+
+	// test missing settings
+	os.Unsetenv(admissionControllerProcessNamespaces)
+	os.Unsetenv(admissionControllerBypassNamespaces)
+	os.Unsetenv(admissionControllerLabelNamespaces)
+	os.Unsetenv(admissionControllerNoLabelNamespaces)
+	os.Unsetenv(admissionControllerBypassAuth)
+	os.Unsetenv(admissionControllerSystemUsers)
+	os.Unsetenv(admissionControllerExternalUsers)
+	os.Unsetenv(admissionControllerExternalGroups)
+	os.Unsetenv(admissionControllerBypassControllers)
+	env = getEnvSettings()
+	assert.Equal(t, env.processNamespaces, "")
+	assert.Equal(t, env.bypassNamespaces, defaultBypassNamespaces)
+	assert.Equal(t, env.labelNamespaces, "")
+	assert.Equal(t, env.noLabelNamespaces, "")
+	assert.Equal(t, env.bypassAuth, defaultBypassAuth)
+	assert.Equal(t, env.systemUsers, defaultSystemUsers)
+	assert.Equal(t, env.externalUsers, "")
+	assert.Equal(t, env.externalGroups, "")
+	assert.Equal(t, env.bypassControllers, defaultBypassControllers)
+
+	// test faulty settings for boolean values
+	os.Setenv(admissionControllerBypassAuth, "xyz")
+	os.Setenv(admissionControllerBypassControllers, "xyz")
+	env = getEnvSettings()
+	assert.Equal(t, env.bypassAuth, defaultBypassAuth)
+	assert.Equal(t, env.bypassControllers, defaultBypassControllers)
 }
