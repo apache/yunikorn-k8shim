@@ -240,23 +240,11 @@ func (c *admissionController) processPod(req *admissionv1.AdmissionRequest) *adm
 		return admissionResponseBuilder(uid, false, err.Error(), nil)
 	}
 
-	if annotation, ok := pod.Annotations[userInfoAnnotation]; ok && !c.bypassAuth {
-		userName := req.UserInfo.Username
-		groups := req.UserInfo.Groups
-
-		if allowed := c.annotationHandler.IsAnnotationAllowed(userName, groups); !allowed {
-			errMsg := fmt.Sprintf("user %s with groups [%s] is not allowed to set user annotation", userName,
-				strings.Join(groups, ","))
-			log.Logger().Error("user info validation failed - submitter is not allowed to set user annotation",
-				zap.String("user", userName),
-				zap.Strings("groups", groups))
-			return admissionResponseBuilder(uid, false, errMsg, nil)
-		}
-
-		if err := c.annotationHandler.IsAnnotationValid(annotation); err != nil {
-			log.Logger().Error("invalid user info annotation", zap.Error(err))
-			return admissionResponseBuilder(uid, false, err.Error(), nil)
-		}
+	if failureResponse := c.checkUserInfoAnnotation(func() (string, bool) {
+		a, ok := pod.Annotations[userInfoAnnotation]
+		return a, ok
+	}, req.UserInfo.Username, req.UserInfo.Groups, uid); failureResponse != nil {
+		return failureResponse
 	}
 
 	if labelAppValue, ok := pod.Labels[constants.LabelApp]; ok {
@@ -307,10 +295,18 @@ func (c *admissionController) processWorkload(req *admissionv1.AdmissionRequest)
 		return admissionResponseBuilder(uid, false, err.Error(), nil)
 	}
 
-	if annotation, ok := annotations[userInfoAnnotation]; ok && !c.bypassAuth {
-		userName := req.UserInfo.Username
-		groups := req.UserInfo.Groups
+	if failureResponse := c.checkUserInfoAnnotation(func() (string, bool) {
+		a, ok := annotations[userInfoAnnotation]
+		return a, ok
+	}, req.UserInfo.Username, req.UserInfo.Groups, uid); failureResponse != nil {
+		return failureResponse
+	}
 
+	return admissionResponseBuilder(uid, true, "", nil)
+}
+
+func (c *admissionController) checkUserInfoAnnotation(getAnnotation func() (string, bool), userName string, groups []string, uid string) *admissionv1.AdmissionResponse {
+	if annotation, ok := getAnnotation(); ok && !c.bypassAuth {
 		if allowed := c.annotationHandler.IsAnnotationAllowed(userName, groups); !allowed {
 			errMsg := fmt.Sprintf("user %s with groups [%s] is not allowed to set user annotation", userName,
 				strings.Join(groups, ","))
@@ -326,7 +322,7 @@ func (c *admissionController) processWorkload(req *admissionv1.AdmissionRequest)
 		}
 	}
 
-	return admissionResponseBuilder(uid, true, "", nil)
+	return nil
 }
 
 func updateSchedulerName(patch []patchOperation) []patchOperation {
