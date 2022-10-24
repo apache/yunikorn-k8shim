@@ -35,10 +35,10 @@ import (
 )
 
 type UserGroupAnnotationHandler struct {
-	BypassControllers bool
-	SystemUsers       []*regexp.Regexp
-	ExternalUsers     []*regexp.Regexp
-	ExternalGroups    []*regexp.Regexp
+	TrustControllers bool
+	SystemUsers      []*regexp.Regexp
+	ExternalUsers    []*regexp.Regexp
+	ExternalGroups   []*regexp.Regexp
 }
 
 type Extractor func(*admissionv1.AdmissionRequest) (map[string]string, error)
@@ -62,7 +62,7 @@ var (
 )
 
 func (u *UserGroupAnnotationHandler) IsAnnotationAllowed(userName string, groups []string) bool {
-	if u.BypassControllers {
+	if u.TrustControllers {
 		for _, sysUser := range u.SystemUsers {
 			if sysUser.MatchString(userName) {
 				log.Logger().Debug("Request submitted from a system user, bypassing",

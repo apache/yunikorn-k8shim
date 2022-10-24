@@ -48,16 +48,16 @@ const (
 	admissionControllerNoLabelNamespaces = "ADMISSION_CONTROLLER_NO_LABEL_NAMESPACES"
 
 	// user & group resolution settings
-	admissionControllerBypassAuth        = "ADMISSION_CONTROLLER_BYPASS_AUTH"
-	admissionControllerBypassControllers = "ADMISSION_CONTROLLER_BYPASS_CONTROLLERS"
-	admissionControllerSystemUsers       = "ADMISSION_CONTROLLER_SYSTEM_USERS"
-	admissionControllerExternalUsers     = "ADMISSION_CONTROLLER_EXTERNAL_USERS"
-	admissionControllerExternalGroups    = "ADMISSION_CONTROLLER_EXTERNAL_GROUPS"
+	admissionControllerBypassAuth       = "ADMISSION_CONTROLLER_BYPASS_AUTH"
+	admissionControllerTrustControllers = "ADMISSION_CONTROLLER_TRUST_CONTROLLERS"
+	admissionControllerSystemUsers      = "ADMISSION_CONTROLLER_SYSTEM_USERS"
+	admissionControllerExternalUsers    = "ADMISSION_CONTROLLER_EXTERNAL_USERS"
+	admissionControllerExternalGroups   = "ADMISSION_CONTROLLER_EXTERNAL_GROUPS"
 
-	defaultBypassNamespaces  = "^kube-system$"
-	defaultBypassAuth        = false
-	defaultBypassControllers = true
-	defaultSystemUsers       = "system:serviceaccount:kube-system:*"
+	defaultBypassNamespaces = "^kube-system$"
+	defaultBypassAuth       = false
+	defaultTrustControllers = true
+	defaultSystemUsers      = "system:serviceaccount:kube-system:*"
 
 	// legal URLs
 	mutateURL       = "/mutate"
@@ -83,7 +83,7 @@ type envSettings struct {
 	systemUsers       string
 	externalUsers     string
 	externalGroups    string
-	bypassControllers bool
+	trustControllers  bool
 }
 
 func main() {
@@ -103,7 +103,7 @@ func main() {
 		fmt.Sprintf("%s.yaml", policyGroup),
 		fmt.Sprintf(schedulerValidateConfURLPattern, schedulerServiceAddress),
 		settings.processNamespaces, settings.bypassNamespaces, settings.labelNamespaces, settings.noLabelNamespaces,
-		settings.bypassAuth, settings.bypassControllers, settings.systemUsers, settings.externalUsers, settings.externalGroups)
+		settings.bypassAuth, settings.trustControllers, settings.systemUsers, settings.externalUsers, settings.externalGroups)
 	if err != nil {
 		log.Logger().Fatal("failed to configure admission controller", zap.Error(err))
 	}
@@ -178,17 +178,17 @@ func getEnvSettings() *envSettings {
 		externalGroups = ""
 	}
 
-	bypassControllers := defaultBypassControllers
-	bypassControllersEnv, ok := os.LookupEnv(admissionControllerBypassControllers)
+	trustControllers := defaultTrustControllers
+	trustControllersEnv, ok := os.LookupEnv(admissionControllerTrustControllers)
 	if ok {
-		parsed, err := strconv.ParseBool(bypassControllersEnv)
+		parsed, err := strconv.ParseBool(trustControllersEnv)
 		if err != nil {
 			log.Logger().Warn("Unable to parse value, using default",
-				zap.String("env var", admissionControllerBypassControllers),
-				zap.String("value", bypassControllersEnv),
-				zap.Bool("default", defaultBypassControllers))
+				zap.String("env var", admissionControllerTrustControllers),
+				zap.String("value", trustControllersEnv),
+				zap.Bool("default", defaultTrustControllers))
 		} else {
-			bypassControllers = parsed
+			trustControllers = parsed
 		}
 	}
 	return &envSettings{
@@ -202,7 +202,7 @@ func getEnvSettings() *envSettings {
 		systemUsers:       systemUsers,
 		externalUsers:     externalUsers,
 		externalGroups:    externalGroups,
-		bypassControllers: bypassControllers,
+		trustControllers:  trustControllers,
 	}
 }
 

@@ -775,7 +775,7 @@ func TestEnvSettings(t *testing.T) {
 		os.Setenv(admissionControllerSystemUsers, originalEnv.systemUsers)
 		os.Setenv(admissionControllerExternalUsers, originalEnv.externalUsers)
 		os.Setenv(admissionControllerExternalGroups, originalEnv.externalGroups)
-		os.Setenv(admissionControllerBypassControllers, strconv.FormatBool(originalEnv.bypassControllers))
+		os.Setenv(admissionControllerTrustControllers, strconv.FormatBool(originalEnv.trustControllers))
 	}()
 
 	// test valid settings
@@ -789,7 +789,7 @@ func TestEnvSettings(t *testing.T) {
 	os.Setenv(admissionControllerSystemUsers, "systemuser")
 	os.Setenv(admissionControllerExternalUsers, "yunikorn")
 	os.Setenv(admissionControllerExternalGroups, "devs")
-	os.Setenv(admissionControllerBypassControllers, "true")
+	os.Setenv(admissionControllerTrustControllers, "true")
 	env := getEnvSettings()
 	assert.Equal(t, env.namespace, "testNamespace")
 	assert.Equal(t, env.serviceName, "testYunikornService")
@@ -801,7 +801,7 @@ func TestEnvSettings(t *testing.T) {
 	assert.Equal(t, env.systemUsers, "systemuser")
 	assert.Equal(t, env.externalUsers, "yunikorn")
 	assert.Equal(t, env.externalGroups, "devs")
-	assert.Equal(t, env.bypassControllers, true)
+	assert.Equal(t, env.trustControllers, true)
 
 	// test missing settings
 	os.Unsetenv(admissionControllerProcessNamespaces)
@@ -812,7 +812,7 @@ func TestEnvSettings(t *testing.T) {
 	os.Unsetenv(admissionControllerSystemUsers)
 	os.Unsetenv(admissionControllerExternalUsers)
 	os.Unsetenv(admissionControllerExternalGroups)
-	os.Unsetenv(admissionControllerBypassControllers)
+	os.Unsetenv(admissionControllerTrustControllers)
 	env = getEnvSettings()
 	assert.Equal(t, env.processNamespaces, "")
 	assert.Equal(t, env.bypassNamespaces, defaultBypassNamespaces)
@@ -822,12 +822,12 @@ func TestEnvSettings(t *testing.T) {
 	assert.Equal(t, env.systemUsers, defaultSystemUsers)
 	assert.Equal(t, env.externalUsers, "")
 	assert.Equal(t, env.externalGroups, "")
-	assert.Equal(t, env.bypassControllers, defaultBypassControllers)
+	assert.Equal(t, env.trustControllers, defaultTrustControllers)
 
 	// test faulty settings for boolean values
 	os.Setenv(admissionControllerBypassAuth, "xyz")
-	os.Setenv(admissionControllerBypassControllers, "xyz")
+	os.Setenv(admissionControllerTrustControllers, "xyz")
 	env = getEnvSettings()
 	assert.Equal(t, env.bypassAuth, defaultBypassAuth)
-	assert.Equal(t, env.bypassControllers, defaultBypassControllers)
+	assert.Equal(t, env.trustControllers, defaultTrustControllers)
 }

@@ -239,10 +239,10 @@ func getAnnotationHandler() *UserGroupAnnotationHandler {
 	extGroupsRegexps := make([]*regexp.Regexp, 0)
 
 	ugh := UserGroupAnnotationHandler{
-		BypassControllers: true,
-		SystemUsers:       sysUsersRegexps,
-		ExternalGroups:    extUsersRegexps,
-		ExternalUsers:     extGroupsRegexps,
+		TrustControllers: true,
+		SystemUsers:      sysUsersRegexps,
+		ExternalGroups:   extUsersRegexps,
+		ExternalUsers:    extGroupsRegexps,
 	}
 
 	return &ugh

@@ -91,7 +91,7 @@ func initAdmissionController(configName string,
 	labelNamespaces string,
 	noLabelNamespaces string,
 	bypassAuth bool,
-	bypassControllers bool,
+	trustControllers bool,
 	systemUsers string,
 	externalUsers string,
 	externalGroups string) (*admissionController, error) {
@@ -140,10 +140,10 @@ func initAdmissionController(configName string,
 	}
 
 	annotationHandler := &annotation.UserGroupAnnotationHandler{
-		BypassControllers: bypassControllers,
-		SystemUsers:       systemUsersRegexes,
-		ExternalGroups:    externalGroupsRegexes,
-		ExternalUsers:     externalUsersRegexes,
+		TrustControllers: trustControllers,
+		SystemUsers:      systemUsersRegexes,
+		ExternalGroups:   externalGroupsRegexes,
+		ExternalUsers:    externalUsersRegexes,
 	}
 
 	hook := admissionController{
@@ -163,7 +163,7 @@ func initAdmissionController(configName string,
 		zap.String("labelNs", labelNamespaces),
 		zap.String("noLabelNs", noLabelNamespaces),
 		zap.Bool("bypassAuth", bypassAuth),
-		zap.Bool("bypassControllers", bypassControllers),
+		zap.Bool("trustControllers", trustControllers),
 		zap.String("systemUsers", systemUsers),
 		zap.String("externalUsers", externalUsers),
 		zap.String("externalGroups", externalGroups),
