@@ -21,6 +21,7 @@ package utils
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strings"
 	"time"
 
@@ -44,6 +45,14 @@ func Convert2Pod(obj interface{}) (*v1.Pod, error) {
 		return nil, fmt.Errorf("cannot convert to *v1.Pod: %v", obj)
 	}
 	return pod, nil
+}
+
+func Convert2ConfigMap(obj interface{}) *v1.ConfigMap {
+	if configmap, ok := obj.(*v1.ConfigMap); ok {
+		return configmap
+	}
+	log.Logger().Warn("cannot convert to *v1.ConfigMap", zap.Stringer("type", reflect.TypeOf(obj)))
+	return nil
 }
 
 func NeedRecovery(pod *v1.Pod) bool {
@@ -256,4 +265,32 @@ func GetUserFromPod(pod *v1.Pod) string {
 		zap.String("userLabel", userLabelKey))
 
 	return value
+}
+
+// GetCoreSchedulerConfigFromConfigMap resolves a yunikorn configmap into a core scheduler config.
+// If the configmap is missing or the policy group doesn't exist, uses a default configuration
+func GetCoreSchedulerConfigFromConfigMap(configMap *v1.ConfigMap) string {
+	// use default config if there isn't one
+	if configMap == nil {
+		return ""
+	}
+	policyGroup := conf.GetSchedulerConf().PolicyGroup
+	if data, ok := configMap.Data[fmt.Sprintf("%s.yaml", policyGroup)]; ok {
+		return data
+	}
+	return ""
+}
+
+// GetExtraConfigFromConfigMap filters the configmap entries, returning those that are not yaml
+func GetExtraConfigFromConfigMap(configMap *v1.ConfigMap) map[string]string {
+	result := make(map[string]string)
+	if configMap != nil {
+		for k, v := range configMap.Data {
+			if strings.HasSuffix(k, ".yaml") {
+				continue
+			}
+			result[k] = v
+		}
+	}
+	return result
 }

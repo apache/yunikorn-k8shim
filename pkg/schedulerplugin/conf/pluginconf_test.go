@@ -44,7 +44,7 @@ func TestDefaultValues(t *testing.T) {
 	assert.Equal(t, conf.DispatchTimeout, defaults.DefaultDispatchTimeout, "wrong dispatch timeout")
 	assert.Equal(t, conf.KubeQPS, defaults.DefaultKubeQPS, "wrong kube qps")
 	assert.Equal(t, conf.KubeBurst, defaults.DefaultKubeBurst, "wrong kube burst")
-	assert.Equal(t, conf.OperatorPlugins, "general,yunikorn-app", "wrong operator plugins")
+	assert.Equal(t, conf.OperatorPlugins, "general", "wrong operator plugins")
 	assert.Equal(t, conf.EnableConfigHotRefresh, true, "config hot refresh not enabled")
 	assert.Equal(t, conf.DisableGangScheduling, false, "gang scheduling not enabled")
 	assert.Equal(t, conf.UserLabelKey, constants.DefaultUserLabel, "wrong user label")

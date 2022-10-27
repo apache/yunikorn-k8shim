@@ -20,6 +20,7 @@ package conf
 
 import (
 	"flag"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -31,6 +32,12 @@ import (
 )
 
 type SchedulerConfFactory = func() *SchedulerConf
+
+// env vars
+const (
+	NamespaceEnv     = "NAMESPACE"
+	DefaultNamespace = "default"
+)
 
 // default configuration values, these can be override by CLI options
 const (
@@ -79,6 +86,7 @@ type SchedulerConf struct {
 	DisableGangScheduling  bool          `json:"disableGangScheduling"`
 	UserLabelKey           string        `json:"userLabelKey"`
 	PlaceHolderImage       string        `json:"placeHolderImage"`
+	Namespace              string        `json:"namespace"`
 	sync.RWMutex
 }
 
@@ -132,6 +140,13 @@ func (conf *SchedulerConf) IsOperatorPluginEnabled(name string) bool {
 	return false
 }
 
+func GetSchedulerNamespace() string {
+	if value, ok := os.LookupEnv(NamespaceEnv); ok {
+		return value
+	}
+	return DefaultNamespace
+}
+
 func createConfigs() {
 	configuration = factory()
 }
@@ -139,6 +154,7 @@ func createConfigs() {
 func initConfigs() *SchedulerConf {
 	conf := &SchedulerConf{
 		SchedulerName: constants.SchedulerName,
+		Namespace:     GetSchedulerNamespace(),
 	}
 
 	// scheduler options
@@ -162,7 +178,7 @@ func initConfigs() *SchedulerConf {
 		"the maximum QPS to kubernetes master from this client")
 	flag.IntVar(&conf.KubeBurst, "kubeBurst", DefaultKubeBurst,
 		"the maximum burst for throttle to kubernetes master from this client")
-	flag.StringVar(&conf.OperatorPlugins, "operatorPlugins", "general,"+constants.AppManagerHandlerName,
+	flag.StringVar(&conf.OperatorPlugins, "operatorPlugins", "general",
 		"comma-separated list of operator plugin names, currently, only \"spark-k8s-operator\""+
 			"and"+constants.AppManagerHandlerName+"is supported.")
 	flag.StringVar(&conf.PlaceHolderImage, "placeHolderImage", constants.PlaceholderContainerImage,

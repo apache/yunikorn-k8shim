@@ -44,6 +44,8 @@ type KubeClient interface {
 	GetClientSet() kubernetes.Interface
 
 	GetConfigs() *rest.Config
+
+	GetConfigMap(namespace string, name string) (*v1.ConfigMap, error)
 }
 
 func NewKubeClient(kc string) KubeClient {
