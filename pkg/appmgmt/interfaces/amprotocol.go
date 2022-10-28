@@ -77,6 +77,7 @@ type ApplicationMetadata struct {
 	QueueName                  string
 	User                       string
 	Tags                       map[string]string
+	Groups                     []string
 	TaskGroups                 []v1alpha1.TaskGroup
 	OwnerReferences            []metav1.OwnerReference
 	SchedulingPolicyParameters *SchedulingPolicyParameters

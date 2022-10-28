@@ -47,6 +47,7 @@ type Application struct {
 	queue                      string
 	partition                  string
 	user                       string
+	groups                     []string
 	taskMap                    map[string]*Task
 	tags                       map[string]string
 	schedulingPolicy           v1alpha1.SchedulingPolicy
@@ -69,13 +70,14 @@ func (app *Application) String() string {
 		app.applicationID, app.queue, app.partition, len(app.taskMap), app.GetApplicationState())
 }
 
-func NewApplication(appID, queueName, user string, tags map[string]string, scheduler api.SchedulerAPI) *Application {
+func NewApplication(appID, queueName, user string, groups []string, tags map[string]string, scheduler api.SchedulerAPI) *Application {
 	taskMap := make(map[string]*Task)
 	app := &Application{
 		applicationID:           appID,
 		queue:                   queueName,
 		partition:               constants.DefaultPartition,
 		user:                    user,
+		groups:                  groups,
 		taskMap:                 taskMap,
 		tags:                    tags,
 		schedulingPolicy:        v1alpha1.SchedulingPolicy{},
@@ -420,7 +422,8 @@ func (app *Application) handleSubmitApplicationEvent() {
 					QueueName:     app.queue,
 					PartitionName: app.partition,
 					Ugi: &si.UserGroupInformation{
-						User: app.user,
+						User:   app.user,
+						Groups: app.groups,
 					},
 					Tags:                         app.tags,
 					PlaceholderAsk:               app.placeholderAsk,
@@ -450,7 +453,8 @@ func (app *Application) handleRecoverApplicationEvent() {
 					QueueName:     app.queue,
 					PartitionName: app.partition,
 					Ugi: &si.UserGroupInformation{
-						User: app.user,
+						User:   app.user,
+						Groups: app.groups,
 					},
 					Tags:                         app.tags,
 					PlaceholderAsk:               app.placeholderAsk,

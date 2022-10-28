@@ -47,6 +47,10 @@ import (
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
 
+var (
+	testGroups = []string{"dev", "yunikorn"}
+)
+
 func initContextForTest() *Context {
 	conf.GetSchedulerConf().SetTestMode(true)
 	context := NewContext(client.NewMockedAPIProvider(false))
@@ -147,9 +151,9 @@ func TestRemoveApplication(t *testing.T) {
 	appID1 := "app00001"
 	appID2 := "app00002"
 	appID3 := "app00003"
-	app1 := NewApplication(appID1, "root.a", "testuser", map[string]string{}, newMockSchedulerAPI())
-	app2 := NewApplication(appID2, "root.b", "testuser", map[string]string{}, newMockSchedulerAPI())
-	app3 := NewApplication(appID3, "root.c", "testuser", map[string]string{}, newMockSchedulerAPI())
+	app1 := NewApplication(appID1, "root.a", "testuser", testGroups, map[string]string{}, newMockSchedulerAPI())
+	app2 := NewApplication(appID2, "root.b", "testuser", testGroups, map[string]string{}, newMockSchedulerAPI())
+	app3 := NewApplication(appID3, "root.c", "testuser", testGroups, map[string]string{}, newMockSchedulerAPI())
 	context.applications[appID1] = app1
 	context.applications[appID2] = app2
 	context.applications[appID3] = app3
@@ -217,8 +221,8 @@ func TestRemoveApplicationInternal(t *testing.T) {
 	context := initContextForTest()
 	appID1 := "app00001"
 	appID2 := "app00002"
-	app1 := NewApplication(appID1, "root.a", "testuser", map[string]string{}, newMockSchedulerAPI())
-	app2 := NewApplication(appID2, "root.b", "testuser", map[string]string{}, newMockSchedulerAPI())
+	app1 := NewApplication(appID1, "root.a", "testuser", testGroups, map[string]string{}, newMockSchedulerAPI())
+	app2 := NewApplication(appID2, "root.b", "testuser", testGroups, map[string]string{}, newMockSchedulerAPI())
 	context.applications[appID1] = app1
 	context.applications[appID2] = app2
 	assert.Equal(t, len(context.applications), 2)
@@ -761,9 +765,9 @@ func TestGetTask(t *testing.T) {
 	appID1 := "app00001"
 	appID2 := "app00002"
 	appID3 := "app00003"
-	app1 := NewApplication(appID1, "root.a", "testuser", map[string]string{}, newMockSchedulerAPI())
-	app2 := NewApplication(appID2, "root.b", "testuser", map[string]string{}, newMockSchedulerAPI())
-	app3 := NewApplication(appID3, "root.c", "testuser", map[string]string{}, newMockSchedulerAPI())
+	app1 := NewApplication(appID1, "root.a", "testuser", testGroups, map[string]string{}, newMockSchedulerAPI())
+	app2 := NewApplication(appID2, "root.b", "testuser", testGroups, map[string]string{}, newMockSchedulerAPI())
+	app3 := NewApplication(appID3, "root.c", "testuser", testGroups, map[string]string{}, newMockSchedulerAPI())
 	context.applications[appID1] = app1
 	context.applications[appID2] = app2
 	context.applications[appID3] = app3
