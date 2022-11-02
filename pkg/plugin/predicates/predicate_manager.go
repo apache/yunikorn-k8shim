@@ -48,7 +48,9 @@ type PredicateManager interface {
 }
 
 var _ PredicateManager = &predicateManagerImpl{}
-
+var pCache = &predicateCache{
+	cache: make(map[string]map[string]*framework.Status),
+}
 var configDecoder = scheme.Codecs.UniversalDecoder()
 
 type predicateManagerImpl struct {
@@ -142,6 +144,16 @@ func (p *predicateManagerImpl) runFilterPlugins(ctx context.Context, plugins []f
 }
 
 func (p *predicateManagerImpl) runFilterPlugin(ctx context.Context, pl framework.FilterPlugin, state *framework.CycleState, pod *v1.Pod, nodeInfo *framework.NodeInfo) *framework.Status {
+	// we need to list Which predicate we need to cache, here are the node related filter which can be cached.
+	if pl.Name() == nodename.Name || pl.Name() == nodeunschedulable.Name || pl.Name() == nodeports.Name || pl.Name() == nodeaffinity.Name || pl.Name() == tainttoleration.Name {
+		cacheStatus := pCache.PredicateWithCache(nodeInfo.Node().Name, pod)
+		if cacheStatus != nil {
+			return cacheStatus
+		}
+		cacheStatusUpdate := pl.Filter(ctx, state, pod, nodeInfo)
+		pCache.UpdateCache(nodeInfo.Node().Name, pod, cacheStatusUpdate)
+		return cacheStatusUpdate
+	}
 	return pl.Filter(ctx, state, pod, nodeInfo)
 }
 
