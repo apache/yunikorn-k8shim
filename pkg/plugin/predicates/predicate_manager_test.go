@@ -20,12 +20,12 @@ package predicates
 
 import (
 	"errors"
-	schedulercache "github.com/apache/yunikorn-k8shim/pkg/cache/external"
-	"github.com/google/uuid"
-	"k8s.io/apimachinery/pkg/types"
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/google/uuid"
+	"k8s.io/apimachinery/pkg/types"
 
 	"go.uber.org/zap"
 	"gotest.tools/assert"
@@ -48,6 +48,7 @@ import (
 	"k8s.io/kubernetes/pkg/util/taints"
 
 	"github.com/apache/yunikorn-core/pkg/log"
+	schedulercache "github.com/apache/yunikorn-k8shim/pkg/cache/external"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/plugin/support"
@@ -337,7 +338,8 @@ func TestPodFitsHostPorts(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_ = test.nodeInfo.SetNode(test.node)
+			err := test.nodeInfo.SetNode(test.node)
+			assert.NilError(t, err)
 			plugin, err := predicateManager.Predicates(test.pod, test.nodeInfo, true)
 			if (err == nil) != test.fits {
 				t.Errorf("%s expected fit state '%t' did not match real state and err = %v, plugin = %v", test.name, test.fits, err, plugin)
@@ -1265,7 +1267,8 @@ func TestRunGeneralPredicates(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			// API call always returns nil, never an error
 			//nolint:errcheck
-			_ = test.nodeInfo.SetNode(test.node)
+			err := test.nodeInfo.SetNode(test.node)
+			assert.NilError(t, err)
 			plugin, err := predicateManager.Predicates(test.pod, test.nodeInfo, true)
 			if (err == nil) != test.fits {
 				t.Errorf("%s expected fit state '%t' did not match real state and err = %v, plugin = %v", test.name, test.fits, err, plugin)

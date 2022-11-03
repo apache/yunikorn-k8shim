@@ -147,7 +147,7 @@ func (p *predicateManagerImpl) runFilterPlugin(ctx context.Context, pl framework
 	if pl.Name() == nodeunschedulable.Name || pl.Name() == nodeaffinity.Name || pl.Name() == tainttoleration.Name {
 		node := nodeInfo.Node()
 		if node == nil {
-			return framework.NewStatus(framework.Error, fmt.Sprintf("node not found"))
+			return framework.NewStatus(framework.Error, "node not found")
 		}
 		cacheStatus, cacheMatch := p.schedulerCache.PredicateWithCache(node.Name, pod)
 		if cacheMatch {
