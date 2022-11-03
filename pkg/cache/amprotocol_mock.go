@@ -55,6 +55,7 @@ func (m *MockedAMProtocol) AddApplication(request *interfaces.AddApplicationRequ
 		request.Metadata.ApplicationID,
 		request.Metadata.QueueName,
 		request.Metadata.User,
+		request.Metadata.Groups,
 		request.Metadata.Tags,
 		test.NewSchedulerAPIMock())
 	app.setPlaceholderOwnerReferences(request.Metadata.OwnerReferences)

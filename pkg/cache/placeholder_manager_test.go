@@ -127,7 +127,7 @@ func TestCreateAppPlaceholdersWithOwnReference(t *testing.T) {
 func createAppWIthTaskGroupForTest() *Application {
 	mockedSchedulerAPI := newMockSchedulerAPI()
 	app := NewApplication(appID, queue,
-		"bob", map[string]string{constants.AppTagNamespace: namespace}, mockedSchedulerAPI)
+		"bob", testGroups, map[string]string{constants.AppTagNamespace: namespace}, mockedSchedulerAPI)
 	app.setTaskGroups([]v1alpha1.TaskGroup{
 		{
 			Name:      "test-group-1",
@@ -208,7 +208,7 @@ func TestCleanUp(t *testing.T) {
 	mockedContext := initContextForTest()
 	mockedSchedulerAPI := newMockSchedulerAPI()
 	app := NewApplication(appID, queue,
-		"bob", map[string]string{constants.AppTagNamespace: namespace}, mockedSchedulerAPI)
+		"bob", testGroups, map[string]string{constants.AppTagNamespace: namespace}, mockedSchedulerAPI)
 	mockedContext.applications[appID] = app
 	res := app.getNonTerminatedTaskAlias()
 	assert.Equal(t, len(res), 0)

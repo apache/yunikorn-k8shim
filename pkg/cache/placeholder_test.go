@@ -41,7 +41,7 @@ func TestNewPlaceholder(t *testing.T) {
 	)
 	mockedSchedulerAPI := newMockSchedulerAPI()
 	app := NewApplication(appID, queue, "bob",
-		map[string]string{constants.AppTagNamespace: namespace, constants.AppTagImagePullSecrets: "secret1,secret2"},
+		testGroups, map[string]string{constants.AppTagNamespace: namespace, constants.AppTagImagePullSecrets: "secret1,secret2"},
 		mockedSchedulerAPI)
 	app.setTaskGroups([]v1alpha1.TaskGroup{
 		{
@@ -85,7 +85,7 @@ func TestNewPlaceholderWithLabelsAndAnnotations(t *testing.T) {
 	)
 	mockedSchedulerAPI := newMockSchedulerAPI()
 	app := NewApplication(appID, queue,
-		"bob", map[string]string{constants.AppTagNamespace: namespace}, mockedSchedulerAPI)
+		"bob", testGroups, map[string]string{constants.AppTagNamespace: namespace}, mockedSchedulerAPI)
 	taskGroups := []v1alpha1.TaskGroup{
 		{
 			Name:      "test-group-1",
@@ -131,7 +131,7 @@ func TestNewPlaceholderWithNodeSelectors(t *testing.T) {
 	)
 	mockedSchedulerAPI := newMockSchedulerAPI()
 	app := NewApplication(appID, queue,
-		"bob", map[string]string{constants.AppTagNamespace: namespace}, mockedSchedulerAPI)
+		"bob", testGroups, map[string]string{constants.AppTagNamespace: namespace}, mockedSchedulerAPI)
 	app.setTaskGroups([]v1alpha1.TaskGroup{
 		{
 			Name:      "test-group-1",
@@ -161,7 +161,7 @@ func TestNewPlaceholderWithTolerations(t *testing.T) {
 	)
 	mockedSchedulerAPI := newMockSchedulerAPI()
 	app := NewApplication(appID, queue,
-		"bob", map[string]string{constants.AppTagNamespace: namespace}, mockedSchedulerAPI)
+		"bob", testGroups, map[string]string{constants.AppTagNamespace: namespace}, mockedSchedulerAPI)
 	app.setTaskGroups([]v1alpha1.TaskGroup{
 		{
 			Name:      "test-group-1",
@@ -198,7 +198,7 @@ func TestNewPlaceholderWithAffinity(t *testing.T) {
 	)
 	mockedSchedulerAPI := newMockSchedulerAPI()
 	app := NewApplication(appID, queue,
-		"bob", map[string]string{constants.AppTagNamespace: namespace}, mockedSchedulerAPI)
+		"bob", testGroups, map[string]string{constants.AppTagNamespace: namespace}, mockedSchedulerAPI)
 	app.setTaskGroups([]v1alpha1.TaskGroup{
 		{
 			Name:      "test-group-1",
@@ -252,13 +252,13 @@ func TestNewPlaceholderTaskGroupsDefinition(t *testing.T) {
 		},
 	}
 	app := NewApplication(appID, queue,
-		"bob", map[string]string{constants.AppTagNamespace: namespace}, mockedSchedulerAPI)
+		"bob", testGroups, map[string]string{constants.AppTagNamespace: namespace}, mockedSchedulerAPI)
 	app.setTaskGroups(taskGroup)
 	holder := newPlaceholder("ph-name", app, app.taskGroups[0])
 	assert.Equal(t, "", holder.pod.Annotations[constants.AnnotationTaskGroups])
 
 	app = NewApplication(appID, queue,
-		"bob", map[string]string{constants.AppTagNamespace: namespace}, mockedSchedulerAPI)
+		"bob", testGroups, map[string]string{constants.AppTagNamespace: namespace}, mockedSchedulerAPI)
 	app.setTaskGroups(taskGroup)
 	app.setTaskGroupsDefinition("taskGroupsDef")
 	holder = newPlaceholder("ph-name", app, app.taskGroups[0])

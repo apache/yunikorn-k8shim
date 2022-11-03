@@ -21,6 +21,7 @@ package utils
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -31,6 +32,7 @@ import (
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 	podv1 "k8s.io/kubernetes/pkg/api/v1/pod"
 
+	"github.com/apache/yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
 	"github.com/apache/yunikorn-k8shim/pkg/common"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
@@ -77,9 +79,9 @@ func GeneralPodFilter(pod *v1.Pod) bool {
 
 func GetQueueNameFromPod(pod *v1.Pod) string {
 	queueName := constants.ApplicationDefaultQueue
-	if an, ok := pod.Labels[constants.LabelQueueName]; ok {
+	if an := GetPodLabelValue(pod, constants.LabelQueueName); an != "" {
 		queueName = an
-	} else if qu, ok := pod.Annotations[constants.AnnotationQueueName]; ok {
+	} else if qu := GetPodAnnotationValue(pod, constants.AnnotationQueueName); qu != "" {
 		queueName = qu
 	}
 	return queueName
@@ -87,17 +89,17 @@ func GetQueueNameFromPod(pod *v1.Pod) string {
 
 func GetApplicationIDFromPod(pod *v1.Pod) (string, error) {
 	// application ID can be defined in annotations
-	if value, found := pod.Annotations[constants.AnnotationApplicationID]; found {
+	if value := GetPodAnnotationValue(pod, constants.AnnotationApplicationID); value != "" {
 		return value, nil
 	}
 
 	// application ID can be defined in labels
-	if value, found := pod.Labels[constants.LabelApplicationID]; found {
+	if value := GetPodLabelValue(pod, constants.LabelApplicationID); value != "" {
 		return value, nil
 	}
 
-	// if a pod for spark already provided appID, reuse it
-	if value, found := pod.Labels[constants.SparkLabelAppID]; found {
+	// application ID can be defined in labels
+	if value := GetPodLabelValue(pod, constants.SparkLabelAppID); value != "" {
 		return value, nil
 	}
 
@@ -114,9 +116,9 @@ func PodUnderCondition(pod *v1.Pod, condition *v1.PodCondition) bool {
 
 func GetNamespaceQuotaFromAnnotation(namespaceObj *v1.Namespace) *si.Resource {
 	// retrieve resource quota info from annotations
-	cpuQuota := namespaceObj.Annotations["yunikorn.apache.org/namespace.max.cpu"]
-	memQuota := namespaceObj.Annotations["yunikorn.apache.org/namespace.max.memory"]
-	namespaceQuota := namespaceObj.Annotations["yunikorn.apache.org/namespace.quota"]
+	cpuQuota := GetNameSpaceAnnotationValue(namespaceObj, constants.CpuQuota)
+	memQuota := GetNameSpaceAnnotationValue(namespaceObj, constants.MemQuota)
+	namespaceQuota := GetNameSpaceAnnotationValue(namespaceObj, constants.NamespaceQuota)
 
 	// order of annotation preference
 	// 1. namespace.quota
@@ -245,7 +247,7 @@ func GetUserFromPod(pod *v1.Pod) string {
 		userLabelKey = constants.DefaultUserLabel
 	}
 	// User name to be defined in labels
-	if username, ok := pod.Labels[userLabelKey]; ok && len(username) > 0 {
+	if username := GetPodLabelValue(pod, userLabelKey); username != "" && len(username) > 0 {
 		log.Logger().Info("Found user name from pod labels.",
 			zap.String("userLabel", userLabelKey), zap.String("user", username))
 		return username
@@ -256,4 +258,110 @@ func GetUserFromPod(pod *v1.Pod) string {
 		zap.String("userLabel", userLabelKey))
 
 	return value
+}
+
+func GetPodAnnotationValue(pod *v1.Pod, annotationKey string) string {
+	if value, ok := pod.Annotations[annotationKey]; ok {
+		return value
+	}
+	return ""
+}
+
+func GetNameSpaceAnnotationValue(namespace *v1.Namespace, annotationKey string) string {
+	if value, ok := namespace.Annotations[annotationKey]; ok {
+		return value
+	}
+	return ""
+}
+
+func GetPodLabelValue(pod *v1.Pod, labelKey string) string {
+	if value, ok := pod.Labels[labelKey]; ok {
+		return value
+	}
+	return ""
+}
+
+func GetTaskGroupFromPodSpec(pod *v1.Pod) string {
+	return GetPodAnnotationValue(pod, constants.AnnotationTaskGroupName)
+}
+
+func GetPlaceholderFlagFromPodSpec(pod *v1.Pod) bool {
+	if value := GetPodAnnotationValue(pod, constants.AnnotationPlaceholderFlag); value != "" {
+		if v, err := strconv.ParseBool(value); err == nil {
+			return v
+		}
+	}
+
+	if value := GetPodLabelValue(pod, constants.LabelPlaceholderFlag); value != "" {
+		if v, err := strconv.ParseBool(value); err == nil {
+			return v
+		}
+	}
+	return false
+}
+
+func GetTaskGroupsFromAnnotation(pod *v1.Pod) ([]v1alpha1.TaskGroup, error) {
+	taskGroupInfo := GetPodAnnotationValue(pod, constants.AnnotationTaskGroups)
+	if taskGroupInfo == "" {
+		return nil, nil
+	}
+
+	taskGroups := []v1alpha1.TaskGroup{}
+	err := json.Unmarshal([]byte(taskGroupInfo), &taskGroups)
+	if err != nil {
+		return nil, err
+	}
+	// json.Unmarchal won't return error if name or MinMember is empty, but will return error if MinResource is empty or error format.
+	for _, taskGroup := range taskGroups {
+		if taskGroup.Name == "" {
+			return nil, fmt.Errorf("can't get taskGroup Name from pod annotation, %s",
+				taskGroupInfo)
+		}
+		if taskGroup.MinMember == int32(0) {
+			return nil, fmt.Errorf("can't get taskGroup MinMember from pod annotation, %s",
+				taskGroupInfo)
+		}
+		if taskGroup.MinMember < int32(0) {
+			return nil, fmt.Errorf("minMember cannot be negative, %s",
+				taskGroupInfo)
+		}
+	}
+	return taskGroups, nil
+}
+
+// generate appID based on the namespace value,
+// and the max length of the ID is 63 chars.
+func generateAppID(namespace string) string {
+	generatedID := fmt.Sprintf("%s-%s-%s", constants.AutoGenAppPrefix, namespace, constants.AutoGenAppSuffix)
+	appID := fmt.Sprintf("%.63s", generatedID)
+	return appID
+}
+
+func UpdatePodLabelForAdmissionController(pod *v1.Pod, namespace string) map[string]string {
+	existingLabels := pod.Labels
+	result := make(map[string]string)
+	for k, v := range existingLabels {
+		result[k] = v
+	}
+
+	if _, ok := existingLabels[constants.SparkLabelAppID]; !ok {
+		if _, ok := existingLabels[constants.LabelApplicationID]; !ok {
+			// if app id not exist, generate one
+			// for each namespace, we group unnamed pods to one single app
+			// application ID convention: ${AUTO_GEN_PREFIX}-${NAMESPACE}-${AUTO_GEN_SUFFIX}
+			generatedID := generateAppID(namespace)
+			result[constants.LabelApplicationID] = generatedID
+
+			// if we generate an app ID, disable state-aware scheduling for this app
+			if _, ok := existingLabels[constants.LabelDisableStateAware]; !ok {
+				result[constants.LabelDisableStateAware] = "true"
+			}
+		}
+	}
+
+	if _, ok := existingLabels[constants.LabelQueueName]; !ok {
+		result[constants.LabelQueueName] = constants.DefaultQueue
+	}
+
+	return result
 }

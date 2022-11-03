@@ -65,7 +65,7 @@ func TestTaskStateTransitions(t *testing.T) {
 	}
 
 	app := NewApplication("app01", "root.default",
-		"bob", map[string]string{}, mockedSchedulerApi)
+		"bob", testGroups, map[string]string{}, mockedSchedulerApi)
 	task := NewTask("task01", app, mockedContext, pod)
 	assert.Equal(t, task.GetTaskState(), TaskStates().New)
 
@@ -126,7 +126,7 @@ func TestTaskIllegalEventHandling(t *testing.T) {
 	}
 
 	app := NewApplication("app01", "root.default",
-		"bob", map[string]string{}, mockedSchedulerApi)
+		"bob", testGroups, map[string]string{}, mockedSchedulerApi)
 	task := NewTask("task01", app, mockedContext, pod)
 	assert.Equal(t, task.GetTaskState(), TaskStates().New)
 
@@ -177,7 +177,7 @@ func TestReleaseTaskAllocation(t *testing.T) {
 	}
 
 	app := NewApplication("app01", "root.default",
-		"bob", map[string]string{}, mockedSchedulerApi)
+		"bob", testGroups, map[string]string{}, mockedSchedulerApi)
 	task := NewTask("task01", app, mockedContext, pod)
 	assert.Equal(t, task.GetTaskState(), TaskStates().New)
 
@@ -261,7 +261,7 @@ func TestReleaseTaskAsk(t *testing.T) {
 	}
 
 	app := NewApplication("app01", "root.default",
-		"bob", map[string]string{}, mockedSchedulerApi)
+		"bob", testGroups, map[string]string{}, mockedSchedulerApi)
 	task := NewTask("task01", app, mockedContext, pod)
 	assert.Equal(t, task.GetTaskState(), TaskStates().New)
 
@@ -305,7 +305,7 @@ func TestCreateTask(t *testing.T) {
 	mockedContext := initContextForTest()
 	mockedSchedulerAPI := newMockSchedulerAPI()
 	app := NewApplication("app01", "root.default",
-		"bob", map[string]string{}, mockedSchedulerAPI)
+		"bob", testGroups, map[string]string{}, mockedSchedulerAPI)
 
 	// pod has timestamp defined
 	pod0 := &v1.Pod{
@@ -349,7 +349,7 @@ func TestSortTasks(t *testing.T) {
 	mockedContext := initContextForTest()
 	mockedSchedulerAPI := newMockSchedulerAPI()
 	app := NewApplication("app01", "root.default",
-		"bob", map[string]string{}, mockedSchedulerAPI)
+		"bob", testGroups, map[string]string{}, mockedSchedulerAPI)
 
 	pod0 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
@@ -405,7 +405,7 @@ func TestIsTerminated(t *testing.T) {
 	mockedContext := initContextForTest()
 	mockedSchedulerAPI := newMockSchedulerAPI()
 	app := NewApplication("app01", "root.default",
-		"bob", map[string]string{}, mockedSchedulerAPI)
+		"bob", testGroups, map[string]string{}, mockedSchedulerAPI)
 	pod := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
@@ -432,7 +432,7 @@ func TestSetTaskGroup(t *testing.T) {
 	mockedContext := initContextForTest()
 	mockedSchedulerAPI := newMockSchedulerAPI()
 	app := NewApplication("app01", "root.default",
-		"bob", map[string]string{}, mockedSchedulerAPI)
+		"bob", testGroups, map[string]string{}, mockedSchedulerAPI)
 	pod := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
@@ -501,7 +501,7 @@ func TestHandleSubmitTaskEvent(t *testing.T) {
 		},
 	}
 	appID := "app-test-001"
-	app := NewApplication(appID, "root.abc", "testuser", map[string]string{}, mockedSchedulerAPI)
+	app := NewApplication(appID, "root.abc", "testuser", testGroups, map[string]string{}, mockedSchedulerAPI)
 	task1 := NewTask("task01", app, mockedContext, pod1)
 	task2 := NewTask("task02", app, mockedContext, pod2)
 	task1.sm.SetState(TaskStates().Pending)
@@ -560,7 +560,7 @@ func TestSimultaneousTaskCompleteAndAllocate(t *testing.T) {
 	}
 
 	// simulate app has one task waiting for core's allocation
-	app := NewApplication(appID, queueName, "user", map[string]string{}, mockedAPIProvider.GetAPIs().SchedulerAPI)
+	app := NewApplication(appID, queueName, "user", testGroups, map[string]string{}, mockedAPIProvider.GetAPIs().SchedulerAPI)
 	task1 := NewTask(podUID, app, mockedContext, pod1)
 	task1.sm.SetState(TaskStates().Scheduling)
 

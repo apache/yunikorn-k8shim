@@ -30,6 +30,7 @@ const LabelApplicationID = "applicationId"
 const AnnotationApplicationID = "yunikorn.apache.org/app-id"
 const LabelQueueName = "queue"
 const AnnotationQueueName = "yunikorn.apache.org/queue"
+const AnnotationParentQueue = "yunikorn.apache.org/parentqueue"
 const LabelDisableStateAware = "disableStateAware"
 const ApplicationDefaultQueue = "root.sandbox"
 const DefaultPartition = "default"
@@ -73,3 +74,15 @@ var SchedulingPolicyStyleParamValues = map[string]string{"Hard": "Hard", "Soft":
 
 const ApplicationInsufficientResourcesFailure = "ResourceReservationTimeout"
 const ApplicationRejectedFailure = "ApplicationRejected"
+
+// namespace.max.* (Retaining for backwards compatibility. Need to be removed in next major release)
+const CpuQuota = "yunikorn.apache.org/namespace.max.cpu"
+const MemQuota = "yunikorn.apache.org/namespace.max.memory"
+
+// NamespaceQuota Namespace Quota
+const NamespaceQuota = "yunikorn.apache.org/namespace.quota"
+
+// Admission Controller pod label update constants
+const AutoGenAppPrefix = "yunikorn"
+const AutoGenAppSuffix = "autogen"
+const DefaultQueue = "root.default"

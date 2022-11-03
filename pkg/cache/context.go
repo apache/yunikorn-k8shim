@@ -570,7 +570,7 @@ func (ctx *Context) updateApplicationTags(request *interfaces.AddApplicationRequ
 		}
 	}
 	// add parent queue info as an app tag
-	parentQueue := namespaceObj.Annotations["yunikorn.apache.org/parentqueue"]
+	parentQueue := utils.GetNameSpaceAnnotationValue(namespaceObj, constants.AnnotationParentQueue)
 	if parentQueue != "" {
 		request.Metadata.Tags[constants.AppTagNamespaceParentQueue] = parentQueue
 	}
@@ -616,6 +616,7 @@ func (ctx *Context) AddApplication(request *interfaces.AddApplicationRequest) in
 		request.Metadata.ApplicationID,
 		request.Metadata.QueueName,
 		request.Metadata.User,
+		request.Metadata.Groups,
 		request.Metadata.Tags,
 		ctx.apiProvider.GetAPIs().SchedulerAPI)
 	app.setTaskGroups(request.Metadata.TaskGroups)
