@@ -20,6 +20,7 @@ package cache
 
 import (
 	"fmt"
+	"reflect"
 	"sort"
 	"strings"
 	"sync"
@@ -55,17 +56,18 @@ type recorderTime struct {
 }
 
 func TestNewApplication(t *testing.T) {
-	app := NewApplication("app00001", "root.queue", "testuser", map[string]string{}, newMockSchedulerAPI())
+	app := NewApplication("app00001", "root.queue", "testuser", testGroups, map[string]string{}, newMockSchedulerAPI())
 	assert.Equal(t, app.GetApplicationID(), "app00001")
 	assert.Equal(t, app.GetApplicationState(), ApplicationStates().New)
 	assert.Equal(t, app.partition, constants.DefaultPartition)
 	assert.Equal(t, len(app.taskMap), 0)
 	assert.Equal(t, app.GetApplicationState(), ApplicationStates().New)
 	assert.Equal(t, app.queue, "root.queue")
+	assert.Assert(t, reflect.DeepEqual(app.groups, []string{"dev", "yunikorn"}))
 }
 
 func TestSubmitApplication(t *testing.T) {
-	app := NewApplication("app00001", "root.abc", "testuser", map[string]string{}, newMockSchedulerAPI())
+	app := NewApplication("app00001", "root.abc", "testuser", testGroups, map[string]string{}, newMockSchedulerAPI())
 	err := app.handle(NewSubmitApplicationEvent(app.applicationID))
 	assert.NilError(t, err)
 	assertAppState(t, app, ApplicationStates().Submitted, 10*time.Second)
@@ -88,7 +90,7 @@ func TestRunApplication(t *testing.T) {
 		return nil
 	}
 
-	app := NewApplication("app00001", "root.abc", "testuser", map[string]string{}, ms)
+	app := NewApplication("app00001", "root.abc", "testuser", testGroups, map[string]string{}, ms)
 
 	// app must be submitted before being able to run
 	err := app.handle(NewRunApplicationEvent(app.applicationID))
@@ -166,7 +168,7 @@ func TestFailApplication(t *testing.T) {
 		},
 	}
 	appID := "app-test-001"
-	app := NewApplication(appID, "root.abc", "testuser", map[string]string{}, ms)
+	app := NewApplication(appID, "root.abc", "testuser", testGroups, map[string]string{}, ms)
 	task1 := NewTask("task01", app, context, pod)
 	task2 := NewTask("task02", app, context, pod)
 	task3 := NewTask("task03", app, context, pod)
@@ -192,7 +194,7 @@ func TestFailApplication(t *testing.T) {
 	// reset time to 0
 	rt.time = 0
 	appID2 := "app-test-002"
-	app2 := NewApplication(appID2, "root.abc", "testuser", map[string]string{}, ms)
+	app2 := NewApplication(appID2, "root.abc", "testuser", testGroups, map[string]string{}, ms)
 	app2.SetState(ApplicationStates().New)
 	err = app2.handle(NewFailApplicationEvent(app2.applicationID, errMess))
 	if err == nil {
@@ -288,7 +290,7 @@ func TestSetUnallocatedPodsToFailedWhenFailApplication(t *testing.T) {
 	})
 	assert.NilError(t, err)
 	appID := "app-test-001"
-	app := NewApplication(appID, "root.abc", "testuser", map[string]string{}, ms)
+	app := NewApplication(appID, "root.abc", "testuser", testGroups, map[string]string{}, ms)
 	task1 := NewTask("task01", app, context, pod1)
 	task2 := NewTaskPlaceholder("task02", app, context, pod2)
 	task3 := NewTask("task03", app, context, pod3)
@@ -383,7 +385,7 @@ func TestSetUnallocatedPodsToFailedWhenRejectApplication(t *testing.T) {
 	})
 	assert.NilError(t, err)
 	appID := "app-test-001"
-	app := NewApplication(appID, "root.abc", "testuser", map[string]string{}, ms)
+	app := NewApplication(appID, "root.abc", "testuser", testGroups, map[string]string{}, ms)
 	task1 := NewTask("task01", app, context, pod1)
 	task2 := NewTask("task02", app, context, pod2)
 	task1.sm.SetState(TaskStates().Pending)
@@ -447,7 +449,7 @@ func TestReleaseAppAllocation(t *testing.T) {
 	}
 	appID := "app-test-001"
 	UUID := "testUUID001"
-	app := NewApplication(appID, "root.abc", "testuser", map[string]string{}, ms)
+	app := NewApplication(appID, "root.abc", "testuser", testGroups, map[string]string{}, ms)
 	task := NewTask("task01", app, context, pod)
 	app.addTask(task)
 	task.allocationUUID = UUID
@@ -533,7 +535,7 @@ func assertAppState(t *testing.T, app *Application, expectedState string, durati
 func TestGetNonTerminatedTaskAlias(t *testing.T) {
 	context := initContextForTest()
 	appID := "app00001"
-	app := NewApplication(appID, "root.a", "testuser", map[string]string{}, newMockSchedulerAPI())
+	app := NewApplication(appID, "root.a", "testuser", testGroups, map[string]string{}, newMockSchedulerAPI())
 	context.applications[appID] = app
 	// app doesn't have any task
 	res := app.getNonTerminatedTaskAlias()
@@ -593,7 +595,7 @@ func TestGetNonTerminatedTaskAlias(t *testing.T) {
 }
 
 func TestSetTaskGroupsAndSchedulingPolicy(t *testing.T) {
-	app := NewApplication("app01", "root.a", "test-user", map[string]string{}, newMockSchedulerAPI())
+	app := NewApplication("app01", "root.a", "test-user", testGroups, map[string]string{}, newMockSchedulerAPI())
 	assert.Assert(t, app.getSchedulingPolicy().Type == "")
 	assert.Equal(t, len(app.getTaskGroups()), 0)
 
@@ -717,7 +719,7 @@ func TestTryReserve(t *testing.T) {
 
 	// create a new app
 	app := NewApplication("app00001", "root.abc", "test-user",
-		map[string]string{}, mockedAPIProvider.GetAPIs().SchedulerAPI)
+		testGroups, map[string]string{}, mockedAPIProvider.GetAPIs().SchedulerAPI)
 	context.applications[app.applicationID] = app
 
 	// set app scheduling policy
@@ -792,7 +794,7 @@ func TestTryReservePostRestart(t *testing.T) {
 
 	// create a new app
 	app := NewApplication("app00001", "root.abc", "test-user",
-		map[string]string{}, mockedAPIProvider.GetAPIs().SchedulerAPI)
+		testGroups, map[string]string{}, mockedAPIProvider.GetAPIs().SchedulerAPI)
 	context.applications[app.applicationID] = app
 
 	// set taskGroups
@@ -904,7 +906,7 @@ func TestTriggerAppRecovery(t *testing.T) {
 	}
 
 	app := NewApplication("app00001", "root.abc", "test-user",
-		map[string]string{}, mockScheduler)
+		testGroups, map[string]string{}, mockScheduler)
 	app.placeholderAsk = &si.Resource{
 		Resources: map[string]*si.Quantity{
 			"memory": {Value: 100},
@@ -936,7 +938,7 @@ func TestTriggerAppRecovery(t *testing.T) {
 
 	// Trigger app recovery should be failed if the app already leaves New state
 	app = NewApplication("app00001", "root.abc", "test-user",
-		map[string]string{}, newMockSchedulerAPI())
+		testGroups, map[string]string{}, newMockSchedulerAPI())
 	err = app.handle(NewSubmitApplicationEvent(app.applicationID))
 	assert.NilError(t, err)
 	assertAppState(t, app, ApplicationStates().Submitted, 3*time.Second)
@@ -946,14 +948,14 @@ func TestTriggerAppRecovery(t *testing.T) {
 
 func TestSkipReservationStage(t *testing.T) {
 	context := initContextForTest()
-	app := NewApplication("app00001", "root.queue", "test-user", map[string]string{}, newMockSchedulerAPI())
+	app := NewApplication("app00001", "root.queue", "test-user", testGroups, map[string]string{}, newMockSchedulerAPI())
 	app.addTask(NewTask("task0001", app, context, &v1.Pod{}))
 	skip := app.skipReservationStage()
 	assert.Equal(t, skip, true, "expected to skip reservation because there is no task groups defined")
 
 	// app has task groups defined, and contains 2 tasks, 1 Pending and 1 Allocated
 	// expect: skip reservation
-	app = NewApplication("app00001", "root.queue", "test-user", map[string]string{}, newMockSchedulerAPI())
+	app = NewApplication("app00001", "root.queue", "test-user", testGroups, map[string]string{}, newMockSchedulerAPI())
 	task1 := NewTask("task0001", app, context, &v1.Pod{})
 	task1.sm.SetState(TaskStates().New)
 	task2 := NewTask("task0002", app, context, &v1.Pod{})
@@ -975,7 +977,7 @@ func TestSkipReservationStage(t *testing.T) {
 
 	// app has task groups defined, and contains 2 tasks, both are New
 	// expect: do not skip reservation
-	app = NewApplication("app00001", "root.queue", "test-user", map[string]string{}, newMockSchedulerAPI())
+	app = NewApplication("app00001", "root.queue", "test-user", testGroups, map[string]string{}, newMockSchedulerAPI())
 	task1 = NewTask("task0001", app, context, &v1.Pod{})
 	task1.sm.SetState(TaskStates().New)
 	task2 = NewTask("task0002", app, context, &v1.Pod{})
@@ -1022,7 +1024,7 @@ func TestReleaseAppAllocationInFailingState(t *testing.T) {
 	}
 	appID := "app-test-001"
 	UUID := "testUUID001"
-	app := NewApplication(appID, "root.abc", "testuser", map[string]string{}, ms)
+	app := NewApplication(appID, "root.abc", "testuser", testGroups, map[string]string{}, ms)
 	task := NewTask("task01", app, context, pod)
 	app.addTask(task)
 	task.allocationUUID = UUID
@@ -1071,7 +1073,7 @@ func TestResumingStateTransitions(t *testing.T) {
 
 	// create a new app
 	app := NewApplication("app00001", "root.abc", "test-user",
-		map[string]string{}, mockedAPIProvider.GetAPIs().SchedulerAPI)
+		testGroups, map[string]string{}, mockedAPIProvider.GetAPIs().SchedulerAPI)
 	task1 := NewTask("task0001", app, context, &v1.Pod{})
 	task1.sm.SetState(TaskStates().New)
 	task2 := NewTask("task0002", app, context, &v1.Pod{})
@@ -1114,7 +1116,7 @@ func TestResumingStateTransitions(t *testing.T) {
 
 func TestGetPlaceholderTasks(t *testing.T) {
 	context := initContextForTest()
-	app := NewApplication(appID, "root.a", "testuser", map[string]string{}, newMockSchedulerAPI())
+	app := NewApplication(appID, "root.a", "testuser", testGroups, map[string]string{}, newMockSchedulerAPI())
 	task1 := NewTask("task0001", app, context, &v1.Pod{})
 	task1.placeholder = true
 	task2 := NewTask("task0002", app, context, &v1.Pod{})

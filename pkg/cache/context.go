@@ -616,6 +616,7 @@ func (ctx *Context) AddApplication(request *interfaces.AddApplicationRequest) in
 		request.Metadata.ApplicationID,
 		request.Metadata.QueueName,
 		request.Metadata.User,
+		request.Metadata.Groups,
 		request.Metadata.Tags,
 		ctx.apiProvider.GetAPIs().SchedulerAPI)
 	app.setTaskGroups(request.Metadata.TaskGroups)

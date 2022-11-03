@@ -35,7 +35,7 @@ func TestTaskFsmGraph(t *testing.T) {
 	mockedContext := initContextForTest()
 	mockedSchedulerAPI := newMockSchedulerAPI()
 	app := NewApplication("app01", "root.default",
-		"bob", map[string]string{}, mockedSchedulerAPI)
+		"bob", testGroups, map[string]string{}, mockedSchedulerAPI)
 
 	// pod has timestamp defined
 	pod := &v1.Pod{
