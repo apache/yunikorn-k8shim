@@ -84,7 +84,7 @@ func NewContext(apis client.APIProvider) *Context {
 		sharedLister := support.NewSharedLister(ctx.schedulerCache)
 		clientSet := apis.GetAPIs().KubeClient.GetClientSet()
 		informerFactory := apis.GetAPIs().InformerFactory
-		ctx.predManager = predicates.NewPredicateManager(support.NewFrameworkHandle(sharedLister, informerFactory, clientSet))
+		ctx.predManager = predicates.NewPredicateManager(ctx.schedulerCache, support.NewFrameworkHandle(sharedLister, informerFactory, clientSet))
 	}
 
 	return ctx

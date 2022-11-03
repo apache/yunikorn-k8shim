@@ -20,6 +20,9 @@ package predicates
 
 import (
 	"errors"
+	schedulercache "github.com/apache/yunikorn-k8shim/pkg/cache/external"
+	"github.com/google/uuid"
+	"k8s.io/apimachinery/pkg/types"
 	"strconv"
 	"strings"
 	"testing"
@@ -61,9 +64,10 @@ func TestPodFitsHost(t *testing.T) {
 	informerFactory := informerFactory(clientSet)
 	lister := lister()
 	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet)
+	schedulerCache := schedulercache.NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
 
 	ep := enabledPlugins(nodename.Name)
-	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
+	predicateManager := newPredicateManagerInternal(schedulerCache, handle, ep, ep, ep, ep)
 	tests := []struct {
 		pod  *v1.Pod
 		node *v1.Node
@@ -71,13 +75,20 @@ func TestPodFitsHost(t *testing.T) {
 		name string
 	}{
 		{
-			pod:  &v1.Pod{},
+			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					UID: types.UID(uuid.NewString()),
+				},
+			},
 			node: &v1.Node{},
 			fits: true,
 			name: "no host specified",
 		},
 		{
 			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					UID: types.UID(uuid.NewString()),
+				},
 				Spec: v1.PodSpec{
 					NodeName: "foo",
 				},
@@ -92,6 +103,9 @@ func TestPodFitsHost(t *testing.T) {
 		},
 		{
 			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					UID: types.UID(uuid.NewString()),
+				},
 				Spec: v1.PodSpec{
 					NodeName: "bar",
 				},
@@ -134,6 +148,9 @@ func newPod(host string, hostPortInfos ...string) *v1.Pod {
 		})
 	}
 	return &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			UID: types.UID(uuid.NewString()),
+		},
 		Spec: v1.PodSpec{
 			NodeName: host,
 			Containers: []v1.Container{
@@ -151,24 +168,36 @@ func TestPodFitsHostPorts(t *testing.T) {
 	lister := lister()
 	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet)
 	ep := enabledPlugins(nodeports.Name)
-	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
+	schedulerCache := schedulercache.NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
+	predicateManager := newPredicateManagerInternal(schedulerCache, handle, ep, ep, ep, ep)
 
 	tests := []struct {
 		pod      *v1.Pod
 		nodeInfo *framework.NodeInfo
+		node     *v1.Node
 		fits     bool
 		name     string
 	}{
 		{
 			pod:      &v1.Pod{},
 			nodeInfo: framework.NewNodeInfo(),
-			fits:     true,
-			name:     "nothing running",
+			node: &v1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "m1",
+				},
+			},
+			fits: true,
+			name: "nothing running",
 		},
 		{
 			pod: newPod("m1", "UDP/127.0.0.1/8080"),
 			nodeInfo: framework.NewNodeInfo(
 				newPod("m1", "UDP/127.0.0.1/9090")),
+			node: &v1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "m1",
+				},
+			},
 			fits: true,
 			name: "other port",
 		},
@@ -176,6 +205,11 @@ func TestPodFitsHostPorts(t *testing.T) {
 			pod: newPod("m1", "UDP/127.0.0.1/8080"),
 			nodeInfo: framework.NewNodeInfo(
 				newPod("m1", "UDP/127.0.0.1/8080")),
+			node: &v1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "m1",
+				},
+			},
 			fits: false,
 			name: "same udp port",
 		},
@@ -183,6 +217,11 @@ func TestPodFitsHostPorts(t *testing.T) {
 			pod: newPod("m1", "TCP/127.0.0.1/8080"),
 			nodeInfo: framework.NewNodeInfo(
 				newPod("m1", "TCP/127.0.0.1/8080")),
+			node: &v1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "m1",
+				},
+			},
 			fits: false,
 			name: "same tcp port",
 		},
@@ -190,6 +229,11 @@ func TestPodFitsHostPorts(t *testing.T) {
 			pod: newPod("m1", "TCP/127.0.0.1/8080"),
 			nodeInfo: framework.NewNodeInfo(
 				newPod("m1", "TCP/127.0.0.2/8080")),
+			node: &v1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "m1",
+				},
+			},
 			fits: true,
 			name: "different host ip",
 		},
@@ -197,6 +241,11 @@ func TestPodFitsHostPorts(t *testing.T) {
 			pod: newPod("m1", "UDP/127.0.0.1/8080"),
 			nodeInfo: framework.NewNodeInfo(
 				newPod("m1", "TCP/127.0.0.1/8080")),
+			node: &v1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "m1",
+				},
+			},
 			fits: true,
 			name: "different protocol",
 		},
@@ -204,6 +253,11 @@ func TestPodFitsHostPorts(t *testing.T) {
 			pod: newPod("m1", "UDP/127.0.0.1/8000", "UDP/127.0.0.1/8080"),
 			nodeInfo: framework.NewNodeInfo(
 				newPod("m1", "UDP/127.0.0.1/8080")),
+			node: &v1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "m1",
+				},
+			},
 			fits: false,
 			name: "second udp port conflict",
 		},
@@ -211,6 +265,11 @@ func TestPodFitsHostPorts(t *testing.T) {
 			pod: newPod("m1", "TCP/127.0.0.1/8001", "UDP/127.0.0.1/8080"),
 			nodeInfo: framework.NewNodeInfo(
 				newPod("m1", "TCP/127.0.0.1/8001", "UDP/127.0.0.1/8081")),
+			node: &v1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "m1",
+				},
+			},
 			fits: false,
 			name: "first tcp port conflict",
 		},
@@ -218,6 +277,11 @@ func TestPodFitsHostPorts(t *testing.T) {
 			pod: newPod("m1", "TCP/0.0.0.0/8001"),
 			nodeInfo: framework.NewNodeInfo(
 				newPod("m1", "TCP/127.0.0.1/8001")),
+			node: &v1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "m1",
+				},
+			},
 			fits: false,
 			name: "first tcp port conflict due to 0.0.0.0 hostIP",
 		},
@@ -225,6 +289,11 @@ func TestPodFitsHostPorts(t *testing.T) {
 			pod: newPod("m1", "TCP/10.0.10.10/8001", "TCP/0.0.0.0/8001"),
 			nodeInfo: framework.NewNodeInfo(
 				newPod("m1", "TCP/127.0.0.1/8001")),
+			node: &v1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "m1",
+				},
+			},
 			fits: false,
 			name: "TCP hostPort conflict due to 0.0.0.0 hostIP",
 		},
@@ -232,6 +301,11 @@ func TestPodFitsHostPorts(t *testing.T) {
 			pod: newPod("m1", "TCP/127.0.0.1/8001"),
 			nodeInfo: framework.NewNodeInfo(
 				newPod("m1", "TCP/0.0.0.0/8001")),
+			node: &v1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "foo",
+				},
+			},
 			fits: false,
 			name: "second tcp port conflict to 0.0.0.0 hostIP",
 		},
@@ -239,6 +313,11 @@ func TestPodFitsHostPorts(t *testing.T) {
 			pod: newPod("m1", "UDP/127.0.0.1/8001"),
 			nodeInfo: framework.NewNodeInfo(
 				newPod("m1", "TCP/0.0.0.0/8001")),
+			node: &v1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "m1",
+				},
+			},
 			fits: true,
 			name: "second different protocol",
 		},
@@ -246,6 +325,11 @@ func TestPodFitsHostPorts(t *testing.T) {
 			pod: newPod("m1", "UDP/127.0.0.1/8001"),
 			nodeInfo: framework.NewNodeInfo(
 				newPod("m1", "TCP/0.0.0.0/8001", "UDP/0.0.0.0/8001")),
+			node: &v1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "m1",
+				},
+			},
 			fits: false,
 			name: "UDP hostPort conflict due to 0.0.0.0 hostIP",
 		},
@@ -253,6 +337,7 @@ func TestPodFitsHostPorts(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			_ = test.nodeInfo.SetNode(test.node)
 			plugin, err := predicateManager.Predicates(test.pod, test.nodeInfo, true)
 			if (err == nil) != test.fits {
 				t.Errorf("%s expected fit state '%t' did not match real state and err = %v, plugin = %v", test.name, test.fits, err, plugin)
@@ -267,7 +352,8 @@ func TestPodFitsSelector(t *testing.T) {
 	lister := lister()
 	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet)
 	ep := enabledPlugins(nodeports.Name, nodeaffinity.Name)
-	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
+	schedulerCache := schedulercache.NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
+	predicateManager := newPredicateManagerInternal(schedulerCache, handle, ep, ep, ep, ep)
 
 	tests := []struct {
 		pod      *v1.Pod
@@ -277,12 +363,18 @@ func TestPodFitsSelector(t *testing.T) {
 		name     string
 	}{
 		{
-			pod:  &v1.Pod{},
+			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					UID: types.UID(uuid.NewString()),
+				}},
 			fits: true,
 			name: "no selector",
 		},
 		{
 			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					UID: types.UID(uuid.NewString()),
+				},
 				Spec: v1.PodSpec{
 					NodeSelector: map[string]string{
 						"foo": "bar",
@@ -294,6 +386,9 @@ func TestPodFitsSelector(t *testing.T) {
 		},
 		{
 			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					UID: types.UID(uuid.NewString()),
+				},
 				Spec: v1.PodSpec{
 					NodeSelector: map[string]string{
 						"foo": "bar",
@@ -308,6 +403,9 @@ func TestPodFitsSelector(t *testing.T) {
 		},
 		{
 			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					UID: types.UID(uuid.NewString()),
+				},
 				Spec: v1.PodSpec{
 					NodeSelector: map[string]string{
 						"foo": "bar",
@@ -323,6 +421,9 @@ func TestPodFitsSelector(t *testing.T) {
 		},
 		{
 			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					UID: types.UID(uuid.NewString()),
+				},
 				Spec: v1.PodSpec{
 					NodeSelector: map[string]string{
 						"foo": "bar",
@@ -338,6 +439,9 @@ func TestPodFitsSelector(t *testing.T) {
 		},
 		{
 			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					UID: types.UID(uuid.NewString()),
+				},
 				Spec: v1.PodSpec{
 					Affinity: &v1.Affinity{
 						NodeAffinity: &v1.NodeAffinity{
@@ -366,6 +470,9 @@ func TestPodFitsSelector(t *testing.T) {
 		},
 		{
 			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					UID: types.UID(uuid.NewString()),
+				},
 				Spec: v1.PodSpec{
 					Affinity: &v1.Affinity{
 						NodeAffinity: &v1.NodeAffinity{
@@ -395,6 +502,9 @@ func TestPodFitsSelector(t *testing.T) {
 		},
 		{
 			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					UID: types.UID(uuid.NewString()),
+				},
 				Spec: v1.PodSpec{
 					Affinity: &v1.Affinity{
 						NodeAffinity: &v1.NodeAffinity{
@@ -423,6 +533,9 @@ func TestPodFitsSelector(t *testing.T) {
 		},
 		{
 			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					UID: types.UID(uuid.NewString()),
+				},
 				Spec: v1.PodSpec{
 					Affinity: &v1.Affinity{
 						NodeAffinity: &v1.NodeAffinity{
@@ -450,6 +563,9 @@ func TestPodFitsSelector(t *testing.T) {
 		},
 		{
 			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					UID: types.UID(uuid.NewString()),
+				},
 				Spec: v1.PodSpec{
 					Affinity: &v1.Affinity{
 						NodeAffinity: &v1.NodeAffinity{
@@ -496,6 +612,9 @@ func TestPodFitsSelector(t *testing.T) {
 		},
 		{
 			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					UID: types.UID(uuid.NewString()),
+				},
 				Spec: v1.PodSpec{
 					Affinity: &v1.Affinity{
 						NodeAffinity: &v1.NodeAffinity{
@@ -514,6 +633,9 @@ func TestPodFitsSelector(t *testing.T) {
 		},
 		{
 			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					UID: types.UID(uuid.NewString()),
+				},
 				Spec: v1.PodSpec{
 					Affinity: &v1.Affinity{
 						NodeAffinity: &v1.NodeAffinity{
@@ -535,7 +657,11 @@ func TestPodFitsSelector(t *testing.T) {
 			name: "Pod with empty MatchExpressions is not a valid value will match no objects and won't schedule onto the node",
 		},
 		{
-			pod: &v1.Pod{},
+			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					UID: types.UID(uuid.NewString()),
+				},
+			},
 			labels: map[string]string{
 				"foo": "bar",
 			},
@@ -544,6 +670,9 @@ func TestPodFitsSelector(t *testing.T) {
 		},
 		{
 			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					UID: types.UID(uuid.NewString()),
+				},
 				Spec: v1.PodSpec{
 					Affinity: &v1.Affinity{
 						NodeAffinity: &v1.NodeAffinity{
@@ -560,6 +689,9 @@ func TestPodFitsSelector(t *testing.T) {
 		},
 		{
 			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					UID: types.UID(uuid.NewString()),
+				},
 				Spec: v1.PodSpec{
 					Affinity: &v1.Affinity{
 						NodeAffinity: &v1.NodeAffinity{
@@ -591,6 +723,9 @@ func TestPodFitsSelector(t *testing.T) {
 		},
 		{
 			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					UID: types.UID(uuid.NewString()),
+				},
 				Spec: v1.PodSpec{
 					Affinity: &v1.Affinity{
 						NodeAffinity: &v1.NodeAffinity{
@@ -622,6 +757,9 @@ func TestPodFitsSelector(t *testing.T) {
 		},
 		{
 			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					UID: types.UID(uuid.NewString()),
+				},
 				Spec: v1.PodSpec{
 					Affinity: &v1.Affinity{
 						NodeAffinity: &v1.NodeAffinity{
@@ -659,6 +797,9 @@ func TestPodFitsSelector(t *testing.T) {
 		},
 		{
 			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					UID: types.UID(uuid.NewString()),
+				},
 				Spec: v1.PodSpec{
 					NodeSelector: map[string]string{
 						"foo": "bar",
@@ -690,6 +831,9 @@ func TestPodFitsSelector(t *testing.T) {
 		},
 		{
 			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					UID: types.UID(uuid.NewString()),
+				},
 				Spec: v1.PodSpec{
 					NodeSelector: map[string]string{
 						"foo": "bar",
@@ -721,6 +865,9 @@ func TestPodFitsSelector(t *testing.T) {
 		},
 		{
 			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					UID: types.UID(uuid.NewString()),
+				},
 				Spec: v1.PodSpec{
 					Affinity: &v1.Affinity{
 						NodeAffinity: &v1.NodeAffinity{
@@ -749,6 +896,9 @@ func TestPodFitsSelector(t *testing.T) {
 		},
 		{
 			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					UID: types.UID(uuid.NewString()),
+				},
 				Spec: v1.PodSpec{
 					Affinity: &v1.Affinity{
 						NodeAffinity: &v1.NodeAffinity{
@@ -775,6 +925,9 @@ func TestPodFitsSelector(t *testing.T) {
 		},
 		{
 			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					UID: types.UID(uuid.NewString()),
+				},
 				Spec: v1.PodSpec{
 					Affinity: &v1.Affinity{
 						NodeAffinity: &v1.NodeAffinity{
@@ -801,6 +954,9 @@ func TestPodFitsSelector(t *testing.T) {
 		},
 		{
 			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					UID: types.UID(uuid.NewString()),
+				},
 				Spec: v1.PodSpec{
 					Affinity: &v1.Affinity{
 						NodeAffinity: &v1.NodeAffinity{
@@ -837,6 +993,9 @@ func TestPodFitsSelector(t *testing.T) {
 		},
 		{
 			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					UID: types.UID(uuid.NewString()),
+				},
 				Spec: v1.PodSpec{
 					Affinity: &v1.Affinity{
 						NodeAffinity: &v1.NodeAffinity{
@@ -871,6 +1030,9 @@ func TestPodFitsSelector(t *testing.T) {
 		},
 		{
 			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					UID: types.UID(uuid.NewString()),
+				},
 				Spec: v1.PodSpec{
 					Affinity: &v1.Affinity{
 						NodeAffinity: &v1.NodeAffinity{
@@ -905,6 +1067,9 @@ func TestPodFitsSelector(t *testing.T) {
 		},
 		{
 			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					UID: types.UID(uuid.NewString()),
+				},
 				Spec: v1.PodSpec{
 					Affinity: &v1.Affinity{
 						NodeAffinity: &v1.NodeAffinity{
@@ -968,6 +1133,9 @@ func newResourcePod(usage ...framework.Resource) *v1.Pod {
 		})
 	}
 	return &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			UID: types.UID(uuid.NewString()),
+		},
 		Spec: v1.PodSpec{
 			Containers: containers,
 		},
@@ -1004,7 +1172,11 @@ func newPodWithPort(hostPorts ...int) *v1.Pod {
 		networkPorts = append(networkPorts, v1.ContainerPort{HostPort: int32(port)})
 	}
 	return &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			UID: "123",
+		},
 		Spec: v1.PodSpec{
+			NodeName: "machine1",
 			Containers: []v1.Container{
 				{
 					Ports: networkPorts,
@@ -1020,7 +1192,8 @@ func TestRunGeneralPredicates(t *testing.T) {
 	lister := lister()
 	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet)
 	ep := enabledPlugins(noderesources.FitName, nodename.Name, nodeports.Name, nodevolumelimits.CSIName)
-	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
+	schedulerCache := schedulercache.NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
+	predicateManager := newPredicateManagerInternal(schedulerCache, handle, ep, ep, ep, ep)
 
 	resourceTests := []struct {
 		pod      *v1.Pod
@@ -1031,7 +1204,11 @@ func TestRunGeneralPredicates(t *testing.T) {
 		wErr     error
 	}{
 		{
-			pod: &v1.Pod{},
+			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					UID: types.UID(uuid.NewString()),
+				},
+			},
 			nodeInfo: framework.NewNodeInfo(
 				newResourcePod(framework.Resource{MilliCPU: 9, Memory: 19})),
 			node: &v1.Node{
@@ -1056,6 +1233,9 @@ func TestRunGeneralPredicates(t *testing.T) {
 		},
 		{
 			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					UID: types.UID(uuid.NewString()),
+				},
 				Spec: v1.PodSpec{
 					NodeName: "machine2",
 				},
@@ -1100,7 +1280,8 @@ func TestInterPodAffinity(t *testing.T) {
 	lister := lister()
 	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet)
 	ep := enabledPlugins(interpodaffinity.Name, nodeaffinity.Name)
-	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
+	schedulerCache := schedulercache.NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
+	predicateManager := newPredicateManagerInternal(schedulerCache, handle, ep, ep, ep, ep)
 
 	podLabel := map[string]string{"service": "securityscan"}
 	labels1 := map[string]string{
@@ -2065,13 +2246,15 @@ func TestReserveAlloc(t *testing.T) {
 	lister := lister()
 	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet)
 	ep := enabledPlugins()
-	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
+	schedulerCache := schedulercache.NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
+	predicateManager := newPredicateManagerInternal(schedulerCache, handle, ep, ep, ep, ep)
 	_, err := predicateManager.Predicates(pod, nodeInfo, false)
 	assert.NilError(t, err, "error should have been nil, no predicates given")
 
 	// add one predicate also run by reservations
 	ep[nodeunschedulable.Name] = true
-	predicateManager = newPredicateManagerInternal(handle, ep, ep, ep, ep)
+	predicateManager = newPredicateManagerInternal(schedulerCache, handle, ep, ep, ep, ep)
+	pod.ObjectMeta.UID = types.UID(uuid.NewString())
 	_, err = predicateManager.Predicates(pod, nodeInfo, false)
 	assert.NilError(t, err, "error should have been nil, node is schedulable")
 
@@ -2084,6 +2267,7 @@ func TestReserveAlloc(t *testing.T) {
 	assert.NilError(t, err, "failed to add taint")
 	err = nodeInfo.SetNode(node)
 	assert.NilError(t, err, "failed to set node")
+	pod.ObjectMeta.UID = types.UID(uuid.NewString())
 	_, err = predicateManager.Predicates(pod, nodeInfo, false)
 	if err == nil {
 		t.Errorf("error should not have been nil, predicate should have failed")
@@ -2094,24 +2278,14 @@ func TestReserveNodeSelector(t *testing.T) {
 	labelMap1 := map[string]string{"foo": "bar"}
 	labelMap2 := map[string]string{"foo2": "bar2"}
 	emptyMap := map[string]string{}
-	pod := &v1.Pod{
-		Spec: v1.PodSpec{},
-	}
-	node := &v1.Node{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "node",
-		},
-	}
-	nodeInfo := framework.NewNodeInfo(pod)
-	err := nodeInfo.SetNode(node)
-	assert.NilError(t, err, "No error expected")
 
 	clientSet := clientSet()
 	informerFactory := informerFactory(clientSet)
 	lister := lister()
 	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet)
 	ep := enabledPlugins(nodename.Name, nodeports.Name, podtopologyspread.Name, nodeaffinity.Name)
-	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
+	schedulerCache := schedulercache.NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
+	predicateManager := newPredicateManagerInternal(schedulerCache, handle, ep, ep, ep, ep)
 
 	testCases := []struct {
 		name          string
@@ -2126,6 +2300,18 @@ func TestReserveNodeSelector(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			pod := &v1.Pod{
+				Spec: v1.PodSpec{},
+			}
+			pod.ObjectMeta.UID = types.UID(uuid.NewString())
+			node := &v1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "node",
+				},
+			}
+			nodeInfo := framework.NewNodeInfo(pod)
+			err := nodeInfo.SetNode(node)
+			assert.NilError(t, err, "No error expected")
 			pod.Spec.NodeSelector = tc.nodeSelectors
 			node.Labels = tc.nodeLabels
 			plugin, err := predicateManager.Predicates(pod, nodeInfo, false)

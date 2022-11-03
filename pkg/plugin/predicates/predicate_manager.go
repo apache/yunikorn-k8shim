@@ -21,6 +21,7 @@ package predicates
 import (
 	"context"
 	"fmt"
+	schedulercache "github.com/apache/yunikorn-k8shim/pkg/cache/external"
 
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
@@ -48,12 +49,10 @@ type PredicateManager interface {
 }
 
 var _ PredicateManager = &predicateManagerImpl{}
-var pCache = &predicateCache{
-	cache: make(map[string]map[string]*framework.Status),
-}
 var configDecoder = scheme.Codecs.UniversalDecoder()
 
 type predicateManagerImpl struct {
+	schedulerCache        *schedulercache.SchedulerCache
 	reservationPreFilters *[]framework.PreFilterPlugin
 	allocationPreFilters  *[]framework.PreFilterPlugin
 	reservationFilters    *[]framework.FilterPlugin
@@ -145,19 +144,23 @@ func (p *predicateManagerImpl) runFilterPlugins(ctx context.Context, plugins []f
 
 func (p *predicateManagerImpl) runFilterPlugin(ctx context.Context, pl framework.FilterPlugin, state *framework.CycleState, pod *v1.Pod, nodeInfo *framework.NodeInfo) *framework.Status {
 	// we need to list Which predicate we need to cache, here are the node related filter which can be cached.
-	if pl.Name() == nodename.Name || pl.Name() == nodeunschedulable.Name || pl.Name() == nodeports.Name || pl.Name() == nodeaffinity.Name || pl.Name() == tainttoleration.Name {
-		cacheStatus := pCache.PredicateWithCache(nodeInfo.Node().Name, pod)
-		if cacheStatus != nil {
+	if pl.Name() == nodeunschedulable.Name || pl.Name() == nodeaffinity.Name || pl.Name() == tainttoleration.Name {
+		node := nodeInfo.Node()
+		if node == nil {
+			return framework.NewStatus(framework.Error, fmt.Sprintf("node not found"))
+		}
+		cacheStatus, cacheMatch := p.schedulerCache.PredicateWithCache(node.Name, pod)
+		if cacheMatch {
 			return cacheStatus
 		}
 		cacheStatusUpdate := pl.Filter(ctx, state, pod, nodeInfo)
-		pCache.UpdateCache(nodeInfo.Node().Name, pod, cacheStatusUpdate)
+		p.schedulerCache.UpdatePredicateCache(node.Name, pod, cacheStatusUpdate)
 		return cacheStatusUpdate
 	}
 	return pl.Filter(ctx, state, pod, nodeInfo)
 }
 
-func NewPredicateManager(handle framework.Handle) PredicateManager {
+func NewPredicateManager(schedulerCache *schedulercache.SchedulerCache, handle framework.Handle) PredicateManager {
 	/*
 		Default K8S plugins as of 1.20 that implement PreFilter:
 		   NodeResourcesFit
@@ -224,10 +227,11 @@ func NewPredicateManager(handle framework.Handle) PredicateManager {
 		"*": true,
 	}
 
-	return newPredicateManagerInternal(handle, reservationPreFilters, allocationPreFilters, reservationFilters, allocationFilters)
+	return newPredicateManagerInternal(schedulerCache, handle, reservationPreFilters, allocationPreFilters, reservationFilters, allocationFilters)
 }
 
 func newPredicateManagerInternal(
+	schedulerCache *schedulercache.SchedulerCache,
 	handle framework.Handle,
 	reservationPreFilters map[string]bool,
 	allocationPreFilters map[string]bool,
@@ -327,6 +331,7 @@ func newPredicateManagerInternal(
 	}
 
 	pm := &predicateManagerImpl{
+		schedulerCache:        schedulerCache,
 		reservationPreFilters: &resPre,
 		allocationPreFilters:  &allocPre,
 		reservationFilters:    &resFilt,

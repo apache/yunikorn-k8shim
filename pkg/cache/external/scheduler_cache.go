@@ -49,10 +49,11 @@ import (
 type SchedulerCache struct {
 	nodesMap              map[string]*framework.NodeInfo // node name to NodeInfo map
 	podsMap               map[string]*v1.Pod
-	assignedPods          map[string]string // map of pods to the node they are currently assigned to
-	assumedPods           map[string]bool   // map of assumed pods, value indicates if pod volumes are all bound
-	pendingAllocations    map[string]string // map of pod to node ID, presence indicates a pending allocation for scheduler
-	inProgressAllocations map[string]string // map of pod to node ID, presence indicates an in-process allocation for scheduler
+	predicateCache        map[string]map[string]*framework.Status // map of nodes to pod for predicate filter cache key_1: nodename key_2:pod uid
+	assignedPods          map[string]string                       // map of pods to the node they are currently assigned to
+	assumedPods           map[string]bool                         // map of assumed pods, value indicates if pod volumes are all bound
+	pendingAllocations    map[string]string                       // map of pod to node ID, presence indicates a pending allocation for scheduler
+	inProgressAllocations map[string]string                       // map of pod to node ID, presence indicates an in-process allocation for scheduler
 	lock                  sync.RWMutex
 	clients               *client.Clients // client APIs
 }
@@ -61,6 +62,7 @@ func NewSchedulerCache(clients *client.Clients) *SchedulerCache {
 	cache := &SchedulerCache{
 		nodesMap:              make(map[string]*framework.NodeInfo),
 		podsMap:               make(map[string]*v1.Pod),
+		predicateCache:        make(map[string]map[string]*framework.Status),
 		assignedPods:          make(map[string]string),
 		assumedPods:           make(map[string]bool),
 		pendingAllocations:    make(map[string]string),
@@ -74,6 +76,34 @@ func NewSchedulerCache(clients *client.Clients) *SchedulerCache {
 // shared lister and requires that the scheduler cache lock be held while accessing.
 func (cache *SchedulerCache) GetNodesInfoMap() map[string]*framework.NodeInfo {
 	return cache.nodesMap
+}
+
+// PredicateWithCache check the predicate result existed in cache
+func (cache *SchedulerCache) PredicateWithCache(nodeName string, pod *v1.Pod) (*framework.Status, bool) {
+	podUID := string(pod.UID)
+	cache.lock.RLock()
+	defer cache.lock.RUnlock()
+	if nodeCache, exist := cache.predicateCache[nodeName]; exist {
+		if result, exist := nodeCache[podUID]; exist {
+			return result, true
+		}
+	}
+	return nil, false
+}
+
+// UpdatePredicateCache update predicate cache data
+func (cache *SchedulerCache) UpdatePredicateCache(nodeName string, pod *v1.Pod, cacheStatusUpdate *framework.Status) {
+	podUID := string(pod.UID)
+	cache.lock.Lock()
+	defer cache.lock.Unlock()
+
+	if _, exist := cache.predicateCache[nodeName]; !exist {
+		podCache := make(map[string]*framework.Status)
+		podCache[podUID] = cacheStatusUpdate
+		cache.predicateCache[nodeName] = podCache
+	} else {
+		cache.predicateCache[nodeName][podUID] = cacheStatusUpdate
+	}
 }
 
 func (cache *SchedulerCache) LockForReads() {
@@ -150,6 +180,9 @@ func (cache *SchedulerCache) removeNode(node *v1.Node) {
 		delete(cache.pendingAllocations, key)
 		delete(cache.inProgressAllocations, key)
 	}
+
+	// Remove predicate node cache
+	delete(cache.predicateCache, node.Name)
 
 	log.Logger().Debug("Removing node from cache", zap.String("nodeName", node.Name))
 	delete(cache.nodesMap, node.Name)
