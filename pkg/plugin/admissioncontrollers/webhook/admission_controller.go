@@ -23,7 +23,6 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
-	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"io"
 	"net/http"
 	"os"
@@ -40,6 +39,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
+	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 )

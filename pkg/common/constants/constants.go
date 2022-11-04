@@ -76,7 +76,7 @@ const ApplicationInsufficientResourcesFailure = "ResourceReservationTimeout"
 const ApplicationRejectedFailure = "ApplicationRejected"
 
 // namespace.max.* (Retaining for backwards compatibility. Need to be removed in next major release)
-const CpuQuota = "yunikorn.apache.org/namespace.max.cpu"
+const CPUQuota = "yunikorn.apache.org/namespace.max.cpu"
 const MemQuota = "yunikorn.apache.org/namespace.max.memory"
 
 // NamespaceQuota Namespace Quota

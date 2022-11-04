@@ -116,7 +116,7 @@ func PodUnderCondition(pod *v1.Pod, condition *v1.PodCondition) bool {
 
 func GetNamespaceQuotaFromAnnotation(namespaceObj *v1.Namespace) *si.Resource {
 	// retrieve resource quota info from annotations
-	cpuQuota := GetNameSpaceAnnotationValue(namespaceObj, constants.CpuQuota)
+	cpuQuota := GetNameSpaceAnnotationValue(namespaceObj, constants.CPUQuota)
 	memQuota := GetNameSpaceAnnotationValue(namespaceObj, constants.MemQuota)
 	namespaceQuota := GetNameSpaceAnnotationValue(namespaceObj, constants.NamespaceQuota)
 
