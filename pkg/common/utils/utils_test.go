@@ -20,10 +20,11 @@ package utils
 
 import (
 	"fmt"
-	"k8s.io/apimachinery/pkg/api/resource"
 	"strings"
 	"testing"
 	"time"
+
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	"gotest.tools/assert"
 	v1 "k8s.io/api/core/v1"
@@ -897,6 +898,7 @@ func TestGetTaskGroupFromAnnotation(t *testing.T) {
 	assert.Equal(t, taskGroups2[0].MinResource["memory"], resource.MustParse("1Gi"))
 }
 
+// nolint: funlen
 func TestUpdatePodLabelForAdmissionController(t *testing.T) {
 	// verify when appId/queue are not given,
 	pod := &v1.Pod{
@@ -924,7 +926,7 @@ func TestUpdatePodLabelForAdmissionController(t *testing.T) {
 		assert.Equal(t, result["disableStateAware"], "true")
 		assert.Equal(t, strings.HasPrefix(result["applicationId"], constants.AutoGenAppPrefix), true)
 	} else {
-		t.Fatal("patch info content is not as expected")
+		t.Fatal("UpdatePodLabelForAdmissionController is not as expected")
 	}
 
 	// verify if applicationId is given in the labels,
@@ -954,7 +956,7 @@ func TestUpdatePodLabelForAdmissionController(t *testing.T) {
 		assert.Equal(t, result["queue"], "root.default")
 		assert.Equal(t, result["applicationId"], "app-0001")
 	} else {
-		t.Fatal("patch info content is not as expected")
+		t.Fatal("UpdatePodLabelForAdmissionController is not as expected")
 	}
 
 	// verify if queue is given in the labels,
@@ -984,7 +986,7 @@ func TestUpdatePodLabelForAdmissionController(t *testing.T) {
 		assert.Equal(t, result["disableStateAware"], "true")
 		assert.Equal(t, strings.HasPrefix(result["applicationId"], constants.AutoGenAppPrefix), true)
 	} else {
-		t.Fatal("patch info content is not as expected")
+		t.Fatal("UpdatePodLabelForAdmissionControllert is not as expected")
 	}
 
 	// namespace might be empty
@@ -1008,7 +1010,7 @@ func TestUpdatePodLabelForAdmissionController(t *testing.T) {
 		assert.Equal(t, result["disableStateAware"], "true")
 		assert.Equal(t, strings.HasPrefix(result["applicationId"], constants.AutoGenAppPrefix), true)
 	} else {
-		t.Fatal("patch info content is not as expected")
+		t.Fatal("UpdatePodLabelForAdmissionController is not as expected")
 	}
 
 	// pod name might be empty, it can comes from generatedName
@@ -1029,7 +1031,7 @@ func TestUpdatePodLabelForAdmissionController(t *testing.T) {
 		assert.Equal(t, result["disableStateAware"], "true")
 		assert.Equal(t, strings.HasPrefix(result["applicationId"], constants.AutoGenAppPrefix), true)
 	} else {
-		t.Fatal("patch info content is not as expected")
+		t.Fatal("UpdatePodLabelForAdmissionController is not as expected")
 	}
 
 	pod = &v1.Pod{
@@ -1047,6 +1049,6 @@ func TestUpdatePodLabelForAdmissionController(t *testing.T) {
 		assert.Equal(t, result["disableStateAware"], "true")
 		assert.Equal(t, strings.HasPrefix(result["applicationId"], constants.AutoGenAppPrefix), true)
 	} else {
-		t.Fatal("patch info content is not as expected")
+		t.Fatal("UpdatePodLabelForAdmissionController is not as expected")
 	}
 }
