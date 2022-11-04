@@ -92,7 +92,7 @@ func getAppMetadata(pod *v1.Pod, recovery bool) (interfaces.ApplicationMetadata,
 	}
 
 	// get the user from Pod Labels
-	user := utils.GetUserFromPod(pod)
+	user, groups := utils.GetUserFromPod(pod)
 
 	var taskGroups []v1alpha1.TaskGroup = nil
 	if !conf.GetSchedulerConf().DisableGangScheduling {
@@ -121,6 +121,7 @@ func getAppMetadata(pod *v1.Pod, recovery bool) (interfaces.ApplicationMetadata,
 		ApplicationID:              appID,
 		QueueName:                  utils.GetQueueNameFromPod(pod),
 		User:                       user,
+		Groups:                     groups,
 		Tags:                       tags,
 		TaskGroups:                 taskGroups,
 		OwnerReferences:            ownerReferences,

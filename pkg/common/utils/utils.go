@@ -35,8 +35,11 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
+	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
+
+const userInfoKey = siCommon.DomainYuniKorn + "user.info"
 
 func Convert2Pod(obj interface{}) (*v1.Pod, error) {
 	pod, ok := obj.(*v1.Pod)
@@ -237,8 +240,28 @@ func MergeMaps(first, second map[string]string) map[string]string {
 	return result
 }
 
-// find user name from pod label
-func GetUserFromPod(pod *v1.Pod) string {
+// GetUserFromPod find username from pod annotation or label
+func GetUserFromPod(pod *v1.Pod) (string, []string) {
+	if pod.Annotations[userInfoKey] != "" {
+		userInfoJSON := pod.Annotations[userInfoKey]
+		var userGroup si.UserGroupInformation
+		err := json.Unmarshal([]byte(userInfoJSON), &userGroup)
+		if err != nil {
+			log.Logger().Error("unable to process user info annotation", zap.Error(err))
+			return constants.DefaultUser, nil
+		}
+		user := userGroup.User
+		groups := userGroup.Groups
+		if user == "" {
+			log.Logger().Warn("got empty username, using default")
+			user = constants.DefaultUser
+		}
+		log.Logger().Info("found user info from pod annotations",
+			zap.String("username", user), zap.Strings("groups", groups))
+		return user, groups
+	}
+
+	// Label is processed for backwards compatibility
 	userLabelKey := conf.GetSchedulerConf().UserLabelKey
 	// UserLabelKey should not be empty
 	if len(userLabelKey) == 0 {
@@ -248,12 +271,12 @@ func GetUserFromPod(pod *v1.Pod) string {
 	if username, ok := pod.Labels[userLabelKey]; ok && len(username) > 0 {
 		log.Logger().Info("Found user name from pod labels.",
 			zap.String("userLabel", userLabelKey), zap.String("user", username))
-		return username
+		return username, nil
 	}
 	value := constants.DefaultUser
 
 	log.Logger().Debug("Unable to retrieve user name from pod labels. Empty user label",
 		zap.String("userLabel", userLabelKey))
 
-	return value
+	return value, nil
 }
