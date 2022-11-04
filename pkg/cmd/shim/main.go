@@ -23,10 +23,11 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/apache/yunikorn-k8shim/pkg/client"
+	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"go.uber.org/zap"
 
 	"github.com/apache/yunikorn-core/pkg/entrypoint"
-	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-k8shim/pkg/shim"
@@ -39,14 +40,23 @@ var (
 )
 
 func main() {
-	log.Logger().Info("Build info", zap.String("version", version), zap.String("date", date))
-	log.Logger().Info("starting scheduler",
-		zap.String("name", constants.SchedulerName))
-
 	conf.BuildVersion = version
 	conf.BuildDate = date
 	conf.IsPluginVersion = false
 
+	log.Logger().Info("Build info", zap.String("version", version), zap.String("date", date))
+
+	configMaps, err := client.LoadBootstrapConfigMaps()
+	if err != nil {
+		log.Logger().Fatal("Unable to bootstrap configuration", zap.Error(err))
+	}
+
+	err = conf.UpdateConfigMaps(configMaps, true)
+	if err != nil {
+		log.Logger().Fatal("Unable to load initial configmaps", zap.Error(err))
+	}
+
+	log.Logger().Info("Starting scheduler", zap.String("name", constants.SchedulerName))
 	serviceContext := entrypoint.StartAllServicesWithLogger(log.Logger(), log.GetZapConfigs())
 
 	if sa, ok := serviceContext.RMProxy.(api.SchedulerAPI); ok {

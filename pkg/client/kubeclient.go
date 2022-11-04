@@ -20,6 +20,7 @@ package client
 
 import (
 	"context"
+	"fmt"
 
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
@@ -39,28 +40,22 @@ type SchedulerKubeClient struct {
 	configs   *rest.Config
 }
 
+func newBootstrapSchedulerKubeClient(kc string) SchedulerKubeClient {
+	config := createRestConfig(kc)
+	configuredClient, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		log.Logger().Fatal("failed to get Clientset", zap.Error(err))
+	}
+	return SchedulerKubeClient{
+		clientSet: configuredClient,
+		configs:   config,
+	}
+}
+
 func newSchedulerKubeClient(kc string) SchedulerKubeClient {
 	schedulerConf := conf.GetSchedulerConf()
-	// using kube config
-	if kc != "" {
-		config, err := clientcmd.BuildConfigFromFlags("", kc)
-		if err != nil {
-			log.Logger().Fatal("failed to create kubeClient configs", zap.Error(err))
-		}
-		config.QPS = float32(schedulerConf.KubeQPS)
-		config.Burst = schedulerConf.KubeBurst
-		configuredClient := kubernetes.NewForConfigOrDie(config)
-		return SchedulerKubeClient{
-			clientSet: configuredClient,
-			configs:   config,
-		}
-	}
 
-	// using in cluster config
-	config, err := rest.InClusterConfig()
-	if err != nil {
-		log.Logger().Fatal("failed to get InClusterConfig", zap.Error(err))
-	}
+	config := createRestConfig(kc)
 	config.QPS = float32(schedulerConf.KubeQPS)
 	config.Burst = schedulerConf.KubeBurst
 	configuredClient, err := kubernetes.NewForConfig(config)
@@ -71,6 +66,29 @@ func newSchedulerKubeClient(kc string) SchedulerKubeClient {
 		clientSet: configuredClient,
 		configs:   config,
 	}
+}
+
+func createRestConfig(kc string) *rest.Config {
+	// attempt to use in-cluster config
+	config, err := rest.InClusterConfig()
+	if err != nil && err != rest.ErrNotInCluster {
+		// this is called during early initialization, so abort
+		panic(err)
+	}
+	if config != nil {
+		return config
+	}
+
+	// fall back to kubeconfig if present
+	if kc == "" {
+		kc = conf.GetDefaultKubeConfigPath()
+	}
+	log.Logger().Info(fmt.Sprintf("Not running inside Kubernetes; using KUBECONFIG at %s", kc))
+	config, err = clientcmd.BuildConfigFromFlags("", kc)
+	if err != nil {
+		log.Logger().Fatal("failed to create kubeClient configs", zap.Error(err))
+	}
+	return config
 }
 
 func (nc SchedulerKubeClient) GetClientSet() kubernetes.Interface {

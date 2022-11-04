@@ -19,6 +19,7 @@
 package conf
 
 import (
+	"fmt"
 	"strconv"
 	"time"
 
@@ -31,31 +32,30 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
 )
 
-// default configuration options, can be overridden by command-line args
 const (
 	DefaultSchedulerName = "yunikorn"
 )
 
 // command line argument names
 const (
-	ArgClusterID              = "yk-cluster-id"
-	ArgClusterVersion         = "yk-cluster-version"
-	ArgPolicyGroup            = "yk-policy-group"
-	ArgSchedulingInterval     = "yk-scheduling-interval"
-	ArgKubeConfig             = "yk-kube-config"
-	ArgLogLevel               = "yk-log-level"
-	ArgLogEncoding            = "yk-log-encoding"
-	ArgLogFile                = "yk-log-file"
-	ArgEventChannelCapacity   = "yk-event-channel-capacity"
-	ArgDispatchTimeout        = "yk-dispatcher-timeout"
-	ArgKubeQPS                = "yk-kube-qps"
-	ArgKubeBurst              = "yk-kube-burst"
-	ArgOperatorPlugins        = "yk-operator-plugins"
-	ArgEnableConfigHotRefresh = "yk-enable-config-hot-refresh"
-	ArgDisableGangScheduling  = "yk-disable-gang-scheduling"
-	ArgUserLabelKey           = "yk-user-label-key"
-	ArgSchedulerName          = "yk-scheduler-name"
-	ArgPlaceHolderImage       = "yk-placeholder-image"
+	DeprecatedArgClusterID              = "yk-cluster-id"
+	DeprecatedArgClusterVersion         = "yk-cluster-version"
+	DeprecatedArgPolicyGroup            = "yk-policy-group"
+	DeprecatedArgSchedulingInterval     = "yk-scheduling-interval"
+	DeprecatedArgKubeConfig             = "yk-kube-config"
+	DeprecatedArgLogLevel               = "yk-log-level"
+	DeprecatedArgLogEncoding            = "yk-log-encoding"
+	DeprecatedArgLogFile                = "yk-log-file"
+	DeprecatedArgEventChannelCapacity   = "yk-event-channel-capacity"
+	DeprecatedArgDispatchTimeout        = "yk-dispatcher-timeout"
+	DeprecatedArgKubeQPS                = "yk-kube-qps"
+	DeprecatedArgKubeBurst              = "yk-kube-burst"
+	DeprecatedArgOperatorPlugins        = "yk-operator-plugins"
+	DeprecatedArgEnableConfigHotRefresh = "yk-enable-config-hot-refresh"
+	DeprecatedArgDisableGangScheduling  = "yk-disable-gang-scheduling"
+	DeprecatedArgUserLabelKey           = "yk-user-label-key"
+	DeprecatedArgSchedulerName          = "yk-scheduler-name"
+	DeprecatedArgPlaceHolderImage       = "yk-placeholder-image"
 )
 
 func getStringArg(flag *pflag.Flag, defaultValue string) string {
@@ -66,7 +66,7 @@ func getStringArg(flag *pflag.Flag, defaultValue string) string {
 	return defaultValue
 }
 
-func getTimeDurationArg(flag *pflag.Flag, defaultValue time.Duration) time.Duration {
+func getDurationArg(flag *pflag.Flag, defaultValue time.Duration) time.Duration {
 	if parsedValue, err := time.ParseDuration(flag.Value.String()); err == nil {
 		return parsedValue
 	}
@@ -87,59 +87,143 @@ func getBoolArg(flag *pflag.Flag, defaultValue bool) bool {
 	return defaultValue
 }
 
-// SchedulerConfFactory implementation
-func NewSchedulerConf() *conf.SchedulerConf {
-	configuration := &conf.SchedulerConf{
-		Namespace: conf.GetSchedulerNamespace(),
+type cliParser struct {
+	seen     map[string]string
+	warnings []string
+}
+
+func newCliParser(seen map[string]string) *cliParser {
+	return &cliParser{
+		seen:     seen,
+		warnings: make([]string, 0),
 	}
+}
+
+func (p *cliParser) obsoleteString(flag *pflag.Flag, name string, defValue string) {
+	val := getStringArg(flag, defValue)
+	p.warnings = append(p.warnings, fmt.Sprintf("Obsolete CLI option '%s' found. Ignoring value: '%s'", name, val))
+}
+
+func (p *cliParser) deprecatedString(flag *pflag.Flag, name string, seenKey string, defValue string, prevValue string, setter func(string)) {
+	val := getStringArg(flag, defValue)
+	if _, ok := p.seen[seenKey]; ok {
+		if val != prevValue {
+			p.warnings = append(p.warnings, fmt.Sprintf(
+				"Deprecated CLI option '%s' found with inconsistent value. Provided: '%s', used: '%s'", name, val, prevValue))
+		}
+	} else {
+		setter(val)
+		p.seen[seenKey] = name
+	}
+}
+
+func (p *cliParser) deprecatedInt(flag *pflag.Flag, name string, seenKey string, defValue int, prevValue int, setter func(int)) {
+	val := getIntArg(flag, defValue)
+	if _, ok := p.seen[seenKey]; ok {
+		if val != prevValue {
+			p.warnings = append(p.warnings, fmt.Sprintf(
+				"Deprecated CLI option '%s' found with inconsistent value. Provided: '%d', used: '%d'", name, val, prevValue))
+		}
+	} else {
+		setter(val)
+		p.seen[seenKey] = name
+	}
+}
+
+func (p *cliParser) deprecatedBool(flag *pflag.Flag, name string, seenKey string, defValue bool, prevValue bool, setter func(bool)) {
+	val := getBoolArg(flag, defValue)
+	if _, ok := p.seen[seenKey]; ok {
+		if val != prevValue {
+			p.warnings = append(p.warnings, fmt.Sprintf(
+				"Deprecated CLI option '%s' found with inconsistent value. Provided: '%t', used: '%t'", name, val, prevValue))
+		}
+	} else {
+		setter(val)
+		p.seen[seenKey] = name
+	}
+}
+
+func (p *cliParser) deprecatedDuration(flag *pflag.Flag, name string, seenKey string, defValue time.Duration, prevValue time.Duration, setter func(duration time.Duration)) {
+	val := getDurationArg(flag, defValue)
+	if _, ok := p.seen[seenKey]; ok {
+		if val != prevValue {
+			p.warnings = append(p.warnings, fmt.Sprintf(
+				"Deprecated CLI option '%s' found with inconsistent value. Provided: '%s', used: '%s'", name, val, prevValue))
+		}
+	} else {
+		setter(val)
+		p.seen[seenKey] = name
+	}
+}
+
+func ParsePluginCli(prev *conf.SchedulerConf, seen map[string]string) (*conf.SchedulerConf, []string) {
+	configuration := prev.Clone()
 
 	if pluginFlags == nil {
 		// too early to call logger here
 		panic("Plugin flags not initialized")
 	}
 
-	pluginFlags.VisitAll(func(flag *pflag.Flag) {
+	parser := newCliParser(seen)
+
+	pluginFlags.Visit(func(flag *pflag.Flag) {
 		switch flag.Name {
-		case ArgSchedulerName:
-			configuration.SchedulerName = getStringArg(flag, DefaultSchedulerName)
-		case ArgClusterID:
-			configuration.ClusterID = getStringArg(flag, conf.DefaultClusterID)
-		case ArgClusterVersion:
-			configuration.ClusterVersion = getStringArg(flag, conf.DefaultClusterVersion)
-		case ArgPolicyGroup:
-			configuration.PolicyGroup = getStringArg(flag, conf.DefaultPolicyGroup)
-		case ArgSchedulingInterval:
-			configuration.Interval = getTimeDurationArg(flag, conf.DefaultSchedulingInterval)
-		case ArgKubeConfig:
-			configuration.KubeConfig = getStringArg(flag, "")
-		case ArgLogEncoding:
-			configuration.LogEncoding = getStringArg(flag, conf.DefaultLogEncoding)
-		case ArgLogLevel:
-			configuration.LoggingLevel = getIntArg(flag, conf.DefaultLoggingLevel)
-		case ArgLogFile:
-			configuration.LogFile = getStringArg(flag, "")
-		case ArgEventChannelCapacity:
-			configuration.EventChannelCapacity = getIntArg(flag, conf.DefaultEventChannelCapacity)
-		case ArgDispatchTimeout:
-			configuration.DispatchTimeout = getTimeDurationArg(flag, conf.DefaultDispatchTimeout)
-		case ArgKubeQPS:
-			configuration.KubeQPS = getIntArg(flag, conf.DefaultKubeQPS)
-		case ArgKubeBurst:
-			configuration.KubeBurst = getIntArg(flag, conf.DefaultKubeBurst)
-		case ArgEnableConfigHotRefresh:
-			configuration.EnableConfigHotRefresh = getBoolArg(flag, true)
-		case ArgDisableGangScheduling:
-			configuration.DisableGangScheduling = getBoolArg(flag, false)
-		case ArgUserLabelKey:
-			configuration.UserLabelKey = getStringArg(flag, constants.DefaultUserLabel)
-		case ArgOperatorPlugins:
-			configuration.OperatorPlugins = getStringArg(flag, "general")
-		case ArgPlaceHolderImage:
-			configuration.PlaceHolderImage = getStringArg(flag, constants.PlaceholderContainerImage)
+		case DeprecatedArgSchedulerName:
+			parser.obsoleteString(flag, DeprecatedArgSchedulerName, DefaultSchedulerName)
+		case DeprecatedArgClusterID:
+			parser.deprecatedString(flag, DeprecatedArgClusterID, conf.CMSvcClusterID, conf.DefaultClusterID, configuration.ClusterID,
+				func(v string) { configuration.ClusterID = v })
+		case DeprecatedArgClusterVersion:
+			parser.obsoleteString(flag, DeprecatedArgClusterVersion, conf.BuildVersion)
+		case DeprecatedArgPolicyGroup:
+			parser.deprecatedString(flag, DeprecatedArgPolicyGroup, conf.CMSvcPolicyGroup, conf.DefaultPolicyGroup, configuration.PolicyGroup,
+				func(v string) { configuration.PolicyGroup = v })
+		case DeprecatedArgSchedulingInterval:
+			parser.deprecatedDuration(flag, DeprecatedArgSchedulingInterval, conf.CMSvcSchedulingInterval, conf.DefaultSchedulingInterval, configuration.Interval,
+				func(v time.Duration) { configuration.Interval = v })
+		case DeprecatedArgKubeConfig:
+			parser.deprecatedString(flag, DeprecatedArgKubeConfig, conf.EnvKubeConfig, conf.GetDefaultKubeConfigPath(), configuration.KubeConfig,
+				func(v string) { configuration.KubeConfig = v })
+		case DeprecatedArgLogEncoding:
+			parser.obsoleteString(flag, DeprecatedArgLogEncoding, conf.DefaultLogEncoding)
+		case DeprecatedArgLogLevel:
+			parser.deprecatedInt(flag, DeprecatedArgLogLevel, conf.CMLogLevel, conf.DefaultLoggingLevel, configuration.LoggingLevel,
+				func(v int) { configuration.LoggingLevel = v })
+		case DeprecatedArgLogFile:
+			parser.obsoleteString(flag, DeprecatedArgLogFile, "")
+		case DeprecatedArgEventChannelCapacity:
+			parser.deprecatedInt(flag, DeprecatedArgEventChannelCapacity, conf.CMSvcEventChannelCapacity, conf.DefaultEventChannelCapacity, configuration.EventChannelCapacity,
+				func(v int) { configuration.EventChannelCapacity = v })
+		case DeprecatedArgDispatchTimeout:
+			parser.deprecatedDuration(flag, DeprecatedArgDispatchTimeout, conf.CMSvcDispatchTimeout, conf.DefaultDispatchTimeout, configuration.DispatchTimeout,
+				func(v time.Duration) { configuration.DispatchTimeout = v })
+		case DeprecatedArgKubeQPS:
+			parser.deprecatedInt(flag, DeprecatedArgKubeQPS, conf.CMKubeQPS, conf.DefaultKubeQPS, configuration.KubeQPS,
+				func(v int) { configuration.KubeQPS = v })
+		case DeprecatedArgKubeBurst:
+			parser.deprecatedInt(flag, DeprecatedArgKubeBurst, conf.CMKubeBurst, conf.DefaultKubeBurst, configuration.KubeBurst,
+				func(v int) { configuration.KubeBurst = v })
+		case DeprecatedArgEnableConfigHotRefresh:
+			parser.deprecatedBool(flag, DeprecatedArgEnableConfigHotRefresh, conf.CMSvcEnableConfigHotRefresh, conf.DefaultEnableConfigHotRefresh, configuration.EnableConfigHotRefresh,
+				func(v bool) { configuration.EnableConfigHotRefresh = v })
+		case DeprecatedArgDisableGangScheduling:
+			parser.deprecatedBool(flag, DeprecatedArgDisableGangScheduling, conf.CMSvcDisableGangScheduling, conf.DefaultDisableGangScheduling, configuration.DisableGangScheduling,
+				func(v bool) { configuration.DisableGangScheduling = v })
+		case DeprecatedArgUserLabelKey:
+			parser.obsoleteString(flag, DeprecatedArgUserLabelKey, constants.DefaultUserLabel)
+		case DeprecatedArgOperatorPlugins:
+			parser.deprecatedString(flag, DeprecatedArgOperatorPlugins, conf.CMSvcOperatorPlugins, conf.DefaultOperatorPlugins, configuration.OperatorPlugins,
+				func(v string) { configuration.OperatorPlugins = v })
+		case DeprecatedArgPlaceHolderImage:
+			parser.deprecatedString(flag, DeprecatedArgPlaceHolderImage, conf.CMSvcPlaceholderImage, constants.PlaceholderContainerImage, configuration.PlaceHolderImage,
+				func(v string) { configuration.PlaceHolderImage = v })
 		}
 	})
 
-	return configuration
+	if len(parser.warnings) > 0 {
+		return configuration, parser.warnings
+	}
+	return configuration, nil
 }
 
 // handle to the initialized flags so that we can read them later
@@ -147,27 +231,49 @@ var pluginFlags *pflag.FlagSet
 
 func InitCliFlagSet(command *cobra.Command) {
 	ykFlags := pflag.NewFlagSet("yunikorn", pflag.ExitOnError)
-	ykFlags.String(ArgSchedulerName, DefaultSchedulerName, "scheduler name to register YuniKorn under")
-	ykFlags.String(ArgClusterID, conf.DefaultClusterID, "cluster id")
-	ykFlags.String(ArgClusterVersion, conf.DefaultClusterVersion, "cluster version")
-	ykFlags.String(ArgPolicyGroup, conf.DefaultPolicyGroup, "policy group")
-	ykFlags.Duration(ArgSchedulingInterval, conf.DefaultSchedulingInterval, "scheduling interval in seconds")
-	ykFlags.String(ArgKubeConfig, "", "absolute path to the kubeconfig file")
-	ykFlags.Int(ArgLogLevel, conf.DefaultLoggingLevel, "logging level, available range [-1, 5], from DEBUG to FATAL.")
-	ykFlags.String(ArgLogEncoding, conf.DefaultLogEncoding, "log encoding, json or console")
-	ykFlags.String(ArgLogFile, "", "absolute log file path")
-	ykFlags.Int(ArgEventChannelCapacity, conf.DefaultEventChannelCapacity, "event channel capacity of dispatcher")
-	ykFlags.Duration(ArgDispatchTimeout, conf.DefaultDispatchTimeout, "timeout in seconds when dispatching an event")
-	ykFlags.Int(ArgKubeQPS, conf.DefaultKubeQPS, "the maximum QPS to kubernetes master from this client")
-	ykFlags.Int(ArgKubeBurst, conf.DefaultKubeBurst, "the maximum burst for throttle to kubernetes master from this client")
-	ykFlags.Bool(ArgEnableConfigHotRefresh, true, "enable auto-reload of scheduler configmap")
-	ykFlags.Bool(ArgDisableGangScheduling, false, "disable gang scheduling")
-	ykFlags.String(ArgUserLabelKey, constants.DefaultUserLabel, "provide pod label key to be used to identify an user")
-	ykFlags.String(ArgOperatorPlugins, "general",
-		"comma-separated list of operator plugin names, currently, only \"spark-k8s-operator\" and \""+
-			constants.AppManagerHandlerName+"\" is supported.")
-	ykFlags.String(ArgPlaceHolderImage, constants.PlaceholderContainerImage,
-		"docker image of the placeholder pod")
+
+	ykFlags.String(DeprecatedArgSchedulerName, DefaultSchedulerName, "DEPRECATED: YuniKorn scheduler name (ignored)")
+	ykFlags.String(DeprecatedArgClusterID, conf.DefaultClusterID,
+		fmt.Sprintf("DEPRECATED: cluster id (use configmap: %s/%s)",
+			constants.ConfigMapName, conf.CMSvcClusterID))
+	ykFlags.String(DeprecatedArgClusterVersion, conf.BuildVersion, "DEPRECATED: cluster version (ignored)")
+	ykFlags.String(DeprecatedArgPolicyGroup, conf.DefaultPolicyGroup, "policy group")
+	ykFlags.Duration(DeprecatedArgSchedulingInterval, conf.DefaultSchedulingInterval,
+		fmt.Sprintf("DEPRECATED: scheduling interval in seconds (use configmap: %s/%s)",
+			constants.ConfigMapName, conf.CMSvcSchedulingInterval))
+	ykFlags.String(DeprecatedArgKubeConfig, conf.GetDefaultKubeConfigPath(),
+		fmt.Sprintf("DEPRECATED: absolute path to the kubeconfig file (use env: %s)", conf.EnvKubeConfig))
+	ykFlags.Int(DeprecatedArgLogLevel, conf.DefaultLoggingLevel,
+		fmt.Sprintf("DEPRECATED: logging level, from DEBUG (-1) to FATAL (5) (use configmap: %s/%s)",
+			constants.ConfigMapName, conf.CMLogLevel))
+	ykFlags.String(DeprecatedArgLogEncoding, conf.DefaultLogEncoding, "DEPRECATED: log encoding (ignored)")
+	ykFlags.String(DeprecatedArgLogFile, "", "DEPRECATED: log file path (ignored)")
+	ykFlags.Int(DeprecatedArgEventChannelCapacity, conf.DefaultEventChannelCapacity,
+		fmt.Sprintf("DEPRECATED: event channel capacity of dispatcher (use configmap: %s/%s)",
+			constants.ConfigMapName, conf.CMSvcEventChannelCapacity))
+	ykFlags.Duration(DeprecatedArgDispatchTimeout, conf.DefaultDispatchTimeout,
+		fmt.Sprintf("DEPRECATED: timeout in seconds when dispatching an event (use configmap: %s/%s)",
+			constants.ConfigMapName, conf.CMSvcDispatchTimeout))
+	ykFlags.Int(DeprecatedArgKubeQPS, conf.DefaultKubeQPS,
+		fmt.Sprintf("DEPRECATED: maximum QPS to Kubernetes master from this client (use configmap: %s/%s)",
+			constants.ConfigMapName, conf.CMKubeQPS))
+	ykFlags.Int(DeprecatedArgKubeBurst, conf.DefaultKubeBurst,
+		fmt.Sprintf("DEPRECATED: maximum burst for throttle to Kubernetes master from this client (use configmap: %s/%s)",
+			constants.ConfigMapName, conf.CMKubeBurst))
+	ykFlags.Bool(DeprecatedArgEnableConfigHotRefresh, conf.DefaultEnableConfigHotRefresh,
+		fmt.Sprintf("DEPRECATED: enable automatic configuration reloading (use configmap: %s/%s)",
+			constants.ConfigMapName, conf.CMSvcEnableConfigHotRefresh))
+	ykFlags.Bool(DeprecatedArgDisableGangScheduling, conf.DefaultDisableGangScheduling,
+		fmt.Sprintf("DEPRECATED: disable gang scheduling (use configmap: %s/%s)",
+			constants.ConfigMapName, conf.CMSvcDisableGangScheduling))
+	ykFlags.String(DeprecatedArgUserLabelKey, constants.DefaultUserLabel,
+		"DEPRECATED: pod label key to be used to identify a user (ignored)")
+	ykFlags.String(DeprecatedArgOperatorPlugins, conf.DefaultOperatorPlugins,
+		fmt.Sprintf("DEPRECATED: comma-separated list of operator plugin names [general,spark-k8s-operator,%s] (use configmap: %s/%s)",
+			constants.AppManagerHandlerName, conf.CMSvcOperatorPlugins, constants.ConfigMapName))
+	ykFlags.String(DeprecatedArgPlaceHolderImage, constants.PlaceholderContainerImage,
+		fmt.Sprintf("DEPRECATED: Docker image of the placeholder pod (use configmap: %s/%s)",
+			constants.ConfigMapName, conf.CMSvcPlaceholderImage))
 
 	ykNamedFlagSets := flag.NamedFlagSets{
 		Order: []string{"YuniKorn"},

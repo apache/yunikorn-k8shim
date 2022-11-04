@@ -39,7 +39,7 @@ import (
 // or the scheduler core.
 type Clients struct {
 	// configs
-	Conf *conf.SchedulerConf
+	conf *conf.SchedulerConf
 
 	// client apis
 	KubeClient   KubeClient
@@ -61,6 +61,10 @@ type Clients struct {
 
 	// volume binder handles PV/PVC related operations
 	VolumeBinder volumebinding.SchedulerVolumeBinder
+}
+
+func (c *Clients) GetConf() *conf.SchedulerConf {
+	return c.conf
 }
 
 func (c *Clients) WaitForSync(interval time.Duration, timeout time.Duration) error {

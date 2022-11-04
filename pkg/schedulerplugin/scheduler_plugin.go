@@ -29,6 +29,8 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
+	"github.com/apache/yunikorn-k8shim/pkg/client"
+
 	"github.com/apache/yunikorn-core/pkg/entrypoint"
 	"github.com/apache/yunikorn-k8shim/pkg/cache"
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
@@ -204,6 +206,16 @@ func (sp *YuniKornSchedulerPlugin) PostBind(_ context.Context, _ *framework.Cycl
 // NewSchedulerPlugin initializes a new plugin and returns it
 func NewSchedulerPlugin(_ runtime.Object, handle framework.Handle) (framework.Plugin, error) {
 	log.Logger().Info("Build info", zap.String("version", conf.BuildVersion), zap.String("date", conf.BuildDate))
+
+	configMaps, err := client.LoadBootstrapConfigMaps()
+	if err != nil {
+		log.Logger().Fatal("Unable to bootstrap configuration", zap.Error(err))
+	}
+
+	err = conf.UpdateConfigMaps(configMaps, true)
+	if err != nil {
+		log.Logger().Fatal("Unable to load initial configmaps", zap.Error(err))
+	}
 
 	// start the YK core scheduler
 	serviceContext := entrypoint.StartAllServicesWithLogger(log.Logger(), log.GetZapConfigs())

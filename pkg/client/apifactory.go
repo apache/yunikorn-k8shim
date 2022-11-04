@@ -121,7 +121,7 @@ func NewAPIFactory(scheduler api.SchedulerAPI, informerFactory informers.SharedI
 
 	return &APIFactory{
 		clients: &Clients{
-			Conf:              configs,
+			conf:              configs,
 			KubeClient:        kubeClient,
 			AppClient:         appClient,
 			SchedulerAPI:      scheduler,

@@ -16,37 +16,29 @@
  limitations under the License.
 */
 
-package main
+package client
 
 import (
-	"os"
+	v1 "k8s.io/api/core/v1"
 
-	"k8s.io/kubernetes/cmd/kube-scheduler/app"
-
+	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
-	"github.com/apache/yunikorn-k8shim/pkg/schedulerplugin"
-	pluginconf "github.com/apache/yunikorn-k8shim/pkg/schedulerplugin/conf"
 )
 
-var (
-	version string
-	date    string
-)
+func LoadBootstrapConfigMaps() ([]*v1.ConfigMap, error) {
+	// we need a bootstrap client so that we can read the initial version of the configmap
+	kubeClient := NewBootstrapKubeClient(conf.GetDefaultKubeConfigPath())
+	namespace := conf.GetSchedulerNamespace()
 
-func main() {
-	conf.BuildVersion = version
-	conf.BuildDate = date
-	conf.IsPluginVersion = true
-
-	// override the default CLI arg parsing when in plugin mode
-	_ = conf.SetCliParser(pluginconf.ParsePluginCli)
-
-	command := app.NewSchedulerCommand(
-		app.WithPlugin(schedulerplugin.SchedulerPluginName, schedulerplugin.NewSchedulerPlugin))
-
-	pluginconf.InitCliFlagSet(command)
-
-	if err := command.Execute(); err != nil {
-		os.Exit(1)
+	defaults, err := kubeClient.GetConfigMap(namespace, constants.DefaultConfigMapName)
+	if err != nil {
+		return nil, err
 	}
+
+	config, err := kubeClient.GetConfigMap(namespace, constants.ConfigMapName)
+	if err != nil {
+		return nil, err
+	}
+
+	return []*v1.ConfigMap{defaults, config}, nil
 }
