@@ -31,6 +31,7 @@ import (
 )
 
 const nodeID = "node-01"
+const nodeLabels = "{\"label1\":\"key1\",\"label2\":\"key2\"}"
 
 func TestCreateReleaseAllocationRequest(t *testing.T) {
 	request := CreateReleaseAllocationRequestForTask("app01", "alloc01", "default", "STOPPED_BY_RM")
@@ -209,14 +210,15 @@ func TestCreateUpdateRequestForNewNode(t *testing.T) {
 	occupied := NewResourceBuilder().AddResource(common.Memory, 50).AddResource(common.CPU, 1).Build()
 	var existingAllocations []*si.Allocation
 	ready := true
-	request := CreateUpdateRequestForNewNode(nodeID, capacity, occupied, existingAllocations, ready)
+	request := CreateUpdateRequestForNewNode(nodeID, nodeLabels, capacity, occupied, existingAllocations, ready)
 	assert.Equal(t, len(request.Nodes), 1)
 	assert.Equal(t, request.Nodes[0].NodeID, nodeID)
 	assert.Equal(t, request.Nodes[0].SchedulableResource, capacity)
 	assert.Equal(t, request.Nodes[0].OccupiedResource, occupied)
-	assert.Equal(t, len(request.Nodes[0].Attributes), 3)
+	assert.Equal(t, len(request.Nodes[0].Attributes), 4)
 	assert.Equal(t, request.Nodes[0].Attributes[constants.DefaultNodeAttributeHostNameKey], nodeID)
 	assert.Equal(t, request.Nodes[0].Attributes[constants.DefaultNodeAttributeRackNameKey], constants.DefaultRackName)
+	assert.Equal(t, request.Nodes[0].Attributes[constants.DefaultNodeAttributeNodeLabelsKey], nodeLabels)
 	assert.Equal(t, request.Nodes[0].Attributes[common.NodeReadyAttribute], strconv.FormatBool(ready))
 }
 

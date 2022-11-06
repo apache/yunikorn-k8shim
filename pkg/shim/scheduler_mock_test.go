@@ -86,12 +86,12 @@ func (fc *MockScheduler) start() {
 	fc.scheduler.Run()
 }
 
-func (fc *MockScheduler) addNode(nodeName string, memory, cpu int64) error {
+func (fc *MockScheduler) addNode(nodeName, nodeLabels string, memory, cpu int64) error {
 	nodeResource := common.NewResourceBuilder().
 		AddResource(siCommon.Memory, memory).
 		AddResource(siCommon.CPU, cpu).
 		Build()
-	request := common.CreateUpdateRequestForNewNode(nodeName, nodeResource, nil, nil, true)
+	request := common.CreateUpdateRequestForNewNode(nodeName, nodeLabels, nodeResource, nil, nil, true)
 	fmt.Printf("report new nodes to scheduler, request: %s", request.String())
 	return fc.apiProvider.GetAPIs().SchedulerAPI.UpdateNode(&request)
 }
