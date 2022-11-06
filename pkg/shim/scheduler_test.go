@@ -67,9 +67,9 @@ partitions:
 	cluster.waitForSchedulerState(t, SchedulerStates().Running)
 
 	// register nodes
-	err := cluster.addNode("test.host.01", "{\"label1\":\"key1\",\"label2\":\"key2\"}", 100000000, 10)
+	err := cluster.addNode("test.host.01", nodeLabels, 100000000, 10)
 	assert.NilError(t, err, "add node failed")
-	err = cluster.addNode("test.host.02", "{\"label1\":\"key1\",\"label2\":\"key2\"}", 100000000, 10)
+	err = cluster.addNode("test.host.02", nodeLabels, 100000000, 10)
 	assert.NilError(t, err, "add node failed")
 
 	// create app and tasks
@@ -115,9 +115,9 @@ partitions:
 	cluster.waitForSchedulerState(t, SchedulerStates().Running)
 
 	// register nodes
-	err := cluster.addNode("test.host.01", "{\"label1\":\"key1\",\"label2\":\"key2\"}", 100000000, 10)
+	err := cluster.addNode("test.host.01", nodeLabels, 100000000, 10)
 	assert.NilError(t, err)
-	err = cluster.addNode("test.host.02", "{\"label1\":\"key1\",\"label2\":\"key2\"}", 100000000, 10)
+	err = cluster.addNode("test.host.02", nodeLabels, 100000000, 10)
 	assert.NilError(t, err)
 
 	// add app to context
@@ -207,9 +207,9 @@ partitions:
 	cluster.waitForSchedulerState(t, SchedulerStates().Running)
 
 	// register nodes
-	err := cluster.addNode("test.host.01", "{\"label1\":\"key1\",\"label2\":\"key2\"}", 100000000, 10)
+	err := cluster.addNode("test.host.01", nodeLabels, 100000000, 10)
 	assert.NilError(t, err, "add node failed")
-	err = cluster.addNode("test.host.02", "{\"label1\":\"key1\",\"label2\":\"key2\"}", 100000000, 10)
+	err = cluster.addNode("test.host.02", nodeLabels, 100000000, 10)
 	assert.NilError(t, err, "add node failed")
 
 	// create app and tasks
