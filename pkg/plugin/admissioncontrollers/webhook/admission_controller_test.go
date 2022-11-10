@@ -31,6 +31,7 @@ import (
 
 	"gotest.tools/assert"
 	admissionv1 "k8s.io/api/admission/v1"
+	appsv1 "k8s.io/api/apps/v1"
 	authv1 "k8s.io/api/authentication/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -43,9 +44,10 @@ import (
 type responseMode int
 
 const (
-	Success = responseMode(0)
-	Failure = responseMode(1)
-	Error   = responseMode(2)
+	Success                 = responseMode(0)
+	Failure                 = responseMode(1)
+	Error                   = responseMode(2)
+	validUserInfoAnnotation = "{\"user\":\"test\",\"groups\":[\"devops\",\"system:authenticated\"]}"
 )
 
 func TestUpdateLabels(t *testing.T) {
@@ -455,6 +457,7 @@ func TestMutate(t *testing.T) {
 	var err error
 
 	ac = prepareController(t, "", "", "^kube-system$,^bypass$", "", "^nolabel$")
+	ac.bypassAuth = true
 
 	// nil request
 	resp = ac.mutate(nil)
@@ -563,7 +566,7 @@ func TestExternalAuthentication(t *testing.T) {
 	pod := v1.Pod{ObjectMeta: metav1.ObjectMeta{
 		Namespace: "test-ns",
 		Annotations: map[string]string{
-			userInfoAnnotation: "{\"user\":\"test\",\"groups\":[\"devops\",\"system:authenticated\"]}",
+			userInfoAnnotation: validUserInfoAnnotation,
 		},
 	}}
 	podJSON, err := json.Marshal(pod)
@@ -609,6 +612,36 @@ func TestExternalAuthentication(t *testing.T) {
 	assert.NilError(t, err, "failed to marshal pod")
 	req.Object = runtime.RawExtension{Raw: podJSON}
 	req.Kind = metav1.GroupVersionKind{Kind: "Pod"}
+	resp = ac.mutate(req)
+	assert.Check(t, !resp.Allowed, "response was allowed")
+	assert.Check(t, strings.Contains(resp.Result.Message, "invalid character 'x'"))
+
+	// deployment
+	deployment := appsv1.Deployment{
+		Spec: appsv1.DeploymentSpec{
+			Template: v1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "test-ns",
+					Annotations: map[string]string{
+						userInfoAnnotation: validUserInfoAnnotation,
+					},
+				},
+			},
+		},
+	}
+	deploymentJSON, err2 := json.Marshal(deployment)
+	assert.NilError(t, err2, "failed to marshal deployment")
+	req.Object = runtime.RawExtension{Raw: deploymentJSON}
+	req.Kind = metav1.GroupVersionKind{Kind: "Deployment"}
+	resp = ac.mutate(req)
+	assert.Check(t, resp.Allowed, "response not allowed")
+
+	// deployment - invalid annotation
+	deployment.Spec.Template.Annotations[userInfoAnnotation] = "xyzxyz"
+	deploymentJSON, err = json.Marshal(deployment)
+	req.Object = runtime.RawExtension{Raw: deploymentJSON}
+	req.Kind = metav1.GroupVersionKind{Kind: "Deployment"}
+	assert.NilError(t, err, "failed to marshal deployment")
 	resp = ac.mutate(req)
 	assert.Check(t, !resp.Allowed, "response was allowed")
 	assert.Check(t, strings.Contains(resp.Result.Message, "invalid character 'x'"))
@@ -742,7 +775,7 @@ func TestEnvSettings(t *testing.T) {
 		os.Setenv(admissionControllerSystemUsers, originalEnv.systemUsers)
 		os.Setenv(admissionControllerExternalUsers, originalEnv.externalUsers)
 		os.Setenv(admissionControllerExternalGroups, originalEnv.externalGroups)
-		os.Setenv(admissionControllerBypassControllers, strconv.FormatBool(originalEnv.bypassControllers))
+		os.Setenv(admissionControllerTrustControllers, strconv.FormatBool(originalEnv.trustControllers))
 	}()
 
 	// test valid settings
@@ -756,7 +789,7 @@ func TestEnvSettings(t *testing.T) {
 	os.Setenv(admissionControllerSystemUsers, "systemuser")
 	os.Setenv(admissionControllerExternalUsers, "yunikorn")
 	os.Setenv(admissionControllerExternalGroups, "devs")
-	os.Setenv(admissionControllerBypassControllers, "true")
+	os.Setenv(admissionControllerTrustControllers, "true")
 	env := getEnvSettings()
 	assert.Equal(t, env.namespace, "testNamespace")
 	assert.Equal(t, env.serviceName, "testYunikornService")
@@ -768,7 +801,7 @@ func TestEnvSettings(t *testing.T) {
 	assert.Equal(t, env.systemUsers, "systemuser")
 	assert.Equal(t, env.externalUsers, "yunikorn")
 	assert.Equal(t, env.externalGroups, "devs")
-	assert.Equal(t, env.bypassControllers, true)
+	assert.Equal(t, env.trustControllers, true)
 
 	// test missing settings
 	os.Unsetenv(admissionControllerProcessNamespaces)
@@ -779,7 +812,7 @@ func TestEnvSettings(t *testing.T) {
 	os.Unsetenv(admissionControllerSystemUsers)
 	os.Unsetenv(admissionControllerExternalUsers)
 	os.Unsetenv(admissionControllerExternalGroups)
-	os.Unsetenv(admissionControllerBypassControllers)
+	os.Unsetenv(admissionControllerTrustControllers)
 	env = getEnvSettings()
 	assert.Equal(t, env.processNamespaces, "")
 	assert.Equal(t, env.bypassNamespaces, defaultBypassNamespaces)
@@ -789,12 +822,12 @@ func TestEnvSettings(t *testing.T) {
 	assert.Equal(t, env.systemUsers, defaultSystemUsers)
 	assert.Equal(t, env.externalUsers, "")
 	assert.Equal(t, env.externalGroups, "")
-	assert.Equal(t, env.bypassControllers, defaultBypassControllers)
+	assert.Equal(t, env.trustControllers, defaultTrustControllers)
 
 	// test faulty settings for boolean values
 	os.Setenv(admissionControllerBypassAuth, "xyz")
-	os.Setenv(admissionControllerBypassControllers, "xyz")
+	os.Setenv(admissionControllerTrustControllers, "xyz")
 	env = getEnvSettings()
 	assert.Equal(t, env.bypassAuth, defaultBypassAuth)
-	assert.Equal(t, env.bypassControllers, defaultBypassControllers)
+	assert.Equal(t, env.trustControllers, defaultTrustControllers)
 }
