@@ -65,10 +65,16 @@ func TestUpdateOccupiedResource(t *testing.T) {
 		AddResource(siCommon.Memory, 4).
 		AddResource(siCommon.CPU, 4).
 		Build()
-	node.updateOccupiedResource(r1, AddOccupiedResource)
-	assert.DeepEqual(t, node.occupied, r1)
-	node.updateOccupiedResource(r2, SubOccupiedResource)
-	assert.DeepEqual(t, node.occupied, r3)
+
+	capacity, occupied, ready := node.updateOccupiedResource(r1, AddOccupiedResource)
+	assert.DeepEqual(t, capacity, r2)
+	assert.DeepEqual(t, occupied, r1)
+	assert.Assert(t, ready)
+
+	capacity, occupied, ready = node.updateOccupiedResource(r2, SubOccupiedResource)
+	assert.DeepEqual(t, capacity, r2)
+	assert.DeepEqual(t, occupied, r3)
+	assert.Assert(t, ready)
 }
 
 func NewTestSchedulerNode() *SchedulerNode {
