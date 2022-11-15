@@ -23,6 +23,7 @@ import (
 
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -122,6 +123,18 @@ func (nc SchedulerKubeClient) Delete(pod *v1.Pod) error {
 		return err
 	}
 	return nil
+}
+
+func (nc SchedulerKubeClient) GetConfigMap(namespace string, name string) (*v1.ConfigMap, error) {
+	configmap, err := nc.clientSet.CoreV1().ConfigMaps(namespace).Get(context.Background(), name, apis.GetOptions{})
+	if err != nil && !errors.IsNotFound(err) {
+		log.Logger().Warn("failed to get configmap",
+			zap.String("namespace", namespace),
+			zap.String("name", name),
+			zap.Error(err))
+		return nil, err
+	}
+	return configmap, nil
 }
 
 func (nc SchedulerKubeClient) Get(podNamespace string, podName string) (*v1.Pod, error) {

@@ -154,6 +154,12 @@ func (c *KubeClientMock) GetConfigs() *rest.Config {
 	return nil
 }
 
+func (c *KubeClientMock) GetConfigMap(namespace string, name string) (*v1.ConfigMap, error) {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	return nil, nil
+}
+
 func getPodKey(pod *v1.Pod) string {
 	return pod.Namespace + "/" + pod.Name
 }

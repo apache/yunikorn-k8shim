@@ -89,7 +89,9 @@ func getBoolArg(flag *pflag.Flag, defaultValue bool) bool {
 
 // SchedulerConfFactory implementation
 func NewSchedulerConf() *conf.SchedulerConf {
-	configuration := &conf.SchedulerConf{}
+	configuration := &conf.SchedulerConf{
+		Namespace: conf.GetSchedulerNamespace(),
+	}
 
 	if pluginFlags == nil {
 		// too early to call logger here
@@ -131,7 +133,7 @@ func NewSchedulerConf() *conf.SchedulerConf {
 		case ArgUserLabelKey:
 			configuration.UserLabelKey = getStringArg(flag, constants.DefaultUserLabel)
 		case ArgOperatorPlugins:
-			configuration.OperatorPlugins = getStringArg(flag, "general,"+constants.AppManagerHandlerName)
+			configuration.OperatorPlugins = getStringArg(flag, "general")
 		case ArgPlaceHolderImage:
 			configuration.PlaceHolderImage = getStringArg(flag, constants.PlaceholderContainerImage)
 		}
@@ -161,7 +163,7 @@ func InitCliFlagSet(command *cobra.Command) {
 	ykFlags.Bool(ArgEnableConfigHotRefresh, true, "enable auto-reload of scheduler configmap")
 	ykFlags.Bool(ArgDisableGangScheduling, false, "disable gang scheduling")
 	ykFlags.String(ArgUserLabelKey, constants.DefaultUserLabel, "provide pod label key to be used to identify an user")
-	ykFlags.String(ArgOperatorPlugins, "general,"+constants.AppManagerHandlerName,
+	ykFlags.String(ArgOperatorPlugins, "general",
 		"comma-separated list of operator plugin names, currently, only \"spark-k8s-operator\" and \""+
 			constants.AppManagerHandlerName+"\" is supported.")
 	ykFlags.String(ArgPlaceHolderImage, constants.PlaceholderContainerImage,

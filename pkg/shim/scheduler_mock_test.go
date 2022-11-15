@@ -29,7 +29,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	coreconfigs "github.com/apache/yunikorn-core/pkg/common/configs"
 	"github.com/apache/yunikorn-core/pkg/entrypoint"
 	"github.com/apache/yunikorn-k8shim/pkg/appmgmt"
 	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
@@ -49,27 +48,20 @@ import (
 // it uses fake kube client to simulate API calls with k8s, all other code paths are real
 type MockScheduler struct {
 	context     *cache.Context
+	rmProxy     api.SchedulerAPI
 	scheduler   *KubernetesShim
 	coreContext *entrypoint.ServiceContext
 	apiProvider *client.MockedAPIProvider
 	stopChan    chan struct{}
 }
 
-func (fc *MockScheduler) init(queues string) {
+func (fc *MockScheduler) init() {
 	conf.GetSchedulerConf().SetTestMode(true)
 	fc.stopChan = make(chan struct{})
-
 	serviceContext := entrypoint.StartAllServices()
-	rmProxy := serviceContext.RMProxy
-	coreconfigs.MockSchedulerConfigByData([]byte(queues))
-	schedulerAPI, ok := rmProxy.(api.SchedulerAPI)
-	if !ok {
-		log.Logger().Debug("cast failed unexpected object",
-			zap.Any("schedulerAPI", rmProxy))
-	}
-
+	fc.rmProxy = serviceContext.RMProxy
 	mockedAPIProvider := client.NewMockedAPIProvider(false)
-	mockedAPIProvider.GetAPIs().SchedulerAPI = schedulerAPI
+	mockedAPIProvider.GetAPIs().SchedulerAPI = fc.rmProxy
 
 	context := cache.NewContext(mockedAPIProvider)
 	rmCallback := callback.NewAsyncRMCallback(context)
@@ -84,6 +76,14 @@ func (fc *MockScheduler) init(queues string) {
 
 func (fc *MockScheduler) start() {
 	fc.scheduler.Run()
+}
+
+func (fc *MockScheduler) updateConfig(queues string) error {
+	return fc.rmProxy.UpdateConfiguration(&si.UpdateConfigurationRequest{
+		RmID:        conf.GetSchedulerConf().ClusterID,
+		PolicyGroup: conf.GetSchedulerConf().PolicyGroup,
+		Config:      queues,
+	})
 }
 
 func (fc *MockScheduler) addNode(nodeName string, memory, cpu int64) error {

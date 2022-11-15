@@ -22,8 +22,8 @@ go 1.16
 
 require (
 	github.com/GoogleCloudPlatform/spark-on-k8s-operator v0.0.0-20201215015655-2e8b733f5ad0
-	github.com/apache/yunikorn-core v0.0.0-20220822023332-46777b2b4300
-	github.com/apache/yunikorn-scheduler-interface v0.0.0-20220818152917-b140f6b90fc4
+	github.com/apache/yunikorn-core v0.0.0-20221114083753-512e768d5a5a
+	github.com/apache/yunikorn-scheduler-interface v0.0.0-20221110194141-115505199f57
 	github.com/google/uuid v1.2.0
 	github.com/gorilla/mux v1.8.0
 	github.com/looplab/fsm v0.1.0
@@ -32,8 +32,6 @@ require (
 	github.com/spf13/cobra v1.1.1
 	github.com/spf13/pflag v1.0.5
 	go.uber.org/zap v1.13.0
-	golang.org/x/sys v0.0.0-20220817070843-5a390386f1f2 // indirect
-	golang.org/x/tools v0.1.12 // indirect
 	gopkg.in/yaml.v2 v2.2.8
 	gotest.tools v2.2.0+incompatible
 	k8s.io/api v0.20.11
