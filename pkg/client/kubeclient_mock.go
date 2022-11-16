@@ -37,6 +37,7 @@ type KubeClientMock struct {
 	bindFn         func(pod *v1.Pod, hostID string) error
 	deleteFn       func(pod *v1.Pod) error
 	createFn       func(pod *v1.Pod) (*v1.Pod, error)
+	updateFn       func(pod *v1.Pod, podMutator func(pod *v1.Pod)) (*v1.Pod, error)
 	updateStatusFn func(pod *v1.Pod) (*v1.Pod, error)
 	getFn          func(podName string) (*v1.Pod, error)
 	clientSet      kubernetes.Interface
@@ -67,6 +68,15 @@ func NewKubeClientMock(showError bool) *KubeClientMock {
 				return pod, fmt.Errorf("fake error")
 			}
 			log.Logger().Info("pod created",
+				zap.String("PodName", pod.Name))
+			return pod, nil
+		},
+		updateFn: func(pod *v1.Pod, podMutator func(*v1.Pod)) (*v1.Pod, error) {
+			if showError {
+				return pod, fmt.Errorf("fake error")
+			}
+			podMutator(pod)
+			log.Logger().Info("pod updated",
 				zap.String("PodName", pod.Name))
 			return pod, nil
 		},
@@ -115,6 +125,13 @@ func (c *KubeClientMock) Create(pod *v1.Pod) (*v1.Pod, error) {
 	defer c.lock.Unlock()
 	c.pods[getPodKey(pod)] = pod
 	return c.createFn(pod)
+}
+
+func (c *KubeClientMock) UpdatePod(pod *v1.Pod, podMutator func(pod *v1.Pod)) (*v1.Pod, error) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	c.pods[getPodKey(pod)] = pod
+	return c.updateFn(pod, podMutator)
 }
 
 func (c *KubeClientMock) UpdateStatus(pod *v1.Pod) (*v1.Pod, error) {

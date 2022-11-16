@@ -121,10 +121,7 @@ func (cache *SchedulerCache) updateNode(node *v1.Node) {
 	} else {
 		log.Logger().Debug("Updating node in cache", zap.String("nodeName", node.Name))
 	}
-	if err := nodeInfo.SetNode(node); err != nil {
-		// this should be unreachable code, as SetNode() always returns nil
-		log.Logger().Warn("BUG: Unexpected failure in nodeInfo.SetNode()", zap.String("nodeName", node.Name), zap.Error(err))
-	}
+	nodeInfo.SetNode(node)
 }
 
 func (cache *SchedulerCache) RemoveNode(node *v1.Node) {
@@ -285,12 +282,7 @@ func (cache *SchedulerCache) updatePod(pod *v1.Pod) {
 			nodeInfo = framework.NewNodeInfo()
 			cache.nodesMap[pod.Spec.NodeName] = nodeInfo
 			// work around a crash bug in NodeInfo.RemoveNode() when Node is unset
-			if err := nodeInfo.SetNode(&v1.Node{ObjectMeta: metav1.ObjectMeta{Name: pod.Spec.NodeName}}); err != nil {
-				log.Logger().Warn("BUG: Failed to add pod to synthetic node",
-					zap.String("pod", pod.Name),
-					zap.String("node", pod.Spec.NodeName),
-					zap.Error(err))
-			}
+			nodeInfo.SetNode(&v1.Node{ObjectMeta: metav1.ObjectMeta{Name: pod.Spec.NodeName}})
 		}
 		nodeInfo.AddPod(pod)
 		cache.assignedPods[key] = pod.Spec.NodeName

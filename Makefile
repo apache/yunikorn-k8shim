@@ -204,12 +204,12 @@ run: build
 .PHONY: run_plugin
 run_plugin: build_plugin
 	@echo "running scheduler plugin locally"
-	./scripts/plugin-conf-gen.sh $(KUBECONFIG) ${DEV_BIN_DIR}
+	./scripts/plugin-conf-gen.sh $(KUBECONFIG) "${LOCAL_CONF}/scheduler-config-local.yaml"
 	cd ${DEV_BIN_DIR} && \
 	  ./${PLUGIN_BINARY} \
 	    --address=0.0.0.0 \
 	    --leader-elect=false \
-	    --config=scheduler-config.yaml \
+	    --config=../../${LOCAL_CONF}/scheduler-config-local.yaml \
 	    -v=2 \
 	    --yk-scheduler-name=yunikorn \
 	    --yk-kube-config=$(KUBECONFIG) \

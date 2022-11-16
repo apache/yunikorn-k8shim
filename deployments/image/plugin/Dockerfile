@@ -40,7 +40,6 @@ ENV ADDRESS="0.0.0.0"
 ENV LEADER_ELECT="false"
 ENV SCHEDULER_CONFIG="scheduler-config.yaml"
 ENV VERBOSITY="2"
-ENV SCHEDULER_NAME="yunikorn"
 ENV PLACEHOLDER_IMAGE="k8s.gcr.io/pause"
 
 RUN mkdir -p $HOME && \

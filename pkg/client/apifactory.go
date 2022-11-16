@@ -26,8 +26,8 @@ import (
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/kubernetes/pkg/controller/volume/scheduling"
 	"k8s.io/kubernetes/pkg/features"
+	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/volumebinding"
 
 	appclient "github.com/apache/yunikorn-k8shim/pkg/client/clientset/versioned"
 	appinformers "github.com/apache/yunikorn-k8shim/pkg/client/informers/externalversions"
@@ -91,11 +91,11 @@ func NewAPIFactory(scheduler api.SchedulerAPI, informerFactory informers.SharedI
 	pvInformer := informerFactory.Core().V1().PersistentVolumes()
 	pvcInformer := informerFactory.Core().V1().PersistentVolumeClaims()
 	namespaceInformer := informerFactory.Core().V1().Namespaces()
-	var capacityCheck *scheduling.CapacityCheck
+	var capacityCheck *volumebinding.CapacityCheck
 	if utilfeature.DefaultFeatureGate.Enabled(features.CSIStorageCapacity) {
-		capacityCheck = &scheduling.CapacityCheck{
+		capacityCheck = &volumebinding.CapacityCheck{
 			CSIDriverInformer:          informerFactory.Storage().V1().CSIDrivers(),
-			CSIStorageCapacityInformer: informerFactory.Storage().V1alpha1().CSIStorageCapacities(),
+			CSIStorageCapacityInformer: informerFactory.Storage().V1beta1().CSIStorageCapacities(),
 		}
 	}
 
@@ -108,7 +108,7 @@ func NewAPIFactory(scheduler api.SchedulerAPI, informerFactory informers.SharedI
 	}
 
 	// create a volume binder (needs the informers)
-	volumeBinder := scheduling.NewVolumeBinder(
+	volumeBinder := volumebinding.NewVolumeBinder(
 		kubeClient.GetClientSet(),
 		podInformer,
 		nodeInformer,

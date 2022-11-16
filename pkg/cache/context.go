@@ -19,7 +19,6 @@
 package cache
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -28,10 +27,9 @@ import (
 
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
-	"k8s.io/kubernetes/pkg/controller/volume/scheduling"
+	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/volumebinding"
 
 	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
 	schedulercache "github.com/apache/yunikorn-k8shim/pkg/cache/external"
@@ -415,7 +413,7 @@ func (ctx *Context) bindPodVolumes(pod *v1.Pod) error {
 			}
 			if volumes.StaticBindings == nil {
 				// convert nil to empty array
-				volumes.StaticBindings = make([]*scheduling.BindingInfo, 0)
+				volumes.StaticBindings = make([]*volumebinding.BindingInfo, 0)
 			}
 			if volumes.DynamicProvisions == nil {
 				// convert nil to empty array
@@ -560,8 +558,8 @@ func (ctx *Context) NotifyTaskComplete(appID, taskID string) {
 
 // update application tags in the AddApplicationRequest based on the namespace annotation
 // adds the following tags to the request based on annotations (if exist):
-//    - namespace.resourcequota
-//    - namespace.parentqueue
+//   - namespace.resourcequota
+//   - namespace.parentqueue
 func (ctx *Context) updateApplicationTags(request *interfaces.AddApplicationRequest, namespace string) {
 	namespaceObj := ctx.getNamespaceObject(namespace)
 	if namespaceObj == nil {
@@ -845,8 +843,7 @@ func (ctx *Context) updatePodCondition(task *Task, podCondition *v1.PodCondition
 			if podutil.UpdatePodCondition(&task.pod.Status, podCondition) {
 				if !ctx.apiProvider.IsTestingMode() {
 					podCopy := task.pod.DeepCopy()
-					_, err := ctx.apiProvider.GetAPIs().KubeClient.GetClientSet().CoreV1().
-						Pods(podCopy.Namespace).UpdateStatus(context.Background(), podCopy, metav1.UpdateOptions{})
+					_, err := ctx.apiProvider.GetAPIs().KubeClient.UpdateStatus(podCopy)
 					if err == nil {
 						return true
 					}

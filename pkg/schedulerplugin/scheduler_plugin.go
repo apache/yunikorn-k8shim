@@ -75,6 +75,7 @@ type YuniKornSchedulerPlugin struct {
 var _ framework.PreFilterPlugin = &YuniKornSchedulerPlugin{}
 var _ framework.FilterPlugin = &YuniKornSchedulerPlugin{}
 var _ framework.PostBindPlugin = &YuniKornSchedulerPlugin{}
+var _ framework.EnqueueExtensions = &YuniKornSchedulerPlugin{}
 
 // Name returns the name of the plugin
 func (sp *YuniKornSchedulerPlugin) Name() string {
@@ -82,7 +83,7 @@ func (sp *YuniKornSchedulerPlugin) Name() string {
 }
 
 // PreFilter is used to release pods to scheduler
-func (sp *YuniKornSchedulerPlugin) PreFilter(_ context.Context, _ *framework.CycleState, pod *v1.Pod) *framework.Status {
+func (sp *YuniKornSchedulerPlugin) PreFilter(_ context.Context, state *framework.CycleState, pod *v1.Pod) *framework.Status {
 	log.Logger().Debug("PreFilter check",
 		zap.String("pod", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)))
 
@@ -163,6 +164,18 @@ func (sp *YuniKornSchedulerPlugin) Filter(_ context.Context, _ *framework.CycleS
 	return framework.NewStatus(framework.Unschedulable, "Pod is not fit for node")
 }
 
+func (sp *YuniKornSchedulerPlugin) EventsToRegister() []framework.ClusterEvent {
+	// register for all events
+	return []framework.ClusterEvent{
+		{Resource: framework.Pod, ActionType: framework.All},
+		{Resource: framework.Node, ActionType: framework.All},
+		{Resource: framework.CSINode, ActionType: framework.All},
+		{Resource: framework.PersistentVolume, ActionType: framework.All},
+		{Resource: framework.PersistentVolumeClaim, ActionType: framework.All},
+		{Resource: framework.StorageClass, ActionType: framework.All},
+	}
+}
+
 // PostBind is used to mark allocations as completed once scheduling run is finished
 func (sp *YuniKornSchedulerPlugin) PostBind(_ context.Context, _ *framework.CycleState, pod *v1.Pod, nodeName string) {
 	log.Logger().Debug("PostBind handler",
@@ -203,7 +216,6 @@ func NewSchedulerPlugin(_ runtime.Object, handle framework.Handle) (framework.Pl
 		p := &YuniKornSchedulerPlugin{
 			context: ss.GetContext(),
 		}
-
 		events.SetRecorder(handle.EventRecorder())
 		return p, nil
 	}
