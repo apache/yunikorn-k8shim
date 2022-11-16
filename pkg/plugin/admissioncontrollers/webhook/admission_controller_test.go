@@ -272,7 +272,7 @@ func TestValidateConfigMap(t *testing.T) {
 	}
 	configmap := &v1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: constants.DefaultConfigMapName,
+			Name: constants.ConfigMapName,
 		},
 		Data: make(map[string]string),
 	}
@@ -351,7 +351,7 @@ func TestValidateConfigMapServerError(t *testing.T) {
 func prepareConfigMap(data string) *v1.ConfigMap {
 	configmap := &v1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: constants.DefaultConfigMapName,
+			Name: constants.ConfigMapName,
 		},
 		Data: map[string]string{"queues.yaml": data},
 	}

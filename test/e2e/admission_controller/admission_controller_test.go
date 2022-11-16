@@ -70,7 +70,7 @@ var _ = ginkgo.Describe("AdmissionController", func() {
 
 		invalidConfigMap := v1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      constants.DefaultConfigMapName,
+				Name:      constants.ConfigMapName,
 				Namespace: configmanager.YuniKornTestConfig.YkNamespace,
 			},
 			Data: make(map[string]string),
@@ -84,7 +84,7 @@ var _ = ginkgo.Describe("AdmissionController", func() {
 	ginkgo.It("Configure the scheduler with invalid configmap", func() {
 		invalidConfigMap := v1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      constants.DefaultConfigMapName,
+				Name:      constants.ConfigMapName,
 				Namespace: configmanager.YuniKornTestConfig.YkNamespace,
 			},
 			Data: make(map[string]string),

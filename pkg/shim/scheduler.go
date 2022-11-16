@@ -214,13 +214,15 @@ func (ss *KubernetesShim) registerShimLayer() error {
 	buildInfoMap["buildDate"] = conf.BuildDate
 	buildInfoMap["isPluginVersion"] = strconv.FormatBool(conf.IsPluginVersion)
 
-	configMap, err := ss.context.LoadConfigMap()
+	configMaps, err := ss.context.LoadConfigMaps()
 	if err != nil {
-		log.Logger().Error("failed to load yunikorn configmap", zap.Error(err))
+		log.Logger().Error("failed to load yunikorn configmaps", zap.Error(err))
 		return err
 	}
-	config := utils.GetCoreSchedulerConfigFromConfigMap(configMap)
-	extraConfig := utils.GetExtraConfigFromConfigMap(configMap)
+
+	confMap := conf.FlattenConfigMaps(configMaps)
+	config := utils.GetCoreSchedulerConfigFromConfigMap(confMap)
+	extraConfig := utils.GetExtraConfigFromConfigMap(confMap)
 
 	registerMessage := si.RegisterResourceManagerRequest{
 		RmID:        configuration.ClusterID,

@@ -480,7 +480,7 @@ func (c *admissionController) shouldLabelNamespace(namespace string) bool {
 }
 
 func (c *admissionController) validateConfigMap(cm *v1.ConfigMap) error {
-	if cm.Name == constants.DefaultConfigMapName {
+	if cm.Name == constants.ConfigMapName {
 		if content, ok := cm.Data[c.configName]; ok {
 			checksum := fmt.Sprintf("%X", sha256.Sum256([]byte(content)))
 			log.Logger().Info("Validating YuniKorn configuration", zap.String("checksum", checksum))

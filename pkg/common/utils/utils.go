@@ -27,6 +27,8 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/apache/yunikorn-k8shim/pkg/conf"
+
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -34,7 +36,6 @@ import (
 
 	"github.com/apache/yunikorn-k8shim/pkg/common"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
-	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
@@ -292,28 +293,26 @@ func GetUserFromPod(pod *v1.Pod) (string, []string) {
 
 // GetCoreSchedulerConfigFromConfigMap resolves a yunikorn configmap into a core scheduler config.
 // If the configmap is missing or the policy group doesn't exist, uses a default configuration
-func GetCoreSchedulerConfigFromConfigMap(configMap *v1.ConfigMap) string {
+func GetCoreSchedulerConfigFromConfigMap(config map[string]string) string {
 	// use default config if there isn't one
-	if configMap == nil {
+	if len(config) == 0 {
 		return ""
 	}
 	policyGroup := conf.GetSchedulerConf().PolicyGroup
-	if data, ok := configMap.Data[fmt.Sprintf("%s.yaml", policyGroup)]; ok {
+	if data, ok := config[fmt.Sprintf("%s.yaml", policyGroup)]; ok {
 		return data
 	}
 	return ""
 }
 
 // GetExtraConfigFromConfigMap filters the configmap entries, returning those that are not yaml
-func GetExtraConfigFromConfigMap(configMap *v1.ConfigMap) map[string]string {
+func GetExtraConfigFromConfigMap(config map[string]string) map[string]string {
 	result := make(map[string]string)
-	if configMap != nil {
-		for k, v := range configMap.Data {
-			if strings.HasSuffix(k, ".yaml") {
-				continue
-			}
-			result[k] = v
+	for k, v := range config {
+		if strings.HasSuffix(k, ".yaml") {
+			continue
 		}
+		result[k] = v
 	}
 	return result
 }

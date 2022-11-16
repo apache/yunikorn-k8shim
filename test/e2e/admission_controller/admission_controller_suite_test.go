@@ -79,7 +79,7 @@ var _ = BeforeSuite(func() {
 	Ω(namespace.Status.Phase).Should(Equal(v1.NamespaceActive))
 
 	By("Get the default ConfigMap and copy it")
-	cm, err := kubeClient.GetConfigMaps(configmanager.YuniKornTestConfig.YkNamespace, constants.DefaultConfigMapName)
+	cm, err := kubeClient.GetConfigMaps(configmanager.YuniKornTestConfig.YkNamespace, constants.ConfigMapName)
 	Ω(err).ShouldNot(HaveOccurred())
 
 	oldConfigMap = cm.DeepCopy()

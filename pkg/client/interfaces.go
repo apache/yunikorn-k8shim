@@ -54,3 +54,7 @@ type KubeClient interface {
 func NewKubeClient(kc string) KubeClient {
 	return newSchedulerKubeClient(kc)
 }
+
+func NewBootstrapKubeClient(kc string) KubeClient {
+	return newBootstrapSchedulerKubeClient(kc)
+}

@@ -38,6 +38,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
+	schedulerconf "github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-k8shim/pkg/plugin/predicates"
@@ -55,6 +56,7 @@ type Context struct {
 	predManager    predicates.PredicateManager    // K8s predicates
 	pluginMode     bool                           // true if we are configured as a scheduler plugin
 	namespace      string                         // yunikorn namespace
+	configMaps     []*v1.ConfigMap                // cached yunikorn configmaps
 	lock           *sync.RWMutex                  // lock
 }
 
@@ -68,7 +70,8 @@ func NewContext(apis client.APIProvider) *Context {
 	ctx := &Context{
 		applications: make(map[string]*Application),
 		apiProvider:  apis,
-		namespace:    apis.GetAPIs().Conf.Namespace,
+		namespace:    apis.GetAPIs().GetConf().Namespace,
+		configMaps:   []*v1.ConfigMap{nil, nil},
 		lock:         &sync.RWMutex{},
 	}
 
@@ -138,7 +141,7 @@ func (ctx *Context) addNode(obj interface{}) {
 	}
 
 	// add node to secondary scheduler cache
-	log.Logger().Debug("adding node to cache", zap.String("NodeName", node.Name))
+	log.Logger().Warn("adding node to cache", zap.String("NodeName", node.Name))
 	ctx.schedulerCache.AddNode(node)
 
 	// add node to internal cache
@@ -280,7 +283,9 @@ func (ctx *Context) filterPods(obj interface{}) bool {
 func (ctx *Context) filterConfigMaps(obj interface{}) bool {
 	switch obj := obj.(type) {
 	case *v1.ConfigMap:
-		return obj.Name == constants.DefaultConfigMapName && obj.Namespace == ctx.namespace
+		return (obj.Name == constants.DefaultConfigMapName || obj.Name == constants.ConfigMapName) && obj.Namespace == ctx.namespace
+	case cache.DeletedFinalStateUnknown:
+		return ctx.filterConfigMaps(obj.Obj)
 	default:
 		return false
 	}
@@ -290,33 +295,79 @@ func (ctx *Context) filterConfigMaps(obj interface{}) bool {
 func (ctx *Context) addConfigMaps(obj interface{}) {
 	log.Logger().Debug("configMap added")
 	configmap := utils.Convert2ConfigMap(obj)
-	ctx.triggerReloadConfig(configmap)
+	switch configmap.Name {
+	case constants.DefaultConfigMapName:
+		ctx.configMaps[0] = configmap
+	case constants.ConfigMapName:
+		ctx.configMaps[1] = configmap
+	default:
+		// ignore
+		return
+	}
+	ctx.triggerReloadConfig()
 }
 
 // when the configMap for the scheduler is updated, trigger hot-refresh
-func (ctx *Context) updateConfigMaps(obj, newObj interface{}) {
+func (ctx *Context) updateConfigMaps(_, newObj interface{}) {
 	log.Logger().Debug("configMap updated")
 	configmap := utils.Convert2ConfigMap(newObj)
-	ctx.triggerReloadConfig(configmap)
+	switch configmap.Name {
+	case constants.DefaultConfigMapName:
+		ctx.configMaps[0] = configmap
+	case constants.ConfigMapName:
+		ctx.configMaps[1] = configmap
+	default:
+		// ignore
+		return
+	}
+	ctx.triggerReloadConfig()
 }
 
 // when the configMap for the scheduler is deleted, trigger refresh using default config
 func (ctx *Context) deleteConfigMaps(obj interface{}) {
 	log.Logger().Debug("configMap deleted")
-	ctx.triggerReloadConfig(nil)
+	var configmap *v1.ConfigMap = nil
+	switch t := obj.(type) {
+	case *v1.ConfigMap:
+		configmap = t
+	case cache.DeletedFinalStateUnknown:
+		configmap = utils.Convert2ConfigMap(obj)
+	default:
+		log.Logger().Debug("unable to convert to configmap")
+		return
+	}
+
+	switch configmap.Name {
+	case constants.DefaultConfigMapName:
+		ctx.configMaps[0] = nil
+	case constants.ConfigMapName:
+		ctx.configMaps[1] = nil
+	default:
+		// ignore
+		return
+	}
+	ctx.triggerReloadConfig()
 }
 
-func (ctx *Context) triggerReloadConfig(configMap *v1.ConfigMap) {
-	conf := ctx.apiProvider.GetAPIs().Conf
-
+func (ctx *Context) triggerReloadConfig() {
+	conf := ctx.apiProvider.GetAPIs().GetConf()
 	if !conf.EnableConfigHotRefresh {
 		log.Logger().Info("hot-refresh disabled, skipping scheduler configuration update")
 		return
 	}
 
+	err := schedulerconf.UpdateConfigMaps(ctx.configMaps, false)
+	if err != nil {
+		log.Logger().Error("Unable to update configmap, ignoring changes", zap.Error(err))
+		return
+	}
+
+	confMap := schedulerconf.FlattenConfigMaps(ctx.configMaps)
+
+	conf = ctx.apiProvider.GetAPIs().GetConf()
 	log.Logger().Info("reloading scheduler configuration")
-	config := utils.GetCoreSchedulerConfigFromConfigMap(configMap)
-	extraConfig := utils.GetExtraConfigFromConfigMap(configMap)
+	config := utils.GetCoreSchedulerConfigFromConfigMap(confMap)
+	extraConfig := utils.GetExtraConfigFromConfigMap(confMap)
 
 	request := &si.UpdateConfigurationRequest{
 		RmID:        conf.ClusterID,
@@ -950,6 +1001,18 @@ func (ctx *Context) SchedulerNodeEventHandler() func(obj interface{}) {
 	return nil
 }
 
-func (ctx *Context) LoadConfigMap() (*v1.ConfigMap, error) {
-	return ctx.apiProvider.GetAPIs().KubeClient.GetConfigMap(ctx.namespace, constants.DefaultConfigMapName)
+func (ctx *Context) LoadConfigMaps() ([]*v1.ConfigMap, error) {
+	kubeClient := ctx.apiProvider.GetAPIs().KubeClient
+
+	defaults, err := kubeClient.GetConfigMap(ctx.namespace, constants.DefaultConfigMapName)
+	if err != nil {
+		return nil, err
+	}
+
+	config, err := kubeClient.GetConfigMap(ctx.namespace, constants.ConfigMapName)
+	if err != nil {
+		return nil, err
+	}
+
+	return []*v1.ConfigMap{defaults, config}, nil
 }

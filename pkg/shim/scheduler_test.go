@@ -232,7 +232,7 @@ partitions:
 
 	// one task get bound, one ask failed, so we are expecting only 1 allocation in the scheduler
 	err = cluster.waitAndVerifySchedulerAllocations("root.a",
-		"[my-kube-cluster]default", "app0001", 1)
+		"[mycluster]default", "app0001", 1)
 	assert.NilError(t, err, "number of allocations is not expected, error")
 }
 

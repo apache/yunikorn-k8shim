@@ -741,14 +741,14 @@ func TestGetCoreSchedulerConfigFromConfigMapNil(t *testing.T) {
 }
 
 func TestGetCoreSchedulerConfigFromConfigMapEmpty(t *testing.T) {
-	cm := &v1.ConfigMap{Data: map[string]string{}}
+	cm := map[string]string{}
 	assert.Equal(t, "", GetCoreSchedulerConfigFromConfigMap(cm))
 }
 
 func TestGetCoreSchedulerConfigFromConfigMap(t *testing.T) {
-	cm := &v1.ConfigMap{Data: map[string]string{
+	cm := map[string]string{
 		"queues.yaml": "test",
-	}}
+	}
 	assert.Equal(t, "test", GetCoreSchedulerConfigFromConfigMap(cm))
 }
 
@@ -758,23 +758,23 @@ func TestGetExtraConfigFromConfigMapNil(t *testing.T) {
 }
 
 func TestGetExtraConfigFromConfigMapEmpty(t *testing.T) {
-	cm := &v1.ConfigMap{Data: map[string]string{}}
+	cm := map[string]string{}
 	res := GetExtraConfigFromConfigMap(cm)
 	assert.Equal(t, 0, len(res))
 }
 
 func TestGetExtraConfigFromConfigMapQueuesYaml(t *testing.T) {
-	cm := &v1.ConfigMap{Data: map[string]string{
+	cm := map[string]string{
 		"queues.yaml": "test",
-	}}
+	}
 	res := GetExtraConfigFromConfigMap(cm)
 	assert.Equal(t, 0, len(res))
 }
 
 func TestGetExtraConfigFromConfigMap(t *testing.T) {
-	cm := &v1.ConfigMap{Data: map[string]string{
+	cm := map[string]string{
 		"key": "value",
-	}}
+	}
 	res := GetExtraConfigFromConfigMap(cm)
 	assert.Equal(t, 1, len(res))
 	value, ok := res["key"]
