@@ -46,6 +46,7 @@ var annotation string
 
 var _ = BeforeSuite(func() {
 	annotation = "ann-" + common.RandSeq(10)
+	yunikorn.EnsureYuniKornConfigsPresent()
 	yunikorn.UpdateConfigMapWrapper(oldConfigMap, "fifo", annotation)
 })
 

@@ -21,6 +21,13 @@ package yunikorn
 import (
 	"fmt"
 
+	"github.com/apache/yunikorn-core/pkg/common/configs"
+	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
+
+	//	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 )
 
@@ -52,4 +59,16 @@ func GetYKHost() string {
 
 func GetYKScheme() string {
 	return configmanager.YuniKornTestConfig.YkScheme
+}
+
+func CreateDefaultConfigMap() *v1.ConfigMap {
+	cm := &v1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      constants.ConfigMapName,
+			Namespace: configmanager.YuniKornTestConfig.YkNamespace,
+		},
+		Data: make(map[string]string),
+	}
+	cm.Data[configmanager.DefaultPolicyGroup] = configs.DefaultSchedulerConfig
+	return cm
 }

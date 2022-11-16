@@ -46,7 +46,7 @@ func main() {
 
 	log.Logger().Info("Build info", zap.String("version", version), zap.String("date", date))
 
-	configMaps, err := client.LoadBootstrapConfigMaps()
+	configMaps, err := client.LoadBootstrapConfigMaps(conf.GetSchedulerNamespace())
 	if err != nil {
 		log.Logger().Fatal("Unable to bootstrap configuration", zap.Error(err))
 	}
