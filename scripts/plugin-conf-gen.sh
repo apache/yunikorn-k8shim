@@ -19,18 +19,10 @@
 #
 
 KCFG=$1
-DEST=$2
-cat > "${DEST}" <<EOL
-apiVersion: kubescheduler.config.k8s.io/v1beta3
-kind: KubeSchedulerConfiguration
+SRC=$2
+DEST=$3
+cp -f "${SRC}" "${DEST}"
+cat >> "${DEST}" <<EOL
 clientConnection:
   kubeconfig: ${KCFG}
-leaderElection:
-  leaderElect: false
-profiles:
-  - schedulerName: yunikorn
-    plugins:
-      multiPoint:
-        enabled:
-        - name: YuniKornPlugin
 EOL
