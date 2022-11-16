@@ -108,7 +108,7 @@ func (sp *YuniKornSchedulerPlugin) PreFilter(_ context.Context, state *framework
 				sp.context.RemovePodAllocation(string(pod.UID))
 				dispatcher.Dispatch(cache.NewRejectTaskEvent(app.GetApplicationID(), task.GetTaskID(),
 					fmt.Sprintf("task %s rejected by scheduler", task.GetTaskID())))
-				return framework.NewStatus(framework.Unschedulable, "Pod is not ready for scheduling")
+				return framework.NewStatus(framework.UnschedulableAndUnresolvable, "Pod is not ready for scheduling")
 			}
 
 			nodeID, ok := sp.context.GetPendingPodAllocation(string(pod.UID))
@@ -123,7 +123,7 @@ func (sp *YuniKornSchedulerPlugin) PreFilter(_ context.Context, state *framework
 		}
 	}
 
-	return framework.NewStatus(framework.Unschedulable, "Pod is not ready for scheduling")
+	return framework.NewStatus(framework.UnschedulableAndUnresolvable, "Pod is not ready for scheduling")
 }
 
 // PreFilterExtensions is unused
@@ -163,7 +163,7 @@ func (sp *YuniKornSchedulerPlugin) Filter(_ context.Context, _ *framework.CycleS
 		}
 	}
 
-	return framework.NewStatus(framework.Unschedulable, "Pod is not fit for node")
+	return framework.NewStatus(framework.UnschedulableAndUnresolvable, "Pod is not fit for node")
 }
 
 func (sp *YuniKornSchedulerPlugin) EventsToRegister() []framework.ClusterEvent {

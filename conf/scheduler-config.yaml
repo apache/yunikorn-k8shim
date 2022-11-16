@@ -25,3 +25,5 @@ profiles:
       multiPoint:
         enabled:
         - name: YuniKornPlugin
+        disabled:
+        - name: DefaultPreemption
