@@ -376,6 +376,17 @@ func (k *KubeCtl) CreateConfigMap(cMap *v1.ConfigMap, namespace string) (*v1.Con
 	return k.clientSet.CoreV1().ConfigMaps(namespace).Create(context.TODO(), cMap, metav1.CreateOptions{})
 }
 
+func (k *KubeCtl) ConfigMapExists(name string, namespace string) (bool, error) {
+	_, err := k.clientSet.CoreV1().ConfigMaps(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+	if err != nil {
+		if k8serrors.IsNotFound(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
 func (k *KubeCtl) GetConfigMap(name string, namespace string) (*v1.ConfigMap, error) {
 	return k.clientSet.CoreV1().ConfigMaps(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 }

@@ -16,28 +16,18 @@
  limitations under the License.
 */
 
-package client
+package main
 
 import (
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
-	"github.com/apache/yunikorn-k8shim/pkg/conf"
+	"github.com/apache/yunikorn-k8shim/pkg/plugin/admissioncontrollers/webhook/conf"
 )
 
-func LoadBootstrapConfigMaps(namespace string) ([]*v1.ConfigMap, error) {
-	// we need a bootstrap client so that we can read the initial version of the configmap
-	kubeClient := NewBootstrapKubeClient(conf.GetDefaultKubeConfigPath())
+func createConfig() *conf.AdmissionControllerConf {
+	return conf.NewAdmissionControllerConf([]*v1.ConfigMap{nil, nil})
+}
 
-	defaults, err := kubeClient.GetConfigMap(namespace, constants.DefaultConfigMapName)
-	if err != nil {
-		return nil, err
-	}
-
-	config, err := kubeClient.GetConfigMap(namespace, constants.ConfigMapName)
-	if err != nil {
-		return nil, err
-	}
-
-	return []*v1.ConfigMap{defaults, config}, nil
+func createConfigWithOverrides(overrides map[string]string) *conf.AdmissionControllerConf {
+	return conf.NewAdmissionControllerConf([]*v1.ConfigMap{nil, {Data: overrides}})
 }

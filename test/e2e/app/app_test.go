@@ -43,6 +43,8 @@ var _ = ginkgo.Describe("App", func() {
 		kClient = k8s.KubeCtl{}
 		gomega.Ω(kClient.SetClient()).To(gomega.BeNil())
 
+		yunikorn.EnsureYuniKornConfigsPresent()
+
 		ginkgo.By("Port-forward the scheduler pod")
 		err := kClient.PortForwardYkSchedulerPod()
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())

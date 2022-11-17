@@ -333,7 +333,7 @@ func (ctx *Context) deleteConfigMaps(obj interface{}) {
 	case cache.DeletedFinalStateUnknown:
 		configmap = utils.Convert2ConfigMap(obj)
 	default:
-		log.Logger().Debug("unable to convert to configmap")
+		log.Logger().Warn("unable to convert to configmap")
 		return
 	}
 

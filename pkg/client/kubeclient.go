@@ -41,7 +41,7 @@ type SchedulerKubeClient struct {
 }
 
 func newBootstrapSchedulerKubeClient(kc string) SchedulerKubeClient {
-	config := createRestConfig(kc)
+	config := CreateRestConfigOrDie(kc)
 	configuredClient, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		log.Logger().Fatal("failed to get Clientset", zap.Error(err))
@@ -55,7 +55,7 @@ func newBootstrapSchedulerKubeClient(kc string) SchedulerKubeClient {
 func newSchedulerKubeClient(kc string) SchedulerKubeClient {
 	schedulerConf := conf.GetSchedulerConf()
 
-	config := createRestConfig(kc)
+	config := CreateRestConfigOrDie(kc)
 	config.QPS = float32(schedulerConf.KubeQPS)
 	config.Burst = schedulerConf.KubeBurst
 	configuredClient, err := kubernetes.NewForConfig(config)
@@ -68,15 +68,23 @@ func newSchedulerKubeClient(kc string) SchedulerKubeClient {
 	}
 }
 
-func createRestConfig(kc string) *rest.Config {
+func CreateRestConfigOrDie(kc string) *rest.Config {
+	config, err := CreateRestConfig(kc)
+	if err != nil {
+		log.Logger().Fatal("unable to create REST config, aborting", zap.Error(err))
+	}
+	return config
+}
+
+func CreateRestConfig(kc string) (*rest.Config, error) {
 	// attempt to use in-cluster config
 	config, err := rest.InClusterConfig()
 	if err != nil && err != rest.ErrNotInCluster {
-		// this is called during early initialization, so abort
-		panic(err)
+		log.Logger().Error("failed to create REST config", zap.Error(err))
+		return nil, err
 	}
 	if config != nil {
-		return config
+		return config, nil
 	}
 
 	// fall back to kubeconfig if present
@@ -86,9 +94,10 @@ func createRestConfig(kc string) *rest.Config {
 	log.Logger().Info(fmt.Sprintf("Not running inside Kubernetes; using KUBECONFIG at %s", kc))
 	config, err = clientcmd.BuildConfigFromFlags("", kc)
 	if err != nil {
-		log.Logger().Fatal("failed to create kubeClient configs", zap.Error(err))
+		log.Logger().Error("failed to create kubeClient configs", zap.Error(err))
+		return config, err
 	}
-	return config
+	return config, nil
 }
 
 func (nc SchedulerKubeClient) GetClientSet() kubernetes.Interface {

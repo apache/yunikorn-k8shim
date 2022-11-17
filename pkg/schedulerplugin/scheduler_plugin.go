@@ -207,7 +207,7 @@ func (sp *YuniKornSchedulerPlugin) PostBind(_ context.Context, _ *framework.Cycl
 func NewSchedulerPlugin(_ runtime.Object, handle framework.Handle) (framework.Plugin, error) {
 	log.Logger().Info("Build info", zap.String("version", conf.BuildVersion), zap.String("date", conf.BuildDate))
 
-	configMaps, err := client.LoadBootstrapConfigMaps()
+	configMaps, err := client.LoadBootstrapConfigMaps(conf.GetSchedulerNamespace())
 	if err != nil {
 		log.Logger().Fatal("Unable to bootstrap configuration", zap.Error(err))
 	}

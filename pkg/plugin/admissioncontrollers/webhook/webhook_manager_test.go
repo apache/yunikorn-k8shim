@@ -75,9 +75,9 @@ func TestLoadCACertificatesWhereValid(t *testing.T) {
 	secret := createSecret()
 	addCert(t, secret, cacert1, cakey1, 1)
 	addCert(t, secret, cacert2, cakey2, 2)
-	clientset.secrets["test/admission-controller-secrets"] = secret
+	clientset.secrets["default/admission-controller-secrets"] = secret
 
-	wm := newWebhookManagerImpl("test", "admission-controller", clientset)
+	wm := newWebhookManagerImpl(createConfig(), clientset)
 	err := wm.LoadCACertificates()
 	assert.NilError(t, err, "failed to load CA certificates")
 }
@@ -86,7 +86,7 @@ func TestLoadCACertificatesWithMissingSecret(t *testing.T) {
 	testSetupOnce(t)
 	clientset := fakeClientSet()
 
-	wm := newWebhookManagerImpl("test", "admission-controller", clientset)
+	wm := newWebhookManagerImpl(createConfig(), clientset)
 	err := wm.LoadCACertificates()
 	assert.ErrorContains(t, err, string(metav1.StatusReasonNotFound), "get secrets didn't fail")
 }
@@ -96,12 +96,12 @@ func TestLoadCACertificatesWithEmptySecret(t *testing.T) {
 	clientset := fakeClientSet()
 
 	secret := createSecret()
-	clientset.secrets["test/admission-controller-secrets"] = secret
+	clientset.secrets["default/admission-controller-secrets"] = secret
 
-	wm := newWebhookManagerImpl("test", "admission-controller", clientset)
+	wm := newWebhookManagerImpl(createConfig(), clientset)
 	err := wm.LoadCACertificates()
 	assert.NilError(t, err, "failed to load CA certificates")
-	secret, ok := clientset.secrets["test/admission-controller-secrets"]
+	secret, ok := clientset.secrets["default/admission-controller-secrets"]
 	assert.Assert(t, ok, "secret not found")
 	_, ok = secret.Data["cacert1.pem"]
 	assert.Assert(t, ok, "cacert2.pem not found")
@@ -119,9 +119,9 @@ func TestLoadCACertificatesWithConflict(t *testing.T) {
 
 	secret := createSecret()
 	secret.ObjectMeta.SetAnnotations(map[string]string{"conflict": "true"})
-	clientset.secrets["test/admission-controller-secrets"] = secret
+	clientset.secrets["default/admission-controller-secrets"] = secret
 
-	wm := newWebhookManagerImpl("test", "admission-controller", clientset)
+	wm := newWebhookManagerImpl(createConfig(), clientset)
 	wm.conflictAttempts = 0
 	err := wm.LoadCACertificates()
 	assert.ErrorContains(t, err, "max attempts", "update secrets didn't fail")
@@ -138,7 +138,7 @@ func TestGenerateServerCertificate(t *testing.T) {
 
 	servercert, err := x509.ParseCertificate(cert.Certificate[0])
 	assert.NilError(t, err, "unable to parse server cert")
-	assert.Equal(t, servercert.Subject.CommonName, "admission-controller.test.svc", "wrong CN")
+	assert.Equal(t, servercert.Subject.CommonName, "yunikorn-admission-controller-service.default.svc", "wrong CN")
 
 	cacert, err := x509.ParseCertificate(cert.Certificate[1])
 	assert.NilError(t, err, "unable to parse ca cert")
@@ -148,7 +148,7 @@ func TestGenerateServerCertificate(t *testing.T) {
 func TestGenerateServerCertificateWithNoCACertificates(t *testing.T) {
 	testSetupOnce(t)
 	clientset := fakeClientSet()
-	wm := newWebhookManagerImpl("test", "admission-controller", clientset)
+	wm := newWebhookManagerImpl(createConfig(), clientset)
 
 	_, err := wm.GenerateServerCertificate()
 	assert.ErrorContains(t, err, "CA certificate", "get best CA cert didn't fail")
@@ -157,7 +157,7 @@ func TestGenerateServerCertificateWithNoCACertificates(t *testing.T) {
 func TestInstallWebhooksWithNoCACertificates(t *testing.T) {
 	testSetupOnce(t)
 	clientset := fakeClientSet()
-	wm := newWebhookManagerImpl("test", "admission-controller", clientset)
+	wm := newWebhookManagerImpl(createConfig(), clientset)
 
 	err := wm.InstallWebhooks()
 	assert.ErrorContains(t, err, "CA certificate", "missing certs were not detected")
@@ -479,7 +479,7 @@ func TestCheckMutatingWebhook(t *testing.T) {
 }
 
 func createPopulatedWm(clientset kubernetes.Interface) *webhookManagerImpl {
-	wm := newWebhookManagerImpl("test", "admission-controller", clientset)
+	wm := newWebhookManagerImpl(createConfig(), clientset)
 	wm.caCert1 = cacert1
 	wm.caKey1 = cakey1
 	wm.caCert2 = cacert2
@@ -491,7 +491,7 @@ func createPopulatedWm(clientset kubernetes.Interface) *webhookManagerImpl {
 func createSecret() *v1.Secret {
 	return &v1.Secret{
 		TypeMeta:   metav1.TypeMeta{APIVersion: "v1", Kind: "Secret"},
-		ObjectMeta: metav1.ObjectMeta{Namespace: "test", Name: "admission-controller-secrets"},
+		ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "admission-controller-secrets"},
 	}
 }
 

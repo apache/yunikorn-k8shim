@@ -69,6 +69,8 @@ var _ = BeforeSuite(func() {
 	kubeClient = k8s.KubeCtl{}
 	Expect(kubeClient.SetClient()).To(BeNil())
 
+	yunikorn.EnsureYuniKornConfigsPresent()
+
 	By("Port-forward the scheduler pod")
 	err := kubeClient.PortForwardYkSchedulerPod()
 	Ω(err).NotTo(HaveOccurred())

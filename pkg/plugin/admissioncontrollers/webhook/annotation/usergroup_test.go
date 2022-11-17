@@ -20,10 +20,11 @@ package annotation
 
 import (
 	"encoding/json"
-	"regexp"
 	"testing"
 
 	"gotest.tools/assert"
+
+	"github.com/apache/yunikorn-k8shim/pkg/plugin/admissioncontrollers/webhook/conf"
 
 	admissionv1 "k8s.io/api/admission/v1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -63,21 +64,17 @@ func TestBypassControllers(t *testing.T) {
 }
 
 func TestExternalUsers(t *testing.T) {
-	ah := getAnnotationHandler()
-	extUsersRegexps := make([]*regexp.Regexp, 1)
-	extUsersRegexps[0] = regexp.MustCompile("yunikorn")
-	ah.ExternalUsers = extUsersRegexps
-
+	ah := getAnnotationHandlerWithOverrides(map[string]string{
+		conf.AMAccessControlExternalUsers: "yunikorn",
+	})
 	allowed := ah.IsAnnotationAllowed("yunikorn", groups)
 	assert.Assert(t, allowed)
 }
 
 func TestExternalGroups(t *testing.T) {
-	ah := getAnnotationHandler()
-	extGroupsRegexps := make([]*regexp.Regexp, 1)
-	extGroupsRegexps[0] = regexp.MustCompile("devs")
-	ah.ExternalGroups = extGroupsRegexps
-
+	ah := getAnnotationHandlerWithOverrides(map[string]string{
+		conf.AMAccessControlExternalGroups: "devs",
+	})
 	allowed := ah.IsAnnotationAllowed(userName, groups)
 	assert.Assert(t, allowed)
 }
@@ -233,17 +230,19 @@ func getAdmissionRequest(t *testing.T, obj interface{}) *admissionv1.AdmissionRe
 }
 
 func getAnnotationHandler() *UserGroupAnnotationHandler {
-	sysUsersRegexps := make([]*regexp.Regexp, 1)
-	sysUsersRegexps[0] = regexp.MustCompile("system:serviceaccount:kube-system:*")
-	extUsersRegexps := make([]*regexp.Regexp, 0)
-	extGroupsRegexps := make([]*regexp.Regexp, 0)
+	return getAnnotationHandlerWithOverrides(map[string]string{})
+}
 
-	ugh := UserGroupAnnotationHandler{
-		TrustControllers: true,
-		SystemUsers:      sysUsersRegexps,
-		ExternalGroups:   extUsersRegexps,
-		ExternalUsers:    extGroupsRegexps,
+func getAnnotationHandlerWithOverrides(overrides map[string]string) *UserGroupAnnotationHandler {
+	return &UserGroupAnnotationHandler{
+		conf: conf.NewAdmissionControllerConf([]*v1.ConfigMap{{
+			Data: map[string]string{
+				conf.AMAccessControlSystemUsers:    "system:serviceaccount:kube-system:*",
+				conf.AMAccessControlExternalUsers:  "",
+				conf.AMAccessControlExternalGroups: "",
+			},
+		}, {
+			Data: overrides,
+		}}),
 	}
-
-	return &ugh
 }

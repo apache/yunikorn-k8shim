@@ -24,6 +24,8 @@ import (
 	"gopkg.in/yaml.v2"
 	v1 "k8s.io/api/core/v1"
 
+	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
+
 	"github.com/apache/yunikorn-core/pkg/common/configs"
 
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
@@ -35,6 +37,31 @@ import (
 )
 
 var k = k8s.KubeCtl{}
+
+func EnsureYuniKornConfigsPresent() {
+	Ω(k.SetClient()).To(BeNil())
+	By("Create initial configMap if not exists")
+	exists, err := k.ConfigMapExists(constants.ConfigMapName, configmanager.YuniKornTestConfig.YkNamespace)
+	Ω(err).NotTo(HaveOccurred())
+	if !exists {
+		// create default configmap
+		cm := CreateDefaultConfigMap()
+		_, err := k.CreateConfigMap(cm, configmanager.YuniKornTestConfig.YkNamespace)
+		Ω(err).NotTo(HaveOccurred())
+	} else {
+		// update with explicit policy if not already present
+		cm, err := k.GetConfigMap(constants.ConfigMapName, configmanager.YuniKornTestConfig.YkNamespace)
+		Ω(err).NotTo(HaveOccurred())
+		if cm.Data == nil {
+			cm.Data = make(map[string]string)
+		}
+		if _, ok := cm.Data[configmanager.DefaultPolicyGroup]; !ok {
+			cm.Data[configmanager.DefaultPolicyGroup] = configs.DefaultSchedulerConfig
+			_, err = k.UpdateConfigMap(cm, configmanager.YuniKornTestConfig.YkNamespace)
+			Ω(err).NotTo(HaveOccurred())
+		}
+	}
+}
 
 func UpdateConfigMapWrapper(oldConfigMap *v1.ConfigMap, schedPolicy string, annotation string) {
 	Ω(k.SetClient()).To(BeNil())

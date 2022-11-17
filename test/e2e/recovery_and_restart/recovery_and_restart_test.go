@@ -61,6 +61,8 @@ var _ = ginkgo.Describe("", func() {
 		// Initializing rest client
 		restClient = yunikorn.RClient{}
 
+		yunikorn.EnsureYuniKornConfigsPresent()
+
 		ginkgo.By("Enable basic scheduling config over config maps")
 		var c, err = kClient.GetConfigMaps(configmanager.YuniKornTestConfig.YkNamespace,
 			configmanager.DefaultYuniKornConfigMap)

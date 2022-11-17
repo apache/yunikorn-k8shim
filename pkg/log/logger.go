@@ -78,5 +78,7 @@ func initLogger() {
 }
 
 func GetZapConfigs() *zap.Config {
+	// force init
+	_ = Logger()
 	return zapConfigs
 }

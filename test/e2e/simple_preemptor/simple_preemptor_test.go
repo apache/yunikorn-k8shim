@@ -59,6 +59,8 @@ var _ = ginkgo.Describe("SimplePreemptor", func() {
 		restClient = yunikorn.RClient{}
 		Ω(restClient).NotTo(gomega.BeNil())
 
+		yunikorn.EnsureYuniKornConfigsPresent()
+
 		ginkgo.By("Port-forward the scheduler pod")
 		var err = kClient.PortForwardYkSchedulerPod()
 		Ω(err).NotTo(gomega.HaveOccurred())
