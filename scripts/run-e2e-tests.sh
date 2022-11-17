@@ -221,12 +221,12 @@ Usage: ${NAME} -a <action> -n <kind-cluster-name> -v <kind-node-image-version> [
 Examples:
   ${NAME} -a test -n yk8s -v kindest/node:v1.21.14
   ${NAME} -a test -n yk8s -v kindest/node:v1.22.15
-  ${NAME} -a test -n yk8s -v kindest/node:v1.23.12
-  ${NAME} -a test -n yk8s -v kindest/node:v1.24.6
-  ${NAME} -a test -n yk8s -v kindest/node:v1.25.2
+  ${NAME} -a test -n yk8s -v kindest/node:v1.23.13
+  ${NAME} -a test -n yk8s -v kindest/node:v1.24.7
+  ${NAME} -a test -n yk8s -v kindest/node:v1.25.3
 
   Use a local helm chart path:
-    ${NAME} -a test -n yk8s -v kindest/node:v1.25.2 -p ./yunikorn-release/helm-charts/yunikorn
+    ${NAME} -a test -n yk8s -v kindest/node:v1.25.3 -p ./yunikorn-release/helm-charts/yunikorn
 EOF
 }
 
