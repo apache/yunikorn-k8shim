@@ -20,6 +20,7 @@ package main
 
 import (
 	"bytes"
+	ctx "context"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
@@ -35,13 +36,14 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/kubernetes"
 
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	schedulerconf "github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-k8shim/pkg/plugin/admissioncontrollers/webhook/annotation"
+	"github.com/apache/yunikorn-k8shim/pkg/plugin/admissioncontrollers/webhook/common"
 	"github.com/apache/yunikorn-k8shim/pkg/plugin/admissioncontrollers/webhook/conf"
-	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 )
 
 const (
@@ -51,10 +53,10 @@ const (
 	defaultQueue                    = "root.default"
 	admissionReviewAPIVersion       = "admission.k8s.io/v1"
 	admissionReviewKind             = "AdmissionReview"
-	userInfoAnnotation              = siCommon.DomainYuniKorn + "user.info"
 	schedulerValidateConfURLPattern = "http://%s/ws/v1/validate-conf"
 	mutateURL                       = "/mutate"
 	validateConfURL                 = "/validate-conf"
+	pod                             = "Pod"
 )
 
 var (
@@ -66,12 +68,7 @@ var (
 type admissionController struct {
 	conf              *conf.AdmissionControllerConf
 	annotationHandler *annotation.UserGroupAnnotationHandler
-}
-
-type patchOperation struct {
-	Op    string      `json:"op"`
-	Path  string      `json:"path"`
-	Value interface{} `json:"value,omitempty"`
+	clientSet         kubernetes.Interface
 }
 
 type ValidateConfResponse struct {
@@ -79,10 +76,11 @@ type ValidateConfResponse struct {
 	Reason  string `json:"reason"`
 }
 
-func initAdmissionController(conf *conf.AdmissionControllerConf) *admissionController {
+func initAdmissionController(conf *conf.AdmissionControllerConf, clientSet kubernetes.Interface) *admissionController {
 	hook := &admissionController{
 		conf:              conf,
 		annotationHandler: annotation.NewUserGroupAnnotationHandler(conf),
+		clientSet:         clientSet,
 	}
 
 	log.Logger().Info("Initialized YuniKorn Admission Controller")
@@ -129,27 +127,36 @@ func (c *admissionController) mutate(req *admissionv1.AdmissionRequest) *admissi
 		log.Logger().Warn("empty request received")
 		return admissionResponseBuilder("", false, "", nil)
 	}
-
-	if req.Kind.Kind == "Pod" {
-		return c.processPod(req)
-	}
-
-	return c.processWorkload(req)
-}
-
-func (c *admissionController) processPod(req *admissionv1.AdmissionRequest) *admissionv1.AdmissionResponse {
-	var patch []patchOperation
-	var uid = string(req.UID)
 	namespace := req.Namespace
 	if namespace == "" {
 		namespace = "default"
 	}
-
 	log.Logger().Info("AdmissionReview",
 		zap.String("Namespace", namespace),
-		zap.String("UID", uid),
+		zap.String("UID", string(req.UID)),
 		zap.String("Operation", string(req.Operation)),
+		zap.String("Kind", req.Kind.Kind),
 		zap.Any("UserInfo", req.UserInfo))
+
+	if req.Operation == admissionv1.Update {
+		if req.Kind.Kind == pod {
+			return c.processPodUpdate(req, namespace)
+		}
+
+		// resource types other than pods are ignored for UPDATE operations
+		return admissionResponseBuilder(string(req.UID), true, "", nil)
+	}
+
+	if req.Kind.Kind == pod {
+		return c.processPod(req, namespace)
+	}
+
+	return c.processWorkload(req, namespace)
+}
+
+func (c *admissionController) processPod(req *admissionv1.AdmissionRequest, namespace string) *admissionv1.AdmissionResponse {
+	var patch []common.PatchOperation
+	var uid = string(req.UID)
 
 	var pod v1.Pod
 	if err := json.Unmarshal(req.Object.Raw, &pod); err != nil {
@@ -157,11 +164,23 @@ func (c *admissionController) processPod(req *admissionv1.AdmissionRequest) *adm
 		return admissionResponseBuilder(uid, false, err.Error(), nil)
 	}
 
-	if failureResponse := c.checkUserInfoAnnotation(func() (string, bool) {
-		a, ok := pod.Annotations[userInfoAnnotation]
+	userName := req.UserInfo.Username
+	groups := req.UserInfo.Groups
+	failureResponse, userInfoSet := c.checkUserInfoAnnotation(func() (string, bool) {
+		a, ok := pod.Annotations[common.UserInfoAnnotation]
 		return a, ok
-	}, req.UserInfo.Username, req.UserInfo.Groups, uid); failureResponse != nil {
+	}, userName, groups, uid)
+	if failureResponse != nil {
 		return failureResponse
+	}
+
+	if !userInfoSet && !c.conf.GetBypassAuth() {
+		log.Logger().Info("setting user info annotation on pod")
+		patchOp, err := c.annotationHandler.GetPatchForPod(pod.Annotations, userName, groups)
+		if err != nil {
+			return admissionResponseBuilder(uid, false, err.Error(), nil)
+		}
+		patch = append(patch, *patchOp)
 	}
 
 	if labelAppValue, ok := pod.Labels[constants.LabelApp]; ok {
@@ -199,11 +218,10 @@ func (c *admissionController) processPod(req *admissionv1.AdmissionRequest) *adm
 	return admissionResponseBuilder(uid, true, "", patchBytes)
 }
 
-func (c *admissionController) processWorkload(req *admissionv1.AdmissionRequest) *admissionv1.AdmissionResponse {
+func (c *admissionController) processWorkload(req *admissionv1.AdmissionRequest, namespace string) *admissionv1.AdmissionResponse {
 	var uid = string(req.UID)
-	requestKind := req.Kind.Kind
 
-	annotations, supported, err := c.annotationHandler.GetAnnotationsFromRequestKind(requestKind, req)
+	annotations, supported, err := c.annotationHandler.GetAnnotationsFromRequestKind(req)
 	if !supported {
 		// Unknown request kind - pass
 		return admissionResponseBuilder(uid, true, "", nil)
@@ -212,39 +230,99 @@ func (c *admissionController) processWorkload(req *admissionv1.AdmissionRequest)
 		return admissionResponseBuilder(uid, false, err.Error(), nil)
 	}
 
-	if failureResponse := c.checkUserInfoAnnotation(func() (string, bool) {
-		a, ok := annotations[userInfoAnnotation]
+	userName := req.UserInfo.Username
+	groups := req.UserInfo.Groups
+	failureResponse, userInfoSet := c.checkUserInfoAnnotation(func() (string, bool) {
+		a, ok := annotations[common.UserInfoAnnotation]
 		return a, ok
-	}, req.UserInfo.Username, req.UserInfo.Groups, uid); failureResponse != nil {
+	}, userName, groups, uid)
+	if failureResponse != nil {
 		return failureResponse
+	}
+
+	if !userInfoSet && !c.conf.GetBypassAuth() {
+		patch, err := c.annotationHandler.GetPatchForWorkload(req, userName, groups)
+		if err != nil {
+			log.Logger().Error("could not generate patch for workload", zap.Error(err))
+			return admissionResponseBuilder(uid, false, err.Error(), nil)
+		}
+
+		patchBytes, patchErr := json.Marshal(patch)
+		if patchErr != nil {
+			log.Logger().Error("failed to marshal patch", zap.Error(patchErr))
+			return admissionResponseBuilder(uid, false, patchErr.Error(), nil)
+		}
+		log.Logger().Info("updating annotations on workload", zap.String("type", req.Kind.Kind),
+			zap.Any("generated patch", patch))
+		return admissionResponseBuilder(uid, true, "", patchBytes)
 	}
 
 	return admissionResponseBuilder(uid, true, "", nil)
 }
 
-func (c *admissionController) checkUserInfoAnnotation(getAnnotation func() (string, bool), userName string, groups []string, uid string) *admissionv1.AdmissionResponse {
-	if annotation, ok := getAnnotation(); ok && !c.conf.GetBypassAuth() {
+func (c *admissionController) processPodUpdate(req *admissionv1.AdmissionRequest, namespace string) *admissionv1.AdmissionResponse {
+	uid := string(req.UID)
+
+	var newPod v1.Pod
+	if err := json.Unmarshal(req.Object.Raw, &newPod); err != nil {
+		log.Logger().Error("unmarshal failed", zap.Error(err))
+		return admissionResponseBuilder(uid, false, err.Error(), nil)
+	}
+
+	if labelAppValue, ok := newPod.Labels[constants.LabelApp]; ok {
+		if labelAppValue == yunikornPod {
+			log.Logger().Info("pod update - ignore yunikorn pod")
+			return admissionResponseBuilder(uid, true, "", nil)
+		}
+	}
+
+	if !c.shouldProcessNamespace(namespace) {
+		log.Logger().Info("pod update - bypassing namespace", zap.String("namespace", namespace))
+		return admissionResponseBuilder(uid, true, "", nil)
+	}
+
+	pod, err := c.clientSet.CoreV1().Pods(newPod.Namespace).Get(ctx.Background(), newPod.Name, metav1.GetOptions{})
+	if err != nil {
+		return admissionResponseBuilder(uid, false, err.Error(), nil)
+	}
+
+	originalUserInfo := pod.Annotations[common.UserInfoAnnotation]
+	newUserInfo := newPod.Annotations[common.UserInfoAnnotation]
+
+	log.Logger().Debug("checking original and new pod annotation", zap.String("original", originalUserInfo),
+		zap.String("new", newUserInfo))
+
+	if originalUserInfo != newUserInfo {
+		return admissionResponseBuilder(uid, false, "user info annotation change is not allowed", nil)
+	}
+
+	return admissionResponseBuilder(uid, true, "", nil)
+}
+
+func (c *admissionController) checkUserInfoAnnotation(getAnnotation func() (string, bool), userName string, groups []string, uid string) (*admissionv1.AdmissionResponse, bool) {
+	annotation, userInfoSet := getAnnotation()
+	if userInfoSet && !c.conf.GetBypassAuth() {
 		if allowed := c.annotationHandler.IsAnnotationAllowed(userName, groups); !allowed {
 			errMsg := fmt.Sprintf("user %s with groups [%s] is not allowed to set user annotation", userName,
 				strings.Join(groups, ","))
 			log.Logger().Error("user info validation failed - submitter is not allowed to set user annotation",
 				zap.String("user", userName),
 				zap.Strings("groups", groups))
-			return admissionResponseBuilder(uid, false, errMsg, nil)
+			return admissionResponseBuilder(uid, false, errMsg, nil), userInfoSet
 		}
 
 		if err := c.annotationHandler.IsAnnotationValid(annotation); err != nil {
 			log.Logger().Error("invalid user info annotation", zap.Error(err))
-			return admissionResponseBuilder(uid, false, err.Error(), nil)
+			return admissionResponseBuilder(uid, false, err.Error(), nil), userInfoSet
 		}
 	}
 
-	return nil
+	return nil, userInfoSet
 }
 
-func updateSchedulerName(patch []patchOperation) []patchOperation {
+func updateSchedulerName(patch []common.PatchOperation) []common.PatchOperation {
 	log.Logger().Info("updating scheduler name")
-	return append(patch, patchOperation{
+	return append(patch, common.PatchOperation{
 		Op:    "add",
 		Path:  "/spec/schedulerName",
 		Value: constants.SchedulerName,
@@ -259,7 +337,7 @@ func generateAppID(namespace string) string {
 	return appID
 }
 
-func updateLabels(namespace string, pod *v1.Pod, patch []patchOperation) []patchOperation {
+func updateLabels(namespace string, pod *v1.Pod, patch []common.PatchOperation) []common.PatchOperation {
 	log.Logger().Info("updating pod labels",
 		zap.String("podName", pod.Name),
 		zap.String("generateName", pod.GenerateName),
@@ -291,7 +369,7 @@ func updateLabels(namespace string, pod *v1.Pod, patch []patchOperation) []patch
 		result[constants.LabelQueueName] = defaultQueue
 	}
 
-	patch = append(patch, patchOperation{
+	patch = append(patch, common.PatchOperation{
 		Op:    "add",
 		Path:  "/metadata/labels",
 		Value: result,

@@ -49,7 +49,6 @@ type WebHook struct {
 }
 
 func main() {
-
 	configMaps, err := client.LoadBootstrapConfigMaps(schedulerconf.GetSchedulerNamespace())
 	if err != nil {
 		log.Logger().Fatal("Failed to load initial configmaps", zap.Error(err))
@@ -61,11 +60,12 @@ func main() {
 	amConf.StartInformers(kubeClient)
 
 	wm, err := NewWebhookManager(amConf)
+
 	if err != nil {
 		log.Logger().Fatal("Failed to initialize webhook manager", zap.Error(err))
 	}
 
-	ac := initAdmissionController(amConf)
+	ac := initAdmissionController(amConf, kubeClient.GetClientSet())
 
 	webhook := CreateWebhook(ac, HTTPPort)
 	certs := UpdateWebhookConfiguration(wm)

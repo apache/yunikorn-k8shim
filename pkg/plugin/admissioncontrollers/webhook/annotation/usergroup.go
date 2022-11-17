@@ -32,6 +32,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/plugin/admissioncontrollers/webhook/conf"
 
 	"github.com/apache/yunikorn-k8shim/pkg/log"
+	"github.com/apache/yunikorn-k8shim/pkg/plugin/admissioncontrollers/webhook/common"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
 
@@ -45,7 +46,7 @@ func NewUserGroupAnnotationHandler(conf *conf.AdmissionControllerConf) *UserGrou
 	}
 }
 
-type Extractor func(*admissionv1.AdmissionRequest) (map[string]string, error)
+type extractor func(*admissionv1.AdmissionRequest) (map[string]string, string, error)
 
 var (
 	Deployment  = reflect.TypeOf(appsv1.Deployment{}).Name()
@@ -55,7 +56,7 @@ var (
 	Job         = reflect.TypeOf(batchv1.Job{}).Name()
 	CronJob     = reflect.TypeOf(batchv1Beta.CronJob{}).Name()
 
-	extractors = map[string]Extractor{
+	extractors = map[string]extractor{
 		Deployment:  fromDeployment,
 		DaemonSet:   fromDaemonSet,
 		StatefulSet: fromStatefulSet,
@@ -63,6 +64,11 @@ var (
 		Job:         fromJob,
 		CronJob:     fromCronJob,
 	}
+)
+
+const (
+	defaultPodAnnotationsPath = "/spec/template/metadata/annotations"
+	cronJobPodAnnotationsPath = "/spec/jobtemplate/spec/template/metadata/annotations"
 )
 
 func (u *UserGroupAnnotationHandler) IsAnnotationAllowed(userName string, groups []string) bool {
@@ -111,71 +117,123 @@ func (u *UserGroupAnnotationHandler) IsAnnotationValid(userInfoAnnotation string
 	return nil
 }
 
-func (u *UserGroupAnnotationHandler) GetAnnotationsFromRequestKind(kind string, req *admissionv1.AdmissionRequest) (map[string]string, bool, error) {
-	extractFn, ok := extractors[kind]
+func (u *UserGroupAnnotationHandler) GetAnnotationsFromRequestKind(req *admissionv1.AdmissionRequest) (map[string]string, bool, error) {
+	extractFn, ok := extractors[req.Kind.Kind]
 	if !ok {
 		return nil, false, nil
 	}
-	result, err := extractFn(req)
-	return result, true, err
+	annotations, _, err := extractFn(req)
+	return annotations, true, err
 }
 
-func fromDeployment(req *admissionv1.AdmissionRequest) (map[string]string, error) {
+func (u *UserGroupAnnotationHandler) GetPatchForWorkload(req *admissionv1.AdmissionRequest, user string, groups []string) ([]common.PatchOperation, error) {
+	extractFn, ok := extractors[req.Kind.Kind]
+	if !ok {
+		return nil, nil
+	}
+	annotations, path, err := extractFn(req)
+	if err != nil {
+		return nil, err
+	}
+
+	patchOp, patchErr := u.getPatchOperation(annotations, path, user, groups)
+	if patchErr != nil {
+		return nil, patchErr
+	}
+
+	patch := make([]common.PatchOperation, 1)
+	patch[0] = *patchOp
+
+	return patch, nil
+}
+
+func (u *UserGroupAnnotationHandler) GetPatchForPod(annotations map[string]string, user string, groups []string) (*common.PatchOperation, error) {
+	patchOp, err := u.getPatchOperation(annotations, "/metadata/annotations", user, groups)
+	if err != nil {
+		return nil, err
+	}
+	return patchOp, nil
+}
+
+func (u *UserGroupAnnotationHandler) getPatchOperation(annotations map[string]string, path, user string, groups []string) (*common.PatchOperation, error) {
+	newAnnotations := make(map[string]string)
+	for k, v := range annotations {
+		newAnnotations[k] = v
+	}
+
+	var userGroups si.UserGroupInformation
+	userGroups.User = user
+	userGroups.Groups = groups
+	jsonBytes, err := json.Marshal(userGroups)
+	if err != nil {
+		return nil, err
+	}
+
+	newAnnotations[common.UserInfoAnnotation] = string(jsonBytes)
+
+	return &common.PatchOperation{
+		Op:    "add",
+		Path:  path,
+		Value: newAnnotations,
+	}, nil
+}
+
+func fromDeployment(req *admissionv1.AdmissionRequest) (map[string]string, string, error) {
 	var deployment appsv1.Deployment
 	err := json.Unmarshal(req.Object.Raw, &deployment)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
-	return deployment.Spec.Template.Annotations, nil
+	return deployment.Spec.Template.Annotations, defaultPodAnnotationsPath, nil
 }
 
-func fromDaemonSet(req *admissionv1.AdmissionRequest) (map[string]string, error) {
+func fromDaemonSet(req *admissionv1.AdmissionRequest) (map[string]string, string, error) {
 	var daemonSet appsv1.DaemonSet
 	err := json.Unmarshal(req.Object.Raw, &daemonSet)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
-	return daemonSet.Spec.Template.Annotations, nil
+	return daemonSet.Spec.Template.Annotations, defaultPodAnnotationsPath, nil
 }
 
-func fromStatefulSet(req *admissionv1.AdmissionRequest) (map[string]string, error) {
+func fromStatefulSet(req *admissionv1.AdmissionRequest) (map[string]string, string, error) {
 	var statefulSet appsv1.StatefulSet
 	err := json.Unmarshal(req.Object.Raw, &statefulSet)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
-	return statefulSet.Spec.Template.Annotations, nil
+	return statefulSet.Spec.Template.Annotations, defaultPodAnnotationsPath, nil
 }
 
-func fromReplicaSet(req *admissionv1.AdmissionRequest) (map[string]string, error) {
+func fromReplicaSet(req *admissionv1.AdmissionRequest) (map[string]string, string, error) {
 	var replicaSet appsv1.ReplicaSet
 	err := json.Unmarshal(req.Object.Raw, &replicaSet)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
-	return replicaSet.Spec.Template.Annotations, nil
+	return replicaSet.Spec.Template.Annotations, defaultPodAnnotationsPath, nil
 }
 
-func fromJob(req *admissionv1.AdmissionRequest) (map[string]string, error) {
+func fromJob(req *admissionv1.AdmissionRequest) (map[string]string, string, error) {
 	var job batchv1.Job
 	err := json.Unmarshal(req.Object.Raw, &job)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
-	return job.Spec.Template.Annotations, nil
+	return job.Spec.Template.Annotations, defaultPodAnnotationsPath, nil
 }
 
-func fromCronJob(req *admissionv1.AdmissionRequest) (map[string]string, error) {
+func fromCronJob(req *admissionv1.AdmissionRequest) (map[string]string, string, error) {
 	var cronJob batchv1Beta.CronJob
 	err := json.Unmarshal(req.Object.Raw, &cronJob)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
-	return cronJob.Spec.JobTemplate.Spec.Template.Annotations, nil
+	return cronJob.Spec.JobTemplate.Spec.Template.Annotations, cronJobPodAnnotationsPath, nil
 }

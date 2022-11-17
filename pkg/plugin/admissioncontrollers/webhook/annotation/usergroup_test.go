@@ -24,8 +24,6 @@ import (
 
 	"gotest.tools/assert"
 
-	"github.com/apache/yunikorn-k8shim/pkg/plugin/admissioncontrollers/webhook/conf"
-
 	admissionv1 "k8s.io/api/admission/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
@@ -33,6 +31,10 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+
+	"github.com/apache/yunikorn-k8shim/pkg/plugin/admissioncontrollers/webhook/common"
+	"github.com/apache/yunikorn-k8shim/pkg/plugin/admissioncontrollers/webhook/conf"
+	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
 
 const (
@@ -46,6 +48,12 @@ var (
 		"key": "yunikorn",
 	}
 )
+
+type AnnotationTestCase struct {
+	obj  interface{}
+	kind string
+	path string
+}
 
 func TestValidateAnnotation(t *testing.T) {
 	ah := getAnnotationHandler()
@@ -86,12 +94,106 @@ func TestExternalAuthenticationDenied(t *testing.T) {
 }
 
 func TestGetAnnotationFromRequest(t *testing.T) {
-	type TestCase struct {
-		obj  interface{}
-		kind string
-	}
+	tests := getAnnotationTestCases()
+	ah := getAnnotationHandler()
 
-	tests := []TestCase{
+	for _, testCase := range tests {
+		t.Run("TestGetAnnotationFromRequest#"+testCase.kind, func(t *testing.T) {
+			req := getAdmissionRequest(t, testCase.obj, testCase.kind)
+			annotations, supported, err := ah.GetAnnotationsFromRequestKind(req)
+			assert.Assert(t, supported)
+			assert.NilError(t, err)
+			assert.Assert(t, annotations != nil)
+			assert.Equal(t, annotations["key"], "yunikorn")
+		})
+	}
+}
+
+func TestGetAnnotationFromRequestFails(t *testing.T) {
+	tests := getAnnotationTestCases()
+	ah := getAnnotationHandler()
+
+	for _, testCase := range tests {
+		t.Run("TestGetAnnotationFromRequestFails#"+testCase.kind, func(t *testing.T) {
+			req := getAdmissionRequest(t, nil, testCase.kind)
+			req.Object.Raw = []byte{0, 1, 2, 3, 4}
+			annotations, supported, err := ah.GetAnnotationsFromRequestKind(req)
+			assert.Assert(t, supported)
+			assert.ErrorContains(t, err, "invalid character")
+			assert.Assert(t, annotations == nil)
+		})
+	}
+}
+
+func TestGetAnnotationFromUnknownObject(t *testing.T) {
+	ah := getAnnotationHandler()
+	req := &admissionv1.AdmissionRequest{
+		Kind: metav1.GroupVersionKind{
+			Kind: "Unknown",
+		},
+	}
+	annotations, supported, err := ah.GetAnnotationsFromRequestKind(req)
+	assert.Check(t, annotations == nil)
+	assert.Check(t, !supported)
+	assert.NilError(t, err)
+}
+
+func TestGetAnnotationFromInvalidObject(t *testing.T) {
+	req := getAdmissionRequest(t, nil, "Deployment")
+	req.Object.Raw = []byte{0, 1, 2, 3, 4}
+	ah := getAnnotationHandler()
+	annotations, supported, err := ah.GetAnnotationsFromRequestKind(req)
+	assert.Check(t, annotations == nil)
+	assert.Check(t, supported)
+	assert.ErrorContains(t, err, "invalid character")
+}
+
+func TestGetPatchForWorkload(t *testing.T) {
+	tests := getAnnotationTestCases()
+	ah := getAnnotationHandler()
+
+	for _, testCase := range tests {
+		t.Run("TestGetPatchForWorkload#"+testCase.kind, func(t *testing.T) {
+			req := getAdmissionRequest(t, testCase.obj, testCase.kind)
+			patch, err := ah.GetPatchForWorkload(req, "yunikorn", []string{"users", "dev"})
+			assert.NilError(t, err)
+			assert.Equal(t, 1, len(patch))
+			patchOp := patch[0]
+			assert.Equal(t, patchOp.Op, "add")
+			assert.Equal(t, patchOp.Path, testCase.path)
+			verifyUserGroupAnnotation(t, patchOp.Value)
+		})
+	}
+}
+
+func TestGetPatchForPod(t *testing.T) {
+	ah := getAnnotationHandler()
+	patchOp, err := ah.GetPatchForPod(annotation, "yunikorn", []string{"users", "dev"})
+	assert.NilError(t, err)
+	assert.Assert(t, patchOp != nil)
+	assert.Equal(t, patchOp.Op, "add")
+	assert.Equal(t, patchOp.Path, "/metadata/annotations")
+	verifyUserGroupAnnotation(t, patchOp.Value)
+}
+
+func verifyUserGroupAnnotation(t *testing.T, patchValue interface{}) {
+	value, ok := patchValue.(map[string]string)
+	assert.Assert(t, ok, "type assertion failed")
+	assert.Equal(t, len(value), 2)
+	assert.Assert(t, value[common.UserInfoAnnotation] != "")
+	assert.Equal(t, value["key"], "yunikorn")
+	jsonValue := value[common.UserInfoAnnotation]
+	var userGroup si.UserGroupInformation
+	err := json.Unmarshal([]byte(jsonValue), &userGroup)
+	assert.NilError(t, err)
+	assert.Equal(t, userGroup.User, "yunikorn")
+	assert.Equal(t, len(userGroup.Groups), 2)
+	assert.Equal(t, userGroup.Groups[0], "users")
+	assert.Equal(t, userGroup.Groups[1], "dev")
+}
+
+func getAnnotationTestCases() []AnnotationTestCase {
+	tests := []AnnotationTestCase{
 		{
 			obj: appsv1.ReplicaSet{
 				Spec: appsv1.ReplicaSetSpec{
@@ -103,6 +205,7 @@ func TestGetAnnotationFromRequest(t *testing.T) {
 				},
 			},
 			kind: ReplicaSet,
+			path: defaultPodAnnotationsPath,
 		},
 		{
 			obj: &appsv1.StatefulSet{
@@ -115,6 +218,7 @@ func TestGetAnnotationFromRequest(t *testing.T) {
 				},
 			},
 			kind: StatefulSet,
+			path: defaultPodAnnotationsPath,
 		},
 		{
 			obj: &appsv1.Deployment{
@@ -127,6 +231,7 @@ func TestGetAnnotationFromRequest(t *testing.T) {
 				},
 			},
 			kind: Deployment,
+			path: defaultPodAnnotationsPath,
 		},
 		{
 			obj: &appsv1.DaemonSet{
@@ -139,6 +244,7 @@ func TestGetAnnotationFromRequest(t *testing.T) {
 				},
 			},
 			kind: DaemonSet,
+			path: defaultPodAnnotationsPath,
 		},
 		{
 			obj: &batchv1.Job{
@@ -151,6 +257,7 @@ func TestGetAnnotationFromRequest(t *testing.T) {
 				},
 			},
 			kind: Job,
+			path: defaultPodAnnotationsPath,
 		},
 		{
 			obj: &batchv1Beta.CronJob{
@@ -167,62 +274,21 @@ func TestGetAnnotationFromRequest(t *testing.T) {
 				},
 			},
 			kind: CronJob,
+			path: cronJobPodAnnotationsPath,
 		},
 	}
-	ah := getAnnotationHandler()
-
-	for _, testCase := range tests {
-		t.Run("TestGetAnnotationFromRequest#"+testCase.kind, func(t *testing.T) {
-			req := getAdmissionRequest(t, testCase.obj)
-			annotations, supported, err := ah.GetAnnotationsFromRequestKind(testCase.kind, req)
-			assert.Assert(t, supported)
-			assert.NilError(t, err)
-			assert.Assert(t, annotations != nil)
-			assert.Equal(t, annotations["key"], "yunikorn")
-		})
-	}
+	return tests
 }
 
-func TestGetAnnotationFromRequestFails(t *testing.T) {
-	tests := []string{Deployment, DaemonSet, StatefulSet, ReplicaSet, Job, CronJob}
-
-	ah := getAnnotationHandler()
-	for _, testCase := range tests {
-		t.Run("TestGetAnnotationFromRequestFails#"+testCase, func(t *testing.T) {
-			req := getAdmissionRequest(t, nil)
-			req.Object.Raw = []byte{0, 1, 2, 3, 4}
-			annotations, supported, err := ah.GetAnnotationsFromRequestKind(testCase, req)
-			assert.Assert(t, supported)
-			assert.ErrorContains(t, err, "invalid character")
-			assert.Assert(t, annotations == nil)
-		})
-	}
-}
-
-func TestGetAnnotationFromUnknownObject(t *testing.T) {
-	ah := getAnnotationHandler()
-	annotations, supported, err := ah.GetAnnotationsFromRequestKind("Unknown", nil)
-	assert.Check(t, annotations == nil)
-	assert.Check(t, !supported)
-	assert.NilError(t, err)
-}
-
-func TestGetAnnotationFromInvalidObject(t *testing.T) {
-	req := getAdmissionRequest(t, nil)
-	req.Object.Raw = []byte{0, 1, 2, 3, 4}
-	ah := getAnnotationHandler()
-	annotations, supported, err := ah.GetAnnotationsFromRequestKind("Deployment", req)
-	assert.Check(t, annotations == nil)
-	assert.Check(t, supported)
-	assert.ErrorContains(t, err, "invalid character")
-}
-
-func getAdmissionRequest(t *testing.T, obj interface{}) *admissionv1.AdmissionRequest {
+func getAdmissionRequest(t *testing.T, obj interface{}, kind string) *admissionv1.AdmissionRequest {
 	raw, err := json.Marshal(obj)
 	assert.NilError(t, err, "Could not marshal object")
 	req := &admissionv1.AdmissionRequest{
 		Object: runtime.RawExtension{
 			Raw: raw,
+		},
+		Kind: metav1.GroupVersionKind{
+			Kind: kind,
 		},
 	}
 
