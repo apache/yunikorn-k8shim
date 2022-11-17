@@ -19,7 +19,6 @@
 package conf
 
 import (
-	"os"
 	"testing"
 
 	"gotest.tools/assert"
@@ -28,26 +27,7 @@ import (
 	schedulerconf "github.com/apache/yunikorn-k8shim/pkg/conf"
 )
 
-func resetEnv() {
-	os.Unsetenv(schedulerconf.EnvNamespace)
-	os.Unsetenv(deprecatedEnvPolicyGroup)
-	os.Unsetenv(deprecatedEnvService)
-	os.Unsetenv(deprecatedEnvSchedulerServiceAddress)
-	os.Unsetenv(deprecatedEnvProcessNamespaces)
-	os.Unsetenv(deprecatedEnvBypassNamespaces)
-	os.Unsetenv(deprecatedEnvLabelNamespaces)
-	os.Unsetenv(deprecatedEnvNoLabelNamespaces)
-	os.Unsetenv(deprecatedEnvBypassAuth)
-	os.Unsetenv(deprecatedEnvTrustControllers)
-	os.Unsetenv(deprecatedEnvSystemUsers)
-	os.Unsetenv(deprecatedEnvExternalUsers)
-	os.Unsetenv(deprecatedEnvExternalGroups)
-}
-
 func TestConfigMapVars(t *testing.T) {
-	// ensure environment doesn't influence results
-	resetEnv()
-
 	// test valid settings
 	conf := NewAdmissionControllerConf([]*v1.ConfigMap{nil, {Data: map[string]string{
 		schedulerconf.CMSvcPolicyGroup:   "testPolicyGroup",
@@ -137,62 +117,4 @@ func TestConfigMapVars(t *testing.T) {
 		},
 	}}, false)
 	assert.Equal(t, conf.GetPolicyGroup(), "testPolicyGroup2")
-}
-
-func TestEnvironmentVars(t *testing.T) {
-	resetEnv()
-	defer resetEnv()
-
-	// test valid settings
-	os.Setenv(schedulerconf.EnvNamespace, "testNamespace")
-	os.Setenv(deprecatedEnvService, "testYunikornService")
-	os.Setenv(deprecatedEnvSchedulerServiceAddress, "testAddress")
-	os.Setenv(deprecatedEnvProcessNamespaces, "testProcessNamespaces")
-	os.Setenv(deprecatedEnvBypassNamespaces, "testBypassNamespaces")
-	os.Setenv(deprecatedEnvLabelNamespaces, "testLabelNamespaces")
-	os.Setenv(deprecatedEnvNoLabelNamespaces, "testNolabelNamespaces")
-	os.Setenv(deprecatedEnvBypassAuth, "true")
-	os.Setenv(deprecatedEnvSystemUsers, "systemuser")
-	os.Setenv(deprecatedEnvExternalUsers, "yunikorn")
-	os.Setenv(deprecatedEnvExternalGroups, "devs")
-	os.Setenv(deprecatedEnvTrustControllers, "false")
-
-	conf := NewAdmissionControllerConf([]*v1.ConfigMap{nil, nil})
-	assert.Equal(t, conf.GetNamespace(), "testNamespace")
-	assert.Equal(t, conf.GetAmServiceName(), "testYunikornService")
-	assert.Equal(t, conf.GetSchedulerServiceAddress(), "testAddress")
-	assert.Equal(t, conf.GetProcessNamespaces()[0].String(), "testProcessNamespaces")
-	assert.Equal(t, conf.GetBypassNamespaces()[0].String(), "testBypassNamespaces")
-	assert.Equal(t, conf.GetLabelNamespaces()[0].String(), "testLabelNamespaces")
-	assert.Equal(t, conf.GetNoLabelNamespaces()[0].String(), "testNolabelNamespaces")
-	assert.Equal(t, conf.GetBypassAuth(), true)
-	assert.Equal(t, conf.GetSystemUsers()[0].String(), "systemuser")
-	assert.Equal(t, conf.GetExternalUsers()[0].String(), "yunikorn")
-	assert.Equal(t, conf.GetExternalGroups()[0].String(), "devs")
-	assert.Equal(t, conf.GetTrustControllers(), false)
-
-	// test missing settings
-	resetEnv()
-	conf = NewAdmissionControllerConf([]*v1.ConfigMap{nil, nil})
-	assert.Equal(t, conf.GetNamespace(), schedulerconf.DefaultNamespace)
-	assert.Equal(t, conf.GetAmServiceName(), DefaultWebHookAmServiceName)
-	assert.Equal(t, conf.GetSchedulerServiceAddress(), DefaultWebHookSchedulerServiceAddress)
-	assert.Equal(t, 0, len(conf.GetProcessNamespaces()))
-	assert.Equal(t, conf.GetBypassNamespaces()[0].String(), DefaultFilteringBypassNamespaces)
-	assert.Equal(t, 0, len(conf.GetLabelNamespaces()))
-	assert.Equal(t, 0, len(conf.GetNoLabelNamespaces()))
-	assert.Equal(t, conf.GetBypassAuth(), DefaultAccessControlBypassAuth)
-	assert.Equal(t, conf.GetSystemUsers()[0].String(), DefaultAccessControlSystemUsers)
-	assert.Equal(t, 0, len(conf.GetExternalUsers()))
-	assert.Equal(t, 0, len(conf.GetExternalGroups()))
-	assert.Equal(t, conf.GetTrustControllers(), DefaultAccessControlTrustControllers)
-
-	// test faulty settings for boolean values
-	resetEnv()
-	os.Setenv(deprecatedEnvBypassAuth, "xyz")
-	os.Setenv(deprecatedEnvTrustControllers, "xyz")
-
-	conf = NewAdmissionControllerConf([]*v1.ConfigMap{nil, nil})
-	assert.Equal(t, conf.GetBypassAuth(), DefaultAccessControlBypassAuth)
-	assert.Equal(t, conf.GetTrustControllers(), DefaultAccessControlTrustControllers)
 }

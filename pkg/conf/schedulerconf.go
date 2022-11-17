@@ -47,37 +47,12 @@ const (
 	EnvKubeConfig = "KUBECONFIG"
 	EnvNamespace  = "NAMESPACE"
 
-	// deprecated env vars
-	DeprecatedEnvUserLabelKey     = "USER_LABEL_KEY"
-	DeprecatedEnvOperatorPlugins  = "OPERATOR_PLUGINS"
-	DeprecatedEnvPlaceholderImage = "PLACEHOLDER_IMAGE"
-
-	// deprecated cli options
-	DeprecatedCliClusterID              = "clusterId"
-	DeprecatedCliClusterVersion         = "clusterVersion"
-	DeprecatedCliDisableGangScheduling  = "disableGangScheduling"
-	DeprecatedCliDispatchTimeout        = "dispatchTimeout"
-	DeprecatedCliEnableConfigHotRefresh = "enableConfigHotRefresh"
-	DeprecatedCliEventChannelCapacity   = "eventChannelCapacity"
-	DeprecatedCliInterval               = "interval"
-	DeprecatedCliKubeQPS                = "kubeQPS"
-	DeprecatedCliKubeBurst              = "kubeBurst"
-	DeprecatedCliKubeConfig             = "kubeConfig"
-	DeprecatedCliLogEncoding            = "logEncoding"
-	DeprecatedCliLogFile                = "logFile"
-	DeprecatedCliLogLevel               = "logLevel"
-	DeprecatedCliOperatorPlugins        = "operatorPlugins"
-	DeprecatedCliPlaceHolderImage       = "placeHolderImage"
-	DeprecatedCliPolicyGroup            = "policyGroup"
-	DeprecatedCliUserLabelKey           = "userLabelKey"
-	DeprecatedCliVolumeBindTimeout      = "volumeBindTimeout"
-
-	// configmap prefixes
+	// prefixes
 	PrefixService    = "service."
 	PrefixLog        = "log."
 	PrefixKubernetes = "kubernetes."
 
-	// configmap service
+	// service
 	CMSvcClusterID              = PrefixService + "clusterId"
 	CMSvcPolicyGroup            = PrefixService + "policyGroup"
 	CMSvcSchedulingInterval     = PrefixService + "schedulingInterval"
@@ -89,10 +64,10 @@ const (
 	CMSvcEnableConfigHotRefresh = PrefixService + "enableConfigHotRefresh"
 	CMSvcPlaceholderImage       = PrefixService + "placeholderImage"
 
-	// configmap log
+	// log
 	CMLogLevel = PrefixLog + "level"
 
-	// configmap kubernetes
+	// kubernetes
 	CMKubeQPS   = PrefixKubernetes + "qps"
 	CMKubeBurst = PrefixKubernetes + "burst"
 
@@ -121,34 +96,6 @@ var (
 
 var once sync.Once
 var confHolder atomic.Value
-var cliParserFunc = parseCliConfig
-var envLookupFunc = os.LookupEnv
-var cliArgsFunc = getCommandLineArgs
-
-type OptionParser func(prev *SchedulerConf, seen map[string]string) (*SchedulerConf, []string)
-type envLookup func(string) (string, bool)
-type cliLookup func() (string, []string)
-
-// SetCliParser replaces the default CLI parser with an alternate (used for scheduler plugin configuration)
-func SetCliParser(parser OptionParser) OptionParser {
-	oldParser := cliParserFunc
-	cliParserFunc = parser
-	return oldParser
-}
-
-// used for testing
-func setEnvLookupFunc(lookup envLookup) envLookup {
-	prev := envLookupFunc
-	envLookupFunc = lookup
-	return prev
-}
-
-// used for testing
-func setCliLookupFunc(lookup cliLookup) cliLookup {
-	prev := cliArgsFunc
-	cliArgsFunc = lookup
-	return prev
-}
 
 type SchedulerConf struct {
 	SchedulerName          string        `json:"schedulerName"`
@@ -205,30 +152,17 @@ func UpdateConfigMaps(configMaps []*v1.ConfigMap, initial bool) error {
 
 	// start with defaults
 	prev := CreateDefaultConfig()
-	seen := make(map[string]string)
 
-	// convert configmaps to map
+	// flatten configmap entries to single map
 	config := FlattenConfigMaps(configMaps)
 
 	// parse values from configmaps
-	cmConf, cmErrors := parseConfig(config, prev, seen)
+	newConf, cmErrors := parseConfig(config, prev)
 	if cmErrors != nil {
 		for _, err := range cmErrors {
 			log.Logger().Error("failed to parse configmap entry", zap.Error(err))
 		}
 		return errors.New("failed to load configmap")
-	}
-
-	// parse values from CLI
-	cliConf, cliWarnings := cliParserFunc(cmConf, seen)
-	for _, warn := range cliWarnings {
-		log.Logger().Warn("warning while parsing CLI entry", zap.String("warning", warn))
-	}
-
-	// parse values from ENV
-	newConf, envWarnings := parseEnvConfig(cliConf, seen)
-	for _, warn := range envWarnings {
-		log.Logger().Warn("warning while parsing env configuration", zap.String("warning", warn))
 	}
 
 	// check for settings which cannot be hot-reloaded
@@ -296,20 +230,6 @@ func checkNonReloadableBool(name string, old *bool, new *bool) {
 		log.Logger().Warn(warningNonReloadable, zap.String("config", name), zap.Bool("existing", *old), zap.Bool("new", *new))
 		*new = *old
 	}
-}
-
-func getCommandLineArgs() (string, []string) {
-	args := make([]string, 0)
-	if len(os.Args) > 1 {
-		for _, arg := range os.Args[1:] {
-			// workaround: ignore test args
-			if strings.HasPrefix(arg, "-test") || strings.HasPrefix(arg, "--test") {
-				continue
-			}
-			args = append(args, arg)
-		}
-	}
-	return os.Args[0], args
 }
 
 func GetSchedulerConf() *SchedulerConf {
@@ -412,7 +332,7 @@ func CreateDefaultConfig() *SchedulerConf {
 	}
 }
 
-func parseConfig(config map[string]string, prev *SchedulerConf, seen map[string]string) (*SchedulerConf, []error) {
+func parseConfig(config map[string]string, prev *SchedulerConf) (*SchedulerConf, []error) {
 	conf := prev.Clone()
 
 	if len(config) == 0 {
@@ -420,7 +340,7 @@ func parseConfig(config map[string]string, prev *SchedulerConf, seen map[string]
 		return conf, nil
 	}
 
-	parser := newConfigParser(config, seen)
+	parser := newConfigParser(config)
 
 	// service
 	parser.stringVar(&conf.ClusterID, CMSvcClusterID)
@@ -450,21 +370,18 @@ func parseConfig(config map[string]string, prev *SchedulerConf, seen map[string]
 type configParser struct {
 	errors []error
 	config map[string]string
-	seen   map[string]string
 }
 
-func newConfigParser(config map[string]string, seen map[string]string) *configParser {
+func newConfigParser(config map[string]string) *configParser {
 	return &configParser{
 		errors: make([]error, 0),
 		config: config,
-		seen:   seen,
 	}
 }
 
 func (cp *configParser) stringVar(p *string, name string) {
 	if newValue, ok := cp.config[name]; ok {
 		*p = newValue
-		cp.seen[name] = name
 	}
 }
 
@@ -478,7 +395,6 @@ func (cp *configParser) intVar(p *int, name string) {
 			return
 		}
 		*p = intValue
-		cp.seen[name] = name
 	}
 }
 
@@ -491,7 +407,6 @@ func (cp *configParser) boolVar(p *bool, name string) {
 			return
 		}
 		*p = boolValue
-		cp.seen[name] = name
 	}
 }
 
@@ -504,238 +419,7 @@ func (cp *configParser) durationVar(p *time.Duration, name string) {
 			return
 		}
 		*p = durationValue
-		cp.seen[name] = name
 	}
-}
-
-type envParser struct {
-	warnings []string
-	seen     map[string]string
-	lookup   envLookup
-}
-
-func newEnvParser(seen map[string]string, lookup envLookup) *envParser {
-	return &envParser{
-		warnings: make([]string, 0),
-		seen:     seen,
-		lookup:   lookup,
-	}
-}
-
-func (ep *envParser) obsoleteStringVar(name string) {
-	if newValue, ok := ep.lookup(name); ok {
-		ep.warnings = append(ep.warnings, fmt.Sprintf("Obsolete environment variable '%s' found. Ignoring value: '%s'", name, newValue))
-	}
-}
-
-func (ep *envParser) deprecatedStringVar(p *string, d *string, name string, cName string) {
-	if newValue, ok := ep.lookup(name); ok {
-		if _, prev := ep.seen[cName]; prev {
-			if newValue != *d {
-				ep.warnings = append(ep.warnings, fmt.Sprintf("Deprecated environment variable '%s' found with inconsistent value. Provided: '%s', used: '%s'", name, newValue, *d))
-				return
-			}
-		} else {
-			*p = newValue
-			ep.seen[cName] = name
-		}
-	}
-}
-
-type cliParser struct {
-	warnings []string
-	seen     map[string]string
-	visitors map[string]func(f *flag.Flag)
-	flags    *flag.FlagSet
-}
-
-func newCliParser(flags *flag.FlagSet, seen map[string]string) *cliParser {
-	return &cliParser{
-		warnings: make([]string, 0),
-		seen:     seen,
-		visitors: make(map[string]func(f *flag.Flag)),
-		flags:    flags,
-	}
-}
-
-func (cp *cliParser) obsoleteStringVar(name string, value string, usage string) {
-	var newValue string
-	cp.flags.StringVar(&newValue, name, value, usage)
-	cp.visitors[name] = func(f *flag.Flag) {
-		cp.warnings = append(cp.warnings, fmt.Sprintf("Obsolete CLI option '%s' found. Ignoring value: '%s'", name, newValue))
-	}
-}
-
-func (cp *cliParser) deprecatedStringVar(p *string, d *string, name string, cName string, value string, usage string) {
-	var newValue string
-	cp.flags.StringVar(&newValue, name, value, usage)
-	cp.visitors[name] = func(f *flag.Flag) {
-		if _, prev := cp.seen[cName]; prev {
-			if newValue != *d {
-				cp.warnings = append(cp.warnings, fmt.Sprintf("Deprecated CLI option '%s' found with inconsistent value. Provided: '%s', used: '%s'", name, newValue, *d))
-			}
-		} else {
-			cp.seen[cName] = name
-			*p = newValue
-		}
-	}
-}
-
-func (cp *cliParser) deprecatedIntVar(p *int, d *int, name string, cName string, value int, usage string) {
-	var newValue int
-	cp.flags.IntVar(&newValue, name, value, usage)
-	cp.visitors[name] = func(f *flag.Flag) {
-		if _, prev := cp.seen[cName]; prev {
-			if newValue != *d {
-				cp.warnings = append(cp.warnings, fmt.Sprintf("Deprecated CLI option '%s' found with inconsistent value. Provided: '%d', used: '%d'", name, newValue, *d))
-			}
-		} else {
-			cp.seen[cName] = name
-			*p = newValue
-		}
-	}
-}
-
-func (cp *cliParser) deprecatedBoolVar(p *bool, d *bool, name string, cName string, value bool, usage string) {
-	var newValue bool
-	cp.flags.BoolVar(&newValue, name, value, usage)
-	cp.visitors[name] = func(f *flag.Flag) {
-		if _, prev := cp.seen[cName]; prev {
-			if newValue != *d {
-				cp.warnings = append(cp.warnings, fmt.Sprintf("Deprecated CLI option '%s' found with inconsistent value. Provided: '%t', used: '%t'", name, newValue, *d))
-			}
-		} else {
-			cp.seen[cName] = name
-			*p = newValue
-		}
-	}
-}
-
-func (cp *cliParser) deprecatedDurationVar(p *time.Duration, d *time.Duration, name string, cName string, value time.Duration, usage string) {
-	var newValue time.Duration
-	cp.flags.DurationVar(&newValue, name, value, usage)
-	cp.visitors[name] = func(f *flag.Flag) {
-		if _, prev := cp.seen[cName]; prev {
-			if newValue != *d {
-				cp.warnings = append(cp.warnings, fmt.Sprintf("Deprecated CLI option '%s' found with inconsistent value. Provided: '%s', used: '%s'", name, newValue, *d))
-			}
-		} else {
-			cp.seen[cName] = name
-			*p = newValue
-		}
-	}
-}
-
-func (cp *cliParser) finish() {
-	cp.flags.Visit(func(f *flag.Flag) {
-		if visitor, ok := cp.visitors[f.Name]; ok {
-			visitor(f)
-		}
-	})
-}
-
-// parseEnvConfig parses and returns a configuration populated from environment variables
-func parseEnvConfig(prev *SchedulerConf, seen map[string]string) (*SchedulerConf, []string) {
-	conf := prev.Clone()
-
-	parser := newEnvParser(seen, envLookupFunc)
-
-	parser.obsoleteStringVar(DeprecatedEnvUserLabelKey)
-	parser.deprecatedStringVar(&conf.OperatorPlugins, &prev.OperatorPlugins, DeprecatedEnvOperatorPlugins, CMSvcOperatorPlugins)
-	parser.deprecatedStringVar(&conf.PlaceHolderImage, &prev.PlaceHolderImage, DeprecatedEnvPlaceholderImage, CMSvcPlaceholderImage)
-
-	if len(parser.warnings) > 0 {
-		return conf, parser.warnings
-	}
-	return conf, nil
-}
-
-// parseCliConfig parses and returns a configuration populated from command-line arguments
-func parseCliConfig(prev *SchedulerConf, seen map[string]string) (*SchedulerConf, []string) {
-	conf := prev.Clone()
-
-	cmd, args := cliArgsFunc()
-	flags := flag.NewFlagSet(cmd, flag.ExitOnError)
-
-	parser := newCliParser(flags, seen)
-
-	// scheduler options
-	parser.deprecatedStringVar(&conf.KubeConfig, &prev.KubeConfig,
-		DeprecatedCliKubeConfig, EnvKubeConfig, GetDefaultKubeConfigPath(),
-		fmt.Sprintf("DEPRECATED: absolute path to the kubeconfig file (use env: %s)", EnvKubeConfig))
-	parser.deprecatedDurationVar(&conf.Interval, &prev.Interval,
-		DeprecatedCliInterval, CMSvcSchedulingInterval, DefaultSchedulingInterval,
-		fmt.Sprintf("DEPRECATED: scheduling interval in seconds (use configmap: %s/%s)",
-			constants.ConfigMapName, CMSvcSchedulingInterval))
-	parser.deprecatedStringVar(&conf.ClusterID, &prev.ClusterID,
-		DeprecatedCliClusterID, CMSvcClusterID, DefaultClusterID,
-		fmt.Sprintf("DEPRECATED: cluster id (use configmap: %s/%s)",
-			constants.ConfigMapName, CMSvcClusterID))
-	parser.obsoleteStringVar(DeprecatedCliClusterVersion, BuildVersion,
-		"DEPRECATED: cluster version (ignored)")
-	parser.deprecatedStringVar(&conf.PolicyGroup, &prev.PolicyGroup,
-		DeprecatedCliPolicyGroup, CMSvcPolicyGroup, DefaultPolicyGroup,
-		fmt.Sprintf("DEPRECATED: policy group (use configmap: %s/%s)",
-			constants.ConfigMapName, CMSvcPolicyGroup))
-	parser.deprecatedDurationVar(&conf.VolumeBindTimeout, &prev.VolumeBindTimeout,
-		DeprecatedCliVolumeBindTimeout, CMSvcVolumeBindTimeout, DefaultVolumeBindTimeout,
-		fmt.Sprintf("DEPRECATED: timeout in seconds when binding a volume (use configmap: %s/%s)",
-			constants.ConfigMapName, CMSvcVolumeBindTimeout))
-	parser.deprecatedIntVar(&conf.EventChannelCapacity, &prev.EventChannelCapacity,
-		DeprecatedCliEventChannelCapacity, CMSvcEventChannelCapacity, DefaultEventChannelCapacity,
-		fmt.Sprintf("DEPRECATED: event channel capacity of dispatcher (use configmap: %s/%s)",
-			constants.ConfigMapName, CMSvcEventChannelCapacity))
-	parser.deprecatedDurationVar(&conf.DispatchTimeout, &prev.DispatchTimeout,
-		DeprecatedCliDispatchTimeout, CMSvcDispatchTimeout, DefaultDispatchTimeout,
-		fmt.Sprintf("DEPRECATED: timeout in seconds when dispatching an event (use configmap: %s/%s)",
-			constants.ConfigMapName, CMSvcDispatchTimeout))
-	parser.deprecatedIntVar(&conf.KubeQPS, &prev.KubeQPS,
-		DeprecatedCliKubeQPS, CMKubeQPS, DefaultKubeQPS,
-		fmt.Sprintf("DEPRECATED: maximum QPS to Kubernetes master from this client (use configmap: %s/%s)",
-			constants.ConfigMapName, CMKubeQPS))
-	parser.deprecatedIntVar(&conf.KubeBurst, &prev.KubeBurst,
-		DeprecatedCliKubeBurst, CMKubeBurst, DefaultKubeBurst,
-		fmt.Sprintf("DEPRECATED: maximum burst for throttle to Kubernetes master from this client (use configmap: %s/%s)",
-			constants.ConfigMapName, CMKubeBurst))
-	parser.deprecatedStringVar(&conf.OperatorPlugins, &prev.OperatorPlugins,
-		DeprecatedCliOperatorPlugins, CMSvcOperatorPlugins, DefaultOperatorPlugins,
-		fmt.Sprintf("DEPRECATED: comma-separated list of operator plugin names [general,spark-k8s-operator,%s] (use configmap: %s/%s)",
-			constants.AppManagerHandlerName, CMSvcOperatorPlugins, constants.ConfigMapName))
-	parser.deprecatedStringVar(&conf.PlaceHolderImage, &prev.PlaceHolderImage,
-		DeprecatedCliPlaceHolderImage, CMSvcPlaceholderImage, constants.PlaceholderContainerImage,
-		fmt.Sprintf("DEPRECATED: Docker image of the placeholder pod (use configmap: %s/%s)",
-			constants.ConfigMapName, CMSvcPlaceholderImage))
-
-	// logging options
-	parser.deprecatedIntVar(&conf.LoggingLevel, &prev.LoggingLevel,
-		DeprecatedCliLogLevel, CMLogLevel, DefaultLoggingLevel,
-		fmt.Sprintf("DEPRECATED: logging level, from DEBUG (-1) to FATAL (5) (use configmap: %s/%s)",
-			constants.ConfigMapName, CMLogLevel))
-	parser.obsoleteStringVar(DeprecatedCliLogEncoding, "", "DEPRECATED: log encoding (ignored)")
-	parser.obsoleteStringVar(DeprecatedCliLogFile, "", "DEPRECATED: log file (ignored)")
-
-	parser.deprecatedBoolVar(&conf.EnableConfigHotRefresh, &prev.EnableConfigHotRefresh,
-		DeprecatedCliEnableConfigHotRefresh, CMSvcEnableConfigHotRefresh, DefaultEnableConfigHotRefresh,
-		fmt.Sprintf("DEPRECATED: enable automatic configuration reloading (use configmap: %s/%s)",
-			constants.ConfigMapName, CMSvcEnableConfigHotRefresh))
-	parser.deprecatedBoolVar(&conf.DisableGangScheduling, &prev.DisableGangScheduling,
-		DeprecatedCliDisableGangScheduling, CMSvcDisableGangScheduling, DefaultDisableGangScheduling,
-		fmt.Sprintf("DEPRECATED: disable gang scheduling (use configmap: %s/%s)",
-			constants.ConfigMapName, CMSvcDisableGangScheduling))
-	parser.obsoleteStringVar(DeprecatedCliUserLabelKey, constants.DefaultUserLabel,
-		"DEPRECATED: pod label key to be used to identify a user (ignored)")
-
-	err := flags.Parse(args)
-	if err != nil {
-		// this will not happen as we parse with ExitOnError
-		panic(err)
-	}
-
-	parser.finish()
-	if len(parser.warnings) > 0 {
-		return conf, parser.warnings
-	}
-	return conf, nil
 }
 
 func updateKubeLogger(conf *SchedulerConf) {

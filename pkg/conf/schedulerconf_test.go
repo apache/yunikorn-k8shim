@@ -20,7 +20,6 @@ package conf
 import (
 	"fmt"
 	"reflect"
-	"strings"
 	"testing"
 	"time"
 
@@ -98,8 +97,7 @@ func TestParseConfigMap(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			prev := CreateDefaultConfig()
-			seen := make(map[string]string)
-			conf, errs := parseConfig(map[string]string{tc.name: fmt.Sprintf("%v", tc.value)}, prev, seen)
+			conf, errs := parseConfig(map[string]string{tc.name: fmt.Sprintf("%v", tc.value)}, prev)
 			assert.Assert(t, conf != nil, "conf was nil")
 			assert.Assert(t, errs == nil, errs)
 			assert.Equal(t, tc.value, getConfValue(t, conf, tc.field))
@@ -153,16 +151,14 @@ func TestUpdateConfigMapNonReloadable(t *testing.T) {
 
 func TestParseConfigMapWithUnknownKeyDoesNotFail(t *testing.T) {
 	prev := CreateDefaultConfig()
-	seen := make(map[string]string)
-	conf, errs := parseConfig(map[string]string{"key": "value"}, prev, seen)
+	conf, errs := parseConfig(map[string]string{"key": "value"}, prev)
 	assert.Assert(t, conf != nil)
 	assert.Assert(t, errs == nil, errs)
 }
 
 func TestParseConfigMapWithInvalidInt(t *testing.T) {
 	prev := CreateDefaultConfig()
-	seen := make(map[string]string)
-	conf, errs := parseConfig(map[string]string{CMSvcEventChannelCapacity: "x"}, prev, seen)
+	conf, errs := parseConfig(map[string]string{CMSvcEventChannelCapacity: "x"}, prev)
 	assert.Assert(t, conf == nil, "conf exists")
 	assert.Equal(t, 1, len(errs), "wrong error count")
 	assert.ErrorContains(t, errs[0], "invalid syntax", "wrong error type")
@@ -170,8 +166,7 @@ func TestParseConfigMapWithInvalidInt(t *testing.T) {
 
 func TestParseConfigMapWithInvalidBool(t *testing.T) {
 	prev := CreateDefaultConfig()
-	seen := make(map[string]string)
-	conf, errs := parseConfig(map[string]string{CMSvcEnableConfigHotRefresh: "x"}, prev, seen)
+	conf, errs := parseConfig(map[string]string{CMSvcEnableConfigHotRefresh: "x"}, prev)
 	assert.Assert(t, conf == nil, "conf exists")
 	assert.Equal(t, 1, len(errs), "wrong error count")
 	assert.ErrorContains(t, errs[0], "invalid syntax", "wrong error type")
@@ -179,197 +174,10 @@ func TestParseConfigMapWithInvalidBool(t *testing.T) {
 
 func TestParseConfigMapWithInvalidDuration(t *testing.T) {
 	prev := CreateDefaultConfig()
-	seen := make(map[string]string)
-	conf, errs := parseConfig(map[string]string{CMSvcSchedulingInterval: "x"}, prev, seen)
+	conf, errs := parseConfig(map[string]string{CMSvcSchedulingInterval: "x"}, prev)
 	assert.Assert(t, conf == nil, "conf exists")
 	assert.Equal(t, 1, len(errs), "wrong error count")
 	assert.ErrorContains(t, errs[0], "invalid duration", "wrong error type")
-}
-
-func TestParseEnv(t *testing.T) {
-	testCases := []struct {
-		name     string
-		value    string
-		obsolete bool
-		getter   func(conf *SchedulerConf) string
-	}{
-		{DeprecatedEnvUserLabelKey, "test-user-label-key", true, nil},
-		{DeprecatedEnvOperatorPlugins, "test-plugins", false, func(c *SchedulerConf) string { return c.OperatorPlugins }},
-		{DeprecatedEnvPlaceholderImage, "test-image", false, func(c *SchedulerConf) string { return c.PlaceHolderImage }},
-	}
-
-	oldLookup := setEnvLookupFunc(envLookupFunc)
-	defer setEnvLookupFunc(oldLookup)
-
-	for _, tc := range testCases {
-		env := map[string]string{tc.name: tc.value}
-		_ = setEnvLookupFunc(func(s string) (string, bool) {
-			val, ok := env[s]
-			return val, ok
-		})
-
-		t.Run(tc.name, func(t *testing.T) {
-			prev := CreateDefaultConfig()
-			seen := make(map[string]string)
-			conf, warns := parseEnvConfig(prev, seen)
-			assert.Assert(t, conf != nil, "conf was nil")
-			if tc.obsolete {
-				assert.Equal(t, 1, len(warns), "wrong warning count")
-				assert.Assert(t, strings.Contains(warns[0], "Obsolete"))
-			} else {
-				assert.Assert(t, warns == nil, warns)
-			}
-			if tc.getter != nil {
-				assert.Equal(t, tc.value, tc.getter(conf))
-			}
-		})
-	}
-}
-func TestParseEnvDeprecated(t *testing.T) {
-	testCases := []struct {
-		name  string
-		key   string
-		value string
-		field string
-	}{
-		{DeprecatedEnvOperatorPlugins, CMSvcOperatorPlugins, "test-plugins", "OperatorPlugins"},
-		{DeprecatedEnvPlaceholderImage, CMSvcPlaceholderImage, "test-image", "PlaceHolderImage"},
-	}
-
-	oldLookup := setEnvLookupFunc(envLookupFunc)
-	defer setEnvLookupFunc(oldLookup)
-
-	for _, tc := range testCases {
-		env := map[string]string{tc.name: tc.value}
-		_ = setEnvLookupFunc(func(s string) (string, bool) {
-			val, ok := env[s]
-			return val, ok
-		})
-
-		t.Run(tc.name, func(t *testing.T) {
-			prev := CreateDefaultConfig()
-			seen := make(map[string]string)
-
-			// check for consistent override
-			cm, errs := parseConfig(map[string]string{tc.key: tc.value}, prev, seen)
-			assert.Assert(t, errs == nil, errs)
-			conf, warns := parseEnvConfig(cm, seen)
-			assert.Assert(t, conf != nil, "conf was nil")
-			assert.Equal(t, tc.value, getConfValue(t, conf, tc.field))
-			assert.Assert(t, warns == nil, warns)
-
-			// check for inconsistent override
-			cm, errs = parseConfig(map[string]string{tc.key: "original-value"}, prev, seen)
-			assert.Assert(t, errs == nil, errs)
-			conf, warns = parseEnvConfig(cm, seen)
-			assert.Assert(t, conf != nil, "conf was nil")
-			assert.Equal(t, "original-value", getConfValue(t, conf, tc.field))
-			assert.Equal(t, 1, len(warns), "warning not present")
-			assert.Assert(t, strings.Contains(warns[0], "inconsistent"), "foo", "wrong warning")
-		})
-	}
-}
-
-func TestParseCliDefaults(t *testing.T) {
-	prev := CreateDefaultConfig()
-	seen := make(map[string]string)
-	conf, warns := parseCliConfig(prev, seen)
-	assert.Assert(t, warns == nil, warns)
-	assertDefaults(t, conf)
-}
-
-func TestParseCli(t *testing.T) {
-	testCases := []struct {
-		name      string
-		key       string
-		field     string
-		value     interface{}
-		prevValue interface{}
-	}{
-		{DeprecatedCliClusterID, CMSvcClusterID, "ClusterID", "test-cluster", "prev-cluster"},
-		{DeprecatedCliPolicyGroup, CMSvcPolicyGroup, "PolicyGroup", "test-policy-group", "prev-policy-group"},
-		{DeprecatedCliInterval, CMSvcSchedulingInterval, "Interval", 5 * time.Second, 15 * time.Second},
-		{DeprecatedCliLogLevel, CMLogLevel, "LoggingLevel", -1, 0},
-		{DeprecatedCliVolumeBindTimeout, CMSvcVolumeBindTimeout, "VolumeBindTimeout", 3 * time.Minute, 5 * time.Minute},
-		{DeprecatedCliEventChannelCapacity, CMSvcEventChannelCapacity, "EventChannelCapacity", 1234, 4321},
-		{DeprecatedCliDispatchTimeout, CMSvcDispatchTimeout, "DispatchTimeout", 15 * time.Second, 5 * time.Second},
-		{DeprecatedCliKubeQPS, CMKubeQPS, "KubeQPS", 2345, 5432},
-		{DeprecatedCliKubeBurst, CMKubeBurst, "KubeBurst", 3456, 6543},
-		{DeprecatedCliOperatorPlugins, CMSvcOperatorPlugins, "OperatorPlugins", "test-operators", "prev-operators"},
-		{DeprecatedCliEnableConfigHotRefresh, CMSvcEnableConfigHotRefresh, "EnableConfigHotRefresh", false, true},
-		{DeprecatedCliDisableGangScheduling, CMSvcDisableGangScheduling, "DisableGangScheduling", true, false},
-		{DeprecatedCliPlaceHolderImage, CMSvcPlaceholderImage, "PlaceHolderImage", "test-image", "prev-image"},
-	}
-
-	oldLookup := setCliLookupFunc(cliArgsFunc)
-	defer setCliLookupFunc(oldLookup)
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			setCliLookupFunc(func() (string, []string) {
-				return "test", []string{fmt.Sprintf("-%s=%v", tc.name, tc.value)}
-			})
-
-			// validate updates
-			prev := CreateDefaultConfig()
-			seen := make(map[string]string)
-			conf, warns := parseCliConfig(prev, seen)
-			assert.Assert(t, conf != nil, "conf was nil")
-			assert.Assert(t, warns == nil, warns)
-			assert.Equal(t, tc.value, getConfValue(t, conf, tc.field))
-
-			// validate conflicting overrides
-			prev = CreateDefaultConfig()
-			seen[tc.key] = tc.key
-			setConfValue(t, prev, tc.field, tc.prevValue)
-			conf, warns = parseCliConfig(prev, seen)
-			assert.Assert(t, conf != nil, "conf was nil")
-			assert.Equal(t, 1, len(warns), "warnings not present")
-			assert.Assert(t, strings.Contains(warns[0], "inconsistent"), warns[0])
-			assert.Equal(t, tc.prevValue, getConfValue(t, conf, tc.field))
-		})
-	}
-}
-
-func TestParseCliObsolete(t *testing.T) {
-	testCases := []struct {
-		name  string
-		key   string
-		field string
-		value interface{}
-	}{
-		{DeprecatedCliClusterVersion, DeprecatedCliClusterVersion, "ClusterVersion", "1.0"},
-		{DeprecatedCliUserLabelKey, DeprecatedCliUserLabelKey, "UserLabelKey", "test-user-label"},
-		{DeprecatedCliLogEncoding, DeprecatedCliLogEncoding, "", "test-encoding"},
-		{DeprecatedCliLogFile, DeprecatedCliLogFile, "", "test-log-file"},
-	}
-
-	oldLookup := setCliLookupFunc(cliArgsFunc)
-	defer setCliLookupFunc(oldLookup)
-
-	for _, tc := range testCases {
-		setCliLookupFunc(func() (string, []string) {
-			return "test", []string{fmt.Sprintf("-%s=%v", tc.key, tc.value)}
-		})
-		t.Run(tc.name, func(t *testing.T) {
-			prev := CreateDefaultConfig()
-			seen := make(map[string]string)
-			conf, warns := parseCliConfig(prev, seen)
-			assert.Assert(t, conf != nil, "conf was nil")
-			assert.Equal(t, 1, len(warns), "warnings not present")
-			assert.Assert(t, strings.Contains(warns[0], "Obsolete"), warns[0])
-			if tc.field != "" {
-				assert.Equal(t, getConfValue(t, prev, tc.field), getConfValue(t, conf, tc.field))
-			}
-		})
-	}
-}
-
-// set a configuration value by field name
-func setConfValue(t *testing.T, conf *SchedulerConf, name string, value interface{}) {
-	val := reflect.ValueOf(conf).Elem().FieldByName(name)
-	assert.Assert(t, val.IsValid(), "Field not valid: "+name)
-	val.Set(reflect.ValueOf(value))
 }
 
 // get a configuration value by field name

@@ -29,6 +29,7 @@ import (
 	"syscall"
 
 	"github.com/apache/yunikorn-k8shim/pkg/client"
+	schedulerconf "github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/plugin/admissioncontrollers/webhook/conf"
 	"go.uber.org/zap"
 
@@ -49,7 +50,7 @@ type WebHook struct {
 
 func main() {
 
-	configMaps, err := client.LoadBootstrapConfigMaps(conf.GetAdmissionControllerNamespace())
+	configMaps, err := client.LoadBootstrapConfigMaps(schedulerconf.GetSchedulerNamespace())
 	if err != nil {
 		log.Logger().Fatal("Failed to load initial configmaps", zap.Error(err))
 		return
