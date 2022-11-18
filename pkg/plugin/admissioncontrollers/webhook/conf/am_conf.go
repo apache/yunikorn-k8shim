@@ -20,7 +20,6 @@ package conf
 
 import (
 	"fmt"
-	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -66,24 +65,6 @@ const (
 )
 
 const (
-	// deprecated env vars
-	deprecatedEnvEnableConfigHotRefresh  = "ENABLE_CONFIG_HOT_REFRESH"
-	deprecatedEnvPolicyGroup             = "POLICY_GROUP"
-	deprecatedEnvService                 = "ADMISSION_CONTROLLER_SERVICE"
-	deprecatedEnvSchedulerServiceAddress = "SCHEDULER_SERVICE_ADDRESS"
-	deprecatedEnvProcessNamespaces       = "ADMISSION_CONTROLLER_PROCESS_NAMESPACES"
-	deprecatedEnvBypassNamespaces        = "ADMISSION_CONTROLLER_BYPASS_NAMESPACES"
-	deprecatedEnvLabelNamespaces         = "ADMISSION_CONTROLLER_LABEL_NAMESPACES"
-	deprecatedEnvNoLabelNamespaces       = "ADMISSION_CONTROLLER_NO_LABEL_NAMESPACES"
-	deprecatedEnvBypassAuth              = "ADMISSION_CONTROLLER_BYPASS_AUTH"
-	deprecatedEnvTrustControllers        = "ADMISSION_CONTROLLER_TRUST_CONTROLLERS"
-	deprecatedEnvSystemUsers             = "ADMISSION_CONTROLLER_SYSTEM_USERS"
-	deprecatedEnvExternalUsers           = "ADMISSION_CONTROLLER_EXTERNAL_USERS"
-	deprecatedEnvExternalGroups          = "ADMISSION_CONTROLLER_EXTERNAL_GROUPS"
-	deprecatedEnvNamespace               = "ADMISSION_CONTROLLER_NAMESPACE"
-)
-
-const (
 	// webhook defaults
 	DefaultWebHookAmServiceName           = "yunikorn-admission-controller-service"
 	DefaultWebHookSchedulerServiceAddress = "yunikorn-service:9080"
@@ -101,16 +82,6 @@ const (
 	DefaultAccessControlExternalUsers    = ""
 	DefaultAccessControlExternalGroups   = ""
 )
-
-func GetAdmissionControllerNamespace() string {
-	if value, ok := os.LookupEnv(schedulerconf.EnvNamespace); ok {
-		return value
-	}
-	if value, ok := os.LookupEnv(deprecatedEnvNamespace); ok {
-		return value
-	}
-	return schedulerconf.DefaultNamespace
-}
 
 type AdmissionControllerConf struct {
 	namespace  string
@@ -139,7 +110,7 @@ type AdmissionControllerConf struct {
 
 func NewAdmissionControllerConf(configMaps []*v1.ConfigMap) *AdmissionControllerConf {
 	acc := &AdmissionControllerConf{
-		namespace:  GetAdmissionControllerNamespace(),
+		namespace:  schedulerconf.GetSchedulerNamespace(),
 		kubeConfig: schedulerconf.GetDefaultKubeConfigPath(),
 	}
 	acc.updateConfigMaps(configMaps, true)
@@ -185,7 +156,7 @@ func (acc *AdmissionControllerConf) GetPolicyGroup() string {
 }
 
 func GetPendingPolicyGroup(configs map[string]string) string {
-	return parseConfigString(configs, schedulerconf.CMSvcPolicyGroup, schedulerconf.DefaultPolicyGroup, deprecatedEnvPolicyGroup)
+	return parseConfigString(configs, schedulerconf.CMSvcPolicyGroup, schedulerconf.DefaultPolicyGroup)
 }
 
 func (acc *AdmissionControllerConf) GetAmServiceName() string {
@@ -340,31 +311,31 @@ func (acc *AdmissionControllerConf) updateConfigMaps(configMaps []*v1.ConfigMap,
 	configs := schedulerconf.FlattenConfigMaps(configMaps)
 
 	// hot refresh
-	acc.enableConfigHotRefresh = parseConfigBool(configs, schedulerconf.CMSvcEnableConfigHotRefresh, schedulerconf.DefaultEnableConfigHotRefresh, deprecatedEnvEnableConfigHotRefresh)
+	acc.enableConfigHotRefresh = parseConfigBool(configs, schedulerconf.CMSvcEnableConfigHotRefresh, schedulerconf.DefaultEnableConfigHotRefresh)
 
 	// logging
-	logLevel := parseConfigInt(configs, schedulerconf.CMLogLevel, schedulerconf.DefaultLoggingLevel, "")
+	logLevel := parseConfigInt(configs, schedulerconf.CMLogLevel, schedulerconf.DefaultLoggingLevel)
 	log.GetZapConfigs().Level.SetLevel(zapcore.Level(logLevel))
 
 	// scheduler
-	acc.policyGroup = parseConfigString(configs, schedulerconf.CMSvcPolicyGroup, schedulerconf.DefaultPolicyGroup, deprecatedEnvPolicyGroup)
+	acc.policyGroup = parseConfigString(configs, schedulerconf.CMSvcPolicyGroup, schedulerconf.DefaultPolicyGroup)
 
 	// webhook
-	acc.amServiceName = parseConfigString(configs, AMWebHookAMServiceName, DefaultWebHookAmServiceName, deprecatedEnvService)
-	acc.schedulerServiceAddress = parseConfigString(configs, AMWebHookSchedulerServiceAddress, DefaultWebHookSchedulerServiceAddress, deprecatedEnvSchedulerServiceAddress)
+	acc.amServiceName = parseConfigString(configs, AMWebHookAMServiceName, DefaultWebHookAmServiceName)
+	acc.schedulerServiceAddress = parseConfigString(configs, AMWebHookSchedulerServiceAddress, DefaultWebHookSchedulerServiceAddress)
 
 	// filtering
-	acc.processNamespaces = parseConfigRegexps(configs, AMFilteringProcessNamespaces, DefaultFilteringProcessNamespaces, deprecatedEnvProcessNamespaces)
-	acc.bypassNamespaces = parseConfigRegexps(configs, AMFilteringBypassNamespaces, DefaultFilteringBypassNamespaces, deprecatedEnvBypassNamespaces)
-	acc.labelNamespaces = parseConfigRegexps(configs, AMFilteringLabelNamespaces, DefaultFilteringLabelNamespaces, deprecatedEnvLabelNamespaces)
-	acc.noLabelNamespaces = parseConfigRegexps(configs, AMFilteringNoLabelNamespaces, DefaultFilteringNoLabelNamespaces, deprecatedEnvNoLabelNamespaces)
+	acc.processNamespaces = parseConfigRegexps(configs, AMFilteringProcessNamespaces, DefaultFilteringProcessNamespaces)
+	acc.bypassNamespaces = parseConfigRegexps(configs, AMFilteringBypassNamespaces, DefaultFilteringBypassNamespaces)
+	acc.labelNamespaces = parseConfigRegexps(configs, AMFilteringLabelNamespaces, DefaultFilteringLabelNamespaces)
+	acc.noLabelNamespaces = parseConfigRegexps(configs, AMFilteringNoLabelNamespaces, DefaultFilteringNoLabelNamespaces)
 
 	// access control
-	acc.bypassAuth = parseConfigBool(configs, AMAccessControlBypassAuth, DefaultAccessControlBypassAuth, deprecatedEnvBypassAuth)
-	acc.trustControllers = parseConfigBool(configs, AMAccessControlTrustControllers, DefaultAccessControlTrustControllers, deprecatedEnvTrustControllers)
-	acc.systemUsers = parseConfigRegexps(configs, AMAccessControlSystemUsers, DefaultAccessControlSystemUsers, deprecatedEnvSystemUsers)
-	acc.externalUsers = parseConfigRegexps(configs, AMAccessControlExternalUsers, DefaultAccessControlExternalUsers, deprecatedEnvExternalUsers)
-	acc.externalGroups = parseConfigRegexps(configs, AMAccessControlExternalGroups, DefaultAccessControlExternalGroups, deprecatedEnvExternalGroups)
+	acc.bypassAuth = parseConfigBool(configs, AMAccessControlBypassAuth, DefaultAccessControlBypassAuth)
+	acc.trustControllers = parseConfigBool(configs, AMAccessControlTrustControllers, DefaultAccessControlTrustControllers)
+	acc.systemUsers = parseConfigRegexps(configs, AMAccessControlSystemUsers, DefaultAccessControlSystemUsers)
+	acc.externalUsers = parseConfigRegexps(configs, AMAccessControlExternalUsers, DefaultAccessControlExternalUsers)
+	acc.externalGroups = parseConfigRegexps(configs, AMAccessControlExternalGroups, DefaultAccessControlExternalGroups)
 
 	acc.dumpConfigurationInternal()
 }
@@ -401,8 +372,8 @@ func regexpsString(regexes []*regexp.Regexp) []string {
 	return result
 }
 
-func parseConfigRegexps(config map[string]string, key string, defaultValue string, env string) []*regexp.Regexp {
-	value := parseConfigString(config, key, defaultValue, env)
+func parseConfigRegexps(config map[string]string, key string, defaultValue string) []*regexp.Regexp {
+	value := parseConfigString(config, key, defaultValue)
 	result, err := parseRegexes(value)
 	if err != nil {
 		log.Logger().Error(fmt.Sprintf("Unable to parse regex values '%s' for configuration '%s', using default value '%s'",
@@ -415,8 +386,8 @@ func parseConfigRegexps(config map[string]string, key string, defaultValue strin
 	return result
 }
 
-func parseConfigBool(config map[string]string, key string, defaultValue bool, env string) bool {
-	value := parseConfigString(config, key, fmt.Sprintf("%t", defaultValue), env)
+func parseConfigBool(config map[string]string, key string, defaultValue bool) bool {
+	value := parseConfigString(config, key, fmt.Sprintf("%t", defaultValue))
 	result, err := strconv.ParseBool(value)
 	if err != nil {
 		log.Logger().Error(fmt.Sprintf("Unable to parse bool value '%s' for configuration '%s', using default value '%t'",
@@ -426,8 +397,8 @@ func parseConfigBool(config map[string]string, key string, defaultValue bool, en
 	return result
 }
 
-func parseConfigInt(config map[string]string, key string, defaultValue int, env string) int {
-	value := parseConfigString(config, key, fmt.Sprintf("%d", defaultValue), env)
+func parseConfigInt(config map[string]string, key string, defaultValue int) int {
+	value := parseConfigString(config, key, fmt.Sprintf("%d", defaultValue))
 	result, err := strconv.ParseInt(value, 10, 31)
 	if err != nil {
 		log.Logger().Error(fmt.Sprintf("Unable to parse int value '%s' for configuration '%s', using default value '%d'",
@@ -437,26 +408,11 @@ func parseConfigInt(config map[string]string, key string, defaultValue int, env 
 	return int(result)
 }
 
-func parseConfigString(config map[string]string, key string, defaultValue string, env string) string {
-	result := defaultValue
-	var envValue, confValue string
-	var envOk, confOk bool
-
-	if env != "" {
-		envValue, envOk = os.LookupEnv(env)
-		if envOk {
-			result = envValue
-		}
+func parseConfigString(config map[string]string, key string, defaultValue string) string {
+	if value, ok := config[key]; ok {
+		return value
 	}
-	confValue, confOk = config[key]
-	if confOk {
-		result = confValue
-	}
-	if confOk && envOk && confValue != envValue {
-		log.Logger().Warn(fmt.Sprintf("Deprecated environment variable '%s' found with inconsistent value. Provided: '%s', used: '%s'",
-			env, envValue, confValue))
-	}
-	return result
+	return defaultValue
 }
 
 func parseRegexes(patterns string) ([]*regexp.Regexp, error) {

@@ -25,7 +25,6 @@ import (
 
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/schedulerplugin"
-	pluginconf "github.com/apache/yunikorn-k8shim/pkg/schedulerplugin/conf"
 )
 
 var (
@@ -38,13 +37,8 @@ func main() {
 	conf.BuildDate = date
 	conf.IsPluginVersion = true
 
-	// override the default CLI arg parsing when in plugin mode
-	_ = conf.SetCliParser(pluginconf.ParsePluginCli)
-
 	command := app.NewSchedulerCommand(
 		app.WithPlugin(schedulerplugin.SchedulerPluginName, schedulerplugin.NewSchedulerPlugin))
-
-	pluginconf.InitCliFlagSet(command)
 
 	if err := command.Execute(); err != nil {
 		os.Exit(1)
