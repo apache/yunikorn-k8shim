@@ -65,7 +65,7 @@ func main() {
 		log.Logger().Fatal("Failed to initialize webhook manager", zap.Error(err))
 	}
 
-	ac := initAdmissionController(amConf, kubeClient.GetClientSet())
+	ac := initAdmissionController(amConf)
 
 	webhook := CreateWebhook(ac, HTTPPort)
 	certs := UpdateWebhookConfiguration(wm)

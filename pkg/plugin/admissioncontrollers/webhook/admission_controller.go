@@ -20,7 +20,6 @@ package main
 
 import (
 	"bytes"
-	ctx "context"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
@@ -30,13 +29,13 @@ import (
 	"strings"
 
 	"go.uber.org/zap"
+
 	admissionv1 "k8s.io/api/admission/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/kubernetes"
 
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	schedulerconf "github.com/apache/yunikorn-k8shim/pkg/conf"
@@ -68,7 +67,6 @@ var (
 type admissionController struct {
 	conf              *conf.AdmissionControllerConf
 	annotationHandler *annotation.UserGroupAnnotationHandler
-	clientSet         kubernetes.Interface
 }
 
 type ValidateConfResponse struct {
@@ -76,11 +74,10 @@ type ValidateConfResponse struct {
 	Reason  string `json:"reason"`
 }
 
-func initAdmissionController(conf *conf.AdmissionControllerConf, clientSet kubernetes.Interface) *admissionController {
+func initAdmissionController(conf *conf.AdmissionControllerConf) *admissionController {
 	hook := &admissionController{
 		conf:              conf,
 		annotationHandler: annotation.NewUserGroupAnnotationHandler(conf),
-		clientSet:         clientSet,
 	}
 
 	log.Logger().Info("Initialized YuniKorn Admission Controller")
@@ -221,6 +218,11 @@ func (c *admissionController) processPod(req *admissionv1.AdmissionRequest, name
 func (c *admissionController) processWorkload(req *admissionv1.AdmissionRequest, namespace string) *admissionv1.AdmissionResponse {
 	var uid = string(req.UID)
 
+	if !c.shouldProcessNamespace(namespace) {
+		log.Logger().Info("bypassing namespace", zap.String("namespace", namespace))
+		return admissionResponseBuilder(uid, true, "", nil)
+	}
+
 	annotations, supported, err := c.annotationHandler.GetAnnotationsFromRequestKind(req)
 	if !supported {
 		// Unknown request kind - pass
@@ -269,6 +271,12 @@ func (c *admissionController) processPodUpdate(req *admissionv1.AdmissionRequest
 		return admissionResponseBuilder(uid, false, err.Error(), nil)
 	}
 
+	var oldPod v1.Pod
+	if err := json.Unmarshal(req.OldObject.Raw, &oldPod); err != nil {
+		log.Logger().Error("unmarshal failed", zap.Error(err))
+		return admissionResponseBuilder(uid, false, err.Error(), nil)
+	}
+
 	if labelAppValue, ok := newPod.Labels[constants.LabelApp]; ok {
 		if labelAppValue == yunikornPod {
 			log.Logger().Info("pod update - ignore yunikorn pod")
@@ -281,12 +289,7 @@ func (c *admissionController) processPodUpdate(req *admissionv1.AdmissionRequest
 		return admissionResponseBuilder(uid, true, "", nil)
 	}
 
-	pod, err := c.clientSet.CoreV1().Pods(newPod.Namespace).Get(ctx.Background(), newPod.Name, metav1.GetOptions{})
-	if err != nil {
-		return admissionResponseBuilder(uid, false, err.Error(), nil)
-	}
-
-	originalUserInfo := pod.Annotations[common.UserInfoAnnotation]
+	originalUserInfo := oldPod.Annotations[common.UserInfoAnnotation]
 	newUserInfo := newPod.Annotations[common.UserInfoAnnotation]
 
 	log.Logger().Debug("checking original and new pod annotation", zap.String("original", originalUserInfo),
