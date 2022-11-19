@@ -87,6 +87,3 @@ const NamespaceQuota = "yunikorn.apache.org/namespace.quota"
 const AutoGenAppPrefix = "yunikorn"
 const AutoGenAppSuffix = "autogen"
 const DefaultQueue = "root.default"
-
-// If we have matched the annotations or label
-const NoneValue = "none"

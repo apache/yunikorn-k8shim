@@ -80,7 +80,7 @@ func GetSchedulingPolicyParam(pod *v1.Pod) *interfaces.SchedulingPolicyParameter
 	style := constants.SchedulingPolicyStyleParamDefault
 	schedulingPolicyParams := interfaces.NewSchedulingPolicyParameters(timeout, style)
 	param := GetPodAnnotationValue(pod, constants.AnnotationSchedulingPolicyParam)
-	if param == constants.NoneValue {
+	if param == "" {
 		return schedulingPolicyParams
 	}
 	params := strings.Split(param, constants.SchedulingPolicyParamDelimiter)

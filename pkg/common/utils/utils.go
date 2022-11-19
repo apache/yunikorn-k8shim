@@ -92,9 +92,9 @@ func GeneralPodFilter(pod *v1.Pod) bool {
 
 func GetQueueNameFromPod(pod *v1.Pod) string {
 	queueName := constants.ApplicationDefaultQueue
-	if an := GetPodLabelValue(pod, constants.LabelQueueName); an != constants.NoneValue {
+	if an := GetPodLabelValue(pod, constants.LabelQueueName); an != "" {
 		queueName = an
-	} else if qu := GetPodAnnotationValue(pod, constants.AnnotationQueueName); qu != constants.NoneValue {
+	} else if qu := GetPodAnnotationValue(pod, constants.AnnotationQueueName); qu != "" {
 		queueName = qu
 	}
 	return queueName
@@ -102,17 +102,17 @@ func GetQueueNameFromPod(pod *v1.Pod) string {
 
 func GetApplicationIDFromPod(pod *v1.Pod) (string, error) {
 	// application ID can be defined in annotations
-	if value := GetPodAnnotationValue(pod, constants.AnnotationApplicationID); value != constants.NoneValue {
+	if value := GetPodAnnotationValue(pod, constants.AnnotationApplicationID); value != "" {
 		return value, nil
 	}
 
 	// application ID can be defined in labels
-	if value := GetPodLabelValue(pod, constants.LabelApplicationID); value != constants.NoneValue {
+	if value := GetPodLabelValue(pod, constants.LabelApplicationID); value != "" {
 		return value, nil
 	}
 
 	// application ID can be defined in labels
-	if value := GetPodLabelValue(pod, constants.SparkLabelAppID); value != constants.NoneValue {
+	if value := GetPodLabelValue(pod, constants.SparkLabelAppID); value != "" {
 		return value, nil
 	}
 
@@ -137,8 +137,8 @@ func GetNamespaceQuotaFromAnnotation(namespaceObj *v1.Namespace) *si.Resource {
 	// 1. namespace.quota
 	// 2. namespace.max.* (Retaining for backwards compatibility. Need to be removed in next major release)
 	switch {
-	case namespaceQuota != constants.NoneValue:
-		if cpuQuota != constants.NoneValue || memQuota != constants.NoneValue {
+	case namespaceQuota != "":
+		if cpuQuota != "" || memQuota != "" {
 			log.Logger().Warn("Using namespace.quota instead of namespace.max.* (deprecated) annotation to set cpu and/or memory for namespace though both are available.",
 				zap.String("namespace", namespaceObj.Name))
 		}
@@ -151,7 +151,7 @@ func GetNamespaceQuotaFromAnnotation(namespaceObj *v1.Namespace) *si.Resource {
 			return nil
 		}
 		return common.GetResource(namespaceQuotaMap)
-	case cpuQuota != constants.NoneValue || memQuota != constants.NoneValue:
+	case cpuQuota != "" || memQuota != "":
 		log.Logger().Warn("Please use namespace.quota instead of namespace.max.* (deprecated) annotation. Using deprecated annotation to set cpu and/or memory for namespace. ",
 			zap.String("namespace", namespaceObj.Name))
 		return common.ParseResource(cpuQuota, memQuota)
@@ -280,7 +280,7 @@ func GetUserFromPod(pod *v1.Pod) (string, []string) {
 		userLabelKey = constants.DefaultUserLabel
 	}
 	// User name to be defined in labels
-	if username := GetPodLabelValue(pod, userLabelKey); username != constants.NoneValue && len(username) > 0 {
+	if username := GetPodLabelValue(pod, userLabelKey); username != "" && len(username) > 0 {
 		log.Logger().Info("Found user name from pod labels.",
 			zap.String("userLabel", userLabelKey), zap.String("user", username))
 		return username, nil
@@ -323,21 +323,21 @@ func GetPodAnnotationValue(pod *v1.Pod, annotationKey string) string {
 	if value, ok := pod.Annotations[annotationKey]; ok {
 		return value
 	}
-	return constants.NoneValue
+	return ""
 }
 
 func GetNameSpaceAnnotationValue(namespace *v1.Namespace, annotationKey string) string {
 	if value, ok := namespace.Annotations[annotationKey]; ok {
 		return value
 	}
-	return constants.NoneValue
+	return ""
 }
 
 func GetPodLabelValue(pod *v1.Pod, labelKey string) string {
 	if value, ok := pod.Labels[labelKey]; ok {
 		return value
 	}
-	return constants.NoneValue
+	return ""
 }
 
 func GetTaskGroupFromPodSpec(pod *v1.Pod) string {
@@ -345,13 +345,13 @@ func GetTaskGroupFromPodSpec(pod *v1.Pod) string {
 }
 
 func GetPlaceholderFlagFromPodSpec(pod *v1.Pod) bool {
-	if value := GetPodAnnotationValue(pod, constants.AnnotationPlaceholderFlag); value != constants.NoneValue {
+	if value := GetPodAnnotationValue(pod, constants.AnnotationPlaceholderFlag); value != "" {
 		if v, err := strconv.ParseBool(value); err == nil {
 			return v
 		}
 	}
 
-	if value := GetPodLabelValue(pod, constants.LabelPlaceholderFlag); value != constants.NoneValue {
+	if value := GetPodLabelValue(pod, constants.LabelPlaceholderFlag); value != "" {
 		if v, err := strconv.ParseBool(value); err == nil {
 			return v
 		}
@@ -361,7 +361,7 @@ func GetPlaceholderFlagFromPodSpec(pod *v1.Pod) bool {
 
 func GetTaskGroupsFromAnnotation(pod *v1.Pod) ([]v1alpha1.TaskGroup, error) {
 	taskGroupInfo := GetPodAnnotationValue(pod, constants.AnnotationTaskGroups)
-	if taskGroupInfo == constants.NoneValue {
+	if taskGroupInfo == "" {
 		return nil, nil
 	}
 

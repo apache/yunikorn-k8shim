@@ -767,7 +767,7 @@ func TestGetTaskGroupFromPodSpec(t *testing.T) {
 		},
 	}
 
-	assert.Equal(t, GetTaskGroupFromPodSpec(pod), constants.NoneValue)
+	assert.Equal(t, GetTaskGroupFromPodSpec(pod), "")
 }
 
 func TestGetPlaceholderFlagFromPodSpec(t *testing.T) {

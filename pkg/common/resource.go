@@ -24,7 +24,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/kubernetes/pkg/apis/core/v1/helper/qos"
 
-	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
@@ -113,12 +112,12 @@ func GetNodeResource(nodeStatus *v1.NodeStatus) *si.Resource {
 // parse cpu and memory from string to si.Resource, both of them are optional
 // if parse failed with some errors, log the error and return a nil
 func ParseResource(cpuStr, memStr string) *si.Resource {
-	if cpuStr == constants.NoneValue && memStr == constants.NoneValue {
+	if cpuStr == "" && memStr == "" {
 		return nil
 	}
 
 	result := NewResourceBuilder()
-	if cpuStr != constants.NoneValue {
+	if cpuStr != "" {
 		if vcore, err := resource.ParseQuantity(cpuStr); err == nil {
 			result.AddResource(siCommon.CPU, vcore.MilliValue())
 		} else {
@@ -129,7 +128,7 @@ func ParseResource(cpuStr, memStr string) *si.Resource {
 		}
 	}
 
-	if memStr != constants.NoneValue {
+	if memStr != "" {
 		if mem, err := resource.ParseQuantity(memStr); err == nil {
 			result.AddResource(siCommon.Memory, mem.Value())
 		} else {

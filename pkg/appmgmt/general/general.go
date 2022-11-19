@@ -89,7 +89,7 @@ func (os *Manager) Stop() {
 
 func isStateAwareDisabled(pod *v1.Pod) bool {
 	value := utils.GetPodLabelValue(pod, constants.LabelDisableStateAware)
-	if value == constants.NoneValue {
+	if value == "" {
 		return false
 	}
 	result, err := strconv.ParseBool(value)
