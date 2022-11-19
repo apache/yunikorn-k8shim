@@ -31,7 +31,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/kubernetes/pkg/apis/core"
 	v1helper "k8s.io/kubernetes/pkg/apis/core/v1/helper"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/interpodaffinity"
@@ -109,9 +108,7 @@ func TestPodFitsHost(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			nodeInfo := framework.NewNodeInfo()
-			// API call always returns nil, never an error
-			//nolint:errcheck
-			_ = nodeInfo.SetNode(test.node)
+			nodeInfo.SetNode(test.node)
 			plugin, err := predicateManager.Predicates(test.pod, nodeInfo, true)
 			if (err == nil) != test.fits {
 				t.Errorf("%s expected fit state '%t' did not match real state and err = %v, plugin = %v", test.name, test.fits, err, plugin)
@@ -757,7 +754,7 @@ func TestPodFitsSelector(t *testing.T) {
 									{
 										MatchFields: []v1.NodeSelectorRequirement{
 											{
-												Key:      core.ObjectNameField,
+												Key:      metav1.ObjectNameField,
 												Operator: v1.NodeSelectorOpIn,
 												Values:   []string{"node_1"},
 											},
@@ -783,7 +780,7 @@ func TestPodFitsSelector(t *testing.T) {
 									{
 										MatchFields: []v1.NodeSelectorRequirement{
 											{
-												Key:      core.ObjectNameField,
+												Key:      metav1.ObjectNameField,
 												Operator: v1.NodeSelectorOpIn,
 												Values:   []string{"node_1"},
 											},
@@ -809,7 +806,7 @@ func TestPodFitsSelector(t *testing.T) {
 									{
 										MatchFields: []v1.NodeSelectorRequirement{
 											{
-												Key:      core.ObjectNameField,
+												Key:      metav1.ObjectNameField,
 												Operator: v1.NodeSelectorOpIn,
 												Values:   []string{"node_1"},
 											},
@@ -845,7 +842,7 @@ func TestPodFitsSelector(t *testing.T) {
 									{
 										MatchFields: []v1.NodeSelectorRequirement{
 											{
-												Key:      core.ObjectNameField,
+												Key:      metav1.ObjectNameField,
 												Operator: v1.NodeSelectorOpIn,
 												Values:   []string{"node_1"},
 											},
@@ -879,7 +876,7 @@ func TestPodFitsSelector(t *testing.T) {
 									{
 										MatchFields: []v1.NodeSelectorRequirement{
 											{
-												Key:      core.ObjectNameField,
+												Key:      metav1.ObjectNameField,
 												Operator: v1.NodeSelectorOpIn,
 												Values:   []string{"node_1"},
 											},
@@ -913,7 +910,7 @@ func TestPodFitsSelector(t *testing.T) {
 									{
 										MatchFields: []v1.NodeSelectorRequirement{
 											{
-												Key:      core.ObjectNameField,
+												Key:      metav1.ObjectNameField,
 												Operator: v1.NodeSelectorOpIn,
 												Values:   []string{"node_1"},
 											},
@@ -948,9 +945,7 @@ func TestPodFitsSelector(t *testing.T) {
 				Labels: test.labels,
 			}}
 			nodeInfo := framework.NewNodeInfo()
-			// API call always returns nil, never an error
-			//nolint:errcheck
-			_ = nodeInfo.SetNode(&node)
+			nodeInfo.SetNode(&node)
 
 			plugin, err := predicateManager.Predicates(test.pod, nodeInfo, true)
 			if (err == nil) != test.fits {
@@ -963,8 +958,24 @@ func TestPodFitsSelector(t *testing.T) {
 func newResourcePod(usage ...framework.Resource) *v1.Pod {
 	var containers []v1.Container
 	for _, req := range usage {
+		rl := v1.ResourceList{}
+		if req.MilliCPU > 0 {
+			rl[v1.ResourceCPU] = *resource.NewMilliQuantity(req.MilliCPU, resource.DecimalSI)
+		}
+		if req.Memory > 0 {
+			rl[v1.ResourceMemory] = *resource.NewQuantity(req.Memory, resource.DecimalSI)
+		}
+		if req.EphemeralStorage > 0 {
+			rl[v1.ResourceEphemeralStorage] = *resource.NewQuantity(req.EphemeralStorage, resource.DecimalSI)
+		}
+		if req.AllowedPodNumber > 0 {
+			rl[v1.ResourcePods] = *resource.NewQuantity(int64(req.AllowedPodNumber), resource.DecimalSI)
+		}
+		for k, v := range req.ScalarResources {
+			rl[k] = *resource.NewQuantity(v, resource.DecimalSI)
+		}
 		containers = append(containers, v1.Container{
-			Resources: v1.ResourceRequirements{Requests: req.ResourceList()},
+			Resources: v1.ResourceRequirements{Requests: rl},
 		})
 	}
 	return &v1.Pod{
@@ -1083,9 +1094,7 @@ func TestRunGeneralPredicates(t *testing.T) {
 	}
 	for _, test := range resourceTests {
 		t.Run(test.name, func(t *testing.T) {
-			// API call always returns nil, never an error
-			//nolint:errcheck
-			_ = test.nodeInfo.SetNode(test.node)
+			test.nodeInfo.SetNode(test.node)
 			plugin, err := predicateManager.Predicates(test.pod, test.nodeInfo, true)
 			if (err == nil) != test.fits {
 				t.Errorf("%s expected fit state '%t' did not match real state and err = %v, plugin = %v", test.name, test.fits, err, plugin)
@@ -2031,9 +2040,7 @@ func TestInterPodAffinity(t *testing.T) {
 			}
 
 			nodeInfo := framework.NewNodeInfo(podsOnNode...)
-			// API call always returns nil, never an error
-			//nolint:errcheck
-			_ = nodeInfo.SetNode(test.node)
+			nodeInfo.SetNode(test.node)
 			lister.nodeLister.nodeInfos = []*framework.NodeInfo{nodeInfo}
 			plugin, err := predicateManager.Predicates(test.pod, nodeInfo, true)
 			if (err == nil) != test.fits {
@@ -2055,9 +2062,7 @@ func TestReserveAlloc(t *testing.T) {
 		},
 	}
 	nodeInfo := framework.NewNodeInfo(pod)
-	// API call always returns nil, never an error
-	//nolint:errcheck
-	_ = nodeInfo.SetNode(node)
+	nodeInfo.SetNode(node)
 
 	// no predicates configured that are run by reservations
 	clientSet := clientSet()
@@ -2082,8 +2087,7 @@ func TestReserveAlloc(t *testing.T) {
 	})
 	node.Spec.Unschedulable = true
 	assert.NilError(t, err, "failed to add taint")
-	err = nodeInfo.SetNode(node)
-	assert.NilError(t, err, "failed to set node")
+	nodeInfo.SetNode(node)
 	_, err = predicateManager.Predicates(pod, nodeInfo, false)
 	if err == nil {
 		t.Errorf("error should not have been nil, predicate should have failed")
@@ -2103,8 +2107,7 @@ func TestReserveNodeSelector(t *testing.T) {
 		},
 	}
 	nodeInfo := framework.NewNodeInfo(pod)
-	err := nodeInfo.SetNode(node)
-	assert.NilError(t, err, "No error expected")
+	nodeInfo.SetNode(node)
 
 	clientSet := clientSet()
 	informerFactory := informerFactory(clientSet)

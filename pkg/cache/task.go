@@ -20,6 +20,7 @@ package cache
 
 import (
 	"fmt"
+	"strconv"
 	"sync"
 	"time"
 
@@ -185,6 +186,10 @@ func (task *Task) DeleteTaskPod(pod *v1.Pod) error {
 
 func (task *Task) UpdateTaskPodStatus(pod *v1.Pod) (*v1.Pod, error) {
 	return task.context.apiProvider.GetAPIs().KubeClient.UpdateStatus(pod)
+}
+
+func (task *Task) UpdateTaskPod(pod *v1.Pod, podMutator func(pod *v1.Pod)) (*v1.Pod, error) {
+	return task.context.apiProvider.GetAPIs().KubeClient.UpdatePod(pod, podMutator)
 }
 
 func (task *Task) isTerminated() bool {
@@ -399,12 +404,19 @@ func (task *Task) postTaskBound() {
 		// the pod status explicitly, when there is a status change, the default scheduler will
 		// move the pod back to the active queue immediately.
 		podCopy := task.pod.DeepCopy()
-		podCopy.Status = v1.PodStatus{
-			Phase:   podCopy.Status.Phase,
-			Reason:  "QuotaApproved",
-			Message: "pod fits into the queue quota and it is ready for scheduling",
-		}
-		if _, err := task.UpdateTaskPodStatus(podCopy); err != nil {
+		if _, err := task.UpdateTaskPod(podCopy, func(pod *v1.Pod) {
+			pod.Status = v1.PodStatus{
+				Phase:   podCopy.Status.Phase,
+				Reason:  "QuotaApproved",
+				Message: "pod fits into the queue quota and it is ready for scheduling",
+			}
+
+			// this is a bit of a hack, but ensures that the default scheduler detects the pod as having changed
+			if pod.Annotations == nil {
+				pod.Annotations = make(map[string]string)
+			}
+			pod.Annotations["yunikorn.apache.org/scheduled-at"] = strconv.FormatInt(time.Now().UnixNano(), 10)
+		}); err != nil {
 			log.Logger().Warn("failed to update pod status", zap.Error(err))
 		}
 	}

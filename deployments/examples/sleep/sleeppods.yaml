@@ -26,6 +26,7 @@ metadata:
   name: task0
 spec:
   schedulerName: yunikorn
+  restartPolicy: Never
   containers:
     - name: sleep-30s
       image: "alpine:latest"
@@ -45,6 +46,7 @@ metadata:
   name: task1
 spec:
   schedulerName: yunikorn
+  restartPolicy: Never
   containers:
     - name: sleep-30s
       image: "alpine:latest"
@@ -64,6 +66,7 @@ metadata:
   name: task2
 spec:
   schedulerName: yunikorn
+  restartPolicy: Never
   containers:
     - name: sleep-30s
       image: "alpine:latest"

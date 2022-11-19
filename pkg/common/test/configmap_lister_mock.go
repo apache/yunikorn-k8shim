@@ -34,7 +34,7 @@ type ConfigMapListerMock struct {
 func NewConfigMapListerMock() *ConfigMapListerMock {
 	YKConfigmap := v1.ConfigMap{
 		ObjectMeta: apis.ObjectMeta{
-			Name:   constants.DefaultConfigMapName,
+			Name:   constants.ConfigMapName,
 			Labels: map[string]string{"app": "yunikorn", "label2": "value2"},
 		},
 		Data: map[string]string{"queues.yaml": "OldData"},

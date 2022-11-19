@@ -29,6 +29,8 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
+	"github.com/apache/yunikorn-k8shim/pkg/client"
+
 	"github.com/apache/yunikorn-core/pkg/entrypoint"
 	"github.com/apache/yunikorn-k8shim/pkg/cache"
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
@@ -75,6 +77,7 @@ type YuniKornSchedulerPlugin struct {
 var _ framework.PreFilterPlugin = &YuniKornSchedulerPlugin{}
 var _ framework.FilterPlugin = &YuniKornSchedulerPlugin{}
 var _ framework.PostBindPlugin = &YuniKornSchedulerPlugin{}
+var _ framework.EnqueueExtensions = &YuniKornSchedulerPlugin{}
 
 // Name returns the name of the plugin
 func (sp *YuniKornSchedulerPlugin) Name() string {
@@ -82,7 +85,7 @@ func (sp *YuniKornSchedulerPlugin) Name() string {
 }
 
 // PreFilter is used to release pods to scheduler
-func (sp *YuniKornSchedulerPlugin) PreFilter(_ context.Context, _ *framework.CycleState, pod *v1.Pod) *framework.Status {
+func (sp *YuniKornSchedulerPlugin) PreFilter(_ context.Context, state *framework.CycleState, pod *v1.Pod) *framework.Status {
 	log.Logger().Debug("PreFilter check",
 		zap.String("pod", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)))
 
@@ -105,7 +108,7 @@ func (sp *YuniKornSchedulerPlugin) PreFilter(_ context.Context, _ *framework.Cyc
 				sp.context.RemovePodAllocation(string(pod.UID))
 				dispatcher.Dispatch(cache.NewRejectTaskEvent(app.GetApplicationID(), task.GetTaskID(),
 					fmt.Sprintf("task %s rejected by scheduler", task.GetTaskID())))
-				return framework.NewStatus(framework.Unschedulable, "Pod is not ready for scheduling")
+				return framework.NewStatus(framework.UnschedulableAndUnresolvable, "Pod is not ready for scheduling")
 			}
 
 			nodeID, ok := sp.context.GetPendingPodAllocation(string(pod.UID))
@@ -120,7 +123,7 @@ func (sp *YuniKornSchedulerPlugin) PreFilter(_ context.Context, _ *framework.Cyc
 		}
 	}
 
-	return framework.NewStatus(framework.Unschedulable, "Pod is not ready for scheduling")
+	return framework.NewStatus(framework.UnschedulableAndUnresolvable, "Pod is not ready for scheduling")
 }
 
 // PreFilterExtensions is unused
@@ -160,7 +163,19 @@ func (sp *YuniKornSchedulerPlugin) Filter(_ context.Context, _ *framework.CycleS
 		}
 	}
 
-	return framework.NewStatus(framework.Unschedulable, "Pod is not fit for node")
+	return framework.NewStatus(framework.UnschedulableAndUnresolvable, "Pod is not fit for node")
+}
+
+func (sp *YuniKornSchedulerPlugin) EventsToRegister() []framework.ClusterEvent {
+	// register for all events
+	return []framework.ClusterEvent{
+		{Resource: framework.Pod, ActionType: framework.All},
+		{Resource: framework.Node, ActionType: framework.All},
+		{Resource: framework.CSINode, ActionType: framework.All},
+		{Resource: framework.PersistentVolume, ActionType: framework.All},
+		{Resource: framework.PersistentVolumeClaim, ActionType: framework.All},
+		{Resource: framework.StorageClass, ActionType: framework.All},
+	}
 }
 
 // PostBind is used to mark allocations as completed once scheduling run is finished
@@ -192,6 +207,16 @@ func (sp *YuniKornSchedulerPlugin) PostBind(_ context.Context, _ *framework.Cycl
 func NewSchedulerPlugin(_ runtime.Object, handle framework.Handle) (framework.Plugin, error) {
 	log.Logger().Info("Build info", zap.String("version", conf.BuildVersion), zap.String("date", conf.BuildDate))
 
+	configMaps, err := client.LoadBootstrapConfigMaps(conf.GetSchedulerNamespace())
+	if err != nil {
+		log.Logger().Fatal("Unable to bootstrap configuration", zap.Error(err))
+	}
+
+	err = conf.UpdateConfigMaps(configMaps, true)
+	if err != nil {
+		log.Logger().Fatal("Unable to load initial configmaps", zap.Error(err))
+	}
+
 	// start the YK core scheduler
 	serviceContext := entrypoint.StartAllServicesWithLogger(log.Logger(), log.GetZapConfigs())
 	if sa, ok := serviceContext.RMProxy.(api.SchedulerAPI); ok {
@@ -203,7 +228,6 @@ func NewSchedulerPlugin(_ runtime.Object, handle framework.Handle) (framework.Pl
 		p := &YuniKornSchedulerPlugin{
 			context: ss.GetContext(),
 		}
-
 		events.SetRecorder(handle.EventRecorder())
 		return p, nil
 	}

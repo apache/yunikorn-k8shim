@@ -525,7 +525,7 @@ func TestMergeMaps(t *testing.T) {
 	assert.Equal(t, result["d"], "d2")
 }
 
-func TestGetUserFromPod(t *testing.T) {
+func TestGetUserFromPodLabel(t *testing.T) {
 	userInLabel := "testuser"
 	userNotInLabel := constants.DefaultUser
 	customUserKeyLabel := "test"
@@ -568,10 +568,49 @@ func TestGetUserFromPod(t *testing.T) {
 				conf.UserLabelKey = tc.userLabelKey
 			}
 
-			userID := GetUserFromPod(tc.pod)
+			userID, _ := GetUserFromPod(tc.pod)
 			assert.DeepEqual(t, userID, tc.expectedUser)
 			// The order of test cases is allowed to impact other test case.
 			conf.UserLabelKey = constants.DefaultUserLabel
+		})
+	}
+}
+
+func TestGetUserFromPodAnnotation(t *testing.T) {
+	const userAndGroups = "{\"user\":\"test\",\"groups\":[\"devops\",\"test\"]}"
+	const emptyUserAndGroups = "{\"user\":\"\",\"groups\":[\"devops\",\"test\"]}"
+
+	testCases := []struct {
+		name           string
+		pod            *v1.Pod
+		expectedUser   string
+		expectedGroups []string
+	}{
+		{"User/groups properly defined", &v1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Annotations: map[string]string{
+					userInfoKey: userAndGroups},
+			},
+		}, "test", []string{"devops", "test"}},
+		{"Empty username", &v1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Annotations: map[string]string{
+					userInfoKey: emptyUserAndGroups},
+			},
+		}, "nobody", []string{"devops", "test"}},
+		{"Invalid JSON", &v1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Annotations: map[string]string{
+					userInfoKey: "xyzxyz"},
+			},
+		}, "nobody", nil},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			userID, groups := GetUserFromPod(tc.pod)
+			assert.DeepEqual(t, userID, tc.expectedUser)
+			assert.DeepEqual(t, groups, tc.expectedGroups)
 		})
 	}
 }
@@ -699,6 +738,7 @@ func TestNeedRecovery(t *testing.T) {
 		})
 	}
 }
+<<<<<<< HEAD
 func TestGetTaskGroupFromPodSpec(t *testing.T) {
 	pod := &v1.Pod{
 		TypeMeta: metav1.TypeMeta{
@@ -1051,4 +1091,51 @@ func TestUpdatePodLabelForAdmissionController(t *testing.T) {
 	} else {
 		t.Fatal("UpdatePodLabelForAdmissionController is not as expected")
 	}
+=======
+
+func TestGetCoreSchedulerConfigFromConfigMapNil(t *testing.T) {
+	assert.Equal(t, "", GetCoreSchedulerConfigFromConfigMap(nil))
+}
+
+func TestGetCoreSchedulerConfigFromConfigMapEmpty(t *testing.T) {
+	cm := map[string]string{}
+	assert.Equal(t, "", GetCoreSchedulerConfigFromConfigMap(cm))
+}
+
+func TestGetCoreSchedulerConfigFromConfigMap(t *testing.T) {
+	cm := map[string]string{
+		"queues.yaml": "test",
+	}
+	assert.Equal(t, "test", GetCoreSchedulerConfigFromConfigMap(cm))
+}
+
+func TestGetExtraConfigFromConfigMapNil(t *testing.T) {
+	res := GetExtraConfigFromConfigMap(nil)
+	assert.Equal(t, 0, len(res))
+}
+
+func TestGetExtraConfigFromConfigMapEmpty(t *testing.T) {
+	cm := map[string]string{}
+	res := GetExtraConfigFromConfigMap(cm)
+	assert.Equal(t, 0, len(res))
+}
+
+func TestGetExtraConfigFromConfigMapQueuesYaml(t *testing.T) {
+	cm := map[string]string{
+		"queues.yaml": "test",
+	}
+	res := GetExtraConfigFromConfigMap(cm)
+	assert.Equal(t, 0, len(res))
+}
+
+func TestGetExtraConfigFromConfigMap(t *testing.T) {
+	cm := map[string]string{
+		"key": "value",
+	}
+	res := GetExtraConfigFromConfigMap(cm)
+	assert.Equal(t, 1, len(res))
+	value, ok := res["key"]
+	assert.Assert(t, ok, "key not found")
+	assert.Equal(t, "value", value, "wrong value")
+>>>>>>> upstream/master
 }

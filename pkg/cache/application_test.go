@@ -482,7 +482,7 @@ func newMockSchedulerAPI() *mockSchedulerAPI {
 		UpdateNodeFn: func(request *si.NodeRequest) error {
 			return nil
 		},
-		UpdateConfigurationFn: func(clusterID string) error {
+		UpdateConfigurationFn: func(request *si.UpdateConfigurationRequest) error {
 			return nil
 		},
 	}
@@ -495,7 +495,7 @@ type mockSchedulerAPI struct {
 	UpdateAllocationFn    func(request *si.AllocationRequest) error
 	UpdateApplicationFn   func(request *si.ApplicationRequest) error
 	UpdateNodeFn          func(request *si.NodeRequest) error
-	UpdateConfigurationFn func(clusterID string) error
+	UpdateConfigurationFn func(request *si.UpdateConfigurationRequest) error
 }
 
 func (ms *mockSchedulerAPI) RegisterResourceManager(request *si.RegisterResourceManagerRequest,
@@ -515,7 +515,7 @@ func (ms *mockSchedulerAPI) UpdateNode(request *si.NodeRequest) error {
 	return ms.UpdateNodeFn(request)
 }
 
-func (ms *mockSchedulerAPI) UpdateConfiguration(clusterID string) error {
+func (ms *mockSchedulerAPI) UpdateConfiguration(request *si.UpdateConfigurationRequest) error {
 	return nil
 }
 

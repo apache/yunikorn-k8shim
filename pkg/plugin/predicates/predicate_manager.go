@@ -25,8 +25,8 @@ import (
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/kube-scheduler/config/v1beta1"
-	"k8s.io/kubernetes/pkg/scheduler/algorithmprovider"
+	"k8s.io/component-base/config/v1alpha1"
+	"k8s.io/kube-scheduler/config/v1beta2"
 	apiConfig "k8s.io/kubernetes/pkg/scheduler/apis/config"
 	"k8s.io/kubernetes/pkg/scheduler/apis/config/scheme"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
@@ -147,20 +147,24 @@ func (p *predicateManagerImpl) runFilterPlugin(ctx context.Context, pl framework
 
 func NewPredicateManager(handle framework.Handle) PredicateManager {
 	/*
-		Default K8S plugins as of 1.20 that implement PreFilter:
-		   NodeResourcesFit
-		   NodePorts
-		   PodTopologySpread
-		   InterPodAffinity
-		   VolumeBinding
+		Default K8S plugins as of 1.23 that implement PreFilter:
+			NodeAffinity
+			NodePorts
+			NodeResourcesFit
+			VolumeRestrictions
+			VolumeBinding
+			PodTopologySpread
+			InterPodAffinity
 	*/
 
 	// run only the simpler PreFilter plugins during reservation phase
 	reservationPreFilters := map[string]bool{
-		// NodeResourcesFit : skip because during reservation, node resources are not enough
+		nodeaffinity.Name:      true,
 		nodeports.Name:         true,
 		podtopologyspread.Name: true,
 		interpodaffinity.Name:  true,
+		// NodeResourcesFit : skip because during reservation, node resources are not enough
+		// VolumeRestrictions
 		// VolumeBinding
 	}
 
@@ -170,7 +174,7 @@ func NewPredicateManager(handle framework.Handle) PredicateManager {
 	}
 
 	/*
-		Default K8S plugins as of 1.20 that implement Filter:
+		Default K8S plugins as of 1.23 that implement Filter:
 		    NodeUnschedulable
 			NodeName
 			TaintToleration
@@ -195,6 +199,8 @@ func NewPredicateManager(handle framework.Handle) PredicateManager {
 		tainttoleration.Name:   true,
 		nodeaffinity.Name:      true,
 		nodeports.Name:         true,
+		podtopologyspread.Name: true,
+		interpodaffinity.Name:  true,
 		// NodeResourcesFit : skip because during reservation, node resources are not enough
 		// VolumeRestrictions
 		// EBSLimits
@@ -203,8 +209,6 @@ func NewPredicateManager(handle framework.Handle) PredicateManager {
 		// AzureDiskLimits
 		// VolumeBinding
 		// VolumeZone
-		podtopologyspread.Name: true,
-		interpodaffinity.Name:  true,
 	}
 
 	// run all Filter plugins during allocation phase
@@ -222,24 +226,24 @@ func newPredicateManagerInternal(
 	reservationFilters map[string]bool,
 	allocationFilters map[string]bool) *predicateManagerImpl {
 	pluginRegistry := plugins.NewInTreeRegistry()
-	algRegistry := algorithmprovider.NewRegistry()
-	registeredPlugins, exist := algRegistry[apiConfig.SchedulerDefaultProviderName]
 
-	if !exist {
-		// this is unrecoverable
-		log.Logger().Fatal(fmt.Sprintf("BUG: Can't get default scheduler provider: %s", apiConfig.SchedulerDefaultProviderName))
+	cfg, err := defaultConfig() // latest.Default()
+	if err != nil {
+		log.Logger().Fatal("Unable to get default predicate config", zap.Error(err))
 	}
 
+	profile := cfg.Profiles[0] // first profile is default
+	registeredPlugins := profile.Plugins
 	createdPlugins := make(map[string]framework.Plugin)
 	reservationPreFilterPlugins := &apiConfig.PluginSet{}
 	allocationPreFilterPlugins := &apiConfig.PluginSet{}
 	reservationFilterPlugins := &apiConfig.PluginSet{}
 	allocationFilterPlugins := &apiConfig.PluginSet{}
 
-	addPlugins("PreFilter", registeredPlugins.PreFilter, reservationPreFilterPlugins, reservationPreFilters)
-	addPlugins("PreFilter", registeredPlugins.PreFilter, allocationPreFilterPlugins, allocationPreFilters)
-	addPlugins("Filter", registeredPlugins.Filter, reservationFilterPlugins, reservationFilters)
-	addPlugins("Filter", registeredPlugins.Filter, allocationFilterPlugins, allocationFilters)
+	addPlugins("PreFilter", &registeredPlugins.PreFilter, reservationPreFilterPlugins, reservationPreFilters)
+	addPlugins("PreFilter", &registeredPlugins.PreFilter, allocationPreFilterPlugins, allocationPreFilters)
+	addPlugins("Filter", &registeredPlugins.Filter, reservationFilterPlugins, reservationFilters)
+	addPlugins("Filter", &registeredPlugins.Filter, allocationFilterPlugins, allocationFilters)
 
 	createPlugins(handle, pluginRegistry, reservationPreFilterPlugins, createdPlugins)
 	createPlugins(handle, pluginRegistry, allocationPreFilterPlugins, createdPlugins)
@@ -324,6 +328,23 @@ func newPredicateManagerInternal(
 	return pm
 }
 
+func defaultConfig() (*apiConfig.KubeSchedulerConfiguration, error) {
+	versionedCfg := v1beta2.KubeSchedulerConfiguration{}
+	versionedCfg.DebuggingConfiguration = *v1alpha1.NewRecommendedDebuggingConfiguration()
+
+	scheme.Scheme.Default(&versionedCfg)
+	cfg := apiConfig.KubeSchedulerConfiguration{}
+	if err := scheme.Scheme.Convert(&versionedCfg, &cfg, nil); err != nil {
+		return nil, err
+	}
+	// We don't set this field in pkg/scheduler/apis/config/{version}/conversion.go
+	// because the field will be cleared later by API machinery during
+	// conversion. See KubeSchedulerConfiguration internal type definition for
+	// more details.
+	cfg.TypeMeta.APIVersion = v1beta2.SchemeGroupVersion.String()
+	return &cfg, nil
+}
+
 func addPlugins(phase string, source *apiConfig.PluginSet, dest *apiConfig.PluginSet, pluginFilter map[string]bool) {
 	for _, p := range source.Enabled {
 		enabled, ok := pluginFilter[p.Name]
@@ -376,7 +397,7 @@ func getPluginArgsOrDefault(pluginConfig map[string]runtime.Object, name string)
 		return res, nil
 	}
 	// Use defaults from latest config API version.
-	gvk := v1beta1.SchemeGroupVersion.WithKind(name + "Args")
+	gvk := v1beta2.SchemeGroupVersion.WithKind(name + "Args")
 	obj, _, err := configDecoder.Decode(nil, &gvk, nil)
 	if runtime.IsNotRegisteredError(err) {
 		// This plugin doesn't require configuration.

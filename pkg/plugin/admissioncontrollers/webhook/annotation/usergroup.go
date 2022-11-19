@@ -21,7 +21,6 @@ package annotation
 import (
 	"encoding/json"
 	"reflect"
-	"regexp"
 	"strings"
 
 	"go.uber.org/zap"
@@ -30,15 +29,20 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	batchv1Beta "k8s.io/api/batch/v1beta1"
 
+	"github.com/apache/yunikorn-k8shim/pkg/plugin/admissioncontrollers/webhook/conf"
+
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
 
 type UserGroupAnnotationHandler struct {
-	TrustControllers bool
-	SystemUsers      []*regexp.Regexp
-	ExternalUsers    []*regexp.Regexp
-	ExternalGroups   []*regexp.Regexp
+	conf *conf.AdmissionControllerConf
+}
+
+func NewUserGroupAnnotationHandler(conf *conf.AdmissionControllerConf) *UserGroupAnnotationHandler {
+	return &UserGroupAnnotationHandler{
+		conf: conf,
+	}
 }
 
 type Extractor func(*admissionv1.AdmissionRequest) (map[string]string, error)
@@ -62,8 +66,8 @@ var (
 )
 
 func (u *UserGroupAnnotationHandler) IsAnnotationAllowed(userName string, groups []string) bool {
-	if u.TrustControllers {
-		for _, sysUser := range u.SystemUsers {
+	if u.conf.GetTrustControllers() {
+		for _, sysUser := range u.conf.GetSystemUsers() {
 			if sysUser.MatchString(userName) {
 				log.Logger().Debug("Request submitted from a system user, bypassing",
 					zap.String("userName", userName))
@@ -72,7 +76,7 @@ func (u *UserGroupAnnotationHandler) IsAnnotationAllowed(userName string, groups
 		}
 	}
 
-	for _, allowedUser := range u.ExternalUsers {
+	for _, allowedUser := range u.conf.GetExternalUsers() {
 		if allowedUser.MatchString(userName) {
 			log.Logger().Debug("Request submitted from an allowed external user",
 				zap.String("userName", userName))
@@ -80,7 +84,7 @@ func (u *UserGroupAnnotationHandler) IsAnnotationAllowed(userName string, groups
 		}
 	}
 
-	for _, allowedGroup := range u.ExternalGroups {
+	for _, allowedGroup := range u.conf.GetExternalGroups() {
 		for _, group := range groups {
 			if allowedGroup.MatchString(group) {
 				log.Logger().Debug("Request submitted from an allowed external group",

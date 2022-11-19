@@ -21,11 +21,14 @@ package utils
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
 
 	"go.uber.org/zap"
+
+	"github.com/apache/yunikorn-k8shim/pkg/conf"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -35,10 +38,12 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
 	"github.com/apache/yunikorn-k8shim/pkg/common"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
-	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
+	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
+
+const userInfoKey = siCommon.DomainYuniKorn + "user.info"
 
 func Convert2Pod(obj interface{}) (*v1.Pod, error) {
 	pod, ok := obj.(*v1.Pod)
@@ -46,6 +51,14 @@ func Convert2Pod(obj interface{}) (*v1.Pod, error) {
 		return nil, fmt.Errorf("cannot convert to *v1.Pod: %v", obj)
 	}
 	return pod, nil
+}
+
+func Convert2ConfigMap(obj interface{}) *v1.ConfigMap {
+	if configmap, ok := obj.(*v1.ConfigMap); ok {
+		return configmap
+	}
+	log.Logger().Warn("cannot convert to *v1.ConfigMap", zap.Stringer("type", reflect.TypeOf(obj)))
+	return nil
 }
 
 func NeedRecovery(pod *v1.Pod) bool {
@@ -239,8 +252,28 @@ func MergeMaps(first, second map[string]string) map[string]string {
 	return result
 }
 
-// find user name from pod label
-func GetUserFromPod(pod *v1.Pod) string {
+// GetUserFromPod find username from pod annotation or label
+func GetUserFromPod(pod *v1.Pod) (string, []string) {
+	if pod.Annotations[userInfoKey] != "" {
+		userInfoJSON := pod.Annotations[userInfoKey]
+		var userGroup si.UserGroupInformation
+		err := json.Unmarshal([]byte(userInfoJSON), &userGroup)
+		if err != nil {
+			log.Logger().Error("unable to process user info annotation", zap.Error(err))
+			return constants.DefaultUser, nil
+		}
+		user := userGroup.User
+		groups := userGroup.Groups
+		if user == "" {
+			log.Logger().Warn("got empty username, using default")
+			user = constants.DefaultUser
+		}
+		log.Logger().Info("found user info from pod annotations",
+			zap.String("username", user), zap.Strings("groups", groups))
+		return user, groups
+	}
+
+	// Label is processed for backwards compatibility
 	userLabelKey := conf.GetSchedulerConf().UserLabelKey
 	// UserLabelKey should not be empty
 	if len(userLabelKey) == 0 {
@@ -250,14 +283,40 @@ func GetUserFromPod(pod *v1.Pod) string {
 	if username := GetPodLabelValue(pod, userLabelKey); username != "" && len(username) > 0 {
 		log.Logger().Info("Found user name from pod labels.",
 			zap.String("userLabel", userLabelKey), zap.String("user", username))
-		return username
+		return username, nil
 	}
 	value := constants.DefaultUser
 
 	log.Logger().Debug("Unable to retrieve user name from pod labels. Empty user label",
 		zap.String("userLabel", userLabelKey))
 
-	return value
+	return value, nil
+}
+
+// GetCoreSchedulerConfigFromConfigMap resolves a yunikorn configmap into a core scheduler config.
+// If the configmap is missing or the policy group doesn't exist, uses a default configuration
+func GetCoreSchedulerConfigFromConfigMap(config map[string]string) string {
+	// use default config if there isn't one
+	if len(config) == 0 {
+		return ""
+	}
+	policyGroup := conf.GetSchedulerConf().PolicyGroup
+	if data, ok := config[fmt.Sprintf("%s.yaml", policyGroup)]; ok {
+		return data
+	}
+	return ""
+}
+
+// GetExtraConfigFromConfigMap filters the configmap entries, returning those that are not yaml
+func GetExtraConfigFromConfigMap(config map[string]string) map[string]string {
+	result := make(map[string]string)
+	for k, v := range config {
+		if strings.HasSuffix(k, ".yaml") {
+			continue
+		}
+		result[k] = v
+	}
+	return result
 }
 
 func GetPodAnnotationValue(pod *v1.Pod, annotationKey string) string {

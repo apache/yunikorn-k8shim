@@ -46,8 +46,6 @@ POD_ADMISSION_CONTROLLER_BINARY=scheduler-admission-controller
 GANG_BIN_DIR=${OUTPUT}/gang
 GANG_CLIENT_BINARY=simulation-gang-worker
 GANG_SERVER_BINARY=simulation-gang-coordinator
-LOCAL_CONF=conf
-CONF_FILE=queues.yaml
 REPO=github.com/apache/yunikorn-k8shim/pkg
 
 # Version parameters
@@ -199,7 +197,6 @@ pseudo:
 .PHONY: run
 run: build
 	@echo "running scheduler locally"
-	@cp ${LOCAL_CONF}/${CONF_FILE} ${DEV_BIN_DIR}
 	cd ${DEV_BIN_DIR} && ./${BINARY} -kubeConfig=$(KUBECONFIG) -interval=1s \
 	-clusterId=mycluster -clusterVersion=${VERSION} -policyGroup=queues \
 	-logEncoding=console -logLevel=-1
@@ -207,13 +204,11 @@ run: build
 .PHONY: run_plugin
 run_plugin: build_plugin
 	@echo "running scheduler plugin locally"
-	@cp ${LOCAL_CONF}/${CONF_FILE} ${DEV_BIN_DIR}
-	./scripts/plugin-conf-gen.sh $(KUBECONFIG) ${DEV_BIN_DIR}
 	cd ${DEV_BIN_DIR} && \
 	  ./${PLUGIN_BINARY} \
 	    --address=0.0.0.0 \
 	    --leader-elect=false \
-	    --config=scheduler-config.yaml \
+	    --config=../../conf/scheduler-config-local.yaml \
 	    -v=2 \
 	    --yk-scheduler-name=yunikorn \
 	    --yk-kube-config=$(KUBECONFIG) \
@@ -227,6 +222,7 @@ init:
 	mkdir -p ${DEV_BIN_DIR}
 	mkdir -p ${RELEASE_BIN_DIR}
 	mkdir -p ${ADMISSION_CONTROLLER_BIN_DIR}
+	./scripts/plugin-conf-gen.sh $(KUBECONFIG) "conf/scheduler-config.yaml" "conf/scheduler-config-local.yaml"
 
 # Build scheduler binary for dev and test
 .PHONY: build
@@ -395,9 +391,8 @@ fsm_graph: clean
 clean:
 	@echo "cleaning up caches and output"
 	go clean -cache -testcache -r -x ./... 2>&1 >/dev/null
-	rm -rf ${OUTPUT} ${CONF_FILE} ${BINARY} \
+	rm -rf ${OUTPUT} ${BINARY} \
 	./deployments/image/configmap/${BINARY} \
-	./deployments/image/configmap/${CONF_FILE} \
 	./deployments/image/admission/${POD_ADMISSION_CONTROLLER_BINARY}
 
 # Print arch variables

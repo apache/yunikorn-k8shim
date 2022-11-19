@@ -39,14 +39,10 @@ spec:
         - name: yunikorn-scheduler-k8s
           image: apache/yunikorn:scheduler-latest
           env:
-            - name: LOG_ENCODING
-              value: console
-            - name: LOG_LEVEL
-              value: '-1'
-            - name: CLUSTER_ID
-              value: myCluster
-            - name: CLUSTER_VERSION
-              value: latest
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
           resources:
             requests:
               cpu: 200m

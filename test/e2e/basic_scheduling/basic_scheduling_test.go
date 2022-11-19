@@ -50,6 +50,8 @@ var _ = ginkgo.Describe("", func() {
 		// Initializing rest client
 		restClient = yunikorn.RClient{}
 
+		yunikorn.EnsureYuniKornConfigsPresent()
+
 		By("Port-forward the scheduler pod")
 		err := kClient.PortForwardYkSchedulerPod()
 		Ω(err).NotTo(HaveOccurred())

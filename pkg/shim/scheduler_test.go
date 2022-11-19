@@ -57,15 +57,17 @@ partitions:
 `
 	// init and register scheduler
 	cluster := MockScheduler{}
-	cluster.init(configData)
+	cluster.init()
 	cluster.start()
 	defer cluster.stop()
 
-	// ensure scheduler state
+	// ensure scheduler running
 	cluster.waitForSchedulerState(t, SchedulerStates().Running)
+	err := cluster.updateConfig(configData)
+	assert.NilError(t, err, "update config failed")
 
 	// register nodes
-	err := cluster.addNode("test.host.01", 100000000, 10)
+	err = cluster.addNode("test.host.01", 100000000, 10)
 	assert.NilError(t, err, "add node failed")
 	err = cluster.addNode("test.host.02", 100000000, 10)
 	assert.NilError(t, err, "add node failed")
@@ -105,15 +107,17 @@ partitions:
 `
 	// init and register scheduler
 	cluster := MockScheduler{}
-	cluster.init(configData)
+	cluster.init()
 	cluster.start()
 	defer cluster.stop()
 
 	// ensure scheduler state
 	cluster.waitForSchedulerState(t, SchedulerStates().Running)
+	err := cluster.updateConfig(configData)
+	assert.NilError(t, err, "update config failed")
 
 	// register nodes
-	err := cluster.addNode("test.host.01", 100000000, 10)
+	err = cluster.addNode("test.host.01", 100000000, 10)
 	assert.NilError(t, err)
 	err = cluster.addNode("test.host.02", 100000000, 10)
 	assert.NilError(t, err)
@@ -189,7 +193,7 @@ partitions:
 `
 	// init and register scheduler
 	cluster := MockScheduler{}
-	cluster.init(configData)
+	cluster.init()
 	cluster.start()
 	defer cluster.stop()
 
@@ -203,9 +207,11 @@ partitions:
 
 	// ensure scheduler state
 	cluster.waitForSchedulerState(t, SchedulerStates().Running)
+	err := cluster.updateConfig(configData)
+	assert.NilError(t, err, "update config failed")
 
 	// register nodes
-	err := cluster.addNode("test.host.01", 100000000, 10)
+	err = cluster.addNode("test.host.01", 100000000, 10)
 	assert.NilError(t, err, "add node failed")
 	err = cluster.addNode("test.host.02", 100000000, 10)
 	assert.NilError(t, err, "add node failed")
@@ -226,7 +232,7 @@ partitions:
 
 	// one task get bound, one ask failed, so we are expecting only 1 allocation in the scheduler
 	err = cluster.waitAndVerifySchedulerAllocations("root.a",
-		"[my-kube-cluster]default", "app0001", 1)
+		"[mycluster]default", "app0001", 1)
 	assert.NilError(t, err, "number of allocations is not expected, error")
 }
 

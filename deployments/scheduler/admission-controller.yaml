@@ -50,23 +50,7 @@ spec:
               mountPath: /run/secrets/webhook
               readOnly: true
           env:
-          - name: POLICY_GROUP
-            value: queues
-          - name: ADMISSION_CONTROLLER_SERVICE
-            value: yunikorn-admission-controller-service
-          - name: ADMISSION_CONTROLLER_PROCESS_NAMESPACES
-            value: ""
-          - name: ADMISSION_CONTROLLER_BYPASS_NAMESPACES
-            value: "^kube-system$"
-          - name: ADMISSION_CONTROLLER_LABEL_NAMESPACES
-            value: ""
-          - name: ADMISSION_CONTROLLER_NO_LABEL_NAMESPACES
-            value: ""
-          - name: SCHEDULER_SERVICE_ADDRESS
-            value: yunikorn-service
-          - name: ENABLE_CONFIG_HOT_REFRESH
-            value: "true"
-          - name: ADMISSION_CONTROLLER_NAMESPACE
+          - name: NAMESPACE
             valueFrom:
               fieldRef:
                 fieldPath: metadata.namespace

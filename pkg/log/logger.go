@@ -19,14 +19,11 @@
 package log
 
 import (
-	"encoding/json"
 	"fmt"
 	"sync"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-
-	"github.com/apache/yunikorn-k8shim/pkg/conf"
 )
 
 var once sync.Once
@@ -39,20 +36,15 @@ func Logger() *zap.Logger {
 }
 
 func initLogger() {
-	configs := conf.GetSchedulerConf()
-
 	outputPaths := []string{"stdout"}
-	if configs.LogFile != "" {
-		outputPaths = append(outputPaths, configs.LogFile)
-	}
 
 	zapConfigs = &zap.Config{
-		Level:             zap.NewAtomicLevelAt(zapcore.Level(configs.LoggingLevel)),
+		Level:             zap.NewAtomicLevelAt(zapcore.Level(0)),
 		Development:       false,
 		DisableCaller:     false,
 		DisableStacktrace: false,
 		Sampling:          nil,
-		Encoding:          configs.LogEncoding,
+		Encoding:          "console",
 		EncoderConfig: zapcore.EncoderConfig{
 			MessageKey:    "message",
 			LevelKey:      "level",
@@ -80,20 +72,13 @@ func initLogger() {
 		logger = zap.NewNop()
 	}
 
-	// dump configuration
-	var c []byte
-	c, err = json.MarshalIndent(&configs, "", " ")
-	if err != nil {
-		logger.Info("scheduler configuration, json conversion failed", zap.Any("configs", configs))
-	} else {
-		logger.Info("scheduler configuration, pretty print", zap.ByteString("configs", c))
-	}
-
 	// make sure logs are flushed
 	//nolint:errcheck
 	defer logger.Sync()
 }
 
 func GetZapConfigs() *zap.Config {
+	// force init
+	_ = Logger()
 	return zapConfigs
 }

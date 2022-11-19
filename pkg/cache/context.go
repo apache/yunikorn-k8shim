@@ -19,7 +19,6 @@
 package cache
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -28,11 +27,9 @@ import (
 
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/tools/cache"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
-	"k8s.io/kubernetes/pkg/controller/volume/scheduling"
+	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/volumebinding"
 
 	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
 	schedulercache "github.com/apache/yunikorn-k8shim/pkg/cache/external"
@@ -41,6 +38,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
+	schedulerconf "github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-k8shim/pkg/plugin/predicates"
@@ -57,6 +55,8 @@ type Context struct {
 	apiProvider    client.APIProvider             // apis to interact with api-server, scheduler-core, etc
 	predManager    predicates.PredicateManager    // K8s predicates
 	pluginMode     bool                           // true if we are configured as a scheduler plugin
+	namespace      string                         // yunikorn namespace
+	configMaps     []*v1.ConfigMap                // cached yunikorn configmaps
 	lock           *sync.RWMutex                  // lock
 }
 
@@ -70,6 +70,8 @@ func NewContext(apis client.APIProvider) *Context {
 	ctx := &Context{
 		applications: make(map[string]*Application),
 		apiProvider:  apis,
+		namespace:    apis.GetAPIs().GetConf().Namespace,
+		configMaps:   []*v1.ConfigMap{nil, nil},
 		lock:         &sync.RWMutex{},
 	}
 
@@ -139,7 +141,7 @@ func (ctx *Context) addNode(obj interface{}) {
 	}
 
 	// add node to secondary scheduler cache
-	log.Logger().Debug("adding node to cache", zap.String("NodeName", node.Name))
+	log.Logger().Warn("adding node to cache", zap.String("NodeName", node.Name))
 	ctx.schedulerCache.AddNode(node)
 
 	// add node to internal cache
@@ -281,47 +283,99 @@ func (ctx *Context) filterPods(obj interface{}) bool {
 func (ctx *Context) filterConfigMaps(obj interface{}) bool {
 	switch obj := obj.(type) {
 	case *v1.ConfigMap:
-		return obj.Name == constants.DefaultConfigMapName
+		return (obj.Name == constants.DefaultConfigMapName || obj.Name == constants.ConfigMapName) && obj.Namespace == ctx.namespace
+	case cache.DeletedFinalStateUnknown:
+		return ctx.filterConfigMaps(obj.Obj)
 	default:
 		return false
 	}
 }
 
-// when detects the configMap for the scheduler is added, trigger hot-refresh
+// when the configMap for the scheduler is added, trigger hot-refresh
 func (ctx *Context) addConfigMaps(obj interface{}) {
 	log.Logger().Debug("configMap added")
+	configmap := utils.Convert2ConfigMap(obj)
+	switch configmap.Name {
+	case constants.DefaultConfigMapName:
+		ctx.configMaps[0] = configmap
+	case constants.ConfigMapName:
+		ctx.configMaps[1] = configmap
+	default:
+		// ignore
+		return
+	}
 	ctx.triggerReloadConfig()
 }
 
-// when detects the configMap for the scheduler is updated, trigger hot-refresh
-func (ctx *Context) updateConfigMaps(obj, newObj interface{}) {
-	if ctx.apiProvider.GetAPIs().Conf.EnableConfigHotRefresh {
-		log.Logger().Debug("trigger scheduler to reload configuration")
-		// When update event is received, it is not guaranteed the data mounted to the pod
-		// is also updated. This is because the actual update in pod's volume is ensured
-		// by kubelet, kubelet is checking whether the mounted ConfigMap is fresh on every
-		// periodic sync. As a result, the total delay from the moment when the ConfigMap
-		// is updated to the moment when new keys are projected to the pod can be as long
-		// as kubelet sync period + ttl of ConfigMaps cache in kubelet.
-		// We trigger configuration reload, on yunikorn-core side, it keeps checking config
-		// file state once this is called. And the actual reload happens when it detects
-		// actual changes on the content.
-		ctx.triggerReloadConfig()
-	} else {
-		log.Logger().Warn("Skip to reload scheduler configuration")
+// when the configMap for the scheduler is updated, trigger hot-refresh
+func (ctx *Context) updateConfigMaps(_, newObj interface{}) {
+	log.Logger().Debug("configMap updated")
+	configmap := utils.Convert2ConfigMap(newObj)
+	switch configmap.Name {
+	case constants.DefaultConfigMapName:
+		ctx.configMaps[0] = configmap
+	case constants.ConfigMapName:
+		ctx.configMaps[1] = configmap
+	default:
+		// ignore
+		return
 	}
+	ctx.triggerReloadConfig()
 }
 
-// when detects the configMap for the scheduler is deleted, no operation needed here
-// we assume there will be a consequent add operation after delete, so we treat it like a update.
+// when the configMap for the scheduler is deleted, trigger refresh using default config
 func (ctx *Context) deleteConfigMaps(obj interface{}) {
 	log.Logger().Debug("configMap deleted")
+	var configmap *v1.ConfigMap = nil
+	switch t := obj.(type) {
+	case *v1.ConfigMap:
+		configmap = t
+	case cache.DeletedFinalStateUnknown:
+		configmap = utils.Convert2ConfigMap(obj)
+	default:
+		log.Logger().Warn("unable to convert to configmap")
+		return
+	}
+
+	switch configmap.Name {
+	case constants.DefaultConfigMapName:
+		ctx.configMaps[0] = nil
+	case constants.ConfigMapName:
+		ctx.configMaps[1] = nil
+	default:
+		// ignore
+		return
+	}
+	ctx.triggerReloadConfig()
 }
 
 func (ctx *Context) triggerReloadConfig() {
-	log.Logger().Info("trigger scheduler configuration reloading")
-	clusterId := ctx.apiProvider.GetAPIs().Conf.ClusterID
-	if err := ctx.apiProvider.GetAPIs().SchedulerAPI.UpdateConfiguration(clusterId); err != nil {
+	conf := ctx.apiProvider.GetAPIs().GetConf()
+	if !conf.EnableConfigHotRefresh {
+		log.Logger().Info("hot-refresh disabled, skipping scheduler configuration update")
+		return
+	}
+
+	err := schedulerconf.UpdateConfigMaps(ctx.configMaps, false)
+	if err != nil {
+		log.Logger().Error("Unable to update configmap, ignoring changes", zap.Error(err))
+		return
+	}
+
+	confMap := schedulerconf.FlattenConfigMaps(ctx.configMaps)
+
+	conf = ctx.apiProvider.GetAPIs().GetConf()
+	log.Logger().Info("reloading scheduler configuration")
+	config := utils.GetCoreSchedulerConfigFromConfigMap(confMap)
+	extraConfig := utils.GetExtraConfigFromConfigMap(confMap)
+
+	request := &si.UpdateConfigurationRequest{
+		RmID:        conf.ClusterID,
+		PolicyGroup: conf.PolicyGroup,
+		Config:      config,
+		ExtraConfig: extraConfig,
+	}
+	if err := ctx.apiProvider.GetAPIs().SchedulerAPI.UpdateConfiguration(request); err != nil {
 		log.Logger().Error("reload configuration failed", zap.Error(err))
 	}
 }
@@ -410,7 +464,7 @@ func (ctx *Context) bindPodVolumes(pod *v1.Pod) error {
 			}
 			if volumes.StaticBindings == nil {
 				// convert nil to empty array
-				volumes.StaticBindings = make([]*scheduling.BindingInfo, 0)
+				volumes.StaticBindings = make([]*volumebinding.BindingInfo, 0)
 			}
 			if volumes.DynamicProvisions == nil {
 				// convert nil to empty array
@@ -555,8 +609,8 @@ func (ctx *Context) NotifyTaskComplete(appID, taskID string) {
 
 // update application tags in the AddApplicationRequest based on the namespace annotation
 // adds the following tags to the request based on annotations (if exist):
-//    - namespace.resourcequota
-//    - namespace.parentqueue
+//   - namespace.resourcequota
+//   - namespace.parentqueue
 func (ctx *Context) updateApplicationTags(request *interfaces.AddApplicationRequest, namespace string) {
 	namespaceObj := ctx.getNamespaceObject(namespace)
 	if namespaceObj == nil {
@@ -840,8 +894,7 @@ func (ctx *Context) updatePodCondition(task *Task, podCondition *v1.PodCondition
 			if podutil.UpdatePodCondition(&task.pod.Status, podCondition) {
 				if !ctx.apiProvider.IsTestingMode() {
 					podCopy := task.pod.DeepCopy()
-					_, err := ctx.apiProvider.GetAPIs().KubeClient.GetClientSet().CoreV1().
-						Pods(podCopy.Namespace).UpdateStatus(context.Background(), podCopy, metav1.UpdateOptions{})
+					_, err := ctx.apiProvider.GetAPIs().KubeClient.UpdateStatus(podCopy)
 					if err == nil {
 						return true
 					}
@@ -948,61 +1001,18 @@ func (ctx *Context) SchedulerNodeEventHandler() func(obj interface{}) {
 	return nil
 }
 
-func findYKConfigMap(configMaps []*v1.ConfigMap) (*v1.ConfigMap, error) {
-	if len(configMaps) == 0 {
-		return nil, fmt.Errorf("configmap with label app:yunikorn not found")
-	}
-	for _, c := range configMaps {
-		if c.Name == constants.DefaultConfigMapName {
-			return c, nil
-		}
-	}
-	return nil, fmt.Errorf("configmap with name %s not found", constants.DefaultConfigMapName)
-}
+func (ctx *Context) LoadConfigMaps() ([]*v1.ConfigMap, error) {
+	kubeClient := ctx.apiProvider.GetAPIs().KubeClient
 
-/*
-Save the configmap and returns the old one and an error if the process failed
-*/
-func (ctx *Context) SaveConfigmap(request *si.UpdateConfigurationRequest) *si.UpdateConfigurationResponse {
-	// if hot-refresh is enabled, configMap change through the API is not allowed
-	if ctx.apiProvider.GetAPIs().Conf.EnableConfigHotRefresh {
-		return &si.UpdateConfigurationResponse{
-			Success: false,
-			Reason: fmt.Sprintf("hot-refresh is enabled. To use the API for configuration update, " +
-				"set enableConfigHotRefresh = false and restart the scheduler"),
-		}
-	}
-	slt := labels.SelectorFromSet(labels.Set{constants.LabelApp: "yunikorn"})
-
-	configMaps, err := ctx.apiProvider.GetAPIs().ConfigMapInformer.Lister().List(slt)
+	defaults, err := kubeClient.GetConfigMap(ctx.namespace, constants.DefaultConfigMapName)
 	if err != nil {
-		return &si.UpdateConfigurationResponse{
-			Success: false,
-			Reason:  err.Error(),
-		}
-	}
-	ykconf, err := findYKConfigMap(configMaps)
-	if err != nil {
-		return &si.UpdateConfigurationResponse{
-			Success: false,
-			Reason:  err.Error(),
-		}
+		return nil, err
 	}
 
-	newConfData := map[string]string{"queues.yaml": strings.ReplaceAll(request.Configs, "\r\n", "\n")}
-	newConf := ykconf.DeepCopy()
-	oldConfData := ykconf.Data["queues.yaml"]
-	newConf.Data = newConfData
-	_, err = ctx.apiProvider.GetAPIs().KubeClient.GetClientSet().CoreV1().ConfigMaps(ykconf.Namespace).Update(context.Background(), newConf, metav1.UpdateOptions{})
+	config, err := kubeClient.GetConfigMap(ctx.namespace, constants.ConfigMapName)
 	if err != nil {
-		return &si.UpdateConfigurationResponse{
-			Success: false,
-			Reason:  err.Error(),
-		}
+		return nil, err
 	}
-	log.Logger().Info("ConfigMap updated successfully")
-	return &si.UpdateConfigurationResponse{
-		Success:   true,
-		OldConfig: oldConfData,
-	}
+
+	return []*v1.ConfigMap{defaults, config}, nil
 }

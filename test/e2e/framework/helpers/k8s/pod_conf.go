@@ -99,11 +99,13 @@ func InitSleepPod(conf SleepPodConfig) (*v1.Pod, error) {
 		optedOut = "false"
 	}
 
+	var secs int64 = 0
 	testPodConfig := TestPodConfig{
-		Name:          conf.Name,
-		Namespace:     conf.NS,
-		RestartPolicy: v1.RestartPolicyNever,
-		Command:       []string{"sleep", strconv.Itoa(conf.Time)},
+		Name:                       conf.Name,
+		Namespace:                  conf.NS,
+		RestartPolicy:              v1.RestartPolicyNever,
+		DeletionGracePeriodSeconds: &secs,
+		Command:                    []string{"sleep", strconv.Itoa(conf.Time)},
 		Labels: map[string]string{
 			"app":                                  "sleep",
 			"applicationId":                        conf.AppID,

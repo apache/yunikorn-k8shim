@@ -25,9 +25,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"go.uber.org/zap"
@@ -40,21 +38,24 @@ import (
 
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
+	schedulerconf "github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-k8shim/pkg/plugin/admissioncontrollers/webhook/annotation"
+	"github.com/apache/yunikorn-k8shim/pkg/plugin/admissioncontrollers/webhook/conf"
 	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 )
 
 const (
-	autoGenAppPrefix             = "yunikorn"
-	autoGenAppSuffix             = "autogen"
-	enableConfigHotRefreshEnvVar = "ENABLE_CONFIG_HOT_REFRESH"
-	yunikornPod                  = "yunikorn"
-	defaultQueue                 = "root.default"
-	configHotFreshResponse       = "ConfigHotRefresh is disabled. Please use the REST API to update the configuration, or enable configHotRefresh. "
-	admissionReviewAPIVersion    = "admission.k8s.io/v1"
-	admissionReviewKind          = "AdmissionReview"
-	userInfoAnnotation           = siCommon.DomainYuniKorn + "user.info"
+	autoGenAppPrefix                = "yunikorn"
+	autoGenAppSuffix                = "autogen"
+	yunikornPod                     = "yunikorn"
+	defaultQueue                    = "root.default"
+	admissionReviewAPIVersion       = "admission.k8s.io/v1"
+	admissionReviewKind             = "AdmissionReview"
+	userInfoAnnotation              = siCommon.DomainYuniKorn + "user.info"
+	schedulerValidateConfURLPattern = "http://%s/ws/v1/validate-conf"
+	mutateURL                       = "/mutate"
+	validateConfURL                 = "/validate-conf"
 )
 
 var (
@@ -64,14 +65,8 @@ var (
 )
 
 type admissionController struct {
-	configName               string
-	schedulerValidateConfURL string
-	bypassAuth               bool
-	processNamespaces        []*regexp.Regexp
-	bypassNamespaces         []*regexp.Regexp
-	labelNamespaces          []*regexp.Regexp
-	noLabelNamespaces        []*regexp.Regexp
-	annotationHandler        *annotation.UserGroupAnnotationHandler
+	conf              *conf.AdmissionControllerConf
+	annotationHandler *annotation.UserGroupAnnotationHandler
 }
 
 type patchOperation struct {
@@ -85,92 +80,14 @@ type ValidateConfResponse struct {
 	Reason  string `json:"reason"`
 }
 
-func initAdmissionController(configName string,
-	schedulerValidateConfURL string,
-	processNamespaces string,
-	bypassNamespaces string,
-	labelNamespaces string,
-	noLabelNamespaces string,
-	bypassAuth bool,
-	trustControllers bool,
-	systemUsers string,
-	externalUsers string,
-	externalGroups string) (*admissionController, error) {
-	processRegexes, err := parseRegexes(processNamespaces)
-	if err != nil {
-		return nil, err
-	}
-	bypassRegexes, err := parseRegexes(bypassNamespaces)
-	if err != nil {
-		return nil, err
-	}
-	labelRegexes, err := parseRegexes(labelNamespaces)
-	if err != nil {
-		return nil, err
-	}
-	noLabelRegexes, err := parseRegexes(noLabelNamespaces)
-	if err != nil {
-		return nil, err
+func initAdmissionController(conf *conf.AdmissionControllerConf) *admissionController {
+	hook := &admissionController{
+		conf:              conf,
+		annotationHandler: annotation.NewUserGroupAnnotationHandler(conf),
 	}
 
-	var systemUsersRegexes []*regexp.Regexp
-	if systemUsers != "" {
-		regexps, err := parseRegexes(systemUsers)
-		if err != nil {
-			return nil, err
-		}
-		systemUsersRegexes = regexps
-	}
-
-	var externalUsersRegexes []*regexp.Regexp
-	if externalUsers != "" {
-		regexps, err := parseRegexes(externalUsers)
-		if err != nil {
-			return nil, err
-		}
-		externalUsersRegexes = regexps
-	}
-
-	var externalGroupsRegexes []*regexp.Regexp
-	if externalGroups != "" {
-		regexps, err := parseRegexes(externalGroups)
-		if err != nil {
-			return nil, err
-		}
-		externalGroupsRegexes = regexps
-	}
-
-	annotationHandler := &annotation.UserGroupAnnotationHandler{
-		TrustControllers: trustControllers,
-		SystemUsers:      systemUsersRegexes,
-		ExternalGroups:   externalGroupsRegexes,
-		ExternalUsers:    externalUsersRegexes,
-	}
-
-	hook := admissionController{
-		configName:               configName,
-		schedulerValidateConfURL: schedulerValidateConfURL,
-		bypassAuth:               bypassAuth,
-		processNamespaces:        processRegexes,
-		bypassNamespaces:         bypassRegexes,
-		labelNamespaces:          labelRegexes,
-		noLabelNamespaces:        noLabelRegexes,
-		annotationHandler:        annotationHandler,
-	}
-
-	log.Logger().Info("Initialized YuniKorn Admission Controller",
-		zap.String("processNs", processNamespaces),
-		zap.String("bypassNs", bypassNamespaces),
-		zap.String("labelNs", labelNamespaces),
-		zap.String("noLabelNs", noLabelNamespaces),
-		zap.Bool("bypassAuth", bypassAuth),
-		zap.Bool("trustControllers", trustControllers),
-		zap.String("systemUsers", systemUsers),
-		zap.String("externalUsers", externalUsers),
-		zap.String("externalGroups", externalGroups),
-	)
-
-	return &hook, nil
+	log.Logger().Info("Initialized YuniKorn Admission Controller")
+	return hook
 }
 
 func parseRegexes(patterns string) ([]*regexp.Regexp, error) {
@@ -307,7 +224,7 @@ func (c *admissionController) processWorkload(req *admissionv1.AdmissionRequest)
 }
 
 func (c *admissionController) checkUserInfoAnnotation(getAnnotation func() (string, bool), userName string, groups []string, uid string) *admissionv1.AdmissionResponse {
-	if annotation, ok := getAnnotation(); ok && !c.bypassAuth {
+	if annotation, ok := getAnnotation(); ok && !c.conf.GetBypassAuth() {
 		if allowed := c.annotationHandler.IsAnnotationAllowed(userName, groups); !allowed {
 			errMsg := fmt.Sprintf("user %s with groups [%s] is not allowed to set user annotation", userName,
 				strings.Join(groups, ","))
@@ -361,20 +278,6 @@ func updateLabels(namespace string, pod *v1.Pod, patch []patchOperation) []patch
 	return patch
 }
 
-func isConfigMapUpdateAllowed(userInfo string) bool {
-	hotRefreshEnabled := os.Getenv(enableConfigHotRefreshEnvVar)
-	allowed, err := strconv.ParseBool(hotRefreshEnabled)
-	if err != nil {
-		log.Logger().Error("Failed to parse ENABLE_CONFIG_HOT_REFRESH value",
-			zap.String("ENABLE_CONFIG_HOT_REFRESH", hotRefreshEnabled))
-		return false
-	}
-	if allowed || strings.Contains(userInfo, "yunikorn-admin") {
-		return true
-	}
-	return false
-}
-
 func (c *admissionController) validateConf(req *admissionv1.AdmissionRequest) *admissionv1.AdmissionResponse {
 	if req == nil {
 		log.Logger().Warn("empty request received")
@@ -382,14 +285,16 @@ func (c *admissionController) validateConf(req *admissionv1.AdmissionRequest) *a
 	}
 
 	uid := string(req.UID)
-	if !isConfigMapUpdateAllowed(req.UserInfo.Username) {
-		return admissionResponseBuilder(uid, false, configHotFreshResponse, nil)
-	}
 
 	var requestKind = req.Kind.Kind
 	if requestKind != "ConfigMap" {
 		log.Logger().Warn("request kind is not configmap", zap.String("requestKind", requestKind))
 		return admissionResponseBuilder(uid, true, "", nil)
+	}
+
+	namespace := req.Namespace
+	if namespace == "" {
+		namespace = "default"
 	}
 
 	var configmap v1.ConfigMap
@@ -399,7 +304,7 @@ func (c *admissionController) validateConf(req *admissionv1.AdmissionRequest) *a
 	}
 
 	// validate new/updated config map
-	if err := c.validateConfigMap(&configmap); err != nil {
+	if err := c.validateConfigMap(namespace, &configmap); err != nil {
 		log.Logger().Error("failed to validate yunikorn configs", zap.Error(err))
 		return admissionResponseBuilder(uid, false, err.Error(), nil)
 	}
@@ -408,10 +313,11 @@ func (c *admissionController) validateConf(req *admissionv1.AdmissionRequest) *a
 }
 
 func (c *admissionController) namespaceMatchesProcessList(namespace string) bool {
-	if len(c.processNamespaces) == 0 {
+	processNamespaces := c.conf.GetProcessNamespaces()
+	if len(processNamespaces) == 0 {
 		return true
 	}
-	for _, re := range c.processNamespaces {
+	for _, re := range processNamespaces {
 		if re.MatchString(namespace) {
 			return true
 		}
@@ -420,7 +326,8 @@ func (c *admissionController) namespaceMatchesProcessList(namespace string) bool
 }
 
 func (c *admissionController) namespaceMatchesBypassList(namespace string) bool {
-	for _, re := range c.bypassNamespaces {
+	bypassNamespaces := c.conf.GetBypassNamespaces()
+	for _, re := range bypassNamespaces {
 		if re.MatchString(namespace) {
 			return true
 		}
@@ -429,10 +336,11 @@ func (c *admissionController) namespaceMatchesBypassList(namespace string) bool 
 }
 
 func (c *admissionController) namespaceMatchesLabelList(namespace string) bool {
-	if len(c.labelNamespaces) == 0 {
+	labelNamespaces := c.conf.GetLabelNamespaces()
+	if len(labelNamespaces) == 0 {
 		return true
 	}
-	for _, re := range c.labelNamespaces {
+	for _, re := range labelNamespaces {
 		if re.MatchString(namespace) {
 			return true
 		}
@@ -441,7 +349,8 @@ func (c *admissionController) namespaceMatchesLabelList(namespace string) bool {
 }
 
 func (c *admissionController) namespaceMatchesNoLabelList(namespace string) bool {
-	for _, re := range c.noLabelNamespaces {
+	noLabelNamespaces := c.conf.GetNoLabelNamespaces()
+	for _, re := range noLabelNamespaces {
 		if re.MatchString(namespace) {
 			return true
 		}
@@ -457,47 +366,64 @@ func (c *admissionController) shouldLabelNamespace(namespace string) bool {
 	return c.namespaceMatchesLabelList(namespace) && !c.namespaceMatchesNoLabelList(namespace)
 }
 
-func (c *admissionController) validateConfigMap(cm *v1.ConfigMap) error {
-	if cm.Name == constants.DefaultConfigMapName {
-		if content, ok := cm.Data[c.configName]; ok {
-			checksum := fmt.Sprintf("%X", sha256.Sum256([]byte(content)))
-			log.Logger().Info("Validating YuniKorn configuration", zap.String("checksum", checksum))
-			log.Logger().Debug("Configmap data", zap.ByteString("content", []byte(content)))
-			response, err := http.Post(c.schedulerValidateConfURL, "application/json", bytes.NewBuffer([]byte(content)))
-			if err != nil {
-				log.Logger().Error("YuniKorn scheduler is unreachable, assuming configmap is valid", zap.Error(err))
-				return nil
-			}
-			defer response.Body.Close()
-			if response.StatusCode < 200 || response.StatusCode > 299 {
-				log.Logger().Error("YuniKorn scheduler responded with unexpected status, assuming configmap is valid",
-					zap.Int("status", response.StatusCode))
-				return nil
-			}
-			responseBytes, err := io.ReadAll(response.Body)
-			if err != nil {
-				log.Logger().Error("Unable to read response from YuniKorn scheduler, assuming configmap is valid", zap.Error(err))
-				return nil
-			}
-			var responseData ValidateConfResponse
-			if err := json.Unmarshal(responseBytes, &responseData); err != nil {
-				log.Logger().Error("Unable to parse response from YuniKorn scheduler, assuming configmap is valid", zap.Error(err))
-				return nil
-			}
-			if !responseData.Allowed {
-				err = fmt.Errorf(responseData.Reason)
-				log.Logger().Error("Configmap validation failed, aborting", zap.Error(err))
-				return err
-			}
-		} else {
-			err := fmt.Errorf("required config '%s' not found in this configmap", c.configName)
-			log.Logger().Error("Unable to parse YuniKorn configmap", zap.Error(err))
-			return err
-		}
-		log.Logger().Info("Successfully validated YuniKorn configuration")
-	} else {
-		log.Logger().Debug("Configmap does not belong to YuniKorn", zap.String("Name", cm.Name))
+func (c *admissionController) validateConfigMap(namespace string, cm *v1.ConfigMap) error {
+	if namespace != c.conf.GetNamespace() {
+		log.Logger().Debug("Configmap does not belong to YuniKorn", zap.String("namespace", namespace), zap.String("Name", cm.Name))
+		return nil
 	}
+
+	configMaps := c.conf.GetConfigMaps()
+	switch cm.Name {
+	case constants.DefaultConfigMapName:
+		configMaps[0] = cm
+	case constants.ConfigMapName:
+		configMaps[1] = cm
+	default:
+		log.Logger().Debug("Configmap does not belong to YuniKorn", zap.String("namespace", namespace), zap.String("Name", cm.Name))
+		return nil
+	}
+
+	configs := schedulerconf.FlattenConfigMaps(configMaps)
+	policyGroup := conf.GetPendingPolicyGroup(configs)
+	confKey := fmt.Sprintf("%s.yaml", policyGroup)
+
+	content, ok := configs[confKey]
+	if !ok {
+		log.Logger().Info("Configmap missing policygroup config, using default", zap.String("entry", confKey))
+		content = ""
+	}
+
+	checksum := fmt.Sprintf("%X", sha256.Sum256([]byte(content)))
+	log.Logger().Info("Validating YuniKorn configuration", zap.String("checksum", checksum))
+	log.Logger().Debug("Configmap data", zap.ByteString("content", []byte(content)))
+	response, err := http.Post(fmt.Sprintf(schedulerValidateConfURLPattern, c.conf.GetSchedulerServiceAddress()), "application/json", bytes.NewBuffer([]byte(content)))
+	if err != nil {
+		log.Logger().Error("YuniKorn scheduler is unreachable, assuming configmap is valid", zap.Error(err))
+		return nil
+	}
+	defer response.Body.Close()
+	if response.StatusCode < 200 || response.StatusCode > 299 {
+		log.Logger().Error("YuniKorn scheduler responded with unexpected status, assuming configmap is valid",
+			zap.Int("status", response.StatusCode))
+		return nil
+	}
+	responseBytes, err := io.ReadAll(response.Body)
+	if err != nil {
+		log.Logger().Error("Unable to read response from YuniKorn scheduler, assuming configmap is valid", zap.Error(err))
+		return nil
+	}
+	var responseData ValidateConfResponse
+	if err = json.Unmarshal(responseBytes, &responseData); err != nil {
+		log.Logger().Error("Unable to parse response from YuniKorn scheduler, assuming configmap is valid", zap.Error(err))
+		return nil
+	}
+	if !responseData.Allowed {
+		err = fmt.Errorf(responseData.Reason)
+		log.Logger().Error("Configmap validation failed, aborting", zap.Error(err))
+		return err
+	}
+
+	log.Logger().Info("Successfully validated YuniKorn configuration")
 	return nil
 }
 
