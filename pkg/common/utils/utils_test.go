@@ -738,7 +738,7 @@ func TestNeedRecovery(t *testing.T) {
 		})
 	}
 }
-<<<<<<< HEAD
+
 func TestGetTaskGroupFromPodSpec(t *testing.T) {
 	pod := &v1.Pod{
 		TypeMeta: metav1.TypeMeta{
@@ -767,7 +767,74 @@ func TestGetTaskGroupFromPodSpec(t *testing.T) {
 		},
 	}
 
-	assert.Equal(t, GetTaskGroupFromPodSpec(pod), "")
+	assert.Equal(t, GetTaskGroupFromPodSpec(pod), constants.NoneValue)
+}
+
+func TestGetPlaceholderFlagFromPodSpec(t *testing.T) {
+	// Setting by annotation
+	pod := &v1.Pod{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "pod-01",
+			UID:  "UID-01",
+			Annotations: map[string]string{
+				constants.AnnotationPlaceholderFlag: "true",
+			},
+		},
+	}
+	assert.Equal(t, GetPlaceholderFlagFromPodSpec(pod), true)
+
+	// Setting by label
+	pod = &v1.Pod{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "pod-01",
+			UID:  "UID-01",
+			Labels: map[string]string{
+				constants.LabelPlaceholderFlag: "true",
+			},
+		},
+	}
+	assert.Equal(t, GetPlaceholderFlagFromPodSpec(pod), true)
+
+	// Setting both annotation and label
+	// Annotation has higher priority
+	pod = &v1.Pod{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "pod-01",
+			UID:  "UID-01",
+			Annotations: map[string]string{
+				constants.AnnotationPlaceholderFlag: "true",
+			},
+			Labels: map[string]string{
+				constants.LabelPlaceholderFlag: "false",
+			},
+		},
+	}
+	assert.Equal(t, GetPlaceholderFlagFromPodSpec(pod), true)
+
+	// No setting both annotation and label
+	pod = &v1.Pod{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "pod-01",
+			UID:  "UID-01",
+		},
+	}
+	assert.Equal(t, GetPlaceholderFlagFromPodSpec(pod), false)
 }
 
 // nolint: funlen
@@ -854,7 +921,7 @@ func TestGetTaskGroupFromAnnotation(t *testing.T) {
 	[
 		{
 			"name": "test-group-err-4",
-			"minMember": 3,
+			"minMember": 3
 		}
 	]`
 	// negative minMember
@@ -862,7 +929,7 @@ func TestGetTaskGroupFromAnnotation(t *testing.T) {
 	[
 		{
 			"name": "test-group-err-5",
-			"minMember": -100,
+			"minMember": -100
 		}
 	]`
 	// Insert task group info to pod annotation
@@ -1091,7 +1158,7 @@ func TestUpdatePodLabelForAdmissionController(t *testing.T) {
 	} else {
 		t.Fatal("UpdatePodLabelForAdmissionController is not as expected")
 	}
-=======
+}
 
 func TestGetCoreSchedulerConfigFromConfigMapNil(t *testing.T) {
 	assert.Equal(t, "", GetCoreSchedulerConfigFromConfigMap(nil))
@@ -1137,5 +1204,4 @@ func TestGetExtraConfigFromConfigMap(t *testing.T) {
 	value, ok := res["key"]
 	assert.Assert(t, ok, "key not found")
 	assert.Equal(t, "value", value, "wrong value")
->>>>>>> upstream/master
 }

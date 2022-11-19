@@ -165,7 +165,7 @@ func (c *admissionController) processPod(req *admissionv1.AdmissionRequest) *adm
 		return failureResponse
 	}
 
-	if labelAppValue := utils.GetPodLabelValue(&pod, constants.LabelApp); labelAppValue != "" {
+	if labelAppValue := utils.GetPodLabelValue(&pod, constants.LabelApp); labelAppValue != constants.NoneValue {
 		if labelAppValue == yunikornPod {
 			log.Logger().Info("ignore yunikorn pod")
 			return admissionResponseBuilder(uid, true, "", nil)

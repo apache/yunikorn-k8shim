@@ -19,6 +19,7 @@
 package common
 
 import (
+	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -112,12 +113,12 @@ func GetNodeResource(nodeStatus *v1.NodeStatus) *si.Resource {
 // parse cpu and memory from string to si.Resource, both of them are optional
 // if parse failed with some errors, log the error and return a nil
 func ParseResource(cpuStr, memStr string) *si.Resource {
-	if cpuStr == "" && memStr == "" {
+	if cpuStr == constants.NoneValue && memStr == constants.NoneValue {
 		return nil
 	}
 
 	result := NewResourceBuilder()
-	if cpuStr != "" {
+	if cpuStr != constants.NoneValue {
 		if vcore, err := resource.ParseQuantity(cpuStr); err == nil {
 			result.AddResource(siCommon.CPU, vcore.MilliValue())
 		} else {
@@ -128,7 +129,7 @@ func ParseResource(cpuStr, memStr string) *si.Resource {
 		}
 	}
 
-	if memStr != "" {
+	if memStr != constants.NoneValue {
 		if mem, err := resource.ParseQuantity(memStr); err == nil {
 			result.AddResource(siCommon.Memory, mem.Value())
 		} else {

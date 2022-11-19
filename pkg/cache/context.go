@@ -625,7 +625,7 @@ func (ctx *Context) updateApplicationTags(request *interfaces.AddApplicationRequ
 	}
 	// add parent queue info as an app tag
 	parentQueue := utils.GetNameSpaceAnnotationValue(namespaceObj, constants.AnnotationParentQueue)
-	if parentQueue != "" {
+	if parentQueue != constants.NoneValue {
 		request.Metadata.Tags[constants.AppTagNamespaceParentQueue] = parentQueue
 	}
 }
