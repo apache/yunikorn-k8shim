@@ -1182,3 +1182,49 @@ func TestPendingPodAllocations(t *testing.T) {
 		t.Fatalf("pending pod allocation still exists after removal")
 	}
 }
+
+func TestGetStateDump(t *testing.T) {
+	context := initContextForTest()
+
+	pod1 := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Namespace: "default",
+			Name:      "yunikorn-test-00001",
+			UID:       "UID-00001",
+		},
+		Spec: v1.PodSpec{SchedulerName: "yunikorn"},
+	}
+	context.addPodToCache(pod1)
+
+	stateDumpStr, err := context.GetStateDump()
+	assert.NilError(t, err, "error during state dump")
+	var stateDump = make(map[string]interface{})
+	err = json.Unmarshal([]byte(stateDumpStr), &stateDump)
+	assert.NilError(t, err, "unable to parse state dump")
+
+	cacheObj, ok := stateDump["cache"]
+	assert.Assert(t, ok, "cache not found")
+	cache, ok := cacheObj.(map[string]interface{})
+	assert.Assert(t, ok, "unable to cast cache")
+
+	podsObj, ok := cache["pods"]
+	assert.Assert(t, ok, "pods not found")
+	pods, ok := podsObj.(map[string]interface{})
+	assert.Assert(t, ok, "unable to cast pods")
+
+	podObj, ok := pods["default/yunikorn-test-00001"]
+	assert.Assert(t, ok, "pod not found")
+	pod, ok := podObj.(map[string]interface{})
+	assert.Assert(t, ok, "unable to cast pod")
+
+	uidObj, ok := pod["uid"]
+	assert.Assert(t, ok, "uid not found")
+	uid, ok := uidObj.(string)
+	assert.Assert(t, ok, "Unable to cast uid")
+
+	assert.Equal(t, string(pod1.UID), uid, "wrong uid")
+}

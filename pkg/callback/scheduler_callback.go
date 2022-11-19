@@ -23,6 +23,8 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/apache/yunikorn-scheduler-interface/lib/go/api"
+
 	"github.com/apache/yunikorn-k8shim/pkg/cache"
 	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
@@ -34,6 +36,9 @@ import (
 type AsyncRMCallback struct {
 	context *cache.Context
 }
+
+var _ api.ResourceManagerCallback = &AsyncRMCallback{}
+var _ api.StateDumpPlugin = &AsyncRMCallback{}
 
 func NewAsyncRMCallback(ctx *cache.Context) *AsyncRMCallback {
 	return &AsyncRMCallback{context: ctx}
@@ -195,4 +200,11 @@ func (callback *AsyncRMCallback) SendEvent(eventRecords []*si.EventRecord) {
 
 func (callback *AsyncRMCallback) UpdateContainerSchedulingState(request *si.UpdateContainerSchedulingStateRequest) {
 	callback.context.HandleContainerStateUpdate(request)
+}
+
+// StateDumpPlugin implementation
+
+func (callback *AsyncRMCallback) GetStateDump() (string, error) {
+	log.Logger().Debug("Retrieving shim state dump")
+	return callback.context.GetStateDump()
 }
