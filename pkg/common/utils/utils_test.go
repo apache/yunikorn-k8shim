@@ -771,70 +771,70 @@ func TestGetTaskGroupFromPodSpec(t *testing.T) {
 }
 
 func TestGetPlaceholderFlagFromPodSpec(t *testing.T) {
-	// Setting by annotation
-	pod := &v1.Pod{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "pod-01",
-			UID:  "UID-01",
-			Annotations: map[string]string{
-				constants.AnnotationPlaceholderFlag: "true",
-			},
-		},
-	}
-	assert.Equal(t, GetPlaceholderFlagFromPodSpec(pod), true)
+	testCases := []struct {
+		description             string
+		pod                     *v1.Pod
+		expectedPlaceholderFlag bool
+	}{
 
-	// Setting by label
-	pod = &v1.Pod{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "pod-01",
-			UID:  "UID-01",
-			Labels: map[string]string{
-				constants.LabelPlaceholderFlag: "true",
+		{"Setting by annotation", &v1.Pod{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Pod",
+				APIVersion: "v1",
 			},
-		},
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "pod-01",
+				UID:  "UID-01",
+				Annotations: map[string]string{
+					constants.AnnotationPlaceholderFlag: "true",
+				},
+			},
+		}, true},
+		{"Setting by label", &v1.Pod{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Pod",
+				APIVersion: "v1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "pod-01",
+				UID:  "UID-01",
+				Labels: map[string]string{
+					constants.LabelPlaceholderFlag: "true",
+				},
+			},
+		}, true},
+		{"Setting both annotation and label, annotation has higher priority", &v1.Pod{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Pod",
+				APIVersion: "v1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "pod-01",
+				UID:  "UID-01",
+				Annotations: map[string]string{
+					constants.AnnotationPlaceholderFlag: "true",
+					constants.LabelPlaceholderFlag:      "false",
+				},
+			},
+		}, true},
+		{"No setting both annotation and label", &v1.Pod{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Pod",
+				APIVersion: "v1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "pod-01",
+				UID:  "UID-01",
+			},
+		}, false},
 	}
-	assert.Equal(t, GetPlaceholderFlagFromPodSpec(pod), true)
 
-	// Setting both annotation and label
-	// Annotation has higher priority
-	pod = &v1.Pod{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "pod-01",
-			UID:  "UID-01",
-			Annotations: map[string]string{
-				constants.AnnotationPlaceholderFlag: "true",
-			},
-			Labels: map[string]string{
-				constants.LabelPlaceholderFlag: "false",
-			},
-		},
+	for _, tc := range testCases {
+		t.Run(tc.description, func(t *testing.T) {
+			placeHolderFlag := GetPlaceholderFlagFromPodSpec(tc.pod)
+			assert.Equal(t, placeHolderFlag, tc.expectedPlaceholderFlag)
+		})
 	}
-	assert.Equal(t, GetPlaceholderFlagFromPodSpec(pod), true)
-
-	// No setting both annotation and label
-	pod = &v1.Pod{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "pod-01",
-			UID:  "UID-01",
-		},
-	}
-	assert.Equal(t, GetPlaceholderFlagFromPodSpec(pod), false)
 }
 
 // nolint: funlen
