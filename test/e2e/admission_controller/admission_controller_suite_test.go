@@ -69,6 +69,8 @@ var _ = BeforeSuite(func() {
 	kubeClient = k8s.KubeCtl{}
 	Expect(kubeClient.SetClient()).To(BeNil())
 
+	yunikorn.EnsureYuniKornConfigsPresent()
+
 	By("Port-forward the scheduler pod")
 	err := kubeClient.PortForwardYkSchedulerPod()
 	Ω(err).NotTo(HaveOccurred())
@@ -79,7 +81,7 @@ var _ = BeforeSuite(func() {
 	Ω(namespace.Status.Phase).Should(Equal(v1.NamespaceActive))
 
 	By("Get the default ConfigMap and copy it")
-	cm, err := kubeClient.GetConfigMaps(configmanager.YuniKornTestConfig.YkNamespace, constants.DefaultConfigMapName)
+	cm, err := kubeClient.GetConfigMaps(configmanager.YuniKornTestConfig.YkNamespace, constants.ConfigMapName)
 	Ω(err).ShouldNot(HaveOccurred())
 
 	oldConfigMap = cm.DeepCopy()

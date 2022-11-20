@@ -19,28 +19,15 @@
 package main
 
 import (
-	"os"
+	v1 "k8s.io/api/core/v1"
 
-	"k8s.io/kubernetes/cmd/kube-scheduler/app"
-
-	"github.com/apache/yunikorn-k8shim/pkg/conf"
-	"github.com/apache/yunikorn-k8shim/pkg/schedulerplugin"
+	"github.com/apache/yunikorn-k8shim/pkg/plugin/admissioncontrollers/webhook/conf"
 )
 
-var (
-	version string
-	date    string
-)
+func createConfig() *conf.AdmissionControllerConf {
+	return conf.NewAdmissionControllerConf([]*v1.ConfigMap{nil, nil})
+}
 
-func main() {
-	conf.BuildVersion = version
-	conf.BuildDate = date
-	conf.IsPluginVersion = true
-
-	command := app.NewSchedulerCommand(
-		app.WithPlugin(schedulerplugin.SchedulerPluginName, schedulerplugin.NewSchedulerPlugin))
-
-	if err := command.Execute(); err != nil {
-		os.Exit(1)
-	}
+func createConfigWithOverrides(overrides map[string]string) *conf.AdmissionControllerConf {
+	return conf.NewAdmissionControllerConf([]*v1.ConfigMap{nil, {Data: overrides}})
 }

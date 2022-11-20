@@ -38,21 +38,20 @@ type MockedAPIProvider struct {
 func NewMockedAPIProvider(showError bool) *MockedAPIProvider {
 	return &MockedAPIProvider{
 		clients: &Clients{
-			Conf: &conf.SchedulerConf{
+			conf: &conf.SchedulerConf{
 				ClusterID:            "yk-test-cluster",
 				ClusterVersion:       "0.1",
 				PolicyGroup:          "queues",
 				Interval:             0,
 				KubeConfig:           "",
 				LoggingLevel:         0,
-				LogEncoding:          "",
-				LogFile:              "",
 				VolumeBindTimeout:    0,
 				TestMode:             true,
 				EventChannelCapacity: 0,
 				DispatchTimeout:      0,
 				KubeQPS:              0,
 				KubeBurst:            0,
+				Namespace:            "yunikorn",
 			},
 			KubeClient:        NewKubeClientMock(showError),
 			SchedulerAPI:      test.NewSchedulerAPIMock(),

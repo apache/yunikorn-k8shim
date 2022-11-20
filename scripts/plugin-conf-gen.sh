@@ -19,24 +19,10 @@
 #
 
 KCFG=$1
-BIN=$2
-cat > "${BIN}"/scheduler-config.yaml <<EOL
-apiVersion: kubescheduler.config.k8s.io/v1beta1
-kind: KubeSchedulerConfiguration
-leaderElection:
-  leaderElect: false
+SRC=$2
+DEST=$3
+cp -f "${SRC}" "${DEST}"
+cat >> "${DEST}" <<EOL
 clientConnection:
   kubeconfig: ${KCFG}
-profiles:
-  - schedulerName: yunikorn
-    plugins:
-      preFilter:
-        enabled:
-        - name: YuniKornPlugin
-      filter:
-        enabled:
-        - name: YuniKornPlugin
-      postBind:
-        enabled:
-        - name: YuniKornPlugin
 EOL

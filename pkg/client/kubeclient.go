@@ -20,9 +20,11 @@ package client
 
 import (
 	"context"
+	"fmt"
 
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -38,28 +40,22 @@ type SchedulerKubeClient struct {
 	configs   *rest.Config
 }
 
+func newBootstrapSchedulerKubeClient(kc string) SchedulerKubeClient {
+	config := CreateRestConfigOrDie(kc)
+	configuredClient, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		log.Logger().Fatal("failed to get Clientset", zap.Error(err))
+	}
+	return SchedulerKubeClient{
+		clientSet: configuredClient,
+		configs:   config,
+	}
+}
+
 func newSchedulerKubeClient(kc string) SchedulerKubeClient {
 	schedulerConf := conf.GetSchedulerConf()
-	// using kube config
-	if kc != "" {
-		config, err := clientcmd.BuildConfigFromFlags("", kc)
-		if err != nil {
-			log.Logger().Fatal("failed to create kubeClient configs", zap.Error(err))
-		}
-		config.QPS = float32(schedulerConf.KubeQPS)
-		config.Burst = schedulerConf.KubeBurst
-		configuredClient := kubernetes.NewForConfigOrDie(config)
-		return SchedulerKubeClient{
-			clientSet: configuredClient,
-			configs:   config,
-		}
-	}
 
-	// using in cluster config
-	config, err := rest.InClusterConfig()
-	if err != nil {
-		log.Logger().Fatal("failed to get InClusterConfig", zap.Error(err))
-	}
+	config := CreateRestConfigOrDie(kc)
 	config.QPS = float32(schedulerConf.KubeQPS)
 	config.Burst = schedulerConf.KubeBurst
 	configuredClient, err := kubernetes.NewForConfig(config)
@@ -70,6 +66,38 @@ func newSchedulerKubeClient(kc string) SchedulerKubeClient {
 		clientSet: configuredClient,
 		configs:   config,
 	}
+}
+
+func CreateRestConfigOrDie(kc string) *rest.Config {
+	config, err := CreateRestConfig(kc)
+	if err != nil {
+		log.Logger().Fatal("unable to create REST config, aborting", zap.Error(err))
+	}
+	return config
+}
+
+func CreateRestConfig(kc string) (*rest.Config, error) {
+	// attempt to use in-cluster config
+	config, err := rest.InClusterConfig()
+	if err != nil && err != rest.ErrNotInCluster {
+		log.Logger().Error("failed to create REST config", zap.Error(err))
+		return nil, err
+	}
+	if config != nil {
+		return config, nil
+	}
+
+	// fall back to kubeconfig if present
+	if kc == "" {
+		kc = conf.GetDefaultKubeConfigPath()
+	}
+	log.Logger().Info(fmt.Sprintf("Not running inside Kubernetes; using KUBECONFIG at %s", kc))
+	config, err = clientcmd.BuildConfigFromFlags("", kc)
+	if err != nil {
+		log.Logger().Error("failed to create kubeClient configs", zap.Error(err))
+		return config, err
+	}
+	return config, nil
 }
 
 func (nc SchedulerKubeClient) GetClientSet() kubernetes.Interface {
@@ -124,6 +152,18 @@ func (nc SchedulerKubeClient) Delete(pod *v1.Pod) error {
 	return nil
 }
 
+func (nc SchedulerKubeClient) GetConfigMap(namespace string, name string) (*v1.ConfigMap, error) {
+	configmap, err := nc.clientSet.CoreV1().ConfigMaps(namespace).Get(context.Background(), name, apis.GetOptions{})
+	if err != nil && !errors.IsNotFound(err) {
+		log.Logger().Warn("failed to get configmap",
+			zap.String("namespace", namespace),
+			zap.String("name", name),
+			zap.Error(err))
+		return nil, err
+	}
+	return configmap, nil
+}
+
 func (nc SchedulerKubeClient) Get(podNamespace string, podName string) (*v1.Pod, error) {
 	pod, err := nc.clientSet.CoreV1().Pods(podNamespace).Get(context.Background(), podName, apis.GetOptions{})
 	if err != nil {
@@ -134,6 +174,41 @@ func (nc SchedulerKubeClient) Get(podNamespace string, podName string) (*v1.Pod,
 		return nil, err
 	}
 	return pod, nil
+}
+
+func (nc SchedulerKubeClient) UpdatePod(pod *v1.Pod, podMutator func(pod *v1.Pod)) (*v1.Pod, error) {
+	var updatedPod *v1.Pod
+	var updateErr error
+	// Retrieve the latest version of Pod before attempting update
+	// RetryOnConflict uses exponential backoff to avoid exhausting the API server
+	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		latestPod, getErr := nc.clientSet.CoreV1().Pods(pod.Namespace).Get(context.Background(), pod.Name, apis.GetOptions{})
+		if getErr != nil {
+			log.Logger().Warn("failed to get latest version of Pod",
+				zap.Error(getErr))
+		}
+		// allow mutator to update pod
+		podMutator(latestPod)
+		if updatedPod, updateErr = nc.clientSet.CoreV1().Pods(pod.Namespace).Update(context.Background(), latestPod, apis.UpdateOptions{}); updateErr != nil {
+			log.Logger().Warn("failed to update pod",
+				zap.String("namespace", pod.Namespace),
+				zap.String("podName", pod.Name),
+				zap.Error(updateErr))
+			return updateErr
+		}
+		return nil
+	})
+	if retryErr != nil {
+		log.Logger().Error("Update pod failed",
+			zap.String("namespace", pod.Namespace),
+			zap.String("podName", pod.Name),
+			zap.Error(retryErr))
+		return pod, retryErr
+	}
+	log.Logger().Info("Successfully updated pod",
+		zap.String("namespace", pod.Namespace),
+		zap.String("podName", pod.Name))
+	return updatedPod, nil
 }
 
 func (nc SchedulerKubeClient) UpdateStatus(pod *v1.Pod) (*v1.Pod, error) {

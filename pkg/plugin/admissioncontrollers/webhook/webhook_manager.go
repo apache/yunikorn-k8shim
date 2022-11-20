@@ -30,7 +30,9 @@ import (
 
 	v1 "k8s.io/api/admissionregistration/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/client-go/rest"
+
+	"github.com/apache/yunikorn-k8shim/pkg/client"
+	"github.com/apache/yunikorn-k8shim/pkg/plugin/admissioncontrollers/webhook/conf"
 
 	"go.uber.org/zap"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -68,6 +70,7 @@ type WebhookManager interface {
 }
 
 type webhookManagerImpl struct {
+	conf             *conf.AdmissionControllerConf
 	namespace        string
 	serviceName      string
 	clientset        kubernetes.Interface
@@ -84,8 +87,8 @@ type webhookManagerImpl struct {
 }
 
 // NewWebhookManager is used to create a new webhook manager
-func NewWebhookManager(namespace string, serviceName string) (WebhookManager, error) {
-	kubeconfig, err := rest.InClusterConfig()
+func NewWebhookManager(conf *conf.AdmissionControllerConf) (WebhookManager, error) {
+	kubeconfig, err := client.CreateRestConfig(conf.GetKubeConfig())
 	if err != nil {
 		log.Logger().Error("Unable to create kubernetes config", zap.Error(err))
 		return nil, err
@@ -95,14 +98,12 @@ func NewWebhookManager(namespace string, serviceName string) (WebhookManager, er
 		log.Logger().Error("Unable to create kubernetes clientset", zap.Error(err))
 		return nil, err
 	}
-
-	return newWebhookManagerImpl(namespace, serviceName, clientset), nil
+	return newWebhookManagerImpl(conf, clientset), nil
 }
 
-func newWebhookManagerImpl(namespace string, serviceName string, clientset kubernetes.Interface) *webhookManagerImpl {
+func newWebhookManagerImpl(conf *conf.AdmissionControllerConf, clientset kubernetes.Interface) *webhookManagerImpl {
 	wm := &webhookManagerImpl{
-		namespace:        namespace,
-		serviceName:      serviceName,
+		conf:             conf,
 		clientset:        clientset,
 		conflictAttempts: 10,
 	}
@@ -134,11 +135,14 @@ func (wm *webhookManagerImpl) GenerateServerCertificate() (*tls.Certificate, err
 		return nil, err
 	}
 
-	commonName := fmt.Sprintf("%s.%s.svc", wm.serviceName, wm.namespace)
+	serviceName := wm.conf.GetAmServiceName()
+	namespace := wm.conf.GetNamespace()
+
+	commonName := fmt.Sprintf("%s.%s.svc", serviceName, namespace)
 	dnsNames := []string{
 		wm.serviceName,
-		fmt.Sprintf("%s.%s", wm.serviceName, wm.namespace),
-		fmt.Sprintf("%s.%s.svc", wm.serviceName, wm.namespace),
+		fmt.Sprintf("%s.%s", serviceName, namespace),
+		fmt.Sprintf("%s.%s.svc", serviceName, namespace),
 	}
 
 	log.Logger().Info("Generating server certificate...")
@@ -400,11 +404,11 @@ func (wm *webhookManagerImpl) checkValidatingWebhook(webhook *v1.ValidatingWebho
 		return errors.New("webhook: missing service")
 	}
 
-	if svc.Name != wm.serviceName {
+	if svc.Name != wm.conf.GetAmServiceName() {
 		return errors.New("webhook: wrong service name")
 	}
 
-	if svc.Namespace != wm.namespace {
+	if svc.Namespace != wm.conf.GetNamespace() {
 		return errors.New("webhook: wrong service namespace")
 	}
 
@@ -475,11 +479,11 @@ func (wm *webhookManagerImpl) checkMutatingWebhook(webhook *v1.MutatingWebhookCo
 		return errors.New("webhook: missing service")
 	}
 
-	if svc.Name != wm.serviceName {
+	if svc.Name != wm.conf.GetAmServiceName() {
 		return errors.New("webhook: wrong service name")
 	}
 
-	if svc.Namespace != wm.namespace {
+	if svc.Namespace != wm.conf.GetNamespace() {
 		return errors.New("webhook: wrong service namespace")
 	}
 
@@ -575,13 +579,16 @@ func (wm *webhookManagerImpl) populateValidatingWebhook(webhook *v1.ValidatingWe
 	none := v1.SideEffectClassNone
 	path := "/validate-conf"
 
+	namespace := wm.conf.GetNamespace()
+	serviceName := wm.conf.GetAmServiceName()
+
 	webhook.ObjectMeta.Name = validatingWebhook
 	webhook.ObjectMeta.Labels = map[string]string{"app": "yunikorn"}
 	webhook.Webhooks = []v1.ValidatingWebhook{
 		{
 			Name: validateConfHook,
 			ClientConfig: v1.WebhookClientConfig{
-				Service:  &v1.ServiceReference{Name: wm.serviceName, Namespace: wm.namespace, Path: &path},
+				Service:  &v1.ServiceReference{Name: serviceName, Namespace: namespace, Path: &path},
 				CABundle: caBundle,
 			},
 			Rules: []v1.RuleWithOperations{{
@@ -607,13 +614,16 @@ func (wm *webhookManagerImpl) populateMutatingWebhook(webhook *v1.MutatingWebhoo
 	none := v1.SideEffectClassNone
 	path := "/mutate"
 
+	namespace := wm.conf.GetNamespace()
+	serviceName := wm.conf.GetAmServiceName()
+
 	webhook.ObjectMeta.Name = mutatingWebhook
 	webhook.ObjectMeta.Labels = map[string]string{"app": "yunikorn"}
 	webhook.Webhooks = []v1.MutatingWebhook{
 		{
 			Name: mutatePodsWebhook,
 			ClientConfig: v1.WebhookClientConfig{
-				Service:  &v1.ServiceReference{Name: wm.serviceName, Namespace: wm.namespace, Path: &path},
+				Service:  &v1.ServiceReference{Name: serviceName, Namespace: namespace, Path: &path},
 				CABundle: caBundle,
 			},
 			Rules: []v1.RuleWithOperations{{
@@ -646,7 +656,8 @@ func (wm *webhookManagerImpl) loadCaCertificatesInternal() (bool, error) {
 	wm.Lock()
 	defer wm.Unlock()
 
-	secret, err := wm.clientset.CoreV1().Secrets(wm.namespace).Get(ctx.Background(), secretName, metav1.GetOptions{})
+	namespace := wm.conf.GetNamespace()
+	secret, err := wm.clientset.CoreV1().Secrets(namespace).Get(ctx.Background(), secretName, metav1.GetOptions{})
 	if err != nil {
 		log.Logger().Error("Unable to retrieve admission-controller-secrets secrets", zap.Error(err))
 		return false, err
@@ -722,7 +733,7 @@ func (wm *webhookManagerImpl) loadCaCertificatesInternal() (bool, error) {
 		secret.Data[caCert2Path] = *cert2Pem
 		secret.Data[caPrivateKey2Path] = *key2Pem
 
-		_, err = wm.clientset.CoreV1().Secrets(wm.namespace).Update(ctx.Background(), secret, metav1.UpdateOptions{})
+		_, err = wm.clientset.CoreV1().Secrets(namespace).Update(ctx.Background(), secret, metav1.UpdateOptions{})
 		if err != nil {
 			if apierrors.IsConflict(err) {
 				// signal to caller that we need to be run again

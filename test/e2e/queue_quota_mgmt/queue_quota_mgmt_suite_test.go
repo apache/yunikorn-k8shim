@@ -43,6 +43,7 @@ var oldConfigMap = new(v1.ConfigMap)
 var annotation = "ann-" + common.RandSeq(10)
 
 var _ = BeforeSuite(func() {
+	yunikorn.EnsureYuniKornConfigsPresent()
 	yunikorn.UpdateConfigMapWrapper(oldConfigMap, "", annotation)
 })
 

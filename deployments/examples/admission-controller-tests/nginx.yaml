@@ -37,7 +37,7 @@ spec:
     spec:
       containers:
         - name: nginx
-          image: "nginx:1.11.1-alpine"
+          image: "nginx:stable-alpine"
           resources:
             requests:
               cpu: "500m"

@@ -26,7 +26,7 @@ import (
 	"k8s.io/client-go/informers"
 	coreInformerV1 "k8s.io/client-go/informers/core/v1"
 	storageInformerV1 "k8s.io/client-go/informers/storage/v1"
-	"k8s.io/kubernetes/pkg/controller/volume/scheduling"
+	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/volumebinding"
 
 	appclient "github.com/apache/yunikorn-k8shim/pkg/client/clientset/versioned"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
@@ -39,7 +39,7 @@ import (
 // or the scheduler core.
 type Clients struct {
 	// configs
-	Conf *conf.SchedulerConf
+	conf *conf.SchedulerConf
 
 	// client apis
 	KubeClient   KubeClient
@@ -60,7 +60,11 @@ type Clients struct {
 	AppInformer       v1alpha1.ApplicationInformer
 
 	// volume binder handles PV/PVC related operations
-	VolumeBinder scheduling.SchedulerVolumeBinder
+	VolumeBinder volumebinding.SchedulerVolumeBinder
+}
+
+func (c *Clients) GetConf() *conf.SchedulerConf {
+	return c.conf
 }
 
 func (c *Clients) WaitForSync(interval time.Duration, timeout time.Duration) error {

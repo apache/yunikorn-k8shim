@@ -70,7 +70,7 @@ var _ = ginkgo.Describe("AdmissionController", func() {
 
 		invalidConfigMap := v1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      constants.DefaultConfigMapName,
+				Name:      constants.ConfigMapName,
 				Namespace: configmanager.YuniKornTestConfig.YkNamespace,
 			},
 			Data: make(map[string]string),
@@ -81,13 +81,26 @@ var _ = ginkgo.Describe("AdmissionController", func() {
 		gomega.Ω(res.Allowed).Should(gomega.BeEquivalentTo(false))
 	})
 
-	ginkgo.It("Configure the scheduler with invalid configmap", func() {
-		invalidConfigMap := v1.ConfigMap{
+	ginkgo.It("Configure the scheduler with an empty configmap", func() {
+		emptyConfigMap := v1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      constants.DefaultConfigMapName,
+				Name:      constants.ConfigMapName,
 				Namespace: configmanager.YuniKornTestConfig.YkNamespace,
 			},
 			Data: make(map[string]string),
+		}
+		cm, err := kubeClient.UpdateConfigMap(&emptyConfigMap, configmanager.YuniKornTestConfig.YkNamespace)
+		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
+		gomega.Ω(cm).ShouldNot(gomega.BeNil())
+	})
+
+	ginkgo.It("Configure the scheduler with invalid configmap", func() {
+		invalidConfigMap := v1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      constants.ConfigMapName,
+				Namespace: configmanager.YuniKornTestConfig.YkNamespace,
+			},
+			Data: map[string]string{"queues.yaml": "invalid"},
 		}
 		invalidCm, err := kubeClient.UpdateConfigMap(&invalidConfigMap, configmanager.YuniKornTestConfig.YkNamespace)
 		gomega.Ω(err).Should(gomega.HaveOccurred())

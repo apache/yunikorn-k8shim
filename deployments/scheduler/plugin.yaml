@@ -20,7 +20,6 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: yunikorn-admin
-  namespace: yunikorn
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -30,7 +29,6 @@ metadata:
 subjects:
   - kind: ServiceAccount
     name: yunikorn-admin
-    namespace: yunikorn
 roleRef:
   kind: ClusterRole
   name: cluster-admin
@@ -41,7 +39,6 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: yunikorn-configs
-  namespace: yunikorn
   labels:
     app: yunikorn
 data:
@@ -59,40 +56,12 @@ data:
             submitacl: '*'
 
 ---
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: yunikorn-scheduler-plugin-configs
-  namespace: yunikorn
-  labels:
-    app: yunikorn
-data:
-  scheduler-config.yaml: |
-    apiVersion: kubescheduler.config.k8s.io/v1beta1
-    kind: KubeSchedulerConfiguration
-    leaderElection:
-      leaderElect: false
-    profiles:
-      - schedulerName: yunikorn
-        plugins:
-          preFilter:
-            enabled:
-              - name: YuniKornPlugin
-          filter:
-            enabled:
-              - name: YuniKornPlugin
-          postBind:
-            enabled:
-              - name: YuniKornPlugin
-
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
     app: yunikorn
   name: yunikorn-scheduler
-  namespace: yunikorn
 spec:
   replicas: 1
   selector:
@@ -116,11 +85,9 @@ spec:
               protocol: TCP
           env:
             - name: NAMESPACE
-              value: "yunikorn"
-            - name: SCHEDULER_NAME
-              value: "yunikorn"
-            - name: SCHEDULER_CONFIG
-              value: "/etc/kubernetes/scheduler-config.yaml"
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
           resources:
             requests:
               cpu: 1
@@ -169,7 +136,6 @@ metadata:
   name: yunikorn-service
   labels:
     app: yunikorn-service
-  namespace: yunikorn
 spec:
   ports:
     - port: 9080

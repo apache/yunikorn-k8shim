@@ -26,7 +26,9 @@ rules:
   - apiGroups: ["*"]
     resources: ["mutatingwebhookconfigurations"]
     verbs: ["get", "watch", "list", "create", "patch", "update", "delete"]
-
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -39,7 +41,6 @@ rules:
   - apiGroups: [""]
     resources: ["configmaps"]
     verbs: ["get", "watch", "list"]
-
 ---
 apiVersion: v1
 kind: ServiceAccount

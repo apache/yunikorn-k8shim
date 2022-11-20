@@ -34,6 +34,9 @@ type KubeClient interface {
 	// Delete a pod from a host
 	Delete(pod *v1.Pod) error
 
+	// Update a pod
+	UpdatePod(pod *v1.Pod, podMutator func(pod *v1.Pod)) (*v1.Pod, error)
+
 	// Update the status of a pod
 	UpdateStatus(pod *v1.Pod) (*v1.Pod, error)
 
@@ -44,8 +47,14 @@ type KubeClient interface {
 	GetClientSet() kubernetes.Interface
 
 	GetConfigs() *rest.Config
+
+	GetConfigMap(namespace string, name string) (*v1.ConfigMap, error)
 }
 
 func NewKubeClient(kc string) KubeClient {
 	return newSchedulerKubeClient(kc)
+}
+
+func NewBootstrapKubeClient(kc string) KubeClient {
+	return newBootstrapSchedulerKubeClient(kc)
 }

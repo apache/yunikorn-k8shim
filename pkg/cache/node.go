@@ -34,17 +34,20 @@ import (
 
 // stores info about what scheduler cares about a node
 type SchedulerNode struct {
-	name                string
-	uid                 string
-	labels              string
+	name         string
+	uid          string
+	labels       string
+	schedulable  bool
+	schedulerAPI api.SchedulerAPI
+	fsm          *fsm.FSM
+
+	// mutable values need locking
 	capacity            *si.Resource
 	occupied            *si.Resource
-	schedulable         bool
 	ready               bool
 	existingAllocations []*si.Allocation
-	schedulerAPI        api.SchedulerAPI
-	fsm                 *fsm.FSM
-	lock                *sync.RWMutex
+
+	lock *sync.RWMutex
 }
 
 func newSchedulerNode(nodeName string, nodeUID string, nodeLabels string,
@@ -64,6 +67,12 @@ func newSchedulerNode(nodeName string, nodeUID string, nodeLabels string,
 	return schedulerNode
 }
 
+func (n *SchedulerNode) snapshotState() (capacity *si.Resource, occupied *si.Resource, ready bool) {
+	n.lock.RLock()
+	defer n.lock.RUnlock()
+	return n.capacity, n.occupied, n.ready
+}
+
 func (n *SchedulerNode) addExistingAllocation(allocation *si.Allocation) {
 	n.lock.Lock()
 	defer n.lock.Unlock()
@@ -73,7 +82,7 @@ func (n *SchedulerNode) addExistingAllocation(allocation *si.Allocation) {
 	n.existingAllocations = append(n.existingAllocations, allocation)
 }
 
-func (n *SchedulerNode) updateOccupiedResource(resource *si.Resource, opt updateType) {
+func (n *SchedulerNode) updateOccupiedResource(resource *si.Resource, opt updateType) (capacity *si.Resource, occupied *si.Resource, ready bool) {
 	n.lock.Lock()
 	defer n.lock.Unlock()
 	switch opt {
@@ -89,8 +98,8 @@ func (n *SchedulerNode) updateOccupiedResource(resource *si.Resource, opt update
 		n.occupied = common.Sub(n.occupied, resource)
 	default:
 		// noop
-		return
 	}
+	return n.capacity, n.occupied, n.ready
 }
 
 func (n *SchedulerNode) setCapacity(capacity *si.Resource) {

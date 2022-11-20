@@ -135,8 +135,8 @@ func (nc *schedulerNodes) updateNodeOccupiedResources(name string, resource *si.
 	}
 
 	if schedulerNode := nc.getNode(name); schedulerNode != nil {
-		schedulerNode.updateOccupiedResource(resource, opt)
-		request := common.CreateUpdateRequestForUpdatedNode(name, schedulerNode.capacity, schedulerNode.occupied, schedulerNode.ready)
+		capacity, occupied, ready := schedulerNode.updateOccupiedResource(resource, opt)
+		request := common.CreateUpdateRequestForUpdatedNode(name, capacity, occupied, ready)
 		log.Logger().Info("report occupied resources updates",
 			zap.String("node", schedulerNode.name),
 			zap.Any("request", request))
@@ -186,8 +186,9 @@ func (nc *schedulerNodes) updateNode(oldNode, newNode *v1.Node) {
 
 	log.Logger().Info("Node's ready status flag", zap.String("Node name", newNode.Name),
 		zap.Bool("ready", ready))
-	request := common.CreateUpdateRequestForUpdatedNode(newNode.Name, cachedNode.capacity,
-		cachedNode.occupied, cachedNode.ready)
+
+	capacity, occupied, ready := cachedNode.snapshotState()
+	request := common.CreateUpdateRequestForUpdatedNode(newNode.Name, capacity, occupied, ready)
 	log.Logger().Info("report updated nodes to scheduler", zap.Any("request", request))
 	if err := nc.proxy.UpdateNode(&request); err != nil {
 		log.Logger().Info("hitting error while handling UpdateNode", zap.Error(err))

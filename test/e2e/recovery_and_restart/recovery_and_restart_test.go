@@ -61,6 +61,8 @@ var _ = ginkgo.Describe("", func() {
 		// Initializing rest client
 		restClient = yunikorn.RClient{}
 
+		yunikorn.EnsureYuniKornConfigsPresent()
+
 		ginkgo.By("Enable basic scheduling config over config maps")
 		var c, err = kClient.GetConfigMaps(configmanager.YuniKornTestConfig.YkNamespace,
 			configmanager.DefaultYuniKornConfigMap)
@@ -142,11 +144,11 @@ var _ = ginkgo.Describe("", func() {
 		defer restorePortForwarding(&kClient)
 
 		appID1 := normalSleepJobPrefix + "-" + common.RandSeq(5)
-		sleepPodConfig1 := k8s.SleepPodConfig{Name: "normal-sleep-job", NS: dev, Time: 20, AppID: appID1}
+		sleepPodConfig1 := k8s.SleepPodConfig{Name: "normal-sleep-job", NS: dev, Time: 300, AppID: appID1}
 		pod1, podErr := k8s.InitSleepPod(sleepPodConfig1)
 		Ω(podErr).NotTo(gomega.HaveOccurred())
 		appID2 := normalSleepJobPrefix + "-" + common.RandSeq(5)
-		sleepPodConfig2 := k8s.SleepPodConfig{Name: "normal-sleep-job-2", NS: dev, Time: 20, AppID: appID2}
+		sleepPodConfig2 := k8s.SleepPodConfig{Name: "normal-sleep-job-2", NS: dev, Time: 300, AppID: appID2}
 		pod2, podErr2 := k8s.InitSleepPod(sleepPodConfig2)
 		Ω(podErr2).NotTo(gomega.HaveOccurred())
 
@@ -171,9 +173,15 @@ var _ = ginkgo.Describe("", func() {
 		}
 
 		ginkgo.By("Waiting for sleep pods to be running")
-		err = kClient.WaitForJobPodsRunning(dev, job1.Name, parallelism, 30*time.Second)
+		err = kClient.WaitForJobPodsRunning(dev, job1.Name, parallelism, 60*time.Second)
 		Ω(err).NotTo(gomega.HaveOccurred())
-		err = kClient.WaitForJobPodsRunning(dev, job2.Name, parallelism, 30*time.Second)
+		err = kClient.WaitForJobPodsRunning(dev, job2.Name, parallelism, 60*time.Second)
+		Ω(err).NotTo(gomega.HaveOccurred())
+
+		ginkgo.By("Deleting sleep jobs")
+		err = kClient.DeleteJob(job1.Name, dev)
+		Ω(err).NotTo(gomega.HaveOccurred())
+		err = kClient.DeleteJob(job2.Name, dev)
 		Ω(err).NotTo(gomega.HaveOccurred())
 
 		ginkgo.By("Deleting sleep pods")
@@ -313,8 +321,10 @@ func restorePortForwarding(kClient *k8s.KubeCtl) {
 func restartYunikorn(kClient *k8s.KubeCtl) {
 	schedulerPodName, err := kClient.GetSchedulerPod()
 	Ω(err).NotTo(gomega.HaveOccurred())
-	err = kClient.DeletePodGracefully(schedulerPodName, configmanager.YuniKornTestConfig.YkNamespace)
+	err = kClient.DeletePod(schedulerPodName, configmanager.YuniKornTestConfig.YkNamespace)
 	Ω(err).NotTo(gomega.HaveOccurred())
-	err = kClient.WaitForPodBySelectorRunning(configmanager.YuniKornTestConfig.YkNamespace, fmt.Sprintf("component=%s", configmanager.YKScheduler), 10)
+	err = kClient.WaitForPodBySelector(configmanager.YuniKornTestConfig.YkNamespace, fmt.Sprintf("component=%s", configmanager.YKScheduler), 30*time.Second)
+	Ω(err).NotTo(gomega.HaveOccurred())
+	err = kClient.WaitForPodBySelectorRunning(configmanager.YuniKornTestConfig.YkNamespace, fmt.Sprintf("component=%s", configmanager.YKScheduler), 30)
 	Ω(err).NotTo(gomega.HaveOccurred())
 }

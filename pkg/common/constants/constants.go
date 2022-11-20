@@ -46,7 +46,8 @@ const SparkLabelRole = "spark-role"
 const SparkLabelRoleDriver = "driver"
 
 // Configuration
-const DefaultConfigMapName = "yunikorn-configs"
+const ConfigMapName = "yunikorn-configs"
+const DefaultConfigMapName = "yunikorn-defaults"
 const SchedulerName = "yunikorn"
 
 // OwnerReferences
@@ -56,7 +57,7 @@ const DaemonSetType = "DaemonSet"
 const AppManagerHandlerName = "yunikorn-app"
 
 // Gang scheduling
-const PlaceholderContainerImage = "k8s.gcr.io/pause"
+const PlaceholderContainerImage = "registry.k8s.io/pause:3.7"
 const PlaceholderContainerName = "pause"
 const PlaceholderPodRestartPolicy = "Never"
 const LabelPlaceholderFlag = "placeholder"

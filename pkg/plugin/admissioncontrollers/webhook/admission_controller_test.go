@@ -23,29 +23,30 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"regexp"
-	"strconv"
 	"strings"
 	"testing"
 
 	"gotest.tools/assert"
 	admissionv1 "k8s.io/api/admission/v1"
+	appsv1 "k8s.io/api/apps/v1"
 	authv1 "k8s.io/api/authentication/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
+	"github.com/apache/yunikorn-k8shim/pkg/plugin/admissioncontrollers/webhook/conf"
+
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
-	"github.com/apache/yunikorn-k8shim/pkg/conf"
 )
 
 type responseMode int
 
 const (
-	Success = responseMode(0)
-	Failure = responseMode(1)
-	Error   = responseMode(2)
+	Success                 = responseMode(0)
+	Failure                 = responseMode(1)
+	Error                   = responseMode(2)
+	validUserInfoAnnotation = "{\"user\":\"test\",\"groups\":[\"devops\",\"system:authenticated\"]}"
 )
 
 func TestUpdateLabels(t *testing.T) {
@@ -262,23 +263,16 @@ func TestUpdateSchedulerName(t *testing.T) {
 	}
 }
 
-func TestValidateConfigMap(t *testing.T) {
-	configName := fmt.Sprintf("%s.yaml", conf.DefaultPolicyGroup)
-	controller, err := initAdmissionController(configName, "", "", "", "", "", false, true, "", "", "")
-	if err != nil {
-		t.Fatal("failed to init admission controller", err)
-	}
+func TestValidateConfigMapEmpty(t *testing.T) {
+	controller := initAdmissionController(createConfig())
 	configmap := &v1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: constants.DefaultConfigMapName,
+			Name: constants.ConfigMapName,
 		},
 		Data: make(map[string]string),
 	}
-	// specified config "queues.yaml" not found
-	err = controller.validateConfigMap(configmap)
-	assert.Assert(t, err != nil, "expecting error when specified config is not found")
-	assert.Equal(t, err.Error(), "required config 'queues.yaml' not found in this configmap")
-	// skip further validations which depends on the webservice of yunikorn-core
+	err := controller.validateConfigMap("yunikorn", configmap)
+	assert.NilError(t, err, "unexpected error with missing config")
 }
 
 const ConfigData = `
@@ -301,21 +295,22 @@ func TestValidateConfigMapValidConfig(t *testing.T) {
 	srv := serverMock(Success)
 	defer srv.Close()
 	// both server and url pattern contains http://, so we need to delete one
-	controller := prepareController(t, strings.Replace(srv.URL, "http://", "", 1), "", "", "", "")
-	err := controller.validateConfigMap(configmap)
+	controller := prepareController(t, strings.Replace(srv.URL, "http://", "", 1), "", "", "", "", false, true)
+	err := controller.validateConfigMap("yunikorn", configmap)
 	assert.NilError(t, err, "No error expected")
 }
 
 /**
 Test for the case when the POST request is successful, but the config change is not allowed.
 */
-func TestValidateConfigMapInValidConfig(t *testing.T) {
+func TestValidateConfigMapInvalidConfig(t *testing.T) {
 	configmap := prepareConfigMap(ConfigData)
 	srv := serverMock(Failure)
 	defer srv.Close()
 	// both server and url pattern contains http://, so we need to delete one
-	controller := prepareController(t, strings.Replace(srv.URL, "http://", "", 1), "", "", "", "")
-	err := controller.validateConfigMap(configmap)
+	controller := prepareController(t, strings.Replace(srv.URL, "http://", "", 1), "", "", "", "", false, true)
+	err := controller.validateConfigMap("default", configmap)
+	assert.Assert(t, err != nil, "error not found")
 	assert.Equal(t, "Invalid config", err.Error(),
 		"Other error returned than the expected one")
 }
@@ -328,8 +323,8 @@ func TestValidateConfigMapWrongRequest(t *testing.T) {
 	srv := serverMock(Failure)
 	defer srv.Close()
 	// the url is wrong, so the POST request will fail, and success will be assumed
-	controller := prepareController(t, srv.URL, "", "", "", "")
-	err := controller.validateConfigMap(configmap)
+	controller := prepareController(t, srv.URL, "", "", "", "", false, true)
+	err := controller.validateConfigMap("yunikorn", configmap)
 	assert.NilError(t, err, "No error expected")
 }
 
@@ -341,36 +336,38 @@ func TestValidateConfigMapServerError(t *testing.T) {
 	srv := serverMock(Error)
 	defer srv.Close()
 	// both server and url pattern contains http://, so we need to delete one
-	controller := prepareController(t, strings.Replace(srv.URL, "http://", "", 1), "", "", "", "")
-	err := controller.validateConfigMap(configmap)
+	controller := prepareController(t, strings.Replace(srv.URL, "http://", "", 1), "", "", "", "", false, true)
+	err := controller.validateConfigMap("yunikorn", configmap)
 	assert.NilError(t, err, "No error expected")
 }
 
 func prepareConfigMap(data string) *v1.ConfigMap {
 	configmap := &v1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: constants.DefaultConfigMapName,
+			Name: constants.ConfigMapName,
 		},
 		Data: map[string]string{"queues.yaml": data},
 	}
 	return configmap
 }
 
-func prepareController(t *testing.T, url string, processNs string, bypassNs string, labelNs string, noLabelNs string) *admissionController {
-	configName := fmt.Sprintf("%s.yaml", conf.DefaultPolicyGroup)
+func prepareController(t *testing.T, url string, processNs string, bypassNs string, labelNs string, noLabelNs string, bypassAuth bool, trustControllers bool) *admissionController {
 	if bypassNs == "" {
 		bypassNs = "^kube-system$"
 	}
-	controller, err := initAdmissionController(
-		configName,
-		fmt.Sprintf(schedulerValidateConfURLPattern, url),
-		processNs, bypassNs, labelNs, noLabelNs,
-		false, true,
-		"system:serviceaccount:kube-system:job-controller", "testExtUser", "testExtGroup")
-	if err != nil {
-		t.Fatal("failed to prepare controller", err)
-	}
-	return controller
+	config := createConfigWithOverrides(map[string]string{
+		conf.AMWebHookSchedulerServiceAddress: url,
+		conf.AMFilteringProcessNamespaces:     processNs,
+		conf.AMFilteringBypassNamespaces:      bypassNs,
+		conf.AMFilteringLabelNamespaces:       labelNs,
+		conf.AMFilteringNoLabelNamespaces:     noLabelNs,
+		conf.AMAccessControlBypassAuth:        fmt.Sprintf("%t", bypassAuth),
+		conf.AMAccessControlTrustControllers:  fmt.Sprintf("%t", trustControllers),
+		conf.AMAccessControlSystemUsers:       "system:serviceaccount:kube-system:job-controller",
+		conf.AMAccessControlExternalUsers:     "testExtUser",
+		conf.AMAccessControlExternalGroups:    "testExtGroup",
+	})
+	return initAdmissionController(config)
 }
 
 func serverMock(mode responseMode) *httptest.Server {
@@ -425,27 +422,6 @@ func TestGenerateAppID(t *testing.T) {
 	assert.Equal(t, len(appID), 63)
 }
 
-func TestIsConfigMapUpdateAllowed(t *testing.T) {
-	testCases := []struct {
-		name             string
-		allowed          bool
-		userInfo         string
-		enableHotRefresh bool
-	}{
-		{"Hot refresh enabled, yunikorn user", true, "default:yunikorn-admin", true},
-		{"Hot refresh enabled, non yunikorn user", true, "default:some-user", true},
-		{"Hot refresh disabled, non yunikorn user", false, "default:some-user", false},
-		{"Hot refresh disabled, yunikorn user", true, "default:yunikorn-admin", false},
-	}
-	for _, tc := range testCases {
-		os.Setenv(enableConfigHotRefreshEnvVar, strconv.FormatBool(tc.enableHotRefresh))
-		t.Run(tc.name, func(t *testing.T) {
-			allowed := isConfigMapUpdateAllowed(tc.userInfo)
-			assert.Equal(t, tc.allowed, allowed, "")
-		})
-	}
-}
-
 func TestMutate(t *testing.T) {
 	var ac *admissionController
 	var pod v1.Pod
@@ -454,7 +430,7 @@ func TestMutate(t *testing.T) {
 	var podJSON []byte
 	var err error
 
-	ac = prepareController(t, "", "", "^kube-system$,^bypass$", "", "^nolabel$")
+	ac = prepareController(t, "", "", "^kube-system$,^bypass$", "", "^nolabel$", true, true)
 
 	// nil request
 	resp = ac.mutate(nil)
@@ -557,13 +533,13 @@ func TestMutate(t *testing.T) {
 }
 
 func TestExternalAuthentication(t *testing.T) {
-	ac := prepareController(t, "", "", "^kube-system$,^bypass$", "", "^nolabel$")
+	ac := prepareController(t, "", "", "^kube-system$,^bypass$", "", "^nolabel$", false, true)
 
 	// validation fails, submitter user is not whitelisted
 	pod := v1.Pod{ObjectMeta: metav1.ObjectMeta{
 		Namespace: "test-ns",
 		Annotations: map[string]string{
-			userInfoAnnotation: "{\"user\":\"test\",\"groups\":[\"devops\",\"system:authenticated\"]}",
+			userInfoAnnotation: validUserInfoAnnotation,
 		},
 	}}
 	podJSON, err := json.Marshal(pod)
@@ -612,6 +588,36 @@ func TestExternalAuthentication(t *testing.T) {
 	resp = ac.mutate(req)
 	assert.Check(t, !resp.Allowed, "response was allowed")
 	assert.Check(t, strings.Contains(resp.Result.Message, "invalid character 'x'"))
+
+	// deployment
+	deployment := appsv1.Deployment{
+		Spec: appsv1.DeploymentSpec{
+			Template: v1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "test-ns",
+					Annotations: map[string]string{
+						userInfoAnnotation: validUserInfoAnnotation,
+					},
+				},
+			},
+		},
+	}
+	deploymentJSON, err2 := json.Marshal(deployment)
+	assert.NilError(t, err2, "failed to marshal deployment")
+	req.Object = runtime.RawExtension{Raw: deploymentJSON}
+	req.Kind = metav1.GroupVersionKind{Kind: "Deployment"}
+	resp = ac.mutate(req)
+	assert.Check(t, resp.Allowed, "response not allowed")
+
+	// deployment - invalid annotation
+	deployment.Spec.Template.Annotations[userInfoAnnotation] = "xyzxyz"
+	deploymentJSON, err = json.Marshal(deployment)
+	req.Object = runtime.RawExtension{Raw: deploymentJSON}
+	req.Kind = metav1.GroupVersionKind{Kind: "Deployment"}
+	assert.NilError(t, err, "failed to marshal deployment")
+	resp = ac.mutate(req)
+	assert.Check(t, !resp.Allowed, "response was allowed")
+	assert.Check(t, strings.Contains(resp.Result.Message, "invalid character 'x'"))
 }
 
 func parsePatch(t *testing.T, patch []byte) []patchOperation {
@@ -645,7 +651,7 @@ func labels(t *testing.T, patch []byte) map[string]interface{} {
 }
 
 func TestShouldProcessNamespace(t *testing.T) {
-	ac := prepareController(t, "", "", "^kube-system$,^pre-,-post$", "", "")
+	ac := prepareController(t, "", "", "^kube-system$,^pre-,-post$", "", "", false, true)
 	assert.Check(t, ac.shouldProcessNamespace("test"), "test namespace not allowed")
 	assert.Check(t, !ac.shouldProcessNamespace("kube-system"), "kube-system namespace allowed")
 	assert.Check(t, ac.shouldProcessNamespace("x-kube-system"), "x-kube-system namespace not allowed")
@@ -653,18 +659,18 @@ func TestShouldProcessNamespace(t *testing.T) {
 	assert.Check(t, !ac.shouldProcessNamespace("pre-ns"), "pre-ns namespace allowed")
 	assert.Check(t, !ac.shouldProcessNamespace("ns-post"), "ns-post namespace allowed")
 
-	ac = prepareController(t, "", "^allow-", "^allow-except-", "", "")
+	ac = prepareController(t, "", "^allow-", "^allow-except-", "", "", false, true)
 	assert.Check(t, !ac.shouldProcessNamespace("test"), "test namespace allowed when not on process list")
 	assert.Check(t, ac.shouldProcessNamespace("allow-this"), "allow-this namespace not allowed when on process list")
 	assert.Check(t, !ac.shouldProcessNamespace("allow-except-this"), "allow-except-this namespace allowed when on bypass list")
 }
 
 func TestShouldLabelNamespace(t *testing.T) {
-	ac := prepareController(t, "", "", "", "", "^skip$")
+	ac := prepareController(t, "", "", "", "", "^skip$", false, true)
 	assert.Check(t, ac.shouldLabelNamespace("test"), "test namespace not allowed")
 	assert.Check(t, !ac.shouldLabelNamespace("skip"), "skip namespace allowed when on no-label list")
 
-	ac = prepareController(t, "", "", "", "^allow-", "^allow-except-")
+	ac = prepareController(t, "", "", "", "^allow-", "^allow-except-", false, true)
 	assert.Check(t, !ac.shouldLabelNamespace("test"), "test namespace allowed when not on label list")
 	assert.Check(t, ac.shouldLabelNamespace("allow-this"), "allow-this namespace not allowed when on label list")
 	assert.Check(t, !ac.shouldLabelNamespace("allow-except-this"), "allow-except-this namespace allowed when on no-label list")
@@ -702,99 +708,30 @@ func TestParseRegexes(t *testing.T) {
 }
 
 func TestInitAdmissionControllerRegexErrorHandling(t *testing.T) {
-	var err error
+	ac := initAdmissionController(createConfig())
+	assert.Equal(t, 1, len(ac.conf.GetBypassNamespaces()))
+	assert.Equal(t, conf.DefaultFilteringBypassNamespaces, ac.conf.GetBypassNamespaces()[0].String(), "didn't set default bypassNamespaces")
 
-	_, err = initAdmissionController("", "", "", "", "", "", false, true, "", "", "")
-	assert.NilError(t, err, "error returned from simple init")
+	ac = initAdmissionController(createConfigWithOverrides(map[string]string{conf.AMFilteringProcessNamespaces: "("}))
+	assert.Equal(t, 0, len(ac.conf.GetProcessNamespaces()), "didn't fail on bad processNamespaces list")
 
-	_, err = initAdmissionController("", "", "(", "", "", "", false, true, "", "", "")
-	assert.ErrorContains(t, err, "error parsing regexp", "didn't fail on bad processNamespaces list")
+	ac = initAdmissionController(createConfigWithOverrides(map[string]string{conf.AMFilteringBypassNamespaces: "("}))
+	assert.Equal(t, 1, len(ac.conf.GetBypassNamespaces()))
+	assert.Equal(t, conf.DefaultFilteringBypassNamespaces, ac.conf.GetBypassNamespaces()[0].String(), "didn't fail on bad bypassNamespaces list")
 
-	_, err = initAdmissionController("", "", "", "(", "", "", false, true, "", "", "")
-	assert.ErrorContains(t, err, "error parsing regexp", "didn't fail on bad bypassNamespaces list")
+	ac = initAdmissionController(createConfigWithOverrides(map[string]string{conf.AMFilteringLabelNamespaces: "("}))
+	assert.Equal(t, 0, len(ac.conf.GetLabelNamespaces()), "didn't fail on bad labelNamespaces list")
 
-	_, err = initAdmissionController("", "", "", "", "(", "", false, true, "", "", "")
-	assert.ErrorContains(t, err, "error parsing regexp", "didn't fail on bad labelNamespaces list")
+	ac = initAdmissionController(createConfigWithOverrides(map[string]string{conf.AMFilteringNoLabelNamespaces: "("}))
+	assert.Equal(t, 0, len(ac.conf.GetNoLabelNamespaces()), "didn't fail on bad noLabelNamespaces list")
 
-	_, err = initAdmissionController("", "", "", "", "", "(", false, true, "", "", "")
-	assert.ErrorContains(t, err, "error parsing regexp", "didn't fail on bad noLabelNamespaces list")
+	ac = initAdmissionController(createConfigWithOverrides(map[string]string{conf.AMAccessControlSystemUsers: "("}))
+	assert.Equal(t, 1, len(ac.conf.GetSystemUsers()))
+	assert.Equal(t, conf.DefaultAccessControlSystemUsers, ac.conf.GetSystemUsers()[0].String(), "didn't fail on bad systemUsers list")
 
-	_, err = initAdmissionController("", "", "", "", "", "", false, true, "(", "", "")
-	assert.ErrorContains(t, err, "error parsing regexp", "didn't fail on bad systemUsers list")
+	ac = initAdmissionController(createConfigWithOverrides(map[string]string{conf.AMAccessControlExternalUsers: "("}))
+	assert.Equal(t, 0, len(ac.conf.GetExternalUsers()), "didn't fail on bad externalUsers list")
 
-	_, err = initAdmissionController("", "", "", "", "", "", false, true, "", "(", "")
-	assert.ErrorContains(t, err, "error parsing regexp", "didn't fail on bad externalUsers list")
-
-	_, err = initAdmissionController("", "", "", "", "", "", false, true, "", "", "(")
-	assert.ErrorContains(t, err, "error parsing regexp", "didn't fail on bad externalGroups list")
-}
-
-func TestEnvSettings(t *testing.T) {
-	originalEnv := getEnvSettings()
-	defer func() {
-		os.Setenv(admissionControllerNamespace, originalEnv.namespace)
-		os.Setenv(admissionControllerService, originalEnv.serviceName)
-		os.Setenv(admissionControllerProcessNamespaces, originalEnv.processNamespaces)
-		os.Setenv(admissionControllerBypassNamespaces, originalEnv.bypassNamespaces)
-		os.Setenv(admissionControllerLabelNamespaces, originalEnv.labelNamespaces)
-		os.Setenv(admissionControllerNoLabelNamespaces, originalEnv.noLabelNamespaces)
-		os.Setenv(admissionControllerBypassAuth, strconv.FormatBool(originalEnv.bypassAuth))
-		os.Setenv(admissionControllerSystemUsers, originalEnv.systemUsers)
-		os.Setenv(admissionControllerExternalUsers, originalEnv.externalUsers)
-		os.Setenv(admissionControllerExternalGroups, originalEnv.externalGroups)
-		os.Setenv(admissionControllerBypassControllers, strconv.FormatBool(originalEnv.bypassControllers))
-	}()
-
-	// test valid settings
-	os.Setenv(admissionControllerNamespace, "testNamespace")
-	os.Setenv(admissionControllerService, "testYunikornService")
-	os.Setenv(admissionControllerProcessNamespaces, "testProcessNamespaces")
-	os.Setenv(admissionControllerBypassNamespaces, "testBypassNamespaces")
-	os.Setenv(admissionControllerLabelNamespaces, "testLabelNamespaces")
-	os.Setenv(admissionControllerNoLabelNamespaces, "testNolabelNamespaces")
-	os.Setenv(admissionControllerBypassAuth, "false")
-	os.Setenv(admissionControllerSystemUsers, "systemuser")
-	os.Setenv(admissionControllerExternalUsers, "yunikorn")
-	os.Setenv(admissionControllerExternalGroups, "devs")
-	os.Setenv(admissionControllerBypassControllers, "true")
-	env := getEnvSettings()
-	assert.Equal(t, env.namespace, "testNamespace")
-	assert.Equal(t, env.serviceName, "testYunikornService")
-	assert.Equal(t, env.processNamespaces, "testProcessNamespaces")
-	assert.Equal(t, env.bypassNamespaces, "testBypassNamespaces")
-	assert.Equal(t, env.labelNamespaces, "testLabelNamespaces")
-	assert.Equal(t, env.noLabelNamespaces, "testNolabelNamespaces")
-	assert.Equal(t, env.bypassAuth, false)
-	assert.Equal(t, env.systemUsers, "systemuser")
-	assert.Equal(t, env.externalUsers, "yunikorn")
-	assert.Equal(t, env.externalGroups, "devs")
-	assert.Equal(t, env.bypassControllers, true)
-
-	// test missing settings
-	os.Unsetenv(admissionControllerProcessNamespaces)
-	os.Unsetenv(admissionControllerBypassNamespaces)
-	os.Unsetenv(admissionControllerLabelNamespaces)
-	os.Unsetenv(admissionControllerNoLabelNamespaces)
-	os.Unsetenv(admissionControllerBypassAuth)
-	os.Unsetenv(admissionControllerSystemUsers)
-	os.Unsetenv(admissionControllerExternalUsers)
-	os.Unsetenv(admissionControllerExternalGroups)
-	os.Unsetenv(admissionControllerBypassControllers)
-	env = getEnvSettings()
-	assert.Equal(t, env.processNamespaces, "")
-	assert.Equal(t, env.bypassNamespaces, defaultBypassNamespaces)
-	assert.Equal(t, env.labelNamespaces, "")
-	assert.Equal(t, env.noLabelNamespaces, "")
-	assert.Equal(t, env.bypassAuth, defaultBypassAuth)
-	assert.Equal(t, env.systemUsers, defaultSystemUsers)
-	assert.Equal(t, env.externalUsers, "")
-	assert.Equal(t, env.externalGroups, "")
-	assert.Equal(t, env.bypassControllers, defaultBypassControllers)
-
-	// test faulty settings for boolean values
-	os.Setenv(admissionControllerBypassAuth, "xyz")
-	os.Setenv(admissionControllerBypassControllers, "xyz")
-	env = getEnvSettings()
-	assert.Equal(t, env.bypassAuth, defaultBypassAuth)
-	assert.Equal(t, env.bypassControllers, defaultBypassControllers)
+	ac = initAdmissionController(createConfigWithOverrides(map[string]string{conf.AMAccessControlExternalGroups: "("}))
+	assert.Equal(t, 0, len(ac.conf.GetExternalGroups()), "didn't fail on bad externalGroups list")
 }

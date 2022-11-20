@@ -19,7 +19,6 @@
 package cache
 
 import (
-	ctx "context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -1082,71 +1081,6 @@ func TestAddApplicationsWithTags(t *testing.T) {
 		t.Fatalf("parent queue tag is not updated from the namespace")
 	}
 	assert.Equal(t, parentQueue, "root.test")
-}
-
-func TestFindYKConfigMap(t *testing.T) {
-	goodYKConfigmap := v1.ConfigMap{
-		ObjectMeta: apis.ObjectMeta{
-			Name:   constants.DefaultConfigMapName,
-			Labels: map[string]string{"app": "yunikorn", "label2": "value2"},
-		},
-		Data: map[string]string{"queues.yaml": "OldData"},
-	}
-	randomConfigMap := v1.ConfigMap{
-		ObjectMeta: apis.ObjectMeta{
-			Name: "configMap",
-		},
-	}
-	testCases := []struct {
-		name          string
-		expectedError bool
-		configMaps    []*v1.ConfigMap
-	}{
-		{"Nil configmaps", true, nil},
-		{"Empty configmaps", true, []*v1.ConfigMap{}},
-		{"Yunikorn configmap found", false, []*v1.ConfigMap{&goodYKConfigmap, &randomConfigMap}},
-	}
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			configMap, err := findYKConfigMap(tc.configMaps)
-			if tc.expectedError {
-				assert.Assert(t, err != nil, "Error is expected")
-			} else {
-				assert.Assert(t, configMap.Name == constants.DefaultConfigMapName, "Returned configmap is wrong")
-				assert.Assert(t, len(configMap.Data) == 1, "Returned configmap has unexpected data")
-				assert.Assert(t, configMap.Name == constants.DefaultConfigMapName, "Returned configmap is wrong")
-				assert.Assert(t, configMap.Data["queues.yaml"] == "OldData", "Old configmap value is wrong")
-			}
-		})
-	}
-}
-
-func TestSaveConfigmap(t *testing.T) {
-	// YK configmap not found
-	context := initContextForTest()
-	newConf := si.UpdateConfigurationRequest{
-		Configs: "newConfig",
-	}
-	resp := context.SaveConfigmap(&newConf)
-	assert.Equal(t, false, resp.Success, "Successful update expected")
-	assert.Assert(t, strings.Contains(resp.Reason, "not found"), "Unexpected reason returned")
-
-	// successful update
-	configMaps, err := context.apiProvider.GetAPIs().ConfigMapInformer.Lister().List(nil)
-	assert.NilError(t, err, "No error expected")
-	for _, c := range configMaps {
-		_, err := context.apiProvider.GetAPIs().KubeClient.GetClientSet().CoreV1().ConfigMaps(c.Namespace).
-			Create(ctx.Background(), c, apis.CreateOptions{})
-		assert.NilError(t, err, "No error expected")
-	}
-	resp = context.SaveConfigmap(&newConf)
-	assert.Equal(t, true, resp.Success, "Successful update expected")
-
-	// hot-refresh enabled
-	context.apiProvider.GetAPIs().Conf.EnableConfigHotRefresh = true
-	resp = context.SaveConfigmap(&newConf)
-	assert.Equal(t, false, resp.Success, "Failure is expected")
-	assert.Assert(t, strings.Contains(resp.Reason, "hot-refresh is enabled"), "Unexpected reason")
 }
 
 func TestPendingPodAllocations(t *testing.T) {

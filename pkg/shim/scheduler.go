@@ -35,6 +35,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/callback"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
+	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
@@ -213,11 +214,23 @@ func (ss *KubernetesShim) registerShimLayer() error {
 	buildInfoMap["buildDate"] = conf.BuildDate
 	buildInfoMap["isPluginVersion"] = strconv.FormatBool(conf.IsPluginVersion)
 
+	configMaps, err := ss.context.LoadConfigMaps()
+	if err != nil {
+		log.Logger().Error("failed to load yunikorn configmaps", zap.Error(err))
+		return err
+	}
+
+	confMap := conf.FlattenConfigMaps(configMaps)
+	config := utils.GetCoreSchedulerConfigFromConfigMap(confMap)
+	extraConfig := utils.GetExtraConfigFromConfigMap(confMap)
+
 	registerMessage := si.RegisterResourceManagerRequest{
 		RmID:        configuration.ClusterID,
 		Version:     configuration.ClusterVersion,
 		PolicyGroup: configuration.PolicyGroup,
 		BuildInfo:   buildInfoMap,
+		Config:      config,
+		ExtraConfig: extraConfig,
 	}
 
 	log.Logger().Info("register RM to the scheduler",
