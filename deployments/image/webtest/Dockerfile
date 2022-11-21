@@ -16,7 +16,7 @@
 # limitations under the License.
 
 ARG ARCH=
-FROM ${ARCH}nginx:1.22-alpine
+FROM ${ARCH}nginx:stable-alpine
 
 # Home location for all data and configs
 ENV HOME=/opt/yunikorn
