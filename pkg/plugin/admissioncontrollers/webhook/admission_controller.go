@@ -40,9 +40,9 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	schedulerconf "github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
-	"github.com/apache/yunikorn-k8shim/pkg/plugin/admissioncontrollers/webhook/annotation"
 	"github.com/apache/yunikorn-k8shim/pkg/plugin/admissioncontrollers/webhook/common"
 	"github.com/apache/yunikorn-k8shim/pkg/plugin/admissioncontrollers/webhook/conf"
+	"github.com/apache/yunikorn-k8shim/pkg/plugin/admissioncontrollers/webhook/metadata"
 )
 
 const (
@@ -66,7 +66,8 @@ var (
 
 type admissionController struct {
 	conf              *conf.AdmissionControllerConf
-	annotationHandler *annotation.UserGroupAnnotationHandler
+	annotationHandler *metadata.UserGroupAnnotationHandler
+	labelExtractor    metadata.LabelExtractor
 }
 
 type ValidateConfResponse struct {
@@ -77,7 +78,7 @@ type ValidateConfResponse struct {
 func initAdmissionController(conf *conf.AdmissionControllerConf) *admissionController {
 	hook := &admissionController{
 		conf:              conf,
-		annotationHandler: annotation.NewUserGroupAnnotationHandler(conf),
+		annotationHandler: metadata.NewUserGroupAnnotationHandler(conf),
 	}
 
 	log.Logger().Info("Initialized YuniKorn Admission Controller")
@@ -172,7 +173,7 @@ func (c *admissionController) processPod(req *admissionv1.AdmissionRequest, name
 	}
 
 	if !userInfoSet && !c.conf.GetBypassAuth() {
-		log.Logger().Info("setting user info annotation on pod")
+		log.Logger().Info("setting user info metadata on pod")
 		patchOp, err := c.annotationHandler.GetPatchForPod(pod.Annotations, userName, groups)
 		if err != nil {
 			return admissionResponseBuilder(uid, false, err.Error(), nil)
@@ -218,12 +219,25 @@ func (c *admissionController) processPod(req *admissionv1.AdmissionRequest, name
 func (c *admissionController) processWorkload(req *admissionv1.AdmissionRequest, namespace string) *admissionv1.AdmissionResponse {
 	var uid = string(req.UID)
 
-	if !c.shouldProcessNamespace(namespace) {
+	var supported bool
+	var err error
+	var labels map[string]string
+	labels, supported, err = c.labelExtractor.GetLabelsFromWorkload(req)
+	if !supported {
+		// Unknown request kind - pass
+		return admissionResponseBuilder(uid, true, "", nil)
+	}
+	if err != nil {
+		return admissionResponseBuilder(uid, false, err.Error(), nil)
+	}
+
+	if !c.shouldProcessAdmissionReview(namespace, labels) {
 		log.Logger().Info("bypassing namespace", zap.String("namespace", namespace))
 		return admissionResponseBuilder(uid, true, "", nil)
 	}
 
-	annotations, supported, err := c.annotationHandler.GetAnnotationsFromRequestKind(req)
+	var annotations map[string]string
+	annotations, supported, err = c.annotationHandler.GetAnnotationsFromRequestKind(req)
 	if !supported {
 		// Unknown request kind - pass
 		return admissionResponseBuilder(uid, true, "", nil)
@@ -284,7 +298,7 @@ func (c *admissionController) processPodUpdate(req *admissionv1.AdmissionRequest
 		}
 	}
 
-	if !c.shouldProcessNamespace(namespace) {
+	if !c.shouldProcessAdmissionReview(namespace, newPod.Labels) {
 		log.Logger().Info("pod update - bypassing namespace", zap.String("namespace", namespace))
 		return admissionResponseBuilder(uid, true, "", nil)
 	}
@@ -302,6 +316,14 @@ func (c *admissionController) processPodUpdate(req *admissionv1.AdmissionRequest
 	return admissionResponseBuilder(uid, true, "", nil)
 }
 
+func (c *admissionController) shouldProcessAdmissionReview(namespace string, labels map[string]string) bool {
+	if c.shouldProcessNamespace(namespace) && (labels[constants.LabelApplicationID] != "" || c.shouldLabelNamespace(namespace)) {
+		return true
+	}
+
+	return false
+}
+
 func (c *admissionController) checkUserInfoAnnotation(getAnnotation func() (string, bool), userName string, groups []string, uid string) (*admissionv1.AdmissionResponse, bool) {
 	annotation, userInfoSet := getAnnotation()
 	if userInfoSet && !c.conf.GetBypassAuth() {
@@ -315,7 +337,7 @@ func (c *admissionController) checkUserInfoAnnotation(getAnnotation func() (stri
 		}
 
 		if err := c.annotationHandler.IsAnnotationValid(annotation); err != nil {
-			log.Logger().Error("invalid user info annotation", zap.Error(err))
+			log.Logger().Error("invalid user info metadata", zap.Error(err))
 			return admissionResponseBuilder(uid, false, err.Error(), nil), userInfoSet
 		}
 	}

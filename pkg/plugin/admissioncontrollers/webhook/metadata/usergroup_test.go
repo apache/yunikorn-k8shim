@@ -16,7 +16,7 @@
  limitations under the License.
 */
 
-package annotation
+package metadata
 
 import (
 	"encoding/json"
@@ -47,9 +47,12 @@ var (
 	annotation = map[string]string{
 		"key": "yunikorn",
 	}
+	label = map[string]string{
+		"key": "yunikorn",
+	}
 )
 
-type AnnotationTestCase struct {
+type TestCase struct {
 	obj  interface{}
 	kind string
 	path string
@@ -94,7 +97,7 @@ func TestExternalAuthenticationDenied(t *testing.T) {
 }
 
 func TestGetAnnotationFromRequest(t *testing.T) {
-	tests := getAnnotationTestCases()
+	tests := getTestCases()
 	ah := getAnnotationHandler()
 
 	for _, testCase := range tests {
@@ -110,7 +113,7 @@ func TestGetAnnotationFromRequest(t *testing.T) {
 }
 
 func TestGetAnnotationFromRequestFails(t *testing.T) {
-	tests := getAnnotationTestCases()
+	tests := getTestCases()
 	ah := getAnnotationHandler()
 
 	for _, testCase := range tests {
@@ -149,7 +152,7 @@ func TestGetAnnotationFromInvalidObject(t *testing.T) {
 }
 
 func TestGetPatchForWorkload(t *testing.T) {
-	tests := getAnnotationTestCases()
+	tests := getTestCases()
 	ah := getAnnotationHandler()
 
 	for _, testCase := range tests {
@@ -192,14 +195,15 @@ func verifyUserGroupAnnotation(t *testing.T, patchValue interface{}) {
 	assert.Equal(t, userGroup.Groups[1], "dev")
 }
 
-func getAnnotationTestCases() []AnnotationTestCase {
-	tests := []AnnotationTestCase{
+func getTestCases() []TestCase {
+	tests := []TestCase{
 		{
 			obj: appsv1.ReplicaSet{
 				Spec: appsv1.ReplicaSetSpec{
 					Template: v1.PodTemplateSpec{
 						ObjectMeta: metav1.ObjectMeta{
 							Annotations: annotation,
+							Labels:      label,
 						},
 					},
 				},
@@ -213,6 +217,7 @@ func getAnnotationTestCases() []AnnotationTestCase {
 					Template: v1.PodTemplateSpec{
 						ObjectMeta: metav1.ObjectMeta{
 							Annotations: annotation,
+							Labels:      label,
 						},
 					},
 				},
@@ -226,6 +231,7 @@ func getAnnotationTestCases() []AnnotationTestCase {
 					Template: v1.PodTemplateSpec{
 						ObjectMeta: metav1.ObjectMeta{
 							Annotations: annotation,
+							Labels:      label,
 						},
 					},
 				},
@@ -239,6 +245,7 @@ func getAnnotationTestCases() []AnnotationTestCase {
 					Template: v1.PodTemplateSpec{
 						ObjectMeta: metav1.ObjectMeta{
 							Annotations: annotation,
+							Labels:      label,
 						},
 					},
 				},
@@ -252,6 +259,7 @@ func getAnnotationTestCases() []AnnotationTestCase {
 					Template: v1.PodTemplateSpec{
 						ObjectMeta: metav1.ObjectMeta{
 							Annotations: annotation,
+							Labels:      label,
 						},
 					},
 				},
@@ -267,6 +275,7 @@ func getAnnotationTestCases() []AnnotationTestCase {
 							Template: v1.PodTemplateSpec{
 								ObjectMeta: metav1.ObjectMeta{
 									Annotations: annotation,
+									Labels:      label,
 								},
 							},
 						},

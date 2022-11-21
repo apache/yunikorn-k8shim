@@ -35,8 +35,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/kubernetes/fake"
 
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/plugin/admissioncontrollers/webhook/common"
@@ -298,7 +296,7 @@ func TestValidateConfigMapValidConfig(t *testing.T) {
 	srv := serverMock(Success)
 	defer srv.Close()
 	// both server and url pattern contains http://, so we need to delete one
-	controller := prepareController(t, strings.Replace(srv.URL, "http://", "", 1), "", "", "", "", false, true, fakeClientSet())
+	controller := prepareController(t, strings.Replace(srv.URL, "http://", "", 1), "", "", "", "", false, true)
 	err := controller.validateConfigMap("yunikorn", configmap)
 	assert.NilError(t, err, "No error expected")
 }
@@ -311,7 +309,7 @@ func TestValidateConfigMapInvalidConfig(t *testing.T) {
 	srv := serverMock(Failure)
 	defer srv.Close()
 	// both server and url pattern contains http://, so we need to delete one
-	controller := prepareController(t, strings.Replace(srv.URL, "http://", "", 1), "", "", "", "", false, true, fakeClientSet())
+	controller := prepareController(t, strings.Replace(srv.URL, "http://", "", 1), "", "", "", "", false, true)
 	err := controller.validateConfigMap("default", configmap)
 	assert.Assert(t, err != nil, "error not found")
 	assert.Equal(t, "Invalid config", err.Error(),
@@ -326,7 +324,7 @@ func TestValidateConfigMapWrongRequest(t *testing.T) {
 	srv := serverMock(Failure)
 	defer srv.Close()
 	// the url is wrong, so the POST request will fail, and success will be assumed
-	controller := prepareController(t, srv.URL, "", "", "", "", false, true, fakeClientSet())
+	controller := prepareController(t, srv.URL, "", "", "", "", false, true)
 	err := controller.validateConfigMap("yunikorn", configmap)
 	assert.NilError(t, err, "No error expected")
 }
@@ -339,7 +337,7 @@ func TestValidateConfigMapServerError(t *testing.T) {
 	srv := serverMock(Error)
 	defer srv.Close()
 	// both server and url pattern contains http://, so we need to delete one
-	controller := prepareController(t, strings.Replace(srv.URL, "http://", "", 1), "", "", "", "", false, true, fakeClientSet())
+	controller := prepareController(t, strings.Replace(srv.URL, "http://", "", 1), "", "", "", "", false, true)
 	err := controller.validateConfigMap("yunikorn", configmap)
 	assert.NilError(t, err, "No error expected")
 }
@@ -354,7 +352,7 @@ func prepareConfigMap(data string) *v1.ConfigMap {
 	return configmap
 }
 
-func prepareController(t *testing.T, url string, processNs string, bypassNs string, labelNs string, noLabelNs string, bypassAuth bool, trustControllers bool, clientSet kubernetes.Interface) *admissionController {
+func prepareController(t *testing.T, url string, processNs string, bypassNs string, labelNs string, noLabelNs string, bypassAuth bool, trustControllers bool) *admissionController {
 	if bypassNs == "" {
 		bypassNs = "^kube-system$"
 	}
@@ -433,7 +431,7 @@ func TestMutate(t *testing.T) {
 	var podJSON []byte
 	var err error
 
-	ac = prepareController(t, "", "", "^kube-system$,^bypass$", "", "^nolabel$", false, true, fakeClientSet())
+	ac = prepareController(t, "", "", "^kube-system$,^bypass$", "", "^nolabel$", false, true)
 
 	// nil request
 	resp = ac.mutate(nil)
@@ -574,7 +572,7 @@ func TestMutate(t *testing.T) {
 	assert.Equal(t, annotations[common.UserInfoAnnotation].(string), "{\"user\":\"testExtUser\"}")
 
 	// deployment - annotation is not set, bypassAuth is enabled
-	ac = prepareController(t, "", "", "^kube-system$,^bypass$", "", "^nolabel$", true, true, fakeClientSet())
+	ac = prepareController(t, "", "", "^kube-system$,^bypass$", "", "^nolabel$", true, true)
 	resp = ac.mutate(req)
 	assert.Check(t, resp.Allowed, "response not allowed for unknown object type")
 	assert.Equal(t, len(resp.Patch), 0, "non-empty patch for deployment")
@@ -588,16 +586,7 @@ func TestMutateUpdate(t *testing.T) {
 	var podJSON []byte
 	var err error
 
-	clientSet := fake.NewSimpleClientset(&v1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "test-ns",
-			Annotations: map[string]string{
-				common.UserInfoAnnotation: validUserInfoAnnotation,
-			},
-		},
-	})
-
-	ac = prepareController(t, "", "", "^kube-system$,^bypass$", "", "^nolabel$", true, true, clientSet)
+	ac = prepareController(t, "", "", "^kube-system$,^bypass$", "", "^nolabel$", true, true)
 
 	// nil request
 	resp = ac.mutate(nil)
@@ -687,7 +676,7 @@ func TestMutateUpdate(t *testing.T) {
 }
 
 func TestExternalAuthentication(t *testing.T) {
-	ac := prepareController(t, "", "", "^kube-system$,^bypass$", "", "^nolabel$", false, true, fakeClientSet())
+	ac := prepareController(t, "", "", "^kube-system$,^bypass$", "", "^nolabel$", false, true)
 
 	// validation fails, submitter user is not whitelisted
 	pod := v1.Pod{ObjectMeta: metav1.ObjectMeta{
@@ -815,7 +804,7 @@ func annotationsFromDeployment(t *testing.T, patch []byte) map[string]interface{
 }
 
 func TestShouldProcessNamespace(t *testing.T) {
-	ac := prepareController(t, "", "", "^kube-system$,^pre-,-post$", "", "", false, true, fakeClientSet())
+	ac := prepareController(t, "", "", "^kube-system$,^pre-,-post$", "", "", false, true)
 
 	assert.Check(t, ac.shouldProcessNamespace("test"), "test namespace not allowed")
 	assert.Check(t, !ac.shouldProcessNamespace("kube-system"), "kube-system namespace allowed")
@@ -824,18 +813,18 @@ func TestShouldProcessNamespace(t *testing.T) {
 	assert.Check(t, !ac.shouldProcessNamespace("pre-ns"), "pre-ns namespace allowed")
 	assert.Check(t, !ac.shouldProcessNamespace("ns-post"), "ns-post namespace allowed")
 
-	ac = prepareController(t, "", "^allow-", "^allow-except-", "", "", false, true, fakeClientSet())
+	ac = prepareController(t, "", "^allow-", "^allow-except-", "", "", false, true)
 	assert.Check(t, !ac.shouldProcessNamespace("test"), "test namespace allowed when not on process list")
 	assert.Check(t, ac.shouldProcessNamespace("allow-this"), "allow-this namespace not allowed when on process list")
 	assert.Check(t, !ac.shouldProcessNamespace("allow-except-this"), "allow-except-this namespace allowed when on bypass list")
 }
 
 func TestShouldLabelNamespace(t *testing.T) {
-	ac := prepareController(t, "", "", "", "", "^skip$", false, true, fakeClientSet())
+	ac := prepareController(t, "", "", "", "", "^skip$", false, true)
 	assert.Check(t, ac.shouldLabelNamespace("test"), "test namespace not allowed")
 	assert.Check(t, !ac.shouldLabelNamespace("skip"), "skip namespace allowed when on no-label list")
 
-	ac = prepareController(t, "", "", "", "^allow-", "^allow-except-", false, true, fakeClientSet())
+	ac = prepareController(t, "", "", "", "^allow-", "^allow-except-", false, true)
 	assert.Check(t, !ac.shouldLabelNamespace("test"), "test namespace allowed when not on label list")
 	assert.Check(t, ac.shouldLabelNamespace("allow-this"), "allow-this namespace not allowed when on label list")
 	assert.Check(t, !ac.shouldLabelNamespace("allow-except-this"), "allow-except-this namespace allowed when on no-label list")
