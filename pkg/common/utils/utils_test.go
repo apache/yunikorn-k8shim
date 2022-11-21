@@ -909,7 +909,7 @@ func TestGetTaskGroupFromAnnotation(t *testing.T) {
 	testGroupErr3 := `
 	[
 		{
-			"name": "test-group-err-2",
+			"name": "test-group-err-3",
 			"minResource": {
 				"cpu": 2,
 				"memory": "1Gi"
@@ -936,8 +936,8 @@ func TestGetTaskGroupFromAnnotation(t *testing.T) {
 	testGroupErr6 := `
 	[
 		{
-			"name": "test-group-err-5",
-			"minMember": -100
+			"name": "test-group-err-6",
+			"minMember": -100,
 			"minResource": {
 				"cpu": 2,
 				"memory": "1Gi"

@@ -407,18 +407,18 @@ func UpdatePodLabelForAdmissionController(pod *v1.Pod, namespace string) map[str
 		result[k] = v
 	}
 
-	if _, ok := existingLabels[constants.SparkLabelAppID]; !ok {
-		if _, ok := existingLabels[constants.LabelApplicationID]; !ok {
-			// if app id not exist, generate one
-			// for each namespace, we group unnamed pods to one single app
-			// application ID convention: ${AUTO_GEN_PREFIX}-${NAMESPACE}-${AUTO_GEN_SUFFIX}
-			generatedID := generateAppID(namespace)
-			result[constants.LabelApplicationID] = generatedID
+	sparkAppID := GetPodLabelValue(pod, constants.SparkLabelAppID)
+	appID := GetPodLabelValue(pod, constants.LabelApplicationID)
+	if sparkAppID == "" && appID == "" {
+		// if app id not exist, generate one
+		// for each namespace, we group unnamed pods to one single app
+		// application ID convention: ${AUTO_GEN_PREFIX}-${NAMESPACE}-${AUTO_GEN_SUFFIX}
+		generatedID := generateAppID(namespace)
+		result[constants.LabelApplicationID] = generatedID
 
-			// if we generate an app ID, disable state-aware scheduling for this app
-			if _, ok := existingLabels[constants.LabelDisableStateAware]; !ok {
-				result[constants.LabelDisableStateAware] = "true"
-			}
+		// if we generate an app ID, disable state-aware scheduling for this app
+		if _, ok := existingLabels[constants.LabelDisableStateAware]; !ok {
+			result[constants.LabelDisableStateAware] = "true"
 		}
 	}
 
