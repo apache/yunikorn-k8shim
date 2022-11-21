@@ -317,7 +317,8 @@ func (c *admissionController) processPodUpdate(req *admissionv1.AdmissionRequest
 }
 
 func (c *admissionController) shouldProcessAdmissionReview(namespace string, labels map[string]string) bool {
-	if c.shouldProcessNamespace(namespace) && (labels[constants.LabelApplicationID] != "" || c.shouldLabelNamespace(namespace)) {
+	if c.shouldProcessNamespace(namespace) &&
+		(labels[constants.LabelApplicationID] != "" || labels[constants.SparkLabelAppID] != "" || c.shouldLabelNamespace(namespace)) {
 		return true
 	}
 
