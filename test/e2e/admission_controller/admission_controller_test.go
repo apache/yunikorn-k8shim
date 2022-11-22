@@ -107,7 +107,7 @@ var _ = ginkgo.Describe("AdmissionController", func() {
 		gomega.Ω(invalidCm).ShouldNot(gomega.BeNil())
 	})
 
-	ginkgo.PIt("Check that annotation is added to a pod & cannot be modified", func() {
+	ginkgo.It("Check that annotation is added to a pod & cannot be modified", func() {
 		ginkgo.By("Create a pod")
 		pod, err := kubeClient.CreatePod(&testPod, ns)
 		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
@@ -126,7 +126,7 @@ var _ = ginkgo.Describe("AdmissionController", func() {
 		gomega.Ω(err).Should(gomega.HaveOccurred())
 	})
 
-	ginkgo.PIt("Check that annotation is added to a deployment", func() {
+	ginkgo.It("Check that annotation is added to a deployment", func() {
 		ginkgo.By("Create a deployment")
 		deployment, err := kubeClient.CreateDeployment(&testDeployment, ns)
 		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
