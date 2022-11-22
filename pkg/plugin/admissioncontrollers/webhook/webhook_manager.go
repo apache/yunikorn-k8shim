@@ -502,11 +502,12 @@ func (wm *webhookManagerImpl) checkMutatingWebhook(webhook *v1.MutatingWebhookCo
 	}
 
 	rule := rules[0]
-	if len(rule.Operations) != 1 || rule.Operations[0] != v1.Create {
+	if len(rule.Operations) != 2 || rule.Operations[0] != v1.Create || rule.Operations[1] != v1.Update {
 		return errors.New("webhook: wrong operations")
 	}
 
-	if len(rule.APIGroups) != 1 || rule.APIGroups[0] != "" {
+	if len(rule.APIGroups) != 3 || rule.APIGroups[0] != "" ||
+		rule.APIGroups[1] != "apps" || rule.APIGroups[2] != "batch" {
 		return errors.New("webhook: wrong api groups")
 	}
 
@@ -514,7 +515,10 @@ func (wm *webhookManagerImpl) checkMutatingWebhook(webhook *v1.MutatingWebhookCo
 		return errors.New("webhook: wrong api versions")
 	}
 
-	if len(rule.Resources) != 1 || rule.Resources[0] != "pods" {
+	if len(rule.Resources) != 7 || rule.Resources[0] != "pods" ||
+		rule.Resources[1] != "deployments" || rule.Resources[2] != "replicasets" ||
+		rule.Resources[3] != "statefulsets" || rule.Resources[4] != "daemonsets" ||
+		rule.Resources[5] != "jobs" || rule.Resources[6] != "cronjobs" {
 		return errors.New("webhook: wrong resources")
 	}
 
@@ -627,8 +631,9 @@ func (wm *webhookManagerImpl) populateMutatingWebhook(webhook *v1.MutatingWebhoo
 				CABundle: caBundle,
 			},
 			Rules: []v1.RuleWithOperations{{
-				Operations: []v1.OperationType{v1.Create},
-				Rule:       v1.Rule{APIGroups: []string{""}, APIVersions: []string{"v1"}, Resources: []string{"pods"}},
+				Operations: []v1.OperationType{v1.Create, v1.Update},
+				Rule: v1.Rule{APIGroups: []string{"", "apps", "batch"}, APIVersions: []string{"v1"}, Resources: []string{
+					"pods", "deployments", "replicasets", "statefulsets", "daemonsets", "jobs", "cronjobs"}},
 			}},
 			FailurePolicy:           &ignore,
 			AdmissionReviewVersions: []string{"v1"},

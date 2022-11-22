@@ -16,22 +16,18 @@
  limitations under the License.
 */
 
-package annotation
+package metadata
 
 import (
 	"encoding/json"
-	"reflect"
 	"strings"
 
 	"go.uber.org/zap"
 	admissionv1 "k8s.io/api/admission/v1"
-	appsv1 "k8s.io/api/apps/v1"
-	batchv1 "k8s.io/api/batch/v1"
-	batchv1Beta "k8s.io/api/batch/v1beta1"
-
-	"github.com/apache/yunikorn-k8shim/pkg/plugin/admissioncontrollers/webhook/conf"
 
 	"github.com/apache/yunikorn-k8shim/pkg/log"
+	"github.com/apache/yunikorn-k8shim/pkg/plugin/admissioncontrollers/webhook/common"
+	"github.com/apache/yunikorn-k8shim/pkg/plugin/admissioncontrollers/webhook/conf"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
 
@@ -45,24 +41,9 @@ func NewUserGroupAnnotationHandler(conf *conf.AdmissionControllerConf) *UserGrou
 	}
 }
 
-type Extractor func(*admissionv1.AdmissionRequest) (map[string]string, error)
-
-var (
-	Deployment  = reflect.TypeOf(appsv1.Deployment{}).Name()
-	DaemonSet   = reflect.TypeOf(appsv1.DaemonSet{}).Name()
-	StatefulSet = reflect.TypeOf(appsv1.StatefulSet{}).Name()
-	ReplicaSet  = reflect.TypeOf(appsv1.ReplicaSet{}).Name()
-	Job         = reflect.TypeOf(batchv1.Job{}).Name()
-	CronJob     = reflect.TypeOf(batchv1Beta.CronJob{}).Name()
-
-	extractors = map[string]Extractor{
-		Deployment:  fromDeployment,
-		DaemonSet:   fromDaemonSet,
-		StatefulSet: fromStatefulSet,
-		ReplicaSet:  fromReplicaSet,
-		Job:         fromJob,
-		CronJob:     fromCronJob,
-	}
+const (
+	defaultPodAnnotationsPath = "/spec/template/metadata/annotations"
+	cronJobPodAnnotationsPath = "/spec/jobtemplate/spec/template/metadata/annotations"
 )
 
 func (u *UserGroupAnnotationHandler) IsAnnotationAllowed(userName string, groups []string) bool {
@@ -105,77 +86,72 @@ func (u *UserGroupAnnotationHandler) IsAnnotationValid(userInfoAnnotation string
 		return err
 	}
 
-	log.Logger().Debug("Successfully validated user info annotation", zap.String("externally provided user", userGroups.User),
+	log.Logger().Debug("Successfully validated user info metadata", zap.String("externally provided user", userGroups.User),
 		zap.String("externally provided groups", strings.Join(userGroups.Groups, ",")))
 
 	return nil
 }
 
-func (u *UserGroupAnnotationHandler) GetAnnotationsFromRequestKind(kind string, req *admissionv1.AdmissionRequest) (map[string]string, bool, error) {
-	extractFn, ok := extractors[kind]
+func (u *UserGroupAnnotationHandler) GetAnnotationsFromRequestKind(req *admissionv1.AdmissionRequest) (map[string]string, bool, error) {
+	extractFn, ok := extractors[req.Kind.Kind]
 	if !ok {
 		return nil, false, nil
 	}
 	result, err := extractFn(req)
-	return result, true, err
+	if result == nil {
+		return nil, true, err
+	}
+	return result.annotations, true, err
 }
 
-func fromDeployment(req *admissionv1.AdmissionRequest) (map[string]string, error) {
-	var deployment appsv1.Deployment
-	err := json.Unmarshal(req.Object.Raw, &deployment)
+func (u *UserGroupAnnotationHandler) GetPatchForWorkload(req *admissionv1.AdmissionRequest, user string, groups []string) ([]common.PatchOperation, error) {
+	extractFn, ok := extractors[req.Kind.Kind]
+	if !ok {
+		return nil, nil
+	}
+	result, err := extractFn(req)
 	if err != nil {
 		return nil, err
 	}
 
-	return deployment.Spec.Template.Annotations, nil
+	patchOp, patchErr := u.getPatchOperation(result.annotations, result.path, user, groups)
+	if patchErr != nil {
+		return nil, patchErr
+	}
+
+	patch := make([]common.PatchOperation, 1)
+	patch[0] = *patchOp
+
+	return patch, nil
 }
 
-func fromDaemonSet(req *admissionv1.AdmissionRequest) (map[string]string, error) {
-	var daemonSet appsv1.DaemonSet
-	err := json.Unmarshal(req.Object.Raw, &daemonSet)
+func (u *UserGroupAnnotationHandler) GetPatchForPod(annotations map[string]string, user string, groups []string) (*common.PatchOperation, error) {
+	patchOp, err := u.getPatchOperation(annotations, "/metadata/annotations", user, groups)
+	if err != nil {
+		return nil, err
+	}
+	return patchOp, nil
+}
+
+func (u *UserGroupAnnotationHandler) getPatchOperation(annotations map[string]string, path, user string, groups []string) (*common.PatchOperation, error) {
+	newAnnotations := make(map[string]string)
+	for k, v := range annotations {
+		newAnnotations[k] = v
+	}
+
+	var userGroups si.UserGroupInformation
+	userGroups.User = user
+	userGroups.Groups = groups
+	jsonBytes, err := json.Marshal(userGroups)
 	if err != nil {
 		return nil, err
 	}
 
-	return daemonSet.Spec.Template.Annotations, nil
-}
+	newAnnotations[common.UserInfoAnnotation] = string(jsonBytes)
 
-func fromStatefulSet(req *admissionv1.AdmissionRequest) (map[string]string, error) {
-	var statefulSet appsv1.StatefulSet
-	err := json.Unmarshal(req.Object.Raw, &statefulSet)
-	if err != nil {
-		return nil, err
-	}
-
-	return statefulSet.Spec.Template.Annotations, nil
-}
-
-func fromReplicaSet(req *admissionv1.AdmissionRequest) (map[string]string, error) {
-	var replicaSet appsv1.ReplicaSet
-	err := json.Unmarshal(req.Object.Raw, &replicaSet)
-	if err != nil {
-		return nil, err
-	}
-
-	return replicaSet.Spec.Template.Annotations, nil
-}
-
-func fromJob(req *admissionv1.AdmissionRequest) (map[string]string, error) {
-	var job batchv1.Job
-	err := json.Unmarshal(req.Object.Raw, &job)
-	if err != nil {
-		return nil, err
-	}
-
-	return job.Spec.Template.Annotations, nil
-}
-
-func fromCronJob(req *admissionv1.AdmissionRequest) (map[string]string, error) {
-	var cronJob batchv1Beta.CronJob
-	err := json.Unmarshal(req.Object.Raw, &cronJob)
-	if err != nil {
-		return nil, err
-	}
-
-	return cronJob.Spec.JobTemplate.Spec.Template.Annotations, nil
+	return &common.PatchOperation{
+		Op:    "add",
+		Path:  path,
+		Value: newAnnotations,
+	}, nil
 }
