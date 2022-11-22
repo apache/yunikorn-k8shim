@@ -34,6 +34,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
 
+	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
 	authv1 "k8s.io/api/rbac/v1"
@@ -405,6 +406,22 @@ func GetPodObj(yamlPath string) (*v1.Pod, error) {
 		return nil, err
 	}
 	return o.(*v1.Pod), err
+}
+
+func (k *KubeCtl) CreateDeployment(deployment *appsv1.Deployment, namespace string) (*appsv1.Deployment, error) {
+	return k.clientSet.AppsV1().Deployments(namespace).Create(context.TODO(), deployment, metav1.CreateOptions{})
+}
+
+func (k *KubeCtl) DeleteDeployment(name, namespace string) error {
+	var secs int64 = 0
+	err := k.clientSet.AppsV1().Deployments(namespace).Delete(context.TODO(), name, metav1.DeleteOptions{
+		GracePeriodSeconds: &secs,
+	})
+	if err != nil {
+		return err
+	}
+	err = k.WaitForPodTerminated(namespace, name, 60*time.Second)
+	return err
 }
 
 func (k *KubeCtl) CreatePod(pod *v1.Pod, namespace string) (*v1.Pod, error) {

@@ -24,6 +24,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -42,6 +43,7 @@ var ns = "admission-controller-test"
 var blackNs = "kube-system"
 var restClient yunikorn.RClient
 var oldConfigMap *v1.ConfigMap
+var replicas = int32(1)
 var testPod = v1.Pod{
 	ObjectMeta: metav1.ObjectMeta{
 		Name:   "sleepjob",
@@ -56,6 +58,20 @@ var testPod = v1.Pod{
 			},
 		},
 	},
+}
+
+var testDeployment = appsv1.Deployment{
+	Spec: appsv1.DeploymentSpec{
+		Replicas: &replicas,
+		Selector: &metav1.LabelSelector{
+			MatchLabels: testPod.Labels,
+		},
+		Template: v1.PodTemplateSpec{
+			ObjectMeta: testPod.ObjectMeta,
+			Spec:       testPod.Spec,
+		},
+	},
+	ObjectMeta: testPod.ObjectMeta,
 }
 
 func TestAdmissionController(t *testing.T) {
