@@ -20,7 +20,7 @@ run:
   issues-exit-code: 1
   skip-dirs-use-default: true
   modules-download-mode: readonly
-  deadline: 5m
+  deadline: 10m
   skip-dirs:
     - pkg/client/clientset
     - pkg/client/informers
@@ -103,4 +103,3 @@ issues:
 
   # Show only new issues created in git patch with set file path.
   # new-from-patch: path/to/patch/file
-
