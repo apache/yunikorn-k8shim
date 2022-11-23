@@ -26,6 +26,7 @@ import (
 	"github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
@@ -35,8 +36,9 @@ import (
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
 )
 
-var _ = ginkgo.Describe("AdmissionController", func() {
+const userInfoAnnotation = "yunikorn.apache.org/user.info"
 
+var _ = ginkgo.Describe("AdmissionController", func() {
 	ginkgo.BeforeEach(func() {
 		kubeClient = k8s.KubeCtl{}
 		gomega.Expect(kubeClient.SetClient()).To(gomega.BeNil())
@@ -131,7 +133,7 @@ var _ = ginkgo.Describe("AdmissionController", func() {
 		ginkgo.By("Create a deployment")
 		deployment, err := kubeClient.CreateDeployment(&testDeployment, ns)
 		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
-		defer deleteDeployment(deployment)
+		defer deleteDeployment(deployment, ns)
 		err = kubeClient.WaitForPodBySelector(ns,
 			fmt.Sprintf("app=%s", testDeployment.ObjectMeta.Labels["app"]), 10*time.Second)
 		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
@@ -153,6 +155,9 @@ var _ = ginkgo.Describe("AdmissionController", func() {
 		ginkgo.By("Retrieve existing configmap")
 		configMap, err := kubeClient.GetConfigMap(constants.ConfigMapName, configmanager.YuniKornTestConfig.YkNamespace)
 		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
+		if configMap.Data == nil {
+			configMap.Data = make(map[string]string)
+		}
 		configMap.Data[amConf.AMAccessControlTrustControllers] = "false"
 		ginkgo.By("Update configmap")
 		_, err = kubeClient.UpdateConfigMap(configMap, configmanager.YuniKornTestConfig.YkNamespace)
@@ -162,7 +167,7 @@ var _ = ginkgo.Describe("AdmissionController", func() {
 		ginkgo.By("Create a deployment")
 		deployment, err2 := kubeClient.CreateDeployment(&testDeployment, ns)
 		gomega.Ω(err2).ShouldNot(gomega.HaveOccurred())
-		defer deleteDeployment(deployment)
+		defer deleteDeployment(deployment, ns)
 
 		// pod is not expected to appear
 		ginkgo.By("Check for sleep pods (should time out)")
@@ -175,9 +180,9 @@ var _ = ginkgo.Describe("AdmissionController", func() {
 		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
 		fmt.Fprintf(ginkgo.GinkgoWriter, "Replicas: %d, AvailableReplicas: %d, ReadyReplicas: %d\n",
 			deployment.Status.Replicas, deployment.Status.AvailableReplicas, deployment.Status.ReadyReplicas)
-		gomega.Ω(deployment.Status.Replicas).To(gomega.Equal(0))
-		gomega.Ω(deployment.Status.AvailableReplicas).To(gomega.Equal(0))
-		gomega.Ω(deployment.Status.ReadyReplicas).To(gomega.Equal(0))
+		gomega.Ω(deployment.Status.Replicas).To(gomega.Equal(int32(0)))
+		gomega.Ω(deployment.Status.AvailableReplicas).To(gomega.Equal(int32(0)))
+		gomega.Ω(deployment.Status.ReadyReplicas).To(gomega.Equal(int32(0)))
 
 		// restore setting
 		ginkgo.By("Restore trustController setting")
@@ -186,6 +191,50 @@ var _ = ginkgo.Describe("AdmissionController", func() {
 		configMap.Data[amConf.AMAccessControlTrustControllers] = "true"
 		_, err = kubeClient.UpdateConfigMap(configMap, configmanager.YuniKornTestConfig.YkNamespace)
 		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
+
+		// pod is expected to appear
+		ginkgo.By("Check for sleep pod")
+		err = kubeClient.WaitForPodBySelector(ns, fmt.Sprintf("app=%s", testDeployment.ObjectMeta.Labels["app"]),
+			60*time.Second)
+		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
+	})
+
+	ginkgo.It("Check that deployment is rejected when external user is not trusted", func() {
+		ginkgo.By("Retrieve existing configmap")
+		configMap, err := kubeClient.GetConfigMap(constants.ConfigMapName, configmanager.YuniKornTestConfig.YkNamespace)
+		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
+		if configMap.Data == nil {
+			configMap.Data = make(map[string]string)
+		}
+		configMap.Data[amConf.AMAccessControlExternalUsers] = ""
+		ginkgo.By("Update configmap")
+		_, err = kubeClient.UpdateConfigMap(configMap, configmanager.YuniKornTestConfig.YkNamespace)
+		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
+		time.Sleep(time.Second) // should be enough to allow the admission controller to pick up the changes
+
+		ginkgo.By("Create a deployment")
+		deployment := testDeployment.DeepCopy()
+		deployment.Spec.Template.Annotations = make(map[string]string)
+		deployment.Spec.Template.Annotations[userInfoAnnotation] = "{\"user\":\"test\",\"groups\":[\"devops\",\"system:authenticated\"]}"
+		_, err = kubeClient.CreateDeployment(deployment, ns)
+		fmt.Fprintf(ginkgo.GinkgoWriter, "Error received from API server: %v\n", err)
+		gomega.Ω(err).Should(gomega.HaveOccurred())
+		gomega.Ω(err).To(gomega.BeAssignableToTypeOf(&errors.StatusError{}))
+
+		// modify setting
+		ginkgo.By("Changing allowed externalUser setting")
+		configMap, err = kubeClient.GetConfigMap(constants.ConfigMapName, configmanager.YuniKornTestConfig.YkNamespace)
+		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
+		configMap.Data[amConf.AMAccessControlExternalUsers] = "(^minikube-user$|^kubernetes-admin$)" // works with Minikube & KIND
+		_, err = kubeClient.UpdateConfigMap(configMap, configmanager.YuniKornTestConfig.YkNamespace)
+		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
+		time.Sleep(time.Second) // should be enough to allow the admission controller to pick up the changes
+
+		// submit deployment again
+		ginkgo.By("Submit deployment again")
+		_, err = kubeClient.CreateDeployment(deployment, ns)
+		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
+		defer deleteDeployment(deployment, ns)
 
 		// pod is expected to appear
 		ginkgo.By("Check for sleep pod")
@@ -211,10 +260,21 @@ func deletePod(pod *v1.Pod, namespace string) {
 	}
 }
 
-func deleteDeployment(deployment *appsv1.Deployment) {
+func deleteDeployment(deployment *appsv1.Deployment, namespace string) {
 	if deployment != nil {
 		ginkgo.By("Delete deployment " + deployment.Name)
-		err := kubeClient.DeleteDeployment(deployment.Name, ns)
+		err := kubeClient.DeleteDeployment(deployment.Name, namespace)
+		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
+
+		pods, err2 := kubeClient.GetPods(ns)
+		gomega.Ω(err2).ShouldNot(gomega.HaveOccurred())
+		ginkgo.By("Forcibly deleting pods")
+		for _, pod := range pods.Items {
+			err = kubeClient.DeletePod(pod.Name, namespace)
+			gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
+		}
+
+		err = kubeClient.WaitForPodCount(namespace, 0, 10*time.Second)
 		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
 	}
 }

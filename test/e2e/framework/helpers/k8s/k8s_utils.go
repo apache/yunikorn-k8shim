@@ -546,6 +546,19 @@ func (k *KubeCtl) isPodEventTriggered(namespace string, podName string, expected
 	}
 }
 
+func (k *KubeCtl) isNumPod(namespace string, wanted int) wait.ConditionFunc {
+	return func() (bool, error) {
+		podList, err := k.GetPods(namespace)
+		if err != nil {
+			return false, err
+		}
+		if len(podList.Items) == wanted {
+			return true, nil
+		}
+		return false, nil
+	}
+}
+
 func (k *KubeCtl) WaitForPodEvent(namespace string, podName string, expectedReason string, timeout time.Duration) error {
 	return wait.PollImmediate(time.Second, timeout, k.isPodEventTriggered(namespace, podName, expectedReason))
 }
@@ -574,6 +587,10 @@ func (k *KubeCtl) WaitForPodSucceeded(namespace string, podName string, timeout 
 
 func (k *KubeCtl) WaitForPodFailed(namespace string, podName string, timeout time.Duration) error {
 	return wait.PollImmediate(time.Second, timeout, k.isPodInDesiredState(podName, namespace, v1.PodFailed))
+}
+
+func (k *KubeCtl) WaitForPodCount(namespace string, wanted int, timeout time.Duration) error {
+	return wait.PollImmediate(time.Second, timeout, k.isNumPod(namespace, wanted))
 }
 
 // Returns the list of currently scheduled or running pods in `namespace` with the given selector
