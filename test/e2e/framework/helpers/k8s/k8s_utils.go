@@ -417,11 +417,11 @@ func (k *KubeCtl) DeleteDeployment(name, namespace string) error {
 	err := k.clientSet.AppsV1().Deployments(namespace).Delete(context.TODO(), name, metav1.DeleteOptions{
 		GracePeriodSeconds: &secs,
 	})
-	if err != nil {
-		return err
-	}
-	err = k.WaitForPodTerminated(namespace, name, 60*time.Second)
 	return err
+}
+
+func (k *KubeCtl) GetDeployment(name, namespace string) (*appsv1.Deployment, error) {
+	return k.clientSet.AppsV1().Deployments(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 }
 
 func (k *KubeCtl) CreatePod(pod *v1.Pod, namespace string) (*v1.Pod, error) {

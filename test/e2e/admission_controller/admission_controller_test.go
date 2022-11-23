@@ -29,6 +29,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
+	amConf "github.com/apache/yunikorn-k8shim/pkg/plugin/admissioncontrollers/webhook/conf"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
@@ -146,6 +147,51 @@ var _ = ginkgo.Describe("AdmissionController", func() {
 		gomega.Ω(err2).ShouldNot(gomega.HaveOccurred())
 		userinfo := pod.Annotations["yunikorn.apache.org/user.info"]
 		gomega.Ω(userinfo).Should(gomega.Not(gomega.BeNil()))
+	})
+
+	ginkgo.It("Check that deployment is rejected when controller users are not trusted", func() {
+		ginkgo.By("Retrieve existing configmap")
+		configMap, err := kubeClient.GetConfigMap(constants.ConfigMapName, configmanager.YuniKornTestConfig.YkNamespace)
+		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
+		configMap.Data[amConf.AMAccessControlTrustControllers] = "false"
+		ginkgo.By("Update configmap")
+		_, err = kubeClient.UpdateConfigMap(configMap, configmanager.YuniKornTestConfig.YkNamespace)
+		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
+		time.Sleep(time.Second) // should be enough to allow the admission controller to pick up the changes
+
+		ginkgo.By("Create a deployment")
+		deployment, err2 := kubeClient.CreateDeployment(&testDeployment, ns)
+		gomega.Ω(err2).ShouldNot(gomega.HaveOccurred())
+		defer deleteDeployment(deployment)
+
+		// pod is not expected to appear
+		ginkgo.By("Check for sleep pods (should time out)")
+		err = kubeClient.WaitForPodBySelector(ns, fmt.Sprintf("app=%s", testDeployment.ObjectMeta.Labels["app"]),
+			10*time.Second)
+		fmt.Fprintf(ginkgo.GinkgoWriter, "Error: %v\n", err)
+		gomega.Ω(err).Should(gomega.HaveOccurred())
+		ginkgo.By("Check deployment status")
+		deployment, err = kubeClient.GetDeployment(testDeployment.Name, ns)
+		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
+		fmt.Fprintf(ginkgo.GinkgoWriter, "Replicas: %d, AvailableReplicas: %d, ReadyReplicas: %d\n",
+			deployment.Status.Replicas, deployment.Status.AvailableReplicas, deployment.Status.ReadyReplicas)
+		gomega.Ω(deployment.Status.Replicas).To(gomega.Equal(0))
+		gomega.Ω(deployment.Status.AvailableReplicas).To(gomega.Equal(0))
+		gomega.Ω(deployment.Status.ReadyReplicas).To(gomega.Equal(0))
+
+		// restore setting
+		ginkgo.By("Restore trustController setting")
+		configMap, err = kubeClient.GetConfigMap(constants.ConfigMapName, configmanager.YuniKornTestConfig.YkNamespace)
+		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
+		configMap.Data[amConf.AMAccessControlTrustControllers] = "true"
+		_, err = kubeClient.UpdateConfigMap(configMap, configmanager.YuniKornTestConfig.YkNamespace)
+		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
+
+		// pod is expected to appear
+		ginkgo.By("Check for sleep pod")
+		err = kubeClient.WaitForPodBySelector(ns, fmt.Sprintf("app=%s", testDeployment.ObjectMeta.Labels["app"]),
+			60*time.Second)
+		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
 	})
 
 	ginkgo.AfterEach(func() {
