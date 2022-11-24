@@ -20,8 +20,11 @@ package utils
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
+
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	"gotest.tools/assert"
 	v1 "k8s.io/api/core/v1"
@@ -733,6 +736,443 @@ func TestNeedRecovery(t *testing.T) {
 			recovery := NeedRecovery(tc.pod)
 			assert.Equal(t, recovery, tc.expectedRecoveryFlag, tc.description)
 		})
+	}
+}
+
+func TestGetTaskGroupFromPodSpec(t *testing.T) {
+	pod := &v1.Pod{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "pod-01",
+			UID:  "UID-01",
+			Annotations: map[string]string{
+				constants.AnnotationTaskGroupName: "test-task-group",
+			},
+		},
+	}
+
+	assert.Equal(t, GetTaskGroupFromPodSpec(pod), "test-task-group")
+
+	pod = &v1.Pod{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "pod-01",
+			UID:  "UID-01",
+		},
+	}
+
+	assert.Equal(t, GetTaskGroupFromPodSpec(pod), "")
+}
+
+func TestGetPlaceholderFlagFromPodSpec(t *testing.T) {
+	testCases := []struct {
+		description             string
+		pod                     *v1.Pod
+		expectedPlaceholderFlag bool
+	}{
+
+		{"Setting by annotation", &v1.Pod{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Pod",
+				APIVersion: "v1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "pod-01",
+				UID:  "UID-01",
+				Annotations: map[string]string{
+					constants.AnnotationPlaceholderFlag: "true",
+				},
+			},
+		}, true},
+		{"Setting by label", &v1.Pod{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Pod",
+				APIVersion: "v1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "pod-01",
+				UID:  "UID-01",
+				Labels: map[string]string{
+					constants.LabelPlaceholderFlag: "true",
+				},
+			},
+		}, true},
+		{"Setting both annotation and label, annotation has higher priority", &v1.Pod{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Pod",
+				APIVersion: "v1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "pod-01",
+				UID:  "UID-01",
+				Annotations: map[string]string{
+					constants.AnnotationPlaceholderFlag: "true",
+					constants.LabelPlaceholderFlag:      "false",
+				},
+			},
+		}, true},
+		{"No setting both annotation and label", &v1.Pod{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Pod",
+				APIVersion: "v1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "pod-01",
+				UID:  "UID-01",
+			},
+		}, false},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.description, func(t *testing.T) {
+			placeHolderFlag := GetPlaceholderFlagFromPodSpec(tc.pod)
+			assert.Equal(t, placeHolderFlag, tc.expectedPlaceholderFlag)
+		})
+	}
+}
+
+// nolint: funlen
+func TestGetTaskGroupFromAnnotation(t *testing.T) {
+	// correct json
+	testGroup := `
+	[
+		{
+			"name": "test-group-1",
+			"minMember": 10,
+			"minResource": {
+				"cpu": 1,
+				"memory": "2Gi"
+			},
+			"nodeSelector": {
+				"test": "testnode",
+				"locate": "west"
+			},
+			"tolerations": [
+				{
+					"key": "key",
+					"operator": "Equal",
+					"value": "value",
+					"effect": "NoSchedule"
+				}
+			]
+		},
+		{
+			"name": "test-group-2",
+			"minMember": 5,
+			"minResource": {
+				"cpu": 2,
+				"memory": "4Gi"
+			}
+		}
+	]`
+	testGroup2 := `
+	[
+		{
+			"name": "test-group-3",
+			"minMember": 3,
+			"minResource": {
+				"cpu": 2,
+				"memory": "1Gi"
+			}
+		}
+	]`
+	// Error json
+	testGroupErr := `
+	[
+		{
+			"name": "test-group-err-1",
+			"minMember": "ERR",
+			"minResource": {
+				"cpu": "ERR",
+				"memory": "ERR"
+			},
+		}
+	]`
+	// without name
+	testGroupErr2 := `
+	[
+		{
+			"minMember": 3,
+			"minResource": {
+				"cpu": 2,
+				"memory": "1Gi"
+			}
+		}
+	]`
+	// without minMember
+	testGroupErr3 := `
+	[
+		{
+			"name": "test-group-err-3",
+			"minResource": {
+				"cpu": 2,
+				"memory": "1Gi"
+			}
+		}
+	]`
+	// without minResource
+	testGroupErr4 := `
+	[
+		{
+			"name": "test-group-err-4",
+			"minMember": 3
+		}
+	]`
+	// negative minMember without minResource
+	testGroupErr5 := `
+	[
+		{
+			"name": "test-group-err-5",
+			"minMember": -100
+		}
+	]`
+	// negative minMember with minResource
+	testGroupErr6 := `
+	[
+		{
+			"name": "test-group-err-6",
+			"minMember": -100,
+			"minResource": {
+				"cpu": 2,
+				"memory": "1Gi"
+			}
+		}
+	]`
+	// Insert task group info to pod annotation
+	pod := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-pod-err",
+			Namespace: "test",
+			UID:       "test-pod-UID-err",
+		},
+		Spec: v1.PodSpec{},
+		Status: v1.PodStatus{
+			Phase: v1.PodPending,
+		},
+	}
+	// Empty case
+	taskGroupEmpty, err := GetTaskGroupsFromAnnotation(pod)
+	assert.Assert(t, taskGroupEmpty == nil)
+	assert.Assert(t, err == nil)
+	// Error case
+	pod.Annotations = map[string]string{constants.AnnotationTaskGroups: testGroupErr}
+	taskGroupErr, err := GetTaskGroupsFromAnnotation(pod)
+	assert.Assert(t, taskGroupErr == nil)
+	assert.Assert(t, err != nil)
+	pod.Annotations = map[string]string{constants.AnnotationTaskGroups: testGroupErr2}
+	taskGroupErr2, err := GetTaskGroupsFromAnnotation(pod)
+	assert.Assert(t, taskGroupErr2 == nil)
+	assert.Assert(t, err != nil)
+	pod.Annotations = map[string]string{constants.AnnotationTaskGroups: testGroupErr3}
+	taskGroupErr3, err := GetTaskGroupsFromAnnotation(pod)
+	assert.Assert(t, taskGroupErr3 == nil)
+	assert.Assert(t, err != nil)
+	pod.Annotations = map[string]string{constants.AnnotationTaskGroups: testGroupErr4}
+	taskGroupErr4, err := GetTaskGroupsFromAnnotation(pod)
+	assert.Assert(t, taskGroupErr4 == nil)
+	assert.Assert(t, err != nil)
+	pod.Annotations = map[string]string{constants.AnnotationTaskGroups: testGroupErr5}
+	taskGroupErr5, err := GetTaskGroupsFromAnnotation(pod)
+	assert.Assert(t, taskGroupErr5 == nil)
+	assert.Assert(t, err != nil)
+	pod.Annotations = map[string]string{constants.AnnotationTaskGroups: testGroupErr6}
+	taskGroupErr6, err := GetTaskGroupsFromAnnotation(pod)
+	assert.Assert(t, taskGroupErr6 == nil)
+	assert.Assert(t, err != nil)
+	// Correct case
+	pod.Annotations = map[string]string{constants.AnnotationTaskGroups: testGroup}
+	taskGroups, err := GetTaskGroupsFromAnnotation(pod)
+	assert.NilError(t, err)
+	// Group value check
+	assert.Equal(t, taskGroups[0].Name, "test-group-1")
+	assert.Equal(t, taskGroups[0].MinMember, int32(10))
+	assert.Equal(t, taskGroups[0].MinResource["cpu"], resource.MustParse("1"))
+	assert.Equal(t, taskGroups[0].MinResource["memory"], resource.MustParse("2Gi"))
+	assert.Equal(t, taskGroups[1].Name, "test-group-2")
+	assert.Equal(t, taskGroups[1].MinMember, int32(5))
+	assert.Equal(t, taskGroups[1].MinResource["cpu"], resource.MustParse("2"))
+	assert.Equal(t, taskGroups[1].MinResource["memory"], resource.MustParse("4Gi"))
+	// NodeSelector check
+	assert.Equal(t, taskGroups[0].NodeSelector["test"], "testnode")
+	assert.Equal(t, taskGroups[0].NodeSelector["locate"], "west")
+	// Toleration check
+	var tolerations []v1.Toleration
+	toleration := v1.Toleration{
+		Key:      "key",
+		Operator: "Equal",
+		Value:    "value",
+		Effect:   "NoSchedule",
+	}
+	tolerations = append(tolerations, toleration)
+	assert.DeepEqual(t, taskGroups[0].Tolerations, tolerations)
+
+	pod.Annotations = map[string]string{constants.AnnotationTaskGroups: testGroup2}
+	taskGroups2, err := GetTaskGroupsFromAnnotation(pod)
+	assert.NilError(t, err)
+	assert.Equal(t, taskGroups2[0].Name, "test-group-3")
+	assert.Equal(t, taskGroups2[0].MinMember, int32(3))
+	assert.Equal(t, taskGroups2[0].MinResource["cpu"], resource.MustParse("2"))
+	assert.Equal(t, taskGroups2[0].MinResource["memory"], resource.MustParse("1Gi"))
+}
+
+// nolint: funlen
+func TestUpdatePodLabelForAdmissionController(t *testing.T) {
+	// verify when appId/queue are not given,
+	pod := &v1.Pod{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            "a-test-pod",
+			Namespace:       "default",
+			UID:             "7f5fd6c5d5",
+			ResourceVersion: "10654",
+			Labels: map[string]string{
+				"random": "random",
+			},
+		},
+		Spec:   v1.PodSpec{},
+		Status: v1.PodStatus{},
+	}
+
+	if result := UpdatePodLabelForAdmissionController(pod, "default"); result != nil {
+		assert.Equal(t, len(result), 4)
+		assert.Equal(t, result["random"], "random")
+		assert.Equal(t, result["queue"], "root.default")
+		assert.Equal(t, result["disableStateAware"], "true")
+		assert.Equal(t, strings.HasPrefix(result["applicationId"], constants.AutoGenAppPrefix), true)
+	} else {
+		t.Fatal("UpdatePodLabelForAdmissionController is not as expected")
+	}
+
+	// verify if applicationId is given in the labels,
+	// we won't modify it
+	pod = &v1.Pod{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            "a-test-pod",
+			Namespace:       "default",
+			UID:             "7f5fd6c5d5",
+			ResourceVersion: "10654",
+			Labels: map[string]string{
+				"random":        "random",
+				"applicationId": "app-0001",
+			},
+		},
+		Spec:   v1.PodSpec{},
+		Status: v1.PodStatus{},
+	}
+
+	if result := UpdatePodLabelForAdmissionController(pod, "default"); result != nil {
+		assert.Equal(t, len(result), 3)
+		assert.Equal(t, result["random"], "random")
+		assert.Equal(t, result["queue"], "root.default")
+		assert.Equal(t, result["applicationId"], "app-0001")
+	} else {
+		t.Fatal("UpdatePodLabelForAdmissionController is not as expected")
+	}
+
+	// verify if queue is given in the labels,
+	// we won't modify it
+	pod = &v1.Pod{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            "a-test-pod",
+			Namespace:       "default",
+			UID:             "7f5fd6c5d5",
+			ResourceVersion: "10654",
+			Labels: map[string]string{
+				"random": "random",
+				"queue":  "root.abc",
+			},
+		},
+		Spec:   v1.PodSpec{},
+		Status: v1.PodStatus{},
+	}
+	if result := UpdatePodLabelForAdmissionController(pod, "default"); result != nil {
+		assert.Equal(t, len(result), 4)
+		assert.Equal(t, result["random"], "random")
+		assert.Equal(t, result["queue"], "root.abc")
+		assert.Equal(t, result["disableStateAware"], "true")
+		assert.Equal(t, strings.HasPrefix(result["applicationId"], constants.AutoGenAppPrefix), true)
+	} else {
+		t.Fatal("UpdatePodLabelForAdmissionControllert is not as expected")
+	}
+
+	// namespace might be empty
+	// labels might be empty
+	pod = &v1.Pod{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            "a-test-pod",
+			UID:             "7f5fd6c5d5",
+			ResourceVersion: "10654",
+		},
+		Spec:   v1.PodSpec{},
+		Status: v1.PodStatus{},
+	}
+	if result := UpdatePodLabelForAdmissionController(pod, "default"); result != nil {
+		assert.Equal(t, len(result), 3)
+		assert.Equal(t, result["queue"], "root.default")
+		assert.Equal(t, result["disableStateAware"], "true")
+		assert.Equal(t, strings.HasPrefix(result["applicationId"], constants.AutoGenAppPrefix), true)
+	} else {
+		t.Fatal("UpdatePodLabelForAdmissionController is not as expected")
+	}
+
+	// pod name might be empty, it can comes from generatedName
+	pod = &v1.Pod{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			GenerateName: "some-pod-",
+		},
+		Spec:   v1.PodSpec{},
+		Status: v1.PodStatus{},
+	}
+	if result := UpdatePodLabelForAdmissionController(pod, "default"); result != nil {
+		assert.Equal(t, len(result), 3)
+		assert.Equal(t, result["queue"], "root.default")
+		assert.Equal(t, result["disableStateAware"], "true")
+		assert.Equal(t, strings.HasPrefix(result["applicationId"], constants.AutoGenAppPrefix), true)
+	} else {
+		t.Fatal("UpdatePodLabelForAdmissionController is not as expected")
+	}
+
+	pod = &v1.Pod{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{},
+		Spec:       v1.PodSpec{},
+		Status:     v1.PodStatus{},
+	}
+	if result := UpdatePodLabelForAdmissionController(pod, "default"); result != nil {
+		assert.Equal(t, len(result), 3)
+		assert.Equal(t, result["queue"], "root.default")
+		assert.Equal(t, result["disableStateAware"], "true")
+		assert.Equal(t, strings.HasPrefix(result["applicationId"], constants.AutoGenAppPrefix), true)
+	} else {
+		t.Fatal("UpdatePodLabelForAdmissionController is not as expected")
 	}
 }
 

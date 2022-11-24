@@ -38,6 +38,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
+	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	schedulerconf "github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-k8shim/pkg/plugin/admissioncontrollers/webhook/common"
@@ -181,7 +182,7 @@ func (c *admissionController) processPod(req *admissionv1.AdmissionRequest, name
 		patch = append(patch, *patchOp)
 	}
 
-	if labelAppValue, ok := pod.Labels[constants.LabelApp]; ok {
+	if labelAppValue := utils.GetPodLabelValue(&pod, constants.LabelApp); labelAppValue != "" {
 		if labelAppValue == yunikornPod {
 			log.Logger().Info("ignore yunikorn pod")
 			return admissionResponseBuilder(uid, true, "", nil)
@@ -370,30 +371,7 @@ func updateLabels(namespace string, pod *v1.Pod, patch []common.PatchOperation) 
 		zap.String("namespace", namespace),
 		zap.Any("labels", pod.Labels))
 
-	existingLabels := pod.Labels
-	result := make(map[string]string)
-	for k, v := range existingLabels {
-		result[k] = v
-	}
-
-	if _, ok := existingLabels[constants.SparkLabelAppID]; !ok {
-		if _, ok := existingLabels[constants.LabelApplicationID]; !ok {
-			// if app id not exist, generate one
-			// for each namespace, we group unnamed pods to one single app
-			// application ID convention: ${AUTO_GEN_PREFIX}-${NAMESPACE}-${AUTO_GEN_SUFFIX}
-			generatedID := generateAppID(namespace)
-			result[constants.LabelApplicationID] = generatedID
-
-			// if we generate an app ID, disable state-aware scheduling for this app
-			if _, ok := existingLabels[constants.LabelDisableStateAware]; !ok {
-				result[constants.LabelDisableStateAware] = "true"
-			}
-		}
-	}
-
-	if _, ok := existingLabels[constants.LabelQueueName]; !ok {
-		result[constants.LabelQueueName] = defaultQueue
-	}
+	result := utils.UpdatePodLabelForAdmissionController(pod, namespace)
 
 	patch = append(patch, common.PatchOperation{
 		Op:    "add",

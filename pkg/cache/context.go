@@ -624,7 +624,7 @@ func (ctx *Context) updateApplicationTags(request *interfaces.AddApplicationRequ
 		}
 	}
 	// add parent queue info as an app tag
-	parentQueue := namespaceObj.Annotations["yunikorn.apache.org/parentqueue"]
+	parentQueue := utils.GetNameSpaceAnnotationValue(namespaceObj, constants.AnnotationParentQueue)
 	if parentQueue != "" {
 		request.Metadata.Tags[constants.AppTagNamespaceParentQueue] = parentQueue
 	}
