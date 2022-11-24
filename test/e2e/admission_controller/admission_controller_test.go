@@ -270,8 +270,7 @@ func deleteDeployment(deployment *appsv1.Deployment, namespace string) {
 		gomega.Ω(err2).ShouldNot(gomega.HaveOccurred())
 		ginkgo.By("Forcibly deleting pods")
 		for _, pod := range pods.Items {
-			err = kubeClient.DeletePod(pod.Name, namespace)
-			gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
+			_ = kubeClient.DeletePod(pod.Name, namespace)
 		}
 
 		err = kubeClient.WaitForPodCount(namespace, 0, 10*time.Second)
