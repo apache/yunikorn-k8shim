@@ -21,6 +21,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	"net/http"
 	"net/url"
 	"os"
@@ -31,9 +32,6 @@ import (
 	"time"
 
 	"github.com/onsi/ginkgo"
-	"k8s.io/apimachinery/pkg/util/wait"
-	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
-
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
@@ -41,13 +39,18 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/httpstream"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
+	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/portforward"
 	"k8s.io/client-go/transport/spdy"
+	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
 
+	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 )
@@ -394,6 +397,21 @@ func (k *KubeCtl) GetConfigMap(name string, namespace string) (*v1.ConfigMap, er
 
 func (k *KubeCtl) UpdateConfigMap(cMap *v1.ConfigMap, namespace string) (*v1.ConfigMap, error) {
 	return k.clientSet.CoreV1().ConfigMaps(namespace).Update(context.TODO(), cMap, metav1.UpdateOptions{})
+}
+
+func (k *KubeCtl) StartConfigMapInformer(namespace string, stopChan <-chan struct{}, eventHandler cache.ResourceEventHandler) error {
+	informerFactory := informers.NewSharedInformerFactoryWithOptions(k.clientSet, 0, informers.WithNamespace(namespace))
+	informerFactory.Start(stopChan)
+	configMapInformer := informerFactory.Core().V1().ConfigMaps()
+	configMapInformer.Informer().AddEventHandler(eventHandler)
+	go configMapInformer.Informer().Run(stopChan)
+	if err := utils.WaitForCondition(func() bool {
+		return configMapInformer.Informer().HasSynced()
+	}, time.Second, 30*time.Second); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (k *KubeCtl) DeleteConfigMap(cName string, namespace string) error {

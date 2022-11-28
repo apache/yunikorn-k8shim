@@ -38,6 +38,31 @@ import (
 
 const userInfoAnnotation = "yunikorn.apache.org/user.info"
 
+type EventHandler struct {
+	updateCh chan struct{}
+}
+
+func (e *EventHandler) OnAdd(_ interface{}) {}
+
+func (e *EventHandler) OnUpdate(_, _ interface{}) {
+	e.updateCh <- struct{}{}
+}
+
+func (e *EventHandler) OnDelete(_ interface{}) {}
+
+func (e *EventHandler) WaitForUpdate(timeout time.Duration) bool {
+	t := time.After(timeout)
+
+	for {
+		select {
+		case <-t:
+			return false
+		case <-e.updateCh:
+			return true
+		}
+	}
+}
+
 var _ = ginkgo.Describe("AdmissionController", func() {
 	ginkgo.BeforeEach(func() {
 		kubeClient = k8s.KubeCtl{}
@@ -160,9 +185,16 @@ var _ = ginkgo.Describe("AdmissionController", func() {
 		}
 		configMap.Data[amConf.AMAccessControlTrustControllers] = "false"
 		ginkgo.By("Update configmap")
+		stopChan := make(chan struct{})
+		eventHandler := &EventHandler{updateCh: make(chan struct{})}
+		err = kubeClient.StartConfigMapInformer(configmanager.YuniKornTestConfig.YkNamespace, stopChan, eventHandler)
+		defer close(stopChan)
+		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
 		_, err = kubeClient.UpdateConfigMap(configMap, configmanager.YuniKornTestConfig.YkNamespace)
 		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
-		time.Sleep(time.Second) // should be enough to allow the admission controller to pick up the changes
+		updateOk := eventHandler.WaitForUpdate(30 * time.Second)
+		gomega.Ω(updateOk).To(gomega.Equal(true))
+		time.Sleep(time.Second)
 
 		ginkgo.By("Create a deployment")
 		deployment, err2 := kubeClient.CreateDeployment(&testDeployment, ns)
@@ -191,6 +223,9 @@ var _ = ginkgo.Describe("AdmissionController", func() {
 		configMap.Data[amConf.AMAccessControlTrustControllers] = "true"
 		_, err = kubeClient.UpdateConfigMap(configMap, configmanager.YuniKornTestConfig.YkNamespace)
 		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
+		updateOk = eventHandler.WaitForUpdate(30 * time.Second)
+		gomega.Ω(updateOk).To(gomega.Equal(true))
+		time.Sleep(time.Second)
 
 		// pod is expected to appear
 		ginkgo.By("Check for sleep pod")
@@ -208,9 +243,16 @@ var _ = ginkgo.Describe("AdmissionController", func() {
 		}
 		configMap.Data[amConf.AMAccessControlExternalUsers] = ""
 		ginkgo.By("Update configmap")
+		stopChan := make(chan struct{})
+		eventHandler := &EventHandler{updateCh: make(chan struct{})}
+		err = kubeClient.StartConfigMapInformer(configmanager.YuniKornTestConfig.YkNamespace, stopChan, eventHandler)
+		defer close(stopChan)
+		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
 		_, err = kubeClient.UpdateConfigMap(configMap, configmanager.YuniKornTestConfig.YkNamespace)
 		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
-		time.Sleep(time.Second) // should be enough to allow the admission controller to pick up the changes
+		updateOk := eventHandler.WaitForUpdate(30 * time.Second)
+		gomega.Ω(updateOk).To(gomega.Equal(true))
+		time.Sleep(time.Second)
 
 		ginkgo.By("Create a deployment")
 		deployment := testDeployment.DeepCopy()
@@ -228,7 +270,9 @@ var _ = ginkgo.Describe("AdmissionController", func() {
 		configMap.Data[amConf.AMAccessControlExternalUsers] = "(^minikube-user$|^kubernetes-admin$)" // works with Minikube & KIND
 		_, err = kubeClient.UpdateConfigMap(configMap, configmanager.YuniKornTestConfig.YkNamespace)
 		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
-		time.Sleep(time.Second) // should be enough to allow the admission controller to pick up the changes
+		updateOk = eventHandler.WaitForUpdate(30 * time.Second)
+		gomega.Ω(updateOk).To(gomega.Equal(true))
+		time.Sleep(time.Second)
 
 		// submit deployment again
 		ginkgo.By("Submit deployment again")
