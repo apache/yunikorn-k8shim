@@ -38,9 +38,9 @@ func TestConfigMapVars(t *testing.T) {
 		AMFilteringLabelNamespaces:       "testLabelNamespaces",
 		AMFilteringNoLabelNamespaces:     "testNolabelNamespaces",
 		AMAccessControlBypassAuth:        "true",
-		AMAccessControlSystemUsers:       "systemuser",
-		AMAccessControlExternalUsers:     "yunikorn",
-		AMAccessControlExternalGroups:    "devs",
+		AMAccessControlSystemUsers:       "^systemuser$",
+		AMAccessControlExternalUsers:     "^yunikorn$",
+		AMAccessControlExternalGroups:    "^devs$",
 		AMAccessControlTrustControllers:  "false",
 	}}})
 	assert.Equal(t, conf.GetPolicyGroup(), "testPolicyGroup")
@@ -51,9 +51,9 @@ func TestConfigMapVars(t *testing.T) {
 	assert.Equal(t, conf.GetLabelNamespaces()[0].String(), "testLabelNamespaces")
 	assert.Equal(t, conf.GetNoLabelNamespaces()[0].String(), "testNolabelNamespaces")
 	assert.Equal(t, conf.GetBypassAuth(), true)
-	assert.Equal(t, conf.GetSystemUsers()[0].String(), "systemuser")
-	assert.Equal(t, conf.GetExternalUsers()[0].String(), "yunikorn")
-	assert.Equal(t, conf.GetExternalGroups()[0].String(), "devs")
+	assert.Equal(t, conf.GetSystemUsers()[0].String(), "^systemuser$")
+	assert.Equal(t, conf.GetExternalUsers()[0].String(), "^yunikorn$")
+	assert.Equal(t, conf.GetExternalGroups()[0].String(), "^devs$")
 	assert.Equal(t, conf.GetTrustControllers(), false)
 
 	// test missing settings

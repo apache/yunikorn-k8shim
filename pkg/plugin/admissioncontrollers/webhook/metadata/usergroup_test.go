@@ -76,7 +76,7 @@ func TestBypassControllers(t *testing.T) {
 
 func TestExternalUsers(t *testing.T) {
 	ah := getAnnotationHandlerWithOverrides(map[string]string{
-		conf.AMAccessControlExternalUsers: "yunikorn",
+		conf.AMAccessControlExternalUsers: "^yunikorn$",
 	})
 	allowed := ah.IsAnnotationAllowed("yunikorn", groups)
 	assert.Assert(t, allowed)
@@ -84,7 +84,7 @@ func TestExternalUsers(t *testing.T) {
 
 func TestExternalGroups(t *testing.T) {
 	ah := getAnnotationHandlerWithOverrides(map[string]string{
-		conf.AMAccessControlExternalGroups: "devs",
+		conf.AMAccessControlExternalGroups: "^devs$",
 	})
 	allowed := ah.IsAnnotationAllowed(userName, groups)
 	assert.Assert(t, allowed)
@@ -312,7 +312,7 @@ func getAnnotationHandlerWithOverrides(overrides map[string]string) *UserGroupAn
 	return &UserGroupAnnotationHandler{
 		conf: conf.NewAdmissionControllerConf([]*v1.ConfigMap{{
 			Data: map[string]string{
-				conf.AMAccessControlSystemUsers:    "system:serviceaccount:kube-system:*",
+				conf.AMAccessControlSystemUsers:    "^system:serviceaccount:kube-system:",
 				conf.AMAccessControlExternalUsers:  "",
 				conf.AMAccessControlExternalGroups: "",
 			},
