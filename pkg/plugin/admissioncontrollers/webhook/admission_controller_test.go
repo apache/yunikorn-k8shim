@@ -364,7 +364,7 @@ func prepareController(t *testing.T, url string, processNs string, bypassNs stri
 		conf.AMFilteringNoLabelNamespaces:     noLabelNs,
 		conf.AMAccessControlBypassAuth:        fmt.Sprintf("%t", bypassAuth),
 		conf.AMAccessControlTrustControllers:  fmt.Sprintf("%t", trustControllers),
-		conf.AMAccessControlSystemUsers:       "^system:serviceaccount:kube-system:job-controller",
+		conf.AMAccessControlSystemUsers:       "^system:serviceaccount:kube-system:job-controller$",
 		conf.AMAccessControlExternalUsers:     "^testExtUser$",
 		conf.AMAccessControlExternalGroups:    "^testExtGroup$",
 	})
