@@ -46,6 +46,7 @@ Run `./k8s_yunikorn_scheduler -help` to see all options.
 In case you get an error relating to `checksum mismatch`, run `go clean -modcache` and then rerun `make build`.
 
 ### Build run
+
 If the local kubernetes environment is up and running you can build and run the binary via: 
 ```
 make run
@@ -71,12 +72,12 @@ You can set `DOCKER_ARCH`, `REGISTRY` and `VERSION` in the commandline to build 
 ```
 make image DOCKER_ARCH=amd64 REGISTRY=yunikorn VERSION=latest
 ```
-This command will build an amd64 binary executable with version `latest` and the docker image tag is `yunikorn/yunikorn:scheduler-latest`. If not specified, `DOCKER_ARCH` defaults to the build host's architecture.
+This command will build an amd64 binary executable with version `latest` and the docker image tag is `yunikorn/yunikorn:scheduler-amd64-latest`. If not specified, `DOCKER_ARCH` defaults to the build host's architecture.  For example, the Makefile will detect if your host's architecture is i386, amd64, arm64v8 or arm32v7 and your image would be tagged with the corresponding host architecture (i.e. `yunikorn:scheduler-arm64v8-latest` if you are on an M1).
 
 You can run following command to retrieve the meta info for a docker image build, such as component revisions, date of the build, etc.
 
 ```
-docker inspect --format='{{.Config.Labels}}' yunikorn/yunikorn:scheduler-latest
+docker inspect --format='{{.Config.Labels}}' yunikorn/yunikorn:scheduler-amd64-latest
 ```
 
 ## Design documents

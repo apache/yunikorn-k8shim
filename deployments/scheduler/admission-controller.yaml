@@ -36,7 +36,7 @@ spec:
       serviceAccountName: yunikorn-admission-controller
       containers:
         - name: yunikorn-admission-controller
-          image: apache/yunikorn:admission-latest
+          image: apache/yunikorn:admission-amd64-latest
           imagePullPolicy: IfNotPresent
           resources:
             requests:
