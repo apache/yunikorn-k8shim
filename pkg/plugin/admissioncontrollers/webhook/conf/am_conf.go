@@ -78,7 +78,7 @@ const (
 	// access control defaults
 	DefaultAccessControlBypassAuth       = false
 	DefaultAccessControlTrustControllers = true
-	DefaultAccessControlSystemUsers      = "system:serviceaccount:kube-system:*"
+	DefaultAccessControlSystemUsers      = "^system:serviceaccount:kube-system:"
 	DefaultAccessControlExternalUsers    = ""
 	DefaultAccessControlExternalGroups   = ""
 )
