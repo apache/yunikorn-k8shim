@@ -25,7 +25,7 @@ github:
     - apache-yarn
     - kubernetes
   notifications:
-    commits:      isseus@yunikorn.apache.org
+    commits:      issues@yunikorn.apache.org
     issues:       reviews@yunikorn.apache.org
     pullrequests: reviews@yunikorn.apache.org
     jira_options: link label
