@@ -21,6 +21,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	"net/http"
 	"net/url"
 	"os"
@@ -31,22 +32,25 @@ import (
 	"time"
 
 	"github.com/onsi/ginkgo"
-	"k8s.io/apimachinery/pkg/util/wait"
-	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
-
+	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
 	authv1 "k8s.io/api/rbac/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/httpstream"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
+	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/portforward"
 	"k8s.io/client-go/transport/spdy"
+	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
 
+	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 )
@@ -395,6 +399,21 @@ func (k *KubeCtl) UpdateConfigMap(cMap *v1.ConfigMap, namespace string) (*v1.Con
 	return k.clientSet.CoreV1().ConfigMaps(namespace).Update(context.TODO(), cMap, metav1.UpdateOptions{})
 }
 
+func (k *KubeCtl) StartConfigMapInformer(namespace string, stopChan <-chan struct{}, eventHandler cache.ResourceEventHandler) error {
+	informerFactory := informers.NewSharedInformerFactoryWithOptions(k.clientSet, 0, informers.WithNamespace(namespace))
+	informerFactory.Start(stopChan)
+	configMapInformer := informerFactory.Core().V1().ConfigMaps()
+	configMapInformer.Informer().AddEventHandler(eventHandler)
+	go configMapInformer.Informer().Run(stopChan)
+	if err := utils.WaitForCondition(func() bool {
+		return configMapInformer.Informer().HasSynced()
+	}, time.Second, 30*time.Second); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (k *KubeCtl) DeleteConfigMap(cName string, namespace string) error {
 	return k.clientSet.CoreV1().ConfigMaps(namespace).Delete(context.TODO(), cName, metav1.DeleteOptions{})
 }
@@ -405,6 +424,22 @@ func GetPodObj(yamlPath string) (*v1.Pod, error) {
 		return nil, err
 	}
 	return o.(*v1.Pod), err
+}
+
+func (k *KubeCtl) CreateDeployment(deployment *appsv1.Deployment, namespace string) (*appsv1.Deployment, error) {
+	return k.clientSet.AppsV1().Deployments(namespace).Create(context.TODO(), deployment, metav1.CreateOptions{})
+}
+
+func (k *KubeCtl) DeleteDeployment(name, namespace string) error {
+	var secs int64 = 0
+	err := k.clientSet.AppsV1().Deployments(namespace).Delete(context.TODO(), name, metav1.DeleteOptions{
+		GracePeriodSeconds: &secs,
+	})
+	return err
+}
+
+func (k *KubeCtl) GetDeployment(name, namespace string) (*appsv1.Deployment, error) {
+	return k.clientSet.AppsV1().Deployments(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 }
 
 func (k *KubeCtl) CreatePod(pod *v1.Pod, namespace string) (*v1.Pod, error) {
@@ -529,6 +564,19 @@ func (k *KubeCtl) isPodEventTriggered(namespace string, podName string, expected
 	}
 }
 
+func (k *KubeCtl) isNumPod(namespace string, wanted int) wait.ConditionFunc {
+	return func() (bool, error) {
+		podList, err := k.GetPods(namespace)
+		if err != nil {
+			return false, err
+		}
+		if len(podList.Items) == wanted {
+			return true, nil
+		}
+		return false, nil
+	}
+}
+
 func (k *KubeCtl) WaitForPodEvent(namespace string, podName string, expectedReason string, timeout time.Duration) error {
 	return wait.PollImmediate(time.Second, timeout, k.isPodEventTriggered(namespace, podName, expectedReason))
 }
@@ -557,6 +605,10 @@ func (k *KubeCtl) WaitForPodSucceeded(namespace string, podName string, timeout 
 
 func (k *KubeCtl) WaitForPodFailed(namespace string, podName string, timeout time.Duration) error {
 	return wait.PollImmediate(time.Second, timeout, k.isPodInDesiredState(podName, namespace, v1.PodFailed))
+}
+
+func (k *KubeCtl) WaitForPodCount(namespace string, wanted int, timeout time.Duration) error {
+	return wait.PollImmediate(time.Second, timeout, k.isNumPod(namespace, wanted))
 }
 
 // Returns the list of currently scheduled or running pods in `namespace` with the given selector
