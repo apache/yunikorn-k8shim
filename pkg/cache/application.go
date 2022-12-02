@@ -505,7 +505,7 @@ func (app *Application) postAppAccepted() {
 	log.Logger().Debug("postAppAccepted on cached app",
 		zap.String("appID", app.applicationID),
 		zap.Int("numTaskGroups", len(app.taskGroups)),
-		zap.Int("numAllocatedTasks", len(app.getTasks(TaskStates().Allocated))))
+		zap.Int("numAllocatedTasks", len(app.GetAllocatedTasks())))
 	if app.skipReservationStage() {
 		ev = NewRunApplicationEvent(app.applicationID)
 		log.Logger().Info("Skip the reservation stage",
