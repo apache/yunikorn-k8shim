@@ -1016,3 +1016,17 @@ func (ctx *Context) LoadConfigMaps() ([]*v1.ConfigMap, error) {
 
 	return []*v1.ConfigMap{defaults, config}, nil
 }
+
+func (ctx *Context) GetStateDump() (string, error) {
+	log.Logger().Info("State dump requested")
+
+	dump := map[string]interface{}{
+		"cache": ctx.schedulerCache.GetSchedulerCacheDao(),
+	}
+
+	bytes, err := json.Marshal(dump)
+	if err != nil {
+		return "", err
+	}
+	return string(bytes), nil
+}

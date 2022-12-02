@@ -468,3 +468,106 @@ func (cache *SchedulerCache) nodePodCount() int {
 	}
 	return result
 }
+
+func (cache *SchedulerCache) GetSchedulerCacheDao() SchedulerCacheDao {
+	cache.lock.RLock()
+	defer cache.lock.RUnlock()
+
+	nodes := make(map[string]NodeDao)
+	pods := make(map[string]PodDao)
+	podSchedulingInfoByUID := make(map[string]*PodSchedulingInfoDao)
+
+	for nodeName, nodeInfo := range cache.nodesMap {
+		node := nodeInfo.Node().DeepCopy()
+		nodes[nodeName] = NodeDao{
+			Name:              node.Name,
+			UID:               node.UID,
+			NodeInfo:          node.Status.NodeInfo,
+			CreationTimestamp: node.CreationTimestamp.Time,
+			Annotations:       node.Annotations,
+			Labels:            node.Labels,
+			PodCIDRs:          node.Spec.PodCIDRs,
+			Taints:            node.Spec.Taints,
+			Addresses:         node.Status.Addresses,
+			Allocatable:       node.Status.Allocatable,
+			Capacity:          node.Status.Capacity,
+			Conditions:        node.Status.Conditions,
+		}
+	}
+
+	for podUID, pod := range cache.podsMap {
+		podCopy := pod.DeepCopy()
+		podSchedulingInfoByUID[podUID] = &PodSchedulingInfoDao{
+			Namespace: podCopy.Namespace,
+			Name:      podCopy.Name,
+			UID:       podCopy.UID,
+		}
+		containers := make([]ContainerDao, 0)
+		for _, container := range podCopy.Spec.Containers {
+			containers = append(containers, ContainerDao{
+				Name:      container.Name,
+				Resources: container.Resources,
+			})
+		}
+		pods[fmt.Sprintf("%s/%s", podCopy.Namespace, podCopy.Name)] = PodDao{
+			Namespace:         podCopy.Namespace,
+			Name:              podCopy.Name,
+			GenerateName:      podCopy.GenerateName,
+			UID:               podCopy.UID,
+			CreationTimestamp: podCopy.CreationTimestamp.Time,
+			Annotations:       podCopy.Annotations,
+			Labels:            podCopy.Labels,
+			Affinity:          podCopy.Spec.Affinity,
+			NodeName:          podCopy.Spec.NodeName,
+			NodeSelector:      podCopy.Spec.NodeSelector,
+			PriorityClassName: podCopy.Spec.PriorityClassName,
+			Priority:          podCopy.Spec.Priority,
+			PreemptionPolicy:  podCopy.Spec.PreemptionPolicy,
+			SchedulerName:     podCopy.Spec.SchedulerName,
+			Containers:        containers,
+			Status:            podCopy.Status,
+		}
+	}
+
+	for podUID, nodeName := range cache.assignedPods {
+		if info, ok := podSchedulingInfoByUID[podUID]; ok {
+			info.AssignedNode = nodeName
+		}
+	}
+	for podUID, allBound := range cache.assumedPods {
+		if info, ok := podSchedulingInfoByUID[podUID]; ok {
+			info.Assumed = true
+			info.AllVolumesBound = allBound
+		}
+	}
+	for podUID, nodeName := range cache.pendingAllocations {
+		if info, ok := podSchedulingInfoByUID[podUID]; ok {
+			info.PendingNode = nodeName
+		}
+	}
+	for podUID, nodeName := range cache.inProgressAllocations {
+		if info, ok := podSchedulingInfoByUID[podUID]; ok {
+			info.InProgressNode = nodeName
+		}
+	}
+
+	podSchedulingInfoByName := make(map[string]PodSchedulingInfoDao)
+	for _, info := range podSchedulingInfoByUID {
+		podSchedulingInfoByName[fmt.Sprintf("%s/%s", info.Namespace, info.Name)] = *info
+	}
+
+	return SchedulerCacheDao{
+		Statistics: SchedulerCacheStatisticsDao{
+			Nodes:                 len(cache.nodesMap),
+			Pods:                  len(cache.podsMap),
+			Assumed:               len(cache.assumedPods),
+			PendingAllocations:    len(cache.pendingAllocations),
+			InProgressAllocations: len(cache.inProgressAllocations),
+			PodsAssigned:          cache.nodePodCount(),
+			Phases:                cache.podPhases(),
+		},
+		Nodes:          nodes,
+		Pods:           pods,
+		SchedulingPods: podSchedulingInfoByName,
+	}
+}
