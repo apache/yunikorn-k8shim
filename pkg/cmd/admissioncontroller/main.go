@@ -28,21 +28,24 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/apache/yunikorn-k8shim/pkg/admission"
+	"github.com/apache/yunikorn-k8shim/pkg/admission/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	schedulerconf "github.com/apache/yunikorn-k8shim/pkg/conf"
-	"github.com/apache/yunikorn-k8shim/pkg/plugin/admissioncontrollers/webhook/conf"
 	"go.uber.org/zap"
 
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
 
 const (
-	HTTPPort  = 9089
-	healthURL = "/health"
+	HTTPPort        = 9089
+	healthURL       = "/health"
+	mutateURL       = "/mutate"
+	validateConfURL = "/validate-conf"
 )
 
 type WebHook struct {
-	ac     *admissionController
+	ac     *admission.AdmissionController
 	port   int
 	server *http.Server
 	sync.Mutex
@@ -59,13 +62,13 @@ func main() {
 	kubeClient := client.NewKubeClient(amConf.GetKubeConfig())
 	amConf.StartInformers(kubeClient)
 
-	wm, err := NewWebhookManager(amConf)
+	wm, err := admission.NewWebhookManager(amConf)
 
 	if err != nil {
 		log.Logger().Fatal("Failed to initialize webhook manager", zap.Error(err))
 	}
 
-	ac := initAdmissionController(amConf)
+	ac := admission.InitAdmissionController(amConf)
 
 	webhook := CreateWebhook(ac, HTTPPort)
 	certs := UpdateWebhookConfiguration(wm)
@@ -91,14 +94,14 @@ func main() {
 	}
 }
 
-func WaitForCertExpiration(wm WebhookManager, ch chan os.Signal) {
+func WaitForCertExpiration(wm admission.WebhookManager, ch chan os.Signal) {
 	go func() {
 		wm.WaitForCertificateExpiration()
 		ch <- syscall.SIGUSR1
 	}()
 }
 
-func UpdateWebhookConfiguration(wm WebhookManager) *tls.Certificate {
+func UpdateWebhookConfiguration(wm admission.WebhookManager) *tls.Certificate {
 	err := wm.LoadCACertificates()
 	if err != nil {
 		log.Logger().Fatal("Failed to initialize CA certificates", zap.Error(err))
@@ -117,7 +120,7 @@ func UpdateWebhookConfiguration(wm WebhookManager) *tls.Certificate {
 	return certs
 }
 
-func CreateWebhook(ac *admissionController, port int) *WebHook {
+func CreateWebhook(ac *admission.AdmissionController, port int) *WebHook {
 	return &WebHook{
 		ac:   ac,
 		port: port,
@@ -129,9 +132,9 @@ func (wh *WebHook) Startup(certs *tls.Certificate) {
 	defer wh.Unlock()
 
 	mux := http.NewServeMux()
-	mux.HandleFunc(healthURL, wh.ac.health)
-	mux.HandleFunc(mutateURL, wh.ac.serve)
-	mux.HandleFunc(validateConfURL, wh.ac.serve)
+	mux.HandleFunc(healthURL, wh.ac.Health)
+	mux.HandleFunc(mutateURL, wh.ac.Serve)
+	mux.HandleFunc(validateConfURL, wh.ac.Serve)
 
 	wh.server = &http.Server{
 		Addr: fmt.Sprintf(":%v", wh.port),
