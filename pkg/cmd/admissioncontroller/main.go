@@ -28,12 +28,12 @@ import (
 	"sync"
 	"syscall"
 
+	"go.uber.org/zap"
+
 	"github.com/apache/yunikorn-k8shim/pkg/admission"
 	"github.com/apache/yunikorn-k8shim/pkg/admission/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	schedulerconf "github.com/apache/yunikorn-k8shim/pkg/conf"
-	"go.uber.org/zap"
-
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
 
