@@ -45,10 +45,12 @@ require (
 )
 
 replace (
+	golang.org/x/crypto => golang.org/x/crypto v0.3.0
 	golang.org/x/lint => golang.org/x/lint v0.0.0-20210508222113-6edffad5e616
-	golang.org/x/net => golang.org/x/net v0.0.0-20211209124913-491a49abca63
-	golang.org/x/sys => golang.org/x/sys v0.0.0-20220913175220-63ea55921009
-	golang.org/x/tools => golang.org/x/tools v0.1.12
+	golang.org/x/net => golang.org/x/net v0.2.0
+	golang.org/x/sys => golang.org/x/sys v0.2.0
+	golang.org/x/text => golang.org/x/text v0.4.0
+	golang.org/x/tools => golang.org/x/tools v0.3.0
 	k8s.io/api => k8s.io/api v0.23.14
 	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.23.14
 	k8s.io/apimachinery => k8s.io/apimachinery v0.23.14
