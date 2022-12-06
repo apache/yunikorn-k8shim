@@ -16,12 +16,12 @@
  limitations under the License.
 */
 
-package main
+package admission
 
 import (
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/apache/yunikorn-k8shim/pkg/plugin/admissioncontrollers/webhook/conf"
+	"github.com/apache/yunikorn-k8shim/pkg/admission/conf"
 )
 
 func createConfig() *conf.AdmissionControllerConf {

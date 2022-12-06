@@ -16,7 +16,7 @@
  limitations under the License.
 */
 
-package main
+package admission
 
 import (
 	"encoding/json"
@@ -36,9 +36,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
+	"github.com/apache/yunikorn-k8shim/pkg/admission/common"
+	"github.com/apache/yunikorn-k8shim/pkg/admission/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
-	"github.com/apache/yunikorn-k8shim/pkg/plugin/admissioncontrollers/webhook/common"
-	"github.com/apache/yunikorn-k8shim/pkg/plugin/admissioncontrollers/webhook/conf"
 )
 
 type responseMode int
@@ -265,7 +265,7 @@ func TestUpdateSchedulerName(t *testing.T) {
 }
 
 func TestValidateConfigMapEmpty(t *testing.T) {
-	controller := initAdmissionController(createConfig())
+	controller := InitAdmissionController(createConfig())
 	configmap := &v1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: constants.ConfigMapName,
@@ -352,7 +352,7 @@ func prepareConfigMap(data string) *v1.ConfigMap {
 	return configmap
 }
 
-func prepareController(t *testing.T, url string, processNs string, bypassNs string, labelNs string, noLabelNs string, bypassAuth bool, trustControllers bool) *admissionController {
+func prepareController(t *testing.T, url string, processNs string, bypassNs string, labelNs string, noLabelNs string, bypassAuth bool, trustControllers bool) *AdmissionController {
 	if bypassNs == "" {
 		bypassNs = "^kube-system$"
 	}
@@ -368,7 +368,7 @@ func prepareController(t *testing.T, url string, processNs string, bypassNs stri
 		conf.AMAccessControlExternalUsers:     "^testExtUser$",
 		conf.AMAccessControlExternalGroups:    "^testExtGroup$",
 	})
-	return initAdmissionController(config)
+	return InitAdmissionController(config)
 }
 
 func serverMock(mode responseMode) *httptest.Server {
@@ -424,7 +424,7 @@ func TestGenerateAppID(t *testing.T) {
 }
 
 func TestMutate(t *testing.T) {
-	var ac *admissionController
+	var ac *AdmissionController
 	var pod v1.Pod
 	var req *admissionv1.AdmissionRequest
 	var resp *admissionv1.AdmissionResponse
@@ -579,7 +579,7 @@ func TestMutate(t *testing.T) {
 }
 
 func TestMutateUpdate(t *testing.T) {
-	var ac *admissionController
+	var ac *AdmissionController
 	var pod v1.Pod
 	var req *admissionv1.AdmissionRequest
 	var resp *admissionv1.AdmissionResponse
@@ -862,30 +862,30 @@ func TestParseRegexes(t *testing.T) {
 }
 
 func TestInitAdmissionControllerRegexErrorHandling(t *testing.T) {
-	ac := initAdmissionController(createConfig())
+	ac := InitAdmissionController(createConfig())
 	assert.Equal(t, 1, len(ac.conf.GetBypassNamespaces()))
 	assert.Equal(t, conf.DefaultFilteringBypassNamespaces, ac.conf.GetBypassNamespaces()[0].String(), "didn't set default bypassNamespaces")
 
-	ac = initAdmissionController(createConfigWithOverrides(map[string]string{conf.AMFilteringProcessNamespaces: "("}))
+	ac = InitAdmissionController(createConfigWithOverrides(map[string]string{conf.AMFilteringProcessNamespaces: "("}))
 	assert.Equal(t, 0, len(ac.conf.GetProcessNamespaces()), "didn't fail on bad processNamespaces list")
 
-	ac = initAdmissionController(createConfigWithOverrides(map[string]string{conf.AMFilteringBypassNamespaces: "("}))
+	ac = InitAdmissionController(createConfigWithOverrides(map[string]string{conf.AMFilteringBypassNamespaces: "("}))
 	assert.Equal(t, 1, len(ac.conf.GetBypassNamespaces()))
 	assert.Equal(t, conf.DefaultFilteringBypassNamespaces, ac.conf.GetBypassNamespaces()[0].String(), "didn't fail on bad bypassNamespaces list")
 
-	ac = initAdmissionController(createConfigWithOverrides(map[string]string{conf.AMFilteringLabelNamespaces: "("}))
+	ac = InitAdmissionController(createConfigWithOverrides(map[string]string{conf.AMFilteringLabelNamespaces: "("}))
 	assert.Equal(t, 0, len(ac.conf.GetLabelNamespaces()), "didn't fail on bad labelNamespaces list")
 
-	ac = initAdmissionController(createConfigWithOverrides(map[string]string{conf.AMFilteringNoLabelNamespaces: "("}))
+	ac = InitAdmissionController(createConfigWithOverrides(map[string]string{conf.AMFilteringNoLabelNamespaces: "("}))
 	assert.Equal(t, 0, len(ac.conf.GetNoLabelNamespaces()), "didn't fail on bad noLabelNamespaces list")
 
-	ac = initAdmissionController(createConfigWithOverrides(map[string]string{conf.AMAccessControlSystemUsers: "("}))
+	ac = InitAdmissionController(createConfigWithOverrides(map[string]string{conf.AMAccessControlSystemUsers: "("}))
 	assert.Equal(t, 1, len(ac.conf.GetSystemUsers()))
 	assert.Equal(t, conf.DefaultAccessControlSystemUsers, ac.conf.GetSystemUsers()[0].String(), "didn't fail on bad systemUsers list")
 
-	ac = initAdmissionController(createConfigWithOverrides(map[string]string{conf.AMAccessControlExternalUsers: "("}))
+	ac = InitAdmissionController(createConfigWithOverrides(map[string]string{conf.AMAccessControlExternalUsers: "("}))
 	assert.Equal(t, 0, len(ac.conf.GetExternalUsers()), "didn't fail on bad externalUsers list")
 
-	ac = initAdmissionController(createConfigWithOverrides(map[string]string{conf.AMAccessControlExternalGroups: "("}))
+	ac = InitAdmissionController(createConfigWithOverrides(map[string]string{conf.AMAccessControlExternalGroups: "("}))
 	assert.Equal(t, 0, len(ac.conf.GetExternalGroups()), "didn't fail on bad externalGroups list")
 }

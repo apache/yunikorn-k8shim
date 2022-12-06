@@ -16,7 +16,7 @@
  limitations under the License.
 */
 
-package main
+package admission
 
 import (
 	"bytes"
@@ -37,13 +37,13 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/types"
 
+	"github.com/apache/yunikorn-k8shim/pkg/admission/common"
+	"github.com/apache/yunikorn-k8shim/pkg/admission/conf"
+	"github.com/apache/yunikorn-k8shim/pkg/admission/metadata"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	schedulerconf "github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
-	"github.com/apache/yunikorn-k8shim/pkg/plugin/admissioncontrollers/webhook/common"
-	"github.com/apache/yunikorn-k8shim/pkg/plugin/admissioncontrollers/webhook/conf"
-	"github.com/apache/yunikorn-k8shim/pkg/plugin/admissioncontrollers/webhook/metadata"
 )
 
 const (
@@ -65,7 +65,7 @@ var (
 	deserializer  = codecs.UniversalDeserializer()
 )
 
-type admissionController struct {
+type AdmissionController struct {
 	conf              *conf.AdmissionControllerConf
 	annotationHandler *metadata.UserGroupAnnotationHandler
 	labelExtractor    metadata.LabelExtractor
@@ -76,8 +76,8 @@ type ValidateConfResponse struct {
 	Reason  string `json:"reason"`
 }
 
-func initAdmissionController(conf *conf.AdmissionControllerConf) *admissionController {
-	hook := &admissionController{
+func InitAdmissionController(conf *conf.AdmissionControllerConf) *AdmissionController {
+	hook := &AdmissionController{
 		conf:              conf,
 		annotationHandler: metadata.NewUserGroupAnnotationHandler(conf),
 	}
@@ -121,7 +121,7 @@ func admissionResponseBuilder(uid string, allowed bool, resultMessage string, pa
 	return res
 }
 
-func (c *admissionController) mutate(req *admissionv1.AdmissionRequest) *admissionv1.AdmissionResponse {
+func (c *AdmissionController) mutate(req *admissionv1.AdmissionRequest) *admissionv1.AdmissionResponse {
 	if req == nil {
 		log.Logger().Warn("empty request received")
 		return admissionResponseBuilder("", false, "", nil)
@@ -153,7 +153,7 @@ func (c *admissionController) mutate(req *admissionv1.AdmissionRequest) *admissi
 	return c.processWorkload(req, namespace)
 }
 
-func (c *admissionController) processPod(req *admissionv1.AdmissionRequest, namespace string) *admissionv1.AdmissionResponse {
+func (c *AdmissionController) processPod(req *admissionv1.AdmissionRequest, namespace string) *admissionv1.AdmissionResponse {
 	var patch []common.PatchOperation
 	var uid = string(req.UID)
 
@@ -217,7 +217,7 @@ func (c *admissionController) processPod(req *admissionv1.AdmissionRequest, name
 	return admissionResponseBuilder(uid, true, "", patchBytes)
 }
 
-func (c *admissionController) processWorkload(req *admissionv1.AdmissionRequest, namespace string) *admissionv1.AdmissionResponse {
+func (c *AdmissionController) processWorkload(req *admissionv1.AdmissionRequest, namespace string) *admissionv1.AdmissionResponse {
 	var uid = string(req.UID)
 
 	var supported bool
@@ -277,7 +277,7 @@ func (c *admissionController) processWorkload(req *admissionv1.AdmissionRequest,
 	return admissionResponseBuilder(uid, true, "", nil)
 }
 
-func (c *admissionController) processPodUpdate(req *admissionv1.AdmissionRequest, namespace string) *admissionv1.AdmissionResponse {
+func (c *AdmissionController) processPodUpdate(req *admissionv1.AdmissionRequest, namespace string) *admissionv1.AdmissionResponse {
 	uid := string(req.UID)
 
 	var newPod v1.Pod
@@ -317,7 +317,7 @@ func (c *admissionController) processPodUpdate(req *admissionv1.AdmissionRequest
 	return admissionResponseBuilder(uid, true, "", nil)
 }
 
-func (c *admissionController) shouldProcessAdmissionReview(namespace string, labels map[string]string) bool {
+func (c *AdmissionController) shouldProcessAdmissionReview(namespace string, labels map[string]string) bool {
 	if c.shouldProcessNamespace(namespace) &&
 		(labels[constants.LabelApplicationID] != "" || labels[constants.SparkLabelAppID] != "" || c.shouldLabelNamespace(namespace)) {
 		return true
@@ -326,7 +326,7 @@ func (c *admissionController) shouldProcessAdmissionReview(namespace string, lab
 	return false
 }
 
-func (c *admissionController) checkUserInfoAnnotation(getAnnotation func() (string, bool), userName string, groups []string, uid string) (*admissionv1.AdmissionResponse, bool) {
+func (c *AdmissionController) checkUserInfoAnnotation(getAnnotation func() (string, bool), userName string, groups []string, uid string) (*admissionv1.AdmissionResponse, bool) {
 	annotation, userInfoSet := getAnnotation()
 	if userInfoSet && !c.conf.GetBypassAuth() {
 		if allowed := c.annotationHandler.IsAnnotationAllowed(userName, groups); !allowed {
@@ -382,7 +382,7 @@ func updateLabels(namespace string, pod *v1.Pod, patch []common.PatchOperation) 
 	return patch
 }
 
-func (c *admissionController) validateConf(req *admissionv1.AdmissionRequest) *admissionv1.AdmissionResponse {
+func (c *AdmissionController) validateConf(req *admissionv1.AdmissionRequest) *admissionv1.AdmissionResponse {
 	if req == nil {
 		log.Logger().Warn("empty request received")
 		return admissionResponseBuilder("", false, "", nil)
@@ -416,7 +416,7 @@ func (c *admissionController) validateConf(req *admissionv1.AdmissionRequest) *a
 	return admissionResponseBuilder(uid, true, "", nil)
 }
 
-func (c *admissionController) namespaceMatchesProcessList(namespace string) bool {
+func (c *AdmissionController) namespaceMatchesProcessList(namespace string) bool {
 	processNamespaces := c.conf.GetProcessNamespaces()
 	if len(processNamespaces) == 0 {
 		return true
@@ -429,7 +429,7 @@ func (c *admissionController) namespaceMatchesProcessList(namespace string) bool
 	return false
 }
 
-func (c *admissionController) namespaceMatchesBypassList(namespace string) bool {
+func (c *AdmissionController) namespaceMatchesBypassList(namespace string) bool {
 	bypassNamespaces := c.conf.GetBypassNamespaces()
 	for _, re := range bypassNamespaces {
 		if re.MatchString(namespace) {
@@ -439,7 +439,7 @@ func (c *admissionController) namespaceMatchesBypassList(namespace string) bool 
 	return false
 }
 
-func (c *admissionController) namespaceMatchesLabelList(namespace string) bool {
+func (c *AdmissionController) namespaceMatchesLabelList(namespace string) bool {
 	labelNamespaces := c.conf.GetLabelNamespaces()
 	if len(labelNamespaces) == 0 {
 		return true
@@ -452,7 +452,7 @@ func (c *admissionController) namespaceMatchesLabelList(namespace string) bool {
 	return false
 }
 
-func (c *admissionController) namespaceMatchesNoLabelList(namespace string) bool {
+func (c *AdmissionController) namespaceMatchesNoLabelList(namespace string) bool {
 	noLabelNamespaces := c.conf.GetNoLabelNamespaces()
 	for _, re := range noLabelNamespaces {
 		if re.MatchString(namespace) {
@@ -462,15 +462,15 @@ func (c *admissionController) namespaceMatchesNoLabelList(namespace string) bool
 	return false
 }
 
-func (c *admissionController) shouldProcessNamespace(namespace string) bool {
+func (c *AdmissionController) shouldProcessNamespace(namespace string) bool {
 	return c.namespaceMatchesProcessList(namespace) && !c.namespaceMatchesBypassList(namespace)
 }
 
-func (c *admissionController) shouldLabelNamespace(namespace string) bool {
+func (c *AdmissionController) shouldLabelNamespace(namespace string) bool {
 	return c.namespaceMatchesLabelList(namespace) && !c.namespaceMatchesNoLabelList(namespace)
 }
 
-func (c *admissionController) validateConfigMap(namespace string, cm *v1.ConfigMap) error {
+func (c *AdmissionController) validateConfigMap(namespace string, cm *v1.ConfigMap) error {
 	if namespace != c.conf.GetNamespace() {
 		log.Logger().Debug("Configmap does not belong to YuniKorn", zap.String("namespace", namespace), zap.String("Name", cm.Name))
 		return nil
@@ -531,7 +531,7 @@ func (c *admissionController) validateConfigMap(namespace string, cm *v1.ConfigM
 	return nil
 }
 
-func (c *admissionController) health(w http.ResponseWriter, r *http.Request) {
+func (c *AdmissionController) Health(w http.ResponseWriter, r *http.Request) {
 	// for now, always healthy
 	w.Header().Set("Content-type", "text/plain")
 	w.WriteHeader(200)
@@ -542,7 +542,7 @@ func (c *admissionController) health(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (c *admissionController) serve(w http.ResponseWriter, r *http.Request) {
+func (c *AdmissionController) Serve(w http.ResponseWriter, r *http.Request) {
 	log.Logger().Debug("request", zap.Any("httpRequest", r))
 	var body []byte
 	if r.Body != nil {

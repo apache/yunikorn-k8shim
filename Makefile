@@ -303,7 +303,7 @@ admission: init
 	go build -a -o=${ADMISSION_CONTROLLER_BIN_DIR}/${POD_ADMISSION_CONTROLLER_BINARY} -ldflags \
     '-extldflags "-static" -X main.version=${VERSION} -X main.date=${DATE}' \
     -tags netgo -installsuffix netgo \
-    ./pkg/plugin/admissioncontrollers/webhook
+    ./pkg/cmd/admissioncontroller
 
 # Build an admission controller image based on the production ready version
 .PHONY: adm_image
