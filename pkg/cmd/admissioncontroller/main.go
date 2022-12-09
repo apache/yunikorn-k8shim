@@ -57,18 +57,23 @@ func main() {
 		log.Logger().Fatal("Failed to load initial configmaps", zap.Error(err))
 		return
 	}
-	amConf := conf.NewAdmissionControllerConf(configMaps)
 
+	amConf := conf.NewAdmissionControllerConf(configMaps)
 	kubeClient := client.NewKubeClient(amConf.GetKubeConfig())
-	amConf.StartInformers(kubeClient)
+
+	pcCache := admission.NewPriorityClassCache()
+
+	informers := admission.NewInformers(kubeClient, amConf.GetNamespace())
+	amConf.RegisterHandlers(informers.ConfigMap)
+	pcCache.RegisterHandlers(informers.PriorityClass)
+	informers.Start()
 
 	wm, err := admission.NewWebhookManager(amConf)
-
 	if err != nil {
 		log.Logger().Fatal("Failed to initialize webhook manager", zap.Error(err))
 	}
 
-	ac := admission.InitAdmissionController(amConf)
+	ac := admission.InitAdmissionController(amConf, pcCache)
 
 	webhook := CreateWebhook(ac, HTTPPort)
 	certs := UpdateWebhookConfiguration(wm)
@@ -87,7 +92,7 @@ func main() {
 			webhook.Startup(certs)
 			WaitForCertExpiration(wm, signalChan)
 		default: // terminate
-			amConf.StopInformers()
+			informers.Stop()
 			webhook.Shutdown()
 			os.Exit(0)
 		}

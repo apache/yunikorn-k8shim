@@ -28,9 +28,8 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/apache/yunikorn-k8shim/pkg/conf"
-
 	v1 "k8s.io/api/core/v1"
+	schedulingv1 "k8s.io/api/scheduling/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 	podv1 "k8s.io/kubernetes/pkg/api/v1/pod"
@@ -38,6 +37,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
 	"github.com/apache/yunikorn-k8shim/pkg/common"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
+	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
@@ -58,6 +58,14 @@ func Convert2ConfigMap(obj interface{}) *v1.ConfigMap {
 		return configmap
 	}
 	log.Logger().Warn("cannot convert to *v1.ConfigMap", zap.Stringer("type", reflect.TypeOf(obj)))
+	return nil
+}
+
+func Convert2PriorityClass(obj interface{}) *schedulingv1.PriorityClass {
+	if priorityClass, ok := obj.(*schedulingv1.PriorityClass); ok {
+		return priorityClass
+	}
+	log.Logger().Warn("cannot convert to *schedulingv1.PriorityClass", zap.Stringer("type", reflect.TypeOf(obj)))
 	return nil
 }
 
@@ -426,5 +434,15 @@ func UpdatePodLabelForAdmissionController(pod *v1.Pod, namespace string) map[str
 		result[constants.LabelQueueName] = constants.DefaultQueue
 	}
 
+	return result
+}
+
+func UpdatePodAnnotationForAdmissionController(pod *v1.Pod, key string, value string) map[string]string {
+	existingAnnotations := pod.Annotations
+	result := make(map[string]string)
+	for k, v := range existingAnnotations {
+		result[k] = v
+	}
+	result[key] = value
 	return result
 }

@@ -27,6 +27,7 @@ import (
 
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
+	schedulingv1 "k8s.io/api/scheduling/v1"
 	"k8s.io/client-go/tools/cache"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/volumebinding"
@@ -122,6 +123,13 @@ func (ctx *Context) AddSchedulingEventHandlers() {
 		AddFn:    ctx.addConfigMaps,
 		UpdateFn: ctx.updateConfigMaps,
 		DeleteFn: ctx.deleteConfigMaps,
+	})
+	ctx.apiProvider.AddEventHandler(&client.ResourceEventHandlers{
+		Type:     client.PriorityClassInformerHandlers,
+		FilterFn: ctx.filterPriorityClasses,
+		AddFn:    ctx.addPriorityClass,
+		UpdateFn: ctx.updatePriorityClass,
+		DeleteFn: ctx.deletePriorityClass,
 	})
 }
 
@@ -347,6 +355,50 @@ func (ctx *Context) deleteConfigMaps(obj interface{}) {
 		return
 	}
 	ctx.triggerReloadConfig()
+}
+
+func (ctx *Context) filterPriorityClasses(obj interface{}) bool {
+	switch obj := obj.(type) {
+	case *schedulingv1.PriorityClass:
+		return true
+	case cache.DeletedFinalStateUnknown:
+		return ctx.filterPriorityClasses(obj.Obj)
+	default:
+		return false
+	}
+}
+
+func (ctx *Context) addPriorityClass(obj interface{}) {
+	log.Logger().Debug("priority class added")
+	priorityClass := utils.Convert2PriorityClass(obj)
+	if priorityClass != nil {
+		ctx.schedulerCache.AddPriorityClass(priorityClass)
+	}
+}
+
+func (ctx *Context) updatePriorityClass(_, newObj interface{}) {
+	log.Logger().Debug("priority class updated")
+	priorityClass := utils.Convert2PriorityClass(newObj)
+	if priorityClass != nil {
+		ctx.schedulerCache.UpdatePriorityClass(priorityClass)
+	}
+}
+
+func (ctx *Context) deletePriorityClass(obj interface{}) {
+	log.Logger().Debug("priorityClass deleted")
+	var priorityClass *schedulingv1.PriorityClass
+	switch t := obj.(type) {
+	case *schedulingv1.PriorityClass:
+		priorityClass = t
+	case cache.DeletedFinalStateUnknown:
+		priorityClass = utils.Convert2PriorityClass(obj)
+	default:
+		log.Logger().Warn("unable to convert to priorityClass")
+		return
+	}
+	if priorityClass != nil {
+		ctx.schedulerCache.RemovePriorityClass(priorityClass)
+	}
 }
 
 func (ctx *Context) triggerReloadConfig() {
@@ -691,6 +743,19 @@ func (ctx *Context) AddApplication(request *interfaces.AddApplicationRequest) in
 		zap.String("appID", app.applicationID))
 
 	return app
+}
+
+func (ctx *Context) IsPreemptSelfAllowed(priorityClassName string) bool {
+	priorityClass := ctx.schedulerCache.GetPriorityClass(priorityClassName)
+	if priorityClass == nil {
+		return true
+	}
+	if value, ok := priorityClass.Annotations[constants.AnnotationAllowPreemption]; ok {
+		if value == "false" {
+			return false
+		}
+	}
+	return true
 }
 
 func (ctx *Context) GetApplication(appID string) interfaces.ManagedApp {

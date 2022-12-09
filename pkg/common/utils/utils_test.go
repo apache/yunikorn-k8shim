@@ -24,10 +24,10 @@ import (
 	"testing"
 	"time"
 
-	"k8s.io/apimachinery/pkg/api/resource"
-
 	"gotest.tools/assert"
 	v1 "k8s.io/api/core/v1"
+	schedulingv1 "k8s.io/api/scheduling/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/apache/yunikorn-k8shim/pkg/common"
@@ -1220,4 +1220,23 @@ func TestGetExtraConfigFromConfigMap(t *testing.T) {
 	value, ok := res["key"]
 	assert.Assert(t, ok, "key not found")
 	assert.Equal(t, "value", value, "wrong value")
+}
+
+func TestConvert2PriorityClass(t *testing.T) {
+	assert.Assert(t, Convert2PriorityClass(nil) == nil)
+	assert.Assert(t, Convert2PriorityClass("foo") == nil)
+
+	preemptLower := v1.PreemptLowerPriority
+	pc := schedulingv1.PriorityClass{
+		ObjectMeta:       metav1.ObjectMeta{},
+		Value:            0,
+		GlobalDefault:    false,
+		Description:      "",
+		PreemptionPolicy: &preemptLower,
+	}
+
+	assert.Assert(t, Convert2PriorityClass(pc) == nil)
+	result := Convert2PriorityClass(&pc)
+	assert.Assert(t, result != nil)
+	assert.Equal(t, result.PreemptionPolicy, &preemptLower)
 }

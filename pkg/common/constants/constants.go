@@ -18,6 +18,10 @@
 
 package constants
 
+// Common
+const True = "true"
+const False = "false"
+
 // Cluster
 const DefaultNodeAttributeHostNameKey = "si.io/hostname"
 const DefaultNodeAttributeRackNameKey = "si.io/rackname"
@@ -82,6 +86,9 @@ const MemQuota = "yunikorn.apache.org/namespace.max.memory"
 
 // NamespaceQuota Namespace Quota
 const NamespaceQuota = "yunikorn.apache.org/namespace.quota"
+
+// Preemption
+const AnnotationAllowPreemption = "yunikorn.apache.org/allow-preemption"
 
 // Admission Controller pod label update constants
 const AutoGenAppPrefix = "yunikorn"
