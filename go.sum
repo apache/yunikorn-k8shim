@@ -107,8 +107,9 @@ github.com/antihax/optional v1.0.0/go.mod h1:uupD/76wgC+ih3iEmQUL+0Ugr19nfwCT1kd
 github.com/antlr/antlr4/runtime/Go/antlr v0.0.0-20210826220005-b48c857c3a0e/go.mod h1:F7bn7fEU90QkQ3tnmaTx3LTKLEDqnwWODIYppRQ5hnY=
 github.com/apache/yunikorn-core v0.0.0-20221201192233-339cc04bfe3d h1:zxzFaI/36gI0mUYaAYtv3PkFyQj0WHDULiDktHH2T4s=
 github.com/apache/yunikorn-core v0.0.0-20221201192233-339cc04bfe3d/go.mod h1:wQJwmoSpTsmNI70dol2U1MFj6cV6LwZ25D5m+rgvSKw=
-github.com/apache/yunikorn-scheduler-interface v0.0.0-20221130170804-42d2286739d8 h1:SOMLjG4r+ZosV9BZrjM0E8VFDT/5aB3Lc3SA831HBwo=
 github.com/apache/yunikorn-scheduler-interface v0.0.0-20221130170804-42d2286739d8/go.mod h1:VpJqm5k7wjPvoEdgAVHRU2rlbs3LLGJaz2d9F39hmGs=
+github.com/apache/yunikorn-scheduler-interface v0.0.0-20221208173644-fa28d9977622 h1:NhBeXEZhSsLjGJscUTxirn7Uqj/MsavbqZq5VNyhfCw=
+github.com/apache/yunikorn-scheduler-interface v0.0.0-20221208173644-fa28d9977622/go.mod h1:OXLihFkfsdhzy5Z0Mi5v8yVDmY8mF5TQDcsJv1fvjvQ=
 github.com/armon/circbuf v0.0.0-20150827004946-bbbad097214e/go.mod h1:3U/XgcO3hCbHZ8TKRvWD2dDTCfh9M9ya+I9JpbB7O8o=
 github.com/armon/consul-api v0.0.0-20180202201655-eb2c6b5be1b6/go.mod h1:grANhF5doyWs3UAsr3K4I6qtAmlQcZDesFNEHPZAzj8=
 github.com/armon/go-metrics v0.0.0-20180917152333-f0300d1749da/go.mod h1:Q73ZrmVTwzkszR9V5SSuryQ31EELlFMUz1kKyl939pY=

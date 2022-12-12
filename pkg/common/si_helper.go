@@ -21,6 +21,7 @@ package common
 import (
 	"strconv"
 
+	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
@@ -73,20 +74,21 @@ func CreatePriorityForTask(pod *v1.Pod) int32 {
 	if pod.Spec.Priority != nil {
 		return *pod.Spec.Priority
 	}
-	return 0
+	return constants.DefaultPriority
 }
 
 func CreateAllocationRequestForTask(appID, taskID string, resource *si.Resource, placeholder bool, taskGroupName string, pod *v1.Pod, originator bool) si.AllocationRequest {
 	ask := si.AllocationAsk{
-		AllocationKey:  taskID,
-		ResourceAsk:    resource,
-		ApplicationID:  appID,
-		MaxAllocations: 1,
-		Tags:           CreateTagsForTask(pod),
-		Placeholder:    placeholder,
-		TaskGroupName:  taskGroupName,
-		Originator:     originator,
-		Priority:       CreatePriorityForTask(pod),
+		AllocationKey:    taskID,
+		ResourceAsk:      resource,
+		ApplicationID:    appID,
+		MaxAllocations:   1,
+		Tags:             CreateTagsForTask(pod),
+		Placeholder:      placeholder,
+		TaskGroupName:    taskGroupName,
+		Originator:       originator,
+		Priority:         CreatePriorityForTask(pod),
+		PreemptionPolicy: CreatePreemptionPolicyForTask(pod),
 	}
 
 	result := si.AllocationRequest{
@@ -95,6 +97,37 @@ func CreateAllocationRequestForTask(appID, taskID string, resource *si.Resource,
 	}
 
 	return result
+}
+
+func CreatePreemptionPolicyForTask(pod *v1.Pod) *si.PreemptionPolicy {
+	allowPreemption := constants.DefaultAllowPreemption
+	allowPreemptSelf := constants.DefaultAllowSelfPreemption
+
+	if pod.Spec.PreemptionPolicy != nil {
+		switch *pod.Spec.PreemptionPolicy {
+		case v1.PreemptNever:
+			allowPreemption = false
+		case v1.PreemptLowerPriority:
+			allowPreemption = true
+		default:
+			log.Logger().Warn("unknown preemption policy on pod",
+				zap.String("policy", string(*pod.Spec.PreemptionPolicy)))
+		}
+	}
+
+	annotation := pod.Annotations[constants.AnnotationAllowSelfPreemption]
+	if annotation != "" {
+		var err error
+		allowPreemptSelf, err = strconv.ParseBool(annotation)
+		if err != nil {
+			log.Logger().Warn("could not parse preemption annotation on pod",
+				zap.String("value", annotation))
+			allowPreemptSelf = constants.DefaultAllowPreemption
+		}
+	}
+
+	policy := si.PreemptionPolicy{AllowPreemptOther: allowPreemption, AllowPreemptSelf: allowPreemptSelf}
+	return &policy
 }
 
 func CreateReleaseAskRequestForTask(appID, taskID, partition string) si.AllocationRequest {

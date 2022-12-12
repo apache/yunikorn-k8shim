@@ -87,3 +87,9 @@ const NamespaceQuota = "yunikorn.apache.org/namespace.quota"
 const AutoGenAppPrefix = "yunikorn"
 const AutoGenAppSuffix = "autogen"
 const DefaultQueue = "root.default"
+
+// Priority & preemption
+const DefaultPriority = 0
+const DefaultAllowPreemption = true
+const DefaultAllowSelfPreemption = true
+const AnnotationAllowSelfPreemption = "yunikorn.apache.org/allow-preemption"

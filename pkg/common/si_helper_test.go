@@ -284,6 +284,8 @@ func TestCreateAllocationRequestForTask(t *testing.T) {
 		t.Fatal("ask cannot be nil")
 	}
 	assert.Equal(t, allocAsk.Priority, int32(0))
+	assert.Equal(t, true, updateRequest.Asks[0].PreemptionPolicy.AllowPreemptSelf)
+	assert.Equal(t, true, updateRequest.Asks[0].PreemptionPolicy.AllowPreemptOther)
 
 	podName1 := "pod-resource-test-00002"
 	var pri = int32(100)
@@ -311,4 +313,41 @@ func TestCreateAllocationRequestForTask(t *testing.T) {
 	tags := allocAsk1.Tags
 	assert.Equal(t, tags[common.DomainK8s+common.GroupMeta+"podName"], podName1)
 	assert.Equal(t, allocAsk1.Priority, int32(100))
+}
+
+func TestCreatePreemptionPolicyForTask(t *testing.T) {
+	annotations := map[string]string{}
+	policyNever := v1.PreemptNever
+	pod := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name:        "test",
+			UID:         "UID-00001",
+			Namespace:   "test",
+			Annotations: annotations,
+		},
+		Spec: v1.PodSpec{PreemptionPolicy: &policyNever},
+	}
+	pod.Annotations[constants.AnnotationAllowSelfPreemption] = "false"
+
+	preemptionPolicy := CreatePreemptionPolicyForTask(pod)
+	assert.Equal(t, false, preemptionPolicy.AllowPreemptSelf)
+	assert.Equal(t, false, preemptionPolicy.AllowPreemptOther)
+
+	policyLower := v1.PreemptLowerPriority
+	pod.Spec.PreemptionPolicy = &policyLower
+	pod.Annotations[constants.AnnotationAllowSelfPreemption] = "true"
+	preemptionPolicy = CreatePreemptionPolicyForTask(pod)
+	assert.Equal(t, true, preemptionPolicy.AllowPreemptSelf)
+	assert.Equal(t, true, preemptionPolicy.AllowPreemptOther)
+
+	badPolicy := v1.PreemptionPolicy("unknown")
+	pod.Annotations[constants.AnnotationAllowSelfPreemption] = "xxxx"
+	pod.Spec.PreemptionPolicy = &badPolicy
+	preemptionPolicy = CreatePreemptionPolicyForTask(pod)
+	assert.Equal(t, true, preemptionPolicy.AllowPreemptSelf)
+	assert.Equal(t, true, preemptionPolicy.AllowPreemptOther)
 }
