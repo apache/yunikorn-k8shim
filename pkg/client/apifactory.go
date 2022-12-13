@@ -48,6 +48,7 @@ const (
 	PVInformerHandlers
 	PVCInformerHandlers
 	ApplicationInformerHandlers
+	PriorityClassInformerHandlers
 )
 
 type APIProvider interface {
@@ -91,6 +92,8 @@ func NewAPIFactory(scheduler api.SchedulerAPI, informerFactory informers.SharedI
 	pvInformer := informerFactory.Core().V1().PersistentVolumes()
 	pvcInformer := informerFactory.Core().V1().PersistentVolumeClaims()
 	namespaceInformer := informerFactory.Core().V1().Namespaces()
+	priorityClassInformer := informerFactory.Scheduling().V1().PriorityClasses()
+
 	var capacityCheck *volumebinding.CapacityCheck
 	if utilfeature.DefaultFeatureGate.Enabled(features.CSIStorageCapacity) {
 		capacityCheck = &volumebinding.CapacityCheck{
@@ -121,20 +124,21 @@ func NewAPIFactory(scheduler api.SchedulerAPI, informerFactory informers.SharedI
 
 	return &APIFactory{
 		clients: &Clients{
-			conf:              configs,
-			KubeClient:        kubeClient,
-			AppClient:         appClient,
-			SchedulerAPI:      scheduler,
-			InformerFactory:   informerFactory,
-			PodInformer:       podInformer,
-			NodeInformer:      nodeInformer,
-			ConfigMapInformer: configMapInformer,
-			PVInformer:        pvInformer,
-			PVCInformer:       pvcInformer,
-			NamespaceInformer: namespaceInformer,
-			StorageInformer:   storageInformer,
-			VolumeBinder:      volumeBinder,
-			AppInformer:       applicationInformer,
+			conf:                  configs,
+			KubeClient:            kubeClient,
+			AppClient:             appClient,
+			SchedulerAPI:          scheduler,
+			InformerFactory:       informerFactory,
+			PodInformer:           podInformer,
+			NodeInformer:          nodeInformer,
+			ConfigMapInformer:     configMapInformer,
+			PVInformer:            pvInformer,
+			PVCInformer:           pvcInformer,
+			NamespaceInformer:     namespaceInformer,
+			StorageInformer:       storageInformer,
+			PriorityClassInformer: priorityClassInformer,
+			VolumeBinder:          volumeBinder,
+			AppInformer:           applicationInformer,
 		},
 		testMode: testMode,
 		stopChan: make(chan struct{}),
@@ -198,6 +202,9 @@ func (s *APIFactory) addEventHandlers(
 			AddEventHandlerWithResyncPeriod(handler, resyncPeriod)
 	case ApplicationInformerHandlers:
 		s.GetAPIs().AppInformer.Informer().
+			AddEventHandlerWithResyncPeriod(handler, resyncPeriod)
+	case PriorityClassInformerHandlers:
+		s.GetAPIs().PriorityClassInformer.Informer().
 			AddEventHandlerWithResyncPeriod(handler, resyncPeriod)
 	}
 }

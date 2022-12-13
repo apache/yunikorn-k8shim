@@ -21,7 +21,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
 	"net/http"
 	"net/url"
 	"os"
@@ -36,6 +35,7 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
 	authv1 "k8s.io/api/rbac/v1"
+	schedulingv1 "k8s.io/api/scheduling/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/httpstream"
@@ -803,6 +803,14 @@ func (k *KubeCtl) RemoveYunikornSchedulerPodAnnotation(annotation string) error 
 	schedPod := schedPodList.Items[0]
 	_, err = k.DeletePodAnnotation(&schedPod, configmanager.YuniKornTestConfig.YkNamespace, annotation)
 	return err
+}
+
+func (k *KubeCtl) CreatePriorityClass(pc *schedulingv1.PriorityClass) (*schedulingv1.PriorityClass, error) {
+	return k.clientSet.SchedulingV1().PriorityClasses().Create(context.Background(), pc, metav1.CreateOptions{})
+}
+
+func (k *KubeCtl) DeletePriorityClass(priorityClassName string) error {
+	return k.clientSet.SchedulingV1().PriorityClasses().Delete(context.Background(), priorityClassName, metav1.DeleteOptions{})
 }
 
 func (k *KubeCtl) CreateJob(job *batchv1.Job, namespace string) (*batchv1.Job, error) {

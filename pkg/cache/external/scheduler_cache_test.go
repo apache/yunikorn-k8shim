@@ -25,6 +25,7 @@ import (
 	"gotest.tools/assert"
 
 	v1 "k8s.io/api/core/v1"
+	schedulingv1 "k8s.io/api/scheduling/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -501,4 +502,150 @@ func TestRemovePod(t *testing.T) {
 	// verify removal of pod with unknown node doesn't crash
 	pod1.Spec.NodeName = "missing-node"
 	cache.RemovePod(pod1)
+}
+
+func TestAddPriorityClass(t *testing.T) {
+	cache := NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
+	pc := &schedulingv1.PriorityClass{
+		ObjectMeta: apis.ObjectMeta{
+			Name: "class001",
+			UID:  "Class-UID-00001",
+		},
+		Value: 10,
+	}
+
+	cache.AddPriorityClass(pc)
+	result := cache.GetPriorityClass("class001")
+	assert.Assert(t, result != nil)
+	assert.Equal(t, result.Value, int32(10))
+}
+
+func TestUpdatePriorityClass(t *testing.T) {
+	cache := NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
+	pc := &schedulingv1.PriorityClass{
+		ObjectMeta: apis.ObjectMeta{
+			Name: "class001",
+			UID:  "Class-UID-00001",
+		},
+		Value: 10,
+	}
+	pc2 := &schedulingv1.PriorityClass{
+		ObjectMeta: apis.ObjectMeta{
+			Name: "class001",
+			UID:  "Class-UID-00001",
+		},
+		Value: 20,
+	}
+
+	cache.AddPriorityClass(pc)
+	cache.UpdatePriorityClass(pc2)
+
+	result := cache.GetPriorityClass("class001")
+	assert.Assert(t, result != nil)
+	assert.Equal(t, result.Value, int32(20))
+}
+
+func TestRemovePriorityClass(t *testing.T) {
+	cache := NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
+	pc := &schedulingv1.PriorityClass{
+		ObjectMeta: apis.ObjectMeta{
+			Name: "class001",
+			UID:  "Class-UID-00001",
+		},
+		Value: 10,
+	}
+
+	cache.AddPriorityClass(pc)
+	result := cache.GetPriorityClass("class001")
+	assert.Assert(t, result != nil)
+	assert.Equal(t, result.Value, int32(10))
+
+	cache.RemovePriorityClass(pc)
+	result = cache.GetPriorityClass("class001")
+	assert.Assert(t, result == nil)
+}
+
+func TestGetSchedulerCacheDao(t *testing.T) {
+	cache := NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
+
+	// test empty
+	dao := cache.GetSchedulerCacheDao()
+	assert.Equal(t, len(dao.Nodes), 0)
+	assert.Equal(t, len(dao.Pods), 0)
+	assert.Equal(t, len(dao.PriorityClasses), 0)
+	assert.Equal(t, len(dao.SchedulingPods), 0)
+	assert.Equal(t, dao.Statistics.Nodes, 0)
+	assert.Equal(t, dao.Statistics.Pods, 0)
+	assert.Equal(t, dao.Statistics.PriorityClasses, 0)
+	assert.Equal(t, dao.Statistics.Assumed, 0)
+	assert.Equal(t, dao.Statistics.PodsAssigned, 0)
+	assert.Equal(t, dao.Statistics.InProgressAllocations, 0)
+	assert.Equal(t, dao.Statistics.PendingAllocations, 0)
+
+	resourceList := make(map[v1.ResourceName]resource.Quantity)
+	resourceList[v1.ResourceName("memory")] = *resource.NewQuantity(1024*1000*1000, resource.DecimalSI)
+	resourceList[v1.ResourceName("cpu")] = *resource.NewQuantity(10, resource.DecimalSI)
+	node := &v1.Node{
+		ObjectMeta: apis.ObjectMeta{
+			Name:      "host0001",
+			Namespace: "default",
+			UID:       "Node-UID-00001",
+		},
+		Status: v1.NodeStatus{
+			Allocatable: resourceList,
+		},
+		Spec: v1.NodeSpec{
+			Unschedulable: false,
+		},
+	}
+	pod := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Namespace: "test",
+			Name:      "pod0001",
+			UID:       "Pod-UID-00001",
+		},
+		Spec: v1.PodSpec{},
+	}
+	pc := &schedulingv1.PriorityClass{
+		ObjectMeta: apis.ObjectMeta{
+			Name: "class001",
+			UID:  "Class-UID-00001",
+		},
+		Value: 10,
+	}
+
+	cache.AddNode(node)
+	cache.AddPod(pod)
+	cache.AddPriorityClass(pc)
+
+	// test with data
+	dao = cache.GetSchedulerCacheDao()
+	assert.Equal(t, len(dao.Nodes), 1)
+	nodeDao, ok := dao.Nodes["host0001"]
+	assert.Assert(t, ok)
+	assert.DeepEqual(t, *nodeDao.Allocatable.Memory(), resourceList["memory"])
+	assert.DeepEqual(t, *nodeDao.Allocatable.Cpu(), resourceList["cpu"])
+	assert.Equal(t, len(dao.Pods), 1)
+	podDao, ok := dao.Pods["test/pod0001"]
+	assert.Assert(t, ok)
+	assert.Equal(t, string(podDao.UID), "Pod-UID-00001")
+	assert.Equal(t, len(dao.PriorityClasses), 1)
+	pcDao, ok := dao.PriorityClasses["class001"]
+	assert.Assert(t, ok)
+	assert.Equal(t, pcDao.Value, int32(10))
+	assert.Equal(t, len(dao.SchedulingPods), 1)
+	psDao, ok := dao.SchedulingPods["test/pod0001"]
+	assert.Assert(t, ok)
+	assert.Equal(t, string(psDao.UID), "Pod-UID-00001")
+	assert.Equal(t, dao.Statistics.Nodes, 1)
+	assert.Equal(t, dao.Statistics.Pods, 1)
+	assert.Equal(t, dao.Statistics.PriorityClasses, 1)
+	assert.Equal(t, dao.Statistics.Assumed, 0)
+	assert.Equal(t, dao.Statistics.PodsAssigned, 0)
+	assert.Equal(t, dao.Statistics.InProgressAllocations, 0)
+	assert.Equal(t, dao.Statistics.PendingAllocations, 0)
 }

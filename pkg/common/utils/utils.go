@@ -28,9 +28,8 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/apache/yunikorn-k8shim/pkg/conf"
-
 	v1 "k8s.io/api/core/v1"
+	schedulingv1 "k8s.io/api/scheduling/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 	podv1 "k8s.io/kubernetes/pkg/api/v1/pod"
@@ -38,6 +37,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
 	"github.com/apache/yunikorn-k8shim/pkg/common"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
+	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
@@ -58,6 +58,14 @@ func Convert2ConfigMap(obj interface{}) *v1.ConfigMap {
 		return configmap
 	}
 	log.Logger().Warn("cannot convert to *v1.ConfigMap", zap.Stringer("type", reflect.TypeOf(obj)))
+	return nil
+}
+
+func Convert2PriorityClass(obj interface{}) *schedulingv1.PriorityClass {
+	if priorityClass, ok := obj.(*schedulingv1.PriorityClass); ok {
+		return priorityClass
+	}
+	log.Logger().Warn("cannot convert to *schedulingv1.PriorityClass", zap.Stringer("type", reflect.TypeOf(obj)))
 	return nil
 }
 
@@ -390,41 +398,4 @@ func GetTaskGroupsFromAnnotation(pod *v1.Pod) ([]v1alpha1.TaskGroup, error) {
 		}
 	}
 	return taskGroups, nil
-}
-
-// generate appID based on the namespace value,
-// and the max length of the ID is 63 chars.
-func generateAppID(namespace string) string {
-	generatedID := fmt.Sprintf("%s-%s-%s", constants.AutoGenAppPrefix, namespace, constants.AutoGenAppSuffix)
-	appID := fmt.Sprintf("%.63s", generatedID)
-	return appID
-}
-
-func UpdatePodLabelForAdmissionController(pod *v1.Pod, namespace string) map[string]string {
-	existingLabels := pod.Labels
-	result := make(map[string]string)
-	for k, v := range existingLabels {
-		result[k] = v
-	}
-
-	sparkAppID := GetPodLabelValue(pod, constants.SparkLabelAppID)
-	appID := GetPodLabelValue(pod, constants.LabelApplicationID)
-	if sparkAppID == "" && appID == "" {
-		// if app id not exist, generate one
-		// for each namespace, we group unnamed pods to one single app
-		// application ID convention: ${AUTO_GEN_PREFIX}-${NAMESPACE}-${AUTO_GEN_SUFFIX}
-		generatedID := generateAppID(namespace)
-		result[constants.LabelApplicationID] = generatedID
-
-		// if we generate an app ID, disable state-aware scheduling for this app
-		if _, ok := existingLabels[constants.LabelDisableStateAware]; !ok {
-			result[constants.LabelDisableStateAware] = "true"
-		}
-	}
-
-	if _, ok := existingLabels[constants.LabelQueueName]; !ok {
-		result[constants.LabelQueueName] = constants.DefaultQueue
-	}
-
-	return result
 }

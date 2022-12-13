@@ -76,17 +76,18 @@ func CreatePriorityForTask(pod *v1.Pod) int32 {
 	return 0
 }
 
-func CreateAllocationRequestForTask(appID, taskID string, resource *si.Resource, placeholder bool, taskGroupName string, pod *v1.Pod, originator bool) si.AllocationRequest {
+func CreateAllocationRequestForTask(appID, taskID string, resource *si.Resource, placeholder bool, taskGroupName string, pod *v1.Pod, originator bool, preemptionPolicy *si.PreemptionPolicy) si.AllocationRequest {
 	ask := si.AllocationAsk{
-		AllocationKey:  taskID,
-		ResourceAsk:    resource,
-		ApplicationID:  appID,
-		MaxAllocations: 1,
-		Tags:           CreateTagsForTask(pod),
-		Placeholder:    placeholder,
-		TaskGroupName:  taskGroupName,
-		Originator:     originator,
-		Priority:       CreatePriorityForTask(pod),
+		AllocationKey:    taskID,
+		ResourceAsk:      resource,
+		ApplicationID:    appID,
+		MaxAllocations:   1,
+		Tags:             CreateTagsForTask(pod),
+		Placeholder:      placeholder,
+		TaskGroupName:    taskGroupName,
+		Originator:       originator,
+		Priority:         CreatePriorityForTask(pod),
+		PreemptionPolicy: preemptionPolicy,
 	}
 
 	result := si.AllocationRequest{

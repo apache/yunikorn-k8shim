@@ -26,15 +26,17 @@ import (
 )
 
 type SchedulerCacheDao struct {
-	Statistics     SchedulerCacheStatisticsDao     `json:"statistics"`
-	Nodes          map[string]NodeDao              `json:"nodes"`
-	Pods           map[string]PodDao               `json:"pods"`
-	SchedulingPods map[string]PodSchedulingInfoDao `json:"schedulingState"`
+	Statistics      SchedulerCacheStatisticsDao     `json:"statistics"`
+	Nodes           map[string]NodeDao              `json:"nodes"`
+	Pods            map[string]PodDao               `json:"pods"`
+	PriorityClasses map[string]PriorityClassDao     `json:"priorityClasses"`
+	SchedulingPods  map[string]PodSchedulingInfoDao `json:"schedulingState"`
 }
 
 type SchedulerCacheStatisticsDao struct {
 	Nodes                 int            `json:"nodes"`
 	Pods                  int            `json:"pods"`
+	PriorityClasses       int            `json:"priorityClasses"`
 	Assumed               int            `json:"assumed"`
 	PendingAllocations    int            `json:"pendingAllocations"`
 	InProgressAllocations int            `json:"inProgressAllocations"`
@@ -75,6 +77,15 @@ type PodDao struct {
 	Tolerations       []v1.Toleration      `json:"tolerations"`
 	Containers        []ContainerDao       `json:"containers"`
 	Status            v1.PodStatus         `json:"status"`
+}
+
+type PriorityClassDao struct {
+	Name             string               `json:"name"`
+	Annotations      map[string]string    `json:"annotations"`
+	Labels           map[string]string    `json:"labels"`
+	Value            int32                `json:"value"`
+	GlobalDefault    bool                 `json:"globalDefault"`
+	PreemptionPolicy *v1.PreemptionPolicy `json:"preemptionPolicy"`
 }
 
 type ContainerDao struct {

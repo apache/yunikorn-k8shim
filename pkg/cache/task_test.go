@@ -26,6 +26,7 @@ import (
 	"gotest.tools/assert"
 
 	v1 "k8s.io/api/core/v1"
+	schedulingv1 "k8s.io/api/scheduling/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -449,8 +450,37 @@ func TestSetTaskGroup(t *testing.T) {
 }
 
 func TestHandleSubmitTaskEvent(t *testing.T) {
-	mockedContext := initContextForTest()
-	mockedSchedulerAPI := newMockSchedulerAPI()
+	mockedContext, mockedSchedulerAPI := initContextAndAPIProviderForTest()
+	var allocRequest *si.AllocationRequest
+	mockedSchedulerAPI.MockSchedulerAPIUpdateAllocationFn(func(request *si.AllocationRequest) error {
+		allocRequest = request
+		return nil
+	})
+
+	preemptNever := v1.PreemptNever
+	preemptLowerPriority := v1.PreemptLowerPriority
+	priorityClass := &schedulingv1.PriorityClass{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "preempt-self-1000",
+			Annotations: map[string]string{
+				constants.AnnotationAllowPreemption: "true",
+			},
+		},
+		Value:            1000,
+		PreemptionPolicy: &preemptNever,
+	}
+	mockedContext.addPriorityClass(priorityClass)
+	priorityClass2 := &schedulingv1.PriorityClass{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "preempt-others-1001",
+			Annotations: map[string]string{
+				constants.AnnotationAllowPreemption: "false",
+			},
+		},
+		Value:            1001,
+		PreemptionPolicy: &preemptLowerPriority,
+	}
+	mockedContext.addPriorityClass(priorityClass2)
 	rt := &recorderTime{
 		time: int64(0),
 		lock: &sync.RWMutex{},
@@ -471,6 +501,7 @@ func TestHandleSubmitTaskEvent(t *testing.T) {
 			Requests: resources,
 		},
 	})
+	var priority int32 = 1000
 	pod1 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
@@ -481,9 +512,13 @@ func TestHandleSubmitTaskEvent(t *testing.T) {
 			UID:  "UID-00001",
 		},
 		Spec: v1.PodSpec{
-			Containers: containers,
+			Containers:        containers,
+			Priority:          &priority,
+			PriorityClassName: "preempt-self-1000",
+			PreemptionPolicy:  &preemptNever,
 		},
 	}
+	var priority2 int32 = 1001
 	pod2 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
@@ -497,11 +532,14 @@ func TestHandleSubmitTaskEvent(t *testing.T) {
 			},
 		},
 		Spec: v1.PodSpec{
-			Containers: containers,
+			Containers:        containers,
+			Priority:          &priority2,
+			PriorityClassName: "preempt-others-1001",
+			PreemptionPolicy:  &preemptLowerPriority,
 		},
 	}
 	appID := "app-test-001"
-	app := NewApplication(appID, "root.abc", "testuser", testGroups, map[string]string{}, mockedSchedulerAPI)
+	app := NewApplication(appID, "root.abc", "testuser", testGroups, map[string]string{}, mockedSchedulerAPI.GetAPIs().SchedulerAPI)
 	task1 := NewTask("task01", app, mockedContext, pod1)
 	task2 := NewTask("task02", app, mockedContext, pod2)
 	task1.sm.SetState(TaskStates().Pending)
@@ -512,6 +550,13 @@ func TestHandleSubmitTaskEvent(t *testing.T) {
 	assert.NilError(t, err, "failed to handle SubmitTask event")
 	assert.Equal(t, task1.GetTaskState(), TaskStates().Scheduling)
 	assert.Equal(t, rt.time, int64(1))
+	assert.Assert(t, allocRequest != nil)
+	assert.Equal(t, len(allocRequest.Asks), 1)
+	assert.Equal(t, allocRequest.Asks[0].Priority, int32(1000))
+	assert.Assert(t, allocRequest.Asks[0].PreemptionPolicy != nil)
+	assert.Assert(t, allocRequest.Asks[0].PreemptionPolicy.AllowPreemptSelf)
+	assert.Assert(t, !allocRequest.Asks[0].PreemptionPolicy.AllowPreemptOther)
+	allocRequest = nil
 	rt.time = 0
 	// pod with taskGroup name
 	event2 := NewSubmitTaskEvent(app.applicationID, task2.taskID)
@@ -519,6 +564,12 @@ func TestHandleSubmitTaskEvent(t *testing.T) {
 	assert.NilError(t, err, "failed to handle SubmitTask event")
 	assert.Equal(t, task2.GetTaskState(), TaskStates().Scheduling)
 	assert.Equal(t, rt.time, int64(2))
+	assert.Assert(t, allocRequest != nil)
+	assert.Equal(t, len(allocRequest.Asks), 1)
+	assert.Equal(t, allocRequest.Asks[0].Priority, int32(1001))
+	assert.Assert(t, allocRequest.Asks[0].PreemptionPolicy != nil)
+	assert.Assert(t, !allocRequest.Asks[0].PreemptionPolicy.AllowPreemptSelf)
+	assert.Assert(t, allocRequest.Asks[0].PreemptionPolicy.AllowPreemptOther)
 
 	// Test over, set Recorder back fake type
 	events.SetRecorder(k8sEvents.NewFakeRecorder(1024))

@@ -25,6 +25,7 @@ import (
 	"net/http/httptest"
 	"regexp"
 	"strings"
+	"sync"
 	"testing"
 
 	"gotest.tools/assert"
@@ -33,6 +34,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	authv1 "k8s.io/api/authentication/v1"
 	v1 "k8s.io/api/core/v1"
+	schedulingv1 "k8s.io/api/scheduling/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -265,7 +267,8 @@ func TestUpdateSchedulerName(t *testing.T) {
 }
 
 func TestValidateConfigMapEmpty(t *testing.T) {
-	controller := InitAdmissionController(createConfig())
+	pcCache := createPriorityClassCacheForTest()
+	controller := InitAdmissionController(createConfig(), pcCache)
 	configmap := &v1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: constants.ConfigMapName,
@@ -353,6 +356,7 @@ func prepareConfigMap(data string) *v1.ConfigMap {
 }
 
 func prepareController(t *testing.T, url string, processNs string, bypassNs string, labelNs string, noLabelNs string, bypassAuth bool, trustControllers bool) *AdmissionController {
+	pcCache := createPriorityClassCacheForTest()
 	if bypassNs == "" {
 		bypassNs = "^kube-system$"
 	}
@@ -368,7 +372,7 @@ func prepareController(t *testing.T, url string, processNs string, bypassNs stri
 		conf.AMAccessControlExternalUsers:     "^testExtUser$",
 		conf.AMAccessControlExternalGroups:    "^testExtGroup$",
 	})
-	return InitAdmissionController(config)
+	return InitAdmissionController(config, pcCache)
 }
 
 func serverMock(mode responseMode) *httptest.Server {
@@ -862,30 +866,38 @@ func TestParseRegexes(t *testing.T) {
 }
 
 func TestInitAdmissionControllerRegexErrorHandling(t *testing.T) {
-	ac := InitAdmissionController(createConfig())
+	pcCache := createPriorityClassCacheForTest()
+	ac := InitAdmissionController(createConfig(), pcCache)
 	assert.Equal(t, 1, len(ac.conf.GetBypassNamespaces()))
 	assert.Equal(t, conf.DefaultFilteringBypassNamespaces, ac.conf.GetBypassNamespaces()[0].String(), "didn't set default bypassNamespaces")
 
-	ac = InitAdmissionController(createConfigWithOverrides(map[string]string{conf.AMFilteringProcessNamespaces: "("}))
+	ac = InitAdmissionController(createConfigWithOverrides(map[string]string{conf.AMFilteringProcessNamespaces: "("}), pcCache)
 	assert.Equal(t, 0, len(ac.conf.GetProcessNamespaces()), "didn't fail on bad processNamespaces list")
 
-	ac = InitAdmissionController(createConfigWithOverrides(map[string]string{conf.AMFilteringBypassNamespaces: "("}))
+	ac = InitAdmissionController(createConfigWithOverrides(map[string]string{conf.AMFilteringBypassNamespaces: "("}), pcCache)
 	assert.Equal(t, 1, len(ac.conf.GetBypassNamespaces()))
 	assert.Equal(t, conf.DefaultFilteringBypassNamespaces, ac.conf.GetBypassNamespaces()[0].String(), "didn't fail on bad bypassNamespaces list")
 
-	ac = InitAdmissionController(createConfigWithOverrides(map[string]string{conf.AMFilteringLabelNamespaces: "("}))
+	ac = InitAdmissionController(createConfigWithOverrides(map[string]string{conf.AMFilteringLabelNamespaces: "("}), pcCache)
 	assert.Equal(t, 0, len(ac.conf.GetLabelNamespaces()), "didn't fail on bad labelNamespaces list")
 
-	ac = InitAdmissionController(createConfigWithOverrides(map[string]string{conf.AMFilteringNoLabelNamespaces: "("}))
+	ac = InitAdmissionController(createConfigWithOverrides(map[string]string{conf.AMFilteringNoLabelNamespaces: "("}), pcCache)
 	assert.Equal(t, 0, len(ac.conf.GetNoLabelNamespaces()), "didn't fail on bad noLabelNamespaces list")
 
-	ac = InitAdmissionController(createConfigWithOverrides(map[string]string{conf.AMAccessControlSystemUsers: "("}))
+	ac = InitAdmissionController(createConfigWithOverrides(map[string]string{conf.AMAccessControlSystemUsers: "("}), pcCache)
 	assert.Equal(t, 1, len(ac.conf.GetSystemUsers()))
 	assert.Equal(t, conf.DefaultAccessControlSystemUsers, ac.conf.GetSystemUsers()[0].String(), "didn't fail on bad systemUsers list")
 
-	ac = InitAdmissionController(createConfigWithOverrides(map[string]string{conf.AMAccessControlExternalUsers: "("}))
+	ac = InitAdmissionController(createConfigWithOverrides(map[string]string{conf.AMAccessControlExternalUsers: "("}), pcCache)
 	assert.Equal(t, 0, len(ac.conf.GetExternalUsers()), "didn't fail on bad externalUsers list")
 
-	ac = InitAdmissionController(createConfigWithOverrides(map[string]string{conf.AMAccessControlExternalGroups: "("}))
+	ac = InitAdmissionController(createConfigWithOverrides(map[string]string{conf.AMAccessControlExternalGroups: "("}), pcCache)
 	assert.Equal(t, 0, len(ac.conf.GetExternalGroups()), "didn't fail on bad externalGroups list")
+}
+
+func createPriorityClassCacheForTest() *PriorityClassCache {
+	return &PriorityClassCache{
+		priorityClasses: make(map[string]*schedulingv1.PriorityClass),
+		lock:            sync.RWMutex{},
+	}
 }

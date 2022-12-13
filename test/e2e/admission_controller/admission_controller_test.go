@@ -37,6 +37,7 @@ import (
 )
 
 const userInfoAnnotation = "yunikorn.apache.org/user.info"
+const nonExistentNode = "non-existent-node"
 
 type EventHandler struct {
 	updateCh chan struct{}
@@ -67,6 +68,74 @@ var _ = ginkgo.Describe("AdmissionController", func() {
 	ginkgo.BeforeEach(func() {
 		kubeClient = k8s.KubeCtl{}
 		gomega.Expect(kubeClient.SetClient()).To(gomega.BeNil())
+	})
+
+	ginkgo.It("Verifying pod with preempt priority class", func() {
+		ginkgo.By("has correct properties set")
+		podCopy := testPod.DeepCopy()
+		podCopy.Name = "preempt-pod"
+		podCopy.Spec.PriorityClassName = testPreemptPriorityClass.Name
+		podCopy.Spec.NodeName = nonExistentNode
+		pod, err := kubeClient.CreatePod(podCopy, ns)
+		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
+		defer deletePod(pod, ns)
+
+		gomega.Ω(*pod.Spec.Priority).Should(gomega.Equal(testPreemptPriorityClass.Value))
+		gomega.Ω(*pod.Spec.PreemptionPolicy).Should(gomega.Equal(*testPreemptPriorityClass.PreemptionPolicy))
+
+		value, ok := pod.Annotations[constants.AnnotationAllowPreemption]
+		gomega.Ω(ok).Should(gomega.BeTrue())
+		gomega.Ω(value).Should(gomega.Equal(constants.True))
+	})
+
+	ginkgo.It("Verifying pod with non-preempt priority class", func() {
+		ginkgo.By("has correct properties set")
+		podCopy := testPod.DeepCopy()
+		podCopy.Name = nonExistentNode
+		podCopy.Spec.PriorityClassName = testNonPreemptPriorityClass.Name
+		podCopy.Spec.NodeName = nonExistentNode
+		pod, err := kubeClient.CreatePod(podCopy, ns)
+		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
+		defer deletePod(pod, ns)
+
+		gomega.Ω(*pod.Spec.Priority).Should(gomega.Equal(testNonPreemptPriorityClass.Value))
+		gomega.Ω(*pod.Spec.PreemptionPolicy).Should(gomega.Equal(*testNonPreemptPriorityClass.PreemptionPolicy))
+
+		value, ok := pod.Annotations[constants.AnnotationAllowPreemption]
+		gomega.Ω(ok).Should(gomega.BeTrue())
+		gomega.Ω(value).Should(gomega.Equal(constants.False))
+	})
+
+	ginkgo.It("Verifying pod with non-YK priority class", func() {
+		ginkgo.By("has correct properties set")
+		podCopy := testPod.DeepCopy()
+		podCopy.Name = "non-yk-pod"
+		podCopy.Spec.PriorityClassName = testNonYkPriorityClass.Name
+		podCopy.Spec.NodeName = nonExistentNode
+		pod, err := kubeClient.CreatePod(podCopy, ns)
+		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
+		defer deletePod(pod, ns)
+
+		gomega.Ω(*pod.Spec.Priority).Should(gomega.Equal(testNonYkPriorityClass.Value))
+		gomega.Ω(*pod.Spec.PreemptionPolicy).Should(gomega.Equal(*testNonYkPriorityClass.PreemptionPolicy))
+
+		value, ok := pod.Annotations[constants.AnnotationAllowPreemption]
+		gomega.Ω(ok).Should(gomega.BeTrue())
+		gomega.Ω(value).Should(gomega.Equal(constants.True))
+	})
+
+	ginkgo.It("Verifying pod with no priority class", func() {
+		ginkgo.By("has correct properties set")
+		podCopy := testPod.DeepCopy()
+		podCopy.Name = "no-priority"
+		podCopy.Spec.NodeName = nonExistentNode
+		pod, err := kubeClient.CreatePod(podCopy, ns)
+		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
+		defer deletePod(pod, ns)
+
+		value, ok := pod.Annotations[constants.AnnotationAllowPreemption]
+		gomega.Ω(ok).Should(gomega.BeTrue())
+		gomega.Ω(value).Should(gomega.Equal(constants.True))
 	})
 
 	ginkgo.It("Verifying a pod is created in the test namespace", func() {

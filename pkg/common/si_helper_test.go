@@ -90,11 +90,19 @@ func TestCreateUpdateRequestForTask(t *testing.T) {
 		},
 	}
 
-	updateRequest := CreateAllocationRequestForTask("appId1", "taskId1", res, false, "", pod, false)
+	preemptionPolicy := &si.PreemptionPolicy{
+		AllowPreemptSelf:  true,
+		AllowPreemptOther: true,
+	}
+
+	updateRequest := CreateAllocationRequestForTask("appId1", "taskId1", res, false, "", pod, false, preemptionPolicy)
 	asks := updateRequest.Asks
 	assert.Equal(t, len(asks), 1)
 	allocAsk := asks[0]
 	assert.Assert(t, allocAsk != nil)
+	assert.Assert(t, allocAsk.PreemptionPolicy != nil)
+	assert.Equal(t, allocAsk.PreemptionPolicy.AllowPreemptSelf, true)
+	assert.Equal(t, allocAsk.PreemptionPolicy.AllowPreemptOther, true)
 	tags := allocAsk.Tags
 	assert.Assert(t, tags != nil)
 	assert.Equal(t, tags[common.DomainK8s+common.GroupMeta+"podName"], podName)
@@ -276,7 +284,12 @@ func TestCreateAllocationRequestForTask(t *testing.T) {
 		},
 	}
 
-	updateRequest := CreateAllocationRequestForTask("appId1", "taskId1", res, false, "", pod, false)
+	preemptionPolicy := &si.PreemptionPolicy{
+		AllowPreemptSelf:  false,
+		AllowPreemptOther: true,
+	}
+
+	updateRequest := CreateAllocationRequestForTask("appId1", "taskId1", res, false, "", pod, false, preemptionPolicy)
 	asks := updateRequest.Asks
 	assert.Equal(t, len(asks), 1)
 	allocAsk := asks[0]
@@ -284,6 +297,9 @@ func TestCreateAllocationRequestForTask(t *testing.T) {
 		t.Fatal("ask cannot be nil")
 	}
 	assert.Equal(t, allocAsk.Priority, int32(0))
+	assert.Assert(t, allocAsk.PreemptionPolicy != nil)
+	assert.Equal(t, allocAsk.PreemptionPolicy.AllowPreemptSelf, false)
+	assert.Equal(t, allocAsk.PreemptionPolicy.AllowPreemptOther, true)
 
 	podName1 := "pod-resource-test-00002"
 	var pri = int32(100)
@@ -301,13 +317,21 @@ func TestCreateAllocationRequestForTask(t *testing.T) {
 		Spec: v1.PodSpec{Priority: &pri},
 	}
 
-	updateRequest1 := CreateAllocationRequestForTask("appId1", "taskId1", res, false, "", pod1, false)
+	preemptionPolicy1 := &si.PreemptionPolicy{
+		AllowPreemptSelf:  true,
+		AllowPreemptOther: false,
+	}
+
+	updateRequest1 := CreateAllocationRequestForTask("appId1", "taskId1", res, false, "", pod1, false, preemptionPolicy1)
 	asks1 := updateRequest1.Asks
 	assert.Equal(t, len(asks1), 1)
 	allocAsk1 := asks1[0]
 	if allocAsk1 == nil {
 		t.Fatal("ask cannot be nil")
 	}
+	assert.Assert(t, allocAsk1.PreemptionPolicy != nil)
+	assert.Equal(t, allocAsk1.PreemptionPolicy.AllowPreemptSelf, true)
+	assert.Equal(t, allocAsk1.PreemptionPolicy.AllowPreemptOther, false)
 	tags := allocAsk1.Tags
 	assert.Equal(t, tags[common.DomainK8s+common.GroupMeta+"podName"], podName1)
 	assert.Equal(t, allocAsk1.Priority, int32(100))

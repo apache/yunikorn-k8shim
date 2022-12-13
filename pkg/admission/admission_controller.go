@@ -67,6 +67,7 @@ var (
 
 type AdmissionController struct {
 	conf              *conf.AdmissionControllerConf
+	pcCache           *PriorityClassCache
 	annotationHandler *metadata.UserGroupAnnotationHandler
 	labelExtractor    metadata.LabelExtractor
 }
@@ -76,9 +77,10 @@ type ValidateConfResponse struct {
 	Reason  string `json:"reason"`
 }
 
-func InitAdmissionController(conf *conf.AdmissionControllerConf) *AdmissionController {
+func InitAdmissionController(conf *conf.AdmissionControllerConf, pcCache *PriorityClassCache) *AdmissionController {
 	hook := &AdmissionController{
 		conf:              conf,
+		pcCache:           pcCache,
 		annotationHandler: metadata.NewUserGroupAnnotationHandler(conf),
 	}
 
@@ -197,6 +199,7 @@ func (c *AdmissionController) processPod(req *admissionv1.AdmissionRequest, name
 
 	if c.shouldLabelNamespace(namespace) {
 		patch = updateLabels(namespace, &pod, patch)
+		patch = c.updatePreemptionInfo(&pod, patch)
 	} else {
 		log.Logger().Info("skipping update of pod labels since namespace is set to no-label",
 			zap.String("podName", pod.Name),
@@ -364,6 +367,46 @@ func generateAppID(namespace string) string {
 	return appID
 }
 
+func (c *AdmissionController) updatePreemptionInfo(pod *v1.Pod, patch []common.PatchOperation) []common.PatchOperation {
+	value := utils.GetPodAnnotationValue(pod, constants.AnnotationAllowPreemption)
+
+	// return if already set to a valid value
+	switch value {
+	case constants.True:
+		return patch
+	case constants.False:
+		return patch
+	}
+
+	value = constants.False
+	if c.pcCache.IsPreemptSelfAllowed(pod.Spec.PriorityClassName) {
+		value = constants.True
+	}
+
+	log.Logger().Info("updating pod preemption annotations",
+		zap.String("podName", pod.Name),
+		zap.String("allowPreemption", value))
+
+	// check for an existing patch on annotations and update it
+	for _, p := range patch {
+		if p.Op == "add" && p.Path == "/metadata/annotations" {
+			if annotations, ok := p.Value.(map[string]string); ok {
+				annotations[constants.AnnotationAllowPreemption] = value
+				return patch
+			}
+		}
+	}
+
+	result := UpdatePodAnnotationForAdmissionController(pod, constants.AnnotationAllowPreemption, value)
+	patch = append(patch, common.PatchOperation{
+		Op:    "add",
+		Path:  "/metadata/annotations",
+		Value: result,
+	})
+
+	return patch
+}
+
 func updateLabels(namespace string, pod *v1.Pod, patch []common.PatchOperation) []common.PatchOperation {
 	log.Logger().Info("updating pod labels",
 		zap.String("podName", pod.Name),
@@ -371,7 +414,7 @@ func updateLabels(namespace string, pod *v1.Pod, patch []common.PatchOperation) 
 		zap.String("namespace", namespace),
 		zap.Any("labels", pod.Labels))
 
-	result := utils.UpdatePodLabelForAdmissionController(pod, namespace)
+	result := UpdatePodLabelForAdmissionController(pod, namespace)
 
 	patch = append(patch, common.PatchOperation{
 		Op:    "add",

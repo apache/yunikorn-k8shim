@@ -28,6 +28,7 @@ import (
 
 	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/yunikorn-k8shim/pkg/common"
+	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
@@ -267,9 +268,43 @@ func (task *Task) handleFailEvent(reason string, err bool) {
 		zap.String("reason", reason))
 }
 
+func (task *Task) isPreemptSelfAllowed() bool {
+	value := utils.GetPodAnnotationValue(task.pod, constants.AnnotationAllowPreemption)
+	switch value {
+	case constants.True:
+		return true
+	case constants.False:
+		return false
+	default:
+		return task.context.IsPreemptSelfAllowed(task.pod.Spec.PriorityClassName)
+	}
+}
+
+func (task *Task) isPreemptOtherAllowed() bool {
+	policy := task.pod.Spec.PreemptionPolicy
+	if policy == nil {
+		return true
+	}
+	switch *policy {
+	case v1.PreemptNever:
+		return false
+	case v1.PreemptLowerPriority:
+		return true
+	default:
+		return true
+	}
+}
+
 func (task *Task) handleSubmitTaskEvent() {
 	log.Logger().Debug("scheduling pod",
 		zap.String("podName", task.pod.Name))
+
+	// build preemption policy
+	preemptionPolicy := &si.PreemptionPolicy{
+		AllowPreemptSelf:  task.isPreemptSelfAllowed(),
+		AllowPreemptOther: task.isPreemptOtherAllowed(),
+	}
+
 	// convert the request
 	rr := common.CreateAllocationRequestForTask(
 		task.applicationID,
@@ -278,7 +313,8 @@ func (task *Task) handleSubmitTaskEvent() {
 		task.placeholder,
 		task.taskGroupName,
 		task.pod,
-		task.originator)
+		task.originator,
+		preemptionPolicy)
 	log.Logger().Debug("send update request", zap.String("request", rr.String()))
 	if err := task.context.apiProvider.GetAPIs().SchedulerAPI.UpdateAllocation(&rr); err != nil {
 		log.Logger().Debug("failed to send scheduling request to scheduler", zap.Error(err))
