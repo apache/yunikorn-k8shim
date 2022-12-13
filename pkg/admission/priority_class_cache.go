@@ -104,7 +104,7 @@ func (h *priorityClassUpdateHandler) OnDelete(obj interface{}) {
 	case cache.DeletedFinalStateUnknown:
 		pc = utils.Convert2PriorityClass(obj)
 	default:
-		log.Logger().Warn("unable to convert to configmap")
+		log.Logger().Warn("unable to convert to PriorityClass")
 		return
 	}
 	if pc == nil {

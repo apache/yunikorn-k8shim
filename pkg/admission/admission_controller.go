@@ -397,7 +397,7 @@ func (c *AdmissionController) updatePreemptionInfo(pod *v1.Pod, patch []common.P
 		}
 	}
 
-	result := utils.UpdatePodAnnotationForAdmissionController(pod, constants.AnnotationAllowPreemption, value)
+	result := UpdatePodAnnotationForAdmissionController(pod, constants.AnnotationAllowPreemption, value)
 	patch = append(patch, common.PatchOperation{
 		Op:    "add",
 		Path:  "/metadata/annotations",
@@ -414,7 +414,7 @@ func updateLabels(namespace string, pod *v1.Pod, patch []common.PatchOperation) 
 		zap.String("namespace", namespace),
 		zap.Any("labels", pod.Labels))
 
-	result := utils.UpdatePodLabelForAdmissionController(pod, namespace)
+	result := UpdatePodLabelForAdmissionController(pod, namespace)
 
 	patch = append(patch, common.PatchOperation{
 		Op:    "add",

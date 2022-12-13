@@ -751,7 +751,7 @@ func (ctx *Context) IsPreemptSelfAllowed(priorityClassName string) bool {
 		return true
 	}
 	if value, ok := priorityClass.Annotations[constants.AnnotationAllowPreemption]; ok {
-		if value == "false" {
+		if value == constants.False {
 			return false
 		}
 	}
