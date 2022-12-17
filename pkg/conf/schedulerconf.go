@@ -97,6 +97,8 @@ var (
 var once sync.Once
 var confHolder atomic.Value
 
+var kubeLoggerOnce sync.Once
+
 type SchedulerConf struct {
 	SchedulerName          string        `json:"schedulerName"`
 	ClusterID              string        `json:"clusterId"`
@@ -426,12 +428,16 @@ func updateKubeLogger(conf *SchedulerConf) {
 	// if log level is debug, enable klog and set its log level verbosity to 4 (represents debug level),
 	// For details refer to the Logging Conventions of klog at
 	// https://github.com/kubernetes/community/blob/master/contributors/devel/sig-instrumentation/logging.md
-	if zapcore.Level(conf.LoggingLevel).Enabled(zapcore.DebugLevel) {
-		klog.InitFlags(nil)
-		// cannot really handle the error here ignore it
-		//nolint:errcheck
-		_ = flag.Set("v", "4")
-	}
+
+	// danger, this can only be called once!
+	kubeLoggerOnce.Do(func() {
+		if zapcore.Level(conf.LoggingLevel).Enabled(zapcore.DebugLevel) {
+			klog.InitFlags(nil)
+			// cannot really handle the error here ignore it
+			//nolint:errcheck
+			_ = flag.Set("v", "4")
+		}
+	})
 }
 
 func DumpConfiguration() {
