@@ -54,5 +54,13 @@ const (
 	DefaultYuniKornScheme = "http"
 
 	DefaultYuniKornConfigMap = "yunikorn-configs"
+	DefaultPluginConfigMap   = "yunikorn-configs"
 	DefaultPolicyGroup       = "queues.yaml"
 )
+
+func GetConfigMapName() string {
+	if YuniKornTestConfig.Plugin {
+		return DefaultPluginConfigMap
+	}
+	return DefaultYuniKornConfigMap
+}

@@ -19,11 +19,13 @@
 package common
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io/ioutil"
 	"math/rand"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -199,4 +201,36 @@ func GetSubQueues(q map[string]interface{}) ([]map[string]interface{}, error) {
 	}
 
 	return subQs, nil
+}
+
+func RunShellCmdForeground(cmdStr string) (string, error) {
+	if len(cmdStr) == 0 {
+		return "", fmt.Errorf("not enough arguments")
+	}
+
+	cmdSplit := strings.Fields(cmdStr)
+
+	execPath, err := exec.LookPath(cmdSplit[0])
+	if err != nil {
+		return "", err
+	}
+
+	errStream := new(bytes.Buffer)
+	stdOutStream := new(bytes.Buffer)
+	cmd := &exec.Cmd{
+		Path:   execPath,
+		Args:   cmdSplit,
+		Stdout: stdOutStream,
+		Stderr: errStream,
+	}
+
+	if err := cmd.Run(); err != nil {
+		return "", err
+	}
+
+	if errStr := errStream.String(); len(errStr) > 0 {
+		return stdOutStream.String(), fmt.Errorf(errStr)
+	}
+
+	return stdOutStream.String(), nil
 }

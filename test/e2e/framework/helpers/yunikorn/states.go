@@ -39,6 +39,7 @@ type ApplicationStates struct {
 	Killing    string
 	Killed     string
 	Failed     string
+	Failing    string
 }
 
 type NodeStates struct {
@@ -65,6 +66,7 @@ func States() *AllStates {
 				Killing:    "Killing",
 				Killed:     "Killed",
 				Failed:     "Failed",
+				Failing:    "Failing",
 			},
 			Node: &NodeStates{
 				New:        "New",
