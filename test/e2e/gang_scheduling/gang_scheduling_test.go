@@ -20,9 +20,9 @@ package gangscheduling_test
 
 import (
 	"fmt"
-	"github.com/onsi/gomega"
 	"time"
 
+	"github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
