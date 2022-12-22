@@ -20,13 +20,13 @@ package gangscheduling_test
 
 import (
 	"fmt"
-	"github.com/apache/yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
-	tests "github.com/apache/yunikorn-k8shim/test/e2e"
-	"k8s.io/apimachinery/pkg/api/resource"
 	"time"
 
+	tests "github.com/apache/yunikorn-k8shim/test/e2e"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/apache/yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
