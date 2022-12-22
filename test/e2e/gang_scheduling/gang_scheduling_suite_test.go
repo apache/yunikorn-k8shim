@@ -24,7 +24,6 @@ import (
 	"testing"
 	"time"
 
-	tests "github.com/apache/yunikorn-k8shim/test/e2e"
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/extensions/table"
 	"github.com/onsi/ginkgo/reporters"
@@ -32,6 +31,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/apache/yunikorn-core/pkg/common/configs"
+	tests "github.com/apache/yunikorn-k8shim/test/e2e"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"

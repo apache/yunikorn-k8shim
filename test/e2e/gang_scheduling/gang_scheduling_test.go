@@ -20,13 +20,14 @@ package gangscheduling_test
 
 import (
 	"fmt"
+	"github.com/onsi/gomega"
 	"time"
 
-	tests "github.com/apache/yunikorn-k8shim/test/e2e"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/apache/yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
+	tests "github.com/apache/yunikorn-k8shim/test/e2e"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
@@ -122,11 +123,11 @@ var _ = Describe("", func() {
 			Parallelism: int32(5),
 			PodConfig:   podConf,
 		}
-		job2, job2Err := k8s.InitJobConfig(realJobConf)
-		Ω(job2Err).NotTo(HaveOccurred())
-		_, job2Err = kClient.CreateJob(job2, ns)
-		Ω(job2Err).NotTo(HaveOccurred())
-		createErr = kClient.WaitForJobPodsCreated(ns, job2.Name, int(*job.Spec.Parallelism), 30*time.Second)
+		job1, job1Err := k8s.InitJobConfig(realJobConf)
+		Ω(job1Err).NotTo(HaveOccurred())
+		_, job1Err = kClient.CreateJob(job1, ns)
+		Ω(job1Err).NotTo(HaveOccurred())
+		createErr = kClient.WaitForJobPodsCreated(ns, job1.Name, int(*job.Spec.Parallelism), 30*time.Second)
 		Ω(createErr).NotTo(HaveOccurred())
 
 		// Check all placeholders deleted.
@@ -157,8 +158,10 @@ var _ = Describe("", func() {
 		Ω(int(appDaoInfo.PlaceholderData[0].Count)).To(Equal(int(5)), "Placeholder count is not correct")
 		Ω(int(appDaoInfo.PlaceholderData[0].Replaced)).To(Equal(int(5)), "Placeholder replacement count is not correct")
 
-		kClient.DeleteJob(job.Name, ns)
-		kClient.DeleteJob(job2.Name, ns)
+		err := kClient.DeleteJob(job.Name, ns)
+		Ω(err).NotTo(gomega.HaveOccurred())
+		err = kClient.DeleteJob(job1.Name, ns)
+		Ω(err).NotTo(gomega.HaveOccurred())
 	})
 
 	It("Verify_Multiple_TaskGroups_Nodes", func() {
@@ -279,7 +282,8 @@ var _ = Describe("", func() {
 			10)
 		Ω(timeoutErr).NotTo(HaveOccurred())
 
-		kClient.DeleteJob(job.Name, ns)
+		err := kClient.DeleteJob(job.Name, ns)
+		Ω(err).NotTo(gomega.HaveOccurred())
 	})
 
 	It("Verify_TG_with_More_Than_minMembers", func() {
@@ -346,7 +350,8 @@ var _ = Describe("", func() {
 		Ω(int(appDaoInfo.PlaceholderData[0].Replaced)).To(Equal(int(3)), "Placeholder replacement count is not correct")
 		Ω(len(appDaoInfo.Allocations)).To(Equal(int(6)), "Allocations count is not correct")
 
-		kClient.DeleteJob(job.Name, ns)
+		err := kClient.DeleteJob(job.Name, ns)
+		Ω(err).NotTo(gomega.HaveOccurred())
 	})
 
 	It("Verify_Default_GS_Style", func() {
@@ -366,7 +371,6 @@ var _ = Describe("", func() {
 		}
 
 		pdTimeout := 20
-		//placeholderTimeoutStr := fmt.Sprintf("%s=%s", "placeholderTimeoutInSeconds", "pdTimeout")
 		placeholderTimeoutStr := fmt.Sprintf("%s=%d", "placeholderTimeoutInSeconds", pdTimeout)
 		annotations := k8s.PodAnnotation{
 			SchedulingPolicyParams: placeholderTimeoutStr,
@@ -441,7 +445,8 @@ var _ = Describe("", func() {
 		Ω(appDaoInfo.Allocations[2].Placeholder).To(Equal(false), "Allocation should be non placeholder")
 		Ω(appDaoInfo.Allocations[2].PlaceholderUsed).To(Equal(false), "Allocation should not be replacement of ph")
 
-		kClient.DeleteJob(job.Name, ns)
+		err := kClient.DeleteJob(job.Name, ns)
+		Ω(err).NotTo(gomega.HaveOccurred())
 	})
 
 	It("Verify_Hard_GS_Failed_State", func() {
@@ -517,7 +522,8 @@ var _ = Describe("", func() {
 			Ω(int(appDaoInfo.PlaceholderData[0].TimedOut)).To(Equal(int(3)), "Placeholder timed out is not correct")
 			Ω(int(appDaoInfo.PlaceholderData[0].Replaced)).To(Equal(int(0)), "Placeholder replacement count is not correct")
 		}
-		kClient.DeleteJob(job.Name, ns)
+		err := kClient.DeleteJob(job.Name, ns)
+		Ω(err).NotTo(gomega.HaveOccurred())
 	})
 
 	AfterEach(func() {

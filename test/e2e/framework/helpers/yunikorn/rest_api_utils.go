@@ -195,7 +195,7 @@ func (c *RClient) isAppInDesiredState(partition string, queue string, appID stri
 	return func() (bool, error) {
 		appInfo, err := c.GetAppInfo(partition, queue, appID)
 		if err != nil {
-			return false, nil //returning nil here for wait & loop
+			return false, nil // returning nil here for wait & loop
 		}
 		fmt.Printf("current application state is %+v, required app state is %+v\n", appInfo.State, state)
 		switch appInfo.State {
