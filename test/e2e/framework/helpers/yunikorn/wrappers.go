@@ -64,6 +64,12 @@ func EnsureYuniKornConfigsPresent() {
 }
 
 func UpdateConfigMapWrapper(oldConfigMap *v1.ConfigMap, schedPolicy string, annotation string) {
+	UpdateCustomConfigMapWrapper(oldConfigMap, schedPolicy, annotation, func(sc *configs.SchedulerConfig) error {
+		return nil
+	})
+}
+
+func UpdateCustomConfigMapWrapper(oldConfigMap *v1.ConfigMap, schedPolicy string, annotation string, mutator func(sc *configs.SchedulerConfig) error) {
 	Ω(k.SetClient()).To(BeNil())
 	By("Port-forward the scheduler pod")
 	fwdErr := k.PortForwardYkSchedulerPod()
@@ -88,6 +94,11 @@ func UpdateConfigMapWrapper(oldConfigMap *v1.ConfigMap, schedPolicy string, anno
 	}
 	ts, tsErr := common.SetQueueTimestamp(sc, "default", "root")
 	Ω(tsErr).NotTo(HaveOccurred())
+
+	// allow caller to customize further
+	mutatorErr := mutator(sc)
+	Ω(mutatorErr).NotTo(HaveOccurred())
+
 	configStr, yamlErr := common.ToYAML(sc)
 	Ω(yamlErr).NotTo(HaveOccurred())
 	c.Data[configmanager.DefaultPolicyGroup] = configStr
