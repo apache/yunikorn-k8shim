@@ -60,7 +60,7 @@ metadata:
 subjects:
   - kind: ServiceAccount
     name: yunikorn-admission-controller
-    namespace: default
+    namespace: yunikorn
 roleRef:
   kind: ClusterRole
   name: yunikorn-admission-controller-cluster-role

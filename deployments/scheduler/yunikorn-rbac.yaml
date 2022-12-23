@@ -66,6 +66,7 @@ metadata:
 subjects:
   - kind: ServiceAccount
     name: yunikorn-admin
+    namespace: yunikorn
 roleRef:
   kind: ClusterRole
   name: yunikorn-scheduler
@@ -79,6 +80,7 @@ metadata:
 subjects:
   - kind: ServiceAccount
     name: yunikorn-admin
+    namespace: yunikorn
 roleRef:
   kind: ClusterRole
   name: system:kube-scheduler
@@ -92,6 +94,7 @@ metadata:
 subjects:
   - kind: ServiceAccount
     name: yunikorn-admin
+    namespace: yunikorn
 roleRef:
   kind: ClusterRole
   name: system:volume-scheduler
