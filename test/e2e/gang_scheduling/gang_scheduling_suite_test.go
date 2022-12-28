@@ -19,19 +19,14 @@
 package gangscheduling_test
 
 import (
-	"fmt"
-	"path/filepath"
-	"testing"
-	"time"
-
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/extensions/table"
 	"github.com/onsi/ginkgo/reporters"
 	"github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
+	"path/filepath"
+	"testing"
 
-	"github.com/apache/yunikorn-core/pkg/common/configs"
-	tests "github.com/apache/yunikorn-k8shim/test/e2e"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
@@ -55,46 +50,13 @@ var fifoQName = "fifoq"
 var saQName = "saq"
 
 var _ = BeforeSuite(func() {
-	By(fmt.Sprintf("Enabling new scheduling config with queues: %s, %s", fifoQName, saQName))
-	Ω(kClient.SetClient()).To(BeNil())
-	var c, getErr = kClient.GetConfigMaps(configmanager.YuniKornTestConfig.YkNamespace,
-		configmanager.GetConfigMapName())
-	Ω(getErr).NotTo(HaveOccurred())
-	Ω(c).NotTo(BeNil())
-	c.DeepCopyInto(oldConfigMap)
-
-	sc := common.CreateBasicConfigMap()
-	setErr := common.SetSchedulingPolicy(sc, "default", "root", "fifo")
-	Ω(setErr).NotTo(HaveOccurred())
-	fifoQConfig := configs.QueueConfig{
-		Name: fifoQName, SubmitACL: "*",
-		Properties: map[string]string{"application.sort.policy": "fifo"},
-		Resources:  configs.Resources{Max: map[string]string{"memory": "300", "vcore": "300"}},
-	}
-	saQConfig := configs.QueueConfig{Name: saQName, SubmitACL: "*",
-		Properties: map[string]string{"application.sort.policy": "stateaware"},
-		Resources:  configs.Resources{Max: map[string]string{"memory": "300", "vcore": "300"}},
-	}
-	addQErr := common.AddQueue(sc, "default", "root", fifoQConfig)
-	Ω(addQErr).NotTo(HaveOccurred())
-	addQErr = common.AddQueue(sc, "default", "root", saQConfig)
-	Ω(addQErr).NotTo(HaveOccurred())
-
-	ts, tsErr := common.SetQueueTimestamp(sc, "default", "root")
-	Ω(tsErr).NotTo(HaveOccurred())
-	configStr, yamlErr := common.ToYAML(sc)
-	Ω(yamlErr).NotTo(HaveOccurred())
-	c.Data[configmanager.DefaultPolicyGroup] = configStr
-	var d, err3 = kClient.UpdateConfigMap(c, configmanager.YuniKornTestConfig.YkNamespace)
-	Ω(err3).NotTo(HaveOccurred())
-	Ω(d).NotTo(BeNil())
-
-	tsErr = yunikorn.WaitForQueueTS("root", ts, 2*time.Minute)
-	Ω(tsErr).NotTo(HaveOccurred())
+	annotation = "ann-" + common.RandSeq(10)
+	yunikorn.EnsureYuniKornConfigsPresent()
+	yunikorn.UpdateConfigMapWrapper(oldConfigMap, "fifo", annotation)
 })
 
 var _ = AfterSuite(func() {
-	tests.RestoreConfigMapWrapper(oldConfigMap, annotation)
+	yunikorn.RestoreConfigMapWrapper(oldConfigMap, annotation)
 })
 
 // Declarations for Ginkgo DSL
