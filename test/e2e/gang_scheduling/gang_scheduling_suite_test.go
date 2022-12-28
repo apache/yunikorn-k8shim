@@ -19,13 +19,14 @@
 package gangscheduling_test
 
 import (
+	"path/filepath"
+	"testing"
+
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/extensions/table"
 	"github.com/onsi/ginkgo/reporters"
 	"github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
-	"path/filepath"
-	"testing"
 
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
@@ -46,8 +47,6 @@ func TestGangScheduling(t *testing.T) {
 var oldConfigMap = new(v1.ConfigMap)
 var annotation = "ann-" + common.RandSeq(10)
 var kClient = k8s.KubeCtl{} //nolint
-var fifoQName = "fifoq"
-var saQName = "saq"
 
 var _ = BeforeSuite(func() {
 	annotation = "ann-" + common.RandSeq(10)
