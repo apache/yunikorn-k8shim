@@ -14,10 +14,50 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: yunikorn-admin
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: yunikorn-scheduler
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "watch", "list"]
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get", "watch", "list"]
+  - apiGroups: ["scheduling.k8s.io"]
+    resources: ["priorityclasses"]
+    verbs: ["get", "watch", "list"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "watch", "list", "create", "patch", "update", "delete"]
+  - apiGroups: ["yunikorn.apache.org"]
+    resources: ["*"]
+    verbs: ["*"]
+  - apiGroups: ["sparkoperator.k8s.io"]
+    resources: ["*"]
+    verbs: ["*"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: yunikorn-scheduler
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "watch", "list", "update"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "watch", "list"]
+
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -26,7 +66,49 @@ metadata:
 subjects:
   - kind: ServiceAccount
     name: yunikorn-admin
+    namespace: yunikorn
 roleRef:
   kind: ClusterRole
-  name: cluster-admin
+  name: yunikorn-scheduler
+  apiGroup: rbac.authorization.k8s.io
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: yunikorn-rbac-kube-scheduler
+subjects:
+  - kind: ServiceAccount
+    name: yunikorn-admin
+    namespace: yunikorn
+roleRef:
+  kind: ClusterRole
+  name: system:kube-scheduler
+  apiGroup: rbac.authorization.k8s.io
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: yunikorn-rbac-volume-scheduler
+subjects:
+  - kind: ServiceAccount
+    name: yunikorn-admin
+    namespace: yunikorn
+roleRef:
+  kind: ClusterRole
+  name: system:volume-scheduler
+  apiGroup: rbac.authorization.k8s.io
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: yunikorn-rbac
+subjects:
+  - kind: ServiceAccount
+    name: yunikorn-admin
+roleRef:
+  kind: Role
+  name: yunikorn-scheduler
   apiGroup: rbac.authorization.k8s.io
