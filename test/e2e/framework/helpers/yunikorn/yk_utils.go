@@ -19,15 +19,16 @@
 package yunikorn
 
 import (
+	"errors"
 	"fmt"
-
-	"github.com/apache/yunikorn-core/pkg/common/configs"
-	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/apache/yunikorn-core/pkg/common/configs"
+	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
 )
 
 type ResourceUsage struct {
@@ -70,4 +71,37 @@ func CreateDefaultConfigMap() *v1.ConfigMap {
 	}
 	cm.Data[configmanager.DefaultPolicyGroup] = configs.DefaultSchedulerConfig
 	return cm
+}
+
+// Generates all placeholder names for all taskGroups using format:
+// [taskGroup]-[taskGroupName]-[applicationID]-[Index]
+func GetPlaceholderNames(ann *k8s.PodAnnotation, appID string) map[string][]string {
+	phMap := make(map[string][]string)
+	phName := "tg-%s-%s-%d"
+	for _, tg := range ann.TaskGroups {
+		phMap[tg.Name] = []string{}
+		for i := 0; i < int(tg.MinMember); i++ {
+			phMap[tg.Name] = append(phMap[tg.Name], fmt.Sprintf(phName, tg.Name, appID, i))
+		}
+	}
+
+	return phMap
+}
+
+func GetSchedulerPodName(kClient k8s.KubeCtl) (string, error) {
+	ykNS := configmanager.YuniKornTestConfig.YkNamespace
+	schedComponent := fmt.Sprintf("component=%s", configmanager.YKScheduler)
+
+	// Get current scheduler pod name
+	schedPodList, err := kClient.ListPods(ykNS, schedComponent)
+	if err != nil {
+		return "", err
+	}
+	if len(schedPodList.Items) != 1 {
+		msg := fmt.Sprintf("Scheduler pod list contains %d pods: %v", len(schedPodList.Items), schedPodList.Items)
+		return "", errors.New(msg)
+	}
+
+	schedPod := schedPodList.Items[0]
+	return schedPod.Name, nil
 }
