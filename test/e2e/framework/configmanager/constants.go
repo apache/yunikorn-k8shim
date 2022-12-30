@@ -59,8 +59,5 @@ const (
 )
 
 func GetConfigMapName() string {
-	if YuniKornTestConfig.Plugin {
-		return DefaultPluginConfigMap
-	}
 	return DefaultYuniKornConfigMap
 }

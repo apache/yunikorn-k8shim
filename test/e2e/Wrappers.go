@@ -65,9 +65,6 @@ func UpdateConfigMapWrapper(oldConfigMap *v1.ConfigMap, schedPolicy string, anno
 	Ω(err3).NotTo(HaveOccurred())
 	Ω(d).NotTo(BeNil())
 
-	// Updating scheduler pod annotation to trigger force refresh of configmaps
-	// https://jira.cloudera.com/browse/COMPX-4042
-	Ω(k.UpdateYunikornSchedulerPodAnnotation(annotation)).NotTo(HaveOccurred())
 	err = yunikorn.WaitForQueueTS("root", ts, 2*time.Minute)
 	Ω(err).NotTo(HaveOccurred())
 }
@@ -91,9 +88,7 @@ func RestoreConfigMapWrapper(oldConfigMap *v1.ConfigMap, annotation string) {
 	var e, err3 = k.UpdateConfigMap(c, configmanager.YuniKornTestConfig.YkNamespace)
 	Ω(err3).NotTo(HaveOccurred())
 	Ω(e).NotTo(BeNil())
-	// Updating scheduler pod annotation to trigger force refresh of configmaps
-	// https://jira.cloudera.com/browse/COMPX-4042
-	Ω(k.RemoveYunikornSchedulerPodAnnotation(annotation)).NotTo(HaveOccurred())
+
 	err = yunikorn.WaitForQueueTS("root", ts, 2*time.Minute)
 	Ω(err).NotTo(HaveOccurred())
 }

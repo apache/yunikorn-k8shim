@@ -48,15 +48,14 @@ var _ = Describe("", func() {
 		Ω(ns1.Status.Phase).To(Equal(v1.NamespaceActive))
 	})
 
+	// Test to verify annotation with task group definition
+	// 1. Deploy 1 job with tg definition
+	// 2. Poll for 5 placeholders
+	// 3. App running
+	// 4. Deploy 1 job with 5 real pods of task group
+	// 5. Check placeholders deleted
+	// 6. Real pods running and app running
 	It("Verify_Annotation_TaskGroup_Def", func() {
-		/*
-			1. Deploy 1 job with tg definition
-			3. Poll for 5 placeholders
-			4. App running
-			5. Deploy 1 job with 5 real pods of taskgroup
-			6. Check placeholders deleted
-			7. Real pods running and app running
-		*/
 		taskGroupName := "group-" + common.RandSeq(3)
 
 		// Define gang member template with 5 members, 1 real pod (not part of tg)
@@ -164,14 +163,13 @@ var _ = Describe("", func() {
 		Ω(err).NotTo(gomega.HaveOccurred())
 	})
 
+	// Test to verify multiple task group nodes
+	// 1. Deploy 1 job with 3 task group's definitions
+	// 2. Poll for task group's placeholders
+	// 3. Store the nodes of placeholders by task group
+	// 4. Deploy 1 job with real pods
+	// 5. Nodes distributions of real pods and placeholders should be the same.
 	It("Verify_Multiple_TaskGroups_Nodes", func() {
-		/*
-			1. Deploy 1 job with 3 tg's definitions
-			2. Poll for tg's placeholders
-			3. Store the nodes of placeholders by taskgroup
-			4. Deploy 1 job with real pods
-			5. Nodes distributions of real pods and placeholders should be the same.
-		*/
 		podResources := map[string]resource.Quantity{
 			"cpu":    resource.MustParse("10m"),
 			"memory": resource.MustParse("10M"),
@@ -286,11 +284,10 @@ var _ = Describe("", func() {
 		Ω(err).NotTo(gomega.HaveOccurred())
 	})
 
+	// Test to verify task group with more than min members
+	// 1. Deploy 1 job with more taskGroup pods than minMembers
+	// 2. Verify all pods running
 	It("Verify_TG_with_More_Than_minMembers", func() {
-		/*
-			1. Deploy 1 job with more taskGroup pods than minMembers
-			2. Verify all pods running
-		*/
 		podResources := map[string]resource.Quantity{
 			"cpu":    resource.MustParse("10m"),
 			"memory": resource.MustParse("10M"),
@@ -354,14 +351,12 @@ var _ = Describe("", func() {
 		Ω(err).NotTo(gomega.HaveOccurred())
 	})
 
+	// Test to verify soft GS style behaviour
+	// 1. Submit gang job with 2 gangs
+	// a) ganga - 3 placeholders
+	// b) gangb - 1 placeholder, unsatisfiable nodeSelector
+	// 2. After placeholder timeout, real pods should be scheduled.
 	It("Verify_Default_GS_Style", func() {
-		/*
-			Test validates that default GS style is soft.
-			1. Submit gang job with 2 gangs
-					a) ganga - 3 placeholders
-					b) gangb - 1 placeholder, unsatisfiable nodeSelector
-			2. After placeholder timeout, real pods should be scheduled.
-		*/
 		appID := "appid-" + common.RandSeq(5)
 		groupA := "groupa"
 		groupB := "groupb"
@@ -449,14 +444,13 @@ var _ = Describe("", func() {
 		Ω(err).NotTo(gomega.HaveOccurred())
 	})
 
+	// Test to verify soft GS style behaviour
+	// 1. Deploy 1 job with 2 task group's:
+	// a. 1 tg with un runnable placeholders
+	// b. 1 tg with runnable placeholders
+	// 2. Verify appState = Accepted
+	// 3. Once ph's are timed out, app should move to failed state
 	It("Verify_Hard_GS_Failed_State", func() {
-		/*
-			1. Deploy 1 job with 2 tg's:
-				a. 1 tg with unrunnable placeholders
-				b. 1 tg with runnable placeholders
-			2. Verify appState = Accepted
-			3. Once ph's are timed out, app should move to failed state
-		*/
 		pdTimeout := 20
 		gsStyle := "Hard"
 		placeholderTimeoutStr := fmt.Sprintf("%s=%d", "placeholderTimeoutInSeconds", pdTimeout)

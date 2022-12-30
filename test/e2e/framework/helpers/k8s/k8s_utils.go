@@ -414,24 +414,6 @@ func (k *KubeCtl) ConfigMapExists(name string, namespace string) (bool, error) {
 	return true, nil
 }
 
-// Filters out master/liftie infra nodes. Gets schedulable nodes
-func GetWorkerNodes(nodes v1.NodeList) []v1.Node {
-	var workerNodes []v1.Node
-	for _, node := range nodes.Items {
-		scheduleable := true
-		for _, t := range node.Spec.Taints {
-			if t.Effect == v1.TaintEffectNoSchedule {
-				scheduleable = false
-				break
-			}
-		}
-		if scheduleable {
-			workerNodes = append(workerNodes, node)
-		}
-	}
-	return workerNodes
-}
-
 func (k *KubeCtl) GetConfigMap(name string, namespace string) (*v1.ConfigMap, error) {
 	return k.clientSet.CoreV1().ConfigMaps(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 }
