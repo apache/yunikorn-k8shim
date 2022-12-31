@@ -151,13 +151,13 @@ var _ = ginkgo.Describe("AdmissionController", func() {
 		gomega.Ω(pod.Spec.SchedulerName).Should(gomega.BeEquivalentTo(constants.SchedulerName))
 	})
 
-	ginkgo.It("Verifying a pod is created on namespace blacklist", func() {
-		ginkgo.By("Create a pod in namespace blacklist")
-		pod, err := kubeClient.CreatePod(&testPod, blackNs)
+	ginkgo.It("Verifying a pod is created in the bypass namespace", func() {
+		ginkgo.By("Create a pod in the bypass namespace")
+		pod, err := kubeClient.CreatePod(&testPod, bypassNs)
 		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
-		defer deletePod(pod, blackNs)
+		defer deletePod(pod, bypassNs)
 
-		err = kubeClient.WaitForPodBySelectorRunning(blackNs,
+		err = kubeClient.WaitForPodBySelectorRunning(bypassNs,
 			fmt.Sprintf("app=%s", pod.ObjectMeta.Labels["app"]), 10)
 		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
 		gomega.Ω(pod.Spec.SchedulerName).ShouldNot(gomega.BeEquivalentTo(constants.SchedulerName))
