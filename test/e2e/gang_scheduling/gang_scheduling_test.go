@@ -742,6 +742,7 @@ var _ = Describe("", func() {
 		taskGroupsMap, annErr := k8s.PodAnnotationToMap(podConf.Annotations)
 		Ω(annErr).NotTo(HaveOccurred())
 		By(fmt.Sprintf("[%s] Deploy job %s with task-groups: %+v", podConf.Labels["applicationId"], jobConf.Name, taskGroupsMap[k8s.TaskGroups]))
+
 		_, jobErr = kClient.CreateJob(job, ns)
 		Ω(jobErr).NotTo(HaveOccurred())
 		createErr := kClient.WaitForJobPodsCreated(ns, job.Name, int(*job.Spec.Parallelism), 30*time.Second)
@@ -775,6 +776,7 @@ var _ = Describe("", func() {
 
 		// Verify no app allocation in nodeA
 		ykNodes, nodeErr := restClient.GetNodes(defaultPartition)
+
 		Ω(nodeErr).NotTo(HaveOccurred())
 		for _, nodeDAO := range *ykNodes {
 			for _, node := range nodeDAO.Nodes {
@@ -990,7 +992,7 @@ var _ = Describe("", func() {
 			},
 		}),
 	)
-
+	
 	AfterEach(func() {
 		testDescription := CurrentGinkgoTestDescription()
 		if testDescription.Failed {
