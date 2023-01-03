@@ -31,6 +31,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
+	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 )
 
 var _ = Describe("", func() {
@@ -517,6 +518,259 @@ var _ = Describe("", func() {
 			Ω(int(appDaoInfo.PlaceholderData[0].Replaced)).To(Equal(int(0)), "Placeholder replacement count is not correct")
 		}
 		err := kClient.DeleteJob(job.Name, ns)
+		Ω(err).NotTo(gomega.HaveOccurred())
+	})
+
+	// Test to verify Gang Apps FIFO order
+	// Create FIFO queue with quota of 300m and 300M
+	// 1. Deploy appA with 1 pod
+	// 2. Deploy appB with gang of 3 pods
+	// 3. Deploy appC with 1 pod
+	// 4. appA = Starting, appB = Accepted (with 2 reserved phs), appC = Accepted
+	// 5. Delete appA
+	// 6. appA = Completing, appB = Running, appC = Accepted
+	It("Verify_GangApp_FIFO_Order", func() {
+		var fifoQName = "fifoq"
+		By(fmt.Sprintf("Creating namespace: %s", fifoQName))
+		fifoQ, nsErr := kClient.CreateNamespace(fifoQName, nil)
+		Ω(nsErr).NotTo(HaveOccurred())
+		Ω(fifoQ.Status.Phase).To(Equal(v1.NamespaceActive))
+		defer func() { Ω(kClient.DeleteNamespace(fifoQName)).NotTo(HaveOccurred()) }()
+
+		// Create appIDs
+		var apps []string
+		for j := 0; j < 3; j++ {
+			id := fmt.Sprintf("app%d-%s", j, common.RandSeq(5))
+			apps = append(apps, id)
+		}
+
+		// Initial allocation to fill ns quota
+		appAllocs := map[string]map[string]int{
+			apps[0]: {"pods": 1, "?": 0},
+			apps[1]: {"pods": 3, "minMembers": 3},
+			apps[2]: {"pods": 1, "minMembers": 0},
+		}
+		// Expected appState progression
+		appStates := map[string][]string{
+			apps[0]: {"Starting", "Completing"},
+			apps[1]: {"Accepted", "Running"},
+			apps[2]: {"Accepted", "Accepted"},
+		}
+
+		// Base pod conf
+		taskGroupName := "groupa-" + common.RandSeq(5)
+		podResources := map[string]resource.Quantity{
+			"cpu":    resource.MustParse("100m"),
+			"memory": resource.MustParse("100M"),
+		}
+		podConf := k8s.TestPodConfig{
+			Annotations: &k8s.PodAnnotation{
+				TaskGroupName: taskGroupName,
+				TaskGroups: []v1alpha1.TaskGroup{
+					{Name: taskGroupName, MinResource: podResources},
+				},
+			},
+			Resources: &v1.ResourceRequirements{
+				Requests: v1.ResourceList{
+					"cpu":    podResources["cpu"],
+					"memory": podResources["memory"],
+				},
+			},
+		}
+
+		// Deploy 3 apps in that order
+		for _, appID := range apps {
+			req := appAllocs[appID]
+			podConf.Annotations.TaskGroups[0].MinMember = int32(req["minMembers"])
+			podConf.Labels = map[string]string{
+				"app":           "sleep-" + common.RandSeq(5),
+				"applicationId": appID,
+			}
+			jobConf := k8s.JobConfig{
+				Name:        appID,
+				Namespace:   fifoQName,
+				Parallelism: int32(req["pods"]),
+				PodConfig:   podConf,
+			}
+
+			By(fmt.Sprintf("[%s] Deploy %d pods", appID, req["pods"]))
+			job, jobErr := k8s.InitJobConfig(jobConf)
+			Ω(jobErr).NotTo(HaveOccurred())
+			taskGroupsMap, annErr := k8s.PodAnnotationToMap(podConf.Annotations)
+			Ω(annErr).NotTo(HaveOccurred())
+			By(fmt.Sprintf("Deploy job %s with task-groups: %+v", jobConf.Name, taskGroupsMap[k8s.TaskGroups]))
+			_, jobErr = kClient.CreateJob(job, fifoQName)
+			Ω(jobErr).NotTo(HaveOccurred())
+			createErr := kClient.WaitForJobPodsCreated(fifoQName, job.Name, int(*job.Spec.Parallelism), 30*time.Second)
+			Ω(createErr).NotTo(HaveOccurred())
+
+			By(fmt.Sprintf("[%s] Verify appStatus = %s", appID, appStates[appID][0]))
+			timeoutErr := restClient.WaitForAppStateTransition("default", "root."+fifoQName, appID, appStates[appID][0], 120)
+			Ω(timeoutErr).NotTo(HaveOccurred())
+		}
+
+		// App1 should have 2/3 placeholders running
+		podConf.Annotations.TaskGroups[0].MinMember = int32(appAllocs[apps[1]]["minMembers"])
+		app1Phs := yunikorn.GetPlaceholderNames(podConf.Annotations, apps[1])
+		numRunningPhs := 0
+		for _, placeholders := range app1Phs {
+			for _, ph := range placeholders {
+				runErr := kClient.WaitForPodRunning(fifoQName, ph, 30*time.Second)
+				if runErr == nil {
+					numRunningPhs++
+				}
+			}
+		}
+		Ω(numRunningPhs).Should(BeNumerically("==", 2))
+
+		// Delete app0
+		deleteErr := kClient.DeleteJob(apps[0], fifoQName)
+		Ω(deleteErr).NotTo(HaveOccurred())
+
+		// Now, app0=Completed, app1=Running, app2=Accepted
+		for appID, states := range appStates {
+			By(fmt.Sprintf("[%s] Verify appStatus = %s", appID, states[1]))
+			timeoutErr := restClient.WaitForAppStateTransition("default", "root."+fifoQName, appID, states[1], 120)
+			Ω(timeoutErr).NotTo(HaveOccurred())
+		}
+
+		appDaoInfo, appDaoInfoErr := restClient.GetAppInfo("default", "root."+fifoQName, apps[0])
+		Ω(appDaoInfoErr).NotTo(HaveOccurred())
+		Ω(len(appDaoInfo.Allocations)).To(Equal(0), "Allocations count is not correct")
+		Ω(len(appDaoInfo.PlaceholderData)).To(Equal(0), "Placeholder count is not correct")
+
+		appDaoInfo, appDaoInfoErr = restClient.GetAppInfo("default", "root."+fifoQName, apps[1])
+		Ω(appDaoInfoErr).NotTo(HaveOccurred())
+		Ω(len(appDaoInfo.Allocations)).To(Equal(3), "Allocations count is not correct")
+		Ω(len(appDaoInfo.PlaceholderData)).To(Equal(1), "Placeholder count is not correct")
+		Ω(int(appDaoInfo.PlaceholderData[0].Count)).To(Equal(int(3)), "Placeholder count is not correct")
+
+		appDaoInfo, appDaoInfoErr = restClient.GetAppInfo("default", "root."+fifoQName, apps[2])
+		Ω(appDaoInfoErr).NotTo(HaveOccurred())
+		Ω(len(appDaoInfo.Allocations)).To(Equal(0), "Allocations count is not correct")
+		Ω(len(appDaoInfo.PlaceholderData)).To(Equal(0), "Placeholder count is not correct")
+
+		deleteErr = kClient.DeleteJob(apps[1], fifoQName)
+		Ω(deleteErr).NotTo(HaveOccurred())
+
+		deleteErr = kClient.DeleteJob(apps[2], fifoQName)
+		Ω(deleteErr).NotTo(HaveOccurred())
+	})
+
+	// Test validates that lost placeholders resources are decremented by Yunikorn.
+	// 1. Submit gang job with 2 gangs
+	// a) ganga - 3 placeholders, nodeSelector=nodeA
+	// b) gangb - 1 placeholder, unsatisfiable nodeSelector
+	// c) 3 real ganga pods
+	// 2. Delete all gangA placeholders after all are running
+	// 3. Verify no pods from gang-app in nodeA allocations.
+	// Verify no pods in app allocations
+	// Verify queue used capacity = 0
+	// Verify app is failed after app timeout met
+	It("Verify_Deleted_Placeholders", func() {
+		nodes, err := kClient.GetNodes()
+		Ω(err).NotTo(HaveOccurred())
+		workerNodes := k8s.GetWorkerNodes(*nodes)
+
+		podResources := map[string]resource.Quantity{
+			"cpu":    resource.MustParse("10m"),
+			"memory": resource.MustParse("10M"),
+		}
+
+		pdTimeout := 60
+		placeholderTimeoutStr := fmt.Sprintf("%s=%d", "placeholderTimeoutInSeconds", pdTimeout)
+		annotations := k8s.PodAnnotation{
+			SchedulingPolicyParams: placeholderTimeoutStr,
+			TaskGroups: []v1alpha1.TaskGroup{
+				{Name: "groupa", MinMember: int32(3), MinResource: podResources,
+					NodeSelector: map[string]string{"kubernetes.io/hostname": workerNodes[0].Name}},
+				{Name: "groupb", MinMember: int32(1), MinResource: podResources,
+					NodeSelector: map[string]string{"kubernetes.io/hostname": "unsatisfiable"}},
+			},
+		}
+
+		podConf := k8s.TestPodConfig{
+			Labels: map[string]string{
+				"app":           "sleep-" + common.RandSeq(5),
+				"applicationId": "appid-" + common.RandSeq(5),
+			},
+			Annotations: &annotations,
+			Resources: &v1.ResourceRequirements{
+				Requests: v1.ResourceList{
+					"cpu":    podResources["cpu"],
+					"memory": podResources["memory"],
+				},
+			},
+		}
+		jobConf := k8s.JobConfig{
+			Name:        "gangjob-" + common.RandSeq(5),
+			Namespace:   ns,
+			Parallelism: 3,
+			PodConfig:   podConf,
+		}
+
+		// Create gang job
+		job, jobErr := k8s.InitJobConfig(jobConf)
+		Ω(jobErr).NotTo(HaveOccurred())
+		taskGroupsMap, annErr := k8s.PodAnnotationToMap(podConf.Annotations)
+		Ω(annErr).NotTo(HaveOccurred())
+		By(fmt.Sprintf("[%s] Deploy job %s with task-groups: %+v",
+			podConf.Labels["applicationId"], jobConf.Name, taskGroupsMap[k8s.TaskGroups]))
+		_, jobErr = kClient.CreateJob(job, ns)
+		Ω(jobErr).NotTo(HaveOccurred())
+		createErr := kClient.WaitForJobPodsCreated(ns, job.Name, int(*job.Spec.Parallelism), 30*time.Second)
+		Ω(createErr).NotTo(HaveOccurred())
+
+		By(fmt.Sprintf("[%s] Verify appStatus = Accepted", podConf.Labels["applicationId"]))
+		timeoutErr := restClient.WaitForAppStateTransition("default", "root."+ns, podConf.Labels["applicationId"], yunikorn.States().Application.Accepted, 120)
+		Ω(timeoutErr).NotTo(HaveOccurred())
+
+		// Wait for groupa placeholder pods running
+		phNames := yunikorn.GetPlaceholderNames(podConf.Annotations, podConf.Labels["applicationId"])
+		for _, ph := range phNames["groupa"] {
+			runErr := kClient.WaitForPodRunning(ns, ph, 30*time.Second)
+			Ω(runErr).NotTo(HaveOccurred())
+		}
+
+		// Delete all groupa placeholder pods
+		for i, ph := range phNames["groupa"] {
+			By(fmt.Sprintf("Iteration-%d: Delete placeholder %s", i, ph))
+			deleteErr := kClient.DeletePod(ph, ns)
+			Ω(deleteErr).NotTo(HaveOccurred())
+		}
+
+		// Wait for Yunikorn allocation removal after K8s deletion
+		time.Sleep(5 * time.Second)
+
+		// Verify app allocations correctly decremented
+		appInfo, appErr := restClient.GetAppInfo("default", "root."+ns, podConf.Labels["applicationId"])
+		Ω(appErr).NotTo(HaveOccurred())
+		Ω(len(appInfo.Allocations)).To(Equal(0), "Placeholder allocation not removed from app")
+
+		// Verify no app allocation in nodeA
+		ykNodes, nodeErr := restClient.GetNodes("default")
+		Ω(nodeErr).NotTo(HaveOccurred())
+		for _, nodeDAO := range *ykNodes {
+			for _, node := range nodeDAO.Nodes {
+				for _, alloc := range node.Allocations {
+					Ω(alloc.ApplicationID).NotTo(Equal(podConf.Labels["applicationId"]), "Placeholder allocation not removed from node")
+				}
+			}
+		}
+
+		// Verify queue resources = 0
+		qInfo, qErr := restClient.GetSpecificQueueInfo("default", "root."+ns)
+		Ω(qErr).NotTo(HaveOccurred())
+		var usedResource yunikorn.ResourceUsage
+		var usedPercentageResource yunikorn.ResourceUsage
+		usedResource.ParseResourceUsage(qInfo.AllocatedResource)
+		Ω(usedResource.GetResourceValue(siCommon.CPU)).Should(Equal(int64(0)), "Placeholder allocation not removed from queue")
+		Ω(usedResource.GetResourceValue(siCommon.Memory)).Should(Equal(int64(0)), "Placeholder allocation not removed from queue")
+		usedPercentageResource.ParseResourceUsage(qInfo.AbsUsedCapacity)
+		Ω(usedPercentageResource.GetResourceValue(siCommon.CPU)).Should(Equal(int64(0)), "Placeholder allocation not removed from queue")
+		Ω(usedPercentageResource.GetResourceValue(siCommon.Memory)).Should(Equal(int64(0)), "Placeholder allocation not removed from queue")
+
+		err = kClient.DeleteJob(job.Name, ns)
 		Ω(err).NotTo(gomega.HaveOccurred())
 	})
 

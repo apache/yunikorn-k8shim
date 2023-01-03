@@ -207,8 +207,8 @@ func (c *RClient) isAppInDesiredState(partition string, queue string, appID stri
 	}
 }
 
-func (c *RClient) GetNodes() (*[]dao.NodesDAOInfo, error) {
-	req, err := c.newRequest("GET", configmanager.NodesPath, nil)
+func (c *RClient) GetNodes(partition string) (*[]dao.NodesDAOInfo, error) {
+	req, err := c.newRequest("GET", fmt.Sprintf(configmanager.NodesPath, partition), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -382,7 +382,7 @@ func (c *RClient) LogQueuesInfo(outputDir string) error {
 
 func (c *RClient) LogNodesInfo(outputDir string) error {
 	var err error
-	nodesInfo, getNodeErr := c.GetNodes()
+	nodesInfo, getNodeErr := c.GetNodes("default")
 	if getNodeErr != nil {
 		return getNodeErr
 	}

@@ -933,3 +933,20 @@ func ApplyYamlWithKubectl(path, namespace string) error {
 func (k *KubeCtl) GetNodes() (*v1.NodeList, error) {
 	return k.clientSet.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 }
+
+func GetWorkerNodes(nodes v1.NodeList) []v1.Node {
+	var workerNodes []v1.Node
+	for _, node := range nodes.Items {
+		scheduleable := true
+		for _, t := range node.Spec.Taints {
+			if t.Effect == v1.TaintEffectNoSchedule {
+				scheduleable = false
+				break
+			}
+		}
+		if scheduleable {
+			workerNodes = append(workerNodes, node)
+		}
+	}
+	return workerNodes
+}
