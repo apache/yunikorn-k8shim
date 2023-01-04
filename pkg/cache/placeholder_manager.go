@@ -114,16 +114,14 @@ func (mgr *PlaceholderManager) cleanUp(app *Application) {
 	defer mgr.Unlock()
 	log.Logger().Info("start to clean up app placeholders",
 		zap.String("appID", app.GetApplicationID()))
-	for taskID, task := range app.taskMap {
-		if task.IsPlaceholder() {
-			// remove pod
-			err := mgr.clients.KubeClient.Delete(task.pod)
-			if err != nil {
-				log.Logger().Warn("failed to clean up placeholder pod",
-					zap.Error(err))
-				if !strings.Contains(err.Error(), "not found") {
-					mgr.orphanPods[taskID] = task.pod
-				}
+	for _, task := range app.GetPlaceHolderTasks() {
+		// remove pod
+		err := mgr.clients.KubeClient.Delete(task.GetTaskPod())
+		if err != nil {
+			log.Logger().Warn("failed to clean up placeholder pod",
+				zap.Error(err))
+			if !strings.Contains(err.Error(), "not found") {
+				mgr.orphanPods[task.GetTaskID()] = task.GetTaskPod()
 			}
 		}
 	}

@@ -25,6 +25,7 @@ import (
 
 	"k8s.io/client-go/informers"
 	coreInformerV1 "k8s.io/client-go/informers/core/v1"
+	schedulingInformerV1 "k8s.io/client-go/informers/scheduling/v1"
 	storageInformerV1 "k8s.io/client-go/informers/storage/v1"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/volumebinding"
 
@@ -50,14 +51,15 @@ type Clients struct {
 	InformerFactory informers.SharedInformerFactory
 
 	// resource informers
-	PodInformer       coreInformerV1.PodInformer
-	NodeInformer      coreInformerV1.NodeInformer
-	ConfigMapInformer coreInformerV1.ConfigMapInformer
-	PVInformer        coreInformerV1.PersistentVolumeInformer
-	PVCInformer       coreInformerV1.PersistentVolumeClaimInformer
-	StorageInformer   storageInformerV1.StorageClassInformer
-	NamespaceInformer coreInformerV1.NamespaceInformer
-	AppInformer       v1alpha1.ApplicationInformer
+	PodInformer           coreInformerV1.PodInformer
+	NodeInformer          coreInformerV1.NodeInformer
+	ConfigMapInformer     coreInformerV1.ConfigMapInformer
+	PVInformer            coreInformerV1.PersistentVolumeInformer
+	PVCInformer           coreInformerV1.PersistentVolumeClaimInformer
+	StorageInformer       storageInformerV1.StorageClassInformer
+	NamespaceInformer     coreInformerV1.NamespaceInformer
+	PriorityClassInformer schedulingInformerV1.PriorityClassInformer
+	AppInformer           v1alpha1.ApplicationInformer
 
 	// volume binder handles PV/PVC related operations
 	VolumeBinder volumebinding.SchedulerVolumeBinder
@@ -77,6 +79,7 @@ func (c *Clients) WaitForSync(interval time.Duration, timeout time.Duration) err
 			c.StorageInformer.Informer().HasSynced() &&
 			c.ConfigMapInformer.Informer().HasSynced() &&
 			c.NamespaceInformer.Informer().HasSynced() &&
+			c.PriorityClassInformer.Informer().HasSynced() &&
 			(c.AppInformer == nil || c.AppInformer.Informer().HasSynced())
 	}, interval, timeout)
 }
@@ -89,6 +92,7 @@ func (c *Clients) Run(stopCh <-chan struct{}) {
 	go c.StorageInformer.Informer().Run(stopCh)
 	go c.ConfigMapInformer.Informer().Run(stopCh)
 	go c.NamespaceInformer.Informer().Run(stopCh)
+	go c.PriorityClassInformer.Informer().Run(stopCh)
 	if c.AppInformer != nil {
 		go c.AppInformer.Informer().Run(stopCh)
 	}

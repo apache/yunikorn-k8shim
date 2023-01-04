@@ -34,7 +34,6 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/common"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
-	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
@@ -506,7 +505,7 @@ func (app *Application) postAppAccepted() {
 	log.Logger().Debug("postAppAccepted on cached app",
 		zap.String("appID", app.applicationID),
 		zap.Int("numTaskGroups", len(app.taskGroups)),
-		zap.Int("numAllocatedTasks", len(app.getTasks(TaskStates().Allocated))))
+		zap.Int("numAllocatedTasks", len(app.GetAllocatedTasks())))
 	if app.skipReservationStage() {
 		ev = NewRunApplicationEvent(app.applicationID)
 		log.Logger().Info("Skip the reservation stage",
@@ -532,25 +531,34 @@ func (app *Application) onReserving() {
 	}()
 }
 
+// onReservationStateChange is called when there is an add or a release of a placeholder
+// If we have all the required placeholders progress the application status, otherwise nothing happens
 func (app *Application) onReservationStateChange() {
-	// this event is called when there is a add or release of placeholders
-	desireCounts := utils.NewTaskGroupInstanceCountMap()
+	desireCounts := make(map[string]int32, len(app.taskGroups))
 	for _, tg := range app.taskGroups {
-		desireCounts.Add(tg.Name, tg.MinMember)
+		desireCounts[tg.Name] = tg.MinMember
 	}
 
-	actualCounts := utils.NewTaskGroupInstanceCountMap()
 	for _, t := range app.getTasks(TaskStates().Bound) {
 		if t.placeholder {
-			actualCounts.AddOne(t.taskGroupName)
+			if _, ok := desireCounts[t.taskGroupName]; ok {
+				desireCounts[t.taskGroupName]--
+			} else {
+				log.Logger().Debug("placeholder taskGroupName set on pod is unknown for application",
+					zap.String("application", app.applicationID),
+					zap.String("podName", t.GetTaskPod().Name),
+					zap.String("taskGroupName", t.taskGroupName))
+			}
 		}
 	}
 
-	// min member all satisfied
-	if desireCounts.Equals(actualCounts) {
-		ev := NewRunApplicationEvent(app.applicationID)
-		dispatcher.Dispatch(ev)
+	// if any count is larger than 0 we need to wait for more placeholders
+	for _, needed := range desireCounts {
+		if needed > 0 {
+			return
+		}
 	}
+	dispatcher.Dispatch(NewRunApplicationEvent(app.applicationID))
 }
 
 func (app *Application) handleRejectApplicationEvent(reason string) {

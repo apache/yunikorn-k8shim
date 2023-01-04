@@ -27,6 +27,7 @@ import (
 
 	"gotest.tools/assert"
 	v1 "k8s.io/api/core/v1"
+	schedulingv1 "k8s.io/api/scheduling/v1"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/cache"
@@ -51,9 +52,15 @@ var (
 )
 
 func initContextForTest() *Context {
+	ctx, _ := initContextAndAPIProviderForTest()
+	return ctx
+}
+
+func initContextAndAPIProviderForTest() (*Context, *client.MockedAPIProvider) {
 	conf.GetSchedulerConf().SetTestMode(true)
-	context := NewContext(client.NewMockedAPIProvider(false))
-	return context
+	apis := client.NewMockedAPIProvider(false)
+	context := NewContext(apis)
+	return context, apis
 }
 
 func newPodHelper(name, namespace, podUID, nodeName string, podPhase v1.PodPhase) *v1.Pod {
@@ -1181,4 +1188,132 @@ func TestPendingPodAllocations(t *testing.T) {
 	if _, ok = context.GetPendingPodAllocation("UID-00001"); ok {
 		t.Fatalf("pending pod allocation still exists after removal")
 	}
+}
+
+func TestGetStateDump(t *testing.T) {
+	context := initContextForTest()
+
+	pod1 := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Namespace: "default",
+			Name:      "yunikorn-test-00001",
+			UID:       "UID-00001",
+		},
+		Spec: v1.PodSpec{SchedulerName: "yunikorn"},
+	}
+	context.addPodToCache(pod1)
+
+	stateDumpStr, err := context.GetStateDump()
+	assert.NilError(t, err, "error during state dump")
+	var stateDump = make(map[string]interface{})
+	err = json.Unmarshal([]byte(stateDumpStr), &stateDump)
+	assert.NilError(t, err, "unable to parse state dump")
+
+	cacheObj, ok := stateDump["cache"]
+	assert.Assert(t, ok, "cache not found")
+	cache, ok := cacheObj.(map[string]interface{})
+	assert.Assert(t, ok, "unable to cast cache")
+
+	podsObj, ok := cache["pods"]
+	assert.Assert(t, ok, "pods not found")
+	pods, ok := podsObj.(map[string]interface{})
+	assert.Assert(t, ok, "unable to cast pods")
+
+	podObj, ok := pods["default/yunikorn-test-00001"]
+	assert.Assert(t, ok, "pod not found")
+	pod, ok := podObj.(map[string]interface{})
+	assert.Assert(t, ok, "unable to cast pod")
+
+	uidObj, ok := pod["uid"]
+	assert.Assert(t, ok, "uid not found")
+	uid, ok := uidObj.(string)
+	assert.Assert(t, ok, "Unable to cast uid")
+
+	assert.Equal(t, string(pod1.UID), uid, "wrong uid")
+}
+
+func TestFilterPriorityClasses(t *testing.T) {
+	context := initContextForTest()
+	policy := v1.PreemptLowerPriority
+	pc := &schedulingv1.PriorityClass{
+		ObjectMeta: apis.ObjectMeta{
+			Name: "pc-test",
+		},
+		Value:            100,
+		GlobalDefault:    false,
+		PreemptionPolicy: &policy,
+	}
+
+	assert.Check(t, !context.filterPriorityClasses(nil), "nil object was allowed")
+	assert.Check(t, !context.filterPriorityClasses("test"), "non-pc class was allowed")
+	assert.Check(t, context.filterPriorityClasses(pc), "pc was ignored")
+}
+
+func TestAddPriorityClass(t *testing.T) {
+	context := initContextForTest()
+	policy := v1.PreemptLowerPriority
+	pc := &schedulingv1.PriorityClass{
+		ObjectMeta: apis.ObjectMeta{
+			Name: "pc-test",
+		},
+		Value:            100,
+		GlobalDefault:    false,
+		PreemptionPolicy: &policy,
+	}
+	context.addPriorityClass(pc)
+	result := context.schedulerCache.GetPriorityClass("pc-test")
+	assert.Assert(t, result != nil)
+	assert.Equal(t, result.Value, int32(100))
+}
+
+func TestUpdatePriorityClass(t *testing.T) {
+	context := initContextForTest()
+	policy := v1.PreemptLowerPriority
+	pc := &schedulingv1.PriorityClass{
+		ObjectMeta: apis.ObjectMeta{
+			Name: "pc-test",
+		},
+		Value:            100,
+		GlobalDefault:    false,
+		PreemptionPolicy: &policy,
+	}
+	policy2 := v1.PreemptNever
+	pc2 := &schedulingv1.PriorityClass{
+		ObjectMeta: apis.ObjectMeta{
+			Name: "pc-test",
+		},
+		Value:            200,
+		GlobalDefault:    false,
+		PreemptionPolicy: &policy2,
+	}
+
+	context.addPriorityClass(pc)
+	context.updatePriorityClass(pc, pc2)
+	result := context.schedulerCache.GetPriorityClass("pc-test")
+	assert.Assert(t, result != nil)
+	assert.Equal(t, result.Value, int32(200))
+}
+
+func TestDeletePriorityClass(t *testing.T) {
+	context := initContextForTest()
+	policy := v1.PreemptLowerPriority
+	pc := &schedulingv1.PriorityClass{
+		ObjectMeta: apis.ObjectMeta{
+			Name: "pc-test",
+		},
+		Value:            100,
+		GlobalDefault:    false,
+		PreemptionPolicy: &policy,
+	}
+
+	context.addPriorityClass(pc)
+	result := context.schedulerCache.GetPriorityClass("pc-test")
+	assert.Assert(t, result != nil)
+	context.deletePriorityClass(pc)
+	result = context.schedulerCache.GetPriorityClass("pc-test")
+	assert.Assert(t, result == nil)
 }

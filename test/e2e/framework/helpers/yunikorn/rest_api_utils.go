@@ -26,6 +26,8 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
@@ -118,6 +120,21 @@ func (c *RClient) GetHealthCheck() (dao.SchedulerHealthDAOInfo, error) {
 	return healthCheck, err
 }
 
+func (c *RClient) GetAllAppInfos() (*dao.ApplicationsDAOInfo, error) {
+	appsInfos := new(dao.ApplicationsDAOInfo)
+
+	req, err := c.newRequest("GET", configmanager.AppsPath, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = c.do(req, &(appsInfos.Applications))
+	if err != nil {
+		return nil, err
+	}
+	return appsInfos, nil
+}
+
 func (c *RClient) GetApps(partition string, queueName string) ([]map[string]interface{}, error) {
 	req, err := c.newRequest("GET", fmt.Sprintf(configmanager.AppsPath, partition, queueName), nil)
 	if err != nil {
@@ -174,13 +191,12 @@ func (c *RClient) WaitForAllocationLog(partition string, queueName string, appID
 	return nil
 }
 
-func (c *RClient) isAppInDesiredState(partition string, queueName string, appID string, state string) wait.ConditionFunc {
+func (c *RClient) isAppInDesiredState(partition string, queue string, appID string, state string) wait.ConditionFunc {
 	return func() (bool, error) {
-		appInfo, err := c.GetAppInfo(partition, queueName, appID)
+		appInfo, err := c.GetAppInfo(partition, queue, appID)
 		if err != nil {
 			return false, nil // returning nil here for wait & loop
 		}
-
 		switch appInfo.State {
 		case state:
 			return true, nil
@@ -191,8 +207,18 @@ func (c *RClient) isAppInDesiredState(partition string, queueName string, appID 
 	}
 }
 
-func (c *RClient) WaitForAppStateTransition(partition string, queueName string, appID string, state string, timeout int) error {
-	return wait.PollImmediate(time.Second, time.Duration(timeout)*time.Second, c.isAppInDesiredState(partition, queueName, appID, state))
+func (c *RClient) GetNodes() (*[]dao.NodesDAOInfo, error) {
+	req, err := c.newRequest("GET", configmanager.NodesPath, nil)
+	if err != nil {
+		return nil, err
+	}
+	var nodes []dao.NodesDAOInfo
+	_, err = c.do(req, &nodes)
+	return &nodes, err
+}
+
+func (c *RClient) WaitForAppStateTransition(partition string, queue string, appID string, state string, timeout int) error {
+	return wait.PollImmediate(time.Millisecond*300, time.Duration(timeout)*time.Second, c.isAppInDesiredState(partition, queue, appID, state))
 }
 
 func (c *RClient) AreAllExecPodsAllotted(partition string, queueName string, appID string, execPodCount int) wait.ConditionFunc {
@@ -306,4 +332,84 @@ func AllocLogToStrings(log []dao.AllocationAskLogDAOInfo) []string {
 		result = append(result, entry.Message)
 	}
 	return result
+}
+
+func (c *RClient) LogAppsInfo(outputDir string) error {
+	var err error
+	appsInfo, getAppErr := c.GetAllAppInfos()
+	if getAppErr != nil {
+		return getAppErr
+	}
+	appJSON, appJSONErr := json.MarshalIndent(appsInfo, "", "    ")
+	if appJSONErr != nil {
+		return appJSONErr
+	}
+	appFileName := filepath.Join(outputDir, "yk_apps.json")
+	appFile, appFileErr := os.Create(appFileName)
+	defer func() { err = appFile.Close() }()
+	if appFileErr != nil {
+		return appFileErr
+	}
+	_, writeErr := appFile.Write(appJSON)
+	if writeErr != nil {
+		return writeErr
+	}
+	return err
+}
+
+func (c *RClient) LogQueuesInfo(outputDir string) error {
+	var err error
+	qInfo, getQErr := c.GetPartitions()
+	if getQErr != nil {
+		return getQErr
+	}
+	qJSON, qJSONErr := json.MarshalIndent(qInfo, "", "    ")
+	if qJSONErr != nil {
+		return getQErr
+	}
+	qFileName := filepath.Join(outputDir, "yk_queues.json")
+	qFile, qFileErr := os.Create(qFileName)
+	defer func() { err = qFile.Close() }()
+	if qFileErr != nil {
+		return qFileErr
+	}
+	_, writeErr := qFile.Write(qJSON)
+	if writeErr != nil {
+		return writeErr
+	}
+	return err
+}
+
+func (c *RClient) LogNodesInfo(outputDir string) error {
+	var err error
+	nodesInfo, getNodeErr := c.GetNodes()
+	if getNodeErr != nil {
+		return getNodeErr
+	}
+	nodesJSON, nodeJSONErr := json.MarshalIndent(nodesInfo, "", "    ")
+	if nodeJSONErr != nil {
+		return nodeJSONErr
+	}
+	nodeFileName := filepath.Join(outputDir, "yk_nodes.json")
+	nodeFile, nodeFileErr := os.Create(nodeFileName)
+	defer func() { err = nodeFile.Close() }()
+	if nodeFileErr != nil {
+		return nodeFileErr
+	}
+	_, writeErr := nodeFile.Write(nodesJSON)
+	if writeErr != nil {
+		return writeErr
+	}
+
+	return err
+}
+
+func (c *RClient) GetPartitions() (*dao.PartitionDAOInfo, error) {
+	req, err := c.newRequest("GET", configmanager.QueuesPath, nil)
+	if err != nil {
+		return nil, err
+	}
+	partitions := new(dao.PartitionDAOInfo)
+	_, err = c.do(req, partitions)
+	return partitions, err
 }

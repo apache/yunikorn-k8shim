@@ -76,17 +76,18 @@ func CreatePriorityForTask(pod *v1.Pod) int32 {
 	return 0
 }
 
-func CreateAllocationRequestForTask(appID, taskID string, resource *si.Resource, placeholder bool, taskGroupName string, pod *v1.Pod, originator bool) si.AllocationRequest {
+func CreateAllocationRequestForTask(appID, taskID string, resource *si.Resource, placeholder bool, taskGroupName string, pod *v1.Pod, originator bool, preemptionPolicy *si.PreemptionPolicy) si.AllocationRequest {
 	ask := si.AllocationAsk{
-		AllocationKey:  taskID,
-		ResourceAsk:    resource,
-		ApplicationID:  appID,
-		MaxAllocations: 1,
-		Tags:           CreateTagsForTask(pod),
-		Placeholder:    placeholder,
-		TaskGroupName:  taskGroupName,
-		Originator:     originator,
-		Priority:       CreatePriorityForTask(pod),
+		AllocationKey:    taskID,
+		ResourceAsk:      resource,
+		ApplicationID:    appID,
+		MaxAllocations:   1,
+		Tags:             CreateTagsForTask(pod),
+		Placeholder:      placeholder,
+		TaskGroupName:    taskGroupName,
+		Originator:       originator,
+		Priority:         CreatePriorityForTask(pod),
+		PreemptionPolicy: preemptionPolicy,
 	}
 
 	result := si.AllocationRequest{
@@ -148,7 +149,7 @@ func CreateReleaseAllocationRequestForTask(appID, allocUUID, partition, terminat
 }
 
 // CreateUpdateRequestForNewNode builds a NodeRequest for new node addition and restoring existing node
-func CreateUpdateRequestForNewNode(nodeID string, capacity *si.Resource, occupied *si.Resource,
+func CreateUpdateRequestForNewNode(nodeID string, nodeLabels string, capacity *si.Resource, occupied *si.Resource,
 	existingAllocations []*si.Allocation, ready bool) si.NodeRequest {
 	// Use node's name as the NodeID, this is because when bind pod to node,
 	// name of node is required but uid is optional.
@@ -157,9 +158,10 @@ func CreateUpdateRequestForNewNode(nodeID string, capacity *si.Resource, occupie
 		SchedulableResource: capacity,
 		OccupiedResource:    occupied,
 		Attributes: map[string]string{
-			constants.DefaultNodeAttributeHostNameKey: nodeID,
-			constants.DefaultNodeAttributeRackNameKey: constants.DefaultRackName,
-			common.NodeReadyAttribute:                 strconv.FormatBool(ready),
+			constants.DefaultNodeAttributeHostNameKey:   nodeID,
+			constants.DefaultNodeAttributeRackNameKey:   constants.DefaultRackName,
+			constants.DefaultNodeAttributeNodeLabelsKey: nodeLabels,
+			common.NodeReadyAttribute:                   strconv.FormatBool(ready),
 		},
 		ExistingAllocations: existingAllocations,
 		Action:              si.NodeInfo_CREATE,

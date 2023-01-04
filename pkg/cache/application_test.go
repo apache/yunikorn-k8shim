@@ -27,8 +27,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
-
 	"gotest.tools/assert"
 	is "gotest.tools/assert/cmp"
 	v1 "k8s.io/api/core/v1"
@@ -45,6 +43,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
+	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/api"
 	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
@@ -1256,4 +1255,79 @@ func TestPlaceholderTimeoutEvents(t *testing.T) {
 		}
 	}, 5*time.Millisecond, 20*time.Millisecond)
 	assert.NilError(t, err, "event should have been emitted")
+}
+
+func TestApplication_onReservationStateChange(t *testing.T) {
+	context := initContextForTest()
+	dispatcher.RegisterEventHandler(dispatcher.EventTypeApp, context.ApplicationEventHandler())
+	dispatcher.Start()
+	defer dispatcher.Stop()
+
+	app := NewApplication(appID, "root.a", "testuser", testGroups, map[string]string{}, newMockSchedulerAPI())
+	context.applications[app.applicationID] = app
+
+	app.sm.SetState("Accepted")
+	app.onReservationStateChange()
+	// app goes to running (no taskgroups defined)
+	assertAppState(t, app, ApplicationStates().Running, 1*time.Second)
+
+	// set taskGroups
+	app.setTaskGroups([]v1alpha1.TaskGroup{
+		{
+			Name:      "test-group-1",
+			MinMember: 1,
+			MinResource: map[string]resource.Quantity{
+				v1.ResourceCPU.String():    resource.MustParse("500m"),
+				v1.ResourceMemory.String(): resource.MustParse("500Mi"),
+			},
+		},
+		{
+			Name:      "test-group-2",
+			MinMember: 2,
+			MinResource: map[string]resource.Quantity{
+				v1.ResourceCPU.String():    resource.MustParse("500m"),
+				v1.ResourceMemory.String(): resource.MustParse("500Mi"),
+			},
+		},
+	})
+	app.sm.SetState("Accepted")
+	app.onReservationStateChange()
+	// app stays in accepted with taskgroup defined
+	assertAppState(t, app, ApplicationStates().Accepted, 1*time.Second)
+
+	task1 := NewTask("task0001", app, context, &v1.Pod{})
+	task1.setTaskGroupName("test-group-1")
+	task1.placeholder = true
+	task2 := NewTask("task0002", app, context, &v1.Pod{})
+	task2.setTaskGroupName("test-group-2")
+	task2.placeholder = true
+	// not placeholder, unknown group
+	task3 := NewTask("task0003", app, context, &v1.Pod{})
+	task3.setTaskGroupName("unknown")
+
+	app.addTask(task1)
+	app.addTask(task2)
+	app.addTask(task3)
+
+	// app stays in accepted with taskgroups defined none bound
+	app.onReservationStateChange()
+	assertAppState(t, app, ApplicationStates().Accepted, 1*time.Second)
+
+	// app stays in accepted with taskgroups defined one unknown taskgroup not a placeholder
+	// all tasks bound
+	task1.sm.SetState("Bound")
+	task2.sm.SetState("Bound")
+	task3.sm.SetState("Bound")
+	app.onReservationStateChange()
+	assertAppState(t, app, ApplicationStates().Accepted, 1*time.Second)
+
+	// app stays in accepted with taskgroups defined one unknown taskgroup
+	task3.placeholder = true
+	app.onReservationStateChange()
+	assertAppState(t, app, ApplicationStates().Accepted, 1*time.Second)
+
+	// app moves to running
+	task3.setTaskGroupName("test-group-2")
+	app.onReservationStateChange()
+	assertAppState(t, app, ApplicationStates().Running, 1*time.Second)
 }

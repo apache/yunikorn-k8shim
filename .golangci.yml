@@ -20,7 +20,7 @@ run:
   issues-exit-code: 1
   skip-dirs-use-default: true
   modules-download-mode: readonly
-  deadline: 5m
+  deadline: 10m
   skip-dirs:
     - pkg/client/clientset
     - pkg/client/informers
@@ -33,8 +33,8 @@ linters-settings:
   errcheck:
     check-type-assertions: true
     check-blank: true
-  golint:
-    min-confidence: 0.8
+  revive:
+    confidence: 0.8
   gofmt:
     simplify: true
   goimports:
@@ -63,12 +63,9 @@ linters:
     - unused
     - staticcheck
     - gosimple
-    - structcheck
-    - varcheck
     - ineffassign
-    - deadcode
     - funlen
-    - golint
+    - revive
     - gofmt
     - goimports
     - govet
@@ -103,4 +100,3 @@ issues:
 
   # Show only new issues created in git patch with set file path.
   # new-from-patch: path/to/patch/file
-

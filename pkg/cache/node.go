@@ -148,7 +148,7 @@ func (n *SchedulerNode) handleNodeRecovery() {
 		zap.String("nodeID", n.name),
 		zap.Bool("schedulable", n.schedulable))
 
-	nodeRequest := common.CreateUpdateRequestForNewNode(n.name, n.capacity, n.occupied, n.existingAllocations, n.ready)
+	nodeRequest := common.CreateUpdateRequestForNewNode(n.name, n.labels, n.capacity, n.occupied, n.existingAllocations, n.ready)
 
 	// send node request to scheduler-core
 	if err := n.schedulerAPI.UpdateNode(&nodeRequest); err != nil {

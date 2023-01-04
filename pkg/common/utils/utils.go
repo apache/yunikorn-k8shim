@@ -22,20 +22,22 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
 	"go.uber.org/zap"
 
-	"github.com/apache/yunikorn-k8shim/pkg/conf"
-
 	v1 "k8s.io/api/core/v1"
+	schedulingv1 "k8s.io/api/scheduling/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 	podv1 "k8s.io/kubernetes/pkg/api/v1/pod"
 
+	"github.com/apache/yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
 	"github.com/apache/yunikorn-k8shim/pkg/common"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
+	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
@@ -56,6 +58,14 @@ func Convert2ConfigMap(obj interface{}) *v1.ConfigMap {
 		return configmap
 	}
 	log.Logger().Warn("cannot convert to *v1.ConfigMap", zap.Stringer("type", reflect.TypeOf(obj)))
+	return nil
+}
+
+func Convert2PriorityClass(obj interface{}) *schedulingv1.PriorityClass {
+	if priorityClass, ok := obj.(*schedulingv1.PriorityClass); ok {
+		return priorityClass
+	}
+	log.Logger().Warn("cannot convert to *schedulingv1.PriorityClass", zap.Stringer("type", reflect.TypeOf(obj)))
 	return nil
 }
 
@@ -90,9 +100,9 @@ func GeneralPodFilter(pod *v1.Pod) bool {
 
 func GetQueueNameFromPod(pod *v1.Pod) string {
 	queueName := constants.ApplicationDefaultQueue
-	if an, ok := pod.Labels[constants.LabelQueueName]; ok {
+	if an := GetPodLabelValue(pod, constants.LabelQueueName); an != "" {
 		queueName = an
-	} else if qu, ok := pod.Annotations[constants.AnnotationQueueName]; ok {
+	} else if qu := GetPodAnnotationValue(pod, constants.AnnotationQueueName); qu != "" {
 		queueName = qu
 	}
 	return queueName
@@ -100,17 +110,17 @@ func GetQueueNameFromPod(pod *v1.Pod) string {
 
 func GetApplicationIDFromPod(pod *v1.Pod) (string, error) {
 	// application ID can be defined in annotations
-	if value, found := pod.Annotations[constants.AnnotationApplicationID]; found {
+	if value := GetPodAnnotationValue(pod, constants.AnnotationApplicationID); value != "" {
 		return value, nil
 	}
 
 	// application ID can be defined in labels
-	if value, found := pod.Labels[constants.LabelApplicationID]; found {
+	if value := GetPodLabelValue(pod, constants.LabelApplicationID); value != "" {
 		return value, nil
 	}
 
-	// if a pod for spark already provided appID, reuse it
-	if value, found := pod.Labels[constants.SparkLabelAppID]; found {
+	// application ID can be defined in labels
+	if value := GetPodLabelValue(pod, constants.SparkLabelAppID); value != "" {
 		return value, nil
 	}
 
@@ -127,9 +137,9 @@ func PodUnderCondition(pod *v1.Pod, condition *v1.PodCondition) bool {
 
 func GetNamespaceQuotaFromAnnotation(namespaceObj *v1.Namespace) *si.Resource {
 	// retrieve resource quota info from annotations
-	cpuQuota := namespaceObj.Annotations["yunikorn.apache.org/namespace.max.cpu"]
-	memQuota := namespaceObj.Annotations["yunikorn.apache.org/namespace.max.memory"]
-	namespaceQuota := namespaceObj.Annotations["yunikorn.apache.org/namespace.quota"]
+	cpuQuota := GetNameSpaceAnnotationValue(namespaceObj, constants.CPUQuota)
+	memQuota := GetNameSpaceAnnotationValue(namespaceObj, constants.MemQuota)
+	namespaceQuota := GetNameSpaceAnnotationValue(namespaceObj, constants.NamespaceQuota)
 
 	// order of annotation preference
 	// 1. namespace.quota
@@ -278,7 +288,7 @@ func GetUserFromPod(pod *v1.Pod) (string, []string) {
 		userLabelKey = constants.DefaultUserLabel
 	}
 	// User name to be defined in labels
-	if username, ok := pod.Labels[userLabelKey]; ok && len(username) > 0 {
+	if username := GetPodLabelValue(pod, userLabelKey); username != "" && len(username) > 0 {
 		log.Logger().Info("Found user name from pod labels.",
 			zap.String("userLabel", userLabelKey), zap.String("user", username))
 		return username, nil
@@ -315,4 +325,77 @@ func GetExtraConfigFromConfigMap(config map[string]string) map[string]string {
 		result[k] = v
 	}
 	return result
+}
+
+func GetPodAnnotationValue(pod *v1.Pod, annotationKey string) string {
+	if value, ok := pod.Annotations[annotationKey]; ok {
+		return value
+	}
+	return ""
+}
+
+func GetNameSpaceAnnotationValue(namespace *v1.Namespace, annotationKey string) string {
+	if value, ok := namespace.Annotations[annotationKey]; ok {
+		return value
+	}
+	return ""
+}
+
+func GetPodLabelValue(pod *v1.Pod, labelKey string) string {
+	if value, ok := pod.Labels[labelKey]; ok {
+		return value
+	}
+	return ""
+}
+
+func GetTaskGroupFromPodSpec(pod *v1.Pod) string {
+	return GetPodAnnotationValue(pod, constants.AnnotationTaskGroupName)
+}
+
+func GetPlaceholderFlagFromPodSpec(pod *v1.Pod) bool {
+	if value := GetPodAnnotationValue(pod, constants.AnnotationPlaceholderFlag); value != "" {
+		if v, err := strconv.ParseBool(value); err == nil {
+			return v
+		}
+	}
+
+	if value := GetPodLabelValue(pod, constants.LabelPlaceholderFlag); value != "" {
+		if v, err := strconv.ParseBool(value); err == nil {
+			return v
+		}
+	}
+	return false
+}
+
+func GetTaskGroupsFromAnnotation(pod *v1.Pod) ([]v1alpha1.TaskGroup, error) {
+	taskGroupInfo := GetPodAnnotationValue(pod, constants.AnnotationTaskGroups)
+	if taskGroupInfo == "" {
+		return nil, nil
+	}
+
+	taskGroups := []v1alpha1.TaskGroup{}
+	err := json.Unmarshal([]byte(taskGroupInfo), &taskGroups)
+	if err != nil {
+		return nil, err
+	}
+	// json.Unmarchal won't return error if name or MinMember is empty, but will return error if MinResource is empty or error format.
+	for _, taskGroup := range taskGroups {
+		if taskGroup.Name == "" {
+			return nil, fmt.Errorf("can't get taskGroup Name from pod annotation, %s",
+				taskGroupInfo)
+		}
+		if taskGroup.MinResource == nil {
+			return nil, fmt.Errorf("can't get taskGroup MinResource from pod annotation, %s",
+				taskGroupInfo)
+		}
+		if taskGroup.MinMember == int32(0) {
+			return nil, fmt.Errorf("can't get taskGroup MinMember from pod annotation, %s",
+				taskGroupInfo)
+		}
+		if taskGroup.MinMember < int32(0) {
+			return nil, fmt.Errorf("minMember cannot be negative, %s",
+				taskGroupInfo)
+		}
+	}
+	return taskGroups, nil
 }

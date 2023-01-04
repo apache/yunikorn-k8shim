@@ -16,7 +16,7 @@
  limitations under the License.
 */
 
-package main
+package admission
 
 import (
 	"encoding/json"
@@ -25,18 +25,21 @@ import (
 	"net/http/httptest"
 	"regexp"
 	"strings"
+	"sync"
 	"testing"
 
 	"gotest.tools/assert"
+
 	admissionv1 "k8s.io/api/admission/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	authv1 "k8s.io/api/authentication/v1"
 	v1 "k8s.io/api/core/v1"
+	schedulingv1 "k8s.io/api/scheduling/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	"github.com/apache/yunikorn-k8shim/pkg/plugin/admissioncontrollers/webhook/conf"
-
+	"github.com/apache/yunikorn-k8shim/pkg/admission/common"
+	"github.com/apache/yunikorn-k8shim/pkg/admission/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 )
 
@@ -52,7 +55,7 @@ const (
 func TestUpdateLabels(t *testing.T) {
 	// verify when appId/queue are not given,
 	// we patch it correctly
-	var patch []patchOperation
+	var patch []common.PatchOperation
 
 	pod := &v1.Pod{
 		TypeMeta: metav1.TypeMeta{
@@ -89,7 +92,7 @@ func TestUpdateLabels(t *testing.T) {
 
 	// verify if applicationId is given in the labels,
 	// we won't modify it
-	patch = make([]patchOperation, 0)
+	patch = make([]common.PatchOperation, 0)
 
 	pod = &v1.Pod{
 		TypeMeta: metav1.TypeMeta{
@@ -125,7 +128,7 @@ func TestUpdateLabels(t *testing.T) {
 
 	// verify if queue is given in the labels,
 	// we won't modify it
-	patch = make([]patchOperation, 0)
+	patch = make([]common.PatchOperation, 0)
 
 	pod = &v1.Pod{
 		TypeMeta: metav1.TypeMeta{
@@ -163,7 +166,7 @@ func TestUpdateLabels(t *testing.T) {
 
 	// namespace might be empty
 	// labels might be empty
-	patch = make([]patchOperation, 0)
+	patch = make([]common.PatchOperation, 0)
 
 	pod = &v1.Pod{
 		TypeMeta: metav1.TypeMeta{
@@ -194,7 +197,7 @@ func TestUpdateLabels(t *testing.T) {
 	}
 
 	// pod name might be empty, it can comes from generatedName
-	patch = make([]patchOperation, 0)
+	patch = make([]common.PatchOperation, 0)
 
 	pod = &v1.Pod{
 		TypeMeta: metav1.TypeMeta{
@@ -223,7 +226,7 @@ func TestUpdateLabels(t *testing.T) {
 	}
 
 	// pod name and generate name could be both empty
-	patch = make([]patchOperation, 0)
+	patch = make([]common.PatchOperation, 0)
 
 	pod = &v1.Pod{
 		TypeMeta: metav1.TypeMeta{
@@ -251,7 +254,7 @@ func TestUpdateLabels(t *testing.T) {
 }
 
 func TestUpdateSchedulerName(t *testing.T) {
-	var patch []patchOperation
+	var patch []common.PatchOperation
 	patch = updateSchedulerName(patch)
 	assert.Equal(t, len(patch), 1)
 	assert.Equal(t, patch[0].Op, "add")
@@ -264,7 +267,8 @@ func TestUpdateSchedulerName(t *testing.T) {
 }
 
 func TestValidateConfigMapEmpty(t *testing.T) {
-	controller := initAdmissionController(createConfig())
+	pcCache := createPriorityClassCacheForTest()
+	controller := InitAdmissionController(createConfig(), pcCache)
 	configmap := &v1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: constants.ConfigMapName,
@@ -351,7 +355,8 @@ func prepareConfigMap(data string) *v1.ConfigMap {
 	return configmap
 }
 
-func prepareController(t *testing.T, url string, processNs string, bypassNs string, labelNs string, noLabelNs string, bypassAuth bool, trustControllers bool) *admissionController {
+func prepareController(t *testing.T, url string, processNs string, bypassNs string, labelNs string, noLabelNs string, bypassAuth bool, trustControllers bool) *AdmissionController {
+	pcCache := createPriorityClassCacheForTest()
 	if bypassNs == "" {
 		bypassNs = "^kube-system$"
 	}
@@ -363,11 +368,11 @@ func prepareController(t *testing.T, url string, processNs string, bypassNs stri
 		conf.AMFilteringNoLabelNamespaces:     noLabelNs,
 		conf.AMAccessControlBypassAuth:        fmt.Sprintf("%t", bypassAuth),
 		conf.AMAccessControlTrustControllers:  fmt.Sprintf("%t", trustControllers),
-		conf.AMAccessControlSystemUsers:       "system:serviceaccount:kube-system:job-controller",
-		conf.AMAccessControlExternalUsers:     "testExtUser",
-		conf.AMAccessControlExternalGroups:    "testExtGroup",
+		conf.AMAccessControlSystemUsers:       "^system:serviceaccount:kube-system:job-controller$",
+		conf.AMAccessControlExternalUsers:     "^testExtUser$",
+		conf.AMAccessControlExternalGroups:    "^testExtGroup$",
 	})
-	return initAdmissionController(config)
+	return InitAdmissionController(config, pcCache)
 }
 
 func serverMock(mode responseMode) *httptest.Server {
@@ -423,14 +428,14 @@ func TestGenerateAppID(t *testing.T) {
 }
 
 func TestMutate(t *testing.T) {
-	var ac *admissionController
+	var ac *AdmissionController
 	var pod v1.Pod
 	var req *admissionv1.AdmissionRequest
 	var resp *admissionv1.AdmissionResponse
 	var podJSON []byte
 	var err error
 
-	ac = prepareController(t, "", "", "^kube-system$,^bypass$", "", "^nolabel$", true, true)
+	ac = prepareController(t, "", "", "^kube-system$,^bypass$", "", "^nolabel$", false, true)
 
 	// nil request
 	resp = ac.mutate(nil)
@@ -530,6 +535,148 @@ func TestMutate(t *testing.T) {
 	resp = ac.mutate(req)
 	assert.Check(t, resp.Allowed, "response not allowed for unknown object type")
 	assert.Equal(t, len(resp.Patch), 0, "non-empty patch for unknown object type")
+
+	// deployment - annotation is set
+	deployment := &appsv1.Deployment{
+		Spec: appsv1.DeploymentSpec{
+			Template: v1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						common.UserInfoAnnotation: validUserInfoAnnotation,
+					},
+				},
+			},
+		},
+	}
+	req = &admissionv1.AdmissionRequest{
+		UID:       "test-uid",
+		Namespace: "test-ns",
+		Kind:      metav1.GroupVersionKind{Kind: "Deployment"},
+		UserInfo: authv1.UserInfo{
+			Username: "testExtUser",
+		},
+	}
+	var deploymentJSON []byte
+	deploymentJSON, err = json.Marshal(deployment)
+	assert.NilError(t, err, "failed to marshal deployment")
+	req.Object = runtime.RawExtension{Raw: deploymentJSON}
+	resp = ac.mutate(req)
+	assert.Check(t, resp.Allowed, "response not allowed for unknown object type")
+	assert.Equal(t, len(resp.Patch), 0, "non-empty patch for deployment")
+
+	// deployment - annotation is not set
+	delete(deployment.Spec.Template.Annotations, common.UserInfoAnnotation)
+	deploymentJSON, err = json.Marshal(deployment)
+	assert.NilError(t, err, "failed to marshal deployment")
+	req.Object = runtime.RawExtension{Raw: deploymentJSON}
+	resp = ac.mutate(req)
+	assert.Check(t, resp.Allowed, "response not allowed for unknown object type")
+	assert.Check(t, len(resp.Patch) > 0, "empty patch for deployment")
+	annotations := annotationsFromDeployment(t, resp.Patch)
+	assert.Equal(t, annotations[common.UserInfoAnnotation].(string), "{\"user\":\"testExtUser\"}")
+
+	// deployment - annotation is not set, bypassAuth is enabled
+	ac = prepareController(t, "", "", "^kube-system$,^bypass$", "", "^nolabel$", true, true)
+	resp = ac.mutate(req)
+	assert.Check(t, resp.Allowed, "response not allowed for unknown object type")
+	assert.Equal(t, len(resp.Patch), 0, "non-empty patch for deployment")
+}
+
+func TestMutateUpdate(t *testing.T) {
+	var ac *AdmissionController
+	var pod v1.Pod
+	var req *admissionv1.AdmissionRequest
+	var resp *admissionv1.AdmissionResponse
+	var podJSON []byte
+	var err error
+
+	ac = prepareController(t, "", "", "^kube-system$,^bypass$", "", "^nolabel$", true, true)
+
+	// nil request
+	resp = ac.mutate(nil)
+	assert.Check(t, !resp.Allowed, "response allowed with nil request")
+
+	// yunikorn pod
+	pod = v1.Pod{ObjectMeta: metav1.ObjectMeta{
+		Namespace: "test-ns",
+		Labels:    map[string]string{"app": "yunikorn"},
+	}}
+	req = &admissionv1.AdmissionRequest{
+		UID:       "test-uid",
+		Namespace: "test-ns",
+		Kind:      metav1.GroupVersionKind{Kind: "Pod"},
+		Operation: admissionv1.Update,
+	}
+	podJSON, err = json.Marshal(pod)
+	assert.NilError(t, err, "failed to marshal pod")
+	req.Object = runtime.RawExtension{Raw: podJSON}
+	req.OldObject = runtime.RawExtension{Raw: podJSON}
+	resp = ac.mutate(req)
+	assert.Check(t, resp.Allowed, "response not allowed for yunikorn pod")
+
+	// pod in bypassed namespace
+	pod = v1.Pod{ObjectMeta: metav1.ObjectMeta{
+		Namespace: "bypass",
+	}}
+	req = &admissionv1.AdmissionRequest{
+		UID:       "test-uid",
+		Namespace: "bypass",
+		Kind:      metav1.GroupVersionKind{Kind: "Pod"},
+		Operation: admissionv1.Update,
+	}
+	podJSON, err = json.Marshal(pod)
+	assert.NilError(t, err, "failed to marshal pod")
+	req.Object = runtime.RawExtension{Raw: podJSON}
+	req.OldObject = runtime.RawExtension{Raw: podJSON}
+	resp = ac.mutate(req)
+	assert.Check(t, resp.Allowed, "response not allowed for bypassed pod")
+
+	// normal pod, not allowed
+	pod = v1.Pod{ObjectMeta: metav1.ObjectMeta{
+		Namespace: "test-ns",
+	}}
+	req = &admissionv1.AdmissionRequest{
+		UID:       "test-uid",
+		Namespace: "test-ns",
+		Kind:      metav1.GroupVersionKind{Kind: "Pod"},
+		Operation: admissionv1.Update,
+	}
+	podJSON, err = json.Marshal(pod)
+	assert.NilError(t, err, "failed to marshal pod")
+	req.Object = runtime.RawExtension{Raw: podJSON}
+	resp = ac.mutate(req)
+	assert.Check(t, !resp.Allowed, "response was allowed")
+
+	// normal pod, allowed
+	pod = v1.Pod{ObjectMeta: metav1.ObjectMeta{
+		Namespace: "test-ns",
+		Annotations: map[string]string{
+			common.UserInfoAnnotation: validUserInfoAnnotation,
+		},
+	}}
+	oldPod := v1.Pod{ObjectMeta: metav1.ObjectMeta{
+		Namespace: "test-ns",
+		Labels: map[string]string{
+			"test": "yunikorn",
+		},
+		Annotations: map[string]string{
+			common.UserInfoAnnotation: validUserInfoAnnotation,
+		},
+	}}
+	req = &admissionv1.AdmissionRequest{
+		UID:       "test-uid",
+		Namespace: "test-ns",
+		Kind:      metav1.GroupVersionKind{Kind: "Pod"},
+		Operation: admissionv1.Update,
+	}
+	podJSON, err = json.Marshal(pod)
+	assert.NilError(t, err, "failed to marshal pod")
+	oldPodJSON, err2 := json.Marshal(oldPod)
+	assert.NilError(t, err2, "failed to marshal pod")
+	req.Object = runtime.RawExtension{Raw: podJSON}
+	req.OldObject = runtime.RawExtension{Raw: oldPodJSON}
+	resp = ac.mutate(req)
+	assert.Check(t, resp.Allowed, "response was not allowed")
 }
 
 func TestExternalAuthentication(t *testing.T) {
@@ -539,7 +686,7 @@ func TestExternalAuthentication(t *testing.T) {
 	pod := v1.Pod{ObjectMeta: metav1.ObjectMeta{
 		Namespace: "test-ns",
 		Annotations: map[string]string{
-			userInfoAnnotation: validUserInfoAnnotation,
+			common.UserInfoAnnotation: validUserInfoAnnotation,
 		},
 	}}
 	podJSON, err := json.Marshal(pod)
@@ -578,7 +725,7 @@ func TestExternalAuthentication(t *testing.T) {
 	pod = v1.Pod{ObjectMeta: metav1.ObjectMeta{
 		Namespace: "test-ns",
 		Annotations: map[string]string{
-			userInfoAnnotation: "xyzxyz",
+			common.UserInfoAnnotation: "xyzxyz",
 		},
 	}}
 	podJSON, err = json.Marshal(pod)
@@ -596,7 +743,7 @@ func TestExternalAuthentication(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "test-ns",
 					Annotations: map[string]string{
-						userInfoAnnotation: validUserInfoAnnotation,
+						common.UserInfoAnnotation: validUserInfoAnnotation,
 					},
 				},
 			},
@@ -610,7 +757,7 @@ func TestExternalAuthentication(t *testing.T) {
 	assert.Check(t, resp.Allowed, "response not allowed")
 
 	// deployment - invalid annotation
-	deployment.Spec.Template.Annotations[userInfoAnnotation] = "xyzxyz"
+	deployment.Spec.Template.Annotations[common.UserInfoAnnotation] = "xyzxyz"
 	deploymentJSON, err = json.Marshal(deployment)
 	req.Object = runtime.RawExtension{Raw: deploymentJSON}
 	req.Kind = metav1.GroupVersionKind{Kind: "Deployment"}
@@ -620,8 +767,8 @@ func TestExternalAuthentication(t *testing.T) {
 	assert.Check(t, strings.Contains(resp.Result.Message, "invalid character 'x'"))
 }
 
-func parsePatch(t *testing.T, patch []byte) []patchOperation {
-	res := make([]patchOperation, 0)
+func parsePatch(t *testing.T, patch []byte) []common.PatchOperation {
+	res := make([]common.PatchOperation, 0)
 	if len(patch) == 0 {
 		return res
 	}
@@ -650,8 +797,19 @@ func labels(t *testing.T, patch []byte) map[string]interface{} {
 	return make(map[string]interface{})
 }
 
+func annotationsFromDeployment(t *testing.T, patch []byte) map[string]interface{} {
+	ops := parsePatch(t, patch)
+	for _, op := range ops {
+		if op.Path == "/spec/template/metadata/annotations" {
+			return op.Value.(map[string]interface{})
+		}
+	}
+	return make(map[string]interface{})
+}
+
 func TestShouldProcessNamespace(t *testing.T) {
 	ac := prepareController(t, "", "", "^kube-system$,^pre-,-post$", "", "", false, true)
+
 	assert.Check(t, ac.shouldProcessNamespace("test"), "test namespace not allowed")
 	assert.Check(t, !ac.shouldProcessNamespace("kube-system"), "kube-system namespace allowed")
 	assert.Check(t, ac.shouldProcessNamespace("x-kube-system"), "x-kube-system namespace not allowed")
@@ -708,30 +866,38 @@ func TestParseRegexes(t *testing.T) {
 }
 
 func TestInitAdmissionControllerRegexErrorHandling(t *testing.T) {
-	ac := initAdmissionController(createConfig())
+	pcCache := createPriorityClassCacheForTest()
+	ac := InitAdmissionController(createConfig(), pcCache)
 	assert.Equal(t, 1, len(ac.conf.GetBypassNamespaces()))
 	assert.Equal(t, conf.DefaultFilteringBypassNamespaces, ac.conf.GetBypassNamespaces()[0].String(), "didn't set default bypassNamespaces")
 
-	ac = initAdmissionController(createConfigWithOverrides(map[string]string{conf.AMFilteringProcessNamespaces: "("}))
+	ac = InitAdmissionController(createConfigWithOverrides(map[string]string{conf.AMFilteringProcessNamespaces: "("}), pcCache)
 	assert.Equal(t, 0, len(ac.conf.GetProcessNamespaces()), "didn't fail on bad processNamespaces list")
 
-	ac = initAdmissionController(createConfigWithOverrides(map[string]string{conf.AMFilteringBypassNamespaces: "("}))
+	ac = InitAdmissionController(createConfigWithOverrides(map[string]string{conf.AMFilteringBypassNamespaces: "("}), pcCache)
 	assert.Equal(t, 1, len(ac.conf.GetBypassNamespaces()))
 	assert.Equal(t, conf.DefaultFilteringBypassNamespaces, ac.conf.GetBypassNamespaces()[0].String(), "didn't fail on bad bypassNamespaces list")
 
-	ac = initAdmissionController(createConfigWithOverrides(map[string]string{conf.AMFilteringLabelNamespaces: "("}))
+	ac = InitAdmissionController(createConfigWithOverrides(map[string]string{conf.AMFilteringLabelNamespaces: "("}), pcCache)
 	assert.Equal(t, 0, len(ac.conf.GetLabelNamespaces()), "didn't fail on bad labelNamespaces list")
 
-	ac = initAdmissionController(createConfigWithOverrides(map[string]string{conf.AMFilteringNoLabelNamespaces: "("}))
+	ac = InitAdmissionController(createConfigWithOverrides(map[string]string{conf.AMFilteringNoLabelNamespaces: "("}), pcCache)
 	assert.Equal(t, 0, len(ac.conf.GetNoLabelNamespaces()), "didn't fail on bad noLabelNamespaces list")
 
-	ac = initAdmissionController(createConfigWithOverrides(map[string]string{conf.AMAccessControlSystemUsers: "("}))
+	ac = InitAdmissionController(createConfigWithOverrides(map[string]string{conf.AMAccessControlSystemUsers: "("}), pcCache)
 	assert.Equal(t, 1, len(ac.conf.GetSystemUsers()))
 	assert.Equal(t, conf.DefaultAccessControlSystemUsers, ac.conf.GetSystemUsers()[0].String(), "didn't fail on bad systemUsers list")
 
-	ac = initAdmissionController(createConfigWithOverrides(map[string]string{conf.AMAccessControlExternalUsers: "("}))
+	ac = InitAdmissionController(createConfigWithOverrides(map[string]string{conf.AMAccessControlExternalUsers: "("}), pcCache)
 	assert.Equal(t, 0, len(ac.conf.GetExternalUsers()), "didn't fail on bad externalUsers list")
 
-	ac = initAdmissionController(createConfigWithOverrides(map[string]string{conf.AMAccessControlExternalGroups: "("}))
+	ac = InitAdmissionController(createConfigWithOverrides(map[string]string{conf.AMAccessControlExternalGroups: "("}), pcCache)
 	assert.Equal(t, 0, len(ac.conf.GetExternalGroups()), "didn't fail on bad externalGroups list")
+}
+
+func createPriorityClassCacheForTest() *PriorityClassCache {
+	return &PriorityClassCache{
+		priorityClasses: make(map[string]*schedulingv1.PriorityClass),
+		lock:            sync.RWMutex{},
+	}
 }

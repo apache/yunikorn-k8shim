@@ -19,7 +19,6 @@
 package utils
 
 import (
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -76,62 +75,12 @@ func GetPlaceholderResourceRequest(resources map[string]resource.Quantity) v1.Re
 	return resourceReq
 }
 
-func GetPlaceholderFlagFromPodSpec(pod *v1.Pod) bool {
-	if value, ok := pod.Annotations[constants.AnnotationPlaceholderFlag]; ok {
-		if v, err := strconv.ParseBool(value); err == nil {
-			return v
-		}
-	}
-
-	if value, ok := pod.Labels[constants.LabelPlaceholderFlag]; ok {
-		if v, err := strconv.ParseBool(value); err == nil {
-			return v
-		}
-	}
-	return false
-}
-
-func GetTaskGroupFromPodSpec(pod *v1.Pod) string {
-	if value, ok := pod.Annotations[constants.AnnotationTaskGroupName]; ok {
-		return value
-	}
-	return ""
-}
-
-func GetTaskGroupsFromAnnotation(pod *v1.Pod) ([]v1alpha1.TaskGroup, error) {
-	taskGroupInfo, ok := pod.Annotations[constants.AnnotationTaskGroups]
-	if !ok {
-		return nil, nil
-	}
-	taskGroups := []v1alpha1.TaskGroup{}
-	err := json.Unmarshal([]byte(taskGroupInfo), &taskGroups)
-	if err != nil {
-		return nil, err
-	}
-	// json.Unmarchal won't return error if name or MinMember is empty, but will return error if MinResource is empty or error format.
-	for _, taskGroup := range taskGroups {
-		if taskGroup.Name == "" {
-			return nil, fmt.Errorf("can't get taskGroup Name from pod annotation, %s",
-				pod.Annotations[constants.AnnotationTaskGroups])
-		}
-		if taskGroup.MinMember == int32(0) {
-			return nil, fmt.Errorf("can't get taskGroup MinMember from pod annotation, %s",
-				pod.Annotations[constants.AnnotationTaskGroups])
-		}
-		if taskGroup.MinMember < int32(0) {
-			return nil, fmt.Errorf("minMember cannot be negative, %s",
-				pod.Annotations[constants.AnnotationTaskGroups])
-		}
-	}
-	return taskGroups, nil
-}
-
 func GetSchedulingPolicyParam(pod *v1.Pod) *interfaces.SchedulingPolicyParameters {
 	timeout := int64(0)
 	style := constants.SchedulingPolicyStyleParamDefault
 	schedulingPolicyParams := interfaces.NewSchedulingPolicyParameters(timeout, style)
-	param, ok := pod.Annotations[constants.AnnotationSchedulingPolicyParam]
-	if !ok {
+	param := GetPodAnnotationValue(pod, constants.AnnotationSchedulingPolicyParam)
+	if param == "" {
 		return schedulingPolicyParams
 	}
 	params := strings.Split(param, constants.SchedulingPolicyParamDelimiter)
@@ -148,7 +97,8 @@ func GetSchedulingPolicyParam(pod *v1.Pod) *interfaces.SchedulingPolicyParameter
 				log.Logger().Warn("Failed to parse timeout value from annotation", zap.String("namespace", pod.Namespace), zap.String("name", pod.Name), zap.Int64("Using Placeholder timeout: ", timeout), zap.String("Placeholder timeout passed in annotation: ", p))
 			}
 		} else if param[0] == constants.SchedulingPolicyStyleParam {
-			if style, ok = constants.SchedulingPolicyStyleParamValues[param[1]]; !ok {
+			style = constants.SchedulingPolicyStyleParamValues[param[1]]
+			if style == "" {
 				style = constants.SchedulingPolicyStyleParamDefault
 				log.Logger().Warn("Unknown gang scheduling style, using "+constants.SchedulingPolicyStyleParamDefault+" style as default",
 					zap.String("namespace", pod.Namespace), zap.String("name", pod.Name), zap.String("Gang scheduling style passed in annotation: ", p))

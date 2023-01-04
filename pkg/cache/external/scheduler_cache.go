@@ -25,6 +25,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	v1 "k8s.io/api/core/v1"
+	schedulingv1 "k8s.io/api/scheduling/v1"
 	storageV1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -49,6 +50,7 @@ import (
 type SchedulerCache struct {
 	nodesMap              map[string]*framework.NodeInfo // node name to NodeInfo map
 	podsMap               map[string]*v1.Pod
+	pcMap                 map[string]*schedulingv1.PriorityClass
 	assignedPods          map[string]string // map of pods to the node they are currently assigned to
 	assumedPods           map[string]bool   // map of assumed pods, value indicates if pod volumes are all bound
 	pendingAllocations    map[string]string // map of pod to node ID, presence indicates a pending allocation for scheduler
@@ -61,6 +63,7 @@ func NewSchedulerCache(clients *client.Clients) *SchedulerCache {
 	cache := &SchedulerCache{
 		nodesMap:              make(map[string]*framework.NodeInfo),
 		podsMap:               make(map[string]*v1.Pod),
+		pcMap:                 make(map[string]*schedulingv1.PriorityClass),
 		assignedPods:          make(map[string]string),
 		assumedPods:           make(map[string]bool),
 		pendingAllocations:    make(map[string]string),
@@ -150,6 +153,58 @@ func (cache *SchedulerCache) removeNode(node *v1.Node) {
 
 	log.Logger().Debug("Removing node from cache", zap.String("nodeName", node.Name))
 	delete(cache.nodesMap, node.Name)
+}
+
+func (cache *SchedulerCache) GetPriorityClass(name string) *schedulingv1.PriorityClass {
+	cache.lock.RLock()
+	defer cache.lock.RUnlock()
+
+	if n, ok := cache.pcMap[name]; ok {
+		return n
+	}
+	return nil
+}
+
+func (cache *SchedulerCache) AddPriorityClass(priorityClass *schedulingv1.PriorityClass) {
+	cache.lock.Lock()
+	defer cache.lock.Unlock()
+	cache.dumpState("AddPriorityClass.Pre")
+	defer cache.dumpState("AddPriorityClass.Post")
+
+	cache.updatePriorityClass(priorityClass)
+}
+
+func (cache *SchedulerCache) UpdatePriorityClass(priorityClass *schedulingv1.PriorityClass) {
+	cache.lock.Lock()
+	defer cache.lock.Unlock()
+	cache.dumpState("UpdatePriorityClass.Pre")
+	defer cache.dumpState("UpdatePriorityClass.Post")
+
+	cache.updatePriorityClass(priorityClass)
+}
+
+func (cache *SchedulerCache) updatePriorityClass(priorityClass *schedulingv1.PriorityClass) {
+	_, ok := cache.pcMap[priorityClass.Name]
+	if !ok {
+		log.Logger().Debug("Adding priorityClass to cache", zap.String("name", priorityClass.Name))
+	} else {
+		log.Logger().Debug("Updating priorityClass in cache", zap.String("name", priorityClass.Name))
+	}
+	cache.pcMap[priorityClass.Name] = priorityClass
+}
+
+func (cache *SchedulerCache) RemovePriorityClass(priorityClass *schedulingv1.PriorityClass) {
+	cache.lock.Lock()
+	defer cache.lock.Unlock()
+	cache.dumpState("RemovePriorityClass.Pre")
+	defer cache.dumpState("RemovePriorityClass.Post")
+
+	cache.removePriorityClass(priorityClass)
+}
+
+func (cache *SchedulerCache) removePriorityClass(priorityClass *schedulingv1.PriorityClass) {
+	log.Logger().Debug("Removing priorityClass from cache", zap.String("name", priorityClass.Name))
+	delete(cache.pcMap, priorityClass.Name)
 }
 
 // AddPendingPodAllocation is used to add a new pod -> node mapping to the cache when running in scheduler plugin mode.
@@ -467,4 +522,121 @@ func (cache *SchedulerCache) nodePodCount() int {
 		result += len(node.Pods)
 	}
 	return result
+}
+
+func (cache *SchedulerCache) GetSchedulerCacheDao() SchedulerCacheDao {
+	cache.lock.RLock()
+	defer cache.lock.RUnlock()
+
+	nodes := make(map[string]NodeDao)
+	pods := make(map[string]PodDao)
+	priorityClasses := make(map[string]PriorityClassDao)
+	podSchedulingInfoByUID := make(map[string]*PodSchedulingInfoDao)
+
+	for nodeName, nodeInfo := range cache.nodesMap {
+		node := nodeInfo.Node().DeepCopy()
+		nodes[nodeName] = NodeDao{
+			Name:              node.Name,
+			UID:               node.UID,
+			NodeInfo:          node.Status.NodeInfo,
+			CreationTimestamp: node.CreationTimestamp.Time,
+			Annotations:       node.Annotations,
+			Labels:            node.Labels,
+			PodCIDRs:          node.Spec.PodCIDRs,
+			Taints:            node.Spec.Taints,
+			Addresses:         node.Status.Addresses,
+			Allocatable:       node.Status.Allocatable,
+			Capacity:          node.Status.Capacity,
+			Conditions:        node.Status.Conditions,
+		}
+	}
+
+	for podUID, pod := range cache.podsMap {
+		podCopy := pod.DeepCopy()
+		podSchedulingInfoByUID[podUID] = &PodSchedulingInfoDao{
+			Namespace: podCopy.Namespace,
+			Name:      podCopy.Name,
+			UID:       podCopy.UID,
+		}
+		containers := make([]ContainerDao, 0)
+		for _, container := range podCopy.Spec.Containers {
+			containers = append(containers, ContainerDao{
+				Name:      container.Name,
+				Resources: container.Resources,
+			})
+		}
+		pods[fmt.Sprintf("%s/%s", podCopy.Namespace, podCopy.Name)] = PodDao{
+			Namespace:         podCopy.Namespace,
+			Name:              podCopy.Name,
+			GenerateName:      podCopy.GenerateName,
+			UID:               podCopy.UID,
+			CreationTimestamp: podCopy.CreationTimestamp.Time,
+			Annotations:       podCopy.Annotations,
+			Labels:            podCopy.Labels,
+			Affinity:          podCopy.Spec.Affinity,
+			NodeName:          podCopy.Spec.NodeName,
+			NodeSelector:      podCopy.Spec.NodeSelector,
+			PriorityClassName: podCopy.Spec.PriorityClassName,
+			Priority:          podCopy.Spec.Priority,
+			PreemptionPolicy:  podCopy.Spec.PreemptionPolicy,
+			SchedulerName:     podCopy.Spec.SchedulerName,
+			Containers:        containers,
+			Status:            podCopy.Status,
+		}
+	}
+
+	for pcName, pc := range cache.pcMap {
+		priorityClasses[pcName] = PriorityClassDao{
+			Name:             pc.Name,
+			Annotations:      pc.Annotations,
+			Labels:           pc.Labels,
+			Value:            pc.Value,
+			GlobalDefault:    pc.GlobalDefault,
+			PreemptionPolicy: pc.PreemptionPolicy,
+		}
+	}
+
+	for podUID, nodeName := range cache.assignedPods {
+		if info, ok := podSchedulingInfoByUID[podUID]; ok {
+			info.AssignedNode = nodeName
+		}
+	}
+	for podUID, allBound := range cache.assumedPods {
+		if info, ok := podSchedulingInfoByUID[podUID]; ok {
+			info.Assumed = true
+			info.AllVolumesBound = allBound
+		}
+	}
+	for podUID, nodeName := range cache.pendingAllocations {
+		if info, ok := podSchedulingInfoByUID[podUID]; ok {
+			info.PendingNode = nodeName
+		}
+	}
+	for podUID, nodeName := range cache.inProgressAllocations {
+		if info, ok := podSchedulingInfoByUID[podUID]; ok {
+			info.InProgressNode = nodeName
+		}
+	}
+
+	podSchedulingInfoByName := make(map[string]PodSchedulingInfoDao)
+	for _, info := range podSchedulingInfoByUID {
+		podSchedulingInfoByName[fmt.Sprintf("%s/%s", info.Namespace, info.Name)] = *info
+	}
+
+	return SchedulerCacheDao{
+		Statistics: SchedulerCacheStatisticsDao{
+			Nodes:                 len(cache.nodesMap),
+			Pods:                  len(cache.podsMap),
+			PriorityClasses:       len(cache.pcMap),
+			Assumed:               len(cache.assumedPods),
+			PendingAllocations:    len(cache.pendingAllocations),
+			InProgressAllocations: len(cache.inProgressAllocations),
+			PodsAssigned:          cache.nodePodCount(),
+			Phases:                cache.podPhases(),
+		},
+		Nodes:           nodes,
+		Pods:            pods,
+		PriorityClasses: priorityClasses,
+		SchedulingPods:  podSchedulingInfoByName,
+	}
 }

@@ -38,6 +38,8 @@ import (
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
 
+const nodeLabels = "{\"label1\":\"key1\",\"label2\":\"key2\"}"
+
 func TestApplicationScheduling(t *testing.T) {
 	configData := `
 partitions:
@@ -67,9 +69,9 @@ partitions:
 	assert.NilError(t, err, "update config failed")
 
 	// register nodes
-	err = cluster.addNode("test.host.01", 100000000, 10)
+	err = cluster.addNode("test.host.01", nodeLabels, 100000000, 10)
 	assert.NilError(t, err, "add node failed")
-	err = cluster.addNode("test.host.02", 100000000, 10)
+	err = cluster.addNode("test.host.02", nodeLabels, 100000000, 10)
 	assert.NilError(t, err, "add node failed")
 
 	// create app and tasks
@@ -117,9 +119,9 @@ partitions:
 	assert.NilError(t, err, "update config failed")
 
 	// register nodes
-	err = cluster.addNode("test.host.01", 100000000, 10)
+	err = cluster.addNode("test.host.01", nodeLabels, 100000000, 10)
 	assert.NilError(t, err)
-	err = cluster.addNode("test.host.02", 100000000, 10)
+	err = cluster.addNode("test.host.02", nodeLabels, 100000000, 10)
 	assert.NilError(t, err)
 
 	// add app to context
@@ -211,9 +213,9 @@ partitions:
 	assert.NilError(t, err, "update config failed")
 
 	// register nodes
-	err = cluster.addNode("test.host.01", 100000000, 10)
+	err = cluster.addNode("test.host.01", nodeLabels, 100000000, 10)
 	assert.NilError(t, err, "add node failed")
-	err = cluster.addNode("test.host.02", 100000000, 10)
+	err = cluster.addNode("test.host.02", nodeLabels, 100000000, 10)
 	assert.NilError(t, err, "add node failed")
 
 	// create app and tasks

@@ -31,22 +31,26 @@ import (
 	"time"
 
 	"github.com/onsi/ginkgo"
-	"k8s.io/apimachinery/pkg/util/wait"
-	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
-
+	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
 	authv1 "k8s.io/api/rbac/v1"
+	schedulingv1 "k8s.io/api/scheduling/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/httpstream"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
+	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/portforward"
 	"k8s.io/client-go/transport/spdy"
+	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
 
+	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 )
@@ -372,6 +376,29 @@ func GetConfigMapObj(yamlPath string) (*v1.ConfigMap, error) {
 	return c.(*v1.ConfigMap), err
 }
 
+func LogNamespaceInfo(ns string, outputDir string) error {
+	fmt.Fprintf(ginkgo.GinkgoWriter, "Log namespace info from %s\n", ns)
+	cmd := fmt.Sprintf("kubectl cluster-info dump --output-directory=%s --namespaces=%s", outputDir, ns)
+	_, runErr := common.RunShellCmdForeground(cmd)
+	if runErr != nil {
+		return runErr
+	}
+	return nil
+}
+
+func (k *KubeCtl) GetPodLogs(podName string, namespace string, containerName string) ([]byte, error) {
+	options := &v1.PodLogOptions{
+		Container: containerName,
+	}
+	logsReq := k.clientSet.CoreV1().Pods(namespace).GetLogs(podName, options)
+	logsBytes, err := logsReq.DoRaw(context.TODO())
+	if err != nil {
+		return []byte{}, err
+	}
+
+	return logsBytes, nil
+}
+
 func (k *KubeCtl) CreateConfigMap(cMap *v1.ConfigMap, namespace string) (*v1.ConfigMap, error) {
 	return k.clientSet.CoreV1().ConfigMaps(namespace).Create(context.TODO(), cMap, metav1.CreateOptions{})
 }
@@ -395,6 +422,21 @@ func (k *KubeCtl) UpdateConfigMap(cMap *v1.ConfigMap, namespace string) (*v1.Con
 	return k.clientSet.CoreV1().ConfigMaps(namespace).Update(context.TODO(), cMap, metav1.UpdateOptions{})
 }
 
+func (k *KubeCtl) StartConfigMapInformer(namespace string, stopChan <-chan struct{}, eventHandler cache.ResourceEventHandler) error {
+	informerFactory := informers.NewSharedInformerFactoryWithOptions(k.clientSet, 0, informers.WithNamespace(namespace))
+	informerFactory.Start(stopChan)
+	configMapInformer := informerFactory.Core().V1().ConfigMaps()
+	configMapInformer.Informer().AddEventHandler(eventHandler)
+	go configMapInformer.Informer().Run(stopChan)
+	if err := utils.WaitForCondition(func() bool {
+		return configMapInformer.Informer().HasSynced()
+	}, time.Second, 30*time.Second); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (k *KubeCtl) DeleteConfigMap(cName string, namespace string) error {
 	return k.clientSet.CoreV1().ConfigMaps(namespace).Delete(context.TODO(), cName, metav1.DeleteOptions{})
 }
@@ -405,6 +447,22 @@ func GetPodObj(yamlPath string) (*v1.Pod, error) {
 		return nil, err
 	}
 	return o.(*v1.Pod), err
+}
+
+func (k *KubeCtl) CreateDeployment(deployment *appsv1.Deployment, namespace string) (*appsv1.Deployment, error) {
+	return k.clientSet.AppsV1().Deployments(namespace).Create(context.TODO(), deployment, metav1.CreateOptions{})
+}
+
+func (k *KubeCtl) DeleteDeployment(name, namespace string) error {
+	var secs int64 = 0
+	err := k.clientSet.AppsV1().Deployments(namespace).Delete(context.TODO(), name, metav1.DeleteOptions{
+		GracePeriodSeconds: &secs,
+	})
+	return err
+}
+
+func (k *KubeCtl) GetDeployment(name, namespace string) (*appsv1.Deployment, error) {
+	return k.clientSet.AppsV1().Deployments(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 }
 
 func (k *KubeCtl) CreatePod(pod *v1.Pod, namespace string) (*v1.Pod, error) {
@@ -529,34 +587,54 @@ func (k *KubeCtl) isPodEventTriggered(namespace string, podName string, expected
 	}
 }
 
+func (k *KubeCtl) isNumPod(namespace string, wanted int) wait.ConditionFunc {
+	return func() (bool, error) {
+		podList, err := k.GetPods(namespace)
+		if err != nil {
+			return false, err
+		}
+		if len(podList.Items) == wanted {
+			return true, nil
+		}
+		return true, nil
+	}
+}
+
+func (k *KubeCtl) WaitForJobPods(namespace string, jobName string, numPods int, timeout time.Duration) error {
+	return wait.PollImmediate(time.Millisecond*100, timeout, k.isNumJobPodsInDesiredState(jobName, namespace, numPods, v1.PodRunning))
+}
 func (k *KubeCtl) WaitForPodEvent(namespace string, podName string, expectedReason string, timeout time.Duration) error {
-	return wait.PollImmediate(time.Second, timeout, k.isPodEventTriggered(namespace, podName, expectedReason))
+	return wait.PollImmediate(time.Millisecond*100, timeout, k.isPodEventTriggered(namespace, podName, expectedReason))
 }
 
 func (k *KubeCtl) WaitForPodTerminated(namespace string, podName string, timeout time.Duration) error {
-	return wait.PollImmediate(time.Second, timeout, k.isPodNotInNS(podName, namespace))
+	return wait.PollImmediate(time.Millisecond*100, timeout, k.isPodNotInNS(podName, namespace))
 }
 
 func (k *KubeCtl) WaitForJobTerminated(namespace string, jobName string, timeout time.Duration) error {
-	return wait.PollImmediate(time.Second, timeout, k.isJobNotInNS(jobName, namespace))
+	return wait.PollImmediate(time.Millisecond*100, timeout, k.isJobNotInNS(jobName, namespace))
 }
 
 // Poll up to timeout seconds for pod to enter running state.
 // Returns an error if the pod never enters the running state.
 func (k *KubeCtl) WaitForPodRunning(namespace string, podName string, timeout time.Duration) error {
-	return wait.PollImmediate(time.Second, timeout, k.isPodInDesiredState(podName, namespace, v1.PodRunning))
+	return wait.PollImmediate(time.Millisecond*100, timeout, k.isPodInDesiredState(podName, namespace, v1.PodRunning))
 }
 
 func (k *KubeCtl) WaitForPodPending(namespace string, podName string, timeout time.Duration) error {
-	return wait.PollImmediate(time.Second, timeout, k.isPodInDesiredState(podName, namespace, v1.PodPending))
+	return wait.PollImmediate(time.Millisecond*100, timeout, k.isPodInDesiredState(podName, namespace, v1.PodPending))
 }
 
 func (k *KubeCtl) WaitForPodSucceeded(namespace string, podName string, timeout time.Duration) error {
-	return wait.PollImmediate(time.Second, timeout, k.isPodInDesiredState(podName, namespace, v1.PodSucceeded))
+	return wait.PollImmediate(time.Millisecond*100, timeout, k.isPodInDesiredState(podName, namespace, v1.PodSucceeded))
 }
 
 func (k *KubeCtl) WaitForPodFailed(namespace string, podName string, timeout time.Duration) error {
-	return wait.PollImmediate(time.Second, timeout, k.isPodInDesiredState(podName, namespace, v1.PodFailed))
+	return wait.PollImmediate(time.Millisecond*100, timeout, k.isPodInDesiredState(podName, namespace, v1.PodFailed))
+}
+
+func (k *KubeCtl) WaitForPodCount(namespace string, wanted int, timeout time.Duration) error {
+	return wait.PollImmediate(time.Millisecond*100, timeout, k.isNumPod(namespace, wanted))
 }
 
 // Returns the list of currently scheduled or running pods in `namespace` with the given selector
@@ -591,7 +669,7 @@ func (k *KubeCtl) WaitForPodBySelectorRunning(namespace string, selector string,
 
 // Wait up to timeout seconds for a pod in 'namespace' with given 'selector' to exist
 func (k *KubeCtl) WaitForPodBySelector(namespace string, selector string, timeout time.Duration) error {
-	return wait.PollImmediate(time.Second, timeout, k.isPodSelectorInNs(selector, namespace))
+	return wait.PollImmediate(time.Millisecond*100, timeout, k.isPodSelectorInNs(selector, namespace))
 }
 
 func (k *KubeCtl) CreateSecret(secret *v1.Secret, namespace string) (*v1.Secret, error) {
@@ -693,7 +771,7 @@ func (k *KubeCtl) PodScheduled(podNamespace, podName string) wait.ConditionFunc 
 }
 
 func (k *KubeCtl) WaitForPodScheduled(namespace string, podName string, timeout time.Duration) error {
-	return wait.PollImmediate(time.Second, timeout, k.PodScheduled(namespace, podName))
+	return wait.PollImmediate(time.Millisecond*100, timeout, k.PodScheduled(namespace, podName))
 }
 
 // PodUnschedulable returns a condition function that returns true if the given pod
@@ -753,24 +831,32 @@ func (k *KubeCtl) RemoveYunikornSchedulerPodAnnotation(annotation string) error 
 	return err
 }
 
+func (k *KubeCtl) CreatePriorityClass(pc *schedulingv1.PriorityClass) (*schedulingv1.PriorityClass, error) {
+	return k.clientSet.SchedulingV1().PriorityClasses().Create(context.Background(), pc, metav1.CreateOptions{})
+}
+
+func (k *KubeCtl) DeletePriorityClass(priorityClassName string) error {
+	return k.clientSet.SchedulingV1().PriorityClasses().Delete(context.Background(), priorityClassName, metav1.DeleteOptions{})
+}
+
 func (k *KubeCtl) CreateJob(job *batchv1.Job, namespace string) (*batchv1.Job, error) {
 	return k.clientSet.BatchV1().Jobs(namespace).Create(context.TODO(), job, metav1.CreateOptions{})
 }
 
 func (k *KubeCtl) WaitForJobPodsCreated(namespace string, jobName string, numPods int, timeout time.Duration) error {
-	return wait.PollImmediate(time.Second, timeout, k.isNumJobPodsCreated(jobName, namespace, numPods))
+	return wait.PollImmediate(time.Millisecond*100, timeout, k.isNumJobPodsCreated(jobName, namespace, numPods))
 }
 
 func (k *KubeCtl) WaitForJobPodsRunning(namespace string, jobName string, numPods int, timeout time.Duration) error {
-	return wait.PollImmediate(time.Second, timeout, k.isNumJobPodsInDesiredState(jobName, namespace, numPods, v1.PodRunning))
+	return wait.PollImmediate(time.Millisecond*100, timeout, k.isNumJobPodsInDesiredState(jobName, namespace, numPods, v1.PodRunning))
 }
 
 func (k *KubeCtl) WaitForJobPodsSucceeded(namespace string, jobName string, numPods int, timeout time.Duration) error {
-	return wait.PollImmediate(time.Second, timeout, k.isNumJobPodsInDesiredState(jobName, namespace, numPods, v1.PodSucceeded))
+	return wait.PollImmediate(time.Millisecond*100, timeout, k.isNumJobPodsInDesiredState(jobName, namespace, numPods, v1.PodSucceeded))
 }
 
 func (k *KubeCtl) WaitForPlaceholders(namespace string, podPrefix string, numPods int, timeout time.Duration, podPhase v1.PodPhase) error {
-	return wait.PollImmediate(time.Second, timeout, k.isNumPlaceholdersRunning(namespace, podPrefix, numPods, podPhase))
+	return wait.PollImmediate(time.Millisecond*100, timeout, k.isNumPlaceholdersRunning(namespace, podPrefix, numPods, podPhase))
 }
 
 func (k *KubeCtl) isNumPlaceholdersRunning(namespace string, podPrefix string, num int, podPhase v1.PodPhase) wait.ConditionFunc {

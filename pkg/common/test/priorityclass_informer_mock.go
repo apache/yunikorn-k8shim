@@ -16,18 +16,28 @@
  limitations under the License.
 */
 
-package main
+package test
 
 import (
-	v1 "k8s.io/api/core/v1"
-
-	"github.com/apache/yunikorn-k8shim/pkg/plugin/admissioncontrollers/webhook/conf"
+	informersV1 "k8s.io/client-go/informers/scheduling/v1"
+	listersV1 "k8s.io/client-go/listers/scheduling/v1"
+	"k8s.io/client-go/tools/cache"
 )
 
-func createConfig() *conf.AdmissionControllerConf {
-	return conf.NewAdmissionControllerConf([]*v1.ConfigMap{nil, nil})
+type MockPriorityClassInformer struct {
+	lister listersV1.PriorityClassLister
 }
 
-func createConfigWithOverrides(overrides map[string]string) *conf.AdmissionControllerConf {
-	return conf.NewAdmissionControllerConf([]*v1.ConfigMap{nil, {Data: overrides}})
+func NewMockPriorityClassInformer() informersV1.PriorityClassInformer {
+	return &MockPriorityClassInformer{
+		lister: NewMockPriorityClassLister(),
+	}
+}
+
+func (nsi *MockPriorityClassInformer) Informer() cache.SharedIndexInformer {
+	return nil
+}
+
+func (nsi *MockPriorityClassInformer) Lister() listersV1.PriorityClassLister {
+	return nsi.lister
 }

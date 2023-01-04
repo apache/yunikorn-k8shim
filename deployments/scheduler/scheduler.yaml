@@ -37,7 +37,7 @@ spec:
       serviceAccountName: yunikorn-admin
       containers:
         - name: yunikorn-scheduler-k8s
-          image: apache/yunikorn:scheduler-latest
+          image: apache/yunikorn:scheduler-amd64-latest
           env:
             - name: NAMESPACE
               valueFrom:
@@ -58,7 +58,7 @@ spec:
             - name: config-volume
               mountPath: /etc/yunikorn/
         - name: yunikorn-scheduler-web
-          image: apache/yunikorn:web-latest
+          image: apache/yunikorn:web-amd64-latest
           imagePullPolicy: IfNotPresent
           resources:
             requests:

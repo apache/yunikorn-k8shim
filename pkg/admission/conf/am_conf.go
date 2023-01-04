@@ -24,16 +24,13 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/informers"
 	informersv1 "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	schedulerconf "github.com/apache/yunikorn-k8shim/pkg/conf"
@@ -78,7 +75,7 @@ const (
 	// access control defaults
 	DefaultAccessControlBypassAuth       = false
 	DefaultAccessControlTrustControllers = true
-	DefaultAccessControlSystemUsers      = "system:serviceaccount:kube-system:*"
+	DefaultAccessControlSystemUsers      = "^system:serviceaccount:kube-system:"
 	DefaultAccessControlExternalUsers    = ""
 	DefaultAccessControlExternalGroups   = ""
 )
@@ -103,9 +100,7 @@ type AdmissionControllerConf struct {
 	externalGroups          []*regexp.Regexp
 	configMaps              []*v1.ConfigMap
 
-	configMapInformer informersv1.ConfigMapInformer
-	stopChan          chan struct{}
-	lock              sync.RWMutex
+	lock sync.RWMutex
 }
 
 func NewAdmissionControllerConf(configMaps []*v1.ConfigMap) *AdmissionControllerConf {
@@ -117,22 +112,8 @@ func NewAdmissionControllerConf(configMaps []*v1.ConfigMap) *AdmissionController
 	return acc
 }
 
-func (acc *AdmissionControllerConf) StartInformers(kubeClient client.KubeClient) {
-	informerFactory := informers.NewSharedInformerFactoryWithOptions(kubeClient.GetClientSet(), 0, informers.WithNamespace(acc.namespace))
-	acc.stopChan = make(chan struct{})
-	informerFactory.Start(acc.stopChan)
-	acc.configMapInformer = informerFactory.Core().V1().ConfigMaps()
-	acc.configMapInformer.Informer().AddEventHandler(&configMapUpdateHandler{conf: acc})
-	go acc.configMapInformer.Informer().Run(acc.stopChan)
-	if err := acc.waitForSync(time.Second, 30*time.Second); err != nil {
-		log.Logger().Warn("Failed to sync informers", zap.Error(err))
-	}
-}
-
-func (acc *AdmissionControllerConf) StopInformers() {
-	if acc.stopChan != nil {
-		close(acc.stopChan)
-	}
+func (acc *AdmissionControllerConf) RegisterHandlers(configMaps informersv1.ConfigMapInformer) {
+	configMaps.Informer().AddEventHandler(&configMapUpdateHandler{conf: acc})
 }
 
 func (acc *AdmissionControllerConf) GetNamespace() string {
@@ -223,12 +204,6 @@ func (acc *AdmissionControllerConf) GetExternalGroups() []*regexp.Regexp {
 	acc.lock.RLock()
 	defer acc.lock.RUnlock()
 	return acc.externalGroups
-}
-
-func (acc *AdmissionControllerConf) waitForSync(interval time.Duration, timeout time.Duration) error {
-	return utils.WaitForCondition(func() bool {
-		return acc.configMapInformer.Informer().HasSynced()
-	}, interval, timeout)
 }
 
 type configMapUpdateHandler struct {
