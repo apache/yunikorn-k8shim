@@ -37,6 +37,8 @@ import (
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 )
 
+const DefaultPartition = "default"
+
 type RClient struct {
 	BaseURL   *url.URL
 	UserAgent string
@@ -250,7 +252,7 @@ func (c *RClient) ValidateSchedulerConfig(cm v1.ConfigMap) (*dao.ValidateConfRes
 func isRootSched(policy string) wait.ConditionFunc {
 	return func() (bool, error) {
 		restClient := RClient{}
-		qInfo, err := restClient.GetQueues("default")
+		qInfo, err := restClient.GetQueues(DefaultPartition)
 		if err != nil {
 			return false, err
 		}
@@ -258,7 +260,7 @@ func isRootSched(policy string) wait.ConditionFunc {
 			return false, errors.New("no response from rest client")
 		}
 
-		if policy == "default" {
+		if policy == DefaultPartition {
 			return len(qInfo.Properties) == 0, nil
 		} else if qInfo.Properties["application.sort.policy"] == policy {
 			return true, nil
@@ -312,7 +314,7 @@ func (c *RClient) GetQueue(partition string, queueName string) (*dao.PartitionQu
 func compareQueueTS(queuePathStr string, ts string) wait.ConditionFunc {
 	return func() (bool, error) {
 		restClient := RClient{}
-		qInfo, err := restClient.GetQueue("default", "root")
+		qInfo, err := restClient.GetQueue(DefaultPartition, "root")
 		if err != nil {
 			return false, err
 		}
@@ -382,7 +384,7 @@ func (c *RClient) LogQueuesInfo(outputDir string) error {
 
 func (c *RClient) LogNodesInfo(outputDir string) error {
 	var err error
-	nodesInfo, getNodeErr := c.GetNodes("default")
+	nodesInfo, getNodeErr := c.GetNodes(DefaultPartition)
 	if getNodeErr != nil {
 		return getNodeErr
 	}

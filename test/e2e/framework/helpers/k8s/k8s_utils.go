@@ -514,7 +514,6 @@ func (k *KubeCtl) isPodInDesiredState(podName string, namespace string, state v1
 		if err != nil {
 			return false, err
 		}
-
 		switch pod.Status.Phase {
 		case state:
 			return true, nil
