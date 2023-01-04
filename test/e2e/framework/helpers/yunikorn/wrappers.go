@@ -96,7 +96,8 @@ func UpdateCustomConfigMapWrapper(oldConfigMap *v1.ConfigMap, schedPolicy string
 	if schedPolicy == "fifo" {
 		var fifoQName = "fifoq"
 		fifoQConfig := configs.QueueConfig{
-			Name: fifoQName, SubmitACL: "*",
+			Name:       fifoQName,
+			SubmitACL:  "*",
 			Properties: map[string]string{"application.sort.policy": "fifo"},
 			Resources:  configs.Resources{Max: map[string]string{"memory": "300M", "vcore": "300m"}},
 		}

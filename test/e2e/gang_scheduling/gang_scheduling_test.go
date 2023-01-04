@@ -628,6 +628,11 @@ var _ = Describe("", func() {
 			time.Sleep(1 * time.Second)
 		}
 
+		// wait till app2 transitioned to accepted state
+		By(fmt.Sprintf("[%s] Verify appStatus = Accepted", apps[2]))
+		timeoutErr := restClient.WaitForAppStateTransition(defaultPartition, "root."+fifoQName, apps[2], yunikorn.States().Application.Accepted, 120)
+		Ω(timeoutErr).NotTo(HaveOccurred())
+
 		// App1 should have 2/3 placeholders running
 		podConf.Annotations.TaskGroups[0].MinMember = int32(appAllocs[apps[1]]["minMembers"])
 		app1Phs := yunikorn.GetPlaceholderNames(podConf.Annotations, apps[1])
@@ -742,7 +747,6 @@ var _ = Describe("", func() {
 		taskGroupsMap, annErr := k8s.PodAnnotationToMap(podConf.Annotations)
 		Ω(annErr).NotTo(HaveOccurred())
 		By(fmt.Sprintf("[%s] Deploy job %s with task-groups: %+v", podConf.Labels["applicationId"], jobConf.Name, taskGroupsMap[k8s.TaskGroups]))
-
 		_, jobErr = kClient.CreateJob(job, ns)
 		Ω(jobErr).NotTo(HaveOccurred())
 		createErr := kClient.WaitForJobPodsCreated(ns, job.Name, int(*job.Spec.Parallelism), 30*time.Second)
@@ -776,7 +780,6 @@ var _ = Describe("", func() {
 
 		// Verify no app allocation in nodeA
 		ykNodes, nodeErr := restClient.GetNodes(defaultPartition)
-
 		Ω(nodeErr).NotTo(HaveOccurred())
 		for _, nodeDAO := range *ykNodes {
 			for _, node := range nodeDAO.Nodes {
