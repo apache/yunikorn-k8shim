@@ -467,8 +467,8 @@ var _ = Describe("", func() {
 		gsStyle := "Hard"
 		placeholderTimeoutStr := fmt.Sprintf("%s=%d", "placeholderTimeoutInSeconds", pdTimeout)
 		gsStyleStr := fmt.Sprintf("%s=%s", "gangSchedulingStyle", gsStyle)
-		groupA := groupA + "-" + common.RandSeq(5)
-		groupB := groupB + "-" + common.RandSeq(5)
+		groupA = groupA + "-" + common.RandSeq(5)
+		groupB = groupB + "-" + common.RandSeq(5)
 
 		podResources := map[string]resource.Quantity{
 			"cpu":    resource.MustParse("10m"),
