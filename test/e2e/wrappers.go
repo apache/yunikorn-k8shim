@@ -19,7 +19,6 @@
 package e2e
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"time"
@@ -118,9 +117,11 @@ func LogYunikornContainer(testName string) {
 	logBytes, getErr := k.GetPodLogs(ykSchedName, configmanager.YuniKornTestConfig.YkNamespace, configmanager.YKSchedulerContainer)
 	Ω(getErr).NotTo(HaveOccurred(), "Get logs failed")
 
-	ykLogFilePath := filepath.Join(configmanager.YuniKornTestConfig.LogDir, testName, "yk.log")
-	writeErr := ioutil.WriteFile(ykLogFilePath, logBytes, 0644) //nolint:gosec // Log file readable by all
-	Ω(writeErr).NotTo(HaveOccurred(), "File write failed")
+	By("logs dump..")
+	By(string(logBytes))
+	//ykLogFilePath := filepath.Join(configmanager.YuniKornTestConfig.LogDir, testName, "yk.log")
+	//writeErr := ioutil.WriteFile(ykLogFilePath, logBytes, 0644) //nolint:gosec // Log file readable by all
+	//Ω(writeErr).NotTo(HaveOccurred(), "File write failed")
 }
 
 var Describe = ginkgo.Describe
