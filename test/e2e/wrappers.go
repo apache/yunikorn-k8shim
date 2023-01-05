@@ -119,9 +119,9 @@ func LogYunikornContainer(testName string) {
 
 	By("logs dump..")
 	By(string(logBytes))
-	//ykLogFilePath := filepath.Join(configmanager.YuniKornTestConfig.LogDir, testName, "yk.log")
-	//writeErr := ioutil.WriteFile(ykLogFilePath, logBytes, 0644) //nolint:gosec // Log file readable by all
-	//Ω(writeErr).NotTo(HaveOccurred(), "File write failed")
+	// ykLogFilePath := filepath.Join(configmanager.YuniKornTestConfig.LogDir, testName, "yk.log")
+	// writeErr := ioutil.WriteFile(ykLogFilePath, logBytes, 0644) //nolint:gosec // Log file readable by all
+	// Ω(writeErr).NotTo(HaveOccurred(), "File write failed")
 }
 
 var Describe = ginkgo.Describe
