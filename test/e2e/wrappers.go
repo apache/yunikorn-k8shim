@@ -19,6 +19,7 @@
 package e2e
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -111,14 +112,14 @@ func LogTestClusterInfoWrapper(testName string, namespaces []string) {
 
 // Writes Yunikorn container log "yk.log" to test log directory
 func LogYunikornContainer(testName string) {
+	fmt.Fprintf(ginkgo.GinkgoWriter, "Log yk logs info from\n")
 	Ω(k.SetClient()).To(BeNil())
 	ykSchedName, schedErr := yunikorn.GetSchedulerPodName(k)
 	Ω(schedErr).NotTo(HaveOccurred(), "Get sched failed")
 	logBytes, getErr := k.GetPodLogs(ykSchedName, configmanager.YuniKornTestConfig.YkNamespace, configmanager.YKSchedulerContainer)
 	Ω(getErr).NotTo(HaveOccurred(), "Get logs failed")
-
-	By("logs dump..")
-	By(string(logBytes))
+	fmt.Fprintf(ginkgo.GinkgoWriter, "logs dump \n")
+	fmt.Fprintf(ginkgo.GinkgoWriter, string(logBytes))
 	// ykLogFilePath := filepath.Join(configmanager.YuniKornTestConfig.LogDir, testName, "yk.log")
 	// writeErr := ioutil.WriteFile(ykLogFilePath, logBytes, 0644) //nolint:gosec // Log file readable by all
 	// Ω(writeErr).NotTo(HaveOccurred(), "File write failed")
