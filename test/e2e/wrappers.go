@@ -112,14 +112,14 @@ func LogTestClusterInfoWrapper(testName string, namespaces []string) {
 
 // Writes Yunikorn container log "yk.log" to test log directory
 func LogYunikornContainer(testName string) {
-	fmt.Fprintf(ginkgo.GinkgoWriter, "Log yk logs info from\n")
+	fmt.Fprintf(ginkgo.GinkgoWriter, "%s Log yk logs info from\n", testName)
 	Ω(k.SetClient()).To(BeNil())
 	ykSchedName, schedErr := yunikorn.GetSchedulerPodName(k)
 	Ω(schedErr).NotTo(HaveOccurred(), "Get sched failed")
 	logBytes, getErr := k.GetPodLogs(ykSchedName, configmanager.YuniKornTestConfig.YkNamespace, configmanager.YKSchedulerContainer)
 	Ω(getErr).NotTo(HaveOccurred(), "Get logs failed")
-	fmt.Fprintf(ginkgo.GinkgoWriter, "logs dump \n")
-	fmt.Fprintf(ginkgo.GinkgoWriter, string(logBytes))
+	fmt.Fprintf(ginkgo.GinkgoWriter, "%s logs dump \n", testName)
+	fmt.Fprintf(ginkgo.GinkgoWriter, "%s logs are %s\n", testName, string(logBytes))
 	// ykLogFilePath := filepath.Join(configmanager.YuniKornTestConfig.LogDir, testName, "yk.log")
 	// writeErr := ioutil.WriteFile(ykLogFilePath, logBytes, 0644) //nolint:gosec // Log file readable by all
 	// Ω(writeErr).NotTo(HaveOccurred(), "File write failed")
