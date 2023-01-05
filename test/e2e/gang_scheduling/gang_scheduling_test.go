@@ -564,7 +564,7 @@ var _ = Describe("", func() {
 
 		// Initial allocation to fill ns quota
 		appAllocs := map[string]map[string]int{
-			apps[0]: {"pods": 1, "?": 0},
+			apps[0]: {"pods": 1, "minMembers": 0},
 			apps[1]: {"pods": 3, "minMembers": 3},
 			apps[2]: {"pods": 1, "minMembers": 0},
 		}
