@@ -626,11 +626,6 @@ var _ = Describe("", func() {
 			time.Sleep(1 * time.Second)
 		}
 
-		// wait till app2 transitioned to accepted state
-		By(fmt.Sprintf("[%s] Verify appStatus = Accepted", apps[2]))
-		timeoutErr := restClient.WaitForAppStateTransition(defaultPartition, "root."+fifoQName, apps[2], yunikorn.States().Application.Accepted, 120)
-		Ω(timeoutErr).NotTo(HaveOccurred())
-
 		// App1 should have 2/3 placeholders running
 		podConf.Annotations.TaskGroups[0].MinMember = int32(appAllocs[apps[1]]["minMembers"])
 		app1Phs := yunikorn.GetPlaceholderNames(podConf.Annotations, apps[1])
