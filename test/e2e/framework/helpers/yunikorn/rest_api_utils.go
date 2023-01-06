@@ -406,13 +406,13 @@ func (c *RClient) LogNodesInfo(outputDir string) error {
 	return err
 }
 
-func (c *RClient) GetPartitions(partition string) (*dao.PartitionDAOInfo, error) {
+func (c *RClient) GetPartitions(partition string) (*dao.PartitionQueueDAOInfo, error) {
 	req, err := c.newRequest("GET", fmt.Sprintf(configmanager.QueuesPath, partition), nil)
 	if err != nil {
 		return nil, err
 	}
 	// partitions := new(dao.PartitionDAOInfo)
-	var partitions *dao.PartitionDAOInfo
+	var partitions *dao.PartitionQueueDAOInfo
 	_, err = c.do(req, &partitions)
 	return partitions, err
 }
