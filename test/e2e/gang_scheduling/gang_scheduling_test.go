@@ -29,6 +29,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/apache/yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
+	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	tests "github.com/apache/yunikorn-k8shim/test/e2e"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
@@ -552,7 +553,8 @@ var _ = Describe("", func() {
 	// 5. appA = Completing, appB = Running, appC = Accepted
 	It("Verify_GangApp_FIFO_Order", func() {
 		By(fmt.Sprintf("Creating namespace: %s", fifoQName))
-		fifoQ, nsErr := kClient.CreateNamespace(fifoQName, nil)
+		fifoQ, nsErr := kClient.CreateNamespace(fifoQName, map[string]string{
+			constants.NamespaceQuota: "{\"cpu\": \"300m\", \"memory\": \"300M\"}"})
 		Ω(nsErr).NotTo(HaveOccurred())
 		Ω(fifoQ.Status.Phase).To(Equal(v1.NamespaceActive))
 		defer func() { Ω(kClient.DeleteNamespace(fifoQName)).NotTo(HaveOccurred()) }()
