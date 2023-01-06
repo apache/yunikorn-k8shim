@@ -119,7 +119,7 @@ func LogYunikornContainer(testName string) {
 	var restClient yunikorn.RClient
 	qInfo, getQErr := restClient.GetPartitions("default")
 
-	//fmt.Fprintf(ginkgo.GinkgoWriter, "%s partition name is  %s\n", testName, qInfo.PartitionName)
+	fmt.Fprintf(ginkgo.GinkgoWriter, "%s partition name is  %s\n", testName, qInfo.Partition)
 
 	if getQErr != nil {
 		fmt.Fprintf(ginkgo.GinkgoWriter, "%s Problem in getting queues info\n", testName)

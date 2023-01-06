@@ -19,9 +19,11 @@
 package gangscheduling_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 
+	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -557,6 +559,16 @@ var _ = Describe("", func() {
 		Ω(fifoQ.Status.Phase).To(Equal(v1.NamespaceActive))
 		defer func() { Ω(kClient.DeleteNamespace(fifoQName)).NotTo(HaveOccurred()) }()
 
+		qInfo, getQErr := restClient.GetPartitions("default")
+		if getQErr != nil {
+			fmt.Fprintf(ginkgo.GinkgoWriter, "%s Problem in getting queues info\n", fifoQName)
+		}
+		qJSON, qJSONErr := json.MarshalIndent(qInfo, "", "    ")
+		if qJSONErr != nil {
+			fmt.Fprintf(ginkgo.GinkgoWriter, "%s Problem in getting queues info\n", fifoQName)
+		}
+		fmt.Fprintf(ginkgo.GinkgoWriter, "%s queues are %s\n", fifoQName, string(qJSON))
+
 		// Create appIDs
 		var apps []string
 		for j := 0; j < 3; j++ {
@@ -627,6 +639,16 @@ var _ = Describe("", func() {
 			// To ensure there is minor gap between applications
 			time.Sleep(1 * time.Second)
 		}
+
+		qInfo, getQErr = restClient.GetPartitions("default")
+		if getQErr != nil {
+			fmt.Fprintf(ginkgo.GinkgoWriter, "%s Problem in getting queues info\n", fifoQName)
+		}
+		qJSON, qJSONErr = json.MarshalIndent(qInfo, "", "    ")
+		if qJSONErr != nil {
+			fmt.Fprintf(ginkgo.GinkgoWriter, "%s Problem in getting queues info\n", fifoQName)
+		}
+		fmt.Fprintf(ginkgo.GinkgoWriter, "%s queues are %s\n", fifoQName, string(qJSON))
 
 		// App1 should have 2/3 placeholders running
 		podConf.Annotations.TaskGroups[0].MinMember = int32(appAllocs[apps[1]]["minMembers"])
