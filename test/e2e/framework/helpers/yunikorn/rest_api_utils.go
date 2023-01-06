@@ -361,7 +361,7 @@ func (c *RClient) LogAppsInfo(outputDir string) error {
 
 func (c *RClient) LogQueuesInfo(outputDir string) error {
 	var err error
-	qInfo, getQErr := c.GetPartitions()
+	qInfo, getQErr := c.GetPartitions("default")
 	if getQErr != nil {
 		return getQErr
 	}
@@ -406,12 +406,13 @@ func (c *RClient) LogNodesInfo(outputDir string) error {
 	return err
 }
 
-func (c *RClient) GetPartitions() (*dao.PartitionDAOInfo, error) {
-	req, err := c.newRequest("GET", configmanager.QueuesPath, nil)
+func (c *RClient) GetPartitions(partition string) (*dao.PartitionDAOInfo, error) {
+	req, err := c.newRequest("GET", fmt.Sprintf(configmanager.QueuesPath, partition), nil)
 	if err != nil {
 		return nil, err
 	}
-	partitions := new(dao.PartitionDAOInfo)
-	_, err = c.do(req, partitions)
+	// partitions := new(dao.PartitionDAOInfo)
+	var partitions *dao.PartitionDAOInfo
+	_, err = c.do(req, &partitions)
 	return partitions, err
 }
