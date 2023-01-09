@@ -92,18 +92,18 @@ func UpdateCustomConfigMapWrapper(oldConfigMap *v1.ConfigMap, schedPolicy string
 		err = common.SetSchedulingPolicy(sc, "default", "root", schedPolicy)
 		Ω(err).NotTo(HaveOccurred())
 	}
-
-	if schedPolicy == "fifo" {
-		var fifoQName = "fifoq"
-		fifoQConfig := configs.QueueConfig{
-			Name:       fifoQName,
-			SubmitACL:  "*",
-			Properties: map[string]string{"application.sort.policy": "fifo"},
-			Resources:  configs.Resources{Max: map[string]string{"memory": "300M", "vcore": "300m"}},
-		}
-		addQErr := common.AddQueue(sc, "default", "root", fifoQConfig)
-		Ω(addQErr).NotTo(HaveOccurred())
-	}
+	/*
+		if schedPolicy == "fifo" {
+			var fifoQName = "fifoq"
+			fifoQConfig := configs.QueueConfig{
+				Name:       fifoQName,
+				SubmitACL:  "*",
+				Properties: map[string]string{"application.sort.policy": "fifo"},
+				Resources:  configs.Resources{Max: map[string]string{"memory": "300M", "vcore": "300m"}},
+			}
+			addQErr := common.AddQueue(sc, "default", "root", fifoQConfig)
+			Ω(addQErr).NotTo(HaveOccurred())
+		}*/
 
 	ts, tsErr := common.SetQueueTimestamp(sc, "default", "root")
 	Ω(tsErr).NotTo(HaveOccurred())
