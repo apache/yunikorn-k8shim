@@ -19,9 +19,9 @@
 package e2e
 
 import (
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -95,51 +95,24 @@ func RestoreConfigMapWrapper(oldConfigMap *v1.ConfigMap, annotation string) {
 }
 
 func LogTestClusterInfoWrapper(testName string, namespaces []string) {
-	// var restClient yunikorn.RClient
+	var restClient yunikorn.RClient
 	outputDir := filepath.Join(configmanager.YuniKornTestConfig.LogDir, testName)
-	// dirErr := os.Mkdir(outputDir, 0777)
-	By("step 33: ")
-	// Ω(dirErr).NotTo(HaveOccurred())
-	By("step 34: ")
+	dirErr := os.Mkdir(outputDir, 0777)
+	Ω(dirErr).NotTo(HaveOccurred())
 	for _, ns := range namespaces {
-		By("step 41: " + ns)
 		logErr := k8s.LogNamespaceInfo(ns, outputDir)
 		Ω(logErr).NotTo(HaveOccurred())
 	}
-	// logErr := restClient.LogAppsInfo(outputDir)
-	// Ω(logErr).NotTo(HaveOccurred())
-	// logErr = restClient.LogQueuesInfo(outputDir)
-	// Ω(logErr).NotTo(HaveOccurred())
-	// logErr = restClient.LogNodesInfo(outputDir)
-	// Ω(logErr).NotTo(HaveOccurred())
+	logErr := restClient.LogAppsInfo(outputDir)
+	Ω(logErr).NotTo(HaveOccurred())
+	logErr = restClient.LogQueuesInfo(outputDir)
+	Ω(logErr).NotTo(HaveOccurred())
+	logErr = restClient.LogNodesInfo(outputDir)
+	Ω(logErr).NotTo(HaveOccurred())
 }
 
 // Writes Yunikorn container log "yk.log" to test log directory
 func LogYunikornContainer(testName string) {
-	var restClient yunikorn.RClient
-	qInfo, getQErr := restClient.GetPartitions("default")
-
-	fmt.Fprintf(ginkgo.GinkgoWriter, "%s partition name is  %s\n", testName, qInfo.Partition)
-
-	if getQErr != nil {
-		fmt.Fprintf(ginkgo.GinkgoWriter, "%s Problem in getting queues info\n", testName)
-	}
-	qJSON, qJSONErr := json.MarshalIndent(qInfo, "", "    ")
-	if qJSONErr != nil {
-		fmt.Fprintf(ginkgo.GinkgoWriter, "%s Problem in getting queues info\n", testName)
-	}
-	fmt.Fprintf(ginkgo.GinkgoWriter, "%s queues are %s\n", testName, string(qJSON))
-
-	appsInfo, getAppErr := restClient.GetApps("default", "root.fifoq")
-	if getAppErr != nil {
-		fmt.Fprintf(ginkgo.GinkgoWriter, "%s Problem in getting apps info\n", testName)
-	}
-	appJSON, appJSONErr := json.MarshalIndent(appsInfo, "", "    ")
-	if appJSONErr != nil {
-		fmt.Fprintf(ginkgo.GinkgoWriter, "%s Problem in getting apps info\n", testName)
-	}
-	fmt.Fprintf(ginkgo.GinkgoWriter, "%s apps are %s\n", testName, string(appJSON))
-
 	fmt.Fprintf(ginkgo.GinkgoWriter, "%s Log yk logs info from\n", testName)
 	Ω(k.SetClient()).To(BeNil())
 	ykSchedName, schedErr := yunikorn.GetSchedulerPodName(k)
