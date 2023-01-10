@@ -37,6 +37,8 @@ import (
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 )
 
+const DefaultPartition = "default"
+
 type RClient struct {
 	BaseURL   *url.URL
 	UserAgent string
@@ -207,8 +209,8 @@ func (c *RClient) isAppInDesiredState(partition string, queue string, appID stri
 	}
 }
 
-func (c *RClient) GetNodes() (*[]dao.NodesDAOInfo, error) {
-	req, err := c.newRequest("GET", configmanager.NodesPath, nil)
+func (c *RClient) GetNodes(partition string) (*[]dao.NodesDAOInfo, error) {
+	req, err := c.newRequest("GET", fmt.Sprintf(configmanager.NodesPath, partition), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -250,7 +252,7 @@ func (c *RClient) ValidateSchedulerConfig(cm v1.ConfigMap) (*dao.ValidateConfRes
 func isRootSched(policy string) wait.ConditionFunc {
 	return func() (bool, error) {
 		restClient := RClient{}
-		qInfo, err := restClient.GetQueues("default")
+		qInfo, err := restClient.GetQueues(DefaultPartition)
 		if err != nil {
 			return false, err
 		}
@@ -258,7 +260,7 @@ func isRootSched(policy string) wait.ConditionFunc {
 			return false, errors.New("no response from rest client")
 		}
 
-		if policy == "default" {
+		if policy == DefaultPartition {
 			return len(qInfo.Properties) == 0, nil
 		} else if qInfo.Properties["application.sort.policy"] == policy {
 			return true, nil
@@ -312,7 +314,7 @@ func (c *RClient) GetQueue(partition string, queueName string) (*dao.PartitionQu
 func compareQueueTS(queuePathStr string, ts string) wait.ConditionFunc {
 	return func() (bool, error) {
 		restClient := RClient{}
-		qInfo, err := restClient.GetQueue("default", "root")
+		qInfo, err := restClient.GetQueue(DefaultPartition, "root")
 		if err != nil {
 			return false, err
 		}
@@ -359,7 +361,7 @@ func (c *RClient) LogAppsInfo(outputDir string) error {
 
 func (c *RClient) LogQueuesInfo(outputDir string) error {
 	var err error
-	qInfo, getQErr := c.GetPartitions()
+	qInfo, getQErr := c.GetPartitions("default")
 	if getQErr != nil {
 		return getQErr
 	}
@@ -382,7 +384,7 @@ func (c *RClient) LogQueuesInfo(outputDir string) error {
 
 func (c *RClient) LogNodesInfo(outputDir string) error {
 	var err error
-	nodesInfo, getNodeErr := c.GetNodes()
+	nodesInfo, getNodeErr := c.GetNodes(DefaultPartition)
 	if getNodeErr != nil {
 		return getNodeErr
 	}
@@ -404,12 +406,12 @@ func (c *RClient) LogNodesInfo(outputDir string) error {
 	return err
 }
 
-func (c *RClient) GetPartitions() (*dao.PartitionDAOInfo, error) {
-	req, err := c.newRequest("GET", configmanager.QueuesPath, nil)
+func (c *RClient) GetPartitions(partition string) (*dao.PartitionQueueDAOInfo, error) {
+	req, err := c.newRequest("GET", fmt.Sprintf(configmanager.QueuesPath, partition), nil)
 	if err != nil {
 		return nil, err
 	}
-	partitions := new(dao.PartitionDAOInfo)
-	_, err = c.do(req, partitions)
+	var partitions *dao.PartitionQueueDAOInfo
+	_, err = c.do(req, &partitions)
 	return partitions, err
 }
