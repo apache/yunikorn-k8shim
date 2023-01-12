@@ -48,6 +48,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/portforward"
 	"k8s.io/client-go/transport/spdy"
+	resourcehelper "k8s.io/kubectl/pkg/util/resource"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
 
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
@@ -142,6 +143,10 @@ func (k *KubeCtl) GetKubeConfig() (*rest.Config, error) {
 
 func (k *KubeCtl) GetPods(namespace string) (*v1.PodList, error) {
 	return k.clientSet.CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{})
+}
+
+func (k *KubeCtl) GetPodsByOptions(options metav1.ListOptions) (*v1.PodList, error) {
+	return k.clientSet.CoreV1().Pods("").List(context.TODO(), options)
 }
 
 func (k *KubeCtl) GetJobs(namespace string) (*batchv1.JobList, error) {
@@ -948,4 +953,55 @@ func GetWorkerNodes(nodes v1.NodeList) []v1.Node {
 		}
 	}
 	return workerNodes
+}
+
+// Sums up current resource usage in a list of pods. Non-running pods are filtered out.
+func GetPodsTotalRequests(podList *v1.PodList) (reqs v1.ResourceList) {
+	reqs = make(v1.ResourceList)
+	for i := range podList.Items {
+		pod := podList.Items[i]
+		podReqs := v1.ResourceList{}
+		if pod.Status.Phase == v1.PodRunning {
+			podReqs, _ = resourcehelper.PodRequestsAndLimits(&pod)
+		}
+		for podReqName, podReqValue := range podReqs {
+			if value, ok := reqs[podReqName]; !ok {
+				reqs[podReqName] = podReqValue.DeepCopy()
+			} else {
+				value.Add(podReqValue)
+				reqs[podReqName] = value
+			}
+		}
+	}
+	return
+}
+
+// Returns map of nodeName to list of available resource amounts.
+func (k *KubeCtl) GetNodesAvailRes(nodes v1.NodeList) map[string]v1.ResourceList {
+	// Find used resources per node
+	nodeUsage := make(map[string]v1.ResourceList)
+	for _, node := range nodes.Items {
+		nodePods, err := k.GetPodsByOptions(metav1.ListOptions{
+			FieldSelector: fmt.Sprintf("spec.nodeName=%s", node.Name),
+		})
+		if err != nil {
+			panic(err)
+		}
+		nodeUsage[node.Name] = GetPodsTotalRequests(nodePods)
+	}
+
+	// Initialize available resources as capacity
+	nodeAvailRes := make(map[string]v1.ResourceList)
+	for _, node := range nodes.Items {
+		nodeAvailRes[node.Name] = node.Status.Allocatable.DeepCopy()
+	}
+
+	// Subtract used from capacity
+	for nodeName, rList := range nodeAvailRes {
+		for res, q := range rList {
+			q.Sub(nodeUsage[nodeName][res])
+		}
+	}
+
+	return nodeAvailRes
 }

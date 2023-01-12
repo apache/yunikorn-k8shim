@@ -785,7 +785,7 @@ var _ = Describe("", func() {
 		}
 
 		// Verify queue resources = 0
-		qInfo, qErr := restClient.GetSpecificQueueInfo(defaultPartition, nsQueue)
+		qInfo, qErr := restClient.GetQueue(defaultPartition, nsQueue)
 		Ω(qErr).NotTo(HaveOccurred())
 		var usedResource yunikorn.ResourceUsage
 		var usedPercentageResource yunikorn.ResourceUsage
@@ -990,7 +990,6 @@ var _ = Describe("", func() {
 			},
 		}),
 	)
-	
 	AfterEach(func() {
 		testDescription := CurrentGinkgoTestDescription()
 		if testDescription.Failed {

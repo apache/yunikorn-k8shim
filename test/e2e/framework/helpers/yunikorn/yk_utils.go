@@ -21,7 +21,10 @@ package yunikorn
 import (
 	"errors"
 	"fmt"
+	"time"
 
+	"github.com/onsi/ginkgo"
+	"github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -104,4 +107,24 @@ func GetSchedulerPodName(kClient k8s.KubeCtl) (string, error) {
 
 	schedPod := schedPodList.Items[0]
 	return schedPod.Name, nil
+}
+
+func RestorePortForwarding(kClient *k8s.KubeCtl) {
+	ginkgo.By("Port-forward scheduler pod after restart")
+	// kill running kubectl port-forward process if it exists
+	kClient.KillPortForwardProcess()
+	// port-forward the scheduler pod
+	err := kClient.PortForwardYkSchedulerPod()
+	Ω(err).NotTo(gomega.HaveOccurred())
+}
+
+func RestartYunikorn(kClient *k8s.KubeCtl) {
+	schedulerPodName, err := kClient.GetSchedulerPod()
+	Ω(err).NotTo(gomega.HaveOccurred())
+	err = kClient.DeletePod(schedulerPodName, configmanager.YuniKornTestConfig.YkNamespace)
+	Ω(err).NotTo(gomega.HaveOccurred())
+	err = kClient.WaitForPodBySelector(configmanager.YuniKornTestConfig.YkNamespace, fmt.Sprintf("component=%s", configmanager.YKScheduler), 30*time.Second)
+	Ω(err).NotTo(gomega.HaveOccurred())
+	err = kClient.WaitForPodBySelectorRunning(configmanager.YuniKornTestConfig.YkNamespace, fmt.Sprintf("component=%s", configmanager.YKScheduler), 30)
+	Ω(err).NotTo(gomega.HaveOccurred())
 }

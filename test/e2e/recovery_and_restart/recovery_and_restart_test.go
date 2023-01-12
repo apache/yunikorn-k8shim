@@ -99,10 +99,10 @@ var _ = ginkgo.Describe("", func() {
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 
 		ginkgo.By("Restart the scheduler pod")
-		restartYunikorn(&kClient)
+		yunikorn.RestartYunikorn(&kClient)
 
 		ginkgo.By("Port-forward scheduler pod after restart")
-		restorePortForwarding(&kClient)
+		yunikorn.RestorePortForwarding(&kClient)
 
 		ginkgo.By("Deploy 2nd sleep pod to the development namespace")
 		sleepObj2, podErr := k8s.InitSleepPod(sleepPod2Configs)
@@ -141,7 +141,7 @@ var _ = ginkgo.Describe("", func() {
 	ginkgo.It("Verify_SleepJobs_Restart_YK", func() {
 		kClient = k8s.KubeCtl{}
 		Ω(kClient.SetClient()).To(gomega.BeNil())
-		defer restorePortForwarding(&kClient)
+		defer yunikorn.RestorePortForwarding(&kClient)
 
 		appID1 := normalSleepJobPrefix + "-" + common.RandSeq(5)
 		sleepPodConfig1 := k8s.SleepPodConfig{Name: "normal-sleep-job", NS: dev, Time: 300, AppID: appID1}
@@ -161,7 +161,7 @@ var _ = ginkgo.Describe("", func() {
 		Ω(createErr2).NotTo(gomega.HaveOccurred())
 
 		ginkgo.By("Restart the scheduler pod immediately")
-		restartYunikorn(&kClient)
+		yunikorn.RestartYunikorn(&kClient)
 
 		ginkgo.By("Listing pods")
 		pods, err := kClient.GetPods(dev)
@@ -205,7 +205,7 @@ var _ = ginkgo.Describe("", func() {
 	ginkgo.It("Verify_GangScheduling_TwoGangs_Restart_YK", func() {
 		kClient = k8s.KubeCtl{}
 		Ω(kClient.SetClient()).To(gomega.BeNil())
-		defer restorePortForwarding(&kClient)
+		defer yunikorn.RestorePortForwarding(&kClient)
 
 		appID := gangSleepJobPrefix + "-" + common.RandSeq(5)
 		sleepPodConfig := k8s.SleepPodConfig{Name: "gang-sleep-job", NS: dev, Time: 1, AppID: appID}
@@ -233,7 +233,7 @@ var _ = ginkgo.Describe("", func() {
 		Ω(err).NotTo(gomega.HaveOccurred())
 
 		ginkgo.By("Restart the scheduler pod")
-		restartYunikorn(&kClient)
+		yunikorn.RestartYunikorn(&kClient)
 
 		// make sure that Yunikorn's internal state have been properly restored
 		ginkgo.By("Submit sleep job")
@@ -308,23 +308,3 @@ var _ = ginkgo.Describe("", func() {
 		Ω(e).NotTo(gomega.BeNil())
 	})
 })
-
-func restorePortForwarding(kClient *k8s.KubeCtl) {
-	ginkgo.By("Port-forward scheduler pod after restart")
-	// kill running kubectl port-forward process if it exists
-	kClient.KillPortForwardProcess()
-	// port-forward the scheduler pod
-	err := kClient.PortForwardYkSchedulerPod()
-	Ω(err).NotTo(gomega.HaveOccurred())
-}
-
-func restartYunikorn(kClient *k8s.KubeCtl) {
-	schedulerPodName, err := kClient.GetSchedulerPod()
-	Ω(err).NotTo(gomega.HaveOccurred())
-	err = kClient.DeletePod(schedulerPodName, configmanager.YuniKornTestConfig.YkNamespace)
-	Ω(err).NotTo(gomega.HaveOccurred())
-	err = kClient.WaitForPodBySelector(configmanager.YuniKornTestConfig.YkNamespace, fmt.Sprintf("component=%s", configmanager.YKScheduler), 30*time.Second)
-	Ω(err).NotTo(gomega.HaveOccurred())
-	err = kClient.WaitForPodBySelectorRunning(configmanager.YuniKornTestConfig.YkNamespace, fmt.Sprintf("component=%s", configmanager.YKScheduler), 30)
-	Ω(err).NotTo(gomega.HaveOccurred())
-}
