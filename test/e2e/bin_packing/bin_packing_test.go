@@ -107,6 +107,20 @@ var _ = Describe("", func() {
 			Ω(err).NotTo(HaveOccurred())
 		}
 
+		// Sort nodes by available dominant resource in increasing order
+		nodesAvailRes1 := kClient.GetNodesAvailRes(*nodes)
+		sortedWorkerNodes1 := k8s.GetWorkerNodes(*nodes)
+		sort.Slice(sortedWorkerNodes1, func(i, j int) bool {
+			node1, node2 := sortedWorkerNodes1[i].Name, sortedWorkerNodes1[j].Name
+			q1, q2 := nodesAvailRes1[node1][domRes], nodesAvailRes1[node2][domRes]
+			return q1.Cmp(q2) == -1
+		})
+		var nodeNames1 []string
+		for _, node := range sortedWorkerNodes1 {
+			nodeNames1 = append(nodeNames1, node.Name)
+		}
+		By(fmt.Sprintf("Sorted nodes by available memory after padding: %v", nodeNames1))
+
 		// JobA Specs
 		jobAPodSpec := k8s.TestPodConfig{
 			Labels: map[string]string{
