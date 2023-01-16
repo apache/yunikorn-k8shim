@@ -221,7 +221,7 @@ var _ = Describe("", func() {
 		By("Tear down namespace: " + ns)
 		testDescription := CurrentGinkgoTestDescription()
 		if testDescription.Failed {
-			//tests.LogTestClusterInfoWrapper(testDescription.TestText, []string{ns})
+			// tests.LogTestClusterInfoWrapper(testDescription.TestText, []string{ns})
 			tests.LogYunikornContainer(testDescription.TestText)
 		}
 		By("Tear down namespace: " + ns)
