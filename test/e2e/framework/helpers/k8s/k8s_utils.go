@@ -652,6 +652,17 @@ func (k *KubeCtl) ListPods(namespace string, selector string) (*v1.PodList, erro
 	return podList, nil
 }
 
+// Returns the list of currently scheduled or running pods in `namespace` with the given selector
+func (k *KubeCtl) ListPodsByFieldSelector(namespace string, selector string) (*v1.PodList, error) {
+	listOptions := metav1.ListOptions{FieldSelector: selector}
+	podList, err := k.clientSet.CoreV1().Pods(namespace).List(context.TODO(), listOptions)
+
+	if err != nil {
+		return nil, err
+	}
+	return podList, nil
+}
+
 // Wait up to timeout seconds for all pods in 'namespace' with given 'selector' to enter running state.
 // Returns an error if no pods are found or not all discovered pods enter running state.
 func (k *KubeCtl) WaitForPodBySelectorRunning(namespace string, selector string, timeout int) error {

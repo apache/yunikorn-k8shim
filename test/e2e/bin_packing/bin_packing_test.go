@@ -118,8 +118,34 @@ var _ = Describe("", func() {
 		var nodeNames1 []string
 		for _, node := range sortedWorkerNodes1 {
 			nodeNames1 = append(nodeNames1, node.Name)
+			By("node is " + node.String())
+			// k8s.ListPods()
 		}
 		By(fmt.Sprintf("Sorted nodes by available memory after padding: %v", nodeNames1))
+
+		By("node 1 is " + sortedWorkerNodes1[0].Name)
+		By("node 2 is " + sortedWorkerNodes1[1].Name)
+
+		// List job pods and verify running on expected node
+		jobPods, lstErr := kClient.ListPodsByFieldSelector(ns, fmt.Sprintf("spec.nodeName=%s", sortedWorkerNodes1[0].Name))
+		Ω(lstErr).NotTo(HaveOccurred())
+		Ω(jobPods).NotTo(BeNil())
+		// Ω(len(jobPods.Items)).Should(Equal(int(3)), "Pods count should be 3")
+		for _, pod := range jobPods.Items {
+
+			By("pod 1 name is " + pod.Name)
+			By("pod 1 is " + pod.Spec.String())
+		}
+
+		// List job pods and verify running on expected node
+		jobPods, lstErr = kClient.ListPodsByFieldSelector(ns, fmt.Sprintf("spec.nodeName=%s", sortedWorkerNodes1[1].Name))
+		Ω(lstErr).NotTo(HaveOccurred())
+		Ω(jobPods).NotTo(BeNil())
+		// Ω(len(jobPods.Items)).Should(Equal(int(3)), "Pods count should be 3")
+		for _, pod := range jobPods.Items {
+			By("pod 2 name is " + pod.Name)
+			By("pod 2 is " + pod.Spec.String())
+		}
 
 		// JobA Specs
 		jobAPodSpec := k8s.TestPodConfig{

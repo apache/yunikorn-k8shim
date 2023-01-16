@@ -80,11 +80,11 @@ var _ = BeforeSuite(func() {
 		}
 		_, tsErr := common.SetQueueTimestamp(sc, "default", "root")
 		if tsErr != nil {
-			return setErr
+			return tsErr
 		}
 		_, yamlErr := common.ToYAML(sc)
 		if yamlErr != nil {
-			return setErr
+			return yamlErr
 		}
 		return nil
 	})
