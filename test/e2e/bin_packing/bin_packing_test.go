@@ -73,12 +73,21 @@ var _ = Describe("", func() {
 		Ω(len(sortedWorkerNodes)).To(BeNumerically(">=", 2),
 			"At least 2 nodes required")
 
-		fmt.Fprintf(ginkgo.GinkgoWriter, "Log namespace info from %s\n", ns)
-		cmd := fmt.Sprintf("kubectl cluster-info dump --namespaces=%s", ns)
-		_, runErr := common.RunShellCmdForeground(cmd)
+		fmt.Fprintf(ginkgo.GinkgoWriter, "Log 444 namespace info from %s\n", ns)
+		cmd := "kubectl describe node " + sortedWorkerNodes[0].Name
+		out, runErr := common.RunShellCmdForeground(cmd)
 		if runErr != nil {
 			By("dump err is  " + runErr.Error())
 		}
+		By("out  is  " + out)
+
+		fmt.Fprintf(ginkgo.GinkgoWriter, "Log 444 namespace info from %s\n", ns)
+		cmd = "kubectl describe node " + sortedWorkerNodes[0].Name
+		out, runErr = common.RunShellCmdForeground(cmd)
+		if runErr != nil {
+			By("dump err is  " + runErr.Error())
+		}
+		By("out  is  " + out)
 
 		// Submit pods to nodeA/nodeB to stabilize node order
 		padPct := []float64{0.2, 0.1}
@@ -156,12 +165,21 @@ var _ = Describe("", func() {
 			By("pod 2 is " + pod.Spec.String())
 		}
 
-		fmt.Fprintf(ginkgo.GinkgoWriter, "Log namespace info from %s\n", ns)
-		cmd = fmt.Sprintf("kubectl cluster-info dump --namespaces=%s", ns)
-		_, runErr = common.RunShellCmdForeground(cmd)
+		fmt.Fprintf(ginkgo.GinkgoWriter, "Log 2222 namespace info from %s\n", ns)
+		cmd = "kubectl describe node " + sortedWorkerNodes[1].Name
+		out, runErr = common.RunShellCmdForeground(cmd)
 		if runErr != nil {
 			By("dump err is  " + runErr.Error())
 		}
+		By("out  is  " + out)
+
+		fmt.Fprintf(ginkgo.GinkgoWriter, "Log 2222 namespace info from %s\n", ns)
+		cmd = "kubectl describe node " + sortedWorkerNodes[1].Name
+		out, runErr = common.RunShellCmdForeground(cmd)
+		if runErr != nil {
+			By("dump err is  " + runErr.Error())
+		}
+		By("out  is  " + out)
 
 		// JobA Specs
 		jobAPodSpec := k8s.TestPodConfig{
@@ -235,13 +253,6 @@ var _ = Describe("", func() {
 
 	AfterEach(func() {
 		By("Tear down namespace: " + ns)
-
-		fmt.Fprintf(ginkgo.GinkgoWriter, "Log namespace info from %s\n", ns)
-		cmd := fmt.Sprintf("kubectl cluster-info dump --namespaces=%s", ns)
-		_, runErr := common.RunShellCmdForeground(cmd)
-		if runErr != nil {
-			By("dump err is  " + runErr.Error())
-		}
 
 		testDescription := CurrentGinkgoTestDescription()
 		if testDescription.Failed {
