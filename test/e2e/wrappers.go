@@ -119,7 +119,6 @@ func LogYunikornContainer(testName string) {
 	Ω(schedErr).NotTo(HaveOccurred(), "Get sched failed")
 	logBytes, getErr := k.GetPodLogs(ykSchedName, configmanager.YuniKornTestConfig.YkNamespace, configmanager.YKSchedulerContainer)
 	Ω(getErr).NotTo(HaveOccurred(), "Get logs failed")
-	By("log dump is " + string(logBytes))
 	ykLogFilePath := filepath.Join(configmanager.YuniKornTestConfig.LogDir, testName, "yk.log")
 	writeErr := ioutil.WriteFile(ykLogFilePath, logBytes, 0644) //nolint:gosec // Log file readable by all
 	Ω(writeErr).NotTo(HaveOccurred(), "File write failed")

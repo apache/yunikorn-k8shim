@@ -110,15 +110,6 @@ func UpdateCustomConfigMapWrapper(oldConfigMap *v1.ConfigMap, schedPolicy string
 	Ω(k.UpdateYunikornSchedulerPodAnnotation(annotation)).NotTo(HaveOccurred())
 	err = WaitForQueueTS("root", ts, 2*time.Minute)
 	Ω(err).NotTo(HaveOccurred())
-
-	var c1, err1 = k.GetConfigMaps(configmanager.YuniKornTestConfig.YkNamespace,
-		configmanager.DefaultYuniKornConfigMap)
-	Ω(err1).NotTo(HaveOccurred())
-	Ω(c1).NotTo(BeNil())
-	for key, value := range c1.Data {
-		By("key is " + key)
-		By("value is " + value)
-	}
 }
 
 func RestoreConfigMapWrapper(oldConfigMap *v1.ConfigMap, annotation string) {
