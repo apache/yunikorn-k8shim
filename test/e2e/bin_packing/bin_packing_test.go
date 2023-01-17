@@ -64,6 +64,8 @@ var _ = Describe("", func() {
 			q1, q2 := nodesAvailRes[node1][domRes], nodesAvailRes[node2][domRes]
 			By(" node 1 is " + node1)
 			By(" node 2 is " + node2)
+			By("q1  is " + q1.String())
+			By(" q2  is " + q2.String())
 			res1 := nodesAvailRes[node1]
 			By(" node 1 mem is " + res1.Memory().String())
 			By(" node 1 cpu is " + res1.Cpu().String())
