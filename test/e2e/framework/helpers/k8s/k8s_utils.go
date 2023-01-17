@@ -26,7 +26,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -972,21 +971,15 @@ func GetPodsTotalRequests(podList *v1.PodList) (reqs v1.ResourceList) {
 	reqs = make(v1.ResourceList)
 	for i := range podList.Items {
 		pod := podList.Items[i]
-
-		ginkgo.By("pod name is " + pod.Name)
 		podReqs := v1.ResourceList{}
 		if pod.Status.Phase == v1.PodRunning {
 			podReqs, _ = resourcehelper.PodRequestsAndLimits(&pod)
 		}
-
-		ginkgo.By("pod mem is " + podReqs.Memory().String())
-		ginkgo.By("pod cpu is " + podReqs.Cpu().String())
 		for podReqName, podReqValue := range podReqs {
 			if value, ok := reqs[podReqName]; !ok {
 				reqs[podReqName] = podReqValue.DeepCopy()
 			} else {
 				value.Add(podReqValue)
-				ginkgo.By("pod value is " + value.String())
 				reqs[podReqName] = value
 			}
 		}
@@ -994,7 +987,7 @@ func GetPodsTotalRequests(podList *v1.PodList) (reqs v1.ResourceList) {
 	return
 }
 
-// Returns map of nodeName to list of available resource amounts.
+// GetNodesAvailRes Returns map of nodeName to list of available resource (memory and cpu only) amounts.
 func (k *KubeCtl) GetNodesAvailRes(nodes v1.NodeList) map[string]v1.ResourceList {
 	// Find used resources per node
 	nodeUsage := make(map[string]v1.ResourceList)
@@ -1002,18 +995,15 @@ func (k *KubeCtl) GetNodesAvailRes(nodes v1.NodeList) map[string]v1.ResourceList
 		nodePods, err := k.GetPodsByOptions(metav1.ListOptions{
 			FieldSelector: fmt.Sprintf("spec.nodeName=%s", node.Name),
 		})
-		ginkgo.By("len is " + strconv.Itoa(len(nodePods.Items)))
 		if err != nil {
 			panic(err)
 		}
 		nodeUsage[node.Name] = GetPodsTotalRequests(nodePods)
 	}
 
-	// Initialize available resources as capacity
+	// Initialize available resources as capacity and subtract used resources
 	nodeAvailRes := make(map[string]v1.ResourceList)
 	for _, node := range nodes.Items {
-		ginkgo.By("allocatable mem is " + node.Status.Allocatable.Memory().String())
-		ginkgo.By("allocatable cou is " + node.Status.Allocatable.Cpu().String())
 		resList := node.Status.Allocatable.DeepCopy()
 		nodeAvailRes[node.Name] = resList
 
@@ -1025,42 +1015,5 @@ func (k *KubeCtl) GetNodesAvailRes(nodes v1.NodeList) map[string]v1.ResourceList
 		newRes := v1.ResourceList{"memory": mem, "cpu": cpu}
 		nodeAvailRes[node.Name] = newRes
 	}
-	/*
-		// Subtract used from capacity
-		for nodeName, rList := range nodeAvailRes {
-			ginkgo.By("node is " + nodeName)
-			ginkgo.By("avail mem is " + rList.Memory().String())
-			ginkgo.By("avail cpu is " + rList.Cpu().String())
-
-			usage := nodeUsage[nodeName]
-
-			ginkgo.By("usage mem is " + usage.Memory().String())
-			ginkgo.By("usage cpu is " + usage.Cpu().String())
-
-			mem := rList.Memory().DeepCopy()
-			mem.Sub(usage.Memory().DeepCopy())
-			rList.Cpu().Sub(usage.Cpu().DeepCopy())
-
-			//nodeAvailRes[nodeName][rList.Memory()] = mem
-			ginkgo.By("after sub node usage is " + rList.Memory().String())
-			ginkgo.By("after sub node usage is " + rList.Cpu().String())
-	*/
-	/*
-		for res, q := range rList {
-			us := nodeUsage[nodeName][res]
-			ginkgo.By("res  is " + res.String())
-			ginkgo.By("q  is " + q.String())
-			ginkgo.By("node usage is " + us.String())
-			q.Sub(nodeUsage[nodeName][res])
-			ginkgo.By("after sub node usage is " + q.String())
-		}*/
-	//	}
-
-	for nodeName, rList := range nodeAvailRes {
-		ginkgo.By("after node is " + nodeName)
-		ginkgo.By("after avail mem is " + rList.Memory().String())
-		ginkgo.By("after avail cpu is " + rList.Cpu().String())
-	}
-
 	return nodeAvailRes
 }

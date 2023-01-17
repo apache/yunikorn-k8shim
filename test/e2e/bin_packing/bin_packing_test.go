@@ -24,12 +24,10 @@ import (
 	"sort"
 	"time"
 
-	"github.com/onsi/ginkgo"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	tests "github.com/apache/yunikorn-k8shim/test/e2e"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
 )
@@ -62,16 +60,6 @@ var _ = Describe("", func() {
 		sort.Slice(sortedWorkerNodes, func(i, j int) bool {
 			node1, node2 := sortedWorkerNodes[i].Name, sortedWorkerNodes[j].Name
 			q1, q2 := nodesAvailRes[node1][domRes], nodesAvailRes[node2][domRes]
-			By(" node 1 is " + node1)
-			By(" node 2 is " + node2)
-			By("q1  is " + q1.String())
-			By(" q2  is " + q2.String())
-			res1 := nodesAvailRes[node1]
-			By(" node 1 mem is " + res1.Memory().String())
-			By(" node 1 cpu is " + res1.Cpu().String())
-			res2 := nodesAvailRes[node2]
-			By(" node 2 mem is " + res2.Memory().String())
-			By(" node 2 cpu is " + res2.Cpu().String())
 			return q1.Cmp(q2) == -1
 		})
 		var nodeNames []string
@@ -82,22 +70,6 @@ var _ = Describe("", func() {
 
 		Ω(len(sortedWorkerNodes)).To(BeNumerically(">=", 2),
 			"At least 2 nodes required")
-
-		fmt.Fprintf(ginkgo.GinkgoWriter, "Log 444 namespace info from %s\n", ns)
-		cmd := "kubectl describe node " + sortedWorkerNodes[0].Name
-		out, runErr := common.RunShellCmdForeground(cmd)
-		if runErr != nil {
-			By("dump err is  " + runErr.Error())
-		}
-		By("out  is  " + out)
-
-		fmt.Fprintf(ginkgo.GinkgoWriter, "Log 444 namespace info from %s\n", ns)
-		cmd = "kubectl describe node " + sortedWorkerNodes[1].Name
-		out, runErr = common.RunShellCmdForeground(cmd)
-		if runErr != nil {
-			By("dump err is  " + runErr.Error())
-		}
-		By("out  is  " + out)
 
 		// Submit pods to nodeA/nodeB to stabilize node order
 		padPct := []float64{0.2, 0.1}
@@ -146,50 +118,8 @@ var _ = Describe("", func() {
 		var nodeNames1 []string
 		for _, node := range sortedWorkerNodes1 {
 			nodeNames1 = append(nodeNames1, node.Name)
-			By("node is " + node.String())
-			// k8s.ListPods()
 		}
 		By(fmt.Sprintf("Sorted nodes by available memory after padding: %v", nodeNames1))
-
-		By("node 1 is " + sortedWorkerNodes1[0].Name)
-		By("node 2 is " + sortedWorkerNodes1[1].Name)
-
-		// List job pods and verify running on expected node
-		jobPods, lstErr := kClient.ListPodsByFieldSelector(ns, fmt.Sprintf("spec.nodeName=%s", sortedWorkerNodes1[0].Name))
-		Ω(lstErr).NotTo(HaveOccurred())
-		Ω(jobPods).NotTo(BeNil())
-		// Ω(len(jobPods.Items)).Should(Equal(int(3)), "Pods count should be 3")
-		for _, pod := range jobPods.Items {
-
-			By("pod 1 name is " + pod.Name)
-			By("pod 1 is " + pod.Spec.String())
-		}
-
-		// List job pods and verify running on expected node
-		jobPods, lstErr = kClient.ListPodsByFieldSelector(ns, fmt.Sprintf("spec.nodeName=%s", sortedWorkerNodes1[1].Name))
-		Ω(lstErr).NotTo(HaveOccurred())
-		Ω(jobPods).NotTo(BeNil())
-		// Ω(len(jobPods.Items)).Should(Equal(int(3)), "Pods count should be 3")
-		for _, pod := range jobPods.Items {
-			By("pod 2 name is " + pod.Name)
-			By("pod 2 is " + pod.Spec.String())
-		}
-
-		fmt.Fprintf(ginkgo.GinkgoWriter, "Log 2222 namespace info from %s\n", ns)
-		cmd = "kubectl describe node " + sortedWorkerNodes[0].Name
-		out, runErr = common.RunShellCmdForeground(cmd)
-		if runErr != nil {
-			By("dump err is  " + runErr.Error())
-		}
-		By("out  is  " + out)
-
-		fmt.Fprintf(ginkgo.GinkgoWriter, "Log 2222 namespace info from %s\n", ns)
-		cmd = "kubectl describe node " + sortedWorkerNodes[1].Name
-		out, runErr = common.RunShellCmdForeground(cmd)
-		if runErr != nil {
-			By("dump err is  " + runErr.Error())
-		}
-		By("out  is  " + out)
 
 		// JobA Specs
 		jobAPodSpec := k8s.TestPodConfig{
@@ -254,23 +184,6 @@ var _ = Describe("", func() {
 			Ω(lstErr).NotTo(HaveOccurred())
 			Ω(jobPods).NotTo(BeNil())
 			Ω(len(jobPods.Items)).Should(Equal(int(3)), "Pods count should be 3")
-
-			fmt.Fprintf(ginkgo.GinkgoWriter, "Log 1111 namespace info from %s\n", ns)
-			cmd = "kubectl describe node " + sortedWorkerNodes[0].Name
-			out, runErr = common.RunShellCmdForeground(cmd)
-			if runErr != nil {
-				By("dump err is  " + runErr.Error())
-			}
-			By("out  is  " + out)
-
-			fmt.Fprintf(ginkgo.GinkgoWriter, "Log 111 namespace info from %s\n", ns)
-			cmd = "kubectl describe node " + sortedWorkerNodes[1].Name
-			out, runErr = common.RunShellCmdForeground(cmd)
-			if runErr != nil {
-				By("dump err is  " + runErr.Error())
-			}
-			By("out  is  " + out)
-
 			for _, pod := range jobPods.Items {
 				Ω(pod.Spec.NodeName).To(Equal(sortedWorkerNodes[i].Name),
 					"job pods not scheduled to correct node")
@@ -279,13 +192,6 @@ var _ = Describe("", func() {
 	})
 
 	AfterEach(func() {
-		By("Tear down namespace: " + ns)
-
-		testDescription := CurrentGinkgoTestDescription()
-		if testDescription.Failed {
-			// tests.LogTestClusterInfoWrapper(testDescription.TestText, []string{ns})
-			tests.LogYunikornContainer(testDescription.TestText)
-		}
 		By("Tear down namespace: " + ns)
 		err := kClient.DeleteNamespace(ns)
 		Ω(err).NotTo(HaveOccurred())
