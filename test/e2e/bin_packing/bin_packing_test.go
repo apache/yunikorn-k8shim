@@ -62,6 +62,14 @@ var _ = Describe("", func() {
 		sort.Slice(sortedWorkerNodes, func(i, j int) bool {
 			node1, node2 := sortedWorkerNodes[i].Name, sortedWorkerNodes[j].Name
 			q1, q2 := nodesAvailRes[node1][domRes], nodesAvailRes[node2][domRes]
+			By(" node 1 is " + node1)
+			By(" node 2 is " + node2)
+			res1 := nodesAvailRes[node1]
+			By(" node 1 mem is " + res1.Memory().String())
+			By(" node 1 cpu is " + res1.Cpu().String())
+			res2 := nodesAvailRes[node2]
+			By(" node 2 mem is " + res2.Memory().String())
+			By(" node 2 cpu is " + res2.Cpu().String())
 			return q1.Cmp(q2) == -1
 		})
 		var nodeNames []string
