@@ -41,7 +41,7 @@ require (
 	k8s.io/component-base v0.23.14
 	k8s.io/klog v1.0.0
 	k8s.io/kube-scheduler v0.23.14
-	k8s.io/kubectl v0.0.0 // indirect
+	k8s.io/kubectl v0.23.14
 	k8s.io/kubernetes v1.23.14
 )
 
