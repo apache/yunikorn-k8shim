@@ -98,20 +98,6 @@ func (c *RClient) GetQueues(partition string) (*dao.PartitionQueueDAOInfo, error
 	return queues, err
 }
 
-func (c *RClient) GetSpecificQueueInfo(partition string, queueName string) (*dao.PartitionQueueDAOInfo, error) {
-	queues, err := c.GetQueues(partition)
-	if err != nil {
-		return nil, err
-	}
-	var allSubQueues = queues.Children
-	for _, subQ := range allSubQueues {
-		if subQ.QueueName == queueName {
-			return &subQ, nil
-		}
-	}
-	return nil, fmt.Errorf("QueueInfo not found: %s", queueName)
-}
-
 func (c *RClient) GetHealthCheck() (dao.SchedulerHealthDAOInfo, error) {
 	req, err := c.newRequest("GET", configmanager.HealthCheckPath, nil)
 	if err != nil {

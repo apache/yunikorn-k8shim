@@ -48,6 +48,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/portforward"
 	"k8s.io/client-go/transport/spdy"
+	resourcehelper "k8s.io/kubectl/pkg/util/resource"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
 
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
@@ -142,6 +143,10 @@ func (k *KubeCtl) GetKubeConfig() (*rest.Config, error) {
 
 func (k *KubeCtl) GetPods(namespace string) (*v1.PodList, error) {
 	return k.clientSet.CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{})
+}
+
+func (k *KubeCtl) GetPodsByOptions(options metav1.ListOptions) (*v1.PodList, error) {
+	return k.clientSet.CoreV1().Pods("").List(context.TODO(), options)
 }
 
 func (k *KubeCtl) GetJobs(namespace string) (*batchv1.JobList, error) {
@@ -647,6 +652,17 @@ func (k *KubeCtl) ListPods(namespace string, selector string) (*v1.PodList, erro
 	return podList, nil
 }
 
+// Returns the list of currently scheduled or running pods in `namespace` with the given selector
+func (k *KubeCtl) ListPodsByFieldSelector(namespace string, selector string) (*v1.PodList, error) {
+	listOptions := metav1.ListOptions{FieldSelector: selector}
+	podList, err := k.clientSet.CoreV1().Pods(namespace).List(context.TODO(), listOptions)
+
+	if err != nil {
+		return nil, err
+	}
+	return podList, nil
+}
+
 // Wait up to timeout seconds for all pods in 'namespace' with given 'selector' to enter running state.
 // Returns an error if no pods are found or not all discovered pods enter running state.
 func (k *KubeCtl) WaitForPodBySelectorRunning(namespace string, selector string, timeout int) error {
@@ -948,4 +964,56 @@ func GetWorkerNodes(nodes v1.NodeList) []v1.Node {
 		}
 	}
 	return workerNodes
+}
+
+// Sums up current resource usage in a list of pods. Non-running pods are filtered out.
+func GetPodsTotalRequests(podList *v1.PodList) (reqs v1.ResourceList) {
+	reqs = make(v1.ResourceList)
+	for i := range podList.Items {
+		pod := podList.Items[i]
+		podReqs := v1.ResourceList{}
+		if pod.Status.Phase == v1.PodRunning {
+			podReqs, _ = resourcehelper.PodRequestsAndLimits(&pod)
+		}
+		for podReqName, podReqValue := range podReqs {
+			if value, ok := reqs[podReqName]; !ok {
+				reqs[podReqName] = podReqValue.DeepCopy()
+			} else {
+				value.Add(podReqValue)
+				reqs[podReqName] = value
+			}
+		}
+	}
+	return
+}
+
+// GetNodesAvailRes Returns map of nodeName to list of available resource (memory and cpu only) amounts.
+func (k *KubeCtl) GetNodesAvailRes(nodes v1.NodeList) map[string]v1.ResourceList {
+	// Find used resources per node
+	nodeUsage := make(map[string]v1.ResourceList)
+	for _, node := range nodes.Items {
+		nodePods, err := k.GetPodsByOptions(metav1.ListOptions{
+			FieldSelector: fmt.Sprintf("spec.nodeName=%s", node.Name),
+		})
+		if err != nil {
+			panic(err)
+		}
+		nodeUsage[node.Name] = GetPodsTotalRequests(nodePods)
+	}
+
+	// Initialize available resources as capacity and subtract used resources
+	nodeAvailRes := make(map[string]v1.ResourceList)
+	for _, node := range nodes.Items {
+		resList := node.Status.Allocatable.DeepCopy()
+		nodeAvailRes[node.Name] = resList
+
+		usage := nodeUsage[node.Name]
+		mem := resList.Memory().DeepCopy()
+		mem.Sub(usage.Memory().DeepCopy())
+		cpu := resList.Cpu().DeepCopy()
+		cpu.Sub(usage.Cpu().DeepCopy())
+		newRes := v1.ResourceList{"memory": mem, "cpu": cpu}
+		nodeAvailRes[node.Name] = newRes
+	}
+	return nodeAvailRes
 }
