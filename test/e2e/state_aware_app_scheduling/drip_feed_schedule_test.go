@@ -22,9 +22,12 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/onsi/ginkgo"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 
+	"github.com/apache/yunikorn-core/pkg/webservice/dao"
+	tests "github.com/apache/yunikorn-k8shim/test/e2e"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
@@ -67,7 +70,7 @@ var _ = Describe("DripFeedSchedule:", func() {
 		}
 
 		By(fmt.Sprintf("Get apps from specific queue: %s", ns))
-		var appsFromQueue []map[string]interface{}
+		var appsFromQueue []*dao.ApplicationDAOInfo
 		// Poll for apps to appear in the queue
 		err = wait.PollImmediate(time.Second, time.Duration(60)*time.Second, func() (done bool, err error) {
 			appsFromQueue, err = restClient.GetApps("default", "root."+ns)
@@ -141,6 +144,11 @@ var _ = Describe("DripFeedSchedule:", func() {
 		Ω(err).NotTo(HaveOccurred())
 		Ω(checks).To(Equal(""), checks)
 
+		testDescription := ginkgo.CurrentGinkgoTestDescription()
+		if testDescription.Failed {
+			tests.LogTestClusterInfoWrapper(testDescription.TestText, []string{ns})
+			tests.LogYunikornContainer(testDescription.TestText)
+		}
 		By("Tearing down namespace: " + ns)
 		err = kClient.TearDownNamespace(ns)
 		Ω(err).NotTo(HaveOccurred())

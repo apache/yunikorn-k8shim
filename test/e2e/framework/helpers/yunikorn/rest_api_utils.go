@@ -26,8 +26,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
-	"path/filepath"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
@@ -123,12 +121,12 @@ func (c *RClient) GetAllAppInfos() (*dao.ApplicationsDAOInfo, error) {
 	return appsInfos, nil
 }
 
-func (c *RClient) GetApps(partition string, queueName string) ([]map[string]interface{}, error) {
+func (c *RClient) GetApps(partition string, queueName string) ([]*dao.ApplicationDAOInfo, error) {
 	req, err := c.newRequest("GET", fmt.Sprintf(configmanager.AppsPath, partition, queueName), nil)
 	if err != nil {
 		return nil, err
 	}
-	var apps []map[string]interface{}
+	var apps []*dao.ApplicationDAOInfo
 	_, err = c.do(req, &apps)
 	return apps, err
 }
@@ -322,9 +320,8 @@ func AllocLogToStrings(log []dao.AllocationAskLogDAOInfo) []string {
 	return result
 }
 
-func (c *RClient) LogAppsInfo(outputDir string) error {
-	var err error
-	appsInfo, getAppErr := c.GetAllAppInfos()
+func (c *RClient) LogAppsInfo(ns string) error {
+	appsInfo, getAppErr := c.GetApps(DefaultPartition, "root."+ns)
 	if getAppErr != nil {
 		return getAppErr
 	}
@@ -332,22 +329,12 @@ func (c *RClient) LogAppsInfo(outputDir string) error {
 	if appJSONErr != nil {
 		return appJSONErr
 	}
-	appFileName := filepath.Join(outputDir, "yk_apps.json")
-	appFile, appFileErr := os.Create(appFileName)
-	defer func() { err = appFile.Close() }()
-	if appFileErr != nil {
-		return appFileErr
-	}
-	_, writeErr := appFile.Write(appJSON)
-	if writeErr != nil {
-		return writeErr
-	}
-	return err
+	By("Apps REST API response is\n" + string(appJSON))
+	return nil
 }
 
-func (c *RClient) LogQueuesInfo(outputDir string) error {
-	var err error
-	qInfo, getQErr := c.GetPartitions("default")
+func (c *RClient) LogQueuesInfo() error {
+	qInfo, getQErr := c.GetPartitions(DefaultPartition)
 	if getQErr != nil {
 		return getQErr
 	}
@@ -355,21 +342,11 @@ func (c *RClient) LogQueuesInfo(outputDir string) error {
 	if qJSONErr != nil {
 		return getQErr
 	}
-	qFileName := filepath.Join(outputDir, "yk_queues.json")
-	qFile, qFileErr := os.Create(qFileName)
-	defer func() { err = qFile.Close() }()
-	if qFileErr != nil {
-		return qFileErr
-	}
-	_, writeErr := qFile.Write(qJSON)
-	if writeErr != nil {
-		return writeErr
-	}
-	return err
+	By("Queues REST API response is\n" + string(qJSON))
+	return nil
 }
 
-func (c *RClient) LogNodesInfo(outputDir string) error {
-	var err error
+func (c *RClient) LogNodesInfo() error {
 	nodesInfo, getNodeErr := c.GetNodes(DefaultPartition)
 	if getNodeErr != nil {
 		return getNodeErr
@@ -378,18 +355,8 @@ func (c *RClient) LogNodesInfo(outputDir string) error {
 	if nodeJSONErr != nil {
 		return nodeJSONErr
 	}
-	nodeFileName := filepath.Join(outputDir, "yk_nodes.json")
-	nodeFile, nodeFileErr := os.Create(nodeFileName)
-	defer func() { err = nodeFile.Close() }()
-	if nodeFileErr != nil {
-		return nodeFileErr
-	}
-	_, writeErr := nodeFile.Write(nodesJSON)
-	if writeErr != nil {
-		return writeErr
-	}
-
-	return err
+	By("Node REST API response is\n" + string(nodesJSON))
+	return nil
 }
 
 func (c *RClient) GetPartitions(partition string) (*dao.PartitionQueueDAOInfo, error) {
