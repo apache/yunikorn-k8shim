@@ -20,7 +20,6 @@ package bin_packing
 
 import (
 	"fmt"
-
 	"sort"
 	"time"
 
@@ -28,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	tests "github.com/apache/yunikorn-k8shim/test/e2e"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
 )
@@ -192,6 +192,11 @@ var _ = Describe("", func() {
 	})
 
 	AfterEach(func() {
+		testDescription := CurrentGinkgoTestDescription()
+		if testDescription.Failed {
+			tests.LogTestClusterInfoWrapper(testDescription.TestText, []string{ns})
+			tests.LogYunikornContainer(testDescription.TestText)
+		}
 		By("Tear down namespace: " + ns)
 		err := kClient.DeleteNamespace(ns)
 		Ω(err).NotTo(HaveOccurred())

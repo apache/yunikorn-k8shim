@@ -30,6 +30,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
+	tests "github.com/apache/yunikorn-k8shim/test/e2e"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
@@ -228,6 +229,11 @@ var _ = ginkgo.Describe("SimplePreemptor", func() {
 		Ω(err).NotTo(gomega.HaveOccurred())
 		Ω(checks).To(gomega.Equal(""), checks)
 
+		testDescription := ginkgo.CurrentGinkgoTestDescription()
+		if testDescription.Failed {
+			tests.LogTestClusterInfoWrapper(testDescription.TestText, []string{ns.Name})
+			tests.LogYunikornContainer(testDescription.TestText)
+		}
 		ginkgo.By("Tearing down namespace: " + ns.Name)
 		err = kClient.TearDownNamespace(ns.Name)
 		Ω(err).NotTo(gomega.HaveOccurred())

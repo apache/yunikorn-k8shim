@@ -32,6 +32,7 @@ import (
 	"k8s.io/kubernetes/test/e2e/framework"
 	e2enode "k8s.io/kubernetes/test/e2e/framework/node"
 
+	tests "github.com/apache/yunikorn-k8shim/test/e2e"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
@@ -111,10 +112,18 @@ var _ = Describe("Predicates", func() {
 
 	AfterEach(func() {
 		By("Cleanup")
+		testDescription := ginkgo.CurrentGinkgoTestDescription()
 		for _, n := range []string{ns, anotherNS} {
+			testDescription = ginkgo.CurrentGinkgoTestDescription()
+			if testDescription.Failed {
+				tests.LogTestClusterInfoWrapper(testDescription.TestText, []string{n})
+			}
 			ginkgo.By("Tear down namespace: " + n)
 			err = kClient.TearDownNamespace(n)
 			Ω(err).NotTo(HaveOccurred())
+		}
+		if testDescription.Failed {
+			tests.LogYunikornContainer(testDescription.TestText)
 		}
 	})
 

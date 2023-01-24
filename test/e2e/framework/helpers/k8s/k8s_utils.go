@@ -381,13 +381,14 @@ func GetConfigMapObj(yamlPath string) (*v1.ConfigMap, error) {
 	return c.(*v1.ConfigMap), err
 }
 
-func LogNamespaceInfo(ns string, outputDir string) error {
+func LogNamespaceInfo(ns string) error {
 	fmt.Fprintf(ginkgo.GinkgoWriter, "Log namespace info from %s\n", ns)
-	cmd := fmt.Sprintf("kubectl cluster-info dump --output-directory=%s --namespaces=%s", outputDir, ns)
-	_, runErr := common.RunShellCmdForeground(cmd)
+	cmd := fmt.Sprintf("kubectl cluster-info dump --namespaces=%s", ns)
+	out, runErr := common.RunShellCmdForeground(cmd)
 	if runErr != nil {
 		return runErr
 	}
+	ginkgo.By("Cluster dump output:\n" + out)
 	return nil
 }
 
@@ -1016,4 +1017,15 @@ func (k *KubeCtl) GetNodesAvailRes(nodes v1.NodeList) map[string]v1.ResourceList
 		nodeAvailRes[node.Name] = newRes
 	}
 	return nodeAvailRes
+}
+
+// DescribeNode Describe Node
+func (k *KubeCtl) DescribeNode(node v1.Node) error {
+	cmd := "kubectl describe node " + node.Name
+	out, runErr := common.RunShellCmdForeground(cmd)
+	if runErr != nil {
+		return runErr
+	}
+	ginkgo.By("describe output for node is:\n" + out)
+	return nil
 }

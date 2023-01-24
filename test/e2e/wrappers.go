@@ -20,9 +20,7 @@ package e2e
 
 import (
 	"fmt"
-	"io/ioutil"
-	"os"
-	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/onsi/ginkgo"
@@ -95,33 +93,38 @@ func RestoreConfigMapWrapper(oldConfigMap *v1.ConfigMap, annotation string) {
 }
 
 func LogTestClusterInfoWrapper(testName string, namespaces []string) {
+	fmt.Fprintf(ginkgo.GinkgoWriter, "%s Log test cluster info\n", testName)
 	var restClient yunikorn.RClient
-	outputDir := filepath.Join(configmanager.YuniKornTestConfig.LogDir, testName)
-	dirErr := os.Mkdir(outputDir, 0777)
-	Ω(dirErr).NotTo(HaveOccurred())
+	Ω(k.SetClient()).To(BeNil())
 	for _, ns := range namespaces {
-		logErr := k8s.LogNamespaceInfo(ns, outputDir)
+		logErr := k8s.LogNamespaceInfo(ns)
+		Ω(logErr).NotTo(HaveOccurred())
+
+		logErr = restClient.LogAppsInfo(ns)
 		Ω(logErr).NotTo(HaveOccurred())
 	}
-	logErr := restClient.LogAppsInfo(outputDir)
+	logErr := restClient.LogQueuesInfo()
 	Ω(logErr).NotTo(HaveOccurred())
-	logErr = restClient.LogQueuesInfo(outputDir)
+	logErr = restClient.LogNodesInfo()
 	Ω(logErr).NotTo(HaveOccurred())
-	logErr = restClient.LogNodesInfo(outputDir)
-	Ω(logErr).NotTo(HaveOccurred())
+	nodes, err := k.GetNodes()
+	Ω(err).NotTo(HaveOccurred())
+	By("Node count is " + strconv.Itoa(len(nodes.Items)))
+	for _, node := range nodes.Items {
+		By("Running describe node command for " + node.Name + "..")
+		err = k.DescribeNode(node)
+		Ω(err).NotTo(HaveOccurred())
+	}
 }
 
-// Writes Yunikorn container log "yk.log" to test log directory
 func LogYunikornContainer(testName string) {
 	fmt.Fprintf(ginkgo.GinkgoWriter, "%s Log yk logs info from\n", testName)
 	Ω(k.SetClient()).To(BeNil())
 	ykSchedName, schedErr := yunikorn.GetSchedulerPodName(k)
-	Ω(schedErr).NotTo(HaveOccurred(), "Get sched failed")
+	Ω(schedErr).NotTo(HaveOccurred(), "Failed to get the scheduler pod name")
 	logBytes, getErr := k.GetPodLogs(ykSchedName, configmanager.YuniKornTestConfig.YkNamespace, configmanager.YKSchedulerContainer)
-	Ω(getErr).NotTo(HaveOccurred(), "Get logs failed")
-	ykLogFilePath := filepath.Join(configmanager.YuniKornTestConfig.LogDir, testName, "yk.log")
-	writeErr := ioutil.WriteFile(ykLogFilePath, logBytes, 0644) //nolint:gosec // Log file readable by all
-	Ω(writeErr).NotTo(HaveOccurred(), "File write failed")
+	Ω(getErr).NotTo(HaveOccurred(), "Failed to get the logs")
+	By("Yunikorn Logs:\n" + string(logBytes))
 }
 
 var Describe = ginkgo.Describe
