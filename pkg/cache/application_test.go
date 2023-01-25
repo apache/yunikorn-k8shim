@@ -535,7 +535,7 @@ func TestGetNonTerminatedTaskAlias(t *testing.T) {
 	context := initContextForTest()
 	appID := "app00001"
 	app := NewApplication(appID, "root.a", "testuser", testGroups, map[string]string{}, newMockSchedulerAPI())
-	context.applications[appID] = app
+	context.addApplication(app)
 	// app doesn't have any task
 	res := app.getNonTerminatedTaskAlias()
 	assert.Equal(t, len(res), 0)
@@ -719,7 +719,7 @@ func TestTryReserve(t *testing.T) {
 	// create a new app
 	app := NewApplication("app00001", "root.abc", "test-user",
 		testGroups, map[string]string{}, mockedAPIProvider.GetAPIs().SchedulerAPI)
-	context.applications[app.applicationID] = app
+	context.addApplication(app)
 
 	// set app scheduling policy
 	app.setSchedulingPolicy(v1alpha1.SchedulingPolicy{
@@ -794,7 +794,7 @@ func TestTryReservePostRestart(t *testing.T) {
 	// create a new app
 	app := NewApplication("app00001", "root.abc", "test-user",
 		testGroups, map[string]string{}, mockedAPIProvider.GetAPIs().SchedulerAPI)
-	context.applications[app.applicationID] = app
+	context.addApplication(app)
 
 	// set taskGroups
 	app.setTaskGroups([]v1alpha1.TaskGroup{
@@ -1083,7 +1083,7 @@ func TestResumingStateTransitions(t *testing.T) {
 	app.addTask(task2)
 	UUID := "testUUID001"
 	task1.allocationUUID = UUID
-	context.applications[app.applicationID] = app
+	context.addApplication(app)
 
 	// Set app state to "reserving"
 	app.SetState(ApplicationStates().Reserving)
@@ -1205,7 +1205,7 @@ func TestPlaceholderTimeoutEvents(t *testing.T) {
 	appID := "app00001"
 	UUID := "UID-POD-00002"
 
-	context.applications[appID] = app
+	context.addApplication(app)
 	task1 := context.AddTask(&interfaces.AddTaskRequest{
 		Metadata: interfaces.TaskMetadata{
 			ApplicationID: "app00001",
@@ -1264,7 +1264,7 @@ func TestApplication_onReservationStateChange(t *testing.T) {
 	defer dispatcher.Stop()
 
 	app := NewApplication(appID, "root.a", "testuser", testGroups, map[string]string{}, newMockSchedulerAPI())
-	context.applications[app.applicationID] = app
+	context.addApplication(app)
 
 	app.sm.SetState("Accepted")
 	app.onReservationStateChange()
@@ -1330,4 +1330,10 @@ func TestApplication_onReservationStateChange(t *testing.T) {
 	task3.setTaskGroupName("test-group-2")
 	app.onReservationStateChange()
 	assertAppState(t, app, ApplicationStates().Running, 1*time.Second)
+}
+
+func (ctx *Context) addApplication(app *Application) {
+	ctx.lock.Lock()
+	defer ctx.lock.Unlock()
+	ctx.applications[app.applicationID] = app
 }
