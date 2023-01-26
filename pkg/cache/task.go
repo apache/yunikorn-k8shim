@@ -443,7 +443,7 @@ func (task *Task) postTaskBound() {
 		if _, err := task.UpdateTaskPod(podCopy, func(pod *v1.Pod) {
 			pod.Status = v1.PodStatus{
 				Phase:   podCopy.Status.Phase,
-				Reason:  "QuotaApproved",
+				Reason:  "Pending",
 				Message: "pod fits into the queue quota and it is ready for scheduling",
 			}
 
