@@ -107,9 +107,13 @@ github.com/antihax/optional v1.0.0/go.mod h1:uupD/76wgC+ih3iEmQUL+0Ugr19nfwCT1kd
 github.com/antlr/antlr4/runtime/Go/antlr v0.0.0-20210826220005-b48c857c3a0e/go.mod h1:F7bn7fEU90QkQ3tnmaTx3LTKLEDqnwWODIYppRQ5hnY=
 github.com/apache/yunikorn-core v0.0.0-20221221010031-0b47b404ec43 h1:2hFNiSq+NzPi79t1wkJjs39gGue5E5YQn69waZ7EHBw=
 github.com/apache/yunikorn-core v0.0.0-20221221010031-0b47b404ec43/go.mod h1:W3OGXmIdsyw9CIERlsS0O92QMIazYFwSsQu3jx/8H50=
+github.com/apache/yunikorn-core v1.2.0-1 h1:ZrbT/jpLXcwVbuh7OoABzPDToK/uVo07ubkOMGz+RqA=
+github.com/apache/yunikorn-core v1.2.0-1/go.mod h1:PorUj6K3NP+pkzPmhIrr2v1JfIch78leJ427SXiOjHI=
 github.com/apache/yunikorn-scheduler-interface v0.0.0-20221130170804-42d2286739d8/go.mod h1:VpJqm5k7wjPvoEdgAVHRU2rlbs3LLGJaz2d9F39hmGs=
 github.com/apache/yunikorn-scheduler-interface v0.0.0-20221208173644-fa28d9977622 h1:NhBeXEZhSsLjGJscUTxirn7Uqj/MsavbqZq5VNyhfCw=
 github.com/apache/yunikorn-scheduler-interface v0.0.0-20221208173644-fa28d9977622/go.mod h1:OXLihFkfsdhzy5Z0Mi5v8yVDmY8mF5TQDcsJv1fvjvQ=
+github.com/apache/yunikorn-scheduler-interface v1.2.0-1 h1:4guwFXeHSaak5djDHstLbDe3IlLqXhRC4/HtVCJXs1g=
+github.com/apache/yunikorn-scheduler-interface v1.2.0-1/go.mod h1:OXLihFkfsdhzy5Z0Mi5v8yVDmY8mF5TQDcsJv1fvjvQ=
 github.com/armon/circbuf v0.0.0-20150827004946-bbbad097214e/go.mod h1:3U/XgcO3hCbHZ8TKRvWD2dDTCfh9M9ya+I9JpbB7O8o=
 github.com/armon/consul-api v0.0.0-20180202201655-eb2c6b5be1b6/go.mod h1:grANhF5doyWs3UAsr3K4I6qtAmlQcZDesFNEHPZAzj8=
 github.com/armon/go-metrics v0.0.0-20180917152333-f0300d1749da/go.mod h1:Q73ZrmVTwzkszR9V5SSuryQ31EELlFMUz1kKyl939pY=
