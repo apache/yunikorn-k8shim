@@ -29,6 +29,7 @@ import (
 
 	"github.com/apache/yunikorn-core/pkg/common/configs"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
+	tests "github.com/apache/yunikorn-k8shim/test/e2e"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
@@ -134,6 +135,11 @@ var _ = ginkgo.Describe("Static_Queue_Priority", func() {
 	})
 
 	ginkgo.AfterEach(func() {
+		testDescription := ginkgo.CurrentGinkgoTestDescription()
+		if testDescription.Failed {
+			tests.LogTestClusterInfoWrapper(testDescription.TestText, []string{ns})
+			tests.LogYunikornContainer(testDescription.TestText)
+		}
 		By(fmt.Sprintf("Removing test namespace %s", ns))
 		err = kubeClient.DeleteNamespace(ns)
 		Ω(err).ShouldNot(HaveOccurred())

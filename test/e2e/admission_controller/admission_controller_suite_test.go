@@ -41,7 +41,7 @@ func init() {
 
 var kubeClient k8s.KubeCtl
 var ns = "admission-controller-test"
-var blackNs = "kube-system"
+var bypassNs = "kube-system"
 var restClient yunikorn.RClient
 var oldConfigMap *v1.ConfigMap
 var replicas = int32(1)

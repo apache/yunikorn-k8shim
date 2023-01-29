@@ -23,13 +23,15 @@ import (
 	"math"
 	"time"
 
+	"github.com/onsi/ginkgo"
+	v1 "k8s.io/api/core/v1"
+
 	"github.com/apache/yunikorn-core/pkg/webservice/dao"
+	tests "github.com/apache/yunikorn-k8shim/test/e2e"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
 	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
-
-	v1 "k8s.io/api/core/v1"
 )
 
 var _ = Describe("", func() {
@@ -135,7 +137,7 @@ var _ = Describe("", func() {
 			Ω(kClient.WaitForPodRunning(sleepRespPod.Namespace, sleepRespPod.Name, time.Duration(60)*time.Second)).NotTo(HaveOccurred())
 
 			// Verify that the resources requested by above sleep pod is accounted for in the queues response
-			queueInfo, err = restClient.GetSpecificQueueInfo("default", "root."+ns)
+			queueInfo, err = restClient.GetQueue("default", "root."+ns)
 			Ω(err).NotTo(HaveOccurred())
 			Ω(queueInfo).NotTo(BeNil())
 			Ω(queueInfo.QueueName).Should(Equal("root." + ns))
@@ -250,6 +252,11 @@ var _ = Describe("", func() {
 		Ω(err).NotTo(HaveOccurred())
 		Ω(checks).To(Equal(""), checks)
 
+		testDescription := ginkgo.CurrentGinkgoTestDescription()
+		if testDescription.Failed {
+			tests.LogTestClusterInfoWrapper(testDescription.TestText, []string{ns})
+			tests.LogYunikornContainer(testDescription.TestText)
+		}
 		By("Tearing down namespace: " + ns)
 		err = kClient.TearDownNamespace(ns)
 		Ω(err).NotTo(HaveOccurred())

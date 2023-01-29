@@ -48,6 +48,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/portforward"
 	"k8s.io/client-go/transport/spdy"
+	resourcehelper "k8s.io/kubectl/pkg/util/resource"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
 
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
@@ -142,6 +143,10 @@ func (k *KubeCtl) GetKubeConfig() (*rest.Config, error) {
 
 func (k *KubeCtl) GetPods(namespace string) (*v1.PodList, error) {
 	return k.clientSet.CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{})
+}
+
+func (k *KubeCtl) GetPodsByOptions(options metav1.ListOptions) (*v1.PodList, error) {
+	return k.clientSet.CoreV1().Pods("").List(context.TODO(), options)
 }
 
 func (k *KubeCtl) GetJobs(namespace string) (*batchv1.JobList, error) {
@@ -376,13 +381,14 @@ func GetConfigMapObj(yamlPath string) (*v1.ConfigMap, error) {
 	return c.(*v1.ConfigMap), err
 }
 
-func LogNamespaceInfo(ns string, outputDir string) error {
+func LogNamespaceInfo(ns string) error {
 	fmt.Fprintf(ginkgo.GinkgoWriter, "Log namespace info from %s\n", ns)
-	cmd := fmt.Sprintf("kubectl cluster-info dump --output-directory=%s --namespaces=%s", outputDir, ns)
-	_, runErr := common.RunShellCmdForeground(cmd)
+	cmd := fmt.Sprintf("kubectl cluster-info dump --namespaces=%s", ns)
+	out, runErr := common.RunShellCmdForeground(cmd)
 	if runErr != nil {
 		return runErr
 	}
+	ginkgo.By("Cluster dump output:\n" + out)
 	return nil
 }
 
@@ -514,7 +520,6 @@ func (k *KubeCtl) isPodInDesiredState(podName string, namespace string, state v1
 		if err != nil {
 			return false, err
 		}
-
 		switch pod.Status.Phase {
 		case state:
 			return true, nil
@@ -640,6 +645,17 @@ func (k *KubeCtl) WaitForPodCount(namespace string, wanted int, timeout time.Dur
 // Returns the list of currently scheduled or running pods in `namespace` with the given selector
 func (k *KubeCtl) ListPods(namespace string, selector string) (*v1.PodList, error) {
 	listOptions := metav1.ListOptions{LabelSelector: selector}
+	podList, err := k.clientSet.CoreV1().Pods(namespace).List(context.TODO(), listOptions)
+
+	if err != nil {
+		return nil, err
+	}
+	return podList, nil
+}
+
+// Returns the list of currently scheduled or running pods in `namespace` with the given selector
+func (k *KubeCtl) ListPodsByFieldSelector(namespace string, selector string) (*v1.PodList, error) {
+	listOptions := metav1.ListOptions{FieldSelector: selector}
 	podList, err := k.clientSet.CoreV1().Pods(namespace).List(context.TODO(), listOptions)
 
 	if err != nil {
@@ -932,4 +948,84 @@ func ApplyYamlWithKubectl(path, namespace string) error {
 
 func (k *KubeCtl) GetNodes() (*v1.NodeList, error) {
 	return k.clientSet.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
+}
+
+func GetWorkerNodes(nodes v1.NodeList) []v1.Node {
+	var workerNodes []v1.Node
+	for _, node := range nodes.Items {
+		scheduleable := true
+		for _, t := range node.Spec.Taints {
+			if t.Effect == v1.TaintEffectNoSchedule {
+				scheduleable = false
+				break
+			}
+		}
+		if scheduleable {
+			workerNodes = append(workerNodes, node)
+		}
+	}
+	return workerNodes
+}
+
+// Sums up current resource usage in a list of pods. Non-running pods are filtered out.
+func GetPodsTotalRequests(podList *v1.PodList) (reqs v1.ResourceList) {
+	reqs = make(v1.ResourceList)
+	for i := range podList.Items {
+		pod := podList.Items[i]
+		podReqs := v1.ResourceList{}
+		if pod.Status.Phase == v1.PodRunning {
+			podReqs, _ = resourcehelper.PodRequestsAndLimits(&pod)
+		}
+		for podReqName, podReqValue := range podReqs {
+			if value, ok := reqs[podReqName]; !ok {
+				reqs[podReqName] = podReqValue.DeepCopy()
+			} else {
+				value.Add(podReqValue)
+				reqs[podReqName] = value
+			}
+		}
+	}
+	return
+}
+
+// GetNodesAvailRes Returns map of nodeName to list of available resource (memory and cpu only) amounts.
+func (k *KubeCtl) GetNodesAvailRes(nodes v1.NodeList) map[string]v1.ResourceList {
+	// Find used resources per node
+	nodeUsage := make(map[string]v1.ResourceList)
+	for _, node := range nodes.Items {
+		nodePods, err := k.GetPodsByOptions(metav1.ListOptions{
+			FieldSelector: fmt.Sprintf("spec.nodeName=%s", node.Name),
+		})
+		if err != nil {
+			panic(err)
+		}
+		nodeUsage[node.Name] = GetPodsTotalRequests(nodePods)
+	}
+
+	// Initialize available resources as capacity and subtract used resources
+	nodeAvailRes := make(map[string]v1.ResourceList)
+	for _, node := range nodes.Items {
+		resList := node.Status.Allocatable.DeepCopy()
+		nodeAvailRes[node.Name] = resList
+
+		usage := nodeUsage[node.Name]
+		mem := resList.Memory().DeepCopy()
+		mem.Sub(usage.Memory().DeepCopy())
+		cpu := resList.Cpu().DeepCopy()
+		cpu.Sub(usage.Cpu().DeepCopy())
+		newRes := v1.ResourceList{"memory": mem, "cpu": cpu}
+		nodeAvailRes[node.Name] = newRes
+	}
+	return nodeAvailRes
+}
+
+// DescribeNode Describe Node
+func (k *KubeCtl) DescribeNode(node v1.Node) error {
+	cmd := "kubectl describe node " + node.Name
+	out, runErr := common.RunShellCmdForeground(cmd)
+	if runErr != nil {
+		return runErr
+	}
+	ginkgo.By("describe output for node is:\n" + out)
+	return nil
 }
