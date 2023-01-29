@@ -27,13 +27,25 @@ The sleep pod is described in the example file and the partition is provided in 
 * [Tag Rule](./tag)
 
 ## How to adopt the queues in `config.yaml`
-Before deploying the pods, threre are some modifications required in `yunikorn-release/helm-charts/yunikorn/values.yaml`.
-1. Replace the configuration field by the configuration in the `config.yaml`.
-2. Add `queues.yaml: ""` in `yunikornDefaults` field.
+Before deploying the pods, make sure that the data in the `yunikorn-configs` configmap is correct.
+For example, `queue.yaml` in the `yunikorn-configs` configmap should be updated before starting fixed example.
+`yunikorn-configs` configmap should contains following information.
+---
+**_NOTE:_** 
+`queue.yaml` should be __full__ queue config and then legal configuration would be updated to Yunikorn.
+---
 ```
-yunikornDefaults: {
-  queues.yaml: ""
-}
+yunikornDefaults:
+  queues.yaml: |
+      partitions:
+        - name: default
+          placementrules:
+            - name: tag
+              value: namespace
+              create: true
+          queues:
+            - name: root
+              submitacl: '*'`
 ```
 
 ## Provided rule
