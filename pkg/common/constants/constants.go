@@ -27,6 +27,7 @@ const DefaultNodeAttributeHostNameKey = "si.io/hostname"
 const DefaultNodeAttributeRackNameKey = "si.io/rackname"
 const DefaultNodeAttributeNodeLabelsKey = "si.io/nodelabels"
 const DefaultRackName = "/rack-default"
+const DefaultNodeInstanceTypeNodeLabelKey = "node.kubernetes.io/instance-type"
 
 // Application
 const LabelApp = "app"
