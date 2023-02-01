@@ -36,7 +36,7 @@ import (
 type SchedulerNode struct {
 	name         string
 	uid          string
-	labels       string
+	labels       map[string]string
 	schedulable  bool
 	schedulerAPI api.SchedulerAPI
 	fsm          *fsm.FSM
@@ -50,7 +50,7 @@ type SchedulerNode struct {
 	lock *sync.RWMutex
 }
 
-func newSchedulerNode(nodeName string, nodeUID string, nodeLabels string,
+func newSchedulerNode(nodeName string, nodeUID string, nodeLabels map[string]string,
 	nodeResource *si.Resource, schedulerAPI api.SchedulerAPI, schedulable bool, ready bool) *SchedulerNode {
 	schedulerNode := &SchedulerNode{
 		name:         nodeName,

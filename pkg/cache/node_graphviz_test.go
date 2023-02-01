@@ -39,7 +39,7 @@ func TestNodeFsmGraph(t *testing.T) {
 		AddResource(siCommon.Memory, 1).
 		AddResource(siCommon.CPU, 1).
 		Build()
-	node := newSchedulerNode("host001", "UID001", "{}", r1, api, false)
+	node := newSchedulerNode("host001", "UID001", map[string]string{}, r1, api, false)
 	graph := fsm.Visualize(node.fsm)
 
 	err := os.MkdirAll("../../_output/fsm", 0755)

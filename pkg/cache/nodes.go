@@ -19,7 +19,6 @@
 package cache
 
 import (
-	"encoding/json"
 	"fmt"
 	"sync"
 
@@ -101,20 +100,13 @@ func (nc *schedulerNodes) addAndReportNode(node *v1.Node, reportNode bool) {
 
 	// add node to nodes map
 	if _, ok := nc.nodesMap[node.Name]; !ok {
-		var nodeLabels []byte
-		nodeLabels, err := json.Marshal(node.Labels) // A nil pointer encodes as the "null" JSON value.
-		if err != nil {
-			log.Logger().Error("failed to marshall node labels to json", zap.Error(err))
-			nodeLabels = make([]byte, 0)
-		}
-
 		log.Logger().Info("adding node to context",
 			zap.String("nodeName", node.Name),
-			zap.String("nodeLabels", string(nodeLabels)),
+			zap.String("nodeLabels", fmt.Sprintf("%v", node.Labels)),
 			zap.Bool("schedulable", !node.Spec.Unschedulable))
 
 		ready := hasReadyCondition(node)
-		newNode := newSchedulerNode(node.Name, string(node.UID), string(nodeLabels),
+		newNode := newSchedulerNode(node.Name, string(node.UID), node.Labels,
 			common.GetNodeResource(&node.Status), nc.proxy, !node.Spec.Unschedulable, ready)
 		nc.nodesMap[node.Name] = newNode
 	}
