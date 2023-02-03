@@ -79,6 +79,21 @@ func GetPodResource(pod *v1.Pod) (resource *si.Resource) {
 		checkInitContainerRequest(pod, podResource)
 	}
 
+	// K8s pod EnableOverHead from:
+	// alpha: v1.16
+	// beta: v1.18
+	// Enables PodOverhead, for accounting pod overheads which are specific to a given RuntimeClass
+
+	// If Overhead is being utilized, add to the total requests for the pod
+	if pod.Spec.Overhead != nil {
+		podOverHeadResource := getResource(pod.Spec.Overhead)
+		podResource = Add(podResource, podOverHeadResource)
+		// Logging the overall pod size and pod overhead
+		log.Logger().Debug("We have calculated the overall pod size which includes the pod overhead",
+			zap.String("Pod overall size", podResource.String()),
+			zap.String("Pod overhead size", podOverHeadResource.String()))
+	}
+
 	return podResource
 }
 

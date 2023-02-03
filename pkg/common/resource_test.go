@@ -191,6 +191,19 @@ func TestParsePodResource(t *testing.T) {
 	assert.Equal(t, res.Resources[siCommon.CPU].GetValue(), int64(3000))
 	assert.Equal(t, res.Resources["nvidia.com/gpu"].GetValue(), int64(5))
 
+	// Add pod OverHead, only support CPU and Memory
+	overHeadResources := make(map[v1.ResourceName]resource.Quantity)
+	overHeadResources[v1.ResourceMemory] = resource.MustParse("500M")
+	overHeadResources[v1.ResourceCPU] = resource.MustParse("1")
+	// pod
+	pod.Spec.Overhead = overHeadResources
+
+	// verify we get aggregated resource from containers
+	res = GetPodResource(pod)
+	assert.Equal(t, res.Resources[siCommon.Memory].GetValue(), int64(2024*1000*1000))
+	assert.Equal(t, res.Resources[siCommon.CPU].GetValue(), int64(4000))
+	assert.Equal(t, res.Resources["nvidia.com/gpu"].GetValue(), int64(5))
+
 	// test initcontainer and container resouce compare
 	initContainers := make([]v1.Container, 0)
 	initc1Resources := make(map[v1.ResourceName]resource.Quantity)
