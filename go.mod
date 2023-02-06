@@ -18,7 +18,7 @@
 
 module github.com/apache/yunikorn-k8shim
 
-go 1.16
+go 1.20
 
 require (
 	github.com/GoogleCloudPlatform/spark-on-k8s-operator v0.0.0-20201215015655-2e8b733f5ad0
