@@ -158,8 +158,8 @@ func CreateUpdateRequestForNewNode(nodeID string, nodeLabels string, capacity *s
 		SchedulableResource: capacity,
 		OccupiedResource:    occupied,
 		Attributes: map[string]string{
-			constants.DefaultNodeAttributeHostNameKey:   nodeID,
-			constants.DefaultNodeAttributeRackNameKey:   constants.DefaultRackName,
+			common.HostName: nodeID,
+			common.RackName: constants.DefaultRackName,
 			constants.DefaultNodeAttributeNodeLabelsKey: nodeLabels,
 			common.NodeReadyAttribute:                   strconv.FormatBool(ready),
 		},
