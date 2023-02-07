@@ -224,8 +224,8 @@ func TestCreateUpdateRequestForNewNode(t *testing.T) {
 	assert.Equal(t, request.Nodes[0].SchedulableResource, capacity)
 	assert.Equal(t, request.Nodes[0].OccupiedResource, occupied)
 	assert.Equal(t, len(request.Nodes[0].Attributes), 4)
-	assert.Equal(t, request.Nodes[0].Attributes[constants.DefaultNodeAttributeHostNameKey], nodeID)
-	assert.Equal(t, request.Nodes[0].Attributes[constants.DefaultNodeAttributeRackNameKey], constants.DefaultRackName)
+	assert.Equal(t, request.Nodes[0].Attributes[common.HostName], nodeID)
+	assert.Equal(t, request.Nodes[0].Attributes[common.RackName], constants.DefaultRackName)
 	assert.Equal(t, request.Nodes[0].Attributes[constants.DefaultNodeAttributeNodeLabelsKey], nodeLabels)
 	assert.Equal(t, request.Nodes[0].Attributes[common.NodeReadyAttribute], strconv.FormatBool(ready))
 }
