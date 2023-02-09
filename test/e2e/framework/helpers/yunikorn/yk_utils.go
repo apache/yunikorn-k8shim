@@ -26,6 +26,7 @@ import (
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
+	res "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/apache/yunikorn-core/pkg/common/configs"
@@ -35,15 +36,27 @@ import (
 )
 
 type ResourceUsage struct {
+	memory   res.Quantity
+	vCPU     res.Quantity
 	resource map[string]int64
 }
 
 func (r *ResourceUsage) ParseResourceUsage(resource map[string]int64) {
 	r.resource = resource
+	r.memory = res.MustParse(fmt.Sprintf("%d", resource["memory"]))
+	r.vCPU = res.MustParse(fmt.Sprintf("%dm", resource["vcore"]))
 }
 
 func (r *ResourceUsage) GetResourceValue(resourceName string) int64 {
 	return r.resource[resourceName]
+}
+
+func (r *ResourceUsage) GetMemory() res.Quantity {
+	return r.memory
+}
+
+func (r *ResourceUsage) GetCPU() res.Quantity {
+	return r.vCPU
 }
 
 func GetYKUrl() string {
