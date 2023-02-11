@@ -47,7 +47,8 @@ const (
 )
 
 // YuniKornSchedulerPlugin provides an implementation of several lifecycle methods of the Kubernetes scheduling framework:
-//   https://kubernetes.io/docs/concepts/scheduling-eviction/scheduling-framework/
+//
+//	https://kubernetes.io/docs/concepts/scheduling-eviction/scheduling-framework/
 //
 // PreFilter: Used to notify the default scheduler that a particular pod has been marked ready for scheduling by YuniKorn
 //
@@ -92,8 +93,8 @@ func (sp *YuniKornSchedulerPlugin) PreFilter(_ context.Context, state *framework
 	// we don't process pods without appID defined
 	appID, err := utils.GetApplicationIDFromPod(pod)
 	if err != nil {
-		log.Logger().Info(fmt.Sprintf("Skipping pod %s/%s in the prefilter plugin because no applicationID is defined",
-			pod.Namespace, pod.Name))
+		log.Logger().Debug("Skipping pod in the prefilter plugin because no applicationID is defined",
+			zap.String("pod", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)))
 		return framework.NewStatus(framework.Success, "Deferring to default scheduler")
 	}
 
@@ -140,8 +141,8 @@ func (sp *YuniKornSchedulerPlugin) Filter(_ context.Context, _ *framework.CycleS
 	// we don't process pods without appID defined
 	appID, err := utils.GetApplicationIDFromPod(pod)
 	if err != nil {
-		log.Logger().Info(fmt.Sprintf("Skipping pod %s/%s in the filter plugin because no applicationID is defined",
-			pod.Namespace, pod.Name))
+		log.Logger().Debug("Skipping pod in the filter plugin because no applicationID is defined",
+			zap.String("pod", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)))
 		return framework.NewStatus(framework.Success, "Deferring to default scheduler")
 	}
 
@@ -187,8 +188,8 @@ func (sp *YuniKornSchedulerPlugin) PostBind(_ context.Context, _ *framework.Cycl
 	// we don't process pods without appID defined
 	appID, err := utils.GetApplicationIDFromPod(pod)
 	if err != nil {
-		log.Logger().Info(fmt.Sprintf("Skipping pod %s/%s in the postbind plugin because no applicationID is defined",
-			pod.Namespace, pod.Name))
+		log.Logger().Debug("Skipping pod in the postbind plugin because no applicationID is defined",
+			zap.String("pod", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)))
 		return
 	}
 
