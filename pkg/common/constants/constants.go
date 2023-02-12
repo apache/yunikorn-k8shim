@@ -25,7 +25,6 @@ const False = "false"
 // Cluster
 const DefaultNodeAttributeHostNameKey = "si.io/hostname"
 const DefaultNodeAttributeRackNameKey = "si.io/rackname"
-const DefaultNodeAttributeNodeLabelsKey = "si.io/nodelabels"
 const DefaultRackName = "/rack-default"
 
 // Application

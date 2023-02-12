@@ -83,6 +83,9 @@ func NewTestSchedulerNode() *SchedulerNode {
 		AddResource(siCommon.Memory, 1).
 		AddResource(siCommon.CPU, 1).
 		Build()
-	node := newSchedulerNode("host001", "UID001", "{\"label1\":\"key1\",\"label2\":\"key2\"}", r1, api, false, true)
+	node := newSchedulerNode("host001", "UID001", map[string]string{
+		"key1": "label1",
+		"key2": "label2",
+	}, r1, api, false, true)
 	return node
 }

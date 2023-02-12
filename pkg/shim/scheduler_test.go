@@ -38,8 +38,6 @@ import (
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
 
-const nodeLabels = "{\"label1\":\"key1\",\"label2\":\"key2\"}"
-
 func TestApplicationScheduling(t *testing.T) {
 	configData := `
 partitions:
@@ -67,6 +65,10 @@ partitions:
 	cluster.waitForSchedulerState(t, SchedulerStates().Running)
 	err := cluster.updateConfig(configData)
 	assert.NilError(t, err, "update config failed")
+	nodeLabels := map[string]string{
+		"label1": "key1",
+		"label2": "key2",
+	}
 
 	// register nodes
 	err = cluster.addNode("test.host.01", nodeLabels, 100000000, 10)
@@ -117,6 +119,11 @@ partitions:
 	cluster.waitForSchedulerState(t, SchedulerStates().Running)
 	err := cluster.updateConfig(configData)
 	assert.NilError(t, err, "update config failed")
+
+	nodeLabels := map[string]string{
+		"label1": "key1",
+		"label2": "key2",
+	}
 
 	// register nodes
 	err = cluster.addNode("test.host.01", nodeLabels, 100000000, 10)
@@ -212,6 +219,10 @@ partitions:
 	err := cluster.updateConfig(configData)
 	assert.NilError(t, err, "update config failed")
 
+	nodeLabels := map[string]string{
+		"label1": "key1",
+		"label2": "key2",
+	}
 	// register nodes
 	err = cluster.addNode("test.host.01", nodeLabels, 100000000, 10)
 	assert.NilError(t, err, "add node failed")

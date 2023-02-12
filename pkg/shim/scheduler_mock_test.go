@@ -86,7 +86,7 @@ func (fc *MockScheduler) updateConfig(queues string) error {
 	})
 }
 
-func (fc *MockScheduler) addNode(nodeName, nodeLabels string, memory, cpu int64) error {
+func (fc *MockScheduler) addNode(nodeName string, nodeLabels map[string]string, memory, cpu int64) error {
 	nodeResource := common.NewResourceBuilder().
 		AddResource(siCommon.Memory, memory).
 		AddResource(siCommon.CPU, cpu).
