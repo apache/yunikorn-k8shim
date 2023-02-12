@@ -20,12 +20,33 @@
 App placements rules in Yunikorn contains `Provided Rule`, `User Name Rule`, `Fixed Rule`, `Tag Rule`.
 Every placement example includes a example yaml file and a config yaml file.
 The sleep pod is described in the example file and the partition is provided in the config yaml file.
-Before deploying the pods, the configuration field in yunikorn-release/helm/yunikorn/value.yaml should be replaced by the configuration field in the config.yaml.
 
 * [Provided Rule](./provided)
 * [User Name Rule](./username)
 * [Fixed Rule](./fixed)
 * [Tag Rule](./tag)
+
+## How to adopt the queues in `config.yaml`
+Before deploying the pods, make sure that the data in the `yunikorn-configs` configmap is correct.
+For example, `queue.yaml` in the `yunikorn-configs` configmap should be updated before starting fixed example.
+`yunikorn-configs` configmap should contains following information.
+---
+**_NOTE:_** 
+`queue.yaml` should be __full__ queue config and then legal configuration would be updated to Yunikorn.
+---
+```
+yunikornDefaults:
+  queues.yaml: |
+      partitions:
+        - name: default
+          placementrules:
+            - name: tag
+              value: namespace
+              create: true
+          queues:
+            - name: root
+              submitacl: '*'`
+```
 
 ## Provided rule
 ```

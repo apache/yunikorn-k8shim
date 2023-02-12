@@ -15,8 +15,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# The configutarion in value.yaml should be replaced by the following configuration before this yaml is applied.
-configuration: |
+# Update this queue yaml to the yunikorn-configs configmap before trying this example.
+queue.yaml: |
   partitions:
     - name: default
       placementrules:
