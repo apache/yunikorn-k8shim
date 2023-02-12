@@ -47,7 +47,8 @@ const (
 )
 
 // YuniKornSchedulerPlugin provides an implementation of several lifecycle methods of the Kubernetes scheduling framework:
-//   https://kubernetes.io/docs/concepts/scheduling-eviction/scheduling-framework/
+//
+//	https://kubernetes.io/docs/concepts/scheduling-eviction/scheduling-framework/
 //
 // PreFilter: Used to notify the default scheduler that a particular pod has been marked ready for scheduling by YuniKorn
 //
@@ -87,13 +88,15 @@ func (sp *YuniKornSchedulerPlugin) Name() string {
 // PreFilter is used to release pods to scheduler
 func (sp *YuniKornSchedulerPlugin) PreFilter(_ context.Context, state *framework.CycleState, pod *v1.Pod) *framework.Status {
 	log.Logger().Debug("PreFilter check",
-		zap.String("pod", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)))
+		zap.String("namespace", pod.Namespace),
+		zap.String("pod", pod.Name))
 
 	// we don't process pods without appID defined
 	appID, err := utils.GetApplicationIDFromPod(pod)
 	if err != nil {
-		log.Logger().Info(fmt.Sprintf("Skipping pod %s/%s in the prefilter plugin because no applicationID is defined",
-			pod.Namespace, pod.Name))
+		log.Logger().Debug("Skipping pod in the prefilter plugin because no applicationID is defined",
+			zap.String("namespace", pod.Namespace),
+			zap.String("pod", pod.Name))
 		return framework.NewStatus(framework.Success, "Deferring to default scheduler")
 	}
 
@@ -103,7 +106,8 @@ func (sp *YuniKornSchedulerPlugin) PreFilter(_ context.Context, state *framework
 			if ok {
 				// pod must have failed scheduling, reject it and return unschedulable
 				log.Logger().Info("Task failed scheduling, marking as rejected",
-					zap.String("pod", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)),
+					zap.String("namespace", pod.Namespace),
+					zap.String("pod", pod.Name),
 					zap.String("taskID", task.GetTaskID()))
 				sp.context.RemovePodAllocation(string(pod.UID))
 				dispatcher.Dispatch(cache.NewRejectTaskEvent(app.GetApplicationID(), task.GetTaskID(),
@@ -114,7 +118,8 @@ func (sp *YuniKornSchedulerPlugin) PreFilter(_ context.Context, state *framework
 			nodeID, ok := sp.context.GetPendingPodAllocation(string(pod.UID))
 			if task.GetTaskState() == cache.TaskStates().Bound && ok {
 				log.Logger().Info("Releasing pod for scheduling (prefilter phase)",
-					zap.String("pod", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)),
+					zap.String("namespace", pod.Namespace),
+					zap.String("pod", pod.Name),
 					zap.String("taskID", task.GetTaskID()),
 					zap.String("assignedNode", nodeID))
 
@@ -134,14 +139,16 @@ func (sp *YuniKornSchedulerPlugin) PreFilterExtensions() framework.PreFilterExte
 // Filter is used to release specific pod/node combinations to scheduler
 func (sp *YuniKornSchedulerPlugin) Filter(_ context.Context, _ *framework.CycleState, pod *v1.Pod, nodeInfo *framework.NodeInfo) *framework.Status {
 	log.Logger().Debug("Filter check",
-		zap.String("pod", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)),
+		zap.String("namespace", pod.Namespace),
+		zap.String("pod", pod.Name),
 		zap.String("node", nodeInfo.Node().Name))
 
 	// we don't process pods without appID defined
 	appID, err := utils.GetApplicationIDFromPod(pod)
 	if err != nil {
-		log.Logger().Info(fmt.Sprintf("Skipping pod %s/%s in the filter plugin because no applicationID is defined",
-			pod.Namespace, pod.Name))
+		log.Logger().Debug("Skipping pod in the filter plugin because no applicationID is defined",
+			zap.String("namespace", pod.Namespace),
+			zap.String("pod", pod.Name))
 		return framework.NewStatus(framework.Success, "Deferring to default scheduler")
 	}
 
@@ -154,7 +161,8 @@ func (sp *YuniKornSchedulerPlugin) Filter(_ context.Context, _ *framework.CycleS
 				// immediately call Filter() again with a different candidate Node.
 				if sp.context.StartPodAllocation(string(pod.UID), nodeInfo.Node().Name) {
 					log.Logger().Info("Releasing pod for scheduling (filter phase)",
-						zap.String("pod", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)),
+						zap.String("namespace", pod.Namespace),
+						zap.String("pod", pod.Name),
 						zap.String("taskID", task.GetTaskID()),
 						zap.String("assignedNode", nodeInfo.Node().Name))
 					return framework.NewStatus(framework.Success, "")
@@ -181,21 +189,24 @@ func (sp *YuniKornSchedulerPlugin) EventsToRegister() []framework.ClusterEvent {
 // PostBind is used to mark allocations as completed once scheduling run is finished
 func (sp *YuniKornSchedulerPlugin) PostBind(_ context.Context, _ *framework.CycleState, pod *v1.Pod, nodeName string) {
 	log.Logger().Debug("PostBind handler",
-		zap.String("pod", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)),
+		zap.String("namespace", pod.Namespace),
+		zap.String("pod", pod.Name),
 		zap.String("assignedNode", nodeName))
 
 	// we don't process pods without appID defined
 	appID, err := utils.GetApplicationIDFromPod(pod)
 	if err != nil {
-		log.Logger().Info(fmt.Sprintf("Skipping pod %s/%s in the postbind plugin because no applicationID is defined",
-			pod.Namespace, pod.Name))
+		log.Logger().Debug("Skipping pod in the postbind plugin because no applicationID is defined",
+			zap.String("namespace", pod.Namespace),
+			zap.String("pod", pod.Name))
 		return
 	}
 
 	if app := sp.context.GetApplication(appID); app != nil {
 		if task, err := app.GetTask(string(pod.UID)); err == nil {
 			log.Logger().Info("Pod bound successfully",
-				zap.String("pod", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)),
+				zap.String("namespace", pod.Namespace),
+				zap.String("pod", pod.Name),
 				zap.String("taskID", task.GetTaskID()),
 				zap.String("assignedNode", nodeName))
 			sp.context.RemovePodAllocation(string(pod.UID))
