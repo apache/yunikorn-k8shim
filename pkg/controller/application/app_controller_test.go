@@ -22,7 +22,7 @@ import (
 	"context"
 	"testing"
 
-	"gotest.tools/assert"
+	"gotest.tools/v3/assert"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	appv1 "github.com/apache/yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"

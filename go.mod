@@ -31,7 +31,6 @@ require (
 	github.com/onsi/gomega v1.10.1
 	go.uber.org/zap v1.24.0
 	gopkg.in/yaml.v2 v2.4.0
-	gotest.tools v2.2.0+incompatible
 	gotest.tools/v3 v3.0.3
 	k8s.io/api v0.23.14
 	k8s.io/apimachinery v0.23.14
