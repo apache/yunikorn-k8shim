@@ -27,7 +27,7 @@ import (
 	"testing"
 
 	"github.com/looplab/fsm"
-	"gotest.tools/assert"
+	"gotest.tools/v3/assert"
 
 	"github.com/apache/yunikorn-k8shim/pkg/appmgmt"
 	"github.com/apache/yunikorn-k8shim/pkg/cache"
