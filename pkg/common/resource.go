@@ -91,8 +91,8 @@ func GetPodResource(pod *v1.Pod) (resource *si.Resource) {
 		// Logging the overall pod size and pod overhead
 		log.Logger().Debug("Pod overhead specified, overall pod size adjusted",
 			zap.String("taskID", string(pod.UID)),
-			zap.String("Pod overall size", podResource.String()),
-			zap.String("Pod overhead size", podOverHeadResource.String()))
+			zap.Stringer("overallSize", podResource),
+			zap.Stringer("overheadSize", podOverHeadResource))
 	}
 
 	return podResource
