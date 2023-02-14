@@ -29,6 +29,7 @@ metadata:
 subjects:
   - kind: ServiceAccount
     name: yunikorn-admin
+    namespace: default
 roleRef:
   kind: ClusterRole
   name: cluster-admin
@@ -77,7 +78,7 @@ spec:
       serviceAccountName: yunikorn-admin
       containers:
         - name: yunikorn-scheduler-k8s
-          image: apache/yunikorn:scheduler-plugin-latest
+          image: apache/yunikorn:scheduler-plugin-1.2.0
           imagePullPolicy: IfNotPresent
           ports:
             - name: http1
@@ -96,8 +97,6 @@ spec:
               cpu: 4
               memory: 2Gi
           volumeMounts:
-            - mountPath: /etc/kubernetes
-              name: scheduler-config
             - mountPath: /etc/yunikorn
               name: quotamanager-config
           livenessProbe:
@@ -108,7 +107,7 @@ spec:
             periodSeconds: 600
             failureThreshold: 1
         - name: yunikorn-scheduler-web
-          image: apache/yunikorn:web-latest
+          image: apache/yunikorn:web-1.2.0
           imagePullPolicy: IfNotPresent
           ports:
             - name: http2
@@ -122,9 +121,6 @@ spec:
               memory: "500Mi"
               cpu: "200m"
       volumes:
-        - name: scheduler-config
-          configMap:
-            name: yunikorn-scheduler-plugin-configs
         - name: quotamanager-config
           configMap:
             name: yunikorn-configs
