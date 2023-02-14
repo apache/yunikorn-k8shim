@@ -78,7 +78,7 @@ spec:
       serviceAccountName: yunikorn-admin
       containers:
         - name: yunikorn-scheduler-k8s
-          image: apache/yunikorn:scheduler-plugin-1.2.0
+          image: apache/yunikorn:scheduler-plugin-latest
           imagePullPolicy: IfNotPresent
           ports:
             - name: http1
@@ -107,7 +107,7 @@ spec:
             periodSeconds: 600
             failureThreshold: 1
         - name: yunikorn-scheduler-web
-          image: apache/yunikorn:web-1.2.0
+          image: apache/yunikorn:web-latest
           imagePullPolicy: IfNotPresent
           ports:
             - name: http2
