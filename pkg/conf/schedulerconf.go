@@ -53,16 +53,17 @@ const (
 	PrefixKubernetes = "kubernetes."
 
 	// service
-	CMSvcClusterID              = PrefixService + "clusterId"
-	CMSvcPolicyGroup            = PrefixService + "policyGroup"
-	CMSvcSchedulingInterval     = PrefixService + "schedulingInterval"
-	CMSvcVolumeBindTimeout      = PrefixService + "volumeBindTimeout"
-	CMSvcEventChannelCapacity   = PrefixService + "eventChannelCapacity"
-	CMSvcDispatchTimeout        = PrefixService + "dispatchTimeout"
-	CMSvcOperatorPlugins        = PrefixService + "operatorPlugins"
-	CMSvcDisableGangScheduling  = PrefixService + "disableGangScheduling"
-	CMSvcEnableConfigHotRefresh = PrefixService + "enableConfigHotRefresh"
-	CMSvcPlaceholderImage       = PrefixService + "placeholderImage"
+	CMSvcClusterID                    = PrefixService + "clusterId"
+	CMSvcPolicyGroup                  = PrefixService + "policyGroup"
+	CMSvcSchedulingInterval           = PrefixService + "schedulingInterval"
+	CMSvcVolumeBindTimeout            = PrefixService + "volumeBindTimeout"
+	CMSvcEventChannelCapacity         = PrefixService + "eventChannelCapacity"
+	CMSvcDispatchTimeout              = PrefixService + "dispatchTimeout"
+	CMSvcOperatorPlugins              = PrefixService + "operatorPlugins"
+	CMSvcDisableGangScheduling        = PrefixService + "disableGangScheduling"
+	CMSvcEnableConfigHotRefresh       = PrefixService + "enableConfigHotRefresh"
+	CMSvcPlaceholderImage             = PrefixService + "placeholderImage"
+	CMSvcNodeInstanceTypeNodeLabelKey = PrefixService + "nodeInstanceTypeNodeLabelKey"
 
 	// log
 	CMLogLevel = PrefixLog + "level"
@@ -100,25 +101,26 @@ var confHolder atomic.Value
 var kubeLoggerOnce sync.Once
 
 type SchedulerConf struct {
-	SchedulerName          string        `json:"schedulerName"`
-	ClusterID              string        `json:"clusterId"`
-	ClusterVersion         string        `json:"clusterVersion"`
-	PolicyGroup            string        `json:"policyGroup"`
-	Interval               time.Duration `json:"schedulingIntervalSecond"`
-	KubeConfig             string        `json:"absoluteKubeConfigFilePath"`
-	LoggingLevel           int           `json:"loggingLevel"`
-	VolumeBindTimeout      time.Duration `json:"volumeBindTimeout"`
-	TestMode               bool          `json:"testMode"`
-	EventChannelCapacity   int           `json:"eventChannelCapacity"`
-	DispatchTimeout        time.Duration `json:"dispatchTimeout"`
-	KubeQPS                int           `json:"kubeQPS"`
-	KubeBurst              int           `json:"kubeBurst"`
-	OperatorPlugins        string        `json:"operatorPlugins"`
-	EnableConfigHotRefresh bool          `json:"enableConfigHotRefresh"`
-	DisableGangScheduling  bool          `json:"disableGangScheduling"`
-	UserLabelKey           string        `json:"userLabelKey"`
-	PlaceHolderImage       string        `json:"placeHolderImage"`
-	Namespace              string        `json:"namespace"`
+	SchedulerName            string        `json:"schedulerName"`
+	ClusterID                string        `json:"clusterId"`
+	ClusterVersion           string        `json:"clusterVersion"`
+	PolicyGroup              string        `json:"policyGroup"`
+	Interval                 time.Duration `json:"schedulingIntervalSecond"`
+	KubeConfig               string        `json:"absoluteKubeConfigFilePath"`
+	LoggingLevel             int           `json:"loggingLevel"`
+	VolumeBindTimeout        time.Duration `json:"volumeBindTimeout"`
+	TestMode                 bool          `json:"testMode"`
+	EventChannelCapacity     int           `json:"eventChannelCapacity"`
+	DispatchTimeout          time.Duration `json:"dispatchTimeout"`
+	KubeQPS                  int           `json:"kubeQPS"`
+	KubeBurst                int           `json:"kubeBurst"`
+	OperatorPlugins          string        `json:"operatorPlugins"`
+	EnableConfigHotRefresh   bool          `json:"enableConfigHotRefresh"`
+	DisableGangScheduling    bool          `json:"disableGangScheduling"`
+	UserLabelKey             string        `json:"userLabelKey"`
+	PlaceHolderImage         string        `json:"placeHolderImage"`
+	Namespace                string        `json:"namespace"`
+	InstanceTypeNodeLabelKey string        `json:"instanceTypeNodeLabelKey"`
 	sync.RWMutex
 }
 
@@ -202,6 +204,7 @@ func handleNonReloadableConfig(old *SchedulerConf, new *SchedulerConf) {
 	checkNonReloadableString(CMSvcOperatorPlugins, &old.OperatorPlugins, &new.OperatorPlugins)
 	checkNonReloadableBool(CMSvcDisableGangScheduling, &old.DisableGangScheduling, &new.DisableGangScheduling)
 	checkNonReloadableString(CMSvcPlaceholderImage, &old.PlaceHolderImage, &new.PlaceHolderImage)
+	checkNonReloadableString(CMSvcNodeInstanceTypeNodeLabelKey, &old.InstanceTypeNodeLabelKey, &new.InstanceTypeNodeLabelKey)
 }
 
 const warningNonReloadable = "ignoring non-reloadable configuration change (restart required to update)"
@@ -312,25 +315,26 @@ func GetDefaultKubeConfigPath() string {
 // CreateDefaultConfig creates and returns a configuration representing all default values
 func CreateDefaultConfig() *SchedulerConf {
 	return &SchedulerConf{
-		SchedulerName:          constants.SchedulerName,
-		Namespace:              GetSchedulerNamespace(),
-		ClusterID:              DefaultClusterID,
-		ClusterVersion:         BuildVersion,
-		PolicyGroup:            DefaultPolicyGroup,
-		Interval:               DefaultSchedulingInterval,
-		KubeConfig:             GetDefaultKubeConfigPath(),
-		LoggingLevel:           DefaultLoggingLevel,
-		VolumeBindTimeout:      DefaultVolumeBindTimeout,
-		TestMode:               false,
-		EventChannelCapacity:   DefaultEventChannelCapacity,
-		DispatchTimeout:        DefaultDispatchTimeout,
-		KubeQPS:                DefaultKubeQPS,
-		KubeBurst:              DefaultKubeBurst,
-		OperatorPlugins:        DefaultOperatorPlugins,
-		EnableConfigHotRefresh: DefaultEnableConfigHotRefresh,
-		DisableGangScheduling:  DefaultDisableGangScheduling,
-		UserLabelKey:           constants.DefaultUserLabel,
-		PlaceHolderImage:       constants.PlaceholderContainerImage,
+		SchedulerName:            constants.SchedulerName,
+		Namespace:                GetSchedulerNamespace(),
+		ClusterID:                DefaultClusterID,
+		ClusterVersion:           BuildVersion,
+		PolicyGroup:              DefaultPolicyGroup,
+		Interval:                 DefaultSchedulingInterval,
+		KubeConfig:               GetDefaultKubeConfigPath(),
+		LoggingLevel:             DefaultLoggingLevel,
+		VolumeBindTimeout:        DefaultVolumeBindTimeout,
+		TestMode:                 false,
+		EventChannelCapacity:     DefaultEventChannelCapacity,
+		DispatchTimeout:          DefaultDispatchTimeout,
+		KubeQPS:                  DefaultKubeQPS,
+		KubeBurst:                DefaultKubeBurst,
+		OperatorPlugins:          DefaultOperatorPlugins,
+		EnableConfigHotRefresh:   DefaultEnableConfigHotRefresh,
+		DisableGangScheduling:    DefaultDisableGangScheduling,
+		UserLabelKey:             constants.DefaultUserLabel,
+		PlaceHolderImage:         constants.PlaceholderContainerImage,
+		InstanceTypeNodeLabelKey: constants.DefaultNodeInstanceTypeNodeLabelKey,
 	}
 }
 
@@ -355,6 +359,7 @@ func parseConfig(config map[string]string, prev *SchedulerConf) (*SchedulerConf,
 	parser.boolVar(&conf.DisableGangScheduling, CMSvcDisableGangScheduling)
 	parser.boolVar(&conf.EnableConfigHotRefresh, CMSvcEnableConfigHotRefresh)
 	parser.stringVar(&conf.PlaceHolderImage, CMSvcPlaceholderImage)
+	parser.stringVar(&conf.InstanceTypeNodeLabelKey, CMSvcNodeInstanceTypeNodeLabelKey)
 
 	// log
 	parser.intVar(&conf.LoggingLevel, CMLogLevel)
