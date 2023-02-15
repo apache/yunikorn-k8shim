@@ -25,6 +25,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
 	schedulingv1 "k8s.io/api/scheduling/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -39,19 +40,21 @@ func init() {
 	configmanager.YuniKornTestConfig.ParseFlags()
 }
 
+const appName = "sleep"
+
 var kubeClient k8s.KubeCtl
-var ns = "admission-controller-test"
+var ns string
 var bypassNs = "kube-system"
 var restClient yunikorn.RClient
 var oldConfigMap *v1.ConfigMap
-var replicas = int32(1)
+var one = int32(1)
 var preemptPolicyNever = v1.PreemptNever
 var preemptPolicyPreemptLower = v1.PreemptLowerPriority
 
 var testPod = v1.Pod{
 	ObjectMeta: metav1.ObjectMeta{
 		Name:   "sleepjob",
-		Labels: map[string]string{"app": "sleep"},
+		Labels: map[string]string{"app": appName},
 	},
 	Spec: v1.PodSpec{
 		Containers: []v1.Container{
@@ -66,13 +69,65 @@ var testPod = v1.Pod{
 
 var testDeployment = appsv1.Deployment{
 	Spec: appsv1.DeploymentSpec{
-		Replicas: &replicas,
+		Replicas: &one,
 		Selector: &metav1.LabelSelector{
 			MatchLabels: testPod.Labels,
 		},
-		Template: v1.PodTemplateSpec{
+		Template: getPodSpec(v1.RestartPolicyAlways),
+	},
+	ObjectMeta: testPod.ObjectMeta,
+}
+
+var testJob = batchv1.Job{
+	Spec: batchv1.JobSpec{
+		Parallelism: &one,
+		Completions: &one,
+		Template:    getPodSpec(v1.RestartPolicyNever),
+	},
+	ObjectMeta: testPod.ObjectMeta,
+}
+
+var testStatefulSet = appsv1.StatefulSet{
+	Spec: appsv1.StatefulSetSpec{
+		Selector: &metav1.LabelSelector{
+			MatchLabels: testPod.Labels,
+		},
+		Template: getPodSpec(v1.RestartPolicyAlways),
+	},
+	ObjectMeta: testPod.ObjectMeta,
+}
+
+var testReplicaSet = appsv1.ReplicaSet{
+	Spec: appsv1.ReplicaSetSpec{
+		Replicas: &one,
+		Selector: &metav1.LabelSelector{
+			MatchLabels: testPod.Labels,
+		},
+		Template: getPodSpec(v1.RestartPolicyAlways),
+	},
+	ObjectMeta: testPod.ObjectMeta,
+}
+
+var testDaemonSet = appsv1.DaemonSet{
+	Spec: appsv1.DaemonSetSpec{
+		Selector: &metav1.LabelSelector{
+			MatchLabels: testPod.Labels,
+		},
+		Template: getPodSpec(v1.RestartPolicyAlways),
+	},
+	ObjectMeta: testPod.ObjectMeta,
+}
+
+var testCronJob = batchv1.CronJob{
+	Spec: batchv1.CronJobSpec{
+		Schedule: "* * * * *",
+		JobTemplate: batchv1.JobTemplateSpec{
+			Spec: batchv1.JobSpec{
+				Parallelism: &one,
+				Completions: &one,
+				Template:    getPodSpec(v1.RestartPolicyNever),
+			},
 			ObjectMeta: testPod.ObjectMeta,
-			Spec:       testPod.Spec,
 		},
 	},
 	ObjectMeta: testPod.ObjectMeta,
@@ -104,6 +159,15 @@ var testNonYkPriorityClass = schedulingv1.PriorityClass{
 	PreemptionPolicy: &preemptPolicyPreemptLower,
 }
 
+func getPodSpec(restartPolicy v1.RestartPolicy) v1.PodTemplateSpec {
+	p := testPod.DeepCopy()
+	p.Spec.RestartPolicy = restartPolicy
+	return v1.PodTemplateSpec{
+		ObjectMeta: p.ObjectMeta,
+		Spec:       p.Spec,
+	}
+}
+
 func TestAdmissionController(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Admission Controller Suite")
@@ -133,11 +197,6 @@ var _ = BeforeSuite(func() {
 	_, err = kubeClient.CreatePriorityClass(&testNonYkPriorityClass)
 	Ω(err).ShouldNot(HaveOccurred())
 
-	By(fmt.Sprintf("Creating test namepsace %s", ns))
-	namespace, err := kubeClient.CreateNamespace(ns, nil)
-	Ω(err).ShouldNot(HaveOccurred())
-	Ω(namespace.Status.Phase).Should(Equal(v1.NamespaceActive))
-
 	By("Get the default ConfigMap and copy it")
 	cm, err := kubeClient.GetConfigMaps(configmanager.YuniKornTestConfig.YkNamespace, constants.ConfigMapName)
 	Ω(err).ShouldNot(HaveOccurred())
@@ -150,12 +209,8 @@ var _ = AfterSuite(func() {
 	kubeClient = k8s.KubeCtl{}
 	Expect(kubeClient.SetClient()).To(BeNil())
 
-	By(fmt.Sprintf("Deleting test namepsace %s", ns))
-	err := kubeClient.DeleteNamespace(ns)
-	Ω(err).ShouldNot(HaveOccurred())
-
 	By(fmt.Sprintf("Removing priority class %s", testNonYkPriorityClass.Name))
-	err = kubeClient.DeletePriorityClass(testNonYkPriorityClass.Name)
+	err := kubeClient.DeletePriorityClass(testNonYkPriorityClass.Name)
 	Ω(err).ShouldNot(HaveOccurred())
 
 	By(fmt.Sprintf("Removing priority class %s", testNonPreemptPriorityClass.Name))

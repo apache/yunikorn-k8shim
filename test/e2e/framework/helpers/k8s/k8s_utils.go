@@ -459,6 +459,38 @@ func (k *KubeCtl) CreateDeployment(deployment *appsv1.Deployment, namespace stri
 	return k.clientSet.AppsV1().Deployments(namespace).Create(context.TODO(), deployment, metav1.CreateOptions{})
 }
 
+func (k *KubeCtl) CreateStatefulSet(stetafulSet *appsv1.StatefulSet, namespace string) (*appsv1.StatefulSet, error) {
+	return k.clientSet.AppsV1().StatefulSets(namespace).Create(context.TODO(), stetafulSet, metav1.CreateOptions{})
+}
+
+func (k *KubeCtl) CreateReplicaSet(replicaSet *appsv1.ReplicaSet, namespace string) (*appsv1.ReplicaSet, error) {
+	return k.clientSet.AppsV1().ReplicaSets(namespace).Create(context.TODO(), replicaSet, metav1.CreateOptions{})
+}
+
+func (k *KubeCtl) CreateDaemonSet(daemonSet *appsv1.DaemonSet, namespace string) (*appsv1.DaemonSet, error) {
+	return k.clientSet.AppsV1().DaemonSets(namespace).Create(context.TODO(), daemonSet, metav1.CreateOptions{})
+}
+
+func (k *KubeCtl) CreateCronJob(cronJob *batchv1.CronJob, namespace string) (*batchv1.CronJob, error) {
+	return k.clientSet.BatchV1().CronJobs(namespace).Create(context.TODO(), cronJob, metav1.CreateOptions{})
+}
+
+func (k *KubeCtl) DeleteStatefulSet(name, namespace string) error {
+	var secs int64 = 0
+	err := k.clientSet.AppsV1().StatefulSets(namespace).Delete(context.TODO(), name, metav1.DeleteOptions{
+		GracePeriodSeconds: &secs,
+	})
+	return err
+}
+
+func (k *KubeCtl) DeleteReplicaSet(name, namespace string) error {
+	var secs int64 = 0
+	err := k.clientSet.AppsV1().ReplicaSets(namespace).Delete(context.TODO(), name, metav1.DeleteOptions{
+		GracePeriodSeconds: &secs,
+	})
+	return err
+}
+
 func (k *KubeCtl) DeleteDeployment(name, namespace string) error {
 	var secs int64 = 0
 	err := k.clientSet.AppsV1().Deployments(namespace).Delete(context.TODO(), name, metav1.DeleteOptions{
@@ -467,8 +499,36 @@ func (k *KubeCtl) DeleteDeployment(name, namespace string) error {
 	return err
 }
 
+func (k *KubeCtl) DeleteDaemonSet(name, namespace string) error {
+	var secs int64 = 0
+	err := k.clientSet.AppsV1().DaemonSets(namespace).Delete(context.TODO(), name, metav1.DeleteOptions{
+		GracePeriodSeconds: &secs,
+	})
+	return err
+}
+
+func (k *KubeCtl) DeleteCronJob(name, namespace string) error {
+	var secs int64 = 0
+	err := k.clientSet.BatchV1().CronJobs(namespace).Delete(context.TODO(), name, metav1.DeleteOptions{
+		GracePeriodSeconds: &secs,
+	})
+	return err
+}
+
 func (k *KubeCtl) GetDeployment(name, namespace string) (*appsv1.Deployment, error) {
 	return k.clientSet.AppsV1().Deployments(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+}
+
+func (k *KubeCtl) GetDaemonSet(name, namespace string) (*appsv1.DaemonSet, error) {
+	return k.clientSet.AppsV1().DaemonSets(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+}
+
+func (k *KubeCtl) GetReplicaSet(name, namespace string) (*appsv1.ReplicaSet, error) {
+	return k.clientSet.AppsV1().ReplicaSets(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+}
+
+func (k *KubeCtl) GetStatefulSet(name, namespace string) (*appsv1.StatefulSet, error) {
+	return k.clientSet.AppsV1().StatefulSets(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 }
 
 func (k *KubeCtl) CreatePod(pod *v1.Pod, namespace string) (*v1.Pod, error) {
