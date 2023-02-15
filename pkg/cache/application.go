@@ -411,7 +411,7 @@ func (app *Application) scheduleTasks(taskScheduleCondition func(t *Task) bool) 
 
 func (app *Application) handleSubmitApplicationEvent() {
 	log.Logger().Info("handle app submission",
-		zap.String("app", app.String()),
+		zap.Stringer("app", app),
 		zap.String("clusterID", conf.GetSchedulerConf().ClusterID))
 	err := app.schedulerAPI.UpdateApplication(
 		&si.ApplicationRequest{
@@ -442,7 +442,7 @@ func (app *Application) handleSubmitApplicationEvent() {
 
 func (app *Application) handleRecoverApplicationEvent() {
 	log.Logger().Info("handle app recovering",
-		zap.String("app", app.String()),
+		zap.Stringer("app", app),
 		zap.String("clusterID", conf.GetSchedulerConf().ClusterID))
 	err := app.schedulerAPI.UpdateApplication(
 		&si.ApplicationRequest{
@@ -673,7 +673,7 @@ func (app *Application) publishPlaceholderTimeoutEvents(task *Task) {
 	if app.originatingTask != nil && task.IsPlaceholder() && task.terminationType == si.TerminationType_name[int32(si.TerminationType_TIMEOUT)] {
 		log.Logger().Debug("trying to send placeholder timeout events to the original pod from application",
 			zap.String("appID", app.applicationID),
-			zap.String("app request originating pod", app.originatingTask.GetTaskPod().String()),
+			zap.Stringer("app request originating pod", app.originatingTask.GetTaskPod()),
 			zap.String("taskID", task.taskID),
 			zap.String("terminationType", task.terminationType))
 		events.GetRecorder().Eventf(app.originatingTask.GetTaskPod().DeepCopy(), nil, v1.EventTypeWarning, "Placeholder timed out",

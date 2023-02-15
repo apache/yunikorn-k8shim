@@ -916,7 +916,7 @@ func (ctx *Context) PublishEvents(eventRecords []*si.EventRecord) {
 					log.Logger().Warn("task event is not published because task is not found",
 						zap.String("appID", appID),
 						zap.String("taskID", taskID),
-						zap.String("event", record.String()))
+						zap.Stringer("event", record))
 				}
 			case si.EventRecord_NODE:
 				nodeID := record.ObjectID
@@ -924,21 +924,21 @@ func (ctx *Context) PublishEvents(eventRecords []*si.EventRecord) {
 				if nodeInfo == nil {
 					log.Logger().Warn("node event is not published because nodeInfo is not found",
 						zap.String("nodeID", nodeID),
-						zap.String("event", record.String()))
+						zap.Stringer("event", record))
 					continue
 				}
 				node := nodeInfo.Node()
 				if node == nil {
 					log.Logger().Warn("node event is not published because node is not found",
 						zap.String("nodeID", nodeID),
-						zap.String("event", record.String()))
+						zap.Stringer("event", record))
 					continue
 				}
 				events.GetRecorder().Eventf(node.DeepCopy(), nil,
 					v1.EventTypeNormal, record.Reason, record.Reason, record.Message)
 			default:
 				log.Logger().Warn("Unsupported event type, currently only supports to publish request event records",
-					zap.String("type", record.Type.String()))
+					zap.Stringer("type", record.Type))
 			}
 		}
 	}
@@ -1009,7 +1009,7 @@ func (ctx *Context) HandleContainerStateUpdate(request *si.UpdateContainerSchedu
 			}
 		default:
 			log.Logger().Warn("no handler for container scheduling state",
-				zap.String("state", request.State.String()))
+				zap.Stringer("state", request.State))
 		}
 	}
 }

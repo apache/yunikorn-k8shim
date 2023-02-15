@@ -89,12 +89,12 @@ func (n *SchedulerNode) updateOccupiedResource(resource *si.Resource, opt update
 	case AddOccupiedResource:
 		log.Logger().Info("add node occupied resource",
 			zap.String("nodeID", n.name),
-			zap.String("occupied", resource.String()))
+			zap.Stringer("occupied", resource))
 		n.occupied = common.Add(n.occupied, resource)
 	case SubOccupiedResource:
 		log.Logger().Info("subtract node occupied resource",
 			zap.String("nodeID", n.name),
-			zap.String("occupied", resource.String()))
+			zap.Stringer("occupied", resource))
 		n.occupied = common.Sub(n.occupied, resource)
 	default:
 		// noop
@@ -107,7 +107,7 @@ func (n *SchedulerNode) setCapacity(capacity *si.Resource) {
 	defer n.lock.Unlock()
 	log.Logger().Debug("set node capacity",
 		zap.String("nodeID", n.name),
-		zap.String("capacity", capacity.String()))
+		zap.Stringer("capacity", capacity))
 	n.capacity = capacity
 }
 

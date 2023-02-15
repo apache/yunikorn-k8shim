@@ -246,6 +246,6 @@ func (nc SchedulerKubeClient) UpdateStatus(pod *v1.Pod) (*v1.Pod, error) {
 	log.Logger().Info("Successfully updated pod status",
 		zap.String("namespace", pod.Namespace),
 		zap.String("podName", pod.Name),
-		zap.String("newStatus", pod.Status.String()))
+		zap.Stringer("newStatus", &pod.Status))
 	return updatedPod, nil
 }
