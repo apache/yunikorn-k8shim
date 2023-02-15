@@ -227,7 +227,7 @@ func (os *Manager) ListPods() ([]*v1.Pod, error) {
 		log.Logger().Debug("Looking at pod for recovery candidates", zap.String("podNamespace", pod.Namespace), zap.String("podName", pod.Name))
 		// general filter passes, and pod is assigned
 		// this means the pod is already scheduled by scheduler for an existing app
-		if utils.GetApplicationIDFromPod(pod) != "" && utils.IsAssignedPod(pod) {
+		if utils.GetApplicationIDFromPod(pod) != "" && utils.IsAssignedPod(pod) && !utils.IsPodTerminated(pod) {
 			if meta, ok := getAppMetadata(pod, true); ok {
 				podsRecovered++
 				pods = append(pods, pod)
