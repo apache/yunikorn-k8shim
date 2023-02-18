@@ -19,6 +19,7 @@
 package cache
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"sync"
@@ -120,7 +121,7 @@ func beforeHook(event TaskEventType) string {
 func (task *Task) handle(te events.TaskEvent) error {
 	task.lock.Lock()
 	defer task.lock.Unlock()
-	err := task.sm.Event(te.GetEvent(), task, te.GetArgs())
+	err := task.sm.Event(context.Background(), te.GetEvent(), task, te.GetArgs())
 	// handle the same state transition not nil error (limit of fsm).
 	if err != nil && err.Error() != "no transition" {
 		return err

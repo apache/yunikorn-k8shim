@@ -19,6 +19,7 @@
 package cache
 
 import (
+	"context"
 	"sync"
 
 	"github.com/looplab/fsm"
@@ -368,18 +369,18 @@ func newTaskState() *fsm.FSM {
 			},
 		},
 		fsm.Callbacks{
-			events.EnterState: func(event *fsm.Event) {
+			events.EnterState: func(_ context.Context, event *fsm.Event) {
 				log.Logger().Info("object transition",
 					zap.Any("object", event.Args[0]),
 					zap.String("source", event.Src),
 					zap.String("destination", event.Dst),
 					zap.String("event", event.Event))
 			},
-			states.Pending: func(event *fsm.Event) {
+			states.Pending: func(_ context.Context, event *fsm.Event) {
 				task := event.Args[0].(*Task) //nolint:errcheck
 				task.postTaskPending()
 			},
-			states.Allocated: func(event *fsm.Event) {
+			states.Allocated: func(_ context.Context, event *fsm.Event) {
 				task := event.Args[0].(*Task) //nolint:errcheck
 				eventArgs := make([]string, 2)
 				if err := events.GetEventArgsAsStrings(eventArgs, event.Args[1].([]interface{})); err != nil {
@@ -390,19 +391,19 @@ func newTaskState() *fsm.FSM {
 				nodeID := eventArgs[1]
 				task.postTaskAllocated(allocUUID, nodeID)
 			},
-			states.Rejected: func(event *fsm.Event) {
+			states.Rejected: func(_ context.Context, event *fsm.Event) {
 				task := event.Args[0].(*Task) //nolint:errcheck
 				task.postTaskRejected()
 			},
-			states.Failed: func(event *fsm.Event) {
+			states.Failed: func(_ context.Context, event *fsm.Event) {
 				task := event.Args[0].(*Task) //nolint:errcheck
 				task.postTaskFailed()
 			},
-			states.Bound: func(event *fsm.Event) {
+			states.Bound: func(_ context.Context, event *fsm.Event) {
 				task := event.Args[0].(*Task) //nolint:errcheck
 				task.postTaskBound()
 			},
-			beforeHook(TaskAllocated): func(event *fsm.Event) {
+			beforeHook(TaskAllocated): func(_ context.Context, event *fsm.Event) {
 				task := event.Args[0].(*Task) //nolint:errcheck
 				eventArgs := make([]string, 2)
 				if err := events.GetEventArgsAsStrings(eventArgs, event.Args[1].([]interface{})); err != nil {
@@ -413,15 +414,15 @@ func newTaskState() *fsm.FSM {
 				nodeID := eventArgs[1]
 				task.beforeTaskAllocated(event.Src, allocUUID, nodeID)
 			},
-			beforeHook(CompleteTask): func(event *fsm.Event) {
+			beforeHook(CompleteTask): func(_ context.Context, event *fsm.Event) {
 				task := event.Args[0].(*Task) //nolint:errcheck
 				task.beforeTaskCompleted()
 			},
-			SubmitTask.String(): func(event *fsm.Event) {
+			SubmitTask.String(): func(_ context.Context, event *fsm.Event) {
 				task := event.Args[0].(*Task) //nolint:errcheck
 				task.handleSubmitTaskEvent()
 			},
-			TaskFail.String(): func(event *fsm.Event) {
+			TaskFail.String(): func(_ context.Context, event *fsm.Event) {
 				task := event.Args[0].(*Task) //nolint:errcheck
 				eventArgs := make([]string, 1)
 				if err := events.GetEventArgsAsStrings(eventArgs, event.Args[1].([]interface{})); err != nil {
