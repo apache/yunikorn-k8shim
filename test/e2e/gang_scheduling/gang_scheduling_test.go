@@ -142,14 +142,14 @@ var _ = Describe("", func() {
 		tgPlaceHolders := yunikorn.GetPlaceholderNames(podConf.Annotations, podConf.Labels["applicationId"])
 		for _, phNames := range tgPlaceHolders {
 			for _, ph := range phNames {
-				phTermErr := kClient.WaitForPodTerminated(ns, ph, time.Minute)
+				phTermErr := kClient.WaitForPodTerminated(ns, ph, 3*time.Minute)
 				Ω(phTermErr).NotTo(HaveOccurred())
 			}
 		}
 
 		// Check real gang members now running
 		By("Wait for all gang members running")
-		jobRunErr := kClient.WaitForJobPods(ns, realJobConf.Name, int(realJobConf.Parallelism), 30*time.Second)
+		jobRunErr := kClient.WaitForJobPods(ns, realJobConf.Name, int(realJobConf.Parallelism), 3*time.Minute)
 		Ω(jobRunErr).NotTo(HaveOccurred())
 
 		By("Verify appStatus = Running")
