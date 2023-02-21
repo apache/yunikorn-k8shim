@@ -1010,6 +1010,15 @@ func (k *KubeCtl) GetNodes() (*v1.NodeList, error) {
 	return k.clientSet.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 }
 
+func (k *KubeCtl) GetNodesCapacity(nodes v1.NodeList) map[string]v1.ResourceList {
+	nodeAvailRes := make(map[string]v1.ResourceList)
+	for _, node := range nodes.Items {
+		nodeAvailRes[node.Name] = node.Status.Allocatable.DeepCopy()
+	}
+
+	return nodeAvailRes
+}
+
 func GetWorkerNodes(nodes v1.NodeList) []v1.Node {
 	var workerNodes []v1.Node
 	for _, node := range nodes.Items {
