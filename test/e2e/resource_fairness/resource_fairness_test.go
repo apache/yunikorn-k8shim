@@ -23,26 +23,67 @@ import (
 	"math/rand"
 	"time"
 
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 
+	"github.com/apache/yunikorn-core/pkg/common/configs"
+	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	tests "github.com/apache/yunikorn-k8shim/test/e2e"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
+	"github.com/onsi/ginkgo"
 )
 
 var _ = Describe("FairScheduling:", func() {
 	var kClient k8s.KubeCtl
 	var restClient yunikorn.RClient
 	var err error
-	var ns = "default"
+	var ns string
+	//var queue = "fairness"
+	var queuePath string
 
 	var maxCPU int64 = 500
 	var maxMem int64 = 500
 
 	BeforeEach(func() {
+		var namespace *v1.Namespace
+		ns = "test-" + common.RandSeq(10)
+		queuePath = "root." + ns
 		kClient = k8s.KubeCtl{}
 		Ω(kClient.SetClient()).To(BeNil())
+
+		By("Setting custom YuniKorn configuration")
+		annotation = "ann-" + common.RandSeq(10)
+		yunikorn.UpdateCustomConfigMapWrapper(oldConfigMap, "fair", annotation, func(sc *configs.SchedulerConfig) error {
+			// remove placement rules so we can control queue
+			sc.Partitions[0].PlacementRules = nil
+			if err := common.AddQueue(sc, "default", "root", configs.QueueConfig{
+				Name:   ns,
+				Parent: false,
+				Resources: configs.Resources{Max: map[string]string{"vcore": "500m", "memory": "500M"},
+					Guaranteed: map[string]string{"vcore": "500m", "memory": "500M"}},
+				Properties: map[string]string{"application.sort.policy": "fair"},
+			}); err != nil {
+				return err
+			}
+			return nil
+		})
+		kClient = k8s.KubeCtl{}
+		Ω(kClient.SetClient()).To(BeNil())
+
+		// Restart yunikorn and port-forward
+		// Required to change node sort policy.
+		ginkgo.By("Restart the scheduler pod")
+		yunikorn.RestartYunikorn(&kClient)
+
+		ginkgo.By("Port-forward scheduler pod after restart")
+		yunikorn.RestorePortForwarding(&kClient)
+
+		By(fmt.Sprintf("Creating test namespace %s", ns))
+		namespace, err = kClient.CreateNamespace(ns, map[string]string{"vcore": "500m", "memory": "500M"})
+		Ω(err).ShouldNot(HaveOccurred())
+		Ω(namespace.Status.Phase).Should(Equal(v1.NamespaceActive))
 	})
 
 	// Validates waitQueue order of requested app resources, according to fairAppScheduling.
@@ -80,12 +121,13 @@ var _ = Describe("FairScheduling:", func() {
 
 				// Deploy pod
 				sleepPodConf := k8s.SleepPodConfig{
-					Name: podName, NS: ns, AppID: appID, CPU: reqCPU, Mem: reqMem}
+					Name: podName, NS: ns, AppID: appID, CPU: reqCPU, Mem: reqMem, Labels: map[string]string{
+						constants.LabelQueueName: queuePath}}
 				initPod, podErr := k8s.InitSleepPod(sleepPodConf)
 				Ω(podErr).NotTo(HaveOccurred())
 				_, err = kClient.CreatePod(initPod, ns)
 				Ω(err).NotTo(HaveOccurred())
-				err = kClient.WaitForPodRunning(ns, podName, 30*time.Second)
+				err = kClient.WaitForPodRunning(ns, podName, 120*time.Second)
 				Ω(err).NotTo(HaveOccurred())
 			}
 		}
@@ -102,7 +144,8 @@ var _ = Describe("FairScheduling:", func() {
 
 			By(fmt.Sprintf("[%s] Submit %s", appID, podName))
 			sleepPodConf := k8s.SleepPodConfig{
-				Name: podName, NS: ns, AppID: appID, CPU: reqCPU, Mem: reqMem}
+				Name: podName, NS: ns, AppID: appID, CPU: reqCPU, Mem: reqMem, Labels: map[string]string{
+					constants.LabelQueueName: queuePath}}
 			initPod, podErr := k8s.InitSleepPod(sleepPodConf)
 			Ω(podErr).NotTo(HaveOccurred())
 			_, err = kClient.CreatePod(initPod, ns)
@@ -111,8 +154,8 @@ var _ = Describe("FairScheduling:", func() {
 			Ω(err).NotTo(HaveOccurred())
 
 			// Wait till requests has been added to application
-			err := wait.PollImmediate(300*time.Millisecond, time.Duration(30)*time.Second, func() (bool, error) {
-				app, err := restClient.GetAppInfo("default", "root."+ns, appID)
+			err := wait.PollImmediate(300*time.Millisecond, 60*time.Second, func() (bool, error) {
+				app, err := restClient.GetAppInfo("default", queuePath, appID)
 				if err != nil {
 					return false, nil
 				}
@@ -155,8 +198,8 @@ var _ = Describe("FairScheduling:", func() {
 			tests.LogTestClusterInfoWrapper(testDescription.TestText, []string{ns})
 			tests.LogYunikornContainer(testDescription.TestText)
 		}
-		By("Deleting all pods: " + ns)
-		err := kClient.DeletePods(ns)
+		By("Tear down namespace: " + ns)
+		err := kClient.TearDownNamespace(ns)
 		Ω(err).NotTo(HaveOccurred())
 	})
 })

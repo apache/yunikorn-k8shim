@@ -27,7 +27,6 @@ import (
 	"github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/apache/yunikorn-core/pkg/common/configs"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
@@ -45,28 +44,6 @@ var _ = BeforeSuite(func() {
 	Ω(kClient.SetClient()).To(BeNil())
 	annotation = "ann-" + common.RandSeq(10)
 	yunikorn.EnsureYuniKornConfigsPresent()
-	yunikorn.UpdateCustomConfigMapWrapper(oldConfigMap, "fair", annotation, func(sc *configs.SchedulerConfig) error {
-		// remove placement rules so we can control queue
-		sc.Partitions[0].PlacementRules = nil
-		if err := common.AddQueue(sc, "default", "root", configs.QueueConfig{
-			Name:       "default",
-			Parent:     false,
-			Resources:  configs.Resources{Max: map[string]string{"vcore": "500m", "memory": "500M"}, Guaranteed: map[string]string{"vcore": "500m", "memory": "500M"}},
-			Properties: map[string]string{"application.sort.policy": "fair"},
-		}); err != nil {
-			return err
-		}
-		return nil
-	})
-
-	// Restart yunikorn and port-forward
-	// Required to change node sort policy.
-	ginkgo.By("Restart the scheduler pod")
-	yunikorn.RestartYunikorn(&kClient)
-
-	ginkgo.By("Port-forward scheduler pod after restart")
-	yunikorn.RestorePortForwarding(&kClient)
-
 })
 
 var _ = AfterSuite(func() {
