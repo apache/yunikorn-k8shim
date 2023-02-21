@@ -380,7 +380,7 @@ func (task *Task) postTaskAllocated(allocUUID string, nodeID string) {
 				zap.String("podUID", string(task.pod.UID)))
 			if task.context.apiProvider.GetAPIs().VolumeBinder != nil {
 				if err := task.context.bindPodVolumes(task.pod); err != nil {
-					errorMessage = fmt.Sprintf("bind pod volumes failed, name: %s, %s", task.alias, err.Error())
+					errorMessage = fmt.Sprintf("bind volumes to pod failed, name: %s, %s", task.alias, err.Error())
 					dispatcher.Dispatch(NewFailTaskEvent(task.applicationID, task.taskID, errorMessage))
 					events.GetRecorder().Eventf(task.pod.DeepCopy(),
 						nil, v1.EventTypeWarning, "PodVolumesBindFailure", "PodVolumesBindFailure", errorMessage)
@@ -393,7 +393,7 @@ func (task *Task) postTaskAllocated(allocUUID string, nodeID string) {
 				zap.String("podUID", string(task.pod.UID)))
 
 			if err := task.context.apiProvider.GetAPIs().KubeClient.Bind(task.pod, nodeID); err != nil {
-				errorMessage = fmt.Sprintf("bind pod volumes failed, name: %s, %s", task.alias, err.Error())
+				errorMessage = fmt.Sprintf("bind pod to node failed, name: %s, %s", task.alias, err.Error())
 				log.Logger().Error(errorMessage)
 				dispatcher.Dispatch(NewFailTaskEvent(task.applicationID, task.taskID, errorMessage))
 				events.GetRecorder().Eventf(task.pod.DeepCopy(), nil,
