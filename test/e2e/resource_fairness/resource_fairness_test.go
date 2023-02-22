@@ -23,6 +23,7 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/onsi/ginkgo"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 
@@ -32,7 +33,6 @@ import (
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
-	"github.com/onsi/ginkgo"
 )
 
 var _ = Describe("FairScheduling:", func() {
@@ -40,7 +40,6 @@ var _ = Describe("FairScheduling:", func() {
 	var restClient yunikorn.RClient
 	var err error
 	var ns string
-	//var queue = "fairness"
 	var queuePath string
 
 	var maxCPU int64 = 500
@@ -58,7 +57,7 @@ var _ = Describe("FairScheduling:", func() {
 		yunikorn.UpdateCustomConfigMapWrapper(oldConfigMap, "fair", annotation, func(sc *configs.SchedulerConfig) error {
 			// remove placement rules so we can control queue
 			sc.Partitions[0].PlacementRules = nil
-			if err := common.AddQueue(sc, "default", "root", configs.QueueConfig{
+			if err = common.AddQueue(sc, "default", "root", configs.QueueConfig{
 				Name:   ns,
 				Parent: false,
 				Resources: configs.Resources{Max: map[string]string{"vcore": "500m", "memory": "500M"},
