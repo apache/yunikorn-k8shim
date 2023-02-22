@@ -101,7 +101,7 @@ func (mgr *PlaceholderManager) createAppPlaceholders(app *Application) error {
 				return err
 			}
 			log.Logger().Info("placeholder created",
-				zap.String("placeholder", placeholder.String()))
+				zap.Stringer("placeholder", placeholder))
 		}
 	}
 

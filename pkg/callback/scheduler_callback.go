@@ -46,7 +46,7 @@ func NewAsyncRMCallback(ctx *cache.Context) *AsyncRMCallback {
 
 func (callback *AsyncRMCallback) UpdateAllocation(response *si.AllocationResponse) error {
 	log.Logger().Debug("UpdateAllocation callback received",
-		zap.String("UpdateAllocationResponse", response.String()))
+		zap.Stringer("UpdateAllocationResponse", response))
 	// handle new allocations
 	for _, alloc := range response.New {
 		// got allocation for pod, bind pod to the scheduled node
@@ -106,7 +106,7 @@ func (callback *AsyncRMCallback) UpdateAllocation(response *si.AllocationRespons
 
 func (callback *AsyncRMCallback) UpdateApplication(response *si.ApplicationResponse) error {
 	log.Logger().Debug("UpdateApplication callback received",
-		zap.String("UpdateApplicationResponse", response.String()))
+		zap.Stringer("UpdateApplicationResponse", response))
 
 	// handle new accepted apps
 	for _, app := range response.Accepted {
@@ -163,7 +163,7 @@ func (callback *AsyncRMCallback) UpdateApplication(response *si.ApplicationRespo
 
 func (callback *AsyncRMCallback) UpdateNode(response *si.NodeResponse) error {
 	log.Logger().Debug("UpdateNode callback received",
-		zap.String("UpdateNodeResponse", response.String()))
+		zap.Stringer("UpdateNodeResponse", response))
 	// handle new accepted nodes
 	for _, node := range response.Accepted {
 		log.Logger().Debug("callback: response to accepted node",

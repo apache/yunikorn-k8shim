@@ -315,7 +315,7 @@ func (task *Task) handleSubmitTaskEvent() {
 		task.pod,
 		task.originator,
 		preemptionPolicy)
-	log.Logger().Debug("send update request", zap.String("request", rr.String()))
+	log.Logger().Debug("send update request", zap.Stringer("request", &rr))
 	if err := task.context.apiProvider.GetAPIs().SchedulerAPI.UpdateAllocation(&rr); err != nil {
 		log.Logger().Debug("failed to send scheduling request to scheduler", zap.Error(err))
 		return
