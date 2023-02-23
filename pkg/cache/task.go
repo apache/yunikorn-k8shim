@@ -213,12 +213,12 @@ func (task *Task) initialize() {
 
 	// task needs recovery means the task has already been
 	// scheduled by us with an allocation, instead of starting
-	// from New, directly set the task to Allocated.
+	// from New, directly set the task to Bound.
 	if utils.NeedRecovery(task.pod) {
 		task.allocationUUID = string(task.pod.UID)
 		task.nodeName = task.pod.Spec.NodeName
-		task.sm.SetState(TaskStates().Allocated)
-		log.Logger().Info("set task as Allocated",
+		task.sm.SetState(TaskStates().Bound)
+		log.Logger().Info("set task as Bound",
 			zap.String("appID", task.applicationID),
 			zap.String("taskID", task.taskID),
 			zap.String("allocationUUID", task.allocationUUID),
