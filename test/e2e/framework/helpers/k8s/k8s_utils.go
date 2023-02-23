@@ -350,6 +350,16 @@ func (k *KubeCtl) DeleteNamespace(namespace string) error {
 }
 
 func (k *KubeCtl) TearDownNamespace(namespace string) error {
+	err := k.DeletePods(namespace)
+	if err != nil {
+		return err
+	}
+
+	// Delete namespace
+	return k.clientSet.CoreV1().Namespaces().Delete(context.TODO(), namespace, metav1.DeleteOptions{})
+}
+
+func (k *KubeCtl) DeletePods(namespace string) error {
 	// Delete all pods
 	var pods, err = k.GetPodNamesFromNS(namespace)
 	if err != nil {
@@ -368,9 +378,7 @@ func (k *KubeCtl) TearDownNamespace(namespace string) error {
 			return err
 		}
 	}
-
-	// Delete namespace
-	return k.clientSet.CoreV1().Namespaces().Delete(context.TODO(), namespace, metav1.DeleteOptions{})
+	return nil
 }
 
 func GetConfigMapObj(yamlPath string) (*v1.ConfigMap, error) {
