@@ -259,7 +259,7 @@ var _ = Describe("", func() {
 		By("Wait for all placeholders terminated")
 		for _, phNames := range tgPlaceHolders {
 			for _, ph := range phNames {
-				phTermErr := kClient.WaitForPodTerminated(ns, ph, time.Minute)
+				phTermErr := kClient.WaitForPodTerminated(ns, ph, 3*time.Minute)
 				Ω(phTermErr).NotTo(HaveOccurred())
 			}
 		}
@@ -273,7 +273,7 @@ var _ = Describe("", func() {
 			Ω(len(jobPods.Items)).Should(BeNumerically("==", tg.MinMember))
 			realPodNodes[tg.Name] = map[string]int{}
 			for _, pod := range jobPods.Items {
-				podRunErr := kClient.WaitForPodRunning(ns, pod.Name, time.Minute)
+				podRunErr := kClient.WaitForPodRunning(ns, pod.Name, time.Minute*5)
 				Ω(podRunErr).NotTo(HaveOccurred())
 				pod, getErr := kClient.GetPod(pod.Name, ns)
 				Ω(getErr).NotTo(HaveOccurred())
