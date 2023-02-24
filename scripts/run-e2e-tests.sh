@@ -100,6 +100,19 @@ function install_kind() {
   check_cmd "${KIND}"
 }
 
+function install_spark() {
+  check_cmd "wget"
+  wget -qO-  https://archive.apache.org/dist/spark/spark-3.3.1/spark-3.3.1-bin-hadoop3.tgz | tar xzvf - && chmod +x spark-3.3.1-bin-hadoop3 && sudo mv spark-3.3.1-bin-hadoop3 /opt/.
+  exit_on_error "install spark failed."
+  sudo ln -s /opt/spark-3.3.1-bin-hadoop3 /opt/spark
+  exit_on_error "install spark failed. unable to create symlink"
+  export SPARK_HOME=/opt/spark/
+  export SPARK_PYTHON_IMAGE=docker.io/apache/spark-py:v3.3.1
+  exit_on_error "install spark failed. unable to set env variables"
+  docker pull docker.io/apache/spark-py:v3.3.1
+  exit_on_error "install spark failed. unable to pull sparkpy image"
+}
+
 function install_helm() {
   FORCE_HELM_INSTALL=false
   if ! command -v helm &> /dev/null
@@ -124,7 +137,7 @@ function install_helm() {
 }
 
 function install_cluster() {
-  echo "step 1/9: checking required configuration"
+  echo "step 1/10: checking required configuration"
   if [ ! -r "${KIND_CONFIG}" ]; then
     exit_on_error "kind config not found: ${KIND_CONFIG}"
   fi
@@ -138,7 +151,7 @@ function install_cluster() {
   fi
 
   # build docker images from latest code, so that we can install yunikorn with these latest images
-  echo "step 2/9: building docker images from latest code"
+  echo "step 2/10: building docker images from latest code"
   check_docker
   QUIET="--quiet" REGISTRY=local VERSION=latest make image
   exit_on_error "build docker images failed"
@@ -146,24 +159,28 @@ function install_cluster() {
   exit_on_error "build test web images failed"
 
   # install ginkgo and gomega for e2e tests.
-  echo "step 3/9: installing Ginkgo & Gomega at $(go env GOPATH)/bin"
+  echo "step 3/10: installing Ginkgo & Gomega at $(go env GOPATH)/bin"
   go install github.com/onsi/ginkgo/ginkgo
   go install github.com/onsi/gomega
   check_cmd "ginkgo"
 
-  echo "step 4/9: installing helm-v3"
+  echo "step 4/10: installing helm-v3"
   install_helm
 
   # install kubectl
-  echo "step 5/9: installing kubectl"
+  echo "step 5/10: installing kubectl"
   install_kubectl
 
   # install KIND
-  echo "step 6/9: installing kind"
+  echo "step 6/10: installing kind"
   install_kind
 
+  # install Spark
+  echo "step 7/10: installing spark"
+  install_spark
+
   # create K8s cluster
-  echo "step 7/9: installing K8s cluster using kind"
+  echo "step 8/10: installing K8s cluster using kind"
   "${KIND}" create cluster --name "${CLUSTER_NAME}" --image "${CLUSTER_VERSION}" --config="${KIND_CONFIG}"
   exit_on_error "install K8s cluster failed"
   kubectl cluster-info --context kind-"${CLUSTER_NAME}"
@@ -174,7 +191,7 @@ function install_cluster() {
   kubectl describe nodes
 
   # pre-load yunikorn docker images to kind
-  echo "step 8/9: pre-load yunikorn images"
+  echo "step 9/10: pre-load yunikorn images"
   "${KIND}" load docker-image "local/yunikorn:${SCHEDULER_IMAGE}" --name "${CLUSTER_NAME}"
   exit_on_error "pre-load scheduler image failed: ${SCHEDULER_IMAGE}"
   "${KIND}" load docker-image "local/yunikorn:${ADMISSION_IMAGE}" --name "${CLUSTER_NAME}"
@@ -182,7 +199,7 @@ function install_cluster() {
   "${KIND}" load docker-image "local/yunikorn:${WEBTEST_IMAGE}" --name "${CLUSTER_NAME}"
   exit_on_error "pre-load web image failed: ${WEBTEST_IMAGE}"
 
-  echo "step 9/9: installing yunikorn"
+  echo "step 10/10: installing yunikorn"
   helm install yunikorn "${CHART_PATH}" --namespace yunikorn \
     --set image.repository=local/yunikorn \
     --set image.tag="${SCHEDULER_IMAGE}" \

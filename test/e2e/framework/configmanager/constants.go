@@ -56,6 +56,12 @@ const (
 	DefaultYuniKornConfigMap = "yunikorn-configs"
 	DefaultPluginConfigMap   = "yunikorn-configs"
 	DefaultPolicyGroup       = "queues.yaml"
+
+	// Queues
+	RootQueue = "root"
+
+	// Partitions
+	DefaultPartition = "default"
 )
 
 func GetConfigMapName() string {

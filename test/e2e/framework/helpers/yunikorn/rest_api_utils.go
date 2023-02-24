@@ -106,6 +106,51 @@ func (c *RClient) GetHealthCheck() (dao.SchedulerHealthDAOInfo, error) {
 	return healthCheck, err
 }
 
+func (c *RClient) WaitforQueueToAppear(partition string, queueName string, timeout int) error {
+	var queueInfo = wait.PollImmediate(300*time.Millisecond, time.Duration(timeout)*time.Second, c.IsQueuePresent(partition, queueName))
+	startTime := time.Now().Unix()
+	endTime := startTime + int64(timeout)
+	// if the queue is not present , Polling for timeout seconds
+	for {
+		currentTime := time.Now().Unix()
+		if queueInfo != nil {
+			if currentTime <= endTime {
+				queueInfo = wait.PollImmediate(300*time.Millisecond, time.Duration(timeout)*time.Second, c.IsQueuePresent(partition, queueName))
+			} else {
+				break
+			}
+		} else {
+			break
+		}
+	}
+	return queueInfo
+}
+
+func (c *RClient) IsQueuePresent(partition string, queueName string) wait.ConditionFunc {
+	return func() (bool, error) {
+		req, err := c.newRequest("GET", fmt.Sprintf(configmanager.QueuesPath, partition), nil)
+		if err != nil {
+			return false, nil // returning nil here for wait & loop
+		}
+		var queues *dao.PartitionQueueDAOInfo
+		_, err = c.do(req, &queues)
+		if err != nil {
+			return false, err
+		}
+
+		fmt.Printf("queue info is %+v", queues)
+		if queueName == configmanager.RootQueue && queues.QueueName == configmanager.RootQueue {
+			return true, nil
+		}
+		for idx := range queues.Children {
+			if queues.Children[idx].QueueName == queueName {
+				return true, nil
+			}
+		}
+		return false, fmt.Errorf("could not find queue: %s", queueName)
+	}
+}
+
 func (c *RClient) GetAllAppInfos() (*dao.ApplicationsDAOInfo, error) {
 	appsInfos := new(dao.ApplicationsDAOInfo)
 
