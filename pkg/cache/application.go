@@ -277,9 +277,19 @@ func (app *Application) GetAllocatedTasks() []*Task {
 	return app.getTasks(TaskStates().Allocated)
 }
 
+func (app *Application) GetBoundTasks() []*Task {
+	app.lock.RLock()
+	defer app.lock.RUnlock()
+	return app.getTasks(TaskStates().Bound)
+}
+
 func (app *Application) GetPlaceHolderTasks() []*Task {
 	app.lock.RLock()
 	defer app.lock.RUnlock()
+	return app.getPlaceHolderTasks()
+}
+
+func (app *Application) getPlaceHolderTasks() []*Task {
 	placeholders := make([]*Task, 0)
 	for _, task := range app.taskMap {
 		if task.placeholder {
@@ -520,6 +530,13 @@ func (app *Application) postAppAccepted() {
 }
 
 func (app *Application) onReserving() {
+	// happens after recovery - if placeholders already exist, we need to send
+	// an event to trigger Application state change in the core
+	if len(app.getPlaceHolderTasks()) > 0 {
+		ev := NewUpdateApplicationReservationEvent(app.applicationID)
+		dispatcher.Dispatch(ev)
+	}
+
 	go func() {
 		// while doing reserving
 		if err := getPlaceholderManager().createAppPlaceholders(app); err != nil {
