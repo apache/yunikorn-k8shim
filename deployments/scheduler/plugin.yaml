@@ -29,31 +29,11 @@ metadata:
 subjects:
   - kind: ServiceAccount
     name: yunikorn-admin
+    namespace: default
 roleRef:
   kind: ClusterRole
   name: cluster-admin
   apiGroup: rbac.authorization.k8s.io
-
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: yunikorn-configs
-  labels:
-    app: yunikorn
-data:
-  queues.yaml: |
-    partitions:
-      - name: default
-        nodesortpolicy:
-          type: fair
-        placementrules:
-          - name: tag
-            value: namespace
-            create: true
-        queues:
-          - name: root
-            submitacl: '*'
 
 ---
 apiVersion: apps/v1
@@ -95,11 +75,6 @@ spec:
             limits:
               cpu: 4
               memory: 2Gi
-          volumeMounts:
-            - mountPath: /etc/kubernetes
-              name: scheduler-config
-            - mountPath: /etc/yunikorn
-              name: quotamanager-config
           livenessProbe:
             httpGet:
               path: /ws/v1/scheduler/healthcheck
@@ -121,13 +96,6 @@ spec:
             limits:
               memory: "500Mi"
               cpu: "200m"
-      volumes:
-        - name: scheduler-config
-          configMap:
-            name: yunikorn-scheduler-plugin-configs
-        - name: quotamanager-config
-          configMap:
-            name: yunikorn-configs
 
 ---
 apiVersion: v1
