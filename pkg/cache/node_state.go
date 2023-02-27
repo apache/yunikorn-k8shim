@@ -19,6 +19,7 @@
 package cache
 
 import (
+	"context"
 	"sync"
 
 	"github.com/looplab/fsm"
@@ -129,7 +130,7 @@ func newSchedulerNodeState() *fsm.FSM {
 			},
 		},
 		fsm.Callbacks{
-			events.EnterState: func(event *fsm.Event) {
+			events.EnterState: func(_ context.Context, event *fsm.Event) {
 				node := event.Args[0].(*SchedulerNode) //nolint:errcheck
 				log.Logger().Debug("shim node state transition",
 					zap.String("nodeID", node.name),
@@ -137,19 +138,19 @@ func newSchedulerNodeState() *fsm.FSM {
 					zap.String("destination", event.Dst),
 					zap.String("event", event.Event))
 			},
-			states.Accepted: func(event *fsm.Event) {
+			states.Accepted: func(_ context.Context, event *fsm.Event) {
 				node := event.Args[0].(*SchedulerNode) //nolint:errcheck
 				node.postNodeAccepted()
 			},
-			states.Recovering: func(event *fsm.Event) {
+			states.Recovering: func(_ context.Context, event *fsm.Event) {
 				node := event.Args[0].(*SchedulerNode) //nolint:errcheck
 				node.handleNodeRecovery()
 			},
-			DrainNode.String(): func(event *fsm.Event) {
+			DrainNode.String(): func(_ context.Context, event *fsm.Event) {
 				node := event.Args[0].(*SchedulerNode) //nolint:errcheck
 				node.handleDrainNode()
 			},
-			RestoreNode.String(): func(event *fsm.Event) {
+			RestoreNode.String(): func(_ context.Context, event *fsm.Event) {
 				node := event.Args[0].(*SchedulerNode) //nolint:errcheck
 				node.handleRestoreNode()
 			},

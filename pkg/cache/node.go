@@ -19,6 +19,7 @@
 package cache
 
 import (
+	"context"
 	"sync"
 
 	"github.com/looplab/fsm"
@@ -186,7 +187,7 @@ func (n *SchedulerNode) handleRestoreNode() {
 func (n *SchedulerNode) handle(ev events.SchedulerNodeEvent) error {
 	n.lock.Lock()
 	defer n.lock.Unlock()
-	err := n.fsm.Event(ev.GetEvent(), n)
+	err := n.fsm.Event(context.Background(), ev.GetEvent(), n)
 	// handle the same state transition not nil error (limit of fsm).
 	if err != nil && err.Error() != "no transition" {
 		return err

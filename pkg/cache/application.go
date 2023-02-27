@@ -19,6 +19,7 @@
 package cache
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"strings"
@@ -102,7 +103,7 @@ func (app *Application) handle(ev events.ApplicationEvent) error {
 	//    because the lock is already held here.
 	app.lock.Lock()
 	defer app.lock.Unlock()
-	err := app.sm.Event(ev.GetEvent(), app, ev.GetArgs())
+	err := app.sm.Event(context.Background(), ev.GetEvent(), app, ev.GetArgs())
 	// handle the same state transition not nil error (limit of fsm).
 	if err != nil && err.Error() != "no transition" {
 		return err
