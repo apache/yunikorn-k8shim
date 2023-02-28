@@ -47,7 +47,6 @@ for i in $(seq 1 "$END"); do
       --conf spark.kubernetes.authenticate.driver.serviceAccountName="$SVC_ACC" \
       --conf spark.pyspark.python=python3 \
       --conf spark.pyspark.driver.python=python3 \
-      --conf spark.kubernetes.container.image.pullSecrets=dockercreds \
       --conf spark.kubernetes.file.upload.path=/opt/spark/upload-temp \
       --conf spark.kubernetes.driver.podTemplateFile=../testdata/spark_pod_template.yaml \
       --conf spark.kubernetes.executor.podTemplateFile=../testdata/spark_pod_template.yaml \

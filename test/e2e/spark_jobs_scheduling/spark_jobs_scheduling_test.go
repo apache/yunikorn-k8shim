@@ -42,7 +42,6 @@ var _ = Describe("", func() {
 
 	var kClient k8s.KubeCtl
 	var restClient yunikorn.RClient
-	var secretDef string
 	var err error
 	var sparkNS = "spark-" + common.RandSeq(10)
 	var svcAcc = "svc-acc-" + common.RandSeq(10)
@@ -60,7 +59,6 @@ var _ = Describe("", func() {
 	BeforeEach(func() {
 		By(fmt.Sprintf("Spark image is: %s", sparkImage))
 		Ω(sparkImage).NotTo(BeEmpty())
-		secretDef, err = common.GetAbsPath("../testdata/docker_registry_secret.yaml")
 		kClient = k8s.KubeCtl{}
 		Ω(kClient.SetClient()).To(BeNil())
 		Ω(err).NotTo(HaveOccurred())
@@ -75,13 +73,6 @@ var _ = Describe("", func() {
 
 		By(fmt.Sprintf("Creating cluster role binding: %s for spark jobs", roleName))
 		_, err = kClient.CreateClusterRoleBinding(roleName, clusterEditRole, sparkNS, svcAcc)
-		Ω(err).NotTo(HaveOccurred())
-
-		By(fmt.Sprintf("Creating secret: dockercreds under namespace: %s", sparkNS))
-		secretObj, err := k8s.GetSecretObj(secretDef)
-		Ω(err).NotTo(HaveOccurred())
-		secretObj.Namespace = sparkNS
-		_, err = kClient.CreateSecret(secretObj, sparkNS)
 		Ω(err).NotTo(HaveOccurred())
 
 		config, err = kClient.GetKubeConfig()

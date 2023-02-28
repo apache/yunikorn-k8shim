@@ -109,8 +109,6 @@ function install_spark() {
   export SPARK_HOME=/opt/spark/
   export SPARK_PYTHON_IMAGE=docker.io/apache/spark-py:v3.3.1
   exit_on_error "install spark failed. unable to set env variables"
-  docker pull docker.io/apache/spark-py:v3.3.1
-  exit_on_error "install spark failed. unable to pull sparkpy image"
 }
 
 function install_helm() {
