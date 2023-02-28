@@ -63,14 +63,14 @@ const (
 	CMSvcDisableGangScheduling  = PrefixService + "disableGangScheduling"
 	CMSvcEnableConfigHotRefresh = PrefixService + "enableConfigHotRefresh"
 	CMSvcPlaceholderImage       = PrefixService + "placeholderImage"
-	CMSvcApiClientTimeout       = PrefixService + "apiClientTimeout"
 
 	// log
 	CMLogLevel = PrefixLog + "level"
 
 	// kubernetes
-	CMKubeQPS   = PrefixKubernetes + "qps"
-	CMKubeBurst = PrefixKubernetes + "burst"
+	CMKubeQPS              = PrefixKubernetes + "qps"
+	CMKubeBurst            = PrefixKubernetes + "burst"
+	CMKubeApiClientTimeout = PrefixKubernetes + "apiClientTimeout"
 
 	// defaults
 	DefaultNamespace              = "default"
@@ -206,7 +206,7 @@ func handleNonReloadableConfig(old *SchedulerConf, new *SchedulerConf) {
 	checkNonReloadableString(CMSvcOperatorPlugins, &old.OperatorPlugins, &new.OperatorPlugins)
 	checkNonReloadableBool(CMSvcDisableGangScheduling, &old.DisableGangScheduling, &new.DisableGangScheduling)
 	checkNonReloadableString(CMSvcPlaceholderImage, &old.PlaceHolderImage, &new.PlaceHolderImage)
-	checkNonReloadableDuration(CMSvcApiClientTimeout, &old.ApiClientTimeout, &new.ApiClientTimeout)
+	checkNonReloadableDuration(CMKubeApiClientTimeout, &old.ApiClientTimeout, &new.ApiClientTimeout)
 }
 
 const warningNonReloadable = "ignoring non-reloadable configuration change (restart required to update)"
@@ -361,7 +361,7 @@ func parseConfig(config map[string]string, prev *SchedulerConf) (*SchedulerConf,
 	parser.boolVar(&conf.DisableGangScheduling, CMSvcDisableGangScheduling)
 	parser.boolVar(&conf.EnableConfigHotRefresh, CMSvcEnableConfigHotRefresh)
 	parser.stringVar(&conf.PlaceHolderImage, CMSvcPlaceholderImage)
-	parser.durationVar(&conf.ApiClientTimeout, CMSvcApiClientTimeout)
+	parser.durationVar(&conf.ApiClientTimeout, CMKubeApiClientTimeout)
 
 	// log
 	parser.intVar(&conf.LoggingLevel, CMLogLevel)

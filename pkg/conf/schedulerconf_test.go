@@ -93,7 +93,7 @@ func TestParseConfigMap(t *testing.T) {
 		{CMLogLevel, "LoggingLevel", -1},
 		{CMKubeQPS, "KubeQPS", 2345},
 		{CMKubeBurst, "KubeBurst", 3456},
-		{CMSvcApiClientTimeout, "ApiClientTimeout", 30 * time.Second},
+		{CMKubeApiClientTimeout, "ApiClientTimeout", 30 * time.Second},
 	}
 
 	for _, tc := range testCases {
@@ -126,8 +126,8 @@ func TestUpdateConfigMapNonReloadable(t *testing.T) {
 		{CMLogLevel, "LoggingLevel", -1, true},
 		{CMKubeQPS, "KubeQPS", 2345, false},
 		{CMKubeBurst, "KubeBurst", 3456, false},
-		{CMSvcApiClientTimeout, "ApiClientTimeout", 30 * time.Second, false},
-		{CMSvcApiClientTimeout, "ApiClientTimeout", 30 * time.Second, false},
+		{CMKubeApiClientTimeout, "ApiClientTimeout", 30 * time.Second, false},
+		{CMKubeApiClientTimeout, "ApiClientTimeout", 30 * time.Second, false},
 	}
 
 	for _, tc := range testCases {
