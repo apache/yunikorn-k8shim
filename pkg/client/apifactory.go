@@ -214,14 +214,14 @@ func (s *APIFactory) WaitForSync() error {
 		// skip this in test mode
 		return nil
 	}
-	return s.clients.WaitForSync(time.Second, 30*time.Second)
+	return s.clients.WaitForSync(time.Second, conf.GetSchedulerConf().ApiClientTimeout)
 }
 
 func (s *APIFactory) Start() {
 	// launch clients
 	if !s.IsTestingMode() {
 		s.clients.Run(s.stopChan)
-		if err := s.clients.WaitForSync(time.Second, 30*time.Second); err != nil {
+		if err := s.clients.WaitForSync(time.Second, conf.GetSchedulerConf().ApiClientTimeout); err != nil {
 			log.Logger().Warn("Failed to sync informers",
 				zap.Error(err))
 		}

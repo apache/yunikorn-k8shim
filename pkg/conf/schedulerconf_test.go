@@ -71,6 +71,7 @@ func assertDefaults(t *testing.T, conf *SchedulerConf) {
 	assert.Equal(t, conf.KubeQPS, DefaultKubeQPS)
 	assert.Equal(t, conf.KubeBurst, DefaultKubeBurst)
 	assert.Equal(t, conf.UserLabelKey, constants.DefaultUserLabel)
+	assert.Equal(t, conf.ApiClientTimeout, DefaultApiClientTimeout)
 }
 
 func TestParseConfigMap(t *testing.T) {
@@ -92,6 +93,7 @@ func TestParseConfigMap(t *testing.T) {
 		{CMLogLevel, "LoggingLevel", -1},
 		{CMKubeQPS, "KubeQPS", 2345},
 		{CMKubeBurst, "KubeBurst", 3456},
+		{CMKubeApiClientTimeout, "ApiClientTimeout", 30 * time.Second},
 	}
 
 	for _, tc := range testCases {
@@ -124,6 +126,8 @@ func TestUpdateConfigMapNonReloadable(t *testing.T) {
 		{CMLogLevel, "LoggingLevel", -1, true},
 		{CMKubeQPS, "KubeQPS", 2345, false},
 		{CMKubeBurst, "KubeBurst", 3456, false},
+		{CMKubeApiClientTimeout, "ApiClientTimeout", 30 * time.Second, false},
+		{CMKubeApiClientTimeout, "ApiClientTimeout", 30 * time.Second, false},
 	}
 
 	for _, tc := range testCases {
