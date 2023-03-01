@@ -208,7 +208,13 @@ function install_cluster() {
     --set admissionController.image.pullPolicy=IfNotPresent \
     --set web.image.repository=local/yunikorn \
     --set web.image.tag="${WEBTEST_IMAGE}" \
-    --set web.image.pullPolicy=IfNotPresent
+    --set web.image.pullPolicy=IfNotPresent \
+    --set tolerations[0].operator=Equal,tolerations[0].effect=NoSchedule,tolerations[0].key="node-role.kubernetes.io/control-plane" \
+    --set tolerations[1].operator=Equal,tolerations[1].effect=NoSchedule,tolerations[1].key="node-role.kubernetes.io/master" \
+    --set admissionController.tolerations[0].operator=Equal,admissionController.tolerations[0].effect=NoSchedule,admissionController.tolerations[0].key="node-role.kubernetes.io/control-plane" \
+    --set admissionController.tolerations[1].operator=Equal,admissionController.tolerations[1].effect=NoSchedule,admissionController.tolerations[1].key="node-role.kubernetes.io/master" \
+    --set nodeSelector."kubernetes\.io/hostname"=yk8s-control-plane \
+    --set admissionController.nodeSelector."kubernetes\.io/hostname"=yk8s-control-plane
   exit_on_error "failed to install yunikorn"
   kubectl wait --for=condition=available --timeout=300s deployment/yunikorn-scheduler -n yunikorn
   exit_on_error "failed to wait for yunikorn scheduler deployment being deployed"

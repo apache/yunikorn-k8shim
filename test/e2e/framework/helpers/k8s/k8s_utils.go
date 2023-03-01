@@ -951,6 +951,14 @@ func (k *KubeCtl) WaitForPlaceholders(namespace string, podPrefix string, numPod
 	return wait.PollImmediate(time.Millisecond*100, timeout, k.isNumPlaceholdersRunning(namespace, podPrefix, numPods, podPhase))
 }
 
+// WaitForPlaceholdersStableState used when the expected state of the placeholders cannot be properly determined in advance or not needed.
+// Returns when the phase of pods does not change three times in a row.
+func (k *KubeCtl) WaitForPlaceholdersStableState(namespace string, podPrefix string, timeout time.Duration) error {
+	samePhases := 0
+	podPhases := make(map[string]v1.PodPhase)
+	return wait.PollImmediate(time.Second, timeout, k.arePlaceholdersStable(namespace, podPrefix, &samePhases, 3, podPhases))
+}
+
 func (k *KubeCtl) isNumPlaceholdersRunning(namespace string, podPrefix string, num int, podPhase v1.PodPhase) wait.ConditionFunc {
 	return func() (bool, error) {
 		jobPods, lstErr := k.ListPods(namespace, "placeholder=true")
@@ -966,6 +974,42 @@ func (k *KubeCtl) isNumPlaceholdersRunning(namespace string, podPrefix string, n
 		}
 
 		return count == num, nil
+	}
+}
+
+// checks the phase of all pods, returns true if nothing changes for "maxAttempt" times
+func (k *KubeCtl) arePlaceholdersStable(namespace string, podPrefix string, samePhases *int,
+	maxAttempts int, phases map[string]v1.PodPhase) wait.ConditionFunc {
+	return func() (bool, error) {
+		jobPods, lstErr := k.ListPods(namespace, "placeholder=true")
+		if lstErr != nil {
+			return false, lstErr
+		}
+
+		needRetry := false
+		for _, pod := range jobPods.Items {
+			if strings.HasPrefix(pod.Name, podPrefix) {
+				currentPhase := pod.Status.Phase
+				prevPhase, ok := phases[pod.Name]
+				if !ok {
+					phases[pod.Name] = currentPhase
+					needRetry = true
+					continue
+				}
+				if prevPhase != currentPhase {
+					needRetry = true
+				}
+				phases[pod.Name] = currentPhase
+			}
+		}
+
+		if needRetry {
+			*samePhases = 0
+		} else {
+			*samePhases++
+		}
+
+		return *samePhases == maxAttempts, nil
 	}
 }
 
