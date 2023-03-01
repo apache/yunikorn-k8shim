@@ -35,9 +35,7 @@ else
   SPARK_SUBMIT_CMD="${SPARK_HOME}/bin/spark-submit"
 fi
 
-echo "step 66"
 for i in $(seq 1 "$END"); do
-  echo "step 5"
   nohup "$SPARK_SUBMIT_CMD" \
       --master k8s://"$MASTER_URL" \
       --deploy-mode cluster \

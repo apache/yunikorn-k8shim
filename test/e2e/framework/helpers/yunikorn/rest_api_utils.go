@@ -107,23 +107,10 @@ func (c *RClient) GetHealthCheck() (dao.SchedulerHealthDAOInfo, error) {
 }
 
 func (c *RClient) WaitforQueueToAppear(partition string, queueName string, timeout int) error {
-	var queueInfo = wait.PollImmediate(300*time.Millisecond, time.Duration(timeout)*time.Second, c.IsQueuePresent(partition, queueName))
-	startTime := time.Now().Unix()
-	endTime := startTime + int64(timeout)
-	// if the queue is not present , Polling for timeout seconds
-	for {
-		currentTime := time.Now().Unix()
-		if queueInfo != nil {
-			if currentTime <= endTime {
-				queueInfo = wait.PollImmediate(300*time.Millisecond, time.Duration(timeout)*time.Second, c.IsQueuePresent(partition, queueName))
-			} else {
-				break
-			}
-		} else {
-			break
-		}
+	if err := wait.PollImmediate(300*time.Millisecond, time.Duration(timeout)*time.Second, c.IsQueuePresent(partition, queueName)); err != nil {
+		return err
 	}
-	return queueInfo
+	return nil
 }
 
 func (c *RClient) IsQueuePresent(partition string, queueName string) wait.ConditionFunc {
@@ -137,8 +124,6 @@ func (c *RClient) IsQueuePresent(partition string, queueName string) wait.Condit
 		if err != nil {
 			return false, err
 		}
-
-		fmt.Printf("queue info is %+v", queues)
 		if queueName == configmanager.RootQueue && queues.QueueName == configmanager.RootQueue {
 			return true, nil
 		}
@@ -147,7 +132,7 @@ func (c *RClient) IsQueuePresent(partition string, queueName string) wait.Condit
 				return true, nil
 			}
 		}
-		return false, fmt.Errorf("could not find queue: %s", queueName)
+		return false, nil
 	}
 }
 
