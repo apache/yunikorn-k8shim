@@ -191,6 +191,17 @@ func (callback *AsyncRMCallback) Predicates(args *si.PredicatesArgs) error {
 	return callback.context.IsPodFitNode(args.AllocationKey, args.NodeID, args.Allocate)
 }
 
+func (callback *AsyncRMCallback) PreemptionPredicates(args *si.PreemptionPredicatesArgs) *si.PreemptionPredicatesResponse {
+	index, ok := callback.context.IsPodFitNodeViaPreemption(args.AllocationKey, args.NodeID, args.PreemptAllocationKeys, int(args.StartIndex))
+	if !ok {
+		index = -1
+	}
+	return &si.PreemptionPredicatesResponse{
+		Success: ok,
+		Index:   int32(index),
+	}
+}
+
 func (callback *AsyncRMCallback) SendEvent(eventRecords []*si.EventRecord) {
 	if len(eventRecords) > 0 {
 		log.Logger().Debug(fmt.Sprintf("prepare to publish %d events", len(eventRecords)))

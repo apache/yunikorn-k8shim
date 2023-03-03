@@ -54,6 +54,80 @@ var (
 	hugePageResourceA = v1helper.HugePageResourceName(resource.MustParse("2Mi"))
 )
 
+func TestPreemptionPredicatesEmpty(t *testing.T) {
+	conf.GetSchedulerConf().SetTestMode(true)
+	clientSet := clientSet()
+	informerFactory := informerFactory(clientSet)
+	lister := lister()
+	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet)
+
+	ep := enabledPlugins(noderesources.FitName)
+	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
+
+	pod := &v1.Pod{}
+	node := framework.NewNodeInfo()
+	node.SetNode(&v1.Node{})
+	victims := make([]*v1.Pod, 0)
+	index, ok := predicateManager.PreemptionPredicates(pod, node, victims, 0)
+	assert.Check(t, !ok, "check should have failed")
+	assert.Equal(t, index, -1, "wrong index")
+}
+
+func TestPreemptionPredicates(t *testing.T) {
+	conf.GetSchedulerConf().SetTestMode(true)
+	clientSet := clientSet()
+	informerFactory := informerFactory(clientSet)
+	lister := lister()
+	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet)
+
+	ep := enabledPlugins(noderesources.FitName)
+	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
+
+	pod := newResourcePod(framework.Resource{MilliCPU: 500, Memory: 5000000})
+	pod.Name = "smallpod"
+	pod.UID = "smallpod"
+	node := framework.NewNodeInfo()
+	node.SetNode(&v1.Node{
+		ObjectMeta: metav1.ObjectMeta{Name: "node0", UID: "node0"},
+		Status: v1.NodeStatus{
+			Capacity:    makeResources(1000, 100000000, 10, 0, 0, 0).Capacity,
+			Allocatable: makeAllocatableResources(1000, 100000000, 10, 0, 0, 0),
+		},
+	})
+	victims := []*v1.Pod{
+		newResourcePod(framework.Resource{MilliCPU: 100, Memory: 1000000}),
+		newResourcePod(framework.Resource{MilliCPU: 100, Memory: 1000000}),
+		newResourcePod(framework.Resource{MilliCPU: 300, Memory: 3000000}),
+		newResourcePod(framework.Resource{MilliCPU: 500, Memory: 5000000}),
+	}
+	victims[0].Name = "pod0"
+	victims[1].Name = "pod1"
+	victims[2].Name = "pod2"
+	victims[3].Name = "pod3"
+	victims[0].UID = "pod0"
+	victims[1].UID = "pod1"
+	victims[2].UID = "pod2"
+	victims[3].UID = "pod3"
+	node.AddPod(victims[0])
+	node.AddPod(victims[1])
+	node.AddPod(victims[2])
+	node.AddPod(victims[3])
+
+	// all but 1 existing pod should need removing
+	index, ok := predicateManager.PreemptionPredicates(pod, node, victims, 1)
+	assert.Check(t, ok, "check failed")
+	assert.Equal(t, index, 2, "wrong index")
+
+	// try again, but with too many resources requested
+	pod = newResourcePod(framework.Resource{MilliCPU: 1500, Memory: 15000000})
+	pod.Name = "largepod"
+	pod.UID = "largepod"
+
+	index, ok = predicateManager.PreemptionPredicates(pod, node, victims, 1)
+	assert.Check(t, !ok, "check should have failed")
+	assert.Equal(t, index, -1, "wrong index")
+}
+
 func TestPodFitsHost(t *testing.T) {
 	conf.GetSchedulerConf().SetTestMode(true)
 	clientSet := clientSet()

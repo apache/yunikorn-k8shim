@@ -454,6 +454,41 @@ func (ctx *Context) IsPodFitNode(name, node string, allocate bool) error {
 	return fmt.Errorf("predicates were not running because pod or node was not found in cache")
 }
 
+func (ctx *Context) IsPodFitNodeViaPreemption(name, node string, allocations []string, startIndex int) (index int, ok bool) {
+	// assume minimal pods need killing if running in testing mode
+	if ctx.apiProvider.IsTestingMode() {
+		return startIndex, ok
+	}
+
+	ctx.lock.RLock()
+	defer ctx.lock.RUnlock()
+	if pod, ok := ctx.schedulerCache.GetPod(name); ok {
+		// if pod exists in cache, try to run predicates
+		if targetNode := ctx.schedulerCache.GetNode(node); targetNode != nil {
+			// need to lock cache here as predicates need a stable view into the cache
+			ctx.schedulerCache.LockForReads()
+			defer ctx.schedulerCache.UnlockForReads()
+
+			// look up each victim in the scheduler cache
+			victims := make([]*v1.Pod, 0)
+			for _, uid := range allocations {
+				if victim, ok := ctx.schedulerCache.GetPod(uid); ok {
+					victims = append(victims, victim)
+				} else {
+					// if pod isn't found, add a placeholder so that the list is still the same size
+					victims = append(victims, nil)
+				}
+			}
+
+			// check predicates for a match
+			if index, ok := ctx.predManager.PreemptionPredicates(pod, targetNode, victims, startIndex); ok {
+				return index, ok
+			}
+		}
+	}
+	return -1, false
+}
+
 // call volume binder to bind pod volumes if necessary,
 // internally, volume binder maintains a cache (podBindingCache) for pod volumes,
 // and before calling this, they should have been updated by FindPodVolumes and AssumePodVolumes.
