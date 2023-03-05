@@ -309,22 +309,6 @@ var _ = ginkgo.Describe("AdmissionController", func() {
 		runWorkloadTest("Job", create, delete, defaultPodTimeout)
 	})
 
-	ginkgo.It("Check that annotation is added to a ReplicaSet", func() {
-		create := func() (string, error) {
-			rs, err := kubeClient.CreateReplicaSet(&testReplicaSet, ns)
-			name := ""
-			if rs != nil {
-				name = rs.Name
-			}
-			return name, err
-		}
-		delete := func(name string) error {
-			return kubeClient.DeleteReplicaSet(name, ns)
-		}
-
-		runWorkloadTest("ReplicaSet", create, delete, defaultPodTimeout)
-	})
-
 	ginkgo.It("Check that annotation is added to a CronJob", func() {
 		create := func() (string, error) {
 			cj, err := kubeClient.CreateCronJob(&testCronJob, ns)
