@@ -113,10 +113,6 @@ func createTaskInternal(tid string, app *Application, resource *si.Resource,
 	return task
 }
 
-func beforeHook(event TaskEventType) string {
-	return fmt.Sprintf("before_%s", event)
-}
-
 // event handling
 func (task *Task) handle(te events.TaskEvent) error {
 	task.lock.Lock()
@@ -242,31 +238,10 @@ func (task *Task) initialize() {
 	}
 }
 
-func (task *Task) setAllocated(nodeName, allocationUUID string) {
-	task.lock.Lock()
-	defer task.lock.Unlock()
-	task.allocationUUID = allocationUUID
-	task.nodeName = nodeName
-	task.sm.SetState(TaskStates().Allocated)
-}
-
 func (task *Task) IsOriginator() bool {
 	task.lock.RLock()
 	defer task.lock.RUnlock()
 	return task.originator
-}
-
-func (task *Task) handleFailEvent(reason string, err bool) {
-	if err {
-		dispatcher.Dispatch(NewFailTaskEvent(task.applicationID, task.taskID, reason))
-		events.GetRecorder().Eventf(task.pod.DeepCopy(), nil, v1.EventTypeWarning, "SchedulingFailed", "SchedulingFailed",
-			"%s scheduling failed, reason: %s", task.alias, reason)
-		return
-	}
-	log.Logger().Error("task failed",
-		zap.String("appID", task.applicationID),
-		zap.String("taskID", task.taskID),
-		zap.String("reason", reason))
 }
 
 func (task *Task) isPreemptSelfAllowed() bool {
@@ -339,23 +314,18 @@ func (task *Task) postTaskPending() {
 	dispatcher.Dispatch(NewSubmitTaskEvent(task.applicationID, task.taskID))
 }
 
-// this is called after task reaches ALLOCATED state,
-// we run this in a go routine to bind pod to the allocated node,
-// if successful, we move task to next state BOUND,
-// otherwise we fail the task
-func (task *Task) postTaskAllocated(allocUUID string, nodeID string) {
-	// delay binding task
-	// this calls K8s api to bind a pod to the assigned node, this may need some time,
-	// so we do a delay binding to avoid blocking main process. we tracks the result
-	// of the binding and properly handle failures.
+// postTaskAllocated is called after task reaches ALLOCATED state.
+// This routine binds the pod to the allocated node.
+// It calls K8s api to bind a pod to the assigned node, this may need some time,
+// so we do a delay binding, background process, to avoid blocking main process.
+// The result of the binding is tracked and failures are properly handled.
+// If successful, we move task to next state BOUND, otherwise we fail the task
+func (task *Task) postTaskAllocated() {
 	go func() {
 		// we need to obtain task's lock first,
 		// this ensures no other threads modifying task state at the time being
 		task.lock.Lock()
 		defer task.lock.Unlock()
-		var errorMessage string
-		// task allocation UID is assigned once we get allocation decision from scheduler core
-		task.allocationUUID = allocUUID
 
 		// plugin mode means we delegate this work to the default scheduler
 		if task.pluginMode {
@@ -363,17 +333,17 @@ func (task *Task) postTaskAllocated(allocUUID string, nodeID string) {
 				zap.String("podName", task.pod.Name),
 				zap.String("podUID", string(task.pod.UID)))
 
-			task.context.AddPendingPodAllocation(string(task.pod.UID), nodeID)
+			task.context.AddPendingPodAllocation(string(task.pod.UID), task.nodeName)
 
 			dispatcher.Dispatch(NewBindTaskEvent(task.applicationID, task.taskID))
 			events.GetRecorder().Eventf(task.pod.DeepCopy(),
 				nil, v1.EventTypeNormal, "QuotaApproved", "QuotaApproved",
-				"Pod %s is ready for scheduling on node %s", task.alias, nodeID)
+				"Pod %s is ready for scheduling on node %s", task.alias, task.nodeName)
 		} else {
 			// post a message to indicate the pod gets its allocation
 			events.GetRecorder().Eventf(task.pod.DeepCopy(),
 				nil, v1.EventTypeNormal, "Scheduled", "Scheduled",
-				"Successfully assigned %s to node %s", task.alias, nodeID)
+				"Successfully assigned %s to node %s", task.alias, task.nodeName)
 
 			// before binding pod to node, first bind volumes to pod
 			log.Logger().Debug("bind pod volumes",
@@ -381,7 +351,7 @@ func (task *Task) postTaskAllocated(allocUUID string, nodeID string) {
 				zap.String("podUID", string(task.pod.UID)))
 			if task.context.apiProvider.GetAPIs().VolumeBinder != nil {
 				if err := task.context.bindPodVolumes(task.pod); err != nil {
-					errorMessage = fmt.Sprintf("bind volumes to pod failed, name: %s, %s", task.alias, err.Error())
+					errorMessage := fmt.Sprintf("bind volumes to pod failed, name: %s, %s", task.alias, err.Error())
 					dispatcher.Dispatch(NewFailTaskEvent(task.applicationID, task.taskID, errorMessage))
 					events.GetRecorder().Eventf(task.pod.DeepCopy(),
 						nil, v1.EventTypeWarning, "PodVolumesBindFailure", "PodVolumesBindFailure", errorMessage)
@@ -393,8 +363,8 @@ func (task *Task) postTaskAllocated(allocUUID string, nodeID string) {
 				zap.String("podName", task.pod.Name),
 				zap.String("podUID", string(task.pod.UID)))
 
-			if err := task.context.apiProvider.GetAPIs().KubeClient.Bind(task.pod, nodeID); err != nil {
-				errorMessage = fmt.Sprintf("bind pod to node failed, name: %s, %s", task.alias, err.Error())
+			if err := task.context.apiProvider.GetAPIs().KubeClient.Bind(task.pod, task.nodeName); err != nil {
+				errorMessage := fmt.Sprintf("bind pod to node failed, name: %s, %s", task.alias, err.Error())
 				log.Logger().Error(errorMessage)
 				dispatcher.Dispatch(NewFailTaskEvent(task.applicationID, task.taskID, errorMessage))
 				events.GetRecorder().Eventf(task.pod.DeepCopy(), nil,
@@ -406,29 +376,30 @@ func (task *Task) postTaskAllocated(allocUUID string, nodeID string) {
 			dispatcher.Dispatch(NewBindTaskEvent(task.applicationID, task.taskID))
 			events.GetRecorder().Eventf(task.pod.DeepCopy(), nil,
 				v1.EventTypeNormal, "PodBindSuccessful", "PodBindSuccessful",
-				"Pod %s is successfully bound to node %s", task.alias, nodeID)
+				"Pod %s is successfully bound to node %s", task.alias, task.nodeName)
 		}
 	}()
 }
 
-// this callback is called before handling the TaskAllocated event,
-// when we receive the new allocation from the core, normally the task
-// should be in Scheduling state and waiting for the allocation to come.
-// but in some cases, the task could be canceled (e.g pod deleted) before
-// getting the response. Such task transited to the Completed state.
+// beforeTaskAllocated is called before handling the TaskAllocated event.
+// This sets the allocation information returned by the core in the task.
+// In some cases, the task is canceled (e.g. pod deleted) before we process the allocation
+// from the core. Those task will already be in the Completed state.
 // If we find the task is already in Completed state while handling TaskAllocated
 // event, we need to explicitly release this allocation because it is no
 // longer valid.
 func (task *Task) beforeTaskAllocated(eventSrc string, allocUUID string, nodeID string) {
-	// if task is already completed and we got a TaskAllocated event
-	// that means this allocation is no longer valid, we should
-	// notify the core to release this allocation to avoid resource leak
+	// task is allocated on a node with a UUID set the details in the task here to allow referencing later.
+	task.allocationUUID = allocUUID
+	task.nodeName = nodeID
+	// If the task is Completed the pod was deleted on K8s but the core was not aware yet.
+	// Notify the core to release this allocation to avoid resource leak.
+	// The ask is not relevant at this point.
 	if eventSrc == TaskStates().Completed {
 		log.Logger().Info("task is already completed, invalidate the allocation",
 			zap.String("currentTaskState", eventSrc),
 			zap.String("allocUUID", allocUUID),
 			zap.String("allocatedNode", nodeID))
-		task.allocationUUID = allocUUID
 		task.releaseAllocation()
 	}
 }
@@ -473,20 +444,27 @@ func (task *Task) postTaskRejected() {
 		"Task %s is rejected by the scheduler", task.alias)
 }
 
-func (task *Task) postTaskFailed() {
-	// when task is failed, we need to do the cleanup,
-	// we need to release the allocation from scheduler core
+// beforeTaskFail releases the allocation or ask from scheduler core
+// this is done as a before hook because the releaseAllocation() call needs to
+// send different requests to scheduler-core, depending on current task state
+func (task *Task) beforeTaskFail() {
 	task.releaseAllocation()
+}
 
+func (task *Task) postTaskFailed(reason string) {
+	log.Logger().Error("task failed",
+		zap.String("appID", task.applicationID),
+		zap.String("taskID", task.taskID),
+		zap.String("reason", reason))
 	events.GetRecorder().Eventf(task.pod.DeepCopy(), nil,
 		v1.EventTypeNormal, "TaskFailed", "TaskFailed",
 		"Task %s is failed", task.alias)
 }
 
+// beforeTaskCompleted releases the allocation or ask from scheduler core
+// this is done as a before hook because the releaseAllocation() call needs to
+// send different requests to scheduler-core, depending on current task state
 func (task *Task) beforeTaskCompleted() {
-	// before task transits to completed, release its allocation from scheduler core
-	// this is done as a before hook because the releaseAllocation() call needs to
-	// send different requests to scheduler-core, depending on current task state
 	task.releaseAllocation()
 
 	events.GetRecorder().Eventf(task.pod.DeepCopy(), nil,
@@ -494,6 +472,7 @@ func (task *Task) beforeTaskCompleted() {
 		"Task %s is completed", task.alias)
 }
 
+// releaseAllocation sends the release request for the Allocation or the AllocationAsk to the core.
 func (task *Task) releaseAllocation() {
 	// scheduler api might be nil in some tests
 	if task.context.apiProvider.GetAPIs().SchedulerAPI != nil {
@@ -505,28 +484,21 @@ func (task *Task) releaseAllocation() {
 			zap.String("task", task.GetTaskState()),
 			zap.String("terminationType", task.terminationType))
 
-		// depends on current task state, generate requests accordingly.
-		// if task is already allocated, which means the scheduler core already,
-		// places an allocation for it, we need to send AllocationReleaseRequest,
-		// if task is not allocated yet, we need to send AllocationAskReleaseRequest
+		// The message depends on current task state, generate requests accordingly.
+		// If allocated send an AllocationReleaseRequest,
+		// If not allocated yet send an AllocationAskReleaseRequest
 		var releaseRequest si.AllocationRequest
 		s := TaskStates()
 		switch task.GetTaskState() {
-		case s.New, s.Pending, s.Scheduling:
+		case s.New, s.Pending, s.Scheduling, s.Rejected:
 			releaseRequest = common.CreateReleaseAskRequestForTask(
 				task.applicationID, task.taskID, task.application.partition)
 		default:
-			// sending empty allocation UUID back to scheduler-core is dangerous
-			// log a warning and skip the release request. this may leak some resource
-			// in the scheduler, collect logs and check why this happens.
 			if task.allocationUUID == "" {
-				log.Logger().Warn("task allocation UUID is empty, sending this release request "+
-					"to yunikorn-core could cause all allocations of this app get released. skip this "+
-					"request, this may cause some resource leak. check the logs for more info!",
+				log.Logger().Warn("BUG: task allocation UUID is empty on release",
 					zap.String("applicationID", task.applicationID),
 					zap.String("taskID", task.taskID),
 					zap.String("taskAlias", task.alias),
-					zap.String("allocationUUID", task.allocationUUID),
 					zap.String("task", task.GetTaskState()))
 				return
 			}
@@ -569,14 +541,4 @@ func (task *Task) sanityCheckBeforeScheduling() error {
 		}
 	}
 	return nil
-}
-
-func (task *Task) enterState(event *fsm.Event) {
-	log.Logger().Debug("shim task state transition",
-		zap.String("app", task.applicationID),
-		zap.String("task", task.taskID),
-		zap.String("taskAlias", task.alias),
-		zap.String("source", event.Src),
-		zap.String("destination", event.Dst),
-		zap.String("event", event.Event))
 }

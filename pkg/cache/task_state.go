@@ -20,6 +20,7 @@ package cache
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/looplab/fsm"
@@ -31,9 +32,9 @@ import (
 
 var taskStatesOnce sync.Once
 
-//----------------------------------------------
+// ----------------------------------------------
 // Task events
-//----------------------------------------------
+// ----------------------------------------------
 type TaskEventType int
 
 const (
@@ -369,9 +370,17 @@ func newTaskState() *fsm.FSM {
 			},
 		},
 		fsm.Callbacks{
+			// The state machine is tightly tied to the Task object.
+			//
+			// The first argument must always be a Task and if there are more arguments,
+			// they must be a string. If this precondition is not met, a runtime panic
+			// could occur.
 			events.EnterState: func(_ context.Context, event *fsm.Event) {
-				log.Logger().Info("object transition",
-					zap.Any("object", event.Args[0]),
+				task := event.Args[0].(*Task) //nolint:errcheck
+				log.Logger().Info("Task state transition",
+					zap.String("app", task.applicationID),
+					zap.String("task", task.taskID),
+					zap.String("taskAlias", task.alias),
 					zap.String("source", event.Src),
 					zap.String("destination", event.Dst),
 					zap.String("event", event.Event))
@@ -382,14 +391,7 @@ func newTaskState() *fsm.FSM {
 			},
 			states.Allocated: func(_ context.Context, event *fsm.Event) {
 				task := event.Args[0].(*Task) //nolint:errcheck
-				eventArgs := make([]string, 2)
-				if err := events.GetEventArgsAsStrings(eventArgs, event.Args[1].([]interface{})); err != nil {
-					task.handleFailEvent(err.Error(), false)
-					return
-				}
-				allocUUID := eventArgs[0]
-				nodeID := eventArgs[1]
-				task.postTaskAllocated(allocUUID, nodeID)
+				task.postTaskAllocated()
 			},
 			states.Rejected: func(_ context.Context, event *fsm.Event) {
 				task := event.Args[0].(*Task) //nolint:errcheck
@@ -397,17 +399,30 @@ func newTaskState() *fsm.FSM {
 			},
 			states.Failed: func(_ context.Context, event *fsm.Event) {
 				task := event.Args[0].(*Task) //nolint:errcheck
-				task.postTaskFailed()
+				eventArgs := make([]string, 1)
+				reason := ""
+				if err := events.GetEventArgsAsStrings(eventArgs, event.Args[1].([]interface{})); err != nil {
+					log.Logger().Error("failed to parse event arg", zap.Error(err))
+					reason = err.Error()
+				} else {
+					reason = eventArgs[0]
+				}
+				task.postTaskFailed(reason)
 			},
 			states.Bound: func(_ context.Context, event *fsm.Event) {
 				task := event.Args[0].(*Task) //nolint:errcheck
 				task.postTaskBound()
 			},
+			beforeHook(TaskFail): func(_ context.Context, event *fsm.Event) {
+				task := event.Args[0].(*Task) //nolint:errcheck
+				task.beforeTaskFail()
+			},
 			beforeHook(TaskAllocated): func(_ context.Context, event *fsm.Event) {
 				task := event.Args[0].(*Task) //nolint:errcheck
+				// All allocation events must include the allocUUID and nodeID passed from the core
 				eventArgs := make([]string, 2)
 				if err := events.GetEventArgsAsStrings(eventArgs, event.Args[1].([]interface{})); err != nil {
-					task.handleFailEvent(err.Error(), false)
+					log.Logger().Error("failed to parse event arg", zap.Error(err))
 					return
 				}
 				allocUUID := eventArgs[0]
@@ -422,16 +437,10 @@ func newTaskState() *fsm.FSM {
 				task := event.Args[0].(*Task) //nolint:errcheck
 				task.handleSubmitTaskEvent()
 			},
-			TaskFail.String(): func(_ context.Context, event *fsm.Event) {
-				task := event.Args[0].(*Task) //nolint:errcheck
-				eventArgs := make([]string, 1)
-				if err := events.GetEventArgsAsStrings(eventArgs, event.Args[1].([]interface{})); err != nil {
-					task.handleFailEvent(err.Error(), true)
-					return
-				}
-				reason := eventArgs[0]
-				task.handleFailEvent(reason, false)
-			},
 		},
 	)
+}
+
+func beforeHook(event TaskEventType) string {
+	return fmt.Sprintf("before_%s", event)
 }
