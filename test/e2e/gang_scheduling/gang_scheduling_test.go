@@ -231,6 +231,8 @@ var _ = Describe("", func() {
 		for tg, phNames := range tgPlaceHolders {
 			taskGroupNodes[tg] = map[string]int{}
 			for _, name := range phNames {
+				podRunErr := kClient.WaitForPodRunning(ns, name, time.Second*120)
+				Ω(podRunErr).NotTo(HaveOccurred())
 				ph, phErr := kClient.GetPod(name, ns)
 				Ω(phErr).NotTo(HaveOccurred())
 				taskGroupNodes[tg][ph.Spec.NodeName]++
