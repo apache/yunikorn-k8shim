@@ -187,6 +187,10 @@ func (k *KubeCtl) UpdatePodWithAnnotation(pod *v1.Pod, namespace, annotationKey,
 	return k.clientSet.CoreV1().Pods(namespace).Update(context.TODO(), pod, metav1.UpdateOptions{})
 }
 
+func (k *KubeCtl) UpdatePod(pod *v1.Pod, namespace string) (*v1.Pod, error) {
+	return k.clientSet.CoreV1().Pods(namespace).Update(context.TODO(), pod, metav1.UpdateOptions{})
+}
+
 func (k *KubeCtl) DeletePodAnnotation(pod *v1.Pod, namespace, annotation string) (*v1.Pod, error) {
 	annotations := pod.Annotations
 	delete(annotations, annotation)
@@ -718,6 +722,14 @@ func (k *KubeCtl) WaitForPodCount(namespace string, wanted int, timeout time.Dur
 	return wait.PollImmediate(time.Millisecond*100, timeout, k.isNumPod(namespace, wanted))
 }
 
+func (k *KubeCtl) WaitForPodStateStable(namespace string, podName string, timeout time.Duration) (error, v1.PodPhase) {
+	var lastPhase v1.PodPhase
+	samePhases := 0
+
+	err := wait.PollImmediate(time.Second, timeout, k.isPodStable(namespace, podName, &samePhases, 3, &lastPhase))
+	return err, lastPhase
+}
+
 // Returns the list of currently scheduled or running pods in `namespace` with the given selector
 func (k *KubeCtl) ListPods(namespace string, selector string) (*v1.PodList, error) {
 	listOptions := metav1.ListOptions{LabelSelector: selector}
@@ -1013,6 +1025,32 @@ func (k *KubeCtl) arePlaceholdersStable(namespace string, podPrefix string, same
 	}
 }
 
+// checks the phase of a pod, returns true if nothing changes for "maxAttempt" times
+func (k *KubeCtl) isPodStable(namespace, podName string, samePhases *int,
+	maxAttempts int, lastPhase *v1.PodPhase) wait.ConditionFunc {
+	return func() (bool, error) {
+		pod, lstErr := k.GetPod(podName, namespace)
+		if lstErr != nil {
+			return false, lstErr
+		}
+
+		needRetry := false
+		currentPhase := pod.Status.Phase
+		if *lastPhase != currentPhase {
+			needRetry = true
+		}
+		*lastPhase = currentPhase
+
+		if needRetry {
+			*samePhases = 0
+		} else {
+			*samePhases++
+		}
+
+		return *samePhases == maxAttempts, nil
+	}
+}
+
 // Returns ConditionFunc that checks if at least num pods of jobName are created
 func (k *KubeCtl) isNumJobPodsCreated(jobName string, namespace string, num int) wait.ConditionFunc {
 	return func() (bool, error) {
@@ -1233,4 +1271,14 @@ func (k *KubeCtl) UntaintNode(name, key string) error {
 	node.Spec.Taints = newTaints
 	_, err = k.clientSet.CoreV1().Nodes().Update(context.TODO(), node, metav1.UpdateOptions{})
 	return err
+}
+
+func IsMasterNode(node *v1.Node) bool {
+	for _, taint := range node.Spec.Taints {
+		if _, ok := common.MasterTaints[taint.Key]; ok {
+			return true
+		}
+	}
+
+	return false
 }
