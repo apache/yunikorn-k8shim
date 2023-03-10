@@ -45,6 +45,7 @@ import (
 
 type PredicateManager interface {
 	Predicates(pod *v1.Pod, node *framework.NodeInfo, allocate bool) (plugin string, error error)
+	PreemptionPredicates(pod *v1.Pod, node *framework.NodeInfo, victims []*v1.Pod, startIndex int) (index int, ok bool)
 }
 
 var _ PredicateManager = &predicateManagerImpl{}
@@ -63,6 +64,60 @@ func (p *predicateManagerImpl) Predicates(pod *v1.Pod, node *framework.NodeInfo,
 		return p.predicatesAllocate(pod, node)
 	}
 	return p.predicatesReserve(pod, node)
+}
+
+func (p *predicateManagerImpl) PreemptionPredicates(pod *v1.Pod, node *framework.NodeInfo, victims []*v1.Pod, startIndex int) (index int, ok bool) {
+	ctx := context.Background()
+	state := framework.NewCycleState()
+
+	// run prefilter checks as pod cannot be scheduled otherwise
+	s, plugin := p.runPreFilterPlugins(ctx, state, *p.allocationPreFilters, pod)
+	if !s.IsSuccess() {
+		// prefilter check failed, log and return
+		log.Logger().Debug("PreFilter check failed during preemption check",
+			zap.String("podUID", string(pod.UID)),
+			zap.String("plugin", plugin),
+			zap.String("message", s.Message()))
+
+		return -1, false
+	}
+
+	// clone node so that we can modify it here for predicate checks
+	preemptingNode := node.Clone()
+
+	// remove pods up through startIndex -- all of these are required to be removed to satisfy resource constraints
+	for i := 0; i < startIndex && i < len(victims); i++ {
+		removePodFromNodeNoFail(preemptingNode, victims[i])
+	}
+
+	// loop through remaining pods
+	for i := startIndex; i < len(victims); i++ {
+		removePodFromNodeNoFail(preemptingNode, victims[i])
+		statuses, _ := p.runFilterPlugins(ctx, *p.allocationFilters, state, pod, preemptingNode)
+		s = statuses.Merge()
+		if s.IsSuccess() {
+			return i, true
+		}
+	}
+
+	// no fit, log and return
+	log.Logger().Debug("Filter checks failed during preemption check, no fit",
+		zap.String("podUID", string(pod.UID)),
+		zap.String("nodeID", node.Node().Name))
+	return -1, false
+}
+
+func removePodFromNodeNoFail(node *framework.NodeInfo, pod *v1.Pod) {
+	if pod == nil {
+		return
+	}
+	if err := node.RemovePod(pod); err != nil {
+		// annoyingly, RemovePod() throws an error if the pod is gone; just log at debug and continue
+		log.Logger().Debug("Failed to remove pod from nodeInfo during preemption check",
+			zap.String("podUID", string(pod.UID)),
+			zap.String("nodeID", node.Node().Name),
+			zap.Error(err))
+	}
 }
 
 func (p *predicateManagerImpl) predicatesReserve(pod *v1.Pod, node *framework.NodeInfo) (plugin string, error error) {

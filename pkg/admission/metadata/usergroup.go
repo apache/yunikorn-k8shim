@@ -44,7 +44,7 @@ func NewUserGroupAnnotationHandler(conf *conf.AdmissionControllerConf) *UserGrou
 
 const (
 	defaultPodAnnotationsPath = "/spec/template/metadata/annotations"
-	cronJobPodAnnotationsPath = "/spec/jobtemplate/spec/template/metadata/annotations"
+	cronJobPodAnnotationsPath = "/spec/jobTemplate/spec/template/metadata/annotations"
 )
 
 func (u *UserGroupAnnotationHandler) IsAnnotationAllowed(userName string, groups []string) bool {

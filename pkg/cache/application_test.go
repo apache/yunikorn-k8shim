@@ -848,6 +848,10 @@ func TestTryReservePostRestart(t *testing.T) {
 			Containers: containers,
 		},
 	})
+	task0.allocationUUID = string(task0.pod.UID)
+	task0.nodeName = "fake-host"
+	task0.sm.SetState(TaskStates().Allocated)
+
 	task1 := NewTask("task01", app, context, &v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
@@ -861,6 +865,7 @@ func TestTryReservePostRestart(t *testing.T) {
 			Containers: containers,
 		},
 	})
+
 	task2 := NewTask("task02", app, context, &v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
@@ -874,7 +879,7 @@ func TestTryReservePostRestart(t *testing.T) {
 			Containers: containers,
 		},
 	})
-	task0.setAllocated("fake-host", string(task0.pod.UID))
+
 	app.addTask(task0)
 	app.addTask(task1)
 	app.addTask(task2)

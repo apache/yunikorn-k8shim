@@ -19,6 +19,7 @@
 package shim
 
 import (
+	"context"
 	"os"
 	"strconv"
 	"sync"
@@ -254,7 +255,7 @@ func (ss *KubernetesShim) GetSchedulerState() string {
 func (ss *KubernetesShim) handle(se events.SchedulerEvent) error {
 	ss.lock.Lock()
 	defer ss.lock.Unlock()
-	err := ss.stateMachine.Event(se.GetEvent(), ss)
+	err := ss.stateMachine.Event(context.Background(), se.GetEvent(), ss)
 	if err != nil && err.Error() == "no transition" {
 		return err
 	}

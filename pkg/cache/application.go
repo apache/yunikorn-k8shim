@@ -19,6 +19,7 @@
 package cache
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"strings"
@@ -102,7 +103,7 @@ func (app *Application) handle(ev events.ApplicationEvent) error {
 	//    because the lock is already held here.
 	app.lock.Lock()
 	defer app.lock.Unlock()
-	err := app.sm.Event(ev.GetEvent(), app, ev.GetArgs())
+	err := app.sm.Event(context.Background(), ev.GetEvent(), app, ev.GetArgs())
 	// handle the same state transition not nil error (limit of fsm).
 	if err != nil && err.Error() != "no transition" {
 		return err
@@ -276,9 +277,19 @@ func (app *Application) GetAllocatedTasks() []*Task {
 	return app.getTasks(TaskStates().Allocated)
 }
 
+func (app *Application) GetBoundTasks() []*Task {
+	app.lock.RLock()
+	defer app.lock.RUnlock()
+	return app.getTasks(TaskStates().Bound)
+}
+
 func (app *Application) GetPlaceHolderTasks() []*Task {
 	app.lock.RLock()
 	defer app.lock.RUnlock()
+	return app.getPlaceHolderTasks()
+}
+
+func (app *Application) getPlaceHolderTasks() []*Task {
 	placeholders := make([]*Task, 0)
 	for _, task := range app.taskMap {
 		if task.placeholder {
@@ -411,7 +422,7 @@ func (app *Application) scheduleTasks(taskScheduleCondition func(t *Task) bool) 
 
 func (app *Application) handleSubmitApplicationEvent() {
 	log.Logger().Info("handle app submission",
-		zap.String("app", app.String()),
+		zap.Stringer("app", app),
 		zap.String("clusterID", conf.GetSchedulerConf().ClusterID))
 	err := app.schedulerAPI.UpdateApplication(
 		&si.ApplicationRequest{
@@ -442,7 +453,7 @@ func (app *Application) handleSubmitApplicationEvent() {
 
 func (app *Application) handleRecoverApplicationEvent() {
 	log.Logger().Info("handle app recovering",
-		zap.String("app", app.String()),
+		zap.Stringer("app", app),
 		zap.String("clusterID", conf.GetSchedulerConf().ClusterID))
 	err := app.schedulerAPI.UpdateApplication(
 		&si.ApplicationRequest{
@@ -519,6 +530,13 @@ func (app *Application) postAppAccepted() {
 }
 
 func (app *Application) onReserving() {
+	// happens after recovery - if placeholders already exist, we need to send
+	// an event to trigger Application state change in the core
+	if len(app.getPlaceHolderTasks()) > 0 {
+		ev := NewUpdateApplicationReservationEvent(app.applicationID)
+		dispatcher.Dispatch(ev)
+	}
+
 	go func() {
 		// while doing reserving
 		if err := getPlaceholderManager().createAppPlaceholders(app); err != nil {
@@ -673,7 +691,7 @@ func (app *Application) publishPlaceholderTimeoutEvents(task *Task) {
 	if app.originatingTask != nil && task.IsPlaceholder() && task.terminationType == si.TerminationType_name[int32(si.TerminationType_TIMEOUT)] {
 		log.Logger().Debug("trying to send placeholder timeout events to the original pod from application",
 			zap.String("appID", app.applicationID),
-			zap.String("app request originating pod", app.originatingTask.GetTaskPod().String()),
+			zap.Stringer("app request originating pod", app.originatingTask.GetTaskPod()),
 			zap.String("taskID", task.taskID),
 			zap.String("terminationType", task.terminationType))
 		events.GetRecorder().Eventf(app.originatingTask.GetTaskPod().DeepCopy(), nil, v1.EventTypeWarning, "Placeholder timed out",

@@ -454,6 +454,41 @@ func (ctx *Context) IsPodFitNode(name, node string, allocate bool) error {
 	return fmt.Errorf("predicates were not running because pod or node was not found in cache")
 }
 
+func (ctx *Context) IsPodFitNodeViaPreemption(name, node string, allocations []string, startIndex int) (index int, ok bool) {
+	// assume minimal pods need killing if running in testing mode
+	if ctx.apiProvider.IsTestingMode() {
+		return startIndex, ok
+	}
+
+	ctx.lock.RLock()
+	defer ctx.lock.RUnlock()
+	if pod, ok := ctx.schedulerCache.GetPod(name); ok {
+		// if pod exists in cache, try to run predicates
+		if targetNode := ctx.schedulerCache.GetNode(node); targetNode != nil {
+			// need to lock cache here as predicates need a stable view into the cache
+			ctx.schedulerCache.LockForReads()
+			defer ctx.schedulerCache.UnlockForReads()
+
+			// look up each victim in the scheduler cache
+			victims := make([]*v1.Pod, 0)
+			for _, uid := range allocations {
+				if victim, ok := ctx.schedulerCache.GetPod(uid); ok {
+					victims = append(victims, victim)
+				} else {
+					// if pod isn't found, add a placeholder so that the list is still the same size
+					victims = append(victims, nil)
+				}
+			}
+
+			// check predicates for a match
+			if index, ok := ctx.predManager.PreemptionPredicates(pod, targetNode, victims, startIndex); ok {
+				return index, ok
+			}
+		}
+	}
+	return -1, false
+}
+
 // call volume binder to bind pod volumes if necessary,
 // internally, volume binder maintains a cache (podBindingCache) for pod volumes,
 // and before calling this, they should have been updated by FindPodVolumes and AssumePodVolumes.
@@ -916,7 +951,7 @@ func (ctx *Context) PublishEvents(eventRecords []*si.EventRecord) {
 					log.Logger().Warn("task event is not published because task is not found",
 						zap.String("appID", appID),
 						zap.String("taskID", taskID),
-						zap.String("event", record.String()))
+						zap.Stringer("event", record))
 				}
 			case si.EventRecord_NODE:
 				nodeID := record.ObjectID
@@ -924,21 +959,21 @@ func (ctx *Context) PublishEvents(eventRecords []*si.EventRecord) {
 				if nodeInfo == nil {
 					log.Logger().Warn("node event is not published because nodeInfo is not found",
 						zap.String("nodeID", nodeID),
-						zap.String("event", record.String()))
+						zap.Stringer("event", record))
 					continue
 				}
 				node := nodeInfo.Node()
 				if node == nil {
 					log.Logger().Warn("node event is not published because node is not found",
 						zap.String("nodeID", nodeID),
-						zap.String("event", record.String()))
+						zap.Stringer("event", record))
 					continue
 				}
 				events.GetRecorder().Eventf(node.DeepCopy(), nil,
 					v1.EventTypeNormal, record.Reason, record.Reason, record.Message)
 			default:
 				log.Logger().Warn("Unsupported event type, currently only supports to publish request event records",
-					zap.String("type", record.Type.String()))
+					zap.Stringer("type", record.Type))
 			}
 		}
 	}
@@ -1009,7 +1044,7 @@ func (ctx *Context) HandleContainerStateUpdate(request *si.UpdateContainerSchedu
 			}
 		default:
 			log.Logger().Warn("no handler for container scheduling state",
-				zap.String("state", request.State.String()))
+				zap.Stringer("state", request.State))
 		}
 	}
 }

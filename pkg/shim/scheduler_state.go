@@ -19,6 +19,7 @@
 package shim
 
 import (
+	"context"
 	"sync"
 
 	"github.com/looplab/fsm"
@@ -147,33 +148,33 @@ func newSchedulerState() *fsm.FSM {
 			},
 		},
 		fsm.Callbacks{
-			events.EnterState: func(event *fsm.Event) {
+			events.EnterState: func(_ context.Context, event *fsm.Event) {
 				log.Logger().Debug("scheduler shim state transition",
 					zap.String("source", event.Src),
 					zap.String("destination", event.Dst),
 					zap.String("event", event.Event))
 			},
-			states.Registered: func(event *fsm.Event) {
+			states.Registered: func(_ context.Context, event *fsm.Event) {
 				scheduler := event.Args[0].(*KubernetesShim) //nolint:errcheck
 				scheduler.triggerSchedulerStateRecovery()    // if reaches registered, trigger recovering
 			},
-			states.Recovering: func(event *fsm.Event) {
+			states.Recovering: func(_ context.Context, event *fsm.Event) {
 				scheduler := event.Args[0].(*KubernetesShim) //nolint:errcheck
 				scheduler.recoverSchedulerState()            // do recovering
 			},
-			states.Running: func(event *fsm.Event) {
+			states.Running: func(_ context.Context, event *fsm.Event) {
 				scheduler := event.Args[0].(*KubernetesShim) //nolint:errcheck
 				scheduler.doScheduling()                     // do scheduling
 			},
-			RegisterScheduler.String(): func(event *fsm.Event) {
+			RegisterScheduler.String(): func(_ context.Context, event *fsm.Event) {
 				scheduler := event.Args[0].(*KubernetesShim) //nolint:errcheck
 				scheduler.register()                         // trigger registration
 			},
-			RegisterSchedulerFailed.String(): func(event *fsm.Event) {
+			RegisterSchedulerFailed.String(): func(_ context.Context, event *fsm.Event) {
 				scheduler := event.Args[0].(*KubernetesShim) //nolint:errcheck
 				scheduler.handleSchedulerFailure()           // registration failed, stop the scheduler
 			},
-			RecoverSchedulerFailed.String(): func(event *fsm.Event) {
+			RecoverSchedulerFailed.String(): func(_ context.Context, event *fsm.Event) {
 				scheduler := event.Args[0].(*KubernetesShim) //nolint:errcheck
 				scheduler.handleSchedulerFailure()           // recovery failed
 			},

@@ -19,6 +19,7 @@
 package cache
 
 import (
+	"context"
 	"sync"
 
 	"github.com/looplab/fsm"
@@ -502,7 +503,7 @@ func newAppState() *fsm.FSM { //nolint:funlen
 			},
 		},
 		fsm.Callbacks{
-			events.EnterState: func(event *fsm.Event) {
+			events.EnterState: func(_ context.Context, event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
 				log.Logger().Debug("shim app state transition",
 					zap.String("app", app.applicationID),
@@ -510,19 +511,19 @@ func newAppState() *fsm.FSM { //nolint:funlen
 					zap.String("destination", event.Dst),
 					zap.String("event", event.Event))
 			},
-			states.Reserving: func(event *fsm.Event) {
+			states.Reserving: func(_ context.Context, event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
 				app.onReserving()
 			},
-			SubmitApplication.String(): func(event *fsm.Event) {
+			SubmitApplication.String(): func(_ context.Context, event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
 				app.handleSubmitApplicationEvent()
 			},
-			RecoverApplication.String(): func(event *fsm.Event) {
+			RecoverApplication.String(): func(_ context.Context, event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
 				app.handleRecoverApplicationEvent()
 			},
-			RejectApplication.String(): func(event *fsm.Event) {
+			RejectApplication.String(): func(_ context.Context, event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
 				eventArgs := make([]string, 1)
 				if err := events.GetEventArgsAsStrings(eventArgs, event.Args[1].([]interface{})); err != nil {
@@ -532,11 +533,11 @@ func newAppState() *fsm.FSM { //nolint:funlen
 				reason := eventArgs[0]
 				app.handleRejectApplicationEvent(reason)
 			},
-			CompleteApplication.String(): func(event *fsm.Event) {
+			CompleteApplication.String(): func(_ context.Context, event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
 				app.handleCompleteApplicationEvent()
 			},
-			FailApplication.String(): func(event *fsm.Event) {
+			FailApplication.String(): func(_ context.Context, event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
 				eventArgs := make([]string, 1)
 				if err := events.GetEventArgsAsStrings(eventArgs, event.Args[1].([]interface{})); err != nil {
@@ -546,11 +547,11 @@ func newAppState() *fsm.FSM { //nolint:funlen
 				errMsg := eventArgs[0]
 				app.handleFailApplicationEvent(errMsg)
 			},
-			UpdateReservation.String(): func(event *fsm.Event) {
+			UpdateReservation.String(): func(_ context.Context, event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
 				app.onReservationStateChange()
 			},
-			ReleaseAppAllocation.String(): func(event *fsm.Event) {
+			ReleaseAppAllocation.String(): func(_ context.Context, event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
 				eventArgs := make([]string, 2)
 				if err := events.GetEventArgsAsStrings(eventArgs, event.Args[1].([]interface{})); err != nil {
@@ -561,7 +562,7 @@ func newAppState() *fsm.FSM { //nolint:funlen
 				terminationType := eventArgs[1]
 				app.handleReleaseAppAllocationEvent(allocUUID, terminationType)
 			},
-			ReleaseAppAllocationAsk.String(): func(event *fsm.Event) {
+			ReleaseAppAllocationAsk.String(): func(_ context.Context, event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
 				eventArgs := make([]string, 2)
 				if err := events.GetEventArgsAsStrings(eventArgs, event.Args[1].([]interface{})); err != nil {
@@ -572,7 +573,7 @@ func newAppState() *fsm.FSM { //nolint:funlen
 				terminationType := eventArgs[1]
 				app.handleReleaseAppAllocationAskEvent(taskID, terminationType)
 			},
-			AppTaskCompleted.String(): func(event *fsm.Event) {
+			AppTaskCompleted.String(): func(_ context.Context, event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
 				app.handleAppTaskCompletedEvent()
 			},

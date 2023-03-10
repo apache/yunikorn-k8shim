@@ -544,7 +544,7 @@ func TestRecoverTask(t *testing.T) {
 	})
 	assert.Assert(t, task != nil)
 	assert.Equal(t, task.GetTaskID(), taskUID1)
-	assert.Equal(t, task.GetTaskState(), TaskStates().Allocated)
+	assert.Equal(t, task.GetTaskState(), TaskStates().Bound)
 
 	// add a tasks to the existing application
 	// this task was already completed with state: Succeed
@@ -588,7 +588,7 @@ func TestRecoverTask(t *testing.T) {
 	// make sure the recovered task is added to the app
 	app, exist := context.applications[appID]
 	assert.Equal(t, exist, true)
-	assert.Equal(t, len(app.getTasks(TaskStates().Allocated)), 1)
+	assert.Equal(t, len(app.getTasks(TaskStates().Bound)), 1)
 	assert.Equal(t, len(app.getTasks(TaskStates().Completed)), 2)
 	assert.Equal(t, len(app.getTasks(TaskStates().New)), 1)
 
@@ -599,7 +599,7 @@ func TestRecoverTask(t *testing.T) {
 		expectedPodName        string
 		expectedNodeName       string
 	}{
-		{taskUID1, TaskStates().Allocated, taskUID1, "pod1", fakeNodeName},
+		{taskUID1, TaskStates().Bound, taskUID1, "pod1", fakeNodeName},
 		{taskUID2, TaskStates().Completed, taskUID2, "pod2", fakeNodeName},
 		{taskUID3, TaskStates().Completed, taskUID3, "pod3", fakeNodeName},
 		{taskUID4, TaskStates().New, "", "pod4", ""},
@@ -661,7 +661,7 @@ func TestTaskReleaseAfterRecovery(t *testing.T) {
 
 	assert.Assert(t, task0 != nil)
 	assert.Equal(t, task0.GetTaskID(), pod1UID)
-	assert.Equal(t, task0.GetTaskState(), TaskStates().Allocated)
+	assert.Equal(t, task0.GetTaskState(), TaskStates().Bound)
 
 	task1 := context.AddTask(&interfaces.AddTaskRequest{
 		Metadata: interfaces.TaskMetadata{
@@ -673,12 +673,12 @@ func TestTaskReleaseAfterRecovery(t *testing.T) {
 
 	assert.Assert(t, task1 != nil)
 	assert.Equal(t, task1.GetTaskID(), pod2UID)
-	assert.Equal(t, task1.GetTaskState(), TaskStates().Allocated)
+	assert.Equal(t, task1.GetTaskState(), TaskStates().Bound)
 
 	// app should have 2 tasks recovered
 	app, exist := context.applications[appID]
 	assert.Equal(t, exist, true)
-	assert.Equal(t, len(app.GetAllocatedTasks()), 2)
+	assert.Equal(t, len(app.GetBoundTasks()), 2)
 
 	// release one of the tasks
 	context.NotifyTaskComplete(appID, pod2UID)
@@ -697,7 +697,7 @@ func TestTaskReleaseAfterRecovery(t *testing.T) {
 	// expect to see:
 	//  - task0 is still there
 	//  - task1 gets released
-	assert.Equal(t, t0.GetTaskState(), TaskStates().Allocated)
+	assert.Equal(t, t0.GetTaskState(), TaskStates().Bound)
 	assert.Equal(t, t1.GetTaskState(), TaskStates().Completed)
 }
 

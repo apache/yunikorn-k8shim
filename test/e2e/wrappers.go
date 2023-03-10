@@ -27,6 +27,7 @@ import (
 	"github.com/onsi/gomega"
 	"gopkg.in/yaml.v2"
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/apache/yunikorn-core/pkg/common/configs"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
@@ -99,6 +100,14 @@ func LogTestClusterInfoWrapper(testName string, namespaces []string) {
 	for _, ns := range namespaces {
 		logErr := k8s.LogNamespaceInfo(ns)
 		Ω(logErr).NotTo(HaveOccurred())
+
+		pods, err := k.GetPodsByOptions(metav1.ListOptions{})
+		Ω(err).NotTo(HaveOccurred())
+		By("Pod count is " + strconv.Itoa(len(pods.Items)))
+		for _, pod := range pods.Items {
+			By("Pod name is " + pod.Name)
+			By("Pod details: " + pod.String())
+		}
 
 		logErr = restClient.LogAppsInfo(ns)
 		Ω(logErr).NotTo(HaveOccurred())

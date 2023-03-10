@@ -106,6 +106,36 @@ func (c *RClient) GetHealthCheck() (dao.SchedulerHealthDAOInfo, error) {
 	return healthCheck, err
 }
 
+func (c *RClient) WaitforQueueToAppear(partition string, queueName string, timeout int) error {
+	if err := wait.PollImmediate(300*time.Millisecond, time.Duration(timeout)*time.Second, c.IsQueuePresent(partition, queueName)); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *RClient) IsQueuePresent(partition string, queueName string) wait.ConditionFunc {
+	return func() (bool, error) {
+		req, err := c.newRequest("GET", fmt.Sprintf(configmanager.QueuesPath, partition), nil)
+		if err != nil {
+			return false, nil // returning nil here for wait & loop
+		}
+		var queues *dao.PartitionQueueDAOInfo
+		_, err = c.do(req, &queues)
+		if err != nil {
+			return false, err
+		}
+		if queueName == configmanager.RootQueue && queues.QueueName == configmanager.RootQueue {
+			return true, nil
+		}
+		for idx := range queues.Children {
+			if queues.Children[idx].QueueName == queueName {
+				return true, nil
+			}
+		}
+		return false, nil
+	}
+}
+
 func (c *RClient) GetAllAppInfos() (*dao.ApplicationsDAOInfo, error) {
 	appsInfos := new(dao.ApplicationsDAOInfo)
 

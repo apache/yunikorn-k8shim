@@ -42,6 +42,7 @@ type SleepPodConfig struct {
 	RequiredNode string
 	Optedout     bool
 	UID          types.UID
+	Labels       map[string]string
 }
 
 // TestPodConfig template for  sleepPods
@@ -99,6 +100,16 @@ func InitSleepPod(conf SleepPodConfig) (*v1.Pod, error) {
 		optedOut = "false"
 	}
 
+	labels := map[string]string{
+		"app":                                  "sleep",
+		"applicationId":                        conf.AppID,
+		"yunikorn.apache.org/allow-preemption": optedOut,
+	}
+	if len(conf.Labels) > 0 {
+		for k, v := range conf.Labels {
+			labels[k] = v
+		}
+	}
 	var secs int64 = 0
 	testPodConfig := TestPodConfig{
 		Name:                       conf.Name,
@@ -106,11 +117,7 @@ func InitSleepPod(conf SleepPodConfig) (*v1.Pod, error) {
 		RestartPolicy:              v1.RestartPolicyNever,
 		DeletionGracePeriodSeconds: &secs,
 		Command:                    []string{"sleep", strconv.Itoa(conf.Time)},
-		Labels: map[string]string{
-			"app":                                  "sleep",
-			"applicationId":                        conf.AppID,
-			"yunikorn.apache.org/allow-preemption": optedOut,
-		},
+		Labels:                     labels,
 		Resources: &v1.ResourceRequirements{
 			Requests: v1.ResourceList{
 				"cpu":    resource.MustParse(strconv.FormatInt(conf.CPU, 10) + "m"),
