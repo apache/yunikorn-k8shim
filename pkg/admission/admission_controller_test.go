@@ -580,6 +580,53 @@ func TestMutate(t *testing.T) {
 	resp = ac.mutate(req)
 	assert.Check(t, resp.Allowed, "response not allowed for unknown object type")
 	assert.Equal(t, len(resp.Patch), 0, "non-empty patch for deployment")
+
+	// replicaSet - annotation is set
+	replicaSet := &appsv1.ReplicaSet{
+		Spec: appsv1.ReplicaSetSpec{
+			Template: v1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						common.UserInfoAnnotation: validUserInfoAnnotation,
+					},
+				},
+			},
+		},
+	}
+	// Set replicaSet don't have OwnerReferences
+	replicaSet.OwnerReferences = nil
+	req = &admissionv1.AdmissionRequest{
+		UID:       "test-uid",
+		Namespace: "test-ns",
+		Kind:      metav1.GroupVersionKind{Kind: "ReplicaSet"},
+		UserInfo: authv1.UserInfo{
+			Username: "testExtUser",
+		},
+	}
+	var replicaSetJSON []byte
+	replicaSetJSON, err = json.Marshal(replicaSet)
+	assert.NilError(t, err, "failed to marshal replicaSet")
+	req.Object = runtime.RawExtension{Raw: replicaSetJSON}
+	resp = ac.mutate(req)
+	assert.Check(t, resp.Allowed, "response not allowed for unknown object type")
+	assert.Equal(t, len(resp.Patch), 0, "non-empty patch for deployment")
+
+	// Set replicaSet have OwnerReferences deployment
+	owner := metav1.OwnerReference{APIVersion: "v1", Kind: "Deployment", Name: deployment.Name, UID: deployment.UID}
+	replicaSet.OwnerReferences = []metav1.OwnerReference{owner}
+	req = &admissionv1.AdmissionRequest{
+		UID:       "test-uid",
+		Namespace: "test-ns",
+		Kind:      metav1.GroupVersionKind{Kind: "ReplicaSet"},
+		UserInfo: authv1.UserInfo{
+			Username: "testExtUser",
+		},
+	}
+	replicaSetJSON, err = json.Marshal(replicaSet)
+	assert.NilError(t, err, "failed to marshal replicaSet")
+	req.Object = runtime.RawExtension{Raw: replicaSetJSON}
+	resp = ac.mutate(req)
+	assert.Check(t, !resp.Allowed, "response was allowed")
 }
 
 func TestMutateUpdate(t *testing.T) {

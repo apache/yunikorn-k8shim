@@ -77,18 +77,6 @@ func fromDaemonSet(req *admissionv1.AdmissionRequest) (*extractResult, error) {
 		return nil, err
 	}
 
-	if len(daemonSet.OwnerReferences) > 0 {
-		for _, ownerReference := range daemonSet.OwnerReferences {
-			if ownerReference.Kind == Deployment {
-				//For ReplicaSets, if the ownerReference is set to a Deployment,
-				// it should be sufficient to check for that and assume that the Deployment itself has passed in the appropriate user information
-				// due to the admission controller having mutated the Deployment.
-				return nil, errors.New(fmt.Sprintf("DaemonSet %s already has Deployment ownerReference: %s, "+
-					"skip the mute action for this DaemonSet.", daemonSet.Name, ownerReference.Name))
-			}
-		}
-	}
-
 	return &extractResult{
 		annotations: daemonSet.Spec.Template.Annotations,
 		labels:      daemonSet.Spec.Template.Labels,
@@ -115,6 +103,18 @@ func fromReplicaSet(req *admissionv1.AdmissionRequest) (*extractResult, error) {
 	err := json.Unmarshal(req.Object.Raw, &replicaSet)
 	if err != nil {
 		return nil, err
+	}
+
+	if len(replicaSet.OwnerReferences) > 0 {
+		for _, ownerReference := range replicaSet.OwnerReferences {
+			if ownerReference.Kind == Deployment {
+				//For ReplicaSets, if the ownerReference is set to a Deployment,
+				// it should be sufficient to check for that and assume that the Deployment itself has passed in the appropriate user information
+				// due to the admission controller having mutated the Deployment.
+				return nil, errors.New(fmt.Sprintf("ReplicaSet %s already has Deployment ownerReference: %s, "+
+					"skip the mute action for this ReplicaSet.", replicaSet.Name, ownerReference.Name))
+			}
+		}
 	}
 
 	return &extractResult{
