@@ -26,6 +26,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	batchv1Beta "k8s.io/api/batch/v1beta1"
+	corev1 "k8s.io/api/core/v1"
 )
 
 type extractResult struct {
@@ -43,6 +44,7 @@ var (
 	ReplicaSet  = reflect.TypeOf(appsv1.ReplicaSet{}).Name()
 	Job         = reflect.TypeOf(batchv1.Job{}).Name()
 	CronJob     = reflect.TypeOf(batchv1Beta.CronJob{}).Name()
+	Pod         = reflect.TypeOf(corev1.Pod{}).Name()
 
 	extractors = map[string]extractor{
 		Deployment:  fromDeployment,

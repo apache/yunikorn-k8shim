@@ -56,7 +56,6 @@ const (
 	schedulerValidateConfURLPattern = "http://%s/ws/v1/validate-conf"
 	mutateURL                       = "/mutate"
 	validateConfURL                 = "/validate-conf"
-	pod                             = "Pod"
 )
 
 var (
@@ -140,7 +139,7 @@ func (c *AdmissionController) mutate(req *admissionv1.AdmissionRequest) *admissi
 		zap.Any("UserInfo", req.UserInfo))
 
 	if req.Operation == admissionv1.Update {
-		if req.Kind.Kind == pod {
+		if req.Kind.Kind == metadata.Pod {
 			return c.processPodUpdate(req, namespace)
 		}
 
@@ -148,7 +147,7 @@ func (c *AdmissionController) mutate(req *admissionv1.AdmissionRequest) *admissi
 		return admissionResponseBuilder(string(req.UID), true, "", nil)
 	}
 
-	if req.Kind.Kind == pod {
+	if req.Kind.Kind == metadata.Pod {
 		return c.processPod(req, namespace)
 	}
 
@@ -222,6 +221,10 @@ func (c *AdmissionController) processPod(req *admissionv1.AdmissionRequest, name
 
 func (c *AdmissionController) processWorkload(req *admissionv1.AdmissionRequest, namespace string) *admissionv1.AdmissionResponse {
 	var uid = string(req.UID)
+
+	if !c.shouldProcessWorkload(req) {
+		return admissionResponseBuilder(uid, true, "", nil)
+	}
 
 	var supported bool
 	var err error
@@ -327,6 +330,22 @@ func (c *AdmissionController) shouldProcessAdmissionReview(namespace string, lab
 	}
 
 	return false
+}
+
+func (c *AdmissionController) shouldProcessWorkload(req *admissionv1.AdmissionRequest) bool {
+	// checking a special case: replicaset submitted by a K8s system user
+	// we must not touch the spec otherwise we'll end up having an infinite loop of replicaset creation
+	if req.Kind.Kind == metadata.ReplicaSet {
+		for _, sysUser := range c.conf.GetSystemUsers() {
+			if sysUser.MatchString(req.UserInfo.Username) {
+				log.Logger().Info("ReplicaSet was created by a system user, skipping it",
+					zap.String("uid", string(req.UID)))
+				return false
+			}
+		}
+	}
+
+	return true
 }
 
 func (c *AdmissionController) checkUserInfoAnnotation(getAnnotation func() (string, bool), userName string, groups []string, uid string) (*admissionv1.AdmissionResponse, bool) {

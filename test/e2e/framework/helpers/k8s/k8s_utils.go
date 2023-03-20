@@ -580,6 +580,14 @@ func (k *KubeCtl) DeleteJob(jobName string, namespace string) error {
 	return err
 }
 
+func (k *KubeCtl) UpdateDeployment(deployment *appsv1.Deployment, namespace string) (*appsv1.Deployment, error) {
+	return k.clientSet.AppsV1().Deployments(namespace).Update(context.TODO(), deployment, metav1.UpdateOptions{})
+}
+
+func (k *KubeCtl) GetReplicaSets(namespace string) (*appsv1.ReplicaSetList, error) {
+	return k.clientSet.AppsV1().ReplicaSets(namespace).List(context.TODO(), metav1.ListOptions{})
+}
+
 // return a condition function that indicates whether the given pod is
 // currently in desired state
 func (k *KubeCtl) isPodInDesiredState(podName string, namespace string, state v1.PodPhase) wait.ConditionFunc {
