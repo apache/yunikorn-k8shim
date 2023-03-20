@@ -291,10 +291,7 @@ partitions:
         submitacl: "*"
 `
 
-/*
-*
-Test for the case when the POST request is successful, and the config change is allowed.
-*/
+// Test for the case when the POST request is successful, and the config change is allowed.
 func TestValidateConfigMapValidConfig(t *testing.T) {
 	configmap := prepareConfigMap(ConfigData)
 	srv := serverMock(Success)
@@ -305,10 +302,7 @@ func TestValidateConfigMapValidConfig(t *testing.T) {
 	assert.NilError(t, err, "No error expected")
 }
 
-/*
-*
-Test for the case when the POST request is successful, but the config change is not allowed.
-*/
+// Test for the case when the POST request is successful, but the config change is not allowed.
 func TestValidateConfigMapInvalidConfig(t *testing.T) {
 	configmap := prepareConfigMap(ConfigData)
 	srv := serverMock(Failure)
@@ -321,10 +315,7 @@ func TestValidateConfigMapInvalidConfig(t *testing.T) {
 		"Other error returned than the expected one")
 }
 
-/*
-*
-Test for the case when the POST request fails
-*/
+// Test for the case when the POST request fails
 func TestValidateConfigMapWrongRequest(t *testing.T) {
 	configmap := prepareConfigMap(ConfigData)
 	srv := serverMock(Failure)
@@ -335,10 +326,7 @@ func TestValidateConfigMapWrongRequest(t *testing.T) {
 	assert.NilError(t, err, "No error expected")
 }
 
-/*
-*
-Test for the case of server error
-*/
+// Test for the case of server error
 func TestValidateConfigMapServerError(t *testing.T) {
 	configmap := prepareConfigMap(ConfigData)
 	srv := serverMock(Error)
