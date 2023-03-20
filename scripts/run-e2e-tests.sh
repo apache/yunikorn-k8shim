@@ -101,8 +101,13 @@ function install_kind() {
 }
 
 function install_spark() {
-  check_cmd "wget"
-  wget -qO-  https://archive.apache.org/dist/spark/spark-3.3.1/spark-3.3.1-bin-hadoop3.tgz | tar xzvf - && chmod +x spark-3.3.1-bin-hadoop3 && sudo mv spark-3.3.1-bin-hadoop3 /opt/.
+  if [ ! -d "/opt/spark-3.3.1-bin-hadoop3" ] && [ $(find "/opt/spark-3.3.1-bin-hadoop3" -type f | wc -l) > 0 ]; then
+    echo  "/opt doesn't contains spark."
+    check_cmd "wget"
+    wget -qO-  https://archive.apache.org/dist/spark/spark-3.3.1/spark-3.3.1-bin-hadoop3.tgz | tar xzvf - && chmod +x spark-3.3.1-bin-hadoop3 && sudo mv spark-3.3.1-bin-hadoop3 /opt/.
+  else
+    echo "/opt contains spark."
+  fi
   exit_on_error "install spark failed."
   sudo ln -s /opt/spark-3.3.1-bin-hadoop3 /opt/spark
   exit_on_error "install spark failed. unable to create symlink"
