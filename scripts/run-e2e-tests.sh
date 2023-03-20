@@ -106,8 +106,6 @@ function install_spark() {
     check_cmd "wget"
     wget -qO-  https://archive.apache.org/dist/spark/spark-3.3.1/spark-3.3.1-bin-hadoop3.tgz | tar xzvf - && chmod +x spark-3.3.1-bin-hadoop3 && sudo mv spark-3.3.1-bin-hadoop3 /opt/.
     exit_on_error "install spark failed."
-  else
-    echo "/opt contains spark."
   fi
   if [ -h /opt/spark ]; then
     sudo rm /opt/spark
