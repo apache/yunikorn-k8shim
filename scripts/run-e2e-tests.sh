@@ -101,7 +101,7 @@ function install_kind() {
 }
 
 function install_spark() {
-  if [ ! -d "/opt/spark-3.3.1-bin-hadoop3" ] && [ $(find "/opt/spark-3.3.1-bin-hadoop3" -type f | wc -l) > 0 ]; then
+  if [ ! -d "/opt/spark-3.3.1-bin-hadoop3" ] || [ ! $(find "/opt/spark-3.3.1-bin-hadoop3" -type f | wc -l) > 0 ]; then
     echo  "/opt doesn't contains spark."
     check_cmd "wget"
     wget -qO-  https://archive.apache.org/dist/spark/spark-3.3.1/spark-3.3.1-bin-hadoop3.tgz | tar xzvf - && chmod +x spark-3.3.1-bin-hadoop3 && sudo mv spark-3.3.1-bin-hadoop3 /opt/.
