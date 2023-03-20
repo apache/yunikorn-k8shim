@@ -22,9 +22,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/onsi/ginkgo/reporters"
+	"github.com/onsi/ginkgo/v2/reporters"
 
-	"github.com/onsi/ginkgo"
+	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
@@ -35,9 +35,16 @@ func init() {
 }
 
 func TestBasicScheduling(t *testing.T) {
+	ginkgo.ReportAfterSuite("TestBasicScheduling", func(report ginkgo.Report) {
+		err := reporters.GenerateJUnitReportWithConfig(
+			report,
+			filepath.Join(configmanager.YuniKornTestConfig.LogDir, "basic_scheduling_junit.xml"),
+			reporters.JunitReportConfig{OmitSpecLabels: true},
+		)
+		Ω(err).NotTo(HaveOccurred())
+	})
 	gomega.RegisterFailHandler(ginkgo.Fail)
-	junitReporter := reporters.NewJUnitReporter(filepath.Join(configmanager.YuniKornTestConfig.LogDir, "basic_scheduling_junit.xml"))
-	ginkgo.RunSpecsWithDefaultAndCustomReporters(t, "TestBasicScheduling", []ginkgo.Reporter{junitReporter})
+	ginkgo.RunSpecs(t, "TestBasicScheduling", ginkgo.Label("TestBasicScheduling"))
 }
 
 var By = ginkgo.By

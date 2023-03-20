@@ -21,6 +21,7 @@ package node_resources_test
 import (
 	"fmt"
 
+	"github.com/onsi/ginkgo/v2"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
@@ -47,10 +48,10 @@ var _ = Describe("", func() {
 	})
 
 	AfterEach(func() {
-		testDescription := CurrentGinkgoTestDescription()
-		if testDescription.Failed {
-			tests.LogTestClusterInfoWrapper(testDescription.TestText, []string{ns})
-			tests.LogYunikornContainer(testDescription.TestText)
+		testDescription := ginkgo.CurrentSpecReport()
+		if testDescription.Failed() {
+			tests.LogTestClusterInfoWrapper(testDescription.FailureMessage(), []string{ns})
+			tests.LogYunikornContainer(testDescription.FailureMessage())
 		}
 
 		By("Tear down namespace: " + ns)

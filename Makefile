@@ -101,6 +101,7 @@ REGISTRY := apache
 endif
 
 # Force Go modules even when checked out inside GOPATH
+export ACK_GINKGO_DEPRECATIONS=2.9.0
 GO111MODULE := on
 export GO111MODULE
 
@@ -405,4 +406,5 @@ arch:
 .PHONY: e2e_test
 e2e_test:
 	@echo "running e2e tests"
-	cd ./test/e2e && ginkgo -r -v -timeout=2h -- -yk-namespace "yunikorn" -kube-config $(KUBECONFIG)
+	mkdir /tmp/e2e-test-reports && chmod 755 /tmp/e2e-test-reports
+	cd ./test/e2e && ginkgo -r -v -keep-going -- -yk-namespace "yunikorn" -kube-config $(KUBECONFIG)

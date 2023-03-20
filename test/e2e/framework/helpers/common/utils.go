@@ -32,7 +32,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/onsi/ginkgo"
+	"github.com/onsi/ginkgo/v2"
 
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 )
@@ -44,6 +44,7 @@ func GetAbsPath(p string) (string, error) {
 
 // GetTestName returns the test Name in a single string without spaces or /
 func GetTestName() string {
+	//nolint
 	testDesc := ginkgo.CurrentGinkgoTestDescription()
 	name := strings.Replace(testDesc.FullTestText, " ", "_", -1)
 	name = strings.Trim(name, "*")
@@ -117,10 +118,10 @@ func SliceExists(slice interface{}, item interface{}) (bool, error) {
 }
 
 // Takes 2 restClient responses with queue information, and checks if they are the same by
-// 		1. Validates queue name is same
-//		2. Validates qA and qB have same number of sub-queues
-// 		3a. If same queue name and 0 sub-queues, return true
-//		3b. Otherwise, call CompareQueueMap on each child pairing of qA and qB
+//  1. Validates queue name is same
+//  2. Validates qA and qB have same number of sub-queues
+//     3a. If same queue name and 0 sub-queues, return true
+//     3b. Otherwise, call CompareQueueMap on each child pairing of qA and qB
 func CompareQueueMap(a map[string]interface{}, b map[string]interface{}) (bool, error) {
 	// Validate queue name
 	if a["queuename"] != b["queuename"] {

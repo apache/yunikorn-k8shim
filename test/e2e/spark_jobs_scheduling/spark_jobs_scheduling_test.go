@@ -26,6 +26,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/onsi/ginkgo/v2"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
@@ -149,17 +150,17 @@ var _ = Describe("", func() {
 	})
 
 	AfterEach(func() {
-		testDescription := CurrentGinkgoTestDescription()
-		if testDescription.Failed {
-			tests.LogTestClusterInfoWrapper(testDescription.TestText, []string{sparkNS})
-			tests.LogYunikornContainer(testDescription.TestText)
+		testDescription := ginkgo.CurrentSpecReport()
+		if testDescription.Failed() {
+			tests.LogTestClusterInfoWrapper(testDescription.FailureMessage(), []string{sparkNS})
+			tests.LogYunikornContainer(testDescription.FailureMessage())
 		}
 
 		By("Killing all spark jobs")
 		sparkPods, err := kClient.GetPodNamesFromNS(sparkNS)
 		Ω(err).NotTo(HaveOccurred())
 		for _, each := range sparkPods {
-			// False positive, hence exluding from golint
+			// False positive, hence excluding from golint
 			//nolint
 			_, err := exec.Command(sparkHome+"/bin/spark-submit",
 				"--kill", sparkNS+":"+each, "--master", "k8s://"+masterURL).Output()

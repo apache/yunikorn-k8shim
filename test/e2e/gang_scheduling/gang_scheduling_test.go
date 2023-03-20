@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -890,7 +891,7 @@ var _ = Describe("", func() {
 		Ω(len(appInfo.Allocations)).To(BeNumerically("==", 0))
 	})
 
-	DescribeTable("", func(annotations k8s.PodAnnotation) {
+	ginkgo.DescribeTable("", func(annotations k8s.PodAnnotation) {
 		podConf := k8s.TestPodConfig{
 			Labels: map[string]string{
 				"app":           "sleep-" + common.RandSeq(5),
@@ -939,7 +940,7 @@ var _ = Describe("", func() {
 		Ω(getErr).NotTo(HaveOccurred())
 		Ω(len(appPods.Items)).To(BeNumerically("==", jobConf.Parallelism))
 	},
-		Entry("Verify_TG_With_Duplicate_Group", k8s.PodAnnotation{
+		ginkgo.Entry("Verify_TG_With_Duplicate_Group", k8s.PodAnnotation{
 			TaskGroups: []v1alpha1.TaskGroup{
 				{
 					Name:      "groupdup",
@@ -967,7 +968,7 @@ var _ = Describe("", func() {
 				},
 			},
 		}),
-		Entry("Verify_TG_With_Invalid_Chars", k8s.PodAnnotation{
+		ginkgo.Entry("Verify_TG_With_Invalid_Chars", k8s.PodAnnotation{
 			TaskGroups: []v1alpha1.TaskGroup{
 				{
 					Name:      "GROUPCAPS",
@@ -979,7 +980,7 @@ var _ = Describe("", func() {
 				},
 			},
 		}),
-		Entry("Verify_TG_With_Invalid_MinMember", k8s.PodAnnotation{
+		ginkgo.Entry("Verify_TG_With_Invalid_MinMember", k8s.PodAnnotation{
 			TaskGroups: []v1alpha1.TaskGroup{
 				{
 					Name:      groupA,
@@ -993,10 +994,10 @@ var _ = Describe("", func() {
 		}),
 	)
 	AfterEach(func() {
-		testDescription := CurrentGinkgoTestDescription()
-		if testDescription.Failed {
-			tests.LogTestClusterInfoWrapper(testDescription.TestText, []string{ns})
-			tests.LogYunikornContainer(testDescription.TestText)
+		testDescription := ginkgo.CurrentSpecReport()
+		if testDescription.Failed() {
+			tests.LogTestClusterInfoWrapper(testDescription.FailureMessage(), []string{ns})
+			tests.LogYunikornContainer(testDescription.FailureMessage())
 		}
 		By("Tear down namespace: " + ns)
 		err := kClient.TearDownNamespace(ns)

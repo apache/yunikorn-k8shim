@@ -21,7 +21,7 @@ package stateawareappscheduling_test
 import (
 	"fmt"
 
-	"github.com/onsi/ginkgo"
+	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 
@@ -76,7 +76,7 @@ var _ = Describe("FallbackTest:", func() {
 		By("Verify that the job is scheduled by YuniKorn & is in starting state")
 		Ω(appsInfo.State).To(Equal("Starting"))
 		Ω("yunikorn").To(Equal(sleepRespPod.Spec.SchedulerName))
-	}, 60)
+	})
 
 	It("Verify_App_State_Transition_To_Running_Post_Timeout", func() {
 		By("Wait for fallback timeout of 5mins")
@@ -102,7 +102,7 @@ var _ = Describe("FallbackTest:", func() {
 		Ω(len(resMap)).NotTo(gomega.BeZero())
 		Ω(resMap["memory"]).To(gomega.Equal(mem))
 		Ω(resMap["vcore"]).To(gomega.Equal(core))
-	}, 360)
+	})
 
 	AfterEach(func() {
 		By("Check Yunikorn's health")
@@ -110,10 +110,10 @@ var _ = Describe("FallbackTest:", func() {
 		Ω(err).NotTo(HaveOccurred())
 		Ω(checks).To(Equal(""), checks)
 
-		testDescription := ginkgo.CurrentGinkgoTestDescription()
-		if testDescription.Failed {
-			tests.LogTestClusterInfoWrapper(testDescription.TestText, []string{ns})
-			tests.LogYunikornContainer(testDescription.TestText)
+		testDescription := ginkgo.CurrentSpecReport()
+		if testDescription.Failed() {
+			tests.LogTestClusterInfoWrapper(testDescription.FailureMessage(), []string{ns})
+			tests.LogYunikornContainer(testDescription.FailureMessage())
 		}
 		By("Tearing down namespace: " + ns)
 		err = kClient.TearDownNamespace(ns)
