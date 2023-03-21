@@ -184,6 +184,7 @@ func GetResource(resMap map[string]string) *si.Resource {
 
 func GetTGResource(resMap map[string]resource.Quantity, members int64) *si.Resource {
 	result := NewResourceBuilder()
+	result.AddResource("pods", members)
 	for resName, resValue := range resMap {
 		switch resName {
 		case v1.ResourceCPU.String():
