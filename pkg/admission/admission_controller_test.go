@@ -291,9 +291,7 @@ partitions:
         submitacl: "*"
 `
 
-/**
-Test for the case when the POST request is successful, and the config change is allowed.
-*/
+// Test for the case when the POST request is successful, and the config change is allowed.
 func TestValidateConfigMapValidConfig(t *testing.T) {
 	configmap := prepareConfigMap(ConfigData)
 	srv := serverMock(Success)
@@ -304,9 +302,7 @@ func TestValidateConfigMapValidConfig(t *testing.T) {
 	assert.NilError(t, err, "No error expected")
 }
 
-/**
-Test for the case when the POST request is successful, but the config change is not allowed.
-*/
+// Test for the case when the POST request is successful, but the config change is not allowed.
 func TestValidateConfigMapInvalidConfig(t *testing.T) {
 	configmap := prepareConfigMap(ConfigData)
 	srv := serverMock(Failure)
@@ -319,9 +315,7 @@ func TestValidateConfigMapInvalidConfig(t *testing.T) {
 		"Other error returned than the expected one")
 }
 
-/**
-Test for the case when the POST request fails
-*/
+// Test for the case when the POST request fails
 func TestValidateConfigMapWrongRequest(t *testing.T) {
 	configmap := prepareConfigMap(ConfigData)
 	srv := serverMock(Failure)
@@ -332,9 +326,7 @@ func TestValidateConfigMapWrongRequest(t *testing.T) {
 	assert.NilError(t, err, "No error expected")
 }
 
-/**
-Test for the case of server error
-*/
+// Test for the case of server error
 func TestValidateConfigMapServerError(t *testing.T) {
 	configmap := prepareConfigMap(ConfigData)
 	srv := serverMock(Error)
@@ -368,7 +360,7 @@ func prepareController(t *testing.T, url string, processNs string, bypassNs stri
 		conf.AMFilteringNoLabelNamespaces:     noLabelNs,
 		conf.AMAccessControlBypassAuth:        fmt.Sprintf("%t", bypassAuth),
 		conf.AMAccessControlTrustControllers:  fmt.Sprintf("%t", trustControllers),
-		conf.AMAccessControlSystemUsers:       "^system:serviceaccount:kube-system:job-controller$",
+		conf.AMAccessControlSystemUsers:       "^system:serviceaccount:kube-system:job-controller$,^system:serviceaccount:kube-system:deployment-controller$",
 		conf.AMAccessControlExternalUsers:     "^testExtUser$",
 		conf.AMAccessControlExternalGroups:    "^testExtGroup$",
 	})
@@ -580,6 +572,36 @@ func TestMutate(t *testing.T) {
 	resp = ac.mutate(req)
 	assert.Check(t, resp.Allowed, "response not allowed for unknown object type")
 	assert.Equal(t, len(resp.Patch), 0, "non-empty patch for deployment")
+
+	// replicaset - no patch for system user
+	replicaSet := appsv1.ReplicaSet{
+		Spec: appsv1.ReplicaSetSpec{
+			Template: v1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "test-ns",
+					Annotations: map[string]string{
+						common.UserInfoAnnotation: validUserInfoAnnotation,
+					},
+				},
+			},
+		},
+	}
+	ac = prepareController(t, "", "", "^kube-system$,^bypass$", "", "^nolabel$", false, true)
+	req = &admissionv1.AdmissionRequest{
+		UID:       "test-uid",
+		Namespace: "test-ns",
+		Kind:      metav1.GroupVersionKind{Kind: "ReplicaSet"},
+		UserInfo: authv1.UserInfo{
+			Username: "system:serviceaccount:kube-system:deployment-controller",
+			Groups:   []string{"system:serviceaccounts", "system:serviceaccounts:kube-system"},
+		},
+	}
+	replicaSetJSON, err2 := json.Marshal(replicaSet)
+	assert.NilError(t, err2, "failed to marshal replicaset")
+	req.Object = runtime.RawExtension{Raw: replicaSetJSON}
+	resp = ac.mutate(req)
+	assert.Check(t, resp.Allowed, "response not allowed for replicaset")
+	assert.Equal(t, 0, len(resp.Patch), "non-empty patch for replicaset")
 }
 
 func TestMutateUpdate(t *testing.T) {
@@ -765,6 +787,38 @@ func TestExternalAuthentication(t *testing.T) {
 	resp = ac.mutate(req)
 	assert.Check(t, !resp.Allowed, "response was allowed")
 	assert.Check(t, strings.Contains(resp.Result.Message, "invalid character 'x'"))
+
+	// replicaset submitted by system user
+	replicaSet := appsv1.ReplicaSet{
+		Spec: appsv1.ReplicaSetSpec{
+			Template: v1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "test-ns",
+					Annotations: map[string]string{
+						common.UserInfoAnnotation: validUserInfoAnnotation,
+					},
+				},
+			},
+		},
+	}
+	replicaSetJSON, err3 := json.Marshal(replicaSet)
+	assert.NilError(t, err3, "failed to marshal replicaset")
+	req.Object = runtime.RawExtension{Raw: replicaSetJSON}
+	req.Kind = metav1.GroupVersionKind{Kind: "ReplicaSet"}
+	req.UserInfo = authv1.UserInfo{
+		Username: "system:serviceaccount:kube-system:deployment-controller",
+		Groups:   []string{"system:serviceaccounts", "system:serviceaccounts:kube-system"},
+	}
+	resp = ac.mutate(req)
+	assert.Check(t, resp.Allowed, "response was not allowed")
+
+	// replicaset submitted by normal user
+	req.UserInfo = authv1.UserInfo{
+		Username: "testExtUser",
+		Groups:   []string{"dev"},
+	}
+	resp = ac.mutate(req)
+	assert.Check(t, resp.Allowed, "response was not allowed")
 }
 
 func parsePatch(t *testing.T, patch []byte) []common.PatchOperation {

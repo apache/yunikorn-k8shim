@@ -440,6 +440,75 @@ var _ = ginkgo.Describe("AdmissionController", func() {
 		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
 	})
 
+	ginkgo.It("Check that replicaset is not modified if submitted by system user", func() {
+		ginkgo.By("Retrieve existing configmap")
+		configMap, err := kubeClient.GetConfigMap(constants.ConfigMapName, configmanager.YuniKornTestConfig.YkNamespace)
+		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
+		if configMap.Data == nil {
+			configMap.Data = make(map[string]string)
+		}
+		configMap.Data[amConf.AMAccessControlBypassAuth] = "true"
+		ginkgo.By("Update configmap (bypassAuth -> true)")
+		stopChan := make(chan struct{})
+		eventHandler := &EventHandler{updateCh: make(chan struct{})}
+		err = kubeClient.StartConfigMapInformer(configmanager.YuniKornTestConfig.YkNamespace, stopChan, eventHandler)
+		defer close(stopChan)
+		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
+		_, err = kubeClient.UpdateConfigMap(configMap, configmanager.YuniKornTestConfig.YkNamespace)
+		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
+		updateOk := eventHandler.WaitForUpdate(30 * time.Second)
+		gomega.Ω(updateOk).To(gomega.Equal(true))
+		time.Sleep(time.Second)
+
+		ginkgo.By("Submit a deployment")
+		deployment := testDeployment.DeepCopy()
+		_, err = kubeClient.CreateDeployment(deployment, ns)
+		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
+		defer deleteWorkload(deployment.Name, func(_ string) error {
+			return kubeClient.DeleteDeployment(deployment.Name, ns)
+		}, ns)
+		ginkgo.By("Check for sleep pod")
+		err = kubeClient.WaitForPodBySelector(ns, fmt.Sprintf("app=%s", deployment.ObjectMeta.Labels["app"]),
+			60*time.Second)
+		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
+
+		ginkgo.By("Update configmap (bypassAuth -> false)")
+		configMap, err = kubeClient.GetConfigMap(constants.ConfigMapName, configmanager.YuniKornTestConfig.YkNamespace)
+		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
+		configMap.Data[amConf.AMAccessControlBypassAuth] = "false"
+		_, err = kubeClient.UpdateConfigMap(configMap, configmanager.YuniKornTestConfig.YkNamespace)
+		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
+		updateOk = eventHandler.WaitForUpdate(30 * time.Second)
+		gomega.Ω(updateOk).To(gomega.Equal(true))
+		time.Sleep(time.Second)
+
+		ginkgo.By("Update container image in deployment")
+		deployment, err = kubeClient.GetDeployment(deployment.Name, ns)
+		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
+		container := deployment.Spec.Template.Spec.Containers[0]
+		container.Image = "nginx:1.16.1"
+		deployment.Spec.Template.Spec.Containers[0] = container
+		_, err = kubeClient.UpdateDeployment(deployment, ns)
+		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
+
+		ginkgo.By("Wait for sleep pod")
+		err = kubeClient.WaitForPodBySelectorRunning(ns, fmt.Sprintf("app=%s", testDeployment.ObjectMeta.Labels["app"]),
+			60)
+		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
+
+		ginkgo.By("Check for number of replicasets")
+		replicaSetList, err2 := kubeClient.GetReplicaSets(ns)
+		gomega.Ω(err2).ShouldNot(gomega.HaveOccurred())
+		for _, rs := range replicaSetList.Items {
+			fmt.Fprintf(ginkgo.GinkgoWriter, "%-20s\tReplicas: %d\tReady: %d\tAvailable: %d\n",
+				rs.Name,
+				rs.Status.Replicas,
+				rs.Status.ReadyReplicas,
+				rs.Status.AvailableReplicas)
+		}
+		gomega.Ω(len(replicaSetList.Items)).To(gomega.Equal(2))
+	})
+
 	ginkgo.AfterEach(func() {
 		ginkgo.By("Tear down namespace: " + ns)
 		err := kubeClient.TearDownNamespace(ns)
