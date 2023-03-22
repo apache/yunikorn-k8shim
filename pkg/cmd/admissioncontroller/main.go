@@ -61,11 +61,10 @@ func main() {
 	amConf := conf.NewAdmissionControllerConf(configMaps)
 	kubeClient := client.NewKubeClient(amConf.GetKubeConfig())
 
-	pcCache := admission.NewPriorityClassCache()
-
 	informers := admission.NewInformers(kubeClient, amConf.GetNamespace())
 	amConf.RegisterHandlers(informers.ConfigMap)
-	pcCache.RegisterHandlers(informers.PriorityClass)
+	pcCache := admission.NewPriorityClassCache(informers.PriorityClass)
+	nsCache := admission.NewNamespaceCache(informers.Namespace)
 	informers.Start()
 
 	wm, err := admission.NewWebhookManager(amConf)
@@ -73,7 +72,7 @@ func main() {
 		log.Logger().Fatal("Failed to initialize webhook manager", zap.Error(err))
 	}
 
-	ac := admission.InitAdmissionController(amConf, pcCache)
+	ac := admission.InitAdmissionController(amConf, pcCache, nsCache)
 
 	webhook := CreateWebhook(ac, HTTPPort)
 	certs := UpdateWebhookConfiguration(wm)

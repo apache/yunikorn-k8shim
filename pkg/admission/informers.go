@@ -34,6 +34,7 @@ import (
 type Informers struct {
 	ConfigMap     informersv1.ConfigMapInformer
 	PriorityClass schedulinginformersv1.PriorityClassInformer
+	Namespace     informersv1.NamespaceInformer
 	stopChan      chan struct{}
 }
 
@@ -46,6 +47,7 @@ func NewInformers(kubeClient client.KubeClient, namespace string) *Informers {
 	result := &Informers{
 		ConfigMap:     informerFactory.Core().V1().ConfigMaps(),
 		PriorityClass: informerFactory.Scheduling().V1().PriorityClasses(),
+		Namespace:     informerFactory.Core().V1().Namespaces(),
 		stopChan:      stopChan,
 	}
 
@@ -55,6 +57,7 @@ func NewInformers(kubeClient client.KubeClient, namespace string) *Informers {
 func (i *Informers) Start() {
 	go i.ConfigMap.Informer().Run(i.stopChan)
 	go i.PriorityClass.Informer().Run(i.stopChan)
+	go i.Namespace.Informer().Run(i.stopChan)
 	if err := i.waitForSync(time.Second, 30*time.Second); err != nil {
 		log.Logger().Warn("Failed to sync informers", zap.Error(err))
 	}
@@ -69,6 +72,7 @@ func (i *Informers) Stop() {
 func (i *Informers) waitForSync(interval time.Duration, timeout time.Duration) error {
 	return utils.WaitForCondition(func() bool {
 		return i.ConfigMap.Informer().HasSynced() &&
-			i.PriorityClass.Informer().HasSynced()
+			i.PriorityClass.Informer().HasSynced() &&
+			i.Namespace.Informer().HasSynced()
 	}, interval, timeout)
 }

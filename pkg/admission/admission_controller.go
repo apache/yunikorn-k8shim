@@ -67,6 +67,7 @@ var (
 type AdmissionController struct {
 	conf              *conf.AdmissionControllerConf
 	pcCache           *PriorityClassCache
+	nsCache           *NamespaceCache
 	annotationHandler *metadata.UserGroupAnnotationHandler
 	labelExtractor    metadata.LabelExtractor
 }
@@ -76,10 +77,11 @@ type ValidateConfResponse struct {
 	Reason  string `json:"reason"`
 }
 
-func InitAdmissionController(conf *conf.AdmissionControllerConf, pcCache *PriorityClassCache) *AdmissionController {
+func InitAdmissionController(conf *conf.AdmissionControllerConf, pcCache *PriorityClassCache, nsCache *NamespaceCache) *AdmissionController {
 	hook := &AdmissionController{
 		conf:              conf,
 		pcCache:           pcCache,
+		nsCache:           nsCache,
 		annotationHandler: metadata.NewUserGroupAnnotationHandler(conf),
 	}
 
@@ -398,7 +400,7 @@ func (c *AdmissionController) updatePreemptionInfo(pod *v1.Pod, patch []common.P
 	}
 
 	value = constants.False
-	if c.pcCache.IsPreemptSelfAllowed(pod.Spec.PriorityClassName) {
+	if c.pcCache.isPreemptSelfAllowed(pod.Spec.PriorityClassName) {
 		value = constants.True
 	}
 
@@ -416,7 +418,7 @@ func (c *AdmissionController) updatePreemptionInfo(pod *v1.Pod, patch []common.P
 		}
 	}
 
-	result := UpdatePodAnnotationForAdmissionController(pod, constants.AnnotationAllowPreemption, value)
+	result := updatePodAnnotation(pod, constants.AnnotationAllowPreemption, value)
 	patch = append(patch, common.PatchOperation{
 		Op:    "add",
 		Path:  "/metadata/annotations",
@@ -433,7 +435,7 @@ func updateLabels(namespace string, pod *v1.Pod, patch []common.PatchOperation) 
 		zap.String("namespace", namespace),
 		zap.Any("labels", pod.Labels))
 
-	result := UpdatePodLabelForAdmissionController(pod, namespace)
+	result := updatePodLabel(pod, namespace)
 
 	patch = append(patch, common.PatchOperation{
 		Op:    "add",
@@ -524,11 +526,28 @@ func (c *AdmissionController) namespaceMatchesNoLabelList(namespace string) bool
 	return false
 }
 
+// shouldProcessNamespace returns true if the pod in the namespace must be redirected to the
+// YuniKorn scheduler by setting the schedulerName
+// First check is the namespace annotation (tri-state)
+// - if present (0, 1) return the value as boolean
+// - if not present (-1) fallback to matching names based on regexp
 func (c *AdmissionController) shouldProcessNamespace(namespace string) bool {
+	process := c.nsCache.enableYuniKorn(namespace)
+	if process != -1 {
+		return process == 1
+	}
 	return c.namespaceMatchesProcessList(namespace) && !c.namespaceMatchesBypassList(namespace)
 }
 
+// shouldLabelNamespace returns true if the pod in the namespace must be labeled
+// First check is the namespace annotation (tri-state)
+// - if present (0, 1) return the value as boolean
+// - if not present (-1) fallback to matching names based on regexp
 func (c *AdmissionController) shouldLabelNamespace(namespace string) bool {
+	label := c.nsCache.generateAppID(namespace)
+	if label != -1 {
+		return label == 1
+	}
 	return c.namespaceMatchesLabelList(namespace) && !c.namespaceMatchesNoLabelList(namespace)
 }
 

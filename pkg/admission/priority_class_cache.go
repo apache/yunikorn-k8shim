@@ -31,71 +31,66 @@ import (
 )
 
 type PriorityClassCache struct {
-	priorityClasses map[string]*schedulingv1.PriorityClass
-	lock            sync.RWMutex
+	priorityClasses map[string]bool
+
+	sync.RWMutex
 }
 
-func NewPriorityClassCache() *PriorityClassCache {
-	return &PriorityClassCache{
-		priorityClasses: make(map[string]*schedulingv1.PriorityClass),
+// NewPriorityClassCache creates a new cache and registers the handler for the cache with the Informer.
+func NewPriorityClassCache(priorityClasses informersv1.PriorityClassInformer) *PriorityClassCache {
+	pcc := &PriorityClassCache{
+		priorityClasses: make(map[string]bool),
 	}
-}
-
-func (pcc *PriorityClassCache) RegisterHandlers(priorityClasses informersv1.PriorityClassInformer) {
-	priorityClasses.Informer().AddEventHandler(&priorityClassUpdateHandler{cache: pcc})
-}
-
-func (pcc *PriorityClassCache) IsPreemptSelfAllowed(priorityClassName string) bool {
-	priorityClass := pcc.getPriorityClass(priorityClassName)
-
-	// default to true
-	if priorityClass == nil {
-		return true
+	if priorityClasses != nil {
+		priorityClasses.Informer().AddEventHandler(&priorityClassUpdateHandler{cache: pcc})
 	}
+	return pcc
+}
 
-	value, ok := priorityClass.Annotations[constants.AnnotationAllowPreemption]
+// isPreemptSelfAllowed returns the preemption value. Only returns false if configured.
+func (pcc *PriorityClassCache) isPreemptSelfAllowed(priorityClassName string) bool {
+	value, ok := pcc.priorityClasses[priorityClassName]
 	if !ok {
 		return true
 	}
-
-	switch value {
-	case constants.False:
-		return false
-	default:
-		return true
-	}
+	return value
 }
 
-func (pcc *PriorityClassCache) getPriorityClass(priorityClassName string) *schedulingv1.PriorityClass {
-	pcc.lock.RLock()
-	defer pcc.lock.RUnlock()
+// priorityClassExists for test only to see if the PriorityClass has been added to the cache or not.
+func (pcc *PriorityClassCache) priorityClassExists(priorityClassName string) bool {
+	pcc.RLock()
+	defer pcc.RUnlock()
 
-	result, ok := pcc.priorityClasses[priorityClassName]
-	if !ok {
-		return nil
-	}
-	return result
+	_, ok := pcc.priorityClasses[priorityClassName]
+	return ok
 }
 
+// priorityClassUpdateHandler implements the K8s ResourceEventHandler interface for PriorityClass.
 type priorityClassUpdateHandler struct {
 	cache *PriorityClassCache
 }
 
+// OnAdd adds or replaces the priority class entry in the cache.
+// The cached value is only the resulting value of the annotation, not the whole PriorityClass object.
+// An empty string for the Name is technically possible but should not occur.
 func (h *priorityClassUpdateHandler) OnAdd(obj interface{}) {
 	pc := utils.Convert2PriorityClass(obj)
 	if pc == nil {
 		return
 	}
 
-	h.cache.lock.Lock()
-	defer h.cache.lock.Unlock()
-	h.cache.priorityClasses[pc.Name] = pc
+	b := getAnnotationBoolean(pc.Annotations, constants.AnnotationAllowPreemption)
+	h.cache.Lock()
+	defer h.cache.Unlock()
+	h.cache.priorityClasses[pc.Name] = b
 }
 
+// OnUpdate calls OnAdd for processing the PriorityClass cache update.
 func (h *priorityClassUpdateHandler) OnUpdate(_, newObj interface{}) {
 	h.OnAdd(newObj)
 }
 
+// OnDelete removes the PriorityClass from the cache.
 func (h *priorityClassUpdateHandler) OnDelete(obj interface{}) {
 	var pc *schedulingv1.PriorityClass
 	switch t := obj.(type) {
@@ -111,7 +106,22 @@ func (h *priorityClassUpdateHandler) OnDelete(obj interface{}) {
 		return
 	}
 
-	h.cache.lock.Lock()
-	defer h.cache.lock.Unlock()
+	h.cache.Lock()
+	defer h.cache.Unlock()
 	delete(h.cache.priorityClasses, pc.Name)
+}
+
+// getAnnotationBoolean retrieves the value from the map and returns it.
+// Defaults to true if the name does not exist.
+func getAnnotationBoolean(m map[string]string, name string) bool {
+	strVal, ok := m[name]
+	if !ok {
+		return true
+	}
+	switch strVal {
+	case constants.False:
+		return false
+	default:
+		return true
+	}
 }
