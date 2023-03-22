@@ -49,6 +49,9 @@ func NewPriorityClassCache(priorityClasses informersv1.PriorityClassInformer) *P
 
 // isPreemptSelfAllowed returns the preemption value. Only returns false if configured.
 func (pcc *PriorityClassCache) isPreemptSelfAllowed(priorityClassName string) bool {
+	pcc.RLock()
+	defer pcc.RUnlock()
+
 	value, ok := pcc.priorityClasses[priorityClassName]
 	if !ok {
 		return true

@@ -60,6 +60,7 @@ func NewNamespaceCache(namespaces informersv1.NamespaceInformer) *NamespaceCache
 func (nsc *NamespaceCache) enableYuniKorn(name string) int {
 	nsc.RLock()
 	defer nsc.RUnlock()
+
 	flag, ok := nsc.nameSpaces[name]
 	if !ok {
 		return -1
@@ -71,6 +72,7 @@ func (nsc *NamespaceCache) enableYuniKorn(name string) int {
 func (nsc *NamespaceCache) generateAppID(name string) int {
 	nsc.RLock()
 	defer nsc.RUnlock()
+
 	flag, ok := nsc.nameSpaces[name]
 	if !ok {
 		return -1
