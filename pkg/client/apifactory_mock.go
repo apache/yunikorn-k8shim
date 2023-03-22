@@ -181,8 +181,8 @@ func (m *MockedAPIProvider) Stop() {
 	// no impl
 }
 
-func (m *MockedAPIProvider) WaitForSync() error {
-	return nil
+func (m *MockedAPIProvider) WaitForSync() {
+	// no impl
 }
 
 // MockedPersistentVolumeInformer implements PersistentVolumeInformer interface

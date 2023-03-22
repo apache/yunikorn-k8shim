@@ -216,9 +216,7 @@ func waitAndListNodes(apiProvider client.APIProvider) ([]*corev1.Node, error) {
 
 	// need to wait for sync
 	// because the shared indexer doesn't sync its cache periodically
-	if err := apiProvider.WaitForSync(); err != nil {
-		return allNodes, err
-	}
+	apiProvider.WaitForSync()
 
 	// list all nodes in the cluster,
 	// retry for sometime if there is some errors
