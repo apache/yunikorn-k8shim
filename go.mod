@@ -45,6 +45,7 @@ require (
 )
 
 replace (
+	github.com/apache/yunikorn-core => github.com/elihschiff/yunikorn-core v0.0.0-20230322104154-714597ce937a
 	golang.org/x/crypto => golang.org/x/crypto v0.3.0
 	golang.org/x/lint => golang.org/x/lint v0.0.0-20210508222113-6edffad5e616
 	golang.org/x/net => golang.org/x/net v0.4.0
