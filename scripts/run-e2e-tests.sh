@@ -101,19 +101,20 @@ function install_kind() {
 }
 
 function install_spark() {
-  pwd=$(shell pwd)
-  if [ ! -d "${pwd}/_spark" ]; then
+  PWD=$(pwd)
+  if [ ! -d "${PWD}/_spark" ]; then
     echo  "Installing spark in yunikorn rep."
     check_cmd "wget"
-    wget -qO- https://archive.apache.org/dist/spark/spark-3.3.1/spark-3.3.1-bin-hadoop3.tgz | tar xzvf - && chmod +x spark-3.3.1-bin-hadoop3 && sudo mv spark-3.3.1-bin-hadoop3 "${pwd}/_spark/."
+    mkdir "${PWD}/_spark"
+    wget -qO- https://archive.apache.org/dist/spark/spark-3.3.1/spark-3.3.1-bin-hadoop3.tgz | tar xzvf - && chmod +x spark-3.3.1-bin-hadoop3 && sudo mv spark-3.3.1-bin-hadoop3 "${PWD}/_spark/."
     exit_on_error "install spark failed."
   fi
-  if [ -h "${pwd}/_spark/spark" ]; then
-    rm "${pwd}/_spark/spark"
+  if [ -h "${PWD}/_spark/spark" ]; then
+    rm "${PWD}/_spark/spark"
   fi
-  sudo ln -s "${pwd}/_spark/spark-3.3.1-bin-hadoop3" "${pwd}/_spark/spark"
+  sudo ln -s "${PWD}/_spark/spark-3.3.1-bin-hadoop3" "${PWD}/_spark/spark"
   exit_on_error "install spark failed. unable to create symlink"
-  export SPARK_HOME="${pwd}/_spark/spark/"
+  export SPARK_HOME="${PWD}/_spark/spark/"
   export SPARK_PYTHON_IMAGE=docker.io/apache/spark-py:v3.3.1
   exit_on_error "install spark failed. unable to set env variables"
 }
