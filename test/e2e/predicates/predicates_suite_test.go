@@ -22,16 +22,14 @@ import (
 	"path/filepath"
 	"testing"
 
-	v1 "k8s.io/api/core/v1"
-
+	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/ginkgo/v2/reporters"
+	"github.com/onsi/gomega"
+	v1 "k8s.io/api/core/v1"
 
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
-
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
 )
 
 func init() {

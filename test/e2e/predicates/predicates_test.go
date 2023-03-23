@@ -203,8 +203,8 @@ var _ = Describe("Predicates", func() {
 
 		initPod, podErr := k8s.InitTestPod(conf)
 		Ω(podErr).NotTo(HaveOccurred())
-		_, existsErr = kClient.CreatePod(initPod, ns)
-		Ω(existsErr).NotTo(HaveOccurred())
+		_, err = kClient.CreatePod(initPod, ns)
+		Ω(err).NotTo(HaveOccurred())
 		Ω(kClient.WaitForPodRunning(ns, labelPodName, time.Duration(60)*time.Second)).NotTo(HaveOccurred())
 
 		labelPod, err1 := kClient.GetPod(labelPodName, ns)
