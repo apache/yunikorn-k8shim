@@ -22,7 +22,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/onsi/ginkgo"
+	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -37,94 +37,120 @@ import (
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
 )
 
-var _ = ginkgo.Describe("SimplePreemptor", func() {
-	var kClient k8s.KubeCtl
-	var restClient yunikorn.RClient
-	var ns *v1.Namespace
-	var oldConfigMap *v1.ConfigMap
-	var dev = "dev" + common.RandSeq(5)
+var kClient k8s.KubeCtl
+var restClient yunikorn.RClient
+var ns *v1.Namespace
+var oldConfigMap *v1.ConfigMap
+var dev = "dev" + common.RandSeq(5)
 
-	// Nodes
-	Worker1 := "yk8s-worker"
-	Worker2 := "yk8s-worker2"
-	Worker1Res := resource.NewQuantity(8*1000*1000, resource.DecimalSI)
-	Worker2Res := resource.NewQuantity(8*1000*1000, resource.DecimalSI)
-	var sleepPodMemLimit1 int64
-	var sleepPodMemLimit2 int64
+// Nodes
+var Worker1 = "yk8s-worker"
+var Worker2 = "yk8s-worker2"
+var Worker1Res = resource.NewQuantity(8*1000*1000, resource.DecimalSI)
+var Worker2Res = resource.NewQuantity(8*1000*1000, resource.DecimalSI)
+var sleepPodMemLimit1 int64
+var sleepPodMemLimit2 int64
 
-	ginkgo.BeforeSuite(func() {
-		// Initializing kubectl client
-		kClient = k8s.KubeCtl{}
-		Ω(kClient.SetClient()).To(gomega.BeNil())
-		// Initializing rest client
-		restClient = yunikorn.RClient{}
-		Ω(restClient).NotTo(gomega.BeNil())
+var _ = ginkgo.BeforeSuite(func() {
+	// Initializing kubectl client
+	kClient = k8s.KubeCtl{}
+	Ω(kClient.SetClient()).To(gomega.BeNil())
+	// Initializing rest client
+	restClient = yunikorn.RClient{}
+	Ω(restClient).NotTo(gomega.BeNil())
 
-		yunikorn.EnsureYuniKornConfigsPresent()
+	yunikorn.EnsureYuniKornConfigsPresent()
 
-		ginkgo.By("Port-forward the scheduler pod")
-		var err = kClient.PortForwardYkSchedulerPod()
-		Ω(err).NotTo(gomega.HaveOccurred())
+	ginkgo.By("Port-forward the scheduler pod")
+	var err = kClient.PortForwardYkSchedulerPod()
+	Ω(err).NotTo(gomega.HaveOccurred())
 
-		ginkgo.By("Enable basic scheduling config over config maps")
-		var c, configErr = kClient.GetConfigMaps(configmanager.YuniKornTestConfig.YkNamespace,
-			configmanager.DefaultYuniKornConfigMap)
-		Ω(configErr).NotTo(gomega.HaveOccurred())
-		Ω(c).NotTo(gomega.BeNil())
+	ginkgo.By("Enable basic scheduling config over config maps")
+	var c, configErr = kClient.GetConfigMaps(configmanager.YuniKornTestConfig.YkNamespace,
+		configmanager.DefaultYuniKornConfigMap)
+	Ω(configErr).NotTo(gomega.HaveOccurred())
+	Ω(c).NotTo(gomega.BeNil())
 
-		oldConfigMap = c.DeepCopy()
-		Ω(c).Should(gomega.BeEquivalentTo(oldConfigMap))
+	oldConfigMap = c.DeepCopy()
+	Ω(c).Should(gomega.BeEquivalentTo(oldConfigMap))
 
-		// Define basic configMap
-		sc := common.CreateBasicConfigMap()
-		configStr, yamlErr := common.ToYAML(sc)
-		Ω(yamlErr).NotTo(gomega.HaveOccurred())
+	// Define basic configMap
+	sc := common.CreateBasicConfigMap()
+	configStr, yamlErr := common.ToYAML(sc)
+	Ω(yamlErr).NotTo(gomega.HaveOccurred())
 
-		c.Data[configmanager.DefaultPolicyGroup] = configStr
-		var d, err3 = kClient.UpdateConfigMap(c, configmanager.YuniKornTestConfig.YkNamespace)
-		Ω(err3).NotTo(gomega.HaveOccurred())
-		Ω(d).NotTo(gomega.BeNil())
+	c.Data[configmanager.DefaultPolicyGroup] = configStr
+	var d, err3 = kClient.UpdateConfigMap(c, configmanager.YuniKornTestConfig.YkNamespace)
+	Ω(err3).NotTo(gomega.HaveOccurred())
+	Ω(d).NotTo(gomega.BeNil())
 
-		ginkgo.By("create development namespace")
-		ns, err = kClient.CreateNamespace(dev, nil)
-		gomega.Ω(err).NotTo(gomega.HaveOccurred())
-		gomega.Ω(ns.Status.Phase).To(gomega.Equal(v1.NamespaceActive))
+	ginkgo.By("create development namespace")
+	ns, err = kClient.CreateNamespace(dev, nil)
+	gomega.Ω(err).NotTo(gomega.HaveOccurred())
+	gomega.Ω(ns.Status.Phase).To(gomega.Equal(v1.NamespaceActive))
 
-		var nodes *v1.NodeList
-		nodes, err = kClient.GetNodes()
-		Ω(err).NotTo(gomega.HaveOccurred())
-		Ω(len(nodes.Items)).NotTo(gomega.BeZero(), "Events cant be empty")
+	var nodes *v1.NodeList
+	nodes, err = kClient.GetNodes()
+	Ω(err).NotTo(gomega.HaveOccurred())
+	Ω(len(nodes.Items)).NotTo(gomega.BeZero(), "Events cant be empty")
 
-		// Extract node allocatable resources
-		for _, node := range nodes.Items {
-			if node.Name == Worker1 {
-				Worker1Res = node.Status.Allocatable.Memory()
-			} else if node.Name == Worker2 {
-				Worker2Res = node.Status.Allocatable.Memory()
-			}
+	// Extract node allocatable resources
+	for _, node := range nodes.Items {
+		if node.Name == Worker1 {
+			Worker1Res = node.Status.Allocatable.Memory()
+		} else if node.Name == Worker2 {
+			Worker2Res = node.Status.Allocatable.Memory()
 		}
+	}
 
-		var pods *v1.PodList
-		totalPodQuantity1 := *resource.NewQuantity(0, resource.DecimalSI)
-		totalPodQuantity2 := *resource.NewQuantity(0, resource.DecimalSI)
-		pods, err = kClient.GetPods("yunikorn")
-		if err == nil {
-			for _, pod := range pods.Items {
-				for _, c := range pod.Spec.Containers {
-					if pod.Spec.NodeName == Worker1 {
-						totalPodQuantity1.Add(*resource.NewQuantity(c.Resources.Requests.Memory().Value(), resource.DecimalSI))
-					} else if pod.Spec.NodeName == Worker2 {
-						totalPodQuantity2.Add(*resource.NewQuantity(c.Resources.Requests.Memory().Value(), resource.DecimalSI))
-					}
+	var pods *v1.PodList
+	totalPodQuantity1 := *resource.NewQuantity(0, resource.DecimalSI)
+	totalPodQuantity2 := *resource.NewQuantity(0, resource.DecimalSI)
+	pods, err = kClient.GetPods("yunikorn")
+	if err == nil {
+		for _, pod := range pods.Items {
+			for _, c := range pod.Spec.Containers {
+				if pod.Spec.NodeName == Worker1 {
+					totalPodQuantity1.Add(*resource.NewQuantity(c.Resources.Requests.Memory().Value(), resource.DecimalSI))
+				} else if pod.Spec.NodeName == Worker2 {
+					totalPodQuantity2.Add(*resource.NewQuantity(c.Resources.Requests.Memory().Value(), resource.DecimalSI))
 				}
 			}
 		}
-		Worker1Res.Sub(totalPodQuantity1)
-		sleepPodMemLimit1 = int64(float64(Worker1Res.Value())/3.5) / (1000 * 1000)
-		Worker2Res.Sub(totalPodQuantity2)
-		sleepPodMemLimit2 = int64(float64(Worker2Res.Value())/3.5) / (1000 * 1000)
-	})
+	}
+	Worker1Res.Sub(totalPodQuantity1)
+	sleepPodMemLimit1 = int64(float64(Worker1Res.Value())/3.5) / (1000 * 1000)
+	Worker2Res.Sub(totalPodQuantity2)
+	sleepPodMemLimit2 = int64(float64(Worker2Res.Value())/3.5) / (1000 * 1000)
+})
 
+var _ = ginkgo.AfterSuite(func() {
+	ginkgo.By("Check Yunikorn's health")
+	checks, err := yunikorn.GetFailedHealthChecks()
+	Ω(err).NotTo(gomega.HaveOccurred())
+	Ω(checks).To(gomega.Equal(""), checks)
+
+	testDescription := ginkgo.CurrentSpecReport()
+	if testDescription.Failed() {
+		tests.LogTestClusterInfoWrapper(testDescription.FailureMessage(), []string{ns.Name})
+		tests.LogYunikornContainer(testDescription.FailureMessage())
+	}
+	ginkgo.By("Tearing down namespace: " + ns.Name)
+	err = kClient.TearDownNamespace(ns.Name)
+	Ω(err).NotTo(gomega.HaveOccurred())
+
+	ginkgo.By("Restoring the old config maps")
+	var c, err1 = kClient.GetConfigMaps(configmanager.YuniKornTestConfig.YkNamespace,
+		configmanager.DefaultYuniKornConfigMap)
+	Ω(err1).NotTo(gomega.HaveOccurred())
+	Ω(c).NotTo(gomega.BeNil())
+	c.Data = oldConfigMap.Data
+	var e, err3 = kClient.UpdateConfigMap(c, configmanager.YuniKornTestConfig.YkNamespace)
+	Ω(err3).NotTo(gomega.HaveOccurred())
+	Ω(e).NotTo(gomega.BeNil())
+})
+
+var _ = ginkgo.Describe("SimplePreemptor", func() {
 	ginkgo.It("Verify_basic_simple_preemption. Use case: Only one pod is running and same pod has been selected as victim", func() {
 
 		// Define sleepPod
@@ -221,31 +247,5 @@ var _ = ginkgo.Describe("SimplePreemptor", func() {
 		} else {
 			fmt.Fprintf(ginkgo.GinkgoWriter, "Failed to get pods from namespace %s - reason is %s\n", ns.Name, err.Error())
 		}
-	})
-
-	ginkgo.AfterSuite(func() {
-		ginkgo.By("Check Yunikorn's health")
-		checks, err := yunikorn.GetFailedHealthChecks()
-		Ω(err).NotTo(gomega.HaveOccurred())
-		Ω(checks).To(gomega.Equal(""), checks)
-
-		testDescription := ginkgo.CurrentGinkgoTestDescription()
-		if testDescription.Failed {
-			tests.LogTestClusterInfoWrapper(testDescription.TestText, []string{ns.Name})
-			tests.LogYunikornContainer(testDescription.TestText)
-		}
-		ginkgo.By("Tearing down namespace: " + ns.Name)
-		err = kClient.TearDownNamespace(ns.Name)
-		Ω(err).NotTo(gomega.HaveOccurred())
-
-		ginkgo.By("Restoring the old config maps")
-		var c, err1 = kClient.GetConfigMaps(configmanager.YuniKornTestConfig.YkNamespace,
-			configmanager.DefaultYuniKornConfigMap)
-		Ω(err1).NotTo(gomega.HaveOccurred())
-		Ω(c).NotTo(gomega.BeNil())
-		c.Data = oldConfigMap.Data
-		var e, err3 = kClient.UpdateConfigMap(c, configmanager.YuniKornTestConfig.YkNamespace)
-		Ω(err3).NotTo(gomega.HaveOccurred())
-		Ω(e).NotTo(gomega.BeNil())
 	})
 })

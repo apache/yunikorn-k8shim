@@ -22,9 +22,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/extensions/table"
-	"github.com/onsi/ginkgo/reporters"
+	"github.com/onsi/ginkgo/v2"
+	"github.com/onsi/ginkgo/v2/reporters"
 	"github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 
@@ -39,9 +38,16 @@ func init() {
 }
 
 func TestGangScheduling(t *testing.T) {
+	ginkgo.ReportAfterSuite("TestGangScheduling", func(report ginkgo.Report) {
+		err := reporters.GenerateJUnitReportWithConfig(
+			report,
+			filepath.Join(configmanager.YuniKornTestConfig.LogDir, "TEST-gang_scheduling_junit.xml"),
+			reporters.JunitReportConfig{OmitSpecLabels: true},
+		)
+		Ω(err).NotTo(HaveOccurred())
+	})
 	gomega.RegisterFailHandler(ginkgo.Fail)
-	junitReporter := reporters.NewJUnitReporter(filepath.Join(configmanager.YuniKornTestConfig.LogDir, "TEST-gang_scheduling_junit.xml"))
-	ginkgo.RunSpecsWithDefaultAndCustomReporters(t, "TestGangScheduling", []ginkgo.Reporter{junitReporter})
+	ginkgo.RunSpecs(t, "TestGangScheduling", ginkgo.Label("TestGangScheduling"))
 }
 
 var oldConfigMap = new(v1.ConfigMap)
@@ -68,9 +74,8 @@ var BeforeSuite = ginkgo.BeforeSuite
 var AfterSuite = ginkgo.AfterSuite
 var BeforeEach = ginkgo.BeforeEach
 var AfterEach = ginkgo.AfterEach
-var CurrentGinkgoTestDescription = ginkgo.CurrentGinkgoTestDescription
-var DescribeTable = table.DescribeTable
-var Entry = table.Entry
+var DescribeTable = ginkgo.Describe
+var Entry = ginkgo.Entry
 
 // Declarations for Gomega Matchers
 var Equal = gomega.Equal

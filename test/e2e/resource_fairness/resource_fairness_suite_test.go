@@ -22,8 +22,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/reporters"
+	"github.com/onsi/ginkgo/v2"
+	"github.com/onsi/ginkgo/v2/reporters"
 	"github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 
@@ -51,9 +51,16 @@ var _ = AfterSuite(func() {
 })
 
 func TestResourceFairness(t *testing.T) {
+	ginkgo.ReportAfterSuite("Resource Fairness", func(report ginkgo.Report) {
+		err := reporters.GenerateJUnitReportWithConfig(
+			report,
+			filepath.Join(configmanager.YuniKornTestConfig.LogDir, "TEST-resourcefairness.xml"),
+			reporters.JunitReportConfig{OmitSpecLabels: true},
+		)
+		Ω(err).NotTo(HaveOccurred())
+	})
 	gomega.RegisterFailHandler(ginkgo.Fail)
-	junitReporter := reporters.NewJUnitReporter(filepath.Join(configmanager.YuniKornTestConfig.LogDir, "TEST-resourcefairness.xml"))
-	ginkgo.RunSpecsWithDefaultAndCustomReporters(t, "Resource Fairness", []ginkgo.Reporter{junitReporter})
+	ginkgo.RunSpecs(t, "Resource Fairness", ginkgo.Label("Resource Fairness"))
 }
 
 // Declarations for Ginkgo DSL
@@ -65,7 +72,6 @@ var BeforeSuite = ginkgo.BeforeSuite
 var AfterSuite = ginkgo.AfterSuite
 var BeforeEach = ginkgo.BeforeEach
 var AfterEach = ginkgo.AfterEach
-var CurrentGinkgoTestDescription = ginkgo.CurrentGinkgoTestDescription
 
 // Declarations for Gomega Matchers
 var Equal = gomega.Equal

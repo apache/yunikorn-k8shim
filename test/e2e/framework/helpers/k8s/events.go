@@ -25,6 +25,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/onsi/ginkgo/v2"
+	"github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -32,9 +34,6 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/kubernetes/test/e2e/framework"
-
-	"github.com/onsi/ginkgo"
 )
 
 func ScheduleSuccessEvent(ns, podName, nodeName string) func(*v1.Event) bool {
@@ -84,7 +83,7 @@ func ObserveEventAfterAction(c clientset.Interface, ns string, eventPredicate fu
 			AddFunc: func(obj interface{}) {
 				e, ok := obj.(*v1.Event)
 				ginkgo.By(fmt.Sprintf("Considering event: \nType = [%s], Name = [%s], Reason = [%s], Message = [%s]", e.Type, e.Name, e.Reason, e.Message))
-				framework.ExpectEqual(ok, true)
+				gomega.Expect(ok).To(gomega.BeTrue())
 				if eventPredicate(e) {
 					observedMatchingEvent = true
 				}

@@ -23,8 +23,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/reporters"
+	"github.com/onsi/ginkgo/v2"
+	"github.com/onsi/ginkgo/v2/reporters"
 	"github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 	schedulingv1 "k8s.io/api/scheduling/v1"
@@ -40,9 +40,16 @@ func init() {
 }
 
 func TestPriorityScheduling(t *testing.T) {
+	ginkgo.ReportAfterSuite("TestPriorityScheduling", func(report ginkgo.Report) {
+		err := reporters.GenerateJUnitReportWithConfig(
+			report,
+			filepath.Join(configmanager.YuniKornTestConfig.LogDir, "priority_scheduling_junit.xml"),
+			reporters.JunitReportConfig{OmitSpecLabels: true},
+		)
+		Ω(err).NotTo(HaveOccurred())
+	})
 	gomega.RegisterFailHandler(ginkgo.Fail)
-	junitReporter := reporters.NewJUnitReporter(filepath.Join(configmanager.YuniKornTestConfig.LogDir, "priority_scheduling_junit.xml"))
-	ginkgo.RunSpecsWithDefaultAndCustomReporters(t, "TestPriorityScheduling", []ginkgo.Reporter{junitReporter})
+	ginkgo.RunSpecs(t, "TestPriorityScheduling", ginkgo.Label("TestPriorityScheduling"))
 }
 
 var kubeClient k8s.KubeCtl

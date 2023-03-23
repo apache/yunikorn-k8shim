@@ -30,7 +30,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/onsi/ginkgo"
+	"github.com/onsi/ginkgo/v2"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
@@ -1113,4 +1113,80 @@ func (k *KubeCtl) DescribeNode(node v1.Node) error {
 	}
 	ginkgo.By("describe output for node is:\n" + out)
 	return nil
+}
+
+func (k *KubeCtl) SetNodeLabel(name, key, value string) error {
+	node, err := k.clientSet.CoreV1().Nodes().Get(context.TODO(), name, metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+	node.Labels[key] = value
+	_, err = k.clientSet.CoreV1().Nodes().Update(context.TODO(), node, metav1.UpdateOptions{})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (k *KubeCtl) IsNodeLabelExists(name, key string) (bool, error) {
+	node, err := k.clientSet.CoreV1().Nodes().Get(context.TODO(), name, metav1.GetOptions{})
+	if err != nil {
+		return false, err
+	}
+	_, ok := node.Labels[key]
+	if ok {
+		return true, nil
+	} else {
+		return false, nil
+	}
+}
+
+func (k *KubeCtl) RemoveNodeLabel(name, key, value string) error {
+	node, err := k.clientSet.CoreV1().Nodes().Get(context.TODO(), name, metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+	delete(node.Labels, key)
+	_, err = k.clientSet.CoreV1().Nodes().Update(context.TODO(), node, metav1.UpdateOptions{})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (k *KubeCtl) TaintNode(name, key, val string, effect v1.TaintEffect) error {
+	node, err := k.clientSet.CoreV1().Nodes().Get(context.TODO(), name, metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+
+	t := v1.Taint{
+		Effect: effect,
+		Key:    key,
+		Value:  val,
+	}
+	taints := node.Spec.Taints
+	taints = append(taints, t)
+	node.Spec.Taints = taints
+
+	_, err = k.clientSet.CoreV1().Nodes().Update(context.TODO(), node, metav1.UpdateOptions{})
+	return err
+}
+
+func (k *KubeCtl) UntaintNode(name, key string) error {
+	node, err := k.clientSet.CoreV1().Nodes().Get(context.TODO(), name, metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+
+	newTaints := make([]v1.Taint, 0)
+	for _, taint := range node.Spec.Taints {
+		if taint.Key != key {
+			newTaints = append(newTaints, taint)
+		}
+	}
+
+	node.Spec.Taints = newTaints
+	_, err = k.clientSet.CoreV1().Nodes().Update(context.TODO(), node, metav1.UpdateOptions{})
+	return err
 }
