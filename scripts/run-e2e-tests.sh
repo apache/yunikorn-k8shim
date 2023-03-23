@@ -101,18 +101,18 @@ function install_kind() {
 }
 
 function install_spark() {
-  if [ ! -d "/opt/spark-3.3.1-bin-hadoop3" ]; then
-    echo  "/opt doesn't contains spark."
+  if [ ! -d ./_spark ]; then
+    echo  "Installing spark in yunikorn rep."
     check_cmd "wget"
-    wget -qO-  https://archive.apache.org/dist/spark/spark-3.3.1/spark-3.3.1-bin-hadoop3.tgz | tar xzvf - && chmod +x spark-3.3.1-bin-hadoop3 && sudo mv spark-3.3.1-bin-hadoop3 /opt/.
+    wget -qO- https://archive.apache.org/dist/spark/spark-3.3.1/spark-3.3.1-bin-hadoop3.tgz | tar xzvf - && chmod +x spark-3.3.1-bin-hadoop3 && sudo mv spark-3.3.1-bin-hadoop3 _spark
     exit_on_error "install spark failed."
   fi
-  if [ -h /opt/spark ]; then
-    sudo rm /opt/spark
+  if [ -h ./_spark/spark ]; then
+    sudo rm ./_spark/spark
   fi
-  sudo ln -s /opt/spark-3.3.1-bin-hadoop3 /opt/spark
+  sudo ln -s ./_spark/spark-3.3.1-bin-hadoop3 ./_spark/spark
   exit_on_error "install spark failed. unable to create symlink"
-  export SPARK_HOME=/opt/spark/
+  export SPARK_HOME=./_spark/spark/
   export SPARK_PYTHON_IMAGE=docker.io/apache/spark-py:v3.3.1
   exit_on_error "install spark failed. unable to set env variables"
 }

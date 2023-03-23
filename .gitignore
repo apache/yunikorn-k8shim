@@ -1,5 +1,6 @@
 .idea
 _output/
+_spark/
 coverage.txt
 yunikorn-release
 shellcheck
