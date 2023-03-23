@@ -19,6 +19,7 @@
 package client
 
 import (
+	"go.uber.org/zap"
 	"time"
 
 	"github.com/apache/yunikorn-k8shim/pkg/client/informers/externalversions/yunikorn.apache.org/v1alpha1"
@@ -31,6 +32,7 @@ import (
 
 	appclient "github.com/apache/yunikorn-k8shim/pkg/client/clientset/versioned"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
+	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/api"
 )
 
@@ -69,6 +71,8 @@ func (c *Clients) GetConf() *conf.SchedulerConf {
 }
 
 func (c *Clients) WaitForSync() {
+	timeNow := time.Now()
+	counter := 0
 	for {
 		if c.NodeInformer.Informer().HasSynced() &&
 			c.PodInformer.Informer().HasSynced() &&
@@ -82,6 +86,16 @@ func (c *Clients) WaitForSync() {
 			return
 		}
 		time.Sleep(time.Second)
+		counter++
+		if counter%10 == 0 {
+			if counter > 300 {
+				log.Logger().Warn("Still waiting for informers to sync, delay seems longer than usual...",
+					zap.Duration("timeElapsed", time.Since(timeNow).Round(time.Second)))
+			} else {
+				log.Logger().Info("Waiting for informers to sync",
+					zap.Duration("timeElapsed", time.Since(timeNow).Round(time.Second)))
+			}
+		}
 	}
 }
 
