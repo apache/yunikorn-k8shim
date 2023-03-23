@@ -21,6 +21,8 @@ package client
 import (
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/apache/yunikorn-k8shim/pkg/client/informers/externalversions/yunikorn.apache.org/v1alpha1"
 
 	"k8s.io/client-go/informers"
@@ -30,8 +32,8 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/volumebinding"
 
 	appclient "github.com/apache/yunikorn-k8shim/pkg/client/clientset/versioned"
-	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
+	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/api"
 )
 
@@ -69,10 +71,11 @@ func (c *Clients) GetConf() *conf.SchedulerConf {
 	return c.conf
 }
 
-func (c *Clients) WaitForSync(interval time.Duration, timeout time.Duration) error {
-	return utils.WaitForCondition(func() bool {
-		// cache is re-sync'd when all informers are sync'd
-		return c.NodeInformer.Informer().HasSynced() &&
+func (c *Clients) WaitForSync() {
+	syncStartTime := time.Now()
+	counter := 0
+	for {
+		if c.NodeInformer.Informer().HasSynced() &&
 			c.PodInformer.Informer().HasSynced() &&
 			c.PVCInformer.Informer().HasSynced() &&
 			c.PVInformer.Informer().HasSynced() &&
@@ -80,8 +83,16 @@ func (c *Clients) WaitForSync(interval time.Duration, timeout time.Duration) err
 			c.ConfigMapInformer.Informer().HasSynced() &&
 			c.NamespaceInformer.Informer().HasSynced() &&
 			c.PriorityClassInformer.Informer().HasSynced() &&
-			(c.AppInformer == nil || c.AppInformer.Informer().HasSynced())
-	}, interval, timeout)
+			(c.AppInformer == nil || c.AppInformer.Informer().HasSynced()) {
+			return
+		}
+		time.Sleep(time.Second)
+		counter++
+		if counter%10 == 0 {
+			log.Logger().Info("Waiting for informers to sync",
+				zap.Duration("timeElapsed", time.Since(syncStartTime).Round(time.Second)))
+		}
+	}
 }
 
 func (c *Clients) Run(stopCh <-chan struct{}) {
