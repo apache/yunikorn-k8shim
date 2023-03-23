@@ -72,7 +72,7 @@ func (c *Clients) GetConf() *conf.SchedulerConf {
 }
 
 func (c *Clients) WaitForSync() {
-	timeNow := time.Now()
+	syncStartTime := time.Now()
 	counter := 0
 	for {
 		if c.NodeInformer.Informer().HasSynced() &&
@@ -89,13 +89,8 @@ func (c *Clients) WaitForSync() {
 		time.Sleep(time.Second)
 		counter++
 		if counter%10 == 0 {
-			if counter > 300 {
-				log.Logger().Warn("Still waiting for informers to sync, delay seems longer than usual...",
-					zap.Duration("timeElapsed", time.Since(timeNow).Round(time.Second)))
-			} else {
-				log.Logger().Info("Waiting for informers to sync",
-					zap.Duration("timeElapsed", time.Since(timeNow).Round(time.Second)))
-			}
+			log.Logger().Info("Waiting for informers to sync",
+				zap.Duration("timeElapsed", time.Since(syncStartTime).Round(time.Second)))
 		}
 	}
 }
