@@ -19,13 +19,17 @@
 package admission
 
 import (
+	"reflect"
+
+	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
+	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
 
-func UpdatePodLabelForAdmissionController(pod *v1.Pod, namespace string) map[string]string {
+func updatePodLabel(pod *v1.Pod, namespace string) map[string]string {
 	existingLabels := pod.Labels
 	result := make(map[string]string)
 	for k, v := range existingLabels {
@@ -54,7 +58,7 @@ func UpdatePodLabelForAdmissionController(pod *v1.Pod, namespace string) map[str
 	return result
 }
 
-func UpdatePodAnnotationForAdmissionController(pod *v1.Pod, key string, value string) map[string]string {
+func updatePodAnnotation(pod *v1.Pod, key string, value string) map[string]string {
 	existingAnnotations := pod.Annotations
 	result := make(map[string]string)
 	for k, v := range existingAnnotations {
@@ -62,4 +66,12 @@ func UpdatePodAnnotationForAdmissionController(pod *v1.Pod, key string, value st
 	}
 	result[key] = value
 	return result
+}
+
+func convert2Namespace(obj interface{}) *v1.Namespace {
+	if nameSpace, ok := obj.(*v1.Namespace); ok {
+		return nameSpace
+	}
+	log.Logger().Warn("cannot convert to *v1.Namespace", zap.Stringer("type", reflect.TypeOf(obj)))
+	return nil
 }
