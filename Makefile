@@ -406,5 +406,7 @@ arch:
 .PHONY: e2e_test
 e2e_test:
 	@echo "running e2e tests"
-	mkdir /tmp/e2e-test-reports && chmod 755 /tmp/e2e-test-reports
+	@if [ ! -d "/tmp/e2e-test-reports" ]; then \
+		mkdir /tmp/e2e-test-reports && chmod 755 /tmp/e2e-test-reports; \
+	fi
 	cd ./test/e2e && ginkgo -r -v -keep-going -- -yk-namespace "yunikorn" -kube-config $(KUBECONFIG)
