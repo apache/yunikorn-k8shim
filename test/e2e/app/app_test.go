@@ -37,13 +37,17 @@ var appClient *crdclientset.Clientset
 // var appCRDDef string
 var appCRD *v1alpha1.Application
 var dev = "apptest"
+var annotation = "ann-" + common.RandSeq(10)
+var oldConfigMap = new(v1.ConfigMap)
 
 var _ = ginkgo.BeforeSuite(func() {
 	// Initializing kubectl client and create test namespace
 	kClient = k8s.KubeCtl{}
 	gomega.Ω(kClient.SetClient()).To(gomega.BeNil())
 
+	annotation = "ann-" + common.RandSeq(10)
 	yunikorn.EnsureYuniKornConfigsPresent()
+	yunikorn.UpdateConfigMapWrapper(oldConfigMap, "", annotation)
 
 	ginkgo.By("Port-forward the scheduler pod")
 	err := kClient.PortForwardYkSchedulerPod()
@@ -100,6 +104,8 @@ var _ = ginkgo.BeforeSuite(func() {
 })
 
 var _ = ginkgo.AfterSuite(func() {
+	yunikorn.RestoreConfigMapWrapper(oldConfigMap, annotation)
+
 	ginkgo.By("Deleting application CRD")
 	err := yunikorn.DeleteApplication(appClient, dev, "example")
 	gomega.Ω(err).NotTo(gomega.HaveOccurred())
