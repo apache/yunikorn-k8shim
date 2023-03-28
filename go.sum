@@ -105,6 +105,8 @@ github.com/alecthomas/units v0.0.0-20190717042225-c3de453c63f4/go.mod h1:ybxpYRF
 github.com/alecthomas/units v0.0.0-20190924025748-f65c72e2690d/go.mod h1:rBZYJk541a8SKzHPHnH3zbiI+7dagKZ0cgpgrD7Fyho=
 github.com/antihax/optional v1.0.0/go.mod h1:uupD/76wgC+ih3iEmQUL+0Ugr19nfwCT1kdvxnR2qWY=
 github.com/antlr/antlr4/runtime/Go/antlr v0.0.0-20210826220005-b48c857c3a0e/go.mod h1:F7bn7fEU90QkQ3tnmaTx3LTKLEDqnwWODIYppRQ5hnY=
+github.com/apache/yunikorn-core v0.0.0-20230222073958-e80580b1a67f h1:pe8PazDFHQYdSjXqS98ECyO+V/r8HcU5vPNYTuuejGE=
+github.com/apache/yunikorn-core v0.0.0-20230222073958-e80580b1a67f/go.mod h1:7CEM6hlqLwrgkOLhoqRo3Os59l3QhnRziOkeTgtffMM=
 github.com/apache/yunikorn-scheduler-interface v0.0.0-20221130170804-42d2286739d8/go.mod h1:VpJqm5k7wjPvoEdgAVHRU2rlbs3LLGJaz2d9F39hmGs=
 github.com/apache/yunikorn-scheduler-interface v0.0.0-20230212221542-1c352a4d8ecd h1:pA6CdO2xfwxndUGhBH5U7MNwMQ9LnVZFxuqJFBmSmM0=
 github.com/apache/yunikorn-scheduler-interface v0.0.0-20230212221542-1c352a4d8ecd/go.mod h1:wAXyjNU94cC8I6Y8Pb1YzZmSoCrA3gNOZ5qO64tdZiA=
@@ -246,8 +248,6 @@ github.com/elazarl/goproxy v0.0.0-20180725130230-947c36da3153/go.mod h1:/Zj4wYkg
 github.com/elazarl/goproxy v0.0.0-20200421181703-e76ad31c14f6 h1:GhNw/V+7mWhxPyD/n7STfwp/MJJ+Z/sa6wmzYXr96Ls=
 github.com/elazarl/goproxy v0.0.0-20200421181703-e76ad31c14f6/go.mod h1:Ro8st/ElPeALwNFlcTpWmkr6IoMFfkjXAvTHpevnDsM=
 github.com/elazarl/goproxy/ext v0.0.0-20190711103511-473e67f1d7d2/go.mod h1:gNh8nYJoAm43RfaxurUnxr+N1PwuFV3ZMl/efxlIlY8=
-github.com/elihschiff/yunikorn-core v0.0.0-20230323143210-256d1c68ca76 h1:M/eYosxv43Aeh3GkTI10H7cXgs7szAh7BXKZRwoZLvo=
-github.com/elihschiff/yunikorn-core v0.0.0-20230323143210-256d1c68ca76/go.mod h1:7CEM6hlqLwrgkOLhoqRo3Os59l3QhnRziOkeTgtffMM=
 github.com/emicklei/go-restful v0.0.0-20170410110728-ff4f55a20633/go.mod h1:otzb+WCGbkyDHkqmQmT5YD2WR4BBwUdeQoFo8l/7tVs=
 github.com/emicklei/go-restful v2.9.5+incompatible h1:spTtZBk5DYEvbxMVutUuTyh1Ao2r4iyvLdACqsl/Ljk=
 github.com/emicklei/go-restful v2.9.5+incompatible/go.mod h1:otzb+WCGbkyDHkqmQmT5YD2WR4BBwUdeQoFo8l/7tVs=
