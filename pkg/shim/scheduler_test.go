@@ -71,9 +71,9 @@ partitions:
 	}
 
 	// register nodes
-	err = cluster.addNode("test.host.01", nodeLabels, 100000000, 10)
+	err = cluster.addNode("test.host.01", nodeLabels, 100000000, 10, 10)
 	assert.NilError(t, err, "add node failed")
-	err = cluster.addNode("test.host.02", nodeLabels, 100000000, 10)
+	err = cluster.addNode("test.host.02", nodeLabels, 100000000, 10, 10)
 	assert.NilError(t, err, "add node failed")
 
 	// create app and tasks
@@ -126,9 +126,9 @@ partitions:
 	}
 
 	// register nodes
-	err = cluster.addNode("test.host.01", nodeLabels, 100000000, 10)
+	err = cluster.addNode("test.host.01", nodeLabels, 100000000, 10, 10)
 	assert.NilError(t, err)
-	err = cluster.addNode("test.host.02", nodeLabels, 100000000, 10)
+	err = cluster.addNode("test.host.02", nodeLabels, 100000000, 10, 10)
 	assert.NilError(t, err)
 
 	// add app to context
@@ -224,9 +224,9 @@ partitions:
 		"label2": "key2",
 	}
 	// register nodes
-	err = cluster.addNode("test.host.01", nodeLabels, 100000000, 10)
+	err = cluster.addNode("test.host.01", nodeLabels, 100000000, 10, 10)
 	assert.NilError(t, err, "add node failed")
-	err = cluster.addNode("test.host.02", nodeLabels, 100000000, 10)
+	err = cluster.addNode("test.host.02", nodeLabels, 100000000, 10, 10)
 	assert.NilError(t, err, "add node failed")
 
 	// create app and tasks

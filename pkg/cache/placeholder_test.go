@@ -54,6 +54,10 @@ func TestNewPlaceholder(t *testing.T) {
 		},
 	})
 
+	assert.Equal(t, app.placeholderAsk.Resources[siCommon.CPU].Value, int64(10*500))
+	assert.Equal(t, app.placeholderAsk.Resources[siCommon.Memory].Value, int64(10*1024*1000*1000))
+	assert.Equal(t, app.placeholderAsk.Resources["pods"].Value, int64(10))
+
 	holder := newPlaceholder("ph-name", app, app.taskGroups[0])
 	assert.Equal(t, holder.appID, appID)
 	assert.Equal(t, holder.taskGroupName, app.taskGroups[0].Name)
@@ -67,6 +71,7 @@ func TestNewPlaceholder(t *testing.T) {
 	assert.Equal(t, holder.pod.Annotations[constants.AnnotationTaskGroupName], app.taskGroups[0].Name)
 	assert.Equal(t, common.GetPodResource(holder.pod).Resources[siCommon.CPU].Value, int64(500))
 	assert.Equal(t, common.GetPodResource(holder.pod).Resources[siCommon.Memory].Value, int64(1024*1000*1000))
+	assert.Equal(t, common.GetPodResource(holder.pod).Resources["pods"].Value, int64(1))
 	assert.Equal(t, len(holder.pod.Spec.NodeSelector), 0)
 	assert.Equal(t, len(holder.pod.Spec.Tolerations), 0)
 	assert.Equal(t, holder.String(), "appID: app01, taskGroup: test-group-1, podName: test/ph-name")

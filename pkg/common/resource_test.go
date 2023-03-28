@@ -81,17 +81,20 @@ func TestAdd(t *testing.T) {
 		AddResource(siCommon.Memory, 1024).
 		AddResource(siCommon.CPU, 20).
 		AddResource("nvidia.com/gpu", 2).
+		AddResource("pods", 1).
 		Build()
 	r2 = NewResourceBuilder().
 		AddResource(siCommon.Memory, 2048).
 		AddResource(siCommon.CPU, 30).
 		AddResource("nvidia.com/gpu", 3).
+		AddResource("pods", 1).
 		Build()
 	r = Add(r1, r2)
-	assert.Equal(t, len(r.Resources), 3)
+	assert.Equal(t, len(r.Resources), 4)
 	assert.Equal(t, r.Resources[siCommon.Memory].Value, int64(3072))
 	assert.Equal(t, r.Resources[siCommon.CPU].Value, int64(50))
 	assert.Equal(t, r.Resources["nvidia.com/gpu"].Value, int64(5))
+	assert.Equal(t, r.Resources["pods"].Value, int64(2))
 }
 
 func TestEquals(t *testing.T) {
@@ -190,6 +193,7 @@ func TestParsePodResource(t *testing.T) {
 	assert.Equal(t, res.Resources[siCommon.Memory].GetValue(), int64(1524*1000*1000))
 	assert.Equal(t, res.Resources[siCommon.CPU].GetValue(), int64(3000))
 	assert.Equal(t, res.Resources["nvidia.com/gpu"].GetValue(), int64(5))
+	assert.Equal(t, res.Resources["pods"].GetValue(), int64(1))
 
 	// Add pod OverHead
 	overHeadResources := make(map[v1.ResourceName]resource.Quantity)
@@ -204,6 +208,7 @@ func TestParsePodResource(t *testing.T) {
 	assert.Equal(t, res.Resources[siCommon.Memory].GetValue(), int64(2024*1000*1000))
 	assert.Equal(t, res.Resources[siCommon.CPU].GetValue(), int64(4000))
 	assert.Equal(t, res.Resources["nvidia.com/gpu"].GetValue(), int64(6))
+	assert.Equal(t, res.Resources["pods"].GetValue(), int64(1))
 
 	// test initcontainer and container resouce compare
 	initContainers := make([]v1.Container, 0)
@@ -256,6 +261,7 @@ func TestParsePodResource(t *testing.T) {
 	assert.Equal(t, res.Resources[siCommon.Memory].GetValue(), int64(10000000000))
 	assert.Equal(t, res.Resources[siCommon.CPU].GetValue(), int64(5120))
 	assert.Equal(t, res.Resources["nvidia.com/gpu"].GetValue(), int64(4))
+	assert.Equal(t, res.Resources["pods"].GetValue(), int64(1))
 
 	delete(containers[0].Resources.Requests, v1.ResourceName("nvidia.com/gpu"))
 	delete(containers[1].Resources.Requests, v1.ResourceName("nvidia.com/gpu"))
@@ -273,6 +279,7 @@ func TestParsePodResource(t *testing.T) {
 	assert.Equal(t, res.Resources[siCommon.Memory].GetValue(), int64(10000000000))
 	assert.Equal(t, res.Resources[siCommon.CPU].GetValue(), int64(5120))
 	assert.Equal(t, res.Resources["nvidia.com/gpu"].GetValue(), int64(1))
+	assert.Equal(t, res.Resources["pods"].GetValue(), int64(1))
 }
 
 func TestBestEffortPod(t *testing.T) {
@@ -303,14 +310,15 @@ func TestBestEffortPod(t *testing.T) {
 	// best effort pod all resources are nil or zero
 	res := GetPodResource(pod)
 	assert.Equal(t, len(res.Resources), 1)
-	assert.Equal(t, res.Resources[siCommon.Memory].GetValue(), int64(1000000))
+	assert.Equal(t, res.Resources["pods"].GetValue(), int64(1))
 
 	// Add a resource to existing container (other than mem)
 	resources[v1.ResourceCPU] = resource.MustParse("1")
 
 	res = GetPodResource(pod)
-	assert.Equal(t, len(res.Resources), 1)
+	assert.Equal(t, len(res.Resources), 2)
 	assert.Equal(t, res.Resources[siCommon.CPU].GetValue(), int64(1000))
+	assert.Equal(t, res.Resources["pods"].GetValue(), int64(1))
 
 	// reset the cpu request to zero and add memory
 	resources[v1.ResourceMemory] = resource.MustParse("0")
@@ -318,7 +326,7 @@ func TestBestEffortPod(t *testing.T) {
 
 	res = GetPodResource(pod)
 	assert.Equal(t, len(res.Resources), 1)
-	assert.Equal(t, res.Resources[siCommon.Memory].GetValue(), int64(1000000))
+	assert.Equal(t, res.Resources["pods"].GetValue(), int64(1))
 }
 
 func TestNodeResource(t *testing.T) {
