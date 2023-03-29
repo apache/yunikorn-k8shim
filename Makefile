@@ -274,7 +274,7 @@ sched_image: scheduler
 	--label "yunikorn-k8shim-revision=${SHIM_SHA}" \
 	--label "BuildTimeStamp=${DATE}" \
 	--label "Version=${VERSION}" \
-	${QUIET} --build-arg ARCH=${DOCKER_ARCH}/
+	${QUIET}
 	@mv -f ./deployments/image/configmap/Dockerfile.bkp ./deployments/image/configmap/Dockerfile
 	@rm -f ./deployments/image/configmap/${BINARY}
 
@@ -291,7 +291,7 @@ plugin_image: plugin
 	--label "yunikorn-k8shim-revision=${SHIM_SHA}" \
 	--label "BuildTimeStamp=${DATE}" \
 	--label "Version=${VERSION}" \
-	${QUIET} --build-arg ARCH=${DOCKER_ARCH}/
+	${QUIET}
 	@mv -f ./deployments/image/plugin/Dockerfile.bkp ./deployments/image/plugin/Dockerfile
 	@rm -f ./deployments/image/plugin/${PLUGIN_BINARY}
 	@rm -f ./deployments/image/plugin/scheduler-config.yaml
@@ -317,7 +317,7 @@ adm_image: admission
 	--label "yunikorn-k8shim-revision=${SHIM_SHA}" \
 	--label "BuildTimeStamp=${DATE}" \
 	--label "Version=${VERSION}" \
-	${QUIET} --build-arg ARCH=${DOCKER_ARCH}/
+	${QUIET}
 	@rm -f ./deployments/image/admission/${POD_ADMISSION_CONTROLLER_BINARY}
 
 # Build gang web server and client binary in a production ready version
