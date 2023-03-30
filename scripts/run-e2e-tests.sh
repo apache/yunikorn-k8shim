@@ -105,11 +105,11 @@ function install_spark() {
   SPARK_VERSION="3.3.1"
   DOWNLOAD="${CURRENT}/_spark"
   SPARK_SUBMIT_CMD="${DOWNLOAD}/spark/bin/spark-submit"
-  if [[ ! -d $DOWNLOAD || ! -f $SPARK_SUBMIT_CMD ]]; then
+  if [[ ! -d "${DOWNLOAD}" || ! -f "${SPARK_SUBMIT_CMD}" ]]; then
     echo  "Installing spark in yunikorn rep."
-    rm -rf $DOWNLOAD
-    mkdir $DOWNLOAD \
-      && cd $DOWNLOAD \
+    rm -rf "${DOWNLOAD}"
+    mkdir "${DOWNLOAD}" \
+      && cd "${DOWNLOAD}" \
       && curl "https://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop3.tgz" | tar xzvf - \
       && mv "spark-${SPARK_VERSION}-bin-hadoop3" spark \
       && chmod +x spark
@@ -189,7 +189,6 @@ function install_cluster() {
 
   # create K8s cluster
   echo "step 8/10: installing K8s cluster using kind"
-  echo $(pwd)
   "${KIND}" create cluster --name "${CLUSTER_NAME}" --image "${CLUSTER_VERSION}" --config="${KIND_CONFIG}"
   exit_on_error "install K8s cluster failed"
   kubectl cluster-info --context kind-"${CLUSTER_NAME}"
