@@ -115,10 +115,10 @@ function install_spark() {
       && chmod +x spark
     exit_on_error "install spark failed."
   fi
+  cd "${CURRENT}"
   export SPARK_HOME="${DOWNLOAD}/spark"
   export SPARK_PYTHON_IMAGE="docker.io/apache/spark-py:v${SPARK_VERSION}"
   exit_on_error "install spark failed. unable to set env variables"
-  cd "${CURRENT}"
 }
 
 function install_helm() {
