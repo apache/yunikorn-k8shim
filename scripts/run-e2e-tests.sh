@@ -111,14 +111,13 @@ function install_spark() {
     mkdir "${DOWNLOAD}" \
       && cd "${DOWNLOAD}" \
       && curl "https://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop3.tgz" | tar xzvf - \
-      && mv "spark-${SPARK_VERSION}-bin-hadoop3" spark \
-      && chmod +x spark
+      && chmod +x "spark-${SPARK_VERSION}-bin-hadoop3"
     exit_on_error "install spark failed."
   fi
-  cd "${CURRENT}"
-  export SPARK_HOME="${DOWNLOAD}/spark"
+  export SPARK_HOME="${DOWNLOAD}/spark-${SPARK_VERSION}-bin-hadoop3"
   export SPARK_PYTHON_IMAGE="docker.io/apache/spark-py:v${SPARK_VERSION}"
   exit_on_error "install spark failed. unable to set env variables"
+  cd "${CURRENT}" || exit
 }
 
 function install_helm() {
