@@ -101,17 +101,24 @@ function install_kind() {
 }
 
 function install_spark() {
-  PWD=$(pwd)
-  if [ ! -d "${PWD}/_spark" ]; then
+  CURRENT=$(pwd)
+  SPARK_VERSION="3.3.1"
+  DOWNLOAD="${CURRENT}/_spark"
+  SPARK_SUBMIT_CMD="${DOWNLOAD}/spark/bin/spark-submit"
+  if [[ ! -d $DOWNLOAD || ! -f $SPARK_SUBMIT_CMD ]]; then
     echo  "Installing spark in yunikorn rep."
-    check_cmd "wget"
-    mkdir "${PWD}/_spark"
-    curl https://archive.apache.org/dist/spark/spark-3.3.1/spark-3.3.1-bin-hadoop3.tgz | tar xzvf - && chmod +x spark-3.3.1-bin-hadoop3 && mv spark-3.3.1-bin-hadoop3 "${PWD}/_spark/."
+    rm -rf $DOWNLOAD
+    mkdir $DOWNLOAD \
+      && cd $DOWNLOAD \
+      && curl "https://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop3.tgz" | tar xzvf - \
+      && mv "spark-${SPARK_VERSION}-bin-hadoop3" spark \
+      && chmod +x spark
     exit_on_error "install spark failed."
   fi
-  export SPARK_HOME="${PWD}/_spark/spark-3.3.1-bin-hadoop3"
-  export SPARK_PYTHON_IMAGE=docker.io/apache/spark-py:v3.3.1
+  export SPARK_HOME="${DOWNLOAD}/spark"
+  export SPARK_PYTHON_IMAGE="docker.io/apache/spark-py:v${SPARK_VERSION}"
   exit_on_error "install spark failed. unable to set env variables"
+  cd $CURRENT
 }
 
 function install_helm() {
@@ -182,6 +189,7 @@ function install_cluster() {
 
   # create K8s cluster
   echo "step 8/10: installing K8s cluster using kind"
+  echo $(pwd)
   "${KIND}" create cluster --name "${CLUSTER_NAME}" --image "${CLUSTER_VERSION}" --config="${KIND_CONFIG}"
   exit_on_error "install K8s cluster failed"
   kubectl cluster-info --context kind-"${CLUSTER_NAME}"
