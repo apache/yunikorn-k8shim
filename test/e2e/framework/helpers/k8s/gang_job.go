@@ -130,3 +130,19 @@ func InitTaskGroups(conf SleepPodConfig, mainTaskGroupName, secondTaskGroupName 
 
 	return tGroups
 }
+
+func InitTaskGroup(conf SleepPodConfig, taskGroupName string, parallelism int32) []*ykv1.TaskGroup {
+	tg1 := &ykv1.TaskGroup{
+		MinMember: parallelism,
+		Name:      taskGroupName,
+		MinResource: map[string]resource.Quantity{
+			"cpu":    resource.MustParse(strconv.FormatInt(conf.CPU, 10) + "m"),
+			"memory": resource.MustParse(strconv.FormatInt(conf.Mem, 10) + "M"),
+		},
+	}
+
+	tGroups := make([]*ykv1.TaskGroup, 1)
+	tGroups[0] = tg1
+
+	return tGroups
+}

@@ -26,6 +26,7 @@ import (
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
@@ -40,7 +41,10 @@ const (
 	taskGroupB           = "groupb"
 	taskGroupAprefix     = "tg-" + taskGroupA + "-" + gangSleepJobPrefix
 	taskGroupBprefix     = "tg-" + taskGroupB + "-" + gangSleepJobPrefix
+	taskGroupE2E         = "e2e-task-group"
+	taskGroupE2EPrefix   = "tg-" + taskGroupE2E
 	parallelism          = 3
+	taintKey             = "e2e_test"
 )
 
 var kClient k8s.KubeCtl
@@ -272,4 +276,112 @@ var _ = ginkgo.Describe("", func() {
 		err = kClient.WaitForJobPodsSucceeded(dev, job.Name, parallelism, 30*time.Second)
 		Ω(err).NotTo(gomega.HaveOccurred())
 	})
+
+	ginkgo.It("Verify_GangScheduling_PendingPlaceholders_Restart_YK", func() {
+		kClient = k8s.KubeCtl{}
+		Ω(kClient.SetClient()).To(gomega.BeNil())
+		defer yunikorn.RestorePortForwarding(&kClient)
+
+		ginkgo.By("Trying to find an available worker node")
+		nodes, err := kClient.GetNodes()
+		Ω(err).NotTo(gomega.HaveOccurred())
+		Ω(len(nodes.Items) >= 2).Should(gomega.Equal(true), "Not enough nodes in the cluster, need at least 2")
+
+		var workerResource *resource.Quantity
+		masterPresent := false
+		var selectedNode string
+		var nodesToTaint []string
+		for _, node := range nodes.Items {
+			// skip master if it's marked as such
+			node := node
+			if k8s.IsMasterNode(&node) {
+				masterPresent = true
+				continue
+			}
+
+			if selectedNode == "" {
+				workerResource = node.Status.Allocatable.Memory()
+				selectedNode = node.Name
+			} else {
+				nodesToTaint = append(nodesToTaint, node.Name)
+			}
+		}
+
+		memoryGiB := workerResource.ScaledValue(resource.Giga)
+		placeholderCount := int32(memoryGiB/3 + 2) // get a reasonable number to have both Running/Pending PH pods
+		fmt.Fprintf(ginkgo.GinkgoWriter, "%s allocatable memory in GiB = %d, number of placeholders to use = %d\n",
+			selectedNode, memoryGiB, placeholderCount)
+
+		ginkgo.By("Tainting all nodes except " + selectedNode)
+		for _, nodeName := range nodesToTaint {
+			err = kClient.TaintNode(nodeName, taintKey, "value", v1.TaintEffectNoSchedule)
+			Ω(err).NotTo(gomega.HaveOccurred())
+		}
+
+		removeTaint := true
+		defer func() {
+			if removeTaint {
+				ginkgo.By("Untainting nodes (defer)")
+				for _, nodeName := range nodesToTaint {
+					err = kClient.UntaintNode(nodeName, taintKey)
+					Ω(err).NotTo(gomega.HaveOccurred(), "Could not remove taint from node "+nodeName)
+				}
+			}
+		}()
+
+		ginkgo.By("Submitting gang job")
+		appID := gangSleepJobPrefix + "-" + common.RandSeq(5)
+		sleepPodConfig := k8s.SleepPodConfig{Name: "gang-sleep-job", NS: dev, Time: 1, AppID: appID, Mem: 3000, CPU: 10}
+		taskGroups := k8s.InitTaskGroup(sleepPodConfig, taintKey, placeholderCount)
+		pod, podErr := k8s.InitSleepPod(sleepPodConfig)
+		Ω(podErr).NotTo(gomega.HaveOccurred())
+		pod = k8s.DecoratePodForGangScheduling(900, "Soft", taskGroupE2E,
+			taskGroups, pod)
+		job := k8s.InitTestJob(appID, 1, 1, pod)
+		_, createErr := kClient.CreateJob(job, dev)
+		Ω(createErr).NotTo(gomega.HaveOccurred())
+
+		ginkgo.By("Waiting for placeholders to be Running/Pending")
+		err = kClient.WaitForPlaceholdersStableState(dev, taskGroupE2EPrefix, 30*time.Second)
+		Ω(err).NotTo(gomega.HaveOccurred())
+
+		ginkgo.By("Restart the scheduler pod and update tolerations if needed")
+		includeMaster := masterPresent && len(nodes.Items) == 2
+		// YK can be scheduled on the master only if there are 2 nodes in the cluster
+		newTolerations := getSchedulerPodTolerations(includeMaster)
+		yunikorn.RestartYunikornAndAddTolerations(&kClient, true, newTolerations)
+
+		ginkgo.By("Untainting nodes")
+		removeTaint = false
+		for _, nodeName := range nodesToTaint {
+			err = kClient.UntaintNode(nodeName, taintKey)
+			Ω(err).NotTo(gomega.HaveOccurred(), "Could not remove taint from node "+nodeName)
+		}
+
+		ginkgo.By("Waiting for placeholder replacement & sleep pods to finish")
+		err = kClient.WaitForJobPodsSucceeded(dev, job.Name, 1, 60*time.Second)
+		Ω(err).NotTo(gomega.HaveOccurred())
+	})
 })
+
+func getSchedulerPodTolerations(includeMaster bool) []v1.Toleration {
+	newTolerations := make([]v1.Toleration, 0)
+	if includeMaster {
+		for key := range common.MasterTaints {
+			t := v1.Toleration{
+				Key:      key,
+				Effect:   v1.TaintEffectNoSchedule,
+				Operator: v1.TolerationOpEqual,
+			}
+			newTolerations = append(newTolerations, t)
+		}
+	}
+
+	t := v1.Toleration{
+		Key:      taintKey,
+		Effect:   v1.TaintEffectNoSchedule,
+		Operator: v1.TolerationOpEqual,
+	}
+	newTolerations = append(newTolerations, t)
+	return newTolerations
+}

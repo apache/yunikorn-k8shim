@@ -37,6 +37,11 @@ import (
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 )
 
+var MasterTaints = map[string]struct{}{
+	"node-role.kubernetes.io/control-plane": {},
+	"node-role.kubernetes.io/master":        {},
+}
+
 func GetAbsPath(p string) (string, error) {
 	path, err := filepath.Abs(p)
 	return path, err
