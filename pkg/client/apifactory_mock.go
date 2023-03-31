@@ -52,7 +52,6 @@ func NewMockedAPIProvider(showError bool) *MockedAPIProvider {
 				KubeQPS:              0,
 				KubeBurst:            0,
 				Namespace:            "yunikorn",
-				ApiClientTimeout:     0,
 			},
 			KubeClient:            NewKubeClientMock(showError),
 			SchedulerAPI:          test.NewSchedulerAPIMock(),
