@@ -31,6 +31,8 @@ import (
 	"time"
 
 	"github.com/onsi/ginkgo/v2"
+	"github.com/onsi/gomega"
+
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
@@ -57,6 +59,17 @@ import (
 )
 
 const portForwardPort = 9080
+
+type WorkloadType string
+
+const (
+	Deployment  = "Deployment"
+	StatefulSet = "StatefulSet"
+	DaemonSet   = "DaemonSet"
+	ReplicaSet  = "ReplicaSet"
+	Job         = "Job"
+	CronJob     = "CronJob"
+)
 
 var fw *portforward.PortForwarder
 var lock = &sync.Mutex{}
@@ -1281,4 +1294,37 @@ func IsMasterNode(node *v1.Node) bool {
 	}
 
 	return false
+}
+
+func (k *KubeCtl) DeleteWorkloadAndPods(objectName string, wlType WorkloadType, namespace string) {
+	ginkgo.By("Delete " + objectName + ", type is " + string(wlType) + " in namespace " + namespace)
+	var err error
+	switch wlType {
+	case Deployment:
+		err = k.DeleteDeployment(objectName, namespace)
+	case StatefulSet:
+		err = k.DeleteStatefulSet(objectName, namespace)
+	case ReplicaSet:
+		err = k.DeleteReplicaSet(objectName, namespace)
+	case DaemonSet:
+		err = k.DeleteDaemonSet(objectName, namespace)
+	case Job:
+		err = k.DeleteJob(objectName, namespace)
+	case CronJob:
+		err = k.DeleteCronJob(objectName, namespace)
+	default:
+		fmt.Fprintf(ginkgo.GinkgoWriter, "Unknown type %s, just deleting pods\n", string(wlType))
+	}
+	gomega.Ω(err).ShouldNot(gomega.HaveOccurred(), "Could not delete "+objectName)
+
+	pods, err := k.GetPods(namespace)
+	gomega.Ω(err).ShouldNot(gomega.HaveOccurred(), "Could not get pods from namespace "+namespace)
+	fmt.Fprintf(ginkgo.GinkgoWriter, "Forcibly deleting remaining pods in namespace %s\n", namespace)
+	for _, pod := range pods.Items {
+		fmt.Fprintf(ginkgo.GinkgoWriter, "Deleting %s\n", pod.Name)
+		_ = k.DeletePod(pod.Name, namespace) //nolint:errcheck
+	}
+
+	err = k.WaitForPodCount(namespace, 0, 10*time.Second)
+	gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
 }

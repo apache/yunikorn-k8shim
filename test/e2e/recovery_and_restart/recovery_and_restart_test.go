@@ -110,8 +110,8 @@ var _ = ginkgo.AfterSuite(func() {
 
 	// call the healthCheck api to check scheduler health
 	ginkgo.By("Check Yunikorn's health")
-	checks, err := yunikorn.GetFailedHealthChecks()
-	Ω(err).NotTo(gomega.HaveOccurred())
+	checks, err2 := yunikorn.GetFailedHealthChecks()
+	Ω(err2).NotTo(gomega.HaveOccurred())
 	Ω(checks).To(gomega.Equal(""), checks)
 
 	ginkgo.By("Restoring the old config maps")
@@ -167,8 +167,10 @@ var _ = ginkgo.Describe("", func() {
 		job1 := k8s.InitTestJob(appID1, parallelism, parallelism, pod1)
 		_, createErr := kClient.CreateJob(job1, dev)
 		Ω(createErr).NotTo(gomega.HaveOccurred())
+		defer kClient.DeleteWorkloadAndPods(job1.Name, k8s.Job, dev)
 		job2 := k8s.InitTestJob(appID2, parallelism, parallelism, pod2)
 		_, createErr2 := kClient.CreateJob(job2, dev)
+		defer kClient.DeleteWorkloadAndPods(job2.Name, k8s.Job, dev)
 		Ω(createErr2).NotTo(gomega.HaveOccurred())
 
 		ginkgo.By("Restart the scheduler pod immediately")
@@ -188,29 +190,6 @@ var _ = ginkgo.Describe("", func() {
 		Ω(err).NotTo(gomega.HaveOccurred())
 		err = kClient.WaitForJobPodsRunning(dev, job2.Name, parallelism, 60*time.Second)
 		Ω(err).NotTo(gomega.HaveOccurred())
-
-		ginkgo.By("Deleting sleep jobs")
-		err = kClient.DeleteJob(job1.Name, dev)
-		Ω(err).NotTo(gomega.HaveOccurred())
-		err = kClient.DeleteJob(job2.Name, dev)
-		Ω(err).NotTo(gomega.HaveOccurred())
-
-		ginkgo.By("Deleting sleep pods")
-		sleep1Pods, err2 := kClient.ListPods(dev, "applicationId="+sleepPodConfig1.AppID)
-		Ω(err2).NotTo(gomega.HaveOccurred())
-		sleep2Pods, err3 := kClient.ListPods(dev, "applicationId="+sleepPodConfig2.AppID)
-		Ω(err3).NotTo(gomega.HaveOccurred())
-
-		sleepPods := make([]v1.Pod, 0)
-		sleepPods = append(sleepPods, sleep1Pods.Items...)
-		sleepPods = append(sleepPods, sleep2Pods.Items...)
-
-		for _, pod := range sleepPods {
-			podName := pod.GetName()
-			err := kClient.DeletePod(podName, dev)
-			Ω(err).NotTo(gomega.HaveOccurred())
-			fmt.Fprintf(ginkgo.GinkgoWriter, "Deleted pod %s\n", podName)
-		}
 	})
 
 	ginkgo.It("Verify_GangScheduling_TwoGangs_Restart_YK", func() {
@@ -230,6 +209,7 @@ var _ = ginkgo.Describe("", func() {
 		job := k8s.InitTestJob(appID, parallelism, parallelism, pod)
 		_, err := kClient.CreateJob(job, dev)
 		Ω(err).NotTo(gomega.HaveOccurred())
+		defer kClient.DeleteWorkloadAndPods(job.Name, k8s.Job, dev)
 
 		ginkgo.By("Waiting job pods to be created")
 		createErr := kClient.WaitForJobPodsCreated(dev, job.Name, parallelism, 30*time.Second)
