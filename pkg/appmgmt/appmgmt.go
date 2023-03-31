@@ -19,6 +19,8 @@
 package appmgmt
 
 import (
+	"sync/atomic"
+
 	"go.uber.org/zap"
 
 	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/general"
@@ -38,6 +40,7 @@ type AppManagementService struct {
 	amProtocol      interfaces.ApplicationManagementProtocol
 	managers        []interfaces.AppManager
 	podEventHandler *general.PodEventHandler
+	cancelRecovery  atomic.Bool
 }
 
 func NewAMService(amProtocol interfaces.ApplicationManagementProtocol,

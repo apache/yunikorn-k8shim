@@ -65,8 +65,12 @@ func TestAppManagerRecoveryTimeout(t *testing.T) {
 	assert.NilError(t, err)
 	assert.Equal(t, len(apps), 2)
 
-	err = amService.waitForAppRecovery(apps, 3*time.Second)
-	assert.ErrorContains(t, err, "timeout waiting for app recovery")
+	go func() {
+		time.Sleep(3 * time.Second)
+		amService.cancelWaitForAppRecovery()
+	}()
+	ok := amService.waitForAppRecovery(apps)
+	assert.Assert(t, !ok, "expected timeout")
 }
 
 func TestAppManagerRecoveryExitCondition(t *testing.T) {
@@ -85,9 +89,36 @@ func TestAppManagerRecoveryExitCondition(t *testing.T) {
 		app.SetState(cache.ApplicationStates().Accepted)
 	}
 
-	// this should not timeout
-	err = amService.waitForAppRecovery(apps, 3*time.Second)
+	go func() {
+		time.Sleep(3 * time.Second)
+		amService.cancelWaitForAppRecovery()
+	}()
+	ok := amService.waitForAppRecovery(apps)
+	assert.Assert(t, ok, "timeout waiting for recovery")
+}
+
+func TestAppManagerRecoveryFailureExitCondition(t *testing.T) {
+	conf.GetSchedulerConf().OperatorPlugins = "mocked-app-manager"
+	amProtocol := cache.NewMockedAMProtocol()
+	apiProvider := client.NewMockedAPIProvider(false)
+	amService := NewAMService(amProtocol, apiProvider)
+	amService.register(&mockedAppManager{})
+
+	apps, err := amService.recoverApps()
 	assert.NilError(t, err)
+	assert.Equal(t, len(apps), 2)
+
+	// simulate app rejected
+	for _, app := range apps {
+		app.SetState(cache.ApplicationStates().Rejected)
+	}
+
+	go func() {
+		time.Sleep(3 * time.Second)
+		amService.cancelWaitForAppRecovery()
+	}()
+	ok := amService.waitForAppRecovery(apps)
+	assert.Assert(t, ok, "timeout waiting for recovery")
 }
 
 // test app state transition during recovery
@@ -114,8 +145,12 @@ func TestAppStatesDuringRecovery(t *testing.T) {
 
 	// waitForAppRecovery call should be blocked
 	// because the scheduler is still doing recovery
-	err = amService.waitForAppRecovery(apps, 3*time.Second)
-	assert.Error(t, err, "timeout waiting for app recovery in 3s")
+	go func() {
+		time.Sleep(3 * time.Second)
+		amService.cancelWaitForAppRecovery()
+	}()
+	ok := amService.waitForAppRecovery(apps)
+	assert.Assert(t, !ok, "expected timeout")
 	assert.Equal(t, app01.GetApplicationState(), cache.ApplicationStates().Recovering)
 	assert.Equal(t, app02.GetApplicationState(), cache.ApplicationStates().Recovering)
 
@@ -131,8 +166,12 @@ func TestAppStatesDuringRecovery(t *testing.T) {
 
 	// since app02 is still under recovery
 	// waitForRecovery should timeout because the scheduler is still under recovery
-	err = amService.waitForAppRecovery(apps, 3*time.Second)
-	assert.Error(t, err, "timeout waiting for app recovery in 3s")
+	go func() {
+		time.Sleep(3 * time.Second)
+		amService.cancelWaitForAppRecovery()
+	}()
+	ok = amService.waitForAppRecovery(apps)
+	assert.Assert(t, !ok, "expected timeout")
 	assert.Equal(t, app01.GetApplicationState(), cache.ApplicationStates().Accepted)
 	assert.Equal(t, app02.GetApplicationState(), cache.ApplicationStates().Recovering)
 
@@ -148,8 +187,12 @@ func TestAppStatesDuringRecovery(t *testing.T) {
 
 	// the app recovery has finished,
 	// this should not timeout anymore
-	err = amService.waitForAppRecovery(apps, 3*time.Second)
-	assert.NilError(t, err, "the app recovery is done, error is not expected")
+	go func() {
+		time.Sleep(3 * time.Second)
+		amService.cancelWaitForAppRecovery()
+	}()
+	ok = amService.waitForAppRecovery(apps)
+	assert.Assert(t, ok, "unexpected timeout")
 	assert.Equal(t, app01.GetApplicationState(), cache.ApplicationStates().Accepted)
 	assert.Equal(t, app02.GetApplicationState(), cache.ApplicationStates().Accepted)
 }
