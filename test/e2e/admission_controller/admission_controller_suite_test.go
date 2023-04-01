@@ -25,6 +25,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	"github.com/onsi/ginkgo/v2/reporters"
+	"github.com/onsi/gomega"
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
@@ -34,6 +35,7 @@ import (
 
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
 )
@@ -171,10 +173,12 @@ func getPodSpec(restartPolicy v1.RestartPolicy) v1.PodTemplateSpec {
 }
 
 func TestAdmissionController(t *testing.T) {
-	ReportAfterSuite("TestBasicScheduling", func(report Report) {
-		err := reporters.GenerateJUnitReportWithConfig(
+	ReportAfterSuite("TestAdmissionController", func(report Report) {
+		err := common.CreateJUnitReportDir()
+		Ω(err).NotTo(gomega.HaveOccurred())
+		err = reporters.GenerateJUnitReportWithConfig(
 			report,
-			filepath.Join(configmanager.YuniKornTestConfig.LogDir, "admission_controller_junit.xml"),
+			filepath.Join(configmanager.YuniKornTestConfig.LogDir, "TEST-admission_controller_junit.xml"),
 			reporters.JunitReportConfig{OmitSpecLabels: true},
 		)
 		Ω(err).NotTo(HaveOccurred())

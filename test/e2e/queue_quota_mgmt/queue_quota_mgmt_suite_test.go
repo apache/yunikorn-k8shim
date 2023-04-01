@@ -52,9 +52,11 @@ var _ = AfterSuite(func() {
 
 func TestStateAwareAppScheduling(t *testing.T) {
 	ginkgo.ReportAfterSuite("TestQueueQuotaMgmt", func(report ginkgo.Report) {
-		err := reporters.GenerateJUnitReportWithConfig(
+		err := common.CreateJUnitReportDir()
+		Ω(err).NotTo(gomega.HaveOccurred())
+		err = reporters.GenerateJUnitReportWithConfig(
 			report,
-			filepath.Join(configmanager.YuniKornTestConfig.LogDir, "QueueQuotaMgmt_junit.xml"),
+			filepath.Join(configmanager.YuniKornTestConfig.LogDir, "TEST-QueueQuotaMgmt_junit.xml"),
 			reporters.JunitReportConfig{OmitSpecLabels: true},
 		)
 		Ω(err).NotTo(HaveOccurred())

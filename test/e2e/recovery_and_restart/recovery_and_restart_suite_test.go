@@ -27,6 +27,7 @@ import (
 	"github.com/onsi/gomega"
 
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 )
 
 func init() {
@@ -34,10 +35,12 @@ func init() {
 }
 
 func TestRecoveryAndRestart(t *testing.T) {
-	ginkgo.ReportAfterSuite("TestBasicScheduling", func(report ginkgo.Report) {
-		err := reporters.GenerateJUnitReportWithConfig(
+	ginkgo.ReportAfterSuite("TestRecoveryAndRestart", func(report ginkgo.Report) {
+		err := common.CreateJUnitReportDir()
+		Ω(err).NotTo(gomega.HaveOccurred())
+		err = reporters.GenerateJUnitReportWithConfig(
 			report,
-			filepath.Join(configmanager.YuniKornTestConfig.LogDir, "recovery_and_restart_junit.xml"),
+			filepath.Join(configmanager.YuniKornTestConfig.LogDir, "TEST-recovery_and_restart_junit.xml"),
 			reporters.JunitReportConfig{OmitSpecLabels: true},
 		)
 		Ω(err).NotTo(gomega.HaveOccurred())

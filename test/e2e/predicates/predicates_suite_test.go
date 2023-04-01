@@ -51,9 +51,11 @@ var _ = AfterSuite(func() {
 
 func TestPredicates(t *testing.T) {
 	ginkgo.ReportAfterSuite("TestPredicates", func(report ginkgo.Report) {
-		err := reporters.GenerateJUnitReportWithConfig(
+		err := common.CreateJUnitReportDir()
+		Ω(err).NotTo(gomega.HaveOccurred())
+		err = reporters.GenerateJUnitReportWithConfig(
 			report,
-			filepath.Join(configmanager.YuniKornTestConfig.LogDir, "Predicates_junit.xml"),
+			filepath.Join(configmanager.YuniKornTestConfig.LogDir, "TEST-Predicates_junit.xml"),
 			reporters.JunitReportConfig{OmitSpecLabels: true},
 		)
 		Ω(err).NotTo(HaveOccurred())
