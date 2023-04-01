@@ -50,10 +50,11 @@ var kubeClient k8s.KubeCtl
 var ns string
 var bypassNs = "kube-system"
 var restClient yunikorn.RClient
-var oldConfigMap *v1.ConfigMap
+var oldConfigMap = new(v1.ConfigMap)
 var one = int32(1)
 var preemptPolicyNever = v1.PreemptNever
 var preemptPolicyPreemptLower = v1.PreemptLowerPriority
+var annotation = "ann-" + common.RandSeq(10)
 
 var testPod = v1.Pod{
 	ObjectMeta: metav1.ObjectMeta{
@@ -193,7 +194,9 @@ var _ = BeforeSuite(func() {
 	kubeClient = k8s.KubeCtl{}
 	Expect(kubeClient.SetClient()).To(BeNil())
 
+	annotation = "ann-" + common.RandSeq(10)
 	yunikorn.EnsureYuniKornConfigsPresent()
+	yunikorn.UpdateConfigMapWrapper(oldConfigMap, "", annotation)
 
 	By("Port-forward the scheduler pod")
 	err := kubeClient.PortForwardYkSchedulerPod()
@@ -210,13 +213,6 @@ var _ = BeforeSuite(func() {
 	By(fmt.Sprintf("Creating priority class %s", testNonYkPriorityClass.Name))
 	_, err = kubeClient.CreatePriorityClass(&testNonYkPriorityClass)
 	Ω(err).ShouldNot(HaveOccurred())
-
-	By("Get the default ConfigMap and copy it")
-	cm, err := kubeClient.GetConfigMaps(configmanager.YuniKornTestConfig.YkNamespace, constants.ConfigMapName)
-	Ω(err).ShouldNot(HaveOccurred())
-
-	oldConfigMap = cm.DeepCopy()
-	Ω(cm).Should(BeEquivalentTo(oldConfigMap))
 })
 
 var _ = AfterSuite(func() {
@@ -235,12 +231,5 @@ var _ = AfterSuite(func() {
 	err = kubeClient.DeletePriorityClass(testPreemptPriorityClass.Name)
 	Ω(err).ShouldNot(HaveOccurred())
 
-	By("Restore the old config maps")
-	c, err := kubeClient.GetConfigMaps(configmanager.YuniKornTestConfig.YkNamespace, configmanager.DefaultYuniKornConfigMap)
-	Ω(err).ShouldNot(HaveOccurred())
-
-	c.Data = oldConfigMap.Data
-	cm, err := kubeClient.UpdateConfigMap(c, configmanager.YuniKornTestConfig.YkNamespace)
-	Ω(err).NotTo(HaveOccurred())
-	Ω(cm).NotTo(BeNil())
+	yunikorn.RestoreConfigMapWrapper(oldConfigMap, annotation)
 })

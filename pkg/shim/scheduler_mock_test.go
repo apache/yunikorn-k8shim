@@ -86,10 +86,11 @@ func (fc *MockScheduler) updateConfig(queues string) error {
 	})
 }
 
-func (fc *MockScheduler) addNode(nodeName string, nodeLabels map[string]string, memory, cpu int64) error {
+func (fc *MockScheduler) addNode(nodeName string, nodeLabels map[string]string, memory, cpu, pods int64) error {
 	nodeResource := common.NewResourceBuilder().
 		AddResource(siCommon.Memory, memory).
 		AddResource(siCommon.CPU, cpu).
+		AddResource("pods", pods).
 		Build()
 	request := common.CreateUpdateRequestForNewNode(nodeName, nodeLabels, nodeResource, nil, nil, true)
 	fmt.Printf("report new nodes to scheduler, request: %s", request.String())

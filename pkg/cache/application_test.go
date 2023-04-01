@@ -671,7 +671,8 @@ func TestSetTaskGroupsAndSchedulingPolicy(t *testing.T) {
 	// TG2: 1000Mi, 20 members -> total 20000Mi
 	// overall usage 5000Mi + 20000Mi = 25000Mi. This will also be the queue usage so the correct handling
 	// CPU is normal as it specifies milli cpu to start with
-	expectedPlaceholderAsk := common.NewResourceBuilder().AddResource(siCommon.Memory, 25000*1024*1024).AddResource(siCommon.CPU, 25000).Build()
+	// Pods should always be equal to the sum of the MinMember values
+	expectedPlaceholderAsk := common.NewResourceBuilder().AddResource("pods", 30).AddResource(siCommon.Memory, 25000*1024*1024).AddResource(siCommon.CPU, 25000).Build()
 	actualPlaceholderAsk := app.getPlaceholderAsk()
 	assert.DeepEqual(t, actualPlaceholderAsk, expectedPlaceholderAsk)
 }

@@ -35,9 +35,9 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/apache/yunikorn-k8shim/pkg/admission/conf"
+	"github.com/apache/yunikorn-k8shim/pkg/admission/pki"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
-	"github.com/apache/yunikorn-k8shim/pkg/pki"
 )
 
 const (
