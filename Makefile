@@ -269,6 +269,8 @@ sched_image: scheduler
 	@cp ${RELEASE_BIN_DIR}/${BINARY} ./deployments/image/configmap
 	@sed -i'.bkp' 's/clusterVersion=.*"/clusterVersion=${VERSION}"/' deployments/image/configmap/Dockerfile
 	docker build ./deployments/image/configmap -t ${REGISTRY}/yunikorn:scheduler-${DOCKER_ARCH}-${VERSION} \
+	--build-arg TARGETPLATFORM="linux/${DOCKER_ARCH}" \
+	--platform "linux/${DOCKER_ARCH}" \
 	--label "yunikorn-core-revision=${CORE_SHA}" \
 	--label "yunikorn-scheduler-interface-revision=${SI_SHA}" \
 	--label "yunikorn-k8shim-revision=${SHIM_SHA}" \
@@ -286,6 +288,8 @@ plugin_image: plugin
 	@cp conf/scheduler-config.yaml ./deployments/image/plugin/scheduler-config.yaml
 	@sed -i'.bkp' 's/clusterVersion=.*"/clusterVersion=${VERSION}"/' deployments/image/plugin/Dockerfile
 	docker build ./deployments/image/plugin -t ${REGISTRY}/yunikorn:scheduler-plugin-${DOCKER_ARCH}-${VERSION} \
+	--build-arg TARGETPLATFORM="linux/${DOCKER_ARCH}" \
+	--platform "linux/${DOCKER_ARCH}" \
 	--label "yunikorn-core-revision=${CORE_SHA}" \
 	--label "yunikorn-scheduler-interface-revision=${SI_SHA}" \
 	--label "yunikorn-k8shim-revision=${SHIM_SHA}" \
@@ -312,6 +316,8 @@ adm_image: admission
 	@echo "building admission controller docker image"
 	@cp ${ADMISSION_CONTROLLER_BIN_DIR}/${POD_ADMISSION_CONTROLLER_BINARY} ./deployments/image/admission
 	docker build ./deployments/image/admission -t ${REGISTRY}/yunikorn:admission-${DOCKER_ARCH}-${VERSION} \
+	--build-arg TARGETPLATFORM="linux/${DOCKER_ARCH}" \
+	--platform "linux/${DOCKER_ARCH}" \
 	--label "yunikorn-core-revision=${CORE_SHA}" \
 	--label "yunikorn-scheduler-interface-revision=${SI_SHA}" \
 	--label "yunikorn-k8shim-revision=${SHIM_SHA}" \
