@@ -104,7 +104,7 @@ function install_spark() {
   CURRENT=$(pwd)
   SPARK_VERSION="3.3.1"
   DOWNLOAD="${CURRENT}/_spark"
-  SPARK_SUBMIT_CMD="${DOWNLOAD}/spark/bin/spark-submit"
+  SPARK_SUBMIT_CMD="${DOWNLOAD}/spark-${SPARK_VERSION}-bin-hadoop3/bin/spark-submit"
   if [[ ! -d "${DOWNLOAD}" || ! -f "${SPARK_SUBMIT_CMD}" ]]; then
     echo  "Installing spark in yunikorn rep."
     rm -rf "${DOWNLOAD}"
