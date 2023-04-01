@@ -14,7 +14,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-ARG TARGETPLATFORM
 FROM --platform=$TARGETPLATFORM scratch
 COPY --chown=0:0 kube-scheduler scheduler-config.yaml /
 USER 4444:4444

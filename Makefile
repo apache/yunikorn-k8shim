@@ -268,8 +268,8 @@ sched_image: scheduler
 	@echo "building scheduler docker image"
 	@cp ${RELEASE_BIN_DIR}/${BINARY} ./deployments/image/configmap
 	@sed -i'.bkp' 's/clusterVersion=.*"/clusterVersion=${VERSION}"/' deployments/image/configmap/Dockerfile
+	DOCKER_BUILDKIT=1 \
 	docker build ./deployments/image/configmap -t ${REGISTRY}/yunikorn:scheduler-${DOCKER_ARCH}-${VERSION} \
-	--build-arg TARGETPLATFORM="linux/${DOCKER_ARCH}" \
 	--platform "linux/${DOCKER_ARCH}" \
 	--label "yunikorn-core-revision=${CORE_SHA}" \
 	--label "yunikorn-scheduler-interface-revision=${SI_SHA}" \
@@ -287,8 +287,8 @@ plugin_image: plugin
 	@cp ${RELEASE_BIN_DIR}/${PLUGIN_BINARY} ./deployments/image/plugin
 	@cp conf/scheduler-config.yaml ./deployments/image/plugin/scheduler-config.yaml
 	@sed -i'.bkp' 's/clusterVersion=.*"/clusterVersion=${VERSION}"/' deployments/image/plugin/Dockerfile
+	DOCKER_BUILDKIT=1 \
 	docker build ./deployments/image/plugin -t ${REGISTRY}/yunikorn:scheduler-plugin-${DOCKER_ARCH}-${VERSION} \
-	--build-arg TARGETPLATFORM="linux/${DOCKER_ARCH}" \
 	--platform "linux/${DOCKER_ARCH}" \
 	--label "yunikorn-core-revision=${CORE_SHA}" \
 	--label "yunikorn-scheduler-interface-revision=${SI_SHA}" \
@@ -315,8 +315,8 @@ admission: init
 adm_image: admission
 	@echo "building admission controller docker image"
 	@cp ${ADMISSION_CONTROLLER_BIN_DIR}/${POD_ADMISSION_CONTROLLER_BINARY} ./deployments/image/admission
+	DOCKER_BUILDKIT=1 \
 	docker build ./deployments/image/admission -t ${REGISTRY}/yunikorn:admission-${DOCKER_ARCH}-${VERSION} \
-	--build-arg TARGETPLATFORM="linux/${DOCKER_ARCH}" \
 	--platform "linux/${DOCKER_ARCH}" \
 	--label "yunikorn-core-revision=${CORE_SHA}" \
 	--label "yunikorn-scheduler-interface-revision=${SI_SHA}" \
@@ -348,8 +348,10 @@ simulation_image: simulation
 	@echo "building gang test docker images"
 	@cp ${GANG_BIN_DIR}/${GANG_CLIENT_BINARY} ./deployments/image/gang/gangclient
 	@cp ${GANG_BIN_DIR}/${GANG_SERVER_BINARY} ./deployments/image/gang/webserver
+	DOCKER_BUILDKIT=1 \
 	docker build ./deployments/image/gang/gangclient -t ${REGISTRY}/yunikorn:simulation-gang-worker-${VERSION} \
 	${QUIET} --build-arg ARCH=${DOCKER_ARCH}/
+	DOCKER_BUILDKIT=1 \
 	docker build ./deployments/image/gang/webserver -t ${REGISTRY}/yunikorn:simulation-gang-coordinator-${VERSION} \
 	${QUIET} --build-arg ARCH=${DOCKER_ARCH}/
 	@rm -f ./deployments/image/gang/gangclient/${GANG_CLIENT_BINARY}
@@ -363,6 +365,7 @@ image: sched_image plugin_image adm_image
 .PHONY: webtest_image
 webtest_image:
 	@echo "building web server image for automated e2e tests"
+	DOCKER_BUILDKIT=1 \
 	docker build ./deployments/image/webtest -t ${REGISTRY}/yunikorn:webtest-${DOCKER_ARCH}-${VERSION} \
 	--label "yunikorn-e2e-web-image" \
 	${QUIET} --build-arg ARCH=${DOCKER_ARCH}/
