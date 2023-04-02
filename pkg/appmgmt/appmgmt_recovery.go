@@ -31,6 +31,9 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
 
+// WaitForRecovery initiates and waits for the app management service to finish recovery. If recovery
+// is canceled (used by testing code) or an error occurs, an error will be returned. In production, this
+// method will block until recovery completes.
 func (svc *AppManagementService) WaitForRecovery() error {
 	if !svc.apiProvider.IsTestingMode() {
 		apps, err := svc.recoverApps()
@@ -71,6 +74,8 @@ func (svc *AppManagementService) recoverApps() (map[string]interfaces.ManagedApp
 	return recoveringApps, nil
 }
 
+// waitForAppRecovery blocks until either all applications have been processed (returning true)
+// or cancelWaitForAppRecovery is called (returning false)
 func (svc *AppManagementService) waitForAppRecovery(recoveringApps map[string]interfaces.ManagedApp) bool {
 	svc.cancelRecovery.Store(false) // reset cancellation token
 	recoveryStartTime := time.Now()
@@ -98,7 +103,7 @@ func (svc *AppManagementService) waitForAppRecovery(recoveringApps map[string]in
 	}
 }
 
-// cancelWaitForAppRecovery is used by testing code to ensure that waitForAppRecovery() does not block forever
+// cancelWaitForAppRecovery is used by testing code to ensure that waitForAppRecovery does not block forever
 func (svc *AppManagementService) cancelWaitForAppRecovery() {
 	svc.cancelRecovery.Store(true)
 }
