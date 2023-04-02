@@ -108,7 +108,7 @@ func (svc *AppManagementService) cancelWaitForAppRecovery() {
 	svc.cancelRecovery.Store(true)
 }
 
-// removeRecoveredApps() is used to walk the currently recovering apps list and remove those that have finished recovering
+// removeRecoveredApps is used to walk the currently recovering apps list and remove those that have finished recovering
 func (svc *AppManagementService) removeRecoveredApps(recoveringApps map[string]interfaces.ManagedApp) {
 	for _, app := range recoveringApps {
 		state := app.GetApplicationState()
