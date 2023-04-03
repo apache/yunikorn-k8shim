@@ -68,9 +68,8 @@ const (
 	CMLogLevel = PrefixLog + "level"
 
 	// kubernetes
-	CMKubeQPS              = PrefixKubernetes + "qps"
-	CMKubeBurst            = PrefixKubernetes + "burst"
-	CMKubeApiClientTimeout = PrefixKubernetes + "apiClientTimeout"
+	CMKubeQPS   = PrefixKubernetes + "qps"
+	CMKubeBurst = PrefixKubernetes + "burst"
 
 	// defaults
 	DefaultNamespace              = "default"
@@ -87,7 +86,6 @@ const (
 	DefaultLogEncoding            = "console"
 	DefaultKubeQPS                = 1000
 	DefaultKubeBurst              = 1000
-	DefaultApiClientTimeout       = 30 * time.Second
 )
 
 var (
@@ -121,7 +119,6 @@ type SchedulerConf struct {
 	UserLabelKey           string        `json:"userLabelKey"`
 	PlaceHolderImage       string        `json:"placeHolderImage"`
 	Namespace              string        `json:"namespace"`
-	ApiClientTimeout       time.Duration `json:"apiClientTimeout"`
 	sync.RWMutex
 }
 
@@ -149,7 +146,6 @@ func (conf *SchedulerConf) Clone() *SchedulerConf {
 		UserLabelKey:           conf.UserLabelKey,
 		PlaceHolderImage:       conf.PlaceHolderImage,
 		Namespace:              conf.Namespace,
-		ApiClientTimeout:       conf.ApiClientTimeout,
 	}
 }
 
@@ -206,7 +202,6 @@ func handleNonReloadableConfig(old *SchedulerConf, new *SchedulerConf) {
 	checkNonReloadableString(CMSvcOperatorPlugins, &old.OperatorPlugins, &new.OperatorPlugins)
 	checkNonReloadableBool(CMSvcDisableGangScheduling, &old.DisableGangScheduling, &new.DisableGangScheduling)
 	checkNonReloadableString(CMSvcPlaceholderImage, &old.PlaceHolderImage, &new.PlaceHolderImage)
-	checkNonReloadableDuration(CMKubeApiClientTimeout, &old.ApiClientTimeout, &new.ApiClientTimeout)
 }
 
 const warningNonReloadable = "ignoring non-reloadable configuration change (restart required to update)"
@@ -336,7 +331,6 @@ func CreateDefaultConfig() *SchedulerConf {
 		DisableGangScheduling:  DefaultDisableGangScheduling,
 		UserLabelKey:           constants.DefaultUserLabel,
 		PlaceHolderImage:       constants.PlaceholderContainerImage,
-		ApiClientTimeout:       DefaultApiClientTimeout,
 	}
 }
 
@@ -361,7 +355,6 @@ func parseConfig(config map[string]string, prev *SchedulerConf) (*SchedulerConf,
 	parser.boolVar(&conf.DisableGangScheduling, CMSvcDisableGangScheduling)
 	parser.boolVar(&conf.EnableConfigHotRefresh, CMSvcEnableConfigHotRefresh)
 	parser.stringVar(&conf.PlaceHolderImage, CMSvcPlaceholderImage)
-	parser.durationVar(&conf.ApiClientTimeout, CMKubeApiClientTimeout)
 
 	// log
 	parser.intVar(&conf.LoggingLevel, CMLogLevel)
