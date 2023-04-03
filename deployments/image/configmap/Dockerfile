@@ -14,22 +14,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-ARG ARCH=
-FROM ${ARCH}alpine:latest
-
-# Home location for all data and executables
-ENV HOME=/opt/yunikorn
-
-# Always run everything as yunikorn
-RUN mkdir -p $HOME && \
-    addgroup -S -g 4444 yunikorn && \
-    adduser -S -h $HOME -G yunikorn -u 4444 yunikorn -s /bin/sh && \
-    chown -R 4444:0 $HOME && \
-    chmod -R g=u $HOME
-
-COPY --chown=4444:0 k8s_yunikorn_scheduler $HOME/bin/
-
-WORKDIR $HOME
-USER yunikorn
-ENTRYPOINT $HOME/bin/k8s_yunikorn_scheduler
+FROM --platform=$TARGETPLATFORM scratch
+COPY --chown=0:0 k8s_yunikorn_scheduler /
+USER 4444:4444
+ENTRYPOINT [ "/k8s_yunikorn_scheduler" ]
