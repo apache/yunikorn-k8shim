@@ -218,15 +218,16 @@ func TestCreateUpdateRequestForNewNode(t *testing.T) {
 	var existingAllocations []*si.Allocation
 	ready := true
 	nodeLabels := map[string]string{
-		"label1": "key1",
-		"label2": "key2",
+		"label1":                           "key1",
+		"label2":                           "key2",
+		"node.kubernetes.io/instance-type": "HighMem",
 	}
 	request := CreateUpdateRequestForNewNode(nodeID, nodeLabels, capacity, occupied, existingAllocations, ready)
 	assert.Equal(t, len(request.Nodes), 1)
 	assert.Equal(t, request.Nodes[0].NodeID, nodeID)
 	assert.Equal(t, request.Nodes[0].SchedulableResource, capacity)
 	assert.Equal(t, request.Nodes[0].OccupiedResource, occupied)
-	assert.Equal(t, len(request.Nodes[0].Attributes), 5)
+	assert.Equal(t, len(request.Nodes[0].Attributes), 7)
 	assert.Equal(t, request.Nodes[0].Attributes[constants.DefaultNodeAttributeHostNameKey], nodeID)
 	assert.Equal(t, request.Nodes[0].Attributes[constants.DefaultNodeAttributeRackNameKey], constants.DefaultRackName)
 	assert.Equal(t, request.Nodes[0].Attributes[common.NodeReadyAttribute], strconv.FormatBool(ready))
@@ -234,6 +235,10 @@ func TestCreateUpdateRequestForNewNode(t *testing.T) {
 	// Make sure include nodeLabel
 	assert.Equal(t, request.Nodes[0].Attributes["label1"], "key1")
 	assert.Equal(t, request.Nodes[0].Attributes["label2"], "key2")
+	assert.Equal(t, request.Nodes[0].Attributes["node.kubernetes.io/instance-type"], "HighMem")
+
+	// Make sure include the instanceType
+	assert.Equal(t, request.Nodes[0].Attributes[common.InstanceType], "HighMem")
 }
 
 func TestCreateUpdateRequestForUpdatedNode(t *testing.T) {

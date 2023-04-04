@@ -25,6 +25,7 @@ const False = "false"
 // Cluster
 const DefaultNodeAttributeHostNameKey = "si.io/hostname"
 const DefaultNodeAttributeRackNameKey = "si.io/rackname"
+const DefaultNodeInstanceTypeNodeLabelKey = "node.kubernetes.io/instance-type"
 const DefaultRackName = "/rack-default"
 
 // Application

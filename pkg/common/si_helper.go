@@ -171,6 +171,9 @@ func CreateUpdateRequestForNewNode(nodeID string, nodeLabels map[string]string, 
 		nodeInfo.Attributes[k] = v
 	}
 
+	// Add instanceType to Attributes map
+	nodeInfo.Attributes[common.InstanceType] = nodeLabels[conf.GetSchedulerConf().InstanceTypeNodeLabelKey]
+
 	nodes := make([]*si.NodeInfo, 1)
 	nodes[0] = nodeInfo
 	request := si.NodeRequest{
