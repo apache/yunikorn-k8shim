@@ -363,8 +363,11 @@ simulation_image: simulation
 image: sched_image plugin_image adm_image
 
 # Build a web server image ONLY to be used in e2e tests
+.PHONY: webtest_image
+webtest_image: build_web_test_server_dev build_web_test_server_prod
+
 .PHONY: build_web_test_server_dev
-build_server_dev: init
+build_web_test_server_dev: init
 	@echo "building local web server binary"
 	go build -o=${DEV_BIN_DIR}/${TEST_SERVER_BINARY} -race -ldflags \
 	'-X main.version=${VERSION} -X main.date=${DATE}' \
@@ -372,7 +375,7 @@ build_server_dev: init
 	@chmod +x ${DEV_BIN_DIR}/${TEST_SERVER_BINARY}
 
 .PHONY: build_web_test_server_prod
-build_server_prod: init
+build_web_test_server_prod: init
 	@echo "building web server binary"
 	CGO_ENABLED=0 GOOS=linux GOARCH="${EXEC_ARCH}" \
 	go build -a -o=${RELEASE_BIN_DIR}/${TEST_SERVER_BINARY} -ldflags \
