@@ -46,6 +46,7 @@ POD_ADMISSION_CONTROLLER_BINARY=scheduler-admission-controller
 GANG_BIN_DIR=${OUTPUT}/gang
 GANG_CLIENT_BINARY=simulation-gang-worker
 GANG_SERVER_BINARY=simulation-gang-coordinator
+TEST_SERVER_BINARY=web-test-server
 REPO=github.com/apache/yunikorn-k8shim/pkg
 
 # Version parameters
@@ -362,13 +363,22 @@ simulation_image: simulation
 image: sched_image plugin_image adm_image
 
 # Build a web server image ONLY to be used in e2e tests
-.PHONY: webtest_image
-webtest_image:
-	@echo "building web server image for automated e2e tests"
-	DOCKER_BUILDKIT=1 \
-	docker build ./deployments/image/webtest -t ${REGISTRY}/yunikorn:webtest-${DOCKER_ARCH}-${VERSION} \
-	--label "yunikorn-e2e-web-image" \
-	${QUIET} --build-arg ARCH=${DOCKER_ARCH}/
+.PHONY: build_web_test_server_dev
+build_server_dev: init
+	@echo "building local web server binary"
+	go build -o=${DEV_BIN_DIR}/${TEST_SERVER_BINARY} -race -ldflags \
+	'-X main.version=${VERSION} -X main.date=${DATE}' \
+	./pkg/cmd/web/
+	@chmod +x ${DEV_BIN_DIR}/${TEST_SERVER_BINARY}
+
+.PHONY: build_web_test_server_prod
+build_server_prod: init
+	@echo "building web server binary"
+	CGO_ENABLED=0 GOOS=linux GOARCH="${EXEC_ARCH}" \
+	go build -a -o=${RELEASE_BIN_DIR}/${TEST_SERVER_BINARY} -ldflags \
+	'-extldflags "-static" -X main.version=${VERSION} -X main.date=${DATE}' \
+	-tags netgo -installsuffix netgo \
+	./pkg/cmd/web/
 
 #Generate the CRD code with code-generator (release-1.14)
 

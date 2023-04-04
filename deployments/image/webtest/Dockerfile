@@ -15,23 +15,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARG ARCH=
-FROM ${ARCH}nginx:stable-alpine
-
-# Home location for all data and configs
-ENV HOME=/opt/yunikorn
+# Imagestage: use scratch base image
+FROM --platform=$TARGETPLATFORM scratch
+COPY --chown=0:0 bin/prod/web-test-server /
+COPY --chown=4444:0 ./document/index.html /html/
 EXPOSE 9889
-
-# Always run everything as yunikorn
-RUN mkdir -p $HOME && \
-    addgroup -S -g 4444 yunikorn && \
-    adduser -S -h $HOME -G yunikorn -u 4444 yunikorn -s /bin/sh && \
-    chown -R 4444:0 $HOME && \
-    chmod -R g=u $HOME
-
-COPY --chown=4444:0 ./nginx/nginx.conf $HOME/
-COPY --chown=4444:0 ./nginx/index.html $HOME/html/
-
-WORKDIR $HOME
-USER yunikorn
-ENTRYPOINT nginx -c $HOME/nginx.conf
+ENV DOCUMENT_ROOT /html
+USER 4444:4444
+ENTRYPOINT [ "/web-test-server" ]
