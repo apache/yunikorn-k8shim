@@ -19,18 +19,13 @@
 package predicates_test
 
 import (
-	"context"
 	"fmt"
 	"reflect"
 	"time"
 
-	"github.com/onsi/ginkgo"
+	"github.com/onsi/ginkgo/v2"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/kubernetes/pkg/controller"
-	"k8s.io/kubernetes/test/e2e/framework"
-	e2enode "k8s.io/kubernetes/test/e2e/framework/node"
 
 	tests "github.com/apache/yunikorn-k8shim/test/e2e"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
@@ -82,7 +77,6 @@ var _ = Describe("Predicates", func() {
 	var restClient yunikorn.RClient
 	var err error
 	var ns, anotherNS string
-	var nodeList *v1.NodeList
 	const LABELVALUE = "testing-label-value"
 
 	BeforeEach(func() {
@@ -91,10 +85,13 @@ var _ = Describe("Predicates", func() {
 		Ω(kClient.SetClient()).To(BeNil())
 		// Initializing rest client
 		restClient = yunikorn.RClient{}
-		nodeList = &v1.NodeList{}
-		nodeList, err = e2enode.GetReadySchedulableNodes(kClient.GetClient())
+
+		nodes, nodesErr := kClient.GetNodes()
+		Ω(nodesErr).NotTo(HaveOccurred())
+
+		nodeList := k8s.GetWorkerNodes(*nodes)
 		Ω(err).NotTo(HaveOccurred(), fmt.Sprintf("Unexpected error occurred: %v", err))
-		for _, n := range nodeList.Items {
+		for _, n := range nodeList {
 			workerNodes = append(workerNodes, n.Name)
 		}
 		ns = "test-" + common.RandSeq(10)
@@ -112,18 +109,15 @@ var _ = Describe("Predicates", func() {
 
 	AfterEach(func() {
 		By("Cleanup")
-		testDescription := ginkgo.CurrentGinkgoTestDescription()
 		for _, n := range []string{ns, anotherNS} {
-			testDescription = ginkgo.CurrentGinkgoTestDescription()
-			if testDescription.Failed {
-				tests.LogTestClusterInfoWrapper(testDescription.TestText, []string{n})
+			testDescription := ginkgo.CurrentSpecReport()
+			if testDescription.Failed() {
+				tests.LogTestClusterInfoWrapper(testDescription.FailureMessage(), []string{n})
+				tests.LogYunikornContainer(testDescription.FailureMessage())
 			}
 			ginkgo.By("Tear down namespace: " + n)
 			err = kClient.TearDownNamespace(n)
 			Ω(err).NotTo(HaveOccurred())
-		}
-		if testDescription.Failed {
-			tests.LogYunikornContainer(testDescription.TestText)
 		}
 	})
 
@@ -183,9 +177,15 @@ var _ = Describe("Predicates", func() {
 		By("Trying to apply a random label on the found node")
 		key := fmt.Sprintf("kubernetes.io/e2e-%s", common.RandSeq(10))
 		value := "101"
-		framework.AddOrUpdateLabelOnNode(kClient.GetClient(), nodeName, key, value)
-		framework.ExpectNodeHasLabel(kClient.GetClient(), nodeName, key, value)
-		defer framework.RemoveLabelOffNode(kClient.GetClient(), nodeName, key)
+		labelErr := kClient.SetNodeLabel(nodeName, key, value)
+		Ω(labelErr).NotTo(HaveOccurred())
+		exists, existsErr := kClient.IsNodeLabelExists(nodeName, key)
+		Ω(existsErr).NotTo(HaveOccurred())
+		Ω(exists).To(BeTrue())
+		defer func() {
+			err = kClient.RemoveNodeLabel(nodeName, key, value)
+			Ω(err).NotTo(HaveOccurred())
+		}()
 
 		By("Trying to launch the pod, now with labels.")
 		labelPodName := "with-labels"
@@ -276,9 +276,15 @@ var _ = Describe("Predicates", func() {
 		By("Trying to apply a random label on the found node")
 		key := fmt.Sprintf("kubernetes.io/e2e-%s", common.RandSeq(10))
 		value := "102"
-		framework.AddOrUpdateLabelOnNode(kClient.GetClient(), nodeName, key, value)
-		framework.ExpectNodeHasLabel(kClient.GetClient(), nodeName, key, value)
-		defer framework.RemoveLabelOffNode(kClient.GetClient(), nodeName, key)
+		labelErr := kClient.SetNodeLabel(nodeName, key, value)
+		Ω(labelErr).NotTo(HaveOccurred())
+		exists, existsErr := kClient.IsNodeLabelExists(nodeName, key)
+		Ω(existsErr).NotTo(HaveOccurred())
+		Ω(exists).To(BeTrue())
+		defer func() {
+			err = kClient.RemoveNodeLabel(nodeName, key, value)
+			Ω(err).NotTo(HaveOccurred())
+		}()
 
 		By("Trying to launch the pod, now with labels.")
 		labelPodName := "with-labels"
@@ -323,25 +329,28 @@ var _ = Describe("Predicates", func() {
 	It("Verify_Matching_Taint_Tolerations_Respected", func() {
 		nodeName := getNodeThatCanRunPodWithoutToleration(&kClient, ns)
 		By("Trying to apply a random taint on the found node.")
-		testTaint := &v1.Taint{
-			Key:    fmt.Sprintf("kubernetes.io/e2e-taint-key-%s", common.RandSeq(10)),
-			Value:  "testing-taint-value",
-			Effect: v1.TaintEffectNoSchedule,
-		}
-		err = controller.AddOrUpdateTaintOnNode(context.Background(), kClient.GetClient(), nodeName, testTaint)
+		taintKey := fmt.Sprintf("kubernetes.io/e2e-taint-key-%s", common.RandSeq(10))
+		taintValue := "testing-taint-value"
+		taintEffect := v1.TaintEffectNoSchedule
+		err = kClient.TaintNode(nodeName, taintKey, taintValue, taintEffect)
 		Ω(err).NotTo(HaveOccurred())
-		framework.ExpectNodeHasTaint(kClient.GetClient(), nodeName, testTaint)
-		defer func(c kubernetes.Interface, nodeName string, taint *v1.Taint) {
-			err = controller.RemoveTaintOffNode(context.Background(), c, nodeName, nil, taint)
+		defer func() {
+			err = kClient.UntaintNode(nodeName, taintKey)
 			Ω(err).NotTo(HaveOccurred())
-		}(kClient.GetClient(), nodeName, testTaint)
+		}()
 
 		ginkgo.By("Trying to apply a random label on the found node.")
 		labelKey := fmt.Sprintf("kubernetes.io/e2e-label-key-%s", common.RandSeq(10))
 		labelValue := LABELVALUE
-		framework.AddOrUpdateLabelOnNode(kClient.GetClient(), nodeName, labelKey, labelValue)
-		framework.ExpectNodeHasLabel(kClient.GetClient(), nodeName, labelKey, labelValue)
-		defer framework.RemoveLabelOffNode(kClient.GetClient(), nodeName, labelKey)
+		labelErr := kClient.SetNodeLabel(nodeName, labelKey, labelValue)
+		Ω(labelErr).NotTo(HaveOccurred())
+		exists, existsErr := kClient.IsNodeLabelExists(nodeName, labelKey)
+		Ω(existsErr).NotTo(HaveOccurred())
+		Ω(exists).To(BeTrue())
+		defer func() {
+			err = kClient.RemoveNodeLabel(nodeName, labelKey, labelValue)
+			Ω(err).NotTo(HaveOccurred())
+		}()
 
 		ginkgo.By("Trying to relaunch the pod, now with tolerations.")
 		tolerationPodName := "with-tolerations"
@@ -352,7 +361,7 @@ var _ = Describe("Predicates", func() {
 				"app":           "tolerations-app-" + common.RandSeq(5),
 				"applicationId": common.RandSeq(10),
 			},
-			Tolerations:  []v1.Toleration{{Key: testTaint.Key, Value: testTaint.Value, Effect: testTaint.Effect}},
+			Tolerations:  []v1.Toleration{{Key: taintKey, Value: taintValue, Effect: taintEffect}},
 			NodeSelector: map[string]string{labelKey: labelValue},
 		}
 
@@ -370,26 +379,28 @@ var _ = Describe("Predicates", func() {
 	It("Verify_Not_Matching_Taint_Tolerations_Respected", func() {
 		nodeName := getNodeThatCanRunPodWithoutToleration(&kClient, ns)
 		By("Trying to apply a random taint on the found node.")
-		testTaint := &v1.Taint{
-			Key:    fmt.Sprintf("kubernetes.io/e2e-taint-key-%s", common.RandSeq(10)),
-			Value:  "testing-taint-value",
-			Effect: v1.TaintEffectNoSchedule,
-		}
-		err = controller.AddOrUpdateTaintOnNode(context.Background(), kClient.GetClient(), nodeName, testTaint)
+		taintKey := fmt.Sprintf("kubernetes.io/e2e-taint-key-%s", common.RandSeq(10))
+		taintValue := "testing-taint-value"
+		taintEffect := v1.TaintEffectNoSchedule
+		err = kClient.TaintNode(nodeName, taintKey, taintValue, taintEffect)
 		Ω(err).NotTo(HaveOccurred())
-
-		framework.ExpectNodeHasTaint(kClient.GetClient(), nodeName, testTaint)
-		defer func(c kubernetes.Interface, nodeName string, taint *v1.Taint) {
-			err = controller.RemoveTaintOffNode(context.Background(), c, nodeName, nil, taint)
+		defer func() {
+			err := kClient.UntaintNode(nodeName, taintKey)
 			Ω(err).NotTo(HaveOccurred())
-		}(kClient.GetClient(), nodeName, testTaint)
+		}()
 
 		ginkgo.By("Trying to apply a random label on the found node.")
 		labelKey := fmt.Sprintf("kubernetes.io/e2e-label-key-%s", common.RandSeq(10))
 		labelValue := LABELVALUE
-		framework.AddOrUpdateLabelOnNode(kClient.GetClient(), nodeName, labelKey, labelValue)
-		framework.ExpectNodeHasLabel(kClient.GetClient(), nodeName, labelKey, labelValue)
-		defer framework.RemoveLabelOffNode(kClient.GetClient(), nodeName, labelKey)
+		err := kClient.SetNodeLabel(nodeName, labelKey, labelValue)
+		Ω(err).NotTo(HaveOccurred())
+		exists, existsErr := kClient.IsNodeLabelExists(nodeName, labelKey)
+		Ω(existsErr).NotTo(HaveOccurred())
+		Ω(exists).To(BeTrue())
+		defer func() {
+			err = kClient.RemoveNodeLabel(nodeName, labelKey, labelValue)
+			Ω(err).NotTo(HaveOccurred())
+		}()
 
 		ginkgo.By("Trying to relaunch the pod with no tolerations.")
 		podNameNoTolerations := "with-no-tolerations"
@@ -405,7 +416,7 @@ var _ = Describe("Predicates", func() {
 
 		initPod, podErr := k8s.InitTestPod(conf)
 		Ω(podErr).NotTo(HaveOccurred())
-		_, err := kClient.CreatePod(initPod, ns)
+		_, err = kClient.CreatePod(initPod, ns)
 		Ω(err).NotTo(HaveOccurred())
 
 		By(fmt.Sprintf("Verify pod:%s is in pending state", podNameNoTolerations))
@@ -423,7 +434,7 @@ var _ = Describe("Predicates", func() {
 		Ω(logEntries).To(ContainElement(MatchRegexp(".*taint.*")), "Log entry message mismatch")
 
 		// Remove taint off the node and verify the pod is scheduled on node.
-		err = controller.RemoveTaintOffNode(context.Background(), kClient.GetClient(), nodeName, nil, testTaint)
+		err = kClient.UntaintNode(nodeName, taintKey)
 		Ω(err).NotTo(HaveOccurred())
 		Ω(kClient.WaitForPodRunning(ns, podNameNoTolerations, time.Duration(60)*time.Second)).NotTo(HaveOccurred())
 
@@ -942,9 +953,15 @@ var _ = Describe("Predicates", func() {
 		By("Trying to apply a random label on the found node")
 		key := fmt.Sprintf("kubernetes.io/e2e-hostport-%s", common.RandSeq(10))
 		value := "103"
-		framework.AddOrUpdateLabelOnNode(kClient.GetClient(), nodeName, key, value)
-		framework.ExpectNodeHasLabel(kClient.GetClient(), nodeName, key, value)
-		defer framework.RemoveLabelOffNode(kClient.GetClient(), nodeName, key)
+		err := kClient.SetNodeLabel(nodeName, key, value)
+		Ω(err).NotTo(HaveOccurred())
+		exists, existsErr := kClient.IsNodeLabelExists(nodeName, key)
+		Ω(existsErr).NotTo(HaveOccurred())
+		Ω(exists).To(BeTrue())
+		defer func() {
+			err = kClient.RemoveNodeLabel(nodeName, key, value)
+			Ω(err).NotTo(HaveOccurred())
+		}()
 
 		port := int32(54321)
 		portMap := [][]interface{}{
@@ -995,9 +1012,15 @@ var _ = Describe("Predicates", func() {
 		By("Trying to apply a random label on the found node")
 		key := fmt.Sprintf("kubernetes.io/e2e-hostport-%s", common.RandSeq(10))
 		value := "104"
-		framework.AddOrUpdateLabelOnNode(kClient.GetClient(), nodeName, key, value)
-		framework.ExpectNodeHasLabel(kClient.GetClient(), nodeName, key, value)
-		defer framework.RemoveLabelOffNode(kClient.GetClient(), nodeName, key)
+		err := kClient.SetNodeLabel(nodeName, key, value)
+		Ω(err).NotTo(HaveOccurred())
+		exists, existsErr := kClient.IsNodeLabelExists(nodeName, key)
+		Ω(existsErr).NotTo(HaveOccurred())
+		Ω(exists).To(BeTrue())
+		defer func() {
+			err = kClient.RemoveNodeLabel(nodeName, key, value)
+			Ω(err).NotTo(HaveOccurred())
+		}()
 
 		port := int32(54322)
 		labelPodName := "same-hostport-" + common.RandSeq(10)
@@ -1024,7 +1047,7 @@ var _ = Describe("Predicates", func() {
 
 		initPod, podErr := k8s.InitTestPod(conf)
 		Ω(podErr).NotTo(HaveOccurred())
-		_, err := kClient.CreatePod(initPod, ns)
+		_, err = kClient.CreatePod(initPod, ns)
 		Ω(err).NotTo(HaveOccurred())
 		Ω(kClient.WaitForPodRunning(ns, labelPodName, time.Duration(60)*time.Second)).NotTo(HaveOccurred())
 

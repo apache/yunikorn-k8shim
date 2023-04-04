@@ -28,6 +28,7 @@ import (
 	"gotest.tools/v3/assert"
 	v1 "k8s.io/api/core/v1"
 	schedulingv1 "k8s.io/api/scheduling/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/cache"
@@ -82,6 +83,88 @@ func newPodHelper(name, namespace, podUID, nodeName string, podPhase v1.PodPhase
 			Phase: podPhase,
 		},
 	}
+}
+
+func TestAddNodes(t *testing.T) {
+	ctx := initContextForTest()
+
+	node := v1.Node{
+		ObjectMeta: apis.ObjectMeta{
+			Name:      "host0001",
+			Namespace: "default",
+			UID:       "uid_0001",
+		},
+	}
+
+	ctx.addNode(&node)
+	assert.Equal(t, true, ctx.schedulerCache.GetNode("host0001") != nil)
+	assert.Equal(t, true, ctx.nodes.getNode("host0001") != nil)
+}
+
+func TestUpdateNodes(t *testing.T) {
+	ctx := initContextForTest()
+
+	oldNodeResource := make(map[v1.ResourceName]resource.Quantity)
+	oldNodeResource[v1.ResourceName("memory")] = *resource.NewQuantity(1024*1000*1000, resource.DecimalSI)
+	oldNodeResource[v1.ResourceName("cpu")] = *resource.NewQuantity(2, resource.DecimalSI)
+	oldNode := v1.Node{
+		ObjectMeta: apis.ObjectMeta{
+			Name:      "host0001",
+			Namespace: "default",
+			UID:       "uid_0001",
+		},
+		Status: v1.NodeStatus{
+			Allocatable: oldNodeResource,
+		},
+	}
+
+	newNodeResource := make(map[v1.ResourceName]resource.Quantity)
+	newNodeResource[v1.ResourceName("memory")] = *resource.NewQuantity(2048*1000*1000, resource.DecimalSI)
+	newNodeResource[v1.ResourceName("cpu")] = *resource.NewQuantity(4, resource.DecimalSI)
+	newNode := v1.Node{
+		ObjectMeta: apis.ObjectMeta{
+			Name:      "host0001",
+			Namespace: "default",
+			UID:       "uid_0001",
+		},
+		Status: v1.NodeStatus{
+			Allocatable: newNodeResource,
+		},
+	}
+
+	ctx.addNode(&oldNode)
+	ctx.updateNode(&oldNode, &newNode)
+
+	assert.Equal(t, int64(2048*1000*1000), ctx.nodes.getNode("host0001").capacity.Resources[siCommon.Memory].Value)
+	assert.Equal(t, int64(4000), ctx.nodes.getNode("host0001").capacity.Resources[siCommon.CPU].Value)
+}
+
+func TestDeleteNodes(t *testing.T) {
+	ctx := initContextForTest()
+
+	node := v1.Node{
+		ObjectMeta: apis.ObjectMeta{
+			Name:      "host0001",
+			Namespace: "default",
+			UID:       "uid_0001",
+		},
+	}
+
+	ctx.addNode(&node)
+	assert.Equal(t, true, ctx.schedulerCache.GetNode("host0001") != nil)
+	assert.Equal(t, true, ctx.nodes.getNode("host0001") != nil)
+
+	ctx.deleteNode(&node)
+	assert.Equal(t, true, ctx.schedulerCache.GetNode("host0001") == nil)
+	assert.Equal(t, true, ctx.nodes.getNode("host0001") == nil)
+
+	ctx.addNode(&node)
+	assert.Equal(t, true, ctx.schedulerCache.GetNode("host0001") != nil)
+	assert.Equal(t, true, ctx.nodes.getNode("host0001") != nil)
+
+	ctx.deleteNode(cache.DeletedFinalStateUnknown{Key: "UID-00001", Obj: &node})
+	assert.Equal(t, true, ctx.schedulerCache.GetNode("host0001") == nil)
+	assert.Equal(t, true, ctx.nodes.getNode("host0001") == nil)
 }
 
 func TestAddApplications(t *testing.T) {

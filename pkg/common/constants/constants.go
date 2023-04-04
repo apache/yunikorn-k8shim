@@ -87,8 +87,20 @@ const MemQuota = "yunikorn.apache.org/namespace.max.memory"
 // NamespaceQuota Namespace Quota
 const NamespaceQuota = "yunikorn.apache.org/namespace.quota"
 
-// Preemption
+// AnnotationAllowPreemption set on PriorityClass, opt out of preemption for pods with this priority class
 const AnnotationAllowPreemption = "yunikorn.apache.org/allow-preemption"
+
+// AnnotationGenerateAppID adds application ID to workloads in the namespace even if not set in the admission config.
+// Overrides the regexp behaviour if set, checked before the regexp is evaluated.
+// true: add an application ID label
+// false: do not add an application ID
+const AnnotationGenerateAppID = "yunikorn.apache.org/namespace.generateAppId"
+
+// AnnotationEnableYuniKorn sets the scheduler name to YuniKorn for workloads in the namespace even if not set in the admission config.
+// Overrides the regexp behaviour if set, checked before the regexp is evaluated.
+// true: set the scheduler name to YuniKorn
+// false: do not do anything
+const AnnotationEnableYuniKorn = "yunikorn.apache.org/namespace.enableYuniKorn"
 
 // Admission Controller pod label update constants
 const AutoGenAppPrefix = "yunikorn"

@@ -22,7 +22,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/onsi/ginkgo"
+	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -135,13 +135,13 @@ var _ = ginkgo.Describe("Static_Queue_Priority", func() {
 	})
 
 	ginkgo.AfterEach(func() {
-		testDescription := ginkgo.CurrentGinkgoTestDescription()
-		if testDescription.Failed {
-			tests.LogTestClusterInfoWrapper(testDescription.TestText, []string{ns})
-			tests.LogYunikornContainer(testDescription.TestText)
+		testDescription := ginkgo.CurrentSpecReport()
+		if testDescription.Failed() {
+			tests.LogTestClusterInfoWrapper(testDescription.FailureMessage(), []string{ns})
+			tests.LogYunikornContainer(testDescription.FailureMessage())
 		}
-		By(fmt.Sprintf("Removing test namespace %s", ns))
-		err = kubeClient.DeleteNamespace(ns)
+		By(fmt.Sprintf("Tearing down namespace %s", ns))
+		err = kubeClient.TearDownNamespace(ns)
 		Ω(err).ShouldNot(HaveOccurred())
 
 		By("Restoring YuniKorn configuration")
@@ -215,9 +215,9 @@ var _ = ginkgo.Describe("Dynamic_Queue_Priority", func() {
 	})
 
 	ginkgo.AfterEach(func() {
-		By(fmt.Sprintf("Removing test namespace %s", ns))
-		err = kubeClient.DeleteNamespace(ns)
-		Ω(err).ShouldNot(HaveOccurred())
+		By("Tear down namespace: " + ns)
+		err := kubeClient.TearDownNamespace(ns)
+		Ω(err).NotTo(HaveOccurred())
 
 		By("Restoring YuniKorn configuration")
 		yunikorn.RestoreConfigMapWrapper(oldConfigMap, annotation)

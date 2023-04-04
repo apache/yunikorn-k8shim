@@ -24,10 +24,9 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/onsi/ginkgo/reporters"
+	"github.com/onsi/ginkgo/v2/reporters"
 
-	"github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/extensions/table"
+	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
@@ -52,10 +51,16 @@ var _ = AfterSuite(func() {
 })
 
 func TestStateAwareAppScheduling(t *testing.T) {
-	RegisterFailHandler(Fail)
-	junitReporter := reporters.NewJUnitReporter(
-		filepath.Join(configmanager.YuniKornTestConfig.LogDir, "QueueQuotaMgmt_junit.xml"))
-	ginkgo.RunSpecsWithDefaultAndCustomReporters(t, "TestQueueQuotaMgmt", []ginkgo.Reporter{junitReporter})
+	ginkgo.ReportAfterSuite("TestQueueQuotaMgmt", func(report ginkgo.Report) {
+		err := reporters.GenerateJUnitReportWithConfig(
+			report,
+			filepath.Join(configmanager.YuniKornTestConfig.LogDir, "QueueQuotaMgmt_junit.xml"),
+			reporters.JunitReportConfig{OmitSpecLabels: true},
+		)
+		Ω(err).NotTo(HaveOccurred())
+	})
+	gomega.RegisterFailHandler(ginkgo.Fail)
+	ginkgo.RunSpecs(t, "TestQueueQuotaMgmt", ginkgo.Label("TestQueueQuotaMgmt"))
 }
 
 // Declarations for Ginkgo DSL
@@ -66,8 +71,8 @@ var PIt = ginkgo.PIt
 var By = ginkgo.By
 var BeforeEach = ginkgo.BeforeEach
 var AfterEach = ginkgo.AfterEach
-var DescribeTable = table.DescribeTable
-var Entry = table.Entry
+var DescribeTable = ginkgo.DescribeTable
+var Entry = ginkgo.Entry
 var BeforeSuite = ginkgo.BeforeSuite
 var AfterSuite = ginkgo.AfterSuite
 

@@ -22,25 +22,20 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/onsi/ginkgo/v2"
+	"github.com/onsi/ginkgo/v2/reporters"
+	"github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
-
-	"github.com/onsi/ginkgo/extensions/table"
-	"github.com/onsi/ginkgo/reporters"
 
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
-	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
-
-	"github.com/onsi/ginkgo"
-	"github.com/onsi/gomega"
 )
 
 func init() {
 	configmanager.YuniKornTestConfig.ParseFlags()
 }
 
-var k = k8s.KubeCtl{}
 var oldConfigMap = new(v1.ConfigMap)
 var annotation string
 
@@ -55,18 +50,24 @@ var _ = AfterSuite(func() {
 })
 
 func TestPredicates(t *testing.T) {
-	RegisterFailHandler(Fail)
-	junitReporter := reporters.NewJUnitReporter(
-		filepath.Join(configmanager.YuniKornTestConfig.LogDir, "Predicates_junit.xml"))
-	ginkgo.RunSpecsWithDefaultAndCustomReporters(t, "TestPredicates", []ginkgo.Reporter{junitReporter})
+	ginkgo.ReportAfterSuite("TestPredicates", func(report ginkgo.Report) {
+		err := reporters.GenerateJUnitReportWithConfig(
+			report,
+			filepath.Join(configmanager.YuniKornTestConfig.LogDir, "Predicates_junit.xml"),
+			reporters.JunitReportConfig{OmitSpecLabels: true},
+		)
+		Ω(err).NotTo(HaveOccurred())
+	})
+	gomega.RegisterFailHandler(ginkgo.Fail)
+	ginkgo.RunSpecs(t, "TestPredicates", ginkgo.Label("TestPredicates"))
 }
 
 // type Benchmarker ginkgo.Benchmarker
 var Fail = ginkgo.Fail
 
 var Describe = ginkgo.Describe
-var DescribeTable = table.DescribeTable
-var Entry = table.Entry
+var DescribeTable = ginkgo.DescribeTable
+var Entry = ginkgo.Entry
 var Context = ginkgo.Context
 var It = ginkgo.It
 var By = ginkgo.By

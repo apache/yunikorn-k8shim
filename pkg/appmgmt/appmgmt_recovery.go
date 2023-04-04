@@ -19,7 +19,7 @@
 package appmgmt
 
 import (
-	"fmt"
+	"errors"
 	"sort"
 	"time"
 
@@ -28,18 +28,21 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/general"
 	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/yunikorn-k8shim/pkg/cache"
-	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
 
-func (svc *AppManagementService) WaitForRecovery(maxTimeout time.Duration) error {
+// WaitForRecovery initiates and waits for the app management service to finish recovery. If recovery
+// is canceled (used by testing code) or an error occurs, an error will be returned. In production, this
+// method will block until recovery completes.
+func (svc *AppManagementService) WaitForRecovery() error {
 	if !svc.apiProvider.IsTestingMode() {
 		apps, err := svc.recoverApps()
 		if err != nil {
 			return err
 		}
-
-		return svc.waitForAppRecovery(apps, maxTimeout)
+		if !svc.waitForAppRecovery(apps) {
+			return errors.New("recovery aborted")
+		}
 	}
 	return nil
 }
@@ -71,33 +74,49 @@ func (svc *AppManagementService) recoverApps() (map[string]interfaces.ManagedApp
 	return recoveringApps, nil
 }
 
-func (svc *AppManagementService) waitForAppRecovery(
-	recoveringApps map[string]interfaces.ManagedApp, maxTimeout time.Duration) error {
-	if len(recoveringApps) > 0 {
-		log.Logger().Info("wait for app recovery",
-			zap.Int("appToRecover", len(recoveringApps)))
-		// check app states periodically, ensure all apps exit from recovering state
-		if err := utils.WaitForCondition(func() bool {
-			for _, app := range recoveringApps {
-				log.Logger().Debug("appInfo",
-					zap.String("appId", app.GetApplicationID()),
-					zap.String("state", app.GetApplicationState()))
-				if app.GetApplicationState() == cache.ApplicationStates().Accepted {
-					delete(recoveringApps, app.GetApplicationID())
-				}
-			}
-
-			if len(recoveringApps) == 0 {
-				log.Logger().Info("app recovery is successful")
-				return true
-			}
-
+// waitForAppRecovery blocks until either all applications have been processed (returning true)
+// or cancelWaitForAppRecovery is called (returning false)
+func (svc *AppManagementService) waitForAppRecovery(recoveringApps map[string]interfaces.ManagedApp) bool {
+	svc.cancelRecovery.Store(false) // reset cancellation token
+	recoveryStartTime := time.Now()
+	counter := 0
+	for {
+		// check for cancellation token
+		if svc.cancelRecovery.Load() {
+			log.Logger().Info("Waiting for recovery canceled.")
+			svc.cancelRecovery.Store(false)
 			return false
-		}, 1*time.Second, maxTimeout); err != nil {
-			return fmt.Errorf("timeout waiting for app recovery in %s",
-				maxTimeout.String())
+		}
+
+		svc.removeRecoveredApps(recoveringApps)
+		if len(recoveringApps) == 0 {
+			log.Logger().Info("Application recovery complete.")
+			return true
+		}
+		counter++
+		if counter%10 == 0 {
+			log.Logger().Info("Waiting for application recovery",
+				zap.Duration("timeElapsed", time.Since(recoveryStartTime).Round(time.Second)),
+				zap.Int("appsRemaining", len(recoveringApps)))
+		}
+		time.Sleep(1 * time.Second)
+	}
+}
+
+// cancelWaitForAppRecovery is used by testing code to ensure that waitForAppRecovery does not block forever
+func (svc *AppManagementService) cancelWaitForAppRecovery() {
+	svc.cancelRecovery.Store(true)
+}
+
+// removeRecoveredApps is used to walk the currently recovering apps list and remove those that have finished recovering
+func (svc *AppManagementService) removeRecoveredApps(recoveringApps map[string]interfaces.ManagedApp) {
+	for _, app := range recoveringApps {
+		state := app.GetApplicationState()
+		if state != cache.ApplicationStates().New && state != cache.ApplicationStates().Recovering {
+			log.Logger().Info("Recovered application",
+				zap.String("appId", app.GetApplicationID()),
+				zap.String("state", state))
+			delete(recoveringApps, app.GetApplicationID())
 		}
 	}
-
-	return nil
 }

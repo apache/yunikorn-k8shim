@@ -22,7 +22,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/onsi/ginkgo"
+	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -239,10 +239,8 @@ var _ = ginkgo.Describe("AdmissionController", func() {
 			}
 			return name, err
 		}
-		delete := func(name string) error {
-			return kubeClient.DeleteDeployment(name, ns)
-		}
-		runWorkloadTest("Deployment", create, delete, defaultPodTimeout)
+
+		runWorkloadTest(k8s.Deployment, create, defaultPodTimeout)
 	})
 
 	ginkgo.It("Check that annotation is added to a StatefulSet", func() {
@@ -254,11 +252,8 @@ var _ = ginkgo.Describe("AdmissionController", func() {
 			}
 			return name, err
 		}
-		delete := func(name string) error {
-			return kubeClient.DeleteStatefulSet(name, ns)
-		}
 
-		runWorkloadTest("StatefulSet", create, delete, defaultPodTimeout)
+		runWorkloadTest(k8s.StatefulSet, create, defaultPodTimeout)
 	})
 
 	ginkgo.It("Check that annotation is added to a DaemonSet", func() {
@@ -270,11 +265,8 @@ var _ = ginkgo.Describe("AdmissionController", func() {
 			}
 			return name, err
 		}
-		delete := func(name string) error {
-			return kubeClient.DeleteDaemonSet(name, ns)
-		}
 
-		runWorkloadTest("DaemonSet", create, delete, defaultPodTimeout)
+		runWorkloadTest(k8s.DaemonSet, create, defaultPodTimeout)
 	})
 
 	ginkgo.It("Check that annotation is added to a ReplicaSet", func() {
@@ -286,11 +278,8 @@ var _ = ginkgo.Describe("AdmissionController", func() {
 			}
 			return name, err
 		}
-		delete := func(name string) error {
-			return kubeClient.DeleteReplicaSet(name, ns)
-		}
 
-		runWorkloadTest("ReplicaSet", create, delete, defaultPodTimeout)
+		runWorkloadTest(k8s.ReplicaSet, create, defaultPodTimeout)
 	})
 
 	ginkgo.It("Check that annotation is added to a Job", func() {
@@ -302,11 +291,8 @@ var _ = ginkgo.Describe("AdmissionController", func() {
 			}
 			return name, err
 		}
-		delete := func(name string) error {
-			return kubeClient.DeleteJob(name, ns)
-		}
 
-		runWorkloadTest("Job", create, delete, defaultPodTimeout)
+		runWorkloadTest(k8s.Job, create, defaultPodTimeout)
 	})
 
 	ginkgo.It("Check that annotation is added to a CronJob", func() {
@@ -318,11 +304,8 @@ var _ = ginkgo.Describe("AdmissionController", func() {
 			}
 			return name, err
 		}
-		delete := func(name string) error {
-			return kubeClient.DeleteCronJob(name, ns)
-		}
 
-		runWorkloadTest("CronJob", create, delete, cronJobPodTimeout)
+		runWorkloadTest(k8s.CronJob, create, cronJobPodTimeout)
 	})
 
 	ginkgo.It("Check that deployment is rejected when controller users are not trusted", func() {
@@ -348,9 +331,7 @@ var _ = ginkgo.Describe("AdmissionController", func() {
 		ginkgo.By("Create a deployment")
 		deployment, err2 := kubeClient.CreateDeployment(&testDeployment, ns)
 		gomega.Ω(err2).ShouldNot(gomega.HaveOccurred())
-		defer deleteWorkload(deployment.Name, func(_ string) error {
-			return kubeClient.DeleteDeployment(deployment.Name, ns)
-		}, ns)
+		defer kubeClient.DeleteWorkloadAndPods(deployment.Name, k8s.Deployment, ns)
 
 		// pod is not expected to appear
 		ginkgo.By("Check for sleep pods (should time out)")
@@ -429,15 +410,80 @@ var _ = ginkgo.Describe("AdmissionController", func() {
 		ginkgo.By("Submit deployment again")
 		_, err = kubeClient.CreateDeployment(deployment, ns)
 		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
-		defer deleteWorkload(deployment.Name, func(_ string) error {
-			return kubeClient.DeleteDeployment(deployment.Name, ns)
-		}, ns)
+		defer kubeClient.DeleteWorkloadAndPods(deployment.Name, k8s.Deployment, ns)
 
 		// pod is expected to appear
 		ginkgo.By("Check for sleep pod")
 		err = kubeClient.WaitForPodBySelector(ns, fmt.Sprintf("app=%s", testDeployment.ObjectMeta.Labels["app"]),
 			60*time.Second)
 		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
+	})
+
+	ginkgo.It("Check that replicaset is not modified if submitted by system user", func() {
+		ginkgo.By("Retrieve existing configmap")
+		configMap, err := kubeClient.GetConfigMap(constants.ConfigMapName, configmanager.YuniKornTestConfig.YkNamespace)
+		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
+		if configMap.Data == nil {
+			configMap.Data = make(map[string]string)
+		}
+		configMap.Data[amConf.AMAccessControlBypassAuth] = "true"
+		ginkgo.By("Update configmap (bypassAuth -> true)")
+		stopChan := make(chan struct{})
+		eventHandler := &EventHandler{updateCh: make(chan struct{})}
+		err = kubeClient.StartConfigMapInformer(configmanager.YuniKornTestConfig.YkNamespace, stopChan, eventHandler)
+		defer close(stopChan)
+		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
+		_, err = kubeClient.UpdateConfigMap(configMap, configmanager.YuniKornTestConfig.YkNamespace)
+		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
+		updateOk := eventHandler.WaitForUpdate(30 * time.Second)
+		gomega.Ω(updateOk).To(gomega.Equal(true))
+		time.Sleep(time.Second)
+
+		ginkgo.By("Submit a deployment")
+		deployment := testDeployment.DeepCopy()
+		_, err = kubeClient.CreateDeployment(deployment, ns)
+		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
+		defer kubeClient.DeleteWorkloadAndPods(deployment.Name, k8s.Deployment, ns)
+		ginkgo.By("Check for sleep pod")
+		err = kubeClient.WaitForPodBySelector(ns, fmt.Sprintf("app=%s", deployment.ObjectMeta.Labels["app"]),
+			60*time.Second)
+		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
+
+		ginkgo.By("Update configmap (bypassAuth -> false)")
+		configMap, err = kubeClient.GetConfigMap(constants.ConfigMapName, configmanager.YuniKornTestConfig.YkNamespace)
+		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
+		configMap.Data[amConf.AMAccessControlBypassAuth] = "false"
+		_, err = kubeClient.UpdateConfigMap(configMap, configmanager.YuniKornTestConfig.YkNamespace)
+		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
+		updateOk = eventHandler.WaitForUpdate(30 * time.Second)
+		gomega.Ω(updateOk).To(gomega.Equal(true))
+		time.Sleep(time.Second)
+
+		ginkgo.By("Update container image in deployment")
+		deployment, err = kubeClient.GetDeployment(deployment.Name, ns)
+		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
+		container := deployment.Spec.Template.Spec.Containers[0]
+		container.Image = "nginx:1.16.1"
+		deployment.Spec.Template.Spec.Containers[0] = container
+		_, err = kubeClient.UpdateDeployment(deployment, ns)
+		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
+
+		ginkgo.By("Wait for sleep pod")
+		err = kubeClient.WaitForPodBySelectorRunning(ns, fmt.Sprintf("app=%s", testDeployment.ObjectMeta.Labels["app"]),
+			60)
+		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
+
+		ginkgo.By("Check for number of replicasets")
+		replicaSetList, err2 := kubeClient.GetReplicaSets(ns)
+		gomega.Ω(err2).ShouldNot(gomega.HaveOccurred())
+		for _, rs := range replicaSetList.Items {
+			fmt.Fprintf(ginkgo.GinkgoWriter, "%-20s\tReplicas: %d\tReady: %d\tAvailable: %d\n",
+				rs.Name,
+				rs.Status.Replicas,
+				rs.Status.ReadyReplicas,
+				rs.Status.AvailableReplicas)
+		}
+		gomega.Ω(len(replicaSetList.Items)).To(gomega.Equal(2))
 	})
 
 	ginkgo.AfterEach(func() {
@@ -452,12 +498,12 @@ var _ = ginkgo.Describe("AdmissionController", func() {
 	})
 })
 
-func runWorkloadTest(workloadType string, create func() (string, error),
-	delete func(string) error, podTimeout time.Duration) {
-	ginkgo.By("Create a " + workloadType)
+func runWorkloadTest(workloadType k8s.WorkloadType, create func() (string, error),
+	podTimeout time.Duration) {
+	ginkgo.By("Create a " + string(workloadType))
 	name, err := create()
 	gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
-	defer deleteWorkload(name, delete, ns)
+	defer kubeClient.DeleteWorkloadAndPods(name, workloadType, ns)
 	err = kubeClient.WaitForPodBySelector(ns, "app="+appName, podTimeout)
 	gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
 
@@ -478,21 +524,4 @@ func deletePod(pod *v1.Pod, namespace string) {
 		err := kubeClient.DeletePod(pod.Name, namespace)
 		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
 	}
-}
-
-func deleteWorkload(objectName string, delete func(string) error, namespace string) {
-	ginkgo.By("Delete " + objectName)
-	err := delete(objectName)
-	gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
-
-	pods, err2 := kubeClient.GetPods(ns)
-	gomega.Ω(err2).ShouldNot(gomega.HaveOccurred())
-	ginkgo.By("Forcibly deleting pods")
-	for _, pod := range pods.Items {
-		//nolint:errcheck
-		_ = kubeClient.DeletePod(pod.Name, namespace)
-	}
-
-	err = kubeClient.WaitForPodCount(namespace, 0, 10*time.Second)
-	gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
 }

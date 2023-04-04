@@ -59,7 +59,7 @@ func TestUpdatePodLabelForAdmissionController(t *testing.T) {
 		Status: v1.PodStatus{},
 	}
 
-	if result := UpdatePodLabelForAdmissionController(pod, "default"); result != nil {
+	if result := updatePodLabel(pod, "default"); result != nil {
 		assert.Equal(t, len(result), 4)
 		assert.Equal(t, result["random"], "random")
 		assert.Equal(t, result["queue"], "root.default")
@@ -90,7 +90,7 @@ func TestUpdatePodLabelForAdmissionController(t *testing.T) {
 		Status: v1.PodStatus{},
 	}
 
-	if result := UpdatePodLabelForAdmissionController(pod, "default"); result != nil {
+	if result := updatePodLabel(pod, "default"); result != nil {
 		assert.Equal(t, len(result), 3)
 		assert.Equal(t, result["random"], "random")
 		assert.Equal(t, result["queue"], "root.default")
@@ -119,7 +119,7 @@ func TestUpdatePodLabelForAdmissionController(t *testing.T) {
 		Spec:   v1.PodSpec{},
 		Status: v1.PodStatus{},
 	}
-	if result := UpdatePodLabelForAdmissionController(pod, "default"); result != nil {
+	if result := updatePodLabel(pod, "default"); result != nil {
 		assert.Equal(t, len(result), 4)
 		assert.Equal(t, result["random"], "random")
 		assert.Equal(t, result["queue"], "root.abc")
@@ -144,7 +144,7 @@ func TestUpdatePodLabelForAdmissionController(t *testing.T) {
 		Spec:   v1.PodSpec{},
 		Status: v1.PodStatus{},
 	}
-	if result := UpdatePodLabelForAdmissionController(pod, "default"); result != nil {
+	if result := updatePodLabel(pod, "default"); result != nil {
 		assert.Equal(t, len(result), 3)
 		assert.Equal(t, result["queue"], "root.default")
 		assert.Equal(t, result["disableStateAware"], "true")
@@ -165,7 +165,7 @@ func TestUpdatePodLabelForAdmissionController(t *testing.T) {
 		Spec:   v1.PodSpec{},
 		Status: v1.PodStatus{},
 	}
-	if result := UpdatePodLabelForAdmissionController(pod, "default"); result != nil {
+	if result := updatePodLabel(pod, "default"); result != nil {
 		assert.Equal(t, len(result), 3)
 		assert.Equal(t, result["queue"], "root.default")
 		assert.Equal(t, result["disableStateAware"], "true")
@@ -183,7 +183,7 @@ func TestUpdatePodLabelForAdmissionController(t *testing.T) {
 		Spec:       v1.PodSpec{},
 		Status:     v1.PodStatus{},
 	}
-	if result := UpdatePodLabelForAdmissionController(pod, "default"); result != nil {
+	if result := updatePodLabel(pod, "default"); result != nil {
 		assert.Equal(t, len(result), 3)
 		assert.Equal(t, result["queue"], "root.default")
 		assert.Equal(t, result["disableStateAware"], "true")

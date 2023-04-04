@@ -22,8 +22,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/reporters"
+	"github.com/onsi/ginkgo/v2"
+	"github.com/onsi/ginkgo/v2/reporters"
 	"github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 
@@ -39,9 +39,16 @@ func init() {
 }
 
 func TestBinPacking(t *testing.T) {
+	ginkgo.ReportAfterSuite("TestBinPacking", func(report ginkgo.Report) {
+		err := reporters.GenerateJUnitReportWithConfig(
+			report,
+			filepath.Join(configmanager.YuniKornTestConfig.LogDir, "TEST-bin_packing_junit.xml"),
+			reporters.JunitReportConfig{OmitSpecLabels: true},
+		)
+		Ω(err).NotTo(HaveOccurred())
+	})
 	gomega.RegisterFailHandler(ginkgo.Fail)
-	junitReporter := reporters.NewJUnitReporter(filepath.Join(configmanager.YuniKornTestConfig.LogDir, "TEST-bin_packing_junit.xml"))
-	ginkgo.RunSpecsWithDefaultAndCustomReporters(t, "TestBinPacking", []ginkgo.Reporter{junitReporter})
+	ginkgo.RunSpecs(t, "TestBinPacking", ginkgo.Label("TestBinPacking"))
 }
 
 var oldConfigMap = new(v1.ConfigMap)
@@ -109,7 +116,6 @@ var BeforeEach = ginkgo.BeforeEach
 var AfterEach = ginkgo.AfterEach
 var BeforeSuite = ginkgo.BeforeSuite
 var AfterSuite = ginkgo.AfterSuite
-var CurrentGinkgoTestDescription = ginkgo.CurrentGinkgoTestDescription
 
 // Declarations for Gomega Matchers
 var Equal = gomega.Equal

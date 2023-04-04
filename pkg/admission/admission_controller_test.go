@@ -25,7 +25,6 @@ import (
 	"net/http/httptest"
 	"regexp"
 	"strings"
-	"sync"
 	"testing"
 
 	"gotest.tools/v3/assert"
@@ -34,7 +33,6 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	authv1 "k8s.io/api/authentication/v1"
 	v1 "k8s.io/api/core/v1"
-	schedulingv1 "k8s.io/api/scheduling/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -268,7 +266,8 @@ func TestUpdateSchedulerName(t *testing.T) {
 
 func TestValidateConfigMapEmpty(t *testing.T) {
 	pcCache := createPriorityClassCacheForTest()
-	controller := InitAdmissionController(createConfig(), pcCache)
+	nsCache := createNamespaceClassCacheForTest()
+	controller := InitAdmissionController(createConfig(), pcCache, nsCache)
 	configmap := &v1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: constants.ConfigMapName,
@@ -291,9 +290,7 @@ partitions:
         submitacl: "*"
 `
 
-/**
-Test for the case when the POST request is successful, and the config change is allowed.
-*/
+// Test for the case when the POST request is successful, and the config change is allowed.
 func TestValidateConfigMapValidConfig(t *testing.T) {
 	configmap := prepareConfigMap(ConfigData)
 	srv := serverMock(Success)
@@ -304,9 +301,7 @@ func TestValidateConfigMapValidConfig(t *testing.T) {
 	assert.NilError(t, err, "No error expected")
 }
 
-/**
-Test for the case when the POST request is successful, but the config change is not allowed.
-*/
+// Test for the case when the POST request is successful, but the config change is not allowed.
 func TestValidateConfigMapInvalidConfig(t *testing.T) {
 	configmap := prepareConfigMap(ConfigData)
 	srv := serverMock(Failure)
@@ -319,9 +314,7 @@ func TestValidateConfigMapInvalidConfig(t *testing.T) {
 		"Other error returned than the expected one")
 }
 
-/**
-Test for the case when the POST request fails
-*/
+// Test for the case when the POST request fails
 func TestValidateConfigMapWrongRequest(t *testing.T) {
 	configmap := prepareConfigMap(ConfigData)
 	srv := serverMock(Failure)
@@ -332,9 +325,7 @@ func TestValidateConfigMapWrongRequest(t *testing.T) {
 	assert.NilError(t, err, "No error expected")
 }
 
-/**
-Test for the case of server error
-*/
+// Test for the case of server error
 func TestValidateConfigMapServerError(t *testing.T) {
 	configmap := prepareConfigMap(ConfigData)
 	srv := serverMock(Error)
@@ -357,6 +348,7 @@ func prepareConfigMap(data string) *v1.ConfigMap {
 
 func prepareController(t *testing.T, url string, processNs string, bypassNs string, labelNs string, noLabelNs string, bypassAuth bool, trustControllers bool) *AdmissionController {
 	pcCache := createPriorityClassCacheForTest()
+	nsCache := createNamespaceClassCacheForTest()
 	if bypassNs == "" {
 		bypassNs = "^kube-system$"
 	}
@@ -368,11 +360,11 @@ func prepareController(t *testing.T, url string, processNs string, bypassNs stri
 		conf.AMFilteringNoLabelNamespaces:     noLabelNs,
 		conf.AMAccessControlBypassAuth:        fmt.Sprintf("%t", bypassAuth),
 		conf.AMAccessControlTrustControllers:  fmt.Sprintf("%t", trustControllers),
-		conf.AMAccessControlSystemUsers:       "^system:serviceaccount:kube-system:job-controller$",
+		conf.AMAccessControlSystemUsers:       "^system:serviceaccount:kube-system:job-controller$,^system:serviceaccount:kube-system:deployment-controller$",
 		conf.AMAccessControlExternalUsers:     "^testExtUser$",
 		conf.AMAccessControlExternalGroups:    "^testExtGroup$",
 	})
-	return InitAdmissionController(config, pcCache)
+	return InitAdmissionController(config, pcCache, nsCache)
 }
 
 func serverMock(mode responseMode) *httptest.Server {
@@ -580,6 +572,36 @@ func TestMutate(t *testing.T) {
 	resp = ac.mutate(req)
 	assert.Check(t, resp.Allowed, "response not allowed for unknown object type")
 	assert.Equal(t, len(resp.Patch), 0, "non-empty patch for deployment")
+
+	// replicaset - no patch for system user
+	replicaSet := appsv1.ReplicaSet{
+		Spec: appsv1.ReplicaSetSpec{
+			Template: v1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "test-ns",
+					Annotations: map[string]string{
+						common.UserInfoAnnotation: validUserInfoAnnotation,
+					},
+				},
+			},
+		},
+	}
+	ac = prepareController(t, "", "", "^kube-system$,^bypass$", "", "^nolabel$", false, true)
+	req = &admissionv1.AdmissionRequest{
+		UID:       "test-uid",
+		Namespace: "test-ns",
+		Kind:      metav1.GroupVersionKind{Kind: "ReplicaSet"},
+		UserInfo: authv1.UserInfo{
+			Username: "system:serviceaccount:kube-system:deployment-controller",
+			Groups:   []string{"system:serviceaccounts", "system:serviceaccounts:kube-system"},
+		},
+	}
+	replicaSetJSON, err2 := json.Marshal(replicaSet)
+	assert.NilError(t, err2, "failed to marshal replicaset")
+	req.Object = runtime.RawExtension{Raw: replicaSetJSON}
+	resp = ac.mutate(req)
+	assert.Check(t, resp.Allowed, "response not allowed for replicaset")
+	assert.Equal(t, 0, len(resp.Patch), "non-empty patch for replicaset")
 }
 
 func TestMutateUpdate(t *testing.T) {
@@ -765,6 +787,38 @@ func TestExternalAuthentication(t *testing.T) {
 	resp = ac.mutate(req)
 	assert.Check(t, !resp.Allowed, "response was allowed")
 	assert.Check(t, strings.Contains(resp.Result.Message, "invalid character 'x'"))
+
+	// replicaset submitted by system user
+	replicaSet := appsv1.ReplicaSet{
+		Spec: appsv1.ReplicaSetSpec{
+			Template: v1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "test-ns",
+					Annotations: map[string]string{
+						common.UserInfoAnnotation: validUserInfoAnnotation,
+					},
+				},
+			},
+		},
+	}
+	replicaSetJSON, err3 := json.Marshal(replicaSet)
+	assert.NilError(t, err3, "failed to marshal replicaset")
+	req.Object = runtime.RawExtension{Raw: replicaSetJSON}
+	req.Kind = metav1.GroupVersionKind{Kind: "ReplicaSet"}
+	req.UserInfo = authv1.UserInfo{
+		Username: "system:serviceaccount:kube-system:deployment-controller",
+		Groups:   []string{"system:serviceaccounts", "system:serviceaccounts:kube-system"},
+	}
+	resp = ac.mutate(req)
+	assert.Check(t, resp.Allowed, "response was not allowed")
+
+	// replicaset submitted by normal user
+	req.UserInfo = authv1.UserInfo{
+		Username: "testExtUser",
+		Groups:   []string{"dev"},
+	}
+	resp = ac.mutate(req)
+	assert.Check(t, resp.Allowed, "response was not allowed")
 }
 
 func parsePatch(t *testing.T, patch []byte) []common.PatchOperation {
@@ -821,6 +875,20 @@ func TestShouldProcessNamespace(t *testing.T) {
 	assert.Check(t, !ac.shouldProcessNamespace("test"), "test namespace allowed when not on process list")
 	assert.Check(t, ac.shouldProcessNamespace("allow-this"), "allow-this namespace not allowed when on process list")
 	assert.Check(t, !ac.shouldProcessNamespace("allow-except-this"), "allow-except-this namespace allowed when on bypass list")
+
+	ac = prepareController(t, "", "^ns-no-annotation$", "^ns-regexp-deny$", "", "", false, true)
+	ac.nsCache.nameSpaces["ns-no-annotation"] = nsFlags{enableYuniKorn: -1, generateAppID: -1}
+	ac.nsCache.nameSpaces["ns-process-true"] = nsFlags{enableYuniKorn: 1, generateAppID: -1}
+	ac.nsCache.nameSpaces["ns-process-false"] = nsFlags{enableYuniKorn: 0, generateAppID: -1}
+	assert.Check(t, ac.shouldProcessNamespace("ns-no-annotation"), "no annotation namespace allowed")
+	assert.Check(t, ac.shouldProcessNamespace("ns-process-true"), "namespace process true")
+	assert.Check(t, !ac.shouldProcessNamespace("ns-process-false"), "namespace process false")
+	assert.Check(t, !ac.shouldProcessNamespace("unknown"), "namespace unknown not allowed")
+
+	// check regexp override
+	assert.Check(t, !ac.shouldProcessNamespace("ns-regexp-deny"), "namespace deny regexp not allowed")
+	ac.nsCache.nameSpaces["ns-regexp-deny"] = nsFlags{enableYuniKorn: 1, generateAppID: -1}
+	assert.Check(t, ac.shouldProcessNamespace("ns-regexp-deny"), "namespace override via annotation")
 }
 
 func TestShouldLabelNamespace(t *testing.T) {
@@ -832,6 +900,20 @@ func TestShouldLabelNamespace(t *testing.T) {
 	assert.Check(t, !ac.shouldLabelNamespace("test"), "test namespace allowed when not on label list")
 	assert.Check(t, ac.shouldLabelNamespace("allow-this"), "allow-this namespace not allowed when on label list")
 	assert.Check(t, !ac.shouldLabelNamespace("allow-except-this"), "allow-except-this namespace allowed when on no-label list")
+
+	ac = prepareController(t, "", "", "", "^ns-no-annotation$", "^ns-regexp-deny$", false, true)
+	ac.nsCache.nameSpaces["ns-no-annotation"] = nsFlags{enableYuniKorn: -1, generateAppID: -1}
+	ac.nsCache.nameSpaces["ns-generate-true"] = nsFlags{enableYuniKorn: -1, generateAppID: 1}
+	ac.nsCache.nameSpaces["ns-generate-false"] = nsFlags{enableYuniKorn: -1, generateAppID: 0}
+	assert.Check(t, ac.shouldLabelNamespace("ns-no-annotation"), "no annotation namespace allowed")
+	assert.Check(t, ac.shouldLabelNamespace("ns-generate-true"), "namespace generate true")
+	assert.Check(t, !ac.shouldLabelNamespace("ns-generate-false"), "namespace generate false")
+	assert.Check(t, !ac.shouldLabelNamespace("unknown"), "namespace unknown not allowed")
+
+	// check regexp override
+	assert.Check(t, !ac.shouldLabelNamespace("ns-regexp-deny"), "namespace deny regexp not allowed")
+	ac.nsCache.nameSpaces["ns-regexp-deny"] = nsFlags{enableYuniKorn: -1, generateAppID: 1}
+	assert.Check(t, ac.shouldLabelNamespace("ns-regexp-deny"), "namespace override via annotation")
 }
 
 func TestParseRegexes(t *testing.T) {
@@ -867,37 +949,43 @@ func TestParseRegexes(t *testing.T) {
 
 func TestInitAdmissionControllerRegexErrorHandling(t *testing.T) {
 	pcCache := createPriorityClassCacheForTest()
-	ac := InitAdmissionController(createConfig(), pcCache)
+	nsCache := createNamespaceClassCacheForTest()
+	ac := InitAdmissionController(createConfig(), pcCache, nil)
 	assert.Equal(t, 1, len(ac.conf.GetBypassNamespaces()))
 	assert.Equal(t, conf.DefaultFilteringBypassNamespaces, ac.conf.GetBypassNamespaces()[0].String(), "didn't set default bypassNamespaces")
 
-	ac = InitAdmissionController(createConfigWithOverrides(map[string]string{conf.AMFilteringProcessNamespaces: "("}), pcCache)
+	ac = InitAdmissionController(createConfigWithOverrides(map[string]string{conf.AMFilteringProcessNamespaces: "("}), pcCache, nsCache)
 	assert.Equal(t, 0, len(ac.conf.GetProcessNamespaces()), "didn't fail on bad processNamespaces list")
 
-	ac = InitAdmissionController(createConfigWithOverrides(map[string]string{conf.AMFilteringBypassNamespaces: "("}), pcCache)
+	ac = InitAdmissionController(createConfigWithOverrides(map[string]string{conf.AMFilteringBypassNamespaces: "("}), pcCache, nsCache)
 	assert.Equal(t, 1, len(ac.conf.GetBypassNamespaces()))
 	assert.Equal(t, conf.DefaultFilteringBypassNamespaces, ac.conf.GetBypassNamespaces()[0].String(), "didn't fail on bad bypassNamespaces list")
 
-	ac = InitAdmissionController(createConfigWithOverrides(map[string]string{conf.AMFilteringLabelNamespaces: "("}), pcCache)
+	ac = InitAdmissionController(createConfigWithOverrides(map[string]string{conf.AMFilteringLabelNamespaces: "("}), pcCache, nsCache)
 	assert.Equal(t, 0, len(ac.conf.GetLabelNamespaces()), "didn't fail on bad labelNamespaces list")
 
-	ac = InitAdmissionController(createConfigWithOverrides(map[string]string{conf.AMFilteringNoLabelNamespaces: "("}), pcCache)
+	ac = InitAdmissionController(createConfigWithOverrides(map[string]string{conf.AMFilteringNoLabelNamespaces: "("}), pcCache, nsCache)
 	assert.Equal(t, 0, len(ac.conf.GetNoLabelNamespaces()), "didn't fail on bad noLabelNamespaces list")
 
-	ac = InitAdmissionController(createConfigWithOverrides(map[string]string{conf.AMAccessControlSystemUsers: "("}), pcCache)
+	ac = InitAdmissionController(createConfigWithOverrides(map[string]string{conf.AMAccessControlSystemUsers: "("}), pcCache, nsCache)
 	assert.Equal(t, 1, len(ac.conf.GetSystemUsers()))
 	assert.Equal(t, conf.DefaultAccessControlSystemUsers, ac.conf.GetSystemUsers()[0].String(), "didn't fail on bad systemUsers list")
 
-	ac = InitAdmissionController(createConfigWithOverrides(map[string]string{conf.AMAccessControlExternalUsers: "("}), pcCache)
+	ac = InitAdmissionController(createConfigWithOverrides(map[string]string{conf.AMAccessControlExternalUsers: "("}), pcCache, nsCache)
 	assert.Equal(t, 0, len(ac.conf.GetExternalUsers()), "didn't fail on bad externalUsers list")
 
-	ac = InitAdmissionController(createConfigWithOverrides(map[string]string{conf.AMAccessControlExternalGroups: "("}), pcCache)
+	ac = InitAdmissionController(createConfigWithOverrides(map[string]string{conf.AMAccessControlExternalGroups: "("}), pcCache, nsCache)
 	assert.Equal(t, 0, len(ac.conf.GetExternalGroups()), "didn't fail on bad externalGroups list")
 }
 
 func createPriorityClassCacheForTest() *PriorityClassCache {
 	return &PriorityClassCache{
-		priorityClasses: make(map[string]*schedulingv1.PriorityClass),
-		lock:            sync.RWMutex{},
+		priorityClasses: make(map[string]bool),
+	}
+}
+
+func createNamespaceClassCacheForTest() *NamespaceCache {
+	return &NamespaceCache{
+		nameSpaces: make(map[string]nsFlags),
 	}
 }

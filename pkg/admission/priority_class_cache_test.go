@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"gotest.tools/v3/assert"
-	v1 "k8s.io/api/core/v1"
 	schedulingv1 "k8s.io/api/scheduling/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -33,51 +32,33 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 )
 
-func TestIsPreemptSelfAllowed(t *testing.T) {
-	cache := NewPriorityClassCache()
-	cache.priorityClasses["yes"] = &schedulingv1.PriorityClass{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:        "yes",
-			Annotations: map[string]string{constants.AnnotationAllowPreemption: constants.True}},
-	}
-	cache.priorityClasses["no"] = &schedulingv1.PriorityClass{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:        "no",
-			Annotations: map[string]string{constants.AnnotationAllowPreemption: constants.False}},
-	}
-	cache.priorityClasses["invalid"] = &schedulingv1.PriorityClass{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:        "no",
-			Annotations: map[string]string{constants.AnnotationAllowPreemption: "invalid"}},
-	}
-	cache.priorityClasses["default"] = &schedulingv1.PriorityClass{
-		ObjectMeta: metav1.ObjectMeta{Name: "default"},
-	}
+const testPC = "test-pc"
 
-	assert.Check(t, cache.IsPreemptSelfAllowed(""), "empty value failed")
-	assert.Check(t, cache.IsPreemptSelfAllowed("not-found"), "not-found value failed")
-	assert.Check(t, cache.IsPreemptSelfAllowed("invalid"), "invalid value failed")
-	assert.Check(t, cache.IsPreemptSelfAllowed("default"), "default value failed")
-	assert.Check(t, cache.IsPreemptSelfAllowed("yes"), "yes value failed")
-	assert.Check(t, !cache.IsPreemptSelfAllowed("no"), "no value failed")
+func TestIsPreemptSelfAllowed(t *testing.T) {
+	cache := NewPriorityClassCache(nil)
+	cache.priorityClasses["yes"] = true
+	cache.priorityClasses["no"] = false
+
+	assert.Check(t, cache.isPreemptSelfAllowed(""), "empty value failed")
+	assert.Check(t, cache.isPreemptSelfAllowed("not-found"), "not-found value failed")
+	assert.Check(t, cache.isPreemptSelfAllowed("yes"), "yes value failed")
+	assert.Check(t, !cache.isPreemptSelfAllowed("no"), "no value failed")
 }
 
-func TestRegisterHandlers(t *testing.T) {
+func TestPriorityClassHandlers(t *testing.T) {
 	kubeClient := client.NewKubeClientMock(false)
 
 	informers := NewInformers(kubeClient, "default")
-	cache := NewPriorityClassCache()
-	cache.RegisterHandlers(informers.PriorityClass)
+	cache := NewPriorityClassCache(informers.PriorityClass)
 	informers.Start()
 	defer informers.Stop()
 
-	policy := v1.PreemptNever
+	assert.Assert(t, cache.isPreemptSelfAllowed(testPC), "non existing, should return true")
+
 	priorityClass := &schedulingv1.PriorityClass{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "test-pc",
+			Name: testPC,
 		},
-		Value:            1000,
-		PreemptionPolicy: &policy,
 	}
 
 	priorityClasses := kubeClient.GetClientSet().SchedulingV1().PriorityClasses()
@@ -87,43 +68,60 @@ func TestRegisterHandlers(t *testing.T) {
 	assert.NilError(t, err)
 
 	err = utils.WaitForCondition(func() bool {
-		return cache.getPriorityClass("test-pc") != nil
+		return cache.priorityClassExists(testPC)
 	}, 10*time.Millisecond, 10*time.Second)
 	assert.NilError(t, err)
 
-	pc := cache.getPriorityClass("test-pc")
-	assert.Assert(t, pc != nil)
-	assert.Equal(t, pc.Value, int32(1000))
+	assert.Assert(t, cache.isPreemptSelfAllowed(testPC), "exists, not set should return true")
 
 	// validate OnUpdate
 	priorityClass2 := priorityClass.DeepCopy()
-	priorityClass2.Value = 1001
+	priorityClass2.Annotations = map[string]string{constants.AnnotationAllowPreemption: "false"}
 
 	_, err = priorityClasses.Update(context.Background(), priorityClass2, metav1.UpdateOptions{})
 	assert.NilError(t, err)
 
 	err = utils.WaitForCondition(func() bool {
-		value := cache.getPriorityClass("test-pc")
-		if value == nil {
-			return false
-		}
-		return value.Value == 1001
+		return !cache.isPreemptSelfAllowed(testPC)
 	}, 10*time.Millisecond, 10*time.Second)
 	assert.NilError(t, err)
 
-	pc = cache.getPriorityClass("test-pc")
-	assert.Assert(t, pc != nil)
-	assert.Equal(t, pc.Value, int32(1001))
-
 	// validate OnDelete
-	err = priorityClasses.Delete(context.Background(), priorityClass.Name, metav1.DeleteOptions{})
+	err = priorityClasses.Delete(context.Background(), testPC, metav1.DeleteOptions{})
 	assert.NilError(t, err)
 
 	err = utils.WaitForCondition(func() bool {
-		return cache.getPriorityClass("test-pc") == nil
+		return !cache.priorityClassExists(testPC)
 	}, 10*time.Millisecond, 10*time.Second)
 	assert.NilError(t, err)
+}
 
-	pc = cache.getPriorityClass("test-pc")
-	assert.Assert(t, pc == nil)
+func TestGetBoolAnnotation(t *testing.T) {
+	tests := map[string]struct {
+		annotation map[string]string
+		expect     bool
+	}{
+		"nil annotations": {
+			annotation: nil,
+			expect:     true,
+		},
+		"empty annotations": {
+			annotation: map[string]string{},
+			expect:     true,
+		},
+		"invalid value": {
+			annotation: map[string]string{constants.AnnotationAllowPreemption: "value"},
+			expect:     true,
+		},
+		"valid value": {
+			annotation: map[string]string{constants.AnnotationAllowPreemption: "false"},
+			expect:     false,
+		},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			got := getAnnotationBoolean(test.annotation, constants.AnnotationAllowPreemption)
+			assert.Equal(t, got, test.expect, "value incorrect")
+		})
+	}
 }

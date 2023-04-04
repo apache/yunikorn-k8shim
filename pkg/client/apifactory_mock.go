@@ -52,7 +52,6 @@ func NewMockedAPIProvider(showError bool) *MockedAPIProvider {
 				KubeQPS:              0,
 				KubeBurst:            0,
 				Namespace:            "yunikorn",
-				ApiClientTimeout:     0,
 			},
 			KubeClient:            NewKubeClientMock(showError),
 			SchedulerAPI:          test.NewSchedulerAPIMock(),
@@ -181,8 +180,8 @@ func (m *MockedAPIProvider) Stop() {
 	// no impl
 }
 
-func (m *MockedAPIProvider) WaitForSync() error {
-	return nil
+func (m *MockedAPIProvider) WaitForSync() {
+	// no impl
 }
 
 // MockedPersistentVolumeInformer implements PersistentVolumeInformer interface

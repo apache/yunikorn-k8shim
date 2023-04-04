@@ -171,7 +171,7 @@ func (c *RClient) GetAppInfo(partition string, queueName string, appID string) (
 	return app, err
 }
 
-func (c *RClient) GetAllocationLog(partition string, queueName string, appID string, podName string) ([]dao.AllocationAskLogDAOInfo, error) {
+func (c *RClient) GetAllocationLog(partition string, queueName string, appID string, podName string) ([]*dao.AllocationAskLogDAOInfo, error) {
 	reqs, err := c.GetAppInfo(partition, queueName, appID)
 	if err != nil {
 		return nil, err
@@ -342,7 +342,7 @@ func WaitForQueueTS(queuePathStr string, ts string, timeout time.Duration) error
 	return wait.PollImmediate(2*time.Second, timeout, compareQueueTS(queuePathStr, ts))
 }
 
-func AllocLogToStrings(log []dao.AllocationAskLogDAOInfo) []string {
+func AllocLogToStrings(log []*dao.AllocationAskLogDAOInfo) []string {
 	result := make([]string, 0)
 	for _, entry := range log {
 		result = append(result, entry.Message)

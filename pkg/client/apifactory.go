@@ -22,7 +22,6 @@ import (
 	"sync"
 	"time"
 
-	"go.uber.org/zap"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
@@ -34,7 +33,6 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/client/informers/externalversions/yunikorn.apache.org/v1alpha1"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
-	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/api"
 )
 
@@ -56,7 +54,7 @@ type APIProvider interface {
 	AddEventHandler(handlers *ResourceEventHandlers)
 	Start()
 	Stop()
-	WaitForSync() error
+	WaitForSync()
 	IsTestingMode() bool
 }
 
@@ -209,22 +207,19 @@ func (s *APIFactory) addEventHandlers(
 	}
 }
 
-func (s *APIFactory) WaitForSync() error {
+func (s *APIFactory) WaitForSync() {
 	if s.testMode {
 		// skip this in test mode
-		return nil
+		return
 	}
-	return s.clients.WaitForSync(time.Second, conf.GetSchedulerConf().ApiClientTimeout)
+	s.clients.WaitForSync()
 }
 
 func (s *APIFactory) Start() {
 	// launch clients
 	if !s.IsTestingMode() {
 		s.clients.Run(s.stopChan)
-		if err := s.clients.WaitForSync(time.Second, conf.GetSchedulerConf().ApiClientTimeout); err != nil {
-			log.Logger().Warn("Failed to sync informers",
-				zap.Error(err))
-		}
+		s.clients.WaitForSync()
 	}
 }
 

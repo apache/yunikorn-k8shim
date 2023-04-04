@@ -101,14 +101,21 @@ function install_kind() {
 }
 
 function install_spark() {
-  check_cmd "wget"
-  wget -qO-  https://archive.apache.org/dist/spark/spark-3.3.1/spark-3.3.1-bin-hadoop3.tgz | tar xzvf - && chmod +x spark-3.3.1-bin-hadoop3 && sudo mv spark-3.3.1-bin-hadoop3 /opt/.
-  exit_on_error "install spark failed."
-  sudo ln -s /opt/spark-3.3.1-bin-hadoop3 /opt/spark
-  exit_on_error "install spark failed. unable to create symlink"
-  export SPARK_HOME=/opt/spark/
-  export SPARK_PYTHON_IMAGE=docker.io/apache/spark-py:v3.3.1
-  exit_on_error "install spark failed. unable to set env variables"
+  CURRENT=$(pwd)
+  SPARK_VERSION="3.3.1"
+  DOWNLOAD="${CURRENT}/_spark"
+  SPARK_SUBMIT_CMD="${DOWNLOAD}/spark-${SPARK_VERSION}-bin-hadoop3/bin/spark-submit"
+  if [[ ! -d "${DOWNLOAD}" || ! -f "${SPARK_SUBMIT_CMD}" ]]; then
+    rm -rf "${DOWNLOAD}"
+    mkdir "${DOWNLOAD}" \
+      && cd "${DOWNLOAD}" \
+      && curl "https://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop3.tgz" | tar xzf - \
+      && chmod +x "spark-${SPARK_VERSION}-bin-hadoop3"
+    exit_on_error "install spark failed"
+  fi
+  export SPARK_HOME="${DOWNLOAD}/spark-${SPARK_VERSION}-bin-hadoop3"
+  export SPARK_PYTHON_IMAGE="docker.io/apache/spark-py:v${SPARK_VERSION}"
+  cd "${CURRENT}" || exit
 }
 
 function install_helm() {
@@ -158,7 +165,8 @@ function install_cluster() {
 
   # install ginkgo and gomega for e2e tests.
   echo "step 3/10: installing Ginkgo & Gomega at $(go env GOPATH)/bin"
-  go install github.com/onsi/ginkgo/ginkgo
+  go get github.com/onsi/ginkgo/v2@v2.9.0
+  go install github.com/onsi/ginkgo/v2/ginkgo
   go install github.com/onsi/gomega
   check_cmd "ginkgo"
 

@@ -22,13 +22,13 @@ go 1.16
 
 require (
 	github.com/GoogleCloudPlatform/spark-on-k8s-operator v0.0.0-20201215015655-2e8b733f5ad0
-	github.com/apache/yunikorn-core v0.0.0-20230222073958-e80580b1a67f
-	github.com/apache/yunikorn-scheduler-interface v0.0.0-20230212221542-1c352a4d8ecd
+	github.com/apache/yunikorn-core v0.0.0-20230328135225-5a92a28c8aab
+	github.com/apache/yunikorn-scheduler-interface v0.0.0-20230328133840-b29b20a234e0
 	github.com/google/uuid v1.2.0
 	github.com/gorilla/mux v1.8.0
 	github.com/looplab/fsm v1.0.1
-	github.com/onsi/ginkgo v1.14.0
-	github.com/onsi/gomega v1.10.1
+	github.com/onsi/ginkgo/v2 v2.9.0
+	github.com/onsi/gomega v1.27.1
 	go.uber.org/zap v1.24.0
 	gopkg.in/yaml.v2 v2.4.0
 	gotest.tools/v3 v3.0.3
@@ -45,12 +45,12 @@ require (
 )
 
 replace (
-	golang.org/x/crypto => golang.org/x/crypto v0.3.0
+	golang.org/x/crypto => golang.org/x/crypto v0.7.0
 	golang.org/x/lint => golang.org/x/lint v0.0.0-20210508222113-6edffad5e616
-	golang.org/x/net => golang.org/x/net v0.4.0
-	golang.org/x/sys => golang.org/x/sys v0.2.0
-	golang.org/x/text => golang.org/x/text v0.4.0
-	golang.org/x/tools => golang.org/x/tools v0.3.0
+	golang.org/x/net => golang.org/x/net v0.8.0
+	golang.org/x/sys => golang.org/x/sys v0.6.0
+	golang.org/x/text => golang.org/x/text v0.8.0
+	golang.org/x/tools => golang.org/x/tools v0.7.0
 	k8s.io/api => k8s.io/api v0.23.14
 	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.23.14
 	k8s.io/apimachinery => k8s.io/apimachinery v0.23.14

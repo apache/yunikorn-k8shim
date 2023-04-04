@@ -23,7 +23,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/onsi/ginkgo"
+	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 	res "k8s.io/apimachinery/pkg/api/resource"
@@ -132,12 +132,35 @@ func RestorePortForwarding(kClient *k8s.KubeCtl) {
 }
 
 func RestartYunikorn(kClient *k8s.KubeCtl) {
+	RestartYunikornAndAddTolerations(kClient, false, nil)
+}
+
+func RestartYunikornAndAddTolerations(kClient *k8s.KubeCtl, addTolerations bool, newTolerations []v1.Toleration) {
 	schedulerPodName, err := kClient.GetSchedulerPod()
 	Ω(err).NotTo(gomega.HaveOccurred())
 	err = kClient.DeletePod(schedulerPodName, configmanager.YuniKornTestConfig.YkNamespace)
 	Ω(err).NotTo(gomega.HaveOccurred())
 	err = kClient.WaitForPodBySelector(configmanager.YuniKornTestConfig.YkNamespace, fmt.Sprintf("component=%s", configmanager.YKScheduler), 30*time.Second)
 	Ω(err).NotTo(gomega.HaveOccurred())
+
+	if addTolerations {
+		schedulerPodName, err = kClient.GetSchedulerPod()
+		Ω(err).NotTo(gomega.HaveOccurred())
+		err2, ykPhase := kClient.WaitForPodStateStable(configmanager.YuniKornTestConfig.YkNamespace, schedulerPodName, 30*time.Second)
+		Ω(err2).NotTo(gomega.HaveOccurred())
+		if ykPhase == v1.PodPending {
+			fmt.Fprintf(ginkgo.GinkgoWriter, "Scheduler pod is in Pending state\n")
+			// used if YK cannot be scheduled because resources are occupied
+			pod, err2 := kClient.GetPod(schedulerPodName, configmanager.YuniKornTestConfig.YkNamespace)
+			Ω(err2).NotTo(gomega.HaveOccurred(), "Could not retrieve scheduler pod")
+			tolerations := pod.Spec.Tolerations
+			tolerations = append(tolerations, newTolerations...)
+			pod.Spec.Tolerations = tolerations
+			_, err = kClient.UpdatePod(pod, configmanager.YuniKornTestConfig.YkNamespace)
+			Ω(err).NotTo(gomega.HaveOccurred(), "Could not update scheduler pod")
+		}
+	}
+
 	err = kClient.WaitForPodBySelectorRunning(configmanager.YuniKornTestConfig.YkNamespace, fmt.Sprintf("component=%s", configmanager.YKScheduler), 30)
 	Ω(err).NotTo(gomega.HaveOccurred())
 }

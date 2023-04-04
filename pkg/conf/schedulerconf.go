@@ -69,9 +69,8 @@ const (
 	CMLogLevel = PrefixLog + "level"
 
 	// kubernetes
-	CMKubeQPS              = PrefixKubernetes + "qps"
-	CMKubeBurst            = PrefixKubernetes + "burst"
-	CMKubeApiClientTimeout = PrefixKubernetes + "apiClientTimeout"
+	CMKubeQPS   = PrefixKubernetes + "qps"
+	CMKubeBurst = PrefixKubernetes + "burst"
 
 	// defaults
 	DefaultNamespace              = "default"
@@ -88,7 +87,6 @@ const (
 	DefaultLogEncoding            = "console"
 	DefaultKubeQPS                = 1000
 	DefaultKubeBurst              = 1000
-	DefaultApiClientTimeout       = 30 * time.Second
 )
 
 var (
@@ -123,7 +121,6 @@ type SchedulerConf struct {
 	PlaceHolderImage         string        `json:"placeHolderImage"`
 	InstanceTypeNodeLabelKey string        `json:"instanceTypeNodeLabelKey"`
 	Namespace                string        `json:"namespace"`
-	ApiClientTimeout         time.Duration `json:"apiClientTimeout"`
 	sync.RWMutex
 }
 
@@ -151,7 +148,6 @@ func (conf *SchedulerConf) Clone() *SchedulerConf {
 		UserLabelKey:           conf.UserLabelKey,
 		PlaceHolderImage:       conf.PlaceHolderImage,
 		Namespace:              conf.Namespace,
-		ApiClientTimeout:       conf.ApiClientTimeout,
 	}
 }
 
@@ -209,7 +205,6 @@ func handleNonReloadableConfig(old *SchedulerConf, new *SchedulerConf) {
 	checkNonReloadableBool(CMSvcDisableGangScheduling, &old.DisableGangScheduling, &new.DisableGangScheduling)
 	checkNonReloadableString(CMSvcPlaceholderImage, &old.PlaceHolderImage, &new.PlaceHolderImage)
 	checkNonReloadableString(CMSvcNodeInstanceTypeNodeLabelKey, &old.InstanceTypeNodeLabelKey, &new.InstanceTypeNodeLabelKey)
-	checkNonReloadableDuration(CMKubeApiClientTimeout, &old.ApiClientTimeout, &new.ApiClientTimeout)
 }
 
 const warningNonReloadable = "ignoring non-reloadable configuration change (restart required to update)"
@@ -340,7 +335,6 @@ func CreateDefaultConfig() *SchedulerConf {
 		UserLabelKey:             constants.DefaultUserLabel,
 		PlaceHolderImage:         constants.PlaceholderContainerImage,
 		InstanceTypeNodeLabelKey: constants.DefaultNodeInstanceTypeNodeLabelKey,
-		ApiClientTimeout:         DefaultApiClientTimeout,
 	}
 }
 
@@ -366,7 +360,6 @@ func parseConfig(config map[string]string, prev *SchedulerConf) (*SchedulerConf,
 	parser.boolVar(&conf.EnableConfigHotRefresh, CMSvcEnableConfigHotRefresh)
 	parser.stringVar(&conf.PlaceHolderImage, CMSvcPlaceholderImage)
 	parser.stringVar(&conf.InstanceTypeNodeLabelKey, CMSvcNodeInstanceTypeNodeLabelKey)
-	parser.durationVar(&conf.ApiClientTimeout, CMKubeApiClientTimeout)
 
 	// log
 	parser.intVar(&conf.LoggingLevel, CMLogLevel)

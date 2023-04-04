@@ -23,14 +23,15 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/reporters"
+	"github.com/onsi/ginkgo/v2"
+	"github.com/onsi/ginkgo/v2/reporters"
 	"github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 	schedulingv1 "k8s.io/api/scheduling/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
 )
@@ -40,9 +41,16 @@ func init() {
 }
 
 func TestPriorityScheduling(t *testing.T) {
+	ginkgo.ReportAfterSuite("TestPriorityScheduling", func(report ginkgo.Report) {
+		err := reporters.GenerateJUnitReportWithConfig(
+			report,
+			filepath.Join(configmanager.YuniKornTestConfig.LogDir, "priority_scheduling_junit.xml"),
+			reporters.JunitReportConfig{OmitSpecLabels: true},
+		)
+		Ω(err).NotTo(HaveOccurred())
+	})
 	gomega.RegisterFailHandler(ginkgo.Fail)
-	junitReporter := reporters.NewJUnitReporter(filepath.Join(configmanager.YuniKornTestConfig.LogDir, "priority_scheduling_junit.xml"))
-	ginkgo.RunSpecsWithDefaultAndCustomReporters(t, "TestPriorityScheduling", []ginkgo.Reporter{junitReporter})
+	ginkgo.RunSpecs(t, "TestPriorityScheduling", ginkgo.Label("TestPriorityScheduling"))
 }
 
 var kubeClient k8s.KubeCtl
@@ -73,12 +81,17 @@ var normalPriorityClass = schedulingv1.PriorityClass{
 	PreemptionPolicy: &preemptPolicyNever,
 }
 
+var annotation = "ann-" + common.RandSeq(10)
+var oldConfigMap = new(v1.ConfigMap)
+
 var _ = ginkgo.BeforeSuite(func() {
 	var err error
 	kubeClient = k8s.KubeCtl{}
 	Expect(kubeClient.SetClient()).To(BeNil())
 
+	annotation = "ann-" + common.RandSeq(10)
 	yunikorn.EnsureYuniKornConfigsPresent()
+	yunikorn.UpdateConfigMapWrapper(oldConfigMap, "", annotation)
 
 	By(fmt.Sprintf("Creating priority class %s", lowPriorityClass.Name))
 	_, err = kubeClient.CreatePriorityClass(&lowPriorityClass)
@@ -109,6 +122,8 @@ var _ = ginkgo.AfterSuite(func() {
 	By(fmt.Sprintf("Removing priority class %s", lowPriorityClass.Name))
 	err = kubeClient.DeletePriorityClass(lowPriorityClass.Name)
 	Ω(err).ShouldNot(HaveOccurred())
+
+	yunikorn.RestoreConfigMapWrapper(oldConfigMap, annotation)
 })
 
 var By = ginkgo.By

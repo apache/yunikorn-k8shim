@@ -56,7 +56,6 @@ const (
 	schedulerValidateConfURLPattern = "http://%s/ws/v1/validate-conf"
 	mutateURL                       = "/mutate"
 	validateConfURL                 = "/validate-conf"
-	pod                             = "Pod"
 )
 
 var (
@@ -68,6 +67,7 @@ var (
 type AdmissionController struct {
 	conf              *conf.AdmissionControllerConf
 	pcCache           *PriorityClassCache
+	nsCache           *NamespaceCache
 	annotationHandler *metadata.UserGroupAnnotationHandler
 	labelExtractor    metadata.LabelExtractor
 }
@@ -77,10 +77,11 @@ type ValidateConfResponse struct {
 	Reason  string `json:"reason"`
 }
 
-func InitAdmissionController(conf *conf.AdmissionControllerConf, pcCache *PriorityClassCache) *AdmissionController {
+func InitAdmissionController(conf *conf.AdmissionControllerConf, pcCache *PriorityClassCache, nsCache *NamespaceCache) *AdmissionController {
 	hook := &AdmissionController{
 		conf:              conf,
 		pcCache:           pcCache,
+		nsCache:           nsCache,
 		annotationHandler: metadata.NewUserGroupAnnotationHandler(conf),
 	}
 
@@ -140,7 +141,7 @@ func (c *AdmissionController) mutate(req *admissionv1.AdmissionRequest) *admissi
 		zap.Any("UserInfo", req.UserInfo))
 
 	if req.Operation == admissionv1.Update {
-		if req.Kind.Kind == pod {
+		if req.Kind.Kind == metadata.Pod {
 			return c.processPodUpdate(req, namespace)
 		}
 
@@ -148,7 +149,7 @@ func (c *AdmissionController) mutate(req *admissionv1.AdmissionRequest) *admissi
 		return admissionResponseBuilder(string(req.UID), true, "", nil)
 	}
 
-	if req.Kind.Kind == pod {
+	if req.Kind.Kind == metadata.Pod {
 		return c.processPod(req, namespace)
 	}
 
@@ -222,6 +223,10 @@ func (c *AdmissionController) processPod(req *admissionv1.AdmissionRequest, name
 
 func (c *AdmissionController) processWorkload(req *admissionv1.AdmissionRequest, namespace string) *admissionv1.AdmissionResponse {
 	var uid = string(req.UID)
+
+	if !c.shouldProcessWorkload(req) {
+		return admissionResponseBuilder(uid, true, "", nil)
+	}
 
 	var supported bool
 	var err error
@@ -329,6 +334,22 @@ func (c *AdmissionController) shouldProcessAdmissionReview(namespace string, lab
 	return false
 }
 
+func (c *AdmissionController) shouldProcessWorkload(req *admissionv1.AdmissionRequest) bool {
+	// checking a special case: replicaset submitted by a K8s system user
+	// we must not touch the spec otherwise we'll end up having an infinite loop of replicaset creation
+	if req.Kind.Kind == metadata.ReplicaSet {
+		for _, sysUser := range c.conf.GetSystemUsers() {
+			if sysUser.MatchString(req.UserInfo.Username) {
+				log.Logger().Info("ReplicaSet was created by a system user, skipping it",
+					zap.String("uid", string(req.UID)))
+				return false
+			}
+		}
+	}
+
+	return true
+}
+
 func (c *AdmissionController) checkUserInfoAnnotation(getAnnotation func() (string, bool), userName string, groups []string, uid string) (*admissionv1.AdmissionResponse, bool) {
 	annotation, userInfoSet := getAnnotation()
 	if userInfoSet && !c.conf.GetBypassAuth() {
@@ -379,7 +400,7 @@ func (c *AdmissionController) updatePreemptionInfo(pod *v1.Pod, patch []common.P
 	}
 
 	value = constants.False
-	if c.pcCache.IsPreemptSelfAllowed(pod.Spec.PriorityClassName) {
+	if c.pcCache.isPreemptSelfAllowed(pod.Spec.PriorityClassName) {
 		value = constants.True
 	}
 
@@ -397,7 +418,7 @@ func (c *AdmissionController) updatePreemptionInfo(pod *v1.Pod, patch []common.P
 		}
 	}
 
-	result := UpdatePodAnnotationForAdmissionController(pod, constants.AnnotationAllowPreemption, value)
+	result := updatePodAnnotation(pod, constants.AnnotationAllowPreemption, value)
 	patch = append(patch, common.PatchOperation{
 		Op:    "add",
 		Path:  "/metadata/annotations",
@@ -414,7 +435,7 @@ func updateLabels(namespace string, pod *v1.Pod, patch []common.PatchOperation) 
 		zap.String("namespace", namespace),
 		zap.Any("labels", pod.Labels))
 
-	result := UpdatePodLabelForAdmissionController(pod, namespace)
+	result := updatePodLabel(pod, namespace)
 
 	patch = append(patch, common.PatchOperation{
 		Op:    "add",
@@ -505,11 +526,28 @@ func (c *AdmissionController) namespaceMatchesNoLabelList(namespace string) bool
 	return false
 }
 
+// shouldProcessNamespace returns true if the pod in the namespace must be redirected to the
+// YuniKorn scheduler by setting the schedulerName
+// First check is the namespace annotation (tri-state)
+// - if present (0, 1) return the value as boolean
+// - if not present (-1) fallback to matching names based on regexp
 func (c *AdmissionController) shouldProcessNamespace(namespace string) bool {
+	process := c.nsCache.enableYuniKorn(namespace)
+	if process != -1 {
+		return process == 1
+	}
 	return c.namespaceMatchesProcessList(namespace) && !c.namespaceMatchesBypassList(namespace)
 }
 
+// shouldLabelNamespace returns true if the pod in the namespace must be labeled
+// First check is the namespace annotation (tri-state)
+// - if present (0, 1) return the value as boolean
+// - if not present (-1) fallback to matching names based on regexp
 func (c *AdmissionController) shouldLabelNamespace(namespace string) bool {
+	label := c.nsCache.generateAppID(namespace)
+	if label != -1 {
+		return label == 1
+	}
 	return c.namespaceMatchesLabelList(namespace) && !c.namespaceMatchesNoLabelList(namespace)
 }
 

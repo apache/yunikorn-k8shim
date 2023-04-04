@@ -30,7 +30,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/onsi/ginkgo"
+	"github.com/onsi/ginkgo/v2"
+	"github.com/onsi/gomega"
+
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
@@ -57,6 +59,17 @@ import (
 )
 
 const portForwardPort = 9080
+
+type WorkloadType string
+
+const (
+	Deployment  = "Deployment"
+	StatefulSet = "StatefulSet"
+	DaemonSet   = "DaemonSet"
+	ReplicaSet  = "ReplicaSet"
+	Job         = "Job"
+	CronJob     = "CronJob"
+)
 
 var fw *portforward.PortForwarder
 var lock = &sync.Mutex{}
@@ -184,6 +197,10 @@ func (k *KubeCtl) UpdatePodWithAnnotation(pod *v1.Pod, namespace, annotationKey,
 	}
 	annotations[annotationKey] = annotationVal
 	pod.Annotations = annotations
+	return k.clientSet.CoreV1().Pods(namespace).Update(context.TODO(), pod, metav1.UpdateOptions{})
+}
+
+func (k *KubeCtl) UpdatePod(pod *v1.Pod, namespace string) (*v1.Pod, error) {
 	return k.clientSet.CoreV1().Pods(namespace).Update(context.TODO(), pod, metav1.UpdateOptions{})
 }
 
@@ -580,6 +597,14 @@ func (k *KubeCtl) DeleteJob(jobName string, namespace string) error {
 	return err
 }
 
+func (k *KubeCtl) UpdateDeployment(deployment *appsv1.Deployment, namespace string) (*appsv1.Deployment, error) {
+	return k.clientSet.AppsV1().Deployments(namespace).Update(context.TODO(), deployment, metav1.UpdateOptions{})
+}
+
+func (k *KubeCtl) GetReplicaSets(namespace string) (*appsv1.ReplicaSetList, error) {
+	return k.clientSet.AppsV1().ReplicaSets(namespace).List(context.TODO(), metav1.ListOptions{})
+}
+
 // return a condition function that indicates whether the given pod is
 // currently in desired state
 func (k *KubeCtl) isPodInDesiredState(podName string, namespace string, state v1.PodPhase) wait.ConditionFunc {
@@ -708,6 +733,14 @@ func (k *KubeCtl) WaitForPodFailed(namespace string, podName string, timeout tim
 
 func (k *KubeCtl) WaitForPodCount(namespace string, wanted int, timeout time.Duration) error {
 	return wait.PollImmediate(time.Millisecond*100, timeout, k.isNumPod(namespace, wanted))
+}
+
+func (k *KubeCtl) WaitForPodStateStable(namespace string, podName string, timeout time.Duration) (error, v1.PodPhase) {
+	var lastPhase v1.PodPhase
+	samePhases := 0
+
+	err := wait.PollImmediate(time.Second, timeout, k.isPodStable(namespace, podName, &samePhases, 3, &lastPhase))
+	return err, lastPhase
 }
 
 // Returns the list of currently scheduled or running pods in `namespace` with the given selector
@@ -943,6 +976,14 @@ func (k *KubeCtl) WaitForPlaceholders(namespace string, podPrefix string, numPod
 	return wait.PollImmediate(time.Millisecond*100, timeout, k.isNumPlaceholdersRunning(namespace, podPrefix, numPods, podPhase))
 }
 
+// WaitForPlaceholdersStableState used when the expected state of the placeholders cannot be properly determined in advance or not needed.
+// Returns when the phase of pods does not change three times in a row.
+func (k *KubeCtl) WaitForPlaceholdersStableState(namespace string, podPrefix string, timeout time.Duration) error {
+	samePhases := 0
+	podPhases := make(map[string]v1.PodPhase)
+	return wait.PollImmediate(time.Second, timeout, k.arePlaceholdersStable(namespace, podPrefix, &samePhases, 3, podPhases))
+}
+
 func (k *KubeCtl) isNumPlaceholdersRunning(namespace string, podPrefix string, num int, podPhase v1.PodPhase) wait.ConditionFunc {
 	return func() (bool, error) {
 		jobPods, lstErr := k.ListPods(namespace, "placeholder=true")
@@ -958,6 +999,68 @@ func (k *KubeCtl) isNumPlaceholdersRunning(namespace string, podPrefix string, n
 		}
 
 		return count == num, nil
+	}
+}
+
+// checks the phase of all pods, returns true if nothing changes for "maxAttempt" times
+func (k *KubeCtl) arePlaceholdersStable(namespace string, podPrefix string, samePhases *int,
+	maxAttempts int, phases map[string]v1.PodPhase) wait.ConditionFunc {
+	return func() (bool, error) {
+		jobPods, lstErr := k.ListPods(namespace, "placeholder=true")
+		if lstErr != nil {
+			return false, lstErr
+		}
+
+		needRetry := false
+		for _, pod := range jobPods.Items {
+			if strings.HasPrefix(pod.Name, podPrefix) {
+				currentPhase := pod.Status.Phase
+				prevPhase, ok := phases[pod.Name]
+				if !ok {
+					phases[pod.Name] = currentPhase
+					needRetry = true
+					continue
+				}
+				if prevPhase != currentPhase {
+					needRetry = true
+				}
+				phases[pod.Name] = currentPhase
+			}
+		}
+
+		if needRetry {
+			*samePhases = 0
+		} else {
+			*samePhases++
+		}
+
+		return *samePhases == maxAttempts, nil
+	}
+}
+
+// checks the phase of a pod, returns true if nothing changes for "maxAttempt" times
+func (k *KubeCtl) isPodStable(namespace, podName string, samePhases *int,
+	maxAttempts int, lastPhase *v1.PodPhase) wait.ConditionFunc {
+	return func() (bool, error) {
+		pod, lstErr := k.GetPod(podName, namespace)
+		if lstErr != nil {
+			return false, lstErr
+		}
+
+		needRetry := false
+		currentPhase := pod.Status.Phase
+		if *lastPhase != currentPhase {
+			needRetry = true
+		}
+		*lastPhase = currentPhase
+
+		if needRetry {
+			*samePhases = 0
+		} else {
+			*samePhases++
+		}
+
+		return *samePhases == maxAttempts, nil
 	}
 }
 
@@ -1105,4 +1208,123 @@ func (k *KubeCtl) DescribeNode(node v1.Node) error {
 	}
 	ginkgo.By("describe output for node is:\n" + out)
 	return nil
+}
+
+func (k *KubeCtl) SetNodeLabel(name, key, value string) error {
+	node, err := k.clientSet.CoreV1().Nodes().Get(context.TODO(), name, metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+	node.Labels[key] = value
+	_, err = k.clientSet.CoreV1().Nodes().Update(context.TODO(), node, metav1.UpdateOptions{})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (k *KubeCtl) IsNodeLabelExists(name, key string) (bool, error) {
+	node, err := k.clientSet.CoreV1().Nodes().Get(context.TODO(), name, metav1.GetOptions{})
+	if err != nil {
+		return false, err
+	}
+	_, ok := node.Labels[key]
+	if ok {
+		return true, nil
+	} else {
+		return false, nil
+	}
+}
+
+func (k *KubeCtl) RemoveNodeLabel(name, key, value string) error {
+	node, err := k.clientSet.CoreV1().Nodes().Get(context.TODO(), name, metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+	delete(node.Labels, key)
+	_, err = k.clientSet.CoreV1().Nodes().Update(context.TODO(), node, metav1.UpdateOptions{})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (k *KubeCtl) TaintNode(name, key, val string, effect v1.TaintEffect) error {
+	node, err := k.clientSet.CoreV1().Nodes().Get(context.TODO(), name, metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+
+	t := v1.Taint{
+		Effect: effect,
+		Key:    key,
+		Value:  val,
+	}
+	taints := node.Spec.Taints
+	taints = append(taints, t)
+	node.Spec.Taints = taints
+
+	_, err = k.clientSet.CoreV1().Nodes().Update(context.TODO(), node, metav1.UpdateOptions{})
+	return err
+}
+
+func (k *KubeCtl) UntaintNode(name, key string) error {
+	node, err := k.clientSet.CoreV1().Nodes().Get(context.TODO(), name, metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+
+	newTaints := make([]v1.Taint, 0)
+	for _, taint := range node.Spec.Taints {
+		if taint.Key != key {
+			newTaints = append(newTaints, taint)
+		}
+	}
+
+	node.Spec.Taints = newTaints
+	_, err = k.clientSet.CoreV1().Nodes().Update(context.TODO(), node, metav1.UpdateOptions{})
+	return err
+}
+
+func IsMasterNode(node *v1.Node) bool {
+	for _, taint := range node.Spec.Taints {
+		if _, ok := common.MasterTaints[taint.Key]; ok {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (k *KubeCtl) DeleteWorkloadAndPods(objectName string, wlType WorkloadType, namespace string) {
+	ginkgo.By("Delete " + objectName + ", type is " + string(wlType) + " in namespace " + namespace)
+	var err error
+	switch wlType {
+	case Deployment:
+		err = k.DeleteDeployment(objectName, namespace)
+	case StatefulSet:
+		err = k.DeleteStatefulSet(objectName, namespace)
+	case ReplicaSet:
+		err = k.DeleteReplicaSet(objectName, namespace)
+	case DaemonSet:
+		err = k.DeleteDaemonSet(objectName, namespace)
+	case Job:
+		err = k.DeleteJob(objectName, namespace)
+	case CronJob:
+		err = k.DeleteCronJob(objectName, namespace)
+	default:
+		fmt.Fprintf(ginkgo.GinkgoWriter, "Unknown type %s, just deleting pods\n", string(wlType))
+	}
+	gomega.Ω(err).ShouldNot(gomega.HaveOccurred(), "Could not delete "+objectName)
+
+	pods, err := k.GetPods(namespace)
+	gomega.Ω(err).ShouldNot(gomega.HaveOccurred(), "Could not get pods from namespace "+namespace)
+	fmt.Fprintf(ginkgo.GinkgoWriter, "Forcibly deleting remaining pods in namespace %s\n", namespace)
+	for _, pod := range pods.Items {
+		fmt.Fprintf(ginkgo.GinkgoWriter, "Deleting %s\n", pod.Name)
+		_ = k.DeletePod(pod.Name, namespace) //nolint:errcheck
+	}
+
+	err = k.WaitForPodCount(namespace, 0, 10*time.Second)
+	gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
 }
