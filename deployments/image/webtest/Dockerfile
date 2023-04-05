@@ -17,7 +17,6 @@
 
 # Imagestage: use scratch base image
 FROM --platform=$TARGETPLATFORM scratch
-COPY --chown=0:0 _output/bin/web-test-server /
 COPY --chown=4444:0 document/index.html /html/
 EXPOSE 9889
 ENV DOCUMENT_ROOT /html

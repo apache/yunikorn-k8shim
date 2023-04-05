@@ -366,6 +366,7 @@ image: sched_image plugin_image adm_image
 .PHONY: webtest_image
 webtest_image: build_web_test_server_prod
 	@echo "building web server image for automated e2e tests"
+	@cp ${RELEASE_BIN_DIR}/${TEST_SERVER_BINARY} ./deployments/image/webtest
 	DOCKER_BUILDKIT=1 \
 	docker build ./deployments/image/webtest -t ${REGISTRY}/yunikorn:webtest-${DOCKER_ARCH}-${VERSION} \
 	--label "yunikorn-e2e-web-image" \
