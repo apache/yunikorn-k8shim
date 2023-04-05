@@ -19,12 +19,11 @@
 package main
 
 import (
+	"github.com/apache/yunikorn-k8shim/pkg/webtest"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
-
-	"github.com/apache/yunikorn-k8shim/deployments/image/webtest"
 )
 
 var (

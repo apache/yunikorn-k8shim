@@ -376,7 +376,7 @@ build_web_test_server_dev:
 	@echo "building local web server binary"
 	go build -o=${DEV_BIN_DIR}/${TEST_SERVER_BINARY} -race -ldflags \
 	'-X main.version=${VERSION} -X main.date=${DATE}' \
-	./pkg/cmd/web/
+	./pkg/cmd/webtest/
 	@chmod +x ${DEV_BIN_DIR}/${TEST_SERVER_BINARY}
 
 .PHONY: build_web_test_server_prod
@@ -386,7 +386,7 @@ build_web_test_server_prod:
 	go build -a -o=${RELEASE_BIN_DIR}/${TEST_SERVER_BINARY} -ldflags \
 	'-extldflags "-static" -X main.version=${VERSION} -X main.date=${DATE}' \
 	-tags netgo -installsuffix netgo \
-	./pkg/cmd/web/
+	./pkg/cmd/webtest/
 
 #Generate the CRD code with code-generator (release-1.14)
 
