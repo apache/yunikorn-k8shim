@@ -199,24 +199,19 @@ pseudo:
 .PHONY: run
 run: build
 	@echo "running scheduler locally"
-	cd ${DEV_BIN_DIR} && ./${BINARY} -kubeConfig=$(KUBECONFIG) -interval=1s \
-	-clusterId=mycluster -clusterVersion=${VERSION} -policyGroup=queues \
-	-logEncoding=console -logLevel=-1
+	cd ${DEV_BIN_DIR} && \
+	KUBECONFIG="$(KUBECONFIG)" ./${BINARY}
 
 .PHONY: run_plugin
 run_plugin: build_plugin
 	@echo "running scheduler plugin locally"
 	cd ${DEV_BIN_DIR} && \
-	  ./${PLUGIN_BINARY} \
-	    --address=0.0.0.0 \
-	    --leader-elect=false \
-	    --config=../../conf/scheduler-config-local.yaml \
-	    -v=2 \
-	    --yk-scheduler-name=yunikorn \
-	    --yk-kube-config=$(KUBECONFIG) \
-	    --yk-cluster-id=yk \
-	    --yk-scheduling-interval=1s \
-	    --yk-log-level=1
+	KUBECONFIG="$(KUBECONFIG)" \
+	./${PLUGIN_BINARY} \
+	--address=0.0.0.0 \
+	--leader-elect=false \
+	--config=../../conf/scheduler-config-local.yaml \
+	-v=2
 
 # Create output directories
 .PHONY: init
