@@ -55,7 +55,7 @@ func TestPredicates(t *testing.T) {
 		Ω(err).NotTo(gomega.HaveOccurred())
 		err = reporters.GenerateJUnitReportWithConfig(
 			report,
-			filepath.Join(configmanager.YuniKornTestConfig.LogDir, "TEST-Predicates_junit.xml"),
+			filepath.Join(configmanager.YuniKornTestConfig.LogDir, "TEST-predicates_junit.xml"),
 			reporters.JunitReportConfig{OmitSpecLabels: true},
 		)
 		Ω(err).NotTo(HaveOccurred())

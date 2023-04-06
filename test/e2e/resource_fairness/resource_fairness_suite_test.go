@@ -51,12 +51,12 @@ var _ = AfterSuite(func() {
 })
 
 func TestResourceFairness(t *testing.T) {
-	ginkgo.ReportAfterSuite("Resource Fairness", func(report ginkgo.Report) {
+	ginkgo.ReportAfterSuite("TestResourceFairness", func(report ginkgo.Report) {
 		err := common.CreateJUnitReportDir()
 		Ω(err).NotTo(gomega.HaveOccurred())
 		err = reporters.GenerateJUnitReportWithConfig(
 			report,
-			filepath.Join(configmanager.YuniKornTestConfig.LogDir, "TEST-resourcefairness.xml"),
+			filepath.Join(configmanager.YuniKornTestConfig.LogDir, "TEST-resource_fairness_junit.xml"),
 			reporters.JunitReportConfig{OmitSpecLabels: true},
 		)
 		Ω(err).NotTo(HaveOccurred())

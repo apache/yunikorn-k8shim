@@ -58,7 +58,7 @@ func TestStateAwareAppScheduling(t *testing.T) {
 		Ω(err).NotTo(gomega.HaveOccurred())
 		err = reporters.GenerateJUnitReportWithConfig(
 			report,
-			filepath.Join(configmanager.YuniKornTestConfig.LogDir, "TEST-StateAwareAppScheduling_junit.xml"),
+			filepath.Join(configmanager.YuniKornTestConfig.LogDir, "TEST-stateaware_app_scheduling_junit.xml"),
 			reporters.JunitReportConfig{OmitSpecLabels: true},
 		)
 		Ω(err).NotTo(HaveOccurred())
