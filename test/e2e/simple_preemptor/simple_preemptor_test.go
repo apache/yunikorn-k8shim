@@ -31,7 +31,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	tests "github.com/apache/yunikorn-k8shim/test/e2e"
-	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
@@ -40,8 +39,9 @@ import (
 var kClient k8s.KubeCtl
 var restClient yunikorn.RClient
 var ns *v1.Namespace
-var oldConfigMap *v1.ConfigMap
 var dev = "dev" + common.RandSeq(5)
+var oldConfigMap = new(v1.ConfigMap)
+var annotation = "ann-" + common.RandSeq(10)
 
 // Nodes
 var Worker1 = "yk8s-worker"
@@ -59,30 +59,13 @@ var _ = ginkgo.BeforeSuite(func() {
 	restClient = yunikorn.RClient{}
 	Ω(restClient).NotTo(gomega.BeNil())
 
+	annotation = "ann-" + common.RandSeq(10)
 	yunikorn.EnsureYuniKornConfigsPresent()
+	yunikorn.UpdateConfigMapWrapper(oldConfigMap, "", annotation)
 
 	ginkgo.By("Port-forward the scheduler pod")
 	var err = kClient.PortForwardYkSchedulerPod()
 	Ω(err).NotTo(gomega.HaveOccurred())
-
-	ginkgo.By("Enable basic scheduling config over config maps")
-	var c, configErr = kClient.GetConfigMaps(configmanager.YuniKornTestConfig.YkNamespace,
-		configmanager.DefaultYuniKornConfigMap)
-	Ω(configErr).NotTo(gomega.HaveOccurred())
-	Ω(c).NotTo(gomega.BeNil())
-
-	oldConfigMap = c.DeepCopy()
-	Ω(c).Should(gomega.BeEquivalentTo(oldConfigMap))
-
-	// Define basic configMap
-	sc := common.CreateBasicConfigMap()
-	configStr, yamlErr := common.ToYAML(sc)
-	Ω(yamlErr).NotTo(gomega.HaveOccurred())
-
-	c.Data[configmanager.DefaultPolicyGroup] = configStr
-	var d, err3 = kClient.UpdateConfigMap(c, configmanager.YuniKornTestConfig.YkNamespace)
-	Ω(err3).NotTo(gomega.HaveOccurred())
-	Ω(d).NotTo(gomega.BeNil())
 
 	ginkgo.By("create development namespace")
 	ns, err = kClient.CreateNamespace(dev, nil)
@@ -139,15 +122,7 @@ var _ = ginkgo.AfterSuite(func() {
 	err = kClient.TearDownNamespace(ns.Name)
 	Ω(err).NotTo(gomega.HaveOccurred())
 
-	ginkgo.By("Restoring the old config maps")
-	var c, err1 = kClient.GetConfigMaps(configmanager.YuniKornTestConfig.YkNamespace,
-		configmanager.DefaultYuniKornConfigMap)
-	Ω(err1).NotTo(gomega.HaveOccurred())
-	Ω(c).NotTo(gomega.BeNil())
-	c.Data = oldConfigMap.Data
-	var e, err3 = kClient.UpdateConfigMap(c, configmanager.YuniKornTestConfig.YkNamespace)
-	Ω(err3).NotTo(gomega.HaveOccurred())
-	Ω(e).NotTo(gomega.BeNil())
+	yunikorn.RestoreConfigMapWrapper(oldConfigMap, annotation)
 })
 
 var _ = ginkgo.Describe("SimplePreemptor", func() {

@@ -83,12 +83,17 @@ var normalPriorityClass = schedulingv1.PriorityClass{
 	PreemptionPolicy: &preemptPolicyNever,
 }
 
+var annotation = "ann-" + common.RandSeq(10)
+var oldConfigMap = new(v1.ConfigMap)
+
 var _ = ginkgo.BeforeSuite(func() {
 	var err error
 	kubeClient = k8s.KubeCtl{}
 	Expect(kubeClient.SetClient()).To(BeNil())
 
+	annotation = "ann-" + common.RandSeq(10)
 	yunikorn.EnsureYuniKornConfigsPresent()
+	yunikorn.UpdateConfigMapWrapper(oldConfigMap, "", annotation)
 
 	By(fmt.Sprintf("Creating priority class %s", lowPriorityClass.Name))
 	_, err = kubeClient.CreatePriorityClass(&lowPriorityClass)
@@ -119,6 +124,8 @@ var _ = ginkgo.AfterSuite(func() {
 	By(fmt.Sprintf("Removing priority class %s", lowPriorityClass.Name))
 	err = kubeClient.DeletePriorityClass(lowPriorityClass.Name)
 	Ω(err).ShouldNot(HaveOccurred())
+
+	yunikorn.RestoreConfigMapWrapper(oldConfigMap, annotation)
 })
 
 var By = ginkgo.By
