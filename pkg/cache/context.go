@@ -61,8 +61,14 @@ type Context struct {
 	lock           *sync.RWMutex                  // lock
 }
 
-// Create a new context for the scheduler.
+// NewContext create a new context for the scheduler using a default (empty) configuration
+// VisibleForTesting
 func NewContext(apis client.APIProvider) *Context {
+	return NewContextWithBootstrapConfigMaps(apis, []*v1.ConfigMap{nil, nil})
+}
+
+// NewContextWithBootstrapConfigMaps creates a new context for the scheduler using configuration bootstrapped from Kubernetes ConfigMaps
+func NewContextWithBootstrapConfigMaps(apis client.APIProvider, bootstrapConfigMaps []*v1.ConfigMap) *Context {
 	// create the context note that order is important:
 	// volumebinder needs the informers
 	// the cache needs informers and volumebinder
@@ -72,7 +78,7 @@ func NewContext(apis client.APIProvider) *Context {
 		applications: make(map[string]*Application),
 		apiProvider:  apis,
 		namespace:    apis.GetAPIs().GetConf().Namespace,
-		configMaps:   []*v1.ConfigMap{nil, nil},
+		configMaps:   bootstrapConfigMaps,
 		lock:         &sync.RWMutex{},
 	}
 
@@ -305,14 +311,13 @@ func (ctx *Context) addConfigMaps(obj interface{}) {
 	configmap := utils.Convert2ConfigMap(obj)
 	switch configmap.Name {
 	case constants.DefaultConfigMapName:
-		ctx.configMaps[0] = configmap
+		ctx.triggerReloadConfig(0, configmap)
 	case constants.ConfigMapName:
-		ctx.configMaps[1] = configmap
+		ctx.triggerReloadConfig(1, configmap)
 	default:
 		// ignore
 		return
 	}
-	ctx.triggerReloadConfig()
 }
 
 // when the configMap for the scheduler is updated, trigger hot-refresh
@@ -321,14 +326,13 @@ func (ctx *Context) updateConfigMaps(_, newObj interface{}) {
 	configmap := utils.Convert2ConfigMap(newObj)
 	switch configmap.Name {
 	case constants.DefaultConfigMapName:
-		ctx.configMaps[0] = configmap
+		ctx.triggerReloadConfig(0, configmap)
 	case constants.ConfigMapName:
-		ctx.configMaps[1] = configmap
+		ctx.triggerReloadConfig(1, configmap)
 	default:
 		// ignore
 		return
 	}
-	ctx.triggerReloadConfig()
 }
 
 // when the configMap for the scheduler is deleted, trigger refresh using default config
@@ -347,14 +351,13 @@ func (ctx *Context) deleteConfigMaps(obj interface{}) {
 
 	switch configmap.Name {
 	case constants.DefaultConfigMapName:
-		ctx.configMaps[0] = nil
+		ctx.triggerReloadConfig(0, nil)
 	case constants.ConfigMapName:
-		ctx.configMaps[1] = nil
+		ctx.triggerReloadConfig(1, nil)
 	default:
 		// ignore
 		return
 	}
-	ctx.triggerReloadConfig()
 }
 
 func (ctx *Context) filterPriorityClasses(obj interface{}) bool {
@@ -401,13 +404,17 @@ func (ctx *Context) deletePriorityClass(obj interface{}) {
 	}
 }
 
-func (ctx *Context) triggerReloadConfig() {
+func (ctx *Context) triggerReloadConfig(index int, configMap *v1.ConfigMap) {
+	ctx.lock.Lock()
+	defer ctx.lock.Unlock()
+
 	conf := ctx.apiProvider.GetAPIs().GetConf()
 	if !conf.EnableConfigHotRefresh {
 		log.Logger().Info("hot-refresh disabled, skipping scheduler configuration update")
 		return
 	}
 
+	ctx.configMaps[index] = configMap
 	err := schedulerconf.UpdateConfigMaps(ctx.configMaps, false)
 	if err != nil {
 		log.Logger().Error("Unable to update configmap, ignoring changes", zap.Error(err))
