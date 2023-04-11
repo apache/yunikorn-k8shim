@@ -60,7 +60,7 @@ func main() {
 	serviceContext := entrypoint.StartAllServicesWithLogger(log.Logger(), log.GetZapConfigs())
 
 	if sa, ok := serviceContext.RMProxy.(api.SchedulerAPI); ok {
-		ss := shim.NewShimScheduler(sa, conf.GetSchedulerConf())
+		ss := shim.NewShimScheduler(sa, conf.GetSchedulerConf(), configMaps)
 		ss.Run()
 
 		signalChan := make(chan os.Signal, 1)

@@ -27,6 +27,7 @@ import (
 
 	"github.com/looplab/fsm"
 	"go.uber.org/zap"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/informers"
 
@@ -62,22 +63,22 @@ var (
 	outstandingAppLogTimeout = 2 * time.Minute
 )
 
-func NewShimScheduler(scheduler api.SchedulerAPI, configs *conf.SchedulerConf) *KubernetesShim {
+func NewShimScheduler(scheduler api.SchedulerAPI, configs *conf.SchedulerConf, bootstrapConfigMaps []*v1.ConfigMap) *KubernetesShim {
 	kubeClient := client.NewKubeClient(configs.KubeConfig)
 
 	// we have disabled re-sync to keep ourselves up-to-date
 	informerFactory := informers.NewSharedInformerFactory(kubeClient.GetClientSet(), 0)
 
 	apiFactory := client.NewAPIFactory(scheduler, informerFactory, configs, false)
-	context := cache.NewContext(apiFactory)
+	context := cache.NewContextWithBootstrapConfigMaps(apiFactory, bootstrapConfigMaps)
 	rmCallback := callback.NewAsyncRMCallback(context)
 	appManager := appmgmt.NewAMService(context, apiFactory)
 	return newShimSchedulerInternal(context, apiFactory, appManager, rmCallback)
 }
 
-func NewShimSchedulerForPlugin(scheduler api.SchedulerAPI, informerFactory informers.SharedInformerFactory, configs *conf.SchedulerConf) *KubernetesShim {
+func NewShimSchedulerForPlugin(scheduler api.SchedulerAPI, informerFactory informers.SharedInformerFactory, configs *conf.SchedulerConf, bootstrapConfigMaps []*v1.ConfigMap) *KubernetesShim {
 	apiFactory := client.NewAPIFactory(scheduler, informerFactory, configs, false)
-	context := cache.NewContext(apiFactory)
+	context := cache.NewContextWithBootstrapConfigMaps(apiFactory, bootstrapConfigMaps)
 	context.SetPluginMode(true)
 	rmCallback := callback.NewAsyncRMCallback(context)
 	appManager := appmgmt.NewAMService(context, apiFactory)
