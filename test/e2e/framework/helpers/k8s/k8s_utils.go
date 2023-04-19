@@ -1292,7 +1292,15 @@ func IsMasterNode(node *v1.Node) bool {
 			return true
 		}
 	}
+	return false
+}
 
+func IsNodeSkippable(node *v1.Node) bool {
+	for _, labelValue := range node.Labels {
+		if _, ok := common.SkippedNodeLabels[labelValue]; ok {
+			return true
+		}
+	}
 	return false
 }
 
