@@ -42,9 +42,8 @@ var MasterTaints = map[string]struct{}{
 	"node-role.kubernetes.io/master":        {},
 }
 
-var SkippedNodeLabels = map[string]struct{}{
-	"infra":        {},
-	"liftie-infra": {},
+var ComputeNodeLabels = map[string]struct{}{
+	"compute": {},
 }
 
 func GetAbsPath(p string) (string, error) {

@@ -1295,9 +1295,9 @@ func IsMasterNode(node *v1.Node) bool {
 	return false
 }
 
-func IsNodeSkippable(node *v1.Node) bool {
+func IsComputeNode(node *v1.Node) bool {
 	for _, labelValue := range node.Labels {
-		if _, ok := common.SkippedNodeLabels[labelValue]; ok {
+		if _, ok := common.ComputeNodeLabels[labelValue]; ok {
 			return true
 		}
 	}
