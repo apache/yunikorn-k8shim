@@ -1303,11 +1303,7 @@ func IsComputeNode(node *v1.Node) bool {
 			return true
 		}
 	}
-
-	if !computeNodeLabelExists {
-		return true
-	}
-	return false
+	return !computeNodeLabelExists
 }
 
 func (k *KubeCtl) DeleteWorkloadAndPods(objectName string, wlType WorkloadType, namespace string) {
