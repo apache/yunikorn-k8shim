@@ -1296,10 +1296,16 @@ func IsMasterNode(node *v1.Node) bool {
 }
 
 func IsComputeNode(node *v1.Node) bool {
+	computeNodeLabelExists := false
 	for _, labelValue := range node.Labels {
 		if _, ok := common.ComputeNodeLabels[labelValue]; ok {
+			computeNodeLabelExists = true
 			return true
 		}
+	}
+
+	if !computeNodeLabelExists {
+		return true
 	}
 	return false
 }
