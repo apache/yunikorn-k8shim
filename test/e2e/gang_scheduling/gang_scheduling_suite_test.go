@@ -39,7 +39,9 @@ func init() {
 
 func TestGangScheduling(t *testing.T) {
 	ginkgo.ReportAfterSuite("TestGangScheduling", func(report ginkgo.Report) {
-		err := reporters.GenerateJUnitReportWithConfig(
+		err := common.CreateJUnitReportDir()
+		Ω(err).NotTo(gomega.HaveOccurred())
+		err = reporters.GenerateJUnitReportWithConfig(
 			report,
 			filepath.Join(configmanager.YuniKornTestConfig.LogDir, "TEST-gang_scheduling_junit.xml"),
 			reporters.JunitReportConfig{OmitSpecLabels: true},

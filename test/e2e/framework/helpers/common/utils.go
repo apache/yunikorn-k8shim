@@ -74,6 +74,17 @@ func CreateReportDirectory() (string, error) {
 	return testPath, err
 }
 
+// CreateDirectoryForJunitReports and returns the directory path
+// If the directory cannot be created it'll return an error
+func CreateJUnitReportDir() error {
+	dir := configmanager.YuniKornTestConfig.LogDir
+	if _, err := os.Stat(dir); err == nil {
+		return nil
+	}
+	err := os.MkdirAll(dir, os.ModePerm)
+	return err
+}
+
 // CreateLogFile creates the ReportDirectory if it is not present, writes the
 // given testdata to the given filename.
 func CreateLogFile(filename string, data []byte) error {
