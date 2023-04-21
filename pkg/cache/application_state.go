@@ -478,7 +478,7 @@ func newAppState() *fsm.FSM { //nolint:funlen
 			},
 			{
 				Name: RejectApplication.String(),
-				Src:  []string{states.Submitted},
+				Src:  []string{states.Submitted, states.Recovering},
 				Dst:  states.Rejected,
 			},
 			{
