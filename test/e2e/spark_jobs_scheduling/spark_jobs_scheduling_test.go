@@ -157,16 +157,9 @@ var _ = Describe("", func() {
 		}
 
 		By("Killing all spark jobs")
-		sparkPods, err := kClient.GetPodNamesFromNS(sparkNS)
+		// delete the Spark pods one by one
+		err = kClient.DeletePods(sparkNS)
 		Ω(err).NotTo(HaveOccurred())
-		for _, each := range sparkPods {
-			// False positive, hence excluding from golint
-			//nolint
-			_, err := exec.Command(sparkHome+"/bin/spark-submit",
-				"--kill", sparkNS+":"+each, "--master", "k8s://"+masterURL).Output()
-			//nolint:gosec
-			Ω(err).NotTo(HaveOccurred())
-		}
 
 		By("Deleting cluster role bindings ")
 		err = kClient.DeleteClusterRoleBindings(roleName)
