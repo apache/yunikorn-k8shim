@@ -529,24 +529,24 @@ func (c *AdmissionController) namespaceMatchesNoLabelList(namespace string) bool
 // shouldProcessNamespace returns true if the pod in the namespace must be redirected to the
 // YuniKorn scheduler by setting the schedulerName
 // First check is the namespace annotation (tri-state)
-// - if present (0, 1) return the value as boolean
-// - if not present (-1) fallback to matching names based on regexp
+// - if present (FALSE, TRUE) return the value as boolean
+// - if not present (UNSET) fallback to matching names based on regexp
 func (c *AdmissionController) shouldProcessNamespace(namespace string) bool {
 	process := c.nsCache.enableYuniKorn(namespace)
-	if process != -1 {
-		return process == 1
+	if process != UNSET {
+		return process == TRUE
 	}
 	return c.namespaceMatchesProcessList(namespace) && !c.namespaceMatchesBypassList(namespace)
 }
 
 // shouldLabelNamespace returns true if the pod in the namespace must be labeled
 // First check is the namespace annotation (tri-state)
-// - if present (0, 1) return the value as boolean
-// - if not present (-1) fallback to matching names based on regexp
+// - if present (FALSE, TRUE) return the value as boolean
+// - if not present (UNSET) fallback to matching names based on regexp
 func (c *AdmissionController) shouldLabelNamespace(namespace string) bool {
 	label := c.nsCache.generateAppID(namespace)
-	if label != -1 {
-		return label == 1
+	if label != UNSET {
+		return label == TRUE
 	}
 	return c.namespaceMatchesLabelList(namespace) && !c.namespaceMatchesNoLabelList(namespace)
 }
