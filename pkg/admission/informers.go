@@ -27,7 +27,6 @@ import (
 	schedulinginformersv1 "k8s.io/client-go/informers/scheduling/v1"
 
 	"github.com/apache/yunikorn-k8shim/pkg/client"
-	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
 
@@ -58,9 +57,7 @@ func (i *Informers) Start() {
 	go i.ConfigMap.Informer().Run(i.stopChan)
 	go i.PriorityClass.Informer().Run(i.stopChan)
 	go i.Namespace.Informer().Run(i.stopChan)
-	if err := i.waitForSync(time.Second, 30*time.Second); err != nil {
-		log.Logger().Warn("Failed to sync informers", zap.Error(err))
-	}
+	i.waitForSync()
 }
 
 func (i *Informers) Stop() {
@@ -69,10 +66,20 @@ func (i *Informers) Stop() {
 	}
 }
 
-func (i *Informers) waitForSync(interval time.Duration, timeout time.Duration) error {
-	return utils.WaitForCondition(func() bool {
-		return i.ConfigMap.Informer().HasSynced() &&
+func (i *Informers) waitForSync() {
+	syncStartTime := time.Now()
+	counter := 0
+	for {
+		if i.ConfigMap.Informer().HasSynced() &&
 			i.PriorityClass.Informer().HasSynced() &&
-			i.Namespace.Informer().HasSynced()
-	}, interval, timeout)
+			i.Namespace.Informer().HasSynced() {
+			return
+		}
+		time.Sleep(time.Second)
+		counter++
+		if counter%10 == 0 {
+			log.Logger().Info("Waiting for informers to sync",
+				zap.Duration("timeElapsed", time.Since(syncStartTime).Round(time.Second)))
+		}
+	}
 }
