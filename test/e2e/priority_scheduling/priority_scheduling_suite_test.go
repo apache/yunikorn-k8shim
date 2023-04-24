@@ -42,9 +42,11 @@ func init() {
 
 func TestPriorityScheduling(t *testing.T) {
 	ginkgo.ReportAfterSuite("TestPriorityScheduling", func(report ginkgo.Report) {
-		err := reporters.GenerateJUnitReportWithConfig(
+		err := common.CreateJUnitReportDir()
+		Ω(err).NotTo(gomega.HaveOccurred())
+		err = reporters.GenerateJUnitReportWithConfig(
 			report,
-			filepath.Join(configmanager.YuniKornTestConfig.LogDir, "priority_scheduling_junit.xml"),
+			filepath.Join(configmanager.YuniKornTestConfig.LogDir, "TEST-priority_scheduling_junit.xml"),
 			reporters.JunitReportConfig{OmitSpecLabels: true},
 		)
 		Ω(err).NotTo(HaveOccurred())

@@ -39,7 +39,9 @@ func init() {
 
 func TestNodeResources(t *testing.T) {
 	ginkgo.ReportAfterSuite("TestNodeResources", func(report ginkgo.Report) {
-		err := reporters.GenerateJUnitReportWithConfig(
+		err := common.CreateJUnitReportDir()
+		Ω(err).NotTo(gomega.HaveOccurred())
+		err = reporters.GenerateJUnitReportWithConfig(
 			report,
 			filepath.Join(configmanager.YuniKornTestConfig.LogDir, "TEST-node_resources_junit.xml"),
 			reporters.JunitReportConfig{OmitSpecLabels: true},
