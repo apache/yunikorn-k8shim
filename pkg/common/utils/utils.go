@@ -109,6 +109,16 @@ func GetQueueNameFromPod(pod *v1.Pod) string {
 }
 
 func GetApplicationIDFromPod(pod *v1.Pod) (string, error) {
+	// if pod was tagged with ignore-application, return
+	if value := GetPodAnnotationValue(pod, constants.AnnotationIgnoreApplication); value != "" {
+		ignore, err := strconv.ParseBool(value)
+		if err != nil {
+			log.Logger().Warn("Failed to parse annotation "+constants.AnnotationIgnoreApplication, zap.Error(err))
+		} else if ignore {
+			return "", nil
+		}
+	}
+
 	// application ID can be defined in annotations
 	if value := GetPodAnnotationValue(pod, constants.AnnotationApplicationID); value != "" {
 		return value, nil

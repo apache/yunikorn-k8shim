@@ -443,6 +443,22 @@ func TestGetApplicationIDFromPod(t *testing.T) {
 				Annotations: map[string]string{constants.AnnotationApplicationID: appIDInAnnotation},
 			},
 		}, false, appIDInAnnotation},
+		{"AppID defined but ignore-application set", &v1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Annotations: map[string]string{
+					constants.AnnotationApplicationID:     appIDInAnnotation,
+					constants.AnnotationIgnoreApplication: "true",
+				},
+			},
+		}, false, ""},
+		{"AppID defined and ignore-application invalid", &v1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Annotations: map[string]string{
+					constants.AnnotationApplicationID:     appIDInAnnotation,
+					constants.AnnotationIgnoreApplication: "invalid",
+				},
+			},
+		}, false, appIDInAnnotation},
 		{"AppID defined in label and annotation", &v1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
 				Annotations: map[string]string{constants.AnnotationApplicationID: appIDInAnnotation},
