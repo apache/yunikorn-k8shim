@@ -64,7 +64,7 @@ func initContextAndAPIProviderForTest() (*Context, *client.MockedAPIProvider) {
 	return context, apis
 }
 
-func newPodHelper(name, namespace, podUID, nodeName string, podPhase v1.PodPhase) *v1.Pod {
+func newPodHelper(name, namespace, podUID, nodeName string, appID string, podPhase v1.PodPhase) *v1.Pod {
 	return &v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
@@ -74,6 +74,7 @@ func newPodHelper(name, namespace, podUID, nodeName string, podPhase v1.PodPhase
 			Name:      name,
 			Namespace: namespace,
 			UID:       types.UID(podUID),
+			Labels:    map[string]string{constants.LabelApplicationID: appID},
 		},
 		Spec: v1.PodSpec{
 			NodeName:      nodeName,
@@ -622,7 +623,7 @@ func TestRecoverTask(t *testing.T) {
 		Metadata: interfaces.TaskMetadata{
 			ApplicationID: appID,
 			TaskID:        taskUID1,
-			Pod:           newPodHelper("pod1", podNamespace, taskUID1, fakeNodeName, v1.PodRunning),
+			Pod:           newPodHelper("pod1", podNamespace, taskUID1, fakeNodeName, appID, v1.PodRunning),
 		},
 	})
 	assert.Assert(t, task != nil)
@@ -635,7 +636,7 @@ func TestRecoverTask(t *testing.T) {
 		Metadata: interfaces.TaskMetadata{
 			ApplicationID: appID,
 			TaskID:        taskUID2,
-			Pod:           newPodHelper("pod2", podNamespace, taskUID2, fakeNodeName, v1.PodSucceeded),
+			Pod:           newPodHelper("pod2", podNamespace, taskUID2, fakeNodeName, appID, v1.PodSucceeded),
 		},
 	})
 	assert.Assert(t, task != nil)
@@ -648,7 +649,7 @@ func TestRecoverTask(t *testing.T) {
 		Metadata: interfaces.TaskMetadata{
 			ApplicationID: appID,
 			TaskID:        taskUID3,
-			Pod:           newPodHelper("pod3", podNamespace, taskUID3, fakeNodeName, v1.PodFailed),
+			Pod:           newPodHelper("pod3", podNamespace, taskUID3, fakeNodeName, appID, v1.PodFailed),
 		},
 	})
 	assert.Assert(t, task != nil)
@@ -661,7 +662,7 @@ func TestRecoverTask(t *testing.T) {
 		Metadata: interfaces.TaskMetadata{
 			ApplicationID: appID,
 			TaskID:        taskUID4,
-			Pod:           newPodHelper("pod4", podNamespace, taskUID4, "", v1.PodPending),
+			Pod:           newPodHelper("pod4", podNamespace, taskUID4, "", appID, v1.PodPending),
 		},
 	})
 	assert.Assert(t, task != nil)
@@ -738,7 +739,7 @@ func TestTaskReleaseAfterRecovery(t *testing.T) {
 		Metadata: interfaces.TaskMetadata{
 			ApplicationID: appID,
 			TaskID:        pod1UID,
-			Pod:           newPodHelper(pod1Name, namespace, pod1UID, fakeNodeName, v1.PodRunning),
+			Pod:           newPodHelper(pod1Name, namespace, pod1UID, fakeNodeName, appID, v1.PodRunning),
 		},
 	})
 
@@ -750,7 +751,7 @@ func TestTaskReleaseAfterRecovery(t *testing.T) {
 		Metadata: interfaces.TaskMetadata{
 			ApplicationID: appID,
 			TaskID:        pod2UID,
-			Pod:           newPodHelper(pod2Name, namespace, pod2UID, fakeNodeName, v1.PodRunning),
+			Pod:           newPodHelper(pod2Name, namespace, pod2UID, fakeNodeName, appID, v1.PodRunning),
 		},
 	})
 

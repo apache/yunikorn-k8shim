@@ -27,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/apache/yunikorn-k8shim/pkg/cache"
+	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 )
 
 const appID = "app00001"
@@ -100,6 +101,9 @@ func newPod(name string) *v1.Pod {
 				"queue":         "root.a",
 				"applicationId": appID,
 			},
+		},
+		Spec: v1.PodSpec{
+			SchedulerName: constants.SchedulerName,
 		},
 	}
 }

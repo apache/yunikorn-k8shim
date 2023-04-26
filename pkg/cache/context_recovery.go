@@ -103,8 +103,7 @@ func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) err
 				continue
 			}
 			// yunikorn scheduled pods add to existing allocations
-			_, err = utils.GetApplicationIDFromPod(&pod)
-			ykPod := utils.GeneralPodFilter(&pod) && err == nil
+			ykPod := utils.GetApplicationIDFromPod(&pod) != ""
 			switch {
 			case ykPod:
 				if existingAlloc := getExistingAllocation(mgr, &pod); existingAlloc != nil {

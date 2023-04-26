@@ -430,19 +430,26 @@ func TestGetApplicationIDFromPod(t *testing.T) {
 	testCases := []struct {
 		name          string
 		pod           *v1.Pod
-		expectedError bool
 		expectedAppID string
 	}{
 		{"AppID defined in label", &v1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{constants.LabelApplicationID: appIDInLabel},
 			},
-		}, false, appIDInLabel},
+			Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
+		}, appIDInLabel},
+		{"Non-yunikorn schedulerName", &v1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Labels: map[string]string{constants.LabelApplicationID: appIDInLabel},
+			},
+			Spec: v1.PodSpec{SchedulerName: "default"},
+		}, ""},
 		{"AppID defined in annotation", &v1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
 				Annotations: map[string]string{constants.AnnotationApplicationID: appIDInAnnotation},
 			},
-		}, false, appIDInAnnotation},
+			Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
+		}, appIDInAnnotation},
 		{"AppID defined but ignore-application set", &v1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
 				Annotations: map[string]string{
@@ -450,7 +457,8 @@ func TestGetApplicationIDFromPod(t *testing.T) {
 					constants.AnnotationIgnoreApplication: "true",
 				},
 			},
-		}, false, ""},
+			Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
+		}, ""},
 		{"AppID defined and ignore-application invalid", &v1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
 				Annotations: map[string]string{
@@ -458,48 +466,49 @@ func TestGetApplicationIDFromPod(t *testing.T) {
 					constants.AnnotationIgnoreApplication: "invalid",
 				},
 			},
-		}, false, appIDInAnnotation},
+			Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
+		}, appIDInAnnotation},
 		{"AppID defined in label and annotation", &v1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
 				Annotations: map[string]string{constants.AnnotationApplicationID: appIDInAnnotation},
 				Labels:      map[string]string{constants.LabelApplicationID: appIDInLabel},
 			},
-		}, false, appIDInAnnotation},
+			Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
+		}, appIDInAnnotation},
 
 		{"Spark AppID defined in spark app selector", &v1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{constants.SparkLabelAppID: appIDInSelector},
 			},
-		}, false, appIDInSelector},
+			Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
+		}, appIDInSelector},
 		{"Spark AppID defined in spark app selector and annotation", &v1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels:      map[string]string{constants.SparkLabelAppID: appIDInSelector},
 				Annotations: map[string]string{constants.AnnotationApplicationID: sparkIDInAnnotation},
 			},
-		}, false, sparkIDInAnnotation},
+			Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
+		}, sparkIDInAnnotation},
 		{"Spark AppID defined in spark app selector and annotation", &v1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels:      map[string]string{constants.SparkLabelAppID: appIDInSelector, constants.LabelApplicationID: appIDInLabel},
 				Annotations: map[string]string{constants.AnnotationApplicationID: sparkIDInAnnotation},
 			},
-		}, false, sparkIDInAnnotation},
-		{"No AppID defined", &v1.Pod{}, true, ""},
+			Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
+		}, sparkIDInAnnotation},
+		{"No AppID defined", &v1.Pod{}, ""},
 		{"Spark AppID defined in spark app selector and label", &v1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{constants.SparkLabelAppID: appIDInSelector, constants.LabelApplicationID: appIDInLabel},
 			},
-		}, false, appIDInLabel},
+			Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
+		}, appIDInLabel},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			appID, err := GetApplicationIDFromPod(tc.pod)
-			if tc.expectedError {
-				assert.Assert(t, err != nil, "An error is expected")
-			} else {
-				assert.NilError(t, err, "No error is expected")
-			}
-			assert.DeepEqual(t, appID, tc.expectedAppID)
+			appID := GetApplicationIDFromPod(tc.pod)
+			assert.Equal(t, appID, tc.expectedAppID)
 		})
 	}
 }
@@ -692,6 +701,7 @@ func TestNeedRecovery(t *testing.T) {
 	}{
 		{"New pod pending for scheduling",
 			&v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{constants.LabelApplicationID: "app1"}},
 				Spec: v1.PodSpec{
 					SchedulerName: constants.SchedulerName,
 					NodeName:      "",
@@ -701,6 +711,7 @@ func TestNeedRecovery(t *testing.T) {
 				}}, false},
 		{"Succeed pod",
 			&v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{constants.LabelApplicationID: "app1"}},
 				Spec: v1.PodSpec{
 					SchedulerName: constants.SchedulerName,
 					NodeName:      fakeNodeID,
@@ -710,6 +721,7 @@ func TestNeedRecovery(t *testing.T) {
 				}}, false},
 		{"Failed pod",
 			&v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{constants.LabelApplicationID: "app1"}},
 				Spec: v1.PodSpec{
 					SchedulerName: constants.SchedulerName,
 					NodeName:      fakeNodeID,
@@ -719,6 +731,7 @@ func TestNeedRecovery(t *testing.T) {
 				}}, false},
 		{"Non YK pod",
 			&v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{constants.LabelApplicationID: "app1"}},
 				Spec: v1.PodSpec{
 					SchedulerName: "default-scheduler",
 					NodeName:      fakeNodeID,
@@ -728,6 +741,7 @@ func TestNeedRecovery(t *testing.T) {
 				}}, false},
 		{"Assigned pod and Running",
 			&v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{constants.LabelApplicationID: "app1"}},
 				Spec: v1.PodSpec{
 					SchedulerName: constants.SchedulerName,
 					NodeName:      fakeNodeID,
@@ -737,6 +751,7 @@ func TestNeedRecovery(t *testing.T) {
 				}}, true},
 		{"Assigned pod but Pending",
 			&v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{constants.LabelApplicationID: "app1"}},
 				Spec: v1.PodSpec{
 					SchedulerName: constants.SchedulerName,
 					NodeName:      fakeNodeID,
