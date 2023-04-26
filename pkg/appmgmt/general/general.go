@@ -126,13 +126,7 @@ func (os *Manager) filterPods(obj interface{}) bool {
 	switch obj.(type) {
 	case *v1.Pod:
 		pod := obj.(*v1.Pod)
-		if utils.GeneralPodFilter(pod) {
-			// only application ID is required
-			if _, err := utils.GetApplicationIDFromPod(pod); err == nil {
-				return true
-			}
-		}
-		return false
+		return utils.GetApplicationIDFromPod(pod) != ""
 	default:
 		return false
 	}
@@ -236,7 +230,7 @@ func (os *Manager) ListPods() ([]*v1.Pod, error) {
 		log.Logger().Debug("Looking at pod for recovery candidates", zap.String("podNamespace", pod.Namespace), zap.String("podName", pod.Name))
 		// general filter passes, and pod is assigned
 		// this means the pod is already scheduled by scheduler for an existing app
-		if utils.GeneralPodFilter(pod) && utils.IsAssignedPod(pod) {
+		if utils.GetApplicationIDFromPod(pod) != "" && utils.IsAssignedPod(pod) {
 			if meta, ok := getAppMetadata(pod, true); ok {
 				podsRecovered++
 				pods = append(pods, pod)

@@ -36,9 +36,11 @@ import (
 )
 
 func getTaskMetadata(pod *v1.Pod) (interfaces.TaskMetadata, bool) {
-	appID, err := utils.GetApplicationIDFromPod(pod)
-	if err != nil {
-		log.Logger().Debug("unable to get task by given pod", zap.Error(err))
+	appID := utils.GetApplicationIDFromPod(pod)
+	if appID == "" {
+		log.Logger().Debug("unable to get task for pod",
+			zap.String("namespace", pod.Namespace),
+			zap.String("name", pod.Name))
 		return interfaces.TaskMetadata{}, false
 	}
 
@@ -59,12 +61,11 @@ func getTaskMetadata(pod *v1.Pod) (interfaces.TaskMetadata, bool) {
 }
 
 func getAppMetadata(pod *v1.Pod, recovery bool) (interfaces.ApplicationMetadata, bool) {
-	appID, err := utils.GetApplicationIDFromPod(pod)
-	if err != nil {
+	appID := utils.GetApplicationIDFromPod(pod)
+	if appID == "" {
 		log.Logger().Debug("unable to get application for pod",
 			zap.String("namespace", pod.Namespace),
-			zap.String("name", pod.Name),
-			zap.Error(err))
+			zap.String("name", pod.Name))
 		return interfaces.ApplicationMetadata{}, false
 	}
 
@@ -95,6 +96,7 @@ func getAppMetadata(pod *v1.Pod, recovery bool) (interfaces.ApplicationMetadata,
 	user, groups := utils.GetUserFromPod(pod)
 
 	var taskGroups []v1alpha1.TaskGroup = nil
+	var err error = nil
 	if !conf.GetSchedulerConf().DisableGangScheduling {
 		taskGroups, err = utils.GetTaskGroupsFromAnnotation(pod)
 		if err != nil {

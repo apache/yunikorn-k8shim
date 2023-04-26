@@ -74,7 +74,7 @@ func NeedRecovery(pod *v1.Pod) bool {
 	// 1. Pod is scheduled by us
 	// 2. pod is already assigned to a node
 	// 3. pod is not in terminated state
-	if GeneralPodFilter(pod) && IsAssignedPod(pod) && !IsPodTerminated(pod) {
+	if GetApplicationIDFromPod(pod) != "" && IsAssignedPod(pod) && !IsPodTerminated(pod) {
 		return true
 	}
 
@@ -94,10 +94,6 @@ func IsAssignedPod(pod *v1.Pod) bool {
 	return len(pod.Spec.NodeName) != 0
 }
 
-func GeneralPodFilter(pod *v1.Pod) bool {
-	return strings.Compare(pod.Spec.SchedulerName, constants.SchedulerName) == 0
-}
-
 func GetQueueNameFromPod(pod *v1.Pod) string {
 	queueName := constants.ApplicationDefaultQueue
 	if an := GetPodLabelValue(pod, constants.LabelQueueName); an != "" {
@@ -108,24 +104,35 @@ func GetQueueNameFromPod(pod *v1.Pod) string {
 	return queueName
 }
 
-func GetApplicationIDFromPod(pod *v1.Pod) (string, error) {
+// GetApplicationIDFromPod returns the applicationID (if present) from a Pod or an empty string if not present.
+// If an applicationID is present, the Pod is managed by YuniKorn. Otherwise, it is managed by an external scheduler.
+func GetApplicationIDFromPod(pod *v1.Pod) string {
+	// SchedulerName needs to match
+	if strings.Compare(pod.Spec.SchedulerName, constants.SchedulerName) != 0 {
+		return ""
+	}
+	// if pod was tagged with ignore-application, return
+	if value := GetPodAnnotationValue(pod, constants.AnnotationIgnoreApplication); value != "" {
+		ignore, err := strconv.ParseBool(value)
+		if err != nil {
+			log.Logger().Warn("Failed to parse annotation "+constants.AnnotationIgnoreApplication, zap.Error(err))
+		} else if ignore {
+			return ""
+		}
+	}
 	// application ID can be defined in annotations
 	if value := GetPodAnnotationValue(pod, constants.AnnotationApplicationID); value != "" {
-		return value, nil
+		return value
 	}
-
-	// application ID can be defined in labels
 	if value := GetPodLabelValue(pod, constants.LabelApplicationID); value != "" {
-		return value, nil
+		return value
 	}
-
 	// application ID can be defined in labels
 	if value := GetPodLabelValue(pod, constants.SparkLabelAppID); value != "" {
-		return value, nil
+		return value
 	}
-
-	return "", fmt.Errorf("unable to retrieve application ID from pod spec, %s",
-		pod.Spec.String())
+	// no application ID found, this is not a YuniKorn-managed Pod
+	return ""
 }
 
 // compare the existing pod condition with the given one, return true if the pod condition remains not changed.

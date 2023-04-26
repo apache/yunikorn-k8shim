@@ -33,9 +33,10 @@ import (
 // this coordinator only looks after the pods that are not scheduled by yunikorn,
 // and it registers update/delete handler to the pod informer. It ensures that the
 // following operations are done
-//  1) when a pod is becoming Running, add occupied node resource
-//  2) when a pod is terminated, sub the occupied node resource
-//  3) when a pod is deleted, sub the occupied node resource
+//  1. when a pod is becoming Running, add occupied node resource
+//  2. when a pod is terminated, sub the occupied node resource
+//  3. when a pod is deleted, sub the occupied node resource
+//
 // each of these updates will trigger a node UPDATE action to update the occupied
 // resource in the scheduler-core.
 type nodeResourceCoordinator struct {
@@ -50,11 +51,7 @@ func newNodeResourceCoordinator(nodes *schedulerNodes) *nodeResourceCoordinator 
 func (c *nodeResourceCoordinator) filterPods(obj interface{}) bool {
 	switch obj := obj.(type) {
 	case *v1.Pod:
-		if utils.GeneralPodFilter(obj) {
-			_, err := utils.GetApplicationIDFromPod(obj)
-			return err != nil
-		}
-		return true
+		return utils.GetApplicationIDFromPod(obj) == ""
 	default:
 		return false
 	}

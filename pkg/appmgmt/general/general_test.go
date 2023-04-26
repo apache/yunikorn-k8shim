@@ -609,8 +609,7 @@ func TestListApplication(t *testing.T) {
 	assert.NilError(t, err)
 	assert.Equal(t, len(pods), 3)
 	for _, pod := range pods {
-		name, err := utils.GetApplicationIDFromPod(pod)
-		assert.NilError(t, err, "Could not retrieve application id from pod")
+		name := utils.GetApplicationIDFromPod(pod)
 		expected := expectOutput[name]
 		description := descriptionMap[name]
 		assert.Assert(t, expected, description)

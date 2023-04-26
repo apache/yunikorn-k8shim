@@ -90,6 +90,9 @@ const NamespaceQuota = "yunikorn.apache.org/namespace.quota"
 // AnnotationAllowPreemption set on PriorityClass, opt out of preemption for pods with this priority class
 const AnnotationAllowPreemption = "yunikorn.apache.org/allow-preemption"
 
+// AnnotationIgnoreApplication set on Pod prevents by admission controller, prevents YuniKorn from honoring application ID
+const AnnotationIgnoreApplication = "yunikorn.apache.org/ignore-application"
+
 // AnnotationGenerateAppID adds application ID to workloads in the namespace even if not set in the admission config.
 // Overrides the regexp behaviour if set, checked before the regexp is evaluated.
 // true: add an application ID label

@@ -92,8 +92,8 @@ func (sp *YuniKornSchedulerPlugin) PreFilter(_ context.Context, state *framework
 		zap.String("pod", pod.Name))
 
 	// we don't process pods without appID defined
-	appID, err := utils.GetApplicationIDFromPod(pod)
-	if err != nil {
+	appID := utils.GetApplicationIDFromPod(pod)
+	if appID == "" {
 		log.Logger().Debug("Skipping pod in the prefilter plugin because no applicationID is defined",
 			zap.String("namespace", pod.Namespace),
 			zap.String("pod", pod.Name))
@@ -144,8 +144,8 @@ func (sp *YuniKornSchedulerPlugin) Filter(_ context.Context, _ *framework.CycleS
 		zap.String("node", nodeInfo.Node().Name))
 
 	// we don't process pods without appID defined
-	appID, err := utils.GetApplicationIDFromPod(pod)
-	if err != nil {
+	appID := utils.GetApplicationIDFromPod(pod)
+	if appID == "" {
 		log.Logger().Debug("Skipping pod in the filter plugin because no applicationID is defined",
 			zap.String("namespace", pod.Namespace),
 			zap.String("pod", pod.Name))
@@ -194,8 +194,8 @@ func (sp *YuniKornSchedulerPlugin) PostBind(_ context.Context, _ *framework.Cycl
 		zap.String("assignedNode", nodeName))
 
 	// we don't process pods without appID defined
-	appID, err := utils.GetApplicationIDFromPod(pod)
-	if err != nil {
+	appID := utils.GetApplicationIDFromPod(pod)
+	if appID == "" {
 		log.Logger().Debug("Skipping pod in the postbind plugin because no applicationID is defined",
 			zap.String("namespace", pod.Namespace),
 			zap.String("pod", pod.Name))
