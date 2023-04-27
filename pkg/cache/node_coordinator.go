@@ -19,8 +19,11 @@
 package cache
 
 import (
+	"sync"
+
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
 	k8sCache "k8s.io/client-go/tools/cache"
 
 	"github.com/apache/yunikorn-k8shim/pkg/common"
@@ -28,26 +31,22 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
 
-// nodeResourceCoordinator looks at the resources that are not allocated by yunikorn,
-// and refresh scheduler cache to keep nodes' capacity in-sync.
-// this coordinator only looks after the pods that are not scheduled by yunikorn,
-// and it registers update/delete handler to the pod informer. It ensures that the
-// following operations are done
-//  1. when a pod is becoming Running, add occupied node resource
-//  2. when a pod is terminated, sub the occupied node resource
-//  3. when a pod is deleted, sub the occupied node resource
-//
-// each of these updates will trigger a node UPDATE action to update the occupied
-// resource in the scheduler-core.
+// nodeResourceCoordinator is used to track resources for Pods which are scheduled outside yunikorn and keep node occupied resources in sync
 type nodeResourceCoordinator struct {
-	nodes *schedulerNodes
+	nodes     *schedulerNodes
+	boundPods map[types.UID]string
+	lock      sync.RWMutex
 }
 
+// newNodeResourceCoordinator creates a new resource coordinator object
 func newNodeResourceCoordinator(nodes *schedulerNodes) *nodeResourceCoordinator {
-	return &nodeResourceCoordinator{nodes}
+	return &nodeResourceCoordinator{
+		nodes:     nodes,
+		boundPods: make(map[types.UID]string),
+	}
 }
 
-// filter pods that not scheduled by us
+// filterPods selects only Pods not scheduled by yunikorn
 func (c *nodeResourceCoordinator) filterPods(obj interface{}) bool {
 	switch obj := obj.(type) {
 	case *v1.Pod:
@@ -57,56 +56,27 @@ func (c *nodeResourceCoordinator) filterPods(obj interface{}) bool {
 	}
 }
 
-func (c *nodeResourceCoordinator) updatePod(old, new interface{}) {
-	oldPod, err := utils.Convert2Pod(old)
-	if err != nil {
-		log.Logger().Error("expecting a pod object", zap.Error(err))
-		return
-	}
-
+// addPod handles Pod addition events
+func (c *nodeResourceCoordinator) addPod(new interface{}) {
 	newPod, err := utils.Convert2Pod(new)
 	if err != nil {
 		log.Logger().Error("expecting a pod object", zap.Error(err))
 		return
 	}
-
-	// this handles the allocate and release of a pod that not scheduled by yunikorn
-	// the check is triggered when a pod status changes
-	// conditions for allocate:
-	//   1. pod got assigned to a node
-	//   2. pod is not in terminated state
-	if !utils.IsAssignedPod(oldPod) && utils.IsAssignedPod(newPod) && !utils.IsPodTerminated(newPod) {
-		log.Logger().Debug("pod is assigned to a node, trigger occupied resource update",
-			zap.String("namespace", newPod.Namespace),
-			zap.String("podName", newPod.Name),
-			zap.String("podStatusBefore", string(oldPod.Status.Phase)),
-			zap.String("podStatusCurrent", string(newPod.Status.Phase)))
-		// if pod is running but not scheduled by us,
-		// we need to notify scheduler-core to re-sync the node resource
-		podResource := common.GetPodResource(newPod)
-		c.nodes.updateNodeOccupiedResources(newPod.Spec.NodeName, podResource, AddOccupiedResource)
-		c.nodes.cache.AddPod(newPod)
-		return
-	}
-
-	// conditions for release:
-	//   1. pod is already assigned to a node
-	//   2. pod status changes from non-terminated to terminated state
-	if utils.IsAssignedPod(newPod) && oldPod.Status.Phase != newPod.Status.Phase && utils.IsPodTerminated(newPod) {
-		log.Logger().Debug("pod terminated, trigger occupied resource update",
-			zap.String("namespace", newPod.Namespace),
-			zap.String("podName", newPod.Name),
-			zap.String("podStatusBefore", string(oldPod.Status.Phase)),
-			zap.String("podStatusCurrent", string(newPod.Status.Phase)))
-		// this means pod is terminated
-		// we need sub the occupied resource and re-sync with the scheduler-core
-		podResource := common.GetPodResource(newPod)
-		c.nodes.updateNodeOccupiedResources(newPod.Spec.NodeName, podResource, SubOccupiedResource)
-		c.nodes.cache.RemovePod(newPod)
-		return
-	}
+	c.updatePodInternal(newPod)
 }
 
+// updatePod handles Pod update events
+func (c *nodeResourceCoordinator) updatePod(_, new interface{}) {
+	newPod, err := utils.Convert2Pod(new)
+	if err != nil {
+		log.Logger().Error("expecting a pod object", zap.Error(err))
+		return
+	}
+	c.updatePodInternal(newPod)
+}
+
+// deletePod handles Pod deletion events
 func (c *nodeResourceCoordinator) deletePod(obj interface{}) {
 	var pod *v1.Pod
 	switch t := obj.(type) {
@@ -123,18 +93,92 @@ func (c *nodeResourceCoordinator) deletePod(obj interface{}) {
 		log.Logger().Error("cannot convert to pod")
 		return
 	}
+	c.deletePodInternal(pod)
+}
 
-	// if pod is already terminated, that means the updates have already done
-	if utils.IsPodTerminated(pod) {
-		log.Logger().Debug("pod is already terminated, occupied resource updated should have already been done")
+// updatePodInternal is used internally to update pod status
+func (c *nodeResourceCoordinator) updatePodInternal(pod *v1.Pod) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	oldNode := c.getOldAssignedNode(pod)
+	newNode := c.getNewAssignedNode(pod)
+
+	// check for node assignment
+	if oldNode == "" && newNode != "" {
+		// bind pod
+		c.bindPod(pod, newNode)
 		return
 	}
 
-	log.Logger().Info("deleting pod that scheduled by other schedulers",
-		zap.String("namespace", pod.Namespace),
-		zap.String("podName", pod.Name))
+	// check for node removal
+	if oldNode != "" && newNode == "" {
+		// unbind pod
+		c.unbindPod(pod, oldNode)
+		return
+	}
 
+	// check for node changing - should not normally happen, but Pod spec is mutable
+	if oldNode != newNode && oldNode != "" && newNode != "" {
+		// unbind and rebind
+		c.unbindPod(pod, oldNode)
+		c.bindPod(pod, newNode)
+	}
+}
+
+// deletePodInternal is used internally to remove pod
+func (c *nodeResourceCoordinator) deletePodInternal(pod *v1.Pod) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	// unbind the pod if it was previously bound
+	if nodeName := c.getOldAssignedNode(pod); nodeName != "" {
+		c.unbindPod(pod, nodeName)
+	}
+}
+
+// getOldAssignedNode returns the node that a pod was previously assigned to
+func (c *nodeResourceCoordinator) getOldAssignedNode(pod *v1.Pod) string {
+	if pod == nil {
+		return ""
+	}
+	nodeName, ok := c.boundPods[pod.UID]
+	if !ok {
+		return ""
+	}
+	return nodeName
+}
+
+// getNewAssignedNode returns the node that a pod will be assigned to (assuming it is not terminated)
+func (c *nodeResourceCoordinator) getNewAssignedNode(pod *v1.Pod) string {
+	if pod != nil && utils.IsAssignedPod(pod) && !utils.IsPodTerminated(pod) {
+		return pod.Spec.NodeName
+	}
+	return ""
+}
+
+// bindPod is used to bind a pod to a node and add occupied resources
+func (c *nodeResourceCoordinator) bindPod(pod *v1.Pod, nodeName string) {
 	podResource := common.GetPodResource(pod)
-	c.nodes.updateNodeOccupiedResources(pod.Spec.NodeName, podResource, SubOccupiedResource)
+	log.Logger().Info("assigning non-yunikorn pod to node",
+		zap.String("namespace", pod.Namespace),
+		zap.String("podName", pod.Name),
+		zap.String("nodeName", nodeName),
+		zap.Any("resources", podResource.Resources))
+	c.nodes.updateNodeOccupiedResources(nodeName, podResource, AddOccupiedResource)
+	c.nodes.cache.AddPod(pod)
+	c.boundPods[pod.UID] = nodeName
+}
+
+// unbindPod is used to unbind a pod from a node and subtract occupied resources
+func (c *nodeResourceCoordinator) unbindPod(pod *v1.Pod, nodeName string) {
+	podResource := common.GetPodResource(pod)
+	log.Logger().Info("removing non-yunikorn pod from node",
+		zap.String("namespace", pod.Namespace),
+		zap.String("podName", pod.Name),
+		zap.String("nodeName", nodeName),
+		zap.Any("resources", podResource.Resources))
+	c.nodes.updateNodeOccupiedResources(nodeName, podResource, SubOccupiedResource)
 	c.nodes.cache.RemovePod(pod)
+	delete(c.boundPods, pod.UID)
 }

@@ -27,11 +27,11 @@ import (
 	"time"
 
 	"go.uber.org/zap"
-
 	v1 "k8s.io/api/core/v1"
 	schedulingv1 "k8s.io/api/scheduling/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	podv1 "k8s.io/kubernetes/pkg/api/v1/pod"
 
 	"github.com/apache/yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
@@ -222,6 +222,7 @@ func PodForTest(podName, memory, cpu string) *v1.Pod {
 		},
 		ObjectMeta: apis.ObjectMeta{
 			Name: podName,
+			UID:  types.UID("UID-" + podName),
 		},
 		Spec: v1.PodSpec{
 			Containers: containers,
