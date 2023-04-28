@@ -42,6 +42,12 @@ var MasterTaints = map[string]struct{}{
 	"node-role.kubernetes.io/master":        {},
 }
 
+var ComputeNodeLabels = map[string]struct{}{
+	"compute": {},
+}
+
+var RoleNodeLabel = "role"
+
 func GetAbsPath(p string) (string, error) {
 	path, err := filepath.Abs(p)
 	return path, err

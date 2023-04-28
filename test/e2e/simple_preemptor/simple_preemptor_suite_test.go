@@ -27,7 +27,6 @@ import (
 	"github.com/onsi/gomega"
 
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
-	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 )
 
 func init() {
@@ -36,17 +35,16 @@ func init() {
 
 func TestSimplePreemptor(t *testing.T) {
 	ginkgo.ReportAfterSuite("TestSimplePreemptor", func(report ginkgo.Report) {
-		err := common.CreateJUnitReportDir()
-		Ω(err).NotTo(gomega.HaveOccurred())
-		err = reporters.GenerateJUnitReportWithConfig(
+		err := reporters.GenerateJUnitReportWithConfig(
 			report,
 			filepath.Join(configmanager.YuniKornTestConfig.LogDir, "TEST-simple_preemptor_junit.xml"),
 			reporters.JunitReportConfig{OmitSpecLabels: true},
 		)
-		Ω(err).NotTo(gomega.HaveOccurred())
+		Ω(err).NotTo(HaveOccurred())
 	})
 	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "SimplePreemptor Suite")
+	ginkgo.RunSpecs(t, "TestSimplePreemptor", ginkgo.Label("TestSimplePreemptor"))
 }
 
 var Ω = gomega.Ω
+var HaveOccurred = gomega.HaveOccurred

@@ -1292,8 +1292,20 @@ func IsMasterNode(node *v1.Node) bool {
 			return true
 		}
 	}
-
 	return false
+}
+
+func IsComputeNode(node *v1.Node) bool {
+	roleNodeLabelExists := false
+	for labelKey, labelValue := range node.Labels {
+		if labelKey == common.RoleNodeLabel {
+			roleNodeLabelExists = true
+			if _, ok := common.ComputeNodeLabels[labelValue]; ok {
+				return true
+			}
+		}
+	}
+	return !roleNodeLabelExists
 }
 
 func (k *KubeCtl) DeleteWorkloadAndPods(objectName string, wlType WorkloadType, namespace string) {

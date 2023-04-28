@@ -44,12 +44,14 @@ var oldConfigMap = new(v1.ConfigMap)
 var annotation = "ann-" + common.RandSeq(10)
 
 // Nodes
-var Worker1 = "yk8s-worker"
-var Worker2 = "yk8s-worker2"
+var Worker1 = ""
+var Worker2 = ""
 var Worker1Res = resource.NewQuantity(8*1000*1000, resource.DecimalSI)
 var Worker2Res = resource.NewQuantity(8*1000*1000, resource.DecimalSI)
 var sleepPodMemLimit1 int64
 var sleepPodMemLimit2 int64
+var taintKey = "e2e_test_simple_preemptor"
+var nodesToTaint []string
 
 var _ = ginkgo.BeforeSuite(func() {
 	// Initializing kubectl client
@@ -79,11 +81,27 @@ var _ = ginkgo.BeforeSuite(func() {
 
 	// Extract node allocatable resources
 	for _, node := range nodes.Items {
-		if node.Name == Worker1 {
-			Worker1Res = node.Status.Allocatable.Memory()
-		} else if node.Name == Worker2 {
-			Worker2Res = node.Status.Allocatable.Memory()
+		// skip master if it's marked as such
+		node := node
+		if k8s.IsMasterNode(&node) || !k8s.IsComputeNode(&node) {
+			continue
 		}
+		if Worker1 == "" {
+			Worker1 = node.Name
+			Worker1Res = node.Status.Allocatable.Memory()
+		} else if Worker2 == "" {
+			Worker2 = node.Name
+			Worker2Res = node.Status.Allocatable.Memory()
+		} else {
+			nodesToTaint = append(nodesToTaint, node.Name)
+		}
+	}
+
+	ginkgo.By("Tainting some nodes..")
+	for _, nodeName := range nodesToTaint {
+		ginkgo.By("Tainting node " + nodeName)
+		err = kClient.TaintNode(nodeName, taintKey, "value", v1.TaintEffectNoSchedule)
+		Ω(err).NotTo(gomega.HaveOccurred())
 	}
 
 	var pods *v1.PodList
@@ -108,6 +126,14 @@ var _ = ginkgo.BeforeSuite(func() {
 })
 
 var _ = ginkgo.AfterSuite(func() {
+
+	ginkgo.By("Untainting some nodes")
+	for _, nodeName := range nodesToTaint {
+		ginkgo.By("Untainting node " + nodeName)
+		err := kClient.UntaintNode(nodeName, taintKey)
+		Ω(err).NotTo(gomega.HaveOccurred(), "Could not remove taint from node "+nodeName)
+	}
+
 	ginkgo.By("Check Yunikorn's health")
 	checks, err := yunikorn.GetFailedHealthChecks()
 	Ω(err).NotTo(gomega.HaveOccurred())
@@ -129,9 +155,9 @@ var _ = ginkgo.Describe("SimplePreemptor", func() {
 	ginkgo.It("Verify_basic_simple_preemption. Use case: Only one pod is running and same pod has been selected as victim", func() {
 
 		// Define sleepPod
-		sleepPodConfigs := k8s.SleepPodConfig{Name: "sleepjob", NS: dev, Mem: sleepPodMemLimit1 * 2, Time: 600, RequiredNode: "yk8s-worker"}
+		sleepPodConfigs := k8s.SleepPodConfig{Name: "sleepjob", NS: dev, Mem: sleepPodMemLimit1 * 2, Time: 600, RequiredNode: Worker1}
 		sleepPod2Configs := k8s.SleepPodConfig{Name: "sleepjob2", NS: dev, Mem: sleepPodMemLimit2 * 2, Time: 600}
-		sleepPod3Configs := k8s.SleepPodConfig{Name: "sleepjob3", NS: dev, RequiredNode: "yk8s-worker2", Mem: sleepPodMemLimit2 * 2, Time: 600}
+		sleepPod3Configs := k8s.SleepPodConfig{Name: "sleepjob3", NS: dev, RequiredNode: Worker2, Mem: sleepPodMemLimit2 * 2, Time: 600}
 
 		for _, config := range []k8s.SleepPodConfig{sleepPodConfigs, sleepPod2Configs, sleepPod3Configs} {
 			ginkgo.By("Deploy the sleep pod " + config.Name + " to the development namespace")
@@ -154,15 +180,15 @@ var _ = ginkgo.Describe("SimplePreemptor", func() {
 	ginkgo.It("Verify_simple_preemption. Use case: When 3 sleep pods (2 opted out, regular) are running, regular pod should be victim to free up resources for 4th sleep pod", func() {
 
 		// Define sleepPod
-		sleepPodConfigs := k8s.SleepPodConfig{Name: "sleepjob", NS: dev, Mem: sleepPodMemLimit1, Time: 600, RequiredNode: "yk8s-worker"}
-		sleepPod2Configs := k8s.SleepPodConfig{Name: "sleepjob2", NS: dev, Mem: sleepPodMemLimit1, Time: 600, RequiredNode: "yk8s-worker"}
-		sleepPod3Configs := k8s.SleepPodConfig{Name: "sleepjob3", NS: dev, Mem: sleepPodMemLimit1, Time: 600, RequiredNode: "yk8s-worker"}
+		sleepPodConfigs := k8s.SleepPodConfig{Name: "sleepjob", NS: dev, Mem: sleepPodMemLimit1, Time: 600, RequiredNode: Worker1}
+		sleepPod2Configs := k8s.SleepPodConfig{Name: "sleepjob2", NS: dev, Mem: sleepPodMemLimit1, Time: 600, RequiredNode: Worker1}
+		sleepPod3Configs := k8s.SleepPodConfig{Name: "sleepjob3", NS: dev, Mem: sleepPodMemLimit1, Time: 600, RequiredNode: Worker1}
 
 		// random uid in pod spec to ensure this Non-opted pod doesn't become originator
 		sleepPod4Configs := k8s.SleepPodConfig{Name: "sleepjob4", NS: dev, Mem: sleepPodMemLimit2, Time: 600, Optedout: true, UID: types.UID("ddd")}
 		sleepPod5Configs := k8s.SleepPodConfig{Name: "sleepjob5", NS: dev, Mem: sleepPodMemLimit2, Time: 600, Optedout: false}
 		sleepPod6Configs := k8s.SleepPodConfig{Name: "sleepjob6", NS: dev, Mem: sleepPodMemLimit2, Time: 600, Optedout: false}
-		sleepPod7Configs := k8s.SleepPodConfig{Name: "sleepjob7", NS: dev, Mem: sleepPodMemLimit2, Time: 600, RequiredNode: "yk8s-worker2"}
+		sleepPod7Configs := k8s.SleepPodConfig{Name: "sleepjob7", NS: dev, Mem: sleepPodMemLimit2, Time: 600, RequiredNode: Worker2}
 
 		for _, config := range []k8s.SleepPodConfig{sleepPodConfigs, sleepPod2Configs,
 			sleepPod3Configs, sleepPod4Configs, sleepPod5Configs, sleepPod6Configs} {
