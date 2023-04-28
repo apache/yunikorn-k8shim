@@ -395,7 +395,11 @@ func (task *Task) beforeTaskAllocated(eventSrc string, allocUUID string, nodeID 
 	// If the task is Completed the pod was deleted on K8s but the core was not aware yet.
 	// Notify the core to release this allocation to avoid resource leak.
 	// The ask is not relevant at this point.
-	if eventSrc == TaskStates().Completed {
+
+	// If the task termination type is PLACEHOLDER_REPLACED, it means the core side was already aware,
+	// we should not release the allocation here to avoid release twice.
+	// Because when the placeHolder was replaced, the task will call NotifyTaskComplete to release the allocation,
+	if eventSrc == TaskStates().Completed && task.terminationType != si.TerminationType_name[int32(si.TerminationType_PLACEHOLDER_REPLACED)] {
 		log.Logger().Info("task is already completed, invalidate the allocation",
 			zap.String("currentTaskState", eventSrc),
 			zap.String("allocUUID", allocUUID),
