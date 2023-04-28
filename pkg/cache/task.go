@@ -53,6 +53,7 @@ type Task struct {
 	createTime      time.Time
 	taskGroupName   string
 	placeholder     bool
+	isReleased      bool
 	terminationType string
 	pluginMode      bool
 	originator      bool
@@ -99,6 +100,7 @@ func createTaskInternal(tid string, app *Application, resource *si.Resource,
 		resource:      resource,
 		createTime:    pod.GetCreationTimestamp().Time,
 		placeholder:   placeholder,
+		isReleased:    false,
 		taskGroupName: taskGroupName,
 		pluginMode:    pluginMode,
 		originator:    originator,
@@ -147,6 +149,18 @@ func (task *Task) IsPlaceholder() bool {
 	task.lock.RLock()
 	defer task.lock.RUnlock()
 	return task.placeholder
+}
+
+func (task *Task) IsReleased() bool {
+	task.lock.RLock()
+	defer task.lock.RUnlock()
+	return task.isReleased
+}
+
+func (task *Task) setReleased(isReleased bool) {
+	task.lock.Lock()
+	defer task.lock.Unlock()
+	task.isReleased = isReleased
 }
 
 func (task *Task) GetTaskState() string {
@@ -469,7 +483,11 @@ func (task *Task) postTaskFailed(reason string) {
 // this is done as a before hook because the releaseAllocation() call needs to
 // send different requests to scheduler-core, depending on current task state
 func (task *Task) beforeTaskCompleted() {
-	task.releaseAllocation()
+	// We should make sure here the task.releaseAllocation() is called only once.
+	if task.IsReleased() {
+		task.releaseAllocation()
+		task.setReleased(true)
+	}
 
 	events.GetRecorder().Eventf(task.pod.DeepCopy(), nil,
 		v1.EventTypeNormal, "TaskCompleted", "TaskCompleted",
