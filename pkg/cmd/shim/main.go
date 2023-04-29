@@ -38,6 +38,7 @@ var (
 	version string
 	date    string
 	goVersion string
+	dockerArch string
 )
 
 func main() {
@@ -45,8 +46,9 @@ func main() {
 	conf.BuildDate = date
 	conf.IsPluginVersion = false
 	conf.GoVersion = goVersion
+	conf.DockerArch = dockerArch
 
-	log.Logger().Info("Build info", zap.String("version", version), zap.String("date", date), zap.Bool("isPluginVersion", false), zap.String("goVersion", goVersion))
+	log.Logger().Info("Build info", zap.String("version", version), zap.String("date", date), zap.Bool("isPluginVersion", false), zap.String("goVersion", goVersion), zap.String("dockerArch", dockerArch))
 
 	configMaps, err := client.LoadBootstrapConfigMaps(conf.GetSchedulerNamespace())
 	if err != nil {

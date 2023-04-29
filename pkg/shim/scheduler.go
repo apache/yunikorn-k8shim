@@ -216,6 +216,7 @@ func (ss *KubernetesShim) registerShimLayer() error {
 	buildInfoMap["buildDate"] = conf.BuildDate
 	buildInfoMap["isPluginVersion"] = strconv.FormatBool(conf.IsPluginVersion)
 	buildInfoMap["goVersion"] = conf.GoVersion
+	buildInfoMap["dockerArch"] = conf.DockerArch
 
 	configMaps, err := ss.context.LoadConfigMaps()
 	if err != nil {

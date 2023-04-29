@@ -33,14 +33,16 @@ var (
 	version string
 	date    string
 	goVersion string
+	dockerArch string
 )
 
 func main() {
 	conf.BuildVersion = version
 	conf.BuildDate = date
 	conf.IsPluginVersion = true
+	conf.DockerArch = dockerArch
 
-	log.Logger().Info("Build info", zap.String("version", version), zap.String("date", date), zap.Bool("isPluginVersion", true), zap.String("goVersion", goVersion))
+	log.Logger().Info("Build info", zap.String("version", version), zap.String("date", date), zap.Bool("isPluginVersion", true), zap.String("goVersion", goVersion), zap.String("dockerArch", dockerArch))
 
 	command := app.NewSchedulerCommand(
 		app.WithPlugin(schedulerplugin.SchedulerPluginName, schedulerplugin.NewSchedulerPlugin))

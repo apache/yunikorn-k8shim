@@ -94,6 +94,7 @@ var (
 	BuildDate       string
 	IsPluginVersion bool
 	GoVersion       string
+	DockerArch      string
 )
 
 var once sync.Once

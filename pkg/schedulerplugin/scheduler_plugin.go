@@ -216,7 +216,7 @@ func (sp *YuniKornSchedulerPlugin) PostBind(_ context.Context, _ *framework.Cycl
 
 // NewSchedulerPlugin initializes a new plugin and returns it
 func NewSchedulerPlugin(_ runtime.Object, handle framework.Handle) (framework.Plugin, error) {
-	log.Logger().Info("Build info", zap.String("version", conf.BuildVersion), zap.String("date", conf.BuildDate), zap.String("goVersion", conf.GoVersion))
+	log.Logger().Info("Build info", zap.String("version", conf.BuildVersion), zap.String("date", conf.BuildDate), zap.String("goVersion", conf.GoVersion), zap.String("dockerArch", conf.DockerArch))
 
 	configMaps, err := client.LoadBootstrapConfigMaps(conf.GetSchedulerNamespace())
 	if err != nil {
