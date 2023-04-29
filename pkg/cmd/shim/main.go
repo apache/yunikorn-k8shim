@@ -37,14 +37,16 @@ import (
 var (
 	version string
 	date    string
+	goVersion string
 )
 
 func main() {
 	conf.BuildVersion = version
 	conf.BuildDate = date
 	conf.IsPluginVersion = false
+	conf.GoVersion = goVersion
 
-	log.Logger().Info("Build info", zap.String("version", version), zap.String("date", date))
+	log.Logger().Info("Build info", zap.String("version", version), zap.String("date", date), zap.Bool("isPluginVersion", false), zap.String("goVersion", goVersion))
 
 	configMaps, err := client.LoadBootstrapConfigMaps(conf.GetSchedulerNamespace())
 	if err != nil {

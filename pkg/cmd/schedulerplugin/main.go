@@ -19,23 +19,28 @@
 package main
 
 import (
+	"go.uber.org/zap"
 	"os"
 
 	"k8s.io/kubernetes/cmd/kube-scheduler/app"
 
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
+	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-k8shim/pkg/schedulerplugin"
 )
 
 var (
 	version string
 	date    string
+	goVersion string
 )
 
 func main() {
 	conf.BuildVersion = version
 	conf.BuildDate = date
 	conf.IsPluginVersion = true
+
+	log.Logger().Info("Build info", zap.String("version", version), zap.String("date", date), zap.Bool("isPluginVersion", true), zap.String("goVersion", goVersion))
 
 	command := app.NewSchedulerCommand(
 		app.WithPlugin(schedulerplugin.SchedulerPluginName, schedulerplugin.NewSchedulerPlugin))

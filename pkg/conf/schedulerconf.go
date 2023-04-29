@@ -93,6 +93,7 @@ var (
 	BuildVersion    string
 	BuildDate       string
 	IsPluginVersion bool
+	GoVersion       string
 )
 
 var once sync.Once
