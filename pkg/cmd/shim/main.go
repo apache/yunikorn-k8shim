@@ -36,13 +36,13 @@ import (
 )
 
 var (
-	version string
-	date    string
-	goVersion string
+	version    string
+	date       string
+	goVersion  string
 	dockerArch string
-	coreSHA string
-	siSHA string
-	shimSHA string
+	coreSHA    string
+	siSHA      string
+	shimSHA    string
 )
 
 func main() {
