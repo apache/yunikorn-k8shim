@@ -19,7 +19,7 @@
 package main
 
 import (
-	"go.uber.org/zap"
+	"fmt"
 	"os"
 
 	"k8s.io/kubernetes/cmd/kube-scheduler/app"
@@ -34,6 +34,9 @@ var (
 	date    string
 	goVersion string
 	dockerArch string
+	coreSHA string
+	siSHA string
+	shimSHA string
 )
 
 func main() {
@@ -41,8 +44,11 @@ func main() {
 	conf.BuildDate = date
 	conf.IsPluginVersion = true
 	conf.DockerArch = dockerArch
+	conf.CoreSHA = coreSHA
+	conf.SiSHA = siSHA
+	conf.ShimSHA = shimSHA
 
-	log.Logger().Info("Build info", zap.String("version", version), zap.String("date", date), zap.Bool("isPluginVersion", true), zap.String("goVersion", goVersion), zap.String("dockerArch", dockerArch))
+	log.Logger().Info(fmt.Sprintf("Build info: version=%s date=%s isPluginVersion=%t goVersion=%s dockerArch=%s coreSHA=%s siSHA=%s shimSHA=%s", version, date, false, goVersion, dockerArch, coreSHA, siSHA, shimSHA))
 
 	command := app.NewSchedulerCommand(
 		app.WithPlugin(schedulerplugin.SchedulerPluginName, schedulerplugin.NewSchedulerPlugin))

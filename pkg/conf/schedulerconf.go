@@ -95,6 +95,9 @@ var (
 	IsPluginVersion bool
 	GoVersion       string
 	DockerArch      string
+	CoreSHA 		string
+	SiSHA 			string
+	ShimSHA 		string
 )
 
 var once sync.Once
