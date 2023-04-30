@@ -226,7 +226,7 @@ init:
 build: init
 	@echo "building scheduler binary"
 	go build -o=${DEV_BIN_DIR}/${BINARY} -race -ldflags \
-	'-X main.version=${VERSION} -X main.date=${DATE} -X main.goVersion=${GO_VERSION} -X main.dockerArch=${DOCKER_ARCH} -X main.dockerArch=${DOCKER_ARCH} -X main.coreSHA=${CORE_SHA} -X main.siSHA=${SI_SHA} -X main.shimSHA=${SHIM_SHA}' \
+	'-X main.version=${VERSION} -X main.date=${DATE} -X main.goVersion=${GO_VERSION} -X main.dockerArch=${DOCKER_ARCH} -X main.coreSHA=${CORE_SHA} -X main.siSHA=${SI_SHA} -X main.shimSHA=${SHIM_SHA}' \
 	./pkg/cmd/shim/
 	@chmod +x ${DEV_BIN_DIR}/${BINARY}
 
@@ -234,7 +234,7 @@ build: init
 build_plugin: init
 	@echo "building scheduler plugin binary"
 	go build -o=${DEV_BIN_DIR}/${PLUGIN_BINARY} -race -ldflags \
-	'-X main.version=${VERSION} -X main.date=${DATE} -X main.goVersion=${GO_VERSION} -X main.dockerArch=${DOCKER_ARCH} -X main.dockerArch=${DOCKER_ARCH} -X main.coreSHA=${CORE_SHA} -X main.siSHA=${SI_SHA} -X main.shimSHA=${SHIM_SHA}' \
+	'-X main.version=${VERSION} -X main.date=${DATE} -X main.goVersion=${GO_VERSION} -X main.dockerArch=${DOCKER_ARCH} -X main.coreSHA=${CORE_SHA} -X main.siSHA=${SI_SHA} -X main.shimSHA=${SHIM_SHA}' \
 	./pkg/cmd/schedulerplugin/
 	@chmod +x ${DEV_BIN_DIR}/${PLUGIN_BINARY}
 

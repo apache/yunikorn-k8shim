@@ -19,13 +19,11 @@
 package main
 
 import (
-	"fmt"
 	"os"
 
 	"k8s.io/kubernetes/cmd/kube-scheduler/app"
 
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
-	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-k8shim/pkg/schedulerplugin"
 )
 
@@ -43,12 +41,11 @@ func main() {
 	conf.BuildVersion = version
 	conf.BuildDate = date
 	conf.IsPluginVersion = true
+	conf.GoVersion = goVersion
 	conf.DockerArch = dockerArch
 	conf.CoreSHA = coreSHA
 	conf.SiSHA = siSHA
 	conf.ShimSHA = shimSHA
-
-	log.Logger().Info(fmt.Sprintf("Build info: version=%s date=%s isPluginVersion=%t goVersion=%s dockerArch=%s coreSHA=%s siSHA=%s shimSHA=%s", version, date, false, goVersion, dockerArch, coreSHA, siSHA, shimSHA))
 
 	command := app.NewSchedulerCommand(
 		app.WithPlugin(schedulerplugin.SchedulerPluginName, schedulerplugin.NewSchedulerPlugin))
