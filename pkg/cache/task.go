@@ -484,7 +484,7 @@ func (task *Task) postTaskFailed(reason string) {
 // send different requests to scheduler-core, depending on current task state
 func (task *Task) beforeTaskCompleted() {
 	// We should make sure here the task.releaseAllocation() is called only once.
-	if task.IsReleased() {
+	if !task.IsReleased() {
 		task.releaseAllocation()
 		task.setReleased(true)
 	}
