@@ -67,12 +67,8 @@ func (os *Manager) ServiceInit() error {
 		crClient, 0, factoryOpts...)
 	os.crdInformerFactory.Sparkoperator().V1beta2().SparkApplications().Informer()
 	os.crdInformer = os.crdInformerFactory.Sparkoperator().V1beta2().SparkApplications().Informer()
-	os.crdInformer.AddEventHandler(k8sCache.ResourceEventHandlerFuncs{
-		UpdateFunc: os.updateApplication,
-		DeleteFunc: os.deleteApplication,
-	})
+	go os.crdInformerFactory.Start(os.stopCh)
 	log.Logger().Info("Spark operator AppMgmt service initialized")
-
 	return nil
 }
 
@@ -81,9 +77,11 @@ func (os *Manager) Name() string {
 }
 
 func (os *Manager) Start() error {
-	if os.crdInformerFactory != nil {
-		log.Logger().Info("starting", zap.String("Name", os.Name()))
-		go os.crdInformerFactory.Start(os.stopCh)
+	if os.crdInformer != nil {
+		os.crdInformer.AddEventHandler(k8sCache.ResourceEventHandlerFuncs{
+			UpdateFunc: os.updateApplication,
+			DeleteFunc: os.deleteApplication,
+		})
 	}
 	return nil
 }

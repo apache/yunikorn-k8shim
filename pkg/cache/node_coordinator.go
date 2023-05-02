@@ -56,6 +56,12 @@ func (c *nodeResourceCoordinator) filterPods(obj interface{}) bool {
 	}
 }
 
+// addPodNoReport adds a pod to the internal tracking but does not register resource updates
+func (c *nodeResourceCoordinator) addPodNoReport(pod *v1.Pod) bool {
+	bound, _ := c.updatePodInternal(pod, false)
+	return bound
+}
+
 // addPod handles Pod addition events
 func (c *nodeResourceCoordinator) addPod(new interface{}) {
 	newPod, err := utils.Convert2Pod(new)
@@ -63,7 +69,7 @@ func (c *nodeResourceCoordinator) addPod(new interface{}) {
 		log.Logger().Error("expecting a pod object", zap.Error(err))
 		return
 	}
-	c.updatePodInternal(newPod)
+	c.updatePodInternal(newPod, true)
 }
 
 // updatePod handles Pod update events
@@ -73,7 +79,7 @@ func (c *nodeResourceCoordinator) updatePod(_, new interface{}) {
 		log.Logger().Error("expecting a pod object", zap.Error(err))
 		return
 	}
-	c.updatePodInternal(newPod)
+	c.updatePodInternal(newPod, true)
 }
 
 // deletePod handles Pod deletion events
@@ -96,8 +102,8 @@ func (c *nodeResourceCoordinator) deletePod(obj interface{}) {
 	c.deletePodInternal(pod)
 }
 
-// updatePodInternal is used internally to update pod status
-func (c *nodeResourceCoordinator) updatePodInternal(pod *v1.Pod) {
+// updatePodInternal is used internally to update pod status, and returns status for pod bound and unbound
+func (c *nodeResourceCoordinator) updatePodInternal(pod *v1.Pod, report bool) (bool, bool) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
@@ -107,23 +113,26 @@ func (c *nodeResourceCoordinator) updatePodInternal(pod *v1.Pod) {
 	// check for node assignment
 	if oldNode == "" && newNode != "" {
 		// bind pod
-		c.bindPod(pod, newNode)
-		return
+		c.bindPod(pod, newNode, report)
+		return true, false
 	}
 
 	// check for node removal
 	if oldNode != "" && newNode == "" {
 		// unbind pod
-		c.unbindPod(pod, oldNode)
-		return
+		c.unbindPod(pod, oldNode, report)
+		return false, true
 	}
 
 	// check for node changing - should not normally happen, but Pod spec is mutable
 	if oldNode != newNode && oldNode != "" && newNode != "" {
 		// unbind and rebind
-		c.unbindPod(pod, oldNode)
-		c.bindPod(pod, newNode)
+		c.unbindPod(pod, oldNode, report)
+		c.bindPod(pod, newNode, report)
+		return true, true
 	}
+
+	return false, false
 }
 
 // deletePodInternal is used internally to remove pod
@@ -133,7 +142,7 @@ func (c *nodeResourceCoordinator) deletePodInternal(pod *v1.Pod) {
 
 	// unbind the pod if it was previously bound
 	if nodeName := c.getOldAssignedNode(pod); nodeName != "" {
-		c.unbindPod(pod, nodeName)
+		c.unbindPod(pod, nodeName, true)
 	}
 }
 
@@ -158,27 +167,31 @@ func (c *nodeResourceCoordinator) getNewAssignedNode(pod *v1.Pod) string {
 }
 
 // bindPod is used to bind a pod to a node and add occupied resources
-func (c *nodeResourceCoordinator) bindPod(pod *v1.Pod, nodeName string) {
+func (c *nodeResourceCoordinator) bindPod(pod *v1.Pod, nodeName string, report bool) {
 	podResource := common.GetPodResource(pod)
 	log.Logger().Info("assigning non-yunikorn pod to node",
 		zap.String("namespace", pod.Namespace),
 		zap.String("podName", pod.Name),
 		zap.String("nodeName", nodeName),
 		zap.Any("resources", podResource.Resources))
-	c.nodes.updateNodeOccupiedResources(nodeName, podResource, AddOccupiedResource)
+	if report {
+		c.nodes.updateNodeOccupiedResources(nodeName, podResource, AddOccupiedResource)
+	}
 	c.nodes.cache.AddPod(pod)
 	c.boundPods[pod.UID] = nodeName
 }
 
 // unbindPod is used to unbind a pod from a node and subtract occupied resources
-func (c *nodeResourceCoordinator) unbindPod(pod *v1.Pod, nodeName string) {
+func (c *nodeResourceCoordinator) unbindPod(pod *v1.Pod, nodeName string, report bool) {
 	podResource := common.GetPodResource(pod)
 	log.Logger().Info("removing non-yunikorn pod from node",
 		zap.String("namespace", pod.Namespace),
 		zap.String("podName", pod.Name),
 		zap.String("nodeName", nodeName),
 		zap.Any("resources", podResource.Resources))
-	c.nodes.updateNodeOccupiedResources(nodeName, podResource, SubOccupiedResource)
+	if report {
+		c.nodes.updateNodeOccupiedResources(nodeName, podResource, SubOccupiedResource)
+	}
 	c.nodes.cache.RemovePod(pod)
 	delete(c.boundPods, pod.UID)
 }

@@ -98,16 +98,21 @@ func (svc *AppManagementService) register(managers ...interfaces.AppManager) {
 	}
 }
 
-func (svc *AppManagementService) Start() error {
+func (svc *AppManagementService) ServiceInit() error {
 	for _, optService := range svc.managers {
-		// init service before starting
+		// init services
 		if err := optService.ServiceInit(); err != nil {
 			log.Logger().Error("service init fails",
 				zap.String("serviceName", optService.Name()),
 				zap.Error(err))
 			return err
 		}
+	}
+	return nil
+}
 
+func (svc *AppManagementService) Start() error {
+	for _, optService := range svc.managers {
 		log.Logger().Info("starting app management service",
 			zap.String("serviceName", optService.Name()))
 		if err := optService.Start(); err != nil {

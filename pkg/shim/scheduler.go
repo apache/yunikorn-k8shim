@@ -199,6 +199,12 @@ func (ss *KubernetesShim) recoverSchedulerState() {
 }
 
 func (ss *KubernetesShim) doScheduling() {
+	// run app managers
+	if err := ss.appManager.Start(); err != nil {
+		log.Logger().Fatal("failed to start app manager", zap.Error(err))
+		ss.Stop()
+	}
+
 	// add event handlers to the context
 	ss.context.AddSchedulingEventHandlers()
 
@@ -294,19 +300,16 @@ func (ss *KubernetesShim) Run() {
 	// run the client library code that communicates with Kubernetes
 	ss.apiFactory.Start()
 
+	// initialize application manager
+	if err := ss.appManager.ServiceInit(); err != nil {
+		log.Logger().Fatal("failed to initialize appManager service", zap.Error(err))
+	}
+
 	// register scheduler with scheduler core
 	// this triggers the scheduler state transition
 	// it first registers with the core, then start to do recovery,
-	// after the recovery is succeed, it goes to the normal scheduling routine
+	// after the recovery, normal scheduling will start
 	dispatcher.Dispatch(newRegisterSchedulerEvent())
-
-	// run app managers
-	// the app manager launches the pod event handlers
-	// it needs to be started after the shim is registered with the core
-	if err := ss.appManager.Start(); err != nil {
-		log.Logger().Fatal("failed to start app manager", zap.Error(err))
-		ss.Stop()
-	}
 }
 
 func (ss *KubernetesShim) Stop() {

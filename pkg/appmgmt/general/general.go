@@ -64,6 +64,11 @@ func (os *Manager) Name() string {
 
 // this implements AppManagementService interface
 func (os *Manager) ServiceInit() error {
+	return nil
+}
+
+// this implements AppManagementService interface
+func (os *Manager) Start() error {
 	os.apiProvider.AddEventHandler(
 		&client.ResourceEventHandlers{
 			Type:     client.PodInformerHandlers,
@@ -72,13 +77,6 @@ func (os *Manager) ServiceInit() error {
 			UpdateFn: os.updatePod,
 			DeleteFn: os.deletePod,
 		})
-	return nil
-}
-
-// this implements AppManagementService interface
-func (os *Manager) Start() error {
-	// generic app manager leverages the shared context,
-	// no other service, go routine is required to be started
 	return nil
 }
 

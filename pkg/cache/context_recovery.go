@@ -19,13 +19,11 @@
 package cache
 
 import (
-	"context"
 	"fmt"
 	"time"
 
 	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 
 	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
@@ -70,7 +68,7 @@ func getExistingAllocation(recoverableAppManagers []interfaces.Recoverable, pod 
 // node state plus the allocations. If a node is recovered successfully, its state is marked as
 // healthy. Only healthy nodes can be used for scheduling.
 func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) error {
-	allNodes, err := waitAndListNodes(ctx.apiProvider)
+	allNodes, err := listNodes(ctx.apiProvider)
 	if err != nil {
 		return err
 	}
@@ -84,36 +82,34 @@ func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) err
 	// because in the tests, we don't really send existing allocations
 	// we simply simulate to accept or reject nodes on conditions.
 	if !ctx.apiProvider.IsTestingMode() {
-		var podList *corev1.PodList
-		podList, err = ctx.apiProvider.GetAPIs().KubeClient.GetClientSet().
-			CoreV1().Pods("").
-			List(context.Background(), metav1.ListOptions{})
+		var podList []*corev1.Pod
+		podList, err = ctx.apiProvider.GetAPIs().PodInformer.Lister().List(labels.Everything())
 		if err != nil {
 			return err
 		}
 
 		nodeOccupiedResources := make(map[string]*si.Resource)
-		for i := 0; i < len(podList.Items); i++ {
-			pod := podList.Items[i]
+		for i := 0; i < len(podList); i++ {
+			pod := podList[i]
 			// only handle assigned pods
-			if !utils.IsAssignedPod(&pod) {
+			if !utils.IsAssignedPod(pod) {
 				log.Logger().Info("Skipping unassigned pod",
 					zap.String("podUID", string(pod.UID)),
 					zap.String("podName", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)))
 				continue
 			}
 			// yunikorn scheduled pods add to existing allocations
-			ykPod := utils.GetApplicationIDFromPod(&pod) != ""
+			ykPod := utils.GetApplicationIDFromPod(pod) != ""
 			switch {
 			case ykPod:
-				if existingAlloc := getExistingAllocation(mgr, &pod); existingAlloc != nil {
+				if existingAlloc := getExistingAllocation(mgr, pod); existingAlloc != nil {
 					log.Logger().Debug("Adding resources for existing pod",
 						zap.String("appID", existingAlloc.ApplicationID),
 						zap.String("podUID", string(pod.UID)),
 						zap.String("podName", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)),
 						zap.String("nodeName", existingAlloc.NodeID),
-						zap.Stringer("resources", common.GetPodResource(&pod)))
-					existingAlloc.AllocationTags = common.CreateTagsForTask(&pod)
+						zap.Stringer("resources", common.GetPodResource(pod)))
+					existingAlloc.AllocationTags = common.CreateTagsForTask(pod)
 					if err = ctx.nodes.addExistingAllocation(existingAlloc); err != nil {
 						log.Logger().Warn("Failed to add existing allocation", zap.Error(err))
 					}
@@ -122,26 +118,25 @@ func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) err
 						zap.String("podUID", string(pod.UID)),
 						zap.String("podName", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)),
 						zap.String("nodeName", pod.Spec.NodeName),
-						zap.Stringer("resources", common.GetPodResource(&pod)))
+						zap.Stringer("resources", common.GetPodResource(pod)))
 				}
-			case !utils.IsPodTerminated(&pod):
-				// pod is not terminated (succeed or failed) state,
-				// and it has a node assigned, that means the scheduler
-				// has already allocated the pod onto a node
-				// we should report this occupied resource to scheduler-core
-				occupiedResource := nodeOccupiedResources[pod.Spec.NodeName]
-				if occupiedResource == nil {
-					occupiedResource = common.NewResourceBuilder().Build()
+			case !utils.IsPodTerminated(pod):
+				// non-yk pod is not terminated (succeeded or failed); report this pod to the node coordinator
+				// if coordinator reports that pod is bound, add occupied resources
+				if bound := ctx.nodeCoordinator.addPodNoReport(pod); bound {
+					occupiedResource := nodeOccupiedResources[pod.Spec.NodeName]
+					if occupiedResource == nil {
+						occupiedResource = common.NewResourceBuilder().Build()
+					}
+					podResource := common.GetPodResource(pod)
+					log.Logger().Debug("Adding resources for occupied pod",
+						zap.String("podUID", string(pod.UID)),
+						zap.String("podName", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)),
+						zap.String("nodeName", pod.Spec.NodeName),
+						zap.Stringer("resources", podResource))
+					occupiedResource = common.Add(occupiedResource, podResource)
+					nodeOccupiedResources[pod.Spec.NodeName] = occupiedResource
 				}
-				podResource := common.GetPodResource(&pod)
-				log.Logger().Debug("Adding resources for occupied pod",
-					zap.String("podUID", string(pod.UID)),
-					zap.String("podName", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)),
-					zap.String("nodeName", pod.Spec.NodeName),
-					zap.Stringer("resources", podResource))
-				occupiedResource = common.Add(occupiedResource, podResource)
-				nodeOccupiedResources[pod.Spec.NodeName] = occupiedResource
-				ctx.nodes.cache.AddPod(&pod)
 			default:
 				log.Logger().Debug("Skipping terminated pod",
 					zap.String("podUID", string(pod.UID)),
@@ -149,13 +144,7 @@ func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) err
 			}
 		}
 
-		// why we need to calculate the occupied resources here? why not add an event-handler
-		// in node_coordinator#addPod?
-		// this is because the occupied resources must be calculated and counted before the
-		// scheduling started. If we do both updating existing occupied resources along with
-		// new pods scheduling, due to the fact that we cannot predicate the ordering of K8s
-		// events, it could be dangerous because we might schedule pods onto some node that
-		// doesn't have enough capacity (occupied resources not yet reported).
+		// update occupied resources on node if non-yunikorn pods exist
 		for nodeName, occupiedResource := range nodeOccupiedResources {
 			if cachedNode := ctx.nodes.getNode(nodeName); cachedNode != nil {
 				cachedNode.updateOccupiedResource(occupiedResource, AddOccupiedResource)
@@ -209,24 +198,11 @@ func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) err
 	return nil
 }
 
-func waitAndListNodes(apiProvider client.APIProvider) ([]*corev1.Node, error) {
-	var allNodes []*corev1.Node
-	var listErr error
-
-	// need to wait for sync
-	// because the shared indexer doesn't sync its cache periodically
-	apiProvider.WaitForSync()
-
-	// list all nodes in the cluster,
-	// retry for sometime if there is some errors
-	err := utils.WaitForCondition(func() bool {
-		allNodes, listErr = apiProvider.GetAPIs().
-			NodeInformer.Lister().List(labels.Everything())
-		return listErr == nil
-	}, time.Second, time.Minute)
+func listNodes(apiProvider client.APIProvider) ([]*corev1.Node, error) {
+	// list all nodes in the cluster
+	allNodes, err := apiProvider.GetAPIs().NodeInformer.Lister().List(labels.Everything())
 	if err != nil {
 		return nil, err
 	}
-
 	return allNodes, nil
 }

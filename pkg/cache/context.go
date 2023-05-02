@@ -50,15 +50,16 @@ import (
 
 // context maintains scheduling state, like apps and apps' tasks.
 type Context struct {
-	applications   map[string]*Application        // apps
-	nodes          *schedulerNodes                // nodes
-	schedulerCache *schedulercache.SchedulerCache // external cache
-	apiProvider    client.APIProvider             // apis to interact with api-server, scheduler-core, etc
-	predManager    predicates.PredicateManager    // K8s predicates
-	pluginMode     bool                           // true if we are configured as a scheduler plugin
-	namespace      string                         // yunikorn namespace
-	configMaps     []*v1.ConfigMap                // cached yunikorn configmaps
-	lock           *sync.RWMutex                  // lock
+	applications    map[string]*Application        // apps
+	nodes           *schedulerNodes                // nodes
+	schedulerCache  *schedulercache.SchedulerCache // external cache
+	apiProvider     client.APIProvider             // apis to interact with api-server, scheduler-core, etc
+	predManager     predicates.PredicateManager    // K8s predicates
+	pluginMode      bool                           // true if we are configured as a scheduler plugin
+	namespace       string                         // yunikorn namespace
+	configMaps      []*v1.ConfigMap                // cached yunikorn configmaps
+	nodeCoordinator *nodeResourceCoordinator       // node resource coordinator
+	lock            *sync.RWMutex                  // lock
 }
 
 // NewContext create a new context for the scheduler using a default (empty) configuration
@@ -88,6 +89,9 @@ func NewContextWithBootstrapConfigMaps(apis client.APIProvider, bootstrapConfigM
 	// init the controllers and plugins (need the cache)
 	ctx.nodes = newSchedulerNodes(apis.GetAPIs().SchedulerAPI, ctx.schedulerCache)
 
+	// create the node resource coordinator
+	ctx.nodeCoordinator = newNodeResourceCoordinator(ctx.nodes)
+
 	// create the predicate manager
 	if !apis.IsTestingMode() {
 		sharedLister := support.NewSharedLister(ctx.schedulerCache)
@@ -115,13 +119,12 @@ func (ctx *Context) AddSchedulingEventHandlers() {
 		DeleteFn: ctx.removePodFromCache,
 	})
 
-	nodeCoordinator := newNodeResourceCoordinator(ctx.nodes)
 	ctx.apiProvider.AddEventHandler(&client.ResourceEventHandlers{
 		Type:     client.PodInformerHandlers,
-		FilterFn: nodeCoordinator.filterPods,
-		AddFn:    nodeCoordinator.addPod,
-		UpdateFn: nodeCoordinator.updatePod,
-		DeleteFn: nodeCoordinator.deletePod,
+		FilterFn: ctx.nodeCoordinator.filterPods,
+		AddFn:    ctx.nodeCoordinator.addPod,
+		UpdateFn: ctx.nodeCoordinator.updatePod,
+		DeleteFn: ctx.nodeCoordinator.deletePod,
 	})
 
 	ctx.apiProvider.AddEventHandler(&client.ResourceEventHandlers{
