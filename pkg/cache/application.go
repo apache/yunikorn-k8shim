@@ -62,6 +62,44 @@ type Application struct {
 	placeholderTimeoutInSec    int64
 	schedulingStyle            string
 	originatingTask            interfaces.ManagedTask // Original Pod which creates the requests
+
+	newTasks *newTasksTracker
+}
+
+// For performance reasons, we track tasks with "New" state for quick retrieval.
+// Application.GetNewTasks (and getTasks() in general) must not be used on critical paths because it
+// uses a read lock inside fsm.FSM which becomes a bottleneck with large number of pods.
+type newTasksTracker struct {
+	newTasks map[*Task]struct{}
+	sync.Mutex
+}
+
+func (n *newTasksTracker) add(t *Task) {
+	n.Lock()
+	defer n.Unlock()
+	n.newTasks[t] = struct{}{}
+}
+
+func (n *newTasksTracker) remove(t *Task) {
+	n.Lock()
+	defer n.Unlock()
+	delete(n.newTasks, t)
+}
+
+func (n *newTasksTracker) getTasks() []*Task {
+	n.Lock()
+	defer n.Unlock()
+	tasks := make([]*Task, 0, len(n.newTasks))
+	for task := range n.newTasks {
+		tasks = append(tasks, task)
+	}
+	return tasks
+}
+
+func (n *newTasksTracker) count() int {
+	n.Lock()
+	defer n.Unlock()
+	return len(n.newTasks)
 }
 
 func (app *Application) String() string {
@@ -87,6 +125,7 @@ func NewApplication(appID, queueName, user string, groups []string, tags map[str
 		schedulerAPI:            scheduler,
 		placeholderTimeoutInSec: 0,
 		schedulingStyle:         constants.SchedulingPolicyStyleParamDefault,
+		newTasks:                &newTasksTracker{newTasks: make(map[*Task]struct{})},
 	}
 	return app
 }
@@ -239,16 +278,19 @@ func (app *Application) addTask(task *Task) {
 		// skip adding duplicate task
 		return
 	}
+	app.newTasks.add(task)
 	app.taskMap[task.taskID] = task
 }
 
 func (app *Application) removeTask(taskID string) {
 	app.lock.Lock()
 	defer app.lock.Unlock()
-	if _, ok := app.taskMap[taskID]; !ok {
+	task, ok := app.taskMap[taskID]
+	if !ok {
 		log.Logger().Debug("Attempted to remove non-existent task", zap.String("taskID", taskID))
 		return
 	}
+	app.newTasks.remove(task)
 	delete(app.taskMap, taskID)
 	log.Logger().Info("task removed",
 		zap.String("appID", app.applicationID),
@@ -373,7 +415,7 @@ func (app *Application) Schedule() bool {
 		app.scheduleTasks(func(t *Task) bool {
 			return t.placeholder
 		})
-		if len(app.GetNewTasks()) == 0 {
+		if app.newTasks.count() == 0 {
 			return false
 		}
 	case ApplicationStates().Running:
@@ -382,7 +424,7 @@ func (app *Application) Schedule() bool {
 		app.scheduleTasks(func(t *Task) bool {
 			return !t.placeholder
 		})
-		if len(app.GetNewTasks()) == 0 {
+		if app.newTasks.count() == 0 {
 			return false
 		}
 	default:
@@ -396,7 +438,7 @@ func (app *Application) Schedule() bool {
 }
 
 func (app *Application) scheduleTasks(taskScheduleCondition func(t *Task) bool) {
-	for _, task := range app.GetNewTasks() {
+	for _, task := range app.newTasks.getTasks() {
 		if taskScheduleCondition(task) {
 			// for each new task, we do a sanity check before moving the state to Pending_Schedule
 			if err := task.sanityCheckBeforeScheduling(); err == nil {
@@ -408,7 +450,9 @@ func (app *Application) scheduleTasks(taskScheduleCondition func(t *Task) bool) 
 					// this should not happen because we already checked the state
 					// before calling the transition. Nowhere to go, just log the error.
 					log.Logger().Warn("init task failed", zap.Error(err))
+					continue
 				}
+				app.newTasks.remove(task)
 			} else {
 				events.GetRecorder().Eventf(task.GetTaskPod().DeepCopy(), nil, v1.EventTypeWarning, "FailedScheduling", "FailedScheduling", err.Error())
 				log.Logger().Debug("task is not ready for scheduling",
