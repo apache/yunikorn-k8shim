@@ -25,6 +25,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/google/btree"
 	"github.com/looplab/fsm"
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
@@ -70,36 +71,60 @@ type Application struct {
 // Application.GetNewTasks (and getTasks() in general) must not be used on critical paths because it
 // uses a read lock inside fsm.FSM which becomes a bottleneck with large number of pods.
 type newTasksTracker struct {
-	newTasks map[*Task]struct{}
+	sortedTasks *btree.BTree
 	sync.Mutex
+}
+
+type taskEntry struct {
+	task *Task
+}
+
+func (e taskEntry) Less(than btree.Item) bool {
+	other, ok := than.(taskEntry)
+	if !ok {
+		return false
+	}
+	if other.task.createTime.After(e.task.createTime) {
+		return true
+	}
+	return other.task.taskID > e.task.taskID
 }
 
 func (n *newTasksTracker) add(t *Task) {
 	n.Lock()
 	defer n.Unlock()
-	n.newTasks[t] = struct{}{}
+	if existing := n.sortedTasks.ReplaceOrInsert(taskEntry{t}); existing != nil {
+		log.Logger().Warn("re-added existing item",
+			zap.String("taskID", t.GetTaskID()))
+	}
 }
 
 func (n *newTasksTracker) remove(t *Task) {
 	n.Lock()
 	defer n.Unlock()
-	delete(n.newTasks, t)
+	n.sortedTasks.Delete(taskEntry{t})
 }
 
 func (n *newTasksTracker) getTasks() []*Task {
 	n.Lock()
 	defer n.Unlock()
-	tasks := make([]*Task, 0, len(n.newTasks))
-	for task := range n.newTasks {
-		tasks = append(tasks, task)
+	if n.sortedTasks.Len() == 0 {
+		return nil
 	}
+	tasks := make([]*Task, 0, n.sortedTasks.Len())
+	n.sortedTasks.Ascend(func(item btree.Item) bool {
+		t := item.(taskEntry).task
+		tasks = append(tasks, t)
+		return true
+	})
+
 	return tasks
 }
 
 func (n *newTasksTracker) count() int {
 	n.Lock()
 	defer n.Unlock()
-	return len(n.newTasks)
+	return n.sortedTasks.Len()
 }
 
 func (app *Application) String() string {
@@ -125,7 +150,7 @@ func NewApplication(appID, queueName, user string, groups []string, tags map[str
 		schedulerAPI:            scheduler,
 		placeholderTimeoutInSec: 0,
 		schedulingStyle:         constants.SchedulingPolicyStyleParamDefault,
-		newTasks:                &newTasksTracker{newTasks: make(map[*Task]struct{})},
+		newTasks:                &newTasksTracker{sortedTasks: btree.New(7)},
 	}
 	return app
 }

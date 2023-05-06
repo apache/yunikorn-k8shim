@@ -1343,3 +1343,64 @@ func (ctx *Context) addApplication(app *Application) {
 	defer ctx.lock.Unlock()
 	ctx.applications[app.applicationID] = app
 }
+
+func TestNewTaskTracker(t *testing.T) {
+	context := initContextForTest()
+	ms := newMockSchedulerAPI()
+	app := NewApplication(appID, "root.abc", "testuser", testGroups, map[string]string{}, ms)
+	tasks := []*Task{
+		NewTask("task01", app, context,
+			&v1.Pod{
+				ObjectMeta: apis.ObjectMeta{
+					CreationTimestamp: apis.Time{Time: time.Unix(100, 0)},
+				},
+			},
+		),
+		NewTask("task02", app, context,
+			&v1.Pod{
+				ObjectMeta: apis.ObjectMeta{
+					CreationTimestamp: apis.Time{Time: time.Unix(11, 0)},
+				},
+			},
+		),
+		NewTask("task03", app, context,
+			&v1.Pod{
+				ObjectMeta: apis.ObjectMeta{
+					CreationTimestamp: apis.Time{Time: time.Unix(22, 0)},
+				},
+			},
+		),
+		NewTask("task04", app, context,
+			&v1.Pod{
+				ObjectMeta: apis.ObjectMeta{
+					CreationTimestamp: apis.Time{Time: time.Unix(50, 0)},
+				},
+			},
+		),
+		NewTask("task05", app, context,
+			&v1.Pod{
+				ObjectMeta: apis.ObjectMeta{
+					CreationTimestamp: apis.Time{Time: time.Unix(1, 0)},
+				},
+			},
+		),
+	}
+
+	for _, task := range tasks {
+		app.addTask(task)
+	}
+	verifyNewTaskOrding(t, app)
+	app.removeTask("task04")
+	app.removeTask("task05")
+	verifyNewTaskOrding(t, app)
+	assert.Equal(t, 3, app.newTasks.count())
+}
+
+func verifyNewTaskOrding(t *testing.T, app *Application) {
+	newTasks := app.GetNewTasks()
+	trackedTasks := app.newTasks.getTasks()
+	assert.Equal(t, len(trackedTasks), len(newTasks), "number of new tasks is not tracked properly")
+	for i := 0; i < len(newTasks); i++ {
+		assert.Equal(t, newTasks[i].taskID, trackedTasks[i].taskID, "order of tasks incorrect")
+	}
+}
