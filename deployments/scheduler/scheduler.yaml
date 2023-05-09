@@ -53,7 +53,6 @@ spec:
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 9080
-            - containerPort: 9090
           volumeMounts:
             - name: config-volume
               mountPath: /etc/yunikorn/
