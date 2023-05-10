@@ -473,7 +473,6 @@ func TestGetOwnerReferences(t *testing.T) {
 	}
 
 	returnedOwnerRefs = getOwnerReference(podWithOwnerRef)
-	returnedOwnerRefs = getOwnerReference(podWithOwnerRef)
 	assert.Assert(t, len(returnedOwnerRefs) == 1, "Only one owner reference is expected")
 	assert.DeepEqual(t, ownerRef, returnedOwnerRefs[0])
 }
