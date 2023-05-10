@@ -94,7 +94,7 @@ var (
 	BuildDate       string
 	IsPluginVersion bool
 	GoVersion       string
-	DockerArch      string
+	Arch            string
 	CoreSHA         string
 	SiSHA           string
 	ShimSHA         string

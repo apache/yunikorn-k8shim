@@ -36,13 +36,13 @@ import (
 )
 
 var (
-	version    string
-	date       string
-	goVersion  string
-	dockerArch string
-	coreSHA    string
-	siSHA      string
-	shimSHA    string
+	version   string
+	date      string
+	goVersion string
+	arch      string
+	coreSHA   string
+	siSHA     string
+	shimSHA   string
 )
 
 func main() {
@@ -50,12 +50,12 @@ func main() {
 	conf.BuildDate = date
 	conf.IsPluginVersion = false
 	conf.GoVersion = goVersion
-	conf.DockerArch = dockerArch
+	conf.Arch = arch
 	conf.CoreSHA = coreSHA
 	conf.SiSHA = siSHA
 	conf.ShimSHA = shimSHA
 
-	log.Logger().Info(fmt.Sprintf("Build info: version=%s date=%s isPluginVersion=%t goVersion=%s dockerArch=%s coreSHA=%s siSHA=%s shimSHA=%s", version, date, false, goVersion, dockerArch, coreSHA, siSHA, shimSHA))
+	log.Logger().Info(fmt.Sprintf("Build info: version=%s date=%s isPluginVersion=%t goVersion=%s arch=%s coreSHA=%s siSHA=%s shimSHA=%s", version, date, false, goVersion, arch, coreSHA, siSHA, shimSHA))
 
 	configMaps, err := client.LoadBootstrapConfigMaps(conf.GetSchedulerNamespace())
 	if err != nil {

@@ -28,13 +28,13 @@ import (
 )
 
 var (
-	version    string
-	date       string
-	goVersion  string
-	dockerArch string
-	coreSHA    string
-	siSHA      string
-	shimSHA    string
+	version   string
+	date      string
+	goVersion string
+	arch      string
+	coreSHA   string
+	siSHA     string
+	shimSHA   string
 )
 
 func main() {
@@ -42,7 +42,7 @@ func main() {
 	conf.BuildDate = date
 	conf.IsPluginVersion = true
 	conf.GoVersion = goVersion
-	conf.DockerArch = dockerArch
+	conf.Arch = arch
 	conf.CoreSHA = coreSHA
 	conf.SiSHA = siSHA
 	conf.ShimSHA = shimSHA
