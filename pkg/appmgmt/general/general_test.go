@@ -167,6 +167,7 @@ func TestOriginatorPod(t *testing.T) {
 	owner := apis.OwnerReference{
 		APIVersion: "v1",
 		UID:        "UID-POD-00002",
+		Kind:       "Pod",
 	}
 	refer := []apis.OwnerReference{
 		owner,
@@ -448,16 +449,33 @@ func TestGetOwnerReferences(t *testing.T) {
 			UID:  "uid",
 		},
 	}
-	returnedOwnerRefs := getOwnerReferences(podWithOwnerRef)
-	assert.Assert(t, len(returnedOwnerRefs) == 1, "Only one owner reference is expected")
-	assert.DeepEqual(t, ownerRef, returnedOwnerRefs[0])
 
-	returnedOwnerRefs = getOwnerReferences(podWithNoOwnerRef)
+	returnedOwnerRefs := getOwnerReference(podWithOwnerRef)
+	assert.Assert(t, len(returnedOwnerRefs) == 1, "Only one owner reference is expected")
+	assert.Equal(t, returnedOwnerRefs[0].Name, podWithOwnerRef.Name, "Unexpected owner reference name")
+	assert.Equal(t, returnedOwnerRefs[0].UID, podWithOwnerRef.UID, "Unexpected owner reference UID")
+	assert.Equal(t, returnedOwnerRefs[0].Kind, "Pod", "Unexpected owner reference Kind")
+	assert.Equal(t, returnedOwnerRefs[0].APIVersion, v1.SchemeGroupVersion.String(), "Unexpected owner reference Kind")
+
+	returnedOwnerRefs = getOwnerReference(podWithNoOwnerRef)
 	assert.Assert(t, len(returnedOwnerRefs) == 1, "Only one owner reference is expected")
 	assert.Equal(t, returnedOwnerRefs[0].Name, podWithNoOwnerRef.Name, "Unexpected owner reference name")
 	assert.Equal(t, returnedOwnerRefs[0].UID, podWithNoOwnerRef.UID, "Unexpected owner reference UID")
 	assert.Equal(t, returnedOwnerRefs[0].Kind, "Pod", "Unexpected owner reference Kind")
 	assert.Equal(t, returnedOwnerRefs[0].APIVersion, v1.SchemeGroupVersion.String(), "Unexpected owner reference Kind")
+
+	// Set pod with owner reference and kind is pod
+	ownerRef.Kind = "Pod"
+	podWithOwnerRef = &v1.Pod{
+		ObjectMeta: apis.ObjectMeta{
+			OwnerReferences: []apis.OwnerReference{ownerRef},
+		},
+	}
+
+	returnedOwnerRefs = getOwnerReference(podWithOwnerRef)
+	returnedOwnerRefs = getOwnerReference(podWithOwnerRef)
+	assert.Assert(t, len(returnedOwnerRefs) == 1, "Only one owner reference is expected")
+	assert.DeepEqual(t, ownerRef, returnedOwnerRefs[0])
 }
 
 type Template struct {

@@ -104,9 +104,15 @@ func isStateAwareDisabled(pod *v1.Pod) bool {
 	return result
 }
 
-func getOwnerReferences(pod *v1.Pod) []metav1.OwnerReference {
+func getOwnerReference(pod *v1.Pod) []metav1.OwnerReference {
 	if len(pod.OwnerReferences) > 0 {
-		return pod.OwnerReferences
+		// Filter the pod kind owner reference
+		// keep this because we need to find the original pod
+		for _, ref := range pod.OwnerReferences {
+			if ref.Kind == reflect.TypeOf(v1.Pod{}).Name() {
+				return []metav1.OwnerReference{ref}
+			}
+		}
 	}
 	controller := false
 	blockOwnerDeletion := true
