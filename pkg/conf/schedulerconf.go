@@ -93,6 +93,11 @@ var (
 	BuildVersion    string
 	BuildDate       string
 	IsPluginVersion bool
+	GoVersion       string
+	Arch            string
+	CoreSHA         string
+	SiSHA           string
+	ShimSHA         string
 )
 
 var once sync.Once
