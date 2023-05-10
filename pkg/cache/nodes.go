@@ -217,7 +217,7 @@ func (nc *schedulerNodes) schedulerNodeEventHandler() func(obj interface{}) {
 }
 
 func hasReadyCondition(node *v1.Node) bool {
-	if node != nil && node.Status.String() != "nil" {
+	if node != nil {
 		for _, condition := range node.Status.Conditions {
 			if condition.Type == v1.NodeReady && condition.Status == v1.ConditionTrue {
 				return true
