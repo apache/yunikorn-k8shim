@@ -877,9 +877,9 @@ func TestShouldProcessNamespace(t *testing.T) {
 	assert.Check(t, !ac.shouldProcessNamespace("allow-except-this"), "allow-except-this namespace allowed when on bypass list")
 
 	ac = prepareController(t, "", "^ns-no-annotation$", "^ns-regexp-deny$", "", "", false, true)
-	ac.nsCache.nameSpaces["ns-no-annotation"] = nsFlags{enableYuniKorn: -1, generateAppID: -1}
-	ac.nsCache.nameSpaces["ns-process-true"] = nsFlags{enableYuniKorn: 1, generateAppID: -1}
-	ac.nsCache.nameSpaces["ns-process-false"] = nsFlags{enableYuniKorn: 0, generateAppID: -1}
+	ac.nsCache.nameSpaces["ns-no-annotation"] = nsFlags{enableYuniKorn: UNSET, generateAppID: UNSET}
+	ac.nsCache.nameSpaces["ns-process-true"] = nsFlags{enableYuniKorn: TRUE, generateAppID: UNSET}
+	ac.nsCache.nameSpaces["ns-process-false"] = nsFlags{enableYuniKorn: FALSE, generateAppID: UNSET}
 	assert.Check(t, ac.shouldProcessNamespace("ns-no-annotation"), "no annotation namespace allowed")
 	assert.Check(t, ac.shouldProcessNamespace("ns-process-true"), "namespace process true")
 	assert.Check(t, !ac.shouldProcessNamespace("ns-process-false"), "namespace process false")
@@ -887,7 +887,7 @@ func TestShouldProcessNamespace(t *testing.T) {
 
 	// check regexp override
 	assert.Check(t, !ac.shouldProcessNamespace("ns-regexp-deny"), "namespace deny regexp not allowed")
-	ac.nsCache.nameSpaces["ns-regexp-deny"] = nsFlags{enableYuniKorn: 1, generateAppID: -1}
+	ac.nsCache.nameSpaces["ns-regexp-deny"] = nsFlags{enableYuniKorn: TRUE, generateAppID: UNSET}
 	assert.Check(t, ac.shouldProcessNamespace("ns-regexp-deny"), "namespace override via annotation")
 }
 
@@ -902,9 +902,9 @@ func TestShouldLabelNamespace(t *testing.T) {
 	assert.Check(t, !ac.shouldLabelNamespace("allow-except-this"), "allow-except-this namespace allowed when on no-label list")
 
 	ac = prepareController(t, "", "", "", "^ns-no-annotation$", "^ns-regexp-deny$", false, true)
-	ac.nsCache.nameSpaces["ns-no-annotation"] = nsFlags{enableYuniKorn: -1, generateAppID: -1}
-	ac.nsCache.nameSpaces["ns-generate-true"] = nsFlags{enableYuniKorn: -1, generateAppID: 1}
-	ac.nsCache.nameSpaces["ns-generate-false"] = nsFlags{enableYuniKorn: -1, generateAppID: 0}
+	ac.nsCache.nameSpaces["ns-no-annotation"] = nsFlags{enableYuniKorn: UNSET, generateAppID: UNSET}
+	ac.nsCache.nameSpaces["ns-generate-true"] = nsFlags{enableYuniKorn: UNSET, generateAppID: TRUE}
+	ac.nsCache.nameSpaces["ns-generate-false"] = nsFlags{enableYuniKorn: UNSET, generateAppID: FALSE}
 	assert.Check(t, ac.shouldLabelNamespace("ns-no-annotation"), "no annotation namespace allowed")
 	assert.Check(t, ac.shouldLabelNamespace("ns-generate-true"), "namespace generate true")
 	assert.Check(t, !ac.shouldLabelNamespace("ns-generate-false"), "namespace generate false")
@@ -912,7 +912,7 @@ func TestShouldLabelNamespace(t *testing.T) {
 
 	// check regexp override
 	assert.Check(t, !ac.shouldLabelNamespace("ns-regexp-deny"), "namespace deny regexp not allowed")
-	ac.nsCache.nameSpaces["ns-regexp-deny"] = nsFlags{enableYuniKorn: -1, generateAppID: 1}
+	ac.nsCache.nameSpaces["ns-regexp-deny"] = nsFlags{enableYuniKorn: UNSET, generateAppID: TRUE}
 	assert.Check(t, ac.shouldLabelNamespace("ns-regexp-deny"), "namespace override via annotation")
 }
 

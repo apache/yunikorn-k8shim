@@ -37,32 +37,32 @@ const testNS = "test-ns"
 func TestFlags(t *testing.T) {
 	cache := NewNamespaceCache(nil)
 	cache.nameSpaces["notset"] = nsFlags{
-		enableYuniKorn: -1,
-		generateAppID:  -1,
+		enableYuniKorn: UNSET,
+		generateAppID:  UNSET,
 	}
 	cache.nameSpaces["exist-unset"] = nsFlags{
-		enableYuniKorn: 0,
-		generateAppID:  0,
+		enableYuniKorn: FALSE,
+		generateAppID:  FALSE,
 	}
 	cache.nameSpaces["exist-set"] = nsFlags{
-		enableYuniKorn: 1,
-		generateAppID:  1,
+		enableYuniKorn: TRUE,
+		generateAppID:  TRUE,
 	}
 	cache.nameSpaces["generate-set"] = nsFlags{
-		enableYuniKorn: -1,
-		generateAppID:  1,
+		enableYuniKorn: UNSET,
+		generateAppID:  TRUE,
 	}
 
-	assert.Equal(t, -1, cache.enableYuniKorn(""), "not in cache")
-	assert.Equal(t, -1, cache.generateAppID(""), "not in cache")
-	assert.Equal(t, -1, cache.enableYuniKorn("notset"), "exist not set")
-	assert.Equal(t, -1, cache.generateAppID("notset"), "exist not set")
-	assert.Equal(t, 0, cache.enableYuniKorn("exist-unset"), "exist enable not set")
-	assert.Equal(t, 0, cache.generateAppID("exist-unset"), "exist generate not set")
-	assert.Equal(t, 1, cache.enableYuniKorn("exist-set"), "exist enable set")
-	assert.Equal(t, 1, cache.generateAppID("exist-set"), "exist generate set")
-	assert.Equal(t, -1, cache.enableYuniKorn("generate-set"), "only generate set")
-	assert.Equal(t, 1, cache.generateAppID("generate-set"), "generate should be set")
+	assert.Equal(t, UNSET, cache.enableYuniKorn(""), "not in cache")
+	assert.Equal(t, UNSET, cache.generateAppID(""), "not in cache")
+	assert.Equal(t, UNSET, cache.enableYuniKorn("notset"), "exist not set")
+	assert.Equal(t, UNSET, cache.generateAppID("notset"), "exist not set")
+	assert.Equal(t, FALSE, cache.enableYuniKorn("exist-unset"), "exist enable not set")
+	assert.Equal(t, FALSE, cache.generateAppID("exist-unset"), "exist generate not set")
+	assert.Equal(t, TRUE, cache.enableYuniKorn("exist-set"), "exist enable set")
+	assert.Equal(t, TRUE, cache.generateAppID("exist-set"), "exist generate set")
+	assert.Equal(t, UNSET, cache.enableYuniKorn("generate-set"), "only generate set")
+	assert.Equal(t, TRUE, cache.generateAppID("generate-set"), "generate should be set")
 }
 
 func TestNamespaceHandlers(t *testing.T) {
@@ -74,7 +74,7 @@ func TestNamespaceHandlers(t *testing.T) {
 	defer informers.Stop()
 
 	// nothing in the cache
-	assert.Equal(t, -1, cache.enableYuniKorn(testNS), "cache should have been empty")
+	assert.Equal(t, UNSET, cache.enableYuniKorn(testNS), "cache should have been empty")
 
 	ns := &v1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
@@ -94,7 +94,7 @@ func TestNamespaceHandlers(t *testing.T) {
 	}, 10*time.Millisecond, 5*time.Second)
 	assert.NilError(t, err)
 
-	assert.Equal(t, -1, cache.enableYuniKorn(testNS), "cache should have contained NS")
+	assert.Equal(t, UNSET, cache.enableYuniKorn(testNS), "cache should have contained NS")
 
 	// validate OnUpdate
 	ns2 := ns.DeepCopy()
@@ -105,10 +105,10 @@ func TestNamespaceHandlers(t *testing.T) {
 	assert.NilError(t, err)
 
 	err = utils.WaitForCondition(func() bool {
-		return cache.enableYuniKorn(testNS) > 0
+		return cache.enableYuniKorn(testNS) == TRUE
 	}, 10*time.Millisecond, 5*time.Second)
 	assert.NilError(t, err)
-	assert.Equal(t, 0, cache.generateAppID(testNS), "generate should have been set to false")
+	assert.Equal(t, FALSE, cache.generateAppID(testNS), "generate should have been set to false")
 
 	ns2 = ns.DeepCopy()
 	ns2.Annotations = map[string]string{constants.AnnotationGenerateAppID: "true"}
@@ -117,10 +117,10 @@ func TestNamespaceHandlers(t *testing.T) {
 	assert.NilError(t, err)
 
 	err = utils.WaitForCondition(func() bool {
-		return cache.generateAppID(testNS) > 0
+		return cache.generateAppID(testNS) == TRUE
 	}, 10*time.Millisecond, 5*time.Second)
 	assert.NilError(t, err)
-	assert.Equal(t, -1, cache.enableYuniKorn(testNS), "enable should have been cleared")
+	assert.Equal(t, UNSET, cache.enableYuniKorn(testNS), "enable should have been cleared")
 
 	// validate OnDelete
 	err = nsInterface.Delete(context.Background(), ns.Name, metav1.DeleteOptions{})
@@ -139,7 +139,7 @@ func TestGetAnnotations(t *testing.T) {
 	}{
 		"nil ns": {
 			ns: nil,
-			f:  nsFlags{enableYuniKorn: -1, generateAppID: -1},
+			f:  nsFlags{enableYuniKorn: UNSET, generateAppID: UNSET},
 		},
 		"empty annotations": {
 			ns: &v1.Namespace{
@@ -147,7 +147,7 @@ func TestGetAnnotations(t *testing.T) {
 					Name: testNS,
 				},
 			},
-			f: nsFlags{enableYuniKorn: -1, generateAppID: -1},
+			f: nsFlags{enableYuniKorn: UNSET, generateAppID: UNSET},
 		},
 		"invalid values": {
 			ns: &v1.Namespace{
@@ -159,7 +159,7 @@ func TestGetAnnotations(t *testing.T) {
 					},
 				},
 			},
-			f: nsFlags{enableYuniKorn: 0, generateAppID: 0},
+			f: nsFlags{enableYuniKorn: FALSE, generateAppID: FALSE},
 		},
 		"true values": {
 			ns: &v1.Namespace{
@@ -171,7 +171,7 @@ func TestGetAnnotations(t *testing.T) {
 					},
 				},
 			},
-			f: nsFlags{enableYuniKorn: 1, generateAppID: 1},
+			f: nsFlags{enableYuniKorn: TRUE, generateAppID: TRUE},
 		},
 		"distinct values": {
 			ns: &v1.Namespace{
@@ -183,7 +183,7 @@ func TestGetAnnotations(t *testing.T) {
 					},
 				},
 			},
-			f: nsFlags{enableYuniKorn: 0, generateAppID: 1},
+			f: nsFlags{enableYuniKorn: FALSE, generateAppID: TRUE},
 		},
 	}
 	for name, test := range tests {
