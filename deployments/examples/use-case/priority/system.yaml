@@ -1,0 +1,448 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    app: low-1
+    applicationId: low-1
+    queue: root.system.low-priority
+  name: low-1
+spec:
+  schedulerName: yunikorn
+  containers:
+  - name: nginx
+    image: nginx:stable-alpine
+    resources:
+            requests:
+              cpu: "1000m"
+              memory: "1000M"
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    app: low-2
+    applicationId: low-2
+    queue: root.system.low-priority
+  name: low-2
+spec:
+  schedulerName: yunikorn
+  containers:
+  - name: nginx
+    image: nginx:stable-alpine
+    resources:
+            requests:
+              cpu: "1000m"
+              memory: "1000M"
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    app: low-3
+    applicationId: low-3
+    queue: root.system.low-priority
+  name: low-3
+spec:
+  schedulerName: yunikorn
+  containers:
+  - name: nginx
+    image: nginx:stable-alpine
+    resources:
+            requests:
+              cpu: "1000m"
+              memory: "1000M"
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    app: low-4
+    applicationId: low-4
+    queue: root.system.low-priority
+  name: low-4
+spec:
+  schedulerName: yunikorn
+  containers:
+  - name: nginx
+    image: nginx:stable-alpine
+    resources:
+            requests:
+              cpu: "1000m"
+              memory: "1000M"
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    app: low-5
+    applicationId: low-5
+    queue: root.system.low-priority
+  name: low-5
+spec:
+  schedulerName: yunikorn
+  containers:
+  - name: nginx
+    image: nginx:stable-alpine
+    resources:
+            requests:
+              cpu: "1000m"
+              memory: "1000M"
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    app: low-6
+    applicationId: low-6
+    queue: root.system.low-priority
+  name: low-6
+spec:
+  schedulerName: yunikorn
+  containers:
+  - name: nginx
+    image: nginx:stable-alpine
+    resources:
+            requests:
+              cpu: "1000m"
+              memory: "1000M"
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    app: low-7
+    applicationId: low-7
+    queue: root.system.low-priority
+  name: low-7
+spec:
+  schedulerName: yunikorn
+  containers:
+  - name: nginx
+    image: nginx:stable-alpine
+    resources:
+            requests:
+              cpu: "1000m"
+              memory: "1000M"
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    app: low-8
+    applicationId: low-8
+    queue: root.system.low-priority
+  name: low-8
+spec:
+  schedulerName: yunikorn
+  containers:
+  - name: nginx
+    image: nginx:stable-alpine
+    resources:
+            requests:
+              cpu: "1000m"
+              memory: "1000M"
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    app: normal-1
+    applicationId: normal-1
+    queue: root.system.normal-priority
+  name: normal-1
+spec:
+  schedulerName: yunikorn
+  containers:
+  - name: nginx
+    image: nginx:stable-alpine
+    resources:
+            requests:
+              cpu: "1000m"
+              memory: "1000M"
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    app: normal-2
+    applicationId: normal-2
+    queue: root.system.normal-priority
+  name: normal-2
+spec:
+  schedulerName: yunikorn
+  containers:
+  - name: nginx
+    image: nginx:stable-alpine
+    resources:
+            requests:
+              cpu: "1000m"
+              memory: "1000M"
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    app: normal-3
+    applicationId: normal-3
+    queue: root.system.normal-priority
+  name: normal-3
+spec:
+  schedulerName: yunikorn
+  containers:
+  - name: nginx
+    image: nginx:stable-alpine
+    resources:
+            requests:
+              cpu: "1000m"
+              memory: "1000M"
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    app: normal-4
+    applicationId: normal-4
+    queue: root.system.normal-priority
+  name: normal-4
+spec:
+  schedulerName: yunikorn
+  containers:
+  - name: nginx
+    image: nginx:stable-alpine
+    resources:
+            requests:
+              cpu: "1000m"
+              memory: "1000M"
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    app: normal-5
+    applicationId: normal-5
+    queue: root.system.normal-priority
+  name: normal-5
+spec:
+  schedulerName: yunikorn
+  containers:
+  - name: nginx
+    image: nginx:stable-alpine
+    resources:
+            requests:
+              cpu: "1000m"
+              memory: "1000M"
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    app: normal-6
+    applicationId: normal-6
+    queue: root.system.normal-priority
+  name: normal-6
+spec:
+  schedulerName: yunikorn
+  containers:
+  - name: nginx
+    image: nginx:stable-alpine
+    resources:
+            requests:
+              cpu: "1000m"
+              memory: "1000M"
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    app: normal-7
+    applicationId: normal-7
+    queue: root.system.normal-priority
+  name: normal-7
+spec:
+  schedulerName: yunikorn
+  containers:
+  - name: nginx
+    image: nginx:stable-alpine
+    resources:
+            requests:
+              cpu: "1000m"
+              memory: "1000M"
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    app: normal-8
+    applicationId: normal-8
+    queue: root.system.normal-priority
+  name: normal-8
+spec:
+  schedulerName: yunikorn
+  containers:
+  - name: nginx
+    image: nginx:stable-alpine
+    resources:
+            requests:
+              cpu: "1000m"
+              memory: "1000M"
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    app: high-1
+    applicationId: high-1
+    queue: root.system.high-priority
+  name: high-1
+spec:
+  schedulerName: yunikorn
+  containers:
+  - name: nginx
+    image: nginx:stable-alpine
+    resources:
+            requests:
+              cpu: "1000m"
+              memory: "1000M"
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    app: high-2
+    applicationId: high-2
+    queue: root.system.high-priority
+  name: high-2
+spec:
+  schedulerName: yunikorn
+  containers:
+  - name: nginx
+    image: nginx:stable-alpine
+    resources:
+            requests:
+              cpu: "1000m"
+              memory: "1000M"
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    app: high-3
+    applicationId: high-3
+    queue: root.system.high-priority
+  name: high-3
+spec:
+  schedulerName: yunikorn
+  containers:
+  - name: nginx
+    image: nginx:stable-alpine
+    resources:
+            requests:
+              cpu: "1000m"
+              memory: "1000M"
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    app: high-4
+    applicationId: high-4
+    queue: root.system.high-priority
+  name: high-4
+spec:
+  schedulerName: yunikorn
+  containers:
+  - name: nginx
+    image: nginx:stable-alpine
+    resources:
+            requests:
+              cpu: "1000m"
+              memory: "1000M"
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    app: high-5
+    applicationId: high-5
+    queue: root.system.high-priority
+  name: high-5
+spec:
+  schedulerName: yunikorn
+  containers:
+  - name: nginx
+    image: nginx:stable-alpine
+    resources:
+            requests:
+              cpu: "1000m"
+              memory: "1000M"
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    app: high-6
+    applicationId: high-6
+    queue: root.system.high-priority
+  name: high-6
+spec:
+  schedulerName: yunikorn
+  containers:
+  - name: nginx
+    image: nginx:stable-alpine
+    resources:
+            requests:
+              cpu: "1000m"
+              memory: "1000M"
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    app: high-7
+    applicationId: high-7
+    queue: root.system.high-priority
+  name: high-7
+spec:
+  schedulerName: yunikorn
+  containers:
+  - name: nginx
+    image: nginx:stable-alpine
+    resources:
+            requests:
+              cpu: "1000m"
+              memory: "1000M"
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    app: high-8
+    applicationId: high-8
+    queue: root.system.high-priority
+  name: high-8
+spec:
+  schedulerName: yunikorn
+  containers:
+  - name: nginx
+    image: nginx:stable-alpine
+    resources:
+            requests:
+              cpu: "1000m"
+              memory: "1000M"
