@@ -25,7 +25,6 @@ import (
 	v1beta2 "github.com/GoogleCloudPlatform/spark-on-k8s-operator/pkg/apis/sparkoperator.k8s.io/v1beta2"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -37,9 +36,9 @@ type FakeScheduledSparkApplications struct {
 	ns   string
 }
 
-var scheduledsparkapplicationsResource = schema.GroupVersionResource{Group: "sparkoperator.k8s.io", Version: "v1beta2", Resource: "scheduledsparkapplications"}
+var scheduledsparkapplicationsResource = v1beta2.SchemeGroupVersion.WithResource("scheduledsparkapplications")
 
-var scheduledsparkapplicationsKind = schema.GroupVersionKind{Group: "sparkoperator.k8s.io", Version: "v1beta2", Kind: "ScheduledSparkApplication"}
+var scheduledsparkapplicationsKind = v1beta2.SchemeGroupVersion.WithKind("ScheduledSparkApplication")
 
 // Get takes name of the scheduledSparkApplication, and returns the corresponding scheduledSparkApplication object, and an error if there is any.
 func (c *FakeScheduledSparkApplications) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta2.ScheduledSparkApplication, err error) {
@@ -118,7 +117,7 @@ func (c *FakeScheduledSparkApplications) UpdateStatus(ctx context.Context, sched
 // Delete takes name of the scheduledSparkApplication and deletes it. Returns an error if one occurs.
 func (c *FakeScheduledSparkApplications) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(scheduledsparkapplicationsResource, c.ns, name), &v1beta2.ScheduledSparkApplication{})
+		Invokes(testing.NewDeleteActionWithOptions(scheduledsparkapplicationsResource, c.ns, name, opts), &v1beta2.ScheduledSparkApplication{})
 
 	return err
 }

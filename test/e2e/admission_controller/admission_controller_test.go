@@ -45,7 +45,7 @@ type EventHandler struct {
 	updateCh chan struct{}
 }
 
-func (e *EventHandler) OnAdd(_ interface{}) {}
+func (e *EventHandler) OnAdd(_ interface{}, _ bool) {}
 
 func (e *EventHandler) OnUpdate(_, _ interface{}) {
 	e.updateCh <- struct{}{}

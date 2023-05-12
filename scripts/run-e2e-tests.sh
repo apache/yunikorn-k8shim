@@ -165,9 +165,7 @@ function install_cluster() {
 
   # install ginkgo and gomega for e2e tests.
   echo "step 3/10: installing Ginkgo & Gomega at $(go env GOPATH)/bin"
-  go get github.com/onsi/ginkgo/v2@v2.9.0
-  go install github.com/onsi/ginkgo/v2/ginkgo
-  go install github.com/onsi/gomega
+  go install github.com/onsi/ginkgo/v2/ginkgo@v2.9.1
   check_cmd "ginkgo"
 
   echo "step 4/10: installing helm-v3"
@@ -242,15 +240,13 @@ Usage: ${NAME} -a <action> -n <kind-cluster-name> -v <kind-node-image-version> [
   --plugin                     use scheduler plugin image instead of default mode image
 
 Examples:
-  ${NAME} -a test -n yk8s -v kindest/node:v1.21.14
-  ${NAME} -a test -n yk8s -v kindest/node:v1.22.15
-  ${NAME} -a test -n yk8s -v kindest/node:v1.23.13
-  ${NAME} -a test -n yk8s -v kindest/node:v1.24.7
-  ${NAME} -a test -n yk8s -v kindest/node:v1.25.3
-  ${NAME} -a test -n yk8s -v kindest/node:v1.26.0
+  ${NAME} -a test -n yk8s -v kindest/node:v1.24.13
+  ${NAME} -a test -n yk8s -v kindest/node:v1.25.9
+  ${NAME} -a test -n yk8s -v kindest/node:v1.26.4
+  ${NAME} -a test -n yk8s -v kindest/node:v1.27.2
 
   Use a local helm chart path:
-    ${NAME} -a test -n yk8s -v kindest/node:v1.26.0 -p ./yunikorn-release/helm-charts/yunikorn
+    ${NAME} -a test -n yk8s -v kindest/node:v1.27.2 -p ./yunikorn-release/helm-charts/yunikorn
 EOF
 }
 

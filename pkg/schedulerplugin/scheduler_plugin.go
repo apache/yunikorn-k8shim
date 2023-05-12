@@ -26,6 +26,7 @@ import (
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/informers"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
@@ -86,7 +87,7 @@ func (sp *YuniKornSchedulerPlugin) Name() string {
 }
 
 // PreFilter is used to release pods to scheduler
-func (sp *YuniKornSchedulerPlugin) PreFilter(_ context.Context, state *framework.CycleState, pod *v1.Pod) *framework.Status {
+func (sp *YuniKornSchedulerPlugin) PreFilter(_ context.Context, state *framework.CycleState, pod *v1.Pod) (*framework.PreFilterResult, *framework.Status) {
 	log.Logger().Debug("PreFilter check",
 		zap.String("namespace", pod.Namespace),
 		zap.String("pod", pod.Name))
@@ -97,7 +98,8 @@ func (sp *YuniKornSchedulerPlugin) PreFilter(_ context.Context, state *framework
 		log.Logger().Debug("Skipping pod in the prefilter plugin because no applicationID is defined",
 			zap.String("namespace", pod.Namespace),
 			zap.String("pod", pod.Name))
-		return framework.NewStatus(framework.Success, "Deferring to default scheduler")
+
+		return nil, framework.NewStatus(framework.Skip)
 	}
 
 	if app := sp.context.GetApplication(appID); app != nil {
@@ -112,7 +114,7 @@ func (sp *YuniKornSchedulerPlugin) PreFilter(_ context.Context, state *framework
 				sp.context.RemovePodAllocation(string(pod.UID))
 				dispatcher.Dispatch(cache.NewRejectTaskEvent(app.GetApplicationID(), task.GetTaskID(),
 					fmt.Sprintf("task %s rejected by scheduler", task.GetTaskID())))
-				return framework.NewStatus(framework.UnschedulableAndUnresolvable, "Pod is not ready for scheduling")
+				return nil, framework.NewStatus(framework.UnschedulableAndUnresolvable, "Pod is not ready for scheduling")
 			}
 
 			nodeID, ok := sp.context.GetPendingPodAllocation(string(pod.UID))
@@ -123,12 +125,12 @@ func (sp *YuniKornSchedulerPlugin) PreFilter(_ context.Context, state *framework
 					zap.String("taskID", task.GetTaskID()),
 					zap.String("assignedNode", nodeID))
 
-				return framework.NewStatus(framework.Success, "")
+				return &framework.PreFilterResult{NodeNames: sets.NewString(nodeID)}, framework.NewStatus(framework.Success, "")
 			}
 		}
 	}
 
-	return framework.NewStatus(framework.UnschedulableAndUnresolvable, "Pod is not ready for scheduling")
+	return nil, framework.NewStatus(framework.UnschedulableAndUnresolvable, "Pod is not ready for scheduling")
 }
 
 // PreFilterExtensions is unused

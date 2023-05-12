@@ -20,27 +20,22 @@ package predicates
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/component-base/config/v1alpha1"
-	"k8s.io/kube-scheduler/config/v1beta2"
+	schedConfig "k8s.io/kube-scheduler/config/v1"
 	apiConfig "k8s.io/kubernetes/pkg/scheduler/apis/config"
 	"k8s.io/kubernetes/pkg/scheduler/apis/config/scheme"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins"
-	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/interpodaffinity"
-	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/nodeaffinity"
-	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/nodename"
-	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/nodeports"
-	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/nodeunschedulable"
-	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/podtopologyspread"
-	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/tainttoleration"
+	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/names"
 	fwruntime "k8s.io/kubernetes/pkg/scheduler/framework/runtime"
 
-	"github.com/apache/yunikorn-core/pkg/log"
+	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
 
 type PredicateManager interface {
@@ -71,8 +66,8 @@ func (p *predicateManagerImpl) PreemptionPredicates(pod *v1.Pod, node *framework
 	state := framework.NewCycleState()
 
 	// run prefilter checks as pod cannot be scheduled otherwise
-	s, plugin := p.runPreFilterPlugins(ctx, state, *p.allocationPreFilters, pod)
-	if !s.IsSuccess() {
+	s, plugin, skip := p.runPreFilterPlugins(ctx, state, *p.allocationPreFilters, pod, node)
+	if !s.IsSuccess() && !s.IsSkip() {
 		// prefilter check failed, log and return
 		log.Logger().Debug("PreFilter check failed during preemption check",
 			zap.String("podUID", string(pod.UID)),
@@ -93,9 +88,8 @@ func (p *predicateManagerImpl) PreemptionPredicates(pod *v1.Pod, node *framework
 	// loop through remaining pods
 	for i := startIndex; i < len(victims); i++ {
 		removePodFromNodeNoFail(preemptingNode, victims[i])
-		statuses, _ := p.runFilterPlugins(ctx, *p.allocationFilters, state, pod, preemptingNode)
-		s = statuses.Merge()
-		if s.IsSuccess() {
+		status, _ := p.runFilterPlugins(ctx, *p.allocationFilters, state, pod, preemptingNode, skip)
+		if status.IsSuccess() {
 			return i, true
 		}
 	}
@@ -134,66 +128,79 @@ func (p *predicateManagerImpl) predicatesAllocate(pod *v1.Pod, node *framework.N
 
 func (p *predicateManagerImpl) podFitsNode(ctx context.Context, state *framework.CycleState, preFilters []framework.PreFilterPlugin, filters []framework.FilterPlugin, pod *v1.Pod, node *framework.NodeInfo) (plugin string, error error) {
 	// Run "prefilter" plugins.
-	s, plugin := p.runPreFilterPlugins(ctx, state, preFilters, pod)
-	if !s.IsSuccess() {
-		return plugin, s.AsError()
+	status, plugin, skip := p.runPreFilterPlugins(ctx, state, preFilters, pod, node)
+	if !status.IsSuccess() && !status.IsSkip() {
+		return plugin, errors.New(status.Message())
 	}
 
 	// Run "filter" plugins on node
-	statuses, plugin := p.runFilterPlugins(ctx, filters, state, pod, node)
-	s = statuses.Merge()
-	if !s.IsSuccess() {
-		return plugin, s.AsError()
+	status, plugin = p.runFilterPlugins(ctx, filters, state, pod, node, skip)
+	if !status.IsSuccess() {
+		return plugin, errors.New(status.Message())
 	}
 	return "", nil
 }
 
-func (p *predicateManagerImpl) runPreFilterPlugins(ctx context.Context, state *framework.CycleState, plugins []framework.PreFilterPlugin, pod *v1.Pod) (status *framework.Status, plugin string) {
+func (p *predicateManagerImpl) runPreFilterPlugins(ctx context.Context, state *framework.CycleState, plugins []framework.PreFilterPlugin, pod *v1.Pod, node *framework.NodeInfo) (status *framework.Status, plugin string, skip map[string]interface{}) {
+	var mergedNodes *framework.PreFilterResult = nil
+	skip = nil
 	for _, pl := range plugins {
-		status = p.runPreFilterPlugin(ctx, pl, state, pod)
-		if !status.IsSuccess() {
-			if status.IsUnschedulable() {
-				return status, plugin
+		nodes, status := p.runPreFilterPlugin(ctx, pl, state, pod)
+		if status.IsSkip() {
+			if skip == nil {
+				skip = make(map[string]interface{})
 			}
-			err := status.AsError()
+			skip[pl.Name()] = nil
+		} else if !status.IsSuccess() {
+			if status.IsUnschedulable() {
+				return status, plugin, skip
+			}
+			err := errors.New(status.Message())
 			log.Logger().Error("failed running PreFilter plugin",
 				zap.String("pluginName", pl.Name()),
 				zap.String("pod", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)),
 				zap.Error(err))
-			return framework.AsStatus(fmt.Errorf("running PreFilter plugin %q: %w", pl.Name(), err)), plugin
+			return framework.AsStatus(fmt.Errorf("running PreFilter plugin %q: %w", pl.Name(), err)), plugin, skip
+		}
+		mergedNodes = mergedNodes.Merge(nodes)
+		if !mergedNodes.AllNodes() && !mergedNodes.NodeNames.Has(node.Node().Name) {
+			return framework.NewStatus(framework.UnschedulableAndUnresolvable, "node not eligible"), plugin, skip
 		}
 	}
 
-	return nil, ""
+	return nil, "", skip
 }
 
-func (p *predicateManagerImpl) runPreFilterPlugin(ctx context.Context, pl framework.PreFilterPlugin, state *framework.CycleState, pod *v1.Pod) *framework.Status {
+func (p *predicateManagerImpl) runPreFilterPlugin(ctx context.Context, pl framework.PreFilterPlugin, state *framework.CycleState, pod *v1.Pod) (*framework.PreFilterResult, *framework.Status) {
 	return pl.PreFilter(ctx, state, pod)
 }
 
-func (p *predicateManagerImpl) runFilterPlugins(ctx context.Context, plugins []framework.FilterPlugin, state *framework.CycleState, pod *v1.Pod, nodeInfo *framework.NodeInfo) (status framework.PluginToStatus, plugin string) {
-	statuses := make(framework.PluginToStatus)
+func (p *predicateManagerImpl) runFilterPlugins(ctx context.Context, plugins []framework.FilterPlugin, state *framework.CycleState, pod *v1.Pod, nodeInfo *framework.NodeInfo, skip map[string]interface{}) (status *framework.Status, plugin string) {
 	plugin = ""
 	for _, pl := range plugins {
-		pluginStatus := p.runFilterPlugin(ctx, pl, state, pod, nodeInfo)
-		if !pluginStatus.IsSuccess() {
+		// skip plugin if prefilter returned skip
+		if _, ok := skip[pl.Name()]; ok {
+			continue
+		}
+		status := p.runFilterPlugin(ctx, pl, state, pod, nodeInfo)
+		if !status.IsSuccess() {
 			if plugin == "" {
 				plugin = pl.Name()
 			}
-			if !pluginStatus.IsUnschedulable() {
+			if !status.IsUnschedulable() {
 				// Filter plugins are not supposed to return any status other than
 				// Success or Unschedulable.
-				errStatus := framework.NewStatus(framework.Error, fmt.Sprintf("running %q filter plugin for pod %q: %v", pl.Name(), pod.Name, pluginStatus.Message()))
+				status = framework.NewStatus(framework.Error, fmt.Sprintf("running %q filter plugin for pod %q: %v", pl.Name(), pod.Name, status.Message()))
 				log.Logger().Error("failed running Filter plugin",
 					zap.String("pluginName", pl.Name()),
 					zap.String("pod", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)),
-					zap.String("message", pluginStatus.Message()))
-				return map[string]*framework.Status{pl.Name(): errStatus}, pl.Name()
+					zap.String("message", status.Message()))
+				return status, pl.Name()
 			}
-			statuses[pl.Name()] = pluginStatus
+			return status, plugin
 		}
 	}
-	return statuses, plugin
+	return framework.NewStatus(framework.Success), ""
 }
 
 func (p *predicateManagerImpl) runFilterPlugin(ctx context.Context, pl framework.FilterPlugin, state *framework.CycleState, pod *v1.Pod, nodeInfo *framework.NodeInfo) *framework.Status {
@@ -202,25 +209,27 @@ func (p *predicateManagerImpl) runFilterPlugin(ctx context.Context, pl framework
 
 func NewPredicateManager(handle framework.Handle) PredicateManager {
 	/*
-		Default K8S plugins as of 1.23 that implement PreFilter:
+		Default K8S plugins as of 1.27 that implement PreFilter:
 			NodeAffinity
 			NodePorts
-			NodeResourcesFit
+			Fit
 			VolumeRestrictions
 			VolumeBinding
+			VolumeZone
 			PodTopologySpread
 			InterPodAffinity
 	*/
 
 	// run only the simpler PreFilter plugins during reservation phase
 	reservationPreFilters := map[string]bool{
-		nodeaffinity.Name:      true,
-		nodeports.Name:         true,
-		podtopologyspread.Name: true,
-		interpodaffinity.Name:  true,
-		// NodeResourcesFit : skip because during reservation, node resources are not enough
+		names.NodeAffinity:      true,
+		names.NodePorts:         true,
+		names.PodTopologySpread: true,
+		names.InterPodAffinity:  true,
+		// Fit : skip because during reservation, node resources are not enough
 		// VolumeRestrictions
 		// VolumeBinding
+		// VolumeZone
 	}
 
 	// run all PreFilter plugins during allocation phase
@@ -229,18 +238,18 @@ func NewPredicateManager(handle framework.Handle) PredicateManager {
 	}
 
 	/*
-		Default K8S plugins as of 1.23 that implement Filter:
+		Default K8S plugins as of 1.27 that implement Filter:
 		    NodeUnschedulable
 			NodeName
 			TaintToleration
 			NodeAffinity
 			NodePorts
-			NodeResourcesFit
+			Fit
 			VolumeRestrictions
-			EBSLimits
-			GCEPDLimits
-			NodeVolumeLimits
-			AzureDiskLimits
+			EBSLimits [nonCSILimits]
+			GCEPDLimits [nonCSILimits]
+			CSILimits
+			AzureDiskLimits [nonCSILimits]
 			VolumeBinding
 			VolumeZone
 			PodTopologySpread
@@ -249,19 +258,19 @@ func NewPredicateManager(handle framework.Handle) PredicateManager {
 
 	// run only the simpler Filter plugins during reservation phase
 	reservationFilters := map[string]bool{
-		nodeunschedulable.Name: true,
-		nodename.Name:          true,
-		tainttoleration.Name:   true,
-		nodeaffinity.Name:      true,
-		nodeports.Name:         true,
-		podtopologyspread.Name: true,
-		interpodaffinity.Name:  true,
-		// NodeResourcesFit : skip because during reservation, node resources are not enough
+		names.NodeUnschedulable: true,
+		names.NodeName:          true,
+		names.TaintToleration:   true,
+		names.NodeAffinity:      true,
+		names.NodePorts:         true,
+		names.PodTopologySpread: true,
+		names.InterPodAffinity:  true,
+		// Fit : skip because during reservation, node resources are not enough
 		// VolumeRestrictions
-		// EBSLimits
-		// GCEPDLimits
-		// NodeVolumeLimits
-		// AzureDiskLimits
+		// EBSLimits [nonCSILimits]
+		// GCEPDLimits [nonCSILimits]
+		// CSILimits
+		// AzureDiskLimits [nonCSILimits]
 		// VolumeBinding
 		// VolumeZone
 	}
@@ -289,102 +298,56 @@ func newPredicateManagerInternal(
 
 	profile := cfg.Profiles[0] // first profile is default
 	registeredPlugins := profile.Plugins
-	createdPlugins := make(map[string]framework.Plugin)
-	reservationPreFilterPlugins := &apiConfig.PluginSet{}
-	allocationPreFilterPlugins := &apiConfig.PluginSet{}
-	reservationFilterPlugins := &apiConfig.PluginSet{}
-	allocationFilterPlugins := &apiConfig.PluginSet{}
+	createdPlugins := make([]framework.Plugin, 0)
 
-	addPlugins("PreFilter", &registeredPlugins.PreFilter, reservationPreFilterPlugins, reservationPreFilters)
-	addPlugins("PreFilter", &registeredPlugins.PreFilter, allocationPreFilterPlugins, allocationPreFilters)
-	addPlugins("Filter", &registeredPlugins.Filter, reservationFilterPlugins, reservationFilters)
-	addPlugins("Filter", &registeredPlugins.Filter, allocationFilterPlugins, allocationFilters)
+	// As of SchedulerConfiguration v1, all plugins implement MultiPoint, therefore we need to instantiate each one and
+	// check to see what interfaces it implements dynamically
+	createPlugins(handle, pluginRegistry, &registeredPlugins.MultiPoint, &createdPlugins)
 
-	createPlugins(handle, pluginRegistry, reservationPreFilterPlugins, createdPlugins)
-	createPlugins(handle, pluginRegistry, allocationPreFilterPlugins, createdPlugins)
-	createPlugins(handle, pluginRegistry, reservationFilterPlugins, createdPlugins)
-	createPlugins(handle, pluginRegistry, allocationFilterPlugins, createdPlugins)
+	resPre := make([]framework.Plugin, 0)
+	allocPre := make([]framework.Plugin, 0)
+	resFilt := make([]framework.Plugin, 0)
+	allocFilt := make([]framework.Plugin, 0)
 
-	// assign reservation PreFilter plugins
-	resPre := make([]framework.PreFilterPlugin, 0)
-	for _, v := range reservationPreFilterPlugins.Enabled {
-		plugin := createdPlugins[v.Name]
-		if plugin == nil {
-			log.Logger().Warn("plugin not found", zap.String("pluginName", v.Name))
-			continue
-		}
-		pfPlugin, ok := plugin.(framework.PreFilterPlugin)
-		if !ok {
-			log.Logger().Warn("plugin does not implement PreFilterPlugin", zap.String("pluginName", v.Name))
-			continue
-		}
-		resPre = append(resPre, pfPlugin)
-		log.Logger().Debug("Registered reservation PreFilter plugin", zap.String("pluginName", plugin.Name()))
-	}
-
-	// assign allocation PreFilter plugins
-	allocPre := make([]framework.PreFilterPlugin, 0)
-	for _, v := range allocationPreFilterPlugins.Enabled {
-		plugin := createdPlugins[v.Name]
-		if plugin == nil {
-			log.Logger().Warn("plugin not found", zap.String("pluginName", v.Name))
-			continue
-		}
-		pfPlugin, ok := plugin.(framework.PreFilterPlugin)
-		if !ok {
-			log.Logger().Warn("plugin does not implement PreFilterPlugin", zap.String("pluginName", v.Name))
-			continue
-		}
-		allocPre = append(allocPre, pfPlugin)
-		log.Logger().Debug("Registered allocation PreFilter plugin", zap.String("pluginName", plugin.Name()))
-	}
-
-	// assign reservation Filter plugins
-	resFilt := make([]framework.FilterPlugin, 0)
-	for _, v := range reservationFilterPlugins.Enabled {
-		plugin := createdPlugins[v.Name]
-		if plugin == nil {
-			log.Logger().Warn("plugin not found", zap.String("pluginName", v.Name))
-			continue
-		}
-		fPlugin, ok := plugin.(framework.FilterPlugin)
-		if !ok {
-			log.Logger().Warn("plugin does not implement FilterPlugin", zap.String("pluginName", v.Name))
-			continue
-		}
-		resFilt = append(resFilt, fPlugin)
-		log.Logger().Debug("Registered reservation Filter plugin", zap.String("pluginName", plugin.Name()))
-	}
-
-	// assign allocation Filter plugins
-	allocFilt := make([]framework.FilterPlugin, 0)
-	for _, v := range allocationFilterPlugins.Enabled {
-		plugin := createdPlugins[v.Name]
-		if plugin == nil {
-			log.Logger().Warn("plugin not found", zap.String("pluginName", v.Name))
-			continue
-		}
-		fPlugin, ok := plugin.(framework.FilterPlugin)
-		if !ok {
-			log.Logger().Warn("plugin does not implement FilterPlugin", zap.String("pluginName", v.Name))
-			continue
-		}
-		allocFilt = append(allocFilt, fPlugin)
-		log.Logger().Debug("Registered allocation Filter plugin", zap.String("pluginName", plugin.Name()))
-	}
+	addPlugins("PreFilter", createdPlugins, &resPre, reservationPreFilters)
+	addPlugins("PreFilter", createdPlugins, &allocPre, allocationPreFilters)
+	addPlugins("Filter", createdPlugins, &resFilt, reservationFilters)
+	addPlugins("Filter", createdPlugins, &allocFilt, allocationFilters)
 
 	pm := &predicateManagerImpl{
-		reservationPreFilters: &resPre,
-		allocationPreFilters:  &allocPre,
-		reservationFilters:    &resFilt,
-		allocationFilters:     &allocFilt,
+		reservationPreFilters: preFilterPlugins(resPre),
+		allocationPreFilters:  preFilterPlugins(allocPre),
+		reservationFilters:    filterPlugins(resFilt),
+		allocationFilters:     filterPlugins(allocFilt),
 	}
 
 	return pm
 }
 
+func preFilterPlugins(plugins []framework.Plugin) *[]framework.PreFilterPlugin {
+	result := make([]framework.PreFilterPlugin, 0)
+	for _, plugin := range plugins {
+		prefilter, ok := plugin.(framework.PreFilterPlugin)
+		if ok {
+			result = append(result, prefilter)
+		}
+	}
+	return &result
+}
+
+func filterPlugins(plugins []framework.Plugin) *[]framework.FilterPlugin {
+	result := make([]framework.FilterPlugin, 0)
+	for _, plugin := range plugins {
+		filter, ok := plugin.(framework.FilterPlugin)
+		if ok {
+			result = append(result, filter)
+		}
+	}
+	return &result
+}
+
 func defaultConfig() (*apiConfig.KubeSchedulerConfiguration, error) {
-	versionedCfg := v1beta2.KubeSchedulerConfiguration{}
+	versionedCfg := schedConfig.KubeSchedulerConfiguration{}
 	versionedCfg.DebuggingConfiguration = *v1alpha1.NewRecommendedDebuggingConfiguration()
 
 	scheme.Scheme.Default(&versionedCfg)
@@ -392,17 +355,39 @@ func defaultConfig() (*apiConfig.KubeSchedulerConfiguration, error) {
 	if err := scheme.Scheme.Convert(&versionedCfg, &cfg, nil); err != nil {
 		return nil, err
 	}
+
 	// We don't set this field in pkg/scheduler/apis/config/{version}/conversion.go
 	// because the field will be cleared later by API machinery during
 	// conversion. See KubeSchedulerConfiguration internal type definition for
 	// more details.
-	cfg.TypeMeta.APIVersion = v1beta2.SchemeGroupVersion.String()
+	cfg.TypeMeta.APIVersion = schedConfig.SchemeGroupVersion.String()
+
+	// Disable some plugins we don't want for YuniKorn
+	removePlugin(&cfg, names.DefaultPreemption) // we do our own preemption algorithm
+	removePlugin(&cfg, names.SchedulingGates)   // we want PreEnqueue, but not the default SchedulingGates behavior
+
 	return &cfg, nil
 }
 
-func addPlugins(phase string, source *apiConfig.PluginSet, dest *apiConfig.PluginSet, pluginFilter map[string]bool) {
-	for _, p := range source.Enabled {
-		enabled, ok := pluginFilter[p.Name]
+func removePlugin(config *apiConfig.KubeSchedulerConfiguration, name string) {
+	for _, profile := range config.Profiles {
+		enabled := make([]apiConfig.Plugin, 0)
+
+		for _, plugin := range profile.Plugins.MultiPoint.Enabled {
+			if plugin.Name == name {
+				profile.Plugins.MultiPoint.Disabled = append(profile.Plugins.MultiPoint.Disabled, plugin)
+			} else {
+				enabled = append(enabled, plugin)
+			}
+		}
+		profile.Plugins.MultiPoint.Enabled = enabled
+	}
+}
+
+func addPlugins(phase string, createdPlugins []framework.Plugin, pluginList *[]framework.Plugin, pluginFilter map[string]bool) {
+	for _, plugin := range createdPlugins {
+		name := plugin.Name()
+		enabled, ok := pluginFilter[name]
 		if !ok {
 			enabled, ok = pluginFilter["*"] // check for wildcard
 			if !ok {
@@ -410,20 +395,16 @@ func addPlugins(phase string, source *apiConfig.PluginSet, dest *apiConfig.Plugi
 			}
 		}
 		if enabled {
-			log.Logger().Debug("adding plugin", zap.String("phase", phase), zap.String("pluginName", p.Name))
-			dest.Enabled = append(dest.Enabled, p)
+			log.Logger().Debug("adding plugin", zap.String("phase", phase), zap.String("pluginName", name))
+			*pluginList = append(*pluginList, plugin)
 		}
 	}
 }
 
-func createPlugins(handle framework.Handle, registry fwruntime.Registry, plugins *apiConfig.PluginSet, createdPlugins map[string]framework.Plugin) {
+func createPlugins(handle framework.Handle, registry fwruntime.Registry, plugins *apiConfig.PluginSet, createdPlugins *[]framework.Plugin) {
 	pluginConfig := make(map[string]runtime.Object)
 
 	for _, p := range plugins.Enabled {
-		if _, ok := createdPlugins[p.Name]; ok {
-			// already exists
-			continue
-		}
 		cfg, err := getPluginArgsOrDefault(pluginConfig, p.Name)
 		if err != nil {
 			log.Logger().Error("failed to create plugin config", zap.String("pluginName", p.Name), zap.Error(err))
@@ -438,7 +419,7 @@ func createPlugins(handle framework.Handle, registry fwruntime.Registry, plugins
 			continue
 		}
 		log.Logger().Debug("plugin created", zap.String("pluginName", p.Name))
-		createdPlugins[p.Name] = plugin
+		*createdPlugins = append(*createdPlugins, plugin)
 	}
 }
 
@@ -452,7 +433,7 @@ func getPluginArgsOrDefault(pluginConfig map[string]runtime.Object, name string)
 		return res, nil
 	}
 	// Use defaults from latest config API version.
-	gvk := v1beta2.SchemeGroupVersion.WithKind(name + "Args")
+	gvk := schedConfig.SchemeGroupVersion.WithKind(name + "Args")
 	obj, _, err := configDecoder.Decode(nil, &gvk, nil)
 	if runtime.IsNotRegisteredError(err) {
 		// This plugin doesn't require configuration.

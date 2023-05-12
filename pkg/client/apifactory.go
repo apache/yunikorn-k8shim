@@ -100,11 +100,11 @@ func NewAPIFactory(scheduler api.SchedulerAPI, informerFactory informers.SharedI
 	namespaceInformer := informerFactory.Core().V1().Namespaces()
 	priorityClassInformer := informerFactory.Scheduling().V1().PriorityClasses()
 
-	var capacityCheck *volumebinding.CapacityCheck
+	var capacityCheck volumebinding.CapacityCheck
 	if utilfeature.DefaultFeatureGate.Enabled(features.CSIStorageCapacity) {
-		capacityCheck = &volumebinding.CapacityCheck{
+		capacityCheck = volumebinding.CapacityCheck{
 			CSIDriverInformer:          informerFactory.Storage().V1().CSIDrivers(),
-			CSIStorageCapacityInformer: informerFactory.Storage().V1beta1().CSIStorageCapacities(),
+			CSIStorageCapacityInformer: informerFactory.Storage().V1().CSIStorageCapacities(),
 		}
 	}
 
