@@ -86,8 +86,8 @@ DOCKER_ARCH := amd64
 endif
 
 # Image hashes
-CORE_SHA=$(shell go list -m "github.com/apache/yunikorn-core" | cut -d "-" -f4)
-SI_SHA=$(shell go list -m "github.com/apache/yunikorn-scheduler-interface" | cut -d "-" -f5)
+CORE_SHA=$(shell go list -f '{{.Version}}' -m "github.com/apache/yunikorn-core" | cut -d "-" -f3)
+SI_SHA=$(shell go list -f '{{.Version}}' -m "github.com/apache/yunikorn-scheduler-interface" | cut -d "-" -f3)
 SHIM_SHA=$(shell git rev-parse --short=12 HEAD)
 
 # Kubeconfig
@@ -226,7 +226,7 @@ init:
 build: init
 	@echo "building scheduler binary"
 	go build -o=${DEV_BIN_DIR}/${BINARY} -race -ldflags \
-	'-X main.version=${VERSION} -X main.date=${DATE}' \
+	'-X main.version=${VERSION} -X main.date=${DATE} -X main.goVersion=${GO_VERSION} -X main.arch=${EXEC_ARCH} -X main.coreSHA=${CORE_SHA} -X main.siSHA=${SI_SHA} -X main.shimSHA=${SHIM_SHA}' \
 	./pkg/cmd/shim/
 	@chmod +x ${DEV_BIN_DIR}/${BINARY}
 
@@ -234,7 +234,7 @@ build: init
 build_plugin: init
 	@echo "building scheduler plugin binary"
 	go build -o=${DEV_BIN_DIR}/${PLUGIN_BINARY} -race -ldflags \
-	'-X main.version=${VERSION} -X main.date=${DATE}' \
+	'-X main.version=${VERSION} -X main.date=${DATE} -X main.goVersion=${GO_VERSION} -X main.arch=${EXEC_ARCH} -X main.coreSHA=${CORE_SHA} -X main.siSHA=${SI_SHA} -X main.shimSHA=${SHIM_SHA}' \
 	./pkg/cmd/schedulerplugin/
 	@chmod +x ${DEV_BIN_DIR}/${PLUGIN_BINARY}
 
@@ -244,7 +244,7 @@ scheduler: init
 	@echo "building binary for scheduler docker image"
 	CGO_ENABLED=0 GOOS=linux GOARCH="${EXEC_ARCH}" \
 	go build -a -o=${RELEASE_BIN_DIR}/${BINARY} -ldflags \
-	'-extldflags "-static" -X main.version=${VERSION} -X main.date=${DATE}' \
+	'-extldflags "-static" -X main.version=${VERSION} -X main.date=${DATE} -X main.goVersion=${GO_VERSION} -X main.arch=${EXEC_ARCH} -X main.coreSHA=${CORE_SHA} -X main.siSHA=${SI_SHA} -X main.shimSHA=${SHIM_SHA}' \
 	-tags netgo -installsuffix netgo \
 	./pkg/cmd/shim/
 
@@ -254,7 +254,7 @@ plugin: init
 	@echo "building binary for plugin docker image"
 	CGO_ENABLED=0 GOOS=linux GOARCH="${EXEC_ARCH}" \
 	go build -a -o=${RELEASE_BIN_DIR}/${PLUGIN_BINARY} -ldflags \
-	'-extldflags "-static" -X main.version=${VERSION} -X main.date=${DATE}' \
+	'-extldflags "-static" -X main.version=${VERSION} -X main.date=${DATE} -X main.goVersion=${GO_VERSION} -X main.arch=${EXEC_ARCH} -X main.coreSHA=${CORE_SHA} -X main.siSHA=${SI_SHA} -X main.shimSHA=${SHIM_SHA}' \
 	-tags netgo -installsuffix netgo \
 	./pkg/cmd/schedulerplugin/
 	
@@ -302,7 +302,7 @@ admission: init
 	@echo "building admission controller binary"
 	CGO_ENABLED=0 GOOS=linux GOARCH="${EXEC_ARCH}" \
 	go build -a -o=${ADMISSION_CONTROLLER_BIN_DIR}/${POD_ADMISSION_CONTROLLER_BINARY} -ldflags \
-    '-extldflags "-static" -X main.version=${VERSION} -X main.date=${DATE}' \
+    '-extldflags "-static" -X main.version=${VERSION} -X main.date=${DATE} -X main.goVersion=${GO_VERSION} -X main.arch=${EXEC_ARCH}' \
     -tags netgo -installsuffix netgo \
     ./pkg/cmd/admissioncontroller
 
@@ -328,7 +328,7 @@ simulation:
 	@echo "building gang web client binary"
 	CGO_ENABLED=0 GOOS=linux GOARCH="${EXEC_ARCH}" \
 	go build -a -o=${GANG_BIN_DIR}/${GANG_CLIENT_BINARY} -ldflags \
-	'-extldflags "-static" -X main.version=${VERSION} -X main.date=${DATE}' \
+	'-extldflags "-static" -X main.version=${VERSION} -X main.date=${DATE} -X main.goVersion=${GO_VERSION} -X main.arch=${EXEC_ARCH}' \
 	-tags netgo -installsuffix netgo \
 	./pkg/simulation/gang/gangclient
 	@echo "building gang web server binary"
@@ -371,7 +371,7 @@ webtest_image: build_web_test_server_prod
 build_web_test_server_dev:
 	@echo "building local web server binary"
 	go build -o=${DEV_BIN_DIR}/${TEST_SERVER_BINARY} -race -ldflags \
-	'-X main.version=${VERSION} -X main.date=${DATE}' \
+	'-X main.version=${VERSION} -X main.date=${DATE} -X main.goVersion=${GO_VERSION} -X main.arch=${EXEC_ARCH}' \
 	./pkg/cmd/webtest/
 	@chmod +x ${DEV_BIN_DIR}/${TEST_SERVER_BINARY}
 
@@ -380,7 +380,7 @@ build_web_test_server_prod:
 	@echo "building web server binary"
 	CGO_ENABLED=0 GOOS=linux GOARCH="${EXEC_ARCH}" \
 	go build -a -o=${RELEASE_BIN_DIR}/${TEST_SERVER_BINARY} -ldflags \
-	'-extldflags "-static" -X main.version=${VERSION} -X main.date=${DATE}' \
+	'-extldflags "-static" -X main.version=${VERSION} -X main.date=${DATE} -X main.goVersion=${GO_VERSION} -X main.arch=${EXEC_ARCH}' \
 	-tags netgo -installsuffix netgo \
 	./pkg/cmd/webtest/
 

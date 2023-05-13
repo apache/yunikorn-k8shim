@@ -35,14 +35,22 @@ type NamespaceCache struct {
 	sync.RWMutex
 }
 
+type triState int
+
+const (
+	UNSET triState = iota - 1
+	FALSE
+	TRUE
+)
+
 // nsFlags defines the two flags that can be set on the namespace.
 // It needs to support a tri-state value showing presence besides true/false.
-// -1: not present
-// 0: false
-// 1: true
+// UNSET: not present
+// FALSE: false
+// TRUE: true
 type nsFlags struct {
-	enableYuniKorn int
-	generateAppID  int
+	enableYuniKorn triState
+	generateAppID  triState
 }
 
 // NewNamespaceCache creates a new cache and registers the handler for the cache with the Informer.
@@ -56,26 +64,26 @@ func NewNamespaceCache(namespaces informersv1.NamespaceInformer) *NamespaceCache
 	return nsc
 }
 
-// enableYuniKorn returns the value for the enableYuniKorn flag (tri-state -1, 0 or 1) for the namespace.
-func (nsc *NamespaceCache) enableYuniKorn(name string) int {
+// enableYuniKorn returns the value for the enableYuniKorn flag (tri-state UNSET, TRUE or FALSE) for the namespace.
+func (nsc *NamespaceCache) enableYuniKorn(name string) triState {
 	nsc.RLock()
 	defer nsc.RUnlock()
 
 	flag, ok := nsc.nameSpaces[name]
 	if !ok {
-		return -1
+		return UNSET
 	}
 	return flag.enableYuniKorn
 }
 
-// generateAppID returns the value for the generateAppID flag (tri-state -1, 0 or 1) for the namespace.
-func (nsc *NamespaceCache) generateAppID(name string) int {
+// generateAppID returns the value for the generateAppID flag (tri-state UNSET, TRUE or FALSE) for the namespace.
+func (nsc *NamespaceCache) generateAppID(name string) triState {
 	nsc.RLock()
 	defer nsc.RUnlock()
 
 	flag, ok := nsc.nameSpaces[name]
 	if !ok {
-		return -1
+		return UNSET
 	}
 	return flag.generateAppID
 }
@@ -139,7 +147,7 @@ func (h *namespaceUpdateHandler) OnDelete(obj interface{}) {
 // Converts the presence and content into a tri-state nsFlags object containing all nsFlags.
 func getAnnotationValues(ns *v1.Namespace) nsFlags {
 	if ns == nil {
-		return nsFlags{-1, -1}
+		return nsFlags{UNSET, UNSET}
 	}
 
 	return nsFlags{
@@ -149,16 +157,16 @@ func getAnnotationValues(ns *v1.Namespace) nsFlags {
 }
 
 // getAnnotationValue retrieves the value of name from the map and convert it to a tri-state.
-// Returns -1 if name is not present, 1 if the value is set to "true", 0 for all other cases.
-func getAnnotationValue(m map[string]string, name string) int {
+// Returns UNSET if name is not present, TRUE if the value is set to "true", FALSE for all other cases.
+func getAnnotationValue(m map[string]string, name string) triState {
 	strVal, ok := m[name]
 	if !ok {
-		return -1
+		return UNSET
 	}
 	switch strVal {
 	case constants.True:
-		return 1
+		return TRUE
 	default:
-		return 0
+		return FALSE
 	}
 }
