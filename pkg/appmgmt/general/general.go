@@ -19,7 +19,6 @@
 package general
 
 import (
-	"reflect"
 	"strconv"
 
 	v1 "k8s.io/api/core/v1"
@@ -109,8 +108,8 @@ func getOwnerReference(pod *v1.Pod) []metav1.OwnerReference {
 	controller := false
 	blockOwnerDeletion := true
 	ref := metav1.OwnerReference{
-		APIVersion:         v1.SchemeGroupVersion.String(),
-		Kind:               reflect.TypeOf(v1.Pod{}).Name(),
+		APIVersion:         "v1",
+		Kind:               "Pod",
 		Name:               pod.Name,
 		UID:                pod.UID,
 		Controller:         &controller,
