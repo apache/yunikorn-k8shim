@@ -90,11 +90,6 @@ func InitSleepPod(conf SleepPodConfig) (*v1.Pod, error) {
 		}
 	}
 
-	if conf.UID != "" {
-		owner := metav1.OwnerReference{APIVersion: "v1", Kind: "ReplicaSet", Name: "ReplicaSetJob", UID: conf.UID}
-		owners = []metav1.OwnerReference{owner}
-	}
-
 	optedOut := "true"
 	if !conf.Optedout {
 		optedOut = "false"
