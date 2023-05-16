@@ -20,8 +20,9 @@ package gangscheduling_test
 
 import (
 	"fmt"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"time"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
@@ -961,7 +962,7 @@ var _ = Describe("", func() {
 		By("Verify placeholders deleted")
 		for _, placeholders := range phNames {
 			for _, ph := range placeholders {
-				deleteErr := kClient.WaitForPodTerminated(ns, ph, 30*time.Second)
+				deleteErr = kClient.WaitForPodTerminated(ns, ph, 30*time.Second)
 				Ω(deleteErr).NotTo(HaveOccurred(), "Placeholder %s still running", ph)
 			}
 		}
@@ -1036,7 +1037,7 @@ var _ = Describe("", func() {
 		By("Verify placeholders deleted")
 		for _, placeholders := range phNames {
 			for _, ph := range placeholders {
-				deleteErr := kClient.WaitForPodTerminated(ns, ph, 30*time.Second)
+				deleteErr = kClient.WaitForPodTerminated(ns, ph, 30*time.Second)
 				Ω(deleteErr).NotTo(HaveOccurred(), "Placeholder %s still running", ph)
 			}
 		}
