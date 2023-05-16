@@ -900,7 +900,6 @@ var _ = Describe("", func() {
 	// 4. Verify placeholders deleted
 	// 5. Verify app allocation is empty
 	It("Verify_OriginatorDeletion_Trigger_Placeholders_Cleanup", func() {
-
 		// case 1: originator pod without ownerreference
 		podResources := map[string]resource.Quantity{
 			"cpu":    resource.MustParse("10m"),
@@ -982,8 +981,6 @@ var _ = Describe("", func() {
 	// 5. Verify app allocation is empty
 	It("Verify_OriginatorDeletionWithOwnerreference_Trigger_Placeholders_Cleanup", func() {
 		// case 2: originator pod with ownerreference
-
-		// case 1: originator pod without ownerreference
 		podResources := map[string]resource.Quantity{
 			"cpu":    resource.MustParse("10m"),
 			"memory": resource.MustParse("10M"),
