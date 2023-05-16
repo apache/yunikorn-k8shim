@@ -48,16 +48,8 @@ type Placeholder struct {
 }
 
 func newPlaceholder(placeholderName string, app *Application, taskGroup v1alpha1.TaskGroup) *Placeholder {
+	// Here the owner reference is always the originator pod
 	ownerRefs := app.getPlaceholderOwnerReferences()
-	// we need to set the controller field to false, because since we don't know what exactly the controller will do,
-	// we might have some unexpected behaviour.
-	// For example if it is a replication controller, some pods (placeholders and/or real pods) might be deleted
-	// in order to meet the requested replication factor.
-	// Since we need the owner reference only for having the placeholders garbage collected,
-	// we can just set the controller field = false, so we can avoid any kind of side effects.
-	for _, r := range ownerRefs {
-		*r.Controller = false
-	}
 	annotations := utils.MergeMaps(taskGroup.Annotations, map[string]string{
 		constants.AnnotationPlaceholderFlag: "true",
 		constants.AnnotationTaskGroupName:   taskGroup.Name,

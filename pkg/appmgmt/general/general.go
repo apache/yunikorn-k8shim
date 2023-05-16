@@ -19,7 +19,6 @@
 package general
 
 import (
-	"reflect"
 	"strconv"
 
 	v1 "k8s.io/api/core/v1"
@@ -104,15 +103,13 @@ func isStateAwareDisabled(pod *v1.Pod) bool {
 	return result
 }
 
-func getOwnerReferences(pod *v1.Pod) []metav1.OwnerReference {
-	if len(pod.OwnerReferences) > 0 {
-		return pod.OwnerReferences
-	}
+func getOwnerReference(pod *v1.Pod) []metav1.OwnerReference {
+	// Just return the originator pod as the owner of placeholder pods
 	controller := false
 	blockOwnerDeletion := true
 	ref := metav1.OwnerReference{
-		APIVersion:         v1.SchemeGroupVersion.String(),
-		Kind:               reflect.TypeOf(v1.Pod{}).Name(),
+		APIVersion:         "v1",
+		Kind:               "Pod",
 		Name:               pod.Name,
 		UID:                pod.UID,
 		Controller:         &controller,

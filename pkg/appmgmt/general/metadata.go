@@ -110,7 +110,7 @@ func getAppMetadata(pod *v1.Pod, recovery bool) (interfaces.ApplicationMetadata,
 		tags[constants.AnnotationTaskGroups] = pod.Annotations[constants.AnnotationTaskGroups]
 	}
 
-	ownerReferences := getOwnerReferences(pod)
+	ownerReferences := getOwnerReference(pod)
 	schedulingPolicyParams := utils.GetSchedulingPolicyParam(pod)
 	tags[constants.AnnotationSchedulingPolicyParam] = pod.Annotations[constants.AnnotationSchedulingPolicyParam]
 
