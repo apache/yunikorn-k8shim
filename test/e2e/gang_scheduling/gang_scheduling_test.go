@@ -1012,18 +1012,35 @@ var _ = Describe("", func() {
 					"memory": podResources["memory"],
 				},
 			},
-			OwnerReferences: []metav1.OwnerReference{
-				{
-					APIVersion: "v1",
-					Kind:       "ConfigMap",
-					Name:       "driver-configmap",
-					UID:        "driver-configmap-uid",
-				},
+		}
+
+		// create a configmap as ownerreference
+		testConfigmap := &v1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "test-cm",
+				UID:  "test-cm-uid",
+			},
+			Data: map[string]string{
+				"test": "test",
 			},
 		}
+		defer kClient.DeleteConfigMap(testConfigmap.Name, ns)
+
+		testConfigmap, err := kClient.CreateConfigMap(testConfigmap, ns)
+		Ω(err).NotTo(HaveOccurred())
 
 		podTest, err := k8s.InitTestPod(podConf)
 		Ω(err).NotTo(HaveOccurred())
+
+		podTest.OwnerReferences = []metav1.OwnerReference{
+			{
+				APIVersion: "v1",
+				Kind:       "ConfigMap",
+				Name:       testConfigmap.Name,
+				UID:        testConfigmap.UID,
+			},
+		}
+
 		taskGroupsMap, annErr := k8s.PodAnnotationToMap(podConf.Annotations)
 		Ω(annErr).NotTo(HaveOccurred())
 		By(fmt.Sprintf("Deploy pod %s with task-groups: %+v", podTest.Name, taskGroupsMap[k8s.TaskGroups]))
