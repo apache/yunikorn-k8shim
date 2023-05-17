@@ -67,6 +67,9 @@ func NewAMService(amProtocol interfaces.ApplicationManagementProtocol,
 			sparkoperator.NewManager(amProtocol, apiProvider),
 			// for application crds
 			application.NewAppManager(amProtocol, apiProvider))
+	} else {
+		podEventHandler = general.NewPodEventHandler(amProtocol, false)
+		appManager.register(general.NewManager(apiProvider, podEventHandler))
 	}
 
 	return appManager
