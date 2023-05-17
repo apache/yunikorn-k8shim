@@ -895,7 +895,7 @@ var _ = Describe("", func() {
 
 	// Test to verify originator deletion will trigger placeholders cleanup
 	// 1. Create an originator pod
-	// 2. Set pod ownerreference without ownerreference
+	// 2. Not set pod ownerreference
 	// 3. Delete originator pod to trigger placeholders deletion
 	// 4. Verify placeholders deleted
 	// 5. Verify app allocation is empty
