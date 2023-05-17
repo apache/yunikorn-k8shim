@@ -1024,7 +1024,10 @@ var _ = Describe("", func() {
 				"test": "test",
 			},
 		}
-		defer kClient.DeleteConfigMap(testConfigmap.Name, ns)
+		defer func() {
+			err := kClient.DeleteConfigMap(testConfigmap.Name, ns)
+			Ω(err).NotTo(HaveOccurred())
+		}()
 
 		testConfigmap, err := kClient.CreateConfigMap(testConfigmap, ns)
 		Ω(err).NotTo(HaveOccurred())
