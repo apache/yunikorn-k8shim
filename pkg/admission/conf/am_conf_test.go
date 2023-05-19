@@ -21,10 +21,12 @@ package conf
 import (
 	"testing"
 
+	"go.uber.org/zap/zapcore"
 	"gotest.tools/v3/assert"
 	v1 "k8s.io/api/core/v1"
 
 	schedulerconf "github.com/apache/yunikorn-k8shim/pkg/conf"
+	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
 
 func TestConfigMapVars(t *testing.T) {
@@ -79,6 +81,18 @@ func TestConfigMapVars(t *testing.T) {
 	}}})
 	assert.Equal(t, conf.GetBypassAuth(), DefaultAccessControlBypassAuth)
 	assert.Equal(t, conf.GetTrustControllers(), DefaultAccessControlTrustControllers)
+
+	// test faulty settings for int values
+	NewAdmissionControllerConf([]*v1.ConfigMap{nil, {Data: map[string]string{
+		schedulerconf.CMLogLevel: "not int",
+	}}})
+	assert.Equal(t, log.GetZapConfigs().Level.Level(), zapcore.Level(schedulerconf.DefaultLoggingLevel))
+
+	// test faulty settings for regexp values
+	conf = NewAdmissionControllerConf([]*v1.ConfigMap{nil, {Data: map[string]string{
+		AMFilteringProcessNamespaces: "?",
+	}}})
+	assert.Equal(t, len(conf.GetProcessNamespaces()), 0)
 
 	// test disable / enable of config hot refresh
 	conf = NewAdmissionControllerConf([]*v1.ConfigMap{nil, nil})

@@ -351,8 +351,8 @@ func parseConfigRegexps(config map[string]string, key string, defaultValue strin
 	value := parseConfigString(config, key, defaultValue)
 	result, err := parseRegexes(value)
 	if err != nil {
-		log.Logger().Error(fmt.Sprintf("Unable to parse regex values '%s' for configuration '%s', using default value '%s'",
-			value, key, defaultValue), zap.Error(err))
+		log.Logger().Error("Unable to parse regex values, using default",
+			zap.String("key", key), zap.String("value", value), zap.String("default", defaultValue), zap.Error(err))
 		result, err = parseRegexes(defaultValue)
 		if err != nil {
 			log.Logger().Fatal("BUG: can't parse default regex pattern", zap.Error(err))
@@ -365,8 +365,8 @@ func parseConfigBool(config map[string]string, key string, defaultValue bool) bo
 	value := parseConfigString(config, key, fmt.Sprintf("%t", defaultValue))
 	result, err := strconv.ParseBool(value)
 	if err != nil {
-		log.Logger().Error(fmt.Sprintf("Unable to parse bool value '%s' for configuration '%s', using default value '%t'",
-			value, key, defaultValue), zap.Error(err))
+		log.Logger().Error("Unable to parse bool value, using default",
+			zap.String("key", key), zap.String("value", value), zap.Bool("default", defaultValue), zap.Error(err))
 		result = defaultValue
 	}
 	return result
@@ -376,8 +376,8 @@ func parseConfigInt(config map[string]string, key string, defaultValue int) int 
 	value := parseConfigString(config, key, fmt.Sprintf("%d", defaultValue))
 	result, err := strconv.ParseInt(value, 10, 31)
 	if err != nil {
-		log.Logger().Error(fmt.Sprintf("Unable to parse int value '%s' for configuration '%s', using default value '%d'",
-			value, key, defaultValue), zap.Error(err))
+		log.Logger().Error("Unable to parse int value, using default",
+			zap.String("key", key), zap.String("value", value), zap.Int("default", defaultValue), zap.Error(err))
 		return defaultValue
 	}
 	return int(result)
