@@ -47,8 +47,6 @@ import (
 )
 
 const (
-	autoGenAppPrefix                = "yunikorn"
-	autoGenAppSuffix                = "autogen"
 	yunikornPod                     = "yunikorn"
 	defaultQueue                    = "root.default"
 	admissionReviewAPIVersion       = "admission.k8s.io/v1"
@@ -199,7 +197,7 @@ func (c *AdmissionController) processPod(req *admissionv1.AdmissionRequest, name
 	patch = updateSchedulerName(patch)
 
 	if c.shouldLabelNamespace(namespace) {
-		patch = updateLabels(namespace, &pod, patch)
+		patch = c.updateLabels(namespace, &pod, patch)
 		patch = c.updatePreemptionInfo(&pod, patch)
 	} else {
 		patch = disableYuniKorn(namespace, &pod, patch)
@@ -378,14 +376,6 @@ func updateSchedulerName(patch []common.PatchOperation) []common.PatchOperation 
 	})
 }
 
-// generate appID based on the namespace value,
-// and the max length of the ID is 63 chars.
-func generateAppID(namespace string) string {
-	generatedID := fmt.Sprintf("%s-%s-%s", autoGenAppPrefix, namespace, autoGenAppSuffix)
-	appID := fmt.Sprintf("%.63s", generatedID)
-	return appID
-}
-
 func (c *AdmissionController) updatePreemptionInfo(pod *v1.Pod, patch []common.PatchOperation) []common.PatchOperation {
 	value := utils.GetPodAnnotationValue(pod, constants.AnnotationAllowPreemption)
 
@@ -426,14 +416,14 @@ func (c *AdmissionController) updatePreemptionInfo(pod *v1.Pod, patch []common.P
 	return patch
 }
 
-func updateLabels(namespace string, pod *v1.Pod, patch []common.PatchOperation) []common.PatchOperation {
+func (c *AdmissionController) updateLabels(namespace string, pod *v1.Pod, patch []common.PatchOperation) []common.PatchOperation {
 	log.Logger().Info("updating pod labels",
 		zap.String("podName", pod.Name),
 		zap.String("generateName", pod.GenerateName),
 		zap.String("namespace", namespace),
 		zap.Any("labels", pod.Labels))
 
-	result := updatePodLabel(pod, namespace)
+	result := updatePodLabel(pod, namespace, c.conf.GetGenerateUniqueAppIds())
 
 	patch = append(patch, common.PatchOperation{
 		Op:    "add",

@@ -50,6 +50,7 @@ const (
 	validUserInfoAnnotation = "{\"user\":\"test\",\"groups\":[\"devops\",\"system:authenticated\"]}"
 )
 
+// nolint: funlen
 func TestUpdateLabels(t *testing.T) {
 	// verify when appId/queue are not given,
 	// we patch it correctly
@@ -73,7 +74,8 @@ func TestUpdateLabels(t *testing.T) {
 		Status: v1.PodStatus{},
 	}
 
-	patch = updateLabels("default", pod, patch)
+	c := createAdmissionControllerForTest()
+	patch = c.updateLabels("default", pod, patch)
 
 	assert.Equal(t, len(patch), 1)
 	assert.Equal(t, patch[0].Op, "add")
@@ -83,7 +85,7 @@ func TestUpdateLabels(t *testing.T) {
 		assert.Equal(t, updatedMap["random"], "random")
 		assert.Equal(t, updatedMap["queue"], "root.default")
 		assert.Equal(t, updatedMap["disableStateAware"], "true")
-		assert.Equal(t, strings.HasPrefix(updatedMap["applicationId"], autoGenAppPrefix), true)
+		assert.Equal(t, strings.HasPrefix(updatedMap["applicationId"], constants.AutoGenAppPrefix), true)
 	} else {
 		t.Fatal("patch info content is not as expected")
 	}
@@ -110,7 +112,7 @@ func TestUpdateLabels(t *testing.T) {
 		Spec:   v1.PodSpec{},
 		Status: v1.PodStatus{},
 	}
-	patch = updateLabels("default", pod, patch)
+	patch = c.updateLabels("default", pod, patch)
 
 	assert.Equal(t, len(patch), 1)
 	assert.Equal(t, patch[0].Op, "add")
@@ -147,7 +149,7 @@ func TestUpdateLabels(t *testing.T) {
 		Status: v1.PodStatus{},
 	}
 
-	patch = updateLabels("default", pod, patch)
+	patch = c.updateLabels("default", pod, patch)
 
 	assert.Equal(t, len(patch), 1)
 	assert.Equal(t, patch[0].Op, "add")
@@ -157,7 +159,7 @@ func TestUpdateLabels(t *testing.T) {
 		assert.Equal(t, updatedMap["random"], "random")
 		assert.Equal(t, updatedMap["queue"], "root.abc")
 		assert.Equal(t, updatedMap["disableStateAware"], "true")
-		assert.Equal(t, strings.HasPrefix(updatedMap["applicationId"], autoGenAppPrefix), true)
+		assert.Equal(t, strings.HasPrefix(updatedMap["applicationId"], constants.AutoGenAppPrefix), true)
 	} else {
 		t.Fatal("patch info content is not as expected")
 	}
@@ -180,7 +182,7 @@ func TestUpdateLabels(t *testing.T) {
 		Status: v1.PodStatus{},
 	}
 
-	patch = updateLabels("default", pod, patch)
+	patch = c.updateLabels("default", pod, patch)
 
 	assert.Equal(t, len(patch), 1)
 	assert.Equal(t, patch[0].Op, "add")
@@ -189,7 +191,7 @@ func TestUpdateLabels(t *testing.T) {
 		assert.Equal(t, len(updatedMap), 3)
 		assert.Equal(t, updatedMap["queue"], "root.default")
 		assert.Equal(t, updatedMap["disableStateAware"], "true")
-		assert.Equal(t, strings.HasPrefix(updatedMap["applicationId"], autoGenAppPrefix), true)
+		assert.Equal(t, strings.HasPrefix(updatedMap["applicationId"], constants.AutoGenAppPrefix), true)
 	} else {
 		t.Fatal("patch info content is not as expected")
 	}
@@ -209,7 +211,7 @@ func TestUpdateLabels(t *testing.T) {
 		Status: v1.PodStatus{},
 	}
 
-	patch = updateLabels("default", pod, patch)
+	patch = c.updateLabels("default", pod, patch)
 
 	assert.Equal(t, len(patch), 1)
 	assert.Equal(t, patch[0].Op, "add")
@@ -218,7 +220,7 @@ func TestUpdateLabels(t *testing.T) {
 		assert.Equal(t, len(updatedMap), 3)
 		assert.Equal(t, updatedMap["queue"], "root.default")
 		assert.Equal(t, updatedMap["disableStateAware"], "true")
-		assert.Equal(t, strings.HasPrefix(updatedMap["applicationId"], autoGenAppPrefix), true)
+		assert.Equal(t, strings.HasPrefix(updatedMap["applicationId"], constants.AutoGenAppPrefix), true)
 	} else {
 		t.Fatal("patch info content is not as expected")
 	}
@@ -236,7 +238,7 @@ func TestUpdateLabels(t *testing.T) {
 		Status:     v1.PodStatus{},
 	}
 
-	patch = updateLabels("default", pod, patch)
+	patch = c.updateLabels("default", pod, patch)
 
 	assert.Equal(t, len(patch), 1)
 	assert.Equal(t, patch[0].Op, "add")
@@ -245,7 +247,7 @@ func TestUpdateLabels(t *testing.T) {
 		assert.Equal(t, len(updatedMap), 3)
 		assert.Equal(t, updatedMap["queue"], "root.default")
 		assert.Equal(t, updatedMap["disableStateAware"], "true")
-		assert.Equal(t, strings.HasPrefix(updatedMap["applicationId"], autoGenAppPrefix), true)
+		assert.Equal(t, strings.HasPrefix(updatedMap["applicationId"], constants.AutoGenAppPrefix), true)
 	} else {
 		t.Fatal("patch info content is not as expected")
 	}
@@ -403,20 +405,6 @@ func errorResponseMock(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(500)
 	resp := `{}`
 	w.Write([]byte(resp)) //nolint:errcheck
-}
-
-func TestGenerateAppID(t *testing.T) {
-	appID := generateAppID("this-is-a-namespace")
-	assert.Equal(t, strings.HasPrefix(appID, fmt.Sprintf("%s-this-is-a-namespace", autoGenAppPrefix)), true)
-	assert.Equal(t, len(appID), 36)
-
-	appID = generateAppID("short")
-	assert.Equal(t, strings.HasPrefix(appID, fmt.Sprintf("%s-short", autoGenAppPrefix)), true)
-	assert.Equal(t, len(appID), 22)
-
-	appID = generateAppID(strings.Repeat("long", 100))
-	assert.Equal(t, strings.HasPrefix(appID, fmt.Sprintf("%s-long", autoGenAppPrefix)), true)
-	assert.Equal(t, len(appID), 63)
 }
 
 func TestMutate(t *testing.T) {
@@ -988,4 +976,10 @@ func createNamespaceClassCacheForTest() *NamespaceCache {
 	return &NamespaceCache{
 		nameSpaces: make(map[string]nsFlags),
 	}
+}
+
+func createAdmissionControllerForTest() *AdmissionController {
+	pcCache := createPriorityClassCacheForTest()
+	nsCache := createNamespaceClassCacheForTest()
+	return InitAdmissionController(createConfig(), pcCache, nsCache)
 }
