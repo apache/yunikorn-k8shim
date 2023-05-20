@@ -220,6 +220,7 @@ func TestUpdateNode(t *testing.T) {
 
 	// first add the old node
 	cache.AddNode(oldNode)
+	assert.Equal(t, int64(1), cache.nodesMapGeneration, "invalid generation counter")
 
 	// make sure the node is added to the cache
 	nodeInCache := cache.GetNode("host0001")
@@ -235,6 +236,9 @@ func TestUpdateNode(t *testing.T) {
 	assert.Assert(t, nodeInCache.Node() != nil)
 	assert.Equal(t, nodeInCache.Node().Name, "host0001")
 	assert.Equal(t, nodeInCache.Node().Spec.Unschedulable, false)
+
+	cache.removeNode(newNode)
+	assert.Equal(t, int64(2), cache.nodesMapGeneration, "invalid generation counter")
 }
 
 func TestUpdateNonExistNode(t *testing.T) {
@@ -284,8 +288,9 @@ func add2Cache(cache *SchedulerCache, objects ...interface{}) error {
 func TestGetNodesInfoMap(t *testing.T) {
 	// empty map
 	cache := NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
-	ref := cache.GetNodesInfoMap()
+	ref, gen := cache.GetNodesInfoMap()
 	assert.Equal(t, len(ref), 0)
+	assert.Equal(t, int64(0), gen)
 
 	for i := 0; i < 10; i++ {
 		cache.AddNode(&v1.Node{
@@ -304,8 +309,9 @@ func TestGetNodesInfoMap(t *testing.T) {
 		})
 	}
 
-	ref = cache.GetNodesInfoMap()
+	ref, gen = cache.GetNodesInfoMap()
 	assert.Equal(t, len(ref), 10)
+	assert.Equal(t, int64(10), gen)
 	for k, v := range ref {
 		assert.Assert(t, v.Node() != nil, "node %s should not be nil", k)
 		assert.Equal(t, len(v.Node().Labels), 2)

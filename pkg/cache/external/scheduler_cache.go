@@ -57,6 +57,9 @@ type SchedulerCache struct {
 	inProgressAllocations map[string]string // map of pod to node ID, presence indicates an in-process allocation for scheduler
 	lock                  sync.RWMutex
 	clients               *client.Clients // client APIs
+
+	// for caching
+	nodesMapGeneration int64
 }
 
 func NewSchedulerCache(clients *client.Clients) *SchedulerCache {
@@ -75,8 +78,8 @@ func NewSchedulerCache(clients *client.Clients) *SchedulerCache {
 
 // GetNodesInfoMap returns a reference to the internal node map. This is explicitly for the use of the predicate
 // shared lister and requires that the scheduler cache lock be held while accessing.
-func (cache *SchedulerCache) GetNodesInfoMap() map[string]*framework.NodeInfo {
-	return cache.nodesMap
+func (cache *SchedulerCache) GetNodesInfoMap() (map[string]*framework.NodeInfo, int64) {
+	return cache.nodesMap, cache.nodesMapGeneration
 }
 
 func (cache *SchedulerCache) LockForReads() {
@@ -121,6 +124,7 @@ func (cache *SchedulerCache) updateNode(node *v1.Node) {
 		log.Logger().Debug("Adding node to cache", zap.String("nodeName", node.Name))
 		nodeInfo = framework.NewNodeInfo()
 		cache.nodesMap[node.Name] = nodeInfo
+		cache.nodesMapGeneration++
 	} else {
 		log.Logger().Debug("Updating node in cache", zap.String("nodeName", node.Name))
 	}
@@ -153,6 +157,7 @@ func (cache *SchedulerCache) removeNode(node *v1.Node) {
 
 	log.Logger().Debug("Removing node from cache", zap.String("nodeName", node.Name))
 	delete(cache.nodesMap, node.Name)
+	cache.nodesMapGeneration++
 }
 
 func (cache *SchedulerCache) GetPriorityClass(name string) *schedulingv1.PriorityClass {

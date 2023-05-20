@@ -28,20 +28,28 @@ import (
 
 type nodeInfoListerImpl struct {
 	cache *external.SchedulerCache
+
+	nodes    []*framework.NodeInfo
+	nodesGen int64
 }
 
-func (n nodeInfoListerImpl) List() ([]*framework.NodeInfo, error) {
-	nodes := n.cache.GetNodesInfoMap()
-	nodeList := make([]*framework.NodeInfo, 0, len(nodes))
-	for _, node := range nodes {
-		nodeList = append(nodeList, node)
+func (n *nodeInfoListerImpl) List() ([]*framework.NodeInfo, error) {
+	nodes, gen := n.cache.GetNodesInfoMap()
+
+	if n.nodesGen != gen {
+		nodeList := make([]*framework.NodeInfo, 0, len(nodes))
+		for _, node := range nodes {
+			nodeList = append(nodeList, node)
+		}
+		n.nodes = nodeList
+		n.nodesGen = gen
 	}
 
-	return nodeList, nil
+	return n.nodes, nil
 }
 
-func (n nodeInfoListerImpl) HavePodsWithAffinityList() ([]*framework.NodeInfo, error) {
-	nodes := n.cache.GetNodesInfoMap()
+func (n *nodeInfoListerImpl) HavePodsWithAffinityList() ([]*framework.NodeInfo, error) {
+	nodes, _ := n.cache.GetNodesInfoMap()
 	result := make([]*framework.NodeInfo, 0, len(nodes))
 	for _, node := range nodes {
 		if len(node.PodsWithAffinity) > 0 {
@@ -51,8 +59,8 @@ func (n nodeInfoListerImpl) HavePodsWithAffinityList() ([]*framework.NodeInfo, e
 	return result, nil
 }
 
-func (n nodeInfoListerImpl) HavePodsWithRequiredAntiAffinityList() ([]*framework.NodeInfo, error) {
-	nodes := n.cache.GetNodesInfoMap()
+func (n *nodeInfoListerImpl) HavePodsWithRequiredAntiAffinityList() ([]*framework.NodeInfo, error) {
+	nodes, _ := n.cache.GetNodesInfoMap()
 	result := make([]*framework.NodeInfo, 0, len(nodes))
 	for _, node := range nodes {
 		if len(node.PodsWithRequiredAntiAffinity) > 0 {
@@ -62,8 +70,8 @@ func (n nodeInfoListerImpl) HavePodsWithRequiredAntiAffinityList() ([]*framework
 	return result, nil
 }
 
-func (n nodeInfoListerImpl) Get(nodeName string) (*framework.NodeInfo, error) {
-	nodes := n.cache.GetNodesInfoMap()
+func (n *nodeInfoListerImpl) Get(nodeName string) (*framework.NodeInfo, error) {
+	nodes, _ := n.cache.GetNodesInfoMap()
 	node, ok := nodes[nodeName]
 	if !ok {
 		return nil, errors.New("node not found")
@@ -77,7 +85,8 @@ var _ framework.NodeInfoLister = &nodeInfoListerImpl{}
 // not safe for access without acquiring the scheduler cache read lock first.
 func NewNodeInfoLister(cache *external.SchedulerCache) framework.NodeInfoLister {
 	nl := &nodeInfoListerImpl{
-		cache: cache,
+		cache:    cache,
+		nodesGen: -1,
 	}
 	return nl
 }
