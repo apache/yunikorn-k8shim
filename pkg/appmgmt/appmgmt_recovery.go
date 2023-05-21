@@ -23,6 +23,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"go.uber.org/zap"
 
 	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/general"
@@ -63,8 +64,10 @@ func (svc *AppManagementService) recoverApps() (map[string]interfaces.ManagedApp
 			})
 
 			for _, pod := range pods {
-				app := svc.podEventHandler.HandleEvent(general.AddPod, general.Recovery, pod)
-				recoveringApps[app.GetApplicationID()] = app
+				if utils.NeedRecovery(pod) {
+					app := svc.podEventHandler.HandleEvent(general.AddPod, general.Recovery, pod)
+					recoveringApps[app.GetApplicationID()] = app
+				}
 			}
 			log.Logger().Info("Recovery finished")
 			svc.podEventHandler.RecoveryDone()
