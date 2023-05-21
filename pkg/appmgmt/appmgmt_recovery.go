@@ -23,12 +23,12 @@ import (
 	"sort"
 	"time"
 
-	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"go.uber.org/zap"
 
 	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/general"
 	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/yunikorn-k8shim/pkg/cache"
+	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
 
