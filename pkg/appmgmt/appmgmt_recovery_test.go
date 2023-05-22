@@ -277,10 +277,10 @@ func (ma *mockedAppManager) Stop() {
 func (ma *mockedAppManager) ListPods() ([]*v1.Pod, error) {
 	pods := make([]*v1.Pod, 8)
 	pods[0] = newPodHelper("pod1", "task01", "app01", time.Unix(100, 0), v1.PodRunning)
-	pods[1] = newPodHelper("pod2", "task02", "app01", time.Unix(500, 0), v1.PodRunning)
+	pods[1] = newPodHelper("pod2", "task02", "app01", time.Unix(500, 0), v1.PodPending)
 	pods[2] = newPodHelper("pod3", "task03", "app01", time.Unix(200, 0), v1.PodSucceeded)
 	pods[3] = newPodHelper("pod4", "task04", "app02", time.Unix(400, 0), v1.PodRunning)
-	pods[4] = newPodHelper("pod5", "task05", "app02", time.Unix(300, 0), v1.PodRunning)
+	pods[4] = newPodHelper("pod5", "task05", "app02", time.Unix(300, 0), v1.PodPending)
 	pods[5] = newPodHelper("pod6", "task06", "app02", time.Unix(600, 0), v1.PodFailed)
 
 	// these pods and apps should never be recovered
