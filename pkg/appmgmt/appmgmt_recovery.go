@@ -28,6 +28,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/general"
 	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/yunikorn-k8shim/pkg/cache"
+	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
 
@@ -63,8 +64,10 @@ func (svc *AppManagementService) recoverApps() (map[string]interfaces.ManagedApp
 			})
 
 			for _, pod := range pods {
-				app := svc.podEventHandler.HandleEvent(general.AddPod, general.Recovery, pod)
-				recoveringApps[app.GetApplicationID()] = app
+				if utils.NeedRecovery(pod) {
+					app := svc.podEventHandler.HandleEvent(general.AddPod, general.Recovery, pod)
+					recoveringApps[app.GetApplicationID()] = app
+				}
 			}
 			log.Logger().Info("Recovery finished")
 			svc.podEventHandler.RecoveryDone()
