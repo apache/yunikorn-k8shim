@@ -22,6 +22,8 @@ import (
 	"fmt"
 	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
@@ -880,7 +882,194 @@ var _ = Describe("", func() {
 		By("Verify placeholders deleted")
 		for _, placeholders := range phNames {
 			for _, ph := range placeholders {
-				deleteErr = kClient.WaitForPodTerminated(fifoQName, ph, 30*time.Second)
+				deleteErr = kClient.WaitForPodTerminated(ns, ph, 30*time.Second)
+				Ω(deleteErr).NotTo(HaveOccurred(), "Placeholder %s still running", ph)
+			}
+		}
+
+		By("Verify app allocation is empty")
+		appInfo, restErr := restClient.GetAppInfo(defaultPartition, nsQueue, podConf.Labels["applicationId"])
+		Ω(restErr).NotTo(HaveOccurred())
+		Ω(len(appInfo.Allocations)).To(BeNumerically("==", 0))
+	})
+
+	// Test to verify originator deletion will trigger placeholders cleanup
+	// 1. Create an originator pod
+	// 2. Not set pod ownerreference
+	// 3. Delete originator pod to trigger placeholders deletion
+	// 4. Verify placeholders deleted
+	// 5. Verify app allocation is empty
+	It("Verify_OriginatorDeletion_Trigger_Placeholders_Cleanup", func() {
+		// case 1: originator pod without ownerreference
+		podResources := map[string]resource.Quantity{
+			"cpu":    resource.MustParse("10m"),
+			"memory": resource.MustParse("10M"),
+		}
+		podConf := k8s.TestPodConfig{
+			Name: "gang-driver-pod" + common.RandSeq(5),
+			Labels: map[string]string{
+				"app":           "sleep-" + common.RandSeq(5),
+				"applicationId": "appid-" + common.RandSeq(5),
+			},
+			Annotations: &k8s.PodAnnotation{
+				TaskGroups: []v1alpha1.TaskGroup{
+					{
+						Name:         groupA + "-" + common.RandSeq(5),
+						MinMember:    int32(3),
+						MinResource:  podResources,
+						NodeSelector: map[string]string{"kubernetes.io/hostname": "unsatisfiable"},
+					},
+					{
+						Name:        groupB + "-" + common.RandSeq(5),
+						MinMember:   int32(3),
+						MinResource: podResources,
+					},
+				},
+			},
+			Resources: &v1.ResourceRequirements{
+				Requests: v1.ResourceList{
+					"cpu":    podResources["cpu"],
+					"memory": podResources["memory"],
+				},
+			},
+		}
+
+		podTest, err := k8s.InitTestPod(podConf)
+		Ω(err).NotTo(HaveOccurred())
+		taskGroupsMap, annErr := k8s.PodAnnotationToMap(podConf.Annotations)
+		Ω(annErr).NotTo(HaveOccurred())
+		By(fmt.Sprintf("Deploy pod %s with task-groups: %+v", podTest.Name, taskGroupsMap[k8s.TaskGroups]))
+		originator, err := kClient.CreatePod(podTest, ns)
+		Ω(err).NotTo(HaveOccurred())
+
+		By("Verify appState = Accepted")
+		timeoutErr := restClient.WaitForAppStateTransition(defaultPartition, nsQueue, podConf.Labels["applicationId"], yunikorn.States().Application.Accepted, 20)
+		Ω(timeoutErr).NotTo(HaveOccurred())
+
+		By("Wait for placeholders running")
+		phNames := yunikorn.GetPlaceholderNames(podConf.Annotations, podConf.Labels["applicationId"])
+		tgBNames := phNames[podConf.Annotations.TaskGroups[1].Name]
+		for _, ph := range tgBNames {
+			runErr := kClient.WaitForPodRunning(ns, ph, 30*time.Second)
+			Ω(runErr).NotTo(HaveOccurred())
+		}
+
+		By("Delete originator pod")
+		deleteErr := kClient.DeletePod(originator.Name, ns)
+		Ω(deleteErr).NotTo(HaveOccurred())
+
+		By("Verify placeholders deleted")
+		for _, placeholders := range phNames {
+			for _, ph := range placeholders {
+				deleteErr = kClient.WaitForPodTerminated(ns, ph, 30*time.Second)
+				Ω(deleteErr).NotTo(HaveOccurred(), "Placeholder %s still running", ph)
+			}
+		}
+
+		By("Verify app allocation is empty")
+		appInfo, restErr := restClient.GetAppInfo(defaultPartition, nsQueue, podConf.Labels["applicationId"])
+		Ω(restErr).NotTo(HaveOccurred())
+		Ω(len(appInfo.Allocations)).To(BeNumerically("==", 0))
+
+	})
+
+	// Test to verify originator deletion will trigger placeholders cleanup
+	// 1. Create an originator pod
+	// 2. Set pod ownerreference with ownerreference, take configmap for example
+	// 3. Delete originator pod to trigger placeholders deletion
+	// 4. Verify placeholders deleted
+	// 5. Verify app allocation is empty
+	It("Verify_OriginatorDeletionWithOwnerreference_Trigger_Placeholders_Cleanup", func() {
+		// case 2: originator pod with ownerreference
+		podResources := map[string]resource.Quantity{
+			"cpu":    resource.MustParse("10m"),
+			"memory": resource.MustParse("10M"),
+		}
+		podConf := k8s.TestPodConfig{
+			Name: "gang-driver-pod" + common.RandSeq(5),
+			Labels: map[string]string{
+				"app":           "sleep-" + common.RandSeq(5),
+				"applicationId": "appid-" + common.RandSeq(5),
+			},
+			Annotations: &k8s.PodAnnotation{
+				TaskGroups: []v1alpha1.TaskGroup{
+					{
+						Name:         groupA + "-" + common.RandSeq(5),
+						MinMember:    int32(3),
+						MinResource:  podResources,
+						NodeSelector: map[string]string{"kubernetes.io/hostname": "unsatisfiable"},
+					},
+					{
+						Name:        groupB + "-" + common.RandSeq(5),
+						MinMember:   int32(3),
+						MinResource: podResources,
+					},
+				},
+			},
+			Resources: &v1.ResourceRequirements{
+				Requests: v1.ResourceList{
+					"cpu":    podResources["cpu"],
+					"memory": podResources["memory"],
+				},
+			},
+		}
+
+		// create a configmap as ownerreference
+		testConfigmap := &v1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "test-cm",
+				UID:  "test-cm-uid",
+			},
+			Data: map[string]string{
+				"test": "test",
+			},
+		}
+		defer func() {
+			err := kClient.DeleteConfigMap(testConfigmap.Name, ns)
+			Ω(err).NotTo(HaveOccurred())
+		}()
+
+		testConfigmap, err := kClient.CreateConfigMap(testConfigmap, ns)
+		Ω(err).NotTo(HaveOccurred())
+
+		podTest, err := k8s.InitTestPod(podConf)
+		Ω(err).NotTo(HaveOccurred())
+
+		podTest.OwnerReferences = []metav1.OwnerReference{
+			{
+				APIVersion: "v1",
+				Kind:       "ConfigMap",
+				Name:       testConfigmap.Name,
+				UID:        testConfigmap.UID,
+			},
+		}
+
+		taskGroupsMap, annErr := k8s.PodAnnotationToMap(podConf.Annotations)
+		Ω(annErr).NotTo(HaveOccurred())
+		By(fmt.Sprintf("Deploy pod %s with task-groups: %+v", podTest.Name, taskGroupsMap[k8s.TaskGroups]))
+		originator, err := kClient.CreatePod(podTest, ns)
+		Ω(err).NotTo(HaveOccurred())
+
+		By("Verify appState = Accepted")
+		timeoutErr := restClient.WaitForAppStateTransition(defaultPartition, nsQueue, podConf.Labels["applicationId"], yunikorn.States().Application.Accepted, 20)
+		Ω(timeoutErr).NotTo(HaveOccurred())
+
+		By("Wait for placeholders running")
+		phNames := yunikorn.GetPlaceholderNames(podConf.Annotations, podConf.Labels["applicationId"])
+		tgBNames := phNames[podConf.Annotations.TaskGroups[1].Name]
+		for _, ph := range tgBNames {
+			runErr := kClient.WaitForPodRunning(ns, ph, 30*time.Second)
+			Ω(runErr).NotTo(HaveOccurred())
+		}
+
+		By("Delete originator pod")
+		deleteErr := kClient.DeletePod(originator.Name, ns)
+		Ω(deleteErr).NotTo(HaveOccurred())
+
+		By("Verify placeholders deleted")
+		for _, placeholders := range phNames {
+			for _, ph := range placeholders {
+				deleteErr = kClient.WaitForPodTerminated(ns, ph, 30*time.Second)
 				Ω(deleteErr).NotTo(HaveOccurred(), "Placeholder %s still running", ph)
 			}
 		}
