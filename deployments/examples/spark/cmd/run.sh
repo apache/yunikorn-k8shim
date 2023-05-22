@@ -74,12 +74,12 @@ if [ -z "$WORK_SPACE_ROOT" ]; then
 fi
 
 if [ -z "$SPARK_HADOOP_VERSION" ]; then
-  SPARK_HADOOP_VERSION=2.7
+  SPARK_HADOOP_VERSION=3
   echo "Using default spark hadoop version: $SPARK_HADOOP_VERSION"
 fi
 
 if [ -z "$SPARK_VERSION" ]; then
-  SPARK_VERSION=2.4.4
+  SPARK_VERSION=3.3.1
   echo "Using default spark version: $SPARK_VERSION"
 fi
 
@@ -91,11 +91,11 @@ FORMATTED_SPARK_BINARY_FILE_CHECKSUM_FILE_NAME=$SPARK_BINARY_FILE_CHECKSUM_FILE_
 FORMATTED_SPARK_BINARY_FILE_CHECKSUM_FILE_PATH=$WORK_SPACE_ROOT/$FORMATTED_SPARK_BINARY_FILE_CHECKSUM_FILE_NAME
 
 SPARK_HOME=$WORK_SPACE_ROOT/spark-${SPARK_VERSION}-bin-hadoop${SPARK_HADOOP_VERSION}
-SPARK_EXAMPLE_JAR=local://$SPARK_HOME/examples/jars/spark-examples_2.12-${SPARK_VERSION}.jar
+SPARK_EXAMPLE_JAR=local:///opt/spark/examples/jars/spark-examples_2.12-${SPARK_VERSION}.jar
 
 K8S_ENDPOINT=http://localhost:8001
 SPARK_EXECUTOR_NUM=1
-SPARK_DOCKER_IMAGE=yunikorn/spark:$SPARK_VERSION
+SPARK_DOCKER_IMAGE=docker.io/apache/spark:v${SPARK_VERSION}
 
 if [ -f "$SPARK_BINARY_FILE_PATH" ]; then
   echo "The binary file $SPARK_BINARY_FILE_NAME has been cached!"
@@ -127,16 +127,74 @@ if [[ 'OK' == $(shasum -c -a 512 "$FORMATTED_SPARK_BINARY_FILE_CHECKSUM_FILE_PAT
   tar -xvzf "$SPARK_BINARY_FILE_PATH" -C "$WORK_SPACE_ROOT"
 else
   echo "The checksum is not matched, Removing the incompleted file, please download it again."
-  rm -f "$SPARK_BINARY_FILE_PATH"
+  #rm -f "$SPARK_BINARY_FILE_PATH"
   exit 0
 fi
+
+#if [[ $(shasum -a 512 "$SPARK_BINARY_FILE_PATH" | awk '{print $1}') == $(cat "$SPARK_BINARY_FILE_CHECKSUM_FILE_NAME" | awk '{print $1}') ]]; then
+#  echo "The checksum is matched!"
+#  echo "Try to remove the old unpacked dir and re-uncompress it"
+#  rm -rf "$WORK_SPACE_ROOT"/spark-${SPARK_VERSION}-bin-hadoop${SPARK_HADOOP_VERSION}
+#  tar -xvzf "$SPARK_BINARY_FILE_PATH" -C "$WORK_SPACE_ROOT"
+#else
+#  echo "The checksum is not matched, Removing the incompleted file, please download it again."
+#  rm -f "$SPARK_BINARY_FILE_PATH"
+#  exit 0
+#fi
+
+# Create a namespace
+cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: spark-test
+EOF
+
+# Create service account and role bindings inside the spark-test namespace:
+cat <<EOF | kubectl apply -n spark-test -f -
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: spark
+  namespace: spark-test
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: spark-role
+  namespace: spark-test
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "watch", "list", "create", "delete"]
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "create", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: spark-role-binding
+  namespace: spark-test
+subjects:
+- kind: ServiceAccount
+  name: spark
+  namespace: spark-test
+roleRef:
+  kind: Role
+  name: spark-role
+  apiGroup: rbac.authorization.k8s.io
+EOF
 
 # spark submit command
 "${SPARK_HOME}"/bin/spark-submit \
   --master k8s://${K8S_ENDPOINT} --deploy-mode cluster --name spark-pi \
   --class org.apache.spark.examples.SparkPi \
   --conf spark.executor.instances=${SPARK_EXECUTOR_NUM} \
+  --conf spark.kubernetes.namespace=spark-test \
+  --conf spark.kubernetes.executor.request.cores=1 \
   --conf spark.kubernetes.container.image=${SPARK_DOCKER_IMAGE} \
+  --conf spark.kubernetes.authenticate.driver.serviceAccountName=spark \
   --conf spark.kubernetes.driver.podTemplateFile=../driver.yaml \
   --conf spark.kubernetes.executor.podTemplateFile=../executor.yaml \
   "${SPARK_EXAMPLE_JAR}"

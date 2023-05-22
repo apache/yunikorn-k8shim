@@ -24,7 +24,7 @@ To run the `run.sh` script:
 ./cmd/run.sh
 ```
 
-> Note: The default spark version is: 2.4.4, default hadoop version is: 2.7, default workspace is the parent dir of current file's directory.
+> Note: The default spark version is: 3.3.1, default hadoop version is: 3, default workspace is the parent dir of current file's directory.
 
 To change the default parameters and know the usage of this script, you can:
 

@@ -39,7 +39,7 @@ Two sample deployments using sleep jobs:
 ## spark
 A sample application using Apache Spark.
 
-Submit a spark job with the [run.sh](spark/cmd/run.sh) script, for full details see the [user guide](https://yunikorn.apache.org/docs/user_guide/workloads/run_spark) in the yunikorn-core.
+Submit a spark job with the [run.sh](spark/cmd/run.sh) script, for full details see the [user guide](https://yunikorn.apache.org/docs/user_guide/workloads/run_spark) in the yunikorn-site.
 
 Deployment files for the driver and executor: 
 * [driver](spark/driver.yaml).
