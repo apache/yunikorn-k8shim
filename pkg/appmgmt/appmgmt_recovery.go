@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"go.uber.org/zap"
+	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/general"
 	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
@@ -63,14 +64,18 @@ func (svc *AppManagementService) recoverApps() (map[string]interfaces.ManagedApp
 				return pods[i].CreationTimestamp.Unix() < pods[j].CreationTimestamp.Unix()
 			})
 
+			// Track pods that we have already seen in order to
+			// skip redundant handling of async events in RecoveryDone
+			seenEvents := make(map[types.UID]string)
 			for _, pod := range pods {
 				if utils.NeedRecovery(pod) {
 					app := svc.podEventHandler.HandleEvent(general.AddPod, general.Recovery, pod)
 					recoveringApps[app.GetApplicationID()] = app
 				}
+				seenEvents[pod.UID] = pod.GetResourceVersion()
 			}
 			log.Logger().Info("Recovery finished")
-			svc.podEventHandler.RecoveryDone()
+			svc.podEventHandler.RecoveryDone(seenEvents)
 		}
 	}
 

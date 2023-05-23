@@ -25,6 +25,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 
 	"go.uber.org/zap"
+	"k8s.io/apimachinery/pkg/types"
 
 	v1 "k8s.io/api/core/v1"
 )
@@ -90,7 +91,7 @@ func (p *PodEventHandler) internalHandle(eventType EventType, source EventSource
 	}
 }
 
-func (p *PodEventHandler) RecoveryDone() {
+func (p *PodEventHandler) RecoveryDone(seenEvents map[types.UID]string) {
 	p.Lock()
 	defer p.Unlock()
 
@@ -99,6 +100,14 @@ func (p *PodEventHandler) RecoveryDone() {
 		log.Logger().Info("Processing async events that arrived during recovery",
 			zap.Int("no. of events", noOfEvents))
 		for _, event := range p.asyncEvents {
+			// Adds get special treatment because most of these events will have
+			// been processed in the initial app recovery routine
+			// If the pod resource version of the seen event matches that of the async event,
+			// this indicates that it is a duplicate object and should be skipped
+			seenVersion, ok := seenEvents[event.pod.UID]
+			if ok && seenVersion == event.pod.GetResourceVersion() && event.eventType == AddPod {
+				continue
+			}
 			p.internalHandle(event.eventType, Informers, event.pod)
 		}
 	} else {
