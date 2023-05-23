@@ -19,6 +19,7 @@
 package admission
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -38,15 +39,23 @@ func createConfigWithOverrides(overrides map[string]string) *conf.AdmissionContr
 	return conf.NewAdmissionControllerConf([]*v1.ConfigMap{nil, {Data: overrides}})
 }
 
-// nolint: funlen
-func TestUpdatePodLabelForAdmissionController(t *testing.T) {
-	// verify when appId/queue are not given,
-	pod := &v1.Pod{
+func createMinimalTestingPod() *v1.Pod {
+	return &v1.Pod{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Pod",
 			APIVersion: "v1",
 		},
-		ObjectMeta: metav1.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{},
+		Spec:       v1.PodSpec{},
+		Status:     v1.PodStatus{},
+	}
+}
+
+func createTestingPodWithMeta() *v1.Pod {
+	pod := createMinimalTestingPod()
+
+	pod.ObjectMeta =
+		metav1.ObjectMeta{
 			Name:            "a-test-pod",
 			Namespace:       "default",
 			UID:             "7f5fd6c5d5",
@@ -54,12 +63,59 @@ func TestUpdatePodLabelForAdmissionController(t *testing.T) {
 			Labels: map[string]string{
 				"random": "random",
 			},
-		},
-		Spec:   v1.PodSpec{},
-		Status: v1.PodStatus{},
-	}
+		}
 
-	if result := updatePodLabel(pod, "default"); result != nil {
+	return pod
+}
+
+func createTestingPodWithCustomFields(ns string) *v1.Pod {
+	pod := createMinimalTestingPod()
+	pod.ObjectMeta =
+		metav1.ObjectMeta{
+			Namespace: ns,
+			UID:       "abcd1234-5678-efgh-90ij-klmnopqrstuv",
+		}
+
+	return pod
+}
+
+func createTestingPodWithAppId() *v1.Pod {
+	pod := createTestingPodWithMeta()
+	pod.ObjectMeta.Labels["applicationId"] = "app-0001"
+
+	return pod
+}
+
+func createTestingPodWithGenerateName() *v1.Pod {
+	pod := createMinimalTestingPod()
+	pod.ObjectMeta.GenerateName = "some-pod-"
+
+	return pod
+}
+
+func createTestingPodWithQueue() *v1.Pod {
+	pod := createTestingPodWithMeta()
+	pod.ObjectMeta.Labels["queue"] = "root.abc"
+
+	return pod
+}
+
+func createTestingPodNoNamespaceAndLabels() *v1.Pod {
+	pod := createMinimalTestingPod()
+	pod.ObjectMeta =
+		metav1.ObjectMeta{
+			Name:            "a-test-pod",
+			UID:             "7f5fd6c5d5",
+			ResourceVersion: "10654",
+		}
+	return pod
+}
+
+func TestUpdatePodLabelForAdmissionController(t *testing.T) {
+	// verify when appId/queue are not given,
+	pod := createTestingPodWithMeta()
+
+	if result := updatePodLabel(pod, "default", false); result != nil {
 		assert.Equal(t, len(result), 4)
 		assert.Equal(t, result["random"], "random")
 		assert.Equal(t, result["queue"], "root.default")
@@ -71,26 +127,9 @@ func TestUpdatePodLabelForAdmissionController(t *testing.T) {
 
 	// verify if applicationId is given in the labels,
 	// we won't modify it
-	pod = &v1.Pod{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:            "a-test-pod",
-			Namespace:       "default",
-			UID:             "7f5fd6c5d5",
-			ResourceVersion: "10654",
-			Labels: map[string]string{
-				"random":        "random",
-				"applicationId": "app-0001",
-			},
-		},
-		Spec:   v1.PodSpec{},
-		Status: v1.PodStatus{},
-	}
+	pod = createTestingPodWithAppId()
 
-	if result := updatePodLabel(pod, "default"); result != nil {
+	if result := updatePodLabel(pod, "default", false); result != nil {
 		assert.Equal(t, len(result), 3)
 		assert.Equal(t, result["random"], "random")
 		assert.Equal(t, result["queue"], "root.default")
@@ -101,25 +140,8 @@ func TestUpdatePodLabelForAdmissionController(t *testing.T) {
 
 	// verify if queue is given in the labels,
 	// we won't modify it
-	pod = &v1.Pod{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:            "a-test-pod",
-			Namespace:       "default",
-			UID:             "7f5fd6c5d5",
-			ResourceVersion: "10654",
-			Labels: map[string]string{
-				"random": "random",
-				"queue":  "root.abc",
-			},
-		},
-		Spec:   v1.PodSpec{},
-		Status: v1.PodStatus{},
-	}
-	if result := updatePodLabel(pod, "default"); result != nil {
+	pod = createTestingPodWithQueue()
+	if result := updatePodLabel(pod, "default", false); result != nil {
 		assert.Equal(t, len(result), 4)
 		assert.Equal(t, result["random"], "random")
 		assert.Equal(t, result["queue"], "root.abc")
@@ -131,20 +153,9 @@ func TestUpdatePodLabelForAdmissionController(t *testing.T) {
 
 	// namespace might be empty
 	// labels might be empty
-	pod = &v1.Pod{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:            "a-test-pod",
-			UID:             "7f5fd6c5d5",
-			ResourceVersion: "10654",
-		},
-		Spec:   v1.PodSpec{},
-		Status: v1.PodStatus{},
-	}
-	if result := updatePodLabel(pod, "default"); result != nil {
+	pod = createTestingPodNoNamespaceAndLabels()
+
+	if result := updatePodLabel(pod, "default", false); result != nil {
 		assert.Equal(t, len(result), 3)
 		assert.Equal(t, result["queue"], "root.default")
 		assert.Equal(t, result["disableStateAware"], "true")
@@ -154,18 +165,8 @@ func TestUpdatePodLabelForAdmissionController(t *testing.T) {
 	}
 
 	// pod name might be empty, it can comes from generatedName
-	pod = &v1.Pod{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			GenerateName: "some-pod-",
-		},
-		Spec:   v1.PodSpec{},
-		Status: v1.PodStatus{},
-	}
-	if result := updatePodLabel(pod, "default"); result != nil {
+	pod = createTestingPodWithGenerateName()
+	if result := updatePodLabel(pod, "default", false); result != nil {
 		assert.Equal(t, len(result), 3)
 		assert.Equal(t, result["queue"], "root.default")
 		assert.Equal(t, result["disableStateAware"], "true")
@@ -174,16 +175,8 @@ func TestUpdatePodLabelForAdmissionController(t *testing.T) {
 		t.Fatal("UpdatePodLabelForAdmissionController is not as expected")
 	}
 
-	pod = &v1.Pod{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{},
-		Spec:       v1.PodSpec{},
-		Status:     v1.PodStatus{},
-	}
-	if result := updatePodLabel(pod, "default"); result != nil {
+	pod = createMinimalTestingPod()
+	if result := updatePodLabel(pod, "default", false); result != nil {
 		assert.Equal(t, len(result), 3)
 		assert.Equal(t, result["queue"], "root.default")
 		assert.Equal(t, result["disableStateAware"], "true")
@@ -191,4 +184,57 @@ func TestUpdatePodLabelForAdmissionController(t *testing.T) {
 	} else {
 		t.Fatal("UpdatePodLabelForAdmissionController is not as expected")
 	}
+}
+
+func TestGenerateAppID(t *testing.T) {
+	defaultConf := createConfig()
+
+	appID := generateAppID("this-is-a-namespace", createTestingPodWithMeta(), defaultConf.GetGenerateUniqueAppIds())
+	assert.Equal(t, strings.HasPrefix(appID, fmt.Sprintf("%s-this-is-a-namespace", constants.AutoGenAppPrefix)), true)
+	assert.Equal(t, len(appID), 36)
+
+	appID = generateAppID("short", createTestingPodWithMeta(), defaultConf.GetGenerateUniqueAppIds())
+	assert.Equal(t, strings.HasPrefix(appID, fmt.Sprintf("%s-short", constants.AutoGenAppPrefix)), true)
+	assert.Equal(t, len(appID), 22)
+
+	appID = generateAppID(strings.Repeat("long", 100), createTestingPodWithMeta(), defaultConf.GetGenerateUniqueAppIds())
+	assert.Equal(t, strings.HasPrefix(appID, fmt.Sprintf("%s-long", constants.AutoGenAppPrefix)), true)
+	assert.Equal(t, len(appID), 63)
+
+	// explicitly disable autogen config
+	uniqueDisabled := createConfigWithOverrides(map[string]string{
+		conf.AMFilteringGenerateUniqueAppIds: fmt.Sprintf("%t", false),
+	})
+
+	appID = generateAppID("this-is-a-namespace", createTestingPodWithMeta(), uniqueDisabled.GetGenerateUniqueAppIds())
+	assert.Equal(t, strings.HasPrefix(appID, fmt.Sprintf("%s-this-is-a-namespace", constants.AutoGenAppPrefix)), true)
+	assert.Equal(t, len(appID), 36)
+
+	appID = generateAppID("short", createTestingPodWithMeta(), uniqueDisabled.GetGenerateUniqueAppIds())
+	assert.Equal(t, strings.HasPrefix(appID, fmt.Sprintf("%s-short", constants.AutoGenAppPrefix)), true)
+	assert.Equal(t, len(appID), 22)
+
+	appID = generateAppID(strings.Repeat("long", 100), createTestingPodWithMeta(), uniqueDisabled.GetGenerateUniqueAppIds())
+	assert.Equal(t, strings.HasPrefix(appID, fmt.Sprintf("%s-long", constants.AutoGenAppPrefix)), true)
+	assert.Equal(t, len(appID), 63)
+
+	// enabled autogen config
+	uniqueEnabled := createConfigWithOverrides(map[string]string{
+		conf.AMFilteringGenerateUniqueAppIds: fmt.Sprintf("%t", true),
+	})
+
+	podUid := "abcd1234-5678-efgh-90ij-klmnopqrstuv"
+
+	// short namespace name
+	ns := "short"
+	appID = generateAppID(ns, createTestingPodWithCustomFields(ns), uniqueEnabled.GetGenerateUniqueAppIds())
+	assert.Equal(t, strings.HasSuffix(appID, fmt.Sprintf("short-%s", podUid)), true)
+	assert.Equal(t, len(appID), len("short")+len("-")+len(podUid))
+
+	// long namespace name
+	ns = strings.Repeat("long", 100)
+	appID = generateAppID(ns, createTestingPodWithCustomFields(ns), uniqueEnabled.GetGenerateUniqueAppIds())
+	assert.Equal(t, strings.HasPrefix(appID, "long"), true)
+	assert.Equal(t, strings.HasSuffix(appID, podUid), true)
+	assert.Equal(t, len(appID), 63)
 }

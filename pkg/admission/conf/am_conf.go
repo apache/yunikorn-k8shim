@@ -48,10 +48,11 @@ const (
 	AMWebHookSchedulerServiceAddress = WebHookPrefix + "schedulerServiceAddress"
 
 	// filtering configuration
-	AMFilteringProcessNamespaces = FilteringPrefix + "processNamespaces"
-	AMFilteringBypassNamespaces  = FilteringPrefix + "bypassNamespaces"
-	AMFilteringLabelNamespaces   = FilteringPrefix + "labelNamespaces"
-	AMFilteringNoLabelNamespaces = FilteringPrefix + "noLabelNamespaces"
+	AMFilteringProcessNamespaces    = FilteringPrefix + "processNamespaces"
+	AMFilteringBypassNamespaces     = FilteringPrefix + "bypassNamespaces"
+	AMFilteringLabelNamespaces      = FilteringPrefix + "labelNamespaces"
+	AMFilteringNoLabelNamespaces    = FilteringPrefix + "noLabelNamespaces"
+	AMFilteringGenerateUniqueAppIds = FilteringPrefix + "generateUniqueAppId"
 
 	// access control configuration
 	AMAccessControlBypassAuth       = AccessControlPrefix + "bypassAuth"
@@ -67,10 +68,11 @@ const (
 	DefaultWebHookSchedulerServiceAddress = "yunikorn-service:9080"
 
 	// filtering defaults
-	DefaultFilteringProcessNamespaces = ""
-	DefaultFilteringBypassNamespaces  = "^kube-system$"
-	DefaultFilteringLabelNamespaces   = ""
-	DefaultFilteringNoLabelNamespaces = ""
+	DefaultFilteringProcessNamespaces    = ""
+	DefaultFilteringBypassNamespaces     = "^kube-system$"
+	DefaultFilteringLabelNamespaces      = ""
+	DefaultFilteringNoLabelNamespaces    = ""
+	DefaultFilteringGenerateUniqueAppIds = false
 
 	// access control defaults
 	DefaultAccessControlBypassAuth       = false
@@ -93,6 +95,7 @@ type AdmissionControllerConf struct {
 	bypassNamespaces        []*regexp.Regexp
 	labelNamespaces         []*regexp.Regexp
 	noLabelNamespaces       []*regexp.Regexp
+	generateUniqueAppIds    bool
 	bypassAuth              bool
 	trustControllers        bool
 	systemUsers             []*regexp.Regexp
@@ -174,6 +177,12 @@ func (acc *AdmissionControllerConf) GetNoLabelNamespaces() []*regexp.Regexp {
 	acc.lock.RLock()
 	defer acc.lock.RUnlock()
 	return acc.noLabelNamespaces
+}
+
+func (acc *AdmissionControllerConf) GetGenerateUniqueAppIds() bool {
+	acc.lock.RLock()
+	defer acc.lock.RUnlock()
+	return acc.generateUniqueAppIds
 }
 
 func (acc *AdmissionControllerConf) GetBypassAuth() bool {
@@ -304,6 +313,7 @@ func (acc *AdmissionControllerConf) updateConfigMaps(configMaps []*v1.ConfigMap,
 	acc.bypassNamespaces = parseConfigRegexps(configs, AMFilteringBypassNamespaces, DefaultFilteringBypassNamespaces)
 	acc.labelNamespaces = parseConfigRegexps(configs, AMFilteringLabelNamespaces, DefaultFilteringLabelNamespaces)
 	acc.noLabelNamespaces = parseConfigRegexps(configs, AMFilteringNoLabelNamespaces, DefaultFilteringNoLabelNamespaces)
+	acc.generateUniqueAppIds = parseConfigBool(configs, AMFilteringGenerateUniqueAppIds, DefaultFilteringGenerateUniqueAppIds)
 
 	// access control
 	acc.bypassAuth = parseConfigBool(configs, AMAccessControlBypassAuth, DefaultAccessControlBypassAuth)

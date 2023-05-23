@@ -19,6 +19,7 @@
 package admission
 
 import (
+	"fmt"
 	"reflect"
 
 	"go.uber.org/zap"
@@ -29,7 +30,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
 
-func updatePodLabel(pod *v1.Pod, namespace string) map[string]string {
+func updatePodLabel(pod *v1.Pod, namespace string, generateUniqueAppIds bool) map[string]string {
 	existingLabels := pod.Labels
 	result := make(map[string]string)
 	for k, v := range existingLabels {
@@ -42,7 +43,7 @@ func updatePodLabel(pod *v1.Pod, namespace string) map[string]string {
 		// if app id not exist, generate one
 		// for each namespace, we group unnamed pods to one single app
 		// application ID convention: ${AUTO_GEN_PREFIX}-${NAMESPACE}-${AUTO_GEN_SUFFIX}
-		generatedID := generateAppID(namespace)
+		generatedID := generateAppID(namespace, pod, generateUniqueAppIds)
 		result[constants.LabelApplicationID] = generatedID
 
 		// if we generate an app ID, disable state-aware scheduling for this app
@@ -74,4 +75,20 @@ func convert2Namespace(obj interface{}) *v1.Namespace {
 	}
 	log.Logger().Warn("cannot convert to *v1.Namespace", zap.Stringer("type", reflect.TypeOf(obj)))
 	return nil
+}
+
+// generate appID based on the namespace value
+// if configured to generate unique appID, generate appID as <namespace>-<pod-uid> namespace capped at 26chars
+// if not set or configured as false, appID generated as <autogen-prefix>-<namespace>-<autogen-suffix>
+func generateAppID(namespace string, pod *v1.Pod, generateUniqueAppIds bool) string {
+	podUid := string(pod.UID)
+
+	var generatedID string
+	if generateUniqueAppIds {
+		generatedID = fmt.Sprintf("%.26s-%s", namespace, string(podUid))
+	} else {
+		generatedID = fmt.Sprintf("%s-%s-%s", constants.AutoGenAppPrefix, namespace, constants.AutoGenAppSuffix)
+	}
+	appID := fmt.Sprintf("%.63s", generatedID)
+	return appID
 }
