@@ -72,12 +72,12 @@ In the test case, users are given the option to specify the queue they want to u
 
 The following example illustrates this scenario, along with the expected test results:
 
-| user, group | Assign queue | result | YAML filename |
-| --- | --- | --- | --- |
-| sue, group-a | root.tenants.group-a | created | [nginx-1](./acl/nginx-1.yaml) |
-| sue, group-a | root.tenants.group-b | blocked | [nginx-1](./acl/nginx-1.yaml) |
-| kim, group-b | root.tenants.group-a | blocked | [nginx-2](./acl/nginx-2.yaml) |
-| kim, group-b | root.tenants.group-b | created | [nginx-2](./acl/nginx-2.yaml) |
+| user, group          | Assign queue         | result  | YAML filename                 |
+|----------------------|----------------------|---------|-------------------------------|
+| sue, group-a         | root.tenants.group-a | created | [nginx-1](./acl/nginx-1.yaml) |
+| sue, group-a         | root.tenants.group-b | blocked | [nginx-1](./acl/nginx-1.yaml) |
+| kim, group-b         | root.tenants.group-a | blocked | [nginx-2](./acl/nginx-2.yaml) |
+| kim, group-b         | root.tenants.group-b | created | [nginx-2](./acl/nginx-2.yaml) |
 | anonymous, anonymous | root.tenants.group-a | blocked | [nginx-3](./acl/nginx-3.yaml) |
 | anonymous, anonymous | root.tenants.group-b | blocked | [nginx-3](./acl/nginx-3.yaml) |
 
@@ -106,13 +106,13 @@ In the test case, the user doesn't need to specify the queue for their applicati
 
 The following example illustrates this scenario, along with the expected test results:
 
-| placement rule | user, group | provide queue | namespace | Expected to be placed on | YAML filename |
-| --- | --- | --- | --- | --- | --- |
-| provided | admin, admin | root.system.high-priority |  | root.system.high-priority | [nginx-admin.yaml](./placementRule/nginx-admin.yaml) |
-| provided | admin, admin | root.system.low-priority |  | root.system.low-priority | [nginx-admin.yaml](./placementRule/nginx-admin.yaml) |
-| username | sue, group-a |  |  | root.tenants.group-a.sue | [nginx-sue.yaml](./placementRule/nginx-sue.yaml) |
-| tag (value: namespace) | kim, group-b |  | dev | root.tenants.group-b.dev | [nginx-kim.yaml](./placementRule/nginx-kim.yaml) |
-| tag (value: namespace) | kim, group-b |  | test | root.tenants.group-b.test | [nginx-kim.yaml](./placementRule/nginx-kim.yaml) |
+| placement rule         | user, group  | provide queue             | namespace | Expected to be placed on  | YAML filename                                        |
+|------------------------|--------------|---------------------------|-----------|---------------------------|------------------------------------------------------|
+| provided               | admin, admin | root.system.high-priority |           | root.system.high-priority | [nginx-admin.yaml](./placementRule/nginx-admin.yaml) |
+| provided               | admin, admin | root.system.low-priority  |           | root.system.low-priority  | [nginx-admin.yaml](./placementRule/nginx-admin.yaml) |
+| username               | sue, group-a |                           |           | root.tenants.group-a.sue  | [nginx-sue.yaml](./placementRule/nginx-sue.yaml)     |
+| tag (value: namespace) | kim, group-b |                           | dev       | root.tenants.group-b.dev  | [nginx-kim.yaml](./placementRule/nginx-kim.yaml)     |
+| tag (value: namespace) | kim, group-b |                           | test      | root.tenants.group-b.test | [nginx-kim.yaml](./placementRule/nginx-kim.yaml)     |
 
 ## Limit usable resources on a queue level
 
@@ -135,10 +135,10 @@ In the test case, users may request more resources than the queue allows, causin
 
 The following example illustrates this scenario, along with the expected test results:
 
-| user, group | Resource Limits for Destination Queues | request resources for each replicas | replica | result | YAML filename |
-| --- | --- | --- | --- | --- | --- |
-| admin, admin | {memory: 6G, vcore: 6} | {memory: 512M, vcore: 250m} | 1 | run all replica | [nginx-admin.yaml](./resourceLimit/nginx-admin.yaml) |
-| sue, group-A | {memory: 2G, vcore: 4} | {memory: 512M, vcore: 500m} | 5 | run 3 replica (4 replica will exceed the resource limit) | [nginx-sue.yaml](./resourceLimit/nginx-sue.yaml) |
+| user, group  | Resource Limits for Destination Queues | request resources for each replicas | replica | result                                                   | YAML filename                                        |
+|--------------|----------------------------------------|-------------------------------------|---------|----------------------------------------------------------|------------------------------------------------------|
+| admin, admin | {memory: 6G, vcore: 6}                 | {memory: 512M, vcore: 250m}         | 1       | run all replica                                          | [nginx-admin.yaml](./resourceLimit/nginx-admin.yaml) |
+| sue, group-A | {memory: 2G, vcore: 4}                 | {memory: 512M, vcore: 500m}         | 5       | run 3 replica (4 replica will exceed the resource limit) | [nginx-sue.yaml](./resourceLimit/nginx-sue.yaml)     |
 
 ## Preemption and priority scheduling with fencing
 
@@ -165,18 +165,18 @@ The following example illustrates this scenario, along with the expected test re
 
 ### case 1 -
 
-| queue | offset | # of deploy apps | # of apps accept by yunikorn | YAML filename |
-| --- | --- | --- | --- | --- |
-| root.system.low-priority | 1000 | 8 | 8 | [system.yaml](./priority/system.yaml) |
-| root.system.normal-priority | 0 | 8 | 5 | [system.yaml](./priority/system.yaml) |
-| root.system.high-priority | -1000 | 8 | 0 | [system.yaml](./priority/system.yaml) |
+| queue                       | offset | # of deploy apps | # of apps accept by yunikorn | YAML filename                         |
+|-----------------------------|--------|------------------|------------------------------|---------------------------------------|
+| root.system.low-priority    | 1000   | 8                | 8                            | [system.yaml](./priority/system.yaml) |
+| root.system.normal-priority | 0      | 8                | 5                            | [system.yaml](./priority/system.yaml) |
+| root.system.high-priority   | -1000  | 8                | 0                            | [system.yaml](./priority/system.yaml) |
 
 ### case 2 - 
 
 > **_NOTE:_** You'll need to deploy all of the following YAML files simultaneously.
 
-| queue | offset | # of deploy apps | # of apps accept by yunikorn | YAML filename |
-| --- | --- | --- | --- | --- |
-| root.system.normal-priority | 0 (global) | 7 | 7 | [nginx-admin.yaml](./priority/nginx-admin.yaml) |
-| root.tenants.group-a | 20 (fenced) | 7 | 6 | [nginx-sue.yaml](./priority/nginx-sue.yaml) |
-| root.tenants.group-b | 5 (fenced) | 7 | 0 | [nginx-kim.yaml](./priority/nginx-kim.yaml) |
+| queue                       | offset      | # of deploy apps | # of apps accept by yunikorn | YAML filename                                   |
+|-----------------------------|-------------|------------------|------------------------------|-------------------------------------------------|
+| root.system.normal-priority | 0 (global)  | 7                | 7                            | [nginx-admin.yaml](./priority/nginx-admin.yaml) |
+| root.tenants.group-a        | 20 (fenced) | 7                | 6                            | [nginx-sue.yaml](./priority/nginx-sue.yaml)     |
+| root.tenants.group-b        | 5 (fenced)  | 7                | 0                            | [nginx-kim.yaml](./priority/nginx-kim.yaml)     |
