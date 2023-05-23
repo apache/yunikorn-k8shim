@@ -108,4 +108,3 @@ const AnnotationEnableYuniKorn = "yunikorn.apache.org/namespace.enableYuniKorn"
 // Admission Controller pod label update constants
 const AutoGenAppPrefix = "yunikorn"
 const AutoGenAppSuffix = "autogen"
-const DefaultQueue = "root.default"

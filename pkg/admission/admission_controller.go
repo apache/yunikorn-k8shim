@@ -48,7 +48,6 @@ import (
 
 const (
 	yunikornPod                     = "yunikorn"
-	defaultQueue                    = "root.default"
 	admissionReviewAPIVersion       = "admission.k8s.io/v1"
 	admissionReviewKind             = "AdmissionReview"
 	schedulerValidateConfURLPattern = "http://%s/ws/v1/validate-conf"
@@ -423,7 +422,7 @@ func (c *AdmissionController) updateLabels(namespace string, pod *v1.Pod, patch 
 		zap.String("namespace", namespace),
 		zap.Any("labels", pod.Labels))
 
-	result := updatePodLabel(pod, namespace, c.conf.GetGenerateUniqueAppIds())
+	result := updatePodLabel(pod, namespace, c.conf.GetGenerateUniqueAppIds(), c.conf.GetDefaultQueueName())
 
 	patch = append(patch, common.PatchOperation{
 		Op:    "add",

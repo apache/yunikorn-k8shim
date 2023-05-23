@@ -407,6 +407,7 @@ func errorResponseMock(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(resp)) //nolint:errcheck
 }
 
+// nolint: funlen
 func TestMutate(t *testing.T) {
 	var ac *AdmissionController
 	var pod v1.Pod
@@ -437,6 +438,25 @@ func TestMutate(t *testing.T) {
 	resp = ac.mutate(req)
 	assert.Check(t, resp.Allowed, "response not allowed for yunikorn pod")
 	assert.Equal(t, len(resp.Patch), 0, "non-empty patch for yunikorn pod")
+
+	// pod with empty namespace should be scheduled to 'default' namespace
+	pod = v1.Pod{ObjectMeta: metav1.ObjectMeta{
+		Namespace: "",
+	}}
+	req = &admissionv1.AdmissionRequest{
+		UID:       "test-uid",
+		Namespace: "",
+		Kind:      metav1.GroupVersionKind{Kind: "Pod"},
+	}
+	podJSON, err = json.Marshal(pod)
+	assert.NilError(t, err, "failed to marshal pod")
+	req.Object = runtime.RawExtension{Raw: podJSON}
+	resp = ac.mutate(req)
+	assert.Check(t, resp.Allowed, "response not allowed for pod")
+	assert.Equal(t, schedulerName(t, resp.Patch), "yunikorn", "yunikorn not set as scheduler for pod")
+	assert.Equal(t, labels(t, resp.Patch)["applicationId"], "yunikorn-default-autogen", "wrong applicationId label")
+	assert.Equal(t, labels(t, resp.Patch)["disableStateAware"], "true", "missing disableStateAware label")
+	assert.Equal(t, labels(t, resp.Patch)["queue"], "root.default", "incorrect queue name")
 
 	// pod without applicationID
 	pod = v1.Pod{ObjectMeta: metav1.ObjectMeta{
