@@ -89,7 +89,7 @@ func (p *PodEventHandler) internalHandle(eventType EventType, source EventSource
 	}
 }
 
-func (p *PodEventHandler) RecoveryDone(seenEvents map[string]string) {
+func (p *PodEventHandler) RecoveryDone(seenPods map[string]string) {
 	p.Lock()
 	defer p.Unlock()
 
@@ -102,7 +102,7 @@ func (p *PodEventHandler) RecoveryDone(seenEvents map[string]string) {
 			// been processed in the initial app recovery routine
 			// If the pod resource version of the seen event matches that of the async event,
 			// this indicates that it is a duplicate object and should be skipped
-			seenVersion, ok := seenEvents[string(event.pod.UID)]
+			seenVersion, ok := seenPods[string(event.pod.UID)]
 			if ok && seenVersion == event.pod.GetResourceVersion() && event.eventType == AddPod {
 				continue
 			}

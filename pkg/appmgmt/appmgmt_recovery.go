@@ -64,16 +64,16 @@ func (svc *AppManagementService) recoverApps() (map[string]interfaces.ManagedApp
 
 			// Track pods that we have already seen in order to
 			// skip redundant handling of async events in RecoveryDone
-			seenEvents := make(map[string]string)
+			seenPods := make(map[string]string)
 			for _, pod := range pods {
 				if utils.NeedRecovery(pod) {
 					app := svc.podEventHandler.HandleEvent(general.AddPod, general.Recovery, pod)
 					recoveringApps[app.GetApplicationID()] = app
 				}
-				seenEvents[string(pod.UID)] = pod.GetResourceVersion()
+				seenPods[string(pod.UID)] = pod.GetResourceVersion()
 			}
 			log.Logger().Info("Recovery finished")
-			svc.podEventHandler.RecoveryDone(seenEvents)
+			svc.podEventHandler.RecoveryDone(seenPods)
 		}
 	}
 
