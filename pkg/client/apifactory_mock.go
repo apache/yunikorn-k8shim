@@ -19,21 +19,45 @@
 package client
 
 import (
-	"github.com/apache/yunikorn-k8shim/pkg/common/test"
-	"github.com/apache/yunikorn-k8shim/pkg/conf"
-	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
+	"sync"
 
+	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
+	schedv1 "k8s.io/api/scheduling/v1"
 	corev1 "k8s.io/client-go/listers/core/v1"
 	storagev1 "k8s.io/client-go/listers/storage/v1"
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/apache/yunikorn-k8shim/pkg/client/clientset/versioned/fake"
+	"github.com/apache/yunikorn-k8shim/pkg/common/test"
+	"github.com/apache/yunikorn-k8shim/pkg/conf"
+	"github.com/apache/yunikorn-k8shim/pkg/log"
+	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
 
 type MockedAPIProvider struct {
+	sync.Mutex
 	clients *Clients
+
+	stop         chan struct{}
+	eventHandler chan *ResourceEventHandlers
+	events       chan informerEvent
+	running      bool
 }
+
+type operation int
+type informerEvent struct {
+	handlerType Type
+	op          operation
+	obj         interface{}
+	oldObj      interface{}
+}
+
+const (
+	Add operation = iota
+	Update
+	Delete
+)
 
 func NewMockedAPIProvider(showError bool) *MockedAPIProvider {
 	return &MockedAPIProvider{
@@ -67,6 +91,10 @@ func NewMockedAPIProvider(showError bool) *MockedAPIProvider {
 			NamespaceInformer:     test.NewMockNamespaceInformer(),
 			PriorityClassInformer: test.NewMockPriorityClassInformer(),
 		},
+		events:       make(chan informerEvent),
+		eventHandler: make(chan *ResourceEventHandlers),
+		stop:         make(chan struct{}),
+		running:      false,
 	}
 }
 
@@ -169,7 +197,77 @@ func (m *MockedAPIProvider) IsTestingMode() bool {
 }
 
 func (m *MockedAPIProvider) AddEventHandler(handlers *ResourceEventHandlers) {
-	// no impl
+	m.Lock()
+	defer m.Unlock()
+
+	if !m.running {
+		return
+	}
+
+	m.eventHandler <- handlers
+	log.Logger().Info("registering event handler", zap.Stringer("type", handlers.Type))
+}
+
+func (m *MockedAPIProvider) RunEventHandler() {
+	m.Lock()
+	defer m.Unlock()
+	if m.running {
+		return
+	}
+	m.running = true
+	log.Logger().Info("mock shared informers: starting background event handler")
+	go func() {
+		eventHandlers := make(map[Type][]cache.ResourceEventHandler)
+
+		for {
+			select {
+			case <-m.stop:
+				return
+			case handlers := <-m.eventHandler:
+				var h cache.ResourceEventHandler
+				fns := cache.ResourceEventHandlerFuncs{
+					AddFunc:    handlers.AddFn,
+					UpdateFunc: handlers.UpdateFn,
+					DeleteFunc: handlers.DeleteFn,
+				}
+
+				if handlers.FilterFn != nil {
+					h = cache.FilteringResourceEventHandler{
+						FilterFunc: handlers.FilterFn,
+						Handler:    fns,
+					}
+				} else {
+					h = fns
+				}
+				handlerType := handlers.Type
+
+				forType := eventHandlers[handlerType]
+				forType = append(forType, h)
+				eventHandlers[handlerType] = forType
+			case event := <-m.events:
+				handlerType := event.handlerType
+				obj := event.obj
+				old := event.oldObj
+
+				switch event.op {
+				case Add:
+					for _, e := range eventHandlers[handlerType] {
+						e.OnAdd(obj)
+					}
+				case Delete:
+					for _, e := range eventHandlers[handlerType] {
+						e.OnDelete(obj)
+					}
+				case Update:
+					for _, e := range eventHandlers[handlerType] {
+						e.OnUpdate(old, obj)
+					}
+				default:
+					log.Logger().Fatal("Unknown operation", zap.Int("type", int(event.op)))
+				}
+			}
+		}
+	}()
 }
 
 func (m *MockedAPIProvider) Start() {
@@ -177,11 +275,114 @@ func (m *MockedAPIProvider) Start() {
 }
 
 func (m *MockedAPIProvider) Stop() {
-	// no impl
+	m.Lock()
+	defer m.Unlock()
+	close(m.stop)
+	m.running = false
 }
 
 func (m *MockedAPIProvider) WaitForSync() {
 	// no impl
+}
+
+func (m *MockedAPIProvider) AddPod(obj *v1.Pod) {
+	m.events <- informerEvent{
+		obj:         obj,
+		op:          Add,
+		handlerType: PodInformerHandlers,
+	}
+}
+
+func (m *MockedAPIProvider) UpdatePod(oldObj *v1.Pod, newObj *v1.Pod) {
+	m.events <- informerEvent{
+		obj:         newObj,
+		oldObj:      oldObj,
+		op:          Update,
+		handlerType: PodInformerHandlers,
+	}
+}
+
+func (m *MockedAPIProvider) DeletePod(obj *v1.Pod) {
+	m.events <- informerEvent{
+		obj:         obj,
+		op:          Delete,
+		handlerType: PodInformerHandlers,
+	}
+}
+
+func (m *MockedAPIProvider) AddNode(obj *v1.Node) {
+	m.events <- informerEvent{
+		obj:         obj,
+		op:          Add,
+		handlerType: NodeInformerHandlers,
+	}
+}
+
+func (m *MockedAPIProvider) DeleteNode(obj *v1.Node) {
+	m.events <- informerEvent{
+		obj:         obj,
+		op:          Delete,
+		handlerType: NodeInformerHandlers,
+	}
+}
+
+func (m *MockedAPIProvider) UpdateNode(oldObj *v1.Node, newObj *v1.Node) {
+	m.events <- informerEvent{
+		obj:         newObj,
+		oldObj:      oldObj,
+		op:          Update,
+		handlerType: NodeInformerHandlers,
+	}
+}
+
+func (m *MockedAPIProvider) AddConfigMap(obj *v1.ConfigMap) {
+	m.events <- informerEvent{
+		obj:         obj,
+		op:          Add,
+		handlerType: ConfigMapInformerHandlers,
+	}
+}
+
+func (m *MockedAPIProvider) DeleteConfigMap(obj *v1.ConfigMap) {
+	m.events <- informerEvent{
+		obj:         obj,
+		op:          Delete,
+		handlerType: ConfigMapInformerHandlers,
+	}
+}
+
+func (m *MockedAPIProvider) UpdateConfigMap(oldObj *v1.ConfigMap, newObj *v1.ConfigMap) {
+	m.events <- informerEvent{
+		obj:         newObj,
+		oldObj:      oldObj,
+		op:          Update,
+		handlerType: NodeInformerHandlers,
+	}
+}
+
+func (m *MockedAPIProvider) AddPriorityClass(obj *schedv1.PriorityClass) {
+	m.events <- informerEvent{
+		obj:         obj,
+		op:          Add,
+		handlerType: PriorityClassInformerHandlers,
+	}
+}
+
+func (m *MockedAPIProvider) DeletePriorityClass(obj *schedv1.PriorityClass) {
+	m.events <- informerEvent{
+		obj:         obj,
+		op:          Delete,
+		handlerType: PriorityClassInformerHandlers,
+	}
+}
+
+func (m *MockedAPIProvider) UpdatePriorityClass(oldObj *schedv1.PriorityClass, newObj *schedv1.PriorityClass) {
+	m.events <- informerEvent{
+		obj:         newObj,
+		oldObj:      oldObj,
+		op:          Update,
+		handlerType: PriorityClassInformerHandlers,
+	}
 }
 
 // MockedPersistentVolumeInformer implements PersistentVolumeInformer interface

@@ -75,6 +75,7 @@ func (fc *MockScheduler) init() {
 }
 
 func (fc *MockScheduler) start() {
+	fc.apiProvider.RunEventHandler() // must be called first
 	fc.scheduler.Run()
 }
 
@@ -231,4 +232,5 @@ func (fc *MockScheduler) waitAndVerifySchedulerAllocations(
 func (fc *MockScheduler) stop() {
 	close(fc.stopChan)
 	fc.scheduler.Stop()
+	fc.apiProvider.Stop()
 }
