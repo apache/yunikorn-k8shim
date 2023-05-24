@@ -7,3 +7,4 @@ shellcheck
 *.csr
 *.crt
 *.key
+./deployments/examples/k8s-api-access/certification_request.yaml

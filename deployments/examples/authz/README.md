@@ -16,7 +16,7 @@
 * limitations under the License.
 -->
 
-# Use Case
+# Authorization use cases
 
 Yunikorn offers a range of features, including advanced capabilities like hierarchical resource queues, access control lists, resource limits, preemption, priority, and placement rules for managing your cluster. This page presents a real-world scenario to demonstrate the practical application of these features.
 
@@ -27,11 +27,11 @@ The following will be included in this article：
 - [Limit usable resources on a queue level](./resourceLimit)
 - [Preemption and priority scheduling with fencing](./priority)
 
-## Prerequisite
+## Prerequisites
 
-Before configuring yunikorn-config, we need to create users using [Authenticating](https://kubernetes.io/docs/reference/access-authn-authz/authentication/) and [RBAC](https://kubernetes.io/docs/reference/access-authn-authz/rbac/) from Kubernetes.
+Before configuring yunikorn-config, we need to create users using [Authentication](https://kubernetes.io/docs/reference/access-authn-authz/authentication/) and [RBAC](https://kubernetes.io/docs/reference/access-authn-authz/rbac/) from Kubernetes.
 
-To create the necessary users for the example, Please use [./create-user.sh](./k8s-api-access/create-user.sh) to create a user.
+To create the necessary users for the examples, Please use [./create-user.sh](./k8s-api-access/create-user.sh) to create a user.
 
 After the user is created, the pod can be obtained by the following command to confirm the creation is successful：
 
@@ -173,7 +173,7 @@ The following example illustrates this scenario, along with the expected test re
 
 ### case 2 - 
 
-> **_NOTE:_** You'll need to deploy all of the following YAML files simultaneously.
+> **_NOTE:_** You will need to deploy all of the following YAML files simultaneously.
 
 | queue                       | offset      | # of deploy apps | # of apps accept by yunikorn | YAML filename                                   |
 |-----------------------------|-------------|------------------|------------------------------|-------------------------------------------------|

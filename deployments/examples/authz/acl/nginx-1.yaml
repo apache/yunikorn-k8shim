@@ -20,20 +20,20 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
-    app: nginx-c
-  name: nginx-c
+    app: nginx-a
+  name: nginx-a
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: nginx-c
+      app: nginx-a
   template:
     metadata:
       labels:
-        app: nginx-c
-        applicationId: nginx-c
-        queue: root.tenants.group-c
-      name: nginx-c
+        app: nginx-a
+        applicationId: nginx-a
+        queue: root.tenants.group-a
+      name: nginx-a
     spec:
       schedulerName: yunikorn
       containers:
@@ -48,20 +48,20 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
-    app: nginx-d
-  name: nginx-d
+    app: nginx-b
+  name: nginx-b
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: nginx-d
+      app: nginx-b
   template:
     metadata:
       labels:
-        app: nginx-d
-        applicationId: nginx-d
+        app: nginx-b
+        applicationId: nginx-b
         queue: root.tenants.group-b
-      name: nginx-d
+      name: nginx-b
     spec:
       schedulerName: yunikorn
       containers:

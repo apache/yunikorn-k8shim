@@ -21,36 +21,39 @@ metadata:
   namespace: yunikorn
 apiVersion: v1
 data:
+  log.level: "0"
+  admissionController.accessControl.externalGroups: "admin,^group-$"
   queues.yaml: |
     partitions: 
     - name: default
       queues:
         - name: root
-          properties:
-              application.sort.policy: fifo
-              application.sort.priority: enabled
           queues:
           - name: system
             adminacl: " admin"
-            queues:
-              - name: high-priority
-                properties:
-                  priority.offset: "1000"
-              - name: normal-priority
-                properties:
-                  priority.offset: "0"
-              - name: low-priority
-                properties:
-                  priority.offset: "-1000"
+            resources:
+              guaranteed:
+                {memory: 2G, vcore: 2}
+              max:
+                {memory: 6G, vcore: 6}
           - name: tenants
-            properties:
-              priority.policy: "fence"
+            resources:
+              guaranteed:
+                {memory: 2G, vcore: 2}
+              max:
+                {memory: 4G, vcore: 8}
             queues:
               - name: group-a
-                adminacl: " group-a"
-                properties:
-                  priority.offset: "20"
+                adminacl: " group-a" 
+                resources:
+                  guaranteed:
+                    {memory: 1G, vcore: 1}
+                  max:
+                    {memory: 2G, vcore: 4}
               - name: group-b
                 adminacl: " group-b"
-                properties:
-                  priority.offset: "5"
+                resources:
+                  guaranteed:
+                    {memory: 1G, vcore: 1}
+                  max:
+                    {memory: 2G, vcore: 4}

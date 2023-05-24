@@ -15,6 +15,30 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-kubectl delete -f nginx-admin.yaml
-kubectl delete -f nginx-sue.yaml
-kubectl delete -f nginx-kim.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    app: nginx-admin-high-priority
+    applicationId: nginx-admin-high-priority
+    queue: root.system.high-priority
+  name: nginx-admin-high-priority
+spec:
+  schedulerName: yunikorn
+  containers:
+  - name: nginx
+    image: nginx:stable-alpine
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    app: nginx-admin-low-priority
+    applicationId: nginx-admin-low-priority
+    queue: root.system.low-priority
+  name: nginx-admin-low-priority
+spec:
+  schedulerName: yunikorn
+  containers:
+  - name: nginx
+    image: nginx:stable-alpine

@@ -15,30 +15,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-apiVersion: v1
-kind: Pod
-metadata:
-  labels:
-    app: nginx-admin-high-priority
-    applicationId: nginx-admin-high-priority
-    queue: root.system.high-priority
-  name: nginx-admin-high-priority
-spec:
-  schedulerName: yunikorn
-  containers:
-  - name: nginx
-    image: nginx:stable-alpine
----
-apiVersion: v1
-kind: Pod
-metadata:
-  labels:
-    app: nginx-admin-low-priority
-    applicationId: nginx-admin-low-priority
-    queue: root.system.low-priority
-  name: nginx-admin-low-priority
-spec:
-  schedulerName: yunikorn
-  containers:
-  - name: nginx
-    image: nginx:stable-alpine
+USERS=("admin admin" "sue group-a" "bob group-a" "kim dev" "yono test" "anonymous anonymous")
+AUTH_FOLDER=./auth
+
+for ((i = 0; i < ${#USERS[@]}; ++i)); do
+    USER=(${USERS[i]})
+    USERNAME=${USER[0]}
+    AUTH_FILE=$AUTH_FOLDER/$USERNAME
+
+    kubectl delete csr/$USERNAME-csr
+    kubectl config unset contexts.$USERNAME-context
+    kubectl config unset users.$USERNAME
+done
+
+kubectl delete -f ./authorization.yaml

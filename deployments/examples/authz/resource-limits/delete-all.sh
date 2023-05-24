@@ -15,6 +15,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-kubectl apply -f nginx-admin.yaml --context=admin-context
-kubectl apply -f nginx-sue.yaml --context=sue-context
-kubectl apply -f nginx-kim.yaml --context=kim-context
+kubectl delete -f nginx-admin.yaml
+kubectl delete -f nginx-sue.yaml
