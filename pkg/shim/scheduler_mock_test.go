@@ -20,12 +20,14 @@ package shim
 
 import (
 	"fmt"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"go.uber.org/zap"
 	"gotest.tools/v3/assert"
 	v1 "k8s.io/api/core/v1"
+	schedv1 "k8s.io/api/scheduling/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -36,6 +38,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/callback"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common"
+	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
@@ -53,6 +56,7 @@ type MockScheduler struct {
 	coreContext *entrypoint.ServiceContext
 	apiProvider *client.MockedAPIProvider
 	stopChan    chan struct{}
+	started     atomic.Bool
 }
 
 func (fc *MockScheduler) init() {
@@ -62,6 +66,7 @@ func (fc *MockScheduler) init() {
 	fc.rmProxy = serviceContext.RMProxy
 	mockedAPIProvider := client.NewMockedAPIProvider(false)
 	mockedAPIProvider.GetAPIs().SchedulerAPI = fc.rmProxy
+	events.SetRecorder(events.NewMockedRecorder())
 
 	context := cache.NewContext(mockedAPIProvider)
 	rmCallback := callback.NewAsyncRMCallback(context)
@@ -77,6 +82,7 @@ func (fc *MockScheduler) init() {
 func (fc *MockScheduler) start() {
 	fc.apiProvider.RunEventHandler() // must be called first
 	fc.scheduler.Run()
+	fc.started.Store(true)
 }
 
 func (fc *MockScheduler) updateConfig(queues string) error {
@@ -87,6 +93,7 @@ func (fc *MockScheduler) updateConfig(queues string) error {
 	})
 }
 
+// Deprecated: this method only updates the core without the shim. Prefer MockScheduler.AddNode(*v1.Node) instead.
 func (fc *MockScheduler) addNode(nodeName string, nodeLabels map[string]string, memory, cpu, pods int64) error {
 	nodeResource := common.NewResourceBuilder().
 		AddResource(siCommon.Memory, memory).
@@ -98,6 +105,7 @@ func (fc *MockScheduler) addNode(nodeName string, nodeLabels map[string]string, 
 	return fc.apiProvider.GetAPIs().SchedulerAPI.UpdateNode(&request)
 }
 
+// Deprecated: this method only updates the core without the shim. Prefer MockScheduler.AddPod(*v1.Pod) instead.
 func (fc *MockScheduler) addTask(appID string, taskID string, ask *si.Resource) {
 	resources := make(map[v1.ResourceName]resource.Quantity)
 	for k, v := range ask.Resources {
@@ -165,6 +173,8 @@ func (fc *MockScheduler) waitAndAssertApplicationState(t *testing.T, appID, expe
 	}
 }
 
+// Deprecated: this method adds an application directly to the Context, and it skips relevant
+// code paths. Prefer MockScheduler.AddPod(*v1.Pod) instead.
 func (fc *MockScheduler) addApplication(appId string, queue string) {
 	fc.context.AddApplication(&interfaces.AddApplicationRequest{
 		Metadata: interfaces.ApplicationMetadata{
@@ -178,11 +188,6 @@ func (fc *MockScheduler) addApplication(appId string, queue string) {
 
 func (fc *MockScheduler) removeApplication(appId string) error {
 	return fc.context.RemoveApplication(appId)
-}
-
-func (fc *MockScheduler) newApplication(appID, queueName string) *cache.Application {
-	app := cache.NewApplication(appID, queueName, "testuser", []string{"dev"}, map[string]string{}, fc.apiProvider.GetAPIs().SchedulerAPI)
-	return app
 }
 
 func (fc *MockScheduler) waitAndAssertTaskState(t *testing.T, appID, taskID, expectedState string) {
@@ -233,4 +238,75 @@ func (fc *MockScheduler) stop() {
 	close(fc.stopChan)
 	fc.scheduler.Stop()
 	fc.apiProvider.Stop()
+	fc.started.Store(false)
+}
+
+func (fc *MockScheduler) AddPod(pod *v1.Pod) {
+	fc.ensureStarted()
+	fc.apiProvider.AddPod(pod)
+}
+
+func (fc *MockScheduler) UpdatePod(oldObj *v1.Pod, newObj *v1.Pod) {
+	fc.ensureStarted()
+	fc.apiProvider.UpdatePod(oldObj, newObj)
+}
+
+func (fc *MockScheduler) DeletePod(obj *v1.Pod) {
+	fc.ensureStarted()
+	fc.apiProvider.DeletePod(obj)
+}
+
+func (fc *MockScheduler) AddNode(obj *v1.Node) {
+	fc.ensureStarted()
+	fc.apiProvider.AddNode(obj)
+}
+
+func (fc *MockScheduler) DeleteNode(obj *v1.Node) {
+	fc.ensureStarted()
+	fc.apiProvider.DeleteNode(obj)
+}
+
+func (fc *MockScheduler) UpdateNode(oldObj *v1.Node, newObj *v1.Node) {
+	fc.ensureStarted()
+	fc.apiProvider.UpdateNode(oldObj, newObj)
+}
+
+func (fc *MockScheduler) AddConfigMap(obj *v1.ConfigMap) {
+	fc.ensureStarted()
+	fc.apiProvider.AddConfigMap(obj)
+}
+
+func (fc *MockScheduler) DeleteConfigMap(obj *v1.ConfigMap) {
+	fc.ensureStarted()
+	fc.apiProvider.DeleteConfigMap(obj)
+}
+
+func (fc *MockScheduler) UpdateConfigMap(oldObj *v1.ConfigMap, newObj *v1.ConfigMap) {
+	fc.ensureStarted()
+	fc.apiProvider.UpdateConfigMap(oldObj, newObj)
+}
+
+func (fc *MockScheduler) AddPriorityClass(obj *schedv1.PriorityClass) {
+	fc.ensureStarted()
+	fc.apiProvider.AddPriorityClass(obj)
+}
+
+func (fc *MockScheduler) DeletePriorityClass(obj *schedv1.PriorityClass) {
+	fc.ensureStarted()
+	fc.apiProvider.DeletePriorityClass(obj)
+}
+
+func (fc *MockScheduler) UpdatePriorityClass(oldObj *schedv1.PriorityClass, newObj *schedv1.PriorityClass) {
+	fc.ensureStarted()
+	fc.apiProvider.UpdatePriorityClass(oldObj, newObj)
+}
+
+func (fc *MockScheduler) GetPodBindStats() client.BindStats {
+	return fc.apiProvider.GetPodBindStats()
+}
+
+func (fc *MockScheduler) ensureStarted() {
+	if !fc.started.Load() {
+		panic("mock scheduler is not started - call start() first")
+	}
 }
