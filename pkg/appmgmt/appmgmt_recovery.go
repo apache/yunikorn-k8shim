@@ -63,18 +63,23 @@ func (svc *AppManagementService) recoverApps() (map[string]interfaces.ManagedApp
 				return pods[i].CreationTimestamp.Unix() < pods[j].CreationTimestamp.Unix()
 			})
 
-			// Track pods that we have already seen in order to
+			// Track terminated pods that we have already seen in order to
 			// skip redundant handling of async events in RecoveryDone
-			seenPods := make(map[string]bool)
+			// This filter is used for terminated pods to remain consistent
+			// with pod filters in the informer
+			terminatedYkPods := make(map[string]bool)
 			for _, pod := range pods {
-				if utils.NeedRecovery(pod) {
-					app := svc.podEventHandler.HandleEvent(general.AddPod, general.Recovery, pod)
-					recoveringApps[app.GetApplicationID()] = app
+				if utils.GetApplicationIDFromPod(pod) != "" {
+					if !utils.IsPodTerminated(pod) {
+						app := svc.podEventHandler.HandleEvent(general.AddPod, general.Recovery, pod)
+						recoveringApps[app.GetApplicationID()] = app
+						continue
+					}
+					terminatedYkPods[string(pod.UID)] = true
 				}
-				seenPods[string(pod.UID)] = true
 			}
 			log.Logger().Info("Recovery finished")
-			svc.podEventHandler.RecoveryDone(seenPods)
+			svc.podEventHandler.RecoveryDone(terminatedYkPods)
 		}
 	}
 

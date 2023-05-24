@@ -89,7 +89,7 @@ func (p *PodEventHandler) internalHandle(eventType EventType, source EventSource
 	}
 }
 
-func (p *PodEventHandler) RecoveryDone(seenPods map[string]bool) {
+func (p *PodEventHandler) RecoveryDone(terminatedPods map[string]bool) {
 	p.Lock()
 	defer p.Unlock()
 
@@ -98,12 +98,10 @@ func (p *PodEventHandler) RecoveryDone(seenPods map[string]bool) {
 		log.Logger().Info("Processing async events that arrived during recovery",
 			zap.Int("no. of events", noOfEvents))
 		for _, event := range p.asyncEvents {
-			// Adds get special treatment because most of these events will have
-			// been processed in the initial app recovery routine
-			// If we've already seen this pod UID, assume it's already been added
-			// correctly and skip it
-			added := seenPods[string(event.pod.UID)]
-			if added && event.eventType == AddPod {
+			// ignore all events for pods that have already been determined to
+			// be terminated, as these will not have been recovered and are
+			// therefore not claiming any scheduler resources that we care about
+			if terminatedPods[string(event.pod.UID)] {
 				continue
 			}
 			p.internalHandle(event.eventType, Informers, event.pod)
