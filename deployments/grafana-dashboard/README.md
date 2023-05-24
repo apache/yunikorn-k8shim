@@ -27,7 +27,7 @@ We have two JSON files available for you to import into the Grafana dashboard:
 * [Yunikorn-metrics](./yunikorn-metrics.json): This dashboard contains YuniKorn scheduler's runtime metrics, such as scheduling execution status and latency, total number of applications, and resource usage. 
 
   It also includes queue-based application status, number of Pods, and resource usage information.
-  ![Yunikorn-metrics](./assets/Yunikorn-metrics.png)
+  ![Yunikorn-metrics](./assets/yunikorn-metrics.png)
 
 * [Yunikorn-pprof](./yunikorn-pprof.json): This dashboard offers metrics for YuniKorn status based on Go pprof. It includes memory usage, Goroutines, garbage collection duration, and other relevant metrics.
-  ![Yunikorn-pprof](./assets/Yunikorn-pprof.png)
+  ![Yunikorn-pprof](./assets/yunikorn-pprof.png)
