@@ -86,9 +86,9 @@ func TestRecoveryDone(t *testing.T) {
 	podEventHandler.HandleEvent(AddPod, Informers, pod3v1)
 	podEventHandler.HandleEvent(UpdatePod, Informers, pod3v2)
 
-	seenEvents := map[types.UID]string{
-		pod2.UID: pod2.GetResourceVersion(), // should not be added
-		pod3.UID: pod3.GetResourceVersion(), // should be updated with new version and ultimately completed
+	seenEvents := map[string]string{
+		string(pod2.UID): pod2.GetResourceVersion(), // should not be added
+		string(pod3.UID): pod3.GetResourceVersion(), // should be updated with new version and ultimately completed
 	}
 	podEventHandler.RecoveryDone(seenEvents)
 
