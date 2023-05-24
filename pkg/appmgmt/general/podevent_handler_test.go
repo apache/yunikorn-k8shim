@@ -76,19 +76,13 @@ func TestRecoveryDone(t *testing.T) {
 
 	pod1 := newPod("pod1")
 	pod2 := newPod("pod2")
-	pod3 := newPod("pod3")
-	pod3v1 := newPodWithResourceVersion(pod3.GetName(), "1")
-	pod3v2 := newPodWithResourceVersion(pod3.GetName(), "2")
 
 	podEventHandler.HandleEvent(AddPod, Informers, pod1)
 	podEventHandler.HandleEvent(AddPod, Informers, pod2)
 	podEventHandler.HandleEvent(DeletePod, Informers, pod1)
-	podEventHandler.HandleEvent(AddPod, Informers, pod3v1)
-	podEventHandler.HandleEvent(UpdatePod, Informers, pod3v2)
 
-	seenPods := map[string]string{
-		string(pod2.UID): pod2.GetResourceVersion(), // should not be added
-		string(pod3.UID): pod3.GetResourceVersion(), // should be updated with new version and ultimately completed
+	seenPods := map[string]bool{
+		string(pod2.UID): true, // should not be added
 	}
 	podEventHandler.RecoveryDone(seenPods)
 
@@ -102,19 +96,10 @@ func TestRecoveryDone(t *testing.T) {
 	_, err = app.GetTask("pod2")
 	assert.ErrorContains(t, err, "task pod2 doesn't exist in application")
 
-	task, err = app.GetTask("pod3")
-	assert.NilError(t, err)
-	assert.Equal(t, "1", task.GetTaskPod().GetResourceVersion())
-	assert.Equal(t, cache.TaskStates().Completed, task.GetTaskState())
-
 	assert.Equal(t, false, podEventHandler.recoveryRunning)
 }
 
 func newPod(name string) *v1.Pod {
-	return newPodWithResourceVersion(name, "")
-}
-
-func newPodWithResourceVersion(name string, resourceVersion string) *v1.Pod {
 	return &v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
@@ -128,7 +113,6 @@ func newPodWithResourceVersion(name string, resourceVersion string) *v1.Pod {
 				"queue":         "root.a",
 				"applicationId": appID,
 			},
-			ResourceVersion: resourceVersion,
 		},
 		Spec: v1.PodSpec{
 			SchedulerName: constants.SchedulerName,
