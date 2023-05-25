@@ -30,14 +30,8 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 )
 
-const (
-	host1 = "host0001"
-	host2 = "host0002"
-	host3 = "host0003"
-)
-
 func TestList(t *testing.T) {
-	lister, cache := initLister(t)
+	lister := initLister(t)
 	nodes, err := lister.List()
 	assert.NilError(t, err, "List failed")
 	assert.Assert(t, nodes != nil, "nodes was nil")
@@ -46,58 +40,34 @@ func TestList(t *testing.T) {
 	for _, node := range nodes {
 		m[node.Node().Name] = node
 	}
-	_, ok := m[host1]
+	_, ok := m["host0001"]
 	assert.Assert(t, ok, "host0001 missing")
-	_, ok = m[host2]
+	_, ok = m["host0002"]
 	assert.Assert(t, ok, "host0002 missing")
-	assert.Equal(t, int64(2), lister.nodesGen)
-
-	cache.AddNode(&v1.Node{
-		ObjectMeta: apis.ObjectMeta{
-			Name:      host3,
-			Namespace: "default",
-			UID:       "Node-UID-00003",
-		},
-	})
-	nodes, err = lister.List()
-	assert.NilError(t, err, "List failed")
-	assert.Assert(t, nodes != nil, "nodes was nil")
-	assert.Equal(t, 3, len(nodes), "wrong length")
-	m = make(map[string]*framework.NodeInfo)
-	for _, node := range nodes {
-		m[node.Node().Name] = node
-	}
-	_, ok = m[host1]
-	assert.Assert(t, ok, "host0001 missing")
-	_, ok = m[host2]
-	assert.Assert(t, ok, "host0002 missing")
-	_, ok = m[host3]
-	assert.Assert(t, ok, "host0003 missing")
-	assert.Equal(t, int64(3), lister.nodesGen)
 }
 
 func TestGet(t *testing.T) {
-	lister, _ := initLister(t)
-	node, err := lister.Get(host1)
+	lister := initLister(t)
+	node, err := lister.Get("host0001")
 	assert.NilError(t, err, "Get failed")
 	assert.Assert(t, node != nil, "node was nil")
-	assert.Equal(t, host1, node.Node().Name, "wrong name for node")
+	assert.Equal(t, "host0001", node.Node().Name, "wrong name for node")
 	node, err = lister.Get("invalid")
 	assert.Assert(t, err != nil, "invalid node was found")
 	assert.Assert(t, node == nil, "node was not nil")
 }
 
 func TestHavePodsWithAffinityList(t *testing.T) {
-	lister, _ := initLister(t)
+	lister := initLister(t)
 	nodes, err := lister.HavePodsWithAffinityList()
 	assert.NilError(t, err, "HavePodsWithAffinityList failed")
 	assert.Assert(t, nodes != nil, "nodes was nil")
 	assert.Equal(t, 1, len(nodes), "wrong length")
-	assert.Equal(t, host1, nodes[0].Node().Name, "wrong name for node")
+	assert.Equal(t, "host0001", nodes[0].Node().Name, "wrong name for node")
 }
 
 func TestHavePodsWithRequiredAntiAffinityList(t *testing.T) {
-	lister, _ := initLister(t)
+	lister := initLister(t)
 	nodes, err := lister.HavePodsWithRequiredAntiAffinityList()
 	assert.NilError(t, err, "HavePodsWithAffinityList failed")
 	assert.Assert(t, nodes != nil, "nodes was nil")
@@ -105,28 +75,28 @@ func TestHavePodsWithRequiredAntiAffinityList(t *testing.T) {
 	assert.Equal(t, "host0002", nodes[0].Node().Name, "wrong name for node")
 }
 
-func initLister(t *testing.T) (*nodeInfoListerImpl, *external.SchedulerCache) {
+func initLister(t *testing.T) *nodeInfoListerImpl {
 	cache := external.NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
 	lister, ok := NewSharedLister(cache).NodeInfos().(*nodeInfoListerImpl)
 	assert.Assert(t, ok, "wrong type for node lister")
 
 	cache.AddNode(&v1.Node{
 		ObjectMeta: apis.ObjectMeta{
-			Name:      host1,
+			Name:      "host0001",
 			Namespace: "default",
 			UID:       "Node-UID-00001",
 		},
 	})
 	cache.AddNode(&v1.Node{
 		ObjectMeta: apis.ObjectMeta{
-			Name:      host2,
+			Name:      "host0002",
 			Namespace: "default",
 			UID:       "Node-UID-00002",
 		},
 	})
 
-	cache.GetNode(host1).PodsWithAffinity = append(cache.GetNode(host1).PodsWithAffinity, &framework.PodInfo{})
-	cache.GetNode(host2).PodsWithRequiredAntiAffinity = append(cache.GetNode(host2).PodsWithRequiredAntiAffinity, &framework.PodInfo{})
+	cache.GetNode("host0001").PodsWithAffinity = append(cache.GetNode("host0001").PodsWithAffinity, &framework.PodInfo{})
+	cache.GetNode("host0002").PodsWithRequiredAntiAffinity = append(cache.GetNode("host0002").PodsWithRequiredAntiAffinity, &framework.PodInfo{})
 
-	return lister, cache
+	return lister
 }
