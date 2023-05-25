@@ -1,3 +1,4 @@
+#!/bin/bash
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -25,34 +26,37 @@ for ((i = 0; i < ${#USERS[@]}; ++i)); do
     USERNAME=${USER[0]}
     GROUP=${USER[1]}
     AUTH_FILE=$AUTH_FOLDER/$USERNAME
-    echo "username: "$USERNAME, " group:" $GROUP
+    echo "username: $USERNAME , group: $GROUP"
     # create a CSR for the user
-    openssl genrsa -out $AUTH_FILE.key 2048
-    openssl req -new -key $AUTH_FILE.key -out $AUTH_FILE.csr -subj "/CN=$USERNAME/O=$GROUP"
+    openssl genrsa -out "$AUTH_FILE".key 2048
+    openssl req -new -key "$AUTH_FILE".key -out "$AUTH_FILE".csr -subj "/CN=$USERNAME/O=$GROUP"
     
     # write a file for certification request & use kubectl to approve the request
-    echo "apiVersion: certificates.k8s.io/v1"                           >  $CERT_REQUEST_FILE
-    echo "kind: CertificateSigningRequest"                              >> $CERT_REQUEST_FILE
-    echo "metadata:"                                                    >> $CERT_REQUEST_FILE
-    echo "   name: $USERNAME-csr"                                       >> $CERT_REQUEST_FILE
-    echo "spec:"                                                        >> $CERT_REQUEST_FILE
-    echo "   groups:"                                                   >> $CERT_REQUEST_FILE
-    echo "   - system:authenticated"                                    >> $CERT_REQUEST_FILE
-    echo "   request: $(cat $AUTH_FILE.csr | base64 | tr -d '\n')"      >> $CERT_REQUEST_FILE
-    echo "   signerName: kubernetes.io/kube-apiserver-client"           >> $CERT_REQUEST_FILE
-    echo "   usages:"                                                   >> $CERT_REQUEST_FILE
-    echo "   - digital signature"                                       >> $CERT_REQUEST_FILE
-    echo "   - key encipherment"                                        >> $CERT_REQUEST_FILE
-    echo "   - client auth"                                             >> $CERT_REQUEST_FILE
+    {
+        echo "apiVersion: certificates.k8s.io/v1"
+        echo "kind: CertificateSigningRequest"
+        echo "metadata:"
+        echo "   name: $USERNAME-csr"
+        echo "spec:"
+        echo "   groups:"
+        echo "   - system:authenticated"
+        echo "   request: $(< "$AUTH_FILE".csr base64 | tr -d '\n')"
+        echo "   signerName: kubernetes.io/kube-apiserver-client"
+        echo "   usages:"
+        echo "   - digital signature"
+        echo "   - key encipherment"
+        echo "   - client auth"
+    } >  $CERT_REQUEST_FILE
+
     kubectl apply -f ${CERT_REQUEST_FILE}
-    kubectl certificate approve $USERNAME-csr
+    kubectl certificate approve "$USERNAME"-csr
 
     # get CRT for user
-    kubectl get csr $USERNAME-csr -o jsonpath='{.status.certificate}' | base64 --decode > $AUTH_FILE.crt
+    kubectl get csr "$USERNAME"-csr -o jsonpath='{.status.certificate}' | base64 --decode > "$AUTH_FILE".crt
     
     # using CRT & key to set credentials & set context for user
-    kubectl config set-credentials $USERNAME --client-certificate=$AUTH_FILE.crt --client-key=$AUTH_FILE.key
-    kubectl config set-context $USERNAME-context --cluster=kubernetes --namespace="" --user=$USERNAME
+    kubectl config set-credentials "$USERNAME" --client-certificate="$AUTH_FILE".crt --client-key="$AUTH_FILE".key
+    kubectl config set-context "$USERNAME"-context --cluster=kubernetes --namespace="" --user="$USERNAME"
     
 done
 # apply RBAC for user

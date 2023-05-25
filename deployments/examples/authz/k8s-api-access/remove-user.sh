@@ -1,3 +1,4 @@
+#!/bin/bash
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -16,16 +17,14 @@
 # limitations under the License.
 
 USERS=("admin admin" "sue group-a" "bob group-a" "kim dev" "yono test" "anonymous anonymous")
-AUTH_FOLDER=./auth
 
 for ((i = 0; i < ${#USERS[@]}; ++i)); do
     USER=(${USERS[i]})
     USERNAME=${USER[0]}
-    AUTH_FILE=$AUTH_FOLDER/$USERNAME
 
-    kubectl delete csr/$USERNAME-csr
-    kubectl config unset contexts.$USERNAME-context
-    kubectl config unset users.$USERNAME
+    kubectl delete csr/"$USERNAME"-csr
+    kubectl config unset contexts."$USERNAME"-context
+    kubectl config unset users."$USERNAME"
 done
 
 kubectl delete -f ./authorization.yaml
