@@ -235,6 +235,74 @@ func TestUpdateNode(t *testing.T) {
 	assert.Assert(t, nodeInCache.Node() != nil)
 	assert.Equal(t, nodeInCache.Node().Name, "host0001")
 	assert.Equal(t, nodeInCache.Node().Spec.Unschedulable, false)
+
+	cache.removeNode(newNode)
+	assert.Equal(t, 0, len(cache.nodesInfoList), "nodesInfo list size")
+}
+
+func TestGetNodesInfo(t *testing.T) {
+	cache := NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
+	assert.Assert(t, cache.nodesInfoList == nil)
+	node := &v1.Node{
+		ObjectMeta: apis.ObjectMeta{
+			Name:      "host0001",
+			Namespace: "default",
+			UID:       "Node-UID-00001",
+		},
+		Spec: v1.NodeSpec{
+			Unschedulable: true,
+		},
+	}
+	cache.AddNode(node)
+	assert.Assert(t, cache.nodesInfoList == nil)
+	nodesInfo := cache.GetNodesInfo()
+	assert.Assert(t, nodesInfo != nil, "nodesInfo list was not created")
+	assert.Equal(t, 1, len(nodesInfo), "nodesInfo list size")
+	assert.Equal(t, "host0001", nodesInfo[0].Node().Name)
+
+	// update
+	updatedNode := &v1.Node{
+		ObjectMeta: apis.ObjectMeta{
+			Name:      "host0001",
+			Namespace: "default",
+			UID:       "Node-UID-00001",
+		},
+		Spec: v1.NodeSpec{
+			Unschedulable: false,
+		},
+	}
+	cache.updateNode(updatedNode)
+	assert.Assert(t, cache.nodesInfoList != nil, "nodesInfo list was deleted")
+	assert.Equal(t, 1, len(cache.nodesInfoList), "nodesInfo list size")
+	assert.Equal(t, "host0001", cache.nodesInfoList[0].Node().Name)
+
+	// add new
+	newNode := &v1.Node{
+		ObjectMeta: apis.ObjectMeta{
+			Name:      "host0002",
+			Namespace: "default",
+			UID:       "Node-UID-00002",
+		},
+	}
+	cache.AddNode(newNode)
+	assert.Assert(t, cache.nodesInfoList == nil, "nodesInfo list was not invalidated")
+	nodesInfo = cache.GetNodesInfo()
+	assert.Assert(t, nodesInfo != nil, "nodesInfo list was not created")
+	assert.Equal(t, 2, len(nodesInfo), "nodesInfo list size")
+	m := make(map[string]bool)
+	for _, info := range nodesInfo {
+		m[info.Node().Name] = true
+	}
+	assert.Equal(t, true, m["host0001"], "node not found")
+	assert.Equal(t, true, m["host0002"], "node not found")
+
+	// remove
+	cache.removeNode(node)
+	assert.Assert(t, cache.nodesInfoList == nil, "nodesInfo list was not invalidated")
+	nodesInfo = cache.GetNodesInfo()
+	assert.Assert(t, nodesInfo != nil, "nodesInfo list was not created")
+	assert.Equal(t, 1, len(nodesInfo), "nodesInfo list size")
+	assert.Equal(t, "host0002", nodesInfo[0].Node().Name)
 }
 
 func TestUpdateNonExistNode(t *testing.T) {

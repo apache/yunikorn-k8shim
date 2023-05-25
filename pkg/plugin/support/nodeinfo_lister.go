@@ -31,13 +31,7 @@ type nodeInfoListerImpl struct {
 }
 
 func (n nodeInfoListerImpl) List() ([]*framework.NodeInfo, error) {
-	nodes := n.cache.GetNodesInfoMap()
-	nodeList := make([]*framework.NodeInfo, 0, len(nodes))
-	for _, node := range nodes {
-		nodeList = append(nodeList, node)
-	}
-
-	return nodeList, nil
+	return n.cache.GetNodesInfo(), nil
 }
 
 func (n nodeInfoListerImpl) HavePodsWithAffinityList() ([]*framework.NodeInfo, error) {
