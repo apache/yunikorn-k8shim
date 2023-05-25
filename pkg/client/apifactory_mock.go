@@ -46,6 +46,7 @@ type MockedAPIProvider struct {
 }
 
 type operation int
+
 type informerEvent struct {
 	handlerType Type
 	op          operation
@@ -383,6 +384,10 @@ func (m *MockedAPIProvider) UpdatePriorityClass(oldObj *schedv1.PriorityClass, n
 		op:          Update,
 		handlerType: PriorityClassInformerHandlers,
 	}
+}
+
+func (m *MockedAPIProvider) GetPodBindStats() BindStats {
+	return m.clients.KubeClient.(*KubeClientMock).GetBindStats()
 }
 
 // MockedPersistentVolumeInformer implements PersistentVolumeInformer interface

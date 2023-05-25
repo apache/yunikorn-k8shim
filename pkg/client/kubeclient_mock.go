@@ -21,15 +21,15 @@ package client
 import (
 	"fmt"
 	"sync"
+	"time"
 
+	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/rest"
 
 	"github.com/apache/yunikorn-k8shim/pkg/log"
-
-	"go.uber.org/zap"
 )
 
 // KubeClientMock allows us to inject customized bind/delete pod functions
@@ -43,37 +43,62 @@ type KubeClientMock struct {
 	clientSet      kubernetes.Interface
 	pods           map[string]*v1.Pod
 	lock           sync.RWMutex
+	bindStats      *BindStats
 }
 
-func NewKubeClientMock(showError bool) *KubeClientMock {
-	return &KubeClientMock{
-		bindFn: func(pod *v1.Pod, hostID string) error {
-			if showError {
-				return fmt.Errorf("fake error")
-			}
-			log.Logger().Info("pod bound",
-				zap.String("PodName", pod.Name))
-			return nil
-		},
+// BindStats statistics about KubeClientMock.Bind() calls
+type BindStats struct {
+	First        time.Time
+	Last         time.Time
+	FirstPod     *v1.Pod
+	LastPod      *v1.Pod
+	Success      int64
+	Errors       int64
+	HostBindings []HostBinding
+}
+
+type HostBinding struct {
+	pod  *v1.Pod
+	host string
+	time time.Time
+}
+
+func (b *BindStats) copy() BindStats {
+	bindings := make([]HostBinding, len(b.HostBindings))
+	copy(bindings, b.HostBindings)
+
+	return BindStats{
+		First:        b.First,
+		Last:         b.Last,
+		FirstPod:     b.FirstPod,
+		LastPod:      b.LastPod,
+		Success:      b.Success,
+		Errors:       b.Errors,
+		HostBindings: bindings,
+	}
+}
+
+func NewKubeClientMock(err bool) *KubeClientMock {
+	kubeMock := &KubeClientMock{
 		deleteFn: func(pod *v1.Pod) error {
-			if showError {
-				return fmt.Errorf("fake error")
+			if err {
+				return fmt.Errorf("error deleting pod")
 			}
 			log.Logger().Info("pod deleted",
 				zap.String("PodName", pod.Name))
 			return nil
 		},
 		createFn: func(pod *v1.Pod) (*v1.Pod, error) {
-			if showError {
-				return pod, fmt.Errorf("fake error")
+			if err {
+				return pod, fmt.Errorf("error creating pod")
 			}
 			log.Logger().Info("pod created",
 				zap.String("PodName", pod.Name))
 			return pod, nil
 		},
 		updateFn: func(pod *v1.Pod, podMutator func(*v1.Pod)) (*v1.Pod, error) {
-			if showError {
-				return pod, fmt.Errorf("fake error")
+			if err {
+				return pod, fmt.Errorf("error updating pod")
 			}
 			podMutator(pod)
 			log.Logger().Info("pod updated",
@@ -81,16 +106,16 @@ func NewKubeClientMock(showError bool) *KubeClientMock {
 			return pod, nil
 		},
 		updateStatusFn: func(pod *v1.Pod) (*v1.Pod, error) {
-			if showError {
-				return pod, fmt.Errorf("fake error")
+			if err {
+				return pod, fmt.Errorf("error updating pod status")
 			}
 			log.Logger().Info("pod status updated",
 				zap.String("PodName", pod.Name))
 			return pod, nil
 		},
 		getFn: func(podName string) (*v1.Pod, error) {
-			if showError {
-				return nil, fmt.Errorf("fake error")
+			if err {
+				return nil, fmt.Errorf("error getting pod")
 			}
 			log.Logger().Info("Getting pod",
 				zap.String("PodName", podName))
@@ -99,7 +124,38 @@ func NewKubeClientMock(showError bool) *KubeClientMock {
 		clientSet: fake.NewSimpleClientset(),
 		pods:      make(map[string]*v1.Pod),
 		lock:      sync.RWMutex{},
+		bindStats: &BindStats{
+			HostBindings: make([]HostBinding, 0, 1024),
+		},
 	}
+
+	kubeMock.bindFn = func(pod *v1.Pod, hostID string) error {
+		stats := kubeMock.bindStats
+		if err {
+			stats.Errors++
+			return fmt.Errorf("binding error")
+		}
+		log.Logger().Info("pod bound",
+			zap.String("PodName", pod.Name))
+
+		now := time.Now()
+		if stats.FirstPod == nil {
+			stats.FirstPod = pod
+			stats.First = now
+		}
+		stats.Last = now
+		stats.LastPod = pod
+		stats.HostBindings = append(stats.HostBindings, HostBinding{
+			pod:  pod,
+			time: now,
+			host: hostID,
+		})
+		stats.Success++
+
+		return nil
+	}
+
+	return kubeMock
 }
 
 func (c *KubeClientMock) MockBindFn(bfn func(pod *v1.Pod, hostID string) error) {
@@ -115,8 +171,8 @@ func (c *KubeClientMock) MockCreateFn(cfn func(pod *v1.Pod) (*v1.Pod, error)) {
 }
 
 func (c *KubeClientMock) Bind(pod *v1.Pod, hostID string) error {
-	c.lock.RLock()
-	defer c.lock.RUnlock()
+	c.lock.Lock()
+	defer c.lock.Unlock()
 	return c.bindFn(pod, hostID)
 }
 
@@ -175,6 +231,12 @@ func (c *KubeClientMock) GetConfigMap(namespace string, name string) (*v1.Config
 	c.lock.RLock()
 	defer c.lock.RUnlock()
 	return nil, nil
+}
+
+func (c *KubeClientMock) GetBindStats() BindStats {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	return c.bindStats.copy()
 }
 
 func getPodKey(pod *v1.Pod) string {
