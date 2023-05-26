@@ -22,8 +22,8 @@ go 1.20
 
 require (
 	github.com/GoogleCloudPlatform/spark-on-k8s-operator v0.0.0-20201215015655-2e8b733f5ad0
-	github.com/apache/yunikorn-core v0.0.0-20230328135225-5a92a28c8aab
-	github.com/apache/yunikorn-scheduler-interface v0.0.0-20230328133840-b29b20a234e0
+	github.com/apache/yunikorn-core v0.0.0-20230525055051-94e6f2dc1c7b
+	github.com/apache/yunikorn-scheduler-interface v0.0.0-20230517151935-1714a5751931
 	github.com/google/uuid v1.2.0
 	github.com/gorilla/mux v1.8.0
 	github.com/looplab/fsm v1.0.1
@@ -83,6 +83,7 @@ require (
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
+	github.com/julienschmidt/httprouter v1.3.0 // indirect
 	github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de // indirect
 	github.com/mailru/easyjson v0.7.6 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.2-0.20181231171920-c182affec369 // indirect

@@ -56,7 +56,8 @@ type SchedulerCache struct {
 	pendingAllocations    map[string]string // map of pod to node ID, presence indicates a pending allocation for scheduler
 	inProgressAllocations map[string]string // map of pod to node ID, presence indicates an in-process allocation for scheduler
 	lock                  sync.RWMutex
-	clients               *client.Clients // client APIs
+	clients               *client.Clients       // client APIs
+	nodesInfoList         []*framework.NodeInfo // cached data, re-calculated on demand from nodesMap
 }
 
 func NewSchedulerCache(clients *client.Clients) *SchedulerCache {
@@ -77,6 +78,20 @@ func NewSchedulerCache(clients *client.Clients) *SchedulerCache {
 // shared lister and requires that the scheduler cache lock be held while accessing.
 func (cache *SchedulerCache) GetNodesInfoMap() map[string]*framework.NodeInfo {
 	return cache.nodesMap
+}
+
+// GetNodesInfo returns a (possibly cached) list of nodes. This is explicitly for the use of the predicate
+// shared lister and requires that the scheduler cache lock be held while accessing.
+func (cache *SchedulerCache) GetNodesInfo() []*framework.NodeInfo {
+	if cache.nodesInfoList == nil {
+		nodeList := make([]*framework.NodeInfo, 0, len(cache.nodesMap))
+		for _, node := range cache.nodesMap {
+			nodeList = append(nodeList, node)
+		}
+		cache.nodesInfoList = nodeList
+	}
+
+	return cache.nodesInfoList
 }
 
 func (cache *SchedulerCache) LockForReads() {
@@ -121,6 +136,7 @@ func (cache *SchedulerCache) updateNode(node *v1.Node) {
 		log.Logger().Debug("Adding node to cache", zap.String("nodeName", node.Name))
 		nodeInfo = framework.NewNodeInfo()
 		cache.nodesMap[node.Name] = nodeInfo
+		cache.nodesInfoList = nil
 	} else {
 		log.Logger().Debug("Updating node in cache", zap.String("nodeName", node.Name))
 	}
@@ -153,6 +169,7 @@ func (cache *SchedulerCache) removeNode(node *v1.Node) {
 
 	log.Logger().Debug("Removing node from cache", zap.String("nodeName", node.Name))
 	delete(cache.nodesMap, node.Name)
+	cache.nodesInfoList = nil
 }
 
 func (cache *SchedulerCache) GetPriorityClass(name string) *schedulingv1.PriorityClass {

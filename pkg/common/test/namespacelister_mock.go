@@ -47,7 +47,7 @@ func (nsl *MockNamespaceLister) Add(ns *v1.Namespace) {
 func (nsl *MockNamespaceLister) Get(name string) (*v1.Namespace, error) {
 	ns, ok := nsl.namespaces[name]
 	if !ok {
-		return nil, fmt.Errorf("namespace is not found")
+		return nil, fmt.Errorf("namespace %s is not found", name)
 	}
 	return ns, nil
 }

@@ -22,6 +22,7 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/zap"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
@@ -33,10 +34,13 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/client/informers/externalversions/yunikorn.apache.org/v1alpha1"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
+	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/api"
 )
 
 type Type int
+
+var informerTypes = [...]string{"Pod", "Node", "ConfigMap", "Storage", "PV", "PVC", "Application", "PriorityClass"}
 
 const (
 	PodInformerHandlers Type = iota
@@ -48,6 +52,10 @@ const (
 	ApplicationInformerHandlers
 	PriorityClassInformerHandlers
 )
+
+func (t Type) String() string {
+	return informerTypes[t]
+}
 
 type APIProvider interface {
 	GetAPIs() *Clients
@@ -174,6 +182,7 @@ func (s *APIFactory) AddEventHandler(handlers *ResourceEventHandlers) {
 		h = fns
 	}
 
+	log.Logger().Info("registering event handler", zap.Stringer("type", handlers.Type))
 	s.addEventHandlers(handlers.Type, h, 0)
 }
 

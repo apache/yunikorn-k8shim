@@ -25,7 +25,6 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 
 	"go.uber.org/zap"
-
 	v1 "k8s.io/api/core/v1"
 )
 
@@ -90,7 +89,7 @@ func (p *PodEventHandler) internalHandle(eventType EventType, source EventSource
 	}
 }
 
-func (p *PodEventHandler) RecoveryDone() {
+func (p *PodEventHandler) RecoveryDone(terminatedPods map[string]bool) {
 	p.Lock()
 	defer p.Unlock()
 
@@ -99,6 +98,12 @@ func (p *PodEventHandler) RecoveryDone() {
 		log.Logger().Info("Processing async events that arrived during recovery",
 			zap.Int("no. of events", noOfEvents))
 		for _, event := range p.asyncEvents {
+			// ignore all events for pods that have already been determined to
+			// be terminated, as these will not have been recovered and are
+			// therefore not claiming any scheduler resources that we care about
+			if terminatedPods[string(event.pod.UID)] {
+				continue
+			}
 			p.internalHandle(event.eventType, Informers, event.pod)
 		}
 	} else {

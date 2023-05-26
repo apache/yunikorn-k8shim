@@ -39,11 +39,13 @@ func TestConfigMapVars(t *testing.T) {
 		AMFilteringBypassNamespaces:      "testBypassNamespaces",
 		AMFilteringLabelNamespaces:       "testLabelNamespaces",
 		AMFilteringNoLabelNamespaces:     "testNolabelNamespaces",
+		AMFilteringGenerateUniqueAppIds:  "true",
 		AMAccessControlBypassAuth:        "true",
 		AMAccessControlSystemUsers:       "^systemuser$",
 		AMAccessControlExternalUsers:     "^yunikorn$",
 		AMAccessControlExternalGroups:    "^devs$",
 		AMAccessControlTrustControllers:  "false",
+		AMFilteringDefaultQueueName:      "default.queue",
 	}}})
 	assert.Equal(t, conf.GetPolicyGroup(), "testPolicyGroup")
 	assert.Equal(t, conf.GetAmServiceName(), "testYunikornService")
@@ -52,11 +54,13 @@ func TestConfigMapVars(t *testing.T) {
 	assert.Equal(t, conf.GetBypassNamespaces()[0].String(), "testBypassNamespaces")
 	assert.Equal(t, conf.GetLabelNamespaces()[0].String(), "testLabelNamespaces")
 	assert.Equal(t, conf.GetNoLabelNamespaces()[0].String(), "testNolabelNamespaces")
+	assert.Equal(t, conf.GetGenerateUniqueAppIds(), true)
 	assert.Equal(t, conf.GetBypassAuth(), true)
 	assert.Equal(t, conf.GetSystemUsers()[0].String(), "^systemuser$")
 	assert.Equal(t, conf.GetExternalUsers()[0].String(), "^yunikorn$")
 	assert.Equal(t, conf.GetExternalGroups()[0].String(), "^devs$")
 	assert.Equal(t, conf.GetTrustControllers(), false)
+	assert.Equal(t, conf.GetDefaultQueueName(), "default.queue")
 
 	// test missing settings
 	conf = NewAdmissionControllerConf([]*v1.ConfigMap{nil, nil})
@@ -73,14 +77,17 @@ func TestConfigMapVars(t *testing.T) {
 	assert.Equal(t, 0, len(conf.GetExternalUsers()))
 	assert.Equal(t, 0, len(conf.GetExternalGroups()))
 	assert.Equal(t, conf.GetTrustControllers(), DefaultAccessControlTrustControllers)
+	assert.Equal(t, conf.GetDefaultQueueName(), DefaultFilteringQueueName)
 
 	// test faulty settings for boolean values
 	conf = NewAdmissionControllerConf([]*v1.ConfigMap{nil, {Data: map[string]string{
 		AMAccessControlBypassAuth:       "xyz",
 		AMAccessControlTrustControllers: "xyz",
+		AMFilteringGenerateUniqueAppIds: "xyz",
 	}}})
 	assert.Equal(t, conf.GetBypassAuth(), DefaultAccessControlBypassAuth)
 	assert.Equal(t, conf.GetTrustControllers(), DefaultAccessControlTrustControllers)
+	assert.Equal(t, conf.GetGenerateUniqueAppIds(), DefaultFilteringGenerateUniqueAppIds)
 
 	// test faulty settings for int values
 	NewAdmissionControllerConf([]*v1.ConfigMap{nil, {Data: map[string]string{
