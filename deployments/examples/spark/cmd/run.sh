@@ -132,7 +132,7 @@ if [[ "$SPARK_VERSION" < "3.2.1"  || "$SPARK_VERSION" == "3.2.1" ]]; then
   fi
 else
   # check signature to verify the completeness
-  if [[ $(shasum -a 512 "$SPARK_BINARY_FILE_PATH" | awk '{print $1}') == $(cat "$SPARK_BINARY_FILE_CHECKSUM_FILE_NAME" | awk '{print $1}') ]]; then
+  if [[ $(shasum -a 512 "$SPARK_BINARY_FILE_PATH" | awk '{print $1}') == $(awk '{print $1}' < "$SPARK_BINARY_FILE_CHECKSUM_FILE_NAME") ]]; then
     echo "The checksum is matched!"
     echo "Try to remove the old unpacked dir and re-uncompress it"
     rm -rf "$WORK_SPACE_ROOT"/spark-${SPARK_VERSION}-bin-hadoop${SPARK_HADOOP_VERSION}
