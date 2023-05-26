@@ -101,7 +101,7 @@ if [ -f "$SPARK_BINARY_FILE_PATH" ]; then
   echo "The binary file $SPARK_BINARY_FILE_NAME has been cached!"
 else
   echo "The binary file $SPARK_BINARY_FILE_NAME did not exist, try to download."
-  wget http://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/${SPARK_BINARY_FILE_NAME} -O "${SPARK_BINARY_FILE_PATH}"
+  wget https://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/${SPARK_BINARY_FILE_NAME} -O "${SPARK_BINARY_FILE_PATH}"
 fi
 
 if [ -f "$SPARK_BINARY_FILE_CHECKSUM_FILE_PATH" ]; then
@@ -111,36 +111,37 @@ else
   wget http://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/${SPARK_BINARY_FILE_CHECKSUM_FILE_NAME} -O "${SPARK_BINARY_FILE_CHECKSUM_FILE_PATH}"
 fi
 
-if [ -f "$FORMATTED_SPARK_BINARY_FILE_CHECKSUM_FILE_PATH" ]; then
-  echo "The formatted binary checksum file $FORMATTED_SPARK_BINARY_FILE_CHECKSUM_FILE_NAME has been cached!"
+if [[ "$SPARK_VERSION" < "3.2.1"  || "$SPARK_VERSION" == "3.2.1" ]]; then
+  if [ -f "$FORMATTED_SPARK_BINARY_FILE_CHECKSUM_FILE_PATH" ]; then
+    echo "The formatted binary checksum file $FORMATTED_SPARK_BINARY_FILE_CHECKSUM_FILE_NAME has been cached!"
+  else
+    # format the official checksum file for verifying
+    echo "The formatted binary checksum file $FORMATTED_SPARK_BINARY_FILE_CHECKSUM_FILE_NAME did not exist, try to generate."
+    < "$SPARK_BINARY_FILE_CHECKSUM_FILE_PATH" tr -d " \t\n\r" | awk -v awkvar="$SPARK_BINARY_FILE_PATH" -F: '{print $2 "  " awkvar}' > "$FORMATTED_SPARK_BINARY_FILE_CHECKSUM_FILE_PATH"
+  fi
+  # check signature to verify the completeness
+  if [[ 'OK' == $(shasum -c -a 512 "$FORMATTED_SPARK_BINARY_FILE_CHECKSUM_FILE_PATH"  | awk '{print $2}') ]]; then
+    echo "The checksum is matched!"
+    echo "Try to remove the old unpacked dir and re-uncompress it"
+    rm -rf "$WORK_SPACE_ROOT"/spark-${SPARK_VERSION}-bin-hadoop${SPARK_HADOOP_VERSION}
+    tar -xvzf "$SPARK_BINARY_FILE_PATH" -C "$WORK_SPACE_ROOT"
+  else
+    echo "The checksum is not matched, Removing the incompleted file, please download it again."
+    rm -f "$SPARK_BINARY_FILE_PATH"
+    exit 0
+  fi
 else
-  # format the official checksum file for verifying
-  echo "The formatted binary checksum file $FORMATTED_SPARK_BINARY_FILE_CHECKSUM_FILE_NAME did not exist, try to generate."
-  < "$SPARK_BINARY_FILE_CHECKSUM_FILE_PATH" tr -d " \t\n\r" | awk -v awkvar="$SPARK_BINARY_FILE_PATH" -F: '{print $2 "  " awkvar}' > "$FORMATTED_SPARK_BINARY_FILE_CHECKSUM_FILE_PATH"
+  if [[ $(shasum -a 512 "$SPARK_BINARY_FILE_PATH" | awk '{print $1}') == $(cat "$SPARK_BINARY_FILE_CHECKSUM_FILE_NAME" | awk '{print $1}') ]]; then
+    echo "The checksum is matched!"
+    echo "Try to remove the old unpacked dir and re-uncompress it"
+    rm -rf "$WORK_SPACE_ROOT"/spark-${SPARK_VERSION}-bin-hadoop${SPARK_HADOOP_VERSION}
+    tar -xvzf "$SPARK_BINARY_FILE_PATH" -C "$WORK_SPACE_ROOT"
+  else
+    echo "The checksum is not matched, Removing the incompleted file, please download it again."
+    rm -f "$SPARK_BINARY_FILE_PATH"
+    exit 0
+  fi
 fi
-
-# check signature to verify the completeness
-if [[ 'OK' == $(shasum -c -a 512 "$FORMATTED_SPARK_BINARY_FILE_CHECKSUM_FILE_PATH"  | awk '{print $2}') ]]; then
-  echo "The checksum is matched!"
-  echo "Try to remove the old unpacked dir and re-uncompress it"
-  rm -rf "$WORK_SPACE_ROOT"/spark-${SPARK_VERSION}-bin-hadoop${SPARK_HADOOP_VERSION}
-  tar -xvzf "$SPARK_BINARY_FILE_PATH" -C "$WORK_SPACE_ROOT"
-else
-  echo "The checksum is not matched, Removing the incompleted file, please download it again."
-  #rm -f "$SPARK_BINARY_FILE_PATH"
-  exit 0
-fi
-
-#if [[ $(shasum -a 512 "$SPARK_BINARY_FILE_PATH" | awk '{print $1}') == $(cat "$SPARK_BINARY_FILE_CHECKSUM_FILE_NAME" | awk '{print $1}') ]]; then
-#  echo "The checksum is matched!"
-#  echo "Try to remove the old unpacked dir and re-uncompress it"
-#  rm -rf "$WORK_SPACE_ROOT"/spark-${SPARK_VERSION}-bin-hadoop${SPARK_HADOOP_VERSION}
-#  tar -xvzf "$SPARK_BINARY_FILE_PATH" -C "$WORK_SPACE_ROOT"
-#else
-#  echo "The checksum is not matched, Removing the incompleted file, please download it again."
-#  rm -f "$SPARK_BINARY_FILE_PATH"
-#  exit 0
-#fi
 
 # Create a namespace
 cat <<EOF | kubectl apply -f -
