@@ -73,17 +73,29 @@ func TestHandleAsyncEventWhenNotRecovering(t *testing.T) {
 func TestRecoveryDone(t *testing.T) {
 	amProtocol := cache.NewMockedAMProtocol()
 	podEventHandler := NewPodEventHandler(amProtocol, true)
+
 	pod1 := newPod("pod1")
+	pod2 := newPod("pod2")
+
 	podEventHandler.HandleEvent(AddPod, Informers, pod1)
+	podEventHandler.HandleEvent(AddPod, Informers, pod2)
 	podEventHandler.HandleEvent(DeletePod, Informers, pod1)
 
-	podEventHandler.RecoveryDone()
+	seenPods := map[string]bool{
+		string(pod2.UID): true, // should not be added
+	}
+	podEventHandler.RecoveryDone(seenPods)
 
 	assert.Equal(t, len(podEventHandler.asyncEvents), 0)
 	app := amProtocol.GetApplication(appID)
+
 	task, err := app.GetTask("pod1")
 	assert.NilError(t, err)
 	assert.Equal(t, cache.TaskStates().Completed, task.GetTaskState())
+
+	_, err = app.GetTask("pod2")
+	assert.ErrorContains(t, err, "task pod2 doesn't exist in application")
+
 	assert.Equal(t, false, podEventHandler.recoveryRunning)
 }
 
