@@ -131,6 +131,7 @@ if [[ "$SPARK_VERSION" < "3.2.1"  || "$SPARK_VERSION" == "3.2.1" ]]; then
     exit 0
   fi
 else
+  # check signature to verify the completeness
   if [[ $(shasum -a 512 "$SPARK_BINARY_FILE_PATH" | awk '{print $1}') == $(cat "$SPARK_BINARY_FILE_CHECKSUM_FILE_NAME" | awk '{print $1}') ]]; then
     echo "The checksum is matched!"
     echo "Try to remove the old unpacked dir and re-uncompress it"
