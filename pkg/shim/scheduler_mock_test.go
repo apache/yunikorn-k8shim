@@ -152,23 +152,21 @@ func (fc *MockScheduler) waitForSchedulerState(t *testing.T, expectedState strin
 }
 
 func (fc *MockScheduler) waitAndAssertApplicationState(t *testing.T, appID, expectedState string) {
-	appList := fc.context.SelectApplications(func(app *cache.Application) bool {
-		return app.GetApplicationID() == appID
-	})
-	assert.Equal(t, len(appList), 1)
-	assert.Equal(t, appList[0].GetApplicationID(), appID)
+	app := fc.context.GetApplication(appID)
+	assert.Equal(t, app != nil, true)
+	assert.Equal(t, app.GetApplicationID(), appID)
 	deadline := time.Now().Add(10 * time.Second)
 	for {
-		if appList[0].GetApplicationState() == expectedState {
+		if app.GetApplicationState() == expectedState {
 			break
 		}
 		log.Logger().Info("waiting for app state",
 			zap.String("expected", expectedState),
-			zap.String("actual", appList[0].GetApplicationState()))
+			zap.String("actual", app.GetApplicationState()))
 		time.Sleep(time.Second)
 		if time.Now().After(deadline) {
 			t.Errorf("application %s doesn't reach expected state in given time, expecting: %s, actual: %s",
-				appID, expectedState, appList[0].GetApplicationState())
+				appID, expectedState, app.GetApplicationState())
 		}
 	}
 }
@@ -191,13 +189,11 @@ func (fc *MockScheduler) removeApplication(appId string) error {
 }
 
 func (fc *MockScheduler) waitAndAssertTaskState(t *testing.T, appID, taskID, expectedState string) {
-	appList := fc.context.SelectApplications(func(app *cache.Application) bool {
-		return app.GetApplicationID() == appID
-	})
-	assert.Equal(t, len(appList), 1)
-	assert.Equal(t, appList[0].GetApplicationID(), appID)
+	app := fc.context.GetApplication(appID)
+	assert.Equal(t, app != nil, true)
+	assert.Equal(t, app.GetApplicationID(), appID)
 
-	task, err := appList[0].GetTask(taskID)
+	task, err := app.GetTask(taskID)
 	assert.NilError(t, err, "Task retrieval failed")
 	deadline := time.Now().Add(10 * time.Second)
 	for {

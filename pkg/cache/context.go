@@ -925,15 +925,12 @@ func (ctx *Context) getTask(appID string, taskID string) *Task {
 	return task
 }
 
-func (ctx *Context) SelectApplications(filter func(app *Application) bool) []*Application {
+func (ctx *Context) GetAllApplications() []*Application {
 	ctx.lock.RLock()
 	defer ctx.lock.RUnlock()
 
-	apps := make([]*Application, 0)
+	apps := make([]*Application, 0, len(ctx.applications))
 	for _, app := range ctx.applications {
-		if filter != nil && !filter(app) {
-			continue
-		}
 		apps = append(apps, app)
 	}
 
