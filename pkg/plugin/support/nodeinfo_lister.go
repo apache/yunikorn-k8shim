@@ -35,25 +35,11 @@ func (n nodeInfoListerImpl) List() ([]*framework.NodeInfo, error) {
 }
 
 func (n nodeInfoListerImpl) HavePodsWithAffinityList() ([]*framework.NodeInfo, error) {
-	nodes := n.cache.GetNodesInfoMap()
-	result := make([]*framework.NodeInfo, 0, len(nodes))
-	for _, node := range nodes {
-		if len(node.PodsWithAffinity) > 0 {
-			result = append(result, node)
-		}
-	}
-	return result, nil
+	return n.cache.GetNodesInfoPodsWithAffinity(), nil
 }
 
 func (n nodeInfoListerImpl) HavePodsWithRequiredAntiAffinityList() ([]*framework.NodeInfo, error) {
-	nodes := n.cache.GetNodesInfoMap()
-	result := make([]*framework.NodeInfo, 0, len(nodes))
-	for _, node := range nodes {
-		if len(node.PodsWithRequiredAntiAffinity) > 0 {
-			result = append(result, node)
-		}
-	}
-	return result, nil
+	return n.cache.GetNodesInfoPodsWithReqAntiAffinity(), nil
 }
 
 func (n nodeInfoListerImpl) Get(nodeName string) (*framework.NodeInfo, error) {

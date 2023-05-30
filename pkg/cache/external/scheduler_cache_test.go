@@ -28,8 +28,20 @@ import (
 	schedulingv1 "k8s.io/api/scheduling/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/kubernetes/pkg/scheduler/framework"
 
 	"github.com/apache/yunikorn-k8shim/pkg/client"
+)
+
+const (
+	host1    = "host0001"
+	host2    = "host0002"
+	nodeUID1 = "Node-UID-00001"
+	nodeUID2 = "Node-UID-00002"
+	podName1 = "pod0001"
+	podName2 = "pod0002"
+	podUID1  = "Pod-UID-00001"
+	podUID2  = "Pod-UID-00002"
 )
 
 // this test verifies that no matter which comes first, pod or node,
@@ -44,9 +56,9 @@ func TestAssignedPod(t *testing.T) {
 
 	node := &v1.Node{
 		ObjectMeta: apis.ObjectMeta{
-			Name:      "host0001",
+			Name:      host1,
 			Namespace: "default",
-			UID:       "Node-UID-00001",
+			UID:       nodeUID1,
 		},
 		Status: v1.NodeStatus{
 			Allocatable: resourceList,
@@ -62,11 +74,11 @@ func TestAssignedPod(t *testing.T) {
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
-			Name: "pod0001",
-			UID:  "Pod-UID-00001",
+			Name: podName1,
+			UID:  podUID1,
 		},
 		Spec: v1.PodSpec{
-			NodeName: "host0001",
+			NodeName: host1,
 		},
 	}
 
@@ -97,7 +109,7 @@ func TestAssignedPod(t *testing.T) {
 
 			// verify the pod is added to cache
 			// the pod should be added to the node as well
-			cachedPod, exist := cache.GetPod("Pod-UID-00001")
+			cachedPod, exist := cache.GetPod(podUID1)
 			assert.Equal(t, exist, true)
 			assert.Equal(t, cachedPod.Name, pod.Name)
 			assert.Equal(t, cachedPod.UID, pod.UID)
@@ -122,9 +134,9 @@ func TestAddUnassignedPod(t *testing.T) {
 
 	node := &v1.Node{
 		ObjectMeta: apis.ObjectMeta{
-			Name:      "host0001",
+			Name:      host1,
 			Namespace: "default",
-			UID:       "Node-UID-00001",
+			UID:       nodeUID1,
 		},
 		Status: v1.NodeStatus{
 			Allocatable: resourceList,
@@ -140,8 +152,8 @@ func TestAddUnassignedPod(t *testing.T) {
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
-			Name: "pod0001",
-			UID:  "Pod-UID-00001",
+			Name: podName1,
+			UID:  podUID1,
 		},
 		Spec: v1.PodSpec{},
 	}
@@ -173,7 +185,7 @@ func TestAddUnassignedPod(t *testing.T) {
 
 			// verify the pod is added to cache
 			// the pod should be added to the node as well
-			cachedPod, exist := cache.GetPod("Pod-UID-00001")
+			cachedPod, exist := cache.GetPod(podUID1)
 			assert.Equal(t, exist, true)
 			assert.Equal(t, cachedPod.Name, pod.Name)
 			assert.Equal(t, cachedPod.UID, pod.UID)
@@ -191,9 +203,9 @@ func TestUpdateNode(t *testing.T) {
 	// old node, state: unschedulable
 	oldNode := &v1.Node{
 		ObjectMeta: apis.ObjectMeta{
-			Name:      "host0001",
+			Name:      host1,
 			Namespace: "default",
-			UID:       "Node-UID-00001",
+			UID:       nodeUID1,
 		},
 		Status: v1.NodeStatus{
 			Allocatable: resourceList,
@@ -206,9 +218,9 @@ func TestUpdateNode(t *testing.T) {
 	// old node, state: schedulable
 	newNode := &v1.Node{
 		ObjectMeta: apis.ObjectMeta{
-			Name:      "host0001",
+			Name:      host1,
 			Namespace: "default",
-			UID:       "Node-UID-00001",
+			UID:       nodeUID1,
 		},
 		Status: v1.NodeStatus{
 			Allocatable: resourceList,
@@ -222,9 +234,9 @@ func TestUpdateNode(t *testing.T) {
 	cache.AddNode(oldNode)
 
 	// make sure the node is added to the cache
-	nodeInCache := cache.GetNode("host0001")
+	nodeInCache := cache.GetNode(host1)
 	assert.Assert(t, nodeInCache.Node() != nil)
-	assert.Equal(t, nodeInCache.Node().Name, "host0001")
+	assert.Equal(t, nodeInCache.Node().Name, host1)
 	assert.Equal(t, nodeInCache.Node().Spec.Unschedulable, true)
 
 	// then update the node
@@ -233,76 +245,306 @@ func TestUpdateNode(t *testing.T) {
 	// make sure the node in cache also gets updated
 	// unschedulable -> schedulable
 	assert.Assert(t, nodeInCache.Node() != nil)
-	assert.Equal(t, nodeInCache.Node().Name, "host0001")
+	assert.Equal(t, nodeInCache.Node().Name, host1)
 	assert.Equal(t, nodeInCache.Node().Spec.Unschedulable, false)
 
 	cache.removeNode(newNode)
-	assert.Equal(t, 0, len(cache.nodesInfoList), "nodesInfo list size")
+	assert.Equal(t, 0, len(cache.nodesInfo), "nodesInfo list size")
 }
 
 func TestGetNodesInfo(t *testing.T) {
 	cache := NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
-	assert.Assert(t, cache.nodesInfoList == nil)
+	assert.Assert(t, cache.nodesInfo == nil)
 	node := &v1.Node{
 		ObjectMeta: apis.ObjectMeta{
-			Name:      "host0001",
+			Name:      host1,
 			Namespace: "default",
-			UID:       "Node-UID-00001",
+			UID:       nodeUID1,
 		},
 		Spec: v1.NodeSpec{
 			Unschedulable: true,
 		},
 	}
 	cache.AddNode(node)
-	assert.Assert(t, cache.nodesInfoList == nil)
+	assert.Assert(t, cache.nodesInfo == nil)
 	nodesInfo := cache.GetNodesInfo()
-	assert.Assert(t, nodesInfo != nil, "nodesInfo list was not created")
-	assert.Equal(t, 1, len(nodesInfo), "nodesInfo list size")
-	assert.Equal(t, "host0001", nodesInfo[0].Node().Name)
+	expectHost(t, host1, nodesInfo)
 
 	// update
 	updatedNode := &v1.Node{
 		ObjectMeta: apis.ObjectMeta{
-			Name:      "host0001",
+			Name:      host1,
 			Namespace: "default",
-			UID:       "Node-UID-00001",
+			UID:       nodeUID1,
 		},
 		Spec: v1.NodeSpec{
 			Unschedulable: false,
 		},
 	}
 	cache.updateNode(updatedNode)
-	assert.Assert(t, cache.nodesInfoList != nil, "nodesInfo list was deleted")
-	assert.Equal(t, 1, len(cache.nodesInfoList), "nodesInfo list size")
-	assert.Equal(t, "host0001", cache.nodesInfoList[0].Node().Name)
+	expectHost(t, host1, nodesInfo)
 
 	// add new
 	newNode := &v1.Node{
 		ObjectMeta: apis.ObjectMeta{
-			Name:      "host0002",
+			Name:      host2,
 			Namespace: "default",
-			UID:       "Node-UID-00002",
+			UID:       nodeUID2,
 		},
 	}
 	cache.AddNode(newNode)
-	assert.Assert(t, cache.nodesInfoList == nil, "nodesInfo list was not invalidated")
+	assert.Assert(t, cache.nodesInfo == nil, "nodesInfo list was not invalidated")
 	nodesInfo = cache.GetNodesInfo()
-	assert.Assert(t, nodesInfo != nil, "nodesInfo list was not created")
-	assert.Equal(t, 2, len(nodesInfo), "nodesInfo list size")
-	m := make(map[string]bool)
-	for _, info := range nodesInfo {
-		m[info.Node().Name] = true
-	}
-	assert.Equal(t, true, m["host0001"], "node not found")
-	assert.Equal(t, true, m["host0002"], "node not found")
+	expectHost1AndHost2(t, nodesInfo)
 
 	// remove
 	cache.removeNode(node)
-	assert.Assert(t, cache.nodesInfoList == nil, "nodesInfo list was not invalidated")
+	assert.Assert(t, cache.nodesInfo == nil, "nodesInfo list was not invalidated")
 	nodesInfo = cache.GetNodesInfo()
-	assert.Assert(t, nodesInfo != nil, "nodesInfo list was not created")
-	assert.Equal(t, 1, len(nodesInfo), "nodesInfo list size")
-	assert.Equal(t, "host0002", nodesInfo[0].Node().Name)
+	expectHost(t, host2, nodesInfo)
+}
+
+func TestGetNodesInfoPodsWithAffinity(t *testing.T) {
+	cache := NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
+	assert.Assert(t, cache.nodesInfoPodsWithAffinity == nil)
+	node := &v1.Node{
+		ObjectMeta: apis.ObjectMeta{
+			Name:      host1,
+			Namespace: "default",
+			UID:       nodeUID1,
+		},
+		Spec: v1.NodeSpec{
+			Unschedulable: true,
+		},
+	}
+	cache.AddNode(node)
+	assert.Assert(t, cache.nodesInfoPodsWithAffinity == nil)
+	cache.AssumePod(&v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: podName1,
+			UID:  podUID1,
+		},
+		Spec: v1.PodSpec{
+			Affinity: &v1.Affinity{
+				PodAffinity: &v1.PodAffinity{},
+			},
+			NodeName: host1,
+		},
+	}, true)
+	nodesInfo := cache.GetNodesInfoPodsWithAffinity()
+	expectHost(t, host1, nodesInfo)
+
+	// add node + pod
+	newNode := &v1.Node{
+		ObjectMeta: apis.ObjectMeta{
+			Name:      host2,
+			Namespace: "default",
+			UID:       nodeUID2,
+		},
+		Spec: v1.NodeSpec{
+			Unschedulable: false,
+		},
+	}
+	cache.updateNode(newNode)
+	assert.Assert(t, cache.nodesInfoPodsWithAffinity == nil, "nodesInfo list was not invalidated")
+	cache.AssumePod(&v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: podName2,
+			UID:  podUID2,
+		},
+		Spec: v1.PodSpec{
+			Affinity: &v1.Affinity{
+				PodAffinity: &v1.PodAffinity{},
+			},
+			NodeName: host2,
+		},
+	}, true)
+	assert.Assert(t, cache.nodesInfoPodsWithAffinity == nil, "nodesInfo list was not invalidated")
+	nodesInfo = cache.GetNodesInfoPodsWithAffinity()
+	expectHost1AndHost2(t, nodesInfo)
+
+	// remove node
+	cache.removeNode(newNode)
+	assert.Assert(t, cache.nodesInfoPodsWithAffinity == nil, "nodesInfo list was not invalidated")
+	nodesInfo = cache.GetNodesInfoPodsWithAffinity()
+	expectHost(t, host1, nodesInfo)
+
+	// update node
+	updatedNode := &v1.Node{
+		ObjectMeta: apis.ObjectMeta{
+			Name:      host1,
+			Namespace: "default",
+			UID:       nodeUID1,
+		},
+		Spec: v1.NodeSpec{
+			Unschedulable: false,
+		},
+	}
+	cache.updateNode(updatedNode)
+	assert.Assert(t, cache.nodesInfoPodsWithAffinity == nil, "node list was not invalidated")
+	nodesInfo = cache.GetNodesInfoPodsWithAffinity()
+	expectHost(t, host1, nodesInfo)
+
+	// add pod
+	pod2 := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: podName2,
+			UID:  podUID2,
+		},
+		Spec: v1.PodSpec{
+			Affinity: &v1.Affinity{
+				PodAffinity: &v1.PodAffinity{},
+			},
+			NodeName: host1,
+		},
+	}
+	cache.AssumePod(pod2, true)
+	assert.Assert(t, cache.nodesInfoPodsWithAffinity == nil, "node list was not invalidated")
+	nodesInfo = cache.GetNodesInfoPodsWithAffinity()
+	expectHost(t, host1, nodesInfo)
+
+	// remove pod
+	cache.RemovePod(pod2)
+	assert.Assert(t, cache.nodesInfoPodsWithAffinity == nil, "node list was not invalidated")
+	nodesInfo = cache.GetNodesInfoPodsWithAffinity()
+	expectHost(t, host1, nodesInfo)
+}
+
+//nolint:funlen
+func TestGetNodesInfoPodsWithReqAntiAffinity(t *testing.T) {
+	cache := NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
+	assert.Assert(t, cache.nodesInfoPodsWithReqAntiAffinity == nil)
+	node := &v1.Node{
+		ObjectMeta: apis.ObjectMeta{
+			Name:      host1,
+			Namespace: "default",
+			UID:       nodeUID1,
+		},
+		Spec: v1.NodeSpec{
+			Unschedulable: true,
+		},
+	}
+	cache.AddNode(node)
+	assert.Assert(t, cache.nodesInfoPodsWithReqAntiAffinity == nil)
+	cache.AssumePod(&v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: podName1,
+			UID:  podUID1,
+		},
+		Spec: v1.PodSpec{
+			Affinity: &v1.Affinity{
+				PodAntiAffinity: &v1.PodAntiAffinity{
+					RequiredDuringSchedulingIgnoredDuringExecution: []v1.PodAffinityTerm{{}},
+				},
+			},
+			NodeName: host1,
+		},
+	}, true)
+	nodesInfo := cache.GetNodesInfoPodsWithReqAntiAffinity()
+	expectHost(t, host1, nodesInfo)
+
+	// add node + pod
+	newNode := &v1.Node{
+		ObjectMeta: apis.ObjectMeta{
+			Name:      host2,
+			Namespace: "default",
+			UID:       nodeUID2,
+		},
+		Spec: v1.NodeSpec{
+			Unschedulable: false,
+		},
+	}
+	cache.updateNode(newNode)
+	assert.Assert(t, cache.nodesInfoPodsWithReqAntiAffinity == nil, "nodesInfo list was not invalidated")
+	cache.AssumePod(&v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: podName2,
+			UID:  podUID2,
+		},
+		Spec: v1.PodSpec{
+			Affinity: &v1.Affinity{
+				PodAntiAffinity: &v1.PodAntiAffinity{
+					RequiredDuringSchedulingIgnoredDuringExecution: []v1.PodAffinityTerm{{}},
+				},
+			},
+			NodeName: host2,
+		},
+	}, true)
+	assert.Assert(t, cache.nodesInfoPodsWithReqAntiAffinity == nil, "nodesInfo list was not invalidated")
+	nodesInfo = cache.GetNodesInfoPodsWithReqAntiAffinity()
+	expectHost1AndHost2(t, nodesInfo)
+
+	// remove node
+	cache.removeNode(newNode)
+	assert.Assert(t, cache.nodesInfoPodsWithReqAntiAffinity == nil, "nodesInfo list was not invalidated")
+	nodesInfo = cache.GetNodesInfoPodsWithReqAntiAffinity()
+	expectHost(t, host1, nodesInfo)
+
+	// update node
+	updatedNode := &v1.Node{
+		ObjectMeta: apis.ObjectMeta{
+			Name:      host1,
+			Namespace: "default",
+			UID:       nodeUID1,
+		},
+		Spec: v1.NodeSpec{
+			Unschedulable: false,
+		},
+	}
+	cache.updateNode(updatedNode)
+	assert.Assert(t, cache.nodesInfoPodsWithReqAntiAffinity == nil, "node list was not invalidated")
+	nodesInfo = cache.GetNodesInfoPodsWithReqAntiAffinity()
+	expectHost(t, host1, nodesInfo)
+
+	// add pod
+	pod2 := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: podName2,
+			UID:  podUID2,
+		},
+		Spec: v1.PodSpec{
+			Affinity: &v1.Affinity{
+				PodAntiAffinity: &v1.PodAntiAffinity{
+					RequiredDuringSchedulingIgnoredDuringExecution: []v1.PodAffinityTerm{{}},
+				},
+			},
+			NodeName: host1,
+		},
+	}
+	cache.AssumePod(pod2, true)
+	assert.Assert(t, cache.nodesInfoPodsWithReqAntiAffinity == nil, "node list was not invalidated")
+	nodesInfo = cache.GetNodesInfoPodsWithReqAntiAffinity()
+	expectHost(t, host1, nodesInfo)
+
+	// remove pod
+	cache.RemovePod(pod2)
+	assert.Assert(t, cache.nodesInfoPodsWithReqAntiAffinity == nil, "node list was not invalidated")
+	nodesInfo = cache.GetNodesInfoPodsWithReqAntiAffinity()
+	expectHost(t, host1, nodesInfo)
 }
 
 func TestUpdateNonExistNode(t *testing.T) {
@@ -315,9 +557,9 @@ func TestUpdateNonExistNode(t *testing.T) {
 	// old node, state: schedulable
 	newNode := &v1.Node{
 		ObjectMeta: apis.ObjectMeta{
-			Name:      "host0001",
+			Name:      host1,
 			Namespace: "default",
-			UID:       "Node-UID-00001",
+			UID:       nodeUID1,
 		},
 		Status: v1.NodeStatus{
 			Allocatable: resourceList,
@@ -329,9 +571,9 @@ func TestUpdateNonExistNode(t *testing.T) {
 
 	cache.UpdateNode(newNode)
 
-	nodeInCache := cache.GetNode("host0001")
+	nodeInCache := cache.GetNode(host1)
 	assert.Assert(t, nodeInCache.Node() != nil)
-	assert.Equal(t, nodeInCache.Node().Name, "host0001")
+	assert.Equal(t, nodeInCache.Node().Name, host1)
 	assert.Equal(t, nodeInCache.Node().Spec.Unschedulable, false)
 }
 
@@ -390,8 +632,8 @@ func TestAddPod(t *testing.T) {
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
-			Name: "pod0001",
-			UID:  "Pod-UID-00001",
+			Name: podName1,
+			UID:  podUID1,
 		},
 		Spec: v1.PodSpec{},
 	}
@@ -399,13 +641,13 @@ func TestAddPod(t *testing.T) {
 	// add
 	cache.AddPod(pod1)
 
-	_, ok := cache.GetPod("Pod-UID-00001")
+	_, ok := cache.GetPod(podUID1)
 	assert.Equal(t, len(cache.podsMap), 1, "wrong pod count after add of pod1")
 	assert.Check(t, ok, "pod1 not found")
 
 	// re-add
 	cache.AddPod(pod1)
-	_, ok = cache.GetPod("Pod-UID-00001")
+	_, ok = cache.GetPod(podUID1)
 	assert.Equal(t, len(cache.podsMap), 1, "wrong pod count after re-add of pod1")
 	assert.Check(t, ok, "pod1 not found")
 
@@ -414,9 +656,9 @@ func TestAddPod(t *testing.T) {
 	pod1Copy.Spec.NodeName = "test-node-add"
 	cache.AssumePod(pod1Copy, true)
 
-	assert.Check(t, cache.isAssumedPod("Pod-UID-00001"), "pod is not assumed")
+	assert.Check(t, cache.isAssumedPod(podUID1), "pod is not assumed")
 	cache.AddPod(pod1)
-	assert.Check(t, cache.isAssumedPod("Pod-UID-00001"), "pod is not assumed after re-add")
+	assert.Check(t, cache.isAssumedPod(podUID1), "pod is not assumed after re-add")
 }
 
 func TestUpdatePod(t *testing.T) {
@@ -426,9 +668,9 @@ func TestUpdatePod(t *testing.T) {
 	resourceList[v1.ResourceName("cpu")] = *resource.NewQuantity(10, resource.DecimalSI)
 	node1 := &v1.Node{
 		ObjectMeta: apis.ObjectMeta{
-			Name:      "host0001",
+			Name:      host1,
 			Namespace: "default",
-			UID:       "Node-UID-00001",
+			UID:       nodeUID1,
 		},
 		Status: v1.NodeStatus{
 			Allocatable: resourceList,
@@ -439,9 +681,9 @@ func TestUpdatePod(t *testing.T) {
 	}
 	node2 := &v1.Node{
 		ObjectMeta: apis.ObjectMeta{
-			Name:      "host0002",
+			Name:      host2,
 			Namespace: "default",
-			UID:       "Node-UID-00002",
+			UID:       nodeUID2,
 		},
 		Status: v1.NodeStatus{
 			Allocatable: resourceList,
@@ -466,27 +708,27 @@ func TestUpdatePod(t *testing.T) {
 	}
 
 	pod1 := podTemplate.DeepCopy()
-	pod1.ObjectMeta.Name = "pod0001"
-	pod1.ObjectMeta.UID = "Pod-UID-00001"
+	pod1.ObjectMeta.Name = podName1
+	pod1.ObjectMeta.UID = podUID1
 	cache.AddPod(pod1)
 	assert.Equal(t, len(cache.podsMap), 1, "wrong pod count after add of pod1")
-	_, ok := cache.GetPod("Pod-UID-00001")
+	_, ok := cache.GetPod(podUID1)
 	assert.Check(t, ok, "pod1 not found")
 
 	// update of non-existent pod should be equivalent to an add
 	pod2 := podTemplate.DeepCopy()
-	pod2.ObjectMeta.Name = "pod0002"
-	pod2.ObjectMeta.UID = "Pod-UID-00002"
+	pod2.ObjectMeta.Name = podName2
+	pod2.ObjectMeta.UID = podUID2
 	cache.UpdatePod(pod2)
 	assert.Equal(t, len(cache.podsMap), 2, "wrong pod count after add of pod2")
-	_, ok = cache.GetPod("Pod-UID-00002")
+	_, ok = cache.GetPod(podUID2)
 	assert.Check(t, ok, "pod2 not found")
 
 	// normal pod update should succeed
 	pod1Copy := pod1.DeepCopy()
 	pod1Copy.ObjectMeta.Annotations["state"] = "updated"
 	cache.UpdatePod(pod1Copy)
-	found, ok := cache.GetPod("Pod-UID-00001")
+	found, ok := cache.GetPod(podUID1)
 	assert.Check(t, ok, "pod1 not found")
 	assert.Equal(t, found.GetAnnotations()["state"], "updated", "wrong state after update")
 	cache.RemovePod(pod1Copy)
@@ -495,11 +737,11 @@ func TestUpdatePod(t *testing.T) {
 	pod1.Spec.NodeName = node1.Name
 	cache.AddPod(pod1)
 	cache.AssumePod(pod1, true)
-	assert.Check(t, cache.isAssumedPod("Pod-UID-00001"), "pod is not assumed")
+	assert.Check(t, cache.isAssumedPod(podUID1), "pod is not assumed")
 	pod1Copy = pod1.DeepCopy()
 	pod1Copy.Spec.NodeName = node2.Name
 	cache.UpdatePod(pod1Copy)
-	assert.Check(t, cache.isAssumedPod("Pod-UID-00001"), "pod is not assumed after re-add")
+	assert.Check(t, cache.isAssumedPod(podUID1), "pod is not assumed after re-add")
 
 	// unassumed pod should survive node changing without crashing
 	pod3 := podTemplate.DeepCopy()
@@ -524,8 +766,8 @@ func TestRemovePod(t *testing.T) {
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
-			Name:        "pod0001",
-			UID:         "Pod-UID-00001",
+			Name:        podName1,
+			UID:         podUID1,
 			Annotations: map[string]string{"state": "new"},
 		},
 		Spec: v1.PodSpec{},
@@ -534,12 +776,12 @@ func TestRemovePod(t *testing.T) {
 	// add pod1
 	cache.AddPod(pod1)
 	assert.Equal(t, len(cache.podsMap), 1, "wrong pod count after add of pod1")
-	_, ok := cache.GetPod("Pod-UID-00001")
+	_, ok := cache.GetPod(podUID1)
 	assert.Check(t, ok, "pod1 not found")
 
 	// remove pod1
 	cache.RemovePod(pod1)
-	_, ok = cache.GetPod("Pod-UID-00001")
+	_, ok = cache.GetPod(podUID1)
 	assert.Check(t, !ok, "pod1 still found")
 	assert.Equal(t, len(cache.podsMap), 0, "wrong pod count after remove of pod1")
 
@@ -547,12 +789,12 @@ func TestRemovePod(t *testing.T) {
 	pod1.Spec.NodeName = "test-node-remove"
 	cache.AddPod(pod1)
 	assert.Equal(t, len(cache.podsMap), 1, "wrong pod count after add of pod1 with node")
-	_, ok = cache.GetPod("Pod-UID-00001")
+	_, ok = cache.GetPod(podUID1)
 	assert.Check(t, ok, "pod1 not found")
 
 	// remove pod1
 	cache.RemovePod(pod1)
-	_, ok = cache.GetPod("Pod-UID-00001")
+	_, ok = cache.GetPod(podUID1)
 	assert.Check(t, !ok, "pod1 still found")
 	assert.Equal(t, len(cache.podsMap), 0, "wrong pod count after remove of pod1 with node")
 
@@ -655,9 +897,9 @@ func TestGetSchedulerCacheDao(t *testing.T) {
 	resourceList[v1.ResourceName("cpu")] = *resource.NewQuantity(10, resource.DecimalSI)
 	node := &v1.Node{
 		ObjectMeta: apis.ObjectMeta{
-			Name:      "host0001",
+			Name:      host1,
 			Namespace: "default",
-			UID:       "Node-UID-00001",
+			UID:       nodeUID1,
 		},
 		Status: v1.NodeStatus{
 			Allocatable: resourceList,
@@ -673,8 +915,8 @@ func TestGetSchedulerCacheDao(t *testing.T) {
 		},
 		ObjectMeta: apis.ObjectMeta{
 			Namespace: "test",
-			Name:      "pod0001",
-			UID:       "Pod-UID-00001",
+			Name:      podName1,
+			UID:       podUID1,
 		},
 		Spec: v1.PodSpec{},
 	}
@@ -693,14 +935,14 @@ func TestGetSchedulerCacheDao(t *testing.T) {
 	// test with data
 	dao = cache.GetSchedulerCacheDao()
 	assert.Equal(t, len(dao.Nodes), 1)
-	nodeDao, ok := dao.Nodes["host0001"]
+	nodeDao, ok := dao.Nodes[host1]
 	assert.Assert(t, ok)
 	assert.DeepEqual(t, *nodeDao.Allocatable.Memory(), resourceList["memory"])
 	assert.DeepEqual(t, *nodeDao.Allocatable.Cpu(), resourceList["cpu"])
 	assert.Equal(t, len(dao.Pods), 1)
 	podDao, ok := dao.Pods["test/pod0001"]
 	assert.Assert(t, ok)
-	assert.Equal(t, string(podDao.UID), "Pod-UID-00001")
+	assert.Equal(t, string(podDao.UID), podUID1)
 	assert.Equal(t, len(dao.PriorityClasses), 1)
 	pcDao, ok := dao.PriorityClasses["class001"]
 	assert.Assert(t, ok)
@@ -708,7 +950,7 @@ func TestGetSchedulerCacheDao(t *testing.T) {
 	assert.Equal(t, len(dao.SchedulingPods), 1)
 	psDao, ok := dao.SchedulingPods["test/pod0001"]
 	assert.Assert(t, ok)
-	assert.Equal(t, string(psDao.UID), "Pod-UID-00001")
+	assert.Equal(t, string(psDao.UID), podUID1)
 	assert.Equal(t, dao.Statistics.Nodes, 1)
 	assert.Equal(t, dao.Statistics.Pods, 1)
 	assert.Equal(t, dao.Statistics.PriorityClasses, 1)
@@ -716,4 +958,21 @@ func TestGetSchedulerCacheDao(t *testing.T) {
 	assert.Equal(t, dao.Statistics.PodsAssigned, 0)
 	assert.Equal(t, dao.Statistics.InProgressAllocations, 0)
 	assert.Equal(t, dao.Statistics.PendingAllocations, 0)
+}
+
+func expectHost1AndHost2(t *testing.T, nodesInfo []*framework.NodeInfo) {
+	assert.Assert(t, nodesInfo != nil, "nodesInfo list was not created")
+	assert.Equal(t, 2, len(nodesInfo), "nodesInfo list size")
+	m := make(map[string]bool)
+	for _, info := range nodesInfo {
+		m[info.Node().Name] = true
+	}
+	assert.Equal(t, true, m[host1], "node not found")
+	assert.Equal(t, true, m[host2], "node not found")
+}
+
+func expectHost(t *testing.T, host string, nodesInfo []*framework.NodeInfo) {
+	assert.Assert(t, nodesInfo != nil, "nodes list was not created or got deleted")
+	assert.Equal(t, 1, len(nodesInfo), "nodes list size")
+	assert.Equal(t, host, nodesInfo[0].Node().Name)
 }
