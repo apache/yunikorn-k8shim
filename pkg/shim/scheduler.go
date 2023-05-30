@@ -276,7 +276,7 @@ func (ss *KubernetesShim) canHandle(se events.SchedulerEvent) bool {
 
 // each schedule iteration, we scan all apps and triggers app state transition
 func (ss *KubernetesShim) schedule() {
-	apps := ss.context.SelectApplications(nil)
+	apps := ss.context.GetAllApplications()
 	for _, app := range apps {
 		if app.Schedule() {
 			ss.setOutstandingAppsFound(true)
