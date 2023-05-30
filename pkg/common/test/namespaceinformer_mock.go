@@ -28,9 +28,9 @@ type MockNamespaceInformer struct {
 	lister listersV1.NamespaceLister
 }
 
-func NewMockNamespaceInformer() informersV1.NamespaceInformer {
+func NewMockNamespaceInformer(errIfNotFound bool) informersV1.NamespaceInformer {
 	return &MockNamespaceInformer{
-		lister: NewMockNamespaceLister(),
+		lister: NewMockNamespaceLister(errIfNotFound),
 	}
 }
 

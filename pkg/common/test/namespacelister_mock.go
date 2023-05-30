@@ -27,12 +27,14 @@ import (
 )
 
 type MockNamespaceLister struct {
-	namespaces map[string]*v1.Namespace
+	namespaces    map[string]*v1.Namespace
+	errIfNotFound bool
 }
 
-func NewMockNamespaceLister() listersV1.NamespaceLister {
+func NewMockNamespaceLister(errIfNotFound bool) listersV1.NamespaceLister {
 	return &MockNamespaceLister{
-		namespaces: make(map[string]*v1.Namespace),
+		namespaces:    make(map[string]*v1.Namespace),
+		errIfNotFound: errIfNotFound,
 	}
 }
 
@@ -47,7 +49,10 @@ func (nsl *MockNamespaceLister) Add(ns *v1.Namespace) {
 func (nsl *MockNamespaceLister) Get(name string) (*v1.Namespace, error) {
 	ns, ok := nsl.namespaces[name]
 	if !ok {
-		return nil, fmt.Errorf("namespace %s is not found", name)
+		if nsl.errIfNotFound {
+			return nil, fmt.Errorf("namespace %s is not found", name)
+		}
+		return nil, nil
 	}
 	return ns, nil
 }
