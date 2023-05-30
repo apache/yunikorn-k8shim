@@ -89,12 +89,10 @@ func NewContextWithBootstrapConfigMaps(apis client.APIProvider, bootstrapConfigM
 	ctx.nodes = newSchedulerNodes(apis.GetAPIs().SchedulerAPI, ctx.schedulerCache)
 
 	// create the predicate manager
-	if !apis.IsTestingMode() {
-		sharedLister := support.NewSharedLister(ctx.schedulerCache)
-		clientSet := apis.GetAPIs().KubeClient.GetClientSet()
-		informerFactory := apis.GetAPIs().InformerFactory
-		ctx.predManager = predicates.NewPredicateManager(support.NewFrameworkHandle(sharedLister, informerFactory, clientSet))
-	}
+	sharedLister := support.NewSharedLister(ctx.schedulerCache)
+	clientSet := apis.GetAPIs().KubeClient.GetClientSet()
+	informerFactory := apis.GetAPIs().InformerFactory
+	ctx.predManager = predicates.NewPredicateManager(support.NewFrameworkHandle(sharedLister, informerFactory, clientSet))
 
 	return ctx
 }
@@ -437,11 +435,6 @@ func (ctx *Context) triggerReloadConfig(index int, configMap *v1.ConfigMap) {
 
 // evaluate given predicates based on current context
 func (ctx *Context) IsPodFitNode(name, node string, allocate bool) error {
-	// simply skip if predicates are not enabled
-	if ctx.apiProvider.IsTestingMode() {
-		return nil
-	}
-
 	ctx.lock.RLock()
 	defer ctx.lock.RUnlock()
 	if pod, ok := ctx.schedulerCache.GetPod(name); ok {
@@ -1132,4 +1125,9 @@ func (ctx *Context) GetStateDump() (string, error) {
 		return "", err
 	}
 	return string(bytes), nil
+}
+
+// VisibleForTesting
+func (ctx *Context) GetSchedulerCache() *schedulercache.SchedulerCache {
+	return ctx.schedulerCache
 }

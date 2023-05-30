@@ -30,6 +30,7 @@ import (
 	schedv1 "k8s.io/api/scheduling/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/apache/yunikorn-core/pkg/entrypoint"
 	"github.com/apache/yunikorn-k8shim/pkg/appmgmt"
@@ -38,6 +39,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/callback"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common"
+	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
@@ -95,6 +97,28 @@ func (fc *MockScheduler) updateConfig(queues string) error {
 
 // Deprecated: this method only updates the core without the shim. Prefer MockScheduler.AddNode(*v1.Node) instead.
 func (fc *MockScheduler) addNode(nodeName string, nodeLabels map[string]string, memory, cpu, pods int64) error {
+	cache := fc.context.GetSchedulerCache()
+	zero := resource.Scale(0)
+	// add node to the cache so that predicates can run properly
+	cache.AddNode(&v1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   nodeName,
+			Labels: nodeLabels,
+		},
+		Status: v1.NodeStatus{
+			Allocatable: map[v1.ResourceName]resource.Quantity{
+				v1.ResourcePods:   *resource.NewScaledQuantity(pods, zero),
+				v1.ResourceMemory: *resource.NewScaledQuantity(memory, zero),
+				v1.ResourceCPU:    *resource.NewScaledQuantity(cpu, zero),
+			},
+			Capacity: map[v1.ResourceName]resource.Quantity{
+				v1.ResourcePods:   *resource.NewScaledQuantity(pods, zero),
+				v1.ResourceMemory: *resource.NewScaledQuantity(memory, zero),
+				v1.ResourceCPU:    *resource.NewScaledQuantity(cpu, zero),
+			},
+		},
+	})
+
 	nodeResource := common.NewResourceBuilder().
 		AddResource(siCommon.Memory, memory).
 		AddResource(siCommon.CPU, cpu).
@@ -107,6 +131,8 @@ func (fc *MockScheduler) addNode(nodeName string, nodeLabels map[string]string, 
 
 // Deprecated: this method only updates the core without the shim. Prefer MockScheduler.AddPod(*v1.Pod) instead.
 func (fc *MockScheduler) addTask(appID string, taskID string, ask *si.Resource) {
+	cache := fc.context.GetSchedulerCache()
+	// add pod to the cache so that predicates can run properly
 	resources := make(map[v1.ResourceName]resource.Quantity)
 	for k, v := range ask.Resources {
 		resources[v1.ResourceName(k)] = *resource.NewQuantity(v.Value, resource.DecimalSI)
@@ -118,18 +144,29 @@ func (fc *MockScheduler) addTask(appID string, taskID string, ask *si.Resource) 
 			Requests: resources,
 		},
 	})
+	pod := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			UID:  types.UID(taskID),
+			Name: taskID,
+			Annotations: map[string]string{
+				constants.AnnotationApplicationID: appID,
+			},
+			Labels: map[string]string{
+				constants.LabelApplicationID: appID,
+			},
+		},
+		Spec: v1.PodSpec{
+			SchedulerName: constants.SchedulerName,
+			Containers:    containers,
+		},
+	}
+	cache.AddPod(pod)
+
 	fc.context.AddTask(&interfaces.AddTaskRequest{
 		Metadata: interfaces.TaskMetadata{
 			ApplicationID: appID,
 			TaskID:        taskID,
-			Pod: &v1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: taskID,
-				},
-				Spec: v1.PodSpec{
-					Containers: containers,
-				},
-			},
+			Pod:           pod,
 		},
 	})
 }

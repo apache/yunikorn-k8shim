@@ -20,10 +20,13 @@ package client
 
 import (
 	"sync"
+	"time"
 
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
 	schedv1 "k8s.io/api/scheduling/v1"
+	"k8s.io/client-go/informers"
+	k8fake "k8s.io/client-go/kubernetes/fake"
 	corev1 "k8s.io/client-go/listers/core/v1"
 	storagev1 "k8s.io/client-go/listers/storage/v1"
 	"k8s.io/client-go/tools/cache"
@@ -89,8 +92,9 @@ func NewMockedAPIProvider(showError bool) *MockedAPIProvider {
 			StorageInformer:       &MockedStorageClassInformer{},
 			VolumeBinder:          nil,
 			AppInformer:           test.NewAppInformerMock(),
-			NamespaceInformer:     test.NewMockNamespaceInformer(),
+			NamespaceInformer:     test.NewMockNamespaceInformer(false),
 			PriorityClassInformer: test.NewMockPriorityClassInformer(),
+			InformerFactory:       informers.NewSharedInformerFactory(k8fake.NewSimpleClientset(), time.Second*60),
 		},
 		events:       make(chan informerEvent),
 		eventHandler: make(chan *ResourceEventHandlers),
