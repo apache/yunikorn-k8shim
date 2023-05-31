@@ -19,7 +19,7 @@
 USERS=("admin admin" "sue group-a" "bob group-a" "kim dev" "yono test" "anonymous anonymous")
 
 for ((i = 0; i < ${#USERS[@]}; ++i)); do
-    USER=(${USERS[i]})
+    USER=("${USERS[i]}")
     USERNAME=${USER[0]}
 
     kubectl delete csr/"$USERNAME"-csr

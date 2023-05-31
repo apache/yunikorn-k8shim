@@ -144,7 +144,7 @@ install_shellcheck:
 
 # Check scripts
 .PHONY: check_scripts
-ALLSCRIPTS := $(shell find . -name '*.sh')
+ALLSCRIPTS := $(shell find . -name '*.sh' -not -path './_spark/*')
 check_scripts: install_shellcheck
 	@echo "running shellcheck"
 	@if command -v "shellcheck" &> /dev/null; then \

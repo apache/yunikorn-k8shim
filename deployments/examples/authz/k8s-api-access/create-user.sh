@@ -22,7 +22,7 @@ CERT_REQUEST_FILE=./certification_request.yaml
 
 mkdir -p $AUTH_FOLDER
 for ((i = 0; i < ${#USERS[@]}; ++i)); do
-    USER=(${USERS[i]})
+    USER=("${USERS[i]}")
     USERNAME=${USER[0]}
     GROUP=${USER[1]}
     AUTH_FILE=$AUTH_FOLDER/$USERNAME
