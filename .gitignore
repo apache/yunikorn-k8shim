@@ -4,3 +4,6 @@ _spark/
 coverage.txt
 yunikorn-release
 shellcheck
+*.csr
+*.crt
+*.key
