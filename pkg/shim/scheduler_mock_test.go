@@ -274,6 +274,30 @@ func (fc *MockScheduler) stop() {
 	fc.started.Store(false)
 }
 
+func (fc *MockScheduler) AddPodToLister(pod *v1.Pod) {
+	lister := fc.apiProvider.GetPodListerMock()
+	if lister == nil {
+		panic("lister is unset or it has unsupported type")
+	}
+	lister.AddPod(pod)
+}
+
+func (fc *MockScheduler) RemovePodFromLister(pod *v1.Pod) {
+	lister := fc.apiProvider.GetPodListerMock()
+	if lister == nil {
+		panic("lister is unset or it has unsupported type")
+	}
+	lister.DeletePod(pod)
+}
+
+func (fc *MockScheduler) AddNodeToLister(node *v1.Node) {
+	lister := fc.apiProvider.GetNodeListerMock()
+	if lister == nil {
+		panic("lister is unset or it has unsupported type")
+	}
+	lister.AddNode(node)
+}
+
 func (fc *MockScheduler) AddPod(pod *v1.Pod) {
 	fc.ensureStarted()
 	fc.apiProvider.AddPod(pod)

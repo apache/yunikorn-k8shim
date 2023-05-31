@@ -26,27 +26,37 @@ import (
 )
 
 type NodeListerMock struct {
-	allNodes []*v1.Node
+	nodes map[*v1.Node]struct{}
 }
 
 func NewNodeListerMock() *NodeListerMock {
 	return &NodeListerMock{
-		allNodes: make([]*v1.Node, 0),
+		nodes: make(map[*v1.Node]struct{}),
 	}
 }
 
 func (n *NodeListerMock) AddNode(node *v1.Node) {
-	n.allNodes = append(n.allNodes, node)
+	n.nodes[node] = struct{}{}
+}
+
+func (n *NodeListerMock) RemoveNode(node *v1.Node) {
+	delete(n.nodes, node)
 }
 
 func (n *NodeListerMock) List(selector labels.Selector) (ret []*v1.Node, err error) {
-	return n.allNodes, nil
+	list := make([]*v1.Node, 0, len(n.nodes))
+	for node := range n.nodes {
+		if selector.Matches(labels.Set(node.Labels)) {
+			list = append(list, node)
+		}
+	}
+	return list, nil
 }
 
 func (n *NodeListerMock) Get(name string) (*v1.Node, error) {
-	for _, n := range n.allNodes {
-		if n.Name == name {
-			return n, nil
+	for node := range n.nodes {
+		if node.Name == name {
+			return node, nil
 		}
 	}
 	return nil, fmt.Errorf("node %s is not found", name)

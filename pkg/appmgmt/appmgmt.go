@@ -56,21 +56,14 @@ func NewAMService(amProtocol interfaces.ApplicationManagementProtocol,
 	}
 
 	log.Logger().Info("Initializing new AppMgmt service")
-
-	if !apiProvider.IsTestingMode() {
-		log.Logger().Info("Registering Spark operator with the AppMgmt service")
-		appManager.register(
-			// registered app plugins
-			// for general apps
-			general.NewManager(apiProvider, podEventHandler),
-			// for spark operator - SparkApplication
-			sparkoperator.NewManager(amProtocol, apiProvider),
-			// for application crds
-			application.NewAppManager(amProtocol, apiProvider))
-	} else {
-		podEventHandler = general.NewPodEventHandler(amProtocol, false)
-		appManager.register(general.NewManager(apiProvider, podEventHandler))
-	}
+	appManager.register(
+		// registered app plugins
+		// for general apps
+		general.NewManager(apiProvider, podEventHandler),
+		// for spark operator - SparkApplication
+		sparkoperator.NewManager(amProtocol, apiProvider),
+		// for application crds
+		application.NewAppManager(amProtocol, apiProvider))
 
 	return appManager
 }

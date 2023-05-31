@@ -27,22 +27,26 @@ import (
 )
 
 type PodListerMock struct {
-	allPods []*v1.Pod
+	pods map[*v1.Pod]struct{}
 }
 
 func NewPodListerMock() *PodListerMock {
 	return &PodListerMock{
-		allPods: make([]*v1.Pod, 0),
+		pods: make(map[*v1.Pod]struct{}),
 	}
 }
 
 func (n *PodListerMock) AddPod(pod *v1.Pod) {
-	n.allPods = append(n.allPods, pod)
+	n.pods[pod] = struct{}{}
+}
+
+func (n *PodListerMock) DeletePod(pod *v1.Pod) {
+	delete(n.pods, pod)
 }
 
 func (n *PodListerMock) List(selector labels.Selector) (ret []*v1.Pod, err error) {
 	result := make([]*v1.Pod, 0)
-	for _, pod := range n.allPods {
+	for pod := range n.pods {
 		if selector.Matches(labels.Set(pod.Labels)) {
 			result = append(result, pod)
 		}
@@ -51,9 +55,9 @@ func (n *PodListerMock) List(selector labels.Selector) (ret []*v1.Pod, err error
 }
 
 func (n *PodListerMock) Get(name string) (*v1.Pod, error) {
-	for _, n := range n.allPods {
-		if n.Name == name {
-			return n, nil
+	for pod := range n.pods {
+		if pod.Name == name {
+			return pod, nil
 		}
 	}
 	return nil, fmt.Errorf("pod %s is not found", name)
