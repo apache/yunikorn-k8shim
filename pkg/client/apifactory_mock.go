@@ -193,6 +193,26 @@ func (m *MockedAPIProvider) SetPodLister(lister corev1.PodLister) {
 	}
 }
 
+func (m *MockedAPIProvider) GetPodListerMock() *test.PodListerMock {
+	if informer, ok := m.clients.PodInformer.(*test.MockedPodInformer); ok {
+		if lister, ok := informer.Lister().(*test.PodListerMock); ok {
+			return lister
+		}
+		return nil
+	}
+	return nil
+}
+
+func (m *MockedAPIProvider) GetNodeListerMock() *test.NodeListerMock {
+	if informer, ok := m.clients.NodeInformer.(*test.MockedNodeInformer); ok {
+		if lister, ok := informer.Lister().(*test.NodeListerMock); ok {
+			return lister
+		}
+		return nil
+	}
+	return nil
+}
+
 func (m *MockedAPIProvider) GetAPIs() *Clients {
 	return m.clients
 }

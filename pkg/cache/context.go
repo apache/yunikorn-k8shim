@@ -985,16 +985,14 @@ func (ctx *Context) updatePodCondition(task *Task, podCondition *v1.PodCondition
 				zap.Any("podCondition", podCondition))
 			// call api-server to do the pod condition update
 			if podutil.UpdatePodCondition(&task.pod.Status, podCondition) {
-				if !ctx.apiProvider.IsTestingMode() {
-					podCopy := task.pod.DeepCopy()
-					_, err := ctx.apiProvider.GetAPIs().KubeClient.UpdateStatus(podCopy)
-					if err == nil {
-						return true
-					}
-					// only log the error here, no need to handle it if the update failed
-					log.Logger().Error("update pod condition failed",
-						zap.Error(err))
+				podCopy := task.pod.DeepCopy()
+				_, err := ctx.apiProvider.GetAPIs().KubeClient.UpdateStatus(podCopy)
+				if err == nil {
+					return true
 				}
+				// only log the error here, no need to handle it if the update failed
+				log.Logger().Error("update pod condition failed",
+					zap.Error(err))
 			}
 		}
 	}

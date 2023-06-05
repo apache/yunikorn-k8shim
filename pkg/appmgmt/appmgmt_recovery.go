@@ -36,14 +36,12 @@ import (
 // is canceled (used by testing code) or an error occurs, an error will be returned. In production, this
 // method will block until recovery completes.
 func (svc *AppManagementService) WaitForRecovery() error {
-	if !svc.apiProvider.IsTestingMode() {
-		apps, err := svc.recoverApps()
-		if err != nil {
-			return err
-		}
-		if !svc.waitForAppRecovery(apps) {
-			return errors.New("recovery aborted")
-		}
+	apps, err := svc.recoverApps()
+	if err != nil {
+		return err
+	}
+	if !svc.waitForAppRecovery(apps) {
+		return errors.New("recovery aborted")
 	}
 	return nil
 }
