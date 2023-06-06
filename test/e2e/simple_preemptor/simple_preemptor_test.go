@@ -97,11 +97,8 @@ var _ = ginkgo.BeforeSuite(func() {
 	}
 
 	ginkgo.By("Tainting some nodes..")
-	for _, nodeName := range nodesToTaint {
-		ginkgo.By("Tainting node " + nodeName)
-		err = kClient.TaintNode(nodeName, taintKey, "value", v1.TaintEffectNoSchedule)
-		Ω(err).NotTo(gomega.HaveOccurred())
-	}
+	err = kClient.TaintNodes(nodesToTaint, taintKey, "value", v1.TaintEffectNoSchedule)
+	Ω(err).NotTo(gomega.HaveOccurred())
 
 	var pods *v1.PodList
 	totalPodQuantity1 := *resource.NewQuantity(0, resource.DecimalSI)
@@ -127,11 +124,8 @@ var _ = ginkgo.BeforeSuite(func() {
 var _ = ginkgo.AfterSuite(func() {
 
 	ginkgo.By("Untainting some nodes")
-	for _, nodeName := range nodesToTaint {
-		ginkgo.By("Untainting node " + nodeName)
-		err := kClient.UntaintNode(nodeName, taintKey)
-		Ω(err).NotTo(gomega.HaveOccurred(), "Could not remove taint from node "+nodeName)
-	}
+	err := kClient.UntaintNodes(nodesToTaint, taintKey)
+	Ω(err).NotTo(gomega.HaveOccurred(), "Could not remove taint from nodes "+strings.Join(nodesToTaint, ","))
 
 	ginkgo.By("Check Yunikorn's health")
 	checks, err := yunikorn.GetFailedHealthChecks()

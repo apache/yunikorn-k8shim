@@ -765,6 +765,17 @@ func (k *KubeCtl) ListPodsByFieldSelector(namespace string, selector string) (*v
 	return podList, nil
 }
 
+// Returns the list of pods in `namespace` with the given label selector
+func (k *KubeCtl) ListPodsByLabelSelector(namespace string, selector string) (*v1.PodList, error) {
+	listOptions := metav1.ListOptions{LabelSelector: selector}
+	podList, err := k.clientSet.CoreV1().Pods(namespace).List(context.TODO(), listOptions)
+
+	if err != nil {
+		return nil, err
+	}
+	return podList, nil
+}
+
 // Wait up to timeout seconds for all pods in 'namespace' with given 'selector' to enter running state.
 // Returns an error if no pods are found or not all discovered pods enter running state.
 func (k *KubeCtl) WaitForPodBySelectorRunning(namespace string, selector string, timeout int) error {
@@ -1268,6 +1279,16 @@ func (k *KubeCtl) TaintNode(name, key, val string, effect v1.TaintEffect) error 
 	return err
 }
 
+func (k *KubeCtl) TaintNodes(names []string, key, val string, effect v1.TaintEffect) error {
+	for _, name := range names {
+		err := k.TaintNode(name, key, val, effect)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (k *KubeCtl) UntaintNode(name, key string) error {
 	node, err := k.clientSet.CoreV1().Nodes().Get(context.TODO(), name, metav1.GetOptions{})
 	if err != nil {
@@ -1284,6 +1305,16 @@ func (k *KubeCtl) UntaintNode(name, key string) error {
 	node.Spec.Taints = newTaints
 	_, err = k.clientSet.CoreV1().Nodes().Update(context.TODO(), node, metav1.UpdateOptions{})
 	return err
+}
+
+func (k *KubeCtl) UntaintNodes(names []string, key string) error {
+	for _, name := range names {
+		err := k.UntaintNode(name, key)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func IsMasterNode(node *v1.Node) bool {
