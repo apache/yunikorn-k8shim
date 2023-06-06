@@ -781,11 +781,9 @@ var _ = Describe("", func() {
 		// Verify no app allocation in nodeA
 		ykNodes, nodeErr := restClient.GetNodes(defaultPartition)
 		Ω(nodeErr).NotTo(HaveOccurred())
-		for _, nodeDAO := range *ykNodes {
-			for _, node := range nodeDAO.Nodes {
-				for _, alloc := range node.Allocations {
-					Ω(alloc.ApplicationID).NotTo(Equal(podConf.Labels["applicationId"]), "Placeholder allocation not removed from node")
-				}
+		for _, node := range *ykNodes {
+			for _, alloc := range node.Allocations {
+				Ω(alloc.ApplicationID).NotTo(Equal(podConf.Labels["applicationId"]), "Placeholder allocation not removed from node")
 			}
 		}
 

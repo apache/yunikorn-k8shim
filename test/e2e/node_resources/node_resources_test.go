@@ -74,26 +74,24 @@ var _ = Describe("", func() {
 		Ω(restErr).NotTo(HaveOccurred())
 
 		// For each yk node capacity, compare to official Kubernetes value
-		for _, nodeDAO := range *ykNodes {
-			for _, ykNode := range nodeDAO.Nodes {
-				nodeName := ykNode.NodeID
-				var ykCapacity yunikorn.ResourceUsage
-				ykCapacity.ParseResourceUsage(ykNode.Capacity)
+		for _, ykNode := range *ykNodes {
+			nodeName := ykNode.NodeID
+			var ykCapacity yunikorn.ResourceUsage
+			ykCapacity.ParseResourceUsage(ykNode.Capacity)
 
-				kubeNodeCPU := kClientNodeCapacities[nodeName][siCommon.CPU]
-				kubeNodeMem := kClientNodeCapacities[nodeName][siCommon.Memory]
-				kubeNodeMem.RoundUp(resource.Mega) // round to nearest megabyte for comparison
+			kubeNodeCPU := kClientNodeCapacities[nodeName]["cpu"]
+			kubeNodeMem := kClientNodeCapacities[nodeName][siCommon.Memory]
+			kubeNodeMem.RoundUp(resource.Mega) // round to nearest megabyte for comparison
 
-				// Compare memory to nearest megabyte
-				roundedYKMem := ykCapacity.GetMemory()
-				roundedYKMem.RoundUp(resource.Mega)
-				cmpRes := kubeNodeMem.Cmp(roundedYKMem)
-				Ω(cmpRes).To(Equal(0))
+			// Compare memory to nearest megabyte
+			roundedYKMem := ykCapacity.GetMemory()
+			roundedYKMem.RoundUp(resource.Mega)
+			cmpRes := kubeNodeMem.Cmp(roundedYKMem)
+			Ω(cmpRes).To(Equal(0))
 
-				// Compare cpu cores to nearest millicore
-				cmpRes = kubeNodeCPU.Cmp(ykCapacity.GetCPU())
-				Ω(cmpRes).To(Equal(0))
-			}
+			// Compare cpu cores to nearest millicore
+			cmpRes = kubeNodeCPU.Cmp(ykCapacity.GetCPU())
+			Ω(cmpRes).To(Equal(0))
 		}
 	})
 })
