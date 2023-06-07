@@ -19,23 +19,15 @@
 package interfaces
 
 import (
-	v1 "k8s.io/api/core/v1"
+	"testing"
+
+	"gotest.tools/v3/assert"
 )
 
-type ManagedApp interface {
-	GetApplicationID() string
-	GetTask(taskID string) (ManagedTask, error)
-	GetApplicationState() string
-	GetQueue() string
-	GetUser() string
-	SetState(state string)
-	TriggerAppRecovery() error
-}
-
-type ManagedTask interface {
-	GetTaskID() string
-	GetTaskState() string
-	GetTaskPod() *v1.Pod
-	SetTaskSchedulingState(state TaskSchedulingState)
-	GetTaskSchedulingState() TaskSchedulingState
+func TestTaskSchedulingState(t *testing.T) {
+	assert.Equal(t, len(taskSchedulingStateNames), 4, "wrong length")
+	assert.Equal(t, TaskSchedPending.String(), taskSchedulingStateNames[TaskSchedPending])
+	assert.Equal(t, TaskSchedSkipped.String(), taskSchedulingStateNames[TaskSchedSkipped])
+	assert.Equal(t, TaskSchedFailed.String(), taskSchedulingStateNames[TaskSchedFailed])
+	assert.Equal(t, TaskSchedAllocated.String(), taskSchedulingStateNames[TaskSchedAllocated])
 }
