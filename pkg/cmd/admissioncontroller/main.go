@@ -52,6 +52,7 @@ type WebHook struct {
 }
 
 func main() {
+	log.SetDefaultLogger(log.Admission)
 	configMaps, err := client.LoadBootstrapConfigMaps(schedulerconf.GetSchedulerNamespace())
 	if err != nil {
 		log.Logger().Fatal("Failed to load initial configmaps", zap.Error(err))

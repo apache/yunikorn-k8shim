@@ -72,7 +72,6 @@ func NewMockedAPIProvider(showError bool) *MockedAPIProvider {
 				PolicyGroup:          "queues",
 				Interval:             0,
 				KubeConfig:           "",
-				LoggingLevel:         0,
 				VolumeBindTimeout:    0,
 				TestMode:             true,
 				EventChannelCapacity: 0,

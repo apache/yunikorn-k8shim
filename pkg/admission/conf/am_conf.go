@@ -26,7 +26,6 @@ import (
 	"sync"
 
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 	v1 "k8s.io/api/core/v1"
 	informersv1 "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/tools/cache"
@@ -306,10 +305,6 @@ func (acc *AdmissionControllerConf) updateConfigMaps(configMaps []*v1.ConfigMap,
 	// hot refresh
 	acc.enableConfigHotRefresh = parseConfigBool(configs, schedulerconf.CMSvcEnableConfigHotRefresh, schedulerconf.DefaultEnableConfigHotRefresh)
 
-	// logging
-	logLevel := parseConfigInt(configs, schedulerconf.CMLogLevel, schedulerconf.DefaultLoggingLevel)
-	log.GetZapConfigs().Level.SetLevel(zapcore.Level(logLevel))
-
 	// scheduler
 	acc.policyGroup = parseConfigString(configs, schedulerconf.CMSvcPolicyGroup, schedulerconf.DefaultPolicyGroup)
 
@@ -333,6 +328,9 @@ func (acc *AdmissionControllerConf) updateConfigMaps(configMaps []*v1.ConfigMap,
 
 	// labeling
 	acc.defaultQueueName = parseConfigString(configs, AMFilteringDefaultQueueName, DefaultFilteringQueueName)
+
+	// logging
+	log.UpdateLoggingConfig(configs)
 
 	acc.dumpConfigurationInternal()
 }

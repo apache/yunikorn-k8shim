@@ -65,9 +65,6 @@ const (
 	CMSvcPlaceholderImage             = PrefixService + "placeholderImage"
 	CMSvcNodeInstanceTypeNodeLabelKey = PrefixService + "nodeInstanceTypeNodeLabelKey"
 
-	// log
-	CMLogLevel = PrefixLog + "level"
-
 	// kubernetes
 	CMKubeQPS   = PrefixKubernetes + "qps"
 	CMKubeBurst = PrefixKubernetes + "burst"
@@ -83,8 +80,6 @@ const (
 	DefaultOperatorPlugins        = "general"
 	DefaultDisableGangScheduling  = false
 	DefaultEnableConfigHotRefresh = true
-	DefaultLoggingLevel           = 0
-	DefaultLogEncoding            = "console"
 	DefaultKubeQPS                = 1000
 	DefaultKubeBurst              = 1000
 )
@@ -112,7 +107,6 @@ type SchedulerConf struct {
 	PolicyGroup              string        `json:"policyGroup"`
 	Interval                 time.Duration `json:"schedulingIntervalSecond"`
 	KubeConfig               string        `json:"absoluteKubeConfigFilePath"`
-	LoggingLevel             int           `json:"loggingLevel"`
 	VolumeBindTimeout        time.Duration `json:"volumeBindTimeout"`
 	TestMode                 bool          `json:"testMode"`
 	EventChannelCapacity     int           `json:"eventChannelCapacity"`
@@ -140,7 +134,6 @@ func (conf *SchedulerConf) Clone() *SchedulerConf {
 		PolicyGroup:            conf.PolicyGroup,
 		Interval:               conf.Interval,
 		KubeConfig:             conf.KubeConfig,
-		LoggingLevel:           conf.LoggingLevel,
 		VolumeBindTimeout:      conf.VolumeBindTimeout,
 		TestMode:               conf.TestMode,
 		EventChannelCapacity:   conf.EventChannelCapacity,
@@ -182,13 +175,13 @@ func UpdateConfigMaps(configMaps []*v1.ConfigMap, initial bool) error {
 
 	// update scheduler config with merged version
 	SetSchedulerConf(newConf)
-	conf := GetSchedulerConf()
+	_ = GetSchedulerConf()
 
 	// update logger configuration
-	log.GetZapConfigs().Level.SetLevel(zapcore.Level(conf.LoggingLevel))
+	log.UpdateLoggingConfig(config)
 
 	// update Kubernetes logger configuration
-	updateKubeLogger(conf)
+	updateKubeLogger()
 
 	// dump new scheduler configuration
 	DumpConfiguration()
@@ -327,7 +320,6 @@ func CreateDefaultConfig() *SchedulerConf {
 		PolicyGroup:              DefaultPolicyGroup,
 		Interval:                 DefaultSchedulingInterval,
 		KubeConfig:               GetDefaultKubeConfigPath(),
-		LoggingLevel:             DefaultLoggingLevel,
 		VolumeBindTimeout:        DefaultVolumeBindTimeout,
 		TestMode:                 false,
 		EventChannelCapacity:     DefaultEventChannelCapacity,
@@ -365,9 +357,6 @@ func parseConfig(config map[string]string, prev *SchedulerConf) (*SchedulerConf,
 	parser.boolVar(&conf.EnableConfigHotRefresh, CMSvcEnableConfigHotRefresh)
 	parser.stringVar(&conf.PlaceHolderImage, CMSvcPlaceholderImage)
 	parser.stringVar(&conf.InstanceTypeNodeLabelKey, CMSvcNodeInstanceTypeNodeLabelKey)
-
-	// log
-	parser.intVar(&conf.LoggingLevel, CMLogLevel)
 
 	// kubernetes
 	parser.intVar(&conf.KubeQPS, CMKubeQPS)
@@ -434,14 +423,14 @@ func (cp *configParser) durationVar(p *time.Duration, name string) {
 	}
 }
 
-func updateKubeLogger(conf *SchedulerConf) {
+func updateKubeLogger() {
 	// if log level is debug, enable klog and set its log level verbosity to 4 (represents debug level),
 	// For details refer to the Logging Conventions of klog at
 	// https://github.com/kubernetes/community/blob/master/contributors/devel/sig-instrumentation/logging.md
 
 	// danger, this can only be called once!
 	kubeLoggerOnce.Do(func() {
-		if zapcore.Level(conf.LoggingLevel).Enabled(zapcore.DebugLevel) {
+		if log.Log(log.Kubernetes).Core().Enabled(zapcore.DebugLevel) {
 			klog.InitFlags(nil)
 			// cannot really handle the error here ignore it
 			//nolint:errcheck

@@ -216,6 +216,7 @@ func (sp *YuniKornSchedulerPlugin) PostBind(_ context.Context, _ *framework.Cycl
 
 // NewSchedulerPlugin initializes a new plugin and returns it
 func NewSchedulerPlugin(_ runtime.Object, handle framework.Handle) (framework.Plugin, error) {
+	log.SetDefaultLogger(log.K8Shim)
 	log.Logger().Info(fmt.Sprintf("Build info: version=%s date=%s isPluginVersion=%t goVersion=%s arch=%s coreSHA=%s siSHA=%s shimSHA=%s", conf.BuildVersion, conf.BuildDate, conf.IsPluginVersion, conf.GoVersion, conf.Arch, conf.CoreSHA, conf.SiSHA, conf.ShimSHA))
 
 	configMaps, err := client.LoadBootstrapConfigMaps(conf.GetSchedulerNamespace())
@@ -229,7 +230,7 @@ func NewSchedulerPlugin(_ runtime.Object, handle framework.Handle) (framework.Pl
 	}
 
 	// start the YK core scheduler
-	serviceContext := entrypoint.StartAllServicesWithLogger(log.Logger(), log.GetZapConfigs())
+	serviceContext := entrypoint.StartAllServicesWithLogger(log.RootLogger(), log.GetZapConfigs())
 	if sa, ok := serviceContext.RMProxy.(api.SchedulerAPI); ok {
 		// we need our own informer factory here because the informers we get from the framework handle aren't yet initialized
 		informerFactory := informers.NewSharedInformerFactory(handle.ClientSet(), 0)
