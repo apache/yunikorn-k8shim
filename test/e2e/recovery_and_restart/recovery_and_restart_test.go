@@ -313,19 +313,15 @@ var _ = ginkgo.Describe("", func() {
 			selectedNode, memoryGiB, placeholderCount)
 
 		ginkgo.By("Tainting all nodes except " + selectedNode)
-		for _, nodeName := range nodesToTaint {
-			err = kClient.TaintNode(nodeName, taintKey, "value", v1.TaintEffectNoSchedule)
-			Ω(err).NotTo(gomega.HaveOccurred())
-		}
+		err = kClient.TaintNodes(nodesToTaint, taintKey, "value", v1.TaintEffectNoSchedule)
+		Ω(err).NotTo(gomega.HaveOccurred())
 
 		removeTaint := true
 		defer func() {
 			if removeTaint {
 				ginkgo.By("Untainting nodes (defer)")
-				for _, nodeName := range nodesToTaint {
-					err = kClient.UntaintNode(nodeName, taintKey)
-					Ω(err).NotTo(gomega.HaveOccurred(), "Could not remove taint from node "+nodeName)
-				}
+				err = kClient.UntaintNodes(nodesToTaint, taintKey)
+				Ω(err).NotTo(gomega.HaveOccurred(), "Could not remove taint from nodes "+strings.Join(nodesToTaint, ","))
 			}
 		}()
 
@@ -353,10 +349,8 @@ var _ = ginkgo.Describe("", func() {
 
 		ginkgo.By("Untainting nodes")
 		removeTaint = false
-		for _, nodeName := range nodesToTaint {
-			err = kClient.UntaintNode(nodeName, taintKey)
-			Ω(err).NotTo(gomega.HaveOccurred(), "Could not remove taint from node "+nodeName)
-		}
+		err = kClient.UntaintNodes(nodesToTaint, taintKey)
+		Ω(err).NotTo(gomega.HaveOccurred(), "Could not remove taint from nodes "+strings.Join(nodesToTaint, ","))
 
 		ginkgo.By("Waiting for placeholder replacement & sleep pods to finish")
 		err = kClient.WaitForJobPodsSucceeded(dev, job.Name, 1, 60*time.Second)

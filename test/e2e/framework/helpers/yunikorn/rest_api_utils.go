@@ -223,12 +223,12 @@ func (c *RClient) isAppInDesiredState(partition string, queue string, appID stri
 	}
 }
 
-func (c *RClient) GetNodes(partition string) (*[]dao.NodesDAOInfo, error) {
+func (c *RClient) GetNodes(partition string) (*[]dao.NodeDAOInfo, error) {
 	req, err := c.newRequest("GET", fmt.Sprintf(configmanager.NodesPath, partition), nil)
 	if err != nil {
 		return nil, err
 	}
-	var nodes []dao.NodesDAOInfo
+	var nodes []dao.NodeDAOInfo
 	_, err = c.do(req, &nodes)
 	return &nodes, err
 }
