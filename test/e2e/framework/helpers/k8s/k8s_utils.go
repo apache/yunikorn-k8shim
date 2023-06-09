@@ -50,6 +50,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/portforward"
 	"k8s.io/client-go/transport/spdy"
+	"k8s.io/client-go/util/retry"
 	resourcehelper "k8s.io/kubectl/pkg/util/resource"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
 
@@ -1211,16 +1212,18 @@ func (k *KubeCtl) DescribeNode(node v1.Node) error {
 }
 
 func (k *KubeCtl) SetNodeLabel(name, key, value string) error {
-	node, err := k.clientSet.CoreV1().Nodes().Get(context.TODO(), name, metav1.GetOptions{})
-	if err != nil {
-		return err
-	}
-	node.Labels[key] = value
-	_, err = k.clientSet.CoreV1().Nodes().Update(context.TODO(), node, metav1.UpdateOptions{})
-	if err != nil {
-		return err
-	}
-	return nil
+	return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		node, err := k.clientSet.CoreV1().Nodes().Get(context.TODO(), name, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		node.Labels[key] = value
+		_, err = k.clientSet.CoreV1().Nodes().Update(context.TODO(), node, metav1.UpdateOptions{})
+		if err != nil {
+			return err
+		}
+		return nil
+	})
 }
 
 func (k *KubeCtl) IsNodeLabelExists(name, key string) (bool, error) {
@@ -1237,53 +1240,59 @@ func (k *KubeCtl) IsNodeLabelExists(name, key string) (bool, error) {
 }
 
 func (k *KubeCtl) RemoveNodeLabel(name, key, value string) error {
-	node, err := k.clientSet.CoreV1().Nodes().Get(context.TODO(), name, metav1.GetOptions{})
-	if err != nil {
-		return err
-	}
-	delete(node.Labels, key)
-	_, err = k.clientSet.CoreV1().Nodes().Update(context.TODO(), node, metav1.UpdateOptions{})
-	if err != nil {
-		return err
-	}
-	return nil
+	return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		node, err := k.clientSet.CoreV1().Nodes().Get(context.TODO(), name, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		delete(node.Labels, key)
+		_, err = k.clientSet.CoreV1().Nodes().Update(context.TODO(), node, metav1.UpdateOptions{})
+		if err != nil {
+			return err
+		}
+		return nil
+	})
 }
 
 func (k *KubeCtl) TaintNode(name, key, val string, effect v1.TaintEffect) error {
-	node, err := k.clientSet.CoreV1().Nodes().Get(context.TODO(), name, metav1.GetOptions{})
-	if err != nil {
+	return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		node, err := k.clientSet.CoreV1().Nodes().Get(context.TODO(), name, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+
+		t := v1.Taint{
+			Effect: effect,
+			Key:    key,
+			Value:  val,
+		}
+		taints := node.Spec.Taints
+		taints = append(taints, t)
+		node.Spec.Taints = taints
+
+		_, err = k.clientSet.CoreV1().Nodes().Update(context.TODO(), node, metav1.UpdateOptions{})
 		return err
-	}
-
-	t := v1.Taint{
-		Effect: effect,
-		Key:    key,
-		Value:  val,
-	}
-	taints := node.Spec.Taints
-	taints = append(taints, t)
-	node.Spec.Taints = taints
-
-	_, err = k.clientSet.CoreV1().Nodes().Update(context.TODO(), node, metav1.UpdateOptions{})
-	return err
+	})
 }
 
 func (k *KubeCtl) UntaintNode(name, key string) error {
-	node, err := k.clientSet.CoreV1().Nodes().Get(context.TODO(), name, metav1.GetOptions{})
-	if err != nil {
-		return err
-	}
-
-	newTaints := make([]v1.Taint, 0)
-	for _, taint := range node.Spec.Taints {
-		if taint.Key != key {
-			newTaints = append(newTaints, taint)
+	return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		node, err := k.clientSet.CoreV1().Nodes().Get(context.TODO(), name, metav1.GetOptions{})
+		if err != nil {
+			return err
 		}
-	}
 
-	node.Spec.Taints = newTaints
-	_, err = k.clientSet.CoreV1().Nodes().Update(context.TODO(), node, metav1.UpdateOptions{})
-	return err
+		newTaints := make([]v1.Taint, 0)
+		for _, taint := range node.Spec.Taints {
+			if taint.Key != key {
+				newTaints = append(newTaints, taint)
+			}
+		}
+
+		node.Spec.Taints = newTaints
+		_, err = k.clientSet.CoreV1().Nodes().Update(context.TODO(), node, metav1.UpdateOptions{})
+		return err
+	})
 }
 
 func IsMasterNode(node *v1.Node) bool {
