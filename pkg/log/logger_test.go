@@ -36,6 +36,10 @@ var iterations = 100000
 
 func TestLoggerIds(t *testing.T) {
 	_ = Logger()
+
+	// validate logger count
+	assert.Equal(t, 4, len(loggers), "wrong logger count")
+
 	// validate that all loggers are populated and have sequential ids
 	for i := 0; i < len(loggers); i++ {
 		handle := loggers[i]
