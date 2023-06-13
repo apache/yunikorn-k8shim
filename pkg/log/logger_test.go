@@ -26,7 +26,6 @@ import (
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-	"gotest.tools/v3/assert"
 )
 
 var logDir string
@@ -34,110 +33,139 @@ var logFile string
 
 var iterations = 100000
 
-func TestLegacyLoggerPerformance(t *testing.T) {
-	_ = Logger() // make sure logger is initialized once
-	initTestLogger(t)
-	defer resetTestLogger(t)
+func BenchmarkLegacyLoggerDebug(b *testing.B) {
+	benchmarkLegacyLoggerDebug(b.N)
+}
 
-	debugStart := time.Now()
+func TestLegacyLoggerDebug(t *testing.T) {
+	nsOp := benchmarkLegacyLoggerDebug(iterations)
+	RootLogger().Info("log.Logger() performance", zap.Int64("debug (ns/op)", nsOp))
+}
+
+func benchmarkLegacyLoggerDebug(iterations int) int64 {
+	_ = Logger()
+	initTestLogger()
+	defer resetTestLogger()
+	start := time.Now()
 	for i := 0; i < iterations; i++ {
 		RootLogger().Debug("test", zap.String("foo", "bar"))
 	}
-	debugNsOp := (time.Since(debugStart).Nanoseconds()) / int64(iterations)
+	return (time.Since(start).Nanoseconds()) / int64(iterations)
+}
 
-	infoStart := time.Now()
+func BenchmarkLegacyLoggerInfo(b *testing.B) {
+	benchmarkLegacyLoggerInfo(b.N)
+}
+
+func TestLegacyLoggerInfo(t *testing.T) {
+	nsOp := benchmarkLegacyLoggerInfo(iterations)
+	RootLogger().Info("log.Logger() performance", zap.Int64("info (ns/op)", nsOp))
+}
+
+func benchmarkLegacyLoggerInfo(iterations int) int64 {
+	_ = Logger()
+	initTestLogger()
+	defer resetTestLogger()
+	start := time.Now()
 	for i := 0; i < iterations; i++ {
 		RootLogger().Info("test", zap.String("foo", "bar"))
 	}
-	infoNsOp := (time.Since(infoStart).Nanoseconds()) / int64(iterations)
-
-	warnStart := time.Now()
-	for i := 0; i < iterations; i++ {
-		RootLogger().Warn("test", zap.String("foo", "bar"))
-	}
-	warnNsOp := (time.Since(warnStart).Nanoseconds()) / int64(iterations)
-
-	resetTestLogger(t)
-
-	RootLogger().Info("log.Logger() performance",
-		zap.Int64("debug (ns/op)", debugNsOp),
-		zap.Int64("info (ns/op)", infoNsOp),
-		zap.Int64("warn (ns/op)", warnNsOp))
+	return (time.Since(start).Nanoseconds()) / int64(iterations)
 }
 
-func TestLoggerPerformance(t *testing.T) {
-	_ = RootLogger() // make sure logger is initialized once
-	initTestLogger(t)
-	defer resetTestLogger(t)
+func BenchmarkScopedLoggerDebug(b *testing.B) {
+	benchmarkScopedLoggerDebug(b.N)
+}
 
-	debugStart := time.Now()
+func TestScopedLoggerDebug(t *testing.T) {
+	nsOp := benchmarkScopedLoggerDebug(iterations)
+	Log(Test).Info("log.Log(...) performance (root=INFO)", zap.Int64("debug (ns/op)", nsOp))
+}
+
+func benchmarkScopedLoggerDebug(iterations int) int64 {
+	_ = Logger()
+	initTestLogger()
+	defer resetTestLogger()
+	UpdateLoggingConfig(map[string]string{
+		"log.level": "INFO",
+	})
+	start := time.Now()
 	for i := 0; i < iterations; i++ {
 		Log(K8Shim).Debug("test", zap.String("foo", "bar"))
 	}
-	debugNsOp := (time.Since(debugStart).Nanoseconds()) / int64(iterations)
+	return (time.Since(start).Nanoseconds()) / int64(iterations)
+}
 
-	infoStart := time.Now()
+func BenchmarkScopedLoggerInfo(b *testing.B) {
+	benchmarkScopedLoggerInfo(b.N)
+}
+
+func TestScopedLoggerInfo(t *testing.T) {
+	nsOp := benchmarkScopedLoggerInfo(iterations)
+	Log(Test).Info("log.Log(...) performance (root=INFO)", zap.Int64("info (ns/op)", nsOp))
+}
+
+func benchmarkScopedLoggerInfo(iterations int) int64 {
+	_ = Logger()
+	initTestLogger()
+	defer resetTestLogger()
+	UpdateLoggingConfig(map[string]string{
+		"log.level": "INFO",
+	})
+	start := time.Now()
 	for i := 0; i < iterations; i++ {
 		Log(K8Shim).Info("test", zap.String("foo", "bar"))
 	}
-	infoNsOp := (time.Since(infoStart).Nanoseconds()) / int64(iterations)
-
-	warnStart := time.Now()
-	for i := 0; i < iterations; i++ {
-		Log(K8Shim).Warn("test", zap.String("foo", "bar"))
-	}
-	warnNsOp := (time.Since(warnStart).Nanoseconds()) / int64(iterations)
-
-	resetTestLogger(t)
-
-	Log(Test).Info("log.Log(...) performance (root=INFO)",
-		zap.Int64("debug (ns/op)", debugNsOp),
-		zap.Int64("info (ns/op)", infoNsOp),
-		zap.Int64("warn (ns/op)", warnNsOp))
+	return (time.Since(start).Nanoseconds()) / int64(iterations)
 }
 
-func TestLoggerPerformanceWithEnabledDebug(t *testing.T) {
-	_ = RootLogger() // make sure logger is initialized once
-	initTestLogger(t)
+func BenchmarkScopedLoggerDebugEnabled(b *testing.B) {
+	benchmarkScopedLoggerDebugEnabled(b.N)
+}
+
+func TestScopedLoggerDebugEnabled(t *testing.T) {
+	nsOp := benchmarkScopedLoggerDebugEnabled(iterations)
+	Log(Test).Info("log.Log(...) performance (root=DEBUG)", zap.Int64("debug (ns/op)", nsOp))
+}
+
+func benchmarkScopedLoggerDebugEnabled(iterations int) int64 {
+	_ = Logger()
+	initTestLogger()
+	defer resetTestLogger()
 	UpdateLoggingConfig(map[string]string{
 		"log.test.level": "DEBUG",
 	})
-	defer resetTestLogger(t)
-
-	writtenDebugStart := time.Now()
+	start := time.Now()
 	for i := 0; i < iterations; i++ {
 		Log(Test).Debug("test", zap.String("foo", "bar"))
 	}
-	writtenDebugNsOp := (time.Since(writtenDebugStart).Nanoseconds()) / int64(iterations)
+	return (time.Since(start).Nanoseconds()) / int64(iterations)
+}
 
-	debugStart := time.Now()
-	for i := 0; i < iterations; i++ {
-		Log(K8Shim).Debug("test", zap.String("foo", "bar"))
-	}
-	debugNsOp := (time.Since(debugStart).Nanoseconds()) / int64(iterations)
+func BenchmarkScopedLoggerInfoFiltered(b *testing.B) {
+	benchmarkScopedLoggerInfoFiltered(b.N)
+}
 
-	infoStart := time.Now()
+func TestScopedLoggerInfoFiltered(t *testing.T) {
+	nsOp := benchmarkScopedLoggerInfoFiltered(iterations)
+	Log(Test).Info("log.Log(...) performance (root=DEBUG)", zap.Int64("info (ns/op)", nsOp))
+}
+
+func benchmarkScopedLoggerInfoFiltered(iterations int) int64 {
+	_ = Logger()
+	initTestLogger()
+	defer resetTestLogger()
+	UpdateLoggingConfig(map[string]string{
+		"log.test.level": "DEBUG",
+	})
+	start := time.Now()
 	for i := 0; i < iterations; i++ {
 		Log(K8Shim).Info("test", zap.String("foo", "bar"))
 	}
-	infoNsOp := (time.Since(infoStart).Nanoseconds()) / int64(iterations)
-
-	warnStart := time.Now()
-	for i := 0; i < iterations; i++ {
-		Log(K8Shim).Warn("test", zap.String("foo", "bar"))
-	}
-	warnNsOp := (time.Since(warnStart).Nanoseconds()) / int64(iterations)
-
-	resetTestLogger(t)
-
-	Log(Test).Info("log.Log(...) performance (root=DEBUG)",
-		zap.Int64("debug (written) (ns/op)", writtenDebugNsOp),
-		zap.Int64("debug (filtered) (ns/op)", debugNsOp),
-		zap.Int64("info (ns/op)", infoNsOp),
-		zap.Int64("warn (ns/op)", warnNsOp))
+	return (time.Since(start).Nanoseconds()) / int64(iterations)
 }
 
-func resetTestLogger(t *testing.T) {
+func resetTestLogger() {
 	// flush log
 	logger.Sync() //nolint:errcheck
 
@@ -147,29 +175,26 @@ func resetTestLogger(t *testing.T) {
 	// update logger config to defaults
 	UpdateLoggingConfig(map[string]string{})
 
-	// stat log file
 	if logFile != "" {
-		stat, err := os.Stat(logFile)
-		assert.NilError(t, err, "log file not found")
-		Log(Test).Info("Wrote logs of size", zap.Int64("size", stat.Size()))
 		logFile = ""
 	}
-	// remove original log dir
 	if logDir != "" {
-		err := os.RemoveAll(logDir)
-		assert.NilError(t, err, "failed to remove temp dir")
+		if err := os.RemoveAll(logDir); err != nil {
+			fmt.Printf("Error removing log dir: %s", err.Error())
+		}
 	}
 }
 
 // initTestLogger is basically the same as the default initLogger() function but uses a temporary file.
 // this ensures that the logging API is actually used, while allowing us to avoid massive log spam to stdout
-func initTestLogger(t *testing.T) {
+func initTestLogger() {
 	path, err := os.MkdirTemp("", "log*")
-	assert.NilError(t, err, "failed to create temp dir")
+	if err != nil {
+		panic(err)
+	}
 	logDir = path
 	logFile = fmt.Sprintf("%s/log.stdout", logDir)
 	outputPaths := []string{logFile}
-	fmt.Printf("Logging to %s", logFile)
 	zapConfigs = &zap.Config{
 		Level:             zap.NewAtomicLevelAt(zapcore.Level(0)),
 		Development:       false,
@@ -197,6 +222,8 @@ func initTestLogger(t *testing.T) {
 	}
 
 	logger, err = zapConfigs.Build()
-	assert.NilError(t, err, "failed to create logger")
-	defer logger.Sync() //nolint:errcheck
+	if err != nil {
+		panic(err)
+	}
+	defer logger.Sync()
 }
