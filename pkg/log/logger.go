@@ -52,16 +52,16 @@ const (
 
 // Predefined loggers: when adding new loggers, ids must be sequential, and all must be added to the loggers slice in the same order
 
-var K8Shim = LoggerHandle{id: 1, name: "k8shim"}
-var Kubernetes = LoggerHandle{id: 2, name: "kubernetes"}
-var Admission = LoggerHandle{id: 3, name: "admission"}
-var Test = LoggerHandle{id: 4, name: "test"}
+var K8Shim = &LoggerHandle{id: 1, name: "k8shim"}
+var Kubernetes = &LoggerHandle{id: 2, name: "kubernetes"}
+var Admission = &LoggerHandle{id: 3, name: "admission"}
+var Test = &LoggerHandle{id: 4, name: "test"}
 
 var loggers = []*LoggerHandle{
-	&K8Shim,
-	&Kubernetes,
-	&Admission,
-	&Test,
+	K8Shim,
+	Kubernetes,
+	Admission,
+	Test,
 }
 
 type loggerConfig struct {
@@ -74,7 +74,7 @@ var defaultLogger = atomic.Pointer[LoggerHandle]{}
 // Logger retrieves the global logger
 func Logger() *zap.Logger {
 	once.Do(initLogger)
-	return Log(*defaultLogger.Load())
+	return Log(defaultLogger.Load())
 }
 
 // RootLogger retrieves the root logger
@@ -84,10 +84,10 @@ func RootLogger() *zap.Logger {
 }
 
 // Log retrieves a standard logger
-func Log(handle LoggerHandle) *zap.Logger {
+func Log(handle *LoggerHandle) *zap.Logger {
 	once.Do(initLogger)
-	if handle.id == 0 {
-		handle = *defaultLogger.Load()
+	if handle == nil || handle.id == 0 {
+		handle = defaultLogger.Load()
 	}
 	conf := currentLoggerConfig.Load()
 	return conf.loggers[handle.id-1]
@@ -121,7 +121,7 @@ func parentLogger(name string) string {
 }
 
 func initLogger() {
-	defaultLogger.Store(&K8Shim)
+	defaultLogger.Store(K8Shim)
 	outputPaths := []string{"stdout"}
 
 	zapConfigs = &zap.Config{
@@ -173,9 +173,9 @@ func GetZapConfigs() *zap.Config {
 }
 
 // SetDefaultLogger allows customization of the default logger
-func SetDefaultLogger(handle LoggerHandle) {
+func SetDefaultLogger(handle *LoggerHandle) {
 	once.Do(initLogger)
-	defaultLogger.Store(&handle)
+	defaultLogger.Store(handle)
 }
 
 // UpdateLoggingConfig is used to reconfigure logging.
