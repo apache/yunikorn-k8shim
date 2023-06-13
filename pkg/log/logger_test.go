@@ -26,12 +26,23 @@ import (
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"gotest.tools/v3/assert"
 )
 
 var logDir string
 var logFile string
 
 var iterations = 100000
+
+func TestLoggerIds(t *testing.T) {
+	_ = Logger()
+	// validate that all loggers are populated and have sequential ids
+	for i := 0; i < len(loggers); i++ {
+		handle := loggers[i]
+		assert.Assert(t, handle != nil, "nil handle for index", i)
+		assert.Equal(t, handle.id, i+1, "wrong id", handle.name)
+	}
+}
 
 func BenchmarkLegacyLoggerDebug(b *testing.B) {
 	benchmarkLegacyLoggerDebug(b.N)
@@ -225,5 +236,5 @@ func initTestLogger() {
 	if err != nil {
 		panic(err)
 	}
-	defer logger.Sync()
+	defer logger.Sync() //nolint:errcheck
 }

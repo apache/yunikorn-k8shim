@@ -35,6 +35,7 @@ var zapConfigs *zap.Config
 
 // LoggerHandle is used to efficiently look up logger references
 type LoggerHandle struct {
+	id   int
 	name string
 }
 
@@ -42,21 +43,29 @@ func (h LoggerHandle) String() string {
 	return h.name
 }
 
-// Logger names
+// Logger constants for configuration
 const (
 	defaultLog  = "log.level"
 	logPrefix   = "log."
 	levelSuffix = ".level"
 )
 
-var K8Shim = LoggerHandle{name: "k8shim"}
-var Kubernetes = LoggerHandle{name: "kubernetes"}
-var Admission = LoggerHandle{name: "admission"}
-var Test = LoggerHandle{name: "test"}
+// Predefined loggers: when adding new loggers, ids must be sequential, and all must be added to the loggers slice in the same order
+
+var K8Shim = LoggerHandle{id: 1, name: "k8shim"}
+var Kubernetes = LoggerHandle{id: 2, name: "kubernetes"}
+var Admission = LoggerHandle{id: 3, name: "admission"}
+var Test = LoggerHandle{id: 4, name: "test"}
+
+var loggers = []*LoggerHandle{
+	&K8Shim,
+	&Kubernetes,
+	&Admission,
+	&Test,
+}
 
 type loggerConfig struct {
-	levelMap  map[string]zapcore.Level
-	loggerMap sync.Map
+	loggers []*zap.Logger
 }
 
 var currentLoggerConfig = atomic.Pointer[loggerConfig]{}
@@ -77,33 +86,27 @@ func RootLogger() *zap.Logger {
 // Log retrieves a standard logger
 func Log(handle LoggerHandle) *zap.Logger {
 	once.Do(initLogger)
-	if handle.name == "" {
+	if handle.id == 0 {
 		handle = *defaultLogger.Load()
 	}
 	conf := currentLoggerConfig.Load()
-	if logger, ok := conf.loggerMap.Load(handle.name); ok {
-		return logger.(*zap.Logger)
-	}
-	logger, _ := conf.loggerMap.LoadOrStore(handle.name, createLogger(conf, handle.name))
-	return logger.(*zap.Logger)
+	return conf.loggers[handle.id-1]
 }
 
-func createLogger(config *loggerConfig, name string) *zap.Logger {
-	return RootLogger().Named(name).WithOptions(zap.WrapCore(func(inner zapcore.Core) zapcore.Core {
-		return filteredCore{inner: inner, level: loggerLevel(config, name)}
+func createLogger(levelMap map[string]zapcore.Level, name string) *zap.Logger {
+	level := loggerLevel(levelMap, name)
+	return logger.Named(name).WithOptions(zap.WrapCore(func(inner zapcore.Core) zapcore.Core {
+		return filteredCore{inner: inner, level: level}
 	}))
 }
 
-func loggerLevel(config *loggerConfig, name string) zapcore.Level {
-	if config == nil {
-		return zapcore.InfoLevel
-	}
+func loggerLevel(levelMap map[string]zapcore.Level, name string) zapcore.Level {
 	for ; name != ""; name = parentLogger(name) {
-		if level, ok := config.levelMap[name]; ok {
+		if level, ok := levelMap[name]; ok {
 			return level
 		}
 	}
-	if level, ok := config.levelMap[""]; ok {
+	if level, ok := levelMap[""]; ok {
 		return level
 	}
 	return zapcore.InfoLevel
@@ -120,12 +123,6 @@ func parentLogger(name string) string {
 func initLogger() {
 	defaultLogger.Store(&K8Shim)
 	outputPaths := []string{"stdout"}
-	newLoggerConfig := loggerConfig{
-		levelMap: map[string]zapcore.Level{
-			"": zapcore.Level(0),
-		},
-	}
-	currentLoggerConfig.Store(&newLoggerConfig)
 
 	zapConfigs = &zap.Config{
 		Level:             zap.NewAtomicLevelAt(zapcore.Level(0)),
@@ -161,6 +158,9 @@ func initLogger() {
 		logger = zap.NewNop()
 	}
 
+	// initialize sub-loggers
+	initLoggingConfig(nil)
+
 	// make sure logs are flushed
 	//nolint:errcheck
 	defer logger.Sync()
@@ -183,8 +183,13 @@ func SetDefaultLogger(handle LoggerHandle) {
 // The default level is set by log.level={level}
 func UpdateLoggingConfig(config map[string]string) {
 	once.Do(initLogger)
+	initLoggingConfig(config)
+}
+
+func initLoggingConfig(config map[string]string) {
 	levelMap := make(map[string]zapcore.Level)
 	levelMap[""] = zapcore.InfoLevel
+	zapLoggers := make([]*zap.Logger, len(loggers))
 
 	// override default level if found
 	if defaultLevel, ok := config[defaultLog]; ok {
@@ -219,9 +224,11 @@ func UpdateLoggingConfig(config map[string]string) {
 		}
 	}
 
-	newLoggerConfig := loggerConfig{levelMap: levelMap}
-
-	GetZapConfigs().Level.SetLevel(minLevel)
+	for i := 0; i < len(loggers); i++ {
+		zapLoggers[i] = createLogger(levelMap, loggers[i].name)
+	}
+	newLoggerConfig := loggerConfig{loggers: zapLoggers}
+	zapConfigs.Level.SetLevel(minLevel)
 	currentLoggerConfig.Store(&newLoggerConfig)
 }
 
