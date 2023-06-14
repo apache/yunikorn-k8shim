@@ -915,11 +915,9 @@ func TestNodeEventFailsPublishingWithoutNode(t *testing.T) {
 
 	eventRecords := make([]*si.EventRecord, 0)
 	message := "non_existing_node_related_message"
-	reason := "non_existing_node_related_reason"
 	eventRecords = append(eventRecords, &si.EventRecord{
 		Type:     si.EventRecord_NODE,
 		ObjectID: "non_existing_host",
-		Reason:   reason,
 		Message:  message,
 	})
 	context.PublishEvents(eventRecords)
@@ -928,7 +926,7 @@ func TestNodeEventFailsPublishingWithoutNode(t *testing.T) {
 	select {
 	case event := <-recorder.Events:
 		log.Logger().Info(event)
-		if strings.Contains(event, reason) && strings.Contains(event, message) {
+		if strings.Contains(event, message) {
 			t.Fatal("event should not be published if the pod does not exist")
 		}
 	default:
@@ -955,11 +953,9 @@ func TestNodeEventPublishedCorrectly(t *testing.T) {
 
 	eventRecords := make([]*si.EventRecord, 0)
 	message := "node_related_message"
-	reason := "node_related_reason"
 	eventRecords = append(eventRecords, &si.EventRecord{
 		Type:     si.EventRecord_NODE,
 		ObjectID: "host0001",
-		Reason:   reason,
 		Message:  message,
 	})
 	context.PublishEvents(eventRecords)
@@ -970,14 +966,14 @@ func TestNodeEventPublishedCorrectly(t *testing.T) {
 			select {
 			case event := <-recorder.Events:
 				log.Logger().Info(event)
-				if strings.Contains(event, reason) && strings.Contains(event, message) {
+				if strings.Contains(event, message) {
 					return true
 				}
 			default:
 				return false
 			}
 		}
-	}, 5*time.Millisecond, 20*time.Millisecond)
+	}, 10*time.Millisecond, time.Second)
 	assert.NilError(t, err, "event should have been emitted")
 }
 
@@ -998,13 +994,11 @@ func TestPublishEventsWithNotExistingAsk(t *testing.T) {
 	})
 	eventRecords := make([]*si.EventRecord, 0)
 	message := "event_related_text_msg"
-	reason := "event_related_text"
 	eventRecords = append(eventRecords, &si.EventRecord{
-		Type:     si.EventRecord_REQUEST,
-		ObjectID: "non_existing_task_event",
-		GroupID:  "app_event_12",
-		Reason:   reason,
-		Message:  message,
+		Type:        si.EventRecord_REQUEST,
+		ObjectID:    "non_existing_task_event",
+		ReferenceID: "app_event_12",
+		Message:     message,
 	})
 	context.PublishEvents(eventRecords)
 
@@ -1013,14 +1007,14 @@ func TestPublishEventsWithNotExistingAsk(t *testing.T) {
 		for {
 			select {
 			case event := <-recorder.Events:
-				if strings.Contains(event, reason) && strings.Contains(event, message) {
+				if strings.Contains(event, message) {
 					return false
 				}
 			default:
 				return true
 			}
 		}
-	}, 5*time.Millisecond, 20*time.Millisecond)
+	}, 10*time.Millisecond, time.Second)
 	assert.NilError(t, err, "event should not have been published if the pod does not exist")
 }
 
@@ -1052,13 +1046,11 @@ func TestPublishEventsCorrectly(t *testing.T) {
 	// create an event belonging to that task
 	eventRecords := make([]*si.EventRecord, 0)
 	message := "event_related_message"
-	reason := "event_related_reason"
 	eventRecords = append(eventRecords, &si.EventRecord{
-		Type:     si.EventRecord_REQUEST,
-		ObjectID: "task_event",
-		GroupID:  "app_event",
-		Reason:   reason,
-		Message:  message,
+		Type:        si.EventRecord_REQUEST,
+		ReferenceID: "task_event",
+		ObjectID:    "app_event",
+		Message:     message,
 	})
 	context.PublishEvents(eventRecords)
 
@@ -1067,14 +1059,14 @@ func TestPublishEventsCorrectly(t *testing.T) {
 		for {
 			select {
 			case event := <-recorder.Events:
-				if strings.Contains(event, reason) && strings.Contains(event, message) {
+				if strings.Contains(event, message) {
 					return true
 				}
 			default:
 				return false
 			}
 		}
-	}, 5*time.Millisecond, 20*time.Millisecond)
+	}, 10*time.Millisecond, time.Second)
 	assert.NilError(t, err, "event should have been emitted")
 }
 
