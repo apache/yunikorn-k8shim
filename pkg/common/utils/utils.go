@@ -151,7 +151,7 @@ func GetNamespaceGuaranteedFromAnnotation(namespaceObj *v1.Namespace) *si.Resour
 	if err != nil {
 		log.Logger().Warn("Unable to process namespace.guaranteed annotation",
 			zap.String("namespace", namespaceObj.Name),
-			zap.String("namespace.guaranteed val is", namespaceGuaranteed))
+			zap.String("namespace.guaranteed is", namespaceGuaranteed))
 		return nil
 	}
 	return common.GetResource(namespaceGuaranteedMap)
@@ -177,7 +177,7 @@ func GetNamespaceQuotaFromAnnotation(namespaceObj *v1.Namespace) *si.Resource {
 		if err != nil {
 			log.Logger().Warn("Unable to process namespace.quota annotation",
 				zap.String("namespace", namespaceObj.Name),
-				zap.String("namespace.quota val is", namespaceQuota))
+				zap.String("namespace.quota is", namespaceQuota))
 			return nil
 		}
 		return common.GetResource(namespaceQuotaMap)
