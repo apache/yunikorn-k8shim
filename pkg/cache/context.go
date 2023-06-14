@@ -935,11 +935,11 @@ func (ctx *Context) PublishEvents(eventRecords []*si.EventRecord) {
 		for _, record := range eventRecords {
 			switch record.Type {
 			case si.EventRecord_REQUEST:
-				taskID := record.ObjectID
-				appID := record.GroupID
+				appID := record.ObjectID
+				taskID := record.ReferenceID
 				if task := ctx.getTask(appID, taskID); task != nil {
 					events.GetRecorder().Eventf(task.GetTaskPod().DeepCopy(), nil,
-						v1.EventTypeNormal, record.Reason, record.Reason, record.Message)
+						v1.EventTypeNormal, "", "", record.Message)
 				} else {
 					log.Logger().Warn("task event is not published because task is not found",
 						zap.String("appID", appID),
@@ -963,7 +963,7 @@ func (ctx *Context) PublishEvents(eventRecords []*si.EventRecord) {
 					continue
 				}
 				events.GetRecorder().Eventf(node.DeepCopy(), nil,
-					v1.EventTypeNormal, record.Reason, record.Reason, record.Message)
+					v1.EventTypeNormal, "", "", record.Message)
 			default:
 				log.Logger().Warn("Unsupported event type, currently only supports to publish request event records",
 					zap.Stringer("type", record.Type))
