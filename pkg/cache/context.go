@@ -706,6 +706,15 @@ func (ctx *Context) updateApplicationTags(request *interfaces.AddApplicationRequ
 			request.Metadata.Tags[siCommon.AppTagNamespaceResourceQuota] = string(quotaStr)
 		}
 	}
+
+	// add guaranteed resource info as an app tag
+	guaranteedResource := utils.GetNamespaceGuaranteedFromAnnotation(namespaceObj)
+	if guaranteedResource != nil && !common.IsZero(guaranteedResource) {
+		if guaranteedStr, err := json.Marshal(guaranteedResource); err == nil {
+			request.Metadata.Tags[siCommon.AppTagNamespaceResourceGuaranteed] = string(guaranteedStr)
+		}
+	}
+
 	// add parent queue info as an app tag
 	parentQueue := utils.GetNameSpaceAnnotationValue(namespaceObj, constants.AnnotationParentQueue)
 	if parentQueue != "" {
