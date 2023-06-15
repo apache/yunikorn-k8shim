@@ -25,9 +25,9 @@ spec:
     app: gang
   type: ClusterIP
   ports:
-    - protocol: TCP
-      port: 8863
-      targetPort: 8863
+  - protocol: TCP
+    port: 8863
+    targetPort: 8863
 ---
 apiVersion: v1
 kind: Pod
