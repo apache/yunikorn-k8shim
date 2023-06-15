@@ -15,6 +15,7 @@
  See the License for the specific language governing permissions and
  limitations under the License.
 */
+
 package common
 
 import (
@@ -146,6 +147,7 @@ func TestEquals(t *testing.T) {
 	assert.Equal(t, Equals(r1, r2), false)
 }
 
+// nolint: funlen
 func TestParsePodResource(t *testing.T) {
 	containers := make([]v1.Container, 0)
 

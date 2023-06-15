@@ -19,6 +19,7 @@ package conf
 
 import (
 	"fmt"
+	"os"
 	"reflect"
 	"testing"
 	"time"
@@ -71,6 +72,98 @@ func assertDefaults(t *testing.T, conf *SchedulerConf) {
 	assert.Equal(t, conf.KubeQPS, DefaultKubeQPS)
 	assert.Equal(t, conf.KubeBurst, DefaultKubeBurst)
 	assert.Equal(t, conf.UserLabelKey, constants.DefaultUserLabel)
+	assert.Equal(t, conf.EventTrackingEnabled, DefaultEventTrackingEnabled)
+	assert.Equal(t, conf.EventRequestsEnabled, DefaultEventRequestsEnabled)
+	assert.Equal(t, conf.EventBufferCapacity, DefaultEventBufferCapacity)
+	assert.Equal(t, conf.EventResponseSize, DefaultEventResponseSize)
+	assert.Equal(t, conf.EventRequestCapacity, DefaultEventRequestCapacity)
+}
+
+func TestUpdateConfigMapInvalidValues(t *testing.T) {
+	err := UpdateConfigMaps([]*v1.ConfigMap{
+		{Data: map[string]string{CMEventTrackingEnabled: "abc"}},
+	}, true)
+	assert.Assert(t, err != nil, "error is expected")
+
+	conf := GetSchedulerConf()
+	assert.Equal(t, true, conf.EventTrackingEnabled)
+}
+
+func TestSchedulerNamespace(t *testing.T) {
+	originalNs, _ := os.LookupEnv("NAMESPACE")
+	conf := CreateDefaultConfig()
+	assert.Equal(t, conf.Namespace, "default", "unexpected namespace name")
+
+	os.Setenv("NAMESPACE", "MY-NAMESPACE")
+	conf = CreateDefaultConfig()
+	assert.Equal(t, conf.Namespace, "MY-NAMESPACE", "unexpected namespace name")
+
+	os.Setenv("NAMESPACE", originalNs)
+}
+
+func TestOperatorPlugin(t *testing.T) {
+	conf := CreateDefaultConfig()
+	assert.Equal(t, conf.IsOperatorPluginEnabled("abc"), false, "abc should not be enabled")
+	assert.Equal(t, conf.IsOperatorPluginEnabled("general"), true, "unexpected operator plugin value")
+
+	err := UpdateConfigMaps([]*v1.ConfigMap{
+		{Data: map[string]string{CMSvcOperatorPlugins: ""}},
+	}, true)
+	assert.Assert(t, err == nil, "error is not expected")
+
+	conf = GetSchedulerConf()
+	assert.Equal(t, conf.IsOperatorPluginEnabled("general"), false, "operator plugin should be disabled")
+}
+
+func TestTestMode(t *testing.T) {
+	conf := CreateDefaultConfig()
+	assert.Equal(t, conf.IsTestMode(), false, "test mode should be disabled")
+	conf.SetTestMode(true)
+	assert.Equal(t, conf.IsTestMode(), true, "test mode should be enabled")
+}
+
+func TestSetSchedulingInterval(t *testing.T) {
+	conf := CreateDefaultConfig()
+	assert.Equal(t, conf.GetSchedulingInterval(), DefaultSchedulingInterval, "invalid default scheduling interval")
+
+	err := UpdateConfigMaps([]*v1.ConfigMap{
+		{Data: map[string]string{CMSvcSchedulingInterval: time.Minute.String()}},
+	}, true)
+	assert.Assert(t, err == nil, "error is not expected")
+
+	conf = GetSchedulerConf()
+	assert.Equal(t, conf.GetSchedulingInterval(), time.Minute, "scheduling interval not updated")
+}
+
+func TestKubeConfPath(t *testing.T) {
+	originalHome, _ := os.LookupEnv("HOME")
+
+	kubeConfigPath := "/kube/conf/dir"
+	os.Setenv("KUBECONFIG", kubeConfigPath)
+
+	conf := CreateDefaultConfig()
+	val := conf.GetKubeConfigPath()
+	assert.Equal(t, val, kubeConfigPath, "invalid kube config path")
+
+	homePath := "/my/home"
+	os.Setenv("HOME", homePath)
+
+	conf = CreateDefaultConfig()
+	val = conf.GetKubeConfigPath()
+	assert.Equal(t, val, kubeConfigPath, "invalid kube config path")
+
+	os.Unsetenv("KUBECONFIG")
+
+	conf = CreateDefaultConfig()
+	val = conf.GetKubeConfigPath()
+	assert.Equal(t, val, homePath+"/.kube/config", "invalid kube config path")
+
+	os.Unsetenv("HOME")
+	conf = CreateDefaultConfig()
+	val = conf.GetKubeConfigPath()
+	assert.Equal(t, val, "/.kube/config", "invalid kube config path")
+
+	os.Setenv("HOME", originalHome)
 }
 
 func TestParseConfigMap(t *testing.T) {
@@ -93,6 +186,11 @@ func TestParseConfigMap(t *testing.T) {
 		{CMLogLevel, "LoggingLevel", -1},
 		{CMKubeQPS, "KubeQPS", 2345},
 		{CMKubeBurst, "KubeBurst", 3456},
+		{CMEventTrackingEnabled, "EventTrackingEnabled", false},
+		{CMEventRequestsEnabled, "EventTrackingEnabled", true},
+		{CMEventBufferCapacity, "EventBufferCapacity", 20},
+		{CMEventResponseSize, "EventResponseSize", 15},
+		{CMEventRequestCapacity, "EventRequestCapacity", 150},
 	}
 
 	for _, tc := range testCases {
@@ -126,6 +224,11 @@ func TestUpdateConfigMapNonReloadable(t *testing.T) {
 		{CMLogLevel, "LoggingLevel", -1, true},
 		{CMKubeQPS, "KubeQPS", 2345, false},
 		{CMKubeBurst, "KubeBurst", 3456, false},
+		{CMEventTrackingEnabled, "EventTrackingEnabled", false, false},
+		{CMEventRequestsEnabled, "EventTrackingEnabled", true, false},
+		{CMEventBufferCapacity, "EventBufferCapacity", 20, false},
+		{CMEventResponseSize, "EventResponseSize", 15, false},
+		{CMEventRequestCapacity, "EventRequestCapacity", 150, false},
 	}
 
 	for _, tc := range testCases {

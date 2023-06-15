@@ -51,6 +51,7 @@ const (
 	PrefixService    = "service."
 	PrefixLog        = "log."
 	PrefixKubernetes = "kubernetes."
+	PrefixEvent      = "event."
 
 	// service
 	CMSvcClusterID                    = PrefixService + "clusterId"
@@ -64,6 +65,13 @@ const (
 	CMSvcEnableConfigHotRefresh       = PrefixService + "enableConfigHotRefresh"
 	CMSvcPlaceholderImage             = PrefixService + "placeholderImage"
 	CMSvcNodeInstanceTypeNodeLabelKey = PrefixService + "nodeInstanceTypeNodeLabelKey"
+
+	// events
+	CMEventRequestsEnabled = PrefixEvent + "requestsEnabled"
+	CMEventTrackingEnabled = PrefixEvent + "trackingEnabled"
+	CMEventRequestCapacity = PrefixEvent + "requestCapacity"
+	CMEventBufferCapacity  = PrefixEvent + "bufferCapacity"
+	CMEventResponseSize    = PrefixEvent + "responseMaxSize"
 
 	// log
 	CMLogLevel = PrefixLog + "level"
@@ -83,6 +91,11 @@ const (
 	DefaultOperatorPlugins        = "general"
 	DefaultDisableGangScheduling  = false
 	DefaultEnableConfigHotRefresh = true
+	DefaultEventRequestsEnabled   = false
+	DefaultEventTrackingEnabled   = true
+	DefaultEventRequestCapacity   = 1000
+	DefaultEventBufferCapacity    = 100000
+	DefaultEventResponseSize      = 10000
 	DefaultLoggingLevel           = 0
 	DefaultLogEncoding            = "console"
 	DefaultKubeQPS                = 1000
@@ -126,6 +139,11 @@ type SchedulerConf struct {
 	PlaceHolderImage         string        `json:"placeHolderImage"`
 	InstanceTypeNodeLabelKey string        `json:"instanceTypeNodeLabelKey"`
 	Namespace                string        `json:"namespace"`
+	EventRequestsEnabled     bool          `json:"eventRequestsEnabled"`
+	EventTrackingEnabled     bool          `json:"eventTrackingEnabled"`
+	EventRequestCapacity     int           `json:"eventRequestCapacity"`
+	EventBufferCapacity      int           `json:"eventBufferCapacity"`
+	EventResponseSize        int           `json:"eventResponseSize"`
 	sync.RWMutex
 }
 
@@ -153,6 +171,11 @@ func (conf *SchedulerConf) Clone() *SchedulerConf {
 		UserLabelKey:           conf.UserLabelKey,
 		PlaceHolderImage:       conf.PlaceHolderImage,
 		Namespace:              conf.Namespace,
+		EventRequestsEnabled:   conf.EventRequestsEnabled,
+		EventTrackingEnabled:   conf.EventTrackingEnabled,
+		EventRequestCapacity:   conf.EventRequestCapacity,
+		EventBufferCapacity:    conf.EventBufferCapacity,
+		EventResponseSize:      conf.EventResponseSize,
 	}
 }
 
@@ -210,6 +233,11 @@ func handleNonReloadableConfig(old *SchedulerConf, new *SchedulerConf) {
 	checkNonReloadableBool(CMSvcDisableGangScheduling, &old.DisableGangScheduling, &new.DisableGangScheduling)
 	checkNonReloadableString(CMSvcPlaceholderImage, &old.PlaceHolderImage, &new.PlaceHolderImage)
 	checkNonReloadableString(CMSvcNodeInstanceTypeNodeLabelKey, &old.InstanceTypeNodeLabelKey, &new.InstanceTypeNodeLabelKey)
+	checkNonReloadableBool(CMEventRequestsEnabled, &old.EventRequestsEnabled, &new.EventRequestsEnabled)
+	checkNonReloadableBool(CMEventTrackingEnabled, &old.EventTrackingEnabled, &new.EventTrackingEnabled)
+	checkNonReloadableInt(CMEventRequestCapacity, &old.EventRequestCapacity, &new.EventRequestCapacity)
+	checkNonReloadableInt(CMEventBufferCapacity, &old.EventBufferCapacity, &new.EventBufferCapacity)
+	checkNonReloadableInt(CMEventResponseSize, &old.EventResponseSize, &new.EventResponseSize)
 }
 
 const warningNonReloadable = "ignoring non-reloadable configuration change (restart required to update)"
@@ -340,6 +368,11 @@ func CreateDefaultConfig() *SchedulerConf {
 		UserLabelKey:             constants.DefaultUserLabel,
 		PlaceHolderImage:         constants.PlaceholderContainerImage,
 		InstanceTypeNodeLabelKey: constants.DefaultNodeInstanceTypeNodeLabelKey,
+		EventRequestsEnabled:     DefaultEventRequestsEnabled,
+		EventTrackingEnabled:     DefaultEventTrackingEnabled,
+		EventRequestCapacity:     DefaultEventRequestCapacity,
+		EventBufferCapacity:      DefaultEventBufferCapacity,
+		EventResponseSize:        DefaultEventResponseSize,
 	}
 }
 
@@ -365,6 +398,13 @@ func parseConfig(config map[string]string, prev *SchedulerConf) (*SchedulerConf,
 	parser.boolVar(&conf.EnableConfigHotRefresh, CMSvcEnableConfigHotRefresh)
 	parser.stringVar(&conf.PlaceHolderImage, CMSvcPlaceholderImage)
 	parser.stringVar(&conf.InstanceTypeNodeLabelKey, CMSvcNodeInstanceTypeNodeLabelKey)
+
+	// events
+	parser.boolVar(&conf.EventRequestsEnabled, CMEventRequestsEnabled)
+	parser.boolVar(&conf.EventTrackingEnabled, CMEventTrackingEnabled)
+	parser.intVar(&conf.EventRequestCapacity, CMEventRequestCapacity)
+	parser.intVar(&conf.EventBufferCapacity, CMEventBufferCapacity)
+	parser.intVar(&conf.EventResponseSize, CMEventResponseSize)
 
 	// log
 	parser.intVar(&conf.LoggingLevel, CMLogLevel)

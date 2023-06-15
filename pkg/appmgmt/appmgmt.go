@@ -45,7 +45,6 @@ type AppManagementService struct {
 
 func NewAMService(amProtocol interfaces.ApplicationManagementProtocol,
 	apiProvider client.APIProvider) *AppManagementService {
-
 	podEventHandler := general.NewPodEventHandler(amProtocol, true)
 
 	appManager := &AppManagementService{
