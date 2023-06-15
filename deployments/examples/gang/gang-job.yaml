@@ -28,18 +28,19 @@ spec:
         app: gang
         applicationId: gang-job
         queue: root.sandbox
-    containers:
-    - name: gang
-      image: apache/yunikorn:simulation-gang-worker-latest
-      imagePullPolicy: Never
-      env:
-      - name: JOB_ID
-        value: gang-job-1 # This job's name
-      - name: SERVICE_NAME
-        value: gangservice # The service name
-      - name: MEMBER_AMOUNT
-        value: "10" # The gang member that you hope, must small than pod number.must be string.
-      - name: TASK_EXECUTION_SECONDS
-        value: "60" # The task execution time (sec), it will start to countdown when the gang member amount be satisfied. must be string.
-    restartPolicy: Never
-    schedulerName: yunikorn
+    spec:
+      containers:
+        - name: gang
+          image: apache/yunikorn:simulation-gang-worker-latest
+          imagePullPolicy: Never
+          env:
+            - name: JOB_ID
+              value: gang-job-1 # This job's name
+            - name: SERVICE_NAME
+              value: gangservice # The service name
+            - name: MEMBER_AMOUNT
+              value: "10" # The gang member that you hope, must small than pod number.must be string.
+            - name: TASK_EXECUTION_SECONDS
+              value: "60" # The task execution time (sec), it will start to countdown when the gang member amount be satisfied. must be string.
+      restartPolicy: Never
+      schedulerName: yunikorn

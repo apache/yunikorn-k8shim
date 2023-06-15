@@ -29,7 +29,7 @@ then
     JOBAMOUNT=$1
     GANGMEMBER=$2
     RUNTIMESEC=$3
-else    
+else
     echo "ERROR: input parameters must be an integer."
     exit 1
 fi
