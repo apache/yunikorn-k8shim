@@ -19,13 +19,15 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: gang-job-1
-  labels: 
-    app: gang
-    queue: root.sandbox
 spec:
   completions: 10 # The pod number will create
   parallelism: 10 # The pod number will create
   template:
+    metadata:
+      labels:
+        app: gang
+        applicationId: gang-job
+        queue: root.sandbox
     spec:
       containers:
       - name: gang

@@ -29,7 +29,7 @@ then
     JOBAMOUNT=$1
     GANGMEMBER=$2
     RUNTIMESEC=$3
-else    
+else
     echo "ERROR: input parameters must be an integer."
     exit 1
 fi
@@ -63,13 +63,15 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: gang-job-$i
-  labels: 
-    app: gang
-    queue: root.sandbox
 spec:
   completions: $GANGMEMBER
   parallelism: $GANGMEMBER
   template:
+    metadata:
+      labels:
+        app: gang
+        applicationId: gang-job
+        queue: root.sandbox
     spec:
       containers:
       - name: gang

@@ -35,6 +35,7 @@ metadata:
   name: gangweb
   labels:
     app: gang
+    applicationId: gang-job
     queue: root.sandbox
 spec:
   schedulerName: yunikorn
