@@ -75,7 +75,7 @@ EXEC_ARCH := 386
 DOCKER_ARCH := i386
 else ifneq (,$(filter $(HOST_ARCH), arm64 aarch64))
 EXEC_ARCH := arm64
-DOCKER_ARCH := arm64v8
+DOCKER_ARCH := arm64
 else ifeq (armv7l, $(HOST_ARCH))
 EXEC_ARCH := arm
 DOCKER_ARCH := arm32v7
