@@ -16,15 +16,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-USERS=("admin admin" "sue group-a" "bob group-a" "kim group-b" "yono group-b" "anonymous anonymous")
+USERS=("admin" "sue" "bob" "kim" "yono" "anonymous")
+USERS_GROUP=("admin" "group-a" "group-a" "group-b" "group-b" "anonymous")
 AUTH_FOLDER=./auth
 CERT_REQUEST_FILE=./certification_request.yaml
 
 mkdir -p $AUTH_FOLDER
 for ((i = 0; i < ${#USERS[@]}; ++i)); do
-    USER=("${USERS[i]}")
-    USERNAME=${USER[0]}
-    GROUP=${USER[1]}
+    USERNAME="${USERS[i]}"
+    GROUP="${USERS_GROUP[i]}"
     AUTH_FILE=$AUTH_FOLDER/$USERNAME
     echo "username: $USERNAME , group: $GROUP"
     # create a CSR for the user

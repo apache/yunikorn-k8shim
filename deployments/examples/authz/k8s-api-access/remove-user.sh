@@ -16,11 +16,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-USERS=("admin admin" "sue group-a" "bob group-a" "kim dev" "yono test" "anonymous anonymous")
+USERS=("admin" "sue" "bob" "kim" "yono" "anonymous")
 
 for ((i = 0; i < ${#USERS[@]}; ++i)); do
-    USER=("${USERS[i]}")
-    USERNAME=${USER[0]}
+    USERNAME="${USERS[i]}"
 
     kubectl delete csr/"$USERNAME"-csr
     kubectl config unset contexts."$USERNAME"-context
