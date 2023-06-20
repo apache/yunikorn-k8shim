@@ -30,7 +30,7 @@ require (
 	github.com/onsi/ginkgo/v2 v2.9.0
 	github.com/onsi/gomega v1.27.1
 	go.uber.org/zap v1.24.0
-	gopkg.in/yaml.v2 v2.4.0
+	gopkg.in/yaml.v3 v3.0.1
 	gotest.tools/v3 v3.0.3
 	k8s.io/api v0.23.14
 	k8s.io/apimachinery v0.23.14
@@ -142,7 +142,7 @@ require (
 	google.golang.org/protobuf v1.28.1 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
+	gopkg.in/yaml.v2 v2.4.0 // indirect
 	k8s.io/cloud-provider v0.23.14 // indirect
 	k8s.io/component-helpers v0.23.14 // indirect
 	k8s.io/csi-translation-lib v0.23.14 // indirect

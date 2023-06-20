@@ -21,7 +21,7 @@ package yunikorn
 import (
 	"time"
 
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
