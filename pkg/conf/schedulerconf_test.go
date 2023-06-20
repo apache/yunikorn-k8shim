@@ -65,7 +65,6 @@ func assertDefaults(t *testing.T, conf *SchedulerConf) {
 	assert.Equal(t, conf.ClusterID, DefaultClusterID)
 	assert.Equal(t, conf.PolicyGroup, DefaultPolicyGroup)
 	assert.Equal(t, conf.ClusterVersion, BuildVersion)
-	assert.Equal(t, conf.LoggingLevel, DefaultLoggingLevel)
 	assert.Equal(t, conf.EventChannelCapacity, DefaultEventChannelCapacity)
 	assert.Equal(t, conf.DispatchTimeout, DefaultDispatchTimeout)
 	assert.Equal(t, conf.KubeQPS, DefaultKubeQPS)
@@ -90,7 +89,6 @@ func TestParseConfigMap(t *testing.T) {
 		{CMSvcEnableConfigHotRefresh, "EnableConfigHotRefresh", false},
 		{CMSvcPlaceholderImage, "PlaceHolderImage", "test-image"},
 		{CMSvcNodeInstanceTypeNodeLabelKey, "InstanceTypeNodeLabelKey", "node.kubernetes.io/instance-type"},
-		{CMLogLevel, "LoggingLevel", -1},
 		{CMKubeQPS, "KubeQPS", 2345},
 		{CMKubeBurst, "KubeBurst", 3456},
 	}
@@ -123,7 +121,6 @@ func TestUpdateConfigMapNonReloadable(t *testing.T) {
 		{CMSvcDisableGangScheduling, "DisableGangScheduling", true, false},
 		{CMSvcPlaceholderImage, "PlaceHolderImage", "test-image", false},
 		{CMSvcNodeInstanceTypeNodeLabelKey, "InstanceTypeNodeLabelKey", "node.kubernetes.io/instance-type", false},
-		{CMLogLevel, "LoggingLevel", -1, true},
 		{CMKubeQPS, "KubeQPS", 2345, false},
 		{CMKubeBurst, "KubeBurst", 3456, false},
 	}

@@ -55,6 +55,7 @@ func main() {
 	conf.SiSHA = siSHA
 	conf.ShimSHA = shimSHA
 
+	log.SetDefaultLogger(log.K8Shim)
 	log.Logger().Info(fmt.Sprintf("Build info: version=%s date=%s isPluginVersion=%t goVersion=%s arch=%s coreSHA=%s siSHA=%s shimSHA=%s", version, date, false, goVersion, arch, coreSHA, siSHA, shimSHA))
 
 	configMaps, err := client.LoadBootstrapConfigMaps(conf.GetSchedulerNamespace())
@@ -68,7 +69,7 @@ func main() {
 	}
 
 	log.Logger().Info("Starting scheduler", zap.String("name", constants.SchedulerName))
-	serviceContext := entrypoint.StartAllServicesWithLogger(log.Logger(), log.GetZapConfigs())
+	serviceContext := entrypoint.StartAllServicesWithLogger(log.RootLogger(), log.GetZapConfigs())
 
 	if sa, ok := serviceContext.RMProxy.(api.SchedulerAPI); ok {
 		ss := shim.NewShimScheduler(sa, conf.GetSchedulerConf(), configMaps)

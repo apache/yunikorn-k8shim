@@ -20,7 +20,10 @@ package log
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 	"sync"
+	"sync/atomic"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -30,12 +33,122 @@ var once sync.Once
 var logger *zap.Logger
 var zapConfigs *zap.Config
 
+// LoggerHandle is used to efficiently look up logger references
+type LoggerHandle struct {
+	id   int
+	name string
+}
+
+func (h LoggerHandle) String() string {
+	return h.name
+}
+
+// Logger constants for configuration
+const (
+	nullLogger  = ""
+	defaultLog  = "log.level"
+	logPrefix   = "log."
+	levelSuffix = ".level"
+)
+
+// Predefined loggers: when adding new loggers, ids must be sequential, and all must be added to the loggers slice in the same order
+var (
+	K8Shim     = &LoggerHandle{id: 1, name: "k8shim"}
+	Kubernetes = &LoggerHandle{id: 2, name: "kubernetes"}
+	Admission  = &LoggerHandle{id: 3, name: "admission"}
+	Test       = &LoggerHandle{id: 4, name: "test"}
+)
+
+// this tracks all the known logger handles, used to preallocate the real logger instances when configuration changes
+var loggers = []*LoggerHandle{
+	K8Shim,
+	Kubernetes,
+	Admission,
+	Test,
+}
+
+// structure to hold all current logger configuration state
+type loggerConfig struct {
+	loggers []*zap.Logger
+}
+
+// tracks the currently used set of loggers; replaced completely whenever configuration changes
+var currentLoggerConfig = atomic.Pointer[loggerConfig]{}
+
+// tracks the default logger handle, which is used for legacy log.Logger() calls
+var defaultLogger = atomic.Pointer[LoggerHandle]{}
+
+// Logger retrieves the global logger. This is for compatibility with legacy code and
+// should not be used for new log messages; use Log(loggerHandle) instead
 func Logger() *zap.Logger {
+	once.Do(initLogger)
+	return Log(defaultLogger.Load())
+}
+
+// RootLogger retrieves the root logger, used to pass the configured logger to the scheduler core on startup
+func RootLogger() *zap.Logger {
 	once.Do(initLogger)
 	return logger
 }
 
+// Log retrieves a named logger
+func Log(handle *LoggerHandle) *zap.Logger {
+	once.Do(initLogger)
+	if handle == nil || handle.id == 0 {
+		handle = defaultLogger.Load()
+	}
+	conf := currentLoggerConfig.Load()
+	return conf.loggers[handle.id-1]
+}
+
+// createLogger creates a new, named logger that has log levels filtered based on the given configuration.
+// levelMap contains a mapping of fully-qualified logger names to log levels
+func createLogger(levelMap map[string]zapcore.Level, name string) *zap.Logger {
+	level := loggerLevel(levelMap, name)
+	return logger.Named(name).WithOptions(zap.WrapCore(func(inner zapcore.Core) zapcore.Core {
+		return filteredCore{inner: inner, level: level}
+	}))
+}
+
+// loggerLevel computes the log level that should be associated with an arbitrarily named logger.
+// The levelMap is used to look up the level. If not found, the parent logger is looked up until no further
+// parents can be tried, consulting levelMap for each possible match. For example, given a logger named
+// k8shim.context.cache, the following keys will be looked up in levelMap:
+//
+//	"k8shim.context.cache"
+//	"k8shim.context"
+//	"k8shim"
+//	"" (default logger)
+//
+// The first key that returns a match determines the log level returned. This allows a level of
+// "k8shim" to control all the child loggers as well if there is not a more specific override.
+// If no configuration can be found, even for the default empty logger, InfoLevel will be returned.
+func loggerLevel(levelMap map[string]zapcore.Level, name string) zapcore.Level {
+	for ; name != nullLogger; name = parentLogger(name) {
+		if level, ok := levelMap[name]; ok {
+			return level
+		}
+	}
+	if level, ok := levelMap[nullLogger]; ok {
+		return level
+	}
+	return zapcore.InfoLevel
+}
+
+// parentLogger returns the name of the parent logger or the empty string "" if no parent exists.
+// Loggers are named with periods (.) as separators; i.e. the parent logger of "a.b.c" is "a.b", the parent of
+// "a.b" is "a", and the parent of "a" is "".
+func parentLogger(name string) string {
+	i := strings.LastIndex(name, ".")
+	if i < 0 {
+		// no remaining periods; parent is the null logger
+		return nullLogger
+	}
+	return name[0:i]
+}
+
 func initLogger() {
+	defaultLogger.Store(K8Shim)
 	outputPaths := []string{"stdout"}
 
 	zapConfigs = &zap.Config{
@@ -49,7 +162,7 @@ func initLogger() {
 			MessageKey:    "message",
 			LevelKey:      "level",
 			TimeKey:       "time",
-			NameKey:       "name",
+			NameKey:       "logger",
 			CallerKey:     "caller",
 			StacktraceKey: "stacktrace",
 			LineEnding:    zapcore.DefaultLineEnding,
@@ -72,6 +185,9 @@ func initLogger() {
 		logger = zap.NewNop()
 	}
 
+	// initialize sub-loggers
+	initLoggingConfig(nil)
+
 	// make sure logs are flushed
 	//nolint:errcheck
 	defer logger.Sync()
@@ -81,4 +197,109 @@ func GetZapConfigs() *zap.Config {
 	// force init
 	_ = Logger()
 	return zapConfigs
+}
+
+// SetDefaultLogger allows customization of the default logger
+func SetDefaultLogger(handle *LoggerHandle) {
+	once.Do(initLogger)
+	defaultLogger.Store(handle)
+}
+
+// UpdateLoggingConfig is used to reconfigure logging. This uses config keys of the form log.{logger}.level={level}.
+// The default level is set by log.level={level}. The {level} value can be either numeric (-1 through 5), or
+// textual (DEBUG, INFO, WARN, ERROR, DPANIC, PANIC, or ERROR). See zapcore documentation for more details.
+func UpdateLoggingConfig(config map[string]string) {
+	once.Do(initLogger)
+	initLoggingConfig(config)
+}
+
+// initLoggingConfig replaces the existing set of loggers with new ones configured according to the given
+// configuration. All keys of the form "log.{name}.level" will be parsed and a map of logger name -> logger level
+// will be created. For each defined logger handle (see above), a new logger instance is created using the
+// most specific configuration found. For example, a logger named "a.b.c" will be configured by "log.a.b.c.level".
+// If this key does not exist, "a.b" will be consulted, then "a", and finally "". If no configuration is found for a
+// given key, Info will be used. Finally, the finest log level specified in any configuration will be used to set the
+// zap log level of the root logger. So if two loggers (one INFO, and one DEBUG) are configured, the root logger will
+// be set to DEBUG level. If both loggers were at INFO level, the root logger would be set to INFO.
+// Each configured logger will filter log messages at its own level by wrapping the underlying zap.Core implementation
+// with one that checks the enabled log level first.
+func initLoggingConfig(config map[string]string) {
+	levelMap := make(map[string]zapcore.Level)
+	levelMap[nullLogger] = zapcore.InfoLevel
+	zapLoggers := make([]*zap.Logger, len(loggers))
+
+	// override default level if found (log.level key)
+	if defaultLevel, ok := config[defaultLog]; ok {
+		if levelRef := parseLevel(defaultLevel); levelRef != nil {
+			levelMap[nullLogger] = *levelRef
+		}
+	}
+
+	// parse out log entries and build level map
+	for k, v := range config {
+		// disallow spaces and periods
+		if strings.Contains(k, "..") || strings.Contains(k, " ") {
+			continue
+		}
+		// ensure config key starts with "log."
+		name, ok := strings.CutPrefix(k, logPrefix)
+		if !ok {
+			continue
+		}
+		// ensure config key ends with ".level"
+		name, ok = strings.CutSuffix(name, levelSuffix)
+		if !ok {
+			continue
+		}
+		// if value is a valid log level, store it in the level map
+		if levelRef := parseLevel(v); levelRef != nil {
+			levelMap[name] = *levelRef
+		}
+	}
+
+	// compute the finest log level necessary to allow all loggers to succeed
+	minLevel := zapcore.InvalidLevel - 1
+	for _, v := range levelMap {
+		if minLevel > v {
+			minLevel = v
+		}
+	}
+
+	// create each configured logger and initialize the overall configuration
+	for i := 0; i < len(loggers); i++ {
+		zapLoggers[i] = createLogger(levelMap, loggers[i].name)
+	}
+	newLoggerConfig := loggerConfig{loggers: zapLoggers}
+
+	// update the root zap logger level
+	zapConfigs.Level.SetLevel(minLevel)
+
+	// atomically update the set of loggers
+	currentLoggerConfig.Store(&newLoggerConfig)
+}
+
+// parseLevel parses a textual (or numeric) log level into a zapcore.Level instance. Both numeric (-1 <= level <= 5)
+// and textual (DEBUG, INFO, WARN, ERROR, DPANIC, PANIC, FATAL) are supported.
+func parseLevel(level string) *zapcore.Level {
+	// parse text
+	zapLevel, err := zapcore.ParseLevel(level)
+	if err == nil {
+		return &zapLevel
+	}
+
+	// parse numeric
+	levelNum, err := strconv.ParseInt(level, 10, 31)
+	if err == nil {
+		zapLevel = zapcore.Level(levelNum)
+		if zapLevel < zapcore.DebugLevel {
+			zapLevel = zapcore.DebugLevel
+		}
+		if zapLevel >= zapcore.InvalidLevel {
+			zapLevel = zapcore.InvalidLevel - 1
+		}
+		return &zapLevel
+	}
+
+	// parse failed
+	return nil
 }
