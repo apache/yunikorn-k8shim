@@ -23,7 +23,6 @@
 Deploys scheduler-core + scheduler-web
 
 * Scheduler pod runs 2 containers, 1 for scheduler-core, 1 for scheduler-web
-* Configuration loaded from config map
 * UI port is `9889`
 
 Deployment: [scheduler.yaml](scheduler.yaml)
@@ -46,7 +45,6 @@ Deployment: [yunikorn-rbac.yaml](yunikorn-rbac.yaml)
 Deploys scheduler-core + scheduler-web
 
 * Scheduler pod runs 2 containers, 1 for scheduler-core, 1 for scheduler-web
-* Configuration loaded from config map
 * UI port is `9889`
 * A load balancer that helps to expose web UI link directly on K8s
 

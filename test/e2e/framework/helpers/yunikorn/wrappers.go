@@ -106,8 +106,6 @@ func UpdateCustomConfigMapWrapper(oldConfigMap *v1.ConfigMap, schedPolicy string
 	Ω(err3).NotTo(HaveOccurred())
 	Ω(d).NotTo(BeNil())
 
-	// Updating scheduler pod annotation to trigger force refresh of configmaps
-	Ω(k.UpdateYunikornSchedulerPodAnnotation(annotation)).NotTo(HaveOccurred())
 	err = WaitForQueueTS("root", ts, 2*time.Minute)
 	Ω(err).NotTo(HaveOccurred())
 }
