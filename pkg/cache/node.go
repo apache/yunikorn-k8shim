@@ -152,7 +152,7 @@ func (n *SchedulerNode) handleNodeRecovery() {
 	nodeRequest := common.CreateUpdateRequestForNewNode(n.name, n.labels, n.capacity, n.occupied, n.existingAllocations, n.ready)
 
 	// send node request to scheduler-core
-	if err := n.schedulerAPI.UpdateNode(&nodeRequest); err != nil {
+	if err := n.schedulerAPI.UpdateNode(nodeRequest); err != nil {
 		log.Logger().Error("failed to send UpdateNode request",
 			zap.Any("request", nodeRequest))
 	}
@@ -165,7 +165,7 @@ func (n *SchedulerNode) handleDrainNode() {
 	nodeRequest := common.CreateUpdateRequestForDeleteOrRestoreNode(n.name, si.NodeInfo_DRAIN_NODE)
 
 	// send request to scheduler-core
-	if err := n.schedulerAPI.UpdateNode(&nodeRequest); err != nil {
+	if err := n.schedulerAPI.UpdateNode(nodeRequest); err != nil {
 		log.Logger().Error("failed to send UpdateNode request",
 			zap.Any("request", nodeRequest))
 	}
@@ -178,7 +178,7 @@ func (n *SchedulerNode) handleRestoreNode() {
 	nodeRequest := common.CreateUpdateRequestForDeleteOrRestoreNode(n.name, si.NodeInfo_DRAIN_TO_SCHEDULABLE)
 
 	// send request to scheduler-core
-	if err := n.schedulerAPI.UpdateNode(&nodeRequest); err != nil {
+	if err := n.schedulerAPI.UpdateNode(nodeRequest); err != nil {
 		log.Logger().Error("failed to send UpdateNode request",
 			zap.Any("request", nodeRequest))
 	}

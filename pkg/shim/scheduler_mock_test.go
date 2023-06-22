@@ -126,7 +126,7 @@ func (fc *MockScheduler) addNode(nodeName string, nodeLabels map[string]string, 
 		Build()
 	request := common.CreateUpdateRequestForNewNode(nodeName, nodeLabels, nodeResource, nil, nil, true)
 	fmt.Printf("report new nodes to scheduler, request: %s", request.String())
-	return fc.apiProvider.GetAPIs().SchedulerAPI.UpdateNode(&request)
+	return fc.apiProvider.GetAPIs().SchedulerAPI.UpdateNode(request)
 }
 
 // Deprecated: this method only updates the core without the shim. Prefer MockScheduler.AddPod(*v1.Pod) instead.

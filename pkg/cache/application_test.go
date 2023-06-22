@@ -27,6 +27,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"gotest.tools/v3/assert"
 	is "gotest.tools/v3/assert/cmp"
 	v1 "k8s.io/api/core/v1"
@@ -674,7 +675,7 @@ func TestSetTaskGroupsAndSchedulingPolicy(t *testing.T) {
 	// Pods should always be equal to the sum of the MinMember values
 	expectedPlaceholderAsk := common.NewResourceBuilder().AddResource("pods", 30).AddResource(siCommon.Memory, 25000*1024*1024).AddResource(siCommon.CPU, 25000).Build()
 	actualPlaceholderAsk := app.getPlaceholderAsk()
-	assert.DeepEqual(t, actualPlaceholderAsk, expectedPlaceholderAsk)
+	assert.DeepEqual(t, actualPlaceholderAsk, expectedPlaceholderAsk, cmpopts.IgnoreUnexported(si.Resource{}, si.Quantity{}))
 }
 
 type threadSafePodsMap struct {

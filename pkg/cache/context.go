@@ -814,7 +814,7 @@ func (ctx *Context) RemoveApplication(appID string) error {
 		}
 		// send the update request to scheduler core
 		rr := common.CreateUpdateRequestForRemoveApplication(app.applicationID, app.partition)
-		if err := ctx.apiProvider.GetAPIs().SchedulerAPI.UpdateApplication(&rr); err != nil {
+		if err := ctx.apiProvider.GetAPIs().SchedulerAPI.UpdateApplication(rr); err != nil {
 			log.Logger().Error("failed to send remove application request to core", zap.Error(err))
 		}
 		delete(ctx.applications, appID)

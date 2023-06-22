@@ -140,9 +140,10 @@ func (u *UserGroupAnnotationHandler) getPatchOperation(annotations map[string]st
 		newAnnotations[k] = v
 	}
 
-	var userGroups si.UserGroupInformation
-	userGroups.User = user
-	userGroups.Groups = groups
+	userGroups := &si.UserGroupInformation{
+		User:   user,
+		Groups: groups,
+	}
 	jsonBytes, err := json.Marshal(userGroups)
 	if err != nil {
 		return nil, err

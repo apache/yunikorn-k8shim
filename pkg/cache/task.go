@@ -291,8 +291,8 @@ func (task *Task) handleSubmitTaskEvent() {
 		task.pod,
 		task.originator,
 		preemptionPolicy)
-	log.Logger().Debug("send update request", zap.Stringer("request", &rr))
-	if err := task.context.apiProvider.GetAPIs().SchedulerAPI.UpdateAllocation(&rr); err != nil {
+	log.Logger().Debug("send update request", zap.Stringer("request", rr))
+	if err := task.context.apiProvider.GetAPIs().SchedulerAPI.UpdateAllocation(rr); err != nil {
 		log.Logger().Debug("failed to send scheduling request to scheduler", zap.Error(err))
 		return
 	}
@@ -487,7 +487,7 @@ func (task *Task) releaseAllocation() {
 		// The message depends on current task state, generate requests accordingly.
 		// If allocated send an AllocationReleaseRequest,
 		// If not allocated yet send an AllocationAskReleaseRequest
-		var releaseRequest si.AllocationRequest
+		var releaseRequest *si.AllocationRequest
 		s := TaskStates()
 		switch task.GetTaskState() {
 		case s.New, s.Pending, s.Scheduling, s.Rejected:
@@ -511,7 +511,7 @@ func (task *Task) releaseAllocation() {
 				zap.Int("numOfAsksToRelease", len(releaseRequest.Releases.AllocationAsksToRelease)),
 				zap.Int("numOfAllocationsToRelease", len(releaseRequest.Releases.AllocationsToRelease)))
 		}
-		if err := task.context.apiProvider.GetAPIs().SchedulerAPI.UpdateAllocation(&releaseRequest); err != nil {
+		if err := task.context.apiProvider.GetAPIs().SchedulerAPI.UpdateAllocation(releaseRequest); err != nil {
 			log.Logger().Debug("failed to send scheduling request to scheduler", zap.Error(err))
 		}
 	}
