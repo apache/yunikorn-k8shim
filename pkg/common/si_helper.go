@@ -76,7 +76,7 @@ func CreatePriorityForTask(pod *v1.Pod) int32 {
 	return 0
 }
 
-func CreateAllocationRequestForTask(appID, taskID string, resource *si.Resource, placeholder bool, taskGroupName string, pod *v1.Pod, originator bool, preemptionPolicy *si.PreemptionPolicy) si.AllocationRequest {
+func CreateAllocationRequestForTask(appID, taskID string, resource *si.Resource, placeholder bool, taskGroupName string, pod *v1.Pod, originator bool, preemptionPolicy *si.PreemptionPolicy) *si.AllocationRequest {
 	ask := si.AllocationAsk{
 		AllocationKey:    taskID,
 		ResourceAsk:      resource,
@@ -90,15 +90,13 @@ func CreateAllocationRequestForTask(appID, taskID string, resource *si.Resource,
 		PreemptionPolicy: preemptionPolicy,
 	}
 
-	result := si.AllocationRequest{
+	return &si.AllocationRequest{
 		Asks: []*si.AllocationAsk{&ask},
 		RmID: conf.GetSchedulerConf().ClusterID,
 	}
-
-	return result
 }
 
-func CreateReleaseAskRequestForTask(appID, taskID, partition string) si.AllocationRequest {
+func CreateReleaseAskRequestForTask(appID, taskID, partition string) *si.AllocationRequest {
 	toReleases := make([]*si.AllocationAskRelease, 0)
 	toReleases = append(toReleases, &si.AllocationAskRelease{
 		ApplicationID: appID,
@@ -111,12 +109,10 @@ func CreateReleaseAskRequestForTask(appID, taskID, partition string) si.Allocati
 		AllocationAsksToRelease: toReleases,
 	}
 
-	result := si.AllocationRequest{
+	return &si.AllocationRequest{
 		Releases: &releaseRequest,
 		RmID:     conf.GetSchedulerConf().ClusterID,
 	}
-
-	return result
 }
 
 func GetTerminationTypeFromString(terminationTypeStr string) si.TerminationType {
@@ -126,7 +122,7 @@ func GetTerminationTypeFromString(terminationTypeStr string) si.TerminationType 
 	return si.TerminationType_STOPPED_BY_RM
 }
 
-func CreateReleaseAllocationRequestForTask(appID, allocUUID, partition, terminationType string) si.AllocationRequest {
+func CreateReleaseAllocationRequestForTask(appID, allocUUID, partition, terminationType string) *si.AllocationRequest {
 	toReleases := make([]*si.AllocationRelease, 0)
 	toReleases = append(toReleases, &si.AllocationRelease{
 		ApplicationID:   appID,
@@ -140,17 +136,15 @@ func CreateReleaseAllocationRequestForTask(appID, allocUUID, partition, terminat
 		AllocationsToRelease: toReleases,
 	}
 
-	result := si.AllocationRequest{
+	return &si.AllocationRequest{
 		Releases: &releaseRequest,
 		RmID:     conf.GetSchedulerConf().ClusterID,
 	}
-
-	return result
 }
 
 // CreateUpdateRequestForNewNode builds a NodeRequest for new node addition and restoring existing node
 func CreateUpdateRequestForNewNode(nodeID string, nodeLabels map[string]string, capacity *si.Resource, occupied *si.Resource,
-	existingAllocations []*si.Allocation, ready bool) si.NodeRequest {
+	existingAllocations []*si.Allocation, ready bool) *si.NodeRequest {
 	// Use node's name as the NodeID, this is because when bind pod to node,
 	// name of node is required but uid is optional.
 	nodeInfo := &si.NodeInfo{
@@ -176,17 +170,16 @@ func CreateUpdateRequestForNewNode(nodeID string, nodeLabels map[string]string, 
 
 	nodes := make([]*si.NodeInfo, 1)
 	nodes[0] = nodeInfo
-	request := si.NodeRequest{
+	return &si.NodeRequest{
 		Nodes: nodes,
 		RmID:  conf.GetSchedulerConf().ClusterID,
 	}
-	return request
 }
 
 // CreateUpdateRequestForUpdatedNode builds a NodeRequest for any node updates like capacity,
 // ready status flag etc
 func CreateUpdateRequestForUpdatedNode(nodeID string, capacity *si.Resource, occupied *si.Resource,
-	ready bool) si.NodeRequest {
+	ready bool) *si.NodeRequest {
 	nodeInfo := &si.NodeInfo{
 		NodeID: nodeID,
 		Attributes: map[string]string{
@@ -199,16 +192,15 @@ func CreateUpdateRequestForUpdatedNode(nodeID string, capacity *si.Resource, occ
 
 	nodes := make([]*si.NodeInfo, 1)
 	nodes[0] = nodeInfo
-	request := si.NodeRequest{
+	return &si.NodeRequest{
 		Nodes: nodes,
 		RmID:  conf.GetSchedulerConf().ClusterID,
 	}
-	return request
 }
 
 // CreateUpdateRequestForDeleteOrRestoreNode builds a NodeRequest for Node actions like drain,
 // decommissioning & restore
-func CreateUpdateRequestForDeleteOrRestoreNode(nodeID string, action si.NodeInfo_ActionFromRM) si.NodeRequest {
+func CreateUpdateRequestForDeleteOrRestoreNode(nodeID string, action si.NodeInfo_ActionFromRM) *si.NodeRequest {
 	deletedNodes := make([]*si.NodeInfo, 1)
 	nodeInfo := &si.NodeInfo{
 		NodeID: nodeID,
@@ -216,23 +208,20 @@ func CreateUpdateRequestForDeleteOrRestoreNode(nodeID string, action si.NodeInfo
 	}
 
 	deletedNodes[0] = nodeInfo
-	request := si.NodeRequest{
+	return &si.NodeRequest{
 		Nodes: deletedNodes,
 		RmID:  conf.GetSchedulerConf().ClusterID,
 	}
-	return request
 }
 
-func CreateUpdateRequestForRemoveApplication(appID, partition string) si.ApplicationRequest {
+func CreateUpdateRequestForRemoveApplication(appID, partition string) *si.ApplicationRequest {
 	removeApp := make([]*si.RemoveApplicationRequest, 0)
 	removeApp = append(removeApp, &si.RemoveApplicationRequest{
 		ApplicationID: appID,
 		PartitionName: partition,
 	})
-	request := si.ApplicationRequest{
+	return &si.ApplicationRequest{
 		Remove: removeApp,
 		RmID:   conf.GetSchedulerConf().ClusterID,
 	}
-
-	return request
 }

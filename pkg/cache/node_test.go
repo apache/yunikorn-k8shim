@@ -21,6 +21,7 @@ package cache
 import (
 	"testing"
 
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"gotest.tools/v3/assert"
 
 	"github.com/apache/yunikorn-k8shim/pkg/common"
@@ -67,13 +68,13 @@ func TestUpdateOccupiedResource(t *testing.T) {
 		Build()
 
 	capacity, occupied, ready := node.updateOccupiedResource(r1, AddOccupiedResource)
-	assert.DeepEqual(t, capacity, r2)
-	assert.DeepEqual(t, occupied, r1)
+	assert.DeepEqual(t, capacity, r2, cmpopts.IgnoreUnexported(si.Resource{}, si.Quantity{}))
+	assert.DeepEqual(t, occupied, r1, cmpopts.IgnoreUnexported(si.Resource{}, si.Quantity{}))
 	assert.Assert(t, ready)
 
 	capacity, occupied, ready = node.updateOccupiedResource(r2, SubOccupiedResource)
-	assert.DeepEqual(t, capacity, r2)
-	assert.DeepEqual(t, occupied, r3)
+	assert.DeepEqual(t, capacity, r2, cmpopts.IgnoreUnexported(si.Resource{}, si.Quantity{}))
+	assert.DeepEqual(t, occupied, r3, cmpopts.IgnoreUnexported(si.Resource{}, si.Quantity{}))
 	assert.Assert(t, ready)
 }
 

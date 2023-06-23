@@ -22,9 +22,10 @@ go 1.20
 
 require (
 	github.com/GoogleCloudPlatform/spark-on-k8s-operator v0.0.0-20201215015655-2e8b733f5ad0
-	github.com/apache/yunikorn-core v0.0.0-20230620141112-5d04f9c0dd32
-	github.com/apache/yunikorn-scheduler-interface v0.0.0-20230614104003-12c630245d86
-	github.com/google/uuid v1.2.0
+	github.com/apache/yunikorn-core v0.0.0-20230622134022-d765f3a4e1ff
+	github.com/apache/yunikorn-scheduler-interface v0.0.0-20230621102204-bcadd461d275
+	github.com/google/go-cmp v0.5.9
+	github.com/google/uuid v1.3.0
 	github.com/gorilla/mux v1.8.0
 	github.com/looplab/fsm v1.0.1
 	github.com/onsi/ginkgo/v2 v2.9.0
@@ -51,7 +52,7 @@ require (
 	github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blang/semver v3.5.1+incompatible // indirect
-	github.com/cespare/xxhash/v2 v2.1.2 // indirect
+	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/coreos/go-semver v0.3.0 // indirect
 	github.com/coreos/go-systemd/v22 v22.3.2 // indirect
 	github.com/cyphar/filepath-securejoin v0.2.3 // indirect
@@ -69,9 +70,8 @@ require (
 	github.com/go-task/slim-sprig v0.0.0-20210107165309-348f09dbbbc0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
-	github.com/golang/protobuf v1.5.2 // indirect
+	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/google/btree v1.1.2 // indirect
-	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/google/gofuzz v1.1.0 // indirect
 	github.com/google/pprof v0.0.0-20210407192527-94a9f03dee38 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
@@ -128,18 +128,18 @@ require (
 	go.uber.org/atomic v1.7.0 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
 	golang.org/x/crypto v0.0.0-20210817164053-32db794688a5 // indirect
-	golang.org/x/net v0.8.0 // indirect
-	golang.org/x/oauth2 v0.0.0-20220223155221-ee480838109b // indirect
-	golang.org/x/sync v0.1.0 // indirect
-	golang.org/x/sys v0.6.0 // indirect
-	golang.org/x/term v0.6.0 // indirect
-	golang.org/x/text v0.8.0 // indirect
+	golang.org/x/net v0.10.0 // indirect
+	golang.org/x/oauth2 v0.7.0 // indirect
+	golang.org/x/sync v0.2.0 // indirect
+	golang.org/x/sys v0.9.0 // indirect
+	golang.org/x/term v0.9.0 // indirect
+	golang.org/x/text v0.10.0 // indirect
 	golang.org/x/time v0.0.0-20210723032227-1f47c861a9ac // indirect
-	golang.org/x/tools v0.6.0 // indirect
+	golang.org/x/tools v0.9.3 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
-	google.golang.org/genproto v0.0.0-20210831024726-fe130286e0e2 // indirect
-	google.golang.org/grpc v1.40.0 // indirect
-	google.golang.org/protobuf v1.28.1 // indirect
+	google.golang.org/genproto v0.0.0-20230410155749-daa745c078e1 // indirect
+	google.golang.org/grpc v1.56.0 // indirect
+	google.golang.org/protobuf v1.30.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
@@ -159,12 +159,12 @@ require (
 )
 
 replace (
-	golang.org/x/crypto => golang.org/x/crypto v0.7.0
+	golang.org/x/crypto => golang.org/x/crypto v0.10.0
 	golang.org/x/lint => golang.org/x/lint v0.0.0-20210508222113-6edffad5e616
-	golang.org/x/net => golang.org/x/net v0.8.0
-	golang.org/x/sys => golang.org/x/sys v0.6.0
-	golang.org/x/text => golang.org/x/text v0.8.0
-	golang.org/x/tools => golang.org/x/tools v0.7.0
+	golang.org/x/net => golang.org/x/net v0.10.0
+	golang.org/x/sys => golang.org/x/sys v0.8.0
+	golang.org/x/text => golang.org/x/text v0.9.0
+	golang.org/x/tools => golang.org/x/tools v0.9.3
 	k8s.io/api => k8s.io/api v0.23.14
 	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.23.14
 	k8s.io/apimachinery => k8s.io/apimachinery v0.23.14
@@ -194,3 +194,5 @@ replace (
 	k8s.io/utils => k8s.io/utils v0.0.0-20211116205334-6203023598ed
 	sigs.k8s.io/json => sigs.k8s.io/json v0.0.0-20211020170558-c049b76a60c6
 )
+
+replace github.com/apache/yunikorn-core => github.com/FrankYang0529/yunikorn-core v0.0.0-20230619065145-083fbff4794e
