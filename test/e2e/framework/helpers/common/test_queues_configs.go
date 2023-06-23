@@ -26,7 +26,7 @@ import (
 
 	"github.com/apache/yunikorn-core/pkg/common/configs"
 
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 // Converts partitionsWrapper to YAML string
