@@ -22,7 +22,7 @@ go 1.20
 
 require (
 	github.com/GoogleCloudPlatform/spark-on-k8s-operator v0.0.0-20201215015655-2e8b733f5ad0
-	github.com/apache/yunikorn-core v0.0.0-20230622134022-d765f3a4e1ff
+	github.com/apache/yunikorn-core v0.0.0-20230626064933-148f221ab4f1
 	github.com/apache/yunikorn-scheduler-interface v0.0.0-20230621102204-bcadd461d275
 	github.com/google/go-cmp v0.5.9
 	github.com/google/uuid v1.3.0
@@ -194,5 +194,3 @@ replace (
 	k8s.io/utils => k8s.io/utils v0.0.0-20211116205334-6203023598ed
 	sigs.k8s.io/json => sigs.k8s.io/json v0.0.0-20211020170558-c049b76a60c6
 )
-
-replace github.com/apache/yunikorn-core => github.com/FrankYang0529/yunikorn-core v0.0.0-20230619065145-083fbff4794e

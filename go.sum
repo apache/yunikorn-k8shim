@@ -72,8 +72,6 @@ github.com/BurntSushi/toml v0.3.0/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03
 github.com/BurntSushi/toml v0.3.1 h1:WXkYYl6Yr3qBf1K79EBnL4mak0OimBfB0XUf9Vl28OQ=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym/WlBOVXweHU+Q+/VP0lqqI8lqeDx9IjBqo=
-github.com/FrankYang0529/yunikorn-core v0.0.0-20230619065145-083fbff4794e h1:BVWu/PdL+Lxaeh0Gxenzv/RKwXIevUzGiO523k3YwuQ=
-github.com/FrankYang0529/yunikorn-core v0.0.0-20230619065145-083fbff4794e/go.mod h1:aCcsK1r/rWOS9ZlQfAZ7U6+FCli4wbIaf8MtpO34YFQ=
 github.com/GoogleCloudPlatform/cloudsql-proxy v0.0.0-20180321230639-1e456b1c68cb/go.mod h1:aJ4qN3TfrelA6NZ6AXsXRfmEVaYin3EDbSPJrKS8OXo=
 github.com/GoogleCloudPlatform/k8s-cloud-provider v0.0.0-20190822182118-27a4ced34534/go.mod h1:iroGtC8B3tQiqtds1l+mgk/BBOrxbqjH+eUfFQYRc14=
 github.com/GoogleCloudPlatform/k8s-cloud-provider v1.16.1-0.20210702024009-ea6160c1d0e3/go.mod h1:8XasY4ymP2V/tn2OOV9ZadmiTE1FIB/h3W+yNlPttKw=
@@ -108,6 +106,8 @@ github.com/alecthomas/units v0.0.0-20190717042225-c3de453c63f4/go.mod h1:ybxpYRF
 github.com/alecthomas/units v0.0.0-20190924025748-f65c72e2690d/go.mod h1:rBZYJk541a8SKzHPHnH3zbiI+7dagKZ0cgpgrD7Fyho=
 github.com/antihax/optional v1.0.0/go.mod h1:uupD/76wgC+ih3iEmQUL+0Ugr19nfwCT1kdvxnR2qWY=
 github.com/antlr/antlr4/runtime/Go/antlr v0.0.0-20210826220005-b48c857c3a0e/go.mod h1:F7bn7fEU90QkQ3tnmaTx3LTKLEDqnwWODIYppRQ5hnY=
+github.com/apache/yunikorn-core v0.0.0-20230626064933-148f221ab4f1 h1:BgdHRLdI74x8dtC/da27hheKsANsp9D33NALj6bxNMQ=
+github.com/apache/yunikorn-core v0.0.0-20230626064933-148f221ab4f1/go.mod h1:wN9PINC5tIhT0yXKyF+f6Pv6Kn62FCskjTFwp1S+mqA=
 github.com/apache/yunikorn-scheduler-interface v0.0.0-20230621102204-bcadd461d275 h1:rohcBe0tzmokyo8QTzSni4SeH8pHJb+Hxo4XEh5wsDY=
 github.com/apache/yunikorn-scheduler-interface v0.0.0-20230621102204-bcadd461d275/go.mod h1:HZl8aYm89D3VUuBbMvxzYbra84XVfgSjJWQat0kD1cE=
 github.com/armon/circbuf v0.0.0-20150827004946-bbbad097214e/go.mod h1:3U/XgcO3hCbHZ8TKRvWD2dDTCfh9M9ya+I9JpbB7O8o=
