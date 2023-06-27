@@ -16,6 +16,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# USERS & USERS_GROUP should contain the same number of elements.
+# If you wants no group or no user. You can use an empty string, i.e. ""
 USERS=("admin" "sue" "bob" "kim" "yono" "anonymous")
 USERS_GROUP=("admin" "group-a" "group-a" "group-b" "group-b" "anonymous")
 AUTH_FOLDER=./auth
@@ -25,12 +27,18 @@ mkdir -p $AUTH_FOLDER
 for ((i = 0; i < ${#USERS[@]}; ++i)); do
     USERNAME="${USERS[i]}"
     GROUP="${USERS_GROUP[i]}"
-    AUTH_FILE=$AUTH_FOLDER/$USERNAME
+    AUTH_FILE=$AUTH_FOLDER/$USERNAME-$GROUP
     echo "username: $USERNAME , group: $GROUP"
     # create a CSR for the user
     openssl genrsa -out "$AUTH_FILE".key 2048
     openssl req -new -key "$AUTH_FILE".key -out "$AUTH_FILE".csr -subj "/CN=$USERNAME/O=$GROUP"
-    
+    # Kubernetes config only supports user assignments, not groups.
+    # if the USERNAME is not assigned, the script will create a user based on your group's name.
+    if [ "$USERNAME" = "" ]
+    then
+        USERNAME=$GROUP
+    fi
+
     # write a file for certification request & use kubectl to approve the request
     {
         echo "apiVersion: certificates.k8s.io/v1"
