@@ -87,6 +87,9 @@ const MemQuota = "yunikorn.apache.org/namespace.max.memory"
 // NamespaceQuota Namespace Quota
 const NamespaceQuota = "yunikorn.apache.org/namespace.quota"
 
+// NamespaceGuaranteed Namespace Guaranteed
+const NamespaceGuaranteed = "yunikorn.apache.org/namespace.guaranteed"
+
 // AnnotationAllowPreemption set on PriorityClass, opt out of preemption for pods with this priority class
 const AnnotationAllowPreemption = "yunikorn.apache.org/allow-preemption"
 

@@ -702,10 +702,19 @@ func (ctx *Context) updateApplicationTags(request *interfaces.AddApplicationRequ
 	// add resource quota info as an app tag
 	resourceQuota := utils.GetNamespaceQuotaFromAnnotation(namespaceObj)
 	if resourceQuota != nil && !common.IsZero(resourceQuota) {
-		if quotaStr, err := json.Marshal(resourceQuota); err == nil {
-			request.Metadata.Tags[siCommon.AppTagNamespaceResourceQuota] = string(quotaStr)
+		if quota, err := json.Marshal(resourceQuota); err == nil {
+			request.Metadata.Tags[siCommon.AppTagNamespaceResourceQuota] = string(quota)
 		}
 	}
+
+	// add guaranteed resource info as an app tag
+	guaranteedResource := utils.GetNamespaceGuaranteedFromAnnotation(namespaceObj)
+	if guaranteedResource != nil && !common.IsZero(guaranteedResource) {
+		if guaranteed, err := json.Marshal(guaranteedResource); err == nil {
+			request.Metadata.Tags[siCommon.AppTagNamespaceResourceGuaranteed] = string(guaranteed)
+		}
+	}
+
 	// add parent queue info as an app tag
 	parentQueue := utils.GetNameSpaceAnnotationValue(namespaceObj, constants.AnnotationParentQueue)
 	if parentQueue != "" {

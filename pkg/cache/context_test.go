@@ -1082,6 +1082,9 @@ func TestAddApplicationsWithTags(t *testing.T) {
 	ns1 := v1.Namespace{
 		ObjectMeta: apis.ObjectMeta{
 			Name: "test1",
+			Annotations: map[string]string{
+				"yunikorn.apache.org/namespace.max.memory": "256M",
+			},
 		},
 	}
 	lister.Add(&ns1)
@@ -1089,8 +1092,9 @@ func TestAddApplicationsWithTags(t *testing.T) {
 		ObjectMeta: apis.ObjectMeta{
 			Name: "test2",
 			Annotations: map[string]string{
-				"yunikorn.apache.org/namespace.max.memory": "256M",
-				"yunikorn.apache.org/parentqueue":          "root.test",
+				constants.NamespaceQuota:          "{\"cpu\": \"1\", \"memory\": \"256M\", \"nvidia.com/gpu\": \"1\"}",
+				"yunikorn.apache.org/parentqueue": "root.test",
+				constants.NamespaceGuaranteed:     "{\"cpu\": \"1\", \"memory\": \"256M\", \"nvidia.com/gpu\": \"1\"}",
 			},
 		},
 	}
@@ -1152,6 +1156,59 @@ func TestAddApplicationsWithTags(t *testing.T) {
 	}
 	quotaRes := si.Resource{}
 	if err := json.Unmarshal([]byte(quotaStr), &quotaRes); err == nil {
+		if quotaRes.Resources == nil || quotaRes.Resources["memory"] == nil || quotaRes.Resources["vcore"] == nil || quotaRes.Resources["nvidia.com/gpu"] == nil {
+			t.Fatalf("could not find parsed quota resource from annotation")
+		}
+		assert.Equal(t, quotaRes.Resources["memory"].Value, int64(256*1000*1000))
+		assert.Equal(t, quotaRes.Resources["vcore"].Value, int64(1000))
+		assert.Equal(t, quotaRes.Resources["nvidia.com/gpu"].Value, int64(1))
+	} else {
+		t.Fatalf("resource parsing failed")
+	}
+
+	guaranteedStr, ok := request.Metadata.Tags[siCommon.AppTagNamespaceResourceGuaranteed]
+	if !ok {
+		t.Fatalf("resource guaranteed tag is not updated from the namespace")
+	}
+
+	guaranteedRes := si.Resource{}
+	if err := json.Unmarshal([]byte(guaranteedStr), &guaranteedRes); err == nil {
+		if guaranteedRes.Resources == nil || guaranteedRes.Resources["memory"] == nil || guaranteedRes.Resources["nvidia.com/gpu"] == nil || guaranteedRes.Resources["vcore"] == nil {
+			t.Fatalf("could not find parsed guaranteed resource from annotation")
+		}
+		assert.Equal(t, quotaRes.Resources["memory"].Value, int64(256*1000*1000))
+		assert.Equal(t, quotaRes.Resources["vcore"].Value, int64(1000))
+		assert.Equal(t, quotaRes.Resources["nvidia.com/gpu"].Value, int64(1))
+	} else {
+		t.Fatalf("resource parsing failed")
+	}
+
+	parentQueue, ok := request.Metadata.Tags[constants.AppTagNamespaceParentQueue]
+	if !ok {
+		t.Fatalf("parent queue tag is not updated from the namespace")
+	}
+	assert.Equal(t, parentQueue, "root.test")
+
+	// add application with annotated namespace to check the old quota annotation
+	request = &interfaces.AddApplicationRequest{
+		Metadata: interfaces.ApplicationMetadata{
+			ApplicationID: "app00005",
+			QueueName:     "root.a",
+			User:          "test-user",
+			Tags: map[string]string{
+				constants.AppTagNamespace: "test1",
+			},
+		},
+	}
+	context.AddApplication(request)
+
+	// check that request has additional annotations
+	quotaStr, ok = request.Metadata.Tags[siCommon.AppTagNamespaceResourceQuota]
+	if !ok {
+		t.Fatalf("resource quota tag is not updated from the namespace")
+	}
+	quotaRes = si.Resource{}
+	if err := json.Unmarshal([]byte(quotaStr), &quotaRes); err == nil {
 		if quotaRes.Resources == nil || quotaRes.Resources["memory"] == nil {
 			t.Fatalf("could not find parsed memory resource from annotation")
 		}
@@ -1159,11 +1216,6 @@ func TestAddApplicationsWithTags(t *testing.T) {
 	} else {
 		t.Fatalf("resource parsing failed")
 	}
-	parentQueue, ok := request.Metadata.Tags[constants.AppTagNamespaceParentQueue]
-	if !ok {
-		t.Fatalf("parent queue tag is not updated from the namespace")
-	}
-	assert.Equal(t, parentQueue, "root.test")
 }
 
 func TestPendingPodAllocations(t *testing.T) {

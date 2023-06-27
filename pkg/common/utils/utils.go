@@ -142,6 +142,21 @@ func PodUnderCondition(pod *v1.Pod, condition *v1.PodCondition) bool {
 	return current != nil && current.Status == condition.Status && current.Reason == condition.Reason
 }
 
+// get namespace guaranteed resource from namespace annotation
+func GetNamespaceGuaranteedFromAnnotation(namespaceObj *v1.Namespace) *si.Resource {
+	// retrieve guaranteed resource info from annotations
+	namespaceGuaranteed := GetNameSpaceAnnotationValue(namespaceObj, constants.NamespaceGuaranteed)
+	var namespaceGuaranteedMap map[string]string
+	err := json.Unmarshal([]byte(namespaceGuaranteed), &namespaceGuaranteedMap)
+	if err != nil {
+		log.Logger().Warn("Unable to process namespace.guaranteed annotation",
+			zap.String("namespace", namespaceObj.Name),
+			zap.String("namespace.guaranteed is", namespaceGuaranteed))
+		return nil
+	}
+	return common.GetResource(namespaceGuaranteedMap)
+}
+
 func GetNamespaceQuotaFromAnnotation(namespaceObj *v1.Namespace) *si.Resource {
 	// retrieve resource quota info from annotations
 	cpuQuota := GetNameSpaceAnnotationValue(namespaceObj, constants.CPUQuota)
@@ -162,7 +177,7 @@ func GetNamespaceQuotaFromAnnotation(namespaceObj *v1.Namespace) *si.Resource {
 		if err != nil {
 			log.Logger().Warn("Unable to process namespace.quota annotation",
 				zap.String("namespace", namespaceObj.Name),
-				zap.String("namespace.quota val is", namespaceQuota))
+				zap.String("namespace.quota is", namespaceQuota))
 			return nil
 		}
 		return common.GetResource(namespaceQuotaMap)
