@@ -51,7 +51,7 @@ func (u *UserGroupAnnotationHandler) IsAnnotationAllowed(userName string, groups
 	if u.conf.GetTrustControllers() {
 		for _, sysUser := range u.conf.GetSystemUsers() {
 			if sysUser.MatchString(userName) {
-				log.Logger().Debug("Request submitted from a system user, bypassing",
+				log.Log(log.Admission).Debug("Request submitted from a system user, bypassing",
 					zap.String("userName", userName))
 				return true
 			}
@@ -60,7 +60,7 @@ func (u *UserGroupAnnotationHandler) IsAnnotationAllowed(userName string, groups
 
 	for _, allowedUser := range u.conf.GetExternalUsers() {
 		if allowedUser.MatchString(userName) {
-			log.Logger().Debug("Request submitted from an allowed external user",
+			log.Log(log.Admission).Debug("Request submitted from an allowed external user",
 				zap.String("userName", userName))
 			return true
 		}
@@ -69,7 +69,7 @@ func (u *UserGroupAnnotationHandler) IsAnnotationAllowed(userName string, groups
 	for _, allowedGroup := range u.conf.GetExternalGroups() {
 		for _, group := range groups {
 			if allowedGroup.MatchString(group) {
-				log.Logger().Debug("Request submitted from an allowed external group",
+				log.Log(log.Admission).Debug("Request submitted from an allowed external group",
 					zap.String("userName", userName),
 					zap.String("group", group))
 				return true
@@ -87,7 +87,7 @@ func (u *UserGroupAnnotationHandler) IsAnnotationValid(userInfoAnnotation string
 		return err
 	}
 
-	log.Logger().Debug("Successfully validated user info metadata", zap.String("externally provided user", userGroups.User),
+	log.Log(log.Admission).Debug("Successfully validated user info metadata", zap.String("externally provided user", userGroups.User),
 		zap.String("externally provided groups", strings.Join(userGroups.Groups, ",")))
 
 	return nil

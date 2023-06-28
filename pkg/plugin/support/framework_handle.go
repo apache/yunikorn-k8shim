@@ -59,82 +59,82 @@ func (p frameworkHandle) Parallelizer() parallelize.Parallelizer {
 // PodNominator stubs
 
 func (p frameworkHandle) AddNominatedPod(pod *framework.PodInfo, nominatingInfo *framework.NominatingInfo) {
-	log.Logger().Fatal("BUG: Should not be used by plugins")
+	log.Log(log.ShimFramework).Fatal("BUG: Should not be used by plugins")
 }
 
 func (p frameworkHandle) DeleteNominatedPodIfExists(pod *v1.Pod) {
-	log.Logger().Fatal("BUG: Should not be used by plugins")
+	log.Log(log.ShimFramework).Fatal("BUG: Should not be used by plugins")
 }
 
 func (p frameworkHandle) UpdateNominatedPod(oldPod *v1.Pod, newPodInfo *framework.PodInfo) {
-	log.Logger().Fatal("BUG: Should not be used by plugins")
+	log.Log(log.ShimFramework).Fatal("BUG: Should not be used by plugins")
 }
 
 func (p frameworkHandle) NominatedPodsForNode(nodeName string) []*framework.PodInfo {
-	log.Logger().Fatal("BUG: Should not be used by plugins")
+	log.Log(log.ShimFramework).Fatal("BUG: Should not be used by plugins")
 	return nil
 }
 
 // PluginsRunner stubs
 
 func (p frameworkHandle) RunPreScorePlugins(context.Context, *framework.CycleState, *v1.Pod, []*v1.Node) *framework.Status {
-	log.Logger().Fatal("BUG: Should not be used by plugins")
+	log.Log(log.ShimFramework).Fatal("BUG: Should not be used by plugins")
 	return nil
 }
 
 func (p frameworkHandle) RunScorePlugins(context.Context, *framework.CycleState, *v1.Pod, []*v1.Node) ([]framework.NodePluginScores, *framework.Status) {
-	log.Logger().Fatal("BUG: Should not be used by plugins")
+	log.Log(log.ShimFramework).Fatal("BUG: Should not be used by plugins")
 	return nil, nil
 }
 
 func (p frameworkHandle) RunFilterPlugins(context.Context, *framework.CycleState, *v1.Pod, *framework.NodeInfo) *framework.Status {
-	log.Logger().Fatal("BUG: Should not be used by plugins")
+	log.Log(log.ShimFramework).Fatal("BUG: Should not be used by plugins")
 	return nil
 }
 
 func (p frameworkHandle) RunPreFilterExtensionAddPod(ctx context.Context, state *framework.CycleState, podToSchedule *v1.Pod, podInfoToAdd *framework.PodInfo, nodeInfo *framework.NodeInfo) *framework.Status {
-	log.Logger().Fatal("BUG: Should not be used by plugins")
+	log.Log(log.ShimFramework).Fatal("BUG: Should not be used by plugins")
 	return nil
 }
 
 func (p frameworkHandle) RunPreFilterExtensionRemovePod(ctx context.Context, state *framework.CycleState, podToSchedule *v1.Pod, podInfoToRemove *framework.PodInfo, nodeInfo *framework.NodeInfo) *framework.Status {
-	log.Logger().Fatal("BUG: Should not be used by plugins")
+	log.Log(log.ShimFramework).Fatal("BUG: Should not be used by plugins")
 	return nil
 }
 
 // stubbed out to fulfill framework.Handle contract; these are all currently unused by upstream K8S predicates
 
 func (p frameworkHandle) IterateOverWaitingPods(callback func(framework.WaitingPod)) {
-	log.Logger().Fatal("BUG: Should not be used by plugins")
+	log.Log(log.ShimFramework).Fatal("BUG: Should not be used by plugins")
 }
 
 func (p frameworkHandle) GetWaitingPod(uid types.UID) framework.WaitingPod {
-	log.Logger().Fatal("BUG: Should not be used by plugins")
+	log.Log(log.ShimFramework).Fatal("BUG: Should not be used by plugins")
 	return nil
 }
 
 func (p frameworkHandle) RejectWaitingPod(uid types.UID) bool {
-	log.Logger().Fatal("BUG: Should not be used by plugins")
+	log.Log(log.ShimFramework).Fatal("BUG: Should not be used by plugins")
 	return false
 }
 
 func (p frameworkHandle) EventRecorder() events.EventRecorder {
-	log.Logger().Fatal("BUG: Should not be used by plugins")
+	log.Log(log.ShimFramework).Fatal("BUG: Should not be used by plugins")
 	return nil
 }
 
 func (p frameworkHandle) KubeConfig() *rest.Config {
-	log.Logger().Fatal("BUG: Should not be used by plugins")
+	log.Log(log.ShimFramework).Fatal("BUG: Should not be used by plugins")
 	return nil
 }
 
 func (p frameworkHandle) RunFilterPluginsWithNominatedPods(ctx context.Context, state *framework.CycleState, pod *v1.Pod, info *framework.NodeInfo) *framework.Status {
-	log.Logger().Fatal("BUG: Should not be used by plugins")
+	log.Log(log.ShimFramework).Fatal("BUG: Should not be used by plugins")
 	return nil
 }
 
 func (p frameworkHandle) Extenders() []framework.Extender {
-	log.Logger().Fatal("BUG: Should not be used by plugins")
+	log.Log(log.ShimFramework).Fatal("BUG: Should not be used by plugins")
 	return nil
 }
 

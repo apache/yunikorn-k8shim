@@ -57,7 +57,7 @@ func Convert2ConfigMap(obj interface{}) *v1.ConfigMap {
 	if configmap, ok := obj.(*v1.ConfigMap); ok {
 		return configmap
 	}
-	log.Logger().Warn("cannot convert to *v1.ConfigMap", zap.Stringer("type", reflect.TypeOf(obj)))
+	log.Log(log.ShimUtils).Warn("cannot convert to *v1.ConfigMap", zap.Stringer("type", reflect.TypeOf(obj)))
 	return nil
 }
 
@@ -65,7 +65,7 @@ func Convert2PriorityClass(obj interface{}) *schedulingv1.PriorityClass {
 	if priorityClass, ok := obj.(*schedulingv1.PriorityClass); ok {
 		return priorityClass
 	}
-	log.Logger().Warn("cannot convert to *schedulingv1.PriorityClass", zap.Stringer("type", reflect.TypeOf(obj)))
+	log.Log(log.ShimUtils).Warn("cannot convert to *schedulingv1.PriorityClass", zap.Stringer("type", reflect.TypeOf(obj)))
 	return nil
 }
 
@@ -115,7 +115,7 @@ func GetApplicationIDFromPod(pod *v1.Pod) string {
 	if value := GetPodAnnotationValue(pod, constants.AnnotationIgnoreApplication); value != "" {
 		ignore, err := strconv.ParseBool(value)
 		if err != nil {
-			log.Logger().Warn("Failed to parse annotation "+constants.AnnotationIgnoreApplication, zap.Error(err))
+			log.Log(log.ShimUtils).Warn("Failed to parse annotation "+constants.AnnotationIgnoreApplication, zap.Error(err))
 		} else if ignore {
 			return ""
 		}
@@ -169,20 +169,20 @@ func GetNamespaceQuotaFromAnnotation(namespaceObj *v1.Namespace) *si.Resource {
 	switch {
 	case namespaceQuota != "":
 		if cpuQuota != "" || memQuota != "" {
-			log.Logger().Warn("Using namespace.quota instead of namespace.max.* (deprecated) annotation to set cpu and/or memory for namespace though both are available.",
+			log.Log(log.ShimUtils).Warn("Using namespace.quota instead of namespace.max.* (deprecated) annotation to set cpu and/or memory for namespace though both are available.",
 				zap.String("namespace", namespaceObj.Name))
 		}
 		var namespaceQuotaMap map[string]string
 		err := json.Unmarshal([]byte(namespaceQuota), &namespaceQuotaMap)
 		if err != nil {
-			log.Logger().Warn("Unable to process namespace.quota annotation",
+			log.Log(log.ShimUtils).Warn("Unable to process namespace.quota annotation",
 				zap.String("namespace", namespaceObj.Name),
 				zap.String("namespace.quota is", namespaceQuota))
 			return nil
 		}
 		return common.GetResource(namespaceQuotaMap)
 	case cpuQuota != "" || memQuota != "":
-		log.Logger().Warn("Please use namespace.quota instead of namespace.max.* (deprecated) annotation. Using deprecated annotation to set cpu and/or memory for namespace. ",
+		log.Log(log.ShimUtils).Warn("Please use namespace.quota instead of namespace.max.* (deprecated) annotation. Using deprecated annotation to set cpu and/or memory for namespace. ",
 			zap.String("namespace", namespaceObj.Name))
 		return common.ParseResource(cpuQuota, memQuota)
 	default:
@@ -289,16 +289,16 @@ func GetUserFromPod(pod *v1.Pod) (string, []string) {
 		var userGroup si.UserGroupInformation
 		err := json.Unmarshal([]byte(userInfoJSON), &userGroup)
 		if err != nil {
-			log.Logger().Error("unable to process user info annotation", zap.Error(err))
+			log.Log(log.ShimUtils).Error("unable to process user info annotation", zap.Error(err))
 			return constants.DefaultUser, nil
 		}
 		user := userGroup.User
 		groups := userGroup.Groups
 		if user == "" {
-			log.Logger().Warn("got empty username, using default")
+			log.Log(log.ShimUtils).Warn("got empty username, using default")
 			user = constants.DefaultUser
 		}
-		log.Logger().Info("found user info from pod annotations",
+		log.Log(log.ShimUtils).Info("found user info from pod annotations",
 			zap.String("username", user), zap.Strings("groups", groups))
 		return user, groups
 	}
@@ -311,13 +311,13 @@ func GetUserFromPod(pod *v1.Pod) (string, []string) {
 	}
 	// User name to be defined in labels
 	if username := GetPodLabelValue(pod, userLabelKey); username != "" && len(username) > 0 {
-		log.Logger().Info("Found user name from pod labels.",
+		log.Log(log.ShimUtils).Info("Found user name from pod labels.",
 			zap.String("userLabel", userLabelKey), zap.String("user", username))
 		return username, nil
 	}
 	value := constants.DefaultUser
 
-	log.Logger().Debug("Unable to retrieve user name from pod labels. Empty user label",
+	log.Log(log.ShimUtils).Debug("Unable to retrieve user name from pod labels. Empty user label",
 		zap.String("userLabel", userLabelKey))
 
 	return value, nil

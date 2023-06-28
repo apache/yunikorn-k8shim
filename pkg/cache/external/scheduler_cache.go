@@ -174,12 +174,12 @@ func (cache *SchedulerCache) UpdateNode(newNode *v1.Node) {
 func (cache *SchedulerCache) updateNode(node *v1.Node) {
 	nodeInfo, ok := cache.nodesMap[node.Name]
 	if !ok {
-		log.Logger().Debug("Adding node to cache", zap.String("nodeName", node.Name))
+		log.Log(log.ShimCacheExternal).Debug("Adding node to cache", zap.String("nodeName", node.Name))
 		nodeInfo = framework.NewNodeInfo()
 		cache.nodesMap[node.Name] = nodeInfo
 		cache.nodesInfo = nil
 	} else {
-		log.Logger().Debug("Updating node in cache", zap.String("nodeName", node.Name))
+		log.Log(log.ShimCacheExternal).Debug("Updating node in cache", zap.String("nodeName", node.Name))
 	}
 	nodeInfo.SetNode(node)
 	cache.nodesInfoPodsWithAffinity = nil
@@ -199,7 +199,7 @@ func (cache *SchedulerCache) RemoveNode(node *v1.Node) {
 func (cache *SchedulerCache) removeNode(node *v1.Node) {
 	nodeInfo, ok := cache.nodesMap[node.Name]
 	if !ok {
-		log.Logger().Debug("Attempted to remove non-existent node", zap.String("nodeName", node.Name))
+		log.Log(log.ShimCacheExternal).Debug("Attempted to remove non-existent node", zap.String("nodeName", node.Name))
 		return
 	}
 
@@ -211,7 +211,7 @@ func (cache *SchedulerCache) removeNode(node *v1.Node) {
 		delete(cache.inProgressAllocations, key)
 	}
 
-	log.Logger().Debug("Removing node from cache", zap.String("nodeName", node.Name))
+	log.Log(log.ShimCacheExternal).Debug("Removing node from cache", zap.String("nodeName", node.Name))
 	delete(cache.nodesMap, node.Name)
 	cache.nodesInfo = nil
 	cache.nodesInfoPodsWithAffinity = nil
@@ -250,9 +250,9 @@ func (cache *SchedulerCache) UpdatePriorityClass(priorityClass *schedulingv1.Pri
 func (cache *SchedulerCache) updatePriorityClass(priorityClass *schedulingv1.PriorityClass) {
 	_, ok := cache.pcMap[priorityClass.Name]
 	if !ok {
-		log.Logger().Debug("Adding priorityClass to cache", zap.String("name", priorityClass.Name))
+		log.Log(log.ShimCacheExternal).Debug("Adding priorityClass to cache", zap.String("name", priorityClass.Name))
 	} else {
-		log.Logger().Debug("Updating priorityClass in cache", zap.String("name", priorityClass.Name))
+		log.Log(log.ShimCacheExternal).Debug("Updating priorityClass in cache", zap.String("name", priorityClass.Name))
 	}
 	cache.pcMap[priorityClass.Name] = priorityClass
 }
@@ -267,7 +267,7 @@ func (cache *SchedulerCache) RemovePriorityClass(priorityClass *schedulingv1.Pri
 }
 
 func (cache *SchedulerCache) removePriorityClass(priorityClass *schedulingv1.PriorityClass) {
-	log.Logger().Debug("Removing priorityClass from cache", zap.String("name", priorityClass.Name))
+	log.Log(log.ShimCacheExternal).Debug("Removing priorityClass from cache", zap.String("name", priorityClass.Name))
 	delete(cache.pcMap, priorityClass.Name)
 }
 
@@ -372,7 +372,7 @@ func (cache *SchedulerCache) updatePod(pod *v1.Pod) {
 			nodeInfo, ok := cache.nodesMap[nodeName]
 			if ok {
 				if err := nodeInfo.RemovePod(currState); err != nil {
-					log.Logger().Warn("BUG: Failed to remove pod from node",
+					log.Log(log.ShimCacheExternal).Warn("BUG: Failed to remove pod from node",
 						zap.String("podName", currState.Name),
 						zap.String("nodeName", nodeName),
 						zap.Error(err))
@@ -413,10 +413,10 @@ func (cache *SchedulerCache) updatePod(pod *v1.Pod) {
 
 	// if pod is not in a terminal state, add it back into cache
 	if !utils.IsPodTerminated(pod) {
-		log.Logger().Debug("Putting pod in cache", zap.String("podName", pod.Name), zap.String("podKey", key))
+		log.Log(log.ShimCacheExternal).Debug("Putting pod in cache", zap.String("podName", pod.Name), zap.String("podKey", key))
 		cache.podsMap[key] = pod
 	} else {
-		log.Logger().Debug("Removing terminated pod from cache", zap.String("podName", pod.Name), zap.String("podKey", key))
+		log.Log(log.ShimCacheExternal).Debug("Removing terminated pod from cache", zap.String("podName", pod.Name), zap.String("podKey", key))
 		delete(cache.podsMap, key)
 		delete(cache.assignedPods, key)
 		delete(cache.assumedPods, key)
@@ -437,13 +437,13 @@ func (cache *SchedulerCache) RemovePod(pod *v1.Pod) {
 
 func (cache *SchedulerCache) removePod(pod *v1.Pod) {
 	key := string(pod.UID)
-	log.Logger().Debug("Removing deleted pod from cache", zap.String("podName", pod.Name), zap.String("podKey", key))
+	log.Log(log.ShimCacheExternal).Debug("Removing deleted pod from cache", zap.String("podName", pod.Name), zap.String("podKey", key))
 	nodeName, ok := cache.assignedPods[key]
 	if ok {
 		nodeInfo, ok := cache.nodesMap[nodeName]
 		if ok {
 			if err := nodeInfo.RemovePod(pod); err != nil {
-				log.Logger().Warn("BUG: Failed to remove pod from node",
+				log.Log(log.ShimCacheExternal).Warn("BUG: Failed to remove pod from node",
 					zap.String("podName", pod.Name),
 					zap.String("nodeName", nodeName),
 					zap.Error(err))
@@ -480,7 +480,7 @@ func (cache *SchedulerCache) AssumePod(pod *v1.Pod, allBound bool) {
 func (cache *SchedulerCache) assumePod(pod *v1.Pod, allBound bool) {
 	key := string(pod.UID)
 
-	log.Logger().Debug("Adding assumed pod to cache",
+	log.Log(log.ShimCacheExternal).Debug("Adding assumed pod to cache",
 		zap.String("podName", pod.Name),
 		zap.String("podKey", key),
 		zap.String("node", pod.Spec.NodeName),
@@ -505,7 +505,7 @@ func (cache *SchedulerCache) forgetPod(pod *v1.Pod) {
 	cache.updatePod(pod)
 
 	// remove assigned allocation
-	log.Logger().Debug("Removing assumed pod from cache",
+	log.Log(log.ShimCacheExternal).Debug("Removing assumed pod from cache",
 		zap.String("podName", pod.Name),
 		zap.String("podKey", key))
 
@@ -561,8 +561,8 @@ func (cache *SchedulerCache) GetPersistentVolumeInfo(name string) (*v1.Persisten
 
 // dumpState dumps summary statistics for the cache. Must be called with lock already acquired
 func (cache *SchedulerCache) dumpState(context string) {
-	if log.Logger().Core().Enabled(zapcore.DebugLevel) {
-		log.Logger().Debug("Scheduler cache state ("+context+")",
+	if log.Log(log.ShimCacheExternal).Core().Enabled(zapcore.DebugLevel) {
+		log.Log(log.ShimCacheExternal).Debug("Scheduler cache state ("+context+")",
 			zap.Int("nodes", len(cache.nodesMap)),
 			zap.Int("pods", len(cache.podsMap)),
 			zap.Int("assumed", len(cache.assumedPods)),

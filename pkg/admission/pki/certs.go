@@ -77,7 +77,7 @@ func EncodeCertificatePem(cert *x509.Certificate) (*[]byte, error) {
 		Bytes: cert.Raw,
 	})
 	if err != nil {
-		log.Logger().Error("Unable to encode certificate", zap.Error(err))
+		log.Log(log.AdmissionUtils).Error("Unable to encode certificate", zap.Error(err))
 		return nil, err
 	}
 	data := certPem.Bytes()
@@ -92,7 +92,7 @@ func EncodeCertChainPem(certs []*x509.Certificate) (*[]byte, error) {
 			Bytes: cert.Raw,
 		})
 		if err != nil {
-			log.Logger().Error("Unable to encode certificate", zap.Error(err))
+			log.Log(log.AdmissionUtils).Error("Unable to encode certificate", zap.Error(err))
 			return nil, err
 		}
 	}
@@ -110,12 +110,12 @@ func DecodeCertChainPem(certsPem *[]byte) ([]*x509.Certificate, error) {
 			break
 		}
 		if block.Type != "CERTIFICATE" {
-			log.Logger().Error("Unable to decode certificate")
+			log.Log(log.AdmissionUtils).Error("Unable to decode certificate")
 			return nil, errors.New("pki: unable to decode certificate")
 		}
 		cert, err := x509.ParseCertificate(block.Bytes)
 		if err != nil {
-			log.Logger().Error("Unable to parse certificate", zap.Error(err))
+			log.Log(log.AdmissionUtils).Error("Unable to parse certificate", zap.Error(err))
 			return nil, err
 		}
 		certs = append(certs, cert)
@@ -128,12 +128,12 @@ func DecodeCertChainPem(certsPem *[]byte) ([]*x509.Certificate, error) {
 func DecodeCertificatePem(certPem *[]byte) (*x509.Certificate, error) {
 	block, _ := pem.Decode(*certPem)
 	if block == nil || block.Type != "CERTIFICATE" {
-		log.Logger().Error("Unable to decode certificate")
+		log.Log(log.AdmissionUtils).Error("Unable to decode certificate")
 		return nil, errors.New("pki: unable to decode certificate")
 	}
 	cert, err := x509.ParseCertificate(block.Bytes)
 	if err != nil {
-		log.Logger().Error("Unable to parse certificate", zap.Error(err))
+		log.Log(log.AdmissionUtils).Error("Unable to parse certificate", zap.Error(err))
 		return nil, err
 	}
 	return cert, err
@@ -146,7 +146,7 @@ func EncodePrivateKeyPem(privateKey *rsa.PrivateKey) (*[]byte, error) {
 		Bytes: x509.MarshalPKCS1PrivateKey(privateKey),
 	})
 	if err != nil {
-		log.Logger().Error("Unable to encode private key", zap.Error(err))
+		log.Log(log.AdmissionUtils).Error("Unable to encode private key", zap.Error(err))
 		return nil, err
 	}
 	data := pkPem.Bytes()
@@ -156,12 +156,12 @@ func EncodePrivateKeyPem(privateKey *rsa.PrivateKey) (*[]byte, error) {
 func DecodePrivateKeyPem(privateKeyPem *[]byte) (*rsa.PrivateKey, error) {
 	block, _ := pem.Decode(*privateKeyPem)
 	if block == nil || block.Type != "RSA PRIVATE KEY" {
-		log.Logger().Error("Unable to decode private key")
+		log.Log(log.AdmissionUtils).Error("Unable to decode private key")
 		return nil, errors.New("pki: unable to decode private key")
 	}
 	privateKey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
 	if err != nil {
-		log.Logger().Error("Unable to parse private key", zap.Error(err))
+		log.Log(log.AdmissionUtils).Error("Unable to parse private key", zap.Error(err))
 		return nil, err
 	}
 	return privateKey, err
@@ -175,7 +175,7 @@ func generateCert(certTemplate *x509.Certificate, signer *x509.Certificate, sign
 	// private key
 	privateKey, err := rsa.GenerateKey(cryptorand.Reader, 4096)
 	if err != nil {
-		log.Logger().Error("Unable to generate private key", zap.Error(err))
+		log.Log(log.AdmissionUtils).Error("Unable to generate private key", zap.Error(err))
 		return nil, nil, err
 	}
 
@@ -192,13 +192,13 @@ func generateCert(certTemplate *x509.Certificate, signer *x509.Certificate, sign
 	// create certificate
 	certBytes, err := x509.CreateCertificate(cryptorand.Reader, certTemplate, certSigner, &privateKey.PublicKey, caKey)
 	if err != nil {
-		log.Logger().Error("Unable to create certificate", zap.Error(err))
+		log.Log(log.AdmissionUtils).Error("Unable to create certificate", zap.Error(err))
 		return nil, nil, err
 	}
 
 	cert, err := x509.ParseCertificate(certBytes)
 	if err != nil {
-		log.Logger().Error("Unable to parse certificate", zap.Error(err))
+		log.Log(log.AdmissionUtils).Error("Unable to parse certificate", zap.Error(err))
 		return nil, nil, err
 	}
 

@@ -77,7 +77,7 @@ func (n *SchedulerNode) snapshotState() (capacity *si.Resource, occupied *si.Res
 func (n *SchedulerNode) addExistingAllocation(allocation *si.Allocation) {
 	n.lock.Lock()
 	defer n.lock.Unlock()
-	log.Logger().Info("add existing allocation",
+	log.Log(log.ShimCacheNode).Info("add existing allocation",
 		zap.String("nodeID", n.name),
 		zap.Any("allocation", allocation))
 	n.existingAllocations = append(n.existingAllocations, allocation)
@@ -88,12 +88,12 @@ func (n *SchedulerNode) updateOccupiedResource(resource *si.Resource, opt update
 	defer n.lock.Unlock()
 	switch opt {
 	case AddOccupiedResource:
-		log.Logger().Info("add node occupied resource",
+		log.Log(log.ShimCacheNode).Info("add node occupied resource",
 			zap.String("nodeID", n.name),
 			zap.Stringer("occupied", resource))
 		n.occupied = common.Add(n.occupied, resource)
 	case SubOccupiedResource:
-		log.Logger().Info("subtract node occupied resource",
+		log.Log(log.ShimCacheNode).Info("subtract node occupied resource",
 			zap.String("nodeID", n.name),
 			zap.Stringer("occupied", resource))
 		n.occupied = common.Sub(n.occupied, resource)
@@ -106,7 +106,7 @@ func (n *SchedulerNode) updateOccupiedResource(resource *si.Resource, opt update
 func (n *SchedulerNode) setCapacity(capacity *si.Resource) {
 	n.lock.Lock()
 	defer n.lock.Unlock()
-	log.Logger().Debug("set node capacity",
+	log.Log(log.ShimCacheNode).Debug("set node capacity",
 		zap.String("nodeID", n.name),
 		zap.Stringer("capacity", capacity))
 	n.capacity = capacity
@@ -115,7 +115,7 @@ func (n *SchedulerNode) setCapacity(capacity *si.Resource) {
 func (n *SchedulerNode) setReadyStatus(ready bool) {
 	n.lock.Lock()
 	defer n.lock.Unlock()
-	log.Logger().Debug("set node ready status",
+	log.Log(log.ShimCacheNode).Debug("set node ready status",
 		zap.String("nodeID", n.name),
 		zap.Bool("ready", ready))
 	n.ready = ready
@@ -145,7 +145,7 @@ func (n *SchedulerNode) postNodeAccepted() {
 }
 
 func (n *SchedulerNode) handleNodeRecovery() {
-	log.Logger().Info("node recovering",
+	log.Log(log.ShimCacheNode).Info("node recovering",
 		zap.String("nodeID", n.name),
 		zap.Bool("schedulable", n.schedulable))
 
@@ -153,33 +153,33 @@ func (n *SchedulerNode) handleNodeRecovery() {
 
 	// send node request to scheduler-core
 	if err := n.schedulerAPI.UpdateNode(nodeRequest); err != nil {
-		log.Logger().Error("failed to send UpdateNode request",
+		log.Log(log.ShimCacheNode).Error("failed to send UpdateNode request",
 			zap.Any("request", nodeRequest))
 	}
 }
 
 func (n *SchedulerNode) handleDrainNode() {
-	log.Logger().Info("node enters draining mode",
+	log.Log(log.ShimCacheNode).Info("node enters draining mode",
 		zap.String("nodeID", n.name))
 
 	nodeRequest := common.CreateUpdateRequestForDeleteOrRestoreNode(n.name, si.NodeInfo_DRAIN_NODE)
 
 	// send request to scheduler-core
 	if err := n.schedulerAPI.UpdateNode(nodeRequest); err != nil {
-		log.Logger().Error("failed to send UpdateNode request",
+		log.Log(log.ShimCacheNode).Error("failed to send UpdateNode request",
 			zap.Any("request", nodeRequest))
 	}
 }
 
 func (n *SchedulerNode) handleRestoreNode() {
-	log.Logger().Info("restore node from draining mode",
+	log.Log(log.ShimCacheNode).Info("restore node from draining mode",
 		zap.String("nodeID", n.name))
 
 	nodeRequest := common.CreateUpdateRequestForDeleteOrRestoreNode(n.name, si.NodeInfo_DRAIN_TO_SCHEDULABLE)
 
 	// send request to scheduler-core
 	if err := n.schedulerAPI.UpdateNode(nodeRequest); err != nil {
-		log.Logger().Error("failed to send UpdateNode request",
+		log.Log(log.ShimCacheNode).Error("failed to send UpdateNode request",
 			zap.Any("request", nodeRequest))
 	}
 }

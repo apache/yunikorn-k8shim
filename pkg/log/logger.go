@@ -51,20 +51,46 @@ const (
 	levelSuffix = ".level"
 )
 
-// Predefined loggers: when adding new loggers, ids must be sequential, and all must be added to the loggers slice in the same order
+// Defined loggers: when adding new loggers, ids must be sequential, and all must be added to the loggers slice in the same order
 var (
-	K8Shim     = &LoggerHandle{id: 1, name: "k8shim"}
-	Kubernetes = &LoggerHandle{id: 2, name: "kubernetes"}
-	Admission  = &LoggerHandle{id: 3, name: "admission"}
-	Test       = &LoggerHandle{id: 4, name: "test"}
+	Shim                     = &LoggerHandle{id: 1, name: "shim"}
+	Kubernetes               = &LoggerHandle{id: 2, name: "kubernetes"}
+	Test                     = &LoggerHandle{id: 3, name: "test"}
+	Admission                = &LoggerHandle{id: 4, name: "admission"}
+	AdmissionClient          = &LoggerHandle{id: 5, name: "admission.client"}
+	AdmissionConf            = &LoggerHandle{id: 6, name: "admission.conf"}
+	AdmissionWebhook         = &LoggerHandle{id: 7, name: "admission.webhook"}
+	AdmissionUtils           = &LoggerHandle{id: 8, name: "admission.utils"}
+	ShimAppMgmt              = &LoggerHandle{id: 9, name: "shim.appmgmt"}
+	ShimAppMgmtGeneral       = &LoggerHandle{id: 10, name: "shim.appmgmt.general"}
+	ShimAppMgmtSparkOperator = &LoggerHandle{id: 11, name: "shim.appmgmt.sparkoperator"}
+	ShimContext              = &LoggerHandle{id: 12, name: "shim.context"}
+	ShimFSM                  = &LoggerHandle{id: 13, name: "shim.fsm"}
+	ShimCacheApplication     = &LoggerHandle{id: 14, name: "shim.cache.application"}
+	ShimCacheNode            = &LoggerHandle{id: 15, name: "shim.cache.node"}
+	ShimCacheTask            = &LoggerHandle{id: 16, name: "shim.cache.task"}
+	ShimCacheExternal        = &LoggerHandle{id: 17, name: "shim.cache.external"}
+	ShimCachePlaceholder     = &LoggerHandle{id: 18, name: "shim.cache.placeholder"}
+	ShimRMCallback           = &LoggerHandle{id: 19, name: "shim.rmcallback"}
+	ShimClient               = &LoggerHandle{id: 20, name: "shim.client"}
+	ShimResources            = &LoggerHandle{id: 21, name: "shim.resources"}
+	ShimUtils                = &LoggerHandle{id: 22, name: "shim.utils"}
+	ShimConfig               = &LoggerHandle{id: 23, name: "shim.config"}
+	ShimDispatcher           = &LoggerHandle{id: 24, name: "shim.dispatcher"}
+	ShimScheduler            = &LoggerHandle{id: 25, name: "shim.scheduler"}
+	ShimSchedulerPlugin      = &LoggerHandle{id: 26, name: "shim.scheduler.plugin"}
+	ShimPredicates           = &LoggerHandle{id: 27, name: "shim.predicates"}
+	ShimFramework            = &LoggerHandle{id: 28, name: "shim.framework"}
 )
 
 // this tracks all the known logger handles, used to preallocate the real logger instances when configuration changes
 var loggers = []*LoggerHandle{
-	K8Shim,
-	Kubernetes,
-	Admission,
-	Test,
+	Shim, Kubernetes, Test,
+	Admission, AdmissionClient, AdmissionConf, AdmissionWebhook, AdmissionUtils,
+	ShimAppMgmt, ShimAppMgmtGeneral, ShimAppMgmtSparkOperator, ShimContext, ShimFSM,
+	ShimCacheApplication, ShimCacheNode, ShimCacheTask, ShimCacheExternal, ShimCachePlaceholder,
+	ShimRMCallback, ShimClient, ShimResources, ShimUtils, ShimConfig, ShimDispatcher,
+	ShimScheduler, ShimSchedulerPlugin, ShimPredicates, ShimFramework,
 }
 
 // structure to hold all current logger configuration state
@@ -78,8 +104,9 @@ var currentLoggerConfig = atomic.Pointer[loggerConfig]{}
 // tracks the default logger handle, which is used for legacy log.Logger() calls
 var defaultLogger = atomic.Pointer[LoggerHandle]{}
 
-// Logger retrieves the global logger. This is for compatibility with legacy code and
-// should not be used for new log messages; use Log(loggerHandle) instead
+// Logger retrieves the global logger.
+//
+// Deprecated: Use Log(loggerHandle) instead.
 func Logger() *zap.Logger {
 	once.Do(initLogger)
 	return Log(defaultLogger.Load())
@@ -148,7 +175,7 @@ func parentLogger(name string) string {
 }
 
 func initLogger() {
-	defaultLogger.Store(K8Shim)
+	defaultLogger.Store(Shim)
 	outputPaths := []string{"stdout"}
 
 	zapConfigs = &zap.Config{
@@ -195,7 +222,7 @@ func initLogger() {
 
 func GetZapConfigs() *zap.Config {
 	// force init
-	_ = Logger()
+	_ = Log(nil)
 	return zapConfigs
 }
 

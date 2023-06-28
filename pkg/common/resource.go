@@ -84,7 +84,7 @@ func GetPodResource(pod *v1.Pod) (resource *si.Resource) {
 		podOverHeadResource := getResource(pod.Spec.Overhead)
 		podResource = Add(podResource, podOverHeadResource)
 		// Logging the overall pod size and pod overhead
-		log.Logger().Debug("Pod overhead specified, overall pod size adjusted",
+		log.Log(log.ShimResources).Debug("Pod overhead specified, overall pod size adjusted",
 			zap.String("taskID", string(pod.UID)),
 			zap.Stringer("overallSize", podResource),
 			zap.Stringer("overheadSize", podOverHeadResource))
@@ -132,7 +132,7 @@ func ParseResource(cpuStr, memStr string) *si.Resource {
 		if vcore, err := resource.ParseQuantity(cpuStr); err == nil {
 			result.AddResource(siCommon.CPU, vcore.MilliValue())
 		} else {
-			log.Logger().Error("failed to parse cpu resource",
+			log.Log(log.ShimResources).Error("failed to parse cpu resource",
 				zap.String("cpuStr", cpuStr),
 				zap.Error(err))
 			return nil
@@ -143,7 +143,7 @@ func ParseResource(cpuStr, memStr string) *si.Resource {
 		if mem, err := resource.ParseQuantity(memStr); err == nil {
 			result.AddResource(siCommon.Memory, mem.Value())
 		} else {
-			log.Logger().Error("failed to parse memory resource",
+			log.Log(log.ShimResources).Error("failed to parse memory resource",
 				zap.String("memStr", memStr),
 				zap.Error(err))
 			return nil
@@ -161,7 +161,7 @@ func GetResource(resMap map[string]string) *si.Resource {
 			if actualValue, err := resource.ParseQuantity(resValue); err == nil {
 				result.AddResource(siCommon.CPU, actualValue.MilliValue())
 			} else {
-				log.Logger().Error("failed to parse cpu resource",
+				log.Log(log.ShimResources).Error("failed to parse cpu resource",
 					zap.String("res name", "cpu"),
 					zap.String("res value", resValue),
 					zap.Error(err))
@@ -171,7 +171,7 @@ func GetResource(resMap map[string]string) *si.Resource {
 			if actualValue, err := resource.ParseQuantity(resValue); err == nil {
 				result.AddResource(resName, actualValue.Value())
 			} else {
-				log.Logger().Error("failed to parse resource",
+				log.Log(log.ShimResources).Error("failed to parse resource",
 					zap.String("res name", resName),
 					zap.String("res value", resValue),
 					zap.Error(err))

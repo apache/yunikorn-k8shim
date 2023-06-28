@@ -31,9 +31,9 @@ import (
 
 var nodeStatesOnce sync.Once
 
-//----------------------------------------------
+// ----------------------------------------------
 // SchedulerNode events
-//----------------------------------------------
+// ----------------------------------------------
 type SchedulerNodeEventType int
 
 const (
@@ -132,7 +132,7 @@ func newSchedulerNodeState() *fsm.FSM {
 		fsm.Callbacks{
 			events.EnterState: func(_ context.Context, event *fsm.Event) {
 				node := event.Args[0].(*SchedulerNode) //nolint:errcheck
-				log.Logger().Debug("shim node state transition",
+				log.Log(log.ShimFSM).Debug("shim node state transition",
 					zap.String("nodeID", node.name),
 					zap.String("source", event.Src),
 					zap.String("destination", event.Dst),

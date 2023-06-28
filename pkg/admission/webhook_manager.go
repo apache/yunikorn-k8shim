@@ -88,12 +88,12 @@ type webhookManagerImpl struct {
 func NewWebhookManager(conf *conf.AdmissionControllerConf) (WebhookManager, error) {
 	kubeconfig, err := client.CreateRestConfig(conf.GetKubeConfig())
 	if err != nil {
-		log.Logger().Error("Unable to create kubernetes config", zap.Error(err))
+		log.Log(log.AdmissionWebhook).Error("Unable to create kubernetes config", zap.Error(err))
 		return nil, err
 	}
 	clientset, err := kubernetes.NewForConfig(kubeconfig)
 	if err != nil {
-		log.Logger().Error("Unable to create kubernetes clientset", zap.Error(err))
+		log.Log(log.AdmissionWebhook).Error("Unable to create kubernetes clientset", zap.Error(err))
 		return nil, err
 	}
 	return newWebhookManagerImpl(conf, clientset), nil
@@ -129,7 +129,7 @@ func (wm *webhookManagerImpl) LoadCACertificates() error {
 func (wm *webhookManagerImpl) GenerateServerCertificate() (*tls.Certificate, error) {
 	caCert, caKey, err := wm.getBestCACertificate()
 	if err != nil {
-		log.Logger().Error("Unable to find best CA certificate", zap.Error(err))
+		log.Log(log.AdmissionWebhook).Error("Unable to find best CA certificate", zap.Error(err))
 		return nil, err
 	}
 
@@ -143,15 +143,15 @@ func (wm *webhookManagerImpl) GenerateServerCertificate() (*tls.Certificate, err
 		fmt.Sprintf("%s.%s.svc", serviceName, namespace),
 	}
 
-	log.Logger().Info("Generating server certificate...")
+	log.Log(log.AdmissionWebhook).Info("Generating server certificate...")
 
 	cert, key, err := pki.GenerateServerCertificate(commonName, dnsNames, caCert, caKey)
 	if err != nil {
-		log.Logger().Error("Unable to generate server certificate", zap.Error(err))
+		log.Log(log.AdmissionWebhook).Error("Unable to generate server certificate", zap.Error(err))
 		return nil, err
 	}
 
-	log.Logger().Info("Generated server certificate",
+	log.Log(log.AdmissionWebhook).Info("Generated server certificate",
 		zap.String("commonName", cert.Subject.CommonName),
 		zap.Strings("dnsNames", cert.DNSNames),
 		zap.Time("notBefore", cert.NotBefore),
@@ -165,13 +165,13 @@ func (wm *webhookManagerImpl) GenerateServerCertificate() (*tls.Certificate, err
 
 	certPemChain, err := pki.EncodeCertChainPem(certChain)
 	if err != nil {
-		log.Logger().Error("Unable to encode certificate chain", zap.Error(err))
+		log.Log(log.AdmissionWebhook).Error("Unable to encode certificate chain", zap.Error(err))
 		return nil, err
 	}
 
 	keyPem, err := pki.EncodePrivateKeyPem(key)
 	if err != nil {
-		log.Logger().Error("Unable to encode private key", zap.Error(err))
+		log.Log(log.AdmissionWebhook).Error("Unable to encode private key", zap.Error(err))
 	}
 
 	pair, err := tls.X509KeyPair(*certPemChain, *keyPem)
@@ -195,7 +195,7 @@ func (wm *webhookManagerImpl) InstallWebhooks() error {
 		// safety valve: if the webhook keeps changing, break out eventually
 		attempts++
 		if attempts >= wm.conflictAttempts {
-			log.Logger().Error("Unable to install validating webhook after max attempts")
+			log.Log(log.AdmissionWebhook).Error("Unable to install validating webhook after max attempts")
 			return errors.New("webhook: unable to install validating webhook after max attempts")
 		}
 	}
@@ -212,7 +212,7 @@ func (wm *webhookManagerImpl) InstallWebhooks() error {
 		// safety valve: if the webhook keeps changing, break out eventually
 		attempts++
 		if attempts >= wm.conflictAttempts {
-			log.Logger().Error("Unable to install mutating webhook after max attempts")
+			log.Log(log.AdmissionWebhook).Error("Unable to install mutating webhook after max attempts")
 			return errors.New("webhook: unable to install mutating webhook after max attempts")
 		}
 	}
@@ -232,21 +232,21 @@ func (wm *webhookManagerImpl) getExpiration() time.Time {
 }
 
 func (wm *webhookManagerImpl) installValidatingWebhook() (bool, error) {
-	log.Logger().Info("Checking for existing validating webhook...")
+	log.Log(log.AdmissionWebhook).Info("Checking for existing validating webhook...")
 
 	caBundle, err := wm.encodeCaBundle()
 	if err != nil {
-		log.Logger().Error("Unable to encode CA bundle", zap.Error(err))
+		log.Log(log.AdmissionWebhook).Error("Unable to encode CA bundle", zap.Error(err))
 		return false, err
 	}
 
 	hook, err := wm.clientset.AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(ctx.Background(), validatingWebhook, metav1.GetOptions{})
 	if err != nil {
 		if !apierrors.IsNotFound(err) {
-			log.Logger().Error("Unable to read validating webhook", zap.String("name", validatingWebhook), zap.Error(err))
+			log.Log(log.AdmissionWebhook).Error("Unable to read validating webhook", zap.String("name", validatingWebhook), zap.Error(err))
 			return false, err
 		}
-		log.Logger().Info("Unable to find validating webhook, will create it", zap.String("name", validatingWebhook))
+		log.Log(log.AdmissionWebhook).Info("Unable to find validating webhook, will create it", zap.String("name", validatingWebhook))
 		hook = nil
 	}
 
@@ -258,24 +258,24 @@ func (wm *webhookManagerImpl) installValidatingWebhook() (bool, error) {
 		// sanity check to ensure that the hook is well-formed before we update it
 		err = wm.checkValidatingWebhook(hook)
 		if err != nil {
-			log.Logger().Error("BUG: Validating webhook is invalid", zap.Error(err))
+			log.Log(log.AdmissionWebhook).Error("BUG: Validating webhook is invalid", zap.Error(err))
 			return false, err
 		}
 
-		log.Logger().Info("Creating validating webhook", zap.String("webhook", hook.Name))
+		log.Log(log.AdmissionWebhook).Info("Creating validating webhook", zap.String("webhook", hook.Name))
 		_, err = wm.clientset.AdmissionregistrationV1().ValidatingWebhookConfigurations().Create(ctx.Background(), hook, metav1.CreateOptions{})
 		if err != nil {
 			if apierrors.IsConflict(err) || apierrors.IsAlreadyExists(err) {
 				// go around again
 				return true, nil
 			}
-			log.Logger().Error("Unable to install validating webhook", zap.Error(err))
+			log.Log(log.AdmissionWebhook).Error("Unable to install validating webhook", zap.Error(err))
 			return false, err
 		}
 	} else {
 		err = wm.checkValidatingWebhook(hook)
 		if err == nil {
-			log.Logger().Info("Validating webhook OK")
+			log.Log(log.AdmissionWebhook).Info("Validating webhook OK")
 			return false, nil
 		}
 
@@ -285,18 +285,18 @@ func (wm *webhookManagerImpl) installValidatingWebhook() (bool, error) {
 		// sanity check to ensure that the hook is well-formed before we update it
 		err = wm.checkValidatingWebhook(hook)
 		if err != nil {
-			log.Logger().Error("BUG: Validating webhook is invalid", zap.Error(err))
+			log.Log(log.AdmissionWebhook).Error("BUG: Validating webhook is invalid", zap.Error(err))
 			return false, err
 		}
 
-		log.Logger().Info("Updating validating webhook", zap.String("webhook", hook.Name))
+		log.Log(log.AdmissionWebhook).Info("Updating validating webhook", zap.String("webhook", hook.Name))
 		_, err = wm.clientset.AdmissionregistrationV1().ValidatingWebhookConfigurations().Update(ctx.Background(), hook, metav1.UpdateOptions{})
 		if err != nil {
 			if apierrors.IsNotFound(err) || apierrors.IsConflict(err) {
 				// go around again
 				return true, nil
 			}
-			log.Logger().Error("Unable to update validating webhook", zap.Error(err))
+			log.Log(log.AdmissionWebhook).Error("Unable to update validating webhook", zap.Error(err))
 			return false, err
 		}
 	}
@@ -305,21 +305,21 @@ func (wm *webhookManagerImpl) installValidatingWebhook() (bool, error) {
 }
 
 func (wm *webhookManagerImpl) installMutatingWebhook() (bool, error) {
-	log.Logger().Info("Checking for existing mutating webhook...")
+	log.Log(log.AdmissionWebhook).Info("Checking for existing mutating webhook...")
 
 	caBundle, err := wm.encodeCaBundle()
 	if err != nil {
-		log.Logger().Error("Unable to encode CA bundle", zap.Error(err))
+		log.Log(log.AdmissionWebhook).Error("Unable to encode CA bundle", zap.Error(err))
 		return false, err
 	}
 
 	hook, err := wm.clientset.AdmissionregistrationV1().MutatingWebhookConfigurations().Get(ctx.Background(), mutatingWebhook, metav1.GetOptions{})
 	if err != nil {
 		if !apierrors.IsNotFound(err) {
-			log.Logger().Error("Unable to read mutating webhook", zap.String("name", mutatingWebhook), zap.Error(err))
+			log.Log(log.AdmissionWebhook).Error("Unable to read mutating webhook", zap.String("name", mutatingWebhook), zap.Error(err))
 			return false, err
 		}
-		log.Logger().Info("Unable to find mutating webhook, will create it", zap.String("name", mutatingWebhook))
+		log.Log(log.AdmissionWebhook).Info("Unable to find mutating webhook, will create it", zap.String("name", mutatingWebhook))
 		hook = nil
 	}
 
@@ -331,24 +331,24 @@ func (wm *webhookManagerImpl) installMutatingWebhook() (bool, error) {
 		// sanity check to ensure that the hook is well-formed before we update it
 		err = wm.checkMutatingWebhook(hook)
 		if err != nil {
-			log.Logger().Error("BUG: Mutating webhook is invalid", zap.Error(err))
+			log.Log(log.AdmissionWebhook).Error("BUG: Mutating webhook is invalid", zap.Error(err))
 			return false, err
 		}
 
-		log.Logger().Info("Creating mutating webhook", zap.String("webhook", hook.Name))
+		log.Log(log.AdmissionWebhook).Info("Creating mutating webhook", zap.String("webhook", hook.Name))
 		_, err = wm.clientset.AdmissionregistrationV1().MutatingWebhookConfigurations().Create(ctx.Background(), hook, metav1.CreateOptions{})
 		if err != nil {
 			if apierrors.IsConflict(err) || apierrors.IsAlreadyExists(err) {
 				// go around again
 				return true, nil
 			}
-			log.Logger().Error("Unable to install mutating webhook", zap.Error(err))
+			log.Log(log.AdmissionWebhook).Error("Unable to install mutating webhook", zap.Error(err))
 			return false, err
 		}
 	} else {
 		err = wm.checkMutatingWebhook(hook)
 		if err == nil {
-			log.Logger().Info("Mutating webhook OK")
+			log.Log(log.AdmissionWebhook).Info("Mutating webhook OK")
 			return false, nil
 		}
 
@@ -358,18 +358,18 @@ func (wm *webhookManagerImpl) installMutatingWebhook() (bool, error) {
 		// sanity check to ensure that the hook is well-formed before we update it
 		err = wm.checkMutatingWebhook(hook)
 		if err != nil {
-			log.Logger().Error("BUG: Mutating webhook is invalid", zap.Error(err))
+			log.Log(log.AdmissionWebhook).Error("BUG: Mutating webhook is invalid", zap.Error(err))
 			return false, err
 		}
 
-		log.Logger().Info("Updating mutating webhook", zap.String("hook", hook.Name))
+		log.Log(log.AdmissionWebhook).Info("Updating mutating webhook", zap.String("hook", hook.Name))
 		_, err = wm.clientset.AdmissionregistrationV1().MutatingWebhookConfigurations().Update(ctx.Background(), hook, metav1.UpdateOptions{})
 		if err != nil {
 			if apierrors.IsNotFound(err) || apierrors.IsConflict(err) {
 				// go around again
 				return true, nil
 			}
-			log.Logger().Error("Unable to update mutating webhook", zap.Error(err))
+			log.Log(log.AdmissionWebhook).Error("Unable to update mutating webhook", zap.Error(err))
 			return false, err
 		}
 	}
@@ -662,7 +662,7 @@ func (wm *webhookManagerImpl) loadCaCertificatesInternal() (bool, error) {
 	namespace := wm.conf.GetNamespace()
 	secret, err := wm.clientset.CoreV1().Secrets(namespace).Get(ctx.Background(), secretName, metav1.GetOptions{})
 	if err != nil {
-		log.Logger().Error("Unable to retrieve admission-controller-secrets secrets", zap.Error(err))
+		log.Log(log.AdmissionWebhook).Error("Unable to retrieve admission-controller-secrets secrets", zap.Error(err))
 		return false, err
 	}
 
@@ -675,16 +675,16 @@ func (wm *webhookManagerImpl) loadCaCertificatesInternal() (bool, error) {
 
 	cert1, key1, err := getAndValidateCertificate(secret.Data, caCert1Path, caPrivateKey1Path)
 	if err != nil {
-		log.Logger().Info("Unable to get CA certificate #1", zap.Error(err))
+		log.Log(log.AdmissionWebhook).Info("Unable to get CA certificate #1", zap.Error(err))
 	}
 
 	cert2, key2, err := getAndValidateCertificate(secret.Data, caCert2Path, caPrivateKey2Path)
 	if err != nil {
-		log.Logger().Info("Unable to get CA certificate #2", zap.Error(err))
+		log.Log(log.AdmissionWebhook).Info("Unable to get CA certificate #2", zap.Error(err))
 	}
 
 	if cert1 == nil {
-		log.Logger().Info("Generating CA Certificate #1...")
+		log.Log(log.AdmissionWebhook).Info("Generating CA Certificate #1...")
 		notAfter := time.Now().AddDate(1, 0, 0)
 		if cert2 == nil {
 			// stagger expiration dates so that there is ~ 6 months between them
@@ -692,43 +692,43 @@ func (wm *webhookManagerImpl) loadCaCertificatesInternal() (bool, error) {
 		}
 		cert1, key1, err = pki.GenerateCACertificate(notAfter)
 		if err != nil {
-			log.Logger().Error("Unable to generate CA certificate #1", zap.Error(err))
+			log.Log(log.AdmissionWebhook).Error("Unable to generate CA certificate #1", zap.Error(err))
 			return false, err
 		}
 		dirty = true
 	}
 
 	if cert2 == nil {
-		log.Logger().Info("Generating CA Certificate #2...")
+		log.Log(log.AdmissionWebhook).Info("Generating CA Certificate #2...")
 		cert2, key2, err = pki.GenerateCACertificate(time.Now().AddDate(1, 0, 0))
 		if err != nil {
-			log.Logger().Error("Unable to generate CA certificate #2", zap.Error(err))
+			log.Log(log.AdmissionWebhook).Error("Unable to generate CA certificate #2", zap.Error(err))
 			return false, err
 		}
 		dirty = true
 	}
 
 	if dirty {
-		log.Logger().Info("CA certificates have changed, updating secrets")
+		log.Log(log.AdmissionWebhook).Info("CA certificates have changed, updating secrets")
 
 		cert1Pem, err := pki.EncodeCertificatePem(cert1)
 		if err != nil {
-			log.Logger().Error("Unable to encode CA certificate #1", zap.Error(err))
+			log.Log(log.AdmissionWebhook).Error("Unable to encode CA certificate #1", zap.Error(err))
 			return false, err
 		}
 		key1Pem, err := pki.EncodePrivateKeyPem(key1)
 		if err != nil {
-			log.Logger().Error("Unable to encode CA private key #1", zap.Error(err))
+			log.Log(log.AdmissionWebhook).Error("Unable to encode CA private key #1", zap.Error(err))
 			return false, err
 		}
 		cert2Pem, err := pki.EncodeCertificatePem(cert2)
 		if err != nil {
-			log.Logger().Error("Unable to encode CA certificate #2", zap.Error(err))
+			log.Log(log.AdmissionWebhook).Error("Unable to encode CA certificate #2", zap.Error(err))
 			return false, err
 		}
 		key2Pem, err := pki.EncodePrivateKeyPem(key2)
 		if err != nil {
-			log.Logger().Error("Unable to encode CA private key #2", zap.Error(err))
+			log.Log(log.AdmissionWebhook).Error("Unable to encode CA private key #2", zap.Error(err))
 			return false, err
 		}
 		secret.Data[caCert1Path] = *cert1Pem
@@ -743,7 +743,7 @@ func (wm *webhookManagerImpl) loadCaCertificatesInternal() (bool, error) {
 				return true, nil
 			}
 			// report error to caller
-			log.Logger().Error("Unable to update secrets", zap.Error(err))
+			log.Log(log.AdmissionWebhook).Error("Unable to update secrets", zap.Error(err))
 			return false, err
 		}
 
@@ -751,10 +751,10 @@ func (wm *webhookManagerImpl) loadCaCertificatesInternal() (bool, error) {
 		return true, err
 	}
 
-	log.Logger().Info("Got CA certificate #1",
+	log.Log(log.AdmissionWebhook).Info("Got CA certificate #1",
 		zap.Int64("serialNumber", cert1.SerialNumber.Int64()),
 		zap.Time("notAfter", cert1.NotAfter))
-	log.Logger().Info("Got CA certificate #2",
+	log.Log(log.AdmissionWebhook).Info("Got CA certificate #2",
 		zap.Int64("serialNumber", cert2.SerialNumber.Int64()),
 		zap.Time("notAfter", cert2.NotAfter))
 

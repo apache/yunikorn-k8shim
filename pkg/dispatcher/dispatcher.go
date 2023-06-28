@@ -75,7 +75,7 @@ func initDispatcher() {
 	if AsyncDispatchLimit < 10000 {
 		AsyncDispatchLimit = 10000
 	}
-	log.Logger().Info("Init dispatcher",
+	log.Log(log.ShimDispatcher).Info("Init dispatcher",
 		zap.Int("EventChannelCapacity", eventChannelCapacity),
 		zap.Int32("AsyncDispatchLimit", AsyncDispatchLimit),
 		zap.Float64("DispatchTimeoutInSeconds", DispatchTimeout.Seconds()))
@@ -111,7 +111,7 @@ func Dispatch(event events.SchedulingEvent) {
 	// currently if dispatch fails, we simply log the error
 	// we may revisit this later, e.g add retry here
 	if err := getDispatcher().dispatch(event); err != nil {
-		log.Logger().Warn("failed to dispatch SchedulingEvent",
+		log.Log(log.ShimDispatcher).Warn("failed to dispatch SchedulingEvent",
 			zap.Error(err))
 	}
 }
@@ -141,7 +141,7 @@ func (p *Dispatcher) dispatch(event events.SchedulingEvent) error {
 // it's only called when event channel is full.
 func (p *Dispatcher) asyncDispatch(event events.SchedulingEvent) {
 	count := atomic.AddInt32(&asyncDispatchCount, 1)
-	log.Logger().Warn("event channel is full, transition to async-dispatch mode",
+	log.Log(log.ShimDispatcher).Warn("event channel is full, transition to async-dispatch mode",
 		zap.Int32("asyncDispatchCount", count))
 	if count > AsyncDispatchLimit {
 		panic(fmt.Errorf("dispatcher exceeds async-dispatch limit"))
@@ -157,11 +157,11 @@ func (p *Dispatcher) asyncDispatch(event events.SchedulingEvent) {
 			case <-time.After(AsyncDispatchCheckInterval):
 				elapseTime := time.Since(beginTime)
 				if elapseTime >= DispatchTimeout {
-					log.Logger().Error("dispatch timeout",
+					log.Log(log.ShimDispatcher).Error("dispatch timeout",
 						zap.Float64("elapseSeconds", elapseTime.Seconds()))
 					return
 				}
-				log.Logger().Warn("event channel is full, keep waiting...",
+				log.Log(log.ShimDispatcher).Warn("event channel is full, keep waiting...",
 					zap.Float64("elapseSeconds", elapseTime.Seconds()))
 			}
 		}
@@ -170,17 +170,17 @@ func (p *Dispatcher) asyncDispatch(event events.SchedulingEvent) {
 
 func (p *Dispatcher) drain() {
 	for len(p.eventChan) > 0 {
-		log.Logger().Info("wait dispatcher to drain",
+		log.Log(log.ShimDispatcher).Info("wait dispatcher to drain",
 			zap.Int("remaining events", len(p.eventChan)))
 		time.Sleep(1 * time.Second)
 	}
-	log.Logger().Info("dispatcher is draining out")
+	log.Log(log.ShimDispatcher).Info("dispatcher is draining out")
 }
 
 func Start() {
-	log.Logger().Info("starting the dispatcher")
+	log.Log(log.ShimDispatcher).Info("starting the dispatcher")
 	if getDispatcher().isRunning() {
-		log.Logger().Info("dispatcher is already running")
+		log.Log(log.ShimDispatcher).Info("dispatcher is already running")
 		return
 	}
 	getDispatcher().stopChan = make(chan struct{})
@@ -200,11 +200,11 @@ func Start() {
 				case events.SchedulerEvent:
 					getEventHandler(EventTypeScheduler)(v)
 				default:
-					log.Logger().Fatal("unsupported event",
+					log.Log(log.ShimDispatcher).Fatal("unsupported event",
 						zap.Any("event", v))
 				}
 			case <-getDispatcher().stopChan:
-				log.Logger().Info("shutting down event channel")
+				log.Log(log.ShimDispatcher).Info("shutting down event channel")
 				getDispatcher().setRunning(false)
 				return
 			}
@@ -215,7 +215,7 @@ func Start() {
 
 // stop the dispatcher and wait at most 5 seconds gracefully
 func Stop() {
-	log.Logger().Info("stopping the dispatcher")
+	log.Log(log.ShimDispatcher).Info("stopping the dispatcher")
 
 	var chanClosed bool
 	select {
@@ -226,9 +226,9 @@ func Stop() {
 
 	if chanClosed {
 		if getDispatcher().isRunning() {
-			log.Logger().Info("dispatcher shutdown in progress")
+			log.Log(log.ShimDispatcher).Info("dispatcher shutdown in progress")
 		} else {
-			log.Logger().Info("dispatcher is already stopped")
+			log.Log(log.ShimDispatcher).Info("dispatcher is already stopped")
 		}
 		return
 	}
@@ -236,14 +236,14 @@ func Stop() {
 	close(getDispatcher().stopChan)
 	maxTimeout := 5
 	for getDispatcher().isRunning() && maxTimeout > 0 {
-		log.Logger().Info("waiting for dispatcher to be stopped",
+		log.Log(log.ShimDispatcher).Info("waiting for dispatcher to be stopped",
 			zap.Int("remainingSeconds", maxTimeout))
 		time.Sleep(1 * time.Second)
 		maxTimeout--
 	}
 	if getDispatcher().isRunning() {
-		log.Logger().Warn("dispatcher even processing did not stop properly")
+		log.Log(log.ShimDispatcher).Warn("dispatcher even processing did not stop properly")
 	} else {
-		log.Logger().Info("dispatcher stopped successfully")
+		log.Log(log.ShimDispatcher).Info("dispatcher stopped successfully")
 	}
 }

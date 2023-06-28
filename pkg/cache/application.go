@@ -246,11 +246,11 @@ func (app *Application) removeTask(taskID string) {
 	app.lock.Lock()
 	defer app.lock.Unlock()
 	if _, ok := app.taskMap[taskID]; !ok {
-		log.Logger().Debug("Attempted to remove non-existent task", zap.String("taskID", taskID))
+		log.Log(log.ShimCacheApplication).Debug("Attempted to remove non-existent task", zap.String("taskID", taskID))
 		return
 	}
 	delete(app.taskMap, taskID)
-	log.Logger().Info("task removed",
+	log.Log(log.ShimCacheApplication).Info("task removed",
 		zap.String("appID", app.applicationID),
 		zap.String("taskID", taskID))
 }
@@ -358,7 +358,7 @@ func (app *Application) Schedule() bool {
 	case ApplicationStates().New:
 		ev := NewSubmitApplicationEvent(app.GetApplicationID())
 		if err := app.handle(ev); err != nil {
-			log.Logger().Warn("failed to handle SUBMIT app event",
+			log.Log(log.ShimCacheApplication).Warn("failed to handle SUBMIT app event",
 				zap.Error(err))
 		}
 	case ApplicationStates().Accepted:
@@ -386,7 +386,7 @@ func (app *Application) Schedule() bool {
 			return false
 		}
 	default:
-		log.Logger().Debug("skipping scheduling application",
+		log.Log(log.ShimCacheApplication).Debug("skipping scheduling application",
 			zap.String("appState", app.GetApplicationState()),
 			zap.String("appID", app.GetApplicationID()),
 			zap.String("appState", app.GetApplicationState()))
@@ -407,11 +407,11 @@ func (app *Application) scheduleTasks(taskScheduleCondition func(t *Task) bool) 
 					// something goes wrong when transit task to PENDING state,
 					// this should not happen because we already checked the state
 					// before calling the transition. Nowhere to go, just log the error.
-					log.Logger().Warn("init task failed", zap.Error(err))
+					log.Log(log.ShimCacheApplication).Warn("init task failed", zap.Error(err))
 				}
 			} else {
 				events.GetRecorder().Eventf(task.GetTaskPod().DeepCopy(), nil, v1.EventTypeWarning, "FailedScheduling", "FailedScheduling", err.Error())
-				log.Logger().Debug("task is not ready for scheduling",
+				log.Log(log.ShimCacheApplication).Debug("task is not ready for scheduling",
 					zap.String("appID", task.applicationID),
 					zap.String("taskID", task.taskID),
 					zap.Error(err))
@@ -421,7 +421,7 @@ func (app *Application) scheduleTasks(taskScheduleCondition func(t *Task) bool) 
 }
 
 func (app *Application) handleSubmitApplicationEvent() {
-	log.Logger().Info("handle app submission",
+	log.Log(log.ShimCacheApplication).Info("handle app submission",
 		zap.Stringer("app", app),
 		zap.String("clusterID", conf.GetSchedulerConf().ClusterID))
 	err := app.schedulerAPI.UpdateApplication(
@@ -446,13 +446,13 @@ func (app *Application) handleSubmitApplicationEvent() {
 
 	if err != nil {
 		// submission failed
-		log.Logger().Warn("failed to submit app", zap.Error(err))
+		log.Log(log.ShimCacheApplication).Warn("failed to submit app", zap.Error(err))
 		dispatcher.Dispatch(NewFailApplicationEvent(app.applicationID, err.Error()))
 	}
 }
 
 func (app *Application) handleRecoverApplicationEvent() {
-	log.Logger().Info("handle app recovering",
+	log.Log(log.ShimCacheApplication).Info("handle app recovering",
 		zap.Stringer("app", app),
 		zap.String("clusterID", conf.GetSchedulerConf().ClusterID))
 	err := app.schedulerAPI.UpdateApplication(
@@ -477,7 +477,7 @@ func (app *Application) handleRecoverApplicationEvent() {
 
 	if err != nil {
 		// recovery failed
-		log.Logger().Warn("failed to recover app", zap.Error(err))
+		log.Log(log.ShimCacheApplication).Warn("failed to recover app", zap.Error(err))
 		dispatcher.Dispatch(NewFailApplicationEvent(app.applicationID, err.Error()))
 	}
 }
@@ -485,7 +485,7 @@ func (app *Application) handleRecoverApplicationEvent() {
 func (app *Application) skipReservationStage() bool {
 	// no task groups defined, skip reservation
 	if len(app.taskGroups) == 0 {
-		log.Logger().Debug("Skip reservation stage: no task groups defined",
+		log.Log(log.ShimCacheApplication).Debug("Skip reservation stage: no task groups defined",
 			zap.String("appID", app.applicationID))
 		return true
 	}
@@ -496,7 +496,7 @@ func (app *Application) skipReservationStage() bool {
 	if len(app.taskMap) > 0 {
 		for _, task := range app.taskMap {
 			if !task.IsPlaceholder() && task.GetTaskState() != TaskStates().New {
-				log.Logger().Debug("Skip reservation stage: found task already has been scheduled before.",
+				log.Log(log.ShimCacheApplication).Debug("Skip reservation stage: found task already has been scheduled before.",
 					zap.String("appID", app.applicationID),
 					zap.String("taskID", task.GetTaskID()),
 					zap.String("taskState", task.GetTaskState()))
@@ -513,17 +513,17 @@ func (app *Application) postAppAccepted() {
 	// app could have allocated tasks upon a recovery, and in that case,
 	// the reserving phase has already passed, no need to trigger that again.
 	var ev events.SchedulingEvent
-	log.Logger().Debug("postAppAccepted on cached app",
+	log.Log(log.ShimCacheApplication).Debug("postAppAccepted on cached app",
 		zap.String("appID", app.applicationID),
 		zap.Int("numTaskGroups", len(app.taskGroups)),
 		zap.Int("numAllocatedTasks", len(app.GetAllocatedTasks())))
 	if app.skipReservationStage() {
 		ev = NewRunApplicationEvent(app.applicationID)
-		log.Logger().Info("Skip the reservation stage",
+		log.Log(log.ShimCacheApplication).Info("Skip the reservation stage",
 			zap.String("appID", app.applicationID))
 	} else {
 		ev = NewSimpleApplicationEvent(app.applicationID, TryReserve)
-		log.Logger().Info("app has taskGroups defined, trying to reserve resources for gang members",
+		log.Log(log.ShimCacheApplication).Info("app has taskGroups defined, trying to reserve resources for gang members",
 			zap.String("appID", app.applicationID))
 	}
 	dispatcher.Dispatch(ev)
@@ -562,7 +562,7 @@ func (app *Application) onReservationStateChange() {
 			if _, ok := desireCounts[t.taskGroupName]; ok {
 				desireCounts[t.taskGroupName]--
 			} else {
-				log.Logger().Debug("placeholder taskGroupName set on pod is unknown for application",
+				log.Log(log.ShimCacheApplication).Debug("placeholder taskGroupName set on pod is unknown for application",
 					zap.String("application", app.applicationID),
 					zap.String("podName", t.GetTaskPod().Name),
 					zap.String("taskGroupName", t.taskGroupName))
@@ -580,7 +580,7 @@ func (app *Application) onReservationStateChange() {
 }
 
 func (app *Application) handleRejectApplicationEvent(reason string) {
-	log.Logger().Info("app is rejected by scheduler", zap.String("appID", app.applicationID))
+	log.Log(log.ShimCacheApplication).Info("app is rejected by scheduler", zap.String("appID", app.applicationID))
 	// for rejected apps, we directly move them to failed state
 	dispatcher.Dispatch(NewFailApplicationEvent(app.applicationID,
 		fmt.Sprintf("%s: %s", constants.ApplicationRejectedFailure, reason)))
@@ -600,12 +600,12 @@ func failTaskPodWithReasonAndMsg(task *Task, reason string, msg string) {
 		Reason:  reason,
 		Message: msg,
 	}
-	log.Logger().Info("setting pod to failed", zap.String("podName", task.GetTaskPod().Name))
+	log.Log(log.ShimCacheApplication).Info("setting pod to failed", zap.String("podName", task.GetTaskPod().Name))
 	pod, err := task.UpdateTaskPodStatus(podCopy)
 	if err != nil {
-		log.Logger().Error("failed to update task pod status", zap.Error(err))
+		log.Log(log.ShimCacheApplication).Error("failed to update task pod status", zap.Error(err))
 	} else {
-		log.Logger().Info("new pod status", zap.String("status", string(pod.Status.Phase)))
+		log.Log(log.ShimCacheApplication).Info("new pod status", zap.String("status", string(pod.Status.Phase)))
 	}
 }
 
@@ -613,7 +613,7 @@ func (app *Application) handleFailApplicationEvent(errMsg string) {
 	go func() {
 		getPlaceholderManager().cleanUp(app)
 	}()
-	log.Logger().Info("failApplication reason", zap.String("applicationID", app.applicationID), zap.String("errMsg", errMsg))
+	log.Log(log.ShimCacheApplication).Info("failApplication reason", zap.String("applicationID", app.applicationID), zap.String("errMsg", errMsg))
 	// unallocated task states include New, Pending and Scheduling
 	unalloc := app.getTasks(TaskStates().New)
 	unalloc = append(unalloc, app.getTasks(TaskStates().Pending)...)
@@ -634,7 +634,7 @@ func (app *Application) handleFailApplicationEvent(errMsg string) {
 }
 
 func (app *Application) handleReleaseAppAllocationEvent(allocUUID string, terminationType string) {
-	log.Logger().Info("try to release pod from application",
+	log.Log(log.ShimCacheApplication).Info("try to release pod from application",
 		zap.String("appID", app.applicationID),
 		zap.String("allocationUUID", allocUUID),
 		zap.String("terminationType", terminationType))
@@ -644,7 +644,7 @@ func (app *Application) handleReleaseAppAllocationEvent(allocUUID string, termin
 			task.setTaskTerminationType(terminationType)
 			err := task.DeleteTaskPod(task.pod)
 			if err != nil {
-				log.Logger().Error("failed to release allocation from application", zap.Error(err))
+				log.Log(log.ShimCacheApplication).Error("failed to release allocation from application", zap.Error(err))
 			}
 			app.publishPlaceholderTimeoutEvents(task)
 		}
@@ -652,7 +652,7 @@ func (app *Application) handleReleaseAppAllocationEvent(allocUUID string, termin
 }
 
 func (app *Application) handleReleaseAppAllocationAskEvent(taskID string, terminationType string) {
-	log.Logger().Info("try to release pod from application",
+	log.Log(log.ShimCacheApplication).Info("try to release pod from application",
 		zap.String("appID", app.applicationID),
 		zap.String("taskID", taskID),
 		zap.String("terminationType", terminationType))
@@ -661,16 +661,16 @@ func (app *Application) handleReleaseAppAllocationAskEvent(taskID string, termin
 		if task.IsPlaceholder() {
 			err := task.DeleteTaskPod(task.pod)
 			if err != nil {
-				log.Logger().Error("failed to release allocation ask from application", zap.Error(err))
+				log.Log(log.ShimCacheApplication).Error("failed to release allocation ask from application", zap.Error(err))
 			}
 			app.publishPlaceholderTimeoutEvents(task)
 		} else {
-			log.Logger().Warn("skip to release allocation ask, ask is not a placeholder",
+			log.Log(log.ShimCacheApplication).Warn("skip to release allocation ask, ask is not a placeholder",
 				zap.String("appID", app.applicationID),
 				zap.String("taskID", taskID))
 		}
 	} else {
-		log.Logger().Warn("task not found",
+		log.Log(log.ShimCacheApplication).Warn("task not found",
 			zap.String("appID", app.applicationID),
 			zap.String("taskID", taskID))
 	}
@@ -682,14 +682,14 @@ func (app *Application) handleAppTaskCompletedEvent() {
 			return
 		}
 	}
-	log.Logger().Info("Resuming completed, start to run the app",
+	log.Log(log.ShimCacheApplication).Info("Resuming completed, start to run the app",
 		zap.String("appID", app.applicationID))
 	dispatcher.Dispatch(NewRunApplicationEvent(app.applicationID))
 }
 
 func (app *Application) publishPlaceholderTimeoutEvents(task *Task) {
 	if app.originatingTask != nil && task.IsPlaceholder() && task.terminationType == si.TerminationType_name[int32(si.TerminationType_TIMEOUT)] {
-		log.Logger().Debug("trying to send placeholder timeout events to the original pod from application",
+		log.Log(log.ShimCacheApplication).Debug("trying to send placeholder timeout events to the original pod from application",
 			zap.String("appID", app.applicationID),
 			zap.Stringer("app request originating pod", app.originatingTask.GetTaskPod()),
 			zap.String("taskID", task.taskID),

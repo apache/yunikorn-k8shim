@@ -88,14 +88,14 @@ func (sp *YuniKornSchedulerPlugin) Name() string {
 
 // PreFilter is used to release pods to scheduler
 func (sp *YuniKornSchedulerPlugin) PreFilter(_ context.Context, state *framework.CycleState, pod *v1.Pod) (*framework.PreFilterResult, *framework.Status) {
-	log.Logger().Debug("PreFilter check",
+	log.Log(log.ShimSchedulerPlugin).Debug("PreFilter check",
 		zap.String("namespace", pod.Namespace),
 		zap.String("pod", pod.Name))
 
 	// we don't process pods without appID defined
 	appID := utils.GetApplicationIDFromPod(pod)
 	if appID == "" {
-		log.Logger().Debug("Skipping pod in the prefilter plugin because no applicationID is defined",
+		log.Log(log.ShimSchedulerPlugin).Debug("Skipping pod in the prefilter plugin because no applicationID is defined",
 			zap.String("namespace", pod.Namespace),
 			zap.String("pod", pod.Name))
 
@@ -107,7 +107,7 @@ func (sp *YuniKornSchedulerPlugin) PreFilter(_ context.Context, state *framework
 			_, ok := sp.context.GetInProgressPodAllocation(string(pod.UID))
 			if ok {
 				// pod must have failed scheduling, reject it and return unschedulable
-				log.Logger().Info("Task failed scheduling, marking as rejected",
+				log.Log(log.ShimSchedulerPlugin).Info("Task failed scheduling, marking as rejected",
 					zap.String("namespace", pod.Namespace),
 					zap.String("pod", pod.Name),
 					zap.String("taskID", task.GetTaskID()))
@@ -119,7 +119,7 @@ func (sp *YuniKornSchedulerPlugin) PreFilter(_ context.Context, state *framework
 
 			nodeID, ok := sp.context.GetPendingPodAllocation(string(pod.UID))
 			if task.GetTaskState() == cache.TaskStates().Bound && ok {
-				log.Logger().Info("Releasing pod for scheduling (prefilter phase)",
+				log.Log(log.ShimSchedulerPlugin).Info("Releasing pod for scheduling (prefilter phase)",
 					zap.String("namespace", pod.Namespace),
 					zap.String("pod", pod.Name),
 					zap.String("taskID", task.GetTaskID()),
@@ -140,7 +140,7 @@ func (sp *YuniKornSchedulerPlugin) PreFilterExtensions() framework.PreFilterExte
 
 // Filter is used to release specific pod/node combinations to scheduler
 func (sp *YuniKornSchedulerPlugin) Filter(_ context.Context, _ *framework.CycleState, pod *v1.Pod, nodeInfo *framework.NodeInfo) *framework.Status {
-	log.Logger().Debug("Filter check",
+	log.Log(log.ShimSchedulerPlugin).Debug("Filter check",
 		zap.String("namespace", pod.Namespace),
 		zap.String("pod", pod.Name),
 		zap.String("node", nodeInfo.Node().Name))
@@ -148,7 +148,7 @@ func (sp *YuniKornSchedulerPlugin) Filter(_ context.Context, _ *framework.CycleS
 	// we don't process pods without appID defined
 	appID := utils.GetApplicationIDFromPod(pod)
 	if appID == "" {
-		log.Logger().Debug("Skipping pod in the filter plugin because no applicationID is defined",
+		log.Log(log.ShimSchedulerPlugin).Debug("Skipping pod in the filter plugin because no applicationID is defined",
 			zap.String("namespace", pod.Namespace),
 			zap.String("pod", pod.Name))
 		return framework.NewStatus(framework.Success, "Deferring to default scheduler")
@@ -162,7 +162,7 @@ func (sp *YuniKornSchedulerPlugin) Filter(_ context.Context, _ *framework.CycleS
 				// this check is fairly cheap (one map lookup); if we fail the check here the scheduling framework will
 				// immediately call Filter() again with a different candidate Node.
 				if sp.context.StartPodAllocation(string(pod.UID), nodeInfo.Node().Name) {
-					log.Logger().Info("Releasing pod for scheduling (filter phase)",
+					log.Log(log.ShimSchedulerPlugin).Info("Releasing pod for scheduling (filter phase)",
 						zap.String("namespace", pod.Namespace),
 						zap.String("pod", pod.Name),
 						zap.String("taskID", task.GetTaskID()),
@@ -190,7 +190,7 @@ func (sp *YuniKornSchedulerPlugin) EventsToRegister() []framework.ClusterEvent {
 
 // PostBind is used to mark allocations as completed once scheduling run is finished
 func (sp *YuniKornSchedulerPlugin) PostBind(_ context.Context, _ *framework.CycleState, pod *v1.Pod, nodeName string) {
-	log.Logger().Debug("PostBind handler",
+	log.Log(log.ShimSchedulerPlugin).Debug("PostBind handler",
 		zap.String("namespace", pod.Namespace),
 		zap.String("pod", pod.Name),
 		zap.String("assignedNode", nodeName))
@@ -198,7 +198,7 @@ func (sp *YuniKornSchedulerPlugin) PostBind(_ context.Context, _ *framework.Cycl
 	// we don't process pods without appID defined
 	appID := utils.GetApplicationIDFromPod(pod)
 	if appID == "" {
-		log.Logger().Debug("Skipping pod in the postbind plugin because no applicationID is defined",
+		log.Log(log.ShimSchedulerPlugin).Debug("Skipping pod in the postbind plugin because no applicationID is defined",
 			zap.String("namespace", pod.Namespace),
 			zap.String("pod", pod.Name))
 		return
@@ -206,7 +206,7 @@ func (sp *YuniKornSchedulerPlugin) PostBind(_ context.Context, _ *framework.Cycl
 
 	if app := sp.context.GetApplication(appID); app != nil {
 		if task, err := app.GetTask(string(pod.UID)); err == nil {
-			log.Logger().Info("Pod bound successfully",
+			log.Log(log.ShimSchedulerPlugin).Info("Pod bound successfully",
 				zap.String("namespace", pod.Namespace),
 				zap.String("pod", pod.Name),
 				zap.String("taskID", task.GetTaskID()),
@@ -218,17 +218,17 @@ func (sp *YuniKornSchedulerPlugin) PostBind(_ context.Context, _ *framework.Cycl
 
 // NewSchedulerPlugin initializes a new plugin and returns it
 func NewSchedulerPlugin(_ runtime.Object, handle framework.Handle) (framework.Plugin, error) {
-	log.SetDefaultLogger(log.K8Shim)
-	log.Logger().Info(fmt.Sprintf("Build info: version=%s date=%s isPluginVersion=%t goVersion=%s arch=%s coreSHA=%s siSHA=%s shimSHA=%s", conf.BuildVersion, conf.BuildDate, conf.IsPluginVersion, conf.GoVersion, conf.Arch, conf.CoreSHA, conf.SiSHA, conf.ShimSHA))
+	log.SetDefaultLogger(log.Shim)
+	log.Log(log.ShimSchedulerPlugin).Info(fmt.Sprintf("Build info: version=%s date=%s isPluginVersion=%t goVersion=%s arch=%s coreSHA=%s siSHA=%s shimSHA=%s", conf.BuildVersion, conf.BuildDate, conf.IsPluginVersion, conf.GoVersion, conf.Arch, conf.CoreSHA, conf.SiSHA, conf.ShimSHA))
 
 	configMaps, err := client.LoadBootstrapConfigMaps(conf.GetSchedulerNamespace())
 	if err != nil {
-		log.Logger().Fatal("Unable to bootstrap configuration", zap.Error(err))
+		log.Log(log.ShimSchedulerPlugin).Fatal("Unable to bootstrap configuration", zap.Error(err))
 	}
 
 	err = conf.UpdateConfigMaps(configMaps, true)
 	if err != nil {
-		log.Logger().Fatal("Unable to load initial configmaps", zap.Error(err))
+		log.Log(log.ShimSchedulerPlugin).Fatal("Unable to load initial configmaps", zap.Error(err))
 	}
 
 	// start the YK core scheduler

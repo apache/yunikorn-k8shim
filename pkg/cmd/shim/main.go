@@ -55,20 +55,20 @@ func main() {
 	conf.SiSHA = siSHA
 	conf.ShimSHA = shimSHA
 
-	log.SetDefaultLogger(log.K8Shim)
-	log.Logger().Info(fmt.Sprintf("Build info: version=%s date=%s isPluginVersion=%t goVersion=%s arch=%s coreSHA=%s siSHA=%s shimSHA=%s", version, date, false, goVersion, arch, coreSHA, siSHA, shimSHA))
+	log.SetDefaultLogger(log.Shim)
+	log.Log(log.Shim).Info(fmt.Sprintf("Build info: version=%s date=%s isPluginVersion=%t goVersion=%s arch=%s coreSHA=%s siSHA=%s shimSHA=%s", version, date, false, goVersion, arch, coreSHA, siSHA, shimSHA))
 
 	configMaps, err := client.LoadBootstrapConfigMaps(conf.GetSchedulerNamespace())
 	if err != nil {
-		log.Logger().Fatal("Unable to bootstrap configuration", zap.Error(err))
+		log.Log(log.Shim).Fatal("Unable to bootstrap configuration", zap.Error(err))
 	}
 
 	err = conf.UpdateConfigMaps(configMaps, true)
 	if err != nil {
-		log.Logger().Fatal("Unable to load initial configmaps", zap.Error(err))
+		log.Log(log.Shim).Fatal("Unable to load initial configmaps", zap.Error(err))
 	}
 
-	log.Logger().Info("Starting scheduler", zap.String("name", constants.SchedulerName))
+	log.Log(log.Shim).Info("Starting scheduler", zap.String("name", constants.SchedulerName))
 	serviceContext := entrypoint.StartAllServicesWithLogger(log.RootLogger(), log.GetZapConfigs())
 
 	if sa, ok := serviceContext.RMProxy.(api.SchedulerAPI); ok {
@@ -78,7 +78,7 @@ func main() {
 		signalChan := make(chan os.Signal, 1)
 		signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
 		for range signalChan {
-			log.Logger().Info("Shutdown signal received, exiting...")
+			log.Log(log.Shim).Info("Shutdown signal received, exiting...")
 			ss.Stop()
 			os.Exit(0)
 		}

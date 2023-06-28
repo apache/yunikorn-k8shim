@@ -96,17 +96,17 @@ func (m *MockedAMProtocol) AddTask(request *interfaces.AddTaskRequest) interface
 			}
 			task := NewFromTaskMeta(request.Metadata.TaskID, app, nil, request.Metadata, originator)
 			app.addTask(task)
-			log.Logger().Info("task added",
+			log.Log(log.Test).Info("task added",
 				zap.String("appID", app.applicationID),
 				zap.String("taskID", task.taskID),
 				zap.String("taskState", task.GetTaskState()))
 			if originator {
 				if app.GetOriginatingTask() != nil {
-					log.Logger().Error("Inconsistent state - found another originator task for an application",
+					log.Log(log.Test).Error("Inconsistent state - found another originator task for an application",
 						zap.String("taskId", task.GetTaskID()))
 				}
 				app.setOriginatingTask(task)
-				log.Logger().Info("app request originating pod added",
+				log.Log(log.Test).Info("app request originating pod added",
 					zap.String("appID", app.applicationID),
 					zap.String("original task", task.GetTaskID()))
 			}

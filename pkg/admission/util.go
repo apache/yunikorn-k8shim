@@ -79,7 +79,7 @@ func convert2Namespace(obj interface{}) *v1.Namespace {
 	if nameSpace, ok := obj.(*v1.Namespace); ok {
 		return nameSpace
 	}
-	log.Logger().Warn("cannot convert to *v1.Namespace", zap.Stringer("type", reflect.TypeOf(obj)))
+	log.Log(log.AdmissionUtils).Warn("cannot convert to *v1.Namespace", zap.Stringer("type", reflect.TypeOf(obj)))
 	return nil
 }
 

@@ -55,7 +55,7 @@ func NewAMService(amProtocol interfaces.ApplicationManagementProtocol,
 		podEventHandler: podEventHandler,
 	}
 
-	log.Logger().Info("Initializing new AppMgmt service")
+	log.Log(log.ShimAppMgmt).Info("Initializing new AppMgmt service")
 	appManager.register(
 		// registered app plugins
 		// for general apps
@@ -84,11 +84,11 @@ func (svc *AppManagementService) GetManagerByName(name string) interfaces.AppMan
 func (svc *AppManagementService) register(managers ...interfaces.AppManager) {
 	for _, mgr := range managers {
 		if conf.GetSchedulerConf().IsOperatorPluginEnabled(mgr.Name()) {
-			log.Logger().Info("registering app management service",
+			log.Log(log.ShimAppMgmt).Info("registering app management service",
 				zap.String("serviceName", mgr.Name()))
 			svc.managers = append(svc.managers, mgr)
 		} else {
-			log.Logger().Info("skip registering app management service",
+			log.Log(log.ShimAppMgmt).Info("skip registering app management service",
 				zap.String("serviceName", mgr.Name()))
 		}
 	}
@@ -98,22 +98,22 @@ func (svc *AppManagementService) Start() error {
 	for _, optService := range svc.managers {
 		// init service before starting
 		if err := optService.ServiceInit(); err != nil {
-			log.Logger().Error("service init fails",
+			log.Log(log.ShimAppMgmt).Error("service init fails",
 				zap.String("serviceName", optService.Name()),
 				zap.Error(err))
 			return err
 		}
 
-		log.Logger().Info("starting app management service",
+		log.Log(log.ShimAppMgmt).Info("starting app management service",
 			zap.String("serviceName", optService.Name()))
 		if err := optService.Start(); err != nil {
-			log.Logger().Error("failed to start management service",
+			log.Log(log.ShimAppMgmt).Error("failed to start management service",
 				zap.String("serviceName", optService.Name()),
 				zap.Error(err))
 			return err
 		}
 
-		log.Logger().Info("app management service started",
+		log.Log(log.ShimAppMgmt).Info("app management service started",
 			zap.String("serviceName", optService.Name()))
 	}
 
@@ -121,7 +121,7 @@ func (svc *AppManagementService) Start() error {
 }
 
 func (svc *AppManagementService) Stop() {
-	log.Logger().Info("shutting down app management services")
+	log.Log(log.ShimAppMgmt).Info("shutting down app management services")
 	for _, optService := range svc.managers {
 		optService.Stop()
 	}
@@ -134,7 +134,7 @@ func (svc *AppManagementService) ApplicationStateUpdateEventHandler() func(obj i
 	if appMgr, ok := mgr.(*application.AppManager); ok {
 		return appMgr.HandleApplicationStateUpdate()
 	}
-	log.Logger().Warn("App manager is not registered",
+	log.Log(log.ShimAppMgmt).Warn("App manager is not registered",
 		zap.String("app manager name", constants.AppManagerHandlerName))
 	return func(obj interface{}) {
 		// noop

@@ -44,7 +44,7 @@ func newBootstrapSchedulerKubeClient(kc string) SchedulerKubeClient {
 	config := CreateRestConfigOrDie(kc)
 	configuredClient, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		log.Logger().Fatal("failed to get Clientset", zap.Error(err))
+		log.Log(log.ShimClient).Fatal("failed to get Clientset", zap.Error(err))
 	}
 	return SchedulerKubeClient{
 		clientSet: configuredClient,
@@ -60,7 +60,7 @@ func newSchedulerKubeClient(kc string) SchedulerKubeClient {
 	config.Burst = schedulerConf.KubeBurst
 	configuredClient, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		log.Logger().Fatal("failed to get Clientset", zap.Error(err))
+		log.Log(log.ShimClient).Fatal("failed to get Clientset", zap.Error(err))
 	}
 	return SchedulerKubeClient{
 		clientSet: configuredClient,
@@ -71,7 +71,7 @@ func newSchedulerKubeClient(kc string) SchedulerKubeClient {
 func CreateRestConfigOrDie(kc string) *rest.Config {
 	config, err := CreateRestConfig(kc)
 	if err != nil {
-		log.Logger().Fatal("unable to create REST config, aborting", zap.Error(err))
+		log.Log(log.ShimClient).Fatal("unable to create REST config, aborting", zap.Error(err))
 	}
 	return config
 }
@@ -80,7 +80,7 @@ func CreateRestConfig(kc string) (*rest.Config, error) {
 	// attempt to use in-cluster config
 	config, err := rest.InClusterConfig()
 	if err != nil && err != rest.ErrNotInCluster {
-		log.Logger().Error("failed to create REST config", zap.Error(err))
+		log.Log(log.ShimClient).Error("failed to create REST config", zap.Error(err))
 		return nil, err
 	}
 	if config != nil {
@@ -91,10 +91,10 @@ func CreateRestConfig(kc string) (*rest.Config, error) {
 	if kc == "" {
 		kc = conf.GetDefaultKubeConfigPath()
 	}
-	log.Logger().Info(fmt.Sprintf("Not running inside Kubernetes; using KUBECONFIG at %s", kc))
+	log.Log(log.ShimClient).Info(fmt.Sprintf("Not running inside Kubernetes; using KUBECONFIG at %s", kc))
 	config, err = clientcmd.BuildConfigFromFlags("", kc)
 	if err != nil {
-		log.Logger().Error("failed to create kubeClient configs", zap.Error(err))
+		log.Log(log.ShimClient).Error("failed to create kubeClient configs", zap.Error(err))
 		return config, err
 	}
 	return config, nil
@@ -109,7 +109,7 @@ func (nc SchedulerKubeClient) GetConfigs() *rest.Config {
 }
 
 func (nc SchedulerKubeClient) Bind(pod *v1.Pod, hostID string) error {
-	log.Logger().Info("bind pod to node",
+	log.Log(log.ShimClient).Info("bind pod to node",
 		zap.String("podName", pod.Name),
 		zap.String("podUID", string(pod.UID)),
 		zap.String("nodeID", hostID))
@@ -124,7 +124,7 @@ func (nc SchedulerKubeClient) Bind(pod *v1.Pod, hostID string) error {
 			},
 		},
 		apis.CreateOptions{}); err != nil {
-		log.Logger().Error("failed to bind pod",
+		log.Log(log.ShimClient).Error("failed to bind pod",
 			zap.String("namespace", pod.Namespace),
 			zap.String("podName", pod.Name),
 			zap.Error(err))
@@ -143,7 +143,7 @@ func (nc SchedulerKubeClient) Delete(pod *v1.Pod) error {
 	if err := nc.clientSet.CoreV1().Pods(pod.Namespace).Delete(context.Background(), pod.Name, apis.DeleteOptions{
 		GracePeriodSeconds: &gracefulSeconds,
 	}); err != nil {
-		log.Logger().Warn("failed to delete pod",
+		log.Log(log.ShimClient).Warn("failed to delete pod",
 			zap.String("namespace", pod.Namespace),
 			zap.String("podName", pod.Name),
 			zap.Error(err))
@@ -155,7 +155,7 @@ func (nc SchedulerKubeClient) Delete(pod *v1.Pod) error {
 func (nc SchedulerKubeClient) GetConfigMap(namespace string, name string) (*v1.ConfigMap, error) {
 	configmap, err := nc.clientSet.CoreV1().ConfigMaps(namespace).Get(context.Background(), name, apis.GetOptions{})
 	if err != nil && !errors.IsNotFound(err) {
-		log.Logger().Warn("failed to get configmap",
+		log.Log(log.ShimClient).Warn("failed to get configmap",
 			zap.String("namespace", namespace),
 			zap.String("name", name),
 			zap.Error(err))
@@ -167,7 +167,7 @@ func (nc SchedulerKubeClient) GetConfigMap(namespace string, name string) (*v1.C
 func (nc SchedulerKubeClient) Get(podNamespace string, podName string) (*v1.Pod, error) {
 	pod, err := nc.clientSet.CoreV1().Pods(podNamespace).Get(context.Background(), podName, apis.GetOptions{})
 	if err != nil {
-		log.Logger().Warn("failed to get pod",
+		log.Log(log.ShimClient).Warn("failed to get pod",
 			zap.String("namespace", pod.Namespace),
 			zap.String("podName", pod.Name),
 			zap.Error(err))
@@ -184,13 +184,13 @@ func (nc SchedulerKubeClient) UpdatePod(pod *v1.Pod, podMutator func(pod *v1.Pod
 	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		latestPod, getErr := nc.clientSet.CoreV1().Pods(pod.Namespace).Get(context.Background(), pod.Name, apis.GetOptions{})
 		if getErr != nil {
-			log.Logger().Warn("failed to get latest version of Pod",
+			log.Log(log.ShimClient).Warn("failed to get latest version of Pod",
 				zap.Error(getErr))
 		}
 		// allow mutator to update pod
 		podMutator(latestPod)
 		if updatedPod, updateErr = nc.clientSet.CoreV1().Pods(pod.Namespace).Update(context.Background(), latestPod, apis.UpdateOptions{}); updateErr != nil {
-			log.Logger().Warn("failed to update pod",
+			log.Log(log.ShimClient).Warn("failed to update pod",
 				zap.String("namespace", pod.Namespace),
 				zap.String("podName", pod.Name),
 				zap.Error(updateErr))
@@ -199,13 +199,13 @@ func (nc SchedulerKubeClient) UpdatePod(pod *v1.Pod, podMutator func(pod *v1.Pod
 		return nil
 	})
 	if retryErr != nil {
-		log.Logger().Error("Update pod failed",
+		log.Log(log.ShimClient).Error("Update pod failed",
 			zap.String("namespace", pod.Namespace),
 			zap.String("podName", pod.Name),
 			zap.Error(retryErr))
 		return pod, retryErr
 	}
-	log.Logger().Info("Successfully updated pod",
+	log.Log(log.ShimClient).Info("Successfully updated pod",
 		zap.String("namespace", pod.Namespace),
 		zap.String("podName", pod.Name))
 	return updatedPod, nil
@@ -222,13 +222,13 @@ func (nc SchedulerKubeClient) UpdateStatus(pod *v1.Pod) (*v1.Pod, error) {
 		// RetryOnConflict uses exponential backoff to avoid exhausting the API server
 		latestPod, getErr := nc.clientSet.CoreV1().Pods(pod.Namespace).Get(context.Background(), pod.Name, apis.GetOptions{})
 		if getErr != nil {
-			log.Logger().Warn("failed to get latest version of Pod",
+			log.Log(log.ShimClient).Warn("failed to get latest version of Pod",
 				zap.Error(getErr))
 		}
 		latestPod.Status = newPodStatus
 
 		if updatedPod, updateErr = nc.clientSet.CoreV1().Pods(pod.Namespace).UpdateStatus(context.Background(), latestPod, apis.UpdateOptions{}); updateErr != nil {
-			log.Logger().Warn("failed to update pod status",
+			log.Log(log.ShimClient).Warn("failed to update pod status",
 				zap.String("namespace", pod.Namespace),
 				zap.String("podName", pod.Name),
 				zap.Error(updateErr))
@@ -237,13 +237,13 @@ func (nc SchedulerKubeClient) UpdateStatus(pod *v1.Pod) (*v1.Pod, error) {
 		return nil
 	})
 	if retryErr != nil {
-		log.Logger().Error("Update pod status failed",
+		log.Log(log.ShimClient).Error("Update pod status failed",
 			zap.String("namespace", pod.Namespace),
 			zap.String("podName", pod.Name),
 			zap.Error(retryErr))
 		return pod, retryErr
 	}
-	log.Logger().Info("Successfully updated pod status",
+	log.Log(log.ShimClient).Info("Successfully updated pod status",
 		zap.String("namespace", pod.Namespace),
 		zap.String("podName", pod.Name),
 		zap.Stringer("newStatus", &pod.Status))

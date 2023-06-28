@@ -42,7 +42,7 @@ func CreateTagsForTask(pod *v1.Pod) map[string]string {
 			if value.Kind == constants.DaemonSetType {
 				if pod.Spec.Affinity == nil || pod.Spec.Affinity.NodeAffinity == nil ||
 					pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution == nil {
-					log.Logger().Debug("DaemonSet pod's Affinity, NodeAffinity, RequiredDuringSchedulingIgnoredDuringExecution might empty")
+					log.Log(log.ShimUtils).Debug("DaemonSet pod's Affinity, NodeAffinity, RequiredDuringSchedulingIgnoredDuringExecution might empty")
 					continue
 				}
 				nodeSelectorTerms := pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms
