@@ -149,7 +149,7 @@ func GetNamespaceGuaranteedFromAnnotation(namespaceObj *v1.Namespace) *si.Resour
 	var namespaceGuaranteedMap map[string]string
 	err := json.Unmarshal([]byte(namespaceGuaranteed), &namespaceGuaranteedMap)
 	if err != nil {
-		log.Logger().Warn("Unable to process namespace.guaranteed annotation",
+		log.Log(log.ShimUtils).Warn("Unable to process namespace.guaranteed annotation",
 			zap.String("namespace", namespaceObj.Name),
 			zap.String("namespace.guaranteed is", namespaceGuaranteed))
 		return nil

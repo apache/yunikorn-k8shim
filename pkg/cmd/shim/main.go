@@ -55,7 +55,6 @@ func main() {
 	conf.SiSHA = siSHA
 	conf.ShimSHA = shimSHA
 
-	log.SetDefaultLogger(log.Shim)
 	log.Log(log.Shim).Info(fmt.Sprintf("Build info: version=%s date=%s isPluginVersion=%t goVersion=%s arch=%s coreSHA=%s siSHA=%s shimSHA=%s", version, date, false, goVersion, arch, coreSHA, siSHA, shimSHA))
 
 	configMaps, err := client.LoadBootstrapConfigMaps(conf.GetSchedulerNamespace())
