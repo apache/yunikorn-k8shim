@@ -44,8 +44,13 @@ func TestLoggerIds(t *testing.T) {
 	for i := 0; i < len(loggers); i++ {
 		handle := loggers[i]
 		assert.Assert(t, handle != nil, "nil handle for index", i)
-		assert.Equal(t, handle.id, i+1, "wrong id", handle.name)
+		assert.Equal(t, handle.id, i, "wrong id", handle.name)
 	}
+}
+
+func TestNilLogger(t *testing.T) {
+	log := Log(nil)
+	assert.Check(t, log != nil, "nil logger")
 }
 
 func BenchmarkScopedLoggerDebug(b *testing.B) {
