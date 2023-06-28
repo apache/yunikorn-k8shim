@@ -100,7 +100,7 @@ func (nc *schedulerNodes) addAndReportNode(node *v1.Node, reportNode bool) {
 
 	// add node to nodes map
 	if _, ok := nc.nodesMap[node.Name]; !ok {
-		log.Logger().Info("adding node to context",
+		log.Log(log.ShimCacheNode).Info("adding node to context",
 			zap.String("nodeName", node.Name),
 			zap.Any("nodeLabels", node.Labels),
 			zap.Bool("schedulable", !node.Spec.Unschedulable))
@@ -129,11 +129,11 @@ func (nc *schedulerNodes) updateNodeOccupiedResources(name string, resource *si.
 	if schedulerNode := nc.getNode(name); schedulerNode != nil {
 		capacity, occupied, ready := schedulerNode.updateOccupiedResource(resource, opt)
 		request := common.CreateUpdateRequestForUpdatedNode(name, capacity, occupied, ready)
-		log.Logger().Info("report occupied resources updates",
+		log.Log(log.ShimCacheNode).Info("report occupied resources updates",
 			zap.String("node", schedulerNode.name),
 			zap.Any("request", request))
 		if err := nc.proxy.UpdateNode(request); err != nil {
-			log.Logger().Info("hitting error while handling UpdateNode", zap.Error(err))
+			log.Log(log.ShimCacheNode).Info("hitting error while handling UpdateNode", zap.Error(err))
 		}
 	}
 }
@@ -176,14 +176,14 @@ func (nc *schedulerNodes) updateNode(oldNode, newNode *v1.Node) {
 		cachedNode.setReadyStatus(ready)
 	}
 
-	log.Logger().Info("Node's ready status flag", zap.String("Node name", newNode.Name),
+	log.Log(log.ShimCacheNode).Info("Node's ready status flag", zap.String("Node name", newNode.Name),
 		zap.Bool("ready", ready))
 
 	capacity, occupied, ready := cachedNode.snapshotState()
 	request := common.CreateUpdateRequestForUpdatedNode(newNode.Name, capacity, occupied, ready)
-	log.Logger().Info("report updated nodes to scheduler", zap.Any("request", request))
+	log.Log(log.ShimCacheNode).Info("report updated nodes to scheduler", zap.Any("request", request))
 	if err := nc.proxy.UpdateNode(request); err != nil {
-		log.Logger().Info("hitting error while handling UpdateNode", zap.Error(err))
+		log.Log(log.ShimCacheNode).Info("hitting error while handling UpdateNode", zap.Error(err))
 	}
 }
 
@@ -194,9 +194,9 @@ func (nc *schedulerNodes) deleteNode(node *v1.Node) {
 	delete(nc.nodesMap, node.Name)
 
 	request := common.CreateUpdateRequestForDeleteOrRestoreNode(node.Name, si.NodeInfo_DECOMISSION)
-	log.Logger().Info("report updated nodes to scheduler", zap.Any("request", request.String()))
+	log.Log(log.ShimCacheNode).Info("report updated nodes to scheduler", zap.Any("request", request.String()))
 	if err := nc.proxy.UpdateNode(request); err != nil {
-		log.Logger().Error("hitting error while handling UpdateNode", zap.Error(err))
+		log.Log(log.ShimCacheNode).Error("hitting error while handling UpdateNode", zap.Error(err))
 	}
 }
 
@@ -206,7 +206,7 @@ func (nc *schedulerNodes) schedulerNodeEventHandler() func(obj interface{}) {
 			if node := nc.getNode(event.GetNodeID()); node != nil {
 				if node.canHandle(event) {
 					if err := node.handle(event); err != nil {
-						log.Logger().Error("failed to handle scheduler node event",
+						log.Log(log.ShimCacheNode).Error("failed to handle scheduler node event",
 							zap.String("event", event.GetEvent()),
 							zap.Error(err))
 					}
@@ -228,7 +228,7 @@ func hasReadyCondition(node *v1.Node) bool {
 }
 
 func triggerEvent(node *SchedulerNode, currentState string, eventType SchedulerNodeEventType) {
-	log.Logger().Info("scheduler node event ", zap.String("name", node.name),
+	log.Log(log.ShimCacheNode).Info("scheduler node event ", zap.String("name", node.name),
 		zap.String("current state ", currentState), zap.Stringer("transition to ", eventType))
 	if node.getNodeState() == currentState {
 		dispatcher.Dispatch(CachedSchedulerNodeEvent{

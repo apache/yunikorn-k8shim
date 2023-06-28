@@ -37,7 +37,7 @@ import (
 
 func (ctx *Context) WaitForRecovery(recoverableAppManagers []interfaces.Recoverable, maxTimeout time.Duration) error {
 	if err := ctx.recover(recoverableAppManagers, maxTimeout); err != nil {
-		log.Logger().Error("nodes recovery failed", zap.Error(err))
+		log.Log(log.ShimContext).Error("nodes recovery failed", zap.Error(err))
 		return err
 	}
 
@@ -82,7 +82,7 @@ func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) err
 	for _, pod := range pods {
 		// only handle assigned pods
 		if !utils.IsAssignedPod(pod) {
-			log.Logger().Info("Skipping unassigned pod",
+			log.Log(log.ShimContext).Info("Skipping unassigned pod",
 				zap.String("podUID", string(pod.UID)),
 				zap.String("podName", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)))
 			continue
@@ -92,7 +92,7 @@ func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) err
 		switch {
 		case ykPod:
 			if existingAlloc := getExistingAllocation(mgr, pod); existingAlloc != nil {
-				log.Logger().Debug("Adding resources for existing pod",
+				log.Log(log.ShimContext).Debug("Adding resources for existing pod",
 					zap.String("appID", existingAlloc.ApplicationID),
 					zap.String("podUID", string(pod.UID)),
 					zap.String("podName", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)),
@@ -100,10 +100,10 @@ func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) err
 					zap.Stringer("resources", common.GetPodResource(pod)))
 				existingAlloc.AllocationTags = common.CreateTagsForTask(pod)
 				if err = ctx.nodes.addExistingAllocation(existingAlloc); err != nil {
-					log.Logger().Warn("Failed to add existing allocation", zap.Error(err))
+					log.Log(log.ShimContext).Warn("Failed to add existing allocation", zap.Error(err))
 				}
 			} else {
-				log.Logger().Warn("No allocation found for existing pod",
+				log.Log(log.ShimContext).Warn("No allocation found for existing pod",
 					zap.String("podUID", string(pod.UID)),
 					zap.String("podName", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)),
 					zap.String("nodeName", pod.Spec.NodeName),
@@ -119,7 +119,7 @@ func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) err
 				occupiedResource = common.NewResourceBuilder().Build()
 			}
 			podResource := common.GetPodResource(pod)
-			log.Logger().Debug("Adding resources for occupied pod",
+			log.Log(log.ShimContext).Debug("Adding resources for occupied pod",
 				zap.String("podUID", string(pod.UID)),
 				zap.String("podName", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)),
 				zap.String("nodeName", pod.Spec.NodeName),
@@ -128,7 +128,7 @@ func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) err
 			nodeOccupiedResources[pod.Spec.NodeName] = occupiedResource
 			ctx.nodes.cache.AddPod(pod)
 		default:
-			log.Logger().Debug("Skipping terminated pod",
+			log.Log(log.ShimContext).Debug("Skipping terminated pod",
 				zap.String("podUID", string(pod.UID)),
 				zap.String("podName", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)))
 		}
@@ -149,7 +149,7 @@ func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) err
 
 	// start new nodes
 	for _, node := range ctx.nodes.nodesMap {
-		log.Logger().Info("node state",
+		log.Log(log.ShimContext).Info("node state",
 			zap.String("nodeName", node.name),
 			zap.String("nodeState", node.getNodeState()))
 		if node.getNodeState() == SchedulerNodeStates().New {
@@ -164,7 +164,7 @@ func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) err
 	if err = utils.WaitForCondition(func() bool {
 		nodesRecovered := 0
 		for _, node := range ctx.nodes.nodesMap {
-			log.Logger().Info("node state",
+			log.Log(log.ShimContext).Info("node state",
 				zap.String("nodeName", node.name),
 				zap.String("nodeState", node.getNodeState()))
 			switch node.getNodeState() {
@@ -178,11 +178,11 @@ func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) err
 		}
 
 		if nodesRecovered == len(allNodes) {
-			log.Logger().Info("nodes recovery is successful",
+			log.Log(log.ShimContext).Info("nodes recovery is successful",
 				zap.Int("recoveredNodes", nodesRecovered))
 			return true
 		}
-		log.Logger().Info("still waiting for recovering nodes",
+		log.Log(log.ShimContext).Info("still waiting for recovering nodes",
 			zap.Int("totalNodes", len(allNodes)),
 			zap.Int("recoveredNodes", nodesRecovered))
 		return false

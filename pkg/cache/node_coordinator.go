@@ -60,13 +60,13 @@ func (c *nodeResourceCoordinator) filterPods(obj interface{}) bool {
 func (c *nodeResourceCoordinator) updatePod(old, new interface{}) {
 	oldPod, err := utils.Convert2Pod(old)
 	if err != nil {
-		log.Logger().Error("expecting a pod object", zap.Error(err))
+		log.Log(log.ShimCacheNode).Error("expecting a pod object", zap.Error(err))
 		return
 	}
 
 	newPod, err := utils.Convert2Pod(new)
 	if err != nil {
-		log.Logger().Error("expecting a pod object", zap.Error(err))
+		log.Log(log.ShimCacheNode).Error("expecting a pod object", zap.Error(err))
 		return
 	}
 
@@ -76,7 +76,7 @@ func (c *nodeResourceCoordinator) updatePod(old, new interface{}) {
 	//   1. pod got assigned to a node
 	//   2. pod is not in terminated state
 	if !utils.IsAssignedPod(oldPod) && utils.IsAssignedPod(newPod) && !utils.IsPodTerminated(newPod) {
-		log.Logger().Debug("pod is assigned to a node, trigger occupied resource update",
+		log.Log(log.ShimCacheNode).Debug("pod is assigned to a node, trigger occupied resource update",
 			zap.String("namespace", newPod.Namespace),
 			zap.String("podName", newPod.Name),
 			zap.String("podStatusBefore", string(oldPod.Status.Phase)),
@@ -93,7 +93,7 @@ func (c *nodeResourceCoordinator) updatePod(old, new interface{}) {
 	//   1. pod is already assigned to a node
 	//   2. pod status changes from non-terminated to terminated state
 	if utils.IsAssignedPod(newPod) && oldPod.Status.Phase != newPod.Status.Phase && utils.IsPodTerminated(newPod) {
-		log.Logger().Debug("pod terminated, trigger occupied resource update",
+		log.Log(log.ShimCacheNode).Debug("pod terminated, trigger occupied resource update",
 			zap.String("namespace", newPod.Namespace),
 			zap.String("podName", newPod.Name),
 			zap.String("podStatusBefore", string(oldPod.Status.Phase)),
@@ -116,21 +116,21 @@ func (c *nodeResourceCoordinator) deletePod(obj interface{}) {
 		var err error
 		pod, err = utils.Convert2Pod(t.Obj)
 		if err != nil {
-			log.Logger().Error(err.Error())
+			log.Log(log.ShimCacheNode).Error(err.Error())
 			return
 		}
 	default:
-		log.Logger().Error("cannot convert to pod")
+		log.Log(log.ShimCacheNode).Error("cannot convert to pod")
 		return
 	}
 
 	// if pod is already terminated, that means the updates have already done
 	if utils.IsPodTerminated(pod) {
-		log.Logger().Debug("pod is already terminated, occupied resource updated should have already been done")
+		log.Log(log.ShimCacheNode).Debug("pod is already terminated, occupied resource updated should have already been done")
 		return
 	}
 
-	log.Logger().Info("deleting pod that scheduled by other schedulers",
+	log.Log(log.ShimCacheNode).Info("deleting pod that scheduled by other schedulers",
 		zap.String("namespace", pod.Namespace),
 		zap.String("podName", pod.Name))
 

@@ -45,12 +45,12 @@ func NewAsyncRMCallback(ctx *cache.Context) *AsyncRMCallback {
 }
 
 func (callback *AsyncRMCallback) UpdateAllocation(response *si.AllocationResponse) error {
-	log.Logger().Debug("UpdateAllocation callback received",
+	log.Log(log.ShimRMCallback).Debug("UpdateAllocation callback received",
 		zap.Stringer("UpdateAllocationResponse", response))
 	// handle new allocations
 	for _, alloc := range response.New {
 		// got allocation for pod, bind pod to the scheduled node
-		log.Logger().Debug("callback: response to new allocation",
+		log.Log(log.ShimRMCallback).Debug("callback: response to new allocation",
 			zap.String("allocationKey", alloc.AllocationKey),
 			zap.String("UUID", alloc.UUID),
 			zap.String("applicationID", alloc.ApplicationID),
@@ -68,7 +68,7 @@ func (callback *AsyncRMCallback) UpdateAllocation(response *si.AllocationRespons
 
 	for _, reject := range response.Rejected {
 		// request rejected by the scheduler, put it back and try scheduling again
-		log.Logger().Debug("callback: response to rejected allocation",
+		log.Log(log.ShimRMCallback).Debug("callback: response to rejected allocation",
 			zap.String("allocationKey", reject.AllocationKey))
 		if app := callback.context.GetApplication(reject.ApplicationID); app != nil {
 			dispatcher.Dispatch(cache.NewRejectTaskEvent(app.GetApplicationID(), reject.AllocationKey,
@@ -78,7 +78,7 @@ func (callback *AsyncRMCallback) UpdateAllocation(response *si.AllocationRespons
 	}
 
 	for _, release := range response.Released {
-		log.Logger().Debug("callback: response to released allocations",
+		log.Log(log.ShimRMCallback).Debug("callback: response to released allocations",
 			zap.String("UUID", release.UUID))
 
 		// update cache
@@ -93,7 +93,7 @@ func (callback *AsyncRMCallback) UpdateAllocation(response *si.AllocationRespons
 	}
 
 	for _, ask := range response.ReleasedAsks {
-		log.Logger().Debug("callback: response to released allocations",
+		log.Log(log.ShimRMCallback).Debug("callback: response to released allocations",
 			zap.String("allocation key", ask.AllocationKey))
 
 		if ask.TerminationType == si.TerminationType_TIMEOUT {
@@ -105,17 +105,17 @@ func (callback *AsyncRMCallback) UpdateAllocation(response *si.AllocationRespons
 }
 
 func (callback *AsyncRMCallback) UpdateApplication(response *si.ApplicationResponse) error {
-	log.Logger().Debug("UpdateApplication callback received",
+	log.Log(log.ShimRMCallback).Debug("UpdateApplication callback received",
 		zap.Stringer("UpdateApplicationResponse", response))
 
 	// handle new accepted apps
 	for _, app := range response.Accepted {
 		// update context
-		log.Logger().Debug("callback: response to accepted application",
+		log.Log(log.ShimRMCallback).Debug("callback: response to accepted application",
 			zap.String("appID", app.ApplicationID))
 
 		if app := callback.context.GetApplication(app.ApplicationID); app != nil {
-			log.Logger().Info("Accepting app", zap.String("appID", app.GetApplicationID()))
+			log.Log(log.ShimRMCallback).Info("Accepting app", zap.String("appID", app.GetApplicationID()))
 			ev := cache.NewSimpleApplicationEvent(app.GetApplicationID(), cache.AcceptApplication)
 			dispatcher.Dispatch(ev)
 		}
@@ -123,7 +123,7 @@ func (callback *AsyncRMCallback) UpdateApplication(response *si.ApplicationRespo
 
 	for _, rejectedApp := range response.Rejected {
 		// update context
-		log.Logger().Debug("callback: response to rejected application",
+		log.Log(log.ShimRMCallback).Debug("callback: response to rejected application",
 			zap.String("appID", rejectedApp.ApplicationID))
 
 		if app := callback.context.GetApplication(rejectedApp.ApplicationID); app != nil {
@@ -134,7 +134,7 @@ func (callback *AsyncRMCallback) UpdateApplication(response *si.ApplicationRespo
 
 	// handle status changes
 	for _, updated := range response.Updated {
-		log.Logger().Debug("status update callback received",
+		log.Log(log.ShimRMCallback).Debug("status update callback received",
 			zap.String("appId", updated.ApplicationID),
 			zap.String("new status", updated.State))
 		switch updated.State {
@@ -162,11 +162,11 @@ func (callback *AsyncRMCallback) UpdateApplication(response *si.ApplicationRespo
 }
 
 func (callback *AsyncRMCallback) UpdateNode(response *si.NodeResponse) error {
-	log.Logger().Debug("UpdateNode callback received",
+	log.Log(log.ShimRMCallback).Debug("UpdateNode callback received",
 		zap.Stringer("UpdateNodeResponse", response))
 	// handle new accepted nodes
 	for _, node := range response.Accepted {
-		log.Logger().Debug("callback: response to accepted node",
+		log.Log(log.ShimRMCallback).Debug("callback: response to accepted node",
 			zap.String("nodeID", node.NodeID))
 
 		dispatcher.Dispatch(cache.CachedSchedulerNodeEvent{
@@ -176,7 +176,7 @@ func (callback *AsyncRMCallback) UpdateNode(response *si.NodeResponse) error {
 	}
 
 	for _, node := range response.Rejected {
-		log.Logger().Debug("callback: response to rejected node",
+		log.Log(log.ShimRMCallback).Debug("callback: response to rejected node",
 			zap.String("nodeID", node.NodeID))
 
 		dispatcher.Dispatch(cache.CachedSchedulerNodeEvent{
@@ -204,7 +204,7 @@ func (callback *AsyncRMCallback) PreemptionPredicates(args *si.PreemptionPredica
 
 func (callback *AsyncRMCallback) SendEvent(eventRecords []*si.EventRecord) {
 	if len(eventRecords) > 0 {
-		log.Logger().Debug(fmt.Sprintf("prepare to publish %d events", len(eventRecords)))
+		log.Log(log.ShimRMCallback).Debug(fmt.Sprintf("prepare to publish %d events", len(eventRecords)))
 		callback.context.PublishEvents(eventRecords)
 	}
 }
@@ -216,6 +216,6 @@ func (callback *AsyncRMCallback) UpdateContainerSchedulingState(request *si.Upda
 // StateDumpPlugin implementation
 
 func (callback *AsyncRMCallback) GetStateDump() (string, error) {
-	log.Logger().Debug("Retrieving shim state dump")
+	log.Log(log.ShimRMCallback).Debug("Retrieving shim state dump")
 	return callback.context.GetStateDump()
 }

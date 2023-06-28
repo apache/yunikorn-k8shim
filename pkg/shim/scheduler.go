@@ -118,7 +118,7 @@ func (ss *KubernetesShim) SchedulerEventHandler() func(obj interface{}) {
 		if event, ok := obj.(events.SchedulerEvent); ok {
 			if ss.canHandle(event) {
 				if err := ss.handle(event); err != nil {
-					log.Logger().Error("failed to handle scheduler event",
+					log.Log(log.ShimScheduler).Error("failed to handle scheduler event",
 						zap.String("event", event.GetEvent()),
 						zap.Error(err))
 				}
@@ -157,14 +157,14 @@ func (ss *KubernetesShim) recoverSchedulerState() {
 	// run recovery process in a go routine
 	// do not block main thread
 	go func() {
-		log.Logger().Info("recovering scheduler states")
+		log.Log(log.ShimScheduler).Info("recovering scheduler states")
 		// step 1: recover all applications
 		// this step, we collect all the existing allocated pods from api-server,
 		// identify the scheduling identity (aka applicationInfo) from the pod,
 		// and then add these applications to the scheduler.
 		if err := ss.appManager.WaitForRecovery(); err != nil {
 			// failed
-			log.Logger().Error("scheduler recovery failed", zap.Error(err))
+			log.Log(log.ShimScheduler).Error("scheduler recovery failed", zap.Error(err))
 			dispatcher.Dispatch(ShimSchedulerEvent{
 				event: RecoverSchedulerFailed,
 			})
@@ -183,7 +183,7 @@ func (ss *KubernetesShim) recoverSchedulerState() {
 		}
 		if err := ss.context.WaitForRecovery(recoverableAppManagers, 5*time.Minute); err != nil {
 			// failed
-			log.Logger().Error("scheduler recovery failed", zap.Error(err))
+			log.Log(log.ShimScheduler).Error("scheduler recovery failed", zap.Error(err))
 			dispatcher.Dispatch(ShimSchedulerEvent{
 				event: RecoverSchedulerFailed,
 			})
@@ -191,7 +191,7 @@ func (ss *KubernetesShim) recoverSchedulerState() {
 		}
 
 		// success
-		log.Logger().Info("scheduler recovery succeed")
+		log.Log(log.ShimScheduler).Info("scheduler recovery succeed")
 		dispatcher.Dispatch(ShimSchedulerEvent{
 			event: RecoverSchedulerSucceed,
 		})
@@ -223,7 +223,7 @@ func (ss *KubernetesShim) registerShimLayer() error {
 
 	configMaps, err := ss.context.LoadConfigMaps()
 	if err != nil {
-		log.Logger().Error("failed to load yunikorn configmaps", zap.Error(err))
+		log.Log(log.ShimScheduler).Error("failed to load yunikorn configmaps", zap.Error(err))
 		return err
 	}
 
@@ -240,7 +240,7 @@ func (ss *KubernetesShim) registerShimLayer() error {
 		ExtraConfig: extraConfig,
 	}
 
-	log.Logger().Info("register RM to the scheduler",
+	log.Log(log.ShimScheduler).Info("register RM to the scheduler",
 		zap.String("clusterID", configuration.ClusterID),
 		zap.String("clusterVersion", configuration.ClusterVersion),
 		zap.String("policyGroup", configuration.PolicyGroup),
@@ -309,13 +309,13 @@ func (ss *KubernetesShim) Run() {
 	// the app manager launches the pod event handlers
 	// it needs to be started after the shim is registered with the core
 	if err := ss.appManager.Start(); err != nil {
-		log.Logger().Fatal("failed to start app manager", zap.Error(err))
+		log.Log(log.ShimScheduler).Fatal("failed to start app manager", zap.Error(err))
 		ss.Stop()
 	}
 }
 
 func (ss *KubernetesShim) Stop() {
-	log.Logger().Info("stopping scheduler")
+	log.Log(log.ShimScheduler).Info("stopping scheduler")
 	select {
 	case ss.stopChan <- struct{}{}:
 		// stop the dispatcher
@@ -325,13 +325,13 @@ func (ss *KubernetesShim) Stop() {
 		// stop the placeholder manager
 		ss.phManager.Stop()
 	default:
-		log.Logger().Info("scheduler is already stopped")
+		log.Log(log.ShimScheduler).Info("scheduler is already stopped")
 	}
 }
 
 func (ss *KubernetesShim) checkOutstandingApps() {
 	if !ss.getOutstandingAppsFound() {
-		log.Logger().Info("No outstanding apps found for a while", zap.Duration("timeout", outstandingAppLogTimeout))
+		log.Log(log.ShimScheduler).Info("No outstanding apps found for a while", zap.Duration("timeout", outstandingAppLogTimeout))
 		return
 	}
 	ss.setOutstandingAppsFound(false)

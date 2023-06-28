@@ -150,7 +150,7 @@ func (conf *SchedulerConf) Clone() *SchedulerConf {
 }
 
 func UpdateConfigMaps(configMaps []*v1.ConfigMap, initial bool) error {
-	log.Logger().Info("reloading configuration")
+	log.Log(log.ShimConfig).Info("reloading configuration")
 
 	// start with defaults
 	prev := CreateDefaultConfig()
@@ -162,7 +162,7 @@ func UpdateConfigMaps(configMaps []*v1.ConfigMap, initial bool) error {
 	newConf, cmErrors := parseConfig(config, prev)
 	if cmErrors != nil {
 		for _, err := range cmErrors {
-			log.Logger().Error("failed to parse configmap entry", zap.Error(err))
+			log.Log(log.ShimConfig).Error("failed to parse configmap entry", zap.Error(err))
 		}
 		return errors.New("failed to load configmap")
 	}
@@ -209,28 +209,28 @@ const warningNonReloadable = "ignoring non-reloadable configuration change (rest
 
 func checkNonReloadableString(name string, old *string, new *string) {
 	if *old != *new {
-		log.Logger().Warn(warningNonReloadable, zap.String("config", name), zap.String("existing", *old), zap.String("new", *new))
+		log.Log(log.ShimConfig).Warn(warningNonReloadable, zap.String("config", name), zap.String("existing", *old), zap.String("new", *new))
 		*new = *old
 	}
 }
 
 func checkNonReloadableDuration(name string, old *time.Duration, new *time.Duration) {
 	if *old != *new {
-		log.Logger().Warn(warningNonReloadable, zap.String("config", name), zap.Duration("existing", *old), zap.Duration("new", *new))
+		log.Log(log.ShimConfig).Warn(warningNonReloadable, zap.String("config", name), zap.Duration("existing", *old), zap.Duration("new", *new))
 		*new = *old
 	}
 }
 
 func checkNonReloadableInt(name string, old *int, new *int) {
 	if *old != *new {
-		log.Logger().Warn(warningNonReloadable, zap.String("config", name), zap.Int("existing", *old), zap.Int("new", *new))
+		log.Log(log.ShimConfig).Warn(warningNonReloadable, zap.String("config", name), zap.Int("existing", *old), zap.Int("new", *new))
 		*new = *old
 	}
 }
 
 func checkNonReloadableBool(name string, old *bool, new *bool) {
 	if *old != *new {
-		log.Logger().Warn(warningNonReloadable, zap.String("config", name), zap.Bool("existing", *old), zap.Bool("new", *new))
+		log.Log(log.ShimConfig).Warn(warningNonReloadable, zap.String("config", name), zap.Bool("existing", *old), zap.Bool("new", *new))
 		*new = *old
 	}
 }
@@ -391,7 +391,7 @@ func (cp *configParser) intVar(p *int, name string) {
 		int64Value, err := strconv.ParseInt(newValue, 10, 32)
 		intValue := int(int64Value)
 		if err != nil {
-			log.Logger().Error("Unable to parse configmap entry", zap.String("key", name), zap.String("value", newValue), zap.Error(err))
+			log.Log(log.ShimConfig).Error("Unable to parse configmap entry", zap.String("key", name), zap.String("value", newValue), zap.Error(err))
 			cp.errors = append(cp.errors, err)
 			return
 		}
@@ -403,7 +403,7 @@ func (cp *configParser) boolVar(p *bool, name string) {
 	if newValue, ok := cp.config[name]; ok {
 		boolValue, err := strconv.ParseBool(newValue)
 		if err != nil {
-			log.Logger().Error("Unable to parse configmap entry", zap.String("key", name), zap.String("value", newValue), zap.Error(err))
+			log.Log(log.ShimConfig).Error("Unable to parse configmap entry", zap.String("key", name), zap.String("value", newValue), zap.Error(err))
 			cp.errors = append(cp.errors, err)
 			return
 		}
@@ -415,7 +415,7 @@ func (cp *configParser) durationVar(p *time.Duration, name string) {
 	if newValue, ok := cp.config[name]; ok {
 		durationValue, err := time.ParseDuration(newValue)
 		if err != nil {
-			log.Logger().Error("Unable to parse configmap entry", zap.String("key", name), zap.String("value", newValue), zap.Error(err))
+			log.Log(log.ShimConfig).Error("Unable to parse configmap entry", zap.String("key", name), zap.String("value", newValue), zap.Error(err))
 			cp.errors = append(cp.errors, err)
 			return
 		}
@@ -443,7 +443,7 @@ func DumpConfiguration() {
 	configs := GetSchedulerConf()
 	c, err := json.MarshalIndent(configs, "", " ")
 
-	logger := log.Logger()
+	logger := log.Log(log.ShimConfig)
 
 	//nolint:errcheck
 	defer logger.Sync()

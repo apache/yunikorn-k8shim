@@ -32,9 +32,9 @@ import (
 
 var applicationStatesOnce sync.Once
 
-//----------------------------------------------
+// ----------------------------------------------
 // Application events
-//----------------------------------------------
+// ----------------------------------------------
 type ApplicationEventType int
 
 const (
@@ -505,7 +505,7 @@ func newAppState() *fsm.FSM { //nolint:funlen
 		fsm.Callbacks{
 			events.EnterState: func(_ context.Context, event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
-				log.Logger().Debug("shim app state transition",
+				log.Log(log.ShimFSM).Debug("shim app state transition",
 					zap.String("app", app.applicationID),
 					zap.String("source", event.Src),
 					zap.String("destination", event.Dst),
@@ -527,7 +527,7 @@ func newAppState() *fsm.FSM { //nolint:funlen
 				app := event.Args[0].(*Application) //nolint:errcheck
 				eventArgs := make([]string, 1)
 				if err := events.GetEventArgsAsStrings(eventArgs, event.Args[1].([]interface{})); err != nil {
-					log.Logger().Error("fail to parse event arg", zap.Error(err))
+					log.Log(log.ShimFSM).Error("fail to parse event arg", zap.Error(err))
 					return
 				}
 				reason := eventArgs[0]
@@ -541,7 +541,7 @@ func newAppState() *fsm.FSM { //nolint:funlen
 				app := event.Args[0].(*Application) //nolint:errcheck
 				eventArgs := make([]string, 1)
 				if err := events.GetEventArgsAsStrings(eventArgs, event.Args[1].([]interface{})); err != nil {
-					log.Logger().Error("fail to parse event arg", zap.Error(err))
+					log.Log(log.ShimFSM).Error("fail to parse event arg", zap.Error(err))
 					return
 				}
 				errMsg := eventArgs[0]
@@ -555,7 +555,7 @@ func newAppState() *fsm.FSM { //nolint:funlen
 				app := event.Args[0].(*Application) //nolint:errcheck
 				eventArgs := make([]string, 2)
 				if err := events.GetEventArgsAsStrings(eventArgs, event.Args[1].([]interface{})); err != nil {
-					log.Logger().Error("fail to parse event arg", zap.Error(err))
+					log.Log(log.ShimFSM).Error("fail to parse event arg", zap.Error(err))
 					return
 				}
 				allocUUID := eventArgs[0]
@@ -566,7 +566,7 @@ func newAppState() *fsm.FSM { //nolint:funlen
 				app := event.Args[0].(*Application) //nolint:errcheck
 				eventArgs := make([]string, 2)
 				if err := events.GetEventArgsAsStrings(eventArgs, event.Args[1].([]interface{})); err != nil {
-					log.Logger().Error("fail to parse event arg", zap.Error(err))
+					log.Log(log.ShimFSM).Error("fail to parse event arg", zap.Error(err))
 					return
 				}
 				taskID := eventArgs[0]

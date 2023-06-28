@@ -69,7 +69,7 @@ func (p *predicateManagerImpl) PreemptionPredicates(pod *v1.Pod, node *framework
 	s, plugin, skip := p.runPreFilterPlugins(ctx, state, *p.allocationPreFilters, pod, node)
 	if !s.IsSuccess() && !s.IsSkip() {
 		// prefilter check failed, log and return
-		log.Logger().Debug("PreFilter check failed during preemption check",
+		log.Log(log.ShimPredicates).Debug("PreFilter check failed during preemption check",
 			zap.String("podUID", string(pod.UID)),
 			zap.String("plugin", plugin),
 			zap.String("message", s.Message()))
@@ -95,7 +95,7 @@ func (p *predicateManagerImpl) PreemptionPredicates(pod *v1.Pod, node *framework
 	}
 
 	// no fit, log and return
-	log.Logger().Debug("Filter checks failed during preemption check, no fit",
+	log.Log(log.ShimPredicates).Debug("Filter checks failed during preemption check, no fit",
 		zap.String("podUID", string(pod.UID)),
 		zap.String("nodeID", node.Node().Name))
 	return -1, false
@@ -107,7 +107,7 @@ func removePodFromNodeNoFail(node *framework.NodeInfo, pod *v1.Pod) {
 	}
 	if err := node.RemovePod(pod); err != nil {
 		// annoyingly, RemovePod() throws an error if the pod is gone; just log at debug and continue
-		log.Logger().Debug("Failed to remove pod from nodeInfo during preemption check",
+		log.Log(log.ShimPredicates).Debug("Failed to remove pod from nodeInfo during preemption check",
 			zap.String("podUID", string(pod.UID)),
 			zap.String("nodeID", node.Node().Name),
 			zap.Error(err))
@@ -156,7 +156,7 @@ func (p *predicateManagerImpl) runPreFilterPlugins(ctx context.Context, state *f
 				return status, plugin, skip
 			}
 			err := errors.New(status.Message())
-			log.Logger().Error("failed running PreFilter plugin",
+			log.Log(log.ShimPredicates).Error("failed running PreFilter plugin",
 				zap.String("pluginName", pl.Name()),
 				zap.String("pod", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)),
 				zap.Error(err))
@@ -191,7 +191,7 @@ func (p *predicateManagerImpl) runFilterPlugins(ctx context.Context, plugins []f
 				// Filter plugins are not supposed to return any status other than
 				// Success or Unschedulable.
 				status = framework.NewStatus(framework.Error, fmt.Sprintf("running %q filter plugin for pod %q: %v", pl.Name(), pod.Name, status.Message()))
-				log.Logger().Error("failed running Filter plugin",
+				log.Log(log.ShimPredicates).Error("failed running Filter plugin",
 					zap.String("pluginName", pl.Name()),
 					zap.String("pod", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)),
 					zap.String("message", status.Message()))
@@ -293,7 +293,7 @@ func newPredicateManagerInternal(
 
 	cfg, err := defaultConfig() // latest.Default()
 	if err != nil {
-		log.Logger().Fatal("Unable to get default predicate config", zap.Error(err))
+		log.Log(log.ShimPredicates).Fatal("Unable to get default predicate config", zap.Error(err))
 	}
 
 	profile := cfg.Profiles[0] // first profile is default
@@ -395,7 +395,7 @@ func addPlugins(phase string, createdPlugins []framework.Plugin, pluginList *[]f
 			}
 		}
 		if enabled {
-			log.Logger().Debug("adding plugin", zap.String("phase", phase), zap.String("pluginName", name))
+			log.Log(log.ShimPredicates).Debug("adding plugin", zap.String("phase", phase), zap.String("pluginName", name))
 			*pluginList = append(*pluginList, plugin)
 		}
 	}
@@ -407,18 +407,18 @@ func createPlugins(handle framework.Handle, registry fwruntime.Registry, plugins
 	for _, p := range plugins.Enabled {
 		cfg, err := getPluginArgsOrDefault(pluginConfig, p.Name)
 		if err != nil {
-			log.Logger().Error("failed to create plugin config", zap.String("pluginName", p.Name), zap.Error(err))
+			log.Log(log.ShimPredicates).Error("failed to create plugin config", zap.String("pluginName", p.Name), zap.Error(err))
 			continue
 		}
-		log.Logger().Debug("plugin config created", zap.String("pluginName", p.Name), zap.Any("cfg", cfg))
+		log.Log(log.ShimPredicates).Debug("plugin config created", zap.String("pluginName", p.Name), zap.Any("cfg", cfg))
 
 		factory := registry[p.Name]
 		plugin, err := factory(cfg, handle)
 		if err != nil {
-			log.Logger().Error("failed to create plugin", zap.String("pluginName", p.Name), zap.Error(err))
+			log.Log(log.ShimPredicates).Error("failed to create plugin", zap.String("pluginName", p.Name), zap.Error(err))
 			continue
 		}
-		log.Logger().Debug("plugin created", zap.String("pluginName", p.Name))
+		log.Log(log.ShimPredicates).Debug("plugin created", zap.String("pluginName", p.Name))
 		*createdPlugins = append(*createdPlugins, plugin)
 	}
 }

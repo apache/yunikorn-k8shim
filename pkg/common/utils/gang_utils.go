@@ -88,19 +88,19 @@ func GetSchedulingPolicyParam(pod *v1.Pod) *interfaces.SchedulingPolicyParameter
 	for _, p := range params {
 		param := strings.Split(p, "=")
 		if len(param) != 2 {
-			log.Logger().Warn("Skipping malformed scheduling policy parameter: ", zap.String("namespace", pod.Namespace), zap.String("name", pod.Name), zap.String("Scheduling Policy parameters passed in annotation: ", p))
+			log.Log(log.ShimUtils).Warn("Skipping malformed scheduling policy parameter: ", zap.String("namespace", pod.Namespace), zap.String("name", pod.Name), zap.String("Scheduling Policy parameters passed in annotation: ", p))
 			continue
 		}
 		if param[0] == constants.SchedulingPolicyTimeoutParam {
 			timeout, err = strconv.ParseInt(param[1], 10, 64)
 			if err != nil {
-				log.Logger().Warn("Failed to parse timeout value from annotation", zap.String("namespace", pod.Namespace), zap.String("name", pod.Name), zap.Int64("Using Placeholder timeout: ", timeout), zap.String("Placeholder timeout passed in annotation: ", p))
+				log.Log(log.ShimUtils).Warn("Failed to parse timeout value from annotation", zap.String("namespace", pod.Namespace), zap.String("name", pod.Name), zap.Int64("Using Placeholder timeout: ", timeout), zap.String("Placeholder timeout passed in annotation: ", p))
 			}
 		} else if param[0] == constants.SchedulingPolicyStyleParam {
 			style = constants.SchedulingPolicyStyleParamValues[param[1]]
 			if style == "" {
 				style = constants.SchedulingPolicyStyleParamDefault
-				log.Logger().Warn("Unknown gang scheduling style, using "+constants.SchedulingPolicyStyleParamDefault+" style as default",
+				log.Log(log.ShimUtils).Warn("Unknown gang scheduling style, using "+constants.SchedulingPolicyStyleParamDefault+" style as default",
 					zap.String("namespace", pod.Namespace), zap.String("name", pod.Name), zap.String("Gang scheduling style passed in annotation: ", p))
 			}
 		}

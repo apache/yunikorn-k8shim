@@ -31,9 +31,9 @@ import (
 
 var schedulerStatesOnce sync.Once
 
-//----------------------------------------------
+// ----------------------------------------------
 // Scheduler events
-//----------------------------------------------
+// ----------------------------------------------
 type SchedulerEventType int
 
 const (
@@ -149,7 +149,7 @@ func newSchedulerState() *fsm.FSM {
 		},
 		fsm.Callbacks{
 			events.EnterState: func(_ context.Context, event *fsm.Event) {
-				log.Logger().Debug("scheduler shim state transition",
+				log.Log(log.ShimFSM).Debug("scheduler shim state transition",
 					zap.String("source", event.Src),
 					zap.String("destination", event.Dst),
 					zap.String("event", event.Event))

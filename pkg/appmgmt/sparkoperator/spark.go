@@ -71,7 +71,7 @@ func (os *Manager) ServiceInit() error {
 		UpdateFunc: os.updateApplication,
 		DeleteFunc: os.deleteApplication,
 	})
-	log.Logger().Info("Spark operator AppMgmt service initialized")
+	log.Log(log.ShimAppMgmtSparkOperator).Info("Spark operator AppMgmt service initialized")
 
 	return nil
 }
@@ -82,14 +82,14 @@ func (os *Manager) Name() string {
 
 func (os *Manager) Start() error {
 	if os.crdInformerFactory != nil {
-		log.Logger().Info("starting", zap.String("Name", os.Name()))
+		log.Log(log.ShimAppMgmtSparkOperator).Info("starting", zap.String("Name", os.Name()))
 		go os.crdInformerFactory.Start(os.stopCh)
 	}
 	return nil
 }
 
 func (os *Manager) Stop() {
-	log.Logger().Info("stopping", zap.String("Name", os.Name()))
+	log.Log(log.ShimAppMgmtSparkOperator).Info("stopping", zap.String("Name", os.Name()))
 	os.stopCh <- struct{}{}
 }
 
@@ -102,15 +102,15 @@ func (os *Manager) updateApplication(old, new interface{}) {
 	appOld := old.(*v1beta2.SparkApplication)
 	appNew := new.(*v1beta2.SparkApplication)
 	currState := appNew.Status.AppState.State
-	log.Logger().Debug("spark app updated",
+	log.Log(log.ShimAppMgmtSparkOperator).Debug("spark app updated",
 		zap.Any("old", appOld),
 		zap.Any("new", appNew),
 		zap.Any("new state", string(currState)))
 	if currState == v1beta2.FailedState {
-		log.Logger().Debug("SparkApp has failed. Ready to initiate app cleanup")
+		log.Log(log.ShimAppMgmtSparkOperator).Debug("SparkApp has failed. Ready to initiate app cleanup")
 		os.amProtocol.NotifyApplicationFail(appNew.Status.SparkApplicationID)
 	} else if currState == v1beta2.CompletedState {
-		log.Logger().Debug("SparkApp has completed. Ready to initiate app cleanup")
+		log.Log(log.ShimAppMgmtSparkOperator).Debug("SparkApp has completed. Ready to initiate app cleanup")
 		os.amProtocol.NotifyApplicationComplete(appNew.Status.SparkApplicationID)
 	}
 }
@@ -121,6 +121,6 @@ send an ApplicationComplete message through the app mgmt protocol
 */
 func (os *Manager) deleteApplication(obj interface{}) {
 	app := obj.(*v1beta2.SparkApplication)
-	log.Logger().Info("spark app deleted", zap.Any("SparkApplication", app))
+	log.Log(log.ShimAppMgmtSparkOperator).Info("spark app deleted", zap.Any("SparkApplication", app))
 	os.amProtocol.NotifyApplicationComplete(app.Status.SparkApplicationID)
 }

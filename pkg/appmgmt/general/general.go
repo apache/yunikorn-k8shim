@@ -93,7 +93,7 @@ func isStateAwareDisabled(pod *v1.Pod) bool {
 	}
 	result, err := strconv.ParseBool(value)
 	if err != nil {
-		log.Logger().Debug("unable to parse label for pod",
+		log.Log(log.ShimAppMgmtGeneral).Debug("unable to parse label for pod",
 			zap.String("namespace", pod.Namespace),
 			zap.String("name", pod.Name),
 			zap.String("label", constants.LabelDisableStateAware),
@@ -134,11 +134,11 @@ func (os *Manager) filterPods(obj interface{}) bool {
 func (os *Manager) AddPod(obj interface{}) {
 	pod, err := utils.Convert2Pod(obj)
 	if err != nil {
-		log.Logger().Error("failed to add pod", zap.Error(err))
+		log.Log(log.ShimAppMgmtGeneral).Error("failed to add pod", zap.Error(err))
 		return
 	}
 
-	log.Logger().Debug("pod added",
+	log.Log(log.ShimAppMgmtGeneral).Debug("pod added",
 		zap.String("appType", os.Name()),
 		zap.String("Name", pod.Name),
 		zap.String("Namespace", pod.Namespace))
@@ -151,13 +151,13 @@ func (os *Manager) AddPod(obj interface{}) {
 func (os *Manager) updatePod(old, new interface{}) {
 	oldPod, err := utils.Convert2Pod(old)
 	if err != nil {
-		log.Logger().Error("expecting a pod object", zap.Error(err))
+		log.Log(log.ShimAppMgmtGeneral).Error("expecting a pod object", zap.Error(err))
 		return
 	}
 
 	newPod, err := utils.Convert2Pod(new)
 	if err != nil {
-		log.Logger().Error("expecting a pod object", zap.Error(err))
+		log.Log(log.ShimAppMgmtGeneral).Error("expecting a pod object", zap.Error(err))
 		return
 	}
 
@@ -167,7 +167,7 @@ func (os *Manager) updatePod(old, new interface{}) {
 		// and these container won't be restarted. In this case, we can safely release
 		// the resources for this allocation. And mark the task is done.
 		if utils.IsPodTerminated(newPod) {
-			log.Logger().Info("task completes",
+			log.Log(log.ShimAppMgmtGeneral).Info("task completes",
 				zap.String("appType", os.Name()),
 				zap.String("namespace", newPod.Namespace),
 				zap.String("podName", newPod.Name),
@@ -193,15 +193,15 @@ func (os *Manager) deletePod(obj interface{}) {
 		var err error
 		pod, err = utils.Convert2Pod(t.Obj)
 		if err != nil {
-			log.Logger().Error(err.Error())
+			log.Log(log.ShimAppMgmtGeneral).Error(err.Error())
 			return
 		}
 	default:
-		log.Logger().Error("cannot convert to pod")
+		log.Log(log.ShimAppMgmtGeneral).Error("cannot convert to pod")
 		return
 	}
 
-	log.Logger().Info("delete pod",
+	log.Log(log.ShimAppMgmtGeneral).Info("delete pod",
 		zap.String("appType", os.Name()),
 		zap.String("namespace", pod.Namespace),
 		zap.String("podName", pod.Name),
@@ -211,34 +211,34 @@ func (os *Manager) deletePod(obj interface{}) {
 }
 
 func (os *Manager) ListPods() ([]*v1.Pod, error) {
-	log.Logger().Info("Retrieving pod list")
+	log.Log(log.ShimAppMgmtGeneral).Info("Retrieving pod list")
 	// list all pods on this cluster
 	appPods, err := os.apiProvider.GetAPIs().PodInformer.Lister().List(labels.NewSelector())
 	if err != nil {
 		return nil, err
 	}
-	log.Logger().Info("Pod list retrieved from api server", zap.Int("nr of pods", len(appPods)))
+	log.Log(log.ShimAppMgmtGeneral).Info("Pod list retrieved from api server", zap.Int("nr of pods", len(appPods)))
 	// get existing apps
 	existingApps := make(map[string]struct{})
 	podsRecovered := 0
 	podsWithoutMetaData := 0
 	pods := make([]*v1.Pod, 0)
 	for _, pod := range appPods {
-		log.Logger().Debug("Looking at pod for recovery candidates", zap.String("podNamespace", pod.Namespace), zap.String("podName", pod.Name))
+		log.Log(log.ShimAppMgmtGeneral).Debug("Looking at pod for recovery candidates", zap.String("podNamespace", pod.Namespace), zap.String("podName", pod.Name))
 		// general filter passes, and pod is assigned
 		// this means the pod is already scheduled by scheduler for an existing app
 		if utils.GetApplicationIDFromPod(pod) != "" && utils.IsAssignedPod(pod) {
 			if meta, ok := getAppMetadata(pod, true); ok {
 				podsRecovered++
 				pods = append(pods, pod)
-				log.Logger().Debug("Adding appID as recovery candidate", zap.String("appID", meta.ApplicationID))
+				log.Log(log.ShimAppMgmtGeneral).Debug("Adding appID as recovery candidate", zap.String("appID", meta.ApplicationID))
 				existingApps[meta.ApplicationID] = struct{}{}
 			} else {
 				podsWithoutMetaData++
 			}
 		}
 	}
-	log.Logger().Info("Application recovery statistics",
+	log.Log(log.ShimAppMgmtGeneral).Info("Application recovery statistics",
 		zap.Int("nr of recoverable apps", len(existingApps)),
 		zap.Int("nr of total pods", len(appPods)),
 		zap.Int("nr of pods without application metadata", podsWithoutMetaData),

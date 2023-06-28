@@ -177,7 +177,7 @@ func (fc *MockScheduler) waitForSchedulerState(t *testing.T, expectedState strin
 		if fc.scheduler.GetSchedulerState() == expectedState {
 			break
 		}
-		log.Logger().Info("waiting for scheduler state",
+		log.Log(log.Test).Info("waiting for scheduler state",
 			zap.String("expected", expectedState),
 			zap.String("actual", fc.scheduler.GetSchedulerState()))
 		time.Sleep(time.Second)
@@ -197,7 +197,7 @@ func (fc *MockScheduler) waitAndAssertApplicationState(t *testing.T, appID, expe
 		if app.GetApplicationState() == expectedState {
 			break
 		}
-		log.Logger().Info("waiting for app state",
+		log.Log(log.Test).Info("waiting for app state",
 			zap.String("expected", expectedState),
 			zap.String("actual", app.GetApplicationState()))
 		time.Sleep(time.Second)
@@ -237,7 +237,7 @@ func (fc *MockScheduler) waitAndAssertTaskState(t *testing.T, appID, taskID, exp
 		if task.GetTaskState() == expectedState {
 			break
 		}
-		log.Logger().Info("waiting for task state",
+		log.Log(log.Test).Info("waiting for task state",
 			zap.String("expected", expectedState),
 			zap.String("actual", task.GetTaskState()))
 		time.Sleep(time.Second)

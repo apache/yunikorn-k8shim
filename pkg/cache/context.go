@@ -149,12 +149,12 @@ func (ctx *Context) SetPluginMode(pluginMode bool) {
 func (ctx *Context) addNode(obj interface{}) {
 	node, err := convertToNode(obj)
 	if err != nil {
-		log.Logger().Error("node conversion failed", zap.Error(err))
+		log.Log(log.ShimContext).Error("node conversion failed", zap.Error(err))
 		return
 	}
 
 	// add node to secondary scheduler cache
-	log.Logger().Warn("adding node to cache", zap.String("NodeName", node.Name))
+	log.Log(log.ShimContext).Warn("adding node to cache", zap.String("NodeName", node.Name))
 	ctx.schedulerCache.AddNode(node)
 
 	// add node to internal cache
@@ -169,14 +169,14 @@ func (ctx *Context) updateNode(oldObj, newObj interface{}) {
 	// we only trigger update when resource changes
 	oldNode, err := convertToNode(oldObj)
 	if err != nil {
-		log.Logger().Error("old node conversion failed",
+		log.Log(log.ShimContext).Error("old node conversion failed",
 			zap.Error(err))
 		return
 	}
 
 	newNode, err := convertToNode(newObj)
 	if err != nil {
-		log.Logger().Error("new node conversion failed",
+		log.Log(log.ShimContext).Error("new node conversion failed",
 			zap.Error(err))
 		return
 	}
@@ -197,16 +197,16 @@ func (ctx *Context) deleteNode(obj interface{}) {
 		var ok bool
 		node, ok = t.Obj.(*v1.Node)
 		if !ok {
-			log.Logger().Error("cannot convert to *v1.Node", zap.Any("object", t.Obj))
+			log.Log(log.ShimContext).Error("cannot convert to *v1.Node", zap.Any("object", t.Obj))
 			return
 		}
 	default:
-		log.Logger().Error("cannot convert to *v1.Node", zap.Any("object", t))
+		log.Log(log.ShimContext).Error("cannot convert to *v1.Node", zap.Any("object", t))
 		return
 	}
 
 	// delete node from secondary cache
-	log.Logger().Debug("delete node from cache", zap.String("nodeName", node.Name))
+	log.Log(log.ShimContext).Debug("delete node from cache", zap.String("nodeName", node.Name))
 	ctx.schedulerCache.RemoveNode(node)
 
 	// delete node from primary cache
@@ -220,18 +220,18 @@ func (ctx *Context) deleteNode(obj interface{}) {
 func (ctx *Context) addPodToCache(obj interface{}) {
 	pod, err := utils.Convert2Pod(obj)
 	if err != nil {
-		log.Logger().Error("failed to add pod to cache", zap.Error(err))
+		log.Log(log.ShimContext).Error("failed to add pod to cache", zap.Error(err))
 		return
 	}
 
 	// treat a terminated pod like a removal
 	if utils.IsPodTerminated(pod) {
-		log.Logger().Debug("Request to add terminated pod, removing from cache", zap.String("podName", pod.Name))
+		log.Log(log.ShimContext).Debug("Request to add terminated pod, removing from cache", zap.String("podName", pod.Name))
 		ctx.schedulerCache.RemovePod(pod)
 		return
 	}
 
-	log.Logger().Debug("adding pod to cache", zap.String("podName", pod.Name))
+	log.Log(log.ShimContext).Debug("adding pod to cache", zap.String("podName", pod.Name))
 	ctx.schedulerCache.AddPod(pod)
 }
 
@@ -244,33 +244,33 @@ func (ctx *Context) removePodFromCache(obj interface{}) {
 		var ok bool
 		pod, ok = t.Obj.(*v1.Pod)
 		if !ok {
-			log.Logger().Error("Cannot convert to *v1.Pod", zap.Any("pod", obj))
+			log.Log(log.ShimContext).Error("Cannot convert to *v1.Pod", zap.Any("pod", obj))
 			return
 		}
 	default:
-		log.Logger().Error("Cannot convert to *v1.Pod", zap.Any("pod", obj))
+		log.Log(log.ShimContext).Error("Cannot convert to *v1.Pod", zap.Any("pod", obj))
 		return
 	}
 
-	log.Logger().Debug("removing pod from cache", zap.String("podName", pod.Name))
+	log.Log(log.ShimContext).Debug("removing pod from cache", zap.String("podName", pod.Name))
 	ctx.schedulerCache.RemovePod(pod)
 }
 
 func (ctx *Context) updatePodInCache(oldObj, newObj interface{}) {
 	_, err := utils.Convert2Pod(oldObj)
 	if err != nil {
-		log.Logger().Error("failed to update pod in cache", zap.Error(err))
+		log.Log(log.ShimContext).Error("failed to update pod in cache", zap.Error(err))
 		return
 	}
 	newPod, err := utils.Convert2Pod(newObj)
 	if err != nil {
-		log.Logger().Error("failed to update pod in cache", zap.Error(err))
+		log.Log(log.ShimContext).Error("failed to update pod in cache", zap.Error(err))
 		return
 	}
 
 	// treat terminated pods like a remove
 	if utils.IsPodTerminated(newPod) {
-		log.Logger().Debug("Request to update terminated pod, removing from cache", zap.String("podName", newPod.Name))
+		log.Log(log.ShimContext).Debug("Request to update terminated pod, removing from cache", zap.String("podName", newPod.Name))
 		ctx.schedulerCache.RemovePod(newPod)
 		return
 	}
@@ -302,7 +302,7 @@ func (ctx *Context) filterConfigMaps(obj interface{}) bool {
 
 // when the configMap for the scheduler is added, trigger hot-refresh
 func (ctx *Context) addConfigMaps(obj interface{}) {
-	log.Logger().Debug("configMap added")
+	log.Log(log.ShimContext).Debug("configMap added")
 	configmap := utils.Convert2ConfigMap(obj)
 	switch configmap.Name {
 	case constants.DefaultConfigMapName:
@@ -317,7 +317,7 @@ func (ctx *Context) addConfigMaps(obj interface{}) {
 
 // when the configMap for the scheduler is updated, trigger hot-refresh
 func (ctx *Context) updateConfigMaps(_, newObj interface{}) {
-	log.Logger().Debug("configMap updated")
+	log.Log(log.ShimContext).Debug("configMap updated")
 	configmap := utils.Convert2ConfigMap(newObj)
 	switch configmap.Name {
 	case constants.DefaultConfigMapName:
@@ -332,7 +332,7 @@ func (ctx *Context) updateConfigMaps(_, newObj interface{}) {
 
 // when the configMap for the scheduler is deleted, trigger refresh using default config
 func (ctx *Context) deleteConfigMaps(obj interface{}) {
-	log.Logger().Debug("configMap deleted")
+	log.Log(log.ShimContext).Debug("configMap deleted")
 	var configmap *v1.ConfigMap = nil
 	switch t := obj.(type) {
 	case *v1.ConfigMap:
@@ -340,7 +340,7 @@ func (ctx *Context) deleteConfigMaps(obj interface{}) {
 	case cache.DeletedFinalStateUnknown:
 		configmap = utils.Convert2ConfigMap(obj)
 	default:
-		log.Logger().Warn("unable to convert to configmap")
+		log.Log(log.ShimContext).Warn("unable to convert to configmap")
 		return
 	}
 
@@ -367,7 +367,7 @@ func (ctx *Context) filterPriorityClasses(obj interface{}) bool {
 }
 
 func (ctx *Context) addPriorityClass(obj interface{}) {
-	log.Logger().Debug("priority class added")
+	log.Log(log.ShimContext).Debug("priority class added")
 	priorityClass := utils.Convert2PriorityClass(obj)
 	if priorityClass != nil {
 		ctx.schedulerCache.AddPriorityClass(priorityClass)
@@ -375,7 +375,7 @@ func (ctx *Context) addPriorityClass(obj interface{}) {
 }
 
 func (ctx *Context) updatePriorityClass(_, newObj interface{}) {
-	log.Logger().Debug("priority class updated")
+	log.Log(log.ShimContext).Debug("priority class updated")
 	priorityClass := utils.Convert2PriorityClass(newObj)
 	if priorityClass != nil {
 		ctx.schedulerCache.UpdatePriorityClass(priorityClass)
@@ -383,7 +383,7 @@ func (ctx *Context) updatePriorityClass(_, newObj interface{}) {
 }
 
 func (ctx *Context) deletePriorityClass(obj interface{}) {
-	log.Logger().Debug("priorityClass deleted")
+	log.Log(log.ShimContext).Debug("priorityClass deleted")
 	var priorityClass *schedulingv1.PriorityClass
 	switch t := obj.(type) {
 	case *schedulingv1.PriorityClass:
@@ -391,7 +391,7 @@ func (ctx *Context) deletePriorityClass(obj interface{}) {
 	case cache.DeletedFinalStateUnknown:
 		priorityClass = utils.Convert2PriorityClass(obj)
 	default:
-		log.Logger().Warn("unable to convert to priorityClass")
+		log.Log(log.ShimContext).Warn("unable to convert to priorityClass")
 		return
 	}
 	if priorityClass != nil {
@@ -405,21 +405,21 @@ func (ctx *Context) triggerReloadConfig(index int, configMap *v1.ConfigMap) {
 
 	conf := ctx.apiProvider.GetAPIs().GetConf()
 	if !conf.EnableConfigHotRefresh {
-		log.Logger().Info("hot-refresh disabled, skipping scheduler configuration update")
+		log.Log(log.ShimContext).Info("hot-refresh disabled, skipping scheduler configuration update")
 		return
 	}
 
 	ctx.configMaps[index] = configMap
 	err := schedulerconf.UpdateConfigMaps(ctx.configMaps, false)
 	if err != nil {
-		log.Logger().Error("Unable to update configmap, ignoring changes", zap.Error(err))
+		log.Log(log.ShimContext).Error("Unable to update configmap, ignoring changes", zap.Error(err))
 		return
 	}
 
 	confMap := schedulerconf.FlattenConfigMaps(ctx.configMaps)
 
 	conf = ctx.apiProvider.GetAPIs().GetConf()
-	log.Logger().Info("reloading scheduler configuration")
+	log.Log(log.ShimContext).Info("reloading scheduler configuration")
 	config := utils.GetCoreSchedulerConfigFromConfigMap(confMap)
 	extraConfig := utils.GetExtraConfigFromConfigMap(confMap)
 
@@ -430,7 +430,7 @@ func (ctx *Context) triggerReloadConfig(index int, configMap *v1.ConfigMap) {
 		ExtraConfig: extraConfig,
 	}
 	if err := ctx.apiProvider.GetAPIs().SchedulerAPI.UpdateConfiguration(request); err != nil {
-		log.Logger().Error("reload configuration failed", zap.Error(err))
+		log.Log(log.ShimContext).Error("reload configuration failed", zap.Error(err))
 	}
 }
 
@@ -497,15 +497,15 @@ func (ctx *Context) bindPodVolumes(pod *v1.Pod) error {
 	// then here we just need to retrieve that value from cache, to skip bindings if volumes are already bound.
 	if assumedPod, exist := ctx.schedulerCache.GetPod(podKey); exist {
 		if ctx.schedulerCache.ArePodVolumesAllBound(podKey) {
-			log.Logger().Info("Binding Pod Volumes skipped: all volumes already bound",
+			log.Log(log.ShimContext).Info("Binding Pod Volumes skipped: all volumes already bound",
 				zap.String("podName", pod.Name))
 		} else {
-			log.Logger().Info("Binding Pod Volumes", zap.String("podName", pod.Name))
+			log.Log(log.ShimContext).Info("Binding Pod Volumes", zap.String("podName", pod.Name))
 
 			// retrieve the volume claims
 			podVolumeClaims, err := ctx.apiProvider.GetAPIs().VolumeBinder.GetPodVolumeClaims(pod)
 			if err != nil {
-				log.Logger().Error("Failed to get pod volume claims",
+				log.Log(log.ShimContext).Error("Failed to get pod volume claims",
 					zap.String("podName", assumedPod.Name),
 					zap.Error(err))
 				return err
@@ -514,7 +514,7 @@ func (ctx *Context) bindPodVolumes(pod *v1.Pod) error {
 			// get node information
 			node, err := ctx.schedulerCache.GetNodeInfo(assumedPod.Spec.NodeName)
 			if err != nil {
-				log.Logger().Error("Failed to get node info",
+				log.Log(log.ShimContext).Error("Failed to get node info",
 					zap.String("podName", assumedPod.Name),
 					zap.String("nodeName", assumedPod.Spec.NodeName),
 					zap.Error(err))
@@ -524,7 +524,7 @@ func (ctx *Context) bindPodVolumes(pod *v1.Pod) error {
 			// retrieve volumes
 			volumes, reasons, err := ctx.apiProvider.GetAPIs().VolumeBinder.FindPodVolumes(pod, podVolumeClaims, node)
 			if err != nil {
-				log.Logger().Error("Failed to find pod volumes",
+				log.Log(log.ShimContext).Error("Failed to find pod volumes",
 					zap.String("podName", assumedPod.Name),
 					zap.String("nodeName", assumedPod.Spec.NodeName),
 					zap.Error(err))
@@ -537,7 +537,7 @@ func (ctx *Context) bindPodVolumes(pod *v1.Pod) error {
 				}
 				sReason := strings.Join(sReasons, ", ")
 				err = fmt.Errorf("pod %s has conflicting volume claims: %s", pod.Name, sReason)
-				log.Logger().Error("Pod has conflicting volume claims",
+				log.Log(log.ShimContext).Error("Pod has conflicting volume claims",
 					zap.String("podName", assumedPod.Name),
 					zap.String("nodeName", assumedPod.Spec.NodeName),
 					zap.Error(err))
@@ -553,7 +553,7 @@ func (ctx *Context) bindPodVolumes(pod *v1.Pod) error {
 			}
 			err = ctx.apiProvider.GetAPIs().VolumeBinder.BindPodVolumes(context.Background(), assumedPod, volumes)
 			if err != nil {
-				log.Logger().Error("Failed to bind pod volumes",
+				log.Log(log.ShimContext).Error("Failed to bind pod volumes",
 					zap.String("podName", assumedPod.Name),
 					zap.String("nodeName", assumedPod.Spec.NodeName),
 					zap.Int("dynamicProvisions", len(volumes.DynamicProvisions)),
@@ -589,7 +589,7 @@ func (ctx *Context) AssumePod(name string, node string) error {
 				// retrieve the volume claims
 				podVolumeClaims, err := ctx.apiProvider.GetAPIs().VolumeBinder.GetPodVolumeClaims(pod)
 				if err != nil {
-					log.Logger().Error("Failed to get pod volume claims",
+					log.Log(log.ShimContext).Error("Failed to get pod volume claims",
 						zap.String("podName", assumedPod.Name),
 						zap.Error(err))
 					return err
@@ -598,7 +598,7 @@ func (ctx *Context) AssumePod(name string, node string) error {
 				// retrieve volumes
 				volumes, reasons, err := ctx.apiProvider.GetAPIs().VolumeBinder.FindPodVolumes(pod, podVolumeClaims, targetNode.Node())
 				if err != nil {
-					log.Logger().Error("Failed to find pod volumes",
+					log.Log(log.ShimContext).Error("Failed to find pod volumes",
 						zap.String("podName", assumedPod.Name),
 						zap.String("nodeName", assumedPod.Spec.NodeName),
 						zap.Error(err))
@@ -611,7 +611,7 @@ func (ctx *Context) AssumePod(name string, node string) error {
 					}
 					sReason := strings.Join(sReasons, ", ")
 					err = fmt.Errorf("pod %s has conflicting volume claims: %s", pod.Name, sReason)
-					log.Logger().Error("Pod has conflicting volume claims",
+					log.Log(log.ShimContext).Error("Pod has conflicting volume claims",
 						zap.String("podName", assumedPod.Name),
 						zap.String("nodeName", assumedPod.Spec.NodeName),
 						zap.Error(err))
@@ -638,11 +638,11 @@ func (ctx *Context) ForgetPod(name string) {
 	defer ctx.lock.Unlock()
 
 	if pod, ok := ctx.schedulerCache.GetPod(name); ok {
-		log.Logger().Debug("forget pod", zap.String("pod", pod.Name))
+		log.Log(log.ShimContext).Debug("forget pod", zap.String("pod", pod.Name))
 		ctx.schedulerCache.ForgetPod(pod)
 		return
 	}
-	log.Logger().Debug("unable to forget pod: not found in cache", zap.String("pod", name))
+	log.Log(log.ShimContext).Debug("unable to forget pod: not found in cache", zap.String("pod", name))
 }
 
 func (ctx *Context) UpdateApplication(app *Application) {
@@ -678,7 +678,7 @@ func (ctx *Context) StartPodAllocation(podKey string, nodeID string) bool {
 // either way we need to release all allocations (if exists) for this application
 func (ctx *Context) NotifyApplicationComplete(appID string) {
 	if app := ctx.GetApplication(appID); app != nil {
-		log.Logger().Debug("NotifyApplicationComplete",
+		log.Log(log.ShimContext).Debug("NotifyApplicationComplete",
 			zap.String("appID", appID),
 			zap.String("currentAppState", app.GetApplicationState()))
 		ev := NewSimpleApplicationEvent(appID, CompleteApplication)
@@ -688,7 +688,7 @@ func (ctx *Context) NotifyApplicationComplete(appID string) {
 
 func (ctx *Context) NotifyApplicationFail(appID string) {
 	if app := ctx.GetApplication(appID); app != nil {
-		log.Logger().Debug("NotifyApplicationFail",
+		log.Log(log.ShimContext).Debug("NotifyApplicationFail",
 			zap.String("appID", appID),
 			zap.String("currentAppState", app.GetApplicationState()))
 		ev := NewSimpleApplicationEvent(appID, FailApplication)
@@ -697,11 +697,11 @@ func (ctx *Context) NotifyApplicationFail(appID string) {
 }
 
 func (ctx *Context) NotifyTaskComplete(appID, taskID string) {
-	log.Logger().Debug("NotifyTaskComplete",
+	log.Log(log.ShimContext).Debug("NotifyTaskComplete",
 		zap.String("appID", appID),
 		zap.String("taskID", taskID))
 	if app := ctx.GetApplication(appID); app != nil {
-		log.Logger().Debug("release allocation",
+		log.Log(log.ShimContext).Debug("release allocation",
 			zap.String("appID", appID),
 			zap.String("taskID", taskID))
 		ev := NewSimpleTaskEvent(appID, taskID, CompleteTask)
@@ -747,7 +747,7 @@ func (ctx *Context) updateApplicationTags(request *interfaces.AddApplicationRequ
 // if the namespace is unable to be listed from api-server, a nil is returned
 func (ctx *Context) getNamespaceObject(namespace string) *v1.Namespace {
 	if namespace == "" {
-		log.Logger().Debug("could not get namespace from empty string")
+		log.Log(log.ShimContext).Debug("could not get namespace from empty string")
 		return nil
 	}
 
@@ -757,14 +757,14 @@ func (ctx *Context) getNamespaceObject(namespace string) *v1.Namespace {
 		// every app should belong to a namespace,
 		// if we cannot list the namespace here, probably something is wrong
 		// log an error here and skip retrieving the resource quota
-		log.Logger().Error("failed to get app namespace", zap.Error(err))
+		log.Log(log.ShimContext).Error("failed to get app namespace", zap.Error(err))
 		return nil
 	}
 	return namespaceObj
 }
 
 func (ctx *Context) AddApplication(request *interfaces.AddApplicationRequest) interfaces.ManagedApp {
-	log.Logger().Debug("AddApplication", zap.Any("Request", request))
+	log.Log(log.ShimContext).Debug("AddApplication", zap.Any("Request", request))
 	if app := ctx.GetApplication(request.Metadata.ApplicationID); app != nil {
 		return app
 	}
@@ -773,7 +773,7 @@ func (ctx *Context) AddApplication(request *interfaces.AddApplicationRequest) in
 	defer ctx.lock.Unlock()
 
 	if ns, ok := request.Metadata.Tags[constants.AppTagNamespace]; ok {
-		log.Logger().Debug("app namespace info",
+		log.Log(log.ShimContext).Debug("app namespace info",
 			zap.String("appID", request.Metadata.ApplicationID),
 			zap.String("namespace", ns))
 		ctx.updateApplicationTags(request, ns)
@@ -800,7 +800,7 @@ func (ctx *Context) AddApplication(request *interfaces.AddApplicationRequest) in
 
 	// add into cache
 	ctx.applications[app.applicationID] = app
-	log.Logger().Info("app added",
+	log.Log(log.ShimContext).Info("app added",
 		zap.String("appID", app.applicationID))
 
 	return app
@@ -845,10 +845,10 @@ func (ctx *Context) RemoveApplication(appID string) error {
 		// send the update request to scheduler core
 		rr := common.CreateUpdateRequestForRemoveApplication(app.applicationID, app.partition)
 		if err := ctx.apiProvider.GetAPIs().SchedulerAPI.UpdateApplication(rr); err != nil {
-			log.Logger().Error("failed to send remove application request to core", zap.Error(err))
+			log.Log(log.ShimContext).Error("failed to send remove application request to core", zap.Error(err))
 		}
 		delete(ctx.applications, appID)
-		log.Logger().Info("app removed",
+		log.Log(log.ShimContext).Info("app removed",
 			zap.String("appID", appID))
 
 		return nil
@@ -860,7 +860,7 @@ func (ctx *Context) RemoveApplicationInternal(appID string) {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
 	if _, exist := ctx.applications[appID]; !exist {
-		log.Logger().Debug("Attempted to remove non-existent application", zap.String("appID", appID))
+		log.Log(log.ShimContext).Debug("Attempted to remove non-existent application", zap.String("appID", appID))
 		return
 	}
 	delete(ctx.applications, appID)
@@ -868,7 +868,7 @@ func (ctx *Context) RemoveApplicationInternal(appID string) {
 
 // this implements ApplicationManagementProtocol
 func (ctx *Context) AddTask(request *interfaces.AddTaskRequest) interfaces.ManagedTask {
-	log.Logger().Debug("AddTask",
+	log.Log(log.ShimContext).Debug("AddTask",
 		zap.String("appID", request.Metadata.ApplicationID),
 		zap.String("taskID", request.Metadata.TaskID))
 	if managedApp := ctx.GetApplication(request.Metadata.ApplicationID); managedApp != nil {
@@ -890,17 +890,17 @@ func (ctx *Context) AddTask(request *interfaces.AddTaskRequest) interfaces.Manag
 				}
 				task := NewFromTaskMeta(request.Metadata.TaskID, app, ctx, request.Metadata, originator)
 				app.addTask(task)
-				log.Logger().Info("task added",
+				log.Log(log.ShimContext).Info("task added",
 					zap.String("appID", app.applicationID),
 					zap.String("taskID", task.taskID),
 					zap.String("taskState", task.GetTaskState()))
 				if originator {
 					if app.GetOriginatingTask() != nil {
-						log.Logger().Error("Inconsistent state - found another originator task for an application",
+						log.Log(log.ShimContext).Error("Inconsistent state - found another originator task for an application",
 							zap.String("taskId", task.GetTaskID()))
 					}
 					app.setOriginatingTask(task)
-					log.Logger().Info("app request originating pod added",
+					log.Log(log.ShimContext).Info("app request originating pod added",
 						zap.String("appID", app.applicationID),
 						zap.String("original task", task.GetTaskID()))
 				}
@@ -917,7 +917,7 @@ func (ctx *Context) RemoveTask(appID, taskID string) {
 	defer ctx.lock.RUnlock()
 	app, ok := ctx.applications[appID]
 	if !ok {
-		log.Logger().Debug("Attempted to remove task from non-existent application", zap.String("appID", appID))
+		log.Log(log.ShimContext).Debug("Attempted to remove task from non-existent application", zap.String("appID", appID))
 		return
 	}
 	app.removeTask(taskID)
@@ -928,20 +928,20 @@ func (ctx *Context) getTask(appID string, taskID string) *Task {
 	defer ctx.lock.RUnlock()
 	app := ctx.getApplication(appID)
 	if app == nil {
-		log.Logger().Debug("application is not found in the context",
+		log.Log(log.ShimContext).Debug("application is not found in the context",
 			zap.String("appID", appID))
 		return nil
 	}
 	managedTask, err := app.GetTask(taskID)
 	if err != nil {
-		log.Logger().Debug("task is not found in applications",
+		log.Log(log.ShimContext).Debug("task is not found in applications",
 			zap.String("taskID", taskID),
 			zap.String("appID", appID))
 		return nil
 	}
 	task, valid := managedTask.(*Task)
 	if !valid {
-		log.Logger().Debug("managedTask conversion failed",
+		log.Log(log.ShimContext).Debug("managedTask conversion failed",
 			zap.String("taskID", taskID))
 		return nil
 	}
@@ -971,7 +971,7 @@ func (ctx *Context) PublishEvents(eventRecords []*si.EventRecord) {
 					events.GetRecorder().Eventf(task.GetTaskPod().DeepCopy(), nil,
 						v1.EventTypeNormal, "", "", record.Message)
 				} else {
-					log.Logger().Warn("task event is not published because task is not found",
+					log.Log(log.ShimContext).Warn("task event is not published because task is not found",
 						zap.String("appID", appID),
 						zap.String("taskID", taskID),
 						zap.Stringer("event", record))
@@ -980,14 +980,14 @@ func (ctx *Context) PublishEvents(eventRecords []*si.EventRecord) {
 				nodeID := record.ObjectID
 				nodeInfo := ctx.schedulerCache.GetNode(nodeID)
 				if nodeInfo == nil {
-					log.Logger().Warn("node event is not published because nodeInfo is not found",
+					log.Log(log.ShimContext).Warn("node event is not published because nodeInfo is not found",
 						zap.String("nodeID", nodeID),
 						zap.Stringer("event", record))
 					continue
 				}
 				node := nodeInfo.Node()
 				if node == nil {
-					log.Logger().Warn("node event is not published because node is not found",
+					log.Log(log.ShimContext).Warn("node event is not published because node is not found",
 						zap.String("nodeID", nodeID),
 						zap.Stringer("event", record))
 					continue
@@ -995,7 +995,7 @@ func (ctx *Context) PublishEvents(eventRecords []*si.EventRecord) {
 				events.GetRecorder().Eventf(node.DeepCopy(), nil,
 					v1.EventTypeNormal, "", "", record.Message)
 			default:
-				log.Logger().Warn("Unsupported event type, currently only supports to publish request event records",
+				log.Log(log.ShimContext).Warn("Unsupported event type, currently only supports to publish request event records",
 					zap.Stringer("type", record.Type))
 			}
 		}
@@ -1009,7 +1009,7 @@ func (ctx *Context) updatePodCondition(task *Task, podCondition *v1.PodCondition
 		// only update the pod when pod condition changes
 		// minimize the overhead added to the api-server/etcd
 		if !utils.PodUnderCondition(task.pod, podCondition) {
-			log.Logger().Debug("updating pod condition",
+			log.Log(log.ShimContext).Debug("updating pod condition",
 				zap.String("namespace", task.pod.Namespace),
 				zap.String("name", task.pod.Name),
 				zap.Any("podCondition", podCondition))
@@ -1021,7 +1021,7 @@ func (ctx *Context) updatePodCondition(task *Task, podCondition *v1.PodCondition
 					return true
 				}
 				// only log the error here, no need to handle it if the update failed
-				log.Logger().Error("update pod condition failed",
+				log.Log(log.ShimContext).Error("update pod condition failed",
 					zap.Error(err))
 			}
 		}
@@ -1064,7 +1064,7 @@ func (ctx *Context) HandleContainerStateUpdate(request *si.UpdateContainerSchedu
 					"Task %s is pending for the requested resources become available", task.alias)
 			}
 		default:
-			log.Logger().Warn("no handler for container scheduling state",
+			log.Log(log.ShimContext).Warn("no handler for container scheduling state",
 				zap.Stringer("state", request.State))
 		}
 	}
@@ -1075,7 +1075,7 @@ func (ctx *Context) ApplicationEventHandler() func(obj interface{}) {
 		if event, ok := obj.(events.ApplicationEvent); ok {
 			managedApp := ctx.GetApplication(event.GetApplicationID())
 			if managedApp == nil {
-				log.Logger().Error("failed to handle application event",
+				log.Log(log.ShimContext).Error("failed to handle application event",
 					zap.String("reason", "application not exist"))
 				return
 			}
@@ -1083,7 +1083,7 @@ func (ctx *Context) ApplicationEventHandler() func(obj interface{}) {
 			if app, ok := managedApp.(*Application); ok {
 				if app.canHandle(event) {
 					if err := app.handle(event); err != nil {
-						log.Logger().Error("failed to handle application event",
+						log.Log(log.ShimContext).Error("failed to handle application event",
 							zap.String("event", event.GetEvent()),
 							zap.Error(err))
 					}
@@ -1098,12 +1098,12 @@ func (ctx *Context) TaskEventHandler() func(obj interface{}) {
 		if event, ok := obj.(events.TaskEvent); ok {
 			task := ctx.getTask(event.GetApplicationID(), event.GetTaskID())
 			if task == nil {
-				log.Logger().Error("failed to handle application event")
+				log.Log(log.ShimContext).Error("failed to handle application event")
 				return
 			}
 			if task.canHandle(event) {
 				if err := task.handle(event); err != nil {
-					log.Logger().Error("failed to handle task event",
+					log.Log(log.ShimContext).Error("failed to handle task event",
 						zap.String("applicationID", task.applicationID),
 						zap.String("taskID", task.taskID),
 						zap.String("event", event.GetEvent()),
@@ -1139,7 +1139,7 @@ func (ctx *Context) LoadConfigMaps() ([]*v1.ConfigMap, error) {
 }
 
 func (ctx *Context) GetStateDump() (string, error) {
-	log.Logger().Info("State dump requested")
+	log.Log(log.ShimContext).Info("State dump requested")
 
 	dump := map[string]interface{}{
 		"cache": ctx.schedulerCache.GetSchedulerCacheDao(),

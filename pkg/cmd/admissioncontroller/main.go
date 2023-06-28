@@ -55,7 +55,7 @@ func main() {
 	log.SetDefaultLogger(log.Admission)
 	configMaps, err := client.LoadBootstrapConfigMaps(schedulerconf.GetSchedulerNamespace())
 	if err != nil {
-		log.Logger().Fatal("Failed to load initial configmaps", zap.Error(err))
+		log.Log(log.Admission).Fatal("Failed to load initial configmaps", zap.Error(err))
 		return
 	}
 
@@ -70,7 +70,7 @@ func main() {
 
 	wm, err := admission.NewWebhookManager(amConf)
 	if err != nil {
-		log.Logger().Fatal("Failed to initialize webhook manager", zap.Error(err))
+		log.Log(log.Admission).Fatal("Failed to initialize webhook manager", zap.Error(err))
 	}
 
 	ac := admission.InitAdmissionController(amConf, pcCache, nsCache)
@@ -109,17 +109,17 @@ func WaitForCertExpiration(wm admission.WebhookManager, ch chan os.Signal) {
 func UpdateWebhookConfiguration(wm admission.WebhookManager) *tls.Certificate {
 	err := wm.LoadCACertificates()
 	if err != nil {
-		log.Logger().Fatal("Failed to initialize CA certificates", zap.Error(err))
+		log.Log(log.Admission).Fatal("Failed to initialize CA certificates", zap.Error(err))
 	}
 
 	certs, err := wm.GenerateServerCertificate()
 	if err != nil {
-		log.Logger().Fatal("Unable to generate server certificate", zap.Error(err))
+		log.Log(log.Admission).Fatal("Unable to generate server certificate", zap.Error(err))
 	}
 
 	err = wm.InstallWebhooks()
 	if err != nil {
-		log.Logger().Fatal("Unable to install webhooks for admission controller", zap.Error(err))
+		log.Log(log.Admission).Fatal("Unable to install webhooks for admission controller", zap.Error(err))
 	}
 
 	return certs
@@ -152,14 +152,14 @@ func (wh *WebHook) Startup(certs *tls.Certificate) {
 	go func() {
 		if err := wh.server.ListenAndServeTLS("", ""); err != nil {
 			if err == http.ErrServerClosed {
-				log.Logger().Info("existing server closed")
+				log.Log(log.Admission).Info("existing server closed")
 			} else {
-				log.Logger().Fatal("failed to start admission controller", zap.Error(err))
+				log.Log(log.Admission).Fatal("failed to start admission controller", zap.Error(err))
 			}
 		}
 	}()
 
-	log.Logger().Info("the admission controller started",
+	log.Log(log.Admission).Info("the admission controller started",
 		zap.Int("port", HTTPPort),
 		zap.Strings("listeningOn", []string{healthURL, mutateURL, validateConfURL}))
 }
@@ -169,10 +169,10 @@ func (wh *WebHook) Shutdown() {
 	defer wh.Unlock()
 
 	if wh.server != nil {
-		log.Logger().Info("shutting down the admission controller...")
+		log.Log(log.Admission).Info("shutting down the admission controller...")
 		err := wh.server.Shutdown(context.Background())
 		if err != nil {
-			log.Logger().Fatal("failed to stop the admission controller", zap.Error(err))
+			log.Log(log.Admission).Fatal("failed to stop the admission controller", zap.Error(err))
 		}
 		wh.server = nil
 	}

@@ -182,7 +182,7 @@ func (s *APIFactory) AddEventHandler(handlers *ResourceEventHandlers) {
 		h = fns
 	}
 
-	log.Logger().Info("registering event handler", zap.Stringer("type", handlers.Type))
+	log.Log(log.ShimClient).Info("registering event handler", zap.Stringer("type", handlers.Type))
 	s.addEventHandlers(handlers.Type, h, 0)
 }
 

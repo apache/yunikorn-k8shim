@@ -215,7 +215,7 @@ func (task *Task) initialize() {
 		task.allocationUUID = string(task.pod.UID)
 		task.nodeName = task.pod.Spec.NodeName
 		task.sm.SetState(TaskStates().Bound)
-		log.Logger().Info("set task as Bound",
+		log.Log(log.ShimCacheTask).Info("set task as Bound",
 			zap.String("appID", task.applicationID),
 			zap.String("taskID", task.taskID),
 			zap.String("allocationUUID", task.allocationUUID),
@@ -230,7 +230,7 @@ func (task *Task) initialize() {
 		task.allocationUUID = string(task.pod.UID)
 		task.nodeName = task.pod.Spec.NodeName
 		task.sm.SetState(TaskStates().Completed)
-		log.Logger().Info("set task as Completed",
+		log.Log(log.ShimCacheTask).Info("set task as Completed",
 			zap.String("appID", task.applicationID),
 			zap.String("taskID", task.taskID),
 			zap.String("allocationUUID", task.allocationUUID),
@@ -272,7 +272,7 @@ func (task *Task) isPreemptOtherAllowed() bool {
 }
 
 func (task *Task) handleSubmitTaskEvent() {
-	log.Logger().Debug("scheduling pod",
+	log.Log(log.ShimCacheTask).Debug("scheduling pod",
 		zap.String("podName", task.pod.Name))
 
 	// build preemption policy
@@ -291,9 +291,9 @@ func (task *Task) handleSubmitTaskEvent() {
 		task.pod,
 		task.originator,
 		preemptionPolicy)
-	log.Logger().Debug("send update request", zap.Stringer("request", rr))
+	log.Log(log.ShimCacheTask).Debug("send update request", zap.Stringer("request", rr))
 	if err := task.context.apiProvider.GetAPIs().SchedulerAPI.UpdateAllocation(rr); err != nil {
-		log.Logger().Debug("failed to send scheduling request to scheduler", zap.Error(err))
+		log.Log(log.ShimCacheTask).Debug("failed to send scheduling request to scheduler", zap.Error(err))
 		return
 	}
 
@@ -329,7 +329,7 @@ func (task *Task) postTaskAllocated() {
 
 		// plugin mode means we delegate this work to the default scheduler
 		if task.pluginMode {
-			log.Logger().Debug("allocating pod",
+			log.Log(log.ShimCacheTask).Debug("allocating pod",
 				zap.String("podName", task.pod.Name),
 				zap.String("podUID", string(task.pod.UID)))
 
@@ -346,7 +346,7 @@ func (task *Task) postTaskAllocated() {
 				"Successfully assigned %s to node %s", task.alias, task.nodeName)
 
 			// before binding pod to node, first bind volumes to pod
-			log.Logger().Debug("bind pod volumes",
+			log.Log(log.ShimCacheTask).Debug("bind pod volumes",
 				zap.String("podName", task.pod.Name),
 				zap.String("podUID", string(task.pod.UID)))
 			if task.context.apiProvider.GetAPIs().VolumeBinder != nil {
@@ -359,20 +359,20 @@ func (task *Task) postTaskAllocated() {
 				}
 			}
 
-			log.Logger().Debug("bind pod",
+			log.Log(log.ShimCacheTask).Debug("bind pod",
 				zap.String("podName", task.pod.Name),
 				zap.String("podUID", string(task.pod.UID)))
 
 			if err := task.context.apiProvider.GetAPIs().KubeClient.Bind(task.pod, task.nodeName); err != nil {
 				errorMessage := fmt.Sprintf("bind pod to node failed, name: %s, %s", task.alias, err.Error())
-				log.Logger().Error(errorMessage)
+				log.Log(log.ShimCacheTask).Error(errorMessage)
 				dispatcher.Dispatch(NewFailTaskEvent(task.applicationID, task.taskID, errorMessage))
 				events.GetRecorder().Eventf(task.pod.DeepCopy(), nil,
 					v1.EventTypeWarning, "PodBindFailure", "PodBindFailure", errorMessage)
 				return
 			}
 
-			log.Logger().Info("successfully bound pod", zap.String("podName", task.pod.Name))
+			log.Log(log.ShimCacheTask).Info("successfully bound pod", zap.String("podName", task.pod.Name))
 			dispatcher.Dispatch(NewBindTaskEvent(task.applicationID, task.taskID))
 			events.GetRecorder().Eventf(task.pod.DeepCopy(), nil,
 				v1.EventTypeNormal, "PodBindSuccessful", "PodBindSuccessful",
@@ -396,7 +396,7 @@ func (task *Task) beforeTaskAllocated(eventSrc string, allocUUID string, nodeID 
 	// Notify the core to release this allocation to avoid resource leak.
 	// The ask is not relevant at this point.
 	if eventSrc == TaskStates().Completed {
-		log.Logger().Info("task is already completed, invalidate the allocation",
+		log.Log(log.ShimCacheTask).Info("task is already completed, invalidate the allocation",
 			zap.String("currentTaskState", eventSrc),
 			zap.String("allocUUID", allocUUID),
 			zap.String("allocatedNode", nodeID))
@@ -419,12 +419,12 @@ func (task *Task) postTaskBound() {
 			}
 			pod.Annotations["yunikorn.apache.org/scheduled-at"] = strconv.FormatInt(time.Now().UnixNano(), 10)
 		}); err != nil {
-			log.Logger().Warn("failed to update pod status", zap.Error(err))
+			log.Log(log.ShimCacheTask).Warn("failed to update pod status", zap.Error(err))
 		}
 	}
 
 	if task.placeholder {
-		log.Logger().Info("placeholder is bound",
+		log.Log(log.ShimCacheTask).Info("placeholder is bound",
 			zap.String("appID", task.applicationID),
 			zap.String("taskName", task.alias),
 			zap.String("taskGroupName", task.taskGroupName))
@@ -452,7 +452,7 @@ func (task *Task) beforeTaskFail() {
 }
 
 func (task *Task) postTaskFailed(reason string) {
-	log.Logger().Error("task failed",
+	log.Log(log.ShimCacheTask).Error("task failed",
 		zap.String("appID", task.applicationID),
 		zap.String("taskID", task.taskID),
 		zap.String("reason", reason))
@@ -476,7 +476,7 @@ func (task *Task) beforeTaskCompleted() {
 func (task *Task) releaseAllocation() {
 	// scheduler api might be nil in some tests
 	if task.context.apiProvider.GetAPIs().SchedulerAPI != nil {
-		log.Logger().Debug("prepare to send release request",
+		log.Log(log.ShimCacheTask).Debug("prepare to send release request",
 			zap.String("applicationID", task.applicationID),
 			zap.String("taskID", task.taskID),
 			zap.String("taskAlias", task.alias),
@@ -495,7 +495,7 @@ func (task *Task) releaseAllocation() {
 				task.applicationID, task.taskID, task.application.partition)
 		default:
 			if task.allocationUUID == "" {
-				log.Logger().Warn("BUG: task allocation UUID is empty on release",
+				log.Log(log.ShimCacheTask).Warn("BUG: task allocation UUID is empty on release",
 					zap.String("applicationID", task.applicationID),
 					zap.String("taskID", task.taskID),
 					zap.String("taskAlias", task.alias),
@@ -507,12 +507,12 @@ func (task *Task) releaseAllocation() {
 		}
 
 		if releaseRequest.Releases != nil {
-			log.Logger().Info("releasing allocations",
+			log.Log(log.ShimCacheTask).Info("releasing allocations",
 				zap.Int("numOfAsksToRelease", len(releaseRequest.Releases.AllocationAsksToRelease)),
 				zap.Int("numOfAllocationsToRelease", len(releaseRequest.Releases.AllocationsToRelease)))
 		}
 		if err := task.context.apiProvider.GetAPIs().SchedulerAPI.UpdateAllocation(releaseRequest); err != nil {
-			log.Logger().Debug("failed to send scheduling request to scheduler", zap.Error(err))
+			log.Log(log.ShimCacheTask).Debug("failed to send scheduling request to scheduler", zap.Error(err))
 		}
 	}
 }
@@ -531,7 +531,7 @@ func (task *Task) sanityCheckBeforeScheduling() error {
 			continue
 		}
 		pvcName := volume.PersistentVolumeClaim.ClaimName
-		log.Logger().Debug("checking PVC", zap.String("name", pvcName))
+		log.Log(log.ShimCacheTask).Debug("checking PVC", zap.String("name", pvcName))
 		pvc, err := task.context.apiProvider.GetAPIs().PVCInformer.Lister().PersistentVolumeClaims(namespace).Get(pvcName)
 		if err != nil {
 			return err

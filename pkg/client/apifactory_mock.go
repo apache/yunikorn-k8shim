@@ -229,7 +229,7 @@ func (m *MockedAPIProvider) AddEventHandler(handlers *ResourceEventHandlers) {
 	}
 
 	m.eventHandler <- handlers
-	log.Logger().Info("registering event handler", zap.Stringer("type", handlers.Type))
+	log.Log(log.Test).Info("registering event handler", zap.Stringer("type", handlers.Type))
 }
 
 func (m *MockedAPIProvider) RunEventHandler() {
@@ -239,7 +239,7 @@ func (m *MockedAPIProvider) RunEventHandler() {
 		return
 	}
 	m.running = true
-	log.Logger().Info("mock shared informers: starting background event handler")
+	log.Log(log.Test).Info("mock shared informers: starting background event handler")
 	go func() {
 		eventHandlers := make(map[Type][]cache.ResourceEventHandler)
 
@@ -287,7 +287,7 @@ func (m *MockedAPIProvider) RunEventHandler() {
 						e.OnUpdate(old, obj)
 					}
 				default:
-					log.Logger().Fatal("Unknown operation", zap.Int("type", int(event.op)))
+					log.Log(log.Test).Fatal("Unknown operation", zap.Int("type", int(event.op)))
 				}
 			}
 		}

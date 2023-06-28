@@ -89,7 +89,7 @@ func (c *Clients) WaitForSync() {
 		time.Sleep(time.Second)
 		counter++
 		if counter%10 == 0 {
-			log.Logger().Info("Waiting for informers to sync",
+			log.Log(log.ShimClient).Info("Waiting for informers to sync",
 				zap.Duration("timeElapsed", time.Since(syncStartTime).Round(time.Second)))
 		}
 	}

@@ -2206,7 +2206,7 @@ func TestReserveNodeSelector(t *testing.T) {
 			pod.Spec.NodeSelector = tc.nodeSelectors
 			node.Labels = tc.nodeLabels
 			plugin, err := predicateManager.Predicates(pod, nodeInfo, false)
-			log.Logger().Info("reservation predicates called", zap.Error(err), zap.String("plugin", plugin))
+			log.Log(log.Test).Info("reservation predicates called", zap.Error(err), zap.String("plugin", plugin))
 			if tc.errorExpected {
 				assert.Assert(t, err != nil, "An error is expected")
 			} else {

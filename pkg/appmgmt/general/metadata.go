@@ -38,7 +38,7 @@ import (
 func getTaskMetadata(pod *v1.Pod) (interfaces.TaskMetadata, bool) {
 	appID := utils.GetApplicationIDFromPod(pod)
 	if appID == "" {
-		log.Logger().Debug("unable to get task for pod",
+		log.Log(log.ShimAppMgmtGeneral).Debug("unable to get task for pod",
 			zap.String("namespace", pod.Namespace),
 			zap.String("name", pod.Name))
 		return interfaces.TaskMetadata{}, false
@@ -63,7 +63,7 @@ func getTaskMetadata(pod *v1.Pod) (interfaces.TaskMetadata, bool) {
 func getAppMetadata(pod *v1.Pod, recovery bool) (interfaces.ApplicationMetadata, bool) {
 	appID := utils.GetApplicationIDFromPod(pod)
 	if appID == "" {
-		log.Logger().Debug("unable to get application for pod",
+		log.Log(log.ShimAppMgmtGeneral).Debug("unable to get application for pod",
 			zap.String("namespace", pod.Namespace),
 			zap.String("name", pod.Name))
 		return interfaces.ApplicationMetadata{}, false
@@ -100,7 +100,7 @@ func getAppMetadata(pod *v1.Pod, recovery bool) (interfaces.ApplicationMetadata,
 	if !conf.GetSchedulerConf().DisableGangScheduling {
 		taskGroups, err = utils.GetTaskGroupsFromAnnotation(pod)
 		if err != nil {
-			log.Logger().Error("unable to get taskGroups for pod",
+			log.Log(log.ShimAppMgmtGeneral).Error("unable to get taskGroups for pod",
 				zap.String("namespace", pod.Namespace),
 				zap.String("name", pod.Name),
 				zap.Error(err))

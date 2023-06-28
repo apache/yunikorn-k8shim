@@ -84,7 +84,7 @@ func NewKubeClientMock(err bool) *KubeClientMock {
 			if err {
 				return fmt.Errorf("error deleting pod")
 			}
-			log.Logger().Info("pod deleted",
+			log.Log(log.Test).Info("pod deleted",
 				zap.String("PodName", pod.Name))
 			return nil
 		},
@@ -92,7 +92,7 @@ func NewKubeClientMock(err bool) *KubeClientMock {
 			if err {
 				return pod, fmt.Errorf("error creating pod")
 			}
-			log.Logger().Info("pod created",
+			log.Log(log.Test).Info("pod created",
 				zap.String("PodName", pod.Name))
 			return pod, nil
 		},
@@ -101,7 +101,7 @@ func NewKubeClientMock(err bool) *KubeClientMock {
 				return pod, fmt.Errorf("error updating pod")
 			}
 			podMutator(pod)
-			log.Logger().Info("pod updated",
+			log.Log(log.Test).Info("pod updated",
 				zap.String("PodName", pod.Name))
 			return pod, nil
 		},
@@ -109,7 +109,7 @@ func NewKubeClientMock(err bool) *KubeClientMock {
 			if err {
 				return pod, fmt.Errorf("error updating pod status")
 			}
-			log.Logger().Info("pod status updated",
+			log.Log(log.Test).Info("pod status updated",
 				zap.String("PodName", pod.Name))
 			return pod, nil
 		},
@@ -117,7 +117,7 @@ func NewKubeClientMock(err bool) *KubeClientMock {
 			if err {
 				return nil, fmt.Errorf("error getting pod")
 			}
-			log.Logger().Info("Getting pod",
+			log.Log(log.Test).Info("Getting pod",
 				zap.String("PodName", podName))
 			return nil, nil
 		},
@@ -135,7 +135,7 @@ func NewKubeClientMock(err bool) *KubeClientMock {
 			stats.Errors++
 			return fmt.Errorf("binding error")
 		}
-		log.Logger().Info("pod bound",
+		log.Log(log.Test).Info("pod bound",
 			zap.String("PodName", pod.Name))
 
 		now := time.Now()

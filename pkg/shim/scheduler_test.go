@@ -253,7 +253,7 @@ func waitShimSchedulerState(shim *KubernetesShim, expectedState string, timeout 
 	deadline := time.Now().Add(timeout)
 	for {
 		if shim.GetSchedulerState() == expectedState {
-			log.Logger().Info("waiting for state",
+			log.Log(log.Test).Info("waiting for state",
 				zap.String("expect", expectedState),
 				zap.String("current", shim.GetSchedulerState()))
 			return nil

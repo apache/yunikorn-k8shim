@@ -377,7 +377,7 @@ func newTaskState() *fsm.FSM {
 			// could occur.
 			events.EnterState: func(_ context.Context, event *fsm.Event) {
 				task := event.Args[0].(*Task) //nolint:errcheck
-				log.Logger().Info("Task state transition",
+				log.Log(log.ShimFSM).Info("Task state transition",
 					zap.String("app", task.applicationID),
 					zap.String("task", task.taskID),
 					zap.String("taskAlias", task.alias),
@@ -402,7 +402,7 @@ func newTaskState() *fsm.FSM {
 				eventArgs := make([]string, 1)
 				reason := ""
 				if err := events.GetEventArgsAsStrings(eventArgs, event.Args[1].([]interface{})); err != nil {
-					log.Logger().Error("failed to parse event arg", zap.Error(err))
+					log.Log(log.ShimFSM).Error("failed to parse event arg", zap.Error(err))
 					reason = err.Error()
 				} else {
 					reason = eventArgs[0]
@@ -422,7 +422,7 @@ func newTaskState() *fsm.FSM {
 				// All allocation events must include the allocUUID and nodeID passed from the core
 				eventArgs := make([]string, 2)
 				if err := events.GetEventArgsAsStrings(eventArgs, event.Args[1].([]interface{})); err != nil {
-					log.Logger().Error("failed to parse event arg", zap.Error(err))
+					log.Log(log.ShimFSM).Error("failed to parse event arg", zap.Error(err))
 					return
 				}
 				allocUUID := eventArgs[0]

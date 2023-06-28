@@ -131,7 +131,7 @@ func (h *namespaceUpdateHandler) OnDelete(obj interface{}) {
 	case cache.DeletedFinalStateUnknown:
 		ns = convert2Namespace(obj)
 	default:
-		log.Logger().Warn("unable to convert to Namespace")
+		log.Log(log.Admission).Warn("unable to convert to Namespace")
 		return
 	}
 	if ns == nil {

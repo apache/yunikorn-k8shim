@@ -249,7 +249,7 @@ func (h *configMapUpdateHandler) OnDelete(obj interface{}) {
 	case cache.DeletedFinalStateUnknown:
 		cm = utils.Convert2ConfigMap(obj)
 	default:
-		log.Logger().Warn("unable to convert to configmap")
+		log.Log(log.AdmissionConf).Warn("unable to convert to configmap")
 		return
 	}
 	if idx, ok := h.configMapIndex(cm); ok {
@@ -295,7 +295,7 @@ func (acc *AdmissionControllerConf) updateConfigMaps(configMaps []*v1.ConfigMap,
 
 	// check for enable config hot refresh
 	if !initial && !acc.enableConfigHotRefresh {
-		log.Logger().Warn("Config hot-refresh is disabled, ignoring configuration update")
+		log.Log(log.AdmissionConf).Warn("Config hot-refresh is disabled, ignoring configuration update")
 		return
 	}
 
@@ -342,7 +342,7 @@ func (acc *AdmissionControllerConf) DumpConfiguration() {
 }
 
 func (acc *AdmissionControllerConf) dumpConfigurationInternal() {
-	log.Logger().Info("Loaded admission controller configuration",
+	log.Log(log.AdmissionConf).Info("Loaded admission controller configuration",
 		zap.String("namespace", acc.namespace),
 		zap.String("kubeConfig", acc.kubeConfig),
 		zap.String("policyGroup", acc.policyGroup),
@@ -371,11 +371,11 @@ func parseConfigRegexps(config map[string]string, key string, defaultValue strin
 	value := parseConfigString(config, key, defaultValue)
 	result, err := parseRegexes(value)
 	if err != nil {
-		log.Logger().Error("Unable to parse regex values, using default",
+		log.Log(log.AdmissionConf).Error("Unable to parse regex values, using default",
 			zap.String("key", key), zap.String("value", value), zap.String("default", defaultValue), zap.Error(err))
 		result, err = parseRegexes(defaultValue)
 		if err != nil {
-			log.Logger().Fatal("BUG: can't parse default regex pattern", zap.Error(err))
+			log.Log(log.AdmissionConf).Fatal("BUG: can't parse default regex pattern", zap.Error(err))
 		}
 	}
 	return result
@@ -385,7 +385,7 @@ func parseConfigBool(config map[string]string, key string, defaultValue bool) bo
 	value := parseConfigString(config, key, fmt.Sprintf("%t", defaultValue))
 	result, err := strconv.ParseBool(value)
 	if err != nil {
-		log.Logger().Error("Unable to parse bool value, using default",
+		log.Log(log.AdmissionConf).Error("Unable to parse bool value, using default",
 			zap.String("key", key), zap.String("value", value), zap.Bool("default", defaultValue), zap.Error(err))
 		result = defaultValue
 	}
@@ -396,7 +396,7 @@ func parseConfigInt(config map[string]string, key string, defaultValue int) int 
 	value := parseConfigString(config, key, fmt.Sprintf("%d", defaultValue))
 	result, err := strconv.ParseInt(value, 10, 31)
 	if err != nil {
-		log.Logger().Error("Unable to parse int value, using default",
+		log.Log(log.AdmissionConf).Error("Unable to parse int value, using default",
 			zap.String("key", key), zap.String("value", value), zap.Int("default", defaultValue), zap.Error(err))
 		return defaultValue
 	}
@@ -419,7 +419,7 @@ func parseRegexes(patterns string) ([]*regexp.Regexp, error) {
 		}
 		re, err := regexp.Compile(pattern)
 		if err != nil {
-			log.Logger().Error("Unable to compile regular expression", zap.String("pattern", pattern), zap.Error(err))
+			log.Log(log.AdmissionConf).Error("Unable to compile regular expression", zap.String("pattern", pattern), zap.Error(err))
 			return nil, err
 		}
 		result = append(result, re)
