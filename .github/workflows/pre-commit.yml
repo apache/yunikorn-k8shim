@@ -36,7 +36,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        k8s: [v1.27.2, v1.26.4, v1.25.9, v1.24.13]
+        k8s: [v1.27.3, v1.26.6, v1.25.11, v1.24.15]
         plugin: ['', '--plugin']
     steps:
       - name: Checkout source code
