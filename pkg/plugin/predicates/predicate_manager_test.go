@@ -43,9 +43,9 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/podtopologyspread"
 	"k8s.io/kubernetes/pkg/util/taints"
 
-	"github.com/apache/yunikorn-core/pkg/log"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
+	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-k8shim/pkg/plugin/support"
 )
 
@@ -61,7 +61,7 @@ func TestPreemptionPredicatesEmpty(t *testing.T) {
 	lister := lister()
 	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet)
 
-	ep := enabledPlugins(noderesources.FitName)
+	ep := enabledPlugins(noderesources.Name)
 	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
 
 	pod := &v1.Pod{}
@@ -80,7 +80,7 @@ func TestPreemptionPredicates(t *testing.T) {
 	lister := lister()
 	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet)
 
-	ep := enabledPlugins(noderesources.FitName)
+	ep := enabledPlugins(noderesources.Name)
 	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
 
 	pod := newResourcePod(framework.Resource{MilliCPU: 500, Memory: 5000000})
@@ -1104,7 +1104,7 @@ func TestRunGeneralPredicates(t *testing.T) {
 	informerFactory := informerFactory(clientSet)
 	lister := lister()
 	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet)
-	ep := enabledPlugins(noderesources.FitName, nodename.Name, nodeports.Name, nodevolumelimits.CSIName)
+	ep := enabledPlugins(noderesources.Name, nodename.Name, nodeports.Name, nodevolumelimits.CSIName)
 	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
 
 	resourceTests := []struct {
@@ -2241,11 +2241,16 @@ func enabledPlugins(name ...string) map[string]bool {
 }
 
 type sharedListerMock struct {
-	nodeLister *nodeListerMock
+	nodeLister    *nodeListerMock
+	storageLister *storageListerMock
 }
 
 func (s *sharedListerMock) NodeInfos() framework.NodeInfoLister {
 	return s.nodeLister
+}
+
+func (s *sharedListerMock) StorageInfos() framework.StorageInfoLister {
+	return s.storageLister
 }
 
 type nodeListerMock struct {
@@ -2285,5 +2290,13 @@ func (n *nodeListerMock) Get(nodeName string) (*framework.NodeInfo, error) {
 	return nil, errors.New("node not found")
 }
 
+type storageListerMock struct {
+}
+
+func (s *storageListerMock) IsPVCUsedByPods(key string) bool {
+	return false
+}
+
 var _ framework.SharedLister = &sharedListerMock{}
 var _ framework.NodeInfoLister = &nodeListerMock{}
+var _ framework.StorageInfoLister = &storageListerMock{}

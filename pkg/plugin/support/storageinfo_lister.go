@@ -24,24 +24,21 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/cache/external"
 )
 
-type sharedListerImpl struct {
-	nodeInfos    framework.NodeInfoLister
-	storageInfos framework.StorageInfoLister
+type storageInfoListerImpl struct {
+	cache *external.SchedulerCache
 }
 
-func (s sharedListerImpl) NodeInfos() framework.NodeInfoLister {
-	return s.nodeInfos
+func (s storageInfoListerImpl) IsPVCUsedByPods(key string) bool {
+	return s.cache.IsPVCUsedByPods(key)
 }
 
-func (s sharedListerImpl) StorageInfos() framework.StorageInfoLister {
-	return s.storageInfos
-}
+var _ framework.StorageInfoLister = &storageInfoListerImpl{}
 
-var _ framework.SharedLister = &sharedListerImpl{}
-
-func NewSharedLister(cache *external.SchedulerCache) framework.SharedLister {
-	return &sharedListerImpl{
-		nodeInfos:    NewNodeInfoLister(cache),
-		storageInfos: NewStorageInfoLister(cache),
+// NewStorageInfoLister returns a new StorageInfoLister which references the scheduler cache. The returned lister is
+// not safe for access without acquiring the scheduler cache read lock first.
+func NewStorageInfoLister(cache *external.SchedulerCache) framework.StorageInfoLister {
+	sl := &storageInfoListerImpl{
+		cache: cache,
 	}
+	return sl
 }

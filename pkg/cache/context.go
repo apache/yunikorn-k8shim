@@ -19,6 +19,7 @@
 package cache
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -500,20 +501,17 @@ func (ctx *Context) bindPodVolumes(pod *v1.Pod) error {
 				zap.String("podName", pod.Name))
 		} else {
 			log.Logger().Info("Binding Pod Volumes", zap.String("podName", pod.Name))
-			boundClaims, claimsToBind, unboundClaimsImmediate, err := ctx.apiProvider.GetAPIs().VolumeBinder.GetPodVolumes(assumedPod)
+
+			// retrieve the volume claims
+			podVolumeClaims, err := ctx.apiProvider.GetAPIs().VolumeBinder.GetPodVolumeClaims(pod)
 			if err != nil {
-				log.Logger().Error("Failed to get pod volumes",
+				log.Logger().Error("Failed to get pod volume claims",
 					zap.String("podName", assumedPod.Name),
 					zap.Error(err))
 				return err
 			}
-			if len(unboundClaimsImmediate) > 0 {
-				err = fmt.Errorf("pod %s has unbound immediate claims", pod.Name)
-				log.Logger().Error("Pod has unbound immediate claims",
-					zap.String("podName", assumedPod.Name),
-					zap.Error(err))
-				return err
-			}
+
+			// get node information
 			node, err := ctx.schedulerCache.GetNodeInfo(assumedPod.Spec.NodeName)
 			if err != nil {
 				log.Logger().Error("Failed to get node info",
@@ -522,12 +520,13 @@ func (ctx *Context) bindPodVolumes(pod *v1.Pod) error {
 					zap.Error(err))
 				return err
 			}
-			volumes, reasons, err := ctx.apiProvider.GetAPIs().VolumeBinder.FindPodVolumes(assumedPod, boundClaims, claimsToBind, node)
+
+			// retrieve volumes
+			volumes, reasons, err := ctx.apiProvider.GetAPIs().VolumeBinder.FindPodVolumes(pod, podVolumeClaims, node)
 			if err != nil {
 				log.Logger().Error("Failed to find pod volumes",
 					zap.String("podName", assumedPod.Name),
 					zap.String("nodeName", assumedPod.Spec.NodeName),
-					zap.Int("claimsToBind", len(claimsToBind)),
 					zap.Error(err))
 				return err
 			}
@@ -541,7 +540,6 @@ func (ctx *Context) bindPodVolumes(pod *v1.Pod) error {
 				log.Logger().Error("Pod has conflicting volume claims",
 					zap.String("podName", assumedPod.Name),
 					zap.String("nodeName", assumedPod.Spec.NodeName),
-					zap.Int("claimsToBind", len(claimsToBind)),
 					zap.Error(err))
 				return err
 			}
@@ -553,7 +551,7 @@ func (ctx *Context) bindPodVolumes(pod *v1.Pod) error {
 				// convert nil to empty array
 				volumes.DynamicProvisions = make([]*v1.PersistentVolumeClaim, 0)
 			}
-			err = ctx.apiProvider.GetAPIs().VolumeBinder.BindPodVolumes(assumedPod, volumes)
+			err = ctx.apiProvider.GetAPIs().VolumeBinder.BindPodVolumes(context.Background(), assumedPod, volumes)
 			if err != nil {
 				log.Logger().Error("Failed to bind pod volumes",
 					zap.String("podName", assumedPod.Name),
@@ -588,12 +586,35 @@ func (ctx *Context) AssumePod(name string, node string) error {
 			// volume builder might be null in UTs
 			if ctx.apiProvider.GetAPIs().VolumeBinder != nil {
 				var err error
-				boundClaims, claimsToBind, _, err := ctx.apiProvider.GetAPIs().VolumeBinder.GetPodVolumes(assumedPod)
+				// retrieve the volume claims
+				podVolumeClaims, err := ctx.apiProvider.GetAPIs().VolumeBinder.GetPodVolumeClaims(pod)
 				if err != nil {
+					log.Logger().Error("Failed to get pod volume claims",
+						zap.String("podName", assumedPod.Name),
+						zap.Error(err))
 					return err
 				}
-				volumes, _, err := ctx.apiProvider.GetAPIs().VolumeBinder.FindPodVolumes(pod, boundClaims, claimsToBind, targetNode.Node())
+
+				// retrieve volumes
+				volumes, reasons, err := ctx.apiProvider.GetAPIs().VolumeBinder.FindPodVolumes(pod, podVolumeClaims, targetNode.Node())
 				if err != nil {
+					log.Logger().Error("Failed to find pod volumes",
+						zap.String("podName", assumedPod.Name),
+						zap.String("nodeName", assumedPod.Spec.NodeName),
+						zap.Error(err))
+					return err
+				}
+				if len(reasons) > 0 {
+					sReasons := make([]string, 0)
+					for _, reason := range reasons {
+						sReasons = append(sReasons, string(reason))
+					}
+					sReason := strings.Join(sReasons, ", ")
+					err = fmt.Errorf("pod %s has conflicting volume claims: %s", pod.Name, sReason)
+					log.Logger().Error("Pod has conflicting volume claims",
+						zap.String("podName", assumedPod.Name),
+						zap.String("nodeName", assumedPod.Spec.NodeName),
+						zap.Error(err))
 					return err
 				}
 				allBound, err = ctx.apiProvider.GetAPIs().VolumeBinder.AssumePodVolumes(pod, node, volumes)

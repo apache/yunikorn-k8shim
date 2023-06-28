@@ -25,7 +25,6 @@ import (
 	v1beta2 "github.com/GoogleCloudPlatform/spark-on-k8s-operator/pkg/apis/sparkoperator.k8s.io/v1beta2"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -37,9 +36,9 @@ type FakeSparkApplications struct {
 	ns   string
 }
 
-var sparkapplicationsResource = schema.GroupVersionResource{Group: "sparkoperator.k8s.io", Version: "v1beta2", Resource: "sparkapplications"}
+var sparkapplicationsResource = v1beta2.SchemeGroupVersion.WithResource("sparkapplications")
 
-var sparkapplicationsKind = schema.GroupVersionKind{Group: "sparkoperator.k8s.io", Version: "v1beta2", Kind: "SparkApplication"}
+var sparkapplicationsKind = v1beta2.SchemeGroupVersion.WithKind("SparkApplication")
 
 // Get takes name of the sparkApplication, and returns the corresponding sparkApplication object, and an error if there is any.
 func (c *FakeSparkApplications) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta2.SparkApplication, err error) {
@@ -118,7 +117,7 @@ func (c *FakeSparkApplications) UpdateStatus(ctx context.Context, sparkApplicati
 // Delete takes name of the sparkApplication and deletes it. Returns an error if one occurs.
 func (c *FakeSparkApplications) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(sparkapplicationsResource, c.ns, name), &v1beta2.SparkApplication{})
+		Invokes(testing.NewDeleteActionWithOptions(sparkapplicationsResource, c.ns, name, opts), &v1beta2.SparkApplication{})
 
 	return err
 }

@@ -55,6 +55,8 @@ type SchedulerCache struct {
 	assumedPods           map[string]bool   // map of assumed pods, value indicates if pod volumes are all bound
 	pendingAllocations    map[string]string // map of pod to node ID, presence indicates a pending allocation for scheduler
 	inProgressAllocations map[string]string // map of pod to node ID, presence indicates an in-process allocation for scheduler
+	pvcGeneration         int64
+	pvcRefCounts          map[string]map[string]int
 	lock                  sync.RWMutex
 	clients               *client.Clients // client APIs
 
@@ -73,6 +75,7 @@ func NewSchedulerCache(clients *client.Clients) *SchedulerCache {
 		assumedPods:           make(map[string]bool),
 		pendingAllocations:    make(map[string]string),
 		inProgressAllocations: make(map[string]string),
+		pvcRefCounts:          make(map[string]map[string]int),
 		clients:               clients,
 	}
 	return cache
@@ -181,6 +184,7 @@ func (cache *SchedulerCache) updateNode(node *v1.Node) {
 	nodeInfo.SetNode(node)
 	cache.nodesInfoPodsWithAffinity = nil
 	cache.nodesInfoPodsWithReqAntiAffinity = nil
+	cache.updatePVCRefCounts()
 }
 
 func (cache *SchedulerCache) RemoveNode(node *v1.Node) {
@@ -212,6 +216,7 @@ func (cache *SchedulerCache) removeNode(node *v1.Node) {
 	cache.nodesInfo = nil
 	cache.nodesInfoPodsWithAffinity = nil
 	cache.nodesInfoPodsWithReqAntiAffinity = nil
+	cache.pvcGeneration = 0
 }
 
 func (cache *SchedulerCache) GetPriorityClass(name string) *schedulingv1.PriorityClass {
@@ -418,6 +423,7 @@ func (cache *SchedulerCache) updatePod(pod *v1.Pod) {
 		delete(cache.pendingAllocations, key)
 		delete(cache.inProgressAllocations, key)
 	}
+	cache.updatePVCRefCounts()
 }
 
 // RemovePod removes a pod from the cache
@@ -451,6 +457,7 @@ func (cache *SchedulerCache) removePod(pod *v1.Pod) {
 	delete(cache.inProgressAllocations, key)
 	cache.nodesInfoPodsWithAffinity = nil
 	cache.nodesInfoPodsWithReqAntiAffinity = nil
+	cache.updatePVCRefCounts()
 }
 
 func (cache *SchedulerCache) GetPod(uid string) (*v1.Pod, bool) {
@@ -587,6 +594,55 @@ func (cache *SchedulerCache) nodePodCount() int {
 		result += len(node.Pods)
 	}
 	return result
+}
+
+// IsPVCUsedByPods determines if a given volume claim is in use by any current pods. This is explicitly for the use
+// of the predicate shared lister and requires that the scheduler cache lock be held while accessing.
+func (cache *SchedulerCache) IsPVCUsedByPods(key string) bool {
+	_, ok := cache.pvcRefCounts[key]
+	return ok
+}
+
+func (cache *SchedulerCache) maxNodeGeneration() int64 {
+	var maxGeneration int64
+	for _, node := range cache.nodesMap {
+		if maxGeneration < node.Generation {
+			maxGeneration = node.Generation
+		}
+	}
+	return maxGeneration
+}
+
+func (cache *SchedulerCache) updatePVCRefCounts() {
+	maxGeneration := cache.maxNodeGeneration()
+	updateAll := false
+	if cache.pvcGeneration == 0 {
+		// clear cache
+		updateAll = true
+		cache.pvcRefCounts = make(map[string]map[string]int)
+	} else if cache.pvcGeneration >= maxGeneration {
+		// cache is current
+		return
+	}
+	for nodeName, node := range cache.nodesMap {
+		if updateAll || node.Generation > cache.pvcGeneration {
+			for k, v := range cache.pvcRefCounts {
+				delete(v, nodeName)
+				if len(k) == 0 {
+					delete(cache.pvcRefCounts, k)
+				}
+			}
+			for k, count := range node.PVCRefCounts {
+				entry, ok := cache.pvcRefCounts[k]
+				if !ok {
+					entry = make(map[string]int)
+					cache.pvcRefCounts[k] = entry
+				}
+				entry[nodeName] = count
+			}
+		}
+	}
+	cache.pvcGeneration = maxGeneration
 }
 
 func (cache *SchedulerCache) GetSchedulerCacheDao() SchedulerCacheDao {

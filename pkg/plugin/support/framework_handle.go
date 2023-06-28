@@ -30,7 +30,7 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	"k8s.io/kubernetes/pkg/scheduler/framework/parallelize"
 
-	"github.com/apache/yunikorn-core/pkg/log"
+	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
 
 type frameworkHandle struct {
@@ -82,12 +82,12 @@ func (p frameworkHandle) RunPreScorePlugins(context.Context, *framework.CycleSta
 	return nil
 }
 
-func (p frameworkHandle) RunScorePlugins(context.Context, *framework.CycleState, *v1.Pod, []*v1.Node) (framework.PluginToNodeScores, *framework.Status) {
+func (p frameworkHandle) RunScorePlugins(context.Context, *framework.CycleState, *v1.Pod, []*v1.Node) ([]framework.NodePluginScores, *framework.Status) {
 	log.Logger().Fatal("BUG: Should not be used by plugins")
 	return nil, nil
 }
 
-func (p frameworkHandle) RunFilterPlugins(context.Context, *framework.CycleState, *v1.Pod, *framework.NodeInfo) framework.PluginToStatus {
+func (p frameworkHandle) RunFilterPlugins(context.Context, *framework.CycleState, *v1.Pod, *framework.NodeInfo) *framework.Status {
 	log.Logger().Fatal("BUG: Should not be used by plugins")
 	return nil
 }

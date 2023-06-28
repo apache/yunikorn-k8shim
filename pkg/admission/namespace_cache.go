@@ -105,7 +105,7 @@ type namespaceUpdateHandler struct {
 // OnAdd adds or replaces the namespace entry in the cache.
 // The cached value is only the resulting value of the annotation, not the whole namespace object.
 // An empty string for the Name is technically possible but should not occur.
-func (h *namespaceUpdateHandler) OnAdd(obj interface{}) {
+func (h *namespaceUpdateHandler) OnAdd(obj interface{}, _ bool) {
 	ns := convert2Namespace(obj)
 	if ns == nil {
 		return
@@ -119,7 +119,7 @@ func (h *namespaceUpdateHandler) OnAdd(obj interface{}) {
 
 // OnUpdate calls OnAdd for processing the namespace cache update.
 func (h *namespaceUpdateHandler) OnUpdate(_, newObj interface{}) {
-	h.OnAdd(newObj)
+	h.OnAdd(newObj, false)
 }
 
 // OnDelete removes the namespace from the cache.

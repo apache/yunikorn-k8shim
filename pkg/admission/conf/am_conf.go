@@ -227,7 +227,7 @@ type configMapUpdateHandler struct {
 	conf *AdmissionControllerConf
 }
 
-func (h *configMapUpdateHandler) OnAdd(obj interface{}) {
+func (h *configMapUpdateHandler) OnAdd(obj interface{}, _ bool) {
 	cm := utils.Convert2ConfigMap(obj)
 	if idx, ok := h.configMapIndex(cm); ok {
 		h.conf.configUpdated(idx, cm)

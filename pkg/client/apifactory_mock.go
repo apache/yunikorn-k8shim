@@ -276,7 +276,7 @@ func (m *MockedAPIProvider) RunEventHandler() {
 				switch event.op {
 				case Add:
 					for _, e := range eventHandlers[handlerType] {
-						e.OnAdd(obj)
+						e.OnAdd(obj, false)
 					}
 				case Delete:
 					for _, e := range eventHandlers[handlerType] {

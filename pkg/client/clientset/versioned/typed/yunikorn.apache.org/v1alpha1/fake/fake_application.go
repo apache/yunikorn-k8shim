@@ -25,7 +25,6 @@ import (
 	v1alpha1 "github.com/apache/yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -37,9 +36,9 @@ type FakeApplications struct {
 	ns   string
 }
 
-var applicationsResource = schema.GroupVersionResource{Group: "apache.org", Version: "v1alpha1", Resource: "applications"}
+var applicationsResource = v1alpha1.SchemeGroupVersion.WithResource("applications")
 
-var applicationsKind = schema.GroupVersionKind{Group: "apache.org", Version: "v1alpha1", Kind: "Application"}
+var applicationsKind = v1alpha1.SchemeGroupVersion.WithKind("Application")
 
 // Get takes name of the application, and returns the corresponding application object, and an error if there is any.
 func (c *FakeApplications) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.Application, err error) {
@@ -118,7 +117,7 @@ func (c *FakeApplications) UpdateStatus(ctx context.Context, application *v1alph
 // Delete takes name of the application and deletes it. Returns an error if one occurs.
 func (c *FakeApplications) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(applicationsResource, c.ns, name), &v1alpha1.Application{})
+		Invokes(testing.NewDeleteActionWithOptions(applicationsResource, c.ns, name, opts), &v1alpha1.Application{})
 
 	return err
 }
