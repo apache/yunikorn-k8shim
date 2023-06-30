@@ -25,7 +25,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
@@ -41,7 +40,6 @@ type SleepPodConfig struct {
 	Mem          int64
 	RequiredNode string
 	Optedout     bool
-	UID          types.UID
 	Labels       map[string]string
 }
 
