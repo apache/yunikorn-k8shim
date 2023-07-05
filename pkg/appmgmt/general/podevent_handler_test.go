@@ -28,6 +28,7 @@ import (
 
 	"github.com/apache/yunikorn-k8shim/pkg/cache"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
+	"github.com/apache/yunikorn-k8shim/pkg/conf"
 )
 
 const appID = "app00001"
@@ -99,7 +100,48 @@ func TestRecoveryDone(t *testing.T) {
 	assert.Equal(t, false, podEventHandler.recoveryRunning)
 }
 
+func TestAllowSimilarAppIdsByDifferentUsers(t *testing.T) {
+	amProtocol := cache.NewMockedAMProtocol()
+	podEventHandler := NewPodEventHandler(amProtocol, false)
+
+	// create new app appID
+	pod1 := newPodByUser("pod1", "test")
+	app1 := podEventHandler.HandleEvent(AddPod, Informers, pod1)
+	assert.Equal(t, len(podEventHandler.asyncEvents), 0)
+	assert.Assert(t, app1 != nil)
+	app1.SetState(cache.ApplicationStates().Running)
+
+	// create same app appID and ensure app obj is getting created because allowSimilarAppIdsByDifferentUsers is false by default
+	pod2 := newPodByUser("pod1", "test")
+	app2 := podEventHandler.HandleEvent(AddPod, Informers, pod2)
+	assert.Assert(t, app2 != nil)
+	app2.SetState(cache.ApplicationStates().Accepted)
+
+	// set allowSimilarAppIdsByDifferentUsers to true
+	err := conf.UpdateConfigMaps([]*v1.ConfigMap{
+		{Data: map[string]string{conf.CMSvcAllowSimilarAppIdsByDifferentUsers: "true"}},
+	}, true)
+	assert.NilError(t, err, "UpdateConfigMap failed")
+
+	// create same app appID and ensure app obj is getting created because "Accepted" state
+	pod2 = newPodByUser("pod1", "test")
+	app3 := podEventHandler.HandleEvent(AddPod, Informers, pod2)
+	assert.Assert(t, app3 != nil)
+
+	// set app state to "Running"
+	app3.SetState(cache.ApplicationStates().Running)
+
+	// create same app appID and ensure app obj is not getting created because user is different from earlier submission
+	pod2 = newPodByUser("pod1", "test1")
+	app4 := podEventHandler.HandleEvent(AddPod, Informers, pod2)
+	assert.Assert(t, app4 == nil)
+}
+
 func newPod(name string) *v1.Pod {
+	return newPodByUser(name, "nobody")
+}
+
+func newPodByUser(name string, user string) *v1.Pod {
 	return &v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
@@ -110,8 +152,9 @@ func newPod(name string) *v1.Pod {
 			Namespace: "default",
 			UID:       types.UID(name),
 			Labels: map[string]string{
-				"queue":         "root.a",
-				"applicationId": appID,
+				"queue":                    "root.a",
+				"applicationId":            appID,
+				constants.DefaultUserLabel: user,
 			},
 		},
 		Spec: v1.PodSpec{

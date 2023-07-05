@@ -21,11 +21,12 @@ package general
 import (
 	"sync"
 
-	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
-	"github.com/apache/yunikorn-k8shim/pkg/log"
-
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
+
+	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
+	"github.com/apache/yunikorn-k8shim/pkg/conf"
+	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
 
 type PodEventHandler struct {
@@ -127,6 +128,13 @@ func (p *PodEventHandler) addPod(pod *v1.Pod, eventSource EventSource) interface
 				Metadata: appMeta,
 			})
 		} else {
+			if conf.GetSchedulerConf().GetAllowSimilarAppIdsByDifferentUsers() && app.GetApplicationState() == "Running" && app.GetUser() != appMeta.User {
+				log.Log(log.ShimAppMgmtGeneral).Warn("application has been submitted by different user",
+					zap.String("app id ", appMeta.ApplicationID),
+					zap.String("app user", app.GetUser()),
+					zap.String("submitted by", appMeta.User))
+				return nil
+			}
 			managedApp = app
 			appExists = true
 		}

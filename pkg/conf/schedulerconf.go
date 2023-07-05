@@ -53,35 +53,37 @@ const (
 	PrefixKubernetes = "kubernetes."
 
 	// service
-	CMSvcClusterID                    = PrefixService + "clusterId"
-	CMSvcPolicyGroup                  = PrefixService + "policyGroup"
-	CMSvcSchedulingInterval           = PrefixService + "schedulingInterval"
-	CMSvcVolumeBindTimeout            = PrefixService + "volumeBindTimeout"
-	CMSvcEventChannelCapacity         = PrefixService + "eventChannelCapacity"
-	CMSvcDispatchTimeout              = PrefixService + "dispatchTimeout"
-	CMSvcOperatorPlugins              = PrefixService + "operatorPlugins"
-	CMSvcDisableGangScheduling        = PrefixService + "disableGangScheduling"
-	CMSvcEnableConfigHotRefresh       = PrefixService + "enableConfigHotRefresh"
-	CMSvcPlaceholderImage             = PrefixService + "placeholderImage"
-	CMSvcNodeInstanceTypeNodeLabelKey = PrefixService + "nodeInstanceTypeNodeLabelKey"
+	CMSvcClusterID                          = PrefixService + "clusterId"
+	CMSvcPolicyGroup                        = PrefixService + "policyGroup"
+	CMSvcSchedulingInterval                 = PrefixService + "schedulingInterval"
+	CMSvcVolumeBindTimeout                  = PrefixService + "volumeBindTimeout"
+	CMSvcEventChannelCapacity               = PrefixService + "eventChannelCapacity"
+	CMSvcDispatchTimeout                    = PrefixService + "dispatchTimeout"
+	CMSvcOperatorPlugins                    = PrefixService + "operatorPlugins"
+	CMSvcDisableGangScheduling              = PrefixService + "disableGangScheduling"
+	CMSvcEnableConfigHotRefresh             = PrefixService + "enableConfigHotRefresh"
+	CMSvcPlaceholderImage                   = PrefixService + "placeholderImage"
+	CMSvcNodeInstanceTypeNodeLabelKey       = PrefixService + "nodeInstanceTypeNodeLabelKey"
+	CMSvcAllowSimilarAppIdsByDifferentUsers = PrefixService + "allowSimilarAppIdsByDifferentUsers"
 
 	// kubernetes
 	CMKubeQPS   = PrefixKubernetes + "qps"
 	CMKubeBurst = PrefixKubernetes + "burst"
 
 	// defaults
-	DefaultNamespace              = "default"
-	DefaultClusterID              = "mycluster"
-	DefaultPolicyGroup            = "queues"
-	DefaultSchedulingInterval     = time.Second
-	DefaultVolumeBindTimeout      = 10 * time.Second
-	DefaultEventChannelCapacity   = 1024 * 1024
-	DefaultDispatchTimeout        = 300 * time.Second
-	DefaultOperatorPlugins        = "general"
-	DefaultDisableGangScheduling  = false
-	DefaultEnableConfigHotRefresh = true
-	DefaultKubeQPS                = 1000
-	DefaultKubeBurst              = 1000
+	DefaultNamespace                          = "default"
+	DefaultClusterID                          = "mycluster"
+	DefaultPolicyGroup                        = "queues"
+	DefaultSchedulingInterval                 = time.Second
+	DefaultVolumeBindTimeout                  = 10 * time.Second
+	DefaultEventChannelCapacity               = 1024 * 1024
+	DefaultDispatchTimeout                    = 300 * time.Second
+	DefaultOperatorPlugins                    = "general"
+	DefaultDisableGangScheduling              = false
+	DefaultEnableConfigHotRefresh             = true
+	DefaultKubeQPS                            = 1000
+	DefaultKubeBurst                          = 1000
+	DefaultAllowSimilarAppIdsByDifferentUsers = false
 )
 
 var (
@@ -101,25 +103,26 @@ var confHolder atomic.Value
 var kubeLoggerOnce sync.Once
 
 type SchedulerConf struct {
-	SchedulerName            string        `json:"schedulerName"`
-	ClusterID                string        `json:"clusterId"`
-	ClusterVersion           string        `json:"clusterVersion"`
-	PolicyGroup              string        `json:"policyGroup"`
-	Interval                 time.Duration `json:"schedulingIntervalSecond"`
-	KubeConfig               string        `json:"absoluteKubeConfigFilePath"`
-	VolumeBindTimeout        time.Duration `json:"volumeBindTimeout"`
-	TestMode                 bool          `json:"testMode"`
-	EventChannelCapacity     int           `json:"eventChannelCapacity"`
-	DispatchTimeout          time.Duration `json:"dispatchTimeout"`
-	KubeQPS                  int           `json:"kubeQPS"`
-	KubeBurst                int           `json:"kubeBurst"`
-	OperatorPlugins          string        `json:"operatorPlugins"`
-	EnableConfigHotRefresh   bool          `json:"enableConfigHotRefresh"`
-	DisableGangScheduling    bool          `json:"disableGangScheduling"`
-	UserLabelKey             string        `json:"userLabelKey"`
-	PlaceHolderImage         string        `json:"placeHolderImage"`
-	InstanceTypeNodeLabelKey string        `json:"instanceTypeNodeLabelKey"`
-	Namespace                string        `json:"namespace"`
+	SchedulerName                      string        `json:"schedulerName"`
+	ClusterID                          string        `json:"clusterId"`
+	ClusterVersion                     string        `json:"clusterVersion"`
+	PolicyGroup                        string        `json:"policyGroup"`
+	Interval                           time.Duration `json:"schedulingIntervalSecond"`
+	KubeConfig                         string        `json:"absoluteKubeConfigFilePath"`
+	VolumeBindTimeout                  time.Duration `json:"volumeBindTimeout"`
+	TestMode                           bool          `json:"testMode"`
+	EventChannelCapacity               int           `json:"eventChannelCapacity"`
+	DispatchTimeout                    time.Duration `json:"dispatchTimeout"`
+	KubeQPS                            int           `json:"kubeQPS"`
+	KubeBurst                          int           `json:"kubeBurst"`
+	OperatorPlugins                    string        `json:"operatorPlugins"`
+	EnableConfigHotRefresh             bool          `json:"enableConfigHotRefresh"`
+	DisableGangScheduling              bool          `json:"disableGangScheduling"`
+	UserLabelKey                       string        `json:"userLabelKey"`
+	PlaceHolderImage                   string        `json:"placeHolderImage"`
+	InstanceTypeNodeLabelKey           string        `json:"instanceTypeNodeLabelKey"`
+	Namespace                          string        `json:"namespace"`
+	AllowSimilarAppIdsByDifferentUsers bool          `json:"allowSimilarAppIdsByDifferentUsers"`
 	sync.RWMutex
 }
 
@@ -128,25 +131,26 @@ func (conf *SchedulerConf) Clone() *SchedulerConf {
 	defer conf.RUnlock()
 
 	return &SchedulerConf{
-		SchedulerName:            conf.SchedulerName,
-		ClusterID:                conf.ClusterID,
-		ClusterVersion:           conf.ClusterVersion,
-		PolicyGroup:              conf.PolicyGroup,
-		Interval:                 conf.Interval,
-		KubeConfig:               conf.KubeConfig,
-		VolumeBindTimeout:        conf.VolumeBindTimeout,
-		TestMode:                 conf.TestMode,
-		EventChannelCapacity:     conf.EventChannelCapacity,
-		DispatchTimeout:          conf.DispatchTimeout,
-		KubeQPS:                  conf.KubeQPS,
-		KubeBurst:                conf.KubeBurst,
-		OperatorPlugins:          conf.OperatorPlugins,
-		EnableConfigHotRefresh:   conf.EnableConfigHotRefresh,
-		DisableGangScheduling:    conf.DisableGangScheduling,
-		UserLabelKey:             conf.UserLabelKey,
-		PlaceHolderImage:         conf.PlaceHolderImage,
-		InstanceTypeNodeLabelKey: conf.InstanceTypeNodeLabelKey,
-		Namespace:                conf.Namespace,
+		SchedulerName:                      conf.SchedulerName,
+		ClusterID:                          conf.ClusterID,
+		ClusterVersion:                     conf.ClusterVersion,
+		PolicyGroup:                        conf.PolicyGroup,
+		Interval:                           conf.Interval,
+		KubeConfig:                         conf.KubeConfig,
+		VolumeBindTimeout:                  conf.VolumeBindTimeout,
+		TestMode:                           conf.TestMode,
+		EventChannelCapacity:               conf.EventChannelCapacity,
+		DispatchTimeout:                    conf.DispatchTimeout,
+		KubeQPS:                            conf.KubeQPS,
+		KubeBurst:                          conf.KubeBurst,
+		OperatorPlugins:                    conf.OperatorPlugins,
+		EnableConfigHotRefresh:             conf.EnableConfigHotRefresh,
+		DisableGangScheduling:              conf.DisableGangScheduling,
+		UserLabelKey:                       conf.UserLabelKey,
+		PlaceHolderImage:                   conf.PlaceHolderImage,
+		InstanceTypeNodeLabelKey:           conf.InstanceTypeNodeLabelKey,
+		Namespace:                          conf.Namespace,
+		AllowSimilarAppIdsByDifferentUsers: conf.AllowSimilarAppIdsByDifferentUsers,
 	}
 }
 
@@ -204,6 +208,7 @@ func handleNonReloadableConfig(old *SchedulerConf, new *SchedulerConf) {
 	checkNonReloadableBool(CMSvcDisableGangScheduling, &old.DisableGangScheduling, &new.DisableGangScheduling)
 	checkNonReloadableString(CMSvcPlaceholderImage, &old.PlaceHolderImage, &new.PlaceHolderImage)
 	checkNonReloadableString(CMSvcNodeInstanceTypeNodeLabelKey, &old.InstanceTypeNodeLabelKey, &new.InstanceTypeNodeLabelKey)
+	checkNonReloadableBool(CMSvcAllowSimilarAppIdsByDifferentUsers, &old.AllowSimilarAppIdsByDifferentUsers, &new.AllowSimilarAppIdsByDifferentUsers)
 }
 
 const warningNonReloadable = "ignoring non-reloadable configuration change (restart required to update)"
@@ -295,6 +300,12 @@ func GetSchedulerNamespace() string {
 	return DefaultNamespace
 }
 
+func (conf *SchedulerConf) GetAllowSimilarAppIdsByDifferentUsers() bool {
+	conf.RLock()
+	defer conf.RUnlock()
+	return conf.AllowSimilarAppIdsByDifferentUsers
+}
+
 func createConfigs() {
 	confHolder.Store(CreateDefaultConfig())
 }
@@ -314,25 +325,26 @@ func GetDefaultKubeConfigPath() string {
 // CreateDefaultConfig creates and returns a configuration representing all default values
 func CreateDefaultConfig() *SchedulerConf {
 	return &SchedulerConf{
-		SchedulerName:            constants.SchedulerName,
-		Namespace:                GetSchedulerNamespace(),
-		ClusterID:                DefaultClusterID,
-		ClusterVersion:           buildVersion,
-		PolicyGroup:              DefaultPolicyGroup,
-		Interval:                 DefaultSchedulingInterval,
-		KubeConfig:               GetDefaultKubeConfigPath(),
-		VolumeBindTimeout:        DefaultVolumeBindTimeout,
-		TestMode:                 false,
-		EventChannelCapacity:     DefaultEventChannelCapacity,
-		DispatchTimeout:          DefaultDispatchTimeout,
-		KubeQPS:                  DefaultKubeQPS,
-		KubeBurst:                DefaultKubeBurst,
-		OperatorPlugins:          DefaultOperatorPlugins,
-		EnableConfigHotRefresh:   DefaultEnableConfigHotRefresh,
-		DisableGangScheduling:    DefaultDisableGangScheduling,
-		UserLabelKey:             constants.DefaultUserLabel,
-		PlaceHolderImage:         constants.PlaceholderContainerImage,
-		InstanceTypeNodeLabelKey: constants.DefaultNodeInstanceTypeNodeLabelKey,
+		SchedulerName:                      constants.SchedulerName,
+		Namespace:                          GetSchedulerNamespace(),
+		ClusterID:                          DefaultClusterID,
+		ClusterVersion:                     buildVersion,
+		PolicyGroup:                        DefaultPolicyGroup,
+		Interval:                           DefaultSchedulingInterval,
+		KubeConfig:                         GetDefaultKubeConfigPath(),
+		VolumeBindTimeout:                  DefaultVolumeBindTimeout,
+		TestMode:                           false,
+		EventChannelCapacity:               DefaultEventChannelCapacity,
+		DispatchTimeout:                    DefaultDispatchTimeout,
+		KubeQPS:                            DefaultKubeQPS,
+		KubeBurst:                          DefaultKubeBurst,
+		OperatorPlugins:                    DefaultOperatorPlugins,
+		EnableConfigHotRefresh:             DefaultEnableConfigHotRefresh,
+		DisableGangScheduling:              DefaultDisableGangScheduling,
+		UserLabelKey:                       constants.DefaultUserLabel,
+		PlaceHolderImage:                   constants.PlaceholderContainerImage,
+		InstanceTypeNodeLabelKey:           constants.DefaultNodeInstanceTypeNodeLabelKey,
+		AllowSimilarAppIdsByDifferentUsers: DefaultAllowSimilarAppIdsByDifferentUsers,
 	}
 }
 
@@ -358,6 +370,7 @@ func parseConfig(config map[string]string, prev *SchedulerConf) (*SchedulerConf,
 	parser.boolVar(&conf.EnableConfigHotRefresh, CMSvcEnableConfigHotRefresh)
 	parser.stringVar(&conf.PlaceHolderImage, CMSvcPlaceholderImage)
 	parser.stringVar(&conf.InstanceTypeNodeLabelKey, CMSvcNodeInstanceTypeNodeLabelKey)
+	parser.boolVar(&conf.AllowSimilarAppIdsByDifferentUsers, CMSvcAllowSimilarAppIdsByDifferentUsers)
 
 	// kubernetes
 	parser.intVar(&conf.KubeQPS, CMKubeQPS)
