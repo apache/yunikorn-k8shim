@@ -106,8 +106,6 @@ func UpdateCustomConfigMapWrapper(oldConfigMap *v1.ConfigMap, schedPolicy string
 	Ω(err3).NotTo(HaveOccurred())
 	Ω(d).NotTo(BeNil())
 
-	// Updating scheduler pod annotation to trigger force refresh of configmaps
-	Ω(k.UpdateYunikornSchedulerPodAnnotation(annotation)).NotTo(HaveOccurred())
 	err = WaitForQueueTS("root", ts, 2*time.Minute)
 	Ω(err).NotTo(HaveOccurred())
 }
@@ -131,8 +129,7 @@ func RestoreConfigMapWrapper(oldConfigMap *v1.ConfigMap, annotation string) {
 	var e, err3 = k.UpdateConfigMap(c, configmanager.YuniKornTestConfig.YkNamespace)
 	Ω(err3).NotTo(HaveOccurred())
 	Ω(e).NotTo(BeNil())
-	// Updating scheduler pod annotation to trigger force refresh of configmaps
-	Ω(k.RemoveYunikornSchedulerPodAnnotation(annotation)).NotTo(HaveOccurred())
+
 	err = WaitForQueueTS("root", ts, 2*time.Minute)
 	Ω(err).NotTo(HaveOccurred())
 }

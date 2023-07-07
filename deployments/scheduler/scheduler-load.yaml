@@ -51,9 +51,6 @@ spec:
               cpu: 4
               memory: 2Gi
           imagePullPolicy: IfNotPresent
-          volumeMounts:
-            - name: config-volume
-              mountPath: /etc/yunikorn/
           ports:
             - containerPort: 9080
         - name: yunikorn-scheduler-web
@@ -68,10 +65,6 @@ spec:
               memory: 500Mi
           ports:
             - containerPort: 9889
-      volumes:
-        - name: config-volume
-          configMap:
-            name: yunikorn-configs
 ---
 apiVersion: v1
 kind: Service

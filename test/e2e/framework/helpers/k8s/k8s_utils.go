@@ -924,42 +924,6 @@ func (k *KubeCtl) WaitForPodUnschedulable(pod *v1.Pod, timeout time.Duration) er
 	return wait.PollImmediate(100*time.Millisecond, timeout, k.PodUnschedulable(pod.Namespace, pod.Name))
 }
 
-func (k *KubeCtl) UpdateYunikornSchedulerPodAnnotation(annotation string) error {
-	/*
-		https://github.com/kubernetes/website/commit/7fc323d45109d4213fcbfa44be04deae9a61e668#diff-7b0047f23923203a747765c0a99eeaa2
-		Force sync of the config map by updating any pod annotation.
-	*/
-	schedPodList, err := k.ListPods(configmanager.YuniKornTestConfig.YkNamespace, fmt.Sprintf("component=%s", configmanager.YKScheduler))
-	if err != nil {
-		return err
-	}
-
-	if len(schedPodList.Items) != 1 {
-		return errors.New("yunikorn scheduler pod is missing")
-	}
-	schedPod := schedPodList.Items[0]
-	_, err = k.UpdatePodWithAnnotation(&schedPod, configmanager.YuniKornTestConfig.YkNamespace, annotation, annotation)
-	return err
-}
-
-func (k *KubeCtl) RemoveYunikornSchedulerPodAnnotation(annotation string) error {
-	/*
-		https://github.com/kubernetes/website/commit/7fc323d45109d4213fcbfa44be04deae9a61e668#diff-7b0047f23923203a747765c0a99eeaa2
-		Force sync of the config map by updating any pod annotation.
-	*/
-	schedPodList, err := k.ListPods(configmanager.YuniKornTestConfig.YkNamespace, fmt.Sprintf("component=%s", configmanager.YKScheduler))
-	if err != nil {
-		return err
-	}
-
-	if len(schedPodList.Items) != 1 {
-		return errors.New("yunikorn scheduler pod is missing")
-	}
-	schedPod := schedPodList.Items[0]
-	_, err = k.DeletePodAnnotation(&schedPod, configmanager.YuniKornTestConfig.YkNamespace, annotation)
-	return err
-}
-
 func (k *KubeCtl) CreatePriorityClass(pc *schedulingv1.PriorityClass) (*schedulingv1.PriorityClass, error) {
 	return k.clientSet.SchedulingV1().PriorityClasses().Create(context.Background(), pc, metav1.CreateOptions{})
 }

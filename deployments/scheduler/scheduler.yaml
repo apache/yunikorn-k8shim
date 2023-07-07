@@ -53,9 +53,6 @@ spec:
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 9080
-          volumeMounts:
-            - name: config-volume
-              mountPath: /etc/yunikorn/
         - name: yunikorn-scheduler-web
           image: apache/yunikorn:web-amd64-latest
           imagePullPolicy: IfNotPresent
@@ -68,7 +65,3 @@ spec:
               memory: 500Mi
           ports:
             - containerPort: 9889
-      volumes:
-        - name: config-volume
-          configMap:
-            name: yunikorn-configs
