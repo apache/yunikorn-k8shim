@@ -223,10 +223,11 @@ init:
 
 # Build scheduler binary for dev and test
 .PHONY: build
+FLAG_PREFIX=github.com/apache/yunikorn-k8shim/pkg/conf
 build: init
 	@echo "building scheduler binary"
 	go build -o=${DEV_BIN_DIR}/${BINARY} -race -ldflags \
-	'-X main.version=${VERSION} -X main.date=${DATE} -X main.goVersion=${GO_VERSION} -X main.arch=${EXEC_ARCH} -X main.coreSHA=${CORE_SHA} -X main.siSHA=${SI_SHA} -X main.shimSHA=${SHIM_SHA}' \
+	'-X ${FLAG_PREFIX}.buildVersion=${VERSION} -X ${FLAG_PREFIX}.buildDate=${DATE} -X ${FLAG_PREFIX}.isPluginVersion=false -X ${FLAG_PREFIX}.goVersion=${GO_VERSION} -X ${FLAG_PREFIX}.arch=${EXEC_ARCH} -X ${FLAG_PREFIX}.coreSHA=${CORE_SHA} -X ${FLAG_PREFIX}.siSHA=${SI_SHA} -X ${FLAG_PREFIX}.shimSHA=${SHIM_SHA}' \
 	./pkg/cmd/shim/
 	@chmod +x ${DEV_BIN_DIR}/${BINARY}
 
@@ -234,7 +235,7 @@ build: init
 build_plugin: init
 	@echo "building scheduler plugin binary"
 	go build -o=${DEV_BIN_DIR}/${PLUGIN_BINARY} -race -ldflags \
-	'-X main.version=${VERSION} -X main.date=${DATE} -X main.goVersion=${GO_VERSION} -X main.arch=${EXEC_ARCH} -X main.coreSHA=${CORE_SHA} -X main.siSHA=${SI_SHA} -X main.shimSHA=${SHIM_SHA}' \
+	'-X ${FLAG_PREFIX}.buildVersion=${VERSION} -X ${FLAG_PREFIX}.buildDate=${DATE} -X ${FLAG_PREFIX}.isPluginVersion=true -X ${FLAG_PREFIX}.goVersion=${GO_VERSION} -X ${FLAG_PREFIX}.arch=${EXEC_ARCH} -X ${FLAG_PREFIX}.coreSHA=${CORE_SHA} -X ${FLAG_PREFIX}.siSHA=${SI_SHA} -X ${FLAG_PREFIX}.shimSHA=${SHIM_SHA}' \
 	./pkg/cmd/schedulerplugin/
 	@chmod +x ${DEV_BIN_DIR}/${PLUGIN_BINARY}
 
@@ -244,7 +245,7 @@ scheduler: init
 	@echo "building binary for scheduler docker image"
 	CGO_ENABLED=0 GOOS=linux GOARCH="${EXEC_ARCH}" \
 	go build -a -o=${RELEASE_BIN_DIR}/${BINARY} -trimpath -ldflags \
-	'-extldflags "-static" -X main.version=${VERSION} -X main.date=${DATE} -X main.goVersion=${GO_VERSION} -X main.arch=${EXEC_ARCH} -X main.coreSHA=${CORE_SHA} -X main.siSHA=${SI_SHA} -X main.shimSHA=${SHIM_SHA}' \
+	'-extldflags "-static" -X ${FLAG_PREFIX}.buildVersion=${VERSION} -X ${FLAG_PREFIX}.buildDate=${DATE} -X ${FLAG_PREFIX}.isPluginVersion=false -X ${FLAG_PREFIX}.goVersion=${GO_VERSION} -X ${FLAG_PREFIX}.arch=${EXEC_ARCH} -X ${FLAG_PREFIX}.coreSHA=${CORE_SHA} -X ${FLAG_PREFIX}.siSHA=${SI_SHA} -X ${FLAG_PREFIX}.shimSHA=${SHIM_SHA}' \
 	-tags netgo -installsuffix netgo \
 	./pkg/cmd/shim/
 
@@ -254,7 +255,7 @@ plugin: init
 	@echo "building binary for plugin docker image"
 	CGO_ENABLED=0 GOOS=linux GOARCH="${EXEC_ARCH}" \
 	go build -a -o=${RELEASE_BIN_DIR}/${PLUGIN_BINARY} -trimpath -ldflags \
-	'-extldflags "-static" -X main.version=${VERSION} -X main.date=${DATE} -X main.goVersion=${GO_VERSION} -X main.arch=${EXEC_ARCH} -X main.coreSHA=${CORE_SHA} -X main.siSHA=${SI_SHA} -X main.shimSHA=${SHIM_SHA}' \
+	'-extldflags "-static" -X ${FLAG_PREFIX}.buildVersion=${VERSION} -X ${FLAG_PREFIX}.buildDate=${DATE} -X ${FLAG_PREFIX}.isPluginVersion=true -X ${FLAG_PREFIX}.goVersion=${GO_VERSION} -X ${FLAG_PREFIX}.arch=${EXEC_ARCH} -X ${FLAG_PREFIX}.coreSHA=${CORE_SHA} -X ${FLAG_PREFIX}.siSHA=${SI_SHA} -X ${FLAG_PREFIX}.shimSHA=${SHIM_SHA}' \
 	-tags netgo -installsuffix netgo \
 	./pkg/cmd/schedulerplugin/
 	
@@ -302,7 +303,7 @@ admission: init
 	@echo "building admission controller binary"
 	CGO_ENABLED=0 GOOS=linux GOARCH="${EXEC_ARCH}" \
 	go build -a -o=${ADMISSION_CONTROLLER_BIN_DIR}/${POD_ADMISSION_CONTROLLER_BINARY} -trimpath -ldflags \
-    '-extldflags "-static" -X main.version=${VERSION} -X main.date=${DATE} -X main.goVersion=${GO_VERSION} -X main.arch=${EXEC_ARCH}' \
+    '-extldflags "-static" -X ${FLAG_PREFIX}.buildVersion=${VERSION} -X ${FLAG_PREFIX}.buildDate=${DATE} -X ${FLAG_PREFIX}.goVersion=${GO_VERSION} -X ${FLAG_PREFIX}.arch=${EXEC_ARCH}' \
     -tags netgo -installsuffix netgo \
     ./pkg/cmd/admissioncontroller
 

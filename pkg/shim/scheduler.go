@@ -21,7 +21,6 @@ package shim
 import (
 	"context"
 	"os"
-	"strconv"
 	"sync"
 	"time"
 
@@ -211,15 +210,7 @@ func (ss *KubernetesShim) doScheduling() {
 func (ss *KubernetesShim) registerShimLayer() error {
 	configuration := conf.GetSchedulerConf()
 
-	buildInfoMap := make(map[string]string)
-	buildInfoMap["buildVersion"] = conf.BuildVersion
-	buildInfoMap["buildDate"] = conf.BuildDate
-	buildInfoMap["isPluginVersion"] = strconv.FormatBool(conf.IsPluginVersion)
-	buildInfoMap["goVersion"] = conf.GoVersion
-	buildInfoMap["arch"] = conf.Arch
-	buildInfoMap["coreSHA"] = conf.CoreSHA
-	buildInfoMap["siSHA"] = conf.SiSHA
-	buildInfoMap["shimSHA"] = conf.ShimSHA
+	buildInfoMap := conf.GetBuildInfoMap()
 
 	configMaps, err := ss.context.LoadConfigMaps()
 	if err != nil {
