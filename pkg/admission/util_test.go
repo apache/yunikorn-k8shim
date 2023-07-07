@@ -68,17 +68,6 @@ func createTestingPodWithMeta() *v1.Pod {
 	return pod
 }
 
-func createTestingPodWithCustomFields(ns string) *v1.Pod {
-	pod := createMinimalTestingPod()
-	pod.ObjectMeta =
-		metav1.ObjectMeta{
-			Namespace: ns,
-			UID:       "abcd1234-5678-efgh-90ij-klmnopqrstuv",
-		}
-
-	return pod
-}
-
 func createTestingPodWithAppId() *v1.Pod {
 	pod := createTestingPodWithMeta()
 	pod.ObjectMeta.Labels["applicationId"] = "app-0001"
@@ -229,15 +218,15 @@ func TestDefaultQueueName(t *testing.T) {
 func TestGenerateAppID(t *testing.T) {
 	defaultConf := createConfig()
 
-	appID := generateAppID("this-is-a-namespace", createTestingPodWithMeta(), defaultConf.GetGenerateUniqueAppIds())
+	appID := generateAppID("this-is-a-namespace", defaultConf.GetGenerateUniqueAppIds())
 	assert.Equal(t, strings.HasPrefix(appID, fmt.Sprintf("%s-this-is-a-namespace", constants.AutoGenAppPrefix)), true)
 	assert.Equal(t, len(appID), 36)
 
-	appID = generateAppID("short", createTestingPodWithMeta(), defaultConf.GetGenerateUniqueAppIds())
+	appID = generateAppID("short", defaultConf.GetGenerateUniqueAppIds())
 	assert.Equal(t, strings.HasPrefix(appID, fmt.Sprintf("%s-short", constants.AutoGenAppPrefix)), true)
 	assert.Equal(t, len(appID), 22)
 
-	appID = generateAppID(strings.Repeat("long", 100), createTestingPodWithMeta(), defaultConf.GetGenerateUniqueAppIds())
+	appID = generateAppID(strings.Repeat("long", 100), defaultConf.GetGenerateUniqueAppIds())
 	assert.Equal(t, strings.HasPrefix(appID, fmt.Sprintf("%s-long", constants.AutoGenAppPrefix)), true)
 	assert.Equal(t, len(appID), 63)
 
@@ -246,15 +235,15 @@ func TestGenerateAppID(t *testing.T) {
 		conf.AMFilteringGenerateUniqueAppIds: fmt.Sprintf("%t", false),
 	})
 
-	appID = generateAppID("this-is-a-namespace", createTestingPodWithMeta(), uniqueDisabled.GetGenerateUniqueAppIds())
+	appID = generateAppID("this-is-a-namespace", uniqueDisabled.GetGenerateUniqueAppIds())
 	assert.Equal(t, strings.HasPrefix(appID, fmt.Sprintf("%s-this-is-a-namespace", constants.AutoGenAppPrefix)), true)
 	assert.Equal(t, len(appID), 36)
 
-	appID = generateAppID("short", createTestingPodWithMeta(), uniqueDisabled.GetGenerateUniqueAppIds())
+	appID = generateAppID("short", uniqueDisabled.GetGenerateUniqueAppIds())
 	assert.Equal(t, strings.HasPrefix(appID, fmt.Sprintf("%s-short", constants.AutoGenAppPrefix)), true)
 	assert.Equal(t, len(appID), 22)
 
-	appID = generateAppID(strings.Repeat("long", 100), createTestingPodWithMeta(), uniqueDisabled.GetGenerateUniqueAppIds())
+	appID = generateAppID(strings.Repeat("long", 100), uniqueDisabled.GetGenerateUniqueAppIds())
 	assert.Equal(t, strings.HasPrefix(appID, fmt.Sprintf("%s-long", constants.AutoGenAppPrefix)), true)
 	assert.Equal(t, len(appID), 63)
 
@@ -263,18 +252,16 @@ func TestGenerateAppID(t *testing.T) {
 		conf.AMFilteringGenerateUniqueAppIds: fmt.Sprintf("%t", true),
 	})
 
-	podUid := "abcd1234-5678-efgh-90ij-klmnopqrstuv"
-
 	// short namespace name
 	ns := "short"
-	appID = generateAppID(ns, createTestingPodWithCustomFields(ns), uniqueEnabled.GetGenerateUniqueAppIds())
-	assert.Equal(t, strings.HasSuffix(appID, fmt.Sprintf("short-%s", podUid)), true)
-	assert.Equal(t, len(appID), len("short")+len("-")+len(podUid))
+	appID = generateAppID(ns, uniqueEnabled.GetGenerateUniqueAppIds())
+	assert.Equal(t, strings.HasPrefix(appID, "short-"), true)
+	assert.Equal(t, len(appID), len("short")+len("-")+len(GetNewUUID()))
 
 	// long namespace name
 	ns = strings.Repeat("long", 100)
-	appID = generateAppID(ns, createTestingPodWithCustomFields(ns), uniqueEnabled.GetGenerateUniqueAppIds())
+	appID = generateAppID(ns, uniqueEnabled.GetGenerateUniqueAppIds())
 	assert.Equal(t, strings.HasPrefix(appID, "long"), true)
-	assert.Equal(t, strings.HasSuffix(appID, podUid), true)
+	assert.Equal(t, strings.HasPrefix(appID, ns[0:26]+"-"), true)
 	assert.Equal(t, len(appID), 63)
 }

@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
 
@@ -41,9 +42,12 @@ func updatePodLabel(pod *v1.Pod, namespace string, generateUniqueAppIds bool, de
 	appID := utils.GetPodLabelValue(pod, constants.LabelApplicationID)
 	if sparkAppID == "" && appID == "" {
 		// if app id not exist, generate one
-		// for each namespace, we group unnamed pods to one single app
-		// application ID convention: ${AUTO_GEN_PREFIX}-${NAMESPACE}-${AUTO_GEN_SUFFIX}
-		generatedID := generateAppID(namespace, pod, generateUniqueAppIds)
+		// for each namespace, we group unnamed pods to one single app - if GenerateUniqueAppId is not set
+		// if GenerateUniqueAppId:
+		//		application ID convention: ${NAMESPACE}-${GENERATED_UUID}
+		// else
+		// 		application ID convention: ${AUTO_GEN_PREFIX}-${NAMESPACE}-${AUTO_GEN_SUFFIX}
+		generatedID := generateAppID(namespace, generateUniqueAppIds)
 		result[constants.LabelApplicationID] = generatedID
 
 		// if we generate an app ID, disable state-aware scheduling for this app
@@ -83,18 +87,22 @@ func convert2Namespace(obj interface{}) *v1.Namespace {
 	return nil
 }
 
+// Generate a new uuid. The chance of getting duplicate are very small
+func GetNewUUID() string {
+	return uuid.NewString()
+}
+
 // generate appID based on the namespace value
 // if configured to generate unique appID, generate appID as <namespace>-<pod-uid> namespace capped at 26chars
 // if not set or configured as false, appID generated as <autogen-prefix>-<namespace>-<autogen-suffix>
-func generateAppID(namespace string, pod *v1.Pod, generateUniqueAppIds bool) string {
-	podUid := string(pod.UID)
-
+func generateAppID(namespace string, generateUniqueAppIds bool) string {
 	var generatedID string
 	if generateUniqueAppIds {
-		generatedID = fmt.Sprintf("%.26s-%s", namespace, string(podUid))
+		uuid := GetNewUUID()
+		generatedID = fmt.Sprintf("%.26s-%s", namespace, uuid)
 	} else {
 		generatedID = fmt.Sprintf("%s-%s-%s", constants.AutoGenAppPrefix, namespace, constants.AutoGenAppSuffix)
 	}
-	appID := fmt.Sprintf("%.63s", generatedID)
-	return appID
+
+	return fmt.Sprintf("%.63s", generatedID)
 }
