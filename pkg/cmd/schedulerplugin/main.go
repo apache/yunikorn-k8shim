@@ -23,30 +23,10 @@ import (
 
 	"k8s.io/kubernetes/cmd/kube-scheduler/app"
 
-	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/schedulerplugin"
 )
 
-var (
-	version   string
-	date      string
-	goVersion string
-	arch      string
-	coreSHA   string
-	siSHA     string
-	shimSHA   string
-)
-
 func main() {
-	conf.BuildVersion = version
-	conf.BuildDate = date
-	conf.IsPluginVersion = true
-	conf.GoVersion = goVersion
-	conf.Arch = arch
-	conf.CoreSHA = coreSHA
-	conf.SiSHA = siSHA
-	conf.ShimSHA = shimSHA
-
 	command := app.NewSchedulerCommand(
 		app.WithPlugin(schedulerplugin.SchedulerPluginName, schedulerplugin.NewSchedulerPlugin))
 

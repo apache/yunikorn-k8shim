@@ -64,7 +64,7 @@ func TestOverriddenConfigMap(t *testing.T) {
 func assertDefaults(t *testing.T, conf *SchedulerConf) {
 	assert.Equal(t, conf.ClusterID, DefaultClusterID)
 	assert.Equal(t, conf.PolicyGroup, DefaultPolicyGroup)
-	assert.Equal(t, conf.ClusterVersion, BuildVersion)
+	assert.Equal(t, conf.ClusterVersion, buildVersion)
 	assert.Equal(t, conf.EventChannelCapacity, DefaultEventChannelCapacity)
 	assert.Equal(t, conf.DispatchTimeout, DefaultDispatchTimeout)
 	assert.Equal(t, conf.KubeQPS, DefaultKubeQPS)

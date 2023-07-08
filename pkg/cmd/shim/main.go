@@ -19,7 +19,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -35,27 +34,8 @@ import (
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/api"
 )
 
-var (
-	version   string
-	date      string
-	goVersion string
-	arch      string
-	coreSHA   string
-	siSHA     string
-	shimSHA   string
-)
-
 func main() {
-	conf.BuildVersion = version
-	conf.BuildDate = date
-	conf.IsPluginVersion = false
-	conf.GoVersion = goVersion
-	conf.Arch = arch
-	conf.CoreSHA = coreSHA
-	conf.SiSHA = siSHA
-	conf.ShimSHA = shimSHA
-
-	log.Log(log.Shim).Info(fmt.Sprintf("Build info: version=%s date=%s isPluginVersion=%t goVersion=%s arch=%s coreSHA=%s siSHA=%s shimSHA=%s", version, date, false, goVersion, arch, coreSHA, siSHA, shimSHA))
+	log.Log(log.Shim).Info(conf.GetBuildInfoString())
 
 	configMaps, err := client.LoadBootstrapConfigMaps(conf.GetSchedulerNamespace())
 	if err != nil {
