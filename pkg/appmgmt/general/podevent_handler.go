@@ -128,7 +128,7 @@ func (p *PodEventHandler) addPod(pod *v1.Pod, eventSource EventSource) interface
 				Metadata: appMeta,
 			})
 		} else {
-			if conf.GetSchedulerConf().GetAllowSimilarAppIdsByDifferentUsers() && app.GetApplicationState() == "Running" && app.GetUser() != appMeta.User {
+			if conf.GetSchedulerConf().GetSingleUserPerApplication() && app.GetUser() != appMeta.User {
 				log.Log(log.ShimAppMgmtGeneral).Warn("application has been submitted by different user",
 					zap.String("app id ", appMeta.ApplicationID),
 					zap.String("app user", app.GetUser()),

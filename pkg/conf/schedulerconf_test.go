@@ -70,7 +70,7 @@ func assertDefaults(t *testing.T, conf *SchedulerConf) {
 	assert.Equal(t, conf.KubeQPS, DefaultKubeQPS)
 	assert.Equal(t, conf.KubeBurst, DefaultKubeBurst)
 	assert.Equal(t, conf.UserLabelKey, constants.DefaultUserLabel)
-	assert.Equal(t, conf.AllowSimilarAppIdsByDifferentUsers, DefaultAllowSimilarAppIdsByDifferentUsers)
+	assert.Equal(t, conf.SingleUserPerApplication, DefaultSingleUserPerApplication)
 }
 
 func TestParseConfigMap(t *testing.T) {
@@ -92,7 +92,7 @@ func TestParseConfigMap(t *testing.T) {
 		{CMSvcNodeInstanceTypeNodeLabelKey, "InstanceTypeNodeLabelKey", "node.kubernetes.io/instance-type"},
 		{CMKubeQPS, "KubeQPS", 2345},
 		{CMKubeBurst, "KubeBurst", 3456},
-		{CMSvcAllowSimilarAppIdsByDifferentUsers, "AllowSimilarAppIdsByDifferentUsers", true},
+		{CMSvcSingleUserPerApplication, "SingleUserPerApplication", true},
 	}
 
 	for _, tc := range testCases {
@@ -125,7 +125,7 @@ func TestUpdateConfigMapNonReloadable(t *testing.T) {
 		{CMSvcNodeInstanceTypeNodeLabelKey, "InstanceTypeNodeLabelKey", "node.kubernetes.io/instance-type", false},
 		{CMKubeQPS, "KubeQPS", 2345, false},
 		{CMKubeBurst, "KubeBurst", 3456, false},
-		{CMSvcAllowSimilarAppIdsByDifferentUsers, "AllowSimilarAppIdsByDifferentUsers", true, false},
+		{CMSvcSingleUserPerApplication, "SingleUserPerApplication", true, false},
 	}
 
 	for _, tc := range testCases {

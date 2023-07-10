@@ -119,7 +119,7 @@ func TestAllowSimilarAppIdsByDifferentUsers(t *testing.T) {
 
 	// set allowSimilarAppIdsByDifferentUsers to true
 	err := conf.UpdateConfigMaps([]*v1.ConfigMap{
-		{Data: map[string]string{conf.CMSvcAllowSimilarAppIdsByDifferentUsers: "true"}},
+		{Data: map[string]string{conf.CMSvcSingleUserPerApplication: "true"}},
 	}, true)
 	assert.NilError(t, err, "UpdateConfigMap failed")
 
