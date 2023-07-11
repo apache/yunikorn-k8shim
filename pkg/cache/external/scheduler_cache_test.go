@@ -98,7 +98,7 @@ func TestAssignedPod(t *testing.T) {
 
 			// verify the node is added to cache
 			// the cached node has reference to the v1.Node object
-			// the cached node has no pods assigned
+			// the cached node has one pod assigned
 			cachedNode := cache.GetNode(node.Name)
 			assert.Check(t, cachedNode != nil, "host0001 is not found in cache")
 			assert.Check(t, cachedNode.Node() != nil, "host0001 exists in cache but the ref to v1.Node doesn't exist")
@@ -651,11 +651,10 @@ func TestAddPod(t *testing.T) {
 	assert.Equal(t, len(cache.podsMap), 1, "wrong pod count after re-add of pod1")
 	assert.Check(t, ok, "pod1 not found")
 
-	// assumed pod should no longer be assumed if node changes
+	// assumed pod with node should still be assumed if re-add
 	pod1Copy := pod1.DeepCopy()
 	pod1Copy.Spec.NodeName = "test-node-add"
 	cache.AssumePod(pod1Copy, true)
-
 	assert.Check(t, cache.isAssumedPod(podUID1), "pod is not assumed")
 	cache.AddPod(pod1)
 	assert.Check(t, cache.isAssumedPod(podUID1), "pod is not assumed after re-add")
