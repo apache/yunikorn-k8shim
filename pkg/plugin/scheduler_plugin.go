@@ -26,7 +26,6 @@ import (
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/informers"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
@@ -103,19 +102,20 @@ func (sp *YuniKornSchedulerPlugin) PreEnqueue(_ context.Context, pod *v1.Pod) *f
 		return nil
 	}
 
-	if app, task, ok := sp.getTask(appID, pod.UID); ok {
-		if _, ok := sp.context.GetInProgressPodAllocation(string(pod.UID)); ok {
+	taskID := string(pod.UID)
+	if app, task, ok := sp.getTask(appID, taskID); ok {
+		if _, ok := sp.context.GetInProgressPodAllocation(taskID); ok {
 			// pod must have failed scheduling in a prior run, reject it and return unschedulable
 			sp.failTask(pod, app, task)
 			return framework.NewStatus(framework.UnschedulableAndUnresolvable, "Pod is not ready for scheduling")
 		}
 
-		nodeID, ok := sp.context.GetPendingPodAllocation(string(pod.UID))
+		nodeID, ok := sp.context.GetPendingPodAllocation(taskID)
 		if task.GetTaskState() == cache.TaskStates().Bound && ok {
 			log.Log(log.ShimSchedulerPlugin).Info("Releasing pod for scheduling (PreEnqueue phase)",
 				zap.String("namespace", pod.Namespace),
 				zap.String("pod", pod.Name),
-				zap.String("taskID", task.GetTaskID()),
+				zap.String("taskID", taskID),
 				zap.String("assignedNode", nodeID))
 			return nil
 		}
@@ -154,19 +154,20 @@ func (sp *YuniKornSchedulerPlugin) PreFilter(_ context.Context, _ *framework.Cyc
 		return nil, framework.NewStatus(framework.Skip)
 	}
 
-	if app, task, ok := sp.getTask(appID, pod.UID); ok {
-		if _, ok := sp.context.GetInProgressPodAllocation(string(pod.UID)); ok {
+	taskID := string(pod.UID)
+	if app, task, ok := sp.getTask(appID, taskID); ok {
+		if _, ok := sp.context.GetInProgressPodAllocation(taskID); ok {
 			// pod must have failed scheduling, reject it and return unschedulable
 			sp.failTask(pod, app, task)
 			return nil, framework.NewStatus(framework.UnschedulableAndUnresolvable, "Pod is not ready for scheduling")
 		}
 
-		nodeID, ok := sp.context.GetPendingPodAllocation(string(pod.UID))
+		nodeID, ok := sp.context.GetPendingPodAllocation(taskID)
 		if task.GetTaskState() == cache.TaskStates().Bound && ok {
 			log.Log(log.ShimSchedulerPlugin).Info("Releasing pod for scheduling (PreFilter phase)",
 				zap.String("namespace", pod.Namespace),
 				zap.String("pod", pod.Name),
-				zap.String("taskID", task.GetTaskID()),
+				zap.String("taskID", taskID),
 				zap.String("assignedNode", nodeID))
 			return &framework.PreFilterResult{NodeNames: sets.NewString(nodeID)}, nil
 		}
@@ -196,17 +197,18 @@ func (sp *YuniKornSchedulerPlugin) Filter(_ context.Context, _ *framework.CycleS
 		return nil
 	}
 
-	if _, task, ok := sp.getTask(appID, pod.UID); ok {
+	taskID := string(pod.UID)
+	if _, task, ok := sp.getTask(appID, taskID); ok {
 		if task.GetTaskState() == cache.TaskStates().Bound {
 			// attempt to start a pod allocation. Filter() gets called once per {Pod,Node} candidate; we only want
 			// to proceed in the case where the Node we are asked about matches the one YuniKorn has selected.
 			// this check is fairly cheap (one map lookup); if we fail the check here the scheduling framework will
 			// immediately call Filter() again with a different candidate Node.
-			if sp.context.StartPodAllocation(string(pod.UID), nodeInfo.Node().Name) {
+			if sp.context.StartPodAllocation(taskID, nodeInfo.Node().Name) {
 				log.Log(log.ShimSchedulerPlugin).Info("Releasing pod for scheduling (Filter phase)",
 					zap.String("namespace", pod.Namespace),
 					zap.String("pod", pod.Name),
-					zap.String("taskID", task.GetTaskID()),
+					zap.String("taskID", taskID),
 					zap.String("assignedNode", nodeInfo.Node().Name))
 				return nil
 			}
@@ -236,13 +238,14 @@ func (sp *YuniKornSchedulerPlugin) PostBind(_ context.Context, _ *framework.Cycl
 		return
 	}
 
-	if _, task, ok := sp.getTask(appID, pod.UID); ok {
+	taskID := string(pod.UID)
+	if _, _, ok := sp.getTask(appID, taskID); ok {
 		log.Log(log.ShimSchedulerPlugin).Info("Managed Pod bound successfully",
 			zap.String("namespace", pod.Namespace),
 			zap.String("pod", pod.Name),
-			zap.String("taskID", task.GetTaskID()),
+			zap.String("taskID", taskID),
 			zap.String("assignedNode", nodeName))
-		sp.context.RemovePodAllocation(string(pod.UID))
+		sp.context.RemovePodAllocation(taskID)
 	}
 }
 
@@ -278,9 +281,9 @@ func NewSchedulerPlugin(_ runtime.Object, handle framework.Handle) (framework.Pl
 	return nil, fmt.Errorf("internal error: serviceContext should implement interface api.SchedulerAPI")
 }
 
-func (sp *YuniKornSchedulerPlugin) getTask(appID string, taskID types.UID) (app interfaces.ManagedApp, task interfaces.ManagedTask, ok bool) {
+func (sp *YuniKornSchedulerPlugin) getTask(appID, taskID string) (app interfaces.ManagedApp, task interfaces.ManagedTask, ok bool) {
 	if app := sp.context.GetApplication(appID); app != nil {
-		if task, err := app.GetTask(string(taskID)); err == nil {
+		if task, err := app.GetTask(taskID); err == nil {
 			return app, task, true
 		}
 	}
@@ -288,12 +291,12 @@ func (sp *YuniKornSchedulerPlugin) getTask(appID string, taskID types.UID) (app 
 }
 
 func (sp *YuniKornSchedulerPlugin) failTask(pod *v1.Pod, app interfaces.ManagedApp, task interfaces.ManagedTask) {
+	taskID := task.GetTaskID()
 	log.Log(log.ShimSchedulerPlugin).Info("Task failed scheduling, marking as rejected",
 		zap.String("namespace", pod.Namespace),
 		zap.String("pod", pod.Name),
-		zap.String("taskID", task.GetTaskID()))
-	sp.context.RemovePodAllocation(string(pod.UID))
-	dispatcher.Dispatch(cache.NewRejectTaskEvent(app.GetApplicationID(), task.GetTaskID(),
-		fmt.Sprintf("task %s rejected by scheduler", task.GetTaskID())))
+		zap.String("taskID", taskID))
+	sp.context.RemovePodAllocation(taskID)
+	dispatcher.Dispatch(cache.NewRejectTaskEvent(app.GetApplicationID(), taskID, fmt.Sprintf("task %s rejected by scheduler", taskID)))
 	task.SetTaskSchedulingState(interfaces.TaskSchedFailed)
 }
