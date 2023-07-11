@@ -23,12 +23,13 @@ import (
 
 	"k8s.io/kubernetes/cmd/kube-scheduler/app"
 
-	"github.com/apache/yunikorn-k8shim/pkg/schedulerplugin"
+	"github.com/apache/yunikorn-k8shim/pkg/conf"
+	"github.com/apache/yunikorn-k8shim/pkg/plugin"
 )
 
 func main() {
 	command := app.NewSchedulerCommand(
-		app.WithPlugin(schedulerplugin.SchedulerPluginName, schedulerplugin.NewSchedulerPlugin))
+		app.WithPlugin(plugin.SchedulerPluginName, plugin.NewSchedulerPlugin))
 
 	if err := command.Execute(); err != nil {
 		os.Exit(1)
