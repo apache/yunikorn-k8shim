@@ -23,7 +23,6 @@ import (
 
 	"k8s.io/kubernetes/cmd/kube-scheduler/app"
 
-	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/plugin"
 )
 
