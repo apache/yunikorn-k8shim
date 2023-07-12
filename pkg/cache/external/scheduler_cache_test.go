@@ -42,6 +42,8 @@ const (
 	podName2 = "pod0002"
 	podUID1  = "Pod-UID-00001"
 	podUID2  = "Pod-UID-00002"
+	pvcName1 = "pvc0001"
+	pvcName2 = "pvc0002"
 )
 
 // this test verifies that no matter which comes first, pod or node,
@@ -974,4 +976,92 @@ func expectHost(t *testing.T, host string, nodesInfo []*framework.NodeInfo) {
 	assert.Assert(t, nodesInfo != nil, "nodes list was not created or got deleted")
 	assert.Equal(t, 1, len(nodesInfo), "nodes list size")
 	assert.Equal(t, host, nodesInfo[0].Node().Name)
+}
+
+func TestUpdatePVCRefCounts(t *testing.T) {
+	cache := NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
+	resourceList := make(map[v1.ResourceName]resource.Quantity)
+	resourceList[v1.ResourceName("memory")] = *resource.NewQuantity(1024*1000*1000, resource.DecimalSI)
+	resourceList[v1.ResourceName("cpu")] = *resource.NewQuantity(10, resource.DecimalSI)
+	node1 := &v1.Node{
+		ObjectMeta: apis.ObjectMeta{
+			Name:      host1,
+			Namespace: "default",
+			UID:       nodeUID1,
+		},
+		Status: v1.NodeStatus{
+			Allocatable: resourceList,
+		},
+		Spec: v1.NodeSpec{
+			Unschedulable: false,
+		},
+	}
+	node2 := &v1.Node{
+		ObjectMeta: apis.ObjectMeta{
+			Name:      host2,
+			Namespace: "default",
+			UID:       nodeUID2,
+		},
+		Status: v1.NodeStatus{
+			Allocatable: resourceList,
+		},
+		Spec: v1.NodeSpec{
+			Unschedulable: false,
+		},
+	}
+
+	cache.AddNode(node1)
+	cache.AddNode(node2)
+
+	podTemplate := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Namespace:   "default",
+			Annotations: map[string]string{"state": "new"},
+		},
+		Spec: v1.PodSpec{},
+	}
+
+	pod1 := podTemplate.DeepCopy()
+	pod1.ObjectMeta.Name = podName1
+	pod1.ObjectMeta.UID = podUID1
+	pod1.Spec.NodeName = node1.Name
+	pod1.Spec.Volumes = []v1.Volume{
+		{
+			Name:         pvcName1,
+			VolumeSource: v1.VolumeSource{PersistentVolumeClaim: &v1.PersistentVolumeClaimVolumeSource{ClaimName: pvcName1}},
+		},
+	}
+	cache.AddPod(pod1)
+	assert.Check(t, cache.IsPVCUsedByPods(framework.GetNamespacedName(pod1.Namespace, pvcName1)), "pvc1 is not in pvcRefCounts")
+
+	// add a pod without assigned node can't update pvcRefCounts
+	pod2 := podTemplate.DeepCopy()
+	pod2.ObjectMeta.Name = podName2
+	pod2.ObjectMeta.UID = podUID2
+	pod2.Spec.Volumes = []v1.Volume{
+		{
+			Name:         pvcName2,
+			VolumeSource: v1.VolumeSource{PersistentVolumeClaim: &v1.PersistentVolumeClaimVolumeSource{ClaimName: pvcName2}},
+		},
+	}
+	cache.AddPod(pod2)
+	assert.Check(t, !cache.IsPVCUsedByPods(framework.GetNamespacedName(pod2.Namespace, pvcName2)), "pvc2 is in pvcRefCounts")
+
+	// assign a node to pod2
+	pod2Copy := pod2.DeepCopy()
+	pod2Copy.Spec.NodeName = node2.Name
+	cache.UpdatePod(pod2Copy)
+	assert.Check(t, cache.IsPVCUsedByPods(framework.GetNamespacedName(pod2.Namespace, pvcName2)), "pvc2 is not in pvcRefCounts")
+
+	// remove pod1
+	cache.RemovePod(pod1)
+	assert.Check(t, !cache.IsPVCUsedByPods(framework.GetNamespacedName(pod1.Namespace, pvcName1)), "pvc1 is in pvcRefCounts")
+
+	// remove node2
+	cache.RemoveNode(node2)
+	assert.Check(t, !cache.IsPVCUsedByPods(framework.GetNamespacedName(pod2.Namespace, pvcName2)), "pvc2 is in pvcRefCounts")
 }
