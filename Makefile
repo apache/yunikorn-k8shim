@@ -47,12 +47,18 @@ GANG_BIN_DIR=${OUTPUT}/gang
 GANG_CLIENT_BINARY=simulation-gang-worker
 GANG_SERVER_BINARY=simulation-gang-coordinator
 TEST_SERVER_BINARY=web-test-server
+TOOLS_DIR=tools
 REPO=github.com/apache/yunikorn-k8shim/pkg
 
 # Version parameters
 DATE=$(shell date +%FT%T%z)
 ifeq ($(VERSION),)
 VERSION := latest
+endif
+
+# Test selection
+ifeq ($(E2E_TEST),)
+E2E_TEST := "*"
 endif
 
 # Kernel (OS) Name
@@ -85,6 +91,46 @@ EXEC_ARCH := amd64
 DOCKER_ARCH := amd64
 endif
 
+# shellcheck
+SHELLCHECK_VERSION=v0.8.0
+SHELLCHECK_BIN=${TOOLS_DIR}/shellcheck
+SHELLCHECK_ARCHIVE := shellcheck-$(SHELLCHECK_VERSION).$(OS).$(HOST_ARCH).tar.xz
+ifeq (darwin, $(OS))
+ifeq (arm64, $(HOST_ARCH))
+SHELLCHECK_ARCHIVE := shellcheck-$(SHELLCHECK_VERSION).$(OS).x86_64.tar.xz
+endif
+else ifeq (linux, $(OS))
+ifeq (armv7l, $(HOST_ARCH))
+SHELLCHECK_ARCHIVE := shellcheck-$(SHELLCHECK_VERSION).$(OS).armv6hf.tar.xz
+endif
+endif
+
+# golangci-lint
+GOLANGCI_LINT_VERSION=1.51.2
+GOLANGCI_LINT_BIN=$(TOOLS_DIR)/golangci-lint
+GOLANGCI_LINT_ARCHIVE=golangci-lint-$(GOLANGCI_LINT_VERSION)-$(OS)-$(EXEC_ARCH).tar.gz
+GOLANGCI_LINT_ARCHIVEBASE=golangci-lint-$(GOLANGCI_LINT_VERSION)-$(OS)-$(EXEC_ARCH)
+
+# kubectl
+KUBECTL_VERSION=v1.27.3
+KUBECTL_BIN=$(TOOLS_DIR)/kubectl
+
+# kind
+KIND_VERSION=v0.20.0
+KIND_BIN=$(TOOLS_DIR)/kind
+
+# helm
+HELM_VERSION=v3.12.1
+HELM_BIN=$(TOOLS_DIR)/helm
+HELM_ARCHIVE=helm-$(HELM_VERSION)-$(OS)-$(EXEC_ARCH).tar.gz
+HELM_ARCHIVE_BASE=$(OS)-$(EXEC_ARCH)
+
+# spark
+export SPARK_VERSION=$(shell cat .spark_version)
+export SPARK_HOME=$(BASE_DIR)$(TOOLS_DIR)/spark
+export SPARK_SUBMIT_CMD=$(SPARK_HOME)/bin/spark-submit
+export SPARK_PYTHON_IMAGE=docker.io/apache/spark-py:v$(SPARK_VERSION)
+
 # Image hashes
 CORE_SHA=$(shell go list -f '{{.Version}}' -m "github.com/apache/yunikorn-core" | cut -d "-" -f3)
 SI_SHA=$(shell go list -f '{{.Version}}' -m "github.com/apache/yunikorn-scheduler-interface" | cut -d "-" -f3)
@@ -109,52 +155,80 @@ export GO111MODULE
 all:
 	$(MAKE) -C $(dir $(BASE_DIR)) build
 
-LINTBASE := $(shell go env GOPATH)/bin
-LINTBIN  := $(LINTBASE)/golangci-lint
-$(LINTBIN):
-	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(LINTBASE) v1.51.2
-	stat $@ > /dev/null 2>&1
+# Create output directories
+.PHONY: init
+init:
+	mkdir -p ${DEV_BIN_DIR}
+	mkdir -p ${RELEASE_BIN_DIR}
+	mkdir -p ${ADMISSION_CONTROLLER_BIN_DIR}
+	./scripts/plugin-conf-gen.sh $(KUBECONFIG) "conf/scheduler-config.yaml" "conf/scheduler-config-local.yaml"
+
+# Install tools
+.PHONY: tools
+tools: $(SHELLCHECK_BIN) $(GOLANGCI_LINT_BIN) $(KUBECTL_BIN) $(KIND_BIN) $(HELM_BIN) $(SPARK_SUBMIT_CMD)
+
+# Install shellcheck
+$(SHELLCHECK_BIN):
+	@echo "installing shellcheck $(SHELLCHECK_VERSION)"
+	@mkdir -p "$(TOOLS_DIR)"
+	@curl -sSfL "https://github.com/koalaman/shellcheck/releases/download/$(SHELLCHECK_VERSION)/$(SHELLCHECK_ARCHIVE)" \
+		| tar -x -J --strip-components=1 -C "$(TOOLS_DIR)" "shellcheck-$(SHELLCHECK_VERSION)/shellcheck"
+
+# Install golangci-lint
+$(GOLANGCI_LINT_BIN):
+	@echo "installing golangci-lint v$(GOLANGCI_LINT_VERSION)"
+	@mkdir -p "$(TOOLS_DIR)"
+	@curl -sSfL "https://github.com/golangci/golangci-lint/releases/download/v$(GOLANGCI_LINT_VERSION)/$(GOLANGCI_LINT_ARCHIVE)" \
+		| tar -x -z --strip-components=1 -C "$(TOOLS_DIR)" "$(GOLANGCI_LINT_ARCHIVEBASE)/golangci-lint"
+
+# Install kubectl
+$(KUBECTL_BIN):
+	@echo "installing kubectl $(KUBECTL_VERSION)"
+	@mkdir -p "$(TOOLS_DIR)"
+	@curl -sSfL -o "$(KUBECTL_BIN)" \
+		"https://storage.googleapis.com/kubernetes-release/release/$(KUBECTL_VERSION)/bin/$(OS)/$(EXEC_ARCH)/kubectl" && \
+		chmod +x "$(KUBECTL_BIN)"
+
+# Install kind
+$(KIND_BIN):
+	@echo "installing kind $(KIND_VERSION)"
+	@mkdir -p "$(TOOLS_DIR)"
+	@curl -sSfL -o "$(KIND_BIN)" \
+		"https://kind.sigs.k8s.io/dl/$(KIND_VERSION)/kind-$(OS)-$(EXEC_ARCH)" && \
+		chmod +x "$(KIND_BIN)"
+
+# Install helm
+$(HELM_BIN):
+	@echo "installing helm $(HELM_VERSION)"
+	@mkdir -p "$(TOOLS_DIR)"
+	@curl -sSfL "https://get.helm.sh/$(HELM_ARCHIVE)" \
+		| tar -x -z --strip-components=1 -C "$(TOOLS_DIR)" "$(HELM_ARCHIVE_BASE)/helm"
+
+# Install spark
+$(SPARK_SUBMIT_CMD):
+	@echo "installing spark $(SPARK_VERSION)"
+	@rm -rf "$(SPARK_HOME)" "$(SPARK_HOME).tmp"
+	@mkdir -p "$(SPARK_HOME).tmp"
+	@curl -sSfL "https://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop3.tgz" \
+		| tar -x -z --strip-components=1 -C "$(SPARK_HOME).tmp" 
+	@mv -f "$(SPARK_HOME).tmp" "$(SPARK_HOME)"
 
 # Run lint against the previous commit for PR and branch build
 # In dev setup look at all changes on top of master
 .PHONY: lint
-lint: $(LINTBIN)
+lint: $(GOLANGCI_LINT_BIN)
 	@echo "running golangci-lint"
-	git symbolic-ref -q HEAD && REV="origin/HEAD" || REV="HEAD^" ; \
+	@git symbolic-ref -q HEAD && REV="origin/HEAD" || REV="HEAD^" ; \
 	headSHA=$$(git rev-parse --short=12 $${REV}) ; \
 	echo "checking against commit sha $${headSHA}" ; \
-	${LINTBIN} run --new-from-rev=$${headSHA}
-
-.PHONY: install_shellcheck
-SHELLCHECK_PATH := "$(BASE_DIR)shellcheck"
-SHELLCHECK_VERSION := "v0.8.0"
-SHELLCHECK_ARCHIVE := "shellcheck-$(SHELLCHECK_VERSION).$(OS).$(HOST_ARCH).tar.xz"
-install_shellcheck:
-	@echo ${SHELLCHECK_PATH}
-	@if command -v "shellcheck" &> /dev/null; then \
-		exit 0 ; \
-	elif [ -x ${SHELLCHECK_PATH} ]; then \
-		exit 0 ; \
-	elif [ "${HOST_ARCH}" = "arm64" ]; then \
-		echo "Unsupported architecture 'arm64'" \
-		exit 1 ; \
-	else \
-		curl -sSfL https://github.com/koalaman/shellcheck/releases/download/${SHELLCHECK_VERSION}/${SHELLCHECK_ARCHIVE} | tar -x -J --strip-components=1 shellcheck-${SHELLCHECK_VERSION}/shellcheck ; \
-	fi
+	"${GOLANGCI_LINT_BIN}" run --new-from-rev=$${headSHA}
 
 # Check scripts
 .PHONY: check_scripts
-ALLSCRIPTS := $(shell find . -name '*.sh' -not -path './_spark/*')
-check_scripts: install_shellcheck
+ALLSCRIPTS := $(shell find . -name '*.sh' -not -path './_spark/*' -not -path './tools/*' -not -path './build/*')
+check_scripts: $(SHELLCHECK_BIN)
 	@echo "running shellcheck"
-	@if command -v "shellcheck" &> /dev/null; then \
-		shellcheck ${ALLSCRIPTS} ; \
-	elif [ -x ${SHELLCHECK_PATH} ]; then \
-		${SHELLCHECK_PATH} ${ALLSCRIPTS} ; \
-	else \
-		echo "shellcheck not found: failing target" \
-		exit 1; \
-	fi
+	@"$(SHELLCHECK_BIN)" ${ALLSCRIPTS}
 
 .PHONY: license-check
 # This is a bit convoluted but using a recursive grep on linux fails to write anything when run
@@ -212,14 +286,6 @@ run_plugin: build_plugin
 	--leader-elect=false \
 	--config=../../conf/scheduler-config-local.yaml \
 	-v=2
-
-# Create output directories
-.PHONY: init
-init:
-	mkdir -p ${DEV_BIN_DIR}
-	mkdir -p ${RELEASE_BIN_DIR}
-	mkdir -p ${ADMISSION_CONTROLLER_BIN_DIR}
-	./scripts/plugin-conf-gen.sh $(KUBECONFIG) "conf/scheduler-config.yaml" "conf/scheduler-config-local.yaml"
 
 # Build scheduler binary for dev and test
 .PHONY: build
@@ -421,10 +487,17 @@ fsm_graph: clean
 .PHONY: clean
 clean:
 	@echo "cleaning up caches and output"
-	go clean -cache -testcache -r
-	rm -rf ${OUTPUT} ${BINARY} \
-	./deployments/image/configmap/${BINARY} \
-	./deployments/image/admission/${POD_ADMISSION_CONTROLLER_BINARY}
+	@go clean -cache -testcache -r
+	@echo "removing generated files"
+	@rm -rf ${OUTPUT} ${BINARY} \
+		./deployments/image/configmap/${BINARY} \
+		./deployments/image/admission/${POD_ADMISSION_CONTROLLER_BINARY}
+
+# Remove all generated content
+.PHONY: distclean
+distclean: clean
+	@echo "removing tools"
+	@rm -rf "${TOOLS_DIR}"
 
 # Print arch variables
 .PHONY: arch
@@ -434,6 +507,7 @@ arch:
 
 # Run the e2e tests, this assumes yunikorn is running under yunikorn namespace
 .PHONY: e2e_test
-e2e_test:
+e2e_test: tools
 	@echo "running e2e tests"
-	cd ./test/e2e && ginkgo -r -v -keep-going -- -yk-namespace "yunikorn" -kube-config $(KUBECONFIG)
+	cd ./test/e2e && \
+	ginkgo -r "${E2E_TEST}" -v -keep-going -- -yk-namespace "yunikorn" -kube-config $(KUBECONFIG)

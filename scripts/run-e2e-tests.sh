@@ -16,6 +16,10 @@
 # See the License for the specific language governing permissions and
 #limitations under the License.
 
+HELM=tools/helm
+KIND=tools/kind
+KUBECTL=tools/kubectl
+
 function check_cmd() {
   CMD=$1
   if ! command -v "${CMD}" &> /dev/null
@@ -64,88 +68,19 @@ function check_docker() {
   fi
 }
 
-function install_kubectl() {
-  if ! command -v kubectl &> /dev/null
-  then
-    check_cmd "curl"
-    STABLE_RELEASE=$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)
-    exit_on_error "unable to retrieve latest stable version of kubectl"
-    curl -LO https://storage.googleapis.com/kubernetes-release/release/"${STABLE_RELEASE}"/bin/"${OS}"/"${EXEC_ARCH}"/kubectl \
-              && chmod +x kubectl && sudo mv kubectl /usr/local/bin/
-    exit_on_error "install Kubectl failed"
-  fi
-  check_cmd "kubectl"
-}
-
-function install_kind() {
-  KIND="$(go env GOPATH)/bin/kind"
-  if [ ! -x "${KIND}" ]; then
-    FORCE_KIND_INSTALL=true
-  else
-    # check kind version: v0.15.0 or later required for 1.25 tests
-    KIND_MINOR=$(${KIND} version | cut -f2 -d" " | cut -f2 -d".")
-    if [ "${KIND_MINOR}" -lt 15 ]; then
-      FORCE_KIND_INSTALL=true
-      echo "kind version found is too old: force new install"
-    fi
-  fi
-
-  if [ "${FORCE_KIND_INSTALL}" == "true" ]
-  then
-    check_cmd "curl"
-    curl -Lo ./kind "https://kind.sigs.k8s.io/dl/v0.15.0/kind-${OS}-${EXEC_ARCH}" \
-      && chmod +x ./kind && mv ./kind "$(go env GOPATH)"/bin
-    exit_on_error "install KIND failed"
-  fi
-  check_cmd "${KIND}"
-}
-
-function install_spark() {
-  CURRENT=$(pwd)
-  SPARK_VERSION="3.3.1"
-  DOWNLOAD="${CURRENT}/_spark"
-  SPARK_SUBMIT_CMD="${DOWNLOAD}/spark-${SPARK_VERSION}-bin-hadoop3/bin/spark-submit"
-  if [[ ! -d "${DOWNLOAD}" || ! -f "${SPARK_SUBMIT_CMD}" ]]; then
-    rm -rf "${DOWNLOAD}"
-    mkdir "${DOWNLOAD}" \
-      && cd "${DOWNLOAD}" \
-      && curl "https://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop3.tgz" | tar xzf - \
-      && chmod +x "spark-${SPARK_VERSION}-bin-hadoop3"
-    exit_on_error "install spark failed"
-  fi
-  export SPARK_HOME="${DOWNLOAD}/spark-${SPARK_VERSION}-bin-hadoop3"
-  export SPARK_PYTHON_IMAGE="docker.io/apache/spark-py:v${SPARK_VERSION}"
-  cd "${CURRENT}" || exit
-}
-
-function install_helm() {
-  FORCE_HELM_INSTALL=false
-  if ! command -v helm &> /dev/null
-  then
-    FORCE_HELM_INSTALL=true
-  else
-    # get the major helm version, must be v3
-    HELM_VERSION=$(helm version --short | cut -f1 -d".")
-    if [ "${HELM_VERSION}" != "v3" ]; then
-      FORCE_HELM_INSTALL=true
-      echo "helm version found is too old: force new install"
-    fi
-  fi
-
-  if [ "${FORCE_HELM_INSTALL}" == "true" ]
-  then
-    check_cmd "curl"
-    curl -L https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash
-    exit_on_error "install helm-v3 failed"
-  fi
-  check_cmd "helm"
+function install_tools() {
+  make tools
 }
 
 function install_cluster() {
-  echo "step 1/10: checking required configuration"
+  echo "step 1/7: checking required configuration"
   if [ ! -r "${KIND_CONFIG}" ]; then
     exit_on_error "kind config not found: ${KIND_CONFIG}"
   fi
+
+  echo "step 2/7: install tools"
+  install_tools
+
   # use latest helm charts from the release repo to install yunikorn unless path is provided
   if [ "${GIT_CLONE}" = "true" ]; then
     check_cmd "git"
@@ -156,7 +91,7 @@ function install_cluster() {
   fi
 
   # build docker images from latest code, so that we can install yunikorn with these latest images
-  echo "step 2/10: building docker images from latest code"
+  echo "step 3/7: building docker images from latest code"
   check_docker
   QUIET="--quiet" REGISTRY=local VERSION=latest make image
   exit_on_error "build docker images failed"
@@ -164,38 +99,23 @@ function install_cluster() {
   exit_on_error "build test web images failed"
 
   # install ginkgo and gomega for e2e tests.
-  echo "step 3/10: installing Ginkgo & Gomega at $(go env GOPATH)/bin"
+  echo "step 4/7: installing Ginkgo & Gomega at $(go env GOPATH)/bin"
   go install github.com/onsi/ginkgo/v2/ginkgo@v2.9.1
   check_cmd "ginkgo"
 
-  echo "step 4/10: installing helm-v3"
-  install_helm
-
-  # install kubectl
-  echo "step 5/10: installing kubectl"
-  install_kubectl
-
-  # install KIND
-  echo "step 6/10: installing kind"
-  install_kind
-
-  # install Spark
-  echo "step 7/10: installing spark"
-  install_spark
-
   # create K8s cluster
-  echo "step 8/10: installing K8s cluster using kind"
+  echo "step 5/7: installing K8s cluster using kind"
   "${KIND}" create cluster --name "${CLUSTER_NAME}" --image "${CLUSTER_VERSION}" --config="${KIND_CONFIG}"
   exit_on_error "install K8s cluster failed"
-  kubectl cluster-info --context kind-"${CLUSTER_NAME}"
+  "${KUBECTL}" cluster-info --context kind-"${CLUSTER_NAME}"
   exit_on_error "set K8s cluster context failed"
-  kubectl create namespace yunikorn
+  "${KUBECTL}" create namespace yunikorn
   exit_on_error "failed to create yunikorn namespace"
   echo "cluster node definitions:"
-  kubectl describe nodes
+  "${KUBECTL}" describe nodes
 
   # pre-load yunikorn docker images to kind
-  echo "step 9/10: pre-load yunikorn images"
+  echo "step 6/7: pre-load yunikorn images"
   "${KIND}" load docker-image "local/yunikorn:${SCHEDULER_IMAGE}" --name "${CLUSTER_NAME}"
   exit_on_error "pre-load scheduler image failed: ${SCHEDULER_IMAGE}"
   "${KIND}" load docker-image "local/yunikorn:${ADMISSION_IMAGE}" --name "${CLUSTER_NAME}"
@@ -203,8 +123,8 @@ function install_cluster() {
   "${KIND}" load docker-image "local/yunikorn:${WEBTEST_IMAGE}" --name "${CLUSTER_NAME}"
   exit_on_error "pre-load web image failed: ${WEBTEST_IMAGE}"
 
-  echo "step 10/10: installing yunikorn"
-  helm install yunikorn "${CHART_PATH}" --namespace yunikorn \
+  echo "step 7/7: installing yunikorn"
+  "${HELM}" install yunikorn "${CHART_PATH}" --namespace yunikorn \
     --set image.repository=local/yunikorn \
     --set image.tag="${SCHEDULER_IMAGE}" \
     --set image.pullPolicy=IfNotPresent \
@@ -215,15 +135,15 @@ function install_cluster() {
     --set web.image.tag="${WEBTEST_IMAGE}" \
     --set web.image.pullPolicy=IfNotPresent
   exit_on_error "failed to install yunikorn"
-  kubectl wait --for=condition=available --timeout=300s deployment/yunikorn-scheduler -n yunikorn
+  "${KUBECTL}" wait --for=condition=available --timeout=300s deployment/yunikorn-scheduler -n yunikorn
   exit_on_error "failed to wait for yunikorn scheduler deployment being deployed"
-  kubectl wait --for=condition=ready --timeout=300s pod -l app=yunikorn -n yunikorn
+  "${KUBECTL}" wait --for=condition=ready --timeout=300s pod -l app=yunikorn -n yunikorn
   exit_on_error "failed to wait for yunikorn scheduler pods being deployed"
 }
 
 function delete_cluster() {
   echo "deleting K8s cluster: ${CLUSTER_NAME}"
-  install_kind
+  install_tools
   "${KIND}" delete cluster --name "${CLUSTER_NAME}"
   exit_on_error "failed to delete the cluster"
 }
@@ -231,12 +151,11 @@ function delete_cluster() {
 function print_usage() {
   NAME=$(basename "$0")
   cat <<EOF
-Usage: ${NAME} -a <action> -n <kind-cluster-name> -v <kind-node-image-version> [-p <chart-path>] [--plugin] [--force-kind-install]
+Usage: ${NAME} -a <action> -n <kind-cluster-name> -v <kind-node-image-version> [-p <chart-path>] [--plugin]
   <action>                     the action to be executed, must be either "test" or "cleanup".
   <kind-cluster-name>          the name of the K8s cluster to be created by kind
   <kind-node-image-version>    the kind node image used to provision the K8s cluster, required for "test" action
   <chart-path>                 local path to helm charts path (default is to pull from GitHub master)
-  --force-kind-install         force Kind to be installed even if already present
   --plugin                     use scheduler plugin image instead of default mode image
 
 Examples:
@@ -262,7 +181,6 @@ GIT_CLONE=true
 SCHEDULER_IMAGE="scheduler-${DOCKER_ARCH}-latest"
 ADMISSION_IMAGE="admission-${DOCKER_ARCH}-latest"
 WEBTEST_IMAGE="webtest-${DOCKER_ARCH}-latest"
-FORCE_KIND_INSTALL=false
 
 while [[ $# -gt 0 ]]; do
 key="$1"
@@ -288,10 +206,6 @@ case ${key} in
     shift
     shift
     ;;
-  --force-kind-install)
-    FORCE_KIND_INSTALL=true
-    shift
-    ;;
   --plugin)
     SCHEDULER_IMAGE="scheduler-plugin-${DOCKER_ARCH}-latest"
     shift
@@ -310,7 +224,6 @@ done
 
 echo "e2e test run details"
 echo "  action             : ${ACTION}"
-echo "  force kind install : ${FORCE_KIND_INSTALL}"
 echo "  kind cluster name  : ${CLUSTER_NAME}"
 echo "  kind node version  : ${CLUSTER_VERSION}"
 echo "  kind config        : ${KIND_CONFIG}"

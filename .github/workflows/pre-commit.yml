@@ -47,7 +47,7 @@ jobs:
         uses: actions/setup-go@v3
         with:
           go-version-file: .go_version
-      - run: ./scripts/run-e2e-tests.sh -a "test" -n "yk8s" -v "kindest/node:${KIND_NODE_IMAGE}" --force-kind-install ${KIND_EXTRA_ARGS}
+      - run: ./scripts/run-e2e-tests.sh -a "test" -n "yk8s" -v "kindest/node:${KIND_NODE_IMAGE}" ${KIND_EXTRA_ARGS}
         env:
           KIND_NODE_IMAGE: ${{ matrix.k8s }}
           KIND_EXTRA_ARGS: ${{ matrix.plugin }}
