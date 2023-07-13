@@ -92,7 +92,7 @@ DOCKER_ARCH := amd64
 endif
 
 # shellcheck
-SHELLCHECK_VERSION=v0.8.0
+SHELLCHECK_VERSION=v0.9.0
 SHELLCHECK_BIN=${TOOLS_DIR}/shellcheck
 SHELLCHECK_ARCHIVE := shellcheck-$(SHELLCHECK_VERSION).$(OS).$(HOST_ARCH).tar.xz
 ifeq (darwin, $(OS))
@@ -106,7 +106,7 @@ endif
 endif
 
 # golangci-lint
-GOLANGCI_LINT_VERSION=1.51.2
+GOLANGCI_LINT_VERSION=1.53.3
 GOLANGCI_LINT_BIN=$(TOOLS_DIR)/golangci-lint
 GOLANGCI_LINT_ARCHIVE=golangci-lint-$(GOLANGCI_LINT_VERSION)-$(OS)-$(EXEC_ARCH).tar.gz
 GOLANGCI_LINT_ARCHIVEBASE=golangci-lint-$(GOLANGCI_LINT_VERSION)-$(OS)-$(EXEC_ARCH)
@@ -126,7 +126,7 @@ HELM_ARCHIVE=helm-$(HELM_VERSION)-$(OS)-$(EXEC_ARCH).tar.gz
 HELM_ARCHIVE_BASE=$(OS)-$(EXEC_ARCH)
 
 # spark
-export SPARK_VERSION=$(shell cat .spark_version)
+export SPARK_VERSION=3.3.1
 export SPARK_HOME=$(BASE_DIR)$(TOOLS_DIR)/spark
 export SPARK_SUBMIT_CMD=$(SPARK_HOME)/bin/spark-submit
 export SPARK_PYTHON_IMAGE=docker.io/apache/spark-py:v$(SPARK_VERSION)
