@@ -15,6 +15,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 FROM --platform=$TARGETPLATFORM scratch
-COPY --chown=0:0 k8s_yunikorn_scheduler /
+COPY --chown=0:0 yunikorn-admission-controller /
 USER 4444:4444
-ENTRYPOINT [ "/k8s_yunikorn_scheduler" ]
+ENTRYPOINT [ "/yunikorn-admission-controller" ]

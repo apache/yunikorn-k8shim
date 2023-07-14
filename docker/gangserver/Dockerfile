@@ -15,6 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 FROM --platform=$TARGETPLATFORM scratch
-COPY --chown=0:0 scheduler-admission-controller /
+COPY --chown=0:0 simulation-gang-coordinator /
 USER 4444:4444
-ENTRYPOINT [ "/scheduler-admission-controller" ]
+EXPOSE 8863
+ENTRYPOINT ["/simulation-gang-coordinator"]

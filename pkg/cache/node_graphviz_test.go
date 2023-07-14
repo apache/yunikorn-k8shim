@@ -39,11 +39,11 @@ func TestNodeFsmGraph(t *testing.T) {
 		AddResource(siCommon.Memory, 1).
 		AddResource(siCommon.CPU, 1).
 		Build()
-	node := newSchedulerNode("host001", "UID001", map[string]string{}, r1, api, false)
+	node := newSchedulerNode("host001", "UID001", map[string]string{}, r1, api, false, false)
 	graph := fsm.Visualize(node.fsm)
 
-	err := os.MkdirAll("../../_output/fsm", 0755)
+	err := os.MkdirAll("../../build/fsm", 0755)
 	assert.NilError(t, err, "Creating output dir failed")
-	os.WriteFile("../../_output/fsm/k8shim-node-state.dot", []byte(graph), 0644)
+	os.WriteFile("../../build/fsm/k8shim-node-state.dot", []byte(graph), 0644)
 	assert.NilError(t, err, "Writing graph failed")
 }

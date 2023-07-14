@@ -15,6 +15,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 FROM --platform=$TARGETPLATFORM scratch
-COPY --chown=0:0 kube-scheduler scheduler-config.yaml /
+COPY --chown=0:0 simulation-gang-worker /
 USER 4444:4444
-ENTRYPOINT [ "/kube-scheduler", "--bind-address=0.0.0.0", "--config=/scheduler-config.yaml" ]
+ENTRYPOINT ["/simulation-gang-worker"]

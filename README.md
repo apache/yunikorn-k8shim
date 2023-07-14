@@ -39,8 +39,7 @@ The simplest way to get a local binary that can be run on a local Kubernetes env
 ```
 make build
 ```
-This command will build a binary `k8s_yunikorn_scheduler` under `_output/dev` dir. This binary is executable on local environment, as long as `kubectl` is properly configured.
-Run `./k8s_yunikorn_scheduler -help` to see all options.
+This command will build a binary `yunikorn-scheduler` under `build/dev` dir. This binary is executable on local environment, as long as `kubectl` is properly configured.
 
 **Note**: It may take few minutes to run this command for the first time, because it needs to download all dependencies.
 In case you get an error relating to `checksum mismatch`, run `go clean -modcache` and then rerun `make build`.
@@ -52,7 +51,7 @@ If the local kubernetes environment is up and running you can build and run the 
 make run
 ```
 This will build the code, and run the scheduler with verbose logging. 
-It will set the configuration for the scheduler to the provided default configuration `queues.yaml` and uses the current setup for kubernetes.
+It will use default configurations for the scheduler and the local Kubernetes configuration.
 
 ### Build and run tests
 Unit tests for the shim only can be run via:

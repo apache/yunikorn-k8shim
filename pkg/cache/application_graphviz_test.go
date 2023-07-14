@@ -30,11 +30,11 @@ import (
 )
 
 func TestApplicationFsmGraph(t *testing.T) {
-	app := NewApplication("app00001", "root.queue", "testuser", map[string]string{}, newMockSchedulerAPI())
+	app := NewApplication("app00001", "root.queue", "testuser", []string{}, map[string]string{}, newMockSchedulerAPI())
 	graph := fsm.Visualize(app.sm)
 
-	err := os.MkdirAll("../../_output/fsm", 0755)
+	err := os.MkdirAll("../../build/fsm", 0755)
 	assert.NilError(t, err, "Creating output dir failed")
-	os.WriteFile("../../_output/fsm/k8shim-application-state.dot", []byte(graph), 0644)
+	os.WriteFile("../../build/fsm/k8shim-application-state.dot", []byte(graph), 0644)
 	assert.NilError(t, err, "Writing graph failed")
 }

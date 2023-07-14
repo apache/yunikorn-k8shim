@@ -15,9 +15,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Go compiler selection
+ifeq ($(GO),)
+GO := go
+endif
+
+GO_EXE_PATH := $(shell "$(GO)" env GOROOT)/bin
+export PATH := $(GO_EXE_PATH):$(PATH)
+
 # Check if this GO tools version used is at least the version of go specified in
 # the go.mod file. The version in go.mod should be in sync with other repos.
-GO_VERSION := $(shell go version | awk '{print substr($$3, 3, 10)}')
+GO_VERSION := $(shell "$(GO)" version | awk '{print substr($$3, 3, 10)}')
 MOD_VERSION := $(shell cat .go_version) 
 
 GM := $(word 1,$(subst ., ,$(GO_VERSION)))
@@ -36,17 +44,20 @@ endif
 # Make sure we are in the same directory as the Makefile
 BASE_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
-BINARY=k8s_yunikorn_scheduler
-PLUGIN_BINARY=kube-scheduler
-OUTPUT=_output
+# Output directories
+OUTPUT=build
 DEV_BIN_DIR=${OUTPUT}/dev
 RELEASE_BIN_DIR=${OUTPUT}/bin
-ADMISSION_CONTROLLER_BIN_DIR=${OUTPUT}/admission-controllers/
-POD_ADMISSION_CONTROLLER_BINARY=scheduler-admission-controller
-GANG_BIN_DIR=${OUTPUT}/gang
+DOCKER_DIR=${OUTPUT}/docker
+
+# Binary names
+SCHEDULER_BINARY=yunikorn-scheduler
+PLUGIN_BINARY=yunikorn-scheduler-plugin
+ADMISSION_CONTROLLER_BINARY=yunikorn-admission-controller
 GANG_CLIENT_BINARY=simulation-gang-worker
 GANG_SERVER_BINARY=simulation-gang-coordinator
 TEST_SERVER_BINARY=web-test-server
+
 TOOLS_DIR=tools
 REPO=github.com/apache/yunikorn-k8shim/pkg
 
@@ -58,7 +69,7 @@ endif
 
 # Test selection
 ifeq ($(E2E_TEST),)
-E2E_TEST := "*"
+E2E_TEST :=
 endif
 
 # Kernel (OS) Name
@@ -131,9 +142,11 @@ export SPARK_HOME=$(BASE_DIR)$(TOOLS_DIR)/spark
 export SPARK_SUBMIT_CMD=$(SPARK_HOME)/bin/spark-submit
 export SPARK_PYTHON_IMAGE=docker.io/apache/spark-py:v$(SPARK_VERSION)
 
+FLAG_PREFIX=github.com/apache/yunikorn-k8shim/pkg/conf
+
 # Image hashes
-CORE_SHA=$(shell go list -f '{{.Version}}' -m "github.com/apache/yunikorn-core" | cut -d "-" -f3)
-SI_SHA=$(shell go list -f '{{.Version}}' -m "github.com/apache/yunikorn-scheduler-interface" | cut -d "-" -f3)
+CORE_SHA=$(shell "$(GO)" list -f '{{.Version}}' -m "github.com/apache/yunikorn-core" | cut -d "-" -f3)
+SI_SHA=$(shell "$(GO)" list -f '{{.Version}}' -m "github.com/apache/yunikorn-scheduler-interface" | cut -d "-" -f3)
 SHIM_SHA=$(shell git rev-parse --short=12 HEAD)
 
 # Kubeconfig
@@ -152,15 +165,25 @@ export ACK_GINKGO_DEPRECATIONS=2.9.0
 GO111MODULE := on
 export GO111MODULE
 
-all:
-	$(MAKE) -C $(dir $(BASE_DIR)) build
+ifeq ($(SCHEDULER_TAG),)
+SCHEDULER_TAG := $(REGISTRY)/yunikorn:scheduler-$(DOCKER_ARCH)-$(VERSION)
+endif
+ifeq ($(PLUGIN_TAG),)
+PLUGIN_TAG := $(REGISTRY)/yunikorn:scheduler-plugin-$(DOCKER_ARCH)-$(VERSION)
+endif
+ifeq ($(ADMISSION_TAG),)
+ADMISSION_TAG := $(REGISTRY)/yunikorn:admission-$(DOCKER_ARCH)-$(VERSION)
+endif
 
-# Create output directories
+all:
+	$(MAKE) -C $(dir $(BASE_DIR)) init build build_plugin
+
+# Ensure generated files are present
 .PHONY: init
-init:
-	mkdir -p ${DEV_BIN_DIR}
-	mkdir -p ${RELEASE_BIN_DIR}
-	mkdir -p ${ADMISSION_CONTROLLER_BIN_DIR}
+init: conf/scheduler-config-local.yaml
+
+# Generate local scheduler config
+conf/scheduler-config-local.yaml: conf/scheduler-config.yaml
 	./scripts/plugin-conf-gen.sh $(KUBECONFIG) "conf/scheduler-config.yaml" "conf/scheduler-config-local.yaml"
 
 # Install tools
@@ -225,7 +248,7 @@ lint: $(GOLANGCI_LINT_BIN)
 
 # Check scripts
 .PHONY: check_scripts
-ALLSCRIPTS := $(shell find . -name '*.sh' -not -path './_spark/*' -not -path './tools/*' -not -path './build/*')
+ALLSCRIPTS := $(shell find . -not \( -path ./spark -prune \) -not \( -path ./tools -prune \) -not \( -path ./build -prune \) -name '*.sh')
 check_scripts: $(SHELLCHECK_BIN)
 	@echo "running shellcheck"
 	@"$(SHELLCHECK_BIN)" ${ALLSCRIPTS}
@@ -238,25 +261,23 @@ check_scripts: $(SHELLCHECK_BIN)
 license-check:
 	@echo "checking license headers:"
 ifeq (darwin,$(OS))
-	$(shell find -E . -not -path "./.git*" -regex ".*\.(go|sh|md|conf|yaml|yml|html|mod)" -exec grep -L "Licensed to the Apache Software Foundation" {} \; > LICRES)
+	$(shell mkdir -p "$(OUTPUT)" && find -E . -not \( -path './.git*' -prune \) -not \( -path ./build -prune \) -not \( -path ./tools -prune \) -regex ".*\.(go|sh|md|conf|yaml|yml|html|mod)" -exec grep -L "Licensed to the Apache Software Foundation" {} \; > "$(OUTPUT)/license-check.txt")
 else
-	$(shell find . -not -path "./.git*" -regex ".*\.\(go\|sh\|md\|conf\|yaml\|yml\|html\|mod\)" -exec grep -L "Licensed to the Apache Software Foundation" {} \; > LICRES)
+	$(shell mkdir -p "$(OUTPUT)" && find . -not \( -path './.git*' -prune \) -not \( -path ./build -prune \) -not \( -path ./tools -prune \) -regex ".*\.\(go\|sh\|md\|conf\|yaml\|yml\|html\|mod\)" -exec grep -L "Licensed to the Apache Software Foundation" {} \; > "$(OUTPUT)/license-check.txt")
 endif
-	@if [ -s LICRES ]; then \
+	@if [ -s "$(OUTPUT)/license-check.txt" ]; then \
 		echo "following files are missing license header:" ; \
-		cat LICRES ; \
-		rm -f LICRES ; \
+		cat "$(OUTPUT)/license-check.txt" ; \
 		exit 1; \
-	fi ; \
-	rm -f LICRES
+	fi
 	@echo "  all OK"
 
 # Check that we use pseudo versions in master
 .PHONY: pseudo
 BRANCH := $(shell git branch --show-current)
-CORE_REF := $(shell go list -m -f '{{ .Version }}' github.com/apache/yunikorn-core)
+CORE_REF := $(shell "$(GO)" list -m -f '{{ .Version }}' github.com/apache/yunikorn-core)
 CORE_MATCH := $(shell expr "${CORE_REF}" : "v0.0.0-")
-SI_REF := $(shell go list -m -f '{{ .Version }}' github.com/apache/yunikorn-scheduler-interface)
+SI_REF := $(shell "$(GO)" list -m -f '{{ .Version }}' github.com/apache/yunikorn-scheduler-interface)
 SI_MATCH := $(shell expr "${SI_REF}" : "v0.0.0-")
 pseudo:
 	@echo "pseudo version check"
@@ -274,7 +295,7 @@ pseudo:
 run: build
 	@echo "running scheduler locally"
 	cd ${DEV_BIN_DIR} && \
-	KUBECONFIG="$(KUBECONFIG)" ./${BINARY}
+	KUBECONFIG="$(KUBECONFIG)" ./${SCHEDULER_BINARY}
 
 .PHONY: run_plugin
 run_plugin: build_plugin
@@ -288,50 +309,72 @@ run_plugin: build_plugin
 
 # Build scheduler binary for dev and test
 .PHONY: build
-FLAG_PREFIX=github.com/apache/yunikorn-k8shim/pkg/conf
-build: init
+build: $(DEV_BIN_DIR)/$(SCHEDULER_BINARY)
+
+$(DEV_BIN_DIR)/$(SCHEDULER_BINARY): go.mod go.sum pkg
 	@echo "building scheduler binary"
-	go build -o=${DEV_BIN_DIR}/${BINARY} -race -ldflags \
-	'-X ${FLAG_PREFIX}.buildVersion=${VERSION} -X ${FLAG_PREFIX}.buildDate=${DATE} -X ${FLAG_PREFIX}.isPluginVersion=false -X ${FLAG_PREFIX}.goVersion=${GO_VERSION} -X ${FLAG_PREFIX}.arch=${EXEC_ARCH} -X ${FLAG_PREFIX}.coreSHA=${CORE_SHA} -X ${FLAG_PREFIX}.siSHA=${SI_SHA} -X ${FLAG_PREFIX}.shimSHA=${SHIM_SHA}' \
+	@mkdir -p "$(DEV_BIN_DIR)"
+	"$(GO)" build \
+	-o=${DEV_BIN_DIR}/${SCHEDULER_BINARY} \
+	-race \
+	-ldflags '-X ${FLAG_PREFIX}.buildVersion=${VERSION} -X ${FLAG_PREFIX}.buildDate=${DATE} -X ${FLAG_PREFIX}.isPluginVersion=false -X ${FLAG_PREFIX}.goVersion=${GO_VERSION} -X ${FLAG_PREFIX}.arch=${EXEC_ARCH} -X ${FLAG_PREFIX}.coreSHA=${CORE_SHA} -X ${FLAG_PREFIX}.siSHA=${SI_SHA} -X ${FLAG_PREFIX}.shimSHA=${SHIM_SHA}' \
 	./pkg/cmd/shim/
-	@chmod +x ${DEV_BIN_DIR}/${BINARY}
 
 .PHONY: build_plugin
-build_plugin: init
+build_plugin: $(DEV_BIN_DIR)/$(PLUGIN_BINARY)
+
+$(DEV_BIN_DIR)/$(PLUGIN_BINARY): go.mod go.sum pkg
 	@echo "building scheduler plugin binary"
-	go build -o=${DEV_BIN_DIR}/${PLUGIN_BINARY} -race -ldflags \
-	'-X ${FLAG_PREFIX}.buildVersion=${VERSION} -X ${FLAG_PREFIX}.buildDate=${DATE} -X ${FLAG_PREFIX}.isPluginVersion=true -X ${FLAG_PREFIX}.goVersion=${GO_VERSION} -X ${FLAG_PREFIX}.arch=${EXEC_ARCH} -X ${FLAG_PREFIX}.coreSHA=${CORE_SHA} -X ${FLAG_PREFIX}.siSHA=${SI_SHA} -X ${FLAG_PREFIX}.shimSHA=${SHIM_SHA}' \
+	@mkdir -p "$(DEV_BIN_DIR)"
+	"$(GO)" build \
+	-o=${DEV_BIN_DIR}/${PLUGIN_BINARY} \
+	-race \
+	-ldflags '-X ${FLAG_PREFIX}.buildVersion=${VERSION} -X ${FLAG_PREFIX}.buildDate=${DATE} -X ${FLAG_PREFIX}.isPluginVersion=true -X ${FLAG_PREFIX}.goVersion=${GO_VERSION} -X ${FLAG_PREFIX}.arch=${EXEC_ARCH} -X ${FLAG_PREFIX}.coreSHA=${CORE_SHA} -X ${FLAG_PREFIX}.siSHA=${SI_SHA} -X ${FLAG_PREFIX}.shimSHA=${SHIM_SHA}' \
 	./pkg/cmd/schedulerplugin/
-	@chmod +x ${DEV_BIN_DIR}/${PLUGIN_BINARY}
 
 # Build scheduler binary in a production ready version
 .PHONY: scheduler
-scheduler: init
+scheduler: $(RELEASE_BIN_DIR)/$(SCHEDULER_BINARY)
+
+$(RELEASE_BIN_DIR)/$(SCHEDULER_BINARY): go.mod go.sum pkg
 	@echo "building binary for scheduler docker image"
-	CGO_ENABLED=0 GOOS=linux GOARCH="${EXEC_ARCH}" \
-	go build -a -o=${RELEASE_BIN_DIR}/${BINARY} -trimpath -ldflags \
-	'-extldflags "-static" -X ${FLAG_PREFIX}.buildVersion=${VERSION} -X ${FLAG_PREFIX}.buildDate=${DATE} -X ${FLAG_PREFIX}.isPluginVersion=false -X ${FLAG_PREFIX}.goVersion=${GO_VERSION} -X ${FLAG_PREFIX}.arch=${EXEC_ARCH} -X ${FLAG_PREFIX}.coreSHA=${CORE_SHA} -X ${FLAG_PREFIX}.siSHA=${SI_SHA} -X ${FLAG_PREFIX}.shimSHA=${SHIM_SHA}' \
-	-tags netgo -installsuffix netgo \
+	@mkdir -p "$(RELEASE_BIN_DIR)"
+	CGO_ENABLED=0 GOOS=linux GOARCH="${EXEC_ARCH}" "$(GO)" build \
+	-a \
+	-o=${RELEASE_BIN_DIR}/${SCHEDULER_BINARY} \
+	-trimpath \
+	-ldflags '-extldflags "-static" -X ${FLAG_PREFIX}.buildVersion=${VERSION} -X ${FLAG_PREFIX}.buildDate=${DATE} -X ${FLAG_PREFIX}.isPluginVersion=false -X ${FLAG_PREFIX}.goVersion=${GO_VERSION} -X ${FLAG_PREFIX}.arch=${EXEC_ARCH} -X ${FLAG_PREFIX}.coreSHA=${CORE_SHA} -X ${FLAG_PREFIX}.siSHA=${SI_SHA} -X ${FLAG_PREFIX}.shimSHA=${SHIM_SHA}' \
+	-tags netgo \
+	-installsuffix netgo \
 	./pkg/cmd/shim/
 
 # Build plugin binary in a production ready version
 .PHONY: plugin
-plugin: init
+plugin: $(RELEASE_BIN_DIR)/$(PLUGIN_BINARY)
+
+$(RELEASE_BIN_DIR)/$(PLUGIN_BINARY): go.mod go.sum pkg
 	@echo "building binary for plugin docker image"
-	CGO_ENABLED=0 GOOS=linux GOARCH="${EXEC_ARCH}" \
-	go build -a -o=${RELEASE_BIN_DIR}/${PLUGIN_BINARY} -trimpath -ldflags \
-	'-extldflags "-static" -X ${FLAG_PREFIX}.buildVersion=${VERSION} -X ${FLAG_PREFIX}.buildDate=${DATE} -X ${FLAG_PREFIX}.isPluginVersion=true -X ${FLAG_PREFIX}.goVersion=${GO_VERSION} -X ${FLAG_PREFIX}.arch=${EXEC_ARCH} -X ${FLAG_PREFIX}.coreSHA=${CORE_SHA} -X ${FLAG_PREFIX}.siSHA=${SI_SHA} -X ${FLAG_PREFIX}.shimSHA=${SHIM_SHA}' \
-	-tags netgo -installsuffix netgo \
+	@mkdir -p "$(RELEASE_BIN_DIR)"
+	CGO_ENABLED=0 GOOS=linux GOARCH="${EXEC_ARCH}" "$(GO)" build \
+	-a \
+	-o=${RELEASE_BIN_DIR}/${PLUGIN_BINARY} \
+	-trimpath \
+	-ldflags '-extldflags "-static" -X ${FLAG_PREFIX}.buildVersion=${VERSION} -X ${FLAG_PREFIX}.buildDate=${DATE} -X ${FLAG_PREFIX}.isPluginVersion=true -X ${FLAG_PREFIX}.goVersion=${GO_VERSION} -X ${FLAG_PREFIX}.arch=${EXEC_ARCH} -X ${FLAG_PREFIX}.coreSHA=${CORE_SHA} -X ${FLAG_PREFIX}.siSHA=${SI_SHA} -X ${FLAG_PREFIX}.shimSHA=${SHIM_SHA}' \
+	-tags netgo \
+	-installsuffix netgo \
 	./pkg/cmd/schedulerplugin/
 	
 # Build a scheduler image based on the production ready version
 .PHONY: sched_image
-sched_image: scheduler
+sched_image: scheduler docker/scheduler
 	@echo "building scheduler docker image"
-	@cp ${RELEASE_BIN_DIR}/${BINARY} ./deployments/image/configmap
-	@sed -i'.bkp' 's/clusterVersion=.*"/clusterVersion=${VERSION}"/' deployments/image/configmap/Dockerfile
-	DOCKER_BUILDKIT=1 \
-	docker build ./deployments/image/configmap -t ${REGISTRY}/yunikorn:scheduler-${DOCKER_ARCH}-${VERSION} \
+	@rm -rf "$(DOCKER_DIR)/scheduler"
+	@mkdir -p "$(DOCKER_DIR)/scheduler"
+	@cp -a "docker/scheduler/." "$(DOCKER_DIR)/scheduler/."
+	@cp "$(RELEASE_BIN_DIR)/$(SCHEDULER_BINARY)" "$(DOCKER_DIR)/scheduler/."
+	DOCKER_BUILDKIT=1 docker build \
+	"$(DOCKER_DIR)/scheduler" \
+	-t "$(SCHEDULER_TAG)" \
 	--platform "linux/${DOCKER_ARCH}" \
 	--label "yunikorn-core-revision=${CORE_SHA}" \
 	--label "yunikorn-scheduler-interface-revision=${SI_SHA}" \
@@ -339,18 +382,19 @@ sched_image: scheduler
 	--label "BuildTimeStamp=${DATE}" \
 	--label "Version=${VERSION}" \
 	${QUIET}
-	@mv -f ./deployments/image/configmap/Dockerfile.bkp ./deployments/image/configmap/Dockerfile
-	@rm -f ./deployments/image/configmap/${BINARY}
 
 # Build a plugin image based on the production ready version
 .PHONY: plugin_image
-plugin_image: plugin
+plugin_image: plugin docker/plugin conf/scheduler-config.yaml
 	@echo "building plugin docker image"
-	@cp ${RELEASE_BIN_DIR}/${PLUGIN_BINARY} ./deployments/image/plugin
-	@cp conf/scheduler-config.yaml ./deployments/image/plugin/scheduler-config.yaml
-	@sed -i'.bkp' 's/clusterVersion=.*"/clusterVersion=${VERSION}"/' deployments/image/plugin/Dockerfile
-	DOCKER_BUILDKIT=1 \
-	docker build ./deployments/image/plugin -t ${REGISTRY}/yunikorn:scheduler-plugin-${DOCKER_ARCH}-${VERSION} \
+	@rm -rf "$(DOCKER_DIR)/plugin"
+	@mkdir -p "$(DOCKER_DIR)/plugin"
+	@cp -a "docker/plugin/." "$(DOCKER_DIR)/plugin/."
+	@cp "$(RELEASE_BIN_DIR)/$(PLUGIN_BINARY)" "$(DOCKER_DIR)/plugin/."
+	@cp conf/scheduler-config.yaml "$(DOCKER_DIR)/plugin/scheduler-config.yaml"
+	DOCKER_BUILDKIT=1 docker build \
+	"$(DOCKER_DIR)/plugin" \
+	-t "$(PLUGIN_TAG)" \
 	--platform "linux/${DOCKER_ARCH}" \
 	--label "yunikorn-core-revision=${CORE_SHA}" \
 	--label "yunikorn-scheduler-interface-revision=${SI_SHA}" \
@@ -358,27 +402,34 @@ plugin_image: plugin
 	--label "BuildTimeStamp=${DATE}" \
 	--label "Version=${VERSION}" \
 	${QUIET}
-	@mv -f ./deployments/image/plugin/Dockerfile.bkp ./deployments/image/plugin/Dockerfile
-	@rm -f ./deployments/image/plugin/${PLUGIN_BINARY}
-	@rm -f ./deployments/image/plugin/scheduler-config.yaml
 
 # Build admission controller binary in a production ready version
 .PHONY: admission
-admission: init
+admission: $(RELEASE_BIN_DIR)/$(ADMISSION_CONTROLLER_BINARY)
+
+$(RELEASE_BIN_DIR)/$(ADMISSION_CONTROLLER_BINARY): go.mod go.sum pkg
 	@echo "building admission controller binary"
-	CGO_ENABLED=0 GOOS=linux GOARCH="${EXEC_ARCH}" \
-	go build -a -o=${ADMISSION_CONTROLLER_BIN_DIR}/${POD_ADMISSION_CONTROLLER_BINARY} -trimpath -ldflags \
-    '-extldflags "-static" -X ${FLAG_PREFIX}.buildVersion=${VERSION} -X ${FLAG_PREFIX}.buildDate=${DATE} -X ${FLAG_PREFIX}.goVersion=${GO_VERSION} -X ${FLAG_PREFIX}.arch=${EXEC_ARCH}' \
-    -tags netgo -installsuffix netgo \
-    ./pkg/cmd/admissioncontroller
+	@mkdir -p "$(RELEASE_BIN_DIR)"
+	CGO_ENABLED=0 GOOS=linux GOARCH="${EXEC_ARCH}" "$(GO)" build \
+	-a \
+	-o=$(RELEASE_BIN_DIR)/$(ADMISSION_CONTROLLER_BINARY) \
+	-trimpath \
+	-ldflags '-extldflags "-static" -X ${FLAG_PREFIX}.buildVersion=${VERSION} -X ${FLAG_PREFIX}.buildDate=${DATE} -X ${FLAG_PREFIX}.goVersion=${GO_VERSION} -X ${FLAG_PREFIX}.arch=${EXEC_ARCH}' \
+	-tags netgo \
+	-installsuffix netgo \
+	./pkg/cmd/admissioncontroller
 
 # Build an admission controller image based on the production ready version
 .PHONY: adm_image
-adm_image: admission
+adm_image: admission docker/admission
 	@echo "building admission controller docker image"
-	@cp ${ADMISSION_CONTROLLER_BIN_DIR}/${POD_ADMISSION_CONTROLLER_BINARY} ./deployments/image/admission
-	DOCKER_BUILDKIT=1 \
-	docker build ./deployments/image/admission -t ${REGISTRY}/yunikorn:admission-${DOCKER_ARCH}-${VERSION} \
+	@rm -rf "$(DOCKER_DIR)/admission"
+	@mkdir -p "$(DOCKER_DIR)/admission"
+	@cp -a "docker/admission/." "$(DOCKER_DIR)/admission/."
+	@cp "$(RELEASE_BIN_DIR)/$(ADMISSION_CONTROLLER_BINARY)" "$(DOCKER_DIR)/admission/."
+	DOCKER_BUILDKIT=1 docker build \
+	"$(DOCKER_DIR)/admission" \
+	-t "$(ADMISSION_TAG)" \
 	--platform "linux/${DOCKER_ARCH}" \
 	--label "yunikorn-core-revision=${CORE_SHA}" \
 	--label "yunikorn-scheduler-interface-revision=${SI_SHA}" \
@@ -386,38 +437,51 @@ adm_image: admission
 	--label "BuildTimeStamp=${DATE}" \
 	--label "Version=${VERSION}" \
 	${QUIET}
-	@rm -f ./deployments/image/admission/${POD_ADMISSION_CONTROLLER_BINARY}
 
 # Build gang web server and client binary in a production ready version
 .PHONY: simulation
-simulation:
+simulation: $(RELEASE_BIN_DIR)/$(GANG_CLIENT_BINARY) $(RELEASE_BIN_DIR)/$(GANG_SERVER_BINARY)
+
+$(RELEASE_BIN_DIR)/$(GANG_CLIENT_BINARY): go.mod go.sum pkg
 	@echo "building gang web client binary"
-	CGO_ENABLED=0 GOOS=linux GOARCH="${EXEC_ARCH}" \
-	go build -a -o=${GANG_BIN_DIR}/${GANG_CLIENT_BINARY} -ldflags \
-	'-extldflags "-static" -X main.version=${VERSION} -X main.date=${DATE} -X main.goVersion=${GO_VERSION} -X main.arch=${EXEC_ARCH}' \
-	-tags netgo -installsuffix netgo \
+	@mkdir -p "$(RELEASE_BIN_DIR)"
+	CGO_ENABLED=0 GOOS=linux GOARCH="${EXEC_ARCH}" "$(GO)" build \
+	-a \
+	-o=${RELEASE_BIN_DIR}/${GANG_CLIENT_BINARY} \
+	-ldflags '-extldflags "-static" -X main.version=${VERSION} -X main.date=${DATE} -X main.goVersion=${GO_VERSION} -X main.arch=${EXEC_ARCH}' \
+	-tags netgo \
+	-installsuffix netgo \
 	./pkg/simulation/gang/gangclient
+
+$(RELEASE_BIN_DIR)/$(GANG_SERVER_BINARY): go.mod go.sum pkg
 	@echo "building gang web server binary"
-	CGO_ENABLED=0 GOOS=linux GOARCH="${EXEC_ARCH}" \
-	go build -a -o=${GANG_BIN_DIR}/${GANG_SERVER_BINARY} -ldflags \
-	'-extldflags "-static" -X main.version=${VERSION} -X main.date=${DATE}' \
-	-tags netgo -installsuffix netgo \
+	@mkdir -p "$(RELEASE_BIN_DIR)"
+	CGO_ENABLED=0 GOOS=linux GOARCH="${EXEC_ARCH}" "$(GO)" build \
+	-a \
+	-o="$(RELEASE_BIN_DIR)/$(GANG_SERVER_BINARY)" \
+	-ldflags '-extldflags "-static" -X main.version=${VERSION} -X main.date=${DATE} -X main.goVersion=${GO_VERSION} -X main.arch=${EXEC_ARCH}' \
+	-tags netgo \
+	-installsuffix netgo \
 	./pkg/simulation/gang/webserver
 
 # Build gang test images based on the production ready version
 .PHONY: simulation_image
 simulation_image: simulation
+	@rm -rf "$(DOCKER_DIR)/gangclient" "$(DOCKER_DIR)/gangserver"
+	@mkdir -p "$(DOCKER_DIR)/gangclient" "$(DOCKER_DIR)/gangserver"
+	@cp -a "docker/gangclient/." "$(DOCKER_DIR)/gangclient/."
+	@cp -a "docker/gangserver/." "$(DOCKER_DIR)/gangserver/."
 	@echo "building gang test docker images"
-	@cp ${GANG_BIN_DIR}/${GANG_CLIENT_BINARY} ./deployments/image/gang/gangclient
-	@cp ${GANG_BIN_DIR}/${GANG_SERVER_BINARY} ./deployments/image/gang/webserver
-	DOCKER_BUILDKIT=1 \
-	docker build ./deployments/image/gang/gangclient -t ${REGISTRY}/yunikorn:simulation-gang-worker-${VERSION} \
-	${QUIET} --build-arg ARCH=${DOCKER_ARCH}/
-	DOCKER_BUILDKIT=1 \
-	docker build ./deployments/image/gang/webserver -t ${REGISTRY}/yunikorn:simulation-gang-coordinator-${VERSION} \
-	${QUIET} --build-arg ARCH=${DOCKER_ARCH}/
-	@rm -f ./deployments/image/gang/gangclient/${GANG_CLIENT_BINARY}
-	@rm -f ./deployments/image/gang/webserver/${GANG_SERVER_BINARY}
+	@cp "$(RELEASE_BIN_DIR)/$(GANG_CLIENT_BINARY)" "$(DOCKER_DIR)/gangclient/."
+	@cp "$(RELEASE_BIN_DIR)/$(GANG_SERVER_BINARY)" "$(DOCKER_DIR)/gangserver/."
+	DOCKER_BUILDKIT=1 docker build \
+	"$(DOCKER_DIR)/gangclient" \
+	-t "${REGISTRY}/yunikorn:simulation-gang-worker-${VERSION}" \
+	${QUIET}
+	DOCKER_BUILDKIT=1 docker build \
+	"$(DOCKER_DIR)/gangserver" \
+	-t "${REGISTRY}/yunikorn:simulation-gang-coordinator-${VERSION}" \
+	${QUIET}
 
 # Build all images based on the production ready version
 .PHONY: image
@@ -425,29 +489,40 @@ image: sched_image plugin_image adm_image
 
 # Build a web server image ONLY to be used in e2e tests
 .PHONY: webtest_image
-webtest_image: build_web_test_server_prod
+webtest_image: build_web_test_server_prod docker/webtest
 	@echo "building web server image for automated e2e tests"
-	@cp ${RELEASE_BIN_DIR}/${TEST_SERVER_BINARY} ./deployments/image/webtest
-	DOCKER_BUILDKIT=1 \
-	docker build ./deployments/image/webtest -t ${REGISTRY}/yunikorn:webtest-${DOCKER_ARCH}-${VERSION} \
+	@rm -rf "$(DOCKER_DIR)/webtest"
+	@mkdir -p "$(DOCKER_DIR)/webtest"
+	@cp -a "docker/webtest/." "$(DOCKER_DIR)/webtest/."
+	@cp "$(RELEASE_BIN_DIR)/$(TEST_SERVER_BINARY)" "$(DOCKER_DIR)/webtest/."
+	DOCKER_BUILDKIT=1 docker build \
+	"$(DOCKER_DIR)/webtest" \
+	-t "${REGISTRY}/yunikorn:webtest-${DOCKER_ARCH}-${VERSION}" \
 	--label "yunikorn-e2e-web-image" \
-	${QUIET} --build-arg ARCH=${DOCKER_ARCH}/
+	${QUIET}
 
 .PHONY: build_web_test_server_dev
-build_web_test_server_dev:
+build_web_test_server_dev: $(DEV_BIN_DIR)/$(TEST_SERVER_BINARY)
+
+$(DEV_BIN_DIR)/$(TEST_SERVER_BINARY): go.mod go.sum pkg
 	@echo "building local web server binary"
-	go build -o=${DEV_BIN_DIR}/${TEST_SERVER_BINARY} -race -ldflags \
-	'-X main.version=${VERSION} -X main.date=${DATE} -X main.goVersion=${GO_VERSION} -X main.arch=${EXEC_ARCH}' \
+	"$(GO)" build \
+	-o="$(DEV_BIN_DIR)/$(TEST_SERVER_BINARY)" \
+	-race \
+	-ldflags '-X main.version=${VERSION} -X main.date=${DATE} -X main.goVersion=${GO_VERSION} -X main.arch=${EXEC_ARCH}' \
 	./pkg/cmd/webtest/
-	@chmod +x ${DEV_BIN_DIR}/${TEST_SERVER_BINARY}
 
 .PHONY: build_web_test_server_prod
-build_web_test_server_prod:
+build_web_test_server_prod: $(RELEASE_BIN_DIR)/$(TEST_SERVER_BINARY)
+
+$(RELEASE_BIN_DIR)/$(TEST_SERVER_BINARY): go.mod go.sum pkg
 	@echo "building web server binary"
-	CGO_ENABLED=0 GOOS=linux GOARCH="${EXEC_ARCH}" \
-	go build -a -o=${RELEASE_BIN_DIR}/${TEST_SERVER_BINARY} -ldflags \
-	'-extldflags "-static" -X main.version=${VERSION} -X main.date=${DATE} -X main.goVersion=${GO_VERSION} -X main.arch=${EXEC_ARCH}' \
-	-tags netgo -installsuffix netgo \
+	CGO_ENABLED=0 GOOS=linux GOARCH="${EXEC_ARCH}" "$(GO)" build \
+	-a \
+	-o="$(RELEASE_BIN_DIR)/$(TEST_SERVER_BINARY)" \
+	-ldflags '-extldflags "-static" -X main.version=${VERSION} -X main.date=${DATE} -X main.goVersion=${GO_VERSION} -X main.arch=${EXEC_ARCH}' \
+	-tags netgo \
+	-installsuffix netgo \
 	./pkg/cmd/webtest/
 
 #Generate the CRD code with code-generator (release-1.14)
@@ -464,33 +539,35 @@ code_gen:
 
 # Run the tests after building
 .PHONY: test
-test: clean
+test:
 	@echo "running unit tests"
-	go test ./pkg/... -cover -race -tags deadlock -coverprofile=coverage.txt -covermode=atomic
-	go vet $(REPO)...
+	@mkdir -p "$(OUTPUT)"
+	"$(GO)" clean -testcache
+	"$(GO)" test ./pkg/... -cover -race -tags deadlock -coverprofile="$(OUTPUT)/coverage.txt" -covermode=atomic
+	"$(GO)" vet "$(REPO)"...
 
 # Run benchmarks
 .PHONY: bench
 bench:
 	@echo "running benchmarks"
-	go test -v -run '^Benchmark' -bench . ./pkg/...
+	"$(GO)" clean -testcache
+	"$(GO)" test -v -run '^Benchmark' -bench . ./pkg/...
 
 # Generate FSM graphs (dot/png)
 .PHONY: fsm_graph
-fsm_graph: clean
+fsm_graph:
 	@echo "generating FSM graphs"
-	go test -tags graphviz -run 'Test.*FsmGraph' ./pkg/shim ./pkg/cache
+	"$(GO)" clean -testcache
+	"$(GO)" test -tags graphviz -run 'Test.*FsmGraph' ./pkg/shim ./pkg/cache
 	scripts/generate-fsm-graph-images.sh
 
-# Simple clean of generated files only (no local cleanup).
+# Remove generated build artifacts
 .PHONY: clean
 clean:
 	@echo "cleaning up caches and output"
-	@go clean -cache -testcache -r
+	@"$(GO)" clean -cache -testcache -r
 	@echo "removing generated files"
-	@rm -rf ${OUTPUT} ${BINARY} \
-		./deployments/image/configmap/${BINARY} \
-		./deployments/image/admission/${POD_ADMISSION_CONTROLLER_BINARY}
+	@rm -rf "${OUTPUT}"
 
 # Remove all generated content
 .PHONY: distclean
@@ -509,4 +586,4 @@ arch:
 e2e_test: tools
 	@echo "running e2e tests"
 	cd ./test/e2e && \
-	ginkgo -r "${E2E_TEST}" -v -keep-going -- -yk-namespace "yunikorn" -kube-config $(KUBECONFIG)
+	ginkgo -r $(E2E_TEST) -v -keep-going -- -yk-namespace "yunikorn" -kube-config $(KUBECONFIG)
