@@ -33,7 +33,6 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/admission"
 	"github.com/apache/yunikorn-k8shim/pkg/admission/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
-	schedulerconf "github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
 
@@ -52,7 +51,7 @@ type WebHook struct {
 }
 
 func main() {
-	configMaps, err := client.LoadBootstrapConfigMaps(schedulerconf.GetSchedulerNamespace())
+	configMaps, err := client.LoadBootstrapConfigMaps()
 	if err != nil {
 		log.Log(log.Admission).Fatal("Failed to load initial configmaps", zap.Error(err))
 		return
