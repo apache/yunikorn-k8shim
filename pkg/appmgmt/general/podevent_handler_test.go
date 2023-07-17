@@ -117,21 +117,18 @@ func TestAllowSimilarAppIdsByDifferentUsers(t *testing.T) {
 	assert.Assert(t, app2 != nil)
 	app2.SetState(cache.ApplicationStates().Accepted)
 
-	// set allowSimilarAppIdsByDifferentUsers to true
+	// set SingleUserPerApplication to true
 	err := conf.UpdateConfigMaps([]*v1.ConfigMap{
 		{Data: map[string]string{conf.CMSvcSingleUserPerApplication: "true"}},
 	}, true)
 	assert.NilError(t, err, "UpdateConfigMap failed")
 
-	// create same app appID and ensure app obj is getting created because "Accepted" state
+	// create same app appID and ensure app is accepted
 	pod2 = newPodByUser("pod1", "test")
 	app3 := podEventHandler.HandleEvent(AddPod, Informers, pod2)
 	assert.Assert(t, app3 != nil)
 
-	// set app state to "Running"
-	app3.SetState(cache.ApplicationStates().Running)
-
-	// create same app appID and ensure app obj is not getting created because user is different from earlier submission
+	// create same app appID and ensure app is rejected because user is different from earlier submission
 	pod2 = newPodByUser("pod1", "test1")
 	app4 := podEventHandler.HandleEvent(AddPod, Informers, pod2)
 	assert.Assert(t, app4 == nil)
