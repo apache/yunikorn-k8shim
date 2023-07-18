@@ -31,6 +31,7 @@ import (
 	schedulingv1 "k8s.io/api/scheduling/v1"
 	"k8s.io/client-go/tools/cache"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
+	"k8s.io/kubernetes/pkg/scheduler/framework"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/volumebinding"
 
 	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
@@ -432,6 +433,11 @@ func (ctx *Context) triggerReloadConfig(index int, configMap *v1.ConfigMap) {
 	if err := ctx.apiProvider.GetAPIs().SchedulerAPI.UpdateConfiguration(request); err != nil {
 		log.Log(log.ShimContext).Error("reload configuration failed", zap.Error(err))
 	}
+}
+
+// EventsToRegister returns the Kubernetes events that should be watched for updates which may effect predicate processing
+func (ctx *Context) EventsToRegister() []framework.ClusterEvent {
+	return ctx.predManager.EventsToRegister()
 }
 
 // evaluate given predicates based on current context
@@ -1039,6 +1045,7 @@ func (ctx *Context) HandleContainerStateUpdate(request *si.UpdateContainerSchedu
 		case si.UpdateContainerSchedulingStateRequest_SKIPPED:
 			// auto-scaler scans pods whose pod condition is PodScheduled=false && reason=Unschedulable
 			// if the pod is skipped because the queue quota has been exceed, we do not trigger the auto-scaling
+			task.SetTaskSchedulingState(interfaces.TaskSchedSkipped)
 			if ctx.updatePodCondition(task,
 				&v1.PodCondition{
 					Type:    v1.PodScheduled,
@@ -1051,6 +1058,7 @@ func (ctx *Context) HandleContainerStateUpdate(request *si.UpdateContainerSchedu
 					"Task %s is skipped from scheduling because the queue quota has been exceed", task.alias)
 			}
 		case si.UpdateContainerSchedulingStateRequest_FAILED:
+			task.SetTaskSchedulingState(interfaces.TaskSchedFailed)
 			// set pod condition to Unschedulable in order to trigger auto-scaling
 			if ctx.updatePodCondition(task,
 				&v1.PodCondition{

@@ -16,21 +16,19 @@
  limitations under the License.
 */
 
-package main
+package interfaces
 
-import (
-	"os"
+type TaskSchedulingState int8
 
-	"k8s.io/kubernetes/cmd/kube-scheduler/app"
-
-	"github.com/apache/yunikorn-k8shim/pkg/plugin"
+const (
+	TaskSchedPending TaskSchedulingState = iota
+	TaskSchedSkipped
+	TaskSchedFailed
+	TaskSchedAllocated
 )
 
-func main() {
-	command := app.NewSchedulerCommand(
-		app.WithPlugin(plugin.SchedulerPluginName, plugin.NewSchedulerPlugin))
+var taskSchedulingStateNames = []string{"Pending", "Skipped", "Failed", "Allocated"}
 
-	if err := command.Execute(); err != nil {
-		os.Exit(1)
-	}
+func (tss TaskSchedulingState) String() string {
+	return taskSchedulingStateNames[tss]
 }

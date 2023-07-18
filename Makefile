@@ -208,8 +208,7 @@ run_plugin: build_plugin
 	cd ${DEV_BIN_DIR} && \
 	KUBECONFIG="$(KUBECONFIG)" \
 	./${PLUGIN_BINARY} \
-	--address=0.0.0.0 \
-	--leader-elect=false \
+	--bind-address=0.0.0.0 \
 	--config=../../conf/scheduler-config-local.yaml \
 	-v=2
 

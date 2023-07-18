@@ -16,21 +16,18 @@
  limitations under the License.
 */
 
-package main
+package interfaces
 
 import (
-	"os"
+	"testing"
 
-	"k8s.io/kubernetes/cmd/kube-scheduler/app"
-
-	"github.com/apache/yunikorn-k8shim/pkg/plugin"
+	"gotest.tools/v3/assert"
 )
 
-func main() {
-	command := app.NewSchedulerCommand(
-		app.WithPlugin(plugin.SchedulerPluginName, plugin.NewSchedulerPlugin))
-
-	if err := command.Execute(); err != nil {
-		os.Exit(1)
-	}
+func TestTaskSchedulingState(t *testing.T) {
+	assert.Equal(t, len(taskSchedulingStateNames), 4, "wrong length")
+	assert.Equal(t, TaskSchedPending.String(), taskSchedulingStateNames[TaskSchedPending])
+	assert.Equal(t, TaskSchedSkipped.String(), taskSchedulingStateNames[TaskSchedSkipped])
+	assert.Equal(t, TaskSchedFailed.String(), taskSchedulingStateNames[TaskSchedFailed])
+	assert.Equal(t, TaskSchedAllocated.String(), taskSchedulingStateNames[TaskSchedAllocated])
 }

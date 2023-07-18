@@ -18,7 +18,9 @@
 
 package interfaces
 
-import v1 "k8s.io/api/core/v1"
+import (
+	v1 "k8s.io/api/core/v1"
+)
 
 type ManagedApp interface {
 	GetApplicationID() string
@@ -34,4 +36,6 @@ type ManagedTask interface {
 	GetTaskID() string
 	GetTaskState() string
 	GetTaskPod() *v1.Pod
+	SetTaskSchedulingState(state TaskSchedulingState)
+	GetTaskSchedulingState() TaskSchedulingState
 }

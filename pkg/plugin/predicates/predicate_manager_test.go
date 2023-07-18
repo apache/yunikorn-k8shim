@@ -128,6 +128,24 @@ func TestPreemptionPredicates(t *testing.T) {
 	assert.Equal(t, index, -1, "wrong index")
 }
 
+func TestEventsToRegister(t *testing.T) {
+	conf.GetSchedulerConf().SetTestMode(true)
+	clientSet := clientSet()
+	informerFactory := informerFactory(clientSet)
+	lister := lister()
+	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet)
+
+	ep := enabledPlugins(nodename.Name, interpodaffinity.Name, podtopologyspread.Name)
+	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
+
+	events := predicateManager.EventsToRegister()
+	assert.Equal(t, 2, len(events), "wrong event count")
+	assert.Equal(t, events[0].Resource, framework.Node, "wrong resource (0)")
+	assert.Equal(t, events[0].ActionType, framework.All, "wrong action type (0)")
+	assert.Equal(t, events[1].Resource, framework.Pod, "wrong resource (1)")
+	assert.Equal(t, events[1].ActionType, framework.All, "wrong action type (1)")
+}
+
 func TestPodFitsHost(t *testing.T) {
 	conf.GetSchedulerConf().SetTestMode(true)
 	clientSet := clientSet()

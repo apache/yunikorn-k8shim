@@ -56,6 +56,7 @@ type Task struct {
 	terminationType string
 	pluginMode      bool
 	originator      bool
+	schedulingState interfaces.TaskSchedulingState
 	sm              *fsm.FSM
 	lock            *sync.RWMutex
 }
@@ -91,20 +92,21 @@ func createTaskInternal(tid string, app *Application, resource *si.Resource,
 		pluginMode = ctx.IsPluginMode()
 	}
 	task := &Task{
-		taskID:        tid,
-		alias:         fmt.Sprintf("%s/%s", pod.Namespace, pod.Name),
-		applicationID: app.GetApplicationID(),
-		application:   app,
-		pod:           pod,
-		resource:      resource,
-		createTime:    pod.GetCreationTimestamp().Time,
-		placeholder:   placeholder,
-		taskGroupName: taskGroupName,
-		pluginMode:    pluginMode,
-		originator:    originator,
-		context:       ctx,
-		sm:            newTaskState(),
-		lock:          &sync.RWMutex{},
+		taskID:          tid,
+		alias:           fmt.Sprintf("%s/%s", pod.Namespace, pod.Name),
+		applicationID:   app.GetApplicationID(),
+		application:     app,
+		pod:             pod,
+		resource:        resource,
+		createTime:      pod.GetCreationTimestamp().Time,
+		placeholder:     placeholder,
+		taskGroupName:   taskGroupName,
+		pluginMode:      pluginMode,
+		originator:      originator,
+		context:         ctx,
+		sm:              newTaskState(),
+		schedulingState: interfaces.TaskSchedPending,
+		lock:            &sync.RWMutex{},
 	}
 	if tgName := utils.GetTaskGroupFromPodSpec(pod); tgName != "" {
 		task.taskGroupName = tgName
@@ -271,6 +273,18 @@ func (task *Task) isPreemptOtherAllowed() bool {
 	}
 }
 
+func (task *Task) SetTaskSchedulingState(state interfaces.TaskSchedulingState) {
+	task.lock.Lock()
+	defer task.lock.Unlock()
+	task.schedulingState = state
+}
+
+func (task *Task) GetTaskSchedulingState() interfaces.TaskSchedulingState {
+	task.lock.RLock()
+	defer task.lock.RUnlock()
+	return task.schedulingState
+}
+
 func (task *Task) handleSubmitTaskEvent() {
 	log.Log(log.ShimCacheTask).Debug("scheduling pod",
 		zap.String("podName", task.pod.Name))
@@ -378,6 +392,8 @@ func (task *Task) postTaskAllocated() {
 				v1.EventTypeNormal, "PodBindSuccessful", "PodBindSuccessful",
 				"Pod %s is successfully bound to node %s", task.alias, task.nodeName)
 		}
+
+		task.schedulingState = interfaces.TaskSchedAllocated
 	}()
 }
 
