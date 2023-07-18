@@ -25,9 +25,10 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
 )
 
-func LoadBootstrapConfigMaps(namespace string) ([]*v1.ConfigMap, error) {
+func LoadBootstrapConfigMaps() ([]*v1.ConfigMap, error) {
 	// we need a bootstrap client so that we can read the initial version of the configmap
 	kubeClient := NewBootstrapKubeClient(conf.GetDefaultKubeConfigPath())
+	namespace := conf.GetSchedulerNamespace()
 
 	defaults, err := kubeClient.GetConfigMap(namespace, constants.DefaultConfigMapName)
 	if err != nil {

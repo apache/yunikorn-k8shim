@@ -37,7 +37,7 @@ import (
 func main() {
 	log.Log(log.Shim).Info(conf.GetBuildInfoString())
 
-	configMaps, err := client.LoadBootstrapConfigMaps(conf.GetSchedulerNamespace())
+	configMaps, err := client.LoadBootstrapConfigMaps()
 	if err != nil {
 		log.Log(log.Shim).Fatal("Unable to bootstrap configuration", zap.Error(err))
 	}

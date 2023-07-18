@@ -253,7 +253,7 @@ func (sp *YuniKornSchedulerPlugin) PostBind(_ context.Context, _ *framework.Cycl
 func NewSchedulerPlugin(_ runtime.Object, handle framework.Handle) (framework.Plugin, error) {
 	log.Log(log.ShimSchedulerPlugin).Info(conf.GetBuildInfoString())
 
-	configMaps, err := client.LoadBootstrapConfigMaps(conf.GetSchedulerNamespace())
+	configMaps, err := client.LoadBootstrapConfigMaps()
 	if err != nil {
 		log.Log(log.ShimSchedulerPlugin).Fatal("Unable to bootstrap configuration", zap.Error(err))
 	}
