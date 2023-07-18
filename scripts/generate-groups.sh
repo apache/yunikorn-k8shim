@@ -22,6 +22,19 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
+function check_cmd() {
+  CMD=$1
+  if ! command -v "${CMD}" &> /dev/null
+  then
+    echo "command ${CMD} could not be found"
+    exit 1
+  fi
+}
+
+GO="${GO:-go}"
+check_cmd "${GO}"
+GOPATH="${GOPATH:-$("${GO}" env GOPATH)}"
+
 #Set GOPATH if GOPATH is empty.
 if [ "${GOPATH}" == "" ]; then
   echo "GOPATH is empty."

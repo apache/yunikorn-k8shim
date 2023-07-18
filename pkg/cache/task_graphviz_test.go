@@ -52,8 +52,8 @@ func TestTaskFsmGraph(t *testing.T) {
 	task := NewTask("task00", app, mockedContext, pod)
 	graph := fsm.Visualize(task.sm)
 
-	err := os.MkdirAll("../../_output/fsm", 0755)
+	err := os.MkdirAll("../../build/fsm", 0755)
 	assert.NilError(t, err, "Creating output dir failed")
-	os.WriteFile("../../_output/fsm/k8shim-task-state.dot", []byte(graph), 0644)
+	os.WriteFile("../../build/fsm/k8shim-task-state.dot", []byte(graph), 0644)
 	assert.NilError(t, err, "Writing graph failed")
 }

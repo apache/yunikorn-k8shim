@@ -19,6 +19,8 @@
 HELM=tools/helm
 KIND=tools/kind
 KUBECTL=tools/kubectl
+GO="${GO:-go}"
+export GO
 
 function check_cmd() {
   CMD=$1
@@ -84,7 +86,8 @@ function install_cluster() {
   # use latest helm charts from the release repo to install yunikorn unless path is provided
   if [ "${GIT_CLONE}" = "true" ]; then
     check_cmd "git"
-    git clone --depth 1 https://github.com/apache/yunikorn-release.git ./yunikorn-release
+    rm -rf ./build/yunikorn-release
+    git clone --depth 1 https://github.com/apache/yunikorn-release.git ./build/yunikorn-release
   fi
   if [ ! -d "${CHART_PATH}" ]; then
     exit_on_error "helm charts not found in path: ${CHART_PATH}"
@@ -99,8 +102,8 @@ function install_cluster() {
   exit_on_error "build test web images failed"
 
   # install ginkgo and gomega for e2e tests.
-  echo "step 4/7: installing Ginkgo & Gomega at $(go env GOPATH)/bin"
-  go install github.com/onsi/ginkgo/v2/ginkgo@v2.9.1
+  echo "step 4/7: installing Ginkgo & Gomega at $("${GO}" env GOPATH)/bin"
+  "${GO}" install github.com/onsi/ginkgo/v2/ginkgo@v2.9.1
   check_cmd "ginkgo"
 
   # create K8s cluster
@@ -165,18 +168,19 @@ Examples:
   ${NAME} -a test -n yk8s -v kindest/node:v1.27.3
 
   Use a local helm chart path:
-    ${NAME} -a test -n yk8s -v kindest/node:v1.27.3 -p ./yunikorn-release/helm-charts/yunikorn
+    ${NAME} -a test -n yk8s -v kindest/node:v1.27.3 -p ../yunikorn-release/helm-charts/yunikorn
 EOF
 }
 
 # setup architectures and OS type
+check_cmd "${GO}"
 check_cmd "make"
 eval "$(make arch)"
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')
 check_os
 
 KIND_CONFIG=./scripts/kind.yaml
-CHART_PATH="./yunikorn-release/helm-charts/yunikorn"
+CHART_PATH="./build/yunikorn-release/helm-charts/yunikorn"
 GIT_CLONE=true
 SCHEDULER_IMAGE="scheduler-${DOCKER_ARCH}-latest"
 ADMISSION_IMAGE="admission-${DOCKER_ARCH}-latest"
@@ -247,7 +251,7 @@ check_opt "kind-cluster-name" "${CLUSTER_NAME}"
 #     - delete k8s cluster
 if [ "${ACTION}" == "test" ]; then
   # make will fail without go installed but we call it before that...
-  check_cmd "go"
+  check_cmd "${GO}"
   check_opt "kind-node-image-version" "${CLUSTER_VERSION}"
   check_opt "chart-path" "${CHART_PATH}"
   install_cluster

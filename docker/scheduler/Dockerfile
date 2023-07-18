@@ -14,14 +14,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-ARG ARCH=
-FROM ${ARCH}alpine:latest
-
-# Home location for all data and executables
-ENV HOME=/opt/yunikorn
-
-COPY simulation-gang-worker $HOME/
-
-WORKDIR $HOME
-ENTRYPOINT ["./simulation-gang-worker"]
+FROM --platform=$TARGETPLATFORM scratch
+COPY --chown=0:0 yunikorn-scheduler /
+USER 4444:4444
+ENTRYPOINT [ "/yunikorn-scheduler" ]
