@@ -1,9 +1,11 @@
 .idea
 _output/
 _spark/
+tools/
 coverage.txt
 yunikorn-release
 shellcheck
 *.csr
 *.crt
 *.key
+*.test
