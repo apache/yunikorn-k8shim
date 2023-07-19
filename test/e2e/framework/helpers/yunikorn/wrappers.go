@@ -92,6 +92,8 @@ func UpdateCustomConfigMapWrapper(oldConfigMap *v1.ConfigMap, schedPolicy string
 		err = common.SetSchedulingPolicy(sc, "default", "root", schedPolicy)
 		Ω(err).NotTo(HaveOccurred())
 	}
+	// Wait for 1 second to set a new timestamp. If we don't wait for it, we may get a same timestamp.
+	time.Sleep(1 * time.Second)
 	ts, tsErr := common.SetQueueTimestamp(sc, "default", "root")
 	Ω(tsErr).NotTo(HaveOccurred())
 
