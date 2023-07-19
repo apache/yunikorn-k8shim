@@ -176,6 +176,81 @@ var _ = ginkgo.Describe("PriorityScheduling", func() {
 		validatePodSchedulingOrder(ns, sleepPodConf, lowPodConf, normalPodConf, highPodConf)
 	})
 
+	ginkgo.It("Verify_Priority_Offset_Queue_App_Scheduling_Order", func() {
+		By("Setting custom YuniKorn configuration")
+		annotation = "ann-" + common.RandSeq(10)
+		yunikorn.UpdateCustomConfigMapWrapper(oldConfigMap, "fifo", annotation, func(sc *configs.SchedulerConfig) error {
+			// remove placement rules so we can control queue
+			sc.Partitions[0].PlacementRules = nil
+
+			if err = common.AddQueue(sc, "default", "root", configs.QueueConfig{
+				Name:       "priority",
+				Parent:     true,
+				Resources:  configs.Resources{Max: map[string]string{siCommon.CPU: "100m", siCommon.Memory: "100M"}},
+				Properties: map[string]string{configs.PriorityPolicy: "fence"},
+			}); err != nil {
+				return err
+			}
+			if err = common.AddQueue(sc, "default", "root.priority", configs.QueueConfig{
+				Name:       "high",
+				Properties: map[string]string{configs.PriorityOffset: "100"},
+			}); err != nil {
+				return err
+			}
+			if err = common.AddQueue(sc, "default", "root.priority", configs.QueueConfig{
+				Name:       "normal",
+				Properties: map[string]string{configs.PriorityOffset: "0"},
+			}); err != nil {
+				return err
+			}
+			if err = common.AddQueue(sc, "default", "root.priority", configs.QueueConfig{
+				Name:       "low",
+				Properties: map[string]string{configs.PriorityOffset: "-100"},
+			}); err != nil {
+				return err
+			}
+
+			return nil
+		})
+
+		sleepPodConf = k8s.TestPodConfig{
+			Name: "test-sleep-" + common.RandSeq(5),
+			Labels: map[string]string{
+				constants.LabelQueueName:     "root.priority.high",
+				constants.LabelApplicationID: "app-sleep-" + common.RandSeq(5)},
+			Namespace: ns,
+			Resources: rr,
+		}
+
+		lowPodConf = k8s.TestPodConfig{
+			Name: "test-low-priority-" + common.RandSeq(5),
+			Labels: map[string]string{
+				constants.LabelQueueName:     "root.priority.low",
+				constants.LabelApplicationID: "app-low-" + common.RandSeq(5)},
+			Namespace: ns,
+			Resources: rr,
+		}
+
+		normalPodConf = k8s.TestPodConfig{
+			Name: "test-normal-priority-" + common.RandSeq(5),
+			Labels: map[string]string{
+				constants.LabelQueueName:     "root.priority.normal",
+				constants.LabelApplicationID: "app-normal-" + common.RandSeq(5)},
+			Resources: rr,
+			Namespace: ns,
+		}
+
+		highPodConf = k8s.TestPodConfig{
+			Name: "test-high-priority-" + common.RandSeq(5),
+			Labels: map[string]string{
+				constants.LabelQueueName:     "root.priority.high",
+				constants.LabelApplicationID: "app-high-" + common.RandSeq(5)},
+			Namespace: ns,
+			Resources: rr,
+		}
+		validatePodSchedulingOrder(ns, sleepPodConf, lowPodConf, normalPodConf, highPodConf)
+	})
+
 	ginkgo.AfterEach(func() {
 		testDescription := ginkgo.CurrentSpecReport()
 		if testDescription.Failed() {
