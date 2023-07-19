@@ -25,7 +25,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/looplab/fsm"
 	"go.uber.org/zap"
+	v1 "k8s.io/api/core/v1"
+	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
 
 	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/yunikorn-k8shim/pkg/common"
@@ -35,9 +38,6 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
-
-	"github.com/looplab/fsm"
-	v1 "k8s.io/api/core/v1"
 )
 
 type Task struct {
@@ -48,6 +48,7 @@ type Task struct {
 	allocationUUID  string
 	resource        *si.Resource
 	pod             *v1.Pod
+	podStatus       v1.PodStatus // pod status, maintained separately for efficiency reasons
 	context         *Context
 	nodeName        string
 	createTime      time.Time
@@ -97,6 +98,7 @@ func createTaskInternal(tid string, app *Application, resource *si.Resource,
 		applicationID:   app.GetApplicationID(),
 		application:     app,
 		pod:             pod,
+		podStatus:       *pod.Status.DeepCopy(),
 		resource:        resource,
 		createTime:      pod.GetCreationTimestamp().Time,
 		placeholder:     placeholder,
@@ -557,4 +559,26 @@ func (task *Task) sanityCheckBeforeScheduling() error {
 		}
 	}
 	return nil
+}
+
+func (task *Task) UpdatePodCondition(podCondition *v1.PodCondition) (bool, *v1.Pod) {
+	task.lock.Lock()
+	defer task.lock.Unlock()
+
+	status := task.podStatus.DeepCopy()
+	pod := task.pod.DeepCopy()
+	pod.Status = *status
+	if !utils.PodUnderCondition(pod, podCondition) {
+		log.Log(log.ShimContext).Debug("updating pod condition",
+			zap.String("namespace", task.pod.Namespace),
+			zap.String("name", task.pod.Name),
+			zap.Any("podCondition", podCondition))
+		if podutil.UpdatePodCondition(&task.podStatus, podCondition) {
+			status = task.podStatus.DeepCopy()
+			pod.Status = *status
+			return true, pod
+		}
+	}
+
+	return false, pod
 }

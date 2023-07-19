@@ -658,3 +658,86 @@ func TestSimultaneousTaskCompleteAndAllocate(t *testing.T) {
 	assert.NilError(t, err, "failed to handle AllocateTask event")
 	assert.Equal(t, task1.GetTaskState(), TaskStates().Completed)
 }
+
+func TestUpdatePodCondition(t *testing.T) {
+	condition := v1.PodCondition{
+		Type:   v1.ContainersReady,
+		Status: v1.ConditionTrue,
+		Reason: v1.PodReasonSchedulingGated,
+	}
+
+	pod := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "pod-test-00001",
+		},
+		Status: v1.PodStatus{
+			Phase: v1.PodPending,
+		},
+	}
+	app := NewApplication(appID, "root.default", "user", testGroups, map[string]string{}, nil)
+	task := NewTask("pod-1", app, nil, pod)
+	updated, podCopy := task.UpdatePodCondition(&condition)
+	assert.Equal(t, true, updated)
+	assert.Equal(t, 1, len(podCopy.Status.Conditions))
+	assert.Equal(t, v1.ConditionTrue, podCopy.Status.Conditions[0].Status)
+	assert.Equal(t, v1.ContainersReady, podCopy.Status.Conditions[0].Type)
+	assert.Equal(t, v1.PodReasonSchedulingGated, podCopy.Status.Conditions[0].Reason)
+	assert.Equal(t, v1.PodPending, podCopy.Status.Phase)
+	assert.Equal(t, 1, len(task.podStatus.Conditions))
+	assert.Equal(t, v1.ConditionTrue, task.podStatus.Conditions[0].Status)
+	assert.Equal(t, v1.ContainersReady, task.podStatus.Conditions[0].Type)
+	assert.Equal(t, v1.PodReasonSchedulingGated, task.podStatus.Conditions[0].Reason)
+	assert.Equal(t, v1.PodPending, task.podStatus.Phase)
+
+	podWithCondition := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "pod-test-00001",
+		},
+		Status: v1.PodStatus{
+			Phase: v1.PodPending,
+			Conditions: []v1.PodCondition{
+				condition,
+			},
+		},
+	}
+	app = NewApplication(appID, "root.default", "user", testGroups, map[string]string{}, nil)
+	task = NewTask("pod-1", app, nil, podWithCondition)
+
+	// no update
+	updated, podCopy = task.UpdatePodCondition(&condition)
+	assert.Equal(t, false, updated)
+	assert.Equal(t, 1, len(task.podStatus.Conditions))
+	assert.Equal(t, v1.ConditionTrue, task.podStatus.Conditions[0].Status)
+	assert.Equal(t, v1.ContainersReady, task.podStatus.Conditions[0].Type)
+	assert.Equal(t, v1.PodPending, task.podStatus.Phase)
+	assert.Equal(t, v1.PodReasonSchedulingGated, task.podStatus.Conditions[0].Reason)
+	assert.Equal(t, 1, len(podCopy.Status.Conditions))
+	assert.Equal(t, v1.ConditionTrue, podCopy.Status.Conditions[0].Status)
+	assert.Equal(t, v1.ContainersReady, podCopy.Status.Conditions[0].Type)
+	assert.Equal(t, v1.PodPending, podCopy.Status.Phase)
+	assert.Equal(t, v1.PodReasonSchedulingGated, podCopy.Status.Conditions[0].Reason)
+
+	// update status & reason
+	condition.Status = v1.ConditionFalse
+	condition.Reason = v1.PodReasonUnschedulable
+	updated, podCopy = task.UpdatePodCondition(&condition)
+	assert.Equal(t, true, updated)
+	assert.Equal(t, 1, len(task.podStatus.Conditions))
+	assert.Equal(t, v1.ConditionFalse, task.podStatus.Conditions[0].Status)
+	assert.Equal(t, v1.ContainersReady, task.podStatus.Conditions[0].Type)
+	assert.Equal(t, v1.PodPending, task.podStatus.Phase)
+	assert.Equal(t, v1.PodReasonUnschedulable, task.podStatus.Conditions[0].Reason)
+	assert.Equal(t, 1, len(podCopy.Status.Conditions))
+	assert.Equal(t, v1.ConditionFalse, podCopy.Status.Conditions[0].Status)
+	assert.Equal(t, v1.ContainersReady, podCopy.Status.Conditions[0].Type)
+	assert.Equal(t, v1.PodPending, podCopy.Status.Phase)
+	assert.Equal(t, v1.PodReasonUnschedulable, podCopy.Status.Conditions[0].Reason)
+}

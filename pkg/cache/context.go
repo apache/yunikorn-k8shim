@@ -30,7 +30,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	schedulingv1 "k8s.io/api/scheduling/v1"
 	"k8s.io/client-go/tools/cache"
-	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/volumebinding"
 
@@ -1014,24 +1013,17 @@ func (ctx *Context) updatePodCondition(task *Task, podCondition *v1.PodCondition
 	if task.GetTaskState() == TaskStates().Scheduling {
 		// only update the pod when pod condition changes
 		// minimize the overhead added to the api-server/etcd
-		if !utils.PodUnderCondition(task.pod, podCondition) {
-			log.Log(log.ShimContext).Debug("updating pod condition",
-				zap.String("namespace", task.pod.Namespace),
-				zap.String("name", task.pod.Name),
-				zap.Any("podCondition", podCondition))
-			// call api-server to do the pod condition update
-			if podutil.UpdatePodCondition(&task.pod.Status, podCondition) {
-				podCopy := task.pod.DeepCopy()
-				_, err := ctx.apiProvider.GetAPIs().KubeClient.UpdateStatus(podCopy)
-				if err == nil {
-					return true
-				}
-				// only log the error here, no need to handle it if the update failed
-				log.Log(log.ShimContext).Error("update pod condition failed",
-					zap.Error(err))
+		if ok, podCopy := task.UpdatePodCondition(podCondition); ok {
+			_, err := ctx.apiProvider.GetAPIs().KubeClient.UpdateStatus(podCopy)
+			if err == nil {
+				return true
 			}
+			// only log the error here, no need to handle it if the update failed
+			log.Log(log.ShimContext).Error("update pod condition failed",
+				zap.Error(err))
 		}
 	}
+
 	return false
 }
 
