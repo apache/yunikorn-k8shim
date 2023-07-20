@@ -19,15 +19,21 @@
 package general
 
 import (
+	"strings"
 	"testing"
+	"time"
 
 	"gotest.tools/v3/assert"
 	v1 "k8s.io/api/core/v1"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	k8sEvents "k8s.io/client-go/tools/events"
 
 	"github.com/apache/yunikorn-k8shim/pkg/cache"
+	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
+	"github.com/apache/yunikorn-k8shim/pkg/common/events"
+	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
 )
 
@@ -100,38 +106,110 @@ func TestRecoveryDone(t *testing.T) {
 	assert.Equal(t, false, podEventHandler.recoveryRunning)
 }
 
-func TestAllowSimilarAppIdsByDifferentUsers(t *testing.T) {
-	amProtocol := cache.NewMockedAMProtocol()
-	podEventHandler := NewPodEventHandler(amProtocol, false)
+func TestSingleUserPerApplication(t *testing.T) {
+	conf.GetSchedulerConf().SetTestMode(true)
+	api := client.NewMockedAPIProvider(false)
+	cache.NewContext(api)
+	recorder, ok := events.GetRecorder().(*k8sEvents.FakeRecorder)
+	if !ok {
+		t.Fatal("the EventRecorder is expected to be of type FakeRecorder")
+	}
 
-	// create new app appID
-	pod1 := newPodByUser("pod1", "test")
-	app1 := podEventHandler.HandleEvent(AddPod, Informers, pod1)
-	assert.Equal(t, len(podEventHandler.asyncEvents), 0)
-	assert.Assert(t, app1 != nil)
-	app1.SetState(cache.ApplicationStates().Running)
+	amprotocol := cache.NewMockedAMProtocol()
+	podEvent := NewPodEventHandler(amprotocol, false)
 
-	// create same app appID and ensure app obj is getting created because allowSimilarAppIdsByDifferentUsers is false by default
-	pod2 := newPodByUser("pod1", "test")
-	app2 := podEventHandler.HandleEvent(AddPod, Informers, pod2)
-	assert.Assert(t, app2 != nil)
-	app2.SetState(cache.ApplicationStates().Accepted)
+	am := NewManager(client.NewMockedAPIProvider(false), podEvent)
+
+	pod1 := v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name:      "pod00001",
+			Namespace: "default",
+			UID:       "UID-POD-00001",
+			Labels: map[string]string{
+				"queue":                        "root.a",
+				"yunikorn.apache.org/username": "test",
+				"applicationId":                appID,
+			},
+		},
+		Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
+		Status: v1.PodStatus{
+			Phase: v1.PodPending,
+		},
+	}
+
+	// submit the app
+	am.AddPod(&pod1)
+
+	pod := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name:      "pod00002",
+			Namespace: "default",
+			UID:       "UID-POD-00002",
+			Labels: map[string]string{
+				"queue":                        "root.a",
+				"yunikorn.apache.org/username": "test1",
+				"applicationId":                appID,
+			},
+		},
+		Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
+		Status: v1.PodStatus{
+			Phase: v1.PodPending,
+		},
+	}
+
+	// submit the same app with different user
+	am.AddPod(pod)
+
+	message := "Rejecting the application because already application exists with different user"
+	reason := "SingleUserPerApplication has been configured to true. So rejecting the application because it has been submitted by different user. " +
+		"Either you can disable the check by not setting SingleUserPerApplication or try submitting a application by same use. " +
+		"By default, SingleUserPerApplication is false"
+
+	// ensure there is no event
+	err := utils.WaitForCondition(func() bool {
+		for {
+			select {
+			case event := <-recorder.Events:
+				if strings.Contains(event, reason) && strings.Contains(event, message) {
+					return true
+				}
+			default:
+				return false
+			}
+		}
+	}, 50*time.Millisecond, 20*time.Millisecond)
+	assert.Error(t, err, "timeout waiting for condition")
 
 	// set SingleUserPerApplication to true
-	err := conf.UpdateConfigMaps([]*v1.ConfigMap{
+	err = conf.UpdateConfigMaps([]*v1.ConfigMap{
 		{Data: map[string]string{conf.CMSvcSingleUserPerApplication: "true"}},
 	}, true)
 	assert.NilError(t, err, "UpdateConfigMap failed")
 
-	// create same app appID and ensure app is accepted
-	pod2 = newPodByUser("pod1", "test")
-	app3 := podEventHandler.HandleEvent(AddPod, Informers, pod2)
-	assert.Assert(t, app3 != nil)
+	// submit the same app with different user and ensure specific rejection event has been published
+	am.AddPod(pod)
 
-	// create same app appID and ensure app is rejected because user is different from earlier submission
-	pod2 = newPodByUser("pod1", "test1")
-	app4 := podEventHandler.HandleEvent(AddPod, Informers, pod2)
-	assert.Assert(t, app4 == nil)
+	err = utils.WaitForCondition(func() bool {
+		for {
+			select {
+			case event := <-recorder.Events:
+				if strings.Contains(event, reason) && strings.Contains(event, message) {
+					return true
+				}
+			default:
+				return false
+			}
+		}
+	}, 50*time.Millisecond, 20*time.Millisecond)
+	assert.NilError(t, err, "event should have been emitted")
 }
 
 func newPod(name string) *v1.Pod {

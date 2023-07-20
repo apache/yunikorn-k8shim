@@ -25,6 +25,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
+	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
@@ -129,10 +130,16 @@ func (p *PodEventHandler) addPod(pod *v1.Pod, eventSource EventSource) interface
 			})
 		} else {
 			if conf.GetSchedulerConf().GetSingleUserPerApplication() && app.GetUser() != appMeta.User {
-				log.Log(log.ShimAppMgmtGeneral).Warn("application has been submitted by different user",
+				log.Log(log.ShimAppMgmtGeneral).Warn("rejecting application as it has been submitted by different user",
 					zap.String("app id ", appMeta.ApplicationID),
 					zap.String("app user", app.GetUser()),
 					zap.String("submitted by", appMeta.User))
+				events.GetRecorder().Eventf(pod.DeepCopy(), nil, v1.EventTypeWarning,
+					"Rejecting the application because already application exists with different user",
+					"Please try submitting a application by same user",
+					"SingleUserPerApplication has been configured to true. So rejecting the application because it has been submitted by different user. "+
+						"Either you can disable the check by not setting SingleUserPerApplication or try submitting a application by same use. "+
+						"By default, SingleUserPerApplication is false")
 				return nil
 			}
 			managedApp = app
