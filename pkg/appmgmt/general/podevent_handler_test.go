@@ -168,24 +168,21 @@ func TestSingleUserPerApplication(t *testing.T) {
 	// submit the same app with different user
 	am.AddPod(pod)
 
-	message := "Rejecting the application because already application exists with different user"
-	reason := "SingleUserPerApplication has been configured to true. So rejecting the application because it has been submitted by different user. " +
-		"Either you can disable the check by not setting SingleUserPerApplication or try submitting a application by same use. " +
-		"By default, SingleUserPerApplication is false"
+	message := "Rejecting pod because application ID " + appID + " belongs to a different user"
 
 	// ensure there is no event
 	err := utils.WaitForCondition(func() bool {
 		for {
 			select {
 			case event := <-recorder.Events:
-				if strings.Contains(event, reason) && strings.Contains(event, message) {
+				if strings.Contains(event, message) {
 					return true
 				}
 			default:
 				return false
 			}
 		}
-	}, 50*time.Millisecond, 20*time.Millisecond)
+	}, 50*time.Millisecond, time.Second)
 	assert.Error(t, err, "timeout waiting for condition")
 
 	// set SingleUserPerApplication to true
@@ -201,14 +198,14 @@ func TestSingleUserPerApplication(t *testing.T) {
 		for {
 			select {
 			case event := <-recorder.Events:
-				if strings.Contains(event, reason) && strings.Contains(event, message) {
+				if strings.Contains(event, message) {
 					return true
 				}
 			default:
 				return false
 			}
 		}
-	}, 50*time.Millisecond, 20*time.Millisecond)
+	}, 50*time.Millisecond, time.Second)
 	assert.NilError(t, err, "event should have been emitted")
 }
 

@@ -19,6 +19,7 @@
 package general
 
 import (
+	"fmt"
 	"sync"
 
 	"go.uber.org/zap"
@@ -135,11 +136,7 @@ func (p *PodEventHandler) addPod(pod *v1.Pod, eventSource EventSource) interface
 					zap.String("app user", app.GetUser()),
 					zap.String("submitted by", appMeta.User))
 				events.GetRecorder().Eventf(pod.DeepCopy(), nil, v1.EventTypeWarning,
-					"Rejecting the application because already application exists with different user",
-					"Please try submitting a application by same user",
-					"SingleUserPerApplication has been configured to true. So rejecting the application because it has been submitted by different user. "+
-						"Either you can disable the check by not setting SingleUserPerApplication or try submitting a application by same use. "+
-						"By default, SingleUserPerApplication is false")
+					fmt.Sprintf("Rejecting pod because application ID %s belongs to a different user", appMeta.ApplicationID), "", "")
 				return nil
 			}
 			managedApp = app
