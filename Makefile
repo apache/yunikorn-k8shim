@@ -54,8 +54,6 @@ DOCKER_DIR=${OUTPUT}/docker
 SCHEDULER_BINARY=yunikorn-scheduler
 PLUGIN_BINARY=yunikorn-scheduler-plugin
 ADMISSION_CONTROLLER_BINARY=yunikorn-admission-controller
-GANG_CLIENT_BINARY=simulation-gang-worker
-GANG_SERVER_BINARY=simulation-gang-coordinator
 TEST_SERVER_BINARY=web-test-server
 
 TOOLS_DIR=tools
@@ -436,51 +434,6 @@ adm_image: admission docker/admission
 	--label "yunikorn-k8shim-revision=${SHIM_SHA}" \
 	--label "BuildTimeStamp=${DATE}" \
 	--label "Version=${VERSION}" \
-	${QUIET}
-
-# Build gang web server and client binary in a production ready version
-.PHONY: simulation
-simulation: $(RELEASE_BIN_DIR)/$(GANG_CLIENT_BINARY) $(RELEASE_BIN_DIR)/$(GANG_SERVER_BINARY)
-
-$(RELEASE_BIN_DIR)/$(GANG_CLIENT_BINARY): go.mod go.sum pkg
-	@echo "building gang web client binary"
-	@mkdir -p "$(RELEASE_BIN_DIR)"
-	CGO_ENABLED=0 GOOS=linux GOARCH="${EXEC_ARCH}" "$(GO)" build \
-	-a \
-	-o=${RELEASE_BIN_DIR}/${GANG_CLIENT_BINARY} \
-	-ldflags '-extldflags "-static" -X main.version=${VERSION} -X main.date=${DATE} -X main.goVersion=${GO_VERSION} -X main.arch=${EXEC_ARCH}' \
-	-tags netgo \
-	-installsuffix netgo \
-	./pkg/simulation/gang/gangclient
-
-$(RELEASE_BIN_DIR)/$(GANG_SERVER_BINARY): go.mod go.sum pkg
-	@echo "building gang web server binary"
-	@mkdir -p "$(RELEASE_BIN_DIR)"
-	CGO_ENABLED=0 GOOS=linux GOARCH="${EXEC_ARCH}" "$(GO)" build \
-	-a \
-	-o="$(RELEASE_BIN_DIR)/$(GANG_SERVER_BINARY)" \
-	-ldflags '-extldflags "-static" -X main.version=${VERSION} -X main.date=${DATE} -X main.goVersion=${GO_VERSION} -X main.arch=${EXEC_ARCH}' \
-	-tags netgo \
-	-installsuffix netgo \
-	./pkg/simulation/gang/webserver
-
-# Build gang test images based on the production ready version
-.PHONY: simulation_image
-simulation_image: simulation
-	@rm -rf "$(DOCKER_DIR)/gangclient" "$(DOCKER_DIR)/gangserver"
-	@mkdir -p "$(DOCKER_DIR)/gangclient" "$(DOCKER_DIR)/gangserver"
-	@cp -a "docker/gangclient/." "$(DOCKER_DIR)/gangclient/."
-	@cp -a "docker/gangserver/." "$(DOCKER_DIR)/gangserver/."
-	@echo "building gang test docker images"
-	@cp "$(RELEASE_BIN_DIR)/$(GANG_CLIENT_BINARY)" "$(DOCKER_DIR)/gangclient/."
-	@cp "$(RELEASE_BIN_DIR)/$(GANG_SERVER_BINARY)" "$(DOCKER_DIR)/gangserver/."
-	DOCKER_BUILDKIT=1 docker build \
-	"$(DOCKER_DIR)/gangclient" \
-	-t "${REGISTRY}/yunikorn:simulation-gang-worker-${VERSION}" \
-	${QUIET}
-	DOCKER_BUILDKIT=1 docker build \
-	"$(DOCKER_DIR)/gangserver" \
-	-t "${REGISTRY}/yunikorn:simulation-gang-coordinator-${VERSION}" \
 	${QUIET}
 
 # Build all images based on the production ready version
