@@ -33,27 +33,39 @@ import (
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
+	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
+)
+
+const (
+	requestCPU = "100m"
+	requestMem = "100M"
 )
 
 var rr = &v1.ResourceRequirements{
 	Requests: v1.ResourceList{
-		"cpu":    resource.MustParse("100m"),
-		"memory": resource.MustParse("100M"),
+		v1.ResourceCPU:    resource.MustParse(requestCPU),
+		v1.ResourceMemory: resource.MustParse(requestMem),
 	},
 }
 
-var _ = ginkgo.Describe("Static_Queue_Priority", func() {
+var _ = ginkgo.Describe("PriorityScheduling", func() {
 	var ns string
+	var namespace *v1.Namespace
 	var err error
 	var oldConfigMap = new(v1.ConfigMap)
 	var annotation string
 	var sleepPodConf, lowPodConf, normalPodConf, highPodConf k8s.TestPodConfig
 
 	ginkgo.BeforeEach(func() {
-		var namespace *v1.Namespace
-
 		ns = "test-" + common.RandSeq(10)
 
+		By(fmt.Sprintf("Creating test namespace %s", ns))
+		namespace, err = kubeClient.CreateNamespace(ns, map[string]string{})
+		Ω(err).ShouldNot(HaveOccurred())
+		Ω(namespace.Status.Phase).Should(Equal(v1.NamespaceActive))
+	})
+
+	ginkgo.It("Verify_Static_Queue_App_Scheduling_Order", func() {
 		By("Setting custom YuniKorn configuration")
 		annotation = "ann-" + common.RandSeq(10)
 		yunikorn.UpdateCustomConfigMapWrapper(oldConfigMap, "fifo", annotation, func(sc *configs.SchedulerConfig) error {
@@ -63,8 +75,8 @@ var _ = ginkgo.Describe("Static_Queue_Priority", func() {
 			if err = common.AddQueue(sc, "default", "root", configs.QueueConfig{
 				Name:       "fence",
 				Parent:     true,
-				Resources:  configs.Resources{Max: map[string]string{"vcore": "100m", "memory": "100M"}},
-				Properties: map[string]string{"priority.policy": "fence"},
+				Resources:  configs.Resources{Max: map[string]string{siCommon.CPU: requestCPU, siCommon.Memory: requestMem}},
+				Properties: map[string]string{configs.PriorityPolicy: "fence"},
 			}); err != nil {
 				return err
 			}
@@ -77,18 +89,6 @@ var _ = ginkgo.Describe("Static_Queue_Priority", func() {
 
 			return nil
 		})
-
-		By(fmt.Sprintf("Creating test namespace %s", ns))
-		namespace, err = kubeClient.CreateNamespace(ns, map[string]string{})
-		Ω(err).ShouldNot(HaveOccurred())
-		Ω(namespace.Status.Phase).Should(Equal(v1.NamespaceActive))
-
-		rr = &v1.ResourceRequirements{
-			Requests: v1.ResourceList{
-				"cpu":    resource.MustParse("100m"),
-				"memory": resource.MustParse("100M"),
-			},
-		}
 
 		sleepPodConf = k8s.TestPodConfig{
 			Name: "test-sleep-" + common.RandSeq(5),
@@ -128,55 +128,20 @@ var _ = ginkgo.Describe("Static_Queue_Priority", func() {
 			Resources:         rr,
 			PriorityClassName: highPriorityClass.Name,
 		}
-	})
-
-	ginkgo.It("Verify_Dynamic_Queue_Scheduling_Order", func() {
 		validatePodSchedulingOrder(ns, sleepPodConf, lowPodConf, normalPodConf, highPodConf)
 	})
 
-	ginkgo.AfterEach(func() {
-		testDescription := ginkgo.CurrentSpecReport()
-		if testDescription.Failed() {
-			tests.LogTestClusterInfoWrapper(testDescription.FailureMessage(), []string{ns})
-			tests.LogYunikornContainer(testDescription.FailureMessage())
-		}
-		By(fmt.Sprintf("Tearing down namespace %s", ns))
-		err = kubeClient.TearDownNamespace(ns)
-		Ω(err).ShouldNot(HaveOccurred())
-
-		By("Restoring YuniKorn configuration")
-		yunikorn.RestoreConfigMapWrapper(oldConfigMap, annotation)
-	})
-})
-
-var _ = ginkgo.Describe("Dynamic_Queue_Priority", func() {
-	var ns string
-	var err error
-	var oldConfigMap = new(v1.ConfigMap)
-	var annotation string
-	var sleepPodConf, lowPodConf, normalPodConf, highPodConf k8s.TestPodConfig
-
-	ginkgo.BeforeEach(func() {
-		var namespace *v1.Namespace
-
+	ginkgo.It("Verify_Dynamic_Queue_App_Scheduling_Order", func() {
 		By("Setting custom YuniKorn configuration")
 		annotation = "ann-" + common.RandSeq(10)
 		yunikorn.UpdateConfigMapWrapper(oldConfigMap, "fifo", annotation)
 
-		ns = "test-" + common.RandSeq(10)
-
-		By(fmt.Sprintf("Creating test namespace %s", ns))
-		namespace, err = kubeClient.CreateNamespace(ns, map[string]string{
-			constants.NamespaceQuota: "{\"cpu\": \"100m\", \"memory\": \"100M\"}"})
+		By(fmt.Sprintf("Update test namespace quota %s", ns))
+		namespace, err = kubeClient.UpdateNamespace(ns, map[string]string{
+			constants.NamespaceQuota: fmt.Sprintf("{\"%s\": \"%s\", \"%s\": \"%s\"}", v1.ResourceCPU, requestCPU, v1.ResourceMemory, requestMem),
+		})
 		Ω(err).ShouldNot(HaveOccurred())
 		Ω(namespace.Status.Phase).Should(Equal(v1.NamespaceActive))
-
-		rr = &v1.ResourceRequirements{
-			Requests: v1.ResourceList{
-				"cpu":    resource.MustParse("100m"),
-				"memory": resource.MustParse("100M"),
-			},
-		}
 
 		sleepPodConf = k8s.TestPodConfig{
 			Name:      "test-sleep-" + common.RandSeq(5),
@@ -208,16 +173,101 @@ var _ = ginkgo.Describe("Dynamic_Queue_Priority", func() {
 			Resources:         rr,
 			PriorityClassName: highPriorityClass.Name,
 		}
+		validatePodSchedulingOrder(ns, sleepPodConf, lowPodConf, normalPodConf, highPodConf)
 	})
 
-	ginkgo.It("Verify_Dynamic_Queue_App_Scheduling_Order", func() {
+	ginkgo.It("Verify_Priority_Offset_Queue_App_Scheduling_Order", func() {
+		By("Setting custom YuniKorn configuration")
+		annotation = "ann-" + common.RandSeq(10)
+		yunikorn.UpdateCustomConfigMapWrapper(oldConfigMap, "fifo", annotation, func(sc *configs.SchedulerConfig) error {
+			// remove placement rules so we can control queue
+			sc.Partitions[0].PlacementRules = nil
+
+			if err = common.AddQueue(sc, "default", "root", configs.QueueConfig{
+				Name:       "priority",
+				Parent:     true,
+				Resources:  configs.Resources{Max: map[string]string{siCommon.CPU: "100m", siCommon.Memory: "100M"}},
+				Properties: map[string]string{configs.PriorityPolicy: "fence"},
+			}); err != nil {
+				return err
+			}
+			if err = common.AddQueue(sc, "default", "root.priority", configs.QueueConfig{
+				Name:       "high",
+				Properties: map[string]string{configs.PriorityOffset: "100"},
+			}); err != nil {
+				return err
+			}
+			if err = common.AddQueue(sc, "default", "root.priority", configs.QueueConfig{
+				Name:       "normal",
+				Properties: map[string]string{configs.PriorityOffset: "0"},
+			}); err != nil {
+				return err
+			}
+			if err = common.AddQueue(sc, "default", "root.priority", configs.QueueConfig{
+				Name:       "low",
+				Properties: map[string]string{configs.PriorityOffset: "-100"},
+			}); err != nil {
+				return err
+			}
+
+			return nil
+		})
+
+		sleepPodConf = k8s.TestPodConfig{
+			Name: "test-sleep-" + common.RandSeq(5),
+			Labels: map[string]string{
+				constants.LabelQueueName:     "root.priority.high",
+				constants.LabelApplicationID: "app-sleep-" + common.RandSeq(5)},
+			Namespace: ns,
+			Resources: rr,
+		}
+
+		lowPodConf = k8s.TestPodConfig{
+			Name: "test-low-priority-" + common.RandSeq(5),
+			Labels: map[string]string{
+				constants.LabelQueueName:     "root.priority.low",
+				constants.LabelApplicationID: "app-low-" + common.RandSeq(5)},
+			Namespace: ns,
+			Resources: rr,
+		}
+
+		normalPodConf = k8s.TestPodConfig{
+			Name: "test-normal-priority-" + common.RandSeq(5),
+			Labels: map[string]string{
+				constants.LabelQueueName:     "root.priority.normal",
+				constants.LabelApplicationID: "app-normal-" + common.RandSeq(5)},
+			Resources: rr,
+			Namespace: ns,
+		}
+
+		highPodConf = k8s.TestPodConfig{
+			Name: "test-high-priority-" + common.RandSeq(5),
+			Labels: map[string]string{
+				constants.LabelQueueName:     "root.priority.high",
+				constants.LabelApplicationID: "app-high-" + common.RandSeq(5)},
+			Namespace: ns,
+			Resources: rr,
+		}
 		validatePodSchedulingOrder(ns, sleepPodConf, lowPodConf, normalPodConf, highPodConf)
 	})
 
 	ginkgo.AfterEach(func() {
-		By("Tear down namespace: " + ns)
-		err := kubeClient.TearDownNamespace(ns)
-		Ω(err).NotTo(HaveOccurred())
+		testDescription := ginkgo.CurrentSpecReport()
+		if testDescription.Failed() {
+			tests.LogTestClusterInfoWrapper(testDescription.FailureMessage(), []string{ns})
+			tests.LogYunikornContainer(testDescription.FailureMessage())
+		}
+
+		// If there is any error test case, we need to delete all pods to make sure it doesn't influence other cases.
+		ginkgo.By("Delete all sleep pods")
+		err = kubeClient.DeletePods(ns)
+		if err != nil {
+			fmt.Fprintf(ginkgo.GinkgoWriter, "Failed to delete pods in namespace %s - reason is %s\n", ns, err.Error())
+		}
+
+		By(fmt.Sprintf("Tearing down namespace %s", ns))
+		err = kubeClient.TearDownNamespace(ns)
+		Ω(err).ShouldNot(HaveOccurred())
 
 		By("Restoring YuniKorn configuration")
 		yunikorn.RestoreConfigMapWrapper(oldConfigMap, annotation)

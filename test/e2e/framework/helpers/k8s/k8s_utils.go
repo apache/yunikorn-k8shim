@@ -343,6 +343,23 @@ func (k *KubeCtl) CreateNamespace(namespace string, annotations map[string]strin
 	return ns, nil
 }
 
+// Func to update a namespace with annotations
+func (k *KubeCtl) UpdateNamespace(namespace string, annotations map[string]string) (*v1.Namespace, error) {
+	ns, err := k.clientSet.CoreV1().Namespaces().Get(context.TODO(), namespace, metav1.GetOptions{})
+	if err != nil {
+		return ns, err
+	}
+	nsCopy := ns.DeepCopy()
+	nsCopy.Annotations = annotations
+
+	// update namespace
+	ns, err = k.clientSet.CoreV1().Namespaces().Update(context.TODO(), nsCopy, metav1.UpdateOptions{})
+	if err != nil {
+		return ns, err
+	}
+	return ns, nil
+}
+
 func (k *KubeCtl) WaitForServiceAccountPresent(namespace string, svcAcctName string, timeout time.Duration) error {
 	return wait.PollImmediate(time.Second, timeout, k.isServiceAccountPresent(namespace, svcAcctName))
 }
