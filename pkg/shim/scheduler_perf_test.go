@@ -68,7 +68,6 @@ partitions:
 )
 
 // Simple performance test which measures the theoretical throughput of the scheduler core.
-// It's intended to run locally - "enabled" must be false by default so that it doesn't run during "make test"
 func BenchmarkSchedulingThroughPut(b *testing.B) {
 	if b.N > 1 {
 		b.Skip() // safeguard against multiple runs
