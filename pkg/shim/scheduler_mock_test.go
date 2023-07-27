@@ -171,7 +171,7 @@ func (fc *MockScheduler) addTask(appID string, taskID string, ask *si.Resource) 
 	})
 }
 
-func (fc *MockScheduler) waitForSchedulerState(t *testing.T, expectedState string) {
+func (fc *MockScheduler) waitForSchedulerState(t testing.TB, expectedState string) {
 	deadline := time.Now().Add(10 * time.Second)
 	for {
 		if fc.scheduler.GetSchedulerState() == expectedState {

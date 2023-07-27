@@ -55,7 +55,6 @@ partitions:
           - name: d
           - name: e
 `
-	enabled         = false
 	profileCpu      = true
 	profileHeap     = true
 	numNodes        = 5000
@@ -70,9 +69,9 @@ partitions:
 
 // Simple performance test which measures the theoretical throughput of the scheduler core.
 // It's intended to run locally - "enabled" must be false by default so that it doesn't run during "make test"
-func TestSchedulingThroughPut(t *testing.T) {
-	if !enabled {
-		return
+func BenchmarkSchedulingThroughPut(b *testing.B) {
+	if b.N > 1 {
+		b.Skip() // safeguard against multiple runs
 	}
 
 	cluster := &MockScheduler{}
@@ -82,26 +81,26 @@ func TestSchedulingThroughPut(t *testing.T) {
 
 	if profileCpu {
 		f, err := os.Create(cpuProfilePath)
-		assert.NilError(t, err, "could not create file for cpu profile")
+		assert.NilError(b, err, "could not create file for cpu profile")
 		err = pprof.StartCPUProfile(f)
-		assert.NilError(t, err, "could not start cpu profiling")
+		assert.NilError(b, err, "could not start cpu profiling")
 		defer pprof.StopCPUProfile()
 	}
 
 	if profileHeap {
 		f, err := os.Create(heapProfilePath)
-		assert.NilError(t, err, "could not create file for heap profile")
+		assert.NilError(b, err, "could not create file for heap profile")
 
 		defer func(w io.Writer) {
 			err := pprof.WriteHeapProfile(w)
-			assert.NilError(t, err, "could not write heap profile")
+			assert.NilError(b, err, "could not write heap profile")
 		}(f)
 	}
 
 	// init scheduler & update config
-	cluster.waitForSchedulerState(t, SchedulerStates().Running)
+	cluster.waitForSchedulerState(b, SchedulerStates().Running)
 	err := cluster.updateConfig(queueConfig)
-	assert.NilError(t, err, "update config failed")
+	assert.NilError(b, err, "update config failed")
 
 	// add nodes to the scheduler & wait until they're registered in the core
 	for i := 0; i < numNodes; i++ {
@@ -110,7 +109,7 @@ func TestSchedulingThroughPut(t *testing.T) {
 	err = wait.PollUntilContextTimeout(context.Background(), time.Second, time.Second*60, true, func(ctx context.Context) (done bool, err error) {
 		return cluster.GetActiveNodeCountInCore(partitionName) == numNodes, nil
 	})
-	assert.NilError(t, err, "node initialization did not finish in time")
+	assert.NilError(b, err, "node initialization did not finish in time")
 
 	// add pods, begin collecting allocation metrics & wait until all pods are bound
 	addPodsToCluster(cluster)
@@ -119,10 +118,10 @@ func TestSchedulingThroughPut(t *testing.T) {
 	err = wait.PollUntilContextTimeout(context.Background(), time.Second, time.Second*60, true, func(ctx context.Context) (done bool, err error) {
 		return cluster.GetPodBindStats().Success == totalPods, nil
 	})
-	assert.NilError(t, err, "scheduling did not finish in time")
+	assert.NilError(b, err, "scheduling did not finish in time")
 
-	b := cluster.GetPodBindStats()
-	diff := b.Last.Sub(b.First)
+	stat := cluster.GetPodBindStats()
+	diff := stat.Last.Sub(stat.First)
 	fmt.Printf("Overall throughput: %.0f allocations/s\n", float64(totalPods)/diff.Seconds())
 	fmt.Println("Container allocation throughput based on metrics")
 	for _, d := range collector.getData() {
