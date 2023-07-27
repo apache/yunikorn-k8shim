@@ -87,10 +87,11 @@ func (fc *MockScheduler) start() {
 	fc.started.Store(true)
 }
 
-func (fc *MockScheduler) updateConfig(queues string) error {
+func (fc *MockScheduler) updateConfig(queues string, extraConfig map[string]string) error {
 	return fc.rmProxy.UpdateConfiguration(&si.UpdateConfigurationRequest{
 		RmID:        conf.GetSchedulerConf().ClusterID,
 		PolicyGroup: conf.GetSchedulerConf().PolicyGroup,
+		ExtraConfig: extraConfig,
 		Config:      queues,
 	})
 }
@@ -171,7 +172,7 @@ func (fc *MockScheduler) addTask(appID string, taskID string, ask *si.Resource) 
 	})
 }
 
-func (fc *MockScheduler) waitForSchedulerState(t *testing.T, expectedState string) {
+func (fc *MockScheduler) waitForSchedulerState(t testing.TB, expectedState string) {
 	deadline := time.Now().Add(10 * time.Second)
 	for {
 		if fc.scheduler.GetSchedulerState() == expectedState {
@@ -356,6 +357,11 @@ func (fc *MockScheduler) DeletePriorityClass(obj *schedv1.PriorityClass) {
 func (fc *MockScheduler) UpdatePriorityClass(oldObj *schedv1.PriorityClass, newObj *schedv1.PriorityClass) {
 	fc.ensureStarted()
 	fc.apiProvider.UpdatePriorityClass(oldObj, newObj)
+}
+
+func (fc *MockScheduler) GetActiveNodeCountInCore(partition string) int {
+	coreNodes := fc.coreContext.Scheduler.GetClusterContext().GetPartition(partition).GetNodes()
+	return len(coreNodes)
 }
 
 func (fc *MockScheduler) GetPodBindStats() client.BindStats {
