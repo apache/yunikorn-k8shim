@@ -87,10 +87,11 @@ func (fc *MockScheduler) start() {
 	fc.started.Store(true)
 }
 
-func (fc *MockScheduler) updateConfig(queues string) error {
+func (fc *MockScheduler) updateConfig(queues string, extraConfig map[string]string) error {
 	return fc.rmProxy.UpdateConfiguration(&si.UpdateConfigurationRequest{
 		RmID:        conf.GetSchedulerConf().ClusterID,
 		PolicyGroup: conf.GetSchedulerConf().PolicyGroup,
+		ExtraConfig: extraConfig,
 		Config:      queues,
 	})
 }

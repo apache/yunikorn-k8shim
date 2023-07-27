@@ -39,6 +39,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
+	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
 
 var (
@@ -73,6 +74,10 @@ func BenchmarkSchedulingThroughPut(b *testing.B) {
 		b.Skip() // safeguard against multiple runs
 	}
 
+	log.UpdateLoggingConfig(map[string]string{
+		"log.level": "WARN",
+	})
+
 	cluster := &MockScheduler{}
 	cluster.init()
 	cluster.start()
@@ -98,7 +103,9 @@ func BenchmarkSchedulingThroughPut(b *testing.B) {
 
 	// init scheduler & update config
 	cluster.waitForSchedulerState(b, SchedulerStates().Running)
-	err := cluster.updateConfig(queueConfig)
+	err := cluster.updateConfig(queueConfig, map[string]string{
+		"log.level": "WARN",
+	})
 	assert.NilError(b, err, "update config failed")
 
 	// add nodes to the scheduler & wait until they're registered in the core

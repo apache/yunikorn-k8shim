@@ -63,7 +63,7 @@ partitions:
 
 	// ensure scheduler running
 	cluster.waitForSchedulerState(t, SchedulerStates().Running)
-	err := cluster.updateConfig(configData)
+	err := cluster.updateConfig(configData, nil)
 	assert.NilError(t, err, "update config failed")
 	nodeLabels := map[string]string{
 		"label1": "key1",
@@ -117,7 +117,7 @@ partitions:
 
 	// ensure scheduler state
 	cluster.waitForSchedulerState(t, SchedulerStates().Running)
-	err := cluster.updateConfig(configData)
+	err := cluster.updateConfig(configData, nil)
 	assert.NilError(t, err, "update config failed")
 
 	nodeLabels := map[string]string{
@@ -216,7 +216,7 @@ partitions:
 
 	// ensure scheduler state
 	cluster.waitForSchedulerState(t, SchedulerStates().Running)
-	err := cluster.updateConfig(configData)
+	err := cluster.updateConfig(configData, nil)
 	assert.NilError(t, err, "update config failed")
 
 	nodeLabels := map[string]string{
