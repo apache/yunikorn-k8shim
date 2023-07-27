@@ -1445,3 +1445,55 @@ func TestDeletePriorityClass(t *testing.T) {
 	result = context.schedulerCache.GetPriorityClass("pc-test")
 	assert.Assert(t, result == nil)
 }
+
+func TestCtxUpdatePodCondition(t *testing.T) {
+	condition := v1.PodCondition{
+		Type:   v1.ContainersReady,
+		Status: v1.ConditionTrue,
+	}
+	pod := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "pod-test-00001",
+		},
+		Status: v1.PodStatus{
+			Phase: v1.PodPending,
+			Conditions: []v1.PodCondition{
+				condition,
+			},
+		},
+	}
+	context := initContextForTest()
+	context.AddApplication(&interfaces.AddApplicationRequest{
+		Metadata: interfaces.ApplicationMetadata{
+			ApplicationID: "app00001",
+			QueueName:     "root.a",
+			User:          "test-user",
+			Tags:          nil,
+		},
+	})
+	task := context.AddTask(&interfaces.AddTaskRequest{ //nolint:errcheck
+		Metadata: interfaces.TaskMetadata{
+			ApplicationID: "app00001",
+			TaskID:        "task00001",
+			Pod:           pod,
+		},
+	}).(*Task)
+
+	// task state is not Scheduling
+	updated := context.updatePodCondition(task, &condition)
+	assert.Equal(t, false, updated)
+
+	// no update
+	task.sm.SetState(TaskStates().Scheduling)
+	updated = context.updatePodCondition(task, &condition)
+	assert.Equal(t, false, updated)
+
+	// update status
+	condition.Status = v1.ConditionFalse
+	updated = context.updatePodCondition(task, &condition)
+	assert.Equal(t, true, updated)
+}
