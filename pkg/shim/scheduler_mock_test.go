@@ -358,6 +358,11 @@ func (fc *MockScheduler) UpdatePriorityClass(oldObj *schedv1.PriorityClass, newO
 	fc.apiProvider.UpdatePriorityClass(oldObj, newObj)
 }
 
+func (fc *MockScheduler) GetActiveNodeCountInCore(partition string) int {
+	coreNodes := fc.coreContext.Scheduler.GetClusterContext().GetPartition(partition).GetNodes()
+	return len(coreNodes)
+}
+
 func (fc *MockScheduler) GetPodBindStats() client.BindStats {
 	return fc.apiProvider.GetPodBindStats()
 }
