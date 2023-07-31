@@ -377,8 +377,12 @@ func (cache *SchedulerCache) updatePod(pod *v1.Pod) {
 						zap.Error(err))
 				}
 				cache.updatePVCRefCounts(nodeInfo, false)
-				cache.nodesInfoPodsWithAffinity = nil
-				cache.nodesInfoPodsWithReqAntiAffinity = nil
+				if podWithAffinity(pod) {
+					cache.nodesInfoPodsWithAffinity = nil
+				}
+				if podWithRequiredAntiAffinity(pod) {
+					cache.nodesInfoPodsWithReqAntiAffinity = nil
+				}
 			}
 			if pod.Spec.NodeName == "" {
 				// new pod wasn't assigned to a node, so use existing assignment
@@ -407,8 +411,12 @@ func (cache *SchedulerCache) updatePod(pod *v1.Pod) {
 		}
 		nodeInfo.AddPod(pod)
 		cache.assignedPods[key] = pod.Spec.NodeName
-		cache.nodesInfoPodsWithAffinity = nil
-		cache.nodesInfoPodsWithReqAntiAffinity = nil
+		if podWithAffinity(pod) {
+			cache.nodesInfoPodsWithAffinity = nil
+		}
+		if podWithRequiredAntiAffinity(pod) {
+			cache.nodesInfoPodsWithReqAntiAffinity = nil
+		}
 		cache.updatePVCRefCounts(nodeInfo, false)
 	}
 
@@ -739,4 +747,15 @@ func (cache *SchedulerCache) GetSchedulerCacheDao() SchedulerCacheDao {
 		PriorityClasses: priorityClasses,
 		SchedulingPods:  podSchedulingInfoByName,
 	}
+}
+
+func podWithAffinity(p *v1.Pod) bool {
+	affinity := p.Spec.Affinity
+	return affinity != nil && (affinity.PodAffinity != nil || affinity.PodAntiAffinity != nil)
+}
+
+func podWithRequiredAntiAffinity(p *v1.Pod) bool {
+	affinity := p.Spec.Affinity
+	return affinity != nil && affinity.PodAntiAffinity != nil &&
+		len(affinity.PodAntiAffinity.RequiredDuringSchedulingIgnoredDuringExecution) != 0
 }

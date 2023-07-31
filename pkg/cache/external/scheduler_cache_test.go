@@ -422,6 +422,46 @@ func TestGetNodesInfoPodsWithAffinity(t *testing.T) {
 	assert.Assert(t, cache.nodesInfoPodsWithAffinity == nil, "node list was not invalidated")
 	nodesInfo = cache.GetNodesInfoPodsWithAffinity()
 	expectHost(t, host1, nodesInfo)
+
+	// add & update pod w/o affinity
+	pod3 := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: podName2,
+			UID:  podUID2,
+		},
+	}
+	nodesInfo = cache.GetNodesInfoPodsWithAffinity()
+	expectHost(t, host1, nodesInfo)
+	cache.assumePod(pod3, true)
+	cache.updatePod(pod3)
+	assert.Assert(t, cache.nodesInfoPodsWithAffinity != nil, "node list was invalidated")
+
+	// add & update pod w/ affinity
+	pod4 := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: podName2,
+			UID:  podUID2,
+		},
+		Spec: v1.PodSpec{
+			Affinity: &v1.Affinity{
+				PodAffinity: &v1.PodAffinity{},
+			},
+			NodeName: host1,
+		},
+	}
+	nodesInfo = cache.GetNodesInfoPodsWithAffinity()
+	expectHost(t, host1, nodesInfo)
+	cache.assumePod(pod4, true)
+	cache.updatePod(pod4)
+	assert.Assert(t, cache.nodesInfoPodsWithAffinity == nil, "node list was not invalidated")
 }
 
 //nolint:funlen
@@ -547,6 +587,48 @@ func TestGetNodesInfoPodsWithReqAntiAffinity(t *testing.T) {
 	assert.Assert(t, cache.nodesInfoPodsWithReqAntiAffinity == nil, "node list was not invalidated")
 	nodesInfo = cache.GetNodesInfoPodsWithReqAntiAffinity()
 	expectHost(t, host1, nodesInfo)
+
+	// add & update pod w/o anti-affinity
+	pod3 := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: podName2,
+			UID:  podUID2,
+		},
+	}
+	nodesInfo = cache.GetNodesInfoPodsWithReqAntiAffinity()
+	expectHost(t, host1, nodesInfo)
+	cache.assumePod(pod3, true)
+	cache.updatePod(pod3)
+	assert.Assert(t, cache.nodesInfoPodsWithReqAntiAffinity != nil, "node list was invalidated")
+
+	// add & update pod w/ anti-affinity
+	pod4 := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: podName2,
+			UID:  podUID2,
+		},
+		Spec: v1.PodSpec{
+			Affinity: &v1.Affinity{
+				PodAntiAffinity: &v1.PodAntiAffinity{
+					RequiredDuringSchedulingIgnoredDuringExecution: []v1.PodAffinityTerm{{}},
+				},
+			},
+			NodeName: host1,
+		},
+	}
+	nodesInfo = cache.GetNodesInfoPodsWithReqAntiAffinity()
+	expectHost(t, host1, nodesInfo)
+	cache.assumePod(pod4, true)
+	cache.updatePod(pod4)
+	assert.Assert(t, cache.nodesInfoPodsWithReqAntiAffinity == nil, "node list was not invalidated")
 }
 
 func TestUpdateNonExistNode(t *testing.T) {
