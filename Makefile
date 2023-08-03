@@ -25,7 +25,7 @@ export PATH := $(GO_EXE_PATH):$(PATH)
 
 # Check if this GO tools version used is at least the version of go specified in
 # the go.mod file. The version in go.mod should be in sync with other repos.
-GO_VERSION := $(shell "$(GO)" version | awk '{print substr($$3, 3, 10)}')
+GO_VERSION := $(shell "$(GO)" version | awk '{print substr($$3, 3, 4)}')
 MOD_VERSION := $(shell cat .go_version) 
 
 GM := $(word 1,$(subst ., ,$(GO_VERSION)))
