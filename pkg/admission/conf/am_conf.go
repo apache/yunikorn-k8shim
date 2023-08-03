@@ -328,6 +328,11 @@ func (acc *AdmissionControllerConf) updateConfigMaps(configMaps []*v1.ConfigMap,
 
 	// labeling
 	acc.defaultQueueName = parseConfigString(configs, AMFilteringDefaultQueueName, DefaultFilteringQueueName)
+	if acc.defaultQueueName != "" && !strings.HasPrefix(acc.defaultQueueName, constants.RootQueue) {
+		log.Log(log.AdmissionConf).Warn("invalid default queue. defaultQueue must be fully qualified. Resetting to "+DefaultFilteringQueueName,
+			zap.String(AMFilteringDefaultQueueName, acc.defaultQueueName))
+		acc.defaultQueueName = DefaultFilteringQueueName
+	}
 
 	// logging
 	log.UpdateLoggingConfig(configs)

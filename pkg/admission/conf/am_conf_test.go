@@ -43,7 +43,7 @@ func TestConfigMapVars(t *testing.T) {
 		AMAccessControlExternalUsers:     "^yunikorn$",
 		AMAccessControlExternalGroups:    "^devs$",
 		AMAccessControlTrustControllers:  "false",
-		AMFilteringDefaultQueueName:      "default.queue",
+		AMFilteringDefaultQueueName:      "root.default.queue",
 	}}})
 	assert.Equal(t, conf.GetPolicyGroup(), "testPolicyGroup")
 	assert.Equal(t, conf.GetAmServiceName(), "testYunikornService")
@@ -58,7 +58,7 @@ func TestConfigMapVars(t *testing.T) {
 	assert.Equal(t, conf.GetExternalUsers()[0].String(), "^yunikorn$")
 	assert.Equal(t, conf.GetExternalGroups()[0].String(), "^devs$")
 	assert.Equal(t, conf.GetTrustControllers(), false)
-	assert.Equal(t, conf.GetDefaultQueueName(), "default.queue")
+	assert.Equal(t, conf.GetDefaultQueueName(), "root.default.queue")
 
 	// test missing settings
 	conf = NewAdmissionControllerConf([]*v1.ConfigMap{nil, nil})
@@ -92,6 +92,12 @@ func TestConfigMapVars(t *testing.T) {
 		AMFilteringProcessNamespaces: "?",
 	}}})
 	assert.Equal(t, len(conf.GetProcessNamespaces()), 0)
+
+	// test invalid defaultQueue name
+	conf = NewAdmissionControllerConf([]*v1.ConfigMap{nil, {Data: map[string]string{
+		AMFilteringDefaultQueueName: "default.queue",
+	}}})
+	assert.Equal(t, conf.GetDefaultQueueName(), DefaultFilteringQueueName)
 
 	// test disable / enable of config hot refresh
 	conf = NewAdmissionControllerConf([]*v1.ConfigMap{nil, nil})
