@@ -209,7 +209,21 @@ func TestDefaultQueueName(t *testing.T) {
 		assert.Equal(t, result["random"], "random")
 		assert.Equal(t, result["applicationId"], "yunikorn-default-autogen")
 		assert.Equal(t, result["disableStateAware"], "true")
-		assert.Equal(t, result["queue"], "yunikorn")
+		assert.Assert(t, result["queue"] != "yunikorn")
+	} else {
+		t.Fatal("UpdatePodLabelForAdmissionController is not as expected")
+	}
+
+	customValidQueueNameConf := createConfigWithOverrides(map[string]string{
+		conf.AMFilteringDefaultQueueName: "root.yunikorn",
+	})
+	if result := updatePodLabel(pod, customValidQueueNameConf.GetNamespace(),
+		customValidQueueNameConf.GetGenerateUniqueAppIds(), customValidQueueNameConf.GetDefaultQueueName()); result != nil {
+		assert.Equal(t, len(result), 4)
+		assert.Equal(t, result["random"], "random")
+		assert.Equal(t, result["applicationId"], "yunikorn-default-autogen")
+		assert.Equal(t, result["disableStateAware"], "true")
+		assert.Equal(t, result["queue"], "root.yunikorn")
 	} else {
 		t.Fatal("UpdatePodLabelForAdmissionController is not as expected")
 	}
