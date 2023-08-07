@@ -23,15 +23,12 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/apache/yunikorn-k8shim/pkg/client/informers/externalversions/yunikorn.apache.org/v1alpha1"
-
 	"k8s.io/client-go/informers"
 	coreInformerV1 "k8s.io/client-go/informers/core/v1"
 	schedulingInformerV1 "k8s.io/client-go/informers/scheduling/v1"
 	storageInformerV1 "k8s.io/client-go/informers/storage/v1"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/volumebinding"
 
-	appclient "github.com/apache/yunikorn-k8shim/pkg/client/clientset/versioned"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/api"
@@ -47,7 +44,6 @@ type Clients struct {
 	// client apis
 	KubeClient   KubeClient
 	SchedulerAPI api.SchedulerAPI
-	AppClient    appclient.Interface
 
 	// informer factory
 	InformerFactory informers.SharedInformerFactory
@@ -61,7 +57,6 @@ type Clients struct {
 	StorageInformer       storageInformerV1.StorageClassInformer
 	NamespaceInformer     coreInformerV1.NamespaceInformer
 	PriorityClassInformer schedulingInformerV1.PriorityClassInformer
-	AppInformer           v1alpha1.ApplicationInformer
 
 	// volume binder handles PV/PVC related operations
 	VolumeBinder volumebinding.SchedulerVolumeBinder
@@ -82,8 +77,7 @@ func (c *Clients) WaitForSync() {
 			c.StorageInformer.Informer().HasSynced() &&
 			c.ConfigMapInformer.Informer().HasSynced() &&
 			c.NamespaceInformer.Informer().HasSynced() &&
-			c.PriorityClassInformer.Informer().HasSynced() &&
-			(c.AppInformer == nil || c.AppInformer.Informer().HasSynced()) {
+			c.PriorityClassInformer.Informer().HasSynced() {
 			return
 		}
 		time.Sleep(time.Second)
@@ -104,7 +98,4 @@ func (c *Clients) Run(stopCh <-chan struct{}) {
 	go c.ConfigMapInformer.Informer().Run(stopCh)
 	go c.NamespaceInformer.Informer().Run(stopCh)
 	go c.PriorityClassInformer.Informer().Run(stopCh)
-	if c.AppInformer != nil {
-		go c.AppInformer.Informer().Run(stopCh)
-	}
 }

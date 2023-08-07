@@ -25,7 +25,6 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/apache/yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
 	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
@@ -95,7 +94,7 @@ func getAppMetadata(pod *v1.Pod, recovery bool) (interfaces.ApplicationMetadata,
 	// get the user from Pod Labels
 	user, groups := utils.GetUserFromPod(pod)
 
-	var taskGroups []v1alpha1.TaskGroup = nil
+	var taskGroups []interfaces.TaskGroup = nil
 	var err error = nil
 	if !conf.GetSchedulerConf().DisableGangScheduling {
 		taskGroups, err = utils.GetTaskGroupsFromAnnotation(pod)

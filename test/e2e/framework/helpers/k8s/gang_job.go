@@ -27,7 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	ykv1 "github.com/apache/yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
+	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 )
 
@@ -58,7 +58,7 @@ func InitTestJob(jobName string, parallelism, completions int32, pod *v1.Pod) *b
 func getGangSchedulingAnnotations(placeholderTimeout int,
 	schedulingStyle string,
 	taskGroupName string,
-	taskGroups []*ykv1.TaskGroup) map[string]string {
+	taskGroups []*interfaces.TaskGroup) map[string]string {
 	annotations := make(map[string]string)
 	var schedulingParams string
 
@@ -92,7 +92,7 @@ func DecoratePodForGangScheduling(
 	placeholderTimeout int,
 	schedulingStyle string,
 	taskGroupName string,
-	taskGroups []*ykv1.TaskGroup,
+	taskGroups []*interfaces.TaskGroup,
 	pod *v1.Pod) *v1.Pod {
 	gangSchedulingAnnotations := getGangSchedulingAnnotations(placeholderTimeout, schedulingStyle, taskGroupName, taskGroups)
 	pod.Annotations = utils.MergeMaps(pod.Annotations, gangSchedulingAnnotations)
@@ -100,8 +100,8 @@ func DecoratePodForGangScheduling(
 	return pod
 }
 
-func InitTaskGroups(conf SleepPodConfig, mainTaskGroupName, secondTaskGroupName string, parallelism int) []*ykv1.TaskGroup {
-	tg1 := &ykv1.TaskGroup{
+func InitTaskGroups(conf SleepPodConfig, mainTaskGroupName, secondTaskGroupName string, parallelism int) []*interfaces.TaskGroup {
+	tg1 := &interfaces.TaskGroup{
 		MinMember: int32(parallelism),
 		Name:      mainTaskGroupName,
 		MinResource: map[string]resource.Quantity{
@@ -112,7 +112,7 @@ func InitTaskGroups(conf SleepPodConfig, mainTaskGroupName, secondTaskGroupName 
 
 	// create TG2 more with more members than needed, also make sure that
 	// placeholders will stay in Pending state
-	tg2 := &ykv1.TaskGroup{
+	tg2 := &interfaces.TaskGroup{
 		MinMember: int32(parallelism + 1),
 		Name:      secondTaskGroupName,
 		MinResource: map[string]resource.Quantity{
@@ -124,15 +124,15 @@ func InitTaskGroups(conf SleepPodConfig, mainTaskGroupName, secondTaskGroupName 
 		},
 	}
 
-	tGroups := make([]*ykv1.TaskGroup, 2)
+	tGroups := make([]*interfaces.TaskGroup, 2)
 	tGroups[0] = tg1
 	tGroups[1] = tg2
 
 	return tGroups
 }
 
-func InitTaskGroup(conf SleepPodConfig, taskGroupName string, parallelism int32) []*ykv1.TaskGroup {
-	tg1 := &ykv1.TaskGroup{
+func InitTaskGroup(conf SleepPodConfig, taskGroupName string, parallelism int32) []*interfaces.TaskGroup {
+	tg1 := &interfaces.TaskGroup{
 		MinMember: parallelism,
 		Name:      taskGroupName,
 		MinResource: map[string]resource.Quantity{
@@ -141,7 +141,7 @@ func InitTaskGroup(conf SleepPodConfig, taskGroupName string, parallelism int32)
 		},
 	}
 
-	tGroups := make([]*ykv1.TaskGroup, 1)
+	tGroups := make([]*interfaces.TaskGroup, 1)
 	tGroups[0] = tg1
 
 	return tGroups

@@ -27,12 +27,12 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/apache/yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
+	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 )
 
 func TestFindAppTaskGroup(t *testing.T) {
-	taskGroups := []*v1alpha1.TaskGroup{
+	taskGroups := []*interfaces.TaskGroup{
 		{
 			Name:      "test-group-0",
 			MinMember: 1,

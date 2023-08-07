@@ -29,10 +29,6 @@ import (
 	"k8s.io/kubernetes/pkg/features"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/volumebinding"
 
-	appclient "github.com/apache/yunikorn-k8shim/pkg/client/clientset/versioned"
-	appinformers "github.com/apache/yunikorn-k8shim/pkg/client/informers/externalversions"
-	"github.com/apache/yunikorn-k8shim/pkg/client/informers/externalversions/yunikorn.apache.org/v1alpha1"
-	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/api"
@@ -40,7 +36,7 @@ import (
 
 type Type int
 
-var informerTypes = [...]string{"Pod", "Node", "ConfigMap", "Storage", "PV", "PVC", "Application", "PriorityClass"}
+var informerTypes = [...]string{"Pod", "Node", "ConfigMap", "Storage", "PV", "PVC", "PriorityClass"}
 
 const (
 	PodInformerHandlers Type = iota
@@ -49,7 +45,6 @@ const (
 	StorageInformerHandlers
 	PVInformerHandlers
 	PVCInformerHandlers
-	ApplicationInformerHandlers
 	PriorityClassInformerHandlers
 )
 
@@ -108,14 +103,6 @@ func NewAPIFactory(scheduler api.SchedulerAPI, informerFactory informers.SharedI
 		}
 	}
 
-	var appClient *appclient.Clientset = nil
-	var applicationInformer v1alpha1.ApplicationInformer = nil
-
-	if configs.IsOperatorPluginEnabled(constants.AppManagerHandlerName) {
-		appClient = appclient.NewForConfigOrDie(kubeClient.GetConfigs())
-		applicationInformer = appinformers.NewSharedInformerFactory(appClient, time.Minute*1).Apache().V1alpha1().Applications()
-	}
-
 	// create a volume binder (needs the informers)
 	volumeBinder := volumebinding.NewVolumeBinder(
 		kubeClient.GetClientSet(),
@@ -132,7 +119,6 @@ func NewAPIFactory(scheduler api.SchedulerAPI, informerFactory informers.SharedI
 		clients: &Clients{
 			conf:                  configs,
 			KubeClient:            kubeClient,
-			AppClient:             appClient,
 			SchedulerAPI:          scheduler,
 			InformerFactory:       informerFactory,
 			PodInformer:           podInformer,
@@ -144,7 +130,6 @@ func NewAPIFactory(scheduler api.SchedulerAPI, informerFactory informers.SharedI
 			StorageInformer:       storageInformer,
 			PriorityClassInformer: priorityClassInformer,
 			VolumeBinder:          volumeBinder,
-			AppInformer:           applicationInformer,
 		},
 		testMode: testMode,
 		stopChan: make(chan struct{}),
@@ -206,9 +191,6 @@ func (s *APIFactory) addEventHandlers(
 			AddEventHandlerWithResyncPeriod(handler, resyncPeriod)
 	case PVCInformerHandlers:
 		s.GetAPIs().PVCInformer.Informer().
-			AddEventHandlerWithResyncPeriod(handler, resyncPeriod)
-	case ApplicationInformerHandlers:
-		s.GetAPIs().AppInformer.Informer().
 			AddEventHandlerWithResyncPeriod(handler, resyncPeriod)
 	case PriorityClassInformerHandlers:
 		s.GetAPIs().PriorityClassInformer.Informer().

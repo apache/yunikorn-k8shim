@@ -29,7 +29,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/apache/yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
+	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	tests "github.com/apache/yunikorn-k8shim/test/e2e"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
@@ -75,7 +75,7 @@ var _ = Describe("", func() {
 			"memory": resource.MustParse("10M"),
 		}
 		annotations := k8s.PodAnnotation{
-			TaskGroups: []v1alpha1.TaskGroup{
+			TaskGroups: []interfaces.TaskGroup{
 				{Name: taskGroupName, MinMember: int32(5), MinResource: podResources},
 			},
 		}
@@ -191,7 +191,7 @@ var _ = Describe("", func() {
 				"applicationId": "appid-" + common.RandSeq(5),
 			},
 			Annotations: &k8s.PodAnnotation{
-				TaskGroups: []v1alpha1.TaskGroup{
+				TaskGroups: []interfaces.TaskGroup{
 					{Name: "group-" + common.RandSeq(5), MinMember: int32(3), MinResource: podResources},
 					{Name: "group-" + common.RandSeq(5), MinMember: int32(5), MinResource: podResources},
 					{Name: "group-" + common.RandSeq(5), MinMember: int32(7), MinResource: podResources},
@@ -308,7 +308,7 @@ var _ = Describe("", func() {
 		tgName := "group-" + common.RandSeq(5)
 		annotations := k8s.PodAnnotation{
 			TaskGroupName: tgName,
-			TaskGroups: []v1alpha1.TaskGroup{
+			TaskGroups: []interfaces.TaskGroup{
 				{Name: tgName, MinMember: int32(3), MinResource: podResources},
 			},
 		}
@@ -380,7 +380,7 @@ var _ = Describe("", func() {
 		placeholderTimeoutStr := fmt.Sprintf("%s=%d", "placeholderTimeoutInSeconds", pdTimeout)
 		annotations := k8s.PodAnnotation{
 			SchedulingPolicyParams: placeholderTimeoutStr,
-			TaskGroups: []v1alpha1.TaskGroup{
+			TaskGroups: []interfaces.TaskGroup{
 				{
 					Name:        groupA,
 					MinMember:   int32(3),
@@ -487,7 +487,7 @@ var _ = Describe("", func() {
 				"applicationId": "appid-" + common.RandSeq(5),
 			},
 			Annotations: &k8s.PodAnnotation{
-				TaskGroups: []v1alpha1.TaskGroup{
+				TaskGroups: []interfaces.TaskGroup{
 					{
 						Name:         groupA,
 						MinMember:    int32(3),
@@ -591,7 +591,7 @@ var _ = Describe("", func() {
 		podConf := k8s.TestPodConfig{
 			Annotations: &k8s.PodAnnotation{
 				TaskGroupName: taskGroupName,
-				TaskGroups: []v1alpha1.TaskGroup{
+				TaskGroups: []interfaces.TaskGroup{
 					{Name: taskGroupName, MinResource: podResources},
 				},
 			},
@@ -705,7 +705,7 @@ var _ = Describe("", func() {
 		placeholderTimeoutStr := fmt.Sprintf("%s=%d", "placeholderTimeoutInSeconds", pdTimeout)
 		annotations := k8s.PodAnnotation{
 			SchedulingPolicyParams: placeholderTimeoutStr,
-			TaskGroups: []v1alpha1.TaskGroup{
+			TaskGroups: []interfaces.TaskGroup{
 				{
 					Name:         groupA,
 					MinMember:    int32(3),
@@ -822,7 +822,7 @@ var _ = Describe("", func() {
 				"applicationId": "appid-" + common.RandSeq(5),
 			},
 			Annotations: &k8s.PodAnnotation{
-				TaskGroups: []v1alpha1.TaskGroup{
+				TaskGroups: []interfaces.TaskGroup{
 					{
 						Name:         groupA + "-" + common.RandSeq(5),
 						MinMember:    int32(3),
@@ -910,7 +910,7 @@ var _ = Describe("", func() {
 				"applicationId": "appid-" + common.RandSeq(5),
 			},
 			Annotations: &k8s.PodAnnotation{
-				TaskGroups: []v1alpha1.TaskGroup{
+				TaskGroups: []interfaces.TaskGroup{
 					{
 						Name:         groupA + "-" + common.RandSeq(5),
 						MinMember:    int32(3),
@@ -990,7 +990,7 @@ var _ = Describe("", func() {
 				"applicationId": "appid-" + common.RandSeq(5),
 			},
 			Annotations: &k8s.PodAnnotation{
-				TaskGroups: []v1alpha1.TaskGroup{
+				TaskGroups: []interfaces.TaskGroup{
 					{
 						Name:         groupA + "-" + common.RandSeq(5),
 						MinMember:    int32(3),
@@ -1128,7 +1128,7 @@ var _ = Describe("", func() {
 		Ω(len(appPods.Items)).To(BeNumerically("==", jobConf.Parallelism))
 	},
 		ginkgo.Entry("Verify_TG_With_Duplicate_Group", k8s.PodAnnotation{
-			TaskGroups: []v1alpha1.TaskGroup{
+			TaskGroups: []interfaces.TaskGroup{
 				{
 					Name:      "groupdup",
 					MinMember: int32(3),
@@ -1156,7 +1156,7 @@ var _ = Describe("", func() {
 			},
 		}),
 		ginkgo.Entry("Verify_TG_With_Invalid_Chars", k8s.PodAnnotation{
-			TaskGroups: []v1alpha1.TaskGroup{
+			TaskGroups: []interfaces.TaskGroup{
 				{
 					Name:      "GROUPCAPS",
 					MinMember: int32(3),
@@ -1168,7 +1168,7 @@ var _ = Describe("", func() {
 			},
 		}),
 		ginkgo.Entry("Verify_TG_With_Invalid_MinMember", k8s.PodAnnotation{
-			TaskGroups: []v1alpha1.TaskGroup{
+			TaskGroups: []interfaces.TaskGroup{
 				{
 					Name:      groupA,
 					MinMember: int32(-1),

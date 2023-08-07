@@ -34,7 +34,7 @@ import (
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 	podv1 "k8s.io/kubernetes/pkg/api/v1/pod"
 
-	"github.com/apache/yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
+	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/yunikorn-k8shim/pkg/common"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
@@ -389,13 +389,13 @@ func GetPlaceholderFlagFromPodSpec(pod *v1.Pod) bool {
 	return false
 }
 
-func GetTaskGroupsFromAnnotation(pod *v1.Pod) ([]v1alpha1.TaskGroup, error) {
+func GetTaskGroupsFromAnnotation(pod *v1.Pod) ([]interfaces.TaskGroup, error) {
 	taskGroupInfo := GetPodAnnotationValue(pod, constants.AnnotationTaskGroups)
 	if taskGroupInfo == "" {
 		return nil, nil
 	}
 
-	taskGroups := []v1alpha1.TaskGroup{}
+	taskGroups := []interfaces.TaskGroup{}
 	err := json.Unmarshal([]byte(taskGroupInfo), &taskGroups)
 	if err != nil {
 		return nil, err

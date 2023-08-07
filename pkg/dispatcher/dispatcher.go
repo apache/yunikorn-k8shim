@@ -41,7 +41,6 @@ const (
 	EventTypeTask
 	EventTypeNode
 	EventTypeScheduler
-	EventTypeAppStatus
 )
 
 var (
@@ -189,8 +188,6 @@ func Start() {
 			select {
 			case event := <-getDispatcher().eventChan:
 				switch v := event.(type) {
-				case events.ApplicationStatusEvent:
-					getEventHandler(EventTypeAppStatus)(v)
 				case events.TaskEvent:
 					getEventHandler(EventTypeTask)(v)
 				case events.ApplicationEvent:
