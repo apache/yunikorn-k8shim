@@ -29,7 +29,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/apache/yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
+	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 )
@@ -127,7 +127,7 @@ func createAppWIthTaskGroupForTest() *Application {
 	mockedSchedulerAPI := newMockSchedulerAPI()
 	app := NewApplication(appID, queue,
 		"bob", testGroups, map[string]string{constants.AppTagNamespace: namespace}, mockedSchedulerAPI)
-	app.setTaskGroups([]v1alpha1.TaskGroup{
+	app.setTaskGroups([]interfaces.TaskGroup{
 		{
 			Name:      "test-group-1",
 			MinMember: 10,

@@ -30,7 +30,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/apache/yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
 	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/yunikorn-k8shim/pkg/common"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
@@ -50,8 +49,7 @@ type Application struct {
 	groups                     []string
 	taskMap                    map[string]*Task
 	tags                       map[string]string
-	schedulingPolicy           v1alpha1.SchedulingPolicy
-	taskGroups                 []v1alpha1.TaskGroup
+	taskGroups                 []interfaces.TaskGroup
 	taskGroupsDefinition       string
 	schedulingParamsDefinition string
 	placeholderOwnerReferences []metav1.OwnerReference
@@ -80,9 +78,8 @@ func NewApplication(appID, queueName, user string, groups []string, tags map[str
 		groups:                  groups,
 		taskMap:                 taskMap,
 		tags:                    tags,
-		schedulingPolicy:        v1alpha1.SchedulingPolicy{},
 		sm:                      newAppState(),
-		taskGroups:              make([]v1alpha1.TaskGroup, 0),
+		taskGroups:              make([]interfaces.TaskGroup, 0),
 		lock:                    &sync.RWMutex{},
 		schedulerAPI:            scheduler,
 		placeholderTimeoutInSec: 0,
@@ -145,18 +142,6 @@ func (app *Application) GetUser() string {
 	return app.user
 }
 
-func (app *Application) setSchedulingPolicy(policy v1alpha1.SchedulingPolicy) {
-	app.lock.Lock()
-	defer app.lock.Unlock()
-	app.schedulingPolicy = policy
-}
-
-func (app *Application) getSchedulingPolicy() v1alpha1.SchedulingPolicy {
-	app.lock.RLock()
-	defer app.lock.RUnlock()
-	return app.schedulingPolicy
-}
-
 func (app *Application) setTaskGroupsDefinition(taskGroupsDef string) {
 	app.lock.Lock()
 	defer app.lock.Unlock()
@@ -181,7 +166,7 @@ func (app *Application) GetSchedulingParamsDefinition() string {
 	return app.schedulingParamsDefinition
 }
 
-func (app *Application) setTaskGroups(taskGroups []v1alpha1.TaskGroup) {
+func (app *Application) setTaskGroups(taskGroups []interfaces.TaskGroup) {
 	app.lock.Lock()
 	defer app.lock.Unlock()
 	app.taskGroups = taskGroups
@@ -196,7 +181,7 @@ func (app *Application) getPlaceholderAsk() *si.Resource {
 	return app.placeholderAsk
 }
 
-func (app *Application) getTaskGroups() []v1alpha1.TaskGroup {
+func (app *Application) getTaskGroups() []interfaces.TaskGroup {
 	app.lock.RLock()
 	defer app.lock.RUnlock()
 	return app.taskGroups

@@ -20,16 +20,16 @@ package events
 
 const EnterState = "enter_state"
 
-//----------------------------------------------
+// ----------------------------------------------
 // General event interface
-//----------------------------------------------
+// ----------------------------------------------
 type SchedulingEvent interface {
 	GetArgs() []interface{}
 }
 
-//----------------------------------------------
+// ----------------------------------------------
 // Application events
-//----------------------------------------------
+// ----------------------------------------------
 type ApplicationEvent interface {
 	// an application event is associated with an application Id,
 	// dispatcher finds out actual application based on this id
@@ -44,16 +44,9 @@ type ApplicationEvent interface {
 	GetArgs() []interface{}
 }
 
-// ------------------------
-// ApplicationStatusEvent updates the status in the application CRD
-// ------------------------
-type ApplicationStatusEvent interface {
-	GetState() string
-}
-
-//----------------------------------------------
+// ----------------------------------------------
 // Task events
-//----------------------------------------------
+// ----------------------------------------------
 type TaskEvent interface {
 	// application ID which this task belongs to
 	GetApplicationID() string

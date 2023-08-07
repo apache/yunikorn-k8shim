@@ -20,9 +20,8 @@ package interfaces
 
 import (
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/apache/yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
 )
 
 // app management protocol defines all the APIs needed for app management,
@@ -78,10 +77,21 @@ type ApplicationMetadata struct {
 	User                       string
 	Tags                       map[string]string
 	Groups                     []string
-	TaskGroups                 []v1alpha1.TaskGroup
+	TaskGroups                 []TaskGroup
 	OwnerReferences            []metav1.OwnerReference
 	SchedulingPolicyParameters *SchedulingPolicyParameters
 	CreationTime               int64
+}
+
+type TaskGroup struct {
+	Name         string
+	MinMember    int32
+	Labels       map[string]string
+	Annotations  map[string]string
+	MinResource  map[string]resource.Quantity
+	NodeSelector map[string]string
+	Tolerations  []v1.Toleration
+	Affinity     *v1.Affinity
 }
 
 type TaskMetadata struct {

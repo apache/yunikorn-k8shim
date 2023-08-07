@@ -18,15 +18,13 @@
 
 package k8s
 
-import (
-	"github.com/apache/yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
-)
+import "github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
 
 type PodAnnotation struct {
-	TaskGroupName          string               `json:"yunikorn.apache.org/task-group-name,omitempty"`
-	TaskGroups             []v1alpha1.TaskGroup `json:"-"`
-	SchedulingPolicyParams string               `json:"yunikorn.apache.org/schedulingPolicyParameters,omitempty"`
-	Other                  map[string]string    `json:"-"`
+	TaskGroupName          string                 `json:"yunikorn.apache.org/task-group-name,omitempty"`
+	TaskGroups             []interfaces.TaskGroup `json:"-"`
+	SchedulingPolicyParams string                 `json:"yunikorn.apache.org/schedulingPolicyParameters,omitempty"`
+	Other                  map[string]string      `json:"-"`
 }
 
 const (

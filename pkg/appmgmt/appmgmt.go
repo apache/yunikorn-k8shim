@@ -27,9 +27,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/sparkoperator"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
-	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
-	"github.com/apache/yunikorn-k8shim/pkg/controller/application"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
 
@@ -62,8 +60,7 @@ func NewAMService(amProtocol interfaces.ApplicationManagementProtocol,
 		general.NewManager(apiProvider, podEventHandler),
 		// for spark operator - SparkApplication
 		sparkoperator.NewManager(amProtocol, apiProvider),
-		// for application crds
-		application.NewAppManager(amProtocol, apiProvider))
+	)
 
 	return appManager
 }
@@ -124,19 +121,5 @@ func (svc *AppManagementService) Stop() {
 	log.Log(log.ShimAppMgmt).Info("shutting down app management services")
 	for _, optService := range svc.managers {
 		optService.Stop()
-	}
-}
-
-func (svc *AppManagementService) ApplicationStateUpdateEventHandler() func(obj interface{}) {
-	// when there is a app state update event received
-	// call the corresponding appManager to handle it, right now, only need to call the appCRD manager to handle this
-	mgr := svc.GetManagerByName(constants.AppManagerHandlerName)
-	if appMgr, ok := mgr.(*application.AppManager); ok {
-		return appMgr.HandleApplicationStateUpdate()
-	}
-	log.Log(log.ShimAppMgmt).Warn("App manager is not registered",
-		zap.String("app manager name", constants.AppManagerHandlerName))
-	return func(obj interface{}) {
-		// noop
 	}
 }

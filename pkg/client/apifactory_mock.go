@@ -31,7 +31,6 @@ import (
 	storagev1 "k8s.io/client-go/listers/storage/v1"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/apache/yunikorn-k8shim/pkg/client/clientset/versioned/fake"
 	"github.com/apache/yunikorn-k8shim/pkg/common/test"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
@@ -82,7 +81,6 @@ func NewMockedAPIProvider(showError bool) *MockedAPIProvider {
 			},
 			KubeClient:            NewKubeClientMock(showError),
 			SchedulerAPI:          test.NewSchedulerAPIMock(),
-			AppClient:             fake.NewSimpleClientset(),
 			PodInformer:           test.NewMockedPodInformer(),
 			NodeInformer:          test.NewMockedNodeInformer(),
 			ConfigMapInformer:     test.NewMockedConfigMapInformer(),
@@ -90,7 +88,6 @@ func NewMockedAPIProvider(showError bool) *MockedAPIProvider {
 			PVCInformer:           &MockedPersistentVolumeClaimInformer{},
 			StorageInformer:       &MockedStorageClassInformer{},
 			VolumeBinder:          nil,
-			AppInformer:           test.NewAppInformerMock(),
 			NamespaceInformer:     test.NewMockNamespaceInformer(false),
 			PriorityClassInformer: test.NewMockPriorityClassInformer(),
 			InformerFactory:       informers.NewSharedInformerFactory(k8fake.NewSimpleClientset(), time.Second*60),

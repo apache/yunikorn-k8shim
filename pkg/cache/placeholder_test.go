@@ -27,7 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/apache/yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
+	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/yunikorn-k8shim/pkg/common"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
@@ -43,7 +43,7 @@ func TestNewPlaceholder(t *testing.T) {
 	app := NewApplication(appID, queue, "bob",
 		testGroups, map[string]string{constants.AppTagNamespace: namespace, constants.AppTagImagePullSecrets: "secret1,secret2"},
 		mockedSchedulerAPI)
-	app.setTaskGroups([]v1alpha1.TaskGroup{
+	app.setTaskGroups([]interfaces.TaskGroup{
 		{
 			Name:      "test-group-1",
 			MinMember: 10,
@@ -91,7 +91,7 @@ func TestNewPlaceholderWithLabelsAndAnnotations(t *testing.T) {
 	mockedSchedulerAPI := newMockSchedulerAPI()
 	app := NewApplication(appID, queue,
 		"bob", testGroups, map[string]string{constants.AppTagNamespace: namespace}, mockedSchedulerAPI)
-	taskGroups := []v1alpha1.TaskGroup{
+	taskGroups := []interfaces.TaskGroup{
 		{
 			Name:      "test-group-1",
 			MinMember: 10,
@@ -123,7 +123,7 @@ func TestNewPlaceholderWithLabelsAndAnnotations(t *testing.T) {
 	assert.Equal(t, holder.pod.Annotations["annotationKey0"], "annotationValue0")
 	assert.Equal(t, holder.pod.Annotations["annotationKey1"], "annotationValue1")
 	assert.Equal(t, holder.pod.Annotations["annotationKey2"], "annotationValue2")
-	var taskGroupsDef []v1alpha1.TaskGroup
+	var taskGroupsDef []interfaces.TaskGroup
 	err = json.Unmarshal([]byte(holder.pod.Annotations["yunikorn.apache.org/task-groups"]), &taskGroupsDef)
 	assert.NilError(t, err, "taskGroupsDef unmarshal failed")
 }
@@ -137,7 +137,7 @@ func TestNewPlaceholderWithNodeSelectors(t *testing.T) {
 	mockedSchedulerAPI := newMockSchedulerAPI()
 	app := NewApplication(appID, queue,
 		"bob", testGroups, map[string]string{constants.AppTagNamespace: namespace}, mockedSchedulerAPI)
-	app.setTaskGroups([]v1alpha1.TaskGroup{
+	app.setTaskGroups([]interfaces.TaskGroup{
 		{
 			Name:      "test-group-1",
 			MinMember: 10,
@@ -167,7 +167,7 @@ func TestNewPlaceholderWithTolerations(t *testing.T) {
 	mockedSchedulerAPI := newMockSchedulerAPI()
 	app := NewApplication(appID, queue,
 		"bob", testGroups, map[string]string{constants.AppTagNamespace: namespace}, mockedSchedulerAPI)
-	app.setTaskGroups([]v1alpha1.TaskGroup{
+	app.setTaskGroups([]interfaces.TaskGroup{
 		{
 			Name:      "test-group-1",
 			MinMember: 10,
@@ -204,7 +204,7 @@ func TestNewPlaceholderWithAffinity(t *testing.T) {
 	mockedSchedulerAPI := newMockSchedulerAPI()
 	app := NewApplication(appID, queue,
 		"bob", testGroups, map[string]string{constants.AppTagNamespace: namespace}, mockedSchedulerAPI)
-	app.setTaskGroups([]v1alpha1.TaskGroup{
+	app.setTaskGroups([]interfaces.TaskGroup{
 		{
 			Name:      "test-group-1",
 			MinMember: 10,
@@ -246,7 +246,7 @@ func TestNewPlaceholderWithAffinity(t *testing.T) {
 
 func TestNewPlaceholderTaskGroupsDefinition(t *testing.T) {
 	mockedSchedulerAPI := newMockSchedulerAPI()
-	taskGroup := []v1alpha1.TaskGroup{
+	taskGroup := []interfaces.TaskGroup{
 		{
 			Name:      "test-group-1",
 			MinMember: 10,

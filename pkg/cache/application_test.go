@@ -35,7 +35,6 @@ import (
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sEvents "k8s.io/client-go/tools/events"
 
-	"github.com/apache/yunikorn-k8shim/pkg/apis/yunikorn.apache.org/v1alpha1"
 	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/general"
 	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
@@ -596,24 +595,10 @@ func TestGetNonTerminatedTaskAlias(t *testing.T) {
 
 func TestSetTaskGroupsAndSchedulingPolicy(t *testing.T) {
 	app := NewApplication("app01", "root.a", "test-user", testGroups, map[string]string{}, newMockSchedulerAPI())
-	assert.Assert(t, app.getSchedulingPolicy().Type == "")
 	assert.Equal(t, len(app.getTaskGroups()), 0)
 
-	app.setSchedulingPolicy(v1alpha1.SchedulingPolicy{
-		Type: v1alpha1.TryReserve,
-		Parameters: map[string]string{
-			"option-1": "value-1",
-			"option-2": "value-2",
-		},
-	})
-
-	assert.Equal(t, app.getSchedulingPolicy().Type, v1alpha1.TryReserve)
-	assert.Equal(t, len(app.getSchedulingPolicy().Parameters), 2)
-	assert.Equal(t, app.getSchedulingPolicy().Parameters["option-1"], "value-1", "incorrect parameter value")
-	assert.Equal(t, app.getSchedulingPolicy().Parameters["option-2"], "value-2", "incorrect parameter value")
-
 	duration := int64(3000)
-	app.setTaskGroups([]v1alpha1.TaskGroup{
+	app.setTaskGroups([]interfaces.TaskGroup{
 		{
 			Name:      "test-group-1",
 			MinMember: 10,
@@ -723,17 +708,8 @@ func TestTryReserve(t *testing.T) {
 		testGroups, map[string]string{}, mockedAPIProvider.GetAPIs().SchedulerAPI)
 	context.addApplication(app)
 
-	// set app scheduling policy
-	app.setSchedulingPolicy(v1alpha1.SchedulingPolicy{
-		Type: v1alpha1.TryReserve,
-		Parameters: map[string]string{
-			"option-1": "value-1",
-			"option-2": "value-2",
-		},
-	})
-
 	// set taskGroups
-	app.setTaskGroups([]v1alpha1.TaskGroup{
+	app.setTaskGroups([]interfaces.TaskGroup{
 		{
 			Name:      "test-group-1",
 			MinMember: 10,
@@ -799,7 +775,7 @@ func TestTryReservePostRestart(t *testing.T) {
 	context.addApplication(app)
 
 	// set taskGroups
-	app.setTaskGroups([]v1alpha1.TaskGroup{
+	app.setTaskGroups([]interfaces.TaskGroup{
 		{
 			Name:      "test-group-1",
 			MinMember: 10,
@@ -968,7 +944,7 @@ func TestSkipReservationStage(t *testing.T) {
 	task2.sm.SetState(TaskStates().Allocated)
 	app.addTask(task1)
 	app.addTask(task2)
-	app.setTaskGroups([]v1alpha1.TaskGroup{
+	app.setTaskGroups([]interfaces.TaskGroup{
 		{
 			Name:      "test-group-1",
 			MinMember: 10,
@@ -990,7 +966,7 @@ func TestSkipReservationStage(t *testing.T) {
 	task2.sm.SetState(TaskStates().New)
 	app.addTask(task1)
 	app.addTask(task2)
-	app.setTaskGroups([]v1alpha1.TaskGroup{
+	app.setTaskGroups([]interfaces.TaskGroup{
 		{
 			Name:      "test-group-1",
 			MinMember: 10,
@@ -1279,7 +1255,7 @@ func TestApplication_onReservationStateChange(t *testing.T) {
 	assertAppState(t, app, ApplicationStates().Running, 1*time.Second)
 
 	// set taskGroups
-	app.setTaskGroups([]v1alpha1.TaskGroup{
+	app.setTaskGroups([]interfaces.TaskGroup{
 		{
 			Name:      "test-group-1",
 			MinMember: 1,
