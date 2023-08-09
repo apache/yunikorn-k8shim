@@ -22,14 +22,14 @@ go 1.20
 
 require (
 	github.com/GoogleCloudPlatform/spark-on-k8s-operator v0.0.0-20201215015655-2e8b733f5ad0
-	github.com/apache/yunikorn-core v0.0.0-20230626064933-148f221ab4f1
-	github.com/apache/yunikorn-scheduler-interface v0.0.0-20230621102204-bcadd461d275
+	github.com/apache/yunikorn-core v0.0.0-20230809131940-0ecf24d2aad2
+	github.com/apache/yunikorn-scheduler-interface v0.0.0-20230803134744-355d6a16e4f0
 	github.com/google/go-cmp v0.5.9
 	github.com/google/uuid v1.3.0
-	github.com/gorilla/mux v1.8.0
 	github.com/looplab/fsm v1.0.1
 	github.com/onsi/ginkgo/v2 v2.9.1
 	github.com/onsi/gomega v1.27.4
+	github.com/prometheus/client_golang v1.14.0
 	go.uber.org/zap v1.24.0
 	gopkg.in/yaml.v3 v3.0.1
 	gotest.tools/v3 v3.0.3
@@ -102,7 +102,6 @@ require (
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
 	github.com/pkg/errors v0.9.1 // indirect
-	github.com/prometheus/client_golang v1.14.0 // indirect
 	github.com/prometheus/client_model v0.3.0 // indirect
 	github.com/prometheus/common v0.37.0 // indirect
 	github.com/prometheus/procfs v0.8.0 // indirect
