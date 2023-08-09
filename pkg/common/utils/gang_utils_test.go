@@ -20,6 +20,7 @@ package utils
 
 import (
 	"math"
+	"reflect"
 	"testing"
 
 	"gotest.tools/v3/assert"
@@ -129,6 +130,69 @@ func TestGetSchedulingPolicyParams(t *testing.T) {
 			}
 			if schedulingPolicyParams.GetGangSchedulingStyle() != tt.expectedStyle {
 				t.Errorf("%d:got %s,want %s", testID, schedulingPolicyParams.GetGangSchedulingStyle(), tt.expectedStyle)
+			}
+		})
+	}
+}
+
+func Test_allowOverCommit(t *testing.T) {
+	tests := []struct {
+		name    string
+		resName string
+		want    bool
+	}{
+		{"standard", "memory", true},
+		{"qualified", "kubernetes.io/memory", true},
+		{"hugepages qualified", "kubernetes.io/hugepages-huge", true}, // weird special case as per the K8s docs
+		{"hugepages", "hugepages-small", false},
+		{"extended", "nvidia.com/gpu", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, allowOverCommit(tt.resName), tt.want, "incorrect overcommit status")
+		})
+	}
+}
+
+func Test_GetPlaceholderResourceRequest(t *testing.T) {
+	tests := []struct {
+		name   string
+		resMap map[string]resource.Quantity
+		want   v1.ResourceList
+	}{
+		{"nil", nil, v1.ResourceList{}},
+		{"empty", map[string]resource.Quantity{}, v1.ResourceList{}},
+		{"base", map[string]resource.Quantity{"pods": resource.MustParse("1")}, v1.ResourceList{"pods": resource.MustParse("1")}},
+		{"hugepages", map[string]resource.Quantity{"hugepages-huge": resource.MustParse("2")}, v1.ResourceList{"hugepages-huge": resource.MustParse("2")}},
+		{"k8s qualified", map[string]resource.Quantity{"kubernetes.io/pods": resource.MustParse("3")}, v1.ResourceList{"kubernetes.io/pods": resource.MustParse("3")}},
+		{"mixed", map[string]resource.Quantity{"pods": resource.MustParse("4"), "nvidia.com/gpu": resource.MustParse("5")}, v1.ResourceList{"pods": resource.MustParse("4"), "nvidia.com/gpu": resource.MustParse("5")}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := GetPlaceholderResourceRequests(tt.resMap); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("GetPlaceholderResourceRequest() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_GetPlaceholderResourceLimits(t *testing.T) {
+	tests := []struct {
+		name   string
+		resMap map[string]resource.Quantity
+		want   v1.ResourceList
+	}{
+		{"nil", nil, v1.ResourceList{}},
+		{"empty", map[string]resource.Quantity{}, v1.ResourceList{}},
+		{"base", map[string]resource.Quantity{"pods": resource.MustParse("1")}, v1.ResourceList{}},
+		{"hugepages", map[string]resource.Quantity{"hugepages-huge": resource.MustParse("2")}, v1.ResourceList{"hugepages-huge": resource.MustParse("2")}},
+		{"k8s qualified", map[string]resource.Quantity{"kubernetes.io/pods": resource.MustParse("3")}, v1.ResourceList{}},
+		{"mixed", map[string]resource.Quantity{"pods": resource.MustParse("4"), "nvidia.com/gpu": resource.MustParse("5")}, v1.ResourceList{"nvidia.com/gpu": resource.MustParse("5")}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := GetPlaceholderResourceLimits(tt.resMap); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("GetPlaceholderResourceRequest() = %v, want %v", got, tt.want)
 			}
 		})
 	}
