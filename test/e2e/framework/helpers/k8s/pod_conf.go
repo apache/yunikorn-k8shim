@@ -88,15 +88,14 @@ func InitSleepPod(conf SleepPodConfig) (*v1.Pod, error) {
 		}
 	}
 
-	optedOut := "true"
+	optedOut := constants.True
 	if !conf.Optedout {
-		optedOut = "false"
+		optedOut = constants.False
 	}
 
 	labels := map[string]string{
-		"app":                                  "sleep",
-		"applicationId":                        conf.AppID,
-		"yunikorn.apache.org/allow-preemption": optedOut,
+		"app":           "sleep",
+		"applicationId": conf.AppID,
 	}
 	if len(conf.Labels) > 0 {
 		for k, v := range conf.Labels {
@@ -110,7 +109,12 @@ func InitSleepPod(conf SleepPodConfig) (*v1.Pod, error) {
 		RestartPolicy:              v1.RestartPolicyNever,
 		DeletionGracePeriodSeconds: &secs,
 		Command:                    []string{"sleep", strconv.Itoa(conf.Time)},
-		Labels:                     labels,
+		Annotations: &PodAnnotation{
+			Other: map[string]string{
+				constants.AnnotationAllowPreemption: optedOut,
+			},
+		},
+		Labels: labels,
 		Resources: &v1.ResourceRequirements{
 			Requests: v1.ResourceList{
 				"cpu":    resource.MustParse(strconv.FormatInt(conf.CPU, 10) + "m"),
