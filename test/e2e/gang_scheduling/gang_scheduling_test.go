@@ -1180,6 +1180,128 @@ var _ = Describe("", func() {
 			},
 		}),
 	)
+
+	// Test to verify annotation with task group definition
+	// 1. Deploy 1 job with tg definition
+	// 2. Poll for 5 placeholders
+	// 3. App running
+	// 4. Deploy 1 job with 5 real pods of task group
+	// 5. Check placeholders deleted
+	// 6. Real pods running and app running
+	It("Verify_HugePage", func() {
+		taskGroupName := "group-" + common.RandSeq(3)
+
+		hugepageKey := fmt.Sprintf("%s2Mi", v1.ResourceHugePagesPrefix)
+		// Define gang member template with 5 members, 1 real pod (not part of tg)
+		podResources := map[string]resource.Quantity{
+			"cpu":       resource.MustParse("10m"),
+			"memory":    resource.MustParse("10M"),
+			hugepageKey: resource.MustParse("100Mi"),
+		}
+		annotations := k8s.PodAnnotation{
+			TaskGroups: []interfaces.TaskGroup{
+				{Name: taskGroupName, MinMember: int32(5), MinResource: podResources},
+			},
+		}
+		podConf := k8s.TestPodConfig{
+			Labels: map[string]string{
+				"app":           "sleep-" + common.RandSeq(5),
+				"applicationId": "appid-" + common.RandSeq(5),
+			},
+			Annotations: &annotations,
+			Resources: &v1.ResourceRequirements{
+				Requests: v1.ResourceList{
+					"cpu":                        podResources["cpu"],
+					"memory":                     podResources["memory"],
+					v1.ResourceName(hugepageKey): podResources[hugepageKey],
+				},
+				Limits: v1.ResourceList{
+					v1.ResourceName(hugepageKey): podResources[hugepageKey],
+				},
+			},
+		}
+		jobConf := k8s.JobConfig{
+			Name:        "gangjob-" + common.RandSeq(5),
+			Namespace:   ns,
+			Parallelism: int32(1),
+			PodConfig:   podConf,
+		}
+		job, jobErr := k8s.InitJobConfig(jobConf)
+		Ω(jobErr).NotTo(HaveOccurred())
+
+		// Deploy job
+		taskGroupsMap, annErr := k8s.PodAnnotationToMap(podConf.Annotations)
+		Ω(annErr).NotTo(HaveOccurred())
+		By(fmt.Sprintf("Deploy job %s with task-groups: %+v", jobConf.Name, taskGroupsMap[k8s.TaskGroups]))
+		_, jobErr = kClient.CreateJob(job, ns)
+		Ω(jobErr).NotTo(HaveOccurred())
+		createErr := kClient.WaitForJobPodsCreated(ns, job.Name, int(*job.Spec.Parallelism), 30*time.Second)
+		Ω(createErr).NotTo(HaveOccurred())
+
+		// After all placeholders reserved + separate pod, appStatus = Running
+		By("Verify appStatus = Running")
+		timeoutErr := restClient.WaitForAppStateTransition(defaultPartition, nsQueue, podConf.Labels["applicationId"],
+			yunikorn.States().Application.Running,
+			120)
+		Ω(timeoutErr).NotTo(HaveOccurred())
+
+		// Ensure placeholders are created
+		appDaoInfo, appDaoInfoErr := restClient.GetAppInfo(defaultPartition, nsQueue, podConf.Labels["applicationId"])
+		Ω(appDaoInfoErr).NotTo(HaveOccurred())
+		Ω(len(appDaoInfo.PlaceholderData)).To(Equal(1), "Placeholder count is not correct")
+		Ω(int(appDaoInfo.PlaceholderData[0].Count)).To(Equal(int(5)), "Placeholder count is not correct")
+		Ω(int(appDaoInfo.PlaceholderData[0].Replaced)).To(Equal(int(0)), "Placeholder replacement count is not correct")
+
+		// Deploy job, now with 5 pods part of taskGroup
+		By("Deploy second job with 5 real taskGroup pods")
+		podConf.Annotations.TaskGroupName = taskGroupName
+		realJobConf := k8s.JobConfig{
+			Name:        "gangjob2-" + common.RandSeq(5),
+			Namespace:   ns,
+			Parallelism: int32(5),
+			PodConfig:   podConf,
+		}
+		job1, job1Err := k8s.InitJobConfig(realJobConf)
+		Ω(job1Err).NotTo(HaveOccurred())
+		_, job1Err = kClient.CreateJob(job1, ns)
+		Ω(job1Err).NotTo(HaveOccurred())
+		createErr = kClient.WaitForJobPodsCreated(ns, job1.Name, int(*job.Spec.Parallelism), 30*time.Second)
+		Ω(createErr).NotTo(HaveOccurred())
+
+		// Check all placeholders deleted.
+		By("Wait for all placeholders terminated")
+		tgPlaceHolders := yunikorn.GetPlaceholderNames(podConf.Annotations, podConf.Labels["applicationId"])
+		for _, phNames := range tgPlaceHolders {
+			for _, ph := range phNames {
+				phTermErr := kClient.WaitForPodTerminated(ns, ph, 3*time.Minute)
+				Ω(phTermErr).NotTo(HaveOccurred())
+			}
+		}
+
+		// Check real gang members now running
+		By("Wait for all gang members running")
+		jobRunErr := kClient.WaitForJobPods(ns, realJobConf.Name, int(realJobConf.Parallelism), 3*time.Minute)
+		Ω(jobRunErr).NotTo(HaveOccurred())
+
+		By("Verify appStatus = Running")
+		timeoutErr = restClient.WaitForAppStateTransition(defaultPartition, nsQueue, podConf.Labels["applicationId"],
+			yunikorn.States().Application.Running,
+			120)
+		Ω(timeoutErr).NotTo(HaveOccurred())
+
+		// Ensure placeholders are replaced
+		appDaoInfo, appDaoInfoErr = restClient.GetAppInfo(defaultPartition, nsQueue, podConf.Labels["applicationId"])
+		Ω(appDaoInfoErr).NotTo(HaveOccurred())
+		Ω(len(appDaoInfo.PlaceholderData)).To(Equal(1), "Placeholder count is not correct")
+		Ω(int(appDaoInfo.PlaceholderData[0].Count)).To(Equal(int(5)), "Placeholder count is not correct")
+		Ω(int(appDaoInfo.PlaceholderData[0].Replaced)).To(Equal(int(5)), "Placeholder replacement count is not correct")
+
+		err := kClient.DeleteJob(job.Name, ns)
+		Ω(err).NotTo(gomega.HaveOccurred())
+		err = kClient.DeleteJob(job1.Name, ns)
+		Ω(err).NotTo(gomega.HaveOccurred())
+	})
+
 	AfterEach(func() {
 		testDescription := ginkgo.CurrentSpecReport()
 		if testDescription.Failed() {
