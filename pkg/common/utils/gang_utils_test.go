@@ -142,8 +142,7 @@ func Test_allowOverCommit(t *testing.T) {
 		want    bool
 	}{
 		{"standard", "memory", true},
-		{"qualified", "kubernetes.io/memory", true},
-		{"hugepages qualified", "kubernetes.io/hugepages-huge", true}, // weird special case as per the K8s docs
+		{"pod as resource", "pods", true},
 		{"hugepages", "hugepages-small", false},
 		{"extended", "nvidia.com/gpu", false},
 	}
@@ -164,7 +163,6 @@ func Test_GetPlaceholderResourceRequest(t *testing.T) {
 		{"empty", map[string]resource.Quantity{}, v1.ResourceList{}},
 		{"base", map[string]resource.Quantity{"pods": resource.MustParse("1")}, v1.ResourceList{"pods": resource.MustParse("1")}},
 		{"hugepages", map[string]resource.Quantity{"hugepages-huge": resource.MustParse("2")}, v1.ResourceList{"hugepages-huge": resource.MustParse("2")}},
-		{"k8s qualified", map[string]resource.Quantity{"kubernetes.io/pods": resource.MustParse("3")}, v1.ResourceList{"kubernetes.io/pods": resource.MustParse("3")}},
 		{"mixed", map[string]resource.Quantity{"pods": resource.MustParse("4"), "nvidia.com/gpu": resource.MustParse("5")}, v1.ResourceList{"pods": resource.MustParse("4"), "nvidia.com/gpu": resource.MustParse("5")}},
 	}
 	for _, tt := range tests {
@@ -186,7 +184,6 @@ func Test_GetPlaceholderResourceLimits(t *testing.T) {
 		{"empty", map[string]resource.Quantity{}, v1.ResourceList{}},
 		{"base", map[string]resource.Quantity{"pods": resource.MustParse("1")}, v1.ResourceList{}},
 		{"hugepages", map[string]resource.Quantity{"hugepages-huge": resource.MustParse("2")}, v1.ResourceList{"hugepages-huge": resource.MustParse("2")}},
-		{"k8s qualified", map[string]resource.Quantity{"kubernetes.io/pods": resource.MustParse("3")}, v1.ResourceList{}},
 		{"mixed", map[string]resource.Quantity{"pods": resource.MustParse("4"), "nvidia.com/gpu": resource.MustParse("5")}, v1.ResourceList{"nvidia.com/gpu": resource.MustParse("5")}},
 	}
 	for _, tt := range tests {

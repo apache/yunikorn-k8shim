@@ -32,11 +32,6 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
 
-const (
-	k8sDomain       = "kubernetes.io"
-	hugepagesPrefix = "hugepages-"
-)
-
 func FindAppTaskGroup(appTaskGroups []*interfaces.TaskGroup, groupName string) (*interfaces.TaskGroup, error) {
 	if groupName == "" {
 		// task has no group defined
@@ -99,11 +94,12 @@ func GetPlaceholderResourceLimits(resources map[string]resource.Quantity) v1.Res
 
 // allowOverCommit returns true if the resource can be over committed.
 // This comes down to only allow the standard resources cpu, memory and ephemeral-storage to be over committed.
+// We deviate from the K8s checks as opaque resources are no longer supported. Opaque resources were the only
+// resources in the "kubernetes.io" domain.
 // We slip in the "pods" resource on task groups but that does not cause an issue.
 func allowOverCommit(name string) bool {
-	return (!strings.Contains(name, "/") ||
-		strings.Contains(name, k8sDomain)) &&
-		!strings.HasPrefix(name, hugepagesPrefix)
+	return !strings.Contains(name, "/") &&
+		!strings.HasPrefix(name, v1.ResourceHugePagesPrefix)
 }
 
 func GetSchedulingPolicyParam(pod *v1.Pod) *interfaces.SchedulingPolicyParameters {
