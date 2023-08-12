@@ -348,14 +348,8 @@ var _ = ginkgo.Describe("PriorityScheduling", func() {
 		Ω(err).NotTo(gomega.HaveOccurred())
 
 		By("Wait for high-priority placeholders terminated")
-		var tgPlaceHolders map[string][]string
-		tgPlaceHolders = yunikorn.GetPlaceholderNames(highPodConf.Annotations, highPodConf.Labels["applicationId"])
-		for _, phNames := range tgPlaceHolders {
-			for _, ph := range phNames {
-				phTermErr := kubeClient.WaitForPodTerminated(ns, ph, 1*time.Minute)
-				Ω(phTermErr).NotTo(HaveOccurred())
-			}
-		}
+		err = kubeClient.WaitForPlaceholders(ns, "tg-"+highPodConf.Labels["applicationId"]+"-", 0, 30*time.Second, nil)
+		Ω(err).NotTo(HaveOccurred())
 
 		By("Wait for high-priority pod to begin running")
 		err = kubeClient.WaitForPodRunning(ns, highPod.Name, 1*time.Minute)
@@ -369,13 +363,8 @@ var _ = ginkgo.Describe("PriorityScheduling", func() {
 		Ω(err).NotTo(gomega.HaveOccurred())
 
 		By("Wait for normal-priority placeholders terminated")
-		tgPlaceHolders = yunikorn.GetPlaceholderNames(normalPodConf.Annotations, normalPodConf.Labels["applicationId"])
-		for _, phNames := range tgPlaceHolders {
-			for _, ph := range phNames {
-				phTermErr := kubeClient.WaitForPodTerminated(ns, ph, 1*time.Minute)
-				Ω(phTermErr).NotTo(HaveOccurred())
-			}
-		}
+		err = kubeClient.WaitForPlaceholders(ns, "tg-"+normalPodConf.Labels["applicationId"]+"-", 0, 30*time.Second, nil)
+		Ω(err).NotTo(HaveOccurred())
 
 		By("Wait for normal-priority pod to begin running")
 		err = kubeClient.WaitForPodRunning(ns, normalPod.Name, 1*time.Minute)
@@ -389,13 +378,8 @@ var _ = ginkgo.Describe("PriorityScheduling", func() {
 		Ω(err).NotTo(gomega.HaveOccurred())
 
 		By("Wait for low-priority placeholders terminated")
-		tgPlaceHolders = yunikorn.GetPlaceholderNames(lowPodConf.Annotations, lowPodConf.Labels["applicationId"])
-		for _, phNames := range tgPlaceHolders {
-			for _, ph := range phNames {
-				phTermErr := kubeClient.WaitForPodTerminated(ns, ph, 1*time.Minute)
-				Ω(phTermErr).NotTo(HaveOccurred())
-			}
-		}
+		err = kubeClient.WaitForPlaceholders(ns, "tg-"+lowPodConf.Labels["applicationId"]+"-", 0, 30*time.Second, nil)
+		Ω(err).NotTo(HaveOccurred())
 
 		By("Wait for low-priority pod to begin running")
 		err = kubeClient.WaitForPodRunning(ns, lowPod.Name, 1*time.Minute)
