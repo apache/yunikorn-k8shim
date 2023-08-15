@@ -29,8 +29,8 @@ type PodAnnotation struct {
 }
 
 type UserInfo struct {
-	User   string   `"json:user,omitempty"`
-	Groups []string `"json:groups,omitempty"`
+	User   string   `json:"username,omitempty"`
+	Groups []string `json:"groups,omitempty"`
 }
 
 const (
