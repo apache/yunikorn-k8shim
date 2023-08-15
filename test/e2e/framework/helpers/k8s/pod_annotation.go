@@ -24,7 +24,13 @@ type PodAnnotation struct {
 	TaskGroupName          string                 `json:"yunikorn.apache.org/task-group-name,omitempty"`
 	TaskGroups             []interfaces.TaskGroup `json:"-"`
 	SchedulingPolicyParams string                 `json:"yunikorn.apache.org/schedulingPolicyParameters,omitempty"`
+	Info                   UserInfo               `json:"yunikorn.apache.org/user.info,omitempty"`
 	Other                  map[string]string      `json:"-"`
+}
+
+type UserInfo struct {
+	User   string   `"json:user,omitempty"`
+	Groups []string `"json:groups,omitempty"`
 }
 
 const (

@@ -46,7 +46,9 @@ const (
 	ClustersPath     = "ws/v1/clusters"
 	NodesPath        = "ws/v1/partition/%s/nodes"
 	UserUsagePath    = "ws/v1/partition/%s/usage/user/%s"
+	UsersUsagePath   = "ws/v1/partition/%s/usage/users"
 	GroupUsagePath   = "ws/v1/partition/%s/usage/group/%s"
+	GroupsUsagePath  = "ws/v1/partition/%s/usage/groups"
 	HealthCheckPath  = "ws/v1/scheduler/healthcheck"
 	ValidateConfPath = "ws/v1/validate-conf"
 

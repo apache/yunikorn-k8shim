@@ -41,6 +41,8 @@ type SleepPodConfig struct {
 	RequiredNode string
 	Optedout     bool
 	Labels       map[string]string
+	UserName     string
+	GroupNames   []string
 }
 
 // TestPodConfig template for  sleepPods
@@ -60,6 +62,17 @@ func InitSleepPod(conf SleepPodConfig) (*v1.Pod, error) {
 	}
 	if conf.Mem == 0 {
 		conf.Mem = 50
+	}
+
+	var podAnnotations *PodAnnotation = nil
+	if len(conf.UserName) != 0 || len(conf.GroupNames) != 0 {
+		podAnnotations = &PodAnnotation{}
+		if len(conf.UserName) != 0 {
+			podAnnotations.Info.User = conf.UserName
+		}
+		if len(conf.GroupNames) != 0 {
+			podAnnotations.Info.Groups = conf.GroupNames
+		}
 	}
 
 	var owners []metav1.OwnerReference
@@ -125,6 +138,9 @@ func InitSleepPod(conf SleepPodConfig) (*v1.Pod, error) {
 		OwnerReferences: owners,
 	}
 
+	if podAnnotations != nil {
+		testPodConfig.Annotations = podAnnotations
+	}
 	return InitTestPod(testPodConfig)
 }
 

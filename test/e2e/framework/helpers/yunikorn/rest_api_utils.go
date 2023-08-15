@@ -398,6 +398,7 @@ func (c *RClient) GetPartitions(partition string) (*dao.PartitionQueueDAOInfo, e
 	_, err = c.do(req, &partitions)
 	return partitions, err
 }
+<<<<<<< HEAD
 
 func (c *RClient) GetUserUsage(partition string, userName string) (*dao.UserResourceUsageDAOInfo, error) {
 	req, err := c.newRequest("GET", fmt.Sprintf(configmanager.UserUsagePath, partition, userName), nil)
@@ -409,6 +410,8 @@ func (c *RClient) GetUserUsage(partition string, userName string) (*dao.UserReso
 	return userUsage, err
 }
 
+
+
 func (c *RClient) GetGroupUsage(partition string, groupName string) (*dao.GroupResourceUsageDAOInfo, error) {
 	req, err := c.newRequest("GET", fmt.Sprintf(configmanager.GroupUsagePath, partition, groupName), nil)
 	if err != nil {
@@ -417,4 +420,24 @@ func (c *RClient) GetGroupUsage(partition string, groupName string) (*dao.GroupR
 	var groupUsage *dao.GroupResourceUsageDAOInfo
 	_, err = c.do(req, &groupUsage)
 	return groupUsage, err
+}
+
+func (c *RClient) GetUserssage(partition string) ([]*dao.UserResourceUsageDAOInfo, error) {
+	req, err := c.newRequest("GET", fmt.Sprintf(configmanager.UsersTrackerPath, partition), nil)
+	if err != nil {
+			return nil, err
+	}
+	var usersUsage []*dao.UserResourceUsageDAOInfo
+	_, err = c.do(req, usersUsage)
+	return usersUsage, err
+}
+
+func (c *RClient) GetGroupsUsage(partition string) ([]*dao.GroupResourceUsageDAOInfo, error) {
+	req, err := c.newRequest("GET", fmt.Sprintf(configmanager.GroupsTrackerPath, partition), nil)
+	if err != nil {
+			return nil, err
+	}
+	var groupsUsage []*dao.GroupResourceUsageDAOInfo
+	_, err = c.do(req, groupsUsage)
+	return groupsUsage, err
 }
