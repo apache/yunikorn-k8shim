@@ -88,9 +88,9 @@ var _ = Describe("UserQuataTracing: Two leaf queus for two groups", func() {
 		for _, config := range configs {
 			By(fmt.Sprintf("Deploy the sleep app %s to the %s namespace", config.AppID, ns))
 			sleepObj, podErr := k8s.InitSleepPod(k8s.SleepPodConfig{
-				AppID:      config.AppID,
-				NS:         ns,
-				Labels:     map[string]string{"queue": config.Queue},
+				AppID:  config.AppID,
+				NS:     ns,
+				Labels: map[string]string{"queue": config.Queue},
 			})
 			sleepObj.ObjectMeta.Annotations["yunikorn.apache.org/user.info"] = fmt.Sprintf("{username:%s, groups:{%s}}", config.UserName, config.GroupsNames)
 			Ω(podErr).NotTo(HaveOccurred())
