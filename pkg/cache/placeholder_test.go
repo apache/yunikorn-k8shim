@@ -33,26 +33,71 @@ import (
 	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 )
 
+const (
+	gpu       = "nvidia.com/gpu"
+	ephemeral = "ephemeral-storage"
+	hugepages = "hugepages-1Gi"
+)
+
+var taskGroups = []interfaces.TaskGroup{
+	{
+		Name:      "test-group-1",
+		MinMember: 10,
+		MinResource: map[string]resource.Quantity{
+			"cpu":     resource.MustParse("500m"),
+			"memory":  resource.MustParse("1024M"),
+			gpu:       resource.MustParse("2"),
+			ephemeral: resource.MustParse("2G"),
+			hugepages: resource.MustParse("2"),
+		},
+		Labels: map[string]string{
+			"labelKey0": "labelKeyValue0",
+			"labelKey1": "labelKeyValue1",
+		},
+		Annotations: map[string]string{
+			"annotationKey0": "annotationValue0",
+			"annotationKey1": "annotationValue1",
+			"annotationKey2": "annotationValue2",
+		},
+		NodeSelector: map[string]string{
+			"nodeType":  "test",
+			"nodeState": "healthy",
+		},
+		Tolerations: []v1.Toleration{
+			{
+				Key:      "key1",
+				Operator: v1.TolerationOpEqual,
+				Value:    "value1",
+				Effect:   v1.TaintEffectNoSchedule,
+			},
+		},
+		Affinity: &v1.Affinity{
+			PodAffinity: &v1.PodAffinity{
+				RequiredDuringSchedulingIgnoredDuringExecution: []v1.PodAffinityTerm{
+					{
+						TopologyKey: "topologyKey",
+						LabelSelector: &metav1.LabelSelector{
+							MatchExpressions: []metav1.LabelSelectorRequirement{
+								{
+									Key:      "service",
+									Operator: metav1.LabelSelectorOpIn,
+									Values:   []string{"securityscan", "value2"},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	},
+}
+
 func TestNewPlaceholder(t *testing.T) {
-	const (
-		appID     = "app01"
-		queue     = "root.default"
-		namespace = "test"
-	)
 	mockedSchedulerAPI := newMockSchedulerAPI()
 	app := NewApplication(appID, queue, "bob",
 		testGroups, map[string]string{constants.AppTagNamespace: namespace, constants.AppTagImagePullSecrets: "secret1,secret2"},
 		mockedSchedulerAPI)
-	app.setTaskGroups([]interfaces.TaskGroup{
-		{
-			Name:      "test-group-1",
-			MinMember: 10,
-			MinResource: map[string]resource.Quantity{
-				"cpu":    resource.MustParse("500m"),
-				"memory": resource.MustParse("1024M"),
-			},
-		},
-	})
+	app.setTaskGroups(taskGroups)
 
 	assert.Equal(t, app.placeholderAsk.Resources[siCommon.CPU].Value, int64(10*500))
 	assert.Equal(t, app.placeholderAsk.Resources[siCommon.Memory].Value, int64(10*1024*1000*1000))
@@ -64,52 +109,29 @@ func TestNewPlaceholder(t *testing.T) {
 	assert.Equal(t, holder.pod.Spec.SchedulerName, constants.SchedulerName)
 	assert.Equal(t, holder.pod.Name, "ph-name")
 	assert.Equal(t, holder.pod.Namespace, namespace)
-	assert.Equal(t, len(holder.pod.Labels), 3)
+	assert.Equal(t, len(holder.pod.Labels), 5, "unexpected number of labels")
 	assert.Equal(t, holder.pod.Labels[constants.LabelApplicationID], appID)
 	assert.Equal(t, holder.pod.Labels[constants.LabelQueueName], queue)
-	assert.Equal(t, len(holder.pod.Annotations), 2)
+	assert.Equal(t, holder.pod.Labels["placeholder"], "true")
+	assert.Equal(t, len(holder.pod.Annotations), 5, "unexpected number of annotations")
 	assert.Equal(t, holder.pod.Annotations[constants.AnnotationTaskGroupName], app.taskGroups[0].Name)
 	assert.Equal(t, common.GetPodResource(holder.pod).Resources[siCommon.CPU].Value, int64(500))
 	assert.Equal(t, common.GetPodResource(holder.pod).Resources[siCommon.Memory].Value, int64(1024*1000*1000))
 	assert.Equal(t, common.GetPodResource(holder.pod).Resources["pods"].Value, int64(1))
-	assert.Equal(t, len(holder.pod.Spec.NodeSelector), 0)
-	assert.Equal(t, len(holder.pod.Spec.Tolerations), 0)
+	assert.Equal(t, len(holder.pod.Spec.NodeSelector), 2, "unexpected number of node selectors")
+	assert.Equal(t, len(holder.pod.Spec.Tolerations), 1, "unexpected number of tolerations")
 	assert.Equal(t, holder.String(), "appID: app01, taskGroup: test-group-1, podName: test/ph-name")
 	assert.Equal(t, holder.pod.Spec.SecurityContext.RunAsUser, &runAsUser)
 	assert.Equal(t, holder.pod.Spec.SecurityContext.RunAsGroup, &runAsGroup)
-	assert.Equal(t, len(holder.pod.Spec.ImagePullSecrets), 2)
+	assert.Equal(t, len(holder.pod.Spec.ImagePullSecrets), 2, "unexpected number of pull secrets")
 	assert.Equal(t, "secret1", holder.pod.Spec.ImagePullSecrets[0].Name)
 	assert.Equal(t, "secret2", holder.pod.Spec.ImagePullSecrets[1].Name)
 }
 
 func TestNewPlaceholderWithLabelsAndAnnotations(t *testing.T) {
-	const (
-		appID     = "app01"
-		queue     = "root.default"
-		namespace = "test"
-	)
 	mockedSchedulerAPI := newMockSchedulerAPI()
 	app := NewApplication(appID, queue,
 		"bob", testGroups, map[string]string{constants.AppTagNamespace: namespace}, mockedSchedulerAPI)
-	taskGroups := []interfaces.TaskGroup{
-		{
-			Name:      "test-group-1",
-			MinMember: 10,
-			MinResource: map[string]resource.Quantity{
-				"cpu":    resource.MustParse("500m"),
-				"memory": resource.MustParse("1024M"),
-			},
-			Labels: map[string]string{
-				"labelKey0": "labelKeyValue0",
-				"labelKey1": "labelKeyValue1",
-			},
-			Annotations: map[string]string{
-				"annotationKey0": "annotationValue0",
-				"annotationKey1": "annotationValue1",
-				"annotationKey2": "annotationValue2",
-			},
-		},
-	}
 	app.setTaskGroups(taskGroups)
 	marshalledTaskGroups, err := json.Marshal(taskGroups)
 	assert.NilError(t, err, "taskGroups marshalling failed")
@@ -129,28 +151,10 @@ func TestNewPlaceholderWithLabelsAndAnnotations(t *testing.T) {
 }
 
 func TestNewPlaceholderWithNodeSelectors(t *testing.T) {
-	const (
-		appID     = "app01"
-		queue     = "root.default"
-		namespace = "test"
-	)
 	mockedSchedulerAPI := newMockSchedulerAPI()
 	app := NewApplication(appID, queue,
 		"bob", testGroups, map[string]string{constants.AppTagNamespace: namespace}, mockedSchedulerAPI)
-	app.setTaskGroups([]interfaces.TaskGroup{
-		{
-			Name:      "test-group-1",
-			MinMember: 10,
-			MinResource: map[string]resource.Quantity{
-				"cpu":    resource.MustParse("500m"),
-				"memory": resource.MustParse("1024M"),
-			},
-			NodeSelector: map[string]string{
-				"nodeType":  "test",
-				"nodeState": "healthy",
-			},
-		},
-	})
+	app.setTaskGroups(taskGroups)
 
 	holder := newPlaceholder("ph-name", app, app.taskGroups[0])
 	assert.Equal(t, len(holder.pod.Spec.NodeSelector), 2)
@@ -159,32 +163,10 @@ func TestNewPlaceholderWithNodeSelectors(t *testing.T) {
 }
 
 func TestNewPlaceholderWithTolerations(t *testing.T) {
-	const (
-		appID     = "app01"
-		queue     = "root.default"
-		namespace = "test"
-	)
 	mockedSchedulerAPI := newMockSchedulerAPI()
 	app := NewApplication(appID, queue,
 		"bob", testGroups, map[string]string{constants.AppTagNamespace: namespace}, mockedSchedulerAPI)
-	app.setTaskGroups([]interfaces.TaskGroup{
-		{
-			Name:      "test-group-1",
-			MinMember: 10,
-			MinResource: map[string]resource.Quantity{
-				"cpu":    resource.MustParse("500m"),
-				"memory": resource.MustParse("1024M"),
-			},
-			Tolerations: []v1.Toleration{
-				{
-					Key:      "key1",
-					Operator: v1.TolerationOpEqual,
-					Value:    "value1",
-					Effect:   v1.TaintEffectNoSchedule,
-				},
-			},
-		},
-	})
+	app.setTaskGroups(taskGroups)
 
 	holder := newPlaceholder("ph-name", app, app.taskGroups[0])
 	assert.Equal(t, len(holder.pod.Spec.Tolerations), 1)
@@ -196,42 +178,10 @@ func TestNewPlaceholderWithTolerations(t *testing.T) {
 }
 
 func TestNewPlaceholderWithAffinity(t *testing.T) {
-	const (
-		appID     = "app01"
-		queue     = "root.default"
-		namespace = "test"
-	)
 	mockedSchedulerAPI := newMockSchedulerAPI()
 	app := NewApplication(appID, queue,
 		"bob", testGroups, map[string]string{constants.AppTagNamespace: namespace}, mockedSchedulerAPI)
-	app.setTaskGroups([]interfaces.TaskGroup{
-		{
-			Name:      "test-group-1",
-			MinMember: 10,
-			MinResource: map[string]resource.Quantity{
-				"cpu":    resource.MustParse("500m"),
-				"memory": resource.MustParse("1024M"),
-			},
-			Affinity: &v1.Affinity{
-				PodAffinity: &v1.PodAffinity{
-					RequiredDuringSchedulingIgnoredDuringExecution: []v1.PodAffinityTerm{
-						{
-							TopologyKey: "topologyKey",
-							LabelSelector: &metav1.LabelSelector{
-								MatchExpressions: []metav1.LabelSelectorRequirement{
-									{
-										Key:      "service",
-										Operator: metav1.LabelSelectorOpIn,
-										Values:   []string{"securityscan", "value2"},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	})
+	app.setTaskGroups(taskGroups)
 
 	holder := newPlaceholder("ph-name", app, app.taskGroups[0])
 	assert.Equal(t, len(holder.pod.Spec.Affinity.PodAffinity.RequiredDuringSchedulingIgnoredDuringExecution), 1)
@@ -246,26 +196,28 @@ func TestNewPlaceholderWithAffinity(t *testing.T) {
 
 func TestNewPlaceholderTaskGroupsDefinition(t *testing.T) {
 	mockedSchedulerAPI := newMockSchedulerAPI()
-	taskGroup := []interfaces.TaskGroup{
-		{
-			Name:      "test-group-1",
-			MinMember: 10,
-			MinResource: map[string]resource.Quantity{
-				"cpu":    resource.MustParse("500m"),
-				"memory": resource.MustParse("1024M"),
-			},
-		},
-	}
 	app := NewApplication(appID, queue,
 		"bob", testGroups, map[string]string{constants.AppTagNamespace: namespace}, mockedSchedulerAPI)
-	app.setTaskGroups(taskGroup)
+	app.setTaskGroups(taskGroups)
 	holder := newPlaceholder("ph-name", app, app.taskGroups[0])
 	assert.Equal(t, "", holder.pod.Annotations[constants.AnnotationTaskGroups])
 
 	app = NewApplication(appID, queue,
 		"bob", testGroups, map[string]string{constants.AppTagNamespace: namespace}, mockedSchedulerAPI)
-	app.setTaskGroups(taskGroup)
+	app.setTaskGroups(taskGroups)
 	app.setTaskGroupsDefinition("taskGroupsDef")
 	holder = newPlaceholder("ph-name", app, app.taskGroups[0])
 	assert.Equal(t, "taskGroupsDef", holder.pod.Annotations[constants.AnnotationTaskGroups])
+}
+
+func TestNewPlaceholderExtendedResources(t *testing.T) {
+	mockedSchedulerAPI := newMockSchedulerAPI()
+	app := NewApplication(appID, queue,
+		"bob", testGroups, map[string]string{constants.AppTagNamespace: namespace}, mockedSchedulerAPI)
+	app.setTaskGroups(taskGroups)
+	holder := newPlaceholder("ph-name", app, app.taskGroups[0])
+	assert.Equal(t, len(holder.pod.Spec.Containers[0].Resources.Requests), 5, "expected requests not found")
+	assert.Equal(t, len(holder.pod.Spec.Containers[0].Resources.Limits), 2, "limit for extended resource not found")
+	assert.Equal(t, holder.pod.Spec.Containers[0].Resources.Limits[gpu], holder.pod.Spec.Containers[0].Resources.Requests[gpu], "gpu: expected same value for request and limit")
+	assert.Equal(t, holder.pod.Spec.Containers[0].Resources.Limits[hugepages], holder.pod.Spec.Containers[0].Resources.Requests[hugepages], "hugepages: expected same value for request and limit")
 }

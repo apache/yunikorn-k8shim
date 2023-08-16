@@ -54,24 +54,52 @@ func FindAppTaskGroup(appTaskGroups []*interfaces.TaskGroup, groupName string) (
 	return nil, fmt.Errorf("taskGroup %s is not defined in the application", groupName)
 }
 
-// the placeholder name is the pod name, pod name can not be longer than 63 chars,
+// GeneratePlaceholderName creates the placeholder name for a pod, pod name can not be longer than 63 chars,
 // taskGroup name and appID will be truncated if they go over 20/28 chars respectively,
 // each taskGroup is assigned with an incremental index starting from 0.
 func GeneratePlaceholderName(taskGroupName, appID string, index int32) string {
 	// taskGroup name no longer than 20 chars
 	// appID no longer than 28 chars
 	// total length no longer than 20 + 28 + 5 + 10 = 63
-	shortTaskGroupName := fmt.Sprintf("%.20s", taskGroupName)
-	shortAppID := fmt.Sprintf("%.28s", appID)
-	return "tg-" + shortTaskGroupName + "-" + shortAppID + fmt.Sprintf("-%d", index)
+	return fmt.Sprintf("tg-%.20s-%.28s-%d", taskGroupName, appID, index)
 }
 
-func GetPlaceholderResourceRequest(resources map[string]resource.Quantity) v1.ResourceList {
+// GetPlaceholderResourceRequests converts the map of resources requested into a list of resources for the request
+// specification that can be added to a pod. No checks on what is requested.
+func GetPlaceholderResourceRequests(resources map[string]resource.Quantity) v1.ResourceList {
 	resourceReq := v1.ResourceList{}
 	for k, v := range resources {
+		if k == "" {
+			continue
+		}
 		resourceReq[v1.ResourceName(k)] = v
 	}
 	return resourceReq
+}
+
+// GetPlaceholderResourceLimits converts the map of resources requested into a list of resources for the limit
+// specification that can be added to a pod. This only adds the minimal required resources that do not support
+// over commit. The following resources do support over commit: all standard kubernetes resources (except hugepages*)
+// All non-over committable, i.e. extended, resources MUST have a limit set to the same value as the request.
+func GetPlaceholderResourceLimits(resources map[string]resource.Quantity) v1.ResourceList {
+	resourceLim := v1.ResourceList{}
+	for k, v := range resources {
+		if k == "" || allowOverCommit(k) {
+			continue
+		}
+		resourceLim[v1.ResourceName(k)] = v
+	}
+	return resourceLim
+}
+
+// allowOverCommit returns true if the resource can be over committed.
+// This comes down to only allow the standard resources cpu, memory and ephemeral-storage to be over committed.
+// We deviate from the K8s checks as opaque resources are no longer supported. Opaque resources were the only
+// resources in the "kubernetes.io" domain.
+// We slip in the "pods" resource on task groups but that does not cause an issue.
+func allowOverCommit(name string) bool {
+	return !strings.Contains(name, "/") &&
+		!strings.HasPrefix(name, v1.ResourceHugePagesPrefix)
 }
 
 func GetSchedulingPolicyParam(pod *v1.Pod) *interfaces.SchedulingPolicyParameters {
