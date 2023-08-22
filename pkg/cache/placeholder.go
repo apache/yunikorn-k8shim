@@ -79,6 +79,11 @@ func newPlaceholder(placeholderName string, app *Application, taskGroup interfac
 		}
 	}
 
+	var priority *int32
+	if app.GetOriginatingTask() != nil {
+		priority = app.GetOriginatingTask().GetTaskPod().Spec.Priority
+	}
+
 	// prepare the resource lists
 	requests := utils.GetPlaceholderResourceRequests(taskGroup.MinResource)
 	limits := utils.GetPlaceholderResourceLimits(taskGroup.MinResource)
@@ -116,6 +121,7 @@ func newPlaceholder(placeholderName string, app *Application, taskGroup interfac
 			NodeSelector:  taskGroup.NodeSelector,
 			Tolerations:   taskGroup.Tolerations,
 			Affinity:      taskGroup.Affinity,
+			Priority:      priority,
 		},
 	}
 
