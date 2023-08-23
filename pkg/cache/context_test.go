@@ -950,18 +950,22 @@ func TestNodeEventPublishedCorrectly(t *testing.T) {
 		},
 	}
 	context.addNode(&node)
+	err := waitForNodeAcceptedEvent(recorder)
+	assert.NilError(t, err, "node accepted event was not sent")
 
 	eventRecords := make([]*si.EventRecord, 0)
 	message := "node_related_message"
 	eventRecords = append(eventRecords, &si.EventRecord{
-		Type:     si.EventRecord_NODE,
-		ObjectID: "host0001",
-		Message:  message,
+		Type:              si.EventRecord_NODE,
+		EventChangeType:   si.EventRecord_ADD,
+		EventChangeDetail: si.EventRecord_DETAILS_NONE,
+		ObjectID:          "host0001",
+		Message:           message,
 	})
 	context.PublishEvents(eventRecords)
 
 	// check that the event has been published
-	err := utils.WaitForCondition(func() bool {
+	err = utils.WaitForCondition(func() bool {
 		for {
 			select {
 			case event := <-recorder.Events:
@@ -975,6 +979,84 @@ func TestNodeEventPublishedCorrectly(t *testing.T) {
 		}
 	}, 10*time.Millisecond, time.Second)
 	assert.NilError(t, err, "event should have been emitted")
+}
+
+func TestFilteredEventsNotPublished(t *testing.T) {
+	conf.GetSchedulerConf().SetTestMode(true)
+	recorder, ok := events.GetRecorder().(*k8sEvents.FakeRecorder)
+	if !ok {
+		t.Fatal("the EventRecorder is expected to be of type FakeRecorder")
+	}
+	context := initContextForTest()
+
+	node := v1.Node{
+		ObjectMeta: apis.ObjectMeta{
+			Name:      "host0001",
+			Namespace: "default",
+			UID:       "uid_0001",
+		},
+	}
+	context.addNode(&node)
+	err := waitForNodeAcceptedEvent(recorder)
+	assert.NilError(t, err, "node accepted event was not sent")
+
+	eventRecords := make([]*si.EventRecord, 7)
+	eventRecords[0] = &si.EventRecord{
+		Type:              si.EventRecord_NODE,
+		EventChangeType:   si.EventRecord_SET,
+		EventChangeDetail: si.EventRecord_NODE_SCHEDULABLE,
+		ObjectID:          "host0001",
+		Message:           "",
+	}
+	eventRecords[1] = &si.EventRecord{
+		Type:              si.EventRecord_NODE,
+		EventChangeType:   si.EventRecord_SET,
+		EventChangeDetail: si.EventRecord_NODE_READY,
+		ObjectID:          "host0001",
+		Message:           "",
+	}
+	eventRecords[2] = &si.EventRecord{
+		Type:              si.EventRecord_NODE,
+		EventChangeType:   si.EventRecord_SET,
+		EventChangeDetail: si.EventRecord_NODE_OCCUPIED,
+		ObjectID:          "host0001",
+		Message:           "",
+	}
+	eventRecords[3] = &si.EventRecord{
+		Type:              si.EventRecord_NODE,
+		EventChangeType:   si.EventRecord_SET,
+		EventChangeDetail: si.EventRecord_NODE_CAPACITY,
+		ObjectID:          "host0001",
+		Message:           "",
+	}
+	eventRecords[4] = &si.EventRecord{
+		Type:              si.EventRecord_NODE,
+		EventChangeType:   si.EventRecord_ADD,
+		EventChangeDetail: si.EventRecord_NODE_ALLOC,
+		ObjectID:          "host0001",
+		Message:           "",
+	}
+	eventRecords[5] = &si.EventRecord{
+		Type:              si.EventRecord_APP,
+		EventChangeType:   si.EventRecord_ADD,
+		EventChangeDetail: si.EventRecord_APP_STARTING,
+		ObjectID:          "app-1",
+		Message:           "",
+	}
+	eventRecords[6] = &si.EventRecord{
+		Type:              si.EventRecord_QUEUE,
+		EventChangeType:   si.EventRecord_ADD,
+		EventChangeDetail: si.EventRecord_DETAILS_NONE,
+		ObjectID:          "root.test",
+		Message:           "",
+	}
+	context.PublishEvents(eventRecords)
+
+	select {
+	case e := <-recorder.Events:
+		t.Errorf("received an unexpected event %s", e)
+	default:
+	}
 }
 
 func TestPublishEventsWithNotExistingAsk(t *testing.T) {
@@ -1496,4 +1578,22 @@ func TestCtxUpdatePodCondition(t *testing.T) {
 	condition.Status = v1.ConditionFalse
 	updated = context.updatePodCondition(task, &condition)
 	assert.Equal(t, true, updated)
+}
+
+func waitForNodeAcceptedEvent(recorder *k8sEvents.FakeRecorder) error {
+	// fetch the "node accepted" event
+	err := utils.WaitForCondition(func() bool {
+		for {
+			select {
+			case event := <-recorder.Events:
+				log.Log(log.Test).Info(event)
+				if strings.Contains(event, "accepted by the scheduler") {
+					return true
+				}
+			default:
+				return false
+			}
+		}
+	}, 10*time.Millisecond, time.Second)
+	return err
 }
