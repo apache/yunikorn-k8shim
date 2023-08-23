@@ -120,50 +120,12 @@ func TestSingleUserPerApplication(t *testing.T) {
 
 	am := NewManager(client.NewMockedAPIProvider(false), podEvent)
 
-	pod1 := v1.Pod{
-		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-		ObjectMeta: apis.ObjectMeta{
-			Name:      "pod00001",
-			Namespace: "default",
-			UID:       "UID-POD-00001",
-			Labels: map[string]string{
-				"queue":                        "root.a",
-				"yunikorn.apache.org/username": "test",
-				"applicationId":                appID,
-			},
-		},
-		Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
-		Status: v1.PodStatus{
-			Phase: v1.PodPending,
-		},
-	}
+	pod1 := newPodByUser("pod00001", "test", appID)
 
 	// submit the app
-	am.AddPod(&pod1)
+	am.AddPod(pod1)
 
-	pod := &v1.Pod{
-		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-		ObjectMeta: apis.ObjectMeta{
-			Name:      "pod00002",
-			Namespace: "default",
-			UID:       "UID-POD-00002",
-			Labels: map[string]string{
-				"queue":                        "root.a",
-				"yunikorn.apache.org/username": "test1",
-				"applicationId":                appID,
-			},
-		},
-		Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
-		Status: v1.PodStatus{
-			Phase: v1.PodPending,
-		},
-	}
+	pod := newPodByUser("pod00002", "test1", appID)
 
 	// submit the same app with different user
 	am.AddPod(pod)
@@ -207,13 +169,56 @@ func TestSingleUserPerApplication(t *testing.T) {
 		}
 	}, 50*time.Millisecond, time.Second)
 	assert.NilError(t, err, "event should have been emitted")
+
+	autogenAppID := constants.AutoGenAppPrefix + "-default-" + constants.AutoGenAppSuffix
+	pod2 := newPodByUser("pod00003", "test", autogenAppID)
+
+	// submit the autogen app
+	am.AddPod(pod2)
+
+	message = "Rejecting pod because application ID " + autogenAppID + " belongs to a different user"
+
+	// ensure there is no event
+	err = utils.WaitForCondition(func() bool {
+		for {
+			select {
+			case event := <-recorder.Events:
+				if strings.Contains(event, message) {
+					return true
+				}
+			default:
+				return false
+			}
+		}
+	}, 50*time.Millisecond, time.Second)
+	assert.Error(t, err, "timeout waiting for condition")
+
+	pod3 := newPodByUser("pod00004", "test", autogenAppID)
+
+	// submit the same autogen app with different user and ensure no event has been published because same autogen app submission by different users are allowed
+	am.AddPod(pod3)
+
+	// ensure there is no event even though auto gen app already exists
+	err = utils.WaitForCondition(func() bool {
+		for {
+			select {
+			case event := <-recorder.Events:
+				if strings.Contains(event, message) {
+					return true
+				}
+			default:
+				return false
+			}
+		}
+	}, 50*time.Millisecond, time.Second)
+	assert.Error(t, err, "timeout waiting for condition")
 }
 
 func newPod(name string) *v1.Pod {
-	return newPodByUser(name, "nobody")
+	return newPodByUser(name, "nobody", appID)
 }
 
-func newPodByUser(name string, user string) *v1.Pod {
+func newPodByUser(name string, user string, appID string) *v1.Pod {
 	return &v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",

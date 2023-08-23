@@ -26,6 +26,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
+	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
@@ -130,7 +131,8 @@ func (p *PodEventHandler) addPod(pod *v1.Pod, eventSource EventSource) interface
 				Metadata: appMeta,
 			})
 		} else {
-			if conf.GetSchedulerConf().GetSingleUserPerApplication() && app.GetUser() != appMeta.User {
+			if app.GetApplicationID() != constants.AutoGenAppPrefix+"-"+pod.Namespace+"-"+constants.AutoGenAppSuffix &&
+				conf.GetSchedulerConf().GetSingleUserPerApplication() && app.GetUser() != appMeta.User {
 				log.Log(log.ShimAppMgmtGeneral).Warn("rejecting application as it has been submitted by different user",
 					zap.String("app id ", appMeta.ApplicationID),
 					zap.String("app user", app.GetUser()),
