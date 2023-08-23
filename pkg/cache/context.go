@@ -982,6 +982,9 @@ func (ctx *Context) PublishEvents(eventRecords []*si.EventRecord) {
 						zap.Stringer("event", record))
 				}
 			case si.EventRecord_NODE:
+				if !isPublishableNodeEvent(record) {
+					continue
+				}
 				nodeID := record.ObjectID
 				nodeInfo := ctx.schedulerCache.GetNode(nodeID)
 				if nodeInfo == nil {
@@ -999,9 +1002,6 @@ func (ctx *Context) PublishEvents(eventRecords []*si.EventRecord) {
 				}
 				events.GetRecorder().Eventf(node.DeepCopy(), nil,
 					v1.EventTypeNormal, "", "", record.Message)
-			default:
-				log.Log(log.ShimContext).Warn("Unsupported event type, currently only supports to publish request event records",
-					zap.Stringer("type", record.Type))
 			}
 		}
 	}
@@ -1150,6 +1150,17 @@ func (ctx *Context) GetStateDump() (string, error) {
 		return "", err
 	}
 	return string(bytes), nil
+}
+
+func isPublishableNodeEvent(event *si.EventRecord) bool {
+	// we only send node added & removed event
+	if event.Type == si.EventRecord_NODE &&
+		((event.EventChangeDetail == si.EventRecord_DETAILS_NONE && event.EventChangeType == si.EventRecord_ADD) ||
+			(event.EventChangeDetail == si.EventRecord_NODE_DECOMISSION && event.EventChangeType == si.EventRecord_REMOVE)) {
+		return true
+	}
+
+	return false
 }
 
 // VisibleForTesting
