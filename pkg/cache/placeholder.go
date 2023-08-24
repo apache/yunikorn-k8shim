@@ -80,8 +80,8 @@ func newPlaceholder(placeholderName string, app *Application, taskGroup interfac
 	}
 
 	var priority *int32
-	if app.GetOriginatingTask() != nil {
-		priority = app.GetOriginatingTask().GetTaskPod().Spec.Priority
+	if task := app.GetOriginatingTask(); task != nil {
+		priority = task.GetTaskPod().Spec.Priority
 	}
 
 	// prepare the resource lists
