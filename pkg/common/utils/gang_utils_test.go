@@ -19,7 +19,7 @@
 package utils
 
 import (
-	"math"
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -73,23 +73,28 @@ func TestFindAppTaskGroup(t *testing.T) {
 }
 
 func TestGeneratePlaceholderName(t *testing.T) {
-	name := GeneratePlaceholderName("my-group", "app0001", 100)
-	assert.Equal(t, name, "tg-my-group-app0001-100")
+	name := GeneratePlaceholderName("my-group", "app0001")
+	prefix := name[0 : len(name)-11]
+	nonce := name[len(name)-10:]
+	assert.Equal(t, prefix, "tg-app0001-my-group")
+	assert.Equal(t, name, fmt.Sprintf("%s-%s", prefix, nonce))
+	assert.Equal(t, len(name), 30)
 
 	name = GeneratePlaceholderName("my-group",
-		"app00000000000000000000000000000000000000000001", 100)
-	assert.Equal(t, name, "tg-my-group-app0000000000000000000000000-100")
-	assert.Assert(t, len(name) < 63)
+		"app00000000000000000000000000000000000000000001")
+	prefix = name[0 : len(name)-11]
+	nonce = name[len(name)-10:]
+	assert.Equal(t, prefix, "tg-app0000000000000000000000000-my-group")
+	assert.Equal(t, name, fmt.Sprintf("%s-%s", prefix, nonce))
+	assert.Equal(t, len(name), 51)
 
 	name = GeneratePlaceholderName("a-very-long-task-group-name------------------------------------------",
-		"a-very-long-app-ID-----------------------------------------------------------------", 100)
-	assert.Equal(t, name, "tg-a-very-long-task-gro-a-very-long-app-ID-----------100")
-	assert.Assert(t, len(name) < 63)
-
-	name = GeneratePlaceholderName("a-very-long-task-group-name------------------------------------------",
-		"a-very-long-app-ID-----------------------------------------------------------------", math.MaxInt32)
-	assert.Equal(t, name, "tg-a-very-long-task-gro-a-very-long-app-ID-----------2147483647")
-	assert.Assert(t, len(name) == 63)
+		"a-very-long-app-ID-----------------------------------------------------------------")
+	prefix = name[0 : len(name)-11]
+	nonce = name[len(name)-10:]
+	assert.Equal(t, prefix, "tg-a-very-long-app-ID-----------a-very-long-task-gro")
+	assert.Equal(t, name, fmt.Sprintf("%s-%s", prefix, nonce))
+	assert.Equal(t, len(name), 63)
 }
 
 func TestGetSchedulingPolicyParams(t *testing.T) {

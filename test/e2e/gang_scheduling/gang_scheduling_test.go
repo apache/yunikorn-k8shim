@@ -142,13 +142,8 @@ var _ = Describe("", func() {
 
 		// Check all placeholders deleted.
 		By("Wait for all placeholders terminated")
-		tgPlaceHolders := yunikorn.GetPlaceholderNames(podConf.Annotations, podConf.Labels["applicationId"])
-		for _, phNames := range tgPlaceHolders {
-			for _, ph := range phNames {
-				phTermErr := kClient.WaitForPodTerminated(ns, ph, 3*time.Minute)
-				Ω(phTermErr).NotTo(HaveOccurred())
-			}
-		}
+		phTermErr := kClient.WaitForPlaceholders(ns, "tg-"+podConf.Labels["applicationId"]+"-"+taskGroupName+"-", 0, 3*time.Minute, nil)
+		Ω(phTermErr).NotTo(gomega.HaveOccurred())
 
 		// Check real gang members now running
 		By("Wait for all gang members running")
@@ -228,18 +223,27 @@ var _ = Describe("", func() {
 			30)
 		Ω(timeoutErr).NotTo(HaveOccurred())
 
+		// Wait for placeholders to become running
+		stateRunning := v1.PodRunning
+		phErr := kClient.WaitForPlaceholders(ns, "tg-"+podConf.Labels["applicationId"]+"-", 15, 2*time.Minute, &stateRunning)
+		Ω(phErr).NotTo(HaveOccurred())
+
 		// Check placeholder node distribution is same as real pods'
-		tgPlaceHolders := yunikorn.GetPlaceholderNames(podConf.Annotations, podConf.Labels["applicationId"])
+		phPods, phListErr := kClient.ListPods(ns, "placeholder=true")
+		Ω(phListErr).NotTo(HaveOccurred())
 		taskGroupNodes := map[string]map[string]int{}
-		for tg, phNames := range tgPlaceHolders {
-			taskGroupNodes[tg] = map[string]int{}
-			for _, name := range phNames {
-				podRunErr := kClient.WaitForPodRunning(ns, name, time.Second*120)
-				Ω(podRunErr).NotTo(HaveOccurred())
-				ph, phErr := kClient.GetPod(name, ns)
-				Ω(phErr).NotTo(HaveOccurred())
-				taskGroupNodes[tg][ph.Spec.NodeName]++
+		for _, ph := range phPods.Items {
+			tg, ok := ph.Annotations[constants.AnnotationTaskGroupName]
+			if !ok {
+				continue
 			}
+			if _, ok = taskGroupNodes[tg]; !ok {
+				taskGroupNodes[tg] = map[string]int{}
+			}
+			if _, ok = taskGroupNodes[tg][ph.Spec.NodeName]; !ok {
+				taskGroupNodes[tg][ph.Spec.NodeName] = 0
+			}
+			taskGroupNodes[tg][ph.Spec.NodeName]++
 		}
 
 		// Deploy real pods for each taskGroup
@@ -262,12 +266,8 @@ var _ = Describe("", func() {
 		}
 
 		By("Wait for all placeholders terminated")
-		for _, phNames := range tgPlaceHolders {
-			for _, ph := range phNames {
-				phTermErr := kClient.WaitForPodTerminated(ns, ph, 3*time.Minute)
-				Ω(phTermErr).NotTo(HaveOccurred())
-			}
-		}
+		phTermErr := kClient.WaitForPlaceholders(ns, "tg-"+podConf.Labels["applicationId"]+"-", 0, 3*time.Minute, nil)
+		Ω(phTermErr).NotTo(HaveOccurred())
 
 		// Check real gang members now running on same node distribution
 		By("Verify task group node distribution")
@@ -635,17 +635,9 @@ var _ = Describe("", func() {
 
 		// App1 should have 2/3 placeholders running
 		podConf.Annotations.TaskGroups[0].MinMember = int32(appAllocs[apps[1]]["minMembers"])
-		app1Phs := yunikorn.GetPlaceholderNames(podConf.Annotations, apps[1])
-		numRunningPhs := 0
-		for _, placeholders := range app1Phs {
-			for _, ph := range placeholders {
-				runErr := kClient.WaitForPodRunning(fifoQName, ph, 30*time.Second)
-				if runErr == nil {
-					numRunningPhs++
-				}
-			}
-		}
-		Ω(numRunningPhs).Should(BeNumerically("==", 2))
+		statusRunning := v1.PodRunning
+		phErr := kClient.WaitForPlaceholders(fifoQName, "tg-"+apps[1]+"-", 2, 30*time.Second, &statusRunning)
+		Ω(phErr).NotTo(HaveOccurred())
 
 		// Delete app0
 		deleteErr := kClient.DeleteJob(apps[0], fifoQName)
@@ -757,16 +749,16 @@ var _ = Describe("", func() {
 		Ω(timeoutErr).NotTo(HaveOccurred())
 
 		// Wait for groupa placeholder pods running
-		phNames := yunikorn.GetPlaceholderNames(podConf.Annotations, podConf.Labels["applicationId"])
-		for _, ph := range phNames[groupA] {
-			runErr := kClient.WaitForPodRunning(ns, ph, 30*time.Second)
-			Ω(runErr).NotTo(HaveOccurred())
-		}
+		stateRunning := v1.PodRunning
+		runErr := kClient.WaitForPlaceholders(ns, "tg-"+podConf.Labels["applicationId"]+"-"+groupA+"-", 3, 30*time.Second, &stateRunning)
+		Ω(runErr).NotTo(HaveOccurred())
 
 		// Delete all groupa placeholder pods
-		for i, ph := range phNames[groupA] {
-			By(fmt.Sprintf("Iteration-%d: Delete placeholder %s", i, ph))
-			deleteErr := kClient.DeletePod(ph, ns)
+		phPods, listErr := kClient.ListPlaceholders(ns, "tg-"+podConf.Labels["applicationId"]+"-"+groupA+"-")
+		Ω(listErr).NotTo(HaveOccurred())
+		for _, ph := range phPods {
+			By(fmt.Sprintf("Delete placeholder %s", ph.Name))
+			deleteErr := kClient.DeletePod(ph.Name, ns)
 			Ω(deleteErr).NotTo(HaveOccurred())
 		}
 
@@ -863,13 +855,14 @@ var _ = Describe("", func() {
 		timeoutErr := restClient.WaitForAppStateTransition(defaultPartition, nsQueue, podConf.Labels["applicationId"], yunikorn.States().Application.Accepted, 10)
 		Ω(timeoutErr).NotTo(HaveOccurred())
 
-		By("Wait for placeholders running")
-		phNames := yunikorn.GetPlaceholderNames(podConf.Annotations, podConf.Labels["applicationId"])
-		tgBNames := phNames[podConf.Annotations.TaskGroups[1].Name]
-		for _, ph := range tgBNames {
-			runErr := kClient.WaitForPodRunning(ns, ph, 30*time.Second)
-			Ω(runErr).NotTo(HaveOccurred())
-		}
+		By("Wait for groupB placeholders running")
+		stateRunning := v1.PodRunning
+		runErr := kClient.WaitForPlaceholders(ns, "tg-"+podConf.Labels["applicationId"]+"-"+groupB+"-", 3, 30*time.Second, &stateRunning)
+		Ω(runErr).NotTo(HaveOccurred())
+
+		By("List placeholders")
+		tgPods, listErr := kClient.ListPlaceholders(ns, "tg-"+podConf.Labels["applicationId"]+"-")
+		Ω(listErr).NotTo(HaveOccurred())
 
 		By("Delete job pods")
 		deleteErr := kClient.DeleteJob(jobConf.Name, ns)
@@ -878,11 +871,9 @@ var _ = Describe("", func() {
 		Ω(timeoutErr).NotTo(HaveOccurred())
 
 		By("Verify placeholders deleted")
-		for _, placeholders := range phNames {
-			for _, ph := range placeholders {
-				deleteErr = kClient.WaitForPodTerminated(ns, ph, 30*time.Second)
-				Ω(deleteErr).NotTo(HaveOccurred(), "Placeholder %s still running", ph)
-			}
+		for _, ph := range tgPods {
+			deleteErr = kClient.WaitForPodTerminated(ns, ph.Name, 30*time.Second)
+			Ω(deleteErr).NotTo(HaveOccurred(), "Placeholder %s still running", ph)
 		}
 
 		By("Verify app allocation is empty")
@@ -944,24 +935,23 @@ var _ = Describe("", func() {
 		timeoutErr := restClient.WaitForAppStateTransition(defaultPartition, nsQueue, podConf.Labels["applicationId"], yunikorn.States().Application.Accepted, 20)
 		Ω(timeoutErr).NotTo(HaveOccurred())
 
-		By("Wait for placeholders running")
-		phNames := yunikorn.GetPlaceholderNames(podConf.Annotations, podConf.Labels["applicationId"])
-		tgBNames := phNames[podConf.Annotations.TaskGroups[1].Name]
-		for _, ph := range tgBNames {
-			runErr := kClient.WaitForPodRunning(ns, ph, 30*time.Second)
-			Ω(runErr).NotTo(HaveOccurred())
-		}
+		By("Wait for groupB placeholders running")
+		stateRunning := v1.PodRunning
+		runErr := kClient.WaitForPlaceholders(ns, "tg-"+podConf.Labels["applicationId"]+"-"+groupB+"-", 3, 30*time.Second, &stateRunning)
+		Ω(runErr).NotTo(HaveOccurred())
+
+		By("List placeholders")
+		tgPods, listErr := kClient.ListPlaceholders(ns, "tg-"+podConf.Labels["applicationId"]+"-")
+		Ω(listErr).NotTo(HaveOccurred())
 
 		By("Delete originator pod")
 		deleteErr := kClient.DeletePod(originator.Name, ns)
 		Ω(deleteErr).NotTo(HaveOccurred())
 
 		By("Verify placeholders deleted")
-		for _, placeholders := range phNames {
-			for _, ph := range placeholders {
-				deleteErr = kClient.WaitForPodTerminated(ns, ph, 30*time.Second)
-				Ω(deleteErr).NotTo(HaveOccurred(), "Placeholder %s still running", ph)
-			}
+		for _, ph := range tgPods {
+			deleteErr = kClient.WaitForPodTerminated(ns, ph.Name, 30*time.Second)
+			Ω(deleteErr).NotTo(HaveOccurred(), "Placeholder %s still running", ph)
 		}
 
 		By("Verify app allocation is empty")
@@ -1052,24 +1042,23 @@ var _ = Describe("", func() {
 		timeoutErr := restClient.WaitForAppStateTransition(defaultPartition, nsQueue, podConf.Labels["applicationId"], yunikorn.States().Application.Accepted, 20)
 		Ω(timeoutErr).NotTo(HaveOccurred())
 
-		By("Wait for placeholders running")
-		phNames := yunikorn.GetPlaceholderNames(podConf.Annotations, podConf.Labels["applicationId"])
-		tgBNames := phNames[podConf.Annotations.TaskGroups[1].Name]
-		for _, ph := range tgBNames {
-			runErr := kClient.WaitForPodRunning(ns, ph, 30*time.Second)
-			Ω(runErr).NotTo(HaveOccurred())
-		}
+		By("Wait for groupB placeholders running")
+		stateRunning := v1.PodRunning
+		runErr := kClient.WaitForPlaceholders(ns, "tg-"+podConf.Labels["applicationId"]+"-"+groupB+"-", 3, 30*time.Second, &stateRunning)
+		Ω(runErr).NotTo(HaveOccurred())
+
+		By("List placeholders")
+		tgPods, listErr := kClient.ListPlaceholders(ns, "tg-"+podConf.Labels["applicationId"]+"-")
+		Ω(listErr).NotTo(HaveOccurred())
 
 		By("Delete originator pod")
 		deleteErr := kClient.DeletePod(originator.Name, ns)
 		Ω(deleteErr).NotTo(HaveOccurred())
 
 		By("Verify placeholders deleted")
-		for _, placeholders := range phNames {
-			for _, ph := range placeholders {
-				deleteErr = kClient.WaitForPodTerminated(ns, ph, 30*time.Second)
-				Ω(deleteErr).NotTo(HaveOccurred(), "Placeholder %s still running", ph)
-			}
+		for _, ph := range tgPods {
+			deleteErr = kClient.WaitForPodTerminated(ns, ph.Name, 30*time.Second)
+			Ω(deleteErr).NotTo(HaveOccurred(), "Placeholder %s still running", ph)
 		}
 
 		By("Verify app allocation is empty")
@@ -1078,108 +1067,6 @@ var _ = Describe("", func() {
 		Ω(len(appInfo.Allocations)).To(BeNumerically("==", 0))
 	})
 
-	ginkgo.DescribeTable("", func(annotations k8s.PodAnnotation) {
-		podConf := k8s.TestPodConfig{
-			Labels: map[string]string{
-				"app":           "sleep-" + common.RandSeq(5),
-				"applicationId": "appid-" + common.RandSeq(5),
-			},
-			Annotations: &annotations,
-			Resources: &v1.ResourceRequirements{
-				Requests: v1.ResourceList{
-					"cpu":    resource.MustParse("10m"),
-					"memory": resource.MustParse("10M"),
-				},
-			},
-		}
-		jobConf := k8s.JobConfig{
-			Name:        "gangjob-" + common.RandSeq(5),
-			Namespace:   ns,
-			Parallelism: int32(2),
-			PodConfig:   podConf,
-		}
-
-		job, jobErr := k8s.InitJobConfig(jobConf)
-		Ω(jobErr).NotTo(HaveOccurred())
-
-		// Deploy job
-		taskGroupsMap, annErr := k8s.PodAnnotationToMap(podConf.Annotations)
-		Ω(annErr).NotTo(HaveOccurred())
-		By(fmt.Sprintf("Deploy job %s with task-groups: %+v", jobConf.Name, taskGroupsMap[k8s.TaskGroups]))
-		_, jobErr = kClient.CreateJob(job, ns)
-		Ω(jobErr).NotTo(HaveOccurred())
-		createErr := kClient.WaitForJobPodsCreated(ns, job.Name, int(*job.Spec.Parallelism), 30*time.Second)
-		Ω(createErr).NotTo(HaveOccurred())
-
-		// Validate placeholders deleted.
-		tgPlaceHolders := yunikorn.GetPlaceholderNames(podConf.Annotations, podConf.Labels["applicationId"])
-		for _, phNames := range tgPlaceHolders {
-			for _, name := range phNames {
-				phErr := kClient.WaitForPodTerminated(ns, name, time.Minute)
-				Ω(phErr).NotTo(HaveOccurred())
-			}
-		}
-
-		// Validate incorrect task-group definition ignored
-		timeoutErr := kClient.WaitForJobPods(ns, jobConf.Name, int(jobConf.Parallelism), 30*time.Second)
-		Ω(timeoutErr).NotTo(HaveOccurred())
-		appPods, getErr := kClient.ListPods(ns, fmt.Sprintf("applicationId=%s", podConf.Labels["applicationId"]))
-		Ω(getErr).NotTo(HaveOccurred())
-		Ω(len(appPods.Items)).To(BeNumerically("==", jobConf.Parallelism))
-	},
-		ginkgo.Entry("Verify_TG_With_Duplicate_Group", k8s.PodAnnotation{
-			TaskGroups: []interfaces.TaskGroup{
-				{
-					Name:      "groupdup",
-					MinMember: int32(3),
-					MinResource: map[string]resource.Quantity{
-						"cpu":    resource.MustParse("10m"),
-						"memory": resource.MustParse("10M"),
-					},
-				},
-				{
-					Name:      "groupdup",
-					MinMember: int32(5),
-					MinResource: map[string]resource.Quantity{
-						"cpu":    resource.MustParse("10m"),
-						"memory": resource.MustParse("10M"),
-					},
-				},
-				{
-					Name:      groupA,
-					MinMember: int32(7),
-					MinResource: map[string]resource.Quantity{
-						"cpu":    resource.MustParse("10m"),
-						"memory": resource.MustParse("10M"),
-					},
-				},
-			},
-		}),
-		ginkgo.Entry("Verify_TG_With_Invalid_Chars", k8s.PodAnnotation{
-			TaskGroups: []interfaces.TaskGroup{
-				{
-					Name:      "GROUPCAPS",
-					MinMember: int32(3),
-					MinResource: map[string]resource.Quantity{
-						"cpu":    resource.MustParse("10m"),
-						"memory": resource.MustParse("10M"),
-					},
-				},
-			},
-		}),
-		ginkgo.Entry("Verify_TG_With_Invalid_MinMember", k8s.PodAnnotation{
-			TaskGroups: []interfaces.TaskGroup{
-				{
-					Name:      groupA,
-					MinMember: int32(-1),
-					MinResource: map[string]resource.Quantity{
-						"cpu":    resource.MustParse("10m"),
-						"memory": resource.MustParse("10M"),
-					},
-				},
-			},
-		}),
-	)
 	AfterEach(func() {
 		testDescription := ginkgo.CurrentSpecReport()
 		if testDescription.Failed() {

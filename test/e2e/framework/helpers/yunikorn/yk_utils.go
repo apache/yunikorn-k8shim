@@ -89,21 +89,6 @@ func CreateDefaultConfigMap() *v1.ConfigMap {
 	return cm
 }
 
-// Generates all placeholder names for all taskGroups using format:
-// [taskGroup]-[taskGroupName]-[applicationID]-[Index]
-func GetPlaceholderNames(ann *k8s.PodAnnotation, appID string) map[string][]string {
-	phMap := make(map[string][]string)
-	phName := "tg-%s-%s-%d"
-	for _, tg := range ann.TaskGroups {
-		phMap[tg.Name] = []string{}
-		for i := 0; i < int(tg.MinMember); i++ {
-			phMap[tg.Name] = append(phMap[tg.Name], fmt.Sprintf(phName, tg.Name, appID, i))
-		}
-	}
-
-	return phMap
-}
-
 func GetSchedulerPodName(kClient k8s.KubeCtl) (string, error) {
 	ykNS := configmanager.YuniKornTestConfig.YkNamespace
 	schedComponent := fmt.Sprintf("component=%s", configmanager.YKScheduler)
