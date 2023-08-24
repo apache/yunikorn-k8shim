@@ -126,6 +126,8 @@ func TestNewPlaceholder(t *testing.T) {
 	assert.Equal(t, len(holder.pod.Spec.ImagePullSecrets), 2, "unexpected number of pull secrets")
 	assert.Equal(t, "secret1", holder.pod.Spec.ImagePullSecrets[0].Name)
 	assert.Equal(t, "secret2", holder.pod.Spec.ImagePullSecrets[1].Name)
+	var priority *int32
+	assert.Equal(t, priority, holder.pod.Spec.Priority)
 }
 
 func TestNewPlaceholderWithLabelsAndAnnotations(t *testing.T) {
@@ -148,6 +150,8 @@ func TestNewPlaceholderWithLabelsAndAnnotations(t *testing.T) {
 	var taskGroupsDef []interfaces.TaskGroup
 	err = json.Unmarshal([]byte(holder.pod.Annotations["yunikorn.apache.org/task-groups"]), &taskGroupsDef)
 	assert.NilError(t, err, "taskGroupsDef unmarshal failed")
+	var priority *int32
+	assert.Equal(t, priority, holder.pod.Spec.Priority)
 }
 
 func TestNewPlaceholderWithNodeSelectors(t *testing.T) {
@@ -160,6 +164,8 @@ func TestNewPlaceholderWithNodeSelectors(t *testing.T) {
 	assert.Equal(t, len(holder.pod.Spec.NodeSelector), 2)
 	assert.Equal(t, holder.pod.Spec.NodeSelector["nodeType"], "test")
 	assert.Equal(t, holder.pod.Spec.NodeSelector["nodeState"], "healthy")
+	var priority *int32
+	assert.Equal(t, priority, holder.pod.Spec.Priority)
 }
 
 func TestNewPlaceholderWithTolerations(t *testing.T) {
@@ -175,6 +181,8 @@ func TestNewPlaceholderWithTolerations(t *testing.T) {
 	assert.Equal(t, tlr.Value, "value1")
 	assert.Equal(t, tlr.Operator, v1.TolerationOpEqual)
 	assert.Equal(t, tlr.Effect, v1.TaintEffectNoSchedule)
+	var priority *int32
+	assert.Equal(t, priority, holder.pod.Spec.Priority)
 }
 
 func TestNewPlaceholderWithAffinity(t *testing.T) {
@@ -192,6 +200,8 @@ func TestNewPlaceholderWithAffinity(t *testing.T) {
 	assert.Equal(t, term[0].LabelSelector.MatchExpressions[0].Key, "service")
 	assert.Equal(t, term[0].LabelSelector.MatchExpressions[0].Operator, metav1.LabelSelectorOpIn)
 	assert.Equal(t, term[0].LabelSelector.MatchExpressions[0].Values[0], "securityscan")
+	var priority *int32
+	assert.Equal(t, priority, holder.pod.Spec.Priority)
 }
 
 func TestNewPlaceholderTaskGroupsDefinition(t *testing.T) {
@@ -208,6 +218,8 @@ func TestNewPlaceholderTaskGroupsDefinition(t *testing.T) {
 	app.setTaskGroupsDefinition("taskGroupsDef")
 	holder = newPlaceholder("ph-name", app, app.taskGroups[0])
 	assert.Equal(t, "taskGroupsDef", holder.pod.Annotations[constants.AnnotationTaskGroups])
+	var priority *int32
+	assert.Equal(t, priority, holder.pod.Spec.Priority)
 }
 
 func TestNewPlaceholderExtendedResources(t *testing.T) {
@@ -220,4 +232,43 @@ func TestNewPlaceholderExtendedResources(t *testing.T) {
 	assert.Equal(t, len(holder.pod.Spec.Containers[0].Resources.Limits), 2, "limit for extended resource not found")
 	assert.Equal(t, holder.pod.Spec.Containers[0].Resources.Limits[gpu], holder.pod.Spec.Containers[0].Resources.Requests[gpu], "gpu: expected same value for request and limit")
 	assert.Equal(t, holder.pod.Spec.Containers[0].Resources.Limits[hugepages], holder.pod.Spec.Containers[0].Resources.Requests[hugepages], "hugepages: expected same value for request and limit")
+	var priority *int32
+	assert.Equal(t, priority, holder.pod.Spec.Priority)
+}
+
+func TestNewPlaceholderWithPriority(t *testing.T) {
+	mockedSchedulerAPI := newMockSchedulerAPI()
+	app := NewApplication(appID, queue,
+		"bob", testGroups, map[string]string{constants.AppTagNamespace: namespace}, mockedSchedulerAPI)
+	app.setTaskGroups(taskGroups)
+	mockedContext := initContextForTest()
+	priority := int32(10)
+	specPriority := &priority
+	pod1 := &v1.Pod{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "tg-test-group-1-app01-0",
+			UID:  "UID-01",
+		},
+		Spec: v1.PodSpec{
+			Priority: specPriority,
+		},
+	}
+	taskID1 := "task1-01"
+	task1 := NewTask(taskID1, app, mockedContext, pod1)
+	task1.placeholder = true
+	task1.pod = pod1
+	task1.originator = true
+	app.taskMap[taskID1] = task1
+	app.setOriginatingTask(task1)
+
+	holder := newPlaceholder("ph-name", app, app.taskGroups[0])
+	assert.Equal(t, len(holder.pod.Spec.Containers[0].Resources.Requests), 5, "expected requests not found")
+	assert.Equal(t, len(holder.pod.Spec.Containers[0].Resources.Limits), 2, "limit for extended resource not found")
+	assert.Equal(t, holder.pod.Spec.Containers[0].Resources.Limits[gpu], holder.pod.Spec.Containers[0].Resources.Requests[gpu], "gpu: expected same value for request and limit")
+	assert.Equal(t, holder.pod.Spec.Containers[0].Resources.Limits[hugepages], holder.pod.Spec.Containers[0].Resources.Requests[hugepages], "hugepages: expected same value for request and limit")
+	assert.Equal(t, priority, *holder.pod.Spec.Priority)
 }
