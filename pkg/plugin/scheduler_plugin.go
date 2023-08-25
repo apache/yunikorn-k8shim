@@ -127,8 +127,6 @@ func (sp *YuniKornSchedulerPlugin) PreEnqueue(_ context.Context, pod *v1.Pod) *f
 		case interfaces.TaskSchedFailed:
 			// allow the pod to proceed so that it will be marked unschedulable by PreFilter
 			return nil
-		case interfaces.TaskSchedSkipped:
-			return framework.NewStatus(framework.UnschedulableAndUnresolvable, "Pod doesn't fit within queue")
 		default:
 			return framework.NewStatus(framework.UnschedulableAndUnresolvable, fmt.Sprintf("Pod unschedulable: %s", schedState.String()))
 		}

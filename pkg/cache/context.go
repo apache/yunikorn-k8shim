@@ -1034,21 +1034,6 @@ func (ctx *Context) HandleContainerStateUpdate(request *si.UpdateContainerSchedu
 	// the allocationKey equals to the taskID
 	if task := ctx.getTask(request.ApplicartionID, request.AllocationKey); task != nil {
 		switch request.State {
-		case si.UpdateContainerSchedulingStateRequest_SKIPPED:
-			// auto-scaler scans pods whose pod condition is PodScheduled=false && reason=Unschedulable
-			// if the pod is skipped because the queue quota has been exceed, we do not trigger the auto-scaling
-			task.SetTaskSchedulingState(interfaces.TaskSchedSkipped)
-			if ctx.updatePodCondition(task,
-				&v1.PodCondition{
-					Type:    v1.PodScheduled,
-					Status:  v1.ConditionFalse,
-					Reason:  "SchedulingSkipped",
-					Message: request.Reason,
-				}) {
-				events.GetRecorder().Eventf(task.pod.DeepCopy(), nil,
-					v1.EventTypeNormal, "PodUnschedulable", "PodUnschedulable",
-					"Task %s is skipped from scheduling because the queue quota has been exceed", task.alias)
-			}
 		case si.UpdateContainerSchedulingStateRequest_FAILED:
 			task.SetTaskSchedulingState(interfaces.TaskSchedFailed)
 			// set pod condition to Unschedulable in order to trigger auto-scaling

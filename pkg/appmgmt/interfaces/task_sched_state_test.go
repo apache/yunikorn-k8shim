@@ -27,7 +27,6 @@ import (
 func TestTaskSchedulingState(t *testing.T) {
 	assert.Equal(t, len(taskSchedulingStateNames), 4, "wrong length")
 	assert.Equal(t, TaskSchedPending.String(), taskSchedulingStateNames[TaskSchedPending])
-	assert.Equal(t, TaskSchedSkipped.String(), taskSchedulingStateNames[TaskSchedSkipped])
 	assert.Equal(t, TaskSchedFailed.String(), taskSchedulingStateNames[TaskSchedFailed])
 	assert.Equal(t, TaskSchedAllocated.String(), taskSchedulingStateNames[TaskSchedAllocated])
 }

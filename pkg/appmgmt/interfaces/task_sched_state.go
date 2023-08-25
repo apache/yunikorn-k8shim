@@ -22,7 +22,6 @@ type TaskSchedulingState int8
 
 const (
 	TaskSchedPending TaskSchedulingState = iota
-	TaskSchedSkipped
 	TaskSchedFailed
 	TaskSchedAllocated
 )
