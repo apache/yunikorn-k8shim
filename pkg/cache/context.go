@@ -435,8 +435,8 @@ func (ctx *Context) triggerReloadConfig(index int, configMap *v1.ConfigMap) {
 }
 
 // EventsToRegister returns the Kubernetes events that should be watched for updates which may effect predicate processing
-func (ctx *Context) EventsToRegister() []framework.ClusterEvent {
-	return ctx.predManager.EventsToRegister()
+func (ctx *Context) EventsToRegister(queueingHintFn framework.QueueingHintFn) []framework.ClusterEventWithHint {
+	return ctx.predManager.EventsToRegister(queueingHintFn)
 }
 
 // evaluate given predicates based on current context
@@ -654,6 +654,12 @@ func (ctx *Context) UpdateApplication(app *Application) {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
 	ctx.applications[app.applicationID] = app
+}
+
+// IsTaskMaybeSchedulable returns true if a task might be currently able to be scheduled. This uses a bloom filter
+// cached from a set of taskIDs to perform efficient negative lookups.
+func (ctx *Context) IsTaskMaybeSchedulable(taskID string) bool {
+	return ctx.schedulerCache.IsTaskMaybeSchedulable(taskID)
 }
 
 func (ctx *Context) AddPendingPodAllocation(podKey string, nodeID string) {
@@ -1036,8 +1042,9 @@ func (ctx *Context) HandleContainerStateUpdate(request *si.UpdateContainerSchedu
 		switch request.State {
 		case si.UpdateContainerSchedulingStateRequest_SKIPPED:
 			// auto-scaler scans pods whose pod condition is PodScheduled=false && reason=Unschedulable
-			// if the pod is skipped because the queue quota has been exceed, we do not trigger the auto-scaling
+			// if the pod is skipped because the queue quota has been exceeded, we do not trigger the auto-scaling
 			task.SetTaskSchedulingState(interfaces.TaskSchedSkipped)
+			ctx.schedulerCache.NotifyTaskSchedulerAction(task.taskID)
 			if ctx.updatePodCondition(task,
 				&v1.PodCondition{
 					Type:    v1.PodScheduled,
@@ -1051,6 +1058,7 @@ func (ctx *Context) HandleContainerStateUpdate(request *si.UpdateContainerSchedu
 			}
 		case si.UpdateContainerSchedulingStateRequest_FAILED:
 			task.SetTaskSchedulingState(interfaces.TaskSchedFailed)
+			ctx.schedulerCache.NotifyTaskSchedulerAction(task.taskID)
 			// set pod condition to Unschedulable in order to trigger auto-scaling
 			if ctx.updatePodCondition(task,
 				&v1.PodCondition{

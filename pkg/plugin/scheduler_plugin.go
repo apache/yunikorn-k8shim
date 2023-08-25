@@ -28,6 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/informers"
+	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
 	"github.com/apache/yunikorn-core/pkg/entrypoint"
@@ -169,7 +170,7 @@ func (sp *YuniKornSchedulerPlugin) PreFilter(_ context.Context, _ *framework.Cyc
 				zap.String("pod", pod.Name),
 				zap.String("taskID", taskID),
 				zap.String("assignedNode", nodeID))
-			return &framework.PreFilterResult{NodeNames: sets.NewString(nodeID)}, nil
+			return &framework.PreFilterResult{NodeNames: sets.New[string](nodeID)}, nil
 		}
 	}
 
@@ -218,8 +219,65 @@ func (sp *YuniKornSchedulerPlugin) Filter(_ context.Context, _ *framework.CycleS
 	return framework.NewStatus(framework.UnschedulableAndUnresolvable, "Pod is not fit for node")
 }
 
-func (sp *YuniKornSchedulerPlugin) EventsToRegister() []framework.ClusterEvent {
-	return sp.context.EventsToRegister()
+func (sp *YuniKornSchedulerPlugin) EventsToRegister() []framework.ClusterEventWithHint {
+	return sp.context.EventsToRegister(func(_ klog.Logger, pod *v1.Pod, _, _ interface{}) framework.QueueingHint {
+		// adapt our simpler function to the QueueingHintFn contract
+		return sp.queueingHint(pod)
+	})
+}
+
+// queueingHint is used to perform a lightweight check to determine if any object change may cause a pod to become
+// schedulable when it was not previously. Since YuniKorn maintains its own internal scheduling state, only the pod
+// is needed. This function will only be called on a previously unschedulable pod by this plugin -- therefore this
+// is definitely a YuniKorn pod.
+func (sp *YuniKornSchedulerPlugin) queueingHint(pod *v1.Pod) framework.QueueingHint {
+	// Fast path: use the context's bloom filter to rule out this task if it is not present. Given a large backlog,
+	// this will almost always return false and we can skip the more complicated processing.
+	taskID := string(pod.UID)
+	if !sp.context.IsTaskMaybeSchedulable(taskID) {
+		return framework.QueueSkip
+	}
+
+	// Slow path: pod might be schedulable, so do the normal checks (basically abbreviated version of PreFilter)
+
+	// we don't process pods without appID defined
+	appID := utils.GetApplicationIDFromPod(pod)
+	if appID == "" {
+		// shouldn't happen so at least re-enqueue after backoff period
+		return framework.QueueAfterBackoff
+	}
+
+	if _, task, ok := sp.getTask(appID, taskID); ok {
+		if _, ok := sp.context.GetInProgressPodAllocation(taskID); ok {
+			// pod must have failed scheduling in a prior run, queue so that it may be failed by PreEnqueue / PreFilter
+			return framework.QueueImmediately
+		}
+
+		_, ok := sp.context.GetPendingPodAllocation(taskID)
+		if task.GetTaskState() == cache.TaskStates().Bound && ok {
+			// yunikorn has placed the pod; queue now
+			return framework.QueueImmediately
+		}
+
+		schedState := task.GetTaskSchedulingState()
+		switch schedState {
+		case interfaces.TaskSchedPending:
+			// not yet ready for scheduling
+			return framework.QueueSkip
+		case interfaces.TaskSchedFailed:
+			// allow the pod to proceed so that it will be marked unschedulable by PreFilter
+			return framework.QueueImmediately
+		case interfaces.TaskSchedSkipped:
+			// skip as pod does not fit within the current queue quota
+			return framework.QueueSkip
+		default:
+			// unknown state, probably not schedulable
+			return framework.QueueAfterBackoff
+		}
+	}
+
+	// task not found (yet?) -- probably means cache update hasn't come through yet
+	return framework.QueueSkip
 }
 
 // PostBind is used to mark allocations as completed once scheduling run is finished

@@ -23,10 +23,8 @@ import (
 	"time"
 
 	"go.uber.org/zap"
-	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/kubernetes/pkg/features"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/volumebinding"
 
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
@@ -94,13 +92,9 @@ func NewAPIFactory(scheduler api.SchedulerAPI, informerFactory informers.SharedI
 	pvcInformer := informerFactory.Core().V1().PersistentVolumeClaims()
 	namespaceInformer := informerFactory.Core().V1().Namespaces()
 	priorityClassInformer := informerFactory.Scheduling().V1().PriorityClasses()
-
-	var capacityCheck volumebinding.CapacityCheck
-	if utilfeature.DefaultFeatureGate.Enabled(features.CSIStorageCapacity) {
-		capacityCheck = volumebinding.CapacityCheck{
-			CSIDriverInformer:          informerFactory.Storage().V1().CSIDrivers(),
-			CSIStorageCapacityInformer: informerFactory.Storage().V1().CSIStorageCapacities(),
-		}
+	capacityCheck := volumebinding.CapacityCheck{
+		CSIDriverInformer:          informerFactory.Storage().V1().CSIDrivers(),
+		CSIStorageCapacityInformer: informerFactory.Storage().V1().CSIStorageCapacities(),
 	}
 
 	// create a volume binder (needs the informers)
