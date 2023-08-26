@@ -30,8 +30,6 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	schedulingv1 "k8s.io/api/scheduling/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
-	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 	podv1 "k8s.io/kubernetes/pkg/api/v1/pod"
 
 	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
@@ -190,19 +188,6 @@ func GetNamespaceQuotaFromAnnotation(namespaceObj *v1.Namespace) *si.Resource {
 	}
 }
 
-type K8sResource struct {
-	ResourceName v1.ResourceName
-	Value        int64
-}
-
-func NewK8sResourceList(resources ...K8sResource) map[v1.ResourceName]resource.Quantity {
-	resourceList := make(map[v1.ResourceName]resource.Quantity)
-	for _, r := range resources {
-		resourceList[r.ResourceName] = *resource.NewQuantity(r.Value, resource.DecimalSI)
-	}
-	return resourceList
-}
-
 func WaitForCondition(eval func() bool, interval time.Duration, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	for {
@@ -215,53 +200,6 @@ func WaitForCondition(eval func() bool, interval time.Duration, timeout time.Dur
 		}
 
 		time.Sleep(interval)
-	}
-}
-
-func PodForTest(podName, memory, cpu string) *v1.Pod {
-	containers := make([]v1.Container, 0)
-	c1Resources := make(map[v1.ResourceName]resource.Quantity)
-	c1Resources[v1.ResourceMemory] = resource.MustParse(memory)
-	c1Resources[v1.ResourceCPU] = resource.MustParse(cpu)
-	containers = append(containers, v1.Container{
-		Name: "container-01",
-		Resources: v1.ResourceRequirements{
-			Requests: c1Resources,
-		},
-	})
-
-	return &v1.Pod{
-		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-		ObjectMeta: apis.ObjectMeta{
-			Name: podName,
-		},
-		Spec: v1.PodSpec{
-			Containers: containers,
-		},
-	}
-}
-
-func NodeForTest(nodeID, memory, cpu string) *v1.Node {
-	resourceList := make(map[v1.ResourceName]resource.Quantity)
-	resourceList[v1.ResourceName("memory")] = resource.MustParse(memory)
-	resourceList[v1.ResourceName("cpu")] = resource.MustParse(cpu)
-	return &v1.Node{
-		TypeMeta: apis.TypeMeta{
-			Kind:       "Node",
-			APIVersion: "v1",
-		},
-		ObjectMeta: apis.ObjectMeta{
-			Name:      nodeID,
-			Namespace: "default",
-			UID:       "uid_0001",
-		},
-		Spec: v1.NodeSpec{},
-		Status: v1.NodeStatus{
-			Allocatable: resourceList,
-		},
 	}
 }
 
