@@ -16,7 +16,7 @@
  limitations under the License.
 */
 
-package user_qauta_tracing_test
+package user_quota_tracing_test
 
 import (
 	"fmt"
