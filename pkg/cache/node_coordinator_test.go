@@ -23,9 +23,9 @@ import (
 
 	"gotest.tools/v3/assert"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
@@ -36,19 +36,66 @@ const (
 	HostEmpty = ""
 )
 
+func PodForTest(podName, memory, cpu string) *v1.Pod {
+	containers := make([]v1.Container, 0)
+	c1Resources := make(map[v1.ResourceName]resource.Quantity)
+	c1Resources[v1.ResourceMemory] = resource.MustParse(memory)
+	c1Resources[v1.ResourceCPU] = resource.MustParse(cpu)
+	containers = append(containers, v1.Container{
+		Name: "container-01",
+		Resources: v1.ResourceRequirements{
+			Requests: c1Resources,
+		},
+	})
+
+	return &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: podName,
+		},
+		Spec: v1.PodSpec{
+			Containers: containers,
+		},
+	}
+}
+
+func NodeForTest(nodeID, memory, cpu string) *v1.Node {
+	resourceList := make(map[v1.ResourceName]resource.Quantity)
+	resourceList[v1.ResourceName("memory")] = resource.MustParse(memory)
+	resourceList[v1.ResourceName("cpu")] = resource.MustParse(cpu)
+	return &v1.Node{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Node",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name:      nodeID,
+			Namespace: "default",
+			UID:       "uid_0001",
+		},
+		Spec: v1.NodeSpec{},
+		Status: v1.NodeStatus{
+			Allocatable: resourceList,
+		},
+	}
+}
+
 func TestUpdatePod(t *testing.T) {
 	mockedSchedulerApi := newMockSchedulerAPI()
 	nodes := newSchedulerNodes(mockedSchedulerApi, NewTestSchedulerCache())
-	host1 := utils.NodeForTest(Host1, "10G", "10")
-	host2 := utils.NodeForTest(Host2, "10G", "10")
+	host1 := NodeForTest(Host1, "10G", "10")
+	host2 := NodeForTest(Host2, "10G", "10")
 	nodes.addNode(host1)
 	nodes.addNode(host2)
 	coordinator := newNodeResourceCoordinator(nodes)
 
 	// pod is not assigned to any node
 	// this won't trigger an update
-	pod1 := utils.PodForTest("pod1", "1G", "500m")
-	pod2 := utils.PodForTest("pod1", "1G", "500m")
+	pod1 := PodForTest("pod1", "1G", "500m")
+	pod2 := PodForTest("pod1", "1G", "500m")
 	pod1.Status.Phase = v1.PodPending
 	pod1.Status.Phase = v1.PodPending
 	pod1.Spec.NodeName = ""
@@ -188,14 +235,14 @@ func TestUpdatePod(t *testing.T) {
 func TestDeletePod(t *testing.T) {
 	mockedSchedulerApi := newMockSchedulerAPI()
 	nodes := newSchedulerNodes(mockedSchedulerApi, NewTestSchedulerCache())
-	host1 := utils.NodeForTest(Host1, "10G", "10")
+	host1 := NodeForTest(Host1, "10G", "10")
 	nodes.addNode(host1)
 	coordinator := newNodeResourceCoordinator(nodes)
 
 	// pod from pending to running
 	// occupied resources should be added to the node
-	pod1 := utils.PodForTest("pod1", "1G", "500m")
-	pod2 := utils.PodForTest("pod1", "1G", "500m")
+	pod1 := PodForTest("pod1", "1G", "500m")
+	pod2 := PodForTest("pod1", "1G", "500m")
 	pod1.Status.Phase = v1.PodPending
 	pod2.Status.Phase = v1.PodRunning
 	pod1.Spec.NodeName = HostEmpty
@@ -236,14 +283,14 @@ func TestDeletePod(t *testing.T) {
 func TestDeleteTerminatedPod(t *testing.T) {
 	mockedSchedulerApi := newMockSchedulerAPI()
 	nodes := newSchedulerNodes(mockedSchedulerApi, NewTestSchedulerCache())
-	host1 := utils.NodeForTest(Host1, "10G", "10")
+	host1 := NodeForTest(Host1, "10G", "10")
 	nodes.addNode(host1)
 	coordinator := newNodeResourceCoordinator(nodes)
 
 	// pod from pending to running
 	// occupied resources should be added to the node
-	pod1 := utils.PodForTest("pod1", "1G", "500m")
-	pod2 := utils.PodForTest("pod1", "1G", "500m")
+	pod1 := PodForTest("pod1", "1G", "500m")
+	pod2 := PodForTest("pod1", "1G", "500m")
 	pod1.Status.Phase = v1.PodPending
 	pod2.Status.Phase = v1.PodRunning
 	pod1.Spec.NodeName = HostEmpty
@@ -300,7 +347,7 @@ func TestDeleteTerminatedPod(t *testing.T) {
 func TestNodeCoordinatorFilterPods(t *testing.T) {
 	mockedSchedulerAPI := newMockSchedulerAPI()
 	nodes := newSchedulerNodes(mockedSchedulerAPI, NewTestSchedulerCache())
-	host1 := utils.NodeForTest(Host1, "10G", "10")
+	host1 := NodeForTest(Host1, "10G", "10")
 	nodes.addNode(host1)
 	coordinator := newNodeResourceCoordinator(nodes)
 

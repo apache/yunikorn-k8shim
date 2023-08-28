@@ -26,6 +26,7 @@ import (
 
 	"gotest.tools/v3/assert"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -35,6 +36,19 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 )
+
+type K8sResource struct {
+	ResourceName v1.ResourceName
+	Value        int64
+}
+
+func NewK8sResourceList(resources ...K8sResource) map[v1.ResourceName]resource.Quantity {
+	resourceList := make(map[v1.ResourceName]resource.Quantity)
+	for _, r := range resources {
+		resourceList[r.ResourceName] = *resource.NewQuantity(r.Value, resource.DecimalSI)
+	}
+	return resourceList
+}
 
 func TestNodeRecoveringState(t *testing.T) {
 	apiProvider4test := client.NewMockedAPIProvider(false)
@@ -50,11 +64,11 @@ func TestNodeRecoveringState(t *testing.T) {
 			UID:       "uid_0001",
 		},
 		Status: v1.NodeStatus{
-			Capacity: utils.NewK8sResourceList(
-				utils.K8sResource{
+			Capacity: NewK8sResourceList(
+				K8sResource{
 					ResourceName: v1.ResourceMemory,
 					Value:        1024,
-				}, utils.K8sResource{
+				}, K8sResource{
 					ResourceName: v1.ResourceCPU,
 					Value:        10,
 				}),
@@ -68,11 +82,11 @@ func TestNodeRecoveringState(t *testing.T) {
 			UID:       "uid_0002",
 		},
 		Status: v1.NodeStatus{
-			Capacity: utils.NewK8sResourceList(
-				utils.K8sResource{
+			Capacity: NewK8sResourceList(
+				K8sResource{
 					ResourceName: v1.ResourceMemory,
 					Value:        1024,
-				}, utils.K8sResource{
+				}, K8sResource{
 					ResourceName: v1.ResourceCPU,
 					Value:        10,
 				}),
@@ -119,11 +133,11 @@ func TestNodesRecovery(t *testing.T) {
 				UID:       types.UID("uid_000" + strconv.Itoa(i)),
 			},
 			Status: v1.NodeStatus{
-				Capacity: utils.NewK8sResourceList(
-					utils.K8sResource{
+				Capacity: NewK8sResourceList(
+					K8sResource{
 						ResourceName: v1.ResourceMemory,
 						Value:        1024,
-					}, utils.K8sResource{
+					}, K8sResource{
 						ResourceName: v1.ResourceCPU,
 						Value:        10,
 					}),
