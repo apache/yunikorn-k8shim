@@ -564,6 +564,14 @@ var _ = ginkgo.Describe("Preemption", func() {
 		// reset config
 		ginkgo.By("Restoring YuniKorn configuration")
 		yunikorn.RestoreConfigMapWrapper(oldConfigMap, annotation)
+
+		ginkgo.By("Restart YuniKorn")
+		kClient.KillPortForwardProcess()
+		yunikorn.RestartYunikorn(&kClient)
+
+		ginkgo.By("Port-forward the scheduler pod")
+		err = kClient.PortForwardYkSchedulerPod()
+		Ω(err).NotTo(gomega.HaveOccurred())
 	})
 })
 
