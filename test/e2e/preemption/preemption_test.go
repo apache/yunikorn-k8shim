@@ -386,7 +386,7 @@ var _ = ginkgo.Describe("Preemption", func() {
 			// Wait for pod to move to running state
 			podErr = kClient.WaitForPodBySelectorRunning(dev,
 				fmt.Sprintf("app=%s", sleepRespPod.ObjectMeta.Labels["app"]),
-				60*60*2)
+				60)
 			gomega.Ω(podErr).NotTo(gomega.HaveOccurred())
 		}
 
@@ -406,7 +406,7 @@ var _ = ginkgo.Describe("Preemption", func() {
 
 		// sleepjob4 pod can't be scheduled before pods in root.sandbox1 are succeeded
 		ginkgo.By("The sleep pod " + sleepPod4Config.Name + " can't be scheduled")
-		err = kClient.WaitForPodUnschedulable(sleepRespPod4, 2*120*30*time.Second)
+		err = kClient.WaitForPodUnschedulable(sleepRespPod4, 30*time.Second)
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 
 		// sleepjob5 pod can be scheduled before pods in root.sandbox1 are succeeded
