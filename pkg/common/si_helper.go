@@ -59,11 +59,7 @@ func CreateTagsForTask(pod *v1.Pod) map[string]string {
 	// add Pod labels to Task tags
 	labelPrefix := common.DomainK8s + common.GroupLabel
 	for k, v := range pod.Labels {
-		if k == common.DomainYuniKorn+common.KeyAllowPreemption {
-			tags[common.DomainYuniKorn+common.KeyAllowPreemption] = v
-		} else {
-			tags[labelPrefix+k] = v
-		}
+		tags[labelPrefix+k] = v
 	}
 
 	return tags
