@@ -398,3 +398,23 @@ func (c *RClient) GetPartitions(partition string) (*dao.PartitionQueueDAOInfo, e
 	_, err = c.do(req, &partitions)
 	return partitions, err
 }
+
+func (c *RClient) GetUserUsage(partition string, userName string) (*dao.UserResourceUsageDAOInfo, error) {
+	req, err := c.newRequest("GET", fmt.Sprintf(configmanager.UserUsagePath, partition, userName), nil)
+	if err != nil {
+		return nil, err
+	}
+	var userUsage *dao.UserResourceUsageDAOInfo
+	_, err = c.do(req, &userUsage)
+	return userUsage, err
+}
+
+func (c *RClient) GetGroupUsage(partition string, groupName string) (*dao.GroupResourceUsageDAOInfo, error) {
+	req, err := c.newRequest("GET", fmt.Sprintf(configmanager.GroupUsagePath, partition, groupName), nil)
+	if err != nil {
+		return nil, err
+	}
+	var groupUsage *dao.GroupResourceUsageDAOInfo
+	_, err = c.do(req, &groupUsage)
+	return groupUsage, err
+}
