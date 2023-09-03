@@ -168,7 +168,7 @@ var _ = ginkgo.Describe("Preemption", func() {
 
 		// Define sleepPod
 		sleepPodConfigs := createSandbox1SleepPodCofigs(3, 600)
-		sleepPod4Config := k8s.SleepPodConfig{Name: "sleepjob4", NS: dev, Mem: sleepPodMemLimit, Time: 600, Optedout: true, Labels: map[string]string{"queue": "root.sandbox2"}}
+		sleepPod4Config := k8s.SleepPodConfig{Name: "sleepjob4", NS: dev, Mem: sleepPodMemLimit, Time: 600, Optedout: k8s.Allow, Labels: map[string]string{"queue": "root.sandbox2"}}
 		sleepPodConfigs = append(sleepPodConfigs, sleepPod4Config)
 
 		for _, config := range sleepPodConfigs {
@@ -231,7 +231,7 @@ var _ = ginkgo.Describe("Preemption", func() {
 
 		// Define sleepPod
 		sandbox1SleepPodConfigs := createSandbox1SleepPodCofigs(3, 30)
-		sleepPod4Config := k8s.SleepPodConfig{Name: "sleepjob4", NS: dev, Mem: sleepPodMemLimit, Time: 30, Optedout: true, Labels: map[string]string{"queue": "root.sandbox2"}}
+		sleepPod4Config := k8s.SleepPodConfig{Name: "sleepjob4", NS: dev, Mem: sleepPodMemLimit, Time: 30, Optedout: k8s.Allow, Labels: map[string]string{"queue": "root.sandbox2"}}
 
 		// Deploy pods in root.sandbox1
 		for _, config := range sandbox1SleepPodConfigs {
@@ -298,7 +298,7 @@ var _ = ginkgo.Describe("Preemption", func() {
 
 		// Define sleepPod
 		sandbox1SleepPodConfigs := createSandbox1SleepPodCofigs(3, 30)
-		sleepPod4Config := k8s.SleepPodConfig{Name: "sleepjob4", NS: dev, Mem: sleepPodMemLimit, Time: 30, Optedout: true, Labels: map[string]string{"queue": "root.sandbox2"}}
+		sleepPod4Config := k8s.SleepPodConfig{Name: "sleepjob4", NS: dev, Mem: sleepPodMemLimit, Time: 30, Optedout: k8s.Allow, Labels: map[string]string{"queue": "root.sandbox2"}}
 
 		// Deploy pods in root.sandbox1
 		for _, config := range sandbox1SleepPodConfigs {
@@ -373,8 +373,8 @@ var _ = ginkgo.Describe("Preemption", func() {
 
 		// Define sleepPod
 		sandbox1SleepPodConfigs := createSandbox1SleepPodCofigs(3, 30)
-		sleepPod4Config := k8s.SleepPodConfig{Name: "sleepjob4", NS: dev, Mem: sleepPodMemLimit, Time: 600, Optedout: true, Labels: map[string]string{"queue": "root.low-priority"}}
-		sleepPod5Config := k8s.SleepPodConfig{Name: "sleepjob5", NS: dev, Mem: sleepPodMemLimit, Time: 600, Optedout: true, Labels: map[string]string{"queue": "root.high-priority"}}
+		sleepPod4Config := k8s.SleepPodConfig{Name: "sleepjob4", NS: dev, Mem: sleepPodMemLimit, Time: 600, Optedout: k8s.Allow, Labels: map[string]string{"queue": "root.low-priority"}}
+		sleepPod5Config := k8s.SleepPodConfig{Name: "sleepjob5", NS: dev, Mem: sleepPodMemLimit, Time: 600, Optedout: k8s.Allow, Labels: map[string]string{"queue": "root.high-priority"}}
 
 		for _, config := range sandbox1SleepPodConfigs {
 			ginkgo.By("Deploy the sleep pod " + config.Name + " to the development namespace")
@@ -489,11 +489,11 @@ var _ = ginkgo.Describe("Preemption", func() {
 		gomega.Ω(err).ShouldNot(HaveOccurred())
 
 		// Define sleepPod
-		sleepPod1Config := k8s.SleepPodConfig{Name: "sleepjob1", NS: dev, Mem: sleepPodMemLimit2, Time: 60, Optedout: true, Labels: map[string]string{"queue": "root.sandbox3"}}
-		sleepPod2Config := k8s.SleepPodConfig{Name: "sleepjob2", NS: dev, Mem: sleepPodMemLimit2, Time: 60, Optedout: true, Labels: map[string]string{"queue": "root.sandbox3"}}
-		sleepPod3Config := k8s.SleepPodConfig{Name: "sleepjob3", NS: dev, Mem: sleepPodMemLimit2, Time: 60, Optedout: false, Labels: map[string]string{"queue": "root.sandbox4"}}
-		sleepPod4Config := k8s.SleepPodConfig{Name: "sleepjob4", NS: dev, Mem: sleepPodMemLimit2, Time: 60, Optedout: false, Labels: map[string]string{"queue": "root.sandbox4"}}
-		sleepPod5Config := k8s.SleepPodConfig{Name: "sleepjob5", NS: dev, Mem: sleepPodMemLimit2, Time: 600, Optedout: true, Labels: map[string]string{"queue": "root.sandbox5"}}
+		sleepPod1Config := k8s.SleepPodConfig{Name: "sleepjob1", NS: dev, Mem: sleepPodMemLimit2, Time: 60, Optedout: k8s.NotConfig, Labels: map[string]string{"queue": "root.sandbox3"}}
+		sleepPod2Config := k8s.SleepPodConfig{Name: "sleepjob2", NS: dev, Mem: sleepPodMemLimit2, Time: 60, Optedout: k8s.NotConfig, Labels: map[string]string{"queue": "root.sandbox3"}}
+		sleepPod3Config := k8s.SleepPodConfig{Name: "sleepjob3", NS: dev, Mem: sleepPodMemLimit2, Time: 60, Optedout: k8s.NotConfig, Labels: map[string]string{"queue": "root.sandbox4"}}
+		sleepPod4Config := k8s.SleepPodConfig{Name: "sleepjob4", NS: dev, Mem: sleepPodMemLimit2, Time: 60, Optedout: k8s.NotConfig, Labels: map[string]string{"queue": "root.sandbox4"}}
+		sleepPod5Config := k8s.SleepPodConfig{Name: "sleepjob5", NS: dev, Mem: sleepPodMemLimit2, Time: 600, Optedout: k8s.NotConfig, Labels: map[string]string{"queue": "root.sandbox5"}}
 
 		for _, config := range []k8s.SleepPodConfig{sleepPod1Config, sleepPod2Config, sleepPod3Config, sleepPod4Config} {
 			ginkgo.By("Deploy the sleep pod " + config.Name + " to the development namespace")
@@ -570,7 +570,7 @@ var _ = ginkgo.Describe("Preemption", func() {
 func createSandbox1SleepPodCofigs(cnt, time int) []k8s.SleepPodConfig {
 	sandbox1Configs := make([]k8s.SleepPodConfig, 0, cnt)
 	for i := 0; i < cnt; i++ {
-		sandbox1Configs = append(sandbox1Configs, k8s.SleepPodConfig{Name: fmt.Sprintf("sleepjob%d", i+1), NS: dev, Mem: sleepPodMemLimit, Time: time, Optedout: true, Labels: map[string]string{"queue": "root.sandbox1"}})
+		sandbox1Configs = append(sandbox1Configs, k8s.SleepPodConfig{Name: fmt.Sprintf("sleepjob%d", i+1), NS: dev, Mem: sleepPodMemLimit, Time: time, Optedout: k8s.Allow, Labels: map[string]string{"queue": "root.sandbox1"}})
 	}
 	return sandbox1Configs
 }

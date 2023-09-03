@@ -178,9 +178,9 @@ var _ = ginkgo.Describe("SimplePreemptor", func() {
 		sleepPod3Configs := k8s.SleepPodConfig{Name: "sleepjob3", NS: dev, Mem: sleepPodMemLimit1, Time: 600, RequiredNode: Worker1, AppID: "test01"}
 
 		// add the same AppID to sleepPod3Configs so that sleepPod4Configs is not the originator pod
-		sleepPod4Configs := k8s.SleepPodConfig{Name: "sleepjob4", NS: dev, Mem: sleepPodMemLimit2, Time: 600, Optedout: true, AppID: "test01"}
-		sleepPod5Configs := k8s.SleepPodConfig{Name: "sleepjob5", NS: dev, Mem: sleepPodMemLimit2, Time: 600, Optedout: false}
-		sleepPod6Configs := k8s.SleepPodConfig{Name: "sleepjob6", NS: dev, Mem: sleepPodMemLimit2, Time: 600, Optedout: false}
+		sleepPod4Configs := k8s.SleepPodConfig{Name: "sleepjob4", NS: dev, Mem: sleepPodMemLimit2, Time: 600, Optedout: k8s.Allow, AppID: "test01"}
+		sleepPod5Configs := k8s.SleepPodConfig{Name: "sleepjob5", NS: dev, Mem: sleepPodMemLimit2, Time: 600, Optedout: k8s.Deny}
+		sleepPod6Configs := k8s.SleepPodConfig{Name: "sleepjob6", NS: dev, Mem: sleepPodMemLimit2, Time: 600, Optedout: k8s.Deny}
 		sleepPod7Configs := k8s.SleepPodConfig{Name: "sleepjob7", NS: dev, Mem: sleepPodMemLimit2, Time: 600, RequiredNode: Worker2}
 
 		for _, config := range []k8s.SleepPodConfig{sleepPodConfigs, sleepPod2Configs,

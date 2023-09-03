@@ -39,9 +39,17 @@ type SleepPodConfig struct {
 	CPU          int64
 	Mem          int64
 	RequiredNode string
-	Optedout     bool
+	Optedout     AllowPreemptOpted
 	Labels       map[string]string
 }
+
+type AllowPreemptOpted int
+
+const (
+	NotConfig AllowPreemptOpted = iota
+	Allow
+	Deny
+)
 
 // TestPodConfig template for  sleepPods
 func InitSleepPod(conf SleepPodConfig) (*v1.Pod, error) {
@@ -88,9 +96,16 @@ func InitSleepPod(conf SleepPodConfig) (*v1.Pod, error) {
 		}
 	}
 
-	optedOut := constants.True
-	if !conf.Optedout {
-		optedOut = constants.False
+	annotation := &PodAnnotation{
+		Other: map[string]string{},
+	}
+
+	switch conf.Optedout {
+	case NotConfig:
+	case Allow:
+		annotation.Other[constants.AnnotationAllowPreemption] = constants.True
+	case Deny:
+		annotation.Other[constants.AnnotationAllowPreemption] = constants.False
 	}
 
 	labels := map[string]string{
@@ -109,12 +124,8 @@ func InitSleepPod(conf SleepPodConfig) (*v1.Pod, error) {
 		RestartPolicy:              v1.RestartPolicyNever,
 		DeletionGracePeriodSeconds: &secs,
 		Command:                    []string{"sleep", strconv.Itoa(conf.Time)},
-		Annotations: &PodAnnotation{
-			Other: map[string]string{
-				constants.AnnotationAllowPreemption: optedOut,
-			},
-		},
-		Labels: labels,
+		Annotations:                annotation,
+		Labels:                     labels,
 		Resources: &v1.ResourceRequirements{
 			Requests: v1.ResourceList{
 				"cpu":    resource.MustParse(strconv.FormatInt(conf.CPU, 10) + "m"),
