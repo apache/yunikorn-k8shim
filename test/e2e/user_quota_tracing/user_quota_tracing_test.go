@@ -217,12 +217,12 @@ var _ = Describe("QuotaTracking: Two leaf queus for two groups", func() {
 		}
 		for user, quota := range expectedUsers.Users {
 			By(fmt.Sprintf("UserTracker: Check user resource usage of %s in each queue", user))
-			userUsage, err := restClient.GetUserResourceUsage(DEFAULT_PARTITION, user)
-			Ω(err).NotTo(HaveOccurred())
+			userUsage, getUserErr := restClient.GetUserResourceUsage(DEFAULT_PARTITION, user)
+			Ω(getUserErr).NotTo(HaveOccurred())
 			Ω(userUsage).To(Equal(quota.AppBelongingGroup))
 			for queuePath, queueQuota := range quota.Queues {
-				queue, err := yunikorn.GetQueueResourceUsage(userUsage.Queues, queuePath)
-				Ω(err).NotTo(HaveOccurred())
+				queue, getQueueErr := yunikorn.GetQueueResourceUsage(userUsage.Queues, queuePath)
+				Ω(getQueueErr).NotTo(HaveOccurred())
 				Ω(queue.RunningApplications).To(Equal(queueQuota.RunningApplications))
 				usedResource.ParseResourceUsage(yunikorn.ParseResource(queue.ResourceUsage))
 				Ω(usedResource).To(Equal(queueQuota.Resources))
@@ -239,8 +239,8 @@ var _ = Describe("QuotaTracking: Two leaf queus for two groups", func() {
 			Ω(getUserErr).NotTo(HaveOccurred())
 			Ω(userUsage).To(Equal(quota.AppBelongingGroup))
 			for queuePath, queueQuota := range quota.Queues {
-				queue, getQueueerr := yunikorn.GetQueueResourceUsage(userUsage.Queues, queuePath)
-				Ω(getQueueerr).NotTo(HaveOccurred())
+				queue, getQueueErr := yunikorn.GetQueueResourceUsage(userUsage.Queues, queuePath)
+				Ω(getQueueErr).NotTo(HaveOccurred())
 				Ω(queue.RunningApplications).To(Equal(queueQuota.RunningApplications))
 				usedResource.ParseResourceUsage(yunikorn.ParseResource(queue.ResourceUsage))
 				Ω(usedResource).To(Equal(queueQuota.Resources))
