@@ -31,6 +31,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 
+	"github.com/apache/yunikorn-core/pkg/common/resources"
 	"github.com/apache/yunikorn-core/pkg/webservice/dao"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 )
@@ -471,27 +472,25 @@ func (c *RClient) GetGroupResourceUsage(partition string, user string) (*dao.Gro
 >>>>>>> 97e86d38 ([YUNIKORN-1901] A basic example for the user tracing and the group tracing)
 }
 
-func (c *RClient) GetQueueFromUserResourceUsage(usages []*dao.UserResourceUsageDAOInfo, queueName string, user string) (*dao.ResourceUsageDAOInfo, error) {
-	var result *dao.ResourceUsageDAOInfo
-	for _, usage := range usages {
-		if usage.UserName == user {
-			result = usage.Queues
+func GetUserUsageFromUsersUsage(users []*dao.UserResourceUsageDAOInfo, target string) (*dao.UserResourceUsageDAOInfo, error) {
+	for _, user := range users {
+		if user.UserName == target {
+			return user, nil
 		}
 	}
-	return QueueFromResourceUsage(result, queueName)
+	return nil, fmt.Errorf("UserUsage %s doesn't exist", target)
 }
 
-func (c *RClient) GetQueueFromGroupResourceUsage(usages []*dao.GroupResourceUsageDAOInfo, queueName string, group string) (*dao.ResourceUsageDAOInfo, error) {
-	var result *dao.ResourceUsageDAOInfo
-	for _, usage := range usages {
-		if usage.GroupName == group {
-			result = usage.Queues
+func GetGroupUsageFromGroupsUsage(groups []*dao.GroupResourceUsageDAOInfo, target string) (*dao.GroupResourceUsageDAOInfo, error) {
+	for _, group := range groups {
+		if group.GroupName == target {
+			return group, nil
 		}
 	}
-	return QueueFromResourceUsage(result, queueName)
+	return nil, fmt.Errorf("GroupUsage %s doesn't exist", target)
 }
 
-func QueueFromResourceUsage(root *dao.ResourceUsageDAOInfo, queueName string) (*dao.ResourceUsageDAOInfo, error) {
+func GetQueueResourceUsage(root *dao.ResourceUsageDAOInfo, queueName string) (*dao.ResourceUsageDAOInfo, error) {
 	if root == nil {
 		return nil, fmt.Errorf("ResourceUsage not found: %s", queueName)
 	}
@@ -507,4 +506,12 @@ func QueueFromResourceUsage(root *dao.ResourceUsageDAOInfo, queueName string) (*
 		}
 	}
 	return nil, fmt.Errorf("ResourceUsage not found: %s", queueName)
+}
+
+func ParseResource(res *resources.Resource) map[string]int64 {
+	result := make(map[string]int64)
+	for key, value := range res.Resources {
+		result[key] = int64(value)
+	}
+	return result
 }
