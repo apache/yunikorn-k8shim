@@ -106,9 +106,8 @@ func createAndCheckPlaceholderCreate(mockedAPIProvider *client.MockedAPIProvider
 	err := placeholderMgr.createAppPlaceholders(app)
 	assert.NilError(t, err, "create app placeholders should be successful")
 	assert.Equal(t, len(createdPods), 30)
-	var priority *int32
 	for _, pod := range createdPods {
-		assert.Equal(t, priority, pod.Spec.Priority, "Priority should be nil")
+		assert.Equal(t, "", pod.Spec.PriorityClassName, "PriorityClassName should be empty")
 	}
 	return createdPods
 }
