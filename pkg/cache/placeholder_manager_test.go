@@ -36,9 +36,10 @@ import (
 )
 
 const (
-	appID     = "app01"
-	queue     = "root.default"
-	namespace = "test"
+	appID             = "app01"
+	queue             = "root.default"
+	namespace         = "test"
+	priorityClassName = "test-priority-class"
 )
 
 func TestNewPlaceholderManager(t *testing.T) {
@@ -90,11 +91,12 @@ func TestCreateAppPlaceholdersWithExistingPods(t *testing.T) {
 	assert.Equal(t, (*v1.Pod)(nil), createdPods["tg-test-group-1-app01-0"], "Pod should not have been created")
 	assert.Equal(t, (*v1.Pod)(nil), createdPods["tg-test-group-1-app01-1"], "Pod should not have been created")
 	assert.Equal(t, (*v1.Pod)(nil), createdPods["tg-test-group-1-app02-0"], "Pod should not have been created")
+	var priority *int32
 	for _, tg := range []string{"tg-test-group-1-app01-", "tg-test-group-2-app01-"} {
 		for i := 2; i <= 9; i++ {
 			podName := tg + strconv.Itoa(i)
-			priority := createdPods[podName].Spec.Priority
-			assert.Equal(t, *priority, int32(10), "Pod should not have been created")
+			assert.Equal(t, priority, createdPods[podName].Spec.Priority, "Priority should not be set")
+			assert.Equal(t, priorityClassName, createdPods[podName].Spec.PriorityClassName, "priority class name should be set")
 		}
 	}
 }
@@ -114,7 +116,8 @@ func createAndCheckPlaceholderCreate(mockedAPIProvider *client.MockedAPIProvider
 	for _, tg := range []string{"tg-test-group-1-app01-", "tg-test-group-2-app01-"} {
 		for i := 2; i <= 9; i++ {
 			podName := tg + strconv.Itoa(i)
-			assert.Equal(t, priority, createdPods[podName].Spec.Priority, "Pod should not have been created")
+			assert.Equal(t, priority, createdPods[podName].Spec.Priority, "Priority should not be set")
+			assert.Equal(t, "", createdPods[podName].Spec.PriorityClassName, "Priority class name should be empty")
 		}
 	}
 	return createdPods
@@ -166,8 +169,6 @@ func createAppWIthTaskGroupForTest() *Application {
 func createAppWIthTaskGroupAndPodsForTest() *Application {
 	app := createAppWIthTaskGroupForTest()
 	mockedContext := initContextForTest()
-	priority := int32(10)
-	specPriority := &priority
 	pod1 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
@@ -178,7 +179,7 @@ func createAppWIthTaskGroupAndPodsForTest() *Application {
 			UID:  "UID-01",
 		},
 		Spec: v1.PodSpec{
-			Priority: specPriority,
+			PriorityClassName: priorityClassName,
 		},
 	}
 	pod2 := &v1.Pod{
