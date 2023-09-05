@@ -80,20 +80,12 @@ func (mgr *PlaceholderManager) createAppPlaceholders(app *Application) error {
 	// map task group to count of already created placeholders
 	tgCounts := make(map[string]int32)
 	for _, ph := range app.getPlaceHolderTasks() {
-		tgName := ph.getTaskGroupName()
-		if count, ok := tgCounts[tgName]; ok {
-			tgCounts[tgName] = count + 1
-		} else {
-			tgCounts[tgName] = 1
-		}
+		tgCounts[ph.getTaskGroupName()]++
 	}
 
 	// iterate all task groups, create placeholders for all the min members
 	for _, tg := range app.getTaskGroups() {
-		count, ok := tgCounts[tg.Name]
-		if !ok {
-			count = 0
-		}
+		count := tgCounts[tg.Name]
 		// only create missing pods for each task group
 		for i := count; i < tg.MinMember; i++ {
 			placeholderName := utils.GeneratePlaceholderName(tg.Name, app.GetApplicationID())

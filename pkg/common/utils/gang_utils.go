@@ -56,8 +56,8 @@ func FindAppTaskGroup(appTaskGroups []*interfaces.TaskGroup, groupName string) (
 }
 
 // GeneratePlaceholderName creates the placeholder name for a pod, pod name can not be longer than 63 chars,
-// taskGroup name and appID will be truncated if they go over 20/28 chars respectively,
-// each taskGroup is assigned with an incremental index starting from 0.
+// appID and taskGroupName will be truncated if they go over 28/20 chars respectively,
+// and each name will be suffixed with a randomly generated 10-character nonce.
 func GeneratePlaceholderName(taskGroupName, appID string) string {
 	// appID no longer than 28 chars
 	// taskGroup name no longer than 20 chars
