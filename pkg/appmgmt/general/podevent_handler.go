@@ -131,8 +131,7 @@ func (p *PodEventHandler) addPod(pod *v1.Pod, eventSource EventSource) interface
 				Metadata: appMeta,
 			})
 		} else {
-			if app.GetApplicationID() != constants.AutoGenAppPrefix+"-"+pod.Namespace+"-"+constants.AutoGenAppSuffix &&
-				conf.GetSchedulerConf().GetSingleUserPerApplication() && app.GetUser() != appMeta.User {
+			if conf.GetSchedulerConf().GetSingleUserPerApplication() && app.GetUser() != appMeta.User && isAppIDUnique(app, pod) {
 				log.Log(log.ShimAppMgmtGeneral).Warn("rejecting application as it has been submitted by different user",
 					zap.String("app id ", appMeta.ApplicationID),
 					zap.String("app user", app.GetUser()),
@@ -187,6 +186,10 @@ func (p *PodEventHandler) deletePod(pod *v1.Pod) interfaces.ManagedApp {
 		}
 	}
 	return nil
+}
+
+func isAppIDUnique(app interfaces.ManagedApp, pod *v1.Pod) bool {
+	return app.GetApplicationID() != constants.AutoGenAppPrefix+"-"+pod.Namespace+"-"+constants.AutoGenAppSuffix
 }
 
 func NewPodEventHandler(amProtocol interfaces.ApplicationManagementProtocol, recoveryRunning bool) *PodEventHandler {
