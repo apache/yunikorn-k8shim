@@ -20,6 +20,7 @@ package utils
 
 import (
 	"fmt"
+	"math/rand"
 	"strconv"
 	"strings"
 
@@ -55,13 +56,26 @@ func FindAppTaskGroup(appTaskGroups []*interfaces.TaskGroup, groupName string) (
 }
 
 // GeneratePlaceholderName creates the placeholder name for a pod, pod name can not be longer than 63 chars,
-// taskGroup name and appID will be truncated if they go over 20/28 chars respectively,
-// each taskGroup is assigned with an incremental index starting from 0.
-func GeneratePlaceholderName(taskGroupName, appID string, index int32) string {
-	// taskGroup name no longer than 20 chars
+// appID and taskGroupName will be truncated if they go over 28/20 chars respectively,
+// and each name will be suffixed with a randomly generated 10-character nonce.
+func GeneratePlaceholderName(taskGroupName, appID string) string {
 	// appID no longer than 28 chars
-	// total length no longer than 20 + 28 + 5 + 10 = 63
-	return fmt.Sprintf("tg-%.20s-%.28s-%d", taskGroupName, appID, index)
+	// taskGroup name no longer than 20 chars
+	// nonce equal to 10 chars
+	// total length no longer than 28 + 20 + 5 + 10 = 63
+	return fmt.Sprintf("tg-%.28s-%.20s-%s", appID, taskGroupName, generateNonce(10))
+}
+
+const letterBytes = "abcdefghijklmnopqrstuvwxyz0123456789"
+
+// generateNonce generates an alphanumeric string (i.e. base-36) of the given length
+func generateNonce(length int) string {
+	buf := make([]byte, length)
+	for i := range buf {
+		// this uses the built-in rand package as it does not need to be hardened
+		buf[i] = letterBytes[rand.Intn(len(letterBytes))] //nolint:gosec
+	}
+	return string(buf)
 }
 
 // GetPlaceholderResourceRequests converts the map of resources requested into a list of resources for the request
