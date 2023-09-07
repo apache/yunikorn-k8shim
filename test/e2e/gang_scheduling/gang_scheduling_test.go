@@ -525,6 +525,51 @@ var _ = Describe("", func() {
 		verifyOriginatorDeletionCase(true)
 	})
 
+	// Test placeholder with hugepages
+	// 1. Deploy 1 job with hugepages-2Mi
+	// 2. Verify all pods running
+	It("Verify_HugePage", func() {
+		hugepageKey := fmt.Sprintf("%s2Mi", v1.ResourceHugePagesPrefix)
+		nodes, err := kClient.GetNodes()
+		Ω(err).NotTo(HaveOccurred())
+		hasHugePages := false
+		for _, node := range nodes.Items {
+			if v, ok := node.Status.Capacity[v1.ResourceName(hugepageKey)]; ok {
+				if v.Value() != 0 {
+					hasHugePages = true
+					break
+				}
+			}
+		}
+		if !hasHugePages {
+			ginkgo.Skip("Skip hugepages test as no node has hugepages")
+		}
+
+		// add hugepages to request
+		minResource[hugepageKey] = resource.MustParse("100Mi")
+		annotations := k8s.PodAnnotation{
+			TaskGroupName: groupA,
+			TaskGroups: []interfaces.TaskGroup{
+				{Name: groupA, MinMember: int32(3), MinResource: minResource},
+			},
+		}
+		job := createJob(appID, minResource, annotations, 3)
+
+		By("Verify all job pods are running")
+		jobRunErr := kClient.WaitForJobPods(ns, job.Name, int(*job.Spec.Parallelism), 2*time.Minute)
+		Ω(jobRunErr).NotTo(HaveOccurred())
+
+		checkAppStatus(appID, yunikorn.States().Application.Running)
+
+		// Ensure placeholders are replaced and allocations count is correct
+		appDaoInfo, appDaoInfoErr := restClient.GetAppInfo(configmanager.DefaultPartition, nsQueue, appID)
+		Ω(appDaoInfoErr).NotTo(HaveOccurred())
+		Ω(len(appDaoInfo.PlaceholderData)).To(Equal(1), "Placeholder count is not correct")
+		checkPlaceholderData(appDaoInfo, groupA, 3, 3, 0)
+		Ω(len(appDaoInfo.Allocations)).To(Equal(int(3)), "Allocations count is not correct")
+		Ω(appDaoInfo.UsedResource[hugepageKey]).To(Equal(int64(314572800)), "Used huge page resource is not correct")
+	})
+
 	AfterEach(func() {
 		testDescription := ginkgo.CurrentSpecReport()
 		if testDescription.Failed() {
