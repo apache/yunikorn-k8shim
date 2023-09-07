@@ -629,6 +629,9 @@ func (k *KubeCtl) isPodInDesiredState(podName string, namespace string, state v1
 	return func() (bool, error) {
 		pod, err := k.clientSet.CoreV1().Pods(namespace).Get(context.TODO(), podName, metav1.GetOptions{})
 		if err != nil {
+			if k8serrors.IsNotFound(err) {
+				return false, nil
+			}
 			return false, err
 		}
 		switch pod.Status.Phase {
