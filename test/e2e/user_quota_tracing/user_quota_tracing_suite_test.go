@@ -36,6 +36,7 @@ func init() {
 var oldConfigMap = new(v1.ConfigMap)
 var annotation = "ann-" + common.RandSeq(10)
 var kClient = k8s.KubeCtl{} //nolint
+var RestClient = yunikorn.RClient{}
 
 var _ = BeforeSuite(func() {
 	Ω(kClient.SetClient()).To(BeNil())

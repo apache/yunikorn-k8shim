@@ -27,6 +27,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/apache/yunikorn-core/pkg/common/configs"
+	"github.com/apache/yunikorn-core/pkg/webservice/dao"
 	tests "github.com/apache/yunikorn-k8shim/test/e2e"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
@@ -40,7 +41,7 @@ const (
 	DEFAULT_PARTITION = "default"
 )
 
-var _ = Describe("QuotaTracking: Two leaf queus for two groups", func() {
+var _ = Describe("QuotaTracking: Two leaf queues for two groups", func() {
 	var ns string
 	BeforeEach(func() {
 		ns = "ns-" + common.RandSeq(NANESPACE_LENGTH)
@@ -50,10 +51,7 @@ var _ = Describe("QuotaTracking: Two leaf queus for two groups", func() {
 		Ω(ns1.Status.Phase).To(Equal(v1.NamespaceActive))
 	})
 
-	It("User qauta trace with 3 users and 2 groups", func() {
-		groups := []string{"group1", "group2"}
-		users := []string{"user1", "user2", "user3"}
-		queuePath := []string{"root", "root.group1_resources", "root.group2_resources"}
+	It("User quota trace with 3 users and 2 groups", func() {
 		zeroPod := map[string]int64{siCommon.CPU: 0, siCommon.Memory: 0}
 		onePod := map[string]int64{siCommon.CPU: 100, siCommon.Memory: 50}
 		twoPods := map[string]int64{siCommon.CPU: 200, siCommon.Memory: 100}
@@ -63,8 +61,8 @@ var _ = Describe("QuotaTracking: Two leaf queus for two groups", func() {
 			queuesConfigs := []struct {
 				partition, parentQueue, QueueName string
 			}{
-				{DEFAULT_PARTITION, queuePath[0], "group1_resources"},
-				{DEFAULT_PARTITION, queuePath[0], "group2_resources"},
+				{DEFAULT_PARTITION, "root", "group1_resources"},
+				{DEFAULT_PARTITION, "root", "group2_resources"},
 			}
 			for _, queueConfig := range queuesConfigs {
 				By(fmt.Sprintf("Add child queue %s to the parent queue %s", queueConfig.QueueName, queueConfig.parentQueue))
@@ -85,167 +83,66 @@ var _ = Describe("QuotaTracking: Two leaf queus for two groups", func() {
 		*  user2 -> group2
 		*  user3 -> group1, group2
 		 */
-		configs := []struct {
-			AppID, Queue, UserName string
-			GroupsNames            []string
-		}{
-			{"teacher-app-01", queuePath[1], users[0], []string{groups[0]}},
-			{"students-app-01", queuePath[2], users[1], []string{groups[1]}},
-			{"assistant-app-01", queuePath[2], users[2], []string{groups[1]}},
-			{"assistant-app-02", queuePath[1], users[2], []string{groups[0]}},
-		}
-		for _, config := range configs {
-			By(fmt.Sprintf("Deploy the sleep app %s to the %s namespace", config.AppID, ns))
-			sleepObj, podErr := k8s.InitSleepPod(k8s.SleepPodConfig{
-				AppID:  config.AppID,
-				NS:     ns,
-				Labels: map[string]string{"queue": config.Queue},
-			})
-			sleepObj.ObjectMeta.Annotations["yunikorn.apache.org/user.info"] = fmt.Sprintf("{username:%s, groups:{%s}}", config.UserName, config.GroupsNames)
-			Ω(podErr).NotTo(HaveOccurred())
-			sleepRespPod, podErr := kClient.CreatePod(sleepObj, ns)
-			Ω(podErr).NotTo(HaveOccurred())
+		deploySleepPod("user1-app-01", "root.group1_resources", "user1", []string{"group1"}, ns)
+		deploySleepPod("user2-app-01", "root.group2_resources", "user2", []string{"group2"}, ns)
+		deploySleepPod("user3-app-01", "root.group2_resources", "user3", []string{"group2"}, ns)
+		deploySleepPod("user3-app-02", "root.group1_resources", "user3", []string{"group1"}, ns)
 
-			// Wait for pod to move to running state
-			podErr = kClient.WaitForPodBySelectorRunning(ns,
-				fmt.Sprintf("app=%s", sleepRespPod.ObjectMeta.Labels["app"]), WAIT_INTERVAL)
-			Ω(podErr).NotTo(HaveOccurred())
-		}
-
-		type Queue struct {
-			RunningApplications []string
-			Resources           map[string]int64
-		}
-		type GroupQuota struct {
-			RunningApplications []string
-			Queues              map[string]Queue
-		}
-		type GroupsQuota struct {
-			NumberOfGroups int
-			Groups         map[string]GroupQuota
-		}
-		expectedGroups := GroupsQuota{
+		expectedGroups := ExpectedGroupsQuota{
 			2,
-			map[string]GroupQuota{
-				groups[0]: {
-					[]string{configs[0].AppID, configs[3].AppID},
-					map[string]Queue{
-						queuePath[0]: {[]string{configs[0].AppID, configs[3].AppID}, twoPods},
-						queuePath[1]: {[]string{configs[0].AppID, configs[3].AppID}, twoPods},
-						queuePath[2]: {[]string{}, zeroPod},
+			map[string]ExpectedGroupQuota{
+				"group1": {
+					[]string{"user1-app-01", "user3-app-02"},
+					map[string]ExpectedQueue{
+						"root": {[]string{"user1-app-01", "user3-app-02"}, twoPods},
+						"root.group1_resources": {[]string{"user1-app-01", "user3-app-02"}, twoPods},
+						"root.group2_resources": {[]string{}, zeroPod},
 					},
 				},
-				groups[1]: {
-					[]string{configs[1].AppID, configs[2].AppID},
-					map[string]Queue{
-						queuePath[0]: {[]string{configs[1].AppID, configs[2].AppID}, twoPods},
-						queuePath[1]: {[]string{}, zeroPod},
-						queuePath[2]: {[]string{configs[1].AppID, configs[2].AppID}, twoPods},
+				"group2": {
+					[]string{"user2-app-01", "user3-app-01"},
+					map[string]ExpectedQueue{
+						"root": {[]string{"user2-app-01", "user3-app-01"}, twoPods},
+						"root.group1_resources": {[]string{}, zeroPod},
+						"root.group2_resources": {[]string{"user2-app-01", "user3-app-01"}, twoPods},
 					},
 				},
 			},
 		}
-		restClient := yunikorn.RClient{}
-		var usedResource yunikorn.ResourceUsage
-		for group, quota := range expectedGroups.Groups {
-			By(fmt.Sprintf("GroupTracker: Check group resource usage of %s in each queue", group))
-			groupUsage, getGroupErr := restClient.GetGroupResourceUsage(DEFAULT_PARTITION, group)
-			Ω(getGroupErr).NotTo(HaveOccurred())
-			Ω(groupUsage.Applications).To(Equal(quota.RunningApplications), "running application IDs are not expected")
-			for queuePath, queueQuota := range quota.Queues {
-				queue, getQueueErr := yunikorn.GetQueueResourceUsage(groupUsage.Queues, queuePath)
-				Ω(getQueueErr).NotTo(HaveOccurred())
-				Ω(queue.RunningApplications).To(Equal(queueQuota.RunningApplications))
-				usedResource.ParseResourceUsage(yunikorn.ParseResource(queue.ResourceUsage))
-				Ω(usedResource).To(Equal(queueQuota.Resources))
-			}
-		}
+		checkGroupUsage(true, nil, expectedGroups.Groups)
+		checkGroupsUsage(expectedGroups)
 
-		By("GroupsTracker: Check total number of groups")
-		groupsUsage, err := restClient.GetGroupsResourceUsage(DEFAULT_PARTITION)
-		Ω(err).NotTo(HaveOccurred())
-		Ω(len(groupsUsage)).To(Equal(expectedGroups.NumberOfGroups), "Total number of groups is not correct")
-		for group, quota := range expectedGroups.Groups {
-			By(fmt.Sprintf("GroupTracker: Check group resource usage of %s in each queue", group))
-			groupUsage, getGroupErr := yunikorn.GetGroupUsageFromGroupsUsage(groupsUsage, group)
-			Ω(getGroupErr).NotTo(HaveOccurred())
-			Ω(groupUsage.Applications).To(Equal(quota.RunningApplications), "running application IDs are not expected")
-			for queuePath, queueQuota := range quota.Queues {
-				queue, getQueueErr := yunikorn.GetQueueResourceUsage(groupUsage.Queues, queuePath)
-				Ω(getQueueErr).NotTo(HaveOccurred())
-				Ω(queue.RunningApplications).To(Equal(queueQuota.RunningApplications))
-				usedResource.ParseResourceUsage(yunikorn.ParseResource(queue.ResourceUsage))
-				Ω(usedResource).To(Equal(queueQuota.Resources))
-			}
-		}
-
-		type UserQuota struct {
-			AppBelongingGroup map[string]string
-			Queues            map[string]Queue
-		}
-		expectedUsers := struct {
-			NumberOfUsers int
-			Users         map[string]UserQuota
-		}{
+		expectedUsers := ExpectedUsersQuota{
 			3,
-			map[string]UserQuota{
-				users[0]: {
-					map[string]string{configs[0].AppID: groups[0]},
-					map[string]Queue{
-						queuePath[0]: {[]string{configs[0].AppID}, onePod},
-						queuePath[1]: {[]string{configs[0].AppID}, onePod},
-						queuePath[2]: {[]string{}, zeroPod},
+			map[string]ExpectedUserQuota{
+				"user1": {
+					map[string]string{"user1-app-01": "group1"},
+					map[string]ExpectedQueue{
+						"root": {[]string{"user1-app-01"}, onePod},
+						"root.group1_resources": {[]string{"user1-app-01"}, onePod},
+						"root.group2_resources": {[]string{}, zeroPod},
 					},
 				},
-				users[1]: {
-					map[string]string{configs[1].AppID: groups[1]},
-					map[string]Queue{
-						queuePath[0]: {[]string{configs[1].AppID}, onePod},
-						queuePath[1]: {[]string{configs[1].AppID}, onePod},
-						queuePath[2]: {[]string{}, zeroPod},
+				"user2": {
+					map[string]string{"user2-app-01": "group2"},
+					map[string]ExpectedQueue{
+						"root": {[]string{"user2-app-01"}, onePod},
+						"root.group1_resources": {[]string{"user2-app-01"}, onePod},
+						"root.group2_resources": {[]string{}, zeroPod},
 					},
 				},
-				users[2]: {
-					map[string]string{configs[2].AppID: groups[1], configs[3].AppID: groups[0]},
-					map[string]Queue{
-						queuePath[0]: {[]string{configs[2].AppID, configs[3].AppID}, twoPods},
-						queuePath[1]: {[]string{configs[3].AppID}, onePod},
-						queuePath[2]: {[]string{configs[2].AppID}, onePod},
+				"user3": {
+					map[string]string{"user3-app-01": "group2", "user3-app-02": "group1"},
+					map[string]ExpectedQueue{
+						"root": {[]string{"user3-app-01", "user3-app-02"}, twoPods},
+						"root.group1_resources": {[]string{"user3-app-02"}, onePod},
+						"root.group2_resources": {[]string{"user3-app-01"}, onePod},
 					},
 				},
 			},
 		}
-		for user, quota := range expectedUsers.Users {
-			By(fmt.Sprintf("UserTracker: Check user resource usage of %s in each queue", user))
-			userUsage, getUserErr := restClient.GetUserResourceUsage(DEFAULT_PARTITION, user)
-			Ω(getUserErr).NotTo(HaveOccurred())
-			Ω(userUsage).To(Equal(quota.AppBelongingGroup))
-			for queuePath, queueQuota := range quota.Queues {
-				queue, getQueueErr := yunikorn.GetQueueResourceUsage(userUsage.Queues, queuePath)
-				Ω(getQueueErr).NotTo(HaveOccurred())
-				Ω(queue.RunningApplications).To(Equal(queueQuota.RunningApplications))
-				usedResource.ParseResourceUsage(yunikorn.ParseResource(queue.ResourceUsage))
-				Ω(usedResource).To(Equal(queueQuota.Resources))
-			}
-		}
-
-		By("UsersTrackers: Check total number of users")
-		usersUsage, err := restClient.GetUsersResourceUsage(DEFAULT_PARTITION)
-		Ω(err).NotTo(HaveOccurred())
-		Ω(len(usersUsage)).To(Equal(expectedUsers.NumberOfUsers), "Total number of users is not correct")
-		for user, quota := range expectedUsers.Users {
-			By(fmt.Sprintf("UsersTrackers: Check user resource usage of %s in each queue", user))
-			userUsage, getUserErr := yunikorn.GetUserUsageFromUsersUsage(usersUsage, user)
-			Ω(getUserErr).NotTo(HaveOccurred())
-			Ω(userUsage).To(Equal(quota.AppBelongingGroup))
-			for queuePath, queueQuota := range quota.Queues {
-				queue, getQueueErr := yunikorn.GetQueueResourceUsage(userUsage.Queues, queuePath)
-				Ω(getQueueErr).NotTo(HaveOccurred())
-				Ω(queue.RunningApplications).To(Equal(queueQuota.RunningApplications))
-				usedResource.ParseResourceUsage(yunikorn.ParseResource(queue.ResourceUsage))
-				Ω(usedResource).To(Equal(queueQuota.Resources))
-			}
-		}
+		checkUserUsage(true, nil, expectedUsers.Users)
+		checkUsersUsage(expectedUsers)
 	})
 
 	AfterEach(func() {
@@ -259,3 +156,108 @@ var _ = Describe("QuotaTracking: Two leaf queus for two groups", func() {
 		Ω(err).NotTo(HaveOccurred())
 	})
 })
+
+func deploySleepPod(appID, queue, userName string, groupsName []string, ns string) {
+	By(fmt.Sprintf("Deploy the sleep app %s to the %s namespace", appID, ns))
+			sleepObj, podErr := k8s.InitSleepPod(k8s.SleepPodConfig{
+				AppID:  appID,
+				NS:     ns,
+				Labels: map[string]string{"queue": queue},
+			})
+			sleepObj.ObjectMeta.Annotations["yunikorn.apache.org/user.info"] = fmt.Sprintf("{username:%s, groups:{%s}}", userName, groupsName)
+			Ω(podErr).NotTo(HaveOccurred())
+			sleepRespPod, podErr := kClient.CreatePod(sleepObj, ns)
+			Ω(podErr).NotTo(HaveOccurred())
+
+			// Wait for pod to move to running state
+			podErr = kClient.WaitForPodBySelectorRunning(ns,
+				fmt.Sprintf("app=%s", sleepRespPod.ObjectMeta.Labels["app"]), WAIT_INTERVAL)
+			Ω(podErr).NotTo(HaveOccurred())
+}
+
+type ExpectedQueue struct {
+	RunningApplications []string
+	Resources           map[string]int64
+}
+
+func checkQueue(queues *dao.ResourceUsageDAOInfo, expectedQueues map[string]ExpectedQueue) {
+	var usedResource yunikorn.ResourceUsage
+	for queuePath, expectedQueue := range expectedQueues {
+		queue, getQueueErr := yunikorn.GetQueueResourceUsage(queues, queuePath)
+		Ω(getQueueErr).NotTo(HaveOccurred())
+		Ω(queue.RunningApplications).To(Equal(expectedQueue.RunningApplications))
+		usedResource.ParseResourceUsage(yunikorn.ParseResource(queue.ResourceUsage))
+		Ω(usedResource).To(Equal(expectedQueue.Resources))
+	}
+}
+
+type ExpectedGroupQuota struct {
+	RunningApplications []string
+	Queues              map[string]ExpectedQueue
+}
+
+func checkGroupUsage(FromREST bool, groupsUsage []*dao.GroupResourceUsageDAOInfo, expectedGroupUsage map[string]ExpectedGroupQuota) {
+	var groupUsage *dao.GroupResourceUsageDAOInfo
+	var err error
+	for groupName, expectedGroup := range expectedGroupUsage {
+		By(fmt.Sprintf("GroupUsage: Check group resource usage of %s in each queue", groupName))
+		if FromREST {
+			groupUsage, err = RestClient.GetGroupUsage(DEFAULT_PARTITION, groupName)
+			Ω(err).NotTo(HaveOccurred())
+		} else {
+			groupUsage, err = yunikorn.GetGroupUsageFromGroupsUsage(groupsUsage, groupName)
+			Ω(err).NotTo(HaveOccurred())
+		}
+		Ω(groupUsage.Applications).To(Equal(expectedGroup.RunningApplications), "running application IDs are not expected")
+		checkQueue(groupUsage.Queues, expectedGroup.Queues)
+	}
+}
+
+type ExpectedGroupsQuota struct {
+	NumberOfGroups int
+	Groups         map[string]ExpectedGroupQuota
+}
+
+func checkGroupsUsage(expectedGroups ExpectedGroupsQuota) {
+	By("GroupsUsage: Check total number of groups")
+	groupsUsage, err := RestClient.GetGroupsUsage(DEFAULT_PARTITION)
+	Ω(err).NotTo(HaveOccurred())
+	Ω(len(groupsUsage)).To(Equal(expectedGroups.NumberOfGroups), "Total number of groups is not correct")
+	checkGroupUsage(false, groupsUsage, expectedGroups.Groups)
+}
+
+type ExpectedUserQuota struct {
+	AppBelongingGroup map[string]string
+	Queues            map[string]ExpectedQueue
+}
+
+func checkUserUsage(FromREST bool, usersUsage []*dao.UserResourceUsageDAOInfo, expectedUserUsage map[string]ExpectedUserQuota) {
+	var userUsage *dao.UserResourceUsageDAOInfo
+	var err error
+	for userName, expectedUserUsage := range expectedUserUsage {
+		By(fmt.Sprintf("UserUsage: Check group resource usage of %s in each queue", userName))
+		if FromREST {
+			userUsage, err = RestClient.GetUserUsage(DEFAULT_PARTITION, userName)
+			Ω(err).NotTo(HaveOccurred())
+		} else {
+			userUsage, err = yunikorn.GetUserUsageFromUsersUsage(usersUsage, userName)
+			Ω(err).NotTo(HaveOccurred())
+		}
+		Ω(err).NotTo(HaveOccurred())
+		Ω(userUsage).To(Equal(expectedUserUsage.AppBelongingGroup))
+		checkQueue(userUsage.Queues, expectedUserUsage.Queues)
+	}
+}
+
+type ExpectedUsersQuota struct {
+	NumberOfUsers int
+	Users map[string]ExpectedUserQuota
+}
+
+func checkUsersUsage(expectedUsersUsage ExpectedUsersQuota) {
+	By("UsersUsage: Check total number of users")
+	usersUsage, err := RestClient.GetUsersUsage(DEFAULT_PARTITION)
+	Ω(err).NotTo(HaveOccurred())
+	Ω(len(usersUsage)).To(Equal(expectedUsersUsage.NumberOfUsers), "Total number of users is not correct")
+	checkUserUsage(false, usersUsage, expectedUsersUsage.Users)
+}

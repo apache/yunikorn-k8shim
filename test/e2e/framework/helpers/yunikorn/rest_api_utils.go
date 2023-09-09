@@ -410,7 +410,15 @@ func (c *RClient) GetUserUsage(partition string, userName string) (*dao.UserReso
 	return userUsage, err
 }
 
-
+func (c *RClient) GetUsersUsage(partition string) ([]*dao.UserResourceUsageDAOInfo, error) {
+	req, err := c.newRequest("GET", fmt.Sprintf(configmanager.UsersUsagePath, partition), nil)
+	if err != nil {
+		return nil, err
+	}
+	var usersUsage []*dao.UserResourceUsageDAOInfo
+	_, err = c.do(req, usersUsage)
+	return usersUsage, err
+}
 
 func (c *RClient) GetGroupUsage(partition string, groupName string) (*dao.GroupResourceUsageDAOInfo, error) {
 	req, err := c.newRequest("GET", fmt.Sprintf(configmanager.GroupUsagePath, partition, groupName), nil)
@@ -422,55 +430,16 @@ func (c *RClient) GetGroupUsage(partition string, groupName string) (*dao.GroupR
 	return groupUsage, err
 }
 
-func (c *RClient) GetUserssage(partition string) ([]*dao.UserResourceUsageDAOInfo, error) {
-	req, err := c.newRequest("GET", fmt.Sprintf(configmanager.UsersTrackerPath, partition), nil)
-	if err != nil {
-		return nil, err
-	}
-	var usersUsage []*dao.UserResourceUsageDAOInfo
-	_, err = c.do(req, usersUsage)
-	return usersUsage, err
-}
-
-<<<<<<< HEAD
 func (c *RClient) GetGroupsUsage(partition string) ([]*dao.GroupResourceUsageDAOInfo, error) {
-=======
-func (c *RClient) GetUserResourceUsage(partition string, user string) (*dao.UserResourceUsageDAOInfo, error) {
-	req, err := c.newRequest("GET", fmt.Sprintf(configmanager.UserTrackerPath, partition, user), nil)
+	req, err := c.newRequest("GET", fmt.Sprintf(configmanager.GroupsUsagePath, partition), nil)
 	if err != nil {
 		return nil, err
 	}
-	var userUsage *dao.UserResourceUsageDAOInfo
-	_, err = c.do(req, userUsage)
-	return userUsage, err
-}
-
-func (c *RClient) GetGroupsResourceUsage(partition string) ([]*dao.GroupResourceUsageDAOInfo, error) {
->>>>>>> 97e86d38 ([YUNIKORN-1901] A basic example for the user tracing and the group tracing)
-	req, err := c.newRequest("GET", fmt.Sprintf(configmanager.GroupsTrackerPath, partition), nil)
-	if err != nil {
-		return nil, err
-	}
-<<<<<<< HEAD
 	var groupsUsage []*dao.GroupResourceUsageDAOInfo
 	_, err = c.do(req, groupsUsage)
 	return groupsUsage, err
-=======
-	var gourpsUsage []*dao.GroupResourceUsageDAOInfo
-	_, err = c.do(req, gourpsUsage)
-	return gourpsUsage, err
 }
 
-func (c *RClient) GetGroupResourceUsage(partition string, user string) (*dao.GroupResourceUsageDAOInfo, error) {
-	req, err := c.newRequest("GET", fmt.Sprintf(configmanager.GroupTrackerPath, partition, user), nil)
-	if err != nil {
-		return nil, err
-	}
-	var groupUsage *dao.GroupResourceUsageDAOInfo
-	_, err = c.do(req, groupUsage)
-	return groupUsage, err
->>>>>>> 97e86d38 ([YUNIKORN-1901] A basic example for the user tracing and the group tracing)
-}
 
 func GetUserUsageFromUsersUsage(users []*dao.UserResourceUsageDAOInfo, target string) (*dao.UserResourceUsageDAOInfo, error) {
 	for _, user := range users {
