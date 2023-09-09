@@ -440,7 +440,6 @@ func (c *RClient) GetGroupsUsage(partition string) ([]*dao.GroupResourceUsageDAO
 	return groupsUsage, err
 }
 
-
 func GetUserUsageFromUsersUsage(users []*dao.UserResourceUsageDAOInfo, target string) (*dao.UserResourceUsageDAOInfo, error) {
 	for _, user := range users {
 		if user.UserName == target {

@@ -94,7 +94,7 @@ var _ = Describe("QuotaTracking: Two leaf queues for two groups", func() {
 				"group1": {
 					[]string{"user1-app-01", "user3-app-02"},
 					map[string]ExpectedQueue{
-						"root": {[]string{"user1-app-01", "user3-app-02"}, twoPods},
+						"root":                  {[]string{"user1-app-01", "user3-app-02"}, twoPods},
 						"root.group1_resources": {[]string{"user1-app-01", "user3-app-02"}, twoPods},
 						"root.group2_resources": {[]string{}, zeroPod},
 					},
@@ -102,7 +102,7 @@ var _ = Describe("QuotaTracking: Two leaf queues for two groups", func() {
 				"group2": {
 					[]string{"user2-app-01", "user3-app-01"},
 					map[string]ExpectedQueue{
-						"root": {[]string{"user2-app-01", "user3-app-01"}, twoPods},
+						"root":                  {[]string{"user2-app-01", "user3-app-01"}, twoPods},
 						"root.group1_resources": {[]string{}, zeroPod},
 						"root.group2_resources": {[]string{"user2-app-01", "user3-app-01"}, twoPods},
 					},
@@ -118,7 +118,7 @@ var _ = Describe("QuotaTracking: Two leaf queues for two groups", func() {
 				"user1": {
 					map[string]string{"user1-app-01": "group1"},
 					map[string]ExpectedQueue{
-						"root": {[]string{"user1-app-01"}, onePod},
+						"root":                  {[]string{"user1-app-01"}, onePod},
 						"root.group1_resources": {[]string{"user1-app-01"}, onePod},
 						"root.group2_resources": {[]string{}, zeroPod},
 					},
@@ -126,7 +126,7 @@ var _ = Describe("QuotaTracking: Two leaf queues for two groups", func() {
 				"user2": {
 					map[string]string{"user2-app-01": "group2"},
 					map[string]ExpectedQueue{
-						"root": {[]string{"user2-app-01"}, onePod},
+						"root":                  {[]string{"user2-app-01"}, onePod},
 						"root.group1_resources": {[]string{"user2-app-01"}, onePod},
 						"root.group2_resources": {[]string{}, zeroPod},
 					},
@@ -134,7 +134,7 @@ var _ = Describe("QuotaTracking: Two leaf queues for two groups", func() {
 				"user3": {
 					map[string]string{"user3-app-01": "group2", "user3-app-02": "group1"},
 					map[string]ExpectedQueue{
-						"root": {[]string{"user3-app-01", "user3-app-02"}, twoPods},
+						"root":                  {[]string{"user3-app-01", "user3-app-02"}, twoPods},
 						"root.group1_resources": {[]string{"user3-app-02"}, onePod},
 						"root.group2_resources": {[]string{"user3-app-01"}, onePod},
 					},
@@ -159,20 +159,20 @@ var _ = Describe("QuotaTracking: Two leaf queues for two groups", func() {
 
 func deploySleepPod(appID, queue, userName string, groupsName []string, ns string) {
 	By(fmt.Sprintf("Deploy the sleep app %s to the %s namespace", appID, ns))
-			sleepObj, podErr := k8s.InitSleepPod(k8s.SleepPodConfig{
-				AppID:  appID,
-				NS:     ns,
-				Labels: map[string]string{"queue": queue},
-			})
-			sleepObj.ObjectMeta.Annotations["yunikorn.apache.org/user.info"] = fmt.Sprintf("{username:%s, groups:{%s}}", userName, groupsName)
-			Ω(podErr).NotTo(HaveOccurred())
-			sleepRespPod, podErr := kClient.CreatePod(sleepObj, ns)
-			Ω(podErr).NotTo(HaveOccurred())
+	sleepObj, podErr := k8s.InitSleepPod(k8s.SleepPodConfig{
+		AppID:  appID,
+		NS:     ns,
+		Labels: map[string]string{"queue": queue},
+	})
+	sleepObj.ObjectMeta.Annotations["yunikorn.apache.org/user.info"] = fmt.Sprintf("{username:%s, groups:{%s}}", userName, groupsName)
+	Ω(podErr).NotTo(HaveOccurred())
+	sleepRespPod, podErr := kClient.CreatePod(sleepObj, ns)
+	Ω(podErr).NotTo(HaveOccurred())
 
-			// Wait for pod to move to running state
-			podErr = kClient.WaitForPodBySelectorRunning(ns,
-				fmt.Sprintf("app=%s", sleepRespPod.ObjectMeta.Labels["app"]), WAIT_INTERVAL)
-			Ω(podErr).NotTo(HaveOccurred())
+	// Wait for pod to move to running state
+	podErr = kClient.WaitForPodBySelectorRunning(ns,
+		fmt.Sprintf("app=%s", sleepRespPod.ObjectMeta.Labels["app"]), WAIT_INTERVAL)
+	Ω(podErr).NotTo(HaveOccurred())
 }
 
 type ExpectedQueue struct {
@@ -251,7 +251,7 @@ func checkUserUsage(FromREST bool, usersUsage []*dao.UserResourceUsageDAOInfo, e
 
 type ExpectedUsersQuota struct {
 	NumberOfUsers int
-	Users map[string]ExpectedUserQuota
+	Users         map[string]ExpectedUserQuota
 }
 
 func checkUsersUsage(expectedUsersUsage ExpectedUsersQuota) {
