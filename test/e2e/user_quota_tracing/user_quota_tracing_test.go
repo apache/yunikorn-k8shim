@@ -196,12 +196,12 @@ type ExpectedGroupQuota struct {
 	Queues              map[string]ExpectedQueue
 }
 
-func checkGroupUsage(FromREST bool, groupsUsage []*dao.GroupResourceUsageDAOInfo, expectedGroupUsage map[string]ExpectedGroupQuota) {
+func checkGroupUsage(fromREST bool, groupsUsage []*dao.GroupResourceUsageDAOInfo, expectedGroupUsage map[string]ExpectedGroupQuota) {
 	var groupUsage *dao.GroupResourceUsageDAOInfo
 	var err error
 	for groupName, expectedGroup := range expectedGroupUsage {
 		By(fmt.Sprintf("GroupUsage: Check group resource usage of %s in each queue", groupName))
-		if FromREST {
+		if fromREST {
 			groupUsage, err = RestClient.GetGroupUsage(DEFAULT_PARTITION, groupName)
 			Ω(err).NotTo(HaveOccurred())
 		} else {
@@ -231,12 +231,12 @@ type ExpectedUserQuota struct {
 	Queues            map[string]ExpectedQueue
 }
 
-func checkUserUsage(FromREST bool, usersUsage []*dao.UserResourceUsageDAOInfo, expectedUserUsage map[string]ExpectedUserQuota) {
+func checkUserUsage(fromREST bool, usersUsage []*dao.UserResourceUsageDAOInfo, expectedUserUsage map[string]ExpectedUserQuota) {
 	var userUsage *dao.UserResourceUsageDAOInfo
 	var err error
 	for userName, expectedUserUsage := range expectedUserUsage {
 		By(fmt.Sprintf("UserUsage: Check group resource usage of %s in each queue", userName))
-		if FromREST {
+		if fromREST {
 			userUsage, err = RestClient.GetUserUsage(DEFAULT_PARTITION, userName)
 			Ω(err).NotTo(HaveOccurred())
 		} else {
