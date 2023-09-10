@@ -235,7 +235,7 @@ func checkUserUsage(fromREST bool, usersUsage []*dao.UserResourceUsageDAOInfo, e
 	var userUsage *dao.UserResourceUsageDAOInfo
 	var err error
 	for userName, expectedUserUsage := range expectedUserUsage {
-		By(fmt.Sprintf("UserUsage: Check group resource usage of %s in each queue", userName))
+		By(fmt.Sprintf("UserUsage: Check user resource usage of %s in each queue", userName))
 		if fromREST {
 			userUsage, err = RestClient.GetUserUsage(DEFAULT_PARTITION, userName)
 			Ω(err).NotTo(HaveOccurred())
