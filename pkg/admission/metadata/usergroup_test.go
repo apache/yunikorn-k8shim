@@ -36,6 +36,7 @@ import (
 
 	"github.com/apache/yunikorn-k8shim/pkg/admission/common"
 	"github.com/apache/yunikorn-k8shim/pkg/admission/conf"
+	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 )
 
 const (
@@ -163,7 +164,7 @@ func TestGetPatchForWorkload(t *testing.T) {
 			assert.NilError(t, err)
 			assert.Equal(t, 1, len(patch))
 			patchOp := patch[0]
-			assert.Equal(t, patchOp.Op, "add")
+			assert.Equal(t, patchOp.Op, constants.AddPatchOp)
 			assert.Equal(t, patchOp.Path, testCase.path)
 			verifyUserGroupAnnotation(t, patchOp.Value)
 		})
@@ -175,8 +176,8 @@ func TestGetPatchForPod(t *testing.T) {
 	patchOp, err := ah.GetPatchForPod(annotation, "yunikorn", []string{"users", "dev"})
 	assert.NilError(t, err)
 	assert.Assert(t, patchOp != nil)
-	assert.Equal(t, patchOp.Op, "add")
-	assert.Equal(t, patchOp.Path, "/metadata/annotations")
+	assert.Equal(t, patchOp.Op, constants.AddPatchOp)
+	assert.Equal(t, patchOp.Path, constants.AnnotationPatchPath)
 	verifyUserGroupAnnotation(t, patchOp.Value)
 }
 

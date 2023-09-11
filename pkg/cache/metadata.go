@@ -68,6 +68,7 @@ func getAppMetadata(pod *v1.Pod) (ApplicationMetadata, bool) {
 			zap.String("name", pod.Name))
 		return ApplicationMetadata{}, false
 	}
+	queueName, _ := utils.GetQueueNameFromPod(pod, constants.ApplicationDefaultQueue)
 
 	// tags will at least have namespace info
 	// labels or annotations from the pod can be added when needed
@@ -117,7 +118,7 @@ func getAppMetadata(pod *v1.Pod) (ApplicationMetadata, bool) {
 
 	return ApplicationMetadata{
 		ApplicationID:              appID,
-		QueueName:                  utils.GetQueueNameFromPod(pod),
+		QueueName:                  queueName,
 		User:                       user,
 		Groups:                     groups,
 		Tags:                       tags,

@@ -29,6 +29,7 @@ import (
 
 	"github.com/apache/yunikorn-k8shim/pkg/admission/common"
 	"github.com/apache/yunikorn-k8shim/pkg/admission/conf"
+	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
 
@@ -127,7 +128,7 @@ func (u *UserGroupAnnotationHandler) GetPatchForWorkload(req *admissionv1.Admiss
 }
 
 func (u *UserGroupAnnotationHandler) GetPatchForPod(annotations map[string]string, user string, groups []string) (*common.PatchOperation, error) {
-	patchOp, err := u.getPatchOperation(annotations, "/metadata/annotations", user, groups)
+	patchOp, err := u.getPatchOperation(annotations, constants.AnnotationPatchPath, user, groups)
 	if err != nil {
 		return nil, err
 	}
@@ -152,7 +153,7 @@ func (u *UserGroupAnnotationHandler) getPatchOperation(annotations map[string]st
 	newAnnotations[common.UserInfoAnnotation] = string(jsonBytes)
 
 	return &common.PatchOperation{
-		Op:    "add",
+		Op:    constants.AddPatchOp,
 		Path:  path,
 		Value: newAnnotations,
 	}, nil

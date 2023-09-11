@@ -109,11 +109,19 @@ func TestNewPlaceholder(t *testing.T) {
 	assert.Equal(t, holder.pod.Name, "ph-name")
 	assert.Equal(t, holder.pod.Namespace, namespace)
 	assert.Equal(t, len(holder.pod.Labels), 5, "unexpected number of labels")
+	assert.Equal(t, len(holder.pod.Annotations), 7, "unexpected number of annotations")
+	assert.Equal(t, holder.pod.Labels["labelKey0"], "labelKeyValue0")
+	assert.Equal(t, holder.pod.Labels["labelKey1"], "labelKeyValue1")
 	assert.Equal(t, holder.pod.Labels[constants.LabelApplicationID], appID)
 	assert.Equal(t, holder.pod.Labels[constants.LabelQueueName], queue)
-	assert.Equal(t, holder.pod.Labels["placeholder"], "true")
-	assert.Equal(t, len(holder.pod.Annotations), 5, "unexpected number of annotations")
+	assert.Equal(t, holder.pod.Labels[constants.LabelPlaceholderFlag], "true")
+	assert.Equal(t, holder.pod.Annotations["annotationKey0"], "annotationValue0")
+	assert.Equal(t, holder.pod.Annotations["annotationKey1"], "annotationValue1")
+	assert.Equal(t, holder.pod.Annotations["annotationKey2"], "annotationValue2")
 	assert.Equal(t, holder.pod.Annotations[constants.AnnotationTaskGroupName], app.taskGroups[0].Name)
+	assert.Equal(t, holder.pod.Annotations[constants.AnnotationApplicationID], appID)
+	assert.Equal(t, holder.pod.Annotations[constants.AnnotationQueueName], queue)
+	assert.Equal(t, holder.pod.Annotations[constants.AnnotationPlaceholderFlag], "true")
 	assert.Equal(t, common.GetPodResource(holder.pod).Resources[siCommon.CPU].Value, int64(500))
 	assert.Equal(t, common.GetPodResource(holder.pod).Resources[siCommon.Memory].Value, int64(1024*1000*1000))
 	assert.Equal(t, common.GetPodResource(holder.pod).Resources["pods"].Value, int64(1))
@@ -149,12 +157,18 @@ func TestNewPlaceholderWithLabelsAndAnnotations(t *testing.T) {
 		"queue":         "root.default",
 	})
 
-	assert.Equal(t, len(holder.pod.Annotations), 6)
+	assert.Equal(t, len(holder.pod.Annotations), 8)
 	assert.Equal(t, holder.pod.Annotations["annotationKey0"], "annotationValue0")
 	assert.Equal(t, holder.pod.Annotations["annotationKey1"], "annotationValue1")
 	assert.Equal(t, holder.pod.Annotations["annotationKey2"], "annotationValue2")
+	assert.Equal(t, holder.pod.Annotations[constants.AnnotationTaskGroupName], app.taskGroups[0].Name)
+	assert.Equal(t, holder.pod.Annotations[constants.AnnotationApplicationID], appID)
+	assert.Equal(t, holder.pod.Annotations[constants.AnnotationQueueName], queue)
+	assert.Equal(t, holder.pod.Annotations[constants.AnnotationPlaceholderFlag], "true")
+
 	var taskGroupsDef []TaskGroup
 	err = json.Unmarshal([]byte(holder.pod.Annotations[siCommon.DomainYuniKorn+"task-groups"]), &taskGroupsDef)
+
 	assert.NilError(t, err, "taskGroupsDef unmarshal failed")
 	var priority *int32
 	assert.Equal(t, priority, holder.pod.Spec.Priority)
