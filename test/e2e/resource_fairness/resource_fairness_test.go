@@ -64,7 +64,7 @@ var _ = BeforeSuite(func() {
 	yunikorn.EnsureYuniKornConfigsPresent()
 
 	ginkgo.By("Port-forward the scheduler pod")
-	var err = kClient.PortForwardYkSchedulerPod()
+	err = kClient.PortForwardYkSchedulerPod()
 	Ω(err).NotTo(gomega.HaveOccurred())
 
 	ginkgo.By("create development namespace")
@@ -78,6 +78,7 @@ var _ = BeforeSuite(func() {
 	Ω(len(nodes.Items)).NotTo(gomega.BeZero(), "Nodes can't be zero")
 
 	for _, node := range nodes.Items {
+		node := node
 		if k8s.IsMasterNode(&node) || !k8s.IsComputeNode(&node) {
 			continue
 		}
@@ -96,7 +97,8 @@ var _ = BeforeSuite(func() {
 	err = kClient.TaintNodes(nodesToTaint, taintKey, "value", v1.TaintEffectNoSchedule)
 	Ω(err).NotTo(HaveOccurred())
 
-	nodesDAOInfo, err := restClient.GetNodes(constants.DefaultPartition)
+	var nodesDAOInfo *[]dao.NodeDAOInfo
+	nodesDAOInfo, err = restClient.GetNodes(constants.DefaultPartition)
 	Ω(err).NotTo(HaveOccurred())
 	Ω(nodesDAOInfo).NotTo(gomega.BeNil())
 
@@ -120,7 +122,7 @@ var _ = Describe("FairScheduling:", func() {
 	It("Test_Wait_Queue_Order", func() {
 
 		By(fmt.Sprintf("Creating test namespace %s", ns))
-		namespace, err := kClient.UpdateNamespace(ns, map[string]string{"vcore": "500m", "memory": "500M"})
+		namespace, err = kClient.UpdateNamespace(ns, map[string]string{"vcore": "500m", "memory": "500M"})
 		Ω(err).ShouldNot(HaveOccurred())
 		Ω(namespace.Status.Phase).Should(Equal(v1.NamespaceActive))
 
@@ -248,7 +250,7 @@ var _ = Describe("FairScheduling:", func() {
 	// Step 3: Deploy 1 apps, according to fair scheduling principles, will be allocated to worker2.
 	It("Verify_basic_node_sorting_with_fairness_policy", func() {
 		By(fmt.Sprintf("update test namespace %s", ns))
-		namespace, err := kClient.UpdateNamespace(ns, nil)
+		namespace, err = kClient.UpdateNamespace(ns, nil)
 		Ω(err).ShouldNot(HaveOccurred())
 		Ω(namespace.Status.Phase).Should(Equal(v1.NamespaceActive))
 
@@ -316,8 +318,9 @@ var _ = Describe("FairScheduling:", func() {
 		}
 
 		// Verify pod3, pod4 have been deployed on the correct node.
+		var RespPod *v1.Pod
 		ginkgo.By(sleepPod3Conf.Name + " should deploy on " + workerID1)
-		RespPod, err := kClient.GetPod(sleepPod3Conf.Name, ns)
+		RespPod, err = kClient.GetPod(sleepPod3Conf.Name, ns)
 		Ω(err).NotTo(HaveOccurred())
 		Ω(RespPod.Spec.NodeName).To(gomega.Equal(workerID1), "Pod should place on "+workerID1)
 
