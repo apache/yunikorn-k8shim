@@ -20,6 +20,7 @@ package resourcefairness_test
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/onsi/ginkgo/v2"
@@ -29,7 +30,6 @@ import (
 
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
-	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
 )
 
@@ -39,14 +39,16 @@ func init() {
 
 var oldConfigMap = new(v1.ConfigMap)
 var annotation = "ann-" + common.RandSeq(10)
-var kClient = k8s.KubeCtl{} //nolint
-var _ = BeforeSuite(func() {
-	Ω(kClient.SetClient()).To(BeNil())
-	annotation = "ann-" + common.RandSeq(10)
-	yunikorn.EnsureYuniKornConfigsPresent()
-})
 
 var _ = AfterSuite(func() {
+	By("Tear down namespace: " + ns)
+	err := kClient.TearDownNamespace(ns)
+	Ω(err).NotTo(HaveOccurred())
+
+	ginkgo.By("Untainting some nodes")
+	err = kClient.UntaintNodes(nodesToTaint, taintKey)
+	Ω(err).NotTo(HaveOccurred(), "Could not remove taint from nodes "+strings.Join(nodesToTaint, ","))
+
 	yunikorn.RestoreConfigMapWrapper(oldConfigMap, annotation)
 })
 
