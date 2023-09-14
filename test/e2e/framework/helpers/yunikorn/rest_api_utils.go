@@ -233,6 +233,16 @@ func (c *RClient) GetNodes(partition string) (*[]dao.NodeDAOInfo, error) {
 	return &nodes, err
 }
 
+func (c *RClient) GetNode(partition string, nodeId string) (*dao.NodeDAOInfo, error) {
+	req, err := c.newRequest("GET", fmt.Sprintf(configmanager.NodePath, partition, nodeId), nil)
+	if err != nil {
+		return nil, err
+	}
+	var node dao.NodeDAOInfo
+	_, err = c.do(req, &node)
+	return &node, err
+}
+
 func (c *RClient) WaitForAppStateTransition(partition string, queue string, appID string, state string, timeout int) error {
 	return wait.PollImmediate(time.Millisecond*300, time.Duration(timeout)*time.Second, c.isAppInDesiredState(partition, queue, appID, state))
 }
