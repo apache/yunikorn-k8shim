@@ -45,7 +45,7 @@ var workerID2 string
 var namespace *v1.Namespace
 var err error
 var queuePath string
-var highestUtili int64
+var basicUtiliz float64
 
 var maxCPU int64 = 500
 var maxMem int64 = 500
@@ -105,11 +105,13 @@ var _ = BeforeSuite(func() {
 
 	for _, node := range *nodesDAOInfo {
 		if node.NodeID == workerID1 || node.NodeID == workerID2 {
-			if node.Utilized["memory"] > highestUtili {
-				highestUtili = node.Utilized["memory"]
+			memUtiliz := 1.0 - float64(node.Available["memory"])/float64(node.Capacity["memory"])
+			cpuUtiliz := 1.0 - float64(node.Available["vcore"])/float64(node.Capacity["vcore"])
+			if memUtiliz > basicUtiliz {
+				basicUtiliz = memUtiliz
 			}
-			if node.Utilized["vcore"] > highestUtili {
-				highestUtili = node.Utilized["vcore"]
+			if cpuUtiliz > basicUtiliz {
+				basicUtiliz = cpuUtiliz
 			}
 		}
 	}
@@ -302,14 +304,12 @@ var _ = Describe("FairScheduling:", func() {
 			workerID1,
 			workerID2,
 		}
-		basicUtiliz := float64(highestUtili) / 100
 		increaseUtiliz := []map[string]float64{
 			{"vcore": 0.05, "memory": 0.05},
 			{"vcore": 0.10, "memory": 0.10},
 			{"vcore": 0.15, "memory": 0.15},
 			{"vcore": 0.15, "memory": 0.15},
 		}
-
 		// Deploy pod
 		for idx, config := range sleepPodConfs {
 			ginkgo.By("Deploy the sleep pod " + config.Name)
@@ -319,7 +319,7 @@ var _ = Describe("FairScheduling:", func() {
 			Ω(podErr).NotTo(HaveOccurred())
 			_, err = kClient.CreatePod(initPod, ns)
 			Ω(err).NotTo(HaveOccurred())
-			err = kClient.WaitForPodRunning(ns, config.Name, 3600*time.Second)
+			err = kClient.WaitForPodRunning(ns, config.Name, 60*time.Second)
 			Ω(err).NotTo(HaveOccurred())
 		}
 
@@ -395,7 +395,6 @@ var _ = Describe("FairScheduling:", func() {
 			workerID1,
 			workerID2,
 		}
-		basicUtiliz := float64(highestUtili) / 100
 		increaseUtiliz := []map[string]float64{
 			{"vcore": 0.05, "memory": 0.10},
 			{"vcore": 0.10, "memory": 0.05},
@@ -446,6 +445,6 @@ var _ = Describe("FairScheduling:", func() {
 func fillNodeUtil(nodeId string, resourceType string, percent float64) int64 {
 	node, err := restClient.GetNode(constants.DefaultPartition, nodeId)
 	Ω(err).NotTo(HaveOccurred())
-	fillingResource := percent*float64(node.Capacity[resourceType]) - float64(node.Allocated[resourceType])
+	fillingResource := percent*float64(node.Capacity[resourceType]) - float64(node.Allocated[resourceType]+node.Occupied[resourceType])
 	return int64(fillingResource)
 }
