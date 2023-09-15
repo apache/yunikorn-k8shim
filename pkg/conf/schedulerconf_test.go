@@ -22,14 +22,15 @@ import (
 	"compress/gzip"
 	"encoding/base64"
 	"fmt"
-	"github.com/apache/yunikorn-core/pkg/common/configs"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
 	"gotest.tools/v3/assert"
 	v1 "k8s.io/api/core/v1"
 
+	"github.com/apache/yunikorn-core/pkg/common/configs"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 )
 
@@ -80,15 +81,33 @@ func TestDecompress(t *testing.T) {
 	var b bytes.Buffer
 	gzWriter := gzip.NewWriter(&b)
 	if _, err := gzWriter.Write([]byte(configs.DefaultSchedulerConfig)); err != nil {
-		t.Fatal("expected nil, got error while compressing test schedulerConfig")
+		assert.NilError(t, err, "expected nil, got error while compressing test schedulerConfig")
 	}
 	if err := gzWriter.Close(); err != nil {
+		assert.NilError(t, err, "expected nil, got error")
 		t.Fatal("expected nil, got error")
 	}
 	encodedConfigString := make([]byte, base64.StdEncoding.EncodedLen(len(b.Bytes())))
 	base64.StdEncoding.Encode(encodedConfigString, b.Bytes())
-	_, decodedConfigString := Decompress("queues.yaml."+constants.GzipSuffix, encodedConfigString)
+	key, decodedConfigString := Decompress("queues.yaml."+constants.GzipSuffix, encodedConfigString)
+	assert.Equal(t, "queues.yaml", key)
 	assert.Equal(t, configs.DefaultSchedulerConfig, decodedConfigString)
+}
+
+func TestDecompressUnkownKey(t *testing.T) {
+	encodedConfigString := make([]byte, base64.StdEncoding.EncodedLen(len([]byte(configs.DefaultSchedulerConfig))))
+	base64.StdEncoding.Encode(encodedConfigString, []byte(configs.DefaultSchedulerConfig))
+	key, decodedConfigString := Decompress("queues.yaml.bin", encodedConfigString)
+	assert.Equal(t, "queues.yaml", key)
+	assert.Assert(t, len(decodedConfigString) == 0, "expected decodedConfigString to be nil")
+}
+
+func TestDecompressBadCompression(t *testing.T) {
+	encodedConfigString := make([]byte, base64.StdEncoding.EncodedLen(len([]byte(configs.DefaultSchedulerConfig))))
+	base64.StdEncoding.Encode(encodedConfigString, []byte(configs.DefaultSchedulerConfig))
+	key, decodedConfigString := Decompress("queues.yaml."+constants.GzipSuffix, encodedConfigString)
+	assert.Equal(t, "", key)
+	assert.Assert(t, !strings.EqualFold(configs.DefaultSchedulerConfig, decodedConfigString), "expected decodedConfigString to be nil")
 }
 
 func TestParseConfigMap(t *testing.T) {

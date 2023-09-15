@@ -466,6 +466,7 @@ func Decompress(key string, value []byte) (string, string) {
 	n, err := base64.StdEncoding.Decode(decodedValue, value)
 	if err != nil {
 		log.Log(log.ShimConfig).Error("failed to decode schedulerConfig entry", zap.Error(err))
+		return "", ""
 	}
 	decodedValue = decodedValue[:n]
 	splitKey := strings.Split(key, ".")
@@ -475,10 +476,17 @@ func Decompress(key string, value []byte) (string, string) {
 		gzReader, err := gzip.NewReader(reader)
 		if err != nil {
 			log.Log(log.ShimConfig).Error("failed to decompress decoded schedulerConfig entry", zap.Error(err))
+			return "", ""
 		}
+		defer func() {
+			if err := gzReader.Close(); err != nil {
+				log.Log(log.ShimConfig).Debug("gzip Reader could not be closed ", zap.Error(err))
+			}
+		}()
 		decompressedBytes, err := io.ReadAll(gzReader)
 		if err != nil {
 			log.Log(log.ShimConfig).Error("failed to decompress decoded schedulerConfig entry", zap.Error(err))
+			return "", ""
 		}
 		uncompressedData = string(decompressedBytes)
 	}
