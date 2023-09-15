@@ -18,7 +18,11 @@ limitations under the License.
 package conf
 
 import (
+	"bytes"
+	"compress/gzip"
+	"encoding/base64"
 	"fmt"
+	"github.com/apache/yunikorn-core/pkg/common/configs"
 	"reflect"
 	"testing"
 	"time"
@@ -70,6 +74,21 @@ func assertDefaults(t *testing.T, conf *SchedulerConf) {
 	assert.Equal(t, conf.KubeQPS, DefaultKubeQPS)
 	assert.Equal(t, conf.KubeBurst, DefaultKubeBurst)
 	assert.Equal(t, conf.UserLabelKey, constants.DefaultUserLabel)
+}
+
+func TestDecompress(t *testing.T) {
+	var b bytes.Buffer
+	gzWriter := gzip.NewWriter(&b)
+	if _, err := gzWriter.Write([]byte(configs.DefaultSchedulerConfig)); err != nil {
+		t.Fatal("expected nil, got error while compressing test schedulerConfig")
+	}
+	if err := gzWriter.Close(); err != nil {
+		t.Fatal("expected nil, got error")
+	}
+	encodedConfigString := make([]byte, base64.StdEncoding.EncodedLen(len(b.Bytes())))
+	base64.StdEncoding.Encode(encodedConfigString, b.Bytes())
+	_, decodedConfigString := Decompress("queues.yaml."+constants.GzipSuffix, encodedConfigString)
+	assert.Equal(t, configs.DefaultSchedulerConfig, decodedConfigString)
 }
 
 func TestParseConfigMap(t *testing.T) {

@@ -19,7 +19,11 @@
 package utils
 
 import (
+	"bytes"
+	"compress/gzip"
+	"encoding/base64"
 	"fmt"
+	"github.com/apache/yunikorn-core/pkg/common/configs"
 	"testing"
 	"time"
 
@@ -1135,6 +1139,25 @@ func TestGetCoreSchedulerConfigFromConfigMap(t *testing.T) {
 		"queues.yaml": "test",
 	}
 	assert.Equal(t, "test", GetCoreSchedulerConfigFromConfigMap(cm))
+}
+
+func TestGzipCompressedConfigMap(t *testing.T) {
+	var b bytes.Buffer
+	gzWriter := gzip.NewWriter(&b)
+	if _, err := gzWriter.Write([]byte(configs.DefaultSchedulerConfig)); err != nil {
+		t.Fatal("expected nil, got error while compressing test schedulerConfig")
+	}
+	if err := gzWriter.Close(); err != nil {
+		t.Fatal("expected nil, got error")
+	}
+	encodedConfigString := make([]byte, base64.StdEncoding.EncodedLen(len(b.Bytes())))
+	base64.StdEncoding.Encode(encodedConfigString, b.Bytes())
+	confMap := conf.FlattenConfigMaps([]*v1.ConfigMap{
+		{Data: map[string]string{}},
+		{Data: map[string]string{conf.CMSvcClusterID: "new"}, BinaryData: map[string][]byte{"queues.yaml.gzip": encodedConfigString}},
+	})
+	config := GetCoreSchedulerConfigFromConfigMap(confMap)
+	assert.DeepEqual(t, configs.DefaultSchedulerConfig, config)
 }
 
 func TestGetExtraConfigFromConfigMapNil(t *testing.T) {
