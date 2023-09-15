@@ -1032,7 +1032,7 @@ func (ctx *Context) updatePodCondition(task *Task, podCondition *v1.PodCondition
 // pod condition in order to trigger auto-scaling.
 func (ctx *Context) HandleContainerStateUpdate(request *si.UpdateContainerSchedulingStateRequest) {
 	// the allocationKey equals to the taskID
-	if task := ctx.getTask(request.ApplicartionID, request.AllocationKey); task != nil {
+	if task := ctx.getTask(request.ApplicationID, request.AllocationKey); task != nil {
 		switch request.State {
 		case si.UpdateContainerSchedulingStateRequest_SKIPPED:
 			// auto-scaler scans pods whose pod condition is PodScheduled=false && reason=Unschedulable
