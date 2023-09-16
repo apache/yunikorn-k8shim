@@ -20,6 +20,34 @@ kind: ConfigMap
 metadata:
   name: yunikorn-configs
 data:
+  service.clusterId: "mycluster"
+  service.policyGroup: "queues"
+  service.schedulingInterval: "1s"
+  service.volumeBindTimeout: "10s"
+  service.eventChannelCapacity: "1048576"
+  service.dispatchTimeout: "5m"
+  service.operatorPlugins: "general"
+  service.disableGangScheduling: "false"
+  service.enableConfigHotRefresh: "true"
+  service.placeholderImage: "registry.k8s.io/pause:3.7"
+  service.instanceTypeNodeLabelKey: "node.kubernetes.io/instance-type"
+  health.checkInterval: "30s"
+  log.level: "INFO"
+  kubernetes.qps: "1000"
+  kubernetes.burst: "1000"
+  admissionController.webHook.amServiceName: "yunikorn-admission-controller-service"
+  admissionController.webHook.schedulerServiceAddress: "yunikorn-service:9080"
+  admissionController.filtering.processNamespaces: ""
+  admissionController.filtering.bypassNamespaces: "^kube-system$"
+  admissionController.filtering.labelNamespaces: ""
+  admissionController.filtering.noLabelNamespaces: ""
+  admissionController.filtering.generateUniqueAppId: "false"
+  admissionController.filtering.defaultQueue: "root.default"
+  admissionController.accessControl.bypassAuth: "false"
+  admissionController.accessControl.trustControllers: "true"
+  admissionController.accessControl.systemUsers: "^system:serviceaccount:kube-system:"
+  admissionController.accessControl.externalUsers: ""
+  admissionController.accessControl.externalGroups: ""
   queues.yaml: |
     partitions:
       - name: default

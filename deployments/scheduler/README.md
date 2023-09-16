@@ -36,7 +36,8 @@ Deployment: [plugin.yaml](plugin.yaml)
 
 ## Scheduler configuration
 
-This deployment contains a minimal queue configuration for YuniKorn.
+This deployment contains a default configuration for YuniKorn.
+Detailed description are here: [Service Configuration](https://yunikorn.apache.org/docs/next/user_guide/service_config)
 
 Deployment: [yunikorn-configs.yaml](yunikorn-configs.yaml)
 
