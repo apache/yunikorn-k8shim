@@ -629,6 +629,9 @@ func (k *KubeCtl) isPodInDesiredState(podName string, namespace string, state v1
 	return func() (bool, error) {
 		pod, err := k.clientSet.CoreV1().Pods(namespace).Get(context.TODO(), podName, metav1.GetOptions{})
 		if err != nil {
+			if k8serrors.IsNotFound(err) {
+				return false, nil
+			}
 			return false, err
 		}
 		switch pod.Status.Phase {
@@ -965,8 +968,22 @@ func (k *KubeCtl) WaitForJobPodsSucceeded(namespace string, jobName string, numP
 	return wait.PollImmediate(time.Millisecond*100, timeout, k.isNumJobPodsInDesiredState(jobName, namespace, numPods, v1.PodSucceeded))
 }
 
-func (k *KubeCtl) WaitForPlaceholders(namespace string, podPrefix string, numPods int, timeout time.Duration, podPhase v1.PodPhase) error {
+func (k *KubeCtl) WaitForPlaceholders(namespace string, podPrefix string, numPods int, timeout time.Duration, podPhase *v1.PodPhase) error {
 	return wait.PollImmediate(time.Millisecond*100, timeout, k.isNumPlaceholdersRunning(namespace, podPrefix, numPods, podPhase))
+}
+
+func (k *KubeCtl) ListPlaceholders(namespace string, podPrefix string) ([]v1.Pod, error) {
+	pods := make([]v1.Pod, 0)
+	podList, lstErr := k.ListPods(namespace, "placeholder=true")
+	if lstErr != nil {
+		return pods, lstErr
+	}
+	for _, pod := range podList.Items {
+		if strings.HasPrefix(pod.Name, podPrefix) {
+			pods = append(pods, pod)
+		}
+	}
+	return pods, nil
 }
 
 // WaitForPlaceholdersStableState used when the expected state of the placeholders cannot be properly determined in advance or not needed.
@@ -977,7 +994,7 @@ func (k *KubeCtl) WaitForPlaceholdersStableState(namespace string, podPrefix str
 	return wait.PollImmediate(time.Second, timeout, k.arePlaceholdersStable(namespace, podPrefix, &samePhases, 3, podPhases))
 }
 
-func (k *KubeCtl) isNumPlaceholdersRunning(namespace string, podPrefix string, num int, podPhase v1.PodPhase) wait.ConditionFunc {
+func (k *KubeCtl) isNumPlaceholdersRunning(namespace string, podPrefix string, num int, podPhase *v1.PodPhase) wait.ConditionFunc {
 	return func() (bool, error) {
 		jobPods, lstErr := k.ListPods(namespace, "placeholder=true")
 		if lstErr != nil {
@@ -986,7 +1003,7 @@ func (k *KubeCtl) isNumPlaceholdersRunning(namespace string, podPrefix string, n
 
 		var count int
 		for _, pod := range jobPods.Items {
-			if strings.HasPrefix(pod.Name, podPrefix) && pod.Status.Phase == podPhase {
+			if strings.HasPrefix(pod.Name, podPrefix) && (podPhase == nil || *podPhase == pod.Status.Phase) {
 				count++
 			}
 		}

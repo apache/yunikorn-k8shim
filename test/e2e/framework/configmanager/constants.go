@@ -45,6 +45,8 @@ const (
 	AppPath          = "ws/v1/partition/%s/queue/%s/application/%s"
 	ClustersPath     = "ws/v1/clusters"
 	NodesPath        = "ws/v1/partition/%s/nodes"
+	UserUsagePath    = "ws/v1/partition/%s/usage/user/%s"
+	GroupUsagePath   = "ws/v1/partition/%s/usage/group/%s"
 	HealthCheckPath  = "ws/v1/scheduler/healthcheck"
 	ValidateConfPath = "ws/v1/validate-conf"
 

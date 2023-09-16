@@ -39,10 +39,8 @@ const (
 	normalSleepJobPrefix = "normal-sleep-job"
 	taskGroupA           = "groupa"
 	taskGroupB           = "groupb"
-	taskGroupAprefix     = "tg-" + taskGroupA + "-" + gangSleepJobPrefix
-	taskGroupBprefix     = "tg-" + taskGroupB + "-" + gangSleepJobPrefix
 	taskGroupE2E         = "e2e-task-group"
-	taskGroupE2EPrefix   = "tg-" + taskGroupE2E
+	taskGroupE2EPrefix   = "tg-" + gangSleepJobPrefix + "-" + taskGroupE2E
 	parallelism          = 3
 	taintKey             = "e2e_test"
 )
@@ -216,11 +214,15 @@ var _ = ginkgo.Describe("", func() {
 		Ω(createErr).NotTo(gomega.HaveOccurred())
 
 		ginkgo.By("Waiting for placeholders in task group A (expected state: Running)")
-		err = kClient.WaitForPlaceholders(dev, taskGroupAprefix, parallelism, 30*time.Second, v1.PodRunning)
+		groupAPrefix := "tg-" + appID + "-" + taskGroupA + "-"
+		stateRunning := v1.PodRunning
+		err = kClient.WaitForPlaceholders(dev, groupAPrefix, parallelism, 30*time.Second, &stateRunning)
 		Ω(err).NotTo(gomega.HaveOccurred())
 
 		ginkgo.By("Waiting for placeholders in task group B (expected state: Pending)")
-		err = kClient.WaitForPlaceholders(dev, taskGroupBprefix, parallelism+1, 30*time.Second, v1.PodPending)
+		groupBPrefix := "tg-" + appID + "-" + taskGroupB + "-"
+		statePending := v1.PodPending
+		err = kClient.WaitForPlaceholders(dev, groupBPrefix, parallelism+1, 30*time.Second, &statePending)
 		Ω(err).NotTo(gomega.HaveOccurred())
 
 		ginkgo.By("Restart the scheduler pod")
@@ -252,12 +254,12 @@ var _ = ginkgo.Describe("", func() {
 			podPhase := pod.Status.Phase
 			podName := pod.GetName()
 			fmt.Fprintf(ginkgo.GinkgoWriter, "Pod name: %-40s\tStatus: %s\n", podName, podPhase)
-			if strings.HasPrefix(podName, taskGroupAprefix) {
+			if strings.HasPrefix(podName, groupAPrefix) {
 				groupAPlaceholderCount++
 				Ω(podPhase).To(gomega.Equal(v1.PodRunning))
 				continue
 			}
-			if strings.HasPrefix(podName, taskGroupBprefix) {
+			if strings.HasPrefix(podName, groupBPrefix) {
 				groupBPlaceholderCount++
 				Ω(podPhase).To(gomega.Equal(v1.PodPending))
 				continue

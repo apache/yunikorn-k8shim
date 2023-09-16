@@ -20,7 +20,7 @@ package cache
 
 import (
 	"fmt"
-	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -36,9 +36,10 @@ import (
 )
 
 const (
-	appID     = "app01"
-	queue     = "root.default"
-	namespace = "test"
+	appID             = "app01"
+	queue             = "root.default"
+	namespace         = "test"
+	priorityClassName = "test-priority-class"
 )
 
 func TestNewPlaceholderManager(t *testing.T) {
@@ -64,14 +65,16 @@ func TestCreateAppPlaceholders(t *testing.T) {
 
 	// simulate placeholder creation failures
 	// failed to create one placeholder
+	var failed string
 	mockedAPIProvider.MockCreateFn(func(pod *v1.Pod) (*v1.Pod, error) {
-		if pod.Name == "tg-test-group-2-app01-15" {
+		if failed == "" && strings.HasPrefix(pod.Name, "tg-app01-test-group-2-") {
+			failed = pod.Name
 			return nil, fmt.Errorf("failed to create pod %s", pod.Name)
 		}
 		return pod, nil
 	})
 	err := placeholderMgr.createAppPlaceholders(app)
-	assert.Error(t, err, "failed to create pod tg-test-group-2-app01-15")
+	assert.Error(t, err, fmt.Sprintf("failed to create pod %s", failed))
 }
 
 func TestCreateAppPlaceholdersWithExistingPods(t *testing.T) {
@@ -87,15 +90,8 @@ func TestCreateAppPlaceholdersWithExistingPods(t *testing.T) {
 	err := placeholderMgr.createAppPlaceholders(app)
 	assert.NilError(t, err)
 	assert.Equal(t, 27, len(createdPods))
-	assert.Equal(t, (*v1.Pod)(nil), createdPods["tg-test-group-1-app01-0"], "Pod should not have been created")
-	assert.Equal(t, (*v1.Pod)(nil), createdPods["tg-test-group-1-app01-1"], "Pod should not have been created")
-	assert.Equal(t, (*v1.Pod)(nil), createdPods["tg-test-group-1-app02-0"], "Pod should not have been created")
-	for _, tg := range []string{"tg-test-group-1-app01-", "tg-test-group-2-app01-"} {
-		for i := 2; i <= 9; i++ {
-			podName := tg + strconv.Itoa(i)
-			priority := createdPods[podName].Spec.Priority
-			assert.Equal(t, *priority, int32(10), "Pod should not have been created")
-		}
+	for _, pod := range createdPods {
+		assert.Equal(t, pod.Spec.PriorityClassName, "test-priority-class", "Pod should have PriorityClassName of test-priority-class")
 	}
 }
 
@@ -110,12 +106,8 @@ func createAndCheckPlaceholderCreate(mockedAPIProvider *client.MockedAPIProvider
 	err := placeholderMgr.createAppPlaceholders(app)
 	assert.NilError(t, err, "create app placeholders should be successful")
 	assert.Equal(t, len(createdPods), 30)
-	var priority *int32
-	for _, tg := range []string{"tg-test-group-1-app01-", "tg-test-group-2-app01-"} {
-		for i := 2; i <= 9; i++ {
-			podName := tg + strconv.Itoa(i)
-			assert.Equal(t, priority, createdPods[podName].Spec.Priority, "Pod should not have been created")
-		}
+	for _, pod := range createdPods {
+		assert.Equal(t, "", pod.Spec.PriorityClassName, "PriorityClassName should be empty")
 	}
 	return createdPods
 }
@@ -166,19 +158,17 @@ func createAppWIthTaskGroupForTest() *Application {
 func createAppWIthTaskGroupAndPodsForTest() *Application {
 	app := createAppWIthTaskGroupForTest()
 	mockedContext := initContextForTest()
-	priority := int32(10)
-	specPriority := &priority
 	pod1 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
-			Name: "tg-test-group-1-app01-0",
+			Name: "tg-app01-test-group-1-0",
 			UID:  "UID-01",
 		},
 		Spec: v1.PodSpec{
-			Priority: specPriority,
+			PriorityClassName: priorityClassName,
 		},
 	}
 	pod2 := &v1.Pod{
@@ -187,7 +177,7 @@ func createAppWIthTaskGroupAndPodsForTest() *Application {
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
-			Name: "tg-test-group-1-app01-1",
+			Name: "tg-app01-test-group-1-1",
 			UID:  "UID-02",
 		},
 	}
@@ -197,7 +187,7 @@ func createAppWIthTaskGroupAndPodsForTest() *Application {
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
-			Name: "tg-test-group-2-app01-0",
+			Name: "tg-app01-test-group-2-0",
 			UID:  "UID-03",
 		},
 	}
@@ -207,6 +197,7 @@ func createAppWIthTaskGroupAndPodsForTest() *Application {
 	task1.placeholder = true
 	task1.pod = pod1
 	task1.originator = true
+	task1.setTaskGroupName("test-group-1")
 	app.taskMap[taskID1] = task1
 	app.setOriginatingTask(task1)
 
@@ -214,12 +205,14 @@ func createAppWIthTaskGroupAndPodsForTest() *Application {
 	task2 := NewTask(taskID2, app, mockedContext, pod2)
 	task2.placeholder = true
 	task2.pod = pod2
+	task2.setTaskGroupName("test-group-1")
 	app.taskMap[taskID2] = task2
 
 	taskID3 := "task2-01"
 	task3 := NewTask(taskID3, app, mockedContext, pod3)
 	task3.placeholder = true
 	task3.pod = pod3
+	task3.setTaskGroupName("test-group-2")
 	app.taskMap[taskID3] = task3
 
 	return app

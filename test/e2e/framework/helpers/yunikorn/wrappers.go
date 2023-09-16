@@ -70,6 +70,10 @@ func UpdateConfigMapWrapper(oldConfigMap *v1.ConfigMap, schedPolicy string, anno
 }
 
 func UpdateCustomConfigMapWrapper(oldConfigMap *v1.ConfigMap, schedPolicy string, annotation string, mutator func(sc *configs.SchedulerConfig) error) {
+	UpdateCustomConfigMapWrapperWithMap(oldConfigMap, schedPolicy, annotation, nil, mutator)
+}
+
+func UpdateCustomConfigMapWrapperWithMap(oldConfigMap *v1.ConfigMap, schedPolicy string, annotation string, customMap map[string]string, mutator func(sc *configs.SchedulerConfig) error) {
 	Ω(k.SetClient()).To(BeNil())
 	By("Port-forward the scheduler pod")
 	fwdErr := k.PortForwardYkSchedulerPod()
@@ -104,6 +108,10 @@ func UpdateCustomConfigMapWrapper(oldConfigMap *v1.ConfigMap, schedPolicy string
 	configStr, yamlErr := common.ToYAML(sc)
 	Ω(yamlErr).NotTo(HaveOccurred())
 	c.Data[configmanager.DefaultPolicyGroup] = configStr
+
+	for k, v := range customMap {
+		c.Data[k] = v
+	}
 	var d, err3 = k.UpdateConfigMap(c, configmanager.YuniKornTestConfig.YkNamespace)
 	Ω(err3).NotTo(HaveOccurred())
 	Ω(d).NotTo(BeNil())
@@ -125,6 +133,7 @@ func RestoreConfigMapWrapper(oldConfigMap *v1.ConfigMap, annotation string) {
 	Ω(err).NotTo(HaveOccurred())
 	ts, tsErr := common.SetQueueTimestamp(oldSC, "default", "root")
 	Ω(tsErr).NotTo(HaveOccurred())
+	c.Data = oldConfigMap.Data
 	c.Data[configmanager.DefaultPolicyGroup], err = common.ToYAML(oldSC)
 	Ω(err).NotTo(HaveOccurred())
 

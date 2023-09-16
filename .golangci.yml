@@ -20,13 +20,7 @@ run:
   issues-exit-code: 1
   skip-dirs-use-default: true
   modules-download-mode: readonly
-  deadline: 10m
-  skip-dirs:
-    - pkg/client/clientset
-    - pkg/client/informers
-    - pkg/client/listers
-  skip-files:
-    - pkg/apis/yunikorn.apache.org/v1alpha1/zz_generated.deepcopy.go
+  timeout: 10m
 
 # settings of specific linters
 linters-settings:

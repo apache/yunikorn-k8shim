@@ -79,9 +79,9 @@ func newPlaceholder(placeholderName string, app *Application, taskGroup interfac
 		}
 	}
 
-	var priority *int32
+	var priorityClassName string
 	if task := app.GetOriginatingTask(); task != nil {
-		priority = task.GetTaskPod().Spec.Priority
+		priorityClassName = task.GetTaskPod().Spec.PriorityClassName
 	}
 
 	// prepare the resource lists
@@ -116,12 +116,12 @@ func newPlaceholder(placeholderName string, app *Application, taskGroup interfac
 					},
 				},
 			},
-			RestartPolicy: constants.PlaceholderPodRestartPolicy,
-			SchedulerName: constants.SchedulerName,
-			NodeSelector:  taskGroup.NodeSelector,
-			Tolerations:   taskGroup.Tolerations,
-			Affinity:      taskGroup.Affinity,
-			Priority:      priority,
+			RestartPolicy:     constants.PlaceholderPodRestartPolicy,
+			SchedulerName:     constants.SchedulerName,
+			NodeSelector:      taskGroup.NodeSelector,
+			Tolerations:       taskGroup.Tolerations,
+			Affinity:          taskGroup.Affinity,
+			PriorityClassName: priorityClassName,
 		},
 	}
 
