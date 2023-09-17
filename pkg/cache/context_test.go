@@ -1165,7 +1165,7 @@ func TestAddApplicationsWithTags(t *testing.T) {
 		ObjectMeta: apis.ObjectMeta{
 			Name: "test1",
 			Annotations: map[string]string{
-				"yunikorn.apache.org/namespace.max.memory": "256M",
+				siCommon.DomainYuniKorn + "namespace.max.memory": "256M",
 			},
 		},
 	}
@@ -1175,7 +1175,7 @@ func TestAddApplicationsWithTags(t *testing.T) {
 			Name: "test2",
 			Annotations: map[string]string{
 				constants.NamespaceQuota:          "{\"cpu\": \"1\", \"memory\": \"256M\", \"nvidia.com/gpu\": \"1\"}",
-				"yunikorn.apache.org/parentqueue": "root.test",
+				siCommon.DomainYuniKorn + "parentqueue": "root.test",
 				constants.NamespaceGuaranteed:     "{\"cpu\": \"1\", \"memory\": \"256M\", \"nvidia.com/gpu\": \"1\"}",
 			},
 		},

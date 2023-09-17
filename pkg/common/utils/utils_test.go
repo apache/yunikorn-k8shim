@@ -79,7 +79,7 @@ func TestGetNamespaceQuotaFromAnnotation(t *testing.T) {
 				Name:      "test",
 				Namespace: "test",
 				Annotations: map[string]string{
-					"yunikorn.apache.org/namespace.max.cpu": "1",
+					siCommon.DomainYuniKorn + "namespace.max.cpu": "1",
 				},
 			},
 		}, common.NewResourceBuilder().
@@ -90,7 +90,7 @@ func TestGetNamespaceQuotaFromAnnotation(t *testing.T) {
 				Name:      "test",
 				Namespace: "test",
 				Annotations: map[string]string{
-					"yunikorn.apache.org/namespace.max.memory": "128M",
+					siCommon.DomainYuniKorn + "namespace.max.memory": "128M",
 				},
 			},
 		}, common.NewResourceBuilder().
@@ -101,8 +101,8 @@ func TestGetNamespaceQuotaFromAnnotation(t *testing.T) {
 				Name:      "test",
 				Namespace: "test",
 				Annotations: map[string]string{
-					"yunikorn.apache.org/namespace.max.cpu":    "error",
-					"yunikorn.apache.org/namespace.max.memory": "128M",
+					siCommon.DomainYuniKorn + "namespace.max.cpu":    "error",
+					siCommon.DomainYuniKorn + "namespace.max.memory": "128M",
 				},
 			},
 		}, nil},
@@ -111,8 +111,8 @@ func TestGetNamespaceQuotaFromAnnotation(t *testing.T) {
 				Name:      "test",
 				Namespace: "test",
 				Annotations: map[string]string{
-					"yunikorn.apache.org/namespace.max.cpu":    "1",
-					"yunikorn.apache.org/namespace.max.memory": "error",
+					siCommon.DomainYuniKorn + "namespace.max.cpu":    "1",
+					siCommon.DomainYuniKorn + "namespace.max.memory": "error",
 				},
 			},
 		}, nil},
@@ -121,8 +121,8 @@ func TestGetNamespaceQuotaFromAnnotation(t *testing.T) {
 				Name:      "test",
 				Namespace: "test",
 				Annotations: map[string]string{
-					"yunikorn.apache.org/namespace.max.cpu":    "error",
-					"yunikorn.apache.org/namespace.max.memory": "error",
+					siCommon.DomainYuniKorn + "namespace.max.cpu":    "error",
+					siCommon.DomainYuniKorn + "namespace.max.memory": "error",
 				},
 			},
 		}, nil},
@@ -131,8 +131,8 @@ func TestGetNamespaceQuotaFromAnnotation(t *testing.T) {
 				Name:      "test",
 				Namespace: "test",
 				Annotations: map[string]string{
-					"yunikorn.apache.org/namespace.max.cpu":    "1",
-					"yunikorn.apache.org/namespace.max.memory": "64M",
+					siCommon.DomainYuniKorn + "namespace.max.cpu":    "1",
+					siCommon.DomainYuniKorn + "namespace.max.memory": "64M",
 				},
 			},
 		}, common.NewResourceBuilder().
@@ -158,7 +158,7 @@ func TestGetNamespaceQuotaFromAnnotationUsingNewAnnotations(t *testing.T) {
 				Name:      "test",
 				Namespace: "test",
 				Annotations: map[string]string{
-					"yunikorn.apache.org/namespace.quota": "{\"cpu\": \"5\"}",
+					siCommon.DomainYuniKorn + "namespace.quota": "{\"cpu\": \"5\"}",
 				},
 			},
 		}, common.NewResourceBuilder().
@@ -169,7 +169,7 @@ func TestGetNamespaceQuotaFromAnnotationUsingNewAnnotations(t *testing.T) {
 				Name:      "test",
 				Namespace: "test",
 				Annotations: map[string]string{
-					"yunikorn.apache.org/namespace.quota": "{\"memory\": \"256M\"}",
+					siCommon.DomainYuniKorn + "namespace.quota": "{\"memory\": \"256M\"}",
 				},
 			},
 		}, common.NewResourceBuilder().
@@ -180,7 +180,7 @@ func TestGetNamespaceQuotaFromAnnotationUsingNewAnnotations(t *testing.T) {
 				Name:      "test",
 				Namespace: "test",
 				Annotations: map[string]string{
-					"yunikorn.apache.org/namespace.quota": "{\"cpu\": \"1\", \"memory\": \"64M\"}",
+					siCommon.DomainYuniKorn + "namespace.quota": "{\"cpu\": \"1\", \"memory\": \"64M\"}",
 				},
 			},
 		}, common.NewResourceBuilder().
@@ -192,7 +192,7 @@ func TestGetNamespaceQuotaFromAnnotationUsingNewAnnotations(t *testing.T) {
 				Name:      "test",
 				Namespace: "test",
 				Annotations: map[string]string{
-					"yunikorn.apache.org/namespace.quota": "{\"cpu\": \"1\", \"memory\": \"64M\", \"nvidia.com/gpu\": \"1\"}",
+					siCommon.DomainYuniKorn + "namespace.quota": "{\"cpu\": \"1\", \"memory\": \"64M\", \"nvidia.com/gpu\": \"1\"}",
 				},
 			},
 		}, common.NewResourceBuilder().
@@ -205,7 +205,7 @@ func TestGetNamespaceQuotaFromAnnotationUsingNewAnnotations(t *testing.T) {
 				Name:      "test",
 				Namespace: "test",
 				Annotations: map[string]string{
-					"yunikorn.apache.org/namespace.quota": "{\"cpu\": \"error\", \"memory\": \"error\"}",
+					siCommon.DomainYuniKorn + "namespace.quota": "{\"cpu\": \"error\", \"memory\": \"error\"}",
 				},
 			},
 		}, nil},
@@ -298,8 +298,8 @@ func TestGetNamespaceQuotaFromAnnotationUsingNewAndOldAnnotations(t *testing.T) 
 				Name:      "test",
 				Namespace: "test",
 				Annotations: map[string]string{
-					"yunikorn.apache.org/namespace.max.cpu": "1",
-					"yunikorn.apache.org/namespace.quota":   "{\"cpu\": \"5\"}",
+					siCommon.DomainYuniKorn + "namespace.max.cpu": "1",
+					siCommon.DomainYuniKorn + "namespace.quota":   "{\"cpu\": \"5\"}",
 				},
 			},
 		}, common.NewResourceBuilder().
@@ -310,8 +310,8 @@ func TestGetNamespaceQuotaFromAnnotationUsingNewAndOldAnnotations(t *testing.T) 
 				Name:      "test",
 				Namespace: "test",
 				Annotations: map[string]string{
-					"yunikorn.apache.org/namespace.max.memory": "128M",
-					"yunikorn.apache.org/namespace.quota":      "{\"memory\": \"256M\"}",
+					siCommon.DomainYuniKorn + "namespace.max.memory": "128M",
+					siCommon.DomainYuniKorn + "namespace.quota":      "{\"memory\": \"256M\"}",
 				},
 			},
 		}, common.NewResourceBuilder().
@@ -322,9 +322,9 @@ func TestGetNamespaceQuotaFromAnnotationUsingNewAndOldAnnotations(t *testing.T) 
 				Name:      "test",
 				Namespace: "test",
 				Annotations: map[string]string{
-					"yunikorn.apache.org/namespace.max.cpu":    "5",
-					"yunikorn.apache.org/namespace.max.memory": "32M",
-					"yunikorn.apache.org/namespace.quota":      "{\"cpu\": \"1\", \"memory\": \"64M\"}",
+					siCommon.DomainYuniKorn + "namespace.max.cpu":    "5",
+					siCommon.DomainYuniKorn + "namespace.max.memory": "32M",
+					siCommon.DomainYuniKorn + "namespace.quota":      "{\"cpu\": \"1\", \"memory\": \"64M\"}",
 				},
 			},
 		}, common.NewResourceBuilder().
@@ -336,9 +336,9 @@ func TestGetNamespaceQuotaFromAnnotationUsingNewAndOldAnnotations(t *testing.T) 
 				Name:      "test",
 				Namespace: "test",
 				Annotations: map[string]string{
-					"yunikorn.apache.org/namespace.max.cpu":    "1",
-					"yunikorn.apache.org/namespace.max.memory": "64M",
-					"yunikorn.apache.org/namespace.quota":      "{\"cpu\": \"1\", \"memory\": \"64M\", \"nvidia.com/gpu\": \"1\"}",
+					siCommon.DomainYuniKorn + "namespace.max.cpu":    "1",
+					siCommon.DomainYuniKorn + "namespace.max.memory": "64M",
+					siCommon.DomainYuniKorn + "namespace.quota":      "{\"cpu\": \"1\", \"memory\": \"64M\", \"nvidia.com/gpu\": \"1\"}",
 				},
 			},
 		}, common.NewResourceBuilder().
@@ -351,9 +351,9 @@ func TestGetNamespaceQuotaFromAnnotationUsingNewAndOldAnnotations(t *testing.T) 
 				Name:      "test",
 				Namespace: "test",
 				Annotations: map[string]string{
-					"yunikorn.apache.org/namespace.max.cpu":    "1",
-					"yunikorn.apache.org/namespace.max.memory": "64M",
-					"yunikorn.apache.org/namespace.quota":      "{\"cpu\": \"error\", \"memory\": \"error\"}",
+					siCommon.DomainYuniKorn + "namespace.max.cpu":    "1",
+					siCommon.DomainYuniKorn + "namespace.max.memory": "64M",
+					siCommon.DomainYuniKorn + "namespace.quota":      "{\"cpu\": \"error\", \"memory\": \"error\"}",
 				},
 			},
 		}, nil},

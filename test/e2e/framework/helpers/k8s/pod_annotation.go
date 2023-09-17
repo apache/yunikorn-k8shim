@@ -19,6 +19,7 @@
 package k8s
 
 import "github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
+import "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 
 type PodAnnotation struct {
 	TaskGroupName          string                 `json:"yunikorn.apache.org/task-group-name,omitempty"`
@@ -27,12 +28,14 @@ type PodAnnotation struct {
 	Other                  map[string]string      `json:"-"`
 }
 
-const (
-	TaskGroupName          = "yunikorn.apache.org/task-group-name"
-	TaskGroups             = "yunikorn.apache.org/task-groups"
-	PlaceHolder            = "yunikorn.apache.org/placeholder"
-	SchedulingPolicyParams = "yunikorn.apache.org/schedulingPolicyParameters"
+const DomainYuniKorn = common.DomainYuniKorn
 
-	MaxCPU = "yunikorn.apache.org/namespace.max.cpu"
-	MaxMem = "yunikorn.apache.org/namespace.max.memory"
+const (
+	TaskGroupName          = DomainYuniKorn + "task-group-name"
+	TaskGroups             = DomainYuniKorn + "task-groups"
+	PlaceHolder            = DomainYuniKorn + "placeholder"
+	SchedulingPolicyParams = DomainYuniKorn + "schedulingPolicyParameters"
+
+	MaxCPU = DomainYuniKorn + "namespace.max.cpu"
+	MaxMem = DomainYuniKorn + "namespace.max.memory"
 )
