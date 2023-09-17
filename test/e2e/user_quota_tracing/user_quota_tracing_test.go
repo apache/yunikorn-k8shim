@@ -28,6 +28,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/apache/yunikorn-core/pkg/webservice/dao"
+	amConf "github.com/apache/yunikorn-k8shim/pkg/admission/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	tests "github.com/apache/yunikorn-k8shim/test/e2e"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
@@ -73,6 +74,8 @@ var _ = Describe("QuotaTracking: Two leaf queues for two groups", func() {
 						- name: group1_resources
 						- name: group2_resources
 				`,
+				amConf.AMAccessControlExternalUsers:  "^user1$,^user2$,^user3$",
+				amConf.AMAccessControlExternalGroups: "^group1$,^group2$",
 			},
 		}
 		cm, err := kClient.UpdateConfigMap(&configMap, configmanager.YuniKornTestConfig.YkNamespace)
