@@ -22,17 +22,19 @@ import (
 	"fmt"
 
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/apache/yunikorn-core/pkg/common/configs"
+	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-core/pkg/webservice/dao"
 	tests "github.com/apache/yunikorn-k8shim/test/e2e"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
 	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 )
 
 const (
@@ -55,26 +57,27 @@ var _ = Describe("QuotaTracking: Two leaf queues for two groups", func() {
 		zeroPod := map[string]int64{siCommon.CPU: 0, siCommon.Memory: 0}
 		onePod := map[string]int64{siCommon.CPU: 100, siCommon.Memory: 50}
 		twoPods := map[string]int64{siCommon.CPU: 200, siCommon.Memory: 100}
-		yunikorn.UpdateCustomConfigMapWrapper(oldConfigMap, "", annotation, func(sc *configs.SchedulerConfig) error {
-			// remove placement rules so we can control queue
-			sc.Partitions[0].PlacementRules = nil
-			queuesConfigs := []struct {
-				partition, parentQueue, QueueName string
-			}{
-				{DEFAULT_PARTITION, "root", "group1_resources"},
-				{DEFAULT_PARTITION, "root", "group2_resources"},
-			}
-			for _, queueConfig := range queuesConfigs {
-				By(fmt.Sprintf("Add child queue %s to the parent queue %s", queueConfig.QueueName, queueConfig.parentQueue))
-				config := configs.QueueConfig{
-					Name: queueConfig.QueueName,
-				}
-				if err := common.AddQueue(sc, queueConfig.partition, queueConfig.parentQueue, config); err != nil {
-					return err
-				}
-			}
-			return nil
-		})
+		configMap := v1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      constants.ConfigMapName,
+				Namespace: configmanager.YuniKornTestConfig.YkNamespace,
+			},
+			Data: map[string]string{
+				"queue.yaml": `
+				partitions:
+				  - name: default
+					queues:
+					  - name: root
+						submitacl: "*"
+						queues:
+						- name: group1_resources
+						- name: group2_resources
+				`,
+			},
+		}
+		cm, err := kClient.UpdateConfigMap(&configMap, configmanager.YuniKornTestConfig.YkNamespace)
+		Ω(err).ShouldNot(HaveOccurred())
+		Ω(cm).ShouldNot(BeNil())
 
 		/*
 		*  groups: group1, group2
