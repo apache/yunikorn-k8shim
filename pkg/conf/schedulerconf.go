@@ -479,7 +479,7 @@ func Decompress(key string, value []byte) (string, string) {
 			return "", ""
 		}
 		defer func() {
-			if err := gzReader.Close(); err != nil {
+			if err = gzReader.Close(); err != nil {
 				log.Log(log.ShimConfig).Debug("gzip Reader could not be closed ", zap.Error(err))
 			}
 		}()
