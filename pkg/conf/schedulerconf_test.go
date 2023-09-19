@@ -94,7 +94,7 @@ func TestDecompress(t *testing.T) {
 	assert.Equal(t, configs.DefaultSchedulerConfig, decodedConfigString)
 }
 
-func TestDecompressUnkownKey(t *testing.T) {
+func TestDecompressUnknownKey(t *testing.T) {
 	encodedConfigString := make([]byte, base64.StdEncoding.EncodedLen(len([]byte(configs.DefaultSchedulerConfig))))
 	base64.StdEncoding.Encode(encodedConfigString, []byte(configs.DefaultSchedulerConfig))
 	key, decodedConfigString := Decompress("queues.yaml.bin", encodedConfigString)
