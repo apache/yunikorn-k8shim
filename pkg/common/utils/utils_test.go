@@ -1154,7 +1154,7 @@ func TestGzipCompressedConfigMap(t *testing.T) {
 	base64.StdEncoding.Encode(encodedConfigString, b.Bytes())
 	confMap := conf.FlattenConfigMaps([]*v1.ConfigMap{
 		{Data: map[string]string{}},
-		{Data: map[string]string{conf.CMSvcClusterID: "new"}, BinaryData: map[string][]byte{"queues.yaml.gzip": encodedConfigString}},
+		{Data: map[string]string{conf.CMSvcClusterID: "new"}, BinaryData: map[string][]byte{"queues.yaml.gz": encodedConfigString}},
 	})
 	config := GetCoreSchedulerConfigFromConfigMap(confMap)
 	assert.DeepEqual(t, configs.DefaultSchedulerConfig, config)

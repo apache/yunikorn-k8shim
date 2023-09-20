@@ -114,4 +114,4 @@ const AutoGenAppPrefix = "yunikorn"
 const AutoGenAppSuffix = "autogen"
 
 // Compression Algorithms for schedulerConfig
-const GzipSuffix = "gzip"
+const GzipSuffix = "gz"
