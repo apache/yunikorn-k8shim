@@ -56,12 +56,12 @@ func NewManager(apiProvider client.APIProvider, podEventHandler *PodEventHandler
 	}
 }
 
-// this implements AppManagementService interface
+// this implements AppManager interface
 func (os *Manager) Name() string {
 	return "general"
 }
 
-// this implements AppManagementService interface
+// this implements AppManager interface
 func (os *Manager) ServiceInit() error {
 	os.apiProvider.AddEventHandler(
 		&client.ResourceEventHandlers{
@@ -74,14 +74,14 @@ func (os *Manager) ServiceInit() error {
 	return nil
 }
 
-// this implements AppManagementService interface
+// this implements AppManager interface
 func (os *Manager) Start() error {
 	// generic app manager leverages the shared context,
 	// no other service, go routine is required to be started
 	return nil
 }
 
-// this implements AppManagementService interface
+// this implements AppManager interface
 func (os *Manager) Stop() {
 	// noop
 }
