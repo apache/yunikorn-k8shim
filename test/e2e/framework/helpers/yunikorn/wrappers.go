@@ -116,6 +116,8 @@ func UpdateCustomConfigMapWrapperWithMap(oldConfigMap *v1.ConfigMap, schedPolicy
 	Ω(err3).NotTo(HaveOccurred())
 	Ω(d).NotTo(BeNil())
 
+	// Only wait until the yunikorn scheduler updates its configurations
+	// Validation for admission controller config was not supported. Please refer to YUNIKORN-1998
 	err = WaitForQueueTS("root", ts, 2*time.Minute)
 	Ω(err).NotTo(HaveOccurred())
 }

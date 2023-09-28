@@ -149,3 +149,11 @@ func RestartYunikornAndAddTolerations(kClient *k8s.KubeCtl, addTolerations bool,
 	err = kClient.WaitForPodBySelectorRunning(configmanager.YuniKornTestConfig.YkNamespace, fmt.Sprintf("component=%s", configmanager.YKScheduler), 30)
 	Ω(err).NotTo(gomega.HaveOccurred())
 }
+
+func DelayForAdmissionControllerRefreshConf() {
+	// Delay for 5 seconds to allow the admission controller to update its configurations.
+	// There is no guarantee it will update within 5 seconds.
+	// This is a quick solution for YUNIKORN-1998
+	// It's better to have a configurations freshness checker for the admission controller.
+	time.Sleep(5 * time.Second)
+}
