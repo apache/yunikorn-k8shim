@@ -17,7 +17,9 @@
 */
 
 package constants
-import "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
+import (
+    siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
+)
 
 
 // Common
@@ -29,7 +31,7 @@ const DefaultNodeAttributeHostNameKey = "si.io/hostname"
 const DefaultNodeAttributeRackNameKey = "si.io/rackname"
 const DefaultNodeInstanceTypeNodeLabelKey = "node.kubernetes.io/instance-type"
 const DefaultRackName = "/rack-default"
-const DomainYuniKorn = common.DomainYuniKorn
+const DomainYuniKorn = siCommon.DomainYuniKorn
 
 // Application
 const LabelApp = "app"

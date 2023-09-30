@@ -27,9 +27,9 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
-	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 )
 
 type TestJobConfig struct {
@@ -76,15 +76,15 @@ func getGangSchedulingAnnotations(placeholderTimeout int,
 	}
 
 	if schedulingParams != "" {
-		annotations[siCommon.DomainYuniKorn + "schedulingPolicyParameters"] = schedulingParams
+		annotations[constants.DomainYuniKorn + "schedulingPolicyParameters"] = schedulingParams
 	}
 
-	annotations[siCommon.DomainYuniKorn + "task-group-name"] = taskGroupName
+	annotations[constants.DomainYuniKorn + "task-group-name"] = taskGroupName
 	taskGroupJSON, err := json.Marshal(taskGroups)
 	if err != nil {
 		panic("Unable to marshal taskGroups")
 	}
-	annotations[siCommon.DomainYuniKorn + "task-groups"] = string(taskGroupJSON)
+	annotations[constants.DomainYuniKorn + "task-groups"] = string(taskGroupJSON)
 
 	return annotations
 }

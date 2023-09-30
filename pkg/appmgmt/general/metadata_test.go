@@ -27,10 +27,7 @@ import (
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
-	"github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 )
-
-const DomainYuniKorn = common.DomainYuniKorn
 
 func TestGetTaskMetadata(t *testing.T) {
 	pod := v1.Pod{
@@ -141,7 +138,7 @@ func TestGetAppMetadata(t *testing.T) { //nolint:funlen
 			Labels: map[string]string{
 				"applicationId":            "app00002",
 				"queue":                    "root.b",
-				DomainYuniKorn + "user": "testuser",
+				constants.DomainYuniKorn + "user": "testuser",
 				"disableStateAware":        "true",
 			},
 			Annotations: map[string]string{
@@ -205,7 +202,7 @@ func TestGetAppMetadata(t *testing.T) { //nolint:funlen
 			Labels: map[string]string{
 				"applicationId":            "app00002",
 				"queue":                    "root.b",
-				DomainYuniKorn + "user": "testuser",
+				constants.DomainYuniKorn + "user": "testuser",
 			},
 			Annotations: map[string]string{
 				constants.AnnotationSchedulingPolicyParam: "gangSchedulingStyle=Hard=Soft",
