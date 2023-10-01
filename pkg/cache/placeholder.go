@@ -86,7 +86,6 @@ func newPlaceholder(placeholderName string, app *Application, taskGroup interfac
 
 	// prepare the resource lists
 	requests := utils.GetPlaceholderResourceRequests(taskGroup.MinResource)
-	limits := utils.GetPlaceholderResourceLimits(taskGroup.MinResource)
 	placeholderPod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      placeholderName,
@@ -112,7 +111,7 @@ func newPlaceholder(placeholderName string, app *Application, taskGroup interfac
 					ImagePullPolicy: v1.PullIfNotPresent,
 					Resources: v1.ResourceRequirements{
 						Requests: requests,
-						Limits:   limits,
+						Limits:   requests,
 					},
 				},
 			},
