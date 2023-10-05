@@ -108,8 +108,8 @@ github.com/antihax/optional v1.0.0/go.mod h1:uupD/76wgC+ih3iEmQUL+0Ugr19nfwCT1kd
 github.com/antlr/antlr4/runtime/Go/antlr v0.0.0-20220418222510-f25a4f6275ed/go.mod h1:F7bn7fEU90QkQ3tnmaTx3LTKLEDqnwWODIYppRQ5hnY=
 github.com/antlr/antlr4/runtime/Go/antlr v1.4.10 h1:yL7+Jz0jTC6yykIK/Wh74gnTJnrGr5AyrNMXuA0gves=
 github.com/antlr/antlr4/runtime/Go/antlr v1.4.10/go.mod h1:F7bn7fEU90QkQ3tnmaTx3LTKLEDqnwWODIYppRQ5hnY=
-github.com/apache/yunikorn-core v0.0.0-20230914150517-9dd3df7dadb2 h1:EIPAThhT6ZQtzU3ao7po6D7JEfr9MZfd7bBAbJo1JmI=
-github.com/apache/yunikorn-core v0.0.0-20230914150517-9dd3df7dadb2/go.mod h1:Zi59R121FDaxOPxLEfrNJZaP3VDTN4HQGj5D/two2ik=
+github.com/apache/yunikorn-core v0.0.0-20231004070405-ee8a85a4a4c3 h1:Ywzvffezlia/dkMdoFOYbv+CkLRyn85Hwe+upSIE/q0=
+github.com/apache/yunikorn-core v0.0.0-20231004070405-ee8a85a4a4c3/go.mod h1:Zi59R121FDaxOPxLEfrNJZaP3VDTN4HQGj5D/two2ik=
 github.com/apache/yunikorn-scheduler-interface v0.0.0-20230914150238-ff06224fc98d h1:yf+zASomlYmZok2p5syO4kQOrM88hDgzNLUMi4tgJuU=
 github.com/apache/yunikorn-scheduler-interface v0.0.0-20230914150238-ff06224fc98d/go.mod h1:xhVO5T9chrzf7pLDRZJ9UZI+9/denP+VbLzKAbpcwMg=
 github.com/armon/circbuf v0.0.0-20150827004946-bbbad097214e/go.mod h1:3U/XgcO3hCbHZ8TKRvWD2dDTCfh9M9ya+I9JpbB7O8o=

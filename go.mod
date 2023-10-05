@@ -22,7 +22,7 @@ go 1.20
 
 require (
 	github.com/GoogleCloudPlatform/spark-on-k8s-operator v0.0.0-20201215015655-2e8b733f5ad0
-	github.com/apache/yunikorn-core v0.0.0-20230914150517-9dd3df7dadb2
+	github.com/apache/yunikorn-core v0.0.0-20231004070405-ee8a85a4a4c3
 	github.com/apache/yunikorn-scheduler-interface v0.0.0-20230914150238-ff06224fc98d
 	github.com/google/go-cmp v0.5.9
 	github.com/google/uuid v1.3.0
