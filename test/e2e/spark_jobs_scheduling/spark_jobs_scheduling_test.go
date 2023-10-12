@@ -19,6 +19,7 @@
 package spark_jobs_scheduling
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 	"os"
@@ -117,7 +118,7 @@ var _ = Describe("", func() {
 		By(fmt.Sprintf("Get apps from specific queue: %s", sparkNS))
 		var appsFromQueue []*dao.ApplicationDAOInfo
 		// Poll for apps to appear in the queue
-		err = wait.PollImmediate(time.Millisecond*100, time.Duration(120)*time.Second, func() (done bool, err error) {
+		err = wait.PollUntilContextTimeout(context.TODO(), time.Millisecond*100, time.Duration(120)*time.Second, false, func(context.Context) (done bool, err error) {
 			appsFromQueue, err = restClient.GetApps(configmanager.DefaultPartition, configmanager.RootQueue+"."+sparkNS)
 			if len(appsFromQueue) == 3 {
 				return true, nil

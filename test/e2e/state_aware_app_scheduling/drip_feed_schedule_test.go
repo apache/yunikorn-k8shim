@@ -19,6 +19,7 @@
 package stateawareappscheduling_test
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -72,7 +73,7 @@ var _ = Describe("DripFeedSchedule:", func() {
 		By(fmt.Sprintf("Get apps from specific queue: %s", ns))
 		var appsFromQueue []*dao.ApplicationDAOInfo
 		// Poll for apps to appear in the queue
-		err = wait.PollImmediate(time.Second, time.Duration(60)*time.Second, func() (done bool, err error) {
+		err = wait.PollUntilContextTimeout(context.TODO(), time.Second, time.Duration(60)*time.Second, false, func(context.Context) (done bool, err error) {
 			appsFromQueue, err = restClient.GetApps("default", "root."+ns)
 			if len(appsFromQueue) == 3 {
 				return true, nil
