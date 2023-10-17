@@ -21,6 +21,7 @@ package simple_preemptor_test
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
@@ -166,7 +167,7 @@ var _ = ginkgo.Describe("SimplePreemptor", func() {
 			gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		}
 		// assert sleeppod2 is killed
-		err := kClient.WaitForPodEvent(dev, "sleepjob2", "Killing", 120)
+		err := kClient.WaitForPodEvent(dev, "sleepjob2", "Killing", 60*time.Second)
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 	})
 
@@ -212,7 +213,7 @@ var _ = ginkgo.Describe("SimplePreemptor", func() {
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 
 		// assert sleeppod4 is killed
-		err = kClient.WaitForPodEvent(dev, "sleepjob4", "Killing", 1200)
+		err = kClient.WaitForPodEvent(dev, "sleepjob4", "Killing", 60*time.Second)
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 
 	})
