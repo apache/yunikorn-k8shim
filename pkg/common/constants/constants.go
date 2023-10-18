@@ -17,10 +17,10 @@
 */
 
 package constants
-import (
-    siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
-)
 
+import (
+	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
+)
 
 // Common
 const True = "true"
