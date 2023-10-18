@@ -20,8 +20,9 @@ kind: Pod
 metadata:
   labels:
     app: sleep
-    applicationId: "prvoided-rule-example01"
-    yunikorn.apache.org/username: developer
+    applicationId: "tag-rule-example01"
+  annotations:
+    yunikorn.apache.org/user.info: "{\"user\": \"developer\"}"
   name: task0
 spec:
   schedulerName: yunikorn
@@ -40,8 +41,9 @@ metadata:
   namespace: testing
   labels:
     app: sleep
-    applicationId: "prvoided-rule-example02"
-    yunikorn.apache.org/username: developer
+    applicationId: "tag-rule-example02"
+  annotations:
+    yunikorn.apache.org/user.info: "{\"user\": \"developer\"}"
   name: task1
 spec:
   schedulerName: yunikorn
@@ -53,4 +55,3 @@ spec:
         requests:
           cpu: "100m"
           memory: "500M"
-

@@ -20,9 +20,10 @@ kind: Pod
 metadata:
   labels:
     app: sleep
-    applicationId: "prvoided-rule-example01"
+    applicationId: "fixed-rule-example01"
     queue: "my_special_queue"
-    yunikorn.apache.org/username: developer
+  annotations:
+    yunikorn.apache.org/user.info: "{\"user\": \"developer\"}"
   name: task0
 spec:
   schedulerName: yunikorn
@@ -34,4 +35,3 @@ spec:
         requests:
           cpu: "100m"
           memory: "500M"
-

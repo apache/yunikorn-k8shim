@@ -28,12 +28,12 @@ The sleep pod is described in the example file and the partition is provided in 
 
 ## How to adopt the queues in `config.yaml`
 Before deploying the pods, make sure that the data in the `yunikorn-configs` configmap is correct.
-For example, `queue.yaml` in the `yunikorn-configs` configmap should be updated before starting fixed example.
+For example, `queues.yaml` in the `yunikorn-configs` configmap should be updated before starting fixed example.
 `yunikorn-configs` configmap should contains following information.
----
-**_NOTE:_** 
-`queue.yaml` should be __full__ queue config and then legal configuration would be updated to Yunikorn.
----
+
+> **_NOTE:_**
+> `queues.yaml` should be __full__ queue config and then legal configuration would be updated to Yunikorn.
+
 ```
 yunikornDefaults:
   queues.yaml: |
