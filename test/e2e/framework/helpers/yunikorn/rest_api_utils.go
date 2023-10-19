@@ -291,7 +291,7 @@ func GetFailedHealthChecks() (string, error) {
 	var failCheck string
 	healthCheck, err := restClient.GetHealthCheck()
 	if err != nil {
-		return "", fmt.Errorf("Failed to get scheduler health check from API")
+		return "", fmt.Errorf("failed to get scheduler health check from API")
 	}
 	if !healthCheck.Healthy {
 		for _, check := range healthCheck.HealthChecks {
