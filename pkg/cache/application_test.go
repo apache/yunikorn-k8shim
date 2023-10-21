@@ -20,7 +20,6 @@ package cache
 
 import (
 	"fmt"
-	"reflect"
 	"sort"
 	"strings"
 	"sync"
@@ -62,7 +61,7 @@ func TestNewApplication(t *testing.T) {
 	assert.Equal(t, len(app.taskMap), 0)
 	assert.Equal(t, app.GetApplicationState(), ApplicationStates().New)
 	assert.Equal(t, app.queue, "root.queue")
-	assert.Assert(t, reflect.DeepEqual(app.groups, []string{"dev", "yunikorn"}))
+	assert.DeepEqual(t, app.groups, []string{"dev", "yunikorn"})
 }
 
 func TestSubmitApplication(t *testing.T) {

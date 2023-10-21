@@ -667,7 +667,7 @@ func TestGetUserFromPodLabel(t *testing.T) {
 			}
 
 			userID, _ := GetUserFromPod(tc.pod)
-			assert.DeepEqual(t, userID, tc.expectedUser)
+			assert.Equal(t, userID, tc.expectedUser)
 			// The order of test cases is allowed to impact other test case.
 			conf.UserLabelKey = constants.DefaultUserLabel
 		})
@@ -1157,7 +1157,7 @@ func TestGzipCompressedConfigMap(t *testing.T) {
 		{Data: map[string]string{conf.CMSvcClusterID: "new"}, BinaryData: map[string][]byte{"queues.yaml.gz": encodedConfigString}},
 	})
 	config := GetCoreSchedulerConfigFromConfigMap(confMap)
-	assert.DeepEqual(t, configs.DefaultSchedulerConfig, config)
+	assert.Equal(t, configs.DefaultSchedulerConfig, config)
 }
 
 func TestGetExtraConfigFromConfigMapNil(t *testing.T) {
