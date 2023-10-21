@@ -96,6 +96,8 @@ var _ = ginkgo.BeforeSuite(func() {
 			nodesToTaint = append(nodesToTaint, node.Name)
 		}
 	}
+	ginkgo.By("Worker1:" + Worker1)
+	ginkgo.By("Worker2:" + Worker2)
 
 	ginkgo.By("Tainting some nodes..")
 	err = kClient.TaintNodes(nodesToTaint, taintKey, "value", v1.TaintEffectNoSchedule)
@@ -132,12 +134,6 @@ var _ = ginkgo.AfterSuite(func() {
 	checks, err := yunikorn.GetFailedHealthChecks()
 	Ω(err).NotTo(gomega.HaveOccurred())
 	Ω(checks).To(gomega.Equal(""), checks)
-
-	testDescription := ginkgo.CurrentSpecReport()
-	if testDescription.Failed() {
-		tests.LogTestClusterInfoWrapper(testDescription.FailureMessage(), []string{ns.Name})
-		tests.LogYunikornContainer(testDescription.FailureMessage())
-	}
 	ginkgo.By("Tearing down namespace: " + ns.Name)
 	err = kClient.TearDownNamespace(ns.Name)
 	Ω(err).NotTo(gomega.HaveOccurred())
@@ -219,7 +215,11 @@ var _ = ginkgo.Describe("SimplePreemptor", func() {
 	})
 
 	ginkgo.AfterEach(func() {
-
+		testDescription := ginkgo.CurrentSpecReport()
+		if testDescription.Failed() {
+			tests.LogTestClusterInfoWrapper(testDescription.FailureMessage(), []string{ns.Name})
+			tests.LogYunikornContainer(testDescription.FailureMessage())
+		}
 		// Delete all sleep pods
 		ginkgo.By("Delete all sleep pods")
 		pods, err := kClient.GetPodNamesFromNS(ns.Name)
