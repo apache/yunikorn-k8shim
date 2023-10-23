@@ -19,8 +19,9 @@
 package persistent_volume
 
 import (
-	"github.com/onsi/gomega"
 	"time"
+
+	"github.com/onsi/gomega"
 
 	"k8s.io/apimachinery/pkg/api/resource"
 
@@ -30,16 +31,16 @@ import (
 	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/onsi/ginkgo/v2"
+
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
-	"github.com/onsi/ginkgo/v2"
 )
 
 var kClient k8s.KubeCtl
 var restClient yunikorn.RClient
 var dev = "dev-" + common.RandSeq(5)
-var ns *v1.Namespace
 
 var _ = ginkgo.BeforeSuite(func() {
 	// Initializing kubectl client
@@ -76,11 +77,11 @@ var _ = ginkgo.Describe("PersistentVolume", func() {
 	ginkgo.It("Verify_static_binding_of_local_pv", func() {
 		pvName := "local-pv-" + common.RandSeq(5)
 		conf := k8s.PvConfig{
-			Name:        pvName,
-			Capacity:    "1Gi",
-			AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
-			Source:      "Local",
-			Path:        "/tmp",
+			Name:         pvName,
+			Capacity:     "1Gi",
+			AccessModes:  []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
+			Source:       "Local",
+			Path:         "/tmp",
 			StorageClass: "standard",
 		}
 
@@ -93,8 +94,8 @@ var _ = ginkgo.Describe("PersistentVolume", func() {
 
 		pvcName := "pvc-" + common.RandSeq(5)
 		pvcConf := k8s.PvcConfig{
-			Name:     pvcName,
-			Capacity: "1Gi",
+			Name:       pvcName,
+			Capacity:   "1Gi",
 			VolumeName: pvName,
 		}
 
@@ -132,13 +133,14 @@ var _ = ginkgo.Describe("PersistentVolume", func() {
 		crbName := "nfs-cluster-role-binding"
 		serverName := "nfs-provisioner"
 		scName := "nfs-sc"
-		createNfsProvisioner(saName, crName, crbName, serverName, scName)
+		createNfsRbac(saName, crName, crbName)
+		createNfsProvisioner(saName, serverName, scName)
 
 		// Create pvc using storageclass
 		pvcName := "pvc-" + common.RandSeq(5)
 		pvcConf := k8s.PvcConfig{
-			Name:     pvcName,
-			Capacity: "1Gi",
+			Name:             pvcName,
+			Capacity:         "1Gi",
 			StorageClassName: scName,
 		}
 
@@ -167,14 +169,15 @@ var _ = ginkgo.Describe("PersistentVolume", func() {
 		Ω(err).NotTo(HaveOccurred())
 		ginkgo.By("Check pod " + podName + " is successfully running")
 
-		err = deleteNfsRelatedRoles(saName ,crName, crbName)
+		err = deleteNfsRelatedRoles(saName, crName, crbName)
 		Ω(err).NotTo(HaveOccurred())
 
 		err = deleteNfsProvisioner(serverName, scName)
+		Ω(err).NotTo(HaveOccurred())
 	})
 })
 
-func createNfsProvisioner(svaName string, crName string, crbName string, serverName string, scName string) {
+func createNfsRbac(svaName string, crName string, crbName string) {
 	// Create service account, cluster role and role binding
 	_, err := kClient.CreateServiceAccount(svaName, dev)
 	Ω(err).NotTo(HaveOccurred())
@@ -209,10 +212,12 @@ func createNfsProvisioner(svaName string, crName string, crbName string, serverN
 	Ω(err).NotTo(HaveOccurred())
 	ginkgo.By("Create cluster role " + crName)
 
-	_, err = kClient.CreateClusterRoleBinding(crbName ,crName, dev, svaName)
+	_, err = kClient.CreateClusterRoleBinding(crbName, crName, dev, svaName)
 	Ω(err).NotTo(HaveOccurred())
 	ginkgo.By("Create cluster role binding " + crbName)
+}
 
+func createNfsProvisioner(svaName string, serverName string, scName string) {
 	// Create nfs provisioner
 	nfsProvisioner := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -281,7 +286,6 @@ func createNfsProvisioner(svaName string, crName string, crbName string, serverN
 									Name:  "OPENEBS_IO_NFS_SERVER_IMG",
 									Value: "openebs/nfs-server-alpine:0.10.0",
 								},
-
 							},
 							Resources: v1.ResourceRequirements{
 								Requests: v1.ResourceList{
@@ -300,7 +304,7 @@ func createNfsProvisioner(svaName string, crName string, crbName string, serverN
 		},
 	}
 
-	_, err = kClient.CreateDeployment(nfsProvisioner, dev)
+	_, err := kClient.CreateDeployment(nfsProvisioner, dev)
 	Ω(err).NotTo(HaveOccurred())
 	ginkgo.By("Create nfs provisioner " + serverName)
 
@@ -309,7 +313,7 @@ func createNfsProvisioner(svaName string, crName string, crbName string, serverN
 		ObjectMeta: metav1.ObjectMeta{
 			Name: scName,
 			Annotations: map[string]string{
-				"openebs.io/cas-type": "nfsrwx",
+				"openebs.io/cas-type":   "nfsrwx",
 				"cas.openebs.io/config": "- name: NFSServerType\n  value: \"kernel\"\n- name: BackendStorageClass\n  value: \"standard\"\n",
 			},
 		},
@@ -327,7 +331,6 @@ func deleteNfsRelatedRoles(serviceAccount string, clusterRole string, clusterRol
 
 	err = kClient.DeleteClusterRole(clusterRole)
 	Ω(err).NotTo(HaveOccurred())
-
 
 	err = kClient.DeleteServiceAccount(serviceAccount, dev)
 	Ω(err).NotTo(HaveOccurred())

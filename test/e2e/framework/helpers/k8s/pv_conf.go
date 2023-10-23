@@ -38,7 +38,7 @@ type PvConfig struct {
 func InitPersistentVolume(conf PvConfig) (*v1.PersistentVolume, error) {
 	pv := &v1.PersistentVolume{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:   conf.Name,
+			Name: conf.Name,
 		},
 		Spec: v1.PersistentVolumeSpec{
 			Capacity: v1.ResourceList{
@@ -46,7 +46,7 @@ func InitPersistentVolume(conf PvConfig) (*v1.PersistentVolume, error) {
 			},
 			AccessModes:                   conf.AccessModes,
 			PersistentVolumeReclaimPolicy: v1.PersistentVolumeReclaimRetain,
-			StorageClassName: conf.StorageClass,
+			StorageClassName:              conf.StorageClass,
 		},
 	}
 	if conf.Source == "Local" {
@@ -61,11 +61,11 @@ func InitPersistentVolume(conf PvConfig) (*v1.PersistentVolume, error) {
 				Required: &v1.NodeSelector{
 					NodeSelectorTerms: []v1.NodeSelectorTerm{
 						{
-							MatchExpressions: []v1.NodeSelectorRequirement {
+							MatchExpressions: []v1.NodeSelectorRequirement{
 								{
-									Key: "fakeKey",
+									Key:      "fakeKey",
 									Operator: v1.NodeSelectorOpNotIn,
-									Values: []string{"fakeValue"},
+									Values:   []string{"fakeValue"},
 								},
 							},
 						},
@@ -91,24 +91,24 @@ func InitStorageClass(conf ScConfig) (*storagev1.StorageClass, error) {
 			Name: conf.Name,
 		},
 		Provisioner: conf.Provisioner,
-		Parameters: conf.Parameters,
+		Parameters:  conf.Parameters,
 	}
 	return sc, nil
 }
 
 type PvcConfig struct {
-	Name       string
-	Capacity   string
-	VolumeName string
-	StorageClassName     string
+	Name             string
+	Capacity         string
+	VolumeName       string
+	StorageClassName string
 }
 
-func InitPersistentVolumeClaim (conf PvcConfig)(*v1.PersistentVolumeClaim, error) {
+func InitPersistentVolumeClaim(conf PvcConfig) (*v1.PersistentVolumeClaim, error) {
 	pvc := &v1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: conf.Name,
 		},
-		Spec: v1.PersistentVolumeClaimSpec {
+		Spec: v1.PersistentVolumeClaimSpec{
 			AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
 			Resources: v1.ResourceRequirements{
 				Requests: v1.ResourceList{

@@ -1376,7 +1376,7 @@ func (k *KubeCtl) DeleteWorkloadAndPods(objectName string, wlType WorkloadType, 
 	gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
 }
 
-func (k *KubeCtl) CreatePersistentVolume(pv *v1.PersistentVolume)(*v1.PersistentVolume, error) {
+func (k *KubeCtl) CreatePersistentVolume(pv *v1.PersistentVolume) (*v1.PersistentVolume, error) {
 	return k.clientSet.CoreV1().PersistentVolumes().Create(context.TODO(), pv, metav1.CreateOptions{})
 }
 
@@ -1384,7 +1384,7 @@ func (k *KubeCtl) CreatePersistentVolumeClaim(pvc *v1.PersistentVolumeClaim, ns 
 	return k.clientSet.CoreV1().PersistentVolumeClaims(ns).Create(context.TODO(), pvc, metav1.CreateOptions{})
 }
 
-func (k *KubeCtl) CreateStorageClass(sc *storagev1.StorageClass)(*storagev1.StorageClass, error)  {
+func (k *KubeCtl) CreateStorageClass(sc *storagev1.StorageClass) (*storagev1.StorageClass, error) {
 	return k.clientSet.StorageV1().StorageClasses().Create(context.TODO(), sc, metav1.CreateOptions{})
 }
 
@@ -1394,15 +1394,15 @@ func (k *KubeCtl) GetPersistentVolume(name string) (*v1.PersistentVolume, error)
 }
 
 func (k *KubeCtl) WaitForPersistentVolumeAvailable(name string, timeout time.Duration) error {
-	return wait.PollImmediate(time.Second, timeout, k.isPersistentVolumeAvailable(name))
+	return wait.PollUntilContextTimeout(context.TODO(), time.Millisecond*200, timeout, true, k.isPersistentVolumeAvailable(name))
 }
 
 func (k *KubeCtl) WaitForPersistentVolumeClaimPresent(namespace string, name string, timeout time.Duration) error {
-	return wait.PollImmediate(time.Second, timeout, k.isPersistentVolumeClaimPresent(namespace, name))
+	return wait.PollUntilContextTimeout(context.TODO(), time.Millisecond*200, timeout, true, k.isPersistentVolumeClaimPresent(namespace, name))
 }
 
-func (k *KubeCtl) isPersistentVolumeAvailable(name string) wait.ConditionFunc {
-	return func() (bool, error) {
+func (k *KubeCtl) isPersistentVolumeAvailable(name string) wait.ConditionWithContextFunc {
+	return func(context.Context) (bool, error) {
 		pv, err := k.GetPersistentVolume(name)
 		if err != nil {
 			return false, err
@@ -1414,8 +1414,8 @@ func (k *KubeCtl) isPersistentVolumeAvailable(name string) wait.ConditionFunc {
 	}
 }
 
-func (k *KubeCtl) isPersistentVolumeClaimPresent(namespace string, name string) wait.ConditionFunc {
-	return func() (bool, error) {
+func (k *KubeCtl) isPersistentVolumeClaimPresent(namespace string, name string) wait.ConditionWithContextFunc {
+	return func(context.Context) (bool, error) {
 		_, err := k.clientSet.CoreV1().PersistentVolumeClaims(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
 			return false, err
@@ -1445,7 +1445,7 @@ func (k *KubeCtl) GetPvNameListFromNs(namespace string) ([]string, error) {
 	}
 
 	for _, item := range pvList.Items {
-		if item.Spec.ClaimRef.Namespace == namespace{
+		if item.Spec.ClaimRef.Namespace == namespace {
 			arr = append(arr, item.Name)
 		}
 	}
@@ -1460,7 +1460,7 @@ func (k *KubeCtl) DeletePersistentVolume(pvName string) error {
 	return nil
 }
 
-func(k *KubeCtl) DeletePersistentVolumeClaim(pvcName string, namespace string) error {
+func (k *KubeCtl) DeletePersistentVolumeClaim(pvcName string, namespace string) error {
 	err := k.clientSet.CoreV1().PersistentVolumeClaims(namespace).Delete(context.TODO(), pvcName, metav1.DeleteOptions{})
 	if err != nil {
 		return err

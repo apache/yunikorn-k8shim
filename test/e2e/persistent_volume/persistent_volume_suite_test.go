@@ -18,7 +18,7 @@
 
 package persistent_volume
 
-import(
+import (
 	"path/filepath"
 	"testing"
 
@@ -34,7 +34,7 @@ func init() {
 }
 
 func TestPersistentVolume(t *testing.T) {
-	ginkgo.ReportAfterSuite("TestPersistentVolume", func (report ginkgo.Report){
+	ginkgo.ReportAfterSuite("TestPersistentVolume", func(report ginkgo.Report) {
 		err := reporters.GenerateJUnitReportWithConfig(
 			report,
 			filepath.Join(configmanager.YuniKornTestConfig.LogDir, "TEST-persistent_volume_junit.xml"),

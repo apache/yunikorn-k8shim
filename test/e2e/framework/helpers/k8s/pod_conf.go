@@ -235,8 +235,7 @@ func InitTestPod(conf TestPodConfig) (*v1.Pod, error) { //nolint:funlen
 				},
 			}
 		} else if conf.PvName != "" {
-				pod.Spec.Volumes = []v1.Volume {
-			}
+			pod.Spec.Volumes = []v1.Volume{}
 		}
 	}
 	return pod, nil
