@@ -471,10 +471,7 @@ func (cache *SchedulerCache) removePod(pod *v1.Pod) {
 func (cache *SchedulerCache) GetPod(uid string) (*v1.Pod, bool) {
 	cache.lock.RLock()
 	defer cache.lock.RUnlock()
-	if pod, ok := cache.podsMap[uid]; ok {
-		return pod, true
-	}
-	return nil, false
+	return cache.GetPodNoLock(uid)
 }
 
 func (cache *SchedulerCache) GetPodNoLock(uid string) (*v1.Pod, bool) {
