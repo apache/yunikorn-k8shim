@@ -160,7 +160,7 @@ func TestGetAppMetadata(t *testing.T) { //nolint:funlen
 	assert.Equal(t, app.User, constants.DefaultUser)
 	assert.Equal(t, app.Tags["application.stateaware.disable"], "true")
 	assert.Equal(t, app.Tags["namespace"], "app-namespace-01")
-	assert.DeepEqual(t, len(app.TaskGroups), 0)
+	assert.Equal(t, len(app.TaskGroups), 0)
 	assert.Equal(t, app.SchedulingPolicyParameters.GetGangSchedulingStyle(), "Hard")
 
 	pod = v1.Pod{
