@@ -477,6 +477,13 @@ func (cache *SchedulerCache) GetPod(uid string) (*v1.Pod, bool) {
 	return nil, false
 }
 
+func (cache *SchedulerCache) GetPodNoLock(uid string) (*v1.Pod, bool) {
+	if pod, ok := cache.podsMap[uid]; ok {
+		return pod, true
+	}
+	return nil, false
+}
+
 func (cache *SchedulerCache) AssumePod(pod *v1.Pod, allBound bool) {
 	cache.lock.Lock()
 	defer cache.lock.Unlock()
