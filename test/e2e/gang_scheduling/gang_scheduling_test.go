@@ -71,7 +71,7 @@ var _ = Describe("", func() {
 
 		minResource = map[string]resource.Quantity{
 			v1.ResourceCPU.String():    resource.MustParse("10m"),
-			v1.ResourceMemory.String(): resource.MustParse("10M"),
+			v1.ResourceMemory.String(): resource.MustParse("20M"),
 		}
 		jobNames = []string{}
 		appID = "appid-" + common.RandSeq(5)
