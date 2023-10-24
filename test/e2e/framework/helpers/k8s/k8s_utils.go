@@ -756,12 +756,12 @@ func (k *KubeCtl) WaitForPodCount(namespace string, wanted int, timeout time.Dur
 	return wait.PollUntilContextTimeout(context.TODO(), time.Millisecond*100, timeout, false, k.isNumPod(namespace, wanted).WithContext())
 }
 
-func (k *KubeCtl) WaitForPodStateStable(namespace string, podName string, timeout time.Duration) (error, v1.PodPhase) {
+func (k *KubeCtl) WaitForPodStateStable(namespace string, podName string, timeout time.Duration) (v1.PodPhase, error) {
 	var lastPhase v1.PodPhase
 	samePhases := 0
 
 	err := wait.PollUntilContextTimeout(context.TODO(), time.Second, timeout, false, k.isPodStable(namespace, podName, &samePhases, 3, &lastPhase).WithContext())
-	return err, lastPhase
+	return lastPhase, err
 }
 
 // Returns the list of currently scheduled or running pods in `namespace` with the given selector

@@ -200,7 +200,7 @@ func CompareQueueMap(a map[string]interface{}, b map[string]interface{}) (bool, 
 func GetSubQueues(q map[string]interface{}) ([]map[string]interface{}, error) {
 	qs, ok := q["queues"]
 	if !ok {
-		return nil, fmt.Errorf("Invalid arguments")
+		return nil, fmt.Errorf("invalid arguments")
 	}
 
 	if qs == nil {

@@ -131,7 +131,7 @@ func RestartYunikornAndAddTolerations(kClient *k8s.KubeCtl, addTolerations bool,
 	if addTolerations {
 		schedulerPodName, err = kClient.GetSchedulerPod()
 		Ω(err).NotTo(gomega.HaveOccurred())
-		err2, ykPhase := kClient.WaitForPodStateStable(configmanager.YuniKornTestConfig.YkNamespace, schedulerPodName, 30*time.Second)
+		ykPhase, err2 := kClient.WaitForPodStateStable(configmanager.YuniKornTestConfig.YkNamespace, schedulerPodName, 30*time.Second)
 		Ω(err2).NotTo(gomega.HaveOccurred())
 		if ykPhase == v1.PodPending {
 			fmt.Fprintf(ginkgo.GinkgoWriter, "Scheduler pod is in Pending state\n")

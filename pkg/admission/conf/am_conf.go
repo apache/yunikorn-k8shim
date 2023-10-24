@@ -397,17 +397,6 @@ func parseConfigBool(config map[string]string, key string, defaultValue bool) bo
 	return result
 }
 
-func parseConfigInt(config map[string]string, key string, defaultValue int) int {
-	value := parseConfigString(config, key, fmt.Sprintf("%d", defaultValue))
-	result, err := strconv.ParseInt(value, 10, 31)
-	if err != nil {
-		log.Log(log.AdmissionConf).Error("Unable to parse int value, using default",
-			zap.String("key", key), zap.String("value", value), zap.Int("default", defaultValue), zap.Error(err))
-		return defaultValue
-	}
-	return int(result)
-}
-
 func parseConfigString(config map[string]string, key string, defaultValue string) string {
 	if value, ok := config[key]; ok {
 		return value

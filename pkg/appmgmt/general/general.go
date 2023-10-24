@@ -120,9 +120,9 @@ func getOwnerReference(pod *v1.Pod) []metav1.OwnerReference {
 
 // filter pods by scheduler name and state
 func (os *Manager) filterPods(obj interface{}) bool {
-	switch obj.(type) {
+	switch object := obj.(type) {
 	case *v1.Pod:
-		pod := obj.(*v1.Pod)
+		pod := object
 		return utils.GetApplicationIDFromPod(pod) != ""
 	default:
 		return false

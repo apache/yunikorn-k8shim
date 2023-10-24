@@ -69,7 +69,6 @@ type WebhookManager interface {
 
 type webhookManagerImpl struct {
 	conf             *conf.AdmissionControllerConf
-	namespace        string
 	serviceName      string
 	clientset        kubernetes.Interface
 	conflictAttempts int
