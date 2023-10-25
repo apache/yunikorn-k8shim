@@ -22,8 +22,8 @@ go 1.20
 
 require (
 	github.com/GoogleCloudPlatform/spark-on-k8s-operator v0.0.0-20201215015655-2e8b733f5ad0
-	github.com/apache/yunikorn-core v0.0.0-20230914150517-9dd3df7dadb2
-	github.com/apache/yunikorn-scheduler-interface v0.0.0-20230914150238-ff06224fc98d
+	github.com/apache/yunikorn-core v0.0.0-20231025072825-bc7c00124c4c
+	github.com/apache/yunikorn-scheduler-interface v0.0.0-20231020041412-6f80d179257c
 	github.com/google/go-cmp v0.5.9
 	github.com/google/uuid v1.3.0
 	github.com/looplab/fsm v1.0.1
@@ -127,12 +127,12 @@ require (
 	go.starlark.net v0.0.0-20200306205701-8dd3e2ee1dd5 // indirect
 	go.uber.org/atomic v1.7.0 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
-	golang.org/x/crypto v0.13.0 // indirect
-	golang.org/x/net v0.15.0 // indirect
+	golang.org/x/crypto v0.14.0 // indirect
+	golang.org/x/net v0.17.0 // indirect
 	golang.org/x/oauth2 v0.7.0 // indirect
 	golang.org/x/sync v0.3.0 // indirect
-	golang.org/x/sys v0.12.0 // indirect
-	golang.org/x/term v0.12.0 // indirect
+	golang.org/x/sys v0.13.0 // indirect
+	golang.org/x/term v0.13.0 // indirect
 	golang.org/x/text v0.13.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
 	golang.org/x/tools v0.13.0 // indirect
@@ -163,10 +163,10 @@ require (
 )
 
 replace (
-	golang.org/x/crypto => golang.org/x/crypto v0.13.0
+	golang.org/x/crypto => golang.org/x/crypto v0.14.0
 	golang.org/x/lint => golang.org/x/lint v0.0.0-20210508222113-6edffad5e616
-	golang.org/x/net => golang.org/x/net v0.15.0
-	golang.org/x/sys => golang.org/x/sys v0.12.0
+	golang.org/x/net => golang.org/x/net v0.17.0
+	golang.org/x/sys => golang.org/x/sys v0.13.0
 	golang.org/x/text => golang.org/x/text v0.13.0
 	golang.org/x/tools => golang.org/x/tools v0.13.0
 	k8s.io/api => k8s.io/api v0.27.3
