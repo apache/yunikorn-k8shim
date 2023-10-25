@@ -271,7 +271,9 @@ func NewSchedulerPlugin(_ runtime.Object, handle framework.Handle) (framework.Pl
 	// we need our own informer factory here because the informers we get from the framework handle aren't yet initialized
 	informerFactory := informers.NewSharedInformerFactory(handle.ClientSet(), 0)
 	ss := shim.NewShimSchedulerForPlugin(serviceContext.RMProxy, informerFactory, conf.GetSchedulerConf(), configMaps)
-	ss.Run()
+	if err := ss.Run(); err != nil {
+		log.Log(log.ShimSchedulerPlugin).Fatal("Unable to start scheduler", zap.Error(err))
+	}
 
 	p := &YuniKornSchedulerPlugin{
 		context: ss.GetContext(),
