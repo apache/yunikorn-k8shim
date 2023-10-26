@@ -52,7 +52,7 @@ func main() {
 	if serviceContext.RMProxy != nil {
 		ss := shim.NewShimScheduler(serviceContext.RMProxy, conf.GetSchedulerConf(), configMaps)
 		if err := ss.Run(); err != nil {
-			log.Log(log.Shim).Fatal("Unable tto start scheduler", zap.Error(err))
+			log.Log(log.Shim).Fatal("Unable to start scheduler", zap.Error(err))
 		}
 
 		signalChan := make(chan os.Signal, 1)
