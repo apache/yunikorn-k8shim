@@ -144,8 +144,12 @@ var _ = Describe("", func() {
 
 		// Verify that all the spark jobs are scheduled and are in running state.
 		for _, id := range appIds {
-			By(fmt.Sprintf("Verify if app: %s is in running state", id))
-			err = restClient.WaitForAppStateTransition("default", "root."+sparkNS, id, yunikorn.States().Application.Running, 360)
+			By(fmt.Sprintf("Verify driver pod for application %s has been created.", id))
+			err = kClient.WaitForPodBySelector(sparkNS, fmt.Sprintf("spark-app-selector=%s, spark-role=driver", id), 180*time.Second)
+			Ω(err).ShouldNot(HaveOccurred())
+
+			By(fmt.Sprintf("Verify driver pod for application %s was completed.", id))
+			err = kClient.WaitForPodBySelectorSucceeded(sparkNS, fmt.Sprintf("spark-app-selector=%s, spark-role=driver", id), 360*time.Second)
 			Ω(err).NotTo(HaveOccurred())
 		}
 	})
