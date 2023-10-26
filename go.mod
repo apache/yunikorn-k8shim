@@ -42,7 +42,7 @@ require (
 	k8s.io/klog v1.0.0
 	k8s.io/kube-scheduler v0.27.3
 	k8s.io/kubectl v0.27.3
-	k8s.io/kubernetes v1.27.3
+	k8s.io/kubernetes v1.26.0-alpha.1
 )
 
 require (
@@ -139,20 +139,17 @@ require (
 	google.golang.org/genproto v0.0.0-20230711160842-782d3b101e98 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20230711160842-782d3b101e98 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20230711160842-782d3b101e98 // indirect
-	google.golang.org/grpc v1.58.2 // indirect
+	google.golang.org/grpc v1.58.3 // indirect
 	google.golang.org/protobuf v1.31.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	k8s.io/cloud-provider v0.27.3 // indirect
 	k8s.io/component-helpers v0.27.3 // indirect
-	k8s.io/controller-manager v0.27.3 // indirect
 	k8s.io/csi-translation-lib v0.27.3 // indirect
-	k8s.io/dynamic-resource-allocation v0.0.0 // indirect
 	k8s.io/klog/v2 v2.100.1 // indirect
 	k8s.io/kms v0.27.3 // indirect
 	k8s.io/kube-openapi v0.0.0-20230501164219-8b0f38b5fd1f // indirect
-	k8s.io/kubelet v0.0.0 // indirect
 	k8s.io/mount-utils v0.27.3 // indirect
 	k8s.io/utils v0.0.0-20230209194617-a36077c30491 // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.1.2 // indirect
