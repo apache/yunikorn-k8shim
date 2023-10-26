@@ -149,7 +149,7 @@ func TestNewPlaceholderWithLabelsAndAnnotations(t *testing.T) {
 	assert.Equal(t, holder.pod.Annotations["annotationKey1"], "annotationValue1")
 	assert.Equal(t, holder.pod.Annotations["annotationKey2"], "annotationValue2")
 	var taskGroupsDef []interfaces.TaskGroup
-	err = json.Unmarshal([]byte(holder.pod.Annotations["yunikorn.apache.org/task-groups"]), &taskGroupsDef)
+	err = json.Unmarshal([]byte(holder.pod.Annotations[siCommon.DomainYuniKorn+"task-groups"]), &taskGroupsDef)
 	assert.NilError(t, err, "taskGroupsDef unmarshal failed")
 	var priority *int32
 	assert.Equal(t, priority, holder.pod.Spec.Priority)

@@ -138,7 +138,7 @@ func TestGetAppMetadata(t *testing.T) { //nolint:funlen
 			Labels: map[string]string{
 				"applicationId":            "app00002",
 				"queue":                    "root.b",
-				"yunikorn.apache.org/user": "testuser",
+				constants.DomainYuniKorn + "user": "testuser",
 				"disableStateAware":        "true",
 			},
 			Annotations: map[string]string{
@@ -202,7 +202,7 @@ func TestGetAppMetadata(t *testing.T) { //nolint:funlen
 			Labels: map[string]string{
 				"applicationId":            "app00002",
 				"queue":                    "root.b",
-				"yunikorn.apache.org/user": "testuser",
+				constants.DomainYuniKorn + "user": "testuser",
 			},
 			Annotations: map[string]string{
 				constants.AnnotationSchedulingPolicyParam: "gangSchedulingStyle=Hard=Soft",
