@@ -80,7 +80,7 @@ func BenchmarkSchedulingThroughPut(b *testing.B) {
 
 	cluster := &MockScheduler{}
 	cluster.init()
-	cluster.start()
+	assert.NilError(b, cluster.start(), "failed to initialize cluster")
 	defer cluster.stop()
 
 	if profileCpu {
@@ -101,8 +101,7 @@ func BenchmarkSchedulingThroughPut(b *testing.B) {
 		}(f)
 	}
 
-	// init scheduler & update config
-	cluster.waitForSchedulerState(b, SchedulerStates().Running)
+	// update config
 	err := cluster.updateConfig(queueConfig, map[string]string{
 		"log.level": "WARN",
 	})

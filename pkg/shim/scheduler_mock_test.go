@@ -81,10 +81,14 @@ func (fc *MockScheduler) init() {
 	fc.apiProvider = mockedAPIProvider
 }
 
-func (fc *MockScheduler) start() {
+func (fc *MockScheduler) start() error {
 	fc.apiProvider.RunEventHandler() // must be called first
-	fc.scheduler.Run()
+	if err := fc.scheduler.Run(); err != nil {
+		fc.started.Store(false)
+		return err
+	}
 	fc.started.Store(true)
+	return nil
 }
 
 func (fc *MockScheduler) updateConfig(queues string, extraConfig map[string]string) error {
@@ -170,23 +174,6 @@ func (fc *MockScheduler) addTask(appID string, taskID string, ask *si.Resource) 
 			Pod:           pod,
 		},
 	})
-}
-
-func (fc *MockScheduler) waitForSchedulerState(t testing.TB, expectedState string) {
-	deadline := time.Now().Add(10 * time.Second)
-	for {
-		if fc.scheduler.GetSchedulerState() == expectedState {
-			break
-		}
-		log.Log(log.Test).Info("waiting for scheduler state",
-			zap.String("expected", expectedState),
-			zap.String("actual", fc.scheduler.GetSchedulerState()))
-		time.Sleep(time.Second)
-		if time.Now().After(deadline) {
-			t.Errorf("wait for scheduler to reach state %s failed, current state %s",
-				expectedState, fc.scheduler.GetSchedulerState())
-		}
-	}
 }
 
 func (fc *MockScheduler) waitAndAssertApplicationState(t *testing.T, appID, expectedState string) {
