@@ -23,6 +23,7 @@ import (
 	"compress/gzip"
 	"encoding/base64"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -585,6 +586,26 @@ func TestGetApplicationIDFromPod(t *testing.T) {
 			assert.Equal(t, appID, tc.expectedAppID)
 		})
 	}
+}
+
+func TestGenerateApplicationID(t *testing.T) {
+	assert.Equal(t, "yunikorn-this-is-a-namespace-autogen",
+		GenerateApplicationID("this-is-a-namespace", false, "pod-uid"))
+
+	assert.Equal(t, "this-is-a-namespace-pod-uid",
+		GenerateApplicationID("this-is-a-namespace", true, "pod-uid"))
+
+	assert.Equal(t, "yunikorn-short-autogen",
+		GenerateApplicationID("short", false, "pod-uid"))
+
+	assert.Equal(t, "short-pod-uid",
+		GenerateApplicationID("short", true, "pod-uid"))
+
+	assert.Equal(t, "yunikorn-longlonglonglonglonglonglonglonglonglonglonglonglonglo",
+		GenerateApplicationID(strings.Repeat("long", 100), false, "pod-uid"))
+
+	assert.Equal(t, "longlonglonglonglonglonglo-pod-uid",
+		GenerateApplicationID(strings.Repeat("long", 100), true, "pod-uid"))
 }
 
 func TestMergeMaps(t *testing.T) {
