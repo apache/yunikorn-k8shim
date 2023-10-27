@@ -55,7 +55,6 @@ type Task struct {
 	taskGroupName   string
 	placeholder     bool
 	terminationType string
-	pluginMode      bool
 	originator      bool
 	schedulingState interfaces.TaskSchedulingState
 	sm              *fsm.FSM
@@ -88,10 +87,6 @@ func NewFromTaskMeta(tid string, app *Application, ctx *Context, metadata interf
 
 func createTaskInternal(tid string, app *Application, resource *si.Resource,
 	pod *v1.Pod, placeholder bool, taskGroupName string, ctx *Context, originator bool) *Task {
-	var pluginMode bool
-	if ctx != nil {
-		pluginMode = ctx.IsPluginMode()
-	}
 	task := &Task{
 		taskID:          tid,
 		alias:           fmt.Sprintf("%s/%s", pod.Namespace, pod.Name),
@@ -103,7 +98,6 @@ func createTaskInternal(tid string, app *Application, resource *si.Resource,
 		createTime:      pod.GetCreationTimestamp().Time,
 		placeholder:     placeholder,
 		taskGroupName:   taskGroupName,
-		pluginMode:      pluginMode,
 		originator:      originator,
 		context:         ctx,
 		sm:              newTaskState(),
@@ -344,7 +338,7 @@ func (task *Task) postTaskAllocated() {
 		defer task.lock.Unlock()
 
 		// plugin mode means we delegate this work to the default scheduler
-		if task.pluginMode {
+		if utils.IsPluginMode() {
 			log.Log(log.ShimCacheTask).Debug("allocating pod",
 				zap.String("podName", task.pod.Name),
 				zap.String("podUID", string(task.pod.UID)))
@@ -423,7 +417,7 @@ func (task *Task) beforeTaskAllocated(eventSrc string, allocUUID string, nodeID 
 }
 
 func (task *Task) postTaskBound() {
-	if task.pluginMode {
+	if utils.IsPluginMode() {
 		// When the pod is actively scheduled by YuniKorn, it can be  moved to the default-scheduler's
 		// UnschedulablePods structure. If the pod does not change, the pod will stay in the UnschedulablePods
 		// structure for podMaxInUnschedulablePodsDuration (default 5 minutes). Here we update the pod
