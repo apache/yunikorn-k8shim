@@ -28,6 +28,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
+	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 )
 
@@ -75,15 +76,15 @@ func getGangSchedulingAnnotations(placeholderTimeout int,
 	}
 
 	if schedulingParams != "" {
-		annotations["yunikorn.apache.org/schedulingPolicyParameters"] = schedulingParams
+		annotations[constants.DomainYuniKorn+"schedulingPolicyParameters"] = schedulingParams
 	}
 
-	annotations["yunikorn.apache.org/task-group-name"] = taskGroupName
+	annotations[constants.DomainYuniKorn+"task-group-name"] = taskGroupName
 	taskGroupJSON, err := json.Marshal(taskGroups)
 	if err != nil {
 		panic("Unable to marshal taskGroups")
 	}
-	annotations["yunikorn.apache.org/task-groups"] = string(taskGroupJSON)
+	annotations[constants.DomainYuniKorn+"task-groups"] = string(taskGroupJSON)
 
 	return annotations
 }

@@ -22,14 +22,12 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"math/rand"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/onsi/ginkgo/v2"
@@ -56,8 +54,8 @@ func GetAbsPath(p string) (string, error) {
 // GetTestName returns the test Name in a single string without spaces or /
 func GetTestName() string {
 	//nolint
-	testDesc := ginkgo.CurrentGinkgoTestDescription()
-	name := strings.Replace(testDesc.FullTestText, " ", "_", -1)
+	testReport := ginkgo.CurrentSpecReport()
+	name := strings.ReplaceAll(testReport.FullText(), " ", "_")
 	name = strings.Trim(name, "*")
 	return strings.Replace(name, "/", "-", -1)
 }
@@ -101,12 +99,12 @@ func CreateLogFile(filename string, data []byte) error {
 	}
 
 	finalPath := filepath.Join(path, filename)
-	err = ioutil.WriteFile(finalPath, data, configmanager.LogPerm)
+	err = os.WriteFile(finalPath, data, configmanager.LogPerm)
 	return err
 }
 
 func GetFileContents(filename string) ([]byte, error) {
-	data, err := ioutil.ReadFile(filename)
+	data, err := os.ReadFile(filename)
 	return data, err
 }
 
@@ -116,7 +114,6 @@ func GetUUID() string {
 
 func RandSeq(n int) string {
 	var letters = []rune("abcdefghijklmnopqrstuvwxyz0123456789")
-	rand.Seed(time.Now().UnixNano())
 	b := make([]rune, n)
 	for i := range b {
 		b[i] = letters[rand.Intn(len(letters))]
@@ -203,7 +200,7 @@ func CompareQueueMap(a map[string]interface{}, b map[string]interface{}) (bool, 
 func GetSubQueues(q map[string]interface{}) ([]map[string]interface{}, error) {
 	qs, ok := q["queues"]
 	if !ok {
-		return nil, fmt.Errorf("Invalid arguments")
+		return nil, fmt.Errorf("invalid arguments")
 	}
 
 	if qs == nil {

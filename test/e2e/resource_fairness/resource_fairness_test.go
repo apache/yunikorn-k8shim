@@ -19,6 +19,7 @@
 package resourcefairness_test
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"time"
@@ -153,7 +154,7 @@ var _ = Describe("FairScheduling:", func() {
 			Ω(err).NotTo(HaveOccurred())
 
 			// Wait till requests has been added to application
-			err := wait.PollImmediate(300*time.Millisecond, 60*time.Second, func() (bool, error) {
+			err := wait.PollUntilContextTimeout(context.TODO(), 300*time.Millisecond, 60*time.Second, false, func(context.Context) (bool, error) {
 				app, err := restClient.GetAppInfo("default", queuePath, appID)
 				if err != nil {
 					return false, nil

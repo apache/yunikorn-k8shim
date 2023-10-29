@@ -40,7 +40,6 @@ const (
 	EventTypeApp EventType = iota
 	EventTypeTask
 	EventTypeNode
-	EventTypeScheduler
 )
 
 var (
@@ -194,8 +193,6 @@ func Start() {
 					getEventHandler(EventTypeApp)(v)
 				case events.SchedulerNodeEvent:
 					getEventHandler(EventTypeNode)(v)
-				case events.SchedulerEvent:
-					getEventHandler(EventTypeScheduler)(v)
 				default:
 					log.Log(log.ShimDispatcher).Fatal("unsupported event",
 						zap.Any("event", v))

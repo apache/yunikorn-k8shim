@@ -15,8 +15,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Update this queue yaml to the yunikorn-configs configmap before trying this example.
-queue.yaml: |
+# Update the queues.yaml to the yunikorn-configs configmap before trying this example.
+queues.yaml: |
   partitions:
     - name: default
       placementrules:
@@ -26,4 +26,3 @@ queue.yaml: |
       queues:
       - name: root
         submitacl: '*'
-

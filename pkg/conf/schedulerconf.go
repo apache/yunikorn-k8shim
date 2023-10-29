@@ -19,10 +19,14 @@
 package conf
 
 import (
+	"bytes"
+	"compress/gzip"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"strings"
@@ -456,12 +460,50 @@ func DumpConfiguration() {
 	}
 }
 
+func Decompress(key string, value []byte) (string, string) {
+	var uncompressedData string
+	decodedValue := make([]byte, base64.StdEncoding.DecodedLen(len(value)))
+	n, err := base64.StdEncoding.Decode(decodedValue, value)
+	if err != nil {
+		log.Log(log.ShimConfig).Error("failed to decode schedulerConfig entry", zap.Error(err))
+		return "", ""
+	}
+	decodedValue = decodedValue[:n]
+	splitKey := strings.Split(key, ".")
+	compressionAlgo := splitKey[len(splitKey)-1]
+	if strings.EqualFold(compressionAlgo, constants.GzipSuffix) {
+		reader := bytes.NewReader(decodedValue)
+		gzReader, err := gzip.NewReader(reader)
+		if err != nil {
+			log.Log(log.ShimConfig).Error("failed to decompress decoded schedulerConfig entry", zap.Error(err))
+			return "", ""
+		}
+		defer func() {
+			if err = gzReader.Close(); err != nil {
+				log.Log(log.ShimConfig).Debug("gzip Reader could not be closed ", zap.Error(err))
+			}
+		}()
+		decompressedBytes, err := io.ReadAll(gzReader)
+		if err != nil {
+			log.Log(log.ShimConfig).Error("failed to decompress decoded schedulerConfig entry", zap.Error(err))
+			return "", ""
+		}
+		uncompressedData = string(decompressedBytes)
+	}
+	strippedKey, _ := strings.CutSuffix(key, "."+compressionAlgo)
+	return strippedKey, uncompressedData
+}
+
 func FlattenConfigMaps(configMaps []*v1.ConfigMap) map[string]string {
 	result := make(map[string]string)
 	for _, configMap := range configMaps {
 		if configMap != nil {
 			for k, v := range configMap.Data {
 				result[k] = v
+			}
+			for k, v := range configMap.BinaryData {
+				strippedKey, uncompressedData := Decompress(k, v)
+				result[strippedKey] = uncompressedData
 			}
 		}
 	}

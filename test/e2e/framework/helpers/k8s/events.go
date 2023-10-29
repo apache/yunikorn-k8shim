@@ -107,7 +107,7 @@ func ObserveEventAfterAction(c clientset.Interface, ns string, eventPredicate fu
 	// Wait up 2 minutes polling every second.
 	timeout := 2 * time.Minute
 	interval := 1 * time.Second
-	err = wait.Poll(interval, timeout, func() (bool, error) {
+	err = wait.PollUntilContextTimeout(context.TODO(), interval, timeout, false, func(context.Context) (bool, error) {
 		return observedMatchingEvent, nil
 	})
 	return err == nil, err

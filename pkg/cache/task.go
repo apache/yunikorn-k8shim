@@ -435,7 +435,7 @@ func (task *Task) postTaskBound() {
 			if pod.Annotations == nil {
 				pod.Annotations = make(map[string]string)
 			}
-			pod.Annotations["yunikorn.apache.org/scheduled-at"] = strconv.FormatInt(time.Now().UnixNano(), 10)
+			pod.Annotations[constants.DomainYuniKorn+"scheduled-at"] = strconv.FormatInt(time.Now().UnixNano(), 10)
 		}); err != nil {
 			log.Log(log.ShimCacheTask).Warn("failed to update pod status", zap.Error(err))
 		}

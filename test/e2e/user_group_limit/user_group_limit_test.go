@@ -95,12 +95,6 @@ var _ = ginkgo.AfterSuite(func() {
 	checks, err := yunikorn.GetFailedHealthChecks()
 	Ω(err).NotTo(gomega.HaveOccurred())
 	Ω(checks).To(gomega.Equal(""), checks)
-
-	testDescription := ginkgo.CurrentSpecReport()
-	if testDescription.Failed() {
-		tests.LogTestClusterInfoWrapper(testDescription.FailureMessage(), []string{ns.Name})
-		tests.LogYunikornContainer(testDescription.FailureMessage())
-	}
 	ginkgo.By("Tearing down namespace: " + ns.Name)
 	err = kClient.TearDownNamespace(ns.Name)
 	Ω(err).NotTo(gomega.HaveOccurred())
@@ -368,6 +362,11 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 	})
 
 	ginkgo.AfterEach(func() {
+		testDescription := ginkgo.CurrentSpecReport()
+		if testDescription.Failed() {
+			tests.LogTestClusterInfoWrapper(testDescription.FailureMessage(), []string{ns.Name})
+			tests.LogYunikornContainer(testDescription.FailureMessage())
+		}
 		// Delete all sleep pods
 		ginkgo.By("Delete all sleep pods")
 		err := kClient.DeletePods(ns.Name)

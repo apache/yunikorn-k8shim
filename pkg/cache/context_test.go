@@ -468,12 +468,12 @@ func TestUpdatePodInCache(t *testing.T) {
 
 	// ensure a terminated pod is removed
 	context.updatePodInCache(pod1, pod3)
-	found, ok := context.schedulerCache.GetPod("UID-00001")
+	_, ok = context.schedulerCache.GetPod("UID-00001")
 	assert.Check(t, !ok, "pod still found after termination")
 
 	// ensure a non-terminated pod is updated
 	context.updatePodInCache(pod1, pod2)
-	found, ok = context.schedulerCache.GetPod("UID-00001")
+	found, ok := context.schedulerCache.GetPod("UID-00001")
 	if assert.Check(t, ok, "pod not found after update") {
 		assert.Check(t, found.GetAnnotations()["test.state"] == "updated", "pod state not updated")
 	}
@@ -1165,7 +1165,7 @@ func TestAddApplicationsWithTags(t *testing.T) {
 		ObjectMeta: apis.ObjectMeta{
 			Name: "test1",
 			Annotations: map[string]string{
-				"yunikorn.apache.org/namespace.max.memory": "256M",
+				constants.DomainYuniKorn + "namespace.max.memory": "256M",
 			},
 		},
 	}
@@ -1175,7 +1175,7 @@ func TestAddApplicationsWithTags(t *testing.T) {
 			Name: "test2",
 			Annotations: map[string]string{
 				constants.NamespaceQuota:          "{\"cpu\": \"1\", \"memory\": \"256M\", \"nvidia.com/gpu\": \"1\"}",
-				"yunikorn.apache.org/parentqueue": "root.test",
+				constants.DomainYuniKorn + "parentqueue": "root.test",
 				constants.NamespaceGuaranteed:     "{\"cpu\": \"1\", \"memory\": \"256M\", \"nvidia.com/gpu\": \"1\"}",
 			},
 		},

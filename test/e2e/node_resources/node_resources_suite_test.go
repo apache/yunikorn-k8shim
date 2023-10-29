@@ -29,7 +29,6 @@ import (
 
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
-	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
 )
 
@@ -54,7 +53,6 @@ func TestNodeResources(t *testing.T) {
 
 var oldConfigMap = new(v1.ConfigMap)
 var annotation = "ann-" + common.RandSeq(10)
-var kClient = k8s.KubeCtl{} //nolint
 
 var _ = BeforeSuite(func() {
 	annotation = "ann-" + common.RandSeq(10)

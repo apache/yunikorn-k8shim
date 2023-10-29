@@ -21,7 +21,8 @@ metadata:
   labels:
     app: sleep
     applicationId: "username-rule-example01"
-    yunikorn.apache.org/username: finance.test
+  annotations:
+    yunikorn.apache.org/user.info: "{\"user\": \"finance.test\"}"
   name: task0
 spec:
   schedulerName: yunikorn
@@ -40,7 +41,8 @@ metadata:
   labels:
     app: sleep
     applicationId: "username-rule-example02"
-    yunikorn.apache.org/username: developer
+  annotations:
+    yunikorn.apache.org/user.info: "{\"user\": \"developer\"}"
   name: task1
 spec:
   schedulerName: yunikorn
@@ -52,4 +54,3 @@ spec:
         requests:
           cpu: "100m"
           memory: "500M"
-

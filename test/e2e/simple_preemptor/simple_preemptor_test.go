@@ -21,6 +21,7 @@ package simple_preemptor_test
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
@@ -95,6 +96,8 @@ var _ = ginkgo.BeforeSuite(func() {
 			nodesToTaint = append(nodesToTaint, node.Name)
 		}
 	}
+	ginkgo.By("Worker1:" + Worker1)
+	ginkgo.By("Worker2:" + Worker2)
 
 	ginkgo.By("Tainting some nodes..")
 	err = kClient.TaintNodes(nodesToTaint, taintKey, "value", v1.TaintEffectNoSchedule)
@@ -131,12 +134,6 @@ var _ = ginkgo.AfterSuite(func() {
 	checks, err := yunikorn.GetFailedHealthChecks()
 	Ω(err).NotTo(gomega.HaveOccurred())
 	Ω(checks).To(gomega.Equal(""), checks)
-
-	testDescription := ginkgo.CurrentSpecReport()
-	if testDescription.Failed() {
-		tests.LogTestClusterInfoWrapper(testDescription.FailureMessage(), []string{ns.Name})
-		tests.LogYunikornContainer(testDescription.FailureMessage())
-	}
 	ginkgo.By("Tearing down namespace: " + ns.Name)
 	err = kClient.TearDownNamespace(ns.Name)
 	Ω(err).NotTo(gomega.HaveOccurred())
@@ -166,7 +163,7 @@ var _ = ginkgo.Describe("SimplePreemptor", func() {
 			gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		}
 		// assert sleeppod2 is killed
-		err := kClient.WaitForPodEvent(dev, "sleepjob2", "Killing", 120)
+		err := kClient.WaitForPodEvent(dev, "sleepjob2", "Killing", 60*time.Second)
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 	})
 
@@ -178,9 +175,9 @@ var _ = ginkgo.Describe("SimplePreemptor", func() {
 		sleepPod3Configs := k8s.SleepPodConfig{Name: "sleepjob3", NS: dev, Mem: sleepPodMemLimit1, Time: 600, RequiredNode: Worker1, AppID: "test01"}
 
 		// add the same AppID to sleepPod3Configs so that sleepPod4Configs is not the originator pod
-		sleepPod4Configs := k8s.SleepPodConfig{Name: "sleepjob4", NS: dev, Mem: sleepPodMemLimit2, Time: 600, Optedout: true, AppID: "test01"}
-		sleepPod5Configs := k8s.SleepPodConfig{Name: "sleepjob5", NS: dev, Mem: sleepPodMemLimit2, Time: 600, Optedout: false}
-		sleepPod6Configs := k8s.SleepPodConfig{Name: "sleepjob6", NS: dev, Mem: sleepPodMemLimit2, Time: 600, Optedout: false}
+		sleepPod4Configs := k8s.SleepPodConfig{Name: "sleepjob4", NS: dev, Mem: sleepPodMemLimit2, Time: 600, Optedout: k8s.Allow, AppID: "test01"}
+		sleepPod5Configs := k8s.SleepPodConfig{Name: "sleepjob5", NS: dev, Mem: sleepPodMemLimit2, Time: 600, Optedout: k8s.Deny}
+		sleepPod6Configs := k8s.SleepPodConfig{Name: "sleepjob6", NS: dev, Mem: sleepPodMemLimit2, Time: 600, Optedout: k8s.Deny}
 		sleepPod7Configs := k8s.SleepPodConfig{Name: "sleepjob7", NS: dev, Mem: sleepPodMemLimit2, Time: 600, RequiredNode: Worker2}
 
 		for _, config := range []k8s.SleepPodConfig{sleepPodConfigs, sleepPod2Configs,
@@ -212,13 +209,17 @@ var _ = ginkgo.Describe("SimplePreemptor", func() {
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 
 		// assert sleeppod4 is killed
-		err = kClient.WaitForPodEvent(dev, "sleepjob4", "Killing", 1200)
+		err = kClient.WaitForPodEvent(dev, "sleepjob4", "Killing", 60*time.Second)
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 
 	})
 
 	ginkgo.AfterEach(func() {
-
+		testDescription := ginkgo.CurrentSpecReport()
+		if testDescription.Failed() {
+			tests.LogTestClusterInfoWrapper(testDescription.FailureMessage(), []string{ns.Name})
+			tests.LogYunikornContainer(testDescription.FailureMessage())
+		}
 		// Delete all sleep pods
 		ginkgo.By("Delete all sleep pods")
 		pods, err := kClient.GetPodNamesFromNS(ns.Name)

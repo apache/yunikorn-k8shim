@@ -159,7 +159,6 @@ REGISTRY := apache
 endif
 
 # Force Go modules even when checked out inside GOPATH
-export ACK_GINKGO_DEPRECATIONS=2.9.0
 GO111MODULE := on
 export GO111MODULE
 
@@ -511,7 +510,7 @@ bench:
 fsm_graph:
 	@echo "generating FSM graphs"
 	"$(GO)" clean -testcache
-	"$(GO)" test -tags graphviz -run 'Test.*FsmGraph' ./pkg/shim ./pkg/cache
+	"$(GO)" test -tags graphviz -run 'Test.*FsmGraph' ./pkg/cache
 	scripts/generate-fsm-graph-images.sh
 
 # Remove generated build artifacts

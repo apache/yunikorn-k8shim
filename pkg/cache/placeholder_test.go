@@ -149,7 +149,7 @@ func TestNewPlaceholderWithLabelsAndAnnotations(t *testing.T) {
 	assert.Equal(t, holder.pod.Annotations["annotationKey1"], "annotationValue1")
 	assert.Equal(t, holder.pod.Annotations["annotationKey2"], "annotationValue2")
 	var taskGroupsDef []interfaces.TaskGroup
-	err = json.Unmarshal([]byte(holder.pod.Annotations["yunikorn.apache.org/task-groups"]), &taskGroupsDef)
+	err = json.Unmarshal([]byte(holder.pod.Annotations[siCommon.DomainYuniKorn+"task-groups"]), &taskGroupsDef)
 	assert.NilError(t, err, "taskGroupsDef unmarshal failed")
 	var priority *int32
 	assert.Equal(t, priority, holder.pod.Spec.Priority)
@@ -235,7 +235,7 @@ func TestNewPlaceholderExtendedResources(t *testing.T) {
 	app.setTaskGroups(taskGroups)
 	holder := newPlaceholder("ph-name", app, app.taskGroups[0])
 	assert.Equal(t, len(holder.pod.Spec.Containers[0].Resources.Requests), 5, "expected requests not found")
-	assert.Equal(t, len(holder.pod.Spec.Containers[0].Resources.Limits), 2, "limit for extended resource not found")
+	assert.Equal(t, len(holder.pod.Spec.Containers[0].Resources.Limits), 5, "expected limits not found")
 	assert.Equal(t, holder.pod.Spec.Containers[0].Resources.Limits[gpu], holder.pod.Spec.Containers[0].Resources.Requests[gpu], "gpu: expected same value for request and limit")
 	assert.Equal(t, holder.pod.Spec.Containers[0].Resources.Limits[hugepages], holder.pod.Spec.Containers[0].Resources.Requests[hugepages], "hugepages: expected same value for request and limit")
 	var priority *int32
@@ -272,7 +272,7 @@ func TestNewPlaceholderWithPriorityClassName(t *testing.T) {
 
 	holder := newPlaceholder("ph-name", app, app.taskGroups[0])
 	assert.Equal(t, len(holder.pod.Spec.Containers[0].Resources.Requests), 5, "expected requests not found")
-	assert.Equal(t, len(holder.pod.Spec.Containers[0].Resources.Limits), 2, "limit for extended resource not found")
+	assert.Equal(t, len(holder.pod.Spec.Containers[0].Resources.Limits), 5, "expected limits not found")
 	assert.Equal(t, holder.pod.Spec.Containers[0].Resources.Limits[gpu], holder.pod.Spec.Containers[0].Resources.Requests[gpu], "gpu: expected same value for request and limit")
 	assert.Equal(t, holder.pod.Spec.Containers[0].Resources.Limits[hugepages], holder.pod.Spec.Containers[0].Resources.Requests[hugepages], "hugepages: expected same value for request and limit")
 	var priority *int32

@@ -361,7 +361,7 @@ func (k *KubeCtl) UpdateNamespace(namespace string, annotations map[string]strin
 }
 
 func (k *KubeCtl) WaitForServiceAccountPresent(namespace string, svcAcctName string, timeout time.Duration) error {
-	return wait.PollImmediate(time.Second, timeout, k.isServiceAccountPresent(namespace, svcAcctName))
+	return wait.PollUntilContextTimeout(context.TODO(), time.Second, timeout, false, k.isServiceAccountPresent(namespace, svcAcctName).WithContext())
 }
 
 func (k *KubeCtl) isServiceAccountPresent(namespace string, svcAcctName string) wait.ConditionFunc {
@@ -720,48 +720,48 @@ func (k *KubeCtl) isNumPod(namespace string, wanted int) wait.ConditionFunc {
 }
 
 func (k *KubeCtl) WaitForJobPods(namespace string, jobName string, numPods int, timeout time.Duration) error {
-	return wait.PollImmediate(time.Millisecond*100, timeout, k.isNumJobPodsInDesiredState(jobName, namespace, numPods, v1.PodRunning))
+	return wait.PollUntilContextTimeout(context.TODO(), time.Millisecond*100, timeout, false, k.isNumJobPodsInDesiredState(jobName, namespace, numPods, v1.PodRunning).WithContext())
 }
 func (k *KubeCtl) WaitForPodEvent(namespace string, podName string, expectedReason string, timeout time.Duration) error {
-	return wait.PollImmediate(time.Millisecond*100, timeout, k.isPodEventTriggered(namespace, podName, expectedReason))
+	return wait.PollUntilContextTimeout(context.TODO(), time.Millisecond*100, timeout, false, k.isPodEventTriggered(namespace, podName, expectedReason).WithContext())
 }
 
 func (k *KubeCtl) WaitForPodTerminated(namespace string, podName string, timeout time.Duration) error {
-	return wait.PollImmediate(time.Millisecond*100, timeout, k.isPodNotInNS(podName, namespace))
+	return wait.PollUntilContextTimeout(context.TODO(), time.Millisecond*100, timeout, false, k.isPodNotInNS(podName, namespace).WithContext())
 }
 
 func (k *KubeCtl) WaitForJobTerminated(namespace string, jobName string, timeout time.Duration) error {
-	return wait.PollImmediate(time.Millisecond*100, timeout, k.isJobNotInNS(jobName, namespace))
+	return wait.PollUntilContextTimeout(context.TODO(), time.Millisecond*100, timeout, false, k.isJobNotInNS(jobName, namespace).WithContext())
 }
 
 // Poll up to timeout seconds for pod to enter running state.
 // Returns an error if the pod never enters the running state.
 func (k *KubeCtl) WaitForPodRunning(namespace string, podName string, timeout time.Duration) error {
-	return wait.PollImmediate(time.Millisecond*100, timeout, k.isPodInDesiredState(podName, namespace, v1.PodRunning))
+	return wait.PollUntilContextTimeout(context.TODO(), time.Millisecond*100, timeout, false, k.isPodInDesiredState(podName, namespace, v1.PodRunning).WithContext())
 }
 
 func (k *KubeCtl) WaitForPodPending(namespace string, podName string, timeout time.Duration) error {
-	return wait.PollImmediate(time.Millisecond*100, timeout, k.isPodInDesiredState(podName, namespace, v1.PodPending))
+	return wait.PollUntilContextTimeout(context.TODO(), time.Millisecond*100, timeout, false, k.isPodInDesiredState(podName, namespace, v1.PodPending).WithContext())
 }
 
 func (k *KubeCtl) WaitForPodSucceeded(namespace string, podName string, timeout time.Duration) error {
-	return wait.PollImmediate(time.Millisecond*100, timeout, k.isPodInDesiredState(podName, namespace, v1.PodSucceeded))
+	return wait.PollUntilContextTimeout(context.TODO(), time.Millisecond*100, timeout, false, k.isPodInDesiredState(podName, namespace, v1.PodSucceeded).WithContext())
 }
 
 func (k *KubeCtl) WaitForPodFailed(namespace string, podName string, timeout time.Duration) error {
-	return wait.PollImmediate(time.Millisecond*100, timeout, k.isPodInDesiredState(podName, namespace, v1.PodFailed))
+	return wait.PollUntilContextTimeout(context.TODO(), time.Millisecond*100, timeout, false, k.isPodInDesiredState(podName, namespace, v1.PodFailed).WithContext())
 }
 
 func (k *KubeCtl) WaitForPodCount(namespace string, wanted int, timeout time.Duration) error {
-	return wait.PollImmediate(time.Millisecond*100, timeout, k.isNumPod(namespace, wanted))
+	return wait.PollUntilContextTimeout(context.TODO(), time.Millisecond*100, timeout, false, k.isNumPod(namespace, wanted).WithContext())
 }
 
-func (k *KubeCtl) WaitForPodStateStable(namespace string, podName string, timeout time.Duration) (error, v1.PodPhase) {
+func (k *KubeCtl) WaitForPodStateStable(namespace string, podName string, timeout time.Duration) (v1.PodPhase, error) {
 	var lastPhase v1.PodPhase
 	samePhases := 0
 
-	err := wait.PollImmediate(time.Second, timeout, k.isPodStable(namespace, podName, &samePhases, 3, &lastPhase))
-	return err, lastPhase
+	err := wait.PollUntilContextTimeout(context.TODO(), time.Second, timeout, false, k.isPodStable(namespace, podName, &samePhases, 3, &lastPhase).WithContext())
+	return lastPhase, err
 }
 
 // Returns the list of currently scheduled or running pods in `namespace` with the given selector
@@ -816,9 +816,28 @@ func (k *KubeCtl) WaitForPodBySelectorRunning(namespace string, selector string,
 	return nil
 }
 
+// Wait for all pods in 'namespace' with given 'selector' to enter succeeded state.
+// Returns an error if no pods are found or not all discovered pods enter succeeded state.
+func (k *KubeCtl) WaitForPodBySelectorSucceeded(namespace string, selector string, timeout time.Duration) error {
+	podList, err := k.ListPods(namespace, selector)
+	if err != nil {
+		return err
+	}
+	if len(podList.Items) == 0 {
+		return fmt.Errorf("no pods in %s with selector %s", namespace, selector)
+	}
+
+	for _, pod := range podList.Items {
+		if err := k.WaitForPodSucceeded(namespace, pod.Name, timeout); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // Wait up to timeout seconds for a pod in 'namespace' with given 'selector' to exist
 func (k *KubeCtl) WaitForPodBySelector(namespace string, selector string, timeout time.Duration) error {
-	return wait.PollImmediate(time.Millisecond*100, timeout, k.isPodSelectorInNs(selector, namespace))
+	return wait.PollUntilContextTimeout(context.TODO(), time.Millisecond*100, timeout, false, k.isPodSelectorInNs(selector, namespace).WithContext())
 }
 
 func (k *KubeCtl) CreateSecret(secret *v1.Secret, namespace string) (*v1.Secret, error) {
@@ -920,7 +939,7 @@ func (k *KubeCtl) PodScheduled(podNamespace, podName string) wait.ConditionFunc 
 }
 
 func (k *KubeCtl) WaitForPodScheduled(namespace string, podName string, timeout time.Duration) error {
-	return wait.PollImmediate(time.Millisecond*100, timeout, k.PodScheduled(namespace, podName))
+	return wait.PollUntilContextTimeout(context.TODO(), time.Millisecond*100, timeout, false, k.PodScheduled(namespace, podName).WithContext())
 }
 
 // PodUnschedulable returns a condition function that returns true if the given pod
@@ -941,7 +960,7 @@ func (k *KubeCtl) PodUnschedulable(podNamespace, podName string) wait.ConditionF
 // WaitForPodUnschedulable waits for a pod to fail scheduling and returns
 // an error if it does not become unschedulable within the given timeout.
 func (k *KubeCtl) WaitForPodUnschedulable(pod *v1.Pod, timeout time.Duration) error {
-	return wait.PollImmediate(100*time.Millisecond, timeout, k.PodUnschedulable(pod.Namespace, pod.Name))
+	return wait.PollUntilContextTimeout(context.TODO(), time.Millisecond*100, timeout, false, k.PodUnschedulable(pod.Namespace, pod.Name).WithContext())
 }
 
 func (k *KubeCtl) CreatePriorityClass(pc *schedulingv1.PriorityClass) (*schedulingv1.PriorityClass, error) {
@@ -957,19 +976,19 @@ func (k *KubeCtl) CreateJob(job *batchv1.Job, namespace string) (*batchv1.Job, e
 }
 
 func (k *KubeCtl) WaitForJobPodsCreated(namespace string, jobName string, numPods int, timeout time.Duration) error {
-	return wait.PollImmediate(time.Millisecond*100, timeout, k.isNumJobPodsCreated(jobName, namespace, numPods))
+	return wait.PollUntilContextTimeout(context.TODO(), time.Millisecond*100, timeout, false, k.isNumJobPodsCreated(jobName, namespace, numPods).WithContext())
 }
 
 func (k *KubeCtl) WaitForJobPodsRunning(namespace string, jobName string, numPods int, timeout time.Duration) error {
-	return wait.PollImmediate(time.Millisecond*100, timeout, k.isNumJobPodsInDesiredState(jobName, namespace, numPods, v1.PodRunning))
+	return wait.PollUntilContextTimeout(context.TODO(), time.Millisecond*100, timeout, false, k.isNumJobPodsInDesiredState(jobName, namespace, numPods, v1.PodRunning).WithContext())
 }
 
 func (k *KubeCtl) WaitForJobPodsSucceeded(namespace string, jobName string, numPods int, timeout time.Duration) error {
-	return wait.PollImmediate(time.Millisecond*100, timeout, k.isNumJobPodsInDesiredState(jobName, namespace, numPods, v1.PodSucceeded))
+	return wait.PollUntilContextTimeout(context.TODO(), time.Millisecond*100, timeout, false, k.isNumJobPodsInDesiredState(jobName, namespace, numPods, v1.PodSucceeded).WithContext())
 }
 
 func (k *KubeCtl) WaitForPlaceholders(namespace string, podPrefix string, numPods int, timeout time.Duration, podPhase *v1.PodPhase) error {
-	return wait.PollImmediate(time.Millisecond*100, timeout, k.isNumPlaceholdersRunning(namespace, podPrefix, numPods, podPhase))
+	return wait.PollUntilContextTimeout(context.TODO(), time.Millisecond*100, timeout, false, k.isNumPlaceholdersRunning(namespace, podPrefix, numPods, podPhase).WithContext())
 }
 
 func (k *KubeCtl) ListPlaceholders(namespace string, podPrefix string) ([]v1.Pod, error) {
@@ -991,7 +1010,7 @@ func (k *KubeCtl) ListPlaceholders(namespace string, podPrefix string) ([]v1.Pod
 func (k *KubeCtl) WaitForPlaceholdersStableState(namespace string, podPrefix string, timeout time.Duration) error {
 	samePhases := 0
 	podPhases := make(map[string]v1.PodPhase)
-	return wait.PollImmediate(time.Second, timeout, k.arePlaceholdersStable(namespace, podPrefix, &samePhases, 3, podPhases))
+	return wait.PollUntilContextTimeout(context.TODO(), time.Second, timeout, false, k.arePlaceholdersStable(namespace, podPrefix, &samePhases, 3, podPhases).WithContext())
 }
 
 func (k *KubeCtl) isNumPlaceholdersRunning(namespace string, podPrefix string, num int, podPhase *v1.PodPhase) wait.ConditionFunc {

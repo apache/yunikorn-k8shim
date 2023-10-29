@@ -18,6 +18,10 @@
 
 package constants
 
+import (
+	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
+)
+
 // Common
 const True = "true"
 const False = "false"
@@ -27,15 +31,16 @@ const DefaultNodeAttributeHostNameKey = "si.io/hostname"
 const DefaultNodeAttributeRackNameKey = "si.io/rackname"
 const DefaultNodeInstanceTypeNodeLabelKey = "node.kubernetes.io/instance-type"
 const DefaultRackName = "/rack-default"
+const DomainYuniKorn = siCommon.DomainYuniKorn
 
 // Application
 const LabelApp = "app"
 const LabelApplicationID = "applicationId"
-const AnnotationApplicationID = "yunikorn.apache.org/app-id"
+const AnnotationApplicationID = DomainYuniKorn + "app-id"
 const LabelQueueName = "queue"
 const RootQueue = "root"
-const AnnotationQueueName = "yunikorn.apache.org/queue"
-const AnnotationParentQueue = "yunikorn.apache.org/parentqueue"
+const AnnotationQueueName = DomainYuniKorn + "queue"
+const AnnotationParentQueue = DomainYuniKorn + "parentqueue"
 const LabelDisableStateAware = "disableStateAware"
 const ApplicationDefaultQueue = "root.sandbox"
 const DefaultPartition = "default"
@@ -43,7 +48,7 @@ const AppTagNamespace = "namespace"
 const AppTagNamespaceParentQueue = "namespace.parentqueue"
 const AppTagImagePullSecrets = "imagePullSecrets"
 const DefaultAppNamespace = "default"
-const DefaultUserLabel = "yunikorn.apache.org/username"
+const DefaultUserLabel = DomainYuniKorn + "username"
 const DefaultUser = "nobody"
 
 // Spark
@@ -67,10 +72,10 @@ const PlaceholderContainerImage = "registry.k8s.io/pause:3.7"
 const PlaceholderContainerName = "pause"
 const PlaceholderPodRestartPolicy = "Never"
 const LabelPlaceholderFlag = "placeholder"
-const AnnotationPlaceholderFlag = "yunikorn.apache.org/placeholder"
-const AnnotationTaskGroupName = "yunikorn.apache.org/task-group-name"
-const AnnotationTaskGroups = "yunikorn.apache.org/task-groups"
-const AnnotationSchedulingPolicyParam = "yunikorn.apache.org/schedulingPolicyParameters"
+const AnnotationPlaceholderFlag = DomainYuniKorn + "placeholder"
+const AnnotationTaskGroupName = DomainYuniKorn + "task-group-name"
+const AnnotationTaskGroups = DomainYuniKorn + "task-groups"
+const AnnotationSchedulingPolicyParam = DomainYuniKorn + "schedulingPolicyParameters"
 const SchedulingPolicyTimeoutParam = "placeholderTimeoutInSeconds"
 const SchedulingPolicyParamDelimiter = " "
 const SchedulingPolicyStyleParam = "gangSchedulingStyle"
@@ -82,33 +87,36 @@ const ApplicationInsufficientResourcesFailure = "ResourceReservationTimeout"
 const ApplicationRejectedFailure = "ApplicationRejected"
 
 // namespace.max.* (Retaining for backwards compatibility. Need to be removed in next major release)
-const CPUQuota = "yunikorn.apache.org/namespace.max.cpu"
-const MemQuota = "yunikorn.apache.org/namespace.max.memory"
+const CPUQuota = DomainYuniKorn + "namespace.max.cpu"
+const MemQuota = DomainYuniKorn + "namespace.max.memory"
 
 // NamespaceQuota Namespace Quota
-const NamespaceQuota = "yunikorn.apache.org/namespace.quota"
+const NamespaceQuota = DomainYuniKorn + "namespace.quota"
 
 // NamespaceGuaranteed Namespace Guaranteed
-const NamespaceGuaranteed = "yunikorn.apache.org/namespace.guaranteed"
+const NamespaceGuaranteed = DomainYuniKorn + "namespace.guaranteed"
 
 // AnnotationAllowPreemption set on PriorityClass, opt out of preemption for pods with this priority class
-const AnnotationAllowPreemption = "yunikorn.apache.org/allow-preemption"
+const AnnotationAllowPreemption = DomainYuniKorn + "allow-preemption"
 
 // AnnotationIgnoreApplication set on Pod prevents by admission controller, prevents YuniKorn from honoring application ID
-const AnnotationIgnoreApplication = "yunikorn.apache.org/ignore-application"
+const AnnotationIgnoreApplication = DomainYuniKorn + "ignore-application"
 
 // AnnotationGenerateAppID adds application ID to workloads in the namespace even if not set in the admission config.
 // Overrides the regexp behaviour if set, checked before the regexp is evaluated.
 // true: add an application ID label
 // false: do not add an application ID
-const AnnotationGenerateAppID = "yunikorn.apache.org/namespace.generateAppId"
+const AnnotationGenerateAppID = DomainYuniKorn + "namespace.generateAppId"
 
 // AnnotationEnableYuniKorn sets the scheduler name to YuniKorn for workloads in the namespace even if not set in the admission config.
 // Overrides the regexp behaviour if set, checked before the regexp is evaluated.
 // true: set the scheduler name to YuniKorn
 // false: do not do anything
-const AnnotationEnableYuniKorn = "yunikorn.apache.org/namespace.enableYuniKorn"
+const AnnotationEnableYuniKorn = DomainYuniKorn + "namespace.enableYuniKorn"
 
 // Admission Controller pod label update constants
 const AutoGenAppPrefix = "yunikorn"
 const AutoGenAppSuffix = "autogen"
+
+// Compression Algorithms for schedulerConfig
+const GzipSuffix = "gz"

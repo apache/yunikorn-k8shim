@@ -138,7 +138,7 @@ func TestGetAppMetadata(t *testing.T) { //nolint:funlen
 			Labels: map[string]string{
 				"applicationId":            "app00002",
 				"queue":                    "root.b",
-				"yunikorn.apache.org/user": "testuser",
+				constants.DomainYuniKorn + "user": "testuser",
 				"disableStateAware":        "true",
 			},
 			Annotations: map[string]string{
@@ -160,7 +160,7 @@ func TestGetAppMetadata(t *testing.T) { //nolint:funlen
 	assert.Equal(t, app.User, constants.DefaultUser)
 	assert.Equal(t, app.Tags["application.stateaware.disable"], "true")
 	assert.Equal(t, app.Tags["namespace"], "app-namespace-01")
-	assert.DeepEqual(t, len(app.TaskGroups), 0)
+	assert.Equal(t, len(app.TaskGroups), 0)
 	assert.Equal(t, app.SchedulingPolicyParameters.GetGangSchedulingStyle(), "Hard")
 
 	pod = v1.Pod{
@@ -202,7 +202,7 @@ func TestGetAppMetadata(t *testing.T) { //nolint:funlen
 			Labels: map[string]string{
 				"applicationId":            "app00002",
 				"queue":                    "root.b",
-				"yunikorn.apache.org/user": "testuser",
+				constants.DomainYuniKorn + "user": "testuser",
 			},
 			Annotations: map[string]string{
 				constants.AnnotationSchedulingPolicyParam: "gangSchedulingStyle=Hard=Soft",

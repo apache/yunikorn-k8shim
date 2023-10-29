@@ -36,7 +36,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
 )
 
-const userInfoAnnotation = "yunikorn.apache.org/user.info"
+const userInfoAnnotation = constants.DomainYuniKorn + "user.info"
 const nonExistentNode = "non-existent-node"
 const defaultPodTimeout = 10 * time.Second
 const cronJobPodTimeout = 65 * time.Second
@@ -222,11 +222,11 @@ var _ = ginkgo.Describe("AdmissionController", func() {
 		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
 		pod, err = kubeClient.GetPod(pod.Name, ns)
 		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
-		userinfo := pod.Annotations["yunikorn.apache.org/user.info"]
+		userinfo := pod.Annotations[constants.DomainYuniKorn+"user.info"]
 		gomega.Ω(userinfo).Should(gomega.Not(gomega.BeNil()))
 
 		ginkgo.By("Attempt to update userinfo annotation")
-		_, err = kubeClient.UpdatePodWithAnnotation(pod, ns, "yunikorn.apache.org/user.info", "shouldnotsucceed")
+		_, err = kubeClient.UpdatePodWithAnnotation(pod, ns, constants.DomainYuniKorn+"user.info", "shouldnotsucceed")
 		gomega.Ω(err).Should(gomega.HaveOccurred())
 	})
 
@@ -514,7 +514,7 @@ func runWorkloadTest(workloadType k8s.WorkloadType, create func() (string, error
 	fmt.Fprintf(ginkgo.GinkgoWriter, "Running pod is %s\n", pods.Items[0].Name)
 	pod, err2 := kubeClient.GetPod(pods.Items[0].Name, ns)
 	gomega.Ω(err2).ShouldNot(gomega.HaveOccurred())
-	userinfo := pod.Annotations["yunikorn.apache.org/user.info"]
+	userinfo := pod.Annotations[constants.DomainYuniKorn+"user.info"]
 	gomega.Ω(userinfo).Should(gomega.Not(gomega.BeNil()))
 }
 

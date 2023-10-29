@@ -474,7 +474,7 @@ func (ctx *Context) IsPodFitNodeViaPreemption(name, node string, allocations []s
 			// look up each victim in the scheduler cache
 			victims := make([]*v1.Pod, 0)
 			for _, uid := range allocations {
-				if victim, ok := ctx.schedulerCache.GetPod(uid); ok {
+				if victim, ok := ctx.schedulerCache.GetPodNoLock(uid); ok {
 					victims = append(victims, victim)
 				} else {
 					// if pod isn't found, add a placeholder so that the list is still the same size
@@ -1032,7 +1032,7 @@ func (ctx *Context) updatePodCondition(task *Task, podCondition *v1.PodCondition
 // pod condition in order to trigger auto-scaling.
 func (ctx *Context) HandleContainerStateUpdate(request *si.UpdateContainerSchedulingStateRequest) {
 	// the allocationKey equals to the taskID
-	if task := ctx.getTask(request.ApplicartionID, request.AllocationKey); task != nil {
+	if task := ctx.getTask(request.ApplicationID, request.AllocationKey); task != nil {
 		switch request.State {
 		case si.UpdateContainerSchedulingStateRequest_SKIPPED:
 			// auto-scaler scans pods whose pod condition is PodScheduled=false && reason=Unschedulable

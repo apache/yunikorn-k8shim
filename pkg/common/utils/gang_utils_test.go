@@ -140,24 +140,6 @@ func TestGetSchedulingPolicyParams(t *testing.T) {
 	}
 }
 
-func Test_allowOverCommit(t *testing.T) {
-	tests := []struct {
-		name    string
-		resName string
-		want    bool
-	}{
-		{"standard", "memory", true},
-		{"pod as resource", "pods", true},
-		{"hugepages", "hugepages-small", false},
-		{"extended", "nvidia.com/gpu", false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, allowOverCommit(tt.resName), tt.want, "incorrect overcommit status")
-		})
-	}
-}
-
 func Test_GetPlaceholderResourceRequest(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -173,27 +155,6 @@ func Test_GetPlaceholderResourceRequest(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := GetPlaceholderResourceRequests(tt.resMap); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("GetPlaceholderResourceRequest() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func Test_GetPlaceholderResourceLimits(t *testing.T) {
-	tests := []struct {
-		name   string
-		resMap map[string]resource.Quantity
-		want   v1.ResourceList
-	}{
-		{"nil", nil, v1.ResourceList{}},
-		{"empty", map[string]resource.Quantity{}, v1.ResourceList{}},
-		{"base", map[string]resource.Quantity{"pods": resource.MustParse("1")}, v1.ResourceList{}},
-		{"hugepages", map[string]resource.Quantity{"hugepages-huge": resource.MustParse("2")}, v1.ResourceList{"hugepages-huge": resource.MustParse("2")}},
-		{"mixed", map[string]resource.Quantity{"pods": resource.MustParse("4"), "nvidia.com/gpu": resource.MustParse("5")}, v1.ResourceList{"nvidia.com/gpu": resource.MustParse("5")}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := GetPlaceholderResourceLimits(tt.resMap); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("GetPlaceholderResourceRequest() = %v, want %v", got, tt.want)
 			}
 		})

@@ -40,7 +40,6 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-k8shim/pkg/shim"
-	"github.com/apache/yunikorn-scheduler-interface/lib/go/api"
 )
 
 const (
@@ -265,20 +264,22 @@ func NewSchedulerPlugin(_ runtime.Object, handle framework.Handle) (framework.Pl
 
 	// start the YK core scheduler
 	serviceContext := entrypoint.StartAllServicesWithLogger(log.RootLogger(), log.GetZapConfigs())
-	if sa, ok := serviceContext.RMProxy.(api.SchedulerAPI); ok {
-		// we need our own informer factory here because the informers we get from the framework handle aren't yet initialized
-		informerFactory := informers.NewSharedInformerFactory(handle.ClientSet(), 0)
-		ss := shim.NewShimSchedulerForPlugin(sa, informerFactory, conf.GetSchedulerConf(), configMaps)
-		ss.Run()
-
-		p := &YuniKornSchedulerPlugin{
-			context: ss.GetContext(),
-		}
-		events.SetRecorder(handle.EventRecorder())
-		return p, nil
+	if serviceContext.RMProxy == nil {
+		return nil, fmt.Errorf("internal error: serviceContext should implement interface api.SchedulerAPI")
 	}
 
-	return nil, fmt.Errorf("internal error: serviceContext should implement interface api.SchedulerAPI")
+	// we need our own informer factory here because the informers we get from the framework handle aren't yet initialized
+	informerFactory := informers.NewSharedInformerFactory(handle.ClientSet(), 0)
+	ss := shim.NewShimSchedulerForPlugin(serviceContext.RMProxy, informerFactory, conf.GetSchedulerConf(), configMaps)
+	if err := ss.Run(); err != nil {
+		log.Log(log.ShimSchedulerPlugin).Fatal("Unable to start scheduler", zap.Error(err))
+	}
+
+	p := &YuniKornSchedulerPlugin{
+		context: ss.GetContext(),
+	}
+	events.SetRecorder(handle.EventRecorder())
+	return p, nil
 }
 
 func (sp *YuniKornSchedulerPlugin) getTask(appID, taskID string) (app interfaces.ManagedApp, task interfaces.ManagedTask, ok bool) {
