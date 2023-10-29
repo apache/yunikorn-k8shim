@@ -131,7 +131,6 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 			}
 			return common.AddQueue(sc, "default", "root", configs.QueueConfig{Name: "sandbox2"})
 		})
-		yunikorn.DelayForAdmissionControllerRefreshConf()
 
 		// usergroup1 can deploy the first sleep pod to root.sandbox1
 		usergroup1 := &si.UserGroupInformation{User: user1, Groups: []string{group1}}
@@ -177,7 +176,6 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 			}
 			return common.AddQueue(sc, "default", "root", configs.QueueConfig{Name: "sandbox2"})
 		})
-		yunikorn.DelayForAdmissionControllerRefreshConf()
 
 		// usergroup1 can deploy the first sleep pod to root.sandbox1
 		usergroup1 := &si.UserGroupInformation{User: user1, Groups: []string{group1}}
@@ -223,7 +221,6 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 			}
 			return common.AddQueue(sc, "default", "root", configs.QueueConfig{Name: "sandbox2"})
 		})
-		yunikorn.DelayForAdmissionControllerRefreshConf()
 
 		// usergroup1 can deploy the first sleep pod to root.sandbox1
 		usergroup1 := &si.UserGroupInformation{User: user1, Groups: []string{group1}}
@@ -267,7 +264,6 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 			}
 			return common.AddQueue(sc, "default", "root", configs.QueueConfig{Name: "sandbox2"})
 		})
-		yunikorn.DelayForAdmissionControllerRefreshConf()
 
 		// usergroup1 can deploy the first sleep pod to root.sandbox1
 		usergroup1 := &si.UserGroupInformation{User: user1, Groups: []string{group1}}
@@ -319,7 +315,6 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 			}
 			return common.AddQueue(sc, "default", "root", configs.QueueConfig{Name: "sandbox2"})
 		})
-		yunikorn.DelayForAdmissionControllerRefreshConf()
 
 		// usergroup1 can deploy the first sleep pod to root.sandbox1
 		usergroup1 := &si.UserGroupInformation{User: user1, Groups: []string{group1}}
@@ -362,7 +357,6 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 			}
 			return common.AddQueue(sc, "default", "root", configs.QueueConfig{Name: "sandbox2"})
 		})
-		yunikorn.DelayForAdmissionControllerRefreshConf()
 
 		// usergroup1 can deploy the first sleep pod to root.sandbox1
 		usergroup1 := &si.UserGroupInformation{User: user1, Groups: []string{group1}}
