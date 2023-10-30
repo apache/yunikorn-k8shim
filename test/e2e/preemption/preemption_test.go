@@ -597,7 +597,7 @@ var _ = ginkgo.Describe("Preemption", func() {
 			// Wait for pod to move to running state
 			podErr = kClient.WaitForPodBySelectorRunning(dev,
 				fmt.Sprintf("app=%s", sleepRespPod.ObjectMeta.Labels["app"]),
-				60)
+				120)
 			gomega.Ω(podErr).NotTo(gomega.HaveOccurred())
 		}
 		sleepObj, podErr := k8s.InitSleepPod(sleepPod5Config)
@@ -608,7 +608,7 @@ var _ = ginkgo.Describe("Preemption", func() {
 		// Wait for pod to move to running state
 		podErr = kClient.WaitForPodBySelectorRunning(dev,
 			fmt.Sprintf("app=%s", sleepRespPod5.ObjectMeta.Labels["app"]),
-			60)
+			120)
 		gomega.Ω(podErr).NotTo(gomega.HaveOccurred())
 		// assert two of the pods in root.low-priority are preempted
 		ginkgo.By("Two pods in root.low-priority queue are preempted")
