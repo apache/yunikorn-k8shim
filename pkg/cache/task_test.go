@@ -28,7 +28,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	schedulingv1 "k8s.io/api/scheduling/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
-	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sEvents "k8s.io/client-go/tools/events"
 
@@ -52,11 +51,11 @@ func TestTaskStateTransitions(t *testing.T) {
 		},
 	})
 	pod := &v1.Pod{
-		TypeMeta: apis.TypeMeta{
+		TypeMeta: metav1.TypeMeta{
 			Kind:       "Pod",
 			APIVersion: "v1",
 		},
-		ObjectMeta: apis.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name: "pod-resource-test-00001",
 			UID:  "UID-00001",
 		},
@@ -113,11 +112,11 @@ func TestTaskIllegalEventHandling(t *testing.T) {
 		},
 	})
 	pod := &v1.Pod{
-		TypeMeta: apis.TypeMeta{
+		TypeMeta: metav1.TypeMeta{
 			Kind:       "Pod",
 			APIVersion: "v1",
 		},
-		ObjectMeta: apis.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name: "pod-resource-test-00001",
 			UID:  "UID-00001",
 		},
@@ -164,11 +163,11 @@ func TestReleaseTaskAllocation(t *testing.T) {
 		},
 	})
 	pod := &v1.Pod{
-		TypeMeta: apis.TypeMeta{
+		TypeMeta: metav1.TypeMeta{
 			Kind:       "Pod",
 			APIVersion: "v1",
 		},
-		ObjectMeta: apis.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name: "pod-resource-test-00001",
 			UID:  "UID-00001",
 		},
@@ -248,11 +247,11 @@ func TestReleaseTaskAsk(t *testing.T) {
 		},
 	})
 	pod := &v1.Pod{
-		TypeMeta: apis.TypeMeta{
+		TypeMeta: metav1.TypeMeta{
 			Kind:       "Pod",
 			APIVersion: "v1",
 		},
-		ObjectMeta: apis.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name: "pod-resource-test-00001",
 			UID:  "UID-00001",
 		},
@@ -310,11 +309,11 @@ func TestCreateTask(t *testing.T) {
 
 	// pod has timestamp defined
 	pod0 := &v1.Pod{
-		TypeMeta: apis.TypeMeta{
+		TypeMeta: metav1.TypeMeta{
 			Kind:       "Pod",
 			APIVersion: "v1",
 		},
-		ObjectMeta: apis.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name:              "pod-00",
 			UID:               "UID-00",
 			CreationTimestamp: metav1.Time{Time: time0},
@@ -323,11 +322,11 @@ func TestCreateTask(t *testing.T) {
 
 	// pod has no timestamp defined
 	pod1 := &v1.Pod{
-		TypeMeta: apis.TypeMeta{
+		TypeMeta: metav1.TypeMeta{
 			Kind:       "Pod",
 			APIVersion: "v1",
 		},
-		ObjectMeta: apis.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name: "pod-00",
 			UID:  "UID-00",
 		},
@@ -353,11 +352,11 @@ func TestSortTasks(t *testing.T) {
 		"bob", testGroups, map[string]string{}, mockedSchedulerAPI)
 
 	pod0 := &v1.Pod{
-		TypeMeta: apis.TypeMeta{
+		TypeMeta: metav1.TypeMeta{
 			Kind:       "Pod",
 			APIVersion: "v1",
 		},
-		ObjectMeta: apis.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name:              "pod-00",
 			UID:               "UID-00",
 			CreationTimestamp: metav1.Time{Time: time0},
@@ -365,11 +364,11 @@ func TestSortTasks(t *testing.T) {
 	}
 
 	pod1 := &v1.Pod{
-		TypeMeta: apis.TypeMeta{
+		TypeMeta: metav1.TypeMeta{
 			Kind:       "Pod",
 			APIVersion: "v1",
 		},
-		ObjectMeta: apis.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name:              "pod-01",
 			UID:               "UID-01",
 			CreationTimestamp: metav1.Time{Time: time1},
@@ -377,11 +376,11 @@ func TestSortTasks(t *testing.T) {
 	}
 
 	pod2 := &v1.Pod{
-		TypeMeta: apis.TypeMeta{
+		TypeMeta: metav1.TypeMeta{
 			Kind:       "Pod",
 			APIVersion: "v1",
 		},
-		ObjectMeta: apis.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name:              "pod-02",
 			UID:               "UID-02",
 			CreationTimestamp: metav1.Time{Time: time2},
@@ -408,11 +407,11 @@ func TestIsTerminated(t *testing.T) {
 	app := NewApplication("app01", "root.default",
 		"bob", testGroups, map[string]string{}, mockedSchedulerAPI)
 	pod := &v1.Pod{
-		TypeMeta: apis.TypeMeta{
+		TypeMeta: metav1.TypeMeta{
 			Kind:       "Pod",
 			APIVersion: "v1",
 		},
-		ObjectMeta: apis.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name: "pod-01",
 			UID:  "UID-01",
 		},
@@ -435,11 +434,11 @@ func TestSetTaskGroup(t *testing.T) {
 	app := NewApplication("app01", "root.default",
 		"bob", testGroups, map[string]string{}, mockedSchedulerAPI)
 	pod := &v1.Pod{
-		TypeMeta: apis.TypeMeta{
+		TypeMeta: metav1.TypeMeta{
 			Kind:       "Pod",
 			APIVersion: "v1",
 		},
-		ObjectMeta: apis.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name: "pod-01",
 			UID:  "UID-01",
 		},
@@ -503,11 +502,11 @@ func TestHandleSubmitTaskEvent(t *testing.T) {
 	})
 	var priority int32 = 1000
 	pod1 := &v1.Pod{
-		TypeMeta: apis.TypeMeta{
+		TypeMeta: metav1.TypeMeta{
 			Kind:       "Pod",
 			APIVersion: "v1",
 		},
-		ObjectMeta: apis.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name: "pod-test-00001",
 			UID:  "UID-00001",
 		},
@@ -520,11 +519,11 @@ func TestHandleSubmitTaskEvent(t *testing.T) {
 	}
 	var priority2 int32 = 1001
 	pod2 := &v1.Pod{
-		TypeMeta: apis.TypeMeta{
+		TypeMeta: metav1.TypeMeta{
 			Kind:       "Pod",
 			APIVersion: "v1",
 		},
-		ObjectMeta: apis.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name: "pod-test-00002",
 			UID:  "UID-00002",
 			Annotations: map[string]string{
@@ -597,11 +596,11 @@ func TestSimultaneousTaskCompleteAndAllocate(t *testing.T) {
 	})
 
 	pod1 := &v1.Pod{
-		TypeMeta: apis.TypeMeta{
+		TypeMeta: metav1.TypeMeta{
 			Kind:       "Pod",
 			APIVersion: "v1",
 		},
-		ObjectMeta: apis.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name: "pod-test-00001",
 			UID:  podUID,
 		},
@@ -667,11 +666,11 @@ func TestUpdatePodCondition(t *testing.T) {
 	}
 
 	pod := &v1.Pod{
-		TypeMeta: apis.TypeMeta{
+		TypeMeta: metav1.TypeMeta{
 			Kind:       "Pod",
 			APIVersion: "v1",
 		},
-		ObjectMeta: apis.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name: "pod-test-00001",
 		},
 		Status: v1.PodStatus{
@@ -694,11 +693,11 @@ func TestUpdatePodCondition(t *testing.T) {
 	assert.Equal(t, v1.PodPending, task.podStatus.Phase)
 
 	podWithCondition := &v1.Pod{
-		TypeMeta: apis.TypeMeta{
+		TypeMeta: metav1.TypeMeta{
 			Kind:       "Pod",
 			APIVersion: "v1",
 		},
-		ObjectMeta: apis.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name: "pod-test-00001",
 		},
 		Status: v1.PodStatus{

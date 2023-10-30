@@ -65,18 +65,6 @@ type TaskEvent interface {
 }
 
 // --------------------------------------
-// scheduler events
-// --------------------------------------
-type SchedulerEvent interface {
-	// the type of this event
-	GetEvent() string
-
-	// an event can have multiple arguments, these arguments will be passed to
-	// state machines' callbacks when doing state transition
-	GetArgs() []interface{}
-}
-
-// --------------------------------------
 // scheduler node events
 // --------------------------------------
 

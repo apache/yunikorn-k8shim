@@ -23,25 +23,31 @@ Yunikorn offers a range of features, including advanced capabilities like hierar
 The following will be included in this article：
 
 - [Access control with ACL](./acl)
-- [Placement of different users](./placementRule)
-- [Limit usable resources on a queue level](./resourceLimit)
+- [Placement of different users](./placement-rules)
+- [Limit usable resources on a queue level](./resource-limits)
 - [Preemption and priority scheduling with fencing](./priority)
 
 ## Prerequisites
 
 Before configuring yunikorn-config, we need to create users using [Authentication](https://kubernetes.io/docs/reference/access-authn-authz/authentication/) and [RBAC](https://kubernetes.io/docs/reference/access-authn-authz/rbac/) from Kubernetes.
 
-To create the necessary users for the examples, Please use [./create-user.sh](./k8s-api-access/create-user.sh) to create a user.
+To create the necessary users for the examples, first navigate to the `k8s-api-access` directory:
+
+```shell
+cd k8s-api-access
+```
+
+Then use [./create-user.sh](./k8s-api-access/create-user.sh) to create a user.
 
 After the user is created, the pod can be obtained by the following command to confirm the creation is successful：
 
-```yaml
+```shell
 kubectl --context=sue-context get pod
 ```
 
 In our use cases, we frequently simulate different users deploying YAML files. To accomplish this, we utilize the `--context` command to select the appropriate user for each deployment:
 
-```yaml
+```shell
 kubectl --context=sue-context apply -f ./acl/nginx-1.yaml
 ```
 
@@ -83,23 +89,23 @@ The following example illustrates this scenario, along with the expected test re
 
 ## Placement of different users
 
-In [yunikorn-configs.yaml](./placementRule/yunikorn-configs.yaml), we use `placementrules` to allow the scheduler to dynamically assign applications to a queue, and even create a new queue if needed.
+In [yunikorn-configs.yaml](./placement-rules/yunikorn-configs.yaml), we use `placementrules` to allow the scheduler to dynamically assign applications to a queue, and even create a new queue if needed.
 
 See the documentation on [App Placement Rules](https://yunikorn.apache.org/docs/user_guide/placement_rules) for more information.
 
 ```yaml
 placementrules:
   - name: provided
-  create: true
-  filter:
-    type: allow
-    users:
-      - admin
-    groups:
-      - admin
-  parent:
-    name: fixed
-    value: root.system
+    create: true
+    filter:
+      type: allow
+      users:
+        - admin
+      groups:
+        - admin
+    parent:
+      name: fixed
+      value: root.system
 ```
 
 In the test case, the user doesn't need to specify the queue for their application. Instead, the scheduler will utilize the placement rules to assign the application to the appropriate queue. If needed, the scheduler will create new queues.
@@ -108,15 +114,15 @@ The following example illustrates this scenario, along with the expected test re
 
 | placement rule         | user, group  | provide queue             | namespace | Expected to be placed on  | YAML filename                                        |
 |------------------------|--------------|---------------------------|-----------|---------------------------|------------------------------------------------------|
-| provided               | admin, admin | root.system.high-priority |           | root.system.high-priority | [nginx-admin.yaml](./placementRule/nginx-admin.yaml) |
-| provided               | admin, admin | root.system.low-priority  |           | root.system.low-priority  | [nginx-admin.yaml](./placementRule/nginx-admin.yaml) |
-| username               | sue, group-a |                           |           | root.tenants.group-a.sue  | [nginx-sue.yaml](./placementRule/nginx-sue.yaml)     |
-| tag (value: namespace) | kim, group-b |                           | dev       | root.tenants.group-b.dev  | [nginx-kim.yaml](./placementRule/nginx-kim.yaml)     |
-| tag (value: namespace) | kim, group-b |                           | test      | root.tenants.group-b.test | [nginx-kim.yaml](./placementRule/nginx-kim.yaml)     |
+| provided               | admin, admin | root.system.high-priority |           | root.system.high-priority | [nginx-admin.yaml](./placement-rules/nginx-admin.yaml) |
+| provided               | admin, admin | root.system.low-priority  |           | root.system.low-priority  | [nginx-admin.yaml](./placement-rules/nginx-admin.yaml) |
+| username               | sue, group-a |                           |           | root.tenants.group-a.sue  | [nginx-sue.yaml](./placement-rules/nginx-sue.yaml)     |
+| tag (value: namespace) | kim, group-b |                           | dev       | root.tenants.group-b.dev  | [nginx-kim.yaml](./placement-rules/nginx-kim.yaml)     |
+| tag (value: namespace) | kim, group-b |                           | test      | root.tenants.group-b.test | [nginx-kim.yaml](./placement-rules/nginx-kim.yaml)     |
 
 ## Limit usable resources on a queue level
 
-In [yunikorn-configs.yaml](./resourceLimit/yunikorn-configs.yaml), we use `resources` to limit and reserve the amount of resources per queue.
+In [yunikorn-configs.yaml](./resource-limits/yunikorn-configs.yaml), we use `resources` to limit and reserve the amount of resources per queue.
 
 See the documentation on [Partition and Queue Configuration #Resources](https://yunikorn.apache.org/docs/user_guide/queue_config#resources) for more information.
 
@@ -137,12 +143,12 @@ The following example illustrates this scenario, along with the expected test re
 
 | user, group  | Resource Limits for Destination Queues | request resources for each replicas | replica | result                                                   | YAML filename                                        |
 |--------------|----------------------------------------|-------------------------------------|---------|----------------------------------------------------------|------------------------------------------------------|
-| admin, admin | {memory: 6G, vcore: 6}                 | {memory: 512M, vcore: 250m}         | 1       | run all replica                                          | [nginx-admin.yaml](./resourceLimit/nginx-admin.yaml) |
-| sue, group-A | {memory: 2G, vcore: 4}                 | {memory: 512M, vcore: 500m}         | 5       | run 3 replica (4 replica will exceed the resource limit) | [nginx-sue.yaml](./resourceLimit/nginx-sue.yaml)     |
+| admin, admin | {memory: 6G, vcore: 6}                 | {memory: 512M, vcore: 250m}         | 1       | run all replica                                          | [nginx-admin.yaml](./resource-limits/nginx-admin.yaml) |
+| sue, group-A | {memory: 2G, vcore: 4}                 | {memory: 512M, vcore: 500m}         | 5       | run 3 replica (4 replica will exceed the resource limit) | [nginx-sue.yaml](./resource-limits/nginx-sue.yaml)     |
 
 ## Preemption and priority scheduling with fencing
 
-In [yunikorn-configs.yaml](./resourceLimit/yunikorn-configs.yaml), we use `priority.offset` and `priority.policy` to configure the priority in a queue.
+In [yunikorn-configs.yaml](./resource-limits/yunikorn-configs.yaml), we use `priority.offset` and `priority.policy` to configure the priority in a queue.
 
 See the documentation on [App & Queue Priorities](https://yunikorn.apache.org/docs/user_guide/priorities) for more information.
 

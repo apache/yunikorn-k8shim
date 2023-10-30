@@ -21,9 +21,7 @@ package shim
 import (
 	"fmt"
 	"testing"
-	"time"
 
-	"go.uber.org/zap"
 	"gotest.tools/v3/assert"
 	v1 "k8s.io/api/core/v1"
 
@@ -32,7 +30,6 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common"
 	"github.com/apache/yunikorn-k8shim/pkg/common/test"
-	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/api"
 	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
@@ -58,11 +55,9 @@ partitions:
 	// init and register scheduler
 	cluster := MockScheduler{}
 	cluster.init()
-	cluster.start()
+	assert.NilError(t, cluster.start(), "failed to start cluster")
 	defer cluster.stop()
 
-	// ensure scheduler running
-	cluster.waitForSchedulerState(t, SchedulerStates().Running)
 	err := cluster.updateConfig(configData, nil)
 	assert.NilError(t, err, "update config failed")
 	nodeLabels := map[string]string{
@@ -112,11 +107,9 @@ partitions:
 	// init and register scheduler
 	cluster := MockScheduler{}
 	cluster.init()
-	cluster.start()
+	assert.NilError(t, cluster.start(), "failed to start cluster")
 	defer cluster.stop()
 
-	// ensure scheduler state
-	cluster.waitForSchedulerState(t, SchedulerStates().Running)
 	err := cluster.updateConfig(configData, nil)
 	assert.NilError(t, err, "update config failed")
 
@@ -173,11 +166,8 @@ func TestSchedulerRegistrationFailed(t *testing.T) {
 	ctx := cache.NewContext(mockedAPIProvider)
 	shim := newShimSchedulerInternal(ctx, mockedAPIProvider,
 		appmgmt.NewAMService(mockedAMProtocol, mockedAPIProvider), callback)
-	shim.Run()
-	defer shim.Stop()
-
-	err := waitShimSchedulerState(shim, SchedulerStates().Stopped, 5*time.Second)
-	assert.NilError(t, err)
+	assert.Error(t, shim.Run(), "some error")
+	shim.Stop()
 }
 
 func TestTaskFailures(t *testing.T) {
@@ -203,7 +193,7 @@ partitions:
 	// init and register scheduler
 	cluster := MockScheduler{}
 	cluster.init()
-	cluster.start()
+	assert.NilError(t, cluster.start(), "failed to start cluster")
 	defer cluster.stop()
 
 	// mock pod bind failures
@@ -214,8 +204,6 @@ partitions:
 		return nil
 	})
 
-	// ensure scheduler state
-	cluster.waitForSchedulerState(t, SchedulerStates().Running)
 	err := cluster.updateConfig(configData, nil)
 	assert.NilError(t, err, "update config failed")
 
@@ -247,21 +235,4 @@ partitions:
 	err = cluster.waitAndVerifySchedulerAllocations("root.a",
 		"[mycluster]default", "app0001", 1)
 	assert.NilError(t, err, "number of allocations is not expected, error")
-}
-
-func waitShimSchedulerState(shim *KubernetesShim, expectedState string, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
-	for {
-		if shim.GetSchedulerState() == expectedState {
-			log.Log(log.Test).Info("waiting for state",
-				zap.String("expect", expectedState),
-				zap.String("current", shim.GetSchedulerState()))
-			return nil
-		}
-		time.Sleep(1 * time.Second)
-		if time.Now().After(deadline) {
-			return fmt.Errorf("scheduler has not reached expected state %s in %d seconds, current state: %s",
-				expectedState, deadline.Second(), shim.GetSchedulerState())
-		}
-	}
 }

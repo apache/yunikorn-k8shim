@@ -39,9 +39,9 @@ var _ = Describe("", func() {
 	var restClient yunikorn.RClient
 	var err error
 	var sleepRespPod *v1.Pod
-	var maxCPUAnnotation = "yunikorn.apache.org/namespace.max.cpu"
-	var maxMemAnnotation = "yunikorn.apache.org/namespace.max.memory"
-	var quotaAnnotation = "yunikorn.apache.org/namespace.quota"
+	var maxCPUAnnotation = siCommon.DomainYuniKorn + "namespace.max.cpu"
+	var maxMemAnnotation = siCommon.DomainYuniKorn + "namespace.max.memory"
+	var quotaAnnotation = siCommon.DomainYuniKorn + "namespace.quota"
 	var oldAnnotations map[string]string
 	var expectedOldAnnotations map[string]int64
 	var newAnnotations map[string]string

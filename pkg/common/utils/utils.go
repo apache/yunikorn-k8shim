@@ -102,6 +102,20 @@ func GetQueueNameFromPod(pod *v1.Pod) string {
 	return queueName
 }
 
+// GenerateApplicationID generates an appID based on the namespace value
+// if configured to generate unique appID, generate appID as <namespace>-<pod-uid> namespace capped at 26chars
+// if not set or configured as false, appID generated as <autogen-prefix>-<namespace>-<autogen-suffix>
+func GenerateApplicationID(namespace string, generateUniqueAppIds bool, podUID string) string {
+	var generatedID string
+	if generateUniqueAppIds {
+		generatedID = fmt.Sprintf("%.26s-%s", namespace, podUID)
+	} else {
+		generatedID = fmt.Sprintf("%s-%s-%s", constants.AutoGenAppPrefix, namespace, constants.AutoGenAppSuffix)
+	}
+
+	return fmt.Sprintf("%.63s", generatedID)
+}
+
 // GetApplicationIDFromPod returns the applicationID (if present) from a Pod or an empty string if not present.
 // If an applicationID is present, the Pod is managed by YuniKorn. Otherwise, it is managed by an external scheduler.
 func GetApplicationIDFromPod(pod *v1.Pod) string {

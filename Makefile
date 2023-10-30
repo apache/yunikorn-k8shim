@@ -510,7 +510,7 @@ bench:
 fsm_graph:
 	@echo "generating FSM graphs"
 	"$(GO)" clean -testcache
-	"$(GO)" test -tags graphviz -run 'Test.*FsmGraph' ./pkg/shim ./pkg/cache
+	"$(GO)" test -tags graphviz -run 'Test.*FsmGraph' ./pkg/cache
 	scripts/generate-fsm-graph-images.sh
 
 # Remove generated build artifacts

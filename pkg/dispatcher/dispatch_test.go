@@ -206,9 +206,9 @@ func TestDispatchTimeout(t *testing.T) {
 	// start the handler, but waiting on a flag
 	RegisterEventHandler(EventTypeApp, func(obj interface{}) {
 		if appEvent, ok := obj.(TestAppEvent); ok {
-			fmt.Println(fmt.Sprintf("handling %s", appEvent.appID))
+			fmt.Printf("handling %s\n", appEvent.appID)
 			<-appEvent.flag
-			fmt.Println(fmt.Sprintf("handling %s DONE", appEvent.appID))
+			fmt.Printf("handling %s DONE\n", appEvent.appID)
 		}
 	})
 

@@ -20,6 +20,7 @@ package yunikorn
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -107,10 +108,7 @@ func (c *RClient) GetHealthCheck() (dao.SchedulerHealthDAOInfo, error) {
 }
 
 func (c *RClient) WaitforQueueToAppear(partition string, queueName string, timeout int) error {
-	if err := wait.PollImmediate(300*time.Millisecond, time.Duration(timeout)*time.Second, c.IsQueuePresent(partition, queueName)); err != nil {
-		return err
-	}
-	return nil
+	return wait.PollUntilContextTimeout(context.TODO(), 300*time.Microsecond, time.Duration(timeout)*time.Second, false, c.IsQueuePresent(partition, queueName).WithContext())
 }
 
 func (c *RClient) IsQueuePresent(partition string, queueName string) wait.ConditionFunc {
@@ -198,7 +196,7 @@ func (c *RClient) isAllocLogPresent(partition string, queueName string, appID st
 }
 
 func (c *RClient) WaitForAllocationLog(partition string, queueName string, appID string, podName string, timeout int) error {
-	if err := wait.PollImmediate(time.Second, time.Duration(timeout)*time.Second, c.isAllocLogPresent(partition, queueName, appID, podName)); err != nil {
+	if err := wait.PollUntilContextTimeout(context.TODO(), time.Second, time.Duration(timeout)*time.Second, false, c.isAllocLogPresent(partition, queueName, appID, podName).WithContext()); err != nil {
 		return err
 	}
 
@@ -234,7 +232,7 @@ func (c *RClient) GetNodes(partition string) (*[]dao.NodeDAOInfo, error) {
 }
 
 func (c *RClient) WaitForAppStateTransition(partition string, queue string, appID string, state string, timeout int) error {
-	return wait.PollImmediate(time.Millisecond*300, time.Duration(timeout)*time.Second, c.isAppInDesiredState(partition, queue, appID, state))
+	return wait.PollUntilContextTimeout(context.TODO(), time.Millisecond*300, time.Duration(timeout)*time.Second, false, c.isAppInDesiredState(partition, queue, appID, state).WithContext())
 }
 
 func (c *RClient) AreAllExecPodsAllotted(partition string, queueName string, appID string, execPodCount int) wait.ConditionFunc {
@@ -285,7 +283,7 @@ func isRootSched(policy string) wait.ConditionFunc {
 }
 
 func WaitForSchedPolicy(policy string, timeout time.Duration) error {
-	return wait.PollImmediate(2*time.Second, timeout, isRootSched(policy))
+	return wait.PollUntilContextTimeout(context.TODO(), 2*time.Second, timeout, false, isRootSched(policy).WithContext())
 }
 
 func GetFailedHealthChecks() (string, error) {
@@ -293,7 +291,7 @@ func GetFailedHealthChecks() (string, error) {
 	var failCheck string
 	healthCheck, err := restClient.GetHealthCheck()
 	if err != nil {
-		return "", fmt.Errorf("Failed to get scheduler health check from API")
+		return "", fmt.Errorf("failed to get scheduler health check from API")
 	}
 	if !healthCheck.Healthy {
 		for _, check := range healthCheck.HealthChecks {
@@ -339,7 +337,7 @@ func compareQueueTS(queuePathStr string, ts string) wait.ConditionFunc {
 
 // Expects queuePath to use periods as delimiters. ie "root.queueA.child"
 func WaitForQueueTS(queuePathStr string, ts string, timeout time.Duration) error {
-	return wait.PollImmediate(2*time.Second, timeout, compareQueueTS(queuePathStr, ts))
+	return wait.PollUntilContextTimeout(context.TODO(), 2*time.Second, timeout, false, compareQueueTS(queuePathStr, ts).WithContext())
 }
 
 func AllocLogToStrings(log []*dao.AllocationAskLogDAOInfo) []string {

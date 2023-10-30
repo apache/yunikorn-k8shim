@@ -65,7 +65,6 @@ func (os *Manager) ServiceInit() error {
 	var factoryOpts []crInformers.SharedInformerOption
 	os.crdInformerFactory = crInformers.NewSharedInformerFactoryWithOptions(
 		crClient, 0, factoryOpts...)
-	os.crdInformerFactory.Sparkoperator().V1beta2().SparkApplications().Informer()
 	os.crdInformer = os.crdInformerFactory.Sparkoperator().V1beta2().SparkApplications().Informer()
 	os.crdInformer.AddEventHandler(k8sCache.ResourceEventHandlerFuncs{
 		UpdateFunc: os.updateApplication,

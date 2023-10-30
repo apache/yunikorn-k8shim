@@ -31,7 +31,6 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-k8shim/pkg/shim"
-	"github.com/apache/yunikorn-scheduler-interface/lib/go/api"
 )
 
 func main() {
@@ -50,9 +49,11 @@ func main() {
 	log.Log(log.Shim).Info("Starting scheduler", zap.String("name", constants.SchedulerName))
 	serviceContext := entrypoint.StartAllServicesWithLogger(log.RootLogger(), log.GetZapConfigs())
 
-	if sa, ok := serviceContext.RMProxy.(api.SchedulerAPI); ok {
-		ss := shim.NewShimScheduler(sa, conf.GetSchedulerConf(), configMaps)
-		ss.Run()
+	if serviceContext.RMProxy != nil {
+		ss := shim.NewShimScheduler(serviceContext.RMProxy, conf.GetSchedulerConf(), configMaps)
+		if err := ss.Run(); err != nil {
+			log.Log(log.Shim).Fatal("Unable to start scheduler", zap.Error(err))
+		}
 
 		signalChan := make(chan os.Signal, 1)
 		signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
