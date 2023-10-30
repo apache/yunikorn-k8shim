@@ -53,8 +53,6 @@ const DefaultUser = "nobody"
 
 // Spark
 const SparkLabelAppID = "spark-app-selector"
-const SparkLabelRole = "spark-role"
-const SparkLabelRoleDriver = "driver"
 
 // Configuration
 const ConfigMapName = "yunikorn-configs"

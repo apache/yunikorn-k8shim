@@ -25,7 +25,6 @@ import (
 
 	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/general"
 	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
-	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/sparkoperator"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
@@ -58,8 +57,6 @@ func NewAMService(amProtocol interfaces.ApplicationManagementProtocol,
 		// registered app plugins
 		// for general apps
 		general.NewManager(apiProvider, podEventHandler),
-		// for spark operator - SparkApplication
-		sparkoperator.NewManager(amProtocol, apiProvider),
 	)
 
 	return appManager
