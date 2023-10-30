@@ -570,14 +570,14 @@ var _ = ginkgo.Describe("Preemption", func() {
 			if err = common.AddQueue(sc, "default", "root", configs.QueueConfig{
 				Name:       "high-priority",
 				Resources:  configs.Resources{Guaranteed: map[string]string{"memory": fmt.Sprintf("%dM", sleepPodMemOverLimit)}},
-				Properties: map[string]string{"preemption.delay": "10s", "priority.offset": "100"},
+				Properties: map[string]string{"preemption.delay": "1s", "priority.offset": "100"},
 			}); err != nil {
 				return err
 			}
 			if err = common.AddQueue(sc, "default", "root", configs.QueueConfig{
 				Name:       "low-priority",
 				Resources:  configs.Resources{Guaranteed: map[string]string{"memory": fmt.Sprintf("%dM", sleepPodMemLimit2)}},
-				Properties: map[string]string{"preemption.delay": "10s", "priority.offset": "-100"},
+				Properties: map[string]string{"preemption.delay": "1s", "priority.offset": "-100"},
 			}); err != nil {
 				return err
 			}
@@ -595,9 +595,7 @@ var _ = ginkgo.Describe("Preemption", func() {
 			gomega.Ω(podErr).NotTo(gomega.HaveOccurred())
 
 			// Wait for pod to move to running state
-			podErr = kClient.WaitForPodBySelectorRunning(dev,
-				fmt.Sprintf("app=%s", sleepRespPod.ObjectMeta.Labels["app"]),
-				120)
+			podErr = kClient.WaitForPodRunning(dev, sleepRespPod.Name, 60*time.Second)
 			gomega.Ω(podErr).NotTo(gomega.HaveOccurred())
 		}
 		sleepObj, podErr := k8s.InitSleepPod(sleepPod5Config)
@@ -606,9 +604,7 @@ var _ = ginkgo.Describe("Preemption", func() {
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 
 		// Wait for pod to move to running state
-		podErr = kClient.WaitForPodBySelectorRunning(dev,
-			fmt.Sprintf("app=%s", sleepRespPod5.ObjectMeta.Labels["app"]),
-			120)
+		podErr = kClient.WaitForPodRunning(dev, sleepRespPod5.Name, 60*time.Second)
 		gomega.Ω(podErr).NotTo(gomega.HaveOccurred())
 		// assert two of the pods in root.low-priority are preempted
 		ginkgo.By("Two pods in root.low-priority queue are preempted")
