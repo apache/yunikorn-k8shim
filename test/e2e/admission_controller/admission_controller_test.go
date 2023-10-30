@@ -317,16 +317,11 @@ var _ = ginkgo.Describe("AdmissionController", func() {
 		}
 		configMap.Data[amConf.AMAccessControlTrustControllers] = "false"
 		ginkgo.By("Update configmap")
-		stopChan := make(chan struct{})
-		eventHandler := &EventHandler{updateCh: make(chan struct{})}
-		err = kubeClient.StartConfigMapInformer(configmanager.YuniKornTestConfig.YkNamespace, stopChan, eventHandler)
-		defer close(stopChan)
-		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
-		_, err = kubeClient.UpdateConfigMap(configMap, configmanager.YuniKornTestConfig.YkNamespace)
-		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
-		updateOk := eventHandler.WaitForUpdate(30 * time.Second)
-		gomega.Ω(updateOk).To(gomega.Equal(true))
-		time.Sleep(time.Second)
+		// The wait wrapper still can't fully guarantee that the config in AdmissionController has been updated.
+		yunikorn.WaitForAdmissionControllerRefreshConfAfterAction(func() {
+			_, err = kubeClient.UpdateConfigMap(configMap, configmanager.YuniKornTestConfig.YkNamespace)
+			gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
+		})
 
 		ginkgo.By("Create a deployment")
 		deployment, err2 := kubeClient.CreateDeployment(&testDeployment, ns)
@@ -353,11 +348,11 @@ var _ = ginkgo.Describe("AdmissionController", func() {
 		configMap, err = kubeClient.GetConfigMap(constants.ConfigMapName, configmanager.YuniKornTestConfig.YkNamespace)
 		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
 		configMap.Data[amConf.AMAccessControlTrustControllers] = "true"
-		_, err = kubeClient.UpdateConfigMap(configMap, configmanager.YuniKornTestConfig.YkNamespace)
-		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
-		updateOk = eventHandler.WaitForUpdate(30 * time.Second)
-		gomega.Ω(updateOk).To(gomega.Equal(true))
-		time.Sleep(time.Second)
+		// The wait wrapper still can't fully guarantee that the config in AdmissionController has been updated.
+		yunikorn.WaitForAdmissionControllerRefreshConfAfterAction(func() {
+			_, err = kubeClient.UpdateConfigMap(configMap, configmanager.YuniKornTestConfig.YkNamespace)
+			gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
+		})
 
 		// pod is expected to appear
 		ginkgo.By("Check for sleep pod")
@@ -375,16 +370,11 @@ var _ = ginkgo.Describe("AdmissionController", func() {
 		}
 		configMap.Data[amConf.AMAccessControlExternalUsers] = ""
 		ginkgo.By("Update configmap")
-		stopChan := make(chan struct{})
-		eventHandler := &EventHandler{updateCh: make(chan struct{})}
-		err = kubeClient.StartConfigMapInformer(configmanager.YuniKornTestConfig.YkNamespace, stopChan, eventHandler)
-		defer close(stopChan)
-		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
-		_, err = kubeClient.UpdateConfigMap(configMap, configmanager.YuniKornTestConfig.YkNamespace)
-		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
-		updateOk := eventHandler.WaitForUpdate(30 * time.Second)
-		gomega.Ω(updateOk).To(gomega.Equal(true))
-		time.Sleep(time.Second)
+		// The wait wrapper still can't fully guarantee that the config in AdmissionController has been updated.
+		yunikorn.WaitForAdmissionControllerRefreshConfAfterAction(func() {
+			_, err = kubeClient.UpdateConfigMap(configMap, configmanager.YuniKornTestConfig.YkNamespace)
+			gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
+		})
 
 		ginkgo.By("Create a deployment")
 		deployment := testDeployment.DeepCopy()
@@ -400,11 +390,12 @@ var _ = ginkgo.Describe("AdmissionController", func() {
 		configMap, err = kubeClient.GetConfigMap(constants.ConfigMapName, configmanager.YuniKornTestConfig.YkNamespace)
 		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
 		configMap.Data[amConf.AMAccessControlExternalUsers] = "(^minikube-user$|^kubernetes-admin$)" // works with Minikube & KIND
-		_, err = kubeClient.UpdateConfigMap(configMap, configmanager.YuniKornTestConfig.YkNamespace)
-		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
-		updateOk = eventHandler.WaitForUpdate(30 * time.Second)
-		gomega.Ω(updateOk).To(gomega.Equal(true))
-		time.Sleep(time.Second)
+		// The wait wrapper still can't fully guarantee that the config in AdmissionController has been updated.
+		yunikorn.WaitForAdmissionControllerRefreshConfAfterAction(func() {
+			_, err = kubeClient.UpdateConfigMap(configMap, configmanager.YuniKornTestConfig.YkNamespace)
+			gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
+
+		})
 
 		// submit deployment again
 		ginkgo.By("Submit deployment again")
@@ -428,16 +419,11 @@ var _ = ginkgo.Describe("AdmissionController", func() {
 		}
 		configMap.Data[amConf.AMAccessControlBypassAuth] = "true"
 		ginkgo.By("Update configmap (bypassAuth -> true)")
-		stopChan := make(chan struct{})
-		eventHandler := &EventHandler{updateCh: make(chan struct{})}
-		err = kubeClient.StartConfigMapInformer(configmanager.YuniKornTestConfig.YkNamespace, stopChan, eventHandler)
-		defer close(stopChan)
-		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
-		_, err = kubeClient.UpdateConfigMap(configMap, configmanager.YuniKornTestConfig.YkNamespace)
-		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
-		updateOk := eventHandler.WaitForUpdate(30 * time.Second)
-		gomega.Ω(updateOk).To(gomega.Equal(true))
-		time.Sleep(time.Second)
+		// The wait wrapper still can't fully guarantee that the config in AdmissionController has been updated.
+		yunikorn.WaitForAdmissionControllerRefreshConfAfterAction(func() {
+			_, err = kubeClient.UpdateConfigMap(configMap, configmanager.YuniKornTestConfig.YkNamespace)
+			gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
+		})
 
 		ginkgo.By("Submit a deployment")
 		deployment := testDeployment.DeepCopy()
@@ -453,11 +439,11 @@ var _ = ginkgo.Describe("AdmissionController", func() {
 		configMap, err = kubeClient.GetConfigMap(constants.ConfigMapName, configmanager.YuniKornTestConfig.YkNamespace)
 		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
 		configMap.Data[amConf.AMAccessControlBypassAuth] = "false"
-		_, err = kubeClient.UpdateConfigMap(configMap, configmanager.YuniKornTestConfig.YkNamespace)
-		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
-		updateOk = eventHandler.WaitForUpdate(30 * time.Second)
-		gomega.Ω(updateOk).To(gomega.Equal(true))
-		time.Sleep(time.Second)
+		// The wait wrapper still can't fully guarantee that the config in AdmissionController has been updated.
+		yunikorn.WaitForAdmissionControllerRefreshConfAfterAction(func() {
+			_, err = kubeClient.UpdateConfigMap(configMap, configmanager.YuniKornTestConfig.YkNamespace)
+			gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
+		})
 
 		ginkgo.By("Update container image in deployment")
 		deployment, err = kubeClient.GetDeployment(deployment.Name, ns)

@@ -34,6 +34,8 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
+
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 )
 
 func ScheduleSuccessEvent(ns, podName, nodeName string) func(*v1.Event) bool {
@@ -111,4 +113,48 @@ func ObserveEventAfterAction(c clientset.Interface, ns string, eventPredicate fu
 		return observedMatchingEvent, nil
 	})
 	return err == nil, err
+}
+
+type EventHandler struct {
+	updateCh chan struct{}
+}
+
+func (e *EventHandler) OnAdd(_ interface{}, _ bool) {}
+
+func (e *EventHandler) OnUpdate(_, _ interface{}) {
+	e.updateCh <- struct{}{}
+}
+
+func (e *EventHandler) OnDelete(_ interface{}) {}
+
+func (e *EventHandler) WaitForUpdate(timeout time.Duration) bool {
+	t := time.After(timeout)
+
+	for {
+		select {
+		case <-t:
+			return false
+		case <-e.updateCh:
+			return true
+		}
+	}
+}
+
+func ObserveConfigMapInformerUpdateAfterAction(action func()) {
+	kubeClient := KubeCtl{}
+	gomega.Expect(kubeClient.SetClient()).To(gomega.BeNil())
+
+	// Setup ConfigMap informer
+	stopChan := make(chan struct{})
+	eventHandler := &EventHandler{updateCh: make(chan struct{})}
+	err := kubeClient.StartConfigMapInformer(configmanager.YuniKornTestConfig.YkNamespace, stopChan, eventHandler)
+	defer close(stopChan)
+	gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
+
+	// Trigger action
+	action()
+
+	// Wait for ConfigMap informer recevie update event.
+	updateOk := eventHandler.WaitForUpdate(30 * time.Second)
+	gomega.Ω(updateOk).To(gomega.Equal(true))
 }

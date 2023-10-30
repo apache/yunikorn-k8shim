@@ -110,26 +110,29 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 	ginkgo.It("Verify_maxresources_with_a_specific_user_limit", func() {
 		ginkgo.By("Update config")
 		annotation = "ann-" + common.RandSeq(10)
-		yunikorn.UpdateCustomConfigMapWrapperWithMap(oldConfigMap, "", annotation, admissionCustomConfig, func(sc *configs.SchedulerConfig) error {
-			// remove placement rules so we can control queue
-			sc.Partitions[0].PlacementRules = nil
+		// The wait wrapper still can't fully guarantee that the config in AdmissionController has been updated.
+		yunikorn.WaitForAdmissionControllerRefreshConfAfterAction(func() {
+			yunikorn.UpdateCustomConfigMapWrapperWithMap(oldConfigMap, "", annotation, admissionCustomConfig, func(sc *configs.SchedulerConfig) error {
+				// remove placement rules so we can control queue
+				sc.Partitions[0].PlacementRules = nil
 
-			if err := common.AddQueue(sc, "default", "root", configs.QueueConfig{
-				Name: "sandbox1",
-				Limits: []configs.Limit{
-					{
-						Limit:           "user entry",
-						Users:           []string{user1},
-						MaxApplications: 2,
-						MaxResources: map[string]string{
-							siCommon.Memory: fmt.Sprintf("%dM", mediumMem),
+				if err := common.AddQueue(sc, "default", "root", configs.QueueConfig{
+					Name: "sandbox1",
+					Limits: []configs.Limit{
+						{
+							Limit:           "user entry",
+							Users:           []string{user1},
+							MaxApplications: 2,
+							MaxResources: map[string]string{
+								siCommon.Memory: fmt.Sprintf("%dM", mediumMem),
+							},
 						},
 					},
-				},
-			}); err != nil {
-				return err
-			}
-			return common.AddQueue(sc, "default", "root", configs.QueueConfig{Name: "sandbox2"})
+				}); err != nil {
+					return err
+				}
+				return common.AddQueue(sc, "default", "root", configs.QueueConfig{Name: "sandbox2"})
+			})
 		})
 
 		// usergroup1 can deploy the first sleep pod to root.sandbox1
@@ -155,26 +158,29 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 	ginkgo.It("Verify_maxapplications_with_a_specific_user_limit", func() {
 		ginkgo.By("Update config")
 		annotation = "ann-" + common.RandSeq(10)
-		yunikorn.UpdateCustomConfigMapWrapperWithMap(oldConfigMap, "", annotation, admissionCustomConfig, func(sc *configs.SchedulerConfig) error {
-			// remove placement rules so we can control queue
-			sc.Partitions[0].PlacementRules = nil
+		// The wait wrapper still can't fully guarantee that the config in AdmissionController has been updated.
+		yunikorn.WaitForAdmissionControllerRefreshConfAfterAction(func() {
+			yunikorn.UpdateCustomConfigMapWrapperWithMap(oldConfigMap, "", annotation, admissionCustomConfig, func(sc *configs.SchedulerConfig) error {
+				// remove placement rules so we can control queue
+				sc.Partitions[0].PlacementRules = nil
 
-			if err := common.AddQueue(sc, "default", "root", configs.QueueConfig{
-				Name: "sandbox1",
-				Limits: []configs.Limit{
-					{
-						Limit:           "user entry",
-						Users:           []string{user1},
-						MaxApplications: 1,
-						MaxResources: map[string]string{
-							siCommon.Memory: fmt.Sprintf("%dM", largeMem),
+				if err := common.AddQueue(sc, "default", "root", configs.QueueConfig{
+					Name: "sandbox1",
+					Limits: []configs.Limit{
+						{
+							Limit:           "user entry",
+							Users:           []string{user1},
+							MaxApplications: 1,
+							MaxResources: map[string]string{
+								siCommon.Memory: fmt.Sprintf("%dM", largeMem),
+							},
 						},
 					},
-				},
-			}); err != nil {
-				return err
-			}
-			return common.AddQueue(sc, "default", "root", configs.QueueConfig{Name: "sandbox2"})
+				}); err != nil {
+					return err
+				}
+				return common.AddQueue(sc, "default", "root", configs.QueueConfig{Name: "sandbox2"})
+			})
 		})
 
 		// usergroup1 can deploy the first sleep pod to root.sandbox1
@@ -200,26 +206,29 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 	ginkgo.It("Verify_maxresources_with_a_specific_group_limit", func() {
 		ginkgo.By("Update config")
 		annotation = "ann-" + common.RandSeq(10)
-		yunikorn.UpdateCustomConfigMapWrapperWithMap(oldConfigMap, "", annotation, admissionCustomConfig, func(sc *configs.SchedulerConfig) error {
-			// remove placement rules so we can control queue
-			sc.Partitions[0].PlacementRules = nil
+		// The wait wrapper still can't fully guarantee that the config in AdmissionController has been updated.
+		yunikorn.WaitForAdmissionControllerRefreshConfAfterAction(func() {
+			yunikorn.UpdateCustomConfigMapWrapperWithMap(oldConfigMap, "", annotation, admissionCustomConfig, func(sc *configs.SchedulerConfig) error {
+				// remove placement rules so we can control queue
+				sc.Partitions[0].PlacementRules = nil
 
-			if err := common.AddQueue(sc, "default", "root", configs.QueueConfig{
-				Name: "sandbox1",
-				Limits: []configs.Limit{
-					{
-						Limit:           "group entry",
-						Groups:          []string{group1},
-						MaxApplications: 2,
-						MaxResources: map[string]string{
-							siCommon.Memory: fmt.Sprintf("%dM", mediumMem),
+				if err := common.AddQueue(sc, "default", "root", configs.QueueConfig{
+					Name: "sandbox1",
+					Limits: []configs.Limit{
+						{
+							Limit:           "group entry",
+							Groups:          []string{group1},
+							MaxApplications: 2,
+							MaxResources: map[string]string{
+								siCommon.Memory: fmt.Sprintf("%dM", mediumMem),
+							},
 						},
 					},
-				},
-			}); err != nil {
-				return err
-			}
-			return common.AddQueue(sc, "default", "root", configs.QueueConfig{Name: "sandbox2"})
+				}); err != nil {
+					return err
+				}
+				return common.AddQueue(sc, "default", "root", configs.QueueConfig{Name: "sandbox2"})
+			})
 		})
 
 		// usergroup1 can deploy the first sleep pod to root.sandbox1
@@ -243,26 +252,29 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 	ginkgo.It("Verify_maxapplications_with_a_specific_group_limit", func() {
 		ginkgo.By("Update config")
 		annotation = "ann-" + common.RandSeq(10)
-		yunikorn.UpdateCustomConfigMapWrapperWithMap(oldConfigMap, "", annotation, admissionCustomConfig, func(sc *configs.SchedulerConfig) error {
-			// remove placement rules so we can control queue
-			sc.Partitions[0].PlacementRules = nil
+		// The wait wrapper still can't fully guarantee that the config in AdmissionController has been updated.
+		yunikorn.WaitForAdmissionControllerRefreshConfAfterAction(func() {
+			yunikorn.UpdateCustomConfigMapWrapperWithMap(oldConfigMap, "", annotation, admissionCustomConfig, func(sc *configs.SchedulerConfig) error {
+				// remove placement rules so we can control queue
+				sc.Partitions[0].PlacementRules = nil
 
-			if err := common.AddQueue(sc, "default", "root", configs.QueueConfig{
-				Name: "sandbox1",
-				Limits: []configs.Limit{
-					{
-						Limit:           "group entry",
-						Groups:          []string{group1},
-						MaxApplications: 1,
-						MaxResources: map[string]string{
-							siCommon.Memory: fmt.Sprintf("%dM", largeMem),
+				if err := common.AddQueue(sc, "default", "root", configs.QueueConfig{
+					Name: "sandbox1",
+					Limits: []configs.Limit{
+						{
+							Limit:           "group entry",
+							Groups:          []string{group1},
+							MaxApplications: 1,
+							MaxResources: map[string]string{
+								siCommon.Memory: fmt.Sprintf("%dM", largeMem),
+							},
 						},
 					},
-				},
-			}); err != nil {
-				return err
-			}
-			return common.AddQueue(sc, "default", "root", configs.QueueConfig{Name: "sandbox2"})
+				}); err != nil {
+					return err
+				}
+				return common.AddQueue(sc, "default", "root", configs.QueueConfig{Name: "sandbox2"})
+			})
 		})
 
 		// usergroup1 can deploy the first sleep pod to root.sandbox1
@@ -286,34 +298,37 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 	ginkgo.It("Verify_maxresources_with_user_limit_lower_than_group_limit", func() {
 		ginkgo.By("Update config")
 		annotation = "ann-" + common.RandSeq(10)
-		yunikorn.UpdateCustomConfigMapWrapperWithMap(oldConfigMap, "", annotation, admissionCustomConfig, func(sc *configs.SchedulerConfig) error {
-			// remove placement rules so we can control queue
-			sc.Partitions[0].PlacementRules = nil
+		// The wait wrapper still can't fully guarantee that the config in AdmissionController has been updated.
+		yunikorn.WaitForAdmissionControllerRefreshConfAfterAction(func() {
+			yunikorn.UpdateCustomConfigMapWrapperWithMap(oldConfigMap, "", annotation, admissionCustomConfig, func(sc *configs.SchedulerConfig) error {
+				// remove placement rules so we can control queue
+				sc.Partitions[0].PlacementRules = nil
 
-			if err := common.AddQueue(sc, "default", "root", configs.QueueConfig{
-				Name: "sandbox1",
-				Limits: []configs.Limit{
-					{
-						Limit:           "user entry",
-						Users:           []string{user1},
-						MaxApplications: 2,
-						MaxResources: map[string]string{
-							siCommon.Memory: fmt.Sprintf("%dM", mediumMem),
+				if err := common.AddQueue(sc, "default", "root", configs.QueueConfig{
+					Name: "sandbox1",
+					Limits: []configs.Limit{
+						{
+							Limit:           "user entry",
+							Users:           []string{user1},
+							MaxApplications: 2,
+							MaxResources: map[string]string{
+								siCommon.Memory: fmt.Sprintf("%dM", mediumMem),
+							},
+						},
+						{
+							Limit:           "group entry",
+							Groups:          []string{group1},
+							MaxApplications: 2,
+							MaxResources: map[string]string{
+								siCommon.Memory: fmt.Sprintf("%dM", largeMem),
+							},
 						},
 					},
-					{
-						Limit:           "group entry",
-						Groups:          []string{group1},
-						MaxApplications: 2,
-						MaxResources: map[string]string{
-							siCommon.Memory: fmt.Sprintf("%dM", largeMem),
-						},
-					},
-				},
-			}); err != nil {
-				return err
-			}
-			return common.AddQueue(sc, "default", "root", configs.QueueConfig{Name: "sandbox2"})
+				}); err != nil {
+					return err
+				}
+				return common.AddQueue(sc, "default", "root", configs.QueueConfig{Name: "sandbox2"})
+			})
 		})
 
 		// usergroup1 can deploy the first sleep pod to root.sandbox1
@@ -328,34 +343,37 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 	ginkgo.It("Verify_maxresources_with_group_limit_lower_than_user_limit", func() {
 		ginkgo.By("Update config")
 		annotation = "ann-" + common.RandSeq(10)
-		yunikorn.UpdateCustomConfigMapWrapperWithMap(oldConfigMap, "", annotation, admissionCustomConfig, func(sc *configs.SchedulerConfig) error {
-			// remove placement rules so we can control queue
-			sc.Partitions[0].PlacementRules = nil
+		// The wait wrapper still can't fully guarantee that the config in AdmissionController has been updated.
+		yunikorn.WaitForAdmissionControllerRefreshConfAfterAction(func() {
+			yunikorn.UpdateCustomConfigMapWrapperWithMap(oldConfigMap, "", annotation, admissionCustomConfig, func(sc *configs.SchedulerConfig) error {
+				// remove placement rules so we can control queue
+				sc.Partitions[0].PlacementRules = nil
 
-			if err := common.AddQueue(sc, "default", "root", configs.QueueConfig{
-				Name: "sandbox1",
-				Limits: []configs.Limit{
-					{
-						Limit:           "user entry",
-						Users:           []string{user1},
-						MaxApplications: 2,
-						MaxResources: map[string]string{
-							siCommon.Memory: fmt.Sprintf("%dM", largeMem),
+				if err := common.AddQueue(sc, "default", "root", configs.QueueConfig{
+					Name: "sandbox1",
+					Limits: []configs.Limit{
+						{
+							Limit:           "user entry",
+							Users:           []string{user1},
+							MaxApplications: 2,
+							MaxResources: map[string]string{
+								siCommon.Memory: fmt.Sprintf("%dM", largeMem),
+							},
+						},
+						{
+							Limit:           "group entry",
+							Groups:          []string{group1},
+							MaxApplications: 2,
+							MaxResources: map[string]string{
+								siCommon.Memory: fmt.Sprintf("%dM", mediumMem),
+							},
 						},
 					},
-					{
-						Limit:           "group entry",
-						Groups:          []string{group1},
-						MaxApplications: 2,
-						MaxResources: map[string]string{
-							siCommon.Memory: fmt.Sprintf("%dM", mediumMem),
-						},
-					},
-				},
-			}); err != nil {
-				return err
-			}
-			return common.AddQueue(sc, "default", "root", configs.QueueConfig{Name: "sandbox2"})
+				}); err != nil {
+					return err
+				}
+				return common.AddQueue(sc, "default", "root", configs.QueueConfig{Name: "sandbox2"})
+			})
 		})
 
 		// usergroup1 can deploy the first sleep pod to root.sandbox1
