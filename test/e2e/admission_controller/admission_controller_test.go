@@ -41,31 +41,6 @@ const nonExistentNode = "non-existent-node"
 const defaultPodTimeout = 10 * time.Second
 const cronJobPodTimeout = 65 * time.Second
 
-type EventHandler struct {
-	updateCh chan struct{}
-}
-
-func (e *EventHandler) OnAdd(_ interface{}, _ bool) {}
-
-func (e *EventHandler) OnUpdate(_, _ interface{}) {
-	e.updateCh <- struct{}{}
-}
-
-func (e *EventHandler) OnDelete(_ interface{}) {}
-
-func (e *EventHandler) WaitForUpdate(timeout time.Duration) bool {
-	t := time.After(timeout)
-
-	for {
-		select {
-		case <-t:
-			return false
-		case <-e.updateCh:
-			return true
-		}
-	}
-}
-
 var _ = ginkgo.Describe("AdmissionController", func() {
 	ginkgo.BeforeEach(func() {
 		kubeClient = k8s.KubeCtl{}
