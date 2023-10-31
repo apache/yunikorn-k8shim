@@ -65,9 +65,7 @@ $ ginkgo -r user_group_limit -v -- -yk-namespace "yunikorn" -kube-config "$HOME/
 ```
 
 * Launching specified test.
-e.g. The first augument of ginkgo.It()
-
-ginkgo.It( "Verify_maxapplications_with_a_specific_group_limit" , ... )
+e.g. Run test with ginkgo.it() spec name "Verify_maxapplications_with_a_specific_group_limit"
 ```shell 
 $ cd test/e2e/
 $ ginkgo run -r -v --focus "Verify_maxapplications_with_a_specific_group_limit" \
