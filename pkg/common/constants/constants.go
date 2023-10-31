@@ -64,9 +64,6 @@ const SchedulerName = "yunikorn"
 // OwnerReferences
 const DaemonSetType = "DaemonSet"
 
-// Application crd
-const AppManagerHandlerName = "yunikorn-app"
-
 // Gang scheduling
 const PlaceholderContainerImage = "registry.k8s.io/pause:3.7"
 const PlaceholderContainerName = "pause"
