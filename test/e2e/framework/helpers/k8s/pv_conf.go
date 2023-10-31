@@ -29,11 +29,15 @@ type PvConfig struct {
 	Labels       map[string]string
 	Capacity     string
 	AccessModes  []v1.PersistentVolumeAccessMode
-	Source       string
+	Type         string
 	Path         string
 	NodeAffinity *v1.VolumeNodeAffinity
 	StorageClass string
 }
+
+const (
+	LocalTypePv string = "Local"
+)
 
 func InitPersistentVolume(conf PvConfig) (*v1.PersistentVolume, error) {
 	pv := &v1.PersistentVolume{
@@ -49,7 +53,7 @@ func InitPersistentVolume(conf PvConfig) (*v1.PersistentVolume, error) {
 			StorageClassName:              conf.StorageClass,
 		},
 	}
-	if conf.Source == "Local" {
+	if conf.Type == LocalTypePv {
 		pv.Spec.PersistentVolumeSource = v1.PersistentVolumeSource{
 			Local: &v1.LocalVolumeSource{
 				Path: conf.Path,

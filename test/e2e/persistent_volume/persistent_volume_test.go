@@ -42,6 +42,11 @@ var kClient k8s.KubeCtl
 var restClient yunikorn.RClient
 var dev = "dev-" + common.RandSeq(5)
 
+const (
+	LocalTypePv    = "Local"
+	StandardScName = "standard"
+)
+
 var _ = ginkgo.BeforeSuite(func() {
 	// Initializing kubectl client
 	kClient = k8s.KubeCtl{}
@@ -80,17 +85,17 @@ var _ = ginkgo.Describe("PersistentVolume", func() {
 			Name:         pvName,
 			Capacity:     "1Gi",
 			AccessModes:  []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
-			Source:       "Local",
+			Type:         LocalTypePv,
 			Path:         "/tmp",
-			StorageClass: "standard",
+			StorageClass: StandardScName,
 		}
 
+		ginkgo.By("Create local type pv " + pvName)
 		pvObj, err := k8s.InitPersistentVolume(conf)
 		Ω(err).NotTo(HaveOccurred())
 		_, err = kClient.CreatePersistentVolume(pvObj)
 		Ω(err).NotTo(HaveOccurred())
-		Ω(kClient.WaitForPersistentVolumeAvailable(pvName, time.Duration(60)*time.Second)).NotTo(HaveOccurred())
-		ginkgo.By("Create local type pv " + pvName)
+		Ω(kClient.WaitForPersistentVolumeAvailable(pvName, 60*time.Second)).NotTo(HaveOccurred())
 
 		pvcName := "pvc-" + common.RandSeq(5)
 		pvcConf := k8s.PvcConfig{
@@ -99,12 +104,12 @@ var _ = ginkgo.Describe("PersistentVolume", func() {
 			VolumeName: pvName,
 		}
 
+		ginkgo.By("Create pvc " + pvcName + ", which binds to " + pvName)
 		pvcObj, err := k8s.InitPersistentVolumeClaim(pvcConf)
 		Ω(err).NotTo(HaveOccurred())
 		_, err = kClient.CreatePersistentVolumeClaim(pvcObj, dev)
 		Ω(err).NotTo(HaveOccurred())
-		Ω(kClient.WaitForPersistentVolumeClaimPresent(dev, pvcName, time.Duration(60)*time.Second)).NotTo(HaveOccurred())
-		ginkgo.By("Create pvc " + pvcName + ", which binds to " + pvName)
+		Ω(kClient.WaitForPersistentVolumeClaimPresent(dev, pvcName, 60*time.Second)).NotTo(HaveOccurred())
 
 		podName := "pod-" + common.RandSeq(5)
 		podConf := k8s.TestPodConfig{
@@ -113,15 +118,15 @@ var _ = ginkgo.Describe("PersistentVolume", func() {
 			PvcName:   pvcName,
 		}
 
+		ginkgo.By("Create pod " + podName + ", which uses pvc " + pvcName)
 		podObj, err := k8s.InitTestPod(podConf)
 		Ω(err).NotTo(HaveOccurred())
 		_, err = kClient.CreatePod(podObj, dev)
 		Ω(err).NotTo(HaveOccurred())
-		ginkgo.By("Create pod " + podName + ", which uses pvc " + pvcName)
 
-		err = kClient.WaitForPodRunning(dev, podName, time.Duration(60)*time.Second)
-		Ω(err).NotTo(HaveOccurred())
 		ginkgo.By("Check pod " + podName + " is successfully running")
+		err = kClient.WaitForPodRunning(dev, podName, 60*time.Second)
+		Ω(err).NotTo(HaveOccurred())
 	})
 
 	ginkgo.It("Verify_dynamic_bindng_with_nfs_server", func() {
@@ -130,7 +135,7 @@ var _ = ginkgo.Describe("PersistentVolume", func() {
 		// Create nfs server and related rbac
 		saName := "nfs-service-account"
 		crName := "nfs-cluster-role"
-		crbName := "nfs-cluster-role-binding"
+		crbName := "nfs-cluster-role-binding" //nolint:gosec
 		serverName := "nfs-provisioner"
 		scName := "nfs-sc"
 		createNfsRbac(saName, crName, crbName)
@@ -144,12 +149,12 @@ var _ = ginkgo.Describe("PersistentVolume", func() {
 			StorageClassName: scName,
 		}
 
+		ginkgo.By("Create pvc " + pvcName + ", which uses storage class " + scName)
 		pvcObj, err := k8s.InitPersistentVolumeClaim(pvcConf)
 		Ω(err).NotTo(HaveOccurred())
 		_, err = kClient.CreatePersistentVolumeClaim(pvcObj, dev)
 		Ω(err).NotTo(HaveOccurred())
-		Ω(kClient.WaitForPersistentVolumeClaimPresent(dev, pvcName, time.Duration(60)*time.Second)).NotTo(HaveOccurred())
-		ginkgo.By("Create pvc " + pvcName + ", which uses storage class " + scName)
+		Ω(kClient.WaitForPersistentVolumeClaimPresent(dev, pvcName, 60*time.Second)).NotTo(HaveOccurred())
 
 		// Create pod
 		podName := "pod-" + common.RandSeq(5)
@@ -159,29 +164,26 @@ var _ = ginkgo.Describe("PersistentVolume", func() {
 			PvcName:   pvcName,
 		}
 
+		ginkgo.By("Create pod " + podName + " with pvc " + pvcName)
 		podObj, err := k8s.InitTestPod(podConf)
 		Ω(err).NotTo(HaveOccurred())
 		_, err = kClient.CreatePod(podObj, dev)
 		Ω(err).NotTo(HaveOccurred())
-		ginkgo.By("Create pod " + podName + " with pvc " + pvcName)
 
-		err = kClient.WaitForPodRunning(dev, podName, time.Duration(60)*time.Second)
-		Ω(err).NotTo(HaveOccurred())
 		ginkgo.By("Check pod " + podName + " is successfully running")
-
-		err = deleteNfsRelatedRoles(saName, crName, crbName)
+		err = kClient.WaitForPodRunning(dev, podName, 60*time.Second)
 		Ω(err).NotTo(HaveOccurred())
 
-		err = deleteNfsProvisioner(serverName, scName)
-		Ω(err).NotTo(HaveOccurred())
+		deleteNfsRelatedRoles(saName, crName, crbName)
+		deleteNfsProvisioner(serverName, scName)
 	})
 })
 
 func createNfsRbac(svaName string, crName string, crbName string) {
 	// Create service account, cluster role and role binding
+	ginkgo.By("Create service account " + svaName)
 	_, err := kClient.CreateServiceAccount(svaName, dev)
 	Ω(err).NotTo(HaveOccurred())
-	ginkgo.By("Create service account " + svaName)
 
 	nfsClusterRole := &rbacv1.ClusterRole{
 		ObjectMeta: metav1.ObjectMeta{
@@ -208,13 +210,13 @@ func createNfsRbac(svaName string, crName string, crbName string) {
 			},
 		},
 	}
+	ginkgo.By("Create cluster role " + crName)
 	_, err = kClient.CreateClusterRole(nfsClusterRole)
 	Ω(err).NotTo(HaveOccurred())
-	ginkgo.By("Create cluster role " + crName)
 
+	ginkgo.By("Create cluster role binding " + crbName)
 	_, err = kClient.CreateClusterRoleBinding(crbName, crName, dev, svaName)
 	Ω(err).NotTo(HaveOccurred())
-	ginkgo.By("Create cluster role binding " + crbName)
 }
 
 func createNfsProvisioner(svaName string, serverName string, scName string) {
@@ -304,9 +306,9 @@ func createNfsProvisioner(svaName string, serverName string, scName string) {
 		},
 	}
 
+	ginkgo.By("Create nfs provisioner " + serverName)
 	_, err := kClient.CreateDeployment(nfsProvisioner, dev)
 	Ω(err).NotTo(HaveOccurred())
-	ginkgo.By("Create nfs provisioner " + serverName)
 
 	// Create storage class
 	sc := &storagev1.StorageClass{
@@ -320,12 +322,13 @@ func createNfsProvisioner(svaName string, serverName string, scName string) {
 		Provisioner: "openebs.io/nfsrwx",
 	}
 
+	ginkgo.By("Create storage class " + scName)
 	_, err = kClient.CreateStorageClass(sc)
 	Ω(err).NotTo(HaveOccurred())
-	ginkgo.By("Create storage class " + scName)
 }
 
-func deleteNfsRelatedRoles(serviceAccount string, clusterRole string, clusterRoleBinding string) error {
+func deleteNfsRelatedRoles(serviceAccount string, clusterRole string, clusterRoleBinding string) {
+	ginkgo.By("Deleting NFS related roles and bindings")
 	err := kClient.DeleteClusterRoleBindings(clusterRoleBinding)
 	Ω(err).NotTo(HaveOccurred())
 
@@ -334,16 +337,13 @@ func deleteNfsRelatedRoles(serviceAccount string, clusterRole string, clusterRol
 
 	err = kClient.DeleteServiceAccount(serviceAccount, dev)
 	Ω(err).NotTo(HaveOccurred())
-
-	return err
 }
 
-func deleteNfsProvisioner(deployName string, scName string) error {
+func deleteNfsProvisioner(deployName string, scName string) {
+	ginkgo.By("Deleting NFS deployment and storage class")
 	err := kClient.DeleteDeployment(deployName, dev)
 	Ω(err).NotTo(HaveOccurred())
 
 	err = kClient.DeleteStorageClass(scName)
 	Ω(err).NotTo(HaveOccurred())
-
-	return err
 }
