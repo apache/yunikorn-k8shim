@@ -65,11 +65,6 @@ ifeq ($(VERSION),)
 VERSION := latest
 endif
 
-# Test selection
-ifeq ($(E2E_TEST),)
-E2E_TEST :=
-endif
-
 # Kernel (OS) Name
 OS := $(shell uname -s | tr '[:upper:]' '[:lower:]')
 
