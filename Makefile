@@ -303,7 +303,7 @@ run_plugin: build_plugin
 .PHONY: build
 build: $(DEV_BIN_DIR)/$(SCHEDULER_BINARY)
 
-$(DEV_BIN_DIR)/$(SCHEDULER_BINARY): go.mod go.sum pkg
+$(DEV_BIN_DIR)/$(SCHEDULER_BINARY): go.mod go.sum $(shell find pkg)
 	@echo "building scheduler binary"
 	@mkdir -p "$(DEV_BIN_DIR)"
 	"$(GO)" build \
@@ -315,7 +315,7 @@ $(DEV_BIN_DIR)/$(SCHEDULER_BINARY): go.mod go.sum pkg
 .PHONY: build_plugin
 build_plugin: $(DEV_BIN_DIR)/$(PLUGIN_BINARY)
 
-$(DEV_BIN_DIR)/$(PLUGIN_BINARY): go.mod go.sum pkg
+$(DEV_BIN_DIR)/$(PLUGIN_BINARY): go.mod go.sum $(shell find pkg)
 	@echo "building scheduler plugin binary"
 	@mkdir -p "$(DEV_BIN_DIR)"
 	"$(GO)" build \
@@ -328,7 +328,7 @@ $(DEV_BIN_DIR)/$(PLUGIN_BINARY): go.mod go.sum pkg
 .PHONY: scheduler
 scheduler: $(RELEASE_BIN_DIR)/$(SCHEDULER_BINARY)
 
-$(RELEASE_BIN_DIR)/$(SCHEDULER_BINARY): go.mod go.sum pkg
+$(RELEASE_BIN_DIR)/$(SCHEDULER_BINARY): go.mod go.sum $(shell findepkg)
 	@echo "building binary for scheduler docker image"
 	@mkdir -p "$(RELEASE_BIN_DIR)"
 	CGO_ENABLED=0 GOOS=linux GOARCH="${EXEC_ARCH}" "$(GO)" build \
@@ -344,7 +344,7 @@ $(RELEASE_BIN_DIR)/$(SCHEDULER_BINARY): go.mod go.sum pkg
 .PHONY: plugin
 plugin: $(RELEASE_BIN_DIR)/$(PLUGIN_BINARY)
 
-$(RELEASE_BIN_DIR)/$(PLUGIN_BINARY): go.mod go.sum pkg
+$(RELEASE_BIN_DIR)/$(PLUGIN_BINARY): go.mod go.sum $(shell find pkg)
 	@echo "building binary for plugin docker image"
 	@mkdir -p "$(RELEASE_BIN_DIR)"
 	CGO_ENABLED=0 GOOS=linux GOARCH="${EXEC_ARCH}" "$(GO)" build \
@@ -399,7 +399,7 @@ plugin_image: plugin docker/plugin conf/scheduler-config.yaml
 .PHONY: admission
 admission: $(RELEASE_BIN_DIR)/$(ADMISSION_CONTROLLER_BINARY)
 
-$(RELEASE_BIN_DIR)/$(ADMISSION_CONTROLLER_BINARY): go.mod go.sum pkg
+$(RELEASE_BIN_DIR)/$(ADMISSION_CONTROLLER_BINARY): go.mod go.sum $(shell find pkg)
 	@echo "building admission controller binary"
 	@mkdir -p "$(RELEASE_BIN_DIR)"
 	CGO_ENABLED=0 GOOS=linux GOARCH="${EXEC_ARCH}" "$(GO)" build \
@@ -451,7 +451,7 @@ webtest_image: build_web_test_server_prod docker/webtest
 .PHONY: build_web_test_server_dev
 build_web_test_server_dev: $(DEV_BIN_DIR)/$(TEST_SERVER_BINARY)
 
-$(DEV_BIN_DIR)/$(TEST_SERVER_BINARY): go.mod go.sum pkg
+$(DEV_BIN_DIR)/$(TEST_SERVER_BINARY): go.mod go.sum $(shell find pkg)
 	@echo "building local web server binary"
 	"$(GO)" build \
 	-o="$(DEV_BIN_DIR)/$(TEST_SERVER_BINARY)" \
@@ -462,7 +462,7 @@ $(DEV_BIN_DIR)/$(TEST_SERVER_BINARY): go.mod go.sum pkg
 .PHONY: build_web_test_server_prod
 build_web_test_server_prod: $(RELEASE_BIN_DIR)/$(TEST_SERVER_BINARY)
 
-$(RELEASE_BIN_DIR)/$(TEST_SERVER_BINARY): go.mod go.sum pkg
+$(RELEASE_BIN_DIR)/$(TEST_SERVER_BINARY): go.mod go.sum $(shell find pkg)
 	@echo "building web server binary"
 	CGO_ENABLED=0 GOOS=linux GOARCH="${EXEC_ARCH}" "$(GO)" build \
 	-a \
