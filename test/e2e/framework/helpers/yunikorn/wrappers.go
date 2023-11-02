@@ -145,6 +145,14 @@ func RestoreConfigMapWrapper(oldConfigMap *v1.ConfigMap, annotation string) {
 	Ω(err).NotTo(HaveOccurred())
 }
 
+// There is no available method to check whether the config in admission controller has been updated
+// As a temporary solution, we are checking the update event using the informer, followed by a 1-second sleep.
+// Please refer to YUNIKORN-1998 for more details
+func WaitForAdmissionControllerRefreshConfAfterAction(action func()) {
+	k8s.ObserveConfigMapInformerUpdateAfterAction(action)
+	time.Sleep(1 * time.Second)
+}
+
 var Describe = ginkgo.Describe
 var It = ginkgo.It
 var By = ginkgo.By
