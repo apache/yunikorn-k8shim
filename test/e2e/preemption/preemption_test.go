@@ -568,15 +568,15 @@ var _ = ginkgo.Describe("Preemption", func() {
 			sc.Partitions[0].PlacementRules = nil
 			var err error
 			if err = common.AddQueue(sc, "default", "root", configs.QueueConfig{
-				Name:       "high-priority",
+				Name:       "sandbox2",
 				Resources:  configs.Resources{Guaranteed: map[string]string{"memory": fmt.Sprintf("%dM", sleepPodMemOverLimit)}},
 				Properties: map[string]string{"preemption.delay": "1s", "priority.offset": "100"},
 			}); err != nil {
 				return err
 			}
 			if err = common.AddQueue(sc, "default", "root", configs.QueueConfig{
-				Name:       "low-priority",
-				Resources:  configs.Resources{Guaranteed: map[string]string{"memory": fmt.Sprintf("%dM", sleepPodMemLimit2)}},
+				Name:       "sandbox1",
+				Resources:  configs.Resources{Guaranteed: map[string]string{"memory": fmt.Sprintf("%dM", sleepPodMemLimit)}},
 				Properties: map[string]string{"preemption.delay": "1s", "priority.offset": "-100"},
 			}); err != nil {
 				return err
@@ -585,9 +585,9 @@ var _ = ginkgo.Describe("Preemption", func() {
 		})
 
 		ginkgo.By("Schedule a number of small, Low priority pause tasks on Low Guaranteed queue (Enough to fill the node)")
-		sandbox1SleepPodConfigs := createSandbox1SleepPodCofigsWithStaticNode(4, 600)
-		sleepPod5Config := k8s.SleepPodConfig{Name: "sleepjob5", NS: dev, Mem: sleepPodMemLimit, Time: 600, Optedout: k8s.Allow, Labels: map[string]string{"queue": "root.high-priority"}, RequiredNode: nodeName}
-		sandbox1SleepPodConfigs = append(sandbox1SleepPodConfigs, sleepPod5Config)
+		sandbox1SleepPodConfigs := createSandbox1SleepPodCofigsWithStaticNode(3, 600)
+		sleepPod4Config := k8s.SleepPodConfig{Name: "sleepjob4", NS: dev, Mem: sleepPodMemLimit, Time: 600, Optedout: k8s.Allow, Labels: map[string]string{"queue": "root.sandbox2"}, RequiredNode: nodeName}
+		sandbox1SleepPodConfigs = append(sandbox1SleepPodConfigs, sleepPod4Config)
 		for _, config := range sandbox1SleepPodConfigs {
 			ginkgo.By("Deploy the sleep pod " + config.Name + " to the development namespace")
 			sleepObj, podErr := k8s.InitSleepPod(config)
@@ -602,9 +602,9 @@ var _ = ginkgo.Describe("Preemption", func() {
 			gomega.Ω(podErr).NotTo(gomega.HaveOccurred())
 		}
 
-		ginkgo.By("Two pods in root.low-priority queue are preempted")
+		ginkgo.By("Two pods in root.sandbox1 queue are preempted")
 		sandbox1RunningPodsCnt := 0
-		pods, err := kClient.ListPodsByLabelSelector(dev, "queue=root.low-priority")
+		pods, err := kClient.ListPodsByLabelSelector(dev, "queue=root.sandbox1")
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		for _, pod := range pods.Items {
 			if pod.DeletionTimestamp != nil {
@@ -614,7 +614,7 @@ var _ = ginkgo.Describe("Preemption", func() {
 				sandbox1RunningPodsCnt++
 			}
 		}
-		Ω(sandbox1RunningPodsCnt).To(gomega.Equal(2), "two pods in root.low-priority queue should be preempted")
+		Ω(sandbox1RunningPodsCnt).To(gomega.Equal(2), "two pods in root.sandbox1 queue should be preempted")
 	})
 
 	ginkgo.AfterEach(func() {
@@ -647,7 +647,7 @@ func createSandbox1SleepPodCofigs(cnt, time int) []k8s.SleepPodConfig {
 func createSandbox1SleepPodCofigsWithStaticNode(cnt, time int) []k8s.SleepPodConfig {
 	sandbox1Configs := make([]k8s.SleepPodConfig, 0, cnt)
 	for i := 0; i < cnt; i++ {
-		sandbox1Configs = append(sandbox1Configs, k8s.SleepPodConfig{Name: fmt.Sprintf("sleepjob%d", i+1), NS: dev, Mem: sleepPodMemLimit2, Time: time, Optedout: k8s.Allow, Labels: map[string]string{"queue": "root.low-priority"}, RequiredNode: nodeName})
+		sandbox1Configs = append(sandbox1Configs, k8s.SleepPodConfig{Name: fmt.Sprintf("sleepjob%d", i+1), NS: dev, Mem: sleepPodMemLimit2, Time: time, Optedout: k8s.Allow, Labels: map[string]string{"queue": "root.sandbox1"}, RequiredNode: nodeName})
 	}
 	return sandbox1Configs
 }
