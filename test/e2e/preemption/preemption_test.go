@@ -565,7 +565,7 @@ var _ = ginkgo.Describe("Preemption", func() {
 		annotation = "ann-" + common.RandSeq(10)
 		yunikorn.UpdateCustomConfigMapWrapper(oldConfigMap, "", annotation, func(sc *configs.SchedulerConfig) error {
 			// remove placement rules so we can control queue
-			sc.Partitions[0].PlacementRules = []configs.PlacementRule{{Name: "provided", Value: "namespace", Create: true}}
+			sc.Partitions[0].PlacementRules = nil
 			var err error
 			if err = common.AddQueue(sc, "default", "root", configs.QueueConfig{
 				Name:       "high-priority",
@@ -587,6 +587,7 @@ var _ = ginkgo.Describe("Preemption", func() {
 		ginkgo.By("Schedule a number of small, Low priority pause tasks on Low Guaranteed queue (Enough to fill the node)")
 		sandbox1SleepPodConfigs := createSandbox1SleepPodCofigsWithStaticNode(4, 600)
 		sleepPod5Config := k8s.SleepPodConfig{Name: "sleepjob5", NS: dev, Mem: sleepPodMemLimit, Time: 600, Optedout: k8s.Allow, Labels: map[string]string{"queue": "root.high-priority"}, RequiredNode: nodeName}
+		sandbox1SleepPodConfigs = append(sandbox1SleepPodConfigs, sleepPod5Config)
 		for _, config := range sandbox1SleepPodConfigs {
 			ginkgo.By("Deploy the sleep pod " + config.Name + " to the development namespace")
 			sleepObj, podErr := k8s.InitSleepPod(config)
@@ -595,18 +596,12 @@ var _ = ginkgo.Describe("Preemption", func() {
 			gomega.Ω(podErr).NotTo(gomega.HaveOccurred())
 
 			// Wait for pod to move to running state
-			podErr = kClient.WaitForPodRunning(dev, sleepRespPod.Name, 60*time.Second)
+			podErr = kClient.WaitForPodBySelectorRunning(dev,
+				fmt.Sprintf("app=%s", sleepRespPod.ObjectMeta.Labels["app"]),
+				60)
 			gomega.Ω(podErr).NotTo(gomega.HaveOccurred())
 		}
-		sleepObj, podErr := k8s.InitSleepPod(sleepPod5Config)
-		Ω(podErr).NotTo(gomega.HaveOccurred())
-		sleepRespPod5, err := kClient.CreatePod(sleepObj, dev)
-		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 
-		// Wait for pod to move to running state
-		podErr = kClient.WaitForPodRunning(dev, sleepRespPod5.Name, 120*time.Second)
-		gomega.Ω(podErr).NotTo(gomega.HaveOccurred())
-		// assert two of the pods in root.low-priority are preempted
 		ginkgo.By("Two pods in root.low-priority queue are preempted")
 		sandbox1RunningPodsCnt := 0
 		pods, err := kClient.ListPodsByLabelSelector(dev, "queue=root.low-priority")
