@@ -477,8 +477,6 @@ $(RELEASE_BIN_DIR)/$(TEST_SERVER_BINARY): go.mod go.sum pkg
 	-installsuffix netgo \
 	./pkg/cmd/webtest/
 
-#Generate the CRD code with code-generator (release-1.14)
-
 # Run the tests after building
 .PHONY: test
 test:
