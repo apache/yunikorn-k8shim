@@ -43,6 +43,16 @@ import (
 
 const userInfoKey = siCommon.DomainYuniKorn + "user.info"
 
+var pluginMode bool
+
+func SetPluginMode(value bool) {
+	pluginMode = value
+}
+
+func IsPluginMode() bool {
+	return pluginMode
+}
+
 func Convert2Pod(obj interface{}) (*v1.Pod, error) {
 	pod, ok := obj.(*v1.Pod)
 	if !ok {
@@ -116,35 +126,48 @@ func GenerateApplicationID(namespace string, generateUniqueAppIds bool, podUID s
 	return fmt.Sprintf("%.63s", generatedID)
 }
 
-// GetApplicationIDFromPod returns the applicationID (if present) from a Pod or an empty string if not present.
-// If an applicationID is present, the Pod is managed by YuniKorn. Otherwise, it is managed by an external scheduler.
+// GetApplicationIDFromPod returns the Application for a Pod. If a Pod is marked as schedulable by YuniKorn but is
+// missing an ApplicationID, one will be generated here (if YuniKorn is running in standard mode) or an empty string
+// will be returned (if YuniKorn is running in plugin mode).
+// If an Application ID is returned, the Pod is managed by YuniKorn. Otherwise, it is managed by an external scheduler.
 func GetApplicationIDFromPod(pod *v1.Pod) string {
 	// SchedulerName needs to match
 	if strings.Compare(pod.Spec.SchedulerName, constants.SchedulerName) != 0 {
 		return ""
 	}
-	// if pod was tagged with ignore-application, return
-	if value := GetPodAnnotationValue(pod, constants.AnnotationIgnoreApplication); value != "" {
-		ignore, err := strconv.ParseBool(value)
-		if err != nil {
-			log.Log(log.ShimUtils).Warn("Failed to parse annotation "+constants.AnnotationIgnoreApplication, zap.Error(err))
-		} else if ignore {
-			return ""
+
+	// If pod was tagged with ignore-application and plugin mode is active, return
+	if pluginMode {
+		if value := GetPodAnnotationValue(pod, constants.AnnotationIgnoreApplication); value != "" {
+			ignore, err := strconv.ParseBool(value)
+			if err != nil {
+				log.Log(log.ShimUtils).Warn("Failed to parse annotation "+constants.AnnotationIgnoreApplication, zap.Error(err))
+			} else if ignore {
+				return ""
+			}
 		}
 	}
-	// application ID can be defined in annotations
+
+	// Application ID can be defined in annotation
 	if value := GetPodAnnotationValue(pod, constants.AnnotationApplicationID); value != "" {
 		return value
 	}
+	// Application ID can be defined in label
 	if value := GetPodLabelValue(pod, constants.LabelApplicationID); value != "" {
 		return value
 	}
-	// application ID can be defined in labels
+	// Spark can also define application ID
 	if value := GetPodLabelValue(pod, constants.SparkLabelAppID); value != "" {
 		return value
 	}
-	// no application ID found, this is not a YuniKorn-managed Pod
-	return ""
+
+	// If plugin mode, interpret missing Application ID as a non-YuniKorn pod
+	if pluginMode {
+		return ""
+	}
+
+	// Standard deployment mode, so we need a valid Application ID to proceed. Generate one now.
+	return GenerateApplicationID(pod.Namespace, conf.GetSchedulerConf().GenerateUniqueAppIds, string(pod.UID))
 }
 
 // compare the existing pod condition with the given one, return true if the pod condition remains not changed.

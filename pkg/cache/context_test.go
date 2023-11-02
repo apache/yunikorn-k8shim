@@ -1473,8 +1473,10 @@ func TestAddApplicationsWithTags(t *testing.T) {
 }
 
 func TestPendingPodAllocations(t *testing.T) {
+	utils.SetPluginMode(true)
+	defer utils.SetPluginMode(false)
+
 	context := initContextForTest()
-	context.SetPluginMode(true)
 
 	node1 := v1.Node{
 		ObjectMeta: apis.ObjectMeta{

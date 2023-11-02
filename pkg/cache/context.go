@@ -133,10 +133,6 @@ func (ctx *Context) IsPluginMode() bool {
 	return ctx.pluginMode
 }
 
-func (ctx *Context) SetPluginMode(pluginMode bool) {
-	ctx.pluginMode = pluginMode
-}
-
 func (ctx *Context) addNode(obj interface{}) {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()

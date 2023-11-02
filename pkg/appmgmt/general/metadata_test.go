@@ -27,6 +27,8 @@ import (
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
+	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
+	"github.com/apache/yunikorn-k8shim/pkg/conf"
 )
 
 func TestGetTaskMetadata(t *testing.T) {
@@ -80,10 +82,18 @@ func TestGetTaskMetadata(t *testing.T) {
 	}
 
 	task, ok = getTaskMetadata(&pod)
-	assert.Equal(t, ok, false)
+	assert.Equal(t, ok, true)
+	assert.Equal(t, task.ApplicationID, "yunikorn-default-autogen")
+	assert.Equal(t, task.TaskID, "UID-POD-00001")
+	assert.Equal(t, task.TaskGroupName, "")
 }
 
 func TestGetAppMetadata(t *testing.T) { //nolint:funlen
+	defer utils.SetPluginMode(false)
+	defer func() { conf.GetSchedulerConf().GenerateUniqueAppIds = false }()
+	utils.SetPluginMode(false)
+	conf.GetSchedulerConf().GenerateUniqueAppIds = false
+
 	pod := v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
@@ -136,10 +146,10 @@ func TestGetAppMetadata(t *testing.T) { //nolint:funlen
 			Namespace: "app-namespace-01",
 			UID:       "UID-POD-00001",
 			Labels: map[string]string{
-				"applicationId":            "app00002",
-				"queue":                    "root.b",
+				"applicationId":                   "app00002",
+				"queue":                           "root.b",
 				constants.DomainYuniKorn + "user": "testuser",
-				"disableStateAware":        "true",
+				"disableStateAware":               "true",
 			},
 			Annotations: map[string]string{
 				constants.AnnotationSchedulingPolicyParam: "gangSchedulingStyle=Hard",
@@ -200,8 +210,8 @@ func TestGetAppMetadata(t *testing.T) { //nolint:funlen
 			Namespace: "app-namespace-01",
 			UID:       "UID-POD-00001",
 			Labels: map[string]string{
-				"applicationId":            "app00002",
-				"queue":                    "root.b",
+				"applicationId":                   "app00002",
+				"queue":                           "root.b",
 				constants.DomainYuniKorn + "user": "testuser",
 			},
 			Annotations: map[string]string{
@@ -238,26 +248,19 @@ func TestGetAppMetadata(t *testing.T) { //nolint:funlen
 		},
 	}
 
+	utils.SetPluginMode(false)
 	app, ok = getAppMetadata(&pod, false)
-	assert.Equal(t, ok, false)
-	pod = v1.Pod{
-		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-		ObjectMeta: apis.ObjectMeta{
-			Name:      "pod00002",
-			Namespace: "app-namespace-01",
-			UID:       "UID-POD-00001",
-		},
-		Spec: v1.PodSpec{
-			SchedulerName: constants.SchedulerName,
-		},
-		Status: v1.PodStatus{
-			Phase: v1.PodPending,
-		},
-	}
+	conf.GetSchedulerConf().GenerateUniqueAppIds = true
+	assert.Equal(t, ok, true)
+	assert.Equal(t, app.ApplicationID, "yunikorn-app-namespace-01-autogen")
 
+	utils.SetPluginMode(false)
+	conf.GetSchedulerConf().GenerateUniqueAppIds = true
+	app, ok = getAppMetadata(&pod, false)
+	assert.Equal(t, ok, true)
+	assert.Equal(t, app.ApplicationID, "app-namespace-01-UID-POD-00001")
+
+	utils.SetPluginMode(true)
 	app, ok = getAppMetadata(&pod, false)
 	assert.Equal(t, ok, false)
 }
