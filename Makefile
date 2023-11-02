@@ -472,18 +472,6 @@ $(RELEASE_BIN_DIR)/$(TEST_SERVER_BINARY): go.mod go.sum $(shell find pkg)
 	-installsuffix netgo \
 	./pkg/cmd/webtest/
 
-#Generate the CRD code with code-generator (release-1.14)
-
-# If you want to re-run the code-generator to generate code,
-# Please make sure the directory structure must be the example.
-# ex: github.com/apache/yunikorn-k8shim
-# Also you need to set you GOPATH environmental variables first.
-# If GOPATH is empty, we will set it to "$HOME/go".
-.PHONY: code_gen
-code_gen:
-	@echo "Generating CRD code"
-	./scripts/update-codegen.sh
-
 # Run the tests after building
 .PHONY: test
 test:
