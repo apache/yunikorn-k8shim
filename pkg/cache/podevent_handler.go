@@ -16,12 +16,11 @@
  limitations under the License.
 */
 
-package general
+package cache
 
 import (
 	"sync"
 
-	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 
 	"go.uber.org/zap"
@@ -30,7 +29,7 @@ import (
 
 type PodEventHandler struct {
 	recoveryRunning bool
-	amProtocol      interfaces.ApplicationManagementProtocol
+	amProtocol      ApplicationManagementProtocol
 	asyncEvents     []*podAsyncEvent
 	sync.Mutex
 }
@@ -54,7 +53,7 @@ type podAsyncEvent struct {
 	pod       *v1.Pod
 }
 
-func (p *PodEventHandler) HandleEvent(eventType EventType, source EventSource, pod *v1.Pod) interfaces.ManagedApp {
+func (p *PodEventHandler) HandleEvent(eventType EventType, source EventSource, pod *v1.Pod) *Application {
 	if p.handleEventFromInformers(eventType, source, pod) {
 		return nil
 	}
@@ -75,7 +74,7 @@ func (p *PodEventHandler) handleEventFromInformers(eventType EventType, source E
 	return false
 }
 
-func (p *PodEventHandler) internalHandle(eventType EventType, source EventSource, pod *v1.Pod) interfaces.ManagedApp {
+func (p *PodEventHandler) internalHandle(eventType EventType, source EventSource, pod *v1.Pod) *Application {
 	switch eventType {
 	case AddPod:
 		return p.addPod(pod, source)
@@ -114,48 +113,46 @@ func (p *PodEventHandler) RecoveryDone(terminatedPods map[string]bool) {
 	p.asyncEvents = nil
 }
 
-func (p *PodEventHandler) addPod(pod *v1.Pod, eventSource EventSource) interfaces.ManagedApp {
+func (p *PodEventHandler) addPod(pod *v1.Pod, eventSource EventSource) *Application {
 	recovery := eventSource == Recovery
-	var managedApp interfaces.ManagedApp
+	var app *Application
 	var appExists bool
 
 	// add app
 	if appMeta, ok := getAppMetadata(pod, recovery); ok {
 		// check if app already exist
-		if app := p.amProtocol.GetApplication(appMeta.ApplicationID); app == nil {
-			managedApp = p.amProtocol.AddApplication(&interfaces.AddApplicationRequest{
+		app = p.amProtocol.GetApplication(appMeta.ApplicationID)
+		if app == nil {
+			app = p.amProtocol.AddApplication(&AddApplicationRequest{
 				Metadata: appMeta,
 			})
 		} else {
-			managedApp = app
 			appExists = true
 		}
 	}
 
 	// add task
 	if taskMeta, ok := getTaskMetadata(pod); ok {
-		if app := p.amProtocol.GetApplication(taskMeta.ApplicationID); app != nil {
-			if _, taskErr := app.GetTask(string(pod.UID)); taskErr != nil {
-				p.amProtocol.AddTask(&interfaces.AddTaskRequest{
-					Metadata: taskMeta,
-				})
-			}
+		if _, taskErr := app.GetTask(string(pod.UID)); taskErr != nil {
+			p.amProtocol.AddTask(&AddTaskRequest{
+				Metadata: taskMeta,
+			})
 		}
 	}
 
 	// only trigger recovery once - if appExists = true, it means we already
 	// called TriggerAppRecovery()
 	if recovery && !appExists {
-		err := managedApp.TriggerAppRecovery()
+		err := app.TriggerAppRecovery()
 		if err != nil {
 			log.Log(log.ShimAppMgmtGeneral).Error("failed to recover app", zap.Error(err))
 		}
 	}
 
-	return managedApp
+	return app
 }
 
-func (p *PodEventHandler) updatePod(pod *v1.Pod) interfaces.ManagedApp {
+func (p *PodEventHandler) updatePod(pod *v1.Pod) *Application {
 	if taskMeta, ok := getTaskMetadata(pod); ok {
 		if app := p.amProtocol.GetApplication(taskMeta.ApplicationID); app != nil {
 			p.amProtocol.NotifyTaskComplete(taskMeta.ApplicationID, taskMeta.TaskID)
@@ -165,7 +162,7 @@ func (p *PodEventHandler) updatePod(pod *v1.Pod) interfaces.ManagedApp {
 	return nil
 }
 
-func (p *PodEventHandler) deletePod(pod *v1.Pod) interfaces.ManagedApp {
+func (p *PodEventHandler) deletePod(pod *v1.Pod) *Application {
 	if taskMeta, ok := getTaskMetadata(pod); ok {
 		if app := p.amProtocol.GetApplication(taskMeta.ApplicationID); app != nil {
 			p.amProtocol.NotifyTaskComplete(taskMeta.ApplicationID, taskMeta.TaskID)
@@ -175,7 +172,7 @@ func (p *PodEventHandler) deletePod(pod *v1.Pod) interfaces.ManagedApp {
 	return nil
 }
 
-func NewPodEventHandler(amProtocol interfaces.ApplicationManagementProtocol, recoveryRunning bool) *PodEventHandler {
+func NewPodEventHandler(amProtocol ApplicationManagementProtocol, recoveryRunning bool) *PodEventHandler {
 	asyncEvents := make([]*podAsyncEvent, 0)
 	podEventHandler := &PodEventHandler{
 		recoveryRunning: recoveryRunning,

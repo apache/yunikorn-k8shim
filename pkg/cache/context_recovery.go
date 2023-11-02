@@ -26,7 +26,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 
-	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
@@ -35,8 +34,8 @@ import (
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
 
-func (ctx *Context) WaitForRecovery(recoverableAppManagers []interfaces.Recoverable, maxTimeout time.Duration) error {
-	if err := ctx.recover(recoverableAppManagers, maxTimeout); err != nil {
+func (ctx *Context) WaitForRecovery(mgr *AppManagementService, maxTimeout time.Duration) error {
+	if err := ctx.recover(mgr, maxTimeout); err != nil {
 		log.Log(log.ShimContext).Error("nodes recovery failed", zap.Error(err))
 		return err
 	}
@@ -45,13 +44,11 @@ func (ctx *Context) WaitForRecovery(recoverableAppManagers []interfaces.Recovera
 }
 
 // for a given pod, return an allocation if found
-func getExistingAllocation(recoverableAppManagers []interfaces.Recoverable, pod *corev1.Pod) *si.Allocation {
-	for _, mgr := range recoverableAppManagers {
-		// only collect pod that needs recovery
-		if !utils.IsPodTerminated(pod) {
-			if alloc := mgr.GetExistingAllocation(pod); alloc != nil {
-				return alloc
-			}
+func getExistingAllocation(mgr *AppManagementService, pod *corev1.Pod) *si.Allocation {
+	// only collect pod that needs recovery
+	if !utils.IsPodTerminated(pod) {
+		if alloc := mgr.GetExistingAllocation(pod); alloc != nil {
+			return alloc
 		}
 	}
 	return nil
@@ -62,7 +59,9 @@ func getExistingAllocation(recoverableAppManagers []interfaces.Recoverable, pod 
 // scheduler core, scheduler-core recovers its state and accept a node only it is able to recover
 // node state plus the allocations. If a node is recovered successfully, its state is marked as
 // healthy. Only healthy nodes can be used for scheduling.
-func (ctx *Context) recover(mgr []interfaces.Recoverable, due time.Duration) error {
+//
+//nolint:funlen
+func (ctx *Context) recover(mgr *AppManagementService, due time.Duration) error {
 	allNodes, err := waitAndListNodes(ctx.apiProvider)
 	if err != nil {
 		return err

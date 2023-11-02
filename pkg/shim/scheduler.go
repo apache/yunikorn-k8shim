@@ -27,10 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/informers"
 
-	"github.com/apache/yunikorn-k8shim/pkg/appmgmt"
-	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/yunikorn-k8shim/pkg/cache"
-	"github.com/apache/yunikorn-k8shim/pkg/callback"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
@@ -44,7 +41,7 @@ import (
 type KubernetesShim struct {
 	apiFactory           client.APIProvider
 	context              *cache.Context
-	appManager           *appmgmt.AppManagementService
+	appManager           *cache.AppManagementService
 	phManager            *cache.PlaceholderManager
 	callback             api.ResourceManagerCallback
 	stopChan             chan struct{}
@@ -65,8 +62,8 @@ func NewShimScheduler(scheduler api.SchedulerAPI, configs *conf.SchedulerConf, b
 
 	apiFactory := client.NewAPIFactory(scheduler, informerFactory, configs, false)
 	context := cache.NewContextWithBootstrapConfigMaps(apiFactory, bootstrapConfigMaps)
-	rmCallback := callback.NewAsyncRMCallback(context)
-	appManager := appmgmt.NewAMService(context, apiFactory)
+	rmCallback := cache.NewAsyncRMCallback(context)
+	appManager := cache.NewAMService(context, apiFactory)
 	return newShimSchedulerInternal(context, apiFactory, appManager, rmCallback)
 }
 
@@ -74,14 +71,14 @@ func NewShimSchedulerForPlugin(scheduler api.SchedulerAPI, informerFactory infor
 	apiFactory := client.NewAPIFactory(scheduler, informerFactory, configs, false)
 	context := cache.NewContextWithBootstrapConfigMaps(apiFactory, bootstrapConfigMaps)
 	utils.SetPluginMode(true)
-	rmCallback := callback.NewAsyncRMCallback(context)
-	appManager := appmgmt.NewAMService(context, apiFactory)
+	rmCallback := cache.NewAsyncRMCallback(context)
+	appManager := cache.NewAMService(context, apiFactory)
 	return newShimSchedulerInternal(context, apiFactory, appManager, rmCallback)
 }
 
 // this is visible for testing
 func newShimSchedulerInternal(ctx *cache.Context, apiFactory client.APIProvider,
-	am *appmgmt.AppManagementService, cb api.ResourceManagerCallback) *KubernetesShim {
+	am *cache.AppManagementService, cb api.ResourceManagerCallback) *KubernetesShim {
 	ss := &KubernetesShim{
 		apiFactory:           apiFactory,
 		context:              ctx,
@@ -120,13 +117,7 @@ func (ss *KubernetesShim) recoverSchedulerState() error {
 	// this step, we collect all existing allocations (allocated pods) from api-server,
 	// rerun the scheduling for these allocations in order to restore scheduler-state,
 	// the rerun is like a replay, not a actual scheduling procedure.
-	recoverableAppManagers := make([]interfaces.Recoverable, 0)
-	for _, appMgr := range ss.appManager.GetAllManagers() {
-		if m, ok := appMgr.(interfaces.Recoverable); ok {
-			recoverableAppManagers = append(recoverableAppManagers, m)
-		}
-	}
-	if err := ss.context.WaitForRecovery(recoverableAppManagers, 5*time.Minute); err != nil {
+	if err := ss.context.WaitForRecovery(ss.appManager, 5*time.Minute); err != nil {
 		// failed
 		log.Log(log.ShimScheduler).Error("scheduler recovery failed", zap.Error(err))
 		return err
@@ -244,8 +235,6 @@ func (ss *KubernetesShim) Stop() {
 	case ss.stopChan <- struct{}{}:
 		// stop the dispatcher
 		dispatcher.Stop()
-		// stop the app manager
-		ss.appManager.Stop()
 		// stop the placeholder manager
 		ss.phManager.Stop()
 	default:

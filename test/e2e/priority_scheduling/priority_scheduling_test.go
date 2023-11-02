@@ -28,7 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/apache/yunikorn-core/pkg/common/configs"
-	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
+	"github.com/apache/yunikorn-k8shim/pkg/cache"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	tests "github.com/apache/yunikorn-k8shim/test/e2e"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
@@ -504,7 +504,7 @@ func createPodConfWithTaskGroup(name, priorityClassName string, taskGroupMinReso
 		Namespace: ns,
 		Annotations: &k8s.PodAnnotation{
 			TaskGroupName: "group-" + name,
-			TaskGroups: []interfaces.TaskGroup{
+			TaskGroups: []cache.TaskGroup{
 				{
 					Name:        "group-" + name,
 					MinMember:   int32(1),

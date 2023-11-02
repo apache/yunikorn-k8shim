@@ -16,7 +16,7 @@
  limitations under the License.
 */
 
-package general
+package cache
 
 import (
 	"testing"
@@ -26,14 +26,11 @@ import (
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	"github.com/apache/yunikorn-k8shim/pkg/cache"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 )
 
-const appID = "app00001"
-
 func TestHandleAsyncEventDuringRecovery(t *testing.T) {
-	amProtocol := cache.NewMockedAMProtocol()
+	amProtocol := NewMockedAMProtocol()
 	podEventHandler := NewPodEventHandler(amProtocol, true)
 	pod1 := newPod("pod1")
 	pod2 := newPod("pod2")
@@ -48,13 +45,13 @@ func TestHandleAsyncEventDuringRecovery(t *testing.T) {
 	assert.Equal(t, int(podEventHandler.asyncEvents[0].eventType), AddPod)
 	assert.Equal(t, podEventHandler.asyncEvents[1].pod, pod2)
 	assert.Equal(t, int(podEventHandler.asyncEvents[1].eventType), UpdatePod)
-	assert.Equal(t, nil, app1)
-	assert.Equal(t, nil, app2)
-	assert.Equal(t, cache.ApplicationStates().Recovering, app3.GetApplicationState())
+	assert.Assert(t, app1 == nil)
+	assert.Assert(t, app2 == nil)
+	assert.Equal(t, ApplicationStates().Recovering, app3.GetApplicationState())
 }
 
 func TestHandleAsyncEventWhenNotRecovering(t *testing.T) {
-	amProtocol := cache.NewMockedAMProtocol()
+	amProtocol := NewMockedAMProtocol()
 	podEventHandler := NewPodEventHandler(amProtocol, false)
 
 	pod1 := newPod("pod1")
@@ -71,7 +68,7 @@ func TestHandleAsyncEventWhenNotRecovering(t *testing.T) {
 }
 
 func TestRecoveryDone(t *testing.T) {
-	amProtocol := cache.NewMockedAMProtocol()
+	amProtocol := NewMockedAMProtocol()
 	podEventHandler := NewPodEventHandler(amProtocol, true)
 
 	pod1 := newPod("pod1")
@@ -91,7 +88,7 @@ func TestRecoveryDone(t *testing.T) {
 
 	task, err := app.GetTask("pod1")
 	assert.NilError(t, err)
-	assert.Equal(t, cache.TaskStates().Completed, task.GetTaskState())
+	assert.Equal(t, TaskStates().Completed, task.GetTaskState())
 
 	_, err = app.GetTask("pod2")
 	assert.ErrorContains(t, err, "task pod2 doesn't exist in application")

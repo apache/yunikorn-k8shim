@@ -16,7 +16,7 @@
  limitations under the License.
 */
 
-package general
+package cache
 
 import (
 	"testing"
@@ -30,6 +30,18 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
 )
+
+const taskGroupInfo = `
+[
+	{
+		"name": "test-group-1",
+		"minMember": 3,
+		"minResource": {
+			"cpu": 2,
+			"memory": "1Gi"
+		}
+	}
+]`
 
 func TestGetTaskMetadata(t *testing.T) {
 	pod := v1.Pod{
@@ -263,4 +275,36 @@ func TestGetAppMetadata(t *testing.T) { //nolint:funlen
 	utils.SetPluginMode(true)
 	app, ok = getAppMetadata(&pod, false)
 	assert.Equal(t, ok, false)
+}
+
+func TestGetOwnerReferences(t *testing.T) {
+	ownerRef := apis.OwnerReference{
+		APIVersion: apis.SchemeGroupVersion.String(),
+		Name:       "owner ref",
+	}
+	podWithOwnerRef := &v1.Pod{
+		ObjectMeta: apis.ObjectMeta{
+			OwnerReferences: []apis.OwnerReference{ownerRef},
+		},
+	}
+	podWithNoOwnerRef := &v1.Pod{
+		ObjectMeta: apis.ObjectMeta{
+			Name: "pod",
+			UID:  "uid",
+		},
+	}
+
+	returnedOwnerRefs := getOwnerReference(podWithOwnerRef)
+	assert.Assert(t, len(returnedOwnerRefs) == 1, "Only one owner reference is expected")
+	assert.Equal(t, returnedOwnerRefs[0].Name, podWithOwnerRef.Name, "Unexpected owner reference name")
+	assert.Equal(t, returnedOwnerRefs[0].UID, podWithOwnerRef.UID, "Unexpected owner reference UID")
+	assert.Equal(t, returnedOwnerRefs[0].Kind, "Pod", "Unexpected owner reference Kind")
+	assert.Equal(t, returnedOwnerRefs[0].APIVersion, v1.SchemeGroupVersion.String(), "Unexpected owner reference Kind")
+
+	returnedOwnerRefs = getOwnerReference(podWithNoOwnerRef)
+	assert.Assert(t, len(returnedOwnerRefs) == 1, "Only one owner reference is expected")
+	assert.Equal(t, returnedOwnerRefs[0].Name, podWithNoOwnerRef.Name, "Unexpected owner reference name")
+	assert.Equal(t, returnedOwnerRefs[0].UID, podWithNoOwnerRef.UID, "Unexpected owner reference UID")
+	assert.Equal(t, returnedOwnerRefs[0].Kind, "Pod", "Unexpected owner reference Kind")
+	assert.Equal(t, returnedOwnerRefs[0].APIVersion, v1.SchemeGroupVersion.String(), "Unexpected owner reference Kind")
 }

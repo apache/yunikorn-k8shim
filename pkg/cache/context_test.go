@@ -35,7 +35,6 @@ import (
 	k8sEvents "k8s.io/client-go/tools/events"
 
 	"github.com/apache/yunikorn-core/pkg/common"
-	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
@@ -176,8 +175,8 @@ func TestAddApplications(t *testing.T) {
 	context := initContextForTest()
 
 	// add a new application
-	context.AddApplication(&interfaces.AddApplicationRequest{
-		Metadata: interfaces.ApplicationMetadata{
+	context.AddApplication(&AddApplicationRequest{
+		Metadata: ApplicationMetadata{
 			ApplicationID: "app00001",
 			QueueName:     "root.a",
 			User:          "test-user",
@@ -190,8 +189,8 @@ func TestAddApplications(t *testing.T) {
 	assert.Equal(t, len(context.applications["app00001"].GetPendingTasks()), 0)
 
 	// add an app but app already exists
-	app := context.AddApplication(&interfaces.AddApplicationRequest{
-		Metadata: interfaces.ApplicationMetadata{
+	app := context.AddApplication(&AddApplicationRequest{
+		Metadata: ApplicationMetadata{
 			ApplicationID: "app00001",
 			QueueName:     "root.other",
 			User:          "test-user",
@@ -205,16 +204,16 @@ func TestAddApplications(t *testing.T) {
 
 func TestGetApplication(t *testing.T) {
 	context := initContextForTest()
-	context.AddApplication(&interfaces.AddApplicationRequest{
-		Metadata: interfaces.ApplicationMetadata{
+	context.AddApplication(&AddApplicationRequest{
+		Metadata: ApplicationMetadata{
 			ApplicationID: "app00001",
 			QueueName:     "root.a",
 			User:          "test-user",
 			Tags:          nil,
 		},
 	})
-	context.AddApplication(&interfaces.AddApplicationRequest{
-		Metadata: interfaces.ApplicationMetadata{
+	context.AddApplication(&AddApplicationRequest{
+		Metadata: ApplicationMetadata{
 			ApplicationID: "app00002",
 			QueueName:     "root.b",
 			User:          "test-user",
@@ -701,8 +700,8 @@ func TestAddTask(t *testing.T) {
 	context := initContextForTest()
 
 	// add a new application
-	context.AddApplication(&interfaces.AddApplicationRequest{
-		Metadata: interfaces.ApplicationMetadata{
+	context.AddApplication(&AddApplicationRequest{
+		Metadata: ApplicationMetadata{
 			ApplicationID: "app00001",
 			QueueName:     "root.a",
 			User:          "test-user",
@@ -715,8 +714,8 @@ func TestAddTask(t *testing.T) {
 	assert.Equal(t, len(context.applications["app00001"].GetPendingTasks()), 0)
 
 	// add a tasks to the existing application
-	task := context.AddTask(&interfaces.AddTaskRequest{
-		Metadata: interfaces.TaskMetadata{
+	task := context.AddTask(&AddTaskRequest{
+		Metadata: TaskMetadata{
 			ApplicationID: "app00001",
 			TaskID:        "task00001",
 			Pod:           &v1.Pod{},
@@ -726,8 +725,8 @@ func TestAddTask(t *testing.T) {
 	assert.Equal(t, task.GetTaskID(), "task00001")
 
 	// add another task
-	task = context.AddTask(&interfaces.AddTaskRequest{
-		Metadata: interfaces.TaskMetadata{
+	task = context.AddTask(&AddTaskRequest{
+		Metadata: TaskMetadata{
 			ApplicationID: "app00001",
 			TaskID:        "task00002",
 			Pod:           &v1.Pod{},
@@ -737,8 +736,8 @@ func TestAddTask(t *testing.T) {
 	assert.Equal(t, task.GetTaskID(), "task00002")
 
 	// add a task with dup taskID
-	task = context.AddTask(&interfaces.AddTaskRequest{
-		Metadata: interfaces.TaskMetadata{
+	task = context.AddTask(&AddTaskRequest{
+		Metadata: TaskMetadata{
 			ApplicationID: "app00001",
 			TaskID:        "task00002",
 			Pod:           &v1.Pod{},
@@ -748,8 +747,8 @@ func TestAddTask(t *testing.T) {
 	assert.Equal(t, task.GetTaskID(), "task00002")
 
 	// add a task without app's appearance
-	task = context.AddTask(&interfaces.AddTaskRequest{
-		Metadata: interfaces.TaskMetadata{
+	task = context.AddTask(&AddTaskRequest{
+		Metadata: TaskMetadata{
 			ApplicationID: "app-non-exist",
 			TaskID:        "task00003",
 			Pod:           &v1.Pod{},
@@ -777,8 +776,8 @@ func TestRecoverTask(t *testing.T) {
 	)
 
 	// add a new application
-	context.AddApplication(&interfaces.AddApplicationRequest{
-		Metadata: interfaces.ApplicationMetadata{
+	context.AddApplication(&AddApplicationRequest{
+		Metadata: ApplicationMetadata{
 			ApplicationID: appID,
 			QueueName:     queue,
 			User:          user,
@@ -791,8 +790,8 @@ func TestRecoverTask(t *testing.T) {
 
 	// add a tasks to the existing application
 	// this task was already allocated and Running
-	task := context.AddTask(&interfaces.AddTaskRequest{
-		Metadata: interfaces.TaskMetadata{
+	task := context.AddTask(&AddTaskRequest{
+		Metadata: TaskMetadata{
 			ApplicationID: appID,
 			TaskID:        taskUID1,
 			Pod:           newPodHelper("pod1", podNamespace, taskUID1, fakeNodeName, appID, v1.PodRunning),
@@ -804,8 +803,8 @@ func TestRecoverTask(t *testing.T) {
 
 	// add a tasks to the existing application
 	// this task was already completed with state: Succeed
-	task = context.AddTask(&interfaces.AddTaskRequest{
-		Metadata: interfaces.TaskMetadata{
+	task = context.AddTask(&AddTaskRequest{
+		Metadata: TaskMetadata{
 			ApplicationID: appID,
 			TaskID:        taskUID2,
 			Pod:           newPodHelper("pod2", podNamespace, taskUID2, fakeNodeName, appID, v1.PodSucceeded),
@@ -817,8 +816,8 @@ func TestRecoverTask(t *testing.T) {
 
 	// add a tasks to the existing application
 	// this task was already completed with state: Succeed
-	task = context.AddTask(&interfaces.AddTaskRequest{
-		Metadata: interfaces.TaskMetadata{
+	task = context.AddTask(&AddTaskRequest{
+		Metadata: TaskMetadata{
 			ApplicationID: appID,
 			TaskID:        taskUID3,
 			Pod:           newPodHelper("pod3", podNamespace, taskUID3, fakeNodeName, appID, v1.PodFailed),
@@ -830,8 +829,8 @@ func TestRecoverTask(t *testing.T) {
 
 	// add a tasks to the existing application
 	// this task pod is still Pending
-	task = context.AddTask(&interfaces.AddTaskRequest{
-		Metadata: interfaces.TaskMetadata{
+	task = context.AddTask(&AddTaskRequest{
+		Metadata: TaskMetadata{
 			ApplicationID: appID,
 			TaskID:        taskUID4,
 			Pod:           newPodHelper("pod4", podNamespace, taskUID4, "", appID, v1.PodPending),
@@ -864,10 +863,8 @@ func TestRecoverTask(t *testing.T) {
 	for _, tt := range taskInfoVerifiers {
 		t.Run(tt.taskID, func(t *testing.T) {
 			// verify the info for the recovered task
-			recoveredTask, err := app.GetTask(tt.taskID)
+			rt, err := app.GetTask(tt.taskID)
 			assert.NilError(t, err)
-			rt, ok := recoveredTask.(*Task)
-			assert.Equal(t, ok, true)
 			assert.Equal(t, rt.GetTaskState(), tt.expectedState)
 			assert.Equal(t, rt.allocationUUID, tt.expectedAllocationUUID)
 			assert.Equal(t, rt.pod.Name, tt.expectedPodName)
@@ -894,8 +891,8 @@ func TestTaskReleaseAfterRecovery(t *testing.T) {
 
 	// do app recovery, first recover app, then tasks
 	// add application to recovery
-	context.AddApplication(&interfaces.AddApplicationRequest{
-		Metadata: interfaces.ApplicationMetadata{
+	context.AddApplication(&AddApplicationRequest{
+		Metadata: ApplicationMetadata{
 			ApplicationID: appID,
 			QueueName:     queue,
 			User:          "test-user",
@@ -907,8 +904,8 @@ func TestTaskReleaseAfterRecovery(t *testing.T) {
 	assert.Equal(t, len(context.applications[appID].GetPendingTasks()), 0)
 
 	// add a tasks to the existing application
-	task0 := context.AddTask(&interfaces.AddTaskRequest{
-		Metadata: interfaces.TaskMetadata{
+	task0 := context.AddTask(&AddTaskRequest{
+		Metadata: TaskMetadata{
 			ApplicationID: appID,
 			TaskID:        pod1UID,
 			Pod:           newPodHelper(pod1Name, namespace, pod1UID, fakeNodeName, appID, v1.PodRunning),
@@ -919,8 +916,8 @@ func TestTaskReleaseAfterRecovery(t *testing.T) {
 	assert.Equal(t, task0.GetTaskID(), pod1UID)
 	assert.Equal(t, task0.GetTaskState(), TaskStates().Bound)
 
-	task1 := context.AddTask(&interfaces.AddTaskRequest{
-		Metadata: interfaces.TaskMetadata{
+	task1 := context.AddTask(&AddTaskRequest{
+		Metadata: TaskMetadata{
 			ApplicationID: appID,
 			TaskID:        pod2UID,
 			Pod:           newPodHelper(pod2Name, namespace, pod2UID, fakeNodeName, appID, v1.PodRunning),
@@ -940,29 +937,24 @@ func TestTaskReleaseAfterRecovery(t *testing.T) {
 	context.NotifyTaskComplete(appID, pod2UID)
 
 	// wait for release
-	t0, ok := task0.(*Task)
-	assert.Equal(t, ok, true)
-	t1, ok := task1.(*Task)
-	assert.Equal(t, ok, true)
-
 	err := common.WaitFor(100*time.Millisecond, 3*time.Second, func() bool {
-		return t1.GetTaskState() == TaskStates().Completed
+		return task1.GetTaskState() == TaskStates().Completed
 	})
 	assert.NilError(t, err, "release should be completed for task1")
 
 	// expect to see:
 	//  - task0 is still there
 	//  - task1 gets released
-	assert.Equal(t, t0.GetTaskState(), TaskStates().Bound)
-	assert.Equal(t, t1.GetTaskState(), TaskStates().Completed)
+	assert.Equal(t, task0.GetTaskState(), TaskStates().Bound)
+	assert.Equal(t, task1.GetTaskState(), TaskStates().Completed)
 }
 
 func TestRemoveTask(t *testing.T) {
 	context := initContextForTest()
 
 	// add a new application
-	context.AddApplication(&interfaces.AddApplicationRequest{
-		Metadata: interfaces.ApplicationMetadata{
+	context.AddApplication(&AddApplicationRequest{
+		Metadata: ApplicationMetadata{
 			ApplicationID: "app00001",
 			QueueName:     "root.a",
 			User:          "test-user",
@@ -971,15 +963,15 @@ func TestRemoveTask(t *testing.T) {
 	})
 
 	// add 2 tasks
-	context.AddTask(&interfaces.AddTaskRequest{
-		Metadata: interfaces.TaskMetadata{
+	context.AddTask(&AddTaskRequest{
+		Metadata: TaskMetadata{
 			ApplicationID: "app00001",
 			TaskID:        "task00001",
 			Pod:           &v1.Pod{},
 		},
 	})
-	context.AddTask(&interfaces.AddTaskRequest{
-		Metadata: interfaces.TaskMetadata{
+	context.AddTask(&AddTaskRequest{
+		Metadata: TaskMetadata{
 			ApplicationID: "app00001",
 			TaskID:        "task00002",
 			Pod:           &v1.Pod{},
@@ -987,14 +979,7 @@ func TestRemoveTask(t *testing.T) {
 	})
 
 	// verify app and tasks
-	managedApp := context.GetApplication("app00001")
-	assert.Assert(t, managedApp != nil)
-
-	app, valid := managedApp.(*Application)
-	if !valid {
-		t.Errorf("expecting application type")
-	}
-
+	app := context.GetApplication("app00001")
 	assert.Assert(t, app != nil)
 
 	// now app should have 2 tasks
@@ -1238,8 +1223,8 @@ func TestPublishEventsWithNotExistingAsk(t *testing.T) {
 		t.Fatal("the EventRecorder is expected to be of type FakeRecorder")
 	}
 	context := initContextForTest()
-	context.AddApplication(&interfaces.AddApplicationRequest{
-		Metadata: interfaces.ApplicationMetadata{
+	context.AddApplication(&AddApplicationRequest{
+		Metadata: ApplicationMetadata{
 			ApplicationID: "app_event_12",
 			QueueName:     "root.a",
 			User:          "test-user",
@@ -1281,16 +1266,16 @@ func TestPublishEventsCorrectly(t *testing.T) {
 	context := initContextForTest()
 
 	// create fake application and task
-	context.AddApplication(&interfaces.AddApplicationRequest{
-		Metadata: interfaces.ApplicationMetadata{
+	context.AddApplication(&AddApplicationRequest{
+		Metadata: ApplicationMetadata{
 			ApplicationID: "app_event",
 			QueueName:     "root.a",
 			User:          "test-user",
 			Tags:          nil,
 		},
 	})
-	context.AddTask(&interfaces.AddTaskRequest{
-		Metadata: interfaces.TaskMetadata{
+	context.AddTask(&AddTaskRequest{
+		Metadata: TaskMetadata{
 			ApplicationID: "app_event",
 			TaskID:        "task_event",
 			Pod:           &v1.Pod{},
@@ -1355,8 +1340,8 @@ func TestAddApplicationsWithTags(t *testing.T) {
 	lister.Add(&ns2)
 
 	// add application with empty namespace
-	context.AddApplication(&interfaces.AddApplicationRequest{
-		Metadata: interfaces.ApplicationMetadata{
+	context.AddApplication(&AddApplicationRequest{
+		Metadata: ApplicationMetadata{
 			ApplicationID: "app00001",
 			QueueName:     "root.a",
 			User:          "test-user",
@@ -1367,8 +1352,8 @@ func TestAddApplicationsWithTags(t *testing.T) {
 	})
 
 	// add application with non-existing namespace
-	context.AddApplication(&interfaces.AddApplicationRequest{
-		Metadata: interfaces.ApplicationMetadata{
+	context.AddApplication(&AddApplicationRequest{
+		Metadata: ApplicationMetadata{
 			ApplicationID: "app00002",
 			QueueName:     "root.a",
 			User:          "test-user",
@@ -1379,8 +1364,8 @@ func TestAddApplicationsWithTags(t *testing.T) {
 	})
 
 	// add application with unannotated namespace
-	context.AddApplication(&interfaces.AddApplicationRequest{
-		Metadata: interfaces.ApplicationMetadata{
+	context.AddApplication(&AddApplicationRequest{
+		Metadata: ApplicationMetadata{
 			ApplicationID: "app00003",
 			QueueName:     "root.a",
 			User:          "test-user",
@@ -1391,8 +1376,8 @@ func TestAddApplicationsWithTags(t *testing.T) {
 	})
 
 	// add application with annotated namespace
-	request := &interfaces.AddApplicationRequest{
-		Metadata: interfaces.ApplicationMetadata{
+	request := &AddApplicationRequest{
+		Metadata: ApplicationMetadata{
 			ApplicationID: "app00004",
 			QueueName:     "root.a",
 			User:          "test-user",
@@ -1444,8 +1429,8 @@ func TestAddApplicationsWithTags(t *testing.T) {
 	assert.Equal(t, parentQueue, "root.test")
 
 	// add application with annotated namespace to check the old quota annotation
-	request = &interfaces.AddApplicationRequest{
-		Metadata: interfaces.ApplicationMetadata{
+	request = &AddApplicationRequest{
+		Metadata: ApplicationMetadata{
 			ApplicationID: "app00005",
 			QueueName:     "root.a",
 			User:          "test-user",
@@ -1497,8 +1482,8 @@ func TestPendingPodAllocations(t *testing.T) {
 	context.addNode(&node2)
 
 	// add a new application
-	context.AddApplication(&interfaces.AddApplicationRequest{
-		Metadata: interfaces.ApplicationMetadata{
+	context.AddApplication(&AddApplicationRequest{
+		Metadata: ApplicationMetadata{
 			ApplicationID: "app00001",
 			QueueName:     "root.a",
 			User:          "test-user",
@@ -1518,8 +1503,8 @@ func TestPendingPodAllocations(t *testing.T) {
 	}
 
 	// add a tasks to the existing application
-	task := context.AddTask(&interfaces.AddTaskRequest{
-		Metadata: interfaces.TaskMetadata{
+	task := context.AddTask(&AddTaskRequest{
+		Metadata: TaskMetadata{
 			ApplicationID: "app00001",
 			TaskID:        "task00001",
 			Pod:           pod,
@@ -1726,21 +1711,21 @@ func TestCtxUpdatePodCondition(t *testing.T) {
 		},
 	}
 	context := initContextForTest()
-	context.AddApplication(&interfaces.AddApplicationRequest{
-		Metadata: interfaces.ApplicationMetadata{
+	context.AddApplication(&AddApplicationRequest{
+		Metadata: ApplicationMetadata{
 			ApplicationID: "app00001",
 			QueueName:     "root.a",
 			User:          "test-user",
 			Tags:          nil,
 		},
 	})
-	task := context.AddTask(&interfaces.AddTaskRequest{ //nolint:errcheck
-		Metadata: interfaces.TaskMetadata{
+	task := context.AddTask(&AddTaskRequest{ //nolint:errcheck
+		Metadata: TaskMetadata{
 			ApplicationID: "app00001",
 			TaskID:        "task00001",
 			Pod:           pod,
 		},
-	}).(*Task)
+	})
 
 	// task state is not Scheduling
 	updated := context.updatePodCondition(task, &condition)

@@ -31,7 +31,6 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
 	"github.com/apache/yunikorn-core/pkg/entrypoint"
-	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/yunikorn-k8shim/pkg/cache"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
@@ -121,12 +120,12 @@ func (sp *YuniKornSchedulerPlugin) PreEnqueue(_ context.Context, pod *v1.Pod) *f
 
 		schedState := task.GetTaskSchedulingState()
 		switch schedState {
-		case interfaces.TaskSchedPending:
+		case cache.TaskSchedPending:
 			return framework.NewStatus(framework.UnschedulableAndUnresolvable, "Pod is pending scheduling")
-		case interfaces.TaskSchedFailed:
+		case cache.TaskSchedFailed:
 			// allow the pod to proceed so that it will be marked unschedulable by PreFilter
 			return nil
-		case interfaces.TaskSchedSkipped:
+		case cache.TaskSchedSkipped:
 			return framework.NewStatus(framework.UnschedulableAndUnresolvable, "Pod doesn't fit within queue")
 		default:
 			return framework.NewStatus(framework.UnschedulableAndUnresolvable, fmt.Sprintf("Pod unschedulable: %s", schedState.String()))
@@ -282,7 +281,7 @@ func NewSchedulerPlugin(_ runtime.Object, handle framework.Handle) (framework.Pl
 	return p, nil
 }
 
-func (sp *YuniKornSchedulerPlugin) getTask(appID, taskID string) (app interfaces.ManagedApp, task interfaces.ManagedTask, ok bool) {
+func (sp *YuniKornSchedulerPlugin) getTask(appID, taskID string) (app *cache.Application, task *cache.Task, ok bool) {
 	if app := sp.context.GetApplication(appID); app != nil {
 		if task, err := app.GetTask(taskID); err == nil {
 			return app, task, true
@@ -291,7 +290,7 @@ func (sp *YuniKornSchedulerPlugin) getTask(appID, taskID string) (app interfaces
 	return nil, nil, false
 }
 
-func (sp *YuniKornSchedulerPlugin) failTask(pod *v1.Pod, app interfaces.ManagedApp, task interfaces.ManagedTask) {
+func (sp *YuniKornSchedulerPlugin) failTask(pod *v1.Pod, app *cache.Application, task *cache.Task) {
 	taskID := task.GetTaskID()
 	log.Log(log.ShimSchedulerPlugin).Info("Task failed scheduling, marking as rejected",
 		zap.String("namespace", pod.Namespace),
@@ -299,5 +298,5 @@ func (sp *YuniKornSchedulerPlugin) failTask(pod *v1.Pod, app interfaces.ManagedA
 		zap.String("taskID", taskID))
 	sp.context.RemovePodAllocation(taskID)
 	dispatcher.Dispatch(cache.NewRejectTaskEvent(app.GetApplicationID(), taskID, fmt.Sprintf("task %s rejected by scheduler", taskID)))
-	task.SetTaskSchedulingState(interfaces.TaskSchedFailed)
+	task.SetTaskSchedulingState(cache.TaskSchedFailed)
 }

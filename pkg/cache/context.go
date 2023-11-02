@@ -33,7 +33,6 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/volumebinding"
 
-	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
 	schedulercache "github.com/apache/yunikorn-k8shim/pkg/cache/external"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common"
@@ -798,7 +797,7 @@ func (ctx *Context) NotifyTaskComplete(appID, taskID string) {
 // adds the following tags to the request based on annotations (if exist):
 //   - namespace.resourcequota
 //   - namespace.parentqueue
-func (ctx *Context) updateApplicationTags(request *interfaces.AddApplicationRequest, namespace string) {
+func (ctx *Context) updateApplicationTags(request *AddApplicationRequest, namespace string) {
 	namespaceObj := ctx.getNamespaceObject(namespace)
 	if namespaceObj == nil {
 		return
@@ -846,7 +845,7 @@ func (ctx *Context) getNamespaceObject(namespace string) *v1.Namespace {
 	return namespaceObj
 }
 
-func (ctx *Context) AddApplication(request *interfaces.AddApplicationRequest) interfaces.ManagedApp {
+func (ctx *Context) AddApplication(request *AddApplicationRequest) *Application {
 	log.Log(log.ShimContext).Debug("AddApplication", zap.Any("Request", request))
 	if app := ctx.GetApplication(request.Metadata.ApplicationID); app != nil {
 		return app
@@ -902,13 +901,13 @@ func (ctx *Context) IsPreemptSelfAllowed(priorityClassName string) bool {
 	return true
 }
 
-func (ctx *Context) GetApplication(appID string) interfaces.ManagedApp {
+func (ctx *Context) GetApplication(appID string) *Application {
 	ctx.lock.RLock()
 	defer ctx.lock.RUnlock()
 	return ctx.getApplication(appID)
 }
 
-func (ctx *Context) getApplication(appID string) interfaces.ManagedApp {
+func (ctx *Context) getApplication(appID string) *Application {
 	if app, ok := ctx.applications[appID]; ok {
 		return app
 	}
@@ -950,47 +949,45 @@ func (ctx *Context) RemoveApplicationInternal(appID string) {
 }
 
 // this implements ApplicationManagementProtocol
-func (ctx *Context) AddTask(request *interfaces.AddTaskRequest) interfaces.ManagedTask {
+func (ctx *Context) AddTask(request *AddTaskRequest) *Task {
 	log.Log(log.ShimContext).Debug("AddTask",
 		zap.String("appID", request.Metadata.ApplicationID),
 		zap.String("taskID", request.Metadata.TaskID))
-	if managedApp := ctx.GetApplication(request.Metadata.ApplicationID); managedApp != nil {
-		if app, valid := managedApp.(*Application); valid {
-			existingTask, err := app.GetTask(request.Metadata.TaskID)
-			if err != nil {
-				var originator bool
+	if app := ctx.GetApplication(request.Metadata.ApplicationID); app != nil {
+		existingTask, err := app.GetTask(request.Metadata.TaskID)
+		if err != nil {
+			var originator bool
 
-				// Is this task the originator of the application?
-				// If yes, then make it as "first pod/owner/driver" of the application and set the task as originator
-				if app.GetOriginatingTask() == nil {
-					for _, ownerReference := range app.getPlaceholderOwnerReferences() {
-						referenceID := string(ownerReference.UID)
-						if request.Metadata.TaskID == referenceID {
-							originator = true
-							break
-						}
+			// Is this task the originator of the application?
+			// If yes, then make it as "first pod/owner/driver" of the application and set the task as originator
+			if app.GetOriginatingTask() == nil {
+				for _, ownerReference := range app.getPlaceholderOwnerReferences() {
+					referenceID := string(ownerReference.UID)
+					if request.Metadata.TaskID == referenceID {
+						originator = true
+						break
 					}
 				}
-				task := NewFromTaskMeta(request.Metadata.TaskID, app, ctx, request.Metadata, originator)
-				app.addTask(task)
-				log.Log(log.ShimContext).Info("task added",
-					zap.String("appID", app.applicationID),
-					zap.String("taskID", task.taskID),
-					zap.String("taskState", task.GetTaskState()))
-				if originator {
-					if app.GetOriginatingTask() != nil {
-						log.Log(log.ShimContext).Error("Inconsistent state - found another originator task for an application",
-							zap.String("taskId", task.GetTaskID()))
-					}
-					app.setOriginatingTask(task)
-					log.Log(log.ShimContext).Info("app request originating pod added",
-						zap.String("appID", app.applicationID),
-						zap.String("original task", task.GetTaskID()))
-				}
-				return task
 			}
-			return existingTask
+			task := NewFromTaskMeta(request.Metadata.TaskID, app, ctx, request.Metadata, originator)
+			app.addTask(task)
+			log.Log(log.ShimContext).Info("task added",
+				zap.String("appID", app.applicationID),
+				zap.String("taskID", task.taskID),
+				zap.String("taskState", task.GetTaskState()))
+			if originator {
+				if app.GetOriginatingTask() != nil {
+					log.Log(log.ShimContext).Error("Inconsistent state - found another originator task for an application",
+						zap.String("taskId", task.GetTaskID()))
+				}
+				app.setOriginatingTask(task)
+				log.Log(log.ShimContext).Info("app request originating pod added",
+					zap.String("appID", app.applicationID),
+					zap.String("original task", task.GetTaskID()))
+			}
+			return task
 		}
+		return existingTask
 	}
 	return nil
 }
@@ -1015,17 +1012,11 @@ func (ctx *Context) getTask(appID string, taskID string) *Task {
 			zap.String("appID", appID))
 		return nil
 	}
-	managedTask, err := app.GetTask(taskID)
+	task, err := app.GetTask(taskID)
 	if err != nil {
 		log.Log(log.ShimContext).Debug("task is not found in applications",
 			zap.String("taskID", taskID),
 			zap.String("appID", appID))
-		return nil
-	}
-	task, valid := managedTask.(*Task)
-	if !valid {
-		log.Log(log.ShimContext).Debug("managedTask conversion failed",
-			zap.String("taskID", taskID))
 		return nil
 	}
 	return task
@@ -1115,7 +1106,7 @@ func (ctx *Context) HandleContainerStateUpdate(request *si.UpdateContainerSchedu
 		case si.UpdateContainerSchedulingStateRequest_SKIPPED:
 			// auto-scaler scans pods whose pod condition is PodScheduled=false && reason=Unschedulable
 			// if the pod is skipped because the queue quota has been exceed, we do not trigger the auto-scaling
-			task.SetTaskSchedulingState(interfaces.TaskSchedSkipped)
+			task.SetTaskSchedulingState(TaskSchedSkipped)
 			if ctx.updatePodCondition(task,
 				&v1.PodCondition{
 					Type:    v1.PodScheduled,
@@ -1128,7 +1119,7 @@ func (ctx *Context) HandleContainerStateUpdate(request *si.UpdateContainerSchedu
 					"Task %s is skipped from scheduling because the queue quota has been exceed", task.alias)
 			}
 		case si.UpdateContainerSchedulingStateRequest_FAILED:
-			task.SetTaskSchedulingState(interfaces.TaskSchedFailed)
+			task.SetTaskSchedulingState(TaskSchedFailed)
 			// set pod condition to Unschedulable in order to trigger auto-scaling
 			if ctx.updatePodCondition(task,
 				&v1.PodCondition{
@@ -1151,20 +1142,17 @@ func (ctx *Context) HandleContainerStateUpdate(request *si.UpdateContainerSchedu
 func (ctx *Context) ApplicationEventHandler() func(obj interface{}) {
 	return func(obj interface{}) {
 		if event, ok := obj.(events.ApplicationEvent); ok {
-			managedApp := ctx.GetApplication(event.GetApplicationID())
-			if managedApp == nil {
+			app := ctx.GetApplication(event.GetApplicationID())
+			if app == nil {
 				log.Log(log.ShimContext).Error("failed to handle application event",
 					zap.String("reason", "application not exist"))
 				return
 			}
-
-			if app, ok := managedApp.(*Application); ok {
-				if app.canHandle(event) {
-					if err := app.handle(event); err != nil {
-						log.Log(log.ShimContext).Error("failed to handle application event",
-							zap.String("event", event.GetEvent()),
-							zap.Error(err))
-					}
+			if app.canHandle(event) {
+				if err := app.handle(event); err != nil {
+					log.Log(log.ShimContext).Error("failed to handle application event",
+						zap.String("event", event.GetEvent()),
+						zap.Error(err))
 				}
 			}
 		}

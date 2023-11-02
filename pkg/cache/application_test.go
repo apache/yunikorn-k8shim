@@ -34,8 +34,6 @@ import (
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sEvents "k8s.io/client-go/tools/events"
 
-	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/general"
-	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
@@ -391,8 +389,8 @@ func TestSetUnallocatedPodsToFailedWhenRejectApplication(t *testing.T) {
 	app.addTask(task1)
 	app.addTask(task2)
 	app.SetState(ApplicationStates().Submitted)
-	context.AddApplication(&interfaces.AddApplicationRequest{
-		Metadata: interfaces.ApplicationMetadata{
+	context.AddApplication(&AddApplicationRequest{
+		Metadata: ApplicationMetadata{
 			ApplicationID: app.applicationID,
 			QueueName:     app.queue,
 			User:          app.user,
@@ -597,7 +595,7 @@ func TestSetTaskGroupsAndSchedulingPolicy(t *testing.T) {
 	assert.Equal(t, len(app.getTaskGroups()), 0)
 
 	duration := int64(3000)
-	app.setTaskGroups([]interfaces.TaskGroup{
+	app.setTaskGroups([]TaskGroup{
 		{
 			Name:      "test-group-1",
 			MinMember: 10,
@@ -708,7 +706,7 @@ func TestTryReserve(t *testing.T) {
 	context.addApplication(app)
 
 	// set taskGroups
-	app.setTaskGroups([]interfaces.TaskGroup{
+	app.setTaskGroups([]TaskGroup{
 		{
 			Name:      "test-group-1",
 			MinMember: 10,
@@ -774,7 +772,7 @@ func TestTryReservePostRestart(t *testing.T) {
 	context.addApplication(app)
 
 	// set taskGroups
-	app.setTaskGroups([]interfaces.TaskGroup{
+	app.setTaskGroups([]TaskGroup{
 		{
 			Name:      "test-group-1",
 			MinMember: 10,
@@ -943,7 +941,7 @@ func TestSkipReservationStage(t *testing.T) {
 	task2.sm.SetState(TaskStates().Allocated)
 	app.addTask(task1)
 	app.addTask(task2)
-	app.setTaskGroups([]interfaces.TaskGroup{
+	app.setTaskGroups([]TaskGroup{
 		{
 			Name:      "test-group-1",
 			MinMember: 10,
@@ -965,7 +963,7 @@ func TestSkipReservationStage(t *testing.T) {
 	task2.sm.SetState(TaskStates().New)
 	app.addTask(task1)
 	app.addTask(task2)
-	app.setTaskGroups([]interfaces.TaskGroup{
+	app.setTaskGroups([]TaskGroup{
 		{
 			Name:      "test-group-1",
 			MinMember: 10,
@@ -1127,9 +1125,8 @@ func TestPlaceholderTimeoutEvents(t *testing.T) {
 	}
 
 	amprotocol := NewMockedAMProtocol()
-	podEvent := general.NewPodEventHandler(amprotocol, false)
-
-	am := general.NewManager(client.NewMockedAPIProvider(false), podEvent)
+	am := NewAMService(amprotocol, client.NewMockedAPIProvider(false))
+	am.podEventHandler.recoveryRunning = false
 	pod1 := v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
@@ -1172,13 +1169,8 @@ func TestPlaceholderTimeoutEvents(t *testing.T) {
 			Phase: v1.PodPending,
 		},
 	}
-	managedApp := amprotocol.GetApplication("app00001")
-	assert.Assert(t, managedApp != nil)
-	app, valid := managedApp.(*Application)
-	if !valid {
-		t.Fatal("application is expected to be of type Application")
-	}
-	assert.Equal(t, valid, true)
+	app := amprotocol.GetApplication("app00001")
+	assert.Assert(t, app != nil)
 	assert.Equal(t, app.GetApplicationID(), "app00001")
 	assert.Equal(t, app.GetApplicationState(), ApplicationStates().New)
 	assert.Equal(t, app.GetQueue(), "root.a")
@@ -1188,8 +1180,8 @@ func TestPlaceholderTimeoutEvents(t *testing.T) {
 	UUID := "UID-POD-00002"
 
 	context.addApplication(app)
-	task1 := context.AddTask(&interfaces.AddTaskRequest{
-		Metadata: interfaces.TaskMetadata{
+	task1 := context.AddTask(&AddTaskRequest{
+		Metadata: TaskMetadata{
 			ApplicationID: "app00001",
 			TaskID:        "task02",
 			Pod:           pod,
@@ -1202,12 +1194,7 @@ func TestPlaceholderTimeoutEvents(t *testing.T) {
 	_, taskErr := app.GetTask("task02")
 	assert.NilError(t, taskErr, "Task should exist")
 
-	task2, task2Err := task1.(*Task)
-	if !task2Err {
-		// this should give an error
-		t.Error("task1 is expected to be of type Task")
-	}
-	task2.allocationUUID = UUID
+	task1.allocationUUID = UUID
 
 	// app must be running states
 	err := app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, UUID))
@@ -1254,7 +1241,7 @@ func TestApplication_onReservationStateChange(t *testing.T) {
 	assertAppState(t, app, ApplicationStates().Running, 1*time.Second)
 
 	// set taskGroups
-	app.setTaskGroups([]interfaces.TaskGroup{
+	app.setTaskGroups([]TaskGroup{
 		{
 			Name:      "test-group-1",
 			MinMember: 1,
