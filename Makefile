@@ -67,7 +67,7 @@ endif
 
 # Test selection
 ifeq ($(E2E_TEST),)
-E2E_TEST := test/e2e/preemption
+E2E_TEST :=
 endif
 
 # Kernel (OS) Name
