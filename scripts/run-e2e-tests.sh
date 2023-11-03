@@ -166,10 +166,10 @@ Examples:
   ${NAME} -a test -n yk8s -v kindest/node:v1.25.11
   ${NAME} -a test -n yk8s -v kindest/node:v1.26.6
   ${NAME} -a test -n yk8s -v kindest/node:v1.27.3
-  ${NAME} -a test -n yk8s -v kindest/node:v1.28.3
+  ${NAME} -a test -n yk8s -v kindest/node:v1.28.0
 
   Use a local helm chart path:
-    ${NAME} -a test -n yk8s -v kindest/node:v1.28.3 -p ../yunikorn-release/helm-charts/yunikorn
+    ${NAME} -a test -n yk8s -v kindest/node:v1.28.0 -p ../yunikorn-release/helm-charts/yunikorn
 EOF
 }
 
