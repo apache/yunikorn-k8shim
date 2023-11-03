@@ -164,6 +164,7 @@ var _ = ginkgo.Describe("Preemption", func() {
 			return nil
 		})
 		cm, err := kClient.GetConfigMap(constants.ConfigMapName, constants.SchedulerName)
+		Ω(err).NotTo(gomega.HaveOccurred())
 		fmt.Println(cm)
 		// Define sleepPod
 		sleepPodConfigs := createSandbox1SleepPodCofigs(3, 600)
