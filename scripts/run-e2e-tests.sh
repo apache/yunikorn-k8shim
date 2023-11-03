@@ -165,7 +165,7 @@ Examples:
   ${NAME} -a test -n yk8s -v kindest/node:v1.24.15
   ${NAME} -a test -n yk8s -v kindest/node:v1.25.11
   ${NAME} -a test -n yk8s -v kindest/node:v1.26.6
-  ${NAME} -a test -n yk8s -v kindest/node:v1.27.3
+  ${NAME} -a test -n yk8s -v kindest/node:v1.27.7
   ${NAME} -a test -n yk8s -v kindest/node:v1.28.0
 
   Use a local helm chart path:
