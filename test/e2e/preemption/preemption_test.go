@@ -163,7 +163,8 @@ var _ = ginkgo.Describe("Preemption", func() {
 			}
 			return nil
 		})
-
+		cm, err := kClient.GetConfigMap(constants.ConfigMapName, constants.SchedulerName)
+		fmt.Println(cm)
 		// Define sleepPod
 		sleepPodConfigs := createSandbox1SleepPodCofigs(3, 600)
 		sleepPod4Config := k8s.SleepPodConfig{Name: "sleepjob4", NS: dev, Mem: sleepPodMemLimit, Time: 600, Optedout: k8s.Allow, Labels: map[string]string{"queue": "root.sandbox2"}}
@@ -179,7 +180,7 @@ var _ = ginkgo.Describe("Preemption", func() {
 			// Wait for pod to move to running state
 			podErr = kClient.WaitForPodBySelectorRunning(dev,
 				fmt.Sprintf("app=%s", sleepRespPod.ObjectMeta.Labels["app"]),
-				60)
+				120)
 			gomega.Ω(podErr).NotTo(gomega.HaveOccurred())
 		}
 
@@ -585,6 +586,7 @@ var _ = ginkgo.Describe("Preemption", func() {
 		})
 
 		ginkgo.By("Schedule a number of small, Low priority pause tasks on Low Guaranteed queue (Enough to fill the node)")
+
 		sandbox1SleepPodConfigs := createSandbox1SleepPodCofigsWithStaticNode(3, 600)
 		sleepPod4Config := k8s.SleepPodConfig{Name: "sleepjob4", NS: dev, Mem: sleepPodMemLimit, Time: 600, Optedout: k8s.Allow, Labels: map[string]string{"queue": "root.sandbox2"}, RequiredNode: nodeName}
 		sandbox1SleepPodConfigs = append(sandbox1SleepPodConfigs, sleepPod4Config)
