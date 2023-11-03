@@ -163,9 +163,7 @@ var _ = ginkgo.Describe("Preemption", func() {
 			}
 			return nil
 		})
-		cm, err := kClient.GetConfigMap(constants.ConfigMapName, constants.SchedulerName)
-		Ω(err).NotTo(gomega.HaveOccurred())
-		fmt.Println(cm)
+
 		// Define sleepPod
 		sleepPodConfigs := createSandbox1SleepPodCofigs(3, 600)
 		sleepPod4Config := k8s.SleepPodConfig{Name: "sleepjob4", NS: dev, Mem: sleepPodMemLimit, Time: 600, Optedout: k8s.Allow, Labels: map[string]string{"queue": "root.sandbox2"}}
@@ -567,7 +565,7 @@ var _ = ginkgo.Describe("Preemption", func() {
 		annotation = "ann-" + common.RandSeq(10)
 		yunikorn.UpdateCustomConfigMapWrapper(oldConfigMap, "", annotation, func(sc *configs.SchedulerConfig) error {
 			// remove placement rules so we can control queue
-			sc.Partitions[0].PlacementRules = nil
+			sc.Partitions[0].PlacementRules = []configs.PlacementRule{{Name: "provided", Value: "namespace", Create: true}}
 			var err error
 			if err = common.AddQueue(sc, "default", "root", configs.QueueConfig{
 				Name:       "sandbox2",
