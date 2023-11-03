@@ -50,7 +50,7 @@ jobs:
         uses: actions/setup-go@v3
         with:
           go-version-file: .go_version
-      - name: Set hugpage
+      - name: Set hugepage
         run: |
           echo "vm.nr_hugepages = 1024" | sudo tee -a /etc/sysctl.conf
           sudo sysctl -p
