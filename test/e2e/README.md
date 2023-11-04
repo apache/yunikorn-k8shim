@@ -46,13 +46,29 @@ OR follow this doc for deploying go https://golang.org/doc/install
 
 ### Trigger through CLI
 * Launching CI tests is as simple as below.
-```console
+```shell
 $ kubectl config use-context <<cluster-under-test-context>>
 $ ginkgo -r -v ci -timeout=2h -- -yk-namespace "yunikorn" -kube-config "$HOME/.kube/config"
 ```
 
-* Launching all the tests can be done as..
-```console
+* Launching all the tests can be done as.
+```shell
 $ ginkgo -r -v -timeout=2h -- -yk-namespace "yunikorn" -kube-config "$HOME/.kube/config"
 
+```
+
+* Launching all the tests in specified e2e folder.
+e.g. test/e2e/user_group_limit/
+```shell 
+$ cd test/e2e/
+$ ginkgo -r user_group_limit -v -- -yk-namespace "yunikorn" -kube-config "$HOME/.kube/config"
+```
+
+* Launching specified test.
+e.g. Run test with ginkgo.it() spec name "Verify_maxapplications_with_a_specific_group_limit"
+```shell 
+$ cd test/e2e/
+$ ginkgo run -r -v --focus "Verify_maxapplications_with_a_specific_group_limit" \
+-- -yk-namespace "yunikorn" \
+-kube-config "$HOME/.kube/config"
 ```

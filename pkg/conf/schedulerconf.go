@@ -37,7 +37,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
@@ -52,9 +52,10 @@ const (
 	EnvNamespace  = "NAMESPACE"
 
 	// prefixes
-	PrefixService    = "service."
-	PrefixLog        = "log."
-	PrefixKubernetes = "kubernetes."
+	PrefixService             = "service."
+	PrefixLog                 = "log."
+	PrefixKubernetes          = "kubernetes."
+	PrefixAdmissionController = "admissionController."
 
 	// service
 	CMSvcClusterID                    = PrefixService + "clusterId"
@@ -73,19 +74,24 @@ const (
 	CMKubeQPS   = PrefixKubernetes + "qps"
 	CMKubeBurst = PrefixKubernetes + "burst"
 
+	// admissioncontroller
+	PrefixAMFiltering               = PrefixAdmissionController + "filtering."
+	AMFilteringGenerateUniqueAppIds = PrefixAMFiltering + "generateUniqueAppId"
+
 	// defaults
-	DefaultNamespace              = "default"
-	DefaultClusterID              = "mycluster"
-	DefaultPolicyGroup            = "queues"
-	DefaultSchedulingInterval     = time.Second
-	DefaultVolumeBindTimeout      = 10 * time.Second
-	DefaultEventChannelCapacity   = 1024 * 1024
-	DefaultDispatchTimeout        = 300 * time.Second
-	DefaultOperatorPlugins        = "general"
-	DefaultDisableGangScheduling  = false
-	DefaultEnableConfigHotRefresh = true
-	DefaultKubeQPS                = 1000
-	DefaultKubeBurst              = 1000
+	DefaultNamespace                       = "default"
+	DefaultClusterID                       = "mycluster"
+	DefaultPolicyGroup                     = "queues"
+	DefaultSchedulingInterval              = time.Second
+	DefaultVolumeBindTimeout               = 10 * time.Second
+	DefaultEventChannelCapacity            = 1024 * 1024
+	DefaultDispatchTimeout                 = 300 * time.Second
+	DefaultOperatorPlugins                 = "general"
+	DefaultDisableGangScheduling           = false
+	DefaultEnableConfigHotRefresh          = true
+	DefaultKubeQPS                         = 1000
+	DefaultKubeBurst                       = 1000
+	DefaultAMFilteringGenerateUniqueAppIds = false
 )
 
 var (
@@ -124,6 +130,7 @@ type SchedulerConf struct {
 	PlaceHolderImage         string        `json:"placeHolderImage"`
 	InstanceTypeNodeLabelKey string        `json:"instanceTypeNodeLabelKey"`
 	Namespace                string        `json:"namespace"`
+	GenerateUniqueAppIds     bool          `json:"generateUniqueAppIds"`
 	sync.RWMutex
 }
 
@@ -151,6 +158,7 @@ func (conf *SchedulerConf) Clone() *SchedulerConf {
 		PlaceHolderImage:         conf.PlaceHolderImage,
 		InstanceTypeNodeLabelKey: conf.InstanceTypeNodeLabelKey,
 		Namespace:                conf.Namespace,
+		GenerateUniqueAppIds:     conf.GenerateUniqueAppIds,
 	}
 }
 
@@ -208,6 +216,7 @@ func handleNonReloadableConfig(old *SchedulerConf, new *SchedulerConf) {
 	checkNonReloadableBool(CMSvcDisableGangScheduling, &old.DisableGangScheduling, &new.DisableGangScheduling)
 	checkNonReloadableString(CMSvcPlaceholderImage, &old.PlaceHolderImage, &new.PlaceHolderImage)
 	checkNonReloadableString(CMSvcNodeInstanceTypeNodeLabelKey, &old.InstanceTypeNodeLabelKey, &new.InstanceTypeNodeLabelKey)
+	checkNonReloadableBool(AMFilteringGenerateUniqueAppIds, &old.GenerateUniqueAppIds, &new.GenerateUniqueAppIds)
 }
 
 const warningNonReloadable = "ignoring non-reloadable configuration change (restart required to update)"
@@ -337,6 +346,7 @@ func CreateDefaultConfig() *SchedulerConf {
 		UserLabelKey:             constants.DefaultUserLabel,
 		PlaceHolderImage:         constants.PlaceholderContainerImage,
 		InstanceTypeNodeLabelKey: constants.DefaultNodeInstanceTypeNodeLabelKey,
+		GenerateUniqueAppIds:     DefaultAMFilteringGenerateUniqueAppIds,
 	}
 }
 
@@ -366,6 +376,9 @@ func parseConfig(config map[string]string, prev *SchedulerConf) (*SchedulerConf,
 	// kubernetes
 	parser.intVar(&conf.KubeQPS, CMKubeQPS)
 	parser.intVar(&conf.KubeBurst, CMKubeBurst)
+
+	// admission controller
+	parser.boolVar(&conf.GenerateUniqueAppIds, AMFilteringGenerateUniqueAppIds)
 
 	if len(parser.errors) > 0 {
 		return nil, parser.errors

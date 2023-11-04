@@ -243,13 +243,16 @@ echo "  web image          : ${WEBTEST_IMAGE}"
 check_opt "action" "${ACTION}"
 check_opt "kind-cluster-name" "${CLUSTER_NAME}"
 
-# this script only supports 2 actions
+# this script only supports 3 actions
 #   1) test
 #     - install a K8s cluster with kind
 #     - install latest yunikorn
 #     - run e2e tests
 #   2) cleanup
 #     - delete k8s cluster
+#   3) install
+#     - install a K8s cluster with kind
+#     - install latest yunikorn
 if [ "${ACTION}" == "test" ]; then
   # make will fail without go installed but we call it before that...
   check_cmd "${GO}"
@@ -266,6 +269,11 @@ if [ "${ACTION}" == "test" ]; then
   fi
   make e2e_test
   exit_on_error "e2e tests failed"
+elif [ "${ACTION}" == "install" ]; then
+  check_cmd "${GO}"
+  check_opt "kind-node-image-version" "${CLUSTER_VERSION}"
+  check_opt "chart-path" "${CHART_PATH}"
+  install_cluster
 elif [ "${ACTION}" == "cleanup" ]; then
   echo "cleaning up the environment"
   delete_cluster

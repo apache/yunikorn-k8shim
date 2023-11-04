@@ -65,11 +65,6 @@ ifeq ($(VERSION),)
 VERSION := latest
 endif
 
-# Test selection
-ifeq ($(E2E_TEST),)
-E2E_TEST :=
-endif
-
 # Kernel (OS) Name
 OS := $(shell uname -s | tr '[:upper:]' '[:lower:]')
 
@@ -121,7 +116,7 @@ GOLANGCI_LINT_ARCHIVE=golangci-lint-$(GOLANGCI_LINT_VERSION)-$(OS)-$(EXEC_ARCH).
 GOLANGCI_LINT_ARCHIVEBASE=golangci-lint-$(GOLANGCI_LINT_VERSION)-$(OS)-$(EXEC_ARCH)
 
 # kubectl
-KUBECTL_VERSION=v1.27.3
+KUBECTL_VERSION=v1.27.7
 KUBECTL_BIN=$(TOOLS_DIR)/kubectl
 
 # kind
@@ -308,7 +303,7 @@ run_plugin: build_plugin
 .PHONY: build
 build: $(DEV_BIN_DIR)/$(SCHEDULER_BINARY)
 
-$(DEV_BIN_DIR)/$(SCHEDULER_BINARY): go.mod go.sum pkg
+$(DEV_BIN_DIR)/$(SCHEDULER_BINARY): go.mod go.sum $(shell find pkg)
 	@echo "building scheduler binary"
 	@mkdir -p "$(DEV_BIN_DIR)"
 	"$(GO)" build \
@@ -320,7 +315,7 @@ $(DEV_BIN_DIR)/$(SCHEDULER_BINARY): go.mod go.sum pkg
 .PHONY: build_plugin
 build_plugin: $(DEV_BIN_DIR)/$(PLUGIN_BINARY)
 
-$(DEV_BIN_DIR)/$(PLUGIN_BINARY): go.mod go.sum pkg
+$(DEV_BIN_DIR)/$(PLUGIN_BINARY): go.mod go.sum $(shell find pkg)
 	@echo "building scheduler plugin binary"
 	@mkdir -p "$(DEV_BIN_DIR)"
 	"$(GO)" build \
@@ -333,7 +328,7 @@ $(DEV_BIN_DIR)/$(PLUGIN_BINARY): go.mod go.sum pkg
 .PHONY: scheduler
 scheduler: $(RELEASE_BIN_DIR)/$(SCHEDULER_BINARY)
 
-$(RELEASE_BIN_DIR)/$(SCHEDULER_BINARY): go.mod go.sum pkg
+$(RELEASE_BIN_DIR)/$(SCHEDULER_BINARY): go.mod go.sum $(shell find pkg)
 	@echo "building binary for scheduler docker image"
 	@mkdir -p "$(RELEASE_BIN_DIR)"
 	CGO_ENABLED=0 GOOS=linux GOARCH="${EXEC_ARCH}" "$(GO)" build \
@@ -349,7 +344,7 @@ $(RELEASE_BIN_DIR)/$(SCHEDULER_BINARY): go.mod go.sum pkg
 .PHONY: plugin
 plugin: $(RELEASE_BIN_DIR)/$(PLUGIN_BINARY)
 
-$(RELEASE_BIN_DIR)/$(PLUGIN_BINARY): go.mod go.sum pkg
+$(RELEASE_BIN_DIR)/$(PLUGIN_BINARY): go.mod go.sum $(shell find pkg)
 	@echo "building binary for plugin docker image"
 	@mkdir -p "$(RELEASE_BIN_DIR)"
 	CGO_ENABLED=0 GOOS=linux GOARCH="${EXEC_ARCH}" "$(GO)" build \
@@ -404,7 +399,7 @@ plugin_image: plugin docker/plugin conf/scheduler-config.yaml
 .PHONY: admission
 admission: $(RELEASE_BIN_DIR)/$(ADMISSION_CONTROLLER_BINARY)
 
-$(RELEASE_BIN_DIR)/$(ADMISSION_CONTROLLER_BINARY): go.mod go.sum pkg
+$(RELEASE_BIN_DIR)/$(ADMISSION_CONTROLLER_BINARY): go.mod go.sum $(shell find pkg)
 	@echo "building admission controller binary"
 	@mkdir -p "$(RELEASE_BIN_DIR)"
 	CGO_ENABLED=0 GOOS=linux GOARCH="${EXEC_ARCH}" "$(GO)" build \
@@ -456,7 +451,7 @@ webtest_image: build_web_test_server_prod docker/webtest
 .PHONY: build_web_test_server_dev
 build_web_test_server_dev: $(DEV_BIN_DIR)/$(TEST_SERVER_BINARY)
 
-$(DEV_BIN_DIR)/$(TEST_SERVER_BINARY): go.mod go.sum pkg
+$(DEV_BIN_DIR)/$(TEST_SERVER_BINARY): go.mod go.sum $(shell find pkg)
 	@echo "building local web server binary"
 	"$(GO)" build \
 	-o="$(DEV_BIN_DIR)/$(TEST_SERVER_BINARY)" \
@@ -467,7 +462,7 @@ $(DEV_BIN_DIR)/$(TEST_SERVER_BINARY): go.mod go.sum pkg
 .PHONY: build_web_test_server_prod
 build_web_test_server_prod: $(RELEASE_BIN_DIR)/$(TEST_SERVER_BINARY)
 
-$(RELEASE_BIN_DIR)/$(TEST_SERVER_BINARY): go.mod go.sum pkg
+$(RELEASE_BIN_DIR)/$(TEST_SERVER_BINARY): go.mod go.sum $(shell find pkg)
 	@echo "building web server binary"
 	CGO_ENABLED=0 GOOS=linux GOARCH="${EXEC_ARCH}" "$(GO)" build \
 	-a \
@@ -476,18 +471,6 @@ $(RELEASE_BIN_DIR)/$(TEST_SERVER_BINARY): go.mod go.sum pkg
 	-tags netgo \
 	-installsuffix netgo \
 	./pkg/cmd/webtest/
-
-#Generate the CRD code with code-generator (release-1.14)
-
-# If you want to re-run the code-generator to generate code,
-# Please make sure the directory structure must be the example.
-# ex: github.com/apache/yunikorn-k8shim
-# Also you need to set you GOPATH environmental variables first.
-# If GOPATH is empty, we will set it to "$HOME/go".
-.PHONY: code_gen
-code_gen:
-	@echo "Generating CRD code"
-	./scripts/update-codegen.sh
 
 # Run the tests after building
 .PHONY: test

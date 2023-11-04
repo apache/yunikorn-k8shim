@@ -48,6 +48,10 @@ import (
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
 
+const (
+	Host1 = "HOST1"
+)
+
 var (
 	testGroups = []string{"dev", "yunikorn"}
 )
@@ -334,8 +338,9 @@ func TestRemoveApplicationInternal(t *testing.T) {
 	assert.Equal(t, ok, false)
 }
 
-func TestFilterPods(t *testing.T) {
+func TestAddPod(t *testing.T) {
 	context := initContextForTest()
+
 	pod1 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
@@ -344,6 +349,9 @@ func TestFilterPods(t *testing.T) {
 		ObjectMeta: apis.ObjectMeta{
 			Name: "yunikorn-test-00001",
 			UID:  "UID-00001",
+			Annotations: map[string]string{
+				constants.AnnotationApplicationID: "yunikorn-test-00001",
+			},
 		},
 		Spec: v1.PodSpec{SchedulerName: "yunikorn"},
 	}
@@ -355,49 +363,9 @@ func TestFilterPods(t *testing.T) {
 		ObjectMeta: apis.ObjectMeta{
 			Name: "yunikorn-test-00002",
 			UID:  "UID-00002",
-		},
-		Spec: v1.PodSpec{SchedulerName: "default-scheduler"},
-	}
-	pod3 := &v1.Pod{
-		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-		ObjectMeta: apis.ObjectMeta{
-			Name:   "yunikorn-test-00003",
-			UID:    "UID-00003",
-			Labels: map[string]string{"applicationId": "test-00003"},
-		},
-		Spec: v1.PodSpec{SchedulerName: "yunikorn"},
-	}
-	assert.Check(t, !context.filterPods(nil), "nil object was allowed")
-	assert.Check(t, !context.filterPods(pod1), "yunikorn-managed pod with no app id was allowed")
-	assert.Check(t, !context.filterPods(pod2), "non-yunikorn-managed pod was allowed")
-	assert.Check(t, context.filterPods(pod3), "yunikorn-managed pod was filtered")
-}
-
-func TestAddPodToCache(t *testing.T) {
-	context := initContextForTest()
-
-	pod1 := &v1.Pod{
-		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-		ObjectMeta: apis.ObjectMeta{
-			Name: "yunikorn-test-00001",
-			UID:  "UID-00001",
-		},
-		Spec: v1.PodSpec{SchedulerName: "yunikorn"},
-	}
-	pod2 := &v1.Pod{
-		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-		ObjectMeta: apis.ObjectMeta{
-			Name: "yunikorn-test-00002",
-			UID:  "UID-00002",
+			Annotations: map[string]string{
+				constants.AnnotationApplicationID: "yunikorn-test-00002",
+			},
 		},
 		Spec: v1.PodSpec{SchedulerName: "yunikorn"},
 		Status: v1.PodStatus{
@@ -405,9 +373,9 @@ func TestAddPodToCache(t *testing.T) {
 		},
 	}
 
-	context.addPodToCache(nil)  // no-op, but should not crash
-	context.addPodToCache(pod1) // should be added
-	context.addPodToCache(pod2) // should skip as pod is terminated
+	context.addPod(nil)  // no-op, but should not crash
+	context.addPod(pod1) // should be added
+	context.addPod(pod2) // should skip as pod is terminated
 
 	_, ok := context.schedulerCache.GetPod("UID-00001")
 	assert.Check(t, ok, "active pod was not added")
@@ -415,7 +383,7 @@ func TestAddPodToCache(t *testing.T) {
 	assert.Check(t, !ok, "terminated pod was added")
 }
 
-func TestUpdatePodInCache(t *testing.T) {
+func TestUpdatePod(t *testing.T) {
 	context := initContextForTest()
 
 	pod1 := &v1.Pod{
@@ -424,9 +392,12 @@ func TestUpdatePodInCache(t *testing.T) {
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
-			Name:        "yunikorn-test-00001",
-			UID:         "UID-00001",
-			Annotations: map[string]string{"test.state": "new"},
+			Name: "yunikorn-test-00001",
+			UID:  "UID-00001",
+			Annotations: map[string]string{
+				constants.AnnotationApplicationID: "yunikorn-test-00001",
+				"test.state":                      "new",
+			},
 		},
 		Spec: v1.PodSpec{SchedulerName: "yunikorn"},
 	}
@@ -436,9 +407,12 @@ func TestUpdatePodInCache(t *testing.T) {
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
-			Name:        "yunikorn-test-00001",
-			UID:         "UID-00001",
-			Annotations: map[string]string{"test.state": "updated"},
+			Name: "yunikorn-test-00001",
+			UID:  "UID-00001",
+			Annotations: map[string]string{
+				constants.AnnotationApplicationID: "yunikorn-test-00001",
+				"test.state":                      "updated",
+			},
 		},
 		Spec: v1.PodSpec{SchedulerName: "yunikorn"},
 	}
@@ -450,6 +424,9 @@ func TestUpdatePodInCache(t *testing.T) {
 		ObjectMeta: apis.ObjectMeta{
 			Name: "yunikorn-test-00001",
 			UID:  "UID-00001",
+			Annotations: map[string]string{
+				constants.AnnotationApplicationID: "yunikorn-test-00001",
+			},
 		},
 		Spec: v1.PodSpec{SchedulerName: "yunikorn"},
 		Status: v1.PodStatus{
@@ -457,29 +434,29 @@ func TestUpdatePodInCache(t *testing.T) {
 		},
 	}
 
-	context.addPodToCache(pod1)
+	context.addPod(pod1)
 	_, ok := context.schedulerCache.GetPod("UID-00001")
 	assert.Assert(t, ok, "pod1 is not present after adding")
 
 	// these should not fail, but are no-ops
-	context.updatePodInCache(nil, nil)
-	context.updatePodInCache(nil, pod1)
-	context.updatePodInCache(pod1, nil)
+	context.updatePod(nil, nil)
+	context.updatePod(nil, pod1)
+	context.updatePod(pod1, nil)
 
 	// ensure a terminated pod is removed
-	context.updatePodInCache(pod1, pod3)
+	context.updatePod(pod1, pod3)
 	_, ok = context.schedulerCache.GetPod("UID-00001")
 	assert.Check(t, !ok, "pod still found after termination")
 
 	// ensure a non-terminated pod is updated
-	context.updatePodInCache(pod1, pod2)
+	context.updatePod(pod1, pod2)
 	found, ok := context.schedulerCache.GetPod("UID-00001")
 	if assert.Check(t, ok, "pod not found after update") {
 		assert.Check(t, found.GetAnnotations()["test.state"] == "updated", "pod state not updated")
 	}
 }
 
-func TestRemovePodFromCache(t *testing.T) {
+func TestDeletePod(t *testing.T) {
 	context := initContextForTest()
 
 	pod1 := &v1.Pod{
@@ -490,6 +467,9 @@ func TestRemovePodFromCache(t *testing.T) {
 		ObjectMeta: apis.ObjectMeta{
 			Name: "yunikorn-test-00001",
 			UID:  "UID-00001",
+			Annotations: map[string]string{
+				constants.AnnotationApplicationID: "yunikorn-test-00001",
+			},
 		},
 		Spec: v1.PodSpec{SchedulerName: "yunikorn"},
 	}
@@ -501,28 +481,220 @@ func TestRemovePodFromCache(t *testing.T) {
 		ObjectMeta: apis.ObjectMeta{
 			Name: "yunikorn-test-00002",
 			UID:  "UID-00002",
+			Annotations: map[string]string{
+				constants.AnnotationApplicationID: "yunikorn-test-00002",
+			},
 		},
 		Spec: v1.PodSpec{SchedulerName: "yunikorn"},
 	}
 
-	context.addPodToCache(pod1)
-	context.addPodToCache(pod2)
+	context.addPod(pod1)
+	context.addPod(pod2)
 	_, ok := context.schedulerCache.GetPod("UID-00001")
 	assert.Assert(t, ok, "pod1 is not present after adding")
 	_, ok = context.schedulerCache.GetPod("UID-00002")
 	assert.Assert(t, ok, "pod2 is not present after adding")
 
 	// these should not fail, but here for completeness
-	context.removePodFromCache(nil)
-	context.removePodFromCache(cache.DeletedFinalStateUnknown{Key: "UID-00000", Obj: nil})
+	context.deletePod(nil)
+	context.deletePod(cache.DeletedFinalStateUnknown{Key: "UID-00000", Obj: nil})
 
-	context.removePodFromCache(pod1)
+	context.deletePod(pod1)
 	_, ok = context.schedulerCache.GetPod("UID-00001")
 	assert.Check(t, !ok, "pod1 is still present")
 
-	context.removePodFromCache(cache.DeletedFinalStateUnknown{Key: "UID-00002", Obj: pod2})
+	context.deletePod(cache.DeletedFinalStateUnknown{Key: "UID-00002", Obj: pod2})
 	_, ok = context.schedulerCache.GetPod("UID-00002")
 	assert.Check(t, !ok, "pod2 is still present")
+}
+
+//nolint:funlen
+func TestAddUpdatePodForeign(t *testing.T) {
+	mockedSchedulerApi := newMockSchedulerAPI()
+	context := initContextForTest()
+	context.nodes = newSchedulerNodes(mockedSchedulerApi, NewTestSchedulerCache())
+	host1 := nodeForTest(Host1, "10G", "10")
+	context.nodes.addNode(host1)
+
+	executed := false
+	expectAdd := false
+	expectRemove := false
+	tc := ""
+
+	mockedSchedulerApi.UpdateNodeFn = func(request *si.NodeRequest) error {
+		executed = true
+		assert.Equal(t, len(request.Nodes), 1, "%s: wrong node count", tc)
+		updatedNode := request.Nodes[0]
+		assert.Equal(t, updatedNode.NodeID, Host1, "%s: wrong nodeID", tc)
+		assert.Equal(t, updatedNode.Action, si.NodeInfo_UPDATE, "%s: wrong action", tc)
+		assert.Equal(t, updatedNode.SchedulableResource.Resources[siCommon.Memory].Value, int64(10000*1000*1000), "%s: wrong schedulable memory", tc)
+		assert.Equal(t, updatedNode.SchedulableResource.Resources[siCommon.CPU].Value, int64(10000), "%s: wrong schedulable cpu", tc)
+		if expectAdd {
+			assert.Equal(t, updatedNode.OccupiedResource.Resources[siCommon.Memory].Value, int64(1000*1000*1000), "%s: wrong occupied memory (add)", tc)
+			assert.Equal(t, updatedNode.OccupiedResource.Resources[siCommon.CPU].Value, int64(500), "%s: wrong occupied cpu (add)", tc)
+		}
+		if expectRemove {
+			assert.Equal(t, updatedNode.OccupiedResource.Resources[siCommon.Memory].Value, int64(0), "%s: wrong occupied memory (remove)", tc)
+			assert.Equal(t, updatedNode.OccupiedResource.Resources[siCommon.CPU].Value, int64(0), "%s: wrong occupied cpu (remove)", tc)
+		}
+		return nil
+	}
+
+	// pod is not assigned to any node
+	pod1 := foreignPod("pod1", "1G", "500m")
+	pod1.Status.Phase = v1.PodPending
+	pod1.Spec.NodeName = ""
+
+	// validate add
+	tc = "add-pod1"
+	executed = false
+	expectAdd = false
+	expectRemove = false
+	context.addPod(pod1)
+	assert.Assert(t, !executed, "unexpected update")
+	_, ok := context.schedulerCache.GetPod(string(pod1.UID))
+	assert.Assert(t, !ok, "unassigned pod found in cache")
+
+	// validate update
+	tc = "update-pod1"
+	executed = false
+	expectAdd = false
+	expectRemove = false
+	context.updatePod(nil, pod1)
+	assert.Assert(t, !executed, "unexpected update")
+	_, ok = context.schedulerCache.GetPod(string(pod1.UID))
+	assert.Assert(t, !ok, "unassigned pod found in cache")
+
+	// pod is assigned to a node but still in pending state, should update
+	pod2 := foreignPod("pod2", "1G", "500m")
+	pod2.Status.Phase = v1.PodPending
+	pod2.Spec.NodeName = Host1
+
+	// validate add
+	tc = "add-pod2"
+	executed = false
+	expectAdd = true
+	expectRemove = false
+	context.addPod(pod2)
+	assert.Assert(t, executed, "update not executed")
+	_, ok = context.schedulerCache.GetPod(string(pod2.UID))
+	assert.Assert(t, ok, "pod not found in cache")
+
+	// validate update
+	tc = "update-pod2"
+	executed = false
+	expectAdd = false
+	expectRemove = false
+	context.updatePod(nil, pod2)
+	assert.Assert(t, !executed, "unexpected update")
+	_, ok = context.schedulerCache.GetPod(string(pod2.UID))
+	assert.Assert(t, ok, "pod not found in cache")
+
+	// validate update when not already in cache
+	tc = "update-pod2-nocache-pre"
+	executed = false
+	expectAdd = false
+	expectRemove = true
+	context.deletePod(pod2)
+	tc = "update-pod2-nocache"
+	executed = false
+	expectAdd = true
+	expectRemove = false
+	context.updatePod(nil, pod2)
+	assert.Assert(t, executed, "update not executed")
+	_, ok = context.schedulerCache.GetPod(string(pod2.UID))
+	assert.Assert(t, ok, "pod not found in cache")
+
+	// pod is failed, should trigger update if already in cache
+	pod3 := pod2.DeepCopy()
+	pod3.Status.Phase = v1.PodFailed
+
+	// validate add
+	tc = "add-pod3"
+	executed = false
+	expectAdd = false
+	expectRemove = true
+	context.addPod(pod3)
+	assert.Assert(t, executed, "update not executed")
+	_, ok = context.schedulerCache.GetPod(string(pod3.UID))
+	assert.Assert(t, !ok, "failed pod found in cache")
+
+	// validate update when not already in cache
+	tc = "update-pod3-pre"
+	executed = false
+	expectAdd = true
+	expectRemove = false
+	context.addPod(pod2)
+	tc = "update-pod3"
+	executed = false
+	expectAdd = false
+	expectRemove = true
+	context.updatePod(nil, pod3)
+	assert.Assert(t, executed, "update not executed")
+	_, ok = context.schedulerCache.GetPod(string(pod3.UID))
+	assert.Assert(t, !ok, "failed pod found in cache")
+}
+
+func TestDeletePodForeign(t *testing.T) {
+	mockedSchedulerApi := newMockSchedulerAPI()
+	context := initContextForTest()
+	context.nodes = newSchedulerNodes(mockedSchedulerApi, NewTestSchedulerCache())
+	host1 := nodeForTest(Host1, "10G", "10")
+	context.nodes.addNode(host1)
+
+	executed := false
+	expectAdd := false
+	expectRemove := false
+	tc := ""
+
+	mockedSchedulerApi.UpdateNodeFn = func(request *si.NodeRequest) error {
+		executed = true
+		assert.Equal(t, len(request.Nodes), 1, "%s: wrong node count", tc)
+		updatedNode := request.Nodes[0]
+		assert.Equal(t, updatedNode.NodeID, Host1, "%s: wrong nodeID", tc)
+		assert.Equal(t, updatedNode.Action, si.NodeInfo_UPDATE, "%s: wrong action", tc)
+		assert.Equal(t, updatedNode.SchedulableResource.Resources[siCommon.Memory].Value, int64(10000*1000*1000), "%s: wrong schedulable memory", tc)
+		assert.Equal(t, updatedNode.SchedulableResource.Resources[siCommon.CPU].Value, int64(10000), "%s: wrong schedulable cpu", tc)
+		if expectAdd {
+			assert.Equal(t, updatedNode.OccupiedResource.Resources[siCommon.Memory].Value, int64(1000*1000*1000), "%s: wrong occupied memory (add)", tc)
+			assert.Equal(t, updatedNode.OccupiedResource.Resources[siCommon.CPU].Value, int64(500), "%s: wrong occupied cpu (add)", tc)
+		}
+		if expectRemove {
+			assert.Equal(t, updatedNode.OccupiedResource.Resources[siCommon.Memory].Value, int64(0), "%s: wrong occupied memory (remove)", tc)
+			assert.Equal(t, updatedNode.OccupiedResource.Resources[siCommon.CPU].Value, int64(0), "%s: wrong occupied cpu (remove)", tc)
+		}
+		return nil
+	}
+
+	// add existing pod
+	pod1 := foreignPod("pod1", "1G", "500m")
+	pod1.Status.Phase = v1.PodRunning
+	pod1.Spec.NodeName = Host1
+
+	// validate deletion of existing assigned pod
+	tc = "delete-pod1-pre"
+	executed = false
+	expectAdd = true
+	expectRemove = false
+	context.addPod(pod1)
+	tc = "delete-pod1"
+	executed = false
+	expectAdd = false
+	expectRemove = true
+	context.deletePod(pod1)
+	assert.Assert(t, executed, "update not executed")
+	_, ok := context.schedulerCache.GetPod(string(pod1.UID))
+	assert.Assert(t, !ok, "deleted pod found in cache")
+
+	// validate delete when not already found
+	tc = "delete-pod1-again"
+	executed = false
+	expectAdd = false
+	expectRemove = false
+	context.deletePod(pod1)
+	assert.Assert(t, !executed, "unexpected update")
+	_, ok = context.schedulerCache.GetPod(string(pod1.UID))
+	assert.Assert(t, !ok, "deleted pod found in cache")
 }
 
 func TestAddTask(t *testing.T) {
@@ -1174,9 +1346,9 @@ func TestAddApplicationsWithTags(t *testing.T) {
 		ObjectMeta: apis.ObjectMeta{
 			Name: "test2",
 			Annotations: map[string]string{
-				constants.NamespaceQuota:          "{\"cpu\": \"1\", \"memory\": \"256M\", \"nvidia.com/gpu\": \"1\"}",
+				constants.NamespaceQuota:                 "{\"cpu\": \"1\", \"memory\": \"256M\", \"nvidia.com/gpu\": \"1\"}",
 				constants.DomainYuniKorn + "parentqueue": "root.test",
-				constants.NamespaceGuaranteed:     "{\"cpu\": \"1\", \"memory\": \"256M\", \"nvidia.com/gpu\": \"1\"}",
+				constants.NamespaceGuaranteed:            "{\"cpu\": \"1\", \"memory\": \"256M\", \"nvidia.com/gpu\": \"1\"}",
 			},
 		},
 	}
@@ -1301,8 +1473,10 @@ func TestAddApplicationsWithTags(t *testing.T) {
 }
 
 func TestPendingPodAllocations(t *testing.T) {
+	utils.SetPluginMode(true)
+	defer utils.SetPluginMode(false)
+
 	context := initContextForTest()
-	context.SetPluginMode(true)
 
 	node1 := v1.Node{
 		ObjectMeta: apis.ObjectMeta{
@@ -1412,10 +1586,13 @@ func TestGetStateDump(t *testing.T) {
 			Namespace: "default",
 			Name:      "yunikorn-test-00001",
 			UID:       "UID-00001",
+			Annotations: map[string]string{
+				constants.AnnotationApplicationID: "yunikorn-test-00001",
+			},
 		},
 		Spec: v1.PodSpec{SchedulerName: "yunikorn"},
 	}
-	context.addPodToCache(pod1)
+	context.addPod(pod1)
 
 	stateDumpStr, err := context.GetStateDump()
 	assert.NilError(t, err, "error during state dump")
@@ -1596,4 +1773,52 @@ func waitForNodeAcceptedEvent(recorder *k8sEvents.FakeRecorder) error {
 		}
 	}, 10*time.Millisecond, time.Second)
 	return err
+}
+
+func nodeForTest(nodeID, memory, cpu string) *v1.Node {
+	resourceList := make(map[v1.ResourceName]resource.Quantity)
+	resourceList[v1.ResourceName("memory")] = resource.MustParse(memory)
+	resourceList[v1.ResourceName("cpu")] = resource.MustParse(cpu)
+	return &v1.Node{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Node",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name:      nodeID,
+			Namespace: "default",
+			UID:       "uid_0001",
+		},
+		Spec: v1.NodeSpec{},
+		Status: v1.NodeStatus{
+			Allocatable: resourceList,
+		},
+	}
+}
+
+func foreignPod(podName, memory, cpu string) *v1.Pod {
+	containers := make([]v1.Container, 0)
+	c1Resources := make(map[v1.ResourceName]resource.Quantity)
+	c1Resources[v1.ResourceMemory] = resource.MustParse(memory)
+	c1Resources[v1.ResourceCPU] = resource.MustParse(cpu)
+	containers = append(containers, v1.Container{
+		Name: "container-01",
+		Resources: v1.ResourceRequirements{
+			Requests: c1Resources,
+		},
+	})
+
+	return &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: podName,
+			UID:  types.UID(podName),
+		},
+		Spec: v1.PodSpec{
+			Containers: containers,
+		},
+	}
 }

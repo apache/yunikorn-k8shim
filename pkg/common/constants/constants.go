@@ -53,8 +53,6 @@ const DefaultUser = "nobody"
 
 // Spark
 const SparkLabelAppID = "spark-app-selector"
-const SparkLabelRole = "spark-role"
-const SparkLabelRoleDriver = "driver"
 
 // Configuration
 const ConfigMapName = "yunikorn-configs"
@@ -63,9 +61,6 @@ const SchedulerName = "yunikorn"
 
 // OwnerReferences
 const DaemonSetType = "DaemonSet"
-
-// Application crd
-const AppManagerHandlerName = "yunikorn-app"
 
 // Gang scheduling
 const PlaceholderContainerImage = "registry.k8s.io/pause:3.7"

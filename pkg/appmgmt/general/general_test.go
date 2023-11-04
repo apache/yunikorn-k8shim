@@ -591,9 +591,9 @@ func TestListApplication(t *testing.T) {
 		// Application 4
 		{
 			description:    "running in default queue and namespace01, without label and annotation",
-			applicationID:  appName[3],
+			applicationID:  "yunikorn-namespace01-autogen",
 			input:          podCase[4].InjectPod(),
-			expectedOutput: false,
+			expectedOutput: true,
 		},
 		// Application 5
 		{
@@ -615,7 +615,7 @@ func TestListApplication(t *testing.T) {
 	am := NewManager(mockedAPIProvider, NewPodEventHandler(amProtocol, true))
 	pods, err := am.ListPods()
 	assert.NilError(t, err)
-	assert.Equal(t, len(pods), 3)
+	assert.Equal(t, len(pods), 4)
 	for _, pod := range pods {
 		name := utils.GetApplicationIDFromPod(pod)
 		expected := expectOutput[name]

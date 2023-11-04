@@ -33,9 +33,7 @@ type AppManager interface {
 	// this will be called before starting the service.
 	ServiceInit() error
 
-	// if the service has some internal stuff to run, this is the place to run them
-	// usually if an application is defined as K8s CRD, the operator service needs
-	// to watch on these CRD events. the CRD informers can be launched here.
+	// if the service has some internal stuff to run, this is the place to run them.
 	// some implementation may not need to implement this.
 	Start() error
 
