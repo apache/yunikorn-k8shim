@@ -67,15 +67,15 @@ var _ = ginkgo.BeforeSuite(func() {
 
 var _ = ginkgo.AfterSuite(func() {
 	// Clean up
+	ginkgo.By("Deleting PVCs and PVs")
 	err := kClient.DeletePVCs(dev)
-	Ω(err).NotTo(HaveOccurred())
-
-	err = kClient.DeletePVs(dev)
-	Ω(err).NotTo(HaveOccurred())
-
+	err2 := kClient.DeletePVs(dev)
 	ginkgo.By("Tearing down namespace: " + dev)
-	err = kClient.TearDownNamespace(dev)
+	err3 := kClient.TearDownNamespace(dev)
+
 	Ω(err).NotTo(HaveOccurred())
+	Ω(err2).NotTo(HaveOccurred())
+	Ω(err3).NotTo(HaveOccurred())
 })
 
 var _ = ginkgo.Describe("PersistentVolume", func() {
@@ -330,20 +330,19 @@ func createNfsProvisioner(svaName string, serverName string, scName string) {
 func deleteNfsRelatedRoles(serviceAccount string, clusterRole string, clusterRoleBinding string) {
 	ginkgo.By("Deleting NFS related roles and bindings")
 	err := kClient.DeleteClusterRoleBindings(clusterRoleBinding)
-	Ω(err).NotTo(HaveOccurred())
+	err2 := kClient.DeleteClusterRole(clusterRole)
+	err3 := kClient.DeleteServiceAccount(serviceAccount, dev)
 
-	err = kClient.DeleteClusterRole(clusterRole)
 	Ω(err).NotTo(HaveOccurred())
-
-	err = kClient.DeleteServiceAccount(serviceAccount, dev)
-	Ω(err).NotTo(HaveOccurred())
+	Ω(err2).NotTo(HaveOccurred())
+	Ω(err3).NotTo(HaveOccurred())
 }
 
 func deleteNfsProvisioner(deployName string, scName string) {
 	ginkgo.By("Deleting NFS deployment and storage class")
 	err := kClient.DeleteDeployment(deployName, dev)
-	Ω(err).NotTo(HaveOccurred())
+	err2 := kClient.DeleteStorageClass(scName)
 
-	err = kClient.DeleteStorageClass(scName)
 	Ω(err).NotTo(HaveOccurred())
+	Ω(err2).NotTo(HaveOccurred())
 }
