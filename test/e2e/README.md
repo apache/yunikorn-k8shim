@@ -45,16 +45,22 @@ OR follow this doc for deploying go https://golang.org/doc/install
 ## Launching Tests
 
 ### Trigger through CLI
+* Begin by installing a new cluster dedicated to testing, such as one named 'yktest'
+```shell
+$ ./scripts/run-e2e-tests.sh -a install -n yktest -v kindest/node:v1.28.0
+```
+
 * Launching CI tests is as simple as below.
 ```shell
-$ kubectl config use-context <<cluster-under-test-context>>
+# We need to add a 'kind' prefix to the argument of the run-e2e-tests.sh -n command.
+
+$ kubectl config use-context kind-yktest 
 $ ginkgo -r -v ci -timeout=2h -- -yk-namespace "yunikorn" -kube-config "$HOME/.kube/config"
 ```
 
 * Launching all the tests can be done as.
 ```shell
 $ ginkgo -r -v -timeout=2h -- -yk-namespace "yunikorn" -kube-config "$HOME/.kube/config"
-
 ```
 
 * Launching all the tests in specified e2e folder.
@@ -71,4 +77,9 @@ $ cd test/e2e/
 $ ginkgo run -r -v --focus "Verify_maxapplications_with_a_specific_group_limit" \
 -- -yk-namespace "yunikorn" \
 -kube-config "$HOME/.kube/config"
+```
+* Delete the cluster after we finish testing (this step is optional).
+
+```shell
+$ ./scripts/run-e2e-tests.sh -a cleanup -n yktest
 ```
