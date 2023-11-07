@@ -570,14 +570,14 @@ var _ = ginkgo.Describe("Preemption", func() {
 			if err = common.AddQueue(sc, "default", "root", configs.QueueConfig{
 				Name:       "sandbox2",
 				Resources:  configs.Resources{Guaranteed: map[string]string{"memory": fmt.Sprintf("%dM", sleepPodMemOverLimit)}},
-				Properties: map[string]string{"preemption.delay": "1s", "priority.offset": "100"},
+				Properties: map[string]string{"preemption.delay": "1s"},
 			}); err != nil {
 				return err
 			}
 			if err = common.AddQueue(sc, "default", "root", configs.QueueConfig{
 				Name:       "sandbox1",
 				Resources:  configs.Resources{Guaranteed: map[string]string{"memory": fmt.Sprintf("%dM", sleepPodMemLimit)}},
-				Properties: map[string]string{"preemption.delay": "1s", "priority.offset": "-100"},
+				Properties: map[string]string{"preemption.delay": "1s"},
 			}); err != nil {
 				return err
 			}
