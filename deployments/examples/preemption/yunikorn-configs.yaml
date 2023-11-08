@@ -1,0 +1,63 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: yunikorn-configs
+  namespace: yunikorn
+data:
+  queues.yaml: |
+    partitions:
+      - name: default
+        queues:
+        - name: root
+          queues:
+          - name: sandbox
+            resources:
+              max:
+                {memory: 1000Mi, vcore: 1000m}
+            queues:
+            - name: tenants
+              properties:
+                preemption.policy: fence
+                preemption.delay: 10s
+              queues:
+              - name: tenant-normal
+                submitacl: '*'
+                resources:
+                  guaranteed:
+                    {memory: 300Mi, vcore: 300m}
+                properties:
+                  priority.offset: "0"
+              - name: tenant-high
+                submitacl: '*'
+                resources:
+                  guaranteed:
+                    {memory: 300Mi, vcore: 300m}
+                properties:
+                  priority.offset: "1000"
+              - name: tenant-low
+                submitacl: '*'
+                properties:
+                  priority.offset: "-1000"
+            - name: system
+              queues:
+              - name: system-low
+                submitacl: '*'
+                properties:
+                  priority.offset: "-9999"
