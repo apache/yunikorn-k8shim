@@ -21,7 +21,6 @@ module github.com/apache/yunikorn-k8shim
 go 1.20
 
 require (
-	github.com/GoogleCloudPlatform/spark-on-k8s-operator v0.0.0-20201215015655-2e8b733f5ad0
 	github.com/apache/yunikorn-core v0.0.0-20231025072825-bc7c00124c4c
 	github.com/apache/yunikorn-scheduler-interface v0.0.0-20231020041412-6f80d179257c
 	github.com/google/go-cmp v0.5.9
