@@ -551,14 +551,23 @@ var _ = ginkgo.Describe("Preemption", func() {
 	})
 
 	ginkgo.It("Verify_preemption_on_specific_node", func() {
+		/*
+		 1. Create Two Queue (High and Low Guaranteed Limit)
+		 2. Select a schedulable node from the cluster
+		 3. Schedule a number of small, Low priority pause tasks on Low Guaranteed queue (Enough to fill the node)
+		 4. Schedule a large task in High Priority queue with same node
+		 5. Wait for few seconds to schedule the task
+		 6. This should trigger preemption on low-priority queue and remove or preempt task from low priority queue
+		 7. Do cleanup once test is done either passed or failed
+		*/
+
 		ginkgo.By("A queue uses resource more than the guaranteed value even after removing one of the pods. The cluster doesn't have enough resource to deploy a pod in another queue which uses resource less than the guaranteed value.")
 		// update config
 		ginkgo.By(fmt.Sprintf("Update root.sandbox1 and root.sandbox2 with guaranteed memory %dM", sleepPodMemLimit))
 		annotation = "ann-" + common.RandSeq(10)
 		yunikorn.UpdateCustomConfigMapWrapper(oldConfigMap, "", annotation, func(sc *configs.SchedulerConfig) error {
 			// remove placement rules so we can control queue
-			sc.Partitions[0].PlacementRules = nil
-
+			sc.Partitions[0].PlacementRules = []configs.PlacementRule{{Name: "provided", Value: "namespace", Create: true}}
 			var err error
 			if err = common.AddQueue(sc, "default", "root", configs.QueueConfig{
 				Name:       "sandbox1",
@@ -580,7 +589,7 @@ var _ = ginkgo.Describe("Preemption", func() {
 
 		// Define sleepPod
 		sleepPodConfigs := createSandbox1SleepPodCofigs(3, 600)
-		sleepPod4Config := k8s.SleepPodConfig{Name: "sleepjob4", NS: dev, Mem: sleepPodMemLimit, Time: 600, Optedout: k8s.Allow, Labels: map[string]string{"queue": "root.sandbox2"}}
+		sleepPod4Config := k8s.SleepPodConfig{Name: "sleepjob4", NS: dev, Mem: sleepPodMemLimit, Time: 600, Optedout: k8s.Allow, Labels: map[string]string{"queue": "root.sandbox2"}, RequiredNode: nodeName}
 		sleepPodConfigs = append(sleepPodConfigs, sleepPod4Config)
 
 		for _, config := range sleepPodConfigs {
@@ -636,6 +645,14 @@ func createSandbox1SleepPodCofigs(cnt, time int) []k8s.SleepPodConfig {
 	sandbox1Configs := make([]k8s.SleepPodConfig, 0, cnt)
 	for i := 0; i < cnt; i++ {
 		sandbox1Configs = append(sandbox1Configs, k8s.SleepPodConfig{Name: fmt.Sprintf("sleepjob%d", i+1), NS: dev, Mem: sleepPodMemLimit, Time: time, Optedout: k8s.Allow, Labels: map[string]string{"queue": "root.sandbox1"}})
+	}
+	return sandbox1Configs
+}
+
+func createSandbox1SleepPodCofigsWithStaticNode(cnt, time int) []k8s.SleepPodConfig {
+	sandbox1Configs := make([]k8s.SleepPodConfig, 0, cnt)
+	for i := 0; i < cnt; i++ {
+		sandbox1Configs = append(sandbox1Configs, k8s.SleepPodConfig{Name: fmt.Sprintf("sleepjob%d", i+1), NS: dev, Mem: sleepPodMemLimit2, Time: time, Optedout: k8s.Allow, Labels: map[string]string{"queue": "root.sandbox1"}, RequiredNode: nodeName})
 	}
 	return sandbox1Configs
 }
