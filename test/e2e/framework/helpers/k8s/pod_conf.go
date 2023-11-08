@@ -158,6 +158,9 @@ type TestPodConfig struct {
 	RestartPolicy              v1.RestartPolicy
 	Command                    []string
 	InitContainerSleepSecs     int
+	PvcName                    string
+	PvName                     string
+	VolumeName                 string
 }
 
 func InitTestPod(conf TestPodConfig) (*v1.Pod, error) { //nolint:funlen
@@ -225,6 +228,25 @@ func InitTestPod(conf TestPodConfig) (*v1.Pod, error) { //nolint:funlen
 				Command:         []string{"sleep", strconv.Itoa(conf.InitContainerSleepSecs)},
 				Resources:       containerReqs,
 			},
+		}
+	}
+	if conf.PvcName != "" || conf.PvName != "" {
+		if conf.VolumeName == "" {
+			conf.VolumeName = "vol-" + common.RandSeq(5)
+		}
+		if conf.PvcName != "" {
+			pod.Spec.Volumes = []v1.Volume{
+				{
+					Name: conf.VolumeName,
+					VolumeSource: v1.VolumeSource{
+						PersistentVolumeClaim: &v1.PersistentVolumeClaimVolumeSource{
+							ClaimName: conf.PvcName,
+						},
+					},
+				},
+			}
+		} else if conf.PvName != "" {
+			pod.Spec.Volumes = []v1.Volume{}
 		}
 	}
 	return pod, nil

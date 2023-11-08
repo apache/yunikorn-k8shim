@@ -37,7 +37,9 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
 	authv1 "k8s.io/api/rbac/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	schedulingv1 "k8s.io/api/scheduling/v1"
+	storagev1 "k8s.io/api/storage/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/httpstream"
@@ -316,6 +318,10 @@ func (k *KubeCtl) PortForwardYkSchedulerPod() error {
 
 func (k *KubeCtl) GetService(serviceName string, namespace string) (*v1.Service, error) {
 	return k.clientSet.CoreV1().Services(namespace).Get(context.TODO(), serviceName, metav1.GetOptions{})
+}
+
+func (k *KubeCtl) CreateService(service *v1.Service, namespace string) (*v1.Service, error) {
+	return k.clientSet.CoreV1().Services(namespace).Create(context.TODO(), service, metav1.CreateOptions{})
 }
 
 // Func to create a namespace provided a name
@@ -862,6 +868,10 @@ func (k *KubeCtl) DeleteServiceAccount(accountName string, namespace string) err
 	return k.clientSet.CoreV1().ServiceAccounts(namespace).Delete(context.TODO(), accountName, metav1.DeleteOptions{})
 }
 
+func (k *KubeCtl) CreateClusterRole(clusterRole *rbacv1.ClusterRole) (*rbacv1.ClusterRole, error) {
+	return k.clientSet.RbacV1().ClusterRoles().Create(context.TODO(), clusterRole, metav1.CreateOptions{})
+}
+
 func (k *KubeCtl) CreateClusterRoleBinding(
 	roleName string,
 	role string,
@@ -879,6 +889,10 @@ func (k *KubeCtl) CreateClusterRoleBinding(
 		},
 		RoleRef: authv1.RoleRef{Name: role, Kind: "ClusterRole"},
 	}, metav1.CreateOptions{})
+}
+
+func (k *KubeCtl) DeleteClusterRole(roleName string) error {
+	return k.clientSet.RbacV1().ClusterRoles().Delete(context.TODO(), roleName, metav1.DeleteOptions{})
 }
 
 func (k *KubeCtl) DeleteClusterRoleBindings(roleName string) error {
@@ -1396,4 +1410,136 @@ func (k *KubeCtl) DeleteWorkloadAndPods(objectName string, wlType WorkloadType, 
 
 	err = k.WaitForPodCount(namespace, 0, 10*time.Second)
 	gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
+}
+
+func (k *KubeCtl) CreatePersistentVolume(pv *v1.PersistentVolume) (*v1.PersistentVolume, error) {
+	return k.clientSet.CoreV1().PersistentVolumes().Create(context.TODO(), pv, metav1.CreateOptions{})
+}
+
+func (k *KubeCtl) CreatePersistentVolumeClaim(pvc *v1.PersistentVolumeClaim, ns string) (*v1.PersistentVolumeClaim, error) {
+	return k.clientSet.CoreV1().PersistentVolumeClaims(ns).Create(context.TODO(), pvc, metav1.CreateOptions{})
+}
+
+func (k *KubeCtl) CreateStorageClass(sc *storagev1.StorageClass) (*storagev1.StorageClass, error) {
+	return k.clientSet.StorageV1().StorageClasses().Create(context.TODO(), sc, metav1.CreateOptions{})
+}
+
+func (k *KubeCtl) GetPersistentVolume(name string) (*v1.PersistentVolume, error) {
+	pv, err := k.clientSet.CoreV1().PersistentVolumes().Get(context.TODO(), name, metav1.GetOptions{})
+	return pv, err
+}
+
+func (k *KubeCtl) WaitForPersistentVolumeAvailable(name string, timeout time.Duration) error {
+	return wait.PollUntilContextTimeout(context.TODO(), time.Millisecond*200, timeout, true, k.isPersistentVolumeAvailable(name))
+}
+
+func (k *KubeCtl) WaitForPersistentVolumeClaimPresent(namespace string, name string, timeout time.Duration) error {
+	return wait.PollUntilContextTimeout(context.TODO(), time.Millisecond*200, timeout, true, k.isPersistentVolumeClaimPresent(namespace, name))
+}
+
+func (k *KubeCtl) isPersistentVolumeAvailable(name string) wait.ConditionWithContextFunc {
+	return func(context.Context) (bool, error) {
+		pv, err := k.GetPersistentVolume(name)
+		if err != nil {
+			return false, err
+		}
+		if pv.Status.Phase == v1.VolumeAvailable {
+			return true, nil
+		}
+		return false, nil
+	}
+}
+
+func (k *KubeCtl) isPersistentVolumeClaimPresent(namespace string, name string) wait.ConditionWithContextFunc {
+	return func(context.Context) (bool, error) {
+		_, err := k.clientSet.CoreV1().PersistentVolumeClaims(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+		if err != nil {
+			return false, err
+		}
+		return true, nil
+	}
+}
+
+func (k *KubeCtl) GetPvcNameListFromNs(namespace string) ([]string, error) {
+	var arr []string
+	pvcList, err := k.clientSet.CoreV1().PersistentVolumeClaims(namespace).List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	for _, item := range pvcList.Items {
+		arr = append(arr, item.Name)
+	}
+	return arr, nil
+}
+
+func (k *KubeCtl) GetPvNameListFromNs(namespace string) ([]string, error) {
+	var arr []string
+	pvList, err := k.clientSet.CoreV1().PersistentVolumes().List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	for _, item := range pvList.Items {
+		if item.Spec.ClaimRef.Namespace == namespace {
+			arr = append(arr, item.Name)
+		}
+	}
+	return arr, nil
+}
+
+func (k *KubeCtl) DeletePersistentVolume(pvName string) error {
+	err := k.clientSet.CoreV1().PersistentVolumes().Delete(context.TODO(), pvName, metav1.DeleteOptions{})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (k *KubeCtl) DeletePersistentVolumeClaim(pvcName string, namespace string) error {
+	err := k.clientSet.CoreV1().PersistentVolumeClaims(namespace).Delete(context.TODO(), pvcName, metav1.DeleteOptions{})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (k *KubeCtl) DeletePVCs(namespace string) error {
+	// Delete all PVC by namespace
+	var PvcList, err = k.GetPvcNameListFromNs(namespace)
+	if err != nil {
+		return err
+	}
+
+	for _, each := range PvcList {
+		err = k.DeletePersistentVolumeClaim(each, namespace)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (k *KubeCtl) DeletePVs(namespace string) error {
+	// Delete all PV by namespace
+	var PvcList, err = k.GetPvNameListFromNs(namespace)
+	if err != nil {
+		return err
+	}
+
+	for _, item := range PvcList {
+		err = k.DeletePersistentVolume(item)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (k *KubeCtl) DeleteStorageClass(scName string) error {
+	err := k.clientSet.StorageV1().StorageClasses().Delete(context.TODO(), scName, metav1.DeleteOptions{})
+	if err != nil {
+		return err
+	}
+	return nil
 }
