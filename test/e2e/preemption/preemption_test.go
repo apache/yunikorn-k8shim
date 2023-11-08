@@ -639,11 +639,3 @@ func createSandbox1SleepPodCofigs(cnt, time int) []k8s.SleepPodConfig {
 	}
 	return sandbox1Configs
 }
-
-func createSandbox1SleepPodCofigsStaticNode(cnt, time int) []k8s.SleepPodConfig {
-	sandbox1Configs := make([]k8s.SleepPodConfig, 0, cnt)
-	for i := 0; i < cnt; i++ {
-		sandbox1Configs = append(sandbox1Configs, k8s.SleepPodConfig{Name: fmt.Sprintf("sleepjob%d", i+1), NS: dev, Mem: sleepPodMemLimit, Time: time, Optedout: k8s.Allow, Labels: map[string]string{"queue": "root.sandbox1"}})
-	}
-	return sandbox1Configs
-}
