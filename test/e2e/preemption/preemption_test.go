@@ -588,7 +588,7 @@ var _ = ginkgo.Describe("Preemption", func() {
 		})
 
 		// Define sleepPod
-		sleepPodConfigs := createSandbox1SleepPodCofigs(3, 600)
+		sleepPodConfigs := createSandbox1SleepPodCofigsWithStaticNode(3, 600)
 		sleepPod4Config := k8s.SleepPodConfig{Name: "sleepjob4", NS: dev, Mem: sleepPodMemLimit, Time: 600, Optedout: k8s.Allow, Labels: map[string]string{"queue": "root.sandbox2"}, RequiredNode: nodeName}
 		sleepPodConfigs = append(sleepPodConfigs, sleepPod4Config)
 
