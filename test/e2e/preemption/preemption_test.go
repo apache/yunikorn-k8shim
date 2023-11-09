@@ -567,7 +567,7 @@ var _ = ginkgo.Describe("Preemption", func() {
 		annotation = "ann-" + common.RandSeq(10)
 		yunikorn.UpdateCustomConfigMapWrapper(oldConfigMap, "", annotation, func(sc *configs.SchedulerConfig) error {
 			// remove placement rules so we can control queue
-			sc.Partitions[0].PlacementRules = []configs.PlacementRule{{Name: "provided", Value: "namespace", Create: true}}
+			sc.Partitions[0].PlacementRules = nil
 			var err error
 			if err = common.AddQueue(sc, "default", "root", configs.QueueConfig{
 				Name:       "sandbox1",
