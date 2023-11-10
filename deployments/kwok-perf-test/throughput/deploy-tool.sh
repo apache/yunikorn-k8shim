@@ -32,7 +32,7 @@ EOF
 }
 
 deploy_deployments() {
-  for (( i=0; i<$deployment_count; i++ )); do
+  for (( i=0; i<deployment_count; i++ )); do
     kubectl apply -f - <<EOF
 apiVersion: apps/v1
 kind: Deployment
@@ -62,12 +62,12 @@ spec:
         operator: "Exists"
         effect: "NoSchedule"
 EOF
-    sleep $interval
+    sleep "$interval"
   done
 }
 
 delete_deployments(){
-    for (( i=0; i<$deployment_count; i++ )); do
+    for (( i=0; i<deployment_count; i++ )); do
         kubectl delete deploy/sleep-deployment-$i
     done
 }
