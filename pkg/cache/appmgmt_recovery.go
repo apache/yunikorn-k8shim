@@ -44,11 +44,11 @@ func (svc *AppManagementService) WaitForRecovery() error {
 }
 
 func (svc *AppManagementService) recoverApps() (map[string]*Application, error) {
-	log.Log(log.ShimAppMgmt).Info("Starting app recovery")
+	log.Log(log.ShimCacheAppMgmt).Info("Starting app recovery")
 	recoveringApps := make(map[string]*Application)
 	pods, err := svc.ListPods()
 	if err != nil {
-		log.Log(log.ShimAppMgmt).Error("failed to list apps", zap.Error(err))
+		log.Log(log.ShimCacheAppMgmt).Error("failed to list apps", zap.Error(err))
 		return recoveringApps, err
 	}
 
@@ -71,7 +71,7 @@ func (svc *AppManagementService) recoverApps() (map[string]*Application, error) 
 			terminatedYkPods[string(pod.UID)] = true
 		}
 	}
-	log.Log(log.ShimAppMgmt).Info("Recovery finished")
+	log.Log(log.ShimCacheAppMgmt).Info("Recovery finished")
 	svc.podEventHandler.RecoveryDone(terminatedYkPods)
 
 	return recoveringApps, nil
@@ -86,19 +86,19 @@ func (svc *AppManagementService) waitForAppRecovery(recoveringApps map[string]*A
 	for {
 		// check for cancellation token
 		if svc.cancelRecovery.Load() {
-			log.Log(log.ShimAppMgmt).Info("Waiting for recovery canceled.")
+			log.Log(log.ShimCacheAppMgmt).Info("Waiting for recovery canceled.")
 			svc.cancelRecovery.Store(false)
 			return false
 		}
 
 		svc.removeRecoveredApps(recoveringApps)
 		if len(recoveringApps) == 0 {
-			log.Log(log.ShimAppMgmt).Info("Application recovery complete.")
+			log.Log(log.ShimCacheAppMgmt).Info("Application recovery complete.")
 			return true
 		}
 		counter++
 		if counter%10 == 0 {
-			log.Log(log.ShimAppMgmt).Info("Waiting for application recovery",
+			log.Log(log.ShimCacheAppMgmt).Info("Waiting for application recovery",
 				zap.Duration("timeElapsed", time.Since(recoveryStartTime).Round(time.Second)),
 				zap.Int("appsRemaining", len(recoveringApps)))
 		}
@@ -116,7 +116,7 @@ func (svc *AppManagementService) removeRecoveredApps(recoveringApps map[string]*
 	for _, app := range recoveringApps {
 		state := app.GetApplicationState()
 		if state != ApplicationStates().New && state != ApplicationStates().Recovering {
-			log.Log(log.ShimAppMgmt).Info("Recovered application",
+			log.Log(log.ShimCacheAppMgmt).Info("Recovered application",
 				zap.String("appId", app.GetApplicationID()),
 				zap.String("state", state))
 			delete(recoveringApps, app.GetApplicationID())

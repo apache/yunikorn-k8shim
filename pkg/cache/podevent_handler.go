@@ -66,7 +66,7 @@ func (p *PodEventHandler) handleEventFromInformers(eventType EventType, source E
 	defer p.Unlock()
 
 	if p.recoveryRunning && source == Informers {
-		log.Log(log.ShimAppMgmtGeneral).Debug("Storing async event", zap.Int("eventType", int(eventType)),
+		log.Log(log.ShimCacheAppMgmt).Debug("Storing async event", zap.Int("eventType", int(eventType)),
 			zap.String("pod", pod.GetName()))
 		p.asyncEvents = append(p.asyncEvents, &podAsyncEvent{eventType, pod})
 		return true
@@ -83,7 +83,7 @@ func (p *PodEventHandler) internalHandle(eventType EventType, source EventSource
 	case DeletePod:
 		return p.deletePod(pod)
 	default:
-		log.Log(log.ShimAppMgmtGeneral).Error("Unknown pod eventType", zap.Int("eventType", int(eventType)))
+		log.Log(log.ShimCacheAppMgmt).Error("Unknown pod eventType", zap.Int("eventType", int(eventType)))
 		return nil
 	}
 }
@@ -94,7 +94,7 @@ func (p *PodEventHandler) RecoveryDone(terminatedPods map[string]bool) {
 
 	noOfEvents := len(p.asyncEvents)
 	if noOfEvents > 0 {
-		log.Log(log.ShimAppMgmtGeneral).Info("Processing async events that arrived during recovery",
+		log.Log(log.ShimCacheAppMgmt).Info("Processing async events that arrived during recovery",
 			zap.Int("no. of events", noOfEvents))
 		for _, event := range p.asyncEvents {
 			// ignore all events for pods that have already been determined to
@@ -106,7 +106,7 @@ func (p *PodEventHandler) RecoveryDone(terminatedPods map[string]bool) {
 			p.internalHandle(event.eventType, Informers, event.pod)
 		}
 	} else {
-		log.Log(log.ShimAppMgmtGeneral).Info("No async pod events to process")
+		log.Log(log.ShimCacheAppMgmt).Info("No async pod events to process")
 	}
 
 	p.recoveryRunning = false
@@ -145,7 +145,7 @@ func (p *PodEventHandler) addPod(pod *v1.Pod, eventSource EventSource) *Applicat
 	if recovery && !appExists {
 		err := app.TriggerAppRecovery()
 		if err != nil {
-			log.Log(log.ShimAppMgmtGeneral).Error("failed to recover app", zap.Error(err))
+			log.Log(log.ShimCacheAppMgmt).Error("failed to recover app", zap.Error(err))
 		}
 	}
 

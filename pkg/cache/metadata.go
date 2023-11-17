@@ -38,7 +38,7 @@ import (
 func getTaskMetadata(pod *v1.Pod) (TaskMetadata, bool) {
 	appID := utils.GetApplicationIDFromPod(pod)
 	if appID == "" {
-		log.Log(log.ShimAppMgmtGeneral).Debug("unable to get task for pod",
+		log.Log(log.ShimCacheTask).Debug("unable to get task for pod",
 			zap.String("namespace", pod.Namespace),
 			zap.String("name", pod.Name))
 		return TaskMetadata{}, false
@@ -63,7 +63,7 @@ func getTaskMetadata(pod *v1.Pod) (TaskMetadata, bool) {
 func getAppMetadata(pod *v1.Pod, recovery bool) (ApplicationMetadata, bool) {
 	appID := utils.GetApplicationIDFromPod(pod)
 	if appID == "" {
-		log.Log(log.ShimAppMgmtGeneral).Debug("unable to get application for pod",
+		log.Log(log.ShimCacheApplication).Debug("unable to get application for pod",
 			zap.String("namespace", pod.Namespace),
 			zap.String("name", pod.Name))
 		return ApplicationMetadata{}, false
@@ -100,7 +100,7 @@ func getAppMetadata(pod *v1.Pod, recovery bool) (ApplicationMetadata, bool) {
 	if !conf.GetSchedulerConf().DisableGangScheduling {
 		taskGroups, err = GetTaskGroupsFromAnnotation(pod)
 		if err != nil {
-			log.Log(log.ShimAppMgmtGeneral).Error("unable to get taskGroups for pod",
+			log.Log(log.ShimCacheApplication.Error("unable to get taskGroups for pod",
 				zap.String("namespace", pod.Namespace),
 				zap.String("name", pod.Name),
 				zap.Error(err))
@@ -154,7 +154,7 @@ func isStateAwareDisabled(pod *v1.Pod) bool {
 	}
 	result, err := strconv.ParseBool(value)
 	if err != nil {
-		log.Log(log.ShimAppMgmtGeneral).Debug("unable to parse label for pod",
+		log.Log(log.ShimCacheApplication).Debug("unable to parse label for pod",
 			zap.String("namespace", pod.Namespace),
 			zap.String("name", pod.Name),
 			zap.String("label", constants.LabelDisableStateAware),
