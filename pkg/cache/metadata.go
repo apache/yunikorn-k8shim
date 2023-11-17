@@ -100,7 +100,7 @@ func getAppMetadata(pod *v1.Pod, recovery bool) (ApplicationMetadata, bool) {
 	if !conf.GetSchedulerConf().DisableGangScheduling {
 		taskGroups, err = GetTaskGroupsFromAnnotation(pod)
 		if err != nil {
-			log.Log(log.ShimCacheApplication.Error("unable to get taskGroups for pod",
+			log.Log(log.ShimCacheApplication).Error("unable to get taskGroups for pod",
 				zap.String("namespace", pod.Namespace),
 				zap.String("name", pod.Name),
 				zap.Error(err))
