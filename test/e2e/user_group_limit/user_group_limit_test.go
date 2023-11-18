@@ -417,7 +417,9 @@ func deploySleepPod(usergroup *si.UserGroupInformation, queuePath string, expect
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 	} else {
 		ginkgo.By(fmt.Sprintf("The sleep pod %s can't be scheduled %s", sleepPod.Name, reason))
-		err = kClient.WaitForPodUnschedulable(sleepPod, 60*time.Second)
+		// Since Pending is the initial state of PodPhase, sleep for 5 seconds, then check whether the pod is still in Pending state.
+		time.Sleep(5 * time.Second)
+		err = kClient.WaitForPodPending(sleepPod.Namespace, sleepPod.Name, 60*time.Second)
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 	}
 	return sleepPod
