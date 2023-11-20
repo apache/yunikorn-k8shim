@@ -27,7 +27,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/yunikorn-k8shim/pkg/common"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
@@ -39,7 +38,7 @@ const (
 	hugepages = "hugepages-1Gi"
 )
 
-var taskGroups = []interfaces.TaskGroup{
+var taskGroups = []TaskGroup{
 	{
 		Name:      "test-group-1",
 		MinMember: 10,
@@ -148,7 +147,7 @@ func TestNewPlaceholderWithLabelsAndAnnotations(t *testing.T) {
 	assert.Equal(t, holder.pod.Annotations["annotationKey0"], "annotationValue0")
 	assert.Equal(t, holder.pod.Annotations["annotationKey1"], "annotationValue1")
 	assert.Equal(t, holder.pod.Annotations["annotationKey2"], "annotationValue2")
-	var taskGroupsDef []interfaces.TaskGroup
+	var taskGroupsDef []TaskGroup
 	err = json.Unmarshal([]byte(holder.pod.Annotations[siCommon.DomainYuniKorn+"task-groups"]), &taskGroupsDef)
 	assert.NilError(t, err, "taskGroupsDef unmarshal failed")
 	var priority *int32

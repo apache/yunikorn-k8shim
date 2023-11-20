@@ -30,7 +30,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/yunikorn-k8shim/pkg/common"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
@@ -49,7 +48,7 @@ type Application struct {
 	groups                     []string
 	taskMap                    map[string]*Task
 	tags                       map[string]string
-	taskGroups                 []interfaces.TaskGroup
+	taskGroups                 []TaskGroup
 	taskGroupsDefinition       string
 	schedulingParamsDefinition string
 	placeholderOwnerReferences []metav1.OwnerReference
@@ -59,7 +58,7 @@ type Application struct {
 	placeholderAsk             *si.Resource // total placeholder request for the app (all task groups)
 	placeholderTimeoutInSec    int64
 	schedulingStyle            string
-	originatingTask            interfaces.ManagedTask // Original Pod which creates the requests
+	originatingTask            *Task // Original Pod which creates the requests
 }
 
 func (app *Application) String() string {
@@ -79,7 +78,7 @@ func NewApplication(appID, queueName, user string, groups []string, tags map[str
 		taskMap:                 taskMap,
 		tags:                    tags,
 		sm:                      newAppState(),
-		taskGroups:              make([]interfaces.TaskGroup, 0),
+		taskGroups:              make([]TaskGroup, 0),
 		lock:                    &sync.RWMutex{},
 		schedulerAPI:            scheduler,
 		placeholderTimeoutInSec: 0,
@@ -114,7 +113,7 @@ func (app *Application) canHandle(ev events.ApplicationEvent) bool {
 	return app.sm.Can(ev.GetEvent())
 }
 
-func (app *Application) GetTask(taskID string) (interfaces.ManagedTask, error) {
+func (app *Application) GetTask(taskID string) (*Task, error) {
 	app.lock.RLock()
 	defer app.lock.RUnlock()
 	if task, ok := app.taskMap[taskID]; ok {
@@ -166,7 +165,7 @@ func (app *Application) GetSchedulingParamsDefinition() string {
 	return app.schedulingParamsDefinition
 }
 
-func (app *Application) setTaskGroups(taskGroups []interfaces.TaskGroup) {
+func (app *Application) setTaskGroups(taskGroups []TaskGroup) {
 	app.lock.Lock()
 	defer app.lock.Unlock()
 	app.taskGroups = taskGroups
@@ -181,7 +180,7 @@ func (app *Application) getPlaceholderAsk() *si.Resource {
 	return app.placeholderAsk
 }
 
-func (app *Application) getTaskGroups() []interfaces.TaskGroup {
+func (app *Application) getTaskGroups() []TaskGroup {
 	app.lock.RLock()
 	defer app.lock.RUnlock()
 	return app.taskGroups
@@ -205,13 +204,13 @@ func (app *Application) setSchedulingStyle(schedulingStyle string) {
 	app.schedulingStyle = schedulingStyle
 }
 
-func (app *Application) setOriginatingTask(task interfaces.ManagedTask) {
+func (app *Application) setOriginatingTask(task *Task) {
 	app.lock.Lock()
 	defer app.lock.Unlock()
 	app.originatingTask = task
 }
 
-func (app *Application) GetOriginatingTask() interfaces.ManagedTask {
+func (app *Application) GetOriginatingTask() *Task {
 	app.lock.RLock()
 	defer app.lock.RUnlock()
 	return app.originatingTask

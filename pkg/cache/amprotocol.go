@@ -16,7 +16,7 @@
  limitations under the License.
 */
 
-package interfaces
+package cache
 
 import (
 	v1 "k8s.io/api/core/v1"
@@ -29,12 +29,12 @@ import (
 type ApplicationManagementProtocol interface {
 	// returns app that already existed in the cache,
 	// or nil, false if app with the given appID is not found
-	GetApplication(appID string) ManagedApp
+	GetApplication(appID string) *Application
 
 	// add app to the context, app manager needs to provide all
 	// necessary app metadata through this call. If this a existing app
 	// for recovery, the AddApplicationRequest#Recovery must be true.
-	AddApplication(request *AddApplicationRequest) ManagedApp
+	AddApplication(request *AddApplicationRequest) *Application
 
 	// remove application from the context
 	// returns an error if for some reason the app cannot be removed,
@@ -42,7 +42,7 @@ type ApplicationManagementProtocol interface {
 	RemoveApplication(appID string) error
 
 	// add task to the context, if add is successful,
-	AddTask(request *AddTaskRequest) ManagedTask
+	AddTask(request *AddTaskRequest) *Task
 
 	// remove task from the app
 	// return an error if for some reason the task cannot be removed

@@ -30,7 +30,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
 
-	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/yunikorn-k8shim/pkg/common"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
@@ -56,7 +55,7 @@ type Task struct {
 	placeholder     bool
 	terminationType string
 	originator      bool
-	schedulingState interfaces.TaskSchedulingState
+	schedulingState TaskSchedulingState
 	sm              *fsm.FSM
 	lock            *sync.RWMutex
 }
@@ -71,7 +70,7 @@ func NewTaskPlaceholder(tid string, app *Application, ctx *Context, pod *v1.Pod)
 	return createTaskInternal(tid, app, taskResource, pod, true, "", ctx, false)
 }
 
-func NewFromTaskMeta(tid string, app *Application, ctx *Context, metadata interfaces.TaskMetadata, originator bool) *Task {
+func NewFromTaskMeta(tid string, app *Application, ctx *Context, metadata TaskMetadata, originator bool) *Task {
 	taskPod := metadata.Pod
 	taskResource := common.GetPodResource(taskPod)
 	return createTaskInternal(
@@ -101,7 +100,7 @@ func createTaskInternal(tid string, app *Application, resource *si.Resource,
 		originator:      originator,
 		context:         ctx,
 		sm:              newTaskState(),
-		schedulingState: interfaces.TaskSchedPending,
+		schedulingState: TaskSchedPending,
 		lock:            &sync.RWMutex{},
 	}
 	if tgName := utils.GetTaskGroupFromPodSpec(pod); tgName != "" {
@@ -269,13 +268,13 @@ func (task *Task) isPreemptOtherAllowed() bool {
 	}
 }
 
-func (task *Task) SetTaskSchedulingState(state interfaces.TaskSchedulingState) {
+func (task *Task) SetTaskSchedulingState(state TaskSchedulingState) {
 	task.lock.Lock()
 	defer task.lock.Unlock()
 	task.schedulingState = state
 }
 
-func (task *Task) GetTaskSchedulingState() interfaces.TaskSchedulingState {
+func (task *Task) GetTaskSchedulingState() TaskSchedulingState {
 	task.lock.RLock()
 	defer task.lock.RUnlock()
 	return task.schedulingState
@@ -389,7 +388,7 @@ func (task *Task) postTaskAllocated() {
 				"Pod %s is successfully bound to node %s", task.alias, task.nodeName)
 		}
 
-		task.schedulingState = interfaces.TaskSchedAllocated
+		task.schedulingState = TaskSchedAllocated
 	}()
 }
 

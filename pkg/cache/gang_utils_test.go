@@ -16,7 +16,7 @@
  limitations under the License.
 */
 
-package utils
+package cache
 
 import (
 	"fmt"
@@ -28,12 +28,11 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 )
 
 func TestFindAppTaskGroup(t *testing.T) {
-	taskGroups := []*interfaces.TaskGroup{
+	taskGroups := []*TaskGroup{
 		{
 			Name:      "test-group-0",
 			MinMember: 1,

@@ -25,7 +25,6 @@ import (
 	"gotest.tools/v3/assert"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/apache/yunikorn-k8shim/pkg/appmgmt"
 	"github.com/apache/yunikorn-k8shim/pkg/cache"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common"
@@ -165,7 +164,7 @@ func TestSchedulerRegistrationFailed(t *testing.T) {
 
 	ctx := cache.NewContext(mockedAPIProvider)
 	shim := newShimSchedulerInternal(ctx, mockedAPIProvider,
-		appmgmt.NewAMService(mockedAMProtocol, mockedAPIProvider), callback)
+		cache.NewAMService(mockedAMProtocol, mockedAPIProvider), callback)
 	assert.Error(t, shim.Run(), "some error")
 	shim.Stop()
 }

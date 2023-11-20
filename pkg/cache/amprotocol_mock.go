@@ -23,7 +23,6 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/yunikorn-k8shim/pkg/common/test"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
@@ -31,7 +30,7 @@ import (
 // implements ApplicationManagementProtocol
 type MockedAMProtocol struct {
 	applications map[string]*Application
-	addTaskFn    func(request *interfaces.AddTaskRequest)
+	addTaskFn    func(request *AddTaskRequest)
 }
 
 func NewMockedAMProtocol() *MockedAMProtocol {
@@ -39,14 +38,14 @@ func NewMockedAMProtocol() *MockedAMProtocol {
 		applications: make(map[string]*Application)}
 }
 
-func (m *MockedAMProtocol) GetApplication(appID string) interfaces.ManagedApp {
+func (m *MockedAMProtocol) GetApplication(appID string) *Application {
 	if app, ok := m.applications[appID]; ok {
 		return app
 	}
 	return nil
 }
 
-func (m *MockedAMProtocol) AddApplication(request *interfaces.AddApplicationRequest) interfaces.ManagedApp {
+func (m *MockedAMProtocol) AddApplication(request *AddApplicationRequest) *Application {
 	if app := m.GetApplication(request.Metadata.ApplicationID); app != nil {
 		return app
 	}
@@ -74,7 +73,7 @@ func (m *MockedAMProtocol) RemoveApplication(appID string) error {
 	return fmt.Errorf("application doesn't exist")
 }
 
-func (m *MockedAMProtocol) AddTask(request *interfaces.AddTaskRequest) interfaces.ManagedTask {
+func (m *MockedAMProtocol) AddTask(request *AddTaskRequest) *Task {
 	if m.addTaskFn != nil {
 		m.addTaskFn(request)
 	}
@@ -125,30 +124,24 @@ func (m *MockedAMProtocol) RemoveTask(appID, taskID string) {
 
 func (m *MockedAMProtocol) NotifyApplicationComplete(appID string) {
 	if app := m.GetApplication(appID); app != nil {
-		if p, valid := app.(*Application); valid {
-			p.SetState(ApplicationStates().Completed)
-		}
+		app.SetState(ApplicationStates().Completed)
 	}
 }
 
 func (m *MockedAMProtocol) NotifyApplicationFail(appID string) {
 	if app := m.GetApplication(appID); app != nil {
-		if p, valid := app.(*Application); valid {
-			p.SetState(ApplicationStates().Failed)
-		}
+		app.SetState(ApplicationStates().Failed)
 	}
 }
 
 func (m *MockedAMProtocol) NotifyTaskComplete(appID, taskID string) {
 	if app := m.GetApplication(appID); app != nil {
 		if task, err := app.GetTask(taskID); err == nil {
-			if t, ok := task.(*Task); ok {
-				t.sm.SetState(TaskStates().Completed)
-			}
+			task.sm.SetState(TaskStates().Completed)
 		}
 	}
 }
 
-func (m *MockedAMProtocol) UseAddTaskFn(fn func(request *interfaces.AddTaskRequest)) {
+func (m *MockedAMProtocol) UseAddTaskFn(fn func(request *AddTaskRequest)) {
 	m.addTaskFn = fn
 }

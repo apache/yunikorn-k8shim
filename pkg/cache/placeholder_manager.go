@@ -28,7 +28,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/apache/yunikorn-k8shim/pkg/client"
-	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
 
@@ -88,7 +87,7 @@ func (mgr *PlaceholderManager) createAppPlaceholders(app *Application) error {
 		count := tgCounts[tg.Name]
 		// only create missing pods for each task group
 		for i := count; i < tg.MinMember; i++ {
-			placeholderName := utils.GeneratePlaceholderName(tg.Name, app.GetApplicationID())
+			placeholderName := GeneratePlaceholderName(tg.Name, app.GetApplicationID())
 			placeholder := newPlaceholder(placeholderName, app, tg)
 			// create the placeholder on K8s
 			_, err := mgr.clients.KubeClient.Create(placeholder.pod)

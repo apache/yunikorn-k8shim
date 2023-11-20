@@ -18,14 +18,16 @@
 
 package k8s
 
-import "github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
-import "github.com/apache/yunikorn-k8shim/pkg/common/constants"
+import (
+	"github.com/apache/yunikorn-k8shim/pkg/cache"
+	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
+)
 
 type PodAnnotation struct {
-	TaskGroupName          string                 `json:"yunikorn.apache.org/task-group-name,omitempty"`
-	TaskGroups             []interfaces.TaskGroup `json:"-"`
-	SchedulingPolicyParams string                 `json:"yunikorn.apache.org/schedulingPolicyParameters,omitempty"`
-	Other                  map[string]string      `json:"-"`
+	TaskGroupName          string            `json:"yunikorn.apache.org/task-group-name,omitempty"`
+	TaskGroups             []cache.TaskGroup `json:"-"`
+	SchedulingPolicyParams string            `json:"yunikorn.apache.org/schedulingPolicyParameters,omitempty"`
+	Other                  map[string]string `json:"-"`
 }
 
 const (

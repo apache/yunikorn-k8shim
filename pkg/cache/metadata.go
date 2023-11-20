@@ -16,16 +16,17 @@
  limitations under the License.
 */
 
-package general
+package cache
 
 import (
+	"strconv"
 	"strings"
 
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"go.uber.org/zap"
 
-	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
@@ -34,13 +35,13 @@ import (
 	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 )
 
-func getTaskMetadata(pod *v1.Pod) (interfaces.TaskMetadata, bool) {
+func getTaskMetadata(pod *v1.Pod) (TaskMetadata, bool) {
 	appID := utils.GetApplicationIDFromPod(pod)
 	if appID == "" {
-		log.Log(log.ShimAppMgmtGeneral).Debug("unable to get task for pod",
+		log.Log(log.ShimCacheTask).Debug("unable to get task for pod",
 			zap.String("namespace", pod.Namespace),
 			zap.String("name", pod.Name))
-		return interfaces.TaskMetadata{}, false
+		return TaskMetadata{}, false
 	}
 
 	placeholder := utils.GetPlaceholderFlagFromPodSpec(pod)
@@ -50,7 +51,7 @@ func getTaskMetadata(pod *v1.Pod) (interfaces.TaskMetadata, bool) {
 		taskGroupName = utils.GetTaskGroupFromPodSpec(pod)
 	}
 
-	return interfaces.TaskMetadata{
+	return TaskMetadata{
 		ApplicationID: appID,
 		TaskID:        string(pod.UID),
 		Pod:           pod,
@@ -59,13 +60,13 @@ func getTaskMetadata(pod *v1.Pod) (interfaces.TaskMetadata, bool) {
 	}, true
 }
 
-func getAppMetadata(pod *v1.Pod, recovery bool) (interfaces.ApplicationMetadata, bool) {
+func getAppMetadata(pod *v1.Pod, recovery bool) (ApplicationMetadata, bool) {
 	appID := utils.GetApplicationIDFromPod(pod)
 	if appID == "" {
-		log.Log(log.ShimAppMgmtGeneral).Debug("unable to get application for pod",
+		log.Log(log.ShimCacheApplication).Debug("unable to get application for pod",
 			zap.String("namespace", pod.Namespace),
 			zap.String("name", pod.Name))
-		return interfaces.ApplicationMetadata{}, false
+		return ApplicationMetadata{}, false
 	}
 
 	// tags will at least have namespace info
@@ -94,12 +95,12 @@ func getAppMetadata(pod *v1.Pod, recovery bool) (interfaces.ApplicationMetadata,
 	// get the user from Pod Labels
 	user, groups := utils.GetUserFromPod(pod)
 
-	var taskGroups []interfaces.TaskGroup = nil
+	var taskGroups []TaskGroup = nil
 	var err error = nil
 	if !conf.GetSchedulerConf().DisableGangScheduling {
-		taskGroups, err = utils.GetTaskGroupsFromAnnotation(pod)
+		taskGroups, err = GetTaskGroupsFromAnnotation(pod)
 		if err != nil {
-			log.Log(log.ShimAppMgmtGeneral).Error("unable to get taskGroups for pod",
+			log.Log(log.ShimCacheApplication).Error("unable to get taskGroups for pod",
 				zap.String("namespace", pod.Namespace),
 				zap.String("name", pod.Name),
 				zap.Error(err))
@@ -110,7 +111,7 @@ func getAppMetadata(pod *v1.Pod, recovery bool) (interfaces.ApplicationMetadata,
 	}
 
 	ownerReferences := getOwnerReference(pod)
-	schedulingPolicyParams := utils.GetSchedulingPolicyParam(pod)
+	schedulingPolicyParams := GetSchedulingPolicyParam(pod)
 	tags[constants.AnnotationSchedulingPolicyParam] = pod.Annotations[constants.AnnotationSchedulingPolicyParam]
 
 	var creationTime int64
@@ -118,7 +119,7 @@ func getAppMetadata(pod *v1.Pod, recovery bool) (interfaces.ApplicationMetadata,
 		creationTime = pod.CreationTimestamp.Unix()
 	}
 
-	return interfaces.ApplicationMetadata{
+	return ApplicationMetadata{
 		ApplicationID:              appID,
 		QueueName:                  utils.GetQueueNameFromPod(pod),
 		User:                       user,
@@ -129,4 +130,36 @@ func getAppMetadata(pod *v1.Pod, recovery bool) (interfaces.ApplicationMetadata,
 		SchedulingPolicyParameters: schedulingPolicyParams,
 		CreationTime:               creationTime,
 	}, true
+}
+
+func getOwnerReference(pod *v1.Pod) []metav1.OwnerReference {
+	// Just return the originator pod as the owner of placeholder pods
+	controller := false
+	blockOwnerDeletion := true
+	ref := metav1.OwnerReference{
+		APIVersion:         "v1",
+		Kind:               "Pod",
+		Name:               pod.Name,
+		UID:                pod.UID,
+		Controller:         &controller,
+		BlockOwnerDeletion: &blockOwnerDeletion,
+	}
+	return []metav1.OwnerReference{ref}
+}
+
+func isStateAwareDisabled(pod *v1.Pod) bool {
+	value := utils.GetPodLabelValue(pod, constants.LabelDisableStateAware)
+	if value == "" {
+		return false
+	}
+	result, err := strconv.ParseBool(value)
+	if err != nil {
+		log.Log(log.ShimCacheApplication).Debug("unable to parse label for pod",
+			zap.String("namespace", pod.Namespace),
+			zap.String("name", pod.Name),
+			zap.String("label", constants.LabelDisableStateAware),
+			zap.Error(err))
+		return false
+	}
+	return result
 }

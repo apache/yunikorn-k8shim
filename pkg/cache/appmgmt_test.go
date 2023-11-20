@@ -16,7 +16,7 @@
  limitations under the License.
 */
 
-package general
+package cache
 
 import (
 	"testing"
@@ -25,28 +25,16 @@ import (
 	v1 "k8s.io/api/core/v1"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/apache/yunikorn-k8shim/pkg/cache"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/test"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 )
 
-const taskGroupInfo = `
-[
-	{
-		"name": "test-group-1",
-		"minMember": 3,
-		"minResource": {
-			"cpu": 2,
-			"memory": "1Gi"
-		}
-	}
-]`
-
-func TestAddPod(t *testing.T) {
-	amProtocol := cache.NewMockedAMProtocol()
-	am := NewManager(client.NewMockedAPIProvider(false), NewPodEventHandler(amProtocol, false))
+func TestAMSvcAddPod(t *testing.T) {
+	amProtocol := NewMockedAMProtocol()
+	am := NewAMService(amProtocol, client.NewMockedAPIProvider(false))
+	am.podEventHandler.recoveryRunning = false
 
 	pod := v1.Pod{
 		TypeMeta: apis.TypeMeta{
@@ -73,16 +61,16 @@ func TestAddPod(t *testing.T) {
 
 	managedApp := amProtocol.GetApplication("app00001")
 	assert.Assert(t, managedApp != nil)
-	app, valid := toApplication(managedApp)
+	app, valid := anyToApplication(managedApp)
 	assert.Equal(t, valid, true)
 	assert.Equal(t, app.GetApplicationID(), "app00001")
-	assert.Equal(t, app.GetApplicationState(), cache.ApplicationStates().New)
+	assert.Equal(t, app.GetApplicationState(), ApplicationStates().New)
 	assert.Equal(t, app.GetQueue(), "root.a")
 	assert.Equal(t, len(app.GetNewTasks()), 1)
 
 	task, err := app.GetTask("UID-POD-00001")
 	assert.Assert(t, err == nil)
-	assert.Equal(t, task.GetTaskState(), cache.TaskStates().New)
+	assert.Equal(t, task.GetTaskState(), TaskStates().New)
 
 	// add another pod for same application
 	pod1 := v1.Pod{
@@ -132,16 +120,17 @@ func TestAddPod(t *testing.T) {
 	am.AddPod(&pod2)
 	app02 := amProtocol.GetApplication("app00002")
 	assert.Assert(t, app02 != nil)
-	app, valid = toApplication(app02)
+	app, valid = anyToApplication(app02)
 	assert.Equal(t, valid, true)
 	assert.Equal(t, len(app.GetNewTasks()), 1)
 	assert.Equal(t, app.GetApplicationID(), "app00002")
 	assert.Equal(t, app.GetNewTasks()[0].GetTaskPod().Name, "pod00004")
 }
 
-func TestOriginatorPod(t *testing.T) {
-	amProtocol := cache.NewMockedAMProtocol()
-	am := NewManager(client.NewMockedAPIProvider(false), NewPodEventHandler(amProtocol, false))
+func TestAMSvcOriginatorPod(t *testing.T) {
+	amProtocol := NewMockedAMProtocol()
+	am := NewAMService(amProtocol, client.NewMockedAPIProvider(false))
+	am.podEventHandler.recoveryRunning = false
 
 	pod := v1.Pod{
 		TypeMeta: apis.TypeMeta{
@@ -180,13 +169,13 @@ func TestOriginatorPod(t *testing.T) {
 
 	managedApp := amProtocol.GetApplication("app00001")
 	assert.Assert(t, managedApp != nil)
-	app, valid := toApplication(managedApp)
+	app, valid := anyToApplication(managedApp)
 	assert.Equal(t, valid, true)
 	assert.Equal(t, len(app.GetNewTasks()), 1)
 
 	task, err := app.GetTask("UID-POD-00001")
 	assert.Assert(t, err == nil)
-	assert.Equal(t, task.GetTaskState(), cache.TaskStates().New)
+	assert.Equal(t, task.GetTaskState(), TaskStates().New)
 
 	// add another pod, pod 2 (owner) for same application
 	pod1 := v1.Pod{
@@ -219,9 +208,10 @@ func TestOriginatorPod(t *testing.T) {
 	assert.Equal(t, app.GetOriginatingTask().GetTaskID(), task.GetTaskID())
 }
 
-func TestUpdatePodWhenSucceed(t *testing.T) {
-	amProtocol := cache.NewMockedAMProtocol()
-	am := NewManager(client.NewMockedAPIProvider(false), NewPodEventHandler(amProtocol, false))
+func TestAMSvcUpdatePodWhenSucceed(t *testing.T) {
+	amProtocol := NewMockedAMProtocol()
+	am := NewAMService(amProtocol, client.NewMockedAPIProvider(false))
+	am.podEventHandler.recoveryRunning = false
 
 	pod := v1.Pod{
 		TypeMeta: apis.TypeMeta{
@@ -248,16 +238,16 @@ func TestUpdatePodWhenSucceed(t *testing.T) {
 
 	managedApp := amProtocol.GetApplication("app00001")
 	assert.Assert(t, managedApp != nil)
-	app, valid := toApplication(managedApp)
+	app, valid := anyToApplication(managedApp)
 	assert.Equal(t, valid, true)
 	assert.Equal(t, app.GetApplicationID(), "app00001")
-	assert.Equal(t, app.GetApplicationState(), cache.ApplicationStates().New)
+	assert.Equal(t, app.GetApplicationState(), ApplicationStates().New)
 	assert.Equal(t, app.GetQueue(), "root.a")
 	assert.Equal(t, len(app.GetNewTasks()), 1)
 
 	task, err := app.GetTask("UID-POD-00001")
 	assert.Assert(t, err == nil)
-	assert.Equal(t, task.GetTaskState(), cache.TaskStates().New)
+	assert.Equal(t, task.GetTaskState(), TaskStates().New)
 
 	// try update the pod
 
@@ -284,12 +274,13 @@ func TestUpdatePodWhenSucceed(t *testing.T) {
 	am.updatePod(&pod, &newPod)
 
 	// this is to verify NotifyTaskComplete is called
-	assert.Equal(t, task.GetTaskState(), cache.TaskStates().Completed)
+	assert.Equal(t, task.GetTaskState(), TaskStates().Completed)
 }
 
-func TestUpdatePodWhenFailed(t *testing.T) {
-	amProtocol := cache.NewMockedAMProtocol()
-	am := NewManager(client.NewMockedAPIProvider(false), NewPodEventHandler(amProtocol, false))
+func TestAMSvcUpdatePodWhenFailed(t *testing.T) {
+	amProtocol := NewMockedAMProtocol()
+	am := NewAMService(amProtocol, client.NewMockedAPIProvider(false))
+	am.podEventHandler.recoveryRunning = false
 
 	pod := v1.Pod{
 		TypeMeta: apis.TypeMeta{
@@ -339,17 +330,18 @@ func TestUpdatePodWhenFailed(t *testing.T) {
 
 	managedApp := amProtocol.GetApplication("app00001")
 	assert.Assert(t, managedApp != nil)
-	app, valid := toApplication(managedApp)
+	app, valid := anyToApplication(managedApp)
 	assert.Equal(t, valid, true)
 	task, err := app.GetTask("UID-POD-00001")
 	assert.Assert(t, err == nil)
 	// this is to verify NotifyTaskComplete is called
-	assert.Equal(t, task.GetTaskState(), cache.TaskStates().Completed)
+	assert.Equal(t, task.GetTaskState(), TaskStates().Completed)
 }
 
-func TestDeletePod(t *testing.T) {
-	amProtocol := cache.NewMockedAMProtocol()
-	am := NewManager(client.NewMockedAPIProvider(false), NewPodEventHandler(amProtocol, false))
+func TestAMSvcDeletePod(t *testing.T) {
+	amProtocol := NewMockedAMProtocol()
+	am := NewAMService(amProtocol, client.NewMockedAPIProvider(false))
+	am.podEventHandler.recoveryRunning = false
 
 	pod := v1.Pod{
 		TypeMeta: apis.TypeMeta{
@@ -376,34 +368,35 @@ func TestDeletePod(t *testing.T) {
 
 	managedApp := amProtocol.GetApplication("app00001")
 	assert.Assert(t, managedApp != nil)
-	app, valid := toApplication(managedApp)
+	app, valid := anyToApplication(managedApp)
 	assert.Equal(t, valid, true)
 	assert.Equal(t, app.GetApplicationID(), "app00001")
-	assert.Equal(t, app.GetApplicationState(), cache.ApplicationStates().New)
+	assert.Equal(t, app.GetApplicationState(), ApplicationStates().New)
 	assert.Equal(t, app.GetQueue(), "root.a")
 	assert.Equal(t, len(app.GetNewTasks()), 1)
 
 	task, err := app.GetTask("UID-POD-00001")
 	assert.Assert(t, err == nil)
-	assert.Equal(t, task.GetTaskState(), cache.TaskStates().New)
+	assert.Equal(t, task.GetTaskState(), TaskStates().New)
 
 	// try delete the pod
 	am.deletePod(&pod)
 
 	// this is to verify NotifyTaskComplete is called
-	assert.Equal(t, task.GetTaskState(), cache.TaskStates().Completed)
+	assert.Equal(t, task.GetTaskState(), TaskStates().Completed)
 }
 
-func toApplication(something interface{}) (*cache.Application, bool) {
-	if app, valid := something.(*cache.Application); valid {
+func anyToApplication(something interface{}) (*Application, bool) {
+	if app, valid := something.(*Application); valid {
 		return app, true
 	}
 	return nil, false
 }
 
-func TestGetExistingAllocation(t *testing.T) {
-	amProtocol := cache.NewMockedAMProtocol()
-	am := NewManager(client.NewMockedAPIProvider(false), NewPodEventHandler(amProtocol, true))
+func TestAMSvcGetExistingAllocation(t *testing.T) {
+	amProtocol := NewMockedAMProtocol()
+	am := NewAMService(amProtocol, client.NewMockedAPIProvider(false))
+	am.podEventHandler.recoveryRunning = true
 
 	pod := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
@@ -436,38 +429,6 @@ func TestGetExistingAllocation(t *testing.T) {
 	assert.Equal(t, alloc.NodeID, "allocated-node")
 }
 
-func TestGetOwnerReferences(t *testing.T) {
-	ownerRef := apis.OwnerReference{
-		APIVersion: apis.SchemeGroupVersion.String(),
-		Name:       "owner ref",
-	}
-	podWithOwnerRef := &v1.Pod{
-		ObjectMeta: apis.ObjectMeta{
-			OwnerReferences: []apis.OwnerReference{ownerRef},
-		},
-	}
-	podWithNoOwnerRef := &v1.Pod{
-		ObjectMeta: apis.ObjectMeta{
-			Name: "pod",
-			UID:  "uid",
-		},
-	}
-
-	returnedOwnerRefs := getOwnerReference(podWithOwnerRef)
-	assert.Assert(t, len(returnedOwnerRefs) == 1, "Only one owner reference is expected")
-	assert.Equal(t, returnedOwnerRefs[0].Name, podWithOwnerRef.Name, "Unexpected owner reference name")
-	assert.Equal(t, returnedOwnerRefs[0].UID, podWithOwnerRef.UID, "Unexpected owner reference UID")
-	assert.Equal(t, returnedOwnerRefs[0].Kind, "Pod", "Unexpected owner reference Kind")
-	assert.Equal(t, returnedOwnerRefs[0].APIVersion, v1.SchemeGroupVersion.String(), "Unexpected owner reference Kind")
-
-	returnedOwnerRefs = getOwnerReference(podWithNoOwnerRef)
-	assert.Assert(t, len(returnedOwnerRefs) == 1, "Only one owner reference is expected")
-	assert.Equal(t, returnedOwnerRefs[0].Name, podWithNoOwnerRef.Name, "Unexpected owner reference name")
-	assert.Equal(t, returnedOwnerRefs[0].UID, podWithNoOwnerRef.UID, "Unexpected owner reference UID")
-	assert.Equal(t, returnedOwnerRefs[0].Kind, "Pod", "Unexpected owner reference Kind")
-	assert.Equal(t, returnedOwnerRefs[0].APIVersion, v1.SchemeGroupVersion.String(), "Unexpected owner reference Kind")
-}
-
 type Template struct {
 	podName    string
 	namespace  string
@@ -478,7 +439,7 @@ type Template struct {
 }
 
 // nolint: funlen
-func TestListApplication(t *testing.T) {
+func TestAMSvcListApplication(t *testing.T) {
 	// mock the pod lister for this test
 	mockedAPIProvider := client.NewMockedAPIProvider(false)
 	mockedPodLister := test.NewPodListerMock()
@@ -611,8 +572,10 @@ func TestListApplication(t *testing.T) {
 		descriptionMap[listAppTestCase[index].applicationID] = listAppTestCase[index].description
 	}
 	// init the app manager and run listApp
-	amProtocol := cache.NewMockedAMProtocol()
-	am := NewManager(mockedAPIProvider, NewPodEventHandler(amProtocol, true))
+	amProtocol := NewMockedAMProtocol()
+	am := NewAMService(amProtocol, mockedAPIProvider)
+	am.podEventHandler.recoveryRunning = true
+
 	pods, err := am.ListPods()
 	assert.NilError(t, err)
 	assert.Equal(t, len(pods), 4)

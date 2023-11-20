@@ -33,10 +33,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/apache/yunikorn-core/pkg/entrypoint"
-	"github.com/apache/yunikorn-k8shim/pkg/appmgmt"
-	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/yunikorn-k8shim/pkg/cache"
-	"github.com/apache/yunikorn-k8shim/pkg/callback"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
@@ -71,8 +68,8 @@ func (fc *MockScheduler) init() {
 	events.SetRecorder(events.NewMockedRecorder())
 
 	context := cache.NewContext(mockedAPIProvider)
-	rmCallback := callback.NewAsyncRMCallback(context)
-	amSvc := appmgmt.NewAMService(context, mockedAPIProvider)
+	rmCallback := cache.NewAsyncRMCallback(context)
+	amSvc := cache.NewAMService(context, mockedAPIProvider)
 	ss := newShimSchedulerInternal(context, mockedAPIProvider, amSvc, rmCallback)
 
 	fc.context = context
@@ -136,7 +133,7 @@ func (fc *MockScheduler) addNode(nodeName string, nodeLabels map[string]string, 
 
 // Deprecated: this method only updates the core without the shim. Prefer MockScheduler.AddPod(*v1.Pod) instead.
 func (fc *MockScheduler) addTask(appID string, taskID string, ask *si.Resource) {
-	cache := fc.context.GetSchedulerCache()
+	schedCache := fc.context.GetSchedulerCache()
 	// add pod to the cache so that predicates can run properly
 	resources := make(map[v1.ResourceName]resource.Quantity)
 	for k, v := range ask.Resources {
@@ -165,10 +162,10 @@ func (fc *MockScheduler) addTask(appID string, taskID string, ask *si.Resource) 
 			Containers:    containers,
 		},
 	}
-	cache.AddPod(pod)
+	schedCache.AddPod(pod)
 
-	fc.context.AddTask(&interfaces.AddTaskRequest{
-		Metadata: interfaces.TaskMetadata{
+	fc.context.AddTask(&cache.AddTaskRequest{
+		Metadata: cache.TaskMetadata{
 			ApplicationID: appID,
 			TaskID:        taskID,
 			Pod:           pod,
@@ -199,8 +196,8 @@ func (fc *MockScheduler) waitAndAssertApplicationState(t *testing.T, appID, expe
 // Deprecated: this method adds an application directly to the Context, and it skips relevant
 // code paths. Prefer MockScheduler.AddPod(*v1.Pod) instead.
 func (fc *MockScheduler) addApplication(appId string, queue string) {
-	fc.context.AddApplication(&interfaces.AddApplicationRequest{
-		Metadata: interfaces.ApplicationMetadata{
+	fc.context.AddApplication(&cache.AddApplicationRequest{
+		Metadata: cache.ApplicationMetadata{
 			ApplicationID: appId,
 			QueueName:     queue,
 			User:          "test-user",

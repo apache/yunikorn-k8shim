@@ -16,7 +16,7 @@
  limitations under the License.
 */
 
-package utils
+package cache
 
 import (
 	"fmt"
@@ -28,12 +28,12 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
+	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
 
-func FindAppTaskGroup(appTaskGroups []*interfaces.TaskGroup, groupName string) (*interfaces.TaskGroup, error) {
+func FindAppTaskGroup(appTaskGroups []*TaskGroup, groupName string) (*TaskGroup, error) {
 	if groupName == "" {
 		// task has no group defined
 		return nil, nil
@@ -91,11 +91,11 @@ func GetPlaceholderResourceRequests(resources map[string]resource.Quantity) v1.R
 	return resourceReq
 }
 
-func GetSchedulingPolicyParam(pod *v1.Pod) *interfaces.SchedulingPolicyParameters {
+func GetSchedulingPolicyParam(pod *v1.Pod) *SchedulingPolicyParameters {
 	timeout := int64(0)
 	style := constants.SchedulingPolicyStyleParamDefault
-	schedulingPolicyParams := interfaces.NewSchedulingPolicyParameters(timeout, style)
-	param := GetPodAnnotationValue(pod, constants.AnnotationSchedulingPolicyParam)
+	schedulingPolicyParams := NewSchedulingPolicyParameters(timeout, style)
+	param := utils.GetPodAnnotationValue(pod, constants.AnnotationSchedulingPolicyParam)
 	if param == "" {
 		return schedulingPolicyParams
 	}
@@ -121,6 +121,6 @@ func GetSchedulingPolicyParam(pod *v1.Pod) *interfaces.SchedulingPolicyParameter
 			}
 		}
 	}
-	schedulingPolicyParams = interfaces.NewSchedulingPolicyParameters(timeout, style)
+	schedulingPolicyParams = NewSchedulingPolicyParameters(timeout, style)
 	return schedulingPolicyParams
 }

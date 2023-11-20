@@ -32,7 +32,6 @@ import (
 	schedulingv1 "k8s.io/api/scheduling/v1"
 	podv1 "k8s.io/kubernetes/pkg/api/v1/pod"
 
-	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/yunikorn-k8shim/pkg/common"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
@@ -362,37 +361,4 @@ func GetPlaceholderFlagFromPodSpec(pod *v1.Pod) bool {
 		}
 	}
 	return false
-}
-
-func GetTaskGroupsFromAnnotation(pod *v1.Pod) ([]interfaces.TaskGroup, error) {
-	taskGroupInfo := GetPodAnnotationValue(pod, constants.AnnotationTaskGroups)
-	if taskGroupInfo == "" {
-		return nil, nil
-	}
-
-	taskGroups := []interfaces.TaskGroup{}
-	err := json.Unmarshal([]byte(taskGroupInfo), &taskGroups)
-	if err != nil {
-		return nil, err
-	}
-	// json.Unmarchal won't return error if name or MinMember is empty, but will return error if MinResource is empty or error format.
-	for _, taskGroup := range taskGroups {
-		if taskGroup.Name == "" {
-			return nil, fmt.Errorf("can't get taskGroup Name from pod annotation, %s",
-				taskGroupInfo)
-		}
-		if taskGroup.MinResource == nil {
-			return nil, fmt.Errorf("can't get taskGroup MinResource from pod annotation, %s",
-				taskGroupInfo)
-		}
-		if taskGroup.MinMember == int32(0) {
-			return nil, fmt.Errorf("can't get taskGroup MinMember from pod annotation, %s",
-				taskGroupInfo)
-		}
-		if taskGroup.MinMember < int32(0) {
-			return nil, fmt.Errorf("minMember cannot be negative, %s",
-				taskGroupInfo)
-		}
-	}
-	return taskGroups, nil
 }
