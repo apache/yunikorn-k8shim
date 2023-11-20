@@ -200,7 +200,6 @@ func (ss *KubernetesShim) schedule() {
 				log.Log(log.ShimScheduler).Info("Clean up failed application",
 					zap.String("appID", app.GetApplicationID()))
 				ss.context.RemoveApplicationInternal(app.GetApplicationID())
-
 			} else {
 				log.Log(log.ShimScheduler).Info("Failed application is not cleaned up due to not all tasks terminated, wait for next scheduling iteration",
 					zap.String("appID", app.GetApplicationID()))
