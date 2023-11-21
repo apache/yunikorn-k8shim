@@ -133,7 +133,7 @@ HELM_ARCHIVE_BASE=$(OS)-$(EXEC_ARCH)
 export SPARK_VERSION=3.3.3
 export SPARK_HOME=$(BASE_DIR)$(TOOLS_DIR)/spark
 export SPARK_SUBMIT_CMD=$(SPARK_HOME)/bin/spark-submit
-export SPARK_PYTHON_IMAGE=docker.io/apache/spark-py:v$(SPARK_VERSION)
+export SPARK_PYTHON_IMAGE=docker.io/apache/spark-py:v3.3.1
 
 FLAG_PREFIX=github.com/apache/yunikorn-k8shim/pkg/conf
 
