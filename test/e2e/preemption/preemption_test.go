@@ -23,24 +23,24 @@ import (
 	"strings"
 	"time"
 
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
-	v1 "k8s.io/api/core/v1"
-	schedulingv1 "k8s.io/api/scheduling/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	"github.com/apache/yunikorn-core/pkg/common/configs"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	tests "github.com/apache/yunikorn-k8shim/test/e2e"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
+	"github.com/onsi/ginkgo/v2"
+	"github.com/onsi/gomega"
+	v1 "k8s.io/api/core/v1"
+	schedulingv1 "k8s.io/api/scheduling/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 var kClient k8s.KubeCtl
 var restClient yunikorn.RClient
 var ns *v1.Namespace
 var dev = "dev" + common.RandSeq(5)
+var devNew = "dev" + common.RandSeq(5)
 var oldConfigMap = new(v1.ConfigMap)
 var annotation = "ann-" + common.RandSeq(10)
 
@@ -587,20 +587,23 @@ var _ = ginkgo.Describe("Preemption", func() {
 			return nil
 		})
 
+		newNamespace, err := kClient.CreateNamespace(devNew, nil)
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		gomega.Ω(newNamespace.Status.Phase).To(gomega.Equal(v1.NamespaceActive))
 		// Define sleepPod
 		sleepPodConfigs := createSandbox1SleepPodCofigsWithStaticNode(3, 600)
-		sleepPod4Config := k8s.SleepPodConfig{Name: "sleepjob4", NS: dev, Mem: sleepPodMemLimit, Time: 600, Optedout: k8s.Allow, Labels: map[string]string{"queue": "root.sandbox2"}, RequiredNode: nodeName}
+		sleepPod4Config := k8s.SleepPodConfig{Name: "sleepjob4", NS: devNew, Mem: sleepPodMemLimit, Time: 600, Optedout: k8s.Allow, Labels: map[string]string{"queue": "root.sandbox2"}, RequiredNode: nodeName}
 		sleepPodConfigs = append(sleepPodConfigs, sleepPod4Config)
 
 		for _, config := range sleepPodConfigs {
 			ginkgo.By("Deploy the sleep pod " + config.Name + " to the development namespace")
 			sleepObj, podErr := k8s.InitSleepPod(config)
 			Ω(podErr).NotTo(gomega.HaveOccurred())
-			sleepRespPod, podErr := kClient.CreatePod(sleepObj, dev)
+			sleepRespPod, podErr := kClient.CreatePod(sleepObj, devNew)
 			gomega.Ω(podErr).NotTo(gomega.HaveOccurred())
 
 			// Wait for pod to move to running state
-			podErr = kClient.WaitForPodBySelectorRunning(dev,
+			podErr = kClient.WaitForPodBySelectorRunning(devNew,
 				fmt.Sprintf("app=%s", sleepRespPod.ObjectMeta.Labels["app"]),
 				120)
 			gomega.Ω(podErr).NotTo(gomega.HaveOccurred())
@@ -609,7 +612,7 @@ var _ = ginkgo.Describe("Preemption", func() {
 		// assert one of the pods in root.sandbox1 is preempted
 		ginkgo.By("One of the pods in root.sanbox1 is preempted")
 		sandbox1RunningPodsCnt := 0
-		pods, err := kClient.ListPodsByLabelSelector(dev, "queue=root.sandbox1")
+		pods, err := kClient.ListPodsByLabelSelector(devNew, "queue=root.sandbox1")
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		for _, pod := range pods.Items {
 			if pod.DeletionTimestamp != nil {
@@ -620,6 +623,10 @@ var _ = ginkgo.Describe("Preemption", func() {
 			}
 		}
 		Ω(sandbox1RunningPodsCnt).To(gomega.Equal(2), "One of the pods in root.sandbox1 should be preempted")
+		errNew := kClient.DeletePods(newNamespace.Name)
+		if errNew != nil {
+			fmt.Fprintf(ginkgo.GinkgoWriter, "Failed to delete pods in namespace %s - reason is %s\n", newNamespace.Name, err.Error())
+		}
 	})
 
 	ginkgo.AfterEach(func() {
@@ -652,7 +659,7 @@ func createSandbox1SleepPodCofigs(cnt, time int) []k8s.SleepPodConfig {
 func createSandbox1SleepPodCofigsWithStaticNode(cnt, time int) []k8s.SleepPodConfig {
 	sandbox1Configs := make([]k8s.SleepPodConfig, 0, cnt)
 	for i := 0; i < cnt; i++ {
-		sandbox1Configs = append(sandbox1Configs, k8s.SleepPodConfig{Name: fmt.Sprintf("sleepjob%d", i+1), NS: dev, Mem: sleepPodMemLimit2, Time: time, Optedout: k8s.Allow, Labels: map[string]string{"queue": "root.sandbox1"}, RequiredNode: nodeName})
+		sandbox1Configs = append(sandbox1Configs, k8s.SleepPodConfig{Name: fmt.Sprintf("sleepjob%d", i+1), NS: devNew, Mem: sleepPodMemLimit2, Time: time, Optedout: k8s.Allow, Labels: map[string]string{"queue": "root.sandbox1"}, RequiredNode: nodeName})
 	}
 	return sandbox1Configs
 }
