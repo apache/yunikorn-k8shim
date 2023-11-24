@@ -30,8 +30,8 @@ import (
 )
 
 const (
-	appID   = "app01"
-	app2ID  = "app02"
+	appID    = "app01"
+	app2ID   = "app02"
 	taskUUID = "UUID01"
 )
 
