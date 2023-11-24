@@ -163,7 +163,6 @@ func TestFailApplication(t *testing.T) {
 			Containers: containers,
 		},
 	}
-	appID := "app-test-001"
 	app := NewApplication(appID, "root.abc", "testuser", testGroups, map[string]string{}, ms)
 	task1 := NewTask("task01", app, context, pod)
 	task2 := NewTask("task02", app, context, pod)
@@ -189,8 +188,7 @@ func TestFailApplication(t *testing.T) {
 	assert.Equal(t, rt.time, int64(6))
 	// reset time to 0
 	rt.time = 0
-	appID2 := "app-test-002"
-	app2 := NewApplication(appID2, "root.abc", "testuser", testGroups, map[string]string{}, ms)
+	app2 := NewApplication(app2ID, "root.abc", "testuser", testGroups, map[string]string{}, ms)
 	app2.SetState(ApplicationStates().New)
 	err = app2.handle(NewFailApplicationEvent(app2.applicationID, errMess))
 	if err == nil {
@@ -285,7 +283,6 @@ func TestSetUnallocatedPodsToFailedWhenFailApplication(t *testing.T) {
 		},
 	})
 	assert.NilError(t, err)
-	appID := "app-test-001"
 	app := NewApplication(appID, "root.abc", "testuser", testGroups, map[string]string{}, ms)
 	task1 := NewTask("task01", app, context, pod1)
 	task2 := NewTaskPlaceholder("task02", app, context, pod2)
@@ -380,7 +377,6 @@ func TestSetUnallocatedPodsToFailedWhenRejectApplication(t *testing.T) {
 		},
 	})
 	assert.NilError(t, err)
-	appID := "app-test-001"
 	app := NewApplication(appID, "root.abc", "testuser", testGroups, map[string]string{}, ms)
 	task1 := NewTask("task01", app, context, pod1)
 	task2 := NewTask("task02", app, context, pod2)
@@ -443,14 +439,12 @@ func TestReleaseAppAllocation(t *testing.T) {
 			Containers: containers,
 		},
 	}
-	appID := "app-test-001"
-	UUID := "testUUID001"
 	app := NewApplication(appID, "root.abc", "testuser", testGroups, map[string]string{}, ms)
 	task := NewTask("task01", app, context, pod)
 	app.addTask(task)
-	task.allocationUUID = UUID
+	task.allocationUUID = taskUUID
 	// app must be running states
-	err := app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, UUID))
+	err := app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, taskUUID))
 	if err == nil {
 		// this should give an error
 		t.Error("expecting error got 'nil'")
@@ -458,7 +452,7 @@ func TestReleaseAppAllocation(t *testing.T) {
 	// set app states to running, let event can be trigger
 	app.SetState(ApplicationStates().Running)
 	assertAppState(t, app, ApplicationStates().Running, 3*time.Second)
-	err = app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, UUID))
+	err = app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, taskUUID))
 	assert.NilError(t, err)
 	// after handle release event the states of app must be running
 	assertAppState(t, app, ApplicationStates().Running, 3*time.Second)
@@ -530,7 +524,6 @@ func assertAppState(t *testing.T, app *Application, expectedState string, durati
 
 func TestGetNonTerminatedTaskAlias(t *testing.T) {
 	context := initContextForTest()
-	appID := "app00001"
 	app := NewApplication(appID, "root.a", "testuser", testGroups, map[string]string{}, newMockSchedulerAPI())
 	context.addApplication(app)
 	// app doesn't have any task
@@ -1001,14 +994,12 @@ func TestReleaseAppAllocationInFailingState(t *testing.T) {
 			Containers: containers,
 		},
 	}
-	appID := "app-test-001"
-	UUID := "testUUID001"
 	app := NewApplication(appID, "root.abc", "testuser", testGroups, map[string]string{}, ms)
 	task := NewTask("task01", app, context, pod)
 	app.addTask(task)
-	task.allocationUUID = UUID
+	task.allocationUUID = taskUUID
 	// app must be running states
-	err := app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, UUID))
+	err := app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, taskUUID))
 	if err == nil {
 		// this should give an error
 		t.Error("expecting error got 'nil'")
@@ -1016,12 +1007,12 @@ func TestReleaseAppAllocationInFailingState(t *testing.T) {
 	// set app states to running, let event can be trigger
 	app.SetState(ApplicationStates().Running)
 	assertAppState(t, app, ApplicationStates().Running, 3*time.Second)
-	err = app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, UUID))
+	err = app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, taskUUID))
 	assert.NilError(t, err)
 	// after handle release event the states of app must be running
 	assertAppState(t, app, ApplicationStates().Running, 3*time.Second)
 	app.SetState(ApplicationStates().Failing)
-	err = app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, UUID))
+	err = app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, taskUUID))
 	assert.NilError(t, err)
 	// after handle release event the states of app must be failing
 	assertAppState(t, app, ApplicationStates().Failing, 3*time.Second)
@@ -1061,8 +1052,7 @@ func TestResumingStateTransitions(t *testing.T) {
 	// Add tasks
 	app.addTask(task1)
 	app.addTask(task2)
-	UUID := "testUUID001"
-	task1.allocationUUID = UUID
+	task1.allocationUUID = taskUUID
 	context.addApplication(app)
 
 	// Set app state to "reserving"

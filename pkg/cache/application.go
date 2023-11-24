@@ -61,6 +61,8 @@ type Application struct {
 	originatingTask            *Task // Original Pod which creates the requests
 }
 
+const transitionErr = "no transition"
+
 func (app *Application) String() string {
 	return fmt.Sprintf("applicationID: %s, queue: %s, partition: %s,"+
 		" totalNumOfTasks: %d, currentState: %s",
@@ -101,7 +103,7 @@ func (app *Application) handle(ev events.ApplicationEvent) error {
 	defer app.lock.Unlock()
 	err := app.sm.Event(context.Background(), ev.GetEvent(), app, ev.GetArgs())
 	// handle the same state transition not nil error (limit of fsm).
-	if err != nil && err.Error() != "no transition" {
+	if err != nil && err.Error() != transitionErr {
 		return err
 	}
 	return nil

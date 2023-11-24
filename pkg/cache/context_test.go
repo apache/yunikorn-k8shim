@@ -48,7 +48,10 @@ import (
 )
 
 const (
-	Host1 = "HOST1"
+	Host1  = "HOST1"
+	appID1 = "app00001"
+	appID2 = "app00002"
+	appID3 = "app00003"
 )
 
 var (
@@ -241,9 +244,6 @@ func TestGetApplication(t *testing.T) {
 func TestRemoveApplication(t *testing.T) {
 	// add 3 applications
 	context := initContextForTest()
-	appID1 := "app00001"
-	appID2 := "app00002"
-	appID3 := "app00003"
 	app1 := NewApplication(appID1, "root.a", "testuser", testGroups, map[string]string{}, newMockSchedulerAPI())
 	app2 := NewApplication(appID2, "root.b", "testuser", testGroups, map[string]string{}, newMockSchedulerAPI())
 	app3 := NewApplication(appID3, "root.c", "testuser", testGroups, map[string]string{}, newMockSchedulerAPI())
@@ -312,8 +312,6 @@ func TestRemoveApplication(t *testing.T) {
 
 func TestRemoveApplicationInternal(t *testing.T) {
 	context := initContextForTest()
-	appID1 := "app00001"
-	appID2 := "app00002"
 	app1 := NewApplication(appID1, "root.a", "testuser", testGroups, map[string]string{}, newMockSchedulerAPI())
 	app2 := NewApplication(appID2, "root.b", "testuser", testGroups, map[string]string{}, newMockSchedulerAPI())
 	context.applications[appID1] = app1
@@ -1009,9 +1007,6 @@ func TestRemoveTask(t *testing.T) {
 func TestGetTask(t *testing.T) {
 	// add 3 applications
 	context := initContextForTest()
-	appID1 := "app00001"
-	appID2 := "app00002"
-	appID3 := "app00003"
 	app1 := NewApplication(appID1, "root.a", "testuser", testGroups, map[string]string{}, newMockSchedulerAPI())
 	app2 := NewApplication(appID2, "root.b", "testuser", testGroups, map[string]string{}, newMockSchedulerAPI())
 	app3 := NewApplication(appID3, "root.c", "testuser", testGroups, map[string]string{}, newMockSchedulerAPI())
