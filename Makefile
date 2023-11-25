@@ -237,9 +237,7 @@ lint: $(GOLANGCI_LINT_BIN)
 	@echo "running golangci-lint"
 	@git show-ref 
 	@REV="origin/HEAD"; \
-	echo "REV1 is $${REV}" ; \
 	git rev-parse $${REV} || REV="HEAD^"; \
-	echo "REV2 is $${REV}" ; \
 	headSHA=$$(git rev-parse --short=12 $${REV}) ; \
 	echo "checking against commit sha $${headSHA}" ; \
 	"${GOLANGCI_LINT_BIN}" run --new-from-rev=$${headSHA}
