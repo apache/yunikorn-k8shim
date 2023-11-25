@@ -50,6 +50,7 @@ const (
 	caCert2Path       = "cacert2.pem"
 	caPrivateKey1Path = "cakey1.pem"
 	caPrivateKey2Path = "cakey2.pem"
+	webhookLabel      = "yunikorn"
 )
 
 // WebhookManager is used to handle all registration requirements for the webhook, including certificates
@@ -382,7 +383,7 @@ func (wm *webhookManagerImpl) checkValidatingWebhook(webhook *v1.ValidatingWebho
 	path := "/validate-conf"
 
 	value, ok := webhook.ObjectMeta.GetLabels()["app"]
-	if !ok || value != "yunikorn" {
+	if !ok || value != webhookLabel {
 		return errors.New("webhook: missing label app=yunikorn")
 	}
 

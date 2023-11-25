@@ -29,7 +29,11 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 )
 
-const appID = "app01"
+const (
+	appID    = "app01"
+	app2ID   = "app02"
+	taskUUID = "UUID01"
+)
 
 //nolint:funlen
 func TestGetTaskGroupFromAnnotation(t *testing.T) {
