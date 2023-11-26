@@ -32,6 +32,7 @@ jobs:
         uses: codecov/codecov-action@v3
         with:
           files: build/coverage.txt
+          flags: unittests
 
   e2e-tests:
     needs: build
@@ -59,3 +60,46 @@ jobs:
         env:
           KIND_NODE_IMAGE: ${{ matrix.k8s }}
           KIND_EXTRA_ARGS: ${{ matrix.plugin }}
+      - name: Archive code coverage results
+        uses: actions/upload-artifact@v3
+        with:
+          name: go-cover-dir-merged
+          path: go-cover-dir-merged/
+          if-no-files-found: 'ignore'
+
+  e2e-tests-code-coverage:
+    needs: e2e-tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 2
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version-file: .go_version
+      - name: Download code-coverage-report artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: downloaded_artifacts
+      - run: |
+          if [ -d downloaded_artifacts/go-cover-dir-merged ];
+          then
+            if [ "$(ls -A downloaded_artifacts/go-cover-dir-merged)" ];
+            then
+              go tool covdata textfmt -i=downloaded_artifacts/go-cover-dir-merged -o yunikorn-k8shim.txt -pkg=github.com/apache/yunikorn-k8shim/...
+              go tool covdata textfmt -i=downloaded_artifacts/go-cover-dir-merged -o yunikorn-core.txt -pkg=github.com/apache/yunikorn-core/...
+            else
+              echo "No files found in downloaded_artifacts/go-cover-dir-merged folder. Skip the rest of the steps."
+              exit 0
+            fi
+          else
+            echo "No downloaded_artifacts/go-cover-dir-merged folder found. Skip the rest of the steps."
+            exit 0
+          fi
+      - name: Code coverage
+        uses: codecov/codecov-action@v3
+        with:
+          files: yunikorn-k8shim.txt
+          flags: e2e

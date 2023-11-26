@@ -14,7 +14,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+ARG UID=4444
+ARG GID=4444
+
 FROM --platform=$TARGETPLATFORM scratch
 COPY --chown=0:0 yunikorn-admission-controller /
-USER 4444:4444
+USER ${UID}:${GID}
 ENTRYPOINT [ "/yunikorn-admission-controller" ]

@@ -87,7 +87,8 @@ function install_cluster() {
   if [ "${GIT_CLONE}" = "true" ]; then
     check_cmd "git"
     rm -rf ./build/yunikorn-release
-    git clone --depth 1 https://github.com/apache/yunikorn-release.git ./build/yunikorn-release
+    # TODO: update following branch if PR in yunikorn-release is merged
+    git clone --depth 1 https://github.com/FrankYang0529/yunikorn-release.git -b YUNIKORN-2135 ./build/yunikorn-release
   fi
   if [ ! -d "${CHART_PATH}" ]; then
     exit_on_error "helm charts not found in path: ${CHART_PATH}"
@@ -96,7 +97,7 @@ function install_cluster() {
   # build docker images from latest code, so that we can install yunikorn with these latest images
   echo "step 3/7: building docker images from latest code"
   check_docker
-  QUIET="--quiet" REGISTRY=local VERSION=latest make image
+  QUIET="--quiet" REGISTRY=local VERSION=latest ENABLE_GO_COVER_DIR=TRUE make image
   exit_on_error "build docker images failed"
   QUIET="--quiet" REGISTRY=local VERSION=latest make webtest_image
   exit_on_error "build test web images failed"
@@ -136,12 +137,43 @@ function install_cluster() {
     --set admissionController.image.pullPolicy=IfNotPresent \
     --set web.image.repository=local/yunikorn \
     --set web.image.tag="${WEBTEST_IMAGE}" \
-    --set web.image.pullPolicy=IfNotPresent
+    --set web.image.pullPolicy=IfNotPresent \
+    --set enableGoCoverDir=true
   exit_on_error "failed to install yunikorn"
   "${KUBECTL}" wait --for=condition=available --timeout=300s deployment/yunikorn-scheduler -n yunikorn
   exit_on_error "failed to wait for yunikorn scheduler deployment being deployed"
   "${KUBECTL}" wait --for=condition=ready --timeout=300s pod -l app=yunikorn -n yunikorn
   exit_on_error "failed to wait for yunikorn scheduler pods being deployed"
+}
+
+function uninstall_yunikorn() {
+  echo "uninstall yunikorn"
+  install_tools
+  "${HELM}" uninstall yunikorn --namespace yunikorn --wait --cascade foreground
+  exit_on_error "failed to uninstall yunikorn"
+}
+
+function copy_go_cover_dir() {
+  echo "copy coverage profile files from kind containers to local go-cover-dir-merged directory"
+  install_tools
+  mkdir -p go-cover-dir-merged
+  GO_COVER_DIR_FOLDERS=()
+  for i in $("${KIND}" get nodes --name "${CLUSTER_NAME}"); do
+    if docker exec -i "$i" test -d /go-cover-dir
+    then
+      docker cp "$i":/go-cover-dir "$i"
+      GO_COVER_DIR_FOLDERS+=("$i")
+    fi
+  done
+
+  if [ ${#GO_COVER_DIR_FOLDERS[@]} -ne 0 ]; then
+    GO_COVER_DIR_STR=$(printf ",%s" "${GO_COVER_DIR_FOLDERS[@]}")
+    GO_COVER_DIR_STR=${GO_COVER_DIR_STR:1}
+    go tool covdata merge -i="${GO_COVER_DIR_STR}" -o go-cover-dir-merged
+    for i in "${GO_COVER_DIR_FOLDERS[@]}"; do
+      rm -rf "$i"
+    done
+  fi
 }
 
 function delete_cluster() {
@@ -269,6 +301,8 @@ if [ "${ACTION}" == "test" ]; then
   fi
   make e2e_test
   exit_on_error "e2e tests failed"
+  uninstall_yunikorn
+  copy_go_cover_dir
 elif [ "${ACTION}" == "install" ]; then
   check_cmd "${GO}"
   check_opt "kind-node-image-version" "${CLUSTER_VERSION}"
