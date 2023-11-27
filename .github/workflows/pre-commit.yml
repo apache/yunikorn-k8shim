@@ -55,6 +55,15 @@ jobs:
           echo "vm.nr_hugepages = 1024" | sudo tee -a /etc/sysctl.conf
           sudo sysctl -p
           sudo sysctl -a | grep vm.nr_hugepages
+      - name: Cache and Restore e2e required tools
+        id: cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            tools
+          key: ${{ runner.os }}-e2e-${{ hashFiles('Makefile') }}
+          restore-keys: |
+            ${{ runner.os }}-e2e-
       - run: ./scripts/run-e2e-tests.sh -a "test" -n "yk8s" -v "kindest/node:${KIND_NODE_IMAGE}" ${KIND_EXTRA_ARGS}
         env:
           KIND_NODE_IMAGE: ${{ matrix.k8s }}

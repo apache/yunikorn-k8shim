@@ -16,9 +16,10 @@
 # See the License for the specific language governing permissions and
 #limitations under the License.
 
-HELM=tools/helm
-KIND=tools/kind
-KUBECTL=tools/kubectl
+TOOLS_DIRECTORY=tools
+HELM=$TOOLS_DIRECTORY/helm
+KIND=$TOOLS_DIRECTORY/kind
+KUBECTL=$TOOLS_DIRECTORY/kubectl
 GO="${GO:-go}"
 export GO
 
@@ -71,7 +72,11 @@ function check_docker() {
 }
 
 function install_tools() {
-  make tools
+  if [ -d "$TOOLS_DIRECTORY" ]; then
+    echo "tools directory exists. Skipping make tools."
+  else
+    make tools
+  fi
 }
 
 function install_cluster() {
