@@ -143,7 +143,7 @@ func (ctx *Context) addNode(obj interface{}) {
 	}
 
 	// add node to secondary scheduler cache
-	log.Log(log.ShimContext).Warn("adding node to cache", zap.String("NodeName", node.Name))
+	log.Log(log.ShimContext).Info("adding node to cache", zap.String("NodeName", node.Name))
 	ctx.schedulerCache.AddNode(node)
 
 	// add node to internal cache
