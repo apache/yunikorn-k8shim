@@ -561,7 +561,7 @@ var _ = ginkgo.Describe("Preemption", func() {
 		 6. This should trigger preemption on low-priority queue and remove or preempt task from low priority queue
 		 7. Do cleanup once test is done either passed or failed
 		*/
-
+		time.Sleep(20 * time.Second)
 		ginkgo.By("A queue uses resource more than the guaranteed value even after removing one of the pods. The cluster doesn't have enough resource to deploy a pod in another queue which uses resource less than the guaranteed value.")
 		// update config
 		ginkgo.By(fmt.Sprintf("Update root.sandbox1 and root.sandbox2 with guaranteed memory %dM", sleepPodMemLimit))
