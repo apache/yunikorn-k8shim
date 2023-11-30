@@ -140,10 +140,16 @@ func TestNewPlaceholderWithLabelsAndAnnotations(t *testing.T) {
 	app.setTaskGroupsDefinition(string(marshalledTaskGroups))
 
 	holder := newPlaceholder("ph-name", app, app.taskGroups[0])
-	assert.Equal(t, len(holder.pod.Labels), 5)
+
+	assert.DeepEqual(t, holder.pod.Labels, map[string]string{
+		"applicationId": "app01",
+		"labelKey0":     "labelKeyValue0",
+		"labelKey1":     "labelKeyValue1",
+		"placeholder":   "true",
+		"queue":         "root.default",
+	})
+
 	assert.Equal(t, len(holder.pod.Annotations), 6)
-	assert.Equal(t, holder.pod.Labels["labelKey0"], "labelKeyValue0")
-	assert.Equal(t, holder.pod.Labels["labelKey1"], "labelKeyValue1")
 	assert.Equal(t, holder.pod.Annotations["annotationKey0"], "annotationValue0")
 	assert.Equal(t, holder.pod.Annotations["annotationKey1"], "annotationValue1")
 	assert.Equal(t, holder.pod.Annotations["annotationKey2"], "annotationValue2")
