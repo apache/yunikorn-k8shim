@@ -118,11 +118,11 @@ func GetTerminationTypeFromString(terminationTypeStr string) si.TerminationType 
 	return si.TerminationType_STOPPED_BY_RM
 }
 
-func CreateReleaseAllocationRequestForTask(appID, allocUUID, partition, terminationType string) *si.AllocationRequest {
+func CreateReleaseAllocationRequestForTask(appID, allocationID, partition, terminationType string) *si.AllocationRequest {
 	toReleases := make([]*si.AllocationRelease, 0)
 	toReleases = append(toReleases, &si.AllocationRelease{
 		ApplicationID:   appID,
-		UUID:            allocUUID,
+		AllocationID:    allocationID,
 		PartitionName:   partition,
 		TerminationType: GetTerminationTypeFromString(terminationType),
 		Message:         "task completed",

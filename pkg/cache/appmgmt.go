@@ -119,7 +119,7 @@ func (svc *AppManagementService) GetExistingAllocation(pod *v1.Pod) *si.Allocati
 		return &si.Allocation{
 			AllocationKey:    string(pod.UID),
 			AllocationTags:   meta.Tags,
-			UUID:             string(pod.UID),
+			AllocationID:     string(pod.UID),
 			ResourcePerAlloc: common.GetPodResource(pod),
 			NodeID:           pod.Spec.NodeName,
 			ApplicationID:    meta.ApplicationID,

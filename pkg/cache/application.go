@@ -619,14 +619,14 @@ func (app *Application) handleFailApplicationEvent(errMsg string) {
 	}
 }
 
-func (app *Application) handleReleaseAppAllocationEvent(allocUUID string, terminationType string) {
+func (app *Application) handleReleaseAppAllocationEvent(allocationID string, terminationType string) {
 	log.Log(log.ShimCacheApplication).Info("try to release pod from application",
 		zap.String("appID", app.applicationID),
-		zap.String("allocationUUID", allocUUID),
+		zap.String("allocationID", allocationID),
 		zap.String("terminationType", terminationType))
 
 	for _, task := range app.taskMap {
-		if task.allocationUUID == allocUUID {
+		if task.allocationID == allocationID {
 			task.setTaskTerminationType(terminationType)
 			err := task.DeleteTaskPod(task.pod)
 			if err != nil {

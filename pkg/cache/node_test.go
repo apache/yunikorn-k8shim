@@ -36,7 +36,7 @@ func TestAddExistingAllocation(t *testing.T) {
 	alloc01 := si.Allocation{
 		AllocationKey:    "pod001",
 		AllocationTags:   nil,
-		UUID:             "podUID001",
+		AllocationID:     "podUID001",
 		ResourcePerAlloc: nil,
 		Priority:         0,
 		NodeID:           "host001",
@@ -47,7 +47,7 @@ func TestAddExistingAllocation(t *testing.T) {
 	assert.Equal(t, len(node.existingAllocations), 1)
 	alloc02 := node.existingAllocations[0]
 	assert.Equal(t, alloc02.AllocationKey, alloc01.AllocationKey)
-	assert.Equal(t, alloc02.UUID, alloc01.UUID)
+	assert.Equal(t, alloc02.AllocationID, alloc01.AllocationID)
 	assert.Equal(t, alloc02.NodeID, alloc01.NodeID)
 	assert.Equal(t, alloc02.PartitionName, alloc01.PartitionName)
 }
