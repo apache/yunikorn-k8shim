@@ -326,7 +326,7 @@ func (c *RClient) GetQueue(partition string, queueName string) (*dao.PartitionQu
 func compareQueueTS(queuePathStr string, ts string) wait.ConditionFunc {
 	return func() (bool, error) {
 		restClient := RClient{}
-		qInfo, err := restClient.GetQueue(DefaultPartition, "root")
+		qInfo, err := restClient.GetQueue(DefaultPartition, queuePathStr)
 		if err != nil {
 			return false, err
 		}
