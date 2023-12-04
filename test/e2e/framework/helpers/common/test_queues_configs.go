@@ -90,10 +90,10 @@ func SetSchedulingPolicy(sc *configs.SchedulerConfig, partition string, queuePat
 			if err != nil {
 				return err
 			}
-			if q.Properties == nil {
-				q.Properties = map[string]string{}
+			if q.ChildTemplate.Properties == nil {
+				q.ChildTemplate.Properties = map[string]string{}
 			}
-			q.Properties["application.sort.policy"] = policy
+			q.ChildTemplate.Properties["application.sort.policy"] = policy
 			return nil
 		}
 	}
