@@ -523,5 +523,6 @@ arch:
 e2e_test: tools
 	@echo "running e2e tests"
 	cd ./test/e2e && \
-	ginkgo $(E2E_TEST) -v -keep-going -- -yk-namespace "yunikorn" -kube-config $(KUBECONFIG) state_aware_app_scheduling
+	ginkgo -r -v state_aware_app_scheduling -- -yk-namespace yunikorn -kube-config $(KUBECONFIG)
+	#ginkgo $(E2E_TEST) -v -keep-going -- -yk-namespace "yunikorn" -kube-config $(KUBECONFIG) state_aware_app_scheduling
 	#ginkgo $(E2E_TEST) -v -keep-going -- -yk-namespace "yunikorn" -kube-config $(KUBECONFIG) state_aware_app_scheduling
