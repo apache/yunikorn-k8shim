@@ -632,39 +632,73 @@ func TestGenerateApplicationID(t *testing.T) {
 }
 
 func TestMergeMaps(t *testing.T) {
-	result := MergeMaps(nil, nil)
-	assert.Assert(t, result == nil)
+	testCases := []struct {
+		name     string
+		input1   map[string]string
+		input2   map[string]string
+		expected map[string]string
+	}{
+		{
+			name:     "Both inputs nil",
+			input1:   nil,
+			input2:   nil,
+			expected: nil,
+		},
+		{
+			name:   "First input nil, Second input not nil",
+			input1: nil,
+			input2: map[string]string{"a": "b"},
+			expected: map[string]string{
+				"a": "b",
+			},
+		},
+		{
+			name:   "First input not nil, Second input nil",
+			input1: map[string]string{"a": "b"},
+			input2: nil,
+			expected: map[string]string{
+				"a": "b",
+			},
+		},
+		{
+			name: "Merge with existing key",
+			input1: map[string]string{
+				"a": "a1",
+			},
+			input2: map[string]string{
+				"a": "a2",
+			},
+			expected: map[string]string{
+				"a": "a2",
+			},
+		},
+		{
+			name: "Merge with additional keys",
+			input1: map[string]string{
+				"a": "a1",
+				"b": "b1",
+				"c": "c1",
+			},
+			input2: map[string]string{
+				"a": "a2",
+				"b": "b2",
+				"d": "d2",
+			},
+			expected: map[string]string{
+				"a": "a2",
+				"b": "b2",
+				"c": "c1",
+				"d": "d2",
+			},
+		},
+	}
 
-	result = MergeMaps(nil, map[string]string{"a": "b"})
-	assert.Assert(t, result != nil)
-	assert.Equal(t, len(result), 1)
-	assert.Equal(t, result["a"], "b")
-
-	result = MergeMaps(map[string]string{"a": "b"}, nil)
-	assert.Assert(t, result != nil)
-	assert.Equal(t, len(result), 1)
-	assert.Equal(t, result["a"], "b")
-
-	result = MergeMaps(map[string]string{"a": "a1"}, map[string]string{"a": "a2"})
-	assert.Assert(t, result != nil)
-	assert.Equal(t, len(result), 1)
-	assert.Equal(t, result["a"], "a2")
-
-	result = MergeMaps(map[string]string{
-		"a": "a1",
-		"b": "b1",
-		"c": "c1",
-	}, map[string]string{
-		"a": "a2",
-		"b": "b2",
-		"d": "d2",
-	})
-	assert.Assert(t, result != nil)
-	assert.Equal(t, len(result), 4)
-	assert.Equal(t, result["a"], "a2")
-	assert.Equal(t, result["b"], "b2")
-	assert.Equal(t, result["c"], "c1")
-	assert.Equal(t, result["d"], "d2")
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := MergeMaps(tc.input1, tc.input2)
+			assert.DeepEqual(t, result, tc.expected)
+		})
+	}
 }
 
 func TestGetUserFromPodLabel(t *testing.T) {
