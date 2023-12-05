@@ -425,7 +425,7 @@ func TestAMSvcGetExistingAllocation(t *testing.T) {
 	alloc := am.GetExistingAllocation(pod)
 	assert.Equal(t, alloc.ApplicationID, "app00001")
 	assert.Equal(t, alloc.AllocationKey, string(pod.UID))
-	assert.Equal(t, alloc.UUID, string(pod.UID))
+	assert.Equal(t, alloc.AllocationID, string(pod.UID))
 	assert.Equal(t, alloc.NodeID, "allocated-node")
 }
 

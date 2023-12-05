@@ -51,7 +51,7 @@ func (callback *AsyncRMCallback) UpdateAllocation(response *si.AllocationRespons
 		// got allocation for pod, bind pod to the scheduled node
 		log.Log(log.ShimRMCallback).Debug("callback: response to new allocation",
 			zap.String("allocationKey", alloc.AllocationKey),
-			zap.String("UUID", alloc.UUID),
+			zap.String("allocationID", alloc.AllocationID),
 			zap.String("applicationID", alloc.ApplicationID),
 			zap.String("nodeID", alloc.NodeID))
 
@@ -60,7 +60,7 @@ func (callback *AsyncRMCallback) UpdateAllocation(response *si.AllocationRespons
 			return err
 		}
 		if app := callback.context.GetApplication(alloc.ApplicationID); app != nil {
-			ev := NewAllocateTaskEvent(app.GetApplicationID(), alloc.AllocationKey, alloc.UUID, alloc.NodeID)
+			ev := NewAllocateTaskEvent(app.GetApplicationID(), alloc.AllocationKey, alloc.AllocationID, alloc.NodeID)
 			dispatcher.Dispatch(ev)
 		}
 	}
@@ -78,7 +78,7 @@ func (callback *AsyncRMCallback) UpdateAllocation(response *si.AllocationRespons
 
 	for _, release := range response.Released {
 		log.Log(log.ShimRMCallback).Debug("callback: response to released allocations",
-			zap.String("UUID", release.UUID))
+			zap.String("AllocationID", release.AllocationID))
 
 		// update cache
 		callback.context.ForgetPod(release.GetAllocationKey())
@@ -86,7 +86,7 @@ func (callback *AsyncRMCallback) UpdateAllocation(response *si.AllocationRespons
 		// TerminationType 0 mean STOPPED_BY_RM
 		if release.TerminationType != si.TerminationType_STOPPED_BY_RM {
 			// send release app allocation to application states machine
-			ev := NewReleaseAppAllocationEvent(release.ApplicationID, release.TerminationType, release.UUID)
+			ev := NewReleaseAppAllocationEvent(release.ApplicationID, release.TerminationType, release.AllocationID)
 			dispatcher.Dispatch(ev)
 		}
 	}

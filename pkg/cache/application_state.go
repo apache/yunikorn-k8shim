@@ -268,15 +268,15 @@ func (ue UpdateApplicationReservationEvent) GetApplicationID() string {
 // ------------------------
 type ReleaseAppAllocationEvent struct {
 	applicationID   string
-	allocationUUID  string
+	allocationID    string
 	terminationType string
 	event           ApplicationEventType
 }
 
-func NewReleaseAppAllocationEvent(appID string, allocTermination si.TerminationType, uuid string) ReleaseAppAllocationEvent {
+func NewReleaseAppAllocationEvent(appID string, allocTermination si.TerminationType, allocationID string) ReleaseAppAllocationEvent {
 	return ReleaseAppAllocationEvent{
 		applicationID:   appID,
-		allocationUUID:  uuid,
+		allocationID:    allocationID,
 		terminationType: si.TerminationType_name[int32(allocTermination)],
 		event:           ReleaseAppAllocation,
 	}
@@ -288,7 +288,7 @@ func (re ReleaseAppAllocationEvent) GetApplicationID() string {
 
 func (re ReleaseAppAllocationEvent) GetArgs() []interface{} {
 	args := make([]interface{}, 2)
-	args[0] = re.allocationUUID
+	args[0] = re.allocationID
 	args[1] = re.terminationType
 	return args
 }
@@ -558,9 +558,9 @@ func newAppState() *fsm.FSM { //nolint:funlen
 					log.Log(log.ShimFSM).Error("fail to parse event arg", zap.Error(err))
 					return
 				}
-				allocUUID := eventArgs[0]
+				allocationID := eventArgs[0]
 				terminationType := eventArgs[1]
-				app.handleReleaseAppAllocationEvent(allocUUID, terminationType)
+				app.handleReleaseAppAllocationEvent(allocationID, terminationType)
 			},
 			ReleaseAppAllocationAsk.String(): func(_ context.Context, event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck

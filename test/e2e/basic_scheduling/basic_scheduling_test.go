@@ -108,7 +108,7 @@ var _ = ginkgo.Describe("", func() {
 		gomega.Ω(allocation.AllocationKey).NotTo(gomega.BeNil())
 		gomega.Ω(allocation.NodeID).NotTo(gomega.BeNil())
 		gomega.Ω(allocation.Partition).NotTo(gomega.BeNil())
-		gomega.Ω(allocation.UUID).NotTo(gomega.BeNil())
+		gomega.Ω(allocation.AllocationID).NotTo(gomega.BeNil())
 		gomega.Ω(allocation.ApplicationID).To(gomega.Equal(sleepRespPod.ObjectMeta.Labels["applicationId"]))
 		core := sleepRespPod.Spec.Containers[0].Resources.Requests.Cpu().MilliValue()
 		mem := sleepRespPod.Spec.Containers[0].Resources.Requests.Memory().Value()

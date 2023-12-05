@@ -200,9 +200,9 @@ func TestReleaseTaskAllocation(t *testing.T) {
 	assert.Equal(t, task.GetTaskState(), TaskStates().Allocated)
 	// bind a task is a async process, wait for it to happen
 	err = common.WaitFor(100*time.Millisecond, 3*time.Second, func() bool {
-		return task.getTaskAllocationUUID() == string(pod.UID)
+		return task.getTaskAllocationID() == string(pod.UID)
 	})
-	assert.NilError(t, err, "failed to wait for allocation UUID being set for task")
+	assert.NilError(t, err, "failed to wait for allocation allocationID being set for task")
 
 	// bound
 	event3 := NewBindTaskEvent(app.applicationID, task.taskID)
@@ -576,10 +576,10 @@ func TestHandleSubmitTaskEvent(t *testing.T) {
 
 func TestSimultaneousTaskCompleteAndAllocate(t *testing.T) {
 	const (
-		podUID         = "UID-00001"
-		appID          = "app-test-001"
-		queueName      = "root.abc"
-		allocationUUID = "uuid-xyz"
+		podUID       = "UID-00001"
+		appID        = "app-test-001"
+		queueName    = "root.abc"
+		allocationID = "allocationid-xyz"
 	)
 	mockedContext := initContextForTest()
 	mockedAPIProvider, ok := mockedContext.apiProvider.(*client.MockedAPIProvider)
@@ -637,7 +637,7 @@ func TestSimultaneousTaskCompleteAndAllocate(t *testing.T) {
 	// can be released from the core to avoid resource leak
 	alloc := &si.Allocation{
 		AllocationKey: string(pod1.UID),
-		UUID:          allocationUUID,
+		AllocationID:  allocationID,
 		NodeID:        "fake-node",
 		ApplicationID: appID,
 		PartitionName: "default",
@@ -649,10 +649,10 @@ func TestSimultaneousTaskCompleteAndAllocate(t *testing.T) {
 			"allocationsToRelease is not in the expected length")
 		allocToRelease := request.Releases.AllocationsToRelease[0]
 		assert.Equal(t, allocToRelease.ApplicationID, alloc.ApplicationID)
-		assert.Equal(t, allocToRelease.UUID, alloc.UUID)
+		assert.Equal(t, allocToRelease.AllocationID, alloc.AllocationID)
 		return nil
 	})
-	ev1 := NewAllocateTaskEvent(app.GetApplicationID(), alloc.AllocationKey, alloc.UUID, alloc.NodeID)
+	ev1 := NewAllocateTaskEvent(app.GetApplicationID(), alloc.AllocationKey, alloc.AllocationID, alloc.NodeID)
 	err = task1.handle(ev1)
 	assert.NilError(t, err, "failed to handle AllocateTask event")
 	assert.Equal(t, task1.GetTaskState(), TaskStates().Completed)

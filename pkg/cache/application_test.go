@@ -442,9 +442,9 @@ func TestReleaseAppAllocation(t *testing.T) {
 	app := NewApplication(appID, "root.abc", "testuser", testGroups, map[string]string{}, ms)
 	task := NewTask("task01", app, context, pod)
 	app.addTask(task)
-	task.allocationUUID = taskUUID
+	task.allocationID = taskAllocationID
 	// app must be running states
-	err := app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, taskUUID))
+	err := app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, taskAllocationID))
 	if err == nil {
 		// this should give an error
 		t.Error("expecting error got 'nil'")
@@ -452,7 +452,7 @@ func TestReleaseAppAllocation(t *testing.T) {
 	// set app states to running, let event can be trigger
 	app.SetState(ApplicationStates().Running)
 	assertAppState(t, app, ApplicationStates().Running, 3*time.Second)
-	err = app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, taskUUID))
+	err = app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, taskAllocationID))
 	assert.NilError(t, err)
 	// after handle release event the states of app must be running
 	assertAppState(t, app, ApplicationStates().Running, 3*time.Second)
@@ -816,7 +816,7 @@ func TestTryReservePostRestart(t *testing.T) {
 			Containers: containers,
 		},
 	})
-	task0.allocationUUID = string(task0.pod.UID)
+	task0.allocationID = string(task0.pod.UID)
 	task0.nodeName = "fake-host"
 	task0.sm.SetState(TaskStates().Allocated)
 
@@ -997,9 +997,9 @@ func TestReleaseAppAllocationInFailingState(t *testing.T) {
 	app := NewApplication(appID, "root.abc", "testuser", testGroups, map[string]string{}, ms)
 	task := NewTask("task01", app, context, pod)
 	app.addTask(task)
-	task.allocationUUID = taskUUID
+	task.allocationID = taskAllocationID
 	// app must be running states
-	err := app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, taskUUID))
+	err := app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, taskAllocationID))
 	if err == nil {
 		// this should give an error
 		t.Error("expecting error got 'nil'")
@@ -1007,12 +1007,12 @@ func TestReleaseAppAllocationInFailingState(t *testing.T) {
 	// set app states to running, let event can be trigger
 	app.SetState(ApplicationStates().Running)
 	assertAppState(t, app, ApplicationStates().Running, 3*time.Second)
-	err = app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, taskUUID))
+	err = app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, taskAllocationID))
 	assert.NilError(t, err)
 	// after handle release event the states of app must be running
 	assertAppState(t, app, ApplicationStates().Running, 3*time.Second)
 	app.SetState(ApplicationStates().Failing)
-	err = app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, taskUUID))
+	err = app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, taskAllocationID))
 	assert.NilError(t, err)
 	// after handle release event the states of app must be failing
 	assertAppState(t, app, ApplicationStates().Failing, 3*time.Second)
@@ -1052,7 +1052,7 @@ func TestResumingStateTransitions(t *testing.T) {
 	// Add tasks
 	app.addTask(task1)
 	app.addTask(task2)
-	task1.allocationUUID = taskUUID
+	task1.allocationID = taskAllocationID
 	context.addApplication(app)
 
 	// Set app state to "reserving"
@@ -1167,7 +1167,7 @@ func TestPlaceholderTimeoutEvents(t *testing.T) {
 	assert.Equal(t, len(app.GetNewTasks()), 1)
 
 	appID := "app00001"
-	UUID := "UID-POD-00002"
+	allocationID := "UID-POD-00002"
 
 	context.addApplication(app)
 	task1 := context.AddTask(&AddTaskRequest{
@@ -1184,16 +1184,16 @@ func TestPlaceholderTimeoutEvents(t *testing.T) {
 	_, taskErr := app.GetTask("task02")
 	assert.NilError(t, taskErr, "Task should exist")
 
-	task1.allocationUUID = UUID
+	task1.allocationID = allocationID
 
 	// app must be running states
-	err := app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, UUID))
+	err := app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, allocationID))
 	assert.Error(t, err, "event ReleaseAppAllocation inappropriate in current state New")
 
 	// set app states to running, let event can be trigger
 	app.SetState(ApplicationStates().Running)
 	assertAppState(t, app, ApplicationStates().Running, 3*time.Second)
-	err = app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, UUID))
+	err = app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, allocationID))
 	assert.NilError(t, err)
 	// after handle release event the states of app must be running
 	assertAppState(t, app, ApplicationStates().Running, 3*time.Second)

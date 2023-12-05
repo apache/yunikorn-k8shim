@@ -846,11 +846,11 @@ func TestRecoverTask(t *testing.T) {
 	assert.Equal(t, len(app.getTasks(TaskStates().New)), 1)
 
 	taskInfoVerifiers := []struct {
-		taskID                 string
-		expectedState          string
-		expectedAllocationUUID string
-		expectedPodName        string
-		expectedNodeName       string
+		taskID               string
+		expectedState        string
+		expectedAllocationID string
+		expectedPodName      string
+		expectedNodeName     string
 	}{
 		{taskUID1, TaskStates().Bound, taskUID1, "pod1", fakeNodeName},
 		{taskUID2, TaskStates().Completed, taskUID2, "pod2", fakeNodeName},
@@ -864,7 +864,7 @@ func TestRecoverTask(t *testing.T) {
 			rt, err := app.GetTask(tt.taskID)
 			assert.NilError(t, err)
 			assert.Equal(t, rt.GetTaskState(), tt.expectedState)
-			assert.Equal(t, rt.allocationUUID, tt.expectedAllocationUUID)
+			assert.Equal(t, rt.allocationID, tt.expectedAllocationID)
 			assert.Equal(t, rt.pod.Name, tt.expectedPodName)
 			assert.Equal(t, rt.alias, fmt.Sprintf("%s/%s", podNamespace, tt.expectedPodName))
 		})

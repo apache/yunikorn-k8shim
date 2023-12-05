@@ -44,7 +44,7 @@ type Task struct {
 	alias           string
 	applicationID   string
 	application     *Application
-	allocationUUID  string
+	allocationID    string
 	resource        *si.Resource
 	pod             *v1.Pod
 	podStatus       v1.PodStatus // pod status, maintained separately for efficiency reasons
@@ -169,10 +169,10 @@ func (task *Task) getTaskGroupName() string {
 	return task.taskGroupName
 }
 
-func (task *Task) getTaskAllocationUUID() string {
+func (task *Task) getTaskAllocationID() string {
 	task.lock.RLock()
 	defer task.lock.RUnlock()
-	return task.allocationUUID
+	return task.allocationID
 }
 
 func (task *Task) DeleteTaskPod(pod *v1.Pod) error {
@@ -209,13 +209,13 @@ func (task *Task) initialize() {
 	// scheduled by us with an allocation, instead of starting
 	// from New, directly set the task to Bound.
 	if utils.NeedRecovery(task.pod) {
-		task.allocationUUID = string(task.pod.UID)
+		task.allocationID = string(task.pod.UID)
 		task.nodeName = task.pod.Spec.NodeName
 		task.sm.SetState(TaskStates().Bound)
 		log.Log(log.ShimCacheTask).Info("set task as Bound",
 			zap.String("appID", task.applicationID),
 			zap.String("taskID", task.taskID),
-			zap.String("allocationUUID", task.allocationUUID),
+			zap.String("allocationID", task.allocationID),
 			zap.String("nodeName", task.nodeName))
 	}
 
@@ -224,13 +224,13 @@ func (task *Task) initialize() {
 	// the resources were already released, instead of starting
 	// from New, directly set the task to Completed
 	if utils.IsPodTerminated(task.pod) {
-		task.allocationUUID = string(task.pod.UID)
+		task.allocationID = string(task.pod.UID)
 		task.nodeName = task.pod.Spec.NodeName
 		task.sm.SetState(TaskStates().Completed)
 		log.Log(log.ShimCacheTask).Info("set task as Completed",
 			zap.String("appID", task.applicationID),
 			zap.String("taskID", task.taskID),
-			zap.String("allocationUUID", task.allocationUUID),
+			zap.String("allocationID", task.allocationID),
 			zap.String("nodeName", task.nodeName))
 	}
 }
@@ -399,9 +399,9 @@ func (task *Task) postTaskAllocated() {
 // If we find the task is already in Completed state while handling TaskAllocated
 // event, we need to explicitly release this allocation because it is no
 // longer valid.
-func (task *Task) beforeTaskAllocated(eventSrc string, allocUUID string, nodeID string) {
-	// task is allocated on a node with a UUID set the details in the task here to allow referencing later.
-	task.allocationUUID = allocUUID
+func (task *Task) beforeTaskAllocated(eventSrc string, allocationID string, nodeID string) {
+	// task is allocated on a node with a allocationID set the details in the task here to allow referencing later.
+	task.allocationID = allocationID
 	task.nodeName = nodeID
 	// If the task is Completed the pod was deleted on K8s but the core was not aware yet.
 	// Notify the core to release this allocation to avoid resource leak.
@@ -409,7 +409,7 @@ func (task *Task) beforeTaskAllocated(eventSrc string, allocUUID string, nodeID 
 	if eventSrc == TaskStates().Completed {
 		log.Log(log.ShimCacheTask).Info("task is already completed, invalidate the allocation",
 			zap.String("currentTaskState", eventSrc),
-			zap.String("allocUUID", allocUUID),
+			zap.String("allocationID", allocationID),
 			zap.String("allocatedNode", nodeID))
 		task.releaseAllocation()
 	}
@@ -491,7 +491,7 @@ func (task *Task) releaseAllocation() {
 			zap.String("applicationID", task.applicationID),
 			zap.String("taskID", task.taskID),
 			zap.String("taskAlias", task.alias),
-			zap.String("allocationUUID", task.allocationUUID),
+			zap.String("allocationID", task.allocationID),
 			zap.String("task", task.GetTaskState()),
 			zap.String("terminationType", task.terminationType))
 
@@ -505,8 +505,8 @@ func (task *Task) releaseAllocation() {
 			releaseRequest = common.CreateReleaseAskRequestForTask(
 				task.applicationID, task.taskID, task.application.partition)
 		default:
-			if task.allocationUUID == "" {
-				log.Log(log.ShimCacheTask).Warn("BUG: task allocation UUID is empty on release",
+			if task.allocationID == "" {
+				log.Log(log.ShimCacheTask).Warn("BUG: task allocation allocationID is empty on release",
 					zap.String("applicationID", task.applicationID),
 					zap.String("taskID", task.taskID),
 					zap.String("taskAlias", task.alias),
@@ -514,7 +514,7 @@ func (task *Task) releaseAllocation() {
 				return
 			}
 			releaseRequest = common.CreateReleaseAllocationRequestForTask(
-				task.applicationID, task.allocationUUID, task.application.partition, task.terminationType)
+				task.applicationID, task.allocationID, task.application.partition, task.terminationType)
 		}
 
 		if releaseRequest.Releases != nil {

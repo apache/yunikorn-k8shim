@@ -40,7 +40,7 @@ func TestCreateReleaseAllocationRequest(t *testing.T) {
 	assert.Equal(t, len(request.Releases.AllocationsToRelease), 1)
 	assert.Equal(t, len(request.Releases.AllocationAsksToRelease), 0)
 	assert.Equal(t, request.Releases.AllocationsToRelease[0].ApplicationID, "app01")
-	assert.Equal(t, request.Releases.AllocationsToRelease[0].UUID, "alloc01")
+	assert.Equal(t, request.Releases.AllocationsToRelease[0].AllocationID, "alloc01")
 	assert.Equal(t, request.Releases.AllocationsToRelease[0].PartitionName, "default")
 }
 
