@@ -571,6 +571,238 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 		checkUsage(userTestType, user2, "root.sandbox1", []*v1.Pod{usergroup2Sandbox1Pod1})
 	})
 
+	ginkgo.It("Verify_maxresources_with_users_limits_changed", func() {
+		ginkgo.By("Update config")
+		annotation = "ann-" + common.RandSeq(10)
+
+		// The wait wrapper still can't fully guarantee that the config in AdmissionController has been updated.
+		yunikorn.WaitForAdmissionControllerRefreshConfAfterAction(func() {
+			yunikorn.UpdateCustomConfigMapWrapperWithMap(oldConfigMap, "", annotation, admissionCustomConfig, func(sc *configs.SchedulerConfig) error {
+				// remove placement rules so we can control queue
+				sc.Partitions[0].PlacementRules = nil
+
+				return common.AddQueue(sc, "default", "root", configs.QueueConfig{
+					Name: "sandbox1",
+					Limits: []configs.Limit{
+						{
+							Limit:           "user entry",
+							Users:           []string{user1},
+							MaxApplications: 1,
+							MaxResources: map[string]string{
+								siCommon.Memory: fmt.Sprintf("%dM", largeMem),
+							},
+						},
+					},
+				})
+			})
+		})
+
+		usergroup1 := &si.UserGroupInformation{User: user1, Groups: []string{group1}}
+		// usergroup1 can deploy the second sleep pod to root.sandbox1
+		usergroup1Sandbox1Pod1 := deploySleepPod(usergroup1, "root.sandbox1", true, "because memory usage is less than maxresources")
+		_ = deploySleepPod(usergroup1, "root.sandbox1", false, "because final memory usage is more than maxresources")
+		checkUsage(userTestType, user1, "root.sandbox1", []*v1.Pod{usergroup1Sandbox1Pod1})
+
+		// The wait wrapper still can't fully guarantee that the config in AdmissionController has been updated.
+		yunikorn.WaitForAdmissionControllerRefreshConfAfterAction(func() {
+			yunikorn.UpdateCustomConfigMapWrapperWithMap(oldConfigMap, "", annotation, admissionCustomConfig, func(sc *configs.SchedulerConfig) error {
+				// remove placement rules so we can control queue
+				sc.Partitions[0].PlacementRules = nil
+
+				return common.AddQueue(sc, "default", "root", configs.QueueConfig{
+					Name: "sandbox1",
+					Limits: []configs.Limit{
+						{
+							Limit:           "user entry",
+							Users:           []string{user1},
+							MaxApplications: 2,
+							MaxResources: map[string]string{
+								siCommon.Memory: fmt.Sprintf("%dM", largeMem),
+							},
+						},
+					},
+				})
+			})
+		})
+
+		usergroup1Sandbox1Pod1 = deploySleepPod(usergroup1, "root.sandbox1", true, "because memory usage is less than maxresources")
+		checkUsage(userTestType, user1, "root.sandbox1", []*v1.Pod{usergroup1Sandbox1Pod1})
+	})
+
+	ginkgo.It("Verify_maxapplications_with_users_limits_changed", func() {
+		ginkgo.By("Update config")
+		annotation = "ann-" + common.RandSeq(10)
+
+		// The wait wrapper still can't fully guarantee that the config in AdmissionController has been updated.
+		yunikorn.WaitForAdmissionControllerRefreshConfAfterAction(func() {
+			yunikorn.UpdateCustomConfigMapWrapperWithMap(oldConfigMap, "", annotation, admissionCustomConfig, func(sc *configs.SchedulerConfig) error {
+				// remove placement rules so we can control queue
+				sc.Partitions[0].PlacementRules = nil
+
+				return common.AddQueue(sc, "default", "root", configs.QueueConfig{
+					Name: "sandbox1",
+					Limits: []configs.Limit{
+						{
+							Limit:           "user entry",
+							Groups:          []string{group1},
+							MaxApplications: 1,
+							MaxResources: map[string]string{
+								siCommon.Memory: fmt.Sprintf("%dM", largeMem),
+							},
+						},
+					},
+				})
+			})
+		})
+
+		usergroup1 := &si.UserGroupInformation{User: user1, Groups: []string{group1}}
+		// usergroup1 can deploy the second sleep pod to root.sandbox1
+		usergroup1Sandbox1Pod1 := deploySleepPod(usergroup1, "root.sandbox1", true, "because applications is less than applications")
+		_ = deploySleepPod(usergroup1, "root.sandbox1", false, "because final applications is more than applications")
+		checkUsage(userTestType, user1, "root.sandbox1", []*v1.Pod{usergroup1Sandbox1Pod1})
+
+		// The wait wrapper still can't fully guarantee that the config in AdmissionController has been updated.
+		yunikorn.WaitForAdmissionControllerRefreshConfAfterAction(func() {
+			yunikorn.UpdateCustomConfigMapWrapperWithMap(oldConfigMap, "", annotation, admissionCustomConfig, func(sc *configs.SchedulerConfig) error {
+				// remove placement rules so we can control queue
+				sc.Partitions[0].PlacementRules = nil
+
+				return common.AddQueue(sc, "default", "root", configs.QueueConfig{
+					Name: "sandbox1",
+					Limits: []configs.Limit{
+						{
+							Limit:           "user entry",
+							Groups:          []string{group1},
+							MaxApplications: 2,
+							MaxResources: map[string]string{
+								siCommon.Memory: fmt.Sprintf("%dM", largeMem),
+							},
+						},
+					},
+				})
+			})
+		})
+
+		usergroup1Sandbox1Pod1 = deploySleepPod(usergroup1, "root.sandbox1", true, "because applications is less than new maxapplications")
+		checkUsage(userTestType, user1, "root.sandbox1", []*v1.Pod{usergroup1Sandbox1Pod1})
+	})
+
+	ginkgo.It("Verify_maxresources_with_groups_limits_changed", func() {
+		ginkgo.By("Update config")
+		annotation = "ann-" + common.RandSeq(10)
+
+		// The wait wrapper still can't fully guarantee that the config in AdmissionController has been updated.
+		yunikorn.WaitForAdmissionControllerRefreshConfAfterAction(func() {
+			yunikorn.UpdateCustomConfigMapWrapperWithMap(oldConfigMap, "", annotation, admissionCustomConfig, func(sc *configs.SchedulerConfig) error {
+				// remove placement rules so we can control queue
+				sc.Partitions[0].PlacementRules = nil
+
+				return common.AddQueue(sc, "default", "root", configs.QueueConfig{
+					Name: "sandbox1",
+					Limits: []configs.Limit{
+						{
+							Limit:           "group entry",
+							Groups:          []string{group1},
+							MaxApplications: 1,
+							MaxResources: map[string]string{
+								siCommon.Memory: fmt.Sprintf("%dM", mediumMem),
+							},
+						},
+					},
+				})
+			})
+		})
+
+		usergroup1 := &si.UserGroupInformation{User: user1, Groups: []string{group1}}
+		// usergroup1 can deploy the second sleep pod to root.sandbox1
+		usergroup1Sandbox1Pod1 := deploySleepPod(usergroup1, "root.sandbox1", true, "because memory usage is less than maxresources")
+		_ = deploySleepPod(usergroup1, "root.sandbox1", false, "because final memory usage is more than maxresources")
+		checkUsage(groupTestType, group1, "root.sandbox1", []*v1.Pod{usergroup1Sandbox1Pod1})
+
+		// The wait wrapper still can't fully guarantee that the config in AdmissionController has been updated.
+		yunikorn.WaitForAdmissionControllerRefreshConfAfterAction(func() {
+			yunikorn.UpdateCustomConfigMapWrapperWithMap(oldConfigMap, "", annotation, admissionCustomConfig, func(sc *configs.SchedulerConfig) error {
+				// remove placement rules so we can control queue
+				sc.Partitions[0].PlacementRules = nil
+
+				return common.AddQueue(sc, "default", "root", configs.QueueConfig{
+					Name: "sandbox1",
+					Limits: []configs.Limit{
+						{
+							Limit:           "group entry",
+							Groups:          []string{group1},
+							MaxApplications: 2,
+							MaxResources: map[string]string{
+								siCommon.Memory: fmt.Sprintf("%dM", largeMem),
+							},
+						},
+					},
+				})
+			})
+		})
+
+		usergroup1Sandbox1Pod1 = deploySleepPod(usergroup1, "root.sandbox1", true, "because memory usage is less than maxresources")
+		checkUsage(groupTestType, group1, "root.sandbox1", []*v1.Pod{usergroup1Sandbox1Pod1})
+	})
+
+	ginkgo.It("Verify_maxapplications_with_groups_limits_changed", func() {
+		ginkgo.By("Update config")
+		annotation = "ann-" + common.RandSeq(10)
+
+		// The wait wrapper still can't fully guarantee that the config in AdmissionController has been updated.
+		yunikorn.WaitForAdmissionControllerRefreshConfAfterAction(func() {
+			yunikorn.UpdateCustomConfigMapWrapperWithMap(oldConfigMap, "", annotation, admissionCustomConfig, func(sc *configs.SchedulerConfig) error {
+				// remove placement rules so we can control queue
+				sc.Partitions[0].PlacementRules = nil
+
+				return common.AddQueue(sc, "default", "root", configs.QueueConfig{
+					Name: "sandbox1",
+					Limits: []configs.Limit{
+						{
+							Limit:           "group entry",
+							Groups:          []string{group1},
+							MaxApplications: 1,
+							MaxResources: map[string]string{
+								siCommon.Memory: fmt.Sprintf("%dM", largeMem),
+							},
+						},
+					},
+				})
+			})
+		})
+
+		usergroup1 := &si.UserGroupInformation{User: user1, Groups: []string{group1}}
+		// usergroup1 can deploy the second sleep pod to root.sandbox1
+		usergroup1Sandbox1Pod1 := deploySleepPod(usergroup1, "root.sandbox1", true, "because applications is less than applications")
+		_ = deploySleepPod(usergroup1, "root.sandbox1", false, "because final applications is more than applications")
+		checkUsage(groupTestType, group1, "root.sandbox1", []*v1.Pod{usergroup1Sandbox1Pod1})
+
+		// The wait wrapper still can't fully guarantee that the config in AdmissionController has been updated.
+		yunikorn.WaitForAdmissionControllerRefreshConfAfterAction(func() {
+			yunikorn.UpdateCustomConfigMapWrapperWithMap(oldConfigMap, "", annotation, admissionCustomConfig, func(sc *configs.SchedulerConfig) error {
+				// remove placement rules so we can control queue
+				sc.Partitions[0].PlacementRules = nil
+
+				return common.AddQueue(sc, "default", "root", configs.QueueConfig{
+					Name: "sandbox1",
+					Limits: []configs.Limit{
+						{
+							Limit:           "group entry",
+							Groups:          []string{group1},
+							MaxApplications: 2,
+							MaxResources: map[string]string{
+								siCommon.Memory: fmt.Sprintf("%dM", largeMem),
+							},
+						},
+					},
+				})
+			})
+		})
+
+		usergroup1Sandbox1Pod1 = deploySleepPod(usergroup1, "root.sandbox1", true, "because applications is less than new maxapplications")
+		checkUsage(groupTestType, group1, "root.sandbox1", []*v1.Pod{usergroup1Sandbox1Pod1})
+	})
+
 	ginkgo.AfterEach(func() {
 		testDescription := ginkgo.CurrentSpecReport()
 		if testDescription.Failed() {
