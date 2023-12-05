@@ -20,6 +20,8 @@ package conf
 import (
 	"bytes"
 	"compress/gzip"
+	"compress/lzw"
+	"compress/zlib"
 	"encoding/base64"
 	"fmt"
 	"reflect"
@@ -77,7 +79,7 @@ func assertDefaults(t *testing.T, conf *SchedulerConf) {
 	assert.Equal(t, conf.UserLabelKey, constants.DefaultUserLabel)
 }
 
-func TestDecompress(t *testing.T) {
+func TestDecompressGzip(t *testing.T) {
 	var b bytes.Buffer
 	gzWriter := gzip.NewWriter(&b)
 	if _, err := gzWriter.Write([]byte(configs.DefaultSchedulerConfig)); err != nil {
@@ -90,6 +92,40 @@ func TestDecompress(t *testing.T) {
 	encodedConfigString := make([]byte, base64.StdEncoding.EncodedLen(len(b.Bytes())))
 	base64.StdEncoding.Encode(encodedConfigString, b.Bytes())
 	key, decodedConfigString := Decompress("queues.yaml."+constants.GzipSuffix, encodedConfigString)
+	assert.Equal(t, "queues.yaml", key)
+	assert.Equal(t, configs.DefaultSchedulerConfig, decodedConfigString)
+}
+
+func TestDecompressZlib(t *testing.T) {
+	var b bytes.Buffer
+	zlibWriter := zlib.NewWriter(&b)
+	if _, err := zlibWriter.Write([]byte(configs.DefaultSchedulerConfig)); err != nil {
+		assert.NilError(t, err, "expected nil, got error while compressing test schedulerConfig")
+	}
+	if err := zlibWriter.Close(); err != nil {
+		assert.NilError(t, err, "expected nil, got error")
+		t.Fatal("expected nil, got error")
+	}
+	encodedConfigString := make([]byte, base64.StdEncoding.EncodedLen(len(b.Bytes())))
+	base64.StdEncoding.Encode(encodedConfigString, b.Bytes())
+	key, decodedConfigString := Decompress("queues.yaml."+constants.ZlibSuffix, encodedConfigString)
+	assert.Equal(t, "queues.yaml", key)
+	assert.Equal(t, configs.DefaultSchedulerConfig, decodedConfigString)
+}
+
+func TestDecompressLzw(t *testing.T) {
+	var b bytes.Buffer
+	lzwWriter := lzw.NewWriter(&b, lzw.MSB, constants.LzwLiteralWidth)
+	if _, err := lzwWriter.Write([]byte(configs.DefaultSchedulerConfig)); err != nil {
+		assert.NilError(t, err, "expected nil, got error while compressing test schedulerConfig")
+	}
+	if err := lzwWriter.Close(); err != nil {
+		assert.NilError(t, err, "expected nil, got error")
+		t.Fatal("expected nil, got error")
+	}
+	encodedConfigString := make([]byte, base64.StdEncoding.EncodedLen(len(b.Bytes())))
+	base64.StdEncoding.Encode(encodedConfigString, b.Bytes())
+	key, decodedConfigString := Decompress("queues.yaml."+constants.LzwSuffix, encodedConfigString)
 	assert.Equal(t, "queues.yaml", key)
 	assert.Equal(t, configs.DefaultSchedulerConfig, decodedConfigString)
 }

@@ -118,5 +118,8 @@ const AnnotationEnableYuniKorn = DomainYuniKorn + "namespace.enableYuniKorn"
 const AutoGenAppPrefix = "yunikorn"
 const AutoGenAppSuffix = "autogen"
 
-// Compression Algorithms for schedulerConfig
+// Compression Algorithm constants for schedulerConfig
 const GzipSuffix = "gz"
+const LzwSuffix = "lzw"
+const ZlibSuffix = "zlib"
+const LzwLiteralWidth = 8

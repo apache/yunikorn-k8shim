@@ -21,6 +21,8 @@ package utils
 import (
 	"bytes"
 	"compress/gzip"
+	"compress/lzw"
+	"compress/zlib"
 	"encoding/base64"
 	"fmt"
 	"testing"
@@ -1155,6 +1157,46 @@ func TestGzipCompressedConfigMap(t *testing.T) {
 	confMap := conf.FlattenConfigMaps([]*v1.ConfigMap{
 		{Data: map[string]string{}},
 		{Data: map[string]string{conf.CMSvcClusterID: "new"}, BinaryData: map[string][]byte{"queues.yaml.gz": encodedConfigString}},
+	})
+	config := GetCoreSchedulerConfigFromConfigMap(confMap)
+	assert.Equal(t, configs.DefaultSchedulerConfig, config)
+}
+
+func TestZlibCompressedConfigMap(t *testing.T) {
+	var b bytes.Buffer
+	zlibWriter := zlib.NewWriter(&b)
+	if _, err := zlibWriter.Write([]byte(configs.DefaultSchedulerConfig)); err != nil {
+		assert.NilError(t, err, "expected nil, got error while compressing test schedulerConfig")
+	}
+	if err := zlibWriter.Close(); err != nil {
+		assert.NilError(t, err, "expected nil, got error")
+		t.Fatal("expected nil, got error")
+	}
+	encodedConfigString := make([]byte, base64.StdEncoding.EncodedLen(len(b.Bytes())))
+	base64.StdEncoding.Encode(encodedConfigString, b.Bytes())
+	confMap := conf.FlattenConfigMaps([]*v1.ConfigMap{
+		{Data: map[string]string{}},
+		{Data: map[string]string{conf.CMSvcClusterID: "new"}, BinaryData: map[string][]byte{"queues.yaml.zlib": encodedConfigString}},
+	})
+	config := GetCoreSchedulerConfigFromConfigMap(confMap)
+	assert.Equal(t, configs.DefaultSchedulerConfig, config)
+}
+
+func TestLzwCompressedConfigMap(t *testing.T) {
+	var b bytes.Buffer
+	lzwWriter := lzw.NewWriter(&b, lzw.MSB, constants.LzwLiteralWidth)
+	if _, err := lzwWriter.Write([]byte(configs.DefaultSchedulerConfig)); err != nil {
+		assert.NilError(t, err, "expected nil, got error while compressing test schedulerConfig")
+	}
+	if err := lzwWriter.Close(); err != nil {
+		assert.NilError(t, err, "expected nil, got error")
+		t.Fatal("expected nil, got error")
+	}
+	encodedConfigString := make([]byte, base64.StdEncoding.EncodedLen(len(b.Bytes())))
+	base64.StdEncoding.Encode(encodedConfigString, b.Bytes())
+	confMap := conf.FlattenConfigMaps([]*v1.ConfigMap{
+		{Data: map[string]string{}},
+		{Data: map[string]string{conf.CMSvcClusterID: "new"}, BinaryData: map[string][]byte{"queues.yaml.lzw": encodedConfigString}},
 	})
 	config := GetCoreSchedulerConfigFromConfigMap(confMap)
 	assert.Equal(t, configs.DefaultSchedulerConfig, config)

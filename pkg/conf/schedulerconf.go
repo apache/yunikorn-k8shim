@@ -21,6 +21,8 @@ package conf
 import (
 	"bytes"
 	"compress/gzip"
+	"compress/lzw"
+	"compress/zlib"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -471,24 +473,63 @@ func Decompress(key string, value []byte) (string, string) {
 	decodedValue = decodedValue[:n]
 	splitKey := strings.Split(key, ".")
 	compressionAlgo := splitKey[len(splitKey)-1]
-	if strings.EqualFold(compressionAlgo, constants.GzipSuffix) {
-		reader := bytes.NewReader(decodedValue)
-		gzReader, err := gzip.NewReader(reader)
-		if err != nil {
-			log.Log(log.ShimConfig).Error("failed to decompress decoded schedulerConfig entry", zap.Error(err))
-			return "", ""
-		}
-		defer func() {
-			if err = gzReader.Close(); err != nil {
-				log.Log(log.ShimConfig).Debug("gzip Reader could not be closed ", zap.Error(err))
+	switch {
+	case strings.EqualFold(compressionAlgo, constants.GzipSuffix):
+		{
+			reader := bytes.NewReader(decodedValue)
+			gzReader, err := gzip.NewReader(reader)
+			if err != nil {
+				log.Log(log.ShimConfig).Error("failed to decompress decoded schedulerConfig entry", zap.Error(err))
+				return "", ""
 			}
-		}()
-		decompressedBytes, err := io.ReadAll(gzReader)
-		if err != nil {
-			log.Log(log.ShimConfig).Error("failed to decompress decoded schedulerConfig entry", zap.Error(err))
-			return "", ""
+			defer func() {
+				if err = gzReader.Close(); err != nil {
+					log.Log(log.ShimConfig).Debug("gzip Reader could not be closed ", zap.Error(err))
+				}
+			}()
+			decompressedBytes, err := io.ReadAll(gzReader)
+			if err != nil {
+				log.Log(log.ShimConfig).Error("failed to decompress decoded schedulerConfig entry", zap.Error(err))
+				return "", ""
+			}
+			uncompressedData = string(decompressedBytes)
 		}
-		uncompressedData = string(decompressedBytes)
+	case strings.EqualFold(compressionAlgo, constants.LzwSuffix):
+		{
+			reader := bytes.NewReader(decodedValue)
+			lzwReader := lzw.NewReader(reader, lzw.MSB, constants.LzwLiteralWidth)
+			defer func() {
+				if err = lzwReader.Close(); err != nil {
+					log.Log(log.ShimConfig).Debug("lzw reader could not be closed ", zap.Error(err))
+				}
+			}()
+			decompressedBytes, err := io.ReadAll(lzwReader)
+			if err != nil {
+				log.Log(log.ShimConfig).Error("failed to decompress decoded schedulerConfig entry", zap.Error(err))
+				return "", ""
+			}
+			uncompressedData = string(decompressedBytes)
+		}
+	case strings.EqualFold(compressionAlgo, constants.ZlibSuffix):
+		{
+			reader := bytes.NewReader(decodedValue)
+			zlibReader, err := zlib.NewReader(reader)
+			if err != nil {
+				log.Log(log.ShimConfig).Error("failed to decompress decoded schedulerConfig entry ", zap.Error(err))
+				return "", ""
+			}
+			defer func() {
+				if err = zlibReader.Close(); err != nil {
+					log.Log(log.ShimConfig).Debug("zlib reader could not be closed ", zap.Error(err))
+				}
+			}()
+			decompressedBytes, err := io.ReadAll(zlibReader)
+			if err != nil {
+				log.Log(log.ShimConfig).Error("failed to decompress decoded schedulerConfig entry", zap.Error(err))
+				return "", ""
+			}
+			uncompressedData = string(decompressedBytes)
+		}
 	}
 	strippedKey, _ := strings.CutSuffix(key, "."+compressionAlgo)
 	return strippedKey, uncompressedData
