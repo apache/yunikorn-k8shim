@@ -346,7 +346,7 @@ func (task *Task) postTaskAllocated() {
 
 			dispatcher.Dispatch(NewBindTaskEvent(task.applicationID, task.taskID))
 			events.GetRecorder().Eventf(task.pod.DeepCopy(),
-				nil, v1.EventTypeNormal, "QuotaApproved", "QuotaApproved",
+				nil, v1.EventTypeNormal, "Pending", "Pending",
 				"Pod %s is ready for scheduling on node %s", task.alias, task.nodeName)
 		} else {
 			// post a message to indicate the pod gets its allocation
