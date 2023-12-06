@@ -180,6 +180,9 @@ func PodUnderCondition(pod *v1.Pod, condition *v1.PodCondition) bool {
 func GetNamespaceGuaranteedFromAnnotation(namespaceObj *v1.Namespace) *si.Resource {
 	// retrieve guaranteed resource info from annotations
 	namespaceGuaranteed := GetNameSpaceAnnotationValue(namespaceObj, constants.NamespaceGuaranteed)
+	if namespaceGuaranteed == "" {
+		return nil
+	}
 	var namespaceGuaranteedMap map[string]string
 	err := json.Unmarshal([]byte(namespaceGuaranteed), &namespaceGuaranteedMap)
 	if err != nil {
