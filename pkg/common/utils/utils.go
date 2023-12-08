@@ -102,13 +102,12 @@ func IsAssignedPod(pod *v1.Pod) bool {
 }
 
 func GetQueueNameFromPod(pod *v1.Pod) string {
-	queueName := constants.ApplicationDefaultQueue
-	if an := GetPodLabelValue(pod, constants.LabelQueueName); an != "" {
-		queueName = an
-	} else if qu := GetPodAnnotationValue(pod, constants.AnnotationQueueName); qu != "" {
-		queueName = qu
+	if queueName := GetPodLabelValue(pod, constants.LabelQueueName); queueName != "" {
+		return queueName
+	} else if queueName := GetPodAnnotationValue(pod, constants.AnnotationQueueName); queueName != "" {
+		return queueName
 	}
-	return queueName
+	return ""
 }
 
 // GenerateApplicationID generates an appID based on the namespace value
