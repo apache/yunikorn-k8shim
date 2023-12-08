@@ -179,19 +179,18 @@ func PodUnderCondition(pod *v1.Pod, condition *v1.PodCondition) bool {
 // get namespace guaranteed resource from namespace annotation
 func GetNamespaceGuaranteedFromAnnotation(namespaceObj *v1.Namespace) *si.Resource {
 	// retrieve guaranteed resource info from annotations
-	namespaceGuaranteed := GetNameSpaceAnnotationValue(namespaceObj, constants.NamespaceGuaranteed)
-	if namespaceGuaranteed == "" {
-		return nil
+	if guaranteed := GetNameSpaceAnnotationValue(namespaceObj, constants.NamespaceGuaranteed); guaranteed != "" {
+		var namespaceGuaranteedMap map[string]string
+		err := json.Unmarshal([]byte(guaranteed), &namespaceGuaranteedMap)
+		if err != nil {
+			log.Log(log.ShimUtils).Warn("Unable to process namespace.guaranteed annotation",
+				zap.String("namespace", namespaceObj.Name),
+				zap.String("namespace.guaranteed is", guaranteed))
+			return nil
+		}
+		return common.GetResource(namespaceGuaranteedMap)
 	}
-	var namespaceGuaranteedMap map[string]string
-	err := json.Unmarshal([]byte(namespaceGuaranteed), &namespaceGuaranteedMap)
-	if err != nil {
-		log.Log(log.ShimUtils).Warn("Unable to process namespace.guaranteed annotation",
-			zap.String("namespace", namespaceObj.Name),
-			zap.String("namespace.guaranteed is", namespaceGuaranteed))
-		return nil
-	}
-	return common.GetResource(namespaceGuaranteedMap)
+	return nil
 }
 
 func GetNamespaceQuotaFromAnnotation(namespaceObj *v1.Namespace) *si.Resource {
