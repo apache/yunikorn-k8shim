@@ -283,6 +283,21 @@ func TestGetNamespaceGuaranteedFromAnnotation(t *testing.T) {
 				},
 			},
 		}, nil},
+		{&v1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test",
+				Namespace: "test",
+				Annotations: map[string]string{
+					constants.NamespaceGuaranteed: "error",
+				},
+			},
+		}, nil},
+		{&v1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test",
+				Namespace: "test",
+			},
+		}, nil},
 	}
 	for _, tc := range testCases {
 		t.Run(fmt.Sprintf("namespace: %v", tc.namespace), func(t *testing.T) {
