@@ -57,11 +57,6 @@ func GetPodResource(pod *v1.Pod) (resource *si.Resource) {
 		Resources: map[string]*si.Quantity{"pods": {Value: 1}},
 	}
 
-	// A QosBestEffort pod does not request any resources, just a single pod
-	if qos.GetPodQOS(pod) == v1.PodQOSBestEffort {
-		return podResource
-	}
-
 	for _, c := range pod.Spec.Containers {
 		resourceList := c.Resources.Requests
 		containerResource := getResource(resourceList)
@@ -72,6 +67,21 @@ func GetPodResource(pod *v1.Pod) (resource *si.Resource) {
 	// max(sum(Containers requirement), InitContainers requirement)
 	if pod.Spec.InitContainers != nil {
 		checkInitContainerRequest(pod, podResource)
+	}
+
+	// iterate the pod resources when resource is zero, remove it from the pod resource
+	for k, v := range podResource.Resources {
+		if v.Value == 0 {
+			delete(podResource.Resources, k)
+		}
+	}
+
+	// A QosBestEffort pod does not request any cpu/mem resources, just a single pod
+	// But with other resources requested, it is not the best effort pod
+	if qos.GetPodQOS(pod) == v1.PodQOSBestEffort && (len(podResource.Resources) == 1) {
+		return &si.Resource{
+			Resources: map[string]*si.Quantity{"pods": {Value: 1}},
+		}
 	}
 
 	// K8s pod EnableOverHead from:
