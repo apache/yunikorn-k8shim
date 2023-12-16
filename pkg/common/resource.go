@@ -19,14 +19,12 @@
 package common
 
 import (
-	"go.uber.org/zap"
-	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
-	"k8s.io/kubernetes/pkg/apis/core/v1/helper/qos"
-
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
+	"go.uber.org/zap"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 // resource builder is a helper struct to construct si resources
@@ -67,21 +65,6 @@ func GetPodResource(pod *v1.Pod) (resource *si.Resource) {
 	// max(sum(Containers requirement), InitContainers requirement)
 	if pod.Spec.InitContainers != nil {
 		checkInitContainerRequest(pod, podResource)
-	}
-
-	// iterate the pod resources when resource is zero, remove it from the pod resource
-	for k, v := range podResource.Resources {
-		if v.Value == 0 {
-			delete(podResource.Resources, k)
-		}
-	}
-
-	// A QosBestEffort pod does not request any cpu/mem resources, just a single pod
-	// But with other resources requested, it is not the best effort pod
-	if qos.GetPodQOS(pod) == v1.PodQOSBestEffort && (len(podResource.Resources) == 1) {
-		return &si.Resource{
-			Resources: map[string]*si.Quantity{"pods": {Value: 1}},
-		}
 	}
 
 	// K8s pod EnableOverHead from:

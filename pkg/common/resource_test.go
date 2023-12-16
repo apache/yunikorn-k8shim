@@ -325,8 +325,10 @@ func TestBestEffortPod(t *testing.T) {
 	resources[v1.ResourceCPU] = resource.MustParse("0")
 
 	res = GetPodResource(pod)
-	assert.Equal(t, len(res.Resources), 1)
+	assert.Equal(t, len(res.Resources), 3)
 	assert.Equal(t, res.Resources["pods"].GetValue(), int64(1))
+	assert.Equal(t, res.Resources[siCommon.CPU].GetValue(), int64(0))
+	assert.Equal(t, res.Resources[siCommon.Memory].GetValue(), int64(0))
 }
 
 func TestGPUOnlyResources(t *testing.T) {
@@ -363,8 +365,9 @@ func TestGPUOnlyResources(t *testing.T) {
 
 	c1Resources[v1.ResourceName("nvidia.com/gpu")] = resource.MustParse("0")
 	res = GetPodResource(pod)
-	assert.Equal(t, len(res.Resources), 1)
+	assert.Equal(t, len(res.Resources), 2)
 	assert.Equal(t, res.Resources["pods"].GetValue(), int64(1))
+	assert.Equal(t, res.Resources["nvidia.com/gpu"].GetValue(), int64(0))
 }
 
 func TestNodeResource(t *testing.T) {
