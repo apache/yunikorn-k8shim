@@ -30,13 +30,11 @@ import (
 	schedv1 "k8s.io/api/scheduling/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/apache/yunikorn-core/pkg/entrypoint"
 	"github.com/apache/yunikorn-k8shim/pkg/cache"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common"
-	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
@@ -69,8 +67,7 @@ func (fc *MockScheduler) init() {
 
 	context := cache.NewContext(mockedAPIProvider)
 	rmCallback := cache.NewAsyncRMCallback(context)
-	amSvc := cache.NewAMService(context, mockedAPIProvider)
-	ss := newShimSchedulerInternal(context, mockedAPIProvider, amSvc, rmCallback)
+	ss := newShimSchedulerInternal(context, mockedAPIProvider, rmCallback)
 
 	fc.context = context
 	fc.scheduler = ss
@@ -102,7 +99,7 @@ func (fc *MockScheduler) addNode(nodeName string, nodeLabels map[string]string, 
 	cache := fc.context.GetSchedulerCache()
 	zero := resource.Scale(0)
 	// add node to the cache so that predicates can run properly
-	cache.AddNode(&v1.Node{
+	cache.UpdateNode(&v1.Node{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   nodeName,
 			Labels: nodeLabels,
@@ -131,79 +128,30 @@ func (fc *MockScheduler) addNode(nodeName string, nodeLabels map[string]string, 
 	return fc.apiProvider.GetAPIs().SchedulerAPI.UpdateNode(request)
 }
 
-// Deprecated: this method only updates the core without the shim. Prefer MockScheduler.AddPod(*v1.Pod) instead.
-func (fc *MockScheduler) addTask(appID string, taskID string, ask *si.Resource) {
-	schedCache := fc.context.GetSchedulerCache()
-	// add pod to the cache so that predicates can run properly
-	resources := make(map[v1.ResourceName]resource.Quantity)
-	for k, v := range ask.Resources {
-		resources[v1.ResourceName(k)] = *resource.NewQuantity(v.Value, resource.DecimalSI)
-	}
-	containers := make([]v1.Container, 0)
-	containers = append(containers, v1.Container{
-		Name: "container-01",
-		Resources: v1.ResourceRequirements{
-			Requests: resources,
-		},
-	})
-	pod := &v1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			UID:  types.UID(taskID),
-			Name: taskID,
-			Annotations: map[string]string{
-				constants.AnnotationApplicationID: appID,
-			},
-			Labels: map[string]string{
-				constants.LabelApplicationID: appID,
-			},
-		},
-		Spec: v1.PodSpec{
-			SchedulerName: constants.SchedulerName,
-			Containers:    containers,
-		},
-	}
-	schedCache.AddPod(pod)
-
-	fc.context.AddTask(&cache.AddTaskRequest{
-		Metadata: cache.TaskMetadata{
-			ApplicationID: appID,
-			TaskID:        taskID,
-			Pod:           pod,
-		},
-	})
-}
-
 func (fc *MockScheduler) waitAndAssertApplicationState(t *testing.T, appID, expectedState string) {
-	app := fc.context.GetApplication(appID)
-	assert.Equal(t, app != nil, true)
-	assert.Equal(t, app.GetApplicationID(), appID)
 	deadline := time.Now().Add(10 * time.Second)
 	for {
-		if app.GetApplicationState() == expectedState {
+		app := fc.context.GetApplication(appID)
+		if app != nil {
+			assert.Equal(t, app.GetApplicationID(), appID)
+		}
+		if app != nil && app.GetApplicationState() == expectedState {
 			break
+		}
+		actual := "<none>"
+		if app != nil {
+			actual = app.GetApplicationState()
 		}
 		log.Log(log.Test).Info("waiting for app state",
 			zap.String("expected", expectedState),
-			zap.String("actual", app.GetApplicationState()))
+			zap.String("actual", actual))
 		time.Sleep(time.Second)
 		if time.Now().After(deadline) {
 			t.Errorf("application %s doesn't reach expected state in given time, expecting: %s, actual: %s",
-				appID, expectedState, app.GetApplicationState())
+				appID, expectedState, actual)
+			return
 		}
 	}
-}
-
-// Deprecated: this method adds an application directly to the Context, and it skips relevant
-// code paths. Prefer MockScheduler.AddPod(*v1.Pod) instead.
-func (fc *MockScheduler) addApplication(appId string, queue string) {
-	fc.context.AddApplication(&cache.AddApplicationRequest{
-		Metadata: cache.ApplicationMetadata{
-			ApplicationID: appId,
-			QueueName:     queue,
-			User:          "test-user",
-			Tags:          map[string]string{"app-type": "test-app"},
-		},
-	})
 }
 
 func (fc *MockScheduler) removeApplication(appId string) error {
@@ -229,6 +177,7 @@ func (fc *MockScheduler) waitAndAssertTaskState(t *testing.T, appID, taskID, exp
 		if time.Now().After(deadline) {
 			t.Errorf("task %s doesn't reach expected state in given time, expecting: %s, actual: %s",
 				taskID, expectedState, task.GetTaskState())
+			return
 		}
 	}
 }

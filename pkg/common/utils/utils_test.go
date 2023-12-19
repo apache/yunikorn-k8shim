@@ -859,12 +859,12 @@ func TestGetQueueNameFromPod(t *testing.T) {
 	}
 }
 
-func TestNeedRecovery(t *testing.T) {
+func TestPodAlreadyBound(t *testing.T) {
 	const fakeNodeID = "fake-node"
 	testCases := []struct {
-		description          string
-		pod                  *v1.Pod
-		expectedRecoveryFlag bool
+		description       string
+		pod               *v1.Pod
+		expectedBoundFlag bool
 	}{
 		{"New pod pending for scheduling",
 			&v1.Pod{
@@ -930,8 +930,8 @@ func TestNeedRecovery(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.description, func(t *testing.T) {
-			recovery := NeedRecovery(tc.pod)
-			assert.Equal(t, recovery, tc.expectedRecoveryFlag, tc.description)
+			bound := PodAlreadyBound(tc.pod)
+			assert.Equal(t, bound, tc.expectedBoundFlag, tc.description)
 		})
 	}
 }

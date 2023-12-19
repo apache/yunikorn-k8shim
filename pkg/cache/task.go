@@ -198,26 +198,12 @@ func (task *Task) isTerminated() bool {
 
 // task object initialization
 // normally when task is added, the task state is New
-// but during recovery, we need to init the task state according to
+// but during scheduler init after restart, we need to init the task state according to
 // the task pod status. if the pod is already terminated,
 // we should mark the task as completed according.
 func (task *Task) initialize() {
 	task.lock.Lock()
 	defer task.lock.Unlock()
-
-	// task needs recovery means the task has already been
-	// scheduled by us with an allocation, instead of starting
-	// from New, directly set the task to Bound.
-	if utils.NeedRecovery(task.pod) {
-		task.allocationID = string(task.pod.UID)
-		task.nodeName = task.pod.Spec.NodeName
-		task.sm.SetState(TaskStates().Bound)
-		log.Log(log.ShimCacheTask).Info("set task as Bound",
-			zap.String("appID", task.applicationID),
-			zap.String("taskID", task.taskID),
-			zap.String("allocationID", task.allocationID),
-			zap.String("nodeName", task.nodeName))
-	}
 
 	// task already terminated, succeed or failed
 	// that means the task was already allocated and completed
@@ -290,30 +276,49 @@ func (task *Task) handleSubmitTaskEvent() {
 		AllowPreemptOther: task.isPreemptOtherAllowed(),
 	}
 
-	// convert the request
-	rr := common.CreateAllocationRequestForTask(
-		task.applicationID,
-		task.taskID,
-		task.resource,
-		task.placeholder,
-		task.taskGroupName,
-		task.pod,
-		task.originator,
-		preemptionPolicy)
-	log.Log(log.ShimCacheTask).Debug("send update request", zap.Stringer("request", rr))
-	if err := task.context.apiProvider.GetAPIs().SchedulerAPI.UpdateAllocation(rr); err != nil {
-		log.Log(log.ShimCacheTask).Debug("failed to send scheduling request to scheduler", zap.Error(err))
-		return
-	}
+	if utils.PodAlreadyBound(task.pod) {
+		// submit allocation
+		rr := common.CreateAllocationForTask(
+			task.applicationID,
+			task.taskID,
+			task.pod.Spec.NodeName,
+			task.resource,
+			task.placeholder,
+			task.taskGroupName,
+			task.pod,
+			task.originator,
+			preemptionPolicy)
+		log.Log(log.ShimCacheTask).Debug("send update request", zap.Stringer("request", rr))
+		if err := task.context.apiProvider.GetAPIs().SchedulerAPI.UpdateAllocation(rr); err != nil {
+			log.Log(log.ShimCacheTask).Debug("failed to send allocation to scheduler", zap.Error(err))
+			return
+		}
+	} else {
+		// submit allocation ask
+		rr := common.CreateAllocationRequestForTask(
+			task.applicationID,
+			task.taskID,
+			task.resource,
+			task.placeholder,
+			task.taskGroupName,
+			task.pod,
+			task.originator,
+			preemptionPolicy)
+		log.Log(log.ShimCacheTask).Debug("send update request", zap.Stringer("request", rr))
+		if err := task.context.apiProvider.GetAPIs().SchedulerAPI.UpdateAllocation(rr); err != nil {
+			log.Log(log.ShimCacheTask).Debug("failed to send scheduling request to scheduler", zap.Error(err))
+			return
+		}
 
-	events.GetRecorder().Eventf(task.pod.DeepCopy(), nil, v1.EventTypeNormal, "Scheduling", "Scheduling",
-		"%s is queued and waiting for allocation", task.alias)
-	// if this task belongs to a task group, that means the app has gang scheduling enabled
-	// in this case, post an event to indicate the task is being gang scheduled
-	if !task.placeholder && task.taskGroupName != "" {
-		events.GetRecorder().Eventf(task.pod.DeepCopy(), nil,
-			v1.EventTypeNormal, "GangScheduling", "GangScheduling",
-			"Pod belongs to the taskGroup %s, it will be scheduled as a gang member", task.taskGroupName)
+		events.GetRecorder().Eventf(task.pod.DeepCopy(), nil, v1.EventTypeNormal, "Scheduling", "Scheduling",
+			"%s is queued and waiting for allocation", task.alias)
+		// if this task belongs to a task group, that means the app has gang scheduling enabled
+		// in this case, post an event to indicate the task is being gang scheduled
+		if !task.placeholder && task.taskGroupName != "" {
+			events.GetRecorder().Eventf(task.pod.DeepCopy(), nil,
+				v1.EventTypeNormal, "GangScheduling", "GangScheduling",
+				"Pod belongs to the taskGroup %s, it will be scheduled as a gang member", task.taskGroupName)
+		}
 	}
 }
 

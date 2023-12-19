@@ -60,7 +60,7 @@ func getTaskMetadata(pod *v1.Pod) (TaskMetadata, bool) {
 	}, true
 }
 
-func getAppMetadata(pod *v1.Pod, recovery bool) (ApplicationMetadata, bool) {
+func getAppMetadata(pod *v1.Pod) (ApplicationMetadata, bool) {
 	appID := utils.GetApplicationIDFromPod(pod)
 	if appID == "" {
 		log.Log(log.ShimCacheApplication).Debug("unable to get application for pod",
@@ -113,11 +113,7 @@ func getAppMetadata(pod *v1.Pod, recovery bool) (ApplicationMetadata, bool) {
 	ownerReferences := getOwnerReference(pod)
 	schedulingPolicyParams := GetSchedulingPolicyParam(pod)
 	tags[constants.AnnotationSchedulingPolicyParam] = pod.Annotations[constants.AnnotationSchedulingPolicyParam]
-
-	var creationTime int64
-	if recovery {
-		creationTime = pod.CreationTimestamp.Unix()
-	}
+	creationTime := pod.CreationTimestamp.Unix()
 
 	return ApplicationMetadata{
 		ApplicationID:              appID,
