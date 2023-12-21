@@ -21,6 +21,7 @@ package conf
 import (
 	"bytes"
 	"compress/gzip"
+	"compress/zlib"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -459,28 +460,41 @@ func Decompress(key string, value []byte) (string, string) {
 		return "", ""
 	}
 	decodedValue = decodedValue[:n]
+	reader := bytes.NewReader(decodedValue)
+
 	splitKey := strings.Split(key, ".")
 	compressionAlgo := splitKey[len(splitKey)-1]
-	if strings.EqualFold(compressionAlgo, constants.GzipSuffix) {
-		reader := bytes.NewReader(decodedValue)
-		gzReader, err := gzip.NewReader(reader)
-		if err != nil {
-			log.Log(log.ShimConfig).Error("failed to decompress decoded schedulerConfig entry", zap.Error(err))
-			return "", ""
-		}
-		defer func() {
-			if err = gzReader.Close(); err != nil {
-				log.Log(log.ShimConfig).Debug("gzip Reader could not be closed ", zap.Error(err))
-			}
-		}()
-		decompressedBytes, err := io.ReadAll(gzReader)
-		if err != nil {
-			log.Log(log.ShimConfig).Error("failed to decompress decoded schedulerConfig entry", zap.Error(err))
-			return "", ""
-		}
-		uncompressedData = string(decompressedBytes)
+
+	var compressionReader io.ReadCloser
+	switch compressionAlgo {
+	case constants.GzipSuffix:
+		compressionReader, err = gzip.NewReader(reader)
+	case constants.ZlibSuffix:
+		compressionReader, err = zlib.NewReader(reader)
 	}
+
+	if err != nil {
+		log.Log(log.ShimConfig).Error(fmt.Sprintf("failed to decompress decoded schedulerConfig entry with %s compression algorithm", compressionAlgo), zap.Error(err))
+		return "", ""
+	}
+
 	strippedKey, _ := strings.CutSuffix(key, "."+compressionAlgo)
+	if compressionReader == nil {
+		return strippedKey, ""
+	}
+
+	defer func() {
+		if err = compressionReader.Close(); err != nil {
+			log.Log(log.ShimConfig).Debug("reader could not be closed ", zap.Error(err))
+		}
+	}()
+
+	decompressedBytes, err := io.ReadAll(compressionReader)
+	if err != nil {
+		log.Log(log.ShimConfig).Error("failed to decompress decoded schedulerConfig entry", zap.Error(err))
+		return "", ""
+	}
+	uncompressedData = string(decompressedBytes)
 	return strippedKey, uncompressedData
 }
 

@@ -115,3 +115,4 @@ const AutoGenAppSuffix = "autogen"
 
 // Compression Algorithms for schedulerConfig
 const GzipSuffix = "gz"
+const ZlibSuffix = "zlib"

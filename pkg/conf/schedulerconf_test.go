@@ -20,6 +20,7 @@ package conf
 import (
 	"bytes"
 	"compress/gzip"
+	"compress/zlib"
 	"encoding/base64"
 	"fmt"
 	"reflect"
@@ -77,7 +78,7 @@ func assertDefaults(t *testing.T, conf *SchedulerConf) {
 	assert.Equal(t, conf.UserLabelKey, constants.DefaultUserLabel)
 }
 
-func TestDecompress(t *testing.T) {
+func TestDecompressGzip(t *testing.T) {
 	var b bytes.Buffer
 	gzWriter := gzip.NewWriter(&b)
 	if _, err := gzWriter.Write([]byte(configs.DefaultSchedulerConfig)); err != nil {
@@ -92,6 +93,52 @@ func TestDecompress(t *testing.T) {
 	key, decodedConfigString := Decompress("queues.yaml."+constants.GzipSuffix, encodedConfigString)
 	assert.Equal(t, "queues.yaml", key)
 	assert.Equal(t, configs.DefaultSchedulerConfig, decodedConfigString)
+}
+
+func TestDecompressZlib(t *testing.T) {
+	var b bytes.Buffer
+	zlibWriter := zlib.NewWriter(&b)
+	if _, err := zlibWriter.Write([]byte(configs.DefaultSchedulerConfig)); err != nil {
+		assert.NilError(t, err, "expected nil, got error while compressing test schedulerConfig")
+	}
+	if err := zlibWriter.Close(); err != nil {
+		assert.NilError(t, err, "expected nil, got error")
+		t.Fatal("expected nil, got error")
+	}
+	encodedConfigString := make([]byte, base64.StdEncoding.EncodedLen(len(b.Bytes())))
+	base64.StdEncoding.Encode(encodedConfigString, b.Bytes())
+	key, decodedConfigString := Decompress("queues.yaml."+constants.ZlibSuffix, encodedConfigString)
+	assert.Equal(t, "queues.yaml", key)
+	assert.Equal(t, configs.DefaultSchedulerConfig, decodedConfigString)
+}
+
+func TestDecompressString(t *testing.T) {
+	testCases := []struct {
+		name                                string
+		base64EncodedCompressedConfigString string
+		suffix                              string
+	}{
+		{
+			name: "gzip case",
+			// echo "$CONFIG" | pigz -c | base64
+			base64EncodedCompressedConfigString: "H4sIAAAAAAAAA2WMSw4CMQxD9z2FdyMhcYHeJnQCqpR+Jk04Py2f2eDl87NDJ7VsudURA3BFpcIRO9/JxSYBulDiwtXUhd/Wys80enwJ8CTxiVYx+hydRVImW7L6Bx7O/v+lrdm5GX4r2ShJxHbZwguyVjOrqQAAAA==",
+			suffix:                              constants.GzipSuffix,
+		},
+		{
+			name: "zlib case",
+			// echo "$CONFIG" | pigz -zc | base64
+			base64EncodedCompressedConfigString: "eF5ljEsOAjEMQ/c9hXcjIXGB3iZ0AqqUfiZNOD8tn9ng5fOzQye1bLnVEQNwRaXCETvfycUmAbpQ4sLV1IXf1srPNHp8CfAk8YlWMfocnUVSJluy+gcezv7/pa3ZuRl+K9koScR22cILe14voQ==",
+			suffix:                              constants.ZlibSuffix,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			key, decodedConfigString := Decompress("queues.yaml."+tc.suffix, []byte(tc.base64EncodedCompressedConfigString))
+			assert.Equal(t, "queues.yaml", key)
+			assert.Equal(t, configs.DefaultSchedulerConfig, decodedConfigString)
+		})
+	}
 }
 
 func TestDecompressUnknownKey(t *testing.T) {
