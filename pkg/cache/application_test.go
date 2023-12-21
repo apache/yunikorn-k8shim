@@ -509,6 +509,9 @@ func (ms *mockSchedulerAPI) UpdateConfiguration(request *si.UpdateConfigurationR
 	return nil
 }
 
+func (ms *mockSchedulerAPI) Stop() {
+}
+
 func assertAppState(t *testing.T, app *Application, expectedState string, duration time.Duration) {
 	deadline := time.Now().Add(duration)
 	for {

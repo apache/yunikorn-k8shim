@@ -146,3 +146,6 @@ func (api *SchedulerAPIMock) ResetAllCounters() {
 	atomic.StoreInt32(&api.UpdateApplicationCount, 0)
 	atomic.StoreInt32(&api.UpdateNodeCount, 0)
 }
+
+func (api *SchedulerAPIMock) Stop() {
+}
