@@ -391,13 +391,41 @@ func (k *KubeCtl) DeleteNamespace(namespace string) error {
 }
 
 func (k *KubeCtl) TearDownNamespace(namespace string) error {
-	err := k.DeletePods(namespace)
+	var err error
+	err = k.DeleteJobs(namespace)
+	if err != nil {
+		return err
+	}
+
+	err = k.DeletePods(namespace)
 	if err != nil {
 		return err
 	}
 
 	// Delete namespace
 	return k.clientSet.CoreV1().Namespaces().Delete(context.TODO(), namespace, metav1.DeleteOptions{})
+}
+
+func (k *KubeCtl) DeleteJobs(namespace string) error {
+	// Delete all jobs
+	var jobs, err = k.GetJobNamesFromNS(namespace)
+	if err != nil {
+		return err
+	}
+	for _, each := range jobs {
+		err = k.DeleteJob(each, namespace)
+		if err != nil {
+			if statusErr, ok := err.(*k8serrors.StatusError); ok {
+				if statusErr.ErrStatus.Reason == metav1.StatusReasonNotFound {
+					fmt.Fprintf(ginkgo.GinkgoWriter, "Failed to delete job %s - reason is %s, it "+
+						"has been deleted in the meantime\n", each, statusErr.ErrStatus.Reason)
+					continue
+				}
+			}
+			return err
+		}
+	}
+	return nil
 }
 
 func (k *KubeCtl) DeletePods(namespace string) error {
