@@ -1282,8 +1282,8 @@ func TestPublishEventsCorrectly(t *testing.T) {
 	message := "event_related_message"
 	eventRecords = append(eventRecords, &si.EventRecord{
 		Type:        si.EventRecord_REQUEST,
-		ReferenceID: "task_event",
-		ObjectID:    "app_event",
+		ObjectID:    "task_event",
+		ReferenceID: "app_event",
 		Message:     message,
 	})
 	context.PublishEvents(eventRecords)
