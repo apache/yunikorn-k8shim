@@ -1039,8 +1039,8 @@ func (ctx *Context) PublishEvents(eventRecords []*si.EventRecord) {
 		for _, record := range eventRecords {
 			switch record.Type {
 			case si.EventRecord_REQUEST:
-				appID := record.ObjectID
-				taskID := record.ReferenceID
+				appID := record.ReferenceID
+				taskID := record.ObjectID
 				if task := ctx.getTask(appID, taskID); task != nil {
 					events.GetRecorder().Eventf(task.GetTaskPod().DeepCopy(), nil,
 						v1.EventTypeNormal, "", "", record.Message)
