@@ -19,16 +19,19 @@
 package gangscheduling_test
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/ginkgo/v2/reporters"
+
 	"github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/ginkgo_writer"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
 )
@@ -55,8 +58,12 @@ func TestGangScheduling(t *testing.T) {
 var oldConfigMap = new(v1.ConfigMap)
 var annotation = "ann-" + common.RandSeq(10)
 var kClient = k8s.KubeCtl{} //nolint
+var artifactFile *os.File
 
 var _ = BeforeSuite(func() {
+	suiteName := "gang_scheduling"
+	artifactFile = ginkgo_writer.SetGinkgoWriterToFile(suiteName)
+
 	annotation = "ann-" + common.RandSeq(10)
 	yunikorn.EnsureYuniKornConfigsPresent()
 	yunikorn.UpdateConfigMapWrapper(oldConfigMap, "fifo", annotation)
@@ -64,6 +71,7 @@ var _ = BeforeSuite(func() {
 
 var _ = AfterSuite(func() {
 	yunikorn.RestoreConfigMapWrapper(oldConfigMap, annotation)
+	artifactFile.Close()
 })
 
 // Declarations for Ginkgo DSL

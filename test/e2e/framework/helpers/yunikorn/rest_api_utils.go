@@ -29,6 +29,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/onsi/ginkgo/v2"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 
@@ -357,7 +358,7 @@ func (c *RClient) LogAppsInfo(ns string) error {
 	if appJSONErr != nil {
 		return appJSONErr
 	}
-	By("Apps REST API response is\n" + string(appJSON))
+	fmt.Fprintf(ginkgo.GinkgoWriter, "Apps REST API response is\n %s\n", string(appJSON))
 	return nil
 }
 
@@ -370,7 +371,7 @@ func (c *RClient) LogQueuesInfo() error {
 	if qJSONErr != nil {
 		return getQErr
 	}
-	By("Queues REST API response is\n" + string(qJSON))
+	fmt.Fprintf(ginkgo.GinkgoWriter, "Queues REST API response is\n%s\n", string(qJSON))
 	return nil
 }
 
@@ -383,7 +384,7 @@ func (c *RClient) LogNodesInfo() error {
 	if nodeJSONErr != nil {
 		return nodeJSONErr
 	}
-	By("Node REST API response is\n" + string(nodesJSON))
+	fmt.Fprintf(ginkgo.GinkgoWriter, "Node REST API response is\n%s\n", string(nodesJSON))
 	return nil
 }
 

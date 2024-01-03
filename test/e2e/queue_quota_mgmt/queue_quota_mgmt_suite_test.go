@@ -19,6 +19,7 @@
 package queuequotamgmt_test
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -31,6 +32,7 @@ import (
 
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/ginkgo_writer"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
 )
 
@@ -40,14 +42,19 @@ func init() {
 
 var oldConfigMap = new(v1.ConfigMap)
 var annotation = "ann-" + common.RandSeq(10)
+var artifactFile *os.File
 
 var _ = BeforeSuite(func() {
+	suiteName := "queue_quota_mgmt"
+	artifactFile = ginkgo_writer.SetGinkgoWriterToFile(suiteName)
+
 	yunikorn.EnsureYuniKornConfigsPresent()
 	yunikorn.UpdateConfigMapWrapper(oldConfigMap, "", annotation)
 })
 
 var _ = AfterSuite(func() {
 	yunikorn.RestoreConfigMapWrapper(oldConfigMap, annotation)
+	artifactFile.Close()
 })
 
 func TestQueueQuotaMgmt(t *testing.T) {

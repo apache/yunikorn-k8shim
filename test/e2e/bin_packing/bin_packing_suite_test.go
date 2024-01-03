@@ -19,6 +19,7 @@
 package bin_packing
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -30,6 +31,7 @@ import (
 	"github.com/apache/yunikorn-core/pkg/common/configs"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/ginkgo_writer"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
 )
@@ -56,8 +58,11 @@ func TestBinPacking(t *testing.T) {
 var oldConfigMap = new(v1.ConfigMap)
 var annotation = "ann-" + common.RandSeq(10)
 var kClient = k8s.KubeCtl{} //nolint
+var artifactFile *os.File
 
 var _ = BeforeSuite(func() {
+	suiteName := "bin_packing"
+	artifactFile = ginkgo_writer.SetGinkgoWriterToFile(suiteName)
 
 	Ω(kClient.SetClient()).To(BeNil())
 	/* Sample configMap. Post-update, Yunikorn will use binpacking node sort and fair app sort
@@ -109,6 +114,7 @@ var _ = BeforeSuite(func() {
 
 var _ = AfterSuite(func() {
 	yunikorn.RestoreConfigMapWrapper(oldConfigMap, annotation)
+	artifactFile.Close()
 })
 
 var Describe = ginkgo.Describe

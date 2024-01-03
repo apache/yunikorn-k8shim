@@ -64,6 +64,10 @@ const (
 
 	// Partitions
 	DefaultPartition = "default"
+
+	// Gingko artifact
+	ArtifactPathEnv     = "ARTIFACT_PATH"
+	DefaultArtifactPath = "/tmp/e2e-test-artifacts"
 )
 
 func GetConfigMapName() string {

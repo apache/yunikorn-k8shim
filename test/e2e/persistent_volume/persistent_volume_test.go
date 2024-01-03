@@ -19,6 +19,7 @@
 package persistent_volume
 
 import (
+	"os"
 	"time"
 
 	"github.com/onsi/gomega"
@@ -34,6 +35,7 @@ import (
 	"github.com/onsi/ginkgo/v2"
 
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/ginkgo_writer"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
 )
@@ -41,6 +43,7 @@ import (
 var kClient k8s.KubeCtl
 var restClient yunikorn.RClient
 var dev = "dev-" + common.RandSeq(5)
+var artifactFile *os.File
 
 const (
 	LocalTypePv    = "Local"
@@ -48,6 +51,9 @@ const (
 )
 
 var _ = ginkgo.BeforeSuite(func() {
+	suiteName := "persistent_volume"
+	artifactFile = ginkgo_writer.SetGinkgoWriterToFile(suiteName)
+
 	// Initializing kubectl client
 	kClient = k8s.KubeCtl{}
 	Ω(kClient.SetClient()).To(gomega.BeNil())
@@ -76,6 +82,7 @@ var _ = ginkgo.AfterSuite(func() {
 	Ω(err).NotTo(HaveOccurred())
 	Ω(err2).NotTo(HaveOccurred())
 	Ω(err3).NotTo(HaveOccurred())
+	artifactFile.Close()
 })
 
 var _ = ginkgo.Describe("PersistentVolume", func() {
