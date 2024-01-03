@@ -147,8 +147,8 @@ var _ = Describe("DripFeedSchedule:", func() {
 
 		testDescription := ginkgo.CurrentSpecReport()
 		if testDescription.Failed() {
-			tests.LogTestClusterInfoWrapper(testDescription.FailureMessage(), []string{ns})
-			tests.LogYunikornContainer(testDescription.FailureMessage())
+			tests.LogTestClusterInfoWrapper(testDescription.FullText(), testDescription.FailureMessage(), []string{ns})
+			tests.LogYunikornContainer(testDescription.FullText())
 		}
 		By("Tearing down namespace: " + ns)
 		err = kClient.TearDownNamespace(ns)

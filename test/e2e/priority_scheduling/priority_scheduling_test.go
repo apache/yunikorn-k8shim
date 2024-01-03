@@ -393,8 +393,8 @@ var _ = ginkgo.Describe("PriorityScheduling", func() {
 	ginkgo.AfterEach(func() {
 		testDescription := ginkgo.CurrentSpecReport()
 		if testDescription.Failed() {
-			tests.LogTestClusterInfoWrapper(testDescription.FailureMessage(), []string{ns})
-			tests.LogYunikornContainer(testDescription.FailureMessage())
+			tests.LogTestClusterInfoWrapper(testDescription.FullText(), testDescription.FailureMessage(), []string{ns})
+			tests.LogYunikornContainer(testDescription.FullText())
 		}
 
 		// If there is any error test case, we need to delete all pods to make sure it doesn't influence other cases.

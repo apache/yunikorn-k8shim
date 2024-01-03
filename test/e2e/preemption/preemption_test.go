@@ -20,6 +20,7 @@ package preemption_test
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -33,6 +34,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	tests "github.com/apache/yunikorn-k8shim/test/e2e"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/ginkgo_writer"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
 )
@@ -43,6 +45,7 @@ var ns *v1.Namespace
 var dev string
 var oldConfigMap = new(v1.ConfigMap)
 var annotation = "ann-" + common.RandSeq(10)
+var artifactFile *os.File
 
 // Nodes
 var Worker = ""
@@ -53,6 +56,9 @@ var taintKey = "e2e_test_preemption"
 var nodesToTaint []string
 
 var _ = ginkgo.BeforeSuite(func() {
+	suiteName := "preemption"
+	artifactFile = ginkgo_writer.SetGinkgoWriterToFile(suiteName)
+
 	// Initializing kubectl client
 	kClient = k8s.KubeCtl{}
 	Ω(kClient.SetClient()).To(gomega.BeNil())
@@ -100,15 +106,15 @@ var _ = ginkgo.BeforeSuite(func() {
 		}
 	}
 	WorkerMemRes /= (1000 * 1000) // change to M
-	fmt.Fprintf(ginkgo.GinkgoWriter, "Worker node %s available memory %dM\n", Worker, WorkerMemRes)
+	ginkgo.By(fmt.Sprintf("Worker node %s available memory %dM", Worker, WorkerMemRes))
 
 	sleepPodMemLimit = int64(float64(WorkerMemRes) / 3)
 	Ω(sleepPodMemLimit).NotTo(gomega.BeZero(), "Sleep pod memory limit cannot be zero")
-	fmt.Fprintf(ginkgo.GinkgoWriter, "Sleep pod limit memory %dM\n", sleepPodMemLimit)
+	ginkgo.By(fmt.Sprintf("Sleep pod limit memory %dM", sleepPodMemLimit))
 
 	sleepPodMemLimit2 = int64(float64(WorkerMemRes) / 4)
 	Ω(sleepPodMemLimit2).NotTo(gomega.BeZero(), "Sleep pod memory limit cannot be zero")
-	fmt.Fprintf(ginkgo.GinkgoWriter, "Sleep pod limit memory %dM\n", sleepPodMemLimit2)
+	ginkgo.By(fmt.Sprintf("Sleep pod limit memory %dM", sleepPodMemLimit2))
 })
 
 var _ = ginkgo.AfterSuite(func() {
@@ -121,6 +127,7 @@ var _ = ginkgo.AfterSuite(func() {
 	checks, err := yunikorn.GetFailedHealthChecks()
 	Ω(err).NotTo(gomega.HaveOccurred())
 	Ω(checks).To(gomega.Equal(""), checks)
+	artifactFile.Close()
 })
 
 var _ = ginkgo.Describe("Preemption", func() {
@@ -550,8 +557,8 @@ var _ = ginkgo.Describe("Preemption", func() {
 	ginkgo.AfterEach(func() {
 		testDescription := ginkgo.CurrentSpecReport()
 		if testDescription.Failed() {
-			tests.LogTestClusterInfoWrapper(testDescription.FailureMessage(), []string{ns.Name})
-			tests.LogYunikornContainer(testDescription.FailureMessage())
+			tests.LogTestClusterInfoWrapper(testDescription.FullText(), testDescription.FailureMessage(), []string{ns.Name})
+			tests.LogYunikornContainer(testDescription.FullText())
 		}
 
 		ginkgo.By("Tear down namespace: " + dev)

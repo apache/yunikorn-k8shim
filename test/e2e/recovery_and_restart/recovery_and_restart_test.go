@@ -20,6 +20,7 @@ package recoveryandrestart_test
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -30,6 +31,7 @@ import (
 
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/ginkgo_writer"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
 )
@@ -51,12 +53,16 @@ var oldConfigMap = new(v1.ConfigMap)
 var sleepRespPod *v1.Pod
 var dev = "dev" + common.RandSeq(5)
 var annotation = "ann-" + common.RandSeq(10)
+var artifactFile *os.File
 
 // Define sleepPod
 var sleepPodConfigs = k8s.SleepPodConfig{Name: "sleepjob", NS: dev}
 var sleepPod2Configs = k8s.SleepPodConfig{Name: "sleepjob2", NS: dev}
 
 var _ = ginkgo.BeforeSuite(func() {
+	suiteName := "recovery_and_restart"
+	artifactFile = ginkgo_writer.SetGinkgoWriterToFile(suiteName)
+
 	// Initializing kubectl client
 	kClient = k8s.KubeCtl{}
 	Ω(kClient.SetClient()).To(gomega.BeNil())
@@ -121,6 +127,7 @@ var _ = ginkgo.AfterSuite(func() {
 	var e, err3 = kClient.UpdateConfigMap(c, configmanager.YuniKornTestConfig.YkNamespace)
 	Ω(err3).NotTo(gomega.HaveOccurred())
 	Ω(e).NotTo(gomega.BeNil())
+	artifactFile.Close()
 })
 
 var _ = ginkgo.Describe("", func() {
@@ -179,10 +186,9 @@ var _ = ginkgo.Describe("", func() {
 		ginkgo.By("Listing pods")
 		pods, err := kClient.GetPods(dev)
 		Ω(err).NotTo(gomega.HaveOccurred())
-		fmt.Fprintf(ginkgo.GinkgoWriter, "Total number of pods in namespace %s: %d\n",
-			dev, len(pods.Items))
+		ginkgo.By(fmt.Sprintf("Total number of pods in namespace %s: %d", dev, len(pods.Items)))
 		for _, pod := range pods.Items {
-			fmt.Fprintf(ginkgo.GinkgoWriter, "Pod name: %-40s\tStatus: %s\n", pod.GetName(), pod.Status.Phase)
+			ginkgo.By(fmt.Sprintf("Pod name: %-40s\tStatus: %s", pod.GetName(), pod.Status.Phase))
 		}
 
 		ginkgo.By("Waiting for sleep pods to be running")
@@ -250,12 +256,11 @@ var _ = ginkgo.Describe("", func() {
 		var groupAPlaceholderCount int
 		var groupBPlaceholderCount int
 		var jobPodCount int
-		fmt.Fprintf(ginkgo.GinkgoWriter, "Total number of pods in namespace %s: %d\n",
-			dev, len(pods.Items))
+		ginkgo.By(fmt.Sprintf("Total number of pods in namespace %s: %d", dev, len(pods.Items)))
 		for _, pod := range pods.Items {
 			podPhase := pod.Status.Phase
 			podName := pod.GetName()
-			fmt.Fprintf(ginkgo.GinkgoWriter, "Pod name: %-40s\tStatus: %s\n", podName, podPhase)
+			ginkgo.By(fmt.Sprintf("Pod name: %-40s\tStatus: %s", podName, podPhase))
 			if strings.HasPrefix(podName, groupAPrefix) {
 				groupAPlaceholderCount++
 				Ω(podPhase).To(gomega.Equal(v1.PodRunning))
@@ -313,8 +318,8 @@ var _ = ginkgo.Describe("", func() {
 
 		memoryGiB := workerResource.ScaledValue(resource.Giga)
 		placeholderCount := int32(memoryGiB/3 + 2) // get a reasonable number to have both Running/Pending PH pods
-		fmt.Fprintf(ginkgo.GinkgoWriter, "%s allocatable memory in GiB = %d, number of placeholders to use = %d\n",
-			selectedNode, memoryGiB, placeholderCount)
+		ginkgo.By(fmt.Sprintf("%s allocatable memory in GiB = %d, number of placeholders to use = %d",
+			selectedNode, memoryGiB, placeholderCount))
 
 		ginkgo.By("Tainting all nodes except " + selectedNode)
 		err = kClient.TaintNodes(nodesToTaint, taintKey, "value", v1.TaintEffectNoSchedule)

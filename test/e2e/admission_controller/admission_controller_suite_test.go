@@ -20,6 +20,7 @@ package admission_controller_test
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -35,6 +36,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/ginkgo_writer"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
 )
@@ -54,6 +56,7 @@ var one = int32(1)
 var preemptPolicyNever = v1.PreemptNever
 var preemptPolicyPreemptLower = v1.PreemptLowerPriority
 var annotation = "ann-" + common.RandSeq(10)
+var artifactFile *os.File
 
 var testPod = v1.Pod{
 	ObjectMeta: metav1.ObjectMeta{
@@ -188,6 +191,9 @@ func TestAdmissionController(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
+	suiteName := "admission_controller"
+	artifactFile = ginkgo_writer.SetGinkgoWriterToFile(suiteName)
+
 	restClient = yunikorn.RClient{}
 
 	kubeClient = k8s.KubeCtl{}
@@ -231,4 +237,5 @@ var _ = AfterSuite(func() {
 	Ω(err).ShouldNot(HaveOccurred())
 
 	yunikorn.RestoreConfigMapWrapper(oldConfigMap, annotation)
+	artifactFile.Close()
 })
