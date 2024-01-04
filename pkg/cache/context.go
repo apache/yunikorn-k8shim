@@ -22,13 +22,17 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
 	schedulingv1 "k8s.io/api/scheduling/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/volumebinding"
@@ -48,10 +52,11 @@ import (
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
 
+const registerNodeContextHandler = "RegisterNodeContextHandler"
+
 // context maintains scheduling state, like apps and apps' tasks.
 type Context struct {
 	applications   map[string]*Application        // apps
-	nodes          *schedulerNodes                // nodes
 	schedulerCache *schedulercache.SchedulerCache // external cache
 	apiProvider    client.APIProvider             // apis to interact with api-server, scheduler-core, etc
 	predManager    predicates.PredicateManager    // K8s predicates
@@ -59,6 +64,7 @@ type Context struct {
 	namespace      string                         // yunikorn namespace
 	configMaps     []*v1.ConfigMap                // cached yunikorn configmaps
 	lock           *sync.RWMutex                  // lock
+	txnID          atomic.Uint64                  // transaction ID counter
 }
 
 // NewContext create a new context for the scheduler using a default (empty) configuration
@@ -85,9 +91,6 @@ func NewContextWithBootstrapConfigMaps(apis client.APIProvider, bootstrapConfigM
 	// create the cache
 	ctx.schedulerCache = schedulercache.NewSchedulerCache(apis.GetAPIs())
 
-	// init the controllers and plugins (need the cache)
-	ctx.nodes = newSchedulerNodes(apis.GetAPIs().SchedulerAPI, ctx.schedulerCache)
-
 	// create the predicate manager
 	sharedLister := support.NewSharedLister(ctx.schedulerCache)
 	clientSet := apis.GetAPIs().KubeClient.GetClientSet()
@@ -98,20 +101,6 @@ func NewContextWithBootstrapConfigMaps(apis client.APIProvider, bootstrapConfigM
 }
 
 func (ctx *Context) AddSchedulingEventHandlers() {
-	ctx.apiProvider.AddEventHandler(&client.ResourceEventHandlers{
-		Type:     client.NodeInformerHandlers,
-		AddFn:    ctx.addNode,
-		UpdateFn: ctx.updateNode,
-		DeleteFn: ctx.deleteNode,
-	})
-
-	ctx.apiProvider.AddEventHandler(&client.ResourceEventHandlers{
-		Type:     client.PodInformerHandlers,
-		AddFn:    ctx.addPod,
-		UpdateFn: ctx.updatePod,
-		DeleteFn: ctx.deletePod,
-	})
-
 	ctx.apiProvider.AddEventHandler(&client.ResourceEventHandlers{
 		Type:     client.ConfigMapInformerHandlers,
 		FilterFn: ctx.filterConfigMaps,
@@ -126,6 +115,18 @@ func (ctx *Context) AddSchedulingEventHandlers() {
 		UpdateFn: ctx.updatePriorityClass,
 		DeleteFn: ctx.deletePriorityClass,
 	})
+	ctx.apiProvider.AddEventHandler(&client.ResourceEventHandlers{
+		Type:     client.NodeInformerHandlers,
+		AddFn:    ctx.addNode,
+		UpdateFn: ctx.updateNode,
+		DeleteFn: ctx.deleteNode,
+	})
+	ctx.apiProvider.AddEventHandler(&client.ResourceEventHandlers{
+		Type:     client.PodInformerHandlers,
+		AddFn:    ctx.AddPod,
+		UpdateFn: ctx.UpdatePod,
+		DeleteFn: ctx.DeletePod,
+	})
 }
 
 func (ctx *Context) IsPluginMode() bool {
@@ -133,57 +134,86 @@ func (ctx *Context) IsPluginMode() bool {
 }
 
 func (ctx *Context) addNode(obj interface{}) {
+	ctx.updateNode(nil, obj)
+}
+
+func (ctx *Context) updateNode(_, obj interface{}) {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
-
 	node, err := convertToNode(obj)
 	if err != nil {
 		log.Log(log.ShimContext).Error("node conversion failed", zap.Error(err))
 		return
 	}
-
-	// add node to secondary scheduler cache
-	log.Log(log.ShimContext).Warn("adding node to cache", zap.String("NodeName", node.Name))
-	ctx.schedulerCache.AddNode(node)
-
-	// add node to internal cache
-	ctx.nodes.addNode(node)
-
-	// post the event
-	events.GetRecorder().Eventf(node.DeepCopy(), nil, v1.EventTypeNormal, "NodeAccepted", "NodeAccepted",
-		fmt.Sprintf("node %s is accepted by the scheduler", node.Name))
+	ctx.updateNodeInternal(node, true)
 }
 
-func (ctx *Context) updateNode(oldObj, newObj interface{}) {
-	ctx.lock.Lock()
-	defer ctx.lock.Unlock()
+func (ctx *Context) updateNodeInternal(node *v1.Node, register bool) {
+	// update scheduler cache
+	if prevNode, adoptedPods := ctx.schedulerCache.UpdateNode(node); prevNode == nil {
+		// newly added node
 
-	// we only trigger update when resource changes
-	oldNode, err := convertToNode(oldObj)
-	if err != nil {
-		log.Log(log.ShimContext).Error("old node conversion failed",
-			zap.Error(err))
-		return
+		// if requested, register this node with the scheduler core. this is optional to allow for bulk registration
+		// during scheduler initialization.
+		if register {
+			if err := ctx.registerNode(node); err != nil {
+				// remove from secondary cache and return
+				log.Log(log.ShimContext).Error("node registration failed", zap.Error(err))
+				ctx.schedulerCache.RemoveNode(node)
+				return
+			}
+		}
+
+		// iterate newly adopted pods and register them with the scheduler
+		for _, pod := range adoptedPods {
+			log.Log(log.ShimContext).Info("Adopting previously orphaned pod",
+				zap.String("namespace", pod.Namespace),
+				zap.String("podName", pod.Name),
+				zap.String("nodeName", node.Name))
+			applicationID := utils.GetApplicationIDFromPod(pod)
+			if applicationID == "" {
+				ctx.updateForeignPod(pod)
+			} else {
+				ctx.updateYuniKornPod(pod)
+			}
+		}
+
+		// if node was registered in-line, enable it in the core
+		if err := ctx.enableNode(node); err != nil {
+			log.Log(log.ShimContext).Warn("Failed to enable node", zap.Error(err))
+		}
+	} else {
+		// existing node
+		prevCapacity := common.GetNodeResource(&prevNode.Status)
+		newCapacity := common.GetNodeResource(&node.Status)
+		prevReady := hasReadyCondition(prevNode)
+		newReady := hasReadyCondition(node)
+
+		if !common.Equals(prevCapacity, newCapacity) {
+			// update capacity
+			if capacity, occupied, ok := ctx.schedulerCache.UpdateCapacity(node.Name, newCapacity); ok {
+				if err := ctx.updateNodeResources(node, capacity, occupied, newReady); err != nil {
+					log.Log(log.ShimContext).Warn("Failed to update node capacity", zap.Error(err))
+				}
+			} else {
+				log.Log(log.ShimContext).Warn("Failed to update cached node capacity", zap.String("nodeName", node.Name))
+			}
+		} else if newReady != prevReady {
+			// update readiness
+			if capacity, occupied, ok := ctx.schedulerCache.SnapshotResources(node.Name); ok {
+				if err := ctx.updateNodeResources(node, capacity, occupied, newReady); err != nil {
+					log.Log(log.ShimContext).Warn("Failed to update node readiness", zap.Error(err))
+				}
+			} else {
+				log.Log(log.ShimContext).Warn("Failed to snapshot cached node capacity", zap.String("nodeName", node.Name))
+			}
+		}
 	}
-
-	newNode, err := convertToNode(newObj)
-	if err != nil {
-		log.Log(log.ShimContext).Error("new node conversion failed",
-			zap.Error(err))
-		return
-	}
-
-	// update secondary cache
-	ctx.schedulerCache.UpdateNode(newNode)
-
-	// update primary cache
-	ctx.nodes.updateNode(oldNode, newNode)
 }
 
 func (ctx *Context) deleteNode(obj interface{}) {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
-
 	var node *v1.Node
 	switch t := obj.(type) {
 	case *v1.Node:
@@ -199,33 +229,51 @@ func (ctx *Context) deleteNode(obj interface{}) {
 		log.Log(log.ShimContext).Error("cannot convert to *v1.Node", zap.Any("object", t))
 		return
 	}
+	ctx.deleteNodeInternal(node)
+}
 
-	// delete node from secondary cache
-	log.Log(log.ShimContext).Debug("delete node from cache", zap.String("nodeName", node.Name))
-	ctx.schedulerCache.RemoveNode(node)
+func (ctx *Context) addNodesWithoutRegistering(nodes []*v1.Node) {
+	ctx.lock.Lock()
+	defer ctx.lock.Unlock()
 
-	// delete node from primary cache
-	ctx.nodes.deleteNode(node)
+	for _, node := range nodes {
+		ctx.updateNodeInternal(node, false)
+	}
+}
+
+func (ctx *Context) deleteNodeInternal(node *v1.Node) {
+	// remove node from scheduler cache
+	prevNode, orphanedPods := ctx.schedulerCache.RemoveNode(node)
+	if prevNode == nil {
+		// nothing to do if node wasn't there
+		return
+	}
+
+	// log the number of orphaned pods, but we shouldn't need to do any processing of them as the core will send
+	// back remove events for each of them
+	log.Log(log.ShimContext).Info("Removing node",
+		zap.String("nodeName", node.Name),
+		zap.Int("assignedPods", len(orphanedPods)))
+
+	// decommission node
+	log.Log(log.ShimContext).Info("Decommissioning node", zap.String("nodeName", node.Name))
+	if err := ctx.decommissionNode(node); err != nil {
+		log.Log(log.ShimContext).Warn("Unable to decommission node", zap.Error(err))
+	}
 
 	// post the event
 	events.GetRecorder().Eventf(node.DeepCopy(), nil, v1.EventTypeNormal, "NodeDeleted", "NodeDeleted",
 		fmt.Sprintf("node %s is deleted from the scheduler", node.Name))
 }
 
-func (ctx *Context) addPod(obj interface{}) {
-	pod, err := utils.Convert2Pod(obj)
-	if err != nil {
-		log.Log(log.ShimContext).Error("failed to add pod", zap.Error(err))
-		return
-	}
-	if utils.GetApplicationIDFromPod(pod) == "" {
-		ctx.updateForeignPod(pod)
-	} else {
-		ctx.updateYuniKornPod(pod)
-	}
+func (ctx *Context) AddPod(obj interface{}) {
+	ctx.UpdatePod(nil, obj)
 }
 
-func (ctx *Context) updatePod(_, newObj interface{}) {
+func (ctx *Context) UpdatePod(_, newObj interface{}) {
+	ctx.lock.Lock()
+	defer ctx.lock.Unlock()
+
 	pod, err := utils.Convert2Pod(newObj)
 	if err != nil {
 		log.Log(log.ShimContext).Error("failed to update pod", zap.Error(err))
@@ -239,22 +287,61 @@ func (ctx *Context) updatePod(_, newObj interface{}) {
 }
 
 func (ctx *Context) updateYuniKornPod(pod *v1.Pod) {
-	ctx.lock.Lock()
-	defer ctx.lock.Unlock()
-
 	// treat terminated pods like a remove
 	if utils.IsPodTerminated(pod) {
+		if taskMeta, ok := getTaskMetadata(pod); ok {
+			if app := ctx.getApplication(taskMeta.ApplicationID); app != nil {
+				ctx.notifyTaskComplete(taskMeta.ApplicationID, taskMeta.TaskID)
+			}
+		}
+
 		log.Log(log.ShimContext).Debug("Request to update terminated pod, removing from cache", zap.String("podName", pod.Name))
 		ctx.schedulerCache.RemovePod(pod)
 		return
 	}
-	ctx.schedulerCache.UpdatePod(pod)
+
+	if ctx.schedulerCache.UpdatePod(pod) {
+		// pod was accepted; ensure the application and task objects have been created
+		ctx.ensureAppAndTaskCreated(pod)
+	}
+}
+
+func (ctx *Context) ensureAppAndTaskCreated(pod *v1.Pod) {
+	// get app metadata
+	appMeta, ok := getAppMetadata(pod)
+	if !ok {
+		log.Log(log.ShimContext).Warn("BUG: Unable to retrieve application metadata from YuniKorn-managed Pod",
+			zap.String("namespace", pod.Namespace),
+			zap.String("name", pod.Name))
+		return
+	}
+
+	// add app if it doesn't already exist
+	app := ctx.getApplication(appMeta.ApplicationID)
+	if app == nil {
+		app = ctx.addApplication(&AddApplicationRequest{
+			Metadata: appMeta,
+		})
+	}
+
+	// get task metadata
+	taskMeta, ok := getTaskMetadata(pod)
+	if !ok {
+		log.Log(log.ShimContext).Warn("BUG: Unable to retrieve task metadata from YuniKorn-managed Pod",
+			zap.String("namespace", pod.Namespace),
+			zap.String("name", pod.Name))
+		return
+	}
+
+	// add task if it doesn't already exist
+	if _, taskErr := app.GetTask(string(pod.UID)); taskErr != nil {
+		ctx.addTask(&AddTaskRequest{
+			Metadata: taskMeta,
+		})
+	}
 }
 
 func (ctx *Context) updateForeignPod(pod *v1.Pod) {
-	ctx.lock.Lock()
-	defer ctx.lock.Unlock()
-
 	podStatusBefore := ""
 	oldPod, ok := ctx.schedulerCache.GetPod(string(pod.UID))
 	if ok {
@@ -265,37 +352,53 @@ func (ctx *Context) updateForeignPod(pod *v1.Pod) {
 	//   1. pod was previously assigned
 	//   2. pod is now assigned
 	//   3. pod is not in terminated state
+	//   4. pod references a known node
 	if oldPod == nil && utils.IsAssignedPod(pod) && !utils.IsPodTerminated(pod) {
-		log.Log(log.ShimContext).Debug("pod is assigned to a node, trigger occupied resource update",
-			zap.String("namespace", pod.Namespace),
-			zap.String("podName", pod.Name),
-			zap.String("podStatusBefore", podStatusBefore),
-			zap.String("podStatusCurrent", string(pod.Status.Phase)))
-		podResource := common.GetPodResource(pod)
-		ctx.nodes.updateNodeOccupiedResources(pod.Spec.NodeName, podResource, AddOccupiedResource)
-		ctx.schedulerCache.AddPod(pod)
+		if ctx.schedulerCache.UpdatePod(pod) {
+			// pod was accepted by a real node
+			log.Log(log.ShimContext).Debug("pod is assigned to a node, trigger occupied resource update",
+				zap.String("namespace", pod.Namespace),
+				zap.String("podName", pod.Name),
+				zap.String("podStatusBefore", podStatusBefore),
+				zap.String("podStatusCurrent", string(pod.Status.Phase)))
+			ctx.updateNodeOccupiedResources(pod.Spec.NodeName, pod.Namespace, pod.Name, common.GetPodResource(pod), schedulercache.AddOccupiedResource)
+		} else {
+			// pod is orphaned (references an unknown node)
+			log.Log(log.ShimContext).Info("skipping occupied resource update for assigned orphaned pod",
+				zap.String("namespace", pod.Namespace),
+				zap.String("podName", pod.Name),
+				zap.String("nodeName", pod.Spec.NodeName))
+		}
 		return
 	}
 
 	// conditions for release:
 	//   1. pod was previously assigned
 	//   2. pod is now in a terminated state
+	//   3. pod references a known node
 	if oldPod != nil && utils.IsPodTerminated(pod) {
-		log.Log(log.ShimContext).Debug("pod terminated, trigger occupied resource update",
-			zap.String("namespace", pod.Namespace),
-			zap.String("podName", pod.Name),
-			zap.String("podStatusBefore", podStatusBefore),
-			zap.String("podStatusCurrent", string(pod.Status.Phase)))
-		// this means pod is terminated
-		// we need sub the occupied resource and re-sync with the scheduler-core
-		podResource := common.GetPodResource(pod)
-		ctx.nodes.updateNodeOccupiedResources(pod.Spec.NodeName, podResource, SubOccupiedResource)
-		ctx.schedulerCache.RemovePod(pod)
+		if !ctx.schedulerCache.IsPodOrphaned(string(pod.UID)) {
+			log.Log(log.ShimContext).Debug("pod terminated, trigger occupied resource update",
+				zap.String("namespace", pod.Namespace),
+				zap.String("podName", pod.Name),
+				zap.String("podStatusBefore", podStatusBefore),
+				zap.String("podStatusCurrent", string(pod.Status.Phase)))
+			// this means pod is terminated
+			// we need sub the occupied resource and re-sync with the scheduler-core
+			ctx.updateNodeOccupiedResources(pod.Spec.NodeName, pod.Namespace, pod.Name, common.GetPodResource(pod), schedulercache.SubOccupiedResource)
+			ctx.schedulerCache.RemovePod(pod)
+		} else {
+			// pod is orphaned (references an unknown node)
+			log.Log(log.ShimContext).Info("skipping occupied resource update for terminated orphaned pod",
+				zap.String("namespace", pod.Namespace),
+				zap.String("podName", pod.Name),
+				zap.String("nodeName", pod.Spec.NodeName))
+		}
 		return
 	}
 }
 
-func (ctx *Context) deletePod(obj interface{}) {
+func (ctx *Context) DeletePod(obj interface{}) {
 	var pod *v1.Pod
 	switch t := obj.(type) {
 	case *v1.Pod:
@@ -323,6 +426,12 @@ func (ctx *Context) deleteYuniKornPod(pod *v1.Pod) {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
 
+	if taskMeta, ok := getTaskMetadata(pod); ok {
+		if app := ctx.getApplication(taskMeta.ApplicationID); app != nil {
+			ctx.notifyTaskComplete(taskMeta.ApplicationID, taskMeta.TaskID)
+		}
+	}
+
 	log.Log(log.ShimContext).Debug("removing pod from cache", zap.String("podName", pod.Name))
 	ctx.schedulerCache.RemovePod(pod)
 }
@@ -342,17 +451,39 @@ func (ctx *Context) deleteForeignPod(pod *v1.Pod) {
 
 	// conditions for release:
 	//   1. pod is already assigned to a node
-	if oldPod != nil {
-		log.Log(log.ShimContext).Debug("foreign pod deleted, triggering occupied resource update",
-			zap.String("namespace", pod.Namespace),
-			zap.String("podName", pod.Name),
-			zap.String("podStatusBefore", string(oldPod.Status.Phase)),
-			zap.String("podStatusCurrent", string(pod.Status.Phase)))
-		// this means pod is terminated
-		// we need sub the occupied resource and re-sync with the scheduler-core
-		podResource := common.GetPodResource(pod)
-		ctx.nodes.updateNodeOccupiedResources(pod.Spec.NodeName, podResource, SubOccupiedResource)
+	//   2. pod was not in a terminal state before
+	//   3. pod references a known node
+	if oldPod != nil && !utils.IsPodTerminated(oldPod) {
+		if !ctx.schedulerCache.IsPodOrphaned(string(oldPod.UID)) {
+			log.Log(log.ShimContext).Debug("foreign pod deleted, triggering occupied resource update",
+				zap.String("namespace", pod.Namespace),
+				zap.String("podName", pod.Name),
+				zap.String("podStatusBefore", string(oldPod.Status.Phase)),
+				zap.String("podStatusCurrent", string(pod.Status.Phase)))
+			// this means pod is terminated
+			// we need sub the occupied resource and re-sync with the scheduler-core
+			ctx.updateNodeOccupiedResources(pod.Spec.NodeName, pod.Namespace, pod.Name, common.GetPodResource(pod), schedulercache.SubOccupiedResource)
+		} else {
+			// pod is orphaned (references an unknown node)
+			log.Log(log.ShimContext).Info("skipping occupied resource update for removed orphaned pod",
+				zap.String("namespace", pod.Namespace),
+				zap.String("podName", pod.Name),
+				zap.String("nodeName", pod.Spec.NodeName))
+		}
 		ctx.schedulerCache.RemovePod(pod)
+	}
+}
+
+func (ctx *Context) updateNodeOccupiedResources(nodeName string, namespace string, podName string, resource *si.Resource, opt schedulercache.UpdateType) {
+	if common.IsZero(resource) {
+		return
+	}
+	if node, capacity, occupied, ok := ctx.schedulerCache.UpdateOccupiedResource(nodeName, namespace, podName, resource, opt); ok {
+		if err := ctx.updateNodeResources(node, capacity, occupied, hasReadyCondition(node)); err != nil {
+			log.Log(log.ShimContext).Warn("scheduler rejected update to node occupied resources", zap.Error(err))
+		}
+	} else {
+		log.Log(log.ShimContext).Warn("unable to update occupied resources for node", zap.String("nodeName", nodeName))
 	}
 }
 
@@ -435,25 +566,19 @@ func (ctx *Context) filterPriorityClasses(obj interface{}) bool {
 }
 
 func (ctx *Context) addPriorityClass(obj interface{}) {
-	ctx.lock.Lock()
-	defer ctx.lock.Unlock()
-
-	log.Log(log.ShimContext).Debug("priority class added")
-	priorityClass := utils.Convert2PriorityClass(obj)
-	if priorityClass != nil {
-		ctx.schedulerCache.AddPriorityClass(priorityClass)
-	}
+	ctx.updatePriorityClass(nil, obj)
 }
 
 func (ctx *Context) updatePriorityClass(_, newObj interface{}) {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
-
-	log.Log(log.ShimContext).Debug("priority class updated")
-	priorityClass := utils.Convert2PriorityClass(newObj)
-	if priorityClass != nil {
-		ctx.schedulerCache.UpdatePriorityClass(priorityClass)
+	if priorityClass := utils.Convert2PriorityClass(newObj); priorityClass != nil {
+		ctx.updatePriorityClassInternal(priorityClass)
 	}
+}
+
+func (ctx *Context) updatePriorityClassInternal(priorityClass *schedulingv1.PriorityClass) {
+	ctx.schedulerCache.UpdatePriorityClass(priorityClass)
 }
 
 func (ctx *Context) deletePriorityClass(obj interface{}) {
@@ -779,10 +904,16 @@ func (ctx *Context) NotifyApplicationFail(appID string) {
 }
 
 func (ctx *Context) NotifyTaskComplete(appID, taskID string) {
+	ctx.lock.Lock()
+	defer ctx.lock.Unlock()
+	ctx.notifyTaskComplete(appID, taskID)
+}
+
+func (ctx *Context) notifyTaskComplete(appID, taskID string) {
 	log.Log(log.ShimContext).Debug("NotifyTaskComplete",
 		zap.String("appID", appID),
 		zap.String("taskID", taskID))
-	if app := ctx.GetApplication(appID); app != nil {
+	if app := ctx.getApplication(appID); app != nil {
 		log.Log(log.ShimContext).Debug("release allocation",
 			zap.String("appID", appID),
 			zap.String("taskID", taskID))
@@ -846,13 +977,17 @@ func (ctx *Context) getNamespaceObject(namespace string) *v1.Namespace {
 }
 
 func (ctx *Context) AddApplication(request *AddApplicationRequest) *Application {
-	log.Log(log.ShimContext).Debug("AddApplication", zap.Any("Request", request))
-	if app := ctx.GetApplication(request.Metadata.ApplicationID); app != nil {
-		return app
-	}
-
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
+
+	return ctx.addApplication(request)
+}
+
+func (ctx *Context) addApplication(request *AddApplicationRequest) *Application {
+	log.Log(log.ShimContext).Debug("AddApplication", zap.Any("Request", request))
+	if app := ctx.getApplication(request.Metadata.ApplicationID); app != nil {
+		return app
+	}
 
 	if ns, ok := request.Metadata.Tags[constants.AppTagNamespace]; ok {
 		log.Log(log.ShimContext).Debug("app namespace info",
@@ -950,10 +1085,16 @@ func (ctx *Context) RemoveApplicationInternal(appID string) {
 
 // this implements ApplicationManagementProtocol
 func (ctx *Context) AddTask(request *AddTaskRequest) *Task {
+	ctx.lock.Lock()
+	defer ctx.lock.Unlock()
+	return ctx.addTask(request)
+}
+
+func (ctx *Context) addTask(request *AddTaskRequest) *Task {
 	log.Log(log.ShimContext).Debug("AddTask",
 		zap.String("appID", request.Metadata.ApplicationID),
 		zap.String("taskID", request.Metadata.TaskID))
-	if app := ctx.GetApplication(request.Metadata.ApplicationID); app != nil {
+	if app := ctx.getApplication(request.Metadata.ApplicationID); app != nil {
 		existingTask, err := app.GetTask(request.Metadata.TaskID)
 		if err != nil {
 			var originator bool
@@ -1070,7 +1211,7 @@ func (ctx *Context) PublishEvents(eventRecords []*si.EventRecord) {
 					continue
 				}
 				events.GetRecorder().Eventf(node.DeepCopy(), nil,
-					v1.EventTypeNormal, "", "", record.Message)
+					v1.EventTypeNormal, "Informational", "Informational", record.Message)
 			}
 		}
 	}
@@ -1180,14 +1321,6 @@ func (ctx *Context) TaskEventHandler() func(obj interface{}) {
 	}
 }
 
-func (ctx *Context) SchedulerNodeEventHandler() func(obj interface{}) {
-	if ctx != nil && ctx.nodes != nil {
-		return ctx.nodes.schedulerNodeEventHandler()
-	}
-	// this is not required in some tests
-	return nil
-}
-
 func (ctx *Context) LoadConfigMaps() ([]*v1.ConfigMap, error) {
 	kubeClient := ctx.apiProvider.GetAPIs().KubeClient
 
@@ -1232,4 +1365,396 @@ func isPublishableNodeEvent(event *si.EventRecord) bool {
 // VisibleForTesting
 func (ctx *Context) GetSchedulerCache() *schedulercache.SchedulerCache {
 	return ctx.schedulerCache
+}
+
+// InitializeState is used to initialize the state of the scheduler context using the Kubernetes informers.
+// This registers priority classes, nodes, and pods and ensures the scheduler core is synchronized.
+func (ctx *Context) InitializeState() error {
+	// Step 1: Register priority classes. This is first so that we can rely on the information they
+	// provide to properly register tasks with correct priority and preemption metadata.
+	priorityClasses, err := ctx.registerPriorityClasses()
+	if err != nil {
+		log.Log(log.ShimContext).Error("failed to register priority classes", zap.Error(err))
+		return err
+	}
+
+	// Step 2: Register nodes. Nodes are registered with the scheduler core in an initially disabled state.
+	// This allows the existing allocations for each node to be processed before activating the node.
+	nodes, err := ctx.loadNodes()
+	if err != nil {
+		log.Log(log.ShimContext).Error("failed to load nodes", zap.Error(err))
+		return err
+	}
+	acceptedNodes, err := ctx.registerNodes(nodes)
+	if err != nil {
+		log.Log(log.ShimContext).Error("failed to register nodes", zap.Error(err))
+		return err
+	}
+	ctx.addNodesWithoutRegistering(acceptedNodes)
+
+	// Step 3: Register pods. Pods are handled in creation order to provide consistency with previous scheduler runs.
+	// If pods are associated with existing nodes, they are treated as allocations (rather than asks).
+	pods, err := ctx.registerPods()
+	if err != nil {
+		log.Log(log.ShimContext).Error("failed to register pods", zap.Error(err))
+		return err
+	}
+
+	// Step 4: Enable nodes. At this point all allocations and asks have been processed, so it is safe to allow the
+	// core to begin scheduling.
+	err = ctx.enableNodes(acceptedNodes)
+	if err != nil {
+		log.Log(log.ShimContext).Error("failed to enable nodes", zap.Error(err))
+		return err
+	}
+
+	// Step 5: Start scheduling event handlers. At this point, initialization is mostly complete, and any existing
+	// objects will show up as newly added objects. Since the add/update event handlers are idempotent, this is fine.
+	ctx.AddSchedulingEventHandlers()
+
+	// Step 6: Finalize priority classes. Between the start of initialization and when the informer event handlers are
+	// registered, it is possible that a priority class object was deleted. Process them again and remove
+	// any that no longer exist.
+	err = ctx.finalizePriorityClasses(priorityClasses)
+	if err != nil {
+		log.Log(log.ShimContext).Error("failed to finalize priority classes", zap.Error(err))
+		return err
+	}
+
+	// Step 7: Finalize nodes. Between the start of initialization and when the informer event handlers are registered,
+	// it is possible that a node object was deleted. Process them again and remove any that no longer exist.
+	err = ctx.finalizeNodes(nodes)
+	if err != nil {
+		log.Log(log.ShimContext).Error("failed to finalize nodes", zap.Error(err))
+		return err
+	}
+
+	// Step 8: Finalize pods. Between the start of initialization and when the informer event handlers are registered,
+	// it is possible that a pod object was deleted. Process them again and remove any that no longer exist.
+	err = ctx.finalizePods(pods)
+	if err != nil {
+		log.Log(log.ShimContext).Error("failed to finalize pods", zap.Error(err))
+		return err
+	}
+
+	return nil
+}
+
+func (ctx *Context) registerPriorityClasses() ([]*schedulingv1.PriorityClass, error) {
+	// list all priority classes via the informer
+	priorityClasses, err := ctx.apiProvider.GetAPIs().PriorityClassInformer.Lister().List(labels.Everything())
+	if err != nil {
+		log.Log(log.ShimContext).Error("Failed to read priority classes from informer", zap.Error(err))
+		return nil, err
+	}
+	for _, priorityClass := range priorityClasses {
+		ctx.schedulerCache.UpdatePriorityClass(priorityClass)
+	}
+	return priorityClasses, nil
+}
+
+func (ctx *Context) finalizePriorityClasses(existingPriorityClasses []*schedulingv1.PriorityClass) error {
+	// list all priority classes via the informer
+	priorityClasses, err := ctx.apiProvider.GetAPIs().PriorityClassInformer.Lister().List(labels.Everything())
+	if err != nil {
+		log.Log(log.ShimContext).Error("Failed to read priority classes from informer", zap.Error(err))
+		return err
+	}
+
+	// convert the priority class list into a map
+	pcMap := make(map[string]*schedulingv1.PriorityClass)
+	for _, priorityClass := range priorityClasses {
+		pcMap[priorityClass.Name] = priorityClass
+	}
+
+	// find any existing priority classes that no longer exist
+	for _, priorityClass := range existingPriorityClasses {
+		if _, ok := pcMap[priorityClass.Name]; !ok {
+			// priority class no longer exists, delete it
+			log.Log(log.ShimContext).Info("Removing priority class which went away during initialization",
+				zap.String("name", priorityClass.Name))
+			ctx.deletePriorityClass(priorityClass)
+		}
+	}
+
+	return nil
+}
+
+func (ctx *Context) loadNodes() ([]*v1.Node, error) {
+	// list all nodes via the informer
+	nodes, err := ctx.apiProvider.GetAPIs().NodeInformer.Lister().List(labels.Everything())
+	if err != nil {
+		log.Log(log.ShimContext).Error("Failed to read nodes from informer", zap.Error(err))
+		return nil, err
+	}
+	return nodes, err
+}
+
+func (ctx *Context) registerNode(node *v1.Node) error {
+	acceptedNodes, err := ctx.registerNodes([]*v1.Node{node})
+	if err != nil {
+		return err
+	}
+	if len(acceptedNodes) != 1 {
+		return fmt.Errorf("node rejected: %s", node.Name)
+	}
+	return nil
+}
+
+func (ctx *Context) registerNodes(nodes []*v1.Node) ([]*v1.Node, error) {
+	nodesToRegister := make([]*si.NodeInfo, 0)
+	pendingNodes := make(map[string]*v1.Node)
+	acceptedNodes := make([]*v1.Node, 0)
+	rejectedNodes := make([]*v1.Node, 0)
+
+	// Generate a NodeInfo object for each node and add to the registration request
+	for _, node := range nodes {
+		log.Log(log.ShimContext).Info("Registering node", zap.String("name", node.Name))
+		nodeStatus := node.Status
+		nodesToRegister = append(nodesToRegister, &si.NodeInfo{
+			NodeID: node.Name,
+			Action: si.NodeInfo_CREATE_DRAIN,
+			Attributes: map[string]string{
+				constants.DefaultNodeAttributeHostNameKey: node.Name,
+				constants.DefaultNodeAttributeRackNameKey: constants.DefaultRackName,
+				siCommon.NodeReadyAttribute:               strconv.FormatBool(hasReadyCondition(node)),
+			},
+			SchedulableResource: common.GetNodeResource(&nodeStatus),
+			OccupiedResource:    common.NewResourceBuilder().Build(),
+			ExistingAllocations: make([]*si.Allocation, 0),
+		})
+		pendingNodes[node.Name] = node
+	}
+
+	var wg sync.WaitGroup
+
+	// initialize wait group with the number of responses we expect
+	wg.Add(len(pendingNodes))
+
+	// register with the dispatcher so that we can track our response
+	handlerID := fmt.Sprintf("%s-%d", registerNodeContextHandler, ctx.txnID.Add(1))
+	dispatcher.RegisterEventHandler(handlerID, dispatcher.EventTypeNode, func(event interface{}) {
+		nodeEvent, ok := event.(CachedSchedulerNodeEvent)
+		if !ok {
+			return
+		}
+		node, ok := pendingNodes[nodeEvent.NodeID]
+		if !ok {
+			return
+		}
+		delete(pendingNodes, nodeEvent.NodeID)
+
+		switch nodeEvent.Event {
+		case NodeAccepted:
+			log.Log(log.ShimContext).Info("Node registration accepted", zap.String("name", nodeEvent.NodeID))
+			acceptedNodes = append(acceptedNodes, node)
+		case NodeRejected:
+			log.Log(log.ShimContext).Warn("Node registration rejected", zap.String("name", nodeEvent.NodeID))
+			rejectedNodes = append(rejectedNodes, node)
+		default:
+			log.Log(log.ShimContext).Error("BUG: Unexpected node event", zap.Stringer("eventType", nodeEvent.Event))
+		}
+		wg.Done()
+	})
+	defer dispatcher.UnregisterEventHandler(handlerID, dispatcher.EventTypeNode)
+
+	if err := ctx.apiProvider.GetAPIs().SchedulerAPI.UpdateNode(&si.NodeRequest{
+		Nodes: nodesToRegister,
+		RmID:  schedulerconf.GetSchedulerConf().ClusterID,
+	}); err != nil {
+		log.Log(log.ShimContext).Error("Failed to register nodes", zap.Error(err))
+		return nil, err
+	}
+
+	// wait for all responses to accumulate
+	wg.Wait()
+
+	for _, node := range acceptedNodes {
+		// post a successful event to the node
+		events.GetRecorder().Eventf(node.DeepCopy(), nil, v1.EventTypeNormal, "NodeAccepted", "NodeAccepted",
+			fmt.Sprintf("node %s is accepted by the scheduler", node.Name))
+	}
+	for _, node := range rejectedNodes {
+		// post a failure event to the node
+		events.GetRecorder().Eventf(node.DeepCopy(), nil, v1.EventTypeWarning, "NodeRejected", "NodeRejected",
+			fmt.Sprintf("node %s is rejected by the scheduler", node.Name))
+	}
+
+	return acceptedNodes, nil
+}
+
+func (ctx *Context) decommissionNode(node *v1.Node) error {
+	request := common.CreateUpdateRequestForDeleteOrRestoreNode(node.Name, si.NodeInfo_DECOMISSION)
+	return ctx.apiProvider.GetAPIs().SchedulerAPI.UpdateNode(request)
+}
+
+func (ctx *Context) updateNodeResources(node *v1.Node, capacity *si.Resource, occupied *si.Resource, ready bool) error {
+	request := common.CreateUpdateRequestForUpdatedNode(node.Name, capacity, occupied, ready)
+	return ctx.apiProvider.GetAPIs().SchedulerAPI.UpdateNode(request)
+}
+
+func (ctx *Context) enableNode(node *v1.Node) error {
+	return ctx.enableNodes([]*v1.Node{node})
+}
+
+func (ctx *Context) enableNodes(nodes []*v1.Node) error {
+	nodesToEnable := make([]*si.NodeInfo, 0)
+
+	// Generate a NodeInfo object for each node and add to the enablement request
+	for _, node := range nodes {
+		log.Log(log.ShimContext).Info("Enabling node", zap.String("name", node.Name))
+		nodesToEnable = append(nodesToEnable, &si.NodeInfo{
+			NodeID: node.Name,
+			Action: si.NodeInfo_DRAIN_TO_SCHEDULABLE,
+			Attributes: map[string]string{
+				siCommon.NodeReadyAttribute: strconv.FormatBool(hasReadyCondition(node)),
+			},
+		})
+	}
+
+	// enable scheduling on all nodes
+	if err := ctx.apiProvider.GetAPIs().SchedulerAPI.UpdateNode(&si.NodeRequest{
+		Nodes: nodesToEnable,
+		RmID:  schedulerconf.GetSchedulerConf().ClusterID,
+	}); err != nil {
+		log.Log(log.ShimContext).Error("Failed to enable nodes", zap.Error(err))
+		return err
+	}
+	return nil
+}
+
+func (ctx *Context) finalizeNodes(existingNodes []*v1.Node) error {
+	// list all nodes via the informer
+	nodes, err := ctx.apiProvider.GetAPIs().NodeInformer.Lister().List(labels.Everything())
+	if err != nil {
+		log.Log(log.ShimContext).Error("Failed to read nodes from informer", zap.Error(err))
+		return err
+	}
+
+	// convert the node list into a map
+	nodeMap := make(map[string]*v1.Node)
+	for _, node := range nodes {
+		nodeMap[node.Name] = node
+	}
+
+	ctx.lock.Lock()
+	defer ctx.lock.Unlock()
+
+	// find any existing nodes that no longer exist
+	for _, node := range existingNodes {
+		if _, ok := nodeMap[node.Name]; !ok {
+			// node no longer exists, delete it
+			log.Log(log.ShimContext).Info("Removing node which went away during initialization",
+				zap.String("name", node.Name))
+			ctx.deleteNodeInternal(node)
+		}
+	}
+
+	return nil
+}
+
+func (ctx *Context) registerPods() ([]*v1.Pod, error) {
+	log.Log(log.ShimContext).Info("Starting node registration...")
+
+	// list all pods via the informer
+	pods, err := ctx.apiProvider.GetAPIs().PodInformer.Lister().List(labels.Everything())
+	if err != nil {
+		log.Log(log.ShimContext).Error("Failed to read pods from informer", zap.Error(err))
+		return nil, err
+	}
+
+	// sort pods by creation time so that overall queue ordering is consistent with prior runs
+	sort.Slice(pods, func(i, j int) bool {
+		return pods[i].CreationTimestamp.Unix() < pods[j].CreationTimestamp.Unix()
+	})
+
+	// add all pods to the context
+	for _, pod := range pods {
+		// skip terminated pods
+		if utils.IsPodTerminated(pod) {
+			continue
+		}
+		ctx.AddPod(pod)
+	}
+
+	return pods, nil
+}
+
+func (ctx *Context) finalizePods(existingPods []*v1.Pod) error {
+	// list all pods via the informer
+	pods, err := ctx.apiProvider.GetAPIs().PodInformer.Lister().List(labels.Everything())
+	if err != nil {
+		log.Log(log.ShimContext).Error("Failed to read pods from informer", zap.Error(err))
+		return err
+	}
+
+	// convert the pod list into a map
+	podMap := make(map[types.UID]*v1.Pod)
+	for _, pod := range pods {
+		podMap[pod.UID] = pod
+	}
+
+	// find any existing nodes that no longer exist
+	for _, pod := range existingPods {
+		if _, ok := podMap[pod.UID]; !ok {
+			// node no longer exists, delete it
+			log.Log(log.ShimContext).Info("Removing pod which went away during initialization",
+				zap.String("namespace", pod.Namespace),
+				zap.String("name", pod.Name),
+				zap.String("uid", string(pod.UID)))
+			ctx.DeletePod(pod)
+		}
+	}
+
+	return nil
+}
+
+// for a given pod, return an allocation if found
+func getExistingAllocation(pod *v1.Pod) *si.Allocation {
+	// skip terminated pods
+	if utils.IsPodTerminated(pod) {
+		return nil
+	}
+
+	if meta, valid := getAppMetadata(pod); valid {
+		// when submit a task, we use pod UID as the allocationKey,
+		// to keep consistent, during recovery, the pod UID is also used
+		// for an Allocation.
+		placeholder := utils.GetPlaceholderFlagFromPodSpec(pod)
+		taskGroupName := utils.GetTaskGroupFromPodSpec(pod)
+
+		creationTime := pod.CreationTimestamp.Unix()
+		meta.Tags[siCommon.CreationTime] = strconv.FormatInt(creationTime, 10)
+
+		return &si.Allocation{
+			AllocationKey:    string(pod.UID),
+			AllocationTags:   meta.Tags,
+			AllocationID:     string(pod.UID),
+			ResourcePerAlloc: common.GetPodResource(pod),
+			NodeID:           pod.Spec.NodeName,
+			ApplicationID:    meta.ApplicationID,
+			Placeholder:      placeholder,
+			TaskGroupName:    taskGroupName,
+			PartitionName:    constants.DefaultPartition,
+		}
+	}
+	return nil
+}
+
+func convertToNode(obj interface{}) (*v1.Node, error) {
+	if node, ok := obj.(*v1.Node); ok {
+		return node, nil
+	}
+	return nil, fmt.Errorf("cannot convert to *v1.Node: %v", obj)
+}
+
+func hasReadyCondition(node *v1.Node) bool {
+	if node != nil {
+		for _, condition := range node.Status.Conditions {
+			if condition.Type == v1.NodeReady && condition.Status == v1.ConditionTrue {
+				return true
+			}
+		}
+	}
+	return false
 }

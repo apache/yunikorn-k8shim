@@ -53,7 +53,7 @@ var (
 type Dispatcher struct {
 	eventChan chan events.SchedulingEvent
 	stopChan  chan struct{}
-	handlers  map[EventType]func(interface{})
+	handlers  map[EventType]map[string]func(interface{})
 	running   atomic.Value
 	lock      sync.RWMutex
 }
@@ -62,7 +62,7 @@ func initDispatcher() {
 	eventChannelCapacity := conf.GetSchedulerConf().EventChannelCapacity
 	dispatcher = &Dispatcher{
 		eventChan: make(chan events.SchedulingEvent, eventChannelCapacity),
-		handlers:  make(map[EventType]func(interface{})),
+		handlers:  make(map[EventType]map[string]func(interface{})),
 		stopChan:  make(chan struct{}),
 		running:   atomic.Value{},
 		lock:      sync.RWMutex{},
@@ -79,11 +79,33 @@ func initDispatcher() {
 		zap.Float64("DispatchTimeoutInSeconds", DispatchTimeout.Seconds()))
 }
 
-func RegisterEventHandler(eventType EventType, handlerFn func(interface{})) {
+func RegisterEventHandler(handlerID string, eventType EventType, handlerFn func(interface{})) {
 	eventDispatcher := getDispatcher()
 	eventDispatcher.lock.Lock()
 	defer eventDispatcher.lock.Unlock()
-	eventDispatcher.handlers[eventType] = handlerFn
+	if _, ok := eventDispatcher.handlers[eventType]; !ok {
+		eventDispatcher.handlers[eventType] = make(map[string]func(interface{}))
+	}
+	eventDispatcher.handlers[eventType][handlerID] = handlerFn
+}
+
+func UnregisterEventHandler(handlerID string, eventType EventType) {
+	eventDispatcher := getDispatcher()
+	eventDispatcher.lock.Lock()
+	defer eventDispatcher.lock.Unlock()
+	if _, ok := eventDispatcher.handlers[eventType]; ok {
+		delete(eventDispatcher.handlers[eventType], handlerID)
+		if len(eventDispatcher.handlers[eventType]) == 0 {
+			delete(eventDispatcher.handlers, eventType)
+		}
+	}
+}
+
+func UnregisterAllEventHandlers() {
+	eventDispatcher := getDispatcher()
+	eventDispatcher.lock.Lock()
+	defer eventDispatcher.lock.Unlock()
+	eventDispatcher.handlers = make(map[EventType]map[string]func(interface{}))
 }
 
 // a thread-safe way to get event handlers
@@ -91,7 +113,16 @@ func getEventHandler(eventType EventType) func(interface{}) {
 	eventDispatcher := getDispatcher()
 	eventDispatcher.lock.RLock()
 	defer eventDispatcher.lock.RUnlock()
-	return eventDispatcher.handlers[eventType]
+
+	handlers := make([]func(interface{}), 0)
+	for _, handler := range eventDispatcher.handlers[eventType] {
+		handlers = append(handlers, handler)
+	}
+	return func(event interface{}) {
+		for _, handler := range handlers {
+			handler(event)
+		}
+	}
 }
 
 func getDispatcher() *Dispatcher {

@@ -76,8 +76,9 @@ func Convert2PriorityClass(obj interface{}) *schedulingv1.PriorityClass {
 	return nil
 }
 
-func NeedRecovery(pod *v1.Pod) bool {
-	// pod requires recovery needs to satisfy both conditions
+// PodAlreadyBound returns true if a newly initializing Pod is already assigned to a Node
+func PodAlreadyBound(pod *v1.Pod) bool {
+	// pod already bound needs to satisfy conditions:
 	// 1. Pod is scheduled by us
 	// 2. pod is already assigned to a node
 	// 3. pod is not in terminated state

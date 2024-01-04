@@ -24,10 +24,14 @@ import (
 
 	"gotest.tools/v3/assert"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
+	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/apache/yunikorn-k8shim/pkg/cache"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common"
+	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/test"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/api"
 	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
@@ -71,13 +75,16 @@ partitions:
 	assert.NilError(t, err, "add node failed")
 
 	// create app and tasks
-	cluster.addApplication("app0001", "root.a")
 	taskResource := common.NewResourceBuilder().
 		AddResource(siCommon.Memory, 10000000).
 		AddResource(siCommon.CPU, 1).
 		Build()
-	cluster.addTask("app0001", "task0001", taskResource)
-	cluster.addTask("app0001", "task0002", taskResource)
+
+	task1 := createTestPod("root.a", "app0001", "task0001", taskResource)
+	task2 := createTestPod("root.a", "app0001", "task0002", taskResource)
+
+	cluster.AddPod(task1)
+	cluster.AddPod(task2)
 
 	// wait for scheduling app and tasks
 	// verify app state
@@ -123,16 +130,15 @@ partitions:
 	err = cluster.addNode("test.host.02", nodeLabels, 100000000, 10, 10)
 	assert.NilError(t, err)
 
-	// add app to context
-	appID := "app0001"
-	cluster.addApplication(appID, "root.non_exist_queue")
-
 	// create app and tasks
+	appID := "app0001"
 	taskResource := common.NewResourceBuilder().
 		AddResource(siCommon.Memory, 10000000).
 		AddResource(siCommon.CPU, 1).
 		Build()
-	cluster.addTask(appID, "task0001", taskResource)
+
+	task1 := createTestPod("root.non_exist_queue", appID, "task0001", taskResource)
+	cluster.AddPod(task1)
 
 	// wait for scheduling app and tasks
 	// verify app state
@@ -144,9 +150,10 @@ partitions:
 	err = cluster.removeApplication(appID)
 	assert.Assert(t, err == nil)
 
-	// submit the app again
-	cluster.addApplication(appID, "root.a")
-	cluster.addTask(appID, "task0001", taskResource)
+	// submit again
+	task1 = createTestPod("root.a", appID, "task0001", taskResource)
+	cluster.AddPod(task1)
+
 	cluster.waitAndAssertApplicationState(t, appID, cache.ApplicationStates().Running)
 	cluster.waitAndAssertTaskState(t, appID, "task0001", cache.TaskStates().Bound)
 }
@@ -154,7 +161,6 @@ partitions:
 func TestSchedulerRegistrationFailed(t *testing.T) {
 	var callback api.ResourceManagerCallback
 
-	mockedAMProtocol := cache.NewMockedAMProtocol()
 	mockedAPIProvider := client.NewMockedAPIProvider(false)
 	mockedAPIProvider.GetAPIs().SchedulerAPI = test.NewSchedulerAPIMock().RegisterFunction(
 		func(request *si.RegisterResourceManagerRequest,
@@ -163,8 +169,7 @@ func TestSchedulerRegistrationFailed(t *testing.T) {
 		})
 
 	ctx := cache.NewContext(mockedAPIProvider)
-	shim := newShimSchedulerInternal(ctx, mockedAPIProvider,
-		cache.NewAMService(mockedAMProtocol, mockedAPIProvider), callback)
+	shim := newShimSchedulerInternal(ctx, mockedAPIProvider, callback)
 	assert.Error(t, shim.Run(), "some error")
 	shim.Stop()
 }
@@ -217,13 +222,15 @@ partitions:
 	assert.NilError(t, err, "add node failed")
 
 	// create app and tasks
-	cluster.addApplication("app0001", "root.a")
 	taskResource := common.NewResourceBuilder().
 		AddResource(siCommon.Memory, 50000000).
 		AddResource(siCommon.CPU, 5).
 		Build()
-	cluster.addTask("app0001", "task0001", taskResource)
-	cluster.addTask("app0001", "task0002", taskResource)
+	task1 := createTestPod("root.a", "app0001", "task0001", taskResource)
+	task2 := createTestPod("root.a", "app0001", "task0002", taskResource)
+	cluster.AddPod(task1)
+	cluster.AddPod(task2)
+
 	// wait for scheduling app and tasks
 	// verify app state
 	cluster.waitAndAssertApplicationState(t, "app0001", cache.ApplicationStates().Running)
@@ -234,4 +241,44 @@ partitions:
 	err = cluster.waitAndVerifySchedulerAllocations("root.a",
 		"[mycluster]default", "app0001", 1)
 	assert.NilError(t, err, "number of allocations is not expected, error")
+}
+
+func createTestPod(queue string, appID string, taskID string, taskResource *si.Resource) *v1.Pod {
+	containers := make([]v1.Container, 0)
+	c1Resources := make(map[v1.ResourceName]resource.Quantity)
+	for k, v := range taskResource.Resources {
+		if k == siCommon.CPU {
+			c1Resources[v1.ResourceName(k)] = *resource.NewMilliQuantity(v.Value, resource.DecimalSI)
+		} else {
+			c1Resources[v1.ResourceName(k)] = *resource.NewQuantity(v.Value, resource.DecimalSI)
+		}
+	}
+	containers = append(containers, v1.Container{
+		Name: "container-01",
+		Resources: v1.ResourceRequirements{
+			Requests: c1Resources,
+		},
+	})
+	return &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name:      taskID,
+			Namespace: "default",
+			UID:       types.UID(taskID),
+			Labels: map[string]string{
+				constants.LabelApplicationID: appID,
+				constants.LabelQueueName:     queue,
+			},
+		},
+		Spec: v1.PodSpec{
+			SchedulerName: constants.SchedulerName,
+			Containers:    containers,
+		},
+		Status: v1.PodStatus{
+			Phase: v1.PodPending,
+		},
+	}
 }

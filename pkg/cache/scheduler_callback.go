@@ -67,11 +67,22 @@ func (callback *AsyncRMCallback) UpdateAllocation(response *si.AllocationRespons
 
 	for _, reject := range response.Rejected {
 		// request rejected by the scheduler, put it back and try scheduling again
+		log.Log(log.ShimRMCallback).Debug("callback: response to rejected ask",
+			zap.String("allocationKey", reject.AllocationKey))
+		if app := callback.context.GetApplication(reject.ApplicationID); app != nil {
+			dispatcher.Dispatch(NewRejectTaskEvent(app.GetApplicationID(), reject.AllocationKey,
+				fmt.Sprintf("task %s ask from application %s is rejected by scheduler",
+					reject.AllocationKey, reject.ApplicationID)))
+		}
+	}
+
+	for _, reject := range response.RejectedAllocations {
+		// request rejected by the scheduler, reject it
 		log.Log(log.ShimRMCallback).Debug("callback: response to rejected allocation",
 			zap.String("allocationKey", reject.AllocationKey))
 		if app := callback.context.GetApplication(reject.ApplicationID); app != nil {
 			dispatcher.Dispatch(NewRejectTaskEvent(app.GetApplicationID(), reject.AllocationKey,
-				fmt.Sprintf("task %s from application %s is rejected by scheduler",
+				fmt.Sprintf("task %s allocation from application %s is rejected by scheduler",
 					reject.AllocationKey, reject.ApplicationID)))
 		}
 	}
@@ -100,6 +111,7 @@ func (callback *AsyncRMCallback) UpdateAllocation(response *si.AllocationRespons
 			dispatcher.Dispatch(ev)
 		}
 	}
+
 	return nil
 }
 
