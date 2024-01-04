@@ -485,6 +485,10 @@ func (cache *SchedulerCache) updatePod(pod *v1.Pod) bool {
 		nodeInfo, ok := cache.nodesMap[pod.Spec.NodeName]
 		if !ok {
 			// node doesn't exist, so this is an orphaned pod
+			log.Log(log.ShimCacheExternal).Info("Marking pod as orphan (required node not present)",
+				zap.String("namespace", pod.Namespace),
+				zap.String("podName", pod.Name),
+				zap.String("nodeName", pod.Spec.NodeName))
 			cache.orphanedPods[key] = pod
 			result = false
 		} else {

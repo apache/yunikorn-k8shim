@@ -166,6 +166,10 @@ func (ctx *Context) updateNodeInternal(node *v1.Node, register bool) {
 
 		// iterate newly adopted pods and register them with the scheduler
 		for _, pod := range adoptedPods {
+			log.Log(log.ShimContext).Info("Adopting previously orphaned pod",
+				zap.String("namespace", pod.Namespace),
+				zap.String("podName", pod.Name),
+				zap.String("nodeName", node.Name))
 			applicationID := utils.GetApplicationIDFromPod(pod)
 			if applicationID == "" {
 				ctx.updateForeignPod(pod)
@@ -1528,7 +1532,7 @@ func (ctx *Context) registerNodes(nodes []*v1.Node) ([]*v1.Node, error) {
 	wg.Add(len(pendingNodes))
 
 	// register with the dispatcher so that we can track our response
-	handlerID := fmt.Sprintf("%s-%d", registerNodeContextHandler, ctx.txnID.Load())
+	handlerID := fmt.Sprintf("%s-%d", registerNodeContextHandler, ctx.txnID.Add(1))
 	dispatcher.RegisterEventHandler(handlerID, dispatcher.EventTypeNode, func(event interface{}) {
 		nodeEvent, ok := event.(CachedSchedulerNodeEvent)
 		if !ok {
