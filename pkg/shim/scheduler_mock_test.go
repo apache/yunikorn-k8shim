@@ -301,6 +301,10 @@ func (fc *MockScheduler) GetPodBindStats() client.BindStats {
 	return fc.apiProvider.GetPodBindStats()
 }
 
+func (fc *MockScheduler) GetBoundPods(clear bool) []client.BoundPod {
+	return fc.apiProvider.GetBoundPods(clear)
+}
+
 func (fc *MockScheduler) ensureStarted() {
 	if !fc.started.Load() {
 		panic("mock scheduler is not started - call start() first")
