@@ -169,6 +169,25 @@ func (c *RClient) GetAppInfo(partition string, queueName string, appID string) (
 	return app, err
 }
 
+func (c *RClient) GetCompletedAppInfo(partition string, appID string) (*dao.ApplicationDAOInfo, error) {
+	req, err := c.newRequest("GET", fmt.Sprintf(configmanager.CompletedAppsPath, partition), nil)
+	if err != nil {
+		return nil, err
+	}
+	var apps []*dao.ApplicationDAOInfo
+	_, err = c.do(req, &apps)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, app := range apps {
+		if app.ApplicationID == appID {
+			return app, nil
+		}
+	}
+	return nil, fmt.Errorf("App is not in 'Failed', 'Expired', 'Completed' state.")
+}
+
 func (c *RClient) GetAllocationLog(partition string, queueName string, appID string, podName string) ([]*dao.AllocationAskLogDAOInfo, error) {
 	reqs, err := c.GetAppInfo(partition, queueName, appID)
 	if err != nil {
@@ -221,6 +240,21 @@ func (c *RClient) isAppInDesiredState(partition string, queue string, appID stri
 	}
 }
 
+func (c *RClient) isAppInDesiredCompletedState(partition string, appID string, state string) wait.ConditionFunc {
+	// Completed state including 'Expired', 'Completed', 'Failed'
+	return func() (bool, error) {
+		appInfo, err := c.GetCompletedAppInfo(partition, appID)
+		if err != nil {
+			return false, nil // returning nil here for wait & loop
+		}
+
+		if appInfo.State == state {
+			return true, nil
+		}
+		return false, nil
+	}
+}
+
 func (c *RClient) GetNodes(partition string) (*[]dao.NodeDAOInfo, error) {
 	req, err := c.newRequest("GET", fmt.Sprintf(configmanager.NodesPath, partition), nil)
 	if err != nil {
@@ -232,7 +266,11 @@ func (c *RClient) GetNodes(partition string) (*[]dao.NodeDAOInfo, error) {
 }
 
 func (c *RClient) WaitForAppStateTransition(partition string, queue string, appID string, state string, timeout int) error {
-	return wait.PollUntilContextTimeout(context.TODO(), time.Millisecond*100, time.Duration(timeout)*time.Second, false, c.isAppInDesiredState(partition, queue, appID, state).WithContext())
+	return wait.PollUntilContextTimeout(context.TODO(), time.Millisecond*300, time.Duration(timeout)*time.Second, false, c.isAppInDesiredState(partition, queue, appID, state).WithContext())
+}
+
+func (c *RClient) WaitForCompletedAppStateTransition(partition string, appID string, state string, timeout int) error {
+	return wait.PollUntilContextTimeout(context.TODO(), time.Millisecond*300, time.Duration(timeout)*time.Second, false, c.isAppInDesiredCompletedState(partition, appID, state).WithContext())
 }
 
 func (c *RClient) AreAllExecPodsAllotted(partition string, queueName string, appID string, execPodCount int) wait.ConditionFunc {
