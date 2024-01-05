@@ -44,6 +44,14 @@ endif
 # Make sure we are in the same directory as the Makefile
 BASE_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
+# Set cover flags for go build and uid/gid for dockerfile
+ifeq ($(ENABLE_GO_COVER_DIR), TRUE)
+	DOCKERFILE_UID_ARG := --build-arg UID=0
+	DOCKERFILE_GID_ARG := --build-arg GID=0
+	COVER_FLAGS := -cover -coverpkg=github.com/apache/yunikorn-k8shim/...,github.com/apache/yunikorn-core/...
+	ADMISSION_COVER_FLAGS := -cover -coverpkg=github.com/apache/yunikorn-k8shim/...
+endif
+
 # Output directories
 OUTPUT=build
 DEV_BIN_DIR=${OUTPUT}/dev
@@ -340,7 +348,7 @@ $(RELEASE_BIN_DIR)/$(SCHEDULER_BINARY): go.mod go.sum $(shell find pkg)
 	-ldflags '-extldflags "-static" -X ${FLAG_PREFIX}.buildVersion=${VERSION} -X ${FLAG_PREFIX}.buildDate=${DATE} -X ${FLAG_PREFIX}.isPluginVersion=false -X ${FLAG_PREFIX}.goVersion=${GO_VERSION} -X ${FLAG_PREFIX}.arch=${EXEC_ARCH} -X ${FLAG_PREFIX}.coreSHA=${CORE_SHA} -X ${FLAG_PREFIX}.siSHA=${SI_SHA} -X ${FLAG_PREFIX}.shimSHA=${SHIM_SHA}' \
 	-tags netgo \
 	-installsuffix netgo \
-	./pkg/cmd/shim/
+	${COVER_FLAGS} ./pkg/cmd/shim/
 
 # Build plugin binary in a production ready version
 .PHONY: plugin
@@ -356,7 +364,7 @@ $(RELEASE_BIN_DIR)/$(PLUGIN_BINARY): go.mod go.sum $(shell find pkg)
 	-ldflags '-extldflags "-static" -X ${FLAG_PREFIX}.buildVersion=${VERSION} -X ${FLAG_PREFIX}.buildDate=${DATE} -X ${FLAG_PREFIX}.isPluginVersion=true -X ${FLAG_PREFIX}.goVersion=${GO_VERSION} -X ${FLAG_PREFIX}.arch=${EXEC_ARCH} -X ${FLAG_PREFIX}.coreSHA=${CORE_SHA} -X ${FLAG_PREFIX}.siSHA=${SI_SHA} -X ${FLAG_PREFIX}.shimSHA=${SHIM_SHA}' \
 	-tags netgo \
 	-installsuffix netgo \
-	./pkg/cmd/schedulerplugin/
+	${COVER_FLAGS} ./pkg/cmd/schedulerplugin/
 	
 # Build a scheduler image based on the production ready version
 .PHONY: sched_image
@@ -366,7 +374,7 @@ sched_image: scheduler docker/scheduler
 	@mkdir -p "$(DOCKER_DIR)/scheduler"
 	@cp -a "docker/scheduler/." "$(DOCKER_DIR)/scheduler/."
 	@cp "$(RELEASE_BIN_DIR)/$(SCHEDULER_BINARY)" "$(DOCKER_DIR)/scheduler/."
-	DOCKER_BUILDKIT=1 docker build \
+	DOCKER_BUILDKIT=1 docker build ${DOCKERFILE_UID_ARG} ${DOCKERFILE_GID_ARG} \
 	"$(DOCKER_DIR)/scheduler" \
 	-t "$(SCHEDULER_TAG)" \
 	--platform "linux/${DOCKER_ARCH}" \
@@ -386,7 +394,7 @@ plugin_image: plugin docker/plugin conf/scheduler-config.yaml
 	@cp -a "docker/plugin/." "$(DOCKER_DIR)/plugin/."
 	@cp "$(RELEASE_BIN_DIR)/$(PLUGIN_BINARY)" "$(DOCKER_DIR)/plugin/."
 	@cp conf/scheduler-config.yaml "$(DOCKER_DIR)/plugin/scheduler-config.yaml"
-	DOCKER_BUILDKIT=1 docker build \
+	DOCKER_BUILDKIT=1 docker build ${DOCKERFILE_UID_ARG} ${DOCKERFILE_GID_ARG} \
 	"$(DOCKER_DIR)/plugin" \
 	-t "$(PLUGIN_TAG)" \
 	--platform "linux/${DOCKER_ARCH}" \
@@ -411,7 +419,7 @@ $(RELEASE_BIN_DIR)/$(ADMISSION_CONTROLLER_BINARY): go.mod go.sum $(shell find pk
 	-ldflags '-extldflags "-static" -X ${FLAG_PREFIX}.buildVersion=${VERSION} -X ${FLAG_PREFIX}.buildDate=${DATE} -X ${FLAG_PREFIX}.goVersion=${GO_VERSION} -X ${FLAG_PREFIX}.arch=${EXEC_ARCH}' \
 	-tags netgo \
 	-installsuffix netgo \
-	./pkg/cmd/admissioncontroller
+	${ADMISSION_COVER_FLAGS} ./pkg/cmd/admissioncontroller
 
 # Build an admission controller image based on the production ready version
 .PHONY: adm_image
@@ -421,7 +429,7 @@ adm_image: admission docker/admission
 	@mkdir -p "$(DOCKER_DIR)/admission"
 	@cp -a "docker/admission/." "$(DOCKER_DIR)/admission/."
 	@cp "$(RELEASE_BIN_DIR)/$(ADMISSION_CONTROLLER_BINARY)" "$(DOCKER_DIR)/admission/."
-	DOCKER_BUILDKIT=1 docker build \
+	DOCKER_BUILDKIT=1 docker build ${DOCKERFILE_UID_ARG} ${DOCKERFILE_GID_ARG} \
 	"$(DOCKER_DIR)/admission" \
 	-t "$(ADMISSION_TAG)" \
 	--platform "linux/${DOCKER_ARCH}" \
