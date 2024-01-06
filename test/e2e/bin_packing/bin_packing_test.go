@@ -199,7 +199,7 @@ var _ = Describe("", func() {
 			tests.LogYunikornContainer(testDescription.FailureMessage())
 		}
 		By("Tear down namespace: " + ns)
-		err := kClient.DeleteNamespace(ns)
+		err := kClient.TearDownNamespace(ns)
 		Ω(err).NotTo(HaveOccurred())
 	})
 })
