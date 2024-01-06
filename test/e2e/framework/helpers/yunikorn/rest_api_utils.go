@@ -180,12 +180,22 @@ func (c *RClient) GetCompletedAppInfo(partition string, appID string) (*dao.Appl
 		return nil, err
 	}
 
+	// ApplicationID is not unique in the completed applications list. Try to get the latest one.
+	var latestApp *dao.ApplicationDAOInfo
+	var latestSubmissionTime = int64(0)
+
 	for _, app := range apps {
-		if app.ApplicationID == appID {
-			return app, nil
+		if app.ApplicationID == appID && app.SubmissionTime > latestSubmissionTime {
+			latestApp = app
+			latestSubmissionTime = app.SubmissionTime
 		}
 	}
-	return nil, fmt.Errorf("App is not in 'Failed', 'Expired', 'Completed' state.")
+
+	if latestApp != nil {
+		return latestApp, nil
+	}
+
+	return nil, fmt.Errorf("No application found with ID %s in 'Failed', 'Expired', 'Completed' state", appID)
 }
 
 func (c *RClient) GetAllocationLog(partition string, queueName string, appID string, podName string) ([]*dao.AllocationAskLogDAOInfo, error) {
