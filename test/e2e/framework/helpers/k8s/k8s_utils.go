@@ -638,7 +638,7 @@ func LogNamespaceInfo(ns string) error {
 	if runErr != nil {
 		return runErr
 	}
-	fmt.Fprintf(ginkgo.GinkgoWriter, "Cluster dump output:%s\n", out)
+	ginkgo.By("Cluster dump output:\n" + out)
 	return nil
 }
 
@@ -1450,7 +1450,7 @@ func (k *KubeCtl) DescribeNode(node v1.Node) error {
 	if runErr != nil {
 		return runErr
 	}
-	fmt.Fprintf(ginkgo.GinkgoWriter, "describe output for node is: %s\n", out)
+	ginkgo.By("describe output for node is:\n" + out)
 	return nil
 }
 
@@ -1603,9 +1603,9 @@ func (k *KubeCtl) DeleteWorkloadAndPods(objectName string, wlType WorkloadType, 
 
 	pods, err := k.GetPods(namespace)
 	gomega.Ω(err).ShouldNot(gomega.HaveOccurred(), "Could not get pods from namespace "+namespace)
-	ginkgo.By("Forcibly deleting remaining pods in namespace:" + namespace)
+	fmt.Fprintf(ginkgo.GinkgoWriter, "Forcibly deleting remaining pods in namespace %s\n", namespace)
 	for _, pod := range pods.Items {
-		ginkgo.By("Deleting " + pod.Name)
+		fmt.Fprintf(ginkgo.GinkgoWriter, "Deleting %s\n", pod.Name)
 		_ = k.DeletePod(pod.Name, namespace) //nolint:errcheck
 	}
 

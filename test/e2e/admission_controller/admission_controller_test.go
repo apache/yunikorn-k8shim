@@ -307,13 +307,13 @@ var _ = ginkgo.Describe("AdmissionController", func() {
 		ginkgo.By("Check for sleep pods (should time out)")
 		err = kubeClient.WaitForPodBySelector(ns, fmt.Sprintf("app=%s", testDeployment.ObjectMeta.Labels["app"]),
 			10*time.Second)
-		ginkgo.By(fmt.Sprintf("Error: %v", err))
+		fmt.Fprintf(ginkgo.GinkgoWriter, "Error: %v\n", err)
 		gomega.Ω(err).Should(gomega.HaveOccurred())
 		ginkgo.By("Check deployment status")
 		deployment, err = kubeClient.GetDeployment(testDeployment.Name, ns)
 		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
-		ginkgo.By(fmt.Sprintf("Replicas: %d, AvailableReplicas: %d, ReadyReplicas: %d\n",
-			deployment.Status.Replicas, deployment.Status.AvailableReplicas, deployment.Status.ReadyReplicas))
+		fmt.Fprintf(ginkgo.GinkgoWriter, "Replicas: %d, AvailableReplicas: %d, ReadyReplicas: %d\n",
+			deployment.Status.Replicas, deployment.Status.AvailableReplicas, deployment.Status.ReadyReplicas)
 		gomega.Ω(deployment.Status.Replicas).To(gomega.Equal(int32(0)))
 		gomega.Ω(deployment.Status.AvailableReplicas).To(gomega.Equal(int32(0)))
 		gomega.Ω(deployment.Status.ReadyReplicas).To(gomega.Equal(int32(0)))
@@ -356,7 +356,7 @@ var _ = ginkgo.Describe("AdmissionController", func() {
 		deployment.Spec.Template.Annotations = make(map[string]string)
 		deployment.Spec.Template.Annotations[userInfoAnnotation] = "{\"user\":\"test\",\"groups\":[\"devops\",\"system:authenticated\"]}"
 		_, err = kubeClient.CreateDeployment(deployment, ns)
-		ginkgo.By(fmt.Sprintf("Error received from API server: %v", err))
+		fmt.Fprintf(ginkgo.GinkgoWriter, "Error received from API server: %v\n", err)
 		gomega.Ω(err).Should(gomega.HaveOccurred())
 		gomega.Ω(err).To(gomega.BeAssignableToTypeOf(&errors.StatusError{}))
 
@@ -438,12 +438,11 @@ var _ = ginkgo.Describe("AdmissionController", func() {
 		replicaSetList, err2 := kubeClient.GetReplicaSets(ns)
 		gomega.Ω(err2).ShouldNot(gomega.HaveOccurred())
 		for _, rs := range replicaSetList.Items {
-			ginkgo.By(fmt.Sprintf("%-20s\tReplicas: %d\tReady: %d\tAvailable: %d\n",
+			fmt.Fprintf(ginkgo.GinkgoWriter, "%-20s\tReplicas: %d\tReady: %d\tAvailable: %d\n",
 				rs.Name,
 				rs.Status.Replicas,
 				rs.Status.ReadyReplicas,
-				rs.Status.AvailableReplicas),
-			)
+				rs.Status.AvailableReplicas)
 		}
 		gomega.Ω(len(replicaSetList.Items)).To(gomega.Equal(2))
 	})
@@ -473,7 +472,7 @@ func runWorkloadTest(workloadType k8s.WorkloadType, create func() (string, error
 	var pods *v1.PodList
 	pods, err = kubeClient.GetPods(ns)
 	gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
-	ginkgo.By("Running pod is " + pods.Items[0].Name)
+	fmt.Fprintf(ginkgo.GinkgoWriter, "Running pod is %s\n", pods.Items[0].Name)
 	pod, err2 := kubeClient.GetPod(pods.Items[0].Name, ns)
 	gomega.Ω(err2).ShouldNot(gomega.HaveOccurred())
 	userinfo := pod.Annotations[constants.DomainYuniKorn+"user.info"]

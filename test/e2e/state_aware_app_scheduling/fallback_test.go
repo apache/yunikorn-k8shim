@@ -112,8 +112,8 @@ var _ = Describe("FallbackTest:", func() {
 
 		testDescription := ginkgo.CurrentSpecReport()
 		if testDescription.Failed() {
-			tests.LogTestClusterInfoWrapper(testDescription.FullText(), testDescription.FailureMessage(), []string{ns})
-			tests.LogYunikornContainer(testDescription.FullText())
+			tests.LogTestClusterInfoWrapper(testDescription.FailureMessage(), []string{ns})
+			tests.LogYunikornContainer(testDescription.FailureMessage())
 		}
 		By("Tearing down namespace: " + ns)
 		err = kClient.TearDownNamespace(ns)

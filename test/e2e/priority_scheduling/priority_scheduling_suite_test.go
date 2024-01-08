@@ -20,7 +20,6 @@ package priority_test
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -33,7 +32,6 @@ import (
 
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
-	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/ginkgo_writer"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
 )
@@ -87,12 +85,8 @@ var normalPriorityClass = schedulingv1.PriorityClass{
 
 var annotation = "ann-" + common.RandSeq(10)
 var oldConfigMap = new(v1.ConfigMap)
-var artifactFile *os.File
 
 var _ = ginkgo.BeforeSuite(func() {
-	suiteName := "priority_scheduling"
-	artifactFile = ginkgo_writer.SetGinkgoWriterToFile(suiteName)
-
 	var err error
 	kubeClient = k8s.KubeCtl{}
 	Expect(kubeClient.SetClient()).To(BeNil())
@@ -132,7 +126,6 @@ var _ = ginkgo.AfterSuite(func() {
 	Ω(err).ShouldNot(HaveOccurred())
 
 	yunikorn.RestoreConfigMapWrapper(oldConfigMap, annotation)
-	artifactFile.Close()
 })
 
 var By = ginkgo.By

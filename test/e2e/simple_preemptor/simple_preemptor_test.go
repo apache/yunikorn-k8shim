@@ -20,7 +20,6 @@ package simple_preemptor_test
 
 import (
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -33,7 +32,6 @@ import (
 
 	tests "github.com/apache/yunikorn-k8shim/test/e2e"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
-	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/ginkgo_writer"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
 )
@@ -54,12 +52,8 @@ var sleepPodMemLimit1 int64
 var sleepPodMemLimit2 int64
 var taintKey = "e2e_test_simple_preemptor"
 var nodesToTaint []string
-var artifactFile *os.File
 
 var _ = ginkgo.BeforeSuite(func() {
-	suiteName := "simple_preemptor"
-	artifactFile = ginkgo_writer.SetGinkgoWriterToFile(suiteName)
-
 	// Initializing kubectl client
 	kClient = k8s.KubeCtl{}
 	Ω(kClient.SetClient()).To(gomega.BeNil())
@@ -145,7 +139,6 @@ var _ = ginkgo.AfterSuite(func() {
 	Ω(err).NotTo(gomega.HaveOccurred())
 
 	yunikorn.RestoreConfigMapWrapper(oldConfigMap, annotation)
-	artifactFile.Close()
 })
 
 var _ = ginkgo.Describe("SimplePreemptor", func() {
@@ -224,8 +217,8 @@ var _ = ginkgo.Describe("SimplePreemptor", func() {
 	ginkgo.AfterEach(func() {
 		testDescription := ginkgo.CurrentSpecReport()
 		if testDescription.Failed() {
-			tests.LogTestClusterInfoWrapper(testDescription.FullText(), testDescription.FailureMessage(), []string{ns.Name})
-			tests.LogYunikornContainer(testDescription.FullText())
+			tests.LogTestClusterInfoWrapper(testDescription.FailureMessage(), []string{ns.Name})
+			tests.LogYunikornContainer(testDescription.FailureMessage())
 		}
 		// Delete all sleep pods
 		ginkgo.By("Delete all sleep pods")

@@ -19,12 +19,10 @@
 package stateawareappscheduling_test
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
-	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/ginkgo_writer"
 
 	v1 "k8s.io/api/core/v1"
 
@@ -43,12 +41,8 @@ func init() {
 
 var oldConfigMap = new(v1.ConfigMap)
 var annotation string
-var artifactFile *os.File
 
 var _ = BeforeSuite(func() {
-	suiteName := "state_aware_app_scheduling"
-	artifactFile = ginkgo_writer.SetGinkgoWriterToFile(suiteName)
-
 	annotation = "ann-" + common.RandSeq(10)
 	yunikorn.EnsureYuniKornConfigsPresent()
 	yunikorn.UpdateConfigMapWrapper(oldConfigMap, "stateaware", annotation)
@@ -56,7 +50,6 @@ var _ = BeforeSuite(func() {
 
 var _ = AfterSuite(func() {
 	yunikorn.RestoreConfigMapWrapper(oldConfigMap, annotation)
-	artifactFile.Close()
 })
 
 func TestStateAwareAppScheduling(t *testing.T) {
