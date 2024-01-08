@@ -108,7 +108,7 @@ func (c *RClient) GetHealthCheck() (dao.SchedulerHealthDAOInfo, error) {
 }
 
 func (c *RClient) WaitforQueueToAppear(partition string, queueName string, timeout int) error {
-	return wait.PollUntilContextTimeout(context.TODO(), 300*time.Microsecond, time.Duration(timeout)*time.Second, false, c.IsQueuePresent(partition, queueName).WithContext())
+	return wait.PollUntilContextTimeout(context.TODO(), time.Second, time.Duration(timeout)*time.Second, false, c.IsQueuePresent(partition, queueName).WithContext())
 }
 
 func (c *RClient) IsQueuePresent(partition string, queueName string) wait.ConditionFunc {
@@ -276,11 +276,11 @@ func (c *RClient) GetNodes(partition string) (*[]dao.NodeDAOInfo, error) {
 }
 
 func (c *RClient) WaitForAppStateTransition(partition string, queue string, appID string, state string, timeout int) error {
-	return wait.PollUntilContextTimeout(context.TODO(), time.Millisecond*300, time.Duration(timeout)*time.Second, false, c.isAppInDesiredState(partition, queue, appID, state).WithContext())
+	return wait.PollUntilContextTimeout(context.TODO(), time.Second, time.Duration(timeout)*time.Second, false, c.isAppInDesiredState(partition, queue, appID, state).WithContext())
 }
 
 func (c *RClient) WaitForCompletedAppStateTransition(partition string, appID string, state string, timeout int) error {
-	return wait.PollUntilContextTimeout(context.TODO(), time.Millisecond*300, time.Duration(timeout)*time.Second, false, c.isAppInDesiredCompletedState(partition, appID, state).WithContext())
+	return wait.PollUntilContextTimeout(context.TODO(), time.Second, time.Duration(timeout)*time.Second, false, c.isAppInDesiredCompletedState(partition, appID, state).WithContext())
 }
 
 func (c *RClient) AreAllExecPodsAllotted(partition string, queueName string, appID string, execPodCount int) wait.ConditionFunc {
