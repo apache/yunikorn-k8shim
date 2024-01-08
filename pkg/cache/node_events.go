@@ -16,34 +16,32 @@
  limitations under the License.
 */
 
-package support
+package cache
 
-import (
-	"testing"
+type SchedulerNodeEventType int
 
-	"gotest.tools/v3/assert"
-	v1 "k8s.io/api/core/v1"
-	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/apache/yunikorn-k8shim/pkg/cache/external"
-	"github.com/apache/yunikorn-k8shim/pkg/client"
+const (
+	NodeAccepted SchedulerNodeEventType = iota
+	NodeRejected
 )
 
-func TestNewSharedLister(t *testing.T) {
-	cache := external.NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
-	lister := NewSharedLister(cache)
+func (ae SchedulerNodeEventType) String() string {
+	return [...]string{"NodeAccepted", "NodeRejected"}[ae]
+}
 
-	node := &v1.Node{
-		ObjectMeta: apis.ObjectMeta{
-			Name:      "host0001",
-			Namespace: "default",
-			UID:       "Node-UID-00001",
-		},
-	}
-	cache.UpdateNode(node)
+type CachedSchedulerNodeEvent struct {
+	NodeID string
+	Event  SchedulerNodeEventType
+}
 
-	nodeInfo, err := lister.NodeInfos().Get("host0001")
-	assert.NilError(t, err, "err returned from Get call")
-	assert.Assert(t, nodeInfo != nil, "node was nil")
-	assert.Equal(t, "host0001", nodeInfo.Node().Name)
+func (sn CachedSchedulerNodeEvent) GetEvent() string {
+	return sn.Event.String()
+}
+
+func (sn CachedSchedulerNodeEvent) GetNodeID() string {
+	return sn.NodeID
+}
+
+func (sn CachedSchedulerNodeEvent) GetArgs() []interface{} {
+	return nil
 }

@@ -112,7 +112,7 @@ func TestRunApplication(t *testing.T) {
 
 func TestFailApplication(t *testing.T) {
 	context := initContextForTest()
-	dispatcher.RegisterEventHandler(dispatcher.EventTypeApp, context.ApplicationEventHandler())
+	dispatcher.RegisterEventHandler("TestAppHandler", dispatcher.EventTypeApp, context.ApplicationEventHandler())
 	dispatcher.Start()
 	defer dispatcher.Stop()
 
@@ -209,7 +209,7 @@ func TestFailApplication(t *testing.T) {
 
 func TestSetUnallocatedPodsToFailedWhenFailApplication(t *testing.T) {
 	context := initContextForTest()
-	dispatcher.RegisterEventHandler(dispatcher.EventTypeApp, context.ApplicationEventHandler())
+	dispatcher.RegisterEventHandler("TestAppHandler", dispatcher.EventTypeApp, context.ApplicationEventHandler())
 	dispatcher.Start()
 	defer dispatcher.Stop()
 
@@ -317,7 +317,7 @@ func TestSetUnallocatedPodsToFailedWhenFailApplication(t *testing.T) {
 
 func TestSetUnallocatedPodsToFailedWhenRejectApplication(t *testing.T) {
 	context := initContextForTest()
-	dispatcher.RegisterEventHandler(dispatcher.EventTypeApp, context.ApplicationEventHandler())
+	dispatcher.RegisterEventHandler("TestAppHandler", dispatcher.EventTypeApp, context.ApplicationEventHandler())
 	dispatcher.Start()
 	defer dispatcher.Stop()
 
@@ -528,7 +528,7 @@ func assertAppState(t *testing.T, app *Application, expectedState string, durati
 func TestGetNonTerminatedTaskAlias(t *testing.T) {
 	context := initContextForTest()
 	app := NewApplication(appID, "root.a", "testuser", testGroups, map[string]string{}, newMockSchedulerAPI())
-	context.addApplication(app)
+	context.addApplicationToContext(app)
 	// app doesn't have any task
 	res := app.getNonTerminatedTaskAlias()
 	assert.Equal(t, len(res), 0)
@@ -681,7 +681,7 @@ func (t *threadSafePodsMap) count() int {
 
 func TestTryReserve(t *testing.T) {
 	context := initContextForTest()
-	dispatcher.RegisterEventHandler(dispatcher.EventTypeApp, context.ApplicationEventHandler())
+	dispatcher.RegisterEventHandler("TestAppHandler", dispatcher.EventTypeApp, context.ApplicationEventHandler())
 	dispatcher.Start()
 	defer dispatcher.Stop()
 
@@ -699,7 +699,7 @@ func TestTryReserve(t *testing.T) {
 	// create a new app
 	app := NewApplication("app00001", "root.abc", "test-user",
 		testGroups, map[string]string{}, mockedAPIProvider.GetAPIs().SchedulerAPI)
-	context.addApplication(app)
+	context.addApplicationToContext(app)
 
 	// set taskGroups
 	app.setTaskGroups([]TaskGroup{
@@ -747,7 +747,7 @@ func TestTryReserve(t *testing.T) {
 
 func TestTryReservePostRestart(t *testing.T) {
 	context := initContextForTest()
-	dispatcher.RegisterEventHandler(dispatcher.EventTypeApp, context.ApplicationEventHandler())
+	dispatcher.RegisterEventHandler("TestAppHandler", dispatcher.EventTypeApp, context.ApplicationEventHandler())
 	dispatcher.Start()
 	defer dispatcher.Stop()
 
@@ -765,7 +765,7 @@ func TestTryReservePostRestart(t *testing.T) {
 	// create a new app
 	app := NewApplication("app00001", "root.abc", "test-user",
 		testGroups, map[string]string{}, mockedAPIProvider.GetAPIs().SchedulerAPI)
-	context.addApplication(app)
+	context.addApplicationToContext(app)
 
 	// set taskGroups
 	app.setTaskGroups([]TaskGroup{
@@ -871,8 +871,8 @@ func TestTryReservePostRestart(t *testing.T) {
 	assert.Equal(t, createdPods.count(), 0)
 }
 
-func TestTriggerAppRecovery(t *testing.T) {
-	// Trigger app recovery should be successful if the app is in New state
+func TestTriggerAppSubmission(t *testing.T) {
+	// Trigger app submission should be successful if the app is in New state
 	mockScheduler := newMockSchedulerAPI()
 	var savedAppRequest *si.ApplicationRequest
 	mockScheduler.UpdateApplicationFn = func(request *si.ApplicationRequest) error {
@@ -893,9 +893,9 @@ func TestTriggerAppRecovery(t *testing.T) {
 	}
 	app.schedulingStyle = "soft"
 
-	err := app.TriggerAppRecovery()
+	err := app.TriggerAppSubmission()
 	assert.NilError(t, err)
-	assert.Equal(t, app.GetApplicationState(), ApplicationStates().Recovering)
+	assert.Equal(t, app.GetApplicationState(), ApplicationStates().Submitted)
 	assert.Assert(t, savedAppRequest != nil, "update function was not called")
 	assert.Equal(t, 1, len(savedAppRequest.New))
 	appRequest := savedAppRequest.New[0]
@@ -917,8 +917,6 @@ func TestTriggerAppRecovery(t *testing.T) {
 	err = app.handle(NewSubmitApplicationEvent(app.applicationID))
 	assert.NilError(t, err)
 	assertAppState(t, app, ApplicationStates().Submitted, 3*time.Second)
-	err = app.TriggerAppRecovery()
-	assert.ErrorContains(t, err, "event RecoverApplication inappropriate in current state Submitted")
 }
 
 func TestSkipReservationStage(t *testing.T) {
@@ -1029,7 +1027,7 @@ func TestReleaseAppAllocationInFailingState(t *testing.T) {
 
 func TestResumingStateTransitions(t *testing.T) {
 	context := initContextForTest()
-	dispatcher.RegisterEventHandler(dispatcher.EventTypeApp, context.ApplicationEventHandler())
+	dispatcher.RegisterEventHandler("TestAppHandler", dispatcher.EventTypeApp, context.ApplicationEventHandler())
 	dispatcher.Start()
 	defer dispatcher.Stop()
 
@@ -1056,7 +1054,7 @@ func TestResumingStateTransitions(t *testing.T) {
 	app.addTask(task1)
 	app.addTask(task2)
 	task1.allocationID = taskAllocationID
-	context.addApplication(app)
+	context.addApplicationToContext(app)
 
 	// Set app state to "reserving"
 	app.SetState(ApplicationStates().Reserving)
@@ -1117,9 +1115,6 @@ func TestPlaceholderTimeoutEvents(t *testing.T) {
 		t.Fatal("the EventRecorder is expected to be of type FakeRecorder")
 	}
 
-	amprotocol := NewMockedAMProtocol()
-	am := NewAMService(amprotocol, client.NewMockedAPIProvider(false))
-	am.podEventHandler.recoveryRunning = false
 	pod1 := v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
@@ -1140,8 +1135,8 @@ func TestPlaceholderTimeoutEvents(t *testing.T) {
 		},
 	}
 
-	// add a pending pod through the AM service
-	am.AddPod(&pod1)
+	// add a pending pod
+	context.AddPod(&pod1)
 
 	pod := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
@@ -1162,7 +1157,7 @@ func TestPlaceholderTimeoutEvents(t *testing.T) {
 			Phase: v1.PodPending,
 		},
 	}
-	app := amprotocol.GetApplication("app00001")
+	app := context.GetApplication("app00001")
 	assert.Assert(t, app != nil)
 	assert.Equal(t, app.GetApplicationID(), "app00001")
 	assert.Equal(t, app.GetApplicationState(), ApplicationStates().New)
@@ -1172,7 +1167,6 @@ func TestPlaceholderTimeoutEvents(t *testing.T) {
 	appID := "app00001"
 	allocationID := "UID-POD-00002"
 
-	context.addApplication(app)
 	task1 := context.AddTask(&AddTaskRequest{
 		Metadata: TaskMetadata{
 			ApplicationID: "app00001",
@@ -1189,14 +1183,10 @@ func TestPlaceholderTimeoutEvents(t *testing.T) {
 
 	task1.allocationID = allocationID
 
-	// app must be running states
-	err := app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, allocationID))
-	assert.Error(t, err, "event ReleaseAppAllocation inappropriate in current state New")
-
 	// set app states to running, let event can be trigger
 	app.SetState(ApplicationStates().Running)
 	assertAppState(t, app, ApplicationStates().Running, 3*time.Second)
-	err = app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, allocationID))
+	err := app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, allocationID))
 	assert.NilError(t, err)
 	// after handle release event the states of app must be running
 	assertAppState(t, app, ApplicationStates().Running, 3*time.Second)
@@ -1221,12 +1211,12 @@ func TestPlaceholderTimeoutEvents(t *testing.T) {
 
 func TestApplication_onReservationStateChange(t *testing.T) {
 	context := initContextForTest()
-	dispatcher.RegisterEventHandler(dispatcher.EventTypeApp, context.ApplicationEventHandler())
+	dispatcher.RegisterEventHandler("TestAppHandler", dispatcher.EventTypeApp, context.ApplicationEventHandler())
 	dispatcher.Start()
 	defer dispatcher.Stop()
 
 	app := NewApplication(appID, "root.a", "testuser", testGroups, map[string]string{}, newMockSchedulerAPI())
-	context.addApplication(app)
+	context.addApplicationToContext(app)
 
 	app.sm.SetState("Accepted")
 	app.onReservationStateChange()
@@ -1294,7 +1284,7 @@ func TestApplication_onReservationStateChange(t *testing.T) {
 	assertAppState(t, app, ApplicationStates().Running, 1*time.Second)
 }
 
-func (ctx *Context) addApplication(app *Application) {
+func (ctx *Context) addApplicationToContext(app *Application) {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
 	ctx.applications[app.applicationID] = app

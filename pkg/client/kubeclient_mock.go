@@ -43,39 +43,23 @@ type KubeClientMock struct {
 	clientSet      kubernetes.Interface
 	pods           map[string]*v1.Pod
 	lock           sync.RWMutex
-	bindStats      *BindStats
+	bindStats      BindStats
+	boundPods      []BoundPod
 }
 
 // BindStats statistics about KubeClientMock.Bind() calls
 type BindStats struct {
-	First        time.Time
-	Last         time.Time
-	FirstPod     *v1.Pod
-	LastPod      *v1.Pod
-	Success      int64
-	Errors       int64
-	HostBindings []HostBinding
+	First    time.Time
+	Last     time.Time
+	FirstPod string
+	LastPod  string
+	Success  int64
+	Errors   int64
 }
 
-type HostBinding struct {
-	pod  *v1.Pod
-	host string
-	time time.Time
-}
-
-func (b *BindStats) copy() BindStats {
-	bindings := make([]HostBinding, len(b.HostBindings))
-	copy(bindings, b.HostBindings)
-
-	return BindStats{
-		First:        b.First,
-		Last:         b.Last,
-		FirstPod:     b.FirstPod,
-		LastPod:      b.LastPod,
-		Success:      b.Success,
-		Errors:       b.Errors,
-		HostBindings: bindings,
-	}
+type BoundPod struct {
+	Pod  string
+	Host string
 }
 
 func NewKubeClientMock(err bool) *KubeClientMock {
@@ -124,13 +108,13 @@ func NewKubeClientMock(err bool) *KubeClientMock {
 		clientSet: fake.NewSimpleClientset(),
 		pods:      make(map[string]*v1.Pod),
 		lock:      sync.RWMutex{},
-		bindStats: &BindStats{
-			HostBindings: make([]HostBinding, 0, 1024),
-		},
+		boundPods: make([]BoundPod, 0, 1024),
 	}
 
 	kubeMock.bindFn = func(pod *v1.Pod, hostID string) error {
-		stats := kubeMock.bindStats
+		// kubeMock must be locked for this
+		stats := &kubeMock.bindStats
+
 		if err {
 			stats.Errors++
 			return fmt.Errorf("binding error")
@@ -139,16 +123,15 @@ func NewKubeClientMock(err bool) *KubeClientMock {
 			zap.String("PodName", pod.Name))
 
 		now := time.Now()
-		if stats.FirstPod == nil {
-			stats.FirstPod = pod
+		if stats.FirstPod == "" {
+			stats.FirstPod = pod.Name
 			stats.First = now
 		}
 		stats.Last = now
-		stats.LastPod = pod
-		stats.HostBindings = append(stats.HostBindings, HostBinding{
-			pod:  pod,
-			time: now,
-			host: hostID,
+		stats.LastPod = pod.Name
+		kubeMock.boundPods = append(kubeMock.boundPods, BoundPod{
+			Pod:  pod.Name,
+			Host: hostID,
 		})
 		stats.Success++
 
@@ -236,7 +219,17 @@ func (c *KubeClientMock) GetConfigMap(namespace string, name string) (*v1.Config
 func (c *KubeClientMock) GetBindStats() BindStats {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
-	return c.bindStats.copy()
+	return c.bindStats
+}
+
+func (c *KubeClientMock) GetBoundPods(clear bool) []BoundPod {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	boundPods := c.boundPods
+	if clear {
+		c.boundPods = nil
+	}
+	return boundPods
 }
 
 func getPodKey(pod *v1.Pod) string {

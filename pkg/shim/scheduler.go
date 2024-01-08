@@ -41,13 +41,17 @@ import (
 type KubernetesShim struct {
 	apiFactory           client.APIProvider
 	context              *cache.Context
-	appManager           *cache.AppManagementService
 	phManager            *cache.PlaceholderManager
 	callback             api.ResourceManagerCallback
 	stopChan             chan struct{}
 	lock                 *sync.RWMutex
 	outstandingAppsFound bool
 }
+
+const (
+	AppHandler  string = "ShimAppHandler"
+	TaskHandler string = "ShimTaskHandler"
+)
 
 var (
 	// timeout for logging a message if no outstanding apps were found for scheduling
@@ -63,8 +67,7 @@ func NewShimScheduler(scheduler api.SchedulerAPI, configs *conf.SchedulerConf, b
 	apiFactory := client.NewAPIFactory(scheduler, informerFactory, configs, false)
 	context := cache.NewContextWithBootstrapConfigMaps(apiFactory, bootstrapConfigMaps)
 	rmCallback := cache.NewAsyncRMCallback(context)
-	appManager := cache.NewAMService(context, apiFactory)
-	return newShimSchedulerInternal(context, apiFactory, appManager, rmCallback)
+	return newShimSchedulerInternal(context, apiFactory, rmCallback)
 }
 
 func NewShimSchedulerForPlugin(scheduler api.SchedulerAPI, informerFactory informers.SharedInformerFactory, configs *conf.SchedulerConf, bootstrapConfigMaps []*v1.ConfigMap) *KubernetesShim {
@@ -72,17 +75,14 @@ func NewShimSchedulerForPlugin(scheduler api.SchedulerAPI, informerFactory infor
 	context := cache.NewContextWithBootstrapConfigMaps(apiFactory, bootstrapConfigMaps)
 	utils.SetPluginMode(true)
 	rmCallback := cache.NewAsyncRMCallback(context)
-	appManager := cache.NewAMService(context, apiFactory)
-	return newShimSchedulerInternal(context, apiFactory, appManager, rmCallback)
+	return newShimSchedulerInternal(context, apiFactory, rmCallback)
 }
 
 // this is visible for testing
-func newShimSchedulerInternal(ctx *cache.Context, apiFactory client.APIProvider,
-	am *cache.AppManagementService, cb api.ResourceManagerCallback) *KubernetesShim {
+func newShimSchedulerInternal(ctx *cache.Context, apiFactory client.APIProvider, cb api.ResourceManagerCallback) *KubernetesShim {
 	ss := &KubernetesShim{
 		apiFactory:           apiFactory,
 		context:              ctx,
-		appManager:           am,
 		phManager:            cache.NewPlaceholderManager(apiFactory.GetAPIs()),
 		callback:             cb,
 		stopChan:             make(chan struct{}),
@@ -90,9 +90,8 @@ func newShimSchedulerInternal(ctx *cache.Context, apiFactory client.APIProvider,
 		outstandingAppsFound: false,
 	}
 	// init dispatcher
-	dispatcher.RegisterEventHandler(dispatcher.EventTypeApp, ctx.ApplicationEventHandler())
-	dispatcher.RegisterEventHandler(dispatcher.EventTypeTask, ctx.TaskEventHandler())
-	dispatcher.RegisterEventHandler(dispatcher.EventTypeNode, ctx.SchedulerNodeEventHandler())
+	dispatcher.RegisterEventHandler(AppHandler, dispatcher.EventTypeApp, ctx.ApplicationEventHandler())
+	dispatcher.RegisterEventHandler(TaskHandler, dispatcher.EventTypeTask, ctx.TaskEventHandler())
 
 	return ss
 }
@@ -101,37 +100,17 @@ func (ss *KubernetesShim) GetContext() *cache.Context {
 	return ss.context
 }
 
-func (ss *KubernetesShim) recoverSchedulerState() error {
-	log.Log(log.ShimScheduler).Info("recovering scheduler states")
-	// step 1: recover all applications
-	// this step, we collect all the existing allocated pods from api-server,
-	// identify the scheduling identity (aka applicationInfo) from the pod,
-	// and then add these applications to the scheduler.
-	if err := ss.appManager.WaitForRecovery(); err != nil {
-		// failed
-		log.Log(log.ShimScheduler).Error("scheduler recovery failed", zap.Error(err))
+func (ss *KubernetesShim) initSchedulerState() error {
+	log.Log(log.ShimScheduler).Info("initializing scheduler state")
+	if err := ss.context.InitializeState(); err != nil {
+		log.Log(log.ShimScheduler).Error("failed to initialize scheduler state", zap.Error(err))
 		return err
 	}
-
-	// step 2: recover existing allocations
-	// this step, we collect all existing allocations (allocated pods) from api-server,
-	// rerun the scheduling for these allocations in order to restore scheduler-state,
-	// the rerun is like a replay, not a actual scheduling procedure.
-	if err := ss.context.WaitForRecovery(ss.appManager, 5*time.Minute); err != nil {
-		// failed
-		log.Log(log.ShimScheduler).Error("scheduler recovery failed", zap.Error(err))
-		return err
-	}
-
-	// success
-	log.Log(log.ShimScheduler).Info("scheduler recovery succeed")
+	log.Log(log.ShimScheduler).Info("scheduler state initialized")
 	return nil
 }
 
 func (ss *KubernetesShim) doScheduling() {
-	// add event handlers to the context
-	ss.context.AddSchedulingEventHandlers()
-
 	// run main scheduling loop
 	go wait.Until(ss.schedule, conf.GetSchedulerConf().GetSchedulingInterval(), ss.stopChan)
 	// log a message if no outstanding requests were found for a while
@@ -207,18 +186,9 @@ func (ss *KubernetesShim) Run() error {
 		return err
 	}
 
-	// run app managers
-	// the app manager launches the pod event handlers
-	// it needs to be started after the shim is registered with the core
-	if err := ss.appManager.Start(); err != nil {
-		log.Log(log.ShimScheduler).Error("failed to start app manager", zap.Error(err))
-		ss.Stop()
-		return err
-	}
-
-	// recover scheduler state
-	if err := ss.recoverSchedulerState(); err != nil {
-		log.Log(log.ShimScheduler).Error("failed to recover scheduler state", zap.Error(err))
+	// initialize scheduler state
+	if err := ss.initSchedulerState(); err != nil {
+		log.Log(log.ShimScheduler).Error("failed to initialize scheduler state", zap.Error(err))
 		ss.Stop()
 		return err
 	}

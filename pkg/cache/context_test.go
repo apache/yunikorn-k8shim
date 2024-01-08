@@ -34,8 +34,9 @@ import (
 	"k8s.io/client-go/tools/cache"
 	k8sEvents "k8s.io/client-go/tools/events"
 
-	"github.com/apache/yunikorn-core/pkg/common"
+	schedulercache "github.com/apache/yunikorn-k8shim/pkg/cache/external"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
+	"github.com/apache/yunikorn-k8shim/pkg/common"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/common/test"
@@ -93,7 +94,20 @@ func newPodHelper(name, namespace, podUID, nodeName string, appID string, podPha
 }
 
 func TestAddNodes(t *testing.T) {
-	ctx := initContextForTest()
+	ctx, apiProvider := initContextAndAPIProviderForTest()
+	dispatcher.Start()
+	defer dispatcher.UnregisterAllEventHandlers()
+	defer dispatcher.Stop()
+
+	apiProvider.MockSchedulerAPIUpdateNodeFn(func(request *si.NodeRequest) error {
+		for _, node := range request.Nodes {
+			dispatcher.Dispatch(CachedSchedulerNodeEvent{
+				NodeID: node.NodeID,
+				Event:  NodeAccepted,
+			})
+		}
+		return nil
+	})
 
 	node := v1.Node{
 		ObjectMeta: apis.ObjectMeta{
@@ -104,12 +118,25 @@ func TestAddNodes(t *testing.T) {
 	}
 
 	ctx.addNode(&node)
+
 	assert.Equal(t, true, ctx.schedulerCache.GetNode("host0001") != nil)
-	assert.Equal(t, true, ctx.nodes.getNode("host0001") != nil)
 }
 
 func TestUpdateNodes(t *testing.T) {
-	ctx := initContextForTest()
+	ctx, apiProvider := initContextAndAPIProviderForTest()
+	dispatcher.Start()
+	defer dispatcher.UnregisterAllEventHandlers()
+	defer dispatcher.Stop()
+
+	apiProvider.MockSchedulerAPIUpdateNodeFn(func(request *si.NodeRequest) error {
+		for _, node := range request.Nodes {
+			dispatcher.Dispatch(CachedSchedulerNodeEvent{
+				NodeID: node.NodeID,
+				Event:  NodeAccepted,
+			})
+		}
+		return nil
+	})
 
 	oldNodeResource := make(map[v1.ResourceName]resource.Quantity)
 	oldNodeResource[v1.ResourceName("memory")] = *resource.NewQuantity(1024*1000*1000, resource.DecimalSI)
@@ -142,12 +169,28 @@ func TestUpdateNodes(t *testing.T) {
 	ctx.addNode(&oldNode)
 	ctx.updateNode(&oldNode, &newNode)
 
-	assert.Equal(t, int64(2048*1000*1000), ctx.nodes.getNode("host0001").capacity.Resources[siCommon.Memory].Value)
-	assert.Equal(t, int64(4000), ctx.nodes.getNode("host0001").capacity.Resources[siCommon.CPU].Value)
+	_, capacity, _, ok := ctx.schedulerCache.UpdateOccupiedResource(
+		"host0001", "n/a", "n/a", nil, schedulercache.AddOccupiedResource)
+	assert.Assert(t, ok, "unable to retrieve node capacity")
+	assert.Equal(t, int64(2048*1000*1000), capacity.Resources[siCommon.Memory].Value)
+	assert.Equal(t, int64(4000), capacity.Resources[siCommon.CPU].Value)
 }
 
 func TestDeleteNodes(t *testing.T) {
-	ctx := initContextForTest()
+	ctx, apiProvider := initContextAndAPIProviderForTest()
+	dispatcher.Start()
+	defer dispatcher.UnregisterAllEventHandlers()
+	defer dispatcher.Stop()
+
+	apiProvider.MockSchedulerAPIUpdateNodeFn(func(request *si.NodeRequest) error {
+		for _, node := range request.Nodes {
+			dispatcher.Dispatch(CachedSchedulerNodeEvent{
+				NodeID: node.NodeID,
+				Event:  NodeAccepted,
+			})
+		}
+		return nil
+	})
 
 	node := v1.Node{
 		ObjectMeta: apis.ObjectMeta{
@@ -159,19 +202,15 @@ func TestDeleteNodes(t *testing.T) {
 
 	ctx.addNode(&node)
 	assert.Equal(t, true, ctx.schedulerCache.GetNode("host0001") != nil)
-	assert.Equal(t, true, ctx.nodes.getNode("host0001") != nil)
 
 	ctx.deleteNode(&node)
 	assert.Equal(t, true, ctx.schedulerCache.GetNode("host0001") == nil)
-	assert.Equal(t, true, ctx.nodes.getNode("host0001") == nil)
 
 	ctx.addNode(&node)
 	assert.Equal(t, true, ctx.schedulerCache.GetNode("host0001") != nil)
-	assert.Equal(t, true, ctx.nodes.getNode("host0001") != nil)
 
 	ctx.deleteNode(cache.DeletedFinalStateUnknown{Key: "UID-00001", Obj: &node})
 	assert.Equal(t, true, ctx.schedulerCache.GetNode("host0001") == nil)
-	assert.Equal(t, true, ctx.nodes.getNode("host0001") == nil)
 }
 
 func TestAddApplications(t *testing.T) {
@@ -370,9 +409,9 @@ func TestAddPod(t *testing.T) {
 		},
 	}
 
-	context.addPod(nil)  // no-op, but should not crash
-	context.addPod(pod1) // should be added
-	context.addPod(pod2) // should skip as pod is terminated
+	context.AddPod(nil)  // no-op, but should not crash
+	context.AddPod(pod1) // should be added
+	context.AddPod(pod2) // should skip as pod is terminated
 
 	_, ok := context.schedulerCache.GetPod("UID-00001")
 	assert.Check(t, ok, "active pod was not added")
@@ -431,22 +470,22 @@ func TestUpdatePod(t *testing.T) {
 		},
 	}
 
-	context.addPod(pod1)
+	context.AddPod(pod1)
 	_, ok := context.schedulerCache.GetPod("UID-00001")
 	assert.Assert(t, ok, "pod1 is not present after adding")
 
 	// these should not fail, but are no-ops
-	context.updatePod(nil, nil)
-	context.updatePod(nil, pod1)
-	context.updatePod(pod1, nil)
+	context.UpdatePod(nil, nil)
+	context.UpdatePod(nil, pod1)
+	context.UpdatePod(pod1, nil)
 
 	// ensure a terminated pod is removed
-	context.updatePod(pod1, pod3)
+	context.UpdatePod(pod1, pod3)
 	_, ok = context.schedulerCache.GetPod("UID-00001")
 	assert.Check(t, !ok, "pod still found after termination")
 
 	// ensure a non-terminated pod is updated
-	context.updatePod(pod1, pod2)
+	context.UpdatePod(pod1, pod2)
 	found, ok := context.schedulerCache.GetPod("UID-00001")
 	if assert.Check(t, ok, "pod not found after update") {
 		assert.Check(t, found.GetAnnotations()["test.state"] == "updated", "pod state not updated")
@@ -485,45 +524,53 @@ func TestDeletePod(t *testing.T) {
 		Spec: v1.PodSpec{SchedulerName: "yunikorn"},
 	}
 
-	context.addPod(pod1)
-	context.addPod(pod2)
+	context.AddPod(pod1)
+	context.AddPod(pod2)
 	_, ok := context.schedulerCache.GetPod("UID-00001")
 	assert.Assert(t, ok, "pod1 is not present after adding")
 	_, ok = context.schedulerCache.GetPod("UID-00002")
 	assert.Assert(t, ok, "pod2 is not present after adding")
 
 	// these should not fail, but here for completeness
-	context.deletePod(nil)
-	context.deletePod(cache.DeletedFinalStateUnknown{Key: "UID-00000", Obj: nil})
+	context.DeletePod(nil)
+	context.DeletePod(cache.DeletedFinalStateUnknown{Key: "UID-00000", Obj: nil})
 
-	context.deletePod(pod1)
+	context.DeletePod(pod1)
 	_, ok = context.schedulerCache.GetPod("UID-00001")
 	assert.Check(t, !ok, "pod1 is still present")
 
-	context.deletePod(cache.DeletedFinalStateUnknown{Key: "UID-00002", Obj: pod2})
+	context.DeletePod(cache.DeletedFinalStateUnknown{Key: "UID-00002", Obj: pod2})
 	_, ok = context.schedulerCache.GetPod("UID-00002")
 	assert.Check(t, !ok, "pod2 is still present")
 }
 
 //nolint:funlen
 func TestAddUpdatePodForeign(t *testing.T) {
-	mockedSchedulerApi := newMockSchedulerAPI()
-	context := initContextForTest()
-	context.nodes = newSchedulerNodes(mockedSchedulerApi, NewTestSchedulerCache())
-	host1 := nodeForTest(Host1, "10G", "10")
-	context.nodes.addNode(host1)
+	context, apiProvider := initContextAndAPIProviderForTest()
+	dispatcher.Start()
+	defer dispatcher.UnregisterAllEventHandlers()
+	defer dispatcher.Stop()
 
 	executed := false
 	expectAdd := false
 	expectRemove := false
 	tc := ""
 
-	mockedSchedulerApi.UpdateNodeFn = func(request *si.NodeRequest) error {
-		executed = true
+	validatorFunc := func(request *si.NodeRequest) error {
 		assert.Equal(t, len(request.Nodes), 1, "%s: wrong node count", tc)
 		updatedNode := request.Nodes[0]
 		assert.Equal(t, updatedNode.NodeID, Host1, "%s: wrong nodeID", tc)
-		assert.Equal(t, updatedNode.Action, si.NodeInfo_UPDATE, "%s: wrong action", tc)
+		switch updatedNode.Action {
+		case si.NodeInfo_CREATE_DRAIN:
+			return nil
+		case si.NodeInfo_DRAIN_TO_SCHEDULABLE:
+			return nil
+		case si.NodeInfo_UPDATE:
+			executed = true
+		default:
+			assert.Equal(t, false, "Unexpected action: %d", updatedNode.Action)
+			return nil
+		}
 		assert.Equal(t, updatedNode.SchedulableResource.Resources[siCommon.Memory].Value, int64(10000*1000*1000), "%s: wrong schedulable memory", tc)
 		assert.Equal(t, updatedNode.SchedulableResource.Resources[siCommon.CPU].Value, int64(10000), "%s: wrong schedulable cpu", tc)
 		if expectAdd {
@@ -537,6 +584,21 @@ func TestAddUpdatePodForeign(t *testing.T) {
 		return nil
 	}
 
+	apiProvider.MockSchedulerAPIUpdateNodeFn(func(request *si.NodeRequest) error {
+		for _, node := range request.Nodes {
+			if node.Action == si.NodeInfo_CREATE_DRAIN {
+				dispatcher.Dispatch(CachedSchedulerNodeEvent{
+					NodeID: node.NodeID,
+					Event:  NodeAccepted,
+				})
+			}
+		}
+		return validatorFunc(request)
+	})
+
+	host1 := nodeForTest(Host1, "10G", "10")
+	context.updateNode(nil, host1)
+
 	// pod is not assigned to any node
 	pod1 := foreignPod("pod1", "1G", "500m")
 	pod1.Status.Phase = v1.PodPending
@@ -547,7 +609,7 @@ func TestAddUpdatePodForeign(t *testing.T) {
 	executed = false
 	expectAdd = false
 	expectRemove = false
-	context.addPod(pod1)
+	context.AddPod(pod1)
 	assert.Assert(t, !executed, "unexpected update")
 	_, ok := context.schedulerCache.GetPod(string(pod1.UID))
 	assert.Assert(t, !ok, "unassigned pod found in cache")
@@ -555,11 +617,9 @@ func TestAddUpdatePodForeign(t *testing.T) {
 	// validate update
 	tc = "update-pod1"
 	executed = false
-	expectAdd = false
 	expectRemove = false
-	context.updatePod(nil, pod1)
+	context.UpdatePod(nil, pod1)
 	assert.Assert(t, !executed, "unexpected update")
-	_, ok = context.schedulerCache.GetPod(string(pod1.UID))
 	assert.Assert(t, !ok, "unassigned pod found in cache")
 
 	// pod is assigned to a node but still in pending state, should update
@@ -572,8 +632,8 @@ func TestAddUpdatePodForeign(t *testing.T) {
 	executed = false
 	expectAdd = true
 	expectRemove = false
-	context.addPod(pod2)
-	assert.Assert(t, executed, "update not executed")
+	context.AddPod(pod2)
+	assert.Assert(t, executed, "updated expected")
 	_, ok = context.schedulerCache.GetPod(string(pod2.UID))
 	assert.Assert(t, ok, "pod not found in cache")
 
@@ -582,7 +642,7 @@ func TestAddUpdatePodForeign(t *testing.T) {
 	executed = false
 	expectAdd = false
 	expectRemove = false
-	context.updatePod(nil, pod2)
+	context.UpdatePod(nil, pod2)
 	assert.Assert(t, !executed, "unexpected update")
 	_, ok = context.schedulerCache.GetPod(string(pod2.UID))
 	assert.Assert(t, ok, "pod not found in cache")
@@ -592,13 +652,14 @@ func TestAddUpdatePodForeign(t *testing.T) {
 	executed = false
 	expectAdd = false
 	expectRemove = true
-	context.deletePod(pod2)
+	context.DeletePod(pod2)
+	assert.Assert(t, executed, "expected update")
 	tc = "update-pod2-nocache"
 	executed = false
 	expectAdd = true
 	expectRemove = false
-	context.updatePod(nil, pod2)
-	assert.Assert(t, executed, "update not executed")
+	context.UpdatePod(nil, pod2)
+	assert.Assert(t, executed, "expected update")
 	_, ok = context.schedulerCache.GetPod(string(pod2.UID))
 	assert.Assert(t, ok, "pod not found in cache")
 
@@ -611,8 +672,8 @@ func TestAddUpdatePodForeign(t *testing.T) {
 	executed = false
 	expectAdd = false
 	expectRemove = true
-	context.addPod(pod3)
-	assert.Assert(t, executed, "update not executed")
+	context.AddPod(pod3)
+	assert.Assert(t, executed, "expected update")
 	_, ok = context.schedulerCache.GetPod(string(pod3.UID))
 	assert.Assert(t, !ok, "failed pod found in cache")
 
@@ -621,33 +682,43 @@ func TestAddUpdatePodForeign(t *testing.T) {
 	executed = false
 	expectAdd = true
 	expectRemove = false
-	context.addPod(pod2)
+	context.AddPod(pod2)
 	tc = "update-pod3"
 	executed = false
 	expectAdd = false
 	expectRemove = true
-	context.updatePod(nil, pod3)
-	assert.Assert(t, executed, "update not executed")
+	context.UpdatePod(nil, pod3)
+	assert.Assert(t, executed, "expected update")
 	_, ok = context.schedulerCache.GetPod(string(pod3.UID))
 	assert.Assert(t, !ok, "failed pod found in cache")
 }
 
 func TestDeletePodForeign(t *testing.T) {
-	mockedSchedulerApi := newMockSchedulerAPI()
-	context := initContextForTest()
-	context.nodes = newSchedulerNodes(mockedSchedulerApi, NewTestSchedulerCache())
-	host1 := nodeForTest(Host1, "10G", "10")
-	context.nodes.addNode(host1)
+	context, apiProvider := initContextAndAPIProviderForTest()
+	dispatcher.Start()
+	defer dispatcher.UnregisterAllEventHandlers()
+	defer dispatcher.Stop()
 
 	executed := false
 	expectAdd := false
 	expectRemove := false
 	tc := ""
 
-	mockedSchedulerApi.UpdateNodeFn = func(request *si.NodeRequest) error {
+	validatorFunc := func(request *si.NodeRequest) error {
 		executed = true
 		assert.Equal(t, len(request.Nodes), 1, "%s: wrong node count", tc)
 		updatedNode := request.Nodes[0]
+		switch updatedNode.Action {
+		case si.NodeInfo_CREATE_DRAIN:
+			return nil
+		case si.NodeInfo_DRAIN_TO_SCHEDULABLE:
+			return nil
+		case si.NodeInfo_UPDATE:
+			executed = true
+		default:
+			assert.Equal(t, false, "Unexpected action: %d", updatedNode.Action)
+			return nil
+		}
 		assert.Equal(t, updatedNode.NodeID, Host1, "%s: wrong nodeID", tc)
 		assert.Equal(t, updatedNode.Action, si.NodeInfo_UPDATE, "%s: wrong action", tc)
 		assert.Equal(t, updatedNode.SchedulableResource.Resources[siCommon.Memory].Value, int64(10000*1000*1000), "%s: wrong schedulable memory", tc)
@@ -663,6 +734,21 @@ func TestDeletePodForeign(t *testing.T) {
 		return nil
 	}
 
+	apiProvider.MockSchedulerAPIUpdateNodeFn(func(request *si.NodeRequest) error {
+		for _, node := range request.Nodes {
+			if node.Action == si.NodeInfo_CREATE_DRAIN {
+				dispatcher.Dispatch(CachedSchedulerNodeEvent{
+					NodeID: node.NodeID,
+					Event:  NodeAccepted,
+				})
+			}
+		}
+		return validatorFunc(request)
+	})
+
+	host1 := nodeForTest(Host1, "10G", "10")
+	context.updateNode(nil, host1)
+
 	// add existing pod
 	pod1 := foreignPod("pod1", "1G", "500m")
 	pod1.Status.Phase = v1.PodRunning
@@ -673,12 +759,12 @@ func TestDeletePodForeign(t *testing.T) {
 	executed = false
 	expectAdd = true
 	expectRemove = false
-	context.addPod(pod1)
+	context.AddPod(pod1)
 	tc = "delete-pod1"
 	executed = false
 	expectAdd = false
 	expectRemove = true
-	context.deletePod(pod1)
+	context.DeletePod(pod1)
 	assert.Assert(t, executed, "update not executed")
 	_, ok := context.schedulerCache.GetPod(string(pod1.UID))
 	assert.Assert(t, !ok, "deleted pod found in cache")
@@ -688,7 +774,7 @@ func TestDeletePodForeign(t *testing.T) {
 	executed = false
 	expectAdd = false
 	expectRemove = false
-	context.deletePod(pod1)
+	context.DeletePod(pod1)
 	assert.Assert(t, !executed, "unexpected update")
 	_, ok = context.schedulerCache.GetPod(string(pod1.UID))
 	assert.Assert(t, !ok, "deleted pod found in cache")
@@ -759,7 +845,27 @@ func TestAddTask(t *testing.T) {
 }
 
 func TestRecoverTask(t *testing.T) {
-	context := initContextForTest()
+	context, apiProvider := initContextAndAPIProviderForTest()
+	dispatcher.Start()
+	dispatcher.RegisterEventHandler("TestAppHandler", dispatcher.EventTypeApp, context.ApplicationEventHandler())
+	dispatcher.RegisterEventHandler("TestTaskHandler", dispatcher.EventTypeTask, context.TaskEventHandler())
+	defer dispatcher.UnregisterAllEventHandlers()
+	defer dispatcher.Stop()
+
+	apiProvider.MockSchedulerAPIUpdateAllocationFn(func(request *si.AllocationRequest) error {
+		for _, alloc := range request.Allocations {
+			if alloc.NodeID != "" {
+				dispatcher.Dispatch(AllocatedTaskEvent{
+					applicationID: alloc.ApplicationID,
+					taskID:        alloc.AllocationKey,
+					nodeID:        alloc.NodeID,
+					allocationID:  alloc.AllocationID,
+					event:         TaskAllocated,
+				})
+			}
+		}
+		return nil
+	})
 
 	const (
 		appID        = "app00001"
@@ -774,7 +880,7 @@ func TestRecoverTask(t *testing.T) {
 	)
 
 	// add a new application
-	context.AddApplication(&AddApplicationRequest{
+	app := context.AddApplication(&AddApplicationRequest{
 		Metadata: ApplicationMetadata{
 			ApplicationID: appID,
 			QueueName:     queue,
@@ -797,7 +903,15 @@ func TestRecoverTask(t *testing.T) {
 	})
 	assert.Assert(t, task != nil)
 	assert.Equal(t, task.GetTaskID(), taskUID1)
-	assert.Equal(t, task.GetTaskState(), TaskStates().Bound)
+
+	app.SetState("Running")
+	app.Schedule()
+
+	// wait for task to transition to bound state
+	err := utils.WaitForCondition(func() bool {
+		return task.GetTaskState() == TaskStates().Bound
+	}, 100*time.Millisecond, 3*time.Second)
+	assert.NilError(t, err, "failed to wait for allocation allocationID being set for task")
 
 	// add a tasks to the existing application
 	// this task was already completed with state: Succeed
@@ -872,11 +986,27 @@ func TestRecoverTask(t *testing.T) {
 }
 
 func TestTaskReleaseAfterRecovery(t *testing.T) {
-	context := initContextForTest()
-	dispatcher.RegisterEventHandler(dispatcher.EventTypeApp, context.ApplicationEventHandler())
-	dispatcher.RegisterEventHandler(dispatcher.EventTypeTask, context.TaskEventHandler())
+	context, apiProvider := initContextAndAPIProviderForTest()
+	dispatcher.RegisterEventHandler("TestAppHandler", dispatcher.EventTypeApp, context.ApplicationEventHandler())
+	dispatcher.RegisterEventHandler("TestTaskHandler", dispatcher.EventTypeTask, context.TaskEventHandler())
 	dispatcher.Start()
+	defer dispatcher.UnregisterAllEventHandlers()
 	defer dispatcher.Stop()
+
+	apiProvider.MockSchedulerAPIUpdateAllocationFn(func(request *si.AllocationRequest) error {
+		for _, alloc := range request.Allocations {
+			if alloc.NodeID != "" {
+				dispatcher.Dispatch(AllocatedTaskEvent{
+					applicationID: alloc.ApplicationID,
+					taskID:        alloc.AllocationKey,
+					nodeID:        alloc.NodeID,
+					allocationID:  alloc.AllocationID,
+					event:         TaskAllocated,
+				})
+			}
+		}
+		return nil
+	})
 
 	const appID = "app00001"
 	const queue = "root.a"
@@ -889,7 +1019,7 @@ func TestTaskReleaseAfterRecovery(t *testing.T) {
 
 	// do app recovery, first recover app, then tasks
 	// add application to recovery
-	context.AddApplication(&AddApplicationRequest{
+	app := context.AddApplication(&AddApplicationRequest{
 		Metadata: ApplicationMetadata{
 			ApplicationID: appID,
 			QueueName:     queue,
@@ -912,7 +1042,15 @@ func TestTaskReleaseAfterRecovery(t *testing.T) {
 
 	assert.Assert(t, task0 != nil)
 	assert.Equal(t, task0.GetTaskID(), pod1UID)
-	assert.Equal(t, task0.GetTaskState(), TaskStates().Bound)
+
+	app.SetState("Running")
+	app.Schedule()
+
+	// wait for task to transition to bound state
+	err := utils.WaitForCondition(func() bool {
+		return task0.GetTaskState() == TaskStates().Bound
+	}, 100*time.Millisecond, 3*time.Second)
+	assert.NilError(t, err, "failed to wait for allocation allocationID being set for task0")
 
 	task1 := context.AddTask(&AddTaskRequest{
 		Metadata: TaskMetadata{
@@ -924,7 +1062,14 @@ func TestTaskReleaseAfterRecovery(t *testing.T) {
 
 	assert.Assert(t, task1 != nil)
 	assert.Equal(t, task1.GetTaskID(), pod2UID)
-	assert.Equal(t, task1.GetTaskState(), TaskStates().Bound)
+
+	app.Schedule()
+
+	// wait for task to transition to bound state
+	err = utils.WaitForCondition(func() bool {
+		return task1.GetTaskState() == TaskStates().Bound
+	}, 100*time.Millisecond, 3*time.Second)
+	assert.NilError(t, err, "failed to wait for allocation allocationID being set for task1")
 
 	// app should have 2 tasks recovered
 	app, exist := context.applications[appID]
@@ -935,9 +1080,9 @@ func TestTaskReleaseAfterRecovery(t *testing.T) {
 	context.NotifyTaskComplete(appID, pod2UID)
 
 	// wait for release
-	err := common.WaitFor(100*time.Millisecond, 3*time.Second, func() bool {
+	err = utils.WaitForCondition(func() bool {
 		return task1.GetTaskState() == TaskStates().Completed
-	})
+	}, 100*time.Millisecond, 3*time.Second)
 	assert.NilError(t, err, "release should be completed for task1")
 
 	// expect to see:
@@ -1092,7 +1237,21 @@ func TestNodeEventPublishedCorrectly(t *testing.T) {
 	if !ok {
 		t.Fatal("the EventRecorder is expected to be of type FakeRecorder")
 	}
-	context := initContextForTest()
+
+	context, apiProvider := initContextAndAPIProviderForTest()
+	dispatcher.Start()
+	defer dispatcher.UnregisterAllEventHandlers()
+	defer dispatcher.Stop()
+
+	apiProvider.MockSchedulerAPIUpdateNodeFn(func(request *si.NodeRequest) error {
+		for _, node := range request.Nodes {
+			dispatcher.Dispatch(CachedSchedulerNodeEvent{
+				NodeID: node.NodeID,
+				Event:  NodeAccepted,
+			})
+		}
+		return nil
+	})
 
 	node := v1.Node{
 		ObjectMeta: apis.ObjectMeta{
@@ -1139,7 +1298,21 @@ func TestFilteredEventsNotPublished(t *testing.T) {
 	if !ok {
 		t.Fatal("the EventRecorder is expected to be of type FakeRecorder")
 	}
-	context := initContextForTest()
+
+	context, apiProvider := initContextAndAPIProviderForTest()
+	dispatcher.Start()
+	defer dispatcher.UnregisterAllEventHandlers()
+	defer dispatcher.Stop()
+
+	apiProvider.MockSchedulerAPIUpdateNodeFn(func(request *si.NodeRequest) error {
+		for _, node := range request.Nodes {
+			dispatcher.Dispatch(CachedSchedulerNodeEvent{
+				NodeID: node.NodeID,
+				Event:  NodeAccepted,
+			})
+		}
+		return nil
+	})
 
 	node := v1.Node{
 		ObjectMeta: apis.ObjectMeta{
@@ -1456,7 +1629,20 @@ func TestPendingPodAllocations(t *testing.T) {
 	utils.SetPluginMode(true)
 	defer utils.SetPluginMode(false)
 
-	context := initContextForTest()
+	context, apiProvider := initContextAndAPIProviderForTest()
+	dispatcher.Start()
+	defer dispatcher.UnregisterAllEventHandlers()
+	defer dispatcher.Stop()
+
+	apiProvider.MockSchedulerAPIUpdateNodeFn(func(request *si.NodeRequest) error {
+		for _, node := range request.Nodes {
+			dispatcher.Dispatch(CachedSchedulerNodeEvent{
+				NodeID: node.NodeID,
+				Event:  NodeAccepted,
+			})
+		}
+		return nil
+	})
 
 	node1 := v1.Node{
 		ObjectMeta: apis.ObjectMeta{
@@ -1572,7 +1758,7 @@ func TestGetStateDump(t *testing.T) {
 		},
 		Spec: v1.PodSpec{SchedulerName: "yunikorn"},
 	}
-	context.addPod(pod1)
+	context.AddPod(pod1)
 
 	stateDumpStr, err := context.GetStateDump()
 	assert.NilError(t, err, "error during state dump")
@@ -1735,6 +1921,167 @@ func TestCtxUpdatePodCondition(t *testing.T) {
 	condition.Status = v1.ConditionFalse
 	updated = context.updatePodCondition(task, &condition)
 	assert.Equal(t, true, updated)
+}
+
+func TestGetExistingAllocation(t *testing.T) {
+	pod := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name:      "pod00001",
+			Namespace: "default",
+			UID:       "UID-POD-00001",
+			Labels: map[string]string{
+				"applicationId": "app00001",
+				"queue":         "root.a",
+			},
+		},
+		Spec: v1.PodSpec{
+			SchedulerName: constants.SchedulerName,
+			NodeName:      "allocated-node",
+		},
+		Status: v1.PodStatus{
+			Phase: v1.PodPending,
+		},
+	}
+
+	// verifies the existing allocation is correctly returned
+	alloc := getExistingAllocation(pod)
+	assert.Equal(t, alloc.ApplicationID, "app00001")
+	assert.Equal(t, alloc.AllocationKey, string(pod.UID))
+	assert.Equal(t, alloc.AllocationID, string(pod.UID))
+	assert.Equal(t, alloc.NodeID, "allocated-node")
+}
+
+//nolint:funlen
+func TestInitializeState(t *testing.T) {
+	context, apiProvider := initContextAndAPIProviderForTest()
+	apiProvider.RunEventHandler()
+	pcLister, ok := apiProvider.GetAPIs().PriorityClassInformer.Lister().(*test.MockPriorityClassLister)
+	assert.Assert(t, ok, "unable to get mock priority class lister")
+	nodeLister, ok := apiProvider.GetAPIs().NodeInformer.Lister().(*test.NodeListerMock)
+	assert.Assert(t, ok, "unable to get mock node lister")
+	podLister, ok := apiProvider.GetAPIs().PodInformer.Lister().(*test.PodListerMock)
+	assert.Assert(t, ok, "unable to get mock pod lister")
+
+	dispatcher.Start()
+	defer dispatcher.UnregisterAllEventHandlers()
+	defer dispatcher.Stop()
+
+	apiProvider.MockSchedulerAPIUpdateNodeFn(func(request *si.NodeRequest) error {
+		for _, node := range request.Nodes {
+			dispatcher.Dispatch(CachedSchedulerNodeEvent{
+				NodeID: node.NodeID,
+				Event:  NodeAccepted,
+			})
+		}
+		return nil
+	})
+
+	// add a preemption policy
+	policy := v1.PreemptLowerPriority
+	pcLister.Add(&schedulingv1.PriorityClass{
+		ObjectMeta: apis.ObjectMeta{
+			Name: "preempt-lower-1000",
+			Annotations: map[string]string{
+				constants.AnnotationAllowPreemption: constants.True,
+			},
+		},
+		Value:            1000,
+		PreemptionPolicy: &policy,
+	})
+
+	// add a test node
+	nodeLister.AddNode(nodeForTest("node1", "10G", "4"))
+
+	// add a pending non-yunikorn pod
+	foreignPending := foreignPod("foreignPending", "1G", "500m")
+	foreignPending.Status.Phase = v1.PodPending
+	podLister.AddPod(foreignPending)
+
+	// add a running non-yunikorn pod
+	foreignRunning := foreignPod("foreignRunning", "2G", "1500m")
+	foreignRunning.Status.Phase = v1.PodRunning
+	foreignRunning.Spec.NodeName = "node1"
+	podLister.AddPod(foreignRunning)
+
+	// add a pending yunikorn-managed pod
+	pending := newPodHelper("pending", "default", "pod1", "", appID1, v1.PodPending)
+	pending.Spec.Containers = []v1.Container{{
+		Resources: v1.ResourceRequirements{
+			Requests: v1.ResourceList{
+				"memory": resource.MustParse("1G"),
+				"cpu":    resource.MustParse("500m"),
+			},
+		},
+	}}
+
+	podLister.AddPod(pending)
+
+	// add a running yunikorn-managed pod
+	running := newPodHelper("running", "default", "pod2", "node1", appID2, v1.PodRunning)
+	running.Spec.Containers = []v1.Container{{
+		Resources: v1.ResourceRequirements{
+			Requests: v1.ResourceList{
+				"memory": resource.MustParse("2G"),
+				"cpu":    resource.MustParse("1"),
+			},
+		},
+	}}
+	podLister.AddPod(running)
+
+	// add an orphaned yunikorn-managed pod
+	orphaned := newPodHelper("running", "default", "pod3", "node2", appID3, v1.PodRunning)
+	orphaned.Spec.Containers = []v1.Container{{
+		Resources: v1.ResourceRequirements{
+			Requests: v1.ResourceList{
+				"memory": resource.MustParse("3G"),
+				"cpu":    resource.MustParse("300m"),
+			},
+		},
+	}}
+	podLister.AddPod(orphaned)
+
+	err := context.InitializeState()
+	assert.NilError(t, err, "InitializeState failed")
+
+	// verify that priorityclass was added to cache
+	pc := context.schedulerCache.GetPriorityClass("preempt-lower-1000")
+	assert.Assert(t, pc != nil, "priorityClass not found")
+	assert.Equal(t, pc.Value, int32(1000), "wrong priority value")
+	assert.Equal(t, *pc.PreemptionPolicy, policy, "wrong preemption policy")
+	assert.Equal(t, pc.Annotations[constants.AnnotationAllowPreemption], constants.True, "wrong allow-preemption value")
+
+	// verify occupied / capacity on node
+	capacity, occupied, ok := context.schedulerCache.SnapshotResources("node1")
+	assert.Assert(t, ok, "Unable to retrieve node resources")
+	expectedCapacity := common.ParseResource("4", "10G")
+	assert.Equal(t, expectedCapacity.Resources["vcore"].Value, capacity.Resources["vcore"].Value, "wrong capacity vcore")
+	assert.Equal(t, expectedCapacity.Resources["memory"].Value, capacity.Resources["memory"].Value, "wrong capacity memory")
+	expectedOccupied := common.ParseResource("1500m", "2G")
+	assert.Equal(t, expectedOccupied.Resources["vcore"].Value, occupied.Resources["vcore"].Value, "wrong occupied vcore")
+	assert.Equal(t, expectedOccupied.Resources["memory"].Value, occupied.Resources["memory"].Value, "wrong occupied memory")
+
+	// check that pod orphan status is correct
+	assert.Check(t, !context.schedulerCache.IsPodOrphaned("pod1"), "pod1 should not be orphaned")
+	assert.Check(t, !context.schedulerCache.IsPodOrphaned("pod2"), "pod2 should not be orphaned")
+	assert.Check(t, context.schedulerCache.IsPodOrphaned("pod3"), "pod3 should be orphaned")
+
+	// pod1 is pending
+	task1 := context.getTask(appID1, "pod1")
+	assert.Assert(t, task1 != nil, "pod1 not found")
+	assert.Equal(t, task1.pod.Spec.NodeName, "", "wrong node for pod1")
+
+	// pod 2 is running
+	task2 := context.getTask(appID2, "pod2")
+	assert.Assert(t, task2 != nil, "pod2 not found")
+	assert.Equal(t, task2.pod.Spec.NodeName, "node1", "wrong node for pod2")
+
+	// pod3 is an orphan, should not be found
+	task3 := context.getTask(appID3, "pod3")
+	assert.Assert(t, task3 == nil, "pod3 was found")
 }
 
 func waitForNodeAcceptedEvent(recorder *k8sEvents.FakeRecorder) error {

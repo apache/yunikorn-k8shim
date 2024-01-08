@@ -133,7 +133,7 @@ func TestGetAppMetadata(t *testing.T) { //nolint:funlen
 		},
 	}
 
-	app, ok := getAppMetadata(&pod, false)
+	app, ok := getAppMetadata(&pod)
 	assert.Equal(t, ok, true)
 	assert.Equal(t, app.ApplicationID, "app00001")
 	assert.Equal(t, app.QueueName, "root.a")
@@ -175,7 +175,7 @@ func TestGetAppMetadata(t *testing.T) { //nolint:funlen
 		},
 	}
 
-	app, ok = getAppMetadata(&pod, false)
+	app, ok = getAppMetadata(&pod)
 	assert.Equal(t, ok, true)
 	assert.Equal(t, app.ApplicationID, "app00002")
 	assert.Equal(t, app.QueueName, "root.b")
@@ -208,7 +208,7 @@ func TestGetAppMetadata(t *testing.T) { //nolint:funlen
 		},
 	}
 
-	app, ok = getAppMetadata(&pod, false)
+	app, ok = getAppMetadata(&pod)
 	assert.Equal(t, ok, true)
 	assert.Equal(t, app.SchedulingPolicyParameters.GetGangSchedulingStyle(), "Soft")
 
@@ -238,7 +238,7 @@ func TestGetAppMetadata(t *testing.T) { //nolint:funlen
 		},
 	}
 
-	app, ok = getAppMetadata(&pod, false)
+	app, ok = getAppMetadata(&pod)
 	assert.Equal(t, ok, true)
 	assert.Equal(t, app.SchedulingPolicyParameters.GetGangSchedulingStyle(), "Soft")
 
@@ -261,19 +261,19 @@ func TestGetAppMetadata(t *testing.T) { //nolint:funlen
 	}
 
 	utils.SetPluginMode(false)
-	app, ok = getAppMetadata(&pod, false)
+	app, ok = getAppMetadata(&pod)
 	conf.GetSchedulerConf().GenerateUniqueAppIds = true
 	assert.Equal(t, ok, true)
 	assert.Equal(t, app.ApplicationID, "yunikorn-app-namespace-01-autogen")
 
 	utils.SetPluginMode(false)
 	conf.GetSchedulerConf().GenerateUniqueAppIds = true
-	app, ok = getAppMetadata(&pod, false)
+	app, ok = getAppMetadata(&pod)
 	assert.Equal(t, ok, true)
 	assert.Equal(t, app.ApplicationID, "app-namespace-01-UID-POD-00001")
 
 	utils.SetPluginMode(true)
-	app, ok = getAppMetadata(&pod, false)
+	app, ok = getAppMetadata(&pod)
 	assert.Equal(t, ok, false)
 }
 
