@@ -280,7 +280,7 @@ func TestCleanUp(t *testing.T) {
 	placeholderMgr := NewPlaceholderManager(mockedAPIProvider.GetAPIs())
 	placeholderMgr.cleanUp(app)
 
-	// check both pod-01 and pod-02 in deletePod list and pod-03 isn't contain
+	// check both pod-01 and pod-02 in DeletePod list and pod-03 isn't contain
 	assert.Assert(t, is.Contains(deletePod, "pod-01"))
 	assert.Assert(t, is.Contains(deletePod, "pod-02"))
 	exist := false

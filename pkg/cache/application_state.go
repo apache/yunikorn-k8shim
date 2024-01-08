@@ -39,7 +39,6 @@ type ApplicationEventType int
 
 const (
 	SubmitApplication ApplicationEventType = iota
-	RecoverApplication
 	AcceptApplication
 	TryReserve
 	UpdateReservation
@@ -361,37 +360,35 @@ func (re ResumingApplicationEvent) GetApplicationID() string {
 var storeApplicationStates *AStates
 
 type AStates struct {
-	New        string
-	Recovering string
-	Submitted  string
-	Accepted   string
-	Reserving  string
-	Running    string
-	Rejected   string
-	Completed  string
-	Killing    string
-	Killed     string
-	Failing    string
-	Failed     string
-	Resuming   string
+	New       string
+	Submitted string
+	Accepted  string
+	Reserving string
+	Running   string
+	Rejected  string
+	Completed string
+	Killing   string
+	Killed    string
+	Failing   string
+	Failed    string
+	Resuming  string
 }
 
 func ApplicationStates() *AStates {
 	applicationStatesOnce.Do(func() {
 		storeApplicationStates = &AStates{
-			New:        "New",
-			Recovering: "Recovering",
-			Submitted:  "Submitted",
-			Accepted:   "Accepted",
-			Reserving:  "Reserving",
-			Running:    "Running",
-			Rejected:   "Rejected",
-			Completed:  "Completed",
-			Killing:    "Killing",
-			Killed:     "Killed",
-			Failed:     "Failed",
-			Failing:    "Failing",
-			Resuming:   "Resuming",
+			New:       "New",
+			Submitted: "Submitted",
+			Accepted:  "Accepted",
+			Reserving: "Reserving",
+			Running:   "Running",
+			Rejected:  "Rejected",
+			Completed: "Completed",
+			Killing:   "Killing",
+			Killed:    "Killed",
+			Failed:    "Failed",
+			Failing:   "Failing",
+			Resuming:  "Resuming",
 		}
 	})
 	return storeApplicationStates
@@ -407,13 +404,8 @@ func newAppState() *fsm.FSM { //nolint:funlen
 				Dst:  states.Submitted,
 			},
 			{
-				Name: RecoverApplication.String(),
-				Src:  []string{states.New},
-				Dst:  states.Recovering,
-			},
-			{
 				Name: AcceptApplication.String(),
-				Src:  []string{states.Submitted, states.Recovering},
+				Src:  []string{states.Submitted},
 				Dst:  states.Accepted,
 			},
 			{
@@ -478,7 +470,7 @@ func newAppState() *fsm.FSM { //nolint:funlen
 			},
 			{
 				Name: RejectApplication.String(),
-				Src:  []string{states.Submitted, states.Recovering},
+				Src:  []string{states.Submitted},
 				Dst:  states.Rejected,
 			},
 			{
@@ -517,11 +509,7 @@ func newAppState() *fsm.FSM { //nolint:funlen
 			},
 			SubmitApplication.String(): func(_ context.Context, event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
-				app.handleSubmitApplicationEvent()
-			},
-			RecoverApplication.String(): func(_ context.Context, event *fsm.Event) {
-				app := event.Args[0].(*Application) //nolint:errcheck
-				app.handleRecoverApplicationEvent()
+				event.Err = app.handleSubmitApplicationEvent()
 			},
 			RejectApplication.String(): func(_ context.Context, event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck

@@ -328,8 +328,8 @@ func (app *Application) SetState(state string) {
 	app.sm.SetState(state)
 }
 
-func (app *Application) TriggerAppRecovery() error {
-	return app.handle(NewSimpleApplicationEvent(app.applicationID, RecoverApplication))
+func (app *Application) TriggerAppSubmission() error {
+	return app.handle(NewSubmitApplicationEvent(app.applicationID))
 }
 
 // Schedule is called in every scheduling interval,
@@ -406,11 +406,12 @@ func (app *Application) scheduleTasks(taskScheduleCondition func(t *Task) bool) 
 	}
 }
 
-func (app *Application) handleSubmitApplicationEvent() {
+func (app *Application) handleSubmitApplicationEvent() error {
 	log.Log(log.ShimCacheApplication).Info("handle app submission",
 		zap.Stringer("app", app),
 		zap.String("clusterID", conf.GetSchedulerConf().ClusterID))
-	err := app.schedulerAPI.UpdateApplication(
+
+	if err := app.schedulerAPI.UpdateApplication(
 		&si.ApplicationRequest{
 			New: []*si.AddApplicationRequest{
 				{
@@ -428,44 +429,13 @@ func (app *Application) handleSubmitApplicationEvent() {
 				},
 			},
 			RmID: conf.GetSchedulerConf().ClusterID,
-		})
-
-	if err != nil {
+		}); err != nil {
 		// submission failed
-		log.Log(log.ShimCacheApplication).Warn("failed to submit app", zap.Error(err))
+		log.Log(log.ShimCacheApplication).Warn("failed to submit new app request to core", zap.Error(err))
 		dispatcher.Dispatch(NewFailApplicationEvent(app.applicationID, err.Error()))
+		return err
 	}
-}
-
-func (app *Application) handleRecoverApplicationEvent() {
-	log.Log(log.ShimCacheApplication).Info("handle app recovering",
-		zap.Stringer("app", app),
-		zap.String("clusterID", conf.GetSchedulerConf().ClusterID))
-	err := app.schedulerAPI.UpdateApplication(
-		&si.ApplicationRequest{
-			New: []*si.AddApplicationRequest{
-				{
-					ApplicationID: app.applicationID,
-					QueueName:     app.queue,
-					PartitionName: app.partition,
-					Ugi: &si.UserGroupInformation{
-						User:   app.user,
-						Groups: app.groups,
-					},
-					Tags:                         app.tags,
-					PlaceholderAsk:               app.placeholderAsk,
-					ExecutionTimeoutMilliSeconds: app.placeholderTimeoutInSec * 1000,
-					GangSchedulingStyle:          app.schedulingStyle,
-				},
-			},
-			RmID: conf.GetSchedulerConf().ClusterID,
-		})
-
-	if err != nil {
-		// recovery failed
-		log.Log(log.ShimCacheApplication).Warn("failed to recover app", zap.Error(err))
-		dispatcher.Dispatch(NewFailApplicationEvent(app.applicationID, err.Error()))
-	}
+	return nil
 }
 
 func (app *Application) skipReservationStage() bool {
@@ -573,7 +543,6 @@ func (app *Application) handleRejectApplicationEvent(reason string) {
 }
 
 func (app *Application) handleCompleteApplicationEvent() {
-	// TODO app lifecycle updates
 	go func() {
 		getPlaceholderManager().cleanUp(app)
 	}()

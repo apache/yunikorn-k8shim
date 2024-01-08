@@ -195,7 +195,7 @@ var _ = Describe("", func() {
 	AfterEach(func() {
 		tests.DumpClusterInfoIfSpecFailed(suiteName, []string{ns})
 		By("Tear down namespace: " + ns)
-		err := kClient.DeleteNamespace(ns)
+		err := kClient.TearDownNamespace(ns)
 		Ω(err).NotTo(HaveOccurred())
 	})
 })

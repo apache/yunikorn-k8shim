@@ -27,6 +27,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -59,7 +60,7 @@ partitions:
 	profileCpu      = true
 	profileHeap     = true
 	numNodes        = 5000
-	totalPods       = int64(50_000)
+	totalPods       = uint64(50_000)
 	nodeCpuMilli    = int64(16_000)
 	nodeMemGiB      = int64(16)
 	nodeNumPods     = int64(110)
@@ -117,11 +118,20 @@ func BenchmarkSchedulingThroughPut(b *testing.B) {
 	assert.NilError(b, err, "node initialization did not finish in time")
 
 	// add pods, begin collecting allocation metrics & wait until all pods are bound
-	addPodsToCluster(cluster)
+	pods := addPodsToCluster(cluster)
 	collector := &metricsCollector{}
 	go collector.collectData()
+
+	// update bound pods to Running then to Succeeded
+	ps := newPodStatusUpdater(cluster, pods)
+	go ps.updatePodStatus()
+	defer ps.stop()
+
+	// await binding of pods
 	err = wait.PollUntilContextTimeout(context.Background(), time.Second, time.Second*60, true, func(ctx context.Context) (done bool, err error) {
-		return cluster.GetPodBindStats().Success == totalPods, nil
+		c := ps.getCompletedPodsCount()
+		fmt.Printf("Number of completed pods: %d\n", c)
+		return c == totalPods, nil
 	})
 	assert.NilError(b, err, "scheduling did not finish in time")
 
@@ -136,28 +146,26 @@ func BenchmarkSchedulingThroughPut(b *testing.B) {
 	}
 }
 
-func addPodsToCluster(cluster *MockScheduler) {
+func addPodsToCluster(cluster *MockScheduler) map[string]*v1.Pod {
+	podsMap := make(map[string]*v1.Pod, totalPods)
+
+	var queues [5]string
+	queues[0] = "root.a"
+	queues[1] = "root.b"
+	queues[2] = "root.c"
+	queues[3] = "root.d"
+	queues[4] = "root.e"
+
 	// make sure that total number of pods == totalPods
-	pods := getTestPods(80, 125, "root.a")
-	for _, pod := range pods {
-		cluster.AddPod(pod)
+	for _, queue := range queues {
+		pods := getTestPods(80, 125, queue)
+		for _, pod := range pods {
+			cluster.AddPod(pod)
+			podsMap[pod.Name] = pod
+		}
 	}
-	pods = getTestPods(80, 125, "root.b")
-	for _, pod := range pods {
-		cluster.AddPod(pod)
-	}
-	pods = getTestPods(80, 125, "root.c")
-	for _, pod := range pods {
-		cluster.AddPod(pod)
-	}
-	pods = getTestPods(80, 125, "root.d")
-	for _, pod := range pods {
-		cluster.AddPod(pod)
-	}
-	pods = getTestPods(80, 125, "root.e")
-	for _, pod := range pods {
-		cluster.AddPod(pod)
-	}
+
+	return podsMap
 }
 
 type metricsCollector struct {
@@ -210,6 +218,66 @@ func (m *metricsCollector) getData() []float64 {
 	return data
 }
 
+func newPodStatusUpdater(cluster *MockScheduler, pods map[string]*v1.Pod) *podStatusUpdater {
+	ps := &podStatusUpdater{
+		stopCh:  make(chan struct{}),
+		cluster: cluster,
+	}
+	podsCopy := make(map[string]*v1.Pod, len(pods))
+	for name, pod := range pods {
+		podsCopy[name] = pod
+	}
+	ps.pods = podsCopy
+
+	return ps
+}
+
+// updates the status of bound pods to Running then to Completed
+type podStatusUpdater struct {
+	completedPods atomic.Uint64
+	stopCh        chan struct{}
+	cluster       *MockScheduler
+	pods          map[string]*v1.Pod
+}
+
+func (p *podStatusUpdater) updatePodStatus() {
+	for {
+		select {
+		case <-time.After(time.Second):
+			boundPods := p.cluster.GetBoundPods(true)
+			for _, boundPod := range boundPods {
+				podName := boundPod.Pod
+
+				if pod, ok := p.pods[podName]; ok {
+					podRunning := pod.DeepCopy()
+					// update to Running
+					podRunning.Status.Phase = v1.PodRunning
+					p.cluster.UpdatePod(pod, podRunning)
+
+					podSucceeded := pod.DeepCopy()
+					// update to Completed
+					podSucceeded.Status.Phase = v1.PodSucceeded
+					p.cluster.UpdatePod(podRunning, podSucceeded)
+
+					p.completedPods.Add(1)
+					continue
+				}
+				panic("BUG: test pod not found: " + podName)
+			}
+		case <-p.stopCh:
+			return
+		}
+	}
+}
+
+func (p *podStatusUpdater) getCompletedPodsCount() uint64 {
+	return p.completedPods.Load()
+}
+
+func (p *podStatusUpdater) stop() {
+	close(p.stopCh)
+}
+
 func getTestPods(noApps, noTasksPerApp int, queue string) []*v1.Pod {
 	podCount := noApps * noTasksPerApp
 	pods := make([]*v1.Pod, 0, podCount)
@@ -221,14 +289,15 @@ func getTestPods(noApps, noTasksPerApp int, queue string) []*v1.Pod {
 		appId := "app000" + strconv.Itoa(i) + "-" + strconv.FormatInt(time.Now().UnixMilli(), 10)
 		for j := 0; j < noTasksPerApp; j++ {
 			taskName := "task000" + strconv.Itoa(j)
+			podName := appId + "-" + taskName
 			pod := &v1.Pod{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       "Pod",
 					APIVersion: "v1",
 				},
 				ObjectMeta: metav1.ObjectMeta{
-					Name: taskName,
-					UID:  types.UID("UID-" + appId + "-" + taskName),
+					Name: podName,
+					UID:  types.UID("UID-" + podName),
 					Annotations: map[string]string{
 						constants.AnnotationApplicationID: appId,
 						constants.AnnotationQueueName:     queue,
@@ -244,6 +313,9 @@ func getTestPods(noApps, noTasksPerApp int, queue string) []*v1.Pod {
 						},
 					},
 					SchedulerName: constants.SchedulerName,
+				},
+				Status: v1.PodStatus{
+					Phase: v1.PodPending,
 				},
 			}
 			pods = append(pods, pod)
