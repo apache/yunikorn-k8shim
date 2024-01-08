@@ -50,8 +50,8 @@ var _ = Describe("", func() {
 	AfterEach(func() {
 		testDescription := ginkgo.CurrentSpecReport()
 		if testDescription.Failed() {
-			tests.LogTestClusterInfoWrapper(testDescription.FullText(), testDescription.FailureMessage(), []string{ns})
-			tests.LogYunikornContainer(testDescription.FullText())
+			tests.LogTestClusterInfoWrapper(testDescription.FailureMessage(), []string{ns})
+			tests.LogYunikornContainer(testDescription.FailureMessage())
 		}
 
 		By("Tear down namespace: " + ns)

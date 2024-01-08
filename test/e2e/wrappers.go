@@ -92,10 +92,8 @@ func RestoreConfigMapWrapper(oldConfigMap *v1.ConfigMap, annotation string) {
 	Ω(err).NotTo(HaveOccurred())
 }
 
-func LogTestClusterInfoWrapper(specName string, failureMessage string, namespaces []string) {
-	By(fmt.Sprintf("Dumping cluster status to artifact directory... (spec:%s)", specName))
-	fmt.Fprintf(ginkgo.GinkgoWriter, "Dumping cluster status of spec: %s\n", specName)
-	fmt.Fprintf(ginkgo.GinkgoWriter, "failureMessage:%s\n", failureMessage)
+func LogTestClusterInfoWrapper(testName string, namespaces []string) {
+	fmt.Fprintf(ginkgo.GinkgoWriter, "%s Log test cluster info\n", testName)
 	var restClient yunikorn.RClient
 	err := k.SetClient()
 	if err != nil {
@@ -151,8 +149,8 @@ func LogTestClusterInfoWrapper(specName string, failureMessage string, namespace
 	}
 }
 
-func LogYunikornContainer(specName string) {
-	fmt.Fprintf(ginkgo.GinkgoWriter, "Log yk logs info of sepc: %s\n", specName)
+func LogYunikornContainer(testName string) {
+	fmt.Fprintf(ginkgo.GinkgoWriter, "%s Log yk logs info from\n", testName)
 	err := k.SetClient()
 	if err != nil {
 		fmt.Fprintf(ginkgo.GinkgoWriter, "Error setting k8s client: %v\n", err)

@@ -19,7 +19,6 @@
 package resourcefairness_test
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -30,7 +29,6 @@ import (
 
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
-	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/ginkgo_writer"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
 )
@@ -42,12 +40,7 @@ func init() {
 var oldConfigMap = new(v1.ConfigMap)
 var annotation = "ann-" + common.RandSeq(10)
 var kClient = k8s.KubeCtl{} //nolint
-var artifactFile *os.File
-
 var _ = BeforeSuite(func() {
-	suiteName := "resource_fairness"
-	artifactFile = ginkgo_writer.SetGinkgoWriterToFile(suiteName)
-
 	Ω(kClient.SetClient()).To(BeNil())
 	annotation = "ann-" + common.RandSeq(10)
 	yunikorn.EnsureYuniKornConfigsPresent()
@@ -55,7 +48,6 @@ var _ = BeforeSuite(func() {
 
 var _ = AfterSuite(func() {
 	yunikorn.RestoreConfigMapWrapper(oldConfigMap, annotation)
-	artifactFile.Close()
 })
 
 func TestResourceFairness(t *testing.T) {

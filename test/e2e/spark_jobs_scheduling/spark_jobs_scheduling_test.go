@@ -157,8 +157,8 @@ var _ = Describe("", func() {
 	AfterEach(func() {
 		testDescription := ginkgo.CurrentSpecReport()
 		if testDescription.Failed() {
-			tests.LogTestClusterInfoWrapper(testDescription.FullText(), testDescription.FailureMessage(), []string{sparkNS})
-			tests.LogYunikornContainer(testDescription.FullText())
+			tests.LogTestClusterInfoWrapper(testDescription.FailureMessage(), []string{sparkNS})
+			tests.LogYunikornContainer(testDescription.FailureMessage())
 		}
 
 		By("Killing all spark jobs")

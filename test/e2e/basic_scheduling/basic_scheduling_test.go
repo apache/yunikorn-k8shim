@@ -19,7 +19,6 @@
 package basicscheduling_test
 
 import (
-	"os"
 	"time"
 
 	"github.com/onsi/ginkgo/v2"
@@ -29,7 +28,6 @@ import (
 	"github.com/apache/yunikorn-core/pkg/webservice/dao"
 	tests "github.com/apache/yunikorn-k8shim/test/e2e"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
-	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/ginkgo_writer"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
 )
@@ -41,15 +39,11 @@ var dev = "dev" + common.RandSeq(5)
 var appsInfo *dao.ApplicationDAOInfo
 var annotation = "ann-" + common.RandSeq(10)
 var oldConfigMap = new(v1.ConfigMap)
-var artifactFile *os.File
 
 // Define sleepPod
 var sleepPodConfigs = k8s.SleepPodConfig{Name: "sleepjob", NS: dev}
 
 var _ = ginkgo.BeforeSuite(func() {
-	suiteName := "basic_scheduling"
-	artifactFile = ginkgo_writer.SetGinkgoWriterToFile(suiteName)
-
 	// Initializing kubectl client
 	kClient = k8s.KubeCtl{}
 	gomega.Ω(kClient.SetClient()).To(gomega.BeNil())
@@ -89,7 +83,6 @@ var _ = ginkgo.AfterSuite(func() {
 	Ω(err).NotTo(HaveOccurred())
 
 	yunikorn.RestoreConfigMapWrapper(oldConfigMap, annotation)
-	artifactFile.Close()
 })
 
 var _ = ginkgo.Describe("", func() {
@@ -128,8 +121,8 @@ var _ = ginkgo.Describe("", func() {
 	ginkgo.AfterEach(func() {
 		testDescription := ginkgo.CurrentSpecReport()
 		if testDescription.Failed() {
-			tests.LogTestClusterInfoWrapper(testDescription.FullText(), testDescription.FailureMessage(), []string{dev})
-			tests.LogYunikornContainer(testDescription.FullText())
+			tests.LogTestClusterInfoWrapper(testDescription.FailureMessage(), []string{dev})
+			tests.LogYunikornContainer(testDescription.FailureMessage())
 		}
 		// call the healthCheck api to check scheduler health
 		ginkgo.By("Check Yunikorn's health")

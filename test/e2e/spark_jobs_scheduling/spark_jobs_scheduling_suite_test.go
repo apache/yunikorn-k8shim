@@ -19,7 +19,6 @@
 package spark_jobs_scheduling
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -30,7 +29,6 @@ import (
 
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
-	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/ginkgo_writer"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
 )
 
@@ -40,12 +38,7 @@ func init() {
 
 var oldConfigMap = new(v1.ConfigMap)
 var annotation = "ann-" + common.RandSeq(10)
-var artifactFile *os.File
-
 var _ = BeforeSuite(func() {
-	suiteName := "spark_jobs_scheduling"
-	artifactFile = ginkgo_writer.SetGinkgoWriterToFile(suiteName)
-
 	annotation = "ann-" + common.RandSeq(10)
 	yunikorn.EnsureYuniKornConfigsPresent()
 	yunikorn.UpdateConfigMapWrapper(oldConfigMap, "stateaware", annotation)
@@ -53,7 +46,6 @@ var _ = BeforeSuite(func() {
 
 var _ = AfterSuite(func() {
 	yunikorn.RestoreConfigMapWrapper(oldConfigMap, annotation)
-	artifactFile.Close()
 })
 
 func TestSparkJobs(t *testing.T) {

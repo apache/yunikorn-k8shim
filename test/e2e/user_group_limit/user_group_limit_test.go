@@ -21,7 +21,6 @@ package user_group_limit_test
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/onsi/ginkgo/v2"
@@ -36,7 +35,6 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	tests "github.com/apache/yunikorn-k8shim/test/e2e"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
-	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/ginkgo_writer"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
 	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
@@ -70,13 +68,9 @@ var (
 		"log.core.scheduler.ugm.level":   "debug",
 		amconf.AMAccessControlBypassAuth: constants.True,
 	}
-	artifactFile *os.File
 )
 
 var _ = ginkgo.BeforeSuite(func() {
-	suiteName := "user_group_limit"
-	artifactFile = ginkgo_writer.SetGinkgoWriterToFile(suiteName)
-
 	// Initializing kubectl client
 	kClient = k8s.KubeCtl{}
 	Ω(kClient.SetClient()).To(gomega.BeNil())
@@ -104,7 +98,6 @@ var _ = ginkgo.AfterSuite(func() {
 	ginkgo.By("Tearing down namespace: " + ns.Name)
 	err = kClient.TearDownNamespace(ns.Name)
 	Ω(err).NotTo(gomega.HaveOccurred())
-	artifactFile.Close()
 })
 
 var _ = ginkgo.Describe("UserGroupLimit", func() {
@@ -581,8 +574,8 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 	ginkgo.AfterEach(func() {
 		testDescription := ginkgo.CurrentSpecReport()
 		if testDescription.Failed() {
-			tests.LogTestClusterInfoWrapper(testDescription.FullText(), testDescription.FailureMessage(), []string{ns.Name})
-			tests.LogYunikornContainer(testDescription.FullText())
+			tests.LogTestClusterInfoWrapper(testDescription.FailureMessage(), []string{ns.Name})
+			tests.LogYunikornContainer(testDescription.FailureMessage())
 		}
 		// Delete all sleep pods
 		ginkgo.By("Delete all sleep pods")

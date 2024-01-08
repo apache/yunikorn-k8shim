@@ -112,8 +112,8 @@ var _ = Describe("Predicates", func() {
 		for _, n := range []string{ns, anotherNS} {
 			testDescription := ginkgo.CurrentSpecReport()
 			if testDescription.Failed() {
-				tests.LogTestClusterInfoWrapper(testDescription.FullText(), testDescription.FailureMessage(), []string{n})
-				tests.LogYunikornContainer(testDescription.FullText())
+				tests.LogTestClusterInfoWrapper(testDescription.FailureMessage(), []string{n})
+				tests.LogYunikornContainer(testDescription.FailureMessage())
 			}
 			ginkgo.By("Tear down namespace: " + n)
 			err = kClient.TearDownNamespace(n)
