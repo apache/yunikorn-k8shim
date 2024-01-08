@@ -20,6 +20,7 @@ package preemption_test
 
 import (
 	"fmt"
+	"runtime"
 	"strings"
 	"time"
 
@@ -37,6 +38,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
 )
 
+var suiteName string
 var kClient k8s.KubeCtl
 var restClient yunikorn.RClient
 var ns *v1.Namespace
@@ -53,6 +55,8 @@ var taintKey = "e2e_test_preemption"
 var nodesToTaint []string
 
 var _ = ginkgo.BeforeSuite(func() {
+	_, filename, _, _ := runtime.Caller(0)
+	suiteName = common.GetSuiteName(filename)
 	// Initializing kubectl client
 	kClient = k8s.KubeCtl{}
 	Ω(kClient.SetClient()).To(gomega.BeNil())
@@ -426,6 +430,7 @@ var _ = ginkgo.Describe("Preemption", func() {
 	})
 
 	ginkgo.It("Verify_allow_preemption_tag", func() {
+		tests.ForceFail()
 		ginkgo.By("The value of 'false' for the allow preemption annotation on the PriorityClass moves the Pod to the back of the preemption list")
 		// update config
 		ginkgo.By(fmt.Sprintf("Update root.sandbox3, root.sandbox4 and root.sandbox5 with guaranteed memory %dM", sleepPodMemLimit2))
@@ -548,11 +553,7 @@ var _ = ginkgo.Describe("Preemption", func() {
 	})
 
 	ginkgo.AfterEach(func() {
-		testDescription := ginkgo.CurrentSpecReport()
-		if testDescription.Failed() {
-			tests.LogTestClusterInfoWrapper(testDescription.FailureMessage(), []string{ns.Name})
-			tests.LogYunikornContainer(testDescription.FailureMessage())
-		}
+		tests.DumpClusterInfoIfSpecFailed(suiteName, []string{dev})
 
 		ginkgo.By("Tear down namespace: " + dev)
 		err := kClient.TearDownNamespace(dev)

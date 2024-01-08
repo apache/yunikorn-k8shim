@@ -255,6 +255,7 @@ var _ = ginkgo.Describe("PriorityScheduling", func() {
 	})
 
 	ginkgo.It("Verify_Gang_Scheduling_With_Priority", func() {
+		tests.ForceFail()
 		By("Setting custom YuniKorn configuration")
 		annotation = "ann-" + common.RandSeq(10)
 		yunikorn.UpdateCustomConfigMapWrapper(oldConfigMap, "fifo", annotation, func(sc *configs.SchedulerConfig) error {
@@ -391,11 +392,7 @@ var _ = ginkgo.Describe("PriorityScheduling", func() {
 	})
 
 	ginkgo.AfterEach(func() {
-		testDescription := ginkgo.CurrentSpecReport()
-		if testDescription.Failed() {
-			tests.LogTestClusterInfoWrapper(testDescription.FailureMessage(), []string{ns})
-			tests.LogYunikornContainer(testDescription.FailureMessage())
-		}
+		tests.DumpClusterInfoIfSpecFailed(suiteName, []string{ns})
 
 		// If there is any error test case, we need to delete all pods to make sure it doesn't influence other cases.
 		ginkgo.By("Delete all sleep pods")

@@ -20,6 +20,7 @@ package simple_preemptor_test
 
 import (
 	"fmt"
+	"runtime"
 	"strings"
 	"time"
 
@@ -36,6 +37,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
 )
 
+var suiteName string
 var kClient k8s.KubeCtl
 var restClient yunikorn.RClient
 var ns *v1.Namespace
@@ -54,6 +56,8 @@ var taintKey = "e2e_test_simple_preemptor"
 var nodesToTaint []string
 
 var _ = ginkgo.BeforeSuite(func() {
+	_, filename, _, _ := runtime.Caller(0)
+	suiteName = common.GetSuiteName(filename)
 	// Initializing kubectl client
 	kClient = k8s.KubeCtl{}
 	Ω(kClient.SetClient()).To(gomega.BeNil())
@@ -169,6 +173,7 @@ var _ = ginkgo.Describe("SimplePreemptor", func() {
 
 	ginkgo.It("Verify_simple_preemption. Use case: When 3 sleep pods (2 opted out, regular) are running, regular pod should be victim to free up resources for 4th sleep pod", func() {
 
+		tests.ForceFail()
 		// Define sleepPod
 		sleepPodConfigs := k8s.SleepPodConfig{Name: "sleepjob", NS: dev, Mem: sleepPodMemLimit1, Time: 600, RequiredNode: Worker1}
 		sleepPod2Configs := k8s.SleepPodConfig{Name: "sleepjob2", NS: dev, Mem: sleepPodMemLimit1, Time: 600, RequiredNode: Worker1}
@@ -215,11 +220,8 @@ var _ = ginkgo.Describe("SimplePreemptor", func() {
 	})
 
 	ginkgo.AfterEach(func() {
-		testDescription := ginkgo.CurrentSpecReport()
-		if testDescription.Failed() {
-			tests.LogTestClusterInfoWrapper(testDescription.FailureMessage(), []string{ns.Name})
-			tests.LogYunikornContainer(testDescription.FailureMessage())
-		}
+		tests.DumpClusterInfoIfSpecFailed(suiteName, []string{ns.Name})
+
 		// Delete all sleep pods
 		ginkgo.By("Delete all sleep pods")
 		pods, err := kClient.GetPodNamesFromNS(ns.Name)

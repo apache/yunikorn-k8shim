@@ -23,7 +23,6 @@ import (
 	"sort"
 	"time"
 
-	"github.com/onsi/ginkgo/v2"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -51,6 +50,7 @@ var _ = Describe("", func() {
 	// 4. Submit jobA of 3 pods. Verify all are allocated to nodeA
 	// 5. Submit jobB of 3 pods with anti-affinity of node=nodeA. Verify all are allocated to nodeB
 	It("Verify_BinPacking_Node_Order_Memory", func() {
+		tests.ForceFail()
 		domRes := v1.ResourceMemory
 		nodes, err := kClient.GetNodes()
 		Ω(err).NotTo(HaveOccurred())
@@ -193,11 +193,7 @@ var _ = Describe("", func() {
 	})
 
 	AfterEach(func() {
-		testDescription := ginkgo.CurrentSpecReport()
-		if testDescription.Failed() {
-			tests.LogTestClusterInfoWrapper(testDescription.FailureMessage(), []string{ns})
-			tests.LogYunikornContainer(testDescription.FailureMessage())
-		}
+		tests.DumpClusterInfoIfSpecFailed(suiteName, []string{ns})
 		By("Tear down namespace: " + ns)
 		err := kClient.DeleteNamespace(ns)
 		Ω(err).NotTo(HaveOccurred())

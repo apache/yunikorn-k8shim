@@ -108,13 +108,10 @@ var _ = Describe("Predicates", func() {
 	})
 
 	AfterEach(func() {
+		tests.DumpClusterInfoIfSpecFailed(suiteName, []string{ns, anotherNS})
+
 		By("Cleanup")
 		for _, n := range []string{ns, anotherNS} {
-			testDescription := ginkgo.CurrentSpecReport()
-			if testDescription.Failed() {
-				tests.LogTestClusterInfoWrapper(testDescription.FailureMessage(), []string{n})
-				tests.LogYunikornContainer(testDescription.FailureMessage())
-			}
 			ginkgo.By("Tear down namespace: " + n)
 			err = kClient.TearDownNamespace(n)
 			Ω(err).NotTo(HaveOccurred())
@@ -173,6 +170,7 @@ var _ = Describe("Predicates", func() {
 			3. Check to see if the Pod is scheduled on that node by YK scheduler.
 	*/
 	It("Verify_Matching_NodeSelector_Respected", func() {
+		tests.ForceFail()
 		nodeName := GetNodeThatCanRunPod(&kClient, ns)
 		By("Trying to apply a random label on the found node")
 		key := fmt.Sprintf("kubernetes.io/e2e-%s", common.RandSeq(10))
@@ -214,6 +212,7 @@ var _ = Describe("Predicates", func() {
 
 	// Tests for Node Affinity
 	It("Verify_Non_Matching_NodeAffinity_Respected", func() {
+		tests.ForceFail()
 		By("Trying to schedule Pod with nonempty NodeAffinity.")
 		podName := "blocked-pod"
 

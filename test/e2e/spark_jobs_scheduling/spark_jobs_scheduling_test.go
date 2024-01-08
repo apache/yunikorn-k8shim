@@ -27,7 +27,6 @@ import (
 	"sort"
 	"time"
 
-	"github.com/onsi/ginkgo/v2"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
@@ -94,6 +93,7 @@ var _ = Describe("", func() {
 	})
 
 	It("Test_With_Spark_Jobs", func() {
+		tests.ForceFail()
 		By("Submit the spark jobs")
 		err := exec.Command(
 			"bash",
@@ -155,11 +155,7 @@ var _ = Describe("", func() {
 	})
 
 	AfterEach(func() {
-		testDescription := ginkgo.CurrentSpecReport()
-		if testDescription.Failed() {
-			tests.LogTestClusterInfoWrapper(testDescription.FailureMessage(), []string{sparkNS})
-			tests.LogYunikornContainer(testDescription.FailureMessage())
-		}
+		tests.DumpClusterInfoIfSpecFailed(suiteName, []string{sparkNS})
 
 		By("Killing all spark jobs")
 		// delete the Spark pods one by one

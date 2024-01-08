@@ -93,6 +93,8 @@ var _ = Describe("FairScheduling:", func() {
 	// Step 3: Kill an App3 pod.
 	// Step 4: App with least cpu use is allocated pod next. Break tie using mem.
 	It("Test_Wait_Queue_Order", func() {
+
+		tests.ForceFail()
 		// Create appIDs
 		var apps []string
 		for j := 0; j < 4; j++ {
@@ -163,6 +165,7 @@ var _ = Describe("FairScheduling:", func() {
 					return true, nil
 				}
 				return false, nil
+				tests.ForceFail()
 			})
 			Ω(err).NotTo(HaveOccurred())
 		}
@@ -193,11 +196,8 @@ var _ = Describe("FairScheduling:", func() {
 	})
 
 	AfterEach(func() {
-		testDescription := ginkgo.CurrentSpecReport()
-		if testDescription.Failed() {
-			tests.LogTestClusterInfoWrapper(testDescription.FailureMessage(), []string{ns})
-			tests.LogYunikornContainer(testDescription.FailureMessage())
-		}
+		tests.DumpClusterInfoIfSpecFailed(suiteName, []string{ns})
+
 		By("Tear down namespace: " + ns)
 		err := kClient.TearDownNamespace(ns)
 		Ω(err).NotTo(HaveOccurred())

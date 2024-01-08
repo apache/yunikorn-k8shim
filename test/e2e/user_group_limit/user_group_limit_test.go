@@ -21,6 +21,7 @@ package user_group_limit_test
 import (
 	"encoding/json"
 	"fmt"
+	"runtime"
 	"time"
 
 	"github.com/onsi/ginkgo/v2"
@@ -58,6 +59,7 @@ const (
 )
 
 var (
+	suiteName             string
 	kClient               k8s.KubeCtl
 	restClient            yunikorn.RClient
 	ns                    *v1.Namespace
@@ -71,6 +73,8 @@ var (
 )
 
 var _ = ginkgo.BeforeSuite(func() {
+	_, filename, _, _ := runtime.Caller(0)
+	suiteName = common.GetSuiteName(filename)
 	// Initializing kubectl client
 	kClient = k8s.KubeCtl{}
 	Ω(kClient.SetClient()).To(gomega.BeNil())
@@ -524,6 +528,7 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 	})
 
 	ginkgo.It("Verify_maxapplications_with_a_wildcard_group_limit", func() {
+		tests.ForceFail()
 		ginkgo.By("Update config")
 		annotation = "ann-" + common.RandSeq(10)
 		// The wait wrapper still can't fully guarantee that the config in AdmissionController has been updated.
@@ -572,11 +577,8 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 	})
 
 	ginkgo.AfterEach(func() {
-		testDescription := ginkgo.CurrentSpecReport()
-		if testDescription.Failed() {
-			tests.LogTestClusterInfoWrapper(testDescription.FailureMessage(), []string{ns.Name})
-			tests.LogYunikornContainer(testDescription.FailureMessage())
-		}
+		tests.DumpClusterInfoIfSpecFailed(suiteName, []string{ns.Name})
+
 		// Delete all sleep pods
 		ginkgo.By("Delete all sleep pods")
 		err := kClient.DeletePods(ns.Name)

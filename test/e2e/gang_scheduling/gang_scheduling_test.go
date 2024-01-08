@@ -229,6 +229,9 @@ var _ = Describe("", func() {
 	// b) gangb - 1 placeholder, unsatisfiable nodeSelector
 	// 2. After placeholder timeout, real pods should be scheduled.
 	It("Verify_Default_GS_Style", func() {
+
+		tests.ForceFail()
+
 		pdTimeout := 20
 		annotations := k8s.PodAnnotation{
 			SchedulingPolicyParams: fmt.Sprintf("%s=%d", constants.SchedulingPolicyTimeoutParam, pdTimeout),
@@ -268,6 +271,9 @@ var _ = Describe("", func() {
 	// 2. Verify appState = Accepted
 	// 3. Once ph's are timed out, app should move to failed state
 	It("Verify_Hard_GS_Failed_State", func() {
+
+		tests.ForceFail()
+
 		pdTimeout := 20
 		gsStyle := "Hard"
 		placeholderTimeoutStr := fmt.Sprintf("%s=%d", constants.SchedulingPolicyTimeoutParam, pdTimeout)
@@ -571,11 +577,7 @@ var _ = Describe("", func() {
 	})
 
 	AfterEach(func() {
-		testDescription := ginkgo.CurrentSpecReport()
-		if testDescription.Failed() {
-			tests.LogTestClusterInfoWrapper(testDescription.FailureMessage(), []string{ns})
-			tests.LogYunikornContainer(testDescription.FailureMessage())
-		}
+		tests.DumpClusterInfoIfSpecFailed(suiteName, []string{ns})
 
 		By(fmt.Sprintf("Cleanup jobs: %v", jobNames))
 		for _, jobName := range jobNames {

@@ -21,6 +21,7 @@ package priority_test
 import (
 	"fmt"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/onsi/ginkgo/v2"
@@ -55,6 +56,7 @@ func TestPriorityScheduling(t *testing.T) {
 	ginkgo.RunSpecs(t, "TestPriorityScheduling", ginkgo.Label("TestPriorityScheduling"))
 }
 
+var suiteName string
 var kubeClient k8s.KubeCtl
 
 var preemptPolicyNever = v1.PreemptNever
@@ -87,6 +89,8 @@ var annotation = "ann-" + common.RandSeq(10)
 var oldConfigMap = new(v1.ConfigMap)
 
 var _ = ginkgo.BeforeSuite(func() {
+	_, filename, _, _ := runtime.Caller(0)
+	suiteName = common.GetSuiteName(filename)
 	var err error
 	kubeClient = k8s.KubeCtl{}
 	Expect(kubeClient.SetClient()).To(BeNil())
