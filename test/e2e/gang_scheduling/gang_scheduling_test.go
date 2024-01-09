@@ -285,10 +285,10 @@ var _ = Describe("", func() {
 		// Wait for placeholder timeout
 		time.Sleep(time.Duration(pdTimeout) * time.Second)
 
-		checkAppStatus(appID, yunikorn.States().Application.Failing)
+		checkCompletedAppStatus(appID, yunikorn.States().Application.Failed)
 
 		// Ensure placeholders are timed out and allocations count is correct as app started running normal because of 'soft' gang style
-		appDaoInfo, appDaoInfoErr := restClient.GetAppInfo(configmanager.DefaultPartition, nsQueue, appID)
+		appDaoInfo, appDaoInfoErr := restClient.GetCompletedAppInfo(configmanager.DefaultPartition, appID)
 		Ω(appDaoInfoErr).NotTo(HaveOccurred())
 		Ω(len(appDaoInfo.PlaceholderData)).To(Equal(2), "Placeholder count is not correct")
 		checkPlaceholderData(appDaoInfo, groupA, 3, 0, 3)
@@ -643,6 +643,12 @@ func createJob(applicationID string, minResource map[string]resource.Quantity, a
 func checkAppStatus(applicationID, state string) {
 	By(fmt.Sprintf("Verify application %s status is %s", applicationID, state))
 	timeoutErr := restClient.WaitForAppStateTransition(configmanager.DefaultPartition, nsQueue, applicationID, state, 120)
+	Ω(timeoutErr).NotTo(HaveOccurred())
+}
+
+func checkCompletedAppStatus(applicationID, state string) {
+	By(fmt.Sprintf("Verify application %s status is %s", applicationID, state))
+	timeoutErr := restClient.WaitForCompletedAppStateTransition(configmanager.DefaultPartition, applicationID, state, 120)
 	Ω(timeoutErr).NotTo(HaveOccurred())
 }
 
