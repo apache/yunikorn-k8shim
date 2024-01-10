@@ -128,6 +128,23 @@ func (fc *MockScheduler) addNode(nodeName string, nodeLabels map[string]string, 
 	return fc.apiProvider.GetAPIs().SchedulerAPI.UpdateNode(request)
 }
 
+func (fc *MockScheduler) waitApplicationDeleted(t *testing.T, appID string) {
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		app := fc.context.GetApplication(appID)
+		if app == nil {
+			break
+		}
+		log.Log(log.Test).Info("waiting for app deleted",
+			zap.String("appID", appID))
+		time.Sleep(time.Second)
+		if time.Now().After(deadline) {
+			t.Errorf("application %s is not deleted in given time", appID)
+			return
+		}
+	}
+}
+
 func (fc *MockScheduler) waitAndAssertApplicationState(t *testing.T, appID, expectedState string) {
 	deadline := time.Now().Add(10 * time.Second)
 	for {

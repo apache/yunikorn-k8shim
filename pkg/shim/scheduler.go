@@ -161,7 +161,7 @@ func (ss *KubernetesShim) schedule() {
 		// Clean up terminal failed apps for shim side
 		// 1. When we reject an app, we set the app state to Rejected, and immediately set it to Failed, but we don't clean up the app.
 		// 2. When we failed an app, we set the app state to Failed, but we don't clean up the app.
-		// 3. The completed app already handled by  UpdateApplication function.
+		// 3. The completed app already handled by UpdateApplication function.
 		//    case cache.ApplicationStates().Completed:
 		//		callback.context.RemoveApplicationInternal(updated.ApplicationID)
 		// 4. The killed status is not used until now, so we don't need to handle it.
