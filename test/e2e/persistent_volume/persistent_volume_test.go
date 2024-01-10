@@ -19,6 +19,7 @@
 package persistent_volume
 
 import (
+	"runtime"
 	"time"
 
 	"github.com/onsi/gomega"
@@ -38,6 +39,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
 )
 
+var suiteName string
 var kClient k8s.KubeCtl
 var restClient yunikorn.RClient
 var dev = "dev-" + common.RandSeq(5)
@@ -48,6 +50,8 @@ const (
 )
 
 var _ = ginkgo.BeforeSuite(func() {
+	_, filename, _, _ := runtime.Caller(0)
+	suiteName = common.GetSuiteName(filename)
 	// Initializing kubectl client
 	kClient = k8s.KubeCtl{}
 	Ω(kClient.SetClient()).To(gomega.BeNil())

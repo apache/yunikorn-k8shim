@@ -26,7 +26,6 @@ import (
 	"github.com/onsi/gomega"
 	"gopkg.in/yaml.v3"
 	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/apache/yunikorn-core/pkg/common/configs"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
@@ -92,82 +91,105 @@ func RestoreConfigMapWrapper(oldConfigMap *v1.ConfigMap, annotation string) {
 	Ω(err).NotTo(HaveOccurred())
 }
 
-func LogTestClusterInfoWrapper(testName string, namespaces []string) {
-	fmt.Fprintf(ginkgo.GinkgoWriter, "%s Log test cluster info\n", testName)
-	var restClient yunikorn.RClient
-	err := k.SetClient()
-	if err != nil {
-		fmt.Fprintf(ginkgo.GinkgoWriter, "Error setting k8s client: %v\n", err)
-		return
-	}
-
-	for _, ns := range namespaces {
-		logErr := k8s.LogNamespaceInfo(ns)
-		if logErr != nil {
-			fmt.Fprintf(ginkgo.GinkgoWriter, "Error logging namespace info: %v\n", logErr)
-			continue
-		}
-
-		pods, err := k.GetPodsByOptions(metav1.ListOptions{})
+func DumpClusterInfoIfSpecFailed(suiteName string, namespaces []string) {
+	// should call this function in ginkgo.AfterEach
+	// write cluster info to files by log type (ykFullStateDump, k8sClusterInfo, ykContainerLog)
+	testDescription := ginkgo.CurrentSpecReport()
+	if testDescription.Failed() {
+		specName := testDescription.LeafNodeText
+		fmt.Fprintf(ginkgo.GinkgoWriter, "Logging yk fullstatedump, spec: %s\n", specName)
+		err := dumpYKFullStateDump(suiteName, specName)
 		if err != nil {
-			fmt.Fprintf(ginkgo.GinkgoWriter, "Error getting pods: %v\n", err)
-		} else {
-			fmt.Fprintf(ginkgo.GinkgoWriter, "Pod count is %d\n", len(pods.Items))
-			for _, pod := range pods.Items {
-				fmt.Fprintf(ginkgo.GinkgoWriter, "Pod name is %s\n", pod.Name)
-				fmt.Fprintf(ginkgo.GinkgoWriter, "Pod details: %s\n", pod.String())
-			}
+			fmt.Fprintf(ginkgo.GinkgoWriter, "Fail to log yk fullstatedump, spec: %s, err: %v\n", specName, err)
 		}
 
-		logErr = restClient.LogAppsInfo(ns)
-		if logErr != nil {
-			fmt.Fprintf(ginkgo.GinkgoWriter, "Error logging apps info: %v\n", logErr)
+		fmt.Fprintf(ginkgo.GinkgoWriter, "Logging k8s cluster info, spec: %s\n", specName)
+		err = dumpKubernetesClusterInfo(suiteName, specName, namespaces)
+		if err != nil {
+			fmt.Fprintf(ginkgo.GinkgoWriter, "Fail to log k8s cluster info, spec: %s, err: %v\n", specName, err)
 		}
-	}
-	logErr := restClient.LogQueuesInfo()
-	if logErr != nil {
-		fmt.Fprintf(ginkgo.GinkgoWriter, "Error logging queues info: %v\n", logErr)
-	}
 
-	logErr = restClient.LogNodesInfo()
-	if logErr != nil {
-		fmt.Fprintf(ginkgo.GinkgoWriter, "Error logging nodes info: %v\n", logErr)
-	}
-
-	nodes, err := k.GetNodes()
-	if err != nil {
-		fmt.Fprintf(ginkgo.GinkgoWriter, "Error getting nodes: %v\n", err)
-	} else {
-		fmt.Fprintf(ginkgo.GinkgoWriter, "Node count is %d\n", len(nodes.Items))
-		for _, node := range nodes.Items {
-			fmt.Fprintf(ginkgo.GinkgoWriter, "Running describe node command for %s..\n", node.Name)
-			err = k.DescribeNode(node)
-			if err != nil {
-				fmt.Fprintf(ginkgo.GinkgoWriter, "Error describing node: %v\n", err)
-			}
+		fmt.Fprintf(ginkgo.GinkgoWriter, "Logging yk container logs, spec: %s\n", specName)
+		err = dumpYunikornContainer(suiteName, specName)
+		if err != nil {
+			fmt.Fprintf(ginkgo.GinkgoWriter, "Fail to log yk container logs, spec: %s, err: %v\n", specName, err)
 		}
 	}
 }
 
-func LogYunikornContainer(testName string) {
-	fmt.Fprintf(ginkgo.GinkgoWriter, "%s Log yk logs info from\n", testName)
-	err := k.SetClient()
+func dumpYKFullStateDump(suiteName string, specName string) error {
+	file, err := common.CreateLogFile(suiteName, specName, "ykFullStateDump", "json")
 	if err != nil {
-		fmt.Fprintf(ginkgo.GinkgoWriter, "Error setting k8s client: %v\n", err)
-		return
+		return err
 	}
+	defer file.Close()
+
+	var restClient yunikorn.RClient
+	fullStateDumpJson, err := restClient.GetFullStateDump()
+	if err != nil {
+		return err
+	}
+
+	_, err = fmt.Fprintln(file, fullStateDumpJson)
+	return err
+}
+
+func dumpKubernetesClusterInfo(suiteName string, specName string, namespaces []string) error {
+	file, err := common.CreateLogFile(suiteName, specName, "k8sClusterInfo", "txt")
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	err = k.SetClient()
+	if err != nil {
+		return err
+	}
+
+	for _, ns := range namespaces {
+		err = k.LogNamespaceInfo(file, ns)
+		if err != nil {
+			fmt.Fprintf(ginkgo.GinkgoWriter, "Failed to log namespace info, ns:%s, err: %v\n", ns, err)
+		}
+	}
+
+	err = k.LogPodsInfo(file)
+	if err != nil {
+		fmt.Fprintf(ginkgo.GinkgoWriter, "Failed to log pods info, err: %v\n", err)
+	}
+
+	err = k.LogNodesInfo(file)
+	if err != nil {
+		fmt.Fprintf(ginkgo.GinkgoWriter, "Failed to log nodes info, err: %v\n", err)
+	}
+
+	return nil
+}
+
+func dumpYunikornContainer(suiteName string, specName string) error {
+	file, err := common.CreateLogFile(suiteName, specName, "ykContainerLog", "txt")
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	err = k.SetClient()
+	if err != nil {
+		return err
+	}
+
 	ykSchedName, schedErr := yunikorn.GetSchedulerPodName(k)
 	if schedErr != nil {
-		fmt.Fprintf(ginkgo.GinkgoWriter, "Failed to get the scheduler pod name: %v\n", schedErr)
-		return
+		return schedErr
 	}
 
 	logBytes, getErr := k.GetPodLogs(ykSchedName, configmanager.YuniKornTestConfig.YkNamespace, configmanager.YKSchedulerContainer)
 	if getErr != nil {
-		fmt.Fprintf(ginkgo.GinkgoWriter, "Failed to get scheduler pod logs: %v\n", getErr)
-		return
+		return getErr
 	}
-	fmt.Fprintf(ginkgo.GinkgoWriter, "Yunikorn Logs:%s\n", string(logBytes))
+
+	_, err = fmt.Fprintf(file, "Yunikorn Logs:\n%s\n", string(logBytes))
+	return err
 }
 
 var Describe = ginkgo.Describe

@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/onsi/ginkgo/v2"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 
@@ -140,16 +139,13 @@ var _ = Describe("DripFeedSchedule:", func() {
 	}, testTimeout)
 
 	AfterEach(func() {
+		tests.DumpClusterInfoIfSpecFailed(suiteName, []string{ns})
+
 		By("Check Yunikorn's health")
 		checks, err := yunikorn.GetFailedHealthChecks()
 		Ω(err).NotTo(HaveOccurred())
 		Ω(checks).To(Equal(""), checks)
 
-		testDescription := ginkgo.CurrentSpecReport()
-		if testDescription.Failed() {
-			tests.LogTestClusterInfoWrapper(testDescription.FailureMessage(), []string{ns})
-			tests.LogYunikornContainer(testDescription.FailureMessage())
-		}
 		By("Tearing down namespace: " + ns)
 		err = kClient.TearDownNamespace(ns)
 		Ω(err).NotTo(HaveOccurred())

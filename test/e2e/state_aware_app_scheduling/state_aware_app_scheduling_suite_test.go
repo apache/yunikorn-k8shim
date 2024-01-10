@@ -20,6 +20,7 @@ package stateawareappscheduling_test
 
 import (
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
@@ -39,10 +40,13 @@ func init() {
 	configmanager.YuniKornTestConfig.ParseFlags()
 }
 
+var suiteName string
 var oldConfigMap = new(v1.ConfigMap)
 var annotation string
 
 var _ = BeforeSuite(func() {
+	_, filename, _, _ := runtime.Caller(0)
+	suiteName = common.GetSuiteName(filename)
 	annotation = "ann-" + common.RandSeq(10)
 	yunikorn.EnsureYuniKornConfigsPresent()
 	yunikorn.UpdateConfigMapWrapper(oldConfigMap, "stateaware", annotation)

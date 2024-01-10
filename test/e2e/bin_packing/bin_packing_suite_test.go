@@ -20,6 +20,7 @@ package bin_packing
 
 import (
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/onsi/ginkgo/v2"
@@ -53,11 +54,14 @@ func TestBinPacking(t *testing.T) {
 	ginkgo.RunSpecs(t, "TestBinPacking", ginkgo.Label("TestBinPacking"))
 }
 
+var suiteName string
 var oldConfigMap = new(v1.ConfigMap)
 var annotation = "ann-" + common.RandSeq(10)
 var kClient = k8s.KubeCtl{} //nolint
 
 var _ = BeforeSuite(func() {
+	_, filename, _, _ := runtime.Caller(0)
+	suiteName = common.GetSuiteName(filename)
 
 	Ω(kClient.SetClient()).To(BeNil())
 	/* Sample configMap. Post-update, Yunikorn will use binpacking node sort and fair app sort

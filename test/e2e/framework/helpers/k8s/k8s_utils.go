@@ -631,14 +631,47 @@ func GetConfigMapObj(yamlPath string) (*v1.ConfigMap, error) {
 	return c.(*v1.ConfigMap), err
 }
 
-func LogNamespaceInfo(ns string) error {
-	fmt.Fprintf(ginkgo.GinkgoWriter, "Log namespace info from %s\n", ns)
+func (k *KubeCtl) LogNamespaceInfo(file *os.File, ns string) error {
+	fmt.Fprintf(file, "Log namespace info, ns: %s\n", ns)
 	cmd := fmt.Sprintf("kubectl cluster-info dump --namespaces=%s", ns)
 	out, runErr := common.RunShellCmdForeground(cmd)
 	if runErr != nil {
 		return runErr
 	}
-	ginkgo.By("Cluster dump output:\n" + out)
+	_, err := fmt.Fprintln(file, out)
+	return err
+}
+
+func (k *KubeCtl) LogPodsInfo(file *os.File) error {
+	fmt.Fprintln(file, "Log pods info:")
+	pods, err := k.GetPodsByOptions(metav1.ListOptions{})
+	if err != nil {
+		return err
+	} else {
+		fmt.Fprintf(file, "Pod count is %d\n", len(pods.Items))
+		for _, pod := range pods.Items {
+			fmt.Fprintf(file, "Pod name is %s\n", pod.Name)
+			fmt.Fprintf(file, "Pod details: %s\n", pod.String())
+		}
+	}
+	return nil
+}
+
+func (k *KubeCtl) LogNodesInfo(file *os.File) error {
+	fmt.Fprintln(file, "Log nodes info:")
+	nodes, err := k.GetNodes()
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(file, "Node count is %d\n", len(nodes.Items))
+	for _, node := range nodes.Items {
+		fmt.Fprintf(file, "Node: %s\n", node.Name)
+		nodeInfo, err := k.DescribeNode(node)
+		if err != nil {
+			fmt.Fprintf(file, "Failed to describe node: %s, err: %v\n", node.Name, err)
+		}
+		fmt.Fprintln(file, nodeInfo)
+	}
 	return nil
 }
 
@@ -1443,15 +1476,13 @@ func (k *KubeCtl) GetNodesAvailRes(nodes v1.NodeList) map[string]v1.ResourceList
 	return nodeAvailRes
 }
 
-// DescribeNode Describe Node
-func (k *KubeCtl) DescribeNode(node v1.Node) error {
+func (k *KubeCtl) DescribeNode(node v1.Node) (string, error) {
 	cmd := "kubectl describe node " + node.Name
 	out, runErr := common.RunShellCmdForeground(cmd)
 	if runErr != nil {
-		return runErr
+		return "", runErr
 	}
-	ginkgo.By("describe output for node is:\n" + out)
-	return nil
+	return out, nil
 }
 
 func (k *KubeCtl) SetNodeLabel(name, key, value string) error {

@@ -20,6 +20,7 @@ package node_resources_test
 
 import (
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/onsi/ginkgo/v2"
@@ -51,10 +52,13 @@ func TestNodeResources(t *testing.T) {
 	ginkgo.RunSpecs(t, "TestNodeResources", ginkgo.Label("TestNodeResources"))
 }
 
+var suiteName string
 var oldConfigMap = new(v1.ConfigMap)
 var annotation = "ann-" + common.RandSeq(10)
 
 var _ = BeforeSuite(func() {
+	_, filename, _, _ := runtime.Caller(0)
+	suiteName = common.GetSuiteName(filename)
 	annotation = "ann-" + common.RandSeq(10)
 	yunikorn.EnsureYuniKornConfigsPresent()
 	yunikorn.UpdateConfigMapWrapper(oldConfigMap, "", annotation)
