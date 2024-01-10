@@ -16,7 +16,7 @@
  limitations under the License.
 */
 
-package interfaces
+package cache
 
 type TaskSchedulingState int8
 

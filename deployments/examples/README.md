@@ -102,7 +102,7 @@ The namespace example uses a placement rule and special queue configuration. The
 * run the sleep pod in the production namespace which creates a new `production` queue using the local [sleeppod_prod.yaml](namespace/sleeppod_prod.yaml): `kubectl create -f namespaces.yaml`.
   The pod spec does not specify a queue just a namespace but the application will be run in the newly created `root.production` queue. This queue does not exist in the queue configuration. 
 
-### placements
+## placements
 The placements' rules are described in [Yunikorn website](https://yunikorn.apache.org/docs/user_guide/placement_rules).
 App placements rules in Yunikorn contains `Provided Rule`, `User Name Rule`, `Fixed Rule`, `Tag Rule`.
 Every placement example includes a example yaml file and a config yaml file.
@@ -113,3 +113,11 @@ Before deploying the pods, the configuration field in yunikorn-release/helm/yuni
 * [User Name Rule](./placements/username)
 * [Fixed Rule](./placements/fixed)
 * [Tag Rule](./placements/tag)
+
+## preemption
+This example demonstrates how to set up priority queues and initiate jobs to trigger preemption. Follow the steps in [README.md](./preemption/README.md) to understand how preemption works between queues.
+
+More documents for preemption:
+* [App & Queue Priorities](https://yunikorn.apache.org/docs/user_guide/priorities)
+* [Preemption](https://yunikorn.apache.org/docs/next/design/preemption/)
+* [Use Case: Preemption & Priority scheduling with fencing](https://yunikorn.apache.org/docs/user_guide/use_cases#preemption--priority-scheduling-with-fencing)

@@ -64,7 +64,6 @@ const (
 	CMSvcVolumeBindTimeout            = PrefixService + "volumeBindTimeout"
 	CMSvcEventChannelCapacity         = PrefixService + "eventChannelCapacity"
 	CMSvcDispatchTimeout              = PrefixService + "dispatchTimeout"
-	CMSvcOperatorPlugins              = PrefixService + "operatorPlugins"
 	CMSvcDisableGangScheduling        = PrefixService + "disableGangScheduling"
 	CMSvcEnableConfigHotRefresh       = PrefixService + "enableConfigHotRefresh"
 	CMSvcPlaceholderImage             = PrefixService + "placeholderImage"
@@ -123,7 +122,6 @@ type SchedulerConf struct {
 	DispatchTimeout          time.Duration `json:"dispatchTimeout"`
 	KubeQPS                  int           `json:"kubeQPS"`
 	KubeBurst                int           `json:"kubeBurst"`
-	OperatorPlugins          string        `json:"operatorPlugins"`
 	EnableConfigHotRefresh   bool          `json:"enableConfigHotRefresh"`
 	DisableGangScheduling    bool          `json:"disableGangScheduling"`
 	UserLabelKey             string        `json:"userLabelKey"`
@@ -151,7 +149,6 @@ func (conf *SchedulerConf) Clone() *SchedulerConf {
 		DispatchTimeout:          conf.DispatchTimeout,
 		KubeQPS:                  conf.KubeQPS,
 		KubeBurst:                conf.KubeBurst,
-		OperatorPlugins:          conf.OperatorPlugins,
 		EnableConfigHotRefresh:   conf.EnableConfigHotRefresh,
 		DisableGangScheduling:    conf.DisableGangScheduling,
 		UserLabelKey:             conf.UserLabelKey,
@@ -212,7 +209,6 @@ func handleNonReloadableConfig(old *SchedulerConf, new *SchedulerConf) {
 	checkNonReloadableDuration(CMSvcDispatchTimeout, &old.DispatchTimeout, &new.DispatchTimeout)
 	checkNonReloadableInt(CMKubeQPS, &old.KubeQPS, &new.KubeQPS)
 	checkNonReloadableInt(CMKubeBurst, &old.KubeBurst, &new.KubeBurst)
-	checkNonReloadableString(CMSvcOperatorPlugins, &old.OperatorPlugins, &new.OperatorPlugins)
 	checkNonReloadableBool(CMSvcDisableGangScheduling, &old.DisableGangScheduling, &new.DisableGangScheduling)
 	checkNonReloadableString(CMSvcPlaceholderImage, &old.PlaceHolderImage, &new.PlaceHolderImage)
 	checkNonReloadableString(CMSvcNodeInstanceTypeNodeLabelKey, &old.InstanceTypeNodeLabelKey, &new.InstanceTypeNodeLabelKey)
@@ -284,23 +280,6 @@ func (conf *SchedulerConf) GetKubeConfigPath() string {
 	return conf.KubeConfig
 }
 
-func (conf *SchedulerConf) IsOperatorPluginEnabled(name string) bool {
-	conf.RLock()
-	defer conf.RUnlock()
-	if conf.OperatorPlugins == "" {
-		return false
-	}
-
-	plugins := strings.Split(conf.OperatorPlugins, ",")
-	for _, p := range plugins {
-		if p == name {
-			return true
-		}
-	}
-
-	return false
-}
-
 func GetSchedulerNamespace() string {
 	if value, ok := os.LookupEnv(EnvNamespace); ok {
 		return value
@@ -340,7 +319,6 @@ func CreateDefaultConfig() *SchedulerConf {
 		DispatchTimeout:          DefaultDispatchTimeout,
 		KubeQPS:                  DefaultKubeQPS,
 		KubeBurst:                DefaultKubeBurst,
-		OperatorPlugins:          DefaultOperatorPlugins,
 		EnableConfigHotRefresh:   DefaultEnableConfigHotRefresh,
 		DisableGangScheduling:    DefaultDisableGangScheduling,
 		UserLabelKey:             constants.DefaultUserLabel,
@@ -367,7 +345,6 @@ func parseConfig(config map[string]string, prev *SchedulerConf) (*SchedulerConf,
 	parser.durationVar(&conf.VolumeBindTimeout, CMSvcVolumeBindTimeout)
 	parser.intVar(&conf.EventChannelCapacity, CMSvcEventChannelCapacity)
 	parser.durationVar(&conf.DispatchTimeout, CMSvcDispatchTimeout)
-	parser.stringVar(&conf.OperatorPlugins, CMSvcOperatorPlugins)
 	parser.boolVar(&conf.DisableGangScheduling, CMSvcDisableGangScheduling)
 	parser.boolVar(&conf.EnableConfigHotRefresh, CMSvcEnableConfigHotRefresh)
 	parser.stringVar(&conf.PlaceHolderImage, CMSvcPlaceholderImage)

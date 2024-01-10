@@ -410,6 +410,10 @@ func (m *MockedAPIProvider) GetPodBindStats() BindStats {
 	return m.clients.KubeClient.(*KubeClientMock).GetBindStats()
 }
 
+func (m *MockedAPIProvider) GetBoundPods(clear bool) []BoundPod {
+	return m.clients.KubeClient.(*KubeClientMock).GetBoundPods(clear)
+}
+
 // MockedPersistentVolumeInformer implements PersistentVolumeInformer interface
 type MockedPersistentVolumeInformer struct{}
 

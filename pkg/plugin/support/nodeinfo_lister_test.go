@@ -80,14 +80,14 @@ func initLister(t *testing.T) *nodeInfoListerImpl {
 	lister, ok := NewSharedLister(cache).NodeInfos().(*nodeInfoListerImpl)
 	assert.Assert(t, ok, "wrong type for node lister")
 
-	cache.AddNode(&v1.Node{
+	cache.UpdateNode(&v1.Node{
 		ObjectMeta: apis.ObjectMeta{
 			Name:      "host0001",
 			Namespace: "default",
 			UID:       "Node-UID-00001",
 		},
 	})
-	cache.AddNode(&v1.Node{
+	cache.UpdateNode(&v1.Node{
 		ObjectMeta: apis.ObjectMeta{
 			Name:      "host0002",
 			Namespace: "default",

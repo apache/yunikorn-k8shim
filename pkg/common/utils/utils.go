@@ -32,7 +32,6 @@ import (
 	schedulingv1 "k8s.io/api/scheduling/v1"
 	podv1 "k8s.io/kubernetes/pkg/api/v1/pod"
 
-	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/yunikorn-k8shim/pkg/common"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
@@ -77,8 +76,9 @@ func Convert2PriorityClass(obj interface{}) *schedulingv1.PriorityClass {
 	return nil
 }
 
-func NeedRecovery(pod *v1.Pod) bool {
-	// pod requires recovery needs to satisfy both conditions
+// PodAlreadyBound returns true if a newly initializing Pod is already assigned to a Node
+func PodAlreadyBound(pod *v1.Pod) bool {
+	// pod already bound needs to satisfy conditions:
 	// 1. Pod is scheduled by us
 	// 2. pod is already assigned to a node
 	// 3. pod is not in terminated state
@@ -180,16 +180,18 @@ func PodUnderCondition(pod *v1.Pod, condition *v1.PodCondition) bool {
 // get namespace guaranteed resource from namespace annotation
 func GetNamespaceGuaranteedFromAnnotation(namespaceObj *v1.Namespace) *si.Resource {
 	// retrieve guaranteed resource info from annotations
-	namespaceGuaranteed := GetNameSpaceAnnotationValue(namespaceObj, constants.NamespaceGuaranteed)
-	var namespaceGuaranteedMap map[string]string
-	err := json.Unmarshal([]byte(namespaceGuaranteed), &namespaceGuaranteedMap)
-	if err != nil {
-		log.Log(log.ShimUtils).Warn("Unable to process namespace.guaranteed annotation",
-			zap.String("namespace", namespaceObj.Name),
-			zap.String("namespace.guaranteed is", namespaceGuaranteed))
-		return nil
+	if guaranteed := GetNameSpaceAnnotationValue(namespaceObj, constants.NamespaceGuaranteed); guaranteed != "" {
+		var namespaceGuaranteedMap map[string]string
+		err := json.Unmarshal([]byte(guaranteed), &namespaceGuaranteedMap)
+		if err != nil {
+			log.Log(log.ShimUtils).Warn("Unable to process namespace.guaranteed annotation",
+				zap.String("namespace", namespaceObj.Name),
+				zap.String("namespace.guaranteed is", guaranteed))
+			return nil
+		}
+		return common.GetResource(namespaceGuaranteedMap)
 	}
-	return common.GetResource(namespaceGuaranteedMap)
+	return nil
 }
 
 func GetNamespaceQuotaFromAnnotation(namespaceObj *v1.Namespace) *si.Resource {
@@ -362,37 +364,4 @@ func GetPlaceholderFlagFromPodSpec(pod *v1.Pod) bool {
 		}
 	}
 	return false
-}
-
-func GetTaskGroupsFromAnnotation(pod *v1.Pod) ([]interfaces.TaskGroup, error) {
-	taskGroupInfo := GetPodAnnotationValue(pod, constants.AnnotationTaskGroups)
-	if taskGroupInfo == "" {
-		return nil, nil
-	}
-
-	taskGroups := []interfaces.TaskGroup{}
-	err := json.Unmarshal([]byte(taskGroupInfo), &taskGroups)
-	if err != nil {
-		return nil, err
-	}
-	// json.Unmarchal won't return error if name or MinMember is empty, but will return error if MinResource is empty or error format.
-	for _, taskGroup := range taskGroups {
-		if taskGroup.Name == "" {
-			return nil, fmt.Errorf("can't get taskGroup Name from pod annotation, %s",
-				taskGroupInfo)
-		}
-		if taskGroup.MinResource == nil {
-			return nil, fmt.Errorf("can't get taskGroup MinResource from pod annotation, %s",
-				taskGroupInfo)
-		}
-		if taskGroup.MinMember == int32(0) {
-			return nil, fmt.Errorf("can't get taskGroup MinMember from pod annotation, %s",
-				taskGroupInfo)
-		}
-		if taskGroup.MinMember < int32(0) {
-			return nil, fmt.Errorf("minMember cannot be negative, %s",
-				taskGroupInfo)
-		}
-	}
-	return taskGroups, nil
 }

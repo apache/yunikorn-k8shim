@@ -40,7 +40,7 @@ func TestNewSharedLister(t *testing.T) {
 			UID:       "Node-UID-00001",
 		},
 	}
-	cache.AddNode(node)
+	cache.UpdateNode(node)
 
 	nodeInfo, err := lister.NodeInfos().Get("host0001")
 	assert.NilError(t, err, "err returned from Get call")

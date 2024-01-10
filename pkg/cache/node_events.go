@@ -16,26 +16,32 @@
  limitations under the License.
 */
 
-package interfaces
+package cache
 
-import (
-	v1 "k8s.io/api/core/v1"
+type SchedulerNodeEventType int
+
+const (
+	NodeAccepted SchedulerNodeEventType = iota
+	NodeRejected
 )
 
-type ManagedApp interface {
-	GetApplicationID() string
-	GetTask(taskID string) (ManagedTask, error)
-	GetApplicationState() string
-	GetQueue() string
-	GetUser() string
-	SetState(state string)
-	TriggerAppRecovery() error
+func (ae SchedulerNodeEventType) String() string {
+	return [...]string{"NodeAccepted", "NodeRejected"}[ae]
 }
 
-type ManagedTask interface {
-	GetTaskID() string
-	GetTaskState() string
-	GetTaskPod() *v1.Pod
-	SetTaskSchedulingState(state TaskSchedulingState)
-	GetTaskSchedulingState() TaskSchedulingState
+type CachedSchedulerNodeEvent struct {
+	NodeID string
+	Event  SchedulerNodeEventType
+}
+
+func (sn CachedSchedulerNodeEvent) GetEvent() string {
+	return sn.Event.String()
+}
+
+func (sn CachedSchedulerNodeEvent) GetNodeID() string {
+	return sn.NodeID
+}
+
+func (sn CachedSchedulerNodeEvent) GetArgs() []interface{} {
+	return nil
 }

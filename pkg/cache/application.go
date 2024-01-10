@@ -30,7 +30,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/yunikorn-k8shim/pkg/common"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
@@ -49,7 +48,7 @@ type Application struct {
 	groups                     []string
 	taskMap                    map[string]*Task
 	tags                       map[string]string
-	taskGroups                 []interfaces.TaskGroup
+	taskGroups                 []TaskGroup
 	taskGroupsDefinition       string
 	schedulingParamsDefinition string
 	placeholderOwnerReferences []metav1.OwnerReference
@@ -59,8 +58,10 @@ type Application struct {
 	placeholderAsk             *si.Resource // total placeholder request for the app (all task groups)
 	placeholderTimeoutInSec    int64
 	schedulingStyle            string
-	originatingTask            interfaces.ManagedTask // Original Pod which creates the requests
+	originatingTask            *Task // Original Pod which creates the requests
 }
+
+const transitionErr = "no transition"
 
 func (app *Application) String() string {
 	return fmt.Sprintf("applicationID: %s, queue: %s, partition: %s,"+
@@ -79,7 +80,7 @@ func NewApplication(appID, queueName, user string, groups []string, tags map[str
 		taskMap:                 taskMap,
 		tags:                    tags,
 		sm:                      newAppState(),
-		taskGroups:              make([]interfaces.TaskGroup, 0),
+		taskGroups:              make([]TaskGroup, 0),
 		lock:                    &sync.RWMutex{},
 		schedulerAPI:            scheduler,
 		placeholderTimeoutInSec: 0,
@@ -102,7 +103,7 @@ func (app *Application) handle(ev events.ApplicationEvent) error {
 	defer app.lock.Unlock()
 	err := app.sm.Event(context.Background(), ev.GetEvent(), app, ev.GetArgs())
 	// handle the same state transition not nil error (limit of fsm).
-	if err != nil && err.Error() != "no transition" {
+	if err != nil && err.Error() != transitionErr {
 		return err
 	}
 	return nil
@@ -114,7 +115,7 @@ func (app *Application) canHandle(ev events.ApplicationEvent) bool {
 	return app.sm.Can(ev.GetEvent())
 }
 
-func (app *Application) GetTask(taskID string) (interfaces.ManagedTask, error) {
+func (app *Application) GetTask(taskID string) (*Task, error) {
 	app.lock.RLock()
 	defer app.lock.RUnlock()
 	if task, ok := app.taskMap[taskID]; ok {
@@ -166,7 +167,7 @@ func (app *Application) GetSchedulingParamsDefinition() string {
 	return app.schedulingParamsDefinition
 }
 
-func (app *Application) setTaskGroups(taskGroups []interfaces.TaskGroup) {
+func (app *Application) setTaskGroups(taskGroups []TaskGroup) {
 	app.lock.Lock()
 	defer app.lock.Unlock()
 	app.taskGroups = taskGroups
@@ -181,7 +182,7 @@ func (app *Application) getPlaceholderAsk() *si.Resource {
 	return app.placeholderAsk
 }
 
-func (app *Application) getTaskGroups() []interfaces.TaskGroup {
+func (app *Application) getTaskGroups() []TaskGroup {
 	app.lock.RLock()
 	defer app.lock.RUnlock()
 	return app.taskGroups
@@ -205,13 +206,13 @@ func (app *Application) setSchedulingStyle(schedulingStyle string) {
 	app.schedulingStyle = schedulingStyle
 }
 
-func (app *Application) setOriginatingTask(task interfaces.ManagedTask) {
+func (app *Application) setOriginatingTask(task *Task) {
 	app.lock.Lock()
 	defer app.lock.Unlock()
 	app.originatingTask = task
 }
 
-func (app *Application) GetOriginatingTask() interfaces.ManagedTask {
+func (app *Application) GetOriginatingTask() *Task {
 	app.lock.RLock()
 	defer app.lock.RUnlock()
 	return app.originatingTask
@@ -331,8 +332,8 @@ func (app *Application) SetState(state string) {
 	app.sm.SetState(state)
 }
 
-func (app *Application) TriggerAppRecovery() error {
-	return app.handle(NewSimpleApplicationEvent(app.applicationID, RecoverApplication))
+func (app *Application) TriggerAppSubmission() error {
+	return app.handle(NewSubmitApplicationEvent(app.applicationID))
 }
 
 // Schedule is called in every scheduling interval,
@@ -409,11 +410,12 @@ func (app *Application) scheduleTasks(taskScheduleCondition func(t *Task) bool) 
 	}
 }
 
-func (app *Application) handleSubmitApplicationEvent() {
+func (app *Application) handleSubmitApplicationEvent() error {
 	log.Log(log.ShimCacheApplication).Info("handle app submission",
 		zap.Stringer("app", app),
 		zap.String("clusterID", conf.GetSchedulerConf().ClusterID))
-	err := app.schedulerAPI.UpdateApplication(
+
+	if err := app.schedulerAPI.UpdateApplication(
 		&si.ApplicationRequest{
 			New: []*si.AddApplicationRequest{
 				{
@@ -431,44 +433,13 @@ func (app *Application) handleSubmitApplicationEvent() {
 				},
 			},
 			RmID: conf.GetSchedulerConf().ClusterID,
-		})
-
-	if err != nil {
+		}); err != nil {
 		// submission failed
-		log.Log(log.ShimCacheApplication).Warn("failed to submit app", zap.Error(err))
+		log.Log(log.ShimCacheApplication).Warn("failed to submit new app request to core", zap.Error(err))
 		dispatcher.Dispatch(NewFailApplicationEvent(app.applicationID, err.Error()))
+		return err
 	}
-}
-
-func (app *Application) handleRecoverApplicationEvent() {
-	log.Log(log.ShimCacheApplication).Info("handle app recovering",
-		zap.Stringer("app", app),
-		zap.String("clusterID", conf.GetSchedulerConf().ClusterID))
-	err := app.schedulerAPI.UpdateApplication(
-		&si.ApplicationRequest{
-			New: []*si.AddApplicationRequest{
-				{
-					ApplicationID: app.applicationID,
-					QueueName:     app.queue,
-					PartitionName: app.partition,
-					Ugi: &si.UserGroupInformation{
-						User:   app.user,
-						Groups: app.groups,
-					},
-					Tags:                         app.tags,
-					PlaceholderAsk:               app.placeholderAsk,
-					ExecutionTimeoutMilliSeconds: app.placeholderTimeoutInSec * 1000,
-					GangSchedulingStyle:          app.schedulingStyle,
-				},
-			},
-			RmID: conf.GetSchedulerConf().ClusterID,
-		})
-
-	if err != nil {
-		// recovery failed
-		log.Log(log.ShimCacheApplication).Warn("failed to recover app", zap.Error(err))
-		dispatcher.Dispatch(NewFailApplicationEvent(app.applicationID, err.Error()))
-	}
+	return nil
 }
 
 func (app *Application) skipReservationStage() bool {
@@ -576,7 +547,6 @@ func (app *Application) handleRejectApplicationEvent(reason string) {
 }
 
 func (app *Application) handleCompleteApplicationEvent() {
-	// TODO app lifecycle updates
 	go func() {
 		getPlaceholderManager().cleanUp(app)
 	}()
@@ -622,14 +592,14 @@ func (app *Application) handleFailApplicationEvent(errMsg string) {
 	}
 }
 
-func (app *Application) handleReleaseAppAllocationEvent(allocUUID string, terminationType string) {
+func (app *Application) handleReleaseAppAllocationEvent(allocationID string, terminationType string) {
 	log.Log(log.ShimCacheApplication).Info("try to release pod from application",
 		zap.String("appID", app.applicationID),
-		zap.String("allocationUUID", allocUUID),
+		zap.String("allocationID", allocationID),
 		zap.String("terminationType", terminationType))
 
 	for _, task := range app.taskMap {
-		if task.allocationUUID == allocUUID {
+		if task.allocationID == allocationID {
 			task.setTaskTerminationType(terminationType)
 			err := task.DeleteTaskPod(task.pod)
 			if err != nil {

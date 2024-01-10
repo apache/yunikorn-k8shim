@@ -22,7 +22,6 @@ import (
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
-	"k8s.io/kubernetes/pkg/apis/core/v1/helper/qos"
 
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
@@ -55,11 +54,6 @@ func (w *ResourceBuilder) Build() *si.Resource {
 func GetPodResource(pod *v1.Pod) (resource *si.Resource) {
 	podResource := &si.Resource{
 		Resources: map[string]*si.Quantity{"pods": {Value: 1}},
-	}
-
-	// A QosBestEffort pod does not request any resources, just a single pod
-	if qos.GetPodQOS(pod) == v1.PodQOSBestEffort {
-		return podResource
 	}
 
 	for _, c := range pod.Spec.Containers {

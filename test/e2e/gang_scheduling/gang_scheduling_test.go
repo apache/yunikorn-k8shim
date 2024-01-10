@@ -31,7 +31,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/apache/yunikorn-core/pkg/webservice/dao"
-	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
+	"github.com/apache/yunikorn-k8shim/pkg/cache"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	tests "github.com/apache/yunikorn-k8shim/test/e2e"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
@@ -87,7 +87,7 @@ var _ = Describe("", func() {
 	It("Verify_Annotation_TaskGroup_Def", func() {
 		// Define gang member template with 5 members, 1 real pod (not part of tg)
 		annotations := k8s.PodAnnotation{
-			TaskGroups: []interfaces.TaskGroup{
+			TaskGroups: []cache.TaskGroup{
 				{Name: groupA, MinMember: int32(5), MinResource: minResource},
 			},
 		}
@@ -131,7 +131,7 @@ var _ = Describe("", func() {
 	// 5. Nodes distributions of real pods and placeholders should be the same.
 	It("Verify_Multiple_TaskGroups_Nodes", func() {
 		annotations := k8s.PodAnnotation{
-			TaskGroups: []interfaces.TaskGroup{
+			TaskGroups: []cache.TaskGroup{
 				{Name: groupA, MinMember: int32(3), MinResource: minResource},
 				{Name: groupB, MinMember: int32(5), MinResource: minResource},
 				{Name: groupC, MinMember: int32(7), MinResource: minResource},
@@ -204,7 +204,7 @@ var _ = Describe("", func() {
 	It("Verify_TG_with_More_Than_minMembers", func() {
 		annotations := k8s.PodAnnotation{
 			TaskGroupName: groupA,
-			TaskGroups: []interfaces.TaskGroup{
+			TaskGroups: []cache.TaskGroup{
 				{Name: groupA, MinMember: int32(3), MinResource: minResource},
 			},
 		}
@@ -232,7 +232,7 @@ var _ = Describe("", func() {
 		pdTimeout := 20
 		annotations := k8s.PodAnnotation{
 			SchedulingPolicyParams: fmt.Sprintf("%s=%d", constants.SchedulingPolicyTimeoutParam, pdTimeout),
-			TaskGroups: []interfaces.TaskGroup{
+			TaskGroups: []cache.TaskGroup{
 				{Name: groupA, MinMember: int32(3), MinResource: minResource},
 				{Name: groupB, MinMember: int32(1), MinResource: minResource, NodeSelector: unsatisfiableNodeSelector},
 			},
@@ -274,7 +274,7 @@ var _ = Describe("", func() {
 		gsStyleStr := fmt.Sprintf("%s=%s", constants.SchedulingPolicyStyleParam, gsStyle)
 
 		annotations := k8s.PodAnnotation{
-			TaskGroups: []interfaces.TaskGroup{
+			TaskGroups: []cache.TaskGroup{
 				{Name: groupA, MinMember: int32(3), MinResource: minResource, NodeSelector: unsatisfiableNodeSelector},
 				{Name: groupB, MinMember: int32(3), MinResource: minResource},
 			},
@@ -285,10 +285,10 @@ var _ = Describe("", func() {
 		// Wait for placeholder timeout
 		time.Sleep(time.Duration(pdTimeout) * time.Second)
 
-		checkAppStatus(appID, yunikorn.States().Application.Failing)
+		checkCompletedAppStatus(appID, yunikorn.States().Application.Failed)
 
 		// Ensure placeholders are timed out and allocations count is correct as app started running normal because of 'soft' gang style
-		appDaoInfo, appDaoInfoErr := restClient.GetAppInfo(configmanager.DefaultPartition, nsQueue, appID)
+		appDaoInfo, appDaoInfoErr := restClient.GetCompletedAppInfo(configmanager.DefaultPartition, appID)
 		Ω(appDaoInfoErr).NotTo(HaveOccurred())
 		Ω(len(appDaoInfo.PlaceholderData)).To(Equal(2), "Placeholder count is not correct")
 		checkPlaceholderData(appDaoInfo, groupA, 3, 0, 3)
@@ -318,19 +318,19 @@ var _ = Describe("", func() {
 
 		annotationsA := k8s.PodAnnotation{
 			TaskGroupName: groupA,
-			TaskGroups: []interfaces.TaskGroup{
+			TaskGroups: []cache.TaskGroup{
 				{Name: groupA, MinMember: int32(0), MinResource: minResource},
 			},
 		}
 		annotationsB := k8s.PodAnnotation{
 			TaskGroupName: groupB,
-			TaskGroups: []interfaces.TaskGroup{
+			TaskGroups: []cache.TaskGroup{
 				{Name: groupB, MinMember: int32(3), MinResource: minResource},
 			},
 		}
 		annotationsC := k8s.PodAnnotation{
 			TaskGroupName: groupC,
-			TaskGroups: []interfaces.TaskGroup{
+			TaskGroups: []cache.TaskGroup{
 				{Name: groupC, MinMember: int32(0), MinResource: minResource},
 			},
 		}
@@ -392,7 +392,7 @@ var _ = Describe("", func() {
 		pdTimeout := 60
 		annotations := k8s.PodAnnotation{
 			SchedulingPolicyParams: fmt.Sprintf("%s=%d", constants.SchedulingPolicyTimeoutParam, pdTimeout),
-			TaskGroups: []interfaces.TaskGroup{
+			TaskGroups: []cache.TaskGroup{
 				{
 					Name:         groupA,
 					MinMember:    int32(3),
@@ -466,7 +466,7 @@ var _ = Describe("", func() {
 	// 5. Verify app allocation is empty
 	It("Verify_Completed_Job_Placeholders_Cleanup", func() {
 		annotations := k8s.PodAnnotation{
-			TaskGroups: []interfaces.TaskGroup{
+			TaskGroups: []cache.TaskGroup{
 				{Name: groupA, MinMember: int32(3), MinResource: minResource, NodeSelector: unsatisfiableNodeSelector},
 				{Name: groupB, MinMember: int32(3), MinResource: minResource},
 			},
@@ -549,7 +549,7 @@ var _ = Describe("", func() {
 		minResource[hugepageKey] = resource.MustParse("100Mi")
 		annotations := k8s.PodAnnotation{
 			TaskGroupName: groupA,
-			TaskGroups: []interfaces.TaskGroup{
+			TaskGroups: []cache.TaskGroup{
 				{Name: groupA, MinMember: int32(3), MinResource: minResource},
 			},
 		}
@@ -646,6 +646,12 @@ func checkAppStatus(applicationID, state string) {
 	Ω(timeoutErr).NotTo(HaveOccurred())
 }
 
+func checkCompletedAppStatus(applicationID, state string) {
+	By(fmt.Sprintf("Verify application %s status is %s", applicationID, state))
+	timeoutErr := restClient.WaitForCompletedAppStateTransition(configmanager.DefaultPartition, applicationID, state, 120)
+	Ω(timeoutErr).NotTo(HaveOccurred())
+}
+
 func checkPlaceholderData(appDaoInfo *dao.ApplicationDAOInfo, tgName string, count, replaced, timeout int) {
 	verified := false
 	for _, placeholderData := range appDaoInfo.PlaceholderData {
@@ -668,7 +674,7 @@ func verifyOriginatorDeletionCase(withOwnerRef bool) {
 			"applicationId": appID,
 		},
 		Annotations: &k8s.PodAnnotation{
-			TaskGroups: []interfaces.TaskGroup{
+			TaskGroups: []cache.TaskGroup{
 				{
 					Name:         groupA,
 					MinMember:    int32(3),

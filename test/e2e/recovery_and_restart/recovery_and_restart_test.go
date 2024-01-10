@@ -79,7 +79,7 @@ var _ = ginkgo.BeforeSuite(func() {
 	gomega.Ω(err).NotTo(gomega.HaveOccurred())
 	// Wait for pod to move to running state
 	err = kClient.WaitForPodBySelectorRunning(dev,
-		fmt.Sprintf("app=%s", sleepRespPod.ObjectMeta.Labels["app"]),
+		fmt.Sprintf("applicationId=%s", sleepRespPod.ObjectMeta.Labels["applicationId"]),
 		60)
 	gomega.Ω(err).NotTo(gomega.HaveOccurred())
 
@@ -96,7 +96,7 @@ var _ = ginkgo.BeforeSuite(func() {
 	gomega.Ω(err).NotTo(gomega.HaveOccurred())
 	// Wait for pod to move to running state
 	err = kClient.WaitForPodBySelectorRunning(dev,
-		fmt.Sprintf("app=%s", sleepRespPod2.ObjectMeta.Labels["app"]),
+		fmt.Sprintf("applicationId=%s", sleepRespPod2.ObjectMeta.Labels["applicationId"]),
 		60)
 	gomega.Ω(err).NotTo(gomega.HaveOccurred())
 })
@@ -126,6 +126,8 @@ var _ = ginkgo.AfterSuite(func() {
 var _ = ginkgo.Describe("", func() {
 
 	ginkgo.It("Verify_Pod_Alloc_Props", func() {
+		err := restClient.WaitForAppStateTransition("default", "root."+dev, sleepRespPod.ObjectMeta.Labels["applicationId"], "Starting", 30)
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		appsInfo, err := restClient.GetAppInfo("default", "root."+dev, sleepRespPod.ObjectMeta.Labels["applicationId"])
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		gomega.Ω(appsInfo).NotTo(gomega.BeNil())
@@ -137,7 +139,7 @@ var _ = ginkgo.Describe("", func() {
 		gomega.Ω(allocations.AllocationKey).NotTo(gomega.BeNil())
 		gomega.Ω(allocations.NodeID).NotTo(gomega.BeNil())
 		gomega.Ω(allocations.Partition).NotTo(gomega.BeNil())
-		gomega.Ω(allocations.UUID).NotTo(gomega.BeNil())
+		gomega.Ω(allocations.AllocationID).NotTo(gomega.BeNil())
 		gomega.Ω(allocations.ApplicationID).To(gomega.Equal(sleepRespPod.ObjectMeta.Labels["applicationId"]))
 		core := sleepRespPod.Spec.Containers[0].Resources.Requests.Cpu().MilliValue()
 		mem := sleepRespPod.Spec.Containers[0].Resources.Requests.Memory().Value()

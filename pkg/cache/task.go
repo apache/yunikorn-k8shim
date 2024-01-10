@@ -30,7 +30,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
 
-	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/yunikorn-k8shim/pkg/common"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
@@ -45,7 +44,7 @@ type Task struct {
 	alias           string
 	applicationID   string
 	application     *Application
-	allocationUUID  string
+	allocationID    string
 	resource        *si.Resource
 	pod             *v1.Pod
 	podStatus       v1.PodStatus // pod status, maintained separately for efficiency reasons
@@ -56,7 +55,7 @@ type Task struct {
 	placeholder     bool
 	terminationType string
 	originator      bool
-	schedulingState interfaces.TaskSchedulingState
+	schedulingState TaskSchedulingState
 	sm              *fsm.FSM
 	lock            *sync.RWMutex
 }
@@ -71,7 +70,7 @@ func NewTaskPlaceholder(tid string, app *Application, ctx *Context, pod *v1.Pod)
 	return createTaskInternal(tid, app, taskResource, pod, true, "", ctx, false)
 }
 
-func NewFromTaskMeta(tid string, app *Application, ctx *Context, metadata interfaces.TaskMetadata, originator bool) *Task {
+func NewFromTaskMeta(tid string, app *Application, ctx *Context, metadata TaskMetadata, originator bool) *Task {
 	taskPod := metadata.Pod
 	taskResource := common.GetPodResource(taskPod)
 	return createTaskInternal(
@@ -101,7 +100,7 @@ func createTaskInternal(tid string, app *Application, resource *si.Resource,
 		originator:      originator,
 		context:         ctx,
 		sm:              newTaskState(),
-		schedulingState: interfaces.TaskSchedPending,
+		schedulingState: TaskSchedPending,
 		lock:            &sync.RWMutex{},
 	}
 	if tgName := utils.GetTaskGroupFromPodSpec(pod); tgName != "" {
@@ -170,10 +169,10 @@ func (task *Task) getTaskGroupName() string {
 	return task.taskGroupName
 }
 
-func (task *Task) getTaskAllocationUUID() string {
+func (task *Task) getTaskAllocationID() string {
 	task.lock.RLock()
 	defer task.lock.RUnlock()
-	return task.allocationUUID
+	return task.allocationID
 }
 
 func (task *Task) DeleteTaskPod(pod *v1.Pod) error {
@@ -199,39 +198,25 @@ func (task *Task) isTerminated() bool {
 
 // task object initialization
 // normally when task is added, the task state is New
-// but during recovery, we need to init the task state according to
+// but during scheduler init after restart, we need to init the task state according to
 // the task pod status. if the pod is already terminated,
 // we should mark the task as completed according.
 func (task *Task) initialize() {
 	task.lock.Lock()
 	defer task.lock.Unlock()
 
-	// task needs recovery means the task has already been
-	// scheduled by us with an allocation, instead of starting
-	// from New, directly set the task to Bound.
-	if utils.NeedRecovery(task.pod) {
-		task.allocationUUID = string(task.pod.UID)
-		task.nodeName = task.pod.Spec.NodeName
-		task.sm.SetState(TaskStates().Bound)
-		log.Log(log.ShimCacheTask).Info("set task as Bound",
-			zap.String("appID", task.applicationID),
-			zap.String("taskID", task.taskID),
-			zap.String("allocationUUID", task.allocationUUID),
-			zap.String("nodeName", task.nodeName))
-	}
-
 	// task already terminated, succeed or failed
 	// that means the task was already allocated and completed
 	// the resources were already released, instead of starting
 	// from New, directly set the task to Completed
 	if utils.IsPodTerminated(task.pod) {
-		task.allocationUUID = string(task.pod.UID)
+		task.allocationID = string(task.pod.UID)
 		task.nodeName = task.pod.Spec.NodeName
 		task.sm.SetState(TaskStates().Completed)
 		log.Log(log.ShimCacheTask).Info("set task as Completed",
 			zap.String("appID", task.applicationID),
 			zap.String("taskID", task.taskID),
-			zap.String("allocationUUID", task.allocationUUID),
+			zap.String("allocationID", task.allocationID),
 			zap.String("nodeName", task.nodeName))
 	}
 }
@@ -269,13 +254,13 @@ func (task *Task) isPreemptOtherAllowed() bool {
 	}
 }
 
-func (task *Task) SetTaskSchedulingState(state interfaces.TaskSchedulingState) {
+func (task *Task) SetTaskSchedulingState(state TaskSchedulingState) {
 	task.lock.Lock()
 	defer task.lock.Unlock()
 	task.schedulingState = state
 }
 
-func (task *Task) GetTaskSchedulingState() interfaces.TaskSchedulingState {
+func (task *Task) GetTaskSchedulingState() TaskSchedulingState {
 	task.lock.RLock()
 	defer task.lock.RUnlock()
 	return task.schedulingState
@@ -291,30 +276,49 @@ func (task *Task) handleSubmitTaskEvent() {
 		AllowPreemptOther: task.isPreemptOtherAllowed(),
 	}
 
-	// convert the request
-	rr := common.CreateAllocationRequestForTask(
-		task.applicationID,
-		task.taskID,
-		task.resource,
-		task.placeholder,
-		task.taskGroupName,
-		task.pod,
-		task.originator,
-		preemptionPolicy)
-	log.Log(log.ShimCacheTask).Debug("send update request", zap.Stringer("request", rr))
-	if err := task.context.apiProvider.GetAPIs().SchedulerAPI.UpdateAllocation(rr); err != nil {
-		log.Log(log.ShimCacheTask).Debug("failed to send scheduling request to scheduler", zap.Error(err))
-		return
-	}
+	if utils.PodAlreadyBound(task.pod) {
+		// submit allocation
+		rr := common.CreateAllocationForTask(
+			task.applicationID,
+			task.taskID,
+			task.pod.Spec.NodeName,
+			task.resource,
+			task.placeholder,
+			task.taskGroupName,
+			task.pod,
+			task.originator,
+			preemptionPolicy)
+		log.Log(log.ShimCacheTask).Debug("send update request", zap.Stringer("request", rr))
+		if err := task.context.apiProvider.GetAPIs().SchedulerAPI.UpdateAllocation(rr); err != nil {
+			log.Log(log.ShimCacheTask).Debug("failed to send allocation to scheduler", zap.Error(err))
+			return
+		}
+	} else {
+		// submit allocation ask
+		rr := common.CreateAllocationRequestForTask(
+			task.applicationID,
+			task.taskID,
+			task.resource,
+			task.placeholder,
+			task.taskGroupName,
+			task.pod,
+			task.originator,
+			preemptionPolicy)
+		log.Log(log.ShimCacheTask).Debug("send update request", zap.Stringer("request", rr))
+		if err := task.context.apiProvider.GetAPIs().SchedulerAPI.UpdateAllocation(rr); err != nil {
+			log.Log(log.ShimCacheTask).Debug("failed to send scheduling request to scheduler", zap.Error(err))
+			return
+		}
 
-	events.GetRecorder().Eventf(task.pod.DeepCopy(), nil, v1.EventTypeNormal, "Scheduling", "Scheduling",
-		"%s is queued and waiting for allocation", task.alias)
-	// if this task belongs to a task group, that means the app has gang scheduling enabled
-	// in this case, post an event to indicate the task is being gang scheduled
-	if !task.placeholder && task.taskGroupName != "" {
-		events.GetRecorder().Eventf(task.pod.DeepCopy(), nil,
-			v1.EventTypeNormal, "GangScheduling", "GangScheduling",
-			"Pod belongs to the taskGroup %s, it will be scheduled as a gang member", task.taskGroupName)
+		events.GetRecorder().Eventf(task.pod.DeepCopy(), nil, v1.EventTypeNormal, "Scheduling", "Scheduling",
+			"%s is queued and waiting for allocation", task.alias)
+		// if this task belongs to a task group, that means the app has gang scheduling enabled
+		// in this case, post an event to indicate the task is being gang scheduled
+		if !task.placeholder && task.taskGroupName != "" {
+			events.GetRecorder().Eventf(task.pod.DeepCopy(), nil,
+				v1.EventTypeNormal, "GangScheduling", "GangScheduling",
+				"Pod belongs to the taskGroup %s, it will be scheduled as a gang member", task.taskGroupName)
+		}
 	}
 }
 
@@ -347,7 +351,7 @@ func (task *Task) postTaskAllocated() {
 
 			dispatcher.Dispatch(NewBindTaskEvent(task.applicationID, task.taskID))
 			events.GetRecorder().Eventf(task.pod.DeepCopy(),
-				nil, v1.EventTypeNormal, "QuotaApproved", "QuotaApproved",
+				nil, v1.EventTypeNormal, "Pending", "Pending",
 				"Pod %s is ready for scheduling on node %s", task.alias, task.nodeName)
 		} else {
 			// post a message to indicate the pod gets its allocation
@@ -389,7 +393,7 @@ func (task *Task) postTaskAllocated() {
 				"Pod %s is successfully bound to node %s", task.alias, task.nodeName)
 		}
 
-		task.schedulingState = interfaces.TaskSchedAllocated
+		task.schedulingState = TaskSchedAllocated
 	}()
 }
 
@@ -400,9 +404,9 @@ func (task *Task) postTaskAllocated() {
 // If we find the task is already in Completed state while handling TaskAllocated
 // event, we need to explicitly release this allocation because it is no
 // longer valid.
-func (task *Task) beforeTaskAllocated(eventSrc string, allocUUID string, nodeID string) {
-	// task is allocated on a node with a UUID set the details in the task here to allow referencing later.
-	task.allocationUUID = allocUUID
+func (task *Task) beforeTaskAllocated(eventSrc string, allocationID string, nodeID string) {
+	// task is allocated on a node with a allocationID set the details in the task here to allow referencing later.
+	task.allocationID = allocationID
 	task.nodeName = nodeID
 	// If the task is Completed the pod was deleted on K8s but the core was not aware yet.
 	// Notify the core to release this allocation to avoid resource leak.
@@ -410,7 +414,7 @@ func (task *Task) beforeTaskAllocated(eventSrc string, allocUUID string, nodeID 
 	if eventSrc == TaskStates().Completed {
 		log.Log(log.ShimCacheTask).Info("task is already completed, invalidate the allocation",
 			zap.String("currentTaskState", eventSrc),
-			zap.String("allocUUID", allocUUID),
+			zap.String("allocationID", allocationID),
 			zap.String("allocatedNode", nodeID))
 		task.releaseAllocation()
 	}
@@ -492,7 +496,7 @@ func (task *Task) releaseAllocation() {
 			zap.String("applicationID", task.applicationID),
 			zap.String("taskID", task.taskID),
 			zap.String("taskAlias", task.alias),
-			zap.String("allocationUUID", task.allocationUUID),
+			zap.String("allocationID", task.allocationID),
 			zap.String("task", task.GetTaskState()),
 			zap.String("terminationType", task.terminationType))
 
@@ -506,8 +510,8 @@ func (task *Task) releaseAllocation() {
 			releaseRequest = common.CreateReleaseAskRequestForTask(
 				task.applicationID, task.taskID, task.application.partition)
 		default:
-			if task.allocationUUID == "" {
-				log.Log(log.ShimCacheTask).Warn("BUG: task allocation UUID is empty on release",
+			if task.allocationID == "" {
+				log.Log(log.ShimCacheTask).Warn("BUG: task allocation allocationID is empty on release",
 					zap.String("applicationID", task.applicationID),
 					zap.String("taskID", task.taskID),
 					zap.String("taskAlias", task.alias),
@@ -515,7 +519,7 @@ func (task *Task) releaseAllocation() {
 				return
 			}
 			releaseRequest = common.CreateReleaseAllocationRequestForTask(
-				task.applicationID, task.allocationUUID, task.application.partition, task.terminationType)
+				task.applicationID, task.allocationID, task.application.partition, task.terminationType)
 		}
 
 		if releaseRequest.Releases != nil {

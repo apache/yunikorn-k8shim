@@ -39,7 +39,6 @@ type ApplicationEventType int
 
 const (
 	SubmitApplication ApplicationEventType = iota
-	RecoverApplication
 	AcceptApplication
 	TryReserve
 	UpdateReservation
@@ -268,15 +267,15 @@ func (ue UpdateApplicationReservationEvent) GetApplicationID() string {
 // ------------------------
 type ReleaseAppAllocationEvent struct {
 	applicationID   string
-	allocationUUID  string
+	allocationID    string
 	terminationType string
 	event           ApplicationEventType
 }
 
-func NewReleaseAppAllocationEvent(appID string, allocTermination si.TerminationType, uuid string) ReleaseAppAllocationEvent {
+func NewReleaseAppAllocationEvent(appID string, allocTermination si.TerminationType, allocationID string) ReleaseAppAllocationEvent {
 	return ReleaseAppAllocationEvent{
 		applicationID:   appID,
-		allocationUUID:  uuid,
+		allocationID:    allocationID,
 		terminationType: si.TerminationType_name[int32(allocTermination)],
 		event:           ReleaseAppAllocation,
 	}
@@ -288,7 +287,7 @@ func (re ReleaseAppAllocationEvent) GetApplicationID() string {
 
 func (re ReleaseAppAllocationEvent) GetArgs() []interface{} {
 	args := make([]interface{}, 2)
-	args[0] = re.allocationUUID
+	args[0] = re.allocationID
 	args[1] = re.terminationType
 	return args
 }
@@ -361,37 +360,35 @@ func (re ResumingApplicationEvent) GetApplicationID() string {
 var storeApplicationStates *AStates
 
 type AStates struct {
-	New        string
-	Recovering string
-	Submitted  string
-	Accepted   string
-	Reserving  string
-	Running    string
-	Rejected   string
-	Completed  string
-	Killing    string
-	Killed     string
-	Failing    string
-	Failed     string
-	Resuming   string
+	New       string
+	Submitted string
+	Accepted  string
+	Reserving string
+	Running   string
+	Rejected  string
+	Completed string
+	Killing   string
+	Killed    string
+	Failing   string
+	Failed    string
+	Resuming  string
 }
 
 func ApplicationStates() *AStates {
 	applicationStatesOnce.Do(func() {
 		storeApplicationStates = &AStates{
-			New:        "New",
-			Recovering: "Recovering",
-			Submitted:  "Submitted",
-			Accepted:   "Accepted",
-			Reserving:  "Reserving",
-			Running:    "Running",
-			Rejected:   "Rejected",
-			Completed:  "Completed",
-			Killing:    "Killing",
-			Killed:     "Killed",
-			Failed:     "Failed",
-			Failing:    "Failing",
-			Resuming:   "Resuming",
+			New:       "New",
+			Submitted: "Submitted",
+			Accepted:  "Accepted",
+			Reserving: "Reserving",
+			Running:   "Running",
+			Rejected:  "Rejected",
+			Completed: "Completed",
+			Killing:   "Killing",
+			Killed:    "Killed",
+			Failed:    "Failed",
+			Failing:   "Failing",
+			Resuming:  "Resuming",
 		}
 	})
 	return storeApplicationStates
@@ -407,13 +404,8 @@ func newAppState() *fsm.FSM { //nolint:funlen
 				Dst:  states.Submitted,
 			},
 			{
-				Name: RecoverApplication.String(),
-				Src:  []string{states.New},
-				Dst:  states.Recovering,
-			},
-			{
 				Name: AcceptApplication.String(),
-				Src:  []string{states.Submitted, states.Recovering},
+				Src:  []string{states.Submitted},
 				Dst:  states.Accepted,
 			},
 			{
@@ -478,7 +470,7 @@ func newAppState() *fsm.FSM { //nolint:funlen
 			},
 			{
 				Name: RejectApplication.String(),
-				Src:  []string{states.Submitted, states.Recovering},
+				Src:  []string{states.Submitted},
 				Dst:  states.Rejected,
 			},
 			{
@@ -517,11 +509,7 @@ func newAppState() *fsm.FSM { //nolint:funlen
 			},
 			SubmitApplication.String(): func(_ context.Context, event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
-				app.handleSubmitApplicationEvent()
-			},
-			RecoverApplication.String(): func(_ context.Context, event *fsm.Event) {
-				app := event.Args[0].(*Application) //nolint:errcheck
-				app.handleRecoverApplicationEvent()
+				event.Err = app.handleSubmitApplicationEvent()
 			},
 			RejectApplication.String(): func(_ context.Context, event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
@@ -558,9 +546,9 @@ func newAppState() *fsm.FSM { //nolint:funlen
 					log.Log(log.ShimFSM).Error("fail to parse event arg", zap.Error(err))
 					return
 				}
-				allocUUID := eventArgs[0]
+				allocationID := eventArgs[0]
 				terminationType := eventArgs[1]
-				app.handleReleaseAppAllocationEvent(allocUUID, terminationType)
+				app.handleReleaseAppAllocationEvent(allocationID, terminationType)
 			},
 			ReleaseAppAllocationAsk.String(): func(_ context.Context, event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck

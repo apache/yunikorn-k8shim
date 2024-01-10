@@ -27,13 +27,21 @@ import (
 	v1 "k8s.io/api/core/v1"
 	schedulingv1 "k8s.io/api/scheduling/v1"
 	storageV1 "k8s.io/api/storage/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
 	"github.com/apache/yunikorn-k8shim/pkg/client"
+	"github.com/apache/yunikorn-k8shim/pkg/common"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
+	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
+)
+
+type UpdateType int
+
+const (
+	AddOccupiedResource UpdateType = iota
+	SubOccupiedResource
 )
 
 // SchedulerCache maintains some critical information about nodes and pods used for scheduling.
@@ -49,12 +57,15 @@ import (
 // is called in the plugin to signify completion of the allocation, it is removed.
 type SchedulerCache struct {
 	nodesMap              map[string]*framework.NodeInfo // node name to NodeInfo map
+	nodeCapacity          map[string]*si.Resource        // node name to node resource capacity
+	nodeOccupied          map[string]*si.Resource        // node name to node occupied resources
 	podsMap               map[string]*v1.Pod
 	pcMap                 map[string]*schedulingv1.PriorityClass
-	assignedPods          map[string]string // map of pods to the node they are currently assigned to
-	assumedPods           map[string]bool   // map of assumed pods, value indicates if pod volumes are all bound
-	pendingAllocations    map[string]string // map of pod to node ID, presence indicates a pending allocation for scheduler
-	inProgressAllocations map[string]string // map of pod to node ID, presence indicates an in-process allocation for scheduler
+	assignedPods          map[string]string  // map of pods to the node they are currently assigned to
+	assumedPods           map[string]bool    // map of assumed pods, value indicates if pod volumes are all bound
+	orphanedPods          map[string]*v1.Pod // map of orphaned pods, keyed by pod UID
+	pendingAllocations    map[string]string  // map of pod to node ID, presence indicates a pending allocation for scheduler
+	inProgressAllocations map[string]string  // map of pod to node ID, presence indicates an in-process allocation for scheduler
 	pvcRefCounts          map[string]map[string]int
 	lock                  sync.RWMutex
 	clients               *client.Clients // client APIs
@@ -68,10 +79,13 @@ type SchedulerCache struct {
 func NewSchedulerCache(clients *client.Clients) *SchedulerCache {
 	cache := &SchedulerCache{
 		nodesMap:              make(map[string]*framework.NodeInfo),
+		nodeCapacity:          make(map[string]*si.Resource),
+		nodeOccupied:          make(map[string]*si.Resource),
 		podsMap:               make(map[string]*v1.Pod),
 		pcMap:                 make(map[string]*schedulingv1.PriorityClass),
 		assignedPods:          make(map[string]string),
 		assumedPods:           make(map[string]bool),
+		orphanedPods:          make(map[string]*v1.Pod),
 		pendingAllocations:    make(map[string]string),
 		inProgressAllocations: make(map[string]string),
 		pvcRefCounts:          make(map[string]map[string]int),
@@ -145,62 +159,73 @@ func (cache *SchedulerCache) UnlockForReads() {
 func (cache *SchedulerCache) GetNode(name string) *framework.NodeInfo {
 	cache.lock.RLock()
 	defer cache.lock.RUnlock()
-
 	if n, ok := cache.nodesMap[name]; ok {
 		return n
 	}
 	return nil
 }
 
-func (cache *SchedulerCache) AddNode(node *v1.Node) {
-	cache.lock.Lock()
-	defer cache.lock.Unlock()
-	cache.dumpState("AddNode.Pre")
-	defer cache.dumpState("AddNode.Post")
-
-	cache.updateNode(node)
-}
-
-func (cache *SchedulerCache) UpdateNode(newNode *v1.Node) {
+// UpdateNode updates the given node in the cache and returns the previous node if it exists
+func (cache *SchedulerCache) UpdateNode(node *v1.Node) (*v1.Node, []*v1.Pod) {
 	cache.lock.Lock()
 	defer cache.lock.Unlock()
 	cache.dumpState("UpdateNode.Pre")
 	defer cache.dumpState("UpdateNode.Post")
-
-	cache.updateNode(newNode)
+	return cache.updateNode(node)
 }
 
-func (cache *SchedulerCache) updateNode(node *v1.Node) {
+func (cache *SchedulerCache) updateNode(node *v1.Node) (*v1.Node, []*v1.Pod) {
+	var prevNode *v1.Node
+	adopted := make([]*v1.Pod, 0)
+
 	nodeInfo, ok := cache.nodesMap[node.Name]
 	if !ok {
 		log.Log(log.ShimCacheExternal).Debug("Adding node to cache", zap.String("nodeName", node.Name))
 		nodeInfo = framework.NewNodeInfo()
 		cache.nodesMap[node.Name] = nodeInfo
+		cache.nodeCapacity[node.Name] = common.GetNodeResource(&node.Status)
+		cache.nodeOccupied[node.Name] = common.NewResourceBuilder().Build()
 		cache.nodesInfo = nil
+		nodeInfo.SetNode(node)
+
+		// look for orphaned pods to adopt
+		for _, pod := range cache.orphanedPods {
+			if pod.Spec.NodeName == node.Name {
+				if cache.updatePod(pod) {
+					adopted = append(adopted, pod)
+				}
+			}
+		}
 	} else {
 		log.Log(log.ShimCacheExternal).Debug("Updating node in cache", zap.String("nodeName", node.Name))
+		prevNode = nodeInfo.Node()
+		nodeInfo.SetNode(node)
 	}
-	nodeInfo.SetNode(node)
+
 	cache.nodesInfoPodsWithAffinity = nil
 	cache.nodesInfoPodsWithReqAntiAffinity = nil
 	cache.updatePVCRefCounts(nodeInfo, false)
+
+	return prevNode, adopted
 }
 
-func (cache *SchedulerCache) RemoveNode(node *v1.Node) {
+func (cache *SchedulerCache) RemoveNode(node *v1.Node) (*v1.Node, []*v1.Pod) {
 	cache.lock.Lock()
 	defer cache.lock.Unlock()
 	cache.dumpState("RemoveNode.Pre")
 	defer cache.dumpState("RemoveNode.Post")
 
-	cache.removeNode(node)
+	return cache.removeNode(node)
 }
 
-func (cache *SchedulerCache) removeNode(node *v1.Node) {
+func (cache *SchedulerCache) removeNode(node *v1.Node) (*v1.Node, []*v1.Pod) {
+	orphans := make([]*v1.Pod, 0)
 	nodeInfo, ok := cache.nodesMap[node.Name]
 	if !ok {
 		log.Log(log.ShimCacheExternal).Debug("Attempted to remove non-existent node", zap.String("nodeName", node.Name))
-		return
+		return nil, nil
 	}
+	result := nodeInfo.Node()
 
 	for _, pod := range nodeInfo.Pods {
 		key := string(pod.Pod.UID)
@@ -208,14 +233,86 @@ func (cache *SchedulerCache) removeNode(node *v1.Node) {
 		delete(cache.assumedPods, key)
 		delete(cache.pendingAllocations, key)
 		delete(cache.inProgressAllocations, key)
+		cache.orphanedPods[key] = pod.Pod
+		orphans = append(orphans, pod.Pod)
 	}
 
 	log.Log(log.ShimCacheExternal).Debug("Removing node from cache", zap.String("nodeName", node.Name))
 	delete(cache.nodesMap, node.Name)
+	delete(cache.nodeOccupied, node.Name)
+	delete(cache.nodeCapacity, node.Name)
 	cache.nodesInfo = nil
 	cache.nodesInfoPodsWithAffinity = nil
 	cache.nodesInfoPodsWithReqAntiAffinity = nil
 	cache.updatePVCRefCounts(nodeInfo, true)
+
+	return result, orphans
+}
+
+func (cache *SchedulerCache) SnapshotResources(nodeName string) (capacity *si.Resource, occupied *si.Resource, ok bool) {
+	cache.lock.RLock()
+	defer cache.lock.RUnlock()
+
+	occupied, ok1 := cache.nodeOccupied[nodeName]
+	capacity, ok2 := cache.nodeCapacity[nodeName]
+	if !ok1 || !ok2 {
+		log.Log(log.ShimCacheExternal).Warn("Unable to snapshot resources for node", zap.String("nodeName", nodeName))
+		return nil, nil, false
+	}
+	return capacity, occupied, true
+}
+
+func (cache *SchedulerCache) UpdateCapacity(nodeName string, resource *si.Resource) (capacity *si.Resource, occupied *si.Resource, ok bool) {
+	cache.lock.Lock()
+	defer cache.lock.Unlock()
+
+	occupied, ok1 := cache.nodeOccupied[nodeName]
+	_, ok2 := cache.nodeCapacity[nodeName]
+	if !ok1 || !ok2 {
+		log.Log(log.ShimCacheExternal).Warn("Unable to update capacity for node", zap.String("nodeName", nodeName))
+		return nil, nil, false
+	}
+	cache.nodeCapacity[nodeName] = resource
+	return resource, occupied, true
+}
+
+func (cache *SchedulerCache) UpdateOccupiedResource(nodeName string, namespace string, podName string, resource *si.Resource, opt UpdateType) (node *v1.Node, capacity *si.Resource, occupied *si.Resource, ok bool) {
+	cache.lock.Lock()
+	defer cache.lock.Unlock()
+
+	nodeInfo, ok1 := cache.nodesMap[nodeName]
+	occupied, ok2 := cache.nodeOccupied[nodeName]
+	capacity, ok3 := cache.nodeCapacity[nodeName]
+	if !ok1 || !ok2 || !ok3 {
+		log.Log(log.ShimCacheExternal).Warn("Unable to update occupied resources for node",
+			zap.String("nodeName", nodeName),
+			zap.String("namespace", namespace),
+			zap.String("podName", podName))
+		return nil, nil, nil, false
+	}
+	node = nodeInfo.Node()
+
+	switch opt {
+	case AddOccupiedResource:
+		log.Log(log.ShimCacheExternal).Info("Adding occupied resources to node",
+			zap.String("nodeID", nodeName),
+			zap.String("namespace", namespace),
+			zap.String("podName", podName),
+			zap.Stringer("occupied", resource))
+		occupied = common.Add(occupied, resource)
+		cache.nodeOccupied[nodeName] = occupied
+	case SubOccupiedResource:
+		log.Log(log.ShimCacheExternal).Info("Subtracting occupied resources from node",
+			zap.String("nodeID", nodeName),
+			zap.String("namespace", namespace),
+			zap.String("podName", podName),
+			zap.Stringer("occupied", resource))
+		occupied = common.Sub(occupied, resource)
+		cache.nodeOccupied[nodeName] = occupied
+	default:
+		// noop
+	}
+	return node, capacity, occupied, true
 }
 
 func (cache *SchedulerCache) GetPriorityClass(name string) *schedulingv1.PriorityClass {
@@ -226,15 +323,6 @@ func (cache *SchedulerCache) GetPriorityClass(name string) *schedulingv1.Priorit
 		return n
 	}
 	return nil
-}
-
-func (cache *SchedulerCache) AddPriorityClass(priorityClass *schedulingv1.PriorityClass) {
-	cache.lock.Lock()
-	defer cache.lock.Unlock()
-	cache.dumpState("AddPriorityClass.Pre")
-	defer cache.dumpState("AddPriorityClass.Post")
-
-	cache.updatePriorityClass(priorityClass)
 }
 
 func (cache *SchedulerCache) UpdatePriorityClass(priorityClass *schedulingv1.PriorityClass) {
@@ -341,31 +429,24 @@ func (cache *SchedulerCache) ArePodVolumesAllBound(podKey string) bool {
 	return cache.assumedPods[podKey]
 }
 
-// AddPod adds a pod to the scheduler cache
-func (cache *SchedulerCache) AddPod(pod *v1.Pod) {
-	cache.lock.Lock()
-	defer cache.lock.Unlock()
-	cache.dumpState("AddPod.Pre")
-	defer cache.dumpState("AddPod.Post")
-	cache.updatePod(pod)
-}
-
 // UpdatePod updates a pod in the cache
-func (cache *SchedulerCache) UpdatePod(newPod *v1.Pod) {
+func (cache *SchedulerCache) UpdatePod(newPod *v1.Pod) bool {
 	cache.lock.Lock()
 	defer cache.lock.Unlock()
 	cache.dumpState("UpdatePod.Pre")
 	defer cache.dumpState("UpdatePod.Post")
-	cache.updatePod(newPod)
+	return cache.updatePod(newPod)
 }
 
-func (cache *SchedulerCache) updatePod(pod *v1.Pod) {
+func (cache *SchedulerCache) updatePod(pod *v1.Pod) bool {
 	key := string(pod.UID)
+	result := true
 
 	currState, ok := cache.podsMap[key]
 	if ok {
 		// remove current version of pod
 		delete(cache.podsMap, key)
+		delete(cache.orphanedPods, key)
 		nodeName, ok := cache.assignedPods[key]
 		if ok {
 			nodeInfo, ok := cache.nodesMap[nodeName]
@@ -403,21 +484,24 @@ func (cache *SchedulerCache) updatePod(pod *v1.Pod) {
 		// assign to node
 		nodeInfo, ok := cache.nodesMap[pod.Spec.NodeName]
 		if !ok {
-			// node doesn't exist, create a synthetic one for now
-			nodeInfo = framework.NewNodeInfo()
-			cache.nodesMap[pod.Spec.NodeName] = nodeInfo
-			// work around a crash bug in NodeInfo.RemoveNode() when Node is unset
-			nodeInfo.SetNode(&v1.Node{ObjectMeta: metav1.ObjectMeta{Name: pod.Spec.NodeName}})
+			// node doesn't exist, so this is an orphaned pod
+			log.Log(log.ShimCacheExternal).Info("Marking pod as orphan (required node not present)",
+				zap.String("namespace", pod.Namespace),
+				zap.String("podName", pod.Name),
+				zap.String("nodeName", pod.Spec.NodeName))
+			cache.orphanedPods[key] = pod
+			result = false
+		} else {
+			nodeInfo.AddPod(pod)
+			cache.assignedPods[key] = pod.Spec.NodeName
+			if podWithAffinity(pod) {
+				cache.nodesInfoPodsWithAffinity = nil
+			}
+			if podWithRequiredAntiAffinity(pod) {
+				cache.nodesInfoPodsWithReqAntiAffinity = nil
+			}
+			cache.updatePVCRefCounts(nodeInfo, false)
 		}
-		nodeInfo.AddPod(pod)
-		cache.assignedPods[key] = pod.Spec.NodeName
-		if podWithAffinity(pod) {
-			cache.nodesInfoPodsWithAffinity = nil
-		}
-		if podWithRequiredAntiAffinity(pod) {
-			cache.nodesInfoPodsWithReqAntiAffinity = nil
-		}
-		cache.updatePVCRefCounts(nodeInfo, false)
 	}
 
 	// if pod is not in a terminal state, add it back into cache
@@ -429,9 +513,12 @@ func (cache *SchedulerCache) updatePod(pod *v1.Pod) {
 		delete(cache.podsMap, key)
 		delete(cache.assignedPods, key)
 		delete(cache.assumedPods, key)
+		delete(cache.orphanedPods, key)
 		delete(cache.pendingAllocations, key)
 		delete(cache.inProgressAllocations, key)
 	}
+
+	return result
 }
 
 // RemovePod removes a pod from the cache
@@ -462,6 +549,7 @@ func (cache *SchedulerCache) removePod(pod *v1.Pod) {
 	delete(cache.podsMap, key)
 	delete(cache.assignedPods, key)
 	delete(cache.assumedPods, key)
+	delete(cache.orphanedPods, key)
 	delete(cache.pendingAllocations, key)
 	delete(cache.inProgressAllocations, key)
 	cache.nodesInfoPodsWithAffinity = nil
@@ -472,6 +560,13 @@ func (cache *SchedulerCache) GetPod(uid string) (*v1.Pod, bool) {
 	cache.lock.RLock()
 	defer cache.lock.RUnlock()
 	return cache.GetPodNoLock(uid)
+}
+
+func (cache *SchedulerCache) IsPodOrphaned(uid string) bool {
+	cache.lock.RLock()
+	defer cache.lock.RUnlock()
+	_, ok := cache.orphanedPods[uid]
+	return ok
 }
 
 func (cache *SchedulerCache) GetPodNoLock(uid string) (*v1.Pod, bool) {

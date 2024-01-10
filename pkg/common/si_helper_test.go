@@ -1,19 +1,19 @@
 /*
- Licensed to the Apache Software Foundation (ASF) under one
- or more contributor license agreements.  See the NOTICE file
- distributed with this work for additional information
- regarding copyright ownership.  The ASF licenses this file
- to you under the Apache License, Version 2.0 (the
- "License"); you may not use this file except in compliance
- with the License.  You may obtain a copy of the License at
+Licensed to the Apache Software Foundation (ASF) under one
+or more contributor license agreements.  See the NOTICE file
+distributed with this work for additional information
+regarding copyright ownership.  The ASF licenses this file
+to you under the Apache License, Version 2.0 (the
+"License"); you may not use this file except in compliance
+with the License.  You may obtain a copy of the License at
 
-     http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
- Unless required by applicable law or agreed to in writing, software
- distributed under the License is distributed on an "AS IS" BASIS,
- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- See the License for the specific language governing permissions and
- limitations under the License.
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
 */
 package common
 
@@ -40,7 +40,7 @@ func TestCreateReleaseAllocationRequest(t *testing.T) {
 	assert.Equal(t, len(request.Releases.AllocationsToRelease), 1)
 	assert.Equal(t, len(request.Releases.AllocationAsksToRelease), 0)
 	assert.Equal(t, request.Releases.AllocationsToRelease[0].ApplicationID, "app01")
-	assert.Equal(t, request.Releases.AllocationsToRelease[0].UUID, "alloc01")
+	assert.Equal(t, request.Releases.AllocationsToRelease[0].AllocationID, "alloc01")
 	assert.Equal(t, request.Releases.AllocationsToRelease[0].PartitionName, "default")
 }
 
@@ -346,4 +346,83 @@ func TestCreateAllocationRequestForTask(t *testing.T) {
 	tags := allocAsk1.Tags
 	assert.Equal(t, tags[common.DomainK8s+common.GroupMeta+"podName"], podName1)
 	assert.Equal(t, allocAsk1.Priority, int32(100))
+}
+
+func TestCreateAllocationForTask(t *testing.T) {
+	res := NewResourceBuilder().Build()
+	podName := "pod-resource-test-00001"
+	namespace := "important"
+	annotations := map[string]string{
+		"key": "value",
+	}
+	pod := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name:        podName,
+			UID:         "UID-00001",
+			Namespace:   namespace,
+			Annotations: annotations,
+		},
+		Spec: v1.PodSpec{
+			NodeName: "node1",
+		},
+	}
+
+	preemptionPolicy := &si.PreemptionPolicy{
+		AllowPreemptSelf:  false,
+		AllowPreemptOther: true,
+	}
+
+	updateRequest := CreateAllocationForTask("appId1", "taskId1", "node1", res, false, "", pod, false, preemptionPolicy)
+	allocs := updateRequest.Allocations
+	assert.Equal(t, len(allocs), 1)
+	alloc := allocs[0]
+	if alloc == nil {
+		t.Fatal("alloc cannot be nil")
+	}
+	assert.Equal(t, alloc.Priority, int32(0))
+	assert.Assert(t, alloc.PreemptionPolicy != nil)
+	assert.Equal(t, alloc.PreemptionPolicy.AllowPreemptSelf, false)
+	assert.Equal(t, alloc.PreemptionPolicy.AllowPreemptOther, true)
+
+	podName1 := "pod-resource-test-00002"
+	var pri = int32(100)
+	pod1 := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name:        podName1,
+			UID:         "UID-00002",
+			Namespace:   namespace,
+			Annotations: annotations,
+		},
+		Spec: v1.PodSpec{
+			Priority: &pri,
+			NodeName: "node1",
+		},
+	}
+
+	preemptionPolicy1 := &si.PreemptionPolicy{
+		AllowPreemptSelf:  true,
+		AllowPreemptOther: false,
+	}
+
+	updateRequest1 := CreateAllocationForTask("appId1", "taskId1", "node1", res, false, "", pod1, false, preemptionPolicy1)
+	allocs1 := updateRequest1.Allocations
+	assert.Equal(t, len(allocs1), 1)
+	alloc1 := allocs1[0]
+	if alloc1 == nil {
+		t.Fatal("alloc cannot be nil")
+	}
+	assert.Assert(t, alloc1.PreemptionPolicy != nil)
+	assert.Equal(t, alloc1.PreemptionPolicy.AllowPreemptSelf, true)
+	assert.Equal(t, alloc1.PreemptionPolicy.AllowPreemptOther, false)
+	tags := alloc1.AllocationTags
+	assert.Equal(t, tags[common.DomainK8s+common.GroupMeta+"podName"], podName1)
+	assert.Equal(t, alloc1.Priority, int32(100))
 }

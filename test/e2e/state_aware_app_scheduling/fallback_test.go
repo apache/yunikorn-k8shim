@@ -94,7 +94,7 @@ var _ = Describe("FallbackTest:", func() {
 		Ω(allocation.AllocationKey).NotTo(BeNil())
 		Ω(allocation.NodeID).NotTo(BeNil())
 		Ω(allocation.Partition).NotTo(BeNil())
-		Ω(allocation.UUID).NotTo(BeNil())
+		Ω(allocation.AllocationID).NotTo(BeNil())
 		Ω(allocation.ApplicationID).To(Equal(sleepRespPod.ObjectMeta.Labels["applicationId"]))
 		core := sleepRespPod.Spec.Containers[0].Resources.Requests.Cpu().MilliValue()
 		mem := sleepRespPod.Spec.Containers[0].Resources.Requests.Memory().Value()

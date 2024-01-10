@@ -61,33 +61,31 @@ var (
 	AdmissionConf        = &LoggerHandle{id: 5, name: "admission.conf"}
 	AdmissionWebhook     = &LoggerHandle{id: 6, name: "admission.webhook"}
 	AdmissionUtils       = &LoggerHandle{id: 7, name: "admission.utils"}
-	ShimAppMgmt          = &LoggerHandle{id: 8, name: "shim.appmgmt"}
-	ShimAppMgmtGeneral   = &LoggerHandle{id: 9, name: "shim.appmgmt.general"}
-	ShimContext          = &LoggerHandle{id: 10, name: "shim.context"}
-	ShimFSM              = &LoggerHandle{id: 11, name: "shim.fsm"}
-	ShimCacheApplication = &LoggerHandle{id: 12, name: "shim.cache.application"}
-	ShimCacheNode        = &LoggerHandle{id: 13, name: "shim.cache.node"}
-	ShimCacheTask        = &LoggerHandle{id: 14, name: "shim.cache.task"}
-	ShimCacheExternal    = &LoggerHandle{id: 15, name: "shim.cache.external"}
-	ShimCachePlaceholder = &LoggerHandle{id: 16, name: "shim.cache.placeholder"}
-	ShimRMCallback       = &LoggerHandle{id: 17, name: "shim.rmcallback"}
-	ShimClient           = &LoggerHandle{id: 18, name: "shim.client"}
-	ShimResources        = &LoggerHandle{id: 19, name: "shim.resources"}
-	ShimUtils            = &LoggerHandle{id: 20, name: "shim.utils"}
-	ShimConfig           = &LoggerHandle{id: 21, name: "shim.config"}
-	ShimDispatcher       = &LoggerHandle{id: 22, name: "shim.dispatcher"}
-	ShimScheduler        = &LoggerHandle{id: 23, name: "shim.scheduler"}
-	ShimSchedulerPlugin  = &LoggerHandle{id: 24, name: "shim.scheduler.plugin"}
-	ShimPredicates       = &LoggerHandle{id: 25, name: "shim.predicates"}
-	ShimFramework        = &LoggerHandle{id: 26, name: "shim.framework"}
+	ShimContext          = &LoggerHandle{id: 8, name: "shim.context"}
+	ShimFSM              = &LoggerHandle{id: 9, name: "shim.fsm"}
+	ShimCacheApplication = &LoggerHandle{id: 10, name: "shim.cache.application"}
+	ShimCacheAppMgmt     = &LoggerHandle{id: 11, name: "shim.cache.appmgmt"}
+	ShimCacheNode        = &LoggerHandle{id: 12, name: "shim.cache.node"}
+	ShimCacheTask        = &LoggerHandle{id: 13, name: "shim.cache.task"}
+	ShimCacheExternal    = &LoggerHandle{id: 14, name: "shim.cache.external"}
+	ShimCachePlaceholder = &LoggerHandle{id: 15, name: "shim.cache.placeholder"}
+	ShimRMCallback       = &LoggerHandle{id: 16, name: "shim.rmcallback"}
+	ShimClient           = &LoggerHandle{id: 17, name: "shim.client"}
+	ShimResources        = &LoggerHandle{id: 18, name: "shim.resources"}
+	ShimUtils            = &LoggerHandle{id: 19, name: "shim.utils"}
+	ShimConfig           = &LoggerHandle{id: 20, name: "shim.config"}
+	ShimDispatcher       = &LoggerHandle{id: 21, name: "shim.dispatcher"}
+	ShimScheduler        = &LoggerHandle{id: 22, name: "shim.scheduler"}
+	ShimSchedulerPlugin  = &LoggerHandle{id: 23, name: "shim.scheduler.plugin"}
+	ShimPredicates       = &LoggerHandle{id: 24, name: "shim.predicates"}
+	ShimFramework        = &LoggerHandle{id: 25, name: "shim.framework"}
 )
 
 // this tracks all the known logger handles, used to preallocate the real logger instances when configuration changes
 var loggers = []*LoggerHandle{
 	Shim, Kubernetes, Test,
-	Admission, AdmissionClient, AdmissionConf, AdmissionWebhook, AdmissionUtils,
-	ShimAppMgmt, ShimAppMgmtGeneral, ShimContext, ShimFSM,
-	ShimCacheApplication, ShimCacheNode, ShimCacheTask, ShimCacheExternal, ShimCachePlaceholder,
+	Admission, AdmissionClient, AdmissionConf, AdmissionWebhook, AdmissionUtils, ShimContext, ShimFSM,
+	ShimCacheApplication, ShimCacheAppMgmt, ShimCacheNode, ShimCacheTask, ShimCacheExternal, ShimCachePlaceholder,
 	ShimRMCallback, ShimClient, ShimResources, ShimUtils, ShimConfig, ShimDispatcher,
 	ShimScheduler, ShimSchedulerPlugin, ShimPredicates, ShimFramework,
 }

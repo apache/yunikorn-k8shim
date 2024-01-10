@@ -25,7 +25,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
@@ -47,7 +46,7 @@ type Placeholder struct {
 	pod           *v1.Pod
 }
 
-func newPlaceholder(placeholderName string, app *Application, taskGroup interfaces.TaskGroup) *Placeholder {
+func newPlaceholder(placeholderName string, app *Application, taskGroup TaskGroup) *Placeholder {
 	// Here the owner reference is always the originator pod
 	ownerRefs := app.getPlaceholderOwnerReferences()
 	annotations := utils.MergeMaps(taskGroup.Annotations, map[string]string{
@@ -85,7 +84,7 @@ func newPlaceholder(placeholderName string, app *Application, taskGroup interfac
 	}
 
 	// prepare the resource lists
-	requests := utils.GetPlaceholderResourceRequests(taskGroup.MinResource)
+	requests := GetPlaceholderResourceRequests(taskGroup.MinResource)
 	placeholderPod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      placeholderName,

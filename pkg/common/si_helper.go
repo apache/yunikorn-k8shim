@@ -92,6 +92,30 @@ func CreateAllocationRequestForTask(appID, taskID string, resource *si.Resource,
 	}
 }
 
+func CreateAllocationForTask(appID, taskID, nodeID string, resource *si.Resource, placeholder bool, taskGroupName string, pod *v1.Pod, originator bool, preemptionPolicy *si.PreemptionPolicy) *si.AllocationRequest {
+	allocation := si.Allocation{
+		AllocationKey:    taskID,
+		AllocationTags:   CreateTagsForTask(pod),
+		AllocationID:     taskID,
+		ResourcePerAlloc: resource,
+		Priority:         CreatePriorityForTask(pod),
+		NodeID:           nodeID,
+		ApplicationID:    appID,
+		TaskGroupName:    taskGroupName,
+		Placeholder:      placeholder,
+		Originator:       originator,
+		PreemptionPolicy: preemptionPolicy,
+	}
+
+	// add creation time for ask
+	allocation.AllocationTags[common.CreationTime] = strconv.FormatInt(pod.CreationTimestamp.Unix(), 10)
+
+	return &si.AllocationRequest{
+		Allocations: []*si.Allocation{&allocation},
+		RmID:        conf.GetSchedulerConf().ClusterID,
+	}
+}
+
 func CreateReleaseAskRequestForTask(appID, taskID, partition string) *si.AllocationRequest {
 	toReleases := make([]*si.AllocationAskRelease, 0)
 	toReleases = append(toReleases, &si.AllocationAskRelease{
@@ -118,11 +142,11 @@ func GetTerminationTypeFromString(terminationTypeStr string) si.TerminationType 
 	return si.TerminationType_STOPPED_BY_RM
 }
 
-func CreateReleaseAllocationRequestForTask(appID, allocUUID, partition, terminationType string) *si.AllocationRequest {
+func CreateReleaseAllocationRequestForTask(appID, allocationID, partition, terminationType string) *si.AllocationRequest {
 	toReleases := make([]*si.AllocationRelease, 0)
 	toReleases = append(toReleases, &si.AllocationRelease{
 		ApplicationID:   appID,
-		UUID:            allocUUID,
+		AllocationID:    allocationID,
 		PartitionName:   partition,
 		TerminationType: GetTerminationTypeFromString(terminationType),
 		Message:         "task completed",
@@ -174,8 +198,7 @@ func CreateUpdateRequestForNewNode(nodeID string, nodeLabels map[string]string, 
 
 // CreateUpdateRequestForUpdatedNode builds a NodeRequest for any node updates like capacity,
 // ready status flag etc
-func CreateUpdateRequestForUpdatedNode(nodeID string, capacity *si.Resource, occupied *si.Resource,
-	ready bool) *si.NodeRequest {
+func CreateUpdateRequestForUpdatedNode(nodeID string, capacity *si.Resource, occupied *si.Resource, ready bool) *si.NodeRequest {
 	nodeInfo := &si.NodeInfo{
 		NodeID: nodeID,
 		Attributes: map[string]string{

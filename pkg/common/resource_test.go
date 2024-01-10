@@ -325,8 +325,49 @@ func TestBestEffortPod(t *testing.T) {
 	resources[v1.ResourceCPU] = resource.MustParse("0")
 
 	res = GetPodResource(pod)
-	assert.Equal(t, len(res.Resources), 1)
+	assert.Equal(t, len(res.Resources), 3)
 	assert.Equal(t, res.Resources["pods"].GetValue(), int64(1))
+	assert.Equal(t, res.Resources[siCommon.CPU].GetValue(), int64(0))
+	assert.Equal(t, res.Resources[siCommon.Memory].GetValue(), int64(0))
+}
+
+func TestGPUOnlyResources(t *testing.T) {
+	containers := make([]v1.Container, 0)
+
+	// container 01
+	c1Resources := make(map[v1.ResourceName]resource.Quantity)
+	c1Resources[v1.ResourceName("nvidia.com/gpu")] = resource.MustParse("1")
+	containers = append(containers, v1.Container{
+		Name: "container-01",
+		Resources: v1.ResourceRequirements{
+			Requests: c1Resources,
+		},
+	})
+
+	pod := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "pod-resource-test-00001",
+			UID:  "UID-00001",
+		},
+		Spec: v1.PodSpec{
+			Containers: containers,
+		},
+	}
+
+	res := GetPodResource(pod)
+	assert.Equal(t, len(res.Resources), 2)
+	assert.Equal(t, res.Resources["pods"].GetValue(), int64(1))
+	assert.Equal(t, res.Resources["nvidia.com/gpu"].GetValue(), int64(1))
+
+	c1Resources[v1.ResourceName("nvidia.com/gpu")] = resource.MustParse("0")
+	res = GetPodResource(pod)
+	assert.Equal(t, len(res.Resources), 2)
+	assert.Equal(t, res.Resources["pods"].GetValue(), int64(1))
+	assert.Equal(t, res.Resources["nvidia.com/gpu"].GetValue(), int64(0))
 }
 
 func TestNodeResource(t *testing.T) {

@@ -73,7 +73,7 @@ const (
 	DefaultFilteringLabelNamespaces      = ""
 	DefaultFilteringNoLabelNamespaces    = ""
 	DefaultFilteringGenerateUniqueAppIds = false
-	DefaultFilteringQueueName            = "root.default"
+	DefaultFilteringQueueName            = constants.ApplicationDefaultQueue
 
 	// access control defaults
 	DefaultAccessControlBypassAuth       = false

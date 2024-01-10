@@ -20,7 +20,6 @@ package e2e
 
 import (
 	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/onsi/ginkgo/v2"
@@ -96,44 +95,79 @@ func RestoreConfigMapWrapper(oldConfigMap *v1.ConfigMap, annotation string) {
 func LogTestClusterInfoWrapper(testName string, namespaces []string) {
 	fmt.Fprintf(ginkgo.GinkgoWriter, "%s Log test cluster info\n", testName)
 	var restClient yunikorn.RClient
-	Ω(k.SetClient()).To(BeNil())
+	err := k.SetClient()
+	if err != nil {
+		fmt.Fprintf(ginkgo.GinkgoWriter, "Error setting k8s client: %v\n", err)
+		return
+	}
+
 	for _, ns := range namespaces {
 		logErr := k8s.LogNamespaceInfo(ns)
-		Ω(logErr).NotTo(HaveOccurred())
+		if logErr != nil {
+			fmt.Fprintf(ginkgo.GinkgoWriter, "Error logging namespace info: %v\n", logErr)
+			continue
+		}
 
 		pods, err := k.GetPodsByOptions(metav1.ListOptions{})
-		Ω(err).NotTo(HaveOccurred())
-		By("Pod count is " + strconv.Itoa(len(pods.Items)))
-		for _, pod := range pods.Items {
-			By("Pod name is " + pod.Name)
-			By("Pod details: " + pod.String())
+		if err != nil {
+			fmt.Fprintf(ginkgo.GinkgoWriter, "Error getting pods: %v\n", err)
+		} else {
+			fmt.Fprintf(ginkgo.GinkgoWriter, "Pod count is %d\n", len(pods.Items))
+			for _, pod := range pods.Items {
+				fmt.Fprintf(ginkgo.GinkgoWriter, "Pod name is %s\n", pod.Name)
+				fmt.Fprintf(ginkgo.GinkgoWriter, "Pod details: %s\n", pod.String())
+			}
 		}
 
 		logErr = restClient.LogAppsInfo(ns)
-		Ω(logErr).NotTo(HaveOccurred())
+		if logErr != nil {
+			fmt.Fprintf(ginkgo.GinkgoWriter, "Error logging apps info: %v\n", logErr)
+		}
 	}
 	logErr := restClient.LogQueuesInfo()
-	Ω(logErr).NotTo(HaveOccurred())
+	if logErr != nil {
+		fmt.Fprintf(ginkgo.GinkgoWriter, "Error logging queues info: %v\n", logErr)
+	}
+
 	logErr = restClient.LogNodesInfo()
-	Ω(logErr).NotTo(HaveOccurred())
+	if logErr != nil {
+		fmt.Fprintf(ginkgo.GinkgoWriter, "Error logging nodes info: %v\n", logErr)
+	}
+
 	nodes, err := k.GetNodes()
-	Ω(err).NotTo(HaveOccurred())
-	By("Node count is " + strconv.Itoa(len(nodes.Items)))
-	for _, node := range nodes.Items {
-		By("Running describe node command for " + node.Name + "..")
-		err = k.DescribeNode(node)
-		Ω(err).NotTo(HaveOccurred())
+	if err != nil {
+		fmt.Fprintf(ginkgo.GinkgoWriter, "Error getting nodes: %v\n", err)
+	} else {
+		fmt.Fprintf(ginkgo.GinkgoWriter, "Node count is %d\n", len(nodes.Items))
+		for _, node := range nodes.Items {
+			fmt.Fprintf(ginkgo.GinkgoWriter, "Running describe node command for %s..\n", node.Name)
+			err = k.DescribeNode(node)
+			if err != nil {
+				fmt.Fprintf(ginkgo.GinkgoWriter, "Error describing node: %v\n", err)
+			}
+		}
 	}
 }
 
 func LogYunikornContainer(testName string) {
 	fmt.Fprintf(ginkgo.GinkgoWriter, "%s Log yk logs info from\n", testName)
-	Ω(k.SetClient()).To(BeNil())
+	err := k.SetClient()
+	if err != nil {
+		fmt.Fprintf(ginkgo.GinkgoWriter, "Error setting k8s client: %v\n", err)
+		return
+	}
 	ykSchedName, schedErr := yunikorn.GetSchedulerPodName(k)
-	Ω(schedErr).NotTo(HaveOccurred(), "Failed to get the scheduler pod name")
+	if schedErr != nil {
+		fmt.Fprintf(ginkgo.GinkgoWriter, "Failed to get the scheduler pod name: %v\n", schedErr)
+		return
+	}
+
 	logBytes, getErr := k.GetPodLogs(ykSchedName, configmanager.YuniKornTestConfig.YkNamespace, configmanager.YKSchedulerContainer)
-	Ω(getErr).NotTo(HaveOccurred(), "Failed to get the logs")
-	By("Yunikorn Logs:\n" + string(logBytes))
+	if getErr != nil {
+		fmt.Fprintf(ginkgo.GinkgoWriter, "Failed to get scheduler pod logs: %v\n", getErr)
+		return
+	}
+	fmt.Fprintf(ginkgo.GinkgoWriter, "Yunikorn Logs:%s\n", string(logBytes))
 }
 
 var Describe = ginkgo.Describe

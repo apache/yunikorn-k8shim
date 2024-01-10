@@ -30,13 +30,12 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/apache/yunikorn-k8shim/pkg/appmgmt/interfaces"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 )
 
 const (
-	appID             = "app01"
+	pmAppID           = "app01"
 	queue             = "root.default"
 	namespace         = "test"
 	priorityClassName = "test-priority-class"
@@ -132,9 +131,9 @@ func TestCreateAppPlaceholdersWithOwnReference(t *testing.T) {
 
 func createAppWIthTaskGroupForTest() *Application {
 	mockedSchedulerAPI := newMockSchedulerAPI()
-	app := NewApplication(appID, queue,
+	app := NewApplication(pmAppID, queue,
 		"bob", testGroups, map[string]string{constants.AppTagNamespace: namespace}, mockedSchedulerAPI)
-	app.setTaskGroups([]interfaces.TaskGroup{
+	app.setTaskGroups([]TaskGroup{
 		{
 			Name:      "test-group-1",
 			MinMember: 10,
@@ -221,9 +220,9 @@ func createAppWIthTaskGroupAndPodsForTest() *Application {
 func TestCleanUp(t *testing.T) {
 	mockedContext := initContextForTest()
 	mockedSchedulerAPI := newMockSchedulerAPI()
-	app := NewApplication(appID, queue,
+	app := NewApplication(pmAppID, queue,
 		"bob", testGroups, map[string]string{constants.AppTagNamespace: namespace}, mockedSchedulerAPI)
-	mockedContext.applications[appID] = app
+	mockedContext.applications[pmAppID] = app
 	res := app.getNonTerminatedTaskAlias()
 	assert.Equal(t, len(res), 0)
 
@@ -281,7 +280,7 @@ func TestCleanUp(t *testing.T) {
 	placeholderMgr := NewPlaceholderManager(mockedAPIProvider.GetAPIs())
 	placeholderMgr.cleanUp(app)
 
-	// check both pod-01 and pod-02 in deletePod list and pod-03 isn't contain
+	// check both pod-01 and pod-02 in DeletePod list and pod-03 isn't contain
 	assert.Assert(t, is.Contains(deletePod, "pod-01"))
 	assert.Assert(t, is.Contains(deletePod, "pod-02"))
 	exist := false

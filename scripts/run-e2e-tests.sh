@@ -16,9 +16,10 @@
 # See the License for the specific language governing permissions and
 #limitations under the License.
 
-HELM=tools/helm
-KIND=tools/kind
-KUBECTL=tools/kubectl
+TOOLS_DIRECTORY=tools
+HELM=$TOOLS_DIRECTORY/helm
+KIND=$TOOLS_DIRECTORY/kind
+KUBECTL=$TOOLS_DIRECTORY/kubectl
 GO="${GO:-go}"
 export GO
 
@@ -71,7 +72,11 @@ function check_docker() {
 }
 
 function install_tools() {
-  make tools
+  if [ -d "$TOOLS_DIRECTORY" ]; then
+    echo "tools directory exists. Skipping make tools."
+  else
+    make tools
+  fi
 }
 
 function install_cluster() {
@@ -167,9 +172,10 @@ Examples:
   ${NAME} -a test -n yk8s -v kindest/node:v1.26.6
   ${NAME} -a test -n yk8s -v kindest/node:v1.27.3
   ${NAME} -a test -n yk8s -v kindest/node:v1.28.0
+  ${NAME} -a test -n yk8s -v kindest/node:v1.29.0
 
   Use a local helm chart path:
-    ${NAME} -a test -n yk8s -v kindest/node:v1.28.0 -p ../yunikorn-release/helm-charts/yunikorn
+    ${NAME} -a test -n yk8s -v kindest/node:v1.29.0 -p ../yunikorn-release/helm-charts/yunikorn
 EOF
 }
 
