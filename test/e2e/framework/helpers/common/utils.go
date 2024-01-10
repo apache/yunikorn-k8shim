@@ -241,8 +241,8 @@ func RunShellCmdForeground(cmdStr string) (string, error) {
 	return stdOutStream.String(), nil
 }
 
-func CreateLogFile(suiteName string, specName string, logType string, extention string) (*os.File, error) {
-	filePath, err := getLogFilePath(suiteName, specName, logType, extention)
+func CreateLogFile(suiteName string, specName string, logType string, extension string) (*os.File, error) {
+	filePath, err := getLogFilePath(suiteName, specName, logType, extension)
 	if err != nil {
 		return nil, err
 	}
@@ -263,7 +263,7 @@ func CreateLogFile(suiteName string, specName string, logType string, extention 
 	return file, nil
 }
 
-func getLogFilePath(suiteName string, specName string, logType string, extention string) (string, error) {
+func getLogFilePath(suiteName string, specName string, logType string, extension string) (string, error) {
 	gitRoot, runErr := RunShellCmdForeground("git rev-parse --show-toplevel")
 	if runErr != nil {
 		return "", runErr
@@ -272,7 +272,7 @@ func getLogFilePath(suiteName string, specName string, logType string, extention
 	suiteName = replaceInvalidFileChars(strings.TrimSpace(suiteName))
 	specName = replaceInvalidFileChars(strings.TrimSpace(specName))
 
-	dumpLogFilePath := filepath.Join(gitRoot, configmanager.LogPath, suiteName, fmt.Sprintf("%s_%s.%s", specName, logType, extention))
+	dumpLogFilePath := filepath.Join(gitRoot, configmanager.LogPath, suiteName, fmt.Sprintf("%s_%s.%s", specName, logType, extension))
 	return dumpLogFilePath, nil
 }
 
