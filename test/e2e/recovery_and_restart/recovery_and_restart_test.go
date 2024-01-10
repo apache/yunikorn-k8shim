@@ -20,6 +20,7 @@ package recoveryandrestart_test
 
 import (
 	"fmt"
+	"runtime"
 	"strings"
 	"time"
 
@@ -45,6 +46,7 @@ const (
 	taintKey             = "e2e_test"
 )
 
+var suiteName string
 var kClient k8s.KubeCtl
 var restClient yunikorn.RClient
 var oldConfigMap = new(v1.ConfigMap)
@@ -57,6 +59,8 @@ var sleepPodConfigs = k8s.SleepPodConfig{Name: "sleepjob", NS: dev}
 var sleepPod2Configs = k8s.SleepPodConfig{Name: "sleepjob2", NS: dev}
 
 var _ = ginkgo.BeforeSuite(func() {
+	_, filename, _, _ := runtime.Caller(0)
+	suiteName = common.GetSuiteName(filename)
 	// Initializing kubectl client
 	kClient = k8s.KubeCtl{}
 	Ω(kClient.SetClient()).To(gomega.BeNil())

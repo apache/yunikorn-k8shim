@@ -23,7 +23,6 @@ import (
 	"sort"
 	"time"
 
-	"github.com/onsi/ginkgo/v2"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -193,11 +192,7 @@ var _ = Describe("", func() {
 	})
 
 	AfterEach(func() {
-		testDescription := ginkgo.CurrentSpecReport()
-		if testDescription.Failed() {
-			tests.LogTestClusterInfoWrapper(testDescription.FailureMessage(), []string{ns})
-			tests.LogYunikornContainer(testDescription.FailureMessage())
-		}
+		tests.DumpClusterInfoIfSpecFailed(suiteName, []string{ns})
 		By("Tear down namespace: " + ns)
 		err := kClient.TearDownNamespace(ns)
 		Ω(err).NotTo(HaveOccurred())

@@ -19,6 +19,7 @@
 package basicscheduling_test
 
 import (
+	"runtime"
 	"time"
 
 	"github.com/onsi/ginkgo/v2"
@@ -32,6 +33,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
 )
 
+var suiteName string
 var kClient k8s.KubeCtl
 var restClient yunikorn.RClient
 var sleepRespPod *v1.Pod
@@ -44,6 +46,8 @@ var oldConfigMap = new(v1.ConfigMap)
 var sleepPodConfigs = k8s.SleepPodConfig{Name: "sleepjob", NS: dev}
 
 var _ = ginkgo.BeforeSuite(func() {
+	_, filename, _, _ := runtime.Caller(0)
+	suiteName = common.GetSuiteName(filename)
 	// Initializing kubectl client
 	kClient = k8s.KubeCtl{}
 	gomega.Ω(kClient.SetClient()).To(gomega.BeNil())
@@ -119,11 +123,7 @@ var _ = ginkgo.Describe("", func() {
 	})
 
 	ginkgo.AfterEach(func() {
-		testDescription := ginkgo.CurrentSpecReport()
-		if testDescription.Failed() {
-			tests.LogTestClusterInfoWrapper(testDescription.FailureMessage(), []string{dev})
-			tests.LogYunikornContainer(testDescription.FailureMessage())
-		}
+		tests.DumpClusterInfoIfSpecFailed(suiteName, []string{dev})
 		// call the healthCheck api to check scheduler health
 		ginkgo.By("Check Yunikorn's health")
 		checks, err := yunikorn.GetFailedHealthChecks()
