@@ -503,9 +503,18 @@ func newAppState() *fsm.FSM { //nolint:funlen
 					zap.String("destination", event.Dst),
 					zap.String("event", event.Event))
 			},
+			states.Accepted: func(_ context.Context, event *fsm.Event) {
+				app := event.Args[0].(*Application) //nolint:errcheck
+				app.accepted = true
+				app.postAppAccepted()
+			},
 			states.Reserving: func(_ context.Context, event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
 				app.onReserving()
+			},
+			states.Running: func(ctx context.Context, event *fsm.Event) {
+				app := event.Args[0].(*Application) //nolint:errcheck
+				app.postAppRunning()
 			},
 			SubmitApplication.String(): func(_ context.Context, event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck

@@ -56,6 +56,7 @@ type Task struct {
 	terminationType string
 	originator      bool
 	schedulingState TaskSchedulingState
+	failedAttempt   bool
 	sm              *fsm.FSM
 	lock            *sync.RWMutex
 }
@@ -579,4 +580,42 @@ func (task *Task) UpdatePodCondition(podCondition *v1.PodCondition) (bool, *v1.P
 	}
 
 	return false, pod
+}
+
+func (task *Task) Schedule() {
+	if task.sm.Current() != TaskStates().New {
+		return
+	}
+
+	if err := task.sanityCheckBeforeScheduling(); err != nil {
+		events.GetRecorder().Eventf(task.GetTaskPod().DeepCopy(), nil, v1.EventTypeWarning, "FailedScheduling", "FailedScheduling", err.Error())
+		log.Log(log.ShimCacheApplication).Debug("task is not ready for scheduling",
+			zap.String("appID", task.applicationID),
+			zap.String("taskID", task.taskID),
+			zap.Error(err))
+		task.setFailedAttempt(true)
+		return
+	}
+
+	err := task.handle(NewSimpleTaskEvent(task.applicationID, task.taskID, InitTask))
+	if err != nil {
+		task.setFailedAttempt(true)
+		log.Log(log.ShimCacheTask).Error("could not submit task for scheduling",
+			zap.Error(err))
+		return
+	}
+
+	task.setFailedAttempt(false)
+}
+
+func (task *Task) setFailedAttempt(b bool) {
+	task.lock.Lock()
+	defer task.lock.Unlock()
+	task.failedAttempt = b
+}
+
+func (task *Task) IsFailedAttempt() bool {
+	task.lock.RLock()
+	defer task.lock.RUnlock()
+	return task.failedAttempt
 }

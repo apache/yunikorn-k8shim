@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"gotest.tools/v3/assert"
-
 	v1 "k8s.io/api/core/v1"
 	schedulingv1 "k8s.io/api/scheduling/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -35,7 +34,9 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
+	"github.com/apache/yunikorn-k8shim/pkg/common/test"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
+	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
 
@@ -739,4 +740,67 @@ func TestUpdatePodCondition(t *testing.T) {
 	assert.Equal(t, v1.ContainersReady, podCopy.Status.Conditions[0].Type)
 	assert.Equal(t, v1.PodPending, podCopy.Status.Phase)
 	assert.Equal(t, v1.PodReasonUnschedulable, podCopy.Status.Conditions[0].Reason)
+}
+
+func TestSchedule(t *testing.T) {
+	context := initContextForTest()
+	dispatcher.RegisterEventHandler("TestAppHandler", dispatcher.EventTypeApp, context.ApplicationEventHandler())
+	dispatcher.RegisterEventHandler("TestTaskHandler", dispatcher.EventTypeTask, context.TaskEventHandler())
+	dispatcher.Start()
+	defer dispatcher.Stop()
+
+	pod := &v1.Pod{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "pod-test-00001",
+			Namespace: "default",
+		},
+		Spec: v1.PodSpec{
+			Volumes: []v1.Volume{
+				{
+					Name: "test",
+					VolumeSource: v1.VolumeSource{
+						PersistentVolumeClaim: &v1.PersistentVolumeClaimVolumeSource{
+							ClaimName: "testPVC",
+						},
+					},
+				},
+			},
+		},
+	}
+	apiProvider := context.apiProvider.(*client.MockedAPIProvider)                                    //nolint:errcheck
+	pvcLister := apiProvider.GetAPIs().PVCInformer.Lister().(*test.MockedPersistentVolumeClaimLister) //nolint:errcheck
+	pvc := &v1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "testPVC",
+			Namespace: "default",
+		},
+	}
+	pvcLister.AddPVC(pvc)
+
+	// normal case
+	app := NewApplication(appID, "root.default", "user", testGroups, map[string]string{}, nil)
+	task := NewTask("pod-1", app, context, pod)
+	task.Schedule()
+	assert.Equal(t, task.sm.Current(), TaskStates().Pending)
+	assert.Assert(t, !task.IsFailedAttempt())
+
+	// sanity check failed
+	pvc.DeletionTimestamp = &metav1.Time{}
+	app = NewApplication(appID, "root.default", "user", testGroups, map[string]string{}, nil)
+	task = NewTask("pod-1", app, context, pod)
+	task.Schedule()
+	assert.Equal(t, task.sm.Current(), TaskStates().New)
+	assert.Assert(t, task.IsFailedAttempt())
+
+	// state not New
+	pvc.DeletionTimestamp = &metav1.Time{}
+	app = NewApplication(appID, "root.default", "user", testGroups, map[string]string{}, nil)
+	task = NewTask("pod-1", app, context, pod)
+	task.sm.SetState(TaskStates().Scheduling)
+	task.Schedule() // if sanity check runs (which shouldn't happen), it fails due to DeletionTimeStamp
+	assert.Assert(t, !task.IsFailedAttempt())
 }

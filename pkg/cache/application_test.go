@@ -731,9 +731,6 @@ func TestTryReserve(t *testing.T) {
 	err = app.handle(NewSimpleApplicationEvent(app.GetApplicationID(), AcceptApplication))
 	assert.NilError(t, err)
 
-	// run app schedule
-	app.Schedule()
-
 	// since this app has taskGroups defined,
 	// once the app is accepted, it is expected to see this app goes to Reserving state
 	assertAppState(t, app, ApplicationStates().Reserving, 3*time.Second)
@@ -786,15 +783,6 @@ func TestTryReservePostRestart(t *testing.T) {
 			},
 		},
 	})
-
-	// submit the app
-	err := app.handle(NewSubmitApplicationEvent(app.applicationID))
-	assert.NilError(t, err)
-	assertAppState(t, app, ApplicationStates().Submitted, 3*time.Second)
-
-	// accepted the app
-	err = app.handle(NewSimpleApplicationEvent(app.GetApplicationID(), AcceptApplication))
-	assert.NilError(t, err)
 
 	// simulate some tasks are recovered during the restart
 	// create 3 pods, 1 of them is Allocated and the other 2 are New
@@ -860,8 +848,11 @@ func TestTryReservePostRestart(t *testing.T) {
 	assert.Equal(t, len(app.getTasks(TaskStates().Allocated)), 1)
 	assert.Equal(t, len(app.getTasks(TaskStates().New)), 2)
 
-	// run app schedule
-	app.Schedule()
+	// submit app & trigger state transition to Accepted
+	err := app.TriggerAppSubmission()
+	assert.NilError(t, err)
+	err = app.handle(NewSimpleApplicationEvent(app.GetApplicationID(), AcceptApplication))
+	assert.NilError(t, err)
 
 	// since this app has Allocated tasks, the Reserving state will be skipped
 	assertAppState(t, app, ApplicationStates().Running, 3*time.Second)
@@ -1160,7 +1151,7 @@ func TestPlaceholderTimeoutEvents(t *testing.T) {
 	app := context.GetApplication("app00001")
 	assert.Assert(t, app != nil)
 	assert.Equal(t, app.GetApplicationID(), "app00001")
-	assert.Equal(t, app.GetApplicationState(), ApplicationStates().New)
+	assert.Equal(t, app.GetApplicationState(), ApplicationStates().Submitted)
 	assert.Equal(t, app.GetQueue(), "root.a")
 	assert.Equal(t, len(app.GetNewTasks()), 1)
 
@@ -1282,6 +1273,91 @@ func TestApplication_onReservationStateChange(t *testing.T) {
 	task3.setTaskGroupName("test-group-2")
 	app.onReservationStateChange()
 	assertAppState(t, app, ApplicationStates().Running, 1*time.Second)
+}
+
+func TestAddTaskAndSchedule(t *testing.T) {
+	context := initContextForTest()
+	dispatcher.RegisterEventHandler("TestAppHandler", dispatcher.EventTypeApp, context.ApplicationEventHandler())
+	dispatcher.Start()
+	defer dispatcher.Stop()
+
+	pod := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "pod-test-00001",
+			UID:  "UID-00001",
+		},
+	}
+
+	// can't schedule - app is not accepted
+	app := NewApplication(appID, "root.abc", "testuser", testGroups, map[string]string{}, newMockSchedulerAPI())
+	task := NewTask("task01", app, context, pod)
+	app.addTaskAndSchedule(task)
+	assert.Equal(t, task.sm.Current(), TaskStates().New)
+	assert.Assert(t, !task.failedAttempt)
+
+	// can schedule task - no gang scheduling
+	app = NewApplication(appID, "root.abc", "testuser", testGroups, map[string]string{}, newMockSchedulerAPI())
+	app.accepted = true
+	task = NewTask("task01", app, context, pod)
+	app.addTaskAndSchedule(task)
+
+	// can schedule task - placeholder
+	app = NewApplication(appID, "root.abc", "testuser", testGroups, map[string]string{}, newMockSchedulerAPI())
+	app.accepted = true
+	app.taskGroups = []TaskGroup{
+		{
+			Name:      "group1",
+			MinMember: 3,
+		},
+	}
+	task = NewTaskPlaceholder("task01", app, context, pod)
+	app.addTaskAndSchedule(task)
+	assert.Assert(t, !task.IsFailedAttempt())
+
+	// can schedule task - state is no longer Reserving
+	app = NewApplication(appID, "root.abc", "testuser", testGroups, map[string]string{}, newMockSchedulerAPI())
+	app.accepted = true
+	app.taskGroups = []TaskGroup{
+		{
+			Name:      "group1",
+			MinMember: 3,
+		},
+	}
+	task = NewTask("task01", app, context, pod)
+	app.sm.SetState(ApplicationStates().Running)
+	app.addTaskAndSchedule(task)
+	assert.Assert(t, !task.IsFailedAttempt())
+}
+
+func TestGetNewTasksWithFailedAttempt(t *testing.T) {
+	context := initContextForTest()
+	app := NewApplication(appID, "root.abc", "testuser", testGroups, map[string]string{}, newMockSchedulerAPI())
+
+	task1 := NewTask("task01", app, context, &v1.Pod{})
+	task1.setFailedAttempt(true)
+	task1.createTime = time.UnixMilli(100)
+	task2 := NewTask("task02", app, context, &v1.Pod{})
+	task3 := NewTask("task03", app, context, &v1.Pod{})
+	task3.setFailedAttempt(true)
+	task3.createTime = time.UnixMilli(50)
+	task4 := NewTask("task04", app, context, &v1.Pod{})
+	task4.setFailedAttempt(true)
+	task4.createTime = time.UnixMilli(10)
+
+	app.addTask(task1)
+	app.addTask(task2)
+	app.addTask(task3)
+	app.addTask(task4)
+
+	tasks := app.GetNewTasksWithFailedAttempt()
+	assert.Equal(t, 3, len(tasks))
+	assert.Equal(t, "task04", tasks[0].taskID)
+	assert.Equal(t, "task03", tasks[1].taskID)
+	assert.Equal(t, "task01", tasks[2].taskID)
 }
 
 func (ctx *Context) addApplicationToContext(app *Application) {
