@@ -112,6 +112,7 @@ func UpdateCustomConfigMapWrapperWithMap(oldConfigMap *v1.ConfigMap, schedPolicy
 	for k, v := range customMap {
 		c.Data[k] = v
 	}
+	c.BinaryData = nil
 	var d, err3 = k.UpdateConfigMap(c, configmanager.YuniKornTestConfig.YkNamespace)
 	Ω(err3).NotTo(HaveOccurred())
 	Ω(d).NotTo(BeNil())
@@ -134,6 +135,7 @@ func RestoreConfigMapWrapper(oldConfigMap *v1.ConfigMap, annotation string) {
 	ts, tsErr := common.SetQueueTimestamp(oldSC, "default", "root")
 	Ω(tsErr).NotTo(HaveOccurred())
 	c.Data = oldConfigMap.Data
+	c.BinaryData = oldConfigMap.BinaryData
 	c.Data[configmanager.DefaultPolicyGroup], err = common.ToYAML(oldSC)
 	Ω(err).NotTo(HaveOccurred())
 

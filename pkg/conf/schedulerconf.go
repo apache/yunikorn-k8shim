@@ -21,7 +21,6 @@ package conf
 import (
 	"bytes"
 	"compress/gzip"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -452,18 +451,10 @@ func DumpConfiguration() {
 
 func Decompress(key string, value []byte) (string, string) {
 	var uncompressedData string
-	decodedValue := make([]byte, base64.StdEncoding.DecodedLen(len(value)))
-	n, err := base64.StdEncoding.Decode(decodedValue, value)
-	if err != nil {
-		log.Log(log.ShimConfig).Error("failed to decode schedulerConfig entry", zap.Error(err))
-		return "", ""
-	}
-	decodedValue = decodedValue[:n]
 	splitKey := strings.Split(key, ".")
 	compressionAlgo := splitKey[len(splitKey)-1]
 	if strings.EqualFold(compressionAlgo, constants.GzipSuffix) {
-		reader := bytes.NewReader(decodedValue)
-		gzReader, err := gzip.NewReader(reader)
+		gzReader, err := gzip.NewReader(bytes.NewReader(value))
 		if err != nil {
 			log.Log(log.ShimConfig).Error("failed to decompress decoded schedulerConfig entry", zap.Error(err))
 			return "", ""

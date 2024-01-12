@@ -87,9 +87,7 @@ func TestDecompress(t *testing.T) {
 		assert.NilError(t, err, "expected nil, got error")
 		t.Fatal("expected nil, got error")
 	}
-	encodedConfigString := make([]byte, base64.StdEncoding.EncodedLen(len(b.Bytes())))
-	base64.StdEncoding.Encode(encodedConfigString, b.Bytes())
-	key, decodedConfigString := Decompress("queues.yaml."+constants.GzipSuffix, encodedConfigString)
+	key, decodedConfigString := Decompress("queues.yaml."+constants.GzipSuffix, b.Bytes())
 	assert.Equal(t, "queues.yaml", key)
 	assert.Equal(t, configs.DefaultSchedulerConfig, decodedConfigString)
 }
@@ -97,7 +95,7 @@ func TestDecompress(t *testing.T) {
 func TestDecompressUnknownKey(t *testing.T) {
 	encodedConfigString := make([]byte, base64.StdEncoding.EncodedLen(len([]byte(configs.DefaultSchedulerConfig))))
 	base64.StdEncoding.Encode(encodedConfigString, []byte(configs.DefaultSchedulerConfig))
-	key, decodedConfigString := Decompress("queues.yaml.bin", encodedConfigString)
+	key, decodedConfigString := Decompress("queues.yaml.bin", []byte(configs.DefaultSchedulerConfig))
 	assert.Equal(t, "queues.yaml", key)
 	assert.Assert(t, len(decodedConfigString) == 0, "expected decodedConfigString to be nil")
 }
