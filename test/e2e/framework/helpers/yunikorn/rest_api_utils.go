@@ -110,6 +110,16 @@ func (c *RClient) GetQueues(partition string) (*dao.PartitionQueueDAOInfo, error
 	return queues, err
 }
 
+func (c *RClient) GetConfig() (*dao.ConfigDAOInfo, error) {
+	req, err := c.newRequest("GET", configmanager.ConfigPath, nil)
+	if err != nil {
+		return nil, err
+	}
+	var config *dao.ConfigDAOInfo
+	_, err = c.do(req, &config)
+	return config, err
+}
+
 func (c *RClient) GetHealthCheck() (dao.SchedulerHealthDAOInfo, error) {
 	req, err := c.newRequest("GET", configmanager.HealthCheckPath, nil)
 	if err != nil {

@@ -21,7 +21,6 @@ package utils
 import (
 	"bytes"
 	"compress/gzip"
-	"encoding/base64"
 	"fmt"
 	"strings"
 	"testing"
@@ -1059,11 +1058,9 @@ func TestGzipCompressedConfigMap(t *testing.T) {
 	if err := gzWriter.Close(); err != nil {
 		t.Fatal("expected nil, got error")
 	}
-	encodedConfigString := make([]byte, base64.StdEncoding.EncodedLen(len(b.Bytes())))
-	base64.StdEncoding.Encode(encodedConfigString, b.Bytes())
 	confMap := conf.FlattenConfigMaps([]*v1.ConfigMap{
 		{Data: map[string]string{}},
-		{Data: map[string]string{conf.CMSvcClusterID: "new"}, BinaryData: map[string][]byte{"queues.yaml.gz": encodedConfigString}},
+		{Data: map[string]string{conf.CMSvcClusterID: "new"}, BinaryData: map[string][]byte{"queues.yaml.gz": b.Bytes()}},
 	})
 	config := GetCoreSchedulerConfigFromConfigMap(confMap)
 	assert.Equal(t, configs.DefaultSchedulerConfig, config)
