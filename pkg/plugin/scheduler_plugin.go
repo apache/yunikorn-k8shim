@@ -49,6 +49,8 @@ const (
 //
 //	https://kubernetes.io/docs/concepts/scheduling-eviction/scheduling-framework/
 //
+//PreEnqueue: Used to notify the default scheduler that a particular pod should be scheduled
+//
 // PreFilter: Used to notify the default scheduler that a particular pod has been marked ready for scheduling by YuniKorn
 //
 // Filter: Used to notify the default scheduler that a particular pod/node combination is ready to be scheduled
@@ -103,13 +105,15 @@ func (sp *YuniKornSchedulerPlugin) PreEnqueue(_ context.Context, pod *v1.Pod) *f
 	taskID := string(pod.UID)
 	if app, task, ok := sp.getTask(appID, taskID); ok {
 		if _, ok := sp.context.GetInProgressPodAllocation(taskID); ok {
+			// to avoid multiple Pods entering scheduling at the same time for the same task 
 			// pod must have failed scheduling in a prior run, reject it and return unschedulable
 			sp.failTask(pod, app, task)
 			return framework.NewStatus(framework.UnschedulableAndUnresolvable, "Pod is not ready for scheduling")
 		}
-
+		
 		nodeID, ok := sp.context.GetPendingPodAllocation(taskID)
 		if task.GetTaskState() == cache.TaskStates().Bound && ok {
+			//pod needs to be rescheduled
 			log.Log(log.ShimSchedulerPlugin).Info("Releasing pod for scheduling (PreEnqueue phase)",
 				zap.String("namespace", pod.Namespace),
 				zap.String("pod", pod.Name),
