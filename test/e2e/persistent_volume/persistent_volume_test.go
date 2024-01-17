@@ -22,18 +22,16 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
-
-	"k8s.io/apimachinery/pkg/api/resource"
-
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	storagev1 "k8s.io/api/storage/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/onsi/ginkgo/v2"
-
+	tests "github.com/apache/yunikorn-k8shim/test/e2e"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
@@ -180,6 +178,10 @@ var _ = ginkgo.Describe("PersistentVolume", func() {
 
 		deleteNfsRelatedRoles(saName, crName, crbName)
 		deleteNfsProvisioner(serverName, scName)
+	})
+
+	ginkgo.AfterEach(func() {
+		tests.DumpClusterInfoIfSpecFailed(suiteName, []string{"default"})
 	})
 })
 

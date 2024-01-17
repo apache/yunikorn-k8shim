@@ -20,6 +20,7 @@ package configmap
 
 import (
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/onsi/ginkgo/v2"
@@ -31,6 +32,8 @@ import (
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
 )
+
+var suiteName string
 
 func init() {
 	configmanager.YuniKornTestConfig.ParseFlags()
@@ -57,7 +60,8 @@ var (
 )
 
 var _ = BeforeSuite(func() {
-
+	_, filename, _, _ := runtime.Caller(0)
+	suiteName = common.GetSuiteName(filename)
 	kClient = k8s.KubeCtl{}
 	Ω(kClient.SetClient()).To(BeNil())
 
