@@ -111,10 +111,21 @@ func (ss *KubernetesShim) initSchedulerState() error {
 }
 
 func (ss *KubernetesShim) doScheduling() {
-	// run main scheduling loop
-	go wait.Until(ss.schedule, conf.GetSchedulerConf().GetSchedulingInterval(), ss.stopChan)
 	// log a message if no outstanding requests were found for a while
 	go wait.Until(ss.checkOutstandingApps, outstandingAppLogTimeout, ss.stopChan)
+
+	go wait.Until(ss.scheduleFailedAttempts, time.Second, ss.stopChan)
+}
+
+// we scan all apps and try to submit tasks where the submission failed previously
+func (ss *KubernetesShim) scheduleFailedAttempts() {
+	apps := ss.context.GetAllApplications()
+	for _, app := range apps {
+		tasks := app.GetNewTasksWithFailedAttempt()
+		for _, task := range tasks {
+			task.Schedule()
+		}
+	}
 }
 
 func (ss *KubernetesShim) registerShimLayer() error {
@@ -152,16 +163,6 @@ func (ss *KubernetesShim) registerShimLayer() error {
 	}
 
 	return nil
-}
-
-// each schedule iteration, we scan all apps and triggers app state transition
-func (ss *KubernetesShim) schedule() {
-	apps := ss.context.GetAllApplications()
-	for _, app := range apps {
-		if app.Schedule() {
-			ss.setOutstandingAppsFound(true)
-		}
-	}
 }
 
 func (ss *KubernetesShim) Run() error {
@@ -213,21 +214,8 @@ func (ss *KubernetesShim) Stop() {
 }
 
 func (ss *KubernetesShim) checkOutstandingApps() {
-	if !ss.getOutstandingAppsFound() {
+	if !ss.context.HasNewApplication() {
 		log.Log(log.ShimScheduler).Info("No outstanding apps found for a while", zap.Duration("timeout", outstandingAppLogTimeout))
 		return
 	}
-	ss.setOutstandingAppsFound(false)
-}
-
-func (ss *KubernetesShim) getOutstandingAppsFound() bool {
-	ss.lock.RLock()
-	defer ss.lock.RUnlock()
-	return ss.outstandingAppsFound
-}
-
-func (ss *KubernetesShim) setOutstandingAppsFound(value bool) {
-	ss.lock.Lock()
-	defer ss.lock.Unlock()
-	ss.outstandingAppsFound = value
 }

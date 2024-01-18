@@ -19,14 +19,18 @@
 package shim
 
 import (
+	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"gotest.tools/v3/assert"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/apache/yunikorn-k8shim/pkg/cache"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
@@ -148,7 +152,11 @@ partitions:
 	// remove task first or removeApplication will fail
 	cluster.context.RemoveTask(appID, "task0001")
 	err = cluster.removeApplication(appID)
-	assert.Assert(t, err == nil)
+	assert.NilError(t, err)
+	err = wait.PollUntilContextTimeout(context.Background(), 100*time.Millisecond, time.Second, true, func(_ context.Context) (bool, error) {
+		return !cluster.appExistsInCore(appID), nil
+	})
+	assert.NilError(t, err, "application still exists in the core")
 
 	// submit again
 	task1 = createTestPod("root.a", appID, "task0001", taskResource)
@@ -281,4 +289,78 @@ func createTestPod(queue string, appID string, taskID string, taskResource *si.R
 			Phase: v1.PodPending,
 		},
 	}
+}
+
+func TestScheduleFailedAttempts(t *testing.T) {
+	cluster := MockScheduler{}
+	cluster.init()
+	err := cluster.start()
+	assert.NilError(t, err, "cannot start cluster")
+	defer cluster.stop()
+
+	appID := "app-1"
+	podUID := "pod-uid-1"
+	pvcName := "testPVC"
+
+	pod := &v1.Pod{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "pod-test-00001",
+			Namespace: "default",
+			Labels: map[string]string{
+				constants.LabelApplicationID: appID,
+			},
+			UID: types.UID(podUID),
+		},
+		Spec: v1.PodSpec{
+			SchedulerName: constants.SchedulerName,
+			Volumes: []v1.Volume{
+				{
+					Name: "test",
+					VolumeSource: v1.VolumeSource{
+						PersistentVolumeClaim: &v1.PersistentVolumeClaimVolumeSource{
+							ClaimName: pvcName,
+						},
+					},
+				},
+			},
+		},
+	}
+	pvcLister := cluster.apiProvider.GetAPIs().PVCInformer.Lister().(*test.MockedPersistentVolumeClaimLister) //nolint:errcheck
+	pvcLister.SetFailureOnGetPVC(true)
+	pvc := &v1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      pvcName,
+			Namespace: "default",
+		},
+	}
+	pvcLister.AddPVC(pvc)
+
+	// add pod & wait until application object becomes available
+	cluster.AddPod(pod)
+	err = wait.PollUntilContextTimeout(context.Background(), 10*time.Millisecond, time.Second, true, func(_ context.Context) (bool, error) {
+		return cluster.context.GetApplication(appID) != nil, nil
+	})
+	assert.NilError(t, err, "application not found inside the context")
+
+	// verify task state #1 - scheduling attempt is failed due to PVC error
+	app := cluster.context.GetApplication(appID)
+	task, err := app.GetTask(podUID)
+	assert.NilError(t, err, "could not get task")
+	// wait until the scheduling attempt of the task becomes failed
+	err = wait.PollUntilContextTimeout(context.Background(), 10*time.Millisecond, time.Second, true, func(_ context.Context) (bool, error) {
+		return task.IsFailedAttempt(), nil
+	})
+	assert.NilError(t, err, "scheduling of task hasn't failed")
+
+	// remove simulated error
+	pvcLister.SetFailureOnGetPVC(false)
+	// verify task state #2 - wait until the "failed" flag is cleared
+	err = wait.PollUntilContextTimeout(context.Background(), 10*time.Millisecond, time.Second, true, func(_ context.Context) (bool, error) {
+		return !task.IsFailedAttempt(), nil
+	})
+	assert.NilError(t, err, "scheduling of task hasn't succeeded")
 }

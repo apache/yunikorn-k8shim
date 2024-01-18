@@ -59,6 +59,7 @@ type Application struct {
 	placeholderTimeoutInSec    int64
 	schedulingStyle            string
 	originatingTask            *Task // Original Pod which creates the requests
+	accepted                   bool
 }
 
 const transitionErr = "no transition"
@@ -332,80 +333,6 @@ func (app *Application) TriggerAppSubmission() error {
 	return app.handle(NewSubmitApplicationEvent(app.applicationID))
 }
 
-// Schedule is called in every scheduling interval,
-// we are not using dispatcher here because we want to
-// make state transition in sync mode in order to prevent
-// generating too many duplicate events. However, it must
-// ensure non of these calls is expensive, usually, they
-// do nothing more than just triggering the state transition.
-// return true if the app needs scheduling or false if not
-func (app *Application) Schedule() bool {
-	switch app.GetApplicationState() {
-	case ApplicationStates().New:
-		ev := NewSubmitApplicationEvent(app.GetApplicationID())
-		if err := app.handle(ev); err != nil {
-			log.Log(log.ShimCacheApplication).Warn("failed to handle SUBMIT app event",
-				zap.Error(err))
-		}
-	case ApplicationStates().Accepted:
-		// once the app is accepted by the scheduler core,
-		// the next step is to send requests for scheduling
-		// the app state could be transited to Reserving or Running
-		// depends on if the app has gang members
-		app.postAppAccepted()
-	case ApplicationStates().Reserving:
-		// during the Reserving state, only the placeholders
-		// can be scheduled
-		app.scheduleTasks(func(t *Task) bool {
-			return t.placeholder
-		})
-		if len(app.GetNewTasks()) == 0 {
-			return false
-		}
-	case ApplicationStates().Running:
-		// during the Running state, only the regular pods
-		// can be scheduled
-		app.scheduleTasks(func(t *Task) bool {
-			return !t.placeholder
-		})
-		if len(app.GetNewTasks()) == 0 {
-			return false
-		}
-	default:
-		log.Log(log.ShimCacheApplication).Debug("skipping scheduling application",
-			zap.String("appState", app.GetApplicationState()),
-			zap.String("appID", app.GetApplicationID()),
-			zap.String("appState", app.GetApplicationState()))
-		return false
-	}
-	return true
-}
-
-func (app *Application) scheduleTasks(taskScheduleCondition func(t *Task) bool) {
-	for _, task := range app.GetNewTasks() {
-		if taskScheduleCondition(task) {
-			// for each new task, we do a sanity check before moving the state to Pending_Schedule
-			if err := task.sanityCheckBeforeScheduling(); err == nil {
-				// note, if we directly trigger submit task event, it may spawn too many duplicate
-				// events, because a task might be submitted multiple times before its state transits to PENDING.
-				if handleErr := task.handle(
-					NewSimpleTaskEvent(task.applicationID, task.taskID, InitTask)); handleErr != nil {
-					// something goes wrong when transit task to PENDING state,
-					// this should not happen because we already checked the state
-					// before calling the transition. Nowhere to go, just log the error.
-					log.Log(log.ShimCacheApplication).Warn("init task failed", zap.Error(err))
-				}
-			} else {
-				events.GetRecorder().Eventf(task.GetTaskPod().DeepCopy(), nil, v1.EventTypeWarning, "FailedScheduling", "FailedScheduling", err.Error())
-				log.Log(log.ShimCacheApplication).Debug("task is not ready for scheduling",
-					zap.String("appID", task.applicationID),
-					zap.String("taskID", task.taskID),
-					zap.Error(err))
-			}
-		}
-	}
-}
-
 func (app *Application) handleSubmitApplicationEvent() error {
 	log.Log(log.ShimCacheApplication).Info("handle app submission",
 		zap.Stringer("app", app),
@@ -469,10 +396,11 @@ func (app *Application) postAppAccepted() {
 	// app could have allocated tasks upon a recovery, and in that case,
 	// the reserving phase has already passed, no need to trigger that again.
 	var ev events.SchedulingEvent
+	numAllocatedTasks := len(app.getTasks(TaskStates().Allocated))
 	log.Log(log.ShimCacheApplication).Debug("postAppAccepted on cached app",
 		zap.String("appID", app.applicationID),
 		zap.Int("numTaskGroups", len(app.taskGroups)),
-		zap.Int("numAllocatedTasks", len(app.GetAllocatedTasks())))
+		zap.Int("numAllocatedTasks", numAllocatedTasks))
 	if app.skipReservationStage() {
 		ev = NewRunApplicationEvent(app.applicationID)
 		log.Log(log.ShimCacheApplication).Info("Skip the reservation stage",
@@ -483,6 +411,24 @@ func (app *Application) postAppAccepted() {
 			zap.String("appID", app.applicationID))
 	}
 	dispatcher.Dispatch(ev)
+}
+
+func (app *Application) postAppRunning() {
+	tasks := make([]*Task, 0, len(app.taskMap))
+	for _, task := range app.taskMap {
+		if !task.IsPlaceholder() {
+			tasks = append(tasks, task)
+		}
+	}
+	// sort tasks based on submission time & schedule them
+	sort.Slice(tasks, func(i, j int) bool {
+		l := tasks[i]
+		r := tasks[j]
+		return l.createTime.Before(r.createTime)
+	})
+	for _, task := range tasks {
+		task.Schedule()
+	}
 }
 
 func (app *Application) onReserving() {
@@ -658,4 +604,56 @@ func (app *Application) SetPlaceholderTimeout(timeout int64) {
 	app.lock.Lock()
 	defer app.lock.Unlock()
 	app.placeholderTimeoutInSec = timeout
+}
+
+func (app *Application) addTaskAndSchedule(task *Task) {
+	app.lock.Lock()
+	defer app.lock.Unlock()
+	if _, ok := app.taskMap[task.taskID]; ok {
+		// skip adding duplicate task
+		return
+	}
+	app.taskMap[task.taskID] = task
+
+	if app.canScheduleTask(task) {
+		task.Schedule()
+	}
+}
+
+func (app *Application) canScheduleTask(task *Task) bool {
+	// skip - not yet accepted by the core
+	if !app.accepted {
+		return false
+	}
+
+	// can submit if gang scheduling is not used
+	if len(app.taskGroups) == 0 {
+		return true
+	}
+
+	// placeholder, or regular task and we're past reservation
+	ph := task.IsPlaceholder()
+	currentState := app.sm.Current()
+	return ph || (!ph && currentState != ApplicationStates().Reserving)
+}
+
+func (app *Application) GetNewTasksWithFailedAttempt() []*Task {
+	app.lock.RLock()
+	defer app.lock.RUnlock()
+
+	taskList := make([]*Task, 0, len(app.taskMap))
+	for _, task := range app.taskMap {
+		if task.GetTaskState() == TaskStates().New && task.IsFailedAttempt() {
+			taskList = append(taskList, task)
+		}
+	}
+
+	// sort the task based on creation time
+	sort.Slice(taskList, func(i, j int) bool {
+		l := taskList[i]
+		r := taskList[j]
+		return l.createTime.Before(r.createTime)
+	})
+
+	return taskList
 }

@@ -65,6 +65,7 @@ type Context struct {
 	configMaps     []*v1.ConfigMap                // cached yunikorn configmaps
 	lock           *sync.RWMutex                  // lock
 	txnID          atomic.Uint64                  // transaction ID counter
+	newApp         bool                           // whether application has been added since the last time it was checked
 }
 
 // NewContext create a new context for the scheduler using a default (empty) configuration
@@ -322,6 +323,10 @@ func (ctx *Context) ensureAppAndTaskCreated(pod *v1.Pod) {
 		app = ctx.addApplication(&AddApplicationRequest{
 			Metadata: appMeta,
 		})
+		err := app.TriggerAppSubmission()
+		if err != nil {
+			log.Log(log.ShimContext).Error("BUG: application submission failed")
+		}
 	}
 
 	// get task metadata
@@ -1017,6 +1022,7 @@ func (ctx *Context) addApplication(request *AddApplicationRequest) *Application 
 
 	// add into cache
 	ctx.applications[app.applicationID] = app
+	ctx.newApp = true
 	log.Log(log.ShimContext).Info("app added",
 		zap.String("appID", app.applicationID))
 
@@ -1111,7 +1117,7 @@ func (ctx *Context) addTask(request *AddTaskRequest) *Task {
 				}
 			}
 			task := NewFromTaskMeta(request.Metadata.TaskID, app, ctx, request.Metadata, originator)
-			app.addTask(task)
+			app.addTaskAndSchedule(task)
 			log.Log(log.ShimContext).Info("task added",
 				zap.String("appID", app.applicationID),
 				zap.String("taskID", task.taskID),
@@ -1707,6 +1713,15 @@ func (ctx *Context) finalizePods(existingPods []*v1.Pod) error {
 	}
 
 	return nil
+}
+
+func (ctx *Context) HasNewApplication() bool {
+	ctx.lock.Lock()
+	defer ctx.lock.Unlock()
+	v := ctx.newApp
+	ctx.newApp = false
+
+	return v
 }
 
 // for a given pod, return an allocation if found

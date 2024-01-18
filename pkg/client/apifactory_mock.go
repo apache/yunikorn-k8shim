@@ -84,8 +84,8 @@ func NewMockedAPIProvider(showError bool) *MockedAPIProvider {
 			PodInformer:           test.NewMockedPodInformer(),
 			NodeInformer:          test.NewMockedNodeInformer(),
 			ConfigMapInformer:     test.NewMockedConfigMapInformer(),
+			PVCInformer:           test.NewMockedPVCInformer(),
 			PVInformer:            &MockedPersistentVolumeInformer{},
-			PVCInformer:           &MockedPersistentVolumeClaimInformer{},
 			StorageInformer:       &MockedStorageClassInformer{},
 			VolumeBinder:          nil,
 			NamespaceInformer:     test.NewMockNamespaceInformer(false),
@@ -422,17 +422,6 @@ func (m *MockedPersistentVolumeInformer) Informer() cache.SharedIndexInformer {
 }
 
 func (m *MockedPersistentVolumeInformer) Lister() corev1.PersistentVolumeLister {
-	return nil
-}
-
-// MockedPersistentVolumeClaimInformer implements PersistentVolumeClaimInformer interface
-type MockedPersistentVolumeClaimInformer struct{}
-
-func (m *MockedPersistentVolumeClaimInformer) Informer() cache.SharedIndexInformer {
-	return nil
-}
-
-func (m *MockedPersistentVolumeClaimInformer) Lister() corev1.PersistentVolumeClaimLister {
 	return nil
 }
 

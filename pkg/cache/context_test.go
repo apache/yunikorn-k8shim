@@ -229,6 +229,8 @@ func TestAddApplications(t *testing.T) {
 	assert.Assert(t, context.applications["app00001"] != nil)
 	assert.Equal(t, context.applications["app00001"].GetApplicationState(), ApplicationStates().New)
 	assert.Equal(t, len(context.applications["app00001"].GetPendingTasks()), 0)
+	assert.Assert(t, context.HasNewApplication())
+	assert.Assert(t, !context.HasNewApplication()) // subsequent invocations should return "false"
 
 	// add an app but app already exists
 	app := context.AddApplication(&AddApplicationRequest{
@@ -903,9 +905,9 @@ func TestRecoverTask(t *testing.T) {
 	})
 	assert.Assert(t, task != nil)
 	assert.Equal(t, task.GetTaskID(), taskUID1)
+	task.Schedule()
 
 	app.SetState("Running")
-	app.Schedule()
 
 	// wait for task to transition to bound state
 	err := utils.WaitForCondition(func() bool {
@@ -1039,12 +1041,11 @@ func TestTaskReleaseAfterRecovery(t *testing.T) {
 			Pod:           newPodHelper(pod1Name, namespace, pod1UID, fakeNodeName, appID, v1.PodRunning),
 		},
 	})
-
 	assert.Assert(t, task0 != nil)
 	assert.Equal(t, task0.GetTaskID(), pod1UID)
+	task0.Schedule()
 
 	app.SetState("Running")
-	app.Schedule()
 
 	// wait for task to transition to bound state
 	err := utils.WaitForCondition(func() bool {
@@ -1059,11 +1060,9 @@ func TestTaskReleaseAfterRecovery(t *testing.T) {
 			Pod:           newPodHelper(pod2Name, namespace, pod2UID, fakeNodeName, appID, v1.PodRunning),
 		},
 	})
-
 	assert.Assert(t, task1 != nil)
 	assert.Equal(t, task1.GetTaskID(), pod2UID)
-
-	app.Schedule()
+	task1.Schedule()
 
 	// wait for task to transition to bound state
 	err = utils.WaitForCondition(func() bool {
