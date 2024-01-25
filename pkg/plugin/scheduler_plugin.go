@@ -28,6 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/informers"
+	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
 	"github.com/apache/yunikorn-core/pkg/entrypoint"
@@ -167,7 +168,7 @@ func (sp *YuniKornSchedulerPlugin) PreFilter(_ context.Context, _ *framework.Cyc
 				zap.String("pod", pod.Name),
 				zap.String("taskID", taskID),
 				zap.String("assignedNode", nodeID))
-			return &framework.PreFilterResult{NodeNames: sets.NewString(nodeID)}, nil
+			return &framework.PreFilterResult{NodeNames: sets.New[string](nodeID)}, nil
 		}
 	}
 
@@ -216,8 +217,26 @@ func (sp *YuniKornSchedulerPlugin) Filter(_ context.Context, _ *framework.CycleS
 	return framework.NewStatus(framework.UnschedulableAndUnresolvable, "Pod is not fit for node")
 }
 
-func (sp *YuniKornSchedulerPlugin) EventsToRegister() []framework.ClusterEvent {
-	return sp.context.EventsToRegister()
+func (sp *YuniKornSchedulerPlugin) EventsToRegister() []framework.ClusterEventWithHint {
+	return sp.context.EventsToRegister(func(_ klog.Logger, pod *v1.Pod, _, _ interface{}) (framework.QueueingHint, error) {
+		// adapt our simpler function to the QueueingHintFn contract
+		return sp.queueingHint(pod)
+	})
+}
+
+// queueingHint is used to perform a lightweight check to determine if any object change may cause a pod to become
+// schedulable when it was not previously. Since YuniKorn maintains its own internal scheduling state, only the pod
+// is needed. This function will only be called on a previously unschedulable pod by this plugin -- therefore this
+// is definitely a YuniKorn pod.
+func (sp *YuniKornSchedulerPlugin) queueingHint(pod *v1.Pod) (framework.QueueingHint, error) {
+	// Use the context's bloom filter to rule out this task if it is not present. Given a large backlog,
+	// this will almost always return false and we can skip re-enqueue.
+	taskID := string(pod.UID)
+	if !sp.context.IsTaskMaybeSchedulable(taskID) {
+		return framework.QueueSkip, nil
+	}
+
+	return framework.Queue, nil
 }
 
 // PostBind is used to mark allocations as completed once scheduling run is finished
@@ -248,7 +267,7 @@ func (sp *YuniKornSchedulerPlugin) PostBind(_ context.Context, _ *framework.Cycl
 }
 
 // NewSchedulerPlugin initializes a new plugin and returns it
-func NewSchedulerPlugin(_ runtime.Object, handle framework.Handle) (framework.Plugin, error) {
+func NewSchedulerPlugin(_ context.Context, _ runtime.Object, handle framework.Handle) (framework.Plugin, error) {
 	log.Log(log.ShimSchedulerPlugin).Info(conf.GetBuildInfoString())
 
 	configMaps, err := client.LoadBootstrapConfigMaps()
