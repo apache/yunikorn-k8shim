@@ -56,10 +56,9 @@ func GetPodResource(pod *v1.Pod) (resource *si.Resource) {
 		Resources: map[string]*si.Quantity{"pods": {Value: 1}},
 	}
 
-	for _, c := range pod.Spec.Containers {
-		resourceList := c.Resources.Requests
-		containerResource := getResource(resourceList)
-		podResource = Add(podResource, containerResource)
+	count := len(pod.Spec.Containers)
+	for i := 0; i < count; i++ {
+		podResource = Add(podResource, containerResource(pod, i))
 	}
 
 	// each resource compare between initcontainer and sum of containers
@@ -85,6 +84,48 @@ func GetPodResource(pod *v1.Pod) (resource *si.Resource) {
 	}
 
 	return podResource
+}
+
+func containerResource(pod *v1.Pod, i int) (resource *si.Resource) {
+	// K8s pod InPlacePodVerticalScaling from:
+	// alpha: v1.27
+	// beta: v1.31?
+	// If AllocatedResources are present, these need to be used in preference to pod resource requests.
+	// Additionally, if the Resize pod status is Proposed, then the maximum of the request and allocated values need
+	// to be used.
+	requested := pod.Spec.Containers[i].Resources.Requests
+	if len(pod.Status.ContainerStatuses) == 0 {
+		return getResource(requested)
+	}
+	allocated := pod.Status.ContainerStatuses[i].AllocatedResources
+	if len(allocated) == 0 {
+		// no allocatedResources present, use requested
+		return getResource(requested)
+	}
+	if pod.Status.Resize == v1.PodResizeStatusProposed {
+		// resize proposed, be pessimistic and use larger of requested and allocated
+		return getMaxResource(requested, allocated)
+	}
+	// use allocated
+	return getResource(allocated)
+}
+
+func getMaxResource(left v1.ResourceList, right v1.ResourceList) *si.Resource {
+	combined := getResource(left)
+	rightRes := getResource(right)
+	for key, rValue := range rightRes.Resources {
+		lValue, ok := combined.Resources[key]
+		if !ok {
+			// add new resource from right
+			combined.Resources[key] = rValue
+			continue
+		}
+		if rValue.GetValue() > lValue.GetValue() {
+			// update resource with larger right value
+			combined.Resources[key] = rValue
+		}
+	}
+	return combined
 }
 
 func checkInitContainerRequest(pod *v1.Pod, containersResources *si.Resource) {
