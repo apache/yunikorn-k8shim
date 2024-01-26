@@ -28,6 +28,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/component-base/config/v1alpha1"
+	"k8s.io/klog/v2"
 	schedConfig "k8s.io/kube-scheduler/config/v1"
 	apiConfig "k8s.io/kubernetes/pkg/scheduler/apis/config"
 	"k8s.io/kubernetes/pkg/scheduler/apis/config/scheme"
@@ -39,17 +40,8 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
 
-var legacyEvents = []framework.ClusterEvent{
-	{Resource: framework.Pod, ActionType: framework.All},
-	{Resource: framework.Node, ActionType: framework.All},
-	{Resource: framework.CSINode, ActionType: framework.All},
-	{Resource: framework.PersistentVolume, ActionType: framework.All},
-	{Resource: framework.PersistentVolumeClaim, ActionType: framework.All},
-	{Resource: framework.StorageClass, ActionType: framework.All},
-}
-
 type PredicateManager interface {
-	EventsToRegister() []framework.ClusterEvent
+	EventsToRegister(queueingHintFn framework.QueueingHintFn) []framework.ClusterEventWithHint
 	Predicates(pod *v1.Pod, node *framework.NodeInfo, allocate bool) (plugin string, error error)
 	PreemptionPredicates(pod *v1.Pod, node *framework.NodeInfo, victims []*v1.Pod, startIndex int) (index int, ok bool)
 }
@@ -63,9 +55,10 @@ type predicateManagerImpl struct {
 	allocationPreFilters  *[]framework.PreFilterPlugin
 	reservationFilters    *[]framework.FilterPlugin
 	allocationFilters     *[]framework.FilterPlugin
+	klogger               klog.Logger
 }
 
-func (p *predicateManagerImpl) EventsToRegister() []framework.ClusterEvent {
+func (p *predicateManagerImpl) EventsToRegister(queueingHintFn framework.QueueingHintFn) []framework.ClusterEventWithHint {
 	actionMap := make(map[framework.GVK]framework.ActionType)
 	for _, plugin := range *p.allocationPreFilters {
 		mergePluginEvents(actionMap, pluginEvents(plugin))
@@ -73,25 +66,25 @@ func (p *predicateManagerImpl) EventsToRegister() []framework.ClusterEvent {
 	for _, plugin := range *p.allocationFilters {
 		mergePluginEvents(actionMap, pluginEvents(plugin))
 	}
-	return buildClusterEvents(actionMap)
+	return buildClusterEvents(actionMap, queueingHintFn)
 }
 
-func pluginEvents(plugin framework.Plugin) []framework.ClusterEvent {
+func pluginEvents(plugin framework.Plugin) []framework.ClusterEventWithHint {
 	ext, ok := plugin.(framework.EnqueueExtensions)
 	if !ok {
 		// legacy plugins that don't register for EnqueueExtensions get a default list of events
-		return legacyEvents
+		return framework.UnrollWildCardResource()
 	}
 	return ext.EventsToRegister()
 }
 
-func mergePluginEvents(actionMap map[framework.GVK]framework.ActionType, events []framework.ClusterEvent) {
+func mergePluginEvents(actionMap map[framework.GVK]framework.ActionType, events []framework.ClusterEventWithHint) {
 	if _, ok := actionMap[framework.WildCard]; ok {
 		// already registered for all events; skip further processing
 		return
 	}
 	for _, event := range events {
-		if event.IsWildCard() {
+		if event.Event.IsWildCard() {
 			// clear existing entries and add a wildcard entry
 			for k := range actionMap {
 				delete(actionMap, k)
@@ -99,23 +92,28 @@ func mergePluginEvents(actionMap map[framework.GVK]framework.ActionType, events 
 			actionMap[framework.WildCard] = framework.All
 			return
 		}
-		action, ok := actionMap[event.Resource]
+		action, ok := actionMap[event.Event.Resource]
 		if !ok {
-			action = event.ActionType
+			action = event.Event.ActionType
 		} else {
-			action |= event.ActionType
+			action |= event.Event.ActionType
 		}
-		actionMap[event.Resource] = action
+		actionMap[event.Event.Resource] = action
 	}
 }
 
-func buildClusterEvents(actionMap map[framework.GVK]framework.ActionType) []framework.ClusterEvent {
-	events := make([]framework.ClusterEvent, 0)
+func buildClusterEvents(actionMap map[framework.GVK]framework.ActionType, queueingHintFn framework.QueueingHintFn) []framework.ClusterEventWithHint {
+	events := make([]framework.ClusterEventWithHint, 0)
 	for resource, actionType := range actionMap {
-		events = append(events, framework.ClusterEvent{Resource: resource, ActionType: actionType})
+		events = append(events, framework.ClusterEventWithHint{
+			Event: framework.ClusterEvent{
+				Resource:   resource,
+				ActionType: actionType},
+			QueueingHintFn: queueingHintFn,
+		})
 	}
 	sort.SliceStable(events, func(i, j int) bool {
-		return events[i].Resource < events[j].Resource
+		return events[i].Event.Resource < events[j].Event.Resource
 	})
 	return events
 }
@@ -144,16 +142,16 @@ func (p *predicateManagerImpl) PreemptionPredicates(pod *v1.Pod, node *framework
 	}
 
 	// clone node so that we can modify it here for predicate checks
-	preemptingNode := node.Clone()
+	preemptingNode := node.Snapshot()
 
 	// remove pods up through startIndex -- all of these are required to be removed to satisfy resource constraints
 	for i := 0; i < startIndex && i < len(victims); i++ {
-		removePodFromNodeNoFail(preemptingNode, victims[i])
+		p.removePodFromNodeNoFail(preemptingNode, victims[i])
 	}
 
 	// loop through remaining pods
 	for i := startIndex; i < len(victims); i++ {
-		removePodFromNodeNoFail(preemptingNode, victims[i])
+		p.removePodFromNodeNoFail(preemptingNode, victims[i])
 		status, _ := p.runFilterPlugins(ctx, *p.allocationFilters, state, pod, preemptingNode, skip)
 		if status.IsSuccess() {
 			return i, true
@@ -167,11 +165,11 @@ func (p *predicateManagerImpl) PreemptionPredicates(pod *v1.Pod, node *framework
 	return -1, false
 }
 
-func removePodFromNodeNoFail(node *framework.NodeInfo, pod *v1.Pod) {
+func (p *predicateManagerImpl) removePodFromNodeNoFail(node *framework.NodeInfo, pod *v1.Pod) {
 	if pod == nil {
 		return
 	}
-	if err := node.RemovePod(pod); err != nil {
+	if err := node.RemovePod(p.klogger, pod); err != nil {
 		// annoyingly, RemovePod() throws an error if the pod is gone; just log at debug and continue
 		log.Log(log.ShimPredicates).Debug("Failed to remove pod from nodeInfo during preemption check",
 			zap.String("podUID", string(pod.UID)),
@@ -218,7 +216,7 @@ func (p *predicateManagerImpl) runPreFilterPlugins(ctx context.Context, state *f
 			}
 			skip[pl.Name()] = nil
 		} else if !status.IsSuccess() {
-			if status.IsUnschedulable() {
+			if status.IsRejected() {
 				return status, plugin, skip
 			}
 			err := errors.New(status.Message())
@@ -253,7 +251,7 @@ func (p *predicateManagerImpl) runFilterPlugins(ctx context.Context, plugins []f
 			if plugin == "" {
 				plugin = pl.Name()
 			}
-			if !status.IsUnschedulable() {
+			if !status.IsRejected() {
 				// Filter plugins are not supposed to return any status other than
 				// Success or Unschedulable.
 				status = framework.NewStatus(framework.Error, fmt.Sprintf("running %q filter plugin for pod %q: %v", pl.Name(), pod.Name, status.Message()))
@@ -385,6 +383,7 @@ func newPredicateManagerInternal(
 		allocationPreFilters:  preFilterPlugins(allocPre),
 		reservationFilters:    filterPlugins(resFilt),
 		allocationFilters:     filterPlugins(allocFilt),
+		klogger:               klog.NewKlogr(),
 	}
 
 	return pm
@@ -479,7 +478,7 @@ func createPlugins(handle framework.Handle, registry fwruntime.Registry, plugins
 		log.Log(log.ShimPredicates).Debug("plugin config created", zap.String("pluginName", p.Name), zap.Any("cfg", cfg))
 
 		factory := registry[p.Name]
-		plugin, err := factory(cfg, handle)
+		plugin, err := factory(context.Background(), cfg, handle)
 		if err != nil {
 			log.Log(log.ShimPredicates).Error("failed to create plugin", zap.String("pluginName", p.Name), zap.Error(err))
 			continue

@@ -34,6 +34,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/volumebinding"
 
@@ -65,6 +66,7 @@ type Context struct {
 	configMaps     []*v1.ConfigMap                // cached yunikorn configmaps
 	lock           *sync.RWMutex                  // lock
 	txnID          atomic.Uint64                  // transaction ID counter
+	klogger        klog.Logger
 }
 
 // NewContext create a new context for the scheduler using a default (empty) configuration
@@ -86,6 +88,7 @@ func NewContextWithBootstrapConfigMaps(apis client.APIProvider, bootstrapConfigM
 		namespace:    apis.GetAPIs().GetConf().Namespace,
 		configMaps:   bootstrapConfigMaps,
 		lock:         &sync.RWMutex{},
+		klogger:      klog.NewKlogr(),
 	}
 
 	// create the cache
@@ -637,8 +640,8 @@ func (ctx *Context) triggerReloadConfig(index int, configMap *v1.ConfigMap) {
 }
 
 // EventsToRegister returns the Kubernetes events that should be watched for updates which may effect predicate processing
-func (ctx *Context) EventsToRegister() []framework.ClusterEvent {
-	return ctx.predManager.EventsToRegister()
+func (ctx *Context) EventsToRegister(queueingHintFn framework.QueueingHintFn) []framework.ClusterEventWithHint {
+	return ctx.predManager.EventsToRegister(queueingHintFn)
 }
 
 // evaluate given predicates based on current context
@@ -710,7 +713,7 @@ func (ctx *Context) bindPodVolumes(pod *v1.Pod) error {
 			log.Log(log.ShimContext).Info("Binding Pod Volumes", zap.String("podName", pod.Name))
 
 			// retrieve the volume claims
-			podVolumeClaims, err := ctx.apiProvider.GetAPIs().VolumeBinder.GetPodVolumeClaims(pod)
+			podVolumeClaims, err := ctx.apiProvider.GetAPIs().VolumeBinder.GetPodVolumeClaims(ctx.klogger, pod)
 			if err != nil {
 				log.Log(log.ShimContext).Error("Failed to get pod volume claims",
 					zap.String("podName", assumedPod.Name),
@@ -729,7 +732,7 @@ func (ctx *Context) bindPodVolumes(pod *v1.Pod) error {
 			}
 
 			// retrieve volumes
-			volumes, reasons, err := ctx.apiProvider.GetAPIs().VolumeBinder.FindPodVolumes(pod, podVolumeClaims, node)
+			volumes, reasons, err := ctx.apiProvider.GetAPIs().VolumeBinder.FindPodVolumes(ctx.klogger, pod, podVolumeClaims, node)
 			if err != nil {
 				log.Log(log.ShimContext).Error("Failed to find pod volumes",
 					zap.String("podName", assumedPod.Name),
@@ -794,7 +797,7 @@ func (ctx *Context) AssumePod(name string, node string) error {
 			if ctx.apiProvider.GetAPIs().VolumeBinder != nil {
 				var err error
 				// retrieve the volume claims
-				podVolumeClaims, err := ctx.apiProvider.GetAPIs().VolumeBinder.GetPodVolumeClaims(pod)
+				podVolumeClaims, err := ctx.apiProvider.GetAPIs().VolumeBinder.GetPodVolumeClaims(ctx.klogger, pod)
 				if err != nil {
 					log.Log(log.ShimContext).Error("Failed to get pod volume claims",
 						zap.String("podName", assumedPod.Name),
@@ -803,7 +806,7 @@ func (ctx *Context) AssumePod(name string, node string) error {
 				}
 
 				// retrieve volumes
-				volumes, reasons, err := ctx.apiProvider.GetAPIs().VolumeBinder.FindPodVolumes(pod, podVolumeClaims, targetNode.Node())
+				volumes, reasons, err := ctx.apiProvider.GetAPIs().VolumeBinder.FindPodVolumes(ctx.klogger, pod, podVolumeClaims, targetNode.Node())
 				if err != nil {
 					log.Log(log.ShimContext).Error("Failed to find pod volumes",
 						zap.String("podName", assumedPod.Name),
@@ -824,7 +827,7 @@ func (ctx *Context) AssumePod(name string, node string) error {
 						zap.Error(err))
 					return err
 				}
-				allBound, err = ctx.apiProvider.GetAPIs().VolumeBinder.AssumePodVolumes(pod, node, volumes)
+				allBound, err = ctx.apiProvider.GetAPIs().VolumeBinder.AssumePodVolumes(ctx.klogger, pod, node, volumes)
 				if err != nil {
 					return err
 				}
@@ -856,6 +859,12 @@ func (ctx *Context) UpdateApplication(app *Application) {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
 	ctx.applications[app.applicationID] = app
+}
+
+// IsTaskMaybeSchedulable returns true if a task might be currently able to be scheduled. This uses a bloom filter
+// cached from a set of taskIDs to perform efficient negative lookups.
+func (ctx *Context) IsTaskMaybeSchedulable(taskID string) bool {
+	return ctx.schedulerCache.IsTaskMaybeSchedulable(taskID)
 }
 
 func (ctx *Context) AddPendingPodAllocation(podKey string, nodeID string) {
@@ -1246,8 +1255,9 @@ func (ctx *Context) HandleContainerStateUpdate(request *si.UpdateContainerSchedu
 		switch request.State {
 		case si.UpdateContainerSchedulingStateRequest_SKIPPED:
 			// auto-scaler scans pods whose pod condition is PodScheduled=false && reason=Unschedulable
-			// if the pod is skipped because the queue quota has been exceed, we do not trigger the auto-scaling
+			// if the pod is skipped because the queue quota has been exceeded, we do not trigger the auto-scaling
 			task.SetTaskSchedulingState(TaskSchedSkipped)
+			ctx.schedulerCache.NotifyTaskSchedulerAction(task.taskID)
 			if ctx.updatePodCondition(task,
 				&v1.PodCondition{
 					Type:    v1.PodScheduled,
@@ -1261,6 +1271,7 @@ func (ctx *Context) HandleContainerStateUpdate(request *si.UpdateContainerSchedu
 			}
 		case si.UpdateContainerSchedulingStateRequest_FAILED:
 			task.SetTaskSchedulingState(TaskSchedFailed)
+			ctx.schedulerCache.NotifyTaskSchedulerAction(task.taskID)
 			// set pod condition to Unschedulable in order to trigger auto-scaling
 			if ctx.updatePodCondition(task,
 				&v1.PodCondition{
