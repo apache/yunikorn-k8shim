@@ -59,6 +59,19 @@ TEST_SERVER_BINARY=web-test-server
 TOOLS_DIR=tools
 REPO=github.com/apache/yunikorn-k8shim/pkg
 
+# Default values for dev cluster
+ifeq ($(K8S_VERSION),)
+K8S_VERSION := v1.29.0
+endif
+ifeq ($(CLUSTER_NAME),)
+CLUSTER_NAME := yk8s
+endif
+ifeq ($(PLUGIN),1)
+  PLUGIN_OPTS := --plugin
+else
+  PLUGIN_OPTS := 
+endif
+
 # Version parameters
 DATE=$(shell date +%FT%T%z)
 ifeq ($(VERSION),)
@@ -517,6 +530,15 @@ distclean: clean
 arch:
 	@echo DOCKER_ARCH=$(DOCKER_ARCH)
 	@echo EXEC_ARCH=$(EXEC_ARCH)
+
+# Start dev cluster
+start-cluster: $(KIND_BIN)
+	@"$(KIND_BIN)" delete cluster --name="$(CLUSTER_NAME)" || :
+	@./scripts/run-e2e-tests.sh -a install -n "$(CLUSTER_NAME)" -v "kindest/node:$(K8S_VERSION)" $(PLUGIN_OPTS)
+
+# Stop dev cluster
+stop-cluster: $(KIND_BIN)
+	@"$(KIND_BIN)" delete cluster --name="$(CLUSTER_NAME)"
 
 # Run the e2e tests, this assumes yunikorn is running under yunikorn namespace
 .PHONY: e2e_test
