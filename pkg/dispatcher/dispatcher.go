@@ -69,10 +69,8 @@ func initDispatcher() {
 	}
 	dispatcher.setRunning(false)
 	DispatchTimeout = conf.GetSchedulerConf().DispatchTimeout
-	AsyncDispatchLimit = int32(eventChannelCapacity / 10)
-	if AsyncDispatchLimit < 10000 {
-		AsyncDispatchLimit = 10000
-	}
+	AsyncDispatchLimit = max(10000, int32(eventChannelCapacity/10))
+
 	log.Log(log.ShimDispatcher).Info("Init dispatcher",
 		zap.Int("EventChannelCapacity", eventChannelCapacity),
 		zap.Int32("AsyncDispatchLimit", AsyncDispatchLimit),

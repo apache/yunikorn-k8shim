@@ -608,12 +608,7 @@ func (cache *SchedulerCache) addSchedulingTask(taskID string) {
 }
 
 func (filter *taskBloomFilter) addTask(taskID string) {
-	limit := len(taskID)
-
-	if limit > 4 {
-		limit = 4
-	}
-
+	limit := min(4, len(taskID))
 	for i := 0; i < limit; i++ {
 		filter.data[i][taskID[i]] = true
 	}
