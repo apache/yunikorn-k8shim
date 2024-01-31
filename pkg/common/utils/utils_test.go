@@ -545,6 +545,14 @@ func TestGetApplicationIDFromPod(t *testing.T) {
 			},
 			Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
 		}, "testns-podUid", "", true},
+		{"Unique autogen token found with generateUnique", &v1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "testns",
+				UID:       "podUid",
+				Labels:    map[string]string{constants.LabelApplicationID: "testns-uniqueautogen"},
+			},
+			Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
+		}, "testns-podUid", "testns-podUid", true},
 		{"Non-yunikorn schedulerName", &v1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{constants.LabelApplicationID: appIDInLabel},
@@ -643,6 +651,9 @@ func TestGenerateApplicationID(t *testing.T) {
 
 	assert.Equal(t, "longlonglonglonglonglonglo-pod-uid",
 		GenerateApplicationID(strings.Repeat("long", 100), true, "pod-uid"))
+
+	assert.Equal(t, "namespace-uniqueautogen",
+		GenerateApplicationID("namespace", true, ""))
 }
 
 func TestMergeMaps(t *testing.T) {
