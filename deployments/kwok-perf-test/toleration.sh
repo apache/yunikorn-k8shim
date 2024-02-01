@@ -53,9 +53,8 @@ untaint(){
 }
 
 createYaml(){
-  # clear origin content in file
   if [ -f "$OUTPUT_PATH" ]; then
-    # Clear the content of the file
+    # clear origin content in file
     echo "" > "$OUTPUT_PATH"
     echo "The original content of the file located at $OUTPUT_PATH has been cleared."
   else
