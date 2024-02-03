@@ -21,7 +21,6 @@ GO := go
 endif
 
 GO_EXE_PATH := $(shell "$(GO)" env GOROOT)/bin
-export PATH := $(GO_EXE_PATH):$(PATH)
 
 # Check if this GO tools version used is at least the version of go specified in
 # the go.mod file. The version in go.mod should be in sync with other repos.
@@ -58,6 +57,9 @@ TEST_SERVER_BINARY=web-test-server
 
 TOOLS_DIR=tools
 REPO=github.com/apache/yunikorn-k8shim/pkg
+
+# PATH
+export PATH := $(BASE_DIR)/$(TOOLS_DIR):$(GO_EXE_PATH):$(PATH)
 
 # Default values for dev cluster
 ifeq ($(K8S_VERSION),)
