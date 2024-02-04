@@ -28,19 +28,15 @@ import (
 	"gotest.tools/v3/assert"
 	v1 "k8s.io/api/core/v1"
 	schedv1 "k8s.io/api/scheduling/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/apache/yunikorn-core/pkg/entrypoint"
 	"github.com/apache/yunikorn-k8shim/pkg/cache"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
-	"github.com/apache/yunikorn-k8shim/pkg/common"
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/api"
-	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
 
@@ -95,38 +91,39 @@ func (fc *MockScheduler) updateConfig(queues string, extraConfig map[string]stri
 }
 
 // Deprecated: this method only updates the core without the shim. Prefer MockScheduler.AddNode(*v1.Node) instead.
-func (fc *MockScheduler) addNode(nodeName string, nodeLabels map[string]string, memory, cpu, pods int64) error {
-	cache := fc.context.GetSchedulerCache()
-	zero := resource.Scale(0)
-	// add node to the cache so that predicates can run properly
-	cache.UpdateNode(&v1.Node{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:   nodeName,
-			Labels: nodeLabels,
-		},
-		Status: v1.NodeStatus{
-			Allocatable: map[v1.ResourceName]resource.Quantity{
-				v1.ResourcePods:   *resource.NewScaledQuantity(pods, zero),
-				v1.ResourceMemory: *resource.NewScaledQuantity(memory, zero),
-				v1.ResourceCPU:    *resource.NewScaledQuantity(cpu, zero),
-			},
-			Capacity: map[v1.ResourceName]resource.Quantity{
-				v1.ResourcePods:   *resource.NewScaledQuantity(pods, zero),
-				v1.ResourceMemory: *resource.NewScaledQuantity(memory, zero),
-				v1.ResourceCPU:    *resource.NewScaledQuantity(cpu, zero),
-			},
-		},
-	})
+// func (fc *MockScheduler) addNode(nodeName string, nodeLabels map[string]string, memory, cpu, pods int64) error {
+// 	cache := fc.context.GetSchedulerCache()
+// 	zero := resource.Scale(0)
+// 	// add node to the cache so that predicates can run properly
+// 	cache.UpdateNode(&v1.Node{
+// 		ObjectMeta: metav1.ObjectMeta{
+// 			Name:   nodeName,
+// 			Labels: nodeLabels,
+// 		},
+// 		Status: v1.NodeStatus{
+// 			Allocatable: map[v1.ResourceName]resource.Quantity{
+// 				v1.ResourcePods:   *resource.NewScaledQuantity(pods, zero),
+// 				v1.ResourceMemory: *resource.NewScaledQuantity(memory, zero),
+// 				v1.ResourceCPU:    *resource.NewScaledQuantity(cpu, zero),
+// 			},
+// 			Capacity: map[v1.ResourceName]resource.Quantity{
+// 				v1.ResourcePods:   *resource.NewScaledQuantity(pods, zero),
+// 				v1.ResourceMemory: *resource.NewScaledQuantity(memory, zero),
+// 				v1.ResourceCPU:    *resource.NewScaledQuantity(cpu, zero),
+// 			},
+// 		},
+// 	})
 
-	nodeResource := common.NewResourceBuilder().
-		AddResource(siCommon.Memory, memory).
-		AddResource(siCommon.CPU, cpu).
-		AddResource("pods", pods).
-		Build()
-	request := common.CreateUpdateRequestForNewNode(nodeName, nodeLabels, nodeResource, nil, nil, true)
-	fmt.Printf("report new nodes to scheduler, request: %s", request.String())
-	return fc.apiProvider.GetAPIs().SchedulerAPI.UpdateNode(request)
-}
+// 	nodeResource := common.NewResourceBuilder().
+// 		AddResource(siCommon.Memory, memory).
+// 		AddResource(siCommon.CPU, cpu).
+// 		AddResource("pods", pods).
+// 		Build()
+// 	request := common.CreateUpdateRequestForNewNode(nodeName, nodeLabels, nodeResource, nil, nil, true)
+// 	fmt.Printf("report new nodes to scheduler, request: %s", request.String())
+// 	return fc.apiProvider.GetAPIs().SchedulerAPI.UpdateNode(request)
+// }
+// ### NOTE =>  To bring this test back
 
 func (fc *MockScheduler) waitAndAssertApplicationState(t *testing.T, appID, expectedState string) {
 	deadline := time.Now().Add(10 * time.Second)

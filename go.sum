@@ -13,10 +13,6 @@ github.com/NYTimes/gziphandler v1.1.1 h1:ZUDjpQae29j0ryrS0u/B8HZfJBtBQHjqw2rQ2cq
 github.com/NYTimes/gziphandler v1.1.1/go.mod h1:n/CVRwUEOgIxrgPvAQhUUr9oeUtvrhMomdKFjzJNB0c=
 github.com/antlr/antlr4/runtime/Go/antlr/v4 v4.0.0-20230305170008-8188dc5388df h1:7RFfzj4SSt6nnvCPbCqijJi1nWCd+TqAT3bYCStRC18=
 github.com/antlr/antlr4/runtime/Go/antlr/v4 v4.0.0-20230305170008-8188dc5388df/go.mod h1:pSwJ0fSY5KhvocuWSx4fz3BA8OrA1bQn+K1Eli3BRwM=
-github.com/apache/yunikorn-core v0.0.0-20240119185010-bce75ba32684 h1:wnIsh9G7Cage+CiZR6ZSBxvyn+voPh8DWXHjeRSKTs8=
-github.com/apache/yunikorn-core v0.0.0-20240119185010-bce75ba32684/go.mod h1:lSAZNt47HGygsVG6mJTl0rW7acBl3tbN/Fg2wGJXYs8=
-github.com/apache/yunikorn-scheduler-interface v0.0.0-20240102192148-d4b43d6910c9 h1:9Nj1XB52J7CjUysHwwu1Jf1HNC7fil5F/LkslwZEkN0=
-github.com/apache/yunikorn-scheduler-interface v0.0.0-20240102192148-d4b43d6910c9/go.mod h1:zDWV5y9Zh9DM1C65RCVXT1nhNNO8kykVW7bzPFamNYw=
 github.com/armon/go-socks5 v0.0.0-20160902184237-e75332964ef5 h1:0CwZNZbxp69SHPdPJAN/hZIm0C4OItdklCFmMRWYpio=
 github.com/armon/go-socks5 v0.0.0-20160902184237-e75332964ef5/go.mod h1:wHh0iHkYZB8zMSxRWpUBQtwG5a7fFgvEO+odwuTv2gs=
 github.com/asaskevich/govalidator v0.0.0-20190424111038-f61b66f89f4a h1:idn718Q4B6AGu/h5Sxe66HYVdqdGu2l9Iebqhi/AEoA=
@@ -32,6 +28,10 @@ github.com/cenkalti/backoff/v4 v4.2.1/go.mod h1:Y3VNntkOUPxTVeUxJ/G5vcM//AlwfmyY
 github.com/census-instrumentation/opencensus-proto v0.2.1/go.mod h1:f6KPmirojxKA12rnyqOA5BBL4O983OfeGPqjHWSTneU=
 github.com/cespare/xxhash/v2 v2.2.0 h1:DC2CZ1Ep5Y4k3ZQ899DldepgrayRUGE6BBZ/cd9Cj44=
 github.com/cespare/xxhash/v2 v2.2.0/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
+github.com/chenyulin0719/yunikorn-core v0.0.0-20240204162611-08b3ebc08844 h1:naHMcRFr7SMtOBXDDvTiwh5VvAbJ/mMAWC6TtX61p44=
+github.com/chenyulin0719/yunikorn-core v0.0.0-20240204162611-08b3ebc08844/go.mod h1:j34OXHf5WkuKSVEj90KBjUrTfNk7YWRHC1DvWxo9Fb0=
+github.com/chenyulin0719/yunikorn-scheduler-interface v0.0.0-20240204161348-704e42801215 h1:1UZwx3PiL1CMkFRvlxmk94Z6OpA/D87QVgn4xe1AfJs=
+github.com/chenyulin0719/yunikorn-scheduler-interface v0.0.0-20240204161348-704e42801215/go.mod h1:zDWV5y9Zh9DM1C65RCVXT1nhNNO8kykVW7bzPFamNYw=
 github.com/chzyer/logex v1.1.10/go.mod h1:+Ywpsq7O8HXn0nuIou7OrIPyXbp3wmkHB+jjWRnGsAI=
 github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e/go.mod h1:nSuG5e5PlCu98SY8svDHJxuZscDgtXS6KTTbou5AhLI=
 github.com/chzyer/test v0.0.0-20180213035817-a1ea475d72b1/go.mod h1:Q3SI9o4m/ZMnBNeIyt5eFwwo7qiLfzFZmjNmxjkiQlU=
