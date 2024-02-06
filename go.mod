@@ -26,8 +26,8 @@ require (
 	github.com/google/go-cmp v0.6.0
 	github.com/google/uuid v1.3.1
 	github.com/looplab/fsm v1.0.1
-	github.com/onsi/ginkgo/v2 v2.13.0
-	github.com/onsi/gomega v1.29.0
+	github.com/onsi/ginkgo/v2 v2.15.0
+	github.com/onsi/gomega v1.30.0
 	github.com/prometheus/client_golang v1.16.0
 	go.uber.org/zap v1.24.0
 	gopkg.in/yaml.v3 v3.0.1
