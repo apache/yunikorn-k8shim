@@ -31,7 +31,7 @@ require (
 	github.com/prometheus/client_golang v1.16.0
 	go.uber.org/zap v1.24.0
 	gopkg.in/yaml.v3 v3.0.1
-	gotest.tools/v3 v3.0.3
+	gotest.tools/v3 v3.5.1
 	k8s.io/api v0.29.1
 	k8s.io/apimachinery v0.29.1
 	k8s.io/cli-runtime v0.29.1
