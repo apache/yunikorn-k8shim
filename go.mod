@@ -24,7 +24,7 @@ require (
 	github.com/apache/yunikorn-core v0.0.0-20240119185010-bce75ba32684
 	github.com/apache/yunikorn-scheduler-interface v0.0.0-20240102192148-d4b43d6910c9
 	github.com/google/go-cmp v0.6.0
-	github.com/google/uuid v1.3.1
+	github.com/google/uuid v1.6.0
 	github.com/looplab/fsm v1.0.1
 	github.com/onsi/ginkgo/v2 v2.13.0
 	github.com/onsi/gomega v1.29.0
