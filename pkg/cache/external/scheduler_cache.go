@@ -375,8 +375,10 @@ func (cache *SchedulerCache) removePriorityClass(priorityClass *schedulingv1.Pri
 // NotifyTaskSchedulerAction registers the fact that a task has been evaluated for scheduling, and consequently the
 // scheduler plugin should move it to the activeQ if requested to do so.
 func (cache *SchedulerCache) NotifyTaskSchedulerAction(taskID string) {
+	cache.lock.Lock()
+	defer cache.lock.Unlock()
 	// verify that the pod exists in the cache, otherwise ignore
-	if _, ok := cache.GetPod(taskID); !ok {
+	if _, ok := cache.GetPodNoLock(taskID); !ok {
 		return
 	}
 	cache.addSchedulingTask(taskID)
