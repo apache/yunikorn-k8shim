@@ -23,10 +23,10 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/apache/yunikorn-scheduler-interface/lib/go/api"
-
+	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
+	"github.com/apache/yunikorn-scheduler-interface/lib/go/api"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
 
@@ -60,8 +60,15 @@ func (callback *AsyncRMCallback) UpdateAllocation(response *si.AllocationRespons
 			return err
 		}
 		if app := callback.context.GetApplication(alloc.ApplicationID); app != nil {
-			ev := NewAllocateTaskEvent(app.GetApplicationID(), alloc.AllocationKey, alloc.AllocationID, alloc.NodeID)
-			dispatcher.Dispatch(ev)
+			if task := callback.context.getTask(app.GetApplicationID(), alloc.AllocationKey); task != nil {
+				if utils.IsAssignedPod(task.GetTaskPod()) {
+					// task is already bound, fixup state and continue
+					task.MarkPreviouslyAllocated(alloc.AllocationID, alloc.NodeID)
+				} else {
+					ev := NewAllocateTaskEvent(app.GetApplicationID(), alloc.AllocationKey, alloc.AllocationID, alloc.NodeID)
+					dispatcher.Dispatch(ev)
+				}
+			}
 		}
 	}
 

@@ -21,8 +21,8 @@ module github.com/apache/yunikorn-k8shim
 go 1.21
 
 require (
-	github.com/apache/yunikorn-core v0.0.0-20240119185010-bce75ba32684
-	github.com/apache/yunikorn-scheduler-interface v0.0.0-20240102192148-d4b43d6910c9
+	github.com/apache/yunikorn-core v0.0.0-20240214143706-a87a46308189
+	github.com/apache/yunikorn-scheduler-interface v0.0.0-20240213122907-834ff5c1f36c
 	github.com/google/go-cmp v0.6.0
 	github.com/google/uuid v1.6.0
 	github.com/looplab/fsm v1.0.1
@@ -124,15 +124,15 @@ require (
 	go.starlark.net v0.0.0-20230525235612-a134d8f9ddca // indirect
 	go.uber.org/atomic v1.10.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	golang.org/x/crypto v0.18.0 // indirect
+	golang.org/x/crypto v0.19.0 // indirect
 	golang.org/x/exp v0.0.0-20220722155223-a9213eeb770e // indirect
-	golang.org/x/net v0.20.0 // indirect
+	golang.org/x/net v0.21.0 // indirect
 	golang.org/x/oauth2 v0.12.0 // indirect
 	golang.org/x/sync v0.6.0 // indirect
-	golang.org/x/sys v0.16.0 // indirect
-	golang.org/x/term v0.16.0 // indirect
+	golang.org/x/sys v0.17.0 // indirect
+	golang.org/x/term v0.17.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
-	golang.org/x/time v0.3.0 // indirect
+	golang.org/x/time v0.5.0 // indirect
 	golang.org/x/tools v0.17.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20230822172742-b8732ec3820d // indirect
@@ -164,12 +164,7 @@ require (
 )
 
 replace (
-	golang.org/x/crypto => golang.org/x/crypto v0.18.0
 	golang.org/x/lint => golang.org/x/lint v0.0.0-20210508222113-6edffad5e616
-	golang.org/x/net => golang.org/x/net v0.20.0
-	golang.org/x/sys => golang.org/x/sys v0.16.0
-	golang.org/x/text => golang.org/x/text v0.14.0
-	golang.org/x/tools => golang.org/x/tools v0.17.0
 	k8s.io/api => k8s.io/api v0.29.1
 	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.29.1
 	k8s.io/apimachinery => k8s.io/apimachinery v0.29.1

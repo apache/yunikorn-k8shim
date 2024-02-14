@@ -260,6 +260,22 @@ func (task *Task) SetTaskSchedulingState(state TaskSchedulingState) {
 	task.schedulingState = state
 }
 
+func (task *Task) MarkPreviouslyAllocated(allocationID string, nodeID string) {
+	task.sm.SetState(TaskStates().Bound)
+	task.lock.Lock()
+	defer task.lock.Unlock()
+	task.schedulingState = TaskSchedAllocated
+	task.allocationID = allocationID
+	task.nodeName = nodeID
+	if task.placeholder {
+		log.Log(log.ShimCacheTask).Info("placeholder is bound",
+			zap.String("appID", task.applicationID),
+			zap.String("taskName", task.alias),
+			zap.String("taskGroupName", task.taskGroupName))
+		dispatcher.Dispatch(NewUpdateApplicationReservationEvent(task.applicationID))
+	}
+}
+
 func (task *Task) GetTaskSchedulingState() TaskSchedulingState {
 	task.lock.RLock()
 	defer task.lock.RUnlock()
