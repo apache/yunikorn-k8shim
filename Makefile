@@ -76,7 +76,7 @@ endif
 
 # Build date - Use git commit, then cached build.date, finally current date
 # This allows for reproducible builds as long as release tarball contains the build.date file.
-DATE := $(shell TZ=UTC0 git --no-pager log -1 --date=iso8601-strict-local --format=%cd 2>/dev/null || true)
+DATE := $(shell if [ -d "$(BASE_DIR)/.git" ]; then TZ=UTC0 git --no-pager log -1 --date=iso8601-strict-local --format=%cd 2>/dev/null ; fi || true)
 ifeq ($(DATE),)
 DATE := $(shell cat "$(BASE_DIR)/build.date" 2>/dev/null || true)
 endif
