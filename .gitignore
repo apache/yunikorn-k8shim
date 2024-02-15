@@ -11,3 +11,4 @@
 *.crt
 *.key
 *.test
+/build.date
