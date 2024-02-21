@@ -162,6 +162,10 @@ export SPARK_HOME=$(BASE_DIR)$(TOOLS_DIR)/spark
 export SPARK_SUBMIT_CMD=$(SPARK_HOME)/bin/spark-submit
 export SPARK_PYTHON_IMAGE=docker.io/apache/spark-py:v$(SPARK_PYTHON_VERSION)
 
+# go-licenses
+GO_LICENSES_VERSION=v1.6.0
+GO_LICENSES_BIN=$(TOOLS_DIR)/go-licenses
+
 FLAG_PREFIX=github.com/apache/yunikorn-k8shim/pkg/conf
 
 # Image hashes
@@ -207,7 +211,7 @@ conf/scheduler-config-local.yaml: conf/scheduler-config.yaml
 
 # Install tools
 .PHONY: tools
-tools: $(SHELLCHECK_BIN) $(GOLANGCI_LINT_BIN) $(KUBECTL_BIN) $(KIND_BIN) $(HELM_BIN) $(SPARK_SUBMIT_CMD)
+tools: $(SHELLCHECK_BIN) $(GOLANGCI_LINT_BIN) $(KUBECTL_BIN) $(KIND_BIN) $(HELM_BIN) $(SPARK_SUBMIT_CMD) $(GO_LICENSES_BIN)
 
 # Install shellcheck
 $(SHELLCHECK_BIN):
@@ -255,6 +259,12 @@ $(SPARK_SUBMIT_CMD):
 		| tar -x -z --strip-components=1 -C "$(SPARK_HOME).tmp" 
 	@mv -f "$(SPARK_HOME).tmp" "$(SPARK_HOME)"
 
+# Install go-licenses
+$(GO_LICENSES_BIN):
+	@echo "installing go-licenses $(GO_LICENSES_VERSION)"
+	@mkdir -p "$(TOOLS_DIR)"
+	@GOBIN="$(BASE_DIR)/$(TOOLS_DIR)" "$(GO)" install "github.com/google/go-licenses@$(GO_LICENSES_VERSION)"
+
 # Run lint against the previous commit for PR and branch build
 # In dev setup look at all changes on top of master
 .PHONY: lint
@@ -290,6 +300,27 @@ endif
 		exit 1; \
 	fi
 	@echo "  all OK"
+
+# Check licenses of go dependencies
+.PHONY: go-license-check
+go-license-check: $(GO_LICENSES_BIN)
+	@echo "Checking third-party licenses"
+	@"$(GO_LICENSES_BIN)" check ./pkg/... ./test/... --include_tests --disallowed_types=forbidden,permissive,reciprocal,restricted,unknown
+	@echo "License checks OK"
+
+# Generate third-party dependency licenses
+.PHONY: go-license-generate
+go-license-generate: $(OUTPUT)/third-party-licenses
+
+$(OUTPUT)/third-party-licenses: $(GO_LICENSES_BIN) go.mod go.sum
+	@echo "Generating third-party license files"
+	@rm -rf "$(OUTPUT)/third-party-licenses"
+	@"$(GO_LICENSES_BIN)" \
+		save ./pkg/... \
+		--save_path="$(OUTPUT)/third-party-licenses" \
+		--ignore github.com/apache/yunikorn-k8shim \
+		--ignore github.com/apache/yunikorn-core \
+		--ignore github.com/apache/yunikorn-scheduler-interface
 
 # Check that we use pseudo versions in master
 .PHONY: pseudo
@@ -385,12 +416,13 @@ $(RELEASE_BIN_DIR)/$(PLUGIN_BINARY): go.mod go.sum $(shell find pkg)
 	
 # Build a scheduler image based on the production ready version
 .PHONY: sched_image
-sched_image: scheduler docker/scheduler
+sched_image: $(OUTPUT)/third-party-licenses scheduler docker/scheduler
 	@echo "building scheduler docker image"
 	@rm -rf "$(DOCKER_DIR)/scheduler"
 	@mkdir -p "$(DOCKER_DIR)/scheduler"
 	@cp -a "docker/scheduler/." "$(DOCKER_DIR)/scheduler/."
 	@cp "$(RELEASE_BIN_DIR)/$(SCHEDULER_BINARY)" "$(DOCKER_DIR)/scheduler/."
+	@cp -a LICENSE NOTICE "$(OUTPUT)/third-party-licenses" "$(DOCKER_DIR)/scheduler/."
 	DOCKER_BUILDKIT=1 docker build \
 	"$(DOCKER_DIR)/scheduler" \
 	-t "$(SCHEDULER_TAG)" \
@@ -404,12 +436,13 @@ sched_image: scheduler docker/scheduler
 
 # Build a plugin image based on the production ready version
 .PHONY: plugin_image
-plugin_image: plugin docker/plugin conf/scheduler-config.yaml
+plugin_image: $(OUTPUT)/third-party-licenses plugin docker/plugin conf/scheduler-config.yaml
 	@echo "building plugin docker image"
 	@rm -rf "$(DOCKER_DIR)/plugin"
 	@mkdir -p "$(DOCKER_DIR)/plugin"
 	@cp -a "docker/plugin/." "$(DOCKER_DIR)/plugin/."
 	@cp "$(RELEASE_BIN_DIR)/$(PLUGIN_BINARY)" "$(DOCKER_DIR)/plugin/."
+	@cp -a LICENSE NOTICE "$(OUTPUT)/third-party-licenses" "$(DOCKER_DIR)/plugin/."
 	@cp conf/scheduler-config.yaml "$(DOCKER_DIR)/plugin/scheduler-config.yaml"
 	DOCKER_BUILDKIT=1 docker build \
 	"$(DOCKER_DIR)/plugin" \
@@ -440,12 +473,13 @@ $(RELEASE_BIN_DIR)/$(ADMISSION_CONTROLLER_BINARY): go.mod go.sum $(shell find pk
 
 # Build an admission controller image based on the production ready version
 .PHONY: adm_image
-adm_image: admission docker/admission
+adm_image: $(OUTPUT)/third-party-licenses admission docker/admission
 	@echo "building admission controller docker image"
 	@rm -rf "$(DOCKER_DIR)/admission"
 	@mkdir -p "$(DOCKER_DIR)/admission"
 	@cp -a "docker/admission/." "$(DOCKER_DIR)/admission/."
 	@cp "$(RELEASE_BIN_DIR)/$(ADMISSION_CONTROLLER_BINARY)" "$(DOCKER_DIR)/admission/."
+	@cp -a LICENSE NOTICE "$(OUTPUT)/third-party-licenses" "$(DOCKER_DIR)/admission/."
 	DOCKER_BUILDKIT=1 docker build \
 	"$(DOCKER_DIR)/admission" \
 	-t "$(ADMISSION_TAG)" \
@@ -463,12 +497,13 @@ image: sched_image plugin_image adm_image
 
 # Build a web server image ONLY to be used in e2e tests
 .PHONY: webtest_image
-webtest_image: build_web_test_server_prod docker/webtest
+webtest_image: $(OUTPUT)/third-party-licenses build_web_test_server_prod docker/webtest
 	@echo "building web server image for automated e2e tests"
 	@rm -rf "$(DOCKER_DIR)/webtest"
 	@mkdir -p "$(DOCKER_DIR)/webtest"
 	@cp -a "docker/webtest/." "$(DOCKER_DIR)/webtest/."
 	@cp "$(RELEASE_BIN_DIR)/$(TEST_SERVER_BINARY)" "$(DOCKER_DIR)/webtest/."
+	@cp -a LICENSE NOTICE "$(OUTPUT)/third-party-licenses" "$(DOCKER_DIR)/webtest/."
 	DOCKER_BUILDKIT=1 docker build \
 	"$(DOCKER_DIR)/webtest" \
 	-t "${REGISTRY}/yunikorn:webtest-${DOCKER_ARCH}-${VERSION}" \
