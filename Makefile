@@ -162,6 +162,10 @@ export SPARK_HOME=$(BASE_DIR)$(TOOLS_DIR)/spark
 export SPARK_SUBMIT_CMD=$(SPARK_HOME)/bin/spark-submit
 export SPARK_PYTHON_IMAGE=docker.io/apache/spark-py:v$(SPARK_PYTHON_VERSION)
 
+# go-licenses
+GO_LICENSES_VERSION=v1.6.0
+GO_LICENSES_BIN=$(TOOLS_DIR)/go-licenses
+
 FLAG_PREFIX=github.com/apache/yunikorn-k8shim/pkg/conf
 
 # Image hashes
@@ -255,6 +259,12 @@ $(SPARK_SUBMIT_CMD):
 		| tar -x -z --strip-components=1 -C "$(SPARK_HOME).tmp" 
 	@mv -f "$(SPARK_HOME).tmp" "$(SPARK_HOME)"
 
+# Install go-licenses
+$(GO_LICENSES_BIN):
+	@echo "installing go-licenses $(GO_LICENSES_VERSION)"
+	@mkdir -p "$(TOOLS_DIR)"
+	GOBIN="$(BASE_DIR)/$(TOOLS_DIR)" "$(GO)" install "github.com/google/go-licenses@$(GO_LICENSES_VERSION)"
+
 # Run lint against the previous commit for PR and branch build
 # In dev setup look at all changes on top of master
 .PHONY: lint
@@ -280,9 +290,9 @@ check_scripts: $(SHELLCHECK_BIN)
 license-check:
 	@echo "checking license headers:"
 ifeq (darwin,$(OS))
-	$(shell mkdir -p "$(OUTPUT)" && find -E . -not \( -path './.git*' -prune \) -not \( -path ./build -prune \) -not \( -path ./tools -prune \) -regex ".*\.(go|sh|md|conf|yaml|yml|html|mod)" -exec grep -L "Licensed to the Apache Software Foundation" {} \; > "$(OUTPUT)/license-check.txt")
+	$(shell mkdir -p "$(OUTPUT)" && find -E . -not \( -path './third-party-licenses' -prune \) -not \( -path './.git*' -prune \) -not \( -path ./build -prune \) -not \( -path ./tools -prune \) -regex ".*\.(go|sh|md|conf|yaml|yml|html|mod)" -exec grep -L "Licensed to the Apache Software Foundation" {} \; > "$(OUTPUT)/license-check.txt")
 else
-	$(shell mkdir -p "$(OUTPUT)" && find . -not \( -path './.git*' -prune \) -not \( -path ./build -prune \) -not \( -path ./tools -prune \) -regex ".*\.\(go\|sh\|md\|conf\|yaml\|yml\|html\|mod\)" -exec grep -L "Licensed to the Apache Software Foundation" {} \; > "$(OUTPUT)/license-check.txt")
+	$(shell mkdir -p "$(OUTPUT)" && find . -not \( -path './third-party-licenses' -prune \) -not \( -path './.git*' -prune \) -not \( -path ./build -prune \) -not \( -path ./tools -prune \) -regex ".*\.\(go\|sh\|md\|conf\|yaml\|yml\|html\|mod\)" -exec grep -L "Licensed to the Apache Software Foundation" {} \; > "$(OUTPUT)/license-check.txt")
 endif
 	@if [ -s "$(OUTPUT)/license-check.txt" ]; then \
 		echo "following files are missing license header:" ; \
@@ -290,6 +300,27 @@ endif
 		exit 1; \
 	fi
 	@echo "  all OK"
+
+# Check licenses of go dependencies
+.PHONY: go-license-check
+go-license-check: $(GO_LICENSES_BIN)
+	@echo "Checking third-party licenses"
+	@"$(GO_LICENSES_BIN)" check ./pkg/... ./test/... --include_tests --disallowed_types=forbidden,permissive,reciprocal,restricted,unknown
+	@echo "License checks OK"
+
+# Save licenses of go dependencies
+.PHONY: go-license-save
+go-license-save: $(GO_LICENSES_BIN)
+	@echo "Saving third-party license files"
+	@rm -rf "$(OUTPUT)/third-party-licenses"
+	@"$(GO_LICENSES_BIN)" \
+		save ./pkg/... \
+		--save_path="$(OUTPUT)/third-party-licenses" \
+		--ignore github.com/apache/yunikorn-k8shim \
+		--ignore github.com/apache/yunikorn-core \
+		--ignore github.com/apache/yunikorn-scheduler-interface
+	@rm -rf third-party-licenses
+	@mv -f "$(OUTPUT)/third-party-licenses" third-party-licenses
 
 # Check that we use pseudo versions in master
 .PHONY: pseudo
