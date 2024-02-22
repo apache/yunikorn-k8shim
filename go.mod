@@ -162,6 +162,7 @@ require (
 replace (
 	github.com/opencontainers/runc => github.com/opencontainers/runc v1.1.12
 	golang.org/x/crypto => golang.org/x/crypto v0.19.0
+	golang.org/x/lint => golang.org/x/lint v0.0.0-20210508222113-6edffad5e616
 	golang.org/x/net => golang.org/x/net v0.21.0
 	golang.org/x/sys => golang.org/x/sys v0.17.0
 	golang.org/x/text => golang.org/x/text v0.14.0
