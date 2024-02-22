@@ -21,8 +21,8 @@ module github.com/apache/yunikorn-k8shim
 go 1.21
 
 require (
-	github.com/apache/yunikorn-core v0.0.0-20240222113224-e81cf42a3981
-	github.com/apache/yunikorn-scheduler-interface v0.0.0-20240222100805-e404c64334d2
+	github.com/apache/yunikorn-core v0.0.0-20240222210045-b926dce1f914
+	github.com/apache/yunikorn-scheduler-interface v0.0.0-20240222205935-94c25b6d2579
 	github.com/google/go-cmp v0.6.0
 	github.com/google/uuid v1.6.0
 	github.com/looplab/fsm v1.0.1
@@ -160,7 +160,12 @@ require (
 )
 
 replace (
-	github.com/opencontainers/runc => github.com/opencontainers/runc v1.1.12 // CVE-2024-21626 in v1.1.10
+	github.com/opencontainers/runc => github.com/opencontainers/runc v1.1.12
+	golang.org/x/crypto => golang.org/x/crypto v0.19.0
+	golang.org/x/net => golang.org/x/net v0.21.0
+	golang.org/x/sys => golang.org/x/sys v0.17.0
+	golang.org/x/text => golang.org/x/text v0.14.0
+	golang.org/x/tools => golang.org/x/tools v0.17.0
 	k8s.io/api => k8s.io/api v0.29.2
 	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.29.2
 	k8s.io/apimachinery => k8s.io/apimachinery v0.29.2
