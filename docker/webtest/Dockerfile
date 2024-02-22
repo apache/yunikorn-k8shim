@@ -18,8 +18,7 @@
 # Imagestage: use scratch base image
 FROM --platform=$TARGETPLATFORM scratch
 COPY --chown=0:0 document/index.html /html/
-COPY --chown=0:0 LICENSE NOTICE web-test-server /
-COPY --chown=0:0 third-party-licenses /third-party-licenses/
+COPY --chown=0:0 LICENSE NOTICE third-party-licenses.md web-test-server /
 EXPOSE 9889
 ENV DOCUMENT_ROOT /html
 USER 4444:4444

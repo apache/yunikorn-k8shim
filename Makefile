@@ -310,17 +310,20 @@ go-license-check: $(GO_LICENSES_BIN)
 
 # Generate third-party dependency licenses
 .PHONY: go-license-generate
-go-license-generate: $(OUTPUT)/third-party-licenses
+go-license-generate: $(OUTPUT)/third-party-licenses.md
 
-$(OUTPUT)/third-party-licenses: $(GO_LICENSES_BIN) go.mod go.sum
-	@echo "Generating third-party license files"
-	@rm -rf "$(OUTPUT)/third-party-licenses"
+$(OUTPUT)/third-party-licenses.md: $(GO_LICENSES_BIN) go.mod go.sum
+	@echo "Generating third-party licenses file"
+	@mkdir -p "$(OUTPUT)"
+	@rm -f "$(OUTPUT)/third-party-licenses.md"
 	@"$(GO_LICENSES_BIN)" \
-		save ./pkg/... \
-		--save_path="$(OUTPUT)/third-party-licenses" \
+		report ./pkg/... \
+		--template=./scripts/third-party-licences.md.tpl \
 		--ignore github.com/apache/yunikorn-k8shim \
 		--ignore github.com/apache/yunikorn-core \
-		--ignore github.com/apache/yunikorn-scheduler-interface
+		--ignore github.com/apache/yunikorn-scheduler-interface \
+		> "$(OUTPUT)/third-party-licenses.md.tmp"
+	@mv "$(OUTPUT)/third-party-licenses.md.tmp" "$(OUTPUT)/third-party-licenses.md"
 
 # Check that we use pseudo versions in master
 .PHONY: pseudo
@@ -416,13 +419,13 @@ $(RELEASE_BIN_DIR)/$(PLUGIN_BINARY): go.mod go.sum $(shell find pkg)
 	
 # Build a scheduler image based on the production ready version
 .PHONY: sched_image
-sched_image: $(OUTPUT)/third-party-licenses scheduler docker/scheduler
+sched_image: $(OUTPUT)/third-party-licenses.md scheduler docker/scheduler
 	@echo "building scheduler docker image"
 	@rm -rf "$(DOCKER_DIR)/scheduler"
 	@mkdir -p "$(DOCKER_DIR)/scheduler"
 	@cp -a "docker/scheduler/." "$(DOCKER_DIR)/scheduler/."
 	@cp "$(RELEASE_BIN_DIR)/$(SCHEDULER_BINARY)" "$(DOCKER_DIR)/scheduler/."
-	@cp -a LICENSE NOTICE "$(OUTPUT)/third-party-licenses" "$(DOCKER_DIR)/scheduler/."
+	@cp -a LICENSE NOTICE "$(OUTPUT)/third-party-licenses.md" "$(DOCKER_DIR)/scheduler/."
 	DOCKER_BUILDKIT=1 docker build \
 	"$(DOCKER_DIR)/scheduler" \
 	-t "$(SCHEDULER_TAG)" \
@@ -436,13 +439,13 @@ sched_image: $(OUTPUT)/third-party-licenses scheduler docker/scheduler
 
 # Build a plugin image based on the production ready version
 .PHONY: plugin_image
-plugin_image: $(OUTPUT)/third-party-licenses plugin docker/plugin conf/scheduler-config.yaml
+plugin_image: $(OUTPUT)/third-party-licenses.md plugin docker/plugin conf/scheduler-config.yaml
 	@echo "building plugin docker image"
 	@rm -rf "$(DOCKER_DIR)/plugin"
 	@mkdir -p "$(DOCKER_DIR)/plugin"
 	@cp -a "docker/plugin/." "$(DOCKER_DIR)/plugin/."
 	@cp "$(RELEASE_BIN_DIR)/$(PLUGIN_BINARY)" "$(DOCKER_DIR)/plugin/."
-	@cp -a LICENSE NOTICE "$(OUTPUT)/third-party-licenses" "$(DOCKER_DIR)/plugin/."
+	@cp -a LICENSE NOTICE "$(OUTPUT)/third-party-licenses.md" "$(DOCKER_DIR)/plugin/."
 	@cp conf/scheduler-config.yaml "$(DOCKER_DIR)/plugin/scheduler-config.yaml"
 	DOCKER_BUILDKIT=1 docker build \
 	"$(DOCKER_DIR)/plugin" \
@@ -473,13 +476,13 @@ $(RELEASE_BIN_DIR)/$(ADMISSION_CONTROLLER_BINARY): go.mod go.sum $(shell find pk
 
 # Build an admission controller image based on the production ready version
 .PHONY: adm_image
-adm_image: $(OUTPUT)/third-party-licenses admission docker/admission
+adm_image: $(OUTPUT)/third-party-licenses.md admission docker/admission
 	@echo "building admission controller docker image"
 	@rm -rf "$(DOCKER_DIR)/admission"
 	@mkdir -p "$(DOCKER_DIR)/admission"
 	@cp -a "docker/admission/." "$(DOCKER_DIR)/admission/."
 	@cp "$(RELEASE_BIN_DIR)/$(ADMISSION_CONTROLLER_BINARY)" "$(DOCKER_DIR)/admission/."
-	@cp -a LICENSE NOTICE "$(OUTPUT)/third-party-licenses" "$(DOCKER_DIR)/admission/."
+	@cp -a LICENSE NOTICE "$(OUTPUT)/third-party-licenses.md" "$(DOCKER_DIR)/admission/."
 	DOCKER_BUILDKIT=1 docker build \
 	"$(DOCKER_DIR)/admission" \
 	-t "$(ADMISSION_TAG)" \
@@ -497,13 +500,13 @@ image: sched_image plugin_image adm_image
 
 # Build a web server image ONLY to be used in e2e tests
 .PHONY: webtest_image
-webtest_image: $(OUTPUT)/third-party-licenses build_web_test_server_prod docker/webtest
+webtest_image: $(OUTPUT)/third-party-licenses.md build_web_test_server_prod docker/webtest
 	@echo "building web server image for automated e2e tests"
 	@rm -rf "$(DOCKER_DIR)/webtest"
 	@mkdir -p "$(DOCKER_DIR)/webtest"
 	@cp -a "docker/webtest/." "$(DOCKER_DIR)/webtest/."
 	@cp "$(RELEASE_BIN_DIR)/$(TEST_SERVER_BINARY)" "$(DOCKER_DIR)/webtest/."
-	@cp -a LICENSE NOTICE "$(OUTPUT)/third-party-licenses" "$(DOCKER_DIR)/webtest/."
+	@cp -a LICENSE NOTICE "$(OUTPUT)/third-party-licenses.md" "$(DOCKER_DIR)/webtest/."
 	DOCKER_BUILDKIT=1 docker build \
 	"$(DOCKER_DIR)/webtest" \
 	-t "${REGISTRY}/yunikorn:webtest-${DOCKER_ARCH}-${VERSION}" \
