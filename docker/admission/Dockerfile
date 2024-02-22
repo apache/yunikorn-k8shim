@@ -15,6 +15,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 FROM --platform=$TARGETPLATFORM scratch
-COPY --chown=0:0 yunikorn-admission-controller /
+COPY --chown=0:0 LICENSE NOTICE third-party-licenses.md yunikorn-admission-controller /
 USER 4444:4444
 ENTRYPOINT [ "/yunikorn-admission-controller" ]
