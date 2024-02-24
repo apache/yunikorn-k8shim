@@ -148,7 +148,7 @@ partitions:
 	cluster.DeletePod(task1)
 	cluster.waitAndAssertTaskState(t, "app0001", "task0001", cache.TaskStates().Completed)
 	// make sure the shim side has clean up the failed app
-	cluster.waitApplicationDeleted(t, appID)
+	cluster.waitForApplicationDeletion(t, appID)
 
 	// submit again
 	task1 = createTestPod("root.a", appID, "task0001", taskResource)

@@ -158,21 +158,9 @@ func (ss *KubernetesShim) registerShimLayer() error {
 func (ss *KubernetesShim) schedule() {
 	apps := ss.context.GetAllApplications()
 	for _, app := range apps {
-		// Clean up terminal failed apps for shim side
-		// 1. When we reject an app, we set the app state to Rejected, and immediately set it to Failed, but we don't clean up the app.
-		// 2. When we failed an app, we set the app state to Failed, but we don't clean up the app.
-		// 3. The completed app already handled by UpdateApplication function.
-		//    case cache.ApplicationStates().Completed:
-		//		callback.context.RemoveApplicationInternal(updated.ApplicationID)
-		// 4. The killed status is not used until now, so we don't need to handle it.
 		if app.GetApplicationState() == cache.ApplicationStates().Failed {
-			if app.IsAllTasksTerminated() {
-				log.Log(log.ShimScheduler).Info("Clean up failed application",
-					zap.String("appID", app.GetApplicationID()))
+			if app.AreAllTasksTerminated() {
 				ss.context.RemoveApplicationInternal(app.GetApplicationID())
-			} else {
-				log.Log(log.ShimScheduler).Info("Failed application is not cleaned up due to not all tasks terminated, wait for next scheduling iteration",
-					zap.String("appID", app.GetApplicationID()))
 			}
 			continue
 		}

@@ -320,7 +320,7 @@ func (app *Application) getNonTerminatedTaskAlias() []string {
 	return nonTerminatedTaskAlias
 }
 
-func (app *Application) IsAllTasksTerminated() bool {
+func (app *Application) AreAllTasksTerminated() bool {
 	return len(app.getNonTerminatedTaskAlias()) == 0
 }
 
