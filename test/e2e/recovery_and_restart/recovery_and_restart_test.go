@@ -20,6 +20,7 @@ package recoveryandrestart_test
 
 import (
 	"fmt"
+	"runtime"
 	"strings"
 	"time"
 
@@ -28,6 +29,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	tests "github.com/apache/yunikorn-k8shim/test/e2e"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
@@ -45,6 +47,7 @@ const (
 	taintKey             = "e2e_test"
 )
 
+var suiteName string
 var kClient k8s.KubeCtl
 var restClient yunikorn.RClient
 var oldConfigMap = new(v1.ConfigMap)
@@ -57,6 +60,8 @@ var sleepPodConfigs = k8s.SleepPodConfig{Name: "sleepjob", NS: dev}
 var sleepPod2Configs = k8s.SleepPodConfig{Name: "sleepjob2", NS: dev}
 
 var _ = ginkgo.BeforeSuite(func() {
+	_, filename, _, _ := runtime.Caller(0)
+	suiteName = common.GetSuiteName(filename)
 	// Initializing kubectl client
 	kClient = k8s.KubeCtl{}
 	Ω(kClient.SetClient()).To(gomega.BeNil())
@@ -359,6 +364,10 @@ var _ = ginkgo.Describe("", func() {
 		ginkgo.By("Waiting for placeholder replacement & sleep pods to finish")
 		err = kClient.WaitForJobPodsSucceeded(dev, job.Name, 1, 60*time.Second)
 		Ω(err).NotTo(gomega.HaveOccurred())
+	})
+
+	ginkgo.AfterEach(func() {
+		tests.DumpClusterInfoIfSpecFailed(suiteName, []string{dev})
 	})
 })
 

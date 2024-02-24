@@ -21,6 +21,7 @@ package admission_controller_test
 import (
 	"fmt"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -45,6 +46,7 @@ func init() {
 
 const appName = "sleep"
 
+var suiteName string
 var kubeClient k8s.KubeCtl
 var ns string
 var bypassNs = "kube-system"
@@ -188,6 +190,8 @@ func TestAdmissionController(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
+	_, filename, _, _ := runtime.Caller(0)
+	suiteName = common.GetSuiteName(filename)
 	restClient = yunikorn.RClient{}
 
 	kubeClient = k8s.KubeCtl{}

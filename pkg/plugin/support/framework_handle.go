@@ -27,6 +27,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/events"
+	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	"k8s.io/kubernetes/pkg/scheduler/framework/parallelize"
 
@@ -58,7 +59,7 @@ func (p frameworkHandle) Parallelizer() parallelize.Parallelizer {
 
 // PodNominator stubs
 
-func (p frameworkHandle) AddNominatedPod(pod *framework.PodInfo, nominatingInfo *framework.NominatingInfo) {
+func (p frameworkHandle) AddNominatedPod(logger klog.Logger, pod *framework.PodInfo, nominatingInfo *framework.NominatingInfo) {
 	log.Log(log.ShimFramework).Fatal("BUG: Should not be used by plugins")
 }
 
@@ -66,7 +67,7 @@ func (p frameworkHandle) DeleteNominatedPodIfExists(pod *v1.Pod) {
 	log.Log(log.ShimFramework).Fatal("BUG: Should not be used by plugins")
 }
 
-func (p frameworkHandle) UpdateNominatedPod(oldPod *v1.Pod, newPodInfo *framework.PodInfo) {
+func (p frameworkHandle) UpdateNominatedPod(logger klog.Logger, oldPod *v1.Pod, newPodInfo *framework.PodInfo) {
 	log.Log(log.ShimFramework).Fatal("BUG: Should not be used by plugins")
 }
 

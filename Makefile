@@ -21,7 +21,6 @@ GO := go
 endif
 
 GO_EXE_PATH := $(shell "$(GO)" env GOROOT)/bin
-export PATH := $(GO_EXE_PATH):$(PATH)
 
 # Check if this GO tools version used is at least the version of go specified in
 # the go.mod file. The version in go.mod should be in sync with other repos.
@@ -59,8 +58,34 @@ TEST_SERVER_BINARY=web-test-server
 TOOLS_DIR=tools
 REPO=github.com/apache/yunikorn-k8shim/pkg
 
+# PATH
+export PATH := $(BASE_DIR)/$(TOOLS_DIR):$(GO_EXE_PATH):$(PATH)
+
+# Default values for dev cluster
+ifeq ($(K8S_VERSION),)
+K8S_VERSION := v1.29.1
+endif
+ifeq ($(CLUSTER_NAME),)
+CLUSTER_NAME := yk8s
+endif
+ifeq ($(PLUGIN),1)
+  PLUGIN_OPTS := --plugin
+else
+  PLUGIN_OPTS := 
+endif
+
+# Build date - Use git commit, then cached build.date, finally current date
+# This allows for reproducible builds as long as release tarball contains the build.date file.
+DATE := $(shell if [ -d "$(BASE_DIR)/.git" ]; then TZ=UTC0 git --no-pager log -1 --date=iso8601-strict-local --format=%cd 2>/dev/null ; fi || true)
+ifeq ($(DATE),)
+DATE := $(shell cat "$(BASE_DIR)/build.date" 2>/dev/null || true)
+endif
+ifeq ($(DATE),)
+DATE := $(shell date +%FT%T%z)
+endif
+DATE := $(shell echo "$(DATE)" > "$(BASE_DIR)/build.date" ; cat "$(BASE_DIR)/build.date")
+
 # Version parameters
-DATE=$(shell date +%FT%T%z)
 ifeq ($(VERSION),)
 VERSION := latest
 endif
@@ -137,6 +162,10 @@ export SPARK_HOME=$(BASE_DIR)$(TOOLS_DIR)/spark
 export SPARK_SUBMIT_CMD=$(SPARK_HOME)/bin/spark-submit
 export SPARK_PYTHON_IMAGE=docker.io/apache/spark-py:v$(SPARK_PYTHON_VERSION)
 
+# go-licenses
+GO_LICENSES_VERSION=v1.6.0
+GO_LICENSES_BIN=$(TOOLS_DIR)/go-licenses
+
 FLAG_PREFIX=github.com/apache/yunikorn-k8shim/pkg/conf
 
 # Image hashes
@@ -182,7 +211,7 @@ conf/scheduler-config-local.yaml: conf/scheduler-config.yaml
 
 # Install tools
 .PHONY: tools
-tools: $(SHELLCHECK_BIN) $(GOLANGCI_LINT_BIN) $(KUBECTL_BIN) $(KIND_BIN) $(HELM_BIN) $(SPARK_SUBMIT_CMD)
+tools: $(SHELLCHECK_BIN) $(GOLANGCI_LINT_BIN) $(KUBECTL_BIN) $(KIND_BIN) $(HELM_BIN) $(SPARK_SUBMIT_CMD) $(GO_LICENSES_BIN)
 
 # Install shellcheck
 $(SHELLCHECK_BIN):
@@ -230,6 +259,12 @@ $(SPARK_SUBMIT_CMD):
 		| tar -x -z --strip-components=1 -C "$(SPARK_HOME).tmp" 
 	@mv -f "$(SPARK_HOME).tmp" "$(SPARK_HOME)"
 
+# Install go-licenses
+$(GO_LICENSES_BIN):
+	@echo "installing go-licenses $(GO_LICENSES_VERSION)"
+	@mkdir -p "$(TOOLS_DIR)"
+	@GOBIN="$(BASE_DIR)/$(TOOLS_DIR)" "$(GO)" install "github.com/google/go-licenses@$(GO_LICENSES_VERSION)"
+
 # Run lint against the previous commit for PR and branch build
 # In dev setup look at all changes on top of master
 .PHONY: lint
@@ -265,6 +300,30 @@ endif
 		exit 1; \
 	fi
 	@echo "  all OK"
+
+# Check licenses of go dependencies
+.PHONY: go-license-check
+go-license-check: $(GO_LICENSES_BIN)
+	@echo "Checking third-party licenses"
+	@"$(GO_LICENSES_BIN)" check ./pkg/... ./test/... --include_tests --disallowed_types=forbidden,permissive,reciprocal,restricted,unknown
+	@echo "License checks OK"
+
+# Generate third-party dependency licenses
+.PHONY: go-license-generate
+go-license-generate: $(OUTPUT)/third-party-licenses.md
+
+$(OUTPUT)/third-party-licenses.md: $(GO_LICENSES_BIN) go.mod go.sum
+	@echo "Generating third-party licenses file"
+	@mkdir -p "$(OUTPUT)"
+	@rm -f "$(OUTPUT)/third-party-licenses.md"
+	@"$(GO_LICENSES_BIN)" \
+		report ./pkg/... \
+		--template=./scripts/third-party-licences.md.tpl \
+		--ignore github.com/apache/yunikorn-k8shim \
+		--ignore github.com/apache/yunikorn-core \
+		--ignore github.com/apache/yunikorn-scheduler-interface \
+		> "$(OUTPUT)/third-party-licenses.md.tmp"
+	@mv "$(OUTPUT)/third-party-licenses.md.tmp" "$(OUTPUT)/third-party-licenses.md"
 
 # Check that we use pseudo versions in master
 .PHONY: pseudo
@@ -311,7 +370,7 @@ $(DEV_BIN_DIR)/$(SCHEDULER_BINARY): go.mod go.sum $(shell find pkg)
 	"$(GO)" build \
 	-o=${DEV_BIN_DIR}/${SCHEDULER_BINARY} \
 	-race \
-	-ldflags '-X ${FLAG_PREFIX}.buildVersion=${VERSION} -X ${FLAG_PREFIX}.buildDate=${DATE} -X ${FLAG_PREFIX}.isPluginVersion=false -X ${FLAG_PREFIX}.goVersion=${GO_VERSION} -X ${FLAG_PREFIX}.arch=${EXEC_ARCH} -X ${FLAG_PREFIX}.coreSHA=${CORE_SHA} -X ${FLAG_PREFIX}.siSHA=${SI_SHA} -X ${FLAG_PREFIX}.shimSHA=${SHIM_SHA}' \
+	-ldflags '-buildid= -X ${FLAG_PREFIX}.buildVersion=${VERSION} -X ${FLAG_PREFIX}.buildDate=${DATE} -X ${FLAG_PREFIX}.isPluginVersion=false -X ${FLAG_PREFIX}.goVersion=${GO_VERSION} -X ${FLAG_PREFIX}.arch=${EXEC_ARCH} -X ${FLAG_PREFIX}.coreSHA=${CORE_SHA} -X ${FLAG_PREFIX}.siSHA=${SI_SHA} -X ${FLAG_PREFIX}.shimSHA=${SHIM_SHA}' \
 	./pkg/cmd/shim/
 
 .PHONY: build_plugin
@@ -323,7 +382,7 @@ $(DEV_BIN_DIR)/$(PLUGIN_BINARY): go.mod go.sum $(shell find pkg)
 	"$(GO)" build \
 	-o=${DEV_BIN_DIR}/${PLUGIN_BINARY} \
 	-race \
-	-ldflags '-X ${FLAG_PREFIX}.buildVersion=${VERSION} -X ${FLAG_PREFIX}.buildDate=${DATE} -X ${FLAG_PREFIX}.isPluginVersion=true -X ${FLAG_PREFIX}.goVersion=${GO_VERSION} -X ${FLAG_PREFIX}.arch=${EXEC_ARCH} -X ${FLAG_PREFIX}.coreSHA=${CORE_SHA} -X ${FLAG_PREFIX}.siSHA=${SI_SHA} -X ${FLAG_PREFIX}.shimSHA=${SHIM_SHA}' \
+	-ldflags '-buildid= -X ${FLAG_PREFIX}.buildVersion=${VERSION} -X ${FLAG_PREFIX}.buildDate=${DATE} -X ${FLAG_PREFIX}.isPluginVersion=true -X ${FLAG_PREFIX}.goVersion=${GO_VERSION} -X ${FLAG_PREFIX}.arch=${EXEC_ARCH} -X ${FLAG_PREFIX}.coreSHA=${CORE_SHA} -X ${FLAG_PREFIX}.siSHA=${SI_SHA} -X ${FLAG_PREFIX}.shimSHA=${SHIM_SHA}' \
 	./pkg/cmd/schedulerplugin/
 
 # Build scheduler binary in a production ready version
@@ -337,7 +396,7 @@ $(RELEASE_BIN_DIR)/$(SCHEDULER_BINARY): go.mod go.sum $(shell find pkg)
 	-a \
 	-o=${RELEASE_BIN_DIR}/${SCHEDULER_BINARY} \
 	-trimpath \
-	-ldflags '-extldflags "-static" -X ${FLAG_PREFIX}.buildVersion=${VERSION} -X ${FLAG_PREFIX}.buildDate=${DATE} -X ${FLAG_PREFIX}.isPluginVersion=false -X ${FLAG_PREFIX}.goVersion=${GO_VERSION} -X ${FLAG_PREFIX}.arch=${EXEC_ARCH} -X ${FLAG_PREFIX}.coreSHA=${CORE_SHA} -X ${FLAG_PREFIX}.siSHA=${SI_SHA} -X ${FLAG_PREFIX}.shimSHA=${SHIM_SHA}' \
+	-ldflags '-buildid= -extldflags "-static" -X ${FLAG_PREFIX}.buildVersion=${VERSION} -X ${FLAG_PREFIX}.buildDate=${DATE} -X ${FLAG_PREFIX}.isPluginVersion=false -X ${FLAG_PREFIX}.goVersion=${GO_VERSION} -X ${FLAG_PREFIX}.arch=${EXEC_ARCH} -X ${FLAG_PREFIX}.coreSHA=${CORE_SHA} -X ${FLAG_PREFIX}.siSHA=${SI_SHA} -X ${FLAG_PREFIX}.shimSHA=${SHIM_SHA}' \
 	-tags netgo \
 	-installsuffix netgo \
 	./pkg/cmd/shim/
@@ -353,19 +412,20 @@ $(RELEASE_BIN_DIR)/$(PLUGIN_BINARY): go.mod go.sum $(shell find pkg)
 	-a \
 	-o=${RELEASE_BIN_DIR}/${PLUGIN_BINARY} \
 	-trimpath \
-	-ldflags '-extldflags "-static" -X ${FLAG_PREFIX}.buildVersion=${VERSION} -X ${FLAG_PREFIX}.buildDate=${DATE} -X ${FLAG_PREFIX}.isPluginVersion=true -X ${FLAG_PREFIX}.goVersion=${GO_VERSION} -X ${FLAG_PREFIX}.arch=${EXEC_ARCH} -X ${FLAG_PREFIX}.coreSHA=${CORE_SHA} -X ${FLAG_PREFIX}.siSHA=${SI_SHA} -X ${FLAG_PREFIX}.shimSHA=${SHIM_SHA}' \
+	-ldflags '-buildid= -extldflags "-static" -X ${FLAG_PREFIX}.buildVersion=${VERSION} -X ${FLAG_PREFIX}.buildDate=${DATE} -X ${FLAG_PREFIX}.isPluginVersion=true -X ${FLAG_PREFIX}.goVersion=${GO_VERSION} -X ${FLAG_PREFIX}.arch=${EXEC_ARCH} -X ${FLAG_PREFIX}.coreSHA=${CORE_SHA} -X ${FLAG_PREFIX}.siSHA=${SI_SHA} -X ${FLAG_PREFIX}.shimSHA=${SHIM_SHA}' \
 	-tags netgo \
 	-installsuffix netgo \
 	./pkg/cmd/schedulerplugin/
 	
 # Build a scheduler image based on the production ready version
 .PHONY: sched_image
-sched_image: scheduler docker/scheduler
+sched_image: $(OUTPUT)/third-party-licenses.md scheduler docker/scheduler
 	@echo "building scheduler docker image"
 	@rm -rf "$(DOCKER_DIR)/scheduler"
 	@mkdir -p "$(DOCKER_DIR)/scheduler"
 	@cp -a "docker/scheduler/." "$(DOCKER_DIR)/scheduler/."
 	@cp "$(RELEASE_BIN_DIR)/$(SCHEDULER_BINARY)" "$(DOCKER_DIR)/scheduler/."
+	@cp -a LICENSE NOTICE "$(OUTPUT)/third-party-licenses.md" "$(DOCKER_DIR)/scheduler/."
 	DOCKER_BUILDKIT=1 docker build \
 	"$(DOCKER_DIR)/scheduler" \
 	-t "$(SCHEDULER_TAG)" \
@@ -379,12 +439,13 @@ sched_image: scheduler docker/scheduler
 
 # Build a plugin image based on the production ready version
 .PHONY: plugin_image
-plugin_image: plugin docker/plugin conf/scheduler-config.yaml
+plugin_image: $(OUTPUT)/third-party-licenses.md plugin docker/plugin conf/scheduler-config.yaml
 	@echo "building plugin docker image"
 	@rm -rf "$(DOCKER_DIR)/plugin"
 	@mkdir -p "$(DOCKER_DIR)/plugin"
 	@cp -a "docker/plugin/." "$(DOCKER_DIR)/plugin/."
 	@cp "$(RELEASE_BIN_DIR)/$(PLUGIN_BINARY)" "$(DOCKER_DIR)/plugin/."
+	@cp -a LICENSE NOTICE "$(OUTPUT)/third-party-licenses.md" "$(DOCKER_DIR)/plugin/."
 	@cp conf/scheduler-config.yaml "$(DOCKER_DIR)/plugin/scheduler-config.yaml"
 	DOCKER_BUILDKIT=1 docker build \
 	"$(DOCKER_DIR)/plugin" \
@@ -408,19 +469,20 @@ $(RELEASE_BIN_DIR)/$(ADMISSION_CONTROLLER_BINARY): go.mod go.sum $(shell find pk
 	-a \
 	-o=$(RELEASE_BIN_DIR)/$(ADMISSION_CONTROLLER_BINARY) \
 	-trimpath \
-	-ldflags '-extldflags "-static" -X ${FLAG_PREFIX}.buildVersion=${VERSION} -X ${FLAG_PREFIX}.buildDate=${DATE} -X ${FLAG_PREFIX}.goVersion=${GO_VERSION} -X ${FLAG_PREFIX}.arch=${EXEC_ARCH}' \
+	-ldflags '-buildid= -extldflags "-static" -X ${FLAG_PREFIX}.buildVersion=${VERSION} -X ${FLAG_PREFIX}.buildDate=${DATE} -X ${FLAG_PREFIX}.goVersion=${GO_VERSION} -X ${FLAG_PREFIX}.arch=${EXEC_ARCH}' \
 	-tags netgo \
 	-installsuffix netgo \
 	./pkg/cmd/admissioncontroller
 
 # Build an admission controller image based on the production ready version
 .PHONY: adm_image
-adm_image: admission docker/admission
+adm_image: $(OUTPUT)/third-party-licenses.md admission docker/admission
 	@echo "building admission controller docker image"
 	@rm -rf "$(DOCKER_DIR)/admission"
 	@mkdir -p "$(DOCKER_DIR)/admission"
 	@cp -a "docker/admission/." "$(DOCKER_DIR)/admission/."
 	@cp "$(RELEASE_BIN_DIR)/$(ADMISSION_CONTROLLER_BINARY)" "$(DOCKER_DIR)/admission/."
+	@cp -a LICENSE NOTICE "$(OUTPUT)/third-party-licenses.md" "$(DOCKER_DIR)/admission/."
 	DOCKER_BUILDKIT=1 docker build \
 	"$(DOCKER_DIR)/admission" \
 	-t "$(ADMISSION_TAG)" \
@@ -438,12 +500,13 @@ image: sched_image plugin_image adm_image
 
 # Build a web server image ONLY to be used in e2e tests
 .PHONY: webtest_image
-webtest_image: build_web_test_server_prod docker/webtest
+webtest_image: $(OUTPUT)/third-party-licenses.md build_web_test_server_prod docker/webtest
 	@echo "building web server image for automated e2e tests"
 	@rm -rf "$(DOCKER_DIR)/webtest"
 	@mkdir -p "$(DOCKER_DIR)/webtest"
 	@cp -a "docker/webtest/." "$(DOCKER_DIR)/webtest/."
 	@cp "$(RELEASE_BIN_DIR)/$(TEST_SERVER_BINARY)" "$(DOCKER_DIR)/webtest/."
+	@cp -a LICENSE NOTICE "$(OUTPUT)/third-party-licenses.md" "$(DOCKER_DIR)/webtest/."
 	DOCKER_BUILDKIT=1 docker build \
 	"$(DOCKER_DIR)/webtest" \
 	-t "${REGISTRY}/yunikorn:webtest-${DOCKER_ARCH}-${VERSION}" \
@@ -458,7 +521,7 @@ $(DEV_BIN_DIR)/$(TEST_SERVER_BINARY): go.mod go.sum $(shell find pkg)
 	"$(GO)" build \
 	-o="$(DEV_BIN_DIR)/$(TEST_SERVER_BINARY)" \
 	-race \
-	-ldflags '-X main.version=${VERSION} -X main.date=${DATE} -X main.goVersion=${GO_VERSION} -X main.arch=${EXEC_ARCH}' \
+	-ldflags '-buildid= -X main.version=${VERSION} -X main.date=${DATE} -X main.goVersion=${GO_VERSION} -X main.arch=${EXEC_ARCH}' \
 	./pkg/cmd/webtest/
 
 .PHONY: build_web_test_server_prod
@@ -469,7 +532,7 @@ $(RELEASE_BIN_DIR)/$(TEST_SERVER_BINARY): go.mod go.sum $(shell find pkg)
 	CGO_ENABLED=0 GOOS=linux GOARCH="${EXEC_ARCH}" "$(GO)" build \
 	-a \
 	-o="$(RELEASE_BIN_DIR)/$(TEST_SERVER_BINARY)" \
-	-ldflags '-extldflags "-static" -X main.version=${VERSION} -X main.date=${DATE} -X main.goVersion=${GO_VERSION} -X main.arch=${EXEC_ARCH}' \
+	-ldflags '-buildid= -extldflags "-static" -X main.version=${VERSION} -X main.date=${DATE} -X main.goVersion=${GO_VERSION} -X main.arch=${EXEC_ARCH}' \
 	-tags netgo \
 	-installsuffix netgo \
 	./pkg/cmd/webtest/
@@ -517,6 +580,15 @@ distclean: clean
 arch:
 	@echo DOCKER_ARCH=$(DOCKER_ARCH)
 	@echo EXEC_ARCH=$(EXEC_ARCH)
+
+# Start dev cluster
+start-cluster: $(KIND_BIN)
+	@"$(KIND_BIN)" delete cluster --name="$(CLUSTER_NAME)" || :
+	@./scripts/run-e2e-tests.sh -a install -n "$(CLUSTER_NAME)" -v "kindest/node:$(K8S_VERSION)" $(PLUGIN_OPTS)
+
+# Stop dev cluster
+stop-cluster: $(KIND_BIN)
+	@"$(KIND_BIN)" delete cluster --name="$(CLUSTER_NAME)"
 
 # Run the e2e tests, this assumes yunikorn is running under yunikorn namespace
 .PHONY: e2e_test

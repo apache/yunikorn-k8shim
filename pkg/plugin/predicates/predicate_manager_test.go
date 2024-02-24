@@ -31,6 +31,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/klog/v2"
 	v1helper "k8s.io/kubernetes/pkg/apis/core/v1/helper"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/interpodaffinity"
@@ -138,12 +139,21 @@ func TestEventsToRegister(t *testing.T) {
 	ep := enabledPlugins(nodename.Name, interpodaffinity.Name, podtopologyspread.Name)
 	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
 
-	events := predicateManager.EventsToRegister()
-	assert.Equal(t, 2, len(events), "wrong event count")
-	assert.Equal(t, events[0].Resource, framework.Node, "wrong resource (0)")
-	assert.Equal(t, events[0].ActionType, framework.All, "wrong action type (0)")
-	assert.Equal(t, events[1].Resource, framework.Pod, "wrong resource (1)")
-	assert.Equal(t, events[1].ActionType, framework.All, "wrong action type (1)")
+	var queueingHintFn framework.QueueingHintFn = func(logger klog.Logger, pod *v1.Pod, oldObj, newObj interface{}) (framework.QueueingHint, error) {
+		// illegal sentinel to ensure we called the correct function
+		return -1, nil
+	}
+	events := predicateManager.EventsToRegister(queueingHintFn)
+	assert.Equal(t, events[0].Event.Resource, framework.Node, "wrong resource (0)")
+	assert.Equal(t, events[0].Event.ActionType, framework.All, "wrong action type (0)")
+	fn0, err := events[0].QueueingHintFn(klog.NewKlogr(), nil, "", "")
+	assert.NilError(t, err)
+	assert.Equal(t, int(fn0), -1, "wrong fn (0)")
+	assert.Equal(t, events[1].Event.Resource, framework.Pod, "wrong resource (1)")
+	assert.Equal(t, events[1].Event.ActionType, framework.All, "wrong action type (1)")
+	fn1, err := events[1].QueueingHintFn(klog.NewKlogr(), nil, "", "")
+	assert.NilError(t, err)
+	assert.Equal(t, int(fn1), -1, "wrong fn (1)")
 }
 
 func TestPodFitsHost(t *testing.T) {

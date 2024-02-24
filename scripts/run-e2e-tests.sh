@@ -108,7 +108,7 @@ function install_cluster() {
 
   # install ginkgo and gomega for e2e tests.
   echo "step 4/7: installing Ginkgo & Gomega at $("${GO}" env GOPATH)/bin"
-  "${GO}" install github.com/onsi/ginkgo/v2/ginkgo@v2.9.1
+  "${GO}" install github.com/onsi/ginkgo/v2/ginkgo
   check_cmd "ginkgo"
 
   # create K8s cluster

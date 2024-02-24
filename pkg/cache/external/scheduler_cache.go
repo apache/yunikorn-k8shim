@@ -21,6 +21,7 @@ package external
 import (
 	"fmt"
 	"sync"
+	"sync/atomic"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -28,6 +29,7 @@ import (
 	schedulingv1 "k8s.io/api/scheduling/v1"
 	storageV1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
 	"github.com/apache/yunikorn-k8shim/pkg/client"
@@ -61,19 +63,28 @@ type SchedulerCache struct {
 	nodeOccupied          map[string]*si.Resource        // node name to node occupied resources
 	podsMap               map[string]*v1.Pod
 	pcMap                 map[string]*schedulingv1.PriorityClass
-	assignedPods          map[string]string  // map of pods to the node they are currently assigned to
-	assumedPods           map[string]bool    // map of assumed pods, value indicates if pod volumes are all bound
-	orphanedPods          map[string]*v1.Pod // map of orphaned pods, keyed by pod UID
-	pendingAllocations    map[string]string  // map of pod to node ID, presence indicates a pending allocation for scheduler
-	inProgressAllocations map[string]string  // map of pod to node ID, presence indicates an in-process allocation for scheduler
+	assignedPods          map[string]string      // map of pods to the node they are currently assigned to
+	assumedPods           map[string]bool        // map of assumed pods, value indicates if pod volumes are all bound
+	orphanedPods          map[string]*v1.Pod     // map of orphaned pods, keyed by pod UID
+	pendingAllocations    map[string]string      // map of pod to node ID, presence indicates a pending allocation for scheduler
+	inProgressAllocations map[string]string      // map of pod to node ID, presence indicates an in-process allocation for scheduler
+	schedulingTasks       map[string]interface{} // list of task IDs which are currently being processed by the scheduler
 	pvcRefCounts          map[string]map[string]int
 	lock                  sync.RWMutex
 	clients               *client.Clients // client APIs
+	klogger               klog.Logger
 
 	// cached data, re-calculated on demand from nodesMap
 	nodesInfo                        []*framework.NodeInfo
 	nodesInfoPodsWithAffinity        []*framework.NodeInfo
 	nodesInfoPodsWithReqAntiAffinity []*framework.NodeInfo
+
+	// task bloom filter, recomputed whenever task scheduling state changes
+	taskBloomFilterRef atomic.Pointer[taskBloomFilter]
+}
+
+type taskBloomFilter struct {
+	data [4][256]bool
 }
 
 func NewSchedulerCache(clients *client.Clients) *SchedulerCache {
@@ -88,9 +99,12 @@ func NewSchedulerCache(clients *client.Clients) *SchedulerCache {
 		orphanedPods:          make(map[string]*v1.Pod),
 		pendingAllocations:    make(map[string]string),
 		inProgressAllocations: make(map[string]string),
+		schedulingTasks:       make(map[string]interface{}),
 		pvcRefCounts:          make(map[string]map[string]int),
 		clients:               clients,
+		klogger:               klog.NewKlogr(),
 	}
+	cache.taskBloomFilterRef.Store(&taskBloomFilter{})
 	return cache
 }
 
@@ -358,6 +372,24 @@ func (cache *SchedulerCache) removePriorityClass(priorityClass *schedulingv1.Pri
 	delete(cache.pcMap, priorityClass.Name)
 }
 
+// NotifyTaskSchedulerAction registers the fact that a task has been evaluated for scheduling, and consequently the
+// scheduler plugin should move it to the activeQ if requested to do so.
+func (cache *SchedulerCache) NotifyTaskSchedulerAction(taskID string) {
+	cache.lock.Lock()
+	defer cache.lock.Unlock()
+	// verify that the pod exists in the cache, otherwise ignore
+	if _, ok := cache.GetPodNoLock(taskID); !ok {
+		return
+	}
+	cache.addSchedulingTask(taskID)
+}
+
+// IsTaskMaybeSchedulable returns true if a task might be currently able to be scheduled. This uses a bloom filter
+// cached from a set of taskIDs to perform efficient negative lookups.
+func (cache *SchedulerCache) IsTaskMaybeSchedulable(taskID string) bool {
+	return cache.taskBloomFilterRef.Load().isTaskMaybePresent(taskID)
+}
+
 // AddPendingPodAllocation is used to add a new pod -> node mapping to the cache when running in scheduler plugin mode.
 // This function is called (in plugin mode) after a task is allocated by the YuniKorn scheduler.
 func (cache *SchedulerCache) AddPendingPodAllocation(podKey string, nodeID string) {
@@ -451,7 +483,7 @@ func (cache *SchedulerCache) updatePod(pod *v1.Pod) bool {
 		if ok {
 			nodeInfo, ok := cache.nodesMap[nodeName]
 			if ok {
-				if err := nodeInfo.RemovePod(currState); err != nil {
+				if err := nodeInfo.RemovePod(cache.klogger, currState); err != nil {
 					log.Log(log.ShimCacheExternal).Warn("BUG: Failed to remove pod from node",
 						zap.String("podName", currState.Name),
 						zap.String("nodeName", nodeName),
@@ -478,6 +510,7 @@ func (cache *SchedulerCache) updatePod(pod *v1.Pod) bool {
 		delete(cache.assumedPods, key)
 		delete(cache.pendingAllocations, key)
 		delete(cache.inProgressAllocations, key)
+		cache.removeSchedulingTask(key)
 	}
 
 	if utils.IsAssignedPod(pod) && !utils.IsPodTerminated(pod) {
@@ -516,6 +549,7 @@ func (cache *SchedulerCache) updatePod(pod *v1.Pod) bool {
 		delete(cache.orphanedPods, key)
 		delete(cache.pendingAllocations, key)
 		delete(cache.inProgressAllocations, key)
+		cache.removeSchedulingTask(key)
 	}
 
 	return result
@@ -537,7 +571,7 @@ func (cache *SchedulerCache) removePod(pod *v1.Pod) {
 	if ok {
 		nodeInfo, ok := cache.nodesMap[nodeName]
 		if ok {
-			if err := nodeInfo.RemovePod(pod); err != nil {
+			if err := nodeInfo.RemovePod(cache.klogger, pod); err != nil {
 				log.Log(log.ShimCacheExternal).Warn("BUG: Failed to remove pod from node",
 					zap.String("podName", pod.Name),
 					zap.String("nodeName", nodeName),
@@ -552,8 +586,47 @@ func (cache *SchedulerCache) removePod(pod *v1.Pod) {
 	delete(cache.orphanedPods, key)
 	delete(cache.pendingAllocations, key)
 	delete(cache.inProgressAllocations, key)
+	cache.removeSchedulingTask(key)
 	cache.nodesInfoPodsWithAffinity = nil
 	cache.nodesInfoPodsWithReqAntiAffinity = nil
+}
+
+func (cache *SchedulerCache) removeSchedulingTask(taskID string) {
+	delete(cache.schedulingTasks, taskID)
+	filter := &taskBloomFilter{}
+	for taskID := range cache.schedulingTasks {
+		filter.addTask(taskID)
+	}
+	cache.taskBloomFilterRef.Store(filter)
+}
+
+func (cache *SchedulerCache) addSchedulingTask(taskID string) {
+	cache.schedulingTasks[taskID] = nil
+	filter := &taskBloomFilter{
+		data: cache.taskBloomFilterRef.Load().data,
+	}
+	filter.addTask(taskID)
+	cache.taskBloomFilterRef.Store(filter)
+}
+
+func (filter *taskBloomFilter) addTask(taskID string) {
+	limit := min(4, len(taskID))
+	for i := 0; i < limit; i++ {
+		filter.data[i][taskID[i]] = true
+	}
+}
+
+func (filter *taskBloomFilter) isTaskMaybePresent(taskID string) bool {
+	limit := len(taskID)
+	if limit > 4 {
+		limit = 4
+	}
+	for i := 0; i < limit; i++ {
+		if !filter.data[i][taskID[i]] {
+			return false
+		}
+	}
+	return true
 }
 
 func (cache *SchedulerCache) GetPod(uid string) (*v1.Pod, bool) {
@@ -619,6 +692,7 @@ func (cache *SchedulerCache) forgetPod(pod *v1.Pod) {
 	delete(cache.assumedPods, key)
 	delete(cache.pendingAllocations, key)
 	delete(cache.inProgressAllocations, key)
+	cache.removeSchedulingTask(key)
 }
 
 // Implement k8s.io/client-go/listers/core/v1#PodLister interface
@@ -676,6 +750,7 @@ func (cache *SchedulerCache) dumpState(context string) {
 			zap.Int("pendingAllocs", len(cache.pendingAllocations)),
 			zap.Int("inProgressAllocs", len(cache.inProgressAllocations)),
 			zap.Int("podsAssigned", cache.nodePodCount()),
+			zap.Int("schedulingTasks", len(cache.schedulingTasks)),
 			zap.Any("phases", cache.podPhases()))
 	}
 }

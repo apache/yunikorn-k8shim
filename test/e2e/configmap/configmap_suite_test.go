@@ -16,7 +16,7 @@
  limitations under the License.
 */
 
-package gangscheduling_test
+package configmap
 
 import (
 	"path/filepath"
@@ -26,7 +26,6 @@ import (
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/ginkgo/v2/reporters"
 	"github.com/onsi/gomega"
-	v1 "k8s.io/api/core/v1"
 
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
@@ -34,58 +33,60 @@ import (
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
 )
 
+var suiteName string
+
 func init() {
 	configmanager.YuniKornTestConfig.ParseFlags()
 }
 
-func TestGangScheduling(t *testing.T) {
-	ginkgo.ReportAfterSuite("TestGangScheduling", func(report ginkgo.Report) {
+func TestConfigMap(t *testing.T) {
+	ginkgo.ReportAfterSuite("TestConfigMap", func(report ginkgo.Report) {
 		err := common.CreateJUnitReportDir()
 		Ω(err).NotTo(gomega.HaveOccurred())
 		err = reporters.GenerateJUnitReportWithConfig(
 			report,
-			filepath.Join(configmanager.YuniKornTestConfig.LogDir, "TEST-gang_scheduling_junit.xml"),
+			filepath.Join(configmanager.YuniKornTestConfig.LogDir, "TEST-configmap_junit.xml"),
 			reporters.JunitReportConfig{OmitSpecLabels: true},
 		)
 		Ω(err).NotTo(HaveOccurred())
 	})
 	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "TestGangScheduling", ginkgo.Label("TestGangScheduling"))
+	ginkgo.RunSpecs(t, "TestConfigMap", ginkgo.Label("TestConfigMap"))
 }
 
-var suiteName string
-var oldConfigMap = new(v1.ConfigMap)
-var annotation = "ann-" + common.RandSeq(10)
-var kClient = k8s.KubeCtl{} //nolint
+var (
+	kClient    k8s.KubeCtl
+	restClient yunikorn.RClient
+)
 
 var _ = BeforeSuite(func() {
 	_, filename, _, _ := runtime.Caller(0)
 	suiteName = common.GetSuiteName(filename)
-	annotation = "ann-" + common.RandSeq(10)
+	kClient = k8s.KubeCtl{}
+	Ω(kClient.SetClient()).To(BeNil())
+
+	restClient = yunikorn.RClient{}
+	Ω(restClient).NotTo(BeNil())
+
 	yunikorn.EnsureYuniKornConfigsPresent()
-	yunikorn.UpdateConfigMapWrapper(oldConfigMap, "fifo", annotation)
+
+	By("Port-forward the scheduler pod")
+	err := kClient.PortForwardYkSchedulerPod()
+	Ω(err).NotTo(HaveOccurred())
 })
 
-var _ = AfterSuite(func() {
-	yunikorn.RestoreConfigMapWrapper(oldConfigMap, annotation)
-})
+var _ = AfterSuite(func() {})
 
-// Declarations for Ginkgo DSL
 var Describe = ginkgo.Describe
-
 var It = ginkgo.It
-var PIt = ginkgo.PIt
 var By = ginkgo.By
-var BeforeSuite = ginkgo.BeforeSuite
-var AfterSuite = ginkgo.AfterSuite
 var BeforeEach = ginkgo.BeforeEach
 var AfterEach = ginkgo.AfterEach
-var DescribeTable = ginkgo.Describe
-var Entry = ginkgo.Entry
+var BeforeSuite = ginkgo.BeforeSuite
+var AfterSuite = ginkgo.AfterSuite
 
 // Declarations for Gomega Matchers
 var Equal = gomega.Equal
-var BeNumerically = gomega.BeNumerically
 var Ω = gomega.Expect
 var BeNil = gomega.BeNil
 var HaveOccurred = gomega.HaveOccurred

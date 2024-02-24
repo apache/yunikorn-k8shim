@@ -21,7 +21,6 @@ package utils
 import (
 	"bytes"
 	"compress/gzip"
-	"encoding/base64"
 	"fmt"
 	"strings"
 	"testing"
@@ -546,6 +545,14 @@ func TestGetApplicationIDFromPod(t *testing.T) {
 			},
 			Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
 		}, "testns-podUid", "", true},
+		{"Unique autogen token found with generateUnique", &v1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "testns",
+				UID:       "podUid",
+				Labels:    map[string]string{constants.LabelApplicationID: "testns-uniqueautogen"},
+			},
+			Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
+		}, "testns-podUid", "testns-podUid", true},
 		{"Non-yunikorn schedulerName", &v1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{constants.LabelApplicationID: appIDInLabel},
@@ -644,6 +651,9 @@ func TestGenerateApplicationID(t *testing.T) {
 
 	assert.Equal(t, "longlonglonglonglonglonglo-pod-uid",
 		GenerateApplicationID(strings.Repeat("long", 100), true, "pod-uid"))
+
+	assert.Equal(t, "namespace-uniqueautogen",
+		GenerateApplicationID("namespace", true, ""))
 }
 
 func TestMergeMaps(t *testing.T) {
@@ -1059,11 +1069,9 @@ func TestGzipCompressedConfigMap(t *testing.T) {
 	if err := gzWriter.Close(); err != nil {
 		t.Fatal("expected nil, got error")
 	}
-	encodedConfigString := make([]byte, base64.StdEncoding.EncodedLen(len(b.Bytes())))
-	base64.StdEncoding.Encode(encodedConfigString, b.Bytes())
 	confMap := conf.FlattenConfigMaps([]*v1.ConfigMap{
 		{Data: map[string]string{}},
-		{Data: map[string]string{conf.CMSvcClusterID: "new"}, BinaryData: map[string][]byte{"queues.yaml.gz": encodedConfigString}},
+		{Data: map[string]string{conf.CMSvcClusterID: "new"}, BinaryData: map[string][]byte{"queues.yaml.gz": b.Bytes()}},
 	})
 	config := GetCoreSchedulerConfigFromConfigMap(confMap)
 	assert.Equal(t, configs.DefaultSchedulerConfig, config)

@@ -20,6 +20,7 @@ package predicates_test
 
 import (
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/onsi/ginkgo/v2"
@@ -36,10 +37,13 @@ func init() {
 	configmanager.YuniKornTestConfig.ParseFlags()
 }
 
+var suiteName string
 var oldConfigMap = new(v1.ConfigMap)
 var annotation string
 
 var _ = BeforeSuite(func() {
+	_, filename, _, _ := runtime.Caller(0)
+	suiteName = common.GetSuiteName(filename)
 	annotation = "ann-" + common.RandSeq(10)
 	yunikorn.EnsureYuniKornConfigsPresent()
 	yunikorn.UpdateConfigMapWrapper(oldConfigMap, "fifo", annotation)

@@ -89,20 +89,6 @@ func CreateJUnitReportDir() error {
 	return err
 }
 
-// CreateLogFile creates the ReportDirectory if it is not present, writes the
-// given testdata to the given filename.
-func CreateLogFile(filename string, data []byte) error {
-	path, err := CreateReportDirectory()
-	if err != nil {
-		fmt.Fprintf(ginkgo.GinkgoWriter, "ReportDirectory cannot be created: %v\n", err)
-		return err
-	}
-
-	finalPath := filepath.Join(path, filename)
-	err = os.WriteFile(finalPath, data, configmanager.LogPerm)
-	return err
-}
-
 func GetFileContents(filename string) ([]byte, error) {
 	data, err := os.ReadFile(filename)
 	return data, err
@@ -253,4 +239,54 @@ func RunShellCmdForeground(cmdStr string) (string, error) {
 	}
 
 	return stdOutStream.String(), nil
+}
+
+func CreateLogFile(suiteName string, specName string, logType string, extension string) (*os.File, error) {
+	filePath, err := getLogFilePath(suiteName, specName, logType, extension)
+	if err != nil {
+		return nil, err
+	}
+
+	dir := filepath.Dir(filePath)
+	if _, err = os.Stat(dir); os.IsNotExist(err) {
+		err = os.MkdirAll(dir, 0755)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	file, err := os.Create(filePath)
+	if err != nil {
+		return nil, err
+	}
+	fmt.Fprintf(ginkgo.GinkgoWriter, "Created log file: %s\n", filePath)
+	return file, nil
+}
+
+func getLogFilePath(suiteName string, specName string, logType string, extension string) (string, error) {
+	gitRoot, runErr := RunShellCmdForeground("git rev-parse --show-toplevel")
+	if runErr != nil {
+		return "", runErr
+	}
+	gitRoot = strings.TrimSpace(gitRoot)
+	suiteName = replaceInvalidFileChars(strings.TrimSpace(suiteName))
+	specName = replaceInvalidFileChars(strings.TrimSpace(specName))
+
+	dumpLogFilePath := filepath.Join(gitRoot, configmanager.LogPath, suiteName, fmt.Sprintf("%s_%s.%s", specName, logType, extension))
+	return dumpLogFilePath, nil
+}
+
+func replaceInvalidFileChars(str string) string {
+	// some charaters are not allowed in upload-artifact : https://github.com/actions/upload-artifact/issues/333
+	invalidChars := []string{"\"", ":", "<", ">", "|", "*", "?", "\r", "\n"}
+	for _, char := range invalidChars {
+		str = strings.ReplaceAll(str, char, "_")
+	}
+	return str
+}
+
+func GetSuiteName(testFilePath string) string {
+	dir := filepath.Dir(testFilePath)
+	suiteName := filepath.Base(dir)
+	return suiteName
 }

@@ -30,6 +30,7 @@ import (
 
 	amConf "github.com/apache/yunikorn-k8shim/pkg/admission/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
+	tests "github.com/apache/yunikorn-k8shim/test/e2e"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
@@ -448,6 +449,8 @@ var _ = ginkgo.Describe("AdmissionController", func() {
 	})
 
 	ginkgo.AfterEach(func() {
+		tests.DumpClusterInfoIfSpecFailed(suiteName, []string{ns})
+
 		ginkgo.By("Tear down namespace: " + ns)
 		err := kubeClient.TearDownNamespace(ns)
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())

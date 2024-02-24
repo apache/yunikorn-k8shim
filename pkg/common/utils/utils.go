@@ -41,6 +41,7 @@ import (
 )
 
 const userInfoKey = siCommon.DomainYuniKorn + "user.info"
+const uniqueAutogenSuffix = "-uniqueautogen"
 
 var pluginMode bool
 
@@ -118,7 +119,12 @@ func GetQueueNameFromPod(pod *v1.Pod) string {
 func GenerateApplicationID(namespace string, generateUniqueAppIds bool, podUID string) string {
 	var generatedID string
 	if generateUniqueAppIds {
-		generatedID = fmt.Sprintf("%.26s-%s", namespace, podUID)
+		if podUID == "" {
+			// we must be running in the admission controller and don't yet have a pod UID assigned
+			generatedID = fmt.Sprintf("%.26s%s", namespace, uniqueAutogenSuffix)
+		} else {
+			generatedID = fmt.Sprintf("%.26s-%s", namespace, podUID)
+		}
 	} else {
 		generatedID = fmt.Sprintf("%s-%s-%s", constants.AutoGenAppPrefix, namespace, constants.AutoGenAppSuffix)
 	}
@@ -149,21 +155,30 @@ func GetApplicationIDFromPod(pod *v1.Pod) string {
 	}
 
 	// Application ID can be defined in annotation
-	if value := GetPodAnnotationValue(pod, constants.AnnotationApplicationID); value != "" {
-		return value
+	appID := GetPodAnnotationValue(pod, constants.AnnotationApplicationID)
+	if appID == "" {
+		// Application ID can be defined in label
+		appID = GetPodLabelValue(pod, constants.LabelApplicationID)
 	}
-	// Application ID can be defined in label
-	if value := GetPodLabelValue(pod, constants.LabelApplicationID); value != "" {
-		return value
-	}
-	// Spark can also define application ID
-	if value := GetPodLabelValue(pod, constants.SparkLabelAppID); value != "" {
-		return value
+	if appID == "" {
+		// Spark can also define application ID
+		appID = GetPodLabelValue(pod, constants.SparkLabelAppID)
 	}
 
 	// If plugin mode, interpret missing Application ID as a non-YuniKorn pod
-	if pluginMode {
+	if pluginMode && appID == "" {
 		return ""
+	}
+
+	// does appID end with '-uniqueautogen'?
+	if strings.HasSuffix(appID, uniqueAutogenSuffix) {
+		// replace suffix with pod UID
+		appID = fmt.Sprintf("%s-%s", strings.TrimSuffix(appID, uniqueAutogenSuffix), string(pod.UID))
+	}
+
+	// if app ID is not empty, return it
+	if appID != "" {
+		return appID
 	}
 
 	// Standard deployment mode, so we need a valid Application ID to proceed. Generate one now.

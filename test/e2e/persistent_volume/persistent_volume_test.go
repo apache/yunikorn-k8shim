@@ -19,25 +19,25 @@
 package persistent_volume
 
 import (
+	"runtime"
 	"time"
 
+	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
-
-	"k8s.io/apimachinery/pkg/api/resource"
-
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	storagev1 "k8s.io/api/storage/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/onsi/ginkgo/v2"
-
+	tests "github.com/apache/yunikorn-k8shim/test/e2e"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
 )
 
+var suiteName string
 var kClient k8s.KubeCtl
 var restClient yunikorn.RClient
 var dev = "dev-" + common.RandSeq(5)
@@ -48,6 +48,8 @@ const (
 )
 
 var _ = ginkgo.BeforeSuite(func() {
+	_, filename, _, _ := runtime.Caller(0)
+	suiteName = common.GetSuiteName(filename)
 	// Initializing kubectl client
 	kClient = k8s.KubeCtl{}
 	Ω(kClient.SetClient()).To(gomega.BeNil())
@@ -176,6 +178,10 @@ var _ = ginkgo.Describe("PersistentVolume", func() {
 
 		deleteNfsRelatedRoles(saName, crName, crbName)
 		deleteNfsProvisioner(serverName, scName)
+	})
+
+	ginkgo.AfterEach(func() {
+		tests.DumpClusterInfoIfSpecFailed(suiteName, []string{"default"})
 	})
 })
 

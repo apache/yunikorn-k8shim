@@ -108,13 +108,10 @@ var _ = Describe("Predicates", func() {
 	})
 
 	AfterEach(func() {
+		tests.DumpClusterInfoIfSpecFailed(suiteName, []string{ns, anotherNS})
+
 		By("Cleanup")
 		for _, n := range []string{ns, anotherNS} {
-			testDescription := ginkgo.CurrentSpecReport()
-			if testDescription.Failed() {
-				tests.LogTestClusterInfoWrapper(testDescription.FailureMessage(), []string{n})
-				tests.LogYunikornContainer(testDescription.FailureMessage())
-			}
 			ginkgo.By("Tear down namespace: " + n)
 			err = kClient.TearDownNamespace(n)
 			Ω(err).NotTo(HaveOccurred())

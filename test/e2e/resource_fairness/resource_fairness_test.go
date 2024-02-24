@@ -193,11 +193,8 @@ var _ = Describe("FairScheduling:", func() {
 	})
 
 	AfterEach(func() {
-		testDescription := ginkgo.CurrentSpecReport()
-		if testDescription.Failed() {
-			tests.LogTestClusterInfoWrapper(testDescription.FailureMessage(), []string{ns})
-			tests.LogYunikornContainer(testDescription.FailureMessage())
-		}
+		tests.DumpClusterInfoIfSpecFailed(suiteName, []string{ns})
+
 		By("Tear down namespace: " + ns)
 		err := kClient.TearDownNamespace(ns)
 		Ω(err).NotTo(HaveOccurred())

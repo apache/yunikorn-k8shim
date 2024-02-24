@@ -18,16 +18,11 @@
 
 package configmanager
 
-import (
-	"os"
-)
-
 const (
 	TestResultsPath = "test_results/"
 
-	// LogPerm is the permission for files that are created by this framework
-	// that contain logs, outputs etc
-	LogPerm = os.FileMode(0666)
+	// LogPath is the path to store the dumped log files and should be equal to the artifact path set in pre-commit.yaml.
+	LogPath = "build/e2e/"
 
 	YKScheduler          = "yunikorn-scheduler"
 	YKSchedulerContainer = "yunikorn-scheduler-k8s"
@@ -44,12 +39,14 @@ const (
 	AppsPath          = "ws/v1/partition/%s/queue/%s/applications"
 	AppPath           = "ws/v1/partition/%s/queue/%s/application/%s"
 	CompletedAppsPath = "ws/v1/partition/%s/applications/completed"
+	ConfigPath        = "ws/v1/config"
 	ClustersPath      = "ws/v1/clusters"
 	NodesPath         = "ws/v1/partition/%s/nodes"
 	UserUsagePath     = "ws/v1/partition/%s/usage/user/%s"
 	GroupUsagePath    = "ws/v1/partition/%s/usage/group/%s"
 	HealthCheckPath   = "ws/v1/scheduler/healthcheck"
 	ValidateConfPath  = "ws/v1/validate-conf"
+	FullStateDumpPath = "ws/v1/fullstatedump"
 
 	// YuniKorn Service Details
 	DefaultYuniKornHost   = "localhost"

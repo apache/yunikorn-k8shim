@@ -87,6 +87,19 @@ func (c *RClient) do(req *http.Request, v interface{}) (*http.Response, error) {
 	return resp, err
 }
 
+func (c *RClient) getBody(req *http.Request) (string, error) {
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	return string(body), nil
+}
+
 func (c *RClient) GetQueues(partition string) (*dao.PartitionQueueDAOInfo, error) {
 	req, err := c.newRequest("GET", fmt.Sprintf(configmanager.QueuesPath, partition), nil)
 	if err != nil {
@@ -95,6 +108,16 @@ func (c *RClient) GetQueues(partition string) (*dao.PartitionQueueDAOInfo, error
 	var queues *dao.PartitionQueueDAOInfo
 	_, err = c.do(req, &queues)
 	return queues, err
+}
+
+func (c *RClient) GetConfig() (*dao.ConfigDAOInfo, error) {
+	req, err := c.newRequest("GET", configmanager.ConfigPath, nil)
+	if err != nil {
+		return nil, err
+	}
+	var config *dao.ConfigDAOInfo
+	_, err = c.do(req, &config)
+	return config, err
 }
 
 func (c *RClient) GetHealthCheck() (dao.SchedulerHealthDAOInfo, error) {
@@ -212,6 +235,16 @@ func (c *RClient) GetAllocationLog(partition string, queueName string, appID str
 		}
 	}
 	return nil, errors.New("allocation is empty")
+}
+
+func (c *RClient) GetFullStateDump() (string, error) {
+	req, err := c.newRequest("GET", configmanager.FullStateDumpPath, nil)
+	if err != nil {
+		return "", err
+	}
+
+	fullStateDump, err := c.getBody(req)
+	return fullStateDump, err
 }
 
 func (c *RClient) isAllocLogPresent(partition string, queueName string, appID string, podName string) wait.ConditionFunc {

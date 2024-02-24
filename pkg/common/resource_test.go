@@ -1,19 +1,19 @@
 /*
- Licensed to the Apache Software Foundation (ASF) under one
- or more contributor license agreements.  See the NOTICE file
- distributed with this work for additional information
- regarding copyright ownership.  The ASF licenses this file
- to you under the Apache License, Version 2.0 (the
- "License"); you may not use this file except in compliance
- with the License.  You may obtain a copy of the License at
+Licensed to the Apache Software Foundation (ASF) under one
+or more contributor license agreements.  See the NOTICE file
+distributed with this work for additional information
+regarding copyright ownership.  The ASF licenses this file
+to you under the Apache License, Version 2.0 (the
+"License"); you may not use this file except in compliance
+with the License.  You may obtain a copy of the License at
 
-     http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
- Unless required by applicable law or agreed to in writing, software
- distributed under the License is distributed on an "AS IS" BASIS,
- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- See the License for the specific language governing permissions and
- limitations under the License.
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
 */
 package common
 
@@ -279,6 +279,145 @@ func TestParsePodResource(t *testing.T) {
 	assert.Equal(t, res.Resources[siCommon.Memory].GetValue(), int64(10000000000))
 	assert.Equal(t, res.Resources[siCommon.CPU].GetValue(), int64(5120))
 	assert.Equal(t, res.Resources["nvidia.com/gpu"].GetValue(), int64(1))
+	assert.Equal(t, res.Resources["pods"].GetValue(), int64(1))
+}
+
+//nolint:funlen
+func TestGetPodResourcesWithInPlacePodVerticalScaling(t *testing.T) {
+	containers := make([]v1.Container, 0)
+
+	// container 01
+	c1Resources := make(map[v1.ResourceName]resource.Quantity)
+	c1Resources[v1.ResourceMemory] = resource.MustParse("500M")
+	c1Resources[v1.ResourceCPU] = resource.MustParse("1")
+	c1Resources["nvidia.com/gpu"] = resource.MustParse("1")
+	c1Allocated := make(map[v1.ResourceName]resource.Quantity)
+	c1Allocated[v1.ResourceMemory] = resource.MustParse("500M")
+	c1Allocated[v1.ResourceCPU] = resource.MustParse("1")
+	c1Allocated["nvidia.com/gpu"] = resource.MustParse("1")
+	containers = append(containers, v1.Container{
+		Name: "container-01",
+		Resources: v1.ResourceRequirements{
+			Requests: c1Resources,
+		},
+	})
+
+	// container 02
+	c2Resources := make(map[v1.ResourceName]resource.Quantity)
+	c2Resources[v1.ResourceMemory] = resource.MustParse("1024M")
+	c2Resources[v1.ResourceCPU] = resource.MustParse("2")
+	c2Resources["nvidia.com/gpu"] = resource.MustParse("4")
+	c2Allocated := make(map[v1.ResourceName]resource.Quantity)
+	c2Allocated[v1.ResourceMemory] = resource.MustParse("1024M")
+	c2Allocated[v1.ResourceCPU] = resource.MustParse("2")
+	c2Allocated["nvidia.com/gpu"] = resource.MustParse("4")
+	containers = append(containers, v1.Container{
+		Name: "container-02",
+		Resources: v1.ResourceRequirements{
+			Requests: c2Resources,
+		},
+	})
+
+	// pod
+	pod := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "pod-resource-test-00001",
+			UID:  "UID-00001",
+		},
+		Spec: v1.PodSpec{
+			Containers: containers,
+		},
+		Status: v1.PodStatus{
+			ContainerStatuses: nil,
+			Resize:            "",
+		},
+	}
+
+	// verify we get aggregated resource from containers
+	res := GetPodResource(pod)
+	assert.Equal(t, res.Resources[siCommon.Memory].GetValue(), int64(1524*1000*1000))
+	assert.Equal(t, res.Resources[siCommon.CPU].GetValue(), int64(3000))
+	assert.Equal(t, res.Resources["nvidia.com/gpu"].GetValue(), int64(5))
+	assert.Equal(t, res.Resources["pods"].GetValue(), int64(1))
+
+	// validate with empty ContainerStatuses
+	pod.Status.ContainerStatuses = []v1.ContainerStatus{}
+	res = GetPodResource(pod)
+	assert.Equal(t, res.Resources[siCommon.Memory].GetValue(), int64(1524*1000*1000))
+	assert.Equal(t, res.Resources[siCommon.CPU].GetValue(), int64(3000))
+	assert.Equal(t, res.Resources["nvidia.com/gpu"].GetValue(), int64(5))
+	assert.Equal(t, res.Resources["pods"].GetValue(), int64(1))
+
+	// validate with empty resources
+	pod.Status.ContainerStatuses = []v1.ContainerStatus{
+		{AllocatedResources: nil},
+		{AllocatedResources: nil},
+	}
+	res = GetPodResource(pod)
+	assert.Equal(t, res.Resources[siCommon.Memory].GetValue(), int64(1524*1000*1000))
+	assert.Equal(t, res.Resources[siCommon.CPU].GetValue(), int64(3000))
+	assert.Equal(t, res.Resources["nvidia.com/gpu"].GetValue(), int64(5))
+	assert.Equal(t, res.Resources["pods"].GetValue(), int64(1))
+
+	// simulate the pod moving to running state by setting assigned resources to the same values
+	pod.Status.ContainerStatuses = []v1.ContainerStatus{
+		{AllocatedResources: c1Allocated},
+		{AllocatedResources: c2Allocated},
+	}
+	res = GetPodResource(pod)
+	assert.Equal(t, res.Resources[siCommon.Memory].GetValue(), int64(1524*1000*1000))
+	assert.Equal(t, res.Resources[siCommon.CPU].GetValue(), int64(3000))
+	assert.Equal(t, res.Resources["nvidia.com/gpu"].GetValue(), int64(5))
+	assert.Equal(t, res.Resources["pods"].GetValue(), int64(1))
+
+	// simulate a completed pod resize upwards
+	c1Allocated[v1.ResourceMemory] = resource.MustParse("1000M")
+	c1Allocated[v1.ResourceCPU] = resource.MustParse("2")
+	c2Allocated[v1.ResourceMemory] = resource.MustParse("2048M")
+	c2Allocated[v1.ResourceCPU] = resource.MustParse("4")
+	pod.Status.ContainerStatuses = []v1.ContainerStatus{
+		{AllocatedResources: c1Allocated},
+		{AllocatedResources: c2Allocated},
+	}
+	res = GetPodResource(pod)
+	assert.Equal(t, res.Resources[siCommon.Memory].GetValue(), int64(3048*1000*1000))
+	assert.Equal(t, res.Resources[siCommon.CPU].GetValue(), int64(6000))
+	assert.Equal(t, res.Resources["nvidia.com/gpu"].GetValue(), int64(5))
+	assert.Equal(t, res.Resources["pods"].GetValue(), int64(1))
+
+	// simulate a completed pod resize downwards
+	c1Allocated[v1.ResourceMemory] = resource.MustParse("250M")
+	c1Allocated[v1.ResourceCPU] = resource.MustParse("500m")
+	c2Allocated[v1.ResourceMemory] = resource.MustParse("512M")
+	c2Allocated[v1.ResourceCPU] = resource.MustParse("1")
+	pod.Status.ContainerStatuses = []v1.ContainerStatus{
+		{AllocatedResources: c1Allocated},
+		{AllocatedResources: c2Allocated},
+	}
+	res = GetPodResource(pod)
+	assert.Equal(t, res.Resources[siCommon.Memory].GetValue(), int64(762*1000*1000))
+	assert.Equal(t, res.Resources[siCommon.CPU].GetValue(), int64(1500))
+	assert.Equal(t, res.Resources["nvidia.com/gpu"].GetValue(), int64(5))
+	assert.Equal(t, res.Resources["pods"].GetValue(), int64(1))
+
+	// simulate a proposed resize, some up, some down
+	c1Allocated[v1.ResourceMemory] = resource.MustParse("250M")
+	c1Allocated[v1.ResourceCPU] = resource.MustParse("2")
+	c2Allocated[v1.ResourceMemory] = resource.MustParse("2048M")
+	c2Allocated[v1.ResourceCPU] = resource.MustParse("1")
+	pod.Status.Resize = v1.PodResizeStatusProposed
+	pod.Status.ContainerStatuses = []v1.ContainerStatus{
+		{AllocatedResources: c1Allocated},
+		{AllocatedResources: c2Allocated},
+	}
+	res = GetPodResource(pod)
+	assert.Equal(t, res.Resources[siCommon.Memory].GetValue(), int64(2548*1000*1000))
+	assert.Equal(t, res.Resources[siCommon.CPU].GetValue(), int64(4000))
+	assert.Equal(t, res.Resources["nvidia.com/gpu"].GetValue(), int64(5))
 	assert.Equal(t, res.Resources["pods"].GetValue(), int64(1))
 }
 

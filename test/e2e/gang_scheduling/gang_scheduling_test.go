@@ -571,11 +571,7 @@ var _ = Describe("", func() {
 	})
 
 	AfterEach(func() {
-		testDescription := ginkgo.CurrentSpecReport()
-		if testDescription.Failed() {
-			tests.LogTestClusterInfoWrapper(testDescription.FailureMessage(), []string{ns})
-			tests.LogYunikornContainer(testDescription.FailureMessage())
-		}
+		tests.DumpClusterInfoIfSpecFailed(suiteName, []string{ns})
 
 		By(fmt.Sprintf("Cleanup jobs: %v", jobNames))
 		for _, jobName := range jobNames {
