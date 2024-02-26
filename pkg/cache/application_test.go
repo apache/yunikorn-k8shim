@@ -532,6 +532,7 @@ func TestGetNonTerminatedTaskAlias(t *testing.T) {
 	// app doesn't have any task
 	res := app.getNonTerminatedTaskAlias()
 	assert.Equal(t, len(res), 0)
+	assert.Equal(t, app.AreAllTasksTerminated(), true)
 
 	pod1 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
@@ -566,6 +567,7 @@ func TestGetNonTerminatedTaskAlias(t *testing.T) {
 	// res should return both task's alias
 	res = app.getNonTerminatedTaskAlias()
 	assert.Equal(t, len(res), 2)
+	assert.Equal(t, app.AreAllTasksTerminated(), false)
 	assert.Assert(t, is.Contains(res, "/test-00001"))
 	assert.Assert(t, is.Contains(res, "/test-00002"))
 
@@ -576,12 +578,14 @@ func TestGetNonTerminatedTaskAlias(t *testing.T) {
 	// res should retuen empty
 	res = app.getNonTerminatedTaskAlias()
 	assert.Equal(t, len(res), 0)
+	assert.Equal(t, app.AreAllTasksTerminated(), true)
 
 	// set two tasks to one is terminated, another is non-terminated
 	task1.sm.SetState(TaskStates().Rejected)
 	task2.sm.SetState(TaskStates().Allocated)
 	// check the task, should only return task2's alias
 	res = app.getNonTerminatedTaskAlias()
+	assert.Equal(t, app.AreAllTasksTerminated(), false)
 	assert.Equal(t, len(res), 1)
 	assert.Equal(t, res[0], "/test-00002")
 }
