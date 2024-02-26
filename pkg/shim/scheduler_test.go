@@ -144,11 +144,11 @@ partitions:
 	// verify app state
 	cluster.waitAndAssertApplicationState(t, appID, cache.ApplicationStates().Failed)
 
-	// remove the application
-	// remove task first or removeApplication will fail
-	cluster.context.RemoveTask(appID, "task0001")
-	err = cluster.removeApplication(appID)
-	assert.Assert(t, err == nil)
+	// make the task terminal state
+	cluster.DeletePod(task1)
+	cluster.waitAndAssertTaskState(t, "app0001", "task0001", cache.TaskStates().Completed)
+	// make sure the shim side has clean up the failed app
+	cluster.waitForApplicationDeletion(t, appID)
 
 	// submit again
 	task1 = createTestPod("root.a", appID, "task0001", taskResource)

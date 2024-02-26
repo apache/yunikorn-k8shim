@@ -320,6 +320,10 @@ func (app *Application) getNonTerminatedTaskAlias() []string {
 	return nonTerminatedTaskAlias
 }
 
+func (app *Application) AreAllTasksTerminated() bool {
+	return len(app.getNonTerminatedTaskAlias()) == 0
+}
+
 // SetState is only for testing
 // this is just used for testing, it is not supposed to change state like this
 func (app *Application) SetState(state string) {
