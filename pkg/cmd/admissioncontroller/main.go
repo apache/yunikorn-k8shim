@@ -21,6 +21,7 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -142,14 +143,17 @@ func (wh *WebHook) Startup(certs *tls.Certificate) {
 	wh.server = &http.Server{
 		Addr: fmt.Sprintf(":%v", wh.port),
 		TLSConfig: &tls.Config{
-			MinVersion:   tls.VersionTLS12,
-			Certificates: []tls.Certificate{*certs}},
+			MinVersion:   tls.VersionTLS12,           // No SSL, TLS 1.0 or TLS 1.1 support
+			NextProtos:   []string{"h2", "http/1.1"}, // prefer HTTP/2 over HTTP/1.1
+			CipherSuites: wh.getCipherSuites(),       // limit cipher suite to secure ones
+			Certificates: []tls.Certificate{*certs},
+		},
 		Handler: mux,
 	}
 
 	go func() {
 		if err := wh.server.ListenAndServeTLS("", ""); err != nil {
-			if err == http.ErrServerClosed {
+			if errors.Is(err, http.ErrServerClosed) {
 				log.Log(log.Admission).Info("existing server closed")
 			} else {
 				log.Log(log.Admission).Fatal("failed to start admission controller", zap.Error(err))
@@ -174,4 +178,14 @@ func (wh *WebHook) Shutdown() {
 		}
 		wh.server = nil
 	}
+}
+
+// getCipherSuites returns the IDs of the currently considered secure ciphers.
+// Order of choice is defined in the cipherSuitesPreferenceOrder
+func (wh *WebHook) getCipherSuites() []uint16 {
+	var ids []uint16
+	for _, cs := range tls.CipherSuites() {
+		ids = append(ids, cs.ID)
+	}
+	return ids
 }
