@@ -428,7 +428,6 @@ func (ctx *Context) DeletePod(obj interface{}) {
 func (ctx *Context) deleteYuniKornPod(pod *v1.Pod) {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
-
 	if taskMeta, ok := getTaskMetadata(pod); ok {
 		if app := ctx.getApplication(taskMeta.ApplicationID); app != nil {
 			ctx.notifyTaskComplete(taskMeta.ApplicationID, taskMeta.TaskID)
@@ -1150,7 +1149,7 @@ func (ctx *Context) RemoveTask(appID, taskID string) {
 		log.Log(log.ShimContext).Debug("Attempted to remove task from non-existent application", zap.String("appID", appID))
 		return
 	}
-	app.removeTask(taskID)
+	app.RemoveTask(taskID)
 }
 
 func (ctx *Context) getTask(appID string, taskID string) *Task {

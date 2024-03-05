@@ -91,6 +91,19 @@ partitions:
 	cluster.waitAndAssertApplicationState(t, "app0001", cache.ApplicationStates().Running)
 	cluster.waitAndAssertTaskState(t, "app0001", "task0001", cache.TaskStates().Bound)
 	cluster.waitAndAssertTaskState(t, "app0001", "task0002", cache.TaskStates().Bound)
+
+	// complete pods
+	task1Upd := task1.DeepCopy()
+	task1Upd.Status.Phase = v1.PodSucceeded
+	cluster.UpdatePod(task1, task1Upd)
+	cluster.waitAndAssertTaskState(t, "app0001", "task0001", cache.TaskStates().Completed)
+	cluster.waitAndAssertApplicationState(t, "app0001", cache.ApplicationStates().Running)
+	task2Upd := task2.DeepCopy()
+	task2Upd.Status.Phase = v1.PodSucceeded
+	cluster.UpdatePod(task2, task2Upd)
+	cluster.waitAndAssertTaskState(t, "app0001", "task0002", cache.TaskStates().Completed)
+	err = cluster.waitForApplicationStateInCore("app0001", partitionName, "Completing")
+	assert.NilError(t, err)
 }
 
 func TestRejectApplications(t *testing.T) {

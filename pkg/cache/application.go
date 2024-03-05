@@ -228,9 +228,13 @@ func (app *Application) addTask(task *Task) {
 	app.taskMap[task.taskID] = task
 }
 
-func (app *Application) removeTask(taskID string) {
+func (app *Application) RemoveTask(taskID string) {
 	app.lock.Lock()
 	defer app.lock.Unlock()
+	app.removeTask(taskID)
+}
+
+func (app *Application) removeTask(taskID string) {
 	if _, ok := app.taskMap[taskID]; !ok {
 		log.Log(log.ShimCacheApplication).Debug("Attempted to remove non-existent task", zap.String("taskID", taskID))
 		return
@@ -363,6 +367,7 @@ func (app *Application) Schedule() bool {
 		app.scheduleTasks(func(t *Task) bool {
 			return t.placeholder
 		})
+		app.removeCompletedTasks()
 		if len(app.GetNewTasks()) == 0 {
 			return false
 		}
@@ -372,6 +377,7 @@ func (app *Application) Schedule() bool {
 		app.scheduleTasks(func(t *Task) bool {
 			return !t.placeholder
 		})
+		app.removeCompletedTasks()
 		if len(app.GetNewTasks()) == 0 {
 			return false
 		}
@@ -662,4 +668,14 @@ func (app *Application) SetPlaceholderTimeout(timeout int64) {
 	app.lock.Lock()
 	defer app.lock.Unlock()
 	app.placeholderTimeoutInSec = timeout
+}
+
+func (app *Application) removeCompletedTasks() {
+	app.lock.Lock()
+	defer app.lock.Unlock()
+	for _, task := range app.taskMap {
+		if task.isTerminated() {
+			app.removeTask(task.taskID)
+		}
+	}
 }
