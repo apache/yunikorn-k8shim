@@ -32,6 +32,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/apache/yunikorn-core/pkg/entrypoint"
+	"github.com/apache/yunikorn-core/pkg/scheduler/objects"
 	"github.com/apache/yunikorn-k8shim/pkg/cache"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common"
@@ -320,6 +321,10 @@ func (fc *MockScheduler) waitForApplicationStateInCore(appID, partition, expecte
 		}
 		return true
 	}, time.Second, 5*time.Second)
+}
+
+func (fc *MockScheduler) getApplicationFromCore(appID, partition string) *objects.Application {
+	return fc.coreContext.Scheduler.GetClusterContext().GetApplication(appID, partition)
 }
 
 func (fc *MockScheduler) GetPodBindStats() client.BindStats {
