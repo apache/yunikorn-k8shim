@@ -104,6 +104,9 @@ partitions:
 	cluster.waitAndAssertTaskState(t, "app0001", "task0002", cache.TaskStates().Completed)
 	err = cluster.waitForApplicationStateInCore("app0001", partitionName, "Completing")
 	assert.NilError(t, err)
+	app := cluster.getApplicationFromCore("app0001", partitionName)
+	assert.Equal(t, 0, len(app.GetAllRequests()), "asks were not removed from the application")
+	assert.Equal(t, 0, len(app.GetAllAllocations()), "allocations were not removed from the application")
 }
 
 func TestRejectApplications(t *testing.T) {
