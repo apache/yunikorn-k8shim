@@ -643,7 +643,7 @@ func TestSimultaneousTaskCompleteAndAllocate(t *testing.T) {
 		PartitionName: "default",
 	}
 	mockedAPIProvider.MockSchedulerAPIUpdateAllocationFn(func(request *si.AllocationRequest) error {
-		assert.Equal(t, len(request.Releases.AllocationAsksToRelease), 0,
+		assert.Equal(t, len(request.Releases.AllocationAsksToRelease), 1,
 			"allocationAskToRelease is not in the expected length")
 		assert.Equal(t, len(request.Releases.AllocationsToRelease), 1,
 			"allocationsToRelease is not in the expected length")

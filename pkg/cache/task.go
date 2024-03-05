@@ -535,7 +535,7 @@ func (task *Task) releaseAllocation() {
 				return
 			}
 			releaseRequest = common.CreateReleaseAllocationRequestForTask(
-				task.applicationID, task.allocationID, task.application.partition, task.terminationType)
+				task.applicationID, task.taskID, task.allocationID, task.application.partition, task.terminationType)
 		}
 
 		if releaseRequest.Releases != nil {
