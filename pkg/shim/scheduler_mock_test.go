@@ -304,6 +304,24 @@ func (fc *MockScheduler) GetActiveNodeCountInCore(partition string) int {
 	return len(coreNodes)
 }
 
+func (fc *MockScheduler) waitForApplicationStateInCore(appID, partition, expectedState string) error {
+	return utils.WaitForCondition(func() bool {
+		app := fc.coreContext.Scheduler.GetClusterContext().GetApplication(appID, partition)
+		if app == nil {
+			log.Log(log.Test).Info("Application not found in the scheduler core", zap.String("appID", appID))
+			return false
+		}
+		current := app.CurrentState()
+		if current != expectedState {
+			log.Log(log.Test).Info("waiting for app state in core",
+				zap.String("expected", expectedState),
+				zap.String("actual", current))
+			return false
+		}
+		return true
+	}, time.Second, 5*time.Second)
+}
+
 func (fc *MockScheduler) GetPodBindStats() client.BindStats {
 	return fc.apiProvider.GetPodBindStats()
 }

@@ -2084,6 +2084,60 @@ func TestInitializeState(t *testing.T) {
 	assert.Assert(t, task3 == nil, "pod3 was found")
 }
 
+func TestTaskRemoveOnCompletion(t *testing.T) {
+	context := initContextForTest()
+	dispatcher.Start()
+	dispatcher.RegisterEventHandler("TestAppHandler", dispatcher.EventTypeApp, context.ApplicationEventHandler())
+	dispatcher.RegisterEventHandler("TestTaskHandler", dispatcher.EventTypeTask, context.TaskEventHandler())
+	defer dispatcher.UnregisterAllEventHandlers()
+	defer dispatcher.Stop()
+
+	const (
+		pod1UID      = "task00001"
+		taskUID1     = "task00001"
+		pod1Name     = "my-pod-1"
+		fakeNodeName = "fake-node"
+	)
+
+	app := context.AddApplication(&AddApplicationRequest{
+		Metadata: ApplicationMetadata{
+			ApplicationID: appID,
+			QueueName:     queue,
+			User:          "test-user",
+			Tags:          nil,
+		},
+	})
+
+	task := context.AddTask(&AddTaskRequest{
+		Metadata: TaskMetadata{
+			ApplicationID: appID,
+			TaskID:        pod1UID,
+			Pod:           newPodHelper(pod1Name, namespace, pod1UID, fakeNodeName, appID, v1.PodRunning),
+		},
+	})
+
+	// task gets scheduled
+	app.SetState("Running")
+	app.Schedule()
+	err := utils.WaitForCondition(func() bool {
+		return task.GetTaskState() == TaskStates().Scheduling
+	}, 100*time.Millisecond, time.Second)
+	assert.NilError(t, err)
+
+	// mark completion
+	context.NotifyTaskComplete(appID, taskUID1)
+	err = utils.WaitForCondition(func() bool {
+		return task.GetTaskState() == TaskStates().Completed
+	}, 100*time.Millisecond, time.Second)
+	assert.NilError(t, err)
+
+	// check removal
+	app.Schedule()
+	appTask, err := app.GetTask(taskUID1)
+	assert.Assert(t, appTask == nil)
+	assert.Error(t, err, "task task00001 doesn't exist in application app01")
+}
+
 func waitForNodeAcceptedEvent(recorder *k8sEvents.FakeRecorder) error {
 	// fetch the "node accepted" event
 	err := utils.WaitForCondition(func() bool {
