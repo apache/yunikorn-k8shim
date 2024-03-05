@@ -1288,6 +1288,29 @@ func TestApplication_onReservationStateChange(t *testing.T) {
 	assertAppState(t, app, ApplicationStates().Running, 1*time.Second)
 }
 
+func TestTaskRemoval(t *testing.T) {
+	app := NewApplication(appID, "root.a", "testuser", testGroups, map[string]string{}, newMockSchedulerAPI())
+	context := initContextForTest()
+
+	// "Reserving" state
+	app.SetState(ApplicationStates().Reserving)
+	task := NewTask("task0001", app, context, &v1.Pod{})
+	phTask := NewTaskPlaceholder("ph-task0001", app, context, &v1.Pod{})
+	app.addTask(task)
+	task.sm.SetState(TaskStates().Completed)
+	phTask.sm.SetState(TaskStates().Completed)
+	app.Schedule()
+	assert.Equal(t, 0, len(app.getTasks(TaskStates().Completed)))
+
+	// "Running" state
+	app.SetState(ApplicationStates().Running)
+	task = NewTask("task0002", app, context, &v1.Pod{})
+	app.addTask(task)
+	task.sm.SetState(TaskStates().Completed)
+	app.Schedule()
+	assert.Equal(t, 0, len(app.getTasks(TaskStates().Completed)))
+}
+
 func (ctx *Context) addApplicationToContext(app *Application) {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
