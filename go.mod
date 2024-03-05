@@ -167,6 +167,7 @@ replace (
 	golang.org/x/sys => golang.org/x/sys v0.17.0
 	golang.org/x/text => golang.org/x/text v0.14.0
 	golang.org/x/tools => golang.org/x/tools v0.17.0
+	google.golang.org/protobuf => google.golang.org/protobuf v1.33.0
 	k8s.io/api => k8s.io/api v0.29.2
 	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.29.2
 	k8s.io/apimachinery => k8s.io/apimachinery v0.29.2
