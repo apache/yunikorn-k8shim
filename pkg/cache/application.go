@@ -607,7 +607,7 @@ func (app *Application) handleReleaseAppAllocationEvent(allocationID string, ter
 	for _, task := range app.taskMap {
 		if task.allocationID == allocationID {
 			task.setTaskTerminationType(terminationType)
-			err := task.DeleteTaskPod(task.pod)
+			err := task.DeleteTaskPod()
 			if err != nil {
 				log.Log(log.ShimCacheApplication).Error("failed to release allocation from application", zap.Error(err))
 			}
@@ -624,7 +624,7 @@ func (app *Application) handleReleaseAppAllocationAskEvent(taskID string, termin
 	if task, ok := app.taskMap[taskID]; ok {
 		task.setTaskTerminationType(terminationType)
 		if task.IsPlaceholder() {
-			err := task.DeleteTaskPod(task.pod)
+			err := task.DeleteTaskPod()
 			if err != nil {
 				log.Log(log.ShimCacheApplication).Error("failed to release allocation ask from application", zap.Error(err))
 			}
