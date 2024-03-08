@@ -857,7 +857,7 @@ func TestGetQueueNameFromPod(t *testing.T) {
 			pod: &v1.Pod{
 				ObjectMeta: metav1.ObjectMeta{},
 			},
-			expectedQueue: constants.ApplicationDefaultQueue,
+			expectedQueue: "",
 		},
 	}
 
