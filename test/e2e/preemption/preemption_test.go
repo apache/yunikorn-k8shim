@@ -142,7 +142,7 @@ var _ = ginkgo.Describe("Preemption", func() {
 		// update config
 		ginkgo.By(fmt.Sprintf("Update root.sandbox1 and root.sandbox2 with guaranteed memory %dM", sleepPodMemLimit))
 		annotation = "ann-" + common.RandSeq(10)
-		yunikorn.UpdateCustomConfigMapWrapper(oldConfigMap, "", annotation, func(sc *configs.SchedulerConfig) error {
+		yunikorn.UpdateCustomConfigMapWrapper(oldConfigMap, "", func(sc *configs.SchedulerConfig) error {
 			// remove placement rules so we can control queue
 			sc.Partitions[0].PlacementRules = nil
 
@@ -205,7 +205,7 @@ var _ = ginkgo.Describe("Preemption", func() {
 		// update config
 		ginkgo.By(fmt.Sprintf("Update root.sandbox1 and root.sandbox2 with guaranteed memory %dM", WorkerMemRes))
 		annotation = "ann-" + common.RandSeq(10)
-		yunikorn.UpdateCustomConfigMapWrapper(oldConfigMap, "", annotation, func(sc *configs.SchedulerConfig) error {
+		yunikorn.UpdateCustomConfigMapWrapper(oldConfigMap, "", func(sc *configs.SchedulerConfig) error {
 			// remove placement rules so we can control queue
 			sc.Partitions[0].PlacementRules = nil
 
@@ -272,7 +272,7 @@ var _ = ginkgo.Describe("Preemption", func() {
 		// update config
 		ginkgo.By(fmt.Sprintf("Update root.sandbox1 and root.sandbox2 with guaranteed memory %dM. The root.sandbox2 has fence preemption policy.", sleepPodMemLimit))
 		annotation = "ann-" + common.RandSeq(10)
-		yunikorn.UpdateCustomConfigMapWrapper(oldConfigMap, "", annotation, func(sc *configs.SchedulerConfig) error {
+		yunikorn.UpdateCustomConfigMapWrapper(oldConfigMap, "", func(sc *configs.SchedulerConfig) error {
 			// remove placement rules so we can control queue
 			sc.Partitions[0].PlacementRules = nil
 
@@ -339,7 +339,7 @@ var _ = ginkgo.Describe("Preemption", func() {
 		// update config
 		ginkgo.By(fmt.Sprintf("Update root.sandbox1, root.low-priority, root.high-priority with guaranteed memory %dM", sleepPodMemLimit))
 		annotation = "ann-" + common.RandSeq(10)
-		yunikorn.UpdateCustomConfigMapWrapper(oldConfigMap, "", annotation, func(sc *configs.SchedulerConfig) error {
+		yunikorn.UpdateCustomConfigMapWrapper(oldConfigMap, "", func(sc *configs.SchedulerConfig) error {
 			// remove placement rules so we can control queue
 			sc.Partitions[0].PlacementRules = nil
 
@@ -434,7 +434,7 @@ var _ = ginkgo.Describe("Preemption", func() {
 		// update config
 		ginkgo.By(fmt.Sprintf("Update root.sandbox3, root.sandbox4 and root.sandbox5 with guaranteed memory %dM", sleepPodMemLimit2))
 		annotation = "ann-" + common.RandSeq(10)
-		yunikorn.UpdateCustomConfigMapWrapper(oldConfigMap, "", annotation, func(sc *configs.SchedulerConfig) error {
+		yunikorn.UpdateCustomConfigMapWrapper(oldConfigMap, "", func(sc *configs.SchedulerConfig) error {
 			// remove placement rules so we can control queue
 			sc.Partitions[0].PlacementRules = nil
 
@@ -560,7 +560,7 @@ var _ = ginkgo.Describe("Preemption", func() {
 
 		// reset config
 		ginkgo.By("Restoring YuniKorn configuration")
-		yunikorn.RestoreConfigMapWrapper(oldConfigMap, annotation)
+		yunikorn.RestoreConfigMapWrapper(oldConfigMap)
 	})
 })
 

@@ -199,7 +199,7 @@ var _ = BeforeSuite(func() {
 
 	annotation = "ann-" + common.RandSeq(10)
 	yunikorn.EnsureYuniKornConfigsPresent()
-	yunikorn.UpdateConfigMapWrapper(oldConfigMap, "", annotation)
+	yunikorn.UpdateConfigMapWrapper(oldConfigMap, "")
 
 	By("Port-forward the scheduler pod")
 	err := kubeClient.PortForwardYkSchedulerPod()
@@ -234,5 +234,5 @@ var _ = AfterSuite(func() {
 	err = kubeClient.DeletePriorityClass(testPreemptPriorityClass.Name)
 	Ω(err).ShouldNot(HaveOccurred())
 
-	yunikorn.RestoreConfigMapWrapper(oldConfigMap, annotation)
+	yunikorn.RestoreConfigMapWrapper(oldConfigMap)
 })

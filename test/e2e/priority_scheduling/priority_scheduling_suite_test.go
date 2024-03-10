@@ -97,7 +97,7 @@ var _ = ginkgo.BeforeSuite(func() {
 
 	annotation = "ann-" + common.RandSeq(10)
 	yunikorn.EnsureYuniKornConfigsPresent()
-	yunikorn.UpdateConfigMapWrapper(oldConfigMap, "", annotation)
+	yunikorn.UpdateConfigMapWrapper(oldConfigMap, "")
 
 	By(fmt.Sprintf("Creating priority class %s", lowPriorityClass.Name))
 	_, err = kubeClient.CreatePriorityClass(&lowPriorityClass)
@@ -129,7 +129,7 @@ var _ = ginkgo.AfterSuite(func() {
 	err = kubeClient.DeletePriorityClass(lowPriorityClass.Name)
 	Ω(err).ShouldNot(HaveOccurred())
 
-	yunikorn.RestoreConfigMapWrapper(oldConfigMap, annotation)
+	yunikorn.RestoreConfigMapWrapper(oldConfigMap)
 })
 
 var By = ginkgo.By

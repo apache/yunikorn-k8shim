@@ -60,7 +60,7 @@ var _ = ginkgo.BeforeSuite(func() {
 	err := kClient.PortForwardYkSchedulerPod()
 	Ω(err).NotTo(HaveOccurred())
 
-	yunikorn.UpdateConfigMapWrapper(oldConfigMap, "fifo", annotation)
+	yunikorn.UpdateConfigMapWrapper(oldConfigMap, "fifo")
 
 	ginkgo.By("create development namespace")
 	ns1, err := kClient.CreateNamespace(dev, nil)
@@ -86,7 +86,7 @@ var _ = ginkgo.AfterSuite(func() {
 	err := kClient.TearDownNamespace(dev)
 	Ω(err).NotTo(HaveOccurred())
 
-	yunikorn.RestoreConfigMapWrapper(oldConfigMap, annotation)
+	yunikorn.RestoreConfigMapWrapper(oldConfigMap)
 })
 
 var _ = ginkgo.Describe("", func() {

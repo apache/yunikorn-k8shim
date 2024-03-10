@@ -82,7 +82,7 @@ var _ = BeforeSuite(func() {
 	*/
 	By("Enabling new scheduling config with binpacking node sort policy")
 	yunikorn.EnsureYuniKornConfigsPresent()
-	yunikorn.UpdateCustomConfigMapWrapper(oldConfigMap, "fifo", annotation, func(sc *configs.SchedulerConfig) error {
+	yunikorn.UpdateCustomConfigMapWrapper(oldConfigMap, "fifo", func(sc *configs.SchedulerConfig) error {
 		setErr := common.SetSchedulingPolicy(sc, "default", "root", "fifo")
 		if setErr != nil {
 			return setErr
@@ -112,7 +112,7 @@ var _ = BeforeSuite(func() {
 })
 
 var _ = AfterSuite(func() {
-	yunikorn.RestoreConfigMapWrapper(oldConfigMap, annotation)
+	yunikorn.RestoreConfigMapWrapper(oldConfigMap)
 })
 
 var Describe = ginkgo.Describe

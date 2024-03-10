@@ -49,11 +49,11 @@ var _ = BeforeSuite(func() {
 	suiteName = common.GetSuiteName(filename)
 	annotation = "ann-" + common.RandSeq(10)
 	yunikorn.EnsureYuniKornConfigsPresent()
-	yunikorn.UpdateConfigMapWrapper(oldConfigMap, "stateaware", annotation)
+	yunikorn.UpdateConfigMapWrapper(oldConfigMap, "stateaware")
 })
 
 var _ = AfterSuite(func() {
-	yunikorn.RestoreConfigMapWrapper(oldConfigMap, annotation)
+	yunikorn.RestoreConfigMapWrapper(oldConfigMap)
 })
 
 func TestStateAwareAppScheduling(t *testing.T) {

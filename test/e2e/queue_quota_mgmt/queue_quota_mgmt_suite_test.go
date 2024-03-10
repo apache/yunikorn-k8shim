@@ -47,11 +47,11 @@ var _ = BeforeSuite(func() {
 	_, filename, _, _ := runtime.Caller(0)
 	suiteName = common.GetSuiteName(filename)
 	yunikorn.EnsureYuniKornConfigsPresent()
-	yunikorn.UpdateConfigMapWrapper(oldConfigMap, "", annotation)
+	yunikorn.UpdateConfigMapWrapper(oldConfigMap, "")
 })
 
 var _ = AfterSuite(func() {
-	yunikorn.RestoreConfigMapWrapper(oldConfigMap, annotation)
+	yunikorn.RestoreConfigMapWrapper(oldConfigMap)
 })
 
 func TestQueueQuotaMgmt(t *testing.T) {

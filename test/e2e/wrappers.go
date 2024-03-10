@@ -20,14 +20,10 @@ package e2e
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
-	"gopkg.in/yaml.v3"
-	v1 "k8s.io/api/core/v1"
 
-	"github.com/apache/yunikorn-core/pkg/common/configs"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
@@ -35,61 +31,6 @@ import (
 )
 
 var k = k8s.KubeCtl{}
-
-func UpdateConfigMapWrapper(oldConfigMap *v1.ConfigMap, schedPolicy string, annotation string) {
-	By("Enabling new scheduling config")
-
-	// Save old configMap
-	Ω(k.SetClient()).To(BeNil())
-	var c, err = k.GetConfigMaps(configmanager.YuniKornTestConfig.YkNamespace,
-		configmanager.GetConfigMapName())
-	Ω(err).NotTo(HaveOccurred())
-	Ω(c).NotTo(BeNil())
-	c.DeepCopyInto(oldConfigMap)
-	Ω(c).Should(BeEquivalentTo(oldConfigMap))
-
-	// Create fair configMap with timestamp
-	sc := common.CreateBasicConfigMap()
-	if schedPolicy != "" {
-		err = common.SetSchedulingPolicy(sc, "default", "root", schedPolicy)
-		Ω(err).NotTo(HaveOccurred())
-	}
-	ts, tsErr := common.SetQueueTimestamp(sc, "default", "root")
-	Ω(tsErr).NotTo(HaveOccurred())
-	configStr, yamlErr := common.ToYAML(sc)
-	Ω(yamlErr).NotTo(HaveOccurred())
-	c.Data[configmanager.DefaultPolicyGroup] = configStr
-	var d, err3 = k.UpdateConfigMap(c, configmanager.YuniKornTestConfig.YkNamespace)
-	Ω(err3).NotTo(HaveOccurred())
-	Ω(d).NotTo(BeNil())
-
-	err = yunikorn.WaitForQueueTS("root", ts, 2*time.Minute)
-	Ω(err).NotTo(HaveOccurred())
-}
-
-func RestoreConfigMapWrapper(oldConfigMap *v1.ConfigMap, annotation string) {
-	Ω(k.SetClient()).To(BeNil())
-	By("Restoring the old config maps")
-	var c, err = k.GetConfigMaps(configmanager.YuniKornTestConfig.YkNamespace,
-		configmanager.GetConfigMapName())
-	Ω(err).NotTo(HaveOccurred())
-	Ω(c).NotTo(BeNil())
-
-	oldSC := new(configs.SchedulerConfig)
-	err = yaml.Unmarshal([]byte(oldConfigMap.Data[configmanager.DefaultPolicyGroup]), oldSC)
-	Ω(err).NotTo(HaveOccurred())
-	ts, tsErr := common.SetQueueTimestamp(oldSC, "default", "root")
-	Ω(tsErr).NotTo(HaveOccurred())
-	c.Data[configmanager.DefaultPolicyGroup], err = common.ToYAML(oldSC)
-	Ω(err).NotTo(HaveOccurred())
-
-	var e, err3 = k.UpdateConfigMap(c, configmanager.YuniKornTestConfig.YkNamespace)
-	Ω(err3).NotTo(HaveOccurred())
-	Ω(e).NotTo(BeNil())
-
-	err = yunikorn.WaitForQueueTS("root", ts, 2*time.Minute)
-	Ω(err).NotTo(HaveOccurred())
-}
 
 func DumpClusterInfoIfSpecFailed(suiteName string, namespaces []string) {
 	// should call this function in ginkgo.AfterEach

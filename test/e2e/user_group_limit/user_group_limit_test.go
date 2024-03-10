@@ -112,7 +112,7 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 		annotation = "ann-" + common.RandSeq(10)
 		// The wait wrapper still can't fully guarantee that the config in AdmissionController has been updated.
 		yunikorn.WaitForAdmissionControllerRefreshConfAfterAction(func() {
-			yunikorn.UpdateCustomConfigMapWrapperWithMap(oldConfigMap, "", annotation, admissionCustomConfig, func(sc *configs.SchedulerConfig) error {
+			yunikorn.UpdateCustomConfigMapWrapperWithMap(oldConfigMap, "", admissionCustomConfig, func(sc *configs.SchedulerConfig) error {
 				// remove placement rules so we can control queue
 				sc.Partitions[0].PlacementRules = nil
 
@@ -160,7 +160,7 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 		annotation = "ann-" + common.RandSeq(10)
 		// The wait wrapper still can't fully guarantee that the config in AdmissionController has been updated.
 		yunikorn.WaitForAdmissionControllerRefreshConfAfterAction(func() {
-			yunikorn.UpdateCustomConfigMapWrapperWithMap(oldConfigMap, "", annotation, admissionCustomConfig, func(sc *configs.SchedulerConfig) error {
+			yunikorn.UpdateCustomConfigMapWrapperWithMap(oldConfigMap, "", admissionCustomConfig, func(sc *configs.SchedulerConfig) error {
 				// remove placement rules so we can control queue
 				sc.Partitions[0].PlacementRules = nil
 
@@ -208,7 +208,7 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 		annotation = "ann-" + common.RandSeq(10)
 		// The wait wrapper still can't fully guarantee that the config in AdmissionController has been updated.
 		yunikorn.WaitForAdmissionControllerRefreshConfAfterAction(func() {
-			yunikorn.UpdateCustomConfigMapWrapperWithMap(oldConfigMap, "", annotation, admissionCustomConfig, func(sc *configs.SchedulerConfig) error {
+			yunikorn.UpdateCustomConfigMapWrapperWithMap(oldConfigMap, "", admissionCustomConfig, func(sc *configs.SchedulerConfig) error {
 				// remove placement rules so we can control queue
 				sc.Partitions[0].PlacementRules = nil
 
@@ -254,7 +254,7 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 		annotation = "ann-" + common.RandSeq(10)
 		// The wait wrapper still can't fully guarantee that the config in AdmissionController has been updated.
 		yunikorn.WaitForAdmissionControllerRefreshConfAfterAction(func() {
-			yunikorn.UpdateCustomConfigMapWrapperWithMap(oldConfigMap, "", annotation, admissionCustomConfig, func(sc *configs.SchedulerConfig) error {
+			yunikorn.UpdateCustomConfigMapWrapperWithMap(oldConfigMap, "", admissionCustomConfig, func(sc *configs.SchedulerConfig) error {
 				// remove placement rules so we can control queue
 				sc.Partitions[0].PlacementRules = nil
 
@@ -300,7 +300,7 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 		annotation = "ann-" + common.RandSeq(10)
 		// The wait wrapper still can't fully guarantee that the config in AdmissionController has been updated.
 		yunikorn.WaitForAdmissionControllerRefreshConfAfterAction(func() {
-			yunikorn.UpdateCustomConfigMapWrapperWithMap(oldConfigMap, "", annotation, admissionCustomConfig, func(sc *configs.SchedulerConfig) error {
+			yunikorn.UpdateCustomConfigMapWrapperWithMap(oldConfigMap, "", admissionCustomConfig, func(sc *configs.SchedulerConfig) error {
 				// remove placement rules so we can control queue
 				sc.Partitions[0].PlacementRules = nil
 
@@ -345,7 +345,7 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 		annotation = "ann-" + common.RandSeq(10)
 		// The wait wrapper still can't fully guarantee that the config in AdmissionController has been updated.
 		yunikorn.WaitForAdmissionControllerRefreshConfAfterAction(func() {
-			yunikorn.UpdateCustomConfigMapWrapperWithMap(oldConfigMap, "", annotation, admissionCustomConfig, func(sc *configs.SchedulerConfig) error {
+			yunikorn.UpdateCustomConfigMapWrapperWithMap(oldConfigMap, "", admissionCustomConfig, func(sc *configs.SchedulerConfig) error {
 				// remove placement rules so we can control queue
 				sc.Partitions[0].PlacementRules = nil
 
@@ -390,7 +390,7 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 		annotation = "ann-" + common.RandSeq(10)
 		// The wait wrapper still can't fully guarantee that the config in AdmissionController has been updated.
 		yunikorn.WaitForAdmissionControllerRefreshConfAfterAction(func() {
-			yunikorn.UpdateCustomConfigMapWrapperWithMap(oldConfigMap, "", annotation, admissionCustomConfig, func(sc *configs.SchedulerConfig) error {
+			yunikorn.UpdateCustomConfigMapWrapperWithMap(oldConfigMap, "", admissionCustomConfig, func(sc *configs.SchedulerConfig) error {
 				// remove placement rules so we can control queue
 				sc.Partitions[0].PlacementRules = nil
 
@@ -438,7 +438,7 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 		annotation = "ann-" + common.RandSeq(10)
 		// The wait wrapper still can't fully guarantee that the config in AdmissionController has been updated.
 		yunikorn.WaitForAdmissionControllerRefreshConfAfterAction(func() {
-			yunikorn.UpdateCustomConfigMapWrapperWithMap(oldConfigMap, "", annotation, admissionCustomConfig, func(sc *configs.SchedulerConfig) error {
+			yunikorn.UpdateCustomConfigMapWrapperWithMap(oldConfigMap, "", admissionCustomConfig, func(sc *configs.SchedulerConfig) error {
 				// remove placement rules so we can control queue
 				sc.Partitions[0].PlacementRules = nil
 
@@ -486,7 +486,7 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 		annotation = "ann-" + common.RandSeq(10)
 		// The wait wrapper still can't fully guarantee that the config in AdmissionController has been updated.
 		yunikorn.WaitForAdmissionControllerRefreshConfAfterAction(func() {
-			yunikorn.UpdateCustomConfigMapWrapperWithMap(oldConfigMap, "", annotation, admissionCustomConfig, func(sc *configs.SchedulerConfig) error {
+			yunikorn.UpdateCustomConfigMapWrapperWithMap(oldConfigMap, "", admissionCustomConfig, func(sc *configs.SchedulerConfig) error {
 				// remove placement rules so we can control queue
 				sc.Partitions[0].PlacementRules = nil
 
@@ -534,7 +534,7 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 		annotation = "ann-" + common.RandSeq(10)
 		// The wait wrapper still can't fully guarantee that the config in AdmissionController has been updated.
 		yunikorn.WaitForAdmissionControllerRefreshConfAfterAction(func() {
-			yunikorn.UpdateCustomConfigMapWrapperWithMap(oldConfigMap, "", annotation, admissionCustomConfig, func(sc *configs.SchedulerConfig) error {
+			yunikorn.UpdateCustomConfigMapWrapperWithMap(oldConfigMap, "", admissionCustomConfig, func(sc *configs.SchedulerConfig) error {
 				// remove placement rules so we can control queue
 				sc.Partitions[0].PlacementRules = nil
 
@@ -589,7 +589,7 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 
 		// reset config
 		ginkgo.By("Restoring YuniKorn configuration")
-		yunikorn.RestoreConfigMapWrapper(oldConfigMap, annotation)
+		yunikorn.RestoreConfigMapWrapper(oldConfigMap)
 	})
 })
 
