@@ -39,7 +39,6 @@ var restClient yunikorn.RClient
 var sleepRespPod *v1.Pod
 var dev = "dev" + common.RandSeq(5)
 var appsInfo *dao.ApplicationDAOInfo
-var annotation = "ann-" + common.RandSeq(10)
 var oldConfigMap = new(v1.ConfigMap)
 
 // Define sleepPod
@@ -60,7 +59,7 @@ var _ = ginkgo.BeforeSuite(func() {
 	err := kClient.PortForwardYkSchedulerPod()
 	Ω(err).NotTo(HaveOccurred())
 
-	yunikorn.UpdateConfigMapWrapper(oldConfigMap, "fifo", annotation)
+	yunikorn.UpdateConfigMapWrapper(oldConfigMap, "fifo")
 
 	ginkgo.By("create development namespace")
 	ns1, err := kClient.CreateNamespace(dev, nil)
@@ -86,7 +85,7 @@ var _ = ginkgo.AfterSuite(func() {
 	err := kClient.TearDownNamespace(dev)
 	Ω(err).NotTo(HaveOccurred())
 
-	yunikorn.RestoreConfigMapWrapper(oldConfigMap, annotation)
+	yunikorn.RestoreConfigMapWrapper(oldConfigMap)
 })
 
 var _ = ginkgo.Describe("", func() {

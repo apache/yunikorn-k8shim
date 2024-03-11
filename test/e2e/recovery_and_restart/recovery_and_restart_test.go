@@ -53,7 +53,6 @@ var restClient yunikorn.RClient
 var oldConfigMap = new(v1.ConfigMap)
 var sleepRespPod *v1.Pod
 var dev = "dev" + common.RandSeq(5)
-var annotation = "ann-" + common.RandSeq(10)
 
 // Define sleepPod
 var sleepPodConfigs = k8s.SleepPodConfig{Name: "sleepjob", NS: dev}
@@ -68,9 +67,8 @@ var _ = ginkgo.BeforeSuite(func() {
 	// Initializing rest client
 	restClient = yunikorn.RClient{}
 
-	annotation = "ann-" + common.RandSeq(10)
 	yunikorn.EnsureYuniKornConfigsPresent()
-	yunikorn.UpdateConfigMapWrapper(oldConfigMap, "", annotation)
+	yunikorn.UpdateConfigMapWrapper(oldConfigMap, "")
 
 	ginkgo.By("create development namespace")
 	ns1, err := kClient.CreateNamespace(dev, nil)

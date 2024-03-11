@@ -102,7 +102,7 @@ var _ = Describe("ConfigMap", func() {
 
 	AfterEach(func() {
 		tests.DumpClusterInfoIfSpecFailed(suiteName, []string{"default"})
-		yunikorn.RestoreConfigMapWrapper(oldConfigMap, "")
+		yunikorn.RestoreConfigMapWrapper(oldConfigMap)
 	})
 })
 
