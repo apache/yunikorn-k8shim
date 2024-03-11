@@ -54,7 +54,6 @@ var _ = Describe("FairScheduling:", func() {
 		Ω(kClient.SetClient()).To(BeNil())
 
 		By("Setting custom YuniKorn configuration")
-		annotation = "ann-" + common.RandSeq(10)
 		yunikorn.UpdateCustomConfigMapWrapper(oldConfigMap, "fair", func(sc *configs.SchedulerConfig) error {
 			// remove placement rules so we can control queue
 			sc.Partitions[0].PlacementRules = nil

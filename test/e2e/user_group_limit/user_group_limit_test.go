@@ -67,7 +67,6 @@ var (
 	ns                    *v1.Namespace
 	dev                   = "dev" + common.RandSeq(5)
 	oldConfigMap          = new(v1.ConfigMap)
-	annotation            = "ann-" + common.RandSeq(10)
 	admissionCustomConfig = map[string]string{
 		"log.core.scheduler.ugm.level":   "debug",
 		amconf.AMAccessControlBypassAuth: constants.True,
@@ -109,7 +108,6 @@ var _ = ginkgo.AfterSuite(func() {
 var _ = ginkgo.Describe("UserGroupLimit", func() {
 	ginkgo.It("Verify_maxresources_with_a_specific_user_limit", func() {
 		ginkgo.By("Update config")
-		annotation = "ann-" + common.RandSeq(10)
 		// The wait wrapper still can't fully guarantee that the config in AdmissionController has been updated.
 		yunikorn.WaitForAdmissionControllerRefreshConfAfterAction(func() {
 			yunikorn.UpdateCustomConfigMapWrapperWithMap(oldConfigMap, "", admissionCustomConfig, func(sc *configs.SchedulerConfig) error {
@@ -157,7 +155,6 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 
 	ginkgo.It("Verify_maxapplications_with_a_specific_user_limit", func() {
 		ginkgo.By("Update config")
-		annotation = "ann-" + common.RandSeq(10)
 		// The wait wrapper still can't fully guarantee that the config in AdmissionController has been updated.
 		yunikorn.WaitForAdmissionControllerRefreshConfAfterAction(func() {
 			yunikorn.UpdateCustomConfigMapWrapperWithMap(oldConfigMap, "", admissionCustomConfig, func(sc *configs.SchedulerConfig) error {
@@ -205,7 +202,6 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 
 	ginkgo.It("Verify_maxresources_with_a_specific_group_limit", func() {
 		ginkgo.By("Update config")
-		annotation = "ann-" + common.RandSeq(10)
 		// The wait wrapper still can't fully guarantee that the config in AdmissionController has been updated.
 		yunikorn.WaitForAdmissionControllerRefreshConfAfterAction(func() {
 			yunikorn.UpdateCustomConfigMapWrapperWithMap(oldConfigMap, "", admissionCustomConfig, func(sc *configs.SchedulerConfig) error {
@@ -251,7 +247,6 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 
 	ginkgo.It("Verify_maxapplications_with_a_specific_group_limit", func() {
 		ginkgo.By("Update config")
-		annotation = "ann-" + common.RandSeq(10)
 		// The wait wrapper still can't fully guarantee that the config in AdmissionController has been updated.
 		yunikorn.WaitForAdmissionControllerRefreshConfAfterAction(func() {
 			yunikorn.UpdateCustomConfigMapWrapperWithMap(oldConfigMap, "", admissionCustomConfig, func(sc *configs.SchedulerConfig) error {
@@ -297,7 +292,6 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 
 	ginkgo.It("Verify_maxresources_with_user_limit_lower_than_group_limit", func() {
 		ginkgo.By("Update config")
-		annotation = "ann-" + common.RandSeq(10)
 		// The wait wrapper still can't fully guarantee that the config in AdmissionController has been updated.
 		yunikorn.WaitForAdmissionControllerRefreshConfAfterAction(func() {
 			yunikorn.UpdateCustomConfigMapWrapperWithMap(oldConfigMap, "", admissionCustomConfig, func(sc *configs.SchedulerConfig) error {
@@ -342,7 +336,6 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 
 	ginkgo.It("Verify_maxresources_with_group_limit_lower_than_user_limit", func() {
 		ginkgo.By("Update config")
-		annotation = "ann-" + common.RandSeq(10)
 		// The wait wrapper still can't fully guarantee that the config in AdmissionController has been updated.
 		yunikorn.WaitForAdmissionControllerRefreshConfAfterAction(func() {
 			yunikorn.UpdateCustomConfigMapWrapperWithMap(oldConfigMap, "", admissionCustomConfig, func(sc *configs.SchedulerConfig) error {
@@ -387,7 +380,6 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 
 	ginkgo.It("Verify_maxresources_with_a_wildcard_user_limit", func() {
 		ginkgo.By("Update config")
-		annotation = "ann-" + common.RandSeq(10)
 		// The wait wrapper still can't fully guarantee that the config in AdmissionController has been updated.
 		yunikorn.WaitForAdmissionControllerRefreshConfAfterAction(func() {
 			yunikorn.UpdateCustomConfigMapWrapperWithMap(oldConfigMap, "", admissionCustomConfig, func(sc *configs.SchedulerConfig) error {
@@ -435,7 +427,6 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 
 	ginkgo.It("Verify_maxapplications_with_a_wildcard_user_limit", func() {
 		ginkgo.By("Update config")
-		annotation = "ann-" + common.RandSeq(10)
 		// The wait wrapper still can't fully guarantee that the config in AdmissionController has been updated.
 		yunikorn.WaitForAdmissionControllerRefreshConfAfterAction(func() {
 			yunikorn.UpdateCustomConfigMapWrapperWithMap(oldConfigMap, "", admissionCustomConfig, func(sc *configs.SchedulerConfig) error {
@@ -483,7 +474,6 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 
 	ginkgo.It("Verify_maxresources_with_a_wildcard_group_limit", func() {
 		ginkgo.By("Update config")
-		annotation = "ann-" + common.RandSeq(10)
 		// The wait wrapper still can't fully guarantee that the config in AdmissionController has been updated.
 		yunikorn.WaitForAdmissionControllerRefreshConfAfterAction(func() {
 			yunikorn.UpdateCustomConfigMapWrapperWithMap(oldConfigMap, "", admissionCustomConfig, func(sc *configs.SchedulerConfig) error {
@@ -531,7 +521,6 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 
 	ginkgo.It("Verify_maxapplications_with_a_wildcard_group_limit", func() {
 		ginkgo.By("Update config")
-		annotation = "ann-" + common.RandSeq(10)
 		// The wait wrapper still can't fully guarantee that the config in AdmissionController has been updated.
 		yunikorn.WaitForAdmissionControllerRefreshConfAfterAction(func() {
 			yunikorn.UpdateCustomConfigMapWrapperWithMap(oldConfigMap, "", admissionCustomConfig, func(sc *configs.SchedulerConfig) error {

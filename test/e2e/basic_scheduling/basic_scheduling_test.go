@@ -39,7 +39,6 @@ var restClient yunikorn.RClient
 var sleepRespPod *v1.Pod
 var dev = "dev" + common.RandSeq(5)
 var appsInfo *dao.ApplicationDAOInfo
-var annotation = "ann-" + common.RandSeq(10)
 var oldConfigMap = new(v1.ConfigMap)
 
 // Define sleepPod

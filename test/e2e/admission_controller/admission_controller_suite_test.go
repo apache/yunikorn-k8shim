@@ -55,7 +55,6 @@ var oldConfigMap = new(v1.ConfigMap)
 var one = int32(1)
 var preemptPolicyNever = v1.PreemptNever
 var preemptPolicyPreemptLower = v1.PreemptLowerPriority
-var annotation = "ann-" + common.RandSeq(10)
 
 var testPod = v1.Pod{
 	ObjectMeta: metav1.ObjectMeta{
@@ -197,7 +196,6 @@ var _ = BeforeSuite(func() {
 	kubeClient = k8s.KubeCtl{}
 	Expect(kubeClient.SetClient()).To(BeNil())
 
-	annotation = "ann-" + common.RandSeq(10)
 	yunikorn.EnsureYuniKornConfigsPresent()
 	yunikorn.UpdateConfigMapWrapper(oldConfigMap, "")
 

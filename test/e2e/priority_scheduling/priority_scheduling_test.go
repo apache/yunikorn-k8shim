@@ -69,7 +69,6 @@ var _ = ginkgo.Describe("PriorityScheduling", func() {
 
 	ginkgo.It("Verify_Static_Queue_App_Scheduling_Order", func() {
 		By("Setting custom YuniKorn configuration")
-		annotation = "ann-" + common.RandSeq(10)
 		yunikorn.UpdateCustomConfigMapWrapper(oldConfigMap, "fifo", func(sc *configs.SchedulerConfig) error {
 			// remove placement rules so we can control queue
 			sc.Partitions[0].PlacementRules = nil
@@ -135,7 +134,6 @@ var _ = ginkgo.Describe("PriorityScheduling", func() {
 
 	ginkgo.It("Verify_Dynamic_Queue_App_Scheduling_Order", func() {
 		By("Setting custom YuniKorn configuration")
-		annotation = "ann-" + common.RandSeq(10)
 		yunikorn.UpdateConfigMapWrapper(oldConfigMap, "fifo")
 
 		By(fmt.Sprintf("Update test namespace quota %s", ns))
@@ -180,7 +178,6 @@ var _ = ginkgo.Describe("PriorityScheduling", func() {
 
 	ginkgo.It("Verify_Priority_Offset_Queue_App_Scheduling_Order", func() {
 		By("Setting custom YuniKorn configuration")
-		annotation = "ann-" + common.RandSeq(10)
 		yunikorn.UpdateCustomConfigMapWrapper(oldConfigMap, "fifo", func(sc *configs.SchedulerConfig) error {
 			// remove placement rules so we can control queue
 			sc.Partitions[0].PlacementRules = nil
@@ -255,7 +252,6 @@ var _ = ginkgo.Describe("PriorityScheduling", func() {
 
 	ginkgo.It("Verify_Gang_Scheduling_With_Priority", func() {
 		By("Setting custom YuniKorn configuration")
-		annotation = "ann-" + common.RandSeq(10)
 		yunikorn.UpdateCustomConfigMapWrapper(oldConfigMap, "fifo", func(sc *configs.SchedulerConfig) error {
 			// remove placement rules so we can control queue
 			sc.Partitions[0].PlacementRules = nil

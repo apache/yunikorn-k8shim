@@ -43,7 +43,6 @@ var restClient yunikorn.RClient
 var ns *v1.Namespace
 var dev = "dev" + common.RandSeq(5)
 var oldConfigMap = new(v1.ConfigMap)
-var annotation = "ann-" + common.RandSeq(10)
 
 // Nodes
 var Worker1 = ""
@@ -65,7 +64,6 @@ var _ = ginkgo.BeforeSuite(func() {
 	restClient = yunikorn.RClient{}
 	Ω(restClient).NotTo(gomega.BeNil())
 
-	annotation = "ann-" + common.RandSeq(10)
 	yunikorn.EnsureYuniKornConfigsPresent()
 	yunikorn.UpdateConfigMapWrapper(oldConfigMap, "")
 
