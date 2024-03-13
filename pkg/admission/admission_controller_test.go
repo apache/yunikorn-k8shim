@@ -81,10 +81,9 @@ func TestUpdateLabels(t *testing.T) {
 	assert.Equal(t, patch[0].Op, "add")
 	assert.Equal(t, patch[0].Path, "/metadata/labels")
 	if updatedMap, ok := patch[0].Value.(map[string]string); ok {
-		assert.Equal(t, len(updatedMap), 4)
+		assert.Equal(t, len(updatedMap), 3)
 		assert.Equal(t, updatedMap["random"], "random")
 		assert.Equal(t, updatedMap["queue"], "root.default")
-		assert.Equal(t, updatedMap["disableStateAware"], "true")
 		assert.Equal(t, strings.HasPrefix(updatedMap["applicationId"], constants.AutoGenAppPrefix), true)
 	} else {
 		t.Fatal("patch info content is not as expected")
@@ -155,10 +154,9 @@ func TestUpdateLabels(t *testing.T) {
 	assert.Equal(t, patch[0].Op, "add")
 	assert.Equal(t, patch[0].Path, "/metadata/labels")
 	if updatedMap, ok := patch[0].Value.(map[string]string); ok {
-		assert.Equal(t, len(updatedMap), 4)
+		assert.Equal(t, len(updatedMap), 3)
 		assert.Equal(t, updatedMap["random"], "random")
 		assert.Equal(t, updatedMap["queue"], "root.abc")
-		assert.Equal(t, updatedMap["disableStateAware"], "true")
 		assert.Equal(t, strings.HasPrefix(updatedMap["applicationId"], constants.AutoGenAppPrefix), true)
 	} else {
 		t.Fatal("patch info content is not as expected")
@@ -188,9 +186,8 @@ func TestUpdateLabels(t *testing.T) {
 	assert.Equal(t, patch[0].Op, "add")
 	assert.Equal(t, patch[0].Path, "/metadata/labels")
 	if updatedMap, ok := patch[0].Value.(map[string]string); ok {
-		assert.Equal(t, len(updatedMap), 3)
+		assert.Equal(t, len(updatedMap), 2)
 		assert.Equal(t, updatedMap["queue"], "root.default")
-		assert.Equal(t, updatedMap["disableStateAware"], "true")
 		assert.Equal(t, strings.HasPrefix(updatedMap["applicationId"], constants.AutoGenAppPrefix), true)
 	} else {
 		t.Fatal("patch info content is not as expected")
@@ -217,9 +214,8 @@ func TestUpdateLabels(t *testing.T) {
 	assert.Equal(t, patch[0].Op, "add")
 	assert.Equal(t, patch[0].Path, "/metadata/labels")
 	if updatedMap, ok := patch[0].Value.(map[string]string); ok {
-		assert.Equal(t, len(updatedMap), 3)
+		assert.Equal(t, len(updatedMap), 2)
 		assert.Equal(t, updatedMap["queue"], "root.default")
-		assert.Equal(t, updatedMap["disableStateAware"], "true")
 		assert.Equal(t, strings.HasPrefix(updatedMap["applicationId"], constants.AutoGenAppPrefix), true)
 	} else {
 		t.Fatal("patch info content is not as expected")
@@ -244,9 +240,8 @@ func TestUpdateLabels(t *testing.T) {
 	assert.Equal(t, patch[0].Op, "add")
 	assert.Equal(t, patch[0].Path, "/metadata/labels")
 	if updatedMap, ok := patch[0].Value.(map[string]string); ok {
-		assert.Equal(t, len(updatedMap), 3)
+		assert.Equal(t, len(updatedMap), 2)
 		assert.Equal(t, updatedMap["queue"], "root.default")
-		assert.Equal(t, updatedMap["disableStateAware"], "true")
 		assert.Equal(t, strings.HasPrefix(updatedMap["applicationId"], constants.AutoGenAppPrefix), true)
 	} else {
 		t.Fatal("patch info content is not as expected")
@@ -455,7 +450,6 @@ func TestMutate(t *testing.T) {
 	assert.Check(t, resp.Allowed, "response not allowed for pod")
 	assert.Equal(t, schedulerName(t, resp.Patch), "yunikorn", "yunikorn not set as scheduler for pod")
 	assert.Equal(t, labels(t, resp.Patch)["applicationId"], "yunikorn-default-autogen", "wrong applicationId label")
-	assert.Equal(t, labels(t, resp.Patch)["disableStateAware"], "true", "missing disableStateAware label")
 	assert.Equal(t, labels(t, resp.Patch)["queue"], "root.default", "incorrect queue name")
 
 	// pod without applicationID
@@ -474,7 +468,6 @@ func TestMutate(t *testing.T) {
 	assert.Check(t, resp.Allowed, "response not allowed for pod")
 	assert.Equal(t, schedulerName(t, resp.Patch), "yunikorn", "yunikorn not set as scheduler for pod")
 	assert.Equal(t, labels(t, resp.Patch)["applicationId"], "yunikorn-test-ns-autogen", "wrong applicationId label")
-	assert.Equal(t, labels(t, resp.Patch)["disableStateAware"], "true", "missing disableStateAware label")
 
 	// pod with applicationId
 	pod.ObjectMeta.Labels = map[string]string{"applicationId": "test-app"}

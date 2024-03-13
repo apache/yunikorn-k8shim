@@ -19,7 +19,6 @@
 package cache
 
 import (
-	"strconv"
 	"strings"
 
 	v1 "k8s.io/api/core/v1"
@@ -32,7 +31,6 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
-	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 )
 
 func getTaskMetadata(pod *v1.Pod) (TaskMetadata, bool) {
@@ -77,9 +75,6 @@ func getAppMetadata(pod *v1.Pod) (ApplicationMetadata, bool) {
 		tags[constants.AppTagNamespace] = constants.DefaultAppNamespace
 	} else {
 		tags[constants.AppTagNamespace] = pod.Namespace
-	}
-	if isStateAwareDisabled(pod) {
-		tags[siCommon.AppTagStateAwareDisable] = "true"
 	}
 
 	// attach imagePullSecrets if present
@@ -141,21 +136,4 @@ func getOwnerReference(pod *v1.Pod) []metav1.OwnerReference {
 		BlockOwnerDeletion: &blockOwnerDeletion,
 	}
 	return []metav1.OwnerReference{ref}
-}
-
-func isStateAwareDisabled(pod *v1.Pod) bool {
-	value := utils.GetPodLabelValue(pod, constants.LabelDisableStateAware)
-	if value == "" {
-		return false
-	}
-	result, err := strconv.ParseBool(value)
-	if err != nil {
-		log.Log(log.ShimCacheApplication).Debug("unable to parse label for pod",
-			zap.String("namespace", pod.Namespace),
-			zap.String("name", pod.Name),
-			zap.String("label", constants.LabelDisableStateAware),
-			zap.Error(err))
-		return false
-	}
-	return result
 }

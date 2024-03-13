@@ -45,7 +45,7 @@ var _ = BeforeSuite(func() {
 	suiteName = common.GetSuiteName(filename)
 	annotation = "ann-" + common.RandSeq(10)
 	yunikorn.EnsureYuniKornConfigsPresent()
-	yunikorn.UpdateConfigMapWrapper(oldConfigMap, "stateaware", annotation)
+	yunikorn.UpdateConfigMapWrapper(oldConfigMap, "fifo", annotation)
 })
 
 var _ = AfterSuite(func() {
