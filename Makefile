@@ -74,6 +74,16 @@ else
   PLUGIN_OPTS := 
 endif
 
+# Reproducible builds mode
+GO_REPRO_VERSION := $(shell cat .go_repro_version)
+GO_REPRO_MAJOR := $(word 1,$(subst ., ,$(GO_REPRO_VERSION)))
+GO_REPRO_MINOR := $(word 2,$(subst ., ,$(GO_REPRO_VERSION)))
+ifeq ($(REPRODUCIBLE_BUILDS),1)
+  REPRO := 1
+else
+  REPRO :=
+endif
+
 # Build date - Use git commit, then cached build.date, finally current date
 # This allows for reproducible builds as long as release tarball contains the build.date file.
 DATE := $(shell if [ -d "$(BASE_DIR)/.git" ]; then TZ=UTC0 git --no-pager log -1 --date=iso8601-strict-local --format=%cd 2>/dev/null ; fi || true)
@@ -392,6 +402,17 @@ scheduler: $(RELEASE_BIN_DIR)/$(SCHEDULER_BINARY)
 $(RELEASE_BIN_DIR)/$(SCHEDULER_BINARY): go.mod go.sum $(shell find pkg)
 	@echo "building binary for scheduler docker image"
 	@mkdir -p "$(RELEASE_BIN_DIR)"
+ifeq ($(REPRO),1)
+	docker run -t --rm=true --volume "$(BASE_DIR):/buildroot" "golang:$(GO_REPRO_VERSION)" sh -c "cd /buildroot && \
+	CGO_ENABLED=0 GOOS=linux GOARCH=\"${EXEC_ARCH}\" go build \
+	-a \
+	-o=${RELEASE_BIN_DIR}/${SCHEDULER_BINARY} \
+	-trimpath \
+	-ldflags '-buildid= -extldflags \"-static\" -X ${FLAG_PREFIX}.buildVersion=${VERSION} -X ${FLAG_PREFIX}.buildDate=${DATE} -X ${FLAG_PREFIX}.isPluginVersion=false -X ${FLAG_PREFIX}.goVersion=${GO_REPRO_VERSION} -X ${FLAG_PREFIX}.arch=${EXEC_ARCH} -X ${FLAG_PREFIX}.coreSHA=${CORE_SHA} -X ${FLAG_PREFIX}.siSHA=${SI_SHA} -X ${FLAG_PREFIX}.shimSHA=${SHIM_SHA}' \
+	-tags netgo \
+	-installsuffix netgo \
+	./pkg/cmd/shim/"
+else
 	CGO_ENABLED=0 GOOS=linux GOARCH="${EXEC_ARCH}" "$(GO)" build \
 	-a \
 	-o=${RELEASE_BIN_DIR}/${SCHEDULER_BINARY} \
@@ -400,6 +421,7 @@ $(RELEASE_BIN_DIR)/$(SCHEDULER_BINARY): go.mod go.sum $(shell find pkg)
 	-tags netgo \
 	-installsuffix netgo \
 	./pkg/cmd/shim/
+endif
 
 # Build plugin binary in a production ready version
 .PHONY: plugin
@@ -408,6 +430,17 @@ plugin: $(RELEASE_BIN_DIR)/$(PLUGIN_BINARY)
 $(RELEASE_BIN_DIR)/$(PLUGIN_BINARY): go.mod go.sum $(shell find pkg)
 	@echo "building binary for plugin docker image"
 	@mkdir -p "$(RELEASE_BIN_DIR)"
+ifeq ($(REPRO),1)
+	docker run -t --rm=true --volume "$(BASE_DIR):/buildroot" "golang:$(GO_REPRO_VERSION)" sh -c "cd /buildroot && \
+	CGO_ENABLED=0 GOOS=linux GOARCH=\"${EXEC_ARCH}\" go build \
+	-a \
+	-o=${RELEASE_BIN_DIR}/${PLUGIN_BINARY} \
+	-trimpath \
+	-ldflags '-buildid= -extldflags \"-static\" -X ${FLAG_PREFIX}.buildVersion=${VERSION} -X ${FLAG_PREFIX}.buildDate=${DATE} -X ${FLAG_PREFIX}.isPluginVersion=true -X ${FLAG_PREFIX}.goVersion=${GO_REPRO_VERSION} -X ${FLAG_PREFIX}.arch=${EXEC_ARCH} -X ${FLAG_PREFIX}.coreSHA=${CORE_SHA} -X ${FLAG_PREFIX}.siSHA=${SI_SHA} -X ${FLAG_PREFIX}.shimSHA=${SHIM_SHA}' \
+	-tags netgo \
+	-installsuffix netgo \
+	./pkg/cmd/schedulerplugin/"
+else
 	CGO_ENABLED=0 GOOS=linux GOARCH="${EXEC_ARCH}" "$(GO)" build \
 	-a \
 	-o=${RELEASE_BIN_DIR}/${PLUGIN_BINARY} \
@@ -416,6 +449,7 @@ $(RELEASE_BIN_DIR)/$(PLUGIN_BINARY): go.mod go.sum $(shell find pkg)
 	-tags netgo \
 	-installsuffix netgo \
 	./pkg/cmd/schedulerplugin/
+endif
 	
 # Build a scheduler image based on the production ready version
 .PHONY: sched_image
@@ -465,6 +499,17 @@ admission: $(RELEASE_BIN_DIR)/$(ADMISSION_CONTROLLER_BINARY)
 $(RELEASE_BIN_DIR)/$(ADMISSION_CONTROLLER_BINARY): go.mod go.sum $(shell find pkg)
 	@echo "building admission controller binary"
 	@mkdir -p "$(RELEASE_BIN_DIR)"
+ifeq ($(REPRO),1)
+	docker run -t --rm=true --volume "$(BASE_DIR):/buildroot" "golang:$(GO_REPRO_VERSION)" sh -c "cd /buildroot && \
+	CGO_ENABLED=0 GOOS=linux GOARCH=\"${EXEC_ARCH}\" go build \
+	-a \
+	-o=$(RELEASE_BIN_DIR)/$(ADMISSION_CONTROLLER_BINARY) \
+	-trimpath \
+	-ldflags '-buildid= -extldflags \"-static\" -X ${FLAG_PREFIX}.buildVersion=${VERSION} -X ${FLAG_PREFIX}.buildDate=${DATE} -X ${FLAG_PREFIX}.goVersion=${GO_REPRO_VERSION} -X ${FLAG_PREFIX}.arch=${EXEC_ARCH}' \
+	-tags netgo \
+	-installsuffix netgo \
+	./pkg/cmd/admissioncontroller"
+else
 	CGO_ENABLED=0 GOOS=linux GOARCH="${EXEC_ARCH}" "$(GO)" build \
 	-a \
 	-o=$(RELEASE_BIN_DIR)/$(ADMISSION_CONTROLLER_BINARY) \
@@ -473,6 +518,7 @@ $(RELEASE_BIN_DIR)/$(ADMISSION_CONTROLLER_BINARY): go.mod go.sum $(shell find pk
 	-tags netgo \
 	-installsuffix netgo \
 	./pkg/cmd/admissioncontroller
+endif
 
 # Build an admission controller image based on the production ready version
 .PHONY: adm_image
