@@ -11,4 +11,5 @@
 *.crt
 *.key
 *.test
+*.swp
 /build.date
