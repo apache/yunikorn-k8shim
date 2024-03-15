@@ -47,11 +47,6 @@ func updatePodLabel(pod *v1.Pod, namespace string, generateUniqueAppIds bool, de
 		// 		application ID convention: ${AUTO_GEN_PREFIX}-${NAMESPACE}-${AUTO_GEN_SUFFIX}
 		generatedID := utils.GenerateApplicationID(namespace, generateUniqueAppIds, string(pod.UID))
 		result[constants.LabelApplicationID] = generatedID
-
-		// if we generate an app ID, disable state-aware scheduling for this app
-		if _, ok := existingLabels[constants.LabelDisableStateAware]; !ok {
-			result[constants.LabelDisableStateAware] = "true"
-		}
 	}
 
 	// if existing label exist, it takes priority over everything else
