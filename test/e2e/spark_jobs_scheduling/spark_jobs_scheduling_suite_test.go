@@ -39,17 +39,15 @@ func init() {
 
 var suiteName string
 var oldConfigMap = new(v1.ConfigMap)
-var annotation = "ann-" + common.RandSeq(10)
 var _ = BeforeSuite(func() {
 	_, filename, _, _ := runtime.Caller(0)
 	suiteName = common.GetSuiteName(filename)
-	annotation = "ann-" + common.RandSeq(10)
 	yunikorn.EnsureYuniKornConfigsPresent()
-	yunikorn.UpdateConfigMapWrapper(oldConfigMap, "fifo", annotation)
+	yunikorn.UpdateConfigMapWrapper(oldConfigMap, "fifo")
 })
 
 var _ = AfterSuite(func() {
-	yunikorn.RestoreConfigMapWrapper(oldConfigMap, annotation)
+	yunikorn.RestoreConfigMapWrapper(oldConfigMap)
 })
 
 func TestSparkJobs(t *testing.T) {
