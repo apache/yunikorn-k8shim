@@ -43,7 +43,6 @@ var restClient yunikorn.RClient
 var ns *v1.Namespace
 var dev = "dev" + common.RandSeq(5)
 var oldConfigMap = new(v1.ConfigMap)
-var annotation = "ann-" + common.RandSeq(10)
 
 // Nodes
 var Worker1 = ""
@@ -65,9 +64,8 @@ var _ = ginkgo.BeforeSuite(func() {
 	restClient = yunikorn.RClient{}
 	Ω(restClient).NotTo(gomega.BeNil())
 
-	annotation = "ann-" + common.RandSeq(10)
 	yunikorn.EnsureYuniKornConfigsPresent()
-	yunikorn.UpdateConfigMapWrapper(oldConfigMap, "", annotation)
+	yunikorn.UpdateConfigMapWrapper(oldConfigMap, "")
 
 	ginkgo.By("Port-forward the scheduler pod")
 	var err = kClient.PortForwardYkSchedulerPod()
@@ -142,7 +140,7 @@ var _ = ginkgo.AfterSuite(func() {
 	err = kClient.TearDownNamespace(ns.Name)
 	Ω(err).NotTo(gomega.HaveOccurred())
 
-	yunikorn.RestoreConfigMapWrapper(oldConfigMap, annotation)
+	yunikorn.RestoreConfigMapWrapper(oldConfigMap)
 })
 
 var _ = ginkgo.Describe("SimplePreemptor", func() {

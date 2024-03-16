@@ -63,17 +63,17 @@ func EnsureYuniKornConfigsPresent() {
 	}
 }
 
-func UpdateConfigMapWrapper(oldConfigMap *v1.ConfigMap, schedPolicy string, annotation string) {
-	UpdateCustomConfigMapWrapper(oldConfigMap, schedPolicy, annotation, func(sc *configs.SchedulerConfig) error {
+func UpdateConfigMapWrapper(oldConfigMap *v1.ConfigMap, schedPolicy string) {
+	UpdateCustomConfigMapWrapper(oldConfigMap, schedPolicy, func(sc *configs.SchedulerConfig) error {
 		return nil
 	})
 }
 
-func UpdateCustomConfigMapWrapper(oldConfigMap *v1.ConfigMap, schedPolicy string, annotation string, mutator func(sc *configs.SchedulerConfig) error) {
-	UpdateCustomConfigMapWrapperWithMap(oldConfigMap, schedPolicy, annotation, nil, mutator)
+func UpdateCustomConfigMapWrapper(oldConfigMap *v1.ConfigMap, schedPolicy string, mutator func(sc *configs.SchedulerConfig) error) {
+	UpdateCustomConfigMapWrapperWithMap(oldConfigMap, schedPolicy, nil, mutator)
 }
 
-func UpdateCustomConfigMapWrapperWithMap(oldConfigMap *v1.ConfigMap, schedPolicy string, annotation string, customMap map[string]string, mutator func(sc *configs.SchedulerConfig) error) {
+func UpdateCustomConfigMapWrapperWithMap(oldConfigMap *v1.ConfigMap, schedPolicy string, customMap map[string]string, mutator func(sc *configs.SchedulerConfig) error) {
 	Ω(k.SetClient()).To(BeNil())
 	By("Port-forward the scheduler pod")
 	fwdErr := k.PortForwardYkSchedulerPod()
@@ -121,7 +121,7 @@ func UpdateCustomConfigMapWrapperWithMap(oldConfigMap *v1.ConfigMap, schedPolicy
 	Ω(err).NotTo(HaveOccurred())
 }
 
-func RestoreConfigMapWrapper(oldConfigMap *v1.ConfigMap, annotation string) {
+func RestoreConfigMapWrapper(oldConfigMap *v1.ConfigMap) {
 	Ω(k.SetClient()).To(BeNil())
 	By("Restoring the old config maps")
 	var c, err = k.GetConfigMaps(configmanager.YuniKornTestConfig.YkNamespace,
