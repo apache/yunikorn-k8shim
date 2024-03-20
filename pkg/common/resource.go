@@ -62,9 +62,10 @@ func GetPodResource(pod *v1.Pod) (resource *si.Resource) {
 	}
 
 	// each resource compare between initcontainer and sum of containers
-	// max(sum(Containers requirement), InitContainers requirement)
+	// InitContainers(i) requirement=sum(Sidecar requirement i-1)+InitContainer(i) request
+	// max(sum(Containers requirement)+sum(Sidecar requirement), InitContainer(i) requirement)
 	if pod.Spec.InitContainers != nil {
-		checkInitContainerRequest(pod, podResource)
+		podResource = checkInitContainerRequest(pod, podResource)
 	}
 
 	// K8s pod EnableOverHead from:
@@ -128,22 +129,44 @@ func getMaxResource(left v1.ResourceList, right v1.ResourceList) *si.Resource {
 	return combined
 }
 
-func checkInitContainerRequest(pod *v1.Pod, containersResources *si.Resource) {
+func checkInitContainerRequest(pod *v1.Pod, containersResources *si.Resource) *si.Resource {
+	updatedRes := containersResources
+
+	// update total pod resource usage with sidecar containers
+	for _, c := range pod.Spec.InitContainers {
+		if isSideCarContainer(c) {
+			resourceList := c.Resources.Requests
+			sideCarResources := getResource(resourceList)
+			updatedRes = Add(updatedRes, sideCarResources)
+		}
+	}
+
+	var sideCarRequests *si.Resource // cumulative value of sidecar requests so far
 	for _, c := range pod.Spec.InitContainers {
 		resourceList := c.Resources.Requests
 		ICResource := getResource(resourceList)
+		if isSideCarContainer(c) {
+			sideCarRequests = Add(sideCarRequests, ICResource)
+		}
+		ICResource = Add(ICResource, sideCarRequests)
 		for resourceName, ICRequest := range ICResource.Resources {
-			containersRequests, exist := containersResources.Resources[resourceName]
+			containersRequests, exist := updatedRes.Resources[resourceName]
 			// addtional resource request from init cont, add it to request.
 			if !exist {
-				containersResources.Resources[resourceName] = ICRequest
+				updatedRes.Resources[resourceName] = ICRequest
 				continue
 			}
 			if ICRequest.GetValue() > containersRequests.GetValue() {
-				containersResources.Resources[resourceName] = ICRequest
+				updatedRes.Resources[resourceName] = ICRequest
 			}
 		}
 	}
+
+	return updatedRes
+}
+
+func isSideCarContainer(c v1.Container) bool {
+	return c.RestartPolicy != nil && *c.RestartPolicy == v1.ContainerRestartPolicyAlways
 }
 
 func GetNodeResource(nodeStatus *v1.NodeStatus) *si.Resource {
