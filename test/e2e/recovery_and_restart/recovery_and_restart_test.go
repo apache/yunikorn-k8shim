@@ -129,7 +129,7 @@ var _ = ginkgo.AfterSuite(func() {
 var _ = ginkgo.Describe("", func() {
 
 	ginkgo.It("Verify_Pod_Alloc_Props", func() {
-		err := restClient.WaitForAppStateTransition("default", "root."+dev, sleepRespPod.ObjectMeta.Labels["applicationId"], "Starting", 30)
+		err := restClient.WaitForAppStateTransition("default", "root."+dev, sleepRespPod.ObjectMeta.Labels["applicationId"], "Running", 30)
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		appsInfo, err := restClient.GetAppInfo("default", "root."+dev, sleepRespPod.ObjectMeta.Labels["applicationId"])
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())

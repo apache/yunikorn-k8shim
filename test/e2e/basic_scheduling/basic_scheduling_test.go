@@ -97,8 +97,8 @@ var _ = ginkgo.Describe("", func() {
 	})
 
 	ginkgo.It("Verify_Job_State", func() {
-		ginkgo.By("Verify that the job is scheduled & starting by YuniKorn")
-		gomega.Ω(appsInfo.State).To(gomega.Equal("Starting"))
+		ginkgo.By("Verify that the job is scheduled & running by YuniKorn")
+		gomega.Ω(appsInfo.State).To(gomega.Equal("Running"))
 		gomega.Ω("yunikorn").To(gomega.Equal(sleepRespPod.Spec.SchedulerName))
 	})
 
