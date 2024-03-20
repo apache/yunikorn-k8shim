@@ -31,7 +31,6 @@ type ApplicationStates struct {
 	New        string
 	Recovering string
 	Submitted  string
-	Starting   string
 	Accepted   string
 	Running    string
 	Rejected   string
@@ -59,7 +58,6 @@ func States() *AllStates {
 				New:        "New",
 				Recovering: "Recovering",
 				Submitted:  "Submitted",
-				Starting:   "Starting",
 				Accepted:   "Accepted",
 				Running:    "Running",
 				Rejected:   "Rejected",

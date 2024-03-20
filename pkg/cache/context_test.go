@@ -1364,7 +1364,7 @@ func TestFilteredEventsNotPublished(t *testing.T) {
 	eventRecords[5] = &si.EventRecord{
 		Type:              si.EventRecord_APP,
 		EventChangeType:   si.EventRecord_ADD,
-		EventChangeDetail: si.EventRecord_APP_STARTING,
+		EventChangeDetail: si.EventRecord_APP_RUNNING,
 		ObjectID:          "app-1",
 		Message:           "",
 	}
