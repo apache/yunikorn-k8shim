@@ -11,8 +11,8 @@ github.com/antlr/antlr4/runtime/Go/antlr/v4 v4.0.0-20230305170008-8188dc5388df h
 github.com/antlr/antlr4/runtime/Go/antlr/v4 v4.0.0-20230305170008-8188dc5388df/go.mod h1:pSwJ0fSY5KhvocuWSx4fz3BA8OrA1bQn+K1Eli3BRwM=
 github.com/apache/yunikorn-core v0.0.0-20240320142832-09e5d741b67c h1:xabRyfVmPle5gAnppiY3jeoS5t9+lVgbfoOlS24E5e4=
 github.com/apache/yunikorn-core v0.0.0-20240320142832-09e5d741b67c/go.mod h1:eLQ4wT62D3L05Fu+0OHh7hXMga6EXU1aMb4aOBwzEEM=
-github.com/apache/yunikorn-scheduler-interface v0.0.0-20240320010951-d392f3c7272d h1:ywKv8csdOkrUcQqHit60/PuHXuELpHcZ4ftm7/b3c6Q=
-github.com/apache/yunikorn-scheduler-interface v0.0.0-20240320010951-d392f3c7272d/go.mod h1:0f4l3ManMROX60xU7GbhejCEYYyMksH275oY2xIVkbM=
+github.com/apache/yunikorn-scheduler-interface v0.0.0-20240325175743-cc087bb5a191 h1:EfDQhLaxdM6LxPK6BTKG+fAzj67sLMi576DWnDjnNgU=
+github.com/apache/yunikorn-scheduler-interface v0.0.0-20240325175743-cc087bb5a191/go.mod h1:0f4l3ManMROX60xU7GbhejCEYYyMksH275oY2xIVkbM=
 github.com/armon/go-socks5 v0.0.0-20160902184237-e75332964ef5 h1:0CwZNZbxp69SHPdPJAN/hZIm0C4OItdklCFmMRWYpio=
 github.com/armon/go-socks5 v0.0.0-20160902184237-e75332964ef5/go.mod h1:wHh0iHkYZB8zMSxRWpUBQtwG5a7fFgvEO+odwuTv2gs=
 github.com/asaskevich/govalidator v0.0.0-20190424111038-f61b66f89f4a h1:idn718Q4B6AGu/h5Sxe66HYVdqdGu2l9Iebqhi/AEoA=
