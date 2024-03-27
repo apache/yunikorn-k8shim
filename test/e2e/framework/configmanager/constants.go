@@ -38,6 +38,7 @@ const (
 	QueuesPath        = "ws/v1/partition/%s/queues"
 	AppsPath          = "ws/v1/partition/%s/queue/%s/applications"
 	AppPath           = "ws/v1/partition/%s/queue/%s/application/%s"
+	PartitionAppPath = "ws/v1/partition/%s/application/%s"
 	CompletedAppsPath = "ws/v1/partition/%s/applications/completed"
 	ConfigPath        = "ws/v1/config"
 	ClustersPath      = "ws/v1/clusters"

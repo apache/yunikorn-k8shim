@@ -83,6 +83,16 @@ func (c *RClient) do(req *http.Request, v interface{}) (*http.Response, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
+	// handle error response objects for non 200 responses.
+	if resp.StatusCode != http.StatusOK {
+		var daoErr *dao.YAPIError
+		err = json.NewDecoder(resp.Body).Decode(&daoErr)
+		if err != nil {
+			return resp, err
+		}
+		err = fmt.Errorf("YAPIError: %d, %s, %s", daoErr.StatusCode, daoErr.Message, daoErr.Description)
+		return resp, err
+	}
 	err = json.NewDecoder(resp.Body).Decode(v)
 	return resp, err
 }
@@ -93,6 +103,16 @@ func (c *RClient) getBody(req *http.Request) (string, error) {
 		return "", err
 	}
 	defer resp.Body.Close()
+	// handle error response objects for non 200 responses.
+	if resp.StatusCode != http.StatusOK {
+		var daoErr *dao.YAPIError
+		err = json.NewDecoder(resp.Body).Decode(&daoErr)
+		if err != nil {
+			return "", err
+		}
+		err = fmt.Errorf("YAPIError: %d, %s, %s", daoErr.StatusCode, daoErr.Message, daoErr.Description)
+		return "", err
+	}
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", err
@@ -183,7 +203,13 @@ func (c *RClient) GetApps(partition string, queueName string) ([]*dao.Applicatio
 }
 
 func (c *RClient) GetAppInfo(partition string, queueName string, appID string) (*dao.ApplicationDAOInfo, error) {
-	req, err := c.newRequest("GET", fmt.Sprintf(configmanager.AppPath, partition, queueName, appID), nil)
+	var path string
+	if len(queueName) == 0 {
+		path = fmt.Sprintf(configmanager.PartitionAppPath, partition, appID)
+	} else {
+		path = fmt.Sprintf(configmanager.AppPath, partition, queueName, appID)
+	}
+	req, err := c.newRequest("GET", path, nil)
 	if err != nil {
 		return nil, err
 	}

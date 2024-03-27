@@ -29,6 +29,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
+	"github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 )
 
 const taskGroupInfo = `
@@ -141,6 +142,7 @@ func TestGetAppMetadata(t *testing.T) { //nolint:funlen
 	assert.Equal(t, app.Tags["namespace"], "default")
 	assert.Equal(t, app.Tags[constants.AnnotationSchedulingPolicyParam], "gangSchedulingStyle=Soft")
 	assert.Equal(t, app.Tags[constants.AppTagImagePullSecrets], "secret1,secret2")
+	assert.Equal(t, app.Tags[common.AppTagCreateForce], "false")
 	assert.Assert(t, app.Tags[constants.AnnotationTaskGroups] != "")
 	assert.Equal(t, app.TaskGroups[0].Name, "test-group-1")
 	assert.Equal(t, app.TaskGroups[0].MinMember, int32(3))
@@ -180,6 +182,7 @@ func TestGetAppMetadata(t *testing.T) { //nolint:funlen
 	assert.Equal(t, app.QueueName, "root.b")
 	assert.Equal(t, app.User, constants.DefaultUser)
 	assert.Equal(t, app.Tags["namespace"], "app-namespace-01")
+	assert.Equal(t, app.Tags[common.AppTagCreateForce], "false")
 	assert.Equal(t, len(app.TaskGroups), 0)
 	assert.Equal(t, app.SchedulingPolicyParameters.GetGangSchedulingStyle(), "Hard")
 
@@ -209,6 +212,7 @@ func TestGetAppMetadata(t *testing.T) { //nolint:funlen
 	app, ok = getAppMetadata(&pod)
 	assert.Equal(t, ok, true)
 	assert.Equal(t, app.SchedulingPolicyParameters.GetGangSchedulingStyle(), "Soft")
+	assert.Equal(t, app.Tags[common.AppTagCreateForce], "false")
 
 	pod = v1.Pod{
 		TypeMeta: apis.TypeMeta{
@@ -239,6 +243,30 @@ func TestGetAppMetadata(t *testing.T) { //nolint:funlen
 	app, ok = getAppMetadata(&pod)
 	assert.Equal(t, ok, true)
 	assert.Equal(t, app.SchedulingPolicyParameters.GetGangSchedulingStyle(), "Soft")
+	assert.Equal(t, app.Tags[common.AppTagCreateForce], "false")
+
+	pod = v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name:      "pod00002",
+			Namespace: "app-namespace-01",
+			UID:       "UID-POD-00001",
+		},
+		Spec: v1.PodSpec{
+			SchedulerName: constants.SchedulerName,
+			NodeName:      Host1,
+		},
+		Status: v1.PodStatus{
+			Phase: v1.PodRunning,
+		},
+	}
+
+	app, ok = getAppMetadata(&pod)
+	assert.Equal(t, ok, true)
+	assert.Equal(t, app.Tags[common.AppTagCreateForce], "true")
 
 	pod = v1.Pod{
 		TypeMeta: apis.TypeMeta{
