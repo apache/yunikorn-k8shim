@@ -56,6 +56,7 @@ import (
 	resourcehelper "k8s.io/kubectl/pkg/util/resource"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
 
+	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
@@ -1241,12 +1242,12 @@ func (k *KubeCtl) WaitForPlaceholders(namespace string, podPrefix string, numPod
 
 func (k *KubeCtl) ListPlaceholders(namespace string, podPrefix string) ([]v1.Pod, error) {
 	pods := make([]v1.Pod, 0)
-	podList, lstErr := k.ListPods(namespace, "placeholder=true")
+	podList, lstErr := k.ListPods(namespace, "")
 	if lstErr != nil {
 		return pods, lstErr
 	}
 	for _, pod := range podList.Items {
-		if strings.HasPrefix(pod.Name, podPrefix) {
+		if strings.HasPrefix(pod.Name, podPrefix) && pod.Annotations[constants.AnnotationPlaceholderFlag] == constants.True {
 			pods = append(pods, pod)
 		}
 	}
@@ -1263,18 +1264,17 @@ func (k *KubeCtl) WaitForPlaceholdersStableState(namespace string, podPrefix str
 
 func (k *KubeCtl) isNumPlaceholdersRunning(namespace string, podPrefix string, num int, podPhase *v1.PodPhase) wait.ConditionFunc {
 	return func() (bool, error) {
-		jobPods, lstErr := k.ListPods(namespace, "placeholder=true")
+		phPods, lstErr := k.ListPlaceholders(namespace, podPrefix)
 		if lstErr != nil {
 			return false, lstErr
 		}
 
 		var count int
-		for _, pod := range jobPods.Items {
-			if strings.HasPrefix(pod.Name, podPrefix) && (podPhase == nil || *podPhase == pod.Status.Phase) {
+		for _, pod := range phPods {
+			if podPhase == nil || *podPhase == pod.Status.Phase {
 				count++
 			}
 		}
-
 		return count == num, nil
 	}
 }
@@ -1283,26 +1283,24 @@ func (k *KubeCtl) isNumPlaceholdersRunning(namespace string, podPrefix string, n
 func (k *KubeCtl) arePlaceholdersStable(namespace string, podPrefix string, samePhases *int,
 	maxAttempts int, phases map[string]v1.PodPhase) wait.ConditionFunc {
 	return func() (bool, error) {
-		jobPods, lstErr := k.ListPods(namespace, "placeholder=true")
+		jobPods, lstErr := k.ListPlaceholders(namespace, podPrefix)
 		if lstErr != nil {
 			return false, lstErr
 		}
 
 		needRetry := false
-		for _, pod := range jobPods.Items {
-			if strings.HasPrefix(pod.Name, podPrefix) {
-				currentPhase := pod.Status.Phase
-				prevPhase, ok := phases[pod.Name]
-				if !ok {
-					phases[pod.Name] = currentPhase
-					needRetry = true
-					continue
-				}
-				if prevPhase != currentPhase {
-					needRetry = true
-				}
+		for _, pod := range jobPods {
+			currentPhase := pod.Status.Phase
+			prevPhase, ok := phases[pod.Name]
+			if !ok {
 				phases[pod.Name] = currentPhase
+				needRetry = true
+				continue
 			}
+			if prevPhase != currentPhase {
+				needRetry = true
+			}
+			phases[pod.Name] = currentPhase
 		}
 
 		if needRetry {

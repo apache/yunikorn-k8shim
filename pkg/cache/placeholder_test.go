@@ -97,6 +97,9 @@ func TestNewPlaceholder(t *testing.T) {
 		testGroups, map[string]string{constants.AppTagNamespace: namespace, constants.AppTagImagePullSecrets: "secret1,secret2"},
 		mockedSchedulerAPI)
 	app.setTaskGroups(taskGroups)
+	marshalledTaskGroups, err := json.Marshal(taskGroups)
+	assert.NilError(t, err, "taskGroups marshalling failed")
+	app.setTaskGroupsDefinition(string(marshalledTaskGroups))
 
 	assert.Equal(t, app.placeholderAsk.Resources[siCommon.CPU].Value, int64(10*500))
 	assert.Equal(t, app.placeholderAsk.Resources[siCommon.Memory].Value, int64(10*1024*1000*1000))
@@ -108,12 +111,21 @@ func TestNewPlaceholder(t *testing.T) {
 	assert.Equal(t, holder.pod.Spec.SchedulerName, constants.SchedulerName)
 	assert.Equal(t, holder.pod.Name, "ph-name")
 	assert.Equal(t, holder.pod.Namespace, namespace)
-	assert.Equal(t, len(holder.pod.Labels), 5, "unexpected number of labels")
-	assert.Equal(t, holder.pod.Labels[constants.LabelApplicationID], appID)
-	assert.Equal(t, holder.pod.Labels[constants.LabelQueueName], queue)
-	assert.Equal(t, holder.pod.Labels["placeholder"], "true")
-	assert.Equal(t, len(holder.pod.Annotations), 5, "unexpected number of annotations")
+	assert.DeepEqual(t, holder.pod.Labels, map[string]string{
+		constants.LabelApplicationID: appID,
+		constants.LabelQueueName:     queue,
+		"labelKey0":                  "labelKeyValue0",
+		"labelKey1":                  "labelKeyValue1",
+	})
+	assert.Equal(t, len(holder.pod.Annotations), 6, "unexpected number of annotations")
 	assert.Equal(t, holder.pod.Annotations[constants.AnnotationTaskGroupName], app.taskGroups[0].Name)
+	assert.Equal(t, holder.pod.Annotations[constants.AnnotationPlaceholderFlag], constants.True)
+	assert.Equal(t, holder.pod.Annotations["annotationKey0"], "annotationValue0")
+	assert.Equal(t, holder.pod.Annotations["annotationKey1"], "annotationValue1")
+	assert.Equal(t, holder.pod.Annotations["annotationKey2"], "annotationValue2")
+	var taskGroupsDef []TaskGroup
+	err = json.Unmarshal([]byte(holder.pod.Annotations[siCommon.DomainYuniKorn+"task-groups"]), &taskGroupsDef)
+	assert.NilError(t, err, "taskGroupsDef unmarshal failed")
 	assert.Equal(t, common.GetPodResource(holder.pod).Resources[siCommon.CPU].Value, int64(500))
 	assert.Equal(t, common.GetPodResource(holder.pod).Resources[siCommon.Memory].Value, int64(1024*1000*1000))
 	assert.Equal(t, common.GetPodResource(holder.pod).Resources["pods"].Value, int64(1))
@@ -125,37 +137,6 @@ func TestNewPlaceholder(t *testing.T) {
 	assert.Equal(t, len(holder.pod.Spec.ImagePullSecrets), 2, "unexpected number of pull secrets")
 	assert.Equal(t, "secret1", holder.pod.Spec.ImagePullSecrets[0].Name)
 	assert.Equal(t, "secret2", holder.pod.Spec.ImagePullSecrets[1].Name)
-	var priority *int32
-	assert.Equal(t, priority, holder.pod.Spec.Priority)
-	assert.Equal(t, "", holder.pod.Spec.PriorityClassName)
-}
-
-func TestNewPlaceholderWithLabelsAndAnnotations(t *testing.T) {
-	mockedSchedulerAPI := newMockSchedulerAPI()
-	app := NewApplication(appID, queue,
-		"bob", testGroups, map[string]string{constants.AppTagNamespace: namespace}, mockedSchedulerAPI)
-	app.setTaskGroups(taskGroups)
-	marshalledTaskGroups, err := json.Marshal(taskGroups)
-	assert.NilError(t, err, "taskGroups marshalling failed")
-	app.setTaskGroupsDefinition(string(marshalledTaskGroups))
-
-	holder := newPlaceholder("ph-name", app, app.taskGroups[0])
-
-	assert.DeepEqual(t, holder.pod.Labels, map[string]string{
-		"applicationId": "app01",
-		"labelKey0":     "labelKeyValue0",
-		"labelKey1":     "labelKeyValue1",
-		"placeholder":   "true",
-		"queue":         "root.default",
-	})
-
-	assert.Equal(t, len(holder.pod.Annotations), 6)
-	assert.Equal(t, holder.pod.Annotations["annotationKey0"], "annotationValue0")
-	assert.Equal(t, holder.pod.Annotations["annotationKey1"], "annotationValue1")
-	assert.Equal(t, holder.pod.Annotations["annotationKey2"], "annotationValue2")
-	var taskGroupsDef []TaskGroup
-	err = json.Unmarshal([]byte(holder.pod.Annotations[siCommon.DomainYuniKorn+"task-groups"]), &taskGroupsDef)
-	assert.NilError(t, err, "taskGroupsDef unmarshal failed")
 	var priority *int32
 	assert.Equal(t, priority, holder.pod.Spec.Priority)
 	assert.Equal(t, "", holder.pod.Spec.PriorityClassName)

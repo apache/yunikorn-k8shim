@@ -372,11 +372,5 @@ func GetPlaceholderFlagFromPodSpec(pod *v1.Pod) bool {
 			return v
 		}
 	}
-
-	if value := GetPodLabelValue(pod, constants.LabelPlaceholderFlag); value != "" {
-		if v, err := strconv.ParseBool(value); err == nil {
-			return v
-		}
-	}
 	return false
 }

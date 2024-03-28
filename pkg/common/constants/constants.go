@@ -32,6 +32,7 @@ const DefaultNodeAttributeRackNameKey = "si.io/rackname"
 const DefaultNodeInstanceTypeNodeLabelKey = "node.kubernetes.io/instance-type"
 const DefaultRackName = "/rack-default"
 const DomainYuniKorn = siCommon.DomainYuniKorn
+const DomainYuniKornInternal = siCommon.DomainYuniKornInternal
 
 // Application
 const LabelApp = "app"
@@ -65,8 +66,7 @@ const DaemonSetType = "DaemonSet"
 const PlaceholderContainerImage = "registry.k8s.io/pause:3.7"
 const PlaceholderContainerName = "pause"
 const PlaceholderPodRestartPolicy = "Never"
-const LabelPlaceholderFlag = "placeholder"
-const AnnotationPlaceholderFlag = DomainYuniKorn + "placeholder"
+const AnnotationPlaceholderFlag = DomainYuniKornInternal + "placeholder"
 const AnnotationTaskGroupName = DomainYuniKorn + "task-group-name"
 const AnnotationTaskGroups = DomainYuniKorn + "task-groups"
 const AnnotationSchedulingPolicyParam = DomainYuniKorn + "schedulingPolicyParameters"

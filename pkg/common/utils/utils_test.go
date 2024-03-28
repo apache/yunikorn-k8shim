@@ -983,8 +983,7 @@ func TestGetPlaceholderFlagFromPodSpec(t *testing.T) {
 		pod                     *v1.Pod
 		expectedPlaceholderFlag bool
 	}{
-
-		{"Setting by annotation", &v1.Pod{
+		{"Pod with placeholder annotation", &v1.Pod{
 			TypeMeta: metav1.TypeMeta{
 				Kind:       "Pod",
 				APIVersion: "v1",
@@ -993,38 +992,11 @@ func TestGetPlaceholderFlagFromPodSpec(t *testing.T) {
 				Name: "pod-01",
 				UID:  "UID-01",
 				Annotations: map[string]string{
-					constants.AnnotationPlaceholderFlag: "true",
+					constants.AnnotationPlaceholderFlag: constants.True,
 				},
 			},
 		}, true},
-		{"Setting by label", &v1.Pod{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "Pod",
-				APIVersion: "v1",
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "pod-01",
-				UID:  "UID-01",
-				Labels: map[string]string{
-					constants.LabelPlaceholderFlag: "true",
-				},
-			},
-		}, true},
-		{"Setting both annotation and label, annotation has higher priority", &v1.Pod{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "Pod",
-				APIVersion: "v1",
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "pod-01",
-				UID:  "UID-01",
-				Annotations: map[string]string{
-					constants.AnnotationPlaceholderFlag: "true",
-					constants.LabelPlaceholderFlag:      "false",
-				},
-			},
-		}, true},
-		{"No setting both annotation and label", &v1.Pod{
+		{"Pod without placeholder annotation", &v1.Pod{
 			TypeMeta: metav1.TypeMeta{
 				Kind:       "Pod",
 				APIVersion: "v1",
