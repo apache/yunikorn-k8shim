@@ -109,7 +109,7 @@ var _ = ginkgo.Describe("PodInRecoveryQueue", func() {
 		// Wait for pod to move to running state
 		err = kClient.WaitForPodRunning(dev, podDev.Name, 1*time.Minute)
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
-		ginkgo.By("Deploy 2nd sleep pod to the default namespace")
+		ginkgo.By("Deploy 2nd sleep pod to the test namespace")
 		podConf, podErr = k8s.InitSleepPod(sleepPod2Configs)
 		Ω(podErr).NotTo(gomega.HaveOccurred())
 		var podTest *v1.Pod
