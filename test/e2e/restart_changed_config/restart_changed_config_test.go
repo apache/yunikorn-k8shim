@@ -135,11 +135,6 @@ var _ = ginkgo.Describe("PodInRecoveryQueue", func() {
 			}
 			return nil
 		})
-		ginkgo.By("Restart the scheduler pod")
-		yunikorn.RestartYunikorn(&kClient)
-
-		ginkgo.By("Port-forward scheduler pod after restart")
-		yunikorn.RestorePortForwarding(&kClient)
 
 		ginkgo.By("Check pod in the dev namespace")
 		var appsInfo *dao.ApplicationDAOInfo
@@ -149,6 +144,26 @@ var _ = ginkgo.Describe("PodInRecoveryQueue", func() {
 
 		ginkgo.By("Check pod in the test namespace: recovery queue")
 		var appsInfo2 *dao.ApplicationDAOInfo
+		appsInfo2, err = restClient.GetAppInfo("default", "root."+test, podTest.ObjectMeta.Labels["applicationId"])
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		gomega.Ω(appsInfo2).NotTo(gomega.BeNil())
+
+		ginkgo.By("Restart the scheduler pod")
+		yunikorn.RestartYunikorn(&kClient)
+		ginkgo.By("Port-forward scheduler pod after restart")
+		yunikorn.RestorePortForwarding(&kClient)
+
+		// in case of the plugin startup takes some time, wait until we see the partition
+		ginkgo.By("Check shim registration")
+		err = restClient.WaitForRegistration("default", 5)
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+
+		ginkgo.By("Check pod in the dev namespace")
+		appsInfo, err = restClient.GetAppInfo("default", "root."+dev, podDev.ObjectMeta.Labels["applicationId"])
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		gomega.Ω(appsInfo).NotTo(gomega.BeNil())
+
+		ginkgo.By("Check pod in the test namespace: recovery queue")
 		appsInfo2, err = restClient.GetAppInfo("default", "", podTest.ObjectMeta.Labels["applicationId"])
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		gomega.Ω(appsInfo2).NotTo(gomega.BeNil())

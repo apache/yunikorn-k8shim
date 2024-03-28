@@ -87,9 +87,9 @@ func getAppMetadata(pod *v1.Pod) (ApplicationMetadata, bool) {
 	// add a filter here.
 	// NOTE: this could fail to set the flag if the oldest pod for the application is not scheduled and
 	// later pods are.
-	tags[common.AppTagCreateForce] = "false"
+	tags[common.AppTagCreateForce] = constants.False
 	if len(pod.Spec.NodeName) != 0 {
-		tags[common.AppTagCreateForce] = "true"
+		tags[common.AppTagCreateForce] = constants.True
 	}
 
 	// attach imagePullSecrets if present

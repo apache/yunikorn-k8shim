@@ -243,7 +243,7 @@ func TestGetAppMetadata(t *testing.T) { //nolint:funlen
 	app, ok = getAppMetadata(&pod)
 	assert.Equal(t, ok, true)
 	assert.Equal(t, app.SchedulingPolicyParameters.GetGangSchedulingStyle(), "Soft")
-	assert.Equal(t, app.Tags[common.AppTagCreateForce], "false")
+	assert.Equal(t, app.Tags[common.AppTagCreateForce], constants.False)
 
 	pod = v1.Pod{
 		TypeMeta: apis.TypeMeta{
@@ -266,7 +266,7 @@ func TestGetAppMetadata(t *testing.T) { //nolint:funlen
 
 	app, ok = getAppMetadata(&pod)
 	assert.Equal(t, ok, true)
-	assert.Equal(t, app.Tags[common.AppTagCreateForce], "true")
+	assert.Equal(t, app.Tags[common.AppTagCreateForce], constants.True)
 
 	pod = v1.Pod{
 		TypeMeta: apis.TypeMeta{
