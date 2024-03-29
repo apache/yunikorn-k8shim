@@ -70,6 +70,12 @@ $ cd test/e2e/
 $ ginkgo -r user_group_limit -v -- -yk-namespace "yunikorn" -kube-config "$HOME/.kube/config"
 ```
 
+* Launching specified test file.
+```shell
+$ cd test/e2e/
+$ ginkgo run -r -v --focus-file "admission_controller_test.go" -- -yk-namespace "yunikorn" -kube-config "$HOME/.kube/config"
+```
+
 * Launching specified test.
 e.g. Run test with ginkgo.it() spec name "Verify_maxapplications_with_a_specific_group_limit"
 ```shell 
@@ -78,6 +84,13 @@ $ ginkgo run -r -v --focus "Verify_maxapplications_with_a_specific_group_limit" 
 -- -yk-namespace "yunikorn" \
 -kube-config "$HOME/.kube/config"
 ```
+
+* Launching all the tests except specified test file.
+```shell
+$ cd test/e2e
+$ ginkgo run -r -v --skip-file "admission_controller_test.go" -- -yk-namespace "yunikorn" -kube-config "$HOME/.kube/config"
+```
+
 * Delete the cluster after we finish testing (this step is optional).
 
 ```shell
