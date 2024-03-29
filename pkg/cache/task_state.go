@@ -365,7 +365,7 @@ func newTaskState() *fsm.FSM {
 			},
 			{
 				Name: TaskFail.String(),
-				Src:  []string{states.Rejected, states.Allocated},
+				Src:  []string{states.New, states.Pending, states.Scheduling, states.Rejected, states.Allocated},
 				Dst:  states.Failed,
 			},
 		},

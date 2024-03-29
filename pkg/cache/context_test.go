@@ -33,6 +33,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/cache"
 	k8sEvents "k8s.io/client-go/tools/events"
+	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/volumebinding"
 
 	schedulercache "github.com/apache/yunikorn-k8shim/pkg/cache/external"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
@@ -53,6 +54,11 @@ const (
 	appID1 = "app00001"
 	appID2 = "app00002"
 	appID3 = "app00003"
+
+	pod1UID      = "task00001"
+	taskUID1     = "task00001"
+	pod1Name     = "my-pod-1"
+	fakeNodeName = "fake-node"
 )
 
 var (
@@ -69,6 +75,11 @@ func initContextAndAPIProviderForTest() (*Context, *client.MockedAPIProvider) {
 	apis := client.NewMockedAPIProvider(false)
 	context := NewContext(apis)
 	return context, apis
+}
+
+func setVolumeBinder(ctx *Context, binder volumebinding.SchedulerVolumeBinder) {
+	mockedAPI := ctx.apiProvider.(*client.MockedAPIProvider) //nolint:errcheck
+	mockedAPI.SetVolumeBinder(binder)
 }
 
 func newPodHelper(name, namespace, podUID, nodeName string, appID string, podPhase v1.PodPhase) *v1.Pod {
@@ -1189,16 +1200,16 @@ func TestGetTask(t *testing.T) {
 	app2.taskMap["task02"] = task2
 	task2.sm.SetState(TaskStates().Failed)
 
-	task := context.getTask(appID1, "task01")
+	task := context.GetTask(appID1, "task01")
 	assert.Assert(t, task == task1)
 
-	task = context.getTask("non_existing_appID", "task01")
+	task = context.GetTask("non_existing_appID", "task01")
 	assert.Assert(t, task == nil)
 
-	task = context.getTask(appID1, "non_existing_taskID")
+	task = context.GetTask(appID1, "non_existing_taskID")
 	assert.Assert(t, task == nil)
 
-	task = context.getTask(appID3, "task03")
+	task = context.GetTask(appID3, "task03")
 	assert.Assert(t, task == nil)
 }
 
@@ -2070,17 +2081,17 @@ func TestInitializeState(t *testing.T) {
 	assert.Check(t, context.schedulerCache.IsPodOrphaned("pod3"), "pod3 should be orphaned")
 
 	// pod1 is pending
-	task1 := context.getTask(appID1, "pod1")
+	task1 := context.GetTask(appID1, "pod1")
 	assert.Assert(t, task1 != nil, "pod1 not found")
 	assert.Equal(t, task1.pod.Spec.NodeName, "", "wrong node for pod1")
 
 	// pod 2 is running
-	task2 := context.getTask(appID2, "pod2")
+	task2 := context.GetTask(appID2, "pod2")
 	assert.Assert(t, task2 != nil, "pod2 not found")
 	assert.Equal(t, task2.pod.Spec.NodeName, "node1", "wrong node for pod2")
 
 	// pod3 is an orphan, should not be found
-	task3 := context.getTask(appID3, "pod3")
+	task3 := context.GetTask(appID3, "pod3")
 	assert.Assert(t, task3 == nil, "pod3 was found")
 }
 
@@ -2091,13 +2102,6 @@ func TestTaskRemoveOnCompletion(t *testing.T) {
 	dispatcher.RegisterEventHandler("TestTaskHandler", dispatcher.EventTypeTask, context.TaskEventHandler())
 	defer dispatcher.UnregisterAllEventHandlers()
 	defer dispatcher.Stop()
-
-	const (
-		pod1UID      = "task00001"
-		taskUID1     = "task00001"
-		pod1Name     = "my-pod-1"
-		fakeNodeName = "fake-node"
-	)
 
 	app := context.AddApplication(&AddApplicationRequest{
 		Metadata: ApplicationMetadata{
@@ -2136,6 +2140,168 @@ func TestTaskRemoveOnCompletion(t *testing.T) {
 	appTask, err := app.GetTask(taskUID1)
 	assert.Assert(t, appTask == nil)
 	assert.Error(t, err, "task task00001 doesn't exist in application app01")
+}
+
+func TestAssumePod(t *testing.T) {
+	context := initAssumePodTest(test.NewVolumeBinderMock())
+	defer dispatcher.UnregisterAllEventHandlers()
+	defer dispatcher.Stop()
+
+	err := context.AssumePod(pod1UID, appID, "alloc-0", fakeNodeName)
+	assert.NilError(t, err)
+	assert.Assert(t, context.schedulerCache.ArePodVolumesAllBound(pod1UID))
+	assumedPod, ok := context.schedulerCache.GetPod(pod1UID)
+	assert.Assert(t, ok, "pod not found in cache")
+	assert.Equal(t, assumedPod.Spec.NodeName, fakeNodeName)
+	assert.Assert(t, context.schedulerCache.IsAssumedPod(pod1UID))
+}
+
+func TestAssumePod_TaskNotFound(t *testing.T) {
+	context := initAssumePodTest(nil)
+	context.RemoveTask(appID, pod1UID)
+	defer dispatcher.UnregisterAllEventHandlers()
+	defer dispatcher.Stop()
+
+	err := context.AssumePod(pod1UID, appID, "alloc-0", fakeNodeName)
+	assert.Error(t, err, "task not found: task00001")
+	assert.Assert(t, !context.schedulerCache.IsAssumedPod(pod1UID))
+	podInCache, ok := context.schedulerCache.GetPod(pod1UID)
+	assert.Assert(t, ok, "pod not found in cache")
+	assert.Equal(t, podInCache.Spec.NodeName, "", "NodeName in pod spec was set unexpectedly")
+}
+
+func TestAssumePod_GetPodVolumeClaimsError(t *testing.T) {
+	binder := test.NewVolumeBinderMock()
+	const errMsg = "error getting volume claims"
+	binder.EnableVolumeClaimsError(errMsg)
+	context := initAssumePodTest(binder)
+	defer dispatcher.UnregisterAllEventHandlers()
+	defer dispatcher.Stop()
+
+	err := context.AssumePod(pod1UID, appID, "alloc-0", fakeNodeName)
+	assert.Error(t, err, errMsg)
+	task := context.getTask(appID, pod1UID)
+	err = utils.WaitForCondition(func() bool {
+		return task.GetTaskState() == TaskStates().Failed
+	}, 100*time.Millisecond, time.Second)
+	assert.NilError(t, err)
+	assert.Assert(t, !context.schedulerCache.IsAssumedPod(pod1UID))
+	podInCache, ok := context.schedulerCache.GetPod(pod1UID)
+	assert.Assert(t, ok, "pod not found in cache")
+	assert.Equal(t, podInCache.Spec.NodeName, "", "NodeName in pod spec was set unexpectedly")
+}
+
+func TestAssumePod_FindPodVolumesError(t *testing.T) {
+	binder := test.NewVolumeBinderMock()
+	const errMsg = "error getting pod volumes"
+	binder.EnableFindPodVolumesError(errMsg)
+	context := initAssumePodTest(binder)
+	defer dispatcher.UnregisterAllEventHandlers()
+	defer dispatcher.Stop()
+
+	err := context.AssumePod(pod1UID, appID, "alloc-0", fakeNodeName)
+	assert.Error(t, err, errMsg)
+	task := context.getTask(appID, pod1UID)
+	err = utils.WaitForCondition(func() bool {
+		return task.GetTaskState() == TaskStates().Failed
+	}, 100*time.Millisecond, time.Second)
+	assert.NilError(t, err)
+	assert.Assert(t, !context.schedulerCache.IsAssumedPod(pod1UID))
+	podInCache, ok := context.schedulerCache.GetPod(pod1UID)
+	assert.Assert(t, ok, "pod not found in cache")
+	assert.Equal(t, podInCache.Spec.NodeName, "", "NodeName in pod spec was set unexpectedly")
+}
+
+func TestAssumePod_ConflictingVolumes(t *testing.T) {
+	binder := test.NewVolumeBinderMock()
+	binder.SetConflictReasons("reason1", "reason2")
+	context := initAssumePodTest(binder)
+	defer dispatcher.UnregisterAllEventHandlers()
+	defer dispatcher.Stop()
+
+	err := context.AssumePod(pod1UID, appID, "alloc-0", fakeNodeName)
+	assert.Error(t, err, "pod my-pod-1 has conflicting volume claims: reason1, reason2")
+	task := context.getTask(appID, pod1UID)
+	err = utils.WaitForCondition(func() bool {
+		return task.GetTaskState() == TaskStates().Failed
+	}, 100*time.Millisecond, time.Second)
+	assert.NilError(t, err)
+	assert.Assert(t, !context.schedulerCache.IsAssumedPod(pod1UID))
+	podInCache, ok := context.schedulerCache.GetPod(pod1UID)
+	assert.Assert(t, ok, "pod not found in cache")
+	assert.Equal(t, podInCache.Spec.NodeName, "", "NodeName in pod spec was set unexpectedly")
+}
+
+func TestAssumePod_AssumePodVolumesError(t *testing.T) {
+	binder := test.NewVolumeBinderMock()
+	const errMsg = "error assuming pod volumes"
+	binder.SetAssumePodVolumesError(errMsg)
+	context := initAssumePodTest(binder)
+	defer dispatcher.UnregisterAllEventHandlers()
+	defer dispatcher.Stop()
+	err := context.AssumePod(pod1UID, appID, "alloc-0", fakeNodeName)
+	assert.Error(t, err, errMsg)
+	task := context.getTask(appID, pod1UID)
+	err = utils.WaitForCondition(func() bool {
+		return task.GetTaskState() == TaskStates().Failed
+	}, 100*time.Millisecond, time.Second)
+	assert.NilError(t, err)
+	assert.Assert(t, !context.schedulerCache.IsAssumedPod(pod1UID))
+	podInCache, ok := context.schedulerCache.GetPod(pod1UID)
+	assert.Assert(t, ok, "pod not found in cache")
+	assert.Equal(t, podInCache.Spec.NodeName, "", "NodeName in pod spec was set unexpectedly")
+}
+
+func TestAssumePod_PodNotFound(t *testing.T) {
+	context := initAssumePodTest(nil)
+	defer dispatcher.UnregisterAllEventHandlers()
+	defer dispatcher.Stop()
+
+	err := context.AssumePod("nonexisting", appID, "alloc-0", fakeNodeName)
+	assert.NilError(t, err)
+	assert.Assert(t, !context.schedulerCache.IsAssumedPod(pod1UID))
+	podInCache, ok := context.schedulerCache.GetPod(pod1UID)
+	assert.Assert(t, ok)
+	assert.Equal(t, podInCache.Spec.NodeName, "", "NodeName in pod spec was set unexpectedly")
+}
+
+func initAssumePodTest(binder *test.VolumeBinderMock) *Context {
+	context, apiProvider := initContextAndAPIProviderForTest()
+	if binder != nil {
+		setVolumeBinder(context, binder)
+	}
+	dispatcher.Start()
+	dispatcher.RegisterEventHandler("TestAppHandler", dispatcher.EventTypeApp, context.ApplicationEventHandler())
+	dispatcher.RegisterEventHandler("TestTaskHandler", dispatcher.EventTypeTask, context.TaskEventHandler())
+	apiProvider.MockSchedulerAPIUpdateNodeFn(func(request *si.NodeRequest) error {
+		for _, node := range request.Nodes {
+			dispatcher.Dispatch(CachedSchedulerNodeEvent{
+				NodeID: node.NodeID,
+				Event:  NodeAccepted,
+			})
+		}
+		return nil
+	})
+	context.AddApplication(&AddApplicationRequest{
+		Metadata: ApplicationMetadata{
+			ApplicationID: appID,
+			QueueName:     queue,
+			User:          "test-user",
+			Tags:          nil,
+		},
+	})
+	pod := newPodHelper(pod1Name, namespace, pod1UID, "", appID, v1.PodRunning)
+	context.AddPod(pod)
+	node := v1.Node{
+		ObjectMeta: apis.ObjectMeta{
+			Name:      fakeNodeName,
+			Namespace: "default",
+			UID:       "uid_0001",
+		},
+	}
+	context.addNode(&node)
+
+	return context
 }
 
 func waitForNodeAcceptedEvent(recorder *k8sEvents.FakeRecorder) error {

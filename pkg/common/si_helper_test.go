@@ -32,8 +32,9 @@ import (
 
 const nodeID = "node-01"
 
-func TestCreateReleaseAllocationRequest(t *testing.T) {
-	request := CreateReleaseAllocationRequestForTask("app01", "task01", "alloc01", "default", "STOPPED_BY_RM")
+func TestCreateReleaseRequestForTask(t *testing.T) {
+	// with "allocationID"
+	request := CreateReleaseRequestForTask("app01", "task01", "alloc01", "default", "STOPPED_BY_RM")
 	assert.Assert(t, request.Releases != nil)
 	assert.Assert(t, request.Releases.AllocationsToRelease != nil)
 	assert.Assert(t, request.Releases.AllocationAsksToRelease != nil)
@@ -45,10 +46,9 @@ func TestCreateReleaseAllocationRequest(t *testing.T) {
 	assert.Equal(t, request.Releases.AllocationAsksToRelease[0].ApplicationID, "app01")
 	assert.Equal(t, request.Releases.AllocationAsksToRelease[0].AllocationKey, "task01")
 	assert.Equal(t, request.Releases.AllocationAsksToRelease[0].PartitionName, "default")
-}
 
-func TestCreateReleaseAskRequestForTask(t *testing.T) {
-	request := CreateReleaseAskRequestForTask("app01", "task01", "default")
+	// without allocationID
+	request = CreateReleaseRequestForTask("app01", "task01", "", "default", "STOPPED_BY_RM")
 	assert.Assert(t, request.Releases != nil)
 	assert.Assert(t, request.Releases.AllocationsToRelease == nil)
 	assert.Assert(t, request.Releases.AllocationAsksToRelease != nil)

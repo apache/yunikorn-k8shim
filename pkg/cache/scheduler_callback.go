@@ -56,11 +56,11 @@ func (callback *AsyncRMCallback) UpdateAllocation(response *si.AllocationRespons
 			zap.String("nodeID", alloc.NodeID))
 
 		// update cache
-		if err := callback.context.AssumePod(alloc.AllocationKey, alloc.NodeID); err != nil {
+		if err := callback.context.AssumePod(alloc.AllocationKey, alloc.ApplicationID, alloc.AllocationID, alloc.NodeID); err != nil {
 			return err
 		}
 		if app := callback.context.GetApplication(alloc.ApplicationID); app != nil {
-			if task := callback.context.getTask(app.GetApplicationID(), alloc.AllocationKey); task != nil {
+			if task := callback.context.GetTask(app.GetApplicationID(), alloc.AllocationKey); task != nil {
 				if utils.IsAssignedPod(task.GetTaskPod()) {
 					// task is already bound, fixup state and continue
 					task.MarkPreviouslyAllocated(alloc.AllocationID, alloc.NodeID)
