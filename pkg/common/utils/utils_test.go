@@ -983,7 +983,7 @@ func TestGetPlaceholderFlagFromPodSpec(t *testing.T) {
 		pod                     *v1.Pod
 		expectedPlaceholderFlag bool
 	}{
-		{"Pod with placeholder annotation", &v1.Pod{
+		{"Setting by annotation", &v1.Pod{
 			TypeMeta: metav1.TypeMeta{
 				Kind:       "Pod",
 				APIVersion: "v1",
@@ -992,7 +992,50 @@ func TestGetPlaceholderFlagFromPodSpec(t *testing.T) {
 				Name: "pod-01",
 				UID:  "UID-01",
 				Annotations: map[string]string{
-					constants.AnnotationPlaceholderFlag: constants.True,
+					constants.AnnotationPlaceholderFlag: "true",
+				},
+			},
+		}, true},
+		{"Setting by deprecated annotation", &v1.Pod{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Pod",
+				APIVersion: "v1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "pod-01",
+				UID:  "UID-01",
+				Annotations: map[string]string{
+					constants.OldAnnotationOldPlaceholderFlag: "true", // nolint:staticcheck
+				},
+			},
+		}, true},
+		{"Setting by deprecated label", &v1.Pod{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Pod",
+				APIVersion: "v1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "pod-01",
+				UID:  "UID-01",
+				Labels: map[string]string{
+					constants.OldLabelPlaceholderFlag: "true", // nolint:staticcheck
+				},
+			},
+		}, true},
+		{"Set new placeholder annotation and old placeholder label/annotation together, new annotation has higher priority", &v1.Pod{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Pod",
+				APIVersion: "v1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "pod-01",
+				UID:  "UID-01",
+				Labels: map[string]string{
+					constants.OldLabelPlaceholderFlag: "false", // nolint:staticcheck
+				},
+				Annotations: map[string]string{
+					constants.AnnotationPlaceholderFlag:       "true",
+					constants.OldAnnotationOldPlaceholderFlag: "false", // nolint:staticcheck
 				},
 			},
 		}, true},
