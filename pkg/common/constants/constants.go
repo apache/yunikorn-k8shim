@@ -71,7 +71,7 @@ const PlaceholderPodRestartPolicy = "Never"
 const OldLabelPlaceholderFlag = "placeholder"
 
 // Deprecated: should remove old placeholder flags in 1.7.0
-const OldAnnotationOldPlaceholderFlag = DomainYuniKorn + "placeholder"
+const OldAnnotationPlaceholderFlag = DomainYuniKorn + "placeholder"
 const AnnotationPlaceholderFlag = DomainYuniKornInternal + "placeholder"
 const AnnotationTaskGroupName = DomainYuniKorn + "task-group-name"
 const AnnotationTaskGroups = DomainYuniKorn + "task-groups"

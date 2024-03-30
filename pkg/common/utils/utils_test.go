@@ -1005,7 +1005,7 @@ func TestGetPlaceholderFlagFromPodSpec(t *testing.T) {
 				Name: "pod-01",
 				UID:  "UID-01",
 				Annotations: map[string]string{
-					constants.OldAnnotationOldPlaceholderFlag: "true", // nolint:staticcheck
+					constants.OldAnnotationPlaceholderFlag: "true", // nolint:staticcheck
 				},
 			},
 		}, true},
@@ -1034,8 +1034,8 @@ func TestGetPlaceholderFlagFromPodSpec(t *testing.T) {
 					constants.OldLabelPlaceholderFlag: "false", // nolint:staticcheck
 				},
 				Annotations: map[string]string{
-					constants.AnnotationPlaceholderFlag:       "true",
-					constants.OldAnnotationOldPlaceholderFlag: "false", // nolint:staticcheck
+					constants.AnnotationPlaceholderFlag:    "true",
+					constants.OldAnnotationPlaceholderFlag: "false", // nolint:staticcheck
 				},
 			},
 		}, true},

@@ -373,7 +373,7 @@ func GetPlaceholderFlagFromPodSpec(pod *v1.Pod) bool {
 		}
 	}
 
-	if value := GetPodAnnotationValue(pod, constants.OldAnnotationOldPlaceholderFlag); value != "" { // nolint:staticcheck
+	if value := GetPodAnnotationValue(pod, constants.OldAnnotationPlaceholderFlag); value != "" { // nolint:staticcheck
 		if v, err := strconv.ParseBool(value); err == nil {
 			return v
 		}
