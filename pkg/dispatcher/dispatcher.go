@@ -261,11 +261,10 @@ func Stop() {
 
 	close(getDispatcher().stopChan)
 	stopWait := make(chan struct{})
-	defer close(stopWait)
 
 	go func() {
+		defer close(stopWait)
 		getDispatcher().stopped.Wait()
-		stopWait <- struct{}{}
 	}()
 
 	// wait until the main event loop stops properly
