@@ -1325,7 +1325,7 @@ func TestFilteredEventsNotPublished(t *testing.T) {
 	err := waitForNodeAcceptedEvent(recorder)
 	assert.NilError(t, err, "node accepted event was not sent")
 
-	eventRecords := make([]*si.EventRecord, 7)
+	eventRecords := make([]*si.EventRecord, 6)
 	eventRecords[0] = &si.EventRecord{
 		Type:              si.EventRecord_NODE,
 		EventChangeType:   si.EventRecord_SET,
@@ -1336,39 +1336,32 @@ func TestFilteredEventsNotPublished(t *testing.T) {
 	eventRecords[1] = &si.EventRecord{
 		Type:              si.EventRecord_NODE,
 		EventChangeType:   si.EventRecord_SET,
-		EventChangeDetail: si.EventRecord_NODE_READY,
+		EventChangeDetail: si.EventRecord_NODE_OCCUPIED,
 		ObjectID:          "host0001",
 		Message:           "",
 	}
 	eventRecords[2] = &si.EventRecord{
 		Type:              si.EventRecord_NODE,
 		EventChangeType:   si.EventRecord_SET,
-		EventChangeDetail: si.EventRecord_NODE_OCCUPIED,
-		ObjectID:          "host0001",
-		Message:           "",
-	}
-	eventRecords[3] = &si.EventRecord{
-		Type:              si.EventRecord_NODE,
-		EventChangeType:   si.EventRecord_SET,
 		EventChangeDetail: si.EventRecord_NODE_CAPACITY,
 		ObjectID:          "host0001",
 		Message:           "",
 	}
-	eventRecords[4] = &si.EventRecord{
+	eventRecords[3] = &si.EventRecord{
 		Type:              si.EventRecord_NODE,
 		EventChangeType:   si.EventRecord_ADD,
 		EventChangeDetail: si.EventRecord_NODE_ALLOC,
 		ObjectID:          "host0001",
 		Message:           "",
 	}
-	eventRecords[5] = &si.EventRecord{
+	eventRecords[4] = &si.EventRecord{
 		Type:              si.EventRecord_APP,
 		EventChangeType:   si.EventRecord_ADD,
 		EventChangeDetail: si.EventRecord_APP_RUNNING,
 		ObjectID:          "app-1",
 		Message:           "",
 	}
-	eventRecords[6] = &si.EventRecord{
+	eventRecords[5] = &si.EventRecord{
 		Type:              si.EventRecord_QUEUE,
 		EventChangeType:   si.EventRecord_ADD,
 		EventChangeDetail: si.EventRecord_DETAILS_NONE,

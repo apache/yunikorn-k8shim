@@ -124,7 +124,7 @@ func (fc *MockScheduler) addNode(nodeName string, nodeLabels map[string]string, 
 		AddResource(siCommon.CPU, cpu).
 		AddResource("pods", pods).
 		Build()
-	request := common.CreateUpdateRequestForNewNode(nodeName, nodeLabels, nodeResource, nil, nil, true)
+	request := common.CreateUpdateRequestForNewNode(nodeName, nodeLabels, nodeResource, nil, nil)
 	fmt.Printf("report new nodes to scheduler, request: %s", request.String())
 	return fc.apiProvider.GetAPIs().SchedulerAPI.UpdateNode(request)
 }

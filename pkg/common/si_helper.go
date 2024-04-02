@@ -173,7 +173,7 @@ func CreateReleaseAllocationRequestForTask(appID, taskID, allocationID, partitio
 
 // CreateUpdateRequestForNewNode builds a NodeRequest for new node addition and restoring existing node
 func CreateUpdateRequestForNewNode(nodeID string, nodeLabels map[string]string, capacity *si.Resource, occupied *si.Resource,
-	existingAllocations []*si.Allocation, ready bool) *si.NodeRequest {
+	existingAllocations []*si.Allocation) *si.NodeRequest {
 	// Use node's name as the NodeID, this is because when bind pod to node,
 	// name of node is required but uid is optional.
 	nodeInfo := &si.NodeInfo{
@@ -183,7 +183,6 @@ func CreateUpdateRequestForNewNode(nodeID string, nodeLabels map[string]string, 
 		Attributes: map[string]string{
 			constants.DefaultNodeAttributeHostNameKey: nodeID,
 			constants.DefaultNodeAttributeRackNameKey: constants.DefaultRackName,
-			common.NodeReadyAttribute:                 strconv.FormatBool(ready),
 		},
 		ExistingAllocations: existingAllocations,
 		Action:              si.NodeInfo_CREATE,
@@ -205,14 +204,11 @@ func CreateUpdateRequestForNewNode(nodeID string, nodeLabels map[string]string, 
 	}
 }
 
-// CreateUpdateRequestForUpdatedNode builds a NodeRequest for any node updates like capacity,
-// ready status flag etc
-func CreateUpdateRequestForUpdatedNode(nodeID string, capacity *si.Resource, occupied *si.Resource, ready bool) *si.NodeRequest {
+// CreateUpdateRequestForUpdatedNode builds a NodeRequest for capacity and occupied resource updates
+func CreateUpdateRequestForUpdatedNode(nodeID string, capacity *si.Resource, occupied *si.Resource) *si.NodeRequest {
 	nodeInfo := &si.NodeInfo{
-		NodeID: nodeID,
-		Attributes: map[string]string{
-			common.NodeReadyAttribute: strconv.FormatBool(ready),
-		},
+		NodeID:              nodeID,
+		Attributes:          map[string]string{},
 		SchedulableResource: capacity,
 		OccupiedResource:    occupied,
 		Action:              si.NodeInfo_UPDATE,
