@@ -189,26 +189,15 @@ func (ctx *Context) updateNodeInternal(node *v1.Node, register bool) {
 		// existing node
 		prevCapacity := common.GetNodeResource(&prevNode.Status)
 		newCapacity := common.GetNodeResource(&node.Status)
-		prevReady := hasReadyCondition(prevNode)
-		newReady := hasReadyCondition(node)
 
 		if !common.Equals(prevCapacity, newCapacity) {
 			// update capacity
 			if capacity, occupied, ok := ctx.schedulerCache.UpdateCapacity(node.Name, newCapacity); ok {
-				if err := ctx.updateNodeResources(node, capacity, occupied, newReady); err != nil {
+				if err := ctx.updateNodeResources(node, capacity, occupied); err != nil {
 					log.Log(log.ShimContext).Warn("Failed to update node capacity", zap.Error(err))
 				}
 			} else {
 				log.Log(log.ShimContext).Warn("Failed to update cached node capacity", zap.String("nodeName", node.Name))
-			}
-		} else if newReady != prevReady {
-			// update readiness
-			if capacity, occupied, ok := ctx.schedulerCache.SnapshotResources(node.Name); ok {
-				if err := ctx.updateNodeResources(node, capacity, occupied, newReady); err != nil {
-					log.Log(log.ShimContext).Warn("Failed to update node readiness", zap.Error(err))
-				}
-			} else {
-				log.Log(log.ShimContext).Warn("Failed to snapshot cached node capacity", zap.String("nodeName", node.Name))
 			}
 		}
 	}
@@ -481,7 +470,7 @@ func (ctx *Context) updateNodeOccupiedResources(nodeName string, namespace strin
 		return
 	}
 	if node, capacity, occupied, ok := ctx.schedulerCache.UpdateOccupiedResource(nodeName, namespace, podName, resource, opt); ok {
-		if err := ctx.updateNodeResources(node, capacity, occupied, hasReadyCondition(node)); err != nil {
+		if err := ctx.updateNodeResources(node, capacity, occupied); err != nil {
 			log.Log(log.ShimContext).Warn("scheduler rejected update to node occupied resources", zap.Error(err))
 		}
 	} else {
@@ -1527,7 +1516,6 @@ func (ctx *Context) registerNodes(nodes []*v1.Node) ([]*v1.Node, error) {
 			Attributes: map[string]string{
 				constants.DefaultNodeAttributeHostNameKey: node.Name,
 				constants.DefaultNodeAttributeRackNameKey: constants.DefaultRackName,
-				siCommon.NodeReadyAttribute:               strconv.FormatBool(hasReadyCondition(node)),
 			},
 			SchedulableResource: common.GetNodeResource(&nodeStatus),
 			OccupiedResource:    common.NewResourceBuilder().Build(),
@@ -1598,8 +1586,8 @@ func (ctx *Context) decommissionNode(node *v1.Node) error {
 	return ctx.apiProvider.GetAPIs().SchedulerAPI.UpdateNode(request)
 }
 
-func (ctx *Context) updateNodeResources(node *v1.Node, capacity *si.Resource, occupied *si.Resource, ready bool) error {
-	request := common.CreateUpdateRequestForUpdatedNode(node.Name, capacity, occupied, ready)
+func (ctx *Context) updateNodeResources(node *v1.Node, capacity *si.Resource, occupied *si.Resource) error {
+	request := common.CreateUpdateRequestForUpdatedNode(node.Name, capacity, occupied)
 	return ctx.apiProvider.GetAPIs().SchedulerAPI.UpdateNode(request)
 }
 
@@ -1614,11 +1602,9 @@ func (ctx *Context) enableNodes(nodes []*v1.Node) error {
 	for _, node := range nodes {
 		log.Log(log.ShimContext).Info("Enabling node", zap.String("name", node.Name))
 		nodesToEnable = append(nodesToEnable, &si.NodeInfo{
-			NodeID: node.Name,
-			Action: si.NodeInfo_DRAIN_TO_SCHEDULABLE,
-			Attributes: map[string]string{
-				siCommon.NodeReadyAttribute: strconv.FormatBool(hasReadyCondition(node)),
-			},
+			NodeID:     node.Name,
+			Action:     si.NodeInfo_DRAIN_TO_SCHEDULABLE,
+			Attributes: map[string]string{},
 		})
 	}
 
@@ -1756,15 +1742,4 @@ func convertToNode(obj interface{}) (*v1.Node, error) {
 		return node, nil
 	}
 	return nil, fmt.Errorf("cannot convert to *v1.Node: %v", obj)
-}
-
-func hasReadyCondition(node *v1.Node) bool {
-	if node != nil {
-		for _, condition := range node.Status.Conditions {
-			if condition.Type == v1.NodeReady && condition.Status == v1.ConditionTrue {
-				return true
-			}
-		}
-	}
-	return false
 }

@@ -9,10 +9,10 @@ github.com/NYTimes/gziphandler v1.1.1 h1:ZUDjpQae29j0ryrS0u/B8HZfJBtBQHjqw2rQ2cq
 github.com/NYTimes/gziphandler v1.1.1/go.mod h1:n/CVRwUEOgIxrgPvAQhUUr9oeUtvrhMomdKFjzJNB0c=
 github.com/antlr/antlr4/runtime/Go/antlr/v4 v4.0.0-20230305170008-8188dc5388df h1:7RFfzj4SSt6nnvCPbCqijJi1nWCd+TqAT3bYCStRC18=
 github.com/antlr/antlr4/runtime/Go/antlr/v4 v4.0.0-20230305170008-8188dc5388df/go.mod h1:pSwJ0fSY5KhvocuWSx4fz3BA8OrA1bQn+K1Eli3BRwM=
-github.com/apache/yunikorn-core v0.0.0-20240320142832-09e5d741b67c h1:xabRyfVmPle5gAnppiY3jeoS5t9+lVgbfoOlS24E5e4=
-github.com/apache/yunikorn-core v0.0.0-20240320142832-09e5d741b67c/go.mod h1:eLQ4wT62D3L05Fu+0OHh7hXMga6EXU1aMb4aOBwzEEM=
-github.com/apache/yunikorn-scheduler-interface v0.0.0-20240325175743-cc087bb5a191 h1:EfDQhLaxdM6LxPK6BTKG+fAzj67sLMi576DWnDjnNgU=
-github.com/apache/yunikorn-scheduler-interface v0.0.0-20240325175743-cc087bb5a191/go.mod h1:0f4l3ManMROX60xU7GbhejCEYYyMksH275oY2xIVkbM=
+github.com/apache/yunikorn-core v0.0.0-20240402212227-bdf109b5432c h1:WoO71GKblZEKBOuWviJMD5f1W6tdbJp5Pv/utd4zYqw=
+github.com/apache/yunikorn-core v0.0.0-20240402212227-bdf109b5432c/go.mod h1:RZCBSMe6UZ04b45ZzwvuhhkY2f7f8ZW7ERvVMUM6dy4=
+github.com/apache/yunikorn-scheduler-interface v0.0.0-20240402211642-e7421a4261fd h1:uNOijHkCotZLUZ+A85NSftEJGfP50Opf7ms6Daj6pco=
+github.com/apache/yunikorn-scheduler-interface v0.0.0-20240402211642-e7421a4261fd/go.mod h1:0f4l3ManMROX60xU7GbhejCEYYyMksH275oY2xIVkbM=
 github.com/armon/go-socks5 v0.0.0-20160902184237-e75332964ef5 h1:0CwZNZbxp69SHPdPJAN/hZIm0C4OItdklCFmMRWYpio=
 github.com/armon/go-socks5 v0.0.0-20160902184237-e75332964ef5/go.mod h1:wHh0iHkYZB8zMSxRWpUBQtwG5a7fFgvEO+odwuTv2gs=
 github.com/asaskevich/govalidator v0.0.0-20190424111038-f61b66f89f4a h1:idn718Q4B6AGu/h5Sxe66HYVdqdGu2l9Iebqhi/AEoA=
