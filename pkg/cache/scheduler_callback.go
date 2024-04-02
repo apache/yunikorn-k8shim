@@ -56,11 +56,20 @@ func (callback *AsyncRMCallback) UpdateAllocation(response *si.AllocationRespons
 			zap.String("nodeID", alloc.NodeID))
 
 		// update cache
-		if err := callback.context.AssumePod(alloc.AllocationKey, alloc.ApplicationID, alloc.AllocationID, alloc.NodeID); err != nil {
+		task := callback.context.getTask(alloc.ApplicationID, alloc.AllocationKey)
+		if task != nil {
+			task.setAllocationID(alloc.AllocationID)
+		} else {
+			log.Log(log.ShimRMCallback).Warn("Unable to get task", zap.String("taskID", alloc.AllocationKey))
+		}
+		if err := callback.context.AssumePod(alloc.AllocationKey, alloc.NodeID); err != nil {
+			if task != nil {
+				task.failWithEvent(err.Error(), "AssumePodError")
+			}
 			return err
 		}
 		if app := callback.context.GetApplication(alloc.ApplicationID); app != nil {
-			if task := callback.context.GetTask(app.GetApplicationID(), alloc.AllocationKey); task != nil {
+			if task != nil {
 				if utils.IsAssignedPod(task.GetTaskPod()) {
 					// task is already bound, fixup state and continue
 					task.MarkPreviouslyAllocated(alloc.AllocationID, alloc.NodeID)

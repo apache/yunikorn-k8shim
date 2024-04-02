@@ -449,8 +449,14 @@ func (cache *SchedulerCache) StartPodAllocation(podKey string, nodeID string) bo
 	return false
 }
 
-// return if pod is assumed in cache, avoid nil
+// IsAssumedPod returns if pod is assumed in cache, avoid nil
 func (cache *SchedulerCache) IsAssumedPod(podKey string) bool {
+	cache.lock.RLock()
+	defer cache.lock.RUnlock()
+	return cache.isAssumedPod(podKey)
+}
+
+func (cache *SchedulerCache) isAssumedPod(podKey string) bool {
 	_, ok := cache.assumedPods[podKey]
 	return ok
 }

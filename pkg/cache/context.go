@@ -779,7 +779,7 @@ func (ctx *Context) bindPodVolumes(pod *v1.Pod) error {
 // be running on it. And we keep this cache in-sync between core and the shim.
 // this way, the core can make allocation decisions with consideration of
 // other assumed pods before they are actually bound to the node (bound is slow).
-func (ctx *Context) AssumePod(name, applicationID, allocationID, node string) error {
+func (ctx *Context) AssumePod(name, node string) error {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
 	if pod, ok := ctx.schedulerCache.GetPod(name); ok {
@@ -792,13 +792,6 @@ func (ctx *Context) AssumePod(name, applicationID, allocationID, node string) er
 			// assume pod volumes before assuming the pod
 			// this will update scheduler cache with essential PV/PVC binding info
 			var allBound = true
-			task := ctx.getTask(applicationID, name)
-			if task == nil {
-				log.Log(log.ShimContext).Error("BUG: task not found", zap.String("taskID", name))
-				return fmt.Errorf("task not found: %s", name)
-			}
-			task.setAllocationID(allocationID)
-
 			var err error
 			// retrieve the volume claims
 			podVolumeClaims, err := ctx.apiProvider.GetAPIs().VolumeBinder.GetPodVolumeClaims(ctx.klogger, pod)
@@ -806,7 +799,6 @@ func (ctx *Context) AssumePod(name, applicationID, allocationID, node string) er
 				log.Log(log.ShimContext).Error("Failed to get pod volume claims",
 					zap.String("podName", assumedPod.Name),
 					zap.Error(err))
-				task.failWithEvent(fmt.Sprintf("Failed to get pod volume claims: %s", err.Error()), "PodVolumeClaimsNotFound")
 				return err
 			}
 
@@ -817,7 +809,6 @@ func (ctx *Context) AssumePod(name, applicationID, allocationID, node string) er
 					zap.String("podName", assumedPod.Name),
 					zap.String("nodeName", assumedPod.Spec.NodeName),
 					zap.Error(err))
-				task.failWithEvent(fmt.Sprintf("Failed to get pod volumes: %s", err.Error()), "PodVolumeNotFound")
 				return err
 			}
 			if len(reasons) > 0 {
@@ -831,12 +822,10 @@ func (ctx *Context) AssumePod(name, applicationID, allocationID, node string) er
 					zap.String("podName", assumedPod.Name),
 					zap.String("nodeName", assumedPod.Spec.NodeName),
 					zap.Error(err))
-				task.failWithEvent(err.Error(), "ConflictingVolumeClaims")
 				return err
 			}
 			allBound, err = ctx.apiProvider.GetAPIs().VolumeBinder.AssumePodVolumes(ctx.klogger, pod, node, volumes)
 			if err != nil {
-				task.failWithEvent(fmt.Sprintf("Failed to assume pod volumes: %s", err.Error()), "AssumePodVolumeError")
 				return err
 			}
 
@@ -1161,13 +1150,9 @@ func (ctx *Context) RemoveTask(appID, taskID string) {
 	app.RemoveTask(taskID)
 }
 
-func (ctx *Context) GetTask(appID string, taskID string) *Task {
+func (ctx *Context) getTask(appID string, taskID string) *Task {
 	ctx.lock.RLock()
 	defer ctx.lock.RUnlock()
-	return ctx.getTask(appID, taskID)
-}
-
-func (ctx *Context) getTask(appID, taskID string) *Task {
 	app := ctx.getApplication(appID)
 	if app == nil {
 		log.Log(log.ShimContext).Debug("application is not found in the context",
@@ -1203,7 +1188,7 @@ func (ctx *Context) PublishEvents(eventRecords []*si.EventRecord) {
 			case si.EventRecord_REQUEST:
 				appID := record.ReferenceID
 				taskID := record.ObjectID
-				if task := ctx.GetTask(appID, taskID); task != nil {
+				if task := ctx.getTask(appID, taskID); task != nil {
 					events.GetRecorder().Eventf(task.GetTaskPod().DeepCopy(), nil,
 						v1.EventTypeNormal, "", "", record.Message)
 				} else {
@@ -1263,7 +1248,7 @@ func (ctx *Context) updatePodCondition(task *Task, podCondition *v1.PodCondition
 // pod condition in order to trigger auto-scaling.
 func (ctx *Context) HandleContainerStateUpdate(request *si.UpdateContainerSchedulingStateRequest) {
 	// the allocationKey equals to the taskID
-	if task := ctx.GetTask(request.ApplicationID, request.AllocationKey); task != nil {
+	if task := ctx.getTask(request.ApplicationID, request.AllocationKey); task != nil {
 		switch request.State {
 		case si.UpdateContainerSchedulingStateRequest_SKIPPED:
 			// auto-scaler scans pods whose pod condition is PodScheduled=false && reason=Unschedulable
@@ -1326,7 +1311,7 @@ func (ctx *Context) ApplicationEventHandler() func(obj interface{}) {
 func (ctx *Context) TaskEventHandler() func(obj interface{}) {
 	return func(obj interface{}) {
 		if event, ok := obj.(events.TaskEvent); ok {
-			task := ctx.GetTask(event.GetApplicationID(), event.GetTaskID())
+			task := ctx.getTask(event.GetApplicationID(), event.GetTaskID())
 			if task == nil {
 				log.Log(log.ShimContext).Error("failed to handle application event")
 				return
