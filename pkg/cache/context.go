@@ -665,11 +665,6 @@ func (ctx *Context) IsPodFitNode(name, node string, allocate bool) error {
 }
 
 func (ctx *Context) IsPodFitNodeViaPreemption(name, node string, allocations []string, startIndex int) (index int, ok bool) {
-	// assume minimal pods need killing if running in testing mode
-	if ctx.apiProvider.IsTestingMode() {
-		return startIndex, ok
-	}
-
 	ctx.lock.RLock()
 	defer ctx.lock.RUnlock()
 	if pod, ok := ctx.schedulerCache.GetPod(name); ok {
