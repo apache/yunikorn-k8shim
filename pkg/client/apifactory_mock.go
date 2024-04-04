@@ -29,6 +29,7 @@ import (
 	corev1 "k8s.io/client-go/listers/core/v1"
 	storagev1 "k8s.io/client-go/listers/storage/v1"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/volumebinding"
 
 	"github.com/apache/yunikorn-k8shim/pkg/common/test"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
@@ -87,7 +88,7 @@ func NewMockedAPIProvider(showError bool) *MockedAPIProvider {
 			PVInformer:            &MockedPersistentVolumeInformer{},
 			PVCInformer:           &MockedPersistentVolumeClaimInformer{},
 			StorageInformer:       &MockedStorageClassInformer{},
-			VolumeBinder:          nil,
+			VolumeBinder:          test.NewVolumeBinderMock(),
 			NamespaceInformer:     test.NewMockNamespaceInformer(false),
 			PriorityClassInformer: test.NewMockPriorityClassInformer(),
 			InformerFactory:       informers.NewSharedInformerFactory(k8fake.NewSimpleClientset(), time.Second*60),
@@ -445,4 +446,8 @@ func (m *MockedStorageClassInformer) Informer() cache.SharedIndexInformer {
 
 func (m *MockedStorageClassInformer) Lister() storagev1.StorageClassLister {
 	return nil
+}
+
+func (m *MockedAPIProvider) SetVolumeBinder(binder volumebinding.SchedulerVolumeBinder) {
+	m.clients.VolumeBinder = binder
 }

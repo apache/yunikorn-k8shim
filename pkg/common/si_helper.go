@@ -116,25 +116,6 @@ func CreateAllocationForTask(appID, taskID, nodeID string, resource *si.Resource
 	}
 }
 
-func CreateReleaseAskRequestForTask(appID, taskID, partition string) *si.AllocationRequest {
-	toReleases := make([]*si.AllocationAskRelease, 0)
-	toReleases = append(toReleases, &si.AllocationAskRelease{
-		ApplicationID: appID,
-		AllocationKey: taskID,
-		PartitionName: partition,
-		Message:       "task request is canceled",
-	})
-
-	releaseRequest := si.AllocationReleasesRequest{
-		AllocationAsksToRelease: toReleases,
-	}
-
-	return &si.AllocationRequest{
-		Releases: &releaseRequest,
-		RmID:     conf.GetSchedulerConf().ClusterID,
-	}
-}
-
 func GetTerminationTypeFromString(terminationTypeStr string) si.TerminationType {
 	if v, ok := si.TerminationType_value[terminationTypeStr]; ok {
 		return si.TerminationType(v)
@@ -142,18 +123,21 @@ func GetTerminationTypeFromString(terminationTypeStr string) si.TerminationType 
 	return si.TerminationType_STOPPED_BY_RM
 }
 
-func CreateReleaseAllocationRequestForTask(appID, taskID, allocationID, partition, terminationType string) *si.AllocationRequest {
-	toReleases := make([]*si.AllocationRelease, 0)
-	toReleases = append(toReleases, &si.AllocationRelease{
-		ApplicationID:   appID,
-		AllocationID:    allocationID,
-		PartitionName:   partition,
-		TerminationType: GetTerminationTypeFromString(terminationType),
-		Message:         "task completed",
-	})
+func CreateReleaseRequestForTask(appID, taskID, allocationID, partition, terminationType string) *si.AllocationRequest {
+	var allocToRelease []*si.AllocationRelease
+	if allocationID != "" {
+		allocToRelease = make([]*si.AllocationRelease, 1)
+		allocToRelease[0] = &si.AllocationRelease{
+			ApplicationID:   appID,
+			AllocationID:    allocationID,
+			PartitionName:   partition,
+			TerminationType: GetTerminationTypeFromString(terminationType),
+			Message:         "task completed",
+		}
+	}
 
-	toReleaseAsk := make([]*si.AllocationAskRelease, 1)
-	toReleaseAsk[0] = &si.AllocationAskRelease{
+	askToRelease := make([]*si.AllocationAskRelease, 1)
+	askToRelease[0] = &si.AllocationAskRelease{
 		ApplicationID: appID,
 		AllocationKey: taskID,
 		PartitionName: partition,
@@ -161,8 +145,8 @@ func CreateReleaseAllocationRequestForTask(appID, taskID, allocationID, partitio
 	}
 
 	releaseRequest := si.AllocationReleasesRequest{
-		AllocationsToRelease:    toReleases,
-		AllocationAsksToRelease: toReleaseAsk,
+		AllocationsToRelease:    allocToRelease,
+		AllocationAsksToRelease: askToRelease,
 	}
 
 	return &si.AllocationRequest{
