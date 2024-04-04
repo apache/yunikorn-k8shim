@@ -768,7 +768,7 @@ func (ctx *Context) bindPodVolumes(pod *v1.Pod) error {
 // be running on it. And we keep this cache in-sync between core and the shim.
 // this way, the core can make allocation decisions with consideration of
 // other assumed pods before they are actually bound to the node (bound is slow).
-func (ctx *Context) AssumePod(name string, node string) error {
+func (ctx *Context) AssumePod(name, node string) error {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
 	if pod, ok := ctx.schedulerCache.GetPod(name); ok {
@@ -781,45 +781,43 @@ func (ctx *Context) AssumePod(name string, node string) error {
 			// assume pod volumes before assuming the pod
 			// this will update scheduler cache with essential PV/PVC binding info
 			var allBound = true
-			// volume builder might be null in UTs
-			if ctx.apiProvider.GetAPIs().VolumeBinder != nil {
-				var err error
-				// retrieve the volume claims
-				podVolumeClaims, err := ctx.apiProvider.GetAPIs().VolumeBinder.GetPodVolumeClaims(ctx.klogger, pod)
-				if err != nil {
-					log.Log(log.ShimContext).Error("Failed to get pod volume claims",
-						zap.String("podName", assumedPod.Name),
-						zap.Error(err))
-					return err
-				}
-
-				// retrieve volumes
-				volumes, reasons, err := ctx.apiProvider.GetAPIs().VolumeBinder.FindPodVolumes(ctx.klogger, pod, podVolumeClaims, targetNode.Node())
-				if err != nil {
-					log.Log(log.ShimContext).Error("Failed to find pod volumes",
-						zap.String("podName", assumedPod.Name),
-						zap.String("nodeName", assumedPod.Spec.NodeName),
-						zap.Error(err))
-					return err
-				}
-				if len(reasons) > 0 {
-					sReasons := make([]string, 0)
-					for _, reason := range reasons {
-						sReasons = append(sReasons, string(reason))
-					}
-					sReason := strings.Join(sReasons, ", ")
-					err = fmt.Errorf("pod %s has conflicting volume claims: %s", pod.Name, sReason)
-					log.Log(log.ShimContext).Error("Pod has conflicting volume claims",
-						zap.String("podName", assumedPod.Name),
-						zap.String("nodeName", assumedPod.Spec.NodeName),
-						zap.Error(err))
-					return err
-				}
-				allBound, err = ctx.apiProvider.GetAPIs().VolumeBinder.AssumePodVolumes(ctx.klogger, pod, node, volumes)
-				if err != nil {
-					return err
-				}
+			var err error
+			// retrieve the volume claims
+			podVolumeClaims, err := ctx.apiProvider.GetAPIs().VolumeBinder.GetPodVolumeClaims(ctx.klogger, pod)
+			if err != nil {
+				log.Log(log.ShimContext).Error("Failed to get pod volume claims",
+					zap.String("podName", assumedPod.Name),
+					zap.Error(err))
+				return err
 			}
+
+			// retrieve volumes
+			volumes, reasons, err := ctx.apiProvider.GetAPIs().VolumeBinder.FindPodVolumes(ctx.klogger, pod, podVolumeClaims, targetNode.Node())
+			if err != nil {
+				log.Log(log.ShimContext).Error("Failed to find pod volumes",
+					zap.String("podName", assumedPod.Name),
+					zap.String("nodeName", assumedPod.Spec.NodeName),
+					zap.Error(err))
+				return err
+			}
+			if len(reasons) > 0 {
+				sReasons := make([]string, 0)
+				for _, reason := range reasons {
+					sReasons = append(sReasons, string(reason))
+				}
+				sReason := strings.Join(sReasons, ", ")
+				err = fmt.Errorf("pod %s has conflicting volume claims: %s", pod.Name, sReason)
+				log.Log(log.ShimContext).Error("Pod has conflicting volume claims",
+					zap.String("podName", assumedPod.Name),
+					zap.String("nodeName", assumedPod.Spec.NodeName),
+					zap.Error(err))
+				return err
+			}
+			allBound, err = ctx.apiProvider.GetAPIs().VolumeBinder.AssumePodVolumes(ctx.klogger, pod, node, volumes)
+			if err != nil {
+				return err
+			}
+
 			// assign the node name for pod
 			assumedPod.Spec.NodeName = node
 			ctx.schedulerCache.AssumePod(assumedPod, allBound)

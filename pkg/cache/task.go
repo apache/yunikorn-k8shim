@@ -379,14 +379,10 @@ func (task *Task) postTaskAllocated() {
 			log.Log(log.ShimCacheTask).Debug("bind pod volumes",
 				zap.String("podName", task.pod.Name),
 				zap.String("podUID", string(task.pod.UID)))
-			if task.context.apiProvider.GetAPIs().VolumeBinder != nil {
-				if err := task.context.bindPodVolumes(task.pod); err != nil {
-					errorMessage := fmt.Sprintf("bind volumes to pod failed, name: %s, %s", task.alias, err.Error())
-					dispatcher.Dispatch(NewFailTaskEvent(task.applicationID, task.taskID, errorMessage))
-					events.GetRecorder().Eventf(task.pod.DeepCopy(),
-						nil, v1.EventTypeWarning, "PodVolumesBindFailure", "PodVolumesBindFailure", errorMessage)
-					return
-				}
+			if err := task.context.bindPodVolumes(task.pod); err != nil {
+				log.Log(log.ShimCacheTask).Error("bind volumes to pod failed", zap.String("taskID", task.taskID), zap.Error(err))
+				task.failWithEvent(fmt.Sprintf("bind volumes to pod failed, name: %s, %s", task.alias, err.Error()), "PodVolumesBindFailure")
+				return
 			}
 
 			log.Log(log.ShimCacheTask).Debug("bind pod",
@@ -394,11 +390,8 @@ func (task *Task) postTaskAllocated() {
 				zap.String("podUID", string(task.pod.UID)))
 
 			if err := task.context.apiProvider.GetAPIs().KubeClient.Bind(task.pod, task.nodeName); err != nil {
-				errorMessage := fmt.Sprintf("bind pod to node failed, name: %s, %s", task.alias, err.Error())
-				log.Log(log.ShimCacheTask).Error(errorMessage)
-				dispatcher.Dispatch(NewFailTaskEvent(task.applicationID, task.taskID, errorMessage))
-				events.GetRecorder().Eventf(task.pod.DeepCopy(), nil,
-					v1.EventTypeWarning, "PodBindFailure", "PodBindFailure", errorMessage)
+				log.Log(log.ShimCacheTask).Error("bind pod to node failed", zap.String("taskID", task.taskID), zap.Error(err))
+				task.failWithEvent(fmt.Sprintf("bind pod to node failed, name: %s, %s", task.alias, err.Error()), "PodBindFailure")
 				return
 			}
 
@@ -523,8 +516,7 @@ func (task *Task) releaseAllocation() {
 		s := TaskStates()
 		switch task.GetTaskState() {
 		case s.New, s.Pending, s.Scheduling, s.Rejected:
-			releaseRequest = common.CreateReleaseAskRequestForTask(
-				task.applicationID, task.taskID, task.application.partition)
+			releaseRequest = common.CreateReleaseRequestForTask(task.applicationID, task.taskID, task.allocationID, task.application.partition, task.terminationType)
 		default:
 			if task.allocationID == "" {
 				log.Log(log.ShimCacheTask).Warn("BUG: task allocation allocationID is empty on release",
@@ -532,9 +524,8 @@ func (task *Task) releaseAllocation() {
 					zap.String("taskID", task.taskID),
 					zap.String("taskAlias", task.alias),
 					zap.String("task", task.GetTaskState()))
-				return
 			}
-			releaseRequest = common.CreateReleaseAllocationRequestForTask(
+			releaseRequest = common.CreateReleaseRequestForTask(
 				task.applicationID, task.taskID, task.allocationID, task.application.partition, task.terminationType)
 		}
 
@@ -595,4 +586,16 @@ func (task *Task) UpdatePodCondition(podCondition *v1.PodCondition) (bool, *v1.P
 	}
 
 	return false, pod
+}
+
+func (task *Task) setAllocationID(allocationID string) {
+	task.lock.Lock()
+	defer task.lock.Unlock()
+	task.allocationID = allocationID
+}
+
+func (task *Task) failWithEvent(errorMessage, actionReason string) {
+	dispatcher.Dispatch(NewFailTaskEvent(task.applicationID, task.taskID, errorMessage))
+	events.GetRecorder().Eventf(task.pod.DeepCopy(),
+		nil, v1.EventTypeWarning, actionReason, actionReason, errorMessage)
 }

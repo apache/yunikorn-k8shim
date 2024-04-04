@@ -259,6 +259,52 @@ partitions:
 	assert.NilError(t, err, "number of allocations is not expected, error")
 }
 
+// simulate PVC error during Context.AssumePod() call
+func TestAssumePodError(t *testing.T) {
+	configData := `
+partitions:
+  - name: default
+    queues:
+      - name: root
+        submitacl: "*"
+        queues:
+          - name: a
+            resources:
+              guaranteed:
+                memory: 100000000
+                vcore: 10
+              max:
+                memory: 150000000
+                vcore: 20
+`
+	cluster := MockScheduler{}
+	cluster.init()
+	binder := test.NewVolumeBinderMock()
+	binder.EnableVolumeClaimsError("unable to get volume claims")
+	cluster.apiProvider.SetVolumeBinder(binder)
+	assert.NilError(t, cluster.start(), "failed to start cluster")
+	defer cluster.stop()
+
+	err := cluster.updateConfig(configData, nil)
+	assert.NilError(t, err, "update config failed")
+	addNode(&cluster, "node-1")
+
+	// create app and task which will fail due to simulated volume error
+	taskResource := common.NewResourceBuilder().
+		AddResource(siCommon.Memory, 1000).
+		AddResource(siCommon.CPU, 1).
+		Build()
+	pod1 := createTestPod("root.a", "app0001", "task0001", taskResource)
+	cluster.AddPod(pod1)
+
+	// expect app to enter Completing state with allocation+ask removed
+	err = cluster.waitForApplicationStateInCore("app0001", partitionName, "Completing")
+	assert.NilError(t, err)
+	app := cluster.getApplicationFromCore("app0001", partitionName)
+	assert.Equal(t, 0, len(app.GetAllRequests()), "asks were not removed from the application")
+	assert.Equal(t, 0, len(app.GetAllAllocations()), "allocations were not removed from the application")
+}
+
 func createTestPod(queue string, appID string, taskID string, taskResource *si.Resource) *v1.Pod {
 	containers := make([]v1.Container, 0)
 	c1Resources := make(map[v1.ResourceName]resource.Quantity)
