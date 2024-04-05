@@ -23,7 +23,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"sync"
 
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
@@ -33,6 +32,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	schedulerconf "github.com/apache/yunikorn-k8shim/pkg/conf"
+	"github.com/apache/yunikorn-k8shim/pkg/locking"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
 
@@ -105,7 +105,7 @@ type AdmissionControllerConf struct {
 	defaultQueueName        string
 	configMaps              []*v1.ConfigMap
 
-	lock sync.RWMutex
+	lock locking.RWMutex
 }
 
 func NewAdmissionControllerConf(configMaps []*v1.ConfigMap) *AdmissionControllerConf {

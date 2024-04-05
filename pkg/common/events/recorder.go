@@ -27,11 +27,12 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
+	"github.com/apache/yunikorn-k8shim/pkg/locking"
 )
 
 var eventRecorder events.EventRecorder = events.NewFakeRecorder(1024)
 var once sync.Once
-var lock sync.RWMutex
+var lock locking.RWMutex
 
 func GetRecorder() events.EventRecorder {
 	lock.Lock()

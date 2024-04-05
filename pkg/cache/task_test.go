@@ -19,7 +19,6 @@
 package cache
 
 import (
-	"sync"
 	"testing"
 	"time"
 
@@ -36,6 +35,8 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
+	"github.com/apache/yunikorn-k8shim/pkg/locking"
+
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
 
@@ -523,7 +524,7 @@ func TestHandleSubmitTaskEvent(t *testing.T) {
 	mockedContext.addPriorityClass(priorityClass2)
 	rt := &recorderTime{
 		time: int64(0),
-		lock: &sync.RWMutex{},
+		lock: &locking.RWMutex{},
 	}
 	conf.GetSchedulerConf().SetTestMode(true)
 	mr := events.NewMockedRecorder()

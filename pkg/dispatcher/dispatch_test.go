@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"runtime"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -31,6 +30,7 @@ import (
 
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
+	"github.com/apache/yunikorn-k8shim/pkg/locking"
 )
 
 // app event for testing
@@ -77,7 +77,7 @@ func TestRegisterEventHandler(t *testing.T) {
 
 type appEventsRecorder struct {
 	apps []string
-	lock *sync.RWMutex
+	lock *locking.RWMutex
 }
 
 func (a *appEventsRecorder) addApp(appID string) {
@@ -109,7 +109,7 @@ func TestDispatcherStartStop(t *testing.T) {
 	// thread safe
 	recorder := &appEventsRecorder{
 		apps: make([]string, 0),
-		lock: &sync.RWMutex{},
+		lock: &locking.RWMutex{},
 	}
 
 	RegisterEventHandler("TestAppHandler", EventTypeApp, func(obj interface{}) {
@@ -165,7 +165,7 @@ func TestEventWillNotBeLostWhenEventChannelIsFull(t *testing.T) {
 	// thread safe
 	recorder := &appEventsRecorder{
 		apps: make([]string, 0),
-		lock: &sync.RWMutex{},
+		lock: &locking.RWMutex{},
 	}
 	// pretend to be an time-consuming event-handler
 	RegisterEventHandler("TestAppHandler", EventTypeApp, func(obj interface{}) {
