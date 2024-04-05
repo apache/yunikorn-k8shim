@@ -26,7 +26,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 
 	"go.uber.org/zap"
@@ -34,6 +33,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/admission"
 	"github.com/apache/yunikorn-k8shim/pkg/admission/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
+	"github.com/apache/yunikorn-k8shim/pkg/locking"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
 
@@ -48,7 +48,7 @@ type WebHook struct {
 	ac     *admission.AdmissionController
 	port   int
 	server *http.Server
-	sync.Mutex
+	locking.Mutex
 }
 
 func main() {

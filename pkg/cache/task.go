@@ -22,7 +22,6 @@ import (
 	"context"
 	"fmt"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/looplab/fsm"
@@ -35,6 +34,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
+	"github.com/apache/yunikorn-k8shim/pkg/locking"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
@@ -57,7 +57,7 @@ type Task struct {
 	originator      bool
 	schedulingState TaskSchedulingState
 	sm              *fsm.FSM
-	lock            *sync.RWMutex
+	lock            *locking.RWMutex
 }
 
 func NewTask(tid string, app *Application, ctx *Context, pod *v1.Pod) *Task {
@@ -101,7 +101,7 @@ func createTaskInternal(tid string, app *Application, resource *si.Resource,
 		context:         ctx,
 		sm:              newTaskState(),
 		schedulingState: TaskSchedPending,
-		lock:            &sync.RWMutex{},
+		lock:            &locking.RWMutex{},
 	}
 	if tgName := utils.GetTaskGroupFromPodSpec(pod); tgName != "" {
 		task.taskGroupName = tgName

@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"sync"
 
 	"github.com/looplab/fsm"
 	"go.uber.org/zap"
@@ -35,6 +34,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
+	"github.com/apache/yunikorn-k8shim/pkg/locking"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/api"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
@@ -53,7 +53,7 @@ type Application struct {
 	schedulingParamsDefinition string
 	placeholderOwnerReferences []metav1.OwnerReference
 	sm                         *fsm.FSM
-	lock                       *sync.RWMutex
+	lock                       *locking.RWMutex
 	schedulerAPI               api.SchedulerAPI
 	placeholderAsk             *si.Resource // total placeholder request for the app (all task groups)
 	placeholderTimeoutInSec    int64
@@ -81,7 +81,7 @@ func NewApplication(appID, queueName, user string, groups []string, tags map[str
 		tags:                    tags,
 		sm:                      newAppState(),
 		taskGroups:              make([]TaskGroup, 0),
-		lock:                    &sync.RWMutex{},
+		lock:                    &locking.RWMutex{},
 		schedulerAPI:            scheduler,
 		placeholderTimeoutInSec: 0,
 		schedulingStyle:         constants.SchedulingPolicyStyleParamDefault,

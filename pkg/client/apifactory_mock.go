@@ -19,7 +19,6 @@
 package client
 
 import (
-	"sync"
 	"time"
 
 	"go.uber.org/zap"
@@ -34,12 +33,13 @@ import (
 
 	"github.com/apache/yunikorn-k8shim/pkg/common/test"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
+	"github.com/apache/yunikorn-k8shim/pkg/locking"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
 
 type MockedAPIProvider struct {
-	sync.Mutex
+	locking.Mutex
 	clients *Clients
 
 	stop         chan struct{}

@@ -20,7 +20,6 @@ package client
 
 import (
 	"fmt"
-	"sync"
 	"time"
 
 	"go.uber.org/zap"
@@ -29,6 +28,7 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/rest"
 
+	"github.com/apache/yunikorn-k8shim/pkg/locking"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
 
@@ -42,7 +42,7 @@ type KubeClientMock struct {
 	getFn          func(podName string) (*v1.Pod, error)
 	clientSet      kubernetes.Interface
 	pods           map[string]*v1.Pod
-	lock           sync.RWMutex
+	lock           locking.RWMutex
 	bindStats      BindStats
 	boundPods      []BoundPod
 }
@@ -107,7 +107,7 @@ func NewKubeClientMock(err bool) *KubeClientMock {
 		},
 		clientSet: fake.NewSimpleClientset(),
 		pods:      make(map[string]*v1.Pod),
-		lock:      sync.RWMutex{},
+		lock:      locking.RWMutex{},
 		boundPods: make([]BoundPod, 0, 1024),
 	}
 

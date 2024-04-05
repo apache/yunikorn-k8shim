@@ -19,7 +19,6 @@
 package shim
 
 import (
-	"sync"
 	"time"
 
 	"go.uber.org/zap"
@@ -32,6 +31,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
+	"github.com/apache/yunikorn-k8shim/pkg/locking"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/api"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
@@ -44,7 +44,7 @@ type KubernetesShim struct {
 	phManager            *cache.PlaceholderManager
 	callback             api.ResourceManagerCallback
 	stopChan             chan struct{}
-	lock                 *sync.RWMutex
+	lock                 *locking.RWMutex
 	outstandingAppsFound bool
 }
 
@@ -86,7 +86,7 @@ func newShimSchedulerInternal(ctx *cache.Context, apiFactory client.APIProvider,
 		phManager:            cache.NewPlaceholderManager(apiFactory.GetAPIs()),
 		callback:             cb,
 		stopChan:             make(chan struct{}),
-		lock:                 &sync.RWMutex{},
+		lock:                 &locking.RWMutex{},
 		outstandingAppsFound: false,
 	}
 	// init dispatcher
