@@ -28,6 +28,7 @@ import (
 
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
+	"github.com/apache/yunikorn-k8shim/pkg/locking"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
 
@@ -55,7 +56,7 @@ type Dispatcher struct {
 	stopChan  chan struct{}
 	handlers  map[EventType]map[string]func(interface{})
 	running   atomic.Value
-	lock      sync.RWMutex
+	lock      locking.RWMutex
 }
 
 func initDispatcher() {
@@ -65,7 +66,7 @@ func initDispatcher() {
 		handlers:  make(map[EventType]map[string]func(interface{})),
 		stopChan:  make(chan struct{}),
 		running:   atomic.Value{},
-		lock:      sync.RWMutex{},
+		lock:      locking.RWMutex{},
 	}
 	dispatcher.setRunning(false)
 	DispatchTimeout = conf.GetSchedulerConf().DispatchTimeout

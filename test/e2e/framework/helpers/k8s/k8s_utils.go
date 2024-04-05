@@ -27,7 +27,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/onsi/ginkgo/v2"
@@ -57,6 +56,7 @@ import (
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
 
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
+	"github.com/apache/yunikorn-k8shim/pkg/locking"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 )
@@ -75,7 +75,7 @@ const (
 )
 
 var fw *portforward.PortForwarder
-var lock = &sync.Mutex{}
+var lock = &locking.Mutex{}
 
 type KubeCtl struct {
 	clientSet      *kubernetes.Clientset

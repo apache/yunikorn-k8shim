@@ -20,7 +20,6 @@ package cache
 
 import (
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -28,6 +27,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/apache/yunikorn-k8shim/pkg/client"
+	"github.com/apache/yunikorn-k8shim/pkg/locking"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
 
@@ -43,12 +43,12 @@ type PlaceholderManager struct {
 	running     atomic.Value
 	cleanupTime time.Duration
 	// a simple mutex will do we do not have separate read and write paths
-	sync.RWMutex
+	locking.RWMutex
 }
 
 var (
 	placeholderMgr *PlaceholderManager
-	mu             sync.Mutex
+	mu             locking.Mutex
 )
 
 func NewPlaceholderManager(clients *client.Clients) *PlaceholderManager {

@@ -39,6 +39,7 @@ import (
 	"k8s.io/klog/v2"
 
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
+	"github.com/apache/yunikorn-k8shim/pkg/locking"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
 
@@ -128,7 +129,8 @@ type SchedulerConf struct {
 	InstanceTypeNodeLabelKey string        `json:"instanceTypeNodeLabelKey"`
 	Namespace                string        `json:"namespace"`
 	GenerateUniqueAppIds     bool          `json:"generateUniqueAppIds"`
-	sync.RWMutex
+
+	locking.RWMutex
 }
 
 func (conf *SchedulerConf) Clone() *SchedulerConf {

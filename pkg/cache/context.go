@@ -46,6 +46,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	schedulerconf "github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
+	"github.com/apache/yunikorn-k8shim/pkg/locking"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-k8shim/pkg/plugin/predicates"
 	"github.com/apache/yunikorn-k8shim/pkg/plugin/support"
@@ -64,7 +65,7 @@ type Context struct {
 	pluginMode     bool                           // true if we are configured as a scheduler plugin
 	namespace      string                         // yunikorn namespace
 	configMaps     []*v1.ConfigMap                // cached yunikorn configmaps
-	lock           *sync.RWMutex                  // lock
+	lock           *locking.RWMutex               // lock
 	txnID          atomic.Uint64                  // transaction ID counter
 	klogger        klog.Logger
 }
@@ -87,7 +88,7 @@ func NewContextWithBootstrapConfigMaps(apis client.APIProvider, bootstrapConfigM
 		apiProvider:  apis,
 		namespace:    apis.GetAPIs().GetConf().Namespace,
 		configMaps:   bootstrapConfigMaps,
-		lock:         &sync.RWMutex{},
+		lock:         &locking.RWMutex{},
 		klogger:      klog.NewKlogr(),
 	}
 

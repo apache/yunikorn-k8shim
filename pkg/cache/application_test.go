@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -41,6 +40,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
+	"github.com/apache/yunikorn-k8shim/pkg/locking"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/api"
 	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
@@ -48,7 +48,7 @@ import (
 
 type recorderTime struct {
 	time int64
-	lock *sync.RWMutex
+	lock *locking.RWMutex
 }
 
 func TestNewApplication(t *testing.T) {
@@ -129,7 +129,7 @@ func TestFailApplication(t *testing.T) {
 
 	rt := &recorderTime{
 		time: int64(0),
-		lock: &sync.RWMutex{},
+		lock: &locking.RWMutex{},
 	}
 	ms := &mockSchedulerAPI{}
 	// set test mode
@@ -662,7 +662,7 @@ func TestSetTaskGroupsAndSchedulingPolicy(t *testing.T) {
 
 type threadSafePodsMap struct {
 	pods map[string]*v1.Pod
-	sync.RWMutex
+	locking.RWMutex
 }
 
 func newThreadSafePodsMap() *threadSafePodsMap {

@@ -19,9 +19,9 @@
 package test
 
 import (
-	"sync"
 	"sync/atomic"
 
+	"github.com/apache/yunikorn-k8shim/pkg/locking"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/api"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
@@ -36,7 +36,7 @@ type SchedulerAPIMock struct {
 	UpdateAllocationFn  func(request *si.AllocationRequest) error
 	UpdateApplicationFn func(request *si.ApplicationRequest) error
 	UpdateNodeFn        func(request *si.NodeRequest) error
-	lock                sync.Mutex
+	lock                locking.Mutex
 }
 
 func NewSchedulerAPIMock() *SchedulerAPIMock {
@@ -58,7 +58,7 @@ func NewSchedulerAPIMock() *SchedulerAPIMock {
 		UpdateNodeFn: func(request *si.NodeRequest) error {
 			return nil
 		},
-		lock: sync.Mutex{},
+		lock: locking.Mutex{},
 	}
 }
 

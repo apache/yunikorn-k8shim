@@ -21,7 +21,7 @@ module github.com/apache/yunikorn-k8shim
 go 1.21
 
 require (
-	github.com/apache/yunikorn-core v1.5.0-3
+	github.com/apache/yunikorn-core v0.0.0-20240405160823-c94a7d938c41
 	github.com/apache/yunikorn-scheduler-interface v1.5.0-1
 	github.com/google/go-cmp v0.6.0
 	github.com/google/uuid v1.6.0
@@ -29,6 +29,7 @@ require (
 	github.com/onsi/ginkgo/v2 v2.15.0
 	github.com/onsi/gomega v1.30.0
 	github.com/prometheus/client_golang v1.18.0
+	github.com/sasha-s/go-deadlock v0.3.1
 	go.uber.org/zap v1.26.0
 	gopkg.in/yaml.v3 v3.0.1
 	gotest.tools/v3 v3.5.1
@@ -98,6 +99,7 @@ require (
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/selinux v1.11.0 // indirect
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
+	github.com/petermattis/goid v0.0.0-20240327183114-c42a807a84ba // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/prometheus/client_model v0.5.0 // indirect
 	github.com/prometheus/common v0.45.0 // indirect
@@ -161,6 +163,7 @@ require (
 
 replace (
 	github.com/opencontainers/runc => github.com/opencontainers/runc v1.1.12
+	github.com/petermattis/goid => github.com/petermattis/goid v0.0.0-20240327183114-c42a807a84ba
 	golang.org/x/crypto => golang.org/x/crypto v0.19.0
 	golang.org/x/lint => golang.org/x/lint v0.0.0-20210508222113-6edffad5e616
 	golang.org/x/net => golang.org/x/net v0.21.0
