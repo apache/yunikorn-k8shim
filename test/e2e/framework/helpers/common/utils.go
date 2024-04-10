@@ -57,7 +57,7 @@ func GetTestName() string {
 	testReport := ginkgo.CurrentSpecReport()
 	name := strings.ReplaceAll(testReport.FullText(), " ", "_")
 	name = strings.Trim(name, "*")
-	return strings.Replace(name, "/", "-", -1)
+	return strings.ReplaceAll(name, "/", "-")
 }
 
 // ReportDirectoryPath determines the directory path.
