@@ -34,6 +34,8 @@ Below is the structure of the project.
 This project requires Go to be installed. On OS X with Homebrew you can just run `brew install go`.
 OR follow this doc for deploying go https://golang.org/doc/install
 
+Before we run the e2e tests, we need to set up the environment and install the relates tools using the command `make tools`. It will install the related tools including ginkgo, golangci-lint, helm, kind, kubectl, shellcheck and so on. At the same time it will link the path of the tools under the `./tools/` folder.
+
 ## Understanding the Command Line Arguments
 * `yk-namespace` - namespace under which YuniKorn is deployed. [Required]
 * `kube-config` - path to kube config file, needed for k8s client [Required]
