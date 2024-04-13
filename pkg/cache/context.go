@@ -802,9 +802,9 @@ func (ctx *Context) AssumePod(name, node string) error {
 				return err
 			}
 			if len(reasons) > 0 {
-				sReasons := make([]string, 0)
-				for _, reason := range reasons {
-					sReasons = append(sReasons, string(reason))
+				sReasons := make([]string, len(reasons))
+				for i, reason := range reasons {
+					sReasons[i] = string(reason)
 				}
 				sReason := strings.Join(sReasons, ", ")
 				err = fmt.Errorf("pod %s has conflicting volume claims: %s", pod.Name, sReason)
