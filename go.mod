@@ -21,7 +21,7 @@ module github.com/apache/yunikorn-k8shim
 go 1.21
 
 require (
-	github.com/apache/yunikorn-core v0.0.0-20240405153113-5758d7ac3c85
+	github.com/apache/yunikorn-core v0.0.0-20240417112924-e89458fa3cc4
 	github.com/apache/yunikorn-scheduler-interface v0.0.0-20240402211642-e7421a4261fd
 	github.com/google/go-cmp v0.6.0
 	github.com/google/uuid v1.6.0
@@ -29,6 +29,7 @@ require (
 	github.com/onsi/ginkgo/v2 v2.15.0
 	github.com/onsi/gomega v1.30.0
 	github.com/prometheus/client_golang v1.18.0
+	github.com/sasha-s/go-deadlock v0.3.1
 	go.uber.org/zap v1.26.0
 	gopkg.in/yaml.v3 v3.0.1
 	gotest.tools/v3 v3.5.1
@@ -103,7 +104,6 @@ require (
 	github.com/prometheus/client_model v0.5.0 // indirect
 	github.com/prometheus/common v0.45.0 // indirect
 	github.com/prometheus/procfs v0.12.0 // indirect
-	github.com/sasha-s/go-deadlock v0.3.1 // indirect
 	github.com/spf13/cobra v1.7.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/stoewer/go-strcase v1.2.0 // indirect
