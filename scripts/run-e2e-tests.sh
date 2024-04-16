@@ -72,11 +72,7 @@ function check_docker() {
 }
 
 function install_tools() {
-  if [ -d "$TOOLS_DIRECTORY" ]; then
-    echo "tools directory exists. Skipping make tools."
-  else
-    make tools
-  fi
+  make tools
 }
 
 function install_cluster() {
