@@ -21,8 +21,8 @@ module github.com/apache/yunikorn-k8shim
 go 1.21
 
 require (
-	github.com/apache/yunikorn-core v0.0.0-20240417112924-e89458fa3cc4
-	github.com/apache/yunikorn-scheduler-interface v0.0.0-20240402211642-e7421a4261fd
+	github.com/apache/yunikorn-core v0.0.0-20240422073303-db13a4fa8585
+	github.com/apache/yunikorn-scheduler-interface v0.0.0-20240422062544-b70081933c38
 	github.com/google/go-cmp v0.6.0
 	github.com/google/uuid v1.6.0
 	github.com/looplab/fsm v1.0.1
@@ -122,13 +122,13 @@ require (
 	go.opentelemetry.io/proto/otlp v1.0.0 // indirect
 	go.starlark.net v0.0.0-20230525235612-a134d8f9ddca // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	golang.org/x/crypto v0.19.0 // indirect
+	golang.org/x/crypto v0.21.0 // indirect
 	golang.org/x/exp v0.0.0-20220722155223-a9213eeb770e // indirect
 	golang.org/x/net v0.21.0 // indirect
 	golang.org/x/oauth2 v0.12.0 // indirect
 	golang.org/x/sync v0.6.0 // indirect
-	golang.org/x/sys v0.17.0 // indirect
-	golang.org/x/term v0.17.0 // indirect
+	golang.org/x/sys v0.18.0 // indirect
+	golang.org/x/term v0.18.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 	golang.org/x/time v0.5.0 // indirect
 	golang.org/x/tools v0.17.0 // indirect
@@ -164,10 +164,10 @@ require (
 replace (
 	github.com/opencontainers/runc => github.com/opencontainers/runc v1.1.12
 	github.com/petermattis/goid => github.com/petermattis/goid v0.0.0-20240327183114-c42a807a84ba
-	golang.org/x/crypto => golang.org/x/crypto v0.19.0
+	golang.org/x/crypto => golang.org/x/crypto v0.21.0
 	golang.org/x/lint => golang.org/x/lint v0.0.0-20210508222113-6edffad5e616
-	golang.org/x/net => golang.org/x/net v0.21.0
-	golang.org/x/sys => golang.org/x/sys v0.17.0
+	golang.org/x/net => golang.org/x/net v0.23.0
+	golang.org/x/sys => golang.org/x/sys v0.18.0
 	golang.org/x/text => golang.org/x/text v0.14.0
 	golang.org/x/tools => golang.org/x/tools v0.17.0
 	google.golang.org/protobuf => google.golang.org/protobuf v1.33.0

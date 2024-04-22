@@ -174,6 +174,9 @@ export SPARK_PYTHON_IMAGE=docker.io/apache/spark-py:v$(SPARK_PYTHON_VERSION)
 GO_LICENSES_VERSION=v1.6.0
 GO_LICENSES_BIN=$(TOOLS_DIR)/go-licenses
 
+# ginkgo
+GINKGO_BIN=$(TOOLS_DIR)/ginkgo
+
 FLAG_PREFIX=github.com/apache/yunikorn-k8shim/pkg/conf
 
 # Image hashes
@@ -219,7 +222,7 @@ conf/scheduler-config-local.yaml: conf/scheduler-config.yaml
 
 # Install tools
 .PHONY: tools
-tools: $(SHELLCHECK_BIN) $(GOLANGCI_LINT_BIN) $(KUBECTL_BIN) $(KIND_BIN) $(HELM_BIN) $(SPARK_SUBMIT_CMD) $(GO_LICENSES_BIN)
+tools: $(SHELLCHECK_BIN) $(GOLANGCI_LINT_BIN) $(KUBECTL_BIN) $(KIND_BIN) $(HELM_BIN) $(SPARK_SUBMIT_CMD) $(GO_LICENSES_BIN) $(GINKGO_BIN)
 
 # Install shellcheck
 $(SHELLCHECK_BIN):
@@ -272,6 +275,11 @@ $(GO_LICENSES_BIN):
 	@echo "installing go-licenses $(GO_LICENSES_VERSION)"
 	@mkdir -p "$(TOOLS_DIR)"
 	@GOBIN="$(BASE_DIR)/$(TOOLS_DIR)" "$(GO)" install "github.com/google/go-licenses@$(GO_LICENSES_VERSION)"
+
+$(GINKGO_BIN):
+	@echo "installing ginkgo"
+	@mkdir -p "$(TOOLS_DIR)"
+	@GOBIN="$(BASE_DIR)/$(TOOLS_DIR)" "$(GO)" install "github.com/onsi/ginkgo/v2/ginkgo"
 
 # Run lint against the previous commit for PR and branch build
 # In dev setup look at all changes on top of master
