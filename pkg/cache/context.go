@@ -21,6 +21,7 @@ package cache
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strconv"
@@ -55,6 +56,11 @@ import (
 )
 
 const registerNodeContextHandler = "RegisterNodeContextHandler"
+
+var (
+	ErrorPodNotFound  = errors.New("predicates were not run because pod was not found in cache")
+	ErrorNodeNotFound = errors.New("predicates were not run because node was not found in cache")
+)
 
 // context maintains scheduling state, like apps and apps' tasks.
 type Context struct {
@@ -633,21 +639,28 @@ func (ctx *Context) EventsToRegister(queueingHintFn framework.QueueingHintFn) []
 	return ctx.predManager.EventsToRegister(queueingHintFn)
 }
 
-// evaluate given predicates based on current context
+// IsPodFitNode evaluates given predicates based on current context
 func (ctx *Context) IsPodFitNode(name, node string, allocate bool) error {
 	ctx.lock.RLock()
 	defer ctx.lock.RUnlock()
-	if pod, ok := ctx.schedulerCache.GetPod(name); ok {
-		// if pod exists in cache, try to run predicates
-		if targetNode := ctx.schedulerCache.GetNode(node); targetNode != nil {
-			// need to lock cache here as predicates need a stable view into the cache
-			ctx.schedulerCache.LockForReads()
-			defer ctx.schedulerCache.UnlockForReads()
-			_, err := ctx.predManager.Predicates(pod, targetNode, allocate)
-			return err
-		}
+	var pod *v1.Pod
+	var ok bool
+	if pod, ok = ctx.schedulerCache.GetPod(name); !ok {
+		return ErrorPodNotFound
 	}
-	return fmt.Errorf("predicates were not running because pod or node was not found in cache")
+	// if pod exists in cache, try to run predicates
+	targetNode := ctx.schedulerCache.GetNode(node)
+	if targetNode == nil {
+		return ErrorNodeNotFound
+	}
+	// need to lock cache here as predicates need a stable view into the cache
+	ctx.schedulerCache.LockForReads()
+	defer ctx.schedulerCache.UnlockForReads()
+	plugin, err := ctx.predManager.Predicates(pod, targetNode, allocate)
+	if err != nil {
+		err = errors.Join(fmt.Errorf("failed plugin: '%s'", plugin), err)
+	}
+	return err
 }
 
 func (ctx *Context) IsPodFitNodeViaPreemption(name, node string, allocations []string, startIndex int) (index int, ok bool) {
