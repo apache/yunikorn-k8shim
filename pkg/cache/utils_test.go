@@ -30,9 +30,8 @@ import (
 )
 
 const (
-	appID            = "app01"
-	app2ID           = "app02"
-	taskAllocationID = "ALLOCATIONID01"
+	appID  = "app01"
+	app2ID = "app02"
 )
 
 //nolint:funlen

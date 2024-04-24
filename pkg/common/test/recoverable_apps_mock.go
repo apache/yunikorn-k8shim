@@ -38,9 +38,8 @@ func (m *MockedRecoverableAppManager) ListPods() ([]*v1.Pod, error) {
 
 func (m *MockedRecoverableAppManager) GetExistingAllocation(pod *v1.Pod) *si.Allocation {
 	return &si.Allocation{
-		AllocationKey:    pod.Name,
+		AllocationKey:    string(pod.UID),
 		AllocationTags:   nil,
-		AllocationID:     string(pod.UID),
 		ResourcePerAlloc: nil,
 		Priority:         0,
 		NodeID:           pod.Spec.NodeName,

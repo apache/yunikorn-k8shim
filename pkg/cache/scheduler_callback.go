@@ -51,14 +51,13 @@ func (callback *AsyncRMCallback) UpdateAllocation(response *si.AllocationRespons
 		// got allocation for pod, bind pod to the scheduled node
 		log.Log(log.ShimRMCallback).Debug("callback: response to new allocation",
 			zap.String("allocationKey", alloc.AllocationKey),
-			zap.String("allocationID", alloc.AllocationID),
 			zap.String("applicationID", alloc.ApplicationID),
 			zap.String("nodeID", alloc.NodeID))
 
 		// update cache
 		task := callback.context.getTask(alloc.ApplicationID, alloc.AllocationKey)
 		if task != nil {
-			task.setAllocationID(alloc.AllocationID)
+			task.setAllocationKey(alloc.AllocationKey)
 		} else {
 			log.Log(log.ShimRMCallback).Warn("Unable to get task", zap.String("taskID", alloc.AllocationKey))
 		}
@@ -72,9 +71,9 @@ func (callback *AsyncRMCallback) UpdateAllocation(response *si.AllocationRespons
 			if task != nil {
 				if utils.IsAssignedPod(task.GetTaskPod()) {
 					// task is already bound, fixup state and continue
-					task.MarkPreviouslyAllocated(alloc.AllocationID, alloc.NodeID)
+					task.MarkPreviouslyAllocated(alloc.AllocationKey, alloc.NodeID)
 				} else {
-					ev := NewAllocateTaskEvent(app.GetApplicationID(), alloc.AllocationKey, alloc.AllocationID, alloc.NodeID)
+					ev := NewAllocateTaskEvent(app.GetApplicationID(), task.taskID, alloc.AllocationKey, alloc.NodeID)
 					dispatcher.Dispatch(ev)
 				}
 			}
@@ -105,7 +104,7 @@ func (callback *AsyncRMCallback) UpdateAllocation(response *si.AllocationRespons
 
 	for _, release := range response.Released {
 		log.Log(log.ShimRMCallback).Debug("callback: response to released allocations",
-			zap.String("AllocationID", release.AllocationID))
+			zap.String("AllocationKey", release.AllocationKey))
 
 		// update cache
 		callback.context.ForgetPod(release.GetAllocationKey())
@@ -113,7 +112,7 @@ func (callback *AsyncRMCallback) UpdateAllocation(response *si.AllocationRespons
 		// TerminationType 0 mean STOPPED_BY_RM
 		if release.TerminationType != si.TerminationType_STOPPED_BY_RM {
 			// send release app allocation to application states machine
-			ev := NewReleaseAppAllocationEvent(release.ApplicationID, release.TerminationType, release.AllocationID)
+			ev := NewReleaseAppAllocationEvent(release.ApplicationID, release.TerminationType, release.AllocationKey)
 			dispatcher.Dispatch(ev)
 		}
 	}

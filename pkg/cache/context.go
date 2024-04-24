@@ -1737,7 +1737,6 @@ func getExistingAllocation(pod *v1.Pod) *si.Allocation {
 		return &si.Allocation{
 			AllocationKey:    string(pod.UID),
 			AllocationTags:   meta.Tags,
-			AllocationID:     string(pod.UID),
 			ResourcePerAlloc: common.GetPodResource(pod),
 			NodeID:           pod.Spec.NodeName,
 			ApplicationID:    meta.ApplicationID,
