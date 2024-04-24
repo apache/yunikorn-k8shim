@@ -20,7 +20,9 @@ ifeq ($(GO),)
 GO := go
 endif
 
-GO_EXE_PATH := $(shell "$(GO)" env GOROOT)/bin
+GOROOT := $(shell "$(GO)" env GOROOT)
+export GOROOT := $(GOROOT)
+GO_EXE_PATH := $(GOROOT)/bin
 
 # Check if this GO tools version used is at least the version of go specified in
 # the go.mod file. The version in go.mod should be in sync with other repos.
