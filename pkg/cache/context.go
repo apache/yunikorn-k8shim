@@ -679,10 +679,10 @@ func (ctx *Context) IsPodFitNodeViaPreemption(name, node string, allocations []s
 			defer ctx.schedulerCache.UnlockForReads()
 
 			// look up each victim in the scheduler cache
-			victims := make([]*v1.Pod, 0)
-			for _, uid := range allocations {
+			victims := make([]*v1.Pod, len(allocations))
+			for index, uid := range allocations {
 				victim, _ := ctx.schedulerCache.GetPodNoLock(uid)
-				victims = append(victims, victim)
+				victims[index] = victim
 			}
 
 			// check predicates for a match
