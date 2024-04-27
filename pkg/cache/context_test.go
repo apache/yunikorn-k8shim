@@ -870,7 +870,7 @@ func TestRecoverTask(t *testing.T) {
 					applicationID: alloc.ApplicationID,
 					taskID:        alloc.AllocationKey,
 					nodeID:        alloc.NodeID,
-					allocationID:  alloc.AllocationID,
+					allocationKey: alloc.AllocationKey,
 					event:         TaskAllocated,
 				})
 			}
@@ -922,7 +922,7 @@ func TestRecoverTask(t *testing.T) {
 	err := utils.WaitForCondition(func() bool {
 		return task.GetTaskState() == TaskStates().Bound
 	}, 100*time.Millisecond, 3*time.Second)
-	assert.NilError(t, err, "failed to wait for allocation allocationID being set for task")
+	assert.NilError(t, err, "failed to wait for allocation allocationKey being set for task")
 
 	// add a tasks to the existing application
 	// this task was already completed with state: Succeed
@@ -971,11 +971,11 @@ func TestRecoverTask(t *testing.T) {
 	assert.Equal(t, len(app.getTasks(TaskStates().New)), 1)
 
 	taskInfoVerifiers := []struct {
-		taskID               string
-		expectedState        string
-		expectedAllocationID string
-		expectedPodName      string
-		expectedNodeName     string
+		taskID                string
+		expectedState         string
+		expectedAllocationKey string
+		expectedPodName       string
+		expectedNodeName      string
 	}{
 		{taskUID1, TaskStates().Bound, taskUID1, "pod1", fakeNodeName},
 		{taskUID2, TaskStates().Completed, taskUID2, "pod2", fakeNodeName},
@@ -989,7 +989,7 @@ func TestRecoverTask(t *testing.T) {
 			rt, err := app.GetTask(tt.taskID)
 			assert.NilError(t, err)
 			assert.Equal(t, rt.GetTaskState(), tt.expectedState)
-			assert.Equal(t, rt.allocationID, tt.expectedAllocationID)
+			assert.Equal(t, rt.allocationKey, tt.expectedAllocationKey)
 			assert.Equal(t, rt.pod.Name, tt.expectedPodName)
 			assert.Equal(t, rt.alias, fmt.Sprintf("%s/%s", podNamespace, tt.expectedPodName))
 		})
@@ -1011,7 +1011,7 @@ func TestTaskReleaseAfterRecovery(t *testing.T) {
 					applicationID: alloc.ApplicationID,
 					taskID:        alloc.AllocationKey,
 					nodeID:        alloc.NodeID,
-					allocationID:  alloc.AllocationID,
+					allocationKey: alloc.AllocationKey,
 					event:         TaskAllocated,
 				})
 			}
@@ -1061,7 +1061,7 @@ func TestTaskReleaseAfterRecovery(t *testing.T) {
 	err := utils.WaitForCondition(func() bool {
 		return task0.GetTaskState() == TaskStates().Bound
 	}, 100*time.Millisecond, 3*time.Second)
-	assert.NilError(t, err, "failed to wait for allocation allocationID being set for task0")
+	assert.NilError(t, err, "failed to wait for allocation allocationKey being set for task0")
 
 	task1 := context.AddTask(&AddTaskRequest{
 		Metadata: TaskMetadata{
@@ -1080,7 +1080,7 @@ func TestTaskReleaseAfterRecovery(t *testing.T) {
 	err = utils.WaitForCondition(func() bool {
 		return task1.GetTaskState() == TaskStates().Bound
 	}, 100*time.Millisecond, 3*time.Second)
-	assert.NilError(t, err, "failed to wait for allocation allocationID being set for task1")
+	assert.NilError(t, err, "failed to wait for allocation allocationKey being set for task1")
 
 	// app should have 2 tasks recovered
 	app, exist := context.applications[appID]
@@ -1955,7 +1955,6 @@ func TestGetExistingAllocation(t *testing.T) {
 	alloc := getExistingAllocation(pod)
 	assert.Equal(t, alloc.ApplicationID, "app00001")
 	assert.Equal(t, alloc.AllocationKey, string(pod.UID))
-	assert.Equal(t, alloc.AllocationID, string(pod.UID))
 	assert.Equal(t, alloc.NodeID, "allocated-node")
 }
 

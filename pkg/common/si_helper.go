@@ -95,7 +95,6 @@ func CreateAllocationForTask(appID, taskID, nodeID string, resource *si.Resource
 	allocation := si.Allocation{
 		AllocationKey:    taskID,
 		AllocationTags:   CreateTagsForTask(pod),
-		AllocationID:     taskID,
 		ResourcePerAlloc: resource,
 		Priority:         CreatePriorityForTask(pod),
 		NodeID:           nodeID,
@@ -122,13 +121,13 @@ func GetTerminationTypeFromString(terminationTypeStr string) si.TerminationType 
 	return si.TerminationType_STOPPED_BY_RM
 }
 
-func CreateReleaseRequestForTask(appID, taskID, allocationID, partition, terminationType string) *si.AllocationRequest {
+func CreateReleaseRequestForTask(appID, taskID, allocationKey, partition, terminationType string) *si.AllocationRequest {
 	var allocToRelease []*si.AllocationRelease
-	if allocationID != "" {
+	if allocationKey != "" {
 		allocToRelease = make([]*si.AllocationRelease, 1)
 		allocToRelease[0] = &si.AllocationRelease{
 			ApplicationID:   appID,
-			AllocationID:    allocationID,
+			AllocationKey:   allocationKey,
 			PartitionName:   partition,
 			TerminationType: GetTerminationTypeFromString(terminationType),
 			Message:         "task completed",
