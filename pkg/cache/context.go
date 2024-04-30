@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -1294,41 +1295,68 @@ func (ctx *Context) HandleContainerStateUpdate(request *si.UpdateContainerSchedu
 func (ctx *Context) ApplicationEventHandler() func(obj interface{}) {
 	return func(obj interface{}) {
 		if event, ok := obj.(events.ApplicationEvent); ok {
-			app := ctx.GetApplication(event.GetApplicationID())
+			appID := event.GetApplicationID()
+			app := ctx.GetApplication(appID)
 			if app == nil {
-				log.Log(log.ShimContext).Error("failed to handle application event",
-					zap.String("reason", "application not exist"))
+				log.Log(log.ShimContext).Error("failed to handle application event, application does not exist",
+					zap.String("applicationID", appID))
 				return
 			}
+
 			if app.canHandle(event) {
 				if err := app.handle(event); err != nil {
 					log.Log(log.ShimContext).Error("failed to handle application event",
 						zap.String("event", event.GetEvent()),
+						zap.String("applicationID", appID),
 						zap.Error(err))
+					return
 				}
 			}
+			log.Log(log.ShimContext).Error("application event cannot be handled in the current state",
+				zap.String("applicationID", appID),
+				zap.String("event", event.GetEvent()),
+				zap.String("state", app.sm.Current()))
+			return
 		}
+
+		log.Log(log.ShimContext).Error("could not handle application event",
+			zap.String("type", reflect.TypeOf(obj).Name()))
 	}
 }
 
 func (ctx *Context) TaskEventHandler() func(obj interface{}) {
 	return func(obj interface{}) {
 		if event, ok := obj.(events.TaskEvent); ok {
-			task := ctx.getTask(event.GetApplicationID(), event.GetTaskID())
+			appID := event.GetApplicationID()
+			taskID := event.GetTaskID()
+			task := ctx.getTask(appID, taskID)
 			if task == nil {
-				log.Log(log.ShimContext).Error("failed to handle application event")
+				log.Log(log.ShimContext).Error("failed to handle task event, task does not exist",
+					zap.String("applicationID", appID),
+					zap.String("taskID", taskID))
 				return
 			}
+
 			if task.canHandle(event) {
 				if err := task.handle(event); err != nil {
 					log.Log(log.ShimContext).Error("failed to handle task event",
-						zap.String("applicationID", task.applicationID),
-						zap.String("taskID", task.taskID),
+						zap.String("applicationID", appID),
+						zap.String("taskID", taskID),
 						zap.String("event", event.GetEvent()),
 						zap.Error(err))
+					return
 				}
 			}
+			log.Log(log.ShimContext).Error("task event cannot be handled in the current state",
+				zap.String("applicationID", appID),
+				zap.String("taskID", taskID),
+				zap.String("event", event.GetEvent()),
+				zap.String("state", task.sm.Current()))
+			return
 		}
+
+		log.Log(log.ShimContext).Error("could not handle task event",
+			zap.String("type", reflect.TypeOf(obj).Name()))
 	}
 }
 
