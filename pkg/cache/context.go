@@ -1309,9 +1309,10 @@ func (ctx *Context) ApplicationEventHandler() func(obj interface{}) {
 						zap.String("event", event.GetEvent()),
 						zap.String("applicationID", appID),
 						zap.Error(err))
-					return
 				}
+				return
 			}
+
 			log.Log(log.ShimContext).Error("application event cannot be handled in the current state",
 				zap.String("applicationID", appID),
 				zap.String("event", event.GetEvent()),
@@ -1344,9 +1345,10 @@ func (ctx *Context) TaskEventHandler() func(obj interface{}) {
 						zap.String("taskID", taskID),
 						zap.String("event", event.GetEvent()),
 						zap.Error(err))
-					return
 				}
+				return
 			}
+
 			log.Log(log.ShimContext).Error("task event cannot be handled in the current state",
 				zap.String("applicationID", appID),
 				zap.String("taskID", taskID),
