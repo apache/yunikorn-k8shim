@@ -171,17 +171,12 @@ func (callback *AsyncRMCallback) UpdateApplication(response *si.ApplicationRespo
 			if app != nil && app.GetApplicationState() == ApplicationStates().Reserving {
 				ev := NewResumingApplicationEvent(updated.ApplicationID)
 				dispatcher.Dispatch(ev)
-
-				// handle status update
-				dispatcher.Dispatch(NewApplicationStatusChangeEvent(updated.ApplicationID, AppStateChange, updated.State))
 			}
 		default:
 			if updated.State == ApplicationStates().Failing || updated.State == ApplicationStates().Failed {
 				ev := NewFailApplicationEvent(updated.ApplicationID, updated.Message)
 				dispatcher.Dispatch(ev)
 			}
-			// handle status update
-			dispatcher.Dispatch(NewApplicationStatusChangeEvent(updated.ApplicationID, AppStateChange, updated.State))
 		}
 	}
 	return nil

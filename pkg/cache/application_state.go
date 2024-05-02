@@ -50,13 +50,12 @@ const (
 	KilledApplication
 	ReleaseAppAllocation
 	ReleaseAppAllocationAsk
-	AppStateChange
 	ResumingApplication
 	AppTaskCompleted
 )
 
 func (ae ApplicationEventType) String() string {
-	return [...]string{"SubmitApplication", "RecoverApplication", "AcceptApplication", "TryReserve", "UpdateReservation", "RunApplication", "RejectApplication", "CompleteApplication", "FailApplication", "KillApplication", "KilledApplication", "ReleaseAppAllocation", "ReleaseAppAllocationAsk", "AppStateChange", "ResumingApplication", "AppTaskCompleted"}[ae]
+	return [...]string{"SubmitApplication", "AcceptApplication", "TryReserve", "UpdateReservation", "RunApplication", "RejectApplication", "CompleteApplication", "FailApplication", "KillApplication", "KilledApplication", "ReleaseAppAllocation", "ReleaseAppAllocationAsk", "ResumingApplication", "AppTaskCompleted"}[ae]
 }
 
 // ------------------------

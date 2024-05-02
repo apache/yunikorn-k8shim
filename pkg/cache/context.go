@@ -929,8 +929,9 @@ func (ctx *Context) notifyTaskComplete(appID, taskID string) {
 			zap.String("taskID", taskID))
 		ev := NewSimpleTaskEvent(appID, taskID, CompleteTask)
 		dispatcher.Dispatch(ev)
-		appEv := NewSimpleApplicationEvent(appID, AppTaskCompleted)
-		dispatcher.Dispatch(appEv)
+		if app.GetApplicationState() == ApplicationStates().Resuming {
+			dispatcher.Dispatch(NewSimpleApplicationEvent(appID, AppTaskCompleted))
+		}
 	}
 }
 
