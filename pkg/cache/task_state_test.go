@@ -59,3 +59,15 @@ func TestGetAllocateTaskEventArgs(t *testing.T) {
 	err = events.GetEventArgsAsStrings(nil, args)
 	assert.Assert(t, err != nil)
 }
+
+func TestTaskEventsAsString(t *testing.T) {
+	assert.Equal(t, InitTask.String(), "InitTask")
+	assert.Equal(t, SubmitTask.String(), "SubmitTask")
+	assert.Equal(t, TaskAllocated.String(), "TaskAllocated")
+	assert.Equal(t, TaskRejected.String(), "TaskRejected")
+	assert.Equal(t, TaskBound.String(), "TaskBound")
+	assert.Equal(t, CompleteTask.String(), "CompleteTask")
+	assert.Equal(t, TaskFail.String(), "TaskFail")
+	assert.Equal(t, KillTask.String(), "KillTask")
+	assert.Equal(t, TaskKilled.String(), "TaskKilled")
+}

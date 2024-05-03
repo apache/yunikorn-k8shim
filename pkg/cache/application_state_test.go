@@ -21,6 +21,8 @@ package cache
 import (
 	"testing"
 
+	"gotest.tools/v3/assert"
+
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
 
@@ -886,4 +888,21 @@ func TestNewResumingApplicationEvent(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestApplicationEventsAsString(t *testing.T) {
+	assert.Equal(t, SubmitApplication.String(), "SubmitApplication")
+	assert.Equal(t, AcceptApplication.String(), "AcceptApplication")
+	assert.Equal(t, TryReserve.String(), "TryReserve")
+	assert.Equal(t, UpdateReservation.String(), "UpdateReservation")
+	assert.Equal(t, RunApplication.String(), "RunApplication")
+	assert.Equal(t, RejectApplication.String(), "RejectApplication")
+	assert.Equal(t, CompleteApplication.String(), "CompleteApplication")
+	assert.Equal(t, FailApplication.String(), "FailApplication")
+	assert.Equal(t, KillApplication.String(), "KillApplication")
+	assert.Equal(t, KilledApplication.String(), "KilledApplication")
+	assert.Equal(t, ReleaseAppAllocation.String(), "ReleaseAppAllocation")
+	assert.Equal(t, ReleaseAppAllocationAsk.String(), "ReleaseAppAllocationAsk")
+	assert.Equal(t, ResumingApplication.String(), "ResumingApplication")
+	assert.Equal(t, AppTaskCompleted.String(), "AppTaskCompleted")
 }
