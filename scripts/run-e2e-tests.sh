@@ -166,7 +166,7 @@ Examples:
   ${NAME} -a test -n yk8s -v kindest/node:v1.29.2
 
   Use a local helm chart path:
-    ${NAME} -a test -n yk8s -v kindest/node:v1.29.0 -p ../yunikorn-release/helm-charts/yunikorn
+    ${NAME} -a test -n yk8s -v kindest/node:v1.29.2 -p ../yunikorn-release/helm-charts/yunikorn
 EOF
 }
 
