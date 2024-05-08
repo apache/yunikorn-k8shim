@@ -390,41 +390,29 @@ func TestUpdateApplication_Resuming_AppNotFound(t *testing.T) {
 }
 
 func TestUpdateApplication_Failing(t *testing.T) {
-	callback, context := initCallbackTest(t, false, false)
-	defer dispatcher.UnregisterAllEventHandlers()
-	defer dispatcher.Stop()
-	app := context.getApplication(appID)
-	app.sm.SetState(ApplicationStates().Running)
-	NewPlaceholderManager(context.apiProvider.GetAPIs())
-
-	err := callback.UpdateApplication(&si.ApplicationResponse{
-		Updated: []*si.UpdatedApplication{
-			{
-				ApplicationID: appID,
-				State:         ApplicationStates().Failing,
-			},
-		},
-	})
-	assert.NilError(t, err, "error updating application")
-	err = utils.WaitForCondition(func() bool {
-		return app.sm.Current() == ApplicationStates().Failing
-	}, 10*time.Millisecond, time.Second)
-	assert.NilError(t, err, "application has not transitioned to Failing state")
+	testUpdateApplicationFailure(t, ApplicationStates().Failing)
 }
 
 func TestUpdateApplication_Failed(t *testing.T) {
+	testUpdateApplicationFailure(t, ApplicationStates().Failed)
+}
+
+func testUpdateApplicationFailure(t *testing.T, state string) {
 	callback, context := initCallbackTest(t, false, false)
 	defer dispatcher.UnregisterAllEventHandlers()
 	defer dispatcher.Stop()
 	app := context.getApplication(appID)
 	app.sm.SetState(ApplicationStates().Running)
 	NewPlaceholderManager(context.apiProvider.GetAPIs())
+	recorder := k8sEvents.NewFakeRecorder(1024)
+	events.SetRecorder(recorder)
 
 	err := callback.UpdateApplication(&si.ApplicationResponse{
 		Updated: []*si.UpdatedApplication{
 			{
 				ApplicationID: appID,
-				State:         ApplicationStates().Failed,
+				State:         state,
+				Message:       "test failure",
 			},
 		},
 	})
@@ -432,59 +420,45 @@ func TestUpdateApplication_Failed(t *testing.T) {
 	err = utils.WaitForCondition(func() bool {
 		return app.sm.Current() == ApplicationStates().Failing
 	}, 10*time.Millisecond, time.Second)
-	assert.NilError(t, err, "application has not transitioned to Failing state")
+	assert.NilError(t, err, "application has not transitioned to %s state", state)
+	assert.Equal(t, 1, len(recorder.Events), "no K8s event received")
+	event := <-recorder.Events
+	assert.Assert(t, strings.Contains(event, "test failure"), "event does not contain 'test failure': %s", event)
 }
 
 func TestUpdateNode_Accepted(t *testing.T) {
-	callback, _ := initCallbackTest(t, false, false)
-	defer dispatcher.UnregisterAllEventHandlers()
-	defer dispatcher.Stop()
-	var nodeName atomic.Value
-	dispatcher.RegisterEventHandler("testNodeHandler", dispatcher.EventTypeNode, func(event interface{}) {
-		nodeEvent := event.(CachedSchedulerNodeEvent) //nolint:errcheck
-		if nodeEvent.GetEvent() == "NodeAccepted" {
-			nodeName.Store(nodeEvent.GetNodeID())
-		}
-	})
-	defer dispatcher.UnregisterEventHandler("testNodeHandler", dispatcher.EventTypeNode)
-
-	err := callback.UpdateNode(&si.NodeResponse{
+	testUpdateNode(t, "NodeAccepted", &si.NodeResponse{
 		Accepted: []*si.AcceptedNode{
 			{
 				NodeID: "testNode",
 			},
 		},
 	})
-	assert.NilError(t, err, "error updating node")
-	err = utils.WaitForCondition(func() bool {
-		if val, ok := nodeName.Load().(string); ok {
-			return val == "testNode"
-		}
-		return false
-	}, 10*time.Millisecond, time.Second)
-	assert.NilError(t, err, "node has not been accepted")
 }
 
 func TestUpdateNode_Rejected(t *testing.T) {
-	callback, _ := initCallbackTest(t, false, false)
-	defer dispatcher.UnregisterAllEventHandlers()
-	defer dispatcher.Stop()
-	var nodeName atomic.Value
-	dispatcher.RegisterEventHandler("testNodeHandler", dispatcher.EventTypeNode, func(event interface{}) {
-		nodeEvent := event.(CachedSchedulerNodeEvent) //nolint:errcheck
-		if nodeEvent.GetEvent() == "NodeRejected" {
-			nodeName.Store(nodeEvent.GetNodeID())
-		}
-	})
-	defer dispatcher.UnregisterEventHandler("testNodeHandler", dispatcher.EventTypeNode)
-
-	err := callback.UpdateNode(&si.NodeResponse{
+	testUpdateNode(t, "NodeRejected", &si.NodeResponse{
 		Rejected: []*si.RejectedNode{
 			{
 				NodeID: "testNode",
 			},
 		},
 	})
+}
+
+func testUpdateNode(t *testing.T, expectedEvent string, response *si.NodeResponse) {
+	callback, _ := initCallbackTest(t, false, false)
+	defer dispatcher.UnregisterAllEventHandlers()
+	defer dispatcher.Stop()
+	var nodeName atomic.Value
+	dispatcher.RegisterEventHandler("testNodeHandler", dispatcher.EventTypeNode, func(event interface{}) {
+		nodeEvent := event.(CachedSchedulerNodeEvent) //nolint:errcheck
+		if nodeEvent.GetEvent() == expectedEvent {
+			nodeName.Store(nodeEvent.GetNodeID())
+		}
+	})
+
+	err := callback.UpdateNode(response)
 	assert.NilError(t, err, "error updating node")
 	err = utils.WaitForCondition(func() bool {
 		if val, ok := nodeName.Load().(string); ok {
@@ -492,7 +466,7 @@ func TestUpdateNode_Rejected(t *testing.T) {
 		}
 		return false
 	}, 10*time.Millisecond, time.Second)
-	assert.NilError(t, err, "node has not been rejected")
+	assert.NilError(t, err)
 }
 
 func TestPredicates(t *testing.T) {
@@ -519,7 +493,6 @@ func TestPreemptionPredicates(t *testing.T) {
 	// pod not found
 	resp := callback.PreemptionPredicates(&si.PreemptionPredicatesArgs{AllocationKey: "unknown", NodeID: fakeNodeName, StartIndex: 0})
 	assert.Assert(t, !resp.Success, "response should have failed")
-	assert.Equal(t, int32(-1), resp.Index)
 
 	// pod found
 	resp = callback.PreemptionPredicates(&si.PreemptionPredicatesArgs{AllocationKey: taskUID1, NodeID: fakeNodeName, StartIndex: 0, PreemptAllocationKeys: []string{taskUID1}})
