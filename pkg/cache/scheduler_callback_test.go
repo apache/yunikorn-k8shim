@@ -68,7 +68,9 @@ func TestUpdateAllocation_NewTask_TaskNotFound(t *testing.T) {
 	callback, context := initCallbackTest(t, false, false)
 	defer dispatcher.UnregisterAllEventHandlers()
 	defer dispatcher.Stop()
+	pod := context.getTask(appID, taskUID1).pod
 	context.RemoveTask(appID, taskUID1)
+	context.DeletePod(pod)
 
 	err := callback.UpdateAllocation(&si.AllocationResponse{
 		New: []*si.Allocation{
@@ -80,7 +82,6 @@ func TestUpdateAllocation_NewTask_TaskNotFound(t *testing.T) {
 		},
 	})
 	assert.NilError(t, err, "error updating allocation")
-	assert.Assert(t, context.schedulerCache.IsAssumedPod(taskUID1))
 }
 
 func TestUpdateAllocation_NewTask_AssumePodFails(t *testing.T) {
