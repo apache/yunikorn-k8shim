@@ -19,20 +19,19 @@
 package admission
 
 import (
-	"sync"
-
 	v1 "k8s.io/api/core/v1"
 	informersv1 "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
+	"github.com/apache/yunikorn-k8shim/pkg/locking"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
 
 type NamespaceCache struct {
 	nameSpaces map[string]nsFlags
 
-	sync.RWMutex
+	locking.RWMutex
 }
 
 type triState int

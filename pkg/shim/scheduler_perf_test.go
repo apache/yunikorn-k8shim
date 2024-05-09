@@ -26,7 +26,6 @@ import (
 	"runtime/pprof"
 	"strconv"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -40,6 +39,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
+	"github.com/apache/yunikorn-k8shim/pkg/locking"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
 
@@ -170,7 +170,7 @@ func addPodsToCluster(cluster *MockScheduler) map[string]*v1.Pod {
 
 type metricsCollector struct {
 	podsPerSec []float64
-	sync.Mutex
+	locking.Mutex
 }
 
 func (m *metricsCollector) collectData() {

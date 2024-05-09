@@ -50,13 +50,12 @@ const (
 	KilledApplication
 	ReleaseAppAllocation
 	ReleaseAppAllocationAsk
-	AppStateChange
 	ResumingApplication
 	AppTaskCompleted
 )
 
 func (ae ApplicationEventType) String() string {
-	return [...]string{"SubmitApplication", "RecoverApplication", "AcceptApplication", "TryReserve", "UpdateReservation", "RunApplication", "RejectApplication", "CompleteApplication", "FailApplication", "KillApplication", "KilledApplication", "ReleaseAppAllocation", "ReleaseAppAllocationAsk", "AppStateChange", "ResumingApplication", "AppTaskCompleted"}[ae]
+	return [...]string{"SubmitApplication", "AcceptApplication", "TryReserve", "UpdateReservation", "RunApplication", "RejectApplication", "CompleteApplication", "FailApplication", "KillApplication", "KilledApplication", "ReleaseAppAllocation", "ReleaseAppAllocationAsk", "ResumingApplication", "AppTaskCompleted"}[ae]
 }
 
 // ------------------------
@@ -267,15 +266,15 @@ func (ue UpdateApplicationReservationEvent) GetApplicationID() string {
 // ------------------------
 type ReleaseAppAllocationEvent struct {
 	applicationID   string
-	allocationID    string
+	allocationKey   string
 	terminationType string
 	event           ApplicationEventType
 }
 
-func NewReleaseAppAllocationEvent(appID string, allocTermination si.TerminationType, allocationID string) ReleaseAppAllocationEvent {
+func NewReleaseAppAllocationEvent(appID string, allocTermination si.TerminationType, allocationKey string) ReleaseAppAllocationEvent {
 	return ReleaseAppAllocationEvent{
 		applicationID:   appID,
-		allocationID:    allocationID,
+		allocationKey:   allocationKey,
 		terminationType: si.TerminationType_name[int32(allocTermination)],
 		event:           ReleaseAppAllocation,
 	}
@@ -287,7 +286,7 @@ func (re ReleaseAppAllocationEvent) GetApplicationID() string {
 
 func (re ReleaseAppAllocationEvent) GetArgs() []interface{} {
 	args := make([]interface{}, 2)
-	args[0] = re.allocationID
+	args[0] = re.allocationKey
 	args[1] = re.terminationType
 	return args
 }
@@ -546,9 +545,9 @@ func newAppState() *fsm.FSM { //nolint:funlen
 					log.Log(log.ShimFSM).Error("fail to parse event arg", zap.Error(err))
 					return
 				}
-				allocationID := eventArgs[0]
+				allocationKey := eventArgs[0]
 				terminationType := eventArgs[1]
-				app.handleReleaseAppAllocationEvent(allocationID, terminationType)
+				app.handleReleaseAppAllocationEvent(allocationKey, terminationType)
 			},
 			ReleaseAppAllocationAsk.String(): func(_ context.Context, event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck

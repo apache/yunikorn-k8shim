@@ -28,6 +28,7 @@ import (
 
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
+	"github.com/apache/yunikorn-k8shim/pkg/locking"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
 
@@ -55,7 +56,8 @@ type Dispatcher struct {
 	stopChan  chan struct{}
 	handlers  map[EventType]map[string]func(interface{})
 	running   atomic.Value
-	lock      sync.RWMutex
+	lock      locking.RWMutex
+	stopped   sync.WaitGroup
 }
 
 func initDispatcher() {
@@ -65,7 +67,7 @@ func initDispatcher() {
 		handlers:  make(map[EventType]map[string]func(interface{})),
 		stopChan:  make(chan struct{}),
 		running:   atomic.Value{},
-		lock:      sync.RWMutex{},
+		lock:      locking.RWMutex{},
 	}
 	dispatcher.setRunning(false)
 	DispatchTimeout = conf.GetSchedulerConf().DispatchTimeout
@@ -211,6 +213,7 @@ func Start() {
 		return
 	}
 	getDispatcher().stopChan = make(chan struct{})
+	getDispatcher().stopped.Add(1)
 	go func() {
 		for {
 			select {
@@ -229,6 +232,7 @@ func Start() {
 			case <-getDispatcher().stopChan:
 				log.Log(log.ShimDispatcher).Info("shutting down event channel")
 				getDispatcher().setRunning(false)
+				getDispatcher().stopped.Done()
 				return
 			}
 		}
@@ -257,13 +261,22 @@ func Stop() {
 	}
 
 	close(getDispatcher().stopChan)
-	maxTimeout := 5
-	for getDispatcher().isRunning() && maxTimeout > 0 {
-		log.Log(log.ShimDispatcher).Info("waiting for dispatcher to be stopped",
-			zap.Int("remainingSeconds", maxTimeout))
-		time.Sleep(1 * time.Second)
-		maxTimeout--
+	stopWait := make(chan struct{})
+
+	go func() {
+		defer close(stopWait)
+		getDispatcher().stopped.Wait()
+	}()
+
+	// wait until the main event loop stops properly
+	select {
+	case <-stopWait:
+		break
+	case <-time.After(5 * time.Second):
+		log.Log(log.ShimDispatcher).Info("dispatcher did not stop in time")
+		break
 	}
+
 	if getDispatcher().isRunning() {
 		log.Log(log.ShimDispatcher).Warn("dispatcher even processing did not stop properly")
 	} else {

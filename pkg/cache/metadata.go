@@ -31,6 +31,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
+	"github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 )
 
 func getTaskMetadata(pod *v1.Pod) (TaskMetadata, bool) {
@@ -75,6 +76,20 @@ func getAppMetadata(pod *v1.Pod) (ApplicationMetadata, bool) {
 		tags[constants.AppTagNamespace] = constants.DefaultAppNamespace
 	} else {
 		tags[constants.AppTagNamespace] = pod.Namespace
+	}
+
+	// Make sure we set the force create flag to true if the pod has been scheduled already.
+	// When we create and link the metadata to an application the application does not exist yet.
+	// The force flag prevents rejections during initialisation of already allocated pods in a changed
+	// queue configuration.
+	// It will also pick up static (mirror) and DaemonSet pods. In certain circumstances this could cause
+	// pods to be allowed into the recovery queue while they should not. If this becomes an issue we can
+	// add a filter here.
+	// NOTE: this could fail to set the flag if the oldest pod for the application is not scheduled and
+	// later pods are.
+	tags[common.AppTagCreateForce] = constants.False
+	if utils.IsAssignedPod(pod) {
+		tags[common.AppTagCreateForce] = constants.True
 	}
 
 	// attach imagePullSecrets if present

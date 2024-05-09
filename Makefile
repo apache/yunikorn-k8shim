@@ -20,7 +20,9 @@ ifeq ($(GO),)
 GO := go
 endif
 
-GO_EXE_PATH := $(shell "$(GO)" env GOROOT)/bin
+GOROOT := $(shell "$(GO)" env GOROOT)
+export GOROOT := $(GOROOT)
+GO_EXE_PATH := $(GOROOT)/bin
 
 # Check if this GO tools version used is at least the version of go specified in
 # the go.mod file. The version in go.mod should be in sync with other repos.
@@ -143,7 +145,7 @@ endif
 endif
 
 # golangci-lint
-GOLANGCI_LINT_VERSION=1.54.2
+GOLANGCI_LINT_VERSION=1.57.2
 GOLANGCI_LINT_BIN=$(TOOLS_DIR)/golangci-lint
 GOLANGCI_LINT_ARCHIVE=golangci-lint-$(GOLANGCI_LINT_VERSION)-$(OS)-$(EXEC_ARCH).tar.gz
 GOLANGCI_LINT_ARCHIVEBASE=golangci-lint-$(GOLANGCI_LINT_VERSION)-$(OS)-$(EXEC_ARCH)
@@ -173,6 +175,9 @@ export SPARK_PYTHON_IMAGE=docker.io/apache/spark-py:v$(SPARK_PYTHON_VERSION)
 # go-licenses
 GO_LICENSES_VERSION=v1.6.0
 GO_LICENSES_BIN=$(TOOLS_DIR)/go-licenses
+
+# ginkgo
+GINKGO_BIN=$(TOOLS_DIR)/ginkgo
 
 FLAG_PREFIX=github.com/apache/yunikorn-k8shim/pkg/conf
 
@@ -219,7 +224,7 @@ conf/scheduler-config-local.yaml: conf/scheduler-config.yaml
 
 # Install tools
 .PHONY: tools
-tools: $(SHELLCHECK_BIN) $(GOLANGCI_LINT_BIN) $(KUBECTL_BIN) $(KIND_BIN) $(HELM_BIN) $(SPARK_SUBMIT_CMD) $(GO_LICENSES_BIN)
+tools: $(SHELLCHECK_BIN) $(GOLANGCI_LINT_BIN) $(KUBECTL_BIN) $(KIND_BIN) $(HELM_BIN) $(SPARK_SUBMIT_CMD) $(GO_LICENSES_BIN) $(GINKGO_BIN)
 
 # Install shellcheck
 $(SHELLCHECK_BIN):
@@ -272,6 +277,11 @@ $(GO_LICENSES_BIN):
 	@echo "installing go-licenses $(GO_LICENSES_VERSION)"
 	@mkdir -p "$(TOOLS_DIR)"
 	@GOBIN="$(BASE_DIR)/$(TOOLS_DIR)" "$(GO)" install "github.com/google/go-licenses@$(GO_LICENSES_VERSION)"
+
+$(GINKGO_BIN):
+	@echo "installing ginkgo"
+	@mkdir -p "$(TOOLS_DIR)"
+	@GOBIN="$(BASE_DIR)/$(TOOLS_DIR)" "$(GO)" install "github.com/onsi/ginkgo/v2/ginkgo"
 
 # Run lint against the previous commit for PR and branch build
 # In dev setup look at all changes on top of master
@@ -583,6 +593,9 @@ $(RELEASE_BIN_DIR)/$(TEST_SERVER_BINARY): go.mod go.sum $(shell find pkg)
 
 # Run the tests after building
 .PHONY: test
+test: export DEADLOCK_DETECTION_ENABLED = true
+test: export DEADLOCK_TIMEOUT_SECONDS = 10
+test: export DEADLOCK_EXIT = true
 test:
 	@echo "running unit tests"
 	@mkdir -p "$(OUTPUT)"

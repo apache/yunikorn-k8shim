@@ -21,6 +21,8 @@ package cache
 import (
 	"testing"
 
+	"gotest.tools/v3/assert"
+
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
 
@@ -671,22 +673,22 @@ func TestUpdateApplicationReservationEventGetApplicationID(t *testing.T) {
 
 func TestNewReleaseAppAllocationEvent(t *testing.T) {
 	tests := []struct {
-		name                               string
-		appID, allocationID                string
-		terminationType                    si.TerminationType
-		wantID, wantAllocationID, wantType string
-		wantEvent                          ApplicationEventType
+		name                                string
+		appID, allocationKey                string
+		terminationType                     si.TerminationType
+		wantID, wantAllocationKey, wantType string
+		wantEvent                           ApplicationEventType
 	}{
-		{TestCreateName, "testAppId001", "testAllocationID001", si.TerminationType_TIMEOUT, "testAppId001", "testAllocationID001", "TIMEOUT", ReleaseAppAllocation},
+		{TestCreateName, "testAppId001", "testTaskId001", si.TerminationType_TIMEOUT, "testAppId001", "testTaskId001", "TIMEOUT", ReleaseAppAllocation},
 	}
 
 	for _, tt := range tests {
-		instance := NewReleaseAppAllocationEvent(tt.appID, tt.terminationType, tt.allocationID)
+		instance := NewReleaseAppAllocationEvent(tt.appID, tt.terminationType, tt.allocationKey)
 		t.Run(tt.name, func(t *testing.T) {
-			if instance.applicationID != tt.wantID || instance.allocationID != tt.wantAllocationID || instance.terminationType != tt.wantType || instance.event != tt.wantEvent {
+			if instance.applicationID != tt.wantID || instance.allocationKey != tt.wantAllocationKey || instance.terminationType != tt.wantType || instance.event != tt.wantEvent {
 				t.Errorf("want %s %s %s %s, got %s %s %s %s",
-					tt.wantID, tt.wantAllocationID, tt.wantType, tt.wantEvent,
-					instance.applicationID, instance.allocationID, instance.terminationType, instance.event)
+					tt.wantID, tt.wantAllocationKey, tt.wantType, tt.wantEvent,
+					instance.applicationID, instance.allocationKey, instance.terminationType, instance.event)
 			}
 		})
 	}
@@ -694,16 +696,16 @@ func TestNewReleaseAppAllocationEvent(t *testing.T) {
 
 func TestReleaseAppAllocationEventGetEvent(t *testing.T) {
 	tests := []struct {
-		name                string
-		appID, allocationID string
-		terminationType     si.TerminationType
-		wantEvent           ApplicationEventType
+		name                 string
+		appID, allocationKey string
+		terminationType      si.TerminationType
+		wantEvent            ApplicationEventType
 	}{
-		{TestEventName, "testAppId001", "testAllocationID001", si.TerminationType_TIMEOUT, ReleaseAppAllocation},
+		{TestEventName, "testAppId001", "testTaskId001", si.TerminationType_TIMEOUT, ReleaseAppAllocation},
 	}
 
 	for _, tt := range tests {
-		instance := NewReleaseAppAllocationEvent(tt.appID, tt.terminationType, tt.allocationID)
+		instance := NewReleaseAppAllocationEvent(tt.appID, tt.terminationType, tt.allocationKey)
 		event := instance.GetEvent()
 		t.Run(tt.name, func(t *testing.T) {
 			if event != tt.wantEvent.String() {
@@ -715,18 +717,18 @@ func TestReleaseAppAllocationEventGetEvent(t *testing.T) {
 
 func TestReleaseAppAllocationEventGetArgs(t *testing.T) {
 	tests := []struct {
-		name                string
-		appID, allocationID string
-		terminationType     si.TerminationType
-		wantLen             int
-		castOk              []bool
-		wantArg             []string
+		name                 string
+		appID, allocationKey string
+		terminationType      si.TerminationType
+		wantLen              int
+		castOk               []bool
+		wantArg              []string
 	}{
-		{TestArgsName, "testAppId001", "testAllocationID001", si.TerminationType_TIMEOUT, 2, []bool{true, true}, []string{"testAllocationID001", "TIMEOUT"}},
+		{TestArgsName, "testAppId001", "testTaskId001", si.TerminationType_TIMEOUT, 2, []bool{true, true}, []string{"testTaskId001", "TIMEOUT"}},
 	}
 
 	for _, tt := range tests {
-		instance := NewReleaseAppAllocationEvent(tt.appID, tt.terminationType, tt.allocationID)
+		instance := NewReleaseAppAllocationEvent(tt.appID, tt.terminationType, tt.allocationKey)
 		args := instance.GetArgs()
 		t.Run(tt.name, func(t *testing.T) {
 			if len(args) != tt.wantLen {
@@ -748,16 +750,16 @@ func TestReleaseAppAllocationEventGetArgs(t *testing.T) {
 
 func TestReleaseAppAllocationEventGetApplicationID(t *testing.T) {
 	tests := []struct {
-		name                string
-		appID, allocationID string
-		terminationType     si.TerminationType
-		wantID              string
+		name                 string
+		appID, allocationKey string
+		terminationType      si.TerminationType
+		wantID               string
 	}{
-		{TestAppIDName, "testAppId001", "testAllocationID001", si.TerminationType_TIMEOUT, "testAppId001"},
+		{TestAppIDName, "testAppId001", "testTaskId001", si.TerminationType_TIMEOUT, "testAppId001"},
 	}
 
 	for _, tt := range tests {
-		instance := NewReleaseAppAllocationEvent(tt.appID, tt.terminationType, tt.allocationID)
+		instance := NewReleaseAppAllocationEvent(tt.appID, tt.terminationType, tt.allocationKey)
 		appID := instance.GetApplicationID()
 		t.Run(tt.name, func(t *testing.T) {
 			if appID != tt.wantID {
@@ -886,4 +888,21 @@ func TestNewResumingApplicationEvent(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestApplicationEventsAsString(t *testing.T) {
+	assert.Equal(t, SubmitApplication.String(), "SubmitApplication")
+	assert.Equal(t, AcceptApplication.String(), "AcceptApplication")
+	assert.Equal(t, TryReserve.String(), "TryReserve")
+	assert.Equal(t, UpdateReservation.String(), "UpdateReservation")
+	assert.Equal(t, RunApplication.String(), "RunApplication")
+	assert.Equal(t, RejectApplication.String(), "RejectApplication")
+	assert.Equal(t, CompleteApplication.String(), "CompleteApplication")
+	assert.Equal(t, FailApplication.String(), "FailApplication")
+	assert.Equal(t, KillApplication.String(), "KillApplication")
+	assert.Equal(t, KilledApplication.String(), "KilledApplication")
+	assert.Equal(t, ReleaseAppAllocation.String(), "ReleaseAppAllocation")
+	assert.Equal(t, ReleaseAppAllocationAsk.String(), "ReleaseAppAllocationAsk")
+	assert.Equal(t, ResumingApplication.String(), "ResumingApplication")
+	assert.Equal(t, AppTaskCompleted.String(), "AppTaskCompleted")
 }

@@ -77,7 +77,6 @@ func CreateAllocationRequestForTask(appID, taskID string, resource *si.Resource,
 		AllocationKey:    taskID,
 		ResourceAsk:      resource,
 		ApplicationID:    appID,
-		MaxAllocations:   1,
 		Tags:             CreateTagsForTask(pod),
 		Placeholder:      placeholder,
 		TaskGroupName:    taskGroupName,
@@ -96,7 +95,6 @@ func CreateAllocationForTask(appID, taskID, nodeID string, resource *si.Resource
 	allocation := si.Allocation{
 		AllocationKey:    taskID,
 		AllocationTags:   CreateTagsForTask(pod),
-		AllocationID:     taskID,
 		ResourcePerAlloc: resource,
 		Priority:         CreatePriorityForTask(pod),
 		NodeID:           nodeID,
@@ -116,25 +114,6 @@ func CreateAllocationForTask(appID, taskID, nodeID string, resource *si.Resource
 	}
 }
 
-func CreateReleaseAskRequestForTask(appID, taskID, partition string) *si.AllocationRequest {
-	toReleases := make([]*si.AllocationAskRelease, 0)
-	toReleases = append(toReleases, &si.AllocationAskRelease{
-		ApplicationID: appID,
-		AllocationKey: taskID,
-		PartitionName: partition,
-		Message:       "task request is canceled",
-	})
-
-	releaseRequest := si.AllocationReleasesRequest{
-		AllocationAsksToRelease: toReleases,
-	}
-
-	return &si.AllocationRequest{
-		Releases: &releaseRequest,
-		RmID:     conf.GetSchedulerConf().ClusterID,
-	}
-}
-
 func GetTerminationTypeFromString(terminationTypeStr string) si.TerminationType {
 	if v, ok := si.TerminationType_value[terminationTypeStr]; ok {
 		return si.TerminationType(v)
@@ -142,18 +121,21 @@ func GetTerminationTypeFromString(terminationTypeStr string) si.TerminationType 
 	return si.TerminationType_STOPPED_BY_RM
 }
 
-func CreateReleaseAllocationRequestForTask(appID, taskID, allocationID, partition, terminationType string) *si.AllocationRequest {
-	toReleases := make([]*si.AllocationRelease, 0)
-	toReleases = append(toReleases, &si.AllocationRelease{
-		ApplicationID:   appID,
-		AllocationID:    allocationID,
-		PartitionName:   partition,
-		TerminationType: GetTerminationTypeFromString(terminationType),
-		Message:         "task completed",
-	})
+func CreateReleaseRequestForTask(appID, taskID, allocationKey, partition, terminationType string) *si.AllocationRequest {
+	var allocToRelease []*si.AllocationRelease
+	if allocationKey != "" {
+		allocToRelease = make([]*si.AllocationRelease, 1)
+		allocToRelease[0] = &si.AllocationRelease{
+			ApplicationID:   appID,
+			AllocationKey:   allocationKey,
+			PartitionName:   partition,
+			TerminationType: GetTerminationTypeFromString(terminationType),
+			Message:         "task completed",
+		}
+	}
 
-	toReleaseAsk := make([]*si.AllocationAskRelease, 1)
-	toReleaseAsk[0] = &si.AllocationAskRelease{
+	askToRelease := make([]*si.AllocationAskRelease, 1)
+	askToRelease[0] = &si.AllocationAskRelease{
 		ApplicationID: appID,
 		AllocationKey: taskID,
 		PartitionName: partition,
@@ -161,8 +143,8 @@ func CreateReleaseAllocationRequestForTask(appID, taskID, allocationID, partitio
 	}
 
 	releaseRequest := si.AllocationReleasesRequest{
-		AllocationsToRelease:    toReleases,
-		AllocationAsksToRelease: toReleaseAsk,
+		AllocationsToRelease:    allocToRelease,
+		AllocationAsksToRelease: askToRelease,
 	}
 
 	return &si.AllocationRequest{
@@ -173,7 +155,7 @@ func CreateReleaseAllocationRequestForTask(appID, taskID, allocationID, partitio
 
 // CreateUpdateRequestForNewNode builds a NodeRequest for new node addition and restoring existing node
 func CreateUpdateRequestForNewNode(nodeID string, nodeLabels map[string]string, capacity *si.Resource, occupied *si.Resource,
-	existingAllocations []*si.Allocation, ready bool) *si.NodeRequest {
+	existingAllocations []*si.Allocation) *si.NodeRequest {
 	// Use node's name as the NodeID, this is because when bind pod to node,
 	// name of node is required but uid is optional.
 	nodeInfo := &si.NodeInfo{
@@ -183,7 +165,6 @@ func CreateUpdateRequestForNewNode(nodeID string, nodeLabels map[string]string, 
 		Attributes: map[string]string{
 			constants.DefaultNodeAttributeHostNameKey: nodeID,
 			constants.DefaultNodeAttributeRackNameKey: constants.DefaultRackName,
-			common.NodeReadyAttribute:                 strconv.FormatBool(ready),
 		},
 		ExistingAllocations: existingAllocations,
 		Action:              si.NodeInfo_CREATE,
@@ -205,14 +186,11 @@ func CreateUpdateRequestForNewNode(nodeID string, nodeLabels map[string]string, 
 	}
 }
 
-// CreateUpdateRequestForUpdatedNode builds a NodeRequest for any node updates like capacity,
-// ready status flag etc
-func CreateUpdateRequestForUpdatedNode(nodeID string, capacity *si.Resource, occupied *si.Resource, ready bool) *si.NodeRequest {
+// CreateUpdateRequestForUpdatedNode builds a NodeRequest for capacity and occupied resource updates
+func CreateUpdateRequestForUpdatedNode(nodeID string, capacity *si.Resource, occupied *si.Resource) *si.NodeRequest {
 	nodeInfo := &si.NodeInfo{
-		NodeID: nodeID,
-		Attributes: map[string]string{
-			common.NodeReadyAttribute: strconv.FormatBool(ready),
-		},
+		NodeID:              nodeID,
+		Attributes:          map[string]string{},
 		SchedulableResource: capacity,
 		OccupiedResource:    occupied,
 		Action:              si.NodeInfo_UPDATE,

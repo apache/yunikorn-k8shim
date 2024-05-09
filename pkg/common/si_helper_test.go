@@ -18,7 +18,6 @@ limitations under the License.
 package common
 
 import (
-	"strconv"
 	"testing"
 
 	"gotest.tools/v3/assert"
@@ -32,23 +31,23 @@ import (
 
 const nodeID = "node-01"
 
-func TestCreateReleaseAllocationRequest(t *testing.T) {
-	request := CreateReleaseAllocationRequestForTask("app01", "task01", "alloc01", "default", "STOPPED_BY_RM")
+func TestCreateReleaseRequestForTask(t *testing.T) {
+	// with allocationKey
+	request := CreateReleaseRequestForTask("app01", "task01", "task01", "default", "STOPPED_BY_RM")
 	assert.Assert(t, request.Releases != nil)
 	assert.Assert(t, request.Releases.AllocationsToRelease != nil)
 	assert.Assert(t, request.Releases.AllocationAsksToRelease != nil)
 	assert.Equal(t, len(request.Releases.AllocationsToRelease), 1)
 	assert.Equal(t, len(request.Releases.AllocationAsksToRelease), 1)
 	assert.Equal(t, request.Releases.AllocationsToRelease[0].ApplicationID, "app01")
-	assert.Equal(t, request.Releases.AllocationsToRelease[0].AllocationID, "alloc01")
+	assert.Equal(t, request.Releases.AllocationsToRelease[0].AllocationKey, "task01")
 	assert.Equal(t, request.Releases.AllocationsToRelease[0].PartitionName, "default")
 	assert.Equal(t, request.Releases.AllocationAsksToRelease[0].ApplicationID, "app01")
 	assert.Equal(t, request.Releases.AllocationAsksToRelease[0].AllocationKey, "task01")
 	assert.Equal(t, request.Releases.AllocationAsksToRelease[0].PartitionName, "default")
-}
 
-func TestCreateReleaseAskRequestForTask(t *testing.T) {
-	request := CreateReleaseAskRequestForTask("app01", "task01", "default")
+	// without allocationKey
+	request = CreateReleaseRequestForTask("app01", "task01", "", "default", "STOPPED_BY_RM")
 	assert.Assert(t, request.Releases != nil)
 	assert.Assert(t, request.Releases.AllocationsToRelease == nil)
 	assert.Assert(t, request.Releases.AllocationAsksToRelease != nil)
@@ -219,21 +218,19 @@ func TestCreateUpdateRequestForNewNode(t *testing.T) {
 	capacity := NewResourceBuilder().AddResource(common.Memory, 200).AddResource(common.CPU, 2).Build()
 	occupied := NewResourceBuilder().AddResource(common.Memory, 50).AddResource(common.CPU, 1).Build()
 	var existingAllocations []*si.Allocation
-	ready := true
 	nodeLabels := map[string]string{
 		"label1":                           "key1",
 		"label2":                           "key2",
 		"node.kubernetes.io/instance-type": "HighMem",
 	}
-	request := CreateUpdateRequestForNewNode(nodeID, nodeLabels, capacity, occupied, existingAllocations, ready)
+	request := CreateUpdateRequestForNewNode(nodeID, nodeLabels, capacity, occupied, existingAllocations)
 	assert.Equal(t, len(request.Nodes), 1)
 	assert.Equal(t, request.Nodes[0].NodeID, nodeID)
 	assert.Equal(t, request.Nodes[0].SchedulableResource, capacity)
 	assert.Equal(t, request.Nodes[0].OccupiedResource, occupied)
-	assert.Equal(t, len(request.Nodes[0].Attributes), 7)
+	assert.Equal(t, len(request.Nodes[0].Attributes), 6)
 	assert.Equal(t, request.Nodes[0].Attributes[constants.DefaultNodeAttributeHostNameKey], nodeID)
 	assert.Equal(t, request.Nodes[0].Attributes[constants.DefaultNodeAttributeRackNameKey], constants.DefaultRackName)
-	assert.Equal(t, request.Nodes[0].Attributes[common.NodeReadyAttribute], strconv.FormatBool(ready))
 
 	// Make sure include nodeLabel
 	assert.Equal(t, request.Nodes[0].Attributes["label1"], "key1")
@@ -247,14 +244,12 @@ func TestCreateUpdateRequestForNewNode(t *testing.T) {
 func TestCreateUpdateRequestForUpdatedNode(t *testing.T) {
 	capacity := NewResourceBuilder().AddResource(common.Memory, 200).AddResource(common.CPU, 2).Build()
 	occupied := NewResourceBuilder().AddResource(common.Memory, 50).AddResource(common.CPU, 1).Build()
-	ready := true
-	request := CreateUpdateRequestForUpdatedNode(nodeID, capacity, occupied, ready)
+	request := CreateUpdateRequestForUpdatedNode(nodeID, capacity, occupied)
 	assert.Equal(t, len(request.Nodes), 1)
 	assert.Equal(t, request.Nodes[0].NodeID, nodeID)
 	assert.Equal(t, request.Nodes[0].SchedulableResource, capacity)
 	assert.Equal(t, request.Nodes[0].OccupiedResource, occupied)
-	assert.Equal(t, len(request.Nodes[0].Attributes), 1)
-	assert.Equal(t, request.Nodes[0].Attributes[common.NodeReadyAttribute], strconv.FormatBool(ready))
+	assert.Equal(t, len(request.Nodes[0].Attributes), 0)
 }
 
 func TestCreateUpdateRequestForDeleteNode(t *testing.T) {

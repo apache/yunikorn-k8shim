@@ -16,34 +16,29 @@
  limitations under the License.
 */
 
-package test
+package locking
 
 import (
-	v1 "k8s.io/api/core/v1"
+	"sync"
 
-	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
-	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
+	godeadlock "github.com/sasha-s/go-deadlock"
+
+	corelocking "github.com/apache/yunikorn-core/pkg/locking"
 )
 
-type MockedRecoverableAppManager struct {
+var once sync.Once
+
+func init() {
+	once.Do(func() {
+		// call into core locking package to ensure that all locks are globally configured
+		corelocking.IsTrackingEnabled()
+	})
 }
 
-func NewMockedRecoverableAppManager() *MockedRecoverableAppManager {
-	return &MockedRecoverableAppManager{}
+type Mutex struct {
+	godeadlock.Mutex
 }
 
-func (m *MockedRecoverableAppManager) ListPods() ([]*v1.Pod, error) {
-	return nil, nil
-}
-
-func (m *MockedRecoverableAppManager) GetExistingAllocation(pod *v1.Pod) *si.Allocation {
-	return &si.Allocation{
-		AllocationKey:    string(pod.UID),
-		AllocationTags:   nil,
-		ResourcePerAlloc: nil,
-		Priority:         0,
-		NodeID:           pod.Spec.NodeName,
-		ApplicationID:    "",
-		PartitionName:    constants.DefaultPartition,
-	}
+type RWMutex struct {
+	godeadlock.RWMutex
 }

@@ -19,21 +19,20 @@
 package admission
 
 import (
-	"sync"
-
 	schedulingv1 "k8s.io/api/scheduling/v1"
 	informersv1 "k8s.io/client-go/informers/scheduling/v1"
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
+	"github.com/apache/yunikorn-k8shim/pkg/locking"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
 
 type PriorityClassCache struct {
 	priorityClasses map[string]bool
 
-	sync.RWMutex
+	locking.RWMutex
 }
 
 // NewPriorityClassCache creates a new cache and registers the handler for the cache with the Informer.

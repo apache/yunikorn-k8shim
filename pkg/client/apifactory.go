@@ -19,7 +19,6 @@
 package client
 
 import (
-	"sync"
 	"time"
 
 	"go.uber.org/zap"
@@ -29,6 +28,7 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/volumebinding"
 
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
+	"github.com/apache/yunikorn-k8shim/pkg/locking"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/api"
 )
@@ -76,7 +76,7 @@ type APIFactory struct {
 	clients  *Clients
 	testMode bool
 	stopChan chan struct{}
-	lock     *sync.RWMutex
+	lock     *locking.RWMutex
 }
 
 func NewAPIFactory(scheduler api.SchedulerAPI, informerFactory informers.SharedInformerFactory, configs *conf.SchedulerConf, testMode bool) *APIFactory {
@@ -130,7 +130,7 @@ func NewAPIFactory(scheduler api.SchedulerAPI, informerFactory informers.SharedI
 		},
 		testMode: testMode,
 		stopChan: make(chan struct{}),
-		lock:     &sync.RWMutex{},
+		lock:     &locking.RWMutex{},
 	}
 }
 

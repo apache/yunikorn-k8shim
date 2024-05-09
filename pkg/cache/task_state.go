@@ -127,15 +127,15 @@ type AllocatedTaskEvent struct {
 	taskID        string
 	event         TaskEventType
 	nodeID        string
-	allocationID  string
+	allocationKey string
 }
 
-func NewAllocateTaskEvent(appID string, taskID string, allocationID string, nid string) AllocatedTaskEvent {
+func NewAllocateTaskEvent(appID string, taskID string, allocationKey string, nid string) AllocatedTaskEvent {
 	return AllocatedTaskEvent{
 		applicationID: appID,
 		taskID:        taskID,
 		event:         TaskAllocated,
-		allocationID:  allocationID,
+		allocationKey: allocationKey,
 		nodeID:        nid,
 	}
 }
@@ -146,7 +146,7 @@ func (ae AllocatedTaskEvent) GetEvent() string {
 
 func (ae AllocatedTaskEvent) GetArgs() []interface{} {
 	args := make([]interface{}, 2)
-	args[0] = ae.allocationID
+	args[0] = ae.allocationKey
 	args[1] = ae.nodeID
 	return args
 }
@@ -365,7 +365,7 @@ func newTaskState() *fsm.FSM {
 			},
 			{
 				Name: TaskFail.String(),
-				Src:  []string{states.Rejected, states.Allocated},
+				Src:  []string{states.New, states.Pending, states.Scheduling, states.Rejected, states.Allocated},
 				Dst:  states.Failed,
 			},
 		},
@@ -419,15 +419,15 @@ func newTaskState() *fsm.FSM {
 			},
 			beforeHook(TaskAllocated): func(_ context.Context, event *fsm.Event) {
 				task := event.Args[0].(*Task) //nolint:errcheck
-				// All allocation events must include the allocationID and nodeID passed from the core
+				// All allocation events must include the allocationKey and nodeID passed from the core
 				eventArgs := make([]string, 2)
 				if err := events.GetEventArgsAsStrings(eventArgs, event.Args[1].([]interface{})); err != nil {
 					log.Log(log.ShimFSM).Error("failed to parse event arg", zap.Error(err))
 					return
 				}
-				allocationID := eventArgs[0]
+				allocationKey := eventArgs[0]
 				nodeID := eventArgs[1]
-				task.beforeTaskAllocated(event.Src, allocationID, nodeID)
+				task.beforeTaskAllocated(event.Src, allocationKey, nodeID)
 			},
 			beforeHook(CompleteTask): func(_ context.Context, event *fsm.Event) {
 				task := event.Args[0].(*Task) //nolint:errcheck

@@ -72,20 +72,16 @@ function check_docker() {
 }
 
 function install_tools() {
-  if [ -d "$TOOLS_DIRECTORY" ]; then
-    echo "tools directory exists. Skipping make tools."
-  else
-    make tools
-  fi
+  make tools
 }
 
 function install_cluster() {
-  echo "step 1/7: checking required configuration"
+  echo "step 1/6: checking required configuration"
   if [ ! -r "${KIND_CONFIG}" ]; then
     exit_on_error "kind config not found: ${KIND_CONFIG}"
   fi
 
-  echo "step 2/7: install tools"
+  echo "step 2/6: install tools"
   install_tools
 
   # use latest helm charts from the release repo to install yunikorn unless path is provided
@@ -99,20 +95,15 @@ function install_cluster() {
   fi
 
   # build docker images from latest code, so that we can install yunikorn with these latest images
-  echo "step 3/7: building docker images from latest code"
+  echo "step 3/6: building docker images from latest code"
   check_docker
   QUIET="--quiet" REGISTRY=local VERSION=latest make image
   exit_on_error "build docker images failed"
   QUIET="--quiet" REGISTRY=local VERSION=latest make webtest_image
   exit_on_error "build test web images failed"
 
-  # install ginkgo and gomega for e2e tests.
-  echo "step 4/7: installing Ginkgo & Gomega at $("${GO}" env GOPATH)/bin"
-  "${GO}" install github.com/onsi/ginkgo/v2/ginkgo
-  check_cmd "ginkgo"
-
   # create K8s cluster
-  echo "step 5/7: installing K8s cluster using kind"
+  echo "step 4/6: installing K8s cluster using kind"
   "${KIND}" create cluster --name "${CLUSTER_NAME}" --image "${CLUSTER_VERSION}" --config="${KIND_CONFIG}"
   exit_on_error "install K8s cluster failed"
   "${KUBECTL}" cluster-info --context kind-"${CLUSTER_NAME}"
@@ -123,7 +114,7 @@ function install_cluster() {
   "${KUBECTL}" describe nodes
 
   # pre-load yunikorn docker images to kind
-  echo "step 6/7: pre-load yunikorn images"
+  echo "step 5/6: pre-load yunikorn images"
   "${KIND}" load docker-image "local/yunikorn:${SCHEDULER_IMAGE}" --name "${CLUSTER_NAME}"
   exit_on_error "pre-load scheduler image failed: ${SCHEDULER_IMAGE}"
   "${KIND}" load docker-image "local/yunikorn:${ADMISSION_IMAGE}" --name "${CLUSTER_NAME}"
@@ -131,7 +122,7 @@ function install_cluster() {
   "${KIND}" load docker-image "local/yunikorn:${WEBTEST_IMAGE}" --name "${CLUSTER_NAME}"
   exit_on_error "pre-load web image failed: ${WEBTEST_IMAGE}"
 
-  echo "step 7/7: installing yunikorn"
+  echo "step 6/6: installing yunikorn"
   "${HELM}" install yunikorn "${CHART_PATH}" --namespace yunikorn \
     --set image.repository=local/yunikorn \
     --set image.tag="${SCHEDULER_IMAGE}" \
@@ -167,15 +158,15 @@ Usage: ${NAME} -a <action> -n <kind-cluster-name> -v <kind-node-image-version> [
   --plugin                     use scheduler plugin image instead of default mode image
 
 Examples:
-  ${NAME} -a test -n yk8s -v kindest/node:v1.24.15
-  ${NAME} -a test -n yk8s -v kindest/node:v1.25.11
-  ${NAME} -a test -n yk8s -v kindest/node:v1.26.6
-  ${NAME} -a test -n yk8s -v kindest/node:v1.27.3
-  ${NAME} -a test -n yk8s -v kindest/node:v1.28.0
-  ${NAME} -a test -n yk8s -v kindest/node:v1.29.0
+  ${NAME} -a test -n yk8s -v kindest/node:v1.24.17
+  ${NAME} -a test -n yk8s -v kindest/node:v1.25.16
+  ${NAME} -a test -n yk8s -v kindest/node:v1.26.14
+  ${NAME} -a test -n yk8s -v kindest/node:v1.27.11
+  ${NAME} -a test -n yk8s -v kindest/node:v1.28.7
+  ${NAME} -a test -n yk8s -v kindest/node:v1.29.2
 
   Use a local helm chart path:
-    ${NAME} -a test -n yk8s -v kindest/node:v1.29.0 -p ../yunikorn-release/helm-charts/yunikorn
+    ${NAME} -a test -n yk8s -v kindest/node:v1.29.2 -p ../yunikorn-release/helm-charts/yunikorn
 EOF
 }
 

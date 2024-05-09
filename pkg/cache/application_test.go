@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -41,6 +40,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
+	"github.com/apache/yunikorn-k8shim/pkg/locking"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/api"
 	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
@@ -48,7 +48,7 @@ import (
 
 type recorderTime struct {
 	time int64
-	lock *sync.RWMutex
+	lock *locking.RWMutex
 }
 
 func TestNewApplication(t *testing.T) {
@@ -129,7 +129,7 @@ func TestFailApplication(t *testing.T) {
 
 	rt := &recorderTime{
 		time: int64(0),
-		lock: &sync.RWMutex{},
+		lock: &locking.RWMutex{},
 	}
 	ms := &mockSchedulerAPI{}
 	// set test mode
@@ -442,9 +442,9 @@ func TestReleaseAppAllocation(t *testing.T) {
 	app := NewApplication(appID, "root.abc", "testuser", testGroups, map[string]string{}, ms)
 	task := NewTask("task01", app, context, pod)
 	app.addTask(task)
-	task.allocationID = taskAllocationID
+	task.allocationKey = task.taskID
 	// app must be running states
-	err := app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, taskAllocationID))
+	err := app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, task.taskID))
 	if err == nil {
 		// this should give an error
 		t.Error("expecting error got 'nil'")
@@ -452,7 +452,7 @@ func TestReleaseAppAllocation(t *testing.T) {
 	// set app states to running, let event can be trigger
 	app.SetState(ApplicationStates().Running)
 	assertAppState(t, app, ApplicationStates().Running, 3*time.Second)
-	err = app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, taskAllocationID))
+	err = app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, task.taskID))
 	assert.NilError(t, err)
 	// after handle release event the states of app must be running
 	assertAppState(t, app, ApplicationStates().Running, 3*time.Second)
@@ -662,7 +662,7 @@ func TestSetTaskGroupsAndSchedulingPolicy(t *testing.T) {
 
 type threadSafePodsMap struct {
 	pods map[string]*v1.Pod
-	sync.RWMutex
+	locking.RWMutex
 }
 
 func newThreadSafePodsMap() *threadSafePodsMap {
@@ -823,7 +823,7 @@ func TestTryReservePostRestart(t *testing.T) {
 			Containers: containers,
 		},
 	})
-	task0.allocationID = string(task0.pod.UID)
+	task0.allocationKey = string(task0.pod.UID)
 	task0.nodeName = "fake-host"
 	task0.sm.SetState(TaskStates().Allocated)
 
@@ -1002,9 +1002,10 @@ func TestReleaseAppAllocationInFailingState(t *testing.T) {
 	app := NewApplication(appID, "root.abc", "testuser", testGroups, map[string]string{}, ms)
 	task := NewTask("task01", app, context, pod)
 	app.addTask(task)
-	task.allocationID = taskAllocationID
+	task.allocationKey = task.taskID
+
 	// app must be running states
-	err := app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, taskAllocationID))
+	err := app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, task.taskID))
 	if err == nil {
 		// this should give an error
 		t.Error("expecting error got 'nil'")
@@ -1012,12 +1013,12 @@ func TestReleaseAppAllocationInFailingState(t *testing.T) {
 	// set app states to running, let event can be trigger
 	app.SetState(ApplicationStates().Running)
 	assertAppState(t, app, ApplicationStates().Running, 3*time.Second)
-	err = app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, taskAllocationID))
+	err = app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, task.taskID))
 	assert.NilError(t, err)
 	// after handle release event the states of app must be running
 	assertAppState(t, app, ApplicationStates().Running, 3*time.Second)
 	app.SetState(ApplicationStates().Failing)
-	err = app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, taskAllocationID))
+	err = app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, task.taskID))
 	assert.NilError(t, err)
 	// after handle release event the states of app must be failing
 	assertAppState(t, app, ApplicationStates().Failing, 3*time.Second)
@@ -1057,7 +1058,7 @@ func TestResumingStateTransitions(t *testing.T) {
 	// Add tasks
 	app.addTask(task1)
 	app.addTask(task2)
-	task1.allocationID = taskAllocationID
+	task1.allocationKey = task1.taskID
 	context.addApplicationToContext(app)
 
 	// Set app state to "reserving"
@@ -1127,7 +1128,7 @@ func TestPlaceholderTimeoutEvents(t *testing.T) {
 		ObjectMeta: apis.ObjectMeta{
 			Name:      "pod00001",
 			Namespace: "default",
-			UID:       "UID-POD-00001",
+			UID:       "task01",
 			Labels: map[string]string{
 				"queue":         "root.a",
 				"applicationId": "app00001",
@@ -1150,7 +1151,7 @@ func TestPlaceholderTimeoutEvents(t *testing.T) {
 		ObjectMeta: apis.ObjectMeta{
 			Name:      "pod00002",
 			Namespace: "default",
-			UID:       "UID-POD-00002",
+			UID:       "task02",
 			Labels: map[string]string{
 				"queue":         "root.a",
 				"applicationId": "app00001",
@@ -1169,7 +1170,7 @@ func TestPlaceholderTimeoutEvents(t *testing.T) {
 	assert.Equal(t, len(app.GetNewTasks()), 1)
 
 	appID := "app00001"
-	allocationID := "UID-POD-00002"
+	allocationKey := "task02"
 
 	task1 := context.AddTask(&AddTaskRequest{
 		Metadata: TaskMetadata{
@@ -1185,12 +1186,12 @@ func TestPlaceholderTimeoutEvents(t *testing.T) {
 	_, taskErr := app.GetTask("task02")
 	assert.NilError(t, taskErr, "Task should exist")
 
-	task1.allocationID = allocationID
+	task1.allocationKey = allocationKey
 
 	// set app states to running, let event can be trigger
 	app.SetState(ApplicationStates().Running)
 	assertAppState(t, app, ApplicationStates().Running, 3*time.Second)
-	err := app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, allocationID))
+	err := app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, allocationKey))
 	assert.NilError(t, err)
 	// after handle release event the states of app must be running
 	assertAppState(t, app, ApplicationStates().Running, 3*time.Second)

@@ -20,7 +20,6 @@ package external
 
 import (
 	"fmt"
-	"sync"
 	"sync/atomic"
 
 	"go.uber.org/zap"
@@ -35,6 +34,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
+	"github.com/apache/yunikorn-k8shim/pkg/locking"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
@@ -70,7 +70,7 @@ type SchedulerCache struct {
 	inProgressAllocations map[string]string      // map of pod to node ID, presence indicates an in-process allocation for scheduler
 	schedulingTasks       map[string]interface{} // list of task IDs which are currently being processed by the scheduler
 	pvcRefCounts          map[string]map[string]int
-	lock                  sync.RWMutex
+	lock                  locking.RWMutex
 	clients               *client.Clients // client APIs
 	klogger               klog.Logger
 
@@ -449,7 +449,13 @@ func (cache *SchedulerCache) StartPodAllocation(podKey string, nodeID string) bo
 	return false
 }
 
-// return if pod is assumed in cache, avoid nil
+// IsAssumedPod returns if pod is assumed in cache, avoid nil
+func (cache *SchedulerCache) IsAssumedPod(podKey string) bool {
+	cache.lock.RLock()
+	defer cache.lock.RUnlock()
+	return cache.isAssumedPod(podKey)
+}
+
 func (cache *SchedulerCache) isAssumedPod(podKey string) bool {
 	_, ok := cache.assumedPods[podKey]
 	return ok

@@ -19,7 +19,6 @@
 package cache
 
 import (
-	"sync"
 	"testing"
 	"time"
 
@@ -36,6 +35,8 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
+	"github.com/apache/yunikorn-k8shim/pkg/locking"
+
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
 
@@ -169,7 +170,7 @@ func TestReleaseTaskAllocation(t *testing.T) {
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "pod-resource-test-00001",
-			UID:  "UID-00001",
+			UID:  "task01",
 		},
 		Spec: v1.PodSpec{
 			Containers: containers,
@@ -200,9 +201,9 @@ func TestReleaseTaskAllocation(t *testing.T) {
 	assert.Equal(t, task.GetTaskState(), TaskStates().Allocated)
 	// bind a task is a async process, wait for it to happen
 	err = common.WaitFor(100*time.Millisecond, 3*time.Second, func() bool {
-		return task.getTaskAllocationID() == string(pod.UID)
+		return task.getNodeName() == "node-1"
 	})
-	assert.NilError(t, err, "failed to wait for allocation allocationID being set for task")
+	assert.NilError(t, err, "failed to wait for allocation allocationKey being set for task")
 
 	// bound
 	event3 := NewBindTaskEvent(app.applicationID, task.taskID)
@@ -217,6 +218,12 @@ func TestReleaseTaskAllocation(t *testing.T) {
 		assert.Assert(t, request.Releases.AllocationsToRelease != nil)
 		assert.Equal(t, request.Releases.AllocationsToRelease[0].ApplicationID, app.applicationID)
 		assert.Equal(t, request.Releases.AllocationsToRelease[0].PartitionName, "default")
+		assert.Equal(t, request.Releases.AllocationsToRelease[0].AllocationKey, "task01")
+		assert.Assert(t, request.Releases.AllocationAsksToRelease != nil)
+		assert.Equal(t, request.Releases.AllocationAsksToRelease[0].ApplicationID, app.applicationID)
+		assert.Equal(t, request.Releases.AllocationAsksToRelease[0].AllocationKey, "task01")
+		assert.Equal(t, request.Releases.AllocationAsksToRelease[0].PartitionName, "default")
+		assert.Equal(t, request.Releases.AllocationAsksToRelease[0].TerminationType, si.TerminationType_UNKNOWN_TERMINATION_TYPE)
 		return nil
 	})
 
@@ -227,6 +234,41 @@ func TestReleaseTaskAllocation(t *testing.T) {
 	assert.Equal(t, task.GetTaskState(), TaskStates().Completed)
 	// 2 updates call, 1 for submit, 1 for release
 	assert.Equal(t, mockedApiProvider.GetSchedulerAPIUpdateAllocationCount(), int32(2))
+
+	// New to Failed, no AllocationKey is set (only ask is released)
+	task = NewTask("task01", app, mockedContext, pod)
+	mockedApiProvider.MockSchedulerAPIUpdateAllocationFn(func(request *si.AllocationRequest) error {
+		assert.Assert(t, request.Releases != nil)
+		assert.Assert(t, request.Releases.AllocationsToRelease == nil)
+		assert.Assert(t, request.Releases.AllocationAsksToRelease != nil)
+		assert.Equal(t, request.Releases.AllocationAsksToRelease[0].ApplicationID, app.applicationID)
+		assert.Equal(t, request.Releases.AllocationAsksToRelease[0].AllocationKey, "task01")
+		assert.Equal(t, request.Releases.AllocationAsksToRelease[0].PartitionName, "default")
+		assert.Equal(t, request.Releases.AllocationAsksToRelease[0].TerminationType, si.TerminationType_UNKNOWN_TERMINATION_TYPE)
+		return nil
+	})
+	err = task.handle(NewFailTaskEvent(app.applicationID, "task01", "test failure"))
+	assert.NilError(t, err, "failed to handle FailTask event")
+
+	// Scheduling to Failed, AllocationKey is set (ask+allocation are both released)
+	task = NewTask("task01", app, mockedContext, pod)
+	task.setAllocationKey("task01")
+	task.sm.SetState(TaskStates().Scheduling)
+	mockedApiProvider.MockSchedulerAPIUpdateAllocationFn(func(request *si.AllocationRequest) error {
+		assert.Assert(t, request.Releases != nil)
+		assert.Assert(t, request.Releases.AllocationsToRelease != nil)
+		assert.Equal(t, request.Releases.AllocationsToRelease[0].ApplicationID, app.applicationID)
+		assert.Equal(t, request.Releases.AllocationsToRelease[0].PartitionName, "default")
+		assert.Equal(t, request.Releases.AllocationsToRelease[0].AllocationKey, "task01")
+		assert.Assert(t, request.Releases.AllocationAsksToRelease != nil)
+		assert.Equal(t, request.Releases.AllocationAsksToRelease[0].ApplicationID, app.applicationID)
+		assert.Equal(t, request.Releases.AllocationAsksToRelease[0].AllocationKey, "task01")
+		assert.Equal(t, request.Releases.AllocationAsksToRelease[0].PartitionName, "default")
+		assert.Equal(t, request.Releases.AllocationAsksToRelease[0].TerminationType, si.TerminationType_UNKNOWN_TERMINATION_TYPE)
+		return nil
+	})
+	err = task.handle(NewFailTaskEvent(app.applicationID, "task01", "test failure"))
+	assert.NilError(t, err, "failed to handle FailTask event")
 }
 
 func TestReleaseTaskAsk(t *testing.T) {
@@ -482,7 +524,7 @@ func TestHandleSubmitTaskEvent(t *testing.T) {
 	mockedContext.addPriorityClass(priorityClass2)
 	rt := &recorderTime{
 		time: int64(0),
-		lock: &sync.RWMutex{},
+		lock: &locking.RWMutex{},
 	}
 	conf.GetSchedulerConf().SetTestMode(true)
 	mr := events.NewMockedRecorder()
@@ -576,10 +618,9 @@ func TestHandleSubmitTaskEvent(t *testing.T) {
 
 func TestSimultaneousTaskCompleteAndAllocate(t *testing.T) {
 	const (
-		podUID       = "UID-00001"
-		appID        = "app-test-001"
-		queueName    = "root.abc"
-		allocationID = "allocationid-xyz"
+		podUID    = "UID-00001"
+		appID     = "app-test-001"
+		queueName = "root.abc"
 	)
 	mockedContext := initContextForTest()
 	mockedAPIProvider, ok := mockedContext.apiProvider.(*client.MockedAPIProvider)
@@ -637,7 +678,6 @@ func TestSimultaneousTaskCompleteAndAllocate(t *testing.T) {
 	// can be released from the core to avoid resource leak
 	alloc := &si.Allocation{
 		AllocationKey: string(pod1.UID),
-		AllocationID:  allocationID,
 		NodeID:        "fake-node",
 		ApplicationID: appID,
 		PartitionName: "default",
@@ -649,10 +689,10 @@ func TestSimultaneousTaskCompleteAndAllocate(t *testing.T) {
 			"allocationsToRelease is not in the expected length")
 		allocToRelease := request.Releases.AllocationsToRelease[0]
 		assert.Equal(t, allocToRelease.ApplicationID, alloc.ApplicationID)
-		assert.Equal(t, allocToRelease.AllocationID, alloc.AllocationID)
+		assert.Equal(t, allocToRelease.AllocationKey, alloc.AllocationKey)
 		return nil
 	})
-	ev1 := NewAllocateTaskEvent(app.GetApplicationID(), alloc.AllocationKey, alloc.AllocationID, alloc.NodeID)
+	ev1 := NewAllocateTaskEvent(app.GetApplicationID(), alloc.AllocationKey, alloc.AllocationKey, alloc.NodeID)
 	err = task1.handle(ev1)
 	assert.NilError(t, err, "failed to handle AllocateTask event")
 	assert.Equal(t, task1.GetTaskState(), TaskStates().Completed)

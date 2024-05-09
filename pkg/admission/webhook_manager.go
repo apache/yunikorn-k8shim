@@ -25,7 +25,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"sync"
 	"time"
 
 	"go.uber.org/zap"
@@ -37,6 +36,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/admission/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/admission/pki"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
+	"github.com/apache/yunikorn-k8shim/pkg/locking"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
 
@@ -81,7 +81,7 @@ type webhookManagerImpl struct {
 	caKey2     *rsa.PrivateKey
 	expiration time.Time
 
-	sync.RWMutex
+	locking.RWMutex
 }
 
 // NewWebhookManager is used to create a new webhook manager

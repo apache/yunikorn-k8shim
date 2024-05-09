@@ -21,7 +21,9 @@ package cache
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -46,6 +48,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	schedulerconf "github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
+	"github.com/apache/yunikorn-k8shim/pkg/locking"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-k8shim/pkg/plugin/predicates"
 	"github.com/apache/yunikorn-k8shim/pkg/plugin/support"
@@ -54,6 +57,11 @@ import (
 )
 
 const registerNodeContextHandler = "RegisterNodeContextHandler"
+
+var (
+	ErrorPodNotFound  = errors.New("predicates were not run because pod was not found in cache")
+	ErrorNodeNotFound = errors.New("predicates were not run because node was not found in cache")
+)
 
 // context maintains scheduling state, like apps and apps' tasks.
 type Context struct {
@@ -64,7 +72,7 @@ type Context struct {
 	pluginMode     bool                           // true if we are configured as a scheduler plugin
 	namespace      string                         // yunikorn namespace
 	configMaps     []*v1.ConfigMap                // cached yunikorn configmaps
-	lock           *sync.RWMutex                  // lock
+	lock           *locking.RWMutex               // lock
 	txnID          atomic.Uint64                  // transaction ID counter
 	klogger        klog.Logger
 }
@@ -87,7 +95,7 @@ func NewContextWithBootstrapConfigMaps(apis client.APIProvider, bootstrapConfigM
 		apiProvider:  apis,
 		namespace:    apis.GetAPIs().GetConf().Namespace,
 		configMaps:   bootstrapConfigMaps,
-		lock:         &sync.RWMutex{},
+		lock:         &locking.RWMutex{},
 		klogger:      klog.NewKlogr(),
 	}
 
@@ -189,26 +197,15 @@ func (ctx *Context) updateNodeInternal(node *v1.Node, register bool) {
 		// existing node
 		prevCapacity := common.GetNodeResource(&prevNode.Status)
 		newCapacity := common.GetNodeResource(&node.Status)
-		prevReady := hasReadyCondition(prevNode)
-		newReady := hasReadyCondition(node)
 
 		if !common.Equals(prevCapacity, newCapacity) {
 			// update capacity
 			if capacity, occupied, ok := ctx.schedulerCache.UpdateCapacity(node.Name, newCapacity); ok {
-				if err := ctx.updateNodeResources(node, capacity, occupied, newReady); err != nil {
+				if err := ctx.updateNodeResources(node, capacity, occupied); err != nil {
 					log.Log(log.ShimContext).Warn("Failed to update node capacity", zap.Error(err))
 				}
 			} else {
 				log.Log(log.ShimContext).Warn("Failed to update cached node capacity", zap.String("nodeName", node.Name))
-			}
-		} else if newReady != prevReady {
-			// update readiness
-			if capacity, occupied, ok := ctx.schedulerCache.SnapshotResources(node.Name); ok {
-				if err := ctx.updateNodeResources(node, capacity, occupied, newReady); err != nil {
-					log.Log(log.ShimContext).Warn("Failed to update node readiness", zap.Error(err))
-				}
-			} else {
-				log.Log(log.ShimContext).Warn("Failed to snapshot cached node capacity", zap.String("nodeName", node.Name))
 			}
 		}
 	}
@@ -481,7 +478,7 @@ func (ctx *Context) updateNodeOccupiedResources(nodeName string, namespace strin
 		return
 	}
 	if node, capacity, occupied, ok := ctx.schedulerCache.UpdateOccupiedResource(nodeName, namespace, podName, resource, opt); ok {
-		if err := ctx.updateNodeResources(node, capacity, occupied, hasReadyCondition(node)); err != nil {
+		if err := ctx.updateNodeResources(node, capacity, occupied); err != nil {
 			log.Log(log.ShimContext).Warn("scheduler rejected update to node occupied resources", zap.Error(err))
 		}
 	} else {
@@ -643,32 +640,39 @@ func (ctx *Context) EventsToRegister(queueingHintFn framework.QueueingHintFn) []
 	return ctx.predManager.EventsToRegister(queueingHintFn)
 }
 
-// evaluate given predicates based on current context
+// IsPodFitNode evaluates given predicates based on current context
 func (ctx *Context) IsPodFitNode(name, node string, allocate bool) error {
 	ctx.lock.RLock()
 	defer ctx.lock.RUnlock()
-	if pod, ok := ctx.schedulerCache.GetPod(name); ok {
-		// if pod exists in cache, try to run predicates
-		if targetNode := ctx.schedulerCache.GetNode(node); targetNode != nil {
-			// need to lock cache here as predicates need a stable view into the cache
-			ctx.schedulerCache.LockForReads()
-			defer ctx.schedulerCache.UnlockForReads()
-			_, err := ctx.predManager.Predicates(pod, targetNode, allocate)
-			return err
-		}
+	var pod *v1.Pod
+	var ok bool
+	if pod, ok = ctx.schedulerCache.GetPod(name); !ok {
+		return ErrorPodNotFound
 	}
-	return fmt.Errorf("predicates were not running because pod or node was not found in cache")
+	// if pod exists in cache, try to run predicates
+	targetNode := ctx.schedulerCache.GetNode(node)
+	if targetNode == nil {
+		return ErrorNodeNotFound
+	}
+	// need to lock cache here as predicates need a stable view into the cache
+	ctx.schedulerCache.LockForReads()
+	defer ctx.schedulerCache.UnlockForReads()
+	plugin, err := ctx.predManager.Predicates(pod, targetNode, allocate)
+	if err != nil {
+		err = errors.Join(fmt.Errorf("failed plugin: '%s'", plugin), err)
+	}
+	return err
 }
 
-func (ctx *Context) IsPodFitNodeViaPreemption(name, node string, allocations []string, startIndex int) (index int, ok bool) {
+func (ctx *Context) IsPodFitNodeViaPreemption(name, node string, allocations []string, startIndex int) (int, bool) {
 	// assume minimal pods need killing if running in testing mode
 	if ctx.apiProvider.IsTestingMode() {
-		return startIndex, ok
+		return startIndex, false
 	}
 
 	ctx.lock.RLock()
 	defer ctx.lock.RUnlock()
-	if pod, ok := ctx.schedulerCache.GetPod(name); ok {
+	if pod, _ := ctx.schedulerCache.GetPod(name); pod != nil {
 		// if pod exists in cache, try to run predicates
 		if targetNode := ctx.schedulerCache.GetNode(node); targetNode != nil {
 			// need to lock cache here as predicates need a stable view into the cache
@@ -676,19 +680,15 @@ func (ctx *Context) IsPodFitNodeViaPreemption(name, node string, allocations []s
 			defer ctx.schedulerCache.UnlockForReads()
 
 			// look up each victim in the scheduler cache
-			victims := make([]*v1.Pod, 0)
-			for _, uid := range allocations {
-				if victim, ok := ctx.schedulerCache.GetPodNoLock(uid); ok {
-					victims = append(victims, victim)
-				} else {
-					// if pod isn't found, add a placeholder so that the list is still the same size
-					victims = append(victims, nil)
-				}
+			victims := make([]*v1.Pod, len(allocations))
+			for index, uid := range allocations {
+				victim, _ := ctx.schedulerCache.GetPodNoLock(uid)
+				victims[index] = victim
 			}
 
 			// check predicates for a match
-			if index, ok := ctx.predManager.PreemptionPredicates(pod, targetNode, victims, startIndex); ok {
-				return index, ok
+			if index, _ := ctx.predManager.PreemptionPredicates(pod, targetNode, victims, startIndex); index != -1 {
+				return index, true
 			}
 		}
 	}
@@ -779,7 +779,7 @@ func (ctx *Context) bindPodVolumes(pod *v1.Pod) error {
 // be running on it. And we keep this cache in-sync between core and the shim.
 // this way, the core can make allocation decisions with consideration of
 // other assumed pods before they are actually bound to the node (bound is slow).
-func (ctx *Context) AssumePod(name string, node string) error {
+func (ctx *Context) AssumePod(name, node string) error {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
 	if pod, ok := ctx.schedulerCache.GetPod(name); ok {
@@ -792,45 +792,43 @@ func (ctx *Context) AssumePod(name string, node string) error {
 			// assume pod volumes before assuming the pod
 			// this will update scheduler cache with essential PV/PVC binding info
 			var allBound = true
-			// volume builder might be null in UTs
-			if ctx.apiProvider.GetAPIs().VolumeBinder != nil {
-				var err error
-				// retrieve the volume claims
-				podVolumeClaims, err := ctx.apiProvider.GetAPIs().VolumeBinder.GetPodVolumeClaims(ctx.klogger, pod)
-				if err != nil {
-					log.Log(log.ShimContext).Error("Failed to get pod volume claims",
-						zap.String("podName", assumedPod.Name),
-						zap.Error(err))
-					return err
-				}
-
-				// retrieve volumes
-				volumes, reasons, err := ctx.apiProvider.GetAPIs().VolumeBinder.FindPodVolumes(ctx.klogger, pod, podVolumeClaims, targetNode.Node())
-				if err != nil {
-					log.Log(log.ShimContext).Error("Failed to find pod volumes",
-						zap.String("podName", assumedPod.Name),
-						zap.String("nodeName", assumedPod.Spec.NodeName),
-						zap.Error(err))
-					return err
-				}
-				if len(reasons) > 0 {
-					sReasons := make([]string, 0)
-					for _, reason := range reasons {
-						sReasons = append(sReasons, string(reason))
-					}
-					sReason := strings.Join(sReasons, ", ")
-					err = fmt.Errorf("pod %s has conflicting volume claims: %s", pod.Name, sReason)
-					log.Log(log.ShimContext).Error("Pod has conflicting volume claims",
-						zap.String("podName", assumedPod.Name),
-						zap.String("nodeName", assumedPod.Spec.NodeName),
-						zap.Error(err))
-					return err
-				}
-				allBound, err = ctx.apiProvider.GetAPIs().VolumeBinder.AssumePodVolumes(ctx.klogger, pod, node, volumes)
-				if err != nil {
-					return err
-				}
+			var err error
+			// retrieve the volume claims
+			podVolumeClaims, err := ctx.apiProvider.GetAPIs().VolumeBinder.GetPodVolumeClaims(ctx.klogger, pod)
+			if err != nil {
+				log.Log(log.ShimContext).Error("Failed to get pod volume claims",
+					zap.String("podName", assumedPod.Name),
+					zap.Error(err))
+				return err
 			}
+
+			// retrieve volumes
+			volumes, reasons, err := ctx.apiProvider.GetAPIs().VolumeBinder.FindPodVolumes(ctx.klogger, pod, podVolumeClaims, targetNode.Node())
+			if err != nil {
+				log.Log(log.ShimContext).Error("Failed to find pod volumes",
+					zap.String("podName", assumedPod.Name),
+					zap.String("nodeName", assumedPod.Spec.NodeName),
+					zap.Error(err))
+				return err
+			}
+			if len(reasons) > 0 {
+				sReasons := make([]string, len(reasons))
+				for i, reason := range reasons {
+					sReasons[i] = string(reason)
+				}
+				sReason := strings.Join(sReasons, ", ")
+				err = fmt.Errorf("pod %s has conflicting volume claims: %s", pod.Name, sReason)
+				log.Log(log.ShimContext).Error("Pod has conflicting volume claims",
+					zap.String("podName", assumedPod.Name),
+					zap.String("nodeName", assumedPod.Spec.NodeName),
+					zap.Error(err))
+				return err
+			}
+			allBound, err = ctx.apiProvider.GetAPIs().VolumeBinder.AssumePodVolumes(ctx.klogger, pod, node, volumes)
+			if err != nil {
+				return err
+			}
+
 			// assign the node name for pod
 			assumedPod.Spec.NodeName = node
 			ctx.schedulerCache.AssumePod(assumedPod, allBound)
@@ -927,8 +925,9 @@ func (ctx *Context) notifyTaskComplete(appID, taskID string) {
 			zap.String("taskID", taskID))
 		ev := NewSimpleTaskEvent(appID, taskID, CompleteTask)
 		dispatcher.Dispatch(ev)
-		appEv := NewSimpleApplicationEvent(appID, AppTaskCompleted)
-		dispatcher.Dispatch(appEv)
+		if app.GetApplicationState() == ApplicationStates().Resuming {
+			dispatcher.Dispatch(NewSimpleApplicationEvent(appID, AppTaskCompleted))
+		}
 	}
 }
 
@@ -1293,41 +1292,70 @@ func (ctx *Context) HandleContainerStateUpdate(request *si.UpdateContainerSchedu
 func (ctx *Context) ApplicationEventHandler() func(obj interface{}) {
 	return func(obj interface{}) {
 		if event, ok := obj.(events.ApplicationEvent); ok {
-			app := ctx.GetApplication(event.GetApplicationID())
+			appID := event.GetApplicationID()
+			app := ctx.GetApplication(appID)
 			if app == nil {
-				log.Log(log.ShimContext).Error("failed to handle application event",
-					zap.String("reason", "application not exist"))
+				log.Log(log.ShimContext).Error("failed to handle application event, application does not exist",
+					zap.String("applicationID", appID))
 				return
 			}
+
 			if app.canHandle(event) {
 				if err := app.handle(event); err != nil {
 					log.Log(log.ShimContext).Error("failed to handle application event",
 						zap.String("event", event.GetEvent()),
+						zap.String("applicationID", appID),
 						zap.Error(err))
 				}
+				return
 			}
+
+			log.Log(log.ShimContext).Error("application event cannot be handled in the current state",
+				zap.String("applicationID", appID),
+				zap.String("event", event.GetEvent()),
+				zap.String("state", app.sm.Current()))
+			return
 		}
+
+		log.Log(log.ShimContext).Error("could not handle application event",
+			zap.String("type", reflect.TypeOf(obj).Name()))
 	}
 }
 
 func (ctx *Context) TaskEventHandler() func(obj interface{}) {
 	return func(obj interface{}) {
 		if event, ok := obj.(events.TaskEvent); ok {
-			task := ctx.getTask(event.GetApplicationID(), event.GetTaskID())
+			appID := event.GetApplicationID()
+			taskID := event.GetTaskID()
+			task := ctx.getTask(appID, taskID)
 			if task == nil {
-				log.Log(log.ShimContext).Error("failed to handle application event")
+				log.Log(log.ShimContext).Error("failed to handle task event, task does not exist",
+					zap.String("applicationID", appID),
+					zap.String("taskID", taskID))
 				return
 			}
+
 			if task.canHandle(event) {
 				if err := task.handle(event); err != nil {
 					log.Log(log.ShimContext).Error("failed to handle task event",
-						zap.String("applicationID", task.applicationID),
-						zap.String("taskID", task.taskID),
+						zap.String("applicationID", appID),
+						zap.String("taskID", taskID),
 						zap.String("event", event.GetEvent()),
 						zap.Error(err))
 				}
+				return
 			}
+
+			log.Log(log.ShimContext).Error("task event cannot be handled in the current state",
+				zap.String("applicationID", appID),
+				zap.String("taskID", taskID),
+				zap.String("event", event.GetEvent()),
+				zap.String("state", task.sm.Current()))
+			return
 		}
+
+		log.Log(log.ShimContext).Error("could not handle task event",
+			zap.String("type", reflect.TypeOf(obj).Name()))
 	}
 }
 
@@ -1527,7 +1555,6 @@ func (ctx *Context) registerNodes(nodes []*v1.Node) ([]*v1.Node, error) {
 			Attributes: map[string]string{
 				constants.DefaultNodeAttributeHostNameKey: node.Name,
 				constants.DefaultNodeAttributeRackNameKey: constants.DefaultRackName,
-				siCommon.NodeReadyAttribute:               strconv.FormatBool(hasReadyCondition(node)),
 			},
 			SchedulableResource: common.GetNodeResource(&nodeStatus),
 			OccupiedResource:    common.NewResourceBuilder().Build(),
@@ -1598,8 +1625,8 @@ func (ctx *Context) decommissionNode(node *v1.Node) error {
 	return ctx.apiProvider.GetAPIs().SchedulerAPI.UpdateNode(request)
 }
 
-func (ctx *Context) updateNodeResources(node *v1.Node, capacity *si.Resource, occupied *si.Resource, ready bool) error {
-	request := common.CreateUpdateRequestForUpdatedNode(node.Name, capacity, occupied, ready)
+func (ctx *Context) updateNodeResources(node *v1.Node, capacity *si.Resource, occupied *si.Resource) error {
+	request := common.CreateUpdateRequestForUpdatedNode(node.Name, capacity, occupied)
 	return ctx.apiProvider.GetAPIs().SchedulerAPI.UpdateNode(request)
 }
 
@@ -1614,11 +1641,9 @@ func (ctx *Context) enableNodes(nodes []*v1.Node) error {
 	for _, node := range nodes {
 		log.Log(log.ShimContext).Info("Enabling node", zap.String("name", node.Name))
 		nodesToEnable = append(nodesToEnable, &si.NodeInfo{
-			NodeID: node.Name,
-			Action: si.NodeInfo_DRAIN_TO_SCHEDULABLE,
-			Attributes: map[string]string{
-				siCommon.NodeReadyAttribute: strconv.FormatBool(hasReadyCondition(node)),
-			},
+			NodeID:     node.Name,
+			Action:     si.NodeInfo_DRAIN_TO_SCHEDULABLE,
+			Attributes: map[string]string{},
 		})
 	}
 
@@ -1739,7 +1764,6 @@ func getExistingAllocation(pod *v1.Pod) *si.Allocation {
 		return &si.Allocation{
 			AllocationKey:    string(pod.UID),
 			AllocationTags:   meta.Tags,
-			AllocationID:     string(pod.UID),
 			ResourcePerAlloc: common.GetPodResource(pod),
 			NodeID:           pod.Spec.NodeName,
 			ApplicationID:    meta.ApplicationID,
@@ -1756,15 +1780,4 @@ func convertToNode(obj interface{}) (*v1.Node, error) {
 		return node, nil
 	}
 	return nil, fmt.Errorf("cannot convert to *v1.Node: %v", obj)
-}
-
-func hasReadyCondition(node *v1.Node) bool {
-	if node != nil {
-		for _, condition := range node.Status.Conditions {
-			if condition.Type == v1.NodeReady && condition.Status == v1.ConditionTrue {
-				return true
-			}
-		}
-	}
-	return false
 }

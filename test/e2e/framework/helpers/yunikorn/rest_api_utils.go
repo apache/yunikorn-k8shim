@@ -83,6 +83,16 @@ func (c *RClient) do(req *http.Request, v interface{}) (*http.Response, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
+	// handle error response objects for non 200 responses.
+	if resp.StatusCode != http.StatusOK {
+		var daoErr *dao.YAPIError
+		err = json.NewDecoder(resp.Body).Decode(&daoErr)
+		if err != nil {
+			return resp, err
+		}
+		err = fmt.Errorf("YAPIError: %d, %s, %s", daoErr.StatusCode, daoErr.Message, daoErr.Description)
+		return resp, err
+	}
 	err = json.NewDecoder(resp.Body).Decode(v)
 	return resp, err
 }
@@ -93,6 +103,16 @@ func (c *RClient) getBody(req *http.Request) (string, error) {
 		return "", err
 	}
 	defer resp.Body.Close()
+	// handle error response objects for non 200 responses.
+	if resp.StatusCode != http.StatusOK {
+		var daoErr *dao.YAPIError
+		err = json.NewDecoder(resp.Body).Decode(&daoErr)
+		if err != nil {
+			return "", err
+		}
+		err = fmt.Errorf("YAPIError: %d, %s, %s", daoErr.StatusCode, daoErr.Message, daoErr.Description)
+		return "", err
+	}
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", err
@@ -130,11 +150,40 @@ func (c *RClient) GetHealthCheck() (dao.SchedulerHealthDAOInfo, error) {
 	return healthCheck, err
 }
 
-func (c *RClient) WaitforQueueToAppear(partition string, queueName string, timeout int) error {
-	return wait.PollUntilContextTimeout(context.TODO(), time.Second, time.Duration(timeout)*time.Second, false, c.IsQueuePresent(partition, queueName).WithContext())
+func (c *RClient) GetPartitions() ([]*dao.PartitionInfo, error) {
+	req, err := c.newRequest("GET", configmanager.PartitionsPath, nil)
+	if err != nil {
+		return nil, err
+	}
+	var partitions []*dao.PartitionInfo
+	_, err = c.do(req, &partitions)
+	return partitions, err
 }
 
-func (c *RClient) IsQueuePresent(partition string, queueName string) wait.ConditionFunc {
+func (c *RClient) WaitForRegistration(partition string, timeout int) error {
+	return wait.PollUntilContextTimeout(context.Background(), time.Second, time.Duration(timeout)*time.Second, false, c.isPartitionPresent(partition).WithContext())
+}
+
+func (c *RClient) isPartitionPresent(partition string) wait.ConditionFunc {
+	return func() (bool, error) {
+		partitions, err := c.GetPartitions()
+		if err != nil {
+			return false, nil // returning nil here for wait & loop
+		}
+		for _, p := range partitions {
+			if p.Name == partition {
+				return true, nil
+			}
+		}
+		return false, nil
+	}
+}
+
+func (c *RClient) WaitforQueueToAppear(partition string, queueName string, timeout int) error {
+	return wait.PollUntilContextTimeout(context.Background(), time.Second, time.Duration(timeout)*time.Second, false, c.isQueuePresent(partition, queueName).WithContext())
+}
+
+func (c *RClient) isQueuePresent(partition string, queueName string) wait.ConditionFunc {
 	return func() (bool, error) {
 		req, err := c.newRequest("GET", fmt.Sprintf(configmanager.QueuesPath, partition), nil)
 		if err != nil {
@@ -157,21 +206,6 @@ func (c *RClient) IsQueuePresent(partition string, queueName string) wait.Condit
 	}
 }
 
-func (c *RClient) GetAllAppInfos() (*dao.ApplicationsDAOInfo, error) {
-	appsInfos := new(dao.ApplicationsDAOInfo)
-
-	req, err := c.newRequest("GET", configmanager.AppsPath, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = c.do(req, &(appsInfos.Applications))
-	if err != nil {
-		return nil, err
-	}
-	return appsInfos, nil
-}
-
 func (c *RClient) GetApps(partition string, queueName string) ([]*dao.ApplicationDAOInfo, error) {
 	req, err := c.newRequest("GET", fmt.Sprintf(configmanager.AppsPath, partition, queueName), nil)
 	if err != nil {
@@ -183,7 +217,13 @@ func (c *RClient) GetApps(partition string, queueName string) ([]*dao.Applicatio
 }
 
 func (c *RClient) GetAppInfo(partition string, queueName string, appID string) (*dao.ApplicationDAOInfo, error) {
-	req, err := c.newRequest("GET", fmt.Sprintf(configmanager.AppPath, partition, queueName, appID), nil)
+	var path string
+	if len(queueName) == 0 {
+		path = fmt.Sprintf(configmanager.PartitionAppPath, partition, appID)
+	} else {
+		path = fmt.Sprintf(configmanager.AppPath, partition, queueName, appID)
+	}
+	req, err := c.newRequest("GET", path, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -342,31 +382,6 @@ func (c *RClient) ValidateSchedulerConfig(cm v1.ConfigMap) (*dao.ValidateConfRes
 	return validateConfResponse, err
 }
 
-func isRootSched(policy string) wait.ConditionFunc {
-	return func() (bool, error) {
-		restClient := RClient{}
-		qInfo, err := restClient.GetQueues(DefaultPartition)
-		if err != nil {
-			return false, err
-		}
-		if qInfo == nil {
-			return false, errors.New("no response from rest client")
-		}
-
-		if policy == DefaultPartition {
-			return len(qInfo.Properties) == 0, nil
-		} else if qInfo.Properties["application.sort.policy"] == policy {
-			return true, nil
-		}
-
-		return false, nil
-	}
-}
-
-func WaitForSchedPolicy(policy string, timeout time.Duration) error {
-	return wait.PollUntilContextTimeout(context.TODO(), 2*time.Second, timeout, false, isRootSched(policy).WithContext())
-}
-
 func GetFailedHealthChecks() (string, error) {
 	restClient := RClient{}
 	var failCheck string
@@ -443,7 +458,7 @@ func (c *RClient) LogAppsInfo(ns string) error {
 }
 
 func (c *RClient) LogQueuesInfo() error {
-	qInfo, getQErr := c.GetPartitions(DefaultPartition)
+	qInfo, getQErr := c.GetPartitionQueues(DefaultPartition)
 	if getQErr != nil {
 		return getQErr
 	}
@@ -468,7 +483,7 @@ func (c *RClient) LogNodesInfo() error {
 	return nil
 }
 
-func (c *RClient) GetPartitions(partition string) (*dao.PartitionQueueDAOInfo, error) {
+func (c *RClient) GetPartitionQueues(partition string) (*dao.PartitionQueueDAOInfo, error) {
 	req, err := c.newRequest("GET", fmt.Sprintf(configmanager.QueuesPath, partition), nil)
 	if err != nil {
 		return nil, err

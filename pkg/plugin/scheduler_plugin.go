@@ -21,7 +21,6 @@ package plugin
 import (
 	"context"
 	"fmt"
-	"sync"
 
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
@@ -38,6 +37,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
+	"github.com/apache/yunikorn-k8shim/pkg/locking"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-k8shim/pkg/shim"
 )
@@ -70,7 +70,7 @@ const (
 // pod to be rescheduled, as this means the prior allocation could not be completed successfully by the default
 // scheduler for some reason.
 type YuniKornSchedulerPlugin struct {
-	sync.RWMutex
+	locking.RWMutex
 	context *cache.Context
 }
 
