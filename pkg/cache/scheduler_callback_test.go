@@ -369,6 +369,8 @@ func TestUpdateApplication_Resuming_AppNotReserving(t *testing.T) {
 		},
 	})
 	assert.NilError(t, err, "error updating application")
+	time.Sleep(time.Second) // wait and make sure that the app is still submitted
+	assert.Equal(t, ApplicationStates().Submitted, app.GetApplicationState(), "application state has been changed unexpectedly")
 }
 
 func TestUpdateApplication_Resuming_AppNotFound(t *testing.T) {
