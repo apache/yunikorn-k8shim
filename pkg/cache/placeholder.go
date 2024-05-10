@@ -50,7 +50,7 @@ func newPlaceholder(placeholderName string, app *Application, taskGroup TaskGrou
 	// Here the owner reference is always the originator pod
 	ownerRefs := app.getPlaceholderOwnerReferences()
 	annotations := utils.MergeMaps(taskGroup.Annotations, map[string]string{
-		constants.AnnotationPlaceholderFlag: "true",
+		constants.AnnotationPlaceholderFlag: constants.True,
 		constants.AnnotationTaskGroupName:   taskGroup.Name,
 	})
 
@@ -90,9 +90,8 @@ func newPlaceholder(placeholderName string, app *Application, taskGroup TaskGrou
 			Name:      placeholderName,
 			Namespace: app.tags[constants.AppTagNamespace],
 			Labels: utils.MergeMaps(taskGroup.Labels, map[string]string{
-				constants.LabelApplicationID:   app.GetApplicationID(),
-				constants.LabelQueueName:       app.GetQueue(),
-				constants.LabelPlaceholderFlag: "true",
+				constants.LabelApplicationID: app.GetApplicationID(),
+				constants.LabelQueueName:     app.GetQueue(),
 			}),
 			Annotations:     annotations,
 			OwnerReferences: ownerRefs,

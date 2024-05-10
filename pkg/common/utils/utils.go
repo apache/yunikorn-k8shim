@@ -373,10 +373,27 @@ func GetPlaceholderFlagFromPodSpec(pod *v1.Pod) bool {
 		}
 	}
 
-	if value := GetPodLabelValue(pod, constants.LabelPlaceholderFlag); value != "" {
+	// Deprecated: Support for old placeholder flags should be removed in version 1.7.0.
+	if value := GetPodAnnotationValue(pod, constants.OldAnnotationPlaceholderFlag); value != "" { // nolint:staticcheck
 		if v, err := strconv.ParseBool(value); err == nil {
+			log.Log(log.ShimUtils).Warn("Using deprecated placeholder annotation. The support for old placeholder flag will be removed in version 1.7.0",
+				zap.String("podName", pod.Name),
+				zap.String("annotation", constants.OldAnnotationPlaceholderFlag), // nolint:staticcheck
+				zap.String("value", value))
 			return v
 		}
 	}
+
+	// Deprecated: Support for old placeholder flags should be removed in version 1.7.0.
+	if value := GetPodLabelValue(pod, constants.OldLabelPlaceholderFlag); value != "" { // nolint:staticcheck
+		if v, err := strconv.ParseBool(value); err == nil {
+			log.Log(log.ShimUtils).Warn("Using deprecated placeholder label. The support for old placeholder flag will be removed in version 1.7.0",
+				zap.String("podName", pod.Name),
+				zap.String("label", constants.OldLabelPlaceholderFlag), // nolint:staticcheck
+				zap.String("value", value))
+			return v
+		}
+	}
+
 	return false
 }

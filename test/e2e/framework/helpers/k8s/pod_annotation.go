@@ -33,7 +33,6 @@ type PodAnnotation struct {
 const (
 	TaskGroupName          = constants.DomainYuniKorn + "task-group-name"
 	TaskGroups             = constants.DomainYuniKorn + "task-groups"
-	PlaceHolder            = constants.DomainYuniKorn + "placeholder"
 	SchedulingPolicyParams = constants.DomainYuniKorn + "schedulingPolicyParameters"
 
 	MaxCPU = constants.DomainYuniKorn + "namespace.max.cpu"

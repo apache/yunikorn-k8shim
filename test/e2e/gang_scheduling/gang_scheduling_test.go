@@ -144,14 +144,15 @@ var _ = Describe("", func() {
 		// Wait for placeholders to become running
 		stateRunning := v1.PodRunning
 		By("Wait for all placeholders running")
-		phErr := kClient.WaitForPlaceholders(ns, "tg-"+appID+"-", 15, 2*time.Minute, &stateRunning)
+		phPodPrefix := "tg-" + appID + "-"
+		phErr := kClient.WaitForPlaceholders(ns, phPodPrefix, 15, 2*time.Minute, &stateRunning)
 		Ω(phErr).NotTo(HaveOccurred())
 
 		// Check placeholder node distribution is same as real pods'
-		phPods, phListErr := kClient.ListPods(ns, "placeholder=true")
+		phPods, phListErr := kClient.ListPlaceholders(ns, phPodPrefix)
 		Ω(phListErr).NotTo(HaveOccurred())
 		taskGroupNodes := map[string]map[string]int{}
-		for _, ph := range phPods.Items {
+		for _, ph := range phPods {
 			tg, ok := ph.Annotations[constants.AnnotationTaskGroupName]
 			if !ok {
 				continue
@@ -174,7 +175,7 @@ var _ = Describe("", func() {
 		}
 
 		By("Wait for all placeholders terminated")
-		phTermErr := kClient.WaitForPlaceholders(ns, "tg-"+appID+"-", 0, 3*time.Minute, nil)
+		phTermErr := kClient.WaitForPlaceholders(ns, phPodPrefix, 0, 3*time.Minute, nil)
 		Ω(phTermErr).NotTo(HaveOccurred())
 
 		// Check real gang members now running on same node distribution
