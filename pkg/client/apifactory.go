@@ -125,6 +125,7 @@ func NewAPIFactory(scheduler api.SchedulerAPI, informerFactory informers.SharedI
 			PVCInformer:           pvcInformer,
 			NamespaceInformer:     namespaceInformer,
 			StorageInformer:       storageInformer,
+			CSINodeInformer:       csiNodeInformer,
 			PriorityClassInformer: priorityClassInformer,
 			VolumeBinder:          volumeBinder,
 		},
