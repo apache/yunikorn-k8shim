@@ -424,10 +424,10 @@ func TestAddPod(t *testing.T) {
 	context.AddPod(pod1) // should be added
 	context.AddPod(pod2) // should skip as pod is terminated
 
-	_, ok := context.schedulerCache.GetPod("UID-00001")
-	assert.Check(t, ok, "active pod was not added")
-	_, ok = context.schedulerCache.GetPod("UID-00002")
-	assert.Check(t, !ok, "terminated pod was added")
+	pod := context.schedulerCache.GetPod("UID-00001")
+	assert.Check(t, pod != nil, "active pod was not added")
+	pod = context.schedulerCache.GetPod("UID-00002")
+	assert.Check(t, pod == nil, "terminated pod was added")
 }
 
 func TestUpdatePod(t *testing.T) {
@@ -482,8 +482,8 @@ func TestUpdatePod(t *testing.T) {
 	}
 
 	context.AddPod(pod1)
-	_, ok := context.schedulerCache.GetPod("UID-00001")
-	assert.Assert(t, ok, "pod1 is not present after adding")
+	pod := context.schedulerCache.GetPod("UID-00001")
+	assert.Assert(t, pod != nil, "pod1 is not present after adding")
 
 	// these should not fail, but are no-ops
 	context.UpdatePod(nil, nil)
@@ -492,13 +492,13 @@ func TestUpdatePod(t *testing.T) {
 
 	// ensure a terminated pod is removed
 	context.UpdatePod(pod1, pod3)
-	_, ok = context.schedulerCache.GetPod("UID-00001")
-	assert.Check(t, !ok, "pod still found after termination")
+	pod = context.schedulerCache.GetPod("UID-00001")
+	assert.Check(t, pod == nil, "pod still found after termination")
 
 	// ensure a non-terminated pod is updated
 	context.UpdatePod(pod1, pod2)
-	found, ok := context.schedulerCache.GetPod("UID-00001")
-	if assert.Check(t, ok, "pod not found after update") {
+	found := context.schedulerCache.GetPod("UID-00001")
+	if assert.Check(t, found != nil, "pod not found after update") {
 		assert.Check(t, found.GetAnnotations()["test.state"] == "updated", "pod state not updated")
 	}
 }
@@ -537,22 +537,22 @@ func TestDeletePod(t *testing.T) {
 
 	context.AddPod(pod1)
 	context.AddPod(pod2)
-	_, ok := context.schedulerCache.GetPod("UID-00001")
-	assert.Assert(t, ok, "pod1 is not present after adding")
-	_, ok = context.schedulerCache.GetPod("UID-00002")
-	assert.Assert(t, ok, "pod2 is not present after adding")
+	pod := context.schedulerCache.GetPod("UID-00001")
+	assert.Assert(t, pod != nil, "pod1 is not present after adding")
+	pod = context.schedulerCache.GetPod("UID-00002")
+	assert.Assert(t, pod != nil, "pod2 is not present after adding")
 
 	// these should not fail, but here for completeness
 	context.DeletePod(nil)
 	context.DeletePod(cache.DeletedFinalStateUnknown{Key: "UID-00000", Obj: nil})
 
 	context.DeletePod(pod1)
-	_, ok = context.schedulerCache.GetPod("UID-00001")
-	assert.Check(t, !ok, "pod1 is still present")
+	pod = context.schedulerCache.GetPod("UID-00001")
+	assert.Check(t, pod == nil, "pod1 is still present")
 
 	context.DeletePod(cache.DeletedFinalStateUnknown{Key: "UID-00002", Obj: pod2})
-	_, ok = context.schedulerCache.GetPod("UID-00002")
-	assert.Check(t, !ok, "pod2 is still present")
+	pod = context.schedulerCache.GetPod("UID-00002")
+	assert.Check(t, pod == nil, "pod2 is still present")
 }
 
 //nolint:funlen
@@ -622,8 +622,8 @@ func TestAddUpdatePodForeign(t *testing.T) {
 	expectRemove = false
 	context.AddPod(pod1)
 	assert.Assert(t, !executed, "unexpected update")
-	_, ok := context.schedulerCache.GetPod(string(pod1.UID))
-	assert.Assert(t, !ok, "unassigned pod found in cache")
+	pod := context.schedulerCache.GetPod(string(pod1.UID))
+	assert.Assert(t, pod == nil, "unassigned pod found in cache")
 
 	// validate update
 	tc = "update-pod1"
@@ -631,7 +631,7 @@ func TestAddUpdatePodForeign(t *testing.T) {
 	expectRemove = false
 	context.UpdatePod(nil, pod1)
 	assert.Assert(t, !executed, "unexpected update")
-	assert.Assert(t, !ok, "unassigned pod found in cache")
+	assert.Assert(t, pod == nil, "unassigned pod found in cache")
 
 	// pod is assigned to a node but still in pending state, should update
 	pod2 := foreignPod("pod2", "1G", "500m")
@@ -645,8 +645,8 @@ func TestAddUpdatePodForeign(t *testing.T) {
 	expectRemove = false
 	context.AddPod(pod2)
 	assert.Assert(t, executed, "updated expected")
-	_, ok = context.schedulerCache.GetPod(string(pod2.UID))
-	assert.Assert(t, ok, "pod not found in cache")
+	pod = context.schedulerCache.GetPod(string(pod2.UID))
+	assert.Assert(t, pod != nil, "pod not found in cache")
 
 	// validate update
 	tc = "update-pod2"
@@ -655,8 +655,8 @@ func TestAddUpdatePodForeign(t *testing.T) {
 	expectRemove = false
 	context.UpdatePod(nil, pod2)
 	assert.Assert(t, !executed, "unexpected update")
-	_, ok = context.schedulerCache.GetPod(string(pod2.UID))
-	assert.Assert(t, ok, "pod not found in cache")
+	pod = context.schedulerCache.GetPod(string(pod2.UID))
+	assert.Assert(t, pod != nil, "pod not found in cache")
 
 	// validate update when not already in cache
 	tc = "update-pod2-nocache-pre"
@@ -671,8 +671,8 @@ func TestAddUpdatePodForeign(t *testing.T) {
 	expectRemove = false
 	context.UpdatePod(nil, pod2)
 	assert.Assert(t, executed, "expected update")
-	_, ok = context.schedulerCache.GetPod(string(pod2.UID))
-	assert.Assert(t, ok, "pod not found in cache")
+	pod = context.schedulerCache.GetPod(string(pod2.UID))
+	assert.Assert(t, pod != nil, "pod not found in cache")
 
 	// pod is failed, should trigger update if already in cache
 	pod3 := pod2.DeepCopy()
@@ -685,8 +685,8 @@ func TestAddUpdatePodForeign(t *testing.T) {
 	expectRemove = true
 	context.AddPod(pod3)
 	assert.Assert(t, executed, "expected update")
-	_, ok = context.schedulerCache.GetPod(string(pod3.UID))
-	assert.Assert(t, !ok, "failed pod found in cache")
+	pod = context.schedulerCache.GetPod(string(pod3.UID))
+	assert.Assert(t, pod == nil, "failed pod found in cache")
 
 	// validate update when not already in cache
 	tc = "update-pod3-pre"
@@ -700,8 +700,8 @@ func TestAddUpdatePodForeign(t *testing.T) {
 	expectRemove = true
 	context.UpdatePod(nil, pod3)
 	assert.Assert(t, executed, "expected update")
-	_, ok = context.schedulerCache.GetPod(string(pod3.UID))
-	assert.Assert(t, !ok, "failed pod found in cache")
+	pod = context.schedulerCache.GetPod(string(pod3.UID))
+	assert.Assert(t, pod == nil, "failed pod found in cache")
 }
 
 func TestDeletePodForeign(t *testing.T) {
@@ -777,8 +777,8 @@ func TestDeletePodForeign(t *testing.T) {
 	expectRemove = true
 	context.DeletePod(pod1)
 	assert.Assert(t, executed, "update not executed")
-	_, ok := context.schedulerCache.GetPod(string(pod1.UID))
-	assert.Assert(t, !ok, "deleted pod found in cache")
+	pod := context.schedulerCache.GetPod(string(pod1.UID))
+	assert.Assert(t, pod == nil, "deleted pod found in cache")
 
 	// validate delete when not already found
 	tc = "delete-pod1-again"
@@ -787,8 +787,8 @@ func TestDeletePodForeign(t *testing.T) {
 	expectRemove = false
 	context.DeletePod(pod1)
 	assert.Assert(t, !executed, "unexpected update")
-	_, ok = context.schedulerCache.GetPod(string(pod1.UID))
-	assert.Assert(t, !ok, "deleted pod found in cache")
+	pod = context.schedulerCache.GetPod(string(pod1.UID))
+	assert.Assert(t, pod == nil, "deleted pod found in cache")
 }
 
 func TestAddTask(t *testing.T) {
@@ -2142,8 +2142,8 @@ func TestAssumePod(t *testing.T) {
 	err := context.AssumePod(pod1UID, fakeNodeName)
 	assert.NilError(t, err)
 	assert.Assert(t, context.schedulerCache.ArePodVolumesAllBound(pod1UID))
-	assumedPod, ok := context.schedulerCache.GetPod(pod1UID)
-	assert.Assert(t, ok, "pod not found in cache")
+	assumedPod := context.schedulerCache.GetPod(pod1UID)
+	assert.Assert(t, assumedPod != nil, "pod not found in cache")
 	assert.Equal(t, assumedPod.Spec.NodeName, fakeNodeName)
 	assert.Assert(t, context.schedulerCache.IsAssumedPod(pod1UID))
 }
@@ -2159,8 +2159,8 @@ func TestAssumePod_GetPodVolumeClaimsError(t *testing.T) {
 	err := context.AssumePod(pod1UID, fakeNodeName)
 	assert.Error(t, err, errMsg)
 	assert.Assert(t, !context.schedulerCache.IsAssumedPod(pod1UID))
-	podInCache, ok := context.schedulerCache.GetPod(pod1UID)
-	assert.Assert(t, ok, "pod not found in cache")
+	podInCache := context.schedulerCache.GetPod(pod1UID)
+	assert.Assert(t, podInCache != nil, "pod not found in cache")
 	assert.Equal(t, podInCache.Spec.NodeName, "", "NodeName in pod spec was set unexpectedly")
 }
 
@@ -2175,8 +2175,8 @@ func TestAssumePod_FindPodVolumesError(t *testing.T) {
 	err := context.AssumePod(pod1UID, fakeNodeName)
 	assert.Error(t, err, errMsg)
 	assert.Assert(t, !context.schedulerCache.IsAssumedPod(pod1UID))
-	podInCache, ok := context.schedulerCache.GetPod(pod1UID)
-	assert.Assert(t, ok, "pod not found in cache")
+	podInCache := context.schedulerCache.GetPod(pod1UID)
+	assert.Assert(t, podInCache != nil, "pod not found in cache")
 	assert.Equal(t, podInCache.Spec.NodeName, "", "NodeName in pod spec was set unexpectedly")
 }
 
@@ -2190,8 +2190,8 @@ func TestAssumePod_ConflictingVolumes(t *testing.T) {
 	err := context.AssumePod(pod1UID, fakeNodeName)
 	assert.Error(t, err, "pod my-pod-1 has conflicting volume claims: reason1, reason2")
 	assert.Assert(t, !context.schedulerCache.IsAssumedPod(pod1UID))
-	podInCache, ok := context.schedulerCache.GetPod(pod1UID)
-	assert.Assert(t, ok, "pod not found in cache")
+	podInCache := context.schedulerCache.GetPod(pod1UID)
+	assert.Assert(t, podInCache != nil, "pod not found in cache")
 	assert.Equal(t, podInCache.Spec.NodeName, "", "NodeName in pod spec was set unexpectedly")
 }
 
@@ -2206,8 +2206,8 @@ func TestAssumePod_AssumePodVolumesError(t *testing.T) {
 	err := context.AssumePod(pod1UID, fakeNodeName)
 	assert.Error(t, err, errMsg)
 	assert.Assert(t, !context.schedulerCache.IsAssumedPod(pod1UID))
-	podInCache, ok := context.schedulerCache.GetPod(pod1UID)
-	assert.Assert(t, ok, "pod not found in cache")
+	podInCache := context.schedulerCache.GetPod(pod1UID)
+	assert.Assert(t, podInCache != nil, "pod not found in cache")
 	assert.Equal(t, podInCache.Spec.NodeName, "", "NodeName in pod spec was set unexpectedly")
 }
 
@@ -2219,8 +2219,8 @@ func TestAssumePod_PodNotFound(t *testing.T) {
 	err := context.AssumePod("nonexisting", fakeNodeName)
 	assert.NilError(t, err)
 	assert.Assert(t, !context.schedulerCache.IsAssumedPod(pod1UID))
-	podInCache, ok := context.schedulerCache.GetPod(pod1UID)
-	assert.Assert(t, ok)
+	podInCache := context.schedulerCache.GetPod(pod1UID)
+	assert.Assert(t, podInCache != nil)
 	assert.Equal(t, podInCache.Spec.NodeName, "", "NodeName in pod spec was set unexpectedly")
 }
 
