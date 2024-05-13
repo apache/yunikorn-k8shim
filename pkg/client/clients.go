@@ -55,6 +55,7 @@ type Clients struct {
 	PVInformer            coreInformerV1.PersistentVolumeInformer
 	PVCInformer           coreInformerV1.PersistentVolumeClaimInformer
 	StorageInformer       storageInformerV1.StorageClassInformer
+	CSINodeInformer       storageInformerV1.CSINodeInformer
 	NamespaceInformer     coreInformerV1.NamespaceInformer
 	PriorityClassInformer schedulingInformerV1.PriorityClassInformer
 
@@ -75,6 +76,7 @@ func (c *Clients) WaitForSync() {
 			c.PVCInformer.Informer().HasSynced() &&
 			c.PVInformer.Informer().HasSynced() &&
 			c.StorageInformer.Informer().HasSynced() &&
+			c.CSINodeInformer.Informer().HasSynced() &&
 			c.ConfigMapInformer.Informer().HasSynced() &&
 			c.NamespaceInformer.Informer().HasSynced() &&
 			c.PriorityClassInformer.Informer().HasSynced() {
@@ -95,6 +97,7 @@ func (c *Clients) Run(stopCh <-chan struct{}) {
 	go c.PVInformer.Informer().Run(stopCh)
 	go c.PVCInformer.Informer().Run(stopCh)
 	go c.StorageInformer.Informer().Run(stopCh)
+	go c.CSINodeInformer.Informer().Run(stopCh)
 	go c.ConfigMapInformer.Informer().Run(stopCh)
 	go c.NamespaceInformer.Informer().Run(stopCh)
 	go c.PriorityClassInformer.Informer().Run(stopCh)
