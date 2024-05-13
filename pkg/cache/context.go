@@ -343,8 +343,8 @@ func (ctx *Context) ensureAppAndTaskCreated(pod *v1.Pod) {
 
 func (ctx *Context) updateForeignPod(pod *v1.Pod) {
 	podStatusBefore := ""
-	oldPod, ok := ctx.schedulerCache.GetPod(string(pod.UID))
-	if ok {
+	oldPod := ctx.schedulerCache.GetPod(string(pod.UID))
+	if oldPod != nil {
 		podStatusBefore = string(oldPod.Status.Phase)
 	}
 
@@ -439,8 +439,8 @@ func (ctx *Context) deleteForeignPod(pod *v1.Pod) {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
 
-	oldPod, ok := ctx.schedulerCache.GetPod(string(pod.UID))
-	if !ok {
+	oldPod := ctx.schedulerCache.GetPod(string(pod.UID))
+	if oldPod == nil {
 		// if pod is not in scheduler cache, no node updates are needed
 		log.Log(log.ShimContext).Debug("unknown foreign pod deleted, no resource updated needed",
 			zap.String("namespace", pod.Namespace),
@@ -452,7 +452,7 @@ func (ctx *Context) deleteForeignPod(pod *v1.Pod) {
 	//   1. pod is already assigned to a node
 	//   2. pod was not in a terminal state before
 	//   3. pod references a known node
-	if oldPod != nil && !utils.IsPodTerminated(oldPod) {
+	if !utils.IsPodTerminated(oldPod) {
 		if !ctx.schedulerCache.IsPodOrphaned(string(oldPod.UID)) {
 			log.Log(log.ShimContext).Debug("foreign pod deleted, triggering occupied resource update",
 				zap.String("namespace", pod.Namespace),
@@ -644,9 +644,8 @@ func (ctx *Context) EventsToRegister(queueingHintFn framework.QueueingHintFn) []
 func (ctx *Context) IsPodFitNode(name, node string, allocate bool) error {
 	ctx.lock.RLock()
 	defer ctx.lock.RUnlock()
-	var pod *v1.Pod
-	var ok bool
-	if pod, ok = ctx.schedulerCache.GetPod(name); !ok {
+	pod := ctx.schedulerCache.GetPod(name)
+	if pod == nil {
 		return ErrorPodNotFound
 	}
 	// if pod exists in cache, try to run predicates
@@ -672,7 +671,7 @@ func (ctx *Context) IsPodFitNodeViaPreemption(name, node string, allocations []s
 
 	ctx.lock.RLock()
 	defer ctx.lock.RUnlock()
-	if pod, _ := ctx.schedulerCache.GetPod(name); pod != nil {
+	if pod := ctx.schedulerCache.GetPod(name); pod != nil {
 		// if pod exists in cache, try to run predicates
 		if targetNode := ctx.schedulerCache.GetNode(node); targetNode != nil {
 			// need to lock cache here as predicates need a stable view into the cache
@@ -682,7 +681,7 @@ func (ctx *Context) IsPodFitNodeViaPreemption(name, node string, allocations []s
 			// look up each victim in the scheduler cache
 			victims := make([]*v1.Pod, len(allocations))
 			for index, uid := range allocations {
-				victim, _ := ctx.schedulerCache.GetPodNoLock(uid)
+				victim := ctx.schedulerCache.GetPodNoLock(uid)
 				victims[index] = victim
 			}
 
@@ -704,7 +703,7 @@ func (ctx *Context) bindPodVolumes(pod *v1.Pod) error {
 	// during scheduling process as they have directly impact to other scheduling processes.
 	// when assumePodVolumes was called, we caches the value if all pod volumes are bound in schedulerCache,
 	// then here we just need to retrieve that value from cache, to skip bindings if volumes are already bound.
-	if assumedPod, exist := ctx.schedulerCache.GetPod(podKey); exist {
+	if assumedPod := ctx.schedulerCache.GetPod(podKey); assumedPod != nil {
 		if ctx.schedulerCache.ArePodVolumesAllBound(podKey) {
 			log.Log(log.ShimContext).Info("Binding Pod Volumes skipped: all volumes already bound",
 				zap.String("podName", pod.Name))
@@ -782,7 +781,7 @@ func (ctx *Context) bindPodVolumes(pod *v1.Pod) error {
 func (ctx *Context) AssumePod(name, node string) error {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
-	if pod, ok := ctx.schedulerCache.GetPod(name); ok {
+	if pod := ctx.schedulerCache.GetPod(name); pod != nil {
 		// when add assumed pod, we make a copy of the pod to avoid
 		// modifying its original reference. otherwise, it may have
 		// race when some other go-routines accessing it in parallel.
@@ -844,7 +843,7 @@ func (ctx *Context) ForgetPod(name string) {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
 
-	if pod, ok := ctx.schedulerCache.GetPod(name); ok {
+	if pod := ctx.schedulerCache.GetPod(name); pod != nil {
 		log.Log(log.ShimContext).Debug("forget pod", zap.String("pod", pod.Name))
 		ctx.schedulerCache.ForgetPod(pod)
 		return

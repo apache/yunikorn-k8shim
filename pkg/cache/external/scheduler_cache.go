@@ -378,7 +378,7 @@ func (cache *SchedulerCache) NotifyTaskSchedulerAction(taskID string) {
 	cache.lock.Lock()
 	defer cache.lock.Unlock()
 	// verify that the pod exists in the cache, otherwise ignore
-	if _, ok := cache.GetPodNoLock(taskID); !ok {
+	if pod := cache.GetPodNoLock(taskID); pod == nil {
 		return
 	}
 	cache.addSchedulingTask(taskID)
@@ -635,7 +635,7 @@ func (filter *taskBloomFilter) isTaskMaybePresent(taskID string) bool {
 	return true
 }
 
-func (cache *SchedulerCache) GetPod(uid string) (*v1.Pod, bool) {
+func (cache *SchedulerCache) GetPod(uid string) *v1.Pod {
 	cache.lock.RLock()
 	defer cache.lock.RUnlock()
 	return cache.GetPodNoLock(uid)
@@ -648,11 +648,11 @@ func (cache *SchedulerCache) IsPodOrphaned(uid string) bool {
 	return ok
 }
 
-func (cache *SchedulerCache) GetPodNoLock(uid string) (*v1.Pod, bool) {
+func (cache *SchedulerCache) GetPodNoLock(uid string) *v1.Pod {
 	if pod, ok := cache.podsMap[uid]; ok {
-		return pod, true
+		return pod
 	}
-	return nil, false
+	return nil
 }
 
 func (cache *SchedulerCache) AssumePod(pod *v1.Pod, allBound bool) {
