@@ -25,17 +25,19 @@ import (
 )
 
 type MockNamespaceInformer struct {
-	lister listersV1.NamespaceLister
+	lister   listersV1.NamespaceLister
+	informer cache.SharedIndexInformer
 }
 
 func NewMockNamespaceInformer(errIfNotFound bool) informersV1.NamespaceInformer {
 	return &MockNamespaceInformer{
-		lister: NewMockNamespaceLister(errIfNotFound),
+		lister:   NewMockNamespaceLister(errIfNotFound),
+		informer: &SharedInformerMock{},
 	}
 }
 
 func (nsi *MockNamespaceInformer) Informer() cache.SharedIndexInformer {
-	return nil
+	return nsi.informer
 }
 
 func (nsi *MockNamespaceInformer) Lister() listersV1.NamespaceLister {

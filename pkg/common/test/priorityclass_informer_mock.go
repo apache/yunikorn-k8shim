@@ -25,17 +25,19 @@ import (
 )
 
 type MockPriorityClassInformer struct {
-	lister listersV1.PriorityClassLister
+	lister   listersV1.PriorityClassLister
+	informer cache.SharedIndexInformer
 }
 
 func NewMockPriorityClassInformer() informersV1.PriorityClassInformer {
 	return &MockPriorityClassInformer{
-		lister: NewMockPriorityClassLister(),
+		lister:   NewMockPriorityClassLister(),
+		informer: &SharedInformerMock{},
 	}
 }
 
 func (nsi *MockPriorityClassInformer) Informer() cache.SharedIndexInformer {
-	return nil
+	return nsi.informer
 }
 
 func (nsi *MockPriorityClassInformer) Lister() listersV1.PriorityClassLister {

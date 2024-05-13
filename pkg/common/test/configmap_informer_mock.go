@@ -24,19 +24,21 @@ import (
 )
 
 type ConfigMapInformerMock struct {
-	lister v1.ConfigMapLister
+	lister   v1.ConfigMapLister
+	informer cache.SharedIndexInformer
 }
 
 func NewMockedConfigMapInformer() *ConfigMapInformerMock {
 	return &ConfigMapInformerMock{
-		lister: NewConfigMapListerMock(),
+		lister:   NewConfigMapListerMock(),
+		informer: &SharedInformerMock{},
 	}
 }
 
-func (c ConfigMapInformerMock) Informer() cache.SharedIndexInformer {
-	return nil
+func (c *ConfigMapInformerMock) Informer() cache.SharedIndexInformer {
+	return c.informer
 }
 
-func (c ConfigMapInformerMock) Lister() v1.ConfigMapLister {
+func (c *ConfigMapInformerMock) Lister() v1.ConfigMapLister {
 	return c.lister
 }

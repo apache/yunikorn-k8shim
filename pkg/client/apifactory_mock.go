@@ -85,12 +85,13 @@ func NewMockedAPIProvider(showError bool) *MockedAPIProvider {
 			PodInformer:           test.NewMockedPodInformer(),
 			NodeInformer:          test.NewMockedNodeInformer(),
 			ConfigMapInformer:     test.NewMockedConfigMapInformer(),
-			PVInformer:            &MockedPersistentVolumeInformer{},
-			PVCInformer:           &MockedPersistentVolumeClaimInformer{},
-			StorageInformer:       &MockedStorageClassInformer{},
+			PVInformer:            NewMockedPersistentVolumeInformer(),
+			PVCInformer:           NewMockedPersistentVolumeClaimInformer(),
+			StorageInformer:       NewMockedStorageClassInformer(),
 			VolumeBinder:          test.NewVolumeBinderMock(),
 			NamespaceInformer:     test.NewMockNamespaceInformer(false),
 			PriorityClassInformer: test.NewMockPriorityClassInformer(),
+			CSINodeInformer:       NewMockedCSINodeInformer(),
 			InformerFactory:       informers.NewSharedInformerFactory(k8fake.NewSimpleClientset(), time.Second*60),
 		},
 		events:       make(chan informerEvent),
@@ -416,10 +417,18 @@ func (m *MockedAPIProvider) GetBoundPods(clear bool) []BoundPod {
 }
 
 // MockedPersistentVolumeInformer implements PersistentVolumeInformer interface
-type MockedPersistentVolumeInformer struct{}
+type MockedPersistentVolumeInformer struct {
+	informer cache.SharedIndexInformer
+}
+
+func NewMockedPersistentVolumeInformer() *MockedPersistentVolumeInformer {
+	return &MockedPersistentVolumeInformer{
+		informer: &test.SharedInformerMock{},
+	}
+}
 
 func (m *MockedPersistentVolumeInformer) Informer() cache.SharedIndexInformer {
-	return nil
+	return m.informer
 }
 
 func (m *MockedPersistentVolumeInformer) Lister() corev1.PersistentVolumeLister {
@@ -427,10 +436,18 @@ func (m *MockedPersistentVolumeInformer) Lister() corev1.PersistentVolumeLister 
 }
 
 // MockedPersistentVolumeClaimInformer implements PersistentVolumeClaimInformer interface
-type MockedPersistentVolumeClaimInformer struct{}
+type MockedPersistentVolumeClaimInformer struct {
+	informer cache.SharedIndexInformer
+}
+
+func NewMockedPersistentVolumeClaimInformer() *MockedPersistentVolumeClaimInformer {
+	return &MockedPersistentVolumeClaimInformer{
+		informer: &test.SharedInformerMock{},
+	}
+}
 
 func (m *MockedPersistentVolumeClaimInformer) Informer() cache.SharedIndexInformer {
-	return nil
+	return m.informer
 }
 
 func (m *MockedPersistentVolumeClaimInformer) Lister() corev1.PersistentVolumeClaimLister {
@@ -438,13 +455,39 @@ func (m *MockedPersistentVolumeClaimInformer) Lister() corev1.PersistentVolumeCl
 }
 
 // MockedStorageClassInformer implements StorageClassInformer interface
-type MockedStorageClassInformer struct{}
+type MockedStorageClassInformer struct {
+	informer cache.SharedIndexInformer
+}
+
+func NewMockedStorageClassInformer() *MockedStorageClassInformer {
+	return &MockedStorageClassInformer{
+		informer: &test.SharedInformerMock{},
+	}
+}
 
 func (m *MockedStorageClassInformer) Informer() cache.SharedIndexInformer {
-	return nil
+	return m.informer
 }
 
 func (m *MockedStorageClassInformer) Lister() storagev1.StorageClassLister {
+	return nil
+}
+
+type MockedCSINodeInformer struct {
+	informer cache.SharedIndexInformer
+}
+
+func NewMockedCSINodeInformer() *MockedCSINodeInformer {
+	return &MockedCSINodeInformer{
+		informer: &test.SharedInformerMock{},
+	}
+}
+
+func (m *MockedCSINodeInformer) Informer() cache.SharedIndexInformer {
+	return &test.SharedInformerMock{}
+}
+
+func (m *MockedCSINodeInformer) Lister() storagev1.CSINodeLister {
 	return nil
 }
 
