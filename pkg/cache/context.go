@@ -644,8 +644,8 @@ func (ctx *Context) EventsToRegister(queueingHintFn framework.QueueingHintFn) []
 func (ctx *Context) IsPodFitNode(name, node string, allocate bool) error {
 	ctx.lock.RLock()
 	defer ctx.lock.RUnlock()
-	var pod *v1.Pod
-	if pod = ctx.schedulerCache.GetPod(name); pod == nil {
+	pod := ctx.schedulerCache.GetPod(name)
+	if pod == nil {
 		return ErrorPodNotFound
 	}
 	// if pod exists in cache, try to run predicates
