@@ -125,7 +125,7 @@ func (p *predicateManagerImpl) Predicates(pod *v1.Pod, node *framework.NodeInfo,
 	return p.predicatesReserve(pod, node)
 }
 
-func (p *predicateManagerImpl) PreemptionPredicates(pod *v1.Pod, node *framework.NodeInfo, victims []*v1.Pod, startIndex int) (index int, ok bool) {
+func (p *predicateManagerImpl) PreemptionPredicates(pod *v1.Pod, node *framework.NodeInfo, victims []*v1.Pod, startIndex int) (int, bool) {
 	ctx := context.Background()
 	state := framework.NewCycleState()
 
@@ -178,19 +178,19 @@ func (p *predicateManagerImpl) removePodFromNodeNoFail(node *framework.NodeInfo,
 	}
 }
 
-func (p *predicateManagerImpl) predicatesReserve(pod *v1.Pod, node *framework.NodeInfo) (plugin string, error error) {
+func (p *predicateManagerImpl) predicatesReserve(pod *v1.Pod, node *framework.NodeInfo) (string, error) {
 	ctx := context.Background()
 	state := framework.NewCycleState()
 	return p.podFitsNode(ctx, state, *p.reservationPreFilters, *p.reservationFilters, pod, node)
 }
 
-func (p *predicateManagerImpl) predicatesAllocate(pod *v1.Pod, node *framework.NodeInfo) (plugin string, error error) {
+func (p *predicateManagerImpl) predicatesAllocate(pod *v1.Pod, node *framework.NodeInfo) (string, error) {
 	ctx := context.Background()
 	state := framework.NewCycleState()
 	return p.podFitsNode(ctx, state, *p.allocationPreFilters, *p.allocationFilters, pod, node)
 }
 
-func (p *predicateManagerImpl) podFitsNode(ctx context.Context, state *framework.CycleState, preFilters []framework.PreFilterPlugin, filters []framework.FilterPlugin, pod *v1.Pod, node *framework.NodeInfo) (plugin string, error error) {
+func (p *predicateManagerImpl) podFitsNode(ctx context.Context, state *framework.CycleState, preFilters []framework.PreFilterPlugin, filters []framework.FilterPlugin, pod *v1.Pod, node *framework.NodeInfo) (string, error) {
 	// Run "prefilter" plugins.
 	status, plugin, skip := p.runPreFilterPlugins(ctx, state, preFilters, pod, node)
 	if !status.IsSuccess() && !status.IsSkip() {
@@ -205,27 +205,26 @@ func (p *predicateManagerImpl) podFitsNode(ctx context.Context, state *framework
 	return "", nil
 }
 
-func (p *predicateManagerImpl) runPreFilterPlugins(ctx context.Context, state *framework.CycleState, plugins []framework.PreFilterPlugin, pod *v1.Pod, node *framework.NodeInfo) (status *framework.Status, plugin string, skip map[string]interface{}) {
-	var mergedNodes *framework.PreFilterResult = nil
-	skip = nil
+func (p *predicateManagerImpl) runPreFilterPlugins(ctx context.Context, state *framework.CycleState, plugins []framework.PreFilterPlugin, pod *v1.Pod, node *framework.NodeInfo) (*framework.Status, string, map[string]bool) {
+	var mergedNodes *framework.PreFilterResult
+	skip := make(map[string]bool)
 	for _, pl := range plugins {
+		plugin := pl.Name()
 		nodes, status := p.runPreFilterPlugin(ctx, pl, state, pod)
 		if status.IsSkip() {
-			if skip == nil {
-				skip = make(map[string]interface{})
-			}
-			skip[pl.Name()] = nil
+			skip[plugin] = true
 		} else if !status.IsSuccess() {
 			if status.IsRejected() {
-				return status, plugin, skip
+				return status, "", skip
 			}
 			err := errors.New(status.Message())
 			log.Log(log.ShimPredicates).Error("failed running PreFilter plugin",
-				zap.String("pluginName", pl.Name()),
+				zap.String("pluginName", plugin),
 				zap.String("pod", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)),
 				zap.Error(err))
-			return framework.AsStatus(fmt.Errorf("running PreFilter plugin %q: %w", pl.Name(), err)), plugin, skip
+			return framework.AsStatus(fmt.Errorf("running PreFilter plugin %q: %w", plugin, err)), plugin, skip
 		}
+		// Merge is nil safe and returns a new PreFilterResult result if mergedNodes was nil
 		mergedNodes = mergedNodes.Merge(nodes)
 		if !mergedNodes.AllNodes() && !mergedNodes.NodeNames.Has(node.Node().Name) {
 			return framework.NewStatus(framework.UnschedulableAndUnresolvable, "node not eligible"), plugin, skip
@@ -239,27 +238,24 @@ func (p *predicateManagerImpl) runPreFilterPlugin(ctx context.Context, pl framew
 	return pl.PreFilter(ctx, state, pod)
 }
 
-func (p *predicateManagerImpl) runFilterPlugins(ctx context.Context, plugins []framework.FilterPlugin, state *framework.CycleState, pod *v1.Pod, nodeInfo *framework.NodeInfo, skip map[string]interface{}) (status *framework.Status, plugin string) {
-	plugin = ""
+func (p *predicateManagerImpl) runFilterPlugins(ctx context.Context, plugins []framework.FilterPlugin, state *framework.CycleState, pod *v1.Pod, nodeInfo *framework.NodeInfo, skip map[string]bool) (*framework.Status, string) {
 	for _, pl := range plugins {
+		plugin := pl.Name()
 		// skip plugin if prefilter returned skip
-		if _, ok := skip[pl.Name()]; ok {
+		if skip[plugin] {
 			continue
 		}
 		status := p.runFilterPlugin(ctx, pl, state, pod, nodeInfo)
 		if !status.IsSuccess() {
-			if plugin == "" {
-				plugin = pl.Name()
-			}
 			if !status.IsRejected() {
 				// Filter plugins are not supposed to return any status other than
 				// Success or Unschedulable.
-				status = framework.NewStatus(framework.Error, fmt.Sprintf("running %q filter plugin for pod %q: %v", pl.Name(), pod.Name, status.Message()))
+				status = framework.NewStatus(framework.Error, fmt.Sprintf("running %q filter plugin for pod %q: %v", plugin, pod.Name, status.Message()))
 				log.Log(log.ShimPredicates).Error("failed running Filter plugin",
-					zap.String("pluginName", pl.Name()),
+					zap.String("pluginName", plugin),
 					zap.String("pod", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)),
 					zap.String("message", status.Message()))
-				return status, pl.Name()
+				return status, plugin
 			}
 			return status, plugin
 		}
