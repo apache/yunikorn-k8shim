@@ -484,7 +484,7 @@ func NewMockedCSINodeInformer() *MockedCSINodeInformer {
 }
 
 func (m *MockedCSINodeInformer) Informer() cache.SharedIndexInformer {
-	return &test.SharedInformerMock{}
+	return m.informer
 }
 
 func (m *MockedCSINodeInformer) Lister() storagev1.CSINodeLister {

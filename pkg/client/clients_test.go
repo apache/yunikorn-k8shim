@@ -29,7 +29,7 @@ import (
 )
 
 const (
-	noOfInformers = 9
+	noOfInformers = 9 // total number of active informers
 )
 
 func TestWaitForSync(t *testing.T) {
