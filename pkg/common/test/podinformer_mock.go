@@ -25,16 +25,18 @@ import (
 
 type MockedPodInformer struct {
 	podLister v1.PodLister
+	informer  cache.SharedIndexInformer
 }
 
 func NewMockedPodInformer() *MockedPodInformer {
 	return &MockedPodInformer{
 		podLister: NewPodListerMock(),
+		informer:  &SharedInformerMock{},
 	}
 }
 
 func (m *MockedPodInformer) Informer() cache.SharedIndexInformer {
-	return nil
+	return m.informer
 }
 
 func (m *MockedPodInformer) Lister() v1.PodLister {

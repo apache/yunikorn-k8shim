@@ -25,16 +25,18 @@ import (
 
 type MockedNodeInformer struct {
 	nodeLister v1.NodeLister
+	informer   cache.SharedIndexInformer
 }
 
 func NewMockedNodeInformer() *MockedNodeInformer {
 	return &MockedNodeInformer{
 		nodeLister: NewNodeListerMock(),
+		informer:   &SharedInformerMock{},
 	}
 }
 
 func (m *MockedNodeInformer) Informer() cache.SharedIndexInformer {
-	return nil
+	return m.informer
 }
 
 func (m *MockedNodeInformer) Lister() v1.NodeLister {
