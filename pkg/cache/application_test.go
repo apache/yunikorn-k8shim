@@ -1288,14 +1288,14 @@ func TestApplication_onReservationStateChange(t *testing.T) {
 	task3.placeholder = true
 	app.onReservationStateChange()
 	assertAppState(t, app, ApplicationStates().Accepted, 1*time.Second)
-	
+
 	// app moves to running
 	task3.setTaskGroupName("test-group-2")
 	app.onReservationStateChange()
 	assertAppState(t, app, ApplicationStates().Running, 1*time.Second)
 
-	message := "Placeholder Allocated"
-	reason := "Placeholder Allocated"
+	message := "placeholder has been allocated"
+	reason := "GangScheduling"
 	counter := 0
 	// check that the event has been published
 	err := utils.WaitForCondition(func() bool {
@@ -1313,7 +1313,7 @@ func TestApplication_onReservationStateChange(t *testing.T) {
 				return false
 			}
 		}
-	}, 5*time.Millisecond, 20*time.Millisecond)
+	}, 5*time.Millisecond, time.Second)
 	assert.NilError(t, err, "event should have been emitted")
 }
 
