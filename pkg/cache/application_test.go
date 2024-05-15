@@ -1220,6 +1220,11 @@ func TestApplication_onReservationStateChange(t *testing.T) {
 	dispatcher.Start()
 	defer dispatcher.Stop()
 
+	recorder, ok := events.GetRecorder().(*k8sEvents.FakeRecorder)
+	if !ok {
+		t.Fatal("the EventRecorder is expected to be of type FakeRecorder")
+	}
+
 	app := NewApplication(appID, "root.a", "testuser", testGroups, map[string]string{}, newMockSchedulerAPI())
 	context.addApplicationToContext(app)
 
@@ -1265,6 +1270,7 @@ func TestApplication_onReservationStateChange(t *testing.T) {
 	app.addTask(task1)
 	app.addTask(task2)
 	app.addTask(task3)
+	app.setOriginatingTask(task1)
 
 	// app stays in accepted with taskgroups defined none bound
 	app.onReservationStateChange()
@@ -1287,6 +1293,28 @@ func TestApplication_onReservationStateChange(t *testing.T) {
 	task3.setTaskGroupName("test-group-2")
 	app.onReservationStateChange()
 	assertAppState(t, app, ApplicationStates().Running, 1*time.Second)
+
+	message := "placeholder has been allocated"
+	reason := "GangScheduling"
+	counter := 0
+	// check that the event has been published
+	err := utils.WaitForCondition(func() bool {
+		for {
+			select {
+			case event := <-recorder.Events:
+				print(event)
+				if strings.Contains(event, reason) && strings.Contains(event, message) {
+					counter++
+					if counter == 4 {
+						return true
+					}
+				}
+			default:
+				return false
+			}
+		}
+	}, 5*time.Millisecond, time.Second)
+	assert.NilError(t, err, "event should have been emitted")
 }
 
 func TestTaskRemoval(t *testing.T) {

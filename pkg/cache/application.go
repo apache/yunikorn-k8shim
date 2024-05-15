@@ -518,6 +518,10 @@ func (app *Application) onReserving() {
 // onReservationStateChange is called when there is an add or a release of a placeholder
 // If we have all the required placeholders progress the application status, otherwise nothing happens
 func (app *Application) onReservationStateChange() {
+	if app.originatingTask != nil {
+		events.GetRecorder().Eventf(app.originatingTask.GetTaskPod().DeepCopy(), nil, v1.EventTypeNormal, "GangScheduling",
+			"Placeholder Allocated", "Application %s placeholder has been allocated.", app.applicationID)
+	}
 	desireCounts := make(map[string]int32, len(app.taskGroups))
 	for _, tg := range app.taskGroups {
 		desireCounts[tg.Name] = tg.MinMember
@@ -541,6 +545,12 @@ func (app *Application) onReservationStateChange() {
 		if needed > 0 {
 			return
 		}
+	}
+
+	if app.originatingTask != nil {
+		// Now that all placeholders has been allocated, send a final conclusion message
+		events.GetRecorder().Eventf(app.originatingTask.GetTaskPod().DeepCopy(), nil, v1.EventTypeNormal, "GangScheduling",
+			"Gang reservations completed. All placeholders are allocated.", "Application %s all placeholders are allocated. Transitioning to running state.", app.applicationID)
 	}
 	dispatcher.Dispatch(NewRunApplicationEvent(app.applicationID))
 }
