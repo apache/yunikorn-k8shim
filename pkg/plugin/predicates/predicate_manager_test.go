@@ -69,8 +69,8 @@ func TestPreemptionPredicatesEmpty(t *testing.T) {
 	node := framework.NewNodeInfo()
 	node.SetNode(&v1.Node{})
 	victims := make([]*v1.Pod, 0)
-	index, ok := predicateManager.PreemptionPredicates(pod, node, victims, 0)
-	assert.Check(t, !ok, "check should have failed")
+	index := predicateManager.PreemptionPredicates(pod, node, victims, 0)
+	assert.Check(t, index == -1, "check should have failed")
 	assert.Equal(t, index, -1, "wrong index")
 }
 
@@ -115,8 +115,8 @@ func TestPreemptionPredicates(t *testing.T) {
 	node.AddPod(victims[3])
 
 	// all but 1 existing pod should need removing
-	index, ok := predicateManager.PreemptionPredicates(pod, node, victims, 1)
-	assert.Check(t, ok, "check failed")
+	index := predicateManager.PreemptionPredicates(pod, node, victims, 1)
+	assert.Check(t, index != -1, "check failed")
 	assert.Equal(t, index, 2, "wrong index")
 
 	// try again, but with too many resources requested
@@ -124,8 +124,8 @@ func TestPreemptionPredicates(t *testing.T) {
 	pod.Name = "largepod"
 	pod.UID = "largepod"
 
-	index, ok = predicateManager.PreemptionPredicates(pod, node, victims, 1)
-	assert.Check(t, !ok, "check should have failed")
+	index = predicateManager.PreemptionPredicates(pod, node, victims, 1)
+	assert.Check(t, index == -1, "check should have failed")
 	assert.Equal(t, index, -1, "wrong index")
 }
 
