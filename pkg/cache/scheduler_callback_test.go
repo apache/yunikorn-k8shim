@@ -573,8 +573,8 @@ func (m *mockPredicateManager) Predicates(_ *v1.Pod, _ *framework.NodeInfo, _ bo
 	return "", nil
 }
 
-func (m *mockPredicateManager) PreemptionPredicates(_ *v1.Pod, _ *framework.NodeInfo, _ []*v1.Pod, _ int) (index int, ok bool) {
-	return 0, true
+func (m *mockPredicateManager) PreemptionPredicates(_ *v1.Pod, _ *framework.NodeInfo, _ []*v1.Pod, _ int) (index int) {
+	return 0
 }
 
 func initCallbackTest(t *testing.T, podAssigned, placeholder bool) (*AsyncRMCallback, *Context) {

@@ -681,7 +681,7 @@ func (ctx *Context) IsPodFitNodeViaPreemption(name, node string, allocations []s
 			}
 
 			// check predicates for a match
-			if index, _ := ctx.predManager.PreemptionPredicates(pod, targetNode, victims, startIndex); index != -1 {
+			if index := ctx.predManager.PreemptionPredicates(pod, targetNode, victims, startIndex); index != -1 {
 				return index, true
 			}
 		}

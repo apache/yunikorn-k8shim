@@ -43,7 +43,7 @@ import (
 type PredicateManager interface {
 	EventsToRegister(queueingHintFn framework.QueueingHintFn) []framework.ClusterEventWithHint
 	Predicates(pod *v1.Pod, node *framework.NodeInfo, allocate bool) (plugin string, error error)
-	PreemptionPredicates(pod *v1.Pod, node *framework.NodeInfo, victims []*v1.Pod, startIndex int) (index int, ok bool)
+	PreemptionPredicates(pod *v1.Pod, node *framework.NodeInfo, victims []*v1.Pod, startIndex int) (index int)
 }
 
 var _ PredicateManager = &predicateManagerImpl{}
@@ -125,7 +125,7 @@ func (p *predicateManagerImpl) Predicates(pod *v1.Pod, node *framework.NodeInfo,
 	return p.predicatesReserve(pod, node)
 }
 
-func (p *predicateManagerImpl) PreemptionPredicates(pod *v1.Pod, node *framework.NodeInfo, victims []*v1.Pod, startIndex int) (int, bool) {
+func (p *predicateManagerImpl) PreemptionPredicates(pod *v1.Pod, node *framework.NodeInfo, victims []*v1.Pod, startIndex int) int {
 	ctx := context.Background()
 	state := framework.NewCycleState()
 
@@ -138,7 +138,7 @@ func (p *predicateManagerImpl) PreemptionPredicates(pod *v1.Pod, node *framework
 			zap.String("plugin", plugin),
 			zap.String("message", s.Message()))
 
-		return -1, false
+		return -1
 	}
 
 	// clone node so that we can modify it here for predicate checks
@@ -154,7 +154,7 @@ func (p *predicateManagerImpl) PreemptionPredicates(pod *v1.Pod, node *framework
 		p.removePodFromNodeNoFail(preemptingNode, victims[i])
 		status, _ := p.runFilterPlugins(ctx, *p.allocationFilters, state, pod, preemptingNode, skip)
 		if status.IsSuccess() {
-			return i, true
+			return i
 		}
 	}
 
@@ -162,7 +162,7 @@ func (p *predicateManagerImpl) PreemptionPredicates(pod *v1.Pod, node *framework
 	log.Log(log.ShimPredicates).Debug("Filter checks failed during preemption check, no fit",
 		zap.String("podUID", string(pod.UID)),
 		zap.String("nodeID", node.Node().Name))
-	return -1, false
+	return -1
 }
 
 func (p *predicateManagerImpl) removePodFromNodeNoFail(node *framework.NodeInfo, pod *v1.Pod) {
