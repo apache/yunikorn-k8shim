@@ -601,25 +601,18 @@ func (ctx *Context) deletePriorityClass(obj interface{}) {
 }
 
 func (ctx *Context) triggerReloadConfig(index int, configMap *v1.ConfigMap) {
-	ctx.lock.Lock()
-	defer ctx.lock.Unlock()
-
-	conf := ctx.apiProvider.GetAPIs().GetConf()
-	if !conf.EnableConfigHotRefresh {
+	// hot reload is turned off do nothing
+	// hot reload can be turned off by an update: safety first access under lock to prevent data race
+	if !ctx.apiProvider.GetAPIs().GetConf().IsConfigReloadable() {
 		log.Log(log.ShimContext).Info("hot-refresh disabled, skipping scheduler configuration update")
 		return
 	}
-
-	ctx.configMaps[index] = configMap
-	err := schedulerconf.UpdateConfigMaps(ctx.configMaps, false)
-	if err != nil {
-		log.Log(log.ShimContext).Error("Unable to update configmap, ignoring changes", zap.Error(err))
+	// update the maps in the context: return on failure, logged in the called method
+	confMap := ctx.setConfigMap(index, configMap)
+	if confMap == nil {
 		return
 	}
-
-	confMap := schedulerconf.FlattenConfigMaps(ctx.configMaps)
-
-	conf = ctx.apiProvider.GetAPIs().GetConf()
+	conf := ctx.apiProvider.GetAPIs().GetConf()
 	log.Log(log.ShimContext).Info("reloading scheduler configuration")
 	config := utils.GetCoreSchedulerConfigFromConfigMap(confMap)
 	extraConfig := utils.GetExtraConfigFromConfigMap(confMap)
@@ -630,9 +623,24 @@ func (ctx *Context) triggerReloadConfig(index int, configMap *v1.ConfigMap) {
 		Config:      config,
 		ExtraConfig: extraConfig,
 	}
+	// tell the core to update: sync call that is serialised on the core side
 	if err := ctx.apiProvider.GetAPIs().SchedulerAPI.UpdateConfiguration(request); err != nil {
 		log.Log(log.ShimContext).Error("reload configuration failed", zap.Error(err))
 	}
+}
+
+// setConfigMap sets the new config map object in the list of maps maintained in the context and returns a flat map
+// of the settings from both maps
+func (ctx *Context) setConfigMap(index int, configMap *v1.ConfigMap) map[string]string {
+	ctx.lock.Lock()
+	defer ctx.lock.Unlock()
+	ctx.configMaps[index] = configMap
+	err := schedulerconf.UpdateConfigMaps(ctx.configMaps, false)
+	if err != nil {
+		log.Log(log.ShimContext).Error("Unable to update configmap, ignoring changes", zap.Error(err))
+		return nil
+	}
+	return schedulerconf.FlattenConfigMaps(ctx.configMaps)
 }
 
 // EventsToRegister returns the Kubernetes events that should be watched for updates which may effect predicate processing
