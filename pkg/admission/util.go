@@ -37,8 +37,9 @@ func updatePodLabel(pod *v1.Pod, namespace string, generateUniqueAppIds bool, de
 	}
 
 	sparkAppID := utils.GetPodLabelValue(pod, constants.SparkLabelAppID)
-	appID := utils.GetPodLabelValue(pod, constants.LabelApplicationID)
-	if sparkAppID == "" && appID == "" {
+	labelAppID := utils.GetPodLabelValue(pod, constants.LabelApplicationID)
+	annotationAppID := utils.GetPodAnnotationValue(pod, constants.AnnotationApplicationID)
+	if sparkAppID == "" && labelAppID == "" && annotationAppID == "" {
 		// if app id not exist, generate one
 		// for each namespace, we group unnamed pods to one single app - if GenerateUniqueAppId is not set
 		// if GenerateUniqueAppId:
@@ -49,8 +50,10 @@ func updatePodLabel(pod *v1.Pod, namespace string, generateUniqueAppIds bool, de
 		result[constants.LabelApplicationID] = generatedID
 	}
 
-	// if existing label exist, it takes priority over everything else
-	if _, ok := existingLabels[constants.LabelQueueName]; !ok {
+	labelQueueName := utils.GetPodLabelValue(pod, constants.LabelQueueName)
+	annotationQueueName := utils.GetPodAnnotationValue(pod, constants.AnnotationQueueName)
+	if labelQueueName == "" && annotationQueueName == "" {
+		// if queueName not exist, generate one
 		// if defaultQueueName is "", skip adding default queue name to the pod labels
 		if defaultQueueName != "" {
 			// for undefined configuration, am_conf will add 'root.default' to retain existing behavior
