@@ -603,7 +603,7 @@ func (ctx *Context) deletePriorityClass(obj interface{}) {
 func (ctx *Context) triggerReloadConfig(index int, configMap *v1.ConfigMap) {
 	// hot reload is turned off do nothing
 	// hot reload can be turned off by an update: safety first access under lock to prevent data race
-	if !ctx.apiProvider.GetAPIs().GetConf().IsConfigReloadable() {
+	if !schedulerconf.GetSchedulerConf().IsConfigReloadable() {
 		log.Log(log.ShimContext).Info("hot-refresh disabled, skipping scheduler configuration update")
 		return
 	}
@@ -612,14 +612,13 @@ func (ctx *Context) triggerReloadConfig(index int, configMap *v1.ConfigMap) {
 	if confMap == nil {
 		return
 	}
-	conf := ctx.apiProvider.GetAPIs().GetConf()
 	log.Log(log.ShimContext).Info("reloading scheduler configuration")
 	config := utils.GetCoreSchedulerConfigFromConfigMap(confMap)
 	extraConfig := utils.GetExtraConfigFromConfigMap(confMap)
 
 	request := &si.UpdateConfigurationRequest{
-		RmID:        conf.ClusterID,
-		PolicyGroup: conf.PolicyGroup,
+		RmID:        schedulerconf.GetSchedulerConf().ClusterID,
+		PolicyGroup: schedulerconf.GetSchedulerConf().PolicyGroup,
 		Config:      config,
 		ExtraConfig: extraConfig,
 	}
