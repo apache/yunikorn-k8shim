@@ -269,6 +269,12 @@ func (conf *SchedulerConf) IsTestMode() bool {
 	return conf.TestMode
 }
 
+func (conf *SchedulerConf) IsConfigReloadable() bool {
+	conf.RLock()
+	defer conf.RUnlock()
+	return conf.EnableConfigHotRefresh
+}
+
 func (conf *SchedulerConf) GetSchedulingInterval() time.Duration {
 	conf.RLock()
 	defer conf.RUnlock()
