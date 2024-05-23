@@ -30,9 +30,8 @@ import (
 )
 
 func updatePodLabel(pod *v1.Pod, namespace string, generateUniqueAppIds bool, defaultQueueName string) map[string]string {
-	existingLabels := pod.Labels
 	result := make(map[string]string)
-	for k, v := range existingLabels {
+	for k, v := range pod.Labels {
 		result[k] = v
 	}
 
@@ -66,9 +65,8 @@ func updatePodLabel(pod *v1.Pod, namespace string, generateUniqueAppIds bool, de
 }
 
 func updatePodAnnotation(pod *v1.Pod, key string, value string) map[string]string {
-	existingAnnotations := pod.Annotations
 	result := make(map[string]string)
-	for k, v := range existingAnnotations {
+	for k, v := range pod.Annotations {
 		result[k] = v
 	}
 	result[key] = value
