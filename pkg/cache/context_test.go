@@ -2337,9 +2337,9 @@ func TestRegisterPods(t *testing.T) {
 	assert.Equal(t, len(pods), 0, "should have returned an empty pod list")
 
 	var api *client.MockedAPIProvider
-	switch context.apiProvider.(type) {
+	switch v := context.apiProvider.(type) {
 	case *client.MockedAPIProvider:
-		api = context.apiProvider.(*client.MockedAPIProvider)
+		api = v
 	default:
 		t.Fatalf("api type not recognized")
 	}
