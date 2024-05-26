@@ -19,6 +19,7 @@
 package admission
 
 import (
+	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
 	informersv1 "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/tools/cache"
@@ -58,7 +59,10 @@ func NewNamespaceCache(namespaces informersv1.NamespaceInformer) *NamespaceCache
 		nameSpaces: make(map[string]nsFlags),
 	}
 	if namespaces != nil {
-		namespaces.Informer().AddEventHandler(&namespaceUpdateHandler{cache: nsc})
+		_, err := namespaces.Informer().AddEventHandler(&namespaceUpdateHandler{cache: nsc})
+		if err != nil {
+			log.Log(log.AdmissionConf).Error("Error adding namespace event handler", zap.Error(err))
+		}
 	}
 	return nsc
 }

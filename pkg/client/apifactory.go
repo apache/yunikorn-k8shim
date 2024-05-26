@@ -171,28 +171,33 @@ func (s *APIFactory) AddEventHandler(handlers *ResourceEventHandlers) {
 
 func (s *APIFactory) addEventHandlers(
 	handlerType Type, handler cache.ResourceEventHandler, resyncPeriod time.Duration) {
+	var err error
 	switch handlerType {
 	case PodInformerHandlers:
-		s.GetAPIs().PodInformer.Informer().
+		_, err = s.GetAPIs().PodInformer.Informer().
 			AddEventHandlerWithResyncPeriod(handler, resyncPeriod)
 	case NodeInformerHandlers:
-		s.GetAPIs().NodeInformer.Informer().
+		_, err = s.GetAPIs().NodeInformer.Informer().
 			AddEventHandlerWithResyncPeriod(handler, resyncPeriod)
 	case ConfigMapInformerHandlers:
-		s.GetAPIs().ConfigMapInformer.Informer().
+		_, err = s.GetAPIs().ConfigMapInformer.Informer().
 			AddEventHandlerWithResyncPeriod(handler, resyncPeriod)
 	case StorageInformerHandlers:
-		s.GetAPIs().StorageInformer.Informer().
+		_, err = s.GetAPIs().StorageInformer.Informer().
 			AddEventHandlerWithResyncPeriod(handler, resyncPeriod)
 	case PVInformerHandlers:
-		s.GetAPIs().PVInformer.Informer().
+		_, err = s.GetAPIs().PVInformer.Informer().
 			AddEventHandlerWithResyncPeriod(handler, resyncPeriod)
 	case PVCInformerHandlers:
-		s.GetAPIs().PVCInformer.Informer().
+		_, err = s.GetAPIs().PVCInformer.Informer().
 			AddEventHandlerWithResyncPeriod(handler, resyncPeriod)
 	case PriorityClassInformerHandlers:
-		s.GetAPIs().PriorityClassInformer.Informer().
+		_, err = s.GetAPIs().PriorityClassInformer.Informer().
 			AddEventHandlerWithResyncPeriod(handler, resyncPeriod)
+	}
+
+	if err != nil {
+		log.Log(log.AdmissionConf).Error("Error adding event handler", zap.Error(err))
 	}
 }
 

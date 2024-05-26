@@ -118,7 +118,10 @@ func NewAdmissionControllerConf(configMaps []*v1.ConfigMap) *AdmissionController
 }
 
 func (acc *AdmissionControllerConf) RegisterHandlers(configMaps informersv1.ConfigMapInformer) {
-	configMaps.Informer().AddEventHandler(&configMapUpdateHandler{conf: acc})
+	_, err := configMaps.Informer().AddEventHandler(&configMapUpdateHandler{conf: acc})
+	if err != nil {
+		log.Log(log.AdmissionConf).Error("Error adding event handler", zap.Error(err))
+	}
 }
 
 func (acc *AdmissionControllerConf) GetNamespace() string {
