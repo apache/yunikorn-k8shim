@@ -20,6 +20,7 @@ package conf
 
 import (
 	"fmt"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -120,7 +121,8 @@ func NewAdmissionControllerConf(configMaps []*v1.ConfigMap) *AdmissionController
 func (acc *AdmissionControllerConf) RegisterHandlers(configMaps informersv1.ConfigMapInformer) {
 	_, err := configMaps.Informer().AddEventHandler(&configMapUpdateHandler{conf: acc})
 	if err != nil {
-		log.Log(log.AdmissionConf).Error("Error adding event handler", zap.Error(err))
+		log.Log(log.AdmissionConf).Fatal("Failed to create Register handler", zap.Error(err))
+		os.Exit(1)
 	}
 }
 
