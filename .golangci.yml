@@ -35,6 +35,8 @@ linters-settings:
     local-prefixes: github.com/apache/yunikorn
   govet:
     check-shadowing: true
+  goconst:
+    min-occurrences: 5
   funlen:
     lines: 120
     statements: 80
