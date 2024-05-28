@@ -83,8 +83,8 @@ func TestUpdateLabels(t *testing.T) {
 	if updatedMap, ok := patch[0].Value.(map[string]string); ok {
 		assert.Equal(t, len(updatedMap), 3)
 		assert.Equal(t, updatedMap["random"], "random")
-		assert.Equal(t, updatedMap["queue"], "root.default")
-		assert.Equal(t, strings.HasPrefix(updatedMap["applicationId"], constants.AutoGenAppPrefix), true)
+		assert.Equal(t, updatedMap[constants.LabelQueueName], "root.default")
+		assert.Equal(t, strings.HasPrefix(updatedMap[constants.LabelApplicationID], constants.AutoGenAppPrefix), true)
 	} else {
 		t.Fatal("patch info content is not as expected")
 	}
@@ -104,8 +104,8 @@ func TestUpdateLabels(t *testing.T) {
 			UID:             "7f5fd6c5d5",
 			ResourceVersion: "10654",
 			Labels: map[string]string{
-				"random":        "random",
-				"applicationId": "app-0001",
+				"random":                     "random",
+				constants.LabelApplicationID: "app-0001",
 			},
 		},
 		Spec:   v1.PodSpec{},
@@ -119,8 +119,8 @@ func TestUpdateLabels(t *testing.T) {
 	if updatedMap, ok := patch[0].Value.(map[string]string); ok {
 		assert.Equal(t, len(updatedMap), 3)
 		assert.Equal(t, updatedMap["random"], "random")
-		assert.Equal(t, updatedMap["queue"], "root.default")
-		assert.Equal(t, updatedMap["applicationId"], "app-0001")
+		assert.Equal(t, updatedMap[constants.LabelQueueName], "root.default")
+		assert.Equal(t, updatedMap[constants.LabelApplicationID], "app-0001")
 	} else {
 		t.Fatal("patch info content is not as expected")
 	}
@@ -140,8 +140,8 @@ func TestUpdateLabels(t *testing.T) {
 			UID:             "7f5fd6c5d5",
 			ResourceVersion: "10654",
 			Labels: map[string]string{
-				"random": "random",
-				"queue":  "root.abc",
+				"random":                 "random",
+				constants.LabelQueueName: "root.abc",
 			},
 		},
 		Spec:   v1.PodSpec{},
@@ -156,8 +156,8 @@ func TestUpdateLabels(t *testing.T) {
 	if updatedMap, ok := patch[0].Value.(map[string]string); ok {
 		assert.Equal(t, len(updatedMap), 3)
 		assert.Equal(t, updatedMap["random"], "random")
-		assert.Equal(t, updatedMap["queue"], "root.abc")
-		assert.Equal(t, strings.HasPrefix(updatedMap["applicationId"], constants.AutoGenAppPrefix), true)
+		assert.Equal(t, updatedMap[constants.LabelQueueName], "root.abc")
+		assert.Equal(t, strings.HasPrefix(updatedMap[constants.LabelApplicationID], constants.AutoGenAppPrefix), true)
 	} else {
 		t.Fatal("patch info content is not as expected")
 	}
@@ -187,8 +187,8 @@ func TestUpdateLabels(t *testing.T) {
 	assert.Equal(t, patch[0].Path, "/metadata/labels")
 	if updatedMap, ok := patch[0].Value.(map[string]string); ok {
 		assert.Equal(t, len(updatedMap), 2)
-		assert.Equal(t, updatedMap["queue"], "root.default")
-		assert.Equal(t, strings.HasPrefix(updatedMap["applicationId"], constants.AutoGenAppPrefix), true)
+		assert.Equal(t, updatedMap[constants.LabelQueueName], "root.default")
+		assert.Equal(t, strings.HasPrefix(updatedMap[constants.LabelApplicationID], constants.AutoGenAppPrefix), true)
 	} else {
 		t.Fatal("patch info content is not as expected")
 	}
@@ -215,8 +215,8 @@ func TestUpdateLabels(t *testing.T) {
 	assert.Equal(t, patch[0].Path, "/metadata/labels")
 	if updatedMap, ok := patch[0].Value.(map[string]string); ok {
 		assert.Equal(t, len(updatedMap), 2)
-		assert.Equal(t, updatedMap["queue"], "root.default")
-		assert.Equal(t, strings.HasPrefix(updatedMap["applicationId"], constants.AutoGenAppPrefix), true)
+		assert.Equal(t, updatedMap[constants.LabelQueueName], "root.default")
+		assert.Equal(t, strings.HasPrefix(updatedMap[constants.LabelApplicationID], constants.AutoGenAppPrefix), true)
 	} else {
 		t.Fatal("patch info content is not as expected")
 	}
@@ -241,8 +241,8 @@ func TestUpdateLabels(t *testing.T) {
 	assert.Equal(t, patch[0].Path, "/metadata/labels")
 	if updatedMap, ok := patch[0].Value.(map[string]string); ok {
 		assert.Equal(t, len(updatedMap), 2)
-		assert.Equal(t, updatedMap["queue"], "root.default")
-		assert.Equal(t, strings.HasPrefix(updatedMap["applicationId"], constants.AutoGenAppPrefix), true)
+		assert.Equal(t, updatedMap[constants.LabelQueueName], "root.default")
+		assert.Equal(t, strings.HasPrefix(updatedMap[constants.LabelApplicationID], constants.AutoGenAppPrefix), true)
 	} else {
 		t.Fatal("patch info content is not as expected")
 	}
@@ -449,8 +449,8 @@ func TestMutate(t *testing.T) {
 	resp = ac.mutate(req)
 	assert.Check(t, resp.Allowed, "response not allowed for pod")
 	assert.Equal(t, schedulerName(t, resp.Patch), "yunikorn", "yunikorn not set as scheduler for pod")
-	assert.Equal(t, labels(t, resp.Patch)["applicationId"], "yunikorn-default-autogen", "wrong applicationId label")
-	assert.Equal(t, labels(t, resp.Patch)["queue"], "root.default", "incorrect queue name")
+	assert.Equal(t, labels(t, resp.Patch)[constants.LabelApplicationID], "yunikorn-default-autogen", "wrong applicationId label")
+	assert.Equal(t, labels(t, resp.Patch)[constants.LabelQueueName], "root.default", "incorrect queue name")
 
 	// pod without applicationID
 	pod = v1.Pod{ObjectMeta: metav1.ObjectMeta{
@@ -467,17 +467,17 @@ func TestMutate(t *testing.T) {
 	resp = ac.mutate(req)
 	assert.Check(t, resp.Allowed, "response not allowed for pod")
 	assert.Equal(t, schedulerName(t, resp.Patch), "yunikorn", "yunikorn not set as scheduler for pod")
-	assert.Equal(t, labels(t, resp.Patch)["applicationId"], "yunikorn-test-ns-autogen", "wrong applicationId label")
+	assert.Equal(t, labels(t, resp.Patch)[constants.LabelApplicationID], "yunikorn-test-ns-autogen", "wrong applicationId label")
 
 	// pod with applicationId
-	pod.ObjectMeta.Labels = map[string]string{"applicationId": "test-app"}
+	pod.ObjectMeta.Labels = map[string]string{constants.LabelApplicationID: "test-app"}
 	podJSON, err = json.Marshal(pod)
 	assert.NilError(t, err, "failed to marshal pod")
 	req.Object = runtime.RawExtension{Raw: podJSON}
 	resp = ac.mutate(req)
 	assert.Check(t, resp.Allowed, "response not allowed for pod")
 	assert.Equal(t, schedulerName(t, resp.Patch), "yunikorn", "yunikorn not set as scheduler for pod")
-	assert.Equal(t, labels(t, resp.Patch)["applicationId"], "test-app", "wrong applicationId label")
+	assert.Equal(t, labels(t, resp.Patch)[constants.LabelApplicationID], "test-app", "wrong applicationId label")
 
 	// pod in bypassed namespace
 	pod = v1.Pod{ObjectMeta: metav1.ObjectMeta{
