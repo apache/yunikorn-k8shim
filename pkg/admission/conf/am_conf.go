@@ -20,7 +20,6 @@ package conf
 
 import (
 	"fmt"
-	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -118,12 +117,13 @@ func NewAdmissionControllerConf(configMaps []*v1.ConfigMap) *AdmissionController
 	return acc
 }
 
-func (acc *AdmissionControllerConf) RegisterHandlers(configMaps informersv1.ConfigMapInformer) {
+func (acc *AdmissionControllerConf) RegisterHandlers(configMaps informersv1.ConfigMapInformer) error {
 	_, err := configMaps.Informer().AddEventHandler(&configMapUpdateHandler{conf: acc})
 	if err != nil {
-		log.Log(log.AdmissionConf).Fatal("Failed to create Register handler", zap.Error(err))
-		os.Exit(1)
+		return fmt.Errorf("failed to create register handlers: %w", err)
 	}
+
+	return nil
 }
 
 func (acc *AdmissionControllerConf) GetNamespace() string {
