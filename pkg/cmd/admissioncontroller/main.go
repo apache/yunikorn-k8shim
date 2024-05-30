@@ -67,7 +67,11 @@ func main() {
 		log.Log(log.Admission).Fatal("Failed to register handlers", zap.Error(hadlerErr))
 		return
 	}
-	pcCache := admission.NewPriorityClassCache(informers.PriorityClass)
+	pcCache, pcErr := admission.NewPriorityClassCache(informers.PriorityClass)
+	if pcErr != nil {
+		log.Log(log.Admission).Fatal("Failed to create new priority calss cache", zap.Error(pcErr))
+		return
+	}
 	nsCache, nsErr := admission.NewNamespaceCache(informers.Namespace)
 	if nsErr != nil {
 		log.Log(log.Admission).Fatal("Failed to create namespace cache", zap.Error(nsErr))
