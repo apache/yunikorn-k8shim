@@ -19,6 +19,7 @@
 package client
 
 import (
+	"fmt"
 	"time"
 
 	"go.uber.org/zap"
@@ -166,11 +167,13 @@ func (s *APIFactory) AddEventHandler(handlers *ResourceEventHandlers) {
 	}
 
 	log.Log(log.ShimClient).Info("registering event handler", zap.Stringer("type", handlers.Type))
-	s.addEventHandlers(handlers.Type, h, 0)
+	if err := s.addEventHandlers(handlers.Type, h, 0); err != nil {
+		log.Log(log.AdmissionConf).Fatal("Failed to initialize event handlers", zap.Error(err))
+	}
 }
 
 func (s *APIFactory) addEventHandlers(
-	handlerType Type, handler cache.ResourceEventHandler, resyncPeriod time.Duration) {
+	handlerType Type, handler cache.ResourceEventHandler, resyncPeriod time.Duration) error {
 	var err error
 	switch handlerType {
 	case PodInformerHandlers:
@@ -197,8 +200,9 @@ func (s *APIFactory) addEventHandlers(
 	}
 
 	if err != nil {
-		log.Log(log.AdmissionConf).Error("Error adding event handler", zap.Error(err))
+		return fmt.Errorf("failed to add event handlers: %w", err)
 	}
+	return nil
 }
 
 func (s *APIFactory) WaitForSync() {
