@@ -54,7 +54,7 @@ func (t Type) String() string {
 
 type APIProvider interface {
 	GetAPIs() *Clients
-	AddEventHandler(handlers *ResourceEventHandlers)
+	AddEventHandler(handlers *ResourceEventHandlers) error
 	Start()
 	Stop()
 	WaitForSync()
@@ -144,7 +144,7 @@ func (s *APIFactory) IsTestingMode() bool {
 	return s.testMode
 }
 
-func (s *APIFactory) AddEventHandler(handlers *ResourceEventHandlers) {
+func (s *APIFactory) AddEventHandler(handlers *ResourceEventHandlers) error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	// register all handlers
@@ -168,8 +168,9 @@ func (s *APIFactory) AddEventHandler(handlers *ResourceEventHandlers) {
 
 	log.Log(log.ShimClient).Info("registering event handler", zap.Stringer("type", handlers.Type))
 	if err := s.addEventHandlers(handlers.Type, h, 0); err != nil {
-		log.Log(log.AdmissionConf).Fatal("Failed to initialize event handlers", zap.Error(err))
+		return fmt.Errorf("failed to initialize event handlers: %w", err)
 	}
+	return nil
 }
 
 func (s *APIFactory) addEventHandlers(

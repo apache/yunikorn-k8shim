@@ -69,7 +69,7 @@ func main() {
 	}
 	pcCache, pcErr := admission.NewPriorityClassCache(informers.PriorityClass)
 	if pcErr != nil {
-		log.Log(log.Admission).Fatal("Failed to create new priority calss cache", zap.Error(pcErr))
+		log.Log(log.Admission).Fatal("Failed to create new priority class cache", zap.Error(pcErr))
 		return
 	}
 	nsCache, nsErr := admission.NewNamespaceCache(informers.Namespace)
