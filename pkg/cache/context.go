@@ -111,33 +111,50 @@ func NewContextWithBootstrapConfigMaps(apis client.APIProvider, bootstrapConfigM
 	return ctx
 }
 
-func (ctx *Context) AddSchedulingEventHandlers() {
-	ctx.apiProvider.AddEventHandler(&client.ResourceEventHandlers{
+func (ctx *Context) AddSchedulingEventHandlers() error {
+	err := ctx.apiProvider.AddEventHandler(&client.ResourceEventHandlers{
 		Type:     client.ConfigMapInformerHandlers,
 		FilterFn: ctx.filterConfigMaps,
 		AddFn:    ctx.addConfigMaps,
 		UpdateFn: ctx.updateConfigMaps,
 		DeleteFn: ctx.deleteConfigMaps,
 	})
-	ctx.apiProvider.AddEventHandler(&client.ResourceEventHandlers{
+	if err != nil {
+		return err
+	}
+
+	err = ctx.apiProvider.AddEventHandler(&client.ResourceEventHandlers{
 		Type:     client.PriorityClassInformerHandlers,
 		FilterFn: ctx.filterPriorityClasses,
 		AddFn:    ctx.addPriorityClass,
 		UpdateFn: ctx.updatePriorityClass,
 		DeleteFn: ctx.deletePriorityClass,
 	})
-	ctx.apiProvider.AddEventHandler(&client.ResourceEventHandlers{
+	if err != nil {
+		return err
+	}
+
+	err = ctx.apiProvider.AddEventHandler(&client.ResourceEventHandlers{
 		Type:     client.NodeInformerHandlers,
 		AddFn:    ctx.addNode,
 		UpdateFn: ctx.updateNode,
 		DeleteFn: ctx.deleteNode,
 	})
-	ctx.apiProvider.AddEventHandler(&client.ResourceEventHandlers{
+	if err != nil {
+		return err
+	}
+
+	err = ctx.apiProvider.AddEventHandler(&client.ResourceEventHandlers{
 		Type:     client.PodInformerHandlers,
 		AddFn:    ctx.AddPod,
 		UpdateFn: ctx.UpdatePod,
 		DeleteFn: ctx.DeletePod,
 	})
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (ctx *Context) IsPluginMode() bool {
@@ -1449,7 +1466,11 @@ func (ctx *Context) InitializeState() error {
 
 	// Step 5: Start scheduling event handlers. At this point, initialization is mostly complete, and any existing
 	// objects will show up as newly added objects. Since the add/update event handlers are idempotent, this is fine.
-	ctx.AddSchedulingEventHandlers()
+	err = ctx.AddSchedulingEventHandlers()
+	if err != nil {
+		log.Log(log.Admission).Error("failed to add scheduling event handlers", zap.Error(err))
+		return err
+	}
 
 	// Step 6: Finalize priority classes. Between the start of initialization and when the informer event handlers are
 	// registered, it is possible that a priority class object was deleted. Process them again and remove
