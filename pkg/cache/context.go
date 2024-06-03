@@ -887,29 +887,6 @@ func (ctx *Context) StartPodAllocation(podKey string, nodeID string) bool {
 	return ctx.schedulerCache.StartPodAllocation(podKey, nodeID)
 }
 
-// inform the scheduler that the application is completed,
-// the complete state may further explained to completed_with_errors(failed) or successfully_completed,
-// either way we need to release all allocations (if exists) for this application
-func (ctx *Context) NotifyApplicationComplete(appID string) {
-	if app := ctx.GetApplication(appID); app != nil {
-		log.Log(log.ShimContext).Debug("NotifyApplicationComplete",
-			zap.String("appID", appID),
-			zap.String("currentAppState", app.GetApplicationState()))
-		ev := NewSimpleApplicationEvent(appID, CompleteApplication)
-		dispatcher.Dispatch(ev)
-	}
-}
-
-func (ctx *Context) NotifyApplicationFail(appID string) {
-	if app := ctx.GetApplication(appID); app != nil {
-		log.Log(log.ShimContext).Debug("NotifyApplicationFail",
-			zap.String("appID", appID),
-			zap.String("currentAppState", app.GetApplicationState()))
-		ev := NewSimpleApplicationEvent(appID, FailApplication)
-		dispatcher.Dispatch(ev)
-	}
-}
-
 func (ctx *Context) NotifyTaskComplete(appID, taskID string) {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
