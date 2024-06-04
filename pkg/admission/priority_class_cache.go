@@ -21,7 +21,6 @@ package admission
 import (
 	"fmt"
 
-	"go.uber.org/zap"
 	schedulingv1 "k8s.io/api/scheduling/v1"
 	informersv1 "k8s.io/client-go/informers/scheduling/v1"
 	"k8s.io/client-go/tools/cache"
@@ -46,7 +45,6 @@ func NewPriorityClassCache(priorityClasses informersv1.PriorityClassInformer) (*
 	if priorityClasses != nil {
 		_, err := priorityClasses.Informer().AddEventHandler(&priorityClassUpdateHandler{cache: pcc})
 		if err != nil {
-			log.Log(log.AdmissionConf).Error("Error adding event handler", zap.Error(err))
 			return nil, fmt.Errorf("failed to create a new cache and register the handler: %w", err)
 		}
 	}
