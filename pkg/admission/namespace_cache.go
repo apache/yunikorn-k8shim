@@ -19,6 +19,8 @@
 package admission
 
 import (
+	"fmt"
+
 	v1 "k8s.io/api/core/v1"
 	informersv1 "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/tools/cache"
@@ -53,14 +55,17 @@ type nsFlags struct {
 }
 
 // NewNamespaceCache creates a new cache and registers the handler for the cache with the Informer.
-func NewNamespaceCache(namespaces informersv1.NamespaceInformer) *NamespaceCache {
+func NewNamespaceCache(namespaces informersv1.NamespaceInformer) (*NamespaceCache, error) {
 	nsc := &NamespaceCache{
 		nameSpaces: make(map[string]nsFlags),
 	}
 	if namespaces != nil {
-		namespaces.Informer().AddEventHandler(&namespaceUpdateHandler{cache: nsc})
+		_, err := namespaces.Informer().AddEventHandler(&namespaceUpdateHandler{cache: nsc})
+		if err != nil {
+			return nil, fmt.Errorf("failed to create namespace cache: %w", err)
+		}
 	}
-	return nsc
+	return nsc, nil
 }
 
 // enableYuniKorn returns the value for the enableYuniKorn flag (tri-state UNSET, TRUE or FALSE) for the namespace.
