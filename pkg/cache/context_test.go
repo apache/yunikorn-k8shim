@@ -2224,6 +2224,92 @@ func TestAssumePod_PodNotFound(t *testing.T) {
 	assert.Equal(t, podInCache.Spec.NodeName, "", "NodeName in pod spec was set unexpectedly")
 }
 
+// TestOriginatorPodAfterRestart Test to ensure originator pod remains same even after restart. After restart, ordering of pods may change which can lead to
+// incorrect originator pod selection. Instead of doing actual restart, create a situation where in pods are being processed in any random order.
+// For example, placeholders are processed first and then real driver pod.
+// Ensure ordering of pods doesn't have any impact on the originator.
+func TestOriginatorPodAfterRestart(t *testing.T) {
+	context := initContextForTest()
+	controller := false
+	blockOwnerDeletion := true
+	ref := apis.OwnerReference{
+		APIVersion:         "v1",
+		Kind:               "Pod",
+		Name:               "originator-01",
+		UID:                "UID-00001",
+		Controller:         &controller,
+		BlockOwnerDeletion: &blockOwnerDeletion,
+	}
+	ownerRefs := []apis.OwnerReference{ref}
+
+	// Real driver pod
+	pod1 := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "originator-01",
+			UID:  "UID-00001",
+			Labels: map[string]string{
+				"applicationId": "spark-app-01",
+				"queue":         "root.a",
+			},
+		},
+		Spec: v1.PodSpec{SchedulerName: "yunikorn"},
+	}
+
+	// Placeholder pod 1
+	pod2 := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "placeholder-01",
+			UID:  "placeholder-01",
+			Labels: map[string]string{
+				"applicationId": "spark-app-01",
+				"queue":         "root.a",
+			},
+			Annotations: map[string]string{
+				constants.AnnotationPlaceholderFlag: "true",
+			},
+			OwnerReferences: ownerRefs, // Add owner references because every ph reuse the app placeholder owner references.
+		},
+		Spec: v1.PodSpec{SchedulerName: "yunikorn"},
+	}
+
+	// Placeholder pod 1
+	pod3 := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "placeholder-02",
+			UID:  "placeholder-02",
+			Labels: map[string]string{
+				"applicationId": "spark-app-01",
+				"queue":         "root.a",
+			},
+			Annotations: map[string]string{
+				constants.AnnotationPlaceholderFlag: "true",
+			},
+			OwnerReferences: ownerRefs, // Add owner references because every ph reuse the app placeholder owner references.
+		},
+		Spec: v1.PodSpec{SchedulerName: "yunikorn"},
+	}
+
+	// Add the ph pods first and then real driver pod at the last
+	context.AddPod(pod3)
+	context.AddPod(pod2)
+	context.AddPod(pod1)
+
+	app := context.getApplication("spark-app-01")
+	assert.Equal(t, app.originatingTask.taskID, "UID-00001")
+}
+
 func initAssumePodTest(binder *test.VolumeBinderMock) *Context {
 	context, apiProvider := initContextAndAPIProviderForTest()
 	if binder != nil {
