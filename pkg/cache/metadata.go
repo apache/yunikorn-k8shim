@@ -124,7 +124,7 @@ func getAppMetadata(pod *v1.Pod) (ApplicationMetadata, bool) {
 	// When app created for the first time, app owner references has been set based on the real driver pod.
 	// Same owner references would be used for all placeholders. During recovery, when processing any placeholder pod,
 	// don't derive the owner references unlike real driver pod. Just use owner references as is because it has been copied from app owner references itself.
-	if utils.GetPlaceholderFlagFromPodSpec(pod) == true {
+	if utils.GetPlaceholderFlagFromPodSpec(pod) {
 		ownerReferences = pod.GetOwnerReferences()
 	} else {
 		ownerReferences = getOwnerReference(pod)
