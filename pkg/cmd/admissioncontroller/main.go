@@ -62,9 +62,21 @@ func main() {
 	kubeClient := client.NewKubeClient(amConf.GetKubeConfig())
 
 	informers := admission.NewInformers(kubeClient, amConf.GetNamespace())
-	amConf.RegisterHandlers(informers.ConfigMap)
-	pcCache := admission.NewPriorityClassCache(informers.PriorityClass)
-	nsCache := admission.NewNamespaceCache(informers.Namespace)
+
+	if hadlerErr := amConf.RegisterHandlers(informers.ConfigMap); hadlerErr != nil {
+		log.Log(log.Admission).Fatal("Failed to register handlers", zap.Error(hadlerErr))
+		return
+	}
+	pcCache, pcErr := admission.NewPriorityClassCache(informers.PriorityClass)
+	if pcErr != nil {
+		log.Log(log.Admission).Fatal("Failed to create new priority class cache", zap.Error(pcErr))
+		return
+	}
+	nsCache, nsErr := admission.NewNamespaceCache(informers.Namespace)
+	if nsErr != nil {
+		log.Log(log.Admission).Fatal("Failed to create namespace cache", zap.Error(nsErr))
+		return
+	}
 	informers.Start()
 
 	wm, err := admission.NewWebhookManager(amConf)

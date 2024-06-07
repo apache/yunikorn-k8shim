@@ -35,7 +35,8 @@ import (
 const testPC = "test-pc"
 
 func TestIsPreemptSelfAllowed(t *testing.T) {
-	cache := NewPriorityClassCache(nil)
+	cache, pcErr := NewPriorityClassCache(nil)
+	assert.NilError(t, pcErr)
 	cache.priorityClasses["yes"] = true
 	cache.priorityClasses["no"] = false
 
@@ -49,7 +50,8 @@ func TestPriorityClassHandlers(t *testing.T) {
 	kubeClient := client.NewKubeClientMock(false)
 
 	informers := NewInformers(kubeClient, "default")
-	cache := NewPriorityClassCache(informers.PriorityClass)
+	cache, pcErr := NewPriorityClassCache(informers.PriorityClass)
+	assert.NilError(t, pcErr)
 	informers.Start()
 	defer informers.Stop()
 

@@ -19,6 +19,8 @@
 package admission
 
 import (
+	"fmt"
+
 	schedulingv1 "k8s.io/api/scheduling/v1"
 	informersv1 "k8s.io/client-go/informers/scheduling/v1"
 	"k8s.io/client-go/tools/cache"
@@ -36,14 +38,17 @@ type PriorityClassCache struct {
 }
 
 // NewPriorityClassCache creates a new cache and registers the handler for the cache with the Informer.
-func NewPriorityClassCache(priorityClasses informersv1.PriorityClassInformer) *PriorityClassCache {
+func NewPriorityClassCache(priorityClasses informersv1.PriorityClassInformer) (*PriorityClassCache, error) {
 	pcc := &PriorityClassCache{
 		priorityClasses: make(map[string]bool),
 	}
 	if priorityClasses != nil {
-		priorityClasses.Informer().AddEventHandler(&priorityClassUpdateHandler{cache: pcc})
+		_, err := priorityClasses.Informer().AddEventHandler(&priorityClassUpdateHandler{cache: pcc})
+		if err != nil {
+			return nil, fmt.Errorf("failed to create a new cache and register the handler: %w", err)
+		}
 	}
-	return pcc
+	return pcc, nil
 }
 
 // isPreemptSelfAllowed returns the preemption value. Only returns false if configured.

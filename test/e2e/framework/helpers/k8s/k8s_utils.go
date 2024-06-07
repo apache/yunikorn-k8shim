@@ -32,6 +32,7 @@ import (
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 
+	"go.uber.org/zap"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
@@ -58,6 +59,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/locking"
+	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 )
@@ -716,7 +718,11 @@ func (k *KubeCtl) StartConfigMapInformer(namespace string, stopChan <-chan struc
 	informerFactory := informers.NewSharedInformerFactoryWithOptions(k.clientSet, 0, informers.WithNamespace(namespace))
 	informerFactory.Start(stopChan)
 	configMapInformer := informerFactory.Core().V1().ConfigMaps()
-	configMapInformer.Informer().AddEventHandler(eventHandler)
+	_, err := configMapInformer.Informer().AddEventHandler(eventHandler)
+	if err != nil {
+		log.Log(log.AdmissionConf).Error("Error adding event handler", zap.Error(err))
+		return err
+	}
 	go configMapInformer.Informer().Run(stopChan)
 	if err := utils.WaitForCondition(func() bool {
 		return configMapInformer.Informer().HasSynced()
