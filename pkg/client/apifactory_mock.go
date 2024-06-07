@@ -19,6 +19,7 @@
 package client
 
 import (
+	"fmt"
 	"time"
 
 	"go.uber.org/zap"
@@ -219,16 +220,18 @@ func (m *MockedAPIProvider) IsTestingMode() bool {
 	return true
 }
 
-func (m *MockedAPIProvider) AddEventHandler(handlers *ResourceEventHandlers) {
+func (m *MockedAPIProvider) AddEventHandler(handlers *ResourceEventHandlers) error {
 	m.Lock()
 	defer m.Unlock()
 
 	if !m.running {
-		return
+		return fmt.Errorf("mocked API provider is not running")
 	}
 
 	m.eventHandler <- handlers
 	log.Log(log.Test).Info("registering event handler", zap.Stringer("type", handlers.Type))
+
+	return nil
 }
 
 func (m *MockedAPIProvider) RunEventHandler() {

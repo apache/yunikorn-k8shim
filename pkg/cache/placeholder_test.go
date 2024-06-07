@@ -88,6 +88,19 @@ var taskGroups = []TaskGroup{
 				},
 			},
 		},
+		TopologySpreadConstraints: []v1.TopologySpreadConstraint{
+			{
+				MaxSkew:           1,
+				TopologyKey:       v1.LabelTopologyZone,
+				WhenUnsatisfiable: v1.DoNotSchedule,
+				LabelSelector: &metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						"labelKey0": "labelKeyValue0",
+						"labelKey1": "labelKeyValue1",
+					},
+				},
+			},
+		},
 	},
 }
 
@@ -264,4 +277,21 @@ func TestNewPlaceholderWithPriorityClassName(t *testing.T) {
 	var priority *int32
 	assert.Equal(t, priority, holder.pod.Spec.Priority)
 	assert.Equal(t, priorityClassName, holder.pod.Spec.PriorityClassName)
+}
+
+func TestNewPlaceholderWithTopologySpreadConstraints(t *testing.T) {
+	mockedSchedulerAPI := newMockSchedulerAPI()
+	app := NewApplication(appID, queue,
+		"bob", testGroups, map[string]string{constants.AppTagNamespace: namespace}, mockedSchedulerAPI)
+	app.setTaskGroups(taskGroups)
+
+	holder := newPlaceholder("ph-name", app, app.taskGroups[0])
+	assert.Equal(t, len(holder.pod.Spec.TopologySpreadConstraints), 1)
+	assert.Equal(t, holder.pod.Spec.TopologySpreadConstraints[0].MaxSkew, int32(1))
+	assert.Equal(t, holder.pod.Spec.TopologySpreadConstraints[0].TopologyKey, v1.LabelTopologyZone)
+	assert.Equal(t, holder.pod.Spec.TopologySpreadConstraints[0].WhenUnsatisfiable, v1.DoNotSchedule)
+	assert.DeepEqual(t, holder.pod.Spec.TopologySpreadConstraints[0].LabelSelector.MatchLabels, map[string]string{
+		"labelKey0": "labelKeyValue0",
+		"labelKey1": "labelKeyValue1",
+	})
 }

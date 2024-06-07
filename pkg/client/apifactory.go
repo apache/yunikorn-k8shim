@@ -19,6 +19,7 @@
 package client
 
 import (
+	"fmt"
 	"time"
 
 	"go.uber.org/zap"
@@ -53,7 +54,7 @@ func (t Type) String() string {
 
 type APIProvider interface {
 	GetAPIs() *Clients
-	AddEventHandler(handlers *ResourceEventHandlers)
+	AddEventHandler(handlers *ResourceEventHandlers) error
 	Start()
 	Stop()
 	WaitForSync()
@@ -143,7 +144,7 @@ func (s *APIFactory) IsTestingMode() bool {
 	return s.testMode
 }
 
-func (s *APIFactory) AddEventHandler(handlers *ResourceEventHandlers) {
+func (s *APIFactory) AddEventHandler(handlers *ResourceEventHandlers) error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	// register all handlers
@@ -166,34 +167,43 @@ func (s *APIFactory) AddEventHandler(handlers *ResourceEventHandlers) {
 	}
 
 	log.Log(log.ShimClient).Info("registering event handler", zap.Stringer("type", handlers.Type))
-	s.addEventHandlers(handlers.Type, h, 0)
+	if err := s.addEventHandlers(handlers.Type, h, 0); err != nil {
+		return fmt.Errorf("failed to initialize event handlers: %w", err)
+	}
+	return nil
 }
 
 func (s *APIFactory) addEventHandlers(
-	handlerType Type, handler cache.ResourceEventHandler, resyncPeriod time.Duration) {
+	handlerType Type, handler cache.ResourceEventHandler, resyncPeriod time.Duration) error {
+	var err error
 	switch handlerType {
 	case PodInformerHandlers:
-		s.GetAPIs().PodInformer.Informer().
+		_, err = s.GetAPIs().PodInformer.Informer().
 			AddEventHandlerWithResyncPeriod(handler, resyncPeriod)
 	case NodeInformerHandlers:
-		s.GetAPIs().NodeInformer.Informer().
+		_, err = s.GetAPIs().NodeInformer.Informer().
 			AddEventHandlerWithResyncPeriod(handler, resyncPeriod)
 	case ConfigMapInformerHandlers:
-		s.GetAPIs().ConfigMapInformer.Informer().
+		_, err = s.GetAPIs().ConfigMapInformer.Informer().
 			AddEventHandlerWithResyncPeriod(handler, resyncPeriod)
 	case StorageInformerHandlers:
-		s.GetAPIs().StorageInformer.Informer().
+		_, err = s.GetAPIs().StorageInformer.Informer().
 			AddEventHandlerWithResyncPeriod(handler, resyncPeriod)
 	case PVInformerHandlers:
-		s.GetAPIs().PVInformer.Informer().
+		_, err = s.GetAPIs().PVInformer.Informer().
 			AddEventHandlerWithResyncPeriod(handler, resyncPeriod)
 	case PVCInformerHandlers:
-		s.GetAPIs().PVCInformer.Informer().
+		_, err = s.GetAPIs().PVCInformer.Informer().
 			AddEventHandlerWithResyncPeriod(handler, resyncPeriod)
 	case PriorityClassInformerHandlers:
-		s.GetAPIs().PriorityClassInformer.Informer().
+		_, err = s.GetAPIs().PriorityClassInformer.Informer().
 			AddEventHandlerWithResyncPeriod(handler, resyncPeriod)
 	}
+
+	if err != nil {
+		return fmt.Errorf("failed to add event handlers: %w", err)
+	}
+	return nil
 }
 
 func (s *APIFactory) WaitForSync() {

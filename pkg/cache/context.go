@@ -111,33 +111,50 @@ func NewContextWithBootstrapConfigMaps(apis client.APIProvider, bootstrapConfigM
 	return ctx
 }
 
-func (ctx *Context) AddSchedulingEventHandlers() {
-	ctx.apiProvider.AddEventHandler(&client.ResourceEventHandlers{
+func (ctx *Context) AddSchedulingEventHandlers() error {
+	err := ctx.apiProvider.AddEventHandler(&client.ResourceEventHandlers{
 		Type:     client.ConfigMapInformerHandlers,
 		FilterFn: ctx.filterConfigMaps,
 		AddFn:    ctx.addConfigMaps,
 		UpdateFn: ctx.updateConfigMaps,
 		DeleteFn: ctx.deleteConfigMaps,
 	})
-	ctx.apiProvider.AddEventHandler(&client.ResourceEventHandlers{
+	if err != nil {
+		return err
+	}
+
+	err = ctx.apiProvider.AddEventHandler(&client.ResourceEventHandlers{
 		Type:     client.PriorityClassInformerHandlers,
 		FilterFn: ctx.filterPriorityClasses,
 		AddFn:    ctx.addPriorityClass,
 		UpdateFn: ctx.updatePriorityClass,
 		DeleteFn: ctx.deletePriorityClass,
 	})
-	ctx.apiProvider.AddEventHandler(&client.ResourceEventHandlers{
+	if err != nil {
+		return err
+	}
+
+	err = ctx.apiProvider.AddEventHandler(&client.ResourceEventHandlers{
 		Type:     client.NodeInformerHandlers,
 		AddFn:    ctx.addNode,
 		UpdateFn: ctx.updateNode,
 		DeleteFn: ctx.deleteNode,
 	})
-	ctx.apiProvider.AddEventHandler(&client.ResourceEventHandlers{
+	if err != nil {
+		return err
+	}
+
+	err = ctx.apiProvider.AddEventHandler(&client.ResourceEventHandlers{
 		Type:     client.PodInformerHandlers,
 		AddFn:    ctx.AddPod,
 		UpdateFn: ctx.UpdatePod,
 		DeleteFn: ctx.DeletePod,
 	})
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (ctx *Context) IsPluginMode() bool {
@@ -887,29 +904,6 @@ func (ctx *Context) StartPodAllocation(podKey string, nodeID string) bool {
 	return ctx.schedulerCache.StartPodAllocation(podKey, nodeID)
 }
 
-// inform the scheduler that the application is completed,
-// the complete state may further explained to completed_with_errors(failed) or successfully_completed,
-// either way we need to release all allocations (if exists) for this application
-func (ctx *Context) NotifyApplicationComplete(appID string) {
-	if app := ctx.GetApplication(appID); app != nil {
-		log.Log(log.ShimContext).Debug("NotifyApplicationComplete",
-			zap.String("appID", appID),
-			zap.String("currentAppState", app.GetApplicationState()))
-		ev := NewSimpleApplicationEvent(appID, CompleteApplication)
-		dispatcher.Dispatch(ev)
-	}
-}
-
-func (ctx *Context) NotifyApplicationFail(appID string) {
-	if app := ctx.GetApplication(appID); app != nil {
-		log.Log(log.ShimContext).Debug("NotifyApplicationFail",
-			zap.String("appID", appID),
-			zap.String("currentAppState", app.GetApplicationState()))
-		ev := NewSimpleApplicationEvent(appID, FailApplication)
-		dispatcher.Dispatch(ev)
-	}
-}
-
 func (ctx *Context) NotifyTaskComplete(appID, taskID string) {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
@@ -1109,7 +1103,8 @@ func (ctx *Context) addTask(request *AddTaskRequest) *Task {
 
 			// Is this task the originator of the application?
 			// If yes, then make it as "first pod/owner/driver" of the application and set the task as originator
-			if app.GetOriginatingTask() == nil {
+			// At any cost, placeholder cannot become originator
+			if !request.Metadata.Placeholder && app.GetOriginatingTask() == nil {
 				for _, ownerReference := range app.getPlaceholderOwnerReferences() {
 					referenceID := string(ownerReference.UID)
 					if request.Metadata.TaskID == referenceID {
@@ -1449,7 +1444,11 @@ func (ctx *Context) InitializeState() error {
 
 	// Step 5: Start scheduling event handlers. At this point, initialization is mostly complete, and any existing
 	// objects will show up as newly added objects. Since the add/update event handlers are idempotent, this is fine.
-	ctx.AddSchedulingEventHandlers()
+	err = ctx.AddSchedulingEventHandlers()
+	if err != nil {
+		log.Log(log.Admission).Error("failed to add scheduling event handlers", zap.Error(err))
+		return err
+	}
 
 	// Step 6: Finalize priority classes. Between the start of initialization and when the informer event handlers are
 	// registered, it is possible that a priority class object was deleted. Process them again and remove

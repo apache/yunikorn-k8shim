@@ -45,14 +45,15 @@ type ApplicationMetadata struct {
 }
 
 type TaskGroup struct {
-	Name         string
-	MinMember    int32
-	Labels       map[string]string
-	Annotations  map[string]string
-	MinResource  map[string]resource.Quantity
-	NodeSelector map[string]string
-	Tolerations  []v1.Toleration
-	Affinity     *v1.Affinity
+	Name                      string
+	MinMember                 int32
+	Labels                    map[string]string
+	Annotations               map[string]string
+	MinResource               map[string]resource.Quantity
+	NodeSelector              map[string]string
+	Tolerations               []v1.Toleration
+	Affinity                  *v1.Affinity
+	TopologySpreadConstraints []v1.TopologySpreadConstraint
 }
 
 type TaskMetadata struct {

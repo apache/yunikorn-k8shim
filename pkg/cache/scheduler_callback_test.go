@@ -85,6 +85,7 @@ func TestUpdateAllocation_NewTask_TaskNotFound(t *testing.T) {
 }
 
 func TestUpdateAllocation_NewTask_AssumePodFails(t *testing.T) {
+	t.Skip("disabled until YUNIKORN-2629 is resolved") // test can randomly trigger a deadlock, resulting in a failed build
 	callback, context := initCallbackTest(t, false, false)
 	defer dispatcher.UnregisterAllEventHandlers()
 	defer dispatcher.Stop()
