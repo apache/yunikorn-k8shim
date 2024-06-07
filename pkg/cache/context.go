@@ -113,42 +113,42 @@ func NewContextWithBootstrapConfigMaps(apis client.APIProvider, bootstrapConfigM
 
 func (ctx *Context) AddSchedulingEventHandlers() error {
 	err := ctx.apiProvider.AddEventHandler(&client.ResourceEventHandlers{
-		Type:     client.ConfigMapInformerHandlers,
-		FilterFn: ctx.filterConfigMaps,
-		AddFn:    ctx.addConfigMaps,
-		UpdateFn: ctx.updateConfigMaps,
-		DeleteFn: ctx.deleteConfigMaps,
+		InformerType: client.ConfigMapInformerHandlers,
+		FilterFn:     ctx.filterConfigMaps,
+		AddFn:        ctx.addConfigMaps,
+		UpdateFn:     ctx.updateConfigMaps,
+		DeleteFn:     ctx.deleteConfigMaps,
 	})
 	if err != nil {
 		return err
 	}
 
 	err = ctx.apiProvider.AddEventHandler(&client.ResourceEventHandlers{
-		Type:     client.PriorityClassInformerHandlers,
-		FilterFn: ctx.filterPriorityClasses,
-		AddFn:    ctx.addPriorityClass,
-		UpdateFn: ctx.updatePriorityClass,
-		DeleteFn: ctx.deletePriorityClass,
+		InformerType: client.PriorityClassInformerHandlers,
+		FilterFn:     ctx.filterPriorityClasses,
+		AddFn:        ctx.addPriorityClass,
+		UpdateFn:     ctx.updatePriorityClass,
+		DeleteFn:     ctx.deletePriorityClass,
 	})
 	if err != nil {
 		return err
 	}
 
 	err = ctx.apiProvider.AddEventHandler(&client.ResourceEventHandlers{
-		Type:     client.NodeInformerHandlers,
-		AddFn:    ctx.addNode,
-		UpdateFn: ctx.updateNode,
-		DeleteFn: ctx.deleteNode,
+		InformerType: client.NodeInformerHandlers,
+		AddFn:        ctx.addNode,
+		UpdateFn:     ctx.updateNode,
+		DeleteFn:     ctx.deleteNode,
 	})
 	if err != nil {
 		return err
 	}
 
 	err = ctx.apiProvider.AddEventHandler(&client.ResourceEventHandlers{
-		Type:     client.PodInformerHandlers,
-		AddFn:    ctx.AddPod,
-		UpdateFn: ctx.UpdatePod,
-		DeleteFn: ctx.DeletePod,
+		InformerType: client.PodInformerHandlers,
+		AddFn:        ctx.AddPod,
+		UpdateFn:     ctx.UpdatePod,
+		DeleteFn:     ctx.DeletePod,
 	})
 	if err != nil {
 		return err

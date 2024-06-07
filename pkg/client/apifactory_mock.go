@@ -52,7 +52,7 @@ type MockedAPIProvider struct {
 type operation int
 
 type informerEvent struct {
-	handlerType Type
+	handlerType InformerType
 	op          operation
 	obj         interface{}
 	oldObj      interface{}
@@ -229,7 +229,7 @@ func (m *MockedAPIProvider) AddEventHandler(handlers *ResourceEventHandlers) err
 	}
 
 	m.eventHandler <- handlers
-	log.Log(log.Test).Info("registering event handler", zap.Stringer("type", handlers.Type))
+	log.Log(log.Test).Info("registering event handler", zap.Stringer("type", handlers.InformerType))
 
 	return nil
 }
@@ -243,7 +243,7 @@ func (m *MockedAPIProvider) RunEventHandler() {
 	m.running = true
 	log.Log(log.Test).Info("mock shared informers: starting background event handler")
 	go func() {
-		eventHandlers := make(map[Type][]cache.ResourceEventHandler)
+		eventHandlers := make(map[InformerType][]cache.ResourceEventHandler)
 
 		for {
 			select {
@@ -265,7 +265,7 @@ func (m *MockedAPIProvider) RunEventHandler() {
 				} else {
 					h = fns
 				}
-				handlerType := handlers.Type
+				handlerType := handlers.InformerType
 
 				forType := eventHandlers[handlerType]
 				forType = append(forType, h)

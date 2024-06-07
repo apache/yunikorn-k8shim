@@ -33,7 +33,7 @@ const (
 )
 
 func TestWaitForSync(t *testing.T) {
-	clients := getClients()
+	clients := getTestClients()
 	test.SyncDone.Store(false)
 	go func() {
 		time.Sleep(500 * time.Millisecond)
@@ -48,7 +48,7 @@ func TestWaitForSync(t *testing.T) {
 
 func TestRun(t *testing.T) {
 	stopped := false
-	clients := getClients()
+	clients := getTestClients()
 	test.RunningInformers.Store(0)
 	stop := make(chan struct{})
 	defer func() {
@@ -71,16 +71,30 @@ func TestRun(t *testing.T) {
 	assert.NilError(t, err, "no. of informers still running: %d", test.RunningInformers.Load())
 }
 
-func getClients() *Clients {
+func getTestClients() *Clients {
+
+	hasInformers := []hasInformer{}
+
+	podInformer := save(test.NewMockedPodInformer(), &hasInformers)
+	nodeInformer := save(test.NewMockedNodeInformer(), &hasInformers)
+	configMapInformer := save(test.NewMockedConfigMapInformer(), &hasInformers)
+	storageInformer := save(NewMockedStorageClassInformer(), &hasInformers)
+	pvInformer := save(NewMockedPersistentVolumeInformer(), &hasInformers)
+	pvcInformer := save(NewMockedPersistentVolumeClaimInformer(), &hasInformers)
+	priorityClassInformer := save(test.NewMockPriorityClassInformer(), &hasInformers)
+	namespaceInformer := save(test.NewMockNamespaceInformer(false), &hasInformers)
+	csiNodeInformer := save(NewMockedCSINodeInformer(), &hasInformers)
+
 	return &Clients{
-		PodInformer:           test.NewMockedPodInformer(),
-		NodeInformer:          test.NewMockedNodeInformer(),
-		ConfigMapInformer:     test.NewMockedConfigMapInformer(),
-		PVInformer:            NewMockedPersistentVolumeInformer(),
-		PVCInformer:           NewMockedPersistentVolumeClaimInformer(),
-		StorageInformer:       NewMockedStorageClassInformer(),
-		CSINodeInformer:       NewMockedCSINodeInformer(),
-		NamespaceInformer:     test.NewMockNamespaceInformer(false),
-		PriorityClassInformer: test.NewMockPriorityClassInformer(),
+		hasInformers:          hasInformers,
+		PodInformer:           podInformer,
+		NodeInformer:          nodeInformer,
+		ConfigMapInformer:     configMapInformer,
+		PVInformer:            pvInformer,
+		PVCInformer:           pvcInformer,
+		NamespaceInformer:     namespaceInformer,
+		StorageInformer:       storageInformer,
+		CSINodeInformer:       csiNodeInformer,
+		PriorityClassInformer: priorityClassInformer,
 	}
 }

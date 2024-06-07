@@ -35,6 +35,41 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
 
+type KubeClient interface {
+	// bind a pod to a specific host
+	Bind(pod *v1.Pod, hostID string) error
+
+	// Create a pod
+	Create(pod *v1.Pod) (*v1.Pod, error)
+
+	// Delete a pod from a host
+	Delete(pod *v1.Pod) error
+
+	// Update a pod
+	UpdatePod(pod *v1.Pod, podMutator func(pod *v1.Pod)) (*v1.Pod, error)
+
+	// Update the status of a pod
+	UpdateStatus(pod *v1.Pod) (*v1.Pod, error)
+
+	// Get a pod
+	Get(podNamespace string, podName string) (*v1.Pod, error)
+
+	// minimal expose this, only informers factory needs it
+	GetClientSet() kubernetes.Interface
+
+	GetConfigs() *rest.Config
+
+	GetConfigMap(namespace string, name string) (*v1.ConfigMap, error)
+}
+
+func NewKubeClient(kc string) KubeClient {
+	return newSchedulerKubeClient(kc)
+}
+
+func NewBootstrapKubeClient(kc string) KubeClient {
+	return newBootstrapSchedulerKubeClient(kc)
+}
+
 type SchedulerKubeClient struct {
 	clientSet *kubernetes.Clientset
 	configs   *rest.Config

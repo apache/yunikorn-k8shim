@@ -25,32 +25,12 @@ import (
 	"go.uber.org/zap"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/klog/v2"
-	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/volumebinding"
 
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/locking"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/api"
 )
-
-type Type int
-
-var informerTypes = [...]string{"Pod", "Node", "ConfigMap", "Storage", "PV", "PVC", "PriorityClass"}
-
-const (
-	PodInformerHandlers Type = iota
-	NodeInformerHandlers
-	ConfigMapInformerHandlers
-	StorageInformerHandlers
-	PVInformerHandlers
-	PVCInformerHandlers
-	PriorityClassInformerHandlers
-)
-
-func (t Type) String() string {
-	return informerTypes[t]
-}
 
 type APIProvider interface {
 	GetAPIs() *Clients
@@ -64,7 +44,7 @@ type APIProvider interface {
 // resource handlers defines add/update/delete operations in response to the corresponding resources updates.
 // The associated the type field points the handler functions to the correct receiver.
 type ResourceEventHandlers struct {
-	Type
+	InformerType
 	FilterFn func(obj interface{}) bool
 	AddFn    func(obj interface{})
 	UpdateFn func(old, new interface{})
@@ -83,53 +63,8 @@ type APIFactory struct {
 func NewAPIFactory(scheduler api.SchedulerAPI, informerFactory informers.SharedInformerFactory, configs *conf.SchedulerConf, testMode bool) *APIFactory {
 	kubeClient := NewKubeClient(configs.KubeConfig)
 
-	// init informers
-	// volume informers are also used to get the Listers for the predicates
-	nodeInformer := informerFactory.Core().V1().Nodes()
-	podInformer := informerFactory.Core().V1().Pods()
-	configMapInformer := informerFactory.Core().V1().ConfigMaps()
-	storageInformer := informerFactory.Storage().V1().StorageClasses()
-	csiNodeInformer := informerFactory.Storage().V1().CSINodes()
-	pvInformer := informerFactory.Core().V1().PersistentVolumes()
-	pvcInformer := informerFactory.Core().V1().PersistentVolumeClaims()
-	namespaceInformer := informerFactory.Core().V1().Namespaces()
-	priorityClassInformer := informerFactory.Scheduling().V1().PriorityClasses()
-
-	var capacityCheck = volumebinding.CapacityCheck{
-		CSIDriverInformer:          informerFactory.Storage().V1().CSIDrivers(),
-		CSIStorageCapacityInformer: informerFactory.Storage().V1().CSIStorageCapacities(),
-	}
-
-	// create a volume binder (needs the informers)
-	volumeBinder := volumebinding.NewVolumeBinder(
-		klog.NewKlogr(),
-		kubeClient.GetClientSet(),
-		podInformer,
-		nodeInformer,
-		csiNodeInformer,
-		pvcInformer,
-		pvInformer,
-		storageInformer,
-		capacityCheck,
-		configs.VolumeBindTimeout)
-
 	return &APIFactory{
-		clients: &Clients{
-			conf:                  configs,
-			KubeClient:            kubeClient,
-			SchedulerAPI:          scheduler,
-			InformerFactory:       informerFactory,
-			PodInformer:           podInformer,
-			NodeInformer:          nodeInformer,
-			ConfigMapInformer:     configMapInformer,
-			PVInformer:            pvInformer,
-			PVCInformer:           pvcInformer,
-			NamespaceInformer:     namespaceInformer,
-			StorageInformer:       storageInformer,
-			CSINodeInformer:       csiNodeInformer,
-			PriorityClassInformer: priorityClassInformer,
-			VolumeBinder:          volumeBinder,
-		},
+		clients:  NewClients(scheduler, informerFactory, configs, kubeClient),
 		testMode: testMode,
 		stopChan: make(chan struct{}),
 		lock:     &locking.RWMutex{},
@@ -166,15 +101,15 @@ func (s *APIFactory) AddEventHandler(handlers *ResourceEventHandlers) error {
 		h = fns
 	}
 
-	log.Log(log.ShimClient).Info("registering event handler", zap.Stringer("type", handlers.Type))
-	if err := s.addEventHandlers(handlers.Type, h, 0); err != nil {
+	log.Log(log.ShimClient).Info("registering event handler", zap.Stringer("type", handlers.InformerType))
+	if err := s.addEventHandlers(handlers.InformerType, h, 0); err != nil {
 		return fmt.Errorf("failed to initialize event handlers: %w", err)
 	}
 	return nil
 }
 
 func (s *APIFactory) addEventHandlers(
-	handlerType Type, handler cache.ResourceEventHandler, resyncPeriod time.Duration) error {
+	handlerType InformerType, handler cache.ResourceEventHandler, resyncPeriod time.Duration) error {
 	var err error
 	switch handlerType {
 	case PodInformerHandlers:
