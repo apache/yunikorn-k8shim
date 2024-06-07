@@ -2308,6 +2308,8 @@ func TestOriginatorPodAfterRestart(t *testing.T) {
 
 	app := context.getApplication("spark-app-01")
 	assert.Equal(t, app.originatingTask.taskID, "UID-00001")
+	assert.Equal(t, len(app.GetPlaceHolderTasks()), 2)
+	assert.Equal(t, len(app.GetAllocatedTasks()), 0)
 }
 
 func initAssumePodTest(binder *test.VolumeBinderMock) *Context {
