@@ -1689,7 +1689,7 @@ func (ctx *Context) finalizeNodes(existingNodes []*v1.Node) error {
 }
 
 func (ctx *Context) registerPods() ([]*v1.Pod, error) {
-	log.Log(log.ShimContext).Info("Starting node registration...")
+	log.Log(log.ShimContext).Info("Starting pod registration...")
 
 	// list all pods via the informer
 	pods, err := ctx.apiProvider.GetAPIs().PodInformer.Lister().List(labels.Everything())
@@ -1704,14 +1704,16 @@ func (ctx *Context) registerPods() ([]*v1.Pod, error) {
 	})
 
 	// add all pods to the context
-	for _, pod := range pods {
-		// skip terminated pods
+	for i, pod := range pods {
+		// skip terminated pods: we do not add or finalise them later
 		if utils.IsPodTerminated(pod) {
+			pods[i] = nil
 			continue
 		}
 		ctx.AddPod(pod)
 	}
 
+	log.Log(log.ShimContext).Info("Finished pod registration...")
 	return pods, nil
 }
 
@@ -1726,13 +1728,21 @@ func (ctx *Context) finalizePods(existingPods []*v1.Pod) error {
 	// convert the pod list into a map
 	podMap := make(map[types.UID]*v1.Pod)
 	for _, pod := range pods {
+		// if the pod is terminated finalising should remove it if it was running in register
+		if utils.IsPodTerminated(pod) {
+			continue
+		}
 		podMap[pod.UID] = pod
 	}
 
-	// find any existing nodes that no longer exist
+	// find any existing pods that no longer exist
 	for _, pod := range existingPods {
+		// skip if the pod was already terminated during register
+		if pod == nil {
+			continue
+		}
 		if _, ok := podMap[pod.UID]; !ok {
-			// node no longer exists, delete it
+			// pod no longer exists, delete it
 			log.Log(log.ShimContext).Info("Removing pod which went away during initialization",
 				zap.String("namespace", pod.Namespace),
 				zap.String("name", pod.Name),

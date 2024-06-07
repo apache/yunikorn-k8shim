@@ -2416,3 +2416,67 @@ func foreignPod(podName, memory, cpu string) *v1.Pod {
 		},
 	}
 }
+
+func TestRegisterPods(t *testing.T) {
+	context := initContextForTest()
+
+	pods, err := context.registerPods()
+	assert.NilError(t, err, "register pods with empty setup should not fail")
+	assert.Equal(t, len(pods), 0, "should have returned an empty pod list")
+
+	var api *client.MockedAPIProvider
+	switch v := context.apiProvider.(type) {
+	case *client.MockedAPIProvider:
+		api = v
+	default:
+		t.Fatalf("api type not recognized")
+	}
+	pod1 := newPodHelper("yunikorn-test-00001", namespace, "UID-00001", "node-1", "yunikorn-test-00001", v1.PodRunning)
+	pod2 := newPodHelper("yunikorn-test-00002", namespace, "UID-00002", "node-1", "yunikorn-test-00002", v1.PodRunning)
+	pod3 := newPodHelper("yunikorn-test-00003", namespace, "UID-00003", "node-1", "yunikorn-test-00003", v1.PodSucceeded)
+	pod4 := newPodHelper("yunikorn-test-00004", namespace, "UID-00004", "node-1", "yunikorn-test-00004", v1.PodRunning)
+
+	api.GetPodListerMock().AddPod(pod1)
+	api.GetPodListerMock().AddPod(pod2)
+	api.GetPodListerMock().AddPod(pod3)
+	api.GetPodListerMock().AddPod(pod4)
+
+	pods, err = context.registerPods()
+	assert.NilError(t, err, "register pods should not have failed")
+	assert.Assert(t, assertListerPods(pods, 3), "should have returned 3 running pods in the list")
+
+	assert.Assert(t, context.schedulerCache.GetPod(string(pod1.UID)) != nil, "expected to find pod 1 in cache")
+	assert.Assert(t, context.schedulerCache.GetPod(string(pod2.UID)) != nil, "expected to find pod 2 in cache")
+	assert.Assert(t, context.schedulerCache.GetPod(string(pod3.UID)) == nil, "not expected to find pod 3 in cache")
+	assert.Assert(t, context.schedulerCache.GetPod(string(pod4.UID)) != nil, "expected to find pod 4 in cache")
+
+	// prep for finalising the pods
+	// new pod added (should be ignored)
+	pod5 := newPodHelper("yunikorn-test-00005", namespace, "UID-00005", "node-1", "yunikorn-test-00005", v1.PodRunning)
+	api.GetPodListerMock().AddPod(pod5)
+	// update pod 1 is now marked as terminated (will be removed)
+	pod1.Status = v1.PodStatus{
+		Phase: v1.PodSucceeded,
+	}
+	api.GetPodListerMock().AddPod(pod1)
+	// remove pod 4 as if it was removed from K8s (will be removed)
+	api.GetPodListerMock().DeletePod(pod4)
+
+	err = context.finalizePods(pods)
+	assert.NilError(t, err, "finalize pods should not have failed")
+	assert.Assert(t, context.schedulerCache.GetPod(string(pod1.UID)) == nil, "not expected to find pod 1 in cache")
+	assert.Assert(t, context.schedulerCache.GetPod(string(pod2.UID)) != nil, "expected to find pod 2 in cache")
+	assert.Assert(t, context.schedulerCache.GetPod(string(pod3.UID)) == nil, "not expected to find pod 3 in cache")
+	assert.Assert(t, context.schedulerCache.GetPod(string(pod4.UID)) == nil, "not expected to find pod 4 in cache")
+	assert.Assert(t, context.schedulerCache.GetPod(string(pod5.UID)) == nil, "not expected to find pod 5 in cache")
+}
+
+func assertListerPods(pods []*v1.Pod, count int) bool {
+	counted := 0
+	for _, pod := range pods {
+		if pod != nil {
+			counted++
+		}
+	}
+	return count == counted
+}
