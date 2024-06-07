@@ -1115,7 +1115,8 @@ func (ctx *Context) addTask(request *AddTaskRequest) *Task {
 
 			// Is this task the originator of the application?
 			// If yes, then make it as "first pod/owner/driver" of the application and set the task as originator
-			if app.GetOriginatingTask() == nil {
+			// At any cost, placeholder cannot become originator
+			if !request.Metadata.Placeholder && app.GetOriginatingTask() == nil {
 				for _, ownerReference := range app.getPlaceholderOwnerReferences() {
 					referenceID := string(ownerReference.UID)
 					if request.Metadata.TaskID == referenceID {
