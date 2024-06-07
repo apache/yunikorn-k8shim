@@ -23,9 +23,14 @@ import (
 	"time"
 
 	"gotest.tools/v3/assert"
+	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/informers"
+	"k8s.io/client-go/kubernetes/fake"
+	clienttesting "k8s.io/client-go/testing"
 
 	"github.com/apache/yunikorn-core/pkg/common"
 	"github.com/apache/yunikorn-k8shim/pkg/common/test"
+	"github.com/apache/yunikorn-k8shim/pkg/conf"
 )
 
 const (
@@ -71,8 +76,34 @@ func TestRun(t *testing.T) {
 	assert.NilError(t, err, "no. of informers still running: %d", test.RunningInformers.Load())
 }
 
-func getTestClients() *Clients {
+func TestNewClients(t *testing.T) {
+	watcherStarted := make(chan struct{})
+	// Create the fake client.
+	client := fake.NewSimpleClientset()
+	// A catch-all watch reactor that allows us to inject the watcherStarted channel.
+	client.PrependWatchReactor("*", func(action clienttesting.Action) (handled bool, ret watch.Interface, err error) {
+		gvr := action.GetResource()
+		ns := action.GetNamespace()
+		watch, err := client.Tracker().Watch(gvr, ns)
+		if err != nil {
+			return false, nil, err
+		}
+		close(watcherStarted)
+		return true, watch, nil
+	})
 
+	// We will create an informer that writes added pods to a channel.
+	// pods := make(chan *v1.Pod, 1)
+	informerFactory := informers.NewSharedInformerFactory(client, 0)
+	emptySchedulerConf := conf.SchedulerConf{}
+	mockKube := NewKubeClientMock(false)
+
+	clt := NewClients(nil, informerFactory, &emptySchedulerConf, mockKube)
+	informers := clt.getInformers()
+	assert.Equal(t, len(informers), len(informerTypes))
+}
+
+func getTestClients() *Clients {
 	hasInformers := []hasInformer{}
 
 	podInformer := save(test.NewMockedPodInformer(), &hasInformers)
