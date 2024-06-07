@@ -78,9 +78,7 @@ func TestRun(t *testing.T) {
 
 func TestNewClients(t *testing.T) {
 	watcherStarted := make(chan struct{})
-	// Create the fake client.
 	client := fake.NewSimpleClientset()
-	// A catch-all watch reactor that allows us to inject the watcherStarted channel.
 	client.PrependWatchReactor("*", func(action clienttesting.Action) (handled bool, ret watch.Interface, err error) {
 		gvr := action.GetResource()
 		ns := action.GetNamespace()
@@ -92,8 +90,6 @@ func TestNewClients(t *testing.T) {
 		return true, watch, nil
 	})
 
-	// We will create an informer that writes added pods to a channel.
-	// pods := make(chan *v1.Pod, 1)
 	informerFactory := informers.NewSharedInformerFactory(client, 0)
 	emptySchedulerConf := conf.SchedulerConf{}
 	mockKube := NewKubeClientMock(false)
