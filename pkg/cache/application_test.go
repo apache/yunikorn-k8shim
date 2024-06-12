@@ -1196,7 +1196,7 @@ func TestPlaceholderTimeoutEvents(t *testing.T) {
 	// after handle release event the states of app must be running
 	assertAppState(t, app, ApplicationStates().Running, 3*time.Second)
 
-	message := "Placeholder timed out"
+	message := "GangScheduling"
 	reason := "placeholder has been timed out"
 	// check that the event has been published
 	err = utils.WaitForCondition(func() bool {
