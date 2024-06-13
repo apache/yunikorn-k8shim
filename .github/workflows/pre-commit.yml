@@ -43,8 +43,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        k8s: [v1.29.1, v1.28.6, v1.27.10, v1.26.13, v1.25.16, v1.24.17]
-        plugin: ['', '--plugin']
+        k8s: [v1.30.0, v1.29.4, v1.28.9, v1.27.13, v1.26.15, v1.25.16, v1.24.17]
+        plugin: ["", "--plugin"]
     steps:
       - name: Checkout source code
         uses: actions/checkout@v4
@@ -76,5 +76,5 @@ jobs:
         uses: actions/upload-artifact@v4
         if: ${{ failure() }}
         with:
-          name: ${{ github.job }} stdout (${{ matrix.k8s }}${{ matrix.plugin == '--plugin' && format(', {0}', matrix.plugin) || matrix.plugin }}) 
+          name: ${{ github.job }} stdout (${{ matrix.k8s }}${{ matrix.plugin == '--plugin' && format(', {0}', matrix.plugin) || matrix.plugin }})
           path: build/e2e

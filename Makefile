@@ -63,7 +63,7 @@ export PATH := $(BASE_DIR)/$(TOOLS_DIR):$(GO_EXE_PATH):$(PATH)
 
 # Default values for dev cluster
 ifeq ($(K8S_VERSION),)
-K8S_VERSION := v1.29.1
+K8S_VERSION := v1.29.4
 endif
 ifeq ($(CLUSTER_NAME),)
 CLUSTER_NAME := yk8s
