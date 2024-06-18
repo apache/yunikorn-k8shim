@@ -336,7 +336,7 @@ func TestRemoveApplication(t *testing.T) {
 	assert.Equal(t, len(context.applications), 3)
 	err := context.RemoveApplication(appID1)
 	assert.Assert(t, err != nil)
-	assert.ErrorContains(t, err, "application app00001 because it still has task in non-terminated task, tasks: /remove-test-00001")
+	assert.ErrorContains(t, err, "application app00001 because it still has task in non-terminated tasks: /remove-test-00001")
 
 	app := context.GetApplication(appID1)
 	assert.Assert(t, app != nil)
@@ -1088,7 +1088,7 @@ func TestTaskReleaseAfterRecovery(t *testing.T) {
 	assert.Equal(t, len(app.GetBoundTasks()), 2)
 
 	// release one of the tasks
-	context.NotifyTaskComplete(appID, pod2UID)
+	context.notifyTaskComplete(appID, pod2UID)
 
 	// wait for release
 	err = utils.WaitForCondition(func() bool {
@@ -2121,7 +2121,7 @@ func TestTaskRemoveOnCompletion(t *testing.T) {
 	assert.NilError(t, err)
 
 	// mark completion
-	context.NotifyTaskComplete(appID, taskUID1)
+	context.notifyTaskComplete(appID, taskUID1)
 	err = utils.WaitForCondition(func() bool {
 		return task.GetTaskState() == TaskStates().Completed
 	}, 100*time.Millisecond, time.Second)
