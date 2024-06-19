@@ -332,7 +332,7 @@ func (task *Task) handleSubmitTaskEvent() {
 		// in this case, post an event to indicate the task is being gang scheduled
 		if !task.placeholder && task.taskGroupName != "" {
 			events.GetRecorder().Eventf(task.pod.DeepCopy(), nil,
-				v1.EventTypeNormal, "GangScheduling", "GangScheduling",
+				v1.EventTypeNormal, "GangScheduling", "TaskGroupMatch",
 				"Pod belongs to the taskGroup %s, it will be scheduled as a gang member", task.taskGroupName)
 		}
 	}

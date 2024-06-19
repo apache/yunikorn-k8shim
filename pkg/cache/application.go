@@ -550,7 +550,7 @@ func (app *Application) onReservationStateChange() {
 	if app.originatingTask != nil {
 		// Now that all placeholders has been allocated, send a final conclusion message
 		events.GetRecorder().Eventf(app.originatingTask.GetTaskPod().DeepCopy(), nil, v1.EventTypeNormal, "GangScheduling",
-			"Gang reservations completed. All placeholders are allocated.", "Application %s all placeholders are allocated. Transitioning to running state.", app.applicationID)
+			"GangReservationComplete", "Application %s all placeholders are allocated. Transitioning to running state.", app.applicationID)
 	}
 	dispatcher.Dispatch(NewRunApplicationEvent(app.applicationID))
 }
@@ -669,8 +669,8 @@ func (app *Application) publishPlaceholderTimeoutEvents(task *Task) {
 			zap.Stringer("app request originating pod", app.originatingTask.GetTaskPod()),
 			zap.String("taskID", task.taskID),
 			zap.String("terminationType", task.terminationType))
-		events.GetRecorder().Eventf(app.originatingTask.GetTaskPod().DeepCopy(), nil, v1.EventTypeWarning, "Placeholder timed out",
-			"Placeholder timed out", "Application %s placeholder has been timed out", app.applicationID)
+		events.GetRecorder().Eventf(app.originatingTask.GetTaskPod().DeepCopy(), nil, v1.EventTypeWarning, "GangScheduling",
+			"PlaceholderTimeOut", "Application %s placeholder has been timed out", app.applicationID)
 	}
 }
 

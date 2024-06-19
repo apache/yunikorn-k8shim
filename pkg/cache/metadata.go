@@ -114,7 +114,7 @@ func getAppMetadata(pod *v1.Pod) (ApplicationMetadata, bool) {
 				zap.String("namespace", pod.Namespace),
 				zap.String("name", pod.Name),
 				zap.Error(err))
-			events.GetRecorder().Eventf(pod, nil, v1.EventTypeWarning, "TaskGroupsError", "TaskGroupsError",
+			events.GetRecorder().Eventf(pod, nil, v1.EventTypeWarning, "GangScheduling", "TaskGroupsError",
 				"unable to get taskGroups for pod, reason: %s", err.Error())
 		}
 		tags[constants.AnnotationTaskGroups] = pod.Annotations[constants.AnnotationTaskGroups]
