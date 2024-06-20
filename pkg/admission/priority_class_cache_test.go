@@ -27,9 +27,9 @@ import (
 	schedulingv1 "k8s.io/api/scheduling/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/apache/yunikorn-core/pkg/common"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
-	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 )
 
 const testPC = "test-pc"
@@ -69,9 +69,12 @@ func TestPriorityClassHandlers(t *testing.T) {
 	_, err := priorityClasses.Create(context.Background(), priorityClass, metav1.CreateOptions{})
 	assert.NilError(t, err)
 
-	err = utils.WaitForCondition(func() bool {
-		return cache.priorityClassExists(testPC)
-	}, 10*time.Millisecond, 10*time.Second)
+	err = common.WaitForCondition(10*time.Millisecond,
+		10*time.Second,
+		func() bool {
+			return cache.priorityClassExists(testPC)
+		},
+	)
 	assert.NilError(t, err)
 
 	assert.Assert(t, cache.isPreemptSelfAllowed(testPC), "exists, not set should return true")
@@ -83,18 +86,24 @@ func TestPriorityClassHandlers(t *testing.T) {
 	_, err = priorityClasses.Update(context.Background(), priorityClass2, metav1.UpdateOptions{})
 	assert.NilError(t, err)
 
-	err = utils.WaitForCondition(func() bool {
-		return !cache.isPreemptSelfAllowed(testPC)
-	}, 10*time.Millisecond, 10*time.Second)
+	err = common.WaitForCondition(10*time.Millisecond,
+		10*time.Second,
+		func() bool {
+			return !cache.isPreemptSelfAllowed(testPC)
+		},
+	)
 	assert.NilError(t, err)
 
 	// validate OnDelete
 	err = priorityClasses.Delete(context.Background(), testPC, metav1.DeleteOptions{})
 	assert.NilError(t, err)
 
-	err = utils.WaitForCondition(func() bool {
-		return !cache.priorityClassExists(testPC)
-	}, 10*time.Millisecond, 10*time.Second)
+	err = common.WaitForCondition(10*time.Millisecond,
+		10*time.Second,
+		func() bool {
+			return !cache.priorityClassExists(testPC)
+		},
+	)
 	assert.NilError(t, err)
 }
 

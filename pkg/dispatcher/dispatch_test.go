@@ -28,8 +28,8 @@ import (
 
 	"gotest.tools/v3/assert"
 
+	"github.com/apache/yunikorn-core/pkg/common"
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
-	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/locking"
 )
 
@@ -249,9 +249,12 @@ func TestDispatchTimeout(t *testing.T) {
 	assert.Assert(t, strings.Contains(string(buf), "asyncDispatch"))
 
 	// wait until async dispatch routine times out
-	err := utils.WaitForCondition(func() bool {
-		return atomic.LoadInt32(&asyncDispatchCount) == int32(0)
-	}, 100*time.Millisecond, DispatchTimeout+AsyncDispatchCheckInterval)
+	err := common.WaitForCondition(100*time.Millisecond,
+		DispatchTimeout+AsyncDispatchCheckInterval,
+		func() bool {
+			return atomic.LoadInt32(&asyncDispatchCount) == int32(0)
+		},
+	)
 	assert.NilError(t, err)
 
 	// verify no left-over thread

@@ -27,9 +27,9 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/apache/yunikorn-core/pkg/common"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
-	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 )
 
 const testNS = "test-ns"
@@ -91,9 +91,12 @@ func TestNamespaceHandlers(t *testing.T) {
 	_, err := nsInterface.Create(context.Background(), ns, metav1.CreateOptions{})
 	assert.NilError(t, err)
 
-	err = utils.WaitForCondition(func() bool {
-		return cache.namespaceExists(testNS)
-	}, 10*time.Millisecond, 5*time.Second)
+	err = common.WaitForCondition(10*time.Millisecond,
+		5*time.Second,
+		func() bool {
+			return cache.namespaceExists(testNS)
+		},
+	)
 	assert.NilError(t, err)
 
 	assert.Equal(t, UNSET, cache.enableYuniKorn(testNS), "cache should have contained NS")
@@ -106,9 +109,12 @@ func TestNamespaceHandlers(t *testing.T) {
 	_, err = nsInterface.Update(context.Background(), ns2, metav1.UpdateOptions{})
 	assert.NilError(t, err)
 
-	err = utils.WaitForCondition(func() bool {
-		return cache.enableYuniKorn(testNS) == TRUE
-	}, 10*time.Millisecond, 5*time.Second)
+	err = common.WaitForCondition(10*time.Millisecond,
+		5*time.Second,
+		func() bool {
+			return cache.enableYuniKorn(testNS) == TRUE
+		},
+	)
 	assert.NilError(t, err)
 	assert.Equal(t, FALSE, cache.generateAppID(testNS), "generate should have been set to false")
 
@@ -118,9 +124,12 @@ func TestNamespaceHandlers(t *testing.T) {
 	_, err = nsInterface.Update(context.Background(), ns2, metav1.UpdateOptions{})
 	assert.NilError(t, err)
 
-	err = utils.WaitForCondition(func() bool {
-		return cache.generateAppID(testNS) == TRUE
-	}, 10*time.Millisecond, 5*time.Second)
+	err = common.WaitForCondition(10*time.Millisecond,
+		5*time.Second,
+		func() bool {
+			return cache.generateAppID(testNS) == TRUE
+		},
+	)
 	assert.NilError(t, err)
 	assert.Equal(t, UNSET, cache.enableYuniKorn(testNS), "enable should have been cleared")
 
@@ -128,9 +137,12 @@ func TestNamespaceHandlers(t *testing.T) {
 	err = nsInterface.Delete(context.Background(), ns.Name, metav1.DeleteOptions{})
 	assert.NilError(t, err)
 
-	err = utils.WaitForCondition(func() bool {
-		return !cache.namespaceExists(testNS)
-	}, 10*time.Millisecond, 5*time.Second)
+	err = common.WaitForCondition(10*time.Millisecond,
+		5*time.Second,
+		func() bool {
+			return !cache.namespaceExists(testNS)
+		},
+	)
 	assert.NilError(t, err, "ns not removed from cache")
 }
 

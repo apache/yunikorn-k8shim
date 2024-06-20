@@ -20,11 +20,11 @@ package utils
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
-	"time"
 
 	"go.uber.org/zap"
 
@@ -44,6 +44,11 @@ const userInfoKey = siCommon.DomainYuniKorn + "user.info"
 const uniqueAutogenSuffix = "-uniqueautogen"
 
 var pluginMode bool
+
+var (
+	// ErrorTimeout returned if waiting for a condition times out
+	ErrorTimeout = errors.New("timeout waiting for condition")
+)
 
 func SetPluginMode(value bool) {
 	pluginMode = value
@@ -239,21 +244,6 @@ func GetNamespaceQuotaFromAnnotation(namespaceObj *v1.Namespace) *si.Resource {
 		return common.ParseResource(cpuQuota, memQuota)
 	default:
 		return nil
-	}
-}
-
-func WaitForCondition(eval func() bool, interval time.Duration, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
-	for {
-		if eval() {
-			return nil
-		}
-
-		if time.Now().After(deadline) {
-			return fmt.Errorf("timeout waiting for condition")
-		}
-
-		time.Sleep(interval)
 	}
 }
 

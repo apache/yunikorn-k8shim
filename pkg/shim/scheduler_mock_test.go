@@ -31,13 +31,13 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	coreCommon "github.com/apache/yunikorn-core/pkg/common"
 	"github.com/apache/yunikorn-core/pkg/entrypoint"
 	"github.com/apache/yunikorn-core/pkg/scheduler/objects"
 	"github.com/apache/yunikorn-k8shim/pkg/cache"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common"
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
-	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/api"
@@ -130,9 +130,12 @@ func (fc *MockScheduler) addNode(nodeName string, nodeLabels map[string]string, 
 }
 
 func (fc *MockScheduler) waitForApplicationDeletion(t *testing.T, appID string) {
-	err := utils.WaitForCondition(func() bool {
-		return fc.context.GetApplication(appID) == nil
-	}, time.Second, 5*time.Second)
+	err := coreCommon.WaitForCondition(time.Second,
+		5*time.Second,
+		func() bool {
+			return fc.context.GetApplication(appID) == nil
+		},
+	)
 	assert.NilError(t, err, "application has not been deleted")
 }
 
@@ -193,16 +196,19 @@ func (fc *MockScheduler) waitAndVerifySchedulerAllocations(
 		return fmt.Errorf("partition %s is not found in the scheduler context", partitionName)
 	}
 
-	return utils.WaitForCondition(func() bool {
-		for _, app := range partition.GetApplications() {
-			if app.ApplicationID == applicationID {
-				if len(app.GetAllAllocations()) == expectedNumOfAllocations {
-					return true
+	return coreCommon.WaitForCondition(time.Second,
+		5*time.Second,
+		func() bool {
+			for _, app := range partition.GetApplications() {
+				if app.ApplicationID == applicationID {
+					if len(app.GetAllAllocations()) == expectedNumOfAllocations {
+						return true
+					}
 				}
 			}
-		}
-		return false
-	}, time.Second, 5*time.Second)
+			return false
+		},
+	)
 }
 
 func (fc *MockScheduler) stop() {
@@ -302,21 +308,24 @@ func (fc *MockScheduler) GetActiveNodeCountInCore(partition string) int {
 }
 
 func (fc *MockScheduler) waitForApplicationStateInCore(appID, partition, expectedState string) error {
-	return utils.WaitForCondition(func() bool {
-		app := fc.coreContext.Scheduler.GetClusterContext().GetApplication(appID, partition)
-		if app == nil {
-			log.Log(log.Test).Info("Application not found in the scheduler core", zap.String("appID", appID))
-			return false
-		}
-		current := app.CurrentState()
-		if current != expectedState {
-			log.Log(log.Test).Info("waiting for app state in core",
-				zap.String("expected", expectedState),
-				zap.String("actual", current))
-			return false
-		}
-		return true
-	}, time.Second, 5*time.Second)
+	return coreCommon.WaitForCondition(time.Second,
+		5*time.Second,
+		func() bool {
+			app := fc.coreContext.Scheduler.GetClusterContext().GetApplication(appID, partition)
+			if app == nil {
+				log.Log(log.Test).Info("Application not found in the scheduler core", zap.String("appID", appID))
+				return false
+			}
+			current := app.CurrentState()
+			if current != expectedState {
+				log.Log(log.Test).Info("waiting for app state in core",
+					zap.String("expected", expectedState),
+					zap.String("actual", current))
+				return false
+			}
+			return true
+		},
+	)
 }
 
 func (fc *MockScheduler) getApplicationFromCore(appID, partition string) *objects.Application {

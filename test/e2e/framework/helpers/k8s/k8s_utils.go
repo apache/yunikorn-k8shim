@@ -56,8 +56,8 @@ import (
 	resourcehelper "k8s.io/kubectl/pkg/util/resource"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
 
+	coreCommon "github.com/apache/yunikorn-core/pkg/common"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
-	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/locking"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
@@ -724,9 +724,12 @@ func (k *KubeCtl) StartConfigMapInformer(namespace string, stopChan <-chan struc
 		return err
 	}
 	go configMapInformer.Informer().Run(stopChan)
-	if err := utils.WaitForCondition(func() bool {
-		return configMapInformer.Informer().HasSynced()
-	}, time.Second, 30*time.Second); err != nil {
+	if err := coreCommon.WaitForCondition(time.Second,
+		30*time.Second,
+		func() bool {
+			return configMapInformer.Informer().HasSynced()
+		},
+	); err != nil {
 		return err
 	}
 

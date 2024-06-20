@@ -31,11 +31,11 @@ import (
 	k8sEvents "k8s.io/client-go/tools/events"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
+	"github.com/apache/yunikorn-core/pkg/common"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/common/test"
-	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/yunikorn-k8shim/pkg/plugin/predicates"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
@@ -58,9 +58,12 @@ func TestUpdateAllocation_NewTask(t *testing.T) {
 	assert.NilError(t, err, "error updating allocation")
 	assert.Assert(t, context.schedulerCache.IsAssumedPod(taskUID1))
 	task := context.getTask(appID, taskUID1)
-	err = utils.WaitForCondition(func() bool {
-		return task.GetTaskState() == TaskStates().Bound
-	}, 10*time.Millisecond, time.Second)
+	err = common.WaitForCondition(10*time.Millisecond,
+		time.Second,
+		func() bool {
+			return task.GetTaskState() == TaskStates().Bound
+		},
+	)
 	assert.NilError(t, err, "task has not transitioned to Bound state")
 }
 
@@ -106,9 +109,12 @@ func TestUpdateAllocation_NewTask_AssumePodFails(t *testing.T) {
 	assert.Error(t, err, errMsg)
 	assert.Assert(t, !context.schedulerCache.IsAssumedPod(taskUID1))
 	task := context.getTask(appID, taskUID1)
-	err = utils.WaitForCondition(func() bool {
-		return task.GetTaskState() == TaskStates().Failed
-	}, 10*time.Millisecond, time.Second)
+	err = common.WaitForCondition(10*time.Millisecond,
+		time.Second,
+		func() bool {
+			return task.GetTaskState() == TaskStates().Failed
+		},
+	)
 	assert.NilError(t, err, "task has not transitioned to Failed state")
 }
 
@@ -149,9 +155,12 @@ func TestUpdateAllocation_AskRejected(t *testing.T) {
 	})
 	assert.NilError(t, err, "error updating allocation")
 	task := context.getTask(appID, taskUID1)
-	err = utils.WaitForCondition(func() bool {
-		return task.GetTaskState() == TaskStates().Failed
-	}, 10*time.Millisecond, time.Second)
+	err = common.WaitForCondition(10*time.Millisecond,
+		time.Second,
+		func() bool {
+			return task.GetTaskState() == TaskStates().Failed
+		},
+	)
 	assert.NilError(t, err, "task has not transitioned to Failed state")
 }
 
@@ -170,9 +179,12 @@ func TestUpdateAllocation_AllocationRejected(t *testing.T) {
 	})
 	assert.NilError(t, err, "error updating allocation")
 	task := context.getTask(appID, taskUID1)
-	err = utils.WaitForCondition(func() bool {
-		return task.GetTaskState() == TaskStates().Failed
-	}, 10*time.Millisecond, time.Second)
+	err = common.WaitForCondition(10*time.Millisecond,
+		time.Second,
+		func() bool {
+			return task.GetTaskState() == TaskStates().Failed
+		},
+	)
 	assert.NilError(t, err, "task has not transitioned to Failed state")
 }
 
@@ -205,7 +217,7 @@ func TestUpdateAllocation_AllocationReleased(t *testing.T) {
 	})
 	assert.NilError(t, err, "error updating allocation")
 	assert.Assert(t, !context.schedulerCache.IsAssumedPod(taskUID1))
-	err = utils.WaitForCondition(deleteCalled.Load, 10*time.Millisecond, time.Second)
+	err = common.WaitForCondition(10*time.Millisecond, time.Second, deleteCalled.Load)
 	assert.NilError(t, err, "pod has not been deleted")
 }
 
@@ -236,7 +248,7 @@ func TestUpdateAllocation_AllocationReleased_StoppedByRM(t *testing.T) {
 	})
 	assert.NilError(t, err, "error updating allocation")
 	assert.Assert(t, !context.schedulerCache.IsAssumedPod(taskUID1))
-	err = utils.WaitForCondition(deleteCalled.Load, 10*time.Millisecond, 500*time.Millisecond)
+	err = common.WaitForCondition(10*time.Millisecond, 500*time.Millisecond, deleteCalled.Load)
 	assert.Error(t, err, "timeout waiting for condition") // pod is not expected to be deleted
 }
 
@@ -263,7 +275,7 @@ func TestUpdateAllocation_AskReleased(t *testing.T) {
 	})
 	assert.NilError(t, err, "error updating allocation")
 	assert.Assert(t, !context.schedulerCache.IsAssumedPod(taskUID1))
-	err = utils.WaitForCondition(deleteCalled.Load, 10*time.Millisecond, time.Second)
+	err = common.WaitForCondition(10*time.Millisecond, time.Second, deleteCalled.Load)
 	assert.NilError(t, err, "pod has not been deleted")
 }
 
@@ -282,9 +294,12 @@ func TestUpdateApplication_Accepted(t *testing.T) {
 		},
 	})
 	assert.NilError(t, err, "error updating application")
-	err = utils.WaitForCondition(func() bool {
-		return app.sm.Current() == ApplicationStates().Accepted
-	}, 10*time.Millisecond, time.Second)
+	err = common.WaitForCondition(10*time.Millisecond,
+		time.Second,
+		func() bool {
+			return app.sm.Current() == ApplicationStates().Accepted
+		},
+	)
 	assert.NilError(t, err, "application has not transitioned to Accepted state")
 }
 
@@ -307,9 +322,12 @@ func TestUpdateApplication_Rejected(t *testing.T) {
 		},
 	})
 	assert.NilError(t, err, "error updating application")
-	err = utils.WaitForCondition(func() bool {
-		return app.sm.Current() == ApplicationStates().Failed
-	}, 10*time.Millisecond, time.Second)
+	err = common.WaitForCondition(10*time.Millisecond,
+		time.Second,
+		func() bool {
+			return app.sm.Current() == ApplicationStates().Failed
+		},
+	)
 	assert.NilError(t, err, "application has not transitioned to Failed state")
 	assert.Equal(t, 1, len(recorder.Events), "no K8s event received")
 	event := <-recorder.Events
@@ -349,9 +367,12 @@ func TestUpdateApplication_Resuming_AppReserving(t *testing.T) {
 		},
 	})
 	assert.NilError(t, err, "error updating application")
-	err = utils.WaitForCondition(func() bool {
-		return app.sm.Current() == ApplicationStates().Resuming
-	}, 10*time.Millisecond, time.Second)
+	err = common.WaitForCondition(10*time.Millisecond,
+		time.Second,
+		func() bool {
+			return app.sm.Current() == ApplicationStates().Resuming
+		},
+	)
 	assert.NilError(t, err, "application has not transitioned to Resuming state")
 }
 
@@ -421,9 +442,12 @@ func testUpdateApplicationFailure(t *testing.T, state string) {
 		},
 	})
 	assert.NilError(t, err, "error updating application")
-	err = utils.WaitForCondition(func() bool {
-		return app.sm.Current() == ApplicationStates().Failing
-	}, 10*time.Millisecond, time.Second)
+	err = common.WaitForCondition(10*time.Millisecond,
+		time.Second,
+		func() bool {
+			return app.sm.Current() == ApplicationStates().Failing
+		},
+	)
 	assert.NilError(t, err, "application has not transitioned to %s state", state)
 	assert.Equal(t, 1, len(recorder.Events), "no K8s event received")
 	event := <-recorder.Events
@@ -464,12 +488,15 @@ func testUpdateNode(t *testing.T, expectedEvent string, response *si.NodeRespons
 
 	err := callback.UpdateNode(response)
 	assert.NilError(t, err, "error updating node")
-	err = utils.WaitForCondition(func() bool {
-		if val, ok := nodeName.Load().(string); ok {
-			return val == "testNode"
-		}
-		return false
-	}, 10*time.Millisecond, time.Second)
+	err = common.WaitForCondition(10*time.Millisecond,
+		time.Second,
+		func() bool {
+			if val, ok := nodeName.Load().(string); ok {
+				return val == "testNode"
+			}
+			return false
+		},
+	)
 	assert.NilError(t, err)
 }
 

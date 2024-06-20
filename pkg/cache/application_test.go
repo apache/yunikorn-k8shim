@@ -33,11 +33,11 @@ import (
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sEvents "k8s.io/client-go/tools/events"
 
+	coreCommon "github.com/apache/yunikorn-core/pkg/common"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
-	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/yunikorn-k8shim/pkg/locking"
@@ -743,9 +743,12 @@ func TestTryReserve(t *testing.T) {
 	assertAppState(t, app, ApplicationStates().Reserving, 3*time.Second)
 
 	// under Reserving state, the app will need to acquire all the placeholders it asks for
-	err = utils.WaitForCondition(func() bool {
-		return createdPods.count() == 30
-	}, 100*time.Millisecond, 3*time.Second)
+	err = coreCommon.WaitForCondition(100*time.Millisecond,
+		3*time.Second,
+		func() bool {
+			return createdPods.count() == 30
+		},
+	)
 	assert.NilError(t, err, "placeholders are not created")
 }
 
@@ -1199,18 +1202,21 @@ func TestPlaceholderTimeoutEvents(t *testing.T) {
 	message := "GangScheduling"
 	reason := "placeholder has been timed out"
 	// check that the event has been published
-	err = utils.WaitForCondition(func() bool {
-		for {
-			select {
-			case event := <-recorder.Events:
-				if strings.Contains(event, reason) && strings.Contains(event, message) {
-					return true
+	err = coreCommon.WaitForCondition(5*time.Millisecond,
+		20*time.Millisecond,
+		func() bool {
+			for {
+				select {
+				case event := <-recorder.Events:
+					if strings.Contains(event, reason) && strings.Contains(event, message) {
+						return true
+					}
+				default:
+					return false
 				}
-			default:
-				return false
 			}
-		}
-	}, 5*time.Millisecond, 20*time.Millisecond)
+		},
+	)
 	assert.NilError(t, err, "event should have been emitted")
 }
 
@@ -1298,22 +1304,25 @@ func TestApplication_onReservationStateChange(t *testing.T) {
 	reason := "GangScheduling"
 	counter := 0
 	// check that the event has been published
-	err := utils.WaitForCondition(func() bool {
-		for {
-			select {
-			case event := <-recorder.Events:
-				print(event)
-				if strings.Contains(event, reason) && strings.Contains(event, message) {
-					counter++
-					if counter == 4 {
-						return true
+	err := coreCommon.WaitForCondition(5*time.Millisecond,
+		time.Second,
+		func() bool {
+			for {
+				select {
+				case event := <-recorder.Events:
+					print(event)
+					if strings.Contains(event, reason) && strings.Contains(event, message) {
+						counter++
+						if counter == 4 {
+							return true
+						}
 					}
+				default:
+					return false
 				}
-			default:
-				return false
 			}
-		}
-	}, 5*time.Millisecond, time.Second)
+		},
+	)
 	assert.NilError(t, err, "event should have been emitted")
 }
 

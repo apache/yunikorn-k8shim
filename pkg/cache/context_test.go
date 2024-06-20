@@ -35,6 +35,7 @@ import (
 	k8sEvents "k8s.io/client-go/tools/events"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/volumebinding"
 
+	coreCommon "github.com/apache/yunikorn-core/pkg/common"
 	schedulercache "github.com/apache/yunikorn-k8shim/pkg/cache/external"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common"
@@ -919,9 +920,12 @@ func TestRecoverTask(t *testing.T) {
 	app.Schedule()
 
 	// wait for task to transition to bound state
-	err := utils.WaitForCondition(func() bool {
-		return task.GetTaskState() == TaskStates().Bound
-	}, 100*time.Millisecond, 3*time.Second)
+	err := coreCommon.WaitForCondition(100*time.Millisecond,
+		3*time.Second,
+		func() bool {
+			return task.GetTaskState() == TaskStates().Bound
+		},
+	)
 	assert.NilError(t, err, "failed to wait for allocation allocationKey being set for task")
 
 	// add a tasks to the existing application
@@ -1058,9 +1062,12 @@ func TestTaskReleaseAfterRecovery(t *testing.T) {
 	app.Schedule()
 
 	// wait for task to transition to bound state
-	err := utils.WaitForCondition(func() bool {
-		return task0.GetTaskState() == TaskStates().Bound
-	}, 100*time.Millisecond, 3*time.Second)
+	err := coreCommon.WaitForCondition(100*time.Millisecond,
+		3*time.Second,
+		func() bool {
+			return task0.GetTaskState() == TaskStates().Bound
+		},
+	)
 	assert.NilError(t, err, "failed to wait for allocation allocationKey being set for task0")
 
 	task1 := context.AddTask(&AddTaskRequest{
@@ -1077,9 +1084,12 @@ func TestTaskReleaseAfterRecovery(t *testing.T) {
 	app.Schedule()
 
 	// wait for task to transition to bound state
-	err = utils.WaitForCondition(func() bool {
-		return task1.GetTaskState() == TaskStates().Bound
-	}, 100*time.Millisecond, 3*time.Second)
+	err = coreCommon.WaitForCondition(100*time.Millisecond,
+		3*time.Second,
+		func() bool {
+			return task1.GetTaskState() == TaskStates().Bound
+		},
+	)
 	assert.NilError(t, err, "failed to wait for allocation allocationKey being set for task1")
 
 	// app should have 2 tasks recovered
@@ -1091,9 +1101,12 @@ func TestTaskReleaseAfterRecovery(t *testing.T) {
 	context.NotifyTaskComplete(appID, pod2UID)
 
 	// wait for release
-	err = utils.WaitForCondition(func() bool {
-		return task1.GetTaskState() == TaskStates().Completed
-	}, 100*time.Millisecond, 3*time.Second)
+	err = coreCommon.WaitForCondition(100*time.Millisecond,
+		3*time.Second,
+		func() bool {
+			return task1.GetTaskState() == TaskStates().Completed
+		},
+	)
 	assert.NilError(t, err, "release should be completed for task1")
 
 	// expect to see:
@@ -1287,19 +1300,22 @@ func TestNodeEventPublishedCorrectly(t *testing.T) {
 	context.PublishEvents(eventRecords)
 
 	// check that the event has been published
-	err = utils.WaitForCondition(func() bool {
-		for {
-			select {
-			case event := <-recorder.Events:
-				log.Log(log.Test).Info(event)
-				if strings.Contains(event, message) {
-					return true
+	err = coreCommon.WaitForCondition(10*time.Millisecond,
+		time.Second,
+		func() bool {
+			for {
+				select {
+				case event := <-recorder.Events:
+					log.Log(log.Test).Info(event)
+					if strings.Contains(event, message) {
+						return true
+					}
+				default:
+					return false
 				}
-			default:
-				return false
 			}
-		}
-	}, 10*time.Millisecond, time.Second)
+		},
+	)
 	assert.NilError(t, err, "event should have been emitted")
 }
 
@@ -1414,18 +1430,21 @@ func TestPublishEventsWithNotExistingAsk(t *testing.T) {
 	context.PublishEvents(eventRecords)
 
 	// check that the event has not been published
-	err := utils.WaitForCondition(func() bool {
-		for {
-			select {
-			case event := <-recorder.Events:
-				if strings.Contains(event, message) {
-					return false
+	err := coreCommon.WaitForCondition(10*time.Millisecond,
+		time.Second,
+		func() bool {
+			for {
+				select {
+				case event := <-recorder.Events:
+					if strings.Contains(event, message) {
+						return false
+					}
+				default:
+					return true
 				}
-			default:
-				return true
 			}
-		}
-	}, 10*time.Millisecond, time.Second)
+		},
+	)
 	assert.NilError(t, err, "event should not have been published if the pod does not exist")
 }
 
@@ -1466,18 +1485,21 @@ func TestPublishEventsCorrectly(t *testing.T) {
 	context.PublishEvents(eventRecords)
 
 	// check that the event has been published
-	err := utils.WaitForCondition(func() bool {
-		for {
-			select {
-			case event := <-recorder.Events:
-				if strings.Contains(event, message) {
-					return true
+	err := coreCommon.WaitForCondition(10*time.Millisecond,
+		time.Second,
+		func() bool {
+			for {
+				select {
+				case event := <-recorder.Events:
+					if strings.Contains(event, message) {
+						return true
+					}
+				default:
+					return false
 				}
-			default:
-				return false
 			}
-		}
-	}, 10*time.Millisecond, time.Second)
+		},
+	)
 	assert.NilError(t, err, "event should have been emitted")
 }
 
@@ -2115,16 +2137,22 @@ func TestTaskRemoveOnCompletion(t *testing.T) {
 	// task gets scheduled
 	app.SetState("Running")
 	app.Schedule()
-	err := utils.WaitForCondition(func() bool {
-		return task.GetTaskState() == TaskStates().Scheduling
-	}, 100*time.Millisecond, time.Second)
+	err := coreCommon.WaitForCondition(100*time.Millisecond,
+		time.Second,
+		func() bool {
+			return task.GetTaskState() == TaskStates().Scheduling
+		},
+	)
 	assert.NilError(t, err)
 
 	// mark completion
 	context.NotifyTaskComplete(appID, taskUID1)
-	err = utils.WaitForCondition(func() bool {
-		return task.GetTaskState() == TaskStates().Completed
-	}, 100*time.Millisecond, time.Second)
+	err = coreCommon.WaitForCondition(100*time.Millisecond,
+		time.Second,
+		func() bool {
+			return task.GetTaskState() == TaskStates().Completed
+		},
+	)
 	assert.NilError(t, err)
 
 	// check removal
@@ -2353,19 +2381,22 @@ func initAssumePodTest(binder *test.VolumeBinderMock) *Context {
 
 func waitForNodeAcceptedEvent(recorder *k8sEvents.FakeRecorder) error {
 	// fetch the "node accepted" event
-	err := utils.WaitForCondition(func() bool {
-		for {
-			select {
-			case event := <-recorder.Events:
-				log.Log(log.Test).Info(event)
-				if strings.Contains(event, "accepted by the scheduler") {
-					return true
+	err := coreCommon.WaitForCondition(10*time.Millisecond,
+		time.Second,
+		func() bool {
+			for {
+				select {
+				case event := <-recorder.Events:
+					log.Log(log.Test).Info(event)
+					if strings.Contains(event, "accepted by the scheduler") {
+						return true
+					}
+				default:
+					return false
 				}
-			default:
-				return false
 			}
-		}
-	}, 10*time.Millisecond, time.Second)
+		},
+	)
 	return err
 }
 

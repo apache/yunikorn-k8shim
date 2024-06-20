@@ -58,16 +58,22 @@ func TestRun(t *testing.T) {
 	}()
 
 	clients.Run(stop)
-	err := common.WaitForCondition(func() bool {
-		return test.RunningInformers.Load() == noOfInformers
-	}, 10*time.Millisecond, time.Second)
+	err := common.WaitForCondition(10*time.Millisecond,
+		time.Second,
+		func() bool {
+			return test.RunningInformers.Load() == noOfInformers
+		},
+	)
 	assert.NilError(t, err, "number of running informers: expected %d got %d", noOfInformers, test.RunningInformers.Load())
 
 	close(stop)
 	stopped = true
-	err = common.WaitForCondition(func() bool {
-		return test.RunningInformers.Load() == 0
-	}, 10*time.Millisecond, time.Second)
+	err = common.WaitForCondition(10*time.Millisecond,
+		time.Second,
+		func() bool {
+			return test.RunningInformers.Load() == 0
+		},
+	)
 	assert.NilError(t, err, "no. of informers still running: %d", test.RunningInformers.Load())
 }
 
