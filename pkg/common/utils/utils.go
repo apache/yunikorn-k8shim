@@ -20,7 +20,6 @@ package utils
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -44,11 +43,6 @@ const userInfoKey = siCommon.DomainYuniKorn + "user.info"
 const uniqueAutogenSuffix = "-uniqueautogen"
 
 var pluginMode bool
-
-var (
-	// ErrorTimeout returned if waiting for a condition times out
-	ErrorTimeout = errors.New("timeout waiting for condition")
-)
 
 func SetPluginMode(value bool) {
 	pluginMode = value
