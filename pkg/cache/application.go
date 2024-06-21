@@ -395,7 +395,11 @@ func (app *Application) scheduleTasks(taskScheduleCondition func(t *Task) bool) 
 	for _, task := range app.GetNewTasks() {
 		if taskScheduleCondition(task) {
 			// for each new task, we do a sanity check before moving the state to Pending_Schedule
-			if err := task.sanityCheckBeforeScheduling(); err == nil {
+			// if the task is not ready for scheduling, we keep it in New state
+			// if the task pod is bounded and have conflicting metadata, we move the task to Rejected state
+			err, rejectTask := task.sanityCheckBeforeScheduling()
+
+			if err == nil {
 				// note, if we directly trigger submit task event, it may spawn too many duplicate
 				// events, because a task might be submitted multiple times before its state transits to PENDING.
 				if handleErr := task.handle(
@@ -406,11 +410,20 @@ func (app *Application) scheduleTasks(taskScheduleCondition func(t *Task) bool) 
 					log.Log(log.ShimCacheApplication).Warn("init task failed", zap.Error(err))
 				}
 			} else {
-				events.GetRecorder().Eventf(task.GetTaskPod().DeepCopy(), nil, v1.EventTypeWarning, "FailedScheduling", "FailedScheduling", err.Error())
-				log.Log(log.ShimCacheApplication).Debug("task is not ready for scheduling",
-					zap.String("appID", task.applicationID),
-					zap.String("taskID", task.taskID),
-					zap.Error(err))
+				if !rejectTask {
+					// no state transition
+					events.GetRecorder().Eventf(task.GetTaskPod().DeepCopy(), nil, v1.EventTypeWarning, "FailedScheduling", "FailedScheduling", err.Error())
+					log.Log(log.ShimCacheApplication).Debug("task is not ready for scheduling",
+						zap.String("appID", task.applicationID),
+						zap.String("taskID", task.taskID),
+						zap.Error(err))
+				} else {
+					// task transits to Rejected state
+					if handleErr := task.handle(
+						NewRejectTaskEvent(task.applicationID, task.taskID, err.Error())); handleErr != nil {
+						log.Log(log.ShimCacheApplication).Warn("reject task failed", zap.Error(err))
+					}
+				}
 			}
 		}
 	}
@@ -568,22 +581,6 @@ func (app *Application) handleCompleteApplicationEvent() {
 	}()
 }
 
-func failTaskPodWithReasonAndMsg(task *Task, reason string, msg string) {
-	podCopy := task.GetTaskPod().DeepCopy()
-	podCopy.Status = v1.PodStatus{
-		Phase:   v1.PodFailed,
-		Reason:  reason,
-		Message: msg,
-	}
-	log.Log(log.ShimCacheApplication).Info("setting pod to failed", zap.String("podName", task.GetTaskPod().Name))
-	pod, err := task.UpdateTaskPodStatus(podCopy)
-	if err != nil {
-		log.Log(log.ShimCacheApplication).Error("failed to update task pod status", zap.Error(err))
-	} else {
-		log.Log(log.ShimCacheApplication).Info("new pod status", zap.String("status", string(pod.Status.Phase)))
-	}
-}
-
 func (app *Application) handleFailApplicationEvent(errMsg string) {
 	go func() {
 		getPlaceholderManager().cleanUp(app)
@@ -598,10 +595,10 @@ func (app *Application) handleFailApplicationEvent(errMsg string) {
 	for _, task := range unalloc {
 		// Only need to fail the non-placeholder pod(s)
 		if strings.Contains(errMsg, constants.ApplicationInsufficientResourcesFailure) {
-			failTaskPodWithReasonAndMsg(task, constants.ApplicationInsufficientResourcesFailure, "Scheduling has timed out due to insufficient resources")
+			task.failTaskPodWithReasonAndMsg(constants.ApplicationInsufficientResourcesFailure, "Scheduling has timed out due to insufficient resources")
 		} else if strings.Contains(errMsg, constants.ApplicationRejectedFailure) {
 			errMsgArr := strings.Split(errMsg, ":")
-			failTaskPodWithReasonAndMsg(task, constants.ApplicationRejectedFailure, errMsgArr[1])
+			task.failTaskPodWithReasonAndMsg(constants.ApplicationRejectedFailure, errMsgArr[1])
 		}
 		events.GetRecorder().Eventf(task.GetTaskPod().DeepCopy(), nil, v1.EventTypeWarning, "ApplicationFailed", "ApplicationFailed",
 			"Application %s scheduling failed, reason: %s", app.applicationID, errMsg)

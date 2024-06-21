@@ -19,6 +19,7 @@
 package cache
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -697,6 +698,135 @@ func TestSimultaneousTaskCompleteAndAllocate(t *testing.T) {
 	err = task1.handle(ev1)
 	assert.NilError(t, err, "failed to handle AllocateTask event")
 	assert.Equal(t, task1.GetTaskState(), TaskStates().Completed)
+}
+
+// nolint: funlen
+func TestCheckPodMetadata(t *testing.T) {
+	const (
+		appID      = "app01"
+		app2ID     = "app02"
+		queueName  = "root.sandbox1"
+		queue2Name = "root.sandbox2"
+	)
+	var appIdInconsitentErr = fmt.Errorf("application ID is not consistently set in pod's labels and annotations. [%s]", constants.TaskPodInconsistMetadataFailure)
+	var queueInconsitentErr = fmt.Errorf("queue is not consistently set in pod's labels and annotations. [%s]", constants.TaskPodInconsistMetadataFailure)
+
+	testCases := []struct {
+		name           string
+		podLabels      map[string]string
+		podAnnotations map[string]string
+		expected       error
+	}{
+		{
+			"empty label and empty annotation in pod", nil, nil, nil,
+		},
+		{
+			"appId and queueName have no conflict",
+			map[string]string{
+				constants.CanonicalLabelApplicationID: appID,
+				constants.SparkLabelAppID:             appID,
+				constants.LabelApp:                    appID,
+				constants.CanonicalLabelQueueName:     queueName,
+				constants.LabelQueueName:              queueName,
+			}, map[string]string{
+				constants.AnnotationApplicationID: appID,
+				constants.AnnotationQueueName:     queueName,
+			},
+			nil,
+		},
+		{
+			"have conflict appId in canonical label",
+			map[string]string{
+				constants.CanonicalLabelApplicationID: app2ID,
+				constants.SparkLabelAppID:             appID,
+				constants.LabelApplicationID:          appID,
+			}, map[string]string{
+				constants.AnnotationApplicationID: appID,
+			},
+			appIdInconsitentErr,
+		},
+		{
+			"have conflict appId in spark label",
+			map[string]string{
+				constants.CanonicalLabelApplicationID: appID,
+				constants.SparkLabelAppID:             app2ID,
+				constants.LabelApplicationID:          appID,
+			}, map[string]string{
+				constants.AnnotationApplicationID: appID,
+			},
+			appIdInconsitentErr,
+		},
+		{
+			"have conflict appId in legacy label",
+			map[string]string{
+				constants.CanonicalLabelApplicationID: appID,
+				constants.SparkLabelAppID:             appID,
+				constants.LabelApplicationID:          app2ID,
+			}, map[string]string{
+				constants.AnnotationApplicationID: appID,
+			},
+			appIdInconsitentErr,
+		},
+		{
+			"have conflict appId in annotation",
+			map[string]string{
+				constants.CanonicalLabelApplicationID: appID,
+				constants.SparkLabelAppID:             appID,
+				constants.LabelApplicationID:          appID,
+			}, map[string]string{
+				constants.AnnotationApplicationID: app2ID,
+			},
+			appIdInconsitentErr,
+		},
+		{
+			"have conflict queueNmae in canonical label",
+			map[string]string{
+				constants.CanonicalLabelQueueName: queue2Name,
+				constants.LabelQueueName:          queueName,
+			}, map[string]string{
+				constants.AnnotationQueueName: queueName,
+			},
+			queueInconsitentErr,
+		},
+		{
+			"have conflict queueNmae in legacy label",
+			map[string]string{
+				constants.CanonicalLabelQueueName: queueName,
+				constants.LabelQueueName:          queue2Name,
+			}, map[string]string{
+				constants.AnnotationQueueName: queueName,
+			},
+			queueInconsitentErr,
+		},
+		{
+			"have conflict queueNmae in annotation",
+			map[string]string{
+				constants.CanonicalLabelQueueName: queueName,
+				constants.LabelQueueName:          queueName,
+			}, map[string]string{
+				constants.AnnotationQueueName: queue2Name,
+			},
+			queueInconsitentErr,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			app := NewApplication(appID, "root.default", "user", testGroups, map[string]string{}, nil)
+			pod := &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels:      tc.podLabels,
+					Annotations: tc.podAnnotations,
+				},
+			}
+			task := NewTask("task01", app, nil, pod)
+			err := task.checkPodMetadata()
+			if err != nil {
+				assert.Equal(t, tc.expected.Error(), err.Error())
+			} else {
+				assert.NilError(t, err)
+			}
+		})
+	}
 }
 
 func TestUpdatePodCondition(t *testing.T) {

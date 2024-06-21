@@ -188,6 +188,18 @@ func (k *KubeCtl) GetPod(name, namespace string) (*v1.Pod, error) {
 	return k.clientSet.CoreV1().Pods(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 }
 
+func (k *KubeCtl) GetPodFailureReasonAndMessage(name, namespace string) (string, string, error) {
+	pod, err := k.clientSet.CoreV1().Pods(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+	if err != nil {
+		return "", "", err
+	}
+	if pod.Status.Phase == v1.PodFailed {
+		return pod.Status.Reason, pod.Status.Message, nil
+	} else {
+		return "", "", fmt.Errorf("pod %s is not in failed state", name)
+	}
+}
+
 func (k *KubeCtl) GetSchedulerPod() (string, error) {
 	podNameList, err := k.GetPodNamesFromNS(configmanager.YuniKornTestConfig.YkNamespace)
 	if err != nil {
