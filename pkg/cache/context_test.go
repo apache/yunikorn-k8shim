@@ -1482,6 +1482,7 @@ func TestPublishEventsCorrectly(t *testing.T) {
 	assert.NilError(t, err, "event should have been emitted")
 }
 
+//nolint:funlen
 func TestAddApplicationsWithTags(t *testing.T) {
 	context := initContextForTest()
 

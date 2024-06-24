@@ -750,6 +750,7 @@ func TestTryReserve(t *testing.T) {
 	assert.NilError(t, err, "placeholders are not created")
 }
 
+//nolint:funlen
 func TestTryReservePostRestart(t *testing.T) {
 	context := initContextForTest()
 	dispatcher.RegisterEventHandler("TestAppHandler", dispatcher.EventTypeApp, context.ApplicationEventHandler())
