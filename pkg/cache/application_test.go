@@ -525,6 +525,7 @@ func assertAppState(t *testing.T, app *Application, expectedState string, durati
 	}
 }
 
+//nolint:funlen
 func TestGetNonTerminatedTaskAlias(t *testing.T) {
 	context := initContextForTest()
 	app := NewApplication(appID, "root.a", "testuser", testGroups, map[string]string{}, newMockSchedulerAPI())
@@ -559,7 +560,6 @@ func TestGetNonTerminatedTaskAlias(t *testing.T) {
 	task1 := NewTask(taskID1, app, context, pod1)
 	app.taskMap[taskID1] = task1
 	task1.sm.SetState(TaskStates().Pending)
-	//nolint:funlen
 	taskID2 := "task02"
 	task2 := NewTask(taskID2, app, context, pod2)
 	app.taskMap[taskID2] = task2
