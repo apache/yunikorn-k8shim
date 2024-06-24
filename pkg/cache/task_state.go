@@ -314,6 +314,7 @@ func TaskStates() *TStates {
 	return storeTaskStates
 }
 
+//nolint:funlen
 func newTaskState() *fsm.FSM {
 	states := TaskStates()
 	return fsm.NewFSM(
