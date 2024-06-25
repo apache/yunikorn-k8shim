@@ -200,7 +200,7 @@ func TestReleaseTaskAllocation(t *testing.T) {
 	assert.NilError(t, err, "failed to handle AllocateTask event")
 	assert.Equal(t, task.GetTaskState(), TaskStates().Allocated)
 	// bind a task is a async process, wait for it to happen
-	err = common.WaitFor(100*time.Millisecond, 3*time.Second, func() bool {
+	err = common.WaitForCondition(100*time.Millisecond, 3*time.Second, func() bool {
 		return task.getNodeName() == "node-1"
 	})
 	assert.NilError(t, err, "failed to wait for allocation allocationKey being set for task")
