@@ -855,6 +855,7 @@ func TestAddTask(t *testing.T) {
 	assert.Equal(t, len(context.applications["app00001"].GetNewTasks()), 2)
 }
 
+//nolint:funlen
 func TestRecoverTask(t *testing.T) {
 	context, apiProvider := initContextAndAPIProviderForTest()
 	dispatcher.Start()
@@ -1481,6 +1482,7 @@ func TestPublishEventsCorrectly(t *testing.T) {
 	assert.NilError(t, err, "event should have been emitted")
 }
 
+//nolint:funlen
 func TestAddApplicationsWithTags(t *testing.T) {
 	context := initContextForTest()
 

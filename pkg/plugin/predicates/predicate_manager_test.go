@@ -357,6 +357,7 @@ func TestPodFitsHostPorts(t *testing.T) {
 	}
 }
 
+//nolint:funlen
 func TestPodFitsSelector(t *testing.T) {
 	clientSet := clientSet()
 	informerFactory := informerFactory(clientSet)
@@ -1202,6 +1203,7 @@ func TestRunGeneralPredicates(t *testing.T) {
 	}
 }
 
+//nolint:funlen
 func TestInterPodAffinity(t *testing.T) {
 	clientSet := clientSet()
 	informerFactory := informerFactory(clientSet)
