@@ -202,7 +202,7 @@ func (ctx *Context) updateNodeInternal(node *v1.Node, register bool) {
 			if applicationID == "" {
 				ctx.updateForeignPod(pod)
 			} else {
-				ctx.updateYuniKornPod(pod)
+				ctx.updateYuniKornPod(applicationID, pod)
 			}
 		}
 
@@ -296,14 +296,21 @@ func (ctx *Context) UpdatePod(_, newObj interface{}) {
 		log.Log(log.ShimContext).Error("failed to update pod", zap.Error(err))
 		return
 	}
-	if utils.GetApplicationIDFromPod(pod) == "" {
+	applicationID := utils.GetApplicationIDFromPod(pod)
+	if applicationID == "" {
 		ctx.updateForeignPod(pod)
 	} else {
-		ctx.updateYuniKornPod(pod)
+		ctx.updateYuniKornPod(applicationID, pod)
 	}
 }
 
-func (ctx *Context) updateYuniKornPod(pod *v1.Pod) {
+func (ctx *Context) updateYuniKornPod(appID string, pod *v1.Pod) {
+	if app := ctx.getApplication(appID); app != nil {
+		if task, err := app.GetTask(string(pod.UID)); task != nil && err == nil {
+			task.setTaskPod(pod)
+		}
+	}
+
 	// treat terminated pods like a remove
 	if utils.IsPodTerminated(pod) {
 		if taskMeta, ok := getTaskMetadata(pod); ok {
