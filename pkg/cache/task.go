@@ -176,7 +176,7 @@ func (task *Task) getNodeName() string {
 }
 
 func (task *Task) DeleteTaskPod() error {
-	return task.context.apiProvider.GetAPIs().KubeClient.Delete(task.pod)
+	return task.context.apiProvider.GetAPIs().KubeClient.Delete(task.GetTaskPod())
 }
 
 func (task *Task) UpdateTaskPodStatus(pod *v1.Pod) (*v1.Pod, error) {
@@ -544,9 +544,11 @@ func (task *Task) releaseAllocation() {
 // this reduces the scheduling overhead by blocking such
 // request away from the core scheduler.
 func (task *Task) sanityCheckBeforeScheduling() error {
+	task.lock.RLock()
 	// Check PVCs used by the pod
 	namespace := task.pod.Namespace
 	manifest := &(task.pod.Spec)
+	task.lock.RUnlock()
 	for i := range manifest.Volumes {
 		volume := &manifest.Volumes[i]
 		if volume.PersistentVolumeClaim == nil {
@@ -598,4 +600,10 @@ func (task *Task) failWithEvent(errorMessage, actionReason string) {
 	dispatcher.Dispatch(NewFailTaskEvent(task.applicationID, task.taskID, errorMessage))
 	events.GetRecorder().Eventf(task.pod.DeepCopy(),
 		nil, v1.EventTypeWarning, actionReason, actionReason, errorMessage)
+}
+
+func (task *Task) setTaskPod(pod *v1.Pod) {
+	task.lock.Lock()
+	defer task.lock.Unlock()
+	task.pod = pod
 }
