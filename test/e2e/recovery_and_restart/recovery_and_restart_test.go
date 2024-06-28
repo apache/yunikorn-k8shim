@@ -29,6 +29,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	tests "github.com/apache/yunikorn-k8shim/test/e2e"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
@@ -360,6 +361,60 @@ var _ = ginkgo.Describe("", func() {
 		ginkgo.By("Waiting for placeholder replacement & sleep pods to finish")
 		err = kClient.WaitForJobPodsSucceeded(dev, job.Name, 1, 60*time.Second)
 		Ω(err).NotTo(gomega.HaveOccurred())
+	})
+
+	ginkgo.It("Verify_Pod_Restart_After_Add_Conflict_Metadata", func() {
+		// A tast with conflicting metadata in pod will be rejected.
+		// However, if the pod is already bounded, the task can still be registered to YK.
+		kClient = k8s.KubeCtl{}
+		Ω(kClient.SetClient()).To(gomega.BeNil())
+		defer yunikorn.RestorePortForwarding(&kClient)
+
+		ginkgo.By("Submitting a normal sleep pod with consistent metadata")
+		appId := "appId-" + common.RandSeq(10)
+		PodName := "normal-sleep-pod"
+		queueName := "root.abc"
+		var testPodConfigs = k8s.TestPodConfig{
+			Name: PodName,
+			Labels: map[string]string{
+				constants.CanonicalLabelApplicationID: appId,
+				constants.LabelApplicationID:          appId,
+				constants.CanonicalLabelQueueName:     queueName,
+				constants.LabelQueueName:              queueName,
+			},
+			Namespace: dev,
+		}
+		pod, err := k8s.InitTestPod(testPodConfigs)
+		Ω(err).NotTo(gomega.HaveOccurred())
+		_, err = kClient.CreatePod(pod, dev)
+		Ω(err).NotTo(gomega.HaveOccurred())
+		err = kClient.WaitForPodRunning(dev, PodName, 30*time.Second)
+		Ω(err).NotTo(gomega.HaveOccurred())
+
+		ginkgo.By("Add conflict queue name to the pod annotation")
+		pod, err = kClient.GetPod(PodName, dev)
+		Ω(err).NotTo(gomega.HaveOccurred())
+
+		_, err = kClient.UpdatePodWithAnnotation(pod, dev, constants.AnnotationQueueName, "other-queue")
+		Ω(err).NotTo(gomega.HaveOccurred())
+
+		ginkgo.By("Restart the scheduler pod")
+		yunikorn.RestartYunikorn(&kClient)
+
+		ginkgo.By("Port-forward scheduler pod after restart")
+		yunikorn.RestorePortForwarding(&kClient)
+
+		ginkgo.By("Check the bounded pod is still in running state")
+		err = kClient.WaitForPodRunning(dev, PodName, 30*time.Second)
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+
+		ginkgo.By("Check the task pod is still registered to YK")
+		restClient = yunikorn.RClient{}
+		err = restClient.WaitForAppStateTransition("default", "root."+dev, appId, "Running", 30)
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		appsInfo, err := restClient.GetAppInfo("default", "root."+dev, appId)
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		gomega.Ω(len(appsInfo.Allocations)).To(gomega.Equal(1))
 	})
 
 	ginkgo.AfterEach(func() {

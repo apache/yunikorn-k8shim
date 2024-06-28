@@ -27,6 +27,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/apache/yunikorn-core/pkg/webservice/dao"
+	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	tests "github.com/apache/yunikorn-k8shim/test/e2e"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
@@ -117,6 +118,73 @@ var _ = ginkgo.Describe("", func() {
 		Ω(len(resMap)).NotTo(gomega.BeZero())
 		Ω(resMap["memory"]).To(gomega.Equal(mem))
 		Ω(resMap["vcore"]).To(gomega.Equal(core))
+	})
+
+	ginkgo.It("Verify_Pod_With_Conflicting_AppId", func() {
+		ginkgo.By("Validate task pod with conflicting appId will be rejected.")
+		PodName := "pod-with-conflicting-app-id"
+		AppIdA := "appId-A-" + common.RandSeq(10)
+		AppIdB := "appId-B-" + common.RandSeq(10)
+
+		var testPodConfigs = k8s.TestPodConfig{
+			Name: PodName,
+			Labels: map[string]string{
+				constants.CanonicalLabelApplicationID: AppIdA,
+				constants.LabelApplicationID:          AppIdA,
+			},
+			Annotations: &k8s.PodAnnotation{
+				Other: map[string]string{
+					constants.AnnotationApplicationID: AppIdB,
+				},
+			},
+			Namespace: dev,
+		}
+		pod, err := k8s.InitTestPod(testPodConfigs)
+		Ω(err).NotTo(HaveOccurred())
+		_, err = kClient.CreatePod(pod, dev)
+		Ω(err).NotTo(HaveOccurred())
+		err = kClient.WaitForPodFailed(dev, PodName, 30*time.Second)
+		Ω(err).NotTo(HaveOccurred())
+		reason, message, getReasonErr := kClient.GetPodFailureReasonAndMessage(PodName, dev)
+		Ω(getReasonErr).NotTo(HaveOccurred())
+
+		Ω(reason).To(gomega.Equal("TaskRejected"))
+		Ω(message).To(gomega.ContainSubstring("PodInconsistentMetadata"))
+	})
+
+	ginkgo.It("Verify_Pod_With_Conflicting_QueueName", func() {
+		ginkgo.By("Validate task pod with conflicting queue name will be rejected.")
+		PodName := "pod-with-conflicting-queue"
+		AppId := "appId-" + common.RandSeq(10)
+		queueNameA := "root.aaa"
+		queueNameB := "root.bbb"
+
+		var testPodConfigs = k8s.TestPodConfig{
+			Name: PodName,
+			Labels: map[string]string{
+				constants.CanonicalLabelApplicationID: AppId,
+				constants.LabelApplicationID:          AppId,
+				constants.CanonicalLabelQueueName:     queueNameA,
+				constants.LabelQueueName:              queueNameA,
+			},
+			Annotations: &k8s.PodAnnotation{
+				Other: map[string]string{
+					constants.AnnotationQueueName: queueNameB,
+				},
+			},
+			Namespace: dev,
+		}
+		pod, err := k8s.InitTestPod(testPodConfigs)
+		Ω(err).NotTo(HaveOccurred())
+		_, err = kClient.CreatePod(pod, dev)
+		Ω(err).NotTo(HaveOccurred())
+		err = kClient.WaitForPodFailed(dev, PodName, 30*time.Second)
+		Ω(err).NotTo(HaveOccurred())
+		reason, message, getReasonErr := kClient.GetPodFailureReasonAndMessage(PodName, dev)
+		Ω(getReasonErr).NotTo(HaveOccurred())
+
+		Ω(reason).To(gomega.Equal("TaskRejected"))
+		Ω(message).To(gomega.ContainSubstring("PodInconsistentMetadata"))
 	})
 
 	ginkgo.AfterEach(func() {

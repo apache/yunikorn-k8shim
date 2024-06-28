@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/looplab/fsm"
@@ -185,6 +186,22 @@ func (task *Task) UpdateTaskPodStatus(pod *v1.Pod) (*v1.Pod, error) {
 
 func (task *Task) UpdateTaskPod(pod *v1.Pod, podMutator func(pod *v1.Pod)) (*v1.Pod, error) {
 	return task.context.apiProvider.GetAPIs().KubeClient.UpdatePod(pod, podMutator)
+}
+
+func (task *Task) failTaskPodWithReasonAndMsg(reason string, msg string) {
+	podCopy := task.pod.DeepCopy()
+	podCopy.Status = v1.PodStatus{
+		Phase:   v1.PodFailed,
+		Reason:  reason,
+		Message: msg,
+	}
+	log.Log(log.ShimCacheTask).Info("setting pod to failed", zap.String("podName", podCopy.Name))
+	pod, err := task.UpdateTaskPodStatus(podCopy)
+	if err != nil {
+		log.Log(log.ShimCacheTask).Error("failed to update task pod status", zap.Error(err))
+	} else {
+		log.Log(log.ShimCacheTask).Info("new pod status", zap.String("status", string(pod.Status.Phase)))
+	}
 }
 
 func (task *Task) isTerminated() bool {
@@ -457,16 +474,19 @@ func (task *Task) postTaskBound() {
 	}
 }
 
-func (task *Task) postTaskRejected() {
-	// currently, once task is rejected by scheduler, we directly move task to failed state.
-	// so this function simply triggers the state transition when it is rejected.
-	// but further, we can introduce retry mechanism if necessary.
+func (task *Task) postTaskRejected(reason string) {
+	// if task is rejected because of conflicting metadata, we should fail the pod with reason
+	if strings.Contains(reason, constants.TaskPodInconsistMetadataFailure) {
+		task.failTaskPodWithReasonAndMsg(constants.TaskRejectedFailure, reason)
+	}
+
+	// move task to failed state.
 	dispatcher.Dispatch(NewFailTaskEvent(task.applicationID, task.taskID,
-		fmt.Sprintf("task %s failed because it is rejected by scheduler", task.alias)))
+		fmt.Sprintf("task %s failed because it is rejected", task.alias)))
 
 	events.GetRecorder().Eventf(task.pod.DeepCopy(), nil,
 		v1.EventTypeWarning, "TaskRejected", "TaskRejected",
-		"Task %s is rejected by the scheduler", task.alias)
+		"Task %s is rejected", task.alias)
 }
 
 // beforeTaskFail releases the allocation or ask from scheduler core
@@ -543,7 +563,56 @@ func (task *Task) releaseAllocation() {
 // some sanity checks before sending task for scheduling,
 // this reduces the scheduling overhead by blocking such
 // request away from the core scheduler.
-func (task *Task) sanityCheckBeforeScheduling() error {
+func (task *Task) sanityCheckBeforeScheduling() (error, bool) {
+	rejectTask := false
+
+	if err := task.checkPodPVCs(); err != nil {
+		return err, rejectTask
+	}
+
+	// only check pod labels and annotations consistency if pod is not already bound
+	// reject the task if pod metadata is conflicting
+	if !utils.PodAlreadyBound(task.pod) {
+		if err := task.checkPodMetadata(); err != nil {
+			rejectTask = true
+			return err, rejectTask
+		}
+	}
+
+	return nil, rejectTask
+}
+
+func (task *Task) checkPodMetadata() error {
+	// check application ID
+	appIdLabelKeys := []string{
+		constants.CanonicalLabelApplicationID,
+		constants.SparkLabelAppID,
+		constants.LabelApplicationID,
+	}
+	appIdAnnotationKeys := []string{
+		constants.AnnotationApplicationID,
+	}
+	if !utils.ValidatePodLabelAnnotationConsistency(task.pod, appIdLabelKeys, appIdAnnotationKeys) {
+		return fmt.Errorf("application ID is not consistently set in pod's labels and annotations. [%s]", constants.TaskPodInconsistMetadataFailure)
+	}
+
+	// check queue name
+	queueLabelKeys := []string{
+		constants.CanonicalLabelQueueName,
+		constants.LabelQueueName,
+	}
+
+	queueAnnotationKeys := []string{
+		constants.AnnotationQueueName,
+	}
+
+	if !utils.ValidatePodLabelAnnotationConsistency(task.pod, queueLabelKeys, queueAnnotationKeys) {
+		return fmt.Errorf("queue is not consistently set in pod's labels and annotations. [%s]", constants.TaskPodInconsistMetadataFailure)
+	}
+	return nil
+}
+
+func (task *Task) checkPodPVCs() error {
 	// Check PVCs used by the pod
 	namespace := task.pod.Namespace
 	manifest := &(task.pod.Spec)
