@@ -1199,7 +1199,7 @@ func (ctx *Context) PublishEvents(eventRecords []*si.EventRecord) {
 				taskID := record.ObjectID
 				if task := ctx.getTask(appID, taskID); task != nil {
 					events.GetRecorder().Eventf(task.GetTaskPod().DeepCopy(), nil,
-						v1.EventTypeNormal, "", "", record.Message)
+						v1.EventTypeNormal, "Informational", "Informational", record.Message)
 				} else {
 					log.Log(log.ShimContext).Warn("task event is not published because task is not found",
 						zap.String("appID", appID),
