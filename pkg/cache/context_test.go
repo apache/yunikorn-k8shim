@@ -50,15 +50,29 @@ import (
 )
 
 const (
-	Host1  = "HOST1"
-	appID1 = "app00001"
-	appID2 = "app00002"
-	appID3 = "app00003"
+	Host1        = "host0001"
+	Host2        = "host0002"
+	appID1       = "app00001"
+	appID2       = "app00002"
+	appID3       = "app00003"
+	appIDUnknown = "app-none-exist"
+
+	uid1       = "uid_0001"
+	uid2       = "uid_0002"
+	uid3       = "uid_0003"
+	uid4       = "uid_0004"
+	uid5       = "uid_0005"
+	uidUnknown = "uid_0000"
 
 	pod1UID      = "task00001"
+	pod2UID      = "task00002"
 	taskUID1     = "task00001"
+	taskUID2     = "task00002"
+	taskUID3     = "task00003"
+	taskUID4     = "task00004"
 	pod1Name     = "my-pod-1"
 	fakeNodeName = "fake-node"
+	APIVersion1  = "v1"
 )
 
 var (
@@ -122,15 +136,15 @@ func TestAddNodes(t *testing.T) {
 
 	node := v1.Node{
 		ObjectMeta: apis.ObjectMeta{
-			Name:      "host0001",
+			Name:      Host1,
 			Namespace: "default",
-			UID:       "uid_0001",
+			UID:       uid1,
 		},
 	}
 
 	ctx.addNode(&node)
 
-	assert.Equal(t, true, ctx.schedulerCache.GetNode("host0001") != nil)
+	assert.Equal(t, true, ctx.schedulerCache.GetNode(Host1) != nil)
 }
 
 func TestUpdateNodes(t *testing.T) {
@@ -154,9 +168,9 @@ func TestUpdateNodes(t *testing.T) {
 	oldNodeResource[v1.ResourceName("cpu")] = *resource.NewQuantity(2, resource.DecimalSI)
 	oldNode := v1.Node{
 		ObjectMeta: apis.ObjectMeta{
-			Name:      "host0001",
+			Name:      Host1,
 			Namespace: "default",
-			UID:       "uid_0001",
+			UID:       uid1,
 		},
 		Status: v1.NodeStatus{
 			Allocatable: oldNodeResource,
@@ -168,9 +182,9 @@ func TestUpdateNodes(t *testing.T) {
 	newNodeResource[v1.ResourceName("cpu")] = *resource.NewQuantity(4, resource.DecimalSI)
 	newNode := v1.Node{
 		ObjectMeta: apis.ObjectMeta{
-			Name:      "host0001",
+			Name:      Host1,
 			Namespace: "default",
-			UID:       "uid_0001",
+			UID:       uid1,
 		},
 		Status: v1.NodeStatus{
 			Allocatable: newNodeResource,
@@ -181,7 +195,7 @@ func TestUpdateNodes(t *testing.T) {
 	ctx.updateNode(&oldNode, &newNode)
 
 	_, capacity, _, ok := ctx.schedulerCache.UpdateOccupiedResource(
-		"host0001", "n/a", "n/a", nil, schedulercache.AddOccupiedResource)
+		Host1, "n/a", "n/a", nil, schedulercache.AddOccupiedResource)
 	assert.Assert(t, ok, "unable to retrieve node capacity")
 	assert.Equal(t, int64(2048*1000*1000), capacity.Resources[siCommon.Memory].Value)
 	assert.Equal(t, int64(4000), capacity.Resources[siCommon.CPU].Value)
@@ -205,23 +219,23 @@ func TestDeleteNodes(t *testing.T) {
 
 	node := v1.Node{
 		ObjectMeta: apis.ObjectMeta{
-			Name:      "host0001",
+			Name:      Host1,
 			Namespace: "default",
-			UID:       "uid_0001",
+			UID:       uid1,
 		},
 	}
 
 	ctx.addNode(&node)
-	assert.Equal(t, true, ctx.schedulerCache.GetNode("host0001") != nil)
+	assert.Equal(t, true, ctx.schedulerCache.GetNode(Host1) != nil)
 
 	ctx.deleteNode(&node)
-	assert.Equal(t, true, ctx.schedulerCache.GetNode("host0001") == nil)
+	assert.Equal(t, true, ctx.schedulerCache.GetNode(Host1) == nil)
 
 	ctx.addNode(&node)
-	assert.Equal(t, true, ctx.schedulerCache.GetNode("host0001") != nil)
+	assert.Equal(t, true, ctx.schedulerCache.GetNode(Host1) != nil)
 
-	ctx.deleteNode(cache.DeletedFinalStateUnknown{Key: "UID-00001", Obj: &node})
-	assert.Equal(t, true, ctx.schedulerCache.GetNode("host0001") == nil)
+	ctx.deleteNode(cache.DeletedFinalStateUnknown{Key: uid1, Obj: &node})
+	assert.Equal(t, true, ctx.schedulerCache.GetNode(Host1) == nil)
 }
 
 func TestAddApplications(t *testing.T) {
@@ -230,21 +244,21 @@ func TestAddApplications(t *testing.T) {
 	// add a new application
 	context.AddApplication(&AddApplicationRequest{
 		Metadata: ApplicationMetadata{
-			ApplicationID: "app00001",
+			ApplicationID: appID1,
 			QueueName:     "root.a",
 			User:          "test-user",
 			Tags:          nil,
 		},
 	})
 	assert.Equal(t, len(context.applications), 1)
-	assert.Assert(t, context.applications["app00001"] != nil)
-	assert.Equal(t, context.applications["app00001"].GetApplicationState(), ApplicationStates().New)
-	assert.Equal(t, len(context.applications["app00001"].GetPendingTasks()), 0)
+	assert.Assert(t, context.applications[appID1] != nil)
+	assert.Equal(t, context.applications[appID1].GetApplicationState(), ApplicationStates().New)
+	assert.Equal(t, len(context.applications[appID1].GetPendingTasks()), 0)
 
 	// add an app but app already exists
 	app := context.AddApplication(&AddApplicationRequest{
 		Metadata: ApplicationMetadata{
-			ApplicationID: "app00001",
+			ApplicationID: appID1,
 			QueueName:     "root.other",
 			User:          "test-user",
 			Tags:          nil,
@@ -259,7 +273,7 @@ func TestGetApplication(t *testing.T) {
 	context := initContextForTest()
 	context.AddApplication(&AddApplicationRequest{
 		Metadata: ApplicationMetadata{
-			ApplicationID: "app00001",
+			ApplicationID: appID1,
 			QueueName:     "root.a",
 			User:          "test-user",
 			Tags:          nil,
@@ -267,27 +281,27 @@ func TestGetApplication(t *testing.T) {
 	})
 	context.AddApplication(&AddApplicationRequest{
 		Metadata: ApplicationMetadata{
-			ApplicationID: "app00002",
+			ApplicationID: appID2,
 			QueueName:     "root.b",
 			User:          "test-user",
 			Tags:          nil,
 		},
 	})
 
-	app := context.GetApplication("app00001")
+	app := context.GetApplication(appID1)
 	assert.Assert(t, app != nil)
-	assert.Equal(t, app.GetApplicationID(), "app00001")
+	assert.Equal(t, app.GetApplicationID(), appID1)
 	assert.Equal(t, app.GetQueue(), "root.a")
 	assert.Equal(t, app.GetUser(), "test-user")
 
-	app = context.GetApplication("app00002")
+	app = context.GetApplication(appID2)
 	assert.Assert(t, app != nil)
-	assert.Equal(t, app.GetApplicationID(), "app00002")
+	assert.Equal(t, app.GetApplicationID(), appID2)
 	assert.Equal(t, app.GetQueue(), "root.b")
 	assert.Equal(t, app.GetUser(), "test-user")
 
 	// get a non-exist application
-	app = context.GetApplication("app-none-exist")
+	app = context.GetApplication(appIDUnknown)
 	assert.Assert(t, app == nil)
 }
 
@@ -307,7 +321,7 @@ func TestRemoveApplication(t *testing.T) {
 		},
 		ObjectMeta: apis.ObjectMeta{
 			Name: "remove-test-00001",
-			UID:  "UID-00001",
+			UID:  uid1,
 		},
 	}
 	pod2 := &v1.Pod{
@@ -317,7 +331,7 @@ func TestRemoveApplication(t *testing.T) {
 		},
 		ObjectMeta: apis.ObjectMeta{
 			Name: "remove-test-00002",
-			UID:  "UID-00002",
+			UID:  uid2,
 		},
 	}
 	// New task to application 1
@@ -369,7 +383,7 @@ func TestRemoveApplicationInternal(t *testing.T) {
 	assert.Equal(t, len(context.applications), 2)
 
 	// remove non-exist app
-	context.RemoveApplicationInternal("app00003")
+	context.RemoveApplicationInternal(appID3)
 	assert.Equal(t, len(context.applications), 2)
 
 	// remove app1
@@ -395,7 +409,7 @@ func TestAddPod(t *testing.T) {
 		},
 		ObjectMeta: apis.ObjectMeta{
 			Name: "yunikorn-test-00001",
-			UID:  "UID-00001",
+			UID:  uid1,
 			Annotations: map[string]string{
 				constants.AnnotationApplicationID: "yunikorn-test-00001",
 			},
@@ -409,7 +423,7 @@ func TestAddPod(t *testing.T) {
 		},
 		ObjectMeta: apis.ObjectMeta{
 			Name: "yunikorn-test-00002",
-			UID:  "UID-00002",
+			UID:  uid2,
 			Annotations: map[string]string{
 				constants.AnnotationApplicationID: "yunikorn-test-00002",
 			},
@@ -424,9 +438,9 @@ func TestAddPod(t *testing.T) {
 	context.AddPod(pod1) // should be added
 	context.AddPod(pod2) // should skip as pod is terminated
 
-	pod := context.schedulerCache.GetPod("UID-00001")
+	pod := context.schedulerCache.GetPod(uid1)
 	assert.Check(t, pod != nil, "active pod was not added")
-	pod = context.schedulerCache.GetPod("UID-00002")
+	pod = context.schedulerCache.GetPod(uid2)
 	assert.Check(t, pod == nil, "terminated pod was added")
 }
 
@@ -440,7 +454,7 @@ func TestUpdatePod(t *testing.T) {
 		},
 		ObjectMeta: apis.ObjectMeta{
 			Name: "yunikorn-test-00001",
-			UID:  "UID-00001",
+			UID:  uid1,
 			Annotations: map[string]string{
 				constants.AnnotationApplicationID: "yunikorn-test-00001",
 				"test.state":                      "new",
@@ -455,7 +469,7 @@ func TestUpdatePod(t *testing.T) {
 		},
 		ObjectMeta: apis.ObjectMeta{
 			Name: "yunikorn-test-00001",
-			UID:  "UID-00001",
+			UID:  uid1,
 			Annotations: map[string]string{
 				constants.AnnotationApplicationID: "yunikorn-test-00001",
 				"test.state":                      "updated",
@@ -470,7 +484,7 @@ func TestUpdatePod(t *testing.T) {
 		},
 		ObjectMeta: apis.ObjectMeta{
 			Name: "yunikorn-test-00001",
-			UID:  "UID-00001",
+			UID:  uid1,
 			Annotations: map[string]string{
 				constants.AnnotationApplicationID: "yunikorn-test-00001",
 			},
@@ -482,7 +496,7 @@ func TestUpdatePod(t *testing.T) {
 	}
 
 	context.AddPod(pod1)
-	pod := context.schedulerCache.GetPod("UID-00001")
+	pod := context.schedulerCache.GetPod(uid1)
 	assert.Assert(t, pod != nil, "pod1 is not present after adding")
 
 	// these should not fail, but are no-ops
@@ -492,12 +506,12 @@ func TestUpdatePod(t *testing.T) {
 
 	// ensure a terminated pod is removed
 	context.UpdatePod(pod1, pod3)
-	pod = context.schedulerCache.GetPod("UID-00001")
+	pod = context.schedulerCache.GetPod(uid1)
 	assert.Check(t, pod == nil, "pod still found after termination")
 
 	// ensure a non-terminated pod is updated
 	context.UpdatePod(pod1, pod2)
-	found := context.schedulerCache.GetPod("UID-00001")
+	found := context.schedulerCache.GetPod(uid1)
 	if assert.Check(t, found != nil, "pod not found after update") {
 		assert.Check(t, found.GetAnnotations()["test.state"] == "updated", "pod state not updated")
 	}
@@ -513,7 +527,7 @@ func TestDeletePod(t *testing.T) {
 		},
 		ObjectMeta: apis.ObjectMeta{
 			Name: "yunikorn-test-00001",
-			UID:  "UID-00001",
+			UID:  uid1,
 			Annotations: map[string]string{
 				constants.AnnotationApplicationID: "yunikorn-test-00001",
 			},
@@ -527,7 +541,7 @@ func TestDeletePod(t *testing.T) {
 		},
 		ObjectMeta: apis.ObjectMeta{
 			Name: "yunikorn-test-00002",
-			UID:  "UID-00002",
+			UID:  uid2,
 			Annotations: map[string]string{
 				constants.AnnotationApplicationID: "yunikorn-test-00002",
 			},
@@ -537,21 +551,21 @@ func TestDeletePod(t *testing.T) {
 
 	context.AddPod(pod1)
 	context.AddPod(pod2)
-	pod := context.schedulerCache.GetPod("UID-00001")
+	pod := context.schedulerCache.GetPod(uid1)
 	assert.Assert(t, pod != nil, "pod1 is not present after adding")
-	pod = context.schedulerCache.GetPod("UID-00002")
+	pod = context.schedulerCache.GetPod(uid2)
 	assert.Assert(t, pod != nil, "pod2 is not present after adding")
 
 	// these should not fail, but here for completeness
 	context.DeletePod(nil)
-	context.DeletePod(cache.DeletedFinalStateUnknown{Key: "UID-00000", Obj: nil})
+	context.DeletePod(cache.DeletedFinalStateUnknown{Key: uidUnknown, Obj: nil})
 
 	context.DeletePod(pod1)
-	pod = context.schedulerCache.GetPod("UID-00001")
+	pod = context.schedulerCache.GetPod(uid1)
 	assert.Check(t, pod == nil, "pod1 is still present")
 
-	context.DeletePod(cache.DeletedFinalStateUnknown{Key: "UID-00002", Obj: pod2})
-	pod = context.schedulerCache.GetPod("UID-00002")
+	context.DeletePod(cache.DeletedFinalStateUnknown{Key: uid2, Obj: pod2})
+	pod = context.schedulerCache.GetPod(uid2)
 	assert.Check(t, pod == nil, "pod2 is still present")
 }
 
@@ -797,62 +811,62 @@ func TestAddTask(t *testing.T) {
 	// add a new application
 	context.AddApplication(&AddApplicationRequest{
 		Metadata: ApplicationMetadata{
-			ApplicationID: "app00001",
+			ApplicationID: appID1,
 			QueueName:     "root.a",
 			User:          "test-user",
 			Tags:          nil,
 		},
 	})
 	assert.Equal(t, len(context.applications), 1)
-	assert.Assert(t, context.applications["app00001"] != nil)
-	assert.Equal(t, context.applications["app00001"].GetApplicationState(), ApplicationStates().New)
-	assert.Equal(t, len(context.applications["app00001"].GetPendingTasks()), 0)
+	assert.Assert(t, context.applications[appID1] != nil)
+	assert.Equal(t, context.applications[appID1].GetApplicationState(), ApplicationStates().New)
+	assert.Equal(t, len(context.applications[appID1].GetPendingTasks()), 0)
 
 	// add a tasks to the existing application
 	task := context.AddTask(&AddTaskRequest{
 		Metadata: TaskMetadata{
-			ApplicationID: "app00001",
-			TaskID:        "task00001",
+			ApplicationID: appID1,
+			TaskID:        taskUID1,
 			Pod:           &v1.Pod{},
 		},
 	})
 	assert.Assert(t, task != nil)
-	assert.Equal(t, task.GetTaskID(), "task00001")
+	assert.Equal(t, task.GetTaskID(), taskUID1)
 
 	// add another task
 	task = context.AddTask(&AddTaskRequest{
 		Metadata: TaskMetadata{
-			ApplicationID: "app00001",
-			TaskID:        "task00002",
+			ApplicationID: appID1,
+			TaskID:        taskUID2,
 			Pod:           &v1.Pod{},
 		},
 	})
 	assert.Assert(t, task != nil)
-	assert.Equal(t, task.GetTaskID(), "task00002")
+	assert.Equal(t, task.GetTaskID(), taskUID2)
 
 	// add a task with dup taskID
 	task = context.AddTask(&AddTaskRequest{
 		Metadata: TaskMetadata{
-			ApplicationID: "app00001",
-			TaskID:        "task00002",
+			ApplicationID: appID1,
+			TaskID:        taskUID2,
 			Pod:           &v1.Pod{},
 		},
 	})
 	assert.Assert(t, task != nil)
-	assert.Equal(t, task.GetTaskID(), "task00002")
+	assert.Equal(t, task.GetTaskID(), taskUID2)
 
 	// add a task without app's appearance
 	task = context.AddTask(&AddTaskRequest{
 		Metadata: TaskMetadata{
-			ApplicationID: "app-non-exist",
-			TaskID:        "task00003",
+			ApplicationID: appIDUnknown,
+			TaskID:        taskUID1,
 			Pod:           &v1.Pod{},
 		},
 	})
 	assert.Assert(t, task == nil)
 
 	// verify number of tasks in cache
-	assert.Equal(t, len(context.applications["app00001"].GetNewTasks()), 2)
+	assert.Equal(t, len(context.applications[appID1].GetNewTasks()), 2)
 }
 
 //nolint:funlen
@@ -880,15 +894,9 @@ func TestRecoverTask(t *testing.T) {
 	})
 
 	const (
-		appID        = "app00001"
 		queue        = "root.a"
 		podNamespace = "yk"
 		user         = "test-user"
-		taskUID1     = "task00001"
-		taskUID2     = "task00002"
-		taskUID3     = "task00003"
-		taskUID4     = "task00004"
-		fakeNodeName = "fake-node"
 	)
 
 	// add a new application
@@ -1020,14 +1028,9 @@ func TestTaskReleaseAfterRecovery(t *testing.T) {
 		return nil
 	})
 
-	const appID = "app00001"
 	const queue = "root.a"
-	const pod1UID = "task00001"
-	const pod1Name = "my-pod-1"
-	const pod2UID = "task00002"
 	const pod2Name = "my-pod-2"
 	const namespace = "yk"
-	const fakeNodeName = "fake-node"
 
 	// do app recovery, first recover app, then tasks
 	// add application to recovery
@@ -1047,13 +1050,13 @@ func TestTaskReleaseAfterRecovery(t *testing.T) {
 	task0 := context.AddTask(&AddTaskRequest{
 		Metadata: TaskMetadata{
 			ApplicationID: appID,
-			TaskID:        pod1UID,
+			TaskID:        taskUID1,
 			Pod:           newPodHelper(pod1Name, namespace, pod1UID, fakeNodeName, appID, v1.PodRunning),
 		},
 	})
 
 	assert.Assert(t, task0 != nil)
-	assert.Equal(t, task0.GetTaskID(), pod1UID)
+	assert.Equal(t, task0.GetTaskID(), taskUID1)
 
 	app.SetState("Running")
 	app.Schedule()
@@ -1067,7 +1070,7 @@ func TestTaskReleaseAfterRecovery(t *testing.T) {
 	task1 := context.AddTask(&AddTaskRequest{
 		Metadata: TaskMetadata{
 			ApplicationID: appID,
-			TaskID:        pod2UID,
+			TaskID:        taskUID2,
 			Pod:           newPodHelper(pod2Name, namespace, pod2UID, fakeNodeName, appID, v1.PodRunning),
 		},
 	})
@@ -1110,7 +1113,7 @@ func TestRemoveTask(t *testing.T) {
 	// add a new application
 	context.AddApplication(&AddApplicationRequest{
 		Metadata: ApplicationMetadata{
-			ApplicationID: "app00001",
+			ApplicationID: appID1,
 			QueueName:     "root.a",
 			User:          "test-user",
 			Tags:          nil,
@@ -1120,42 +1123,42 @@ func TestRemoveTask(t *testing.T) {
 	// add 2 tasks
 	context.AddTask(&AddTaskRequest{
 		Metadata: TaskMetadata{
-			ApplicationID: "app00001",
-			TaskID:        "task00001",
+			ApplicationID: appID1,
+			TaskID:        taskUID1,
 			Pod:           &v1.Pod{},
 		},
 	})
 	context.AddTask(&AddTaskRequest{
 		Metadata: TaskMetadata{
-			ApplicationID: "app00001",
-			TaskID:        "task00002",
+			ApplicationID: appID1,
+			TaskID:        taskUID2,
 			Pod:           &v1.Pod{},
 		},
 	})
 
 	// verify app and tasks
-	app := context.GetApplication("app00001")
+	app := context.GetApplication(appID1)
 	assert.Assert(t, app != nil)
 
 	// now app should have 2 tasks
 	assert.Equal(t, len(app.GetNewTasks()), 2)
 
 	// try to remove a non-exist task
-	context.RemoveTask("app00001", "non-exist-task")
+	context.RemoveTask(appID1, "non-exist-task")
 	assert.Equal(t, len(app.GetNewTasks()), 2)
 
 	// try to remove a task from non-exist application
-	context.RemoveTask("app-non-exist", "task00001")
+	context.RemoveTask(appIDUnknown, taskUID1)
 	assert.Equal(t, len(app.GetNewTasks()), 2)
 
 	// this should success
-	context.RemoveTask("app00001", "task00001")
+	context.RemoveTask(appID1, taskUID1)
 
 	// now only 1 task left
 	assert.Equal(t, len(app.GetNewTasks()), 1)
 
 	// this should success
-	context.RemoveTask("app00001", "task00002")
+	context.RemoveTask(appID1, taskUID2)
 
 	// now there is no task left
 	assert.Equal(t, len(app.GetNewTasks()), 0)
@@ -1177,7 +1180,7 @@ func TestGetTask(t *testing.T) {
 		},
 		ObjectMeta: apis.ObjectMeta{
 			Name: "getTask-test-00001",
-			UID:  "UID-00001",
+			UID:  uid1,
 		},
 	}
 	pod2 := &v1.Pod{
@@ -1187,7 +1190,7 @@ func TestGetTask(t *testing.T) {
 		},
 		ObjectMeta: apis.ObjectMeta{
 			Name: "getTask-test-00002",
-			UID:  "UID-00002",
+			UID:  uid2,
 		},
 	}
 	// New task to application 1
@@ -1204,7 +1207,7 @@ func TestGetTask(t *testing.T) {
 	task := context.getTask(appID1, "task01")
 	assert.Assert(t, task == task1)
 
-	task = context.getTask("non_existing_appID", "task01")
+	task = context.getTask(appIDUnknown, "task01")
 	assert.Assert(t, task == nil)
 
 	task = context.getTask(appID1, "non_existing_taskID")
@@ -1267,9 +1270,9 @@ func TestNodeEventPublishedCorrectly(t *testing.T) {
 
 	node := v1.Node{
 		ObjectMeta: apis.ObjectMeta{
-			Name:      "host0001",
+			Name:      Host1,
 			Namespace: "default",
-			UID:       "uid_0001",
+			UID:       uid1,
 		},
 	}
 	context.addNode(&node)
@@ -1282,7 +1285,7 @@ func TestNodeEventPublishedCorrectly(t *testing.T) {
 		Type:              si.EventRecord_NODE,
 		EventChangeType:   si.EventRecord_ADD,
 		EventChangeDetail: si.EventRecord_DETAILS_NONE,
-		ObjectID:          "host0001",
+		ObjectID:          Host1,
 		Message:           message,
 	})
 	context.PublishEvents(eventRecords)
@@ -1328,9 +1331,9 @@ func TestFilteredEventsNotPublished(t *testing.T) {
 
 	node := v1.Node{
 		ObjectMeta: apis.ObjectMeta{
-			Name:      "host0001",
+			Name:      Host1,
 			Namespace: "default",
-			UID:       "uid_0001",
+			UID:       uid1,
 		},
 	}
 	context.addNode(&node)
@@ -1342,28 +1345,28 @@ func TestFilteredEventsNotPublished(t *testing.T) {
 		Type:              si.EventRecord_NODE,
 		EventChangeType:   si.EventRecord_SET,
 		EventChangeDetail: si.EventRecord_NODE_SCHEDULABLE,
-		ObjectID:          "host0001",
+		ObjectID:          Host1,
 		Message:           "",
 	}
 	eventRecords[1] = &si.EventRecord{
 		Type:              si.EventRecord_NODE,
 		EventChangeType:   si.EventRecord_SET,
 		EventChangeDetail: si.EventRecord_NODE_OCCUPIED,
-		ObjectID:          "host0001",
+		ObjectID:          Host1,
 		Message:           "",
 	}
 	eventRecords[2] = &si.EventRecord{
 		Type:              si.EventRecord_NODE,
 		EventChangeType:   si.EventRecord_SET,
 		EventChangeDetail: si.EventRecord_NODE_CAPACITY,
-		ObjectID:          "host0001",
+		ObjectID:          Host1,
 		Message:           "",
 	}
 	eventRecords[3] = &si.EventRecord{
 		Type:              si.EventRecord_NODE,
 		EventChangeType:   si.EventRecord_ADD,
 		EventChangeDetail: si.EventRecord_NODE_ALLOC,
-		ObjectID:          "host0001",
+		ObjectID:          Host1,
 		Message:           "",
 	}
 	eventRecords[4] = &si.EventRecord{
@@ -1516,7 +1519,7 @@ func TestAddApplicationsWithTags(t *testing.T) {
 	// add application with empty namespace
 	context.AddApplication(&AddApplicationRequest{
 		Metadata: ApplicationMetadata{
-			ApplicationID: "app00001",
+			ApplicationID: appID1,
 			QueueName:     "root.a",
 			User:          "test-user",
 			Tags: map[string]string{
@@ -1528,7 +1531,7 @@ func TestAddApplicationsWithTags(t *testing.T) {
 	// add application with non-existing namespace
 	context.AddApplication(&AddApplicationRequest{
 		Metadata: ApplicationMetadata{
-			ApplicationID: "app00002",
+			ApplicationID: appID2,
 			QueueName:     "root.a",
 			User:          "test-user",
 			Tags: map[string]string{
@@ -1540,7 +1543,7 @@ func TestAddApplicationsWithTags(t *testing.T) {
 	// add application with unannotated namespace
 	context.AddApplication(&AddApplicationRequest{
 		Metadata: ApplicationMetadata{
-			ApplicationID: "app00003",
+			ApplicationID: appID3,
 			QueueName:     "root.a",
 			User:          "test-user",
 			Tags: map[string]string{
@@ -1652,18 +1655,18 @@ func TestPendingPodAllocations(t *testing.T) {
 
 	node1 := v1.Node{
 		ObjectMeta: apis.ObjectMeta{
-			Name:      "host0001",
+			Name:      Host1,
 			Namespace: "default",
-			UID:       "uid_0001",
+			UID:       uid1,
 		},
 	}
 	context.addNode(&node1)
 
 	node2 := v1.Node{
 		ObjectMeta: apis.ObjectMeta{
-			Name:      "host0002",
+			Name:      Host2,
 			Namespace: "default",
-			UID:       "uid_0002",
+			UID:       uid2,
 		},
 	}
 	context.addNode(&node2)
@@ -1671,7 +1674,7 @@ func TestPendingPodAllocations(t *testing.T) {
 	// add a new application
 	context.AddApplication(&AddApplicationRequest{
 		Metadata: ApplicationMetadata{
-			ApplicationID: "app00001",
+			ApplicationID: appID1,
 			QueueName:     "root.a",
 			User:          "test-user",
 			Tags:          nil,
@@ -1685,63 +1688,63 @@ func TestPendingPodAllocations(t *testing.T) {
 		},
 		ObjectMeta: apis.ObjectMeta{
 			Name: "test-00001",
-			UID:  "UID-00001",
+			UID:  uid1,
 		},
 	}
 
 	// add a tasks to the existing application
 	task := context.AddTask(&AddTaskRequest{
 		Metadata: TaskMetadata{
-			ApplicationID: "app00001",
-			TaskID:        "task00001",
+			ApplicationID: appID1,
+			TaskID:        taskUID1,
 			Pod:           pod,
 		},
 	})
 	assert.Assert(t, task != nil, "task was nil")
 
 	// add the allocation
-	context.AddPendingPodAllocation("UID-00001", "host0001")
+	context.AddPendingPodAllocation(uid1, Host1)
 
 	// validate that the pending allocation matches
-	nodeID, ok := context.GetPendingPodAllocation("UID-00001")
+	nodeID, ok := context.GetPendingPodAllocation(uid1)
 	if !ok {
 		t.Fatalf("no pending pod allocation found")
 	}
-	assert.Equal(t, nodeID, "host0001", "wrong host")
+	assert.Equal(t, nodeID, Host1, "wrong host")
 
 	// validate that there is not an in-progress allocation
-	if _, ok = context.GetInProgressPodAllocation("UID-00001"); ok {
+	if _, ok = context.GetInProgressPodAllocation(uid1); ok {
 		t.Fatalf("in-progress allocation exists when it should be pending")
 	}
 
-	if context.StartPodAllocation("UID-00001", "host0002") {
+	if context.StartPodAllocation(uid1, Host2) {
 		t.Fatalf("attempt to start pod allocation on wrong node succeeded")
 	}
 
-	if !context.StartPodAllocation("UID-00001", "host0001") {
+	if !context.StartPodAllocation(uid1, Host1) {
 		t.Fatalf("attempt to start pod allocation on correct node failed")
 	}
 
-	if _, ok = context.GetPendingPodAllocation("UID-00001"); ok {
+	if _, ok = context.GetPendingPodAllocation(uid1); ok {
 		t.Fatalf("pending pod allocation still exists after transition to in-progress")
 	}
 
-	nodeID, ok = context.GetInProgressPodAllocation("UID-00001")
+	nodeID, ok = context.GetInProgressPodAllocation(uid1)
 	if !ok {
 		t.Fatalf("in-progress allocation does not exist")
 	}
-	assert.Equal(t, nodeID, "host0001", "wrong host")
+	assert.Equal(t, nodeID, Host1, "wrong host")
 
-	context.RemovePodAllocation("UID-00001")
-	if _, ok = context.GetInProgressPodAllocation("UID-00001"); ok {
+	context.RemovePodAllocation(uid1)
+	if _, ok = context.GetInProgressPodAllocation(uid1); ok {
 		t.Fatalf("in-progress pod allocation still exists after removal")
 	}
 
 	// re-add to validate pending pod removal
-	context.AddPendingPodAllocation("UID-00001", "host0001")
-	context.RemovePodAllocation("UID-00001")
+	context.AddPendingPodAllocation(uid1, Host1)
+	context.RemovePodAllocation(uid1)
 
-	if _, ok = context.GetPendingPodAllocation("UID-00001"); ok {
+	if _, ok = context.GetPendingPodAllocation(uid1); ok {
 		t.Fatalf("pending pod allocation still exists after removal")
 	}
 }
@@ -1757,7 +1760,7 @@ func TestGetStateDump(t *testing.T) {
 		ObjectMeta: apis.ObjectMeta{
 			Namespace: "default",
 			Name:      "yunikorn-test-00001",
-			UID:       "UID-00001",
+			UID:       uid1,
 			Annotations: map[string]string{
 				constants.AnnotationApplicationID: "yunikorn-test-00001",
 			},
@@ -1900,7 +1903,7 @@ func TestCtxUpdatePodCondition(t *testing.T) {
 	context := initContextForTest()
 	context.AddApplication(&AddApplicationRequest{
 		Metadata: ApplicationMetadata{
-			ApplicationID: "app00001",
+			ApplicationID: appID1,
 			QueueName:     "root.a",
 			User:          "test-user",
 			Tags:          nil,
@@ -1908,8 +1911,8 @@ func TestCtxUpdatePodCondition(t *testing.T) {
 	})
 	task := context.AddTask(&AddTaskRequest{ //nolint:errcheck
 		Metadata: TaskMetadata{
-			ApplicationID: "app00001",
-			TaskID:        "task00001",
+			ApplicationID: appID1,
+			TaskID:        taskUID1,
 			Pod:           pod,
 		},
 	})
@@ -1940,7 +1943,7 @@ func TestGetExistingAllocation(t *testing.T) {
 			Namespace: "default",
 			UID:       "UID-POD-00001",
 			Labels: map[string]string{
-				"applicationId": "app00001",
+				"applicationId": appID1,
 				"queue":         "root.a",
 			},
 		},
@@ -1955,7 +1958,7 @@ func TestGetExistingAllocation(t *testing.T) {
 
 	// verifies the existing allocation is correctly returned
 	alloc := getExistingAllocation(pod)
-	assert.Equal(t, alloc.ApplicationID, "app00001")
+	assert.Equal(t, alloc.ApplicationID, appID1)
 	assert.Equal(t, alloc.AllocationKey, string(pod.UID))
 	assert.Equal(t, alloc.NodeID, "allocated-node")
 }
@@ -2109,7 +2112,7 @@ func TestTaskRemoveOnCompletion(t *testing.T) {
 	task := context.AddTask(&AddTaskRequest{
 		Metadata: TaskMetadata{
 			ApplicationID: appID,
-			TaskID:        pod1UID,
+			TaskID:        taskUID1,
 			Pod:           newPodHelper(pod1Name, namespace, pod1UID, fakeNodeName, appID, v1.PodRunning),
 		},
 	})
@@ -2238,7 +2241,7 @@ func TestOriginatorPodAfterRestart(t *testing.T) {
 		APIVersion:         "v1",
 		Kind:               "Pod",
 		Name:               "originator-01",
-		UID:                "UID-00001",
+		UID:                uid1,
 		Controller:         &controller,
 		BlockOwnerDeletion: &blockOwnerDeletion,
 	}
@@ -2252,7 +2255,7 @@ func TestOriginatorPodAfterRestart(t *testing.T) {
 		},
 		ObjectMeta: apis.ObjectMeta{
 			Name: "originator-01",
-			UID:  "UID-00001",
+			UID:  uid1,
 			Labels: map[string]string{
 				"applicationId": "spark-app-01",
 				"queue":         "root.a",
@@ -2309,7 +2312,7 @@ func TestOriginatorPodAfterRestart(t *testing.T) {
 	context.AddPod(pod1)
 
 	app := context.getApplication("spark-app-01")
-	assert.Equal(t, app.originatingTask.taskID, "UID-00001")
+	assert.Equal(t, app.originatingTask.taskID, uid1)
 	assert.Equal(t, len(app.GetPlaceHolderTasks()), 2)
 	assert.Equal(t, len(app.GetAllocatedTasks()), 0)
 }
@@ -2345,7 +2348,7 @@ func initAssumePodTest(binder *test.VolumeBinderMock) *Context {
 		ObjectMeta: apis.ObjectMeta{
 			Name:      fakeNodeName,
 			Namespace: "default",
-			UID:       "uid_0001",
+			UID:       uid1,
 		},
 	}
 	context.addNode(&node)
@@ -2383,7 +2386,7 @@ func nodeForTest(nodeID, memory, cpu string) *v1.Node {
 		ObjectMeta: apis.ObjectMeta{
 			Name:      nodeID,
 			Namespace: "default",
-			UID:       "uid_0001",
+			UID:       uid1,
 		},
 		Spec: v1.NodeSpec{},
 		Status: v1.NodeStatus{
@@ -2433,10 +2436,10 @@ func TestRegisterPods(t *testing.T) {
 	default:
 		t.Fatalf("api type not recognized")
 	}
-	pod1 := newPodHelper("yunikorn-test-00001", namespace, "UID-00001", "node-1", "yunikorn-test-00001", v1.PodRunning)
-	pod2 := newPodHelper("yunikorn-test-00002", namespace, "UID-00002", "node-1", "yunikorn-test-00002", v1.PodRunning)
-	pod3 := newPodHelper("yunikorn-test-00003", namespace, "UID-00003", "node-1", "yunikorn-test-00003", v1.PodSucceeded)
-	pod4 := newPodHelper("yunikorn-test-00004", namespace, "UID-00004", "node-1", "yunikorn-test-00004", v1.PodRunning)
+	pod1 := newPodHelper("yunikorn-test-00001", namespace, uid1, "node-1", "yunikorn-test-00001", v1.PodRunning)
+	pod2 := newPodHelper("yunikorn-test-00002", namespace, uid2, "node-1", "yunikorn-test-00002", v1.PodRunning)
+	pod3 := newPodHelper("yunikorn-test-00003", namespace, uid3, "node-1", "yunikorn-test-00003", v1.PodSucceeded)
+	pod4 := newPodHelper("yunikorn-test-00004", namespace, uid4, "node-1", "yunikorn-test-00004", v1.PodRunning)
 
 	api.GetPodListerMock().AddPod(pod1)
 	api.GetPodListerMock().AddPod(pod2)
@@ -2454,7 +2457,7 @@ func TestRegisterPods(t *testing.T) {
 
 	// prep for finalising the pods
 	// new pod added (should be ignored)
-	pod5 := newPodHelper("yunikorn-test-00005", namespace, "UID-00005", "node-1", "yunikorn-test-00005", v1.PodRunning)
+	pod5 := newPodHelper("yunikorn-test-00005", namespace, uid5, "node-1", "yunikorn-test-00005", v1.PodRunning)
 	api.GetPodListerMock().AddPod(pod5)
 	// update pod 1 is now marked as terminated (will be removed)
 	pod1.Status = v1.PodStatus{
