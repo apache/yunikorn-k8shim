@@ -21,6 +21,7 @@ package user_group_limit_test
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"runtime"
 	"time"
 
@@ -564,6 +565,80 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 		// usergroup2 can't deploy the second sleep pod to root.sandbox1
 		deploySleepPod(usergroup2, sandboxQueue1, false, "because final application count is more than wildcard maxapplications")
 		checkUsage(userTestType, user2, sandboxQueue1, []*v1.Pod{usergroup2Sandbox1Pod1})
+	})
+
+	ginkgo.It("Verify_maxresources_with_a_valid_user_name_and_specific_user_limit", func() {
+		ginkgo.By("Update config")
+		validUser := "user_Test-a_b_#_c_#_d_/_e@dom:ain.com"
+		// The wait wrapper still can't fully guarantee that the config in AdmissionController has been updated.
+		yunikorn.WaitForAdmissionControllerRefreshConfAfterAction(func() {
+			yunikorn.UpdateCustomConfigMapWrapperWithMap(oldConfigMap, "", admissionCustomConfig, func(sc *configs.SchedulerConfig) error {
+				// remove placement rules so we can control queue
+				sc.Partitions[0].PlacementRules = nil
+
+				if err := common.AddQueue(sc, constants.DefaultPartition, constants.RootQueue, configs.QueueConfig{
+					Name: "sandbox1",
+					Limits: []configs.Limit{
+						{
+							Limit:           "user entry",
+							Users:           []string{validUser},
+							MaxApplications: 2,
+							MaxResources: map[string]string{
+								siCommon.Memory: fmt.Sprintf("%dM", mediumMem),
+							},
+						},
+					},
+				}); err != nil {
+					return err
+				}
+				return common.AddQueue(sc, constants.DefaultPartition, constants.RootQueue, configs.QueueConfig{Name: "sandbox2"})
+			})
+		})
+
+		// usergroup1 can deploy the first sleep pod to root.sandbox1
+		usergroup1 := &si.UserGroupInformation{User: validUser, Groups: []string{group1}}
+
+		// usergroup1 can't deploy the second sleep pod to root.sandbox1
+		usergroup1Sandbox1Pod1 := deploySleepPod(usergroup1, sandboxQueue1, true, "because memory usage is less than maxresources")
+		deploySleepPod(usergroup1, sandboxQueue1, false, "because final memory usage is more than maxresources")
+		checkUsage(userTestType, url.QueryEscape(validUser), sandboxQueue1, []*v1.Pod{usergroup1Sandbox1Pod1})
+	})
+
+	ginkgo.It("Verify_maxresources_with_a_valid_group_name_and_specific_group_limit", func() {
+		ginkgo.By("Update config")
+		validGroup := "group_Test-a_b_dom:ain.com"
+		// The wait wrapper still can't fully guarantee that the config in AdmissionController has been updated.
+		yunikorn.WaitForAdmissionControllerRefreshConfAfterAction(func() {
+			yunikorn.UpdateCustomConfigMapWrapperWithMap(oldConfigMap, "", admissionCustomConfig, func(sc *configs.SchedulerConfig) error {
+				// remove placement rules so we can control queue
+				sc.Partitions[0].PlacementRules = nil
+
+				if err := common.AddQueue(sc, constants.DefaultPartition, constants.RootQueue, configs.QueueConfig{
+					Name: "sandbox1",
+					Limits: []configs.Limit{
+						{
+							Limit:           "group entry",
+							Groups:          []string{validGroup},
+							MaxApplications: 2,
+							MaxResources: map[string]string{
+								siCommon.Memory: fmt.Sprintf("%dM", mediumMem),
+							},
+						},
+					},
+				}); err != nil {
+					return err
+				}
+				return common.AddQueue(sc, constants.DefaultPartition, constants.RootQueue, configs.QueueConfig{Name: "sandbox2"})
+			})
+		})
+
+		// usergroup1 can deploy the first sleep pod to root.sandbox1
+		usergroup1 := &si.UserGroupInformation{User: user1, Groups: []string{validGroup}}
+
+		// usergroup1 can't deploy the second sleep pod to root.sandbox1
+		usergroup1Sandbox1Pod1 := deploySleepPod(usergroup1, sandboxQueue1, true, "because memory usage is less than maxresources")
+		_ = deploySleepPod(usergroup1, sandboxQueue1, false, "because final memory usage is more than maxresources")
+		checkUsage(groupTestType, url.QueryEscape(validGroup), sandboxQueue1, []*v1.Pod{usergroup1Sandbox1Pod1})
 	})
 
 	ginkgo.AfterEach(func() {
