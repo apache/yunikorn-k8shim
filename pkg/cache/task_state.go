@@ -316,129 +316,128 @@ func TaskStates() *TStates {
 
 func newTaskState() *fsm.FSM {
 	states := TaskStates()
-	return fsm.NewFSM(
-		states.New, fsm.Events{
-			{
-				Name: InitTask.String(),
-				Src:  []string{states.New},
-				Dst:  states.Pending,
-			},
-			{
-				Name: SubmitTask.String(),
-				Src:  []string{states.Pending},
-				Dst:  states.Scheduling,
-			},
-			{
-				Name: TaskAllocated.String(),
-				Src:  []string{states.Scheduling},
-				Dst:  states.Allocated,
-			},
-			{
-				Name: TaskAllocated.String(),
-				Src:  []string{states.Completed},
-				Dst:  states.Completed,
-			},
-			{
-				Name: TaskBound.String(),
-				Src:  []string{states.Allocated},
-				Dst:  states.Bound,
-			},
-			{
-				Name: CompleteTask.String(),
-				Src:  states.Any,
-				Dst:  states.Completed,
-			},
-			{
-				Name: KillTask.String(),
-				Src:  []string{states.Pending, states.Scheduling, states.Allocated, states.Bound},
-				Dst:  states.Killing,
-			},
-			{
-				Name: TaskKilled.String(),
-				Src:  []string{states.Killing},
-				Dst:  states.Killed,
-			},
-			{
-				Name: TaskRejected.String(),
-				Src:  []string{states.New, states.Pending, states.Scheduling},
-				Dst:  states.Rejected,
-			},
-			{
-				Name: TaskFail.String(),
-				Src:  []string{states.New, states.Pending, states.Scheduling, states.Rejected, states.Allocated},
-				Dst:  states.Failed,
-			},
+	return fsm.NewFSM(states.New, eventDesc(states), callbacks(states))
+}
+
+func eventDesc(states *TStates) fsm.Events {
+	return fsm.Events{
+		{
+			Name: InitTask.String(),
+			Src:  []string{states.New},
+			Dst:  states.Pending,
 		},
-		fsm.Callbacks{
-			// The state machine is tightly tied to the Task object.
-			//
-			// The first argument must always be a Task and if there are more arguments,
-			// they must be a string. If this precondition is not met, a runtime panic
-			// could occur.
-			events.EnterState: func(_ context.Context, event *fsm.Event) {
-				task := event.Args[0].(*Task) //nolint:errcheck
-				log.Log(log.ShimFSM).Info("Task state transition",
-					zap.String("app", task.applicationID),
-					zap.String("task", task.taskID),
-					zap.String("taskAlias", task.alias),
-					zap.String("source", event.Src),
-					zap.String("destination", event.Dst),
-					zap.String("event", event.Event))
-			},
-			states.Pending: func(_ context.Context, event *fsm.Event) {
-				task := event.Args[0].(*Task) //nolint:errcheck
-				task.postTaskPending()
-			},
-			states.Allocated: func(_ context.Context, event *fsm.Event) {
-				task := event.Args[0].(*Task) //nolint:errcheck
-				task.postTaskAllocated()
-			},
-			states.Rejected: func(_ context.Context, event *fsm.Event) {
-				task := event.Args[0].(*Task) //nolint:errcheck
-				task.postTaskRejected()
-			},
-			states.Failed: func(_ context.Context, event *fsm.Event) {
-				task := event.Args[0].(*Task) //nolint:errcheck
-				eventArgs := make([]string, 1)
-				reason := ""
-				if err := events.GetEventArgsAsStrings(eventArgs, event.Args[1].([]interface{})); err != nil {
-					log.Log(log.ShimFSM).Error("failed to parse event arg", zap.Error(err))
-					reason = err.Error()
-				} else {
-					reason = eventArgs[0]
-				}
-				task.postTaskFailed(reason)
-			},
-			states.Bound: func(_ context.Context, event *fsm.Event) {
-				task := event.Args[0].(*Task) //nolint:errcheck
-				task.postTaskBound()
-			},
-			beforeHook(TaskFail): func(_ context.Context, event *fsm.Event) {
-				task := event.Args[0].(*Task) //nolint:errcheck
-				task.beforeTaskFail()
-			},
-			beforeHook(TaskAllocated): func(_ context.Context, event *fsm.Event) {
-				task := event.Args[0].(*Task) //nolint:errcheck
-				// All allocation events must include the allocationKey and nodeID passed from the core
-				eventArgs := make([]string, 2)
-				if err := events.GetEventArgsAsStrings(eventArgs, event.Args[1].([]interface{})); err != nil {
-					log.Log(log.ShimFSM).Error("failed to parse event arg", zap.Error(err))
-					return
-				}
-				allocationKey := eventArgs[0]
-				nodeID := eventArgs[1]
-				task.beforeTaskAllocated(event.Src, allocationKey, nodeID)
-			},
-			beforeHook(CompleteTask): func(_ context.Context, event *fsm.Event) {
-				task := event.Args[0].(*Task) //nolint:errcheck
-				task.beforeTaskCompleted()
-			},
-			SubmitTask.String(): func(_ context.Context, event *fsm.Event) {
-				task := event.Args[0].(*Task) //nolint:errcheck
-				task.handleSubmitTaskEvent()
-			},
+		{
+			Name: SubmitTask.String(),
+			Src:  []string{states.Pending},
+			Dst:  states.Scheduling,
 		},
-	)
+		{
+			Name: TaskAllocated.String(),
+			Src:  []string{states.Scheduling},
+			Dst:  states.Allocated,
+		},
+		{
+			Name: TaskAllocated.String(),
+			Src:  []string{states.Completed},
+			Dst:  states.Completed,
+		},
+		{
+			Name: TaskBound.String(),
+			Src:  []string{states.Allocated},
+			Dst:  states.Bound,
+		},
+		{
+			Name: CompleteTask.String(),
+			Src:  states.Any,
+			Dst:  states.Completed,
+		},
+		{
+			Name: KillTask.String(),
+			Src:  []string{states.Pending, states.Scheduling, states.Allocated, states.Bound},
+			Dst:  states.Killing,
+		},
+		{
+			Name: TaskKilled.String(),
+			Src:  []string{states.Killing},
+			Dst:  states.Killed,
+		},
+		{
+			Name: TaskRejected.String(),
+			Src:  []string{states.New, states.Pending, states.Scheduling},
+			Dst:  states.Rejected,
+		},
+		{
+			Name: TaskFail.String(),
+			Src:  []string{states.New, states.Pending, states.Scheduling, states.Rejected, states.Allocated},
+			Dst:  states.Failed,
+		},
+	}
+}
+
+func callbacks(states *TStates) fsm.Callbacks {
+	return fsm.Callbacks{
+		events.EnterState: func(_ context.Context, event *fsm.Event) {
+			task := event.Args[0].(*Task) //nolint:errcheck
+			log.Log(log.ShimFSM).Info("Task state transition",
+				zap.String("app", task.applicationID),
+				zap.String("task", task.taskID),
+				zap.String("taskAlias", task.alias),
+				zap.String("source", event.Src),
+				zap.String("destination", event.Dst),
+				zap.String("event", event.Event))
+		},
+		states.Pending: func(_ context.Context, event *fsm.Event) {
+			task := event.Args[0].(*Task) //nolint:errcheck
+			task.postTaskPending()
+		},
+		states.Allocated: func(_ context.Context, event *fsm.Event) {
+			task := event.Args[0].(*Task) //nolint:errcheck
+			task.postTaskAllocated()
+		},
+		states.Rejected: func(_ context.Context, event *fsm.Event) {
+			task := event.Args[0].(*Task) //nolint:errcheck
+			task.postTaskRejected()
+		},
+		states.Failed: func(_ context.Context, event *fsm.Event) {
+			task := event.Args[0].(*Task) //nolint:errcheck
+			eventArgs := make([]string, 1)
+			reason := ""
+			if err := events.GetEventArgsAsStrings(eventArgs, event.Args[1].([]interface{})); err != nil {
+				log.Log(log.ShimFSM).Error("failed to parse event arg", zap.Error(err))
+				reason = err.Error()
+			} else {
+				reason = eventArgs[0]
+			}
+			task.postTaskFailed(reason)
+		},
+		states.Bound: func(_ context.Context, event *fsm.Event) {
+			task := event.Args[0].(*Task) //nolint:errcheck
+			task.postTaskBound()
+		},
+		beforeHook(TaskFail): func(_ context.Context, event *fsm.Event) {
+			task := event.Args[0].(*Task) //nolint:errcheck
+			task.beforeTaskFail()
+		},
+		beforeHook(TaskAllocated): func(_ context.Context, event *fsm.Event) {
+			task := event.Args[0].(*Task) //nolint:errcheck
+			eventArgs := make([]string, 2)
+			if err := events.GetEventArgsAsStrings(eventArgs, event.Args[1].([]interface{})); err != nil {
+				log.Log(log.ShimFSM).Error("failed to parse event arg", zap.Error(err))
+				return
+			}
+			allocationKey := eventArgs[0]
+			nodeID := eventArgs[1]
+			task.beforeTaskAllocated(event.Src, allocationKey, nodeID)
+		},
+		beforeHook(CompleteTask): func(_ context.Context, event *fsm.Event) {
+			task := event.Args[0].(*Task) //nolint:errcheck
+			task.beforeTaskCompleted()
+		},
+		SubmitTask.String(): func(_ context.Context, event *fsm.Event) {
+			task := event.Args[0].(*Task) //nolint:errcheck
+			task.handleSubmitTaskEvent()
+		},
+	}
 }
 
 func beforeHook(event TaskEventType) string {

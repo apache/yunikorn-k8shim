@@ -35,7 +35,8 @@ import (
 const testNS = "test-ns"
 
 func TestFlags(t *testing.T) {
-	cache := NewNamespaceCache(nil)
+	cache, nsErr := NewNamespaceCache(nil)
+	assert.NilError(t, nsErr)
 	cache.nameSpaces["notset"] = nsFlags{
 		enableYuniKorn: UNSET,
 		generateAppID:  UNSET,
@@ -69,7 +70,8 @@ func TestNamespaceHandlers(t *testing.T) {
 	kubeClient := client.NewKubeClientMock(false)
 
 	informers := NewInformers(kubeClient, "default")
-	cache := NewNamespaceCache(informers.Namespace)
+	cache, nsErr := NewNamespaceCache(informers.Namespace)
+	assert.NilError(t, nsErr)
 	informers.Start()
 	defer informers.Stop()
 

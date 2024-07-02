@@ -78,7 +78,3 @@ func TestWebServer(t *testing.T) {
 	str = string(body)
 	assert.Check(t, strings.Contains(str, "OK"), "test string not found")
 }
-
-func TestProxy(t *testing.T) {
-
-}

@@ -162,10 +162,6 @@ func (fc *MockScheduler) waitAndAssertApplicationState(t *testing.T, appID, expe
 	}
 }
 
-func (fc *MockScheduler) removeApplication(appId string) error {
-	return fc.context.RemoveApplication(appId)
-}
-
 func (fc *MockScheduler) waitAndAssertTaskState(t *testing.T, appID, taskID, expectedState string) {
 	app := fc.context.GetApplication(appID)
 	assert.Equal(t, app != nil, true)

@@ -525,6 +525,7 @@ func assertAppState(t *testing.T, app *Application, expectedState string, durati
 	}
 }
 
+//nolint:funlen
 func TestGetNonTerminatedTaskAlias(t *testing.T) {
 	context := initContextForTest()
 	app := NewApplication(appID, "root.a", "testuser", testGroups, map[string]string{}, newMockSchedulerAPI())
@@ -749,6 +750,7 @@ func TestTryReserve(t *testing.T) {
 	assert.NilError(t, err, "placeholders are not created")
 }
 
+//nolint:funlen
 func TestTryReservePostRestart(t *testing.T) {
 	context := initContextForTest()
 	dispatcher.RegisterEventHandler("TestAppHandler", dispatcher.EventTypeApp, context.ApplicationEventHandler())
@@ -1196,7 +1198,7 @@ func TestPlaceholderTimeoutEvents(t *testing.T) {
 	// after handle release event the states of app must be running
 	assertAppState(t, app, ApplicationStates().Running, 3*time.Second)
 
-	message := "Placeholder timed out"
+	message := "GangScheduling"
 	reason := "placeholder has been timed out"
 	// check that the event has been published
 	err = utils.WaitForCondition(func() bool {

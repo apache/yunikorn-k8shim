@@ -60,14 +60,14 @@ func TestRun(t *testing.T) {
 	clients.Run(stop)
 	err := utils.WaitForCondition(func() bool {
 		return test.RunningInformers.Load() == noOfInformers
-	}, 10*time.Millisecond, time.Second)
+	})
 	assert.NilError(t, err, "number of running informers: expected %d got %d", noOfInformers, test.RunningInformers.Load())
 
 	close(stop)
 	stopped = true
 	err = utils.WaitForCondition(func() bool {
 		return test.RunningInformers.Load() == 0
-	}, 10*time.Millisecond, time.Second)
+	})
 	assert.NilError(t, err, "no. of informers still running: %d", test.RunningInformers.Load())
 }
 

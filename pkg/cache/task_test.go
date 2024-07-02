@@ -494,6 +494,7 @@ func TestSetTaskGroup(t *testing.T) {
 	assert.Equal(t, task.getTaskGroupName(), "test-group")
 }
 
+//nolint:funlen
 func TestHandleSubmitTaskEvent(t *testing.T) {
 	mockedContext, mockedSchedulerAPI := initContextAndAPIProviderForTest()
 	var allocRequest *si.AllocationRequest

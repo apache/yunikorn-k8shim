@@ -117,8 +117,13 @@ func NewAdmissionControllerConf(configMaps []*v1.ConfigMap) *AdmissionController
 	return acc
 }
 
-func (acc *AdmissionControllerConf) RegisterHandlers(configMaps informersv1.ConfigMapInformer) {
-	configMaps.Informer().AddEventHandler(&configMapUpdateHandler{conf: acc})
+func (acc *AdmissionControllerConf) RegisterHandlers(configMaps informersv1.ConfigMapInformer) error {
+	_, err := configMaps.Informer().AddEventHandler(&configMapUpdateHandler{conf: acc})
+	if err != nil {
+		return fmt.Errorf("failed to create register handlers: %w", err)
+	}
+
+	return nil
 }
 
 func (acc *AdmissionControllerConf) GetNamespace() string {
