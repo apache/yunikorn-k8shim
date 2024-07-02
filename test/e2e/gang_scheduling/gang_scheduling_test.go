@@ -572,10 +572,8 @@ var _ = Describe("", func() {
 	})
 
 	// Test to verify that the gang app originator pod does not change after a restart
-	// Create a gang app with a real pod that does not have a TaskGroupName set
-	// A real pod will never be replaced, and the core app's allocations will always contain only the declared number of placeholder pods
 	// 1. Create an originator pod
-	// 2. Ensure the originator pod is not in allocations
+	// 2. Ensure the originator pod is not a placeholder pod
 	// 3. Restart YuniKorn
 	// 4. Ensure the originator pod is still not in allocations after restart
 	It("Verify_Gang_App_Originator_Pod_Does_Not_Change_After_Restart", func() {
@@ -583,7 +581,7 @@ var _ = Describe("", func() {
 
 		By("Create an originator pod")
 		podConf := k8s.TestPodConfig{
-			Name: "gang-driver-pod" + common.RandSeq(5),
+			Name: "gang-driver-pod-" + common.RandSeq(5),
 			Labels: map[string]string{
 				"app":           "sleep-" + common.RandSeq(5),
 				"applicationId": appID,
@@ -605,16 +603,23 @@ var _ = Describe("", func() {
 		// Wait for the app to be created
 		checkAppStatus(appID, yunikorn.States().Application.Running)
 
+		By("Sleeping")
+		time.Sleep(10 * time.Second)
+
 		By("Ensure placeholders are allocated")
 		appDaoInfoBeforeRestart, appDaoInfoErr := restClient.GetAppInfo(configmanager.DefaultPartition, nsQueue, appID)
 		Ω(appDaoInfoErr).NotTo(HaveOccurred())
 		checkPlaceholderData(appDaoInfoBeforeRestart, groupA, placeholderCount, 0, 0)
 
-		By("Ensure originator pod is not in allocations")
+		By("Ensure the originator pod is not a placeholder pod")
+		Ω(len(appDaoInfoBeforeRestart.Allocations)).To(Equal(1+placeholderCount), "Amount of allocations is incorrect")
 		for _, alloc := range appDaoInfoBeforeRestart.Allocations {
 			podName := alloc.AllocationTags["kubernetes.io/meta/podName"]
-			Ω(originator.Name).NotTo(Equal(podName), "The originator pod should not be in allocations")
-			Ω(alloc.Placeholder).To(Equal(true), "The allocation should be for a placeholder pod")
+			if podName == originator.Name {
+				Ω(alloc.Placeholder).To(Equal(false), "Originator pod should not be a placeholder pod")
+			} else {
+				Ω(alloc.Placeholder).To(Equal(true), "Placeholder pod should be a placeholder pod")
+			}
 		}
 
 		By("Restart the scheduler pod")
@@ -624,16 +629,23 @@ var _ = Describe("", func() {
 		// Wait for the app to be created
 		checkAppStatus(appID, yunikorn.States().Application.Running)
 
+		By("Sleeping")
+		time.Sleep(10 * time.Second)
+
 		By("Ensure placeholders are allocated after restart")
 		appDaoInfoAfterRestart, appDaoInfoErr := restClient.GetAppInfo(configmanager.DefaultPartition, nsQueue, appID)
 		Ω(appDaoInfoErr).NotTo(HaveOccurred())
 		checkPlaceholderData(appDaoInfoAfterRestart, groupA, placeholderCount, 0, 0)
 
-		By("Ensure the originator pod is still not in allocations after restart")
-		for _, alloc := range appDaoInfoBeforeRestart.Allocations {
+		By("Ensure the originator pod is still not a placeholder pod after restart")
+		Ω(len(appDaoInfoAfterRestart.Allocations)).To(Equal(1+placeholderCount), "Amount of allocations is incorrect")
+		for _, alloc := range appDaoInfoAfterRestart.Allocations {
 			podName := alloc.AllocationTags["kubernetes.io/meta/podName"]
-			Ω(originator.Name).NotTo(Equal(podName), "The originator pod should not be in allocations")
-			Ω(alloc.Placeholder).To(Equal(true), "The allocation should be for a placeholder pod")
+			if podName == originator.Name {
+				Ω(alloc.Placeholder).To(Equal(false), "Originator pod should not be a placeholder pod")
+			} else {
+				Ω(alloc.Placeholder).To(Equal(true), "Placeholder pod should be a placeholder pod")
+			}
 		}
 	})
 
