@@ -46,7 +46,6 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
-	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	schedulerconf "github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/yunikorn-k8shim/pkg/locking"
@@ -94,7 +93,7 @@ func NewContextWithBootstrapConfigMaps(apis client.APIProvider, bootstrapConfigM
 	ctx := &Context{
 		applications: make(map[string]*Application),
 		apiProvider:  apis,
-		namespace:    conf.GetSchedulerConf().Namespace,
+		namespace:    schedulerconf.GetSchedulerConf().Namespace,
 		configMaps:   bootstrapConfigMaps,
 		lock:         &locking.RWMutex{},
 		klogger:      klog.NewKlogr(),
