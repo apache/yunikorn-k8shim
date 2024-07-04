@@ -356,6 +356,26 @@ func (c *RClient) WaitForCompletedAppStateTransition(partition string, appID str
 	return wait.PollUntilContextTimeout(context.TODO(), time.Second, time.Duration(timeout)*time.Second, false, c.isAppInDesiredCompletedState(partition, appID, state).WithContext())
 }
 
+func (c *RClient) WaitForAllExecPodsAllocated(partition string, queueName string, appID string, execPodCount int, timeout int) error {
+	return wait.PollUntilContextTimeout(context.TODO(), time.Second, time.Duration(timeout)*time.Second, false, c.areAllExecPodsAllocated(partition, queueName, appID, execPodCount).WithContext())
+}
+
+func (c *RClient) areAllExecPodsAllocated(partition string, queueName string, appID string, execPodCount int) wait.ConditionFunc {
+	return func() (bool, error) {
+		appInfo, err := c.GetAppInfo(partition, queueName, appID)
+		if err != nil {
+			return false, nil // returning nil here for wait & loop
+		}
+		if appInfo.Allocations == nil {
+			return false, nil
+		}
+		if len(appInfo.Allocations) >= execPodCount {
+			return true, nil
+		}
+		return false, nil
+	}
+}
+
 func (c *RClient) AreAllExecPodsAllotted(partition string, queueName string, appID string, execPodCount int) wait.ConditionFunc {
 	return func() (bool, error) {
 		appInfo, err := c.GetAppInfo(partition, queueName, appID)
