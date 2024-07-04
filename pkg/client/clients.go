@@ -29,7 +29,6 @@ import (
 	storageInformerV1 "k8s.io/client-go/informers/storage/v1"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/volumebinding"
 
-	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/api"
 )
@@ -38,9 +37,6 @@ import (
 // that can be shared by callers when talking to K8s api-server,
 // or the scheduler core.
 type Clients struct {
-	// configs
-	conf *conf.SchedulerConf
-
 	// client apis
 	KubeClient   KubeClient
 	SchedulerAPI api.SchedulerAPI
@@ -61,10 +57,6 @@ type Clients struct {
 
 	// volume binder handles PV/PVC related operations
 	VolumeBinder volumebinding.SchedulerVolumeBinder
-}
-
-func (c *Clients) GetConf() *conf.SchedulerConf {
-	return c.conf
 }
 
 func (c *Clients) WaitForSync() {

@@ -93,7 +93,7 @@ func NewContextWithBootstrapConfigMaps(apis client.APIProvider, bootstrapConfigM
 	ctx := &Context{
 		applications: make(map[string]*Application),
 		apiProvider:  apis,
-		namespace:    apis.GetAPIs().GetConf().Namespace,
+		namespace:    schedulerconf.GetSchedulerConf().Namespace,
 		configMaps:   bootstrapConfigMaps,
 		lock:         &locking.RWMutex{},
 		klogger:      klog.NewKlogr(),
