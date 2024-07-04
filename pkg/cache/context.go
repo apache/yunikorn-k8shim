@@ -305,20 +305,17 @@ func (ctx *Context) UpdatePod(_, newObj interface{}) {
 }
 
 func (ctx *Context) updateYuniKornPod(appID string, pod *v1.Pod) {
-	if app := ctx.getApplication(appID); app != nil {
-		if task, err := app.GetTask(string(pod.UID)); task != nil && err == nil {
+	var app *Application
+	taskID := string(pod.UID)
+	if app = ctx.getApplication(appID); app != nil {
+		if task, err := app.GetTask(taskID); task != nil && err == nil {
 			task.setTaskPod(pod)
 		}
 	}
 
 	// treat terminated pods like a remove
 	if utils.IsPodTerminated(pod) {
-		if taskMeta, ok := getTaskMetadata(pod); ok {
-			if app := ctx.getApplication(taskMeta.ApplicationID); app != nil {
-				ctx.notifyTaskComplete(taskMeta.ApplicationID, taskMeta.TaskID)
-			}
-		}
-
+		ctx.notifyTaskComplete(appID, taskID)
 		log.Log(log.ShimContext).Debug("Request to update terminated pod, removing from cache", zap.String("podName", pod.Name))
 		ctx.schedulerCache.RemovePod(pod)
 		return
