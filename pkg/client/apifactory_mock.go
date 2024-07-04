@@ -33,7 +33,6 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/volumebinding"
 
 	"github.com/apache/yunikorn-k8shim/pkg/common/test"
-	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/locking"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
@@ -67,20 +66,6 @@ const (
 func NewMockedAPIProvider(showError bool) *MockedAPIProvider {
 	return &MockedAPIProvider{
 		clients: &Clients{
-			conf: &conf.SchedulerConf{
-				ClusterID:            "yk-test-cluster",
-				ClusterVersion:       "0.1",
-				PolicyGroup:          "queues",
-				Interval:             0,
-				KubeConfig:           "",
-				VolumeBindTimeout:    0,
-				TestMode:             true,
-				EventChannelCapacity: 0,
-				DispatchTimeout:      0,
-				KubeQPS:              0,
-				KubeBurst:            0,
-				Namespace:            "yunikorn",
-			},
 			KubeClient:            NewKubeClientMock(showError),
 			SchedulerAPI:          test.NewSchedulerAPIMock(),
 			PodInformer:           test.NewMockedPodInformer(),
