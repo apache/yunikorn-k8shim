@@ -93,7 +93,7 @@ func NewContextWithBootstrapConfigMaps(apis client.APIProvider, bootstrapConfigM
 	ctx := &Context{
 		applications: make(map[string]*Application),
 		apiProvider:  apis,
-		namespace:    apis.GetAPIs().GetConf().Namespace,
+		namespace:    schedulerconf.GetSchedulerConf().Namespace,
 		configMaps:   bootstrapConfigMaps,
 		lock:         &locking.RWMutex{},
 		klogger:      klog.NewKlogr(),
@@ -1187,7 +1187,7 @@ func (ctx *Context) PublishEvents(eventRecords []*si.EventRecord) {
 				taskID := record.ObjectID
 				if task := ctx.getTask(appID, taskID); task != nil {
 					events.GetRecorder().Eventf(task.GetTaskPod().DeepCopy(), nil,
-						v1.EventTypeNormal, "", "", record.Message)
+						v1.EventTypeNormal, "Informational", "Informational", record.Message)
 				} else {
 					log.Log(log.ShimContext).Warn("task event is not published because task is not found",
 						zap.String("appID", appID),
