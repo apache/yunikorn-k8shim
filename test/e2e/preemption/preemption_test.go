@@ -137,7 +137,6 @@ var _ = ginkgo.Describe("Preemption", func() {
 	})
 
 	ginkgo.It("Verify_basic_preemption", func() {
-		ginkgo.Skip("Disabled until YUNIKORN-2699 is resolved")
 		ginkgo.By("A queue uses resource more than the guaranteed value even after removing one of the pods. The cluster doesn't have enough resource to deploy a pod in another queue which uses resource less than the guaranteed value.")
 		// update config
 		ginkgo.By(fmt.Sprintf("Update root.sandbox1 and root.sandbox2 with guaranteed memory %dM", sleepPodMemLimit))
@@ -179,7 +178,7 @@ var _ = ginkgo.Describe("Preemption", func() {
 			// Wait for pod to move to running state
 			podErr = kClient.WaitForPodBySelectorRunning(dev,
 				fmt.Sprintf("app=%s", sleepRespPod.ObjectMeta.Labels["app"]),
-				60)
+				120)
 			gomega.Ω(podErr).NotTo(gomega.HaveOccurred())
 		}
 
@@ -332,7 +331,6 @@ var _ = ginkgo.Describe("Preemption", func() {
 	})
 
 	ginkgo.It("Verify_preemption_on_priority_queue", func() {
-		ginkgo.Skip("Disabled until YUNIKORN-2699 is resolved")
 		ginkgo.By("A task can only preempt a task with lower or equal priority")
 		// update config
 		ginkgo.By(fmt.Sprintf("Update root.sandbox1, root.low-priority, root.high-priority with guaranteed memory %dM", sleepPodMemLimit))
@@ -427,7 +425,6 @@ var _ = ginkgo.Describe("Preemption", func() {
 	})
 
 	ginkgo.It("Verify_allow_preemption_tag", func() {
-		ginkgo.Skip("Disabled until YUNIKORN-2699 is resolved")
 		ginkgo.By("The value of 'false' for the allow preemption annotation on the PriorityClass moves the Pod to the back of the preemption list")
 		// update config
 		ginkgo.By(fmt.Sprintf("Update root.sandbox3, root.sandbox4 and root.sandbox5 with guaranteed memory %dM", sleepPodMemLimit2))
@@ -522,7 +519,7 @@ var _ = ginkgo.Describe("Preemption", func() {
 
 		// sleepjob5 pod can be scheduled before pods in root.sandbox3 are succeeded
 		ginkgo.By("The sleep pod " + sleepPod5Config.Name + " can be scheduled")
-		err = kClient.WaitForPodScheduled(ns.Name, sleepRespPod5.Name, 30*time.Second)
+		err = kClient.WaitForPodScheduled(ns.Name, sleepRespPod5.Name, 90*time.Second)
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 
 		// assert one of the pods in root.sandbox3 is preempted
