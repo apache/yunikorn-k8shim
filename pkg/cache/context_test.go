@@ -1089,7 +1089,7 @@ func TestTaskReleaseAfterRecovery(t *testing.T) {
 	assert.Equal(t, len(app.GetBoundTasks()), 2)
 
 	// release one of the tasks
-	context.NotifyTaskComplete(appID, pod2UID)
+	context.NotifyTaskComplete(app, pod2UID)
 
 	// wait for release
 	err = utils.WaitForCondition(func() bool {
@@ -2123,7 +2123,7 @@ func TestTaskRemoveOnCompletion(t *testing.T) {
 	assert.NilError(t, err)
 
 	// mark completion
-	context.NotifyTaskComplete(appID, taskUID1)
+	context.NotifyTaskComplete(app, taskUID1)
 	err = utils.WaitForCondition(func() bool {
 		return task.GetTaskState() == TaskStates().Completed
 	}, 100*time.Millisecond, time.Second)

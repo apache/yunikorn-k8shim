@@ -308,7 +308,7 @@ func (ctx *Context) updateYuniKornPod(pod *v1.Pod) {
 	if utils.IsPodTerminated(pod) {
 		if taskMeta, ok := getTaskMetadata(pod); ok {
 			if app := ctx.getApplication(taskMeta.ApplicationID); app != nil {
-				ctx.notifyTaskComplete(taskMeta.ApplicationID, taskMeta.TaskID)
+				ctx.notifyTaskComplete(app, taskMeta.TaskID)
 			}
 		}
 
@@ -444,7 +444,7 @@ func (ctx *Context) deleteYuniKornPod(pod *v1.Pod) {
 	defer ctx.lock.Unlock()
 	if taskMeta, ok := getTaskMetadata(pod); ok {
 		if app := ctx.getApplication(taskMeta.ApplicationID); app != nil {
-			ctx.notifyTaskComplete(taskMeta.ApplicationID, taskMeta.TaskID)
+			ctx.notifyTaskComplete(app, taskMeta.TaskID)
 		}
 	}
 
@@ -904,25 +904,23 @@ func (ctx *Context) StartPodAllocation(podKey string, nodeID string) bool {
 	return ctx.schedulerCache.StartPodAllocation(podKey, nodeID)
 }
 
-func (ctx *Context) NotifyTaskComplete(appID, taskID string) {
+func (ctx *Context) NotifyTaskComplete(app *Application, taskID string) {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
-	ctx.notifyTaskComplete(appID, taskID)
+	ctx.notifyTaskComplete(app, taskID)
 }
 
-func (ctx *Context) notifyTaskComplete(appID, taskID string) {
+func (ctx *Context) notifyTaskComplete(app *Application, taskID string) {
 	log.Log(log.ShimContext).Debug("NotifyTaskComplete",
-		zap.String("appID", appID),
+		zap.String("appID", app.applicationID),
 		zap.String("taskID", taskID))
-	if app := ctx.getApplication(appID); app != nil {
-		log.Log(log.ShimContext).Debug("release allocation",
-			zap.String("appID", appID),
-			zap.String("taskID", taskID))
-		ev := NewSimpleTaskEvent(appID, taskID, CompleteTask)
-		dispatcher.Dispatch(ev)
-		if app.GetApplicationState() == ApplicationStates().Resuming {
-			dispatcher.Dispatch(NewSimpleApplicationEvent(appID, AppTaskCompleted))
-		}
+	log.Log(log.ShimContext).Debug("release allocation",
+		zap.String("appID", app.applicationID),
+		zap.String("taskID", taskID))
+	ev := NewSimpleTaskEvent(app.applicationID, taskID, CompleteTask)
+	dispatcher.Dispatch(ev)
+	if app.GetApplicationState() == ApplicationStates().Resuming {
+		dispatcher.Dispatch(NewSimpleApplicationEvent(app.applicationID, AppTaskCompleted))
 	}
 }
 
