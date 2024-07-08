@@ -53,19 +53,19 @@ const (
 	Host1 = "host0001"
 	Host2 = "host0002"
 
-	appID1       = "app00001"
-	appID2       = "app00002"
-	appID3       = "app00003"
-	appID4       = "app00004"
-	appID5       = "app00005"
-	appIDUnknown = "app-none-exist"
+	appID1             = "app00001"
+	appID2             = "app00002"
+	appID3             = "app00003"
+	appID4             = "app00004"
+	appID5             = "app00005"
+	non_existing_appID = "app-none-exist"
 
-	uid1       = "uid_0001"
-	uid2       = "uid_0002"
-	uid3       = "uid_0003"
-	uid4       = "uid_0004"
-	uid5       = "uid_0005"
-	uidUnknown = "uid_0000"
+	uid1  = "uid_0001"
+	uid2  = "uid_0002"
+	uid3  = "uid_0003"
+	uid4  = "uid_0004"
+	uid5  = "uid_0005"
+	uid0n = "uid_0000"
 
 	pod1UID     = "task00001"
 	pod2UID     = "task00002"
@@ -96,8 +96,7 @@ const (
 	annoAppID4 = "yunikorn-test-00004"
 	annoAppID5 = "yunikorn-test-00005"
 
-	APIVersion1 = "v1"
-	testUser    = "test-user"
+	testUser = "test-user"
 )
 
 var (
@@ -125,7 +124,7 @@ func newPodHelper(name, namespace, podUID, nodeName string, appID string, podPha
 	return &v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
-			APIVersion: APIVersion1,
+			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
 			Name:      name,
@@ -326,7 +325,7 @@ func TestGetApplication(t *testing.T) {
 	assert.Equal(t, app.GetUser(), testUser)
 
 	// get a non-exist application
-	app = context.GetApplication(appIDUnknown)
+	app = context.GetApplication(non_existing_appID)
 	assert.Assert(t, app == nil)
 }
 
@@ -342,7 +341,7 @@ func TestRemoveApplication(t *testing.T) {
 	pod1 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
-			APIVersion: APIVersion1,
+			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
 			Name: "remove-test-00001",
@@ -352,7 +351,7 @@ func TestRemoveApplication(t *testing.T) {
 	pod2 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
-			APIVersion: APIVersion1,
+			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
 			Name: "remove-test-00002",
@@ -430,7 +429,7 @@ func TestAddPod(t *testing.T) {
 	pod1 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
-			APIVersion: APIVersion1,
+			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
 			Name: annoAppID1,
@@ -444,7 +443,7 @@ func TestAddPod(t *testing.T) {
 	pod2 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
-			APIVersion: APIVersion1,
+			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
 			Name: annoAppID2,
@@ -475,7 +474,7 @@ func TestUpdatePod(t *testing.T) {
 	pod1 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
-			APIVersion: APIVersion1,
+			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
 			Name: annoAppID1,
@@ -490,7 +489,7 @@ func TestUpdatePod(t *testing.T) {
 	pod2 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
-			APIVersion: APIVersion1,
+			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
 			Name: annoAppID1,
@@ -505,7 +504,7 @@ func TestUpdatePod(t *testing.T) {
 	pod3 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
-			APIVersion: APIVersion1,
+			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
 			Name: annoAppID1,
@@ -548,7 +547,7 @@ func TestDeletePod(t *testing.T) {
 	pod1 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
-			APIVersion: APIVersion1,
+			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
 			Name: annoAppID1,
@@ -562,7 +561,7 @@ func TestDeletePod(t *testing.T) {
 	pod2 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
-			APIVersion: APIVersion1,
+			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
 			Name: annoAppID2,
@@ -583,7 +582,7 @@ func TestDeletePod(t *testing.T) {
 
 	// these should not fail, but here for completeness
 	context.DeletePod(nil)
-	context.DeletePod(cache.DeletedFinalStateUnknown{Key: uidUnknown, Obj: nil})
+	context.DeletePod(cache.DeletedFinalStateUnknown{Key: uid0n, Obj: nil})
 
 	context.DeletePod(pod1)
 	pod = context.schedulerCache.GetPod(uid1)
@@ -883,7 +882,7 @@ func TestAddTask(t *testing.T) {
 	// add a task without app's appearance
 	task = context.AddTask(&AddTaskRequest{
 		Metadata: TaskMetadata{
-			ApplicationID: appIDUnknown,
+			ApplicationID: non_existing_appID,
 			TaskID:        taskUID1,
 			Pod:           &v1.Pod{},
 		},
@@ -1163,7 +1162,7 @@ func TestRemoveTask(t *testing.T) {
 	assert.Equal(t, len(app.GetNewTasks()), 2)
 
 	// try to remove a task from non-exist application
-	context.RemoveTask(appIDUnknown, taskUID1)
+	context.RemoveTask(non_existing_appID, taskUID1)
 	assert.Equal(t, len(app.GetNewTasks()), 2)
 
 	// this should success
@@ -1191,7 +1190,7 @@ func TestGetTask(t *testing.T) {
 	pod1 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
-			APIVersion: APIVersion1,
+			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
 			Name: taskUID1,
@@ -1201,7 +1200,7 @@ func TestGetTask(t *testing.T) {
 	pod2 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
-			APIVersion: APIVersion1,
+			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
 			Name: taskUID2,
@@ -1222,7 +1221,7 @@ func TestGetTask(t *testing.T) {
 	task := context.getTask(appID1, taskUID1)
 	assert.Assert(t, task == task1)
 
-	task = context.getTask(appIDUnknown, taskUID1)
+	task = context.getTask(non_existing_appID, taskUID1)
 	assert.Assert(t, task == nil)
 
 	task = context.getTask(appID1, taskUnknown)
@@ -1699,7 +1698,7 @@ func TestPendingPodAllocations(t *testing.T) {
 	pod := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
-			APIVersion: APIVersion1,
+			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
 			Name: taskUID1,
@@ -1770,7 +1769,7 @@ func TestGetStateDump(t *testing.T) {
 	pod1 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
-			APIVersion: APIVersion1,
+			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
 			Namespace: "default",
@@ -1903,7 +1902,7 @@ func TestCtxUpdatePodCondition(t *testing.T) {
 	pod := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
-			APIVersion: APIVersion1,
+			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
 			Name: "pod-test-00001",
@@ -1951,7 +1950,7 @@ func TestGetExistingAllocation(t *testing.T) {
 	pod := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
-			APIVersion: APIVersion1,
+			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
 			Name:      "pod00001",
@@ -2253,7 +2252,7 @@ func TestOriginatorPodAfterRestart(t *testing.T) {
 	controller := false
 	blockOwnerDeletion := true
 	ref := apis.OwnerReference{
-		APIVersion:         APIVersion1,
+		APIVersion:         "v1",
 		Kind:               "Pod",
 		Name:               "originator-01",
 		UID:                uid1,
@@ -2266,7 +2265,7 @@ func TestOriginatorPodAfterRestart(t *testing.T) {
 	pod1 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
-			APIVersion: APIVersion1,
+			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
 			Name: "originator-01",
@@ -2283,7 +2282,7 @@ func TestOriginatorPodAfterRestart(t *testing.T) {
 	pod2 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
-			APIVersion: APIVersion1,
+			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
 			Name: "placeholder-01",
@@ -2304,7 +2303,7 @@ func TestOriginatorPodAfterRestart(t *testing.T) {
 	pod3 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
-			APIVersion: APIVersion1,
+			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
 			Name: "placeholder-02",
@@ -2396,7 +2395,7 @@ func nodeForTest(nodeID, memory, cpu string) *v1.Node {
 	return &v1.Node{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Node",
-			APIVersion: APIVersion1,
+			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
 			Name:      nodeID,
@@ -2425,7 +2424,7 @@ func foreignPod(podName, memory, cpu string) *v1.Pod {
 	return &v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
-			APIVersion: APIVersion1,
+			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
 			Name: podName,
