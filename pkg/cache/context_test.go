@@ -90,11 +90,11 @@ const (
 	queueNameC       = "root.c"
 	queueNameUnknown = "root.other"
 
-	annoAppID1 = "yunikorn-test-00001"
-	annoAppID2 = "yunikorn-test-00002"
-	annoAppID3 = "yunikorn-test-00003"
-	annoAppID4 = "yunikorn-test-00004"
-	annoAppID5 = "yunikorn-test-00005"
+	// appID1 = "yunikorn-test-00001"
+	// appID2 = "yunikorn-test-00002"
+	// appID3 = "yunikorn-test-00003"
+	// appID4 = "yunikorn-test-00004"
+	// appID5 = "yunikorn-test-00005"
 
 	testUser = "test-user"
 )
@@ -432,10 +432,10 @@ func TestAddPod(t *testing.T) {
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
-			Name: annoAppID1,
+			Name: appID1,
 			UID:  uid1,
 			Annotations: map[string]string{
-				constants.AnnotationApplicationID: annoAppID1,
+				constants.AnnotationApplicationID: appID1,
 			},
 		},
 		Spec: v1.PodSpec{SchedulerName: "yunikorn"},
@@ -446,10 +446,10 @@ func TestAddPod(t *testing.T) {
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
-			Name: annoAppID2,
+			Name: appID2,
 			UID:  uid2,
 			Annotations: map[string]string{
-				constants.AnnotationApplicationID: annoAppID2,
+				constants.AnnotationApplicationID: appID2,
 			},
 		},
 		Spec: v1.PodSpec{SchedulerName: "yunikorn"},
@@ -477,10 +477,10 @@ func TestUpdatePod(t *testing.T) {
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
-			Name: annoAppID1,
+			Name: appID1,
 			UID:  uid1,
 			Annotations: map[string]string{
-				constants.AnnotationApplicationID: annoAppID1,
+				constants.AnnotationApplicationID: appID1,
 				"test.state":                      "new",
 			},
 		},
@@ -492,10 +492,10 @@ func TestUpdatePod(t *testing.T) {
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
-			Name: annoAppID1,
+			Name: appID1,
 			UID:  uid1,
 			Annotations: map[string]string{
-				constants.AnnotationApplicationID: annoAppID1,
+				constants.AnnotationApplicationID: appID1,
 				"test.state":                      "updated",
 			},
 		},
@@ -507,10 +507,10 @@ func TestUpdatePod(t *testing.T) {
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
-			Name: annoAppID1,
+			Name: appID1,
 			UID:  uid1,
 			Annotations: map[string]string{
-				constants.AnnotationApplicationID: annoAppID1,
+				constants.AnnotationApplicationID: appID1,
 			},
 		},
 		Spec: v1.PodSpec{SchedulerName: "yunikorn"},
@@ -550,10 +550,10 @@ func TestDeletePod(t *testing.T) {
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
-			Name: annoAppID1,
+			Name: appID1,
 			UID:  uid1,
 			Annotations: map[string]string{
-				constants.AnnotationApplicationID: annoAppID1,
+				constants.AnnotationApplicationID: appID1,
 			},
 		},
 		Spec: v1.PodSpec{SchedulerName: "yunikorn"},
@@ -564,10 +564,10 @@ func TestDeletePod(t *testing.T) {
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
-			Name: annoAppID2,
+			Name: appID2,
 			UID:  uid2,
 			Annotations: map[string]string{
-				constants.AnnotationApplicationID: annoAppID2,
+				constants.AnnotationApplicationID: appID2,
 			},
 		},
 		Spec: v1.PodSpec{SchedulerName: "yunikorn"},
@@ -1773,10 +1773,10 @@ func TestGetStateDump(t *testing.T) {
 		},
 		ObjectMeta: apis.ObjectMeta{
 			Namespace: "default",
-			Name:      annoAppID1,
+			Name:      appID1,
 			UID:       uid1,
 			Annotations: map[string]string{
-				constants.AnnotationApplicationID: annoAppID1,
+				constants.AnnotationApplicationID: appID1,
 			},
 		},
 		Spec: v1.PodSpec{SchedulerName: "yunikorn"},
@@ -1799,7 +1799,7 @@ func TestGetStateDump(t *testing.T) {
 	pods, ok := podsObj.(map[string]interface{})
 	assert.Assert(t, ok, "unable to cast pods")
 
-	podObj, ok := pods["default/yunikorn-test-00001"]
+	podObj, ok := pods["default/app00001"]
 	assert.Assert(t, ok, "pod not found")
 	pod, ok := podObj.(map[string]interface{})
 	assert.Assert(t, ok, "unable to cast pod")
@@ -2450,10 +2450,10 @@ func TestRegisterPods(t *testing.T) {
 	default:
 		t.Fatalf("api type not recognized")
 	}
-	pod1 := newPodHelper(annoAppID1, namespace, uid1, nodeName1, annoAppID1, v1.PodRunning)
-	pod2 := newPodHelper(annoAppID2, namespace, uid2, nodeName1, annoAppID2, v1.PodRunning)
-	pod3 := newPodHelper(annoAppID3, namespace, uid3, nodeName1, annoAppID3, v1.PodSucceeded)
-	pod4 := newPodHelper(annoAppID4, namespace, uid4, nodeName1, annoAppID4, v1.PodRunning)
+	pod1 := newPodHelper(appID1, namespace, uid1, nodeName1, appID1, v1.PodRunning)
+	pod2 := newPodHelper(appID2, namespace, uid2, nodeName1, appID2, v1.PodRunning)
+	pod3 := newPodHelper(appID3, namespace, uid3, nodeName1, appID3, v1.PodSucceeded)
+	pod4 := newPodHelper(appID4, namespace, uid4, nodeName1, appID4, v1.PodRunning)
 
 	api.GetPodListerMock().AddPod(pod1)
 	api.GetPodListerMock().AddPod(pod2)
@@ -2471,7 +2471,7 @@ func TestRegisterPods(t *testing.T) {
 
 	// prep for finalising the pods
 	// new pod added (should be ignored)
-	pod5 := newPodHelper(annoAppID5, namespace, uid5, nodeName1, annoAppID5, v1.PodRunning)
+	pod5 := newPodHelper(appID5, namespace, uid5, nodeName1, appID5, v1.PodRunning)
 	api.GetPodListerMock().AddPod(pod5)
 	// update pod 1 is now marked as terminated (will be removed)
 	pod1.Status = v1.PodStatus{
