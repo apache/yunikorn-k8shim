@@ -81,10 +81,8 @@ func TestUpdateLabels(t *testing.T) {
 	assert.Equal(t, patch[0].Op, "add")
 	assert.Equal(t, patch[0].Path, "/metadata/labels")
 	if updatedMap, ok := patch[0].Value.(map[string]string); ok {
-		assert.Equal(t, len(updatedMap), 5)
+		assert.Equal(t, len(updatedMap), 3)
 		assert.Equal(t, updatedMap["random"], "random")
-		assert.Equal(t, updatedMap[constants.CanonicalLabelQueueName], "root.default")
-		assert.Equal(t, updatedMap[constants.LabelQueueName], "root.default")
 		assert.Equal(t, strings.HasPrefix(updatedMap[constants.CanonicalLabelApplicationID], constants.AutoGenAppPrefix), true)
 		assert.Equal(t, strings.HasPrefix(updatedMap[constants.LabelApplicationID], constants.AutoGenAppPrefix), true)
 	} else {
@@ -119,10 +117,8 @@ func TestUpdateLabels(t *testing.T) {
 	assert.Equal(t, patch[0].Op, "add")
 	assert.Equal(t, patch[0].Path, "/metadata/labels")
 	if updatedMap, ok := patch[0].Value.(map[string]string); ok {
-		assert.Equal(t, len(updatedMap), 5)
+		assert.Equal(t, len(updatedMap), 3)
 		assert.Equal(t, updatedMap["random"], "random")
-		assert.Equal(t, updatedMap[constants.CanonicalLabelQueueName], "root.default")
-		assert.Equal(t, updatedMap[constants.LabelQueueName], "root.default")
 		assert.Equal(t, updatedMap[constants.CanonicalLabelApplicationID], "app-0001")
 		assert.Equal(t, updatedMap[constants.LabelApplicationID], "app-0001")
 	} else {
@@ -192,9 +188,7 @@ func TestUpdateLabels(t *testing.T) {
 	assert.Equal(t, patch[0].Op, "add")
 	assert.Equal(t, patch[0].Path, "/metadata/labels")
 	if updatedMap, ok := patch[0].Value.(map[string]string); ok {
-		assert.Equal(t, len(updatedMap), 4)
-		assert.Equal(t, updatedMap[constants.CanonicalLabelQueueName], "root.default")
-		assert.Equal(t, updatedMap[constants.LabelQueueName], "root.default")
+		assert.Equal(t, len(updatedMap), 2)
 		assert.Equal(t, strings.HasPrefix(updatedMap[constants.CanonicalLabelApplicationID], constants.AutoGenAppPrefix), true)
 		assert.Equal(t, strings.HasPrefix(updatedMap[constants.LabelApplicationID], constants.AutoGenAppPrefix), true)
 	} else {
@@ -222,9 +216,7 @@ func TestUpdateLabels(t *testing.T) {
 	assert.Equal(t, patch[0].Op, "add")
 	assert.Equal(t, patch[0].Path, "/metadata/labels")
 	if updatedMap, ok := patch[0].Value.(map[string]string); ok {
-		assert.Equal(t, len(updatedMap), 4)
-		assert.Equal(t, updatedMap[constants.CanonicalLabelQueueName], "root.default")
-		assert.Equal(t, updatedMap[constants.LabelQueueName], "root.default")
+		assert.Equal(t, len(updatedMap), 2)
 		assert.Equal(t, strings.HasPrefix(updatedMap[constants.CanonicalLabelApplicationID], constants.AutoGenAppPrefix), true)
 		assert.Equal(t, strings.HasPrefix(updatedMap[constants.LabelApplicationID], constants.AutoGenAppPrefix), true)
 	} else {
@@ -250,9 +242,7 @@ func TestUpdateLabels(t *testing.T) {
 	assert.Equal(t, patch[0].Op, "add")
 	assert.Equal(t, patch[0].Path, "/metadata/labels")
 	if updatedMap, ok := patch[0].Value.(map[string]string); ok {
-		assert.Equal(t, len(updatedMap), 4)
-		assert.Equal(t, updatedMap[constants.CanonicalLabelQueueName], "root.default")
-		assert.Equal(t, updatedMap[constants.LabelQueueName], "root.default")
+		assert.Equal(t, len(updatedMap), 2)
 		assert.Equal(t, strings.HasPrefix(updatedMap[constants.CanonicalLabelApplicationID], constants.AutoGenAppPrefix), true)
 		assert.Equal(t, strings.HasPrefix(updatedMap[constants.LabelApplicationID], constants.AutoGenAppPrefix), true)
 	} else {
@@ -462,7 +452,7 @@ func TestMutate(t *testing.T) {
 	assert.Check(t, resp.Allowed, "response not allowed for pod")
 	assert.Equal(t, schedulerName(t, resp.Patch), "yunikorn", "yunikorn not set as scheduler for pod")
 	assert.Equal(t, labels(t, resp.Patch)[constants.LabelApplicationID], "yunikorn-default-autogen", "wrong applicationId label")
-	assert.Equal(t, labels(t, resp.Patch)[constants.LabelQueueName], "root.default", "incorrect queue name")
+	assert.Equal(t, labels(t, resp.Patch)[constants.LabelQueueName], nil, "incorrect queue name")
 
 	// pod without applicationID
 	pod = v1.Pod{ObjectMeta: metav1.ObjectMeta{
