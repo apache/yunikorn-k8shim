@@ -708,12 +708,12 @@ func verifyOriginatorDeletionCase(withOwnerRef bool) {
 			},
 		}
 		defer func() {
-			err := kClient.DeleteConfigMap(testConfigmap.Name, ns)
-			Ω(err).NotTo(HaveOccurred())
+			deleteErr := kClient.DeleteConfigMap(testConfigmap.Name, ns)
+			Ω(deleteErr).NotTo(HaveOccurred())
 		}()
 
-		testConfigmap, err := kClient.CreateConfigMap(testConfigmap, ns)
-		Ω(err).NotTo(HaveOccurred())
+		testConfigmap, testErr := kClient.CreateConfigMap(testConfigmap, ns)
+		Ω(testErr).NotTo(HaveOccurred())
 
 		podTest.OwnerReferences = []metav1.OwnerReference{
 			{
