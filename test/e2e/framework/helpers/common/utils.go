@@ -20,10 +20,9 @@ package common
 
 import (
 	"bytes"
-	"crypto/rand"
 	"errors"
 	"fmt"
-	"math/big"
+	"math/rand"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -103,11 +102,8 @@ func RandSeq(n int) string {
 	var letters = []rune("abcdefghijklmnopqrstuvwxyz0123456789")
 	b := make([]rune, n)
 	for i := range b {
-		num, err := rand.Int(rand.Reader, big.NewInt(int64(len(letters))))
-		if err != nil {
-			return ""
-		}
-		b[i] = letters[num.Int64()]
+		//nolint:gosec
+		b[i] = letters[rand.Intn(len(letters))]
 	}
 	return string(b)
 }
