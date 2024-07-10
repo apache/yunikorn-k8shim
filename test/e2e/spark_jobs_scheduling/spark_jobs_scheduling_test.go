@@ -43,7 +43,7 @@ var _ = Describe("", func() {
 
 	var kClient k8s.KubeCtl
 	var restClient yunikorn.RClient
-	var err error
+	var exErr error
 	var sparkNS = "spark-" + common.RandSeq(10)
 	var svcAcc = "svc-acc-" + common.RandSeq(10)
 	var config *rest.Config
@@ -51,10 +51,6 @@ var _ = Describe("", func() {
 	var roleName = "spark-jobs-role-" + common.RandSeq(5)
 	var clusterEditRole = "edit"
 	var sparkImage = os.Getenv("SPARK_PYTHON_IMAGE")
-	var sparkHome = os.Getenv("SPARK_HOME")
-	if sparkHome == "" {
-		sparkHome = "/usr/local/"
-	}
 	var sparkExecutorCount = 3
 
 	BeforeEach(func() {
@@ -62,7 +58,7 @@ var _ = Describe("", func() {
 		Ω(sparkImage).NotTo(BeEmpty())
 		kClient = k8s.KubeCtl{}
 		Ω(kClient.SetClient()).To(BeNil())
-		Ω(err).NotTo(HaveOccurred())
+		Ω(exErr).NotTo(HaveOccurred())
 		By(fmt.Sprintf("Creating namespace: %s for spark jobs", sparkNS))
 		ns1, err := kClient.CreateNamespace(sparkNS, nil)
 		Ω(err).NotTo(HaveOccurred())
@@ -158,7 +154,7 @@ var _ = Describe("", func() {
 
 		By("Killing all spark jobs")
 		// delete the Spark pods one by one
-		err = kClient.DeletePods(sparkNS)
+		err := kClient.DeletePods(sparkNS)
 		Ω(err).NotTo(HaveOccurred())
 
 		By("Deleting cluster role bindings ")

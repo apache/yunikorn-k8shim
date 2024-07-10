@@ -23,9 +23,10 @@ import (
 	"os/signal"
 	"syscall"
 
+	"go.uber.org/zap"
+
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
-	"go.uber.org/zap"
 
 	"github.com/apache/yunikorn-core/pkg/entrypoint"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
