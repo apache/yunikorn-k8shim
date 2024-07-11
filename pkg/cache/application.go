@@ -513,12 +513,10 @@ func (app *Application) onReserving() {
 	if len(app.getPlaceHolderTasks()) > 0 {
 		ev := NewUpdateApplicationReservationEvent(app.applicationID)
 		dispatcher.Dispatch(ev)
-	} else {
+	} else if app.originatingTask != nil {
 		// not recovery or no placeholders created yet add an event to the pod
-		if app.originatingTask != nil {
-			events.GetRecorder().Eventf(app.originatingTask.GetTaskPod().DeepCopy(), nil, v1.EventTypeNormal, "GangScheduling",
-				"CreatingPlaceholders", "Application %s creating placeholders", app.applicationID)
-		}
+		events.GetRecorder().Eventf(app.originatingTask.GetTaskPod().DeepCopy(), nil, v1.EventTypeNormal, "GangScheduling",
+			"CreatingPlaceholders", "Application %s creating placeholders", app.applicationID)
 	}
 
 	go func() {
