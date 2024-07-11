@@ -495,12 +495,30 @@ func (app *Application) postAppAccepted() {
 	dispatcher.Dispatch(ev)
 }
 
+// onResuming triggered when entering the resuming state which is triggered by the time out of the gang placeholders
+// if SOFT gang scheduling is configured.
+func (app *Application) onResuming() {
+	if app.originatingTask != nil {
+		events.GetRecorder().Eventf(app.originatingTask.GetTaskPod().DeepCopy(), nil, v1.EventTypeWarning, "GangScheduling",
+			"GangSchedulingFailed", "Application %s resuming as non-gang application (SOFT)", app.applicationID)
+	}
+}
+
+// onReserving triggered when entering the reserving state.
+// During normal operation this creates all the placeholders. During recovery this call could cause the application
+// in the shim and core to progress to the next state.
 func (app *Application) onReserving() {
-	// happens after recovery - if placeholders already exist, we need to send
+	// if any placeholder already exist during recovery we might need to send
 	// an event to trigger Application state change in the core
 	if len(app.getPlaceHolderTasks()) > 0 {
 		ev := NewUpdateApplicationReservationEvent(app.applicationID)
 		dispatcher.Dispatch(ev)
+	} else {
+		// not recovery or no placeholders created yet add an event to the pod
+		if app.originatingTask != nil {
+			events.GetRecorder().Eventf(app.originatingTask.GetTaskPod().DeepCopy(), nil, v1.EventTypeNormal, "GangScheduling",
+				"CreatingPlaceholders", "Application %s creating placeholders", app.applicationID)
+		}
 	}
 
 	go func() {
@@ -511,6 +529,11 @@ func (app *Application) onReserving() {
 			getPlaceholderManager().cleanUp(app)
 			ev := NewRunApplicationEvent(app.applicationID)
 			dispatcher.Dispatch(ev)
+			// failed at least one placeholder creation progress as a normal application
+			if app.originatingTask != nil {
+				events.GetRecorder().Eventf(app.originatingTask.GetTaskPod().DeepCopy(), nil, v1.EventTypeWarning, "GangScheduling",
+					"PlaceholderCreateFailed", "Application %s fall back to normal scheduling", app.applicationID)
+			}
 		}
 	}()
 }
@@ -520,7 +543,7 @@ func (app *Application) onReserving() {
 func (app *Application) onReservationStateChange() {
 	if app.originatingTask != nil {
 		events.GetRecorder().Eventf(app.originatingTask.GetTaskPod().DeepCopy(), nil, v1.EventTypeNormal, "GangScheduling",
-			"Placeholder Allocated", "Application %s placeholder has been allocated.", app.applicationID)
+			"PlaceholderAllocated", "Application %s placeholder has been allocated.", app.applicationID)
 	}
 	desireCounts := make(map[string]int32, len(app.taskGroups))
 	for _, tg := range app.taskGroups {
