@@ -594,12 +594,14 @@ func (app *Application) handleFailApplicationEvent(errMsg string) {
 	unalloc = append(unalloc, app.getTasks(TaskStates().Pending)...)
 	unalloc = append(unalloc, app.getTasks(TaskStates().Scheduling)...)
 
+	timeout := strings.Contains(errMsg, constants.ApplicationInsufficientResourcesFailure)
+	rejected := strings.Contains(errMsg, constants.ApplicationRejectedFailure)
 	// publish pod level event to unallocated pods
 	for _, task := range unalloc {
 		// Only need to fail the non-placeholder pod(s)
-		if strings.Contains(errMsg, constants.ApplicationInsufficientResourcesFailure) {
+		if timeout {
 			failTaskPodWithReasonAndMsg(task, constants.ApplicationInsufficientResourcesFailure, "Scheduling has timed out due to insufficient resources")
-		} else if strings.Contains(errMsg, constants.ApplicationRejectedFailure) {
+		} else if rejected {
 			errMsgArr := strings.Split(errMsg, ":")
 			failTaskPodWithReasonAndMsg(task, constants.ApplicationRejectedFailure, errMsgArr[1])
 		}
