@@ -29,7 +29,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
 
-func updatePodLabel(pod *v1.Pod, namespace string, generateUniqueAppIds bool, defaultQueueName string) map[string]string {
+func updatePodLabel(pod *v1.Pod, namespace string, generateUniqueAppIds bool) map[string]string {
 	existingLabels := pod.Labels
 	result := make(map[string]string)
 	for k, v := range existingLabels {
@@ -51,16 +51,6 @@ func updatePodLabel(pod *v1.Pod, namespace string, generateUniqueAppIds bool, de
 		// if we generate an app ID, disable state-aware scheduling for this app
 		if _, ok := existingLabels[constants.LabelDisableStateAware]; !ok {
 			result[constants.LabelDisableStateAware] = "true"
-		}
-	}
-
-	// if existing label exist, it takes priority over everything else
-	if _, ok := existingLabels[constants.LabelQueueName]; !ok {
-		// if defaultQueueName is "", skip adding default queue name to the pod labels
-		if defaultQueueName != "" {
-			// for undefined configuration, am_conf will add 'root.default' to retain existing behavior
-			// if a custom name is configured for default queue, it will be used instead of root.default
-			result[constants.LabelQueueName] = defaultQueueName
 		}
 	}
 

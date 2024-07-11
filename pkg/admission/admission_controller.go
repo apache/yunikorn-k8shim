@@ -422,7 +422,7 @@ func (c *AdmissionController) updateLabels(namespace string, pod *v1.Pod, patch 
 		zap.String("namespace", namespace),
 		zap.Any("labels", pod.Labels))
 
-	result := updatePodLabel(pod, namespace, c.conf.GetGenerateUniqueAppIds(), c.conf.GetDefaultQueueName())
+	result := updatePodLabel(pod, namespace, c.conf.GetGenerateUniqueAppIds())
 
 	patch = append(patch, common.PatchOperation{
 		Op:    "add",
