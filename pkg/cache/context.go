@@ -809,7 +809,7 @@ func (ctx *Context) AssumePod(name, node string) error {
 			// assume pod volumes, this will update bindings info in cache
 			// assume pod volumes before assuming the pod
 			// this will update scheduler cache with essential PV/PVC binding info
-			var allBound = true
+			var allBound bool
 			var err error
 			// retrieve the volume claims
 			podVolumeClaims, err := ctx.apiProvider.GetAPIs().VolumeBinder.GetPodVolumeClaims(ctx.klogger, pod)

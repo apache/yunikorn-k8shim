@@ -148,6 +148,7 @@ func TestTaskIllegalEventHandling(t *testing.T) {
 	assert.Equal(t, task.GetTaskState(), TaskStates().Pending)
 }
 
+//nolint:funlen
 func TestReleaseTaskAllocation(t *testing.T) {
 	mockedSchedulerApi := newMockSchedulerAPI()
 	mockedContext := initContextForTest()

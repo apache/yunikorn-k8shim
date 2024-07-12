@@ -27,6 +27,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"go.uber.org/zap"
 
@@ -160,7 +161,8 @@ func (wh *WebHook) Startup(certs *tls.Certificate) {
 			CipherSuites: wh.getCipherSuites(),       // limit cipher suite to secure ones
 			Certificates: []tls.Certificate{*certs},
 		},
-		Handler: mux,
+		Handler:           mux,
+		ReadHeaderTimeout: 10 * time.Second,
 	}
 
 	go func() {
