@@ -540,6 +540,7 @@ func TestGetApplicationIDFromPod(t *testing.T) {
 	defer SetPluginMode(false)
 	defer func() { conf.GetSchedulerConf().GenerateUniqueAppIds = false }()
 
+	appIDInCanonicalLabel := "CanonicalLabelAppID"
 	appIDInLabel := "labelAppID"
 	appIDInAnnotation := "annotationAppID"
 	appIDInSelector := "selectorAppID"
@@ -551,6 +552,12 @@ func TestGetApplicationIDFromPod(t *testing.T) {
 		expectedAppIDPluginMode string
 		generateUniqueAppIds    bool
 	}{
+		{"AppID defined in canonical label", &v1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Labels: map[string]string{constants.CanonicalLabelApplicationID: appIDInCanonicalLabel},
+			},
+			Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
+		}, appIDInCanonicalLabel, appIDInCanonicalLabel, false},
 		{"AppID defined in label", &v1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{constants.LabelApplicationID: appIDInLabel},
@@ -571,7 +578,15 @@ func TestGetApplicationIDFromPod(t *testing.T) {
 			},
 			Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
 		}, "testns-podUid", "", true},
-		{"Unique autogen token found with generateUnique", &v1.Pod{
+		{"Unique autogen token found with generateUnique in canonical AppId label", &v1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "testns",
+				UID:       "podUid",
+				Labels:    map[string]string{constants.CanonicalLabelApplicationID: "testns-uniqueautogen"},
+			},
+			Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
+		}, "testns-podUid", "testns-podUid", true},
+		{"Unique autogen token found with generateUnique in legacy AppId labels", &v1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: "testns",
 				UID:       "podUid",
@@ -579,7 +594,13 @@ func TestGetApplicationIDFromPod(t *testing.T) {
 			},
 			Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
 		}, "testns-podUid", "testns-podUid", true},
-		{"Non-yunikorn schedulerName", &v1.Pod{
+		{"Non-yunikorn schedulerName with canonical AppId label", &v1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Labels: map[string]string{constants.CanonicalLabelApplicationID: appIDInCanonicalLabel},
+			},
+			Spec: v1.PodSpec{SchedulerName: "default"},
+		}, "", "", false},
+		{"Non-yunikorn schedulerName with legacy AppId label", &v1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{constants.LabelApplicationID: appIDInLabel},
 			},
@@ -609,7 +630,14 @@ func TestGetApplicationIDFromPod(t *testing.T) {
 			},
 			Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
 		}, appIDInAnnotation, appIDInAnnotation, false},
-		{"AppID defined in label and annotation", &v1.Pod{
+		{"AppID defined in canonical label and annotation", &v1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Annotations: map[string]string{constants.AnnotationApplicationID: appIDInAnnotation},
+				Labels:      map[string]string{constants.CanonicalLabelApplicationID: appIDInCanonicalLabel},
+			},
+			Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
+		}, appIDInCanonicalLabel, appIDInCanonicalLabel, false},
+		{"AppID defined in legacy label and annotation", &v1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
 				Annotations: map[string]string{constants.AnnotationApplicationID: appIDInAnnotation},
 				Labels:      map[string]string{constants.LabelApplicationID: appIDInLabel},
@@ -657,6 +685,96 @@ func TestGetApplicationIDFromPod(t *testing.T) {
 			assert.Equal(t, IsPluginMode(), true)
 			appID2 := GetApplicationIDFromPod(tc.pod)
 			assert.Equal(t, appID2, tc.expectedAppIDPluginMode, "Wrong appID (plugin mode)")
+		})
+	}
+}
+
+func TestValidatePodLabelAnnotationConsistency(t *testing.T) {
+	labelKeys := []string{"labelKey1", "labelKey2"}
+	annotationKeys := []string{"annotationKey1", "annotationKey2"}
+
+	testCases := []struct {
+		name           string
+		pod            *v1.Pod
+		lablabelKeys   []string
+		annotationKeys []string
+		expected       bool
+	}{
+		{
+			"empty pod indicates no inconsistency between labels and annotations",
+			&v1.Pod{},
+			labelKeys,
+			annotationKeys,
+			true,
+		},
+		{
+			"pod with values that are consistent across all labels and annotations",
+			&v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"labelKey1": "value1",
+						"labelKey2": "value1",
+					},
+					Annotations: map[string]string{
+						"annotationKey1": "value1",
+						"annotationKey2": "value1",
+					},
+				},
+			},
+			labelKeys,
+			annotationKeys,
+			true,
+		},
+		{
+			"pod with inconsistent value in labels",
+			&v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"labelKey1": "value1",
+						"labelKey2": "value2",
+					},
+				},
+			},
+			labelKeys,
+			annotationKeys,
+			false,
+		},
+		{
+			"pod with inconsistent value between label and annotation",
+			&v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"labelKey1": "value1",
+					},
+					Annotations: map[string]string{
+						"annotationKey1": "value2",
+					},
+				},
+			},
+			labelKeys,
+			annotationKeys,
+			false,
+		},
+		{
+			"pod with inconsistent value in annotations",
+			&v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						"annotationKey1": "value1",
+						"annotationKey2": "value2",
+					},
+				},
+			},
+			labelKeys,
+			annotationKeys,
+			false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			isConsistet := ValidatePodLabelAnnotationConsistency(tc.pod, tc.lablabelKeys, tc.annotationKeys)
+			assert.Equal(t, isConsistet, tc.expected)
 		})
 	}
 }
@@ -845,6 +963,7 @@ func TestGetUserFromPodAnnotation(t *testing.T) {
 }
 
 func TestGetQueueNameFromPod(t *testing.T) {
+	queueInCanonicalLabel := "sandboxCanonicalLabel"
 	queueInLabel := "sandboxLabel"
 	queueInAnnotation := "sandboxAnnotation"
 	testCases := []struct {
@@ -853,7 +972,16 @@ func TestGetQueueNameFromPod(t *testing.T) {
 		expectedQueue string
 	}{
 		{
-			name: "With queue label",
+			name: "With canonical queue label",
+			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{constants.CanonicalLabelQueueName: queueInCanonicalLabel},
+				},
+			},
+			expectedQueue: queueInCanonicalLabel,
+		},
+		{
+			name: "With legacy queue label",
 			pod: &v1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{constants.LabelQueueName: queueInLabel},
@@ -871,14 +999,24 @@ func TestGetQueueNameFromPod(t *testing.T) {
 			expectedQueue: queueInAnnotation,
 		},
 		{
-			name: "With queue label and annotation",
+			name: "With canonical queue label and annotation",
+			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels:      map[string]string{constants.CanonicalLabelQueueName: queueInCanonicalLabel},
+					Annotations: map[string]string{constants.AnnotationQueueName: queueInAnnotation},
+				},
+			},
+			expectedQueue: queueInCanonicalLabel,
+		},
+		{
+			name: "With legacy queue label and annotation",
 			pod: &v1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels:      map[string]string{constants.LabelQueueName: queueInLabel},
 					Annotations: map[string]string{constants.AnnotationQueueName: queueInAnnotation},
 				},
 			},
-			expectedQueue: queueInLabel,
+			expectedQueue: queueInAnnotation,
 		},
 		{
 			name: "Without queue label and annotation",
