@@ -60,12 +60,12 @@ const (
 	appID5             = "app00005"
 	non_existing_appID = "app-none-exist"
 
-	uid1  = "uid_0001"
-	uid2  = "uid_0002"
-	uid3  = "uid_0003"
-	uid4  = "uid_0004"
-	uid5  = "uid_0005"
-	uid0n = "uid_0000"
+	uid1 = "uid_0001"
+	uid2 = "uid_0002"
+	uid3 = "uid_0003"
+	uid4 = "uid_0004"
+	uid5 = "uid_0005"
+	uid0 = "uid_0000"
 
 	pod1UID     = "task00001"
 	pod2UID     = "task00002"
@@ -89,12 +89,6 @@ const (
 	queueNameB       = "root.b"
 	queueNameC       = "root.c"
 	queueNameUnknown = "root.other"
-
-	// appID1 = "yunikorn-test-00001"
-	// appID2 = "yunikorn-test-00002"
-	// appID3 = "yunikorn-test-00003"
-	// appID4 = "yunikorn-test-00004"
-	// appID5 = "yunikorn-test-00005"
 
 	testUser = "test-user"
 )
@@ -582,7 +576,7 @@ func TestDeletePod(t *testing.T) {
 
 	// these should not fail, but here for completeness
 	context.DeletePod(nil)
-	context.DeletePod(cache.DeletedFinalStateUnknown{Key: uid0n, Obj: nil})
+	context.DeletePod(cache.DeletedFinalStateUnknown{Key: uid0, Obj: nil})
 
 	context.DeletePod(pod1)
 	pod = context.schedulerCache.GetPod(uid1)
