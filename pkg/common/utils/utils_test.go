@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -47,6 +48,21 @@ func TestConvert2Pod(t *testing.T) {
 	pod, err = Convert2Pod(&v1.Pod{})
 	assert.NilError(t, err)
 	assert.Assert(t, pod != nil)
+}
+
+func TestConvert2ConfigMap(t *testing.T) {
+	configMap := &v1.ConfigMap{}
+	result := Convert2ConfigMap(configMap)
+	assert.Equal(t, result != nil, true)
+	assert.Equal(t, reflect.DeepEqual(result, configMap), true)
+
+	obj := struct{}{}
+	result = Convert2ConfigMap(obj)
+	assert.Equal(t, result == nil, true)
+
+	pod := &v1.Pod{}
+	result = Convert2ConfigMap(pod)
+	assert.Equal(t, result == nil, true)
 }
 
 func TestIsAssignedPod(t *testing.T) {
@@ -209,6 +225,15 @@ func TestGetNamespaceQuotaFromAnnotationUsingNewAnnotations(t *testing.T) {
 				Namespace: "test",
 				Annotations: map[string]string{
 					constants.DomainYuniKorn + "namespace.quota": "{\"cpu\": \"error\", \"memory\": \"error\"}",
+				},
+			},
+		}, nil},
+		{&v1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test",
+				Namespace: "test",
+				Annotations: map[string]string{
+					constants.DomainYuniKorn + "namespace.quota": "expecting JSON object",
 				},
 			},
 		}, nil},
@@ -624,9 +649,11 @@ func TestGetApplicationIDFromPod(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			conf.GetSchedulerConf().GenerateUniqueAppIds = tc.generateUniqueAppIds
 			SetPluginMode(false)
+			assert.Equal(t, IsPluginMode(), false)
 			appID := GetApplicationIDFromPod(tc.pod)
 			assert.Equal(t, appID, tc.expectedAppID, "Wrong appID (standard mode)")
 			SetPluginMode(true)
+			assert.Equal(t, IsPluginMode(), true)
 			appID2 := GetApplicationIDFromPod(tc.pod)
 			assert.Equal(t, appID2, tc.expectedAppIDPluginMode, "Wrong appID (plugin mode)")
 		})
@@ -946,6 +973,43 @@ func TestPodAlreadyBound(t *testing.T) {
 	}
 }
 
+func TestIsPodRunning(t *testing.T) {
+	pod := &v1.Pod{
+		Status: v1.PodStatus{
+			Phase: v1.PodRunning,
+		},
+	}
+	assert.Equal(t, IsPodRunning(pod), true)
+
+	pod = &v1.Pod{
+		Status: v1.PodStatus{
+			Phase: v1.PodFailed,
+		},
+	}
+	assert.Equal(t, IsPodRunning(pod), false)
+
+	pod = &v1.Pod{
+		Status: v1.PodStatus{
+			Phase: v1.PodPending,
+		},
+	}
+	assert.Equal(t, IsPodRunning(pod), false)
+
+	pod = &v1.Pod{
+		Status: v1.PodStatus{
+			Phase: v1.PodSucceeded,
+		},
+	}
+	assert.Equal(t, IsPodRunning(pod), false)
+
+	pod = &v1.Pod{
+		Status: v1.PodStatus{
+			Phase: v1.PodUnknown,
+		},
+	}
+	assert.Equal(t, IsPodRunning(pod), false)
+}
+
 func TestGetTaskGroupFromPodSpec(t *testing.T) {
 	pod := &v1.Pod{
 		TypeMeta: metav1.TypeMeta{
@@ -1075,6 +1139,13 @@ func TestGetCoreSchedulerConfigFromConfigMap(t *testing.T) {
 	assert.Equal(t, "test", GetCoreSchedulerConfigFromConfigMap(cm))
 }
 
+func TestGetCoreSchedulerConfigNotMapping(t *testing.T) {
+	cm := map[string]string{
+		"unknow.yaml": "test",
+	}
+	assert.Equal(t, "", GetCoreSchedulerConfigFromConfigMap(cm))
+}
+
 func TestGzipCompressedConfigMap(t *testing.T) {
 	var b bytes.Buffer
 	gzWriter := gzip.NewWriter(&b)
@@ -1139,4 +1210,31 @@ func TestConvert2PriorityClass(t *testing.T) {
 	result := Convert2PriorityClass(&pc)
 	assert.Assert(t, result != nil)
 	assert.Equal(t, result.PreemptionPolicy, &preemptLower)
+}
+
+func TestWaitForCondition(t *testing.T) {
+	target := false
+	eval := func() bool {
+		return target
+	}
+	tests := []struct {
+		input    bool
+		interval time.Duration
+		timeout  time.Duration
+		output   error
+	}{
+		{true, time.Duration(1) * time.Second, time.Duration(2) * time.Second, nil},
+		{false, time.Duration(1) * time.Second, time.Duration(2) * time.Second, ErrorTimeout},
+		{true, time.Duration(3) * time.Second, time.Duration(2) * time.Second, nil},
+		{false, time.Duration(3) * time.Second, time.Duration(2) * time.Second, ErrorTimeout},
+	}
+	for _, test := range tests {
+		target = test.input
+		get := WaitForCondition(eval, test.timeout, test.interval)
+		if test.output == nil {
+			assert.NilError(t, get)
+		} else {
+			assert.Equal(t, get.Error(), test.output.Error())
+		}
+	}
 }
