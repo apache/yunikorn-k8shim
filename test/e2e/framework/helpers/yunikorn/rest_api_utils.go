@@ -420,21 +420,21 @@ func GetFailedHealthChecks() (string, error) {
 }
 
 func (c *RClient) GetQueue(partition string, queueName string) (*dao.PartitionQueueDAOInfo, error) {
-	queues, err := c.GetQueues(partition)
+	req, err := c.newRequest("GET", fmt.Sprintf(configmanager.QueuePath, partition, queueName), nil)
 	if err != nil {
 		return nil, err
 	}
-	if queueName == "root" {
-		return queues, nil
-	}
+	// Include the query string 'subtree' to retrieve all queue children by default for better convenience in E2E tests
+	q := req.URL.Query()
+	q.Add("subtree", "true")
+	req.URL.RawQuery = q.Encode()
 
-	var allSubQueues = queues.Children
-	for _, subQ := range allSubQueues {
-		if subQ.QueueName == queueName {
-			return &subQ, nil
-		}
+	var queue *dao.PartitionQueueDAOInfo
+	_, err = c.do(req, &queue)
+	if queue == nil {
+		return nil, fmt.Errorf("QueueInfo not found: %s", queueName)
 	}
-	return nil, fmt.Errorf("QueueInfo not found: %s", queueName)
+	return queue, err
 }
 
 // ConditionFunc returns true if queue timestamp property equals ts
