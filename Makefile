@@ -132,7 +132,8 @@ endif
 
 # shellcheck
 SHELLCHECK_VERSION=v0.9.0
-SHELLCHECK_BIN=${TOOLS_DIR}/shellcheck
+SHELLCHECK_PATH=${TOOLS_DIR}/shellcheck-$(SHELLCHECK_VERSION)
+SHELLCHECK_BIN=${SHELLCHECK_PATH}/shellcheck
 SHELLCHECK_ARCHIVE := shellcheck-$(SHELLCHECK_VERSION).$(OS).$(HOST_ARCH).tar.xz
 ifeq (darwin, $(OS))
 ifeq (arm64, $(HOST_ARCH))
@@ -229,9 +230,9 @@ tools: $(SHELLCHECK_BIN) $(GOLANGCI_LINT_BIN) $(KUBECTL_BIN) $(KIND_BIN) $(HELM_
 # Install shellcheck
 $(SHELLCHECK_BIN):
 	@echo "installing shellcheck $(SHELLCHECK_VERSION)"
-	@mkdir -p "$(TOOLS_DIR)"
+	@mkdir -p "$(SHELLCHECK_PATH)"
 	@curl -sSfL "https://github.com/koalaman/shellcheck/releases/download/$(SHELLCHECK_VERSION)/$(SHELLCHECK_ARCHIVE)" \
-		| tar -x -J --strip-components=1 -C "$(TOOLS_DIR)" "shellcheck-$(SHELLCHECK_VERSION)/shellcheck"
+		| tar -x -J --strip-components=1 -C "$(SHELLCHECK_PATH)" "shellcheck-$(SHELLCHECK_VERSION)/shellcheck"
 
 # Install golangci-lint
 $(GOLANGCI_LINT_BIN):
