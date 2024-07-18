@@ -432,10 +432,13 @@ func (c *RClient) GetQueue(partition string, queueName string, withChildren bool
 
 	var queue *dao.PartitionQueueDAOInfo
 	_, err = c.do(req, &queue)
+	if err != nil {
+		return nil, err
+	}
 	if queue == nil {
 		return nil, fmt.Errorf("QueueInfo not found: %s", queueName)
 	}
-	return queue, err
+	return queue, nil
 }
 
 // ConditionFunc returns true if queue timestamp property equals ts
