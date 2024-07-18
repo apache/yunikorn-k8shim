@@ -159,7 +159,8 @@ KUBECTL_BIN=$(KUBECTL_PATH)/kubectl
 
 # kind
 KIND_VERSION=v0.23.0
-KIND_BIN=$(TOOLS_DIR)/kind
+KIND_PATH=$(TOOLS_DIR)/kind-$(KIND_VERSION)
+KIND_BIN=$(KIND_PATH)/kind
 
 # helm
 HELM_VERSION=v3.12.1
@@ -254,7 +255,7 @@ $(KUBECTL_BIN):
 # Install kind
 $(KIND_BIN):
 	@echo "installing kind $(KIND_VERSION)"
-	@mkdir -p "$(TOOLS_DIR)"
+	@mkdir -p "$(KIND_PATH)"
 	@curl -sSfL -o "$(KIND_BIN)" \
 		"https://kind.sigs.k8s.io/dl/$(KIND_VERSION)/kind-$(OS)-$(EXEC_ARCH)" && \
 		chmod +x "$(KIND_BIN)"
