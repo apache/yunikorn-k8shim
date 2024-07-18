@@ -419,15 +419,16 @@ func GetFailedHealthChecks() (string, error) {
 	return failCheck, nil
 }
 
-func (c *RClient) GetQueue(partition string, queueName string) (*dao.PartitionQueueDAOInfo, error) {
+func (c *RClient) GetQueue(partition string, queueName string, withChildren bool) (*dao.PartitionQueueDAOInfo, error) {
 	req, err := c.newRequest("GET", fmt.Sprintf(configmanager.QueuePath, partition, queueName), nil)
 	if err != nil {
 		return nil, err
 	}
-	// Include the query string 'subtree' to retrieve all queue children by default for better convenience in E2E tests
-	q := req.URL.Query()
-	q.Add("subtree", "true")
-	req.URL.RawQuery = q.Encode()
+	if withChildren {
+		q := req.URL.Query()
+		q.Add("subtree", "true")
+		req.URL.RawQuery = q.Encode()
+	}
 
 	var queue *dao.PartitionQueueDAOInfo
 	_, err = c.do(req, &queue)
@@ -442,7 +443,7 @@ func (c *RClient) GetQueue(partition string, queueName string) (*dao.PartitionQu
 func compareQueueTS(queuePathStr string, ts string) wait.ConditionFunc {
 	return func() (bool, error) {
 		restClient := RClient{}
-		qInfo, err := restClient.GetQueue(DefaultPartition, queuePathStr)
+		qInfo, err := restClient.GetQueue(DefaultPartition, queuePathStr, false)
 		if err != nil {
 			return false, err
 		}
