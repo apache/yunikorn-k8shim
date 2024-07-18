@@ -230,6 +230,17 @@ init: conf/scheduler-config-local.yaml
 conf/scheduler-config-local.yaml: conf/scheduler-config.yaml
 	./scripts/plugin-conf-gen.sh $(KUBECONFIG) "conf/scheduler-config.yaml" "conf/scheduler-config-local.yaml"
 
+# Print tools version
+.PHONY: print_kubectl_version
+print_kubectl_version:
+	@echo $(KUBECTL_VERSION)
+.PHONY: print_kind_version
+print_kind_version:
+	@echo $(KIND_VERSION)
+.PHONY: print_helm_version
+print_helm_version:
+	@echo $(HELM_VERSION)
+
 # Install tools
 .PHONY: tools
 tools: $(SHELLCHECK_BIN) $(GOLANGCI_LINT_BIN) $(KUBECTL_BIN) $(KIND_BIN) $(HELM_BIN) $(SPARK_SUBMIT_CMD) $(GO_LICENSES_BIN) $(GINKGO_BIN)
