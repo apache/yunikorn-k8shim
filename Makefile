@@ -147,7 +147,8 @@ endif
 
 # golangci-lint
 GOLANGCI_LINT_VERSION=1.57.2
-GOLANGCI_LINT_BIN=$(TOOLS_DIR)/golangci-lint
+GOLANGCI_LINT_PATH=$(TOOLS_DIR)/golangci-lint-$(GOLANGCI_LINT_VERSION)
+GOLANGCI_LINT_BIN=$(GOLANGCI_LINT_PATH)/golangci-lint
 GOLANGCI_LINT_ARCHIVE=golangci-lint-$(GOLANGCI_LINT_VERSION)-$(OS)-$(EXEC_ARCH).tar.gz
 GOLANGCI_LINT_ARCHIVEBASE=golangci-lint-$(GOLANGCI_LINT_VERSION)-$(OS)-$(EXEC_ARCH)
 
@@ -237,9 +238,9 @@ $(SHELLCHECK_BIN):
 # Install golangci-lint
 $(GOLANGCI_LINT_BIN):
 	@echo "installing golangci-lint v$(GOLANGCI_LINT_VERSION)"
-	@mkdir -p "$(TOOLS_DIR)"
+	@mkdir -p "$(GOLANGCI_LINT_PATH)"
 	@curl -sSfL "https://github.com/golangci/golangci-lint/releases/download/v$(GOLANGCI_LINT_VERSION)/$(GOLANGCI_LINT_ARCHIVE)" \
-		| tar -x -z --strip-components=1 -C "$(TOOLS_DIR)" "$(GOLANGCI_LINT_ARCHIVEBASE)/golangci-lint"
+		| tar -x -z --strip-components=1 -C "$(GOLANGCI_LINT_PATH)" "$(GOLANGCI_LINT_ARCHIVEBASE)/golangci-lint"
 
 # Install kubectl
 $(KUBECTL_BIN):
