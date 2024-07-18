@@ -179,7 +179,8 @@ export SPARK_PYTHON_IMAGE=docker.io/apache/spark-py:v$(SPARK_PYTHON_VERSION)
 
 # go-licenses
 GO_LICENSES_VERSION=v1.6.0
-GO_LICENSES_BIN=$(TOOLS_DIR)/go-licenses
+GO_LICENSES_PATH=$(TOOLS_DIR)/go-licenses-$(GO_LICENSES_VERSION)
+GO_LICENSES_BIN=$(GO_LICENSES_PATH)/go-licenses
 
 # ginkgo
 GINKGO_BIN=$(TOOLS_DIR)/ginkgo
@@ -280,8 +281,8 @@ $(SPARK_SUBMIT_CMD):
 # Install go-licenses
 $(GO_LICENSES_BIN):
 	@echo "installing go-licenses $(GO_LICENSES_VERSION)"
-	@mkdir -p "$(TOOLS_DIR)"
-	@GOBIN="$(BASE_DIR)/$(TOOLS_DIR)" "$(GO)" install "github.com/google/go-licenses@$(GO_LICENSES_VERSION)"
+	@mkdir -p "$(GO_LICENSES_PATH)"
+	@GOBIN="$(BASE_DIR)/$(GO_LICENSES_PATH)" "$(GO)" install "github.com/google/go-licenses@$(GO_LICENSES_VERSION)"
 
 $(GINKGO_BIN):
 	@echo "installing ginkgo"
