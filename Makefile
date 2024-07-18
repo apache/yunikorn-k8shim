@@ -164,7 +164,8 @@ KIND_BIN=$(KIND_PATH)/kind
 
 # helm
 HELM_VERSION=v3.12.1
-HELM_BIN=$(TOOLS_DIR)/helm
+HELM_PATH=$(TOOLS_DIR)/helm-$(HELM_VERSION)
+HELM_BIN=$(HELM_PATH)/helm
 HELM_ARCHIVE=helm-$(HELM_VERSION)-$(OS)-$(EXEC_ARCH).tar.gz
 HELM_ARCHIVE_BASE=$(OS)-$(EXEC_ARCH)
 
@@ -263,9 +264,9 @@ $(KIND_BIN):
 # Install helm
 $(HELM_BIN):
 	@echo "installing helm $(HELM_VERSION)"
-	@mkdir -p "$(TOOLS_DIR)"
+	@mkdir -p "$(HELM_PATH)"
 	@curl -sSfL "https://get.helm.sh/$(HELM_ARCHIVE)" \
-		| tar -x -z --strip-components=1 -C "$(TOOLS_DIR)" "$(HELM_ARCHIVE_BASE)/helm"
+		| tar -x -z --strip-components=1 -C "$(HELM_PATH)" "$(HELM_ARCHIVE_BASE)/helm"
 
 # Install spark
 $(SPARK_SUBMIT_CMD):
