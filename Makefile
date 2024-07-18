@@ -183,7 +183,9 @@ GO_LICENSES_PATH=$(TOOLS_DIR)/go-licenses-$(GO_LICENSES_VERSION)
 GO_LICENSES_BIN=$(GO_LICENSES_PATH)/go-licenses
 
 # ginkgo
-GINKGO_BIN=$(TOOLS_DIR)/ginkgo
+GINKGO_VERSION=v2.19.0
+GINKGO_PATH=$(TOOLS_DIR)/ginkgo-$(GINKGO_VERSION)
+GINKGO_BIN=$(GINKGO_PATH)/ginkgo
 
 FLAG_PREFIX=github.com/apache/yunikorn-k8shim/pkg/conf
 
@@ -285,9 +287,9 @@ $(GO_LICENSES_BIN):
 	@GOBIN="$(BASE_DIR)/$(GO_LICENSES_PATH)" "$(GO)" install "github.com/google/go-licenses@$(GO_LICENSES_VERSION)"
 
 $(GINKGO_BIN):
-	@echo "installing ginkgo"
-	@mkdir -p "$(TOOLS_DIR)"
-	@GOBIN="$(BASE_DIR)/$(TOOLS_DIR)" "$(GO)" install "github.com/onsi/ginkgo/v2/ginkgo"
+	@echo "installing ginkgo $(GINKGO_VERSION)"
+	@mkdir -p "$(GINKGO_PATH)"
+	@GOBIN="$(BASE_DIR)/$(GINKGO_PATH)" "$(GO)" install "github.com/onsi/ginkgo/v2/ginkgo@$(GINKGO_VERSION)"
 
 # Run lint against the previous commit for PR and branch build
 # In dev setup look at all changes on top of master
