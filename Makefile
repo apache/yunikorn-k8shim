@@ -173,7 +173,7 @@ HELM_ARCHIVE_BASE=$(OS)-$(EXEC_ARCH)
 export SPARK_VERSION=3.3.3
 # sometimes the image is not avaiable with $SPARK_VERSION, the minor version must match
 export SPARK_PYTHON_VERSION=3.3.1
-export SPARK_HOME=$(BASE_DIR)$(TOOLS_DIR)/spark
+export SPARK_HOME=$(BASE_DIR)$(TOOLS_DIR)/spark-v$(SPARK_VERSION)
 export SPARK_SUBMIT_CMD=$(SPARK_HOME)/bin/spark-submit
 export SPARK_PYTHON_IMAGE=docker.io/apache/spark-py:v$(SPARK_PYTHON_VERSION)
 
@@ -270,7 +270,7 @@ $(HELM_BIN):
 
 # Install spark
 $(SPARK_SUBMIT_CMD):
-	@echo "installing spark $(SPARK_VERSION)"
+	@echo "installing spark v$(SPARK_VERSION)"
 	@rm -rf "$(SPARK_HOME)" "$(SPARK_HOME).tmp"
 	@mkdir -p "$(SPARK_HOME).tmp"
 	@curl -sSfL "https://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop3.tgz" \
