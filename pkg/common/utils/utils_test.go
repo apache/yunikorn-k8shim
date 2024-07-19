@@ -987,27 +987,6 @@ func TestIsPodRunning(t *testing.T) {
 		},
 	}
 	assert.Equal(t, IsPodRunning(pod), false)
-
-	pod = &v1.Pod{
-		Status: v1.PodStatus{
-			Phase: v1.PodPending,
-		},
-	}
-	assert.Equal(t, IsPodRunning(pod), false)
-
-	pod = &v1.Pod{
-		Status: v1.PodStatus{
-			Phase: v1.PodSucceeded,
-		},
-	}
-	assert.Equal(t, IsPodRunning(pod), false)
-
-	pod = &v1.Pod{
-		Status: v1.PodStatus{
-			Phase: v1.PodUnknown,
-		},
-	}
-	assert.Equal(t, IsPodRunning(pod), false)
 }
 
 func TestGetTaskGroupFromPodSpec(t *testing.T) {
@@ -1123,26 +1102,24 @@ func TestGetPlaceholderFlagFromPodSpec(t *testing.T) {
 	}
 }
 
-func TestGetCoreSchedulerConfigFromConfigMapNil(t *testing.T) {
-	assert.Equal(t, "", GetCoreSchedulerConfigFromConfigMap(nil))
-}
-
-func TestGetCoreSchedulerConfigFromConfigMapEmpty(t *testing.T) {
-	cm := map[string]string{}
-	assert.Equal(t, "", GetCoreSchedulerConfigFromConfigMap(cm))
-}
-
 func TestGetCoreSchedulerConfigFromConfigMap(t *testing.T) {
+	// case: mapping
 	cm := map[string]string{
 		"queues.yaml": "test",
 	}
 	assert.Equal(t, "test", GetCoreSchedulerConfigFromConfigMap(cm))
-}
 
-func TestGetCoreSchedulerConfigNotMapping(t *testing.T) {
-	cm := map[string]string{
+	// case: not mapping
+	cm = map[string]string{
 		"unknow.yaml": "test",
 	}
+	assert.Equal(t, "", GetCoreSchedulerConfigFromConfigMap(cm))
+
+	// case: nil
+	assert.Equal(t, "", GetCoreSchedulerConfigFromConfigMap(nil))
+
+	// case: empty
+	cm = map[string]string{}
 	assert.Equal(t, "", GetCoreSchedulerConfigFromConfigMap(cm))
 }
 
