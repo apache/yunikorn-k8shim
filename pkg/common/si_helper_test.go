@@ -45,6 +45,7 @@ func TestCreateReleaseRequestForTask(t *testing.T) {
 	assert.Equal(t, request.Releases.AllocationAsksToRelease[0].ApplicationID, "app01")
 	assert.Equal(t, request.Releases.AllocationAsksToRelease[0].AllocationKey, "task01")
 	assert.Equal(t, request.Releases.AllocationAsksToRelease[0].PartitionName, "default")
+	assert.Equal(t, request.Releases.AllocationAsksToRelease[0].TerminationType, si.TerminationType_UNKNOWN_TERMINATION_TYPE)
 
 	// without allocationKey
 	request = CreateReleaseRequestForTask("app01", "task01", "", "default", "STOPPED_BY_RM")
@@ -56,6 +57,21 @@ func TestCreateReleaseRequestForTask(t *testing.T) {
 	assert.Equal(t, request.Releases.AllocationAsksToRelease[0].ApplicationID, "app01")
 	assert.Equal(t, request.Releases.AllocationAsksToRelease[0].AllocationKey, "task01")
 	assert.Equal(t, request.Releases.AllocationAsksToRelease[0].PartitionName, "default")
+	assert.Equal(t, request.Releases.AllocationAsksToRelease[0].TerminationType, si.TerminationType_UNKNOWN_TERMINATION_TYPE)
+
+	request = CreateReleaseRequestForTask("app01", "task01", "task01", "default", "UNKNOW")
+	assert.Assert(t, request.Releases != nil)
+	assert.Assert(t, request.Releases.AllocationsToRelease != nil)
+	assert.Assert(t, request.Releases.AllocationAsksToRelease != nil)
+	assert.Equal(t, len(request.Releases.AllocationsToRelease), 1)
+	assert.Equal(t, len(request.Releases.AllocationAsksToRelease), 1)
+	assert.Equal(t, request.Releases.AllocationsToRelease[0].ApplicationID, "app01")
+	assert.Equal(t, request.Releases.AllocationsToRelease[0].AllocationKey, "task01")
+	assert.Equal(t, request.Releases.AllocationsToRelease[0].PartitionName, "default")
+	assert.Equal(t, request.Releases.AllocationAsksToRelease[0].ApplicationID, "app01")
+	assert.Equal(t, request.Releases.AllocationAsksToRelease[0].AllocationKey, "task01")
+	assert.Equal(t, request.Releases.AllocationAsksToRelease[0].PartitionName, "default")
+	assert.Equal(t, request.Releases.AllocationAsksToRelease[0].TerminationType, si.TerminationType_UNKNOWN_TERMINATION_TYPE)
 }
 
 func TestCreateUpdateRequestForRemoveApplication(t *testing.T) {
