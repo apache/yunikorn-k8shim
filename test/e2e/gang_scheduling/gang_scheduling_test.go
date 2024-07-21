@@ -445,7 +445,7 @@ var _ = Describe("", func() {
 		}
 
 		// Verify queue resources = 0
-		qInfo, qErr := restClient.GetQueue(configmanager.DefaultPartition, nsQueue)
+		qInfo, qErr := restClient.GetQueue(configmanager.DefaultPartition, nsQueue, false)
 		Ω(qErr).NotTo(HaveOccurred())
 		var usedResource yunikorn.ResourceUsage
 		var usedPercentageResource yunikorn.ResourceUsage

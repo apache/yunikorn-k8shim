@@ -36,6 +36,7 @@ const (
 	// REST endpoints of YuniKorn
 	PartitionsPath    = "ws/v1/partitions"
 	QueuesPath        = "ws/v1/partition/%s/queues"
+	QueuePath         = "ws/v1/partition/%s/queue/%s"
 	AppsPath          = "ws/v1/partition/%s/queue/%s/applications"
 	AppPath           = "ws/v1/partition/%s/queue/%s/application/%s"
 	PartitionAppPath  = "ws/v1/partition/%s/application/%s"
