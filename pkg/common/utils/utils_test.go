@@ -535,6 +535,7 @@ func TestPodUnderCondition(t *testing.T) {
 	assert.Equal(t, PodUnderCondition(pod, condition), false)
 }
 
+// nolint: funlen
 func TestGetApplicationIDFromPod(t *testing.T) {
 	defer SetPluginMode(false)
 	defer func() { conf.GetSchedulerConf().GenerateUniqueAppIds = false }()
