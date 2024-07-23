@@ -806,7 +806,7 @@ func TestGetResource(t *testing.T) {
 			expectedRes: nil,
 		},
 		{
-			name: "invalid memery resources",
+			name: "invalid memory resources",
 			resMap: map[string]string{
 				v1.ResourceMemory.String(): "64MiB",
 			},
@@ -818,7 +818,7 @@ func TestGetResource(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			actualRes := GetResource(tt.resMap)
 			if tt.expectedRes == nil {
-				assert.Equal(t, actualRes == nil, true)
+				assert.Assert(t, actualRes == nil)
 			} else {
 				assert.Equal(t, len(actualRes.Resources), len(tt.expectedRes))
 				if len(tt.expectedRes) > 0 {

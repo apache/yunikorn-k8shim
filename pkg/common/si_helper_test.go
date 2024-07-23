@@ -59,7 +59,7 @@ func TestCreateReleaseRequestForTask(t *testing.T) {
 	assert.Equal(t, request.Releases.AllocationAsksToRelease[0].PartitionName, "default")
 	assert.Equal(t, request.Releases.AllocationAsksToRelease[0].TerminationType, si.TerminationType_UNKNOWN_TERMINATION_TYPE)
 
-	request = CreateReleaseRequestForTask("app01", "task01", "task01", "default", "UNKNOW")
+	request = CreateReleaseRequestForTask("app01", "task01", "task01", "default", "UNKNOWN")
 	assert.Assert(t, request.Releases != nil)
 	assert.Assert(t, request.Releases.AllocationsToRelease != nil)
 	assert.Assert(t, request.Releases.AllocationAsksToRelease != nil)
