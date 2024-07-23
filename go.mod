@@ -21,8 +21,8 @@ module github.com/apache/yunikorn-k8shim
 go 1.21
 
 require (
-	github.com/apache/yunikorn-core v0.0.0-20240711174509-5454d7d32663
-	github.com/apache/yunikorn-scheduler-interface v1.5.1-1
+	github.com/apache/yunikorn-core v1.5.2-1
+	github.com/apache/yunikorn-scheduler-interface v1.5.2-1
 	github.com/google/go-cmp v0.6.0
 	github.com/google/uuid v1.6.0
 	github.com/looplab/fsm v1.0.1
