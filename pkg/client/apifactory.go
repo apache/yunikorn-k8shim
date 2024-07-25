@@ -21,6 +21,7 @@ package client
 import (
 	"fmt"
 	"time"
+	"errors"
 
 	"go.uber.org/zap"
 	"k8s.io/client-go/informers"
@@ -167,7 +168,7 @@ func (s *APIFactory) AddEventHandler(handlers *ResourceEventHandlers) error {
 
 	log.Log(log.ShimClient).Info("registering event handler", zap.Stringer("type", handlers.Type))
 	if err := s.addEventHandlers(handlers.Type, h, 0); err != nil {
-		return fmt.Errorf("failed to initialize event handlers: %w", err)
+		return errors.Join(errors.New("failed to initialize event handlers: "), err)
 	}
 	return nil
 }
@@ -200,7 +201,7 @@ func (s *APIFactory) addEventHandlers(
 	}
 
 	if err != nil {
-		return fmt.Errorf("failed to add event handlers: %w", err)
+		return errors.Join(errors.New("failed to add event handlers: "), err)
 	}
 	return nil
 }
