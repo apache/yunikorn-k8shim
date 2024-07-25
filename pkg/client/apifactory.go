@@ -19,9 +19,8 @@
 package client
 
 import (
-	"fmt"
-	"time"
 	"errors"
+	"time"
 
 	"go.uber.org/zap"
 	"k8s.io/client-go/informers"
