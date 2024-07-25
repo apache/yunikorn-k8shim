@@ -1184,9 +1184,7 @@ func TestPlaceholderTimeoutEvents(t *testing.T) {
 	})
 	assert.Assert(t, task1 != nil)
 	assert.Equal(t, task1.GetTaskID(), "task02")
-
-	_, taskErr := app.GetTask("task02")
-	assert.NilError(t, taskErr, "Task should exist")
+	assert.Assert(t, app.GetTask("task02") != nil, "Task should exist")
 
 	task1.allocationKey = allocationKey
 

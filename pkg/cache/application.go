@@ -115,14 +115,10 @@ func (app *Application) canHandle(ev events.ApplicationEvent) bool {
 	return app.sm.Can(ev.GetEvent())
 }
 
-func (app *Application) GetTask(taskID string) (*Task, error) {
+func (app *Application) GetTask(taskID string) *Task {
 	app.lock.RLock()
 	defer app.lock.RUnlock()
-	if task, ok := app.taskMap[taskID]; ok {
-		return task, nil
-	}
-	return nil, fmt.Errorf("task %s doesn't exist in application %s",
-		taskID, app.applicationID)
+	return app.taskMap[taskID]
 }
 
 func (app *Application) GetApplicationID() string {
