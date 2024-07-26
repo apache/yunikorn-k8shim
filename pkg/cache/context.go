@@ -951,6 +951,12 @@ func (ctx *Context) updateApplicationTags(request *AddApplicationRequest, namesp
 		}
 	}
 
+	// add maxApps resource info as an app tag
+	maxApps := utils.GetNamespaceMaxAppsFromAnnotation(namespaceObj)
+	if maxApps != "" {
+		request.Metadata.Tags[siCommon.AppTagNamespaceResourceMaxApps] = maxApps
+	}
+
 	// add parent queue info as an app tag
 	parentQueue := utils.GetNameSpaceAnnotationValue(namespaceObj, constants.AnnotationParentQueue)
 	if parentQueue != "" {
