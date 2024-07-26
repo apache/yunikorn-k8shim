@@ -525,6 +525,7 @@ func assertAppState(t *testing.T, app *Application, expectedState string, durati
 	}
 }
 
+//nolint:funlen
 func TestGetNonTerminatedTaskAlias(t *testing.T) {
 	context := initContextForTest()
 	app := NewApplication(appID, "root.a", "testuser", testGroups, map[string]string{}, newMockSchedulerAPI())
@@ -749,6 +750,7 @@ func TestTryReserve(t *testing.T) {
 	assert.NilError(t, err, "placeholders are not created")
 }
 
+//nolint:funlen
 func TestTryReservePostRestart(t *testing.T) {
 	context := initContextForTest()
 	dispatcher.RegisterEventHandler("TestAppHandler", dispatcher.EventTypeApp, context.ApplicationEventHandler())
@@ -1182,9 +1184,7 @@ func TestPlaceholderTimeoutEvents(t *testing.T) {
 	})
 	assert.Assert(t, task1 != nil)
 	assert.Equal(t, task1.GetTaskID(), "task02")
-
-	_, taskErr := app.GetTask("task02")
-	assert.NilError(t, taskErr, "Task should exist")
+	assert.Assert(t, app.GetTask("task02") != nil, "Task should exist")
 
 	task1.allocationKey = allocationKey
 

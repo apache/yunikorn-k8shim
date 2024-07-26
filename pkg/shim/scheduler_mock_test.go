@@ -167,8 +167,7 @@ func (fc *MockScheduler) waitAndAssertTaskState(t *testing.T, appID, taskID, exp
 	assert.Equal(t, app != nil, true)
 	assert.Equal(t, app.GetApplicationID(), appID)
 
-	task, err := app.GetTask(taskID)
-	assert.NilError(t, err, "Task retrieval failed")
+	task := app.GetTask(taskID)
 	deadline := time.Now().Add(10 * time.Second)
 	for {
 		if task.GetTaskState() == expectedState {

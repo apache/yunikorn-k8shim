@@ -221,7 +221,7 @@ func newPod(host string, hostPortInfos ...string) *v1.Pod {
 	for _, portInfo := range hostPortInfos {
 		split := strings.Split(portInfo, "/")
 		//nolint:errcheck
-		hostPort, _ := strconv.Atoi(split[2])
+		hostPort, _ := strconv.ParseInt(split[2], 10, 32)
 
 		networkPorts = append(networkPorts, v1.ContainerPort{
 			HostIP:   split[1],
@@ -357,6 +357,7 @@ func TestPodFitsHostPorts(t *testing.T) {
 	}
 }
 
+//nolint:funlen
 func TestPodFitsSelector(t *testing.T) {
 	clientSet := clientSet()
 	informerFactory := informerFactory(clientSet)
@@ -1202,6 +1203,7 @@ func TestRunGeneralPredicates(t *testing.T) {
 	}
 }
 
+//nolint:funlen
 func TestInterPodAffinity(t *testing.T) {
 	clientSet := clientSet()
 	informerFactory := informerFactory(clientSet)

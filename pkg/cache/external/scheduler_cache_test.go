@@ -307,6 +307,7 @@ func TestGetNodesInfo(t *testing.T) {
 	expectHost(t, host2, nodesInfo)
 }
 
+//nolint:funlen
 func TestGetNodesInfoPodsWithAffinity(t *testing.T) {
 	cache := NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
 	assert.Assert(t, cache.nodesInfoPodsWithAffinity == nil)

@@ -30,10 +30,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sEvents "k8s.io/client-go/tools/events"
 
-	"github.com/apache/yunikorn-core/pkg/common"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
+	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/locking"
 
@@ -148,6 +148,7 @@ func TestTaskIllegalEventHandling(t *testing.T) {
 	assert.Equal(t, task.GetTaskState(), TaskStates().Pending)
 }
 
+//nolint:funlen
 func TestReleaseTaskAllocation(t *testing.T) {
 	mockedSchedulerApi := newMockSchedulerAPI()
 	mockedContext := initContextForTest()
@@ -200,9 +201,13 @@ func TestReleaseTaskAllocation(t *testing.T) {
 	assert.NilError(t, err, "failed to handle AllocateTask event")
 	assert.Equal(t, task.GetTaskState(), TaskStates().Allocated)
 	// bind a task is a async process, wait for it to happen
-	err = common.WaitFor(100*time.Millisecond, 3*time.Second, func() bool {
-		return task.getNodeName() == "node-1"
-	})
+	err = utils.WaitForCondition(
+		func() bool {
+			return task.getNodeName() == "node-1"
+		},
+		100*time.Millisecond,
+		3*time.Second,
+	)
 	assert.NilError(t, err, "failed to wait for allocation allocationKey being set for task")
 
 	// bound
@@ -490,6 +495,7 @@ func TestSetTaskGroup(t *testing.T) {
 	assert.Equal(t, task.getTaskGroupName(), "test-group")
 }
 
+//nolint:funlen
 func TestHandleSubmitTaskEvent(t *testing.T) {
 	mockedContext, mockedSchedulerAPI := initContextAndAPIProviderForTest()
 	var allocRequest *si.AllocationRequest

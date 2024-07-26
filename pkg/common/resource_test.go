@@ -147,6 +147,7 @@ func TestEquals(t *testing.T) {
 	assert.Equal(t, Equals(r1, r2), false)
 }
 
+//nolint:funlen
 func TestParsePodResource(t *testing.T) {
 	containers := make([]v1.Container, 0, 2)
 
@@ -509,6 +510,31 @@ func TestGetPodResourcesWithInPlacePodVerticalScaling(t *testing.T) {
 	assert.Equal(t, res.Resources[siCommon.CPU].GetValue(), int64(4000))
 	assert.Equal(t, res.Resources["nvidia.com/gpu"].GetValue(), int64(5))
 	assert.Equal(t, res.Resources["pods"].GetValue(), int64(1))
+
+	// case: requested resource types are fewer than allocated types
+	containers = make([]v1.Container, 0)
+	c1Resources = make(map[v1.ResourceName]resource.Quantity)
+	containers = append(containers, v1.Container{
+		Name: "container-01",
+		Resources: v1.ResourceRequirements{
+			Requests: c1Resources,
+		},
+	})
+	pod.Spec.Containers = containers
+
+	c1Allocated[v1.ResourceMemory] = resource.MustParse("500M")
+	c1Allocated[v1.ResourceCPU] = resource.MustParse("2")
+	pod.Status.ContainerStatuses = []v1.ContainerStatus{
+		{AllocatedResources: c1Allocated},
+		{AllocatedResources: c2Allocated},
+	}
+	pod.Status.Resize = v1.PodResizeStatusProposed
+
+	res = GetPodResource(pod)
+	assert.Equal(t, res.Resources[siCommon.Memory].GetValue(), int64(500*1000*1000))
+	assert.Equal(t, res.Resources[siCommon.CPU].GetValue(), int64(2000))
+	assert.Equal(t, res.Resources["nvidia.com/gpu"].GetValue(), int64(1))
+	assert.Equal(t, res.Resources["pods"].GetValue(), int64(1))
 }
 
 func TestBestEffortPod(t *testing.T) {
@@ -737,6 +763,122 @@ func TestParseResourceString(t *testing.T) {
 			memRes, hasMem := siResource.GetResources()[siCommon.Memory]
 			assert.Equal(t, hasMem, tc.memoryExist)
 			assert.Equal(t, memRes.GetValue(), tc.expectMemory)
+		})
+	}
+}
+
+func TestGetResource(t *testing.T) {
+	tests := []struct {
+		name        string
+		resMap      map[string]string
+		expectedRes map[string]int64
+	}{
+		{
+			name:        "empty resMap",
+			resMap:      map[string]string{},
+			expectedRes: map[string]int64{},
+		},
+		{
+			name: "single resource",
+			resMap: map[string]string{
+				v1.ResourceCPU.String(): "100m",
+			},
+			expectedRes: map[string]int64{
+				siCommon.CPU: 100,
+			},
+		},
+		{
+			name: "multiple resources",
+			resMap: map[string]string{
+				v1.ResourceCPU.String():    "1",
+				v1.ResourceMemory.String(): "1G",
+			},
+			expectedRes: map[string]int64{
+				siCommon.CPU:    1000,
+				siCommon.Memory: 1000 * 1000 * 1000,
+			},
+		},
+		{
+			name: "invalid cpu resources",
+			resMap: map[string]string{
+				v1.ResourceCPU.String(): "xyz",
+			},
+			expectedRes: nil,
+		},
+		{
+			name: "invalid memory resources",
+			resMap: map[string]string{
+				v1.ResourceMemory.String(): "64MiB",
+			},
+			expectedRes: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actualRes := GetResource(tt.resMap)
+			if tt.expectedRes == nil {
+				assert.Assert(t, actualRes == nil)
+			} else {
+				assert.Equal(t, len(actualRes.Resources), len(tt.expectedRes))
+				if len(tt.expectedRes) > 0 {
+					for name, value := range tt.expectedRes {
+						assert.Equal(t, actualRes.Resources[name].GetValue(), value)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestGetTGResource(t *testing.T) {
+	tests := []struct {
+		name        string
+		resMap      map[string]resource.Quantity
+		members     int64
+		expectedRes map[string]int64
+	}{
+		{
+			name:    "empty resMap",
+			resMap:  map[string]resource.Quantity{},
+			members: 2,
+			expectedRes: map[string]int64{
+				"pods": 2,
+			},
+		},
+		{
+			name: "single resource",
+			resMap: map[string]resource.Quantity{
+				v1.ResourceCPU.String(): resource.MustParse("100m"),
+			},
+			members: 2,
+			expectedRes: map[string]int64{
+				"pods":       2,
+				siCommon.CPU: 2 * 100,
+			},
+		},
+		{
+			name: "multiple resources",
+			resMap: map[string]resource.Quantity{
+				v1.ResourceCPU.String():    resource.MustParse("1"),
+				v1.ResourceMemory.String(): resource.MustParse("1G"),
+			},
+			members: 2,
+			expectedRes: map[string]int64{
+				"pods":          2,
+				siCommon.CPU:    2 * 1000,
+				siCommon.Memory: 2 * 1000 * 1000 * 1000,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actualRes := GetTGResource(tt.resMap, tt.members)
+			assert.Equal(t, len(actualRes.Resources), len(tt.expectedRes))
+			for name, value := range tt.expectedRes {
+				assert.Equal(t, actualRes.Resources[name].GetValue(), value)
+			}
 		})
 	}
 }

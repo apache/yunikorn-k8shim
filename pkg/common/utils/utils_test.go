@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -47,6 +48,21 @@ func TestConvert2Pod(t *testing.T) {
 	pod, err = Convert2Pod(&v1.Pod{})
 	assert.NilError(t, err)
 	assert.Assert(t, pod != nil)
+}
+
+func TestConvert2ConfigMap(t *testing.T) {
+	configMap := &v1.ConfigMap{}
+	result := Convert2ConfigMap(configMap)
+	assert.Equal(t, result != nil, true)
+	assert.Equal(t, reflect.DeepEqual(result, configMap), true)
+
+	obj := struct{}{}
+	result = Convert2ConfigMap(obj)
+	assert.Equal(t, result == nil, true)
+
+	pod := &v1.Pod{}
+	result = Convert2ConfigMap(pod)
+	assert.Equal(t, result == nil, true)
 }
 
 func TestIsAssignedPod(t *testing.T) {
@@ -209,6 +225,15 @@ func TestGetNamespaceQuotaFromAnnotationUsingNewAnnotations(t *testing.T) {
 				Namespace: "test",
 				Annotations: map[string]string{
 					constants.DomainYuniKorn + "namespace.quota": "{\"cpu\": \"error\", \"memory\": \"error\"}",
+				},
+			},
+		}, nil},
+		{&v1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test",
+				Namespace: "test",
+				Annotations: map[string]string{
+					constants.DomainYuniKorn + "namespace.quota": "expecting JSON object",
 				},
 			},
 		}, nil},
@@ -510,6 +535,7 @@ func TestPodUnderCondition(t *testing.T) {
 	assert.Equal(t, PodUnderCondition(pod, condition), false)
 }
 
+// nolint: funlen
 func TestGetApplicationIDFromPod(t *testing.T) {
 	defer SetPluginMode(false)
 	defer func() { conf.GetSchedulerConf().GenerateUniqueAppIds = false }()
@@ -624,9 +650,11 @@ func TestGetApplicationIDFromPod(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			conf.GetSchedulerConf().GenerateUniqueAppIds = tc.generateUniqueAppIds
 			SetPluginMode(false)
+			assert.Equal(t, IsPluginMode(), false)
 			appID := GetApplicationIDFromPod(tc.pod)
 			assert.Equal(t, appID, tc.expectedAppID, "Wrong appID (standard mode)")
 			SetPluginMode(true)
+			assert.Equal(t, IsPluginMode(), true)
 			appID2 := GetApplicationIDFromPod(tc.pod)
 			assert.Equal(t, appID2, tc.expectedAppIDPluginMode, "Wrong appID (plugin mode)")
 		})
@@ -857,7 +885,7 @@ func TestGetQueueNameFromPod(t *testing.T) {
 			pod: &v1.Pod{
 				ObjectMeta: metav1.ObjectMeta{},
 			},
-			expectedQueue: constants.ApplicationDefaultQueue,
+			expectedQueue: "",
 		},
 	}
 
@@ -944,6 +972,22 @@ func TestPodAlreadyBound(t *testing.T) {
 			assert.Equal(t, bound, tc.expectedBoundFlag, tc.description)
 		})
 	}
+}
+
+func TestIsPodRunning(t *testing.T) {
+	pod := &v1.Pod{
+		Status: v1.PodStatus{
+			Phase: v1.PodRunning,
+		},
+	}
+	assert.Equal(t, IsPodRunning(pod), true)
+
+	pod = &v1.Pod{
+		Status: v1.PodStatus{
+			Phase: v1.PodFailed,
+		},
+	}
+	assert.Equal(t, IsPodRunning(pod), false)
 }
 
 func TestGetTaskGroupFromPodSpec(t *testing.T) {
@@ -1059,20 +1103,25 @@ func TestGetPlaceholderFlagFromPodSpec(t *testing.T) {
 	}
 }
 
-func TestGetCoreSchedulerConfigFromConfigMapNil(t *testing.T) {
-	assert.Equal(t, "", GetCoreSchedulerConfigFromConfigMap(nil))
-}
-
-func TestGetCoreSchedulerConfigFromConfigMapEmpty(t *testing.T) {
-	cm := map[string]string{}
-	assert.Equal(t, "", GetCoreSchedulerConfigFromConfigMap(cm))
-}
-
 func TestGetCoreSchedulerConfigFromConfigMap(t *testing.T) {
+	// case: mapping
 	cm := map[string]string{
 		"queues.yaml": "test",
 	}
 	assert.Equal(t, "test", GetCoreSchedulerConfigFromConfigMap(cm))
+
+	// case: not mapping
+	cm = map[string]string{
+		"unknow.yaml": "test",
+	}
+	assert.Equal(t, "", GetCoreSchedulerConfigFromConfigMap(cm))
+
+	// case: nil
+	assert.Equal(t, "", GetCoreSchedulerConfigFromConfigMap(nil))
+
+	// case: empty
+	cm = map[string]string{}
+	assert.Equal(t, "", GetCoreSchedulerConfigFromConfigMap(cm))
 }
 
 func TestGzipCompressedConfigMap(t *testing.T) {
@@ -1139,4 +1188,31 @@ func TestConvert2PriorityClass(t *testing.T) {
 	result := Convert2PriorityClass(&pc)
 	assert.Assert(t, result != nil)
 	assert.Equal(t, result.PreemptionPolicy, &preemptLower)
+}
+
+func TestWaitForCondition(t *testing.T) {
+	target := false
+	eval := func() bool {
+		return target
+	}
+	tests := []struct {
+		input    bool
+		interval time.Duration
+		timeout  time.Duration
+		output   error
+	}{
+		{true, time.Duration(1) * time.Second, time.Duration(2) * time.Second, nil},
+		{false, time.Duration(1) * time.Second, time.Duration(2) * time.Second, ErrorTimeout},
+		{true, time.Duration(3) * time.Second, time.Duration(2) * time.Second, nil},
+		{false, time.Duration(3) * time.Second, time.Duration(2) * time.Second, ErrorTimeout},
+	}
+	for _, test := range tests {
+		target = test.input
+		get := WaitForCondition(eval, test.timeout, test.interval)
+		if test.output == nil {
+			assert.NilError(t, get)
+		} else {
+			assert.Equal(t, get.Error(), test.output.Error())
+		}
+	}
 }

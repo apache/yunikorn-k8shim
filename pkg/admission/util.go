@@ -29,7 +29,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
 
-func updatePodLabel(pod *v1.Pod, namespace string, generateUniqueAppIds bool, defaultQueueName string) map[string]string {
+func updatePodLabel(pod *v1.Pod, namespace string, generateUniqueAppIds bool) map[string]string {
 	result := make(map[string]string)
 	for k, v := range pod.Labels {
 		result[k] = v
@@ -57,19 +57,7 @@ func updatePodLabel(pod *v1.Pod, namespace string, generateUniqueAppIds bool, de
 	}
 
 	canonicalQueueName := utils.GetPodLabelValue(pod, constants.CanonicalLabelQueueName)
-	labelQueueName := utils.GetPodLabelValue(pod, constants.LabelQueueName)
-	annotationQueueName := utils.GetPodAnnotationValue(pod, constants.AnnotationQueueName)
-	if canonicalQueueName == "" && labelQueueName == "" && annotationQueueName == "" {
-		// if queueName not exist, generate one
-		// if defaultQueueName is "", skip adding default queue name to the pod labels
-		if defaultQueueName != "" {
-			// for undefined configuration, am_conf will add 'root.default' to retain existing behavior
-			// if a custom name is configured for default queue, it will be used instead of root.default
-			result[constants.CanonicalLabelQueueName] = defaultQueueName
-			// Deprecated: After 1.7.0, admission controller will only add canonical label if queue was not set
-			result[constants.LabelQueueName] = defaultQueueName
-		}
-	} else if canonicalQueueName != "" {
+	if canonicalQueueName != "" {
 		// Deprecated: Added in 1.6.0 for backward compatibility, in case the prior shim version can't handle canonical label
 		result[constants.LabelQueueName] = canonicalQueueName
 	}

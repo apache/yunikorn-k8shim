@@ -102,6 +102,7 @@ func RandSeq(n int) string {
 	var letters = []rune("abcdefghijklmnopqrstuvwxyz0123456789")
 	b := make([]rune, n)
 	for i := range b {
+		//nolint:gosec
 		b[i] = letters[rand.Intn(len(letters))]
 	}
 	return string(b)

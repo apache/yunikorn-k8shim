@@ -93,7 +93,7 @@ func NewContextWithBootstrapConfigMaps(apis client.APIProvider, bootstrapConfigM
 	ctx := &Context{
 		applications: make(map[string]*Application),
 		apiProvider:  apis,
-		namespace:    apis.GetAPIs().GetConf().Namespace,
+		namespace:    schedulerconf.GetSchedulerConf().Namespace,
 		configMaps:   bootstrapConfigMaps,
 		lock:         &locking.RWMutex{},
 		klogger:      klog.NewKlogr(),
@@ -341,7 +341,7 @@ func (ctx *Context) ensureAppAndTaskCreated(pod *v1.Pod) {
 	}
 
 	// add task if it doesn't already exist
-	if _, taskErr := app.GetTask(string(pod.UID)); taskErr != nil {
+	if task := app.GetTask(string(pod.UID)); task == nil {
 		ctx.addTask(&AddTaskRequest{
 			Metadata: taskMeta,
 		})
@@ -783,7 +783,7 @@ func (ctx *Context) AssumePod(name, node string) error {
 			// assume pod volumes, this will update bindings info in cache
 			// assume pod volumes before assuming the pod
 			// this will update scheduler cache with essential PV/PVC binding info
-			var allBound = true
+			var allBound bool
 			var err error
 			// retrieve the volume claims
 			podVolumeClaims, err := ctx.apiProvider.GetAPIs().VolumeBinder.GetPodVolumeClaims(ctx.klogger, pod)
@@ -1058,9 +1058,9 @@ func (ctx *Context) addTask(request *AddTaskRequest) *Task {
 	log.Log(log.ShimContext).Debug("AddTask",
 		zap.String("appID", request.Metadata.ApplicationID),
 		zap.String("taskID", request.Metadata.TaskID))
-	if app := ctx.GetApplication(request.Metadata.ApplicationID); app != nil {
-		existingTask, err := app.GetTask(request.Metadata.TaskID)
-		if err != nil {
+	if app := ctx.getApplication(request.Metadata.ApplicationID); app != nil {
+		existingTask := app.GetTask(request.Metadata.TaskID)
+		if existingTask == nil {
 			var originator bool
 
 			// Is this task the originator of the application?
@@ -1116,8 +1116,8 @@ func (ctx *Context) getTask(appID string, taskID string) *Task {
 			zap.String("appID", appID))
 		return nil
 	}
-	task, err := app.GetTask(taskID)
-	if err != nil {
+	task := app.GetTask(taskID)
+	if task == nil {
 		log.Log(log.ShimContext).Debug("task is not found in applications",
 			zap.String("taskID", taskID),
 			zap.String("appID", appID))
@@ -1147,7 +1147,7 @@ func (ctx *Context) PublishEvents(eventRecords []*si.EventRecord) {
 				taskID := record.ObjectID
 				if task := ctx.getTask(appID, taskID); task != nil {
 					events.GetRecorder().Eventf(task.GetTaskPod().DeepCopy(), nil,
-						v1.EventTypeNormal, "", "", record.Message)
+						v1.EventTypeNormal, "Informational", "Informational", record.Message)
 				} else {
 					log.Log(log.ShimContext).Warn("task event is not published because task is not found",
 						zap.String("appID", appID),
