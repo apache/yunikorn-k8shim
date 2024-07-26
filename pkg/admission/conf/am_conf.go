@@ -19,6 +19,7 @@
 package conf
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -117,7 +118,7 @@ func NewAdmissionControllerConf(configMaps []*v1.ConfigMap) *AdmissionController
 func (acc *AdmissionControllerConf) RegisterHandlers(configMaps informersv1.ConfigMapInformer) error {
 	_, err := configMaps.Informer().AddEventHandler(&configMapUpdateHandler{conf: acc})
 	if err != nil {
-		return fmt.Errorf("failed to create register handlers: %w", err)
+		return errors.Join(errors.New("failed to create register handlers: "), err)
 	}
 
 	return nil

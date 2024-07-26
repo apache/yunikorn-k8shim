@@ -222,7 +222,7 @@ func (p *predicateManagerImpl) runPreFilterPlugins(ctx context.Context, state *f
 				zap.String("pluginName", plugin),
 				zap.String("pod", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)),
 				zap.Error(err))
-			return framework.AsStatus(fmt.Errorf("running PreFilter plugin %q: %w", plugin, err)), plugin, skip
+			return framework.AsStatus(errors.Join(fmt.Errorf("running PreFilter plugin %q: ", plugin), err)), plugin, skip
 		}
 		// Merge is nil safe and returns a new PreFilterResult result if mergedNodes was nil
 		mergedNodes = mergedNodes.Merge(nodes)
