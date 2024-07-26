@@ -1519,7 +1519,7 @@ func TestAddApplicationsWithTags(t *testing.T) {
 				constants.NamespaceQuota:                 "{\"cpu\": \"1\", \"memory\": \"256M\", \"nvidia.com/gpu\": \"1\"}",
 				constants.DomainYuniKorn + "parentqueue": "root.test",
 				constants.NamespaceGuaranteed:            "{\"cpu\": \"1\", \"memory\": \"256M\", \"nvidia.com/gpu\": \"1\"}",
-				constants.NamespaceMaxApps: 			 "1000",
+				constants.NamespaceMaxApps:               "1000",
 			},
 		},
 	}
