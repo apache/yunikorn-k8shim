@@ -351,7 +351,7 @@ func (ctx *Context) ensureAppAndTaskCreated(pod *v1.Pod) {
 	}
 
 	// add task if it doesn't already exist
-	if _, taskErr := app.GetTask(string(pod.UID)); taskErr != nil {
+	if task := app.GetTask(string(pod.UID)); task == nil {
 		ctx.addTask(&AddTaskRequest{
 			Metadata: taskMeta,
 		})
@@ -1097,8 +1097,8 @@ func (ctx *Context) addTask(request *AddTaskRequest) *Task {
 		zap.String("appID", request.Metadata.ApplicationID),
 		zap.String("taskID", request.Metadata.TaskID))
 	if app := ctx.getApplication(request.Metadata.ApplicationID); app != nil {
-		existingTask, err := app.GetTask(request.Metadata.TaskID)
-		if err != nil {
+		existingTask := app.GetTask(request.Metadata.TaskID)
+		if existingTask == nil {
 			var originator bool
 
 			// Is this task the originator of the application?
@@ -1156,8 +1156,8 @@ func (ctx *Context) getTask(appID string, taskID string) *Task {
 			zap.String("appID", appID))
 		return nil
 	}
-	task, err := app.GetTask(taskID)
-	if err != nil {
+	task := app.GetTask(taskID)
+	if task == nil {
 		log.Log(log.ShimContext).Debug("task is not found in applications",
 			zap.String("taskID", taskID),
 			zap.String("appID", appID))

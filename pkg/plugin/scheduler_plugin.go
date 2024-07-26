@@ -302,7 +302,7 @@ func NewSchedulerPlugin(_ context.Context, _ runtime.Object, handle framework.Ha
 
 func (sp *YuniKornSchedulerPlugin) getTask(appID, taskID string) (app *cache.Application, task *cache.Task, ok bool) {
 	if app := sp.context.GetApplication(appID); app != nil {
-		if task, err := app.GetTask(taskID); err == nil {
+		if task := app.GetTask(taskID); task != nil {
 			return app, task, true
 		}
 	}

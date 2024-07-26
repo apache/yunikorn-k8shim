@@ -1007,8 +1007,7 @@ func TestRecoverTask(t *testing.T) {
 	for _, tt := range taskInfoVerifiers {
 		t.Run(tt.taskID, func(t *testing.T) {
 			// verify the info for the recovered task
-			rt, err := app.GetTask(tt.taskID)
-			assert.NilError(t, err)
+			rt := app.GetTask(tt.taskID)
 			assert.Equal(t, rt.GetTaskState(), tt.expectedState)
 			assert.Equal(t, rt.allocationKey, tt.expectedAllocationKey)
 			assert.Equal(t, rt.pod.Name, tt.expectedPodName)
@@ -2142,9 +2141,8 @@ func TestTaskRemoveOnCompletion(t *testing.T) {
 
 	// check removal
 	app.Schedule()
-	appTask, err := app.GetTask(taskUID1)
+	appTask := app.GetTask(taskUID1)
 	assert.Assert(t, appTask == nil)
-	assert.Error(t, err, "task task00001 doesn't exist in application app01")
 }
 
 func TestAssumePod(t *testing.T) {
