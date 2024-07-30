@@ -784,7 +784,7 @@ func TestCheckTaskPodWithoutConflictMetadata(t *testing.T) {
 			appIdInconsitentErr,
 		},
 		{
-			"have conflict queueNmae in canonical label",
+			"have conflict queueName in canonical label",
 			map[string]string{
 				constants.CanonicalLabelQueueName: queue2Name,
 				constants.LabelQueueName:          queueName,
@@ -794,7 +794,7 @@ func TestCheckTaskPodWithoutConflictMetadata(t *testing.T) {
 			queueInconsitentErr,
 		},
 		{
-			"have conflict queueNmae in legacy label",
+			"have conflict queueName in legacy label",
 			map[string]string{
 				constants.CanonicalLabelQueueName: queueName,
 				constants.LabelQueueName:          queue2Name,
@@ -804,7 +804,7 @@ func TestCheckTaskPodWithoutConflictMetadata(t *testing.T) {
 			queueInconsitentErr,
 		},
 		{
-			"have conflict queueNmae in annotation",
+			"have conflict queueName in annotation",
 			map[string]string{
 				constants.CanonicalLabelQueueName: queueName,
 				constants.LabelQueueName:          queueName,
