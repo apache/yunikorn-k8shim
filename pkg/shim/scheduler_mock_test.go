@@ -36,6 +36,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/cache"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common"
+	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
@@ -124,7 +125,7 @@ func (fc *MockScheduler) addNode(nodeName string, nodeLabels map[string]string, 
 		AddResource(siCommon.CPU, cpu).
 		AddResource("pods", pods).
 		Build()
-	request := common.CreateUpdateRequestForNewNode(nodeName, nodeLabels, nodeResource, nil, nil)
+	request := createUpdateRequestForNewNode(nodeName, nodeLabels, nodeResource, nil)
 	fmt.Printf("report new nodes to scheduler, request: %s", request.String())
 	return fc.apiProvider.GetAPIs().SchedulerAPI.UpdateNode(request)
 }
@@ -333,5 +334,34 @@ func (fc *MockScheduler) GetBoundPods(clear bool) []client.BoundPod {
 func (fc *MockScheduler) ensureStarted() {
 	if !fc.started.Load() {
 		panic("mock scheduler is not started - call start() first")
+	}
+}
+func createUpdateRequestForNewNode(nodeID string, nodeLabels map[string]string, capacity *si.Resource, occupied *si.Resource) *si.NodeRequest {
+	// Use node's name as the NodeID, this is because when bind pod to node,
+	// name of node is required but uid is optional.
+	nodeInfo := &si.NodeInfo{
+		NodeID:              nodeID,
+		SchedulableResource: capacity,
+		OccupiedResource:    occupied,
+		Attributes: map[string]string{
+			constants.DefaultNodeAttributeHostNameKey: nodeID,
+			constants.DefaultNodeAttributeRackNameKey: constants.DefaultRackName,
+		},
+		Action: si.NodeInfo_CREATE,
+	}
+
+	// Add nodeLabels key value to Attributes map
+	for k, v := range nodeLabels {
+		nodeInfo.Attributes[k] = v
+	}
+
+	// Add instanceType to Attributes map
+	nodeInfo.Attributes[siCommon.InstanceType] = nodeLabels[conf.GetSchedulerConf().InstanceTypeNodeLabelKey]
+
+	nodes := make([]*si.NodeInfo, 1)
+	nodes[0] = nodeInfo
+	return &si.NodeRequest{
+		Nodes: nodes,
+		RmID:  conf.GetSchedulerConf().ClusterID,
 	}
 }

@@ -153,39 +153,6 @@ func CreateReleaseRequestForTask(appID, taskID, allocationKey, partition, termin
 	}
 }
 
-// CreateUpdateRequestForNewNode builds a NodeRequest for new node addition and restoring existing node
-func CreateUpdateRequestForNewNode(nodeID string, nodeLabels map[string]string, capacity *si.Resource, occupied *si.Resource,
-	existingAllocations []*si.Allocation) *si.NodeRequest {
-	// Use node's name as the NodeID, this is because when bind pod to node,
-	// name of node is required but uid is optional.
-	nodeInfo := &si.NodeInfo{
-		NodeID:              nodeID,
-		SchedulableResource: capacity,
-		OccupiedResource:    occupied,
-		Attributes: map[string]string{
-			constants.DefaultNodeAttributeHostNameKey: nodeID,
-			constants.DefaultNodeAttributeRackNameKey: constants.DefaultRackName,
-		},
-		ExistingAllocations: existingAllocations,
-		Action:              si.NodeInfo_CREATE,
-	}
-
-	// Add nodeLabels key value to Attributes map
-	for k, v := range nodeLabels {
-		nodeInfo.Attributes[k] = v
-	}
-
-	// Add instanceType to Attributes map
-	nodeInfo.Attributes[common.InstanceType] = nodeLabels[conf.GetSchedulerConf().InstanceTypeNodeLabelKey]
-
-	nodes := make([]*si.NodeInfo, 1)
-	nodes[0] = nodeInfo
-	return &si.NodeRequest{
-		Nodes: nodes,
-		RmID:  conf.GetSchedulerConf().ClusterID,
-	}
-}
-
 // CreateUpdateRequestForUpdatedNode builds a NodeRequest for capacity and occupied resource updates
 func CreateUpdateRequestForUpdatedNode(nodeID string, capacity *si.Resource, occupied *si.Resource) *si.NodeRequest {
 	nodeInfo := &si.NodeInfo{

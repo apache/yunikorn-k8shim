@@ -1558,7 +1558,6 @@ func (ctx *Context) registerNodes(nodes []*v1.Node) ([]*v1.Node, error) {
 			},
 			SchedulableResource: common.GetNodeResource(&nodeStatus),
 			OccupiedResource:    common.NewResourceBuilder().Build(),
-			ExistingAllocations: make([]*si.Allocation, 0),
 		})
 		pendingNodes[node.Name] = node
 	}
