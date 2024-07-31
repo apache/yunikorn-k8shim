@@ -356,6 +356,15 @@ func TestGetNamespaceMaxAppsFromAnnotation(t *testing.T) {
 				Name:      "test",
 				Namespace: "test",
 				Annotations: map[string]string{
+					constants.NamespaceMaxApps: "-5",
+				},
+			},
+		}, ""},
+		{&v1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test",
+				Namespace: "test",
+				Annotations: map[string]string{
 					constants.NamespaceMaxApps: "error",
 				},
 			},

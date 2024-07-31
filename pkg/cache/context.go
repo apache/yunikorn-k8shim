@@ -930,6 +930,8 @@ func (ctx *Context) notifyTaskComplete(appID, taskID string) {
 // adds the following tags to the request based on annotations (if exist):
 //   - namespace.resourcequota
 //   - namespace.parentqueue
+//   - namespace.resourceguaranteed
+//   - namespace.resourcemaxapps
 func (ctx *Context) updateApplicationTags(request *AddApplicationRequest, namespace string) {
 	namespaceObj := ctx.getNamespaceObject(namespace)
 	if namespaceObj == nil {
