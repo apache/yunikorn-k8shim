@@ -217,7 +217,7 @@ func GetNamespaceGuaranteedFromAnnotation(namespaceObj *v1.Namespace) *si.Resour
 // get namespace max apps from namespace annotation
 func GetNamespaceMaxAppsFromAnnotation(namespaceObj *v1.Namespace) string {
 	if maxApps := GetNameSpaceAnnotationValue(namespaceObj, constants.NamespaceMaxApps); maxApps != "" {
-		numMaxApp, err := strconv.Atoi(maxApps);
+		numMaxApp, err := strconv.Atoi(maxApps)
 		if err != nil {
 			log.Log(log.ShimUtils).Warn("Unable to process namespace.maxApps annotation",
 				zap.String("namespace", namespaceObj.Name),
