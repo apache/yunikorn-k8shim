@@ -476,7 +476,7 @@ func (task *Task) postTaskBound() {
 
 func (task *Task) postTaskRejected(reason string) {
 	// if task is rejected because of conflicting metadata, we should fail the pod with reason
-	if strings.Contains(reason, constants.TaskPodInconsistMetadataFailure) {
+	if strings.Contains(reason, constants.TaskPodInconsistentMetadataFailure) {
 		// Before version 1.7.0, this path would never be reached.
 		// After version 1.7.0, task pod should fail if pod has conflicting metadata.
 		task.failTaskPodWithReasonAndMsg(constants.TaskRejectedFailure, reason)
@@ -577,12 +577,15 @@ func (task *Task) sanityCheckBeforeScheduling() (error, bool) {
 	if !utils.PodAlreadyBound(task.pod) {
 		if err := task.checkTaskPodWithoutConflictMetadata(); err != nil {
 			// Before version 1.7.0, return nil error and log a warning if pod metadata is conflicting
+			// Before version 1.7.0, rejectTask is always false for backward compatibility
 			// After version 1.7.0, err should be returned if pod metadata is conflicting
 			// After version 1.7.0, rejectTask should be true if pod metadata is conflicting
 			log.Log(log.ShimCacheTask).Warn("Task pod has conflicting metadata, the unbound task pod will be rejected after version 1.7.0",
 				zap.String("appID", task.applicationID),
 				zap.String("podName", task.pod.Name),
 				zap.String("error", err.Error()))
+			// rejectTask = true
+			// return err, rejectTask
 			return nil, rejectTask
 		}
 	}
@@ -601,7 +604,7 @@ func (task *Task) checkTaskPodWithoutConflictMetadata() error {
 		constants.AnnotationApplicationID,
 	}
 	if !utils.ValidatePodLabelAnnotationConsistency(task.pod, appIdLabelKeys, appIdAnnotationKeys) {
-		return fmt.Errorf("application ID is not consistently set in pod's labels and annotations. [%s]", constants.TaskPodInconsistMetadataFailure)
+		return fmt.Errorf("application ID is not consistently set in pod's labels and annotations. [%s]", constants.TaskPodInconsistentMetadataFailure)
 	}
 
 	// check queue name
@@ -615,7 +618,7 @@ func (task *Task) checkTaskPodWithoutConflictMetadata() error {
 	}
 
 	if !utils.ValidatePodLabelAnnotationConsistency(task.pod, queueLabelKeys, queueAnnotationKeys) {
-		return fmt.Errorf("queue is not consistently set in pod's labels and annotations. [%s]", constants.TaskPodInconsistMetadataFailure)
+		return fmt.Errorf("queue is not consistently set in pod's labels and annotations. [%s]", constants.TaskPodInconsistentMetadataFailure)
 	}
 	return nil
 }

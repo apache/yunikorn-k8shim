@@ -713,8 +713,8 @@ func TestCheckTaskPodWithoutConflictMetadata(t *testing.T) {
 		queueName  = "root.sandbox1"
 		queue2Name = "root.sandbox2"
 	)
-	var appIdInconsitentErr = fmt.Errorf("application ID is not consistently set in pod's labels and annotations. [%s]", constants.TaskPodInconsistMetadataFailure)
-	var queueInconsitentErr = fmt.Errorf("queue is not consistently set in pod's labels and annotations. [%s]", constants.TaskPodInconsistMetadataFailure)
+	var appIdInconsitentErr = fmt.Errorf("application ID is not consistently set in pod's labels and annotations. [%s]", constants.TaskPodInconsistentMetadataFailure)
+	var queueInconsitentErr = fmt.Errorf("queue is not consistently set in pod's labels and annotations. [%s]", constants.TaskPodInconsistentMetadataFailure)
 
 	testCases := []struct {
 		name           string
