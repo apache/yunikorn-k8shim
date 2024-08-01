@@ -200,7 +200,7 @@ func (ctx *Context) updateNodeInternal(node *v1.Node, register bool) {
 			if applicationID == "" {
 				ctx.updateForeignPod(pod)
 			} else {
-				ctx.updateYuniKornPod(pod)
+				ctx.updateYuniKornPod(applicationID, pod)
 			}
 		}
 
@@ -286,22 +286,26 @@ func (ctx *Context) UpdatePod(_, newObj interface{}) {
 		log.Log(log.ShimContext).Error("failed to update pod", zap.Error(err))
 		return
 	}
-	if utils.GetApplicationIDFromPod(pod) == "" {
+	applicationID := utils.GetApplicationIDFromPod(pod)
+	if applicationID == "" {
 		ctx.updateForeignPod(pod)
 	} else {
-		ctx.updateYuniKornPod(pod)
+		ctx.updateYuniKornPod(applicationID, pod)
 	}
 }
 
-func (ctx *Context) updateYuniKornPod(pod *v1.Pod) {
+func (ctx *Context) updateYuniKornPod(appID string, pod *v1.Pod) {
+	var app *Application
+	taskID := string(pod.UID)
+	if app = ctx.getApplication(appID); app != nil {
+		if task := app.GetTask(taskID); task != nil {
+			task.setTaskPod(pod)
+		}
+	}
+
 	// treat terminated pods like a remove
 	if utils.IsPodTerminated(pod) {
-		if taskMeta, ok := getTaskMetadata(pod); ok {
-			if app := ctx.GetApplication(taskMeta.ApplicationID); app != nil {
-				ctx.notifyTaskComplete(taskMeta.ApplicationID, taskMeta.TaskID)
-			}
-		}
-
+		ctx.notifyTaskComplete(appID, taskID)
 		log.Log(log.ShimContext).Debug("Request to update terminated pod, removing from cache", zap.String("podName", pod.Name))
 		ctx.schedulerCache.RemovePod(pod)
 		return

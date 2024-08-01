@@ -132,7 +132,8 @@ endif
 
 # shellcheck
 SHELLCHECK_VERSION=v0.9.0
-SHELLCHECK_BIN=${TOOLS_DIR}/shellcheck
+SHELLCHECK_PATH=${TOOLS_DIR}/shellcheck-$(SHELLCHECK_VERSION)
+SHELLCHECK_BIN=${SHELLCHECK_PATH}/shellcheck
 SHELLCHECK_ARCHIVE := shellcheck-$(SHELLCHECK_VERSION).$(OS).$(HOST_ARCH).tar.xz
 ifeq (darwin, $(OS))
 ifeq (arm64, $(HOST_ARCH))
@@ -143,41 +144,56 @@ ifeq (armv7l, $(HOST_ARCH))
 SHELLCHECK_ARCHIVE := shellcheck-$(SHELLCHECK_VERSION).$(OS).armv6hf.tar.xz
 endif
 endif
+export PATH := $(BASE_DIR)/$(SHELLCHECK_PATH):$(PATH)
 
 # golangci-lint
 GOLANGCI_LINT_VERSION=1.57.2
-GOLANGCI_LINT_BIN=$(TOOLS_DIR)/golangci-lint
+GOLANGCI_LINT_PATH=$(TOOLS_DIR)/golangci-lint-v$(GOLANGCI_LINT_VERSION)
+GOLANGCI_LINT_BIN=$(GOLANGCI_LINT_PATH)/golangci-lint
 GOLANGCI_LINT_ARCHIVE=golangci-lint-$(GOLANGCI_LINT_VERSION)-$(OS)-$(EXEC_ARCH).tar.gz
 GOLANGCI_LINT_ARCHIVEBASE=golangci-lint-$(GOLANGCI_LINT_VERSION)-$(OS)-$(EXEC_ARCH)
+export PATH := $(BASE_DIR)/$(GOLANGCI_LINT_PATH):$(PATH)
 
 # kubectl
 KUBECTL_VERSION=v1.27.7
-KUBECTL_BIN=$(TOOLS_DIR)/kubectl
+KUBECTL_PATH=$(TOOLS_DIR)/kubectl-$(KUBECTL_VERSION)
+KUBECTL_BIN=$(KUBECTL_PATH)/kubectl
+export PATH := $(BASE_DIR)/$(KUBECTL_PATH):$(PATH)
 
 # kind
 KIND_VERSION=v0.23.0
-KIND_BIN=$(TOOLS_DIR)/kind
+KIND_PATH=$(TOOLS_DIR)/kind-$(KIND_VERSION)
+KIND_BIN=$(KIND_PATH)/kind
+export PATH := $(BASE_DIR)/$(KIND_PATH):$(PATH)
 
 # helm
 HELM_VERSION=v3.12.1
-HELM_BIN=$(TOOLS_DIR)/helm
+HELM_PATH=$(TOOLS_DIR)/helm-$(HELM_VERSION)
+HELM_BIN=$(HELM_PATH)/helm
 HELM_ARCHIVE=helm-$(HELM_VERSION)-$(OS)-$(EXEC_ARCH).tar.gz
 HELM_ARCHIVE_BASE=$(OS)-$(EXEC_ARCH)
+export PATH := $(BASE_DIR)/$(HELM_PATH):$(PATH)
 
 # spark
 export SPARK_VERSION=3.3.3
 # sometimes the image is not avaiable with $SPARK_VERSION, the minor version must match
 export SPARK_PYTHON_VERSION=3.3.1
-export SPARK_HOME=$(BASE_DIR)$(TOOLS_DIR)/spark
+export SPARK_HOME=$(BASE_DIR)$(TOOLS_DIR)/spark-v$(SPARK_VERSION)
 export SPARK_SUBMIT_CMD=$(SPARK_HOME)/bin/spark-submit
 export SPARK_PYTHON_IMAGE=docker.io/apache/spark-py:v$(SPARK_PYTHON_VERSION)
+export PATH := $(SPARK_HOME):$(PATH)
 
 # go-licenses
 GO_LICENSES_VERSION=v1.6.0
-GO_LICENSES_BIN=$(TOOLS_DIR)/go-licenses
+GO_LICENSES_PATH=$(TOOLS_DIR)/go-licenses-$(GO_LICENSES_VERSION)
+GO_LICENSES_BIN=$(GO_LICENSES_PATH)/go-licenses
+export PATH := $(BASE_DIR)/$(GO_LICENSES_PATH):$(PATH)
 
 # ginkgo
-GINKGO_BIN=$(TOOLS_DIR)/ginkgo
+GINKGO_VERSION=v2.19.0
+GINKGO_PATH=$(TOOLS_DIR)/ginkgo-$(GINKGO_VERSION)
+GINKGO_BIN=$(GINKGO_PATH)/ginkgo
+export PATH := $(BASE_DIR)/$(GINKGO_PATH):$(PATH)
 
 FLAG_PREFIX=github.com/apache/yunikorn-k8shim/pkg/conf
 
@@ -222,6 +238,17 @@ init: conf/scheduler-config-local.yaml
 conf/scheduler-config-local.yaml: conf/scheduler-config.yaml
 	./scripts/plugin-conf-gen.sh $(KUBECONFIG) "conf/scheduler-config.yaml" "conf/scheduler-config-local.yaml"
 
+# Print tools version
+.PHONY: print_kubectl_version
+print_kubectl_version:
+	@echo $(KUBECTL_VERSION)
+.PHONY: print_kind_version
+print_kind_version:
+	@echo $(KIND_VERSION)
+.PHONY: print_helm_version
+print_helm_version:
+	@echo $(HELM_VERSION)
+
 # Install tools
 .PHONY: tools
 tools: $(SHELLCHECK_BIN) $(GOLANGCI_LINT_BIN) $(KUBECTL_BIN) $(KIND_BIN) $(HELM_BIN) $(SPARK_SUBMIT_CMD) $(GO_LICENSES_BIN) $(GINKGO_BIN)
@@ -229,21 +256,21 @@ tools: $(SHELLCHECK_BIN) $(GOLANGCI_LINT_BIN) $(KUBECTL_BIN) $(KIND_BIN) $(HELM_
 # Install shellcheck
 $(SHELLCHECK_BIN):
 	@echo "installing shellcheck $(SHELLCHECK_VERSION)"
-	@mkdir -p "$(TOOLS_DIR)"
+	@mkdir -p "$(SHELLCHECK_PATH)"
 	@curl -sSfL "https://github.com/koalaman/shellcheck/releases/download/$(SHELLCHECK_VERSION)/$(SHELLCHECK_ARCHIVE)" \
-		| tar -x -J --strip-components=1 -C "$(TOOLS_DIR)" "shellcheck-$(SHELLCHECK_VERSION)/shellcheck"
+		| tar -x -J --strip-components=1 -C "$(SHELLCHECK_PATH)" "shellcheck-$(SHELLCHECK_VERSION)/shellcheck"
 
 # Install golangci-lint
 $(GOLANGCI_LINT_BIN):
 	@echo "installing golangci-lint v$(GOLANGCI_LINT_VERSION)"
-	@mkdir -p "$(TOOLS_DIR)"
+	@mkdir -p "$(GOLANGCI_LINT_PATH)"
 	@curl -sSfL "https://github.com/golangci/golangci-lint/releases/download/v$(GOLANGCI_LINT_VERSION)/$(GOLANGCI_LINT_ARCHIVE)" \
-		| tar -x -z --strip-components=1 -C "$(TOOLS_DIR)" "$(GOLANGCI_LINT_ARCHIVEBASE)/golangci-lint"
+		| tar -x -z --strip-components=1 -C "$(GOLANGCI_LINT_PATH)" "$(GOLANGCI_LINT_ARCHIVEBASE)/golangci-lint"
 
 # Install kubectl
 $(KUBECTL_BIN):
 	@echo "installing kubectl $(KUBECTL_VERSION)"
-	@mkdir -p "$(TOOLS_DIR)"
+	@mkdir -p "$(KUBECTL_PATH)"
 	@curl -sSfL -o "$(KUBECTL_BIN)" \
 		"https://storage.googleapis.com/kubernetes-release/release/$(KUBECTL_VERSION)/bin/$(OS)/$(EXEC_ARCH)/kubectl" && \
 		chmod +x "$(KUBECTL_BIN)"
@@ -251,7 +278,7 @@ $(KUBECTL_BIN):
 # Install kind
 $(KIND_BIN):
 	@echo "installing kind $(KIND_VERSION)"
-	@mkdir -p "$(TOOLS_DIR)"
+	@mkdir -p "$(KIND_PATH)"
 	@curl -sSfL -o "$(KIND_BIN)" \
 		"https://kind.sigs.k8s.io/dl/$(KIND_VERSION)/kind-$(OS)-$(EXEC_ARCH)" && \
 		chmod +x "$(KIND_BIN)"
@@ -259,13 +286,13 @@ $(KIND_BIN):
 # Install helm
 $(HELM_BIN):
 	@echo "installing helm $(HELM_VERSION)"
-	@mkdir -p "$(TOOLS_DIR)"
+	@mkdir -p "$(HELM_PATH)"
 	@curl -sSfL "https://get.helm.sh/$(HELM_ARCHIVE)" \
-		| tar -x -z --strip-components=1 -C "$(TOOLS_DIR)" "$(HELM_ARCHIVE_BASE)/helm"
+		| tar -x -z --strip-components=1 -C "$(HELM_PATH)" "$(HELM_ARCHIVE_BASE)/helm"
 
 # Install spark
 $(SPARK_SUBMIT_CMD):
-	@echo "installing spark $(SPARK_VERSION)"
+	@echo "installing spark v$(SPARK_VERSION)"
 	@rm -rf "$(SPARK_HOME)" "$(SPARK_HOME).tmp"
 	@mkdir -p "$(SPARK_HOME).tmp"
 	@curl -sSfL "https://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop3.tgz" \
@@ -275,23 +302,20 @@ $(SPARK_SUBMIT_CMD):
 # Install go-licenses
 $(GO_LICENSES_BIN):
 	@echo "installing go-licenses $(GO_LICENSES_VERSION)"
-	@mkdir -p "$(TOOLS_DIR)"
-	@GOBIN="$(BASE_DIR)/$(TOOLS_DIR)" "$(GO)" install "github.com/google/go-licenses@$(GO_LICENSES_VERSION)"
+	@mkdir -p "$(GO_LICENSES_PATH)"
+	@GOBIN="$(BASE_DIR)/$(GO_LICENSES_PATH)" "$(GO)" install "github.com/google/go-licenses@$(GO_LICENSES_VERSION)"
 
 $(GINKGO_BIN):
-	@echo "installing ginkgo"
-	@mkdir -p "$(TOOLS_DIR)"
-	@GOBIN="$(BASE_DIR)/$(TOOLS_DIR)" "$(GO)" install "github.com/onsi/ginkgo/v2/ginkgo"
+	@echo "installing ginkgo $(GINKGO_VERSION)"
+	@mkdir -p "$(GINKGO_PATH)"
+	@GOBIN="$(BASE_DIR)/$(GINKGO_PATH)" "$(GO)" install "github.com/onsi/ginkgo/v2/ginkgo@$(GINKGO_VERSION)"
 
 # Run lint against the previous commit for PR and branch build
 # In dev setup look at all changes on top of master
 .PHONY: lint
 lint: $(GOLANGCI_LINT_BIN)
 	@echo "running golangci-lint"
-	@git symbolic-ref -q HEAD && REV="origin/HEAD" || REV="HEAD^" ; \
-	headSHA=$$(git rev-parse --short=12 $${REV}) ; \
-	echo "checking against commit sha $${headSHA}" ; \
-	"${GOLANGCI_LINT_BIN}" run
+	@"${GOLANGCI_LINT_BIN}" run
 
 # Check scripts
 .PHONY: check_scripts

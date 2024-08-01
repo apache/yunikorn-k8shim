@@ -17,9 +17,12 @@
 #limitations under the License.
 
 TOOLS_DIRECTORY=tools
-HELM=$TOOLS_DIRECTORY/helm
-KIND=$TOOLS_DIRECTORY/kind
-KUBECTL=$TOOLS_DIRECTORY/kubectl
+HELM_VERSION=$(make -s print_helm_version)
+KIND_VERSION=$(make -s print_kind_version)
+KUBECTL_VERSION=$(make -s print_kubectl_version)
+HELM=$TOOLS_DIRECTORY/helm-$HELM_VERSION/helm
+KIND=$TOOLS_DIRECTORY/kind-$KIND_VERSION/kind
+KUBECTL=$TOOLS_DIRECTORY/kubectl-$KUBECTL_VERSION/kubectl
 GO="${GO:-go}"
 export GO
 

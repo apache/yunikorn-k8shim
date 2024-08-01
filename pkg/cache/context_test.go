@@ -526,6 +526,10 @@ func TestUpdatePod(t *testing.T) {
 	context.UpdatePod(pod1, pod3)
 	pod = context.schedulerCache.GetPod(uid1)
 	assert.Check(t, pod == nil, "pod still found after termination")
+	app := context.getApplication(appID1)
+	// ensure that an updated pod is updated inside the Task
+	task := app.GetTask(uid1)
+	assert.Assert(t, task.GetTaskPod() == pod3, "task pod has not been updated")
 
 	// ensure a non-terminated pod is updated
 	context.UpdatePod(pod1, pod2)

@@ -19,7 +19,7 @@
 package admission
 
 import (
-	"fmt"
+	"errors"
 
 	v1 "k8s.io/api/core/v1"
 	informersv1 "k8s.io/client-go/informers/core/v1"
@@ -62,7 +62,7 @@ func NewNamespaceCache(namespaces informersv1.NamespaceInformer) (*NamespaceCach
 	if namespaces != nil {
 		_, err := namespaces.Informer().AddEventHandler(&namespaceUpdateHandler{cache: nsc})
 		if err != nil {
-			return nil, fmt.Errorf("failed to create namespace cache: %w", err)
+			return nil, errors.Join(errors.New("failed to create namespace cache: "), err)
 		}
 	}
 	return nsc, nil

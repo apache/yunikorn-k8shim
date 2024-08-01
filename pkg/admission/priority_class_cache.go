@@ -19,7 +19,7 @@
 package admission
 
 import (
-	"fmt"
+	"errors"
 
 	schedulingv1 "k8s.io/api/scheduling/v1"
 	informersv1 "k8s.io/client-go/informers/scheduling/v1"
@@ -45,7 +45,7 @@ func NewPriorityClassCache(priorityClasses informersv1.PriorityClassInformer) (*
 	if priorityClasses != nil {
 		_, err := priorityClasses.Informer().AddEventHandler(&priorityClassUpdateHandler{cache: pcc})
 		if err != nil {
-			return nil, fmt.Errorf("failed to create a new cache and register the handler: %w", err)
+			return nil, errors.Join(errors.New("failed to create a new cache and register the handler: "), err)
 		}
 	}
 	return pcc, nil
