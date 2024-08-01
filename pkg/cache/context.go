@@ -308,7 +308,7 @@ func (ctx *Context) updateYuniKornPod(appID string, pod *v1.Pod) {
 	var app *Application
 	taskID := string(pod.UID)
 	if app = ctx.getApplication(appID); app != nil {
-		if task, err := app.GetTask(taskID); task != nil && err == nil {
+		if task := app.GetTask(taskID); task != nil {
 			task.setTaskPod(pod)
 		}
 	}
