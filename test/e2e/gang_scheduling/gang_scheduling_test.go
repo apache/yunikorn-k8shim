@@ -445,7 +445,7 @@ var _ = Describe("", func() {
 		}
 
 		// Verify queue resources = 0
-		qInfo, qErr := restClient.GetQueue(configmanager.DefaultPartition, nsQueue)
+		qInfo, qErr := restClient.GetQueue(configmanager.DefaultPartition, nsQueue, false)
 		Ω(qErr).NotTo(HaveOccurred())
 		var usedResource yunikorn.ResourceUsage
 		var usedPercentageResource yunikorn.ResourceUsage
@@ -569,6 +569,82 @@ var _ = Describe("", func() {
 		checkPlaceholderData(appDaoInfo, groupA, 3, 3, 0)
 		Ω(len(appDaoInfo.Allocations)).To(Equal(int(3)), "Allocations count is not correct")
 		Ω(appDaoInfo.UsedResource[hugepageKey]).To(Equal(int64(314572800)), "Used huge page resource is not correct")
+	})
+
+	// Test to verify that the gang app originator pod does not change after a restart
+	// 1. Create an originator pod
+	// 2. Verify the originator pod is not a placeholder pod
+	// 3. Restart YuniKorn
+	// 4. Verify the originator pod is not changed after restart
+	It("Verify_Gang_App_Originator_Pod_Does_Not_Change_After_Restart", func() {
+		placeholderCount := 5
+
+		By("Create an originator pod")
+		podConf := k8s.TestPodConfig{
+			Name: "gang-driver-pod-" + common.RandSeq(5),
+			Labels: map[string]string{
+				"app":           "sleep-" + common.RandSeq(5),
+				"applicationId": appID,
+			},
+			Annotations: &k8s.PodAnnotation{
+				TaskGroups: []cache.TaskGroup{
+					{Name: groupA, MinMember: int32(placeholderCount), MinResource: minResource},
+				},
+			},
+			Resources: &v1.ResourceRequirements{
+				Requests: v1.ResourceList{"cpu": minResource["cpu"], "memory": minResource["memory"]},
+			},
+		}
+		podTest, err := k8s.InitTestPod(podConf)
+		Ω(err).NotTo(HaveOccurred())
+		originator, err := kClient.CreatePod(podTest, ns)
+		Ω(err).NotTo(HaveOccurred())
+
+		// Wait for the app to be created
+		checkAppStatus(appID, yunikorn.States().Application.Running)
+
+		By("Ensure all pods are allocated")
+		err = restClient.WaitForAllExecPodsAllocated(configmanager.DefaultPartition, nsQueue, appID, 1+placeholderCount, 30)
+		Ω(err).NotTo(HaveOccurred())
+
+		By("Verify the originator pod is not a placeholder pod")
+		appDaoInfo, appDaoInfoErr := restClient.GetAppInfo(configmanager.DefaultPartition, nsQueue, appID)
+		Ω(appDaoInfoErr).NotTo(HaveOccurred())
+		for _, alloc := range appDaoInfo.Allocations {
+			podName := alloc.AllocationTags["kubernetes.io/meta/podName"]
+			if podName == originator.Name {
+				Ω(alloc.Originator).To(Equal(true), "Originator pod should be a originator pod")
+				Ω(alloc.Placeholder).To(Equal(false), "Originator pod should not be a placeholder pod")
+			} else {
+				Ω(alloc.Originator).To(Equal(false), "Placeholder pod should not be a originator pod")
+				Ω(alloc.Placeholder).To(Equal(true), "Placeholder pod should be a placeholder pod")
+			}
+		}
+
+		By("Restart the scheduler pod")
+		yunikorn.RestartYunikorn(&kClient)
+		yunikorn.RestorePortForwarding(&kClient)
+
+		// Wait for the app to be created
+		checkAppStatus(appID, yunikorn.States().Application.Running)
+
+		By("Ensure all pods are allocated")
+		err = restClient.WaitForAllExecPodsAllocated(configmanager.DefaultPartition, nsQueue, appID, 1+placeholderCount, 30)
+		Ω(err).NotTo(HaveOccurred())
+
+		By("Verify the originator pod is not changed after restart")
+		appDaoInfo, appDaoInfoErr = restClient.GetAppInfo(configmanager.DefaultPartition, nsQueue, appID)
+		Ω(appDaoInfoErr).NotTo(HaveOccurred())
+		for _, alloc := range appDaoInfo.Allocations {
+			podName := alloc.AllocationTags["kubernetes.io/meta/podName"]
+			if podName == originator.Name {
+				Ω(alloc.Originator).To(Equal(true), "Originator pod should be a originator pod")
+				Ω(alloc.Placeholder).To(Equal(false), "Originator pod should not be a placeholder pod")
+			} else {
+				Ω(alloc.Originator).To(Equal(false), "Placeholder pod should not be a originator pod")
+				Ω(alloc.Placeholder).To(Equal(true), "Placeholder pod should be a placeholder pod")
+			}
+		}
 	})
 
 	AfterEach(func() {
@@ -708,12 +784,12 @@ func verifyOriginatorDeletionCase(withOwnerRef bool) {
 			},
 		}
 		defer func() {
-			err := kClient.DeleteConfigMap(testConfigmap.Name, ns)
-			Ω(err).NotTo(HaveOccurred())
+			deleteErr := kClient.DeleteConfigMap(testConfigmap.Name, ns)
+			Ω(deleteErr).NotTo(HaveOccurred())
 		}()
 
-		testConfigmap, err := kClient.CreateConfigMap(testConfigmap, ns)
-		Ω(err).NotTo(HaveOccurred())
+		testConfigmap, testErr := kClient.CreateConfigMap(testConfigmap, ns)
+		Ω(testErr).NotTo(HaveOccurred())
 
 		podTest.OwnerReferences = []metav1.OwnerReference{
 			{

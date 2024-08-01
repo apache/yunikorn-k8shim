@@ -356,6 +356,26 @@ func (c *RClient) WaitForCompletedAppStateTransition(partition string, appID str
 	return wait.PollUntilContextTimeout(context.TODO(), time.Second, time.Duration(timeout)*time.Second, false, c.isAppInDesiredCompletedState(partition, appID, state).WithContext())
 }
 
+func (c *RClient) WaitForAllExecPodsAllocated(partition string, queueName string, appID string, execPodCount int, timeout int) error {
+	return wait.PollUntilContextTimeout(context.TODO(), time.Second, time.Duration(timeout)*time.Second, false, c.areAllExecPodsAllocated(partition, queueName, appID, execPodCount).WithContext())
+}
+
+func (c *RClient) areAllExecPodsAllocated(partition string, queueName string, appID string, execPodCount int) wait.ConditionFunc {
+	return func() (bool, error) {
+		appInfo, err := c.GetAppInfo(partition, queueName, appID)
+		if err != nil {
+			return false, nil // returning nil here for wait & loop
+		}
+		if appInfo.Allocations == nil {
+			return false, nil
+		}
+		if len(appInfo.Allocations) >= execPodCount {
+			return true, nil
+		}
+		return false, nil
+	}
+}
+
 func (c *RClient) AreAllExecPodsAllotted(partition string, queueName string, appID string, execPodCount int) wait.ConditionFunc {
 	return func() (bool, error) {
 		appInfo, err := c.GetAppInfo(partition, queueName, appID)
@@ -399,22 +419,26 @@ func GetFailedHealthChecks() (string, error) {
 	return failCheck, nil
 }
 
-func (c *RClient) GetQueue(partition string, queueName string) (*dao.PartitionQueueDAOInfo, error) {
-	queues, err := c.GetQueues(partition)
+func (c *RClient) GetQueue(partition string, queueName string, withChildren bool) (*dao.PartitionQueueDAOInfo, error) {
+	req, err := c.newRequest("GET", fmt.Sprintf(configmanager.QueuePath, partition, queueName), nil)
 	if err != nil {
 		return nil, err
 	}
-	if queueName == "root" {
-		return queues, nil
+	if withChildren {
+		q := req.URL.Query()
+		q.Add("subtree", "true")
+		req.URL.RawQuery = q.Encode()
 	}
 
-	var allSubQueues = queues.Children
-	for _, subQ := range allSubQueues {
-		if subQ.QueueName == queueName {
-			return &subQ, nil
-		}
+	var queue *dao.PartitionQueueDAOInfo
+	_, err = c.do(req, &queue)
+	if err != nil {
+		return nil, err
 	}
-	return nil, fmt.Errorf("QueueInfo not found: %s", queueName)
+	if queue == nil {
+		return nil, fmt.Errorf("QueueInfo not found: %s", queueName)
+	}
+	return queue, nil
 }
 
 // ConditionFunc returns true if queue timestamp property equals ts
@@ -422,7 +446,7 @@ func (c *RClient) GetQueue(partition string, queueName string) (*dao.PartitionQu
 func compareQueueTS(queuePathStr string, ts string) wait.ConditionFunc {
 	return func() (bool, error) {
 		restClient := RClient{}
-		qInfo, err := restClient.GetQueue(DefaultPartition, queuePathStr)
+		qInfo, err := restClient.GetQueue(DefaultPartition, queuePathStr, false)
 		if err != nil {
 			return false, err
 		}

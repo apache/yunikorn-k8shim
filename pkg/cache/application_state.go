@@ -506,6 +506,10 @@ func newAppState() *fsm.FSM { //nolint:funlen
 				app := event.Args[0].(*Application) //nolint:errcheck
 				app.onReserving()
 			},
+			states.Resuming: func(_ context.Context, event *fsm.Event) {
+				app := event.Args[0].(*Application) //nolint:errcheck
+				app.onResuming()
+			},
 			SubmitApplication.String(): func(_ context.Context, event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
 				event.Err = app.handleSubmitApplicationEvent()

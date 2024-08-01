@@ -136,7 +136,7 @@ var _ = Describe("", func() {
 			Ω(kClient.WaitForPodRunning(sleepRespPod.Namespace, sleepRespPod.Name, time.Duration(60)*time.Second)).NotTo(HaveOccurred())
 
 			// Verify that the resources requested by above sleep pod is accounted for in the queues response
-			queueInfo, err = restClient.GetQueue("default", "root."+ns)
+			queueInfo, err = restClient.GetQueue("default", "root."+ns, false)
 			Ω(err).NotTo(HaveOccurred())
 			Ω(queueInfo).NotTo(BeNil())
 			Ω(queueInfo.QueueName).Should(Equal("root." + ns))

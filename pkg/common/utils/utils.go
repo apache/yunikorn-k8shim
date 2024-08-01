@@ -20,6 +20,7 @@ package utils
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -44,6 +45,10 @@ const userInfoKey = siCommon.DomainYuniKorn + "user.info"
 const uniqueAutogenSuffix = "-uniqueautogen"
 
 var pluginMode bool
+var (
+	// ErrorTimeout returned if waiting for a condition times out
+	ErrorTimeout = errors.New("timeout waiting for condition")
+)
 
 func SetPluginMode(value bool) {
 	pluginMode = value
@@ -104,7 +109,7 @@ func IsAssignedPod(pod *v1.Pod) bool {
 }
 
 func GetQueueNameFromPod(pod *v1.Pod) string {
-	queueName := constants.ApplicationDefaultQueue
+	queueName := ""
 	if an := GetPodLabelValue(pod, constants.LabelQueueName); an != "" {
 		queueName = an
 	} else if qu := GetPodAnnotationValue(pod, constants.AnnotationQueueName); qu != "" {
@@ -250,7 +255,7 @@ func WaitForCondition(eval func() bool, interval time.Duration, timeout time.Dur
 		}
 
 		if time.Now().After(deadline) {
-			return fmt.Errorf("timeout waiting for condition")
+			return ErrorTimeout
 		}
 
 		time.Sleep(interval)
