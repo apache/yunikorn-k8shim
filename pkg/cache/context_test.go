@@ -1522,6 +1522,7 @@ func TestAddApplicationsWithTags(t *testing.T) {
 				constants.NamespaceQuota:                 "{\"cpu\": \"1\", \"memory\": \"256M\", \"nvidia.com/gpu\": \"1\"}",
 				constants.DomainYuniKorn + "parentqueue": "root.test",
 				constants.NamespaceGuaranteed:            "{\"cpu\": \"1\", \"memory\": \"256M\", \"nvidia.com/gpu\": \"1\"}",
+				constants.NamespaceMaxApps:               "1000",
 			},
 		},
 	}
@@ -1609,6 +1610,12 @@ func TestAddApplicationsWithTags(t *testing.T) {
 	} else {
 		t.Fatalf("resource parsing failed")
 	}
+
+	maxApps, ok := request.Metadata.Tags[siCommon.AppTagNamespaceResourceMaxApps]
+	if !ok {
+		t.Fatalf("max apps tag is not updated from the namespace")
+	}
+	assert.Equal(t, maxApps, "1000")
 
 	parentQueue, ok := request.Metadata.Tags[constants.AppTagNamespaceParentQueue]
 	if !ok {

@@ -934,6 +934,8 @@ func (ctx *Context) notifyTaskComplete(appID, taskID string) {
 // adds the following tags to the request based on annotations (if exist):
 //   - namespace.resourcequota
 //   - namespace.parentqueue
+//   - namespace.resourceguaranteed
+//   - namespace.resourcemaxapps
 func (ctx *Context) updateApplicationTags(request *AddApplicationRequest, namespace string) {
 	namespaceObj := ctx.getNamespaceObject(namespace)
 	if namespaceObj == nil {
@@ -953,6 +955,12 @@ func (ctx *Context) updateApplicationTags(request *AddApplicationRequest, namesp
 		if guaranteed, err := json.Marshal(guaranteedResource); err == nil {
 			request.Metadata.Tags[siCommon.AppTagNamespaceResourceGuaranteed] = string(guaranteed)
 		}
+	}
+
+	// add maxApps resource info as an app tag
+	maxApps := utils.GetNamespaceMaxAppsFromAnnotation(namespaceObj)
+	if maxApps != "" {
+		request.Metadata.Tags[siCommon.AppTagNamespaceResourceMaxApps] = maxApps
 	}
 
 	// add parent queue info as an app tag
