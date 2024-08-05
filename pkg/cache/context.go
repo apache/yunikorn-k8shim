@@ -1051,16 +1051,6 @@ func (ctx *Context) RemoveApplication(appID string) error {
 	return fmt.Errorf("application %s is not found in the context", appID)
 }
 
-func (ctx *Context) RemoveApplicationInternal(appID string) {
-	ctx.lock.Lock()
-	defer ctx.lock.Unlock()
-	if _, exist := ctx.applications[appID]; !exist {
-		log.Log(log.ShimContext).Debug("Attempted to remove non-existent application", zap.String("appID", appID))
-		return
-	}
-	delete(ctx.applications, appID)
-}
-
 // this implements ApplicationManagementProtocol
 func (ctx *Context) AddTask(request *AddTaskRequest) *Task {
 	return ctx.addTask(request)

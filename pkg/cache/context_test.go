@@ -392,31 +392,6 @@ func TestRemoveApplication(t *testing.T) {
 	assert.Assert(t, app != nil)
 }
 
-func TestRemoveApplicationInternal(t *testing.T) {
-	context := initContextForTest()
-	app1 := NewApplication(appID1, queueNameA, testUser, testGroups, map[string]string{}, newMockSchedulerAPI())
-	app2 := NewApplication(appID2, queueNameB, testUser, testGroups, map[string]string{}, newMockSchedulerAPI())
-	context.applications[appID1] = app1
-	context.applications[appID2] = app2
-	assert.Equal(t, len(context.applications), 2)
-
-	// remove non-exist app
-	context.RemoveApplicationInternal(appID3)
-	assert.Equal(t, len(context.applications), 2)
-
-	// remove app1
-	context.RemoveApplicationInternal(appID1)
-	assert.Equal(t, len(context.applications), 1)
-	_, ok := context.applications[appID1]
-	assert.Equal(t, ok, false)
-
-	// remove app2
-	context.RemoveApplicationInternal(appID2)
-	assert.Equal(t, len(context.applications), 0)
-	_, ok = context.applications[appID2]
-	assert.Equal(t, ok, false)
-}
-
 func TestAddPod(t *testing.T) {
 	context := initContextForTest()
 
