@@ -192,16 +192,16 @@ func TestDefaultQueueName(t *testing.T) {
 }
 
 func TestConvert2Namespace(t *testing.T) {
-	configMap := &v1.Namespace{}
-	result := convert2Namespace(configMap)
-	assert.Equal(t, result != nil, true)
-	assert.Equal(t, reflect.DeepEqual(result, configMap), true)
+	namespace := &v1.Namespace{}
+	result := convert2Namespace(namespace)
+	assert.Check(t, result != nil)
+	assert.Check(t, reflect.DeepEqual(result, namespace))
 
 	obj := struct{}{}
 	result = convert2Namespace(obj)
-	assert.Equal(t, result == nil, true)
+	assert.Check(t, result == nil)
 
 	pod := &v1.Pod{}
 	result = convert2Namespace(pod)
-	assert.Equal(t, result == nil, true)
+	assert.Check(t, result == nil)
 }
