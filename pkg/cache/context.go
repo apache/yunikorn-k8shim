@@ -1018,34 +1018,7 @@ func (ctx *Context) getApplication(appID string) *Application {
 	return nil
 }
 
-func (ctx *Context) RemoveApplication(appID string) error {
-	ctx.lock.Lock()
-	if app, exist := ctx.applications[appID]; exist {
-		// get the non-terminated task alias
-		nonTerminatedTaskAlias := app.getNonTerminatedTaskAlias()
-		// check there are any non-terminated task or not
-		if len(nonTerminatedTaskAlias) > 0 {
-			ctx.lock.Unlock()
-			return fmt.Errorf("failed to remove application %s because it still has task in non-terminated tasks: %s", appID, strings.Join(nonTerminatedTaskAlias, ","))
-		}
-		delete(ctx.applications, appID)
-		ctx.lock.Unlock()
-		// send the update request to scheduler core
-		rr := common.CreateUpdateRequestForRemoveApplication(app.applicationID, app.partition)
-		if err := ctx.apiProvider.GetAPIs().SchedulerAPI.UpdateApplication(rr); err != nil {
-			log.Log(log.ShimContext).Error("failed to send remove application request to core", zap.Error(err))
-		}
-
-		log.Log(log.ShimContext).Info("app removed",
-			zap.String("appID", appID))
-
-		return nil
-	}
-	ctx.lock.Unlock()
-	return fmt.Errorf("application %s is not found in the context", appID)
-}
-
-func (ctx *Context) RemoveApplicationInternal(appID string) {
+func (ctx *Context) RemoveApplication(appID string) {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
 	if _, exist := ctx.applications[appID]; !exist {

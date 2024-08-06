@@ -160,7 +160,7 @@ func (ss *KubernetesShim) schedule() {
 	for _, app := range apps {
 		if app.GetApplicationState() == cache.ApplicationStates().Failed {
 			if app.AreAllTasksTerminated() {
-				ss.context.RemoveApplicationInternal(app.GetApplicationID())
+				ss.context.RemoveApplication(app.GetApplicationID())
 			}
 			continue
 		}
