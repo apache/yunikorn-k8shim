@@ -845,12 +845,6 @@ func (ctx *Context) ForgetPod(name string) {
 	log.Log(log.ShimContext).Debug("unable to forget pod: not found in cache", zap.String("pod", name))
 }
 
-func (ctx *Context) UpdateApplication(app *Application) {
-	ctx.lock.Lock()
-	defer ctx.lock.Unlock()
-	ctx.applications[app.applicationID] = app
-}
-
 // IsTaskMaybeSchedulable returns true if a task might be currently able to be scheduled. This uses a bloom filter
 // cached from a set of taskIDs to perform efficient negative lookups.
 func (ctx *Context) IsTaskMaybeSchedulable(taskID string) bool {
