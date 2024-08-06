@@ -158,7 +158,7 @@ func (callback *AsyncRMCallback) UpdateApplication(response *si.ApplicationRespo
 			zap.String("new status", updated.State))
 		switch updated.State {
 		case ApplicationStates().Completed:
-			callback.context.RemoveApplication(updated.ApplicationID)
+			callback.context.RemoveApplicationInternal(updated.ApplicationID)
 		case ApplicationStates().Resuming:
 			app := callback.context.GetApplication(updated.ApplicationID)
 			if app != nil && app.GetApplicationState() == ApplicationStates().Reserving {
