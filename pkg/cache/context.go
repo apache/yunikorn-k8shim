@@ -917,10 +917,7 @@ func (ctx *Context) NotifyTaskComplete(app *Application, taskID string) {
 }
 
 func (ctx *Context) notifyTaskComplete(app *Application, taskID string) {
-	log.Log(log.ShimContext).Debug("NotifyTaskComplete",
-		zap.String("appID", app.applicationID),
-		zap.String("taskID", taskID))
-	log.Log(log.ShimContext).Debug("release allocation",
+	log.Log(log.ShimContext).Debug("NotifyTaskComplete and release allocation",
 		zap.String("appID", app.applicationID),
 		zap.String("taskID", taskID))
 	ev := NewSimpleTaskEvent(app.applicationID, taskID, CompleteTask)
