@@ -97,6 +97,9 @@ const NamespaceQuota = DomainYuniKorn + "namespace.quota"
 // NamespaceGuaranteed Namespace Guaranteed
 const NamespaceGuaranteed = DomainYuniKorn + "namespace.guaranteed"
 
+// NamespaceMaxApps Namespace Max Apps
+const NamespaceMaxApps = DomainYuniKorn + "namespace.maxApps"
+
 // AnnotationAllowPreemption set on PriorityClass, opt out of preemption for pods with this priority class
 const AnnotationAllowPreemption = DomainYuniKorn + "allow-preemption"
 
