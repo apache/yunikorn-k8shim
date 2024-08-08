@@ -624,8 +624,8 @@ func (task *Task) checkTaskPodWithoutConflictMetadata() error {
 }
 
 func (task *Task) checkPodPVCs() error {
-	task.lock.RLock()
 	// Check PVCs used by the pod
+	task.lock.RLock()
 	namespace := task.pod.Namespace
 	manifest := &(task.pod.Spec)
 	task.lock.RUnlock()
