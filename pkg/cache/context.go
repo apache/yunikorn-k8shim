@@ -330,7 +330,7 @@ func (ctx *Context) ensureAppAndTaskCreated(pod *v1.Pod, app *Application) {
 				zap.String("name", pod.Name))
 			return
 		}
-		app = ctx.addApplication(&AddApplicationRequest{
+		app = ctx.AddApplication(&AddApplicationRequest{
 			Metadata: appMeta,
 		})
 	}
@@ -436,7 +436,7 @@ func (ctx *Context) DeletePod(obj interface{}) {
 func (ctx *Context) deleteYuniKornPod(pod *v1.Pod) {
 	if taskMeta, ok := getTaskMetadata(pod); ok {
 		if app := ctx.GetApplication(taskMeta.ApplicationID); app != nil {
-			ctx.notifyTaskComplete(taskMeta.ApplicationID, taskMeta.TaskID)
+			ctx.notifyTaskComplete(app, taskMeta.TaskID)
 		}
 	}
 
@@ -880,22 +880,16 @@ func (ctx *Context) NotifyTaskComplete(app *Application, taskID string) {
 }
 
 func (ctx *Context) notifyTaskComplete(app *Application, taskID string) {
-	log.Log(log.ShimContext).Debug("NotifyTaskComplete and release allocation",
+	log.Log(log.ShimContext).Debug("NotifyTaskComplete",
+		zap.String("appID", app.applicationID),
+		zap.String("taskID", taskID))
+	log.Log(log.ShimContext).Debug("release allocation",
 		zap.String("appID", app.applicationID),
 		zap.String("taskID", taskID))
 	ev := NewSimpleTaskEvent(app.applicationID, taskID, CompleteTask)
 	dispatcher.Dispatch(ev)
 	if app.GetApplicationState() == ApplicationStates().Resuming {
 		dispatcher.Dispatch(NewSimpleApplicationEvent(app.applicationID, AppTaskCompleted))
-	if app := ctx.GetApplication(appID); app != nil {
-		log.Log(log.ShimContext).Debug("release allocation",
-			zap.String("appID", appID),
-			zap.String("taskID", taskID))
-		ev := NewSimpleTaskEvent(appID, taskID, CompleteTask)
-		dispatcher.Dispatch(ev)
-		if app.GetApplicationState() == ApplicationStates().Resuming {
-			dispatcher.Dispatch(NewSimpleApplicationEvent(appID, AppTaskCompleted))
-		}
 	}
 }
 
