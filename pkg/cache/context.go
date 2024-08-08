@@ -325,23 +325,21 @@ func (ctx *Context) updateYuniKornPod(appID string, pod *v1.Pod) {
 
 	if ctx.schedulerCache.UpdatePod(pod) {
 		// pod was accepted; ensure the application and task objects have been created
-		ctx.ensureAppAndTaskCreated(pod)
+		ctx.ensureAppAndTaskCreated(pod, app)
 	}
 }
 
-func (ctx *Context) ensureAppAndTaskCreated(pod *v1.Pod) {
-	// get app metadata
-	appMeta, ok := getAppMetadata(pod)
-	if !ok {
-		log.Log(log.ShimContext).Warn("BUG: Unable to retrieve application metadata from YuniKorn-managed Pod",
-			zap.String("namespace", pod.Namespace),
-			zap.String("name", pod.Name))
-		return
-	}
-
+func (ctx *Context) ensureAppAndTaskCreated(pod *v1.Pod, app *Application) {
 	// add app if it doesn't already exist
-	app := ctx.getApplication(appMeta.ApplicationID)
 	if app == nil {
+		// get app metadata
+		appMeta, ok := getAppMetadata(pod)
+		if !ok {
+			log.Log(log.ShimContext).Warn("BUG: Unable to retrieve application metadata from YuniKorn-managed Pod",
+				zap.String("namespace", pod.Namespace),
+				zap.String("name", pod.Name))
+			return
+		}
 		app = ctx.addApplication(&AddApplicationRequest{
 			Metadata: appMeta,
 		})
