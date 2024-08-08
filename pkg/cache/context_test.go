@@ -324,75 +324,6 @@ func TestGetApplication(t *testing.T) {
 }
 
 func TestRemoveApplication(t *testing.T) {
-	// add 3 applications
-	context := initContextForTest()
-	app1 := NewApplication(appID1, queueNameA, testUser, testGroups, map[string]string{}, newMockSchedulerAPI())
-	app2 := NewApplication(appID2, queueNameB, testUser, testGroups, map[string]string{}, newMockSchedulerAPI())
-	app3 := NewApplication(appID3, queueNameC, testUser, testGroups, map[string]string{}, newMockSchedulerAPI())
-	context.applications[appID1] = app1
-	context.applications[appID2] = app2
-	context.applications[appID3] = app3
-	pod1 := &v1.Pod{
-		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-		ObjectMeta: apis.ObjectMeta{
-			Name: "remove-test-00001",
-			UID:  uid1,
-		},
-	}
-	pod2 := &v1.Pod{
-		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-		ObjectMeta: apis.ObjectMeta{
-			Name: "remove-test-00002",
-			UID:  uid2,
-		},
-	}
-	// New task to application 1
-	// set task state in Pending (non-terminated)
-	task1 := NewTask(taskUID1, app1, context, pod1)
-	app1.taskMap[taskUID1] = task1
-	task1.sm.SetState(TaskStates().Pending)
-	// New task to application 2
-	// set task state in Failed (terminated)
-	task2 := NewTask(taskUID2, app2, context, pod2)
-	app2.taskMap[taskUID2] = task2
-	task2.sm.SetState(TaskStates().Failed)
-
-	// remove application 1 which have non-terminated task
-	// this should fail
-	assert.Equal(t, len(context.applications), 3)
-	err := context.RemoveApplication(appID1)
-	assert.Assert(t, err != nil)
-	assert.ErrorContains(t, err, "application app00001 because it still has task in non-terminated task, tasks: /remove-test-00001")
-
-	app := context.GetApplication(appID1)
-	assert.Assert(t, app != nil)
-
-	// remove application 2 which have terminated task
-	// this should be successful
-	err = context.RemoveApplication(appID2)
-	assert.Assert(t, err == nil)
-
-	app = context.GetApplication(appID2)
-	assert.Assert(t, app == nil)
-
-	// try remove again
-	// this should fail
-	err = context.RemoveApplication(appID2)
-	assert.Assert(t, err != nil)
-	assert.ErrorContains(t, err, "application app00002 is not found in the context")
-
-	// make sure the other app is not affected
-	app = context.GetApplication(appID3)
-	assert.Assert(t, app != nil)
-}
-
-func TestRemoveApplicationInternal(t *testing.T) {
 	context := initContextForTest()
 	app1 := NewApplication(appID1, queueNameA, testUser, testGroups, map[string]string{}, newMockSchedulerAPI())
 	app2 := NewApplication(appID2, queueNameB, testUser, testGroups, map[string]string{}, newMockSchedulerAPI())
@@ -401,17 +332,17 @@ func TestRemoveApplicationInternal(t *testing.T) {
 	assert.Equal(t, len(context.applications), 2)
 
 	// remove non-exist app
-	context.RemoveApplicationInternal(appID3)
+	context.RemoveApplication(appID3)
 	assert.Equal(t, len(context.applications), 2)
 
 	// remove app1
-	context.RemoveApplicationInternal(appID1)
+	context.RemoveApplication(appID1)
 	assert.Equal(t, len(context.applications), 1)
 	_, ok := context.applications[appID1]
 	assert.Equal(t, ok, false)
 
 	// remove app2
-	context.RemoveApplicationInternal(appID2)
+	context.RemoveApplication(appID2)
 	assert.Equal(t, len(context.applications), 0)
 	_, ok = context.applications[appID2]
 	assert.Equal(t, ok, false)
@@ -526,6 +457,10 @@ func TestUpdatePod(t *testing.T) {
 	context.UpdatePod(pod1, pod3)
 	pod = context.schedulerCache.GetPod(uid1)
 	assert.Check(t, pod == nil, "pod still found after termination")
+	app := context.getApplication(appID1)
+	// ensure that an updated pod is updated inside the Task
+	task := app.GetTask(uid1)
+	assert.Assert(t, task.GetTaskPod() == pod3, "task pod has not been updated")
 
 	// ensure a non-terminated pod is updated
 	context.UpdatePod(pod1, pod2)
@@ -1099,7 +1034,7 @@ func TestTaskReleaseAfterRecovery(t *testing.T) {
 	assert.Equal(t, len(app.GetBoundTasks()), 2)
 
 	// release one of the tasks
-	context.NotifyTaskComplete(appID, pod2UID)
+	context.notifyTaskComplete(appID, pod2UID)
 
 	// wait for release
 	err = utils.WaitForCondition(func() bool {
@@ -1518,6 +1453,7 @@ func TestAddApplicationsWithTags(t *testing.T) {
 				constants.NamespaceQuota:                 "{\"cpu\": \"1\", \"memory\": \"256M\", \"nvidia.com/gpu\": \"1\"}",
 				constants.DomainYuniKorn + "parentqueue": "root.test",
 				constants.NamespaceGuaranteed:            "{\"cpu\": \"1\", \"memory\": \"256M\", \"nvidia.com/gpu\": \"1\"}",
+				constants.NamespaceMaxApps:               "1000",
 			},
 		},
 	}
@@ -1605,6 +1541,12 @@ func TestAddApplicationsWithTags(t *testing.T) {
 	} else {
 		t.Fatalf("resource parsing failed")
 	}
+
+	maxApps, ok := request.Metadata.Tags[siCommon.AppTagNamespaceResourceMaxApps]
+	if !ok {
+		t.Fatalf("max apps tag is not updated from the namespace")
+	}
+	assert.Equal(t, maxApps, "1000")
 
 	parentQueue, ok := request.Metadata.Tags[constants.AppTagNamespaceParentQueue]
 	if !ok {
@@ -2133,7 +2075,7 @@ func TestTaskRemoveOnCompletion(t *testing.T) {
 	assert.NilError(t, err)
 
 	// mark completion
-	context.NotifyTaskComplete(appID, taskUID1)
+	context.notifyTaskComplete(appID, taskUID1)
 	err = utils.WaitForCondition(func() bool {
 		return task.GetTaskState() == TaskStates().Completed
 	}, 100*time.Millisecond, time.Second)

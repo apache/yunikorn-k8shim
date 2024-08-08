@@ -268,6 +268,27 @@ func GetNamespaceGuaranteedFromAnnotation(namespaceObj *v1.Namespace) *si.Resour
 	return nil
 }
 
+// get namespace max apps from namespace annotation
+func GetNamespaceMaxAppsFromAnnotation(namespaceObj *v1.Namespace) string {
+	if maxApps := GetNameSpaceAnnotationValue(namespaceObj, constants.NamespaceMaxApps); maxApps != "" {
+		numMaxApp, err := strconv.Atoi(maxApps)
+		if err != nil {
+			log.Log(log.ShimUtils).Warn("Unable to process namespace.maxApps annotation",
+				zap.String("namespace", namespaceObj.Name),
+				zap.String("namespace.maxApps is", maxApps))
+			return ""
+		}
+		if numMaxApp < 0 {
+			log.Log(log.ShimUtils).Warn("Invalid value for namespace.maxApps annotation",
+				zap.String("namespace", namespaceObj.Name),
+				zap.String("namespace.maxApps is", maxApps))
+			return ""
+		}
+		return maxApps
+	}
+	return ""
+}
+
 func GetNamespaceQuotaFromAnnotation(namespaceObj *v1.Namespace) *si.Resource {
 	// retrieve resource quota info from annotations
 	cpuQuota := GetNameSpaceAnnotationValue(namespaceObj, constants.CPUQuota)

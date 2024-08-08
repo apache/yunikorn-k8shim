@@ -331,6 +331,53 @@ func TestGetNamespaceGuaranteedFromAnnotation(t *testing.T) {
 	}
 }
 
+func TestGetNamespaceMaxAppsFromAnnotation(t *testing.T) {
+	testCases := []struct {
+		namespace      *v1.Namespace
+		expectedMaxApp string
+	}{
+		{&v1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test",
+				Namespace: "test",
+			},
+		}, ""},
+		{&v1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test",
+				Namespace: "test",
+				Annotations: map[string]string{
+					constants.NamespaceMaxApps: "5",
+				},
+			},
+		}, "5"},
+		{&v1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test",
+				Namespace: "test",
+				Annotations: map[string]string{
+					constants.NamespaceMaxApps: "-5",
+				},
+			},
+		}, ""},
+		{&v1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test",
+				Namespace: "test",
+				Annotations: map[string]string{
+					constants.NamespaceMaxApps: "error",
+				},
+			},
+		}, ""},
+	}
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("namespace: %v", tc.namespace), func(t *testing.T) {
+			maxApp := GetNamespaceMaxAppsFromAnnotation(tc.namespace)
+			assert.Equal(t, maxApp, tc.expectedMaxApp)
+		})
+	}
+}
+
 func TestGetNamespaceQuotaFromAnnotationUsingNewAndOldAnnotations(t *testing.T) {
 	testCases := []struct {
 		namespace        *v1.Namespace
