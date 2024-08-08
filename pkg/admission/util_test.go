@@ -19,6 +19,7 @@
 package admission
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 
@@ -188,4 +189,19 @@ func TestDefaultQueueName(t *testing.T) {
 	} else {
 		t.Fatal("UpdatePodLabelForAdmissionController is not as expected")
 	}
+}
+
+func TestConvert2Namespace(t *testing.T) {
+	namespace := &v1.Namespace{}
+	result := convert2Namespace(namespace)
+	assert.Check(t, result != nil)
+	assert.Check(t, reflect.DeepEqual(result, namespace))
+
+	obj := struct{}{}
+	result = convert2Namespace(obj)
+	assert.Check(t, result == nil)
+
+	pod := &v1.Pod{}
+	result = convert2Namespace(pod)
+	assert.Check(t, result == nil)
 }
