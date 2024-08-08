@@ -435,8 +435,6 @@ func (ctx *Context) DeletePod(obj interface{}) {
 
 func (ctx *Context) deleteYuniKornPod(pod *v1.Pod) {
 	if taskMeta, ok := getTaskMetadata(pod); ok {
-		if app := ctx.getApplication(taskMeta.ApplicationID); app != nil {
-			ctx.notifyTaskComplete(app, taskMeta.TaskID)
 		if app := ctx.GetApplication(taskMeta.ApplicationID); app != nil {
 			ctx.notifyTaskComplete(taskMeta.ApplicationID, taskMeta.TaskID)
 		}
