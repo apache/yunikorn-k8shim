@@ -91,8 +91,8 @@ func newPlaceholder(placeholderName string, app *Application, taskGroup TaskGrou
 			Name:      placeholderName,
 			Namespace: app.tags[constants.AppTagNamespace],
 			Labels: utils.MergeMaps(taskGroup.Labels, map[string]string{
-				constants.LabelApplicationID: app.GetApplicationID(),
-				constants.LabelQueueName:     app.GetQueue(),
+				constants.CanonicalLabelApplicationID: app.GetApplicationID(),
+				constants.CanonicalLabelQueueName:     app.GetQueue(),
 			}),
 			Annotations:     annotations,
 			OwnerReferences: ownerRefs,

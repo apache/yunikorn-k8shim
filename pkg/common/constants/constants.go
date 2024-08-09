@@ -86,6 +86,8 @@ var SchedulingPolicyStyleParamValues = map[string]string{"Hard": "Hard", "Soft":
 
 const ApplicationInsufficientResourcesFailure = "ResourceReservationTimeout"
 const ApplicationRejectedFailure = "ApplicationRejected"
+const TaskRejectedFailure = "TaskRejected"
+const TaskPodInconsistentMetadataFailure = "PodInconsistentMetadata"
 
 // namespace.max.* (Retaining for backwards compatibility. Need to be removed in next major release)
 const CPUQuota = DomainYuniKorn + "namespace.max.cpu"

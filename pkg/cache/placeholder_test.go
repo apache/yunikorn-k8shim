@@ -125,10 +125,10 @@ func TestNewPlaceholder(t *testing.T) {
 	assert.Equal(t, holder.pod.Name, "ph-name")
 	assert.Equal(t, holder.pod.Namespace, namespace)
 	assert.DeepEqual(t, holder.pod.Labels, map[string]string{
-		constants.LabelApplicationID: appID,
-		constants.LabelQueueName:     queue,
-		"labelKey0":                  "labelKeyValue0",
-		"labelKey1":                  "labelKeyValue1",
+		constants.CanonicalLabelApplicationID: appID,
+		constants.CanonicalLabelQueueName:     queue,
+		"labelKey0":                           "labelKeyValue0",
+		"labelKey1":                           "labelKeyValue1",
 	})
 	assert.Equal(t, len(holder.pod.Annotations), 6, "unexpected number of annotations")
 	assert.Equal(t, holder.pod.Annotations[constants.AnnotationTaskGroupName], app.taskGroups[0].Name)
