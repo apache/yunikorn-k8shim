@@ -435,9 +435,7 @@ func (ctx *Context) DeletePod(obj interface{}) {
 
 func (ctx *Context) deleteYuniKornPod(pod *v1.Pod) {
 	if taskMeta, ok := getTaskMetadata(pod); ok {
-		if app := ctx.GetApplication(taskMeta.ApplicationID); app != nil {
-			ctx.notifyTaskComplete(app, taskMeta.TaskID)
-		}
+		ctx.notifyTaskComplete(ctx.GetApplication(taskMeta.ApplicationID), taskMeta.TaskID)
 	}
 
 	log.Log(log.ShimContext).Debug("removing pod from cache", zap.String("podName", pod.Name))
@@ -874,7 +872,12 @@ func (ctx *Context) StartPodAllocation(podKey string, nodeID string) bool {
 }
 
 func (ctx *Context) notifyTaskComplete(app *Application, taskID string) {
-	log.Log(log.ShimContext).Debug("NotifyTaskComplete and release allocation",
+	if app == nil {
+		log.Log(log.ShimContext).Debug("In notifyTaskComplete but app is nil",
+			zap.String("taskID", taskID))
+		return
+	}
+	log.Log(log.ShimContext).Debug("notifyTaskComplete and release allocation",
 		zap.String("appID", app.applicationID),
 		zap.String("taskID", taskID))
 	ev := NewSimpleTaskEvent(app.applicationID, taskID, CompleteTask)
