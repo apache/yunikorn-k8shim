@@ -295,9 +295,9 @@ func (ctx *Context) UpdatePod(_, newObj interface{}) {
 }
 
 func (ctx *Context) updateYuniKornPod(appID string, pod *v1.Pod) {
-	var app *Application
 	taskID := string(pod.UID)
-	if app = ctx.getApplication(appID); app != nil {
+	app := ctx.getApplication(appID)
+	if app != nil {
 		if task := app.GetTask(taskID); task != nil {
 			task.setTaskPod(pod)
 		}
@@ -305,7 +305,7 @@ func (ctx *Context) updateYuniKornPod(appID string, pod *v1.Pod) {
 
 	// treat terminated pods like a remove
 	if utils.IsPodTerminated(pod) {
-		ctx.notifyTaskComplete(appID, taskID)
+		ctx.notifyTaskComplete(app, taskID)
 		log.Log(log.ShimContext).Debug("Request to update terminated pod, removing from cache", zap.String("podName", pod.Name))
 		ctx.schedulerCache.RemovePod(pod)
 		return
@@ -313,23 +313,21 @@ func (ctx *Context) updateYuniKornPod(appID string, pod *v1.Pod) {
 
 	if ctx.schedulerCache.UpdatePod(pod) {
 		// pod was accepted; ensure the application and task objects have been created
-		ctx.ensureAppAndTaskCreated(pod)
+		ctx.ensureAppAndTaskCreated(pod, app)
 	}
 }
 
-func (ctx *Context) ensureAppAndTaskCreated(pod *v1.Pod) {
-	// get app metadata
-	appMeta, ok := getAppMetadata(pod)
-	if !ok {
-		log.Log(log.ShimContext).Warn("BUG: Unable to retrieve application metadata from YuniKorn-managed Pod",
-			zap.String("namespace", pod.Namespace),
-			zap.String("name", pod.Name))
-		return
-	}
-
+func (ctx *Context) ensureAppAndTaskCreated(pod *v1.Pod, app *Application) {
 	// add app if it doesn't already exist
-	app := ctx.GetApplication(appMeta.ApplicationID)
 	if app == nil {
+		// get app metadata
+		appMeta, ok := getAppMetadata(pod)
+		if !ok {
+			log.Log(log.ShimContext).Warn("BUG: Unable to retrieve application metadata from YuniKorn-managed Pod",
+				zap.String("namespace", pod.Namespace),
+				zap.String("name", pod.Name))
+			return
+		}
 		app = ctx.AddApplication(&AddApplicationRequest{
 			Metadata: appMeta,
 		})
@@ -435,9 +433,7 @@ func (ctx *Context) DeletePod(obj interface{}) {
 
 func (ctx *Context) deleteYuniKornPod(pod *v1.Pod) {
 	if taskMeta, ok := getTaskMetadata(pod); ok {
-		if app := ctx.GetApplication(taskMeta.ApplicationID); app != nil {
-			ctx.notifyTaskComplete(taskMeta.ApplicationID, taskMeta.TaskID)
-		}
+		ctx.notifyTaskComplete(ctx.GetApplication(taskMeta.ApplicationID), taskMeta.TaskID)
 	}
 
 	log.Log(log.ShimContext).Debug("removing pod from cache", zap.String("podName", pod.Name))
@@ -873,19 +869,19 @@ func (ctx *Context) StartPodAllocation(podKey string, nodeID string) bool {
 	return ctx.schedulerCache.StartPodAllocation(podKey, nodeID)
 }
 
-func (ctx *Context) notifyTaskComplete(appID, taskID string) {
-	log.Log(log.ShimContext).Debug("NotifyTaskComplete",
-		zap.String("appID", appID),
-		zap.String("taskID", taskID))
-	if app := ctx.GetApplication(appID); app != nil {
-		log.Log(log.ShimContext).Debug("release allocation",
-			zap.String("appID", appID),
+func (ctx *Context) notifyTaskComplete(app *Application, taskID string) {
+	if app == nil {
+		log.Log(log.ShimContext).Debug("In notifyTaskComplete but app is nil",
 			zap.String("taskID", taskID))
-		ev := NewSimpleTaskEvent(appID, taskID, CompleteTask)
-		dispatcher.Dispatch(ev)
-		if app.GetApplicationState() == ApplicationStates().Resuming {
-			dispatcher.Dispatch(NewSimpleApplicationEvent(appID, AppTaskCompleted))
-		}
+		return
+	}
+	log.Log(log.ShimContext).Debug("release allocation in notifyTaskComplete",
+		zap.String("appID", app.applicationID),
+		zap.String("taskID", taskID))
+	ev := NewSimpleTaskEvent(app.applicationID, taskID, CompleteTask)
+	dispatcher.Dispatch(ev)
+	if app.GetApplicationState() == ApplicationStates().Resuming {
+		dispatcher.Dispatch(NewSimpleApplicationEvent(app.applicationID, AppTaskCompleted))
 	}
 }
 
