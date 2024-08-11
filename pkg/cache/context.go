@@ -305,9 +305,7 @@ func (ctx *Context) updateYuniKornPod(appID string, pod *v1.Pod) {
 
 	// treat terminated pods like a remove
 	if utils.IsPodTerminated(pod) {
-		if app != nil {
-			ctx.notifyTaskComplete(app, taskID)
-		}
+		ctx.notifyTaskComplete(app, taskID)
 		log.Log(log.ShimContext).Debug("Request to update terminated pod, removing from cache", zap.String("podName", pod.Name))
 		ctx.schedulerCache.RemovePod(pod)
 		return
