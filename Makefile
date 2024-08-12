@@ -511,8 +511,6 @@ sched_image: $(OUTPUT)/third-party-licenses.md scheduler docker/scheduler
 	--label org.opencontainers.image.documentation="https://yunikorn.apache.org" \
 	${QUIET}
 
-    
-
 # Build a plugin image based on the production ready version
 .PHONY: plugin_image
 plugin_image: $(OUTPUT)/third-party-licenses.md plugin docker/plugin conf/scheduler-config.yaml
