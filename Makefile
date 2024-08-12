@@ -502,13 +502,13 @@ sched_image: $(OUTPUT)/third-party-licenses.md scheduler docker/scheduler
 	--label "BuildTimeStamp=${DATE}" \
 	--label "Version=${VERSION}" \
 	--label org.opencontainers.image.title="yunikorn-scheduler-k8s" \
-    	--label org.opencontainers.image.description="Apache Yunikorn" \
-    	--label org.opencontainers.image.created="$(DATE)" \
-    	--label org.opencontainers.image.source="https://github.com/apache/yunikorn-k8shim" \
-    	--label org.opencontainers.image.url="https://hub.docker.com/r/apache/yunikorn" \
-    	--label org.opencontainers.image.revision="$(SHIM_SHA)" \
-    	--label org.opencontainers.image.license="Apache-2.0" \
-    	--label org.opencontainers.image.documentation="https://yunikorn.apache.org" \
+	--label org.opencontainers.image.description="Apache Yunikorn Scheduler" \
+	--label org.opencontainers.image.created="$(DATE)" \
+	--label org.opencontainers.image.source="https://github.com/apache/yunikorn-k8shim" \
+	--label org.opencontainers.image.url="https://hub.docker.com/r/apache/yunikorn" \
+	--label org.opencontainers.image.revision="$(SHIM_SHA)" \
+	--label org.opencontainers.image.license="Apache-2.0" \
+	--label org.opencontainers.image.documentation="https://yunikorn.apache.org" \
 	${QUIET}
 
     
@@ -532,8 +532,8 @@ plugin_image: $(OUTPUT)/third-party-licenses.md plugin docker/plugin conf/schedu
 	--label "yunikorn-k8shim-revision=${SHIM_SHA}" \
 	--label "BuildTimeStamp=${DATE}" \
 	--label "Version=${VERSION}" \
-	--label org.opencontainers.image.title="yunikorn-scheduler-k8s" \
-	--label org.opencontainers.image.description="Apache Yunikorn" \
+	--label org.opencontainers.image.title="yunikorn-scheduler-plugin-k8s" \
+	--label org.opencontainers.image.description="Apache Yunikorn Plugin" \
 	--label org.opencontainers.image.created="$(DATE)" \
 	--label org.opencontainers.image.source="https://github.com/apache/yunikorn-k8shim" \
 	--label org.opencontainers.image.url="https://hub.docker.com/r/apache/yunikorn" \
@@ -588,8 +588,8 @@ adm_image: $(OUTPUT)/third-party-licenses.md admission docker/admission
 	--label "yunikorn-k8shim-revision=${SHIM_SHA}" \
 	--label "BuildTimeStamp=${DATE}" \
 	--label "Version=${VERSION}" \
-	--label org.opencontainers.image.title="yunikorn-scheduler-k8s" \
-	--label org.opencontainers.image.description="Apache Yunikorn" \
+	--label org.opencontainers.image.title="yunikorn-admission-controller-k8s" \
+	--label org.opencontainers.image.description="Apache Yunikorn Admission Controller" \
 	--label org.opencontainers.image.created="$(DATE)" \
 	--label org.opencontainers.image.source="https://github.com/apache/yunikorn-k8shim" \
 	--label org.opencontainers.image.url="https://hub.docker.com/r/apache/yunikorn" \
