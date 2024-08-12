@@ -60,6 +60,11 @@ TEST_SERVER_BINARY=web-test-server
 TOOLS_DIR=tools
 REPO=github.com/apache/yunikorn-k8shim/pkg
 
+IMAGE_SOURCE?=https://github.com/apache/yunikorn-k8shim
+IMAGE_URL?=https://hub.docker.com/r/apache/yunikorn
+LICENSE=Apache-2.0
+DOCS_URL=https://yunikorn.apache.org
+
 # PATH
 export PATH := $(BASE_DIR)/$(TOOLS_DIR):$(GO_EXE_PATH):$(PATH)
 
@@ -501,14 +506,15 @@ sched_image: $(OUTPUT)/third-party-licenses.md scheduler docker/scheduler
 	--label "yunikorn-k8shim-revision=${SHIM_SHA}" \
 	--label "BuildTimeStamp=${DATE}" \
 	--label "Version=${VERSION}" \
-	--label org.opencontainers.image.title="yunikorn-scheduler-k8s" \
-	--label org.opencontainers.image.description="Apache Yunikorn Scheduler" \
-	--label org.opencontainers.image.created="$(DATE)" \
-	--label org.opencontainers.image.source="https://github.com/apache/yunikorn-k8shim" \
-	--label org.opencontainers.image.url="https://hub.docker.com/r/apache/yunikorn" \
-	--label org.opencontainers.image.revision="$(SHIM_SHA)" \
-	--label org.opencontainers.image.license="Apache-2.0" \
-	--label org.opencontainers.image.documentation="https://yunikorn.apache.org" \
+	--label "org.opencontainers.image.title=${SCHEDULER_BINARY}" \
+	--label "org.opencontainers.image.description=Apache YuniKorn Scheduler" \
+	--label "org.opencontainers.image.version=${VERSION}" \
+	--label "org.opencontainers.image.created=$(DATE)" \
+	--label "org.opencontainers.image.source=${IMAGE_SOURCE}" \
+	--label "org.opencontainers.image.url=${IMAGE_URL}" \
+	--label "org.opencontainers.image.revision=$(SHIM_SHA)" \
+	--label "org.opencontainers.image.license=${LICENSE}" \
+	--label "org.opencontainers.image.documentation=${DOCS_URL}" \
 	${QUIET}
 
 # Build a plugin image based on the production ready version
@@ -530,14 +536,15 @@ plugin_image: $(OUTPUT)/third-party-licenses.md plugin docker/plugin conf/schedu
 	--label "yunikorn-k8shim-revision=${SHIM_SHA}" \
 	--label "BuildTimeStamp=${DATE}" \
 	--label "Version=${VERSION}" \
-	--label org.opencontainers.image.title="yunikorn-scheduler-plugin-k8s" \
-	--label org.opencontainers.image.description="Apache Yunikorn Plugin" \
-	--label org.opencontainers.image.created="$(DATE)" \
-	--label org.opencontainers.image.source="https://github.com/apache/yunikorn-k8shim" \
-	--label org.opencontainers.image.url="https://hub.docker.com/r/apache/yunikorn" \
-	--label org.opencontainers.image.revision="$(SHIM_SHA)" \
-	--label org.opencontainers.image.license="Apache-2.0" \
-	--label org.opencontainers.image.documentation="https://yunikorn.apache.org" \
+	--label "org.opencontainers.image.title=${PLUGIN_BINARY}" \
+	--label "org.opencontainers.image.description=Apache YuniKorn Scheduler (Plugin)" \
+	--label "org.opencontainers.image.version=${VERSION}" \
+	--label "org.opencontainers.image.created=$(DATE)" \
+	--label "org.opencontainers.image.source=${IMAGE_SOURCE}" \
+	--label "org.opencontainers.image.url=${IMAGE_URL}" \
+	--label "org.opencontainers.image.revision=$(SHIM_SHA)" \
+	--label "org.opencontainers.image.license=${LICENSE}" \
+	--label "org.opencontainers.image.documentation=${DOCS_URL}" \
 	${QUIET}
 
 # Build admission controller binary in a production ready version
@@ -586,14 +593,15 @@ adm_image: $(OUTPUT)/third-party-licenses.md admission docker/admission
 	--label "yunikorn-k8shim-revision=${SHIM_SHA}" \
 	--label "BuildTimeStamp=${DATE}" \
 	--label "Version=${VERSION}" \
-	--label org.opencontainers.image.title="yunikorn-admission-controller-k8s" \
-	--label org.opencontainers.image.description="Apache Yunikorn Admission Controller" \
-	--label org.opencontainers.image.created="$(DATE)" \
-	--label org.opencontainers.image.source="https://github.com/apache/yunikorn-k8shim" \
-	--label org.opencontainers.image.url="https://hub.docker.com/r/apache/yunikorn" \
-	--label org.opencontainers.image.revision="$(SHIM_SHA)" \
-	--label org.opencontainers.image.license="Apache-2.0" \
-	--label org.opencontainers.image.documentation="https://yunikorn.apache.org" \
+	--label "org.opencontainers.image.title=${ADMISSION_CONTROLLER_BINARY}" \
+	--label "org.opencontainers.image.description=Apache YuniKorn Admission Controller" \
+	--label "org.opencontainers.image.version=${VERSION}" \
+	--label "org.opencontainers.image.created=$(DATE)" \
+	--label "org.opencontainers.image.source=${IMAGE_SOURCE}" \
+	--label "org.opencontainers.image.url=${IMAGE_URL}" \
+	--label "org.opencontainers.image.revision=$(SHIM_SHA)" \
+	--label "org.opencontainers.image.license=${LICENSE}" \
+	--label "org.opencontainers.image.documentation=${DOCS_URL}" \
 	${QUIET}
 
 # Build all images based on the production ready version
