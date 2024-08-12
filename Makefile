@@ -501,7 +501,17 @@ sched_image: $(OUTPUT)/third-party-licenses.md scheduler docker/scheduler
 	--label "yunikorn-k8shim-revision=${SHIM_SHA}" \
 	--label "BuildTimeStamp=${DATE}" \
 	--label "Version=${VERSION}" \
+	--label org.opencontainers.image.title="yunikorn-scheduler-k8s" \
+    --label org.opencontainers.image.description="Apache Yunikorn" \
+    --label org.opencontainers.image.created="$(DATE)" \
+    --label org.opencontainers.image.source="https://github.com/apache/yunikorn-k8shim" \
+    --label org.opencontainers.image.url="https://hub.docker.com/r/apache/yunikorn" \
+    --label org.opencontainers.image.revision="$(SHIM_SHA)" \
+    --label org.opencontainers.image.license="Apache-2.0" \
+    --label org.opencontainers.image.documentation="https://yunikorn.apache.org" \
 	${QUIET}
+
+    
 
 # Build a plugin image based on the production ready version
 .PHONY: plugin_image
@@ -522,6 +532,14 @@ plugin_image: $(OUTPUT)/third-party-licenses.md plugin docker/plugin conf/schedu
 	--label "yunikorn-k8shim-revision=${SHIM_SHA}" \
 	--label "BuildTimeStamp=${DATE}" \
 	--label "Version=${VERSION}" \
+	--label org.opencontainers.image.title="yunikorn-scheduler-k8s" \
+    --label org.opencontainers.image.description="Apache Yunikorn" \
+    --label org.opencontainers.image.created="$(DATE)" \
+    --label org.opencontainers.image.source="https://github.com/apache/yunikorn-k8shim" \
+    --label org.opencontainers.image.url="https://hub.docker.com/r/apache/yunikorn" \
+    --label org.opencontainers.image.revision="$(SHIM_SHA)" \
+    --label org.opencontainers.image.license="Apache-2.0" \
+    --label org.opencontainers.image.documentation="https://yunikorn.apache.org" \
 	${QUIET}
 
 # Build admission controller binary in a production ready version
@@ -570,6 +588,14 @@ adm_image: $(OUTPUT)/third-party-licenses.md admission docker/admission
 	--label "yunikorn-k8shim-revision=${SHIM_SHA}" \
 	--label "BuildTimeStamp=${DATE}" \
 	--label "Version=${VERSION}" \
+	--label org.opencontainers.image.title="yunikorn-scheduler-k8s" \
+    --label org.opencontainers.image.description="Apache Yunikorn" \
+    --label org.opencontainers.image.created="$(DATE)" \
+    --label org.opencontainers.image.source="https://github.com/apache/yunikorn-k8shim" \
+    --label org.opencontainers.image.url="https://hub.docker.com/r/apache/yunikorn" \
+    --label org.opencontainers.image.revision="$(SHIM_SHA)" \
+    --label org.opencontainers.image.license="Apache-2.0" \
+    --label org.opencontainers.image.documentation="https://yunikorn.apache.org" \
 	${QUIET}
 
 # Build all images based on the production ready version
