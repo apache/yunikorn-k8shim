@@ -2466,9 +2466,9 @@ func TestBindPodVolumesWithRetry(t *testing.T) {
 				mockRetryStrategy.totalSleep = 0
 				mockVolumeBinder.SetBindError("")
 			},
-			maxRetries:    3,
-			expectedErr:   false,
-			expectedCalls: 1,
+			maxRetries:     3,
+			expectedErr:    false,
+			expectedCalls:  1,
 			expectedSleeps: 0 * time.Second, // No sleep
 		},
 		{
@@ -2478,10 +2478,10 @@ func TestBindPodVolumesWithRetry(t *testing.T) {
 				mockRetryStrategy.totalSleep = 0
 				mockVolumeBinder.SetBindError("bind error")
 			},
-			maxRetries:    3,
-			expectedErr:   true,
-			expectedCalls: 3,
-			expectedSleeps: 3* time.Second,
+			maxRetries:     3,
+			expectedErr:    true,
+			expectedCalls:  3,
+			expectedSleeps: 3 * time.Second,
 		},
 		{
 			name: "failure after max retries",
@@ -2490,10 +2490,10 @@ func TestBindPodVolumesWithRetry(t *testing.T) {
 				mockRetryStrategy.totalSleep = 0
 				mockVolumeBinder.SetBindError("bind error")
 			},
-			maxRetries:    4,
-			expectedErr:   true,
-			expectedCalls: 4,
-			expectedSleeps: 7* time.Second,
+			maxRetries:     4,
+			expectedErr:    true,
+			expectedCalls:  4,
+			expectedSleeps: 7 * time.Second,
 		},
 		{
 			name: "retry successfully for the second time",
@@ -2511,10 +2511,10 @@ func TestBindPodVolumesWithRetry(t *testing.T) {
 					}
 				})
 			},
-			maxRetries:    5,
-			expectedErr:   false,
-			expectedCalls: 2,
-			expectedSleeps: 1* time.Second,
+			maxRetries:     5,
+			expectedErr:    false,
+			expectedCalls:  2,
+			expectedSleeps: 1 * time.Second,
 		},
 	}
 
