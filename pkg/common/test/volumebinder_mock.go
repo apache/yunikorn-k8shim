@@ -40,6 +40,28 @@ type VolumeBinderMock struct {
 	podVolumeClaim *volumebinding.PodVolumeClaims
 	podVolumes     *volumebinding.PodVolumes
 	allBound       bool
+
+	bindCallCount int
+
+	// Function field to override BindPodVolumes behavior
+	bindPodVolumesFunc func(pod *v1.Pod, volumes *volumebinding.PodVolumes) error
+}
+
+// Set a custom implementation for BindPodVolumes
+func (v *VolumeBinderMock) SetBindPodVolumesFunc(fn func(pod *v1.Pod, volumes *volumebinding.PodVolumes) error) {
+	v.bindPodVolumesFunc = fn
+}
+
+func (v *VolumeBinderMock) Reset() {
+	v.volumeClaimError = nil
+	v.findPodVolumesError = nil
+	v.assumeVolumeError = nil
+	v.bindError = nil
+	v.conflictReasons = nil
+	v.podVolumeClaim = nil
+	v.podVolumes = nil
+	v.allBound = true
+	v.bindCallCount = 0
 }
 
 func NewVolumeBinderMock() *VolumeBinderMock {
@@ -83,7 +105,13 @@ func (v *VolumeBinderMock) AssumePodVolumes(_ klog.Logger, _ *v1.Pod, _ string, 
 func (v *VolumeBinderMock) RevertAssumedPodVolumes(_ *volumebinding.PodVolumes) {
 }
 
-func (v *VolumeBinderMock) BindPodVolumes(_ context.Context, _ *v1.Pod, _ *volumebinding.PodVolumes) error {
+// Default implementation of BindPodVolumes
+func (v *VolumeBinderMock) BindPodVolumes(ctx context.Context, pod *v1.Pod, volumes *volumebinding.PodVolumes) error {
+	if v.bindPodVolumesFunc != nil {
+		return v.bindPodVolumesFunc(pod, volumes)
+	}
+	// Default behavior
+	v.bindCallCount++
 	return v.bindError
 }
 
@@ -105,4 +133,20 @@ func (v *VolumeBinderMock) SetConflictReasons(reasons ...string) {
 
 func (v *VolumeBinderMock) SetAssumePodVolumesError(message string) {
 	v.assumeVolumeError = errors.New(message)
+}
+
+func (v *VolumeBinderMock) GetBindCallCount() int {
+	return v.bindCallCount
+}
+
+func (v *VolumeBinderMock) IncrementBindCallCount() {
+	v.bindCallCount++
+}
+
+func (v *VolumeBinderMock) SetBindError(message string) {
+	if message == "" {
+		v.bindError = nil
+		return
+	}
+	v.bindError = errors.New(message)
 }

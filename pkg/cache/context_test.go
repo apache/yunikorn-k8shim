@@ -2433,3 +2433,111 @@ func assertListerPods(pods []*v1.Pod, count int) bool {
 	}
 	return count == counted
 }
+
+type MockRetryStrategy struct {
+	totalSleep time.Duration
+}
+
+func (m *MockRetryStrategy) Sleep(duration time.Duration) {
+	m.totalSleep += duration
+}
+
+func TestBindPodVolumesWithRetry(t *testing.T) {
+	mockRetryStrategy := &MockRetryStrategy{}
+	mockVolumeBinder := test.NewVolumeBinderMock()
+	ctx, api := initContextAndAPIProviderForTest()
+	api.SetVolumeBinder(mockVolumeBinder)
+
+	pod := &v1.Pod{Spec: v1.PodSpec{NodeName: "test-node"}}
+	volumes := &volumebinding.PodVolumes{}
+
+	testCases := []struct {
+		name           string
+		setupMock      func()
+		maxRetries     int
+		expectedErr    bool
+		expectedCalls  int
+		expectedSleeps time.Duration
+	}{
+		{
+			name: "success on first try",
+			setupMock: func() {
+				mockVolumeBinder.Reset()
+				mockRetryStrategy.totalSleep = 0
+				mockVolumeBinder.SetBindError("")
+			},
+			maxRetries:    3,
+			expectedErr:   false,
+			expectedCalls: 1,
+			expectedSleeps: 0 * time.Second, // No sleep
+		},
+		{
+			name: "failure after max retries",
+			setupMock: func() {
+				mockVolumeBinder.Reset()
+				mockRetryStrategy.totalSleep = 0
+				mockVolumeBinder.SetBindError("bind error")
+			},
+			maxRetries:    3,
+			expectedErr:   true,
+			expectedCalls: 3,
+			expectedSleeps: 3* time.Second,
+		},
+		{
+			name: "failure after max retries",
+			setupMock: func() {
+				mockVolumeBinder.Reset()
+				mockRetryStrategy.totalSleep = 0
+				mockVolumeBinder.SetBindError("bind error")
+			},
+			maxRetries:    4,
+			expectedErr:   true,
+			expectedCalls: 4,
+			expectedSleeps: 7* time.Second,
+		},
+		{
+			name: "retry successfully for the second time",
+			setupMock: func() {
+				mockVolumeBinder.Reset()
+				mockRetryStrategy.totalSleep = 0
+				mockVolumeBinder.SetBindError("")
+				// Use a custom implementation for BindPodVolumes
+				mockVolumeBinder.SetBindPodVolumesFunc(func(pod *v1.Pod, volumes *volumebinding.PodVolumes) error {
+					mockVolumeBinder.IncrementBindCallCount()
+					if mockVolumeBinder.GetBindCallCount() == 2 {
+						return nil
+					} else {
+						return fmt.Errorf("bind error")
+					}
+				})
+			},
+			maxRetries:    5,
+			expectedErr:   false,
+			expectedCalls: 2,
+			expectedSleeps: 1* time.Second,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Set up the mock behavior for this test case
+			tc.setupMock()
+
+			// Execute the function with retry logic
+			err := ctx.bindPodVolumesWithRetry(pod, volumes, tc.maxRetries, mockRetryStrategy)
+
+			// Assert the result
+			if tc.expectedErr {
+				assert.Error(t, err, "bind error")
+			} else {
+				assert.NilError(t, err)
+			}
+
+			// Assert the number of calls made to BindPodVolumes
+			assert.Equal(t, tc.expectedCalls, mockVolumeBinder.GetBindCallCount())
+
+			// Use custom assertion
+			assert.Equal(t, tc.expectedSleeps, mockRetryStrategy.totalSleep)
+		})
+	}
+}
