@@ -23,6 +23,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/util/retry"
 	"reflect"
 	"sort"
 	"strconv"
@@ -755,70 +757,50 @@ func (ctx *Context) bindPodVolumes(pod *v1.Pod) error {
 				// convert nil to empty array
 				volumes.DynamicProvisions = make([]*v1.PersistentVolumeClaim, 0)
 			}
-			// Here we set the max retry count to 5, and use the default retry strategy
-			// Details:
-			// max sleep time is 1s, 2s, 4s, 8s and the last one will not sleep
-			return ctx.bindPodVolumesWithRetry(assumedPod, volumes, 5, &DefaultRetryStrategy{})
+
+			if err = ctx.bindPodVolumesWithRetry(assumedPod, volumes, 5, time.Second); err != nil {
+				// log failed after 5 retries
+				log.Log(log.ShimContext).Error("Failed to bind pod volumes after max 5 retries",
+					zap.String("podName", assumedPod.Name),
+					zap.String("nodeName", assumedPod.Spec.NodeName),
+					zap.Int("dynamicProvisions", len(volumes.DynamicProvisions)),
+					zap.Int("staticBindings", len(volumes.StaticBindings)),
+					zap.Error(err))
+				return err
+			}
 		}
 	}
 	return nil
-}
-
-type RetryStrategy interface {
-	// Sleep function used for retry delays
-	Sleep(duration time.Duration)
-}
-
-// DefaultRetryStrategy is a simple retry strategy that sleeps for a fixed duration
-// We can extend this to support more advanced retry strategies in the future and also for testing purposes
-type DefaultRetryStrategy struct{}
-
-func (r *DefaultRetryStrategy) Sleep(duration time.Duration) {
-	time.Sleep(duration)
 }
 
 func (ctx *Context) bindPodVolumesWithRetry(
 	assumedPod *v1.Pod,
 	volumes *volumebinding.PodVolumes,
 	maxRetries int,
-	retryStrategy RetryStrategy,
+	duration time.Duration,
 ) error {
-	const baseDelay = time.Second
-	const maxDelay = 8 * time.Second
+	// Here we set the max retry count to 5, and use the default retry strategy
+	// Details:
+	// max sleep time is 1s, 2s, 4s, 8s and the last one will not sleep
 
-	var err error
-	for i := 0; i < maxRetries; i++ {
-		err = ctx.apiProvider.GetAPIs().VolumeBinder.BindPodVolumes(context.Background(), assumedPod, volumes)
-		if err == nil {
-			return nil
-		}
-
-		log.Log(log.ShimContext).Error("Failed to bind pod volumes",
+	backoff := wait.Backoff{
+		Steps:    maxRetries,
+		Duration: duration,
+		Factor:   2.0,
+		Jitter:   0,
+	}
+	err := retry.OnError(backoff, func(_ error) bool {
+		return true // retry on all error
+	}, func() error {
+		// log some debug info when retrying
+		log.Log(log.ShimContext).Debug("Retrying to bind pod volumes",
 			zap.String("podName", assumedPod.Name),
 			zap.String("nodeName", assumedPod.Spec.NodeName),
 			zap.Int("dynamicProvisions", len(volumes.DynamicProvisions)),
-			zap.Int("staticBindings", len(volumes.StaticBindings)),
-			zap.Int("retryCount", i+1),
-			zap.Error(err))
-
-		if i == maxRetries-1 {
-			log.Log(log.ShimContext).Error("Failed to bind pod volumes after retry",
-				zap.String("podName", assumedPod.Name),
-				zap.String("nodeName", assumedPod.Spec.NodeName),
-				zap.Int("dynamicProvisions", len(volumes.DynamicProvisions)),
-				zap.Int("staticBindings", len(volumes.StaticBindings)),
-				zap.Error(err))
-			return err
-		}
-
-		delay := baseDelay * time.Duration(1<<uint(i))
-		if delay > maxDelay {
-			delay = maxDelay
-		}
-
-		retryStrategy.Sleep(delay) // Use the retry strategy
-	}
-
+			zap.Int("staticBindings", len(volumes.StaticBindings)))
+		// call volume binder to bind pod volumes
+		return ctx.apiProvider.GetAPIs().VolumeBinder.BindPodVolumes(context.Background(), assumedPod, volumes)
+	})
 	return err
 }
 
