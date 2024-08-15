@@ -2456,9 +2456,9 @@ func TestBindPodVolumesWithRetry(t *testing.T) {
 				mockVolumeBinder.Reset()
 				mockVolumeBinder.SetBindError("")
 			},
-			maxRetries:     3,
-			expectedErr:    false,
-			expectedCalls:  1,
+			maxRetries:    3,
+			expectedErr:   false,
+			expectedCalls: 1,
 		},
 		{
 			name: "failure after max retries",
@@ -2466,9 +2466,9 @@ func TestBindPodVolumesWithRetry(t *testing.T) {
 				mockVolumeBinder.Reset()
 				mockVolumeBinder.SetBindError("bind error")
 			},
-			maxRetries:     3,
-			expectedErr:    true,
-			expectedCalls:  3,
+			maxRetries:    3,
+			expectedErr:   true,
+			expectedCalls: 3,
 		},
 		{
 			name: "retry successfully for the second time",
@@ -2485,9 +2485,9 @@ func TestBindPodVolumesWithRetry(t *testing.T) {
 					}
 				})
 			},
-			maxRetries:     5,
-			expectedErr:    false,
-			expectedCalls:  2,
+			maxRetries:    5,
+			expectedErr:   false,
+			expectedCalls: 2,
 		},
 	}
 
@@ -2498,7 +2498,7 @@ func TestBindPodVolumesWithRetry(t *testing.T) {
 
 			// Execute the function with retry logic
 			// make the mock interval shorter for testing
-			err := ctx.bindPodVolumesWithRetry(pod, volumes, tc.maxRetries, 1 * time.Millisecond)
+			err := ctx.bindPodVolumesWithRetry(pod, volumes, tc.maxRetries, 1*time.Millisecond)
 
 			// Assert the result
 			if tc.expectedErr {
