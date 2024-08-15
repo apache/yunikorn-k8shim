@@ -1260,7 +1260,7 @@ func (ctx *Context) TaskEventHandler() func(obj interface{}) {
 			taskID := event.GetTaskID()
 			task := ctx.getTask(appID, taskID)
 			if task == nil {
-				log.Log(log.ShimContext).Error("failed to handle task event, task does not exist",
+				log.Log(log.ShimContext).Debug("failed to handle task event, task does not exist",
 					zap.String("applicationID", appID),
 					zap.String("taskID", taskID))
 				return
