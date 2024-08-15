@@ -224,11 +224,6 @@ func TestReleaseTaskAllocation(t *testing.T) {
 		assert.Equal(t, request.Releases.AllocationsToRelease[0].ApplicationID, app.applicationID)
 		assert.Equal(t, request.Releases.AllocationsToRelease[0].PartitionName, "default")
 		assert.Equal(t, request.Releases.AllocationsToRelease[0].AllocationKey, "task01")
-		assert.Assert(t, request.Releases.AllocationAsksToRelease != nil)
-		assert.Equal(t, request.Releases.AllocationAsksToRelease[0].ApplicationID, app.applicationID)
-		assert.Equal(t, request.Releases.AllocationAsksToRelease[0].AllocationKey, "task01")
-		assert.Equal(t, request.Releases.AllocationAsksToRelease[0].PartitionName, "default")
-		assert.Equal(t, request.Releases.AllocationAsksToRelease[0].TerminationType, si.TerminationType_UNKNOWN_TERMINATION_TYPE)
 		return nil
 	})
 
@@ -244,12 +239,11 @@ func TestReleaseTaskAllocation(t *testing.T) {
 	task = NewTask("task01", app, mockedContext, pod)
 	mockedApiProvider.MockSchedulerAPIUpdateAllocationFn(func(request *si.AllocationRequest) error {
 		assert.Assert(t, request.Releases != nil)
-		assert.Assert(t, request.Releases.AllocationsToRelease == nil)
-		assert.Assert(t, request.Releases.AllocationAsksToRelease != nil)
-		assert.Equal(t, request.Releases.AllocationAsksToRelease[0].ApplicationID, app.applicationID)
-		assert.Equal(t, request.Releases.AllocationAsksToRelease[0].AllocationKey, "task01")
-		assert.Equal(t, request.Releases.AllocationAsksToRelease[0].PartitionName, "default")
-		assert.Equal(t, request.Releases.AllocationAsksToRelease[0].TerminationType, si.TerminationType_UNKNOWN_TERMINATION_TYPE)
+		assert.Assert(t, request.Releases.AllocationsToRelease != nil)
+		assert.Equal(t, request.Releases.AllocationsToRelease[0].ApplicationID, app.applicationID)
+		assert.Equal(t, request.Releases.AllocationsToRelease[0].AllocationKey, "task01")
+		assert.Equal(t, request.Releases.AllocationsToRelease[0].PartitionName, "default")
+		assert.Equal(t, request.Releases.AllocationsToRelease[0].TerminationType, si.TerminationType_STOPPED_BY_RM)
 		return nil
 	})
 	err = task.handle(NewFailTaskEvent(app.applicationID, "task01", "test failure"))
@@ -265,11 +259,7 @@ func TestReleaseTaskAllocation(t *testing.T) {
 		assert.Equal(t, request.Releases.AllocationsToRelease[0].ApplicationID, app.applicationID)
 		assert.Equal(t, request.Releases.AllocationsToRelease[0].PartitionName, "default")
 		assert.Equal(t, request.Releases.AllocationsToRelease[0].AllocationKey, "task01")
-		assert.Assert(t, request.Releases.AllocationAsksToRelease != nil)
-		assert.Equal(t, request.Releases.AllocationAsksToRelease[0].ApplicationID, app.applicationID)
-		assert.Equal(t, request.Releases.AllocationAsksToRelease[0].AllocationKey, "task01")
-		assert.Equal(t, request.Releases.AllocationAsksToRelease[0].PartitionName, "default")
-		assert.Equal(t, request.Releases.AllocationAsksToRelease[0].TerminationType, si.TerminationType_UNKNOWN_TERMINATION_TYPE)
+		assert.Equal(t, request.Releases.AllocationsToRelease[0].TerminationType, si.TerminationType_STOPPED_BY_RM)
 		return nil
 	})
 	err = task.handle(NewFailTaskEvent(app.applicationID, "task01", "test failure"))
@@ -330,11 +320,10 @@ func TestReleaseTaskAsk(t *testing.T) {
 	// this is to verify we are sending correct info to the scheduler core
 	mockedApiProvider.MockSchedulerAPIUpdateAllocationFn(func(request *si.AllocationRequest) error {
 		assert.Assert(t, request.Releases != nil)
-		assert.Assert(t, request.Releases.AllocationsToRelease == nil)
-		assert.Assert(t, request.Releases.AllocationAsksToRelease != nil)
-		assert.Equal(t, request.Releases.AllocationAsksToRelease[0].ApplicationID, app.applicationID)
-		assert.Equal(t, request.Releases.AllocationAsksToRelease[0].PartitionName, "default")
-		assert.Equal(t, request.Releases.AllocationAsksToRelease[0].AllocationKey, task.taskID)
+		assert.Assert(t, request.Releases.AllocationsToRelease != nil)
+		assert.Equal(t, request.Releases.AllocationsToRelease[0].ApplicationID, app.applicationID)
+		assert.Equal(t, request.Releases.AllocationsToRelease[0].PartitionName, "default")
+		assert.Equal(t, request.Releases.AllocationsToRelease[0].AllocationKey, task.taskID)
 		return nil
 	})
 
@@ -598,11 +587,11 @@ func TestHandleSubmitTaskEvent(t *testing.T) {
 	assert.Equal(t, task1.GetTaskState(), TaskStates().Scheduling)
 	assert.Equal(t, rt.time, int64(1))
 	assert.Assert(t, allocRequest != nil)
-	assert.Equal(t, len(allocRequest.Asks), 1)
-	assert.Equal(t, allocRequest.Asks[0].Priority, int32(1000))
-	assert.Assert(t, allocRequest.Asks[0].PreemptionPolicy != nil)
-	assert.Assert(t, allocRequest.Asks[0].PreemptionPolicy.AllowPreemptSelf)
-	assert.Assert(t, !allocRequest.Asks[0].PreemptionPolicy.AllowPreemptOther)
+	assert.Equal(t, len(allocRequest.Allocations), 1)
+	assert.Equal(t, allocRequest.Allocations[0].Priority, int32(1000))
+	assert.Assert(t, allocRequest.Allocations[0].PreemptionPolicy != nil)
+	assert.Assert(t, allocRequest.Allocations[0].PreemptionPolicy.AllowPreemptSelf)
+	assert.Assert(t, !allocRequest.Allocations[0].PreemptionPolicy.AllowPreemptOther)
 	allocRequest = nil
 	rt.time = 0
 	// pod with taskGroup name
@@ -612,11 +601,11 @@ func TestHandleSubmitTaskEvent(t *testing.T) {
 	assert.Equal(t, task2.GetTaskState(), TaskStates().Scheduling)
 	assert.Equal(t, rt.time, int64(2))
 	assert.Assert(t, allocRequest != nil)
-	assert.Equal(t, len(allocRequest.Asks), 1)
-	assert.Equal(t, allocRequest.Asks[0].Priority, int32(1001))
-	assert.Assert(t, allocRequest.Asks[0].PreemptionPolicy != nil)
-	assert.Assert(t, !allocRequest.Asks[0].PreemptionPolicy.AllowPreemptSelf)
-	assert.Assert(t, allocRequest.Asks[0].PreemptionPolicy.AllowPreemptOther)
+	assert.Equal(t, len(allocRequest.Allocations), 1)
+	assert.Equal(t, allocRequest.Allocations[0].Priority, int32(1001))
+	assert.Assert(t, allocRequest.Allocations[0].PreemptionPolicy != nil)
+	assert.Assert(t, !allocRequest.Allocations[0].PreemptionPolicy.AllowPreemptSelf)
+	assert.Assert(t, allocRequest.Allocations[0].PreemptionPolicy.AllowPreemptOther)
 
 	// Test over, set Recorder back fake type
 	events.SetRecorder(k8sEvents.NewFakeRecorder(1024))
@@ -665,11 +654,9 @@ func TestSimultaneousTaskCompleteAndAllocate(t *testing.T) {
 	// because the task is in Scheduling state,
 	// here we expect to trigger a UpdateRequest that contains a releaseAllocationAsk request
 	mockedAPIProvider.MockSchedulerAPIUpdateAllocationFn(func(request *si.AllocationRequest) error {
-		assert.Equal(t, len(request.Releases.AllocationAsksToRelease), 1,
-			"allocationAskToRelease is not in the expected length")
-		assert.Equal(t, len(request.Releases.AllocationsToRelease), 0,
+		assert.Equal(t, len(request.Releases.AllocationsToRelease), 1,
 			"allocationsToRelease is not in the expected length")
-		askToRelease := request.Releases.AllocationAsksToRelease[0]
+		askToRelease := request.Releases.AllocationsToRelease[0]
 		assert.Equal(t, askToRelease.ApplicationID, appID)
 		assert.Equal(t, askToRelease.AllocationKey, podUID)
 		return nil
@@ -689,8 +676,6 @@ func TestSimultaneousTaskCompleteAndAllocate(t *testing.T) {
 		PartitionName: "default",
 	}
 	mockedAPIProvider.MockSchedulerAPIUpdateAllocationFn(func(request *si.AllocationRequest) error {
-		assert.Equal(t, len(request.Releases.AllocationAsksToRelease), 1,
-			"allocationAskToRelease is not in the expected length")
 		assert.Equal(t, len(request.Releases.AllocationsToRelease), 1,
 			"allocationsToRelease is not in the expected length")
 		allocToRelease := request.Releases.AllocationsToRelease[0]

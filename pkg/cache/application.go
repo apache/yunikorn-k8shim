@@ -627,42 +627,19 @@ func (app *Application) handleFailApplicationEvent(errMsg string) {
 	}
 }
 
-func (app *Application) handleReleaseAppAllocationEvent(allocationKey string, terminationType string) {
-	log.Log(log.ShimCacheApplication).Info("try to release pod from application",
-		zap.String("appID", app.applicationID),
-		zap.String("allocationKey", allocationKey),
-		zap.String("terminationType", terminationType))
-
-	for _, task := range app.taskMap {
-		if task.allocationKey == allocationKey {
-			task.setTaskTerminationType(terminationType)
-			err := task.DeleteTaskPod()
-			if err != nil {
-				log.Log(log.ShimCacheApplication).Error("failed to release allocation from application", zap.Error(err))
-			}
-			app.publishPlaceholderTimeoutEvents(task)
-		}
-	}
-}
-
-func (app *Application) handleReleaseAppAllocationAskEvent(taskID string, terminationType string) {
+func (app *Application) handleReleaseAppAllocationEvent(taskID string, terminationType string) {
 	log.Log(log.ShimCacheApplication).Info("try to release pod from application",
 		zap.String("appID", app.applicationID),
 		zap.String("taskID", taskID),
 		zap.String("terminationType", terminationType))
+
 	if task, ok := app.taskMap[taskID]; ok {
 		task.setTaskTerminationType(terminationType)
-		if task.IsPlaceholder() {
-			err := task.DeleteTaskPod()
-			if err != nil {
-				log.Log(log.ShimCacheApplication).Error("failed to release allocation ask from application", zap.Error(err))
-			}
-			app.publishPlaceholderTimeoutEvents(task)
-		} else {
-			log.Log(log.ShimCacheApplication).Warn("skip to release allocation ask, ask is not a placeholder",
-				zap.String("appID", app.applicationID),
-				zap.String("taskID", taskID))
+		err := task.DeleteTaskPod()
+		if err != nil {
+			log.Log(log.ShimCacheApplication).Error("failed to release allocation from application", zap.Error(err))
 		}
+		app.publishPlaceholderTimeoutEvents(task)
 	} else {
 		log.Log(log.ShimCacheApplication).Warn("task not found",
 			zap.String("appID", app.applicationID),
