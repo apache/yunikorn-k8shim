@@ -109,12 +109,20 @@ func IsAssignedPod(pod *v1.Pod) bool {
 }
 
 func GetQueueNameFromPod(pod *v1.Pod) string {
+	// Queue name can be defined in multiple places
+	// The queue name is determined by the following order
+	// 1. Label: constants.CanonicalLabelQueueName
+	// 2. Annotation: constants.AnnotationQueueName
+	// 3. Label: constants.LabelQueueName
 	queueName := ""
-	if an := GetPodLabelValue(pod, constants.LabelQueueName); an != "" {
-		queueName = an
-	} else if qu := GetPodAnnotationValue(pod, constants.AnnotationQueueName); qu != "" {
-		queueName = qu
+	if canonicalLabelQueueName := GetPodLabelValue(pod, constants.CanonicalLabelQueueName); canonicalLabelQueueName != "" {
+		queueName = canonicalLabelQueueName
+	} else if annotationQueueName := GetPodAnnotationValue(pod, constants.AnnotationQueueName); annotationQueueName != "" {
+		queueName = annotationQueueName
+	} else if labelQueueName := GetPodLabelValue(pod, constants.LabelQueueName); labelQueueName != "" {
+		queueName = labelQueueName
 	}
+
 	return queueName
 }
 
@@ -159,15 +167,30 @@ func GetApplicationIDFromPod(pod *v1.Pod) string {
 		}
 	}
 
-	// Application ID can be defined in annotation
-	appID := GetPodAnnotationValue(pod, constants.AnnotationApplicationID)
+	// Application ID can be defined in multiple places
+	// The application ID is determined by the following order.
+	// 1. Label: constants.CanonicalLabelApplicationID
+	// 2. Annotation: constants.AnnotationApplicationID
+	// 3. Label: constants.LabelApplicationID
+	// 4. Label: constants.SparkLabelAppID
+
+	appID := GetPodLabelValue(pod, constants.CanonicalLabelApplicationID)
+
 	if appID == "" {
-		// Application ID can be defined in label
-		appID = GetPodLabelValue(pod, constants.LabelApplicationID)
+		appID = GetPodAnnotationValue(pod, constants.AnnotationApplicationID)
 	}
+
 	if appID == "" {
-		// Spark can also define application ID
-		appID = GetPodLabelValue(pod, constants.SparkLabelAppID)
+		labelKeys := []string{
+			constants.LabelApplicationID,
+			constants.SparkLabelAppID,
+		}
+		for _, label := range labelKeys {
+			appID = GetPodLabelValue(pod, label)
+			if appID != "" {
+				break
+			}
+		}
 	}
 
 	// If plugin mode, interpret missing Application ID as a non-YuniKorn pod
