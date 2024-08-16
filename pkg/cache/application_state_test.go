@@ -769,105 +769,6 @@ func TestReleaseAppAllocationEventGetApplicationID(t *testing.T) {
 	}
 }
 
-func TestNewReleaseAppAllocationAskEvent(t *testing.T) {
-	tests := []struct {
-		name                         string
-		appID, taskID                string
-		terminationType              si.TerminationType
-		wantID, wantTaskID, wantType string
-		wantEvent                    ApplicationEventType
-	}{
-		{TestCreateName, "testAppId001", "testTaskId001", si.TerminationType_TIMEOUT, "testAppId001", "testTaskId001", "TIMEOUT", ReleaseAppAllocationAsk},
-	}
-
-	for _, tt := range tests {
-		instance := NewReleaseAppAllocationAskEvent(tt.appID, tt.terminationType, tt.taskID)
-		t.Run(tt.name, func(t *testing.T) {
-			if instance.applicationID != tt.wantID || instance.taskID != tt.taskID || instance.terminationType != tt.wantType || instance.event != tt.wantEvent {
-				t.Errorf("want %s %s %s %s, got %s %s %s %s",
-					tt.wantID, tt.taskID, tt.wantType, tt.wantEvent,
-					instance.applicationID, instance.taskID, instance.terminationType, instance.event)
-			}
-		})
-	}
-}
-
-func TestReleaseAppAllocationAskEventGetEvent(t *testing.T) {
-	tests := []struct {
-		name            string
-		appID, taskID   string
-		terminationType si.TerminationType
-		wantEvent       ApplicationEventType
-	}{
-		{TestEventName, "testAppId001", "testTaskId001", si.TerminationType_TIMEOUT, ReleaseAppAllocationAsk},
-	}
-
-	for _, tt := range tests {
-		instance := NewReleaseAppAllocationAskEvent(tt.appID, tt.terminationType, tt.taskID)
-		event := instance.GetEvent()
-		t.Run(tt.name, func(t *testing.T) {
-			if event != tt.wantEvent.String() {
-				t.Errorf("want %s, got %s", tt.wantEvent, event)
-			}
-		})
-	}
-}
-
-func TestReleaseAppAllocationAskEventGetArgs(t *testing.T) {
-	tests := []struct {
-		name                 string
-		appID, taskID        string
-		terminationType      si.TerminationType
-		wantLen              int
-		wantTaskID, wantType string
-		castOk               []bool
-		wantArg              []string
-	}{
-		{TestArgsName, "testAppId001", "testTaskId001", si.TerminationType_TIMEOUT, 2, "testTaskId001", "TIMEOUT", []bool{true, true}, []string{"testTaskId001", "TIMEOUT"}},
-	}
-
-	for _, tt := range tests {
-		instance := NewReleaseAppAllocationAskEvent(tt.appID, tt.terminationType, tt.taskID)
-		args := instance.GetArgs()
-		t.Run(tt.name, func(t *testing.T) {
-			if len(args) != tt.wantLen {
-				t.Errorf("want %d, got %d", tt.wantLen, len(args))
-
-				for index, arg := range args {
-					info, ok := arg.(string)
-					if ok != tt.castOk[index] {
-						t.Errorf("want %v, got %v", tt.castOk[index], ok)
-					}
-					if info != tt.wantArg[index] {
-						t.Errorf("want %s, got %s", tt.wantArg[index], info)
-					}
-				}
-			}
-		})
-	}
-}
-
-func TestReleaseAppAllocationAskEventGetApplicationID(t *testing.T) {
-	tests := []struct {
-		name            string
-		appID, taskID   string
-		terminationType si.TerminationType
-		wantID          string
-	}{
-		{TestAppIDName, "testAppId001", "testTaskId001", si.TerminationType_TIMEOUT, "testAppId001"},
-	}
-
-	for _, tt := range tests {
-		instance := NewReleaseAppAllocationAskEvent(tt.appID, tt.terminationType, tt.taskID)
-		appID := instance.GetApplicationID()
-		t.Run(tt.name, func(t *testing.T) {
-			if appID != tt.wantID {
-				t.Errorf("want %s, got %s", tt.wantID, appID)
-			}
-		})
-	}
-}
-
 func TestNewResumingApplicationEvent(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -902,7 +803,6 @@ func TestApplicationEventsAsString(t *testing.T) {
 	assert.Equal(t, KillApplication.String(), "KillApplication")
 	assert.Equal(t, KilledApplication.String(), "KilledApplication")
 	assert.Equal(t, ReleaseAppAllocation.String(), "ReleaseAppAllocation")
-	assert.Equal(t, ReleaseAppAllocationAsk.String(), "ReleaseAppAllocationAsk")
 	assert.Equal(t, ResumingApplication.String(), "ResumingApplication")
 	assert.Equal(t, AppTaskCompleted.String(), "AppTaskCompleted")
 }

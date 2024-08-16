@@ -32,45 +32,23 @@ const nodeID = "node-01"
 
 func TestCreateReleaseRequestForTask(t *testing.T) {
 	// with allocationKey
-	request := CreateReleaseRequestForTask("app01", "task01", "task01", "default", "STOPPED_BY_RM")
+	request := CreateReleaseRequestForTask("app01", "task01", "default", "STOPPED_BY_RM")
 	assert.Assert(t, request.Releases != nil)
 	assert.Assert(t, request.Releases.AllocationsToRelease != nil)
-	assert.Assert(t, request.Releases.AllocationAsksToRelease != nil)
 	assert.Equal(t, len(request.Releases.AllocationsToRelease), 1)
-	assert.Equal(t, len(request.Releases.AllocationAsksToRelease), 1)
 	assert.Equal(t, request.Releases.AllocationsToRelease[0].ApplicationID, "app01")
 	assert.Equal(t, request.Releases.AllocationsToRelease[0].AllocationKey, "task01")
 	assert.Equal(t, request.Releases.AllocationsToRelease[0].PartitionName, "default")
-	assert.Equal(t, request.Releases.AllocationAsksToRelease[0].ApplicationID, "app01")
-	assert.Equal(t, request.Releases.AllocationAsksToRelease[0].AllocationKey, "task01")
-	assert.Equal(t, request.Releases.AllocationAsksToRelease[0].PartitionName, "default")
-	assert.Equal(t, request.Releases.AllocationAsksToRelease[0].TerminationType, si.TerminationType_UNKNOWN_TERMINATION_TYPE)
+	assert.Equal(t, request.Releases.AllocationsToRelease[0].TerminationType, si.TerminationType_STOPPED_BY_RM)
 
-	// without allocationKey
-	request = CreateReleaseRequestForTask("app01", "task01", "", "default", "STOPPED_BY_RM")
-	assert.Assert(t, request.Releases != nil)
-	assert.Assert(t, request.Releases.AllocationsToRelease == nil)
-	assert.Assert(t, request.Releases.AllocationAsksToRelease != nil)
-	assert.Equal(t, len(request.Releases.AllocationsToRelease), 0)
-	assert.Equal(t, len(request.Releases.AllocationAsksToRelease), 1)
-	assert.Equal(t, request.Releases.AllocationAsksToRelease[0].ApplicationID, "app01")
-	assert.Equal(t, request.Releases.AllocationAsksToRelease[0].AllocationKey, "task01")
-	assert.Equal(t, request.Releases.AllocationAsksToRelease[0].PartitionName, "default")
-	assert.Equal(t, request.Releases.AllocationAsksToRelease[0].TerminationType, si.TerminationType_UNKNOWN_TERMINATION_TYPE)
-
-	request = CreateReleaseRequestForTask("app01", "task01", "task01", "default", "UNKNOWN")
+	request = CreateReleaseRequestForTask("app01", "task01", "default", "UNKNOWN_TERMINATION_TYPE")
 	assert.Assert(t, request.Releases != nil)
 	assert.Assert(t, request.Releases.AllocationsToRelease != nil)
-	assert.Assert(t, request.Releases.AllocationAsksToRelease != nil)
 	assert.Equal(t, len(request.Releases.AllocationsToRelease), 1)
-	assert.Equal(t, len(request.Releases.AllocationAsksToRelease), 1)
 	assert.Equal(t, request.Releases.AllocationsToRelease[0].ApplicationID, "app01")
 	assert.Equal(t, request.Releases.AllocationsToRelease[0].AllocationKey, "task01")
 	assert.Equal(t, request.Releases.AllocationsToRelease[0].PartitionName, "default")
-	assert.Equal(t, request.Releases.AllocationAsksToRelease[0].ApplicationID, "app01")
-	assert.Equal(t, request.Releases.AllocationAsksToRelease[0].AllocationKey, "task01")
-	assert.Equal(t, request.Releases.AllocationAsksToRelease[0].PartitionName, "default")
-	assert.Equal(t, request.Releases.AllocationAsksToRelease[0].TerminationType, si.TerminationType_UNKNOWN_TERMINATION_TYPE)
+	assert.Equal(t, request.Releases.AllocationsToRelease[0].TerminationType, si.TerminationType_UNKNOWN_TERMINATION_TYPE)
 }
 
 func TestCreateUpdateRequestForRemoveApplication(t *testing.T) {
@@ -112,14 +90,14 @@ func TestCreateUpdateRequestForTask(t *testing.T) {
 	}
 
 	updateRequest := CreateAllocationRequestForTask("appId1", "taskId1", res, false, "", pod, false, preemptionPolicy)
-	asks := updateRequest.Asks
+	asks := updateRequest.Allocations
 	assert.Equal(t, len(asks), 1)
 	allocAsk := asks[0]
 	assert.Assert(t, allocAsk != nil)
 	assert.Assert(t, allocAsk.PreemptionPolicy != nil)
 	assert.Equal(t, allocAsk.PreemptionPolicy.AllowPreemptSelf, true)
 	assert.Equal(t, allocAsk.PreemptionPolicy.AllowPreemptOther, true)
-	tags := allocAsk.Tags
+	tags := allocAsk.AllocationTags
 	assert.Assert(t, tags != nil)
 	assert.Equal(t, tags[common.DomainK8s+common.GroupMeta+"podName"], podName)
 	assert.Equal(t, tags[common.DomainK8s+common.GroupMeta+"namespace"], namespace)
@@ -287,7 +265,7 @@ func TestCreateAllocationRequestForTask(t *testing.T) {
 	}
 
 	updateRequest := CreateAllocationRequestForTask("appId1", "taskId1", res, false, "", pod, false, preemptionPolicy)
-	asks := updateRequest.Asks
+	asks := updateRequest.Allocations
 	assert.Equal(t, len(asks), 1)
 	allocAsk := asks[0]
 	if allocAsk == nil {
@@ -320,7 +298,7 @@ func TestCreateAllocationRequestForTask(t *testing.T) {
 	}
 
 	updateRequest1 := CreateAllocationRequestForTask("appId1", "taskId1", res, false, "", pod1, false, preemptionPolicy1)
-	asks1 := updateRequest1.Asks
+	asks1 := updateRequest1.Allocations
 	assert.Equal(t, len(asks1), 1)
 	allocAsk1 := asks1[0]
 	if allocAsk1 == nil {
@@ -329,7 +307,7 @@ func TestCreateAllocationRequestForTask(t *testing.T) {
 	assert.Assert(t, allocAsk1.PreemptionPolicy != nil)
 	assert.Equal(t, allocAsk1.PreemptionPolicy.AllowPreemptSelf, true)
 	assert.Equal(t, allocAsk1.PreemptionPolicy.AllowPreemptOther, false)
-	tags := allocAsk1.Tags
+	tags := allocAsk1.AllocationTags
 	assert.Equal(t, tags[common.DomainK8s+common.GroupMeta+"podName"], podName1)
 	assert.Equal(t, allocAsk1.Priority, int32(100))
 }

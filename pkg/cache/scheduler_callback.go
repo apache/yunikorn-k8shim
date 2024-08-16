@@ -77,15 +77,6 @@ func (callback *AsyncRMCallback) UpdateAllocation(response *si.AllocationRespons
 		}
 	}
 
-	for _, reject := range response.Rejected {
-		// request rejected by the scheduler, put it back and try scheduling again
-		log.Log(log.ShimRMCallback).Debug("callback: response to rejected ask",
-			zap.String("allocationKey", reject.AllocationKey))
-		dispatcher.Dispatch(NewRejectTaskEvent(reject.ApplicationID, reject.AllocationKey,
-			fmt.Sprintf("task %s ask from application %s is rejected by scheduler",
-				reject.AllocationKey, reject.ApplicationID)))
-	}
-
 	for _, reject := range response.RejectedAllocations {
 		// request rejected by the scheduler, reject it
 		log.Log(log.ShimRMCallback).Debug("callback: response to rejected allocation",
@@ -106,16 +97,6 @@ func (callback *AsyncRMCallback) UpdateAllocation(response *si.AllocationRespons
 		if release.TerminationType != si.TerminationType_STOPPED_BY_RM {
 			// send release app allocation to application states machine
 			ev := NewReleaseAppAllocationEvent(release.ApplicationID, release.TerminationType, release.AllocationKey)
-			dispatcher.Dispatch(ev)
-		}
-	}
-
-	for _, ask := range response.ReleasedAsks {
-		log.Log(log.ShimRMCallback).Debug("callback: response to released allocations",
-			zap.String("allocation key", ask.AllocationKey))
-
-		if ask.TerminationType == si.TerminationType_TIMEOUT {
-			ev := NewReleaseAppAllocationAskEvent(ask.ApplicationID, ask.TerminationType, ask.AllocationKey)
 			dispatcher.Dispatch(ev)
 		}
 	}

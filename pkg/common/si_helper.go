@@ -73,11 +73,11 @@ func CreatePriorityForTask(pod *v1.Pod) int32 {
 }
 
 func CreateAllocationRequestForTask(appID, taskID string, resource *si.Resource, placeholder bool, taskGroupName string, pod *v1.Pod, originator bool, preemptionPolicy *si.PreemptionPolicy) *si.AllocationRequest {
-	ask := si.AllocationAsk{
+	ask := si.Allocation{
 		AllocationKey:    taskID,
-		ResourceAsk:      resource,
+		ResourcePerAlloc: resource,
 		ApplicationID:    appID,
-		Tags:             CreateTagsForTask(pod),
+		AllocationTags:   CreateTagsForTask(pod),
 		Placeholder:      placeholder,
 		TaskGroupName:    taskGroupName,
 		Originator:       originator,
@@ -86,8 +86,8 @@ func CreateAllocationRequestForTask(appID, taskID string, resource *si.Resource,
 	}
 
 	return &si.AllocationRequest{
-		Asks: []*si.AllocationAsk{&ask},
-		RmID: conf.GetSchedulerConf().ClusterID,
+		Allocations: []*si.Allocation{&ask},
+		RmID:        conf.GetSchedulerConf().ClusterID,
 	}
 }
 
@@ -121,30 +121,18 @@ func GetTerminationTypeFromString(terminationTypeStr string) si.TerminationType 
 	return si.TerminationType_STOPPED_BY_RM
 }
 
-func CreateReleaseRequestForTask(appID, taskID, allocationKey, partition, terminationType string) *si.AllocationRequest {
-	var allocToRelease []*si.AllocationRelease
-	if allocationKey != "" {
-		allocToRelease = make([]*si.AllocationRelease, 1)
-		allocToRelease[0] = &si.AllocationRelease{
-			ApplicationID:   appID,
-			AllocationKey:   allocationKey,
-			PartitionName:   partition,
-			TerminationType: GetTerminationTypeFromString(terminationType),
-			Message:         "task completed",
-		}
-	}
-
-	askToRelease := make([]*si.AllocationAskRelease, 1)
-	askToRelease[0] = &si.AllocationAskRelease{
-		ApplicationID: appID,
-		AllocationKey: taskID,
-		PartitionName: partition,
-		Message:       "task request completed",
+func CreateReleaseRequestForTask(appID, taskID, partition, terminationType string) *si.AllocationRequest {
+	allocToRelease := make([]*si.AllocationRelease, 1)
+	allocToRelease[0] = &si.AllocationRelease{
+		ApplicationID:   appID,
+		AllocationKey:   taskID,
+		PartitionName:   partition,
+		TerminationType: GetTerminationTypeFromString(terminationType),
+		Message:         "task completed",
 	}
 
 	releaseRequest := si.AllocationReleasesRequest{
-		AllocationsToRelease:    allocToRelease,
-		AllocationAsksToRelease: askToRelease,
+		AllocationsToRelease: allocToRelease,
 	}
 
 	return &si.AllocationRequest{
