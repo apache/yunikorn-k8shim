@@ -501,7 +501,6 @@ func (task *Task) releaseAllocation() {
 		// Check if the task is in a state where it has not been allocated yet.
 		if task.GetTaskState() != s.New && task.GetTaskState() != s.Pending &&
 			task.GetTaskState() != s.Scheduling && task.GetTaskState() != s.Rejected {
-
 			// Task is in a state where it might have been allocated.
 			if task.allocationKey == "" {
 				log.Log(log.ShimCacheTask).Warn("BUG: task allocationKey is empty on release",
