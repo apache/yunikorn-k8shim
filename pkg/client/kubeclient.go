@@ -31,7 +31,6 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/retry"
 
-	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
@@ -139,13 +138,7 @@ func (nc SchedulerKubeClient) Create(pod *v1.Pod) (*v1.Pod, error) {
 }
 
 func (nc SchedulerKubeClient) Delete(pod *v1.Pod) error {
-	gracefulSeconds := int64(3)
-	if utils.GetPlaceholderFlagFromPodSpec(pod) {
-		gracefulSeconds = int64(0)
-	}
-	if err := nc.clientSet.CoreV1().Pods(pod.Namespace).Delete(context.Background(), pod.Name, apis.DeleteOptions{
-		GracePeriodSeconds: &gracefulSeconds,
-	}); err != nil {
+	if err := nc.clientSet.CoreV1().Pods(pod.Namespace).Delete(context.Background(), pod.Name, apis.DeleteOptions{}); err != nil {
 		log.Log(log.ShimClient).Warn("failed to delete pod",
 			zap.String("namespace", pod.Namespace),
 			zap.String("podName", pod.Name),
