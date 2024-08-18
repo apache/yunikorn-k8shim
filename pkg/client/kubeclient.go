@@ -21,7 +21,6 @@ package client
 import (
 	"context"
 	"fmt"
-	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
@@ -32,6 +31,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/retry"
 
+	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
