@@ -21,6 +21,7 @@ package client
 import (
 	"context"
 	"fmt"
+	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
@@ -139,6 +140,9 @@ func (nc SchedulerKubeClient) Create(pod *v1.Pod) (*v1.Pod, error) {
 
 func (nc SchedulerKubeClient) Delete(pod *v1.Pod) error {
 	gracefulSeconds := int64(3)
+	if utils.GetPlaceholderFlagFromPodSpec(pod) {
+		gracefulSeconds = int64(0)
+	}
 	if err := nc.clientSet.CoreV1().Pods(pod.Namespace).Delete(context.Background(), pod.Name, apis.DeleteOptions{
 		GracePeriodSeconds: &gracefulSeconds,
 	}); err != nil {
