@@ -23,8 +23,38 @@ KUBECTL_VERSION=$(make -s print_kubectl_version)
 HELM=$TOOLS_DIRECTORY/helm-$HELM_VERSION/helm
 KIND=$TOOLS_DIRECTORY/kind-$KIND_VERSION/kind
 KUBECTL=$TOOLS_DIRECTORY/kubectl-$KUBECTL_VERSION/kubectl
+KIND_CONFIG=./scripts/kind.yaml
 GO="${GO:-go}"
 export GO
+
+# return 0 if arg1 <= arg2
+function verlte() {
+	if [ "$1" = "$(echo -e "$1\n$2" | sort -V | head -n1)" ]; then
+		return 0
+	else 
+		return 1
+	fi
+}
+
+# return 0 if arg1 < arg2
+function verlt() {
+  if [ "$1" = "$2" ]; then
+		return 1
+	fi
+	verlte "$1" "$2"
+}
+
+function update_kind_config() {
+  # use a different kind config for different cluster versions
+  version=$(echo "$1" | sed 's/.*://' | sed 's/^v//')
+  if verlt "${version}" "1.27"; then
+    # 1.26 or earlier
+    KIND_CONFIG=./scripts/kind.yaml
+  else
+    # 1.27 or later; enable InPlacePodVerticalScaling feature flag
+    KIND_CONFIG=./scripts/kind-pod-resize.yaml
+  fi
+}
 
 function check_cmd() {
   CMD=$1
@@ -164,13 +194,14 @@ Examples:
   ${NAME} -a test -n yk8s -v kindest/node:v1.24.17
   ${NAME} -a test -n yk8s -v kindest/node:v1.25.16
   ${NAME} -a test -n yk8s -v kindest/node:v1.26.15
-  ${NAME} -a test -n yk8s -v kindest/node:v1.27.13
-  ${NAME} -a test -n yk8s -v kindest/node:v1.28.9
-  ${NAME} -a test -n yk8s -v kindest/node:v1.29.4
-  ${NAME} -a test -n yk8s -v kindest/node:v1.30.0
+  ${NAME} -a test -n yk8s -v kindest/node:v1.27.16
+  ${NAME} -a test -n yk8s -v kindest/node:v1.28.13
+  ${NAME} -a test -n yk8s -v kindest/node:v1.29.8
+  ${NAME} -a test -n yk8s -v kindest/node:v1.30.4
+  ${NAME} -a test -n yk8s -v kindest/node:v1.31.0
 
   Use a local helm chart path:
-    ${NAME} -a test -n yk8s -v kindest/node:v1.30.0 -p ../yunikorn-release/helm-charts/yunikorn
+    ${NAME} -a test -n yk8s -v kindest/node:v1.31.0 -p ../yunikorn-release/helm-charts/yunikorn
 EOF
 }
 
@@ -181,7 +212,6 @@ eval "$(make arch)"
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')
 check_os
 
-KIND_CONFIG=./scripts/kind.yaml
 CHART_PATH="./build/yunikorn-release/helm-charts/yunikorn"
 GIT_CLONE=true
 SCHEDULER_IMAGE="scheduler-${DOCKER_ARCH}-latest"
@@ -227,6 +257,8 @@ case ${key} in
     ;;
 esac
 done
+
+update_kind_config "${CLUSTER_VERSION}"
 
 echo "e2e test run details"
 echo "  action             : ${ACTION}"
