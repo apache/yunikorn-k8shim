@@ -482,7 +482,7 @@ func (task *Task) beforeTaskCompleted() {
 		"Task %s is completed", task.alias)
 }
 
-// releaseAllocation sends the release request for the Allocation or the AllocationAsk to the core.
+// releaseAllocation sends the release request for the Allocation to the core.
 func (task *Task) releaseAllocation() {
 	// scheduler api might be nil in some tests
 	if task.context.apiProvider.GetAPIs().SchedulerAPI != nil {
@@ -494,24 +494,30 @@ func (task *Task) releaseAllocation() {
 			zap.String("task", task.GetTaskState()),
 			zap.String("terminationType", task.terminationType))
 
-		// The message depends on current task state, generate requests accordingly.
-		// If allocated send an AllocationReleaseRequest,
-		// If not allocated yet send an AllocationAskReleaseRequest
+		// send an AllocationReleaseRequest
 		var releaseRequest *si.AllocationRequest
 		s := TaskStates()
-		switch task.GetTaskState() {
-		case s.New, s.Pending, s.Scheduling, s.Rejected:
-			releaseRequest = common.CreateReleaseRequestForTask(task.applicationID, task.taskID, task.application.partition, task.terminationType)
-		default:
+
+		// check if the task is in a state where it has not been allocated yet
+		if task.GetTaskState() != s.New && task.GetTaskState() != s.Pending &&
+			task.GetTaskState() != s.Scheduling && task.GetTaskState() != s.Rejected {
+			// task is in a state where it might have been allocated
 			if task.allocationKey == "" {
 				log.Log(log.ShimCacheTask).Warn("BUG: task allocationKey is empty on release",
 					zap.String("applicationID", task.applicationID),
 					zap.String("taskID", task.taskID),
 					zap.String("taskAlias", task.alias),
-					zap.String("task", task.GetTaskState()))
+					zap.String("taskState", task.GetTaskState()))
 			}
-			releaseRequest = common.CreateReleaseRequestForTask(task.applicationID, task.taskID, task.application.partition, task.terminationType)
 		}
+
+		// create the release request
+		releaseRequest = common.CreateReleaseRequestForTask(
+			task.applicationID,
+			task.taskID,
+			task.application.partition,
+			task.terminationType,
+		)
 
 		if releaseRequest.Releases != nil {
 			log.Log(log.ShimCacheTask).Info("releasing allocations",
