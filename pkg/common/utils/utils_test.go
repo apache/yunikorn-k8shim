@@ -587,10 +587,10 @@ func TestGetApplicationIDFromPod(t *testing.T) {
 	defer SetPluginMode(false)
 	defer func() { conf.GetSchedulerConf().GenerateUniqueAppIds = false }()
 
-	appIDInLabel := "labelAppID"
+	appIDInCanonicalLabel := "CanonicalLabelAppID"
 	appIDInAnnotation := "annotationAppID"
-	appIDInSelector := "selectorAppID"
-	sparkIDInAnnotation := "sparkAnnotationAppID"
+	appIDInLabel := "labelAppID"
+	appIDInSelector := "sparkLabelAppID"
 	testCases := []struct {
 		name                    string
 		pod                     *v1.Pod
@@ -598,13 +598,55 @@ func TestGetApplicationIDFromPod(t *testing.T) {
 		expectedAppIDPluginMode string
 		generateUniqueAppIds    bool
 	}{
-		{"AppID defined in label", &v1.Pod{
+		{"AppID defined in canonical label", &v1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Labels: map[string]string{constants.CanonicalLabelApplicationID: appIDInCanonicalLabel},
+			},
+			Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
+		}, appIDInCanonicalLabel, appIDInCanonicalLabel, false},
+		{"AppID defined in annotation", &v1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Annotations: map[string]string{constants.AnnotationApplicationID: appIDInAnnotation},
+			},
+			Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
+		}, appIDInAnnotation, appIDInAnnotation, false},
+		{"AppID defined in legacy label", &v1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{constants.LabelApplicationID: appIDInLabel},
 			},
 			Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
 		}, appIDInLabel, appIDInLabel, false},
-		{"No AppID defined", &v1.Pod{
+		{"AppID defined in spark app selector label", &v1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Labels: map[string]string{constants.SparkLabelAppID: appIDInSelector},
+			},
+			Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
+		}, appIDInSelector, appIDInSelector, false},
+		{"AppID defined in canonical label and annotation, canonical label win", &v1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Annotations: map[string]string{constants.AnnotationApplicationID: appIDInAnnotation},
+				Labels:      map[string]string{constants.CanonicalLabelApplicationID: appIDInCanonicalLabel},
+			},
+			Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
+		}, appIDInCanonicalLabel, appIDInCanonicalLabel, false},
+		{"AppID defined in annotation and legacy label, annotation win", &v1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Annotations: map[string]string{constants.AnnotationApplicationID: appIDInAnnotation},
+				Labels:      map[string]string{constants.LabelApplicationID: appIDInLabel},
+			},
+			Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
+		}, appIDInAnnotation, appIDInAnnotation, false},
+		{"Spark AppID defined in legacy label and spark app selector, legacy label win", &v1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Labels: map[string]string{
+					constants.LabelApplicationID: appIDInLabel,
+					constants.SparkLabelAppID:    appIDInSelector,
+				},
+			},
+			Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
+		}, appIDInLabel, appIDInLabel, false},
+		{"No AppID defined", &v1.Pod{}, "", "", false},
+		{"No AppID defined but not generateUnique", &v1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: "testns",
 				UID:       "podUid",
@@ -618,7 +660,15 @@ func TestGetApplicationIDFromPod(t *testing.T) {
 			},
 			Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
 		}, "testns-podUid", "", true},
-		{"Unique autogen token found with generateUnique", &v1.Pod{
+		{"Unique autogen token found with generateUnique in canonical AppId label", &v1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "testns",
+				UID:       "podUid",
+				Labels:    map[string]string{constants.CanonicalLabelApplicationID: "testns-uniqueautogen"},
+			},
+			Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
+		}, "testns-podUid", "testns-podUid", true},
+		{"Unique autogen token found with generateUnique in legacy AppId labels", &v1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: "testns",
 				UID:       "podUid",
@@ -626,18 +676,18 @@ func TestGetApplicationIDFromPod(t *testing.T) {
 			},
 			Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
 		}, "testns-podUid", "testns-podUid", true},
-		{"Non-yunikorn schedulerName", &v1.Pod{
+		{"Non-yunikorn schedulerName with canonical AppId label", &v1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Labels: map[string]string{constants.CanonicalLabelApplicationID: appIDInCanonicalLabel},
+			},
+			Spec: v1.PodSpec{SchedulerName: "default"},
+		}, "", "", false},
+		{"Non-yunikorn schedulerName with legacy AppId label", &v1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{constants.LabelApplicationID: appIDInLabel},
 			},
 			Spec: v1.PodSpec{SchedulerName: "default"},
 		}, "", "", false},
-		{"AppID defined in annotation", &v1.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Annotations: map[string]string{constants.AnnotationApplicationID: appIDInAnnotation},
-			},
-			Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
-		}, appIDInAnnotation, appIDInAnnotation, false},
 		{"AppID defined but ignore-application set", &v1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
 				Annotations: map[string]string{
@@ -656,41 +706,6 @@ func TestGetApplicationIDFromPod(t *testing.T) {
 			},
 			Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
 		}, appIDInAnnotation, appIDInAnnotation, false},
-		{"AppID defined in label and annotation", &v1.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Annotations: map[string]string{constants.AnnotationApplicationID: appIDInAnnotation},
-				Labels:      map[string]string{constants.LabelApplicationID: appIDInLabel},
-			},
-			Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
-		}, appIDInAnnotation, appIDInAnnotation, false},
-
-		{"Spark AppID defined in spark app selector", &v1.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Labels: map[string]string{constants.SparkLabelAppID: appIDInSelector},
-			},
-			Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
-		}, appIDInSelector, appIDInSelector, false},
-		{"Spark AppID defined in spark app selector and annotation", &v1.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Labels:      map[string]string{constants.SparkLabelAppID: appIDInSelector},
-				Annotations: map[string]string{constants.AnnotationApplicationID: sparkIDInAnnotation},
-			},
-			Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
-		}, sparkIDInAnnotation, sparkIDInAnnotation, false},
-		{"Spark AppID defined in spark app selector and annotation", &v1.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Labels:      map[string]string{constants.SparkLabelAppID: appIDInSelector, constants.LabelApplicationID: appIDInLabel},
-				Annotations: map[string]string{constants.AnnotationApplicationID: sparkIDInAnnotation},
-			},
-			Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
-		}, sparkIDInAnnotation, sparkIDInAnnotation, false},
-		{"No AppID defined", &v1.Pod{}, "", "", false},
-		{"Spark AppID defined in spark app selector and label", &v1.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Labels: map[string]string{constants.SparkLabelAppID: appIDInSelector, constants.LabelApplicationID: appIDInLabel},
-			},
-			Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
-		}, appIDInLabel, appIDInLabel, false},
 	}
 
 	for _, tc := range testCases {
@@ -892,6 +907,7 @@ func TestGetUserFromPodAnnotation(t *testing.T) {
 }
 
 func TestGetQueueNameFromPod(t *testing.T) {
+	queueInCanonicalLabel := "sandboxCanonicalLabel"
 	queueInLabel := "sandboxLabel"
 	queueInAnnotation := "sandboxAnnotation"
 	testCases := []struct {
@@ -900,16 +916,16 @@ func TestGetQueueNameFromPod(t *testing.T) {
 		expectedQueue string
 	}{
 		{
-			name: "With queue label",
+			name: "Queue defined in canonical label",
 			pod: &v1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{constants.LabelQueueName: queueInLabel},
+					Labels: map[string]string{constants.CanonicalLabelQueueName: queueInCanonicalLabel},
 				},
 			},
-			expectedQueue: queueInLabel,
+			expectedQueue: queueInCanonicalLabel,
 		},
 		{
-			name: "With queue annotation",
+			name: "Queue defined in annotation",
 			pod: &v1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{constants.AnnotationQueueName: queueInAnnotation},
@@ -918,17 +934,36 @@ func TestGetQueueNameFromPod(t *testing.T) {
 			expectedQueue: queueInAnnotation,
 		},
 		{
-			name: "With queue label and annotation",
+			name: "Queue defined in legacy label",
+			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{constants.LabelQueueName: queueInLabel},
+				},
+			},
+			expectedQueue: queueInLabel,
+		},
+		{
+			name: "Queue defined in canonical label and annotation, canonical label win",
+			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels:      map[string]string{constants.CanonicalLabelQueueName: queueInCanonicalLabel},
+					Annotations: map[string]string{constants.AnnotationQueueName: queueInAnnotation},
+				},
+			},
+			expectedQueue: queueInCanonicalLabel,
+		},
+		{
+			name: "Queue defined in annotation and legacy label, annotation win",
 			pod: &v1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels:      map[string]string{constants.LabelQueueName: queueInLabel},
 					Annotations: map[string]string{constants.AnnotationQueueName: queueInAnnotation},
 				},
 			},
-			expectedQueue: queueInLabel,
+			expectedQueue: queueInAnnotation,
 		},
 		{
-			name: "Without queue label and annotation",
+			name: "No queue defined",
 			pod: &v1.Pod{
 				ObjectMeta: metav1.ObjectMeta{},
 			},
