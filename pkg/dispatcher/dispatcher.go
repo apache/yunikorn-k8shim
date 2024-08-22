@@ -47,7 +47,7 @@ var (
 	AsyncDispatchLimit         int32
 	AsyncDispatchCheckInterval = 3 * time.Second
 	DispatchTimeout            time.Duration
-	asyncDispatchCount         int32 = 0
+	asyncDispatchCount         atomic.Int32 = atomic.Int32{}
 )
 
 // central dispatcher that dispatches scheduling events.
@@ -169,14 +169,14 @@ func (p *Dispatcher) dispatch(event events.SchedulingEvent) error {
 // async-dispatch try to enqueue the event in every 3 seconds util timeout,
 // it's only called when event channel is full.
 func (p *Dispatcher) asyncDispatch(event events.SchedulingEvent) {
-	count := atomic.AddInt32(&asyncDispatchCount, 1)
+	count := asyncDispatchCount.Add(1)
 	log.Log(log.ShimDispatcher).Warn("event channel is full, transition to async-dispatch mode",
 		zap.Int32("asyncDispatchCount", count))
 	if count > AsyncDispatchLimit {
 		panic(fmt.Errorf("dispatcher exceeds async-dispatch limit"))
 	}
 	go func(beginTime time.Time, stop chan struct{}) {
-		defer atomic.AddInt32(&asyncDispatchCount, -1)
+		defer asyncDispatchCount.Add(-1)
 		for p.isRunning() {
 			select {
 			case <-stop:

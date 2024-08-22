@@ -27,10 +27,10 @@ import (
 )
 
 type SchedulerAPIMock struct {
-	registerCount          int32
-	UpdateAllocationCount  int32
-	UpdateApplicationCount int32
-	UpdateNodeCount        int32
+	registerCount          atomic.Int32
+	UpdateAllocationCount  atomic.Int32
+	UpdateApplicationCount atomic.Int32
+	UpdateNodeCount        atomic.Int32
 	registerFn             func(request *si.RegisterResourceManagerRequest,
 		callback api.ResourceManagerCallback) (*si.RegisterResourceManagerResponse, error)
 	UpdateAllocationFn  func(request *si.AllocationRequest) error
@@ -41,10 +41,6 @@ type SchedulerAPIMock struct {
 
 func NewSchedulerAPIMock() *SchedulerAPIMock {
 	return &SchedulerAPIMock{
-		registerCount:          int32(0),
-		UpdateAllocationCount:  int32(0),
-		UpdateApplicationCount: int32(0),
-		UpdateNodeCount:        int32(0),
 		registerFn: func(request *si.RegisterResourceManagerRequest,
 			callback api.ResourceManagerCallback) (response *si.RegisterResourceManagerResponse, e error) {
 			return nil, nil
@@ -93,28 +89,28 @@ func (api *SchedulerAPIMock) RegisterResourceManager(request *si.RegisterResourc
 	callback api.ResourceManagerCallback) (*si.RegisterResourceManagerResponse, error) {
 	api.lock.Lock()
 	defer api.lock.Unlock()
-	atomic.AddInt32(&api.registerCount, 1)
+	api.registerCount.Add(1)
 	return api.registerFn(request, callback)
 }
 
 func (api *SchedulerAPIMock) UpdateAllocation(request *si.AllocationRequest) error {
 	api.lock.Lock()
 	defer api.lock.Unlock()
-	atomic.AddInt32(&api.UpdateAllocationCount, 1)
+	api.UpdateAllocationCount.Add(1)
 	return api.UpdateAllocationFn(request)
 }
 
 func (api *SchedulerAPIMock) UpdateApplication(request *si.ApplicationRequest) error {
 	api.lock.Lock()
 	defer api.lock.Unlock()
-	atomic.AddInt32(&api.UpdateApplicationCount, 1)
+	api.UpdateApplicationCount.Add(1)
 	return api.UpdateApplicationFn(request)
 }
 
 func (api *SchedulerAPIMock) UpdateNode(request *si.NodeRequest) error {
 	api.lock.Lock()
 	defer api.lock.Unlock()
-	atomic.AddInt32(&api.UpdateNodeCount, 1)
+	api.UpdateNodeCount.Add(1)
 	return api.UpdateNodeFn(request)
 }
 
@@ -125,26 +121,26 @@ func (api *SchedulerAPIMock) UpdateConfiguration(request *si.UpdateConfiguration
 }
 
 func (api *SchedulerAPIMock) GetRegisterCount() int32 {
-	return atomic.LoadInt32(&api.registerCount)
+	return api.registerCount.Load()
 }
 
 func (api *SchedulerAPIMock) GetUpdateAllocationCount() int32 {
-	return atomic.LoadInt32(&api.UpdateAllocationCount)
+	return api.UpdateAllocationCount.Load()
 }
 
 func (api *SchedulerAPIMock) GetUpdateApplicationCount() int32 {
-	return atomic.LoadInt32(&api.UpdateApplicationCount)
+	return api.UpdateApplicationCount.Load()
 }
 
 func (api *SchedulerAPIMock) GetUpdateNodeCount() int32 {
-	return atomic.LoadInt32(&api.UpdateNodeCount)
+	return api.UpdateNodeCount.Load()
 }
 
 func (api *SchedulerAPIMock) ResetAllCounters() {
-	atomic.StoreInt32(&api.registerCount, 0)
-	atomic.StoreInt32(&api.UpdateAllocationCount, 0)
-	atomic.StoreInt32(&api.UpdateApplicationCount, 0)
-	atomic.StoreInt32(&api.UpdateNodeCount, 0)
+	api.registerCount.Store(0)
+	api.UpdateAllocationCount.Store(0)
+	api.UpdateApplicationCount.Store(0)
+	api.UpdateNodeCount.Store(0)
 }
 
 func (api *SchedulerAPIMock) Stop() {
