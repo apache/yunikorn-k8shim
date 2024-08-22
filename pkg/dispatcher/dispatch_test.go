@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"runtime"
 	"strings"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -188,7 +187,7 @@ func TestEventWillNotBeLostWhenEventChannelIsFull(t *testing.T) {
 	}
 
 	// check event channel is full and some events are dispatched asynchronously
-	assert.Assert(t, atomic.LoadInt32(&asyncDispatchCount) > 0)
+	assert.Assert(t, asyncDispatchCount.Load() > 0)
 
 	// wait until all events are handled
 	dispatcher.drain()
@@ -198,7 +197,7 @@ func TestEventWillNotBeLostWhenEventChannelIsFull(t *testing.T) {
 
 	// assert all event are handled
 	assert.Equal(t, recorder.size(), numEvents)
-	assert.Assert(t, atomic.LoadInt32(&asyncDispatchCount) == 0)
+	assert.Assert(t, asyncDispatchCount.Load() == 0)
 
 	// ensure state is stopped
 	assert.Equal(t, dispatcher.isRunning(), false)
@@ -241,7 +240,7 @@ func TestDispatchTimeout(t *testing.T) {
 	// 2nd one should be added to the channel
 	// 3rd one should be posted as an async request
 	time.Sleep(100 * time.Millisecond)
-	assert.Equal(t, atomic.LoadInt32(&asyncDispatchCount), int32(1))
+	assert.Equal(t, asyncDispatchCount.Load(), int32(1))
 
 	// verify Dispatcher#asyncDispatch is called
 	buf := make([]byte, 1<<16)
@@ -250,7 +249,7 @@ func TestDispatchTimeout(t *testing.T) {
 
 	// wait until async dispatch routine times out
 	err := utils.WaitForCondition(func() bool {
-		return atomic.LoadInt32(&asyncDispatchCount) == int32(0)
+		return asyncDispatchCount.Load() == int32(0)
 	}, 100*time.Millisecond, DispatchTimeout+AsyncDispatchCheckInterval)
 	assert.NilError(t, err)
 
