@@ -75,7 +75,11 @@ func pluginEvents(plugin framework.Plugin) []framework.ClusterEventWithHint {
 		// legacy plugins that don't register for EnqueueExtensions get a default list of events
 		return framework.UnrollWildCardResource()
 	}
-	return ext.EventsToRegister()
+	events, err := ext.EventsToRegister(context.Background())
+	if err != nil {
+		log.Log(log.ShimPredicates).Fatal("Failed to configure predicate plugin", zap.String("name", ext.Name()), zap.Error(err))
+	}
+	return events
 }
 
 func mergePluginEvents(actionMap map[framework.GVK]framework.ActionType, events []framework.ClusterEventWithHint) {
@@ -269,11 +273,12 @@ func (p *predicateManagerImpl) runFilterPlugin(ctx context.Context, pl framework
 
 func NewPredicateManager(handle framework.Handle) PredicateManager {
 	/*
-		Default K8S plugins as of 1.27 that implement PreFilter:
+		Default K8S plugins as of 1.31 that implement PreFilter:
 			NodeAffinity
 			NodePorts
 			Fit
 			VolumeRestrictions
+			CSILimits
 			VolumeBinding
 			VolumeZone
 			PodTopologySpread
@@ -287,6 +292,7 @@ func NewPredicateManager(handle framework.Handle) PredicateManager {
 		names.PodTopologySpread: true,
 		names.InterPodAffinity:  true,
 		// Fit : skip because during reservation, node resources are not enough
+		// CSILimits
 		// VolumeRestrictions
 		// VolumeBinding
 		// VolumeZone
@@ -298,7 +304,7 @@ func NewPredicateManager(handle framework.Handle) PredicateManager {
 	}
 
 	/*
-		Default K8S plugins as of 1.27 that implement Filter:
+		Default K8S plugins as of 1.31 that implement Filter:
 		    NodeUnschedulable
 			NodeName
 			TaintToleration
@@ -306,10 +312,7 @@ func NewPredicateManager(handle framework.Handle) PredicateManager {
 			NodePorts
 			Fit
 			VolumeRestrictions
-			EBSLimits [nonCSILimits]
-			GCEPDLimits [nonCSILimits]
 			CSILimits
-			AzureDiskLimits [nonCSILimits]
 			VolumeBinding
 			VolumeZone
 			PodTopologySpread
@@ -327,10 +330,7 @@ func NewPredicateManager(handle framework.Handle) PredicateManager {
 		names.InterPodAffinity:  true,
 		// Fit : skip because during reservation, node resources are not enough
 		// VolumeRestrictions
-		// EBSLimits [nonCSILimits]
-		// GCEPDLimits [nonCSILimits]
 		// CSILimits
-		// AzureDiskLimits [nonCSILimits]
 		// VolumeBinding
 		// VolumeZone
 	}

@@ -90,8 +90,8 @@ func TestPreemptionPredicates(t *testing.T) {
 	node.SetNode(&v1.Node{
 		ObjectMeta: metav1.ObjectMeta{Name: "node0", UID: "node0"},
 		Status: v1.NodeStatus{
-			Capacity:    makeResources(1000, 100000000, 10, 0, 0, 0).Capacity,
-			Allocatable: makeAllocatableResources(1000, 100000000, 10, 0, 0, 0),
+			Capacity:    makeResources(1000, 100000000, 10, 0, 0, 0),
+			Allocatable: makeResources(1000, 100000000, 10, 0, 0, 0),
 		},
 	})
 	victims := []*v1.Pod{
@@ -147,7 +147,7 @@ func TestEventsToRegister(t *testing.T) {
 	assert.NilError(t, err)
 	assert.Equal(t, int(fn0), -1, "wrong fn (0)")
 	assert.Equal(t, events[1].Event.Resource, framework.Pod, "wrong resource (1)")
-	assert.Equal(t, events[1].Event.ActionType, framework.All, "wrong action type (1)")
+	assert.Equal(t, events[1].Event.ActionType, framework.Add|framework.Delete|framework.UpdatePodLabel, "wrong action type (1)")
 	fn1, err := events[1].QueueingHintFn(klog.NewKlogr(), nil, "", "")
 	assert.NilError(t, err)
 	assert.Equal(t, int(fn1), -1, "wrong fn (1)")
@@ -1085,20 +1085,7 @@ func newResourcePod(usage ...framework.Resource) *v1.Pod {
 	}
 }
 
-func makeResources(milliCPU, memory, pods, extendedA, storage, hugePageA int64) v1.NodeResources {
-	return v1.NodeResources{
-		Capacity: v1.ResourceList{
-			v1.ResourceCPU:              *resource.NewMilliQuantity(milliCPU, resource.DecimalSI),
-			v1.ResourceMemory:           *resource.NewQuantity(memory, resource.BinarySI),
-			v1.ResourcePods:             *resource.NewQuantity(pods, resource.DecimalSI),
-			extendedResourceA:           *resource.NewQuantity(extendedA, resource.DecimalSI),
-			v1.ResourceEphemeralStorage: *resource.NewQuantity(storage, resource.BinarySI),
-			hugePageResourceA:           *resource.NewQuantity(hugePageA, resource.BinarySI),
-		},
-	}
-}
-
-func makeAllocatableResources(milliCPU, memory, pods, extendedA, storage, hugePageA int64) v1.ResourceList {
+func makeResources(milliCPU, memory, pods, extendedA, storage, hugePageA int64) v1.ResourceList {
 	return v1.ResourceList{
 		v1.ResourceCPU:              *resource.NewMilliQuantity(milliCPU, resource.DecimalSI),
 		v1.ResourceMemory:           *resource.NewQuantity(memory, resource.BinarySI),
@@ -1147,7 +1134,7 @@ func TestRunGeneralPredicates(t *testing.T) {
 				newResourcePod(framework.Resource{MilliCPU: 9, Memory: 19})),
 			node: &v1.Node{
 				ObjectMeta: metav1.ObjectMeta{Name: "machine1"},
-				Status:     v1.NodeStatus{Capacity: makeResources(10, 20, 32, 0, 0, 0).Capacity, Allocatable: makeAllocatableResources(10, 20, 32, 0, 0, 0)},
+				Status:     v1.NodeStatus{Capacity: makeResources(10, 20, 32, 0, 0, 0), Allocatable: makeResources(10, 20, 32, 0, 0, 0)},
 			},
 			fits: true,
 			wErr: nil,
@@ -1159,7 +1146,7 @@ func TestRunGeneralPredicates(t *testing.T) {
 				newResourcePod(framework.Resource{MilliCPU: 5, Memory: 19})),
 			node: &v1.Node{
 				ObjectMeta: metav1.ObjectMeta{Name: "machine1"},
-				Status:     v1.NodeStatus{Capacity: makeResources(10, 20, 32, 0, 0, 0).Capacity, Allocatable: makeAllocatableResources(10, 20, 32, 0, 0, 0)},
+				Status:     v1.NodeStatus{Capacity: makeResources(10, 20, 32, 0, 0, 0), Allocatable: makeResources(10, 20, 32, 0, 0, 0)},
 			},
 			fits: false,
 			wErr: nil,
@@ -1174,7 +1161,7 @@ func TestRunGeneralPredicates(t *testing.T) {
 			nodeInfo: framework.NewNodeInfo(),
 			node: &v1.Node{
 				ObjectMeta: metav1.ObjectMeta{Name: "machine1"},
-				Status:     v1.NodeStatus{Capacity: makeResources(10, 20, 32, 0, 0, 0).Capacity, Allocatable: makeAllocatableResources(10, 20, 32, 0, 0, 0)},
+				Status:     v1.NodeStatus{Capacity: makeResources(10, 20, 32, 0, 0, 0), Allocatable: makeResources(10, 20, 32, 0, 0, 0)},
 			},
 			fits: false,
 			wErr: nil,
@@ -1185,7 +1172,7 @@ func TestRunGeneralPredicates(t *testing.T) {
 			nodeInfo: framework.NewNodeInfo(newPodWithPort(123)),
 			node: &v1.Node{
 				ObjectMeta: metav1.ObjectMeta{Name: "machine1"},
-				Status:     v1.NodeStatus{Capacity: makeResources(10, 20, 32, 0, 0, 0).Capacity, Allocatable: makeAllocatableResources(10, 20, 32, 0, 0, 0)},
+				Status:     v1.NodeStatus{Capacity: makeResources(10, 20, 32, 0, 0, 0), Allocatable: makeResources(10, 20, 32, 0, 0, 0)},
 			},
 			fits: false,
 			wErr: nil,

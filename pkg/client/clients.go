@@ -24,6 +24,7 @@ import (
 	"go.uber.org/zap"
 
 	"k8s.io/client-go/informers"
+	appsInformerV1 "k8s.io/client-go/informers/apps/v1"
 	coreInformerV1 "k8s.io/client-go/informers/core/v1"
 	schedulingInformerV1 "k8s.io/client-go/informers/scheduling/v1"
 	storageInformerV1 "k8s.io/client-go/informers/storage/v1"
@@ -45,15 +46,21 @@ type Clients struct {
 	InformerFactory informers.SharedInformerFactory
 
 	// resource informers
-	PodInformer           coreInformerV1.PodInformer
-	NodeInformer          coreInformerV1.NodeInformer
-	ConfigMapInformer     coreInformerV1.ConfigMapInformer
-	PVInformer            coreInformerV1.PersistentVolumeInformer
-	PVCInformer           coreInformerV1.PersistentVolumeClaimInformer
-	StorageInformer       storageInformerV1.StorageClassInformer
-	CSINodeInformer       storageInformerV1.CSINodeInformer
-	NamespaceInformer     coreInformerV1.NamespaceInformer
-	PriorityClassInformer schedulingInformerV1.PriorityClassInformer
+	PodInformer                   coreInformerV1.PodInformer
+	NodeInformer                  coreInformerV1.NodeInformer
+	ConfigMapInformer             coreInformerV1.ConfigMapInformer
+	PVInformer                    coreInformerV1.PersistentVolumeInformer
+	PVCInformer                   coreInformerV1.PersistentVolumeClaimInformer
+	StorageInformer               storageInformerV1.StorageClassInformer
+	CSINodeInformer               storageInformerV1.CSINodeInformer
+	CSIDriverInformer             storageInformerV1.CSIDriverInformer
+	CSIStorageCapacityInformer    storageInformerV1.CSIStorageCapacityInformer
+	NamespaceInformer             coreInformerV1.NamespaceInformer
+	PriorityClassInformer         schedulingInformerV1.PriorityClassInformer
+	ServiceInformer               coreInformerV1.ServiceInformer
+	ReplicationControllerInformer coreInformerV1.ReplicationControllerInformer
+	ReplicaSetInformer            appsInformerV1.ReplicaSetInformer
+	StatefulSetInformer           appsInformerV1.StatefulSetInformer
 
 	// volume binder handles PV/PVC related operations
 	VolumeBinder volumebinding.SchedulerVolumeBinder
@@ -63,15 +70,21 @@ func (c *Clients) WaitForSync() {
 	syncStartTime := time.Now()
 	counter := 0
 	for {
-		if c.NodeInformer.Informer().HasSynced() &&
-			c.PodInformer.Informer().HasSynced() &&
-			c.PVCInformer.Informer().HasSynced() &&
+		if c.PodInformer.Informer().HasSynced() &&
+			c.NodeInformer.Informer().HasSynced() &&
+			c.ConfigMapInformer.Informer().HasSynced() &&
 			c.PVInformer.Informer().HasSynced() &&
+			c.PVCInformer.Informer().HasSynced() &&
 			c.StorageInformer.Informer().HasSynced() &&
 			c.CSINodeInformer.Informer().HasSynced() &&
-			c.ConfigMapInformer.Informer().HasSynced() &&
+			c.CSIDriverInformer.Informer().HasSynced() &&
+			c.CSIStorageCapacityInformer.Informer().HasSynced() &&
 			c.NamespaceInformer.Informer().HasSynced() &&
-			c.PriorityClassInformer.Informer().HasSynced() {
+			c.PriorityClassInformer.Informer().HasSynced() &&
+			c.ServiceInformer.Informer().HasSynced() &&
+			c.ReplicationControllerInformer.Informer().HasSynced() &&
+			c.ReplicaSetInformer.Informer().HasSynced() &&
+			c.StatefulSetInformer.Informer().HasSynced() {
 			return
 		}
 		time.Sleep(time.Second)
@@ -84,13 +97,19 @@ func (c *Clients) WaitForSync() {
 }
 
 func (c *Clients) Run(stopCh <-chan struct{}) {
-	go c.NodeInformer.Informer().Run(stopCh)
 	go c.PodInformer.Informer().Run(stopCh)
+	go c.NodeInformer.Informer().Run(stopCh)
+	go c.ConfigMapInformer.Informer().Run(stopCh)
 	go c.PVInformer.Informer().Run(stopCh)
 	go c.PVCInformer.Informer().Run(stopCh)
 	go c.StorageInformer.Informer().Run(stopCh)
 	go c.CSINodeInformer.Informer().Run(stopCh)
-	go c.ConfigMapInformer.Informer().Run(stopCh)
+	go c.CSIDriverInformer.Informer().Run(stopCh)
+	go c.CSIStorageCapacityInformer.Informer().Run(stopCh)
 	go c.NamespaceInformer.Informer().Run(stopCh)
 	go c.PriorityClassInformer.Informer().Run(stopCh)
+	go c.ServiceInformer.Informer().Run(stopCh)
+	go c.ReplicationControllerInformer.Informer().Run(stopCh)
+	go c.ReplicaSetInformer.Informer().Run(stopCh)
+	go c.StatefulSetInformer.Informer().Run(stopCh)
 }

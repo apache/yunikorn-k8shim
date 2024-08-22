@@ -36,16 +36,24 @@ import (
 
 type Type int
 
-var informerTypes = [...]string{"Pod", "Node", "ConfigMap", "Storage", "PV", "PVC", "PriorityClass"}
+var informerTypes = [...]string{"Pod", "Node", "ConfigMap", "PV", "PVC", "Storage", "CSINode", "CSIDriver", "CSIStorageCapacity", "Namespace", "PriorityClass", "Service", "ReplicationController", "ReplicaSet", "StatefulSet"}
 
 const (
 	PodInformerHandlers Type = iota
 	NodeInformerHandlers
 	ConfigMapInformerHandlers
-	StorageInformerHandlers
 	PVInformerHandlers
 	PVCInformerHandlers
+	StorageInformerHandlers
+	CSINodeInformerHandlers
+	CSIDriverInformerHandlers
+	CSIStorageCapacityInformerHandlers
+	NamespaceInformerHandlers
 	PriorityClassInformerHandlers
+	ServiceInformerHandlers
+	ReplicationControllerInformerHandlers
+	ReplicaSetInformerHandlers
+	StatefulSetInformerHandlers
 )
 
 func (t Type) String() string {
@@ -85,15 +93,21 @@ func NewAPIFactory(scheduler api.SchedulerAPI, informerFactory informers.SharedI
 
 	// init informers
 	// volume informers are also used to get the Listers for the predicates
-	nodeInformer := informerFactory.Core().V1().Nodes()
 	podInformer := informerFactory.Core().V1().Pods()
+	nodeInformer := informerFactory.Core().V1().Nodes()
 	configMapInformer := informerFactory.Core().V1().ConfigMaps()
-	storageInformer := informerFactory.Storage().V1().StorageClasses()
-	csiNodeInformer := informerFactory.Storage().V1().CSINodes()
 	pvInformer := informerFactory.Core().V1().PersistentVolumes()
 	pvcInformer := informerFactory.Core().V1().PersistentVolumeClaims()
+	storageInformer := informerFactory.Storage().V1().StorageClasses()
+	csiNodeInformer := informerFactory.Storage().V1().CSINodes()
+	csiDriverInformer := informerFactory.Storage().V1().CSIDrivers()
+	csiStorageCapacityInformer := informerFactory.Storage().V1().CSIStorageCapacities()
 	namespaceInformer := informerFactory.Core().V1().Namespaces()
 	priorityClassInformer := informerFactory.Scheduling().V1().PriorityClasses()
+	serviceInformer := informerFactory.Core().V1().Services()
+	replicationControllerInformer := informerFactory.Core().V1().ReplicationControllers()
+	replicaSetInformer := informerFactory.Apps().V1().ReplicaSets()
+	statefulSetInformer := informerFactory.Apps().V1().StatefulSets()
 
 	var capacityCheck = volumebinding.CapacityCheck{
 		CSIDriverInformer:          informerFactory.Storage().V1().CSIDrivers(),
@@ -115,19 +129,25 @@ func NewAPIFactory(scheduler api.SchedulerAPI, informerFactory informers.SharedI
 
 	return &APIFactory{
 		clients: &Clients{
-			KubeClient:            kubeClient,
-			SchedulerAPI:          scheduler,
-			InformerFactory:       informerFactory,
-			PodInformer:           podInformer,
-			NodeInformer:          nodeInformer,
-			ConfigMapInformer:     configMapInformer,
-			PVInformer:            pvInformer,
-			PVCInformer:           pvcInformer,
-			NamespaceInformer:     namespaceInformer,
-			StorageInformer:       storageInformer,
-			CSINodeInformer:       csiNodeInformer,
-			PriorityClassInformer: priorityClassInformer,
-			VolumeBinder:          volumeBinder,
+			KubeClient:                    kubeClient,
+			SchedulerAPI:                  scheduler,
+			InformerFactory:               informerFactory,
+			PodInformer:                   podInformer,
+			NodeInformer:                  nodeInformer,
+			ConfigMapInformer:             configMapInformer,
+			PVInformer:                    pvInformer,
+			PVCInformer:                   pvcInformer,
+			StorageInformer:               storageInformer,
+			CSINodeInformer:               csiNodeInformer,
+			CSIDriverInformer:             csiDriverInformer,
+			CSIStorageCapacityInformer:    csiStorageCapacityInformer,
+			NamespaceInformer:             namespaceInformer,
+			PriorityClassInformer:         priorityClassInformer,
+			ServiceInformer:               serviceInformer,
+			ReplicationControllerInformer: replicationControllerInformer,
+			ReplicaSetInformer:            replicaSetInformer,
+			StatefulSetInformer:           statefulSetInformer,
+			VolumeBinder:                  volumeBinder,
 		},
 		testMode: testMode,
 		stopChan: make(chan struct{}),
