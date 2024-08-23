@@ -21,6 +21,7 @@ package utils
 import (
 	"bytes"
 	"compress/gzip"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -719,6 +720,212 @@ func TestGetApplicationIDFromPod(t *testing.T) {
 			assert.Equal(t, IsPluginMode(), true)
 			appID2 := GetApplicationIDFromPod(tc.pod)
 			assert.Equal(t, appID2, tc.expectedAppIDPluginMode, "Wrong appID (plugin mode)")
+		})
+	}
+}
+
+func TestCheckAppIdInPod(t *testing.T) {
+	mismatchError := errors.New("pod has inconsistent application ID")
+	tests := []struct {
+		name     string
+		pod      *v1.Pod
+		expected error
+	}{
+		{
+			name: "consistent app ID",
+			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						constants.CanonicalLabelApplicationID: "app-123",
+						constants.SparkLabelAppID:             "app-123",
+						constants.LabelApplicationID:          "app-123",
+					},
+					Annotations: map[string]string{
+						constants.AnnotationApplicationID: "app-123",
+					},
+				},
+			},
+			expected: nil,
+		},
+		{
+			name: "inconsistent app ID in labels",
+			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						constants.CanonicalLabelApplicationID: "app-123",
+						constants.SparkLabelAppID:             "app-456",
+					},
+				},
+			},
+			expected: mismatchError,
+		},
+		{
+			name: "inconsistent app ID between label and annotation",
+			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						constants.CanonicalLabelApplicationID: "app-123",
+					},
+					Annotations: map[string]string{
+						constants.AnnotationApplicationID: "app-456",
+					},
+				},
+			},
+			expected: mismatchError,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := CheckAppIdInPod(tt.pod)
+			if err != nil {
+				assert.ErrorContains(t, err, tt.expected.Error())
+			} else {
+				assert.NilError(t, err)
+			}
+		})
+	}
+}
+
+func TestCheckQueueNameInPod(t *testing.T) {
+	mismatchError := errors.New("pod has inconsistent queue name")
+	tests := []struct {
+		name     string
+		pod      *v1.Pod
+		expected error
+	}{
+		{
+			name: "consistent queue name",
+			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						constants.CanonicalLabelQueueName: "root.a",
+						constants.LabelQueueName:          "root.a",
+					},
+					Annotations: map[string]string{
+						constants.AnnotationQueueName: "root.a",
+					},
+				},
+			},
+			expected: nil,
+		},
+		{
+			name: "inconsistent app ID in labels",
+			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						constants.CanonicalLabelQueueName: "root.a",
+						constants.LabelQueueName:          "root.b",
+					},
+				},
+			},
+			expected: mismatchError,
+		},
+		{
+			name: "inconsistent app ID between label and annotation",
+			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						constants.CanonicalLabelQueueName: "root.a",
+					},
+					Annotations: map[string]string{
+						constants.AnnotationQueueName: "root.b",
+					},
+				},
+			},
+			expected: mismatchError,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := CheckAppIdInPod(tt.pod)
+			if err != nil {
+				assert.ErrorContains(t, err, tt.expected.Error())
+			} else {
+				assert.NilError(t, err)
+			}
+		})
+	}
+}
+
+func TestValidatePodLabelAnnotation(t *testing.T) {
+	labelKeys := []string{"labelKey1", "labelKey2"}
+	annotationKeys := []string{"annotationKey1", "annotationKey2"}
+	mismatchError := errors.New("inconsistent values: ")
+
+	testCases := []struct {
+		name     string
+		pod      *v1.Pod
+		expected error
+	}{
+		{
+			name:     "empty pod",
+			pod:      &v1.Pod{},
+			expected: nil,
+		},
+		{
+			name: "pod with all values are consistent",
+			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"labelKey1": "value1",
+						"labelKey2": "value1",
+					},
+					Annotations: map[string]string{
+						"annotationKey1": "value1",
+						"annotationKey2": "value1",
+					},
+				},
+			},
+			expected: nil,
+		},
+		{
+			name: "pod with inconsistent value in labels",
+			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"labelKey1": "value1",
+						"labelKey2": "value2",
+					},
+				},
+			},
+			expected: mismatchError,
+		},
+		{
+			name: "pod with inconsistent value between label and annotation",
+			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"labelKey1": "value1",
+					},
+					Annotations: map[string]string{
+						"annotationKey1": "value2",
+					},
+				},
+			},
+			expected: mismatchError,
+		},
+		{
+			name: "pod with inconsistent value in annotations",
+			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						"annotationKey1": "value1",
+						"annotationKey2": "value2",
+					},
+				},
+			},
+			expected: mismatchError,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := ValidatePodLabelAnnotation(tc.pod, labelKeys, annotationKeys)
+			if err != nil {
+				assert.ErrorContains(t, err, tc.expected.Error())
+			} else {
+				assert.NilError(t, err)
+			}
 		})
 	}
 }

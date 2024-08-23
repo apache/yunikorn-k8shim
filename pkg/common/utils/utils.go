@@ -213,6 +213,66 @@ func GetApplicationIDFromPod(pod *v1.Pod) string {
 	return GenerateApplicationID(pod.Namespace, conf.GetSchedulerConf().GenerateUniqueAppIds, string(pod.UID))
 }
 
+func CheckAppIdInPod(pod *v1.Pod) error {
+	appIdLabelKeys := []string{
+		constants.CanonicalLabelApplicationID,
+		constants.SparkLabelAppID,
+		constants.LabelApplicationID,
+	}
+	appIdAnnotationKeys := []string{
+		constants.AnnotationApplicationID,
+	}
+	if err := ValidatePodLabelAnnotation(pod, appIdLabelKeys, appIdAnnotationKeys); err != nil {
+		return fmt.Errorf("pod has inconsistent application ID in labels and annotations. %w", err)
+	}
+	return nil
+}
+
+func CheckQueueNameInPod(pod *v1.Pod) error {
+	queueLabelKeys := []string{
+		constants.CanonicalLabelQueueName,
+		constants.LabelQueueName,
+	}
+	queueAnnotationKeys := []string{
+		constants.AnnotationQueueName,
+	}
+	if err := ValidatePodLabelAnnotation(pod, queueLabelKeys, queueAnnotationKeys); err != nil {
+		return fmt.Errorf("pod has inconsistent queue name in labels and annotations. %w", err)
+	}
+	return nil
+}
+
+// return true if all non-empty values are same across all provided label/annotation
+func ValidatePodLabelAnnotation(pod *v1.Pod, labelKeys []string, annotationKeys []string) error {
+	var referenceValue string
+
+	for _, key := range labelKeys {
+		value := GetPodLabelValue(pod, key)
+		if value == "" {
+			continue
+		}
+		if referenceValue == "" {
+			referenceValue = value
+		} else if referenceValue != value {
+			return fmt.Errorf("inconsistent values: %s, %s", referenceValue, value)
+		}
+	}
+
+	for _, key := range annotationKeys {
+		value := GetPodAnnotationValue(pod, key)
+		if value == "" {
+			continue
+		}
+		if referenceValue == "" {
+			referenceValue = value
+		} else if referenceValue != value {
+			return fmt.Errorf("inconsistent values: %s, %s", referenceValue, value)
+		}
+	}
+
+	return nil
+}
+
 // compare the existing pod condition with the given one, return true if the pod condition remains not changed.
 // return false if pod has no condition set yet, or condition has changed.
 func PodUnderCondition(pod *v1.Pod, condition *v1.PodCondition) bool {
