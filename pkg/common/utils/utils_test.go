@@ -726,7 +726,7 @@ func TestGetApplicationIDFromPod(t *testing.T) {
 
 func TestCheckAppIdInPod(t *testing.T) {
 	mismatchError := errors.New("pod has inconsistent application ID")
-	tests := []struct {
+	testCases := []struct {
 		name     string
 		pod      *v1.Pod
 		expected error
@@ -774,11 +774,11 @@ func TestCheckAppIdInPod(t *testing.T) {
 			expected: mismatchError,
 		},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := CheckAppIdInPod(tt.pod)
-			if tt.expected != nil {
-				assert.ErrorContains(t, err, tt.expected.Error())
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := CheckAppIdInPod(tc.pod)
+			if tc.expected != nil {
+				assert.ErrorContains(t, err, tc.expected.Error())
 			} else {
 				assert.NilError(t, err)
 			}
@@ -788,7 +788,7 @@ func TestCheckAppIdInPod(t *testing.T) {
 
 func TestCheckQueueNameInPod(t *testing.T) {
 	mismatchError := errors.New("pod has inconsistent queue name")
-	tests := []struct {
+	testCases := []struct {
 		name     string
 		pod      *v1.Pod
 		expected error
@@ -835,11 +835,11 @@ func TestCheckQueueNameInPod(t *testing.T) {
 			expected: mismatchError,
 		},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := CheckQueueNameInPod(tt.pod)
-			if tt.expected != nil {
-				assert.ErrorContains(t, err, tt.expected.Error())
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := CheckQueueNameInPod(tc.pod)
+			if tc.expected != nil {
+				assert.ErrorContains(t, err, tc.expected.Error())
 			} else {
 				assert.NilError(t, err)
 			}
