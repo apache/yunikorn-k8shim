@@ -146,11 +146,9 @@ func (callback *AsyncRMCallback) UpdateApplication(response *si.ApplicationRespo
 				ev := NewResumingApplicationEvent(updated.ApplicationID)
 				dispatcher.Dispatch(ev)
 			}
-		default:
-			if updated.State == ApplicationStates().Failing || updated.State == ApplicationStates().Failed {
-				ev := NewFailApplicationEvent(updated.ApplicationID, updated.Message)
-				dispatcher.Dispatch(ev)
-			}
+		case ApplicationStates().Failing, ApplicationStates().Failed:
+			ev := NewFailApplicationEvent(updated.ApplicationID, updated.Message)
+			dispatcher.Dispatch(ev)
 		}
 	}
 	return nil
