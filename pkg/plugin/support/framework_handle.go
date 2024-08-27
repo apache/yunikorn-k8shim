@@ -30,6 +30,7 @@ import (
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	"k8s.io/kubernetes/pkg/scheduler/framework/parallelize"
+	"k8s.io/kubernetes/pkg/scheduler/util/assumecache"
 
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
@@ -57,6 +58,11 @@ func (p frameworkHandle) Parallelizer() parallelize.Parallelizer {
 	return p.parallelizer
 }
 
+func (p frameworkHandle) ResourceClaimCache() *assumecache.AssumeCache {
+	log.Log(log.ShimFramework).Fatal("BUG: Should not be used by plugins")
+	return nil
+}
+
 // PodNominator stubs
 
 func (p frameworkHandle) AddNominatedPod(logger klog.Logger, pod *framework.PodInfo, nominatingInfo *framework.NominatingInfo) {
@@ -78,12 +84,12 @@ func (p frameworkHandle) NominatedPodsForNode(nodeName string) []*framework.PodI
 
 // PluginsRunner stubs
 
-func (p frameworkHandle) RunPreScorePlugins(context.Context, *framework.CycleState, *v1.Pod, []*v1.Node) *framework.Status {
+func (p frameworkHandle) RunPreScorePlugins(ctx context.Context, state *framework.CycleState, pod *v1.Pod, infos []*framework.NodeInfo) *framework.Status {
 	log.Log(log.ShimFramework).Fatal("BUG: Should not be used by plugins")
 	return nil
 }
 
-func (p frameworkHandle) RunScorePlugins(context.Context, *framework.CycleState, *v1.Pod, []*v1.Node) ([]framework.NodePluginScores, *framework.Status) {
+func (p frameworkHandle) RunScorePlugins(ctx context.Context, state *framework.CycleState, pod *v1.Pod, infos []*framework.NodeInfo) ([]framework.NodePluginScores, *framework.Status) {
 	log.Log(log.ShimFramework).Fatal("BUG: Should not be used by plugins")
 	return nil, nil
 }

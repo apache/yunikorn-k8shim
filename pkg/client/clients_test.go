@@ -29,7 +29,7 @@ import (
 )
 
 const (
-	noOfInformers = 9 // total number of active informers
+	noOfInformers = 15 // total number of active informers
 )
 
 func TestWaitForSync(t *testing.T) {
@@ -73,14 +73,20 @@ func TestRun(t *testing.T) {
 
 func getClients() *Clients {
 	return &Clients{
-		PodInformer:           test.NewMockedPodInformer(),
-		NodeInformer:          test.NewMockedNodeInformer(),
-		ConfigMapInformer:     test.NewMockedConfigMapInformer(),
-		PVInformer:            NewMockedPersistentVolumeInformer(),
-		PVCInformer:           NewMockedPersistentVolumeClaimInformer(),
-		StorageInformer:       NewMockedStorageClassInformer(),
-		CSINodeInformer:       NewMockedCSINodeInformer(),
-		NamespaceInformer:     test.NewMockNamespaceInformer(false),
-		PriorityClassInformer: test.NewMockPriorityClassInformer(),
+		PodInformer:                   test.NewMockedPodInformer(),
+		NodeInformer:                  test.NewMockedNodeInformer(),
+		ConfigMapInformer:             test.NewMockedConfigMapInformer(),
+		PVInformer:                    NewMockedPersistentVolumeInformer(),
+		PVCInformer:                   NewMockedPersistentVolumeClaimInformer(),
+		StorageInformer:               NewMockedStorageClassInformer(),
+		CSINodeInformer:               NewMockedCSINodeInformer(),
+		CSIDriverInformer:             NewMockedCSIDriverInformer(),
+		CSIStorageCapacityInformer:    NewMockedCSIStorageCapacityInformer(),
+		NamespaceInformer:             test.NewMockNamespaceInformer(false),
+		PriorityClassInformer:         test.NewMockPriorityClassInformer(),
+		ServiceInformer:               NewMockedServiceInformer(),
+		ReplicationControllerInformer: NewMockedReplicationControllerInformer(),
+		ReplicaSetInformer:            NewMockedReplicaSetInformer(),
+		StatefulSetInformer:           NewMockedStatefulSetInformer(),
 	}
 }

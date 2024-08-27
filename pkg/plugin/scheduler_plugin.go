@@ -217,11 +217,11 @@ func (sp *YuniKornSchedulerPlugin) Filter(_ context.Context, _ *framework.CycleS
 	return framework.NewStatus(framework.UnschedulableAndUnresolvable, "Pod is not fit for node")
 }
 
-func (sp *YuniKornSchedulerPlugin) EventsToRegister() []framework.ClusterEventWithHint {
+func (sp *YuniKornSchedulerPlugin) EventsToRegister(_ context.Context) ([]framework.ClusterEventWithHint, error) {
 	return sp.context.EventsToRegister(func(_ klog.Logger, pod *v1.Pod, _, _ interface{}) (framework.QueueingHint, error) {
 		// adapt our simpler function to the QueueingHintFn contract
 		return sp.queueingHint(pod)
-	})
+	}), nil
 }
 
 // queueingHint is used to perform a lightweight check to determine if any object change may cause a pod to become
