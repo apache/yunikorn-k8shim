@@ -777,7 +777,7 @@ func TestCheckAppIdInPod(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := CheckAppIdInPod(tt.pod)
-			if err != nil {
+			if tt.expected != nil {
 				assert.ErrorContains(t, err, tt.expected.Error())
 			} else {
 				assert.NilError(t, err)
@@ -837,8 +837,8 @@ func TestCheckQueueNameInPod(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := CheckAppIdInPod(tt.pod)
-			if err != nil {
+			err := CheckQueueNameInPod(tt.pod)
+			if tt.expected != nil {
 				assert.ErrorContains(t, err, tt.expected.Error())
 			} else {
 				assert.NilError(t, err)
@@ -921,7 +921,7 @@ func TestValidatePodLabelAnnotation(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			err := ValidatePodLabelAnnotation(tc.pod, labelKeys, annotationKeys)
-			if err != nil {
+			if tc.expected != nil {
 				assert.ErrorContains(t, err, tc.expected.Error())
 			} else {
 				assert.NilError(t, err)
