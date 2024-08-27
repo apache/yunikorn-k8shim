@@ -37,7 +37,6 @@ import (
 
 	schedulercache "github.com/apache/yunikorn-k8shim/pkg/cache/external"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
-	"github.com/apache/yunikorn-k8shim/pkg/common"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/common/test"
@@ -529,39 +528,11 @@ func TestAddUpdatePodForeign(t *testing.T) {
 	defer dispatcher.UnregisterAllEventHandlers()
 	defer dispatcher.Stop()
 
-	executed := false
-	expectAdd := false
-	expectRemove := false
-	tc := ""
-
-	validatorFunc := func(request *si.NodeRequest) error {
-		assert.Equal(t, len(request.Nodes), 1, "%s: wrong node count", tc)
-		updatedNode := request.Nodes[0]
-		assert.Equal(t, updatedNode.NodeID, Host1, "%s: wrong nodeID", tc)
-		switch updatedNode.Action {
-		case si.NodeInfo_CREATE_DRAIN:
-			return nil
-		case si.NodeInfo_DRAIN_TO_SCHEDULABLE:
-			return nil
-		case si.NodeInfo_UPDATE:
-			executed = true
-		default:
-			assert.Equal(t, false, "Unexpected action: %d", updatedNode.Action)
-			return nil
-		}
-		assert.Equal(t, updatedNode.SchedulableResource.Resources[siCommon.Memory].Value, int64(10000*1000*1000), "%s: wrong schedulable memory", tc)
-		assert.Equal(t, updatedNode.SchedulableResource.Resources[siCommon.CPU].Value, int64(10000), "%s: wrong schedulable cpu", tc)
-		if expectAdd {
-			assert.Equal(t, updatedNode.OccupiedResource.Resources[siCommon.Memory].Value, int64(1000*1000*1000), "%s: wrong occupied memory (add)", tc)
-			assert.Equal(t, updatedNode.OccupiedResource.Resources[siCommon.CPU].Value, int64(500), "%s: wrong occupied cpu (add)", tc)
-		}
-		if expectRemove {
-			assert.Equal(t, updatedNode.OccupiedResource.Resources[siCommon.Memory].Value, int64(0), "%s: wrong occupied memory (remove)", tc)
-			assert.Equal(t, updatedNode.OccupiedResource.Resources[siCommon.CPU].Value, int64(0), "%s: wrong occupied cpu (remove)", tc)
-		}
+	var allocRequest *si.AllocationRequest
+	apiProvider.MockSchedulerAPIUpdateAllocationFn(func(request *si.AllocationRequest) error {
+		allocRequest = request
 		return nil
-	}
-
+	})
 	apiProvider.MockSchedulerAPIUpdateNodeFn(func(request *si.NodeRequest) error {
 		for _, node := range request.Nodes {
 			if node.Action == si.NodeInfo_CREATE_DRAIN {
@@ -571,10 +542,10 @@ func TestAddUpdatePodForeign(t *testing.T) {
 				})
 			}
 		}
-		return validatorFunc(request)
+		return nil
 	})
 
-	host1 := nodeForTest(Host1, "10G", "10")
+	host1 := nodeForTest(Host1, "10G", "10") // add existing foreign pod
 	context.updateNode(nil, host1)
 
 	// pod is not assigned to any node
@@ -582,22 +553,17 @@ func TestAddUpdatePodForeign(t *testing.T) {
 	pod1.Status.Phase = v1.PodPending
 	pod1.Spec.NodeName = ""
 
-	// validate add
-	tc = "add-pod1"
-	executed = false
-	expectAdd = false
-	expectRemove = false
+	// validate add (pending, no node assigned)
+	allocRequest = nil
 	context.AddPod(pod1)
-	assert.Assert(t, !executed, "unexpected update")
+	assert.Assert(t, allocRequest == nil, "unexpected update")
 	pod := context.schedulerCache.GetPod(string(pod1.UID))
 	assert.Assert(t, pod == nil, "unassigned pod found in cache")
 
-	// validate update
-	tc = "update-pod1"
-	executed = false
-	expectRemove = false
+	// validate update (no change)
+	allocRequest = nil
 	context.UpdatePod(nil, pod1)
-	assert.Assert(t, !executed, "unexpected update")
+	assert.Assert(t, allocRequest == nil, "unexpected update")
 	assert.Assert(t, pod == nil, "unassigned pod found in cache")
 
 	// pod is assigned to a node but still in pending state, should update
@@ -606,155 +572,101 @@ func TestAddUpdatePodForeign(t *testing.T) {
 	pod2.Spec.NodeName = Host1
 
 	// validate add
-	tc = "add-pod2"
-	executed = false
-	expectAdd = true
-	expectRemove = false
 	context.AddPod(pod2)
-	assert.Assert(t, executed, "updated expected")
+	assert.Assert(t, allocRequest != nil, "update expected")
+	assertAddForeignPod(t, podName2, Host1, allocRequest)
 	pod = context.schedulerCache.GetPod(string(pod2.UID))
 	assert.Assert(t, pod != nil, "pod not found in cache")
 
-	// validate update
-	tc = "update-pod2"
-	executed = false
-	expectAdd = false
-	expectRemove = false
+	// validate update (no change)
+	allocRequest = nil
 	context.UpdatePod(nil, pod2)
-	assert.Assert(t, !executed, "unexpected update")
+	assert.Assert(t, allocRequest == nil, "unexpected update")
 	pod = context.schedulerCache.GetPod(string(pod2.UID))
 	assert.Assert(t, pod != nil, "pod not found in cache")
 
 	// validate update when not already in cache
-	tc = "update-pod2-nocache-pre"
-	executed = false
-	expectAdd = false
-	expectRemove = true
+	allocRequest = nil
 	context.DeletePod(pod2)
-	assert.Assert(t, executed, "expected update")
-	tc = "update-pod2-nocache"
-	executed = false
-	expectAdd = true
-	expectRemove = false
+	assertReleaseForeignPod(t, podName2, allocRequest)
+
+	allocRequest = nil
 	context.UpdatePod(nil, pod2)
-	assert.Assert(t, executed, "expected update")
+	assert.Assert(t, allocRequest != nil, "expected update")
 	pod = context.schedulerCache.GetPod(string(pod2.UID))
 	assert.Assert(t, pod != nil, "pod not found in cache")
+	assertAddForeignPod(t, podName2, Host1, allocRequest)
 
 	// pod is failed, should trigger update if already in cache
 	pod3 := pod2.DeepCopy()
 	pod3.Status.Phase = v1.PodFailed
 
 	// validate add
-	tc = "add-pod3"
-	executed = false
-	expectAdd = false
-	expectRemove = true
+	allocRequest = nil
 	context.AddPod(pod3)
-	assert.Assert(t, executed, "expected update")
+	assert.Assert(t, allocRequest != nil, "expected update")
 	pod = context.schedulerCache.GetPod(string(pod3.UID))
 	assert.Assert(t, pod == nil, "failed pod found in cache")
+	assert.Assert(t, allocRequest.Releases != nil) // expecting a release due to pod status
+	assertReleaseForeignPod(t, podName2, allocRequest)
 
 	// validate update when not already in cache
-	tc = "update-pod3-pre"
-	executed = false
-	expectAdd = true
-	expectRemove = false
+	allocRequest = nil
 	context.AddPod(pod2)
-	tc = "update-pod3"
-	executed = false
-	expectAdd = false
-	expectRemove = true
+	assert.Assert(t, allocRequest != nil, "expected update")
+	allocRequest = nil
 	context.UpdatePod(nil, pod3)
-	assert.Assert(t, executed, "expected update")
+	assert.Assert(t, allocRequest != nil, "expected update")
 	pod = context.schedulerCache.GetPod(string(pod3.UID))
 	assert.Assert(t, pod == nil, "failed pod found in cache")
 }
 
+func assertAddForeignPod(t *testing.T, podName, host string, allocRequest *si.AllocationRequest) {
+	t.Helper()
+	assert.Equal(t, 1, len(allocRequest.Allocations))
+	tags := allocRequest.Allocations[0].AllocationTags
+	assert.Equal(t, 2, len(tags))
+	assert.Equal(t, siCommon.AllocTypeDefault, tags[siCommon.Foreign])
+	assert.Equal(t, podName, allocRequest.Allocations[0].AllocationKey)
+	assert.Equal(t, host, allocRequest.Allocations[0].NodeID)
+}
+
+func assertReleaseForeignPod(t *testing.T, podName string, allocRequest *si.AllocationRequest) {
+	t.Helper()
+	assert.Assert(t, allocRequest.Releases != nil)
+	assert.Equal(t, 1, len(allocRequest.Releases.AllocationsToRelease))
+	assert.Equal(t, podName, allocRequest.Releases.AllocationsToRelease[0].AllocationKey)
+	assert.Equal(t, constants.DefaultPartition, allocRequest.Releases.AllocationsToRelease[0].PartitionName)
+	assert.Equal(t, "", allocRequest.Releases.AllocationsToRelease[0].ApplicationID)
+	assert.Equal(t, si.TerminationType_STOPPED_BY_RM, allocRequest.Releases.AllocationsToRelease[0].TerminationType)
+}
+
 func TestDeletePodForeign(t *testing.T) {
 	context, apiProvider := initContextAndAPIProviderForTest()
-	dispatcher.Start()
-	defer dispatcher.UnregisterAllEventHandlers()
-	defer dispatcher.Stop()
 
-	executed := false
-	expectAdd := false
-	expectRemove := false
-	tc := ""
-
-	validatorFunc := func(request *si.NodeRequest) error {
-		executed = true
-		assert.Equal(t, len(request.Nodes), 1, "%s: wrong node count", tc)
-		updatedNode := request.Nodes[0]
-		switch updatedNode.Action {
-		case si.NodeInfo_CREATE_DRAIN:
-			return nil
-		case si.NodeInfo_DRAIN_TO_SCHEDULABLE:
-			return nil
-		case si.NodeInfo_UPDATE:
-			executed = true
-		default:
-			assert.Equal(t, false, "Unexpected action: %d", updatedNode.Action)
-			return nil
-		}
-		assert.Equal(t, updatedNode.NodeID, Host1, "%s: wrong nodeID", tc)
-		assert.Equal(t, updatedNode.Action, si.NodeInfo_UPDATE, "%s: wrong action", tc)
-		assert.Equal(t, updatedNode.SchedulableResource.Resources[siCommon.Memory].Value, int64(10000*1000*1000), "%s: wrong schedulable memory", tc)
-		assert.Equal(t, updatedNode.SchedulableResource.Resources[siCommon.CPU].Value, int64(10000), "%s: wrong schedulable cpu", tc)
-		if expectAdd {
-			assert.Equal(t, updatedNode.OccupiedResource.Resources[siCommon.Memory].Value, int64(1000*1000*1000), "%s: wrong occupied memory (add)", tc)
-			assert.Equal(t, updatedNode.OccupiedResource.Resources[siCommon.CPU].Value, int64(500), "%s: wrong occupied cpu (add)", tc)
-		}
-		if expectRemove {
-			assert.Equal(t, updatedNode.OccupiedResource.Resources[siCommon.Memory].Value, int64(0), "%s: wrong occupied memory (remove)", tc)
-			assert.Equal(t, updatedNode.OccupiedResource.Resources[siCommon.CPU].Value, int64(0), "%s: wrong occupied cpu (remove)", tc)
-		}
+	var allocRequest *si.AllocationRequest
+	apiProvider.MockSchedulerAPIUpdateAllocationFn(func(request *si.AllocationRequest) error {
+		allocRequest = request
 		return nil
-	}
-
-	apiProvider.MockSchedulerAPIUpdateNodeFn(func(request *si.NodeRequest) error {
-		for _, node := range request.Nodes {
-			if node.Action == si.NodeInfo_CREATE_DRAIN {
-				dispatcher.Dispatch(CachedSchedulerNodeEvent{
-					NodeID: node.NodeID,
-					Event:  NodeAccepted,
-				})
-			}
-		}
-		return validatorFunc(request)
 	})
 
-	host1 := nodeForTest(Host1, "10G", "10")
-	context.updateNode(nil, host1)
-
-	// add existing pod
+	// add existing foreign pod
 	pod1 := foreignPod(podName1, "1G", "500m")
 	pod1.Status.Phase = v1.PodRunning
 	pod1.Spec.NodeName = Host1
-
-	// validate deletion of existing assigned pod
-	tc = "delete-pod1-pre"
-	executed = false
-	expectAdd = true
-	expectRemove = false
 	context.AddPod(pod1)
-	tc = "delete-pod1"
-	executed = false
-	expectAdd = false
-	expectRemove = true
+	allocRequest = nil
 	context.DeletePod(pod1)
-	assert.Assert(t, executed, "update not executed")
-	pod := context.schedulerCache.GetPod(string(pod1.UID))
-	assert.Assert(t, pod == nil, "deleted pod found in cache")
 
-	// validate delete when not already found
-	tc = "delete-pod1-again"
-	executed = false
-	expectAdd = false
-	expectRemove = false
-	context.DeletePod(pod1)
-	assert.Assert(t, !executed, "unexpected update")
-	pod = context.schedulerCache.GetPod(string(pod1.UID))
+	assert.Assert(t, allocRequest != nil, "update not executed")
+	assert.Equal(t, 0, len(allocRequest.Allocations))
+	assert.Assert(t, allocRequest.Releases != nil)
+	assert.Equal(t, 1, len(allocRequest.Releases.AllocationsToRelease))
+	assert.Equal(t, podName1, allocRequest.Releases.AllocationsToRelease[0].AllocationKey)
+	assert.Equal(t, constants.DefaultPartition, allocRequest.Releases.AllocationsToRelease[0].PartitionName)
+	assert.Equal(t, "", allocRequest.Releases.AllocationsToRelease[0].ApplicationID)
+	assert.Equal(t, si.TerminationType_STOPPED_BY_RM, allocRequest.Releases.AllocationsToRelease[0].TerminationType)
+	pod := context.schedulerCache.GetPod(string(pod1.UID))
 	assert.Assert(t, pod == nil, "deleted pod found in cache")
 }
 
@@ -2010,16 +1922,6 @@ func TestInitializeState(t *testing.T) {
 	assert.Equal(t, pc.Value, int32(1000), "wrong priority value")
 	assert.Equal(t, *pc.PreemptionPolicy, policy, "wrong preemption policy")
 	assert.Equal(t, pc.Annotations[constants.AnnotationAllowPreemption], constants.True, "wrong allow-preemption value")
-
-	// verify occupied / capacity on node
-	capacity, occupied, ok := context.schedulerCache.SnapshotResources(nodeName1)
-	assert.Assert(t, ok, "Unable to retrieve node resources")
-	expectedCapacity := common.ParseResource("4", "10G")
-	assert.Equal(t, expectedCapacity.Resources["vcore"].Value, capacity.Resources["vcore"].Value, "wrong capacity vcore")
-	assert.Equal(t, expectedCapacity.Resources["memory"].Value, capacity.Resources["memory"].Value, "wrong capacity memory")
-	expectedOccupied := common.ParseResource("1500m", "2G")
-	assert.Equal(t, expectedOccupied.Resources["vcore"].Value, occupied.Resources["vcore"].Value, "wrong occupied vcore")
-	assert.Equal(t, expectedOccupied.Resources["memory"].Value, occupied.Resources["memory"].Value, "wrong occupied memory")
 
 	// check that pod orphan status is correct
 	assert.Check(t, !context.schedulerCache.IsPodOrphaned(podName1), "pod1 should not be orphaned")
