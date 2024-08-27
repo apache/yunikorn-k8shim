@@ -124,3 +124,9 @@ const AutoGenAppSuffix = "autogen"
 
 // Compression Algorithms for schedulerConfig
 const GzipSuffix = "gz"
+
+// The key list which are used to identify the application ID or queue name in pod.
+var AppIdLabelKeys = []string{CanonicalLabelApplicationID, SparkLabelAppID, LabelApplicationID}
+var AppIdAnnotationKeys = []string{AnnotationApplicationID}
+var QueueLabelKeys = []string{CanonicalLabelQueueName, LabelQueueName}
+var QueueAnnotationKeys = []string{AnnotationQueueName}

@@ -214,29 +214,14 @@ func GetApplicationIDFromPod(pod *v1.Pod) string {
 }
 
 func CheckAppIdInPod(pod *v1.Pod) error {
-	appIdLabelKeys := []string{
-		constants.CanonicalLabelApplicationID,
-		constants.SparkLabelAppID,
-		constants.LabelApplicationID,
-	}
-	appIdAnnotationKeys := []string{
-		constants.AnnotationApplicationID,
-	}
-	if err := ValidatePodLabelAnnotation(pod, appIdLabelKeys, appIdAnnotationKeys); err != nil {
+	if err := ValidatePodLabelAnnotation(pod, constants.AppIdLabelKeys, constants.AppIdAnnotationKeys); err != nil {
 		return fmt.Errorf("pod has inconsistent application ID in labels and annotations. %w", err)
 	}
 	return nil
 }
 
 func CheckQueueNameInPod(pod *v1.Pod) error {
-	queueLabelKeys := []string{
-		constants.CanonicalLabelQueueName,
-		constants.LabelQueueName,
-	}
-	queueAnnotationKeys := []string{
-		constants.AnnotationQueueName,
-	}
-	if err := ValidatePodLabelAnnotation(pod, queueLabelKeys, queueAnnotationKeys); err != nil {
+	if err := ValidatePodLabelAnnotation(pod, constants.QueueLabelKeys, constants.QueueAnnotationKeys); err != nil {
 		return fmt.Errorf("pod has inconsistent queue name in labels and annotations. %w", err)
 	}
 	return nil
