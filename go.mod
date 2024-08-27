@@ -24,14 +24,14 @@ toolchain go1.22.5
 
 require (
 	github.com/apache/yunikorn-core v0.0.0-20240815214512-f51aaba68ff2
-	github.com/apache/yunikorn-scheduler-interface v0.0.0-20240815142741-38a38685cd4e
+	github.com/apache/yunikorn-scheduler-interface v0.0.0-20240827015655-68e8c6cca28a
 	github.com/google/go-cmp v0.6.0
 	github.com/google/uuid v1.6.0
 	github.com/looplab/fsm v1.0.1
 	github.com/onsi/ginkgo/v2 v2.19.0
 	github.com/onsi/gomega v1.33.1
 	github.com/prometheus/client_golang v1.19.1
-	github.com/sasha-s/go-deadlock v0.3.1
+	github.com/sasha-s/go-deadlock v0.3.5
 	go.uber.org/zap v1.26.0
 	gopkg.in/yaml.v3 v3.0.1
 	gotest.tools/v3 v3.5.1
@@ -104,7 +104,7 @@ require (
 	github.com/opencontainers/runtime-spec v1.0.3-0.20220909204839-494a5a6aca78 // indirect
 	github.com/opencontainers/selinux v1.11.0 // indirect
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
-	github.com/petermattis/goid v0.0.0-20240327183114-c42a807a84ba // indirect
+	github.com/petermattis/goid v0.0.0-20240813172612-4fcff4a6cae7 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/prometheus/client_model v0.6.1 // indirect
 	github.com/prometheus/common v0.55.0 // indirect
@@ -129,14 +129,14 @@ require (
 	go.opentelemetry.io/proto/otlp v1.3.1 // indirect
 	go.starlark.net v0.0.0-20230525235612-a134d8f9ddca // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	golang.org/x/crypto v0.24.0 // indirect
+	golang.org/x/crypto v0.26.0 // indirect
 	golang.org/x/exp v0.0.0-20240409090435-93d18d7e34b8 // indirect
-	golang.org/x/net v0.26.0 // indirect
+	golang.org/x/net v0.28.0 // indirect
 	golang.org/x/oauth2 v0.21.0 // indirect
-	golang.org/x/sync v0.7.0 // indirect
-	golang.org/x/sys v0.21.0 // indirect
-	golang.org/x/term v0.21.0 // indirect
-	golang.org/x/text v0.16.0 // indirect
+	golang.org/x/sync v0.8.0 // indirect
+	golang.org/x/sys v0.23.0 // indirect
+	golang.org/x/term v0.23.0 // indirect
+	golang.org/x/text v0.17.0 // indirect
 	golang.org/x/time v0.5.0 // indirect
 	golang.org/x/tools v0.21.1-0.20240508182429-e35e4ccd0d2d // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20240528184218-531527333157 // indirect
@@ -168,15 +168,12 @@ require (
 )
 
 replace (
-	github.com/opencontainers/runc => github.com/opencontainers/runc v1.1.13
-	github.com/petermattis/goid => github.com/petermattis/goid v0.0.0-20240327183114-c42a807a84ba
-	golang.org/x/crypto => golang.org/x/crypto v0.24.0
+	golang.org/x/crypto => golang.org/x/crypto v0.26.0
 	golang.org/x/lint => golang.org/x/lint v0.0.0-20210508222113-6edffad5e616
-	golang.org/x/net => golang.org/x/net v0.26.0
-	golang.org/x/sys => golang.org/x/sys v0.21.0
-	golang.org/x/text => golang.org/x/text v0.16.0
-	golang.org/x/tools => golang.org/x/tools v0.21.1-0.20240508182429-e35e4ccd0d2d
-	google.golang.org/protobuf => google.golang.org/protobuf v1.34.2
+	golang.org/x/net => golang.org/x/net v0.28.0
+	golang.org/x/sys => golang.org/x/sys v0.24.0
+	golang.org/x/text => golang.org/x/text v0.17.0
+	golang.org/x/tools => golang.org/x/tools v0.24.0
 	k8s.io/api => k8s.io/api v0.31.0
 	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.31.0
 	k8s.io/apimachinery => k8s.io/apimachinery v0.31.0
