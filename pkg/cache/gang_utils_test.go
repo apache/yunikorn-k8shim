@@ -150,6 +150,7 @@ func Test_GetPlaceholderResourceRequest(t *testing.T) {
 		{"base", map[string]resource.Quantity{"pods": resource.MustParse("1")}, v1.ResourceList{"pods": resource.MustParse("1")}},
 		{"hugepages", map[string]resource.Quantity{"hugepages-huge": resource.MustParse("2")}, v1.ResourceList{"hugepages-huge": resource.MustParse("2")}},
 		{"mixed", map[string]resource.Quantity{"pods": resource.MustParse("4"), "nvidia.com/gpu": resource.MustParse("5")}, v1.ResourceList{"pods": resource.MustParse("4"), "nvidia.com/gpu": resource.MustParse("5")}},
+		{"empty key", map[string]resource.Quantity{"": resource.MustParse("1")}, v1.ResourceList{}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
