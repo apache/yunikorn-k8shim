@@ -99,9 +99,16 @@ func TestGetTaskMetadata(t *testing.T) {
 	assert.Equal(t, task.ApplicationID, "yunikorn-default-autogen")
 	assert.Equal(t, task.TaskID, "UID-POD-00001")
 	assert.Equal(t, task.TaskGroupName, "")
+
+	// case: empty pod
+	task, ok = getTaskMetadata(&v1.Pod{})
+	assert.Equal(t, ok, false)
+	assert.DeepEqual(t, task, TaskMetadata{})
 }
 
 func TestGetAppMetadata(t *testing.T) { //nolint:funlen
+	conf.GetSchedulerConf().SetTestMode(true)
+
 	defer utils.SetPluginMode(false)
 	defer func() { conf.GetSchedulerConf().GenerateUniqueAppIds = false }()
 	utils.SetPluginMode(false)
@@ -301,6 +308,33 @@ func TestGetAppMetadata(t *testing.T) { //nolint:funlen
 	utils.SetPluginMode(true)
 	app, ok = getAppMetadata(&pod)
 	assert.Equal(t, ok, false)
+
+	// case: invalid annotation task groups
+	pod = v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name:      "pod00001",
+			Namespace: "default",
+			UID:       "UID-POD-00001",
+			Labels: map[string]string{
+				"applicationId": "app00001",
+				"queue":         "root.a",
+			},
+			Annotations: map[string]string{
+				constants.AnnotationTaskGroups: "{ name:\"\" }",
+			},
+		},
+		Spec:   v1.PodSpec{SchedulerName: constants.SchedulerName},
+		Status: v1.PodStatus{Phase: v1.PodPending},
+	}
+	app, ok = getAppMetadata(&pod)
+	assert.Equal(t, ok, true)
+	assert.Equal(t, app.SchedulingPolicyParameters.GetGangSchedulingStyle(), "Soft")
+	assert.Equal(t, app.Tags[common.AppTagCreateForce], "false")
+	assert.Equal(t, len(app.TaskGroups), 0)
 }
 
 func TestGetOwnerReferences(t *testing.T) {
