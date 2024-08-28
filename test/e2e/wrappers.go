@@ -129,7 +129,8 @@ func dumpYunikornContainer(suiteName string, specName string) error {
 		return getErr
 	}
 
-	_, err = fmt.Fprintf(file, "Yunikorn Logs:\n%s\n", string(logBytes))
+	ginkgo.By("\n\nYuniKorn Logs: " + string(logBytes))
+	_, err = fmt.Fprintf(file, "YuniKorn Logs:\n%s\n", string(logBytes))
 	return err
 }
 
