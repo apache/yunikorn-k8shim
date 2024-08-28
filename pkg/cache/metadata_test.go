@@ -19,7 +19,6 @@
 package cache
 
 import (
-	"reflect"
 	"testing"
 
 	"gotest.tools/v3/assert"
@@ -104,7 +103,7 @@ func TestGetTaskMetadata(t *testing.T) {
 	// case: empty pod
 	task, ok = getTaskMetadata(&v1.Pod{})
 	assert.Equal(t, ok, false)
-	assert.Assert(t, reflect.DeepEqual(task, TaskMetadata{}))
+	assert.DeepEqual(t, task, TaskMetadata{})
 }
 
 func TestGetAppMetadata(t *testing.T) { //nolint:funlen
