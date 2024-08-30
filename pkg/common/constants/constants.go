@@ -26,6 +26,10 @@ import (
 const True = "true"
 const False = "false"
 
+// Kubernetes
+const Label = "label"
+const Annotation = "annotation"
+
 // Cluster
 const DefaultNodeAttributeHostNameKey = "si.io/hostname"
 const DefaultNodeAttributeRackNameKey = "si.io/rackname"

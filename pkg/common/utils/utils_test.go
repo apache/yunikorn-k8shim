@@ -725,7 +725,6 @@ func TestGetApplicationIDFromPod(t *testing.T) {
 }
 
 func TestCheckAppIdInPod(t *testing.T) {
-	mismatchError := errors.New("pod has inconsistent application ID")
 	testCases := []struct {
 		name     string
 		pod      *v1.Pod
@@ -757,7 +756,7 @@ func TestCheckAppIdInPod(t *testing.T) {
 					},
 				},
 			},
-			expected: mismatchError,
+			expected: errors.New("label spark-app-selector: \"app-456\" doesn't match label yunikorn.apache.org/app-id: \"app-123\""),
 		},
 		{
 			name: "inconsistent app ID between label and annotation",
@@ -771,7 +770,7 @@ func TestCheckAppIdInPod(t *testing.T) {
 					},
 				},
 			},
-			expected: mismatchError,
+			expected: errors.New("annotation yunikorn.apache.org/app-id: \"app-456\" doesn't match label yunikorn.apache.org/app-id: \"app-123\""),
 		},
 	}
 	for _, tc := range testCases {
@@ -787,7 +786,6 @@ func TestCheckAppIdInPod(t *testing.T) {
 }
 
 func TestCheckQueueNameInPod(t *testing.T) {
-	mismatchError := errors.New("pod has inconsistent queue name")
 	testCases := []struct {
 		name     string
 		pod      *v1.Pod
@@ -818,7 +816,7 @@ func TestCheckQueueNameInPod(t *testing.T) {
 					},
 				},
 			},
-			expected: mismatchError,
+			expected: errors.New("label queue: \"root.b\" doesn't match label yunikorn.apache.org/queue: \"root.a\""),
 		},
 		{
 			name: "inconsistent app ID between label and annotation",
@@ -832,7 +830,7 @@ func TestCheckQueueNameInPod(t *testing.T) {
 					},
 				},
 			},
-			expected: mismatchError,
+			expected: errors.New("annotation yunikorn.apache.org/queue: \"root.b\" doesn't match label yunikorn.apache.org/queue: \"root.a\""),
 		},
 	}
 	for _, tc := range testCases {
@@ -850,7 +848,6 @@ func TestCheckQueueNameInPod(t *testing.T) {
 func TestValidatePodLabelAnnotation(t *testing.T) {
 	labelKeys := []string{"labelKey1", "labelKey2"}
 	annotationKeys := []string{"annotationKey1", "annotationKey2"}
-	mismatchError := errors.New("inconsistent values: ")
 
 	testCases := []struct {
 		name     string
@@ -888,7 +885,7 @@ func TestValidatePodLabelAnnotation(t *testing.T) {
 					},
 				},
 			},
-			expected: mismatchError,
+			expected: errors.New("label labelKey2: \"value2\" doesn't match label labelKey1: \"value1\""),
 		},
 		{
 			name: "pod with inconsistent value between label and annotation",
@@ -902,7 +899,7 @@ func TestValidatePodLabelAnnotation(t *testing.T) {
 					},
 				},
 			},
-			expected: mismatchError,
+			expected: errors.New("annotation annotationKey1: \"value2\" doesn't match label labelKey1: \"value1\""),
 		},
 		{
 			name: "pod with inconsistent value in annotations",
@@ -914,7 +911,7 @@ func TestValidatePodLabelAnnotation(t *testing.T) {
 					},
 				},
 			},
-			expected: mismatchError,
+			expected: errors.New("annotation annotationKey2: \"value2\" doesn't match annotation annotationKey1: \"value1\""),
 		},
 	}
 

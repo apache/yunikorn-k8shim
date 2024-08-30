@@ -214,44 +214,46 @@ func GetApplicationIDFromPod(pod *v1.Pod) string {
 }
 
 func CheckAppIdInPod(pod *v1.Pod) error {
-	if err := ValidatePodLabelAnnotation(pod, constants.AppIdLabelKeys, constants.AppIdAnnotationKeys); err != nil {
-		return fmt.Errorf("pod has inconsistent application ID in labels and annotations. %w", err)
-	}
-	return nil
+	return ValidatePodLabelAnnotation(pod, constants.AppIdLabelKeys, constants.AppIdAnnotationKeys)
 }
 
 func CheckQueueNameInPod(pod *v1.Pod) error {
-	if err := ValidatePodLabelAnnotation(pod, constants.QueueLabelKeys, constants.QueueAnnotationKeys); err != nil {
-		return fmt.Errorf("pod has inconsistent queue name in labels and annotations. %w", err)
-	}
-	return nil
+	return ValidatePodLabelAnnotation(pod, constants.QueueLabelKeys, constants.QueueAnnotationKeys)
 }
 
 // return true if all non-empty values are same across all provided label/annotation
 func ValidatePodLabelAnnotation(pod *v1.Pod, labelKeys []string, annotationKeys []string) error {
+	var referenceKey string
 	var referenceValue string
+	var referenceType string
 
+	checkingType := constants.Label
 	for _, key := range labelKeys {
 		value := GetPodLabelValue(pod, key)
 		if value == "" {
 			continue
 		}
 		if referenceValue == "" {
+			referenceKey = key
 			referenceValue = value
+			referenceType = checkingType
 		} else if referenceValue != value {
-			return fmt.Errorf("inconsistent values: %s, %s", referenceValue, value)
+			return fmt.Errorf("%s %s: \"%s\" doesn't match %s %s: \"%s\"", checkingType, key, value, referenceType, referenceKey, referenceValue)
 		}
 	}
 
+	checkingType = constants.Annotation
 	for _, key := range annotationKeys {
 		value := GetPodAnnotationValue(pod, key)
 		if value == "" {
 			continue
 		}
 		if referenceValue == "" {
+			referenceKey = key
 			referenceValue = value
+			referenceType = checkingType
 		} else if referenceValue != value {
-			return fmt.Errorf("inconsistent values: %s, %s", referenceValue, value)
+			return fmt.Errorf("%s %s: \"%s\" doesn't match %s %s: \"%s\"", checkingType, key, value, referenceType, referenceKey, referenceValue)
 		}
 	}
 
