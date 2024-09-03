@@ -641,6 +641,32 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 		checkUsage(groupTestType, url.QueryEscape(validGroup), sandboxQueue1, []*v1.Pod{usergroup1Sandbox1Pod1})
 	})
 
+	ginkgo.It("Verify_Queue_Name_With_Special_Characters", func() {
+		ginkgo.By("Create a queue with a name that includes all allowed special characters")
+		queueName := "queue-#_@/:"
+
+		yunikorn.UpdateCustomConfigMapWrapper(oldConfigMap, "", func(sc *configs.SchedulerConfig) error {
+			// remove placement rules so we can control queue
+			sc.Partitions[0].PlacementRules = nil
+
+			var err error
+			if err = common.AddQueue(sc, "default", "root", configs.QueueConfig{
+				Name:       queueName,
+				Resources:  configs.Resources{Guaranteed: map[string]string{"memory": fmt.Sprintf("%dM", 200)}},
+				Properties: map[string]string{"preemption.delay": "1s"},
+			}); err != nil {
+				return err
+			}
+			return nil
+		})
+
+		ginkgo.By("Fetch the queue information using the REST API")
+		allQueues, err := restClient.GetQueues("default")
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		ginkgo.By("Verify that the queue information is returned correctly")
+		gomega.Ω(allQueues.Children[0].QueueName).To(gomega.Equal("root." + queueName))
+	})
+
 	ginkgo.AfterEach(func() {
 		tests.DumpClusterInfoIfSpecFailed(suiteName, []string{ns.Name})
 
