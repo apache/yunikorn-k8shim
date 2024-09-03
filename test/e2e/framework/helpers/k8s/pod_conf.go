@@ -41,6 +41,7 @@ type SleepPodConfig struct {
 	RequiredNode string
 	Optedout     AllowPreemptOpted
 	Labels       map[string]string
+	QOSClass     v1.PodQOSClass
 }
 
 type AllowPreemptOpted int
@@ -126,12 +127,17 @@ func InitSleepPod(conf SleepPodConfig) (*v1.Pod, error) {
 		Command:                    []string{"sleep", strconv.Itoa(conf.Time)},
 		Annotations:                annotation,
 		Labels:                     labels,
-		Resources: &v1.ResourceRequirements{
-			Requests: v1.ResourceList{
-				"cpu":    resource.MustParse(strconv.FormatInt(conf.CPU, 10) + "m"),
-				"memory": resource.MustParse(strconv.FormatInt(conf.Mem, 10) + "M"),
-			},
-		},
+		Resources: func() *v1.ResourceRequirements {
+			if conf.QOSClass != v1.PodQOSBestEffort {
+				return &v1.ResourceRequirements{
+					Requests: v1.ResourceList{
+						"cpu":    resource.MustParse(strconv.FormatInt(conf.CPU, 10) + "m"),
+						"memory": resource.MustParse(strconv.FormatInt(conf.Mem, 10) + "M"),
+					},
+				}
+			}
+			return nil
+		}(),
 		Affinity:        affinity,
 		OwnerReferences: owners,
 	}

@@ -119,6 +119,56 @@ var _ = ginkgo.Describe("", func() {
 		Ω(resMap["vcore"]).To(gomega.Equal(core))
 	})
 
+	ginkgo.It("Verify_BestEffort_QOS_Pod_Scheduling", func() {
+		ginkgo.By("Create a pod with QOS class set to BestEffort")
+		bestEffortPodConfig := k8s.SleepPodConfig{Name: "besteffortpod", NS: dev, QOSClass: v1.PodQOSBestEffort}
+		initPod, podErr := k8s.InitSleepPod(bestEffortPodConfig)
+		gomega.Ω(podErr).NotTo(gomega.HaveOccurred())
+		bestEffortPod, err := kClient.CreatePod(initPod, dev)
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+
+		ginkgo.By("Wait for the pod to move to running state")
+		err = kClient.WaitForPodRunning(dev, bestEffortPodConfig.Name, 30*time.Second)
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+
+		ginkgo.By("Verify that the pod is scheduled and running")
+		appsInfo, err = restClient.GetAppInfo("default", "root."+dev, bestEffortPod.ObjectMeta.Labels["applicationId"])
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		gomega.Ω(appsInfo).NotTo(gomega.BeNil())
+		gomega.Ω(appsInfo.State).To(gomega.Equal("Running"))
+
+		ginkgo.By("Verify that the pod's QOS class is BestEffort")
+		gomega.Ω(bestEffortPod.Status.QOSClass).To(gomega.Equal(v1.PodQOSBestEffort))
+
+		ginkgo.By("Verify that the pod's scheduler name is yunikorn")
+		gomega.Ω("yunikorn").To(gomega.Equal(bestEffortPod.Spec.SchedulerName))
+	})
+
+	ginkgo.It("Verify_NonBestEffort_QOS_Pod_Scheduling", func() {
+		ginkgo.By("Create a pod with QOS class set to Burstable")
+		burstablePodConfig := k8s.SleepPodConfig{Name: "burstablepod", NS: dev, QOSClass: v1.PodQOSBurstable}
+		initPod, podErr := k8s.InitSleepPod(burstablePodConfig)
+		gomega.Ω(podErr).NotTo(gomega.HaveOccurred())
+		burstablePod, err := kClient.CreatePod(initPod, dev)
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+
+		ginkgo.By("Wait for the pod to move to running state")
+		err = kClient.WaitForPodRunning(dev, burstablePodConfig.Name, 30*time.Second)
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+
+		ginkgo.By("Verify that the pod is scheduled and running")
+		appsInfo, err = restClient.GetAppInfo("default", "root."+dev, burstablePod.ObjectMeta.Labels["applicationId"])
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		gomega.Ω(appsInfo).NotTo(gomega.BeNil())
+		gomega.Ω(appsInfo.State).To(gomega.Equal("Running"))
+
+		ginkgo.By("Verify that the pod's QOS class is not BestEffort")
+		gomega.Ω(burstablePod.Status.QOSClass).NotTo(gomega.Equal(v1.PodQOSBestEffort))
+
+		ginkgo.By("Verify that the pod's scheduler name is yunikorn")
+		gomega.Ω("yunikorn").To(gomega.Equal(burstablePod.Spec.SchedulerName))
+	})
+
 	ginkgo.AfterEach(func() {
 		tests.DumpClusterInfoIfSpecFailed(suiteName, []string{dev})
 		// call the healthCheck api to check scheduler health
