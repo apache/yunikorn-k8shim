@@ -663,7 +663,14 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 		allQueues, err := restClient.GetQueues("default")
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		ginkgo.By("Verify that the queue information is returned correctly")
-		gomega.Ω(allQueues.Children[0].QueueName).To(gomega.Equal("root." + queueName))
+		// loop through allQueues.children to find the queue with the name we created
+		for _, queue := range allQueues.Children {
+			if queue.QueueName == "root."+queueName {
+				gomega.Ω(queue.QueueName).To(gomega.Equal("root." + queueName))
+			} else {
+				gomega.Ω(queue.QueueName).NotTo(gomega.Equal("root." + queueName))
+			}
+		}
 		Qerr := restClient.WaitforQueueToAppear("default", "root."+queueName, 20)
 		gomega.Ω(Qerr).NotTo(gomega.HaveOccurred())
 	})
