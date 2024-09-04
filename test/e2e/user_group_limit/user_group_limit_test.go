@@ -643,7 +643,7 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 
 	ginkgo.It("Verify_Queue_Name_With_Special_Characters", func() {
 		ginkgo.By("Create a queue with a name that includes all allowed special characters")
-		queueName := "queue-#_@/:"
+		queueName := "root_test22-a_b_#_c_#_d__e@dom:ain"
 
 		yunikorn.UpdateCustomConfigMapWrapper(oldConfigMap, "", func(sc *configs.SchedulerConfig) error {
 			// remove placement rules so we can control queue
@@ -671,8 +671,9 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 				gomega.Ω(queue.QueueName).NotTo(gomega.Equal("root." + queueName))
 			}
 		}
-		Qerr := restClient.WaitforQueueToAppear("default", "root."+queueName, 20)
-		gomega.Ω(Qerr).NotTo(gomega.HaveOccurred())
+		queueInfo, err := restClient.GetQueue("default", "root."+queueName, false)
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		gomega.Ω(queueInfo.QueueName).To(gomega.Equal("root." + queueName))
 	})
 
 	ginkgo.AfterEach(func() {
