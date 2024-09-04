@@ -256,6 +256,16 @@ func TestCleanUp(t *testing.T) {
 			UID:  "UID-03",
 		},
 	}
+	pod4 := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "pod-04",
+			UID:  "UID-04",
+		},
+	}
 	taskID1 := "task01"
 	task1 := NewTask(taskID1, app, mockedContext, pod1)
 	task1.placeholder = true
@@ -268,12 +278,19 @@ func TestCleanUp(t *testing.T) {
 	task3 := NewTask(taskID3, app, mockedContext, pod3)
 	task3.placeholder = false
 	app.taskMap[taskID3] = task3
+	taskID4 := "task04"
+	task4 := NewTask(taskID4, app, mockedContext, pod4)
+	task4.placeholder = true
+	app.taskMap[taskID4] = task4
 	res = app.getNonTerminatedTaskAlias()
-	assert.Equal(t, len(res), 3)
+	assert.Equal(t, len(res), 4)
 
 	deletePod := make([]string, 0)
 	mockedAPIProvider := client.NewMockedAPIProvider(false)
 	mockedAPIProvider.MockDeleteFn(func(pod *v1.Pod) error {
+		if pod.Name == "pod-04" {
+			return fmt.Errorf("error")
+		}
 		deletePod = append(deletePod, pod.Name)
 		return nil
 	})
@@ -290,11 +307,17 @@ func TestCleanUp(t *testing.T) {
 		}
 	}
 	assert.Equal(t, exist, false)
-	assert.Equal(t, len(placeholderMgr.orphanPods), 0)
+	assert.Equal(t, len(placeholderMgr.orphanPods), 1)
 }
 
 func TestCleanOrphanPlaceholders(t *testing.T) {
 	mockedAPIProvider := client.NewMockedAPIProvider(false)
+	mockedAPIProvider.MockDeleteFn(func(pod *v1.Pod) error {
+		if pod.Name == "pod-02" {
+			return fmt.Errorf("error")
+		}
+		return nil
+	})
 	placeholderMgr := NewPlaceholderManager(mockedAPIProvider.GetAPIs())
 	pod1 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
@@ -306,10 +329,21 @@ func TestCleanOrphanPlaceholders(t *testing.T) {
 			UID:  "UID-01",
 		},
 	}
+	pod2 := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "pod-02",
+			UID:  "UID-02",
+		},
+	}
 	placeholderMgr.orphanPods["task01"] = pod1
-	assert.Equal(t, len(placeholderMgr.orphanPods), 1)
+	placeholderMgr.orphanPods["task02"] = pod2
+	assert.Equal(t, len(placeholderMgr.orphanPods), 2)
 	placeholderMgr.cleanOrphanPlaceholders()
-	assert.Equal(t, len(placeholderMgr.orphanPods), 0)
+	assert.Equal(t, len(placeholderMgr.orphanPods), 1)
 }
 
 func TestPlaceholderManagerStartStop(t *testing.T) {
