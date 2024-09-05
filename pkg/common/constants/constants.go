@@ -26,6 +26,10 @@ import (
 const True = "true"
 const False = "false"
 
+// Kubernetes
+const Label = "label"
+const Annotation = "annotation"
+
 // Cluster
 const DefaultNodeAttributeHostNameKey = "si.io/hostname"
 const DefaultNodeAttributeRackNameKey = "si.io/rackname"
@@ -124,3 +128,9 @@ const AutoGenAppSuffix = "autogen"
 
 // Compression Algorithms for schedulerConfig
 const GzipSuffix = "gz"
+
+// The key list which are used to identify the application ID or queue name in pod.
+var AppIdLabelKeys = []string{CanonicalLabelApplicationID, SparkLabelAppID, LabelApplicationID}
+var AppIdAnnotationKeys = []string{AnnotationApplicationID}
+var QueueLabelKeys = []string{CanonicalLabelQueueName, LabelQueueName}
+var QueueAnnotationKeys = []string{AnnotationQueueName}

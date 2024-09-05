@@ -213,6 +213,53 @@ func GetApplicationIDFromPod(pod *v1.Pod) string {
 	return GenerateApplicationID(pod.Namespace, conf.GetSchedulerConf().GenerateUniqueAppIds, string(pod.UID))
 }
 
+func CheckAppIdInPod(pod *v1.Pod) error {
+	return ValidatePodLabelAnnotation(pod, constants.AppIdLabelKeys, constants.AppIdAnnotationKeys)
+}
+
+func CheckQueueNameInPod(pod *v1.Pod) error {
+	return ValidatePodLabelAnnotation(pod, constants.QueueLabelKeys, constants.QueueAnnotationKeys)
+}
+
+// return true if all non-empty values are same across all provided label/annotation
+func ValidatePodLabelAnnotation(pod *v1.Pod, labelKeys []string, annotationKeys []string) error {
+	var referenceKey string
+	var referenceValue string
+	var referenceType string
+
+	checkingType := constants.Label
+	for _, key := range labelKeys {
+		value := GetPodLabelValue(pod, key)
+		if value == "" {
+			continue
+		}
+		if referenceValue == "" {
+			referenceKey = key
+			referenceValue = value
+			referenceType = checkingType
+		} else if referenceValue != value {
+			return fmt.Errorf("%s %s: \"%s\" doesn't match %s %s: \"%s\"", checkingType, key, value, referenceType, referenceKey, referenceValue)
+		}
+	}
+
+	checkingType = constants.Annotation
+	for _, key := range annotationKeys {
+		value := GetPodAnnotationValue(pod, key)
+		if value == "" {
+			continue
+		}
+		if referenceValue == "" {
+			referenceKey = key
+			referenceValue = value
+			referenceType = checkingType
+		} else if referenceValue != value {
+			return fmt.Errorf("%s %s: \"%s\" doesn't match %s %s: \"%s\"", checkingType, key, value, referenceType, referenceKey, referenceValue)
+		}
+	}
+
+	return nil
+}
+
 // compare the existing pod condition with the given one, return true if the pod condition remains not changed.
 // return false if pod has no condition set yet, or condition has changed.
 func PodUnderCondition(pod *v1.Pod, condition *v1.PodCondition) bool {

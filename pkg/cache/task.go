@@ -533,6 +533,31 @@ func (task *Task) releaseAllocation() {
 // this reduces the scheduling overhead by blocking such
 // request away from the core scheduler.
 func (task *Task) sanityCheckBeforeScheduling() error {
+	// After version 1.7.0, we should reject the task whose pod is unbound and has conflicting metadata.
+	if !utils.PodAlreadyBound(task.pod) {
+		if err := utils.CheckAppIdInPod(task.pod); err != nil {
+			log.Log(log.ShimCacheTask).Warn("Pod has inconsistent application metadata and may be rejected in a future YuniKorn release",
+				zap.String("appID", task.applicationID),
+				zap.String("podName", task.pod.Name),
+				zap.String("error", err.Error()))
+
+			events.GetRecorder().Eventf(task.pod.DeepCopy(),
+				nil, v1.EventTypeWarning, "Scheduling", "Scheduling", fmt.Sprintf("Pod has inconsistent application metadata and may be rejected in a future YuniKorn release: %s", err.Error()))
+		}
+		if err := utils.CheckQueueNameInPod(task.pod); err != nil {
+			log.Log(log.ShimCacheTask).Warn("Pod has inconsistent queue metadata and may be rejected in a future YuniKorn release",
+				zap.String("appID", task.applicationID),
+				zap.String("podName", task.pod.Name),
+				zap.String("error", err.Error()))
+
+			events.GetRecorder().Eventf(task.pod.DeepCopy(),
+				nil, v1.EventTypeWarning, "Scheduling", "Scheduling", fmt.Sprintf("Pod has inconsistent queue metadata and may be rejected in a future YuniKorn release: %s", err.Error()))
+		}
+	}
+	return task.checkPodPVCs()
+}
+
+func (task *Task) checkPodPVCs() error {
 	task.lock.RLock()
 	// Check PVCs used by the pod
 	namespace := task.pod.Namespace
