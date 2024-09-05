@@ -25,12 +25,6 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
-	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	"github.com/apache/yunikorn-core/pkg/common/configs"
 	"github.com/apache/yunikorn-core/pkg/common/resources"
 	"github.com/apache/yunikorn-core/pkg/webservice/dao"
@@ -38,11 +32,18 @@ import (
 	amconf "github.com/apache/yunikorn-k8shim/pkg/admission/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	tests "github.com/apache/yunikorn-k8shim/test/e2e"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
 	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
+
+	"github.com/onsi/ginkgo/v2"
+	"github.com/onsi/gomega"
+
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type TestType int
