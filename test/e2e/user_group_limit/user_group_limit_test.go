@@ -25,9 +25,11 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/apache/yunikorn-core/pkg/common/configs"
 	"github.com/apache/yunikorn-core/pkg/common/resources"
@@ -643,12 +645,10 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 
 	ginkgo.It("Verify_Queue_Name_With_Special_Characters", func() {
 		ginkgo.By("Create a queue with a name that includes all allowed special characters")
-		queueName := "root_test22-a_b_#_c_#_d__e@dom:ain"
-
+		queueName := "root_test22-a_b_#_c_#_d_/_e@dom:ain"
 		yunikorn.UpdateCustomConfigMapWrapper(oldConfigMap, "", func(sc *configs.SchedulerConfig) error {
 			// remove placement rules so we can control queue
 			sc.Partitions[0].PlacementRules = nil
-
 			var err error
 			if err = common.AddQueue(sc, "default", "root", configs.QueueConfig{
 				Name:       queueName,
@@ -671,11 +671,53 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 				gomega.Ω(queue.QueueName).NotTo(gomega.Equal("root." + queueName))
 			}
 		}
-		queueInfo, err := restClient.GetQueue("default", "root."+queueName, false)
+		queueInfo, err := restClient.GetQueue("default", "root."+url.QueryEscape(queueName), false)
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		gomega.Ω(queueInfo.QueueName).To(gomega.Equal("root." + queueName))
 	})
 
+	ginkgo.It("Verify_Queue_Name_With_Disallowed_Special_Characters", func() {
+		ginkgo.By("Attempt to create a queue with a name that includes disallowed special characters")
+		invalidConfig := `
+			partitions:
+  				- name: default
+				  placementrules:
+                       - name: tag
+                         value: namespace
+                         create: true
+                  queues:
+					   - name: root_test22-a_b_#_c_#_d__e@dom:ain$
+						 submitacl: '*'
+`
+		queueName := "root_test22-a_b_#_c_#_d__e@dom:ain$"
+		invalidConfigData := map[string]string{"queues.yaml": invalidConfig}
+		invalidConfigMap := &v1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      constants.ConfigMapName,
+				Namespace: configmanager.YuniKornTestConfig.YkNamespace,
+			},
+			Data: invalidConfigData,
+		}
+		_, invalidConfigErr := kClient.UpdateConfigMap(invalidConfigMap, configmanager.YuniKornTestConfig.YkNamespace)
+		gomega.Ω(invalidConfigErr).Should(gomega.HaveOccurred())
+		ginkgo.By("Verify that the queue was not created")
+		_, err := restClient.GetQueue("default", "root."+url.QueryEscape(queueName), false)
+		gomega.Ω(err).To(gomega.HaveOccurred()) // Expect an error
+		queueName2 := "root_test22"
+		yunikorn.UpdateCustomConfigMapWrapper(oldConfigMap, "", func(sc *configs.SchedulerConfig) error {
+			// remove placement rules so we can control queue
+			sc.Partitions[0].PlacementRules = nil
+			var err error
+			if err = common.AddQueue(sc, "default", "root", configs.QueueConfig{
+				Name:       queueName2,
+				Resources:  configs.Resources{Guaranteed: map[string]string{"memory": fmt.Sprintf("%dM", 200)}},
+				Properties: map[string]string{"preemption.delay": "1s"},
+			}); err != nil {
+				return err
+			}
+			return nil
+		})
+	})
 	ginkgo.AfterEach(func() {
 		tests.DumpClusterInfoIfSpecFailed(suiteName, []string{ns.Name})
 
