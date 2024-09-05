@@ -142,6 +142,17 @@ var _ = ginkgo.Describe("", func() {
 
 		ginkgo.By("Verify that the pod's scheduler name is yunikorn")
 		gomega.Ω("yunikorn").To(gomega.Equal(bestEffortPod.Spec.SchedulerName))
+		allocation := appsInfo.Allocations[0]
+		gomega.Ω(allocation).NotTo(gomega.BeNil())
+		gomega.Ω(allocation.AllocationKey).NotTo(gomega.BeNil())
+		gomega.Ω(allocation.NodeID).NotTo(gomega.BeNil())
+		gomega.Ω(allocation.ApplicationID).To(gomega.Equal(bestEffortPod.ObjectMeta.Labels["applicationId"]))
+		core := bestEffortPod.Spec.Containers[0].Resources.Requests.Cpu().MilliValue()
+		mem := bestEffortPod.Spec.Containers[0].Resources.Requests.Memory().Value()
+		resMap := allocation.ResourcePerAlloc
+		Ω(len(resMap)).NotTo(gomega.BeZero())
+		Ω(resMap["memory"]).To(gomega.Equal(mem))
+		Ω(resMap["vcore"]).To(gomega.Equal(core))
 	})
 
 	ginkgo.It("Verify_NonBestEffort_QOS_Pod_Scheduling", func() {
@@ -167,6 +178,17 @@ var _ = ginkgo.Describe("", func() {
 
 		ginkgo.By("Verify that the pod's scheduler name is yunikorn")
 		gomega.Ω("yunikorn").To(gomega.Equal(burstablePod.Spec.SchedulerName))
+		allocation := appsInfo.Allocations[0]
+		gomega.Ω(allocation).NotTo(gomega.BeNil())
+		gomega.Ω(allocation.AllocationKey).NotTo(gomega.BeNil())
+		gomega.Ω(allocation.NodeID).NotTo(gomega.BeNil())
+		gomega.Ω(allocation.ApplicationID).To(gomega.Equal(burstablePod.ObjectMeta.Labels["applicationId"]))
+		core := burstablePod.Spec.Containers[0].Resources.Requests.Cpu().MilliValue()
+		mem := burstablePod.Spec.Containers[0].Resources.Requests.Memory().Value()
+		resMap := allocation.ResourcePerAlloc
+		Ω(len(resMap)).NotTo(gomega.BeZero())
+		Ω(resMap["memory"]).To(gomega.Equal(mem))
+		Ω(resMap["vcore"]).To(gomega.Equal(core))
 	})
 
 	ginkgo.AfterEach(func() {
