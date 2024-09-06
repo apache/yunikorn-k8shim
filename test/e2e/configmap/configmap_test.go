@@ -24,6 +24,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -207,6 +208,64 @@ partitions:
 		}
 		_, invalidConfigErr := kClient.UpdateConfigMap(invalidConfigMap, configmanager.YuniKornTestConfig.YkNamespace)
 		gomega.Ω(invalidConfigErr).Should(gomega.HaveOccurred())
+	})
+
+	ginkgo.It("Configure the scheduler with a valid group name in placement rule filter", func() {
+		validConfig := `
+partitions:
+  - name: default
+    placementrules:
+      - name: fixed
+        value: root_Test-a_b_#_c_#_d_/_e@dom:ain
+        create: true
+        filter:
+          type: allow
+          groups:
+            - group1
+            - group_Test-a_b_#_c_#_d_/_e@dom:ain.com
+    queues:
+      - name: root
+        submitacl: '*'
+`
+		data := map[string]string{"queues.yaml": validConfig}
+		validConfigMap := &v1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      constants.ConfigMapName,
+				Namespace: configmanager.YuniKornTestConfig.YkNamespace,
+			},
+			Data: data,
+		}
+		cm, err := kClient.UpdateConfigMap(validConfigMap, configmanager.YuniKornTestConfig.YkNamespace)
+		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
+		gomega.Ω(cm).ShouldNot(gomega.BeNil())
+	})
+
+	ginkgo.It("Configure the scheduler with an invalid group name in placement rule filter", func() {
+		invalidConfig := `
+partitions:
+  - name: default
+    placementrules:
+      - name: fixed
+        value: root_Test-a_b_#_c_#_d_/_e@dom:ain
+        create: true
+        filter:
+          type: allow
+          groups:
+            - group_inva!lid
+    queues:
+      - name: root
+        submitacl: '*'
+`
+		data := map[string]string{"queues.yaml": invalidConfig}
+		invalidConfigMap := &v1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      constants.ConfigMapName,
+				Namespace: configmanager.YuniKornTestConfig.YkNamespace,
+			},
+			Data: data,
+		}
+		_, err := kClient.UpdateConfigMap(invalidConfigMap, configmanager.YuniKornTestConfig.YkNamespace)
+		gomega.Ω(err).Should(gomega.HaveOccurred())
 	})
 
 	AfterEach(func() {
