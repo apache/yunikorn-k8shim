@@ -14,7 +14,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-FROM --platform=$TARGETPLATFORM scratch
+FROM scratch
 COPY --chown=0:0 LICENSE NOTICE third-party-licenses.md yunikorn-scheduler-plugin scheduler-config.yaml /
 USER 4444:4444
 ENTRYPOINT [ "/yunikorn-scheduler-plugin", "--bind-address=0.0.0.0", "--config=/scheduler-config.yaml" ]

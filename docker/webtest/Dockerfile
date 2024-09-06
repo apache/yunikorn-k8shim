@@ -16,7 +16,7 @@
 # limitations under the License.
 
 # Imagestage: use scratch base image
-FROM --platform=$TARGETPLATFORM scratch
+FROM scratch
 COPY --chown=0:0 document/index.html /html/
 COPY --chown=0:0 LICENSE NOTICE third-party-licenses.md web-test-server /
 EXPOSE 9889
