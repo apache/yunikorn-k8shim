@@ -716,8 +716,7 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 			yunikorn.UpdateCustomConfigMapWrapperWithMap(oldConfigMap, "", admissionCustomConfig, func(sc *configs.SchedulerConfig) error {
 				// remove placement rules so we can control queue
 				sc.Partitions[0].PlacementRules = nil
-
-				common.AddQueue(sc, constants.DefaultPartition, constants.RootQueue, configs.QueueConfig{
+				err := common.AddQueue(sc, constants.DefaultPartition, constants.RootQueue, configs.QueueConfig{
 					Name: "sandbox1",
 					Limits: []configs.Limit{
 						{
@@ -738,6 +737,9 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 						},
 					},
 				})
+				if err != nil {
+					return err
+				}
 				return common.AddQueue(sc, constants.DefaultPartition, constants.RootQueue, configs.QueueConfig{Name: "sandbox2"})
 			})
 		})
@@ -765,7 +767,7 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 		usergroup2Sandbox1Pod3 := deploySleepPod(usergroup2, sandboxQueue1, false, "because final memory usage is more than wildcard maxapplications")
 		checkUsage(userTestType, user2, sandboxQueue1, []*v1.Pod{usergroup2Sandbox1Pod1, usergroup2Sandbox1Pod2})
 
-		//Update Wildcard user entry limit to 3
+		// Update Wildcard user entry limit to 3
 		ginkgo.By("Update config")
 		// The wait wrapper still can't fully guarantee that the config in AdmissionController has been updated.
 		yunikorn.WaitForAdmissionControllerRefreshConfAfterAction(func() {
@@ -773,7 +775,7 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 				// remove placement rules so we can control queue
 				sc.Partitions[0].PlacementRules = nil
 
-				common.AddQueue(sc, constants.DefaultPartition, constants.RootQueue, configs.QueueConfig{
+				err := common.AddQueue(sc, constants.DefaultPartition, constants.RootQueue, configs.QueueConfig{
 					Name: "sandbox1",
 					Limits: []configs.Limit{
 						{
@@ -794,6 +796,9 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 						},
 					},
 				})
+				if err != nil {
+					return err
+				}
 				return common.AddQueue(sc, constants.DefaultPartition, constants.RootQueue, configs.QueueConfig{Name: "sandbox2"})
 			})
 		})
@@ -814,7 +819,7 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 				// remove placement rules so we can control queue
 				sc.Partitions[0].PlacementRules = nil
 
-				common.AddQueue(sc, constants.DefaultPartition, constants.RootQueue, configs.QueueConfig{
+				err := common.AddQueue(sc, constants.DefaultPartition, constants.RootQueue, configs.QueueConfig{
 					Name: "sandbox1",
 					Limits: []configs.Limit{
 						{
@@ -834,6 +839,9 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 							},
 						},
 					}})
+				if err != nil {
+					return err
+				}
 				return common.AddQueue(sc, constants.DefaultPartition, constants.RootQueue, configs.QueueConfig{Name: "sandbox2"})
 			})
 		})
@@ -861,7 +869,7 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 		usergroup2 = &si.UserGroupInformation{User: user2, Groups: []string{group2}}
 		group2Sandbox1Pod3 := deploySleepPod(usergroup2, sandboxQueue1, false, "because final memory usage is more than wildcard maxapplications")
 		checkUsageWildcardGroups(groupTestType, group2, sandboxQueue1, []*v1.Pod{group2Sandbox1Pod1, group2Sandbox1Pod2})
-		//Update Wildcard group entry limit to 3
+		// Update Wildcard group entry limit to 3
 		ginkgo.By("Update config")
 		// The wait wrapper still can't fully guarantee that the config in AdmissionController has been updated.
 		yunikorn.WaitForAdmissionControllerRefreshConfAfterAction(func() {
@@ -869,7 +877,7 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 				// remove placement rules so we can control queue
 				sc.Partitions[0].PlacementRules = nil
 
-				common.AddQueue(sc, constants.DefaultPartition, constants.RootQueue, configs.QueueConfig{
+				err := common.AddQueue(sc, constants.DefaultPartition, constants.RootQueue, configs.QueueConfig{
 					Name: "sandbox1",
 					Limits: []configs.Limit{
 						{
@@ -889,6 +897,9 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 							},
 						},
 					}})
+				if err != nil {
+					return err
+				}
 				return common.AddQueue(sc, constants.DefaultPartition, constants.RootQueue, configs.QueueConfig{Name: "sandbox2"})
 			})
 		})
@@ -901,7 +912,7 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 	})
 
 	ginkgo.AfterEach(func() {
-		//tests.DumpClusterInfoIfSpecFailed(suiteName, []string{ns.Name})
+		tests.DumpClusterInfoIfSpecFailed(suiteName, []string{ns.Name})
 
 		// Delete all sleep pods
 		ginkgo.By("Delete all sleep pods")
@@ -1010,5 +1021,4 @@ func checkUsageWildcardGroups(testType TestType, name string, queuePath string, 
 	Ω(resourceUsageDAO.ResourceUsage).NotTo(gomega.BeNil())
 	Ω(resourceUsageDAO.ResourceUsage.Resources["pods"]).To(gomega.Equal(resources.Quantity(len(expectedRunningPods))))
 	Ω(resourceUsageDAO.RunningApplications).To(gomega.ConsistOf(appIDs...))
-
 }
