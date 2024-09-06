@@ -536,3 +536,13 @@ func (c *RClient) GetGroupUsage(partition string, groupName string) (*dao.GroupR
 	_, err = c.do(req, &groupUsage)
 	return groupUsage, err
 }
+
+func (c *RClient) GetGroupsUsage(partition string) ([]*dao.GroupResourceUsageDAOInfo, error) {
+	req, err := c.newRequest("GET", fmt.Sprintf(configmanager.GroupsUsagePath, partition), nil)
+	if err != nil {
+		return nil, err
+	}
+	var groupsUsage []*dao.GroupResourceUsageDAOInfo
+	_, err = c.do(req, &groupsUsage)
+	return groupsUsage, err
+}

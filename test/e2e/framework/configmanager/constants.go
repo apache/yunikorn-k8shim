@@ -46,6 +46,7 @@ const (
 	NodesPath         = "ws/v1/partition/%s/nodes"
 	UserUsagePath     = "ws/v1/partition/%s/usage/user/%s"
 	GroupUsagePath    = "ws/v1/partition/%s/usage/group/%s"
+	GroupsUsagePath   = "ws/v1/partition/%s/usage/groups"
 	HealthCheckPath   = "ws/v1/scheduler/healthcheck"
 	ValidateConfPath  = "ws/v1/validate-conf"
 	FullStateDumpPath = "ws/v1/fullstatedump"
