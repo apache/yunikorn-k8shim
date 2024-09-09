@@ -546,13 +546,14 @@ func (app *Application) onReservationStateChange() {
 
 	for _, t := range app.getTasks(TaskStates().Bound) {
 		if t.placeholder {
-			if _, ok := desireCounts[t.taskGroupName]; ok {
-				desireCounts[t.taskGroupName]--
+			taskGroupName := t.GetTaskGroupName()
+			if _, ok := desireCounts[taskGroupName]; ok {
+				desireCounts[taskGroupName]--
 			} else {
 				log.Log(log.ShimCacheApplication).Debug("placeholder taskGroupName set on pod is unknown for application",
 					zap.String("application", app.applicationID),
 					zap.String("podName", t.GetTaskPod().Name),
-					zap.String("taskGroupName", t.taskGroupName))
+					zap.String("taskGroupName", taskGroupName))
 			}
 		}
 	}
@@ -659,12 +660,13 @@ func (app *Application) handleAppTaskCompletedEvent() {
 }
 
 func (app *Application) publishPlaceholderTimeoutEvents(task *Task) {
-	if app.originatingTask != nil && task.IsPlaceholder() && task.terminationType == si.TerminationType_name[int32(si.TerminationType_TIMEOUT)] {
+	taskTerminationType := task.GetTaskTerminationType()
+	if app.originatingTask != nil && task.IsPlaceholder() && taskTerminationType == si.TerminationType_name[int32(si.TerminationType_TIMEOUT)] {
 		log.Log(log.ShimCacheApplication).Debug("trying to send placeholder timeout events to the original pod from application",
 			zap.String("appID", app.applicationID),
 			zap.Stringer("app request originating pod", app.originatingTask.GetTaskPod()),
 			zap.String("taskID", task.taskID),
-			zap.String("terminationType", task.terminationType))
+			zap.String("terminationType", taskTerminationType))
 		events.GetRecorder().Eventf(app.originatingTask.GetTaskPod().DeepCopy(), nil, v1.EventTypeWarning, "GangScheduling",
 			"PlaceholderTimeOut", "Application %s placeholder has been timed out", app.applicationID)
 	}

@@ -40,24 +40,27 @@ import (
 )
 
 type Task struct {
-	taskID          string
-	alias           string
-	applicationID   string
-	application     *Application
+	taskID        string
+	alias         string
+	applicationID string
+	application   *Application
+	podStatus     v1.PodStatus // pod status, maintained separately for efficiency reasons
+	context       *Context
+	createTime    time.Time
+	placeholder   bool
+	originator    bool
+	sm            *fsm.FSM
+
+	// mutable resources, require locking
 	allocationKey   string
+	nodeName        string
+	taskGroupName   string
+	terminationType string
+	schedulingState TaskSchedulingState
 	resource        *si.Resource
 	pod             *v1.Pod
-	podStatus       v1.PodStatus // pod status, maintained separately for efficiency reasons
-	context         *Context
-	nodeName        string
-	createTime      time.Time
-	taskGroupName   string
-	placeholder     bool
-	terminationType string
-	originator      bool
-	schedulingState TaskSchedulingState
-	sm              *fsm.FSM
-	lock            *locking.RWMutex
+
+	lock *locking.RWMutex
 }
 
 func NewTask(tid string, app *Application, ctx *Context, pod *v1.Pod) *Task {
@@ -135,14 +138,10 @@ func (task *Task) GetTaskPod() *v1.Pod {
 }
 
 func (task *Task) GetTaskID() string {
-	task.lock.RLock()
-	defer task.lock.RUnlock()
 	return task.taskID
 }
 
 func (task *Task) IsPlaceholder() bool {
-	task.lock.RLock()
-	defer task.lock.RUnlock()
 	return task.placeholder
 }
 
@@ -157,19 +156,25 @@ func (task *Task) setTaskGroupName(groupName string) {
 	task.taskGroupName = groupName
 }
 
-func (task *Task) setTaskTerminationType(terminationTyp string) {
+func (task *Task) setTaskTerminationType(terminationType string) {
 	task.lock.Lock()
 	defer task.lock.Unlock()
-	task.terminationType = terminationTyp
+	task.terminationType = terminationType
 }
 
-func (task *Task) getTaskGroupName() string {
+func (task *Task) GetTaskTerminationType() string {
+	task.lock.RLock()
+	defer task.lock.RUnlock()
+	return task.terminationType
+}
+
+func (task *Task) GetTaskGroupName() string {
 	task.lock.RLock()
 	defer task.lock.RUnlock()
 	return task.taskGroupName
 }
 
-func (task *Task) getNodeName() string {
+func (task *Task) GetNodeName() string {
 	task.lock.RLock()
 	defer task.lock.RUnlock()
 	return task.nodeName
@@ -222,8 +227,6 @@ func (task *Task) initialize() {
 }
 
 func (task *Task) IsOriginator() bool {
-	task.lock.RLock()
-	defer task.lock.RUnlock()
 	return task.originator
 }
 
@@ -286,28 +289,8 @@ func (task *Task) handleSubmitTaskEvent() {
 	log.Log(log.ShimCacheTask).Debug("scheduling pod",
 		zap.String("podName", task.pod.Name))
 
-	// build preemption policy
-	preemptionPolicy := &si.PreemptionPolicy{
-		AllowPreemptSelf:  task.isPreemptSelfAllowed(),
-		AllowPreemptOther: task.isPreemptOtherAllowed(),
-	}
-
-	// submit allocation ask
-	rr := common.CreateAllocationForTask(
-		task.applicationID,
-		task.taskID,
-		task.pod.Spec.NodeName,
-		task.resource,
-		task.placeholder,
-		task.taskGroupName,
-		task.pod,
-		task.originator,
-		preemptionPolicy)
-	log.Log(log.ShimCacheTask).Debug("send update request", zap.Stringer("request", rr))
-	if err := task.context.apiProvider.GetAPIs().SchedulerAPI.UpdateAllocation(rr); err != nil {
-		log.Log(log.ShimCacheTask).Debug("failed to send scheduling request to scheduler", zap.Error(err))
-		return
-	}
+	// send update allocation event to core
+	task.updateAllocation()
 
 	if !utils.PodAlreadyBound(task.pod) {
 		// if this is a new request, add events to pod
@@ -320,6 +303,33 @@ func (task *Task) handleSubmitTaskEvent() {
 				v1.EventTypeNormal, "GangScheduling", "TaskGroupMatch",
 				"Pod belongs to the taskGroup %s, it will be scheduled as a gang member", task.taskGroupName)
 		}
+	}
+}
+
+// updateAllocation updates the core scheduler when task information changes.
+// This function must be called with the task lock held.
+func (task *Task) updateAllocation() {
+	// build preemption policy
+	preemptionPolicy := &si.PreemptionPolicy{
+		AllowPreemptSelf:  task.isPreemptSelfAllowed(),
+		AllowPreemptOther: task.isPreemptOtherAllowed(),
+	}
+
+	// submit allocation
+	rr := common.CreateAllocationForTask(
+		task.applicationID,
+		task.taskID,
+		task.pod.Spec.NodeName,
+		task.resource,
+		task.placeholder,
+		task.taskGroupName,
+		task.pod,
+		task.originator,
+		preemptionPolicy)
+	log.Log(log.ShimCacheTask).Debug("send update request", zap.Stringer("request", rr))
+	if err := task.context.apiProvider.GetAPIs().SchedulerAPI.UpdateAllocation(rr); err != nil {
+		log.Log(log.ShimCacheTask).Debug("failed to send allocation to scheduler", zap.Error(err))
+		return
 	}
 }
 
@@ -604,10 +614,22 @@ func (task *Task) UpdatePodCondition(podCondition *v1.PodCondition) (bool, *v1.P
 	return false, pod
 }
 
+func (task *Task) GetAllocationKey() string {
+	task.lock.RLock()
+	defer task.lock.RUnlock()
+	return task.allocationKey
+}
+
 func (task *Task) setAllocationKey(allocationKey string) {
 	task.lock.Lock()
 	defer task.lock.Unlock()
 	task.allocationKey = allocationKey
+}
+
+func (task *Task) FailWithEvent(errorMessage, actionReason string) {
+	task.lock.RLock()
+	defer task.lock.RUnlock()
+	task.failWithEvent(errorMessage, actionReason)
 }
 
 func (task *Task) failWithEvent(errorMessage, actionReason string) {
@@ -616,8 +638,18 @@ func (task *Task) failWithEvent(errorMessage, actionReason string) {
 		nil, v1.EventTypeWarning, actionReason, actionReason, errorMessage)
 }
 
-func (task *Task) setTaskPod(pod *v1.Pod) {
+func (task *Task) SetTaskPod(pod *v1.Pod) {
 	task.lock.Lock()
 	defer task.lock.Unlock()
+
 	task.pod = pod
+	oldResource := task.resource
+	newResource := common.GetPodResource(pod)
+	if !common.Equals(oldResource, newResource) {
+		// pod resources have changed
+		task.resource = newResource
+
+		// update allocation in core
+		task.updateAllocation()
+	}
 }
