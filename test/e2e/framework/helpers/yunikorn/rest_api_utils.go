@@ -448,7 +448,7 @@ func compareQueueTS(queuePathStr string, ts string) wait.ConditionFunc {
 		restClient := RClient{}
 		qInfo, err := restClient.GetQueue(DefaultPartition, queuePathStr, false)
 		if err != nil {
-			return false, err
+			return false, nil
 		}
 
 		return qInfo.Properties["timestamp"] == ts, nil
