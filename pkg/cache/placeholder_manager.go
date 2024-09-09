@@ -79,7 +79,7 @@ func (mgr *PlaceholderManager) createAppPlaceholders(app *Application) error {
 	// map task group to count of already created placeholders
 	tgCounts := make(map[string]int32)
 	for _, ph := range app.getPlaceHolderTasks() {
-		tgCounts[ph.getTaskGroupName()]++
+		tgCounts[ph.GetTaskGroupName()]++
 	}
 
 	// iterate all task groups, create placeholders for all the min members

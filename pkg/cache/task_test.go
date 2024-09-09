@@ -203,7 +203,7 @@ func TestReleaseTaskAllocation(t *testing.T) {
 	// bind a task is a async process, wait for it to happen
 	err = utils.WaitForCondition(
 		func() bool {
-			return task.getNodeName() == "node-1"
+			return task.GetNodeName() == "node-1"
 		},
 		100*time.Millisecond,
 		3*time.Second,
@@ -481,7 +481,7 @@ func TestSetTaskGroup(t *testing.T) {
 	}
 	task := NewTask("task01", app, mockedContext, pod)
 	task.setTaskGroupName("test-group")
-	assert.Equal(t, task.getTaskGroupName(), "test-group")
+	assert.Equal(t, task.GetTaskGroupName(), "test-group")
 }
 
 //nolint:funlen

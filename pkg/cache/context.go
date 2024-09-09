@@ -299,7 +299,7 @@ func (ctx *Context) updateYuniKornPod(appID string, pod *v1.Pod) {
 	app := ctx.getApplication(appID)
 	if app != nil {
 		if task := app.GetTask(taskID); task != nil {
-			task.setTaskPod(pod)
+			task.SetTaskPod(pod)
 		}
 	}
 
@@ -1194,7 +1194,7 @@ func (ctx *Context) HandleContainerStateUpdate(request *si.UpdateContainerSchedu
 					Reason:  "SchedulingSkipped",
 					Message: request.Reason,
 				}) {
-				events.GetRecorder().Eventf(task.pod.DeepCopy(), nil,
+				events.GetRecorder().Eventf(task.GetTaskPod().DeepCopy(), nil,
 					v1.EventTypeNormal, "PodUnschedulable", "PodUnschedulable",
 					"Task %s is skipped from scheduling because the queue quota has been exceed", task.alias)
 			}
@@ -1209,7 +1209,7 @@ func (ctx *Context) HandleContainerStateUpdate(request *si.UpdateContainerSchedu
 					Reason:  v1.PodReasonUnschedulable,
 					Message: request.Reason,
 				}) {
-				events.GetRecorder().Eventf(task.pod.DeepCopy(), nil,
+				events.GetRecorder().Eventf(task.GetTaskPod().DeepCopy(), nil,
 					v1.EventTypeNormal, "PodUnschedulable", "PodUnschedulable",
 					"Task %s is pending for the requested resources become available", task.alias)
 			}
