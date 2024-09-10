@@ -40,7 +40,6 @@ import (
 var suiteName string
 var kClient k8s.KubeCtl
 var restClient yunikorn.RClient
-var dev = "dev-" + common.RandSeq(5)
 
 const (
 	LocalTypePv    = "Local"
@@ -57,14 +56,21 @@ var _ = ginkgo.BeforeSuite(func() {
 	// Initializing rest client
 	restClient = yunikorn.RClient{}
 	Ω(restClient).NotTo(gomega.BeNil())
-
 	yunikorn.EnsureYuniKornConfigsPresent()
-
+})
+var _ = ginkgo.BeforeEach(func() {
 	// Create namespace
+	dev = "dev-" + common.RandSeq(5)
 	ginkgo.By("Create namespace " + dev)
 	ns, err := kClient.CreateNamespace(dev, nil)
 	Ω(err).NotTo(HaveOccurred())
 	Ω(ns.Status.Phase).To(gomega.Equal(v1.NamespaceActive))
+})
+
+var _ = ginkgo.AfterEach(func() {
+	ginkgo.By("Tearing down namespace: " + dev)
+	err := kClient.TearDownNamespace(dev)
+	Ω(err).NotTo(HaveOccurred())
 })
 
 var _ = ginkgo.AfterSuite(func() {
@@ -72,12 +78,8 @@ var _ = ginkgo.AfterSuite(func() {
 	ginkgo.By("Deleting PVCs and PVs")
 	err := kClient.DeletePVCs(dev)
 	err2 := kClient.DeletePVs(dev)
-	ginkgo.By("Tearing down namespace: " + dev)
-	err3 := kClient.TearDownNamespace(dev)
-
 	Ω(err).NotTo(HaveOccurred())
 	Ω(err2).NotTo(HaveOccurred())
-	Ω(err3).NotTo(HaveOccurred())
 })
 
 var _ = ginkgo.Describe("PersistentVolume", func() {

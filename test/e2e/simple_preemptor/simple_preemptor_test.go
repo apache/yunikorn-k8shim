@@ -24,24 +24,22 @@ import (
 	"strings"
 	"time"
 
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
-	v1 "k8s.io/api/core/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/resource"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	tests "github.com/apache/yunikorn-k8shim/test/e2e"
+
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
+
+	"github.com/onsi/ginkgo/v2"
+	"github.com/onsi/gomega"
+
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 var suiteName string
 var kClient k8s.KubeCtl
 var restClient yunikorn.RClient
-var ns *v1.Namespace
-var dev = "dev" + common.RandSeq(5)
 var oldConfigMap = new(v1.ConfigMap)
 
 // Nodes
@@ -70,11 +68,6 @@ var _ = ginkgo.BeforeSuite(func() {
 	ginkgo.By("Port-forward the scheduler pod")
 	var err = kClient.PortForwardYkSchedulerPod()
 	Ω(err).NotTo(gomega.HaveOccurred())
-
-	ginkgo.By("create development namespace")
-	ns, err = kClient.CreateNamespace(dev, nil)
-	gomega.Ω(err).NotTo(gomega.HaveOccurred())
-	gomega.Ω(ns.Status.Phase).To(gomega.Equal(v1.NamespaceActive))
 
 	var nodes *v1.NodeList
 	nodes, err = kClient.GetNodes()
@@ -126,6 +119,14 @@ var _ = ginkgo.BeforeSuite(func() {
 	sleepPodMemLimit2 = int64(float64(Worker2Res.Value())/3.5) / (1000 * 1000)
 })
 
+var _ = ginkgo.BeforeEach(func() {
+	dev = "dev" + common.RandSeq(5)
+	ginkgo.By("create development namespace")
+	ns, err := kClient.CreateNamespace(dev, nil)
+	gomega.Ω(err).NotTo(gomega.HaveOccurred())
+	gomega.Ω(ns.Status.Phase).To(gomega.Equal(v1.NamespaceActive))
+})
+
 var _ = ginkgo.AfterSuite(func() {
 
 	ginkgo.By("Untainting some nodes")
@@ -136,10 +137,6 @@ var _ = ginkgo.AfterSuite(func() {
 	checks, err := yunikorn.GetFailedHealthChecks()
 	Ω(err).NotTo(gomega.HaveOccurred())
 	Ω(checks).To(gomega.Equal(""), checks)
-	ginkgo.By("Tearing down namespace: " + ns.Name)
-	err = kClient.TearDownNamespace(ns.Name)
-	Ω(err).NotTo(gomega.HaveOccurred())
-
 	yunikorn.RestoreConfigMapWrapper(oldConfigMap)
 })
 
@@ -205,9 +202,7 @@ var _ = ginkgo.Describe("SimplePreemptor", func() {
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 
 		// Wait for pod to move to running state
-		err = kClient.WaitForPodBySelectorRunning(dev,
-			fmt.Sprintf("app=%s", sleepRespPod.ObjectMeta.Labels["app"]),
-			600)
+		err = kClient.WaitForPodRunning(dev, sleepRespPod.Name, 1*time.Minute)
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 
 		// assert sleeppod4 is killed
@@ -217,29 +212,9 @@ var _ = ginkgo.Describe("SimplePreemptor", func() {
 	})
 
 	ginkgo.AfterEach(func() {
-		tests.DumpClusterInfoIfSpecFailed(suiteName, []string{ns.Name})
-
-		// Delete all sleep pods
-		ginkgo.By("Delete all sleep pods")
-		pods, err := kClient.GetPodNamesFromNS(ns.Name)
-		if err == nil {
-			for _, each := range pods {
-				if strings.Contains(each, "sleep") {
-					ginkgo.By("Deleting sleep pod: " + each)
-					err = kClient.DeletePod(each, ns.Name)
-					if err != nil {
-						if statusErr, ok := err.(*k8serrors.StatusError); ok {
-							if statusErr.ErrStatus.Reason == metav1.StatusReasonNotFound {
-								fmt.Fprintf(ginkgo.GinkgoWriter, "Failed to delete pod %s - reason is %s, it "+
-									"has been deleted in the meantime\n", each, statusErr.ErrStatus.Reason)
-								continue
-							}
-						}
-					}
-				}
-			}
-		} else {
-			fmt.Fprintf(ginkgo.GinkgoWriter, "Failed to get pods from namespace %s - reason is %s\n", ns.Name, err.Error())
-		}
+		tests.DumpClusterInfoIfSpecFailed(suiteName, []string{dev})
+		ginkgo.By("Tearing down namespace: " + dev)
+		err := kClient.TearDownNamespace(dev)
+		Ω(err).NotTo(gomega.HaveOccurred())
 	})
 })
