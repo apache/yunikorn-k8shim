@@ -33,6 +33,7 @@ import (
 	"github.com/apache/yunikorn-core/pkg/common/configs"
 	"github.com/apache/yunikorn-core/pkg/common/resources"
 	"github.com/apache/yunikorn-core/pkg/webservice/dao"
+	tests "github.com/apache/yunikorn-k8shim/test/e2e"
 
 	amCommon "github.com/apache/yunikorn-k8shim/pkg/admission/common"
 	amconf "github.com/apache/yunikorn-k8shim/pkg/admission/conf"
@@ -1115,7 +1116,7 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 		})
 	})
 	ginkgo.AfterEach(func() {
-		// tests.DumpClusterInfoIfSpecFailed(suiteName, []string{ns.Name})
+		tests.DumpClusterInfoIfSpecFailed(suiteName, []string{ns.Name})
 
 		// Delete all sleep pods
 		ginkgo.By("Delete all sleep pods")
