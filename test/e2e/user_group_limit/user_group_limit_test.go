@@ -934,8 +934,12 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 		clientset = kClient.GetClient()
 		ginkgo.By("Update config")
 		// The wait wrapper still can't fully guarantee that the config in AdmissionController has been updated.
+		admissionCustomConfig = map[string]string{
+			"log.core.scheduler.ugm.level":   "debug",
+			amconf.AMAccessControlBypassAuth: constants.False,
+		}
 		yunikorn.WaitForAdmissionControllerRefreshConfAfterAction(func() {
-			yunikorn.UpdateCustomConfigMapWrapperWithMap(oldConfigMap, "", nil, func(sc *configs.SchedulerConfig) error {
+			yunikorn.UpdateCustomConfigMapWrapperWithMap(oldConfigMap, "", admissionCustomConfig, func(sc *configs.SchedulerConfig) error {
 				// remove placement rules so we can control queue
 				sc.Partitions[0].PlacementRules = nil
 
@@ -943,7 +947,7 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 					Name: "default",
 					Limits: []configs.Limit{
 						{
-							Limit:           "group entry",
+							Limit:           "user entry",
 							Users:           []string{user1},
 							MaxApplications: 1,
 							MaxResources: map[string]string{
@@ -951,7 +955,7 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 							},
 						},
 						{
-							Limit:           "wildcard group entry",
+							Limit:           "user2 entry",
 							Users:           []string{user2},
 							MaxApplications: 2,
 							MaxResources: map[string]string{
