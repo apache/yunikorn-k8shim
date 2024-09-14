@@ -19,23 +19,31 @@
 package user_group_limit_test
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/apache/yunikorn-core/pkg/common/configs"
 	"github.com/apache/yunikorn-core/pkg/common/resources"
 	"github.com/apache/yunikorn-core/pkg/webservice/dao"
+
 	amCommon "github.com/apache/yunikorn-k8shim/pkg/admission/common"
 	amconf "github.com/apache/yunikorn-k8shim/pkg/admission/conf"
+
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
-	tests "github.com/apache/yunikorn-k8shim/test/e2e"
+
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
+
 	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 
@@ -43,7 +51,11 @@ import (
 	"github.com/onsi/gomega"
 
 	v1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/clientcmd"
 )
 
 type TestType int
@@ -75,6 +87,7 @@ var (
 		"log.core.scheduler.ugm.level":   "debug",
 		amconf.AMAccessControlBypassAuth: constants.True,
 	}
+	oldKubeconfigContent []byte
 )
 
 var _ = ginkgo.BeforeSuite(func() {
@@ -911,8 +924,198 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 		checkUsageWildcardGroups(groupTestType, group2, sandboxQueue1, []*v1.Pod{group2Sandbox1Pod1, group2Sandbox1Pod2, group2Sandbox1Pod3})
 	})
 
+	ginkgo.It("Verify User info for the non kube admin user", func() {
+		var clientset *kubernetes.Clientset
+		var namespace = "default"
+		var serviceAccountName = "test-user-sa"
+		var podName = "test-pod"
+		var secretName = "test-user-sa-token" // #nosec G101
+		clientset = kClient.GetClient()
+		ginkgo.By("Update config")
+		// The wait wrapper still can't fully guarantee that the config in AdmissionController has been updated.
+		yunikorn.WaitForAdmissionControllerRefreshConfAfterAction(func() {
+			yunikorn.UpdateCustomConfigMapWrapperWithMap(oldConfigMap, "", nil, func(sc *configs.SchedulerConfig) error {
+				// remove placement rules so we can control queue
+				sc.Partitions[0].PlacementRules = nil
+
+				err := common.AddQueue(sc, constants.DefaultPartition, constants.RootQueue, configs.QueueConfig{
+					Name: "default",
+					Limits: []configs.Limit{
+						{
+							Limit:           "group entry",
+							Users:           []string{user1},
+							MaxApplications: 1,
+							MaxResources: map[string]string{
+								siCommon.Memory: fmt.Sprintf("%dM", mediumMem),
+							},
+						},
+						{
+							Limit:           "wildcard group entry",
+							Users:           []string{user2},
+							MaxApplications: 2,
+							MaxResources: map[string]string{
+								siCommon.Memory: fmt.Sprintf("%dM", largeMem),
+							},
+						},
+					}})
+				if err != nil {
+					return err
+				}
+				return common.AddQueue(sc, constants.DefaultPartition, constants.RootQueue, configs.QueueConfig{Name: "sandbox2"})
+			})
+		})
+		// Backup the existing kubeconfig
+		oldKubeconfigPath := filepath.Join(os.Getenv("HOME"), ".kube", "config")
+		if _, err := os.Stat(oldKubeconfigPath); !os.IsNotExist(err) {
+			oldKubeconfigContent, err = os.ReadFile(oldKubeconfigPath)
+			gomega.Ω(err).NotTo(HaveOccurred())
+		}
+		// Create Service Account
+		ginkgo.By("Creating Service Account...")
+		_, err := clientset.CoreV1().ServiceAccounts(namespace).Create(context.TODO(), &v1.ServiceAccount{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: serviceAccountName,
+			},
+		}, metav1.CreateOptions{})
+		gomega.Ω(err).NotTo(HaveOccurred())
+		// Create a ClusterRole with necessary permissions
+		ginkgo.By("Creating ClusterRole...")
+		clusterRole := &rbacv1.ClusterRole{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "pod-creator-role",
+			},
+			Rules: []rbacv1.PolicyRule{
+				{
+					APIGroups: []string{""},
+					Resources: []string{"pods", "serviceaccounts"},
+					Verbs:     []string{"create", "get", "list", "watch", "delete"},
+				},
+			},
+		}
+		_, err = kClient.CreateClusterRole(clusterRole)
+		gomega.Ω(err).NotTo(HaveOccurred())
+		// Create a ClusterRoleBinding to bind the ClusterRole to the service account
+		ginkgo.By("Creating ClusterRoleBinding...")
+		clusterRoleBinding := &rbacv1.ClusterRoleBinding{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "pod-creator-role-binding",
+			},
+			RoleRef: rbacv1.RoleRef{
+				APIGroup: "rbac.authorization.k8s.io",
+				Kind:     "ClusterRole",
+				Name:     "pod-creator-role",
+			},
+			Subjects: []rbacv1.Subject{
+				{
+					Kind:      "ServiceAccount",
+					Name:      "test-user-sa",
+					Namespace: "default",
+				},
+			},
+		}
+		_, err = kClient.CreateClusterRoleBinding(clusterRoleBinding.ObjectMeta.Name, clusterRoleBinding.RoleRef.Name, clusterRoleBinding.Subjects[0].Namespace, clusterRoleBinding.Subjects[0].Name)
+		gomega.Ω(err).NotTo(HaveOccurred())
+		// Create a Secret for the Service Account
+		ginkgo.By("Creating Secret for the Service Account...")
+		_, err = clientset.CoreV1().Secrets(namespace).Create(context.TODO(), &v1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: secretName,
+				Annotations: map[string]string{
+					"kubernetes.io/service-account.name": serviceAccountName,
+				},
+			},
+			Type: v1.SecretTypeServiceAccountToken,
+		}, metav1.CreateOptions{})
+		gomega.Ω(err).NotTo(HaveOccurred())
+		// Get the token value from the Secret
+		ginkgo.By("Getting the token value from the Secret...")
+		userTokenValue, err := GetKubeConfigValue("kubectl get secret/test-user-sa-token -o=go-template='{{.data.token}}' | base64 --decode")
+		gomega.Ω(err).NotTo(HaveOccurred())
+		currentContext, err := GetKubeConfigValue("kubectl config current-context")
+		gomega.Ω(err).NotTo(HaveOccurred())
+		currentCluster, err := GetKubeConfigValue("kubectl config current-context")
+		gomega.Ω(err).NotTo(HaveOccurred())
+		clusterCA, err := GetKubeConfigValue("kubectl config view --raw -o go-template='{{range .clusters}}{{if eq .name \"kind-yktest\"}}{{index .cluster \"certificate-authority-data\"}}{{end}}{{end}}'")
+		gomega.Ω(err).NotTo(HaveOccurred())
+		clusterServer, err := GetKubeConfigValue(fmt.Sprintf("kubectl config view --raw -o=go-template='{{range .clusters}}{{if eq .name \"%s\"}}{{ .cluster.server }}{{end}}{{ end }}'", currentCluster))
+		gomega.Ω(err).NotTo(HaveOccurred())
+		kubeconfigPath := filepath.Join(os.TempDir(), "test-user-config")
+		ginkgo.By("Creating kubeconfig file...")
+		err = createKubeconfig(kubeconfigPath, currentContext, clusterCA, clusterServer, userTokenValue)
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		config, err := clientcmd.BuildConfigFromFlags("", kubeconfigPath)
+		gomega.Ω(err).NotTo(HaveOccurred())
+		clientset, err = kubernetes.NewForConfig(config)
+		gomega.Ω(err).NotTo(HaveOccurred())
+		// Create Pod
+		ginkgo.By("Creating Pod...")
+		pod := &v1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: podName,
+				Annotations: map[string]string{
+					"created-by": fmt.Sprintf("system:serviceaccount:%s:%s", namespace, serviceAccountName),
+				},
+				Labels: map[string]string{"applicationId": "test-app"},
+			},
+			Spec: v1.PodSpec{
+				ServiceAccountName: serviceAccountName,
+				Containers: []v1.Container{
+					{
+						Name:  "nginx",
+						Image: "nginx",
+						Ports: []v1.ContainerPort{{ContainerPort: 80}},
+					},
+				},
+			},
+		}
+		_, err = clientset.CoreV1().Pods(namespace).Create(context.TODO(), pod, metav1.CreateOptions{})
+		gomega.Ω(err).NotTo(HaveOccurred())
+		createdPod, err := clientset.CoreV1().Pods(namespace).Get(context.TODO(), podName, metav1.GetOptions{})
+		gomega.Ω(err).NotTo(HaveOccurred())
+		fmt.Println(createdPod.Annotations)
+		// Verify User Info
+		ginkgo.By("Verifying User Info...")
+		userInfo, err := GetUserInfoFromPodAnnotation(createdPod)
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		// user info should contain the substring "system:serviceaccount:default:test-user-sa"
+		gomega.Ω(strings.Contains(fmt.Sprintf("%v", userInfo), "system:serviceaccount:default:test-user-sa")).To(gomega.BeTrue())
+		if oldKubeconfigContent != nil {
+			err := os.WriteFile(oldKubeconfigPath, oldKubeconfigContent, 0600)
+			gomega.Ω(err).NotTo(HaveOccurred())
+		}
+		// Remove the new kubeconfig file
+		err = os.Remove(kubeconfigPath)
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		os.Unsetenv("KUBECONFIG")
+		err = kClient.SetClient()
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		// Cleanup
+		ginkgo.By("Cleaning up resources...")
+		err = clientset.CoreV1().Pods(namespace).Delete(context.TODO(), podName, metav1.DeleteOptions{})
+		gomega.Ω(err).NotTo(HaveOccurred())
+		err = clientset.CoreV1().ServiceAccounts(namespace).Delete(context.TODO(), serviceAccountName, metav1.DeleteOptions{})
+		gomega.Ω(err).NotTo(HaveOccurred())
+		err = kClient.DeleteClusterRole("pod-creator-role")
+		gomega.Ω(err).NotTo(HaveOccurred())
+		err = kClient.DeleteClusterRoleBindings("pod-creator-role-binding")
+		gomega.Ω(err).NotTo(HaveOccurred())
+		queueName2 := "root_22"
+		yunikorn.UpdateCustomConfigMapWrapper(oldConfigMap, "", func(sc *configs.SchedulerConfig) error {
+			// remove placement rules so we can control queue
+			sc.Partitions[0].PlacementRules = nil
+			var err error
+			if err = common.AddQueue(sc, "default", "root", configs.QueueConfig{
+				Name:       queueName2,
+				Resources:  configs.Resources{Guaranteed: map[string]string{"memory": fmt.Sprintf("%dM", 200)}},
+				Properties: map[string]string{"preemption.delay": "1s"},
+			}); err != nil {
+				return err
+			}
+			return nil
+		})
+	})
 	ginkgo.AfterEach(func() {
-		tests.DumpClusterInfoIfSpecFailed(suiteName, []string{ns.Name})
+		// tests.DumpClusterInfoIfSpecFailed(suiteName, []string{ns.Name})
 
 		// Delete all sleep pods
 		ginkgo.By("Delete all sleep pods")
@@ -926,6 +1129,19 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 		yunikorn.RestoreConfigMapWrapper(oldConfigMap)
 	})
 })
+
+func GetUserInfoFromPodAnnotation(pod *v1.Pod) (interface{}, error) {
+	userInfo, ok := pod.Annotations[amCommon.UserInfoAnnotation]
+	if !ok {
+		return nil, fmt.Errorf("user info not found in pod annotation")
+	}
+	var userInfoObj interface{}
+	err := json.Unmarshal([]byte(userInfo), &userInfoObj)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal user info from pod annotation")
+	}
+	return userInfoObj, nil
+}
 
 func deploySleepPod(usergroup *si.UserGroupInformation, queuePath string, expectedRunning bool, reason string) *v1.Pod {
 	usergroupJsonBytes, err := json.Marshal(usergroup)
@@ -1021,4 +1237,46 @@ func checkUsageWildcardGroups(testType TestType, name string, queuePath string, 
 	Ω(resourceUsageDAO.ResourceUsage).NotTo(gomega.BeNil())
 	Ω(resourceUsageDAO.ResourceUsage.Resources["pods"]).To(gomega.Equal(resources.Quantity(len(expectedRunningPods))))
 	Ω(resourceUsageDAO.RunningApplications).To(gomega.ConsistOf(appIDs...))
+}
+
+func createKubeconfig(path, currentContext, clusterCA, clusterServer, userTokenValue string) error {
+	kubeconfigTemplate := `
+apiVersion: v1
+kind: Config
+current-context: ${CURRENT_CONTEXT}
+contexts:
+- name: ${CURRENT_CONTEXT}
+  context:
+    cluster: ${CURRENT_CONTEXT}
+    user: test-user
+clusters:
+- name: ${CURRENT_CONTEXT}
+  cluster:
+    certificate-authority-data: ${CLUSTER_CA}
+    server: ${CLUSTER_SERVER}
+users:
+- name: test-user
+  user:
+    token: ${USER_TOKEN_VALUE}
+`
+	// Replace placeholders in the template
+	kubeconfigContent := strings.ReplaceAll(kubeconfigTemplate, "${CURRENT_CONTEXT}", currentContext)
+	kubeconfigContent = strings.ReplaceAll(kubeconfigContent, "${CLUSTER_CA}", clusterCA)
+	kubeconfigContent = strings.ReplaceAll(kubeconfigContent, "${CLUSTER_SERVER}", clusterServer)
+	kubeconfigContent = strings.ReplaceAll(kubeconfigContent, "${USER_TOKEN_VALUE}", userTokenValue)
+
+	// Write the kubeconfig YAML to the file
+	err := os.WriteFile(path, []byte(kubeconfigContent), 0600)
+	gomega.Ω(err).NotTo(gomega.HaveOccurred())
+	return nil
+}
+
+// GetKubeConfigValue is a helper function to execute a kubectl command and get the output
+func GetKubeConfigValue(command string) (string, error) {
+	cmd := exec.Command("bash", "-c", command)
+	output, err := cmd.Output()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(output)), nil
 }
