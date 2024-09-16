@@ -1040,7 +1040,7 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 		gomega.Ω(err).NotTo(HaveOccurred())
 		currentCluster, err := GetKubeConfigValue("kubectl config current-context")
 		gomega.Ω(err).NotTo(HaveOccurred())
-		clusterCA, err := GetKubeConfigValue("kubectl config view --raw -o go-template='{{range .clusters}}{{if eq .name \"kind-yktest\"}}{{index .cluster \"certificate-authority-data\"}}{{end}}{{end}}'")
+		clusterCA, err := GetKubeConfigValue("kubectl config view --raw -o go-template='{{range .clusters}}{{if eq .name \"kind-yk8s\"}}{{index .cluster \"certificate-authority-data\"}}{{end}}{{end}}'")
 		gomega.Ω(err).NotTo(HaveOccurred())
 		clusterServer, err := GetKubeConfigValue(fmt.Sprintf("kubectl config view --raw -o=go-template='{{range .clusters}}{{if eq .name \"%s\"}}{{ .cluster.server }}{{end}}{{ end }}'", currentCluster))
 		gomega.Ω(err).NotTo(HaveOccurred())
