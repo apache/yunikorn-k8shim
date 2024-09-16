@@ -1104,6 +1104,12 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 		gomega.Ω(err).NotTo(HaveOccurred())
 		err = kClient.DeleteClusterRoleBindings("pod-creator-role-binding")
 		gomega.Ω(err).NotTo(HaveOccurred())
+		// update the kubeconfig with oldkubeconfig
+		ginkgo.By("Restoring Kubeconfig...")
+		if oldKubeconfigContent != nil {
+			err := os.WriteFile(oldKubeconfigPath, oldKubeconfigContent, 0600)
+			gomega.Ω(err).NotTo(HaveOccurred())
+		}
 		queueName2 := "root_22"
 		yunikorn.UpdateCustomConfigMapWrapper(oldConfigMap, "", func(sc *configs.SchedulerConfig) error {
 			// remove placement rules so we can control queue
