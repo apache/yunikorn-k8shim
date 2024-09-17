@@ -44,7 +44,6 @@ endif
 
 # Make sure we are in the same directory as the Makefile
 BASE_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
-PARENT_DIR := $(dir $(abspath $(BASE_DIR)/..))
 
 # Output directories
 OUTPUT=build
