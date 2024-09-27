@@ -641,17 +641,15 @@ func (app *Application) handleReleaseAppAllocationEvent(taskID string, terminati
 		// Get the pod first to check if it exists
 		// For example, users manually killed the pod, so the pod already deleted before release.
 		_, err := task.context.apiProvider.GetAPIs().KubeClient.Get(pod.Namespace, pod.Name)
-		if err != nil {
-			if k8serrors.IsNotFound(err) {
-				// Pod does not exist, no need to delete
-				log.Log(log.ShimCacheApplication).Info("pod not found, it already deleted or released")
-			}  else {
-				log.Log(log.ShimCacheApplication).Error("failed to get pod", zap.Error(err))
+		if err != nil && k8serrors.IsNotFound(err) {
+			// Pod does not exist, no need to delete
+			log.Log(log.ShimCacheApplication).Info("pod not found, it already deleted or released")
+		} else {
+			// Pod exists, delete it
+			err = task.DeleteTaskPod()
+			if err != nil {
+				log.Log(log.ShimCacheApplication).Error("failed to release allocation from application", zap.Error(err))
 			}
-		}
-		err = task.DeleteTaskPod()
-		if err != nil {
-			log.Log(log.ShimCacheApplication).Error("failed to release allocation from application", zap.Error(err))
 		}
 		app.publishPlaceholderTimeoutEvents(task)
 	} else {
