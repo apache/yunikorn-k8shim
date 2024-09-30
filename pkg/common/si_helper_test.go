@@ -390,3 +390,28 @@ func TestCreateAllocationForTask(t *testing.T) {
 	assert.Equal(t, tags[common.DomainK8s+common.GroupMeta+"podName"], podName1)
 	assert.Equal(t, alloc1.Priority, int32(100))
 }
+
+// TestGetTerminationTypeFromString tests the GetTerminationTypeFromString function.
+func TestGetTerminationTypeFromString(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected si.TerminationType
+	}{
+		{"UNKNOWN_TERMINATION_TYPE", si.TerminationType_UNKNOWN_TERMINATION_TYPE},
+		{"STOPPED_BY_RM", si.TerminationType_STOPPED_BY_RM},
+		{"TIMEOUT", si.TerminationType_TIMEOUT},
+		{"PREEMPTED_BY_SCHEDULER", si.TerminationType_PREEMPTED_BY_SCHEDULER},
+		{"PLACEHOLDER_REPLACED", si.TerminationType_PLACEHOLDER_REPLACED},
+		{"INVALID_TYPE", si.TerminationType_STOPPED_BY_RM},
+		{"", si.TerminationType_STOPPED_BY_RM},
+	}
+
+	for _, test := range tests {
+		t.Run(test.input, func(t *testing.T) {
+			result := GetTerminationTypeFromString(test.input)
+			if result != test.expected {
+				t.Errorf("For input '%s', expected %v, got %v", test.input, test.expected, result)
+			}
+		})
+	}
+}
