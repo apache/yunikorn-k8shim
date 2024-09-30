@@ -494,8 +494,6 @@ func (task *Task) beforeTaskCompleted() {
 
 // releaseAllocation sends the release request for the Allocation to the core.
 func (task *Task) releaseAllocation() {
-	// We need to get the termination type from the task, when it is "" we default to the normal termination.
-	// We should log it correctly instead of "" in the logs.
 	terminationType := common.GetTerminationTypeFromString(task.terminationType)
 
 	// scheduler api might be nil in some tests
