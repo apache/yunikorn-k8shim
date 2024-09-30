@@ -496,7 +496,7 @@ func (task *Task) beforeTaskCompleted() {
 func (task *Task) releaseAllocation() {
 	// We need to get the termination type from the task, when it is "" we default to the normal termination.
 	// We should log it correctly instead of "" in the logs.
-	terminationType := string(common.GetTerminationTypeFromString(task.terminationType))
+	terminationType := common.GetTerminationTypeFromString(task.terminationType)
 
 	// scheduler api might be nil in some tests
 	if task.context.apiProvider.GetAPIs().SchedulerAPI != nil {
@@ -506,7 +506,7 @@ func (task *Task) releaseAllocation() {
 			zap.String("taskAlias", task.alias),
 			zap.String("allocationKey", task.allocationKey),
 			zap.String("task", task.GetTaskState()),
-			zap.String("terminationType", terminationType))
+			zap.String("terminationType", string(terminationType)))
 
 		// send an AllocationReleaseRequest
 		var releaseRequest *si.AllocationRequest

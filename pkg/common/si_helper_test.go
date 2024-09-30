@@ -32,7 +32,7 @@ const nodeID = "node-01"
 
 func TestCreateReleaseRequestForTask(t *testing.T) {
 	// with allocationKey
-	request := CreateReleaseRequestForTask("app01", "task01", "default", "STOPPED_BY_RM")
+	request := CreateReleaseRequestForTask("app01", "task01", "default", si.TerminationType_STOPPED_BY_RM)
 	assert.Assert(t, request.Releases != nil)
 	assert.Assert(t, request.Releases.AllocationsToRelease != nil)
 	assert.Equal(t, len(request.Releases.AllocationsToRelease), 1)
@@ -41,7 +41,7 @@ func TestCreateReleaseRequestForTask(t *testing.T) {
 	assert.Equal(t, request.Releases.AllocationsToRelease[0].PartitionName, "default")
 	assert.Equal(t, request.Releases.AllocationsToRelease[0].TerminationType, si.TerminationType_STOPPED_BY_RM)
 
-	request = CreateReleaseRequestForTask("app01", "task01", "default", "UNKNOWN_TERMINATION_TYPE")
+	request = CreateReleaseRequestForTask("app01", "task01", "default", si.TerminationType_UNKNOWN_TERMINATION_TYPE)
 	assert.Assert(t, request.Releases != nil)
 	assert.Assert(t, request.Releases.AllocationsToRelease != nil)
 	assert.Equal(t, len(request.Releases.AllocationsToRelease), 1)
