@@ -1111,7 +1111,6 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 	})
 	ginkgo.AfterEach(func() {
 		tests.DumpClusterInfoIfSpecFailed(suiteName, []string{ns.Name})
-		// Delete all sleep pods
 		ginkgo.By("Delete all sleep pods")
 		err := kClient.DeletePods(ns.Name)
 		if err != nil {
