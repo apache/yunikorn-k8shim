@@ -1110,12 +1110,10 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 		})
 	})
 	ginkgo.AfterEach(func() {
-		tests.DumpClusterInfoIfSpecFailed(suiteName, []string{ns.Name})
-		ginkgo.By("Delete all sleep pods")
-		err := kClient.DeletePods(ns.Name)
-		if err != nil {
-			fmt.Fprintf(ginkgo.GinkgoWriter, "Failed to delete pods in namespace %s - reason is %s\n", ns.Name, err.Error())
-		}
+		tests.DumpClusterInfoIfSpecFailed(suiteName, []string{dev})
+		ginkgo.By("Tearing down namespace: " + dev)
+		err := kClient.TearDownNamespace(dev)
+		Ω(err).NotTo(gomega.HaveOccurred())
 		// reset config
 		ginkgo.By("Restoring YuniKorn configuration")
 		yunikorn.RestoreConfigMapWrapper(oldConfigMap)
