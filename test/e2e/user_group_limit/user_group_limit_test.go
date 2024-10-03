@@ -82,8 +82,6 @@ var (
 	suiteName             string
 	kClient               k8s.KubeCtl
 	restClient            yunikorn.RClient
-	ns                    *v1.Namespace
-	dev                   = "dev" + common.RandSeq(5)
 	oldConfigMap          = new(v1.ConfigMap)
 	admissionCustomConfig = map[string]string{
 		"log.core.scheduler.ugm.level":   "debug",
@@ -106,9 +104,12 @@ var _ = ginkgo.BeforeSuite(func() {
 	ginkgo.By("Port-forward the scheduler pod")
 	var err = kClient.PortForwardYkSchedulerPod()
 	Ω(err).NotTo(gomega.HaveOccurred())
+})
 
+var _ = ginkgo.BeforeEach(func() {
+	dev = "dev" + common.RandSeq(5)
 	ginkgo.By("create development namespace")
-	ns, err = kClient.CreateNamespace(dev, nil)
+	ns, err := kClient.CreateNamespace(dev, nil)
 	gomega.Ω(err).NotTo(gomega.HaveOccurred())
 	gomega.Ω(ns.Status.Phase).To(gomega.Equal(v1.NamespaceActive))
 })
@@ -118,9 +119,6 @@ var _ = ginkgo.AfterSuite(func() {
 	checks, err := yunikorn.GetFailedHealthChecks()
 	Ω(err).NotTo(gomega.HaveOccurred())
 	Ω(checks).To(gomega.Equal(""), checks)
-	ginkgo.By("Tearing down namespace: " + ns.Name)
-	err = kClient.TearDownNamespace(ns.Name)
-	Ω(err).NotTo(gomega.HaveOccurred())
 })
 
 var _ = ginkgo.Describe("UserGroupLimit", func() {

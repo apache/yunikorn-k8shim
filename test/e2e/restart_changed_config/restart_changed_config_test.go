@@ -62,10 +62,11 @@ var _ = ginkgo.BeforeSuite(func() {
 	ginkgo.By("Port-forward the scheduler pod")
 	var err = kClient.PortForwardYkSchedulerPod()
 	Ω(err).NotTo(gomega.HaveOccurred())
+})
 
+var _ = ginkgo.BeforeEach(func() {
 	ginkgo.By("create development namespace")
-	var ns *v1.Namespace
-	ns, err = kClient.CreateNamespace(dev, nil)
+	ns, err := kClient.CreateNamespace(dev, nil)
 	gomega.Ω(err).NotTo(gomega.HaveOccurred())
 	gomega.Ω(ns.Status.Phase).To(gomega.Equal(v1.NamespaceActive))
 	ns, err = kClient.CreateNamespace(test, nil)
@@ -74,14 +75,6 @@ var _ = ginkgo.BeforeSuite(func() {
 })
 
 var _ = ginkgo.AfterSuite(func() {
-	ginkgo.By("Tear down namespace: " + dev)
-	err := kClient.TearDownNamespace(dev)
-	Ω(err).NotTo(gomega.HaveOccurred())
-
-	ginkgo.By("Tear down namespace: " + test)
-	err = kClient.TearDownNamespace(test)
-	Ω(err).NotTo(gomega.HaveOccurred())
-
 	// call the healthCheck api to check scheduler health
 	ginkgo.By("Check YuniKorn's health")
 	checks, err2 := yunikorn.GetFailedHealthChecks()
@@ -172,5 +165,12 @@ var _ = ginkgo.Describe("PodInRecoveryQueue", func() {
 
 	ginkgo.AfterEach(func() {
 		tests.DumpClusterInfoIfSpecFailed(suiteName, []string{dev, test})
+		ginkgo.By("Tear down namespace: " + dev)
+		err := kClient.TearDownNamespace(dev)
+		Ω(err).NotTo(gomega.HaveOccurred())
+
+		ginkgo.By("Tear down namespace: " + test)
+		err = kClient.TearDownNamespace(test)
+		Ω(err).NotTo(gomega.HaveOccurred())
 	})
 })
