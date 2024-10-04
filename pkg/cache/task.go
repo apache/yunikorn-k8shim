@@ -494,6 +494,8 @@ func (task *Task) beforeTaskCompleted() {
 
 // releaseAllocation sends the release request for the Allocation to the core.
 func (task *Task) releaseAllocation() {
+	terminationType := common.GetTerminationTypeFromString(task.terminationType)
+
 	// scheduler api might be nil in some tests
 	if task.context.apiProvider.GetAPIs().SchedulerAPI != nil {
 		log.Log(log.ShimCacheTask).Debug("prepare to send release request",
@@ -502,7 +504,7 @@ func (task *Task) releaseAllocation() {
 			zap.String("taskAlias", task.alias),
 			zap.String("allocationKey", task.allocationKey),
 			zap.String("task", task.GetTaskState()),
-			zap.String("terminationType", task.terminationType))
+			zap.String("terminationType", string(terminationType)))
 
 		// send an AllocationReleaseRequest
 		var releaseRequest *si.AllocationRequest
@@ -526,7 +528,7 @@ func (task *Task) releaseAllocation() {
 			task.applicationID,
 			task.taskID,
 			task.application.partition,
-			task.terminationType,
+			terminationType,
 		)
 
 		if releaseRequest.Releases != nil {

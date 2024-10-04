@@ -32,7 +32,7 @@ const nodeID = "node-01"
 
 func TestCreateReleaseRequestForTask(t *testing.T) {
 	// with allocationKey
-	request := CreateReleaseRequestForTask("app01", "task01", "default", "STOPPED_BY_RM")
+	request := CreateReleaseRequestForTask("app01", "task01", "default", si.TerminationType_STOPPED_BY_RM)
 	assert.Assert(t, request.Releases != nil)
 	assert.Assert(t, request.Releases.AllocationsToRelease != nil)
 	assert.Equal(t, len(request.Releases.AllocationsToRelease), 1)
@@ -41,7 +41,7 @@ func TestCreateReleaseRequestForTask(t *testing.T) {
 	assert.Equal(t, request.Releases.AllocationsToRelease[0].PartitionName, "default")
 	assert.Equal(t, request.Releases.AllocationsToRelease[0].TerminationType, si.TerminationType_STOPPED_BY_RM)
 
-	request = CreateReleaseRequestForTask("app01", "task01", "default", "UNKNOWN_TERMINATION_TYPE")
+	request = CreateReleaseRequestForTask("app01", "task01", "default", si.TerminationType_UNKNOWN_TERMINATION_TYPE)
 	assert.Assert(t, request.Releases != nil)
 	assert.Assert(t, request.Releases.AllocationsToRelease != nil)
 	assert.Equal(t, len(request.Releases.AllocationsToRelease), 1)
@@ -389,4 +389,29 @@ func TestCreateAllocationForTask(t *testing.T) {
 	tags := alloc1.AllocationTags
 	assert.Equal(t, tags[common.DomainK8s+common.GroupMeta+"podName"], podName1)
 	assert.Equal(t, alloc1.Priority, int32(100))
+}
+
+// TestGetTerminationTypeFromString tests the GetTerminationTypeFromString function.
+func TestGetTerminationTypeFromString(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected si.TerminationType
+	}{
+		{"UNKNOWN_TERMINATION_TYPE", si.TerminationType_UNKNOWN_TERMINATION_TYPE},
+		{"STOPPED_BY_RM", si.TerminationType_STOPPED_BY_RM},
+		{"TIMEOUT", si.TerminationType_TIMEOUT},
+		{"PREEMPTED_BY_SCHEDULER", si.TerminationType_PREEMPTED_BY_SCHEDULER},
+		{"PLACEHOLDER_REPLACED", si.TerminationType_PLACEHOLDER_REPLACED},
+		{"INVALID_TYPE", si.TerminationType_STOPPED_BY_RM},
+		{"", si.TerminationType_STOPPED_BY_RM},
+	}
+
+	for _, test := range tests {
+		t.Run(test.input, func(t *testing.T) {
+			result := GetTerminationTypeFromString(test.input)
+			if result != test.expected {
+				t.Errorf("For input '%s', expected %v, got %v", test.input, test.expected, result)
+			}
+		})
+	}
 }
