@@ -42,7 +42,6 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/common/test"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
-	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
@@ -103,7 +102,6 @@ func initContextForTest() *Context {
 }
 
 func initContextAndAPIProviderForTest() (*Context, *client.MockedAPIProvider) {
-	conf.GetSchedulerConf().SetTestMode(true)
 	apis := client.NewMockedAPIProvider(false)
 	context := NewContext(apis)
 	return context, apis
@@ -1160,7 +1158,6 @@ func TestGetTask(t *testing.T) {
 }
 
 func TestNodeEventFailsPublishingWithoutNode(t *testing.T) {
-	conf.GetSchedulerConf().SetTestMode(true)
 	recorder, ok := events.GetRecorder().(*k8sEvents.FakeRecorder)
 	if !ok {
 		t.Fatal("the EventRecorder is expected to be of type FakeRecorder")
@@ -1189,7 +1186,6 @@ func TestNodeEventFailsPublishingWithoutNode(t *testing.T) {
 }
 
 func TestNodeEventPublishedCorrectly(t *testing.T) {
-	conf.GetSchedulerConf().SetTestMode(true)
 	recorder, ok := events.GetRecorder().(*k8sEvents.FakeRecorder)
 	if !ok {
 		t.Fatal("the EventRecorder is expected to be of type FakeRecorder")
@@ -1250,7 +1246,6 @@ func TestNodeEventPublishedCorrectly(t *testing.T) {
 }
 
 func TestFilteredEventsNotPublished(t *testing.T) {
-	conf.GetSchedulerConf().SetTestMode(true)
 	recorder, ok := events.GetRecorder().(*k8sEvents.FakeRecorder)
 	if !ok {
 		t.Fatal("the EventRecorder is expected to be of type FakeRecorder")
@@ -1335,7 +1330,6 @@ func TestFilteredEventsNotPublished(t *testing.T) {
 }
 
 func TestPublishEventsWithNotExistingAsk(t *testing.T) {
-	conf.GetSchedulerConf().SetTestMode(true)
 	recorder, ok := events.GetRecorder().(*k8sEvents.FakeRecorder)
 	if !ok {
 		t.Fatal("the EventRecorder is expected to be of type FakeRecorder")
@@ -1376,7 +1370,6 @@ func TestPublishEventsWithNotExistingAsk(t *testing.T) {
 }
 
 func TestPublishEventsCorrectly(t *testing.T) {
-	conf.GetSchedulerConf().SetTestMode(true)
 	recorder, ok := events.GetRecorder().(*k8sEvents.FakeRecorder)
 	if !ok {
 		t.Fatal("the EventRecorder is expected to be of type FakeRecorder")

@@ -59,7 +59,6 @@ type MockScheduler struct {
 }
 
 func (fc *MockScheduler) init() {
-	conf.GetSchedulerConf().SetTestMode(true)
 	fc.stopChan = make(chan struct{})
 	serviceContext := entrypoint.StartAllServices()
 	fc.rmProxy = serviceContext.RMProxy

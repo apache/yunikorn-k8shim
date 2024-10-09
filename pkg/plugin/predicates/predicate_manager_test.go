@@ -45,7 +45,6 @@ import (
 	"k8s.io/kubernetes/pkg/util/taints"
 
 	"github.com/apache/yunikorn-k8shim/pkg/client"
-	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-k8shim/pkg/plugin/support"
 )
@@ -56,7 +55,6 @@ var (
 )
 
 func TestPreemptionPredicatesEmpty(t *testing.T) {
-	conf.GetSchedulerConf().SetTestMode(true)
 	clientSet := clientSet()
 	informerFactory := informerFactory(clientSet)
 	lister := lister()
@@ -74,7 +72,6 @@ func TestPreemptionPredicatesEmpty(t *testing.T) {
 }
 
 func TestPreemptionPredicates(t *testing.T) {
-	conf.GetSchedulerConf().SetTestMode(true)
 	clientSet := clientSet()
 	informerFactory := informerFactory(clientSet)
 	lister := lister()
@@ -127,7 +124,6 @@ func TestPreemptionPredicates(t *testing.T) {
 }
 
 func TestEventsToRegister(t *testing.T) {
-	conf.GetSchedulerConf().SetTestMode(true)
 	clientSet := clientSet()
 	informerFactory := informerFactory(clientSet)
 	lister := lister()
@@ -154,7 +150,6 @@ func TestEventsToRegister(t *testing.T) {
 }
 
 func TestPodFitsHost(t *testing.T) {
-	conf.GetSchedulerConf().SetTestMode(true)
 	clientSet := clientSet()
 	informerFactory := informerFactory(clientSet)
 	lister := lister()
