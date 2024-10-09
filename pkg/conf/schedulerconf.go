@@ -117,7 +117,6 @@ type SchedulerConf struct {
 	Interval                 time.Duration `json:"schedulingIntervalSecond"`
 	KubeConfig               string        `json:"absoluteKubeConfigFilePath"`
 	VolumeBindTimeout        time.Duration `json:"volumeBindTimeout"`
-	TestMode                 bool          `json:"testMode"`
 	EventChannelCapacity     int           `json:"eventChannelCapacity"`
 	DispatchTimeout          time.Duration `json:"dispatchTimeout"`
 	KubeQPS                  int           `json:"kubeQPS"`
@@ -145,7 +144,6 @@ func (conf *SchedulerConf) Clone() *SchedulerConf {
 		Interval:                 conf.Interval,
 		KubeConfig:               conf.KubeConfig,
 		VolumeBindTimeout:        conf.VolumeBindTimeout,
-		TestMode:                 conf.TestMode,
 		EventChannelCapacity:     conf.EventChannelCapacity,
 		DispatchTimeout:          conf.DispatchTimeout,
 		KubeQPS:                  conf.KubeQPS,
@@ -257,18 +255,6 @@ func SetSchedulerConf(conf *SchedulerConf) {
 	confHolder.Store(conf)
 }
 
-func (conf *SchedulerConf) SetTestMode(testMode bool) {
-	conf.Lock()
-	defer conf.Unlock()
-	conf.TestMode = testMode
-}
-
-func (conf *SchedulerConf) IsTestMode() bool {
-	conf.RLock()
-	defer conf.RUnlock()
-	return conf.TestMode
-}
-
 func (conf *SchedulerConf) IsConfigReloadable() bool {
 	conf.RLock()
 	defer conf.RUnlock()
@@ -321,7 +307,6 @@ func CreateDefaultConfig() *SchedulerConf {
 		Interval:                 DefaultSchedulingInterval,
 		KubeConfig:               GetDefaultKubeConfigPath(),
 		VolumeBindTimeout:        DefaultVolumeBindTimeout,
-		TestMode:                 false,
 		EventChannelCapacity:     DefaultEventChannelCapacity,
 		DispatchTimeout:          DefaultDispatchTimeout,
 		KubeQPS:                  DefaultKubeQPS,

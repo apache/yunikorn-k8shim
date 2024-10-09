@@ -107,8 +107,6 @@ func TestGetTaskMetadata(t *testing.T) {
 }
 
 func TestGetAppMetadata(t *testing.T) { //nolint:funlen
-	conf.GetSchedulerConf().SetTestMode(true)
-
 	defer utils.SetPluginMode(false)
 	defer func() { conf.GetSchedulerConf().GenerateUniqueAppIds = false }()
 	utils.SetPluginMode(false)
