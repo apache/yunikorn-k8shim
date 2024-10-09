@@ -19,43 +19,22 @@
 package events
 
 import (
-	"sync"
+	"sync/atomic"
 
-	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/events"
-
-	"github.com/apache/yunikorn-k8shim/pkg/client"
-	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
-	"github.com/apache/yunikorn-k8shim/pkg/conf"
-	"github.com/apache/yunikorn-k8shim/pkg/locking"
 )
 
-var eventRecorder events.EventRecorder = events.NewFakeRecorder(1024)
-var once sync.Once
-var lock locking.RWMutex
+var eventRecorder atomic.Pointer[events.EventRecorder]
+
+func init() {
+	r := events.EventRecorder(NewMockedRecorder())
+	eventRecorder.Store(&r)
+}
 
 func GetRecorder() events.EventRecorder {
-	lock.Lock()
-	defer lock.Unlock()
-	once.Do(func() {
-		// note, the initiation of the event recorder requires on a workable Kubernetes client,
-		// in test mode we should skip this and just use a fake recorder instead.
-		configs := conf.GetSchedulerConf()
-		if !configs.IsTestMode() {
-			k8sClient := client.NewKubeClient(configs.KubeConfig)
-			eventBroadcaster := events.NewBroadcaster(&events.EventSinkImpl{
-				Interface: k8sClient.GetClientSet().EventsV1()})
-			eventBroadcaster.StartRecordingToSink(make(<-chan struct{}))
-			eventRecorder = eventBroadcaster.NewRecorder(scheme.Scheme, constants.SchedulerName)
-		}
-	})
-
-	return eventRecorder
+	return *eventRecorder.Load()
 }
 
 func SetRecorder(recorder events.EventRecorder) {
-	lock.Lock()
-	defer lock.Unlock()
-	eventRecorder = recorder
-	once.Do(func() {}) // make sure Do() doesn't fire elsewhere
+	eventRecorder.Store(&recorder)
 }

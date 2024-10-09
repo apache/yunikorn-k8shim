@@ -23,15 +23,10 @@ import (
 	"testing"
 
 	"gotest.tools/v3/assert"
-
-	"github.com/apache/yunikorn-k8shim/pkg/conf"
 )
 
 func TestInit(t *testing.T) {
 	// simply test the get won't fail
-	// which means the get function honors the testMode and
-	// skips initiating a real event recorder
-	conf.GetSchedulerConf().SetTestMode(true)
 	recorder := GetRecorder()
-	assert.Equal(t, reflect.TypeOf(recorder).String(), "*events.FakeRecorder")
+	assert.Equal(t, reflect.TypeOf(recorder).String(), "*events.MockedRecorder")
 }
