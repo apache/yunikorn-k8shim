@@ -17,14 +17,12 @@
 package k8s
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -50,6 +48,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 	"k8s.io/client-go/tools/portforward"
 	"k8s.io/client-go/transport/spdy"
 	"k8s.io/client-go/util/retry"
@@ -156,6 +155,13 @@ func (k *KubeCtl) GetClient() *kubernetes.Clientset {
 func (k *KubeCtl) GetKubeConfig() (*rest.Config, error) {
 	if k.kubeConfig != nil {
 		return k.kubeConfig, nil
+	}
+	return nil, errors.New("kubeconfig is nil")
+}
+
+func (k *KubeCtl) GetKubeConfigNew() (*rest.TLSClientConfig, error) {
+	if k.kubeConfig != nil {
+		return &k.kubeConfig.TLSClientConfig, nil
 	}
 	return nil, errors.New("kubeconfig is nil")
 }
@@ -1091,6 +1097,58 @@ func (k *KubeCtl) CreateSecret(secret *v1.Secret, namespace string) (*v1.Secret,
 	return k.clientSet.CoreV1().Secrets(namespace).Create(context.TODO(), secret, metav1.CreateOptions{})
 }
 
+// SetClientFromConfig initializes a new Kubernetes clientset from the given config and sets it in kClient
+func (k *KubeCtl) SetClientFromConfig(newConf *rest.Config) error {
+	// Create a new Kubernetes clientset from the new configuration
+	clientset, err := kubernetes.NewForConfig(newConf)
+	if err != nil {
+		return err // Return the error if clientset creation fails
+	}
+
+	// Set the new clientset to the kClient object
+	k.clientSet = clientset
+	return nil
+}
+
+func WriteConfigToFile(config *rest.Config, kubeconfigPath string) error {
+	// Build the kubeconfig API object from the rest.Config
+	kubeConfig := &clientcmdapi.Config{
+		Clusters: map[string]*clientcmdapi.Cluster{
+			"default-cluster": {
+				Server:                   config.Host,
+				CertificateAuthorityData: config.CAData,
+				InsecureSkipTLSVerify:    config.Insecure,
+			},
+		},
+		AuthInfos: map[string]*clientcmdapi.AuthInfo{
+			"default-auth": {
+				Token: config.BearerToken,
+			},
+		},
+		Contexts: map[string]*clientcmdapi.Context{
+			"default-context": {
+				Cluster:  "default-cluster",
+				AuthInfo: "default-auth",
+			},
+		},
+		CurrentContext: "default-context",
+	}
+
+	// Ensure the directory where the file is being written exists
+	err := os.MkdirAll(filepath.Dir(kubeconfigPath), os.ModePerm)
+	if err != nil {
+		return fmt.Errorf("failed to create directory for kubeconfig file: %v", err)
+	}
+
+	// Write the kubeconfig to the specified file
+	err = clientcmd.WriteToFile(*kubeConfig, kubeconfigPath)
+	if err != nil {
+		return fmt.Errorf("failed to write kubeconfig to file: %v", err)
+	}
+
+	return nil
+}
+
 func GetSecretObj(yamlPath string) (*v1.Secret, error) {
 	o, err := common.Yaml2Obj(yamlPath)
 	if err != nil {
@@ -1381,21 +1439,6 @@ func (k *KubeCtl) isNumJobPodsInDesiredState(jobName string, namespace string, n
 
 		return counter >= num, nil
 	}
-}
-
-func ApplyYamlWithKubectl(path, namespace string) error {
-	cmd := exec.Command("kubectl", "apply", "-f", path, "-n", namespace)
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	// if err != nil, isn't represent yaml format error.
-	// it only represent the cmd.Run() fail.
-	err := cmd.Run()
-	// if yaml format error, errStr will show the detail
-	errStr := stderr.String()
-	if err != nil && errStr != "" {
-		return fmt.Errorf("apply fail with %s", errStr)
-	}
-	return nil
 }
 
 func (k *KubeCtl) GetNodes() (*v1.NodeList, error) {
@@ -1777,5 +1820,98 @@ func (k *KubeCtl) DeleteStorageClass(scName string) error {
 	if err != nil {
 		return err
 	}
+	return nil
+}
+
+func (k *KubeCtl) GetSecrets(namespace string) (*v1.SecretList, error) {
+	return k.clientSet.CoreV1().Secrets(namespace).List(context.TODO(), metav1.ListOptions{})
+}
+
+func (k *KubeCtl) GetSecretValue(namespace, secretName, key string) (string, error) {
+	var secret *v1.Secret
+	var err error
+
+	// Retry loop in case secret is not yet populated
+	for i := 0; i < 5; i++ {
+		secret, err = k.clientSet.CoreV1().Secrets(namespace).Get(context.TODO(), secretName, metav1.GetOptions{})
+		if err != nil {
+			return "", err
+		}
+
+		// Check if the secret contains data
+		if len(secret.Data) > 0 {
+			value, ok := secret.Data[key]
+			if !ok {
+				return "", fmt.Errorf("key %s not found in secret %s", key, secretName)
+			}
+			return string(value), nil
+		}
+
+		// Wait before retrying
+		time.Sleep(2 * time.Second)
+	}
+
+	return "", fmt.Errorf("secret %s has no data after retries", secretName)
+}
+
+func (k *KubeCtl) GetCurrentContext() (string, error) {
+	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
+	configOverrides := &clientcmd.ConfigOverrides{}
+	kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, configOverrides)
+
+	rawConfig, err := kubeConfig.RawConfig()
+	if err != nil {
+		return "", err
+	}
+	return rawConfig.CurrentContext, nil
+}
+
+func (k *KubeCtl) GetCurrentCluster() (string, error) {
+	// get the current context cluster name
+	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
+	configOverrides := &clientcmd.ConfigOverrides{}
+	kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, configOverrides)
+	rawConfig, err := kubeConfig.RawConfig()
+	if err != nil {
+		return "", err
+	}
+	return rawConfig.Contexts[rawConfig.CurrentContext].Cluster, nil
+}
+
+func (k *KubeCtl) GetClusterCA() ([]byte, error) {
+	// Get the current clustername
+	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
+	configOverrides := &clientcmd.ConfigOverrides{}
+	kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, configOverrides)
+	rawConfig, err := kubeConfig.RawConfig()
+	if err != nil {
+		return nil, err
+	}
+	return rawConfig.Clusters[rawConfig.Contexts[rawConfig.CurrentContext].Cluster].CertificateAuthorityData, nil
+}
+
+func (k *KubeCtl) GetClusterServer() (string, error) {
+	// Get the current clustername
+	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
+	configOverrides := &clientcmd.ConfigOverrides{}
+	kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, configOverrides)
+	rawConfig, err := kubeConfig.RawConfig()
+	if err != nil {
+		return "", err
+	}
+	return rawConfig.Clusters[rawConfig.Contexts[rawConfig.CurrentContext].Cluster].Server, nil
+}
+
+func (k *KubeCtl) UpdateConfig(newConf *rest.Config) error {
+	_, err := clientcmd.BuildConfigFromFlags("", clientcmd.RecommendedHomeFile)
+	if err != nil {
+		return err
+	}
+	newClientset, err := kubernetes.NewForConfig(newConf)
+	if err != nil {
+		return err
+	}
+	k.clientSet = newClientset
+	k.kubeConfig = newConf
 	return nil
 }
