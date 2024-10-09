@@ -70,7 +70,7 @@ export PATH := $(BASE_DIR)/$(TOOLS_DIR):$(GO_EXE_PATH):$(PATH)
 
 # Default values for dev cluster
 ifeq ($(K8S_VERSION),)
-K8S_VERSION := v1.29.4
+K8S_VERSION := v1.31.1
 endif
 ifeq ($(CLUSTER_NAME),)
 CLUSTER_NAME := yk8s
@@ -705,13 +705,22 @@ arch:
 	@echo EXEC_ARCH=$(EXEC_ARCH)
 
 # Start dev cluster
+.PHONY: start-cluster
 start-cluster: $(KIND_BIN)
 	@"$(KIND_BIN)" delete cluster --name="$(CLUSTER_NAME)" || :
 	@./scripts/run-e2e-tests.sh -a install -n "$(CLUSTER_NAME)" -v "kindest/node:$(K8S_VERSION)" $(PLUGIN_OPTS)
 
 # Stop dev cluster
+.PHONY: stop-cluster
 stop-cluster: $(KIND_BIN)
 	@"$(KIND_BIN)" delete cluster --name="$(CLUSTER_NAME)"
+
+# Start dev cluster, run e2e tests, stop dev cluster
+.PHONY: kind-e2e
+kind-e2e: $(KIND_BIN)
+	@"$(KIND_BIN)" delete cluster --name="$(CLUSTER_NAME)" || : ; \
+		./scripts/run-e2e-tests.sh -a test -n "$(CLUSTER_NAME)" -v "kindest/node:$(K8S_VERSION)" $(PLUGIN_OPTS) ; STATUS=$$? ; \
+		"$(KIND_BIN)" delete cluster --name="$(CLUSTER_NAME)" || : ; exit $$STATUS
 
 # Run the e2e tests, this assumes yunikorn is running under yunikorn namespace
 .PHONY: e2e_test
