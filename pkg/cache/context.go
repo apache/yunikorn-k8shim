@@ -362,7 +362,7 @@ func (ctx *Context) updateForeignPod(pod *v1.Pod) {
 	//   2. pod is now assigned
 	//   3. pod is not in terminated state
 	//   4. pod references a known node
-	if oldPod == nil && utils.IsAssignedPod(pod) && !utils.IsPodTerminated(pod) {
+	if utils.IsAssignedPod(pod) && !utils.IsPodTerminated(pod) {
 		if ctx.schedulerCache.UpdatePod(pod) {
 			// pod was accepted by a real node
 			log.Log(log.ShimContext).Debug("pod is assigned to a node, trigger occupied resource update",

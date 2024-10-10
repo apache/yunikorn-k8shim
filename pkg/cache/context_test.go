@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -74,11 +75,13 @@ const (
 	taskUID4    = "task00004"
 	taskUnknown = "non_existing_taskID"
 
-	podName1     = "pod1"
-	podName2     = "pod2"
-	podName3     = "pod3"
-	podName4     = "pod4"
-	podNamespace = "yk"
+	podName1       = "pod1"
+	podName2       = "pod2"
+	podName3       = "pod3"
+	podName4       = "pod4"
+	podForeignName = "foreign-1"
+	podForeignUID  = "UUID-foreign-1"
+	podNamespace   = "yk"
 
 	nodeName1    = "node1"
 	nodeName2    = "node2"
@@ -581,7 +584,7 @@ func TestAddUpdatePodForeign(t *testing.T) {
 	// validate update (no change)
 	allocRequest = nil
 	context.UpdatePod(nil, pod2)
-	assert.Assert(t, allocRequest == nil, "unexpected update")
+	assert.Assert(t, allocRequest != nil, "update expected")
 	pod = context.schedulerCache.GetPod(string(pod2.UID))
 	assert.Assert(t, pod != nil, "pod not found in cache")
 
@@ -1912,6 +1915,10 @@ func TestInitializeState(t *testing.T) {
 		},
 	}}
 	podLister.AddPod(orphaned)
+	// add an orphan foreign pod
+	orphanForeign := newPodHelper(podForeignName, "default", podForeignUID, nodeName2, "", v1.PodRunning)
+	orphanForeign.Spec.SchedulerName = ""
+	podLister.AddPod(orphanForeign)
 
 	err := context.InitializeState()
 	assert.NilError(t, err, "InitializeState failed")
@@ -1927,6 +1934,7 @@ func TestInitializeState(t *testing.T) {
 	assert.Check(t, !context.schedulerCache.IsPodOrphaned(podName1), "pod1 should not be orphaned")
 	assert.Check(t, !context.schedulerCache.IsPodOrphaned(podName2), "pod2 should not be orphaned")
 	assert.Check(t, context.schedulerCache.IsPodOrphaned(podName3), "pod3 should be orphaned")
+	assert.Check(t, context.schedulerCache.IsPodOrphaned(podForeignUID), "foreign pod should be orphaned")
 
 	// pod1 is pending
 	task1 := context.getTask(appID1, podName1)
@@ -1941,6 +1949,145 @@ func TestInitializeState(t *testing.T) {
 	// pod3 is an orphan, should not be found
 	task3 := context.getTask(appID3, podName3)
 	assert.Assert(t, task3 == nil, "pod3 was found")
+}
+
+func TestPodAdoption(t *testing.T) {
+	ctx, apiProvider := initContextAndAPIProviderForTest()
+	dispatcher.Start()
+	defer dispatcher.UnregisterAllEventHandlers()
+	defer dispatcher.Stop()
+	apiProvider.MockSchedulerAPIUpdateNodeFn(func(request *si.NodeRequest) error {
+		for _, node := range request.Nodes {
+			dispatcher.Dispatch(CachedSchedulerNodeEvent{
+				NodeID: node.NodeID,
+				Event:  NodeAccepted,
+			})
+		}
+		return nil
+	})
+
+	// add pods w/o node & check orphan status
+	pod1 := newPodHelper(podName1, namespace, pod1UID, Host1, appID, v1.PodRunning)
+	pod2 := newPodHelper(podForeignName, namespace, podForeignUID, Host1, "", v1.PodRunning)
+	pod2.Spec.SchedulerName = ""
+	ctx.AddPod(pod1)
+	ctx.AddPod(pod2)
+	assert.Assert(t, ctx.schedulerCache.IsPodOrphaned(pod1UID), "Yunikorn pod is not orphan")
+	assert.Assert(t, ctx.schedulerCache.IsPodOrphaned(podForeignUID), "foreign pod is not orphan")
+
+	// add node
+	node := v1.Node{
+		ObjectMeta: apis.ObjectMeta{
+			Name:      Host1,
+			Namespace: "default",
+			UID:       uid1,
+		},
+	}
+	ctx.addNode(&node)
+
+	// check that node has adopted the pods
+	assert.Assert(t, !ctx.schedulerCache.IsPodOrphaned(pod1UID), "Yunikorn pod has not been adopted")
+	assert.Assert(t, !ctx.schedulerCache.IsPodOrphaned(podForeignUID), "foreign pod has not been adopted")
+}
+
+func TestOrphanPodUpdate(t *testing.T) {
+	ctx, apiProvider := initContextAndAPIProviderForTest()
+	dispatcher.Start()
+	defer dispatcher.UnregisterAllEventHandlers()
+	defer dispatcher.Stop()
+	var update atomic.Bool
+	apiProvider.MockSchedulerAPIUpdateAllocationFn(func(request *si.AllocationRequest) error {
+		update.Store(true)
+		return nil
+	})
+
+	// add pods w/o node & check orphan status
+	pod1 := newPodHelper(podName1, namespace, pod1UID, Host1, appID, v1.PodPending)
+	pod2 := newPodHelper(podForeignName, namespace, podForeignUID, Host1, "", v1.PodPending)
+	pod2.Spec.SchedulerName = ""
+	ctx.AddPod(pod1)
+	ctx.AddPod(pod2)
+	assert.Assert(t, ctx.schedulerCache.IsPodOrphaned(pod1UID), "Yunikorn pod is not orphan")
+	assert.Assert(t, ctx.schedulerCache.IsPodOrphaned(podForeignUID), "foreign pod is not orphan")
+	assert.Assert(t, ctx.getApplication(appID) == nil)
+
+	// update orphan pods
+	pod1Upd := pod1.DeepCopy()
+	pod1Upd.Status.Phase = v1.PodRunning
+	pod2Upd := pod2.DeepCopy()
+	pod2Upd.Status.Phase = v1.PodRunning
+
+	ctx.UpdatePod(pod1, pod1Upd)
+	assert.Assert(t, ctx.getApplication(appID) == nil)
+	assert.Assert(t, ctx.schedulerCache.IsPodOrphaned(pod1UID), "Yunikorn pod is not orphan after update")
+	assert.Equal(t, v1.PodRunning, ctx.schedulerCache.GetPod(pod1UID).Status.Phase, "pod has not been updated in the cache")
+	assert.Assert(t, !update.Load(), "allocation update has been triggered for Yunikorn orphan pod")
+
+	ctx.UpdatePod(pod2, pod2Upd)
+	assert.Assert(t, ctx.schedulerCache.IsPodOrphaned(podForeignUID), "foreign pod is not orphan after update")
+	assert.Equal(t, v1.PodRunning, ctx.schedulerCache.GetPod(podForeignUID).Status.Phase, "foreign pod has not been updated in the cache")
+	assert.Assert(t, !update.Load(), "allocation update has been triggered for foreign orphan pod")
+}
+
+func TestOrphanPodDelete(t *testing.T) {
+	ctx, apiProvider := initContextAndAPIProviderForTest()
+	dispatcher.Start()
+	defer dispatcher.UnregisterAllEventHandlers()
+	defer dispatcher.Stop()
+	var taskEventSent atomic.Bool
+	dispatcher.RegisterEventHandler("TestTaskHandler", dispatcher.EventTypeTask, func(obj interface{}) {
+		taskEventSent.Store(true)
+	})
+	var request *si.AllocationRequest
+	apiProvider.MockSchedulerAPIUpdateAllocationFn(func(r *si.AllocationRequest) error {
+		request = r
+		return nil
+	})
+	apiProvider.MockSchedulerAPIUpdateNodeFn(func(request *si.NodeRequest) error {
+		for _, node := range request.Nodes {
+			dispatcher.Dispatch(CachedSchedulerNodeEvent{
+				NodeID: node.NodeID,
+				Event:  NodeAccepted,
+			})
+		}
+		return nil
+	})
+
+	// add pods w/o node & check orphan status
+	pod1 := newPodHelper(podName1, namespace, pod1UID, Host1, appID, v1.PodPending)
+	pod2 := newPodHelper(podForeignName, namespace, podForeignUID, Host1, "", v1.PodPending)
+	pod2.Spec.SchedulerName = ""
+	ctx.AddPod(pod1)
+	ctx.AddPod(pod2)
+	assert.Assert(t, ctx.schedulerCache.IsPodOrphaned(pod1UID), "Yunikorn pod is not orphan")
+	assert.Assert(t, ctx.schedulerCache.IsPodOrphaned(podForeignUID), "foreign pod is not orphan")
+	assert.Assert(t, ctx.getApplication(appID) == nil)
+
+	// add a node with pod - this creates the application object
+	node := v1.Node{
+		ObjectMeta: apis.ObjectMeta{
+			Name:      Host2,
+			Namespace: "default",
+			UID:       uid1,
+		},
+	}
+	ctx.addNode(&node)
+	pod3 := newPodHelper(podName2, namespace, pod2UID, Host2, appID, v1.PodPending)
+	ctx.AddPod(pod3)
+	assert.Assert(t, !ctx.schedulerCache.IsPodOrphaned(pod2UID), "Yunikorn pod is orphan")
+	assert.Assert(t, ctx.getApplication(appID) != nil)
+
+	// delete orphan YK pod
+	ctx.DeletePod(pod1)
+	err := utils.WaitForCondition(taskEventSent.Load, 100*time.Millisecond, time.Second)
+	assert.NilError(t, err)
+
+	// delete foreign pod
+	ctx.DeletePod(pod2)
+	assert.Assert(t, request != nil)
+	assert.Assert(t, request.Releases != nil)
+	assert.Equal(t, 1, len(request.Releases.AllocationsToRelease))
+	assert.Equal(t, podForeignUID, request.Releases.AllocationsToRelease[0].AllocationKey)
 }
 
 func TestTaskRemoveOnCompletion(t *testing.T) {
