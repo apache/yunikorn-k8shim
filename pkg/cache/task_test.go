@@ -34,7 +34,6 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
-	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/locking"
 
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
@@ -521,7 +520,6 @@ func TestHandleSubmitTaskEvent(t *testing.T) {
 		time: int64(0),
 		lock: &locking.RWMutex{},
 	}
-	conf.GetSchedulerConf().SetTestMode(true)
 	mr := events.NewMockedRecorder()
 	mr.OnEventf = func() {
 		rt.lock.Lock()
@@ -621,7 +619,6 @@ func TestSimultaneousTaskCompleteAndAllocate(t *testing.T) {
 	mockedAPIProvider, ok := mockedContext.apiProvider.(*client.MockedAPIProvider)
 	assert.Equal(t, ok, true)
 
-	conf.GetSchedulerConf().SetTestMode(true)
 	resources := make(map[v1.ResourceName]resource.Quantity)
 	containers := make([]v1.Container, 0)
 	containers = append(containers, v1.Container{

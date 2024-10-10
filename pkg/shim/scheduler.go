@@ -19,15 +19,20 @@
 package shim
 
 import (
+	ctx "context"
 	"time"
 
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/informers"
+	"k8s.io/client-go/kubernetes/scheme"
+	k8events "k8s.io/client-go/tools/events"
 
 	"github.com/apache/yunikorn-k8shim/pkg/cache"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
+	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
+	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
@@ -67,6 +72,18 @@ func NewShimScheduler(scheduler api.SchedulerAPI, configs *conf.SchedulerConf, b
 	apiFactory := client.NewAPIFactory(scheduler, informerFactory, configs, false)
 	context := cache.NewContextWithBootstrapConfigMaps(apiFactory, bootstrapConfigMaps)
 	rmCallback := cache.NewAsyncRMCallback(context)
+
+	eventBroadcaster := k8events.NewBroadcaster(&k8events.EventSinkImpl{
+		Interface: kubeClient.GetClientSet().EventsV1()})
+	err := eventBroadcaster.StartRecordingToSinkWithContext(ctx.Background())
+	if err != nil {
+		log.Log(log.Shim).Error("Could not create event broadcaster",
+			zap.Error(err))
+	} else {
+		eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme, constants.SchedulerName)
+		events.SetRecorder(eventRecorder)
+	}
+
 	return newShimSchedulerInternal(context, apiFactory, rmCallback)
 }
 

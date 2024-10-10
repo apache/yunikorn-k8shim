@@ -38,7 +38,6 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
-	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/yunikorn-k8shim/pkg/locking"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/api"
@@ -132,8 +131,6 @@ func TestFailApplication(t *testing.T) {
 		lock: &locking.RWMutex{},
 	}
 	ms := &mockSchedulerAPI{}
-	// set test mode
-	conf.GetSchedulerConf().SetTestMode(true)
 	// set Recorder to mocked type
 	mr := events.NewMockedRecorder()
 	mr.OnEventf = func() {
@@ -228,8 +225,6 @@ func TestSetUnallocatedPodsToFailedWhenFailApplication(t *testing.T) {
 	context.apiProvider.GetAPIs().KubeClient = mockClient
 
 	ms := &mockSchedulerAPI{}
-	// set test mode
-	conf.GetSchedulerConf().SetTestMode(true)
 	// set Recorder to mocked type
 	mr := events.NewMockedRecorder()
 	events.SetRecorder(mr)
@@ -336,8 +331,6 @@ func TestSetUnallocatedPodsToFailedWhenRejectApplication(t *testing.T) {
 	defer mgr.Stop()
 
 	ms := &mockSchedulerAPI{}
-	// set test mode
-	conf.GetSchedulerConf().SetTestMode(true)
 	// set Recorder to mocked type
 	mr := events.NewMockedRecorder()
 	events.SetRecorder(mr)
