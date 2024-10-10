@@ -305,6 +305,7 @@ func (cache *SchedulerCache) UpdateOccupiedResource(nodeName string, namespace s
 		return nil, nil, nil, false
 	}
 	node = nodeInfo.Node()
+
 	switch opt {
 	case AddOccupiedResource:
 		log.Log(log.ShimCacheExternal).Info("Adding occupied resources to node",
