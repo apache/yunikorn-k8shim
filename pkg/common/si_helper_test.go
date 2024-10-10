@@ -19,9 +19,11 @@ package common
 
 import (
 	"testing"
+	"time"
 
 	"gotest.tools/v3/assert"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/common"
@@ -414,4 +416,80 @@ func TestGetTerminationTypeFromString(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCreateAllocationForForeignPod(t *testing.T) {
+	cResources := make(map[v1.ResourceName]resource.Quantity)
+	cResources[v1.ResourceMemory] = resource.MustParse("500M")
+	cResources[v1.ResourceCPU] = resource.MustParse("1")
+	var containers []v1.Container
+	containers = append(containers, v1.Container{
+		Name: "container-01",
+		Resources: v1.ResourceRequirements{
+			Requests: cResources,
+		},
+	})
+
+	pod := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "test",
+			UID:  "UID-00001",
+			CreationTimestamp: apis.Time{
+				Time: time.Unix(1, 0),
+			},
+		},
+		Spec: v1.PodSpec{
+			Containers: containers,
+			NodeName:   nodeID,
+		},
+	}
+
+	allocReq := CreateAllocationForForeignPod(pod)
+	assert.Equal(t, 1, len(allocReq.Allocations))
+	assert.Equal(t, "mycluster", allocReq.RmID)
+	assert.Assert(t, allocReq.Releases == nil)
+	alloc := allocReq.Allocations[0]
+	assert.Equal(t, nodeID, alloc.NodeID)
+	assert.Equal(t, "UID-00001", alloc.AllocationKey)
+	assert.Equal(t, int32(0), alloc.Priority)
+	res := alloc.ResourcePerAlloc
+	assert.Equal(t, 3, len(res.Resources))
+	assert.Equal(t, int64(500000000), res.Resources["memory"].Value)
+	assert.Equal(t, int64(1000), res.Resources["vcore"].Value)
+	assert.Equal(t, int64(1), res.Resources["pods"].Value)
+	assert.Equal(t, 2, len(alloc.AllocationTags))
+	assert.Equal(t, "1", alloc.AllocationTags[common.CreationTime])
+	assert.Equal(t, common.AllocTypeDefault, alloc.AllocationTags[common.Foreign])
+
+	// set priority & change pod type to static
+	prio := int32(12)
+	pod.Spec.Priority = &prio
+	pod.OwnerReferences = []apis.OwnerReference{
+		{
+			Kind: "Node",
+		},
+	}
+	allocReq = CreateAllocationForForeignPod(pod)
+	assert.Equal(t, 2, len(alloc.AllocationTags))
+	alloc = allocReq.Allocations[0]
+	assert.Equal(t, common.AllocTypeStatic, alloc.AllocationTags[common.Foreign])
+	assert.Equal(t, int32(12), alloc.Priority)
+}
+
+func TestCreateReleaseRequestForForeignPod(t *testing.T) {
+	allocReq := CreateReleaseRequestForForeignPod("UID-0001", "partition")
+
+	assert.Assert(t, allocReq.Releases != nil)
+	assert.Equal(t, "mycluster", allocReq.RmID)
+	releaseReq := allocReq.Releases
+	assert.Equal(t, 1, len(releaseReq.AllocationsToRelease))
+	release := releaseReq.AllocationsToRelease[0]
+	assert.Equal(t, "UID-0001", release.AllocationKey)
+	assert.Equal(t, "partition", release.PartitionName)
+	assert.Equal(t, si.TerminationType_STOPPED_BY_RM, release.TerminationType)
+	assert.Equal(t, "pod terminated", release.Message)
 }

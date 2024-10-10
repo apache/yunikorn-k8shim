@@ -341,7 +341,6 @@ func createUpdateRequestForNewNode(nodeID string, nodeLabels map[string]string, 
 	nodeInfo := &si.NodeInfo{
 		NodeID:              nodeID,
 		SchedulableResource: capacity,
-		OccupiedResource:    occupied,
 		Attributes: map[string]string{
 			constants.DefaultNodeAttributeHostNameKey: nodeID,
 			constants.DefaultNodeAttributeRackNameKey: constants.DefaultRackName,

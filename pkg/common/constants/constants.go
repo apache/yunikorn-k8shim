@@ -66,6 +66,7 @@ const SchedulerName = "yunikorn"
 
 // OwnerReferences
 const DaemonSetType = "DaemonSet"
+const NodeKind = "Node"
 
 // Gang scheduling
 const PlaceholderContainerImage = "registry.k8s.io/pause:3.7"
