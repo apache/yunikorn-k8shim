@@ -27,9 +27,9 @@ import (
 
 	"gotest.tools/v3/assert"
 
-	"github.com/apache/yunikorn-k8shim/pkg/common/events"
-	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
-	"github.com/apache/yunikorn-k8shim/pkg/locking"
+	"github.com/G-Research/yunikorn-k8shim/pkg/common/events"
+	"github.com/G-Research/yunikorn-k8shim/pkg/common/utils"
+	"github.com/G-Research/yunikorn-k8shim/pkg/locking"
 )
 
 // app event for testing

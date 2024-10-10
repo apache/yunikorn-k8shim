@@ -32,7 +32,7 @@ linters-settings:
   gofmt:
     simplify: true
   goimports:
-    local-prefixes: github.com/apache/yunikorn
+    local-prefixes: github.com/G-Research/yunikorn
   govet:
     shadow: true
   goconst:

@@ -31,14 +31,14 @@ import (
 	k8sEvents "k8s.io/client-go/tools/events"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
-	"github.com/apache/yunikorn-k8shim/pkg/client"
-	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
-	"github.com/apache/yunikorn-k8shim/pkg/common/events"
-	"github.com/apache/yunikorn-k8shim/pkg/common/test"
-	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
-	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
-	"github.com/apache/yunikorn-k8shim/pkg/plugin/predicates"
-	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
+	"github.com/G-Research/yunikorn-k8shim/pkg/client"
+	"github.com/G-Research/yunikorn-k8shim/pkg/common/constants"
+	"github.com/G-Research/yunikorn-k8shim/pkg/common/events"
+	"github.com/G-Research/yunikorn-k8shim/pkg/common/test"
+	"github.com/G-Research/yunikorn-k8shim/pkg/common/utils"
+	"github.com/G-Research/yunikorn-k8shim/pkg/dispatcher"
+	"github.com/G-Research/yunikorn-k8shim/pkg/plugin/predicates"
+	"github.com/G-Research/yunikorn-scheduler-interface/lib/go/si"
 )
 
 func TestUpdateAllocation_NewTask(t *testing.T) {

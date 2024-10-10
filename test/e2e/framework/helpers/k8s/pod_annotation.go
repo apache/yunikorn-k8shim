@@ -19,8 +19,8 @@
 package k8s
 
 import (
-	"github.com/apache/yunikorn-k8shim/pkg/cache"
-	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
+	"github.com/G-Research/yunikorn-k8shim/pkg/cache"
+	"github.com/G-Research/yunikorn-k8shim/pkg/common/constants"
 )
 
 type PodAnnotation struct {

@@ -24,8 +24,8 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
-	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
+	"github.com/G-Research/yunikorn-k8shim/pkg/common/constants"
+	"github.com/G-Research/yunikorn-k8shim/pkg/common/utils"
 )
 
 func GetTaskGroupsFromAnnotation(pod *v1.Pod) ([]TaskGroup, error) {

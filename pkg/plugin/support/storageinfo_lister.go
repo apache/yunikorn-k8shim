@@ -21,7 +21,7 @@ package support
 import (
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
-	"github.com/apache/yunikorn-k8shim/pkg/cache/external"
+	"github.com/G-Research/yunikorn-k8shim/pkg/cache/external"
 )
 
 type storageInfoListerImpl struct {

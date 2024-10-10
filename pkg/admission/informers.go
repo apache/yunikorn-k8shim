@@ -26,8 +26,8 @@ import (
 	informersv1 "k8s.io/client-go/informers/core/v1"
 	schedulinginformersv1 "k8s.io/client-go/informers/scheduling/v1"
 
-	"github.com/apache/yunikorn-k8shim/pkg/client"
-	"github.com/apache/yunikorn-k8shim/pkg/log"
+	"github.com/G-Research/yunikorn-k8shim/pkg/client"
+	"github.com/G-Research/yunikorn-k8shim/pkg/log"
 )
 
 type Informers struct {

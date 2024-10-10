@@ -25,11 +25,11 @@ import (
 	"go.uber.org/zap"
 	admissionv1 "k8s.io/api/admission/v1"
 
-	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
+	"github.com/G-Research/yunikorn-scheduler-interface/lib/go/si"
 
-	"github.com/apache/yunikorn-k8shim/pkg/admission/common"
-	"github.com/apache/yunikorn-k8shim/pkg/admission/conf"
-	"github.com/apache/yunikorn-k8shim/pkg/log"
+	"github.com/G-Research/yunikorn-k8shim/pkg/admission/common"
+	"github.com/G-Research/yunikorn-k8shim/pkg/admission/conf"
+	"github.com/G-Research/yunikorn-k8shim/pkg/log"
 )
 
 type UserGroupAnnotationHandler struct {

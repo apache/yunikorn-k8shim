@@ -24,7 +24,7 @@ import (
 	"gotest.tools/v3/assert"
 	v1 "k8s.io/api/core/v1"
 
-	schedulerconf "github.com/apache/yunikorn-k8shim/pkg/conf"
+	schedulerconf "github.com/G-Research/yunikorn-k8shim/pkg/conf"
 )
 
 func TestConfigMapVars(t *testing.T) {

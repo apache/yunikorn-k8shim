@@ -25,12 +25,12 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/apache/yunikorn-core/pkg/webservice/dao"
-	tests "github.com/apache/yunikorn-k8shim/test/e2e"
-	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
-	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
-	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
-	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
+	"github.com/G-Research/yunikorn-core/pkg/webservice/dao"
+	tests "github.com/G-Research/yunikorn-k8shim/test/e2e"
+	"github.com/G-Research/yunikorn-k8shim/test/e2e/framework/helpers/common"
+	"github.com/G-Research/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
+	"github.com/G-Research/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
+	siCommon "github.com/G-Research/yunikorn-scheduler-interface/lib/go/common"
 )
 
 var _ = Describe("", func() {

@@ -25,8 +25,8 @@ import (
 	v1 "k8s.io/api/core/v1"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/apache/yunikorn-k8shim/pkg/cache/external"
-	"github.com/apache/yunikorn-k8shim/pkg/client"
+	"github.com/G-Research/yunikorn-k8shim/pkg/cache/external"
+	"github.com/G-Research/yunikorn-k8shim/pkg/client"
 )
 
 func TestNewSharedLister(t *testing.T) {

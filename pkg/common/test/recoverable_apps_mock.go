@@ -21,8 +21,8 @@ package test
 import (
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
-	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
+	"github.com/G-Research/yunikorn-k8shim/pkg/common/constants"
+	"github.com/G-Research/yunikorn-scheduler-interface/lib/go/si"
 )
 
 type MockedRecoverableAppManager struct {

@@ -23,7 +23,7 @@ import (
 
 	"gotest.tools/v3/assert"
 
-	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
+	"github.com/G-Research/yunikorn-scheduler-interface/lib/go/si"
 )
 
 const (

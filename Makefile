@@ -58,10 +58,10 @@ ADMISSION_CONTROLLER_BINARY=yunikorn-admission-controller
 TEST_SERVER_BINARY=web-test-server
 
 TOOLS_DIR=tools
-REPO=github.com/apache/yunikorn-k8shim/pkg
+REPO=github.com/G-Research/yunikorn-k8shim/pkg
 
-IMAGE_SOURCE?=https://github.com/apache/yunikorn-k8shim
-IMAGE_URL?=https://hub.docker.com/r/apache/yunikorn
+IMAGE_SOURCE?=https://github.com/G-Research/yunikorn-k8shim
+IMAGE_URL?=https://hub.docker.com/r/G-Research/yunikorn
 LICENSE=Apache-2.0
 DOCS_URL=https://yunikorn.apache.org
 
@@ -195,7 +195,7 @@ export SPARK_VERSION=3.3.3
 export SPARK_PYTHON_VERSION=3.3.1
 export SPARK_HOME=$(BASE_DIR)$(TOOLS_DIR)/spark-v$(SPARK_VERSION)
 export SPARK_SUBMIT_CMD=$(SPARK_HOME)/bin/spark-submit
-export SPARK_PYTHON_IMAGE=docker.io/apache/spark-py:v$(SPARK_PYTHON_VERSION)
+export SPARK_PYTHON_IMAGE=docker.io/G-Research/spark-py:v$(SPARK_PYTHON_VERSION)
 export PATH := $(SPARK_HOME):$(PATH)
 
 # go-licenses
@@ -210,11 +210,11 @@ GINKGO_PATH=$(TOOLS_DIR)/ginkgo-$(GINKGO_VERSION)
 GINKGO_BIN=$(GINKGO_PATH)/ginkgo
 export PATH := $(BASE_DIR)/$(GINKGO_PATH):$(PATH)
 
-FLAG_PREFIX=github.com/apache/yunikorn-k8shim/pkg/conf
+FLAG_PREFIX=github.com/G-Research/yunikorn-k8shim/pkg/conf
 
 # Image hashes
-CORE_SHA=$(shell "$(GO)" list -f '{{.Version}}' -m "github.com/apache/yunikorn-core" | cut -d "-" -f3)
-SI_SHA=$(shell "$(GO)" list -f '{{.Version}}' -m "github.com/apache/yunikorn-scheduler-interface" | cut -d "-" -f3)
+CORE_SHA=$(shell "$(GO)" list -f '{{.Version}}' -m "github.com/G-Research/yunikorn-core" | cut -d "-" -f3)
+SI_SHA=$(shell "$(GO)" list -f '{{.Version}}' -m "github.com/G-Research/yunikorn-scheduler-interface" | cut -d "-" -f3)
 SHIM_SHA=$(shell git rev-parse --short=12 HEAD)
 
 # Kubeconfig
@@ -376,18 +376,18 @@ $(OUTPUT)/third-party-licenses.md: $(GO_LICENSES_BIN) go.mod go.sum
 	@"$(GO_LICENSES_BIN)" \
 		report ./pkg/... \
 		--template=./scripts/third-party-licences.md.tpl \
-		--ignore github.com/apache/yunikorn-k8shim \
-		--ignore github.com/apache/yunikorn-core \
-		--ignore github.com/apache/yunikorn-scheduler-interface \
+		--ignore github.com/G-Research/yunikorn-k8shim \
+		--ignore github.com/G-Research/yunikorn-core \
+		--ignore github.com/G-Research/yunikorn-scheduler-interface \
 		> "$(OUTPUT)/third-party-licenses.md.tmp"
 	@mv "$(OUTPUT)/third-party-licenses.md.tmp" "$(OUTPUT)/third-party-licenses.md"
 
 # Check that we use pseudo versions in master
 .PHONY: pseudo
 BRANCH := $(shell git branch --show-current)
-CORE_REF := $(shell "$(GO)" list -m -f '{{ .Version }}' github.com/apache/yunikorn-core)
+CORE_REF := $(shell "$(GO)" list -m -f '{{ .Version }}' github.com/G-Research/yunikorn-core)
 CORE_MATCH := $(shell expr "${CORE_REF}" : "v0.0.0-")
-SI_REF := $(shell "$(GO)" list -m -f '{{ .Version }}' github.com/apache/yunikorn-scheduler-interface)
+SI_REF := $(shell "$(GO)" list -m -f '{{ .Version }}' github.com/G-Research/yunikorn-scheduler-interface)
 SI_MATCH := $(shell expr "${SI_REF}" : "v0.0.0-")
 pseudo:
 	@echo "pseudo version check"

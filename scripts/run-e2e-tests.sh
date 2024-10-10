@@ -121,7 +121,7 @@ function install_cluster() {
   if [ "${GIT_CLONE}" = "true" ]; then
     check_cmd "git"
     rm -rf ./build/yunikorn-release
-    git clone --depth 1 https://github.com/apache/yunikorn-release.git ./build/yunikorn-release
+    git clone --depth 1 https://github.com/G-Research/yunikorn-release.git ./build/yunikorn-release
   fi
   if [ ! -d "${CHART_PATH}" ]; then
     exit_on_error "helm charts not found in path: ${CHART_PATH}"

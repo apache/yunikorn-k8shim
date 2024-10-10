@@ -24,11 +24,11 @@ import (
 	"strings"
 	"time"
 
-	tests "github.com/apache/yunikorn-k8shim/test/e2e"
+	tests "github.com/G-Research/yunikorn-k8shim/test/e2e"
 
-	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
-	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
-	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
+	"github.com/G-Research/yunikorn-k8shim/test/e2e/framework/helpers/common"
+	"github.com/G-Research/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
+	"github.com/G-Research/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
 
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
