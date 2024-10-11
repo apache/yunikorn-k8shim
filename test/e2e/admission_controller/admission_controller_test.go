@@ -28,13 +28,13 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	amConf "github.com/apache/yunikorn-k8shim/pkg/admission/conf"
-	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
-	tests "github.com/apache/yunikorn-k8shim/test/e2e"
-	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
-	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
-	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
-	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
+	amConf "github.com/G-Research/yunikorn-k8shim/pkg/admission/conf"
+	"github.com/G-Research/yunikorn-k8shim/pkg/common/constants"
+	tests "github.com/G-Research/yunikorn-k8shim/test/e2e"
+	"github.com/G-Research/yunikorn-k8shim/test/e2e/framework/configmanager"
+	"github.com/G-Research/yunikorn-k8shim/test/e2e/framework/helpers/common"
+	"github.com/G-Research/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
+	"github.com/G-Research/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
 )
 
 const userInfoAnnotation = constants.DomainYuniKorn + "user.info"

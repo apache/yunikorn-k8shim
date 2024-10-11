@@ -38,9 +38,9 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 
-	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
-	"github.com/apache/yunikorn-k8shim/pkg/locking"
-	"github.com/apache/yunikorn-k8shim/pkg/log"
+	"github.com/G-Research/yunikorn-k8shim/pkg/common/constants"
+	"github.com/G-Research/yunikorn-k8shim/pkg/locking"
+	"github.com/G-Research/yunikorn-k8shim/pkg/log"
 )
 
 var (

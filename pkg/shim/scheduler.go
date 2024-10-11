@@ -26,15 +26,15 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/informers"
 
-	"github.com/apache/yunikorn-k8shim/pkg/cache"
-	"github.com/apache/yunikorn-k8shim/pkg/client"
-	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
-	"github.com/apache/yunikorn-k8shim/pkg/conf"
-	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
-	"github.com/apache/yunikorn-k8shim/pkg/locking"
-	"github.com/apache/yunikorn-k8shim/pkg/log"
-	"github.com/apache/yunikorn-scheduler-interface/lib/go/api"
-	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
+	"github.com/G-Research/yunikorn-k8shim/pkg/cache"
+	"github.com/G-Research/yunikorn-k8shim/pkg/client"
+	"github.com/G-Research/yunikorn-k8shim/pkg/common/utils"
+	"github.com/G-Research/yunikorn-k8shim/pkg/conf"
+	"github.com/G-Research/yunikorn-k8shim/pkg/dispatcher"
+	"github.com/G-Research/yunikorn-k8shim/pkg/locking"
+	"github.com/G-Research/yunikorn-k8shim/pkg/log"
+	"github.com/G-Research/yunikorn-scheduler-interface/lib/go/api"
+	"github.com/G-Research/yunikorn-scheduler-interface/lib/go/si"
 )
 
 // shim scheduler watches api server and interacts with unity scheduler to allocate pods

@@ -56,12 +56,12 @@ import (
 	resourcehelper "k8s.io/kubectl/pkg/util/resource"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
 
-	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
-	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
-	"github.com/apache/yunikorn-k8shim/pkg/locking"
-	"github.com/apache/yunikorn-k8shim/pkg/log"
-	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
-	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
+	"github.com/G-Research/yunikorn-k8shim/pkg/common/constants"
+	"github.com/G-Research/yunikorn-k8shim/pkg/common/utils"
+	"github.com/G-Research/yunikorn-k8shim/pkg/locking"
+	"github.com/G-Research/yunikorn-k8shim/pkg/log"
+	"github.com/G-Research/yunikorn-k8shim/test/e2e/framework/configmanager"
+	"github.com/G-Research/yunikorn-k8shim/test/e2e/framework/helpers/common"
 )
 
 const portForwardPort = 9080

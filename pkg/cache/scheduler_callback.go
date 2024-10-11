@@ -23,11 +23,11 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
-	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
-	"github.com/apache/yunikorn-k8shim/pkg/log"
-	"github.com/apache/yunikorn-scheduler-interface/lib/go/api"
-	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
+	"github.com/G-Research/yunikorn-k8shim/pkg/common/utils"
+	"github.com/G-Research/yunikorn-k8shim/pkg/dispatcher"
+	"github.com/G-Research/yunikorn-k8shim/pkg/log"
+	"github.com/G-Research/yunikorn-scheduler-interface/lib/go/api"
+	"github.com/G-Research/yunikorn-scheduler-interface/lib/go/si"
 )
 
 // RM callback is called from the scheduler core, we need to ensure the response is handled

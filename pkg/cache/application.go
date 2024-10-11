@@ -29,15 +29,15 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/apache/yunikorn-k8shim/pkg/common"
-	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
-	"github.com/apache/yunikorn-k8shim/pkg/common/events"
-	"github.com/apache/yunikorn-k8shim/pkg/conf"
-	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
-	"github.com/apache/yunikorn-k8shim/pkg/locking"
-	"github.com/apache/yunikorn-k8shim/pkg/log"
-	"github.com/apache/yunikorn-scheduler-interface/lib/go/api"
-	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
+	"github.com/G-Research/yunikorn-k8shim/pkg/common"
+	"github.com/G-Research/yunikorn-k8shim/pkg/common/constants"
+	"github.com/G-Research/yunikorn-k8shim/pkg/common/events"
+	"github.com/G-Research/yunikorn-k8shim/pkg/conf"
+	"github.com/G-Research/yunikorn-k8shim/pkg/dispatcher"
+	"github.com/G-Research/yunikorn-k8shim/pkg/locking"
+	"github.com/G-Research/yunikorn-k8shim/pkg/log"
+	"github.com/G-Research/yunikorn-scheduler-interface/lib/go/api"
+	"github.com/G-Research/yunikorn-scheduler-interface/lib/go/si"
 )
 
 type Application struct {

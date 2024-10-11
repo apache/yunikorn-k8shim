@@ -94,7 +94,7 @@ SPARK_EXAMPLE_JAR=local:///opt/spark/examples/jars/spark-examples_2.12-${SPARK_V
 
 K8S_ENDPOINT=http://localhost:8001
 SPARK_EXECUTOR_NUM=1
-SPARK_DOCKER_IMAGE=docker.io/apache/spark:v${SPARK_VERSION}
+SPARK_DOCKER_IMAGE=docker.io/G-Research/spark:v${SPARK_VERSION}
 
 if [ -f "$SPARK_BINARY_FILE_PATH" ]; then
   echo "The binary file $SPARK_BINARY_FILE_NAME has been cached!"

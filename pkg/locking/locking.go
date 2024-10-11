@@ -23,7 +23,7 @@ import (
 
 	godeadlock "github.com/sasha-s/go-deadlock"
 
-	corelocking "github.com/apache/yunikorn-core/pkg/locking"
+	corelocking "github.com/G-Research/yunikorn-core/pkg/locking"
 )
 
 var once sync.Once

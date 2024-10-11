@@ -21,8 +21,8 @@ package client
 import (
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
-	"github.com/apache/yunikorn-k8shim/pkg/conf"
+	"github.com/G-Research/yunikorn-k8shim/pkg/common/constants"
+	"github.com/G-Research/yunikorn-k8shim/pkg/conf"
 )
 
 func LoadBootstrapConfigMaps() ([]*v1.ConfigMap, error) {

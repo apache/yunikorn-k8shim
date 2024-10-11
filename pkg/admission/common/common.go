@@ -18,7 +18,7 @@
 
 package common
 
-import siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
+import siCommon "github.com/G-Research/yunikorn-scheduler-interface/lib/go/common"
 
 const (
 	UserInfoAnnotation = siCommon.DomainYuniKorn + "user.info"

@@ -25,13 +25,13 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/apache/yunikorn-k8shim/pkg/client"
-	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
+	"github.com/G-Research/yunikorn-k8shim/pkg/client"
+	"github.com/G-Research/yunikorn-k8shim/pkg/common/constants"
 
-	"github.com/apache/yunikorn-core/pkg/entrypoint"
-	"github.com/apache/yunikorn-k8shim/pkg/conf"
-	"github.com/apache/yunikorn-k8shim/pkg/log"
-	"github.com/apache/yunikorn-k8shim/pkg/shim"
+	"github.com/G-Research/yunikorn-core/pkg/entrypoint"
+	"github.com/G-Research/yunikorn-k8shim/pkg/conf"
+	"github.com/G-Research/yunikorn-k8shim/pkg/log"
+	"github.com/G-Research/yunikorn-k8shim/pkg/shim"
 )
 
 func main() {

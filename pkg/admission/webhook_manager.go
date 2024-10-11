@@ -33,11 +33,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
-	"github.com/apache/yunikorn-k8shim/pkg/admission/conf"
-	"github.com/apache/yunikorn-k8shim/pkg/admission/pki"
-	"github.com/apache/yunikorn-k8shim/pkg/client"
-	"github.com/apache/yunikorn-k8shim/pkg/locking"
-	"github.com/apache/yunikorn-k8shim/pkg/log"
+	"github.com/G-Research/yunikorn-k8shim/pkg/admission/conf"
+	"github.com/G-Research/yunikorn-k8shim/pkg/admission/pki"
+	"github.com/G-Research/yunikorn-k8shim/pkg/client"
+	"github.com/G-Research/yunikorn-k8shim/pkg/locking"
+	"github.com/G-Research/yunikorn-k8shim/pkg/log"
 )
 
 const (

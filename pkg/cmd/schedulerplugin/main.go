@@ -23,7 +23,7 @@ import (
 
 	"k8s.io/kubernetes/cmd/kube-scheduler/app"
 
-	"github.com/apache/yunikorn-k8shim/pkg/plugin"
+	"github.com/G-Research/yunikorn-k8shim/pkg/plugin"
 )
 
 func main() {

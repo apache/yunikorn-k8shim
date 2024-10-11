@@ -33,12 +33,12 @@ import (
 	schedulingv1 "k8s.io/api/scheduling/v1"
 	podv1 "k8s.io/kubernetes/pkg/api/v1/pod"
 
-	"github.com/apache/yunikorn-k8shim/pkg/common"
-	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
-	"github.com/apache/yunikorn-k8shim/pkg/conf"
-	"github.com/apache/yunikorn-k8shim/pkg/log"
-	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
-	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
+	"github.com/G-Research/yunikorn-k8shim/pkg/common"
+	"github.com/G-Research/yunikorn-k8shim/pkg/common/constants"
+	"github.com/G-Research/yunikorn-k8shim/pkg/conf"
+	"github.com/G-Research/yunikorn-k8shim/pkg/log"
+	siCommon "github.com/G-Research/yunikorn-scheduler-interface/lib/go/common"
+	"github.com/G-Research/yunikorn-scheduler-interface/lib/go/si"
 )
 
 const userInfoKey = siCommon.DomainYuniKorn + "user.info"

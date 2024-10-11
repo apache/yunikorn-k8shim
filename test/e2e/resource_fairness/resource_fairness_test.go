@@ -28,12 +28,12 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 
-	"github.com/apache/yunikorn-core/pkg/common/configs"
-	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
-	tests "github.com/apache/yunikorn-k8shim/test/e2e"
-	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
-	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
-	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
+	"github.com/G-Research/yunikorn-core/pkg/common/configs"
+	"github.com/G-Research/yunikorn-k8shim/pkg/common/constants"
+	tests "github.com/G-Research/yunikorn-k8shim/test/e2e"
+	"github.com/G-Research/yunikorn-k8shim/test/e2e/framework/helpers/common"
+	"github.com/G-Research/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
+	"github.com/G-Research/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
 )
 
 var _ = Describe("FairScheduling:", func() {

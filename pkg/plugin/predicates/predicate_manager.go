@@ -37,7 +37,7 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/names"
 	fwruntime "k8s.io/kubernetes/pkg/scheduler/framework/runtime"
 
-	"github.com/apache/yunikorn-k8shim/pkg/log"
+	"github.com/G-Research/yunikorn-k8shim/pkg/log"
 )
 
 type PredicateManager interface {

@@ -30,8 +30,8 @@ import (
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
-	"github.com/apache/yunikorn-k8shim/pkg/client"
-	"github.com/apache/yunikorn-k8shim/pkg/common"
+	"github.com/G-Research/yunikorn-k8shim/pkg/client"
+	"github.com/G-Research/yunikorn-k8shim/pkg/common"
 )
 
 const (

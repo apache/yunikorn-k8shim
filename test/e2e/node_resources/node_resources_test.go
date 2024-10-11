@@ -24,11 +24,11 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	tests "github.com/apache/yunikorn-k8shim/test/e2e"
-	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
-	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
-	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
-	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
+	tests "github.com/G-Research/yunikorn-k8shim/test/e2e"
+	"github.com/G-Research/yunikorn-k8shim/test/e2e/framework/helpers/common"
+	"github.com/G-Research/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
+	"github.com/G-Research/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
+	siCommon "github.com/G-Research/yunikorn-scheduler-interface/lib/go/common"
 )
 
 var _ = Describe("", func() {

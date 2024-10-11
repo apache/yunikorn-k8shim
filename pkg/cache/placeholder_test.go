@@ -27,9 +27,9 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/apache/yunikorn-k8shim/pkg/common"
-	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
-	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
+	"github.com/G-Research/yunikorn-k8shim/pkg/common"
+	"github.com/G-Research/yunikorn-k8shim/pkg/common/constants"
+	siCommon "github.com/G-Research/yunikorn-scheduler-interface/lib/go/common"
 )
 
 const (

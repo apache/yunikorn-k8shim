@@ -24,7 +24,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/apache/yunikorn-k8shim/pkg/webtest"
+	"github.com/G-Research/yunikorn-k8shim/pkg/webtest"
 )
 
 var (

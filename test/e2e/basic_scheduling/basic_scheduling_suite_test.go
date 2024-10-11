@@ -27,8 +27,8 @@ import (
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 
-	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
-	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
+	"github.com/G-Research/yunikorn-k8shim/test/e2e/framework/configmanager"
+	"github.com/G-Research/yunikorn-k8shim/test/e2e/framework/helpers/common"
 )
 
 func init() {

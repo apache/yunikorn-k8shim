@@ -37,13 +37,13 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/types"
 
-	"github.com/apache/yunikorn-k8shim/pkg/admission/common"
-	"github.com/apache/yunikorn-k8shim/pkg/admission/conf"
-	"github.com/apache/yunikorn-k8shim/pkg/admission/metadata"
-	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
-	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
-	schedulerconf "github.com/apache/yunikorn-k8shim/pkg/conf"
-	"github.com/apache/yunikorn-k8shim/pkg/log"
+	"github.com/G-Research/yunikorn-k8shim/pkg/admission/common"
+	"github.com/G-Research/yunikorn-k8shim/pkg/admission/conf"
+	"github.com/G-Research/yunikorn-k8shim/pkg/admission/metadata"
+	"github.com/G-Research/yunikorn-k8shim/pkg/common/constants"
+	"github.com/G-Research/yunikorn-k8shim/pkg/common/utils"
+	schedulerconf "github.com/G-Research/yunikorn-k8shim/pkg/conf"
+	"github.com/G-Research/yunikorn-k8shim/pkg/log"
 )
 
 const (

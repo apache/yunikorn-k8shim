@@ -32,7 +32,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/onsi/ginkgo/v2"
 
-	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
+	"github.com/G-Research/yunikorn-k8shim/test/e2e/framework/configmanager"
 )
 
 var MasterTaints = map[string]struct{}{
