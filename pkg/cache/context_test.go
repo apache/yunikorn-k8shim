@@ -38,6 +38,7 @@ import (
 
 	schedulercache "github.com/apache/yunikorn-k8shim/pkg/cache/external"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
+	"github.com/apache/yunikorn-k8shim/pkg/common"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/common/test"
@@ -565,6 +566,7 @@ func TestAddUpdatePodForeign(t *testing.T) {
 	allocRequest = nil
 	context.UpdatePod(nil, pod1)
 	assert.Assert(t, allocRequest == nil, "unexpected update")
+	pod = context.schedulerCache.GetPod(string(pod1.UID))
 	assert.Assert(t, pod == nil, "unassigned pod found in cache")
 
 	// pod is assigned to a node but still in pending state, should update
@@ -610,16 +612,6 @@ func TestAddUpdatePodForeign(t *testing.T) {
 	assert.Assert(t, pod == nil, "failed pod found in cache")
 	assert.Assert(t, allocRequest.Releases != nil) // expecting a release due to pod status
 	assertReleaseForeignPod(t, podName2, allocRequest)
-
-	// validate update when not already in cache
-	allocRequest = nil
-	context.AddPod(pod2)
-	assert.Assert(t, allocRequest != nil, "expected update")
-	allocRequest = nil
-	context.UpdatePod(nil, pod3)
-	assert.Assert(t, allocRequest != nil, "expected update")
-	pod = context.schedulerCache.GetPod(string(pod3.UID))
-	assert.Assert(t, pod == nil, "failed pod found in cache")
 }
 
 func assertAddForeignPod(t *testing.T, podName, host string, allocRequest *si.AllocationRequest) {
@@ -1922,6 +1914,13 @@ func TestInitializeState(t *testing.T) {
 	assert.Equal(t, pc.Value, int32(1000), "wrong priority value")
 	assert.Equal(t, *pc.PreemptionPolicy, policy, "wrong preemption policy")
 	assert.Equal(t, pc.Annotations[constants.AnnotationAllowPreemption], constants.True, "wrong allow-preemption value")
+
+	// verify occupied / capacity on node
+	capacity, _, ok := context.schedulerCache.SnapshotResources(nodeName1)
+	assert.Assert(t, ok, "Unable to retrieve node resources")
+	expectedCapacity := common.ParseResource("4", "10G")
+	assert.Equal(t, expectedCapacity.Resources["vcore"].Value, capacity.Resources["vcore"].Value, "wrong capacity vcore")
+	assert.Equal(t, expectedCapacity.Resources["memory"].Value, capacity.Resources["memory"].Value, "wrong capacity memory")
 
 	// check that pod orphan status is correct
 	assert.Check(t, !context.schedulerCache.IsPodOrphaned(podName1), "pod1 should not be orphaned")

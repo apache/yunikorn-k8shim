@@ -365,11 +365,10 @@ func (ctx *Context) updateForeignPod(pod *v1.Pod) {
 		podStatusBefore = string(oldPod.Status.Phase)
 	}
 
-	// conditions for allocate:
-	//   1. pod was previously assigned
-	//   2. pod is now assigned
-	//   3. pod is not in terminated state
-	//   4. pod references a known node
+	// conditions for allocate/update:
+	//   1. pod is now assigned
+	//   2. pod is not in terminated state
+	//   3. pod references a known node
 	if utils.IsAssignedPod(pod) && !utils.IsPodTerminated(pod) {
 		if ctx.schedulerCache.UpdatePod(pod) {
 			// pod was accepted by a real node
@@ -385,7 +384,7 @@ func (ctx *Context) updateForeignPod(pod *v1.Pod) {
 			}
 		} else {
 			// pod is orphaned (references an unknown node)
-			log.Log(log.ShimContext).Info("skipping occupied resource update for assigned orphaned pod",
+			log.Log(log.ShimContext).Info("skipping updating allocation for assigned orphaned pod",
 				zap.String("namespace", pod.Namespace),
 				zap.String("podName", pod.Name),
 				zap.String("nodeName", pod.Spec.NodeName))
@@ -405,7 +404,7 @@ func (ctx *Context) updateForeignPod(pod *v1.Pod) {
 				zap.String("podStatusBefore", podStatusBefore),
 				zap.String("podStatusCurrent", string(pod.Status.Phase)))
 			// this means pod is terminated
-			// we need sub the occupied resource and re-sync with the scheduler-core
+			// remove from the scheduler cache and create release request to remove foreign allocation from the core
 			ctx.schedulerCache.RemovePod(pod)
 			releaseReq := common.CreateReleaseRequestForForeignPod(string(pod.UID), constants.DefaultPartition)
 			if err := ctx.apiProvider.GetAPIs().SchedulerAPI.UpdateAllocation(releaseReq); err != nil {
