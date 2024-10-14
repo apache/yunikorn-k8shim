@@ -462,6 +462,24 @@ func GetTaskGroupFromPodSpec(pod *v1.Pod) string {
 	return GetPodAnnotationValue(pod, constants.AnnotationTaskGroupName)
 }
 
+func GetTaskRetryNumFromPodSpec(pod *v1.Pod) int {
+	if value := GetPodAnnotationValue(pod, constants.AnnotationTaskRetryName); value != "" {
+		if v, err := strconv.Atoi(value); err == nil {
+			return v
+		}
+	}
+	return constants.DefaultTaskRetryNum
+}
+
+func GetTaskRetryTimeIntervalFromPodSpec(pod *v1.Pod) time.Duration {
+	if value := GetPodAnnotationValue(pod, constants.AnnotationTaskRetryIntervalName); value != "" {
+		if v, err := time.ParseDuration(value); err == nil {
+			return v
+		}
+	}
+	return constants.DefaultTaskRetryTimeInterval
+}
+
 func GetPlaceholderFlagFromPodSpec(pod *v1.Pod) bool {
 	if value := GetPodAnnotationValue(pod, constants.AnnotationPlaceholderFlag); value != "" {
 		if v, err := strconv.ParseBool(value); err == nil {
