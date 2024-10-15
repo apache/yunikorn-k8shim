@@ -1927,6 +1927,9 @@ func TestInitializeState(t *testing.T) {
 	assert.Check(t, !context.schedulerCache.IsPodOrphaned(podName2), "pod2 should not be orphaned")
 	assert.Check(t, context.schedulerCache.IsPodOrphaned(podName3), "pod3 should be orphaned")
 	assert.Check(t, context.schedulerCache.IsPodOrphaned(podForeignUID), "foreign pod should be orphaned")
+	assert.Check(t, context.schedulerCache.GetPod("foreignRunning") != nil, "foreign running pod is not in the cache")
+	assert.Check(t, context.schedulerCache.GetPod("foreignPending") == nil, "foreign pending pod should not be in the cache")
+	assert.Check(t, !context.schedulerCache.IsPodOrphaned("foreignRunning"), "foreign running pod should not be orphaned")
 
 	// pod1 is pending
 	task1 := context.getTask(appID1, podName1)
