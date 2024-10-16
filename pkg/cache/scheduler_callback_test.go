@@ -215,7 +215,9 @@ func TestUpdateAllocation_AllocationReleased_StoppedByRM(t *testing.T) {
 	assert.NilError(t, err, "error updating allocation")
 	assert.Assert(t, !context.schedulerCache.IsAssumedPod(taskUID1))
 	err = utils.WaitForCondition(deleteCalled.Load, 10*time.Millisecond, 500*time.Millisecond)
-	assert.Error(t, err, "timeout waiting for condition") // pod is not expected to be deleted
+	// Pod should be deleted, because TerminationType_STOPPED_BY_RM will also be called when task fail.
+	// If we don't delete the pod, the pod will be stuck in pending state.
+	assert.NilError(t, err, "pod has not been deleted")
 }
 
 func TestUpdateApplication_Accepted(t *testing.T) {
