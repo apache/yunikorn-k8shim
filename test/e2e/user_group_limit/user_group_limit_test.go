@@ -82,7 +82,6 @@ var (
 	suiteName             string
 	kClient               k8s.KubeCtl
 	restClient            yunikorn.RClient
-	ns                    *v1.Namespace
 	oldConfigMap          = new(v1.ConfigMap)
 	admissionCustomConfig = map[string]string{
 		"log.core.scheduler.ugm.level":   "debug",
