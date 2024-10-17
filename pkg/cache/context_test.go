@@ -36,9 +36,7 @@ import (
 	k8sEvents "k8s.io/client-go/tools/events"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/volumebinding"
 
-	schedulercache "github.com/apache/yunikorn-k8shim/pkg/cache/external"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
-	"github.com/apache/yunikorn-k8shim/pkg/common"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/common/test"
@@ -183,8 +181,8 @@ func TestUpdateNodes(t *testing.T) {
 	})
 
 	oldNodeResource := make(map[v1.ResourceName]resource.Quantity)
-	oldNodeResource[v1.ResourceName("memory")] = *resource.NewQuantity(1024*1000*1000, resource.DecimalSI)
-	oldNodeResource[v1.ResourceName("cpu")] = *resource.NewQuantity(2, resource.DecimalSI)
+	oldNodeResource["memory"] = *resource.NewQuantity(1024*1000*1000, resource.DecimalSI)
+	oldNodeResource["cpu"] = *resource.NewQuantity(2, resource.DecimalSI)
 	oldNode := v1.Node{
 		ObjectMeta: apis.ObjectMeta{
 			Name:      Host1,
@@ -197,8 +195,8 @@ func TestUpdateNodes(t *testing.T) {
 	}
 
 	newNodeResource := make(map[v1.ResourceName]resource.Quantity)
-	newNodeResource[v1.ResourceName("memory")] = *resource.NewQuantity(2048*1000*1000, resource.DecimalSI)
-	newNodeResource[v1.ResourceName("cpu")] = *resource.NewQuantity(4, resource.DecimalSI)
+	newNodeResource["memory"] = *resource.NewQuantity(2048*1000*1000, resource.DecimalSI)
+	newNodeResource["cpu"] = *resource.NewQuantity(4, resource.DecimalSI)
 	newNode := v1.Node{
 		ObjectMeta: apis.ObjectMeta{
 			Name:      Host1,
@@ -212,12 +210,6 @@ func TestUpdateNodes(t *testing.T) {
 
 	ctx.addNode(&oldNode)
 	ctx.updateNode(&oldNode, &newNode)
-
-	_, capacity, _, ok := ctx.schedulerCache.UpdateOccupiedResource(
-		Host1, "n/a", "n/a", nil, schedulercache.AddOccupiedResource)
-	assert.Assert(t, ok, "unable to retrieve node capacity")
-	assert.Equal(t, int64(2048*1000*1000), capacity.Resources[siCommon.Memory].Value)
-	assert.Equal(t, int64(4000), capacity.Resources[siCommon.CPU].Value)
 }
 
 func TestDeleteNodes(t *testing.T) {
@@ -1914,13 +1906,6 @@ func TestInitializeState(t *testing.T) {
 	assert.Equal(t, pc.Value, int32(1000), "wrong priority value")
 	assert.Equal(t, *pc.PreemptionPolicy, policy, "wrong preemption policy")
 	assert.Equal(t, pc.Annotations[constants.AnnotationAllowPreemption], constants.True, "wrong allow-preemption value")
-
-	// verify occupied / capacity on node
-	capacity, _, ok := context.schedulerCache.SnapshotResources(nodeName1)
-	assert.Assert(t, ok, "Unable to retrieve node resources")
-	expectedCapacity := common.ParseResource("4", "10G")
-	assert.Equal(t, expectedCapacity.Resources["vcore"].Value, capacity.Resources["vcore"].Value, "wrong capacity vcore")
-	assert.Equal(t, expectedCapacity.Resources["memory"].Value, capacity.Resources["memory"].Value, "wrong capacity memory")
 
 	// check that pod orphan status is correct
 	assert.Check(t, !context.schedulerCache.IsPodOrphaned(podName1), "pod1 should not be orphaned")

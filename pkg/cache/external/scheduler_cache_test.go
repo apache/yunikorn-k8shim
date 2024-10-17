@@ -31,7 +31,6 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
 	"github.com/apache/yunikorn-k8shim/pkg/client"
-	"github.com/apache/yunikorn-k8shim/pkg/common"
 )
 
 const (
@@ -1095,90 +1094,6 @@ func TestUpdatePVCRefCounts(t *testing.T) {
 	// remove node2
 	cache.RemoveNode(node2)
 	assert.Check(t, !cache.IsPVCUsedByPods(framework.GetNamespacedName(pod2.Namespace, pvcName2)), "pvc2 is in pvcRefCounts")
-}
-
-func TestNodeResources(t *testing.T) {
-	cache := NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
-	resourceList := make(map[v1.ResourceName]resource.Quantity)
-	resourceList["memory"] = *resource.NewQuantity(1024*1000*1000, resource.DecimalSI)
-	resourceList["cpu"] = *resource.NewQuantity(10, resource.DecimalSI)
-	node := &v1.Node{
-		ObjectMeta: apis.ObjectMeta{
-			Name:      host1,
-			Namespace: "default",
-			UID:       nodeUID1,
-		},
-		Status: v1.NodeStatus{
-			Allocatable: resourceList,
-		},
-		Spec: v1.NodeSpec{
-			Unschedulable: false,
-		},
-	}
-	cache.UpdateNode(node)
-
-	// test snapshot with missing node
-	capacity, occupied, ok := cache.SnapshotResources("missing")
-	assert.Assert(t, !ok, "got result for missing host")
-	assert.Assert(t, capacity == nil, "got capacity for missing host")
-	assert.Assert(t, occupied == nil, "got occupied for missing host")
-
-	// test snapshot with existing, unoccupied node
-	capacity, occupied, ok = cache.SnapshotResources(host1)
-	assert.Assert(t, ok, "no result for host1")
-	assert.Equal(t, int64(1024*1000*1000), capacity.Resources["memory"].Value, "wrong memory capacity for host1")
-	assert.Equal(t, int64(10*1000), capacity.Resources["vcore"].Value, "wrong vcore capacity for host1")
-	assert.Equal(t, 0, len(occupied.Resources), "non-empty occupied resources")
-
-	res1 := common.NewResourceBuilder().AddResource("memory", 2048*1000*1000).AddResource("vcore", 20000).Build()
-	res2 := common.NewResourceBuilder().AddResource("memory", 512*1000*1000).AddResource("vcore", 5000).Build()
-
-	// update capacity with missing node
-	capacity, occupied, ok = cache.UpdateCapacity("missing", res1)
-	assert.Assert(t, !ok, "got result for missing host")
-	assert.Assert(t, capacity == nil, "got capacity for missing host")
-	assert.Assert(t, occupied == nil, "got occupied for missing host")
-
-	// update capacity with real node
-	capacity, occupied, ok = cache.UpdateCapacity(host1, res1)
-	assert.Assert(t, ok, "no result for host1")
-	assert.Equal(t, int64(2048*1000*1000), capacity.Resources["memory"].Value, "wrong memory capacity for host1")
-	assert.Equal(t, int64(20*1000), capacity.Resources["vcore"].Value, "wrong vcore capacity for host1")
-	assert.Equal(t, 0, len(occupied.Resources), "non-empty occupied resources")
-
-	// update occupied resources with missing node
-	node, capacity, occupied, ok = cache.UpdateOccupiedResource("missing", "default", "podName", res2, AddOccupiedResource)
-	assert.Assert(t, !ok, "got result for missing host")
-	assert.Assert(t, node == nil, "got node for missing host")
-	assert.Assert(t, capacity == nil, "got capacity for missing host")
-	assert.Assert(t, occupied == nil, "got occupied for missing host")
-
-	// update occupied resources with real node
-	node, capacity, occupied, ok = cache.UpdateOccupiedResource(host1, "default", "podName", res2, AddOccupiedResource)
-	assert.Assert(t, ok, "no result for host1")
-	assert.Equal(t, host1, node.Name, "wrong host name")
-	assert.Equal(t, int64(2048*1000*1000), capacity.Resources["memory"].Value, "wrong memory capacity for host1")
-	assert.Equal(t, int64(20*1000), capacity.Resources["vcore"].Value, "wrong vcore capacity for host1")
-	assert.Equal(t, int64(512*1000*1000), occupied.Resources["memory"].Value, "wrong memory occupied for host1")
-	assert.Equal(t, int64(5*1000), occupied.Resources["vcore"].Value, "wrong vcore occupied for host1")
-
-	// retrieve snapshot again
-	capacity, occupied, ok = cache.SnapshotResources(host1)
-	assert.Assert(t, ok, "no result for host1")
-	assert.Equal(t, host1, node.Name, "wrong host name")
-	assert.Equal(t, int64(2048*1000*1000), capacity.Resources["memory"].Value, "wrong memory capacity for host1")
-	assert.Equal(t, int64(20*1000), capacity.Resources["vcore"].Value, "wrong vcore capacity for host1")
-	assert.Equal(t, int64(512*1000*1000), occupied.Resources["memory"].Value, "wrong memory occupied for host1")
-	assert.Equal(t, int64(5*1000), occupied.Resources["vcore"].Value, "wrong vcore occupied for host1")
-
-	// subtract occupied resources with real node
-	node, capacity, occupied, ok = cache.UpdateOccupiedResource(host1, "default", "podName", res2, SubOccupiedResource)
-	assert.Assert(t, ok, "no result for host1")
-	assert.Equal(t, host1, node.Name, "wrong host name")
-	assert.Equal(t, int64(2048*1000*1000), capacity.Resources["memory"].Value, "wrong memory capacity for host1")
-	assert.Equal(t, int64(20*1000), capacity.Resources["vcore"].Value, "wrong vcore capacity for host1")
-	assert.Equal(t, int64(0), occupied.Resources["memory"].Value, "wrong memory occupied for host1")
-	assert.Equal(t, int64(0), occupied.Resources["vcore"].Value, "wrong vcore occupied for host1")
 }
 
 func TestOrphanPods(t *testing.T) {

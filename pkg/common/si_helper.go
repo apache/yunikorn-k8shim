@@ -187,13 +187,12 @@ func CreateReleaseRequestForForeignPod(uid, partition string) *si.AllocationRequ
 	}
 }
 
-// CreateUpdateRequestForUpdatedNode builds a NodeRequest for capacity and occupied resource updates
-func CreateUpdateRequestForUpdatedNode(nodeID string, capacity *si.Resource, occupied *si.Resource) *si.NodeRequest {
+// CreateUpdateRequestForUpdatedNode builds a NodeRequest for capacity updates
+func CreateUpdateRequestForUpdatedNode(nodeID string, capacity *si.Resource) *si.NodeRequest {
 	nodeInfo := &si.NodeInfo{
 		NodeID:              nodeID,
 		Attributes:          map[string]string{},
 		SchedulableResource: capacity,
-		OccupiedResource:    occupied,
 		Action:              si.NodeInfo_UPDATE,
 	}
 
