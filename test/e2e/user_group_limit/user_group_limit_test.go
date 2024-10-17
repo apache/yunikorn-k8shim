@@ -35,10 +35,10 @@ import (
 
 	amCommon "github.com/apache/yunikorn-k8shim/pkg/admission/common"
 	amconf "github.com/apache/yunikorn-k8shim/pkg/admission/conf"
-
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 
 	tests "github.com/apache/yunikorn-k8shim/test/e2e"
+
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
@@ -46,6 +46,9 @@ import (
 
 	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
+
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
@@ -55,8 +58,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
 )
 
 type TestType int
@@ -82,7 +83,6 @@ var (
 	kClient               k8s.KubeCtl
 	restClient            yunikorn.RClient
 	ns                    *v1.Namespace
-	dev                   = "dev" + common.RandSeq(5)
 	oldConfigMap          = new(v1.ConfigMap)
 	admissionCustomConfig = map[string]string{
 		"log.core.scheduler.ugm.level":   "debug",
@@ -104,11 +104,14 @@ var _ = ginkgo.BeforeSuite(func() {
 
 	ginkgo.By("Port-forward the scheduler pod")
 	var err = kClient.PortForwardYkSchedulerPod()
-	Ω(err).NotTo(HaveOccurred())
+	Ω(err).NotTo(gomega.HaveOccurred())
+})
 
+var _ = ginkgo.BeforeEach(func() {
+	dev = "dev" + common.RandSeq(5)
 	ginkgo.By("create development namespace")
-	ns, err = kClient.CreateNamespace(dev, nil)
-	gomega.Ω(err).NotTo(HaveOccurred())
+	ns, err := kClient.CreateNamespace(dev, nil)
+	gomega.Ω(err).NotTo(gomega.HaveOccurred())
 	gomega.Ω(ns.Status.Phase).To(gomega.Equal(v1.NamespaceActive))
 })
 
@@ -117,8 +120,8 @@ var _ = ginkgo.AfterSuite(func() {
 	checks, err := yunikorn.GetFailedHealthChecks()
 	Ω(err).NotTo(HaveOccurred())
 	Ω(checks).To(gomega.Equal(""), checks)
-	ginkgo.By("Tearing down namespace: " + ns.Name)
-	err = kClient.TearDownNamespace(ns.Name)
+	ginkgo.By("Tearing down namespace: " + dev)
+	err = kClient.TearDownNamespace(dev)
 	Ω(err).NotTo(HaveOccurred())
 })
 
@@ -675,7 +678,7 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 		})
 		ginkgo.By("Fetch the queue information using the REST API")
 		queueInfo, err := restClient.GetQueue("default", "root."+url.QueryEscape(queueName), false)
-		gomega.Ω(err).NotTo(HaveOccurred())
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		gomega.Ω(queueInfo.QueueName).To(gomega.Equal("root." + queueName))
 	})
 
@@ -702,10 +705,10 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 			Data: invalidConfigData,
 		}
 		_, invalidConfigErr := kClient.UpdateConfigMap(invalidConfigMap, configmanager.YuniKornTestConfig.YkNamespace)
-		gomega.Ω(invalidConfigErr).Should(HaveOccurred())
+		gomega.Ω(invalidConfigErr).Should(gomega.HaveOccurred())
 		ginkgo.By("Verify that the queue was not created")
 		_, err := restClient.GetQueue("default", "root."+url.QueryEscape(queueName), false)
-		gomega.Ω(err).To(HaveOccurred()) // Expect an error
+		gomega.Ω(err).To(gomega.HaveOccurred()) // Expect an error
 		queueName2 := "root_test22"
 		yunikorn.UpdateCustomConfigMapWrapper(oldConfigMap, "", func(sc *configs.SchedulerConfig) error {
 			// remove placement rules so we can control queue
@@ -1072,7 +1075,6 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 		userInfo, err := GetUserInfoFromPodAnnotation(createdPod)
 		gomega.Ω(err).NotTo(HaveOccurred())
 		// user info should contain the substring "system:serviceaccount:default:test-user-sa"
-		fmt.Println(userInfo)
 		gomega.Ω(strings.Contains(fmt.Sprintf("%v", userInfo), "system:serviceaccount:default:test-user-sa")).To(gomega.BeTrue())
 		// Cleanup
 		ginkgo.By("Cleaning up resources...")
@@ -1192,7 +1194,7 @@ func checkUsageWildcardGroups(testType TestType, name string, queuePath string, 
 	if testType == groupTestType {
 		ginkgo.By(fmt.Sprintf("Check group resource usage for %s in queue %s", name, queuePath))
 		groupUsageDAOInfo, err := restClient.GetGroupsUsage(constants.DefaultPartition)
-		Ω(err).NotTo(HaveOccurred())
+		Ω(err).NotTo(gomega.HaveOccurred())
 		Ω(groupUsageDAOInfo).NotTo(gomega.BeNil())
 		for _, groupUsageDAOInfog := range groupUsageDAOInfo {
 			if groupUsageDAOInfog.GroupName == "*" {

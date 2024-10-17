@@ -52,7 +52,6 @@ var kClient k8s.KubeCtl
 var restClient yunikorn.RClient
 var oldConfigMap = new(v1.ConfigMap)
 var sleepRespPod *v1.Pod
-var dev = "dev" + common.RandSeq(5)
 
 // Define sleepPod
 var sleepPodConfigs = k8s.SleepPodConfig{Name: "sleepjob", NS: dev}
@@ -70,6 +69,15 @@ var _ = ginkgo.BeforeSuite(func() {
 	yunikorn.EnsureYuniKornConfigsPresent()
 	yunikorn.UpdateConfigMapWrapper(oldConfigMap, "")
 
+	ginkgo.By("Restart the scheduler pod")
+	yunikorn.RestartYunikorn(&kClient)
+
+	ginkgo.By("Port-forward scheduler pod after restart")
+	yunikorn.RestorePortForwarding(&kClient)
+})
+
+var _ = ginkgo.BeforeEach(func() {
+	dev = "dev" + common.RandSeq(5)
 	ginkgo.By("create development namespace")
 	ns1, err := kClient.CreateNamespace(dev, nil)
 	gomega.Ω(err).NotTo(gomega.HaveOccurred())
@@ -85,13 +93,6 @@ var _ = ginkgo.BeforeSuite(func() {
 		fmt.Sprintf("applicationId=%s", sleepRespPod.ObjectMeta.Labels["applicationId"]),
 		60)
 	gomega.Ω(err).NotTo(gomega.HaveOccurred())
-
-	ginkgo.By("Restart the scheduler pod")
-	yunikorn.RestartYunikorn(&kClient)
-
-	ginkgo.By("Port-forward scheduler pod after restart")
-	yunikorn.RestorePortForwarding(&kClient)
-
 	ginkgo.By("Deploy 2nd sleep pod to the development namespace")
 	sleepObj2, podErr := k8s.InitSleepPod(sleepPod2Configs)
 	Ω(podErr).NotTo(gomega.HaveOccurred())
@@ -104,10 +105,13 @@ var _ = ginkgo.BeforeSuite(func() {
 	gomega.Ω(err).NotTo(gomega.HaveOccurred())
 })
 
-var _ = ginkgo.AfterSuite(func() {
+var _ = ginkgo.AfterEach(func() {
 	ginkgo.By("Tear down namespace: " + dev)
 	err := kClient.TearDownNamespace(dev)
 	Ω(err).NotTo(gomega.HaveOccurred())
+})
+
+var _ = ginkgo.AfterSuite(func() {
 
 	// call the healthCheck api to check scheduler health
 	ginkgo.By("Check Yunikorn's health")

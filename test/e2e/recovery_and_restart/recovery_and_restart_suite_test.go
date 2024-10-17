@@ -50,3 +50,4 @@ func TestRecoveryAndRestart(t *testing.T) {
 }
 
 var Ω = gomega.Ω
+var dev string

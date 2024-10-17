@@ -54,5 +54,6 @@ var By = ginkgo.By
 
 var Ω = gomega.Ω
 var BeNil = gomega.BeNil
+var dev string
 var HaveOccurred = gomega.HaveOccurred
 var BeEquivalentTo = gomega.BeEquivalentTo

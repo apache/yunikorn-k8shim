@@ -89,6 +89,16 @@ else
   REPRO :=
 endif
 
+# Release build requires using parent dir as base for buildroot
+RELEASE_BUILD := $(test -f "$(BASE_DIR)/.gitignore" ; echo $$?)
+ifeq ($(RELEASE_BUILD),1)
+	DOCKER_BUILDROOT := $(shell cd "$(BASE_DIR)/.." ; pwd)
+	DOCKER_SRCROOT := /buildroot/k8shim
+else
+	DOCKER_BUILDROOT := $(shell cd "$(BASE_DIR)" ; pwd)
+	DOCKER_SRCROOT := /buildroot
+endif
+
 # Build date - Use git commit, then cached build.date, finally current date
 # This allows for reproducible builds as long as release tarball contains the build.date file.
 DATE := $(shell if [ -d "$(BASE_DIR)/.git" ]; then TZ=UTC0 git --no-pager log -1 --date=iso8601-strict-local --format=%cd 2>/dev/null ; fi || true)
@@ -440,7 +450,7 @@ $(RELEASE_BIN_DIR)/$(SCHEDULER_BINARY): go.mod go.sum $(shell find pkg)
 	@echo "building binary for scheduler docker image"
 	@mkdir -p "$(RELEASE_BIN_DIR)"
 ifeq ($(REPRO),1)
-	docker run -t --rm=true --volume "$(BASE_DIR):/buildroot" "golang:$(GO_REPRO_VERSION)" sh -c "cd /buildroot && \
+	docker run -t --rm=true --volume "$(DOCKER_BUILDROOT):/buildroot" "golang:$(GO_REPRO_VERSION)" sh -c "cd $(DOCKER_SRCROOT) && \
 	CGO_ENABLED=0 GOOS=linux GOARCH=\"${EXEC_ARCH}\" go build \
 	-a \
 	-o=${RELEASE_BIN_DIR}/${SCHEDULER_BINARY} \
@@ -468,7 +478,7 @@ $(RELEASE_BIN_DIR)/$(PLUGIN_BINARY): go.mod go.sum $(shell find pkg)
 	@echo "building binary for plugin docker image"
 	@mkdir -p "$(RELEASE_BIN_DIR)"
 ifeq ($(REPRO),1)
-	docker run -t --rm=true --volume "$(BASE_DIR):/buildroot" "golang:$(GO_REPRO_VERSION)" sh -c "cd /buildroot && \
+	docker run -t --rm=true --volume "$(DOCKER_BUILDROOT):/buildroot" "golang:$(GO_REPRO_VERSION)" sh -c "cd $(DOCKER_SRCROOT) && \
 	CGO_ENABLED=0 GOOS=linux GOARCH=\"${EXEC_ARCH}\" go build \
 	-a \
 	-o=${RELEASE_BIN_DIR}/${PLUGIN_BINARY} \
@@ -555,7 +565,7 @@ $(RELEASE_BIN_DIR)/$(ADMISSION_CONTROLLER_BINARY): go.mod go.sum $(shell find pk
 	@echo "building admission controller binary"
 	@mkdir -p "$(RELEASE_BIN_DIR)"
 ifeq ($(REPRO),1)
-	docker run -t --rm=true --volume "$(BASE_DIR):/buildroot" "golang:$(GO_REPRO_VERSION)" sh -c "cd /buildroot && \
+	docker run -t --rm=true --volume "$(DOCKER_BUILDROOT):/buildroot" "golang:$(GO_REPRO_VERSION)" sh -c "cd $(DOCKER_SRCROOT) && \
 	CGO_ENABLED=0 GOOS=linux GOARCH=\"${EXEC_ARCH}\" go build \
 	-a \
 	-o=$(RELEASE_BIN_DIR)/$(ADMISSION_CONTROLLER_BINARY) \
