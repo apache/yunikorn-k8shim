@@ -29,6 +29,7 @@ import (
 
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
 	"go.uber.org/zap"
 	appsv1 "k8s.io/api/apps/v1"
@@ -48,7 +49,6 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
-	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 	"k8s.io/client-go/tools/portforward"
 	"k8s.io/client-go/transport/spdy"
 	"k8s.io/client-go/util/retry"
@@ -155,13 +155,6 @@ func (k *KubeCtl) GetClient() *kubernetes.Clientset {
 func (k *KubeCtl) GetKubeConfig() (*rest.Config, error) {
 	if k.kubeConfig != nil {
 		return k.kubeConfig, nil
-	}
-	return nil, errors.New("kubeconfig is nil")
-}
-
-func (k *KubeCtl) GetKubeConfigNew() (*rest.TLSClientConfig, error) {
-	if k.kubeConfig != nil {
-		return &k.kubeConfig.TLSClientConfig, nil
 	}
 	return nil, errors.New("kubeconfig is nil")
 }
@@ -1097,66 +1090,6 @@ func (k *KubeCtl) CreateSecret(secret *v1.Secret, namespace string) (*v1.Secret,
 	return k.clientSet.CoreV1().Secrets(namespace).Create(context.TODO(), secret, metav1.CreateOptions{})
 }
 
-// SetClientFromConfig initializes a new Kubernetes clientset from the given config and sets it in kClient
-func (k *KubeCtl) SetClientFromConfig(newConf *rest.Config) error {
-	// Create a new Kubernetes clientset from the new configuration
-	clientset, err := kubernetes.NewForConfig(newConf)
-	if err != nil {
-		return err // Return the error if clientset creation fails
-	}
-
-	// Set the new clientset to the kClient object
-	k.clientSet = clientset
-	return nil
-}
-
-func WriteConfigToFile(config *rest.Config, kubeconfigPath string) error {
-	// Build the kubeconfig API object from the rest.Config
-	kubeConfig := &clientcmdapi.Config{
-		Clusters: map[string]*clientcmdapi.Cluster{
-			"default-cluster": {
-				Server:                   config.Host,
-				CertificateAuthorityData: config.CAData,
-				InsecureSkipTLSVerify:    config.Insecure,
-			},
-		},
-		AuthInfos: map[string]*clientcmdapi.AuthInfo{
-			"default-auth": {
-				Token: config.BearerToken,
-			},
-		},
-		Contexts: map[string]*clientcmdapi.Context{
-			"default-context": {
-				Cluster:  "default-cluster",
-				AuthInfo: "default-auth",
-			},
-		},
-		CurrentContext: "default-context",
-	}
-
-	// Ensure the directory where the file is being written exists
-	err := os.MkdirAll(filepath.Dir(kubeconfigPath), os.ModePerm)
-	if err != nil {
-		return fmt.Errorf("failed to create directory for kubeconfig file: %v", err)
-	}
-
-	// Write the kubeconfig to the specified file
-	err = clientcmd.WriteToFile(*kubeConfig, kubeconfigPath)
-	if err != nil {
-		return fmt.Errorf("failed to write kubeconfig to file: %v", err)
-	}
-
-	return nil
-}
-
-func GetSecretObj(yamlPath string) (*v1.Secret, error) {
-	o, err := common.Yaml2Obj(yamlPath)
-	if err != nil {
-		return nil, err
-	}
-	return o.(*v1.Secret), err
-}
-
 func (k *KubeCtl) CreateServiceAccount(accountName string, namespace string) (*v1.ServiceAccount, error) {
 	return k.clientSet.CoreV1().ServiceAccounts(namespace).Create(context.TODO(), &v1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{Name: accountName},
@@ -1827,91 +1760,78 @@ func (k *KubeCtl) GetSecrets(namespace string) (*v1.SecretList, error) {
 	return k.clientSet.CoreV1().Secrets(namespace).List(context.TODO(), metav1.ListOptions{})
 }
 
+// GetSecretValue retrieves the value for a specific key from a Kubernetes secret.
 func (k *KubeCtl) GetSecretValue(namespace, secretName, key string) (string, error) {
+	secret, err := k.getSecretWithRetry(namespace, secretName)
+	if err != nil {
+		return "", err
+	}
+	// Check if the key exists in the secret
+	value, ok := secret.Data[key]
+	if !ok {
+		return "", fmt.Errorf("key %s not found in secret %s", key, secretName)
+	}
+	return string(value), nil
+}
+
+// getSecretWithRetry retries getting the secret until it's populated with data, up to a limit.
+func (k *KubeCtl) getSecretWithRetry(namespace, secretName string) (*v1.Secret, error) {
 	var secret *v1.Secret
 	var err error
 
-	// Retry loop in case secret is not yet populated
 	for i := 0; i < 5; i++ {
 		secret, err = k.clientSet.CoreV1().Secrets(namespace).Get(context.TODO(), secretName, metav1.GetOptions{})
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 
-		// Check if the secret contains data
+		// If secret contains data, return it
 		if len(secret.Data) > 0 {
-			value, ok := secret.Data[key]
-			if !ok {
-				return "", fmt.Errorf("key %s not found in secret %s", key, secretName)
-			}
-			return string(value), nil
+			return secret, nil
 		}
 
 		// Wait before retrying
 		time.Sleep(2 * time.Second)
 	}
 
-	return "", fmt.Errorf("secret %s has no data after retries", secretName)
+	return nil, fmt.Errorf("secret %s has no data after retries", secretName)
 }
 
-func (k *KubeCtl) GetCurrentContext() (string, error) {
-	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
-	configOverrides := &clientcmd.ConfigOverrides{}
-	kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, configOverrides)
+func WriteConfigToFile(config *rest.Config, kubeconfigPath string) error {
+	// Build the kubeconfig API object from the rest.Config
+	kubeConfig := &clientcmdapi.Config{
+		Clusters: map[string]*clientcmdapi.Cluster{
+			"default-cluster": {
+				Server:                   config.Host,
+				CertificateAuthorityData: config.CAData,
+				InsecureSkipTLSVerify:    config.Insecure,
+			},
+		},
+		AuthInfos: map[string]*clientcmdapi.AuthInfo{
+			"default-auth": {
+				Token: config.BearerToken,
+			},
+		},
+		Contexts: map[string]*clientcmdapi.Context{
+			"default-context": {
+				Cluster:  "default-cluster",
+				AuthInfo: "default-auth",
+			},
+		},
+		CurrentContext: "default-context",
+	}
 
-	rawConfig, err := kubeConfig.RawConfig()
+	// Ensure the directory where the file is being written exists
+	err := os.MkdirAll(filepath.Dir(kubeconfigPath), os.ModePerm)
 	if err != nil {
-		return "", err
+		return fmt.Errorf("failed to create directory for kubeconfig file: %v", err)
 	}
-	return rawConfig.CurrentContext, nil
-}
 
-func (k *KubeCtl) GetCurrentCluster() (string, error) {
-	// get the current context cluster name
-	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
-	configOverrides := &clientcmd.ConfigOverrides{}
-	kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, configOverrides)
-	rawConfig, err := kubeConfig.RawConfig()
+	// Write the kubeconfig to the specified file
+	err = clientcmd.WriteToFile(*kubeConfig, kubeconfigPath)
 	if err != nil {
-		return "", err
+		return fmt.Errorf("failed to write kubeconfig to file: %v", err)
 	}
-	return rawConfig.Contexts[rawConfig.CurrentContext].Cluster, nil
-}
 
-func (k *KubeCtl) GetClusterCA() ([]byte, error) {
-	// Get the current clustername
-	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
-	configOverrides := &clientcmd.ConfigOverrides{}
-	kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, configOverrides)
-	rawConfig, err := kubeConfig.RawConfig()
-	if err != nil {
-		return nil, err
-	}
-	return rawConfig.Clusters[rawConfig.Contexts[rawConfig.CurrentContext].Cluster].CertificateAuthorityData, nil
-}
-
-func (k *KubeCtl) GetClusterServer() (string, error) {
-	// Get the current clustername
-	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
-	configOverrides := &clientcmd.ConfigOverrides{}
-	kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, configOverrides)
-	rawConfig, err := kubeConfig.RawConfig()
-	if err != nil {
-		return "", err
-	}
-	return rawConfig.Clusters[rawConfig.Contexts[rawConfig.CurrentContext].Cluster].Server, nil
-}
-
-func (k *KubeCtl) UpdateConfig(newConf *rest.Config) error {
-	_, err := clientcmd.BuildConfigFromFlags("", clientcmd.RecommendedHomeFile)
-	if err != nil {
-		return err
-	}
-	newClientset, err := kubernetes.NewForConfig(newConf)
-	if err != nil {
-		return err
-	}
-	k.clientSet = newClientset
-	k.kubeConfig = newConf
 	return nil
 }

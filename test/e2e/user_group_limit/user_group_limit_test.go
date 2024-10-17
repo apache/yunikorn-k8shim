@@ -35,10 +35,10 @@ import (
 
 	amCommon "github.com/apache/yunikorn-k8shim/pkg/admission/common"
 	amconf "github.com/apache/yunikorn-k8shim/pkg/admission/conf"
+
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 
 	tests "github.com/apache/yunikorn-k8shim/test/e2e"
-
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
@@ -46,9 +46,6 @@ import (
 
 	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
-
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
@@ -58,6 +55,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 )
 
 type TestType int
@@ -105,22 +104,22 @@ var _ = ginkgo.BeforeSuite(func() {
 
 	ginkgo.By("Port-forward the scheduler pod")
 	var err = kClient.PortForwardYkSchedulerPod()
-	Ω(err).NotTo(gomega.HaveOccurred())
+	Ω(err).NotTo(HaveOccurred())
 
 	ginkgo.By("create development namespace")
 	ns, err = kClient.CreateNamespace(dev, nil)
-	gomega.Ω(err).NotTo(gomega.HaveOccurred())
+	gomega.Ω(err).NotTo(HaveOccurred())
 	gomega.Ω(ns.Status.Phase).To(gomega.Equal(v1.NamespaceActive))
 })
 
 var _ = ginkgo.AfterSuite(func() {
 	ginkgo.By("Check Yunikorn's health")
 	checks, err := yunikorn.GetFailedHealthChecks()
-	Ω(err).NotTo(gomega.HaveOccurred())
+	Ω(err).NotTo(HaveOccurred())
 	Ω(checks).To(gomega.Equal(""), checks)
 	ginkgo.By("Tearing down namespace: " + ns.Name)
 	err = kClient.TearDownNamespace(ns.Name)
-	Ω(err).NotTo(gomega.HaveOccurred())
+	Ω(err).NotTo(HaveOccurred())
 })
 
 var _ = ginkgo.Describe("UserGroupLimit", func() {
@@ -676,7 +675,7 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 		})
 		ginkgo.By("Fetch the queue information using the REST API")
 		queueInfo, err := restClient.GetQueue("default", "root."+url.QueryEscape(queueName), false)
-		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		gomega.Ω(err).NotTo(HaveOccurred())
 		gomega.Ω(queueInfo.QueueName).To(gomega.Equal("root." + queueName))
 	})
 
@@ -703,10 +702,10 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 			Data: invalidConfigData,
 		}
 		_, invalidConfigErr := kClient.UpdateConfigMap(invalidConfigMap, configmanager.YuniKornTestConfig.YkNamespace)
-		gomega.Ω(invalidConfigErr).Should(gomega.HaveOccurred())
+		gomega.Ω(invalidConfigErr).Should(HaveOccurred())
 		ginkgo.By("Verify that the queue was not created")
 		_, err := restClient.GetQueue("default", "root."+url.QueryEscape(queueName), false)
-		gomega.Ω(err).To(gomega.HaveOccurred()) // Expect an error
+		gomega.Ω(err).To(HaveOccurred()) // Expect an error
 		queueName2 := "root_test22"
 		yunikorn.UpdateCustomConfigMapWrapper(oldConfigMap, "", func(sc *configs.SchedulerConfig) error {
 			// remove placement rules so we can control queue
@@ -1021,30 +1020,25 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 			},
 			Type: v1.SecretTypeServiceAccountToken,
 		}
-		time.Sleep(10 * time.Second)
 		_, err = kClient.CreateSecret(secret, namespace)
 		gomega.Ω(err).NotTo(HaveOccurred())
-		time.Sleep(10 * time.Second)
 		// Get the token value from the Secret
 		ginkgo.By("Getting the token value from the Secret...")
 		userTokenValue, err := kClient.GetSecretValue(namespace, secretName, "token")
 		gomega.Ω(err).NotTo(HaveOccurred())
 		// use deep copy not to hardcode the kubeconfig
 		config, err := kClient.GetKubeConfig()
-		gomega.Ω(err).NotTo(gomega.HaveOccurred())
-		// Modify the TLS configuration to remove cert/key files for token-based auth
+		gomega.Ω(err).NotTo(HaveOccurred())
+		config.BearerToken = userTokenValue
 		newConf := rest.CopyConfig(config) // copy existing config
 		// Use token-based authentication instead of client certificates
 		newConf.CAFile = ""
 		newConf.CertFile = ""
 		newConf.KeyFile = ""
-		// Set the Kubernetes API server URL
 		newConf.BearerToken = userTokenValue
-		newConf.Username = ""
-		newConf.Password = ""
 		kubeconfigPath := filepath.Join(os.TempDir(), "test-user-config")
 		err = k8s.WriteConfigToFile(newConf, kubeconfigPath)
-		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		gomega.Ω(err).NotTo(HaveOccurred())
 		config, err = clientcmd.BuildConfigFromFlags("", kubeconfigPath)
 		gomega.Ω(err).NotTo(HaveOccurred())
 		clientset, err = kubernetes.NewForConfig(config)
@@ -1076,14 +1070,10 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 		gomega.Ω(err).NotTo(HaveOccurred())
 		ginkgo.By("Verifying User Info...")
 		userInfo, err := GetUserInfoFromPodAnnotation(createdPod)
-		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		gomega.Ω(err).NotTo(HaveOccurred())
 		// user info should contain the substring "system:serviceaccount:default:test-user-sa"
+		fmt.Println(userInfo)
 		gomega.Ω(strings.Contains(fmt.Sprintf("%v", userInfo), "system:serviceaccount:default:test-user-sa")).To(gomega.BeTrue())
-		// Remove the new kubeconfig file
-		gomega.Ω(err).NotTo(gomega.HaveOccurred())
-		os.Unsetenv("KUBECONFIG")
-		err = kClient.SetClient()
-		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		// Cleanup
 		ginkgo.By("Cleaning up resources...")
 		err = clientset.CoreV1().Pods(namespace).Delete(context.TODO(), podName, metav1.DeleteOptions{})
@@ -1113,49 +1103,49 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 		tests.DumpClusterInfoIfSpecFailed(suiteName, []string{dev})
 		ginkgo.By("Tearing down namespace: " + dev)
 		err := kClient.TearDownNamespace(dev)
-		Ω(err).NotTo(gomega.HaveOccurred())
+		Ω(err).NotTo(HaveOccurred())
 		// reset config
 		ginkgo.By("Restoring YuniKorn configuration")
 		yunikorn.RestoreConfigMapWrapper(oldConfigMap)
 	})
 })
 
-func GetUserInfoFromPodAnnotation(pod *v1.Pod) (interface{}, error) {
+func GetUserInfoFromPodAnnotation(pod *v1.Pod) (*si.UserGroupInformation, error) {
 	userInfo, ok := pod.Annotations[amCommon.UserInfoAnnotation]
 	if !ok {
 		return nil, fmt.Errorf("user info not found in pod annotation")
 	}
-	var userInfoObj interface{}
+	var userInfoObj si.UserGroupInformation
 	err := json.Unmarshal([]byte(userInfo), &userInfoObj)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal user info from pod annotation")
 	}
-	return userInfoObj, nil
+	return &userInfoObj, nil
 }
 
 func deploySleepPod(usergroup *si.UserGroupInformation, queuePath string, expectedRunning bool, reason string) *v1.Pod {
 	usergroupJsonBytes, err := json.Marshal(usergroup)
-	Ω(err).NotTo(gomega.HaveOccurred())
+	Ω(err).NotTo(HaveOccurred())
 
 	sleepPodConfig := k8s.SleepPodConfig{NS: dev, Mem: smallMem, Labels: map[string]string{constants.LabelQueueName: queuePath}}
 	sleepPodObj, err := k8s.InitSleepPod(sleepPodConfig)
-	Ω(err).NotTo(gomega.HaveOccurred())
+	Ω(err).NotTo(HaveOccurred())
 	sleepPodObj.Annotations[amCommon.UserInfoAnnotation] = string(usergroupJsonBytes)
 
 	ginkgo.By(fmt.Sprintf("%s deploys the sleep pod %s to queue %s", usergroup, sleepPodObj.Name, queuePath))
 	sleepPod, err := kClient.CreatePod(sleepPodObj, dev)
-	gomega.Ω(err).NotTo(gomega.HaveOccurred())
+	gomega.Ω(err).NotTo(HaveOccurred())
 
 	if expectedRunning {
 		ginkgo.By(fmt.Sprintf("The sleep pod %s can be scheduled %s", sleepPod.Name, reason))
 		err = kClient.WaitForPodRunning(dev, sleepPod.Name, 60*time.Second)
-		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		gomega.Ω(err).NotTo(HaveOccurred())
 	} else {
 		ginkgo.By(fmt.Sprintf("The sleep pod %s can't be scheduled %s", sleepPod.Name, reason))
 		// Since Pending is the initial state of PodPhase, sleep for 5 seconds, then check whether the pod is still in Pending state.
 		time.Sleep(5 * time.Second)
 		err = kClient.WaitForPodPending(sleepPod.Namespace, sleepPod.Name, 60*time.Second)
-		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		gomega.Ω(err).NotTo(HaveOccurred())
 	}
 	return sleepPod
 }
@@ -1165,14 +1155,14 @@ func checkUsage(testType TestType, name string, queuePath string, expectedRunnin
 	if testType == userTestType {
 		ginkgo.By(fmt.Sprintf("Check user resource usage for %s in queue %s", name, queuePath))
 		userUsageDAOInfo, err := restClient.GetUserUsage(constants.DefaultPartition, name)
-		Ω(err).NotTo(gomega.HaveOccurred())
+		Ω(err).NotTo(HaveOccurred())
 		Ω(userUsageDAOInfo).NotTo(gomega.BeNil())
 
 		rootQueueResourceUsageDAO = userUsageDAOInfo.Queues
 	} else if testType == groupTestType {
 		ginkgo.By(fmt.Sprintf("Check group resource usage for %s in queue %s", name, queuePath))
 		groupUsageDAOInfo, err := restClient.GetGroupUsage(constants.DefaultPartition, name)
-		Ω(err).NotTo(gomega.HaveOccurred())
+		Ω(err).NotTo(HaveOccurred())
 		Ω(groupUsageDAOInfo).NotTo(gomega.BeNil())
 
 		rootQueueResourceUsageDAO = groupUsageDAOInfo.Queues
@@ -1202,7 +1192,7 @@ func checkUsageWildcardGroups(testType TestType, name string, queuePath string, 
 	if testType == groupTestType {
 		ginkgo.By(fmt.Sprintf("Check group resource usage for %s in queue %s", name, queuePath))
 		groupUsageDAOInfo, err := restClient.GetGroupsUsage(constants.DefaultPartition)
-		Ω(err).NotTo(gomega.HaveOccurred())
+		Ω(err).NotTo(HaveOccurred())
 		Ω(groupUsageDAOInfo).NotTo(gomega.BeNil())
 		for _, groupUsageDAOInfog := range groupUsageDAOInfo {
 			if groupUsageDAOInfog.GroupName == "*" {
