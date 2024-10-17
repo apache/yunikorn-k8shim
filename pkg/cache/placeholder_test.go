@@ -119,9 +119,10 @@ func TestNewPlaceholder(t *testing.T) {
 	assert.Equal(t, app.placeholderAsk.Resources[siCommon.Memory].Value, int64(10*1024*1000*1000))
 	assert.Equal(t, app.placeholderAsk.Resources["pods"].Value, int64(10))
 
-	holder := newPlaceholder("ph-name", app, app.taskGroups[0])
+	tgs := app.getTaskGroups()
+	holder := newPlaceholder("ph-name", app, tgs[0])
 	assert.Equal(t, holder.appID, appID)
-	assert.Equal(t, holder.taskGroupName, app.taskGroups[0].Name)
+	assert.Equal(t, holder.taskGroupName, tgs[0].Name)
 	assert.Equal(t, holder.pod.Spec.SchedulerName, constants.SchedulerName)
 	assert.Equal(t, holder.pod.Name, "ph-name")
 	assert.Equal(t, holder.pod.Namespace, namespace)
@@ -132,7 +133,7 @@ func TestNewPlaceholder(t *testing.T) {
 		"labelKey1":                           "labelKeyValue1",
 	})
 	assert.Equal(t, len(holder.pod.Annotations), 7, "unexpected number of annotations")
-	assert.Equal(t, holder.pod.Annotations[constants.AnnotationTaskGroupName], app.taskGroups[0].Name)
+	assert.Equal(t, holder.pod.Annotations[constants.AnnotationTaskGroupName], tgs[0].Name)
 	assert.Equal(t, holder.pod.Annotations[constants.AnnotationPlaceholderFlag], constants.True)
 	assert.Equal(t, holder.pod.Annotations["annotationKey0"], "annotationValue0")
 	assert.Equal(t, holder.pod.Annotations["annotationKey1"], "annotationValue1")
@@ -163,7 +164,8 @@ func TestNewPlaceholderWithNodeSelectors(t *testing.T) {
 		"bob", testGroups, map[string]string{constants.AppTagNamespace: namespace}, mockedSchedulerAPI)
 	app.setTaskGroups(taskGroups)
 
-	holder := newPlaceholder("ph-name", app, app.taskGroups[0])
+	tgs := app.getTaskGroups()
+	holder := newPlaceholder("ph-name", app, tgs[0])
 	assert.Equal(t, len(holder.pod.Spec.NodeSelector), 2)
 	assert.Equal(t, holder.pod.Spec.NodeSelector["nodeType"], "test")
 	assert.Equal(t, holder.pod.Spec.NodeSelector["nodeState"], "healthy")
@@ -178,7 +180,8 @@ func TestNewPlaceholderWithTolerations(t *testing.T) {
 		"bob", testGroups, map[string]string{constants.AppTagNamespace: namespace}, mockedSchedulerAPI)
 	app.setTaskGroups(taskGroups)
 
-	holder := newPlaceholder("ph-name", app, app.taskGroups[0])
+	tgs := app.getTaskGroups()
+	holder := newPlaceholder("ph-name", app, tgs[0])
 	assert.Equal(t, len(holder.pod.Spec.Tolerations), 1)
 	tlr := holder.pod.Spec.Tolerations[0]
 	assert.Equal(t, tlr.Key, "key1")
@@ -196,7 +199,8 @@ func TestNewPlaceholderWithAffinity(t *testing.T) {
 		"bob", testGroups, map[string]string{constants.AppTagNamespace: namespace}, mockedSchedulerAPI)
 	app.setTaskGroups(taskGroups)
 
-	holder := newPlaceholder("ph-name", app, app.taskGroups[0])
+	tgs := app.getTaskGroups()
+	holder := newPlaceholder("ph-name", app, tgs[0])
 	assert.Equal(t, len(holder.pod.Spec.Affinity.PodAffinity.RequiredDuringSchedulingIgnoredDuringExecution), 1)
 	term := holder.pod.Spec.Affinity.PodAffinity.RequiredDuringSchedulingIgnoredDuringExecution
 	assert.Equal(t, term[0].TopologyKey, "topologyKey")
@@ -215,14 +219,16 @@ func TestNewPlaceholderTaskGroupsDefinition(t *testing.T) {
 	app := NewApplication(appID, queue,
 		"bob", testGroups, map[string]string{constants.AppTagNamespace: namespace}, mockedSchedulerAPI)
 	app.setTaskGroups(taskGroups)
-	holder := newPlaceholder("ph-name", app, app.taskGroups[0])
+	tgs := app.getTaskGroups()
+	holder := newPlaceholder("ph-name", app, tgs[0])
 	assert.Equal(t, "", holder.pod.Annotations[constants.AnnotationTaskGroups])
 
 	app = NewApplication(appID, queue,
 		"bob", testGroups, map[string]string{constants.AppTagNamespace: namespace}, mockedSchedulerAPI)
 	app.setTaskGroups(taskGroups)
 	app.setTaskGroupsDefinition("taskGroupsDef")
-	holder = newPlaceholder("ph-name", app, app.taskGroups[0])
+	tgs = app.getTaskGroups()
+	holder = newPlaceholder("ph-name", app, tgs[0])
 	assert.Equal(t, "taskGroupsDef", holder.pod.Annotations[constants.AnnotationTaskGroups])
 	var priority *int32
 	assert.Equal(t, priority, holder.pod.Spec.Priority)
@@ -234,7 +240,9 @@ func TestNewPlaceholderExtendedResources(t *testing.T) {
 	app := NewApplication(appID, queue,
 		"bob", testGroups, map[string]string{constants.AppTagNamespace: namespace}, mockedSchedulerAPI)
 	app.setTaskGroups(taskGroups)
-	holder := newPlaceholder("ph-name", app, app.taskGroups[0])
+
+	tgs := app.getTaskGroups()
+	holder := newPlaceholder("ph-name", app, tgs[0])
 	assert.Equal(t, len(holder.pod.Spec.Containers[0].Resources.Requests), 5, "expected requests not found")
 	assert.Equal(t, len(holder.pod.Spec.Containers[0].Resources.Limits), 5, "expected limits not found")
 	assert.Equal(t, holder.pod.Spec.Containers[0].Resources.Limits[gpu], holder.pod.Spec.Containers[0].Resources.Requests[gpu], "gpu: expected same value for request and limit")
@@ -271,7 +279,8 @@ func TestNewPlaceholderWithPriorityClassName(t *testing.T) {
 	app.taskMap[taskID1] = task1
 	app.setOriginatingTask(task1)
 
-	holder := newPlaceholder("ph-name", app, app.taskGroups[0])
+	tgs := app.getTaskGroups()
+	holder := newPlaceholder("ph-name", app, tgs[0])
 	assert.Equal(t, len(holder.pod.Spec.Containers[0].Resources.Requests), 5, "expected requests not found")
 	assert.Equal(t, len(holder.pod.Spec.Containers[0].Resources.Limits), 5, "expected limits not found")
 	assert.Equal(t, holder.pod.Spec.Containers[0].Resources.Limits[gpu], holder.pod.Spec.Containers[0].Resources.Requests[gpu], "gpu: expected same value for request and limit")
@@ -287,7 +296,8 @@ func TestNewPlaceholderWithTopologySpreadConstraints(t *testing.T) {
 		"bob", testGroups, map[string]string{constants.AppTagNamespace: namespace}, mockedSchedulerAPI)
 	app.setTaskGroups(taskGroups)
 
-	holder := newPlaceholder("ph-name", app, app.taskGroups[0])
+	tgs := app.getTaskGroups()
+	holder := newPlaceholder("ph-name", app, tgs[0])
 	assert.Equal(t, len(holder.pod.Spec.TopologySpreadConstraints), 1)
 	assert.Equal(t, holder.pod.Spec.TopologySpreadConstraints[0].MaxSkew, int32(1))
 	assert.Equal(t, holder.pod.Spec.TopologySpreadConstraints[0].TopologyKey, v1.LabelTopologyZone)
@@ -296,4 +306,31 @@ func TestNewPlaceholderWithTopologySpreadConstraints(t *testing.T) {
 		"labelKey0": "labelKeyValue0",
 		"labelKey1": "labelKeyValue1",
 	})
+}
+
+func TestNewPlaceholderWithDuplicatedTaskGroup(t *testing.T) {
+	mockedSchedulerAPI := newMockSchedulerAPI()
+
+	// in this case, suppose pod1 triggers the creation of app.
+	pod1 := &v1.Pod{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "gang-scheduling-job-app01-0",
+			UID:  "UID-01",
+		},
+	}
+	app := NewApplication(appID, queue,
+		"bob", testGroups, map[string]string{constants.AppTagNamespace: namespace}, mockedSchedulerAPI)
+
+	var duplicatedTaskGroups = make([]TaskGroup, 0, 2)
+	duplicatedTaskGroups = append(duplicatedTaskGroups, taskGroups[0])
+	duplicatedTaskGroups = append(duplicatedTaskGroups, taskGroups[0])
+
+	app.checkTaskGroups(duplicatedTaskGroups, pod1)
+	app.setTaskGroups(duplicatedTaskGroups)
+	tgs := app.getTaskGroups()
+	assert.Equal(t, len(tgs), 1)
 }

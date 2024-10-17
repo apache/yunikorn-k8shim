@@ -338,7 +338,7 @@ func (ctx *Context) ensureAppAndTaskCreated(pod *v1.Pod, app *Application) {
 		}
 		app = ctx.addApplication(&AddApplicationRequest{
 			Metadata: appMeta,
-		})
+		}, pod)
 	}
 
 	// get task metadata
@@ -957,10 +957,10 @@ func (ctx *Context) AddApplication(request *AddApplicationRequest) *Application 
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
 
-	return ctx.addApplication(request)
+	return ctx.addApplication(request, nil)
 }
 
-func (ctx *Context) addApplication(request *AddApplicationRequest) *Application {
+func (ctx *Context) addApplication(request *AddApplicationRequest, pod *v1.Pod) *Application {
 	log.Log(log.ShimContext).Debug("AddApplication", zap.Any("Request", request))
 	if app := ctx.getApplication(request.Metadata.ApplicationID); app != nil {
 		return app
@@ -980,6 +980,7 @@ func (ctx *Context) addApplication(request *AddApplicationRequest) *Application 
 		request.Metadata.Groups,
 		request.Metadata.Tags,
 		ctx.apiProvider.GetAPIs().SchedulerAPI)
+	app.checkTaskGroups(request.Metadata.TaskGroups, pod)
 	app.setTaskGroups(request.Metadata.TaskGroups)
 	app.setTaskGroupsDefinition(request.Metadata.Tags[constants.AnnotationTaskGroups])
 	app.setSchedulingParamsDefinition(request.Metadata.Tags[constants.AnnotationSchedulingPolicyParam])
