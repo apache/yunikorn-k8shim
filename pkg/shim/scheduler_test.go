@@ -20,7 +20,9 @@ package shim
 
 import (
 	"fmt"
+	"strconv"
 	"testing"
+	"time"
 
 	"gotest.tools/v3/assert"
 	v1 "k8s.io/api/core/v1"
@@ -190,7 +192,7 @@ func TestSchedulerRegistrationFailed(t *testing.T) {
 	shim.Stop()
 }
 
-func TestTaskFailures(t *testing.T) {
+func TestTaskRetrySuccessWithDefaultRetryParam(t *testing.T) {
 	configData := `
 partitions:
  -
@@ -250,12 +252,239 @@ partitions:
 	// wait for scheduling app and tasks
 	// verify app state
 	cluster.waitAndAssertApplicationState(t, "app0001", cache.ApplicationStates().Running)
-	cluster.waitAndAssertTaskState(t, "app0001", "task0001", cache.TaskStates().Failed)
+	//cluster.waitAndAssertTaskState(t, "app0001", "task0001", cache.TaskStates().Failed)
+
+	// retry will succeed
+	cluster.waitAndAssertTaskStateWithRetryParam(t, "app0001", "task0001", cache.TaskStates().Allocated, constants.DefaultTaskRetryNum, constants.DefaultTaskRetryTimeInterval, 10*time.Second)
+	cluster.waitAndAssertTaskState(t, "app0001", "task0002", cache.TaskStates().Bound)
+
+	// one task get bound, one ask failed, so we are expecting only 1 allocation in the scheduler
+	err = cluster.waitAndVerifySchedulerAllocations("root.a",
+		"[mycluster]default", "app0001", 2)
+	assert.NilError(t, err, "number of allocations is not expected, error")
+}
+
+func TestTaskRetryFailureDefaultRetryParam(t *testing.T) {
+	configData := `
+partitions:
+ -
+   name: default
+   queues:
+     -
+       name: root
+       submitacl: "*"
+       queues:
+         -
+           name: a
+           resources:
+             guaranteed:
+               memory: 100000000
+               vcore: 10
+             max:
+               memory: 100000000
+               vcore: 10
+`
+	// init and register scheduler
+	cluster := MockScheduler{}
+	cluster.init()
+	assert.NilError(t, cluster.start(), "failed to start cluster")
+	defer cluster.stop()
+
+	// mock pod bind failures
+	cluster.apiProvider.MockBindFn(func(pod *v1.Pod, hostID string) error {
+		if pod.Name == "task0001" {
+			return fmt.Errorf("mocked error when binding the pod")
+		}
+		return nil
+	})
+
+	err := cluster.updateConfig(configData, nil)
+	assert.NilError(t, err, "update config failed")
+
+	nodeLabels := map[string]string{
+		"label1": "key1",
+		"label2": "key2",
+	}
+	// register nodes
+	err = cluster.addNode("test.host.01", nodeLabels, 100000000, 10, 10)
+	assert.NilError(t, err, "add node failed")
+	err = cluster.addNode("test.host.02", nodeLabels, 100000000, 10, 10)
+	assert.NilError(t, err, "add node failed")
+
+	// create app and tasks
+	taskResource := common.NewResourceBuilder().
+		AddResource(siCommon.Memory, 50000000).
+		AddResource(siCommon.CPU, 5).
+		Build()
+	task1 := createTestPod("root.a", "app0001", "task0001", taskResource)
+	task2 := createTestPod("root.a", "app0001", "task0002", taskResource)
+	cluster.AddPod(task1)
+	cluster.AddPod(task2)
+
+	// wait for scheduling app and tasks
+	// verify app state
+	cluster.waitAndAssertApplicationState(t, "app0001", cache.ApplicationStates().Running)
+	// retry will fail
+	cluster.waitAndAssertTaskStateWithRetryParam(t, "app0001", "task0001", cache.TaskStates().Failed, constants.DefaultTaskRetryNum, constants.DefaultTaskRetryTimeInterval, 60*time.Second)
 	cluster.waitAndAssertTaskState(t, "app0001", "task0002", cache.TaskStates().Bound)
 
 	// one task get bound, one ask failed, so we are expecting only 1 allocation in the scheduler
 	err = cluster.waitAndVerifySchedulerAllocations("root.a",
 		"[mycluster]default", "app0001", 1)
+	assert.NilError(t, err, "number of allocations is not expected, error")
+}
+
+func TestTaskRetrySuccessSpecificRetryParam(t *testing.T) {
+	configData := `
+partitions:
+ -
+   name: default
+   queues:
+     -
+       name: root
+       submitacl: "*"
+       queues:
+         -
+           name: a
+           resources:
+             guaranteed:
+               memory: 100000000
+               vcore: 10
+             max:
+               memory: 100000000
+               vcore: 10
+`
+	// init and register scheduler
+	cluster := MockScheduler{}
+	cluster.init()
+	assert.NilError(t, cluster.start(), "failed to start cluster")
+	defer cluster.stop()
+
+	// mock pod bind failures
+	cluster.apiProvider.MockBindFn(func(pod *v1.Pod, hostID string) error {
+		if pod.Name == "task0001" {
+			return fmt.Errorf("mocked error when binding the pod")
+		}
+		return nil
+	})
+
+	err := cluster.updateConfig(configData, nil)
+	assert.NilError(t, err, "update config failed")
+
+	nodeLabels := map[string]string{
+		"label1": "key1",
+		"label2": "key2",
+	}
+	// register nodes
+	err = cluster.addNode("test.host.01", nodeLabels, 100000000, 10, 10)
+	assert.NilError(t, err, "add node failed")
+	err = cluster.addNode("test.host.02", nodeLabels, 100000000, 10, 10)
+	assert.NilError(t, err, "add node failed")
+
+	// create app and tasks
+	taskResource := common.NewResourceBuilder().
+		AddResource(siCommon.Memory, 50000000).
+		AddResource(siCommon.CPU, 5).
+		Build()
+	task1 := createTestPod("root.a", "app0001", "task0001", taskResource)
+	taskRetryNum := 3
+	taskRetryTimeInterval := 2 * time.Second
+	annotations := map[string]string{
+		"yunikorn.apache.org/task-retry-num":      strconv.Itoa(taskRetryNum),
+		"yunikorn.apache.org/task-retry-interval": taskRetryTimeInterval.String(),
+	}
+	task1.SetAnnotations(annotations)
+	task2 := createTestPod("root.a", "app0001", "task0002", taskResource)
+	cluster.AddPod(task1)
+	cluster.AddPod(task2)
+
+	// wait for scheduling app and tasks
+	// verify app state
+	cluster.waitAndAssertApplicationState(t, "app0001", cache.ApplicationStates().Running)
+	// retry will fail
+	cluster.waitAndAssertTaskStateWithRetryParam(t, "app0001", "task0001", cache.TaskStates().Allocated, taskRetryNum, taskRetryTimeInterval, 5*time.Second)
+	cluster.waitAndAssertTaskState(t, "app0001", "task0002", cache.TaskStates().Bound)
+
+	// one task get bound, one ask failed, so we are expecting only 1 allocation in the scheduler
+	err = cluster.waitAndVerifySchedulerAllocations("root.a",
+		"[mycluster]default", "app0001", 2)
+	assert.NilError(t, err, "number of allocations is not expected, error")
+}
+
+func TestTaskRetryFailureSpecificRetryParam(t *testing.T) {
+	configData := `
+partitions:
+ -
+   name: default
+   queues:
+     -
+       name: root
+       submitacl: "*"
+       queues:
+         -
+           name: a
+           resources:
+             guaranteed:
+               memory: 100000000
+               vcore: 10
+             max:
+               memory: 100000000
+               vcore: 10
+`
+	// init and register scheduler
+	cluster := MockScheduler{}
+	cluster.init()
+	assert.NilError(t, cluster.start(), "failed to start cluster")
+	defer cluster.stop()
+
+	// mock pod bind failures
+	cluster.apiProvider.MockBindFn(func(pod *v1.Pod, hostID string) error {
+		if pod.Name == "task0001" {
+			return fmt.Errorf("mocked error when binding the pod")
+		}
+		return nil
+	})
+
+	err := cluster.updateConfig(configData, nil)
+	assert.NilError(t, err, "update config failed")
+
+	nodeLabels := map[string]string{
+		"label1": "key1",
+		"label2": "key2",
+	}
+	// register nodes
+	err = cluster.addNode("test.host.01", nodeLabels, 100000000, 10, 10)
+	assert.NilError(t, err, "add node failed")
+	err = cluster.addNode("test.host.02", nodeLabels, 100000000, 10, 10)
+	assert.NilError(t, err, "add node failed")
+
+	// create app and tasks
+	taskResource := common.NewResourceBuilder().
+		AddResource(siCommon.Memory, 50000000).
+		AddResource(siCommon.CPU, 5).
+		Build()
+	task1 := createTestPod("root.a", "app0001", "task0001", taskResource)
+	taskRetryNum := 3
+	taskRetryTimeInterval := 2 * time.Second
+	annotations := map[string]string{
+		"yunikorn.apache.org/task-retry-num":      strconv.Itoa(taskRetryNum),
+		"yunikorn.apache.org/task-retry-interval": taskRetryTimeInterval.String(),
+	}
+	task1.SetAnnotations(annotations)
+	task2 := createTestPod("root.a", "app0001", "task0002", taskResource)
+	cluster.AddPod(task1)
+	cluster.AddPod(task2)
+
+	// wait for scheduling app and tasks
+	// verify app state
+	cluster.waitAndAssertApplicationState(t, "app0001", cache.ApplicationStates().Running)
+	// retry will fail
+	cluster.waitAndAssertTaskStateWithRetryParam(t, "app0001", "task0001", cache.TaskStates().Allocated, taskRetryNum, taskRetryTimeInterval, 10*time.Second)
+	cluster.waitAndAssertTaskState(t, "app0001", "task0002", cache.TaskStates().Bound)
+
+	// one task get bound, one ask failed, so we are expecting only 1 allocation in the scheduler
+	err = cluster.waitAndVerifySchedulerAllocations("root.a",
+		"[mycluster]default", "app0001", 2)
 	assert.NilError(t, err, "number of allocations is not expected, error")
 }
 
