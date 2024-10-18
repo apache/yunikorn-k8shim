@@ -20,6 +20,7 @@ package constants
 
 import (
 	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
+	"time"
 )
 
 // Common
@@ -56,6 +57,9 @@ const DefaultAppNamespace = "default"
 const DefaultUserLabel = DomainYuniKorn + "username"
 const DefaultUser = "nobody"
 
+const DefaultTaskRetryTimeInterval = 5 * time.Second
+const DefaultTaskRetryNum = 5
+
 // Spark
 const SparkLabelAppID = "spark-app-selector"
 
@@ -86,6 +90,9 @@ const SchedulingPolicyTimeoutParam = "placeholderTimeoutInSeconds"
 const SchedulingPolicyParamDelimiter = " "
 const SchedulingPolicyStyleParam = "gangSchedulingStyle"
 const SchedulingPolicyStyleParamDefault = "Soft"
+
+const AnnotationTaskRetryName = DomainYuniKorn + "task-retry-num"
+const AnnotationTaskRetryIntervalName = DomainYuniKorn + "task-retry-interval"
 
 var SchedulingPolicyStyleParamValues = map[string]string{"Hard": "Hard", "Soft": "Soft"}
 

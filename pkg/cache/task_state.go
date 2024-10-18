@@ -47,10 +47,11 @@ const (
 	TaskFail
 	KillTask
 	TaskKilled
+	TaskRetry
 )
 
 func (ae TaskEventType) String() string {
-	return [...]string{"InitTask", "SubmitTask", "TaskAllocated", "TaskRejected", "TaskBound", "CompleteTask", "TaskFail", "KillTask", "TaskKilled"}[ae]
+	return [...]string{"InitTask", "SubmitTask", "TaskAllocated", "TaskRejected", "TaskBound", "CompleteTask", "TaskFail", "KillTask", "TaskKilled", "TaskRetry"}[ae]
 }
 
 // ------------------------
@@ -202,6 +203,20 @@ type FailTaskEvent struct {
 	message       string
 }
 
+type RetryTaskEvent struct {
+	applicationID string
+	taskID        string
+	event         TaskEventType
+	message       string
+}
+
+type RetryTaskEvent struct {
+	applicationID string
+	taskID        string
+	event         TaskEventType
+	message       string
+}
+
 func NewFailTaskEvent(appID string, taskID string, failedMessage string) FailTaskEvent {
 	return FailTaskEvent{
 		applicationID: appID,
@@ -209,6 +224,33 @@ func NewFailTaskEvent(appID string, taskID string, failedMessage string) FailTas
 		event:         TaskFail,
 		message:       failedMessage,
 	}
+}
+
+func NewRetryTaskEvent(appID string, taskID string, retryMessage string) RetryTaskEvent {
+	return RetryTaskEvent{
+		applicationID: appID,
+		taskID:        taskID,
+		event:         TaskRetry,
+		message:       retryMessage,
+	}
+}
+
+func (fe RetryTaskEvent) GetEvent() string {
+	return fe.event.String()
+}
+
+func (fe RetryTaskEvent) GetArgs() []interface{} {
+	args := make([]interface{}, 1)
+	args[0] = fe.message
+	return args
+}
+
+func (fe RetryTaskEvent) GetTaskID() string {
+	return fe.taskID
+}
+
+func (fe RetryTaskEvent) GetApplicationID() string {
+	return fe.applicationID
 }
 
 func (fe FailTaskEvent) GetEvent() string {
@@ -371,6 +413,11 @@ func eventDesc(states *TStates) fsm.Events {
 			Src:  []string{states.New, states.Pending, states.Scheduling, states.Rejected, states.Allocated},
 			Dst:  states.Failed,
 		},
+		{
+			Name: TaskRetry.String(),
+			Src:  []string{states.Rejected, states.Allocated},
+			Dst:  states.Pending,
+		},
 	}
 }
 
@@ -432,6 +479,10 @@ func callbacks(states *TStates) fsm.Callbacks {
 		beforeHook(CompleteTask): func(_ context.Context, event *fsm.Event) {
 			task := event.Args[0].(*Task) //nolint:errcheck
 			task.beforeTaskCompleted()
+		},
+		beforeHook(TaskRetry): func(_ context.Context, event *fsm.Event) {
+			task := event.Args[0].(*Task) //nolint:errcheck
+			task.releaseAllocation()
 		},
 		SubmitTask.String(): func(_ context.Context, event *fsm.Event) {
 			task := event.Args[0].(*Task) //nolint:errcheck

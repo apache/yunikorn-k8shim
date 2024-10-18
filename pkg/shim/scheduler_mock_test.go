@@ -162,13 +162,42 @@ func (fc *MockScheduler) waitAndAssertApplicationState(t *testing.T, appID, expe
 	}
 }
 
-func (fc *MockScheduler) waitAndAssertTaskState(t *testing.T, appID, taskID, expectedState string) {
+func (fc *MockScheduler) waitAndAssertTaskStateWithRetryParam(t *testing.T, appID, taskID, expectedState string, retryNum int, retryTimeInterval time.Duration, timeInteval time.Duration) {
 	app := fc.context.GetApplication(appID)
 	assert.Equal(t, app != nil, true)
 	assert.Equal(t, app.GetApplicationID(), appID)
 
 	task := app.GetTask(taskID)
-	deadline := time.Now().Add(10 * time.Second)
+	assert.Equal(t, task.GetTaskRetryNum(), retryNum)
+	assert.Equal(t, task.GetTaskRetryTimeInterval(), retryTimeInterval)
+	deadline := time.Now().Add(timeInteval)
+	for {
+		if task.GetTaskState() == expectedState {
+			break
+		}
+		log.Log(log.Test).Info("waiting for task state",
+			zap.String("expected", expectedState),
+			zap.String("actual", task.GetTaskState()))
+		time.Sleep(time.Second)
+		if time.Now().After(deadline) {
+			t.Errorf("task %s doesn't reach expected state in given time, expecting: %s, actual: %s",
+				taskID, expectedState, task.GetTaskState())
+			return
+		}
+	}
+}
+
+func (fc *MockScheduler) waitAndAssertTaskState(t *testing.T, appID, taskID, expectedState string) {
+	fc.waitAndAssertTaskStateAfterTimeInterval(t, appID, taskID, expectedState, 10*time.Second)
+}
+
+func (fc *MockScheduler) waitAndAssertTaskStateAfterTimeInterval(t *testing.T, appID, taskID, expectedState string, timeInteval time.Duration) {
+	app := fc.context.GetApplication(appID)
+	assert.Equal(t, app != nil, true)
+	assert.Equal(t, app.GetApplicationID(), appID)
+
+	task := app.GetTask(taskID)
+	deadline := time.Now().Add(timeInteval)
 	for {
 		if task.GetTaskState() == expectedState {
 			break
