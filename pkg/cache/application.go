@@ -48,7 +48,7 @@ type Application struct {
 	groups                     []string
 	taskMap                    map[string]*Task
 	tags                       map[string]string
-	taskGroups                 []TaskGroup
+	taskGroups                 map[string]TaskGroup
 	taskGroupsDefinition       string
 	schedulingParamsDefinition string
 	placeholderOwnerReferences []metav1.OwnerReference
@@ -80,7 +80,7 @@ func NewApplication(appID, queueName, user string, groups []string, tags map[str
 		taskMap:                 taskMap,
 		tags:                    tags,
 		sm:                      newAppState(),
-		taskGroups:              make([]TaskGroup, 0),
+		taskGroups:              make(map[string]TaskGroup),
 		lock:                    &locking.RWMutex{},
 		schedulerAPI:            scheduler,
 		placeholderTimeoutInSec: 0,
@@ -163,12 +163,33 @@ func (app *Application) GetSchedulingParamsDefinition() string {
 	return app.schedulingParamsDefinition
 }
 
+// check if the task-groups is correct
+func (app *Application) checkTaskGroups(taskGroups []TaskGroup, pod *v1.Pod) {
+	tgs := make(map[string]TaskGroup)
+
+	for _, taskGroup := range taskGroups {
+		if _, exists := tgs[taskGroup.Name]; exists {
+			// for duplicated task-group, users will receive the event
+			log.Log(log.ShimCacheApplication).Warn("duplicate task-group within the task-groups",
+				zap.String("appID", app.applicationID),
+				zap.String("groupName", taskGroup.Name))
+			events.GetRecorder().Eventf(pod.DeepCopy(), nil, v1.EventTypeWarning, "GangScheduling",
+				"TaskGroupDuplicated", "Application %s has duplicated task-group %s", app.applicationID, taskGroup.Name)
+		} else {
+			tgs[taskGroup.Name] = taskGroup
+		}
+	}
+}
+
 func (app *Application) setTaskGroups(taskGroups []TaskGroup) {
 	app.lock.Lock()
 	defer app.lock.Unlock()
-	app.taskGroups = taskGroups
-	for _, taskGroup := range app.taskGroups {
-		app.placeholderAsk = common.Add(app.placeholderAsk, common.GetTGResource(taskGroup.MinResource, int64(taskGroup.MinMember)))
+	for _, taskGroup := range taskGroups {
+		// for duplicated task-group, will no longer be added to the app
+		if _, exists := app.taskGroups[taskGroup.Name]; !exists {
+			app.taskGroups[taskGroup.Name] = taskGroup
+			app.placeholderAsk = common.Add(app.placeholderAsk, common.GetTGResource(taskGroup.MinResource, int64(taskGroup.MinMember)))
+		}
 	}
 }
 
@@ -181,7 +202,15 @@ func (app *Application) getPlaceholderAsk() *si.Resource {
 func (app *Application) getTaskGroups() []TaskGroup {
 	app.lock.RLock()
 	defer app.lock.RUnlock()
-	return app.taskGroups
+
+	if len(app.taskGroups) > 0 {
+		taskGroups := make([]TaskGroup, 0, len(app.taskGroups))
+		for _, taskGroup := range app.taskGroups {
+			taskGroups = append(taskGroups, taskGroup)
+		}
+		return taskGroups
+	}
+	return nil
 }
 
 func (app *Application) setPlaceholderOwnerReferences(ref []metav1.OwnerReference) {
