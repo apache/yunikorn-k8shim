@@ -969,6 +969,18 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 				return common.AddQueue(sc, constants.DefaultPartition, constants.RootQueue, configs.QueueConfig{Name: "sandbox2"})
 			})
 		})
+		defer func() {
+			// cleanup
+			ginkgo.By("Cleaning up resources...")
+			err := clientset.CoreV1().Pods(namespace).Delete(context.TODO(), podName, metav1.DeleteOptions{})
+			gomega.Ω(err).NotTo(HaveOccurred())
+			err = clientset.CoreV1().ServiceAccounts(namespace).Delete(context.TODO(), serviceAccountName, metav1.DeleteOptions{})
+			gomega.Ω(err).NotTo(HaveOccurred())
+			err = kClient.DeleteClusterRole("pod-creator-role")
+			gomega.Ω(err).NotTo(HaveOccurred())
+			err = kClient.DeleteClusterRoleBindings("pod-creator-role-binding")
+			gomega.Ω(err).NotTo(HaveOccurred())
+		}()
 		// Create Service Account
 		ginkgo.By("Creating Service Account...")
 		sa, err := kClient.CreateServiceAccount(serviceAccountName, namespace)
@@ -1075,16 +1087,6 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 		gomega.Ω(err).NotTo(HaveOccurred())
 		// user info should contain the substring "system:serviceaccount:default:test-user-sa"
 		gomega.Ω(strings.Contains(fmt.Sprintf("%v", userInfo), "system:serviceaccount:default:test-user-sa")).To(gomega.BeTrue())
-		// Cleanup
-		ginkgo.By("Cleaning up resources...")
-		err = clientset.CoreV1().Pods(namespace).Delete(context.TODO(), podName, metav1.DeleteOptions{})
-		gomega.Ω(err).NotTo(HaveOccurred())
-		err = clientset.CoreV1().ServiceAccounts(namespace).Delete(context.TODO(), serviceAccountName, metav1.DeleteOptions{})
-		gomega.Ω(err).NotTo(HaveOccurred())
-		err = kClient.DeleteClusterRole("pod-creator-role")
-		gomega.Ω(err).NotTo(HaveOccurred())
-		err = kClient.DeleteClusterRoleBindings("pod-creator-role-binding")
-		gomega.Ω(err).NotTo(HaveOccurred())
 		queueName2 := "root_22"
 		yunikorn.UpdateCustomConfigMapWrapper(oldConfigMap, "", func(sc *configs.SchedulerConfig) error {
 			// remove placement rules so we can control queue

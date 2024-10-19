@@ -1762,7 +1762,11 @@ func (k *KubeCtl) GetSecrets(namespace string) (*v1.SecretList, error) {
 
 // GetSecretValue retrieves the value for a specific key from a Kubernetes secret.
 func (k *KubeCtl) GetSecretValue(namespace, secretName, key string) (string, error) {
-	secret, err := k.getSecretWithRetry(namespace, secretName)
+	err := k.WaitForSecret(namespace, secretName, 5*time.Second)
+	if err != nil {
+		return "", err
+	}
+	secret, err := k.GetSecret(namespace, secretName)
 	if err != nil {
 		return "", err
 	}
@@ -1774,27 +1778,27 @@ func (k *KubeCtl) GetSecretValue(namespace, secretName, key string) (string, err
 	return string(value), nil
 }
 
-// getSecretWithRetry retries getting the secret until it's populated with data, up to a limit.
-func (k *KubeCtl) getSecretWithRetry(namespace, secretName string) (*v1.Secret, error) {
-	var secret *v1.Secret
-	var err error
-
-	for i := 0; i < 5; i++ {
-		secret, err = k.clientSet.CoreV1().Secrets(namespace).Get(context.TODO(), secretName, metav1.GetOptions{})
-		if err != nil {
-			return nil, err
-		}
-
-		// If secret contains data, return it
-		if len(secret.Data) > 0 {
-			return secret, nil
-		}
-
-		// Wait before retrying
-		time.Sleep(2 * time.Second)
+func (k *KubeCtl) GetSecret(namespace, secretName string) (*v1.Secret, error) {
+	secret, err := k.clientSet.CoreV1().Secrets(namespace).Get(context.TODO(), secretName, metav1.GetOptions{})
+	if err != nil {
+		return nil, err
 	}
+	return secret, nil
+}
 
-	return nil, fmt.Errorf("secret %s has no data after retries", secretName)
+func (k *KubeCtl) WaitForSecret(namespace, secretName string, timeout time.Duration) error {
+	var cond wait.ConditionFunc
+	cond = func() (done bool, err error) {
+		secret, err := k.GetSecret(namespace, secretName)
+		if err != nil {
+			return false, err
+		}
+		if secret != nil {
+			return true, nil
+		}
+		return false, nil
+	}
+	return wait.PollUntilContextTimeout(context.TODO(), time.Second, timeout, false, cond.WithContext())
 }
 
 func WriteConfigToFile(config *rest.Config, kubeconfigPath string) error {
