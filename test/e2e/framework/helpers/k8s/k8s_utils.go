@@ -1787,7 +1787,7 @@ func (k *KubeCtl) GetSecret(namespace, secretName string) (*v1.Secret, error) {
 }
 
 func (k *KubeCtl) WaitForSecret(namespace, secretName string, timeout time.Duration) error {
-	var cond wait.ConditionFunc
+	var cond wait.ConditionFunc // nolint:gosimple
 	cond = func() (done bool, err error) {
 		secret, err := k.GetSecret(namespace, secretName)
 		if err != nil {
