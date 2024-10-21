@@ -19,31 +19,45 @@
 package user_group_limit_test
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"os"
+	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/apache/yunikorn-core/pkg/common/configs"
 	"github.com/apache/yunikorn-core/pkg/common/resources"
 	"github.com/apache/yunikorn-core/pkg/webservice/dao"
+
 	amCommon "github.com/apache/yunikorn-k8shim/pkg/admission/common"
 	amconf "github.com/apache/yunikorn-k8shim/pkg/admission/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
+
 	tests "github.com/apache/yunikorn-k8shim/test/e2e"
+
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
+
 	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
+
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 
 	v1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"k8s.io/client-go/kubernetes"
 )
 
 type TestType int
@@ -103,8 +117,11 @@ var _ = ginkgo.BeforeEach(func() {
 var _ = ginkgo.AfterSuite(func() {
 	ginkgo.By("Check Yunikorn's health")
 	checks, err := yunikorn.GetFailedHealthChecks()
-	Ω(err).NotTo(gomega.HaveOccurred())
+	Ω(err).NotTo(HaveOccurred())
 	Ω(checks).To(gomega.Equal(""), checks)
+	ginkgo.By("Tearing down namespace: " + dev)
+	err = kClient.TearDownNamespace(dev)
+	Ω(err).NotTo(HaveOccurred())
 })
 
 var _ = ginkgo.Describe("UserGroupLimit", func() {
@@ -909,40 +926,229 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 		checkUsageWildcardGroups(groupTestType, group2, sandboxQueue1, []*v1.Pod{group2Sandbox1Pod1, group2Sandbox1Pod2, group2Sandbox1Pod3})
 	})
 
+	ginkgo.It("Verify User info for the non kube admin user", func() {
+		var clientset *kubernetes.Clientset
+		var namespace = "default"
+		var serviceAccountName = "test-user-sa"
+		var podName = "test-pod"
+		var secretName = "test-user-sa-token" // #nosec G101
+
+		ginkgo.By("Update config")
+		// The wait wrapper still can't fully guarantee that the config in AdmissionController has been updated.
+		admissionCustomConfig = map[string]string{
+			"log.core.scheduler.ugm.level":   "debug",
+			amconf.AMAccessControlBypassAuth: constants.False,
+		}
+		yunikorn.WaitForAdmissionControllerRefreshConfAfterAction(func() {
+			yunikorn.UpdateCustomConfigMapWrapperWithMap(oldConfigMap, "", admissionCustomConfig, func(sc *configs.SchedulerConfig) error {
+				// remove placement rules so we can control queue
+				sc.Partitions[0].PlacementRules = nil
+				err := common.AddQueue(sc, constants.DefaultPartition, constants.RootQueue, configs.QueueConfig{
+					Name: "default",
+					Limits: []configs.Limit{
+						{
+							Limit:           "user entry",
+							Users:           []string{user1},
+							MaxApplications: 1,
+							MaxResources: map[string]string{
+								siCommon.Memory: fmt.Sprintf("%dM", mediumMem),
+							},
+						},
+						{
+							Limit:           "user2 entry",
+							Users:           []string{user2},
+							MaxApplications: 2,
+							MaxResources: map[string]string{
+								siCommon.Memory: fmt.Sprintf("%dM", largeMem),
+							},
+						},
+					}})
+				if err != nil {
+					return err
+				}
+				return common.AddQueue(sc, constants.DefaultPartition, constants.RootQueue, configs.QueueConfig{Name: "sandbox2"})
+			})
+		})
+		defer func() {
+			// cleanup
+			ginkgo.By("Cleaning up resources...")
+			err := clientset.CoreV1().Pods(namespace).Delete(context.TODO(), podName, metav1.DeleteOptions{})
+			gomega.Ω(err).NotTo(HaveOccurred())
+			err = clientset.CoreV1().ServiceAccounts(namespace).Delete(context.TODO(), serviceAccountName, metav1.DeleteOptions{})
+			gomega.Ω(err).NotTo(HaveOccurred())
+			err = kClient.DeleteClusterRole("pod-creator-role")
+			gomega.Ω(err).NotTo(HaveOccurred())
+			err = kClient.DeleteClusterRoleBindings("pod-creator-role-binding")
+			gomega.Ω(err).NotTo(HaveOccurred())
+		}()
+		// Create Service Account
+		ginkgo.By("Creating Service Account...")
+		sa, err := kClient.CreateServiceAccount(serviceAccountName, namespace)
+		gomega.Ω(err).NotTo(HaveOccurred())
+		// Create a ClusterRole with necessary permissions
+		ginkgo.By("Creating ClusterRole...")
+		clusterRole := &rbacv1.ClusterRole{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "pod-creator-role",
+			},
+			Rules: []rbacv1.PolicyRule{
+				{
+					APIGroups: []string{""},
+					Resources: []string{"pods", "serviceaccounts", "test-user-sa"},
+					Verbs:     []string{"create", "get", "list", "watch", "delete"},
+				},
+			},
+		}
+		_, err = kClient.CreateClusterRole(clusterRole)
+		gomega.Ω(err).NotTo(HaveOccurred())
+		// Create a ClusterRoleBinding to bind the ClusterRole to the service account
+		ginkgo.By("Creating ClusterRoleBinding...")
+		clusterRoleBinding := &rbacv1.ClusterRoleBinding{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "pod-creator-role-binding",
+			},
+			RoleRef: rbacv1.RoleRef{
+				APIGroup: "rbac.authorization.k8s.io",
+				Kind:     "ClusterRole",
+				Name:     "pod-creator-role",
+			},
+			Subjects: []rbacv1.Subject{
+				{
+					Kind:      "ServiceAccount",
+					Name:      sa.Name,
+					Namespace: namespace,
+				},
+			},
+		}
+		_, err = kClient.CreateClusterRoleBinding(clusterRoleBinding.ObjectMeta.Name, clusterRoleBinding.RoleRef.Name, clusterRoleBinding.Subjects[0].Namespace, clusterRoleBinding.Subjects[0].Name)
+		gomega.Ω(err).NotTo(HaveOccurred())
+		// Create a Secret for the Service Account
+		ginkgo.By("Creating Secret for the Service Account...")
+		// create a object of v1.Secret
+		secret := &v1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: secretName,
+				Annotations: map[string]string{
+					"kubernetes.io/service-account.name": serviceAccountName,
+				},
+			},
+			Type: v1.SecretTypeServiceAccountToken,
+		}
+		_, err = kClient.CreateSecret(secret, namespace)
+		gomega.Ω(err).NotTo(HaveOccurred())
+		// Get the token value from the Secret
+		ginkgo.By("Getting the token value from the Secret...")
+		userTokenValue, err := kClient.GetSecretValue(namespace, secretName, "token")
+		gomega.Ω(err).NotTo(HaveOccurred())
+		// use deep copy not to hardcode the kubeconfig
+		config, err := kClient.GetKubeConfig()
+		gomega.Ω(err).NotTo(HaveOccurred())
+		config.BearerToken = userTokenValue
+		newConf := rest.CopyConfig(config) // copy existing config
+		// Use token-based authentication instead of client certificates
+		newConf.CAFile = ""
+		newConf.CertFile = ""
+		newConf.KeyFile = ""
+		newConf.BearerToken = userTokenValue
+		kubeconfigPath := filepath.Join(os.TempDir(), "test-user-config")
+		err = k8s.WriteConfigToFile(newConf, kubeconfigPath)
+		gomega.Ω(err).NotTo(HaveOccurred())
+		config, err = clientcmd.BuildConfigFromFlags("", kubeconfigPath)
+		gomega.Ω(err).NotTo(HaveOccurred())
+		clientset, err = kubernetes.NewForConfig(config)
+		gomega.Ω(err).NotTo(HaveOccurred())
+		ginkgo.By("Creating Pod...")
+		pod := &v1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: podName,
+				Annotations: map[string]string{
+					"created-by": fmt.Sprintf("system:serviceaccount:%s:%s", namespace, serviceAccountName),
+					"user-token": userTokenValue, // Log the token in the annotation
+				},
+				Labels: map[string]string{"applicationId": "test-app"},
+			},
+			Spec: v1.PodSpec{
+				ServiceAccountName: serviceAccountName,
+				Containers: []v1.Container{
+					{
+						Name:  "nginx",
+						Image: "nginx",
+						Ports: []v1.ContainerPort{{ContainerPort: 80}},
+					},
+				},
+			},
+		}
+		_, err = clientset.CoreV1().Pods(namespace).Create(context.TODO(), pod, metav1.CreateOptions{})
+		gomega.Ω(err).NotTo(HaveOccurred())
+		createdPod, err := clientset.CoreV1().Pods(namespace).Get(context.TODO(), podName, metav1.GetOptions{})
+		gomega.Ω(err).NotTo(HaveOccurred())
+		ginkgo.By("Verifying User Info...")
+		userInfo, err := GetUserInfoFromPodAnnotation(createdPod)
+		gomega.Ω(err).NotTo(HaveOccurred())
+		// user info should contain the substring "system:serviceaccount:default:test-user-sa"
+		gomega.Ω(strings.Contains(fmt.Sprintf("%v", userInfo), "system:serviceaccount:default:test-user-sa")).To(gomega.BeTrue())
+		queueName2 := "root_22"
+		yunikorn.UpdateCustomConfigMapWrapper(oldConfigMap, "", func(sc *configs.SchedulerConfig) error {
+			// remove placement rules so we can control queue
+			sc.Partitions[0].PlacementRules = nil
+			var err error
+			if err = common.AddQueue(sc, "default", "root", configs.QueueConfig{
+				Name:       queueName2,
+				Resources:  configs.Resources{Guaranteed: map[string]string{"memory": fmt.Sprintf("%dM", 200)}},
+				Properties: map[string]string{"preemption.delay": "1s"},
+			}); err != nil {
+				return err
+			}
+			return nil
+		})
+	})
 	ginkgo.AfterEach(func() {
 		tests.DumpClusterInfoIfSpecFailed(suiteName, []string{dev})
 		ginkgo.By("Tearing down namespace: " + dev)
 		err := kClient.TearDownNamespace(dev)
-		Ω(err).NotTo(gomega.HaveOccurred())
+		Ω(err).NotTo(HaveOccurred())
 		// reset config
 		ginkgo.By("Restoring YuniKorn configuration")
 		yunikorn.RestoreConfigMapWrapper(oldConfigMap)
 	})
 })
 
+func GetUserInfoFromPodAnnotation(pod *v1.Pod) (*si.UserGroupInformation, error) {
+	userInfo, ok := pod.Annotations[amCommon.UserInfoAnnotation]
+	if !ok {
+		return nil, fmt.Errorf("user info not found in pod annotation")
+	}
+	var userInfoObj si.UserGroupInformation
+	err := json.Unmarshal([]byte(userInfo), &userInfoObj)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal user info from pod annotation")
+	}
+	return &userInfoObj, nil
+}
+
 func deploySleepPod(usergroup *si.UserGroupInformation, queuePath string, expectedRunning bool, reason string) *v1.Pod {
 	usergroupJsonBytes, err := json.Marshal(usergroup)
-	Ω(err).NotTo(gomega.HaveOccurred())
+	Ω(err).NotTo(HaveOccurred())
 
 	sleepPodConfig := k8s.SleepPodConfig{NS: dev, Mem: smallMem, Labels: map[string]string{constants.LabelQueueName: queuePath}}
 	sleepPodObj, err := k8s.InitSleepPod(sleepPodConfig)
-	Ω(err).NotTo(gomega.HaveOccurred())
+	Ω(err).NotTo(HaveOccurred())
 	sleepPodObj.Annotations[amCommon.UserInfoAnnotation] = string(usergroupJsonBytes)
 
 	ginkgo.By(fmt.Sprintf("%s deploys the sleep pod %s to queue %s", usergroup, sleepPodObj.Name, queuePath))
 	sleepPod, err := kClient.CreatePod(sleepPodObj, dev)
-	gomega.Ω(err).NotTo(gomega.HaveOccurred())
+	gomega.Ω(err).NotTo(HaveOccurred())
 
 	if expectedRunning {
 		ginkgo.By(fmt.Sprintf("The sleep pod %s can be scheduled %s", sleepPod.Name, reason))
 		err = kClient.WaitForPodRunning(dev, sleepPod.Name, 60*time.Second)
-		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		gomega.Ω(err).NotTo(HaveOccurred())
 	} else {
 		ginkgo.By(fmt.Sprintf("The sleep pod %s can't be scheduled %s", sleepPod.Name, reason))
 		// Since Pending is the initial state of PodPhase, sleep for 5 seconds, then check whether the pod is still in Pending state.
 		time.Sleep(5 * time.Second)
 		err = kClient.WaitForPodPending(sleepPod.Namespace, sleepPod.Name, 60*time.Second)
-		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		gomega.Ω(err).NotTo(HaveOccurred())
 	}
 	return sleepPod
 }
@@ -952,14 +1158,14 @@ func checkUsage(testType TestType, name string, queuePath string, expectedRunnin
 	if testType == userTestType {
 		ginkgo.By(fmt.Sprintf("Check user resource usage for %s in queue %s", name, queuePath))
 		userUsageDAOInfo, err := restClient.GetUserUsage(constants.DefaultPartition, name)
-		Ω(err).NotTo(gomega.HaveOccurred())
+		Ω(err).NotTo(HaveOccurred())
 		Ω(userUsageDAOInfo).NotTo(gomega.BeNil())
 
 		rootQueueResourceUsageDAO = userUsageDAOInfo.Queues
 	} else if testType == groupTestType {
 		ginkgo.By(fmt.Sprintf("Check group resource usage for %s in queue %s", name, queuePath))
 		groupUsageDAOInfo, err := restClient.GetGroupUsage(constants.DefaultPartition, name)
-		Ω(err).NotTo(gomega.HaveOccurred())
+		Ω(err).NotTo(HaveOccurred())
 		Ω(groupUsageDAOInfo).NotTo(gomega.BeNil())
 
 		rootQueueResourceUsageDAO = groupUsageDAOInfo.Queues

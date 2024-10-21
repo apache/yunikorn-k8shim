@@ -17,20 +17,19 @@
 package k8s
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
 	"go.uber.org/zap"
 	appsv1 "k8s.io/api/apps/v1"
@@ -1091,14 +1090,6 @@ func (k *KubeCtl) CreateSecret(secret *v1.Secret, namespace string) (*v1.Secret,
 	return k.clientSet.CoreV1().Secrets(namespace).Create(context.TODO(), secret, metav1.CreateOptions{})
 }
 
-func GetSecretObj(yamlPath string) (*v1.Secret, error) {
-	o, err := common.Yaml2Obj(yamlPath)
-	if err != nil {
-		return nil, err
-	}
-	return o.(*v1.Secret), err
-}
-
 func (k *KubeCtl) CreateServiceAccount(accountName string, namespace string) (*v1.ServiceAccount, error) {
 	return k.clientSet.CoreV1().ServiceAccounts(namespace).Create(context.TODO(), &v1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{Name: accountName},
@@ -1381,21 +1372,6 @@ func (k *KubeCtl) isNumJobPodsInDesiredState(jobName string, namespace string, n
 
 		return counter >= num, nil
 	}
-}
-
-func ApplyYamlWithKubectl(path, namespace string) error {
-	cmd := exec.Command("kubectl", "apply", "-f", path, "-n", namespace)
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	// if err != nil, isn't represent yaml format error.
-	// it only represent the cmd.Run() fail.
-	err := cmd.Run()
-	// if yaml format error, errStr will show the detail
-	errStr := stderr.String()
-	if err != nil && errStr != "" {
-		return fmt.Errorf("apply fail with %s", errStr)
-	}
-	return nil
 }
 
 func (k *KubeCtl) GetNodes() (*v1.NodeList, error) {
@@ -1777,5 +1753,89 @@ func (k *KubeCtl) DeleteStorageClass(scName string) error {
 	if err != nil {
 		return err
 	}
+	return nil
+}
+
+func (k *KubeCtl) GetSecrets(namespace string) (*v1.SecretList, error) {
+	return k.clientSet.CoreV1().Secrets(namespace).List(context.TODO(), metav1.ListOptions{})
+}
+
+// GetSecretValue retrieves the value for a specific key from a Kubernetes secret.
+func (k *KubeCtl) GetSecretValue(namespace, secretName, key string) (string, error) {
+	err := k.WaitForSecret(namespace, secretName, 5*time.Second)
+	if err != nil {
+		return "", err
+	}
+	secret, err := k.GetSecret(namespace, secretName)
+	if err != nil {
+		return "", err
+	}
+	// Check if the key exists in the secret
+	value, ok := secret.Data[key]
+	if !ok {
+		return "", fmt.Errorf("key %s not found in secret %s", key, secretName)
+	}
+	return string(value), nil
+}
+
+func (k *KubeCtl) GetSecret(namespace, secretName string) (*v1.Secret, error) {
+	secret, err := k.clientSet.CoreV1().Secrets(namespace).Get(context.TODO(), secretName, metav1.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
+	return secret, nil
+}
+
+func (k *KubeCtl) WaitForSecret(namespace, secretName string, timeout time.Duration) error {
+	var cond wait.ConditionFunc // nolint:gosimple
+	cond = func() (done bool, err error) {
+		secret, err := k.GetSecret(namespace, secretName)
+		if err != nil {
+			return false, err
+		}
+		if secret != nil {
+			return true, nil
+		}
+		return false, nil
+	}
+	return wait.PollUntilContextTimeout(context.TODO(), time.Second, timeout, false, cond.WithContext())
+}
+
+func WriteConfigToFile(config *rest.Config, kubeconfigPath string) error {
+	// Build the kubeconfig API object from the rest.Config
+	kubeConfig := &clientcmdapi.Config{
+		Clusters: map[string]*clientcmdapi.Cluster{
+			"default-cluster": {
+				Server:                   config.Host,
+				CertificateAuthorityData: config.CAData,
+				InsecureSkipTLSVerify:    config.Insecure,
+			},
+		},
+		AuthInfos: map[string]*clientcmdapi.AuthInfo{
+			"default-auth": {
+				Token: config.BearerToken,
+			},
+		},
+		Contexts: map[string]*clientcmdapi.Context{
+			"default-context": {
+				Cluster:  "default-cluster",
+				AuthInfo: "default-auth",
+			},
+		},
+		CurrentContext: "default-context",
+	}
+
+	// Ensure the directory where the file is being written exists
+	err := os.MkdirAll(filepath.Dir(kubeconfigPath), os.ModePerm)
+	if err != nil {
+		return fmt.Errorf("failed to create directory for kubeconfig file: %v", err)
+	}
+
+	// Write the kubeconfig to the specified file
+	err = clientcmd.WriteToFile(*kubeConfig, kubeconfigPath)
+	if err != nil {
+		return fmt.Errorf("failed to write kubeconfig to file: %v", err)
+	}
+
 	return nil
 }
