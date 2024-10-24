@@ -40,17 +40,20 @@ import (
 )
 
 type Task struct {
-	taskID        string
-	alias         string
-	applicationID string
-	application   *Application
-	podStatus     v1.PodStatus // pod status, maintained separately for efficiency reasons
-	context       *Context
-	createTime    time.Time
-	placeholder   bool
-	originator    bool
-	sm            *fsm.FSM
-
+	taskID            string
+	alias             string
+	applicationID     string
+	application       *Application
+	podStatus         v1.PodStatus // pod status, maintained separately for efficiency reasons
+	context           *Context
+	createTime        time.Time
+	retryTimer        *time.Timer // timer for task retry
+	placeholder       bool
+	originator        bool
+	sm                *fsm.FSM
+	retryTimeInterval time.Duration
+	retryNum          int
+	attempt           int
 	// mutable resources, require locking
 	allocationKey   string
 	nodeName        string
@@ -109,6 +112,9 @@ func createTaskInternal(tid string, app *Application, resource *si.Resource,
 	if tgName := utils.GetTaskGroupFromPodSpec(pod); tgName != "" {
 		task.taskGroupName = tgName
 	}
+	task.retryNum = utils.GetTaskRetryNumFromPodSpec(pod)
+	task.retryTimeInterval = utils.GetTaskRetryTimeIntervalFromPodSpec(pod)
+
 	task.initialize()
 	return task
 }
@@ -139,6 +145,13 @@ func (task *Task) GetTaskPod() *v1.Pod {
 
 func (task *Task) GetTaskID() string {
 	return task.taskID
+}
+
+func (task *Task) GetTaskRetryNum() int {
+	return task.retryNum
+}
+func (task *Task) GetTaskRetryTimeInterval() time.Duration {
+	return task.retryTimeInterval
 }
 
 func (task *Task) IsPlaceholder() bool {
@@ -375,8 +388,7 @@ func (task *Task) postTaskAllocated() {
 				zap.String("podName", task.pod.Name),
 				zap.String("podUID", string(task.pod.UID)))
 			if err := task.context.bindPodVolumes(task.pod); err != nil {
-				log.Log(log.ShimCacheTask).Error("bind volumes to pod failed", zap.String("taskID", task.taskID), zap.Error(err))
-				task.failWithEvent(fmt.Sprintf("bind volumes to pod failed, name: %s, %s", task.alias, err.Error()), "PodVolumesBindFailure")
+				task.RetryThenFailTask(fmt.Sprintf("bind volumes to pod failed, name: %s, %s", task.alias, err.Error()), "PodVolumesBindFailure")
 				return
 			}
 
@@ -385,8 +397,7 @@ func (task *Task) postTaskAllocated() {
 				zap.String("podUID", string(task.pod.UID)))
 
 			if err := task.context.apiProvider.GetAPIs().KubeClient.Bind(task.pod, task.nodeName); err != nil {
-				log.Log(log.ShimCacheTask).Error("bind pod to node failed", zap.String("taskID", task.taskID), zap.Error(err))
-				task.failWithEvent(fmt.Sprintf("bind pod to node failed, name: %s, %s", task.alias, err.Error()), "PodBindFailure")
+				task.RetryThenFailTask(fmt.Sprintf("bind pod to node failed, name: %s, %s", task.alias, err.Error()), "PodBindFailure")
 				return
 			}
 
@@ -453,12 +464,8 @@ func (task *Task) postTaskBound() {
 }
 
 func (task *Task) postTaskRejected() {
-	// currently, once task is rejected by scheduler, we directly move task to failed state.
-	// so this function simply triggers the state transition when it is rejected.
-	// but further, we can introduce retry mechanism if necessary.
-	dispatcher.Dispatch(NewFailTaskEvent(task.applicationID, task.taskID,
-		fmt.Sprintf("task %s failed because it is rejected by scheduler", task.alias)))
-
+	// once task is rejected by scheduler, we retry before move task to failed state.
+	task.RetryThenFailTask(fmt.Sprintf("task %s failed because it is rejected by scheduler", task.alias), "TaskRejected")
 	events.GetRecorder().Eventf(task.pod.DeepCopy(), nil,
 		v1.EventTypeWarning, "TaskRejected", "TaskRejected",
 		"Task %s is rejected by the scheduler", task.alias)
@@ -653,5 +660,36 @@ func (task *Task) SetTaskPod(pod *v1.Pod) {
 
 		// update allocation in core
 		task.updateAllocation()
+	}
+}
+func (task *Task) setRetryTimer(timeout time.Duration, currentState string, event RetryTaskEvent) {
+	log.Log(log.ShimContext).Debug("Task retry timer initiated",
+		zap.String("appID", task.applicationID),
+		zap.String("TaskID", task.taskID),
+		zap.String("state", task.sm.Current()),
+		zap.Duration("timeout", timeout))
+
+	task.retryTimer = time.AfterFunc(timeout, task.timeoutRetryTimer(currentState, event))
+}
+
+func (task *Task) timeoutRetryTimer(expectedState string, event RetryTaskEvent) func() {
+	return func() {
+		task.lock.Lock()
+		defer task.lock.Unlock()
+		if expectedState == task.sm.Current() {
+			dispatcher.Dispatch(event)
+		}
+
+	}
+}
+
+func (task *Task) RetryThenFailTask(errorMessage, actionReason string) {
+	if task.attempt < task.retryNum {
+		log.Log(log.ShimCacheTask).Info("task failed, task will retrying", zap.String("taskID", task.taskID), zap.Int("attempt", task.attempt), zap.Int("retryNum", task.retryNum), zap.Duration("retryTimeInterval", task.retryTimeInterval), zap.String("errorMessage", errorMessage))
+		task.attempt++
+		task.setRetryTimer(task.retryTimeInterval, task.sm.Current(), NewRetryTaskEvent(task.applicationID, task.taskID, "retrying task"))
+	} else {
+		log.Log(log.ShimCacheTask).Error("task failed ", zap.String("taskID", task.taskID), zap.String("errorMessage", errorMessage))
+		task.failWithEvent(errorMessage, actionReason)
 	}
 }
