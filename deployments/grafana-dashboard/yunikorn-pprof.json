@@ -80,7 +80,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "go_memstats_mspan_inuse_bytes{job=~\"yunikorn\"}",
+          "expr": "go_memstats_mspan_inuse_bytes{job=~\"yunikorn.*\"}",
           "format": "time_series",
           "intervalFactor": 1,
           "legendFormat": "{{__name__}}",
@@ -93,7 +93,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "go_memstats_mspan_sys_bytes{job=~\"yunikorn\"}",
+          "expr": "go_memstats_mspan_sys_bytes{job=~\"yunikorn.*\"}",
           "format": "time_series",
           "intervalFactor": 1,
           "legendFormat": "{{__name__}}",
@@ -105,7 +105,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "go_memstats_mcache_inuse_bytes{job=~\"yunikorn\"}",
+          "expr": "go_memstats_mcache_inuse_bytes{job=~\"yunikorn.*\"}",
           "format": "time_series",
           "intervalFactor": 1,
           "legendFormat": "{{__name__}}",
@@ -116,7 +116,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "go_memstats_mcache_sys_bytes{job=~\"yunikorn\"}",
+          "expr": "go_memstats_mcache_sys_bytes{job=~\"yunikorn.*\"}",
           "format": "time_series",
           "intervalFactor": 1,
           "legendFormat": "{{__name__}}",
@@ -127,7 +127,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "go_memstats_buck_hash_sys_bytes{job=~\"yunikorn\"}",
+          "expr": "go_memstats_buck_hash_sys_bytes{job=~\"yunikorn.*\"}",
           "format": "time_series",
           "intervalFactor": 1,
           "legendFormat": "{{__name__}}",
@@ -138,7 +138,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "go_memstats_gc_sys_bytes{job=~\"yunikorn\"}",
+          "expr": "go_memstats_gc_sys_bytes{job=~\"yunikorn.*\"}",
           "format": "time_series",
           "intervalFactor": 1,
           "legendFormat": "{{__name__}}",
@@ -149,7 +149,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "go_memstats_next_gc_bytes{job=~\"yunikorn\"}",
+          "expr": "go_memstats_next_gc_bytes{job=~\"yunikorn.*\"}",
           "format": "time_series",
           "intervalFactor": 1,
           "legendFormat": "{{__name__}}",
@@ -242,7 +242,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "go_memstats_heap_alloc_bytes{job=~\"yunikorn\"}",
+          "expr": "go_memstats_heap_alloc_bytes{job=~\"yunikorn.*\"}",
           "format": "time_series",
           "intervalFactor": 1,
           "legendFormat": "{{__name__}}",
@@ -253,7 +253,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "go_memstats_heap_sys_bytes{job=~\"yunikorn\"}",
+          "expr": "go_memstats_heap_sys_bytes{job=~\"yunikorn.*\"}",
           "format": "time_series",
           "intervalFactor": 1,
           "legendFormat": "{{__name__}}",
@@ -264,7 +264,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "go_memstats_heap_idle_bytes{job=~\"yunikorn\"}",
+          "expr": "go_memstats_heap_idle_bytes{job=~\"yunikorn.*\"}",
           "format": "time_series",
           "intervalFactor": 1,
           "legendFormat": "{{__name__}}",
@@ -276,7 +276,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "go_memstats_heap_inuse_bytes{job=~\"yunikorn\"}",
+          "expr": "go_memstats_heap_inuse_bytes{job=~\"yunikorn.*\"}",
           "format": "time_series",
           "intervalFactor": 1,
           "legendFormat": "{{__name__}}",
@@ -288,7 +288,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "go_memstats_heap_released_bytes{job=~\"yunikorn\"}",
+          "expr": "go_memstats_heap_released_bytes{job=~\"yunikorn.*\"}",
           "format": "time_series",
           "intervalFactor": 1,
           "legendFormat": "{{__name__}}",
@@ -386,7 +386,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "go_memstats_alloc_bytes{job=~\"yunikorn\"}",
+          "expr": "go_memstats_alloc_bytes{job=~\"yunikorn.*\"}",
           "format": "time_series",
           "intervalFactor": 2,
           "legendFormat": "{{pod}} - bytes allocated",
@@ -401,7 +401,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "go_memstats_alloc_bytes_total{job=~\"yunikorn\"}",
+          "expr": "go_memstats_alloc_bytes_total{job=~\"yunikorn.*\"}",
           "format": "time_series",
           "intervalFactor": 2,
           "legendFormat": "{{pod}} - alloc rate",
@@ -415,7 +415,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "go_memstats_stack_inuse_bytes{job=~\"yunikorn\"}",
+          "expr": "go_memstats_stack_inuse_bytes{job=~\"yunikorn.*\"}",
           "format": "time_series",
           "intervalFactor": 2,
           "legendFormat": "{{pod}} - stack inuse",
@@ -428,7 +428,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "go_memstats_heap_inuse_bytes{job=~\"yunikorn\"}",
+          "expr": "go_memstats_heap_inuse_bytes{job=~\"yunikorn.*\"}",
           "format": "time_series",
           "hide": false,
           "intervalFactor": 2,
@@ -526,7 +526,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "go_memstats_sys_bytes{job=~\"yunikorn\"}",
+          "expr": "go_memstats_sys_bytes{job=~\"yunikorn.*\"}",
           "format": "time_series",
           "intervalFactor": 1,
           "legendFormat": "{{__name__}}",
@@ -621,7 +621,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "go_memstats_stack_inuse_bytes{job=~\"yunikorn\"}",
+          "expr": "go_memstats_stack_inuse_bytes{job=~\"yunikorn.*\"}",
           "format": "time_series",
           "intervalFactor": 1,
           "legendFormat": "{{__name__}}",
@@ -634,7 +634,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "go_memstats_stack_sys_bytes{job=~\"yunikorn\"}",
+          "expr": "go_memstats_stack_sys_bytes{job=~\"yunikorn.*\"}",
           "format": "time_series",
           "intervalFactor": 1,
           "legendFormat": "{{__name__}}",
@@ -729,7 +729,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "go_goroutines{job=~\"yunikorn\"}",
+          "expr": "go_goroutines{job=~\"yunikorn.*\"}",
           "format": "time_series",
           "intervalFactor": 1,
           "legendFormat": "{{__name__}}",
@@ -826,7 +826,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "go_memstats_mallocs_total{job=~\"yunikorn\"} - go_memstats_frees_total{job=~\"yunikorn\"}",
+          "expr": "go_memstats_mallocs_total{job=~\"yunikorn.*\"} - go_memstats_frees_total{job=~\"yunikorn.*\"}",
           "format": "time_series",
           "intervalFactor": 1,
           "legendFormat": "# of live objects",
@@ -922,7 +922,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "go_gc_duration_seconds{job=~\"yunikorn\"}",
+          "expr": "go_gc_duration_seconds{job=~\"yunikorn.*\"}",
           "format": "time_series",
           "intervalFactor": 1,
           "legendFormat": "{{quantile}}",
@@ -1018,7 +1018,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "rate(go_memstats_lookups_total{job=~\"yunikorn\"}[30s])",
+          "expr": "rate(go_memstats_lookups_total{job=~\"yunikorn.*\"}[30s])",
           "format": "time_series",
           "intervalFactor": 1,
           "range": true,
