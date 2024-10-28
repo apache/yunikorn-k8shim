@@ -305,6 +305,60 @@ partitions:
 	assert.Equal(t, 0, len(app.GetAllAllocations()), "allocations were not removed from the application")
 }
 
+func TestForeignPodTracking(t *testing.T) {
+	configData := `
+partitions:
+  - name: default
+    queues:
+      - name: root
+        submitacl: "*"
+        queues:
+          - name: a
+            resources:
+              guaranteed:
+                memory: 100000000
+                vcore: 10
+              max:
+                memory: 150000000
+                vcore: 20
+`
+	cluster := MockScheduler{}
+	cluster.init()
+	assert.NilError(t, cluster.start(), "failed to start cluster")
+	defer cluster.stop()
+
+	err := cluster.updateConfig(configData, nil)
+	assert.NilError(t, err, "update config failed")
+	addNode(&cluster, "node-1")
+
+	podResource := common.NewResourceBuilder().
+		AddResource(siCommon.Memory, 1000).
+		AddResource(siCommon.CPU, 1).
+		Build()
+	pod1 := createTestPod("root.a", "", "foreign-1", podResource)
+	pod1.Spec.SchedulerName = ""
+	pod1.Spec.NodeName = "node-1"
+	pod2 := createTestPod("root.a", "", "foreign-2", podResource)
+	pod2.Spec.SchedulerName = ""
+	pod2.Spec.NodeName = "node-1"
+
+	cluster.AddPod(pod1)
+	cluster.AddPod(pod2)
+
+	err = cluster.waitAndAssertForeignAllocationInCore(partitionName, "foreign-1", "node-1", true)
+	assert.NilError(t, err)
+	err = cluster.waitAndAssertForeignAllocationInCore(partitionName, "foreign-2", "node-1", true)
+	assert.NilError(t, err)
+
+	cluster.DeletePod(pod1)
+	cluster.DeletePod(pod2)
+
+	err = cluster.waitAndAssertForeignAllocationInCore(partitionName, "foreign-1", "node-1", false)
+	assert.NilError(t, err)
+	err = cluster.waitAndAssertForeignAllocationInCore(partitionName, "foreign-2", "node-1", false)
+	assert.NilError(t, err)
+}
+
 func createTestPod(queue string, appID string, taskID string, taskResource *si.Resource) *v1.Pod {
 	containers := make([]v1.Container, 0)
 	c1Resources := make(map[v1.ResourceName]resource.Quantity)
