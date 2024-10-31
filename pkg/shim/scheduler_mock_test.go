@@ -336,6 +336,25 @@ func (fc *MockScheduler) waitAndAssertForeignAllocationInCore(partition, allocat
 	}, time.Second, 5*time.Second)
 }
 
+func (fc *MockScheduler) waitAndAssertForeignAllocationResources(partition, allocationID, nodeID string, expected *si.Resource) error {
+	return utils.WaitForCondition(func() bool {
+		node := fc.coreContext.Scheduler.GetClusterContext().GetNode(nodeID, partition)
+		if node == nil {
+			log.Log(log.Test).Warn("Node not found", zap.String("node ID", nodeID))
+			return false
+		}
+		allocs := node.GetForeignAllocations()
+		for _, alloc := range allocs {
+			if alloc.GetAllocationKey() == allocationID {
+				current := alloc.GetAllocatedResource().ToProto()
+				return common.Equals(expected, current)
+			}
+		}
+
+		return false
+	}, time.Second, 5*time.Second)
+}
+
 func (fc *MockScheduler) getApplicationFromCore(appID, partition string) *objects.Application {
 	return fc.coreContext.Scheduler.GetClusterContext().GetApplication(appID, partition)
 }
