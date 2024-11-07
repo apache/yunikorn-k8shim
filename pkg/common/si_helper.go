@@ -123,17 +123,16 @@ func CreateAllocationForForeignPod(pod *v1.Pod) *si.AllocationRequest {
 		}
 	}
 
+	tags := CreateTagsForTask(pod)
+	tags[common.Foreign] = podType
+	tags[common.CreationTime] = strconv.FormatInt(pod.CreationTimestamp.Unix(), 10)
 	allocation := si.Allocation{
-		AllocationTags: map[string]string{
-			common.Foreign: podType,
-		},
+		AllocationTags:   tags,
 		AllocationKey:    string(pod.UID),
 		ResourcePerAlloc: GetPodResource(pod),
 		Priority:         CreatePriorityForTask(pod),
 		NodeID:           pod.Spec.NodeName,
 	}
-
-	allocation.AllocationTags[common.CreationTime] = strconv.FormatInt(pod.CreationTimestamp.Unix(), 10)
 
 	return &si.AllocationRequest{
 		Allocations: []*si.Allocation{&allocation},
