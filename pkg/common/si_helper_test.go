@@ -439,6 +439,10 @@ func TestCreateAllocationForForeignPod(t *testing.T) {
 			CreationTimestamp: apis.Time{
 				Time: time.Unix(1, 0),
 			},
+			Labels: map[string]string{
+				"testKey": "testValue",
+			},
+			Namespace: "testNamespace",
 		},
 		Spec: v1.PodSpec{
 			Containers: containers,
@@ -459,9 +463,11 @@ func TestCreateAllocationForForeignPod(t *testing.T) {
 	assert.Equal(t, int64(500000000), res.Resources["memory"].Value)
 	assert.Equal(t, int64(1000), res.Resources["vcore"].Value)
 	assert.Equal(t, int64(1), res.Resources["pods"].Value)
-	assert.Equal(t, 2, len(alloc.AllocationTags))
+	assert.Equal(t, 5, len(alloc.AllocationTags))
 	assert.Equal(t, "1", alloc.AllocationTags[common.CreationTime])
-	assert.Equal(t, common.AllocTypeDefault, alloc.AllocationTags[common.Foreign])
+	assert.Equal(t, alloc.AllocationTags["kubernetes.io/meta/namespace"], "testNamespace")
+	assert.Equal(t, alloc.AllocationTags["kubernetes.io/meta/podName"], "test")
+	assert.Equal(t, alloc.AllocationTags["kubernetes.io/label/testKey"], "testValue")
 
 	// set priority & change pod type to static
 	prio := int32(12)
@@ -472,7 +478,7 @@ func TestCreateAllocationForForeignPod(t *testing.T) {
 		},
 	}
 	allocReq = CreateAllocationForForeignPod(pod)
-	assert.Equal(t, 2, len(alloc.AllocationTags))
+	assert.Equal(t, 5, len(alloc.AllocationTags))
 	alloc = allocReq.Allocations[0]
 	assert.Equal(t, common.AllocTypeStatic, alloc.AllocationTags[common.Foreign])
 	assert.Equal(t, int32(12), alloc.Priority)

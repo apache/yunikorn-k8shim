@@ -610,8 +610,10 @@ func assertAddForeignPod(t *testing.T, podName, host string, allocRequest *si.Al
 	t.Helper()
 	assert.Equal(t, 1, len(allocRequest.Allocations))
 	tags := allocRequest.Allocations[0].AllocationTags
-	assert.Equal(t, 2, len(tags))
+	assert.Equal(t, 4, len(tags))
 	assert.Equal(t, siCommon.AllocTypeDefault, tags[siCommon.Foreign])
+	assert.Equal(t, tags["kubernetes.io/meta/namespace"], "testNamespace")
+	assert.Equal(t, tags["kubernetes.io/meta/podName"], podName)
 	assert.Equal(t, podName, allocRequest.Allocations[0].AllocationKey)
 	assert.Equal(t, host, allocRequest.Allocations[0].NodeID)
 }
@@ -2390,8 +2392,9 @@ func foreignPod(podName, memory, cpu string) *v1.Pod {
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
-			Name: podName,
-			UID:  types.UID(podName),
+			Name:      podName,
+			UID:       types.UID(podName),
+			Namespace: "testNamespace",
 		},
 		Spec: v1.PodSpec{
 			Containers: containers,
