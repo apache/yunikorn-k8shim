@@ -350,6 +350,21 @@ partitions:
 	err = cluster.waitAndAssertForeignAllocationInCore(partitionName, "foreign-2", "node-1", true)
 	assert.NilError(t, err)
 
+	// update pod resources
+	pod1Copy := pod1.DeepCopy()
+	pod1Copy.Spec.Containers[0].Resources.Requests[siCommon.Memory] = *resource.NewQuantity(500, resource.DecimalSI)
+	pod1Copy.Spec.Containers[0].Resources.Requests[siCommon.CPU] = *resource.NewMilliQuantity(2000, resource.DecimalSI)
+
+	cluster.UpdatePod(pod1, pod1Copy)
+	expectedUsage := common.NewResourceBuilder().
+		AddResource(siCommon.Memory, 500).
+		AddResource(siCommon.CPU, 2).
+		AddResource("pods", 1).
+		Build()
+	err = cluster.waitAndAssertForeignAllocationResources(partitionName, "foreign-1", "node-1", expectedUsage)
+	assert.NilError(t, err)
+
+	// delete pods
 	cluster.DeletePod(pod1)
 	cluster.DeletePod(pod2)
 
