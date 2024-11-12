@@ -248,6 +248,7 @@ func TestUpdateApplication_Rejected(t *testing.T) {
 	NewPlaceholderManager(context.apiProvider.GetAPIs())
 	recorder := k8sEvents.NewFakeRecorder(1024)
 	events.SetRecorder(recorder)
+	defer events.SetRecorder(events.NewMockedRecorder())
 
 	err := callback.UpdateApplication(&si.ApplicationResponse{
 		Rejected: []*si.RejectedApplication{
@@ -361,6 +362,7 @@ func testUpdateApplicationFailure(t *testing.T, state string) {
 	NewPlaceholderManager(context.apiProvider.GetAPIs())
 	recorder := k8sEvents.NewFakeRecorder(1024)
 	events.SetRecorder(recorder)
+	defer events.SetRecorder(events.NewMockedRecorder())
 
 	err := callback.UpdateApplication(&si.ApplicationResponse{
 		Updated: []*si.UpdatedApplication{
@@ -459,6 +461,7 @@ func TestSendEvent(t *testing.T) {
 	callback, _ := initCallbackTest(t, false, false)
 	recorder := k8sEvents.NewFakeRecorder(1024)
 	events.SetRecorder(recorder)
+	defer events.SetRecorder(events.NewMockedRecorder())
 	defer dispatcher.UnregisterAllEventHandlers()
 	defer dispatcher.Stop()
 

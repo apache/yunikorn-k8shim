@@ -1059,10 +1059,9 @@ func TestGetTask(t *testing.T) {
 }
 
 func TestNodeEventFailsPublishingWithoutNode(t *testing.T) {
-	recorder, ok := events.GetRecorder().(*k8sEvents.FakeRecorder)
-	if !ok {
-		t.Fatal("the EventRecorder is expected to be of type FakeRecorder")
-	}
+	recorder := k8sEvents.NewFakeRecorder(1024)
+	events.SetRecorder(recorder)
+	defer events.SetRecorder(events.NewMockedRecorder())
 	context := initContextForTest()
 
 	eventRecords := make([]*si.EventRecord, 0)
@@ -1087,10 +1086,9 @@ func TestNodeEventFailsPublishingWithoutNode(t *testing.T) {
 }
 
 func TestNodeEventPublishedCorrectly(t *testing.T) {
-	recorder, ok := events.GetRecorder().(*k8sEvents.FakeRecorder)
-	if !ok {
-		t.Fatal("the EventRecorder is expected to be of type FakeRecorder")
-	}
+	recorder := k8sEvents.NewFakeRecorder(1024)
+	events.SetRecorder(recorder)
+	defer events.SetRecorder(events.NewMockedRecorder())
 
 	context, apiProvider := initContextAndAPIProviderForTest()
 	dispatcher.Start()
@@ -1147,10 +1145,9 @@ func TestNodeEventPublishedCorrectly(t *testing.T) {
 }
 
 func TestFilteredEventsNotPublished(t *testing.T) {
-	recorder, ok := events.GetRecorder().(*k8sEvents.FakeRecorder)
-	if !ok {
-		t.Fatal("the EventRecorder is expected to be of type FakeRecorder")
-	}
+	recorder := k8sEvents.NewFakeRecorder(1024)
+	events.SetRecorder(recorder)
+	defer events.SetRecorder(events.NewMockedRecorder())
 
 	context, apiProvider := initContextAndAPIProviderForTest()
 	dispatcher.Start()
@@ -1231,10 +1228,10 @@ func TestFilteredEventsNotPublished(t *testing.T) {
 }
 
 func TestPublishEventsWithNotExistingAsk(t *testing.T) {
-	recorder, ok := events.GetRecorder().(*k8sEvents.FakeRecorder)
-	if !ok {
-		t.Fatal("the EventRecorder is expected to be of type FakeRecorder")
-	}
+	recorder := k8sEvents.NewFakeRecorder(1024)
+	events.SetRecorder(recorder)
+	defer events.SetRecorder(events.NewMockedRecorder())
+
 	context := initContextForTest()
 	context.AddApplication(&AddApplicationRequest{
 		Metadata: ApplicationMetadata{
@@ -1271,10 +1268,10 @@ func TestPublishEventsWithNotExistingAsk(t *testing.T) {
 }
 
 func TestPublishEventsCorrectly(t *testing.T) {
-	recorder, ok := events.GetRecorder().(*k8sEvents.FakeRecorder)
-	if !ok {
-		t.Fatal("the EventRecorder is expected to be of type FakeRecorder")
-	}
+	recorder := k8sEvents.NewFakeRecorder(1024)
+	events.SetRecorder(recorder)
+	defer events.SetRecorder(events.NewMockedRecorder())
+
 	context := initContextForTest()
 
 	// create fake application and task
