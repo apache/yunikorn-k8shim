@@ -23,19 +23,16 @@ import (
 	"time"
 
 	"gotest.tools/v3/assert"
-
 	v1 "k8s.io/api/core/v1"
 	schedulingv1 "k8s.io/api/scheduling/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	k8sEvents "k8s.io/client-go/tools/events"
 
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/locking"
-
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
 
@@ -527,6 +524,7 @@ func TestHandleSubmitTaskEvent(t *testing.T) {
 		rt.time++
 	}
 	events.SetRecorder(mr)
+	defer events.SetRecorder(events.NewMockedRecorder())
 	resources := make(map[v1.ResourceName]resource.Quantity)
 	containers := make([]v1.Container, 0)
 	containers = append(containers, v1.Container{
@@ -604,9 +602,6 @@ func TestHandleSubmitTaskEvent(t *testing.T) {
 	assert.Assert(t, allocRequest.Allocations[0].PreemptionPolicy != nil)
 	assert.Assert(t, !allocRequest.Allocations[0].PreemptionPolicy.AllowPreemptSelf)
 	assert.Assert(t, allocRequest.Allocations[0].PreemptionPolicy.AllowPreemptOther)
-
-	// Test over, set Recorder back fake type
-	events.SetRecorder(k8sEvents.NewFakeRecorder(1024))
 }
 
 func TestSimultaneousTaskCompleteAndAllocate(t *testing.T) {
