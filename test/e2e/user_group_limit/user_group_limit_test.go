@@ -29,35 +29,27 @@ import (
 	"strings"
 	"time"
 
-	"github.com/apache/yunikorn-core/pkg/common/configs"
-	"github.com/apache/yunikorn-core/pkg/common/resources"
-	"github.com/apache/yunikorn-core/pkg/webservice/dao"
+	"github.com/onsi/ginkgo/v2"
+	"github.com/onsi/gomega"
+	v1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 
+	"github.com/apache/yunikorn-core/pkg/common/configs"
+	"github.com/apache/yunikorn-core/pkg/webservice/dao"
 	amCommon "github.com/apache/yunikorn-k8shim/pkg/admission/common"
 	amconf "github.com/apache/yunikorn-k8shim/pkg/admission/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
-
 	tests "github.com/apache/yunikorn-k8shim/test/e2e"
-
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
-
 	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
-
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
-
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
-
-	v1 "k8s.io/api/core/v1"
-	rbacv1 "k8s.io/api/rbac/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"k8s.io/client-go/kubernetes"
 )
 
 type TestType int
@@ -1186,7 +1178,7 @@ func checkUsage(testType TestType, name string, queuePath string, expectedRunnin
 		appIDs = append(appIDs, pod.Labels[constants.LabelApplicationID])
 	}
 	Ω(resourceUsageDAO.ResourceUsage).NotTo(gomega.BeNil())
-	Ω(resourceUsageDAO.ResourceUsage.Resources["pods"]).To(gomega.Equal(resources.Quantity(len(expectedRunningPods))))
+	Ω(resourceUsageDAO.ResourceUsage["pods"]).To(gomega.Equal(int64(len(expectedRunningPods))))
 	Ω(resourceUsageDAO.RunningApplications).To(gomega.ConsistOf(appIDs...))
 }
 
@@ -1218,6 +1210,6 @@ func checkUsageWildcardGroups(testType TestType, name string, queuePath string, 
 		appIDs = append(appIDs, pod.Labels[constants.LabelApplicationID])
 	}
 	Ω(resourceUsageDAO.ResourceUsage).NotTo(gomega.BeNil())
-	Ω(resourceUsageDAO.ResourceUsage.Resources["pods"]).To(gomega.Equal(resources.Quantity(len(expectedRunningPods))))
+	Ω(resourceUsageDAO.ResourceUsage["pods"]).To(gomega.Equal(int64(len(expectedRunningPods))))
 	Ω(resourceUsageDAO.RunningApplications).To(gomega.ConsistOf(appIDs...))
 }
