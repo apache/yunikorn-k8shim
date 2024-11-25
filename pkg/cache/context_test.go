@@ -1227,6 +1227,59 @@ func TestFilteredEventsNotPublished(t *testing.T) {
 	}
 }
 
+func TestAppEventPublishedCorrectly(t *testing.T) {
+	recorder := k8sEvents.NewFakeRecorder(1024)
+	events.SetRecorder(recorder)
+	defer events.SetRecorder(events.NewMockedRecorder())
+
+	context := initContextForTest()
+
+	// create fake application and task
+	context.AddApplication(&AddApplicationRequest{
+		Metadata: ApplicationMetadata{
+			ApplicationID: appID1,
+			QueueName:     queueNameA,
+			User:          testUser,
+			Tags:          nil,
+		},
+	})
+	context.AddTask(&AddTaskRequest{
+		Metadata: TaskMetadata{
+			ApplicationID: appID1,
+			TaskID:        taskUID1,
+			Pod:           &v1.Pod{},
+		},
+	})
+
+	eventRecords := make([]*si.EventRecord, 0)
+	message := "Preempted by pod-a from application yunikorn-test-autogen in root.test"
+	eventRecords = append(eventRecords, &si.EventRecord{
+		Type:              si.EventRecord_APP,
+		EventChangeType:   si.EventRecord_REMOVE,
+		EventChangeDetail: si.EventRecord_ALLOC_PREEMPT,
+		ObjectID:          appID1,
+		ReferenceID:       taskUID1,
+		Message:           message,
+	})
+	context.PublishEvents(eventRecords)
+
+	// check that the event has been published
+	err := utils.WaitForCondition(func() bool {
+		for {
+			select {
+			case event := <-recorder.Events:
+				log.Log(log.Test).Info(event)
+				if strings.Contains(event, message) {
+					return true
+				}
+			default:
+				return false
+			}
+		}
+	}, 10*time.Millisecond, time.Second)
+	assert.NilError(t, err, "event should have been emitted")
+}
+
 func TestPublishEventsWithNotExistingAsk(t *testing.T) {
 	recorder := k8sEvents.NewFakeRecorder(1024)
 	events.SetRecorder(recorder)

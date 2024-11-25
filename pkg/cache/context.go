@@ -1150,6 +1150,22 @@ func (ctx *Context) PublishEvents(eventRecords []*si.EventRecord) {
 				}
 				events.GetRecorder().Eventf(node.DeepCopy(), nil,
 					v1.EventTypeNormal, "Informational", "Informational", record.Message)
+			case si.EventRecord_APP:
+				if !isPublishableAppEvent(record) {
+					continue
+				}
+				appID := record.ObjectID
+				taskID := record.ReferenceID
+				if task := ctx.getTask(appID, taskID); task != nil {
+					events.GetRecorder().Eventf(task.GetTaskPod().DeepCopy(), nil,
+						v1.EventTypeNormal, "Preempted", "Preempting", record.Message)
+				} else {
+					log.Log(log.ShimContext).Warn("task event is not published because task is not found",
+						zap.String("appID", appID),
+						zap.String("taskID", taskID),
+						zap.Stringer("event", record))
+				}
+
 			}
 		}
 	}
@@ -1325,6 +1341,15 @@ func isPublishableNodeEvent(event *si.EventRecord) bool {
 	if event.Type == si.EventRecord_NODE &&
 		((event.EventChangeDetail == si.EventRecord_DETAILS_NONE && event.EventChangeType == si.EventRecord_ADD) ||
 			(event.EventChangeDetail == si.EventRecord_NODE_DECOMISSION && event.EventChangeType == si.EventRecord_REMOVE)) {
+		return true
+	}
+
+	return false
+}
+
+func isPublishableAppEvent(event *si.EventRecord) bool {
+	// we only send app preempt event
+	if event.EventChangeDetail == si.EventRecord_ALLOC_PREEMPT && event.Message != "" {
 		return true
 	}
 
