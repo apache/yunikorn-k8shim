@@ -48,7 +48,7 @@ var _ = ginkgo.BeforeSuite(func() {
 	suiteName = common.GetSuiteName(filename)
 	// Initializing kubectl client
 	kClient = k8s.KubeCtl{}
-	gomega.Ω(kClient.SetClient()).To(gomega.BeNil())
+	gomega.Ω(kClient.SetClient()).To(gomega.Succeed())
 	// Initializing rest client
 	restClient = yunikorn.RClient{}
 	yunikorn.EnsureYuniKornConfigsPresent()
@@ -102,7 +102,7 @@ var _ = ginkgo.Describe("", func() {
 	ginkgo.It("Verify_Pod_Alloc_Props", func() {
 		ginkgo.By("Verify the pod allocation properties")
 		gomega.Ω(appsInfo.Allocations).NotTo(gomega.BeNil())
-		gomega.Ω(len(appsInfo.Allocations)).NotTo(gomega.BeZero())
+		gomega.Ω(len(appsInfo.Allocations)).NotTo(gomega.BeEmpty())
 		allocation := appsInfo.Allocations[0]
 		gomega.Ω(allocation).NotTo(gomega.BeNil())
 		gomega.Ω(allocation.AllocationKey).NotTo(gomega.BeNil())
