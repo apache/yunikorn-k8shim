@@ -142,7 +142,7 @@ func (e *EventHandler) WaitForUpdate(timeout time.Duration) bool {
 
 func ObserveConfigMapInformerUpdateAfterAction(action func()) {
 	kubeClient := KubeCtl{}
-	gomega.Expect(kubeClient.SetClient()).To(gomega.BeNil())
+	gomega.Expect(kubeClient.SetClient()).To(gomega.Succeed())
 
 	// Setup ConfigMap informer
 	stopChan := make(chan struct{})
@@ -156,5 +156,5 @@ func ObserveConfigMapInformerUpdateAfterAction(action func()) {
 
 	// Wait for ConfigMap informer recevie update event.
 	updateOk := eventHandler.WaitForUpdate(30 * time.Second)
-	gomega.Ω(updateOk).To(gomega.Equal(true))
+	gomega.Ω(updateOk).To(gomega.BeTrue())
 }

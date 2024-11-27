@@ -40,6 +40,9 @@ linters-settings:
   funlen:
     lines: 120
     statements: 80
+  ginkgolinter:
+    enabled: true
+    path : ./test
   depguard:
     rules:
       main:
@@ -74,6 +77,7 @@ linters:
     - gosec
     - dogsled
     - whitespace
+    - ginkgolinter
 
 issues:
   exclude-use-default: true

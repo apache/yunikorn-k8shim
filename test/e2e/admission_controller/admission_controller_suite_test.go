@@ -194,7 +194,7 @@ var _ = BeforeSuite(func() {
 	restClient = yunikorn.RClient{}
 
 	kubeClient = k8s.KubeCtl{}
-	Expect(kubeClient.SetClient()).To(BeNil())
+	Expect(kubeClient.SetClient()).To(Succeed())
 
 	yunikorn.EnsureYuniKornConfigsPresent()
 	yunikorn.UpdateConfigMapWrapper(oldConfigMap, "")
@@ -218,7 +218,7 @@ var _ = BeforeSuite(func() {
 
 var _ = AfterSuite(func() {
 	kubeClient = k8s.KubeCtl{}
-	Expect(kubeClient.SetClient()).To(BeNil())
+	Expect(kubeClient.SetClient()).To(Succeed())
 
 	By(fmt.Sprintf("Removing priority class %s", testNonYkPriorityClass.Name))
 	err := kubeClient.DeletePriorityClass(testNonYkPriorityClass.Name)
