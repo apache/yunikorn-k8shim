@@ -140,7 +140,7 @@ var _ = ginkgo.Describe("", func() {
 		gomega.Ω(appsInfo).NotTo(gomega.BeNil())
 		ginkgo.By("Verify the pod allocation properties")
 		gomega.Ω(appsInfo).NotTo(gomega.BeNil())
-		gomega.Ω(len(appsInfo.Allocations)).NotTo(gomega.BeEmpty())
+		gomega.Ω(appsInfo.Allocations).NotTo(gomega.BeNil())
 		allocations := appsInfo.Allocations[0]
 		gomega.Ω(allocations).NotTo(gomega.BeNil())
 		gomega.Ω(allocations.AllocationKey).NotTo(gomega.BeNil())
@@ -149,7 +149,7 @@ var _ = ginkgo.Describe("", func() {
 		core := sleepRespPod.Spec.Containers[0].Resources.Requests.Cpu().MilliValue()
 		mem := sleepRespPod.Spec.Containers[0].Resources.Requests.Memory().Value()
 		resMap := allocations.ResourcePerAlloc
-		gomega.Ω(len(resMap)).NotTo(gomega.BeEmpty())
+		gomega.Ω(resMap).NotTo(gomega.BeEmpty())
 		gomega.Ω(resMap["memory"]).To(gomega.Equal(mem))
 		gomega.Ω(resMap["vcore"]).To(gomega.Equal(core))
 	})

@@ -445,7 +445,7 @@ var _ = ginkgo.Describe("AdmissionController", func() {
 				rs.Status.ReadyReplicas,
 				rs.Status.AvailableReplicas)
 		}
-		gomega.Ω(len(replicaSetList.Items)).To(gomega.HaveLen(2))
+		gomega.Ω(replicaSetList.Items).To(gomega.HaveLen(2))
 	})
 
 	ginkgo.AfterEach(func() {

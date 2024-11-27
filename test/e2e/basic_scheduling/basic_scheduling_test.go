@@ -101,8 +101,7 @@ var _ = ginkgo.Describe("", func() {
 
 	ginkgo.It("Verify_Pod_Alloc_Props", func() {
 		ginkgo.By("Verify the pod allocation properties")
-		gomega.Ω(appsInfo.Allocations).NotTo(gomega.BeNil())
-		gomega.Ω(len(appsInfo.Allocations)).NotTo(gomega.BeEmpty())
+		gomega.Ω(appsInfo.Allocations).NotTo(gomega.BeEmpty())
 		allocation := appsInfo.Allocations[0]
 		gomega.Ω(allocation).NotTo(gomega.BeNil())
 		gomega.Ω(allocation.AllocationKey).NotTo(gomega.BeNil())
