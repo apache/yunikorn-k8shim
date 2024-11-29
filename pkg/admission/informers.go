@@ -40,17 +40,19 @@ type Informers struct {
 func NewInformers(kubeClient client.KubeClient, namespace string) *Informers {
 	stopChan := make(chan struct{})
 
-	informerFactory := informers.NewSharedInformerFactoryWithOptions(kubeClient.GetClientSet(), 0, informers.WithNamespace(namespace))
+	informerFactory := informers.NewSharedInformerFactoryWithOptions(
+		kubeClient.GetClientSet(),
+		0,
+		informers.WithNamespace(namespace),
+	)
 	informerFactory.Start(stopChan)
 
-	result := &Informers{
+	return &Informers{
 		ConfigMap:     informerFactory.Core().V1().ConfigMaps(),
 		PriorityClass: informerFactory.Scheduling().V1().PriorityClasses(),
 		Namespace:     informerFactory.Core().V1().Namespaces(),
 		stopChan:      stopChan,
 	}
-
-	return result
 }
 
 func (i *Informers) Start() {
