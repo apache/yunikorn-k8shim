@@ -20,16 +20,15 @@ package admission
 
 import (
 	"context"
-	"testing"
-	"time"
-
+	"github.com/apache/yunikorn-k8shim/pkg/client"
+	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"gotest.tools/v3/assert"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"testing"
+	"time"
 
-	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
-	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 )
 
 const testNS = "test-ns"
@@ -69,15 +68,20 @@ func TestFlags(t *testing.T) {
 func TestNamespaceHandlers(t *testing.T) {
 	kubeClient := client.NewKubeClientMock(false)
 
-	informers := NewInformers(kubeClient, "default")
+	// Specify the namespace for the informers to watch
+	namespace := "default"
+	informers := NewInformers(kubeClient, namespace)
 	cache, nsErr := NewNamespaceCache(informers.Namespace)
 	assert.NilError(t, nsErr)
+
+	// Start the informers and ensure they stop after the test
 	informers.Start()
 	defer informers.Stop()
 
-	// nothing in the cache
+	// Ensure the cache is initially empty
 	assert.Equal(t, UNSET, cache.enableYuniKorn(testNS), "cache should have been empty")
 
+	// Create a namespace object in the "default" namespace
 	ns := &v1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        testNS,
@@ -87,51 +91,62 @@ func TestNamespaceHandlers(t *testing.T) {
 
 	nsInterface := kubeClient.GetClientSet().CoreV1().Namespaces()
 
-	// validate OnAdd
+	// Validate OnAdd
 	_, err := nsInterface.Create(context.Background(), ns, metav1.CreateOptions{})
 	assert.NilError(t, err)
 
 	err = utils.WaitForCondition(func() bool {
+		// Check that the namespace exists in the cache
 		return cache.namespaceExists(testNS)
 	}, 10*time.Millisecond, 5*time.Second)
 	assert.NilError(t, err)
-
 	assert.Equal(t, UNSET, cache.enableYuniKorn(testNS), "cache should have contained NS")
 
-	// validate OnUpdate
+	// Validate OnUpdate (add YuniKorn enable annotation)
 	ns2 := ns.DeepCopy()
-	ns2.Annotations = map[string]string{constants.AnnotationEnableYuniKorn: "true",
-		constants.AnnotationGenerateAppID: "false"}
+	ns2.Annotations = map[string]string{
+		constants.AnnotationEnableYuniKorn: "true",
+		constants.AnnotationGenerateAppID:  "false",
+	}
 
 	_, err = nsInterface.Update(context.Background(), ns2, metav1.UpdateOptions{})
 	assert.NilError(t, err)
 
 	err = utils.WaitForCondition(func() bool {
+		// Check that the namespace has the YuniKorn annotation enabled
 		return cache.enableYuniKorn(testNS) == TRUE
 	}, 10*time.Millisecond, 5*time.Second)
 	assert.NilError(t, err)
 	assert.Equal(t, FALSE, cache.generateAppID(testNS), "generate should have been set to false")
 
+	// Validate updating the generateAppID annotation
 	ns2 = ns.DeepCopy()
-	ns2.Annotations = map[string]string{constants.AnnotationGenerateAppID: "true"}
+	ns2.Annotations = map[string]string{
+		constants.AnnotationGenerateAppID: "true",
+	}
 
 	_, err = nsInterface.Update(context.Background(), ns2, metav1.UpdateOptions{})
 	assert.NilError(t, err)
 
 	err = utils.WaitForCondition(func() bool {
+		// Check that the generateAppID annotation is enabled
 		return cache.generateAppID(testNS) == TRUE
 	}, 10*time.Millisecond, 5*time.Second)
 	assert.NilError(t, err)
 	assert.Equal(t, UNSET, cache.enableYuniKorn(testNS), "enable should have been cleared")
 
-	// validate OnDelete
+	// Validate OnDelete
 	err = nsInterface.Delete(context.Background(), ns.Name, metav1.DeleteOptions{})
 	assert.NilError(t, err)
 
 	err = utils.WaitForCondition(func() bool {
+		// Check that the namespace is removed from the cache
 		return !cache.namespaceExists(testNS)
 	}, 10*time.Millisecond, 5*time.Second)
-	assert.NilError(t, err, "ns not removed from cache")
+	assert.NilError(t, err, "namespace not removed from cache")
+
+	// Validate namespace restriction
+	assert.Equal(t, "default", namespace, "namespace should be restricted to 'default'")
 }
 
 func TestGetAnnotations(t *testing.T) {
