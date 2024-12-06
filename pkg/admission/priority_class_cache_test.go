@@ -49,67 +49,53 @@ func TestIsPreemptSelfAllowed(t *testing.T) {
 func TestPriorityClassHandlers(t *testing.T) {
 	kubeClient := client.NewKubeClientMock(false)
 
-	// Specify the namespace for the informers (this is still required for consistency, even if PriorityClasses are cluster-scoped)
-	namespace := "default"
-	informers := NewInformers(kubeClient, namespace)
+	informers := NewInformers(kubeClient, "default")
 	cache, pcErr := NewPriorityClassCache(informers.PriorityClass)
 	assert.NilError(t, pcErr)
-
-	// Start informers and ensure proper cleanup
 	informers.Start()
 	defer informers.Stop()
 
-	// Test behavior for a non-existing PriorityClass
-	assert.Assert(t, cache.isPreemptSelfAllowed(testPC), "non-existing PriorityClass should return true by default")
+	assert.Assert(t, cache.isPreemptSelfAllowed(testPC), "non existing, should return true")
 
-	// Define a PriorityClass
 	priorityClass := &schedulingv1.PriorityClass{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: testPC,
 		},
 	}
 
-	// Simulate PriorityClass API interaction
 	priorityClasses := kubeClient.GetClientSet().SchedulingV1().PriorityClasses()
 
-	// Validate OnAdd: Add a new PriorityClass
+	// validate OnAdd
 	_, err := priorityClasses.Create(context.Background(), priorityClass, metav1.CreateOptions{})
 	assert.NilError(t, err)
 
-	// Wait until the cache reflects the new PriorityClass
 	err = utils.WaitForCondition(func() bool {
 		return cache.priorityClassExists(testPC)
 	}, 10*time.Millisecond, 10*time.Second)
 	assert.NilError(t, err)
-	assert.Assert(t, cache.isPreemptSelfAllowed(testPC), "existing PriorityClass (not annotated) should return true")
 
-	// Validate OnUpdate: Update the PriorityClass with an annotation
+	assert.Assert(t, cache.isPreemptSelfAllowed(testPC), "exists, not set should return true")
+
+	// validate OnUpdate
 	priorityClass2 := priorityClass.DeepCopy()
-	priorityClass2.Annotations = map[string]string{
-		constants.AnnotationAllowPreemption: "false",
-	}
+	priorityClass2.Annotations = map[string]string{constants.AnnotationAllowPreemption: "false"}
 
 	_, err = priorityClasses.Update(context.Background(), priorityClass2, metav1.UpdateOptions{})
 	assert.NilError(t, err)
 
-	// Wait until the cache reflects the updated PriorityClass
 	err = utils.WaitForCondition(func() bool {
 		return !cache.isPreemptSelfAllowed(testPC)
 	}, 10*time.Millisecond, 10*time.Second)
 	assert.NilError(t, err)
 
-	// Validate OnDelete: Remove the PriorityClass
+	// validate OnDelete
 	err = priorityClasses.Delete(context.Background(), testPC, metav1.DeleteOptions{})
 	assert.NilError(t, err)
 
-	// Wait until the cache reflects the deleted PriorityClass
 	err = utils.WaitForCondition(func() bool {
 		return !cache.priorityClassExists(testPC)
 	}, 10*time.Millisecond, 10*time.Second)
 	assert.NilError(t, err)
-
-	// Ensure proper namespace validation (though PriorityClasses are cluster-scoped, consistency matters)
-	assert.Equal(t, "default", namespace, "namespace should be restricted to 'default'")
 }
 
 func TestGetBoolAnnotation(t *testing.T) {

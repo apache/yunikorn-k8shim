@@ -62,22 +62,12 @@ func main() {
 	amConf := conf.NewAdmissionControllerConf(configMaps)
 	kubeClient := client.NewKubeClient(amConf.GetKubeConfig())
 
-	namespace := amConf.GetNamespace()
-	if namespace == "" {
-		log.Log(log.Admission).Fatal("Namespace is not configured or empty. Please specify a valid namespace.")
+	informers := admission.NewInformers(kubeClient, amConf.GetNamespace())
+
+	if hadlerErr := amConf.RegisterHandlers(informers.ConfigMap); hadlerErr != nil {
+		log.Log(log.Admission).Fatal("Failed to register handlers", zap.Error(hadlerErr))
 		return
 	}
-
-	log.Log(log.Admission).Info("Starting informers for namespace", zap.String("namespace", namespace))
-
-	informers := admission.NewInformers(kubeClient, namespace)
-
-	// Register ConfigMap handlers
-	if handlerErr := amConf.RegisterHandlers(informers.ConfigMap); handlerErr != nil {
-		log.Log(log.Admission).Fatal("Failed to register handlers", zap.Error(handlerErr))
-		return
-	}
-
 	pcCache, pcErr := admission.NewPriorityClassCache(informers.PriorityClass)
 	if pcErr != nil {
 		log.Log(log.Admission).Fatal("Failed to create new priority class cache", zap.Error(pcErr))
