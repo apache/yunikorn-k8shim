@@ -269,6 +269,7 @@ func (sp *YuniKornSchedulerPlugin) PostBind(_ context.Context, _ *framework.Cycl
 // NewSchedulerPlugin initializes a new plugin and returns it
 func NewSchedulerPlugin(_ context.Context, _ runtime.Object, handle framework.Handle) (framework.Plugin, error) {
 	log.Log(log.ShimSchedulerPlugin).Info(conf.GetBuildInfoString())
+	log.Log(log.ShimSchedulerPlugin).Warn("The plugin mode has been deprecated and will be removed in a future release. Consider migrating to Yunikorn standalone mode.")
 
 	configMaps, err := client.LoadBootstrapConfigMaps()
 	if err != nil {
