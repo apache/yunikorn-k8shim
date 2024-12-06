@@ -472,9 +472,15 @@ func (ctx *Context) deleteForeignPod(pod *v1.Pod) {
 func (ctx *Context) filterConfigMaps(obj interface{}) bool {
 	switch obj := obj.(type) {
 	case *v1.ConfigMap:
+		fmt.Printf("Received ConfigMap: Name=%s, Namespace=%s\n", obj.Name, obj.Namespace)
+
 		return (obj.Name == constants.DefaultConfigMapName || obj.Name == constants.ConfigMapName) && obj.Namespace == ctx.namespace
 	case cache.DeletedFinalStateUnknown:
-		return ctx.filterConfigMaps(obj.Obj)
+		if cm, ok := obj.Obj.(*v1.ConfigMap); ok {
+			fmt.Printf("Deleted ConfigMap: Name=%s, Namespace=%s\n", cm.Name, cm.Namespace)
+			return ctx.filterConfigMaps(cm)
+		}
+		return false
 	default:
 		return false
 	}
