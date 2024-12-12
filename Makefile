@@ -70,7 +70,7 @@ export PATH := $(BASE_DIR)/$(TOOLS_DIR):$(GO_EXE_PATH):$(PATH)
 
 # Default values for dev cluster
 ifeq ($(K8S_VERSION),)
-K8S_VERSION := v1.31.1
+K8S_VERSION := v1.32.0
 endif
 ifeq ($(CLUSTER_NAME),)
 CLUSTER_NAME := yk8s
@@ -176,7 +176,7 @@ KUBECTL_BIN=$(KUBECTL_PATH)/kubectl
 export PATH := $(BASE_DIR)/$(KUBECTL_PATH):$(PATH)
 
 # kind
-KIND_VERSION=v0.24.0
+KIND_VERSION=v0.25.0
 KIND_PATH=$(TOOLS_DIR)/kind-$(KIND_VERSION)
 KIND_BIN=$(KIND_PATH)/kind
 export PATH := $(BASE_DIR)/$(KIND_PATH):$(PATH)
