@@ -45,7 +45,7 @@ const cronJobPodTimeout = 65 * time.Second
 var _ = ginkgo.Describe("AdmissionController", func() {
 	ginkgo.BeforeEach(func() {
 		kubeClient = k8s.KubeCtl{}
-		gomega.Expect(kubeClient.SetClient()).To(gomega.BeNil())
+		gomega.Expect(kubeClient.SetClient()).To(gomega.Succeed())
 		ns = "ns-" + common.RandSeq(10)
 		ginkgo.By(fmt.Sprintf("Creating namespace: %s for admission controller tests", ns))
 		var ns1, err1 = kubeClient.CreateNamespace(ns, nil)
@@ -445,7 +445,7 @@ var _ = ginkgo.Describe("AdmissionController", func() {
 				rs.Status.ReadyReplicas,
 				rs.Status.AvailableReplicas)
 		}
-		gomega.Ω(len(replicaSetList.Items)).To(gomega.Equal(2))
+		gomega.Ω(replicaSetList.Items).To(gomega.HaveLen(2))
 	})
 
 	ginkgo.AfterEach(func() {
