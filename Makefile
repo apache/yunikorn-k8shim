@@ -90,7 +90,7 @@ else
 endif
 
 # Release build requires using parent dir as base for buildroot
-RELEASE_BUILD := $(test -f "$(BASE_DIR)/.gitignore" ; echo $$?)
+RELEASE_BUILD := $(shell test -f "$(BASE_DIR)/.gitignore" ; echo $$?)
 ifeq ($(RELEASE_BUILD),1)
 	DOCKER_BUILDROOT := $(shell cd "$(BASE_DIR)/.." ; pwd)
 	DOCKER_SRCROOT := /buildroot/k8shim
