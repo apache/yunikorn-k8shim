@@ -28,6 +28,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	storagev1 "k8s.io/api/storage/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -133,15 +134,16 @@ var _ = ginkgo.Describe("PersistentVolume", func() {
 		Ω(err).NotTo(HaveOccurred())
 	})
 
+	// Create nfs server and related rbac
+	saName := "nfs-service-account"
+	crName := "nfs-cluster-role"
+	crbName := "nfs-cluster-role-binding" //nolint:gosec
+	serverName := "nfs-provisioner"
+	scName := "nfs-sc"
+
 	ginkgo.It("Verify_dynamic_bindng_with_nfs_server", func() {
 		ginkgo.By("Start creating nfs provisioner.")
 
-		// Create nfs server and related rbac
-		saName := "nfs-service-account"
-		crName := "nfs-cluster-role"
-		crbName := "nfs-cluster-role-binding" //nolint:gosec
-		serverName := "nfs-provisioner"
-		scName := "nfs-sc"
 		createNfsRbac(saName, crName, crbName)
 		createNfsProvisioner(saName, serverName, scName)
 
@@ -178,12 +180,14 @@ var _ = ginkgo.Describe("PersistentVolume", func() {
 		err = kClient.WaitForPodRunning(dev, podName, 60*time.Second)
 		Ω(err).NotTo(HaveOccurred())
 
-		deleteNfsRelatedRoles(saName, crName, crbName)
-		deleteNfsProvisioner(serverName, scName)
 	})
 
 	ginkgo.AfterEach(func() {
 		tests.DumpClusterInfoIfSpecFailed(suiteName, []string{"default"})
+
+		// Clean up nfs provisioner resources
+		deleteNfsRelatedRoles(saName, crName, crbName)
+		deleteNfsProvisioner(serverName, scName)
 	})
 })
 
@@ -338,19 +342,29 @@ func createNfsProvisioner(svaName string, serverName string, scName string) {
 func deleteNfsRelatedRoles(serviceAccount string, clusterRole string, clusterRoleBinding string) {
 	ginkgo.By("Deleting NFS related roles and bindings")
 	err := kClient.DeleteClusterRoleBindings(clusterRoleBinding)
-	err2 := kClient.DeleteClusterRole(clusterRole)
-	err3 := kClient.DeleteServiceAccount(serviceAccount, dev)
+	if err != nil && !k8serrors.IsNotFound(err) {
+		Ω(err).NotTo(HaveOccurred())
+	}
 
-	Ω(err).NotTo(HaveOccurred())
-	Ω(err2).NotTo(HaveOccurred())
-	Ω(err3).NotTo(HaveOccurred())
+	err2 := kClient.DeleteClusterRole(clusterRole)
+	if err2 != nil && !k8serrors.IsNotFound(err2) {
+		Ω(err2).NotTo(HaveOccurred())
+	}
+
+	err3 := kClient.DeleteServiceAccount(serviceAccount, dev)
+	if err3 != nil && !k8serrors.IsNotFound(err3) {
+		Ω(err3).NotTo(HaveOccurred())
+	}
 }
 
 func deleteNfsProvisioner(deployName string, scName string) {
 	ginkgo.By("Deleting NFS deployment and storage class")
 	err := kClient.DeleteDeployment(deployName, dev)
+	if err != nil && !k8serrors.IsNotFound(err) {
+		Ω(err).NotTo(HaveOccurred())
+	}
 	err2 := kClient.DeleteStorageClass(scName)
-
-	Ω(err).NotTo(HaveOccurred())
-	Ω(err2).NotTo(HaveOccurred())
+	if err2 != nil && !k8serrors.IsNotFound(err2) {
+		Ω(err2).NotTo(HaveOccurred())
+	}
 }
