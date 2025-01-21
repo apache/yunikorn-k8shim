@@ -134,7 +134,6 @@ var _ = ginkgo.Describe("PersistentVolume", func() {
 		Ω(err).NotTo(HaveOccurred())
 	})
 
-	// Create nfs server and related rbac
 	saName := "nfs-service-account"
 	crName := "nfs-cluster-role"
 	crbName := "nfs-cluster-role-binding" //nolint:gosec
@@ -144,6 +143,7 @@ var _ = ginkgo.Describe("PersistentVolume", func() {
 	ginkgo.It("Verify_dynamic_bindng_with_nfs_server", func() {
 		ginkgo.By("Start creating nfs provisioner.")
 
+		// Create nfs server and related rbac
 		createNfsRbac(saName, crName, crbName)
 		createNfsProvisioner(saName, serverName, scName)
 
