@@ -18,6 +18,7 @@ package k8s
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -41,8 +42,10 @@ import (
 	storagev1 "k8s.io/api/storage/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/httpstream"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/apimachinery/pkg/version"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -152,6 +155,16 @@ func (k *KubeCtl) GetClient() *kubernetes.Clientset {
 	return k.clientSet
 }
 
+// GetKubernetesVersion returns the version info from the Kubernetes server
+func (k *KubeCtl) GetKubernetesVersion() (*version.Info, error) {
+	var k8sVer *version.Info = nil
+	k8sVer, err := k.clientSet.Discovery().ServerVersion()
+	if err != nil {
+		return k8sVer, err
+	}
+	return k8sVer, nil
+}
+
 func (k *KubeCtl) GetKubeConfig() (*rest.Config, error) {
 	if k.kubeConfig != nil {
 		return k.kubeConfig, nil
@@ -219,6 +232,20 @@ func (k *KubeCtl) UpdatePodWithAnnotation(pod *v1.Pod, namespace, annotationKey,
 
 func (k *KubeCtl) UpdatePod(pod *v1.Pod, namespace string) (*v1.Pod, error) {
 	return k.clientSet.CoreV1().Pods(namespace).Update(context.TODO(), pod, metav1.UpdateOptions{})
+}
+
+func (k *KubeCtl) PatchPod(pod *v1.Pod, namespace string, patch []map[string]interface{}) (*v1.Pod, error) {
+	patchBytes, err := json.Marshal(patch)
+	if err != nil {
+		return nil, err
+	}
+	return k.clientSet.CoreV1().Pods(namespace).Patch(
+		context.TODO(),
+		pod.Name,
+		types.JSONPatchType,
+		patchBytes,
+		metav1.PatchOptions{},
+	)
 }
 
 func (k *KubeCtl) DeletePodAnnotation(pod *v1.Pod, namespace, annotation string) (*v1.Pod, error) {
