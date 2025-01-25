@@ -43,8 +43,14 @@ var kClient k8s.KubeCtl
 var restClient yunikorn.RClient
 
 const (
-	LocalTypePv    = "Local"
-	StandardScName = "standard"
+	localTypePv    = "Local"
+	standardScName = "standard"
+
+	saName     = "nfs-service-account"
+	crName     = "nfs-cluster-role"
+	crbName    = "nfs-cluster-role-binding" //nolint:gosec
+	serverName = "nfs-provisioner"
+	scName     = "nfs-sc"
 )
 
 var _ = ginkgo.BeforeSuite(func() {
@@ -90,9 +96,9 @@ var _ = ginkgo.Describe("PersistentVolume", func() {
 			Name:         pvName,
 			Capacity:     "1Gi",
 			AccessModes:  []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
-			Type:         LocalTypePv,
+			Type:         localTypePv,
 			Path:         "/tmp",
-			StorageClass: StandardScName,
+			StorageClass: standardScName,
 		}
 
 		ginkgo.By("Create local type pv " + pvName)
@@ -133,12 +139,6 @@ var _ = ginkgo.Describe("PersistentVolume", func() {
 		err = kClient.WaitForPodRunning(dev, podName, 60*time.Second)
 		Ω(err).NotTo(HaveOccurred())
 	})
-
-	saName := "nfs-service-account"
-	crName := "nfs-cluster-role"
-	crbName := "nfs-cluster-role-binding" //nolint:gosec
-	serverName := "nfs-provisioner"
-	scName := "nfs-sc"
 
 	ginkgo.It("Verify_dynamic_bindng_with_nfs_server", func() {
 		ginkgo.By("Start creating nfs provisioner.")
