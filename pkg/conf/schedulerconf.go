@@ -82,7 +82,7 @@ const (
 	DefaultClusterID                       = "mycluster"
 	DefaultPolicyGroup                     = "queues"
 	DefaultSchedulingInterval              = time.Second
-	DefaultVolumeBindTimeout               = 10 * time.Second
+	DefaultVolumeBindTimeout               = 10 * time.Minute
 	DefaultEventChannelCapacity            = 1024 * 1024
 	DefaultDispatchTimeout                 = 300 * time.Second
 	DefaultOperatorPlugins                 = "general"
