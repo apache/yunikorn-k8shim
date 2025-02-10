@@ -246,7 +246,10 @@ func checkNonReloadableBool(name string, old *bool, new *bool) {
 
 func GetSchedulerConf() *SchedulerConf {
 	once.Do(createConfigs)
-	return confHolder.Load().(*SchedulerConf)
+	if conf, ok := confHolder.Load().(*SchedulerConf); ok {
+		return conf
+	}
+	panic("invalid configuration type in confHolder")
 }
 
 func SetSchedulerConf(conf *SchedulerConf) {

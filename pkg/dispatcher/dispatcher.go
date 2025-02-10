@@ -20,6 +20,7 @@ package dispatcher
 
 import (
 	"fmt"
+	"math"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -71,7 +72,13 @@ func initDispatcher() {
 	}
 	dispatcher.setRunning(false)
 	DispatchTimeout = conf.GetSchedulerConf().DispatchTimeout
-	AsyncDispatchLimit = max(10000, int32(eventChannelCapacity/10))
+	// Convert to int32 first to avoid potential integer overflow
+	if eventChannelCapacity < math.MinInt32 || eventChannelCapacity > math.MaxInt32 {
+		// Handle the overflow scenario appropriately
+		panic(fmt.Sprintf("eventChannelCapacity value %d is out of int32 range", eventChannelCapacity))
+	}
+	capacityDivided := int32(eventChannelCapacity) / 10
+	AsyncDispatchLimit = max(10000, capacityDivided)
 
 	log.Log(log.ShimDispatcher).Info("Init dispatcher",
 		zap.Int("EventChannelCapacity", eventChannelCapacity),
@@ -146,7 +153,11 @@ func Dispatch(event events.SchedulingEvent) {
 }
 
 func (p *Dispatcher) isRunning() bool {
-	return p.running.Load().(bool)
+	val, ok := p.running.Load().(bool)
+	if !ok {
+		panic("running value is not a boolean")
+	}
+	return val
 }
 
 func (p *Dispatcher) setRunning(flag bool) {

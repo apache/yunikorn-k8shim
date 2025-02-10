@@ -568,7 +568,9 @@ func TestMutate(t *testing.T) {
 	assert.Check(t, resp.Allowed, "response not allowed for unknown object type")
 	assert.Check(t, len(resp.Patch) > 0, "empty patch for deployment")
 	annotations := annotationsFromDeployment(t, resp.Patch)
-	assert.Equal(t, annotations[common.UserInfoAnnotation].(string), "{\"user\":\"testExtUser\"}")
+	annotationValue, ok := annotations[common.UserInfoAnnotation].(string)
+	assert.Check(t, ok, "UserInfoAnnotation value is not a string")
+	assert.Equal(t, annotationValue, "{\"user\":\"testExtUser\"}")
 
 	// deployment - annotation is not set, bypassAuth is enabled
 	ac = prepareController(t, "", "", "^kube-system$,^bypass$", "", "^nolabel$", true, true)
@@ -838,7 +840,11 @@ func schedulerName(t *testing.T, patch []byte) string {
 	ops := parsePatch(t, patch)
 	for _, op := range ops {
 		if op.Path == "/spec/schedulerName" {
-			return op.Value.(string)
+			val, ok := op.Value.(string)
+			if !ok {
+				t.Fatal("scheduler name value is not a string")
+			}
+			return val
 		}
 	}
 	return ""
@@ -848,7 +854,11 @@ func labels(t *testing.T, patch []byte) map[string]interface{} {
 	ops := parsePatch(t, patch)
 	for _, op := range ops {
 		if op.Path == "/metadata/labels" {
-			return op.Value.(map[string]interface{})
+			val, ok := op.Value.(map[string]interface{})
+			if !ok {
+				t.Fatal("labels value is not a map")
+			}
+			return val
 		}
 	}
 	return make(map[string]interface{})
@@ -858,7 +868,11 @@ func annotationsFromDeployment(t *testing.T, patch []byte) map[string]interface{
 	ops := parsePatch(t, patch)
 	for _, op := range ops {
 		if op.Path == "/spec/template/metadata/annotations" {
-			return op.Value.(map[string]interface{})
+			val, ok := op.Value.(map[string]interface{})
+			if !ok {
+				t.Fatal("annotations value is not a map")
+			}
+			return val
 		}
 	}
 	return make(map[string]interface{})

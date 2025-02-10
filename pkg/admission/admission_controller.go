@@ -607,7 +607,7 @@ func (c *AdmissionController) validateConfigMap(namespace string, cm *v1.ConfigM
 		return nil
 	}
 	if !responseData.Allowed {
-		err = fmt.Errorf(responseData.Reason)
+		err = fmt.Errorf("%s", responseData.Reason)
 		log.Log(log.Admission).Error("Configmap validation failed, aborting", zap.Error(err))
 		return err
 	}

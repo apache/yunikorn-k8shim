@@ -20,6 +20,7 @@ package cache
 
 import (
 	"fmt"
+	"math"
 
 	"go.uber.org/zap"
 
@@ -188,6 +189,10 @@ func (callback *AsyncRMCallback) PreemptionPredicates(args *si.PreemptionPredica
 	index, ok := callback.context.IsPodFitNodeViaPreemption(args.AllocationKey, args.NodeID, args.PreemptAllocationKeys, int(args.StartIndex))
 	if !ok {
 		index = -1
+	}
+	if index < math.MinInt32 || index > math.MaxInt32 {
+		// Handle the overflow scenario appropriately
+		panic(fmt.Sprintf("index value %d is out of int32 range", index))
 	}
 	return &si.PreemptionPredicatesResponse{
 		Success: ok,

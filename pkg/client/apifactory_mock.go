@@ -398,11 +398,19 @@ func (m *MockedAPIProvider) UpdatePriorityClass(oldObj *schedv1.PriorityClass, n
 }
 
 func (m *MockedAPIProvider) GetPodBindStats() BindStats {
-	return m.clients.KubeClient.(*KubeClientMock).GetBindStats()
+	client, ok := m.clients.KubeClient.(*KubeClientMock)
+	if !ok {
+		panic("failed to get KubeClientMock")
+	}
+	return client.GetBindStats()
 }
 
 func (m *MockedAPIProvider) GetBoundPods(clear bool) []BoundPod {
-	return m.clients.KubeClient.(*KubeClientMock).GetBoundPods(clear)
+	client, ok := m.clients.KubeClient.(*KubeClientMock)
+	if !ok {
+		panic("failed to get KubeClientMock")
+	}
+	return client.GetBoundPods(clear)
 }
 
 // MockedPersistentVolumeInformer implements PersistentVolumeInformer interface

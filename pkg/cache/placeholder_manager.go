@@ -173,7 +173,11 @@ func (mgr *PlaceholderManager) Stop() {
 }
 
 func (mgr *PlaceholderManager) isRunning() bool {
-	return mgr.running.Load().(bool)
+	value, ok := mgr.running.Load().(bool)
+	if !ok {
+		panic("running flag corrupted: stored value is not a boolean")
+	}
+	return value
 }
 
 func (mgr *PlaceholderManager) setRunning(flag bool) {

@@ -20,6 +20,7 @@ package cache
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/looplab/fsm"
@@ -470,7 +471,11 @@ func newAppState() *fsm.FSM { //nolint:funlen
 			RejectApplication.String(): func(_ context.Context, event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
 				eventArgs := make([]string, 1)
-				if err := events.GetEventArgsAsStrings(eventArgs, event.Args[1].([]interface{})); err != nil {
+				generic, ok := event.Args[1].([]interface{})
+				if !ok {
+					panic(fmt.Sprintf("invalid event args type: %T", event.Args[1]))
+				}
+				if err := events.GetEventArgsAsStrings(eventArgs, generic); err != nil {
 					log.Log(log.ShimFSM).Error("fail to parse event arg", zap.Error(err))
 					return
 				}
@@ -484,7 +489,11 @@ func newAppState() *fsm.FSM { //nolint:funlen
 			FailApplication.String(): func(_ context.Context, event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
 				eventArgs := make([]string, 1)
-				if err := events.GetEventArgsAsStrings(eventArgs, event.Args[1].([]interface{})); err != nil {
+				generic, ok := event.Args[1].([]interface{})
+				if !ok {
+					panic(fmt.Sprintf("invalid event args type: %T", event.Args[1]))
+				}
+				if err := events.GetEventArgsAsStrings(eventArgs, generic); err != nil {
 					log.Log(log.ShimFSM).Error("fail to parse event arg", zap.Error(err))
 					return
 				}
@@ -498,7 +507,11 @@ func newAppState() *fsm.FSM { //nolint:funlen
 			ReleaseAppAllocation.String(): func(_ context.Context, event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
 				eventArgs := make([]string, 2)
-				if err := events.GetEventArgsAsStrings(eventArgs, event.Args[1].([]interface{})); err != nil {
+				generic, ok := event.Args[1].([]interface{})
+				if !ok {
+					panic(fmt.Sprintf("invalid event args type: %T", event.Args[1]))
+				}
+				if err := events.GetEventArgsAsStrings(eventArgs, generic); err != nil {
 					log.Log(log.ShimFSM).Error("fail to parse event arg", zap.Error(err))
 					return
 				}

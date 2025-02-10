@@ -20,6 +20,7 @@ package predicates
 
 import (
 	"errors"
+	"math"
 	"strconv"
 	"strings"
 	"testing"
@@ -1094,6 +1095,10 @@ func makeResources(milliCPU, memory, pods, extendedA, storage, hugePageA int64) 
 func newPodWithPort(hostPorts ...int) *v1.Pod {
 	var networkPorts []v1.ContainerPort
 	for _, port := range hostPorts {
+		// Check for integer overflow before conversion
+		if port < 0 || port > math.MaxInt32 {
+			continue // Skip invalid port numbers
+		}
 		networkPorts = append(networkPorts, v1.ContainerPort{HostPort: int32(port)})
 	}
 	return &v1.Pod{

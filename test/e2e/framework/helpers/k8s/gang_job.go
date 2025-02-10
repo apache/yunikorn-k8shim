@@ -20,6 +20,8 @@ package k8s
 
 import (
 	"encoding/json"
+	"fmt"
+	"math"
 	"strconv"
 
 	batchv1 "k8s.io/api/batch/v1"
@@ -102,6 +104,9 @@ func DecoratePodForGangScheduling(
 }
 
 func InitTaskGroups(conf SleepPodConfig, mainTaskGroupName, secondTaskGroupName string, parallelism int) []*cache.TaskGroup {
+	if parallelism < math.MinInt32 || parallelism > math.MaxInt32 {
+		panic(fmt.Sprintf("parallelism value %d is out of int32 range", parallelism))
+	}
 	tg1 := &cache.TaskGroup{
 		MinMember: int32(parallelism),
 		Name:      mainTaskGroupName,
@@ -113,8 +118,13 @@ func InitTaskGroups(conf SleepPodConfig, mainTaskGroupName, secondTaskGroupName 
 
 	// create TG2 more with more members than needed, also make sure that
 	// placeholders will stay in Pending state
+	minMember := parallelism + 1
+	if minMember < math.MinInt32 || minMember > math.MaxInt32 {
+		// Handle the overflow scenario appropriately
+		panic(fmt.Sprintf("minMember value %d is out of int32 range", minMember))
+	}
 	tg2 := &cache.TaskGroup{
-		MinMember: int32(parallelism + 1),
+		MinMember: int32(minMember),
 		Name:      secondTaskGroupName,
 		MinResource: map[string]resource.Quantity{
 			"cpu":    resource.MustParse(strconv.FormatInt(conf.CPU, 10) + "m"),
