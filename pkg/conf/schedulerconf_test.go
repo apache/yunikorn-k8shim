@@ -24,6 +24,8 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -211,6 +213,68 @@ func TestParseConfigMapWithInvalidDuration(t *testing.T) {
 	assert.Assert(t, conf == nil, "conf exists")
 	assert.Equal(t, 1, len(errs), "wrong error count")
 	assert.ErrorContains(t, errs[0], "invalid duration", "wrong error type")
+}
+
+func TestGetSchedulerConf(t *testing.T) {
+	tests := []struct {
+		name      string
+		setup     func()
+		wantPanic bool
+	}{
+		{
+			name: "successful get scheduler conf",
+			setup: func() {
+				// Reset the once and confHolder
+				once = initOnce()
+				confHolder = atomic.Value{}
+				conf := &SchedulerConf{
+					SchedulerName: "test-scheduler",
+					PolicyGroup:   "default",
+				}
+				confHolder.Store(conf)
+			},
+			wantPanic: false,
+		},
+		{
+			name: "panic on invalid configuration type",
+			setup: func() {
+				// Reset the once and confHolder
+				once = initOnce()
+				confHolder = atomic.Value{}
+				confHolder.Store("invalid type")
+			},
+			wantPanic: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setup()
+
+			if tt.wantPanic {
+				assert.Assert(t, panics(func() { GetSchedulerConf() }))
+				return
+			}
+
+			got := GetSchedulerConf()
+			assert.Assert(t, got != nil, "got scheduler conf should not be nil")
+		})
+	}
+}
+
+func panics(f func()) (didPanic bool) {
+	defer func() {
+		if r := recover(); r != nil {
+			didPanic = true
+		}
+	}()
+	f()
+	return
+}
+
+// Helper function to create new sync.Once
+func initOnce() sync.Once {
+	return sync.Once{}
 }
 
 // get a configuration value by field name

@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -304,6 +305,66 @@ func TestExceedAsyncDispatchLimit(t *testing.T) {
 			eventType: RunApplication,
 		})
 	}
+}
+
+func TestDispatcher_IsRunning(t *testing.T) {
+	tests := []struct {
+		name      string
+		setup     func(*Dispatcher)
+		want      bool
+		wantPanic bool
+	}{
+		{
+			name: "running is true",
+			setup: func(d *Dispatcher) {
+				d.running.Store(true)
+			},
+			want:      true,
+			wantPanic: false,
+		},
+		{
+			name: "running is false",
+			setup: func(d *Dispatcher) {
+				d.running.Store(false)
+			},
+			want:      false,
+			wantPanic: false,
+		},
+		{
+			name: "panic on invalid type",
+			setup: func(d *Dispatcher) {
+				d.running.Store("not a boolean")
+			},
+			wantPanic: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d := &Dispatcher{
+				running: atomic.Value{},
+			}
+			tt.setup(d)
+
+			if tt.wantPanic {
+				assert.Assert(t, panics(func() { d.isRunning() }))
+				return
+			}
+
+			got := d.isRunning()
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func panics(f func()) (didPanic bool) {
+	defer func() {
+		if r := recover(); r != nil {
+			didPanic = true
+		}
+	}()
+	f()
+	return
 }
 
 func createDispatcher() {
