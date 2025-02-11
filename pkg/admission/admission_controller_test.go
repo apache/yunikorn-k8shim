@@ -569,7 +569,7 @@ func TestMutate(t *testing.T) {
 	assert.Check(t, len(resp.Patch) > 0, "empty patch for deployment")
 	annotations := annotationsFromDeployment(t, resp.Patch)
 	annotationValue, ok := annotations[common.UserInfoAnnotation].(string)
-	assert.Check(t, ok, "UserInfoAnnotation value is not a string")
+	assert.Assert(t, ok, "UserInfoAnnotation value is not a string")
 	assert.Equal(t, annotationValue, "{\"user\":\"testExtUser\"}")
 
 	// deployment - annotation is not set, bypassAuth is enabled
@@ -841,7 +841,7 @@ func schedulerName(t *testing.T, patch []byte) string {
 	for _, op := range ops {
 		if op.Path == "/spec/schedulerName" {
 			val, ok := op.Value.(string)
-			assert.Check(t, ok, "scheduler name value is not a string")
+			assert.Assert(t, ok, "scheduler name value is not a string")
 			return val
 		}
 	}
@@ -853,7 +853,7 @@ func labels(t *testing.T, patch []byte) map[string]interface{} {
 	for _, op := range ops {
 		if op.Path == "/metadata/labels" {
 			val, ok := op.Value.(map[string]interface{})
-			assert.Check(t, ok, "labels value is not a map")
+			assert.Assert(t, ok, "labels value is not a map")
 			return val
 		}
 	}
