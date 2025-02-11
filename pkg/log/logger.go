@@ -292,7 +292,7 @@ func parseLevel(level string) *zapcore.Level {
 	}
 
 	// parse numeric
-	levelNum, err := strconv.ParseInt(level, 10, 31)
+	levelNum, err := strconv.ParseInt(level, 10, 8)
 	if err == nil {
 		// Validate levelNum is within valid zapcore.Level range before conversion
 		switch {

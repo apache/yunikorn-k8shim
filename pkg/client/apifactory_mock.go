@@ -400,7 +400,8 @@ func (m *MockedAPIProvider) UpdatePriorityClass(oldObj *schedv1.PriorityClass, n
 func (m *MockedAPIProvider) GetPodBindStats() BindStats {
 	client, ok := m.clients.KubeClient.(*KubeClientMock)
 	if !ok {
-		panic("failed to get KubeClientMock")
+		log.Log(log.Test).Error("failed to get KubeClientMock")
+		return BindStats{}
 	}
 	return client.GetBindStats()
 }
@@ -408,7 +409,8 @@ func (m *MockedAPIProvider) GetPodBindStats() BindStats {
 func (m *MockedAPIProvider) GetBoundPods(clear bool) []BoundPod {
 	client, ok := m.clients.KubeClient.(*KubeClientMock)
 	if !ok {
-		panic("failed to get KubeClientMock")
+		log.Log(log.Test).Error("failed to get KubeClientMock")
+		return []BoundPod{}
 	}
 	return client.GetBoundPods(clear)
 }

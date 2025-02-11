@@ -20,7 +20,6 @@ package cache
 
 import (
 	"fmt"
-	"math"
 
 	"go.uber.org/zap"
 
@@ -190,13 +189,9 @@ func (callback *AsyncRMCallback) PreemptionPredicates(args *si.PreemptionPredica
 	if !ok {
 		index = -1
 	}
-	if index < math.MinInt32 || index > math.MaxInt32 {
-		// Handle the overflow scenario appropriately
-		panic(fmt.Sprintf("index value %d is out of int32 range", index))
-	}
 	return &si.PreemptionPredicatesResponse{
 		Success: ok,
-		Index:   int32(index),
+		Index:   int32(index), //nolint:gosec
 	}
 }
 
