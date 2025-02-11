@@ -841,9 +841,7 @@ func schedulerName(t *testing.T, patch []byte) string {
 	for _, op := range ops {
 		if op.Path == "/spec/schedulerName" {
 			val, ok := op.Value.(string)
-			if !ok {
-				t.Fatal("scheduler name value is not a string")
-			}
+			assert.Check(t, ok, "scheduler name value is not a string")
 			return val
 		}
 	}
@@ -855,9 +853,7 @@ func labels(t *testing.T, patch []byte) map[string]interface{} {
 	for _, op := range ops {
 		if op.Path == "/metadata/labels" {
 			val, ok := op.Value.(map[string]interface{})
-			if !ok {
-				t.Fatal("labels value is not a map")
-			}
+			assert.Check(t, ok, "labels value is not a map")
 			return val
 		}
 	}
@@ -869,9 +865,7 @@ func annotationsFromDeployment(t *testing.T, patch []byte) map[string]interface{
 	for _, op := range ops {
 		if op.Path == "/spec/template/metadata/annotations" {
 			val, ok := op.Value.(map[string]interface{})
-			if !ok {
-				t.Fatal("annotations value is not a map")
-			}
+			assert.Check(t, ok, "annotations value is not a map")
 			return val
 		}
 	}
