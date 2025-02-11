@@ -865,7 +865,7 @@ func annotationsFromDeployment(t *testing.T, patch []byte) map[string]interface{
 	for _, op := range ops {
 		if op.Path == "/spec/template/metadata/annotations" {
 			val, ok := op.Value.(map[string]interface{})
-			assert.Check(t, ok, "annotations value is not a map")
+			assert.Assert(t, ok, "annotations value is not a map")
 			return val
 		}
 	}
