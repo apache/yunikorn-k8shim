@@ -166,7 +166,7 @@ func TestParseLevel(t *testing.T) {
 	assert.Assert(t, parseLevel("x") == nil, "parse error")
 
 	assert.Assert(t, parseLevel("-129") == nil, "Values outside int8 range (-128 to 127)")
-	assert.Assert(t, parseLevel("127") == nil, "Values outside int8 range (-128 to 127)")
+	assert.Assert(t, parseLevel("128") == nil, "Values outside int8 range (-128 to 127)")
 }
 
 func TestParentLogger(t *testing.T) {
