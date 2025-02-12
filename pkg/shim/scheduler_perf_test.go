@@ -136,8 +136,10 @@ func BenchmarkSchedulingThroughPut(b *testing.B) {
 	assert.NilError(b, err, "scheduling did not finish in time")
 
 	stat := cluster.GetPodBindStats()
-	diff := stat.Last.Sub(stat.First)
-	fmt.Printf("Overall throughput: %.0f allocations/s\n", float64(totalPods)/diff.Seconds())
+	if stat != nil {
+		diff := stat.Last.Sub(stat.First)
+		fmt.Printf("Overall throughput: %.0f allocations/s\n", float64(totalPods)/diff.Seconds())
+	}
 	fmt.Println("Container allocation throughput based on metrics")
 	for _, d := range collector.getData() {
 		if d != 0 {
