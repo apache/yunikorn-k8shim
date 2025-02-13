@@ -43,7 +43,7 @@ require (
 	k8s.io/klog/v2 v2.130.1
 	k8s.io/kube-scheduler v0.31.0
 	k8s.io/kubectl v0.31.0
-	k8s.io/kubernetes v1.31.0
+	k8s.io/kubernetes v1.31.6
 )
 
 require (
