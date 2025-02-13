@@ -45,93 +45,59 @@ func TestInformerTypes(t *testing.T) {
 }
 
 func TestMockedAPIProvider_GetPodBindStats(t *testing.T) {
-	tests := []struct {
-		name      string
-		setupMock func(*MockedAPIProvider, *KubeClientMock)
-		want      *BindStats
-	}{
-		{
-			name: "successful get bind stats",
-			setupMock: func(m *MockedAPIProvider, k *KubeClientMock) {
-				m.clients.KubeClient = k
-				k.bindStats = BindStats{
+
+	mock := &MockedAPIProvider{
+		clients: &Clients{
+			KubeClient: &KubeClientMock{
+				bindStats: BindStats{
 					Success: 10,
 					Errors:  2,
-				}
+				},
 			},
-			want: &BindStats{
-				Success: 10,
-				Errors:  2,
-			},
-		},
-		{
-			name: "return nil when kubeClient is not KubeClientMock",
-			setupMock: func(m *MockedAPIProvider, k *KubeClientMock) {
-				m.clients.KubeClient = nil
-			},
-			want: nil,
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			m := &MockedAPIProvider{
-				clients: &Clients{},
-			}
-			k := &KubeClientMock{}
+	got := mock.GetPodBindStats()
+	assert.DeepEqual(t, &BindStats{
+		Success: 10,
+		Errors:  2,
+	}, got)
 
-			tt.setupMock(m, k)
-
-			got := m.GetPodBindStats()
-			assert.DeepEqual(t, tt.want, got)
-		})
+	nilMock := &MockedAPIProvider{
+		clients: &Clients{
+			KubeClient: nil,
+		},
 	}
+
+	got = nilMock.GetPodBindStats()
+	assert.DeepEqual(t, (*BindStats)(nil), got)
 }
 
 func TestMockedAPIProvider_GetBoundPods(t *testing.T) {
-	tests := []struct {
-		name      string
-		setupMock func(*MockedAPIProvider, *KubeClientMock)
-		clear     bool
-		want      []BoundPod
-	}{
-		{
-			name: "get bound pods with clear",
-			setupMock: func(m *MockedAPIProvider, k *KubeClientMock) {
-				m.clients.KubeClient = k
-				k.boundPods = []BoundPod{
-					{Pod: "pod1", Host: "ns1"},
-					{Pod: "pod2", Host: "ns2"},
-				}
-			},
-			clear: true,
-			want: []BoundPod{
-				{Pod: "pod1", Host: "ns1"},
-				{Pod: "pod2", Host: "ns2"},
+
+	mock := &MockedAPIProvider{
+		clients: &Clients{
+			KubeClient: &KubeClientMock{
+				boundPods: []BoundPod{
+					{Pod: "pod1", Host: "h1"},
+					{Pod: "pod2", Host: "h2"},
+				},
 			},
 		},
-		{
-			name: "get empty bound pods",
-			setupMock: func(m *MockedAPIProvider, k *KubeClientMock) {
-				m.clients.KubeClient = k
-				k.boundPods = []BoundPod{}
+	}
+	got := mock.GetBoundPods(true)
+	assert.DeepEqual(t, []BoundPod{
+		{Pod: "pod1", Host: "h1"},
+		{Pod: "pod2", Host: "h2"},
+	}, got)
+
+	emptyMock := &MockedAPIProvider{
+		clients: &Clients{
+			KubeClient: &KubeClientMock{
+				boundPods: []BoundPod{},
 			},
-			clear: true,
-			want:  []BoundPod{},
 		},
 	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			m := &MockedAPIProvider{
-				clients: &Clients{},
-			}
-			k := &KubeClientMock{}
-
-			tt.setupMock(m, k)
-
-			got := m.GetBoundPods(tt.clear)
-			assert.DeepEqual(t, tt.want, got)
-		})
-	}
+	got = emptyMock.GetBoundPods(true)
+	assert.DeepEqual(t, []BoundPod{}, got)
 }
