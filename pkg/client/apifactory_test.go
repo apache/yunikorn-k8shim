@@ -43,3 +43,95 @@ func TestInformerTypes(t *testing.T) {
 	assert.Equal(t, "ReplicaSet", ReplicaSetInformerHandlers.String())
 	assert.Equal(t, "StatefulSet", StatefulSetInformerHandlers.String())
 }
+
+func TestMockedAPIProvider_GetPodBindStats(t *testing.T) {
+	tests := []struct {
+		name      string
+		setupMock func(*MockedAPIProvider, *KubeClientMock)
+		want      *BindStats
+	}{
+		{
+			name: "successful get bind stats",
+			setupMock: func(m *MockedAPIProvider, k *KubeClientMock) {
+				m.clients.KubeClient = k
+				k.bindStats = BindStats{
+					Success: 10,
+					Errors:  2,
+				}
+			},
+			want: &BindStats{
+				Success: 10,
+				Errors:  2,
+			},
+		},
+		{
+			name: "return nil when kubeClient is not KubeClientMock",
+			setupMock: func(m *MockedAPIProvider, k *KubeClientMock) {
+				m.clients.KubeClient = nil
+			},
+			want: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := &MockedAPIProvider{
+				clients: &Clients{},
+			}
+			k := &KubeClientMock{}
+
+			tt.setupMock(m, k)
+
+			got := m.GetPodBindStats()
+			assert.DeepEqual(t, tt.want, got)
+		})
+	}
+}
+
+func TestMockedAPIProvider_GetBoundPods(t *testing.T) {
+	tests := []struct {
+		name      string
+		setupMock func(*MockedAPIProvider, *KubeClientMock)
+		clear     bool
+		want      []BoundPod
+	}{
+		{
+			name: "get bound pods with clear",
+			setupMock: func(m *MockedAPIProvider, k *KubeClientMock) {
+				m.clients.KubeClient = k
+				k.boundPods = []BoundPod{
+					{Pod: "pod1", Host: "ns1"},
+					{Pod: "pod2", Host: "ns2"},
+				}
+			},
+			clear: true,
+			want: []BoundPod{
+				{Pod: "pod1", Host: "ns1"},
+				{Pod: "pod2", Host: "ns2"},
+			},
+		},
+		{
+			name: "get empty bound pods",
+			setupMock: func(m *MockedAPIProvider, k *KubeClientMock) {
+				m.clients.KubeClient = k
+				k.boundPods = []BoundPod{}
+			},
+			clear: true,
+			want:  []BoundPod{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := &MockedAPIProvider{
+				clients: &Clients{},
+			}
+			k := &KubeClientMock{}
+
+			tt.setupMock(m, k)
+
+			got := m.GetBoundPods(tt.clear)
+			assert.DeepEqual(t, tt.want, got)
+		})
+	}
+}
