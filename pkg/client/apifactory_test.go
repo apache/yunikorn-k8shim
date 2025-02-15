@@ -45,7 +45,6 @@ func TestInformerTypes(t *testing.T) {
 }
 
 func TestMockedAPIProvider_GetPodBindStats(t *testing.T) {
-
 	mock := &MockedAPIProvider{
 		clients: &Clients{
 			KubeClient: &KubeClientMock{
@@ -74,7 +73,6 @@ func TestMockedAPIProvider_GetPodBindStats(t *testing.T) {
 }
 
 func TestMockedAPIProvider_GetBoundPods(t *testing.T) {
-
 	mock := &MockedAPIProvider{
 		clients: &Clients{
 			KubeClient: &KubeClientMock{
