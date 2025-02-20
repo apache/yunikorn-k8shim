@@ -248,7 +248,7 @@ func checkNonReloadableBool(name string, old *bool, new *bool) {
 
 func GetSchedulerConf() *SchedulerConf {
 	once.Do(createConfigs)
-	return confHolder.Load().(*SchedulerConf)
+	return confHolder.Load().(*SchedulerConf) //nolint:errcheck
 }
 
 func SetSchedulerConf(conf *SchedulerConf) {

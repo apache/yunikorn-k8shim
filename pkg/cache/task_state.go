@@ -402,7 +402,8 @@ func callbacks(states *TStates) fsm.Callbacks {
 			task := event.Args[0].(*Task) //nolint:errcheck
 			eventArgs := make([]string, 1)
 			reason := ""
-			if err := events.GetEventArgsAsStrings(eventArgs, event.Args[1].([]interface{})); err != nil {
+			generic := event.Args[1].([]interface{}) //nolint:errcheck
+			if err := events.GetEventArgsAsStrings(eventArgs, generic); err != nil {
 				log.Log(log.ShimFSM).Error("failed to parse event arg", zap.Error(err))
 				reason = err.Error()
 			} else {
@@ -421,7 +422,8 @@ func callbacks(states *TStates) fsm.Callbacks {
 		beforeHook(TaskAllocated): func(_ context.Context, event *fsm.Event) {
 			task := event.Args[0].(*Task) //nolint:errcheck
 			eventArgs := make([]string, 2)
-			if err := events.GetEventArgsAsStrings(eventArgs, event.Args[1].([]interface{})); err != nil {
+			generic := event.Args[1].([]interface{}) //nolint:errcheck
+			if err := events.GetEventArgsAsStrings(eventArgs, generic); err != nil {
 				log.Log(log.ShimFSM).Error("failed to parse event arg", zap.Error(err))
 				return
 			}

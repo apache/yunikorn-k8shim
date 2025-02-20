@@ -43,3 +43,59 @@ func TestInformerTypes(t *testing.T) {
 	assert.Equal(t, "ReplicaSet", ReplicaSetInformerHandlers.String())
 	assert.Equal(t, "StatefulSet", StatefulSetInformerHandlers.String())
 }
+
+func TestMockedAPIProvider_GetPodBindStats(t *testing.T) {
+	mock := &MockedAPIProvider{
+		clients: &Clients{
+			KubeClient: &KubeClientMock{
+				bindStats: BindStats{
+					Success: 10,
+					Errors:  2,
+				},
+			},
+		},
+	}
+
+	got := mock.GetPodBindStats()
+	assert.DeepEqual(t, &BindStats{
+		Success: 10,
+		Errors:  2,
+	}, got)
+
+	nilMock := &MockedAPIProvider{
+		clients: &Clients{
+			KubeClient: nil,
+		},
+	}
+
+	got = nilMock.GetPodBindStats()
+	assert.DeepEqual(t, (*BindStats)(nil), got)
+}
+
+func TestMockedAPIProvider_GetBoundPods(t *testing.T) {
+	mock := &MockedAPIProvider{
+		clients: &Clients{
+			KubeClient: &KubeClientMock{
+				boundPods: []BoundPod{
+					{Pod: "pod1", Host: "h1"},
+					{Pod: "pod2", Host: "h2"},
+				},
+			},
+		},
+	}
+	got := mock.GetBoundPods(true)
+	assert.DeepEqual(t, []BoundPod{
+		{Pod: "pod1", Host: "h1"},
+		{Pod: "pod2", Host: "h2"},
+	}, got)
+
+	emptyMock := &MockedAPIProvider{
+		clients: &Clients{
+			KubeClient: &KubeClientMock{
+				boundPods: []BoundPod{},
+			},
+		},
+	}
+	got = emptyMock.GetBoundPods(true)
+	assert.DeepEqual(t, []BoundPod{}, got)
+}

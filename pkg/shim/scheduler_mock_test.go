@@ -323,7 +323,7 @@ func (fc *MockScheduler) getApplicationFromCore(appID, partition string) *object
 	return fc.coreContext.Scheduler.GetClusterContext().GetApplication(appID, partition)
 }
 
-func (fc *MockScheduler) GetPodBindStats() client.BindStats {
+func (fc *MockScheduler) GetPodBindStats() *client.BindStats {
 	return fc.apiProvider.GetPodBindStats()
 }
 
