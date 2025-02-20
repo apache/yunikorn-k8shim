@@ -204,7 +204,8 @@ var _ = ginkgo.Describe("", func() {
 
 		appID := gangSleepJobPrefix + "-" + common.RandSeq(5)
 		sleepPodConfig := k8s.SleepPodConfig{Name: "gang-sleep-job", NS: dev, Time: 1, AppID: appID}
-		taskGroups := k8s.InitTaskGroups(sleepPodConfig, taskGroupA, taskGroupB, parallelism)
+		taskGroups, taskGroupErr := k8s.InitTaskGroups(sleepPodConfig, taskGroupA, taskGroupB, parallelism)
+		Ω(taskGroupErr).NotTo(gomega.HaveOccurred())
 		pod, podErr := k8s.InitSleepPod(sleepPodConfig)
 		Ω(podErr).NotTo(gomega.HaveOccurred())
 		pod = k8s.DecoratePodForGangScheduling(30, "Soft", taskGroupA,
