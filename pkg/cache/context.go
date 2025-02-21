@@ -1621,9 +1621,9 @@ func (ctx *Context) finalizeNodes(existingNodes []*v1.Node) error {
 	}
 
 	// convert the node list into a map
-	nodeMap := make(map[string]*v1.Node)
+	nodeMap := make(map[string]struct{}, len(nodes))
 	for _, node := range nodes {
-		nodeMap[node.Name] = node
+		nodeMap[node.Name] = struct{}{}
 	}
 
 	// find any existing nodes that no longer exist
@@ -1677,13 +1677,13 @@ func (ctx *Context) finalizePods(existingPods []*v1.Pod) error {
 	}
 
 	// convert the pod list into a map
-	podMap := make(map[types.UID]*v1.Pod)
+	podMap := make(map[types.UID]struct{}, len(pods))
 	for _, pod := range pods {
 		// if the pod is terminated finalising should remove it if it was running in register
 		if utils.IsPodTerminated(pod) {
 			continue
 		}
-		podMap[pod.UID] = pod
+		podMap[pod.UID] = struct{}{}
 	}
 
 	// find any existing pods that no longer exist
