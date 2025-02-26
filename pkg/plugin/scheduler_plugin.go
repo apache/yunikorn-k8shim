@@ -294,8 +294,12 @@ func NewSchedulerPlugin(_ context.Context, _ runtime.Object, handle framework.Ha
 		log.Log(log.ShimSchedulerPlugin).Fatal("Unable to start scheduler", zap.Error(err))
 	}
 
+	context := ss.GetContext()
+	context.SetPodActivator(func(logger klog.Logger, pod *v1.Pod) {
+		handle.Activate(logger, map[string]*v1.Pod{pod.Name: pod})
+	})
 	p := &YuniKornSchedulerPlugin{
-		context: ss.GetContext(),
+		context: context,
 	}
 	events.SetRecorder(handle.EventRecorder())
 	return p, nil

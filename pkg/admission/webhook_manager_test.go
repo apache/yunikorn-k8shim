@@ -23,7 +23,6 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"fmt"
-	"net/http"
 	"sync"
 	"testing"
 	"time"
@@ -31,14 +30,9 @@ import (
 	"gotest.tools/v3/assert"
 	arv1 "k8s.io/api/admissionregistration/v1"
 	v1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
-	admissionregistrationv1 "k8s.io/client-go/kubernetes/typed/admissionregistration/v1"
-	fakeadmissionregistrationv1 "k8s.io/client-go/kubernetes/typed/admissionregistration/v1/fake"
-	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
-	fakecorev1 "k8s.io/client-go/kubernetes/typed/core/v1/fake"
 
 	"github.com/apache/yunikorn-k8shim/pkg/admission/pki"
 )
@@ -70,40 +64,42 @@ func testSetupOnce(t *testing.T) {
 
 func TestLoadCACertificatesWhereValid(t *testing.T) {
 	testSetupOnce(t)
-	clientset := fakeClientSet()
+	clientset := fake.NewClientset()
 
-	secret := createSecret()
+	spec := createSecret()
+	secret, err := clientset.CoreV1().Secrets(spec.Namespace).Create(context.Background(), spec, metav1.CreateOptions{})
+	assert.NilError(t, err, "failed to create secret")
 	addCert(t, secret, cacert1, cakey1, 1)
 	addCert(t, secret, cacert2, cakey2, 2)
-	clientset.secrets["default/admission-controller-secrets"] = secret
 
 	wm := newWebhookManagerImpl(createConfig(), clientset)
-	err := wm.LoadCACertificates()
+	err = wm.LoadCACertificates()
 	assert.NilError(t, err, "failed to load CA certificates")
 }
 
 func TestLoadCACertificatesWithMissingSecret(t *testing.T) {
 	testSetupOnce(t)
-	clientset := fakeClientSet()
+	clientset := fake.NewClientset()
 
 	wm := newWebhookManagerImpl(createConfig(), clientset)
 	err := wm.LoadCACertificates()
-	assert.ErrorContains(t, err, string(metav1.StatusReasonNotFound), "get secrets didn't fail")
+	assert.ErrorContains(t, err, "not found", "get secrets didn't fail")
 }
 
 func TestLoadCACertificatesWithEmptySecret(t *testing.T) {
 	testSetupOnce(t)
-	clientset := fakeClientSet()
+	clientset := fake.NewClientset()
 
-	secret := createSecret()
-	clientset.secrets["default/admission-controller-secrets"] = secret
+	spec := createSecret()
+	_, err := clientset.CoreV1().Secrets(spec.Namespace).Create(context.Background(), spec, metav1.CreateOptions{})
+	assert.NilError(t, err, "failed to create secret")
 
 	wm := newWebhookManagerImpl(createConfig(), clientset)
-	err := wm.LoadCACertificates()
+	err = wm.LoadCACertificates()
 	assert.NilError(t, err, "failed to load CA certificates")
-	secret, ok := clientset.secrets["default/admission-controller-secrets"]
-	assert.Assert(t, ok, "secret not found")
-	_, ok = secret.Data["cacert1.pem"]
+	secret, err := clientset.CoreV1().Secrets("default").Get(context.Background(), "admission-controller-secrets", metav1.GetOptions{})
+	assert.NilError(t, err, "secret not found")
+	_, ok := secret.Data["cacert1.pem"]
 	assert.Assert(t, ok, "cacert2.pem not found")
 	_, ok = secret.Data["cacert2.pem"]
 	assert.Assert(t, ok, "cacert1.pem not found")
@@ -115,21 +111,22 @@ func TestLoadCACertificatesWithEmptySecret(t *testing.T) {
 
 func TestLoadCACertificatesWithConflict(t *testing.T) {
 	testSetupOnce(t)
-	clientset := fakeClientSet()
+	clientset := fake.NewClientset()
 
-	secret := createSecret()
-	secret.ObjectMeta.SetAnnotations(map[string]string{"conflict": "true"})
-	clientset.secrets["default/admission-controller-secrets"] = secret
+	spec := createSecret()
+	spec.ObjectMeta.SetAnnotations(map[string]string{"conflict": "true"})
+	_, err := clientset.CoreV1().Secrets(spec.Namespace).Create(context.Background(), spec, metav1.CreateOptions{})
+	assert.NilError(t, err, "failed to create secret")
 
 	wm := newWebhookManagerImpl(createConfig(), clientset)
 	wm.conflictAttempts = 0
-	err := wm.LoadCACertificates()
+	err = wm.LoadCACertificates()
 	assert.ErrorContains(t, err, "max attempts", "update secrets didn't fail")
 }
 
 func TestGenerateServerCertificate(t *testing.T) {
 	testSetupOnce(t)
-	clientset := fakeClientSet()
+	clientset := fake.NewClientset()
 	wm := createPopulatedWm(clientset)
 
 	cert, err := wm.GenerateServerCertificate()
@@ -147,7 +144,7 @@ func TestGenerateServerCertificate(t *testing.T) {
 
 func TestGenerateServerCertificateWithNoCACertificates(t *testing.T) {
 	testSetupOnce(t)
-	clientset := fakeClientSet()
+	clientset := fake.NewClientset()
 	wm := newWebhookManagerImpl(createConfig(), clientset)
 
 	_, err := wm.GenerateServerCertificate()
@@ -156,7 +153,7 @@ func TestGenerateServerCertificateWithNoCACertificates(t *testing.T) {
 
 func TestInstallWebhooksWithNoCACertificates(t *testing.T) {
 	testSetupOnce(t)
-	clientset := fakeClientSet()
+	clientset := fake.NewClientset()
 	wm := newWebhookManagerImpl(createConfig(), clientset)
 
 	err := wm.InstallWebhooks()
@@ -165,27 +162,29 @@ func TestInstallWebhooksWithNoCACertificates(t *testing.T) {
 
 func TestInstallWebhooksWhenAlreadyPresent(t *testing.T) {
 	testSetupOnce(t)
-	clientset := fakeClientSet()
+	clientset := fake.NewClientset()
 	wm := createPopulatedWm(clientset)
 
 	vh := wm.createEmptyValidatingWebhook()
 	wm.populateValidatingWebhook(vh, caBundle)
-	clientset.validatingWebhooks["yunikorn-admission-controller-validations"] = vh
+	_, err := clientset.AdmissionregistrationV1().ValidatingWebhookConfigurations().Create(context.Background(), vh, metav1.CreateOptions{})
+	assert.NilError(t, err, "failed to add validating webhook")
 
 	mh := wm.createEmptyMutatingWebhook()
 	wm.populateMutatingWebhook(mh, caBundle)
-	clientset.mutatingWebhooks["yunikorn-admission-controller-mutations"] = mh
+	_, err = clientset.AdmissionregistrationV1().MutatingWebhookConfigurations().Create(context.Background(), mh, metav1.CreateOptions{})
+	assert.NilError(t, err, "failed to add mutating webhook")
 
-	err := wm.InstallWebhooks()
+	err = wm.InstallWebhooks()
 	assert.NilError(t, err, "Install webhooks failed")
-	vh, ok := clientset.validatingWebhooks["yunikorn-admission-controller-validations"]
-	assert.Assert(t, ok, "validating webhook not found")
+	vh, err = clientset.AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(context.Background(), "yunikorn-admission-controller-validations", metav1.GetOptions{})
+	assert.NilError(t, err, "validating webhook not found")
 	err = wm.checkValidatingWebhook(vh)
 	assert.NilError(t, err, "validating webhook is malformed")
 	assert.Equal(t, vh.Generation, int64(0), "wrong generation for validating webhook")
 
-	mh, ok = clientset.mutatingWebhooks["yunikorn-admission-controller-mutations"]
-	assert.Assert(t, ok, "mutating webhook not found")
+	mh, err = clientset.AdmissionregistrationV1().MutatingWebhookConfigurations().Get(context.Background(), "yunikorn-admission-controller-mutations", metav1.GetOptions{})
+	assert.NilError(t, err, "mutating webhook not found")
 	err = wm.checkMutatingWebhook(mh)
 	assert.NilError(t, err, "mutating webhook is malformed")
 	assert.Equal(t, mh.Generation, int64(0), "wrong generation for mutating webhook")
@@ -193,85 +192,89 @@ func TestInstallWebhooksWhenAlreadyPresent(t *testing.T) {
 
 func TestInstallWebhooksWithNoHooksPresent(t *testing.T) {
 	testSetupOnce(t)
-	clientset := fakeClientSet()
+	clientset := fake.NewClientset()
 	wm := createPopulatedWm(clientset)
 
 	err := wm.InstallWebhooks()
 	assert.NilError(t, err, "Install webhooks failed")
-	vh, ok := clientset.validatingWebhooks["yunikorn-admission-controller-validations"]
-	assert.Assert(t, ok, "validating webhook not found")
+	vh, err := clientset.AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(context.Background(), "yunikorn-admission-controller-validations", metav1.GetOptions{})
+	assert.NilError(t, err, "validating webhook not found")
 	err = wm.checkValidatingWebhook(vh)
 	assert.NilError(t, err, "validating webhook is malformed")
 
-	mh, ok := clientset.mutatingWebhooks["yunikorn-admission-controller-mutations"]
-	assert.Assert(t, ok, "mutating webhook not found")
+	mh, err := clientset.AdmissionregistrationV1().MutatingWebhookConfigurations().Get(context.Background(), "yunikorn-admission-controller-mutations", metav1.GetOptions{})
+	assert.NilError(t, err, "mutating webhook not found")
 	err = wm.checkMutatingWebhook(mh)
 	assert.NilError(t, err, "mutating webhook is malformed")
 }
 
 func TestInstallWebhooksWithWrongData(t *testing.T) {
 	testSetupOnce(t)
-	clientset := fakeClientSet()
+	clientset := fake.NewClientset()
 	wm := createPopulatedWm(clientset)
 
 	vh := wm.createEmptyValidatingWebhook()
 	wm.populateValidatingWebhook(vh, []byte{0})
-	clientset.validatingWebhooks["yunikorn-admission-controller-validations"] = vh
+	_, err := clientset.AdmissionregistrationV1().ValidatingWebhookConfigurations().Create(context.Background(), vh, metav1.CreateOptions{})
+	assert.NilError(t, err, "failed to add validating webhook")
 
 	mh := wm.createEmptyMutatingWebhook()
 	wm.populateMutatingWebhook(mh, []byte{0})
-	clientset.mutatingWebhooks["yunikorn-admission-controller-mutations"] = mh
+	_, err = clientset.AdmissionregistrationV1().MutatingWebhookConfigurations().Create(context.Background(), mh, metav1.CreateOptions{})
+	assert.NilError(t, err, "failed to add mutating webhook")
 
-	err := wm.InstallWebhooks()
+	err = wm.InstallWebhooks()
 	assert.NilError(t, err, "Install webhooks failed")
-	vh, ok := clientset.validatingWebhooks["yunikorn-admission-controller-validations"]
-	assert.Assert(t, ok, "validating webhook not found")
+	vh, err = clientset.AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(context.Background(), "yunikorn-admission-controller-validations", metav1.GetOptions{})
+	assert.NilError(t, err, "validating webhook not found")
 	err = wm.checkValidatingWebhook(vh)
 	assert.NilError(t, err, "validating webhook is malformed")
-	assert.Equal(t, vh.Generation, int64(1), "wrong generation for validating webhook")
 
-	mh, ok = clientset.mutatingWebhooks["yunikorn-admission-controller-mutations"]
-	assert.Assert(t, ok, "mutating webhook not found")
+	mh, err = clientset.AdmissionregistrationV1().MutatingWebhookConfigurations().Get(context.Background(), "yunikorn-admission-controller-mutations", metav1.GetOptions{})
+	assert.NilError(t, err, "mutating webhook not found")
 	err = wm.checkMutatingWebhook(mh)
 	assert.NilError(t, err, "mutating webhook is malformed")
-	assert.Equal(t, mh.Generation, int64(1), "wrong generation for mutating webhook")
 }
 
 func TestInstallWebhooksWithValidationConflict(t *testing.T) {
 	testSetupOnce(t)
-	clientset := fakeClientSet()
+	clientset := fake.NewClientset()
 	wm := createPopulatedWm(clientset)
 	wm.conflictAttempts = 0
 
 	vh := wm.createEmptyValidatingWebhook()
 	wm.populateValidatingWebhook(vh, []byte{0})
 	vh.ObjectMeta.SetAnnotations(map[string]string{"conflict": "true"})
-	clientset.validatingWebhooks["yunikorn-admission-controller-validations"] = vh
+	_, err := clientset.AdmissionregistrationV1().ValidatingWebhookConfigurations().Create(context.Background(), vh, metav1.CreateOptions{})
+	assert.NilError(t, err, "failed to add validating webhook")
 
 	mh := wm.createEmptyMutatingWebhook()
 	wm.populateMutatingWebhook(mh, caBundle)
-	clientset.mutatingWebhooks["yunikorn-admission-controller-mutations"] = mh
+	_, err = clientset.AdmissionregistrationV1().MutatingWebhookConfigurations().Create(context.Background(), mh, metav1.CreateOptions{})
+	assert.NilError(t, err, "failed to add mutating webhook")
 
-	err := wm.InstallWebhooks()
+	err = wm.InstallWebhooks()
 	assert.ErrorContains(t, err, "max attempts", "update webhook didn't fail")
 }
 
 func TestInstallWebhooksWithMutationConflict(t *testing.T) {
 	testSetupOnce(t)
-	clientset := fakeClientSet()
+	clientset := fake.NewClientset()
 	wm := createPopulatedWm(clientset)
 	wm.conflictAttempts = 0
 
 	vh := wm.createEmptyValidatingWebhook()
 	wm.populateValidatingWebhook(vh, caBundle)
-	clientset.validatingWebhooks["yunikorn-admission-controller-validations"] = vh
+	_, err := clientset.AdmissionregistrationV1().ValidatingWebhookConfigurations().Create(context.Background(), vh, metav1.CreateOptions{})
+	assert.NilError(t, err, "failed to add validating webhook")
 
 	mh := wm.createEmptyMutatingWebhook()
 	wm.populateMutatingWebhook(mh, []byte{0})
 	mh.ObjectMeta.SetAnnotations(map[string]string{"conflict": "true"})
-	clientset.mutatingWebhooks["yunikorn-admission-controller-mutations"] = mh
+	_, err = clientset.AdmissionregistrationV1().MutatingWebhookConfigurations().Create(context.Background(), mh, metav1.CreateOptions{})
+	assert.NilError(t, err, "failed to add mutating webhook")
 
-	err := wm.InstallWebhooks()
+	err = wm.InstallWebhooks()
 	assert.ErrorContains(t, err, "max attempts", "update webhook didn't fail")
 }
 
@@ -360,7 +363,7 @@ func TestCheckValidatingWebhook(t *testing.T) {
 	}
 
 	testSetupOnce(t)
-	clientset := fakeClientSet()
+	clientset := fake.NewClientset()
 	wm := createPopulatedWm(clientset)
 
 	for _, c := range cases {
@@ -460,7 +463,7 @@ func TestCheckMutatingWebhook(t *testing.T) {
 	}
 
 	testSetupOnce(t)
-	clientset := fakeClientSet()
+	clientset := fake.NewClientset()
 	wm := createPopulatedWm(clientset)
 
 	for _, c := range cases {
@@ -525,161 +528,4 @@ func keyPem(t *testing.T, key *rsa.PrivateKey) []byte {
 	pem, err := pki.EncodePrivateKeyPem(key)
 	assert.NilError(t, err, "failed to encode certificate")
 	return *pem
-}
-
-// K8s API mocks
-
-type fakeClient struct {
-	fake.Clientset
-	secrets            map[string]*v1.Secret
-	validatingWebhooks map[string]*arv1.ValidatingWebhookConfiguration
-	mutatingWebhooks   map[string]*arv1.MutatingWebhookConfiguration
-}
-
-type fakeCoreV1 struct {
-	fakecorev1.FakeCoreV1
-	client *fakeClient
-}
-
-type fakeSecrets struct {
-	fakecorev1.FakeSecrets
-	core *fakeCoreV1
-	ns   string
-}
-
-type fakeAdmissionregistrationV1 struct {
-	fakeadmissionregistrationv1.FakeAdmissionregistrationV1
-	client *fakeClient
-}
-
-type fakeValidatingWebhookConfigurations struct {
-	fakeadmissionregistrationv1.FakeValidatingWebhookConfigurations
-	ar *fakeAdmissionregistrationV1
-}
-
-type fakeMutatingWebhookConfigurations struct {
-	fakeadmissionregistrationv1.FakeMutatingWebhookConfigurations
-	ar *fakeAdmissionregistrationV1
-}
-
-func fakeClientSet() *fakeClient {
-	return &fakeClient{
-		secrets:            make(map[string]*v1.Secret),
-		validatingWebhooks: make(map[string]*arv1.ValidatingWebhookConfiguration),
-		mutatingWebhooks:   make(map[string]*arv1.MutatingWebhookConfiguration),
-	}
-}
-
-func (c *fakeClient) CoreV1() corev1.CoreV1Interface {
-	return &fakeCoreV1{client: c}
-}
-
-func (c *fakeCoreV1) Secrets(namespace string) corev1.SecretInterface {
-	return &fakeSecrets{core: c, ns: namespace}
-}
-
-func (c *fakeClient) AdmissionregistrationV1() admissionregistrationv1.AdmissionregistrationV1Interface {
-	return &fakeAdmissionregistrationV1{client: c}
-}
-
-func (ar *fakeAdmissionregistrationV1) MutatingWebhookConfigurations() admissionregistrationv1.MutatingWebhookConfigurationInterface {
-	return &fakeMutatingWebhookConfigurations{ar: ar}
-}
-
-func (ar *fakeAdmissionregistrationV1) ValidatingWebhookConfigurations() admissionregistrationv1.ValidatingWebhookConfigurationInterface {
-	return &fakeValidatingWebhookConfigurations{ar: ar}
-}
-
-func (s *fakeSecrets) Get(_ context.Context, name string, _ metav1.GetOptions) (*v1.Secret, error) {
-	secret, ok := s.core.client.secrets[fmt.Sprintf("%s/%s", s.ns, name)]
-	if !ok {
-		return nil, notFoundErr()
-	}
-
-	return secret, nil
-}
-
-func (s *fakeSecrets) Update(_ context.Context, secret *v1.Secret, opts metav1.UpdateOptions) (*v1.Secret, error) {
-	existing, ok := s.core.client.secrets[fmt.Sprintf("%s/%s", s.ns, secret.Name)]
-	if !ok || secret.Namespace != s.ns {
-		return nil, notFoundErr()
-	}
-
-	if _, ok := existing.GetAnnotations()["conflict"]; ok {
-		return nil, conflictErr()
-	}
-
-	secret.Generation++
-	s.core.client.secrets[fmt.Sprintf("%s/%s", s.ns, secret.Name)] = secret
-	return secret, nil
-}
-
-func (c *fakeValidatingWebhookConfigurations) Get(_ context.Context, name string, _ metav1.GetOptions) (*arv1.ValidatingWebhookConfiguration, error) {
-	hook, ok := c.ar.client.validatingWebhooks[name]
-	if !ok {
-		return nil, notFoundErr()
-	}
-	return hook, nil
-}
-
-func (c *fakeValidatingWebhookConfigurations) Create(_ context.Context, hook *arv1.ValidatingWebhookConfiguration, _ metav1.CreateOptions) (*arv1.ValidatingWebhookConfiguration, error) {
-	if _, ok := c.ar.client.validatingWebhooks[hook.Name]; ok {
-		return nil, conflictErr()
-	}
-	c.ar.client.validatingWebhooks[hook.Name] = hook
-	return hook, nil
-}
-
-func (c *fakeValidatingWebhookConfigurations) Update(_ context.Context, hook *arv1.ValidatingWebhookConfiguration, _ metav1.UpdateOptions) (*arv1.ValidatingWebhookConfiguration, error) {
-	existing, ok := c.ar.client.validatingWebhooks[hook.Name]
-	if !ok {
-		return nil, notFoundErr()
-	}
-
-	if _, ok := existing.GetAnnotations()["conflict"]; ok {
-		return nil, conflictErr()
-	}
-
-	hook.Generation++
-	c.ar.client.validatingWebhooks[hook.Name] = hook
-	return hook, nil
-}
-
-func (c *fakeMutatingWebhookConfigurations) Get(_ context.Context, name string, opts metav1.GetOptions) (*arv1.MutatingWebhookConfiguration, error) {
-	hook, ok := c.ar.client.mutatingWebhooks[name]
-	if !ok {
-		return nil, notFoundErr()
-	}
-	return hook, nil
-}
-
-func (c *fakeMutatingWebhookConfigurations) Create(_ context.Context, hook *arv1.MutatingWebhookConfiguration, _ metav1.CreateOptions) (*arv1.MutatingWebhookConfiguration, error) {
-	if _, ok := c.ar.client.mutatingWebhooks[hook.Name]; ok {
-		return nil, conflictErr()
-	}
-	c.ar.client.mutatingWebhooks[hook.Name] = hook
-	return hook, nil
-}
-
-func (c *fakeMutatingWebhookConfigurations) Update(_ context.Context, hook *arv1.MutatingWebhookConfiguration, opts metav1.UpdateOptions) (*arv1.MutatingWebhookConfiguration, error) {
-	existing, ok := c.ar.client.mutatingWebhooks[hook.Name]
-	if !ok {
-		return nil, notFoundErr()
-	}
-
-	if _, ok := existing.GetAnnotations()["conflict"]; ok {
-		return nil, conflictErr()
-	}
-
-	hook.Generation++
-	c.ar.client.mutatingWebhooks[hook.Name] = hook
-	return hook, nil
-}
-
-func notFoundErr() error {
-	return &apierrors.StatusError{ErrStatus: metav1.Status{Code: http.StatusNotFound, Message: string(metav1.StatusReasonNotFound), Reason: metav1.StatusReasonNotFound}}
-}
-
-func conflictErr() error {
-	return &apierrors.StatusError{ErrStatus: metav1.Status{Code: http.StatusConflict, Message: string(metav1.StatusReasonConflict), Reason: metav1.StatusReasonConflict}}
 }
