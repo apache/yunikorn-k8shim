@@ -36,6 +36,7 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/names"
 	fwruntime "k8s.io/kubernetes/pkg/scheduler/framework/runtime"
+	"k8s.io/kubernetes/pkg/scheduler/metrics"
 
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
@@ -59,7 +60,7 @@ type predicateManagerImpl struct {
 }
 
 func (p *predicateManagerImpl) EventsToRegister(queueingHintFn framework.QueueingHintFn) []framework.ClusterEventWithHint {
-	actionMap := make(map[framework.GVK]framework.ActionType)
+	actionMap := make(map[framework.EventResource]framework.ActionType)
 	for _, plugin := range *p.allocationPreFilters {
 		mergePluginEvents(actionMap, pluginEvents(plugin))
 	}
@@ -82,7 +83,7 @@ func pluginEvents(plugin framework.Plugin) []framework.ClusterEventWithHint {
 	return events
 }
 
-func mergePluginEvents(actionMap map[framework.GVK]framework.ActionType, events []framework.ClusterEventWithHint) {
+func mergePluginEvents(actionMap map[framework.EventResource]framework.ActionType, events []framework.ClusterEventWithHint) {
 	if _, ok := actionMap[framework.WildCard]; ok {
 		// already registered for all events; skip further processing
 		return
@@ -106,7 +107,7 @@ func mergePluginEvents(actionMap map[framework.GVK]framework.ActionType, events 
 	}
 }
 
-func buildClusterEvents(actionMap map[framework.GVK]framework.ActionType, queueingHintFn framework.QueueingHintFn) []framework.ClusterEventWithHint {
+func buildClusterEvents(actionMap map[framework.EventResource]framework.ActionType, queueingHintFn framework.QueueingHintFn) []framework.ClusterEventWithHint {
 	events := make([]framework.ClusterEventWithHint, 0)
 	for resource, actionType := range actionMap {
 		events = append(events, framework.ClusterEventWithHint{
@@ -349,6 +350,11 @@ func newPredicateManagerInternal(
 	allocationPreFilters map[string]bool,
 	reservationFilters map[string]bool,
 	allocationFilters map[string]bool) *predicateManagerImpl {
+	// ensure K8s scheduler metrics have been initialized in YK standalone mode to avoid SIGSEGV
+	if metrics.Goroutines == nil {
+		metrics.InitMetrics()
+	}
+
 	pluginRegistry := plugins.NewInTreeRegistry()
 
 	cfg, err := defaultConfig() // latest.Default()

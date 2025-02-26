@@ -21,7 +21,6 @@ package cache
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/looplab/fsm"
@@ -428,19 +427,8 @@ func (task *Task) postTaskBound() {
 	if utils.IsPluginMode() {
 		// When the pod is actively scheduled by YuniKorn, it can be  moved to the default-scheduler's
 		// UnschedulablePods structure. If the pod does not change, the pod will stay in the UnschedulablePods
-		// structure for podMaxInUnschedulablePodsDuration (default 5 minutes). Here we update the pod
-		// explicitly to move it back to the active queue.
-		// See: pkg/scheduler/internal/queue/scheduling_queue.go:isPodUpdated() for what is considered updated.
-		podCopy := task.pod.DeepCopy()
-		if _, err := task.UpdateTaskPod(podCopy, func(pod *v1.Pod) {
-			// Ensure that the default scheduler detects the pod as having changed
-			if pod.Annotations == nil {
-				pod.Annotations = make(map[string]string)
-			}
-			pod.Annotations[constants.DomainYuniKorn+"scheduled-at"] = strconv.FormatInt(time.Now().UnixNano(), 10)
-		}); err != nil {
-			log.Log(log.ShimCacheTask).Warn("failed to update pod status", zap.Error(err))
-		}
+		// structure for podMaxInUnschedulablePodsDuration (default 5 minutes). Here we explicitly activate the pod.
+		task.context.ActivatePod(task.pod)
 	}
 
 	if task.placeholder {

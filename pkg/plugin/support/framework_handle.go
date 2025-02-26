@@ -145,6 +145,17 @@ func (p frameworkHandle) Extenders() []framework.Extender {
 	return nil
 }
 
+func (p frameworkHandle) Activate(logger klog.Logger, pods map[string]*v1.Pod) {
+	// currently only used by Preemption plugin, so not needed
+	log.Log(log.ShimFramework).Fatal("BUG: Should not be used by plugins")
+}
+
+func (p frameworkHandle) SharedDRAManager() framework.SharedDRAManager {
+	// currently only used by DRA
+	log.Log(log.ShimFramework).Fatal("BUG: Should not be used by plugins")
+	return nil
+}
+
 var _ framework.Handle = frameworkHandle{}
 
 func NewFrameworkHandle(sharedLister framework.SharedLister, informerFactory informers.SharedInformerFactory, clientSet kubernetes.Interface) framework.Handle {
