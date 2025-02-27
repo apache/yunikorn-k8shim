@@ -21,6 +21,7 @@ package shim
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"gotest.tools/v3/assert"
 	v1 "k8s.io/api/core/v1"
@@ -38,8 +39,7 @@ import (
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
 
-func TestApplicationScheduling(t *testing.T) {
-	configData := `
+const configData = `
 partitions:
   - name: default
     queues:
@@ -55,6 +55,8 @@ partitions:
                 memory: 150000000
                 vcore: 20
 `
+
+func TestApplicationScheduling(t *testing.T) {
 	// init and register scheduler
 	cluster := MockScheduler{}
 	cluster.init()
@@ -110,22 +112,6 @@ partitions:
 }
 
 func TestRejectApplications(t *testing.T) {
-	configData := `
-partitions:
-  - name: default
-    queues:
-      - name: root
-        submitacl: "*"
-        queues:
-          - name: a
-            resources:
-              guaranteed:
-                memory: 100000000
-                vcore: 10
-              max:
-                memory: 150000000
-                vcore: 20
-`
 	// init and register scheduler
 	cluster := MockScheduler{}
 	cluster.init()
@@ -191,25 +177,6 @@ func TestSchedulerRegistrationFailed(t *testing.T) {
 }
 
 func TestTaskFailures(t *testing.T) {
-	configData := `
-partitions:
- -
-   name: default
-   queues:
-     -
-       name: root
-       submitacl: "*"
-       queues:
-         -
-           name: a
-           resources:
-             guaranteed:
-               memory: 100000000
-               vcore: 10
-             max:
-               memory: 100000000
-               vcore: 10
-`
 	// init and register scheduler
 	cluster := MockScheduler{}
 	cluster.init()
@@ -261,22 +228,6 @@ partitions:
 
 // simulate PVC error during Context.AssumePod() call
 func TestAssumePodError(t *testing.T) {
-	configData := `
-partitions:
-  - name: default
-    queues:
-      - name: root
-        submitacl: "*"
-        queues:
-          - name: a
-            resources:
-              guaranteed:
-                memory: 100000000
-                vcore: 10
-              max:
-                memory: 150000000
-                vcore: 20
-`
 	cluster := MockScheduler{}
 	cluster.init()
 	binder := test.NewVolumeBinderMock()
@@ -306,22 +257,6 @@ partitions:
 }
 
 func TestForeignPodTracking(t *testing.T) {
-	configData := `
-partitions:
-  - name: default
-    queues:
-      - name: root
-        submitacl: "*"
-        queues:
-          - name: a
-            resources:
-              guaranteed:
-                memory: 100000000
-                vcore: 10
-              max:
-                memory: 150000000
-                vcore: 20
-`
 	cluster := MockScheduler{}
 	cluster.init()
 	assert.NilError(t, cluster.start(), "failed to start cluster")
@@ -372,6 +307,37 @@ partitions:
 	assert.NilError(t, err)
 	err = cluster.waitAndAssertForeignAllocationInCore(partitionName, "foreign-2", "node-1", false)
 	assert.NilError(t, err)
+}
+
+func TestSchedulingGates(t *testing.T) {
+	cluster := MockScheduler{}
+	cluster.init()
+	assert.NilError(t, cluster.start(), "failed to start cluster")
+	defer cluster.stop()
+
+	err := cluster.updateConfig(configData, nil)
+	assert.NilError(t, err, "update config failed")
+	addNode(&cluster, "node-1")
+
+	podResource := common.NewResourceBuilder().
+		AddResource(siCommon.Memory, 50000000).
+		AddResource(siCommon.CPU, 5).
+		Build()
+	pod1 := createTestPod("root.a", "app0001", "task0001", podResource)
+	pod1.Spec.SchedulingGates = []v1.PodSchedulingGate{{Name: "gate"}}
+
+	cluster.AddPod(pod1)
+	time.Sleep(time.Second)
+	app := cluster.context.GetApplication("app0001")
+	assert.Assert(t, app == nil, "application should not exist in the shim")
+	coreApp := cluster.getApplicationFromCore("app0001", partitionName)
+	assert.Assert(t, coreApp == nil, "application should not exist in the core")
+
+	pod1Upd := pod1.DeepCopy()
+	pod1Upd.Spec.SchedulingGates = nil
+	cluster.UpdatePod(pod1, pod1Upd)
+	err = cluster.waitForApplicationStateInCore("app0001", partitionName, "Running")
+	assert.NilError(t, err, "application has not transitioned to Running state")
 }
 
 func createTestPod(queue string, appID string, taskID string, taskResource *si.Resource) *v1.Pod {
