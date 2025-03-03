@@ -336,6 +336,7 @@ func (ctx *Context) updateYuniKornPod(appID string, oldPod, pod *v1.Pod) {
 		log.Log(log.ShimContext).Info("pod is waiting for scheduling gates", zap.String("name", pod.Name), zap.Strings("gates", gates))
 	}
 
+	// always call UpdatePod() first to make sure the pod instance is the latest in the cache
 	if ctx.schedulerCache.UpdatePod(pod) && !hasGates {
 		// pod was accepted; ensure the application and task objects have been created
 		ctx.ensureAppAndTaskCreated(pod, app)
