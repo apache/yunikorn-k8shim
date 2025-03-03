@@ -196,13 +196,13 @@ Examples:
   ${NAME} -a test -n yk8s -v kindest/node:v1.26.15
   ${NAME} -a test -n yk8s -v kindest/node:v1.27.16
   ${NAME} -a test -n yk8s -v kindest/node:v1.28.15
-  ${NAME} -a test -n yk8s -v kindest/node:v1.29.10
-  ${NAME} -a test -n yk8s -v kindest/node:v1.30.6
-  ${NAME} -a test -n yk8s -v kindest/node:v1.31.4
-  ${NAME} -a test -n yk8s -v kindest/node:v1.32.0
+  ${NAME} -a test -n yk8s -v kindest/node:v1.29.14
+  ${NAME} -a test -n yk8s -v kindest/node:v1.30.10
+  ${NAME} -a test -n yk8s -v kindest/node:v1.31.6
+  ${NAME} -a test -n yk8s -v kindest/node:v1.32.2
 
   Use a local helm chart path:
-    ${NAME} -a test -n yk8s -v kindest/node:v1.32.0 -p ../yunikorn-release/helm-charts/yunikorn
+    ${NAME} -a test -n yk8s -v kindest/node:v1.32.2 -p ../yunikorn-release/helm-charts/yunikorn
 EOF
 }
 

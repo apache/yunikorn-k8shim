@@ -650,7 +650,7 @@ func (cache *SchedulerCache) GetNodeInfo(nodeName string) (*v1.Node, error) {
 
 // Implement scheduler/algorithm/predicates/predicates.go#StorageClassInfo interface
 func (cache *SchedulerCache) GetStorageClassInfo(className string) (*storageV1.StorageClass, error) {
-	return cache.clients.StorageInformer.Lister().Get(className)
+	return cache.clients.StorageClassInformer.Lister().Get(className)
 }
 
 // Implement scheduler/algorithm/predicates/predicates.go#PersistentVolumeClaimInfo interface

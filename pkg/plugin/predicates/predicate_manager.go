@@ -36,6 +36,7 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/names"
 	fwruntime "k8s.io/kubernetes/pkg/scheduler/framework/runtime"
+	"k8s.io/kubernetes/pkg/scheduler/metrics"
 
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
@@ -59,7 +60,7 @@ type predicateManagerImpl struct {
 }
 
 func (p *predicateManagerImpl) EventsToRegister(queueingHintFn framework.QueueingHintFn) []framework.ClusterEventWithHint {
-	actionMap := make(map[framework.GVK]framework.ActionType)
+	actionMap := make(map[framework.EventResource]framework.ActionType)
 	for _, plugin := range *p.allocationPreFilters {
 		mergePluginEvents(actionMap, pluginEvents(plugin))
 	}
@@ -82,7 +83,7 @@ func pluginEvents(plugin framework.Plugin) []framework.ClusterEventWithHint {
 	return events
 }
 
-func mergePluginEvents(actionMap map[framework.GVK]framework.ActionType, events []framework.ClusterEventWithHint) {
+func mergePluginEvents(actionMap map[framework.EventResource]framework.ActionType, events []framework.ClusterEventWithHint) {
 	if _, ok := actionMap[framework.WildCard]; ok {
 		// already registered for all events; skip further processing
 		return
@@ -106,7 +107,7 @@ func mergePluginEvents(actionMap map[framework.GVK]framework.ActionType, events 
 	}
 }
 
-func buildClusterEvents(actionMap map[framework.GVK]framework.ActionType, queueingHintFn framework.QueueingHintFn) []framework.ClusterEventWithHint {
+func buildClusterEvents(actionMap map[framework.EventResource]framework.ActionType, queueingHintFn framework.QueueingHintFn) []framework.ClusterEventWithHint {
 	events := make([]framework.ClusterEventWithHint, 0)
 	for resource, actionType := range actionMap {
 		events = append(events, framework.ClusterEventWithHint{
@@ -273,12 +274,12 @@ func (p *predicateManagerImpl) runFilterPlugin(ctx context.Context, pl framework
 
 func NewPredicateManager(handle framework.Handle) PredicateManager {
 	/*
-		Default K8S plugins as of 1.31 that implement PreFilter:
+		Default K8S plugins as of 1.32 that implement PreFilter:
 			NodeAffinity
 			NodePorts
-			Fit
+			NodeResourcesFit
 			VolumeRestrictions
-			CSILimits
+			NodeVolumeLimits
 			VolumeBinding
 			VolumeZone
 			PodTopologySpread
@@ -291,8 +292,8 @@ func NewPredicateManager(handle framework.Handle) PredicateManager {
 		names.NodePorts:         true,
 		names.PodTopologySpread: true,
 		names.InterPodAffinity:  true,
-		// Fit : skip because during reservation, node resources are not enough
-		// CSILimits
+		// NodeResourcesFit : skip because during reservation, node resources are not enough
+		// NodeVolumeLimits
 		// VolumeRestrictions
 		// VolumeBinding
 		// VolumeZone
@@ -304,15 +305,15 @@ func NewPredicateManager(handle framework.Handle) PredicateManager {
 	}
 
 	/*
-		Default K8S plugins as of 1.31 that implement Filter:
+		Default K8S plugins as of 1.32 that implement Filter:
 		    NodeUnschedulable
 			NodeName
 			TaintToleration
 			NodeAffinity
 			NodePorts
-			Fit
+			NodeResourcesFit
 			VolumeRestrictions
-			CSILimits
+			NodeVolumeLimits
 			VolumeBinding
 			VolumeZone
 			PodTopologySpread
@@ -328,9 +329,9 @@ func NewPredicateManager(handle framework.Handle) PredicateManager {
 		names.NodePorts:         true,
 		names.PodTopologySpread: true,
 		names.InterPodAffinity:  true,
-		// Fit : skip because during reservation, node resources are not enough
+		// NodeResourcesFit : skip because during reservation, node resources are not enough
 		// VolumeRestrictions
-		// CSILimits
+		// NodeVolumeLimits
 		// VolumeBinding
 		// VolumeZone
 	}
@@ -349,6 +350,11 @@ func newPredicateManagerInternal(
 	allocationPreFilters map[string]bool,
 	reservationFilters map[string]bool,
 	allocationFilters map[string]bool) *predicateManagerImpl {
+	// ensure K8s scheduler metrics have been initialized in YK standalone mode to avoid SIGSEGV
+	if metrics.Goroutines == nil {
+		metrics.InitMetrics()
+	}
+
 	pluginRegistry := plugins.NewInTreeRegistry()
 
 	cfg, err := defaultConfig() // latest.Default()
