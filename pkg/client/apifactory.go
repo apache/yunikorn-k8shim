@@ -91,12 +91,12 @@ type APIFactory struct {
 
 func NewAPIFactory(scheduler api.SchedulerAPI, informerFactory informers.SharedInformerFactory, configs *conf.SchedulerConf, testMode bool) *APIFactory {
 	kubeClient := NewKubeClient(configs.KubeConfig)
-
+	namespaceInformerFactory := informers.NewSharedInformerFactoryWithOptions(kubeClient.GetClientSet(), 0, informers.WithNamespace(configs.Namespace))
 	// init informers
 	// volume informers are also used to get the Listers for the predicates
 	podInformer := informerFactory.Core().V1().Pods()
 	nodeInformer := informerFactory.Core().V1().Nodes()
-	configMapInformer := informerFactory.Core().V1().ConfigMaps()
+	configMapInformer := namespaceInformerFactory.Core().V1().ConfigMaps()
 	pvInformer := informerFactory.Core().V1().PersistentVolumes()
 	pvcInformer := informerFactory.Core().V1().PersistentVolumeClaims()
 	storageInformer := informerFactory.Storage().V1().StorageClasses()
