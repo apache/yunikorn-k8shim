@@ -29,10 +29,12 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
 	v1helper "k8s.io/kubernetes/pkg/apis/core/v1/helper"
+	"k8s.io/kubernetes/pkg/features"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/interpodaffinity"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/nodeaffinity"
@@ -1105,6 +1107,12 @@ func newPodWithPort(hostPorts ...int) *v1.Pod {
 			},
 		},
 	}
+}
+
+func TestEnableOptionalKubernetesFeatureGates(t *testing.T) {
+	EnableOptionalKubernetesFeatureGates()
+	assert.Assert(t, feature.DefaultFeatureGate.Enabled(features.PodLevelResources), "pod level resources not enabled")
+	assert.Assert(t, feature.DefaultFeatureGate.Enabled(features.InPlacePodVerticalScaling), "in-place pod vertical scaling not enabled")
 }
 
 func TestRunGeneralPredicates(t *testing.T) {

@@ -27,9 +27,11 @@ import (
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/component-base/config/v1alpha1"
 	"k8s.io/klog/v2"
 	schedConfig "k8s.io/kube-scheduler/config/v1"
+	"k8s.io/kubernetes/pkg/features"
 	apiConfig "k8s.io/kubernetes/pkg/scheduler/apis/config"
 	"k8s.io/kubernetes/pkg/scheduler/apis/config/scheme"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
@@ -270,6 +272,23 @@ func (p *predicateManagerImpl) runFilterPlugins(ctx context.Context, plugins []f
 
 func (p *predicateManagerImpl) runFilterPlugin(ctx context.Context, pl framework.FilterPlugin, state *framework.CycleState, pod *v1.Pod, nodeInfo *framework.NodeInfo) *framework.Status {
 	return pl.Filter(ctx, state, pod, nodeInfo)
+}
+
+// EnableOptionalKubernetesFeatureGates ensures that any optional Kubernetes feature gates that YuniKorn supports are
+// enabled. Currently, as of Kubernetes 1.32, this includes PodLevelResources and InPlacePodVerticalScaling. These are
+// both safe to enable as part of our default configuration, as they also require the appropriate feature gates to be
+// enabled at the API server to be functional.
+// This needs to be called before any Kubernetes-specific code is initialized (ideally top of main()) and in any unit
+// tests which require this functionality.
+func EnableOptionalKubernetesFeatureGates() {
+	log.Log(log.ShimPredicates).Debug("Enabling PodLevelResources feature gate")
+	if err := feature.DefaultMutableFeatureGate.Set(fmt.Sprintf("%s=true", features.PodLevelResources)); err != nil {
+		log.Log(log.ShimPredicates).Fatal("Unable to set PodLevelResources feature gate", zap.Error(err))
+	}
+	log.Log(log.ShimPredicates).Debug("Enabling InPlacePodVerticalScaling feature gate")
+	if err := feature.DefaultMutableFeatureGate.Set(fmt.Sprintf("%s=true", features.InPlacePodVerticalScaling)); err != nil {
+		log.Log(log.ShimPredicates).Fatal("Unable to set PodLevelResources feature gate", zap.Error(err))
+	}
 }
 
 func NewPredicateManager(handle framework.Handle) PredicateManager {
