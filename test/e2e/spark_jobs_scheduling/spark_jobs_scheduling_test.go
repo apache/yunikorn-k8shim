@@ -90,6 +90,8 @@ var _ = Describe("", func() {
 
 	It("Test_With_Spark_Jobs", func() {
 		By("Submit the spark jobs")
+		// Spark 3.3.1 only works for Java 8, 11 and 17
+		// See https://stackoverflow.com/questions/79016199/hadoop-installation-error-getsubject-is-supported-only-if-a-security-manager-i
 		err := exec.Command(
 			"bash",
 			"../testdata/spark_jobs.sh",
@@ -108,17 +110,20 @@ var _ = Describe("", func() {
 		By(fmt.Sprintf("[%s] wait for %s queue to appear\n", time.Now().Format("01-02-2006 15:04:05"),
 			sparkQueueName))
 		err = restClient.WaitforQueueToAppear(configmanager.DefaultPartition, sparkQueueName, 120)
-		Ω(err).NotTo(HaveOccurred())
+		Ω(err).NotTo(HaveOccurred(), "Please upgrade Java version to 8, 11 or 17 if hit context deadline exceeded issue")
 
 		By(fmt.Sprintf("Get apps from specific queue: %s", sparkNS))
 		var appsFromQueue []*dao.ApplicationDAOInfo
 		// Poll for apps to appear in the queue
 		err = wait.PollUntilContextTimeout(context.TODO(), time.Millisecond*100, time.Duration(120)*time.Second, false, func(context.Context) (done bool, err error) {
-			appsFromQueue, err = restClient.GetApps(configmanager.DefaultPartition, configmanager.RootQueue+"."+sparkNS)
+			appsFromQueue, err = restClient.GetApps(configmanager.DefaultPartition, sparkQueueName)
+			if err != nil {
+				return false, err
+			}
 			if len(appsFromQueue) == 3 {
 				return true, nil
 			}
-			return false, err
+			return false, fmt.Errorf("length of appsFromQueue should be 3 but got %d", len(appsFromQueue))
 		})
 		Ω(err).NotTo(HaveOccurred())
 		Ω(appsFromQueue).NotTo(BeEmpty())
