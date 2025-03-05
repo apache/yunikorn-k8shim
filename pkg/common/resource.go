@@ -22,6 +22,7 @@ import (
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	helpers "k8s.io/component-helpers/resource"
 
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
@@ -68,12 +69,19 @@ func GetPodResource(pod *v1.Pod) (resource *si.Resource) {
 		podResource = checkInitContainerRequest(pod, podResource)
 	}
 
-	// K8s pod EnableOverHead from:
-	// alpha: v1.16
-	// beta: v1.18
-	// Enables PodOverhead, for accounting pod overheads which are specific to a given RuntimeClass
+	// PodLevelResources feature:
+	// alpha: v1.32
+	// beta: v1.33
+	if pod.Spec.Resources != nil && len(pod.Spec.Resources.Requests) > 0 {
+		// pod-level resources, if present, override sum of container-level resources
+		// only memory and cpu are supported
+		for name, value := range getPodLevelResource(pod.Spec.Resources.Requests).GetResources() {
+			podResource.Resources[name] = value
+		}
+	}
 
-	// If Overhead is being utilized, add to the total requests for the pod
+	// K8s EnableOverHead feature:
+	// Enables PodOverhead, for accounting pod overheads which are specific to a given RuntimeClass
 	if pod.Spec.Overhead != nil {
 		podOverHeadResource := getResource(pod.Spec.Overhead)
 		podResource = Add(podResource, podOverHeadResource)
@@ -263,6 +271,22 @@ func getResource(resourceList v1.ResourceList) *si.Resource {
 			resources.AddResource(siCommon.CPU, vcore)
 		default:
 			resources.AddResource(string(name), value.Value())
+		}
+	}
+	return resources.Build()
+}
+
+func getPodLevelResource(resourceList v1.ResourceList) *si.Resource {
+	resources := NewResourceBuilder()
+	for name, value := range resourceList {
+		if helpers.IsSupportedPodLevelResource(name) {
+			switch name {
+			case v1.ResourceCPU:
+				vcore := value.MilliValue()
+				resources.AddResource(siCommon.CPU, vcore)
+			default:
+				resources.AddResource(string(name), value.Value())
+			}
 		}
 	}
 	return resources.Build()

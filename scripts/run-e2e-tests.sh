@@ -47,12 +47,12 @@ function verlt() {
 function update_kind_config() {
   # use a different kind config for different cluster versions
   version=$(echo "$1" | sed 's/.*://' | sed 's/^v//')
-  if verlt "${version}" "1.27"; then
-    # 1.26 or earlier
+  if verlt "${version}" "1.32"; then
+    # 1.31 or earlier
     KIND_CONFIG=./scripts/kind.yaml
   else
-    # 1.27 or later; enable InPlacePodVerticalScaling feature flag
-    KIND_CONFIG=./scripts/kind-pod-resize.yaml
+    # 1.32 or later; enable InPlacePodVerticalScaling and PodLevelResources feature flags
+    KIND_CONFIG=./scripts/kind-1.32.yaml
   fi
 }
 

@@ -24,9 +24,12 @@ import (
 	"k8s.io/kubernetes/cmd/kube-scheduler/app"
 
 	"github.com/apache/yunikorn-k8shim/pkg/plugin"
+	"github.com/apache/yunikorn-k8shim/pkg/plugin/predicates"
 )
 
 func main() {
+	predicates.EnableOptionalKubernetesFeatureGates()
+
 	command := app.NewSchedulerCommand(
 		app.WithPlugin(plugin.SchedulerPluginName, plugin.NewSchedulerPlugin))
 

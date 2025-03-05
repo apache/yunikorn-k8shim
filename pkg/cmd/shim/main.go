@@ -27,6 +27,7 @@ import (
 
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
+	"github.com/apache/yunikorn-k8shim/pkg/plugin/predicates"
 
 	"github.com/apache/yunikorn-core/pkg/entrypoint"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
@@ -36,6 +37,8 @@ import (
 
 func main() {
 	log.Log(log.Shim).Info(conf.GetBuildInfoString())
+
+	predicates.EnableOptionalKubernetesFeatureGates()
 
 	configMaps, err := client.LoadBootstrapConfigMaps()
 	if err != nil {
