@@ -1654,14 +1654,14 @@ func (ctx *Context) finalizeNodes(existingNodes []*v1.Node) error {
 	}
 
 	// convert the node list into a map
-	nodeMap := make(map[string]*v1.Node)
+	nodeMap := make(map[string]bool, len(nodes))
 	for _, node := range nodes {
-		nodeMap[node.Name] = node
+		nodeMap[node.Name] = true
 	}
 
 	// find any existing nodes that no longer exist
 	for _, node := range existingNodes {
-		if _, ok := nodeMap[node.Name]; !ok {
+		if !nodeMap[node.Name] {
 			// node no longer exists, delete it
 			log.Log(log.ShimContext).Info("Removing node which went away during initialization",
 				zap.String("name", node.Name))
@@ -1710,13 +1710,13 @@ func (ctx *Context) finalizePods(existingPods []*v1.Pod) error {
 	}
 
 	// convert the pod list into a map
-	podMap := make(map[types.UID]*v1.Pod)
+	podMap := make(map[types.UID]bool, len(pods))
 	for _, pod := range pods {
 		// if the pod is terminated finalising should remove it if it was running in register
 		if utils.IsPodTerminated(pod) {
 			continue
 		}
-		podMap[pod.UID] = pod
+		podMap[pod.UID] = true
 	}
 
 	// find any existing pods that no longer exist
@@ -1725,7 +1725,7 @@ func (ctx *Context) finalizePods(existingPods []*v1.Pod) error {
 		if pod == nil {
 			continue
 		}
-		if _, ok := podMap[pod.UID]; !ok {
+		if !podMap[pod.UID] {
 			// pod no longer exists, delete it
 			log.Log(log.ShimContext).Info("Removing pod which went away during initialization",
 				zap.String("namespace", pod.Namespace),
