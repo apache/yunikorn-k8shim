@@ -16,24 +16,30 @@
  limitations under the License.
 */
 
-package main
+package test
 
 import (
-	"os"
-
-	"k8s.io/kubernetes/cmd/kube-scheduler/app"
-
-	"github.com/apache/yunikorn-k8shim/pkg/plugin"
-	"github.com/apache/yunikorn-k8shim/pkg/plugin/predicates"
+	informersv1 "k8s.io/client-go/informers/storage/v1"
+	listersv1 "k8s.io/client-go/listers/storage/v1"
+	"k8s.io/client-go/tools/cache"
 )
 
-func main() {
-	predicates.EnableOptionalKubernetesFeatureGates()
+type MockVolumeAttachmentInformer struct {
+	lister   listersv1.VolumeAttachmentLister
+	informer cache.SharedIndexInformer
+}
 
-	command := app.NewSchedulerCommand(
-		app.WithPlugin(plugin.SchedulerPluginName, plugin.NewSchedulerPlugin))
-
-	if err := command.Execute(); err != nil {
-		os.Exit(1)
+func NewMockVolumeAttachmentInformer() informersv1.VolumeAttachmentInformer {
+	return &MockVolumeAttachmentInformer{
+		lister:   NewMockVolumeAttachmentLister(),
+		informer: &SharedInformerMock{},
 	}
+}
+
+func (m *MockVolumeAttachmentInformer) Informer() cache.SharedIndexInformer {
+	return m.informer
+}
+
+func (m *MockVolumeAttachmentInformer) Lister() listersv1.VolumeAttachmentLister {
+	return m.lister
 }

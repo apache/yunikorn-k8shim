@@ -75,6 +75,7 @@ type Context struct {
 	lock           *locking.RWMutex               // lock - used not only for context data but also to ensure that multiple event types are not executed concurrently
 	txnID          atomic.Uint64                  // transaction ID counter
 	klogger        klog.Logger
+	podActivator   atomic.Value
 }
 
 // NewContext create a new context for the scheduler using a default (empty) configuration
@@ -109,6 +110,18 @@ func NewContextWithBootstrapConfigMaps(apis client.APIProvider, bootstrapConfigM
 	ctx.predManager = predicates.NewPredicateManager(support.NewFrameworkHandle(sharedLister, informerFactory, clientSet))
 
 	return ctx
+}
+
+// SetPodActivator is used by the plugin mode to add a callback function to reschedule a pod
+func (ctx *Context) SetPodActivator(podActivator func(logger klog.Logger, pod *v1.Pod)) {
+	ctx.podActivator.Store(podActivator)
+}
+
+// ActivatePod is used to tell Kubernetes to re-schedule a pod when using plugin mode
+func (ctx *Context) ActivatePod(pod *v1.Pod) {
+	if activator, ok := ctx.podActivator.Load().(func(logger klog.Logger, pod *v1.Pod)); ok && activator != nil {
+		activator(ctx.klogger, pod)
+	}
 }
 
 func (ctx *Context) AddSchedulingEventHandlers() error {
@@ -202,7 +215,7 @@ func (ctx *Context) updateNodeInternal(node *v1.Node, register bool) {
 			if applicationID == "" {
 				ctx.updateForeignPod(pod)
 			} else {
-				ctx.updateYuniKornPod(applicationID, pod)
+				ctx.updateYuniKornPod(applicationID, nil, pod)
 			}
 		}
 
@@ -284,7 +297,7 @@ func (ctx *Context) AddPod(obj interface{}) {
 	ctx.UpdatePod(nil, obj)
 }
 
-func (ctx *Context) UpdatePod(_, newObj interface{}) {
+func (ctx *Context) UpdatePod(oldObj, newObj interface{}) {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
 	pod, err := utils.Convert2Pod(newObj)
@@ -292,15 +305,23 @@ func (ctx *Context) UpdatePod(_, newObj interface{}) {
 		log.Log(log.ShimContext).Error("failed to update pod", zap.Error(err))
 		return
 	}
+	var oldPod *v1.Pod
+	if oldObj != nil {
+		oldPod, err = utils.Convert2Pod(oldObj)
+		if err != nil {
+			log.Log(log.ShimContext).Error("failed to update pod", zap.Error(err))
+			return
+		}
+	}
 	applicationID := utils.GetApplicationIDFromPod(pod)
 	if applicationID == "" {
 		ctx.updateForeignPod(pod)
 	} else {
-		ctx.updateYuniKornPod(applicationID, pod)
+		ctx.updateYuniKornPod(applicationID, oldPod, pod)
 	}
 }
 
-func (ctx *Context) updateYuniKornPod(appID string, pod *v1.Pod) {
+func (ctx *Context) updateYuniKornPod(appID string, oldPod, pod *v1.Pod) {
 	taskID := string(pod.UID)
 	app := ctx.getApplication(appID)
 	if app != nil {
@@ -317,7 +338,19 @@ func (ctx *Context) updateYuniKornPod(appID string, pod *v1.Pod) {
 		return
 	}
 
-	if ctx.schedulerCache.UpdatePod(pod) {
+	hasGates := len(pod.Spec.SchedulingGates) > 0
+	if hasGates && oldPod == nil {
+		gates := make([]string, 0, len(pod.Spec.SchedulingGates))
+		for _, gate := range pod.Spec.SchedulingGates {
+			gates = append(gates, gate.Name)
+		}
+		events.GetRecorder().Eventf(pod.DeepCopy(), nil, v1.EventTypeNormal, "Scheduling", "Scheduling",
+			"waiting for scheduling gates: %s", strings.Join(gates, ","))
+		log.Log(log.ShimContext).Info("pod is waiting for scheduling gates", zap.String("name", pod.Name), zap.Strings("gates", gates))
+	}
+
+	// always call UpdatePod() first to make sure the pod instance is the latest in the cache
+	if ctx.schedulerCache.UpdatePod(pod) && !hasGates {
 		// pod was accepted; ensure the application and task objects have been created
 		ctx.ensureAppAndTaskCreated(pod, app)
 	}

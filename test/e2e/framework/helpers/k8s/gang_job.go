@@ -20,6 +20,8 @@ package k8s
 
 import (
 	"encoding/json"
+	"fmt"
+	"math"
 	"strconv"
 
 	batchv1 "k8s.io/api/batch/v1"
@@ -101,7 +103,10 @@ func DecoratePodForGangScheduling(
 	return pod
 }
 
-func InitTaskGroups(conf SleepPodConfig, mainTaskGroupName, secondTaskGroupName string, parallelism int) []*cache.TaskGroup {
+func InitTaskGroups(conf SleepPodConfig, mainTaskGroupName, secondTaskGroupName string, parallelism int) ([]*cache.TaskGroup, error) {
+	if parallelism < math.MinInt32 || parallelism > math.MaxInt32 {
+		return nil, fmt.Errorf("parallelism value %d is out of int32 range", parallelism)
+	}
 	tg1 := &cache.TaskGroup{
 		MinMember: int32(parallelism),
 		Name:      mainTaskGroupName,
@@ -113,8 +118,11 @@ func InitTaskGroups(conf SleepPodConfig, mainTaskGroupName, secondTaskGroupName 
 
 	// create TG2 more with more members than needed, also make sure that
 	// placeholders will stay in Pending state
+	if parallelism < math.MinInt32 || parallelism > math.MaxInt32-1 {
+		return nil, fmt.Errorf("parallelism+1 value %d is out of int32 range", parallelism+1)
+	}
 	tg2 := &cache.TaskGroup{
-		MinMember: int32(parallelism + 1),
+		MinMember: int32(parallelism + 1), // nolint: gosec
 		Name:      secondTaskGroupName,
 		MinResource: map[string]resource.Quantity{
 			"cpu":    resource.MustParse(strconv.FormatInt(conf.CPU, 10) + "m"),
@@ -129,7 +137,7 @@ func InitTaskGroups(conf SleepPodConfig, mainTaskGroupName, secondTaskGroupName 
 	tGroups[0] = tg1
 	tGroups[1] = tg2
 
-	return tGroups
+	return tGroups, nil
 }
 
 func InitTaskGroup(conf SleepPodConfig, taskGroupName string, parallelism int32) []*cache.TaskGroup {

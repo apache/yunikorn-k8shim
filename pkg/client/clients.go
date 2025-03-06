@@ -46,21 +46,22 @@ type Clients struct {
 	InformerFactory informers.SharedInformerFactory
 
 	// resource informers
-	PodInformer                   coreInformerV1.PodInformer
-	NodeInformer                  coreInformerV1.NodeInformer
 	ConfigMapInformer             coreInformerV1.ConfigMapInformer
-	PVInformer                    coreInformerV1.PersistentVolumeInformer
-	PVCInformer                   coreInformerV1.PersistentVolumeClaimInformer
-	StorageInformer               storageInformerV1.StorageClassInformer
-	CSINodeInformer               storageInformerV1.CSINodeInformer
 	CSIDriverInformer             storageInformerV1.CSIDriverInformer
+	CSINodeInformer               storageInformerV1.CSINodeInformer
 	CSIStorageCapacityInformer    storageInformerV1.CSIStorageCapacityInformer
 	NamespaceInformer             coreInformerV1.NamespaceInformer
+	NodeInformer                  coreInformerV1.NodeInformer
+	PodInformer                   coreInformerV1.PodInformer
+	StorageClassInformer          storageInformerV1.StorageClassInformer
+	PVCInformer                   coreInformerV1.PersistentVolumeClaimInformer
+	PVInformer                    coreInformerV1.PersistentVolumeInformer
+	ReplicaSetInformer            appsInformerV1.ReplicaSetInformer
 	PriorityClassInformer         schedulingInformerV1.PriorityClassInformer
 	ServiceInformer               coreInformerV1.ServiceInformer
-	ReplicationControllerInformer coreInformerV1.ReplicationControllerInformer
-	ReplicaSetInformer            appsInformerV1.ReplicaSetInformer
 	StatefulSetInformer           appsInformerV1.StatefulSetInformer
+	ReplicationControllerInformer coreInformerV1.ReplicationControllerInformer
+	VolumeAttachmentInformer      storageInformerV1.VolumeAttachmentInformer
 
 	// volume binder handles PV/PVC related operations
 	VolumeBinder volumebinding.SchedulerVolumeBinder
@@ -70,21 +71,22 @@ func (c *Clients) WaitForSync() {
 	syncStartTime := time.Now()
 	counter := 0
 	for {
-		if c.PodInformer.Informer().HasSynced() &&
-			c.NodeInformer.Informer().HasSynced() &&
-			c.ConfigMapInformer.Informer().HasSynced() &&
-			c.PVInformer.Informer().HasSynced() &&
-			c.PVCInformer.Informer().HasSynced() &&
-			c.StorageInformer.Informer().HasSynced() &&
-			c.CSINodeInformer.Informer().HasSynced() &&
+		if c.ConfigMapInformer.Informer().HasSynced() &&
 			c.CSIDriverInformer.Informer().HasSynced() &&
+			c.CSINodeInformer.Informer().HasSynced() &&
 			c.CSIStorageCapacityInformer.Informer().HasSynced() &&
 			c.NamespaceInformer.Informer().HasSynced() &&
+			c.NodeInformer.Informer().HasSynced() &&
+			c.PodInformer.Informer().HasSynced() &&
 			c.PriorityClassInformer.Informer().HasSynced() &&
-			c.ServiceInformer.Informer().HasSynced() &&
-			c.ReplicationControllerInformer.Informer().HasSynced() &&
+			c.PVCInformer.Informer().HasSynced() &&
+			c.PVInformer.Informer().HasSynced() &&
 			c.ReplicaSetInformer.Informer().HasSynced() &&
-			c.StatefulSetInformer.Informer().HasSynced() {
+			c.ReplicationControllerInformer.Informer().HasSynced() &&
+			c.ServiceInformer.Informer().HasSynced() &&
+			c.StatefulSetInformer.Informer().HasSynced() &&
+			c.StorageClassInformer.Informer().HasSynced() &&
+			c.VolumeAttachmentInformer.Informer().HasSynced() {
 			return
 		}
 		time.Sleep(time.Second)
@@ -97,19 +99,20 @@ func (c *Clients) WaitForSync() {
 }
 
 func (c *Clients) Run(stopCh <-chan struct{}) {
-	go c.PodInformer.Informer().Run(stopCh)
-	go c.NodeInformer.Informer().Run(stopCh)
 	go c.ConfigMapInformer.Informer().Run(stopCh)
-	go c.PVInformer.Informer().Run(stopCh)
-	go c.PVCInformer.Informer().Run(stopCh)
-	go c.StorageInformer.Informer().Run(stopCh)
-	go c.CSINodeInformer.Informer().Run(stopCh)
 	go c.CSIDriverInformer.Informer().Run(stopCh)
+	go c.CSINodeInformer.Informer().Run(stopCh)
 	go c.CSIStorageCapacityInformer.Informer().Run(stopCh)
 	go c.NamespaceInformer.Informer().Run(stopCh)
+	go c.NodeInformer.Informer().Run(stopCh)
+	go c.PodInformer.Informer().Run(stopCh)
 	go c.PriorityClassInformer.Informer().Run(stopCh)
-	go c.ServiceInformer.Informer().Run(stopCh)
-	go c.ReplicationControllerInformer.Informer().Run(stopCh)
+	go c.PVCInformer.Informer().Run(stopCh)
+	go c.PVInformer.Informer().Run(stopCh)
 	go c.ReplicaSetInformer.Informer().Run(stopCh)
+	go c.ReplicationControllerInformer.Informer().Run(stopCh)
+	go c.ServiceInformer.Informer().Run(stopCh)
 	go c.StatefulSetInformer.Informer().Run(stopCh)
+	go c.StorageClassInformer.Informer().Run(stopCh)
+	go c.VolumeAttachmentInformer.Informer().Run(stopCh)
 }

@@ -317,7 +317,7 @@ func (c *RClient) isAppInDesiredState(partition string, queue string, appID stri
 		case state:
 			return true, nil
 		case States().Application.Rejected:
-			return false, fmt.Errorf(fmt.Sprintf("App not in desired state: %s", state))
+			return false, fmt.Errorf("app not in desired state: %s", state)
 		}
 		return false, nil
 	}
@@ -383,7 +383,7 @@ func (c *RClient) AreAllExecPodsAllotted(partition string, queueName string, app
 			return false, err
 		}
 		if appInfo.Allocations == nil {
-			return false, fmt.Errorf(fmt.Sprintf("Allocations are not yet complete for appID: %s", appID))
+			return false, fmt.Errorf("allocations are not yet complete for appID: %s", appID)
 		}
 		if len(appInfo.Allocations) >= execPodCount {
 			return true, nil

@@ -50,6 +50,7 @@ OUTPUT=build
 DEV_BIN_DIR=${OUTPUT}/dev
 RELEASE_BIN_DIR=${OUTPUT}/bin
 DOCKER_DIR=${OUTPUT}/docker
+COVERAGE_DIR=${OUTPUT}/instrumented
 
 # Binary names
 SCHEDULER_BINARY=yunikorn-scheduler
@@ -70,7 +71,7 @@ export PATH := $(BASE_DIR)/$(TOOLS_DIR):$(GO_EXE_PATH):$(PATH)
 
 # Default values for dev cluster
 ifeq ($(K8S_VERSION),)
-K8S_VERSION := v1.32.0
+K8S_VERSION := v1.32.2
 endif
 ifeq ($(CLUSTER_NAME),)
 CLUSTER_NAME := yk8s
@@ -162,7 +163,7 @@ endif
 export PATH := $(BASE_DIR)/$(SHELLCHECK_PATH):$(PATH)
 
 # golangci-lint
-GOLANGCI_LINT_VERSION=1.57.2
+GOLANGCI_LINT_VERSION=1.63.4
 GOLANGCI_LINT_PATH=$(TOOLS_DIR)/golangci-lint-v$(GOLANGCI_LINT_VERSION)
 GOLANGCI_LINT_BIN=$(GOLANGCI_LINT_PATH)/golangci-lint
 GOLANGCI_LINT_ARCHIVE=golangci-lint-$(GOLANGCI_LINT_VERSION)-$(OS)-$(EXEC_ARCH).tar.gz
@@ -176,7 +177,7 @@ KUBECTL_BIN=$(KUBECTL_PATH)/kubectl
 export PATH := $(BASE_DIR)/$(KUBECTL_PATH):$(PATH)
 
 # kind
-KIND_VERSION=v0.25.0
+KIND_VERSION=v0.27.0
 KIND_PATH=$(TOOLS_DIR)/kind-$(KIND_VERSION)
 KIND_BIN=$(KIND_PATH)/kind
 export PATH := $(BASE_DIR)/$(KIND_PATH):$(PATH)
@@ -205,7 +206,7 @@ GO_LICENSES_BIN=$(GO_LICENSES_PATH)/go-licenses
 export PATH := $(BASE_DIR)/$(GO_LICENSES_PATH):$(PATH)
 
 # ginkgo
-GINKGO_VERSION=v2.19.0
+GINKGO_VERSION=v2.21.0
 GINKGO_PATH=$(TOOLS_DIR)/ginkgo-$(GINKGO_VERSION)
 GINKGO_BIN=$(GINKGO_PATH)/ginkgo
 export PATH := $(BASE_DIR)/$(GINKGO_PATH):$(PATH)
@@ -241,6 +242,9 @@ endif
 ifeq ($(ADMISSION_TAG),)
 ADMISSION_TAG := $(REGISTRY)/yunikorn:admission-$(DOCKER_ARCH)-$(VERSION)
 endif
+
+SCHEDULER_INSTRUMENTED_TAG := $(SCHEDULER_TAG)-instrumented
+PLUGIN_INSTRUMENTED_TAG := $(PLUGIN_TAG)-instrumented
 
 all:
 	$(MAKE) -C $(dir $(BASE_DIR)) init build build_plugin
@@ -468,6 +472,20 @@ else
 	./pkg/cmd/shim/
 endif
 
+.PHONY: scheduler_instrumented
+scheduler_instrumented: $(COVERAGE_DIR)/$(SCHEDULER_BINARY)
+
+$(COVERAGE_DIR)/$(SCHEDULER_BINARY): go.mod go.sum $(shell find pkg)
+	@echo "building instrumented binary for scheduler docker image"
+	@mkdir -p "$(COVERAGE_DIR)"
+	CGO_ENABLED=0 GOOS=linux GOARCH="${EXEC_ARCH}" "$(GO)" build -cover \
+	-a \
+	-o=${COVERAGE_DIR}/${SCHEDULER_BINARY} \
+	-trimpath \
+	-ldflags '-buildid= -extldflags "-static" -X ${FLAG_PREFIX}.buildVersion=${VERSION} -X ${FLAG_PREFIX}.buildDate=${DATE} -X ${FLAG_PREFIX}.isPluginVersion=false -X ${FLAG_PREFIX}.goVersion=${GO_VERSION} -X ${FLAG_PREFIX}.arch=${EXEC_ARCH} -X ${FLAG_PREFIX}.coreSHA=${CORE_SHA} -X ${FLAG_PREFIX}.siSHA=${SI_SHA} -X ${FLAG_PREFIX}.shimSHA=${SHIM_SHA}' \
+	-tags netgo \
+	./pkg/cmd/shim/
+
 # Build plugin binary in a production ready version
 .PHONY: plugin
 plugin: $(RELEASE_BIN_DIR)/$(PLUGIN_BINARY)
@@ -493,6 +511,20 @@ else
 	-tags netgo \
 	./pkg/cmd/schedulerplugin/
 endif
+
+.PHONY: plugin_instrumented
+plugin_instrumented: $(COVERAGE_DIR)/$(PLUGIN_BINARY)
+
+$(COVERAGE_DIR)/$(PLUGIN_BINARY): go.mod go.sum $(shell find pkg)
+	@echo "building instrumented binary for plugin docker image"
+	@mkdir -p "$(RELEASE_BIN_DIR)"
+	CGO_ENABLED=0 GOOS=linux GOARCH="${EXEC_ARCH}" "$(GO)" build -cover \
+	-a \
+	-o=${COVERAGE_DIR}/${PLUGIN_BINARY} \
+	-trimpath \
+	-ldflags '-buildid= -extldflags "-static" -X ${FLAG_PREFIX}.buildVersion=${VERSION} -X ${FLAG_PREFIX}.buildDate=${DATE} -X ${FLAG_PREFIX}.isPluginVersion=true -X ${FLAG_PREFIX}.goVersion=${GO_VERSION} -X ${FLAG_PREFIX}.arch=${EXEC_ARCH} -X ${FLAG_PREFIX}.coreSHA=${CORE_SHA} -X ${FLAG_PREFIX}.siSHA=${SI_SHA} -X ${FLAG_PREFIX}.shimSHA=${SHIM_SHA}' \
+	-tags netgo \
+	./pkg/cmd/schedulerplugin/
 	
 # Build a scheduler image based on the production ready version
 .PHONY: sched_image
@@ -523,6 +555,34 @@ sched_image: $(OUTPUT)/third-party-licenses.md scheduler docker/scheduler
 	--label "org.opencontainers.image.documentation=${DOCS_URL}" \
 	${QUIET}
 
+.PHONY: sched_image_instrumented
+sched_image_instrumented: $(OUTPUT)/third-party-licenses.md scheduler_instrumented docker/scheduler
+	@echo "building instrumented scheduler docker image"
+	@rm -rf "$(DOCKER_DIR)/scheduler"
+	@mkdir -p "$(DOCKER_DIR)/scheduler"
+	@cp -a "docker/scheduler/." "$(DOCKER_DIR)/scheduler/."
+	@cp "$(COVERAGE_DIR)/$(SCHEDULER_BINARY)" "$(DOCKER_DIR)/scheduler/."
+	@cp -a LICENSE NOTICE "$(OUTPUT)/third-party-licenses.md" "$(DOCKER_DIR)/scheduler/."
+	DOCKER_BUILDKIT=1 docker build \
+	"$(DOCKER_DIR)/scheduler" \
+	-t "$(SCHEDULER_INSTRUMENTED_TAG)" \
+	--platform "linux/${DOCKER_ARCH}" \
+	--label "yunikorn-core-revision=${CORE_SHA}" \
+	--label "yunikorn-scheduler-interface-revision=${SI_SHA}" \
+	--label "yunikorn-k8shim-revision=${SHIM_SHA}" \
+	--label "BuildTimeStamp=${DATE}" \
+	--label "Version=${VERSION}" \
+	--label "org.opencontainers.image.title=${SCHEDULER_BINARY}" \
+	--label "org.opencontainers.image.description=Apache YuniKorn Scheduler" \
+	--label "org.opencontainers.image.version=${VERSION}" \
+	--label "org.opencontainers.image.created=$(DATE)" \
+	--label "org.opencontainers.image.source=${IMAGE_SOURCE}" \
+	--label "org.opencontainers.image.url=${IMAGE_URL}" \
+	--label "org.opencontainers.image.revision=$(SHIM_SHA)" \
+	--label "org.opencontainers.image.license=${LICENSE}" \
+	--label "org.opencontainers.image.documentation=${DOCS_URL}" \
+	${QUIET}
+
 # Build a plugin image based on the production ready version
 .PHONY: plugin_image
 plugin_image: $(OUTPUT)/third-party-licenses.md plugin docker/plugin conf/scheduler-config.yaml
@@ -536,6 +596,35 @@ plugin_image: $(OUTPUT)/third-party-licenses.md plugin docker/plugin conf/schedu
 	DOCKER_BUILDKIT=1 docker build \
 	"$(DOCKER_DIR)/plugin" \
 	-t "$(PLUGIN_TAG)" \
+	--platform "linux/${DOCKER_ARCH}" \
+	--label "yunikorn-core-revision=${CORE_SHA}" \
+	--label "yunikorn-scheduler-interface-revision=${SI_SHA}" \
+	--label "yunikorn-k8shim-revision=${SHIM_SHA}" \
+	--label "BuildTimeStamp=${DATE}" \
+	--label "Version=${VERSION}" \
+	--label "org.opencontainers.image.title=${PLUGIN_BINARY}" \
+	--label "org.opencontainers.image.description=Apache YuniKorn Scheduler (Plugin)" \
+	--label "org.opencontainers.image.version=${VERSION}" \
+	--label "org.opencontainers.image.created=$(DATE)" \
+	--label "org.opencontainers.image.source=${IMAGE_SOURCE}" \
+	--label "org.opencontainers.image.url=${IMAGE_URL}" \
+	--label "org.opencontainers.image.revision=$(SHIM_SHA)" \
+	--label "org.opencontainers.image.license=${LICENSE}" \
+	--label "org.opencontainers.image.documentation=${DOCS_URL}" \
+	${QUIET}
+
+.PHONY: plugin_image_instrumented
+plugin_image_instrumented: $(OUTPUT)/third-party-licenses.md plugin_instrumented docker/plugin conf/scheduler-config.yaml
+	@echo "building instrumented plugin docker image"
+	@rm -rf "$(DOCKER_DIR)/plugin"
+	@mkdir -p "$(DOCKER_DIR)/plugin"
+	@cp -a "docker/plugin/." "$(DOCKER_DIR)/plugin/."
+	@cp "$(COVERAGE_DIR)/$(PLUGIN_BINARY)" "$(DOCKER_DIR)/plugin/."
+	@cp -a LICENSE NOTICE "$(OUTPUT)/third-party-licenses.md" "$(DOCKER_DIR)/plugin/."
+	@cp conf/scheduler-config.yaml "$(DOCKER_DIR)/plugin/scheduler-config.yaml"
+	DOCKER_BUILDKIT=1 docker build \
+	"$(DOCKER_DIR)/plugin" \
+	-t "$(PLUGIN_INSTRUMENTED_TAG)" \
 	--platform "linux/${DOCKER_ARCH}" \
 	--label "yunikorn-core-revision=${CORE_SHA}" \
 	--label "yunikorn-scheduler-interface-revision=${SI_SHA}" \
