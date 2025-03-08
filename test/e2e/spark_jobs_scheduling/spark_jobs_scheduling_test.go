@@ -50,12 +50,15 @@ var _ = Describe("", func() {
 	var masterURL string
 	var roleName = "spark-jobs-role-" + common.RandSeq(5)
 	var clusterEditRole = "edit"
-	var sparkImage = os.Getenv("SPARK_PYTHON_IMAGE")
+	var sparkImage = os.Getenv("SPARK_IMAGE")
+	var sparkPyImage = os.Getenv("SPARK_PYTHON_IMAGE")
 	var sparkExecutorCount = 3
 
 	BeforeEach(func() {
 		By(fmt.Sprintf("Spark image is: %s", sparkImage))
 		Ω(sparkImage).NotTo(BeEmpty())
+		By(fmt.Sprintf("Spark_py image is: %s", sparkPyImage))
+		Ω(sparkPyImage).NotTo(BeEmpty())
 		kClient = k8s.KubeCtl{}
 		Ω(kClient.SetClient()).To(BeNil())
 		Ω(exErr).NotTo(HaveOccurred())
@@ -90,13 +93,12 @@ var _ = Describe("", func() {
 
 	It("Test_With_Spark_Jobs", func() {
 		By("Submit the spark jobs")
-		// Spark 3.3.1 only works for Java 8, 11 and 17
-		// See https://stackoverflow.com/questions/79016199/hadoop-installation-error-getsubject-is-supported-only-if-a-security-manager-i
 		err := exec.Command(
 			"bash",
 			"../testdata/spark_jobs.sh",
 			masterURL,
 			sparkImage,
+			sparkPyImage,
 			sparkNS,
 			svcAcc,
 			string(rune(sparkExecutorCount))).Run()
@@ -110,7 +112,7 @@ var _ = Describe("", func() {
 		By(fmt.Sprintf("[%s] wait for %s queue to appear\n", time.Now().Format("01-02-2006 15:04:05"),
 			sparkQueueName))
 		err = restClient.WaitforQueueToAppear(configmanager.DefaultPartition, sparkQueueName, 120)
-		Ω(err).NotTo(HaveOccurred(), "Please upgrade Java version to 8, 11 or 17 if hit context deadline exceeded issue")
+		Ω(err).NotTo(HaveOccurred())
 
 		By(fmt.Sprintf("Get apps from specific queue: %s", sparkNS))
 		var appsFromQueue []*dao.ApplicationDAOInfo
@@ -120,7 +122,7 @@ var _ = Describe("", func() {
 			if err != nil {
 				return false, err
 			}
-			if len(appsFromQueue) == 3 {
+			if len(appsFromQueue) == 4 {
 				return true, nil
 			}
 			return false, fmt.Errorf("length of appsFromQueue should be 3 but got %d", len(appsFromQueue))
@@ -143,7 +145,7 @@ var _ = Describe("", func() {
 		By(fmt.Sprintf("Apps submitted are: %s", appIds))
 
 		// Verify that all the spark jobs are scheduled and are in running state.
-		for _, id := range appIds {
+		for _, id := range appIds[1:] {
 			By(fmt.Sprintf("Verify driver pod for application %s has been created.", id))
 			err = kClient.WaitForPodBySelector(sparkNS, fmt.Sprintf("spark-app-selector=%s, spark-role=driver", id), 180*time.Second)
 			Ω(err).ShouldNot(HaveOccurred())
