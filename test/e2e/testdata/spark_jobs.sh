@@ -30,11 +30,10 @@ SVC_ACC=$5
 EXEC_COUNT=3
 END=${7:-3}
 
-kubectl run spark-client --image=$SPARK_IMAGE -n $NAMESPACE --overrides="{\"spec\": {\"serviceAccountName\": \"$SVC_ACC\"}}" -- sleep infinity
-kubectl wait --for=condition=ready pod/spark-client -n $NAMESPACE --timeout=300s
-kubectl cp ../testdata/spark_pod_template.yaml spark-client:/tmp/spark_pod_template.yaml -n $NAMESPACE
-MASTER_URL=$(kubectl exec spark-client -n $NAMESPACE -- bash -c 'echo "https://$KUBERNETES_SERVICE_HOST:$KUBERNETES_SERVICE_PORT"')
-
+kubectl run spark-client --image="$SPARK_IMAGE" -n "$NAMESPACE" --overrides="{\"spec\": {\"serviceAccountName\": \"$SVC_ACC\"}}" -- sleep infinity
+kubectl wait --for=condition=ready pod/spark-client -n "$NAMESPACE" --timeout=300s
+kubectl cp ../testdata/spark_pod_template.yaml spark-client:/tmp/spark_pod_template.yaml -n "$NAMESPACE"
+MASTER_URL=$(kubectl exec spark-client -n "$NAMESPACE" -- bash -c "echo \"https://\${KUBERNETES_SERVICE_HOST}:\${KUBERNETES_SERVICE_PORT}\"")
 for i in $(seq 1 "$END"); do
   CMD="kubectl exec spark-client -n $NAMESPACE -- bash -c \
         \"/opt/spark/bin/spark-submit \
