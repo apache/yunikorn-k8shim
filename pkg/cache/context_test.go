@@ -386,7 +386,7 @@ func TestAddPod(t *testing.T) {
 	assert.Check(t, pod == nil, "terminated pod was added")
 }
 
-func TestUpdatePod(t *testing.T) {
+func TestUpdatePod(t *testing.T) { //nolint:funlen
 	context := initContextForTest()
 
 	pod1 := &v1.Pod{
@@ -445,6 +445,9 @@ func TestUpdatePod(t *testing.T) {
 	context.UpdatePod(nil, nil)
 	context.UpdatePod(nil, pod1)
 	context.UpdatePod(pod1, nil)
+	context.UpdatePod(&v1.Node{}, pod2)
+	podFromCache := context.schedulerCache.GetPod(uid1)
+	assert.Equal(t, "new", podFromCache.Annotations["test.state"])
 
 	// ensure a terminated pod is removed
 	context.UpdatePod(pod1, pod3)
@@ -461,6 +464,71 @@ func TestUpdatePod(t *testing.T) {
 	if assert.Check(t, found != nil, "pod not found after update") {
 		assert.Check(t, found.GetAnnotations()["test.state"] == "updated", "pod state not updated")
 	}
+
+	// scheduling gated pod
+	recorder := k8sEvents.NewFakeRecorder(1024)
+	events.SetRecorder(recorder)
+	defer events.SetRecorder(events.NewMockedRecorder())
+	pod4 := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: appID2,
+			UID:  uid2,
+			Annotations: map[string]string{
+				constants.AnnotationApplicationID: appID2,
+			},
+		},
+		Spec: v1.PodSpec{
+			SchedulerName: "yunikorn",
+			SchedulingGates: []v1.PodSchedulingGate{
+				{Name: "gate1"},
+				{Name: "gate2"},
+			},
+		},
+		Status: v1.PodStatus{
+			Phase: v1.PodPending,
+		},
+	}
+	context.UpdatePod(nil, pod4)
+	// check that the event has been published
+	select {
+	case event := <-recorder.Events:
+		assert.Assert(t, strings.Contains(event, "waiting for scheduling gates: gate1,gate2"), "unexpected k8s event received for gated pod: %s", event)
+	default:
+		t.Error("no k8s event received for gated pod")
+	}
+	assert.Assert(t, context.schedulerCache.GetPod(uid2) != nil, "pod was not found in scheduler cache")
+	assert.Assert(t, context.getApplication(appID2) == nil, "application was created")
+	pod5 := pod4.DeepCopy()
+	pod5.Spec.SchedulingGates = []v1.PodSchedulingGate{{Name: "gate1"}} // remove a single gate
+	context.UpdatePod(pod4, pod5)
+	// no events expected
+	select {
+	case event := <-recorder.Events:
+		t.Errorf("no k8s event expected, got: %s", event)
+	default:
+	}
+	pod5Cache := context.schedulerCache.GetPod(uid2)
+	assert.Assert(t, pod5Cache != nil, "pod was removed from the scheduler cache")
+	assert.Assert(t, context.getApplication(appID2) == nil, "application was created unexpectedly")
+	assert.Equal(t, 1, len(pod5Cache.Spec.SchedulingGates), "pod was not updated properly in the cache")
+	pod6 := pod5.DeepCopy()
+	pod6.Spec.SchedulingGates = nil // remove remaining gate
+	context.UpdatePod(pod5, pod6)
+	// no events expected
+	select {
+	case event := <-recorder.Events:
+		t.Errorf("no k8s event expected, got: %s", event)
+	default:
+	}
+	pod6Cache := context.schedulerCache.GetPod(uid2)
+	assert.Assert(t, pod6Cache != nil, "pod was removed from the scheduler cache")
+	assert.Equal(t, 0, len(pod6Cache.Spec.SchedulingGates), "pod was not updated properly in the cache")
+	assert.Assert(t, context.getApplication(appID2) != nil, "application was not created")
+	assert.Assert(t, context.getTask(appID2, uid2) != nil, "task was not created")
 }
 
 func TestDeletePod(t *testing.T) {

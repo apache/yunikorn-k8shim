@@ -71,7 +71,7 @@ export PATH := $(BASE_DIR)/$(TOOLS_DIR):$(GO_EXE_PATH):$(PATH)
 
 # Default values for dev cluster
 ifeq ($(K8S_VERSION),)
-K8S_VERSION := v1.32.0
+K8S_VERSION := v1.32.2
 endif
 ifeq ($(CLUSTER_NAME),)
 CLUSTER_NAME := yk8s
@@ -177,7 +177,7 @@ KUBECTL_BIN=$(KUBECTL_PATH)/kubectl
 export PATH := $(BASE_DIR)/$(KUBECTL_PATH):$(PATH)
 
 # kind
-KIND_VERSION=v0.25.0
+KIND_VERSION=v0.27.0
 KIND_PATH=$(TOOLS_DIR)/kind-$(KIND_VERSION)
 KIND_BIN=$(KIND_PATH)/kind
 export PATH := $(BASE_DIR)/$(KIND_PATH):$(PATH)
@@ -204,7 +204,7 @@ GO_LICENSES_BIN=$(GO_LICENSES_PATH)/go-licenses
 export PATH := $(BASE_DIR)/$(GO_LICENSES_PATH):$(PATH)
 
 # ginkgo
-GINKGO_VERSION=v2.19.0
+GINKGO_VERSION=v2.21.0
 GINKGO_PATH=$(TOOLS_DIR)/ginkgo-$(GINKGO_VERSION)
 GINKGO_BIN=$(GINKGO_PATH)/ginkgo
 export PATH := $(BASE_DIR)/$(GINKGO_PATH):$(PATH)
