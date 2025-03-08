@@ -125,7 +125,7 @@ var _ = Describe("", func() {
 			if len(appsFromQueue) == 4 {
 				return true, nil
 			}
-			return false, fmt.Errorf("length of appsFromQueue should be 3 but got %d", len(appsFromQueue))
+			return false, fmt.Errorf("length of appsFromQueue should be 4 but got %d", len(appsFromQueue))
 		})
 		Ω(err).NotTo(HaveOccurred())
 		Ω(appsFromQueue).NotTo(BeEmpty())
