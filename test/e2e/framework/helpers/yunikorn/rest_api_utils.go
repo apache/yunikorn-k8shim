@@ -488,7 +488,7 @@ func (c *RClient) LogQueuesInfo() error {
 	}
 	qJSON, qJSONErr := json.MarshalIndent(qInfo, "", "    ")
 	if qJSONErr != nil {
-		return getQErr
+		return qJSONErr
 	}
 	By("Queues REST API response is\n" + string(qJSON))
 	return nil
