@@ -191,13 +191,11 @@ HELM_ARCHIVE_BASE=$(OS)-$(EXEC_ARCH)
 export PATH := $(BASE_DIR)/$(HELM_PATH):$(PATH)
 
 # spark
-export SPARK_VERSION=3.3.3
+export SPARK_VERSION=3.5.5-java17
 # sometimes the image is not avaiable with $SPARK_VERSION, the minor version must match
-export SPARK_PYTHON_VERSION=3.3.1
-export SPARK_HOME=$(BASE_DIR)$(TOOLS_DIR)/spark-v$(SPARK_VERSION)
-export SPARK_SUBMIT_CMD=$(SPARK_HOME)/bin/spark-submit
+export SPARK_PYTHON_VERSION=3.4.0
+export SPARK_IMAGE=apache/spark:$(SPARK_VERSION)
 export SPARK_PYTHON_IMAGE=docker.io/apache/spark-py:v$(SPARK_PYTHON_VERSION)
-export PATH := $(SPARK_HOME):$(PATH)
 
 # go-licenses
 GO_LICENSES_VERSION=v1.6.0
@@ -270,7 +268,7 @@ print_helm_version:
 
 # Install tools
 .PHONY: tools
-tools: $(SHELLCHECK_BIN) $(GOLANGCI_LINT_BIN) $(KUBECTL_BIN) $(KIND_BIN) $(HELM_BIN) $(SPARK_SUBMIT_CMD) $(GO_LICENSES_BIN) $(GINKGO_BIN)
+tools: $(SHELLCHECK_BIN) $(GOLANGCI_LINT_BIN) $(KUBECTL_BIN) $(KIND_BIN) $(HELM_BIN) $(GO_LICENSES_BIN) $(GINKGO_BIN)
 
 # Install shellcheck
 $(SHELLCHECK_BIN):
@@ -308,15 +306,6 @@ $(HELM_BIN):
 	@mkdir -p "$(HELM_PATH)"
 	@curl -sSfL "https://get.helm.sh/$(HELM_ARCHIVE)" \
 		| tar -x -z --strip-components=1 -C "$(HELM_PATH)" "$(HELM_ARCHIVE_BASE)/helm"
-
-# Install spark
-$(SPARK_SUBMIT_CMD):
-	@echo "installing spark v$(SPARK_VERSION)"
-	@rm -rf "$(SPARK_HOME)" "$(SPARK_HOME).tmp"
-	@mkdir -p "$(SPARK_HOME).tmp"
-	@curl -sSfL "https://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop3.tgz" \
-		| tar -x -z --strip-components=1 -C "$(SPARK_HOME).tmp" 
-	@mv -f "$(SPARK_HOME).tmp" "$(SPARK_HOME)"
 
 # Install go-licenses
 $(GO_LICENSES_BIN):
