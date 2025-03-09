@@ -22,13 +22,12 @@ if [[ $# -gt 8 ]]; then
   exit 1
 fi
 
-MASTER_URL=$1
-SPARK_IMAGE=$2
-SPARK_PY_IMAGE=$3
-NAMESPACE=$4
-SVC_ACC=$5
+SPARK_IMAGE=$1
+SPARK_PY_IMAGE=$2
+NAMESPACE=$3
+SVC_ACC=$4
 EXEC_COUNT=3
-END=${7:-3}
+END=${6:-3}
 
 kubectl run spark-client --image="$SPARK_IMAGE" -n "$NAMESPACE" --overrides="{\"spec\": {\"serviceAccountName\": \"$SVC_ACC\"}}" -- sleep infinity
 kubectl wait --for=condition=ready pod/spark-client -n "$NAMESPACE" --timeout=300s

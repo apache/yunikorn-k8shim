@@ -47,7 +47,6 @@ var _ = Describe("", func() {
 	var sparkNS = "spark-" + common.RandSeq(10)
 	var svcAcc = "svc-acc-" + common.RandSeq(10)
 	var config *rest.Config
-	var masterURL string
 	var roleName = "spark-jobs-role-" + common.RandSeq(5)
 	var clusterEditRole = "edit"
 	var sparkImage = os.Getenv("SPARK_IMAGE")
@@ -87,8 +86,6 @@ var _ = Describe("", func() {
 				port = "80"
 			}
 		}
-		masterURL = u.Scheme + "://" + u.Hostname() + ":" + port
-		By(fmt.Sprintf("MasterURL info is %s ", masterURL))
 	})
 
 	It("Test_With_Spark_Jobs", func() {
@@ -96,7 +93,6 @@ var _ = Describe("", func() {
 		err := exec.Command(
 			"bash",
 			"../testdata/spark_jobs.sh",
-			masterURL,
 			sparkImage,
 			sparkPyImage,
 			sparkNS,
@@ -114,7 +110,7 @@ var _ = Describe("", func() {
 		err = restClient.WaitforQueueToAppear(configmanager.DefaultPartition, sparkQueueName, 120)
 		Ω(err).NotTo(HaveOccurred())
 
-		By(fmt.Sprintf("Get apps from specific queue: %s", sparkNS))
+		By(fmt.Sprintf("Get apps from specific queue: %s", sparkQueueName))
 		var appsFromQueue []*dao.ApplicationDAOInfo
 		// Poll for apps to appear in the queue
 		err = wait.PollUntilContextTimeout(context.TODO(), time.Millisecond*100, time.Duration(120)*time.Second, false, func(context.Context) (done bool, err error) {
@@ -125,7 +121,7 @@ var _ = Describe("", func() {
 			if len(appsFromQueue) == 4 {
 				return true, nil
 			}
-			return false, fmt.Errorf("length of appsFromQueue should be 4 but got %d", len(appsFromQueue))
+			return false, err
 		})
 		Ω(err).NotTo(HaveOccurred())
 		Ω(appsFromQueue).NotTo(BeEmpty())
