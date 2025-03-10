@@ -21,7 +21,6 @@ package spark_jobs_scheduling
 import (
 	"context"
 	"fmt"
-	"net/url"
 	"os"
 	"os/exec"
 	"sort"
@@ -29,7 +28,6 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/rest"
 
 	"github.com/apache/yunikorn-core/pkg/webservice/dao"
 	tests "github.com/apache/yunikorn-k8shim/test/e2e"
@@ -46,7 +44,6 @@ var _ = Describe("", func() {
 	var exErr error
 	var sparkNS = "spark-" + common.RandSeq(10)
 	var svcAcc = "svc-acc-" + common.RandSeq(10)
-	var config *rest.Config
 	var roleName = "spark-jobs-role-" + common.RandSeq(5)
 	var clusterEditRole = "edit"
 	var sparkImage = os.Getenv("SPARK_IMAGE")
@@ -73,19 +70,6 @@ var _ = Describe("", func() {
 		By(fmt.Sprintf("Creating cluster role binding: %s for spark jobs", roleName))
 		_, err = kClient.CreateClusterRoleBinding(roleName, clusterEditRole, sparkNS, svcAcc)
 		Ω(err).NotTo(HaveOccurred())
-
-		config, err = kClient.GetKubeConfig()
-		Ω(err).NotTo(HaveOccurred())
-
-		u, err := url.Parse(config.Host)
-		Ω(err).NotTo(HaveOccurred())
-		port := u.Port()
-		if port == "" {
-			port = "443"
-			if u.Scheme == "http" {
-				port = "80"
-			}
-		}
 	})
 
 	It("Test_With_Spark_Jobs", func() {
