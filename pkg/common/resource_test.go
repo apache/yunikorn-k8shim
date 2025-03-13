@@ -25,8 +25,9 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
-	k8res "k8s.io/kubernetes/pkg/api/v1/resource"
+	k8res "k8s.io/component-helpers/resource"
 
+	"github.com/apache/yunikorn-k8shim/pkg/plugin/predicates"
 	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
@@ -373,8 +374,73 @@ func siResourceFromList(list v1.ResourceList) *si.Resource {
 	return builder.Build()
 }
 
+func TestGetPodResourcesWithPodLevelRequests(t *testing.T) {
+	// ensure required K8s feature gates are enabled
+	predicates.EnableOptionalKubernetesFeatureGates()
+
+	containers := make([]v1.Container, 0)
+
+	// container 01
+	c1Resources := make(map[v1.ResourceName]resource.Quantity)
+	c1Resources[v1.ResourceMemory] = resource.MustParse("500M")
+	c1Resources[v1.ResourceCPU] = resource.MustParse("1")
+	c1Resources["nvidia.com/gpu"] = resource.MustParse("1")
+	containers = append(containers, v1.Container{
+		Name: "container-01",
+		Resources: v1.ResourceRequirements{
+			Requests: c1Resources,
+		},
+	})
+
+	// container 02
+	c2Resources := make(map[v1.ResourceName]resource.Quantity)
+	c2Resources[v1.ResourceMemory] = resource.MustParse("1024M")
+	c2Resources[v1.ResourceCPU] = resource.MustParse("2")
+	c2Resources["nvidia.com/gpu"] = resource.MustParse("4")
+	containers = append(containers, v1.Container{
+		Name: "container-02",
+		Resources: v1.ResourceRequirements{
+			Requests: c2Resources,
+		},
+	})
+
+	// pod
+	pod := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "pod-resource-test-00001",
+			UID:  "UID-00001",
+		},
+		Spec: v1.PodSpec{
+			Resources: &v1.ResourceRequirements{
+				Requests: map[v1.ResourceName]resource.Quantity{
+					v1.ResourceMemory: resource.MustParse("128M"),
+					v1.ResourceCPU:    resource.MustParse("5"),
+					"invalid":         resource.MustParse("1"),
+				},
+			},
+			Containers: containers,
+		},
+	}
+
+	// verify cpu and memory overrides
+	res := GetPodResource(pod)
+	assert.Equal(t, res.Resources[siCommon.Memory].GetValue(), int64(128*1000*1000))
+	assert.Equal(t, res.Resources[siCommon.CPU].GetValue(), int64(5000))
+	assert.Equal(t, res.Resources["nvidia.com/gpu"].GetValue(), int64(5))
+	assert.Equal(t, res.Resources["pods"].GetValue(), int64(1))
+	_, invalidOk := res.Resources["invalid"]
+	assert.Assert(t, !invalidOk, "invalid should not be present")
+}
+
 //nolint:funlen
 func TestGetPodResourcesWithInPlacePodVerticalScaling(t *testing.T) {
+	// ensure required K8s feature gates are enabled
+	predicates.EnableOptionalKubernetesFeatureGates()
+
 	containers := make([]v1.Container, 0)
 
 	// container 01

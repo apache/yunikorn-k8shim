@@ -236,7 +236,7 @@ func RunShellCmdForeground(cmdStr string) (string, error) {
 	}
 
 	if errStr := errStream.String(); len(errStr) > 0 {
-		return stdOutStream.String(), fmt.Errorf(errStr)
+		return stdOutStream.String(), errors.New(errStr)
 	}
 
 	return stdOutStream.String(), nil

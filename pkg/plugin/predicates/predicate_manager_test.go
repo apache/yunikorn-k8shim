@@ -29,10 +29,12 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
 	v1helper "k8s.io/kubernetes/pkg/apis/core/v1/helper"
+	"k8s.io/kubernetes/pkg/features"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/interpodaffinity"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/nodeaffinity"
@@ -138,12 +140,12 @@ func TestEventsToRegister(t *testing.T) {
 	}
 	events := predicateManager.EventsToRegister(queueingHintFn)
 	assert.Equal(t, events[0].Event.Resource, framework.Node, "wrong resource (0)")
-	assert.Equal(t, events[0].Event.ActionType, framework.All, "wrong action type (0)")
+	assert.Equal(t, events[0].Event.ActionType, framework.Add|framework.Delete|framework.UpdateNodeLabel|framework.UpdateNodeTaint, "wrong action type (0)")
 	fn0, err := events[0].QueueingHintFn(klog.NewKlogr(), nil, "", "")
 	assert.NilError(t, err)
 	assert.Equal(t, int(fn0), -1, "wrong fn (0)")
 	assert.Equal(t, events[1].Event.Resource, framework.Pod, "wrong resource (1)")
-	assert.Equal(t, events[1].Event.ActionType, framework.Add|framework.Delete|framework.UpdatePodLabel, "wrong action type (1)")
+	assert.Equal(t, events[1].Event.ActionType, framework.Add|framework.Delete|framework.UpdatePodLabel|framework.UpdatePodTolerations, "wrong action type (1)")
 	fn1, err := events[1].QueueingHintFn(klog.NewKlogr(), nil, "", "")
 	assert.NilError(t, err)
 	assert.Equal(t, int(fn1), -1, "wrong fn (1)")
@@ -1094,7 +1096,7 @@ func makeResources(milliCPU, memory, pods, extendedA, storage, hugePageA int64) 
 func newPodWithPort(hostPorts ...int) *v1.Pod {
 	var networkPorts []v1.ContainerPort
 	for _, port := range hostPorts {
-		networkPorts = append(networkPorts, v1.ContainerPort{HostPort: int32(port)})
+		networkPorts = append(networkPorts, v1.ContainerPort{HostPort: int32(port)}) // nolint: gosec
 	}
 	return &v1.Pod{
 		Spec: v1.PodSpec{
@@ -1105,6 +1107,12 @@ func newPodWithPort(hostPorts ...int) *v1.Pod {
 			},
 		},
 	}
+}
+
+func TestEnableOptionalKubernetesFeatureGates(t *testing.T) {
+	EnableOptionalKubernetesFeatureGates()
+	assert.Assert(t, feature.DefaultFeatureGate.Enabled(features.PodLevelResources), "pod level resources not enabled")
+	assert.Assert(t, feature.DefaultFeatureGate.Enabled(features.InPlacePodVerticalScaling), "in-place pod vertical scaling not enabled")
 }
 
 func TestRunGeneralPredicates(t *testing.T) {

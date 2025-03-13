@@ -74,7 +74,7 @@ func NewMockedAPIProvider(showError bool) *MockedAPIProvider {
 			ConfigMapInformer:     test.NewMockedConfigMapInformer(),
 			PVInformer:            NewMockedPersistentVolumeInformer(),
 			PVCInformer:           NewMockedPersistentVolumeClaimInformer(),
-			StorageInformer:       NewMockedStorageClassInformer(),
+			StorageClassInformer:  NewMockedStorageClassInformer(),
 			VolumeBinder:          test.NewVolumeBinderMock(),
 			NamespaceInformer:     test.NewMockNamespaceInformer(false),
 			PriorityClassInformer: test.NewMockPriorityClassInformer(),
@@ -397,12 +397,18 @@ func (m *MockedAPIProvider) UpdatePriorityClass(oldObj *schedv1.PriorityClass, n
 	}
 }
 
-func (m *MockedAPIProvider) GetPodBindStats() BindStats {
-	return m.clients.KubeClient.(*KubeClientMock).GetBindStats()
+func (m *MockedAPIProvider) GetPodBindStats() *BindStats {
+	kubeClient, ok := m.clients.KubeClient.(*KubeClientMock)
+	if !ok {
+		log.Log(log.Test).Error("failed to get KubeClientMock")
+		return nil
+	}
+	bindStats := kubeClient.GetBindStats()
+	return &bindStats
 }
 
 func (m *MockedAPIProvider) GetBoundPods(clear bool) []BoundPod {
-	return m.clients.KubeClient.(*KubeClientMock).GetBoundPods(clear)
+	return m.clients.KubeClient.(*KubeClientMock).GetBoundPods(clear) // nolint: errcheck
 }
 
 // MockedPersistentVolumeInformer implements PersistentVolumeInformer interface

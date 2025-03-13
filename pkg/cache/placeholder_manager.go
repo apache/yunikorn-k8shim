@@ -40,7 +40,7 @@ type PlaceholderManager struct {
 	// and keep retrying deleting them in order to avoid wasting resources.
 	orphanPods  map[string]*v1.Pod
 	stopChan    chan struct{}
-	running     atomic.Value
+	running     atomic.Bool
 	cleanupTime time.Duration
 	// a simple mutex will do we do not have separate read and write paths
 	locking.RWMutex
@@ -54,11 +54,8 @@ var (
 func NewPlaceholderManager(clients *client.Clients) *PlaceholderManager {
 	mu.Lock()
 	defer mu.Unlock()
-	var r atomic.Value
-	r.Store(false)
 	placeholderMgr = &PlaceholderManager{
 		clients:     clients,
-		running:     r,
 		orphanPods:  make(map[string]*v1.Pod),
 		stopChan:    make(chan struct{}),
 		cleanupTime: 5 * time.Second,
@@ -173,7 +170,7 @@ func (mgr *PlaceholderManager) Stop() {
 }
 
 func (mgr *PlaceholderManager) isRunning() bool {
-	return mgr.running.Load().(bool)
+	return mgr.running.Load()
 }
 
 func (mgr *PlaceholderManager) setRunning(flag bool) {

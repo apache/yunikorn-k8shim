@@ -191,7 +191,7 @@ func (callback *AsyncRMCallback) PreemptionPredicates(args *si.PreemptionPredica
 	}
 	return &si.PreemptionPredicatesResponse{
 		Success: ok,
-		Index:   int32(index),
+		Index:   int32(index), //nolint:gosec
 	}
 }
 
