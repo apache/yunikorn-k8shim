@@ -657,7 +657,11 @@ func GetConfigMapObj(yamlPath string) (*v1.ConfigMap, error) {
 	if err != nil {
 		return nil, err
 	}
-	return c.(*v1.ConfigMap), err
+	configMap, ok := c.(*v1.ConfigMap)
+	if !ok {
+		return nil, fmt.Errorf("failed to convert object to ConfigMap")
+	}
+	return configMap, nil
 }
 
 func (k *KubeCtl) LogNamespaceInfo(file *os.File, ns string) error {
@@ -768,7 +772,11 @@ func GetPodObj(yamlPath string) (*v1.Pod, error) {
 	if err != nil {
 		return nil, err
 	}
-	return o.(*v1.Pod), err
+	pod, ok := o.(*v1.Pod)
+	if !ok {
+		return nil, fmt.Errorf("failed to convert object to Pod")
+	}
+	return pod, nil
 }
 
 func (k *KubeCtl) CreateDeployment(deployment *appsv1.Deployment, namespace string) (*appsv1.Deployment, error) {

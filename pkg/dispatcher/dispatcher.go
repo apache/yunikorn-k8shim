@@ -55,7 +55,7 @@ type Dispatcher struct {
 	eventChan chan events.SchedulingEvent
 	stopChan  chan struct{}
 	handlers  map[EventType]map[string]func(interface{})
-	running   atomic.Value
+	running   atomic.Bool
 	lock      locking.RWMutex
 	stopped   sync.WaitGroup
 }
@@ -66,12 +66,11 @@ func initDispatcher() {
 		eventChan: make(chan events.SchedulingEvent, eventChannelCapacity),
 		handlers:  make(map[EventType]map[string]func(interface{})),
 		stopChan:  make(chan struct{}),
-		running:   atomic.Value{},
 		lock:      locking.RWMutex{},
 	}
 	dispatcher.setRunning(false)
 	DispatchTimeout = conf.GetSchedulerConf().DispatchTimeout
-	AsyncDispatchLimit = max(10000, int32(eventChannelCapacity/10))
+	AsyncDispatchLimit = max(10000, int32(eventChannelCapacity/10)) //nolint:gosec
 
 	log.Log(log.ShimDispatcher).Info("Init dispatcher",
 		zap.Int("EventChannelCapacity", eventChannelCapacity),
@@ -146,7 +145,7 @@ func Dispatch(event events.SchedulingEvent) {
 }
 
 func (p *Dispatcher) isRunning() bool {
-	return p.running.Load().(bool)
+	return p.running.Load()
 }
 
 func (p *Dispatcher) setRunning(flag bool) {

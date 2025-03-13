@@ -36,7 +36,7 @@ import (
 
 type Type int
 
-var informerTypes = [...]string{"Pod", "Node", "ConfigMap", "PV", "PVC", "Storage", "CSINode", "CSIDriver", "CSIStorageCapacity", "Namespace", "PriorityClass", "Service", "ReplicationController", "ReplicaSet", "StatefulSet"}
+var informerTypes = [...]string{"Pod", "Node", "ConfigMap", "PV", "PVC", "Storage", "CSINode", "CSIDriver", "CSIStorageCapacity", "Namespace", "PriorityClass", "Service", "ReplicationController", "ReplicaSet", "StatefulSet", "VolumeAttachment"}
 
 const (
 	PodInformerHandlers Type = iota
@@ -54,6 +54,7 @@ const (
 	ReplicationControllerInformerHandlers
 	ReplicaSetInformerHandlers
 	StatefulSetInformerHandlers
+	VolumeAttachmentInformerHandlers
 )
 
 func (t Type) String() string {
@@ -90,12 +91,12 @@ type APIFactory struct {
 
 func NewAPIFactory(scheduler api.SchedulerAPI, informerFactory informers.SharedInformerFactory, configs *conf.SchedulerConf, testMode bool) *APIFactory {
 	kubeClient := NewKubeClient(configs.KubeConfig)
-
+	namespaceInformerFactory := informers.NewSharedInformerFactoryWithOptions(kubeClient.GetClientSet(), 0, informers.WithNamespace(configs.Namespace))
 	// init informers
 	// volume informers are also used to get the Listers for the predicates
 	podInformer := informerFactory.Core().V1().Pods()
 	nodeInformer := informerFactory.Core().V1().Nodes()
-	configMapInformer := informerFactory.Core().V1().ConfigMaps()
+	configMapInformer := namespaceInformerFactory.Core().V1().ConfigMaps()
 	pvInformer := informerFactory.Core().V1().PersistentVolumes()
 	pvcInformer := informerFactory.Core().V1().PersistentVolumeClaims()
 	storageInformer := informerFactory.Storage().V1().StorageClasses()
@@ -108,6 +109,7 @@ func NewAPIFactory(scheduler api.SchedulerAPI, informerFactory informers.SharedI
 	replicationControllerInformer := informerFactory.Core().V1().ReplicationControllers()
 	replicaSetInformer := informerFactory.Apps().V1().ReplicaSets()
 	statefulSetInformer := informerFactory.Apps().V1().StatefulSets()
+	volumeAttachmentInformer := informerFactory.Storage().V1().VolumeAttachments()
 
 	var capacityCheck = volumebinding.CapacityCheck{
 		CSIDriverInformer:          informerFactory.Storage().V1().CSIDrivers(),
@@ -137,7 +139,7 @@ func NewAPIFactory(scheduler api.SchedulerAPI, informerFactory informers.SharedI
 			ConfigMapInformer:             configMapInformer,
 			PVInformer:                    pvInformer,
 			PVCInformer:                   pvcInformer,
-			StorageInformer:               storageInformer,
+			StorageClassInformer:          storageInformer,
 			CSINodeInformer:               csiNodeInformer,
 			CSIDriverInformer:             csiDriverInformer,
 			CSIStorageCapacityInformer:    csiStorageCapacityInformer,
@@ -147,6 +149,7 @@ func NewAPIFactory(scheduler api.SchedulerAPI, informerFactory informers.SharedI
 			ReplicationControllerInformer: replicationControllerInformer,
 			ReplicaSetInformer:            replicaSetInformer,
 			StatefulSetInformer:           statefulSetInformer,
+			VolumeAttachmentInformer:      volumeAttachmentInformer,
 			VolumeBinder:                  volumeBinder,
 		},
 		testMode: testMode,
@@ -206,7 +209,7 @@ func (s *APIFactory) addEventHandlers(
 		_, err = s.GetAPIs().ConfigMapInformer.Informer().
 			AddEventHandlerWithResyncPeriod(handler, resyncPeriod)
 	case StorageInformerHandlers:
-		_, err = s.GetAPIs().StorageInformer.Informer().
+		_, err = s.GetAPIs().StorageClassInformer.Informer().
 			AddEventHandlerWithResyncPeriod(handler, resyncPeriod)
 	case PVInformerHandlers:
 		_, err = s.GetAPIs().PVInformer.Informer().
