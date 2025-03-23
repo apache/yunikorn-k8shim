@@ -65,6 +65,12 @@ var _ = ginkgo.AfterEach(func() {
 	ginkgo.By("Tearing down namespace: " + dev)
 	err := kClient.TearDownNamespace(dev)
 	Ω(err).NotTo(HaveOccurred())
+
+	tests.DumpClusterInfoIfSpecFailed(suiteName, []string{"default"})
+
+	// Clean up nfs provisioner resources
+	deleteNfsRelatedRoles(saName, crName, crbName)
+	deleteNfsProvisioner(serverName, scName)
 })
 
 var _ = ginkgo.Describe("PersistentVolume", func() {
@@ -158,14 +164,6 @@ var _ = ginkgo.Describe("PersistentVolume", func() {
 		err = kClient.WaitForPodRunning(dev, podName, 60*time.Second)
 		Ω(err).NotTo(HaveOccurred())
 
-	})
-
-	ginkgo.AfterEach(func() {
-		tests.DumpClusterInfoIfSpecFailed(suiteName, []string{"default"})
-
-		// Clean up nfs provisioner resources
-		deleteNfsRelatedRoles(saName, crName, crbName)
-		deleteNfsProvisioner(serverName, scName)
 	})
 })
 
