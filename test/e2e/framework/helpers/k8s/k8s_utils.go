@@ -234,7 +234,7 @@ func (k *KubeCtl) UpdatePod(pod *v1.Pod, namespace string) (*v1.Pod, error) {
 	return k.clientSet.CoreV1().Pods(namespace).Update(context.TODO(), pod, metav1.UpdateOptions{})
 }
 
-func (k *KubeCtl) PatchPod(pod *v1.Pod, namespace string, patch []map[string]interface{}) (*v1.Pod, error) {
+func (k *KubeCtl) PatchPod(pod *v1.Pod, namespace string, patch []map[string]interface{}, subresources ...string) (*v1.Pod, error) {
 	patchBytes, err := json.Marshal(patch)
 	if err != nil {
 		return nil, err
@@ -245,6 +245,7 @@ func (k *KubeCtl) PatchPod(pod *v1.Pod, namespace string, patch []map[string]int
 		types.JSONPatchType,
 		patchBytes,
 		metav1.PatchOptions{},
+		subresources...,
 	)
 }
 
