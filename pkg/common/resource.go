@@ -24,6 +24,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	helpers "k8s.io/component-helpers/resource"
 
+	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
@@ -57,16 +58,28 @@ func GetPodResource(pod *v1.Pod) (resource *si.Resource) {
 		Resources: map[string]*si.Quantity{"pods": {Value: 1}},
 	}
 
-	count := len(pod.Spec.Containers)
-	for i := 0; i < count; i++ {
-		podResource = Add(podResource, containerResource(pod, i))
+	// Init container statuses and pod statuses are reported in separate places, so build a fixed map here to make
+	// this easier to compute. This is ever so slightly more resource-intensive than computing inline, but is far more
+	// readable and less error prone. Since resource calculation is only done once per pod update, this overhead is
+	// negligible.
+	containerStatuses := make(map[string]*v1.ContainerStatus, len(pod.Status.ContainerStatuses)+len(pod.Status.InitContainerStatuses))
+	for idx := range pod.Status.ContainerStatuses {
+		containerStatuses[pod.Status.ContainerStatuses[idx].Name] = &pod.Status.ContainerStatuses[idx]
+	}
+	for idx := range pod.Status.InitContainerStatuses {
+		containerStatuses[pod.Status.InitContainerStatuses[idx].Name] = &pod.Status.InitContainerStatuses[idx]
+	}
+
+	// Add usage for each container
+	for _, container := range pod.Spec.Containers {
+		podResource = Add(podResource, computeContainerResource(pod, &container, containerStatuses))
 	}
 
 	// each resource compare between initcontainer and sum of containers
 	// InitContainers(i) requirement=sum(Sidecar requirement i-1)+InitContainer(i) request
 	// max(sum(Containers requirement)+sum(Sidecar requirement), InitContainer(i) requirement)
-	if pod.Spec.InitContainers != nil {
-		podResource = checkInitContainerRequest(pod, podResource)
+	if len(pod.Spec.InitContainers) > 0 {
+		podResource = checkInitContainerRequest(pod, podResource, containerStatuses)
 	}
 
 	// PodLevelResources feature:
@@ -95,71 +108,80 @@ func GetPodResource(pod *v1.Pod) (resource *si.Resource) {
 	return podResource
 }
 
-func containerResource(pod *v1.Pod, i int) (resource *si.Resource) {
-	// K8s pod InPlacePodVerticalScaling from:
-	// alpha: v1.27
-	// beta: v1.31?
-	// If AllocatedResources are present, these need to be used in preference to pod resource requests.
-	// Additionally, if the Resize pod status is Proposed, then the maximum of the request and allocated values need
-	// to be used.
-	requested := pod.Spec.Containers[i].Resources.Requests
-	if len(pod.Status.ContainerStatuses) == 0 {
-		return getResource(requested)
-	}
-	allocated := pod.Status.ContainerStatuses[i].AllocatedResources
-	if len(allocated) == 0 {
-		// no allocatedResources present, use requested
-		return getResource(requested)
-	}
-	if pod.Status.Resize == v1.PodResizeStatusProposed {
-		// resize proposed, be pessimistic and use larger of requested and allocated
-		return getMaxResource(requested, allocated)
-	}
-	// use allocated
-	return getResource(allocated)
-}
-
-func getMaxResource(left v1.ResourceList, right v1.ResourceList) *si.Resource {
-	combined := getResource(left)
-	rightRes := getResource(right)
-	for key, rValue := range rightRes.Resources {
-		lValue, ok := combined.Resources[key]
-		if !ok {
-			// add new resource from right
-			combined.Resources[key] = rValue
-			continue
+// computeContainerResource computes the max(spec...resources, status...allocatedResources, status...resources)
+// per KEP-1287 (in-place update of pod resources), unless resize status is PodResizeStatusInfeasible.
+func computeContainerResource(pod *v1.Pod, container *v1.Container, containerStatuses map[string]*v1.ContainerStatus) *si.Resource {
+	combined := &si.Resource{Resources: make(map[string]*si.Quantity)}
+	updateMax(combined, getResource(container.Resources.Requests))
+	if containerStatus := containerStatuses[container.Name]; containerStatus != nil {
+		if isResizeInfeasible(pod) && containerStatus.Resources != nil {
+			// resize request was denied; use container status requests as current value
+			return getResource(containerStatus.Resources.Requests)
 		}
-		if rValue.GetValue() > lValue.GetValue() {
-			// update resource with larger right value
-			combined.Resources[key] = rValue
+		updateMax(combined, getResource(containerStatus.AllocatedResources))
+		if containerStatus.Resources != nil {
+			updateMax(combined, getResource(containerStatus.Resources.Requests))
 		}
 	}
 	return combined
 }
 
-func checkInitContainerRequest(pod *v1.Pod, containersResources *si.Resource) *si.Resource {
+// isResizeInfeasible determines if a currently in-progress pod resize is infeasible. This takes into account both the
+// current pod.Status.Resize field as well as the upcoming PodResizePending pod condition (in spec, but not yet
+// implemented).
+func isResizeInfeasible(pod *v1.Pod) bool {
+	if pod.Status.Resize == v1.PodResizeStatusInfeasible {
+		return true
+	}
+	for _, condition := range pod.Status.Conditions {
+		if condition.Type == constants.PodStatusPodResizePending && condition.Reason == string(v1.PodResizeStatusInfeasible) {
+			return true
+		}
+	}
+	return false
+}
+
+// updateMax merges two resource lists into the leftmost, taking the max values of each resource type.
+func updateMax(left *si.Resource, right *si.Resource) {
+	// short-circuit out if empty
+	if right == nil {
+		return
+	}
+	for key, rValue := range right.GetResources() {
+		lValue, ok := left.Resources[key]
+		if !ok {
+			// add new resource from right
+			left.Resources[key] = rValue
+			continue
+		}
+		if rValue.GetValue() > lValue.GetValue() {
+			// update resource with larger right value
+			left.Resources[key] = rValue
+		}
+	}
+}
+
+func checkInitContainerRequest(pod *v1.Pod, containersResources *si.Resource, containerStatuses map[string]*v1.ContainerStatus) *si.Resource {
 	updatedRes := containersResources
 
 	// update total pod resource usage with sidecar containers
 	for _, c := range pod.Spec.InitContainers {
-		if isSideCarContainer(c) {
-			resourceList := c.Resources.Requests
-			sideCarResources := getResource(resourceList)
+		if isSideCarContainer(&c) {
+			sideCarResources := computeContainerResource(pod, &c, containerStatuses)
 			updatedRes = Add(updatedRes, sideCarResources)
 		}
 	}
 
 	var sideCarRequests *si.Resource // cumulative value of sidecar requests so far
 	for _, c := range pod.Spec.InitContainers {
-		resourceList := c.Resources.Requests
-		ICResource := getResource(resourceList)
-		if isSideCarContainer(c) {
+		ICResource := computeContainerResource(pod, &c, containerStatuses)
+		if isSideCarContainer(&c) {
 			sideCarRequests = Add(sideCarRequests, ICResource)
 		}
 		ICResource = Add(ICResource, sideCarRequests)
 		for resourceName, ICRequest := range ICResource.Resources {
 			containersRequests, exist := updatedRes.Resources[resourceName]
-			// addtional resource request from init cont, add it to request.
+			// additional resource request from init cont, add it to request.
 			if !exist {
 				updatedRes.Resources[resourceName] = ICRequest
 				continue
@@ -173,7 +195,7 @@ func checkInitContainerRequest(pod *v1.Pod, containersResources *si.Resource) *s
 	return updatedRes
 }
 
-func isSideCarContainer(c v1.Container) bool {
+func isSideCarContainer(c *v1.Container) bool {
 	return c.RestartPolicy != nil && *c.RestartPolicy == v1.ContainerRestartPolicyAlways
 }
 

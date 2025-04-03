@@ -30,6 +30,10 @@ const False = "false"
 const Label = "label"
 const Annotation = "annotation"
 
+// KEP-1287 (in-place update of pod resources)
+const PodStatusPodResizing = "PodResizing"
+const PodStatusPodResizePending = "PodResizePending"
+
 // Cluster
 const DefaultNodeAttributeHostNameKey = "si.io/hostname"
 const DefaultNodeAttributeRackNameKey = "si.io/rackname"

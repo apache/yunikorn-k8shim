@@ -287,7 +287,11 @@ func EnableOptionalKubernetesFeatureGates() {
 	}
 	log.Log(log.ShimPredicates).Debug("Enabling InPlacePodVerticalScaling feature gate")
 	if err := feature.DefaultMutableFeatureGate.Set(fmt.Sprintf("%s=true", features.InPlacePodVerticalScaling)); err != nil {
-		log.Log(log.ShimPredicates).Fatal("Unable to set PodLevelResources feature gate", zap.Error(err))
+		log.Log(log.ShimPredicates).Fatal("Unable to set InPlacePodVerticalScaling feature gate", zap.Error(err))
+	}
+	log.Log(log.ShimPredicates).Debug("Enabling InPlacePodVerticalScalingAllocatedStatus feature gate")
+	if err := feature.DefaultMutableFeatureGate.Set(fmt.Sprintf("%s=true", features.InPlacePodVerticalScalingAllocatedStatus)); err != nil {
+		log.Log(log.ShimPredicates).Fatal("Unable to set InPlacePodVerticalScalingAllocatedStatus feature gate", zap.Error(err))
 	}
 }
 
