@@ -13,6 +13,8 @@ github.com/antlr4-go/antlr/v4 v4.13.0 h1:lxCg3LAv+EUK6t1i0y1V6/SLeUi0eKEKdhQAlS8
 github.com/antlr4-go/antlr/v4 v4.13.0/go.mod h1:pfChB/xh/Unjila75QW7+VU4TSnWnnk9UTnmpPaOR2g=
 github.com/apache/yunikorn-core v1.6.2-0 h1:K3n5CslVkBzqmLt9tKpe2fH0a5xx2MTvUGXqWDIShBw=
 github.com/apache/yunikorn-core v1.6.2-0/go.mod h1:SI6FfvQhyf20PPX811Rq20TQ7DpbaW6yJ1zFeSAkBHU=
+github.com/apache/yunikorn-core v1.6.3-0 h1:T/HTJRNGH60CANgtNcFBeQeOX7lXFag6IvEW8L4j3vI=
+github.com/apache/yunikorn-core v1.6.3-0/go.mod h1:SI6FfvQhyf20PPX811Rq20TQ7DpbaW6yJ1zFeSAkBHU=
 github.com/apache/yunikorn-scheduler-interface v1.6.2-0 h1:C+LfkX4t6oP3d2fxdRJ/TSWF5weSpcdBF4XkWuMsaM8=
 github.com/apache/yunikorn-scheduler-interface v1.6.2-0/go.mod h1:udBVRAW3pcKRneNL8xTC9t40I5zwLjBldT+bpzw9He4=
 github.com/armon/go-socks5 v0.0.0-20160902184237-e75332964ef5 h1:0CwZNZbxp69SHPdPJAN/hZIm0C4OItdklCFmMRWYpio=
