@@ -19,7 +19,6 @@
 package persistent_volume
 
 import (
-	"runtime"
 	"time"
 
 	"github.com/onsi/ginkgo/v2"
@@ -53,18 +52,6 @@ const (
 	scName     = "nfs-sc"
 )
 
-var _ = ginkgo.BeforeSuite(func() {
-	_, filename, _, _ := runtime.Caller(0)
-	suiteName = common.GetSuiteName(filename)
-	// Initializing kubectl client
-	kClient = k8s.KubeCtl{}
-	Ω(kClient.SetClient()).To(gomega.BeNil())
-
-	// Initializing rest client
-	restClient = yunikorn.RClient{}
-	Ω(restClient).NotTo(gomega.BeNil())
-	yunikorn.EnsureYuniKornConfigsPresent()
-})
 var _ = ginkgo.BeforeEach(func() {
 	// Create namespace
 	dev = "dev-" + common.RandSeq(5)
@@ -78,15 +65,12 @@ var _ = ginkgo.AfterEach(func() {
 	ginkgo.By("Tearing down namespace: " + dev)
 	err := kClient.TearDownNamespace(dev)
 	Ω(err).NotTo(HaveOccurred())
-})
 
-var _ = ginkgo.AfterSuite(func() {
-	// Clean up
-	ginkgo.By("Deleting PVCs and PVs")
-	err := kClient.DeletePVCs(dev)
-	err2 := kClient.DeletePVs(dev)
-	Ω(err).NotTo(HaveOccurred())
-	Ω(err2).NotTo(HaveOccurred())
+	tests.DumpClusterInfoIfSpecFailed(suiteName, []string{"default"})
+
+	// Clean up nfs provisioner resources
+	deleteNfsRelatedRoles(saName, crName, crbName)
+	deleteNfsProvisioner(serverName, scName)
 })
 
 var _ = ginkgo.Describe("PersistentVolume", func() {
@@ -180,14 +164,6 @@ var _ = ginkgo.Describe("PersistentVolume", func() {
 		err = kClient.WaitForPodRunning(dev, podName, 60*time.Second)
 		Ω(err).NotTo(HaveOccurred())
 
-	})
-
-	ginkgo.AfterEach(func() {
-		tests.DumpClusterInfoIfSpecFailed(suiteName, []string{"default"})
-
-		// Clean up nfs provisioner resources
-		deleteNfsRelatedRoles(saName, crName, crbName)
-		deleteNfsProvisioner(serverName, scName)
 	})
 })
 
