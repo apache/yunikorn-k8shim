@@ -392,6 +392,9 @@ func (app *Application) scheduleTasks(taskScheduleCondition func(t *Task) bool) 
 		if taskScheduleCondition(task) {
 			// for each new task, we do a sanity check before moving the state to Pending_Schedule
 			if err := task.sanityCheckBeforeScheduling(); err == nil {
+				// check inconsistent pod metadata before submitting the task
+				task.checkPodMetadataBeforeScheduling()
+
 				// note, if we directly trigger submit task event, it may spawn too many duplicate
 				// events, because a task might be submitted multiple times before its state transits to PENDING.
 				if handleErr := task.handle(
