@@ -388,6 +388,7 @@ var _ = ginkgo.Describe("InPlacePodVerticalScaling", func() {
 				"value": "100000",
 			},
 		}
+		// Patch CPU to an excessive value
 		_, err = kClient.PatchPod(initialPod, ns, patch, "resize")
 		Ω(err).NotTo(HaveOccurred())
 
@@ -405,6 +406,8 @@ var _ = ginkgo.Describe("InPlacePodVerticalScaling", func() {
 		Ω(err).NotTo(HaveOccurred())
 		Ω(finalPod.Status.StartTime).To(Equal(initialStartTime), "Pod should not have restarted")
 		Ω(finalPod.Status.ContainerStatuses[0].RestartCount).To(Equal(initialRestartCount), "Container should not have restarted")
+
+		// Verify pod resource usage is unchanged after set an excessive value
 		verifyYunikornResourceUsage(finalPod, "vcore", 100)
 	})
 })
