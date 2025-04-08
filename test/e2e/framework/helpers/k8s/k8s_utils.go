@@ -157,7 +157,6 @@ func (k *KubeCtl) GetClient() *kubernetes.Clientset {
 
 // GetKubernetesVersion returns the version info from the Kubernetes server
 func (k *KubeCtl) GetKubernetesVersion() (*version.Info, error) {
-	var k8sVer *version.Info = nil
 	k8sVer, err := k.clientSet.Discovery().ServerVersion()
 	if err != nil {
 		return k8sVer, err
