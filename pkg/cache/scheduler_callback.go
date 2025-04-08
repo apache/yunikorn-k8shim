@@ -93,12 +93,11 @@ func (callback *AsyncRMCallback) UpdateAllocation(response *si.AllocationRespons
 		// update cache
 		callback.context.ForgetPod(release.GetAllocationKey())
 
-		// TerminationType 0 mean STOPPED_BY_RM
-		if release.TerminationType != si.TerminationType_STOPPED_BY_RM {
-			// send release app allocation to application states machine
-			ev := NewReleaseAppAllocationEvent(release.ApplicationID, release.TerminationType, release.AllocationKey)
-			dispatcher.Dispatch(ev)
-		}
+		// TerminationType 0 mean STOPPED_BY_RM, but we also need to do the release when task failed,
+		// we also should send release event to application in case task failed but the pod is still pending.
+		// send release app allocation to application states machine
+		ev := NewReleaseAppAllocationEvent(release.ApplicationID, release.TerminationType, release.AllocationKey)
+		dispatcher.Dispatch(ev)
 	}
 
 	return nil
