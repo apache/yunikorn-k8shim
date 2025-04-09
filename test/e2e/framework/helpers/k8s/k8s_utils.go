@@ -25,6 +25,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -246,6 +247,32 @@ func (k *KubeCtl) PatchPod(pod *v1.Pod, namespace string, patch []map[string]int
 		metav1.PatchOptions{},
 		subresources...,
 	)
+}
+
+func (k *KubeCtl) ModifyResourceUsage(pod *v1.Pod, namespace string, newVcore int64, newMemory int64) (*v1.Pod, error) {
+	patch := []map[string]interface{}{
+		{
+			"op":    "replace",
+			"path":  "/spec/containers/0/resources/limits/cpu",
+			"value": strconv.FormatInt(newVcore, 10) + "m",
+		},
+		{
+			"op":    "replace",
+			"path":  "/spec/containers/0/resources/requests/cpu",
+			"value": strconv.FormatInt(newVcore, 10) + "m",
+		},
+		{
+			"op":    "replace",
+			"path":  "/spec/containers/0/resources/limits/memory",
+			"value": strconv.FormatInt(newMemory, 10) + "Mi",
+		},
+		{
+			"op":    "replace",
+			"path":  "/spec/containers/0/resources/requests/memory",
+			"value": strconv.FormatInt(newMemory, 10) + "Mi",
+		},
+	}
+	return k.PatchPod(pod, namespace, patch, "resize")
 }
 
 func (k *KubeCtl) DeletePodAnnotation(pod *v1.Pod, namespace, annotation string) (*v1.Pod, error) {

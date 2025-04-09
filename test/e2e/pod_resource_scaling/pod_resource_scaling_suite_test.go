@@ -20,6 +20,7 @@ package pod_resource_scaling
 
 import (
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/onsi/ginkgo/v2"
@@ -28,6 +29,8 @@ import (
 
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
 )
 
 func init() {
@@ -48,6 +51,25 @@ func TestPodResourceScaling(t *testing.T) {
 	gomega.RegisterFailHandler(ginkgo.Fail)
 	ginkgo.RunSpecs(t, "Pod Resource Scaling Suite")
 }
+
+var _ = ginkgo.BeforeSuite(func() {
+	_, filename, _, _ := runtime.Caller(0)
+	suiteName = common.GetSuiteName(filename)
+
+	// Initializing kubectl client
+	kClient = k8s.KubeCtl{}
+	Ω(kClient.SetClient()).To(gomega.BeNil())
+
+	// Initializing rest client
+	restClient = yunikorn.RClient{}
+	Ω(restClient).NotTo(gomega.BeNil())
+	yunikorn.EnsureYuniKornConfigsPresent()
+	yunikorn.UpdateConfigMapWrapper(oldConfigMap, "")
+})
+
+var _ = ginkgo.AfterSuite(func() {
+	yunikorn.RestoreConfigMapWrapper(oldConfigMap)
+})
 
 var Ω = gomega.Ω
 var HaveOccurred = gomega.HaveOccurred
