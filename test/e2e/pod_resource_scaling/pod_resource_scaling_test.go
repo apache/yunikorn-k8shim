@@ -54,11 +54,11 @@ var _ = BeforeEach(func() {
 })
 
 var _ = ginkgo.AfterEach(func() {
-	// By("Killing all pods")
-	// err := kClient.DeletePods(ns)
-	// Ω(err).NotTo(HaveOccurred())
-	// err = kClient.DeleteNamespace(ns)
-	// Ω(err).NotTo(HaveOccurred())
+	By("Killing all pods")
+	err := kClient.DeletePods(ns)
+	Ω(err).NotTo(HaveOccurred())
+	err = kClient.DeleteNamespace(ns)
+	Ω(err).NotTo(HaveOccurred())
 })
 
 func verifyYunikornResourceUsage(appID, resourceName string, value int64) {
