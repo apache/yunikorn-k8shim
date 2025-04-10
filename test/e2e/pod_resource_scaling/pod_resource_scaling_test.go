@@ -37,7 +37,6 @@ var err error
 var ns string
 var oldConfigMap = new(v1.ConfigMap)
 var suiteName string
-var podName = "test-pod"
 
 var _ = BeforeEach(func() {
 	// Skip if K8s version < 1.32
@@ -63,7 +62,6 @@ var _ = ginkgo.AfterEach(func() {
 
 func verifyYunikornResourceUsage(appID, resourceName string, value int64) {
 	err = utils.WaitForCondition(func() bool {
-
 		app, err := restClient.GetAppInfo("default", "root."+ns, appID)
 		if err != nil || app == nil {
 			fmt.Println(err)
