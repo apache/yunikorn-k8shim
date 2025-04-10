@@ -128,20 +128,9 @@ func InitSleepPod(conf SleepPodConfig) (*v1.Pod, error) {
 		Annotations:                annotation,
 		Labels:                     labels,
 		Resources: func() *v1.ResourceRequirements {
-			if conf.QOSClass == v1.PodQOSBurstable {
+			if conf.QOSClass != v1.PodQOSBurstable {
 				return &v1.ResourceRequirements{
 					Requests: v1.ResourceList{
-						"cpu":    resource.MustParse(strconv.FormatInt(conf.CPU, 10) + "m"),
-						"memory": resource.MustParse(strconv.FormatInt(conf.Mem, 10) + "M"),
-					},
-				}
-			} else if conf.QOSClass == v1.PodQOSGuaranteed {
-				return &v1.ResourceRequirements{
-					Requests: v1.ResourceList{
-						"cpu":    resource.MustParse(strconv.FormatInt(conf.CPU, 10) + "m"),
-						"memory": resource.MustParse(strconv.FormatInt(conf.Mem, 10) + "M"),
-					},
-					Limits: v1.ResourceList{
 						"cpu":    resource.MustParse(strconv.FormatInt(conf.CPU, 10) + "m"),
 						"memory": resource.MustParse(strconv.FormatInt(conf.Mem, 10) + "M"),
 					},

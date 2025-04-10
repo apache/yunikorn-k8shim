@@ -253,18 +253,8 @@ func (k *KubeCtl) ModifyResourceUsage(pod *v1.Pod, namespace string, newVcore in
 	patch := []map[string]interface{}{
 		{
 			"op":    "replace",
-			"path":  "/spec/containers/0/resources/limits/cpu",
-			"value": strconv.FormatInt(newVcore, 10) + "m",
-		},
-		{
-			"op":    "replace",
 			"path":  "/spec/containers/0/resources/requests/cpu",
 			"value": strconv.FormatInt(newVcore, 10) + "m",
-		},
-		{
-			"op":    "replace",
-			"path":  "/spec/containers/0/resources/limits/memory",
-			"value": strconv.FormatInt(newMemory, 10) + "Mi",
 		},
 		{
 			"op":    "replace",
