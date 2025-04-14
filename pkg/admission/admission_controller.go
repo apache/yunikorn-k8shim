@@ -194,7 +194,14 @@ func (c *AdmissionController) processPod(req *admissionv1.AdmissionRequest, name
 		log.Log(log.Admission).Info("bypassing namespace", zap.String("namespace", namespace))
 		return admissionResponseBuilder(uid, true, "", nil)
 	}
-	patch = updateSchedulerName(patch)
+
+	// Only update scheduler name if it matches process list and doesn't match bypass list
+	if c.shouldProcessScheduler(pod.Spec.SchedulerName) {
+		patch = updateSchedulerName(patch)
+	} else {
+		log.Log(log.Admission).Info("bypassing scheduler name update",
+			zap.String("schedulerName", pod.Spec.SchedulerName))
+	}
 
 	if c.shouldLabelNamespace(namespace) {
 		patch = c.updateLabels(namespace, &pod, patch)
@@ -365,6 +372,33 @@ func (c *AdmissionController) checkUserInfoAnnotation(getAnnotation func() (stri
 	}
 
 	return nil, userInfoSet
+}
+
+func (c *AdmissionController) schedulerNameMatchesProcessList(schedulerName string) bool {
+	processSchedulers := c.conf.GetProcessSchedulerNames()
+	if len(processSchedulers) == 0 {
+		return true
+	}
+	for _, re := range processSchedulers {
+		if re.MatchString(schedulerName) {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *AdmissionController) schedulerNameMatchesBypassList(schedulerName string) bool {
+	bypassSchedulers := c.conf.GetBypassSchedulerNames()
+	for _, re := range bypassSchedulers {
+		if re.MatchString(schedulerName) {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *AdmissionController) shouldProcessScheduler(schedulerName string) bool {
+	return c.schedulerNameMatchesProcessList(schedulerName) && !c.schedulerNameMatchesBypassList(schedulerName)
 }
 
 func updateSchedulerName(patch []common.PatchOperation) []common.PatchOperation {

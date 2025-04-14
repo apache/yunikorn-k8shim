@@ -48,11 +48,13 @@ const (
 	AMWebHookSchedulerServiceAddress = WebHookPrefix + "schedulerServiceAddress"
 
 	// filtering configuration
-	AMFilteringProcessNamespaces    = FilteringPrefix + "processNamespaces"
-	AMFilteringBypassNamespaces     = FilteringPrefix + "bypassNamespaces"
-	AMFilteringLabelNamespaces      = FilteringPrefix + "labelNamespaces"
-	AMFilteringNoLabelNamespaces    = FilteringPrefix + "noLabelNamespaces"
-	AMFilteringGenerateUniqueAppIds = FilteringPrefix + "generateUniqueAppId"
+	AMFilteringProcessNamespaces     = FilteringPrefix + "processNamespaces"
+	AMFilteringBypassNamespaces      = FilteringPrefix + "bypassNamespaces"
+	AMFilteringLabelNamespaces       = FilteringPrefix + "labelNamespaces"
+	AMFilteringNoLabelNamespaces     = FilteringPrefix + "noLabelNamespaces"
+	AMFilteringGenerateUniqueAppIds  = FilteringPrefix + "generateUniqueAppId"
+	AMFilteringProcessSchedulerNames = FilteringPrefix + "processSchedulerNames"
+	AMFilteringBypassSchedulerNames  = FilteringPrefix + "bypassSchedulerNames"
 
 	// access control configuration
 	AMAccessControlBypassAuth       = AccessControlPrefix + "bypassAuth"
@@ -68,11 +70,13 @@ const (
 	DefaultWebHookSchedulerServiceAddress = "yunikorn-service:9080"
 
 	// filtering defaults
-	DefaultFilteringProcessNamespaces    = ""
-	DefaultFilteringBypassNamespaces     = "^kube-system$"
-	DefaultFilteringLabelNamespaces      = ""
-	DefaultFilteringNoLabelNamespaces    = ""
-	DefaultFilteringGenerateUniqueAppIds = false
+	DefaultFilteringProcessNamespaces     = ""
+	DefaultFilteringBypassNamespaces      = "^kube-system$"
+	DefaultFilteringLabelNamespaces       = ""
+	DefaultFilteringNoLabelNamespaces     = ""
+	DefaultFilteringGenerateUniqueAppIds  = false
+	DefaultFilteringProcessSchedulerNames = ""
+	DefaultFilteringBypassSchedulerNames  = ""
 
 	// access control defaults
 	DefaultAccessControlBypassAuth       = false
@@ -96,6 +100,8 @@ type AdmissionControllerConf struct {
 	labelNamespaces         []*regexp.Regexp
 	noLabelNamespaces       []*regexp.Regexp
 	generateUniqueAppIds    bool
+	processSchedulerNames   []*regexp.Regexp
+	bypassSchedulerNames    []*regexp.Regexp
 	bypassAuth              bool
 	trustControllers        bool
 	systemUsers             []*regexp.Regexp
@@ -220,6 +226,18 @@ func (acc *AdmissionControllerConf) GetExternalGroups() []*regexp.Regexp {
 	return acc.externalGroups
 }
 
+func (acc *AdmissionControllerConf) GetProcessSchedulerNames() []*regexp.Regexp {
+	acc.lock.RLock()
+	defer acc.lock.RUnlock()
+	return acc.processSchedulerNames
+}
+
+func (acc *AdmissionControllerConf) GetBypassSchedulerNames() []*regexp.Regexp {
+	acc.lock.RLock()
+	defer acc.lock.RUnlock()
+	return acc.bypassSchedulerNames
+}
+
 type configMapUpdateHandler struct {
 	conf *AdmissionControllerConf
 }
@@ -315,6 +333,8 @@ func (acc *AdmissionControllerConf) updateConfigMaps(configMaps []*v1.ConfigMap,
 	acc.labelNamespaces = parseConfigRegexps(configs, AMFilteringLabelNamespaces, DefaultFilteringLabelNamespaces)
 	acc.noLabelNamespaces = parseConfigRegexps(configs, AMFilteringNoLabelNamespaces, DefaultFilteringNoLabelNamespaces)
 	acc.generateUniqueAppIds = parseConfigBool(configs, AMFilteringGenerateUniqueAppIds, DefaultFilteringGenerateUniqueAppIds)
+	acc.processSchedulerNames = parseConfigRegexps(configs, AMFilteringProcessSchedulerNames, DefaultFilteringProcessSchedulerNames)
+	acc.bypassSchedulerNames = parseConfigRegexps(configs, AMFilteringBypassSchedulerNames, DefaultFilteringBypassSchedulerNames)
 
 	// access control
 	acc.bypassAuth = parseConfigBool(configs, AMAccessControlBypassAuth, DefaultAccessControlBypassAuth)
@@ -346,6 +366,8 @@ func (acc *AdmissionControllerConf) dumpConfigurationInternal() {
 		zap.Strings("bypassNamespaces", regexpsString(acc.bypassNamespaces)),
 		zap.Strings("labelNamespaces", regexpsString(acc.labelNamespaces)),
 		zap.Strings("noLabelNamespaces", regexpsString(acc.noLabelNamespaces)),
+		zap.Strings("processSchedulerNames", regexpsString(acc.processSchedulerNames)),
+		zap.Strings("bypassSchedulerNames", regexpsString(acc.bypassSchedulerNames)),
 		zap.Bool("bypassAuth", acc.bypassAuth),
 		zap.Bool("trustControllers", acc.trustControllers),
 		zap.Strings("systemUsers", regexpsString(acc.systemUsers)),
