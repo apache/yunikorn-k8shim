@@ -195,12 +195,14 @@ func (c *AdmissionController) processPod(req *admissionv1.AdmissionRequest, name
 		return admissionResponseBuilder(uid, true, "", nil)
 	}
 
-	// Only update scheduler name if it matches process list and doesn't match bypass list
-	if c.shouldProcessScheduler(pod.Spec.SchedulerName) {
+	// Only override default-scheduler unless override is enabled
+	if pod.Spec.SchedulerName == "default-scheduler" ||
+		(c.conf.GetOverrideCustomSchedulers() && pod.Spec.SchedulerName != constants.SchedulerName) {
 		patch = updateSchedulerName(patch)
 	} else {
 		log.Log(log.Admission).Info("bypassing scheduler name update",
-			zap.String("schedulerName", pod.Spec.SchedulerName))
+			zap.String("schedulerName", pod.Spec.SchedulerName),
+			zap.Bool("overrideCustomSchedulers", c.conf.GetOverrideCustomSchedulers()))
 	}
 
 	if c.shouldLabelNamespace(namespace) {
@@ -372,33 +374,6 @@ func (c *AdmissionController) checkUserInfoAnnotation(getAnnotation func() (stri
 	}
 
 	return nil, userInfoSet
-}
-
-func (c *AdmissionController) schedulerNameMatchesProcessList(schedulerName string) bool {
-	processSchedulers := c.conf.GetProcessSchedulerNames()
-	if len(processSchedulers) == 0 {
-		return true
-	}
-	for _, re := range processSchedulers {
-		if re.MatchString(schedulerName) {
-			return true
-		}
-	}
-	return false
-}
-
-func (c *AdmissionController) schedulerNameMatchesBypassList(schedulerName string) bool {
-	bypassSchedulers := c.conf.GetBypassSchedulerNames()
-	for _, re := range bypassSchedulers {
-		if re.MatchString(schedulerName) {
-			return true
-		}
-	}
-	return false
-}
-
-func (c *AdmissionController) shouldProcessScheduler(schedulerName string) bool {
-	return c.schedulerNameMatchesProcessList(schedulerName) && !c.schedulerNameMatchesBypassList(schedulerName)
 }
 
 func updateSchedulerName(patch []common.PatchOperation) []common.PatchOperation {
