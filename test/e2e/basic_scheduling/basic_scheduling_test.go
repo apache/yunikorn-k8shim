@@ -19,7 +19,6 @@
 package basicscheduling_test
 
 import (
-	"runtime"
 	"time"
 
 	"github.com/onsi/ginkgo/v2"
@@ -43,49 +42,25 @@ var oldConfigMap = new(v1.ConfigMap)
 // Define sleepPod
 var sleepPodConfigs = k8s.SleepPodConfig{Name: "sleepjob", NS: dev}
 
-var _ = ginkgo.BeforeSuite(func() {
-	_, filename, _, _ := runtime.Caller(0)
-	suiteName = common.GetSuiteName(filename)
-	// Initializing kubectl client
-	kClient = k8s.KubeCtl{}
-	gomega.Ω(kClient.SetClient()).To(gomega.Succeed())
-	// Initializing rest client
-	restClient = yunikorn.RClient{}
-	yunikorn.EnsureYuniKornConfigsPresent()
-	By("Port-forward the scheduler pod")
-	err := kClient.PortForwardYkSchedulerPod()
-	Ω(err).NotTo(HaveOccurred())
-	yunikorn.UpdateConfigMapWrapper(oldConfigMap, "fifo")
-})
-var _ = ginkgo.BeforeEach(func() {
-	dev = "dev" + common.RandSeq(5)
-	ginkgo.By("create development namespace")
-	ns1, err := kClient.CreateNamespace(dev, nil)
-	gomega.Ω(err).NotTo(gomega.HaveOccurred())
-	gomega.Ω(ns1.Status.Phase).To(gomega.Equal(v1.NamespaceActive))
-	ginkgo.By("Deploy the sleep pod to the development namespace")
-	initPod, podErr := k8s.InitSleepPod(sleepPodConfigs)
-	gomega.Ω(podErr).NotTo(gomega.HaveOccurred())
-	sleepRespPod, err = kClient.CreatePod(initPod, dev)
-	gomega.Ω(err).NotTo(gomega.HaveOccurred())
-	// Wait for pod to move to running state
-	err = kClient.WaitForPodRunning(dev, sleepPodConfigs.Name, 30*time.Second)
-	gomega.Ω(err).NotTo(gomega.HaveOccurred())
-	appsInfo, err = restClient.GetAppInfo("default", "root."+dev, sleepRespPod.ObjectMeta.Labels["applicationId"])
-	gomega.Ω(err).NotTo(gomega.HaveOccurred())
-	gomega.Ω(appsInfo).NotTo(gomega.BeNil())
-})
-var _ = ginkgo.AfterEach(func() {
-	ginkgo.By("Tear down namespace: " + dev)
-	err := kClient.TearDownNamespace(dev)
-	Ω(err).NotTo(HaveOccurred())
-})
-
-var _ = ginkgo.AfterSuite(func() {
-	yunikorn.RestoreConfigMapWrapper(oldConfigMap)
-})
-
 var _ = ginkgo.Describe("", func() {
+	ginkgo.BeforeEach(func() {
+		dev = "dev" + common.RandSeq(5)
+		ginkgo.By("create development namespace")
+		ns1, err := kClient.CreateNamespace(dev, nil)
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		gomega.Ω(ns1.Status.Phase).To(gomega.Equal(v1.NamespaceActive))
+		ginkgo.By("Deploy the sleep pod to the development namespace")
+		initPod, podErr := k8s.InitSleepPod(sleepPodConfigs)
+		gomega.Ω(podErr).NotTo(gomega.HaveOccurred())
+		sleepRespPod, err = kClient.CreatePod(initPod, dev)
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		// Wait for pod to move to running state
+		err = kClient.WaitForPodRunning(dev, sleepPodConfigs.Name, 30*time.Second)
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		appsInfo, err = restClient.GetAppInfo("default", "root."+dev, sleepRespPod.ObjectMeta.Labels["applicationId"])
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		gomega.Ω(appsInfo).NotTo(gomega.BeNil())
+	})
 
 	ginkgo.It("Verify_App_Queue_Info", func() {
 		ginkgo.By("Verify that the sleep pod is mapped to development queue")
@@ -194,5 +169,8 @@ var _ = ginkgo.Describe("", func() {
 		checks, err := yunikorn.GetFailedHealthChecks()
 		Ω(err).NotTo(HaveOccurred())
 		Ω(checks).To(gomega.Equal(""), checks)
+		ginkgo.By("Tear down namespace: " + dev)
+		err = kClient.TearDownNamespace(dev)
+		Ω(err).NotTo(HaveOccurred())
 	})
 })
