@@ -202,6 +202,8 @@ func (c *AdmissionController) processPod(req *admissionv1.AdmissionRequest, name
 			zap.String("from", pod.Spec.SchedulerName),
 			zap.String("to", constants.SchedulerName))
 		patch = updateSchedulerName(patch)
+	} else if pod.Spec.SchedulerName == "" {
+		patch = updateSchedulerName(patch)
 	}
 
 	if c.shouldLabelNamespace(namespace) {
