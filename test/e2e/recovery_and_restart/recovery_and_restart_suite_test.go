@@ -20,6 +20,7 @@ package recoveryandrestart_test
 
 import (
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/onsi/ginkgo/v2"
@@ -28,6 +29,8 @@ import (
 
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
 )
 
 func init() {
@@ -48,6 +51,44 @@ func TestRecoveryAndRestart(t *testing.T) {
 	gomega.RegisterFailHandler(ginkgo.Fail)
 	ginkgo.RunSpecs(t, "RecoveryAndRestart Suite")
 }
+
+var _ = ginkgo.BeforeSuite(func() {
+	_, filename, _, _ := runtime.Caller(0)
+	suiteName = common.GetSuiteName(filename)
+	// Initializing kubectl client
+	kClient = k8s.KubeCtl{}
+	Ω(kClient.SetClient()).To(gomega.BeNil())
+	// Initializing rest client
+	restClient = yunikorn.RClient{}
+
+	yunikorn.EnsureYuniKornConfigsPresent()
+	yunikorn.UpdateConfigMapWrapper(oldConfigMap, "")
+
+	ginkgo.By("Restart the scheduler pod")
+	yunikorn.RestartYunikorn(&kClient)
+
+	ginkgo.By("Port-forward scheduler pod after restart")
+	yunikorn.RestorePortForwarding(&kClient)
+})
+
+var _ = ginkgo.AfterSuite(func() {
+
+	// call the healthCheck api to check scheduler health
+	ginkgo.By("Check Yunikorn's health")
+	checks, err2 := yunikorn.GetFailedHealthChecks()
+	Ω(err2).NotTo(gomega.HaveOccurred())
+	Ω(checks).To(gomega.Equal(""), checks)
+
+	ginkgo.By("Restoring the old config maps")
+	var c, err1 = kClient.GetConfigMaps(configmanager.YuniKornTestConfig.YkNamespace,
+		configmanager.DefaultYuniKornConfigMap)
+	Ω(err1).NotTo(gomega.HaveOccurred())
+	Ω(c).NotTo(gomega.BeNil())
+	c.Data = oldConfigMap.Data
+	var e, err3 = kClient.UpdateConfigMap(c, configmanager.YuniKornTestConfig.YkNamespace)
+	Ω(err3).NotTo(gomega.HaveOccurred())
+	Ω(e).NotTo(gomega.BeNil())
+})
 
 var Ω = gomega.Ω
 var dev string
