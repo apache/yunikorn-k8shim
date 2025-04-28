@@ -20,6 +20,7 @@ package basicscheduling_test
 
 import (
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/onsi/ginkgo/v2/reporters"
@@ -29,6 +30,8 @@ import (
 
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
+	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
 )
 
 func init() {
@@ -57,3 +60,22 @@ var BeNil = gomega.BeNil
 var dev string
 var HaveOccurred = gomega.HaveOccurred
 var BeEquivalentTo = gomega.BeEquivalentTo
+
+var _ = ginkgo.BeforeSuite(func() {
+	_, filename, _, _ := runtime.Caller(0)
+	suiteName = common.GetSuiteName(filename)
+	// Initializing kubectl client
+	kClient = k8s.KubeCtl{}
+	gomega.Ω(kClient.SetClient()).To(gomega.Succeed())
+	// Initializing rest client
+	restClient = yunikorn.RClient{}
+	yunikorn.EnsureYuniKornConfigsPresent()
+	By("Port-forward the scheduler pod")
+	err := kClient.PortForwardYkSchedulerPod()
+	Ω(err).NotTo(HaveOccurred())
+	yunikorn.UpdateConfigMapWrapper(oldConfigMap, "fifo")
+})
+
+var _ = ginkgo.AfterSuite(func() {
+	yunikorn.RestoreConfigMapWrapper(oldConfigMap)
+})
