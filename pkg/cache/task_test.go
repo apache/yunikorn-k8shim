@@ -763,3 +763,168 @@ func TestUpdatePodCondition(t *testing.T) {
 	assert.Equal(t, v1.PodPending, podCopy.Status.Phase)
 	assert.Equal(t, v1.PodReasonUnschedulable, podCopy.Status.Conditions[0].Reason)
 }
+
+//nolint:funlen
+func TestCheckPodMetadataBeforeScheduling(t *testing.T) {
+	app := NewApplication(appID1, "root.default", "user", testGroups, map[string]string{}, nil)
+
+	rt := &recorderTime{
+		time: int64(0),
+		lock: &locking.RWMutex{},
+	}
+	mr := events.NewMockedRecorder()
+	mr.OnEventf = func() {
+		rt.lock.Lock()
+		defer rt.lock.Unlock()
+		rt.time++
+	}
+	events.SetRecorder(mr)
+	defer events.SetRecorder(events.NewMockedRecorder())
+
+	testCases := []struct {
+		name                      string
+		pod                       *v1.Pod
+		expectedWarningEventCount int64
+	}{
+		{
+			name: "regular",
+			pod: &v1.Pod{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "Pod",
+					APIVersion: "v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: podName1,
+					Labels: map[string]string{
+						constants.CanonicalLabelApplicationID: appID1,
+						constants.CanonicalLabelQueueName:     queueNameA,
+					},
+				},
+				Spec: v1.PodSpec{
+					SchedulerName: constants.SchedulerName,
+				},
+			},
+			expectedWarningEventCount: 0,
+		},
+		{
+			name: "inconsistent app id label",
+			pod: &v1.Pod{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "Pod",
+					APIVersion: "v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: podName1,
+					Labels: map[string]string{
+						constants.CanonicalLabelApplicationID: appID1,
+						constants.CanonicalLabelQueueName:     queueNameA,
+						constants.LabelApplicationID:          appID2,
+					},
+				},
+				Spec: v1.PodSpec{
+					SchedulerName: constants.SchedulerName,
+				},
+			},
+			expectedWarningEventCount: 1,
+		},
+		{
+			name: "inconsistent app id annotation",
+			pod: &v1.Pod{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "Pod",
+					APIVersion: "v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: podName1,
+					Labels: map[string]string{
+						constants.CanonicalLabelApplicationID: appID1,
+						constants.CanonicalLabelQueueName:     queueNameA,
+					},
+					Annotations: map[string]string{
+						constants.AnnotationApplicationID: appID2,
+					},
+				},
+				Spec: v1.PodSpec{
+					SchedulerName: constants.SchedulerName,
+				},
+			},
+			expectedWarningEventCount: 1,
+		},
+		{
+			name: "inconsistent queue label",
+			pod: &v1.Pod{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "Pod",
+					APIVersion: "v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: podName1,
+					Labels: map[string]string{
+						constants.CanonicalLabelApplicationID: appID1,
+						constants.CanonicalLabelQueueName:     queueNameA,
+						constants.LabelQueueName:              queueNameB,
+					},
+				},
+				Spec: v1.PodSpec{
+					SchedulerName: constants.SchedulerName,
+				},
+			},
+			expectedWarningEventCount: 1,
+		},
+		{
+			name: "inconsistent queue annotation",
+			pod: &v1.Pod{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "Pod",
+					APIVersion: "v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: podName1,
+					Labels: map[string]string{
+						constants.CanonicalLabelApplicationID: appID1,
+						constants.CanonicalLabelQueueName:     queueNameA,
+					},
+					Annotations: map[string]string{
+						constants.CanonicalLabelQueueName: queueNameB,
+					},
+				},
+				Spec: v1.PodSpec{
+					SchedulerName: constants.SchedulerName,
+				},
+			},
+			expectedWarningEventCount: 1,
+		},
+		{
+			name: "inconsistent app id and queue",
+			pod: &v1.Pod{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "Pod",
+					APIVersion: "v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: podName1,
+					Labels: map[string]string{
+						constants.CanonicalLabelApplicationID: appID1,
+						constants.CanonicalLabelQueueName:     queueNameA,
+						constants.LabelApplicationID:          appID2,
+						constants.LabelQueueName:              queueNameB,
+					},
+				},
+				Spec: v1.PodSpec{
+					SchedulerName: constants.SchedulerName,
+				},
+			},
+			expectedWarningEventCount: 2,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// reset to 0 before every iteration
+			rt.time = 0
+			task := NewTask("task", app, nil, tc.pod)
+			task.checkPodMetadataBeforeScheduling()
+			assert.Equal(t, rt.time, tc.expectedWarningEventCount)
+		})
+	}
+}
