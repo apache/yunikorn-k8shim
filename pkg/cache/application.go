@@ -27,6 +27,7 @@ import (
 	"github.com/looplab/fsm"
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/apache/yunikorn-k8shim/pkg/common"
@@ -639,9 +640,19 @@ func (app *Application) handleReleaseAppAllocationEvent(taskID string, terminati
 
 	if task, ok := app.taskMap[taskID]; ok {
 		task.setTaskTerminationType(terminationType)
-		err := task.DeleteTaskPod()
-		if err != nil {
-			log.Log(log.ShimCacheApplication).Error("failed to release allocation from application", zap.Error(err))
+		pod := task.GetTaskPod()
+		// Get the pod first to check if it exists
+		// For example, users manually killed the pod, so the pod already deleted before release.
+		_, err := task.context.apiProvider.GetAPIs().KubeClient.Get(pod.Namespace, pod.Name)
+		if err != nil && k8serrors.IsNotFound(err) {
+			// Pod does not exist, no need to delete
+			log.Log(log.ShimCacheApplication).Info("pod not found, it already deleted or released")
+		} else {
+			// Pod exists, delete it
+			err = task.DeleteTaskPod()
+			if err != nil {
+				log.Log(log.ShimCacheApplication).Error("failed to release allocation from application", zap.Error(err))
+			}
 		}
 		app.publishPlaceholderTimeoutEvents(task)
 	} else {
