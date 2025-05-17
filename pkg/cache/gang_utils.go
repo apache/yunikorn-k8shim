@@ -107,12 +107,13 @@ func GetSchedulingPolicyParam(pod *v1.Pod) *SchedulingPolicyParameters {
 			log.Log(log.ShimUtils).Warn("Skipping malformed scheduling policy parameter: ", zap.String("namespace", pod.Namespace), zap.String("name", pod.Name), zap.String("Scheduling Policy parameters passed in annotation: ", p))
 			continue
 		}
-		if param[0] == constants.SchedulingPolicyTimeoutParam {
+		switch param[0] {
+		case constants.SchedulingPolicyTimeoutParam:
 			timeout, err = strconv.ParseInt(param[1], 10, 64)
 			if err != nil {
 				log.Log(log.ShimUtils).Warn("Failed to parse timeout value from annotation", zap.String("namespace", pod.Namespace), zap.String("name", pod.Name), zap.Int64("Using Placeholder timeout: ", timeout), zap.String("Placeholder timeout passed in annotation: ", p))
 			}
-		} else if param[0] == constants.SchedulingPolicyStyleParam {
+		case constants.SchedulingPolicyStyleParam:
 			style = constants.SchedulingPolicyStyleParamValues[param[1]]
 			if style == "" {
 				style = constants.SchedulingPolicyStyleParamDefault

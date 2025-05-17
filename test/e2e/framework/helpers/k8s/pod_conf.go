@@ -217,7 +217,7 @@ func InitTestPod(conf TestPodConfig) (*v1.Pod, error) { //nolint:funlen
 		pod.Spec.Containers[0].Resources = *conf.Resources
 	}
 	if conf.DeletionGracePeriodSeconds != nil {
-		pod.ObjectMeta.DeletionGracePeriodSeconds = conf.DeletionGracePeriodSeconds
+		pod.DeletionGracePeriodSeconds = conf.DeletionGracePeriodSeconds
 	}
 	if conf.InitContainerSleepSecs > 0 {
 		containerReqs := v1.ResourceRequirements{

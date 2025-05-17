@@ -104,7 +104,7 @@ var _ = ginkgo.Describe("Preemption", func() {
 
 			// Wait for pod to move to running state
 			podErr = kClient.WaitForPodBySelectorRunning(dev,
-				fmt.Sprintf("app=%s", sleepRespPod.ObjectMeta.Labels["app"]),
+				fmt.Sprintf("app=%s", sleepRespPod.Labels["app"]),
 				120)
 			gomega.Ω(podErr).NotTo(gomega.HaveOccurred())
 		}
@@ -166,7 +166,7 @@ var _ = ginkgo.Describe("Preemption", func() {
 
 			// Wait for pod to move to running state
 			podErr = kClient.WaitForPodBySelectorRunning(dev,
-				fmt.Sprintf("app=%s", sleepRespPod.ObjectMeta.Labels["app"]),
+				fmt.Sprintf("app=%s", sleepRespPod.Labels["app"]),
 				30)
 			gomega.Ω(podErr).NotTo(gomega.HaveOccurred())
 		}
@@ -232,7 +232,7 @@ var _ = ginkgo.Describe("Preemption", func() {
 
 			// Wait for pod to move to running state
 			podErr = kClient.WaitForPodBySelectorRunning(dev,
-				fmt.Sprintf("app=%s", sleepRespPod.ObjectMeta.Labels["app"]),
+				fmt.Sprintf("app=%s", sleepRespPod.Labels["app"]),
 				30)
 			gomega.Ω(podErr).NotTo(gomega.HaveOccurred())
 		}
@@ -311,7 +311,7 @@ var _ = ginkgo.Describe("Preemption", func() {
 
 			// Wait for pod to move to running state
 			podErr = kClient.WaitForPodBySelectorRunning(dev,
-				fmt.Sprintf("app=%s", sleepRespPod.ObjectMeta.Labels["app"]),
+				fmt.Sprintf("app=%s", sleepRespPod.Labels["app"]),
 				60)
 			gomega.Ω(podErr).NotTo(gomega.HaveOccurred())
 		}
@@ -336,9 +336,9 @@ var _ = ginkgo.Describe("Preemption", func() {
 		Ω(podErr).NotTo(HaveOccurred())
 
 		ginkgo.By("Verify the sleep pod " + sleepPod4Config.Name + " request failed scheduling")
-		podErr = restClient.WaitForAllocationLog("default", "root.parent.low-priority", sleepRespPod4.ObjectMeta.Labels["applicationId"], sleepPod4Config.Name, 60)
+		podErr = restClient.WaitForAllocationLog("default", "root.parent.low-priority", sleepRespPod4.Labels["applicationId"], sleepPod4Config.Name, 60)
 		Ω(podErr).NotTo(HaveOccurred())
-		log, podErr := restClient.GetAllocationLog("default", "root.parent.low-priority", sleepRespPod4.ObjectMeta.Labels["applicationId"], sleepPod4Config.Name)
+		log, podErr := restClient.GetAllocationLog("default", "root.parent.low-priority", sleepRespPod4.Labels["applicationId"], sleepPod4Config.Name)
 		Ω(podErr).NotTo(HaveOccurred())
 		Ω(log).NotTo(gomega.BeNil(), "Log can't be empty")
 		logEntries := yunikorn.AllocLogToStrings(log)
@@ -446,7 +446,7 @@ var _ = ginkgo.Describe("Preemption", func() {
 
 			// Wait for pod to move to running state
 			podErr = kClient.WaitForPodBySelectorRunning(dev,
-				fmt.Sprintf("app=%s", sleepRespPod.ObjectMeta.Labels["app"]),
+				fmt.Sprintf("app=%s", sleepRespPod.Labels["app"]),
 				60*60*2)
 			gomega.Ω(podErr).NotTo(gomega.HaveOccurred())
 		}
@@ -478,11 +478,11 @@ var _ = ginkgo.Describe("Preemption", func() {
 		}
 		Ω(sandbox3RunningPodsCnt).To(gomega.Equal(1), "One of the pods in root.sandbox3 should be preempted")
 
-		ginkgo.By(fmt.Sprintf("Removing priority class %s", preemptAllowPriorityClass.ObjectMeta.Name))
-		err = kClient.DeletePriorityClass(preemptAllowPriorityClass.ObjectMeta.Name)
+		ginkgo.By(fmt.Sprintf("Removing priority class %s", preemptAllowPriorityClass.Name))
+		err = kClient.DeletePriorityClass(preemptAllowPriorityClass.Name)
 		gomega.Ω(err).ShouldNot(HaveOccurred())
-		ginkgo.By(fmt.Sprintf("Removing priority class %s", preemptNotAllowPriorityClass.ObjectMeta.Name))
-		err = kClient.DeletePriorityClass(preemptNotAllowPriorityClass.ObjectMeta.Name)
+		ginkgo.By(fmt.Sprintf("Removing priority class %s", preemptNotAllowPriorityClass.Name))
+		err = kClient.DeletePriorityClass(preemptNotAllowPriorityClass.Name)
 		gomega.Ω(err).ShouldNot(HaveOccurred())
 	})
 

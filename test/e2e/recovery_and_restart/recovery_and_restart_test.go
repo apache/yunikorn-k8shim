@@ -70,7 +70,7 @@ var _ = ginkgo.Describe("", func() {
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		// Wait for pod to move to running state
 		err = kClient.WaitForPodBySelectorRunning(dev,
-			fmt.Sprintf("applicationId=%s", sleepRespPod.ObjectMeta.Labels["applicationId"]),
+			fmt.Sprintf("applicationId=%s", sleepRespPod.Labels["applicationId"]),
 			60)
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		ginkgo.By("Deploy 2nd sleep pod to the development namespace")
@@ -80,15 +80,15 @@ var _ = ginkgo.Describe("", func() {
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		// Wait for pod to move to running state
 		err = kClient.WaitForPodBySelectorRunning(dev,
-			fmt.Sprintf("applicationId=%s", sleepRespPod2.ObjectMeta.Labels["applicationId"]),
+			fmt.Sprintf("applicationId=%s", sleepRespPod2.Labels["applicationId"]),
 			60)
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 	})
 
 	ginkgo.It("Verify_Pod_Alloc_Props", func() {
-		err := restClient.WaitForAppStateTransition("default", "root."+dev, sleepRespPod.ObjectMeta.Labels["applicationId"], "Running", 30)
+		err := restClient.WaitForAppStateTransition("default", "root."+dev, sleepRespPod.Labels["applicationId"], "Running", 30)
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
-		appsInfo, err := restClient.GetAppInfo("default", "root."+dev, sleepRespPod.ObjectMeta.Labels["applicationId"])
+		appsInfo, err := restClient.GetAppInfo("default", "root."+dev, sleepRespPod.Labels["applicationId"])
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		gomega.Ω(appsInfo).NotTo(gomega.BeNil())
 		ginkgo.By("Verify the pod allocation properties")
@@ -98,7 +98,7 @@ var _ = ginkgo.Describe("", func() {
 		gomega.Ω(allocations).NotTo(gomega.BeNil())
 		gomega.Ω(allocations.AllocationKey).NotTo(gomega.BeNil())
 		gomega.Ω(allocations.NodeID).NotTo(gomega.BeNil())
-		gomega.Ω(allocations.ApplicationID).To(gomega.Equal(sleepRespPod.ObjectMeta.Labels["applicationId"]))
+		gomega.Ω(allocations.ApplicationID).To(gomega.Equal(sleepRespPod.Labels["applicationId"]))
 		core := sleepRespPod.Spec.Containers[0].Resources.Requests.Cpu().MilliValue()
 		mem := sleepRespPod.Spec.Containers[0].Resources.Requests.Memory().Value()
 		resMap := allocations.ResourcePerAlloc

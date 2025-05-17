@@ -174,7 +174,7 @@ var _ = Describe("", func() {
 
 		By(fmt.Sprintf("App-%d: Verify app:%s in accepted state", nextPod, sleepObj.Name))
 		// Wait for pod to move to accepted state
-		err = restClient.WaitForAppStateTransition("default", "root."+ns, sleepRespPod.ObjectMeta.Labels["applicationId"],
+		err = restClient.WaitForAppStateTransition("default", "root."+ns, sleepRespPod.Labels["applicationId"],
 			yunikorn.States().Application.Accepted,
 			240)
 		Ω(err).NotTo(HaveOccurred())

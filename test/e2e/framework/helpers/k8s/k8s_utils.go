@@ -37,7 +37,6 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
-	authv1 "k8s.io/api/rbac/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	schedulingv1 "k8s.io/api/scheduling/v1"
 	storagev1 "k8s.io/api/storage/v1"
@@ -1160,18 +1159,18 @@ func (k *KubeCtl) CreateClusterRoleBinding(
 	roleName string,
 	role string,
 	namespace string,
-	serviceAccount string) (*authv1.ClusterRoleBinding, error) {
-	return k.clientSet.RbacV1().ClusterRoleBindings().Create(context.TODO(), &authv1.ClusterRoleBinding{
+	serviceAccount string) (*rbacv1.ClusterRoleBinding, error) {
+	return k.clientSet.RbacV1().ClusterRoleBindings().Create(context.TODO(), &rbacv1.ClusterRoleBinding{
 		TypeMeta:   metav1.TypeMeta{},
 		ObjectMeta: metav1.ObjectMeta{Name: roleName},
-		Subjects: []authv1.Subject{
+		Subjects: []rbacv1.Subject{
 			{
 				Kind:      "ServiceAccount",
 				Name:      serviceAccount,
 				Namespace: namespace,
 			},
 		},
-		RoleRef: authv1.RoleRef{Name: role, Kind: "ClusterRole"},
+		RoleRef: rbacv1.RoleRef{Name: role, Kind: "ClusterRole"},
 	}, metav1.CreateOptions{})
 }
 
@@ -1839,7 +1838,7 @@ func (k *KubeCtl) GetSecret(namespace, secretName string) (*v1.Secret, error) {
 }
 
 func (k *KubeCtl) WaitForSecret(namespace, secretName string, timeout time.Duration) error {
-	var cond wait.ConditionFunc // nolint:gosimple
+	var cond wait.ConditionFunc // nolint:staticcheck
 	cond = func() (done bool, err error) {
 		secret, err := k.GetSecret(namespace, secretName)
 		if err != nil {
