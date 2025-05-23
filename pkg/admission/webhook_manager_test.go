@@ -114,7 +114,7 @@ func TestLoadCACertificatesWithConflict(t *testing.T) {
 	clientset := fake.NewClientset()
 
 	spec := createSecret()
-	spec.ObjectMeta.SetAnnotations(map[string]string{"conflict": "true"})
+	spec.SetAnnotations(map[string]string{"conflict": "true"})
 	_, err := clientset.CoreV1().Secrets(spec.Namespace).Create(context.Background(), spec, metav1.CreateOptions{})
 	assert.NilError(t, err, "failed to create secret")
 
@@ -244,7 +244,7 @@ func TestInstallWebhooksWithValidationConflict(t *testing.T) {
 
 	vh := wm.createEmptyValidatingWebhook()
 	wm.populateValidatingWebhook(vh, []byte{0})
-	vh.ObjectMeta.SetAnnotations(map[string]string{"conflict": "true"})
+	vh.SetAnnotations(map[string]string{"conflict": "true"})
 	_, err := clientset.AdmissionregistrationV1().ValidatingWebhookConfigurations().Create(context.Background(), vh, metav1.CreateOptions{})
 	assert.NilError(t, err, "failed to add validating webhook")
 
@@ -270,7 +270,7 @@ func TestInstallWebhooksWithMutationConflict(t *testing.T) {
 
 	mh := wm.createEmptyMutatingWebhook()
 	wm.populateMutatingWebhook(mh, []byte{0})
-	mh.ObjectMeta.SetAnnotations(map[string]string{"conflict": "true"})
+	mh.SetAnnotations(map[string]string{"conflict": "true"})
 	_, err = clientset.AdmissionregistrationV1().MutatingWebhookConfigurations().Create(context.Background(), mh, metav1.CreateOptions{})
 	assert.NilError(t, err, "failed to add mutating webhook")
 

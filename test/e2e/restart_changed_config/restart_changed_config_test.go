@@ -131,13 +131,13 @@ var _ = ginkgo.Describe("PodInRecoveryQueue", func() {
 
 		ginkgo.By("Check pod in the dev namespace")
 		var appsInfo *dao.ApplicationDAOInfo
-		appsInfo, err = restClient.GetAppInfo("default", "root."+dev, podDev.ObjectMeta.Labels["applicationId"])
+		appsInfo, err = restClient.GetAppInfo("default", "root."+dev, podDev.Labels["applicationId"])
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		gomega.Ω(appsInfo).NotTo(gomega.BeNil())
 
 		ginkgo.By("Check pod in the test namespace")
 		var appsInfo2 *dao.ApplicationDAOInfo
-		appsInfo2, err = restClient.GetAppInfo("default", "root."+test, podTest.ObjectMeta.Labels["applicationId"])
+		appsInfo2, err = restClient.GetAppInfo("default", "root."+test, podTest.Labels["applicationId"])
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		gomega.Ω(appsInfo2).NotTo(gomega.BeNil())
 
@@ -152,12 +152,12 @@ var _ = ginkgo.Describe("PodInRecoveryQueue", func() {
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 
 		ginkgo.By("Check pod in the dev namespace")
-		appsInfo, err = restClient.GetAppInfo("default", "root."+dev, podDev.ObjectMeta.Labels["applicationId"])
+		appsInfo, err = restClient.GetAppInfo("default", "root."+dev, podDev.Labels["applicationId"])
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		gomega.Ω(appsInfo).NotTo(gomega.BeNil())
 
 		ginkgo.By("Check pod in the test namespace: recovery queue")
-		appsInfo2, err = restClient.GetAppInfo("default", "", podTest.ObjectMeta.Labels["applicationId"])
+		appsInfo2, err = restClient.GetAppInfo("default", "", podTest.Labels["applicationId"])
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		gomega.Ω(appsInfo2).NotTo(gomega.BeNil())
 		gomega.Ω(appsInfo2.QueueName).Should(gomega.BeEquivalentTo("root.@recovery@"))

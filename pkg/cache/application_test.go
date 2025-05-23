@@ -469,7 +469,7 @@ func newMockSchedulerAPI() *mockSchedulerAPI {
 }
 
 type mockSchedulerAPI struct {
-	callback   api.ResourceManagerCallback //nolint:structcheck,unused
+	callback   api.ResourceManagerCallback //nolint:unused
 	registerFn func(request *si.RegisterResourceManagerRequest,
 		callback api.ResourceManagerCallback) (*si.RegisterResourceManagerResponse, error)
 	UpdateAllocationFn    func(request *si.AllocationRequest) error

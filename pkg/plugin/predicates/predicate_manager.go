@@ -450,7 +450,7 @@ func defaultConfig() (*apiConfig.KubeSchedulerConfiguration, error) {
 	// because the field will be cleared later by API machinery during
 	// conversion. See KubeSchedulerConfiguration internal type definition for
 	// more details.
-	cfg.TypeMeta.APIVersion = schedConfig.SchemeGroupVersion.String()
+	cfg.APIVersion = schedConfig.SchemeGroupVersion.String()
 
 	// Disable some plugins we don't want for YuniKorn
 	removePlugin(&cfg, names.DefaultPreemption) // we do our own preemption algorithm

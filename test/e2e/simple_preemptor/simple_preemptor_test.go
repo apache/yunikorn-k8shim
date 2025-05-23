@@ -105,9 +105,10 @@ var _ = ginkgo.BeforeSuite(func() {
 	if err == nil {
 		for _, pod := range pods.Items {
 			for _, c := range pod.Spec.Containers {
-				if pod.Spec.NodeName == Worker1 {
+				switch pod.Spec.NodeName {
+				case Worker1:
 					totalPodQuantity1.Add(*resource.NewQuantity(c.Resources.Requests.Memory().Value(), resource.DecimalSI))
-				} else if pod.Spec.NodeName == Worker2 {
+				case Worker2:
 					totalPodQuantity2.Add(*resource.NewQuantity(c.Resources.Requests.Memory().Value(), resource.DecimalSI))
 				}
 			}
@@ -157,7 +158,7 @@ var _ = ginkgo.Describe("SimplePreemptor", func() {
 
 			// Wait for pod to move to running state
 			err = kClient.WaitForPodBySelectorRunning(dev,
-				fmt.Sprintf("app=%s", sleepRespPod.ObjectMeta.Labels["app"]),
+				fmt.Sprintf("app=%s", sleepRespPod.Labels["app"]),
 				60)
 			gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		}
@@ -189,7 +190,7 @@ var _ = ginkgo.Describe("SimplePreemptor", func() {
 			gomega.Ω(err).NotTo(gomega.HaveOccurred())
 			// Wait for pod to move to running state
 			err = kClient.WaitForPodBySelectorRunning(dev,
-				fmt.Sprintf("app=%s", sleepRespPod.ObjectMeta.Labels["app"]),
+				fmt.Sprintf("app=%s", sleepRespPod.Labels["app"]),
 				240)
 			gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		}

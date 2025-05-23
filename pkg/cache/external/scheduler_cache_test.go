@@ -755,8 +755,8 @@ func TestUpdatePod(t *testing.T) {
 	}
 
 	pod1 := podTemplate.DeepCopy()
-	pod1.ObjectMeta.Name = podName1
-	pod1.ObjectMeta.UID = podUID1
+	pod1.Name = podName1
+	pod1.UID = podUID1
 	cache.UpdatePod(pod1)
 	assert.Equal(t, len(cache.podsMap), 1, "wrong pod count after add of pod1")
 	pod := cache.GetPod(podUID1)
@@ -764,8 +764,8 @@ func TestUpdatePod(t *testing.T) {
 
 	// update of non-existent pod should be equivalent to an add
 	pod2 := podTemplate.DeepCopy()
-	pod2.ObjectMeta.Name = podName2
-	pod2.ObjectMeta.UID = podUID2
+	pod2.Name = podName2
+	pod2.UID = podUID2
 	cache.UpdatePod(pod2)
 	assert.Equal(t, len(cache.podsMap), 2, "wrong pod count after add of pod2")
 	pod = cache.GetPod(podUID2)
@@ -773,7 +773,7 @@ func TestUpdatePod(t *testing.T) {
 
 	// normal pod update should succeed
 	pod1Copy := pod1.DeepCopy()
-	pod1Copy.ObjectMeta.Annotations["state"] = "updated"
+	pod1Copy.Annotations["state"] = "updated"
 	cache.UpdatePod(pod1Copy)
 	found := cache.GetPod(podUID1)
 	assert.Check(t, found != nil, "pod1 not found")
@@ -792,8 +792,8 @@ func TestUpdatePod(t *testing.T) {
 
 	// unassumed pod should survive node changing without crashing
 	pod3 := podTemplate.DeepCopy()
-	pod3.ObjectMeta.Name = "pod00003"
-	pod3.ObjectMeta.UID = "Pod-UID-00003"
+	pod3.Name = "pod00003"
+	pod3.UID = "Pod-UID-00003"
 	pod3.Spec.NodeName = "orig-node"
 	cache.UpdatePod(pod3)
 	pod3Copy := pod3.DeepCopy()
@@ -1056,8 +1056,8 @@ func TestUpdatePVCRefCounts(t *testing.T) {
 	}
 
 	pod1 := podTemplate.DeepCopy()
-	pod1.ObjectMeta.Name = podName1
-	pod1.ObjectMeta.UID = podUID1
+	pod1.Name = podName1
+	pod1.UID = podUID1
 	pod1.Spec.NodeName = node1.Name
 	pod1.Spec.Volumes = []v1.Volume{
 		{
@@ -1070,8 +1070,8 @@ func TestUpdatePVCRefCounts(t *testing.T) {
 
 	// add a pod without assigned node can't update pvcRefCounts
 	pod2 := podTemplate.DeepCopy()
-	pod2.ObjectMeta.Name = podName2
-	pod2.ObjectMeta.UID = podUID2
+	pod2.Name = podName2
+	pod2.UID = podUID2
 	pod2.Spec.Volumes = []v1.Volume{
 		{
 			Name:         pvcName2,

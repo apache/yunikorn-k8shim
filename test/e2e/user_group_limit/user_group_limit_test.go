@@ -985,7 +985,7 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 				},
 			},
 		}
-		_, err = kClient.CreateClusterRoleBinding(clusterRoleBinding.ObjectMeta.Name, clusterRoleBinding.RoleRef.Name, clusterRoleBinding.Subjects[0].Namespace, clusterRoleBinding.Subjects[0].Name)
+		_, err = kClient.CreateClusterRoleBinding(clusterRoleBinding.Name, clusterRoleBinding.RoleRef.Name, clusterRoleBinding.Subjects[0].Namespace, clusterRoleBinding.Subjects[0].Name)
 		gomega.Ω(err).NotTo(HaveOccurred())
 		// Create a Secret for the Service Account
 		ginkgo.By("Creating Secret for the Service Account...")
@@ -1120,14 +1120,15 @@ func deploySleepPod(usergroup *si.UserGroupInformation, queuePath string, expect
 
 func checkUsage(testType TestType, name string, queuePath string, expectedRunningPods []*v1.Pod) {
 	var rootQueueResourceUsageDAO *dao.ResourceUsageDAOInfo
-	if testType == userTestType {
+	switch testType {
+	case userTestType:
 		ginkgo.By(fmt.Sprintf("Check user resource usage for %s in queue %s", name, queuePath))
 		userUsageDAOInfo, err := restClient.GetUserUsage(constants.DefaultPartition, name)
 		Ω(err).NotTo(HaveOccurred())
 		Ω(userUsageDAOInfo).NotTo(gomega.BeNil())
 
 		rootQueueResourceUsageDAO = userUsageDAOInfo.Queues
-	} else if testType == groupTestType {
+	case groupTestType:
 		ginkgo.By(fmt.Sprintf("Check group resource usage for %s in queue %s", name, queuePath))
 		groupUsageDAOInfo, err := restClient.GetGroupUsage(constants.DefaultPartition, name)
 		Ω(err).NotTo(HaveOccurred())
