@@ -6,8 +6,8 @@ github.com/NYTimes/gziphandler v1.1.1 h1:ZUDjpQae29j0ryrS0u/B8HZfJBtBQHjqw2rQ2cq
 github.com/NYTimes/gziphandler v1.1.1/go.mod h1:n/CVRwUEOgIxrgPvAQhUUr9oeUtvrhMomdKFjzJNB0c=
 github.com/antlr4-go/antlr/v4 v4.13.0 h1:lxCg3LAv+EUK6t1i0y1V6/SLeUi0eKEKdhQAlS8TVTI=
 github.com/antlr4-go/antlr/v4 v4.13.0/go.mod h1:pfChB/xh/Unjila75QW7+VU4TSnWnnk9UTnmpPaOR2g=
-github.com/apache/yunikorn-core v1.7.0-0 h1:ZC4JUdDOGnwCK8vi8uVLSWgr5oGIBtrpVffvnv8GrPE=
-github.com/apache/yunikorn-core v1.7.0-0/go.mod h1:DVK6qbN4ay0BRdRNunjfIj1QSkW/Nkv/qVtx63sFJJQ=
+github.com/apache/yunikorn-core v1.7.0-1 h1:sMfWcx2BOrDadhZ6WFVqKY2tD0l+bVUMsAY87ksUhCU=
+github.com/apache/yunikorn-core v1.7.0-1/go.mod h1:kHi0NxYpOZf7OuW5D+xsi4Hz+EzdYt0GHVS/EW7AP5w=
 github.com/apache/yunikorn-scheduler-interface v1.7.0-beta h1:medrxNh5AUfSkpSiMC7Yh331SEwYQe/oY6DJ9vi1CkA=
 github.com/apache/yunikorn-scheduler-interface v1.7.0-beta/go.mod h1:udBVRAW3pcKRneNL8xTC9t40I5zwLjBldT+bpzw9He4=
 github.com/armon/go-socks5 v0.0.0-20160902184237-e75332964ef5 h1:0CwZNZbxp69SHPdPJAN/hZIm0C4OItdklCFmMRWYpio=
