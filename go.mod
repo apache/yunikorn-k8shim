@@ -23,8 +23,8 @@ go 1.23.0
 toolchain go1.23.7
 
 require (
-	github.com/apache/yunikorn-core v0.0.0-20250305160448-1e58dfa29a93
-	github.com/apache/yunikorn-scheduler-interface v0.0.0-20250304214837-4513ff3a692d
+	github.com/apache/yunikorn-core v1.7.0-0
+	github.com/apache/yunikorn-scheduler-interface v1.7.0-beta
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
 	github.com/looplab/fsm v1.0.2
@@ -37,6 +37,7 @@ require (
 	gotest.tools/v3 v3.5.2
 	k8s.io/api v0.32.2
 	k8s.io/apimachinery v0.32.2
+	k8s.io/apiserver v0.32.2
 	k8s.io/cli-runtime v0.32.2
 	k8s.io/client-go v0.32.2
 	k8s.io/component-base v0.32.2
@@ -141,7 +142,6 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	k8s.io/apiextensions-apiserver v0.0.0 // indirect
-	k8s.io/apiserver v0.32.2 // indirect
 	k8s.io/cloud-provider v0.32.2 // indirect
 	k8s.io/controller-manager v0.32.2 // indirect
 	k8s.io/csi-translation-lib v0.32.2 // indirect
