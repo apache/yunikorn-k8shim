@@ -773,7 +773,7 @@ func (ctx *Context) bindPodVolumes(pod *v1.Pod) error {
 			}
 			if volumes.DynamicProvisions == nil {
 				// convert nil to empty array
-				volumes.DynamicProvisions = make([]*v1.PersistentVolumeClaim, 0)
+				volumes.DynamicProvisions = make([]*volumebinding.DynamicProvision, 0)
 			}
 			err = ctx.apiProvider.GetAPIs().VolumeBinder.BindPodVolumes(context.Background(), assumedPod, volumes)
 			if err != nil {

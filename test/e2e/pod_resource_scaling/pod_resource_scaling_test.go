@@ -24,6 +24,7 @@ import (
 
 	"github.com/onsi/ginkgo/v2"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/version"
 
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
@@ -36,10 +37,12 @@ var restClient yunikorn.RClient
 var ns string
 var oldConfigMap = new(v1.ConfigMap)
 var suiteName string
+var k8sVer *version.Info
 
 var _ = BeforeEach(func() {
 	// Skip if K8s version < 1.32
-	k8sVer, err := kClient.GetKubernetesVersion()
+	var err error
+	k8sVer, err = kClient.GetKubernetesVersion()
 	Ω(err).NotTo(HaveOccurred())
 	if k8sVer.Major < "1" || (k8sVer.Major == "1" && k8sVer.Minor < "32") {
 		ginkgo.Skip("InPlacePodVerticalScaling requires K8s 1.32+")
@@ -158,7 +161,7 @@ var _ = ginkgo.Describe("InPlacePodVerticalScaling", func() {
 				return false
 			}
 			return currentPod.Spec.Containers[0].Resources.Requests.Cpu().MilliValue() == int64(100)
-		}, 10*time.Second, 120*time.Second)
+		}, time.Second, 120*time.Second)
 		Ω(err).NotTo(HaveOccurred())
 
 		Ω(err).NotTo(HaveOccurred())
@@ -209,11 +212,22 @@ var _ = ginkgo.Describe("InPlacePodVerticalScaling", func() {
 			if err != nil {
 				return false
 			}
-			return currentPod.Status.Resize == v1.PodResizeStatusInfeasible
-		}, 10*time.Second, 120*time.Second)
+
+			// only used in 1.32, it became deprecated in later versions
+			if k8sVer.Major == "1" && k8sVer.Minor == "32" {
+				return currentPod.Status.Resize == v1.PodResizeStatusInfeasible
+			}
+
+			// for 1.33+
+			for _, condition := range currentPod.Status.Conditions {
+				if condition.Type == v1.PodResizePending && condition.Reason == v1.PodReasonInfeasible {
+					return true
+				}
+			}
+			return false
+		}, time.Second, 120*time.Second)
 		Ω(err).NotTo(HaveOccurred())
 
-		Ω(err).NotTo(HaveOccurred())
 		Ω(pod.Status.StartTime).To(Equal(initialStartTime), "Pod should not have restarted")
 		Ω(pod.Status.ContainerStatuses[0].RestartCount).To(Equal(initialRestartCount), "Container should not have restarted")
 
