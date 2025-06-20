@@ -340,9 +340,12 @@ var _ = Describe("", func() {
 			},
 		}
 		jobA := createJob(appIDA, minResource, annotationsA, 1)
-		time.Sleep(1 * time.Second) // To ensure there is minor gap between applications
+		err := kClient.WaitForJobPods(ns, jobA.Name, int(*jobA.Spec.Parallelism), 60*time.Second)
+		Ω(err).NotTo(HaveOccurred())
+
 		createJob(appIDB, minResource, annotationsB, 3)
-		time.Sleep(1 * time.Second) // To ensure there is minor gap between applications
+		err = kClient.WaitForPlaceholders(ns, "tg-"+appIDB+"-", 3, 60*time.Second, nil)
+		Ω(err).NotTo(HaveOccurred())
 		createJob(appIDC, minResource, annotationsC, 1)
 
 		// AppB should have 2/3 placeholders running
