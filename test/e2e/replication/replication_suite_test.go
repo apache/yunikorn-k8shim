@@ -61,25 +61,23 @@ var oldConfigMap = new(v1.ConfigMap)
 var _ = ginkgo.BeforeSuite(func() {
 	_, filename, _, _ := runtime.Caller(0)
 	suiteName = common.GetSuiteName(filename)
-	
+
 	// Initialize kubectl client
 	kClient = k8s.KubeCtl{}
 	gomega.Ω(kClient.SetClient()).To(gomega.Succeed())
-	
+
 	// Initialize rest client
 	restClient = yunikorn.RClient{}
-	
+
 	yunikorn.EnsureYuniKornConfigsPresent()
-	
+
 	ginkgo.By("Port-forward the scheduler pod")
 	err := kClient.PortForwardYkSchedulerPod()
 	gomega.Ω(err).NotTo(gomega.HaveOccurred())
-	
+
 	yunikorn.UpdateConfigMapWrapper(oldConfigMap, "fifo")
 })
 
 var _ = ginkgo.AfterSuite(func() {
 	yunikorn.RestoreConfigMapWrapper(oldConfigMap)
 })
-
- 
