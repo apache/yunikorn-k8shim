@@ -386,6 +386,10 @@ func (k *KubeCtl) CreateService(service *v1.Service, namespace string) (*v1.Serv
 	return k.clientSet.CoreV1().Services(namespace).Create(context.TODO(), service, metav1.CreateOptions{})
 }
 
+func (k *KubeCtl) DeleteService(serviceName string, namespace string) error {
+	return k.clientSet.CoreV1().Services(namespace).Delete(context.TODO(), serviceName, metav1.DeleteOptions{})
+}
+
 // Func to create a namespace provided a name
 func (k *KubeCtl) CreateNamespace(namespace string, annotations map[string]string) (*v1.Namespace, error) {
 	// create namespace
