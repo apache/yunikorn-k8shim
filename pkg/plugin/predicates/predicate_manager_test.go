@@ -145,7 +145,7 @@ func TestEventsToRegister(t *testing.T) {
 	assert.NilError(t, err)
 	assert.Equal(t, int(fn0), -1, "wrong fn (0)")
 	assert.Equal(t, events[1].Event.Resource, framework.Pod, "wrong resource (1)")
-	assert.Equal(t, events[1].Event.ActionType, framework.Add|framework.Delete|framework.UpdatePodLabel|framework.UpdatePodTolerations, "wrong action type (1)")
+	assert.Equal(t, events[1].Event.ActionType, framework.Add|framework.Delete|framework.UpdatePodLabel|framework.UpdatePodToleration, "wrong action type (1)")
 	fn1, err := events[1].QueueingHintFn(klog.NewKlogr(), nil, "", "")
 	assert.NilError(t, err)
 	assert.Equal(t, int(fn1), -1, "wrong fn (1)")
