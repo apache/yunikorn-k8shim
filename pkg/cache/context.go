@@ -990,6 +990,7 @@ func (ctx *Context) addApplication(request *AddApplicationRequest) *Application 
 		request.Metadata.Groups,
 		request.Metadata.Tags,
 		ctx.apiProvider.GetAPIs().SchedulerAPI)
+	app.setContext(ctx)
 	app.setTaskGroups(request.Metadata.TaskGroups)
 	app.setTaskGroupsDefinition(request.Metadata.Tags[constants.AnnotationTaskGroups])
 	app.setSchedulingParamsDefinition(request.Metadata.Tags[constants.AnnotationSchedulingPolicyParam])
@@ -1039,6 +1040,10 @@ func (ctx *Context) getApplication(appID string) *Application {
 func (ctx *Context) RemoveApplication(appID string) {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
+	ctx.removeApplication(appID)
+}
+
+func (ctx *Context) removeApplication(appID string) {
 	if _, exist := ctx.applications[appID]; !exist {
 		log.Log(log.ShimContext).Debug("Attempted to remove non-existent application", zap.String("appID", appID))
 		return

@@ -59,6 +59,8 @@ type Application struct {
 	placeholderTimeoutInSec    int64
 	schedulingStyle            string
 	originatingTask            *Task // Original Pod which creates the requests
+	releaseableTasks           []*Task
+	context                    *Context
 }
 
 const transitionErr = "no transition"
@@ -85,6 +87,7 @@ func NewApplication(appID, queueName, user string, groups []string, tags map[str
 		schedulerAPI:            scheduler,
 		placeholderTimeoutInSec: 0,
 		schedulingStyle:         constants.SchedulingPolicyStyleParamDefault,
+		releaseableTasks:        make([]*Task, 0),
 	}
 	return app
 }
@@ -206,6 +209,10 @@ func (app *Application) setOriginatingTask(task *Task) {
 	app.lock.Lock()
 	defer app.lock.Unlock()
 	app.originatingTask = task
+}
+
+func (app *Application) setContext(ctx *Context) {
+	app.context = ctx
 }
 
 func (app *Application) GetOriginatingTask() *Task {
@@ -578,6 +585,7 @@ func (app *Application) onReservationStateChange() {
 
 func (app *Application) handleRejectApplicationEvent(reason string) {
 	log.Log(log.ShimCacheApplication).Info("app is rejected by scheduler", zap.String("appID", app.applicationID))
+	app.clearReleaseableTasks()
 	// for rejected apps, we directly move them to failed state
 	dispatcher.Dispatch(NewFailApplicationEvent(app.applicationID,
 		fmt.Sprintf("%s: %s", constants.ApplicationRejectedFailure, reason)))
@@ -609,6 +617,7 @@ func (app *Application) handleFailApplicationEvent(errMsg string) {
 	go func() {
 		getPlaceholderManager().cleanUp(app)
 	}()
+	app.clearReleaseableTasks()
 	log.Log(log.ShimCacheApplication).Info("failApplication reason", zap.String("applicationID", app.applicationID), zap.String("errMsg", errMsg))
 	// unallocated task states include New, Pending and Scheduling
 	unalloc := app.getTasks(TaskStates().New)
@@ -688,5 +697,61 @@ func (app *Application) removeCompletedTasks() {
 		if task.isTerminated() {
 			app.removeTask(task.taskID)
 		}
+	}
+}
+
+func (app *Application) tryAddReleasableTask(task *Task) bool {
+	app.lock.Lock()
+	defer app.lock.Unlock()
+
+	current := app.sm.Current()
+	if current == ApplicationStates().New ||
+		current == ApplicationStates().Submitted {
+		for _, existing := range app.releaseableTasks {
+			if existing.taskID == task.taskID {
+				return true
+			}
+		}
+		app.releaseableTasks = append(app.releaseableTasks, task)
+		return true
+	}
+
+	return false
+}
+
+func (app *Application) clearReleaseableTasks() {
+	app.releaseableTasks = nil
+}
+
+// flushReleaseableTasks replays deferred task releases after the application has been accepted
+// by the scheduler core. Must be called while the application lock is held.
+func (app *Application) flushReleaseableTasks() {
+	if len(app.releaseableTasks) == 0 {
+		return
+	}
+	tasks := app.releaseableTasks
+	app.releaseableTasks = nil
+
+	if app.AreAllTasksTerminated() {
+		app.removeFromSchedulerCore()
+		if app.context != nil {
+			app.context.removeApplication(app.applicationID)
+		}
+		return
+	}
+
+	for _, task := range tasks {
+		task.releaseAllocation(true)
+	}
+}
+
+func (app *Application) removeFromSchedulerCore() {
+	log.Log(log.ShimCacheApplication).Info("removing application from scheduler core",
+		zap.String("appID", app.applicationID))
+	request := common.CreateUpdateRequestForRemoveApplication(app.applicationID, app.partition)
+	if err := app.schedulerAPI.UpdateApplication(request); err != nil {
+		log.Log(log.ShimCacheApplication).Warn("failed to remove application from scheduler core",
+			zap.String("appID", app.applicationID),
+			zap.Error(err))
 	}
 }
