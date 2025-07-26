@@ -18,7 +18,10 @@
 
 # Deployment examples
 
-## Scheduler
+YuniKorn can be deployed in two different modes: standard and plugin.
+Detailed description are here: [Deployment Modes](https://yunikorn.apache.org/docs/next/user_guide/deployment_modes)
+
+## Scheduler Standard mode
 
 Deploys scheduler-core + scheduler-web
 
@@ -27,9 +30,14 @@ Deploys scheduler-core + scheduler-web
 
 Deployment: [scheduler.yaml](scheduler.yaml)
 
+## Scheduler Plugin mode
+
+Deployment: [plugin.yaml](plugin.yaml)
+
 ## Scheduler configuration
 
-This deployment contains a minimal queue configuration for YuniKorn.
+This deployment contains a default configuration for YuniKorn.
+Detailed description are here: [Service Configuration](https://yunikorn.apache.org/docs/next/user_guide/service_config)
 
 Deployment: [yunikorn-configs.yaml](yunikorn-configs.yaml)
 
@@ -42,13 +50,9 @@ Deployment: [yunikorn-rbac.yaml](yunikorn-rbac.yaml)
 
 ## Load Balancer
 
-Deploys scheduler-core + scheduler-web
+A load balancer that helps to expose web UI link directly on K8s
 
-* Scheduler pod runs 2 containers, 1 for scheduler-core, 1 for scheduler-web
-* UI port is `9889`
-* A load balancer that helps to expose web UI link directly on K8s
-
-Deployment: [scheduler-load.yaml](scheduler-load.yaml)
+Deployment: [service.yaml](service.yaml)
 
 ## Admission Controller
 
