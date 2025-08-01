@@ -167,7 +167,7 @@ var _ = ginkgo.Describe("InPlacePodVerticalScaling", func() {
 		verifyYunikornResourceUsage(pod.Labels["applicationId"], "vcore", 100)
 
 		pod, err = kClient.ModifyResourceUsage(pod, ns, 100, 100)
-		Ω(err).NotTo(HaveOccurred()) // Expect an error as memory cannot be decreased
+		Ω(err).NotTo(HaveOccurred())
 
 		Ω(err).NotTo(HaveOccurred())
 		Ω(pod.Status.StartTime).To(Equal(initialStartTime), "Pod should not have restarted")
@@ -213,7 +213,6 @@ var _ = ginkgo.Describe("InPlacePodVerticalScaling", func() {
 		}, 10*time.Second, 120*time.Second)
 		Ω(err).NotTo(HaveOccurred())
 
-		Ω(err).NotTo(HaveOccurred())
 		Ω(pod.Status.StartTime).To(Equal(initialStartTime), "Pod should not have restarted")
 		Ω(pod.Status.ContainerStatuses[0].RestartCount).To(Equal(initialRestartCount), "Container should not have restarted")
 
