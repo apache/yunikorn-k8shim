@@ -237,12 +237,20 @@ var _ = Describe("Autoscaler Tests", func() {
 		Ω(err).NotTo(HaveOccurred())
 		defer func() { _ = kClient.DeleteDeployment(deploymentObj.Name, ns) }() //nolint:errcheck // Cleanup operation
 
-		By("Waiting for initial pod to be created")
-		err = kClient.WaitForPodBySelector(ns, fmt.Sprintf("app=%s", appName), 60*time.Second)
-		Ω(err).NotTo(HaveOccurred())
-
-		err = kClient.WaitForPodBySelectorRunning(ns, fmt.Sprintf("app=%s", appName), 120)
-		Ω(err).NotTo(HaveOccurred())
+		By("Waiting for initial pod to be created and running")
+		gomega.Eventually(func() int {
+			podsInNs, getErr := kClient.GetPods(ns)
+			if getErr != nil {
+				return -1
+			}
+			runningCount := 0
+			for _, pod := range podsInNs.Items {
+				if strings.Contains(pod.Name, appName) && pod.Status.Phase == v1.PodRunning {
+					runningCount++
+				}
+			}
+			return runningCount
+		}, 120*time.Second, 2*time.Second).Should(Equal(1))
 
 		By("Rapidly scaling up to 5 replicas")
 		deployment.Spec.Replicas = &[]int32{5}[0]
@@ -250,8 +258,67 @@ var _ = Describe("Autoscaler Tests", func() {
 		Ω(err).NotTo(HaveOccurred())
 
 		By("Waiting for scale up to complete")
-		err = kClient.WaitForPodBySelectorRunning(ns, fmt.Sprintf("app=%s", appName), 240)
-		Ω(err).NotTo(HaveOccurred())
+		// Wait for exactly 5 running pods with detailed debugging
+		gomega.Eventually(func() string {
+			podsInNs, getErr := kClient.GetPods(ns)
+			if getErr != nil {
+				return fmt.Sprintf("Error getting pods: %v", getErr)
+			}
+
+			runningCount := 0
+			pendingCount := 0
+			failedCount := 0
+			otherCount := 0
+			var podStatuses []string
+
+			for _, pod := range podsInNs.Items {
+				if strings.Contains(pod.Name, appName) {
+					switch pod.Status.Phase {
+					case v1.PodRunning:
+						runningCount++
+					case v1.PodPending:
+						pendingCount++
+						// Get more details about why it's pending
+						var reasons []string
+						for _, condition := range pod.Status.Conditions {
+							if condition.Status == v1.ConditionFalse {
+								reasons = append(reasons, fmt.Sprintf("%s: %s", condition.Type, condition.Message))
+							}
+						}
+						if len(reasons) > 0 {
+							podStatuses = append(podStatuses, fmt.Sprintf("%s: Pending (%s)", pod.Name, strings.Join(reasons, "; ")))
+						} else {
+							podStatuses = append(podStatuses, fmt.Sprintf("%s: Pending", pod.Name))
+						}
+					case v1.PodFailed:
+						failedCount++
+						podStatuses = append(podStatuses, fmt.Sprintf("%s: Failed - %s", pod.Name, pod.Status.Message))
+					default:
+						otherCount++
+						podStatuses = append(podStatuses, fmt.Sprintf("%s: %s", pod.Name, pod.Status.Phase))
+					}
+				}
+			}
+
+			status := fmt.Sprintf("Running: %d, Pending: %d, Failed: %d, Other: %d", runningCount, pendingCount, failedCount, otherCount)
+			if len(podStatuses) > 0 {
+				status += fmt.Sprintf(" | Details: %s", strings.Join(podStatuses, "; "))
+			}
+
+			if runningCount == 5 {
+				return "SUCCESS"
+			}
+			return status
+		}, 240*time.Second, 5*time.Second).Should(Equal("SUCCESS"))
+
+		By("Verifying all scaled pods are scheduled by YuniKorn")
+		scaledPods, scaledErr := kClient.GetPods(ns)
+		Ω(scaledErr).NotTo(gomega.HaveOccurred())
+		for _, pod := range scaledPods.Items {
+			if strings.Contains(pod.Name, appName) && pod.Status.Phase == v1.PodRunning {
+				Ω(pod.Spec.SchedulerName).To(Equal("yunikorn"))
+			}
+		}
 
 		By("Rapidly scaling down to 2 replicas")
 		deployment.Spec.Replicas = &[]int32{2}[0]
@@ -275,11 +342,11 @@ var _ = Describe("Autoscaler Tests", func() {
 		}, 120*time.Second, 5*time.Second).Should(Equal(2))
 
 		By("Verifying remaining pods are healthy and scheduled by YuniKorn")
-		podsInNs, getErr := kClient.GetPods(ns)
-		Ω(getErr).NotTo(gomega.HaveOccurred())
+		finalPods, finalErr := kClient.GetPods(ns)
+		Ω(finalErr).NotTo(gomega.HaveOccurred())
 
 		runningPods := 0
-		for _, pod := range podsInNs.Items {
+		for _, pod := range finalPods.Items {
 			if strings.Contains(pod.Name, appName) && pod.Status.Phase == v1.PodRunning {
 				Ω(pod.Spec.SchedulerName).To(Equal("yunikorn"))
 				runningPods++
