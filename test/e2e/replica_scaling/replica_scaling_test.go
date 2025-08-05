@@ -16,7 +16,7 @@
  limitations under the License.
 */
 
-package autoscaler_test
+package replica_scaling_test
 
 import (
 	"fmt"
@@ -35,12 +35,12 @@ import (
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
 )
 
-var _ = Describe("Autoscaler Tests", func() {
+var _ = Describe("ReplicaScaling Tests", func() {
 	var ns string
 	var dev string
 
 	BeforeEach(func() {
-		ns = "autoscaler-" + common.RandSeq(10)
+		ns = "replica-scaling-" + common.RandSeq(10)
 		dev = "dev-" + common.RandSeq(5)
 
 		By(fmt.Sprintf("Creating namespace: %s", ns))
@@ -65,10 +65,8 @@ var _ = Describe("Autoscaler Tests", func() {
 			"memory": "128Mi",
 		})
 
-		deploymentObj, err := kClient.CreateDeployment(deployment, ns)
+		_, err := kClient.CreateDeployment(deployment, ns)
 		Ω(err).NotTo(HaveOccurred())
-		defer func() { _ = kClient.DeleteDeployment(deploymentObj.Name, ns) }() //nolint:errcheck // Cleanup operation
-
 		By("Waiting for initial pod to be created")
 		err = kClient.WaitForPodBySelector(ns, fmt.Sprintf("app=%s", appName), 60*time.Second)
 		Ω(err).NotTo(HaveOccurred())
@@ -77,28 +75,18 @@ var _ = Describe("Autoscaler Tests", func() {
 		Ω(err).NotTo(HaveOccurred())
 
 		By("Scaling deployment up to 3 replicas")
-		deployment.Spec.Replicas = &[]int32{3}[0]
+		replicas := int32(3)
+		deployment.Spec.Replicas = &replicas
 		_, err = kClient.UpdateDeployment(deployment, ns)
 		Ω(err).NotTo(HaveOccurred())
 
 		By("Verifying 3 pods are running")
-		gomega.Eventually(func() int {
-			podsInNs, getErr := kClient.GetPods(ns)
-			if getErr != nil {
-				return 0
-			}
-			runningCount := 0
-			for _, pod := range podsInNs.Items {
-				if strings.Contains(pod.Name, appName) && pod.Status.Phase == v1.PodRunning {
-					runningCount++
-				}
-			}
-			return runningCount
-		}, 90*time.Second, 3*time.Second).Should(gomega.Equal(3))
+		err = kClient.WaitForPodBySelectorRunning(ns, fmt.Sprintf("app=%s", appName), 90)
+		Ω(err).NotTo(HaveOccurred())
 	})
 
-	// Test resource utilization tracking for autoscaling decisions
-	It("Verify_Resource_Utilization_Metrics_For_Autoscaling", func() {
+	// Test resource utilization tracking for replica scaling decisions
+	It("Verify_Resource_Utilization_Metrics_For_ReplicaScaling", func() {
 		By("Creating a resource-intensive workload")
 		appName := "resource-app-" + common.RandSeq(5)
 
@@ -124,9 +112,8 @@ var _ = Describe("Autoscaler Tests", func() {
 
 		pod, err := k8s.InitTestPod(podConfig)
 		Ω(err).NotTo(HaveOccurred())
-		createdPod, err := kClient.CreatePod(pod, ns)
+		_, err = kClient.CreatePod(pod, ns)
 		Ω(err).NotTo(HaveOccurred())
-		defer func() { _ = kClient.DeletePod(createdPod.Name, ns) }() //nolint:errcheck // Cleanup operation
 
 		By("Waiting for pod to be scheduled and running")
 		err = kClient.WaitForPodRunning(ns, podConfig.Name, 60*time.Second)
@@ -152,7 +139,7 @@ var _ = Describe("Autoscaler Tests", func() {
 		Ω(memAlloc).To(Equal(int64(536870912))) // 512Mi memory
 	})
 
-	// Test queue-based resource management for autoscaling
+	// Test queue-based resource management for replica scaling
 	It("Verify_Queue_Based_Resource_Management_For_Scaling", func() {
 		By("Creating pods in different queues")
 
@@ -191,16 +178,14 @@ var _ = Describe("Autoscaler Tests", func() {
 		By("Creating pod in default queue")
 		defaultPod, err := k8s.InitTestPod(defaultPodConfig)
 		Ω(err).NotTo(HaveOccurred())
-		createdDefaultPod, err := kClient.CreatePod(defaultPod, ns)
+		_, err = kClient.CreatePod(defaultPod, ns)
 		Ω(err).NotTo(HaveOccurred())
-		defer func() { _ = kClient.DeletePod(createdDefaultPod.Name, ns) }() //nolint:errcheck // Cleanup operation
 
 		By("Creating pod in development queue")
 		devPod, err := k8s.InitTestPod(devPodConfig)
 		Ω(err).NotTo(HaveOccurred())
-		createdDevPod, err := kClient.CreatePod(devPod, dev)
+		_, err = kClient.CreatePod(devPod, dev)
 		Ω(err).NotTo(HaveOccurred())
-		defer func() { _ = kClient.DeletePod(createdDevPod.Name, dev) }() //nolint:errcheck // Cleanup operation
 
 		By("Waiting for both pods to be scheduled")
 		err = kClient.WaitForPodRunning(ns, defaultPodConfig.Name, 60*time.Second)
@@ -233,83 +218,22 @@ var _ = Describe("Autoscaler Tests", func() {
 			"memory": "64Mi",
 		})
 
-		deploymentObj, err := kClient.CreateDeployment(deployment, ns)
+		_, err := kClient.CreateDeployment(deployment, ns)
 		Ω(err).NotTo(HaveOccurred())
-		defer func() { _ = kClient.DeleteDeployment(deploymentObj.Name, ns) }() //nolint:errcheck // Cleanup operation
 
 		By("Waiting for initial pod to be created and running")
-		gomega.Eventually(func() int {
-			podsInNs, getErr := kClient.GetPods(ns)
-			if getErr != nil {
-				return -1
-			}
-			runningCount := 0
-			for _, pod := range podsInNs.Items {
-				if strings.Contains(pod.Name, appName) && pod.Status.Phase == v1.PodRunning {
-					runningCount++
-				}
-			}
-			return runningCount
-		}, 120*time.Second, 2*time.Second).Should(Equal(1))
+		err = kClient.WaitForPodBySelectorRunning(ns, fmt.Sprintf("app=%s", appName), 120)
+		Ω(err).NotTo(HaveOccurred())
 
 		By("Rapidly scaling up to 5 replicas")
-		deployment.Spec.Replicas = &[]int32{5}[0]
+		fiveReplicas := int32(5)
+		deployment.Spec.Replicas = &fiveReplicas
 		_, err = kClient.UpdateDeployment(deployment, ns)
 		Ω(err).NotTo(HaveOccurred())
 
 		By("Waiting for scale up to complete")
-		// Wait for exactly 5 running pods with detailed debugging
-		gomega.Eventually(func() string {
-			podsInNs, getErr := kClient.GetPods(ns)
-			if getErr != nil {
-				return fmt.Sprintf("Error getting pods: %v", getErr)
-			}
-
-			runningCount := 0
-			pendingCount := 0
-			failedCount := 0
-			otherCount := 0
-			var podStatuses []string
-
-			for _, pod := range podsInNs.Items {
-				if strings.Contains(pod.Name, appName) {
-					switch pod.Status.Phase {
-					case v1.PodRunning:
-						runningCount++
-					case v1.PodPending:
-						pendingCount++
-						// Get more details about why it's pending
-						var reasons []string
-						for _, condition := range pod.Status.Conditions {
-							if condition.Status == v1.ConditionFalse {
-								reasons = append(reasons, fmt.Sprintf("%s: %s", condition.Type, condition.Message))
-							}
-						}
-						if len(reasons) > 0 {
-							podStatuses = append(podStatuses, fmt.Sprintf("%s: Pending (%s)", pod.Name, strings.Join(reasons, "; ")))
-						} else {
-							podStatuses = append(podStatuses, fmt.Sprintf("%s: Pending", pod.Name))
-						}
-					case v1.PodFailed:
-						failedCount++
-						podStatuses = append(podStatuses, fmt.Sprintf("%s: Failed - %s", pod.Name, pod.Status.Message))
-					default:
-						otherCount++
-						podStatuses = append(podStatuses, fmt.Sprintf("%s: %s", pod.Name, pod.Status.Phase))
-					}
-				}
-			}
-
-			status := fmt.Sprintf("Running: %d, Pending: %d, Failed: %d, Other: %d", runningCount, pendingCount, failedCount, otherCount)
-			if len(podStatuses) > 0 {
-				status += fmt.Sprintf(" | Details: %s", strings.Join(podStatuses, "; "))
-			}
-
-			if runningCount == 5 {
-				return "SUCCESS"
-			}
-			return status
-		}, 240*time.Second, 5*time.Second).Should(Equal("SUCCESS"))
+		err = kClient.WaitForPodBySelectorRunning(ns, fmt.Sprintf("app=%s", appName), 240)
+		Ω(err).NotTo(HaveOccurred())
 
 		By("Verifying all scaled pods are scheduled by YuniKorn")
 		scaledPods, scaledErr := kClient.GetPods(ns)
@@ -321,25 +245,14 @@ var _ = Describe("Autoscaler Tests", func() {
 		}
 
 		By("Rapidly scaling down to 2 replicas")
-		deployment.Spec.Replicas = &[]int32{2}[0]
+		twoReplicas := int32(2)
+		deployment.Spec.Replicas = &twoReplicas
 		_, err = kClient.UpdateDeployment(deployment, ns)
 		Ω(err).NotTo(HaveOccurred())
 
 		By("Waiting for scale down to complete")
-		// Wait for pods to be terminated and scaled down to 2 running pods
-		gomega.Eventually(func() int {
-			podsInNs, getErr := kClient.GetPods(ns)
-			if getErr != nil {
-				return -1
-			}
-			runningCount := 0
-			for _, pod := range podsInNs.Items {
-				if strings.Contains(pod.Name, appName) && pod.Status.Phase == v1.PodRunning {
-					runningCount++
-				}
-			}
-			return runningCount
-		}, 120*time.Second, 5*time.Second).Should(Equal(2))
+		err = kClient.WaitForPodBySelectorRunning(ns, fmt.Sprintf("app=%s", appName), 120)
+		Ω(err).NotTo(HaveOccurred())
 
 		By("Verifying remaining pods are healthy and scheduled by YuniKorn")
 		finalPods, finalErr := kClient.GetPods(ns)
@@ -355,9 +268,9 @@ var _ = Describe("Autoscaler Tests", func() {
 		Ω(runningPods).To(Equal(2))
 	})
 
-	// Test preemption during autoscaling operations
-	It("Verify_Preemption_During_Autoscaling_Operations", func() {
-		By("Testing preemption behavior when autoscaling operations are in progress")
+	// Test preemption during replica scaling operations
+	It("Verify_Preemption_During_ReplicaScaling_Operations", func() {
+		By("Testing preemption behavior when replica scaling operations are in progress")
 
 		// Create high-priority and low-priority deployments
 		highPriorityApp := "high-priority-app-" + common.RandSeq(5)
@@ -374,24 +287,12 @@ var _ = Describe("Autoscaler Tests", func() {
 			"yunikorn.apache.org/priority": "0",
 		}
 
-		lowPriorityDeploymentObj, err := kClient.CreateDeployment(lowPriorityDeployment, ns)
+		_, err := kClient.CreateDeployment(lowPriorityDeployment, ns)
 		Ω(err).NotTo(HaveOccurred())
-		defer func() { _ = kClient.DeleteDeployment(lowPriorityDeploymentObj.Name, ns) }() //nolint:errcheck // Cleanup operation
 
 		By("Waiting for low-priority pods to be running")
-		gomega.Eventually(func() int {
-			podsInNs, getErr := kClient.GetPods(ns)
-			if getErr != nil {
-				return 0
-			}
-			runningCount := 0
-			for _, pod := range podsInNs.Items {
-				if strings.Contains(pod.Name, lowPriorityApp) && pod.Status.Phase == v1.PodRunning {
-					runningCount++
-				}
-			}
-			return runningCount
-		}, 90*time.Second, 3*time.Second).Should(gomega.Equal(3))
+		err = kClient.WaitForPodBySelectorRunning(ns, fmt.Sprintf("app=%s", lowPriorityApp), 90)
+		Ω(err).NotTo(HaveOccurred())
 
 		By("Creating high-priority deployment that should trigger preemption")
 		highPriorityDeployment := createTestDeployment(highPriorityApp, ns, 2, map[string]string{
@@ -405,39 +306,24 @@ var _ = Describe("Autoscaler Tests", func() {
 			"yunikorn.apache.org/priority-policy": "30",
 		}
 
-		highPriorityDeploymentObj, err := kClient.CreateDeployment(highPriorityDeployment, ns)
+		_, err = kClient.CreateDeployment(highPriorityDeployment, ns)
 		Ω(err).NotTo(HaveOccurred())
-		defer func() { _ = kClient.DeleteDeployment(highPriorityDeploymentObj.Name, ns) }() //nolint:errcheck // Cleanup operation
 
 		By("Scaling high-priority deployment to 4 replicas to trigger more preemption")
-		highPriorityDeployment.Spec.Replicas = &[]int32{4}[0]
+		highReplicas := int32(4)
+		highPriorityDeployment.Spec.Replicas = &highReplicas
 		_, err = kClient.UpdateDeployment(highPriorityDeployment, ns)
 		Ω(err).NotTo(HaveOccurred())
 
 		By("Verifying high-priority pods scale up")
-		gomega.Eventually(func() int {
-			podsInNs, getErr := kClient.GetPods(ns)
-			if getErr != nil {
-				return 0
-			}
-			highPriorityRunning := 0
-			for _, pod := range podsInNs.Items {
-				if strings.Contains(pod.Name, highPriorityApp) && pod.Status.Phase == v1.PodRunning {
-					highPriorityRunning++
-				}
-			}
-			return highPriorityRunning
-		}, 90*time.Second, 3*time.Second).Should(gomega.Equal(4))
+		err = kClient.WaitForPodBySelectorRunning(ns, fmt.Sprintf("app=%s", highPriorityApp), 90)
+		Ω(err).NotTo(HaveOccurred())
 
 		By("Verifying preemption effects on low-priority pods")
-		gomega.Eventually(func() bool {
-			podsInNs, getErr := kClient.GetPods(ns)
-			if getErr != nil {
-				return false
-			}
+		err = kClient.WaitForPodCondition(ns, func(pods *v1.PodList) bool {
 			highPriorityRunning := 0
 			lowPriorityRunning := 0
-			for _, pod := range podsInNs.Items {
+			for _, pod := range pods.Items {
 				if pod.Status.Phase == v1.PodRunning {
 					if strings.Contains(pod.Name, highPriorityApp) {
 						highPriorityRunning++
@@ -446,14 +332,14 @@ var _ = Describe("Autoscaler Tests", func() {
 					}
 				}
 			}
-			// In resource-constrained environments, we may not see perfect preemption
 			return highPriorityRunning == 4 && lowPriorityRunning <= 3
-		}, 60*time.Second, 3*time.Second).Should(gomega.BeTrue(), "High-priority pods should scale to 4, low-priority should be preempted or stay same")
+		}, 60*time.Second)
+		Ω(err).NotTo(HaveOccurred())
 	})
 
-	// Test resource competition between multiple autoscaling deployments
-	It("Verify_Multi_Queue_Autoscaling_With_Resource_Competition", func() {
-		By("Testing resource competition between multiple autoscaling deployments in different queues")
+	// Test resource competition between multiple replica scaling deployments
+	It("Verify_Multi_Queue_ReplicaScaling_With_Resource_Competition", func() {
+		By("Testing resource competition between multiple replica scaling deployments in different queues")
 
 		app1Name := "queue1-app-" + common.RandSeq(5)
 		app2Name := "queue2-app-" + common.RandSeq(5)
@@ -485,84 +371,57 @@ var _ = Describe("Autoscaler Tests", func() {
 		}
 
 		// Deploy all applications
-		deploymentObj1, err := kClient.CreateDeployment(deployment1, ns)
+		_, err := kClient.CreateDeployment(deployment1, ns)
 		Ω(err).NotTo(HaveOccurred())
-		defer func() { _ = kClient.DeleteDeployment(deploymentObj1.Name, ns) }() //nolint:errcheck // Cleanup operation
 
-		deploymentObj2, err := kClient.CreateDeployment(deployment2, ns)
+		_, err = kClient.CreateDeployment(deployment2, ns)
 		Ω(err).NotTo(HaveOccurred())
-		defer func() { _ = kClient.DeleteDeployment(deploymentObj2.Name, ns) }() //nolint:errcheck // Cleanup operation
 
-		deploymentObj3, err := kClient.CreateDeployment(deployment3, ns)
+		_, err = kClient.CreateDeployment(deployment3, ns)
 		Ω(err).NotTo(HaveOccurred())
-		defer func() { _ = kClient.DeleteDeployment(deploymentObj3.Name, ns) }() //nolint:errcheck // Cleanup operation
 
 		By("Verifying initial deployment state")
-		gomega.Eventually(func() bool {
-			podsInNs, getErr := kClient.GetPods(ns)
-			if getErr != nil {
-				return false
-			}
-			app1Running := 0
-			app2Running := 0
-			app3Running := 0
-
-			for _, pod := range podsInNs.Items {
+		err = kClient.WaitForPodCondition(ns, func(pods *v1.PodList) bool {
+			appCounts := map[string]int{app1Name: 0, app2Name: 0, app3Name: 0}
+			for _, pod := range pods.Items {
 				if pod.Status.Phase == v1.PodRunning {
-					switch pod.Labels["app"] {
-					case app1Name:
-						app1Running++
-					case app2Name:
-						app2Running++
-					case app3Name:
-						app3Running++
+					if appName := pod.Labels["app"]; appName != "" {
+						appCounts[appName]++
 					}
 				}
 			}
-
-			return app1Running >= 2 && app2Running >= 2 && app3Running >= 2
-		}, 180*time.Second, 5*time.Second).Should(gomega.BeTrue())
+			return appCounts[app1Name] >= 2 && appCounts[app2Name] >= 2 && appCounts[app3Name] >= 2
+		}, 180*time.Second)
+		Ω(err).NotTo(HaveOccurred())
 
 		By("Scaling all deployments up to trigger resource competition")
-		deployment1.Spec.Replicas = &[]int32{4}[0]
+		fourReplicas := int32(4)
+		threeReplicas := int32(3)
+		deployment1.Spec.Replicas = &fourReplicas
 		_, err = kClient.UpdateDeployment(deployment1, ns)
 		Ω(err).NotTo(HaveOccurred())
 
-		deployment2.Spec.Replicas = &[]int32{4}[0]
+		deployment2.Spec.Replicas = &fourReplicas
 		_, err = kClient.UpdateDeployment(deployment2, ns)
 		Ω(err).NotTo(HaveOccurred())
 
-		deployment3.Spec.Replicas = &[]int32{3}[0]
+		deployment3.Spec.Replicas = &threeReplicas
 		_, err = kClient.UpdateDeployment(deployment3, ns)
 		Ω(err).NotTo(HaveOccurred())
 
 		By("Verifying resource competition and scaling behavior")
-		gomega.Eventually(func() bool {
-			podsInNs, getErr := kClient.GetPods(ns)
-			if getErr != nil {
-				return false
-			}
-			app1Running := 0
-			app2Running := 0
-			app3Running := 0
-			totalRunning := 0
-
-			for _, pod := range podsInNs.Items {
+		err = kClient.WaitForPodCondition(ns, func(pods *v1.PodList) bool {
+			appCounts := map[string]int{app1Name: 0, app2Name: 0, app3Name: 0}
+			for _, pod := range pods.Items {
 				if pod.Status.Phase == v1.PodRunning {
-					totalRunning++
-					switch pod.Labels["app"] {
-					case app1Name:
-						app1Running++
-					case app2Name:
-						app2Running++
-					case app3Name:
-						app3Running++
+					if appName := pod.Labels["app"]; appName != "" {
+						appCounts[appName]++
 					}
 				}
 			}
-
-			return app1Running >= 3 && app2Running >= 3 && app3Running >= 2 && totalRunning >= 8
-		}, 90*time.Second, 3*time.Second).Should(gomega.BeTrue(), "All apps should scale up within resource constraints")
+			return appCounts[app1Name] >= 3 && appCounts[app2Name] >= 3 && appCounts[app3Name] >= 2
+		}, 90*time.Second)
+		Ω(err).NotTo(HaveOccurred())
 
 		By("Verifying all pods are scheduled by YuniKorn with proper queue assignment")
 		podsInNs, getErr := kClient.GetPods(ns)
@@ -581,13 +440,13 @@ var _ = Describe("Autoscaler Tests", func() {
 		Ω(len(queueCounts)).To(gomega.BeNumerically(">=", 2))
 	})
 
-	// Test autoscaling with preemption policies
-	It("Verify_Autoscaling_With_Preemption_Policies", func() {
-		By("Testing autoscaling behavior with different preemption policies (fence vs allow)")
+	// Test replica scaling with preemption policies
+	It("Verify_ReplicaScaling_With_Preemption_Policies", func() {
+		By("Testing replica scaling behavior with different preemption policies (fence vs allow)")
 
 		fenceApp := "fence-app-" + common.RandSeq(5)
 		allowApp := "allow-app-" + common.RandSeq(5)
-		aggressorApp := "aggressor-app-" + common.RandSeq(5)
+		highPrioApp := "high-prio-app-" + common.RandSeq(5)
 
 		// Create fence policy deployment (cannot be preempted)
 		fenceDeployment := createTestDeployment(fenceApp, ns, 2, map[string]string{
@@ -610,24 +469,17 @@ var _ = Describe("Autoscaler Tests", func() {
 		}
 
 		// Deploy fence and allow policy apps
-		fenceDeploymentObj, err := kClient.CreateDeployment(fenceDeployment, ns)
+		_, err := kClient.CreateDeployment(fenceDeployment, ns)
 		Ω(err).NotTo(HaveOccurred())
-		defer func() { _ = kClient.DeleteDeployment(fenceDeploymentObj.Name, ns) }() //nolint:errcheck // Cleanup operation
 
-		allowDeploymentObj, err := kClient.CreateDeployment(allowDeployment, ns)
+		_, err = kClient.CreateDeployment(allowDeployment, ns)
 		Ω(err).NotTo(HaveOccurred())
-		defer func() { _ = kClient.DeleteDeployment(allowDeploymentObj.Name, ns) }() //nolint:errcheck // Cleanup operation
 
 		By("Verifying initial deployment state")
-		gomega.Eventually(func() bool {
-			podsInNs, getErr := kClient.GetPods(ns)
-			if getErr != nil {
-				return false
-			}
+		err = kClient.WaitForPodCondition(ns, func(pods *v1.PodList) bool {
 			fenceRunning := 0
 			allowRunning := 0
-
-			for _, pod := range podsInNs.Items {
+			for _, pod := range pods.Items {
 				if pod.Status.Phase == v1.PodRunning {
 					if strings.Contains(pod.Name, fenceApp) {
 						fenceRunning++
@@ -636,13 +488,14 @@ var _ = Describe("Autoscaler Tests", func() {
 					}
 				}
 			}
-
 			return fenceRunning >= 2 && allowRunning >= 2
-		}, 120*time.Second, 5*time.Second).Should(gomega.BeTrue())
+		}, 120*time.Second)
+		Ω(err).NotTo(HaveOccurred())
 
 		By("Scaling up both deployments to consume more resources")
-		fenceDeployment.Spec.Replicas = &[]int32{4}[0]
-		allowDeployment.Spec.Replicas = &[]int32{4}[0]
+		scaleReplicas := int32(4)
+		fenceDeployment.Spec.Replicas = &scaleReplicas
+		allowDeployment.Spec.Replicas = &scaleReplicas
 
 		_, err = kClient.UpdateDeployment(fenceDeployment, ns)
 		Ω(err).NotTo(HaveOccurred())
@@ -652,49 +505,39 @@ var _ = Describe("Autoscaler Tests", func() {
 		By("Waiting for scaled deployments")
 		time.Sleep(30 * time.Second) // Allow scaling to start
 
-		// Create high-priority aggressor deployment
-		aggressorDeployment := createTestDeployment(aggressorApp, ns, 3, map[string]string{
+		// Create high-priority deployment
+		highPrioDeployment := createTestDeployment(highPrioApp, ns, 3, map[string]string{
 			"cpu":    "300m",
 			"memory": "512Mi",
 		})
-		aggressorDeployment.Spec.Template.Annotations = map[string]string{
+		highPrioDeployment.Spec.Template.Annotations = map[string]string{
 			"yunikorn.apache.org/queue":    "root.high-priority",
 			"yunikorn.apache.org/priority": "200",
 		}
 
-		aggressorDeploymentObj, err := kClient.CreateDeployment(aggressorDeployment, ns)
+		_, err = kClient.CreateDeployment(highPrioDeployment, ns)
 		Ω(err).NotTo(HaveOccurred())
-		defer func() { _ = kClient.DeleteDeployment(aggressorDeploymentObj.Name, ns) }() //nolint:errcheck // Cleanup operation
 
 		By("Verifying preemption behavior based on policies")
-		gomega.Eventually(func() bool {
-			podsInNs, getErr := kClient.GetPods(ns)
-			if getErr != nil {
-				return false
-			}
-
+		err = kClient.WaitForPodCondition(ns, func(pods *v1.PodList) bool {
 			fenceRunning := 0
 			allowRunning := 0
-			aggressorRunning := 0
-
-			for _, pod := range podsInNs.Items {
+			highPrioRunning := 0
+			for _, pod := range pods.Items {
 				if pod.Status.Phase == v1.PodRunning {
 					switch pod.Labels["app"] {
 					case fenceApp:
 						fenceRunning++
 					case allowApp:
 						allowRunning++
-					case aggressorApp:
-						aggressorRunning++
+					case highPrioApp:
+						highPrioRunning++
 					}
 				}
 			}
-
-			// Fence pods should maintain higher count (protected from preemption)
-			// Allow pods may be preempted
-			// Aggressor should get some resources
-			return aggressorRunning > 0 && fenceRunning >= allowRunning
-		}, 300*time.Second, 10*time.Second).Should(gomega.BeTrue())
+			return highPrioRunning > 0 && fenceRunning >= allowRunning
+		}, 300*time.Second)
+		Ω(err).NotTo(HaveOccurred())
 	})
 
 	// Test rapid scaling with preemption cascades
@@ -730,70 +573,47 @@ var _ = Describe("Autoscaler Tests", func() {
 				"yunikorn.apache.org/priority": app.priority,
 			}
 
-			deploymentObj, err := kClient.CreateDeployment(deployment, ns)
+			_, err := kClient.CreateDeployment(deployment, ns)
 			Ω(err).NotTo(HaveOccurred())
 			deployments = append(deployments, deployment)
-			defer func() { _ = kClient.DeleteDeployment(deploymentObj.Name, ns) }() //nolint:errcheck // Cleanup operation
 		}
 
 		By("Waiting for all initial pods to be running")
 		for _, app := range applications {
-			gomega.Eventually(func() int {
-				podsInNs, getErr := kClient.GetPods(ns)
-				if getErr != nil {
-					return -1
-				}
-				runningCount := 0
-				for _, pod := range podsInNs.Items {
-					if strings.Contains(pod.Name, app.name) && pod.Status.Phase == v1.PodRunning {
-						runningCount++
-					}
-				}
-				return runningCount
-			}, 180*time.Second, 5*time.Second).Should(gomega.Equal(int(app.replicas)))
+			err := kClient.WaitForPodBySelectorRunning(ns, fmt.Sprintf("app=%s", app.name), 180)
+			Ω(err).NotTo(HaveOccurred())
 		}
 
 		By("Rapidly scaling critical application to trigger cascading preemption")
 		// Scale critical app aggressively
-		deployments[3].Spec.Replicas = &[]int32{6}[0] // tier1 (critical)
+		sixReplicas := int32(6)
+		fiveReplicas := int32(5)
+		deployments[3].Spec.Replicas = &sixReplicas // tier1 (critical)
 		_, err := kClient.UpdateDeployment(deployments[3], ns)
 		Ω(err).NotTo(HaveOccurred())
 
 		By("Simultaneously scaling important application")
-		deployments[2].Spec.Replicas = &[]int32{5}[0] // tier2 (important)
+		deployments[2].Spec.Replicas = &fiveReplicas // tier2 (important)
 		_, err = kClient.UpdateDeployment(deployments[2], ns)
 		Ω(err).NotTo(HaveOccurred())
 
 		By("Verifying cascading preemption effects")
-		gomega.Eventually(func() bool {
-			podsInNs, getErr := kClient.GetPods(ns)
-			if getErr != nil {
-				return false
-			}
-
+		err = kClient.WaitForPodCondition(ns, func(pods *v1.PodList) bool {
 			appCounts := make(map[string]int)
-			for _, pod := range podsInNs.Items {
+			for _, pod := range pods.Items {
 				if pod.Status.Phase == v1.PodRunning {
 					appCounts[pod.Labels["app"]]++
 				}
 			}
-
-			// Critical app should scale up successfully
 			criticalRunning := appCounts[tier1App]
 			importantRunning := appCounts[tier2App]
 			normalRunning := appCounts[tier3App]
 			backgroundRunning := appCounts[tier4App]
-
-			// More flexible conditions - verify priority-based resource allocation trends
-			// Focus on critical apps getting resources and some preemption happening
 			totalRunning := criticalRunning + importantRunning + normalRunning + backgroundRunning
 
-			// At least some scaling should happen and there should be evidence of prioritization
-			return criticalRunning >= 2 && // Critical should scale up from 1
-				importantRunning >= 2 && // Important should scale up from 2
-				totalRunning >= 8 && // Reasonable total running pods
-				criticalRunning >= backgroundRunning // Critical should have more than background
-		}, 150*time.Second, 5*time.Second).Should(gomega.BeTrue(), "Priority-based scaling and preemption should show resource prioritization")
+			return criticalRunning >= 2 && importantRunning >= 2 && totalRunning >= 8 && criticalRunning >= backgroundRunning
+		}, 150*time.Second)
+		Ω(err).NotTo(HaveOccurred())
 
 		By("Verifying resource fairness after preemption cascade")
 		podsInNs, getErr := kClient.GetPods(ns)
@@ -828,9 +648,9 @@ var _ = Describe("Autoscaler Tests", func() {
 		}
 	})
 
-	// Test autoscaling with gang scheduling and preemption
-	It("Verify_Gang_Scheduling_Autoscaling_With_Preemption", func() {
-		By("Testing gang scheduling behavior during autoscaling with preemption scenarios")
+	// Test replica scaling with gang scheduling and preemption
+	It("Verify_Gang_Scheduling_ReplicaScaling_With_Preemption", func() {
+		By("Testing gang scheduling behavior during replica scaling with preemption scenarios")
 
 		gangApp := "gang-app-" + common.RandSeq(5)
 		competitorApp := "competitor-app-" + common.RandSeq(5)
@@ -858,40 +678,22 @@ var _ = Describe("Autoscaler Tests", func() {
 		}
 
 		// Deploy competitor first to consume resources
-		competitorDeploymentObj, err := kClient.CreateDeployment(competitorDeployment, ns)
+		_, err := kClient.CreateDeployment(competitorDeployment, ns)
 		Ω(err).NotTo(HaveOccurred())
-		defer func() { _ = kClient.DeleteDeployment(competitorDeploymentObj.Name, ns) }() //nolint:errcheck // Cleanup operation
 
 		By("Waiting for competitor pods to be running")
-		gomega.Eventually(func() int {
-			podsInNs, getErr := kClient.GetPods(ns)
-			if getErr != nil {
-				return -1
-			}
-			runningCount := 0
-			for _, pod := range podsInNs.Items {
-				if strings.Contains(pod.Name, competitorApp) && pod.Status.Phase == v1.PodRunning {
-					runningCount++
-				}
-			}
-			return runningCount
-		}, 180*time.Second, 5*time.Second).Should(gomega.Equal(4))
+		err = kClient.WaitForPodBySelectorRunning(ns, fmt.Sprintf("app=%s", competitorApp), 180)
+		Ω(err).NotTo(HaveOccurred())
 
 		// Deploy gang application
-		gangDeploymentObj, err := kClient.CreateDeployment(gangDeployment, ns)
+		_, err = kClient.CreateDeployment(gangDeployment, ns)
 		Ω(err).NotTo(HaveOccurred())
-		defer func() { _ = kClient.DeleteDeployment(gangDeploymentObj.Name, ns) }() //nolint:errcheck // Cleanup operation
 
 		By("Verifying gang scheduling behavior with resource constraints")
-		gomega.Eventually(func() bool {
-			podsInNs, getErr := kClient.GetPods(ns)
-			if getErr != nil {
-				return false
-			}
+		err = kClient.WaitForPodCondition(ns, func(pods *v1.PodList) bool {
 			gangRunning := 0
 			totalRunning := 0
-
-			for _, pod := range podsInNs.Items {
+			for _, pod := range pods.Items {
 				if pod.Status.Phase == v1.PodRunning {
 					totalRunning++
 					if strings.Contains(pod.Name, gangApp) {
@@ -899,14 +701,11 @@ var _ = Describe("Autoscaler Tests", func() {
 					}
 				}
 			}
-
-			// Gang scheduling should be atomic - either 0, 3 (original), or 6 (scaled) pods
+			// Gang should be atomic (0, 3, or 6), total reasonable (<=20), some progress (>=4)
 			gangValid := (gangRunning == 0 || gangRunning == 3 || gangRunning == 6)
-			totalReasonable := totalRunning <= 20 // Don't overload the cluster
-			someProgress := totalRunning >= 4     // Some pods should be running
-
-			return gangValid && totalReasonable && someProgress
-		}, 90*time.Second, 3*time.Second).Should(gomega.BeTrue(), "Gang scheduling should be atomic (0, 3, or 6 pods) with reasonable resource usage")
+			return gangValid && totalRunning <= 20 && totalRunning >= 4
+		}, 90*time.Second)
+		Ω(err).NotTo(HaveOccurred())
 
 		By("Verifying gang scheduling integrity")
 		podsInNs, getErr := kClient.GetPods(ns)
@@ -982,7 +781,7 @@ func createTestDeployment(appName, namespace string, replicas int32, resources m
 						},
 					},
 					RestartPolicy:                 v1.RestartPolicyAlways,
-					TerminationGracePeriodSeconds: &[]int64{5}[0], // Fast cleanup
+					TerminationGracePeriodSeconds: func() *int64 { grace := int64(5); return &grace }(),
 				},
 			},
 		},

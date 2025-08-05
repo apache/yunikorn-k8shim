@@ -16,7 +16,7 @@
  limitations under the License.
 */
 
-package autoscaler_test
+package replica_scaling_test
 
 import (
 	"path/filepath"
@@ -38,19 +38,19 @@ func init() {
 	configmanager.YuniKornTestConfig.ParseFlags()
 }
 
-func TestAutoscaler(t *testing.T) {
-	ginkgo.ReportAfterSuite("TestAutoscaler", func(report ginkgo.Report) {
+func TestReplicaScaling(t *testing.T) {
+	ginkgo.ReportAfterSuite("TestReplicaScaling", func(report ginkgo.Report) {
 		err := common.CreateJUnitReportDir()
 		Ω(err).NotTo(gomega.HaveOccurred())
 		err = reporters.GenerateJUnitReportWithConfig(
 			report,
-			filepath.Join(configmanager.YuniKornTestConfig.LogDir, "TEST-autoscaler_junit.xml"),
+			filepath.Join(configmanager.YuniKornTestConfig.LogDir, "TEST-replica_scaling_junit.xml"),
 			reporters.JunitReportConfig{OmitSpecLabels: true},
 		)
 		Ω(err).NotTo(gomega.HaveOccurred())
 	})
 	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "TestAutoscaler", ginkgo.Label("TestAutoscaler"))
+	ginkgo.RunSpecs(t, "TestReplicaScaling", ginkgo.Label("TestReplicaScaling"))
 }
 
 var suiteName string
