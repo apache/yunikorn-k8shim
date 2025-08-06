@@ -250,8 +250,8 @@ var _ = Describe("ReplicaScaling Tests", func() {
 		_, err = kClient.UpdateDeployment(deployment, ns)
 		Ω(err).NotTo(HaveOccurred())
 
-		By("Waiting for scale down to complete")
-		err = kClient.WaitForPodBySelectorRunning(ns, fmt.Sprintf("app=%s", appName), 120)
+		By("Waiting for scale down to exactly 2 running pods")
+		err = kClient.WaitForPodCountBySelectorRunning(ns, fmt.Sprintf("app=%s", appName), 2, 120*time.Second)
 		Ω(err).NotTo(HaveOccurred())
 
 		By("Verifying remaining pods are healthy and scheduled by YuniKorn")

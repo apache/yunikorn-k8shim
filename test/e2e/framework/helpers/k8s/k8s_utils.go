@@ -1126,6 +1126,25 @@ func (k *KubeCtl) WaitForPodBySelectorRunning(namespace string, selector string,
 	})
 }
 
+// Wait for exactly the specified number of pods with given selector to be running
+func (k *KubeCtl) WaitForPodCountBySelectorRunning(namespace string, selector string, expectedCount int, timeout time.Duration) error {
+	return wait.PollUntilContextTimeout(context.TODO(), time.Second*2, timeout, false, func(ctx context.Context) (bool, error) {
+		podList, err := k.ListPods(namespace, selector)
+		if err != nil {
+			return false, err
+		}
+
+		runningCount := 0
+		for _, pod := range podList.Items {
+			if pod.Status.Phase == v1.PodRunning {
+				runningCount++
+			}
+		}
+
+		return runningCount == expectedCount, nil
+	})
+}
+
 // Wait for all pods in 'namespace' with given 'selector' to enter succeeded state.
 // Returns an error if no pods are found or not all discovered pods enter succeeded state.
 func (k *KubeCtl) WaitForPodBySelectorSucceeded(namespace string, selector string, timeout time.Duration) error {
