@@ -84,7 +84,7 @@ func verifyYunikornResourceUsage(appID, resourceName string, value int64) {
 		}
 
 		return false
-	}, 1*time.Second, 120*time.Second)
+	}, time.Second, 120*time.Second)
 	Ω(err).NotTo(HaveOccurred(), fmt.Sprintf("Pod should be scheduled by YuniKorn with correct resource(%s) allocation", resourceName))
 }
 
