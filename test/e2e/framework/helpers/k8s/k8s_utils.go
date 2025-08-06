@@ -40,8 +40,10 @@ import (
 	schedulingv1 "k8s.io/api/scheduling/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/httpstream"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/informers"
@@ -1842,4 +1844,201 @@ func WriteConfigToFile(config *rest.Config, kubeconfigPath string) error {
 	}
 
 	return nil
+}
+
+// Helper methods for creating basic workload objects with common fields
+
+// GetBasicReplicaSetSpec returns a basic ReplicaSet with common fields populated
+func GetBasicReplicaSetSpec(name, appLabel string, replicas int32) *appsv1.ReplicaSet {
+	return &appsv1.ReplicaSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+			Labels: map[string]string{
+				"app": appLabel,
+			},
+		},
+		Spec: appsv1.ReplicaSetSpec{
+			Replicas: &replicas,
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app": appLabel,
+				},
+			},
+			Template: v1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"app": appLabel,
+					},
+				},
+				Spec: v1.PodSpec{
+					Containers: []v1.Container{
+						{
+							Name:    name + "-container",
+							Image:   "alpine:latest",
+							Command: []string{"sleep", "300"},
+							Resources: v1.ResourceRequirements{
+								Requests: v1.ResourceList{
+									v1.ResourceCPU:    resource.MustParse("10m"),
+									v1.ResourceMemory: resource.MustParse("16Mi"),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+// GetBasicDeploymentSpec returns a basic Deployment with common fields populated
+func GetBasicDeploymentSpec(name, appLabel string, replicas int32) *appsv1.Deployment {
+	return &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+			Labels: map[string]string{
+				"app": appLabel,
+			},
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: &replicas,
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app": appLabel,
+				},
+			},
+			Template: v1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"app": appLabel,
+					},
+				},
+				Spec: v1.PodSpec{
+					Containers: []v1.Container{
+						{
+							Name:    name + "-container",
+							Image:   "alpine:latest",
+							Command: []string{"sleep", "300"},
+							Resources: v1.ResourceRequirements{
+								Requests: v1.ResourceList{
+									v1.ResourceCPU:    resource.MustParse("10m"),
+									v1.ResourceMemory: resource.MustParse("16Mi"),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+// GetBasicStatefulSetSpec returns a basic StatefulSet with common fields populated
+func GetBasicStatefulSetSpec(name, appLabel, serviceName string, replicas int32) *appsv1.StatefulSet {
+	return &appsv1.StatefulSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+			Labels: map[string]string{
+				"app": appLabel,
+			},
+		},
+		Spec: appsv1.StatefulSetSpec{
+			Replicas:    &replicas,
+			ServiceName: serviceName,
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app": appLabel,
+				},
+			},
+			Template: v1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"app": appLabel,
+					},
+				},
+				Spec: v1.PodSpec{
+					Containers: []v1.Container{
+						{
+							Name:    name + "-container",
+							Image:   "alpine:latest",
+							Command: []string{"sleep", "300"},
+							Resources: v1.ResourceRequirements{
+								Requests: v1.ResourceList{
+									v1.ResourceCPU:    resource.MustParse("50m"),
+									v1.ResourceMemory: resource.MustParse("64Mi"),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+// GetBasicHeadlessService returns a basic headless service for StatefulSets
+func GetBasicHeadlessService(name, appLabel string) *v1.Service {
+	return &v1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+			Labels: map[string]string{
+				"app": appLabel,
+			},
+		},
+		Spec: v1.ServiceSpec{
+			ClusterIP: "None",
+			Selector: map[string]string{
+				"app": appLabel,
+			},
+			Ports: []v1.ServicePort{
+				{
+					Port:       80,
+					TargetPort: intstr.IntOrString{Type: intstr.Int, IntVal: 80},
+				},
+			},
+		},
+	}
+}
+
+// Helper methods for waiting operations to replace gomega.Eventually calls
+
+// WaitForPodsRunning waits for all pods with the given selector to be running
+func (k *KubeCtl) WaitForPodsRunning(namespace, selector string, expectedCount int, timeout time.Duration) error {
+	return wait.PollUntilContextTimeout(context.TODO(), time.Second, timeout, false, func(ctx context.Context) (bool, error) {
+		podList, err := k.ListPods(namespace, selector)
+		if err != nil {
+			return false, nil // Continue polling on error
+		}
+		if len(podList.Items) != expectedCount {
+			return false, nil
+		}
+		// Check all pods are running
+		for _, pod := range podList.Items {
+			if pod.Status.Phase != v1.PodRunning {
+				return false, nil
+			}
+		}
+		return true, nil
+	})
+}
+
+// WaitForPodsCreated waits for the expected number of pods to be created (any phase)
+func (k *KubeCtl) WaitForPodsCreated(namespace, selector string, expectedCount int, timeout time.Duration) error {
+	return wait.PollUntilContextTimeout(context.TODO(), time.Second, timeout, false, func(ctx context.Context) (bool, error) {
+		podList, err := k.ListPods(namespace, selector)
+		if err != nil {
+			return false, nil // Continue polling on error
+		}
+		return len(podList.Items) == expectedCount, nil
+	})
+}
+
+// WaitForPodsWithCondition waits for pods matching a custom condition
+func (k *KubeCtl) WaitForPodsWithCondition(namespace, selector string, condition func(*v1.PodList) bool, timeout time.Duration) error {
+	return wait.PollUntilContextTimeout(context.TODO(), time.Second, timeout, false, func(ctx context.Context) (bool, error) {
+		podList, err := k.ListPods(namespace, selector)
+		if err != nil {
+			return false, nil // Continue polling on error
+		}
+		return condition(podList), nil
+	})
 }

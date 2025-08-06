@@ -27,6 +27,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	schedulingv1 "k8s.io/api/scheduling/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -38,19 +39,198 @@ import (
 )
 
 const (
-	// Optimized timeouts and intervals for faster execution
-	standardTimeout = 30 * time.Second // Reduced from 60s
-	longTimeout     = 45 * time.Second // Reduced from 90s
-	stressTimeout   = 60 * time.Second // Reduced from 180s
-	pollInterval    = 1 * time.Second  // Reduced from 2-3s
-
-	// Lightweight image to reduce pull time
 	testImage = "alpine:latest"
 )
 
-var _ = ginkgo.Describe("Replication", func() {
-	var dev string
+var dev string
 
+// ReplicaSetConfig holds configuration for creating ReplicaSets
+type ReplicaSetConfig struct {
+	Name          string
+	AppLabel      string
+	Replicas      int32
+	CPURequest    string
+	MemoryRequest string
+	CPULimit      string // optional
+	MemoryLimit   string // optional
+	PriorityClass string // optional
+	// Advanced features
+	InitContainers    []v1.Container   // optional
+	SidecarContainers []v1.Container   // optional
+	NodeAffinity      *v1.NodeAffinity // optional
+}
+
+// getReplicaSetSpec returns a ReplicaSet with the given configuration
+func getReplicaSetSpec(config ReplicaSetConfig) *appsv1.ReplicaSet {
+	rs := &appsv1.ReplicaSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: config.Name,
+			Labels: map[string]string{
+				"app": config.AppLabel,
+			},
+		},
+		Spec: appsv1.ReplicaSetSpec{
+			Replicas: &config.Replicas,
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app": config.AppLabel,
+				},
+			},
+			Template: v1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"app": config.AppLabel,
+					},
+				},
+				Spec: v1.PodSpec{
+					Containers: []v1.Container{
+						{
+							Name:    config.Name + "-container",
+							Image:   testImage,
+							Command: []string{"sleep", "300"},
+							Resources: v1.ResourceRequirements{
+								Requests: v1.ResourceList{
+									v1.ResourceCPU:    resource.MustParse(config.CPURequest),
+									v1.ResourceMemory: resource.MustParse(config.MemoryRequest),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	// Add resource limits if specified
+	if config.CPULimit != "" && config.MemoryLimit != "" {
+		rs.Spec.Template.Spec.Containers[0].Resources.Limits = v1.ResourceList{
+			v1.ResourceCPU:    resource.MustParse(config.CPULimit),
+			v1.ResourceMemory: resource.MustParse(config.MemoryLimit),
+		}
+	}
+
+	// Add priority class if specified
+	if config.PriorityClass != "" {
+		rs.Spec.Template.Spec.PriorityClassName = config.PriorityClass
+	}
+
+	// Add init containers if specified
+	if len(config.InitContainers) > 0 {
+		rs.Spec.Template.Spec.InitContainers = config.InitContainers
+	}
+
+	// Add sidecar containers if specified
+	if len(config.SidecarContainers) > 0 {
+		rs.Spec.Template.Spec.Containers = append(rs.Spec.Template.Spec.Containers, config.SidecarContainers...)
+	}
+
+	// Add node affinity if specified
+	if config.NodeAffinity != nil {
+		if rs.Spec.Template.Spec.Affinity == nil {
+			rs.Spec.Template.Spec.Affinity = &v1.Affinity{}
+		}
+		rs.Spec.Template.Spec.Affinity.NodeAffinity = config.NodeAffinity
+	}
+
+	return rs
+}
+
+// DeploymentConfig holds configuration for creating Deployments
+type DeploymentConfig struct {
+	Name          string
+	AppLabel      string
+	Replicas      int32
+	CPURequest    string
+	MemoryRequest string
+	CPULimit      string            // optional
+	MemoryLimit   string            // optional
+	PriorityClass string            // optional
+	ExtraLabels   map[string]string // optional additional labels
+	RollingUpdate bool              // optional - enables rolling update strategy
+}
+
+// getDeploymentSpec returns a Deployment with the given configuration
+func getDeploymentSpec(config DeploymentConfig) *appsv1.Deployment {
+	labels := map[string]string{"app": config.AppLabel}
+	// Add any extra labels
+	for k, v := range config.ExtraLabels {
+		labels[k] = v
+	}
+
+	deployment := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: config.Name,
+			Labels: map[string]string{
+				"app": config.AppLabel,
+			},
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: &config.Replicas,
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app": config.AppLabel,
+				},
+			},
+			Template: v1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: labels,
+				},
+				Spec: v1.PodSpec{
+					Containers: []v1.Container{
+						{
+							Name:    config.Name + "-container",
+							Image:   testImage,
+							Command: []string{"sleep", "300"},
+							Resources: v1.ResourceRequirements{
+								Requests: v1.ResourceList{
+									v1.ResourceCPU:    resource.MustParse(config.CPURequest),
+									v1.ResourceMemory: resource.MustParse(config.MemoryRequest),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	// Add rolling update strategy if specified
+	if config.RollingUpdate {
+		deployment.Spec.Strategy = appsv1.DeploymentStrategy{
+			Type: appsv1.RollingUpdateDeploymentStrategyType,
+			RollingUpdate: &appsv1.RollingUpdateDeployment{
+				MaxUnavailable: &intstr.IntOrString{Type: intstr.Int, IntVal: 1},
+				MaxSurge:       &intstr.IntOrString{Type: intstr.Int, IntVal: 1},
+			},
+		}
+	}
+
+	// Add resource limits if specified
+	if config.CPULimit != "" && config.MemoryLimit != "" {
+		deployment.Spec.Template.Spec.Containers[0].Resources.Limits = v1.ResourceList{
+			v1.ResourceCPU:    resource.MustParse(config.CPULimit),
+			v1.ResourceMemory: resource.MustParse(config.MemoryLimit),
+		}
+	}
+
+	// Add priority class if specified
+	if config.PriorityClass != "" {
+		deployment.Spec.Template.Spec.PriorityClassName = config.PriorityClass
+	}
+
+	return deployment
+}
+
+// cleanupResource performs resource cleanup with proper error handling
+func cleanupResource(resourceType, resourceName, namespace string, deleteFunc func() error) {
+	ginkgo.By(fmt.Sprintf("Cleaning up %s: %s", resourceType, resourceName))
+	err := deleteFunc()
+	if err != nil && !errors.IsNotFound(err) {
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+	}
+}
+
+var _ = ginkgo.Describe("Replication", func() {
 	ginkgo.BeforeEach(func() {
 		dev = "dev-" + common.RandSeq(10)
 		ginkgo.By(fmt.Sprintf("Create development namespace: %s", dev))
@@ -90,7 +270,7 @@ var _ = ginkgo.Describe("Replication", func() {
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 
 		ginkgo.By("Waiting for pod to be scheduled and running")
-		err = kClient.WaitForPodRunning(dev, sleepPodConfigs.Name, standardTimeout)
+		err = kClient.WaitForPodRunning(dev, sleepPodConfigs.Name, 60*time.Second)
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 
 		ginkgo.By("Verifying the pod is scheduled by YuniKorn scheduler")
@@ -118,7 +298,6 @@ var _ = ginkgo.Describe("Replication", func() {
 
 		ginkgo.By("Basic replication setup is verified: pod is running and scheduled by YuniKorn")
 
-		// Simplified validation - removed redundant checks
 		ginkgo.By("Validating pod labels and annotations for replication")
 		gomega.Ω(podObj.Labels).To(gomega.HaveKeyWithValue("app", "sleep"), "Pod should have app=sleep label")
 		gomega.Ω(podObj.Labels).To(gomega.HaveKey("applicationId"), "Pod should have applicationId label")
@@ -129,47 +308,16 @@ var _ = ginkgo.Describe("Replication", func() {
 
 	ginkgo.It("Verify_ReplicaSet_Pod_Replication", func() {
 		ginkgo.By("Creating a ReplicaSet with multiple replicas")
-		replicaCount := int32(2) // Reduced from 3 for faster execution
+		replicaCount := int32(2)
 		replicaSetName := "test-replicaset"
 
-		replicaSet := &appsv1.ReplicaSet{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: replicaSetName,
-				Labels: map[string]string{
-					"app": "replica-test",
-				},
-			},
-			Spec: appsv1.ReplicaSetSpec{
-				Replicas: &replicaCount,
-				Selector: &metav1.LabelSelector{
-					MatchLabels: map[string]string{
-						"app": "replica-test",
-					},
-				},
-				Template: v1.PodTemplateSpec{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"app": "replica-test",
-						},
-					},
-					Spec: v1.PodSpec{
-						Containers: []v1.Container{
-							{
-								Name:    "replica-container",
-								Image:   testImage,
-								Command: []string{"sleep", "300"},
-								Resources: v1.ResourceRequirements{
-									Requests: v1.ResourceList{
-										v1.ResourceCPU:    resource.MustParse("10m"), // Reduced resource requests
-										v1.ResourceMemory: resource.MustParse("16Mi"),
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		}
+		replicaSet := getReplicaSetSpec(ReplicaSetConfig{
+			Name:          replicaSetName,
+			AppLabel:      "replica-test",
+			Replicas:      replicaCount,
+			CPURequest:    "10m",
+			MemoryRequest: "16Mi",
+		})
 
 		ginkgo.By("Creating the ReplicaSet")
 		createdReplicaSet, err := kClient.CreateReplicaSet(replicaSet, dev)
@@ -177,38 +325,22 @@ var _ = ginkgo.Describe("Replication", func() {
 		gomega.Ω(createdReplicaSet.Name).To(gomega.Equal(replicaSetName))
 
 		ginkgo.By("Waiting for replica pods to be created and running")
-		var podList *v1.PodList
-		gomega.Eventually(func() bool {
-			podList, err = kClient.ListPods(dev, "app=replica-test")
-			if err != nil {
-				return false
-			}
-			return len(podList.Items) == int(replicaCount)
-		}, standardTimeout, pollInterval).Should(gomega.BeTrue(), "Should have 2 replica pods")
+		err = kClient.WaitForPodsRunning(dev, "app=replica-test", int(replicaCount), 60*time.Second)
+		gomega.Ω(err).NotTo(gomega.HaveOccurred(), "Should have 2 replica pods running")
 
-		ginkgo.By("Waiting for all replica pods to be running using parallel check")
-		gomega.Eventually(func() bool {
-			podList, err = kClient.ListPods(dev, "app=replica-test")
-			if err != nil {
-				return false
-			}
-			for _, pod := range podList.Items {
-				if pod.Status.Phase != v1.PodRunning {
-					return false
-				}
-			}
-			return true
-		}, standardTimeout, pollInterval).Should(gomega.BeTrue(), "All replica pods should be running")
+		ginkgo.By("Verifying all replica pods are running and scheduled by YuniKorn")
+		podList, err := kClient.ListPods(dev, "app=replica-test")
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		gomega.Ω(podList.Items).To(gomega.HaveLen(int(replicaCount)), "Should have correct number of pods")
 
-		ginkgo.By("Verifying all replica pods are scheduled by YuniKorn")
 		for _, pod := range podList.Items {
-			gomega.Ω(pod.Spec.SchedulerName).To(gomega.Equal("yunikorn"), "All replica pods should be scheduled by YuniKorn")
-			gomega.Ω(pod.Status.Phase).To(gomega.Equal(v1.PodRunning), "All replica pods should be running")
+			gomega.Ω(pod.Status.Phase).To(gomega.Equal(v1.PodRunning), "Pod should be running")
+			gomega.Ω(pod.Spec.SchedulerName).To(gomega.Equal("yunikorn"), "Pod should be scheduled by YuniKorn")
 		}
 
-		ginkgo.By("Cleaning up ReplicaSet")
-		err = kClient.DeleteReplicaSet(replicaSetName, dev)
-		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		cleanupResource("ReplicaSet", replicaSetName, dev, func() error {
+			return kClient.DeleteReplicaSet(replicaSetName, dev)
+		})
 	})
 
 	ginkgo.It("Verify_Deployment_Scaling_Operations", func() {
@@ -216,44 +348,9 @@ var _ = ginkgo.Describe("Replication", func() {
 		deploymentName := "test-deployment"
 		initialReplicas := int32(2)
 
-		deployment := &appsv1.Deployment{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: deploymentName,
-				Labels: map[string]string{
-					"app": "scaling-test",
-				},
-			},
-			Spec: appsv1.DeploymentSpec{
-				Replicas: &initialReplicas,
-				Selector: &metav1.LabelSelector{
-					MatchLabels: map[string]string{
-						"app": "scaling-test",
-					},
-				},
-				Template: v1.PodTemplateSpec{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"app": "scaling-test",
-						},
-					},
-					Spec: v1.PodSpec{
-						Containers: []v1.Container{
-							{
-								Name:    "scaling-container",
-								Image:   testImage,
-								Command: []string{"sleep", "300"},
-								Resources: v1.ResourceRequirements{
-									Requests: v1.ResourceList{
-										v1.ResourceCPU:    resource.MustParse("10m"),
-										v1.ResourceMemory: resource.MustParse("16Mi"),
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		}
+		deployment := k8s.GetBasicDeploymentSpec(deploymentName, "scaling-test", initialReplicas)
+
+		deployment.Spec.Template.Spec.Containers[0].Image = testImage
 
 		ginkgo.By("Creating the Deployment")
 		createdDeployment, err := kClient.CreateDeployment(deployment, dev)
@@ -261,26 +358,11 @@ var _ = ginkgo.Describe("Replication", func() {
 		gomega.Ω(createdDeployment.Name).To(gomega.Equal(deploymentName))
 
 		ginkgo.By("Waiting for initial pods to be created and running")
-		var podList *v1.PodList
-		gomega.Eventually(func() bool {
-			podList, err = kClient.ListPods(dev, "app=scaling-test")
-			if err != nil {
-				return false
-			}
-			if len(podList.Items) != int(initialReplicas) {
-				return false
-			}
-			// Check all pods are running in same call
-			for _, pod := range podList.Items {
-				if pod.Status.Phase != v1.PodRunning {
-					return false
-				}
-			}
-			return true
-		}, standardTimeout, pollInterval).Should(gomega.BeTrue(), "Should have 2 initial running pods")
+		err = kClient.WaitForPodsRunning(dev, "app=scaling-test", int(initialReplicas), 60*time.Second)
+		gomega.Ω(err).NotTo(gomega.HaveOccurred(), "Should have 2 initial running pods")
 
 		ginkgo.By("Scaling up the deployment")
-		scaledReplicas := int32(3) // Reduced from 4
+		scaledReplicas := int32(3)
 		deploymentObj, err := kClient.GetDeployment(deploymentName, dev)
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		deploymentObj.Spec.Replicas = &scaledReplicas
@@ -289,24 +371,12 @@ var _ = ginkgo.Describe("Replication", func() {
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 
 		ginkgo.By("Waiting for scaled pods to be created and running")
-		gomega.Eventually(func() bool {
-			podList, err = kClient.ListPods(dev, "app=scaling-test")
-			if err != nil {
-				return false
-			}
-			if len(podList.Items) != int(scaledReplicas) {
-				return false
-			}
-			// Check all pods are running
-			for _, pod := range podList.Items {
-				if pod.Status.Phase != v1.PodRunning {
-					return false
-				}
-			}
-			return true
-		}, standardTimeout, pollInterval).Should(gomega.BeTrue(), "Should have 3 scaled running pods")
+		err = kClient.WaitForPodsRunning(dev, "app=scaling-test", int(scaledReplicas), 60*time.Second)
+		gomega.Ω(err).NotTo(gomega.HaveOccurred(), "Should have 3 scaled running pods")
 
 		ginkgo.By("Verifying all scaled pods are scheduled by YuniKorn")
+		podList, err := kClient.ListPods(dev, "app=scaling-test")
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		for _, pod := range podList.Items {
 			gomega.Ω(pod.Spec.SchedulerName).To(gomega.Equal("yunikorn"), "All scaled pods should be scheduled by YuniKorn")
 		}
@@ -318,95 +388,39 @@ var _ = ginkgo.Describe("Replication", func() {
 
 	ginkgo.It("Verify_Pod_Failure_Recovery", func() {
 		ginkgo.By("Creating a ReplicaSet for failure testing")
-		replicaCount := int32(2) // Reduced from 3
+		replicaCount := int32(2)
 		replicaSetName := "failure-test-replicaset"
 
-		replicaSet := &appsv1.ReplicaSet{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: replicaSetName,
-				Labels: map[string]string{
-					"app": "failure-test",
-				},
-			},
-			Spec: appsv1.ReplicaSetSpec{
-				Replicas: &replicaCount,
-				Selector: &metav1.LabelSelector{
-					MatchLabels: map[string]string{
-						"app": "failure-test",
-					},
-				},
-				Template: v1.PodTemplateSpec{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"app": "failure-test",
-						},
-					},
-					Spec: v1.PodSpec{
-						Containers: []v1.Container{
-							{
-								Name:    "failure-container",
-								Image:   testImage,
-								Command: []string{"sleep", "300"},
-								Resources: v1.ResourceRequirements{
-									Requests: v1.ResourceList{
-										v1.ResourceCPU:    resource.MustParse("10m"),
-										v1.ResourceMemory: resource.MustParse("16Mi"),
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		}
+		replicaSet := getReplicaSetSpec(ReplicaSetConfig{
+			Name:          replicaSetName,
+			AppLabel:      "failure-test",
+			Replicas:      replicaCount,
+			CPURequest:    "10m",
+			MemoryRequest: "16Mi",
+		})
 
 		ginkgo.By("Creating the ReplicaSet")
 		_, err := kClient.CreateReplicaSet(replicaSet, dev)
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 
 		ginkgo.By("Waiting for all pods to be created and running")
-		var podList *v1.PodList
-		gomega.Eventually(func() bool {
-			podList, err = kClient.ListPods(dev, "app=failure-test")
-			if err != nil {
-				return false
-			}
-			if len(podList.Items) != int(replicaCount) {
-				return false
-			}
-			// Check all pods are running
-			for _, pod := range podList.Items {
-				if pod.Status.Phase != v1.PodRunning {
-					return false
-				}
-			}
-			return true
-		}, standardTimeout, pollInterval).Should(gomega.BeTrue(), "Should have 2 initial running pods")
+		err = kClient.WaitForPodsRunning(dev, "app=failure-test", int(replicaCount), 60*time.Second)
+		gomega.Ω(err).NotTo(gomega.HaveOccurred(), "Should have 2 initial running pods")
 
 		ginkgo.By("Deleting one pod to simulate failure")
+		podList, err := kClient.ListPods(dev, "app=failure-test")
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		podToDelete := podList.Items[0]
 		err = kClient.DeletePod(podToDelete.Name, dev)
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 
 		ginkgo.By("Waiting for replacement pod to be created and running")
-		gomega.Eventually(func() bool {
-			podList, err = kClient.ListPods(dev, "app=failure-test")
-			if err != nil {
-				return false
-			}
-			if len(podList.Items) != int(replicaCount) {
-				return false
-			}
-			// Check all pods are running
-			for _, pod := range podList.Items {
-				if pod.Status.Phase != v1.PodRunning {
-					return false
-				}
-			}
-			return true
-		}, standardTimeout, pollInterval).Should(gomega.BeTrue(), "Should have 2 pods after recovery")
+		err = kClient.WaitForPodsRunning(dev, "app=failure-test", int(replicaCount), 60*time.Second)
+		gomega.Ω(err).NotTo(gomega.HaveOccurred(), "Should have 2 pods after recovery")
 
 		ginkgo.By("Verifying replacement pod is scheduled by YuniKorn")
+		podList, err = kClient.ListPods(dev, "app=failure-test")
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		for _, pod := range podList.Items {
 			gomega.Ω(pod.Spec.SchedulerName).To(gomega.Equal("yunikorn"), "All pods including replacement should be scheduled by YuniKorn")
 		}
@@ -421,74 +435,30 @@ var _ = ginkgo.Describe("Replication", func() {
 		replicaCount := int32(2)
 		replicaSetName := "resource-test-replicaset"
 
-		replicaSet := &appsv1.ReplicaSet{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: replicaSetName,
-				Labels: map[string]string{
-					"app": "resource-test",
-				},
-			},
-			Spec: appsv1.ReplicaSetSpec{
-				Replicas: &replicaCount,
-				Selector: &metav1.LabelSelector{
-					MatchLabels: map[string]string{
-						"app": "resource-test",
-					},
-				},
-				Template: v1.PodTemplateSpec{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"app": "resource-test",
-						},
-					},
-					Spec: v1.PodSpec{
-						Containers: []v1.Container{
-							{
-								Name:    "resource-container",
-								Image:   testImage,
-								Command: []string{"sleep", "300"},
-								Resources: v1.ResourceRequirements{
-									Requests: v1.ResourceList{
-										v1.ResourceCPU:    resource.MustParse("50m"),  // Reduced from 100m
-										v1.ResourceMemory: resource.MustParse("64Mi"), // Reduced from 128Mi
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		}
+		replicaSet := getReplicaSetSpec(ReplicaSetConfig{
+			Name:          replicaSetName,
+			AppLabel:      "resource-test",
+			Replicas:      replicaCount,
+			CPURequest:    "50m",
+			MemoryRequest: "64Mi",
+		})
 
 		ginkgo.By("Creating the ReplicaSet")
 		_, err := kClient.CreateReplicaSet(replicaSet, dev)
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 
 		ginkgo.By("Waiting for all pods to be created and running")
-		var podList *v1.PodList
-		gomega.Eventually(func() bool {
-			podList, err = kClient.ListPods(dev, "app=resource-test")
-			if err != nil {
-				return false
-			}
-			if len(podList.Items) != int(replicaCount) {
-				return false
-			}
-			// Check all pods are running
-			for _, pod := range podList.Items {
-				if pod.Status.Phase != v1.PodRunning {
-					return false
-				}
-			}
-			return true
-		}, standardTimeout, pollInterval).Should(gomega.BeTrue(), "Should have 2 running pods")
+		err = kClient.WaitForPodsRunning(dev, "app=resource-test", int(replicaCount), 60*time.Second)
+		gomega.Ω(err).NotTo(gomega.HaveOccurred(), "Should have 2 running pods")
+
+		podList, err := kClient.ListPods(dev, "app=resource-test")
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 
 		ginkgo.By("Verifying resource allocation for all replica pods")
 		for _, pod := range podList.Items {
 			gomega.Ω(pod.Spec.SchedulerName).To(gomega.Equal("yunikorn"), "Pod should be scheduled by YuniKorn")
 			gomega.Ω(pod.Status.Phase).To(gomega.Equal(v1.PodRunning), "Pod should be running")
 
-			// Verify resource requests are preserved
 			container := pod.Spec.Containers[0]
 			cpuReq := container.Resources.Requests[v1.ResourceCPU]
 			memReq := container.Resources.Requests[v1.ResourceMemory]
@@ -503,70 +473,27 @@ var _ = ginkgo.Describe("Replication", func() {
 
 	ginkgo.It("Verify_Queue_Assignment_Consistency", func() {
 		ginkgo.By("Creating a ReplicaSet to test queue assignment consistency")
-		replicaCount := int32(2) // Reduced from 3
+		replicaCount := int32(2)
 		replicaSetName := "queue-test-replicaset"
 
-		replicaSet := &appsv1.ReplicaSet{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: replicaSetName,
-				Labels: map[string]string{
-					"app": "queue-test",
-				},
-			},
-			Spec: appsv1.ReplicaSetSpec{
-				Replicas: &replicaCount,
-				Selector: &metav1.LabelSelector{
-					MatchLabels: map[string]string{
-						"app": "queue-test",
-					},
-				},
-				Template: v1.PodTemplateSpec{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"app": "queue-test",
-						},
-					},
-					Spec: v1.PodSpec{
-						Containers: []v1.Container{
-							{
-								Name:    "queue-container",
-								Image:   testImage,
-								Command: []string{"sleep", "300"},
-								Resources: v1.ResourceRequirements{
-									Requests: v1.ResourceList{
-										v1.ResourceCPU:    resource.MustParse("10m"),
-										v1.ResourceMemory: resource.MustParse("16Mi"),
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		}
+		replicaSet := getReplicaSetSpec(ReplicaSetConfig{
+			Name:          replicaSetName,
+			AppLabel:      "queue-test",
+			Replicas:      replicaCount,
+			CPURequest:    "10m",
+			MemoryRequest: "16Mi",
+		})
 
 		ginkgo.By("Creating the ReplicaSet")
 		_, err := kClient.CreateReplicaSet(replicaSet, dev)
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 
 		ginkgo.By("Waiting for all pods to be created and running")
-		var podList *v1.PodList
-		gomega.Eventually(func() bool {
-			podList, err = kClient.ListPods(dev, "app=queue-test")
-			if err != nil {
-				return false
-			}
-			if len(podList.Items) != int(replicaCount) {
-				return false
-			}
-			// Check all pods are running
-			for _, pod := range podList.Items {
-				if pod.Status.Phase != v1.PodRunning {
-					return false
-				}
-			}
-			return true
-		}, standardTimeout, pollInterval).Should(gomega.BeTrue(), "Should have 2 running pods")
+		err = kClient.WaitForPodsRunning(dev, "app=queue-test", int(replicaCount), 60*time.Second)
+		gomega.Ω(err).NotTo(gomega.HaveOccurred(), "Should have 2 running pods")
+
+		podList, err := kClient.ListPods(dev, "app=queue-test")
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 
 		ginkgo.By("Verifying queue assignment consistency across replica pods")
 		var appIDs []string
@@ -574,7 +501,6 @@ var _ = ginkgo.Describe("Replication", func() {
 			gomega.Ω(pod.Spec.SchedulerName).To(gomega.Equal("yunikorn"), "Pod should be scheduled by YuniKorn")
 			gomega.Ω(pod.Status.Phase).To(gomega.Equal(v1.PodRunning), "Pod should be running")
 
-			// Check if pod has applicationId label
 			if appID, exists := pod.Labels["applicationId"]; exists {
 				appIDs = append(appIDs, appID)
 			}
@@ -585,7 +511,7 @@ var _ = ginkgo.Describe("Replication", func() {
 
 		ginkgo.By("Checking YuniKorn queue assignment via REST API")
 		if len(appIDs) > 0 {
-			// Get application info for first pod to verify queue assignment
+
 			expectedQueue := "root." + dev
 			appInfo, appErr := restClient.GetAppInfo("default", expectedQueue, appIDs[0])
 			gomega.Ω(appErr).NotTo(gomega.HaveOccurred())
@@ -600,93 +526,56 @@ var _ = ginkgo.Describe("Replication", func() {
 
 	ginkgo.It("Verify_Multi_Container_Pod_Replication", func() {
 		ginkgo.By("Creating a ReplicaSet with multi-container pods")
-		replicaCount := int32(2) // Reduced from 3
+		replicaCount := int32(2)
 		replicaSetName := "multi-container-replicaset"
 
-		replicaSet := &appsv1.ReplicaSet{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: replicaSetName,
-				Labels: map[string]string{
-					"app": "multi-container-test",
+		replicaSet := getReplicaSetSpec(ReplicaSetConfig{
+			Name:          replicaSetName,
+			AppLabel:      "multi-container-test",
+			Replicas:      replicaCount,
+			CPURequest:    "25m",
+			MemoryRequest: "32Mi",
+			InitContainers: []v1.Container{
+				{
+					Name:    "init-container",
+					Image:   testImage,
+					Command: []string{"sh", "-c", "echo 'Init complete' && sleep 2"},
 				},
 			},
-			Spec: appsv1.ReplicaSetSpec{
-				Replicas: &replicaCount,
-				Selector: &metav1.LabelSelector{
-					MatchLabels: map[string]string{
-						"app": "multi-container-test",
-					},
-				},
-				Template: v1.PodTemplateSpec{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"app": "multi-container-test",
-						},
-					},
-					Spec: v1.PodSpec{
-						InitContainers: []v1.Container{
-							{
-								Name:    "init-container",
-								Image:   testImage,
-								Command: []string{"sh", "-c", "echo 'Init complete' && sleep 2"}, // Reduced sleep
-							},
-						},
-						Containers: []v1.Container{
-							{
-								Name:    "main-container",
-								Image:   testImage,
-								Command: []string{"sleep", "300"},
-								Resources: v1.ResourceRequirements{
-									Requests: v1.ResourceList{
-										v1.ResourceCPU:    resource.MustParse("25m"),  // Reduced from 50m
-										v1.ResourceMemory: resource.MustParse("32Mi"), // Reduced from 64Mi
-									},
-								},
-							},
-							{
-								Name:    "sidecar-container",
-								Image:   testImage,
-								Command: []string{"sh", "-c", "while true; do echo 'Sidecar running'; sleep 30; done"},
-								Resources: v1.ResourceRequirements{
-									Requests: v1.ResourceList{
-										v1.ResourceCPU:    resource.MustParse("10m"),  // Reduced from 25m
-										v1.ResourceMemory: resource.MustParse("16Mi"), // Reduced from 32Mi
-									},
-								},
-							},
+			SidecarContainers: []v1.Container{
+				{
+					Name:    "sidecar-container",
+					Image:   testImage,
+					Command: []string{"sh", "-c", "while true; do echo 'Sidecar running'; sleep 30; done"},
+					Resources: v1.ResourceRequirements{
+						Requests: v1.ResourceList{
+							v1.ResourceCPU:    resource.MustParse("10m"),
+							v1.ResourceMemory: resource.MustParse("16Mi"),
 						},
 					},
 				},
 			},
-		}
+		})
 
 		ginkgo.By("Creating the multi-container ReplicaSet")
 		_, err := kClient.CreateReplicaSet(replicaSet, dev)
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 
 		ginkgo.By("Waiting for all multi-container pods to be created and running")
-		var podList *v1.PodList
-		gomega.Eventually(func() bool {
-			podList, err = kClient.ListPods(dev, "app=multi-container-test")
-			if err != nil {
-				return false
-			}
+		err = kClient.WaitForPodsWithCondition(dev, "app=multi-container-test", func(podList *v1.PodList) bool {
 			if len(podList.Items) != int(replicaCount) {
 				return false
 			}
-			// Check all pods are running
 			for _, pod := range podList.Items {
 				if pod.Status.Phase != v1.PodRunning {
 					return false
 				}
-				// Check init container completion
 				if len(pod.Status.InitContainerStatuses) > 0 {
 					initStatus := pod.Status.InitContainerStatuses[0]
 					if initStatus.State.Terminated == nil || initStatus.State.Terminated.ExitCode != 0 {
 						return false
 					}
 				}
-				// Check main containers
 				if len(pod.Status.ContainerStatuses) != 2 {
 					return false
 				}
@@ -697,7 +586,11 @@ var _ = ginkgo.Describe("Replication", func() {
 				}
 			}
 			return true
-		}, longTimeout, pollInterval).Should(gomega.BeTrue(), "All multi-container pods should be ready")
+		}, 60*time.Second)
+		gomega.Ω(err).NotTo(gomega.HaveOccurred(), "All multi-container pods should be ready")
+
+		podList, err := kClient.ListPods(dev, "app=multi-container-test")
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 
 		ginkgo.By("Verifying multi-container pod structure")
 		for _, pod := range podList.Items {
@@ -705,16 +598,14 @@ var _ = ginkgo.Describe("Replication", func() {
 			gomega.Ω(pod.Spec.InitContainers).To(gomega.HaveLen(1), "Pod should have 1 init container")
 			gomega.Ω(pod.Spec.Containers).To(gomega.HaveLen(2), "Pod should have 2 main containers")
 
-			// Verify init container completed successfully
 			if len(pod.Status.InitContainerStatuses) > 0 {
 				initStatus := pod.Status.InitContainerStatuses[0]
-				// Init container should either be not ready (completed) or have terminated state
+
 				isInitCompleted := !initStatus.Ready ||
 					(initStatus.State.Terminated != nil && initStatus.State.Terminated.ExitCode == 0)
 				gomega.Ω(isInitCompleted).To(gomega.BeTrue(), "Init container should be completed successfully")
 			}
 
-			// Verify both main containers are running
 			readyCount := 0
 			for _, containerStatus := range pod.Status.ContainerStatuses {
 				if containerStatus.Ready {
@@ -742,85 +633,40 @@ var _ = ginkgo.Describe("Replication", func() {
 		replicaCount := int32(2)
 		replicaSetName := "node-affinity-replicaset"
 
-		replicaSet := &appsv1.ReplicaSet{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: replicaSetName,
-				Labels: map[string]string{
-					"app": "node-affinity-test",
-				},
-			},
-			Spec: appsv1.ReplicaSetSpec{
-				Replicas: &replicaCount,
-				Selector: &metav1.LabelSelector{
-					MatchLabels: map[string]string{
-						"app": "node-affinity-test",
-					},
-				},
-				Template: v1.PodTemplateSpec{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"app": "node-affinity-test",
-						},
-					},
-					Spec: v1.PodSpec{
-						Affinity: &v1.Affinity{
-							NodeAffinity: &v1.NodeAffinity{
-								PreferredDuringSchedulingIgnoredDuringExecution: []v1.PreferredSchedulingTerm{
-									{
-										Weight: 100,
-										Preference: v1.NodeSelectorTerm{
-											MatchExpressions: []v1.NodeSelectorRequirement{
-												{
-													Key:      "kubernetes.io/hostname",
-													Operator: v1.NodeSelectorOpIn,
-													Values:   []string{targetNode},
-												},
-											},
-										},
-									},
-								},
-							},
-						},
-						Containers: []v1.Container{
-							{
-								Name:    "affinity-container",
-								Image:   testImage,
-								Command: []string{"sleep", "300"},
-								Resources: v1.ResourceRequirements{
-									Requests: v1.ResourceList{
-										v1.ResourceCPU:    resource.MustParse("10m"),
-										v1.ResourceMemory: resource.MustParse("16Mi"),
-									},
+		replicaSet := getReplicaSetSpec(ReplicaSetConfig{
+			Name:          replicaSetName,
+			AppLabel:      "node-affinity-test",
+			Replicas:      replicaCount,
+			CPURequest:    "10m",
+			MemoryRequest: "16Mi",
+			NodeAffinity: &v1.NodeAffinity{
+				PreferredDuringSchedulingIgnoredDuringExecution: []v1.PreferredSchedulingTerm{
+					{
+						Weight: 100,
+						Preference: v1.NodeSelectorTerm{
+							MatchExpressions: []v1.NodeSelectorRequirement{
+								{
+									Key:      "kubernetes.io/hostname",
+									Operator: v1.NodeSelectorOpIn,
+									Values:   []string{targetNode},
 								},
 							},
 						},
 					},
 				},
 			},
-		}
+		})
 
 		ginkgo.By("Creating the ReplicaSet with node affinity")
 		_, err = kClient.CreateReplicaSet(replicaSet, dev)
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 
 		ginkgo.By("Waiting for all pods to be created and running")
-		var podList *v1.PodList
-		gomega.Eventually(func() bool {
-			podList, err = kClient.ListPods(dev, "app=node-affinity-test")
-			if err != nil {
-				return false
-			}
-			if len(podList.Items) != int(replicaCount) {
-				return false
-			}
-			// Check all pods are running
-			for _, pod := range podList.Items {
-				if pod.Status.Phase != v1.PodRunning {
-					return false
-				}
-			}
-			return true
-		}, standardTimeout, pollInterval).Should(gomega.BeTrue(), "Should have 2 running pods")
+		err = kClient.WaitForPodsRunning(dev, "app=node-affinity-test", int(replicaCount), 60*time.Second)
+		gomega.Ω(err).NotTo(gomega.HaveOccurred(), "Should have 2 running pods")
+
+		podList, err := kClient.ListPods(dev, "app=node-affinity-test")
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 
 		ginkgo.By("Verifying node affinity is respected by YuniKorn scheduler")
 		for _, pod := range podList.Items {
@@ -837,77 +683,30 @@ var _ = ginkgo.Describe("Replication", func() {
 	ginkgo.It("Verify_Rolling_Update_Replication", func() {
 		ginkgo.By("Creating a Deployment for rolling update testing")
 		deploymentName := "rolling-update-deployment"
-		replicaCount := int32(3) // Reduced from 4
+		replicaCount := int32(3)
 
-		deployment := &appsv1.Deployment{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: deploymentName,
-				Labels: map[string]string{
-					"app": "rolling-update-test",
-				},
-			},
-			Spec: appsv1.DeploymentSpec{
-				Replicas: &replicaCount,
-				Strategy: appsv1.DeploymentStrategy{
-					Type: appsv1.RollingUpdateDeploymentStrategyType,
-					RollingUpdate: &appsv1.RollingUpdateDeployment{
-						MaxUnavailable: &intstr.IntOrString{Type: intstr.Int, IntVal: 1},
-						MaxSurge:       &intstr.IntOrString{Type: intstr.Int, IntVal: 1},
-					},
-				},
-				Selector: &metav1.LabelSelector{
-					MatchLabels: map[string]string{
-						"app": "rolling-update-test",
-					},
-				},
-				Template: v1.PodTemplateSpec{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"app":     "rolling-update-test",
-							"version": "v1",
-						},
-					},
-					Spec: v1.PodSpec{
-						Containers: []v1.Container{
-							{
-								Name:    "rolling-container",
-								Image:   testImage, // Use consistent image
-								Command: []string{"sleep", "300"},
-								Resources: v1.ResourceRequirements{
-									Requests: v1.ResourceList{
-										v1.ResourceCPU:    resource.MustParse("10m"),
-										v1.ResourceMemory: resource.MustParse("16Mi"),
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		}
+		deployment := getDeploymentSpec(DeploymentConfig{
+			Name:          deploymentName,
+			AppLabel:      "rolling-update-test",
+			Replicas:      replicaCount,
+			CPURequest:    "10m",
+			MemoryRequest: "16Mi",
+			ExtraLabels:   map[string]string{"version": "v1"},
+			RollingUpdate: true,
+		})
 
 		ginkgo.By("Creating the initial Deployment")
 		_, err := kClient.CreateDeployment(deployment, dev)
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 
 		ginkgo.By("Waiting for initial deployment to be ready")
-		var podList *v1.PodList
-		gomega.Eventually(func() bool {
-			podList, err = kClient.ListPods(dev, "app=rolling-update-test")
-			if err != nil {
-				return false
-			}
-			if len(podList.Items) != int(replicaCount) {
-				return false
-			}
-			// Check all pods are running
-			for _, pod := range podList.Items {
-				if pod.Status.Phase != v1.PodRunning {
-					return false
-				}
-			}
-			return true
-		}, standardTimeout, pollInterval).Should(gomega.BeTrue(), "Should have 3 initial running pods")
+		err = kClient.WaitForPodsRunning(dev, "app=rolling-update-test", int(replicaCount), 60*time.Second)
+		gomega.Ω(err).NotTo(gomega.HaveOccurred(), "Should have 3 initial running pods")
+
+		ginkgo.By("Verifying initial pods are running")
+		podList, err := kClient.ListPods(dev, "app=rolling-update-test")
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		gomega.Ω(podList.Items).To(gomega.HaveLen(int(replicaCount)), "Should have correct number of initial pods")
 
 		ginkgo.By("Triggering rolling update by changing image version")
 		deploymentObj, err := kClient.GetDeployment(deploymentName, dev)
@@ -915,19 +714,15 @@ var _ = ginkgo.Describe("Replication", func() {
 
 		deploymentObj.Spec.Template.Labels["version"] = "v2"
 		deploymentObj.Spec.Template.Spec.Containers[0].Env = []v1.EnvVar{
-			{Name: "VERSION", Value: "v2"}, // Use env var instead of different image
+			{Name: "VERSION", Value: "v2"},
 		}
 
 		_, err = kClient.UpdateDeployment(deploymentObj, dev)
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 
 		ginkgo.By("Waiting for rolling update to complete")
-		gomega.Eventually(func() bool {
-			podList, err = kClient.ListPods(dev, "app=rolling-update-test")
-			if err != nil {
-				return false
-			}
-			// Check if all pods have the new version AND we have exactly the right number
+		err = kClient.WaitForPodsWithCondition(dev, "app=rolling-update-test", func(podList *v1.PodList) bool {
+
 			v2Count := 0
 			for _, pod := range podList.Items {
 				if pod.Labels["version"] == "v2" && pod.Status.Phase == v1.PodRunning {
@@ -935,7 +730,11 @@ var _ = ginkgo.Describe("Replication", func() {
 				}
 			}
 			return v2Count == int(replicaCount) && len(podList.Items) == int(replicaCount)
-		}, longTimeout, pollInterval).Should(gomega.BeTrue(), "All pods should be updated to v2 and count should be exactly 3")
+		}, 60*time.Second)
+		gomega.Ω(err).NotTo(gomega.HaveOccurred(), "All pods should be updated to v2 and count should be exactly 3")
+
+		podList, err = kClient.ListPods(dev, "app=rolling-update-test")
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 
 		ginkgo.By("Verifying rolling update completed successfully")
 		for _, pod := range podList.Items {
@@ -951,69 +750,15 @@ var _ = ginkgo.Describe("Replication", func() {
 	ginkgo.It("Verify_StatefulSet_Replication", func() {
 		ginkgo.By("Creating a StatefulSet for persistent identity testing")
 		statefulSetName := "stateful-test"
-		replicaCount := int32(2) // Reduced from 3
+		replicaCount := int32(2)
+		serviceName := "stateful-service"
 
-		statefulSet := &appsv1.StatefulSet{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: statefulSetName,
-				Labels: map[string]string{
-					"app": "stateful-test",
-				},
-			},
-			Spec: appsv1.StatefulSetSpec{
-				Replicas:    &replicaCount,
-				ServiceName: "stateful-service",
-				Selector: &metav1.LabelSelector{
-					MatchLabels: map[string]string{
-						"app": "stateful-test",
-					},
-				},
-				Template: v1.PodTemplateSpec{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"app": "stateful-test",
-						},
-					},
-					Spec: v1.PodSpec{
-						Containers: []v1.Container{
-							{
-								Name:    "stateful-container",
-								Image:   testImage,
-								Command: []string{"sleep", "300"},
-								Resources: v1.ResourceRequirements{
-									Requests: v1.ResourceList{
-										v1.ResourceCPU:    resource.MustParse("50m"),  // Reduced from 100m
-										v1.ResourceMemory: resource.MustParse("64Mi"), // Reduced from 128Mi
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		}
+		statefulSet := k8s.GetBasicStatefulSetSpec(statefulSetName, "stateful-test", serviceName, replicaCount)
+
+		statefulSet.Spec.Template.Spec.Containers[0].Image = testImage
 
 		ginkgo.By("Creating a headless service for StatefulSet")
-		service := &v1.Service{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "stateful-service",
-				Labels: map[string]string{
-					"app": "stateful-test",
-				},
-			},
-			Spec: v1.ServiceSpec{
-				ClusterIP: "None",
-				Selector: map[string]string{
-					"app": "stateful-test",
-				},
-				Ports: []v1.ServicePort{
-					{
-						Port:       80,
-						TargetPort: intstr.IntOrString{Type: intstr.Int, IntVal: 80},
-					},
-				},
-			},
-		}
+		service := k8s.GetBasicHeadlessService(serviceName, "stateful-test")
 
 		ginkgo.By("Creating the headless service")
 		_, err := kClient.CreateService(service, dev)
@@ -1024,23 +769,8 @@ var _ = ginkgo.Describe("Replication", func() {
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 
 		ginkgo.By("Waiting for StatefulSet pods to be created and running")
-		var podList *v1.PodList
-		gomega.Eventually(func() bool {
-			podList, err = kClient.ListPods(dev, "app=stateful-test")
-			if err != nil {
-				return false
-			}
-			if len(podList.Items) != int(replicaCount) {
-				return false
-			}
-			// Check all pods are running
-			for _, pod := range podList.Items {
-				if pod.Status.Phase != v1.PodRunning {
-					return false
-				}
-			}
-			return true
-		}, longTimeout, pollInterval).Should(gomega.BeTrue(), "Should have 2 StatefulSet running pods")
+		err = kClient.WaitForPodsRunning(dev, "app=stateful-test", int(replicaCount), 60*time.Second)
+		gomega.Ω(err).NotTo(gomega.HaveOccurred(), "Should have 2 StatefulSet running pods")
 
 		ginkgo.By("Verifying StatefulSet pod naming and ordering")
 		expectedNames := []string{
@@ -1048,6 +778,8 @@ var _ = ginkgo.Describe("Replication", func() {
 			fmt.Sprintf("%s-1", statefulSetName),
 		}
 
+		podList, err := kClient.ListPods(dev, "app=stateful-test")
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		actualNames := make([]string, len(podList.Items))
 		for i, pod := range podList.Items {
 			actualNames[i] = pod.Name
@@ -1067,51 +799,18 @@ var _ = ginkgo.Describe("Replication", func() {
 
 	ginkgo.It("Verify_Replication_Stress_Test", func() {
 		ginkgo.By("Creating a ReplicaSet for stress testing")
-		replicaCount := int32(5) // Reduced from 10 for faster execution
+		replicaCount := int32(5)
 		replicaSetName := "stress-test-replicaset"
 
-		replicaSet := &appsv1.ReplicaSet{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: replicaSetName,
-				Labels: map[string]string{
-					"app": "stress-test",
-				},
-			},
-			Spec: appsv1.ReplicaSetSpec{
-				Replicas: &replicaCount,
-				Selector: &metav1.LabelSelector{
-					MatchLabels: map[string]string{
-						"app": "stress-test",
-					},
-				},
-				Template: v1.PodTemplateSpec{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"app": "stress-test",
-						},
-					},
-					Spec: v1.PodSpec{
-						Containers: []v1.Container{
-							{
-								Name:    "stress-container",
-								Image:   testImage,
-								Command: []string{"sleep", "300"},
-								Resources: v1.ResourceRequirements{
-									Requests: v1.ResourceList{
-										v1.ResourceCPU:    resource.MustParse("5m"),  // Reduced from 10m
-										v1.ResourceMemory: resource.MustParse("8Mi"), // Reduced from 16Mi
-									},
-									Limits: v1.ResourceList{
-										v1.ResourceCPU:    resource.MustParse("25m"),  // Reduced from 50m
-										v1.ResourceMemory: resource.MustParse("32Mi"), // Reduced from 64Mi
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		}
+		replicaSet := getReplicaSetSpec(ReplicaSetConfig{
+			Name:          replicaSetName,
+			AppLabel:      "stress-test",
+			Replicas:      replicaCount,
+			CPURequest:    "5m",
+			MemoryRequest: "8Mi",
+			CPULimit:      "25m",
+			MemoryLimit:   "32Mi",
+		})
 
 		ginkgo.By("Creating the stress test ReplicaSet")
 		startTime := time.Now()
@@ -1119,23 +818,11 @@ var _ = ginkgo.Describe("Replication", func() {
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 
 		ginkgo.By("Waiting for all stress test pods to be created and running")
-		var podList *v1.PodList
-		gomega.Eventually(func() bool {
-			podList, err = kClient.ListPods(dev, "app=stress-test")
-			if err != nil {
-				return false
-			}
-			if len(podList.Items) != int(replicaCount) {
-				return false
-			}
-			// Check all pods are running
-			for _, pod := range podList.Items {
-				if pod.Status.Phase != v1.PodRunning {
-					return false
-				}
-			}
-			return true
-		}, stressTimeout, pollInterval).Should(gomega.BeTrue(), "Should have 5 stress test running pods")
+		err = kClient.WaitForPodsRunning(dev, "app=stress-test", int(replicaCount), 60*time.Second)
+		gomega.Ω(err).NotTo(gomega.HaveOccurred(), "Should have 5 stress test running pods")
+
+		podList, err := kClient.ListPods(dev, "app=stress-test")
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 
 		endTime := time.Now()
 		schedulingDuration := endTime.Sub(startTime)
@@ -1160,85 +847,21 @@ var _ = ginkgo.Describe("Replication", func() {
 	ginkgo.It("Verify_Mixed_Workload_Replication", func() {
 		ginkgo.By("Creating multiple workloads concurrently")
 
-		// Create ReplicaSet (reduced replicas)
-		replicaSet := &appsv1.ReplicaSet{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "mixed-replicaset",
-				Labels: map[string]string{
-					"app": "mixed-replica",
-				},
-			},
-			Spec: appsv1.ReplicaSetSpec{
-				Replicas: &[]int32{2}[0], // Reduced from 3
-				Selector: &metav1.LabelSelector{
-					MatchLabels: map[string]string{
-						"app": "mixed-replica",
-					},
-				},
-				Template: v1.PodTemplateSpec{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"app": "mixed-replica",
-						},
-					},
-					Spec: v1.PodSpec{
-						Containers: []v1.Container{
-							{
-								Name:    "replica-container",
-								Image:   testImage,
-								Command: []string{"sleep", "300"},
-								Resources: v1.ResourceRequirements{
-									Requests: v1.ResourceList{
-										v1.ResourceCPU:    resource.MustParse("25m"),  // Reduced from 50m
-										v1.ResourceMemory: resource.MustParse("32Mi"), // Reduced from 64Mi
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		}
+		replicaSet := getReplicaSetSpec(ReplicaSetConfig{
+			Name:          "mixed-replicaset",
+			AppLabel:      "mixed-replica",
+			Replicas:      2,
+			CPURequest:    "25m",
+			MemoryRequest: "32Mi",
+		})
 
-		// Create Deployment
-		deployment := &appsv1.Deployment{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "mixed-deployment",
-				Labels: map[string]string{
-					"app": "mixed-deploy",
-				},
-			},
-			Spec: appsv1.DeploymentSpec{
-				Replicas: &[]int32{2}[0],
-				Selector: &metav1.LabelSelector{
-					MatchLabels: map[string]string{
-						"app": "mixed-deploy",
-					},
-				},
-				Template: v1.PodTemplateSpec{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"app": "mixed-deploy",
-						},
-					},
-					Spec: v1.PodSpec{
-						Containers: []v1.Container{
-							{
-								Name:    "deploy-container",
-								Image:   testImage,
-								Command: []string{"sleep", "300"},
-								Resources: v1.ResourceRequirements{
-									Requests: v1.ResourceList{
-										v1.ResourceCPU:    resource.MustParse("35m"),  // Reduced from 75m
-										v1.ResourceMemory: resource.MustParse("48Mi"), // Reduced from 96Mi
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		}
+		deployment := getDeploymentSpec(DeploymentConfig{
+			Name:          "mixed-deployment",
+			AppLabel:      "mixed-deploy",
+			Replicas:      2,
+			CPURequest:    "35m",
+			MemoryRequest: "48Mi",
+		})
 
 		ginkgo.By("Creating ReplicaSet and Deployment concurrently")
 		_, err := kClient.CreateReplicaSet(replicaSet, dev)
@@ -1248,33 +871,17 @@ var _ = ginkgo.Describe("Replication", func() {
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 
 		ginkgo.By("Waiting for all mixed workload pods to be created and running")
-		var replicaPodList, deployPodList *v1.PodList
 
-		gomega.Eventually(func() bool {
-			replicaPodList, err = kClient.ListPods(dev, "app=mixed-replica")
-			if err != nil {
-				return false
-			}
-			deployPodList, err = kClient.ListPods(dev, "app=mixed-deploy")
-			if err != nil {
-				return false
-			}
-			if len(replicaPodList.Items) != 2 || len(deployPodList.Items) != 2 {
-				return false
-			}
-			// Check all pods are running
-			for _, pod := range replicaPodList.Items {
-				if pod.Status.Phase != v1.PodRunning {
-					return false
-				}
-			}
-			for _, pod := range deployPodList.Items {
-				if pod.Status.Phase != v1.PodRunning {
-					return false
-				}
-			}
-			return true
-		}, longTimeout, pollInterval).Should(gomega.BeTrue(), "Should have 2 ReplicaSet pods and 2 Deployment pods running")
+		err = kClient.WaitForPodsRunning(dev, "app=mixed-replica", 2, 60*time.Second)
+		gomega.Ω(err).NotTo(gomega.HaveOccurred(), "Should have 2 ReplicaSet pods running")
+
+		err = kClient.WaitForPodsRunning(dev, "app=mixed-deploy", 2, 60*time.Second)
+		gomega.Ω(err).NotTo(gomega.HaveOccurred(), "Should have 2 Deployment pods running")
+
+		replicaPodList, err := kClient.ListPods(dev, "app=mixed-replica")
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		deployPodList, err := kClient.ListPods(dev, "app=mixed-deploy")
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 
 		ginkgo.By("Verifying mixed workload scheduling")
 		totalPods := len(replicaPodList.Items) + len(deployPodList.Items)
@@ -1296,7 +903,6 @@ var _ = ginkgo.Describe("Replication", func() {
 	ginkgo.It("Verify_Replication_With_Priority_Classes", func() {
 		ginkgo.By("Creating priority classes for testing")
 
-		// Create high priority class
 		highPriorityClass := &schedulingv1.PriorityClass{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "high-priority",
@@ -1306,7 +912,6 @@ var _ = ginkgo.Describe("Replication", func() {
 			Description:   "High priority class for testing",
 		}
 
-		// Create low priority class
 		lowPriorityClass := &schedulingv1.PriorityClass{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "low-priority",
@@ -1318,92 +923,34 @@ var _ = ginkgo.Describe("Replication", func() {
 
 		ginkgo.By("Creating priority classes")
 		_, err := kClient.CreatePriorityClass(highPriorityClass)
-		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		if err != nil && !errors.IsAlreadyExists(err) {
+			gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		}
 
 		_, err = kClient.CreatePriorityClass(lowPriorityClass)
-		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		if err != nil && !errors.IsAlreadyExists(err) {
+			gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		}
 
 		ginkgo.By("Creating ReplicaSet with high priority")
-		highPriorityReplicaSet := &appsv1.ReplicaSet{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "high-priority-replicaset",
-				Labels: map[string]string{
-					"app": "high-priority-test",
-				},
-			},
-			Spec: appsv1.ReplicaSetSpec{
-				Replicas: &[]int32{2}[0],
-				Selector: &metav1.LabelSelector{
-					MatchLabels: map[string]string{
-						"app": "high-priority-test",
-					},
-				},
-				Template: v1.PodTemplateSpec{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"app": "high-priority-test",
-						},
-					},
-					Spec: v1.PodSpec{
-						PriorityClassName: "high-priority",
-						Containers: []v1.Container{
-							{
-								Name:    "high-priority-container",
-								Image:   testImage,
-								Command: []string{"sleep", "300"},
-								Resources: v1.ResourceRequirements{
-									Requests: v1.ResourceList{
-										v1.ResourceCPU:    resource.MustParse("50m"),  // Reduced from 100m
-										v1.ResourceMemory: resource.MustParse("64Mi"), // Reduced from 128Mi
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		}
+		highPriorityReplicaSet := getReplicaSetSpec(ReplicaSetConfig{
+			Name:          "high-priority-replicaset",
+			AppLabel:      "high-priority-test",
+			Replicas:      2,
+			CPURequest:    "50m",
+			MemoryRequest: "64Mi",
+			PriorityClass: "high-priority",
+		})
 
 		ginkgo.By("Creating ReplicaSet with low priority")
-		lowPriorityReplicaSet := &appsv1.ReplicaSet{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "low-priority-replicaset",
-				Labels: map[string]string{
-					"app": "low-priority-test",
-				},
-			},
-			Spec: appsv1.ReplicaSetSpec{
-				Replicas: &[]int32{2}[0],
-				Selector: &metav1.LabelSelector{
-					MatchLabels: map[string]string{
-						"app": "low-priority-test",
-					},
-				},
-				Template: v1.PodTemplateSpec{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"app": "low-priority-test",
-						},
-					},
-					Spec: v1.PodSpec{
-						PriorityClassName: "low-priority",
-						Containers: []v1.Container{
-							{
-								Name:    "low-priority-container",
-								Image:   testImage,
-								Command: []string{"sleep", "300"},
-								Resources: v1.ResourceRequirements{
-									Requests: v1.ResourceList{
-										v1.ResourceCPU:    resource.MustParse("25m"),  // Reduced from 50m
-										v1.ResourceMemory: resource.MustParse("32Mi"), // Reduced from 64Mi
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		}
+		lowPriorityReplicaSet := getReplicaSetSpec(ReplicaSetConfig{
+			Name:          "low-priority-replicaset",
+			AppLabel:      "low-priority-test",
+			Replicas:      2,
+			CPURequest:    "25m",
+			MemoryRequest: "32Mi",
+			PriorityClass: "low-priority",
+		})
 
 		ginkgo.By("Creating both ReplicaSets")
 		_, err = kClient.CreateReplicaSet(highPriorityReplicaSet, dev)
@@ -1413,33 +960,17 @@ var _ = ginkgo.Describe("Replication", func() {
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 
 		ginkgo.By("Waiting for all priority-based pods to be created and running")
-		var highPriorityPods, lowPriorityPods *v1.PodList
 
-		gomega.Eventually(func() bool {
-			highPriorityPods, err = kClient.ListPods(dev, "app=high-priority-test")
-			if err != nil {
-				return false
-			}
-			lowPriorityPods, err = kClient.ListPods(dev, "app=low-priority-test")
-			if err != nil {
-				return false
-			}
-			if len(highPriorityPods.Items) != 2 || len(lowPriorityPods.Items) != 2 {
-				return false
-			}
-			// Check all pods are running
-			for _, pod := range highPriorityPods.Items {
-				if pod.Status.Phase != v1.PodRunning {
-					return false
-				}
-			}
-			for _, pod := range lowPriorityPods.Items {
-				if pod.Status.Phase != v1.PodRunning {
-					return false
-				}
-			}
-			return true
-		}, longTimeout, pollInterval).Should(gomega.BeTrue(), "Should have 2 high-priority and 2 low-priority running pods")
+		err = kClient.WaitForPodsRunning(dev, "app=high-priority-test", 2, 60*time.Second)
+		gomega.Ω(err).NotTo(gomega.HaveOccurred(), "Should have 2 high-priority pods running")
+
+		err = kClient.WaitForPodsRunning(dev, "app=low-priority-test", 2, 60*time.Second)
+		gomega.Ω(err).NotTo(gomega.HaveOccurred(), "Should have 2 low-priority pods running")
+
+		highPriorityPods, err := kClient.ListPods(dev, "app=high-priority-test")
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		lowPriorityPods, err := kClient.ListPods(dev, "app=low-priority-test")
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 
 		ginkgo.By("Verifying priority class assignments")
 		for _, pod := range highPriorityPods.Items {
@@ -1462,8 +993,12 @@ var _ = ginkgo.Describe("Replication", func() {
 
 		ginkgo.By("Cleaning up priority classes")
 		err = kClient.DeletePriorityClass("high-priority")
-		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		if err != nil && !errors.IsNotFound(err) {
+			gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		}
 		err = kClient.DeletePriorityClass("low-priority")
-		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		if err != nil && !errors.IsNotFound(err) {
+			gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		}
 	})
 })
