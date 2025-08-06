@@ -166,8 +166,8 @@ var _ = ginkgo.Describe("InPlacePodVerticalScaling", func() {
 		verifyYunikornResourceUsage(pod.Labels["applicationId"], "vcore", 100)
 
 		pod, err = kClient.ModifyResourceUsage(pod, ns, 100, 100)
-
 		Ω(err).NotTo(HaveOccurred())
+
 		Ω(pod.Status.StartTime).To(Equal(initialStartTime), "Pod should not have restarted")
 		Ω(pod.Status.ContainerStatuses[0].RestartCount).To(Equal(initialRestartCount), "Container should not have restarted")
 		verifyYunikornResourceUsage(pod.Labels["applicationId"], "memory", 100*1024*1024)
