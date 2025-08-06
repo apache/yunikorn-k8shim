@@ -158,16 +158,14 @@ var _ = ginkgo.Describe("InPlacePodVerticalScaling", func() {
 				return false
 			}
 			return currentPod.Spec.Containers[0].Resources.Requests.Cpu().MilliValue() == int64(100)
-		}, 1*time.Second, 120*time.Second)
+		}, time.Second, 120*time.Second)
 		Ω(err).NotTo(HaveOccurred())
 
-		Ω(err).NotTo(HaveOccurred())
 		Ω(pod.Status.StartTime).To(Equal(initialStartTime), "Pod should not have restarted")
 		Ω(pod.Status.ContainerStatuses[0].RestartCount).To(Equal(initialRestartCount), "Container should not have restarted")
 		verifyYunikornResourceUsage(pod.Labels["applicationId"], "vcore", 100)
 
 		pod, err = kClient.ModifyResourceUsage(pod, ns, 100, 100)
-		Ω(err).NotTo(HaveOccurred())
 
 		Ω(err).NotTo(HaveOccurred())
 		Ω(pod.Status.StartTime).To(Equal(initialStartTime), "Pod should not have restarted")
@@ -210,7 +208,7 @@ var _ = ginkgo.Describe("InPlacePodVerticalScaling", func() {
 				return false
 			}
 			return currentPod.Status.Resize == v1.PodResizeStatusInfeasible
-		}, 1*time.Second, 120*time.Second)
+		}, time.Second, 120*time.Second)
 		Ω(err).NotTo(HaveOccurred())
 
 		Ω(pod.Status.StartTime).To(Equal(initialStartTime), "Pod should not have restarted")
