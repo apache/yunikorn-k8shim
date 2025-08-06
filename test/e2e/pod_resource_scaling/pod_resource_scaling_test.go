@@ -84,7 +84,7 @@ func verifyYunikornResourceUsage(appID, resourceName string, value int64) {
 		}
 
 		return false
-	}, 30*time.Second, 120*time.Second)
+	}, 1*time.Second, 120*time.Second)
 	Ω(err).NotTo(HaveOccurred(), fmt.Sprintf("Pod should be scheduled by YuniKorn with correct resource(%s) allocation", resourceName))
 }
 
@@ -158,7 +158,7 @@ var _ = ginkgo.Describe("InPlacePodVerticalScaling", func() {
 				return false
 			}
 			return currentPod.Spec.Containers[0].Resources.Requests.Cpu().MilliValue() == int64(100)
-		}, 10*time.Second, 120*time.Second)
+		}, 1*time.Second, 120*time.Second)
 		Ω(err).NotTo(HaveOccurred())
 
 		Ω(err).NotTo(HaveOccurred())
@@ -210,7 +210,7 @@ var _ = ginkgo.Describe("InPlacePodVerticalScaling", func() {
 				return false
 			}
 			return currentPod.Status.Resize == v1.PodResizeStatusInfeasible
-		}, 10*time.Second, 120*time.Second)
+		}, 1*time.Second, 120*time.Second)
 		Ω(err).NotTo(HaveOccurred())
 
 		Ω(pod.Status.StartTime).To(Equal(initialStartTime), "Pod should not have restarted")
