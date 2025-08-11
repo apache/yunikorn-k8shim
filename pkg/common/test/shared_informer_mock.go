@@ -19,6 +19,7 @@
 package test
 
 import (
+	ctx "context"
 	"sync/atomic"
 	"time"
 
@@ -37,6 +38,17 @@ var (
 )
 
 type SharedInformerMock struct {
+}
+
+func (s *SharedInformerMock) AddEventHandlerWithOptions(_ cache.ResourceEventHandler, _ cache.HandlerOptions) (cache.ResourceEventHandlerRegistration, error) {
+	return nil, nil
+}
+
+func (s *SharedInformerMock) RunWithContext(_ ctx.Context) {
+}
+
+func (s *SharedInformerMock) SetWatchErrorHandlerWithContext(_ cache.WatchErrorHandlerWithContext) error {
+	return nil
 }
 
 func (s *SharedInformerMock) AddEventHandler(_ cache.ResourceEventHandler) (cache.ResourceEventHandlerRegistration, error) {
