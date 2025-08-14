@@ -16,7 +16,7 @@
  limitations under the License.
 */
 
-package replication_test
+package workload_test
 
 import (
 	"path/filepath"
@@ -38,19 +38,19 @@ func init() {
 	configmanager.YuniKornTestConfig.ParseFlags()
 }
 
-func TestReplication(t *testing.T) {
-	ginkgo.ReportAfterSuite("TestReplication", func(report ginkgo.Report) {
+func TestWorkload(t *testing.T) {
+	ginkgo.ReportAfterSuite("TestWorkload", func(report ginkgo.Report) {
 		err := common.CreateJUnitReportDir()
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		err = reporters.GenerateJUnitReportWithConfig(
 			report,
-			filepath.Join(configmanager.YuniKornTestConfig.LogDir, "TEST-replication_junit.xml"),
+			filepath.Join(configmanager.YuniKornTestConfig.LogDir, "TEST-workload_junit.xml"),
 			reporters.JunitReportConfig{OmitSpecLabels: true},
 		)
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 	})
 	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "TestReplication", ginkgo.Label("TestReplication"))
+	ginkgo.RunSpecs(t, "TestWorkload", ginkgo.Label("TestWorkload"))
 }
 
 var suiteName string
