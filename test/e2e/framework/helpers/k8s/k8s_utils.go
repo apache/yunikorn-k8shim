@@ -1946,7 +1946,7 @@ type PodConditionFunc func(pods *v1.PodList) bool
 
 // WaitForPodCondition waits for a custom pod condition to be met
 func (k *KubeCtl) WaitForPodCondition(namespace string, condition PodConditionFunc, timeout time.Duration) error {
-	return wait.PollUntilContextTimeout(context.TODO(), time.Millisecond*100, timeout, false, func(ctx context.Context) (bool, error) {
+	return wait.PollUntilContextTimeout(context.TODO(), time.Second, timeout, false, func(ctx context.Context) (bool, error) {
 		pods, err := k.GetPods(namespace)
 		if err != nil {
 			return false, err
