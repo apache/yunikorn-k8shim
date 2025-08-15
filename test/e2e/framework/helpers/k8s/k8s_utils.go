@@ -1870,8 +1870,7 @@ func (k *KubeCtl) GetSecret(namespace, secretName string) (*v1.Secret, error) {
 }
 
 func (k *KubeCtl) WaitForSecret(namespace, secretName string, timeout time.Duration) error {
-	var cond wait.ConditionFunc // nolint:staticcheck
-	cond = func() (done bool, err error) {
+	cond := wait.ConditionFunc(func() (done bool, err error) {
 		secret, err := k.GetSecret(namespace, secretName)
 		if err != nil {
 			return false, err
@@ -1880,7 +1879,7 @@ func (k *KubeCtl) WaitForSecret(namespace, secretName string, timeout time.Durat
 			return true, nil
 		}
 		return false, nil
-	}
+	})
 	return wait.PollUntilContextTimeout(context.TODO(), time.Second, timeout, false, cond.WithContext())
 }
 
