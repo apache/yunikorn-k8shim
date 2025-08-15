@@ -16,7 +16,7 @@
  limitations under the License.
 */
 
-package replica_scaling_test
+package deployment_scaling_test
 
 import (
 	"path/filepath"
@@ -38,19 +38,19 @@ func init() {
 	configmanager.YuniKornTestConfig.ParseFlags()
 }
 
-func TestReplicaScaling(t *testing.T) {
-	ginkgo.ReportAfterSuite("TestReplicaScaling", func(report ginkgo.Report) {
+func TestDeploymentScaling(t *testing.T) {
+	ginkgo.ReportAfterSuite("TestDeploymentScaling", func(report ginkgo.Report) {
 		err := common.CreateJUnitReportDir()
 		Ω(err).NotTo(gomega.HaveOccurred())
 		err = reporters.GenerateJUnitReportWithConfig(
 			report,
-			filepath.Join(configmanager.YuniKornTestConfig.LogDir, "TEST-replica_scaling_junit.xml"),
+			filepath.Join(configmanager.YuniKornTestConfig.LogDir, "TEST-deployment_scaling_junit.xml"),
 			reporters.JunitReportConfig{OmitSpecLabels: true},
 		)
 		Ω(err).NotTo(gomega.HaveOccurred())
 	})
 	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "TestReplicaScaling", ginkgo.Label("TestReplicaScaling"))
+	ginkgo.RunSpecs(t, "TestDeploymentScaling", ginkgo.Label("TestDeploymentScaling"))
 }
 
 var suiteName string
