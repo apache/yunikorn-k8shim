@@ -33,7 +33,7 @@ require (
 	github.com/prometheus/client_golang v1.22.0
 	github.com/sasha-s/go-deadlock v0.3.5
 	go.uber.org/zap v1.27.0
-	gopkg.in/yaml.v3 v3.0.1
+	go.yaml.in/yaml/v3 v3.0.4
 	gotest.tools/v3 v3.5.2
 	k8s.io/api v0.33.1
 	k8s.io/apimachinery v0.33.1
@@ -140,6 +140,7 @@ require (
 	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/apiextensions-apiserver v0.0.0 // indirect
 	k8s.io/cloud-provider v0.33.1 // indirect
 	k8s.io/controller-manager v0.33.1 // indirect
