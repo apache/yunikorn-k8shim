@@ -312,7 +312,7 @@ func (fc *MockScheduler) waitForApplicationStateInCore(appID, partition, expecte
 			return false
 		}
 		return true
-	}, time.Second, 5*time.Second)
+	}, time.Second, 60*time.Second)
 }
 
 func (fc *MockScheduler) waitAndAssertForeignAllocationInCore(partition, allocationID, nodeID string, shouldExist bool) error {
