@@ -20,8 +20,11 @@ package cache
 
 import (
 	"fmt"
+	"time"
 
 	"go.uber.org/zap"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/util/retry"
 
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
@@ -62,8 +65,18 @@ func (callback *AsyncRMCallback) UpdateAllocation(response *si.AllocationRespons
 		}
 
 		task.setAllocationKey(alloc.AllocationKey)
-
-		if err := callback.context.AssumePod(alloc.AllocationKey, alloc.NodeID); err != nil {
+		backOff := wait.Backoff{
+			Steps:    30,
+			Duration: time.Second,
+			Cap:      30 * time.Second,
+		}
+		err := retry.OnError(backOff, func(err error) bool {
+			log.Log(log.ShimRMCallback).Error("AssumePod failed, retrying", zap.Error(err))
+			return true
+		}, func() error {
+			return callback.context.AssumePod(alloc.AllocationKey, alloc.NodeID)
+		})
+		if err != nil {
 			task.FailWithEvent(err.Error(), "AssumePodError")
 			return err
 		}

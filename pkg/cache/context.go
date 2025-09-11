@@ -822,7 +822,7 @@ func (ctx *Context) AssumePod(name, node string) error {
 			if err != nil {
 				log.Log(log.ShimContext).Error("Failed to find pod volumes",
 					zap.String("podName", assumedPod.Name),
-					zap.String("nodeName", assumedPod.Spec.NodeName),
+					zap.String("nodeName", node),
 					zap.Error(err))
 				return err
 			}
@@ -835,7 +835,7 @@ func (ctx *Context) AssumePod(name, node string) error {
 				err = fmt.Errorf("pod %s has conflicting volume claims: %s", pod.Name, sReason)
 				log.Log(log.ShimContext).Error("Pod has conflicting volume claims",
 					zap.String("podName", assumedPod.Name),
-					zap.String("nodeName", assumedPod.Spec.NodeName),
+					zap.String("nodeName", node),
 					zap.Error(err))
 				return err
 			}
