@@ -213,7 +213,7 @@ func (ctx *Context) updateNodeInternal(node *v1.Node, register bool) {
 				zap.String("nodeName", node.Name))
 			applicationID := utils.GetApplicationIDFromPod(pod)
 			if applicationID == "" {
-				ctx.updateForeignPod(pod)
+				ctx.updateForeignPod(nil, pod)
 			} else {
 				ctx.updateYuniKornPod(applicationID, nil, pod)
 			}
@@ -315,7 +315,7 @@ func (ctx *Context) UpdatePod(oldObj, newObj interface{}) {
 	}
 	applicationID := utils.GetApplicationIDFromPod(pod)
 	if applicationID == "" {
-		ctx.updateForeignPod(pod)
+		ctx.updateForeignPod(oldPod, pod)
 	} else {
 		ctx.updateYuniKornPod(applicationID, oldPod, pod)
 	}
@@ -389,9 +389,8 @@ func (ctx *Context) ensureAppAndTaskCreated(pod *v1.Pod, app *Application) {
 	}
 }
 
-func (ctx *Context) updateForeignPod(pod *v1.Pod) {
+func (ctx *Context) updateForeignPod(oldPod, pod *v1.Pod) {
 	podStatusBefore := ""
-	oldPod := ctx.schedulerCache.GetPod(string(pod.UID))
 	if oldPod != nil {
 		podStatusBefore = string(oldPod.Status.Phase)
 	}
@@ -408,10 +407,12 @@ func (ctx *Context) updateForeignPod(pod *v1.Pod) {
 				zap.String("podName", pod.Name),
 				zap.String("podStatusBefore", podStatusBefore),
 				zap.String("podStatusCurrent", string(pod.Status.Phase)))
-			allocReq := common.CreateAllocationForForeignPod(pod)
-			if err := ctx.apiProvider.GetAPIs().SchedulerAPI.UpdateAllocation(allocReq); err != nil {
-				log.Log(log.ShimContext).Error("failed to add foreign allocation to the core",
-					zap.Error(err))
+			if oldPod == nil || !common.Equals(common.GetPodResource(oldPod), common.GetPodResource(pod)) {
+				allocReq := common.CreateAllocationForForeignPod(pod)
+				if err := ctx.apiProvider.GetAPIs().SchedulerAPI.UpdateAllocation(allocReq); err != nil {
+					log.Log(log.ShimContext).Error("failed to add foreign allocation to the core",
+						zap.Error(err))
+				}
 			}
 		} else {
 			// pod is orphaned (references an unknown node)

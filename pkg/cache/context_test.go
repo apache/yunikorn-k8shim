@@ -624,7 +624,8 @@ func TestAddUpdatePodForeign(t *testing.T) {
 
 	// validate update (no change)
 	allocRequest = nil
-	context.UpdatePod(nil, pod1)
+	pod1Upd := pod1.DeepCopy()
+	context.UpdatePod(pod1, pod1Upd)
 	assert.Assert(t, allocRequest == nil, "unexpected update")
 	pod = context.schedulerCache.GetPod(string(pod1.UID))
 	assert.Assert(t, pod == nil, "unassigned pod found in cache")
@@ -643,8 +644,9 @@ func TestAddUpdatePodForeign(t *testing.T) {
 
 	// validate update (no change)
 	allocRequest = nil
-	context.UpdatePod(nil, pod2)
-	assert.Assert(t, allocRequest != nil, "update expected")
+	pod2Upd := pod2.DeepCopy()
+	context.UpdatePod(pod2, pod2Upd)
+	assert.Assert(t, allocRequest == nil, "unexpected update")
 	pod = context.schedulerCache.GetPod(string(pod2.UID))
 	assert.Assert(t, pod != nil, "pod not found in cache")
 
@@ -666,7 +668,7 @@ func TestAddUpdatePodForeign(t *testing.T) {
 
 	// validate add
 	allocRequest = nil
-	context.AddPod(pod3)
+	context.UpdatePod(pod2, pod3)
 	assert.Assert(t, allocRequest != nil, "expected update")
 	pod = context.schedulerCache.GetPod(string(pod3.UID))
 	assert.Assert(t, pod == nil, "failed pod found in cache")
