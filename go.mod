@@ -23,15 +23,15 @@ go 1.24.0
 toolchain go1.24.4
 
 require (
-	github.com/apache/yunikorn-core v0.0.0-20250819115533-e3475fa85099
-	github.com/apache/yunikorn-scheduler-interface v0.0.0-20250304214837-4513ff3a692d
+	github.com/apache/yunikorn-core v0.0.0-20251021142229-446c1b35dd46
+	github.com/apache/yunikorn-scheduler-interface v0.0.0-20251021140208-d3b357b98dcd
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
 	github.com/looplab/fsm v1.0.2
 	github.com/onsi/ginkgo/v2 v2.21.0
 	github.com/onsi/gomega v1.35.1
 	github.com/prometheus/client_golang v1.22.0
-	github.com/sasha-s/go-deadlock v0.3.5
+	github.com/sasha-s/go-deadlock v0.3.6
 	go.uber.org/zap v1.27.0
 	go.yaml.in/yaml/v3 v3.0.4
 	gotest.tools/v3 v3.5.2
@@ -99,7 +99,7 @@ require (
 	github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
-	github.com/petermattis/goid v0.0.0-20250303134427-723919f7f203 // indirect
+	github.com/petermattis/goid v0.0.0-20250813065127-a731cc31b4fe // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/prometheus/client_model v0.6.1 // indirect
 	github.com/prometheus/common v0.62.0 // indirect
