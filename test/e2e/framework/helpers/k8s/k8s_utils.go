@@ -429,6 +429,10 @@ func (k *KubeCtl) CreateService(service *v1.Service, namespace string) (*v1.Serv
 	return k.clientSet.CoreV1().Services(namespace).Create(context.TODO(), service, metav1.CreateOptions{})
 }
 
+func (k *KubeCtl) DeleteService(serviceName string, namespace string) error {
+	return k.clientSet.CoreV1().Services(namespace).Delete(context.TODO(), serviceName, metav1.DeleteOptions{})
+}
+
 // Func to create a namespace provided a name
 func (k *KubeCtl) CreateNamespace(namespace string, annotations map[string]string) (*v1.Namespace, error) {
 	// create namespace
@@ -1889,4 +1893,48 @@ func WriteConfigToFile(config *rest.Config, kubeconfigPath string) error {
 	}
 
 	return nil
+}
+
+// Helper methods for waiting operations to replace gomega.Eventually calls
+
+// WaitForPodsRunning waits for all pods with the given selector to be running
+func (k *KubeCtl) WaitForPodsRunning(namespace, selector string, expectedCount int, timeout time.Duration) error {
+	return wait.PollUntilContextTimeout(context.TODO(), time.Second, timeout, false, func(ctx context.Context) (bool, error) {
+		podList, err := k.ListPods(namespace, selector)
+		if err != nil {
+			return false, nil // Continue polling on error
+		}
+		if len(podList.Items) != expectedCount {
+			return false, nil
+		}
+		// Check all pods are running
+		for _, pod := range podList.Items {
+			if pod.Status.Phase != v1.PodRunning {
+				return false, nil
+			}
+		}
+		return true, nil
+	})
+}
+
+// WaitForPodsCreated waits for the expected number of pods to be created (any phase)
+func (k *KubeCtl) WaitForPodsCreated(namespace, selector string, expectedCount int, timeout time.Duration) error {
+	return wait.PollUntilContextTimeout(context.TODO(), time.Second, timeout, false, func(ctx context.Context) (bool, error) {
+		podList, err := k.ListPods(namespace, selector)
+		if err != nil {
+			return false, nil // Continue polling on error
+		}
+		return len(podList.Items) == expectedCount, nil
+	})
+}
+
+// WaitForPodsWithCondition waits for pods matching a custom condition
+func (k *KubeCtl) WaitForPodsWithCondition(namespace, selector string, condition func(*v1.PodList) bool, timeout time.Duration) error {
+	return wait.PollUntilContextTimeout(context.TODO(), time.Second, timeout, false, func(ctx context.Context) (bool, error) {
+		podList, err := k.ListPods(namespace, selector)
+		if err != nil {
+			return false, nil // Continue polling on error
+		}
+		return condition(podList), nil
+	})
 }
