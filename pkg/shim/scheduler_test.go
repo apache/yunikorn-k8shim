@@ -28,6 +28,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/kubernetes/pkg/features"
 
 	"github.com/apache/yunikorn-k8shim/pkg/cache"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
@@ -38,6 +40,12 @@ import (
 	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
+
+func init() {
+	if err := feature.DefaultMutableFeatureGate.Set(fmt.Sprintf("%s=false", features.DynamicResourceAllocation)); err != nil {
+		panic(fmt.Errorf("unable to set DynamicResourceAllocation feature gate: %v", err))
+	}
+}
 
 const configData = `
 partitions:

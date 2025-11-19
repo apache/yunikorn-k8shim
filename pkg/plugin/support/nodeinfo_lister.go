@@ -21,6 +21,7 @@ package support
 import (
 	"errors"
 
+	fwk "k8s.io/kube-scheduler/framework"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
 	"github.com/apache/yunikorn-k8shim/pkg/cache/external"
@@ -30,19 +31,19 @@ type nodeInfoListerImpl struct {
 	cache *external.SchedulerCache
 }
 
-func (n nodeInfoListerImpl) List() ([]*framework.NodeInfo, error) {
+func (n nodeInfoListerImpl) List() ([]fwk.NodeInfo, error) {
 	return n.cache.GetNodesInfo(), nil
 }
 
-func (n nodeInfoListerImpl) HavePodsWithAffinityList() ([]*framework.NodeInfo, error) {
+func (n nodeInfoListerImpl) HavePodsWithAffinityList() ([]fwk.NodeInfo, error) {
 	return n.cache.GetNodesInfoPodsWithAffinity(), nil
 }
 
-func (n nodeInfoListerImpl) HavePodsWithRequiredAntiAffinityList() ([]*framework.NodeInfo, error) {
+func (n nodeInfoListerImpl) HavePodsWithRequiredAntiAffinityList() ([]fwk.NodeInfo, error) {
 	return n.cache.GetNodesInfoPodsWithReqAntiAffinity(), nil
 }
 
-func (n nodeInfoListerImpl) Get(nodeName string) (*framework.NodeInfo, error) {
+func (n nodeInfoListerImpl) Get(nodeName string) (fwk.NodeInfo, error) {
 	nodes := n.cache.GetNodesInfoMap()
 	node, ok := nodes[nodeName]
 	if !ok {

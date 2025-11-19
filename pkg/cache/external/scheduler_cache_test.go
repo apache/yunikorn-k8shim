@@ -28,6 +28,7 @@ import (
 	schedulingv1 "k8s.io/api/scheduling/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
+	fwk "k8s.io/kube-scheduler/framework"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
 	"github.com/apache/yunikorn-k8shim/pkg/client"
@@ -991,7 +992,7 @@ func TestGetSchedulerCacheDao(t *testing.T) {
 	assert.Equal(t, dao.Statistics.PendingAllocations, 0)
 }
 
-func expectHost1AndHost2(t *testing.T, nodesInfo []*framework.NodeInfo) {
+func expectHost1AndHost2(t *testing.T, nodesInfo []fwk.NodeInfo) {
 	assert.Assert(t, nodesInfo != nil, "nodesInfo list was not created")
 	assert.Equal(t, 2, len(nodesInfo), "nodesInfo list size")
 	m := make(map[string]bool)
@@ -1002,7 +1003,7 @@ func expectHost1AndHost2(t *testing.T, nodesInfo []*framework.NodeInfo) {
 	assert.Equal(t, true, m[host2], "node not found")
 }
 
-func expectHost(t *testing.T, host string, nodesInfo []*framework.NodeInfo) {
+func expectHost(t *testing.T, host string, nodesInfo []fwk.NodeInfo) {
 	assert.Assert(t, nodesInfo != nil, "nodes list was not created or got deleted")
 	assert.Equal(t, 1, len(nodesInfo), "nodes list size")
 	assert.Equal(t, host, nodesInfo[0].Node().Name)
