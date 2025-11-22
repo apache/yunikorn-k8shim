@@ -175,3 +175,14 @@
       of your accepting any such warranty or additional liability.
 
    END OF TERMS AND CONDITIONS
+
+--------------------------------------------------------------------------------
+This product bundles various third-party components under other open source
+licenses. This section summarizes those components and their licenses.
+
+
+Apache Software Foundation License 2.0
+--------------------------------------
+
+deployments/examples/tfjob/dist_mnist.py
+deployments/examples/tfjob/Dockerfile
