@@ -28,6 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/informers"
 	"k8s.io/klog/v2"
+	fwk "k8s.io/kube-scheduler/framework"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
 	"github.com/apache/yunikorn-core/pkg/entrypoint"
@@ -87,7 +88,7 @@ func (sp *YuniKornSchedulerPlugin) Name() string {
 }
 
 // PreEnqueue is called prior to adding Pods to activeQ
-func (sp *YuniKornSchedulerPlugin) PreEnqueue(_ context.Context, pod *v1.Pod) *framework.Status {
+func (sp *YuniKornSchedulerPlugin) PreEnqueue(_ context.Context, pod *v1.Pod) *fwk.Status {
 	log.Log(log.ShimSchedulerPlugin).Debug("PreEnqueue check",
 		zap.String("namespace", pod.Namespace),
 		zap.String("pod", pod.Name))
@@ -106,7 +107,7 @@ func (sp *YuniKornSchedulerPlugin) PreEnqueue(_ context.Context, pod *v1.Pod) *f
 		if _, ok := sp.context.GetInProgressPodAllocation(taskID); ok {
 			// pod must have failed scheduling in a prior run, reject it and return unschedulable
 			sp.failTask(pod, app, task)
-			return framework.NewStatus(framework.UnschedulableAndUnresolvable, "Pod is not ready for scheduling")
+			return fwk.NewStatus(fwk.UnschedulableAndUnresolvable, "Pod is not ready for scheduling")
 		}
 
 		nodeID, ok := sp.context.GetPendingPodAllocation(taskID)
@@ -122,23 +123,23 @@ func (sp *YuniKornSchedulerPlugin) PreEnqueue(_ context.Context, pod *v1.Pod) *f
 		schedState := task.GetTaskSchedulingState()
 		switch schedState {
 		case cache.TaskSchedPending:
-			return framework.NewStatus(framework.UnschedulableAndUnresolvable, "Pod is pending scheduling")
+			return fwk.NewStatus(fwk.UnschedulableAndUnresolvable, "Pod is pending scheduling")
 		case cache.TaskSchedFailed:
 			// allow the pod to proceed so that it will be marked unschedulable by PreFilter
 			return nil
 		case cache.TaskSchedSkipped:
-			return framework.NewStatus(framework.UnschedulableAndUnresolvable, "Pod doesn't fit within queue")
+			return fwk.NewStatus(fwk.UnschedulableAndUnresolvable, "Pod doesn't fit within queue")
 		default:
-			return framework.NewStatus(framework.UnschedulableAndUnresolvable, fmt.Sprintf("Pod unschedulable: %s", schedState.String()))
+			return fwk.NewStatus(fwk.UnschedulableAndUnresolvable, fmt.Sprintf("Pod unschedulable: %s", schedState.String()))
 		}
 	}
 
 	// task not found (yet?) -- probably means cache update hasn't come through yet
-	return framework.NewStatus(framework.UnschedulableAndUnresolvable, "Pod not ready for scheduling")
+	return fwk.NewStatus(fwk.UnschedulableAndUnresolvable, "Pod not ready for scheduling")
 }
 
 // PreFilter is used to release pods to scheduler
-func (sp *YuniKornSchedulerPlugin) PreFilter(_ context.Context, _ *framework.CycleState, pod *v1.Pod) (*framework.PreFilterResult, *framework.Status) {
+func (sp *YuniKornSchedulerPlugin) PreFilter(_ context.Context, _ fwk.CycleState, pod *v1.Pod, _ []fwk.NodeInfo) (*framework.PreFilterResult, *fwk.Status) {
 	log.Log(log.ShimSchedulerPlugin).Debug("PreFilter check",
 		zap.String("namespace", pod.Namespace),
 		zap.String("pod", pod.Name))
@@ -150,7 +151,7 @@ func (sp *YuniKornSchedulerPlugin) PreFilter(_ context.Context, _ *framework.Cyc
 			zap.String("namespace", pod.Namespace),
 			zap.String("pod", pod.Name))
 
-		return nil, framework.NewStatus(framework.Skip)
+		return nil, fwk.NewStatus(fwk.Skip)
 	}
 
 	taskID := string(pod.UID)
@@ -158,7 +159,7 @@ func (sp *YuniKornSchedulerPlugin) PreFilter(_ context.Context, _ *framework.Cyc
 		if _, ok := sp.context.GetInProgressPodAllocation(taskID); ok {
 			// pod must have failed scheduling, reject it and return unschedulable
 			sp.failTask(pod, app, task)
-			return nil, framework.NewStatus(framework.UnschedulableAndUnresolvable, "Pod is not ready for scheduling")
+			return nil, fwk.NewStatus(fwk.UnschedulableAndUnresolvable, "Pod is not ready for scheduling")
 		}
 
 		nodeID, ok := sp.context.GetPendingPodAllocation(taskID)
@@ -172,7 +173,7 @@ func (sp *YuniKornSchedulerPlugin) PreFilter(_ context.Context, _ *framework.Cyc
 		}
 	}
 
-	return nil, framework.NewStatus(framework.UnschedulableAndUnresolvable, "Pod is not ready for scheduling")
+	return nil, fwk.NewStatus(fwk.UnschedulableAndUnresolvable, "Pod is not ready for scheduling")
 }
 
 // PreFilterExtensions is unused
@@ -181,7 +182,7 @@ func (sp *YuniKornSchedulerPlugin) PreFilterExtensions() framework.PreFilterExte
 }
 
 // Filter is used to release specific pod/node combinations to scheduler
-func (sp *YuniKornSchedulerPlugin) Filter(_ context.Context, _ *framework.CycleState, pod *v1.Pod, nodeInfo *framework.NodeInfo) *framework.Status {
+func (sp *YuniKornSchedulerPlugin) Filter(_ context.Context, _ fwk.CycleState, pod *v1.Pod, nodeInfo fwk.NodeInfo) *fwk.Status {
 	log.Log(log.ShimSchedulerPlugin).Debug("Filter check",
 		zap.String("namespace", pod.Namespace),
 		zap.String("pod", pod.Name),
@@ -214,11 +215,11 @@ func (sp *YuniKornSchedulerPlugin) Filter(_ context.Context, _ *framework.CycleS
 		}
 	}
 
-	return framework.NewStatus(framework.UnschedulableAndUnresolvable, "Pod is not fit for node")
+	return fwk.NewStatus(fwk.UnschedulableAndUnresolvable, "Pod is not fit for node")
 }
 
-func (sp *YuniKornSchedulerPlugin) EventsToRegister(_ context.Context) ([]framework.ClusterEventWithHint, error) {
-	return sp.context.EventsToRegister(func(_ klog.Logger, pod *v1.Pod, _, _ interface{}) (framework.QueueingHint, error) {
+func (sp *YuniKornSchedulerPlugin) EventsToRegister(_ context.Context) ([]fwk.ClusterEventWithHint, error) {
+	return sp.context.EventsToRegister(func(_ klog.Logger, pod *v1.Pod, _, _ interface{}) (fwk.QueueingHint, error) {
 		// adapt our simpler function to the QueueingHintFn contract
 		return sp.queueingHint(pod)
 	}), nil
@@ -228,19 +229,19 @@ func (sp *YuniKornSchedulerPlugin) EventsToRegister(_ context.Context) ([]framew
 // schedulable when it was not previously. Since YuniKorn maintains its own internal scheduling state, only the pod
 // is needed. This function will only be called on a previously unschedulable pod by this plugin -- therefore this
 // is definitely a YuniKorn pod.
-func (sp *YuniKornSchedulerPlugin) queueingHint(pod *v1.Pod) (framework.QueueingHint, error) {
+func (sp *YuniKornSchedulerPlugin) queueingHint(pod *v1.Pod) (fwk.QueueingHint, error) {
 	// Use the context's bloom filter to rule out this task if it is not present. Given a large backlog,
 	// this will almost always return false and we can skip re-enqueue.
 	taskID := string(pod.UID)
 	if !sp.context.IsTaskMaybeSchedulable(taskID) {
-		return framework.QueueSkip, nil
+		return fwk.QueueSkip, nil
 	}
 
-	return framework.Queue, nil
+	return fwk.Queue, nil
 }
 
 // PostBind is used to mark allocations as completed once scheduling run is finished
-func (sp *YuniKornSchedulerPlugin) PostBind(_ context.Context, _ *framework.CycleState, pod *v1.Pod, nodeName string) {
+func (sp *YuniKornSchedulerPlugin) PostBind(_ context.Context, _ fwk.CycleState, pod *v1.Pod, nodeName string) {
 	log.Log(log.ShimSchedulerPlugin).Debug("PostBind handler",
 		zap.String("namespace", pod.Namespace),
 		zap.String("pod", pod.Name),

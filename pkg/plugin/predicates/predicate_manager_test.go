@@ -20,6 +20,7 @@ package predicates
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"testing"
@@ -33,6 +34,7 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
+	fwk "k8s.io/kube-scheduler/framework"
 	v1helper "k8s.io/kubernetes/pkg/apis/core/v1/helper"
 	"k8s.io/kubernetes/pkg/features"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
@@ -50,6 +52,12 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-k8shim/pkg/plugin/support"
 )
+
+func init() {
+	if err := feature.DefaultMutableFeatureGate.Set(fmt.Sprintf("%s=false", features.DynamicResourceAllocation)); err != nil {
+		panic(fmt.Errorf("unable to set DynamicResourceAllocation feature gate: %v", err))
+	}
+}
 
 var (
 	extendedResourceA = v1.ResourceName("example.com/aaa")
@@ -134,18 +142,18 @@ func TestEventsToRegister(t *testing.T) {
 	ep := enabledPlugins(nodename.Name, interpodaffinity.Name, podtopologyspread.Name)
 	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
 
-	var queueingHintFn framework.QueueingHintFn = func(logger klog.Logger, pod *v1.Pod, oldObj, newObj interface{}) (framework.QueueingHint, error) {
+	var queueingHintFn fwk.QueueingHintFn = func(logger klog.Logger, pod *v1.Pod, oldObj, newObj interface{}) (fwk.QueueingHint, error) {
 		// illegal sentinel to ensure we called the correct function
 		return -1, nil
 	}
 	events := predicateManager.EventsToRegister(queueingHintFn)
-	assert.Equal(t, events[0].Event.Resource, framework.Node, "wrong resource (0)")
-	assert.Equal(t, events[0].Event.ActionType, framework.Add|framework.Delete|framework.UpdateNodeLabel|framework.UpdateNodeTaint, "wrong action type (0)")
+	assert.Equal(t, events[0].Event.Resource, fwk.Node, "wrong resource (0)")
+	assert.Equal(t, events[0].Event.ActionType, fwk.Add|fwk.Delete|fwk.UpdateNodeLabel|fwk.UpdateNodeTaint, "wrong action type (0)")
 	fn0, err := events[0].QueueingHintFn(klog.NewKlogr(), nil, "", "")
 	assert.NilError(t, err)
 	assert.Equal(t, int(fn0), -1, "wrong fn (0)")
-	assert.Equal(t, events[1].Event.Resource, framework.Pod, "wrong resource (1)")
-	assert.Equal(t, events[1].Event.ActionType, framework.Add|framework.Delete|framework.UpdatePodLabel|framework.UpdatePodToleration, "wrong action type (1)")
+	assert.Equal(t, events[1].Event.Resource, fwk.Pod, "wrong resource (1)")
+	assert.Equal(t, events[1].Event.ActionType, fwk.Add|fwk.Delete|fwk.UpdatePodLabel|fwk.UpdatePodToleration, "wrong action type (1)")
 	fn1, err := events[1].QueueingHintFn(klog.NewKlogr(), nil, "", "")
 	assert.NilError(t, err)
 	assert.Equal(t, int(fn1), -1, "wrong fn (1)")
@@ -2132,7 +2140,7 @@ func TestInterPodAffinity(t *testing.T) {
 
 			nodeInfo := framework.NewNodeInfo(podsOnNode...)
 			nodeInfo.SetNode(test.node)
-			lister.nodeLister.nodeInfos = []*framework.NodeInfo{nodeInfo}
+			lister.nodeLister.nodeInfos = []fwk.NodeInfo{nodeInfo}
 			plugin, err := predicateManager.Predicates(test.pod, nodeInfo, true)
 			if (err == nil) != test.fits {
 				t.Errorf("%s expected fit state '%t' did not match real state and err = %v, plugin = %v", test.name, test.fits, err, plugin)
@@ -2236,7 +2244,7 @@ func TestReserveNodeSelector(t *testing.T) {
 func lister() *sharedListerMock {
 	return &sharedListerMock{
 		nodeLister: &nodeListerMock{
-			nodeInfos: make([]*framework.NodeInfo, 0),
+			nodeInfos: make([]fwk.NodeInfo, 0),
 		},
 	}
 }
@@ -2271,34 +2279,34 @@ func (s *sharedListerMock) StorageInfos() framework.StorageInfoLister {
 }
 
 type nodeListerMock struct {
-	nodeInfos []*framework.NodeInfo
+	nodeInfos []fwk.NodeInfo
 }
 
-func (n *nodeListerMock) List() ([]*framework.NodeInfo, error) {
+func (n *nodeListerMock) List() ([]fwk.NodeInfo, error) {
 	return n.nodeInfos, nil
 }
 
-func (n *nodeListerMock) HavePodsWithAffinityList() ([]*framework.NodeInfo, error) {
-	result := make([]*framework.NodeInfo, 0, len(n.nodeInfos))
+func (n *nodeListerMock) HavePodsWithAffinityList() ([]fwk.NodeInfo, error) {
+	result := make([]fwk.NodeInfo, 0, len(n.nodeInfos))
 	for _, node := range n.nodeInfos {
-		if len(node.PodsWithAffinity) > 0 {
+		if len(node.GetPodsWithAffinity()) > 0 {
 			result = append(result, node)
 		}
 	}
 	return result, nil
 }
 
-func (n *nodeListerMock) HavePodsWithRequiredAntiAffinityList() ([]*framework.NodeInfo, error) {
-	result := make([]*framework.NodeInfo, 0, len(n.nodeInfos))
+func (n *nodeListerMock) HavePodsWithRequiredAntiAffinityList() ([]fwk.NodeInfo, error) {
+	result := make([]fwk.NodeInfo, 0, len(n.nodeInfos))
 	for _, node := range n.nodeInfos {
-		if len(node.PodsWithRequiredAntiAffinity) > 0 {
+		if len(node.GetPodsWithRequiredAntiAffinity()) > 0 {
 			result = append(result, node)
 		}
 	}
 	return result, nil
 }
 
-func (n *nodeListerMock) Get(nodeName string) (*framework.NodeInfo, error) {
+func (n *nodeListerMock) Get(nodeName string) (fwk.NodeInfo, error) {
 	for _, node := range n.nodeInfos {
 		if node.Node().Name == nodeName {
 			return node, nil

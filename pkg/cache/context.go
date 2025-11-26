@@ -37,7 +37,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog/v2"
-	"k8s.io/kubernetes/pkg/scheduler/framework"
+	fwk "k8s.io/kube-scheduler/framework"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/volumebinding"
 
 	schedulercache "github.com/apache/yunikorn-k8shim/pkg/cache/external"
@@ -658,7 +658,7 @@ func (ctx *Context) setConfigMap(index int, configMap *v1.ConfigMap) map[string]
 }
 
 // EventsToRegister returns the Kubernetes events that should be watched for updates which may effect predicate processing
-func (ctx *Context) EventsToRegister(queueingHintFn framework.QueueingHintFn) []framework.ClusterEventWithHint {
+func (ctx *Context) EventsToRegister(queueingHintFn fwk.QueueingHintFn) []fwk.ClusterEventWithHint {
 	return ctx.predManager.EventsToRegister(queueingHintFn)
 }
 

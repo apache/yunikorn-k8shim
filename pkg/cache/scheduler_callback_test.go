@@ -29,6 +29,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sEvents "k8s.io/client-go/tools/events"
+	fwk "k8s.io/kube-scheduler/framework"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
 	"github.com/apache/yunikorn-k8shim/pkg/client"
@@ -520,7 +521,7 @@ var _ predicates.PredicateManager = &mockPredicateManager{}
 
 type mockPredicateManager struct{}
 
-func (m *mockPredicateManager) EventsToRegister(_ framework.QueueingHintFn) []framework.ClusterEventWithHint {
+func (m *mockPredicateManager) EventsToRegister(_ fwk.QueueingHintFn) []fwk.ClusterEventWithHint {
 	return nil
 }
 

@@ -28,6 +28,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/events"
 	"k8s.io/klog/v2"
+	fwk "k8s.io/kube-scheduler/framework"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	"k8s.io/kubernetes/pkg/scheduler/framework/parallelize"
 	"k8s.io/kubernetes/pkg/scheduler/util/assumecache"
@@ -65,62 +66,62 @@ func (p frameworkHandle) ResourceClaimCache() *assumecache.AssumeCache {
 
 // PodNominator stubs
 
-func (p frameworkHandle) AddNominatedPod(logger klog.Logger, pod *framework.PodInfo, nominatingInfo *framework.NominatingInfo) {
+func (p frameworkHandle) AddNominatedPod(_ klog.Logger, _ fwk.PodInfo, _ *framework.NominatingInfo) {
 	log.Log(log.ShimFramework).Fatal("BUG: Should not be used by plugins")
 }
 
-func (p frameworkHandle) DeleteNominatedPodIfExists(pod *v1.Pod) {
+func (p frameworkHandle) DeleteNominatedPodIfExists(_ *v1.Pod) {
 	log.Log(log.ShimFramework).Fatal("BUG: Should not be used by plugins")
 }
 
-func (p frameworkHandle) UpdateNominatedPod(logger klog.Logger, oldPod *v1.Pod, newPodInfo *framework.PodInfo) {
+func (p frameworkHandle) UpdateNominatedPod(_ klog.Logger, _ *v1.Pod, _ fwk.PodInfo) {
 	log.Log(log.ShimFramework).Fatal("BUG: Should not be used by plugins")
 }
 
-func (p frameworkHandle) NominatedPodsForNode(nodeName string) []*framework.PodInfo {
+func (p frameworkHandle) NominatedPodsForNode(_ string) []fwk.PodInfo {
 	log.Log(log.ShimFramework).Fatal("BUG: Should not be used by plugins")
 	return nil
 }
 
 // PluginsRunner stubs
 
-func (p frameworkHandle) RunPreScorePlugins(ctx context.Context, state *framework.CycleState, pod *v1.Pod, infos []*framework.NodeInfo) *framework.Status {
+func (p frameworkHandle) RunPreScorePlugins(_ context.Context, _ fwk.CycleState, _ *v1.Pod, _ []fwk.NodeInfo) *fwk.Status {
 	log.Log(log.ShimFramework).Fatal("BUG: Should not be used by plugins")
 	return nil
 }
 
-func (p frameworkHandle) RunScorePlugins(ctx context.Context, state *framework.CycleState, pod *v1.Pod, infos []*framework.NodeInfo) ([]framework.NodePluginScores, *framework.Status) {
+func (p frameworkHandle) RunScorePlugins(_ context.Context, _ fwk.CycleState, _ *v1.Pod, _ []fwk.NodeInfo) ([]framework.NodePluginScores, *fwk.Status) {
 	log.Log(log.ShimFramework).Fatal("BUG: Should not be used by plugins")
 	return nil, nil
 }
 
-func (p frameworkHandle) RunFilterPlugins(context.Context, *framework.CycleState, *v1.Pod, *framework.NodeInfo) *framework.Status {
+func (p frameworkHandle) RunFilterPlugins(_ context.Context, _ fwk.CycleState, _ *v1.Pod, _ fwk.NodeInfo) *fwk.Status {
 	log.Log(log.ShimFramework).Fatal("BUG: Should not be used by plugins")
 	return nil
 }
 
-func (p frameworkHandle) RunPreFilterExtensionAddPod(ctx context.Context, state *framework.CycleState, podToSchedule *v1.Pod, podInfoToAdd *framework.PodInfo, nodeInfo *framework.NodeInfo) *framework.Status {
+func (p frameworkHandle) RunPreFilterExtensionAddPod(_ context.Context, _ fwk.CycleState, _ *v1.Pod, _ fwk.PodInfo, _ fwk.NodeInfo) *fwk.Status {
 	log.Log(log.ShimFramework).Fatal("BUG: Should not be used by plugins")
 	return nil
 }
 
-func (p frameworkHandle) RunPreFilterExtensionRemovePod(ctx context.Context, state *framework.CycleState, podToSchedule *v1.Pod, podInfoToRemove *framework.PodInfo, nodeInfo *framework.NodeInfo) *framework.Status {
+func (p frameworkHandle) RunPreFilterExtensionRemovePod(_ context.Context, _ fwk.CycleState, _ *v1.Pod, _ fwk.PodInfo, _ fwk.NodeInfo) *fwk.Status {
 	log.Log(log.ShimFramework).Fatal("BUG: Should not be used by plugins")
 	return nil
 }
 
 // stubbed out to fulfill framework.Handle contract; these are all currently unused by upstream K8S predicates
 
-func (p frameworkHandle) IterateOverWaitingPods(callback func(framework.WaitingPod)) {
+func (p frameworkHandle) IterateOverWaitingPods(_ func(framework.WaitingPod)) {
 	log.Log(log.ShimFramework).Fatal("BUG: Should not be used by plugins")
 }
 
-func (p frameworkHandle) GetWaitingPod(uid types.UID) framework.WaitingPod {
+func (p frameworkHandle) GetWaitingPod(_ types.UID) framework.WaitingPod {
 	log.Log(log.ShimFramework).Fatal("BUG: Should not be used by plugins")
 	return nil
 }
 
-func (p frameworkHandle) RejectWaitingPod(uid types.UID) bool {
+func (p frameworkHandle) RejectWaitingPod(_ types.UID) bool {
 	log.Log(log.ShimFramework).Fatal("BUG: Should not be used by plugins")
 	return false
 }
@@ -135,7 +136,7 @@ func (p frameworkHandle) KubeConfig() *rest.Config {
 	return nil
 }
 
-func (p frameworkHandle) RunFilterPluginsWithNominatedPods(ctx context.Context, state *framework.CycleState, pod *v1.Pod, info *framework.NodeInfo) *framework.Status {
+func (p frameworkHandle) RunFilterPluginsWithNominatedPods(_ context.Context, _ fwk.CycleState, _ *v1.Pod, _ fwk.NodeInfo) *fwk.Status {
 	log.Log(log.ShimFramework).Fatal("BUG: Should not be used by plugins")
 	return nil
 }
@@ -145,13 +146,23 @@ func (p frameworkHandle) Extenders() []framework.Extender {
 	return nil
 }
 
-func (p frameworkHandle) Activate(logger klog.Logger, pods map[string]*v1.Pod) {
+func (p frameworkHandle) Activate(_ klog.Logger, _ map[string]*v1.Pod) {
 	// currently only used by Preemption plugin, so not needed
 	log.Log(log.ShimFramework).Fatal("BUG: Should not be used by plugins")
 }
 
 func (p frameworkHandle) SharedDRAManager() framework.SharedDRAManager {
 	// currently only used by DRA
+	log.Log(log.ShimFramework).Fatal("BUG: Should not be used by plugins")
+	return nil
+}
+
+func (p frameworkHandle) APIDispatcher() fwk.APIDispatcher {
+	log.Log(log.ShimFramework).Fatal("BUG: Should not be used by plugins")
+	return nil
+}
+
+func (p frameworkHandle) APICacher() framework.APICacher {
 	log.Log(log.ShimFramework).Fatal("BUG: Should not be used by plugins")
 	return nil
 }
