@@ -1,12 +1,10 @@
 .idea
+.DS_Store
 /tools/
 /build/
-/_output/
-/_spark/
 /deployments/image
 /coverage.txt
 /yunikorn-release
-/shellcheck
 *.csr
 *.crt
 *.key
