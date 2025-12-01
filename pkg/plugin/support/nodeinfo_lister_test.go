@@ -24,6 +24,7 @@ import (
 	"gotest.tools/v3/assert"
 	v1 "k8s.io/api/core/v1"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
+	fwk "k8s.io/kube-scheduler/framework"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
 	"github.com/apache/yunikorn-k8shim/pkg/cache/external"
@@ -36,7 +37,7 @@ func TestList(t *testing.T) {
 	assert.NilError(t, err, "List failed")
 	assert.Assert(t, nodes != nil, "nodes was nil")
 	assert.Equal(t, 2, len(nodes), "wrong length")
-	m := make(map[string]*framework.NodeInfo)
+	m := make(map[string]fwk.NodeInfo)
 	for _, node := range nodes {
 		m[node.Node().Name] = node
 	}

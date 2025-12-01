@@ -29,6 +29,7 @@ import (
 	storageV1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/klog/v2"
+	fwk "k8s.io/kube-scheduler/framework"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
 	"github.com/apache/yunikorn-k8shim/pkg/client"
@@ -64,9 +65,9 @@ type SchedulerCache struct {
 	klogger               klog.Logger
 
 	// cached data, re-calculated on demand from nodesMap
-	nodesInfo                        []*framework.NodeInfo
-	nodesInfoPodsWithAffinity        []*framework.NodeInfo
-	nodesInfoPodsWithReqAntiAffinity []*framework.NodeInfo
+	nodesInfo                        []fwk.NodeInfo
+	nodesInfoPodsWithAffinity        []fwk.NodeInfo
+	nodesInfoPodsWithReqAntiAffinity []fwk.NodeInfo
 
 	// task bloom filter, recomputed whenever task scheduling state changes
 	taskBloomFilterRef atomic.Pointer[taskBloomFilter]
@@ -103,9 +104,9 @@ func (cache *SchedulerCache) GetNodesInfoMap() map[string]*framework.NodeInfo {
 
 // GetNodesInfo returns a (possibly cached) list of nodes. This is explicitly for the use of the predicate
 // shared lister and requires that the scheduler cache lock be held while accessing.
-func (cache *SchedulerCache) GetNodesInfo() []*framework.NodeInfo {
+func (cache *SchedulerCache) GetNodesInfo() []fwk.NodeInfo {
 	if cache.nodesInfo == nil {
-		nodeList := make([]*framework.NodeInfo, 0, len(cache.nodesMap))
+		nodeList := make([]fwk.NodeInfo, 0, len(cache.nodesMap))
 		for _, node := range cache.nodesMap {
 			nodeList = append(nodeList, node)
 		}
@@ -118,9 +119,9 @@ func (cache *SchedulerCache) GetNodesInfo() []*framework.NodeInfo {
 // GetNodesInfoPodsWithAffinity returns a (possibly cached) list of nodes which contain pods with affinity.
 // This is explicitly for the use of the predicate shared lister and requires that the scheduler cache lock
 // be held while accessing.
-func (cache *SchedulerCache) GetNodesInfoPodsWithAffinity() []*framework.NodeInfo {
+func (cache *SchedulerCache) GetNodesInfoPodsWithAffinity() []fwk.NodeInfo {
 	if cache.nodesInfoPodsWithAffinity == nil {
-		nodeList := make([]*framework.NodeInfo, 0, len(cache.nodesMap))
+		nodeList := make([]fwk.NodeInfo, 0, len(cache.nodesMap))
 		for _, node := range cache.nodesMap {
 			if len(node.PodsWithAffinity) > 0 {
 				nodeList = append(nodeList, node)
@@ -135,9 +136,9 @@ func (cache *SchedulerCache) GetNodesInfoPodsWithAffinity() []*framework.NodeInf
 // GetNodesInfoPodsWithReqAntiAffinity returns a (possibly cached) list of nodes which contain pods with required anti-affinity.
 // This is explicitly for the use of the predicate shared lister and requires that the scheduler cache lock
 // be held while accessing.
-func (cache *SchedulerCache) GetNodesInfoPodsWithReqAntiAffinity() []*framework.NodeInfo {
+func (cache *SchedulerCache) GetNodesInfoPodsWithReqAntiAffinity() []fwk.NodeInfo {
 	if cache.nodesInfoPodsWithReqAntiAffinity == nil {
-		nodeList := make([]*framework.NodeInfo, 0, len(cache.nodesMap))
+		nodeList := make([]fwk.NodeInfo, 0, len(cache.nodesMap))
 		for _, node := range cache.nodesMap {
 			if len(node.PodsWithRequiredAntiAffinity) > 0 {
 				nodeList = append(nodeList, node)
@@ -226,14 +227,15 @@ func (cache *SchedulerCache) removeNode(node *v1.Node) (*v1.Node, []*v1.Pod) {
 	}
 	result := nodeInfo.Node()
 
-	for _, pod := range nodeInfo.Pods {
-		key := string(pod.Pod.UID)
+	for _, fwkPod := range nodeInfo.Pods {
+		pod := fwkPod.GetPod()
+		key := string(pod.UID)
 		delete(cache.assignedPods, key)
 		delete(cache.assumedPods, key)
 		delete(cache.pendingAllocations, key)
 		delete(cache.inProgressAllocations, key)
-		cache.orphanedPods[key] = pod.Pod
-		orphans = append(orphans, pod.Pod)
+		cache.orphanedPods[key] = pod
+		orphans = append(orphans, pod)
 	}
 
 	log.Log(log.ShimCacheExternal).Debug("Removing node from cache", zap.String("nodeName", node.Name))
@@ -628,9 +630,10 @@ func (cache *SchedulerCache) List(selector labels.Selector) ([]*v1.Pod, error) {
 	}
 	pods := make([]*v1.Pod, 0, maxSize)
 	for _, nodeInfo := range cache.nodesMap {
-		for _, pod := range nodeInfo.Pods {
-			if selector.Matches(labels.Set(pod.Pod.Labels)) {
-				pods = append(pods, pod.Pod)
+		for _, fwkPod := range nodeInfo.Pods {
+			pod := fwkPod.GetPod()
+			if selector.Matches(labels.Set(pod.Labels)) {
+				pods = append(pods, pod)
 			}
 		}
 	}
