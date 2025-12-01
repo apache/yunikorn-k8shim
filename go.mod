@@ -23,8 +23,8 @@ go 1.24.0
 toolchain go1.24.4
 
 require (
-	github.com/apache/yunikorn-core v0.0.0-20251021142229-446c1b35dd46
-	github.com/apache/yunikorn-scheduler-interface v0.0.0-20251021140208-d3b357b98dcd
+	github.com/apache/yunikorn-core v0.0.0-20251201043909-11c0a7a644a1
+	github.com/apache/yunikorn-scheduler-interface v0.0.0-20251126012206-228b5dfc1b3b
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
 	github.com/looplab/fsm v1.0.3
@@ -51,6 +51,7 @@ require (
 require (
 	cel.dev/expr v0.24.0 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20230124172434-306776ec8161 // indirect
+	github.com/Azure/go-ntlmssp v0.0.0-20221128193559-754e69321358 // indirect
 	github.com/Masterminds/semver/v3 v3.4.0 // indirect
 	github.com/NYTimes/gziphandler v1.1.1 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
@@ -66,7 +67,9 @@ require (
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.0 // indirect
+	github.com/go-asn1-ber/asn1-ber v1.5.8-0.20250403174932-29230038a667 // indirect
 	github.com/go-errors/errors v1.4.2 // indirect
+	github.com/go-ldap/ldap/v3 v3.4.11 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-openapi/jsonpointer v0.21.0 // indirect
