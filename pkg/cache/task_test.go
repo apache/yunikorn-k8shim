@@ -19,9 +19,11 @@
 package cache
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
+	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"gotest.tools/v3/assert"
 	v1 "k8s.io/api/core/v1"
 	schedulingv1 "k8s.io/api/scheduling/v1"
@@ -31,6 +33,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
+	"github.com/apache/yunikorn-k8shim/pkg/common/test"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/locking"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
@@ -927,4 +930,56 @@ func TestCheckPodMetadataBeforeScheduling(t *testing.T) {
 			assert.Equal(t, rt.time, tc.expectedWarningEventCount)
 		})
 	}
+}
+
+func TestFailTaskBind(t *testing.T) {
+	mockedContext, mockedAPIProvider := initContextAndAPIProviderForTest()
+	dispatcher.RegisterEventHandler("TestTaskHandler", dispatcher.EventTypeTask, mockedContext.TaskEventHandler())
+	dispatcher.Start()
+	defer dispatcher.Stop()
+
+	binder := test.NewVolumeBinderMock()
+	mockedAPIProvider.SetVolumeBinder(binder)
+
+	mockedAPIProvider.MockBindFn(func(pod *v1.Pod, hostID string) error {
+		return fmt.Errorf("mocked bind error")
+	})
+
+	mockedAPIProvider.MockSchedulerAPIUpdateAllocationFn(func(request *si.AllocationRequest) error {
+		assert.Assert(t, request.Releases != nil)
+		assert.Equal(t, len(request.Releases.AllocationsToRelease), 1)
+		assert.Equal(t, request.Releases.AllocationsToRelease[0].ApplicationID, "app01")
+		assert.Equal(t, request.Releases.AllocationsToRelease[0].AllocationKey, "task01")
+		return nil
+	})
+
+	app := NewApplication("app01", "root.default",
+		"bob", testGroups, map[string]string{}, mockedAPIProvider.GetAPIs().SchedulerAPI)
+	mockedContext.addApplicationToContext(app)
+
+	pod := &v1.Pod{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "pod-resource-test-00001",
+			UID:  "task01",
+		},
+	}
+
+	task := NewTask("task01", app, mockedContext, pod)
+	app.addTask(task)
+
+	task.sm.SetState(TaskStates().Allocated)
+	task.nodeName = "node-1"
+
+	// trigger postTaskAllocated, which should handle the bind failure
+	task.postTaskAllocated()
+
+	// check if task is moved back to New state
+	err := utils.WaitForCondition(func() bool {
+		return task.GetTaskState() == TaskStates().New
+	}, 100*time.Millisecond, 3*time.Second)
+	assert.NilError(t, err, "Task should have moved to New state")
 }
