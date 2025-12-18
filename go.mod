@@ -23,8 +23,8 @@ go 1.24.0
 toolchain go1.24.11
 
 require (
-	github.com/apache/yunikorn-core v0.0.0-20251201043909-11c0a7a644a1
-	github.com/apache/yunikorn-scheduler-interface v0.0.0-20251126012206-228b5dfc1b3b
+	github.com/apache/yunikorn-core v1.8.0-0
+	github.com/apache/yunikorn-scheduler-interface v1.8.0-0
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
 	github.com/looplab/fsm v1.0.3
@@ -128,15 +128,15 @@ require (
 	go.opentelemetry.io/proto/otlp v1.5.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
-	golang.org/x/crypto v0.44.0 // indirect
+	golang.org/x/crypto v0.46.0 // indirect
 	golang.org/x/exp v0.0.0-20250228200357-dead58393ab7 // indirect
 	golang.org/x/mod v0.30.0 // indirect
 	golang.org/x/net v0.47.0 // indirect
 	golang.org/x/oauth2 v0.30.0 // indirect
-	golang.org/x/sync v0.18.0 // indirect
-	golang.org/x/sys v0.38.0 // indirect
-	golang.org/x/term v0.37.0 // indirect
-	golang.org/x/text v0.31.0 // indirect
+	golang.org/x/sync v0.19.0 // indirect
+	golang.org/x/sys v0.39.0 // indirect
+	golang.org/x/term v0.38.0 // indirect
+	golang.org/x/text v0.32.0 // indirect
 	golang.org/x/time v0.10.0 // indirect
 	golang.org/x/tools v0.39.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250303144028-a0af3efb3deb // indirect
@@ -166,14 +166,13 @@ require (
 )
 
 replace (
-	golang.org/x/crypto => golang.org/x/crypto v0.45.0
-	golang.org/x/lint => golang.org/x/lint v0.0.0-20210508222113-6edffad5e616
-	golang.org/x/net => golang.org/x/net v0.47.0
+	golang.org/x/crypto => golang.org/x/crypto v0.46.0
+	golang.org/x/net => golang.org/x/net v0.48.0
 	golang.org/x/oauth2 => golang.org/x/oauth2 v0.33.0
-	golang.org/x/sync => golang.org/x/sync v0.18.0
+	golang.org/x/sync => golang.org/x/sync v0.19.0
 	golang.org/x/sys => golang.org/x/sys v0.39.0
-	golang.org/x/term => golang.org/x/term v0.37.0
-	golang.org/x/text => golang.org/x/text v0.31.0
+	golang.org/x/term => golang.org/x/term v0.38.0
+	golang.org/x/text => golang.org/x/text v0.32.0
 	golang.org/x/time => golang.org/x/time v0.14.0
 	golang.org/x/tools => golang.org/x/tools v0.39.0
 	k8s.io/api => k8s.io/api v0.34.2
