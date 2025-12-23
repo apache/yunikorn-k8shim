@@ -375,8 +375,13 @@ func (task *Task) postTaskAllocated() {
 				zap.String("podName", task.pod.Name),
 				zap.String("podUID", string(task.pod.UID)))
 			if err := task.context.bindPodVolumes(task.pod); err != nil {
-				log.Log(log.ShimCacheTask).Error("bind volumes to pod failed", zap.String("taskID", task.taskID), zap.Error(err))
-				task.failWithEvent(fmt.Sprintf("bind volumes to pod failed, name: %s, %s", task.alias, err.Error()), "PodVolumesBindFailure")
+				// bind volumes to pod failed, release the allocation and reset the task to new state.
+				// this is to allow the scheduler to try scheduling this task again
+				log.Log(log.ShimCacheTask).Warn("bind volumes to pod failed, releasing allocation and rescheduling",
+					zap.String("taskID", task.GetTaskID()),
+					zap.String("podUID", string(task.pod.UID)),
+					zap.Error(err))
+				dispatcher.Dispatch(NewSimpleTaskEvent(task.applicationID, task.taskID, BindFailed))
 				return
 			}
 
@@ -385,8 +390,13 @@ func (task *Task) postTaskAllocated() {
 				zap.String("podUID", string(task.pod.UID)))
 
 			if err := task.context.apiProvider.GetAPIs().KubeClient.Bind(task.pod, task.nodeName); err != nil {
-				log.Log(log.ShimCacheTask).Error("bind pod to node failed", zap.String("taskID", task.taskID), zap.Error(err))
-				task.failWithEvent(fmt.Sprintf("bind pod to node failed, name: %s, %s", task.alias, err.Error()), "PodBindFailure")
+				// pod binding failed, release the allocation and reset the task to new state.
+				// this is to allow the scheduler to try scheduling this task again
+				log.Log(log.ShimCacheTask).Warn("bind pod to node failed, releasing allocation and rescheduling",
+					zap.String("taskID", task.GetTaskID()),
+					zap.String("podUID", string(task.pod.UID)),
+					zap.Error(err))
+				dispatcher.Dispatch(NewSimpleTaskEvent(task.applicationID, task.taskID, BindFailed))
 				return
 			}
 
@@ -422,6 +432,18 @@ func (task *Task) beforeTaskAllocated(eventSrc string, allocationKey string, nod
 			zap.String("allocatedNode", nodeID))
 		task.releaseAllocation()
 	}
+}
+
+func (task *Task) beforeTaskBindFail() {
+	task.releaseAllocation()
+
+	task.lock.Unlock()
+	task.context.ForgetPod(task.GetTaskID())
+	task.lock.Lock()
+
+	events.GetRecorder().Eventf(task.pod.DeepCopy(), nil,
+		v1.EventTypeWarning, "PodBindFailure", "PodBindFailure",
+		"failed to bind pod to node, will retry scheduling")
 }
 
 func (task *Task) postTaskBound() {
