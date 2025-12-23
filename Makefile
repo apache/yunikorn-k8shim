@@ -204,7 +204,7 @@ GO_LICENSES_BIN=$(GO_LICENSES_PATH)/go-licenses
 export PATH := $(BASE_DIR)/$(GO_LICENSES_PATH):$(PATH)
 
 # ginkgo
-GINKGO_VERSION=v2.21.0
+GINKGO_VERSION=$(shell go list -m 'github.com/onsi/ginkgo/v2' | cut -d' ' -f 2)
 GINKGO_PATH=$(TOOLS_DIR)/ginkgo-$(GINKGO_VERSION)
 GINKGO_BIN=$(GINKGO_PATH)/ginkgo
 export PATH := $(BASE_DIR)/$(GINKGO_PATH):$(PATH)
