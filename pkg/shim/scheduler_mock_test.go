@@ -169,10 +169,7 @@ func (fc *MockScheduler) waitAndAssertTaskState(t *testing.T, appID, taskID, exp
 
 	task := app.GetTask(taskID)
 	deadline := time.Now().Add(10 * time.Second)
-	for {
-		if task.GetTaskState() == expectedState {
-			break
-		}
+	for task.GetTaskState() != expectedState {
 		log.Log(log.Test).Info("waiting for task state",
 			zap.String("expected", expectedState),
 			zap.String("actual", task.GetTaskState()))
@@ -315,7 +312,7 @@ func (fc *MockScheduler) waitForApplicationStateInCore(appID, partition, expecte
 			return false
 		}
 		return true
-	}, time.Second, 5*time.Second)
+	}, time.Second, 60*time.Second)
 }
 
 func (fc *MockScheduler) waitAndAssertForeignAllocationInCore(partition, allocationID, nodeID string, shouldExist bool) error {

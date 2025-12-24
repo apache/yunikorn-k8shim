@@ -153,9 +153,9 @@ var _ = Describe("Predicates", func() {
 
 		By("Verify the YuniKorn request failed scheduling")
 
-		podErr = restClient.WaitForAllocationLog("default", "root."+ns, initPod.ObjectMeta.Labels["applicationId"], podName, 60)
+		podErr = restClient.WaitForAllocationLog("default", "root."+ns, initPod.Labels["applicationId"], podName, 60)
 		Ω(podErr).NotTo(HaveOccurred())
-		log, podErr := restClient.GetAllocationLog("default", "root."+ns, initPod.ObjectMeta.Labels["applicationId"], podName)
+		log, podErr := restClient.GetAllocationLog("default", "root."+ns, initPod.Labels["applicationId"], podName)
 		Ω(podErr).NotTo(HaveOccurred())
 		Ω(log).NotTo(BeNil(), "Log can't be empty")
 		logEntries := yunikorn.AllocLogToStrings(log)
@@ -259,9 +259,9 @@ var _ = Describe("Predicates", func() {
 
 		By("Verify the YuniKorn request failed scheduling")
 
-		podErr = restClient.WaitForAllocationLog("default", "root."+ns, initPod.ObjectMeta.Labels["applicationId"], podName, 60)
+		podErr = restClient.WaitForAllocationLog("default", "root."+ns, initPod.Labels["applicationId"], podName, 60)
 		Ω(podErr).NotTo(HaveOccurred())
-		log, podErr := restClient.GetAllocationLog("default", "root."+ns, initPod.ObjectMeta.Labels["applicationId"], podName)
+		log, podErr := restClient.GetAllocationLog("default", "root."+ns, initPod.Labels["applicationId"], podName)
 		Ω(podErr).NotTo(HaveOccurred())
 		Ω(log).NotTo(BeNil(), "Log can't be empty")
 		logEntries := yunikorn.AllocLogToStrings(log)
@@ -422,9 +422,9 @@ var _ = Describe("Predicates", func() {
 
 		By("Verify the YuniKorn request failed scheduling")
 
-		err = restClient.WaitForAllocationLog("default", "root."+ns, initPod.ObjectMeta.Labels["applicationId"], podNameNoTolerations, 60)
+		err = restClient.WaitForAllocationLog("default", "root."+ns, initPod.Labels["applicationId"], podNameNoTolerations, 60)
 		Ω(err).NotTo(HaveOccurred())
-		log, err := restClient.GetAllocationLog("default", "root."+ns, initPod.ObjectMeta.Labels["applicationId"], podNameNoTolerations)
+		log, err := restClient.GetAllocationLog("default", "root."+ns, initPod.Labels["applicationId"], podNameNoTolerations)
 		Ω(err).NotTo(HaveOccurred())
 		Ω(log).NotTo(BeNil(), "Log can't be empty")
 		logEntries := yunikorn.AllocLogToStrings(log)
@@ -1081,9 +1081,9 @@ var _ = Describe("Predicates", func() {
 
 		By("Verify the YuniKorn request failed scheduling")
 
-		err = restClient.WaitForAllocationLog("default", "root."+anotherNS, initPod.ObjectMeta.Labels["applicationId"], labelPodName2, 60)
+		err = restClient.WaitForAllocationLog("default", "root."+anotherNS, initPod.Labels["applicationId"], labelPodName2, 60)
 		Ω(err).NotTo(HaveOccurred())
-		log, err := restClient.GetAllocationLog("default", "root."+anotherNS, initPod.ObjectMeta.Labels["applicationId"], labelPodName2)
+		log, err := restClient.GetAllocationLog("default", "root."+anotherNS, initPod.Labels["applicationId"], labelPodName2)
 		Ω(err).NotTo(HaveOccurred())
 		Ω(log).NotTo(BeNil(), "Log can't be empty")
 		logEntries := yunikorn.AllocLogToStrings(log)

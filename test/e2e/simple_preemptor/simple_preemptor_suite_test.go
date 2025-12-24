@@ -107,9 +107,10 @@ var _ = ginkgo.BeforeSuite(func() {
 	if err == nil {
 		for _, pod := range pods.Items {
 			for _, c := range pod.Spec.Containers {
-				if pod.Spec.NodeName == Worker1 {
+				switch pod.Spec.NodeName {
+				case Worker1:
 					totalPodQuantity1.Add(*resource.NewQuantity(c.Resources.Requests.Memory().Value(), resource.DecimalSI))
-				} else if pod.Spec.NodeName == Worker2 {
+				case Worker2:
 					totalPodQuantity2.Add(*resource.NewQuantity(c.Resources.Requests.Memory().Value(), resource.DecimalSI))
 				}
 			}
@@ -122,7 +123,6 @@ var _ = ginkgo.BeforeSuite(func() {
 })
 
 var _ = ginkgo.AfterSuite(func() {
-
 	ginkgo.By("Untainting some nodes")
 	err := kClient.UntaintNodes(nodesToTaint, taintKey)
 	Ω(err).NotTo(gomega.HaveOccurred(), "Could not remove taint from nodes "+strings.Join(nodesToTaint, ","))

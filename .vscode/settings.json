@@ -1,0 +1,19 @@
+{
+    "go.formatTool": "goimports",
+    "go.formatFlags": [
+        "-local",
+        "github.com/apache/yunikorn"
+    ],
+    "editor.formatOnSave": true,
+    "[go]": {
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+            "source.organizeImports": "explicit"
+        }
+    },
+    "go.lintTool": "golangci-lint",
+    "go.lintFlags": [
+        "--config=${workspaceFolder}/.golangci.yml",
+        "--fast"
+    ]
+}

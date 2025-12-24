@@ -50,15 +50,15 @@ var sleepPodMemLimit2 int64
 var taintKey = "e2e_test_simple_preemptor"
 var nodesToTaint []string
 
-var _ = ginkgo.BeforeEach(func() {
-	dev = "dev" + common.RandSeq(5)
-	ginkgo.By("create development namespace")
-	ns, err := kClient.CreateNamespace(dev, nil)
-	gomega.Ω(err).NotTo(gomega.HaveOccurred())
-	gomega.Ω(ns.Status.Phase).To(gomega.Equal(v1.NamespaceActive))
-})
-
 var _ = ginkgo.Describe("SimplePreemptor", func() {
+    ginkgo.BeforeEach(func() {
+        dev = "dev" + common.RandSeq(5)
+        ginkgo.By("create development namespace")
+        ns, err := kClient.CreateNamespace(dev, nil)
+        gomega.Ω(err).NotTo(gomega.HaveOccurred())
+        gomega.Ω(ns.Status.Phase).To(gomega.Equal(v1.NamespaceActive))
+    })
+
 	ginkgo.It("Verify_basic_simple_preemption", func() {
 		// Use case: Only one pod is running and same pod has been selected as victim
 		// Define sleepPod
@@ -75,7 +75,7 @@ var _ = ginkgo.Describe("SimplePreemptor", func() {
 
 			// Wait for pod to move to running state
 			err = kClient.WaitForPodBySelectorRunning(dev,
-				fmt.Sprintf("app=%s", sleepRespPod.ObjectMeta.Labels["app"]),
+				fmt.Sprintf("app=%s", sleepRespPod.Labels["app"]),
 				60)
 			gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		}
@@ -107,7 +107,7 @@ var _ = ginkgo.Describe("SimplePreemptor", func() {
 			gomega.Ω(err).NotTo(gomega.HaveOccurred())
 			// Wait for pod to move to running state
 			err = kClient.WaitForPodBySelectorRunning(dev,
-				fmt.Sprintf("app=%s", sleepRespPod.ObjectMeta.Labels["app"]),
+				fmt.Sprintf("app=%s", sleepRespPod.Labels["app"]),
 				240)
 			gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		}

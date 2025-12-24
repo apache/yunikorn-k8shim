@@ -382,7 +382,7 @@ func (wm *webhookManagerImpl) checkValidatingWebhook(webhook *v1.ValidatingWebho
 	none := v1.SideEffectClassNone
 	path := "/validate-conf"
 
-	value, ok := webhook.ObjectMeta.GetLabels()["app"]
+	value, ok := webhook.GetLabels()["app"]
 	if !ok || value != webhookLabel {
 		return errors.New("webhook: missing label app=yunikorn")
 	}
@@ -457,7 +457,7 @@ func (wm *webhookManagerImpl) checkMutatingWebhook(webhook *v1.MutatingWebhookCo
 	none := v1.SideEffectClassNone
 	path := "/mutate"
 
-	value, ok := webhook.ObjectMeta.GetLabels()["app"]
+	value, ok := webhook.GetLabels()["app"]
 	if !ok || value != "yunikorn" {
 		return errors.New("webhook: missing label app=yunikorn")
 	}
@@ -584,8 +584,8 @@ func (wm *webhookManagerImpl) populateValidatingWebhook(webhook *v1.ValidatingWe
 	namespace := wm.conf.GetNamespace()
 	serviceName := wm.conf.GetAmServiceName()
 
-	webhook.ObjectMeta.Name = validatingWebhook
-	webhook.ObjectMeta.Labels = map[string]string{"app": "yunikorn"}
+	webhook.Name = validatingWebhook
+	webhook.Labels = map[string]string{"app": "yunikorn"}
 	webhook.Webhooks = []v1.ValidatingWebhook{
 		{
 			Name: validateConfHook,
@@ -619,8 +619,8 @@ func (wm *webhookManagerImpl) populateMutatingWebhook(webhook *v1.MutatingWebhoo
 	namespace := wm.conf.GetNamespace()
 	serviceName := wm.conf.GetAmServiceName()
 
-	webhook.ObjectMeta.Name = mutatingWebhook
-	webhook.ObjectMeta.Labels = map[string]string{"app": "yunikorn"}
+	webhook.Name = mutatingWebhook
+	webhook.Labels = map[string]string{"app": "yunikorn"}
 	webhook.Webhooks = []v1.MutatingWebhook{
 		{
 			Name: mutatePodsWebhook,

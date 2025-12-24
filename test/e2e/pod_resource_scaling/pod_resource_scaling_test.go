@@ -24,6 +24,7 @@ import (
 
 	"github.com/onsi/ginkgo/v2"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/version"
 
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
@@ -33,14 +34,15 @@ import (
 
 var kClient k8s.KubeCtl
 var restClient yunikorn.RClient
-var err error
 var ns string
 var oldConfigMap = new(v1.ConfigMap)
 var suiteName string
+var k8sVer *version.Info
 
 var _ = BeforeEach(func() {
 	// Skip if K8s version < 1.32
-	k8sVer, err := kClient.GetKubernetesVersion()
+	var err error
+	k8sVer, err = kClient.GetKubernetesVersion()
 	Ω(err).NotTo(HaveOccurred())
 	if k8sVer.Major < "1" || (k8sVer.Major == "1" && k8sVer.Minor < "32") {
 		ginkgo.Skip("InPlacePodVerticalScaling requires K8s 1.32+")
@@ -61,7 +63,7 @@ var _ = ginkgo.AfterEach(func() {
 })
 
 func verifyYunikornResourceUsage(appID, resourceName string, value int64) {
-	err = utils.WaitForCondition(func() bool {
+	err := utils.WaitForCondition(func() bool {
 		app, err := restClient.GetAppInfo("default", "root."+ns, appID)
 		if err != nil || app == nil {
 			fmt.Println(err)
@@ -85,7 +87,7 @@ func verifyYunikornResourceUsage(appID, resourceName string, value int64) {
 		}
 
 		return false
-	}, 30*time.Second, 120*time.Second)
+	}, time.Second, 120*time.Second)
 	Ω(err).NotTo(HaveOccurred(), fmt.Sprintf("Pod should be scheduled by YuniKorn with correct resource(%s) allocation", resourceName))
 }
 
@@ -105,7 +107,7 @@ var _ = ginkgo.Describe("InPlacePodVerticalScaling", func() {
 		Ω(err).NotTo(HaveOccurred())
 
 		// Check if pod is scheduled by YuniKorn and verify CPU allocation is 100m
-		verifyYunikornResourceUsage(pod.ObjectMeta.Labels["applicationId"], "vcore", 100)
+		verifyYunikornResourceUsage(pod.Labels["applicationId"], "vcore", 100)
 
 		// Get initial pod restart count
 		pod, err = kClient.GetPod(pod.Name, ns)
@@ -116,13 +118,13 @@ var _ = ginkgo.Describe("InPlacePodVerticalScaling", func() {
 		Ω(err).NotTo(HaveOccurred())
 
 		Ω(pod.Status.ContainerStatuses[0].RestartCount).To(Equal(initialRestartCount), "Container should not have restarted")
-		verifyYunikornResourceUsage(pod.ObjectMeta.Labels["applicationId"], "vcore", 200)
+		verifyYunikornResourceUsage(pod.Labels["applicationId"], "vcore", 200)
 
 		pod, err = kClient.ModifyResourceUsage(pod, ns, 200, 200)
 		Ω(err).NotTo(HaveOccurred())
 
 		Ω(pod.Status.ContainerStatuses[0].RestartCount).To(Equal(initialRestartCount), "Container should not have restarted")
-		verifyYunikornResourceUsage(pod.ObjectMeta.Labels["applicationId"], "memory", 200*1024*1024)
+		verifyYunikornResourceUsage(pod.Labels["applicationId"], "memory", 200*1024*1024)
 	})
 
 	ginkgo.It("Pod resources(cpu/memory) resize down", func() {
@@ -140,7 +142,7 @@ var _ = ginkgo.Describe("InPlacePodVerticalScaling", func() {
 		Ω(err).NotTo(HaveOccurred())
 
 		// Check if pod is scheduled by YuniKorn and verify CPU allocation is 100m
-		verifyYunikornResourceUsage(pod.ObjectMeta.Labels["applicationId"], "vcore", 200)
+		verifyYunikornResourceUsage(pod.Labels["applicationId"], "vcore", 200)
 
 		// Get initial pod state
 		pod, err = kClient.GetPod(pod.Name, ns)
@@ -153,26 +155,24 @@ var _ = ginkgo.Describe("InPlacePodVerticalScaling", func() {
 
 		// Wait for resource update to be reflected
 		err = utils.WaitForCondition(func() bool {
-			currentPod, err := kClient.GetPod(pod.Name, ns)
+			var currentPod *v1.Pod
+			currentPod, err = kClient.GetPod(pod.Name, ns)
 			if err != nil {
 				return false
 			}
 			return currentPod.Spec.Containers[0].Resources.Requests.Cpu().MilliValue() == int64(100)
-		}, 10*time.Second, 120*time.Second)
+		}, time.Second, 120*time.Second)
 		Ω(err).NotTo(HaveOccurred())
 
-		Ω(err).NotTo(HaveOccurred())
 		Ω(pod.Status.StartTime).To(Equal(initialStartTime), "Pod should not have restarted")
 		Ω(pod.Status.ContainerStatuses[0].RestartCount).To(Equal(initialRestartCount), "Container should not have restarted")
-		verifyYunikornResourceUsage(pod.ObjectMeta.Labels["applicationId"], "vcore", 100)
+		verifyYunikornResourceUsage(pod.Labels["applicationId"], "vcore", 100)
 
 		pod, err = kClient.ModifyResourceUsage(pod, ns, 100, 100)
-		Ω(err).NotTo(HaveOccurred()) // Expect an error as memory cannot be decreased
-
 		Ω(err).NotTo(HaveOccurred())
 		Ω(pod.Status.StartTime).To(Equal(initialStartTime), "Pod should not have restarted")
 		Ω(pod.Status.ContainerStatuses[0].RestartCount).To(Equal(initialRestartCount), "Container should not have restarted")
-		verifyYunikornResourceUsage(pod.ObjectMeta.Labels["applicationId"], "memory", 100*1024*1024)
+		verifyYunikornResourceUsage(pod.Labels["applicationId"], "memory", 100*1024*1024)
 	})
 
 	ginkgo.It("Pod resources(cpu/memory) resize to excessive values should fail", func() {
@@ -190,7 +190,7 @@ var _ = ginkgo.Describe("InPlacePodVerticalScaling", func() {
 		Ω(err).NotTo(HaveOccurred())
 
 		// Check if pod is scheduled by YuniKorn and verify CPU allocation is 100m
-		verifyYunikornResourceUsage(pod.ObjectMeta.Labels["applicationId"], "vcore", 100)
+		verifyYunikornResourceUsage(pod.Labels["applicationId"], "vcore", 100)
 
 		// Get initial pod state
 		pod, err = kClient.GetPod(pod.Name, ns)
@@ -204,19 +204,31 @@ var _ = ginkgo.Describe("InPlacePodVerticalScaling", func() {
 
 		// Wait for resource update to be reflected
 		err = utils.WaitForCondition(func() bool {
-			currentPod, err := kClient.GetPod(pod.Name, ns)
+			var currentPod *v1.Pod
+			currentPod, err = kClient.GetPod(pod.Name, ns)
 			if err != nil {
 				return false
 			}
-			return currentPod.Status.Resize == v1.PodResizeStatusInfeasible
-		}, 10*time.Second, 120*time.Second)
+
+			// only used in 1.32, it became deprecated in later versions
+			if k8sVer.Major == "1" && k8sVer.Minor == "32" {
+				return currentPod.Status.Resize == v1.PodResizeStatusInfeasible
+			}
+
+			// for 1.33+
+			for _, condition := range currentPod.Status.Conditions {
+				if condition.Type == v1.PodResizePending && condition.Reason == v1.PodReasonInfeasible {
+					return true
+				}
+			}
+			return false
+		}, time.Second, 120*time.Second)
 		Ω(err).NotTo(HaveOccurred())
 
-		Ω(err).NotTo(HaveOccurred())
 		Ω(pod.Status.StartTime).To(Equal(initialStartTime), "Pod should not have restarted")
 		Ω(pod.Status.ContainerStatuses[0].RestartCount).To(Equal(initialRestartCount), "Container should not have restarted")
 
 		// Verify pod resource usage is unchanged after set an excessive value
-		verifyYunikornResourceUsage(pod.ObjectMeta.Labels["applicationId"], "vcore", 100)
+		verifyYunikornResourceUsage(pod.Labels["applicationId"], "vcore", 100)
 	})
 })

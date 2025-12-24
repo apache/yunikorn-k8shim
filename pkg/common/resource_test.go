@@ -513,7 +513,7 @@ func TestGetPodResourcesWithInPlacePodVerticalScaling(t *testing.T) {
 	assert.Equal(t, res.Resources["pods"].GetValue(), int64(1))
 
 	// simulate a proposed pod resize (memory up, cpu down)
-	pod.Status.Resize = v1.PodResizeStatusProposed
+	pod.Status.Resize = ""
 	pod.Spec.Containers[0].Resources.Requests[v1.ResourceMemory] = resource.MustParse("2000M")
 	pod.Spec.Containers[0].Resources.Requests[v1.ResourceCPU] = resource.MustParse("500m")
 	pod.Spec.Containers[1].Resources.Requests[v1.ResourceMemory] = resource.MustParse("4000M")

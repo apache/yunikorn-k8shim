@@ -71,23 +71,23 @@ func createTestingPodWithMeta() *v1.Pod {
 
 func createTestingPodWithLabels(appId string, queue string) *v1.Pod {
 	pod := createTestingPodWithMeta()
-	pod.ObjectMeta.Labels[constants.CanonicalLabelApplicationID] = appId
-	pod.ObjectMeta.Labels[constants.CanonicalLabelQueueName] = queue
+	pod.Labels[constants.CanonicalLabelApplicationID] = appId
+	pod.Labels[constants.CanonicalLabelQueueName] = queue
 
 	return pod
 }
 
 func createTestingPodWithGenerateName() *v1.Pod {
 	pod := createMinimalTestingPod()
-	pod.ObjectMeta.GenerateName = "some-pod-"
+	pod.GenerateName = "some-pod-"
 
 	return pod
 }
 
 func createTestingPodWithAnnotations(appId string, queue string) *v1.Pod {
 	pod := createTestingPodWithMeta()
-	pod.ObjectMeta.Annotations[constants.AnnotationApplicationID] = appId
-	pod.ObjectMeta.Annotations[constants.AnnotationQueueName] = queue
+	pod.Annotations[constants.AnnotationApplicationID] = appId
+	pod.Annotations[constants.AnnotationQueueName] = queue
 
 	return pod
 }

@@ -31,7 +31,9 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apiserver/pkg/util/feature"
 	k8sEvents "k8s.io/client-go/tools/events"
+	"k8s.io/kubernetes/pkg/features"
 
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common"
@@ -44,6 +46,12 @@ import (
 	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
+
+func init() {
+	if err := feature.DefaultMutableFeatureGate.Set(fmt.Sprintf("%s=false", features.DynamicResourceAllocation)); err != nil {
+		panic(fmt.Errorf("unable to set DynamicResourceAllocation feature gate: %v", err))
+	}
+}
 
 type recorderTime struct {
 	time int64
@@ -469,7 +477,7 @@ func newMockSchedulerAPI() *mockSchedulerAPI {
 }
 
 type mockSchedulerAPI struct {
-	callback   api.ResourceManagerCallback //nolint:structcheck,unused
+	callback   api.ResourceManagerCallback //nolint:unused
 	registerFn func(request *si.RegisterResourceManagerRequest,
 		callback api.ResourceManagerCallback) (*si.RegisterResourceManagerResponse, error)
 	UpdateAllocationFn    func(request *si.AllocationRequest) error

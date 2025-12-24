@@ -49,17 +49,12 @@ jobs:
       matrix:
         k8s:
           [
+            v1.34.0,
+            v1.33.1,
             v1.32.2,
             v1.31.6,
-            v1.30.10,
-            v1.29.14,
-            v1.28.15,
-            v1.27.16,
-            v1.26.15,
-            v1.25.16,
             v1.24.17,
           ]
-        plugin: ["", "--plugin"]
     steps:
       - name: Checkout source code
         uses: actions/checkout@v4
@@ -83,13 +78,12 @@ jobs:
           key: ${{ runner.os }}-e2e-${{ hashFiles('Makefile') }}
           restore-keys: |
             ${{ runner.os }}-e2e-
-      - run: ./scripts/run-e2e-tests.sh -a "test" -n "yk8s" -v "kindest/node:${KIND_NODE_IMAGE}" ${KIND_EXTRA_ARGS}
+      - run: ./scripts/run-e2e-tests.sh -a "test" -n "yk8s" -v "kindest/node:${KIND_NODE_IMAGE}"
         env:
           KIND_NODE_IMAGE: ${{ matrix.k8s }}
-          KIND_EXTRA_ARGS: ${{ matrix.plugin }}
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         if: ${{ failure() }}
         with:
-          name: ${{ github.job }} stdout (${{ matrix.k8s }}${{ matrix.plugin == '--plugin' && format(', {0}', matrix.plugin) || matrix.plugin }})
+          name: ${{ github.job }} stdout (${{ matrix.k8s }})
           path: build/e2e

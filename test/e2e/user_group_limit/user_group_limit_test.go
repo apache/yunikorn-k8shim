@@ -25,7 +25,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
 
@@ -81,42 +80,16 @@ var (
 	}
 )
 
-var _ = ginkgo.BeforeSuite(func() {
-	_, filename, _, _ := runtime.Caller(0)
-	suiteName = common.GetSuiteName(filename)
-	// Initializing kubectl client
-	kClient = k8s.KubeCtl{}
-	Ω(kClient.SetClient()).To(gomega.BeNil())
-	// Initializing rest client
-	restClient = yunikorn.RClient{}
-	Ω(restClient).NotTo(gomega.BeNil())
-
-	yunikorn.EnsureYuniKornConfigsPresent()
-
-	ginkgo.By("Port-forward the scheduler pod")
-	var err = kClient.PortForwardYkSchedulerPod()
-	Ω(err).NotTo(gomega.HaveOccurred())
-})
-
-var _ = ginkgo.BeforeEach(func() {
-	dev = "dev" + common.RandSeq(5)
-	ginkgo.By("create development namespace")
-	ns, err := kClient.CreateNamespace(dev, nil)
-	gomega.Ω(err).NotTo(gomega.HaveOccurred())
-	gomega.Ω(ns.Status.Phase).To(gomega.Equal(v1.NamespaceActive))
-})
-
-var _ = ginkgo.AfterSuite(func() {
-	ginkgo.By("Check Yunikorn's health")
-	checks, err := yunikorn.GetFailedHealthChecks()
-	Ω(err).NotTo(HaveOccurred())
-	Ω(checks).To(gomega.Equal(""), checks)
-	ginkgo.By("Tearing down namespace: " + dev)
-	err = kClient.TearDownNamespace(dev)
-	Ω(err).NotTo(HaveOccurred())
-})
-
 var _ = ginkgo.Describe("UserGroupLimit", func() {
+
+	ginkgo.BeforeEach(func() {
+		dev = "dev" + common.RandSeq(5)
+		ginkgo.By("create development namespace")
+		ns, err := kClient.CreateNamespace(dev, nil)
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		gomega.Ω(ns.Status.Phase).To(gomega.Equal(v1.NamespaceActive))
+	})
+
 	ginkgo.It("Verify_maxresources_with_a_specific_user_limit", func() {
 		ginkgo.By("Update config")
 		// The wait wrapper still can't fully guarantee that the config in AdmissionController has been updated.
@@ -1012,7 +985,7 @@ var _ = ginkgo.Describe("UserGroupLimit", func() {
 				},
 			},
 		}
-		_, err = kClient.CreateClusterRoleBinding(clusterRoleBinding.ObjectMeta.Name, clusterRoleBinding.RoleRef.Name, clusterRoleBinding.Subjects[0].Namespace, clusterRoleBinding.Subjects[0].Name)
+		_, err = kClient.CreateClusterRoleBinding(clusterRoleBinding.Name, clusterRoleBinding.RoleRef.Name, clusterRoleBinding.Subjects[0].Namespace, clusterRoleBinding.Subjects[0].Name)
 		gomega.Ω(err).NotTo(HaveOccurred())
 		// Create a Secret for the Service Account
 		ginkgo.By("Creating Secret for the Service Account...")
@@ -1147,14 +1120,15 @@ func deploySleepPod(usergroup *si.UserGroupInformation, queuePath string, expect
 
 func checkUsage(testType TestType, name string, queuePath string, expectedRunningPods []*v1.Pod) {
 	var rootQueueResourceUsageDAO *dao.ResourceUsageDAOInfo
-	if testType == userTestType {
+	switch testType {
+	case userTestType:
 		ginkgo.By(fmt.Sprintf("Check user resource usage for %s in queue %s", name, queuePath))
 		userUsageDAOInfo, err := restClient.GetUserUsage(constants.DefaultPartition, name)
 		Ω(err).NotTo(HaveOccurred())
 		Ω(userUsageDAOInfo).NotTo(gomega.BeNil())
 
 		rootQueueResourceUsageDAO = userUsageDAOInfo.Queues
-	} else if testType == groupTestType {
+	case groupTestType:
 		ginkgo.By(fmt.Sprintf("Check group resource usage for %s in queue %s", name, queuePath))
 		groupUsageDAOInfo, err := restClient.GetGroupUsage(constants.DefaultPartition, name)
 		Ω(err).NotTo(HaveOccurred())

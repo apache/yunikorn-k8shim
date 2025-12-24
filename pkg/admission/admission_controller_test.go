@@ -472,7 +472,7 @@ func TestMutate(t *testing.T) {
 	assert.Equal(t, labels(t, resp.Patch)[constants.LabelApplicationID], "yunikorn-test-ns-autogen", "wrong applicationId label")
 
 	// pod with applicationId
-	pod.ObjectMeta.Labels = map[string]string{constants.LabelApplicationID: "test-app"}
+	pod.Labels = map[string]string{constants.LabelApplicationID: "test-app"}
 	podJSON, err = json.Marshal(pod)
 	assert.NilError(t, err, "failed to marshal pod")
 	req.Object = runtime.RawExtension{Raw: podJSON}

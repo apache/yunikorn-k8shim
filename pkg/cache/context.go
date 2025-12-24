@@ -37,7 +37,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog/v2"
-	"k8s.io/kubernetes/pkg/scheduler/framework"
+	fwk "k8s.io/kube-scheduler/framework"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/volumebinding"
 
 	schedulercache "github.com/apache/yunikorn-k8shim/pkg/cache/external"
@@ -213,7 +213,7 @@ func (ctx *Context) updateNodeInternal(node *v1.Node, register bool) {
 				zap.String("nodeName", node.Name))
 			applicationID := utils.GetApplicationIDFromPod(pod)
 			if applicationID == "" {
-				ctx.updateForeignPod(pod)
+				ctx.updateForeignPod(nil, pod)
 			} else {
 				ctx.updateYuniKornPod(applicationID, nil, pod)
 			}
@@ -315,7 +315,7 @@ func (ctx *Context) UpdatePod(oldObj, newObj interface{}) {
 	}
 	applicationID := utils.GetApplicationIDFromPod(pod)
 	if applicationID == "" {
-		ctx.updateForeignPod(pod)
+		ctx.updateForeignPod(oldPod, pod)
 	} else {
 		ctx.updateYuniKornPod(applicationID, oldPod, pod)
 	}
@@ -389,9 +389,8 @@ func (ctx *Context) ensureAppAndTaskCreated(pod *v1.Pod, app *Application) {
 	}
 }
 
-func (ctx *Context) updateForeignPod(pod *v1.Pod) {
+func (ctx *Context) updateForeignPod(oldPod, pod *v1.Pod) {
 	podStatusBefore := ""
-	oldPod := ctx.schedulerCache.GetPod(string(pod.UID))
 	if oldPod != nil {
 		podStatusBefore = string(oldPod.Status.Phase)
 	}
@@ -408,10 +407,12 @@ func (ctx *Context) updateForeignPod(pod *v1.Pod) {
 				zap.String("podName", pod.Name),
 				zap.String("podStatusBefore", podStatusBefore),
 				zap.String("podStatusCurrent", string(pod.Status.Phase)))
-			allocReq := common.CreateAllocationForForeignPod(pod)
-			if err := ctx.apiProvider.GetAPIs().SchedulerAPI.UpdateAllocation(allocReq); err != nil {
-				log.Log(log.ShimContext).Error("failed to add foreign allocation to the core",
-					zap.Error(err))
+			if oldPod == nil || !common.Equals(common.GetPodResource(oldPod), common.GetPodResource(pod)) {
+				allocReq := common.CreateAllocationForForeignPod(pod)
+				if err := ctx.apiProvider.GetAPIs().SchedulerAPI.UpdateAllocation(allocReq); err != nil {
+					log.Log(log.ShimContext).Error("failed to add foreign allocation to the core",
+						zap.Error(err))
+				}
 			}
 		} else {
 			// pod is orphaned (references an unknown node)
@@ -657,7 +658,7 @@ func (ctx *Context) setConfigMap(index int, configMap *v1.ConfigMap) map[string]
 }
 
 // EventsToRegister returns the Kubernetes events that should be watched for updates which may effect predicate processing
-func (ctx *Context) EventsToRegister(queueingHintFn framework.QueueingHintFn) []framework.ClusterEventWithHint {
+func (ctx *Context) EventsToRegister(queueingHintFn fwk.QueueingHintFn) []fwk.ClusterEventWithHint {
 	return ctx.predManager.EventsToRegister(queueingHintFn)
 }
 
@@ -773,7 +774,7 @@ func (ctx *Context) bindPodVolumes(pod *v1.Pod) error {
 			}
 			if volumes.DynamicProvisions == nil {
 				// convert nil to empty array
-				volumes.DynamicProvisions = make([]*v1.PersistentVolumeClaim, 0)
+				volumes.DynamicProvisions = make([]*volumebinding.DynamicProvision, 0)
 			}
 			err = ctx.apiProvider.GetAPIs().VolumeBinder.BindPodVolumes(context.Background(), assumedPod, volumes)
 			if err != nil {
@@ -822,7 +823,7 @@ func (ctx *Context) AssumePod(name, node string) error {
 			if err != nil {
 				log.Log(log.ShimContext).Error("Failed to find pod volumes",
 					zap.String("podName", assumedPod.Name),
-					zap.String("nodeName", assumedPod.Spec.NodeName),
+					zap.String("nodeName", node),
 					zap.Error(err))
 				return err
 			}
@@ -835,7 +836,7 @@ func (ctx *Context) AssumePod(name, node string) error {
 				err = fmt.Errorf("pod %s has conflicting volume claims: %s", pod.Name, sReason)
 				log.Log(log.ShimContext).Error("Pod has conflicting volume claims",
 					zap.String("podName", assumedPod.Name),
-					zap.String("nodeName", assumedPod.Spec.NodeName),
+					zap.String("nodeName", node),
 					zap.Error(err))
 				return err
 			}

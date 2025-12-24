@@ -306,7 +306,7 @@ var _ = ginkgo.Describe("AdmissionController", func() {
 
 		// pod is not expected to appear
 		ginkgo.By("Check for sleep pods (should time out)")
-		err = kubeClient.WaitForPodBySelector(ns, fmt.Sprintf("app=%s", testDeployment.ObjectMeta.Labels["app"]),
+		err = kubeClient.WaitForPodBySelector(ns, fmt.Sprintf("app=%s", testDeployment.Labels["app"]),
 			10*time.Second)
 		fmt.Fprintf(ginkgo.GinkgoWriter, "Error: %v\n", err)
 		gomega.Ω(err).Should(gomega.HaveOccurred())
@@ -332,7 +332,7 @@ var _ = ginkgo.Describe("AdmissionController", func() {
 
 		// pod is expected to appear
 		ginkgo.By("Check for sleep pod")
-		err = kubeClient.WaitForPodBySelector(ns, fmt.Sprintf("app=%s", testDeployment.ObjectMeta.Labels["app"]),
+		err = kubeClient.WaitForPodBySelector(ns, fmt.Sprintf("app=%s", testDeployment.Labels["app"]),
 			60*time.Second)
 		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
 	})
@@ -381,7 +381,7 @@ var _ = ginkgo.Describe("AdmissionController", func() {
 
 		// pod is expected to appear
 		ginkgo.By("Check for sleep pod")
-		err = kubeClient.WaitForPodBySelector(ns, fmt.Sprintf("app=%s", testDeployment.ObjectMeta.Labels["app"]),
+		err = kubeClient.WaitForPodBySelector(ns, fmt.Sprintf("app=%s", testDeployment.Labels["app"]),
 			60*time.Second)
 		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
 	})
@@ -407,7 +407,7 @@ var _ = ginkgo.Describe("AdmissionController", func() {
 		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
 		defer kubeClient.DeleteWorkloadAndPods(deployment.Name, k8s.Deployment, ns)
 		ginkgo.By("Check for sleep pod")
-		err = kubeClient.WaitForPodBySelector(ns, fmt.Sprintf("app=%s", deployment.ObjectMeta.Labels["app"]),
+		err = kubeClient.WaitForPodBySelector(ns, fmt.Sprintf("app=%s", deployment.Labels["app"]),
 			60*time.Second)
 		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
 
@@ -431,7 +431,7 @@ var _ = ginkgo.Describe("AdmissionController", func() {
 		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
 
 		ginkgo.By("Wait for sleep pod")
-		err = kubeClient.WaitForPodBySelectorRunning(ns, fmt.Sprintf("app=%s", testDeployment.ObjectMeta.Labels["app"]),
+		err = kubeClient.WaitForPodBySelectorRunning(ns, fmt.Sprintf("app=%s", testDeployment.Labels["app"]),
 			60)
 		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
 

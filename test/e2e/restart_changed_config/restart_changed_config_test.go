@@ -19,7 +19,6 @@
 package restartchangedconfig_test
 
 import (
-	"runtime"
 	"time"
 
 	"github.com/onsi/ginkgo/v2"
@@ -30,7 +29,6 @@ import (
 	"github.com/apache/yunikorn-core/pkg/scheduler/placement/types"
 	"github.com/apache/yunikorn-core/pkg/webservice/dao"
 	tests "github.com/apache/yunikorn-k8shim/test/e2e"
-	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
@@ -47,52 +45,17 @@ var (
 	sleepPod2Configs = k8s.SleepPodConfig{Name: "sleepjob2", NS: test}
 )
 
-var _ = ginkgo.BeforeSuite(func() {
-	_, filename, _, _ := runtime.Caller(0)
-	suiteName = common.GetSuiteName(filename)
-	// Initializing kubectl client
-	kClient = k8s.KubeCtl{}
-	Ω(kClient.SetClient()).To(gomega.BeNil())
-	// Initializing rest client
-	restClient = yunikorn.RClient{}
-
-	yunikorn.EnsureYuniKornConfigsPresent()
-	yunikorn.UpdateConfigMapWrapper(oldConfigMap, "")
-
-	ginkgo.By("Port-forward the scheduler pod")
-	var err = kClient.PortForwardYkSchedulerPod()
-	Ω(err).NotTo(gomega.HaveOccurred())
-})
-
-var _ = ginkgo.BeforeEach(func() {
-	ginkgo.By("create development namespace")
-	ns, err := kClient.CreateNamespace(dev, nil)
-	gomega.Ω(err).NotTo(gomega.HaveOccurred())
-	gomega.Ω(ns.Status.Phase).To(gomega.Equal(v1.NamespaceActive))
-	ns, err = kClient.CreateNamespace(test, nil)
-	gomega.Ω(err).NotTo(gomega.HaveOccurred())
-	gomega.Ω(ns.Status.Phase).To(gomega.Equal(v1.NamespaceActive))
-})
-
-var _ = ginkgo.AfterSuite(func() {
-	// call the healthCheck api to check scheduler health
-	ginkgo.By("Check YuniKorn's health")
-	checks, err2 := yunikorn.GetFailedHealthChecks()
-	Ω(err2).NotTo(gomega.HaveOccurred())
-	Ω(checks).To(gomega.Equal(""), checks)
-
-	ginkgo.By("Restoring the old config maps")
-	var c, err1 = kClient.GetConfigMaps(configmanager.YuniKornTestConfig.YkNamespace,
-		configmanager.DefaultYuniKornConfigMap)
-	Ω(err1).NotTo(gomega.HaveOccurred())
-	Ω(c).NotTo(gomega.BeNil())
-	c.Data = oldConfigMap.Data
-	var e, err3 = kClient.UpdateConfigMap(c, configmanager.YuniKornTestConfig.YkNamespace)
-	Ω(err3).NotTo(gomega.HaveOccurred())
-	Ω(e).NotTo(gomega.BeNil())
-})
-
 var _ = ginkgo.Describe("PodInRecoveryQueue", func() {
+	ginkgo.BeforeEach(func() {
+		ginkgo.By("create development namespace")
+		ns, err := kClient.CreateNamespace(dev, nil)
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		gomega.Ω(ns.Status.Phase).To(gomega.Equal(v1.NamespaceActive))
+		ns, err = kClient.CreateNamespace(test, nil)
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		gomega.Ω(ns.Status.Phase).To(gomega.Equal(v1.NamespaceActive))
+	})
+
 	ginkgo.It("Pod_Restored_In_Recovery_Queue", func() {
 		ginkgo.By("Deploy 1st sleep pod to the dev namespace")
 		podConf, podErr := k8s.InitSleepPod(sleepPodConfigs)
@@ -131,13 +94,13 @@ var _ = ginkgo.Describe("PodInRecoveryQueue", func() {
 
 		ginkgo.By("Check pod in the dev namespace")
 		var appsInfo *dao.ApplicationDAOInfo
-		appsInfo, err = restClient.GetAppInfo("default", "root."+dev, podDev.ObjectMeta.Labels["applicationId"])
+		appsInfo, err = restClient.GetAppInfo("default", "root."+dev, podDev.Labels["applicationId"])
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		gomega.Ω(appsInfo).NotTo(gomega.BeNil())
 
 		ginkgo.By("Check pod in the test namespace")
 		var appsInfo2 *dao.ApplicationDAOInfo
-		appsInfo2, err = restClient.GetAppInfo("default", "root."+test, podTest.ObjectMeta.Labels["applicationId"])
+		appsInfo2, err = restClient.GetAppInfo("default", "root."+test, podTest.Labels["applicationId"])
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		gomega.Ω(appsInfo2).NotTo(gomega.BeNil())
 
@@ -152,12 +115,12 @@ var _ = ginkgo.Describe("PodInRecoveryQueue", func() {
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 
 		ginkgo.By("Check pod in the dev namespace")
-		appsInfo, err = restClient.GetAppInfo("default", "root."+dev, podDev.ObjectMeta.Labels["applicationId"])
+		appsInfo, err = restClient.GetAppInfo("default", "root."+dev, podDev.Labels["applicationId"])
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		gomega.Ω(appsInfo).NotTo(gomega.BeNil())
 
 		ginkgo.By("Check pod in the test namespace: recovery queue")
-		appsInfo2, err = restClient.GetAppInfo("default", "", podTest.ObjectMeta.Labels["applicationId"])
+		appsInfo2, err = restClient.GetAppInfo("default", "", podTest.Labels["applicationId"])
 		gomega.Ω(err).NotTo(gomega.HaveOccurred())
 		gomega.Ω(appsInfo2).NotTo(gomega.BeNil())
 		gomega.Ω(appsInfo2.QueueName).Should(gomega.BeEquivalentTo("root.@recovery@"))

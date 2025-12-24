@@ -26,6 +26,7 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog/v2"
+	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/feature"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/volumebinding"
 
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
@@ -120,6 +121,7 @@ func NewAPIFactory(scheduler api.SchedulerAPI, informerFactory informers.SharedI
 	volumeBinder := volumebinding.NewVolumeBinder(
 		klog.NewKlogr(),
 		kubeClient.GetClientSet(),
+		feature.Features{},
 		podInformer,
 		nodeInformer,
 		csiNodeInformer,
