@@ -171,7 +171,7 @@ GOLANGCI_LINT_ARCHIVEBASE=golangci-lint-$(GOLANGCI_LINT_VERSION)-$(OS)-$(EXEC_AR
 export PATH := $(BASE_DIR)/$(GOLANGCI_LINT_PATH):$(PATH)
 
 # kubectl
-KUBECTL_VERSION=v1.27.7
+KUBECTL_VERSION=$(shell go list -m 'k8s.io/kubernetes' | cut -d' ' -f 2)
 KUBECTL_PATH=$(TOOLS_DIR)/kubectl-$(KUBECTL_VERSION)
 KUBECTL_BIN=$(KUBECTL_PATH)/kubectl
 export PATH := $(BASE_DIR)/$(KUBECTL_PATH):$(PATH)
@@ -289,7 +289,7 @@ $(KUBECTL_BIN):
 	@echo "installing kubectl $(KUBECTL_VERSION)"
 	@mkdir -p "$(KUBECTL_PATH)"
 	@curl -sSfL -o "$(KUBECTL_BIN)" \
-		"https://storage.googleapis.com/kubernetes-release/release/$(KUBECTL_VERSION)/bin/$(OS)/$(EXEC_ARCH)/kubectl" && \
+		"https://dl.k8s.io/release/$(KUBECTL_VERSION)/bin/$(OS)/$(EXEC_ARCH)/kubectl" && \
 		chmod +x "$(KUBECTL_BIN)"
 
 # Install kind
