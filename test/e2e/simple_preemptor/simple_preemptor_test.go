@@ -51,13 +51,13 @@ var taintKey = "e2e_test_simple_preemptor"
 var nodesToTaint []string
 
 var _ = ginkgo.Describe("SimplePreemptor", func() {
-    ginkgo.BeforeEach(func() {
-        dev = "dev" + common.RandSeq(5)
-        ginkgo.By("create development namespace")
-        ns, err := kClient.CreateNamespace(dev, nil)
-        gomega.Ω(err).NotTo(gomega.HaveOccurred())
-        gomega.Ω(ns.Status.Phase).To(gomega.Equal(v1.NamespaceActive))
-    })
+	ginkgo.BeforeEach(func() {
+		dev = "dev" + common.RandSeq(5)
+		ginkgo.By("create development namespace")
+		ns, err := kClient.CreateNamespace(dev, nil)
+		gomega.Ω(err).NotTo(gomega.HaveOccurred())
+		gomega.Ω(ns.Status.Phase).To(gomega.Equal(v1.NamespaceActive))
+	})
 
 	ginkgo.It("Verify_basic_simple_preemption", func() {
 		// Use case: Only one pod is running and same pod has been selected as victim
