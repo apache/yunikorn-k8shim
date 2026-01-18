@@ -194,7 +194,16 @@ func (c *AdmissionController) processPod(req *admissionv1.AdmissionRequest, name
 		log.Log(log.Admission).Info("bypassing namespace", zap.String("namespace", namespace))
 		return admissionResponseBuilder(uid, true, "", nil)
 	}
-	patch = updateSchedulerName(patch)
+
+	// Only override default-scheduler unless override is enabled
+	if c.conf.GetOverrideCustomSchedulers() && pod.Spec.SchedulerName != constants.SchedulerName {
+		log.Log(log.Admission).Info("updating scheduler name",
+			zap.String("from", pod.Spec.SchedulerName),
+			zap.String("to", constants.SchedulerName))
+		patch = updateSchedulerName(patch)
+	} else if pod.Spec.SchedulerName == "" || pod.Spec.SchedulerName == "default-scheduler" {
+		patch = updateSchedulerName(patch)
+	}
 
 	if c.shouldLabelNamespace(namespace) {
 		patch = c.updateLabels(namespace, &pod, patch)

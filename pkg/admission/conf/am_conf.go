@@ -48,11 +48,12 @@ const (
 	AMWebHookSchedulerServiceAddress = WebHookPrefix + "schedulerServiceAddress"
 
 	// filtering configuration
-	AMFilteringProcessNamespaces    = FilteringPrefix + "processNamespaces"
-	AMFilteringBypassNamespaces     = FilteringPrefix + "bypassNamespaces"
-	AMFilteringLabelNamespaces      = FilteringPrefix + "labelNamespaces"
-	AMFilteringNoLabelNamespaces    = FilteringPrefix + "noLabelNamespaces"
-	AMFilteringGenerateUniqueAppIds = FilteringPrefix + "generateUniqueAppId"
+	AMFilteringProcessNamespaces        = FilteringPrefix + "processNamespaces"
+	AMFilteringBypassNamespaces         = FilteringPrefix + "bypassNamespaces"
+	AMFilteringLabelNamespaces          = FilteringPrefix + "labelNamespaces"
+	AMFilteringNoLabelNamespaces        = FilteringPrefix + "noLabelNamespaces"
+	AMFilteringGenerateUniqueAppIds     = FilteringPrefix + "generateUniqueAppId"
+	AMFilteringOverrideCustomSchedulers = FilteringPrefix + "overrideCustomSchedulers"
 
 	// access control configuration
 	AMAccessControlBypassAuth       = AccessControlPrefix + "bypassAuth"
@@ -68,11 +69,12 @@ const (
 	DefaultWebHookSchedulerServiceAddress = "yunikorn-service:9080"
 
 	// filtering defaults
-	DefaultFilteringProcessNamespaces    = ""
-	DefaultFilteringBypassNamespaces     = "^kube-system$"
-	DefaultFilteringLabelNamespaces      = ""
-	DefaultFilteringNoLabelNamespaces    = ""
-	DefaultFilteringGenerateUniqueAppIds = false
+	DefaultFilteringProcessNamespaces        = ""
+	DefaultFilteringBypassNamespaces         = "^kube-system$"
+	DefaultFilteringLabelNamespaces          = ""
+	DefaultFilteringNoLabelNamespaces        = ""
+	DefaultFilteringGenerateUniqueAppIds     = false
+	DefaultFilteringOverrideCustomSchedulers = false
 
 	// access control defaults
 	DefaultAccessControlBypassAuth       = false
@@ -87,21 +89,22 @@ type AdmissionControllerConf struct {
 	kubeConfig string
 
 	// mutable values require locking
-	enableConfigHotRefresh  bool
-	policyGroup             string
-	amServiceName           string
-	schedulerServiceAddress string
-	processNamespaces       []*regexp.Regexp
-	bypassNamespaces        []*regexp.Regexp
-	labelNamespaces         []*regexp.Regexp
-	noLabelNamespaces       []*regexp.Regexp
-	generateUniqueAppIds    bool
-	bypassAuth              bool
-	trustControllers        bool
-	systemUsers             []*regexp.Regexp
-	externalUsers           []*regexp.Regexp
-	externalGroups          []*regexp.Regexp
-	configMaps              []*v1.ConfigMap
+	enableConfigHotRefresh   bool
+	policyGroup              string
+	amServiceName            string
+	schedulerServiceAddress  string
+	processNamespaces        []*regexp.Regexp
+	bypassNamespaces         []*regexp.Regexp
+	labelNamespaces          []*regexp.Regexp
+	noLabelNamespaces        []*regexp.Regexp
+	generateUniqueAppIds     bool
+	overrideCustomSchedulers bool
+	bypassAuth               bool
+	trustControllers         bool
+	systemUsers              []*regexp.Regexp
+	externalUsers            []*regexp.Regexp
+	externalGroups           []*regexp.Regexp
+	configMaps               []*v1.ConfigMap
 
 	lock locking.RWMutex
 }
@@ -220,6 +223,12 @@ func (acc *AdmissionControllerConf) GetExternalGroups() []*regexp.Regexp {
 	return acc.externalGroups
 }
 
+func (acc *AdmissionControllerConf) GetOverrideCustomSchedulers() bool {
+	acc.lock.RLock()
+	defer acc.lock.RUnlock()
+	return acc.overrideCustomSchedulers
+}
+
 type configMapUpdateHandler struct {
 	conf *AdmissionControllerConf
 }
@@ -315,7 +324,6 @@ func (acc *AdmissionControllerConf) updateConfigMaps(configMaps []*v1.ConfigMap,
 	acc.labelNamespaces = parseConfigRegexps(configs, AMFilteringLabelNamespaces, DefaultFilteringLabelNamespaces)
 	acc.noLabelNamespaces = parseConfigRegexps(configs, AMFilteringNoLabelNamespaces, DefaultFilteringNoLabelNamespaces)
 	acc.generateUniqueAppIds = parseConfigBool(configs, AMFilteringGenerateUniqueAppIds, DefaultFilteringGenerateUniqueAppIds)
-
 	// access control
 	acc.bypassAuth = parseConfigBool(configs, AMAccessControlBypassAuth, DefaultAccessControlBypassAuth)
 	acc.trustControllers = parseConfigBool(configs, AMAccessControlTrustControllers, DefaultAccessControlTrustControllers)
@@ -346,6 +354,7 @@ func (acc *AdmissionControllerConf) dumpConfigurationInternal() {
 		zap.Strings("bypassNamespaces", regexpsString(acc.bypassNamespaces)),
 		zap.Strings("labelNamespaces", regexpsString(acc.labelNamespaces)),
 		zap.Strings("noLabelNamespaces", regexpsString(acc.noLabelNamespaces)),
+		zap.Bool("overrideCustomSchedulers", acc.overrideCustomSchedulers),
 		zap.Bool("bypassAuth", acc.bypassAuth),
 		zap.Bool("trustControllers", acc.trustControllers),
 		zap.Strings("systemUsers", regexpsString(acc.systemUsers)),
