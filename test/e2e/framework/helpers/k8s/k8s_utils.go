@@ -1095,22 +1095,54 @@ func (k *KubeCtl) ListPodsByLabelSelector(namespace string, selector string) (*v
 }
 
 // Wait up to timeout seconds for all pods in 'namespace' with given 'selector' to enter running state.
-// Returns an error if no pods are found or not all discovered pods enter running state.
+// Wait for all pods in 'namespace' with given 'selector' to enter running state.
+// First waits for pods to exist, then waits for them to be running.
 func (k *KubeCtl) WaitForPodBySelectorRunning(namespace string, selector string, timeout int) error {
-	podList, err := k.ListPods(namespace, selector)
-	if err != nil {
-		return err
-	}
-	if len(podList.Items) == 0 {
-		return fmt.Errorf("no pods in %s with selector %s", namespace, selector)
+	timeoutDuration := time.Duration(timeout) * time.Second
+
+	// First wait for at least one pod to exist with the selector
+	if err := k.WaitForPodBySelector(namespace, selector, timeoutDuration); err != nil {
+		return fmt.Errorf("no pods appeared in %s with selector %s within timeout: %v", namespace, selector, err)
 	}
 
-	for _, pod := range podList.Items {
-		if err := k.WaitForPodRunning(namespace, pod.Name, time.Duration(timeout)*time.Second); err != nil {
-			return err
+	// Then wait for all discovered pods to be running, using polling
+	return wait.PollUntilContextTimeout(context.TODO(), time.Second*2, timeoutDuration, false, func(ctx context.Context) (bool, error) {
+		podList, err := k.ListPods(namespace, selector)
+		if err != nil {
+			return false, err
 		}
-	}
-	return nil
+
+		if len(podList.Items) == 0 {
+			return false, nil // Keep waiting for pods to appear
+		}
+
+		// Check if all pods are running
+		for _, pod := range podList.Items {
+			if pod.Status.Phase != v1.PodRunning {
+				return false, nil // Keep waiting
+			}
+		}
+		return true, nil // All pods are running
+	})
+}
+
+// Wait for exactly the specified number of pods with given selector to be running
+func (k *KubeCtl) WaitForPodCountBySelectorRunning(namespace string, selector string, expectedCount int, timeout time.Duration) error {
+	return wait.PollUntilContextTimeout(context.TODO(), time.Second, timeout, false, func(ctx context.Context) (bool, error) {
+		podList, err := k.ListPods(namespace, selector)
+		if err != nil {
+			return false, err
+		}
+
+		runningCount := 0
+		for _, pod := range podList.Items {
+			if pod.Status.Phase == v1.PodRunning {
+				runningCount++
+			}
+		}
+
+		return runningCount == expectedCount, nil
+	})
 }
 
 // Wait for all pods in 'namespace' with given 'selector' to enter succeeded state.
@@ -1838,8 +1870,7 @@ func (k *KubeCtl) GetSecret(namespace, secretName string) (*v1.Secret, error) {
 }
 
 func (k *KubeCtl) WaitForSecret(namespace, secretName string, timeout time.Duration) error {
-	var cond wait.ConditionFunc // nolint:staticcheck
-	cond = func() (done bool, err error) {
+	cond := wait.ConditionFunc(func() (done bool, err error) {
 		secret, err := k.GetSecret(namespace, secretName)
 		if err != nil {
 			return false, err
@@ -1848,7 +1879,7 @@ func (k *KubeCtl) WaitForSecret(namespace, secretName string, timeout time.Durat
 			return true, nil
 		}
 		return false, nil
-	}
+	})
 	return wait.PollUntilContextTimeout(context.TODO(), time.Second, timeout, false, cond.WithContext())
 }
 
@@ -1889,4 +1920,37 @@ func WriteConfigToFile(config *rest.Config, kubeconfigPath string) error {
 	}
 
 	return nil
+}
+
+// PodFilterFunc is a function type for filtering pods
+type PodFilterFunc func(pod v1.Pod) bool
+
+// CountPodsByFilter counts pods in a namespace using a custom filter function
+func (k *KubeCtl) CountPodsByFilter(namespace string, filter PodFilterFunc) (int, error) {
+	pods, err := k.GetPods(namespace)
+	if err != nil {
+		return 0, err
+	}
+
+	count := 0
+	for _, pod := range pods.Items {
+		if filter(pod) {
+			count++
+		}
+	}
+	return count, nil
+}
+
+// PodConditionFunc is a function type for pod-based conditions
+type PodConditionFunc func(pods *v1.PodList) bool
+
+// WaitForPodCondition waits for a custom pod condition to be met
+func (k *KubeCtl) WaitForPodCondition(namespace string, condition PodConditionFunc, timeout time.Duration) error {
+	return wait.PollUntilContextTimeout(context.TODO(), time.Second, timeout, false, func(ctx context.Context) (bool, error) {
+		pods, err := k.GetPods(namespace)
+		if err != nil {
+			return false, err
+		}
+		return condition(pods), nil
+	})
 }
