@@ -217,7 +217,7 @@ func TestParsePodResource(t *testing.T) {
 	resK8s = siResourceFromList(k8res.PodRequests(pod, k8res.PodResourcesOptions{ExcludeOverhead: false}))
 	assert.Assert(t, Equals(resK8s, res), "K8s pod resource request calculation yielded different results")
 
-	// test initcontainer and container resouce compare
+	// test init container and container resource compare
 	initContainers := make([]v1.Container, 0, 2)
 	initc1Resources := make(map[v1.ResourceName]resource.Quantity)
 	initc1Resources[v1.ResourceMemory] = resource.MustParse("4096M")
@@ -357,6 +357,189 @@ func TestParsePodResource(t *testing.T) {
 	assert.Equal(t, res.Resources[siCommon.Memory].GetValue(), int64(7020000000))
 	assert.Equal(t, res.Resources[siCommon.CPU].GetValue(), int64(12000))
 	assert.Equal(t, res.Resources["pods"].GetValue(), int64(1))
+	resK8s = siResourceFromList(k8res.PodRequests(pod, k8res.PodResourcesOptions{}))
+	assert.Assert(t, Equals(resK8s, res), "K8s pod resource request calculation yielded different results")
+}
+
+//nolint:funlen
+func TestInitContainerPodResources(t *testing.T) {
+	containers := make([]v1.Container, 0, 2)
+	initContainers := make([]v1.Container, 0, 4)
+	alwaysRestart := v1.ContainerRestartPolicyAlways
+
+	// pod
+	pod := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "pod-resource-test-00001",
+			UID:  "UID-00001",
+		},
+		Spec: v1.PodSpec{
+			Containers:     containers,
+			InitContainers: initContainers,
+		},
+	}
+
+	// restartable + non-restartable init containers {mem,CPU}
+	// IC1{1024M} sidecar
+	// IC2{256M}
+	// C1{512M}
+	// usage calculation:
+	// IC max is total(IC1, IC2): {1280M}
+	// Resource request for pod is max(C1 + IC1, IC max): {1536M}
+	initContainers = initContainers[:0]
+	initContainers = append(initContainers, v1.Container{
+		Name: "container-ic1",
+		Resources: v1.ResourceRequirements{
+			Requests: map[v1.ResourceName]resource.Quantity{
+				v1.ResourceMemory: resource.MustParse("1024M"),
+			},
+		},
+		RestartPolicy: &alwaysRestart,
+	})
+	initContainers = append(initContainers, v1.Container{
+		Name: "container-ic2",
+		Resources: v1.ResourceRequirements{
+			Requests: map[v1.ResourceName]resource.Quantity{
+				v1.ResourceMemory: resource.MustParse("256M"),
+			},
+		},
+	})
+	containers = containers[:0]
+	containers = append(containers, v1.Container{
+		Name: "container-main",
+		Resources: v1.ResourceRequirements{
+			Requests: map[v1.ResourceName]resource.Quantity{
+				v1.ResourceMemory: resource.MustParse("512M"),
+			},
+		},
+	})
+	pod.Spec.InitContainers = initContainers
+	pod.Spec.Containers = containers
+	res := GetPodResource(pod)
+	assert.Equal(t, res.Resources[siCommon.Memory].GetValue(), int64(1536000000))
+	resK8s := siResourceFromList(k8res.PodRequests(pod, k8res.PodResourcesOptions{}))
+	assert.Assert(t, Equals(resK8s, res), "K8s pod resource request calculation yielded different results")
+
+	// restartable + non-restartable init containers {mem,CPU}
+	// C1{512M, 1000m}
+	// IC1{1024M, 1000m}
+	// IC2{1024M, 1000m} sidecar
+	// usage calculation:
+	// When IC1 starts, necessary resource is Req1=IC1 {1024M, 1000m}
+	// When IC2 starts, IC1 is finished necessary resource is Req2=IC2 {1024m, 1000m}
+	// IC max is max(Req1, Req2): {1024M, 1000m}
+	// Resource request for pod is max(C1 + IC2, IC max): {1536M, 2000m}
+	initContainers = initContainers[:0]
+	initContainers = append(initContainers, v1.Container{
+		Name: "container-ic1",
+		Resources: v1.ResourceRequirements{
+			Requests: map[v1.ResourceName]resource.Quantity{
+				v1.ResourceMemory: resource.MustParse("1024M"),
+				v1.ResourceCPU:    resource.MustParse("1"),
+				"nvidia.com/gpu":  resource.MustParse("1"),
+			},
+		},
+	})
+	initContainers = append(initContainers, v1.Container{
+		Name: "container-ic2",
+		Resources: v1.ResourceRequirements{
+			Requests: map[v1.ResourceName]resource.Quantity{
+				v1.ResourceMemory: resource.MustParse("1024M"),
+				v1.ResourceCPU:    resource.MustParse("1"),
+			},
+		},
+		RestartPolicy: &alwaysRestart,
+	})
+	containers = containers[:0]
+	containers = append(containers, v1.Container{
+		Name: "container-main",
+		Resources: v1.ResourceRequirements{
+			Requests: map[v1.ResourceName]resource.Quantity{
+				v1.ResourceMemory: resource.MustParse("512M"),
+				v1.ResourceCPU:    resource.MustParse("1"),
+			},
+		},
+	})
+	pod.Spec.InitContainers = initContainers
+	pod.Spec.Containers = containers
+	res = GetPodResource(pod)
+	assert.Equal(t, res.Resources[siCommon.Memory].GetValue(), int64(1536000000))
+	assert.Equal(t, res.Resources[siCommon.CPU].GetValue(), int64(2000))
+	resK8s = siResourceFromList(k8res.PodRequests(pod, k8res.PodResourcesOptions{}))
+	assert.Assert(t, Equals(resK8s, res), "K8s pod resource request calculation yielded different results")
+
+	// restartable + non-restartable init containers {mem,CPU, GPU}
+	// C1{512M, 1000m}
+	// C1{512M, 1000m}
+	// IC1{1024M, 1000m} sidecar
+	// IC2{4096M, 1000m, 1GPU}
+	// IC1{512M, 100m} sidecar
+	// usage calculation:
+	// When IC1 starts, necessary resource is Req1=IC1 {1024M, 1000m}
+	// When IC2 starts, IC1 is sidecar resource is Req2=IC1+IC2 {5120M, 2000m, 1GPU}
+	// when IC3 starts, IC1 is sidecar resource is Req3 not changed
+	// IC max is max Req3: {5120m, 2000m, 1GPU}
+	// Resource request for pod is max(C1 + C2 + IC1 + IC3, IC max): {5120M, 3100m, 1GPU}
+	initContainers = initContainers[:0]
+	initContainers = append(initContainers, v1.Container{
+		Name: "container-ic1",
+		Resources: v1.ResourceRequirements{
+			Requests: map[v1.ResourceName]resource.Quantity{
+				v1.ResourceMemory: resource.MustParse("1024M"),
+				v1.ResourceCPU:    resource.MustParse("1"),
+			},
+		},
+		RestartPolicy: &alwaysRestart,
+	})
+	initContainers = append(initContainers, v1.Container{
+		Name: "container-ic2",
+		Resources: v1.ResourceRequirements{
+			Requests: map[v1.ResourceName]resource.Quantity{
+				v1.ResourceMemory: resource.MustParse("4096M"),
+				v1.ResourceCPU:    resource.MustParse("1"),
+				"nvidia.com/gpu":  resource.MustParse("1"),
+			},
+		},
+	})
+	initContainers = append(initContainers, v1.Container{
+		Name: "container-ic3",
+		Resources: v1.ResourceRequirements{
+			Requests: map[v1.ResourceName]resource.Quantity{
+				v1.ResourceMemory: resource.MustParse("512"),
+				v1.ResourceCPU:    resource.MustParse("100m"),
+			},
+		},
+		RestartPolicy: &alwaysRestart,
+	})
+	containers = containers[:0]
+	containers = append(containers, v1.Container{
+		Name: "container-main1",
+		Resources: v1.ResourceRequirements{
+			Requests: map[v1.ResourceName]resource.Quantity{
+				v1.ResourceMemory: resource.MustParse("512M"),
+				v1.ResourceCPU:    resource.MustParse("1"),
+			},
+		},
+	})
+	containers = append(containers, v1.Container{
+		Name: "container-main2",
+		Resources: v1.ResourceRequirements{
+			Requests: map[v1.ResourceName]resource.Quantity{
+				v1.ResourceMemory: resource.MustParse("512M"),
+				v1.ResourceCPU:    resource.MustParse("1"),
+			},
+		},
+	})
+	pod.Spec.InitContainers = initContainers
+	pod.Spec.Containers = containers
+	res = GetPodResource(pod)
+	assert.Equal(t, res.Resources[siCommon.Memory].GetValue(), int64(5120000000))
+	assert.Equal(t, res.Resources[siCommon.CPU].GetValue(), int64(3100))
+	assert.Equal(t, res.Resources["nvidia.com/gpu"].GetValue(), int64(1))
 	resK8s = siResourceFromList(k8res.PodRequests(pod, k8res.PodResourcesOptions{}))
 	assert.Assert(t, Equals(resK8s, res), "K8s pod resource request calculation yielded different results")
 }
