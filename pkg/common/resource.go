@@ -172,17 +172,7 @@ func checkInitContainerRequest(pod *v1.Pod, containersResources *si.Resource, co
 		if isSideCarContainer(&c) {
 			sideCarRequests = Add(sideCarRequests, ICResource)
 		}
-		for resourceName, ICRequest := range currentIC.Resources {
-			maxRequest, exist := initMax.Resources[resourceName]
-			// additional resource request from init cont, add it to request.
-			if !exist {
-				initMax.Resources[resourceName] = ICRequest
-				continue
-			}
-			if ICRequest.GetValue() > maxRequest.GetValue() {
-				initMax.Resources[resourceName] = ICRequest
-			}
-		}
+		updateMax(initMax, currentIC)
 	}
 	// Add all the native sidecar resources to the pod size
 	containersResources = Add(containersResources, sideCarRequests)
