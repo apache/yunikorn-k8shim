@@ -162,37 +162,23 @@ func updateMax(left *si.Resource, right *si.Resource) {
 }
 
 func checkInitContainerRequest(pod *v1.Pod, containersResources *si.Resource, containerStatuses map[string]*v1.ContainerStatus) *si.Resource {
-	updatedRes := containersResources
-
-	// update total pod resource usage with sidecar containers
-	for _, c := range pod.Spec.InitContainers {
-		if isSideCarContainer(&c) {
-			sideCarResources := computeContainerResource(pod, &c, containerStatuses)
-			updatedRes = Add(updatedRes, sideCarResources)
-		}
-	}
-
+	initMax := NewResourceBuilder().Build()
 	var sideCarRequests *si.Resource // cumulative value of sidecar requests so far
 	for _, c := range pod.Spec.InitContainers {
 		ICResource := computeContainerResource(pod, &c, containerStatuses)
+		// Add this container's resources to the resources for native sidecars that are already running
+		currentIC := Add(ICResource, sideCarRequests)
+		// if this is a native sidecar it keeps running: track it like that for the next init container
 		if isSideCarContainer(&c) {
 			sideCarRequests = Add(sideCarRequests, ICResource)
 		}
-		ICResource = Add(ICResource, sideCarRequests)
-		for resourceName, ICRequest := range ICResource.Resources {
-			containersRequests, exist := updatedRes.Resources[resourceName]
-			// additional resource request from init cont, add it to request.
-			if !exist {
-				updatedRes.Resources[resourceName] = ICRequest
-				continue
-			}
-			if ICRequest.GetValue() > containersRequests.GetValue() {
-				updatedRes.Resources[resourceName] = ICRequest
-			}
-		}
+		updateMax(initMax, currentIC)
 	}
-
-	return updatedRes
+	// Add all the native sidecar resources to the pod size
+	containersResources = Add(containersResources, sideCarRequests)
+	// if IC run is requesting more resources than combined sidecars and other resources at any point adjust the pod size
+	updateMax(containersResources, initMax)
+	return containersResources
 }
 
 func isSideCarContainer(c *v1.Container) bool {
