@@ -445,40 +445,31 @@ func (task *Task) postTaskRejected() {
 	// currently, once task is rejected by scheduler, we directly move task to failed state.
 	// so this function simply triggers the state transition when it is rejected.
 	// but further, we can introduce retry mechanism if necessary.
-	dispatcher.Dispatch(NewFailTaskEvent(task.applicationID, task.taskID,
-		fmt.Sprintf("task %s failed because it is rejected by scheduler", task.alias)))
-
 	events.GetRecorder().Eventf(task.pod.DeepCopy(), nil,
 		v1.EventTypeWarning, "TaskRejected", "TaskRejected",
 		"Task %s is rejected by the scheduler", task.alias)
+	dispatcher.Dispatch(NewFailTaskEvent(task.applicationID, task.taskID,
+		fmt.Sprintf("task %s failed because it is rejected by scheduler", task.alias)))
 }
 
 // beforeTaskFail releases the allocation or ask from scheduler core
 // this is done as a before hook because the releaseAllocation() call needs to
 // send different requests to scheduler-core, depending on current task state
 func (task *Task) beforeTaskFail() {
-	task.releaseAllocation()
-}
-
-func (task *Task) postTaskFailed(reason string) {
-	log.Log(log.ShimCacheTask).Error("task failed",
-		zap.String("appID", task.applicationID),
-		zap.String("taskID", task.taskID),
-		zap.String("reason", reason))
 	events.GetRecorder().Eventf(task.pod.DeepCopy(), nil,
 		v1.EventTypeNormal, "TaskFailed", "TaskFailed",
 		"Task %s is failed", task.alias)
+	task.releaseAllocation()
 }
 
 // beforeTaskCompleted releases the allocation or ask from scheduler core
 // this is done as a before hook because the releaseAllocation() call needs to
 // send different requests to scheduler-core, depending on current task state
 func (task *Task) beforeTaskCompleted() {
-	task.releaseAllocation()
-
 	events.GetRecorder().Eventf(task.pod.DeepCopy(), nil,
 		v1.EventTypeNormal, "TaskCompleted", "TaskCompleted",
 		"Task %s is completed", task.alias)
+	task.releaseAllocation()
 }
 
 // releaseAllocation sends the release request for the Allocation to the core.
@@ -634,9 +625,9 @@ func (task *Task) FailWithEvent(errorMessage, actionReason string) {
 }
 
 func (task *Task) failWithEvent(errorMessage, actionReason string) {
-	dispatcher.Dispatch(NewFailTaskEvent(task.applicationID, task.taskID, errorMessage))
 	events.GetRecorder().Eventf(task.pod.DeepCopy(),
 		nil, v1.EventTypeWarning, actionReason, actionReason, errorMessage)
+	dispatcher.Dispatch(NewFailTaskEvent(task.applicationID, task.taskID, errorMessage))
 }
 
 func (task *Task) SetTaskPod(pod *v1.Pod) {

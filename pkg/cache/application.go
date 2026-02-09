@@ -639,11 +639,11 @@ func (app *Application) handleReleaseAppAllocationEvent(taskID string, terminati
 
 	if task, ok := app.taskMap[taskID]; ok {
 		task.setTaskTerminationType(terminationType)
+		app.publishPlaceholderTimeoutEvents(task)
 		err := task.DeleteTaskPod()
 		if err != nil {
 			log.Log(log.ShimCacheApplication).Error("failed to release allocation from application", zap.Error(err))
 		}
-		app.publishPlaceholderTimeoutEvents(task)
 	} else {
 		log.Log(log.ShimCacheApplication).Warn("task not found",
 			zap.String("appID", app.applicationID),
