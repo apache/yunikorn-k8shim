@@ -288,7 +288,6 @@ func (ctx *Context) deleteNodeInternal(node *v1.Node) {
 	// post the event
 	events.GetRecorder().Eventf(node.DeepCopy(), nil, v1.EventTypeNormal, "NodeDeleted", "NodeDeleted",
 		fmt.Sprintf("node %s is deleted from the scheduler", node.Name))
-	
 	if err := ctx.decommissionNode(node); err != nil {
 		log.Log(log.ShimContext).Warn("Unable to decommission node", zap.Error(err))
 	}
