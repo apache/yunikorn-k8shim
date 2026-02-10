@@ -30,16 +30,6 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
 )
 
-// MUST: run the placeholder pod as non-root user
-// It doesn't matter which user we use to start the placeholders,
-// as long as it is not the root user. This is because the placeholder
-// is just a dummy container, that doesn't run anything.
-// On most of Linux distributions, uid bigger than 1000 is recommended
-// for normal user uses. So we are using 1000(uid)/3000(gid) here to
-// launch all the placeholder pods.
-var runAsUser int64 = 1000
-var runAsGroup int64 = 3000
-
 type Placeholder struct {
 	appID         string
 	taskGroupName string
@@ -86,6 +76,11 @@ func newPlaceholder(placeholderName string, app *Application, taskGroup TaskGrou
 	// prepare the resource lists
 	requests := GetPlaceholderResourceRequests(taskGroup.MinResource)
 	var zeroSeconds int64 = 0
+	var runAsNonRoot = true
+	var privileged bool = false
+	var allowPrivilegeEscalation bool = false
+	var readOnlyRootFilesystem bool = true
+	var hostNetwork bool = false
 	placeholderPod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      placeholderName,
@@ -99,9 +94,12 @@ func newPlaceholder(placeholderName string, app *Application, taskGroup TaskGrou
 		},
 		Spec: v1.PodSpec{
 			SecurityContext: &v1.PodSecurityContext{
-				RunAsUser:  &runAsUser,
-				RunAsGroup: &runAsGroup,
+				RunAsNonRoot: &runAsNonRoot,
+				SeccompProfile: &v1.SeccompProfile{
+					Type: v1.SeccompProfileTypeRuntimeDefault,
+				},
 			},
+			HostNetwork: hostNetwork,
 			ImagePullSecrets: imagePullSecrets,
 			Containers: []v1.Container{
 				{
@@ -111,6 +109,14 @@ func newPlaceholder(placeholderName string, app *Application, taskGroup TaskGrou
 					Resources: v1.ResourceRequirements{
 						Requests: requests,
 						Limits:   requests,
+					},
+					SecurityContext: &v1.SecurityContext{
+						Privileged: &privileged,
+						Capabilities: &v1.Capabilities{
+							Drop: []v1.Capability{"ALL"},
+						},
+						AllowPrivilegeEscalation: &allowPrivilegeEscalation,
+						ReadOnlyRootFilesystem: &readOnlyRootFilesystem,
 					},
 				},
 			},
