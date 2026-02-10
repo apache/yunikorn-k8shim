@@ -409,7 +409,10 @@ func callbacks(states *TStates) fsm.Callbacks {
 			} else {
 				reason = eventArgs[0]
 			}
-			task.postTaskFailed(reason)
+			log.Log(log.ShimCacheTask).Error("task failed",
+				zap.String("appID", task.applicationID),
+				zap.String("taskID", task.taskID),
+				zap.String("reason", reason))
 		},
 		states.Bound: func(_ context.Context, event *fsm.Event) {
 			task := event.Args[0].(*Task) //nolint:errcheck

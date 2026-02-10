@@ -284,13 +284,13 @@ func (ctx *Context) deleteNodeInternal(node *v1.Node) {
 
 	// decommission node
 	log.Log(log.ShimContext).Info("Decommissioning node", zap.String("nodeName", node.Name))
-	if err := ctx.decommissionNode(node); err != nil {
-		log.Log(log.ShimContext).Warn("Unable to decommission node", zap.Error(err))
-	}
 
 	// post the event
 	events.GetRecorder().Eventf(node.DeepCopy(), nil, v1.EventTypeNormal, "NodeDeleted", "NodeDeleted",
 		fmt.Sprintf("node %s is deleted from the scheduler", node.Name))
+	if err := ctx.decommissionNode(node); err != nil {
+		log.Log(log.ShimContext).Warn("Unable to decommission node", zap.Error(err))
+	}
 }
 
 func (ctx *Context) AddPod(obj interface{}) {
