@@ -81,6 +81,34 @@ func newPlaceholder(placeholderName string, app *Application, taskGroup TaskGrou
 	var allowPrivilegeEscalation bool = false
 	var readOnlyRootFilesystem bool = true
 	var hostNetwork bool = false
+
+	schedulerConf := conf.GetSchedulerConf()
+	placeHolderImage := schedulerConf.PlaceHolderImage
+	
+	// override placeholder config
+	if schedulerConf.PlaceHolderConfig != nil {
+		if schedulerConf.PlaceHolderConfig.Image != "" {
+			placeHolderImage = schedulerConf.PlaceHolderConfig.Image
+		}
+	}
+	podSecContext := &v1.PodSecurityContext{
+		RunAsNonRoot: &runAsNonRoot,
+		SeccompProfile: &v1.SeccompProfile{
+			Type: v1.SeccompProfileTypeRuntimeDefault,
+		},
+	}
+	if schedulerConf.PlaceHolderConfig != nil {
+		if schedulerConf.PlaceHolderConfig.RunAsUser != nil {
+			podSecContext.RunAsUser = schedulerConf.PlaceHolderConfig.RunAsUser
+		}
+		if schedulerConf.PlaceHolderConfig.RunAsGroup != nil {
+			podSecContext.RunAsGroup = schedulerConf.PlaceHolderConfig.RunAsGroup
+		}
+		if schedulerConf.PlaceHolderConfig.FSGroup != nil {
+			podSecContext.FSGroup = schedulerConf.PlaceHolderConfig.FSGroup
+		}
+	}
+
 	placeholderPod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      placeholderName,
@@ -93,18 +121,13 @@ func newPlaceholder(placeholderName string, app *Application, taskGroup TaskGrou
 			OwnerReferences: ownerRefs,
 		},
 		Spec: v1.PodSpec{
-			SecurityContext: &v1.PodSecurityContext{
-				RunAsNonRoot: &runAsNonRoot,
-				SeccompProfile: &v1.SeccompProfile{
-					Type: v1.SeccompProfileTypeRuntimeDefault,
-				},
-			},
-			HostNetwork: hostNetwork,
+			SecurityContext:  podSecContext,
+			HostNetwork:      hostNetwork,
 			ImagePullSecrets: imagePullSecrets,
 			Containers: []v1.Container{
 				{
 					Name:            constants.PlaceholderContainerName,
-					Image:           conf.GetSchedulerConf().PlaceHolderImage,
+					Image:           placeHolderImage,
 					ImagePullPolicy: v1.PullIfNotPresent,
 					Resources: v1.ResourceRequirements{
 						Requests: requests,
@@ -116,7 +139,7 @@ func newPlaceholder(placeholderName string, app *Application, taskGroup TaskGrou
 							Drop: []v1.Capability{"ALL"},
 						},
 						AllowPrivilegeEscalation: &allowPrivilegeEscalation,
-						ReadOnlyRootFilesystem: &readOnlyRootFilesystem,
+						ReadOnlyRootFilesystem:   &readOnlyRootFilesystem,
 					},
 				},
 			},
@@ -130,6 +153,7 @@ func newPlaceholder(placeholderName string, app *Application, taskGroup TaskGrou
 			TerminationGracePeriodSeconds: &zeroSeconds,
 		},
 	}
+
 
 	return &Placeholder{
 		appID:         app.GetApplicationID(),

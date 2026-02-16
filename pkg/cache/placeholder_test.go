@@ -29,6 +29,7 @@ import (
 
 	"github.com/apache/yunikorn-k8shim/pkg/common"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
+	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 )
 
@@ -301,4 +302,51 @@ func TestNewPlaceholderWithTopologySpreadConstraints(t *testing.T) {
 		"labelKey0": "labelKeyValue0",
 		"labelKey1": "labelKeyValue1",
 	})
+}
+
+func TestNewPlaceholderWithConfig(t *testing.T) {
+	// Setup
+	mockedSchedulerAPI := newMockSchedulerAPI()
+	app := NewApplication(appID, queue, "bob",
+		testGroups, map[string]string{constants.AppTagNamespace: namespace}, mockedSchedulerAPI)
+	app.setTaskGroups(taskGroups)
+
+	// Update conf
+	originalConf := conf.GetSchedulerConf()
+	defer conf.SetSchedulerConf(originalConf)
+
+	newConf := originalConf.Clone()
+	newConf.PlaceHolderImage = "old-image"
+	runAsUser := int64(1000)
+	runAsGroup := int64(3000)
+	fsGroup := int64(2000)
+	newConf.PlaceHolderConfig = &conf.PlaceHolderConfig{
+		Image:      "new-image",
+		RunAsUser:  &runAsUser,
+		RunAsGroup: &runAsGroup,
+		FSGroup:    &fsGroup,
+	}
+	conf.SetSchedulerConf(newConf)
+
+	// Execute
+	holder := newPlaceholder("ph-name", app, app.taskGroups[0])
+
+	// Verify
+	assert.Equal(t, holder.pod.Spec.Containers[0].Image, "new-image")
+	assert.Equal(t, *holder.pod.Spec.SecurityContext.RunAsUser, int64(1000))
+	assert.Equal(t, *holder.pod.Spec.SecurityContext.RunAsGroup, int64(3000))
+	assert.Equal(t, *holder.pod.Spec.SecurityContext.FSGroup, int64(2000))
+
+	// Test fallback
+	newConf2 := originalConf.Clone()
+	newConf2.PlaceHolderImage = "fallback-image"
+	newConf2.PlaceHolderConfig = nil
+	conf.SetSchedulerConf(newConf2)
+
+	holder2 := newPlaceholder("ph-name-2", app, app.taskGroups[0])
+	assert.Equal(t, holder2.pod.Spec.Containers[0].Image, "fallback-image")
+	// RunAsUser etc should be nil/default
+	assert.Assert(t, holder2.pod.Spec.SecurityContext.RunAsUser == nil)
+	assert.Assert(t, holder2.pod.Spec.SecurityContext.RunAsGroup == nil)
+	assert.Assert(t, holder2.pod.Spec.SecurityContext.FSGroup == nil)
 }

@@ -66,8 +66,13 @@ const (
 	CMSvcDispatchTimeout              = PrefixService + "dispatchTimeout"
 	CMSvcDisableGangScheduling        = PrefixService + "disableGangScheduling"
 	CMSvcEnableConfigHotRefresh       = PrefixService + "enableConfigHotRefresh"
-	CMSvcPlaceholderImage             = PrefixService + "placeholderImage"
+	CMSvcPlaceholderImage             = PrefixService + "placeholderImage" //deprecated in favor of placeholder.* configs
 	CMSvcNodeInstanceTypeNodeLabelKey = PrefixService + "nodeInstanceTypeNodeLabelKey"
+	// placeholder
+	CMSvcPlaceholderImageNew   = PrefixService + "placeholder.image"
+	CMSvcPlaceholderRunAsUser  = PrefixService + "placeholder.runAsUser"
+	CMSvcPlaceholderRunAsGroup = PrefixService + "placeholder.runAsGroup"
+	CMSvcPlaceholderFSGroup    = PrefixService + "placeholder.fsGroup"
 
 	// kubernetes
 	CMKubeQPS   = PrefixKubernetes + "qps"
@@ -110,31 +115,49 @@ var confHolder atomic.Value
 var kubeLoggerOnce sync.Once
 
 type SchedulerConf struct {
-	SchedulerName            string        `json:"schedulerName"`
-	ClusterID                string        `json:"clusterId"`
-	ClusterVersion           string        `json:"clusterVersion"`
-	PolicyGroup              string        `json:"policyGroup"`
-	Interval                 time.Duration `json:"schedulingIntervalSecond"`
-	KubeConfig               string        `json:"absoluteKubeConfigFilePath"`
-	VolumeBindTimeout        time.Duration `json:"volumeBindTimeout"`
-	EventChannelCapacity     int           `json:"eventChannelCapacity"`
-	DispatchTimeout          time.Duration `json:"dispatchTimeout"`
-	KubeQPS                  int           `json:"kubeQPS"`
-	KubeBurst                int           `json:"kubeBurst"`
-	EnableConfigHotRefresh   bool          `json:"enableConfigHotRefresh"`
-	DisableGangScheduling    bool          `json:"disableGangScheduling"`
-	UserLabelKey             string        `json:"userLabelKey"`
-	PlaceHolderImage         string        `json:"placeHolderImage"`
-	InstanceTypeNodeLabelKey string        `json:"instanceTypeNodeLabelKey"`
-	Namespace                string        `json:"namespace"`
-	GenerateUniqueAppIds     bool          `json:"generateUniqueAppIds"`
+	SchedulerName            string             `json:"schedulerName"`
+	ClusterID                string             `json:"clusterId"`
+	ClusterVersion           string             `json:"clusterVersion"`
+	PolicyGroup              string             `json:"policyGroup"`
+	Interval                 time.Duration      `json:"schedulingIntervalSecond"`
+	KubeConfig               string             `json:"absoluteKubeConfigFilePath"`
+	VolumeBindTimeout        time.Duration      `json:"volumeBindTimeout"`
+	EventChannelCapacity     int                `json:"eventChannelCapacity"`
+	DispatchTimeout          time.Duration      `json:"dispatchTimeout"`
+	KubeQPS                  int                `json:"kubeQPS"`
+	KubeBurst                int                `json:"kubeBurst"`
+	EnableConfigHotRefresh   bool               `json:"enableConfigHotRefresh"`
+	DisableGangScheduling    bool               `json:"disableGangScheduling"`
+	UserLabelKey             string             `json:"userLabelKey"`
+	PlaceHolderImage         string             `json:"placeHolderImage"` // Deprecated: usage of PlaceHolderImage is deprecated, use PlaceHolderConfig instead
+	PlaceHolderConfig        *PlaceHolderConfig `json:"placeHolderConfig"`
+	InstanceTypeNodeLabelKey string             `json:"instanceTypeNodeLabelKey"`
+	Namespace                string             `json:"namespace"`
+	GenerateUniqueAppIds     bool               `json:"generateUniqueAppIds"`
 
 	locking.RWMutex
+}
+
+type PlaceHolderConfig struct {
+	Image      string `json:"placeHolderImage"`
+	RunAsUser  *int64 `json:"runAsUser,omitempty"`
+	RunAsGroup *int64 `json:"runAsGroup,omitempty"`
+	FSGroup    *int64 `json:"fsGroup,omitempty"`
 }
 
 func (conf *SchedulerConf) Clone() *SchedulerConf {
 	conf.RLock()
 	defer conf.RUnlock()
+
+	var placeHolderConfig *PlaceHolderConfig
+	if conf.PlaceHolderConfig != nil {
+		placeHolderConfig = &PlaceHolderConfig{
+			Image:      conf.PlaceHolderConfig.Image,
+			RunAsUser:  conf.PlaceHolderConfig.RunAsUser,
+			RunAsGroup: conf.PlaceHolderConfig.RunAsGroup,
+			FSGroup:    conf.PlaceHolderConfig.FSGroup,
+		}
+	}
 
 	return &SchedulerConf{
 		SchedulerName:            conf.SchedulerName,
@@ -152,6 +175,7 @@ func (conf *SchedulerConf) Clone() *SchedulerConf {
 		DisableGangScheduling:    conf.DisableGangScheduling,
 		UserLabelKey:             conf.UserLabelKey,
 		PlaceHolderImage:         conf.PlaceHolderImage,
+		PlaceHolderConfig:        placeHolderConfig,
 		InstanceTypeNodeLabelKey: conf.InstanceTypeNodeLabelKey,
 		Namespace:                conf.Namespace,
 		GenerateUniqueAppIds:     conf.GenerateUniqueAppIds,
@@ -210,6 +234,12 @@ func handleNonReloadableConfig(old *SchedulerConf, new *SchedulerConf) {
 	checkNonReloadableInt(CMKubeBurst, &old.KubeBurst, &new.KubeBurst)
 	checkNonReloadableBool(CMSvcDisableGangScheduling, &old.DisableGangScheduling, &new.DisableGangScheduling)
 	checkNonReloadableString(CMSvcPlaceholderImage, &old.PlaceHolderImage, &new.PlaceHolderImage)
+	if old.PlaceHolderConfig != nil && new.PlaceHolderConfig != nil {
+		checkNonReloadableString(CMSvcPlaceholderImageNew, &old.PlaceHolderConfig.Image, &new.PlaceHolderConfig.Image)
+		checkNonReloadableInt64(CMSvcPlaceholderRunAsUser, old.PlaceHolderConfig.RunAsUser, new.PlaceHolderConfig.RunAsUser)
+		checkNonReloadableInt64(CMSvcPlaceholderRunAsGroup, old.PlaceHolderConfig.RunAsGroup, new.PlaceHolderConfig.RunAsGroup)
+		checkNonReloadableInt64(CMSvcPlaceholderFSGroup, old.PlaceHolderConfig.FSGroup, new.PlaceHolderConfig.FSGroup)
+	}
 	checkNonReloadableString(CMSvcNodeInstanceTypeNodeLabelKey, &old.InstanceTypeNodeLabelKey, &new.InstanceTypeNodeLabelKey)
 	checkNonReloadableBool(AMFilteringGenerateUniqueAppIds, &old.GenerateUniqueAppIds, &new.GenerateUniqueAppIds)
 }
@@ -237,6 +267,24 @@ func checkNonReloadableInt(name string, old *int, new *int) {
 	}
 }
 
+
+func checkNonReloadableInt64(name string, old *int64, new *int64) {
+	if old != new {
+		if old == nil || new == nil {
+			log.Log(log.ShimConfig).Warn(warningNonReloadable, zap.String("config", name))
+			// cannot revert value easily as it's a pointer, but mostly this is just a warning.
+			// Ideally we should revert *new to *old.
+			// But since it's a pointer, we can't easily assign if one is nil and other isn't without changing implementation.
+			// For now, let's skip reverting for nullability change, just warn.
+			// Actually we can do better:
+			return
+		}
+		if *old != *new {
+			log.Log(log.ShimConfig).Warn(warningNonReloadable, zap.String("config", name), zap.Int64("existing", *old), zap.Int64("new", *new))
+			*new = *old
+		}
+	}
+}
 func checkNonReloadableBool(name string, old *bool, new *bool) {
 	if *old != *new {
 		log.Log(log.ShimConfig).Warn(warningNonReloadable, zap.String("config", name), zap.Bool("existing", *old), zap.Bool("new", *new))
@@ -340,6 +388,15 @@ func parseConfig(config map[string]string, prev *SchedulerConf) (*SchedulerConf,
 	parser.boolVar(&conf.DisableGangScheduling, CMSvcDisableGangScheduling)
 	parser.boolVar(&conf.EnableConfigHotRefresh, CMSvcEnableConfigHotRefresh)
 	parser.stringVar(&conf.PlaceHolderImage, CMSvcPlaceholderImage)
+	// placeholder config
+	if conf.PlaceHolderConfig == nil {
+		conf.PlaceHolderConfig = &PlaceHolderConfig{}
+	}
+	parser.stringVar(&conf.PlaceHolderConfig.Image, CMSvcPlaceholderImageNew)
+	parser.int64Var(&conf.PlaceHolderConfig.RunAsUser, CMSvcPlaceholderRunAsUser)
+	parser.int64Var(&conf.PlaceHolderConfig.RunAsGroup, CMSvcPlaceholderRunAsGroup)
+	parser.int64Var(&conf.PlaceHolderConfig.FSGroup, CMSvcPlaceholderFSGroup)
+
 	parser.stringVar(&conf.InstanceTypeNodeLabelKey, CMSvcNodeInstanceTypeNodeLabelKey)
 
 	// kubernetes
@@ -375,8 +432,8 @@ func (cp *configParser) stringVar(p *string, name string) {
 
 func (cp *configParser) intVar(p *int, name string) {
 	if newValue, ok := cp.config[name]; ok {
-		int64Value, err := strconv.ParseInt(newValue, 10, 32)
-		intValue := int(int64Value)
+		int32Value, err := strconv.ParseInt(newValue, 10, 32)
+		intValue := int(int32Value)
 		if err != nil {
 			log.Log(log.ShimConfig).Error("Unable to parse configmap entry", zap.String("key", name), zap.String("value", newValue), zap.Error(err))
 			cp.errors = append(cp.errors, err)
@@ -407,6 +464,18 @@ func (cp *configParser) durationVar(p *time.Duration, name string) {
 			return
 		}
 		*p = durationValue
+	}
+}
+
+func (cp *configParser) int64Var(p **int64, name string) {
+	if newValue, ok := cp.config[name]; ok {
+		int64Value, err := strconv.ParseInt(newValue, 10, 64)
+		if err != nil {
+			log.Log(log.ShimConfig).Error("Unable to parse configmap entry", zap.String("key", name), zap.String("value", newValue), zap.Error(err))
+			cp.errors = append(cp.errors, err)
+			return
+		}
+		*p = &int64Value
 	}
 }
 

@@ -100,6 +100,23 @@ func TestDecompressUnknownKey(t *testing.T) {
 	assert.Assert(t, len(decodedConfigString) == 0, "expected decodedConfigString to be nil")
 }
 
+func TestPlaceholderConfigParsing(t *testing.T) {
+	err := UpdateConfigMaps([]*v1.ConfigMap{
+		{Data: map[string]string{
+			CMSvcPlaceholderImageNew:   "new-image",
+			CMSvcPlaceholderRunAsUser:  "1001",
+			CMSvcPlaceholderRunAsGroup: "1002",
+			CMSvcPlaceholderFSGroup:    "1003",
+		}},
+	}, true)
+	assert.NilError(t, err, "UpdateConfigMap failed")
+	conf := GetSchedulerConf()
+	assert.Equal(t, conf.PlaceHolderConfig.Image, "new-image")
+	assert.Equal(t, *conf.PlaceHolderConfig.RunAsUser, int64(1001))
+	assert.Equal(t, *conf.PlaceHolderConfig.RunAsGroup, int64(1002))
+	assert.Equal(t, *conf.PlaceHolderConfig.FSGroup, int64(1003))
+}
+
 func TestDecompressBadCompression(t *testing.T) {
 	encodedConfigString := make([]byte, base64.StdEncoding.EncodedLen(len([]byte(configs.DefaultSchedulerConfig))))
 	base64.StdEncoding.Encode(encodedConfigString, []byte(configs.DefaultSchedulerConfig))
