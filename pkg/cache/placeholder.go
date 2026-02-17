@@ -22,12 +22,14 @@ import (
 	"fmt"
 	"strings"
 
+	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
+	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
 
 type Placeholder struct {
@@ -37,6 +39,7 @@ type Placeholder struct {
 }
 
 func newPlaceholder(placeholderName string, app *Application, taskGroup TaskGroup) *Placeholder {
+	logger := log.Log(log.ShimPlaceHolderConfig)
 	// Here the owner reference is always the originator pod
 	ownerRefs := app.getPlaceholderOwnerReferences()
 	annotations := utils.MergeMaps(taskGroup.Annotations, map[string]string{
@@ -84,13 +87,7 @@ func newPlaceholder(placeholderName string, app *Application, taskGroup TaskGrou
 
 	schedulerConf := conf.GetSchedulerConf()
 	placeHolderImage := schedulerConf.PlaceHolderImage
-	
-	// override placeholder config
-	if schedulerConf.PlaceHolderConfig != nil {
-		if schedulerConf.PlaceHolderConfig.Image != "" {
-			placeHolderImage = schedulerConf.PlaceHolderConfig.Image
-		}
-	}
+
 	podSecContext := &v1.PodSecurityContext{
 		RunAsNonRoot: &runAsNonRoot,
 		SeccompProfile: &v1.SeccompProfile{
@@ -98,6 +95,10 @@ func newPlaceholder(placeholderName string, app *Application, taskGroup TaskGrou
 		},
 	}
 	if schedulerConf.PlaceHolderConfig != nil {
+		// override placeholder configs if specified
+		if schedulerConf.PlaceHolderConfig.Image != "" {
+			placeHolderImage = schedulerConf.PlaceHolderConfig.Image
+		}
 		if schedulerConf.PlaceHolderConfig.RunAsUser != nil {
 			podSecContext.RunAsUser = schedulerConf.PlaceHolderConfig.RunAsUser
 		}
@@ -108,6 +109,8 @@ func newPlaceholder(placeholderName string, app *Application, taskGroup TaskGrou
 			podSecContext.FSGroup = schedulerConf.PlaceHolderConfig.FSGroup
 		}
 	}
+
+	logger.Info("Using placeholder config", zap.Any("config", schedulerConf.PlaceHolderConfig))
 
 	placeholderPod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -153,7 +156,6 @@ func newPlaceholder(placeholderName string, app *Application, taskGroup TaskGrou
 			TerminationGracePeriodSeconds: &zeroSeconds,
 		},
 	}
-
 
 	return &Placeholder{
 		appID:         app.GetApplicationID(),

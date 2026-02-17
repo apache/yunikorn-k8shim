@@ -69,10 +69,10 @@ const (
 	CMSvcPlaceholderImage             = PrefixService + "placeholderImage" //deprecated in favor of placeholder.* configs
 	CMSvcNodeInstanceTypeNodeLabelKey = PrefixService + "nodeInstanceTypeNodeLabelKey"
 	// placeholder
-	CMSvcPlaceholderImageNew   = PrefixService + "placeholder.image"
-	CMSvcPlaceholderRunAsUser  = PrefixService + "placeholder.runAsUser"
-	CMSvcPlaceholderRunAsGroup = PrefixService + "placeholder.runAsGroup"
-	CMSvcPlaceholderFSGroup    = PrefixService + "placeholder.fsGroup"
+	CMSvcPlaceholderImageNew   = PrefixService + "placeholderImage"
+	CMSvcPlaceholderRunAsUser  = PrefixService + "placeholderRunAsUser"
+	CMSvcPlaceholderRunAsGroup = PrefixService + "placeholderRunAsGroup"
+	CMSvcPlaceholderFSGroup    = PrefixService + "placeholderFsGroup"
 
 	// kubernetes
 	CMKubeQPS   = PrefixKubernetes + "qps"
@@ -139,7 +139,7 @@ type SchedulerConf struct {
 }
 
 type PlaceHolderConfig struct {
-	Image      string `json:"placeHolderImage"`
+	Image      string `json:"image"`
 	RunAsUser  *int64 `json:"runAsUser,omitempty"`
 	RunAsGroup *int64 `json:"runAsGroup,omitempty"`
 	FSGroup    *int64 `json:"fsGroup,omitempty"`
@@ -148,16 +148,6 @@ type PlaceHolderConfig struct {
 func (conf *SchedulerConf) Clone() *SchedulerConf {
 	conf.RLock()
 	defer conf.RUnlock()
-
-	var placeHolderConfig *PlaceHolderConfig
-	if conf.PlaceHolderConfig != nil {
-		placeHolderConfig = &PlaceHolderConfig{
-			Image:      conf.PlaceHolderConfig.Image,
-			RunAsUser:  conf.PlaceHolderConfig.RunAsUser,
-			RunAsGroup: conf.PlaceHolderConfig.RunAsGroup,
-			FSGroup:    conf.PlaceHolderConfig.FSGroup,
-		}
-	}
 
 	return &SchedulerConf{
 		SchedulerName:            conf.SchedulerName,
@@ -175,7 +165,7 @@ func (conf *SchedulerConf) Clone() *SchedulerConf {
 		DisableGangScheduling:    conf.DisableGangScheduling,
 		UserLabelKey:             conf.UserLabelKey,
 		PlaceHolderImage:         conf.PlaceHolderImage,
-		PlaceHolderConfig:        placeHolderConfig,
+		PlaceHolderConfig:        conf.PlaceHolderConfig,
 		InstanceTypeNodeLabelKey: conf.InstanceTypeNodeLabelKey,
 		Namespace:                conf.Namespace,
 		GenerateUniqueAppIds:     conf.GenerateUniqueAppIds,
@@ -266,7 +256,6 @@ func checkNonReloadableInt(name string, old *int, new *int) {
 		*new = *old
 	}
 }
-
 
 func checkNonReloadableInt64(name string, old *int64, new *int64) {
 	if old != new {
@@ -365,6 +354,7 @@ func CreateDefaultConfig() *SchedulerConf {
 		PlaceHolderImage:         constants.PlaceholderContainerImage,
 		InstanceTypeNodeLabelKey: constants.DefaultNodeInstanceTypeNodeLabelKey,
 		GenerateUniqueAppIds:     DefaultAMFilteringGenerateUniqueAppIds,
+		PlaceHolderConfig:        &PlaceHolderConfig{},
 	}
 }
 
@@ -388,10 +378,6 @@ func parseConfig(config map[string]string, prev *SchedulerConf) (*SchedulerConf,
 	parser.boolVar(&conf.DisableGangScheduling, CMSvcDisableGangScheduling)
 	parser.boolVar(&conf.EnableConfigHotRefresh, CMSvcEnableConfigHotRefresh)
 	parser.stringVar(&conf.PlaceHolderImage, CMSvcPlaceholderImage)
-	// placeholder config
-	if conf.PlaceHolderConfig == nil {
-		conf.PlaceHolderConfig = &PlaceHolderConfig{}
-	}
 	parser.stringVar(&conf.PlaceHolderConfig.Image, CMSvcPlaceholderImageNew)
 	parser.int64Var(&conf.PlaceHolderConfig.RunAsUser, CMSvcPlaceholderRunAsUser)
 	parser.int64Var(&conf.PlaceHolderConfig.RunAsGroup, CMSvcPlaceholderRunAsGroup)
