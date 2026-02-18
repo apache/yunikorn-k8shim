@@ -79,13 +79,13 @@ func newPlaceholder(placeholderName string, app *Application, taskGroup TaskGrou
 	// prepare the resource lists
 	requests := GetPlaceholderResourceRequests(taskGroup.MinResource)
 	// set default values for the placeholder pod
-	var zeroSeconds int64 = 0
+	var zeroSeconds = int64(0)
 	var runAsNonRoot = true
-	var privileged bool = false
-	var allowPrivilegeEscalation bool = false
-	var readOnlyRootFilesystem bool = true
-	var hostNetwork bool = false
-	var placeHolderImage string = constants.PlaceholderContainerImage
+	var privileged = false
+	var allowPrivilegeEscalation = false
+	var readOnlyRootFilesystem = true
+	var hostNetwork = false
+	var placeHolderImage = constants.PlaceholderContainerImage
 	podSecContext := &v1.PodSecurityContext{
 		RunAsNonRoot: &runAsNonRoot,
 		SeccompProfile: &v1.SeccompProfile{

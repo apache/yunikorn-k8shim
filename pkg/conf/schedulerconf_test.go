@@ -139,6 +139,10 @@ func TestParseConfigMap(t *testing.T) {
 		{CMSvcDispatchTimeout, "DispatchTimeout", 3 * time.Minute},
 		{CMSvcDisableGangScheduling, "DisableGangScheduling", true},
 		{CMSvcEnableConfigHotRefresh, "EnableConfigHotRefresh", false},
+		{CMSvcPlaceholderImage, "PlaceHolderConfig.Image", "test-image"},
+		{CMSvcPlaceholderRunAsUser, "PlaceHolderConfig.RunAsUser", int64(1001)},
+		{CMSvcPlaceholderRunAsGroup, "PlaceHolderConfig.RunAsGroup", int64(1002)},
+		{CMSvcPlaceholderFSGroup, "PlaceHolderConfig.FSGroup", int64(1003)},
 		{CMSvcNodeInstanceTypeNodeLabelKey, "InstanceTypeNodeLabelKey", "node.kubernetes.io/instance-type"},
 		{CMKubeQPS, "KubeQPS", 2345},
 		{CMKubeBurst, "KubeBurst", 3456},
@@ -170,6 +174,10 @@ func TestUpdateConfigMapNonReloadable(t *testing.T) {
 		{CMSvcDispatchTimeout, "DispatchTimeout", 3 * time.Minute, false},
 		{CMSvcDisableGangScheduling, "DisableGangScheduling", true, false},
 		{CMSvcNodeInstanceTypeNodeLabelKey, "InstanceTypeNodeLabelKey", "node.kubernetes.io/instance-type", false},
+		{CMSvcPlaceholderImage, "PlaceHolderConfig.Image", "test-image", false},
+		{CMSvcPlaceholderRunAsUser, "PlaceHolderConfig.RunAsUser", int64(1001), false},
+		{CMSvcPlaceholderRunAsGroup, "PlaceHolderConfig.RunAsGroup", int64(1002), false},
+		{CMSvcPlaceholderFSGroup, "PlaceHolderConfig.FSGroup", int64(1003), false},
 		{CMKubeQPS, "KubeQPS", 2345, false},
 		{CMKubeBurst, "KubeBurst", 3456, false},
 	}
@@ -230,7 +238,22 @@ func TestParseConfigMapWithInvalidDuration(t *testing.T) {
 
 // get a configuration value by field name
 func getConfValue(t *testing.T, conf *SchedulerConf, name string) interface{} {
-	val := reflect.ValueOf(conf).Elem().FieldByName(name)
-	assert.Assert(t, val.IsValid(), "Field not valid: "+name)
+	// Split by "." to handle nested fields
+	parts := strings.Split(name, ".")
+	val := reflect.ValueOf(conf).Elem()
+
+	for _, part := range parts {
+		val = val.FieldByName(part)
+		assert.Assert(t, val.IsValid(), "Field not valid: "+name)
+
+		// If it's a pointer, dereference it
+		if val.Kind() == reflect.Ptr {
+			if val.IsNil() {
+				return nil
+			}
+			val = val.Elem()
+		}
+	}
+
 	return val.Interface()
 }
