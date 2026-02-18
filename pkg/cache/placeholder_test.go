@@ -316,7 +316,6 @@ func TestNewPlaceholderWithConfig(t *testing.T) {
 	defer conf.SetSchedulerConf(originalConf)
 
 	newConf := originalConf.Clone()
-	newConf.PlaceHolderImage = "old-image"
 	runAsUser := int64(1000)
 	runAsGroup := int64(3000)
 	fsGroup := int64(2000)
@@ -339,12 +338,11 @@ func TestNewPlaceholderWithConfig(t *testing.T) {
 
 	// Test fallback
 	newConf2 := originalConf.Clone()
-	newConf2.PlaceHolderImage = "fallback-image"
 	newConf2.PlaceHolderConfig = nil
 	conf.SetSchedulerConf(newConf2)
 
 	holder2 := newPlaceholder("ph-name-2", app, app.taskGroups[0])
-	assert.Equal(t, holder2.pod.Spec.Containers[0].Image, "fallback-image")
+	assert.Equal(t, holder2.pod.Spec.Containers[0].Image, constants.PlaceholderContainerImage)
 	// RunAsUser etc should be nil/default
 	assert.Assert(t, holder2.pod.Spec.SecurityContext.RunAsUser == nil)
 	assert.Assert(t, holder2.pod.Spec.SecurityContext.RunAsGroup == nil)

@@ -86,8 +86,7 @@ func newPlaceholder(placeholderName string, app *Application, taskGroup TaskGrou
 	var hostNetwork bool = false
 
 	schedulerConf := conf.GetSchedulerConf()
-	placeHolderImage := schedulerConf.PlaceHolderImage
-
+	placeHolderImage := constants.PlaceholderContainerImage
 	podSecContext := &v1.PodSecurityContext{
 		RunAsNonRoot: &runAsNonRoot,
 		SeccompProfile: &v1.SeccompProfile{

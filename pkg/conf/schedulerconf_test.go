@@ -103,7 +103,7 @@ func TestDecompressUnknownKey(t *testing.T) {
 func TestPlaceholderConfigParsing(t *testing.T) {
 	err := UpdateConfigMaps([]*v1.ConfigMap{
 		{Data: map[string]string{
-			CMSvcPlaceholderImageNew:   "new-image",
+			CMSvcPlaceholderImage:      "new-image",
 			CMSvcPlaceholderRunAsUser:  "1001",
 			CMSvcPlaceholderRunAsGroup: "1002",
 			CMSvcPlaceholderFSGroup:    "1003",
@@ -139,7 +139,6 @@ func TestParseConfigMap(t *testing.T) {
 		{CMSvcDispatchTimeout, "DispatchTimeout", 3 * time.Minute},
 		{CMSvcDisableGangScheduling, "DisableGangScheduling", true},
 		{CMSvcEnableConfigHotRefresh, "EnableConfigHotRefresh", false},
-		{CMSvcPlaceholderImage, "PlaceHolderImage", "test-image"},
 		{CMSvcNodeInstanceTypeNodeLabelKey, "InstanceTypeNodeLabelKey", "node.kubernetes.io/instance-type"},
 		{CMKubeQPS, "KubeQPS", 2345},
 		{CMKubeBurst, "KubeBurst", 3456},
@@ -170,7 +169,6 @@ func TestUpdateConfigMapNonReloadable(t *testing.T) {
 		{CMSvcEventChannelCapacity, "EventChannelCapacity", 1234, false},
 		{CMSvcDispatchTimeout, "DispatchTimeout", 3 * time.Minute, false},
 		{CMSvcDisableGangScheduling, "DisableGangScheduling", true, false},
-		{CMSvcPlaceholderImage, "PlaceHolderImage", "test-image", false},
 		{CMSvcNodeInstanceTypeNodeLabelKey, "InstanceTypeNodeLabelKey", "node.kubernetes.io/instance-type", false},
 		{CMKubeQPS, "KubeQPS", 2345, false},
 		{CMKubeBurst, "KubeBurst", 3456, false},

@@ -66,13 +66,11 @@ const (
 	CMSvcDispatchTimeout              = PrefixService + "dispatchTimeout"
 	CMSvcDisableGangScheduling        = PrefixService + "disableGangScheduling"
 	CMSvcEnableConfigHotRefresh       = PrefixService + "enableConfigHotRefresh"
-	CMSvcPlaceholderImage             = PrefixService + "placeholderImage" //deprecated in favor of placeholder.* configs
+	CMSvcPlaceholderImage             = PrefixService + "placeholderImage"
+	CMSvcPlaceholderRunAsUser         = PrefixService + "placeholderRunAsUser"
+	CMSvcPlaceholderRunAsGroup        = PrefixService + "placeholderRunAsGroup"
+	CMSvcPlaceholderFSGroup           = PrefixService + "placeholderFsGroup"
 	CMSvcNodeInstanceTypeNodeLabelKey = PrefixService + "nodeInstanceTypeNodeLabelKey"
-	// placeholder
-	CMSvcPlaceholderImageNew   = PrefixService + "placeholderImage"
-	CMSvcPlaceholderRunAsUser  = PrefixService + "placeholderRunAsUser"
-	CMSvcPlaceholderRunAsGroup = PrefixService + "placeholderRunAsGroup"
-	CMSvcPlaceholderFSGroup    = PrefixService + "placeholderFsGroup"
 
 	// kubernetes
 	CMKubeQPS   = PrefixKubernetes + "qps"
@@ -129,7 +127,6 @@ type SchedulerConf struct {
 	EnableConfigHotRefresh   bool               `json:"enableConfigHotRefresh"`
 	DisableGangScheduling    bool               `json:"disableGangScheduling"`
 	UserLabelKey             string             `json:"userLabelKey"`
-	PlaceHolderImage         string             `json:"placeHolderImage"` // Deprecated: usage of PlaceHolderImage is deprecated, use PlaceHolderConfig instead
 	PlaceHolderConfig        *PlaceHolderConfig `json:"placeHolderConfig"`
 	InstanceTypeNodeLabelKey string             `json:"instanceTypeNodeLabelKey"`
 	Namespace                string             `json:"namespace"`
@@ -164,7 +161,6 @@ func (conf *SchedulerConf) Clone() *SchedulerConf {
 		EnableConfigHotRefresh:   conf.EnableConfigHotRefresh,
 		DisableGangScheduling:    conf.DisableGangScheduling,
 		UserLabelKey:             conf.UserLabelKey,
-		PlaceHolderImage:         conf.PlaceHolderImage,
 		PlaceHolderConfig:        conf.PlaceHolderConfig,
 		InstanceTypeNodeLabelKey: conf.InstanceTypeNodeLabelKey,
 		Namespace:                conf.Namespace,
@@ -223,13 +219,10 @@ func handleNonReloadableConfig(old *SchedulerConf, new *SchedulerConf) {
 	checkNonReloadableInt(CMKubeQPS, &old.KubeQPS, &new.KubeQPS)
 	checkNonReloadableInt(CMKubeBurst, &old.KubeBurst, &new.KubeBurst)
 	checkNonReloadableBool(CMSvcDisableGangScheduling, &old.DisableGangScheduling, &new.DisableGangScheduling)
-	checkNonReloadableString(CMSvcPlaceholderImage, &old.PlaceHolderImage, &new.PlaceHolderImage)
-	if old.PlaceHolderConfig != nil && new.PlaceHolderConfig != nil {
-		checkNonReloadableString(CMSvcPlaceholderImageNew, &old.PlaceHolderConfig.Image, &new.PlaceHolderConfig.Image)
-		checkNonReloadableInt64(CMSvcPlaceholderRunAsUser, old.PlaceHolderConfig.RunAsUser, new.PlaceHolderConfig.RunAsUser)
-		checkNonReloadableInt64(CMSvcPlaceholderRunAsGroup, old.PlaceHolderConfig.RunAsGroup, new.PlaceHolderConfig.RunAsGroup)
-		checkNonReloadableInt64(CMSvcPlaceholderFSGroup, old.PlaceHolderConfig.FSGroup, new.PlaceHolderConfig.FSGroup)
-	}
+	checkNonReloadableString(CMSvcPlaceholderImage, &old.PlaceHolderConfig.Image, &new.PlaceHolderConfig.Image)
+	checkNonReloadableInt64(CMSvcPlaceholderRunAsUser, old.PlaceHolderConfig.RunAsUser, new.PlaceHolderConfig.RunAsUser)
+	checkNonReloadableInt64(CMSvcPlaceholderRunAsGroup, old.PlaceHolderConfig.RunAsGroup, new.PlaceHolderConfig.RunAsGroup)
+	checkNonReloadableInt64(CMSvcPlaceholderFSGroup, old.PlaceHolderConfig.FSGroup, new.PlaceHolderConfig.FSGroup)
 	checkNonReloadableString(CMSvcNodeInstanceTypeNodeLabelKey, &old.InstanceTypeNodeLabelKey, &new.InstanceTypeNodeLabelKey)
 	checkNonReloadableBool(AMFilteringGenerateUniqueAppIds, &old.GenerateUniqueAppIds, &new.GenerateUniqueAppIds)
 }
@@ -351,10 +344,11 @@ func CreateDefaultConfig() *SchedulerConf {
 		EnableConfigHotRefresh:   DefaultEnableConfigHotRefresh,
 		DisableGangScheduling:    DefaultDisableGangScheduling,
 		UserLabelKey:             constants.DefaultUserLabel,
-		PlaceHolderImage:         constants.PlaceholderContainerImage,
 		InstanceTypeNodeLabelKey: constants.DefaultNodeInstanceTypeNodeLabelKey,
 		GenerateUniqueAppIds:     DefaultAMFilteringGenerateUniqueAppIds,
-		PlaceHolderConfig:        &PlaceHolderConfig{},
+		PlaceHolderConfig: &PlaceHolderConfig{
+			Image: constants.PlaceholderContainerImage,
+		},
 	}
 }
 
@@ -377,8 +371,7 @@ func parseConfig(config map[string]string, prev *SchedulerConf) (*SchedulerConf,
 	parser.durationVar(&conf.DispatchTimeout, CMSvcDispatchTimeout)
 	parser.boolVar(&conf.DisableGangScheduling, CMSvcDisableGangScheduling)
 	parser.boolVar(&conf.EnableConfigHotRefresh, CMSvcEnableConfigHotRefresh)
-	parser.stringVar(&conf.PlaceHolderImage, CMSvcPlaceholderImage)
-	parser.stringVar(&conf.PlaceHolderConfig.Image, CMSvcPlaceholderImageNew)
+	parser.stringVar(&conf.PlaceHolderConfig.Image, CMSvcPlaceholderImage)
 	parser.int64Var(&conf.PlaceHolderConfig.RunAsUser, CMSvcPlaceholderRunAsUser)
 	parser.int64Var(&conf.PlaceHolderConfig.RunAsGroup, CMSvcPlaceholderRunAsGroup)
 	parser.int64Var(&conf.PlaceHolderConfig.FSGroup, CMSvcPlaceholderFSGroup)
