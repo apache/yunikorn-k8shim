@@ -78,38 +78,37 @@ func newPlaceholder(placeholderName string, app *Application, taskGroup TaskGrou
 
 	// prepare the resource lists
 	requests := GetPlaceholderResourceRequests(taskGroup.MinResource)
+	// set default values for the placeholder pod
 	var zeroSeconds int64 = 0
 	var runAsNonRoot = true
 	var privileged bool = false
 	var allowPrivilegeEscalation bool = false
 	var readOnlyRootFilesystem bool = true
 	var hostNetwork bool = false
-
-	schedulerConf := conf.GetSchedulerConf()
-	placeHolderImage := constants.PlaceholderContainerImage
+	var placeHolderImage string = constants.PlaceholderContainerImage
 	podSecContext := &v1.PodSecurityContext{
 		RunAsNonRoot: &runAsNonRoot,
 		SeccompProfile: &v1.SeccompProfile{
 			Type: v1.SeccompProfileTypeRuntimeDefault,
 		},
 	}
+	schedulerConf := conf.GetSchedulerConf()
+	// override values if specified in the placeholder config
 	if schedulerConf.PlaceHolderConfig != nil {
-		// override placeholder configs if specified
+		logger.Info("Using placeholder config", zap.Any("config", schedulerConf.PlaceHolderConfig))
 		if schedulerConf.PlaceHolderConfig.Image != "" {
 			placeHolderImage = schedulerConf.PlaceHolderConfig.Image
 		}
-		if schedulerConf.PlaceHolderConfig.RunAsUser != nil {
-			podSecContext.RunAsUser = schedulerConf.PlaceHolderConfig.RunAsUser
+		if schedulerConf.PlaceHolderConfig.RunAsUser != 0 {
+			podSecContext.RunAsUser = &schedulerConf.PlaceHolderConfig.RunAsUser
 		}
-		if schedulerConf.PlaceHolderConfig.RunAsGroup != nil {
-			podSecContext.RunAsGroup = schedulerConf.PlaceHolderConfig.RunAsGroup
+		if schedulerConf.PlaceHolderConfig.RunAsGroup != 0 {
+			podSecContext.RunAsGroup = &schedulerConf.PlaceHolderConfig.RunAsGroup
 		}
-		if schedulerConf.PlaceHolderConfig.FSGroup != nil {
-			podSecContext.FSGroup = schedulerConf.PlaceHolderConfig.FSGroup
+		if schedulerConf.PlaceHolderConfig.FSGroup != 0 {
+			podSecContext.FSGroup = &schedulerConf.PlaceHolderConfig.FSGroup
 		}
 	}
-
-	logger.Info("Using placeholder config", zap.Any("config", schedulerConf.PlaceHolderConfig))
 
 	placeholderPod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{

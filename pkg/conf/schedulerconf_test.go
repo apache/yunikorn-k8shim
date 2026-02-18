@@ -112,9 +112,9 @@ func TestPlaceholderConfigParsing(t *testing.T) {
 	assert.NilError(t, err, "UpdateConfigMap failed")
 	conf := GetSchedulerConf()
 	assert.Equal(t, conf.PlaceHolderConfig.Image, "new-image")
-	assert.Equal(t, *conf.PlaceHolderConfig.RunAsUser, int64(1001))
-	assert.Equal(t, *conf.PlaceHolderConfig.RunAsGroup, int64(1002))
-	assert.Equal(t, *conf.PlaceHolderConfig.FSGroup, int64(1003))
+	assert.Equal(t, conf.PlaceHolderConfig.RunAsUser, int64(1001))
+	assert.Equal(t, conf.PlaceHolderConfig.RunAsGroup, int64(1002))
+	assert.Equal(t, conf.PlaceHolderConfig.FSGroup, int64(1003))
 }
 
 func TestDecompressBadCompression(t *testing.T) {

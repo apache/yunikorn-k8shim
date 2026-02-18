@@ -304,7 +304,7 @@ func TestNewPlaceholderWithTopologySpreadConstraints(t *testing.T) {
 	})
 }
 
-func TestNewPlaceholderWithConfig(t *testing.T) {
+func TestNewPlaceholderWithPlaceHolderConfig(t *testing.T) {
 	// Setup
 	mockedSchedulerAPI := newMockSchedulerAPI()
 	app := NewApplication(appID, queue, "bob",
@@ -321,9 +321,9 @@ func TestNewPlaceholderWithConfig(t *testing.T) {
 	fsGroup := int64(2000)
 	newConf.PlaceHolderConfig = &conf.PlaceHolderConfig{
 		Image:      "new-image",
-		RunAsUser:  &runAsUser,
-		RunAsGroup: &runAsGroup,
-		FSGroup:    &fsGroup,
+		RunAsUser:  runAsUser,
+		RunAsGroup: runAsGroup,
+		FSGroup:    fsGroup,
 	}
 	conf.SetSchedulerConf(newConf)
 

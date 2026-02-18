@@ -137,9 +137,9 @@ type SchedulerConf struct {
 
 type PlaceHolderConfig struct {
 	Image      string `json:"image"`
-	RunAsUser  *int64 `json:"runAsUser,omitempty"`
-	RunAsGroup *int64 `json:"runAsGroup,omitempty"`
-	FSGroup    *int64 `json:"fsGroup,omitempty"`
+	RunAsUser  int64  `json:"runAsUser,omitempty"`
+	RunAsGroup int64  `json:"runAsGroup,omitempty"`
+	FSGroup    int64  `json:"fsGroup,omitempty"`
 }
 
 func (conf *SchedulerConf) Clone() *SchedulerConf {
@@ -219,12 +219,12 @@ func handleNonReloadableConfig(old *SchedulerConf, new *SchedulerConf) {
 	checkNonReloadableInt(CMKubeQPS, &old.KubeQPS, &new.KubeQPS)
 	checkNonReloadableInt(CMKubeBurst, &old.KubeBurst, &new.KubeBurst)
 	checkNonReloadableBool(CMSvcDisableGangScheduling, &old.DisableGangScheduling, &new.DisableGangScheduling)
-	checkNonReloadableString(CMSvcPlaceholderImage, &old.PlaceHolderConfig.Image, &new.PlaceHolderConfig.Image)
-	checkNonReloadableInt64(CMSvcPlaceholderRunAsUser, old.PlaceHolderConfig.RunAsUser, new.PlaceHolderConfig.RunAsUser)
-	checkNonReloadableInt64(CMSvcPlaceholderRunAsGroup, old.PlaceHolderConfig.RunAsGroup, new.PlaceHolderConfig.RunAsGroup)
-	checkNonReloadableInt64(CMSvcPlaceholderFSGroup, old.PlaceHolderConfig.FSGroup, new.PlaceHolderConfig.FSGroup)
 	checkNonReloadableString(CMSvcNodeInstanceTypeNodeLabelKey, &old.InstanceTypeNodeLabelKey, &new.InstanceTypeNodeLabelKey)
 	checkNonReloadableBool(AMFilteringGenerateUniqueAppIds, &old.GenerateUniqueAppIds, &new.GenerateUniqueAppIds)
+	checkNonReloadableInt64(CMSvcPlaceholderRunAsUser, &old.PlaceHolderConfig.RunAsUser, &new.PlaceHolderConfig.RunAsUser)
+	checkNonReloadableInt64(CMSvcPlaceholderRunAsGroup, &old.PlaceHolderConfig.RunAsGroup, &new.PlaceHolderConfig.RunAsGroup)
+	checkNonReloadableInt64(CMSvcPlaceholderFSGroup, &old.PlaceHolderConfig.FSGroup, &new.PlaceHolderConfig.FSGroup)
+	checkNonReloadableString(CMSvcPlaceholderImage, &old.PlaceHolderConfig.Image, &new.PlaceHolderConfig.Image)
 }
 
 const warningNonReloadable = "ignoring non-reloadable configuration change (restart required to update)"
@@ -251,22 +251,12 @@ func checkNonReloadableInt(name string, old *int, new *int) {
 }
 
 func checkNonReloadableInt64(name string, old *int64, new *int64) {
-	if old != new {
-		if old == nil || new == nil {
-			log.Log(log.ShimConfig).Warn(warningNonReloadable, zap.String("config", name))
-			// cannot revert value easily as it's a pointer, but mostly this is just a warning.
-			// Ideally we should revert *new to *old.
-			// But since it's a pointer, we can't easily assign if one is nil and other isn't without changing implementation.
-			// For now, let's skip reverting for nullability change, just warn.
-			// Actually we can do better:
-			return
-		}
-		if *old != *new {
-			log.Log(log.ShimConfig).Warn(warningNonReloadable, zap.String("config", name), zap.Int64("existing", *old), zap.Int64("new", *new))
-			*new = *old
-		}
+	if *old != *new {
+		log.Log(log.ShimConfig).Warn(warningNonReloadable, zap.String("config", name), zap.Int64("existing", *old), zap.Int64("new", *new))
+		*new = *old
 	}
 }
+
 func checkNonReloadableBool(name string, old *bool, new *bool) {
 	if *old != *new {
 		log.Log(log.ShimConfig).Warn(warningNonReloadable, zap.String("config", name), zap.Bool("existing", *old), zap.Bool("new", *new))
@@ -446,7 +436,7 @@ func (cp *configParser) durationVar(p *time.Duration, name string) {
 	}
 }
 
-func (cp *configParser) int64Var(p **int64, name string) {
+func (cp *configParser) int64Var(p *int64, name string) {
 	if newValue, ok := cp.config[name]; ok {
 		int64Value, err := strconv.ParseInt(newValue, 10, 64)
 		if err != nil {
@@ -454,7 +444,7 @@ func (cp *configParser) int64Var(p **int64, name string) {
 			cp.errors = append(cp.errors, err)
 			return
 		}
-		*p = &int64Value
+		*p = int64Value
 	}
 }
 
