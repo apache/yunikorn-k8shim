@@ -92,7 +92,7 @@ var _ = ginkgo.BeforeSuite(func() {
 	suiteName = common.GetSuiteName(filename)
 	var err error
 	kubeClient = k8s.KubeCtl{}
-	Expect(kubeClient.SetClient()).To(BeNil())
+	Expect(kubeClient.SetClient()).To(Succeed())
 
 	yunikorn.EnsureYuniKornConfigsPresent()
 	yunikorn.UpdateConfigMapWrapper(oldConfigMap, "")
@@ -113,7 +113,7 @@ var _ = ginkgo.BeforeSuite(func() {
 var _ = ginkgo.AfterSuite(func() {
 	var err error
 	kubeClient = k8s.KubeCtl{}
-	Expect(kubeClient.SetClient()).To(BeNil())
+	Expect(kubeClient.SetClient()).To(Succeed())
 
 	By(fmt.Sprintf("Removing priority class %s", normalPriorityClass.Name))
 	err = kubeClient.DeletePriorityClass(normalPriorityClass.Name)
@@ -137,3 +137,4 @@ var BeNil = gomega.BeNil
 var HaveOccurred = gomega.HaveOccurred
 var Expect = gomega.Expect
 var Equal = gomega.Equal
+var Succeed = gomega.Succeed

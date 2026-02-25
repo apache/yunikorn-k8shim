@@ -56,7 +56,7 @@ var _ = Describe("", func() {
 		By(fmt.Sprintf("Spark_py image is: %s", sparkPyImage))
 		Ω(sparkPyImage).NotTo(BeEmpty())
 		kClient = k8s.KubeCtl{}
-		Ω(kClient.SetClient()).To(BeNil())
+		Ω(kClient.SetClient()).To(Succeed())
 		Ω(exErr).NotTo(HaveOccurred())
 		By(fmt.Sprintf("Creating namespace: %s for spark jobs", sparkNS))
 		ns1, err := kClient.CreateNamespace(sparkNS, nil)

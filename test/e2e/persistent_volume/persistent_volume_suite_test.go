@@ -59,7 +59,7 @@ var _ = ginkgo.BeforeSuite(func() {
 	suiteName = common.GetSuiteName(filename)
 	// Initializing kubectl client
 	kClient = k8s.KubeCtl{}
-	Ω(kClient.SetClient()).To(gomega.BeNil())
+	Ω(kClient.SetClient()).To(gomega.Succeed())
 
 	// Initializing rest client
 	restClient = yunikorn.RClient{}

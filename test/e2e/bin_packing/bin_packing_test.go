@@ -183,7 +183,7 @@ var _ = Describe("", func() {
 			jobPods, lstErr := kClient.ListPods(ns, fmt.Sprintf("job-name=%s", jobConf.Name))
 			Ω(lstErr).NotTo(HaveOccurred())
 			Ω(jobPods).NotTo(BeNil())
-			Ω(len(jobPods.Items)).Should(Equal(int(3)), "Pods count should be 3")
+			Ω(jobPods.Items).To(HaveLen(int(3)), "Pods count should be 3")
 			for _, pod := range jobPods.Items {
 				Ω(pod.Spec.NodeName).To(Equal(sortedWorkerNodes[i].Name),
 					"job pods not scheduled to correct node")

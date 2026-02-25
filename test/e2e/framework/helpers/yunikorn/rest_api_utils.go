@@ -78,6 +78,7 @@ func (c *RClient) newRequest(method, path string, body interface{}) (*http.Reque
 	return req, nil
 }
 func (c *RClient) do(req *http.Request, v interface{}) (*http.Response, error) {
+	//nolint:gosec // safe to ignore as these are tests.
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, err
@@ -98,6 +99,7 @@ func (c *RClient) do(req *http.Request, v interface{}) (*http.Response, error) {
 }
 
 func (c *RClient) getBody(req *http.Request) (string, error) {
+	//nolint:gosec // safe to ignore as these are tests.
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return "", err
