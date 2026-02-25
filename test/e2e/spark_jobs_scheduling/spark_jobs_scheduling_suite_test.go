@@ -84,3 +84,4 @@ var Ω = gomega.Expect
 var BeNil = gomega.BeNil
 var HaveOccurred = gomega.HaveOccurred
 var BeEmpty = gomega.BeEmpty
+var Succeed = gomega.Succeed
