@@ -35,7 +35,7 @@ var _ = Describe("", func() {
 	It("Verify foreign pod tracking", func() {
 		By("Retrieving foreign pods from kube-system")
 		kClient = k8s.KubeCtl{}
-		Ω(kClient.SetClient()).To(yunikorn.Succeed())
+		Ω(kClient.SetClient()).To(Succeed())
 		podList, err := kClient.GetPods(kubeSystem)
 		Ω(err).NotTo(gomega.HaveOccurred())
 
