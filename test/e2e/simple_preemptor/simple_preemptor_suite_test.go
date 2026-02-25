@@ -74,7 +74,7 @@ var _ = ginkgo.BeforeSuite(func() {
 	var nodes *v1.NodeList
 	nodes, err = kClient.GetNodes()
 	Ω(err).NotTo(gomega.HaveOccurred())
-	Ω(len(nodes.Items)).NotTo(gomega.BeEmpty(), "Events can't be empty")
+	Ω(nodes.Items).NotTo(gomega.BeEmpty(), "Events can't be empty")
 
 	// Extract node allocatable resources
 	for _, node := range nodes.Items {
