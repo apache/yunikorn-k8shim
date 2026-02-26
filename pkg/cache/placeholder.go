@@ -22,23 +22,15 @@ import (
 	"fmt"
 	"strings"
 
+	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
+	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
-
-// MUST: run the placeholder pod as non-root user
-// It doesn't matter which user we use to start the placeholders,
-// as long as it is not the root user. This is because the placeholder
-// is just a dummy container, that doesn't run anything.
-// On most of Linux distributions, uid bigger than 1000 is recommended
-// for normal user uses. So we are using 1000(uid)/3000(gid) here to
-// launch all the placeholder pods.
-var runAsUser int64 = 1000
-var runAsGroup int64 = 3000
 
 type Placeholder struct {
 	appID         string
@@ -47,6 +39,7 @@ type Placeholder struct {
 }
 
 func newPlaceholder(placeholderName string, app *Application, taskGroup TaskGroup) *Placeholder {
+	logger := log.Log(log.ShimPlaceHolderConfig)
 	// Here the owner reference is always the originator pod
 	ownerRefs := app.getPlaceholderOwnerReferences()
 	annotations := utils.MergeMaps(taskGroup.Annotations, map[string]string{
@@ -85,7 +78,38 @@ func newPlaceholder(placeholderName string, app *Application, taskGroup TaskGrou
 
 	// prepare the resource lists
 	requests := GetPlaceholderResourceRequests(taskGroup.MinResource)
-	var zeroSeconds int64 = 0
+	// set default values for the placeholder pod
+	var zeroSeconds = int64(0)
+	var runAsNonRoot = true
+	var privileged = false
+	var allowPrivilegeEscalation = false
+	var readOnlyRootFilesystem = true
+	var hostNetwork = false
+	var placeHolderImage = constants.PlaceholderContainerImage
+	podSecContext := &v1.PodSecurityContext{
+		RunAsNonRoot: &runAsNonRoot,
+		SeccompProfile: &v1.SeccompProfile{
+			Type: v1.SeccompProfileTypeRuntimeDefault,
+		},
+	}
+	schedulerConf := conf.GetSchedulerConf()
+	// override values if specified in the placeholder config
+	if schedulerConf.PlaceHolderConfig != nil {
+		logger.Info("Using placeholder config", zap.Any("config", schedulerConf.PlaceHolderConfig))
+		if schedulerConf.PlaceHolderConfig.Image != "" {
+			placeHolderImage = schedulerConf.PlaceHolderConfig.Image
+		}
+		if schedulerConf.PlaceHolderConfig.RunAsUser != 0 {
+			podSecContext.RunAsUser = &schedulerConf.PlaceHolderConfig.RunAsUser
+		}
+		if schedulerConf.PlaceHolderConfig.RunAsGroup != 0 {
+			podSecContext.RunAsGroup = &schedulerConf.PlaceHolderConfig.RunAsGroup
+		}
+		if schedulerConf.PlaceHolderConfig.FSGroup != 0 {
+			podSecContext.FSGroup = &schedulerConf.PlaceHolderConfig.FSGroup
+		}
+	}
+
 	placeholderPod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      placeholderName,
@@ -98,19 +122,25 @@ func newPlaceholder(placeholderName string, app *Application, taskGroup TaskGrou
 			OwnerReferences: ownerRefs,
 		},
 		Spec: v1.PodSpec{
-			SecurityContext: &v1.PodSecurityContext{
-				RunAsUser:  &runAsUser,
-				RunAsGroup: &runAsGroup,
-			},
+			SecurityContext:  podSecContext,
+			HostNetwork:      hostNetwork,
 			ImagePullSecrets: imagePullSecrets,
 			Containers: []v1.Container{
 				{
 					Name:            constants.PlaceholderContainerName,
-					Image:           conf.GetSchedulerConf().PlaceHolderImage,
+					Image:           placeHolderImage,
 					ImagePullPolicy: v1.PullIfNotPresent,
 					Resources: v1.ResourceRequirements{
 						Requests: requests,
 						Limits:   requests,
+					},
+					SecurityContext: &v1.SecurityContext{
+						Privileged: &privileged,
+						Capabilities: &v1.Capabilities{
+							Drop: []v1.Capability{"ALL"},
+						},
+						AllowPrivilegeEscalation: &allowPrivilegeEscalation,
+						ReadOnlyRootFilesystem:   &readOnlyRootFilesystem,
 					},
 				},
 			},

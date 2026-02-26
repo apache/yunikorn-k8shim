@@ -29,6 +29,7 @@ import (
 
 	"github.com/apache/yunikorn-k8shim/pkg/common"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
+	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 )
 
@@ -147,8 +148,13 @@ func TestNewPlaceholder(t *testing.T) {
 	assert.Equal(t, len(holder.pod.Spec.NodeSelector), 2, "unexpected number of node selectors")
 	assert.Equal(t, len(holder.pod.Spec.Tolerations), 1, "unexpected number of tolerations")
 	assert.Equal(t, holder.String(), "appID: app01, taskGroup: test-group-1, podName: test/ph-name")
-	assert.Equal(t, holder.pod.Spec.SecurityContext.RunAsUser, &runAsUser)
-	assert.Equal(t, holder.pod.Spec.SecurityContext.RunAsGroup, &runAsGroup)
+	assert.Equal(t, *holder.pod.Spec.SecurityContext.RunAsNonRoot, true)
+	assert.Equal(t, holder.pod.Spec.SecurityContext.SeccompProfile.Type, v1.SeccompProfileTypeRuntimeDefault)
+	assert.Equal(t, holder.pod.Spec.HostNetwork, false)
+	assert.Equal(t, *holder.pod.Spec.Containers[0].SecurityContext.Privileged, false)
+	assert.Equal(t, *holder.pod.Spec.Containers[0].SecurityContext.AllowPrivilegeEscalation, false)
+	assert.Equal(t, *holder.pod.Spec.Containers[0].SecurityContext.ReadOnlyRootFilesystem, true)
+	assert.DeepEqual(t, holder.pod.Spec.Containers[0].SecurityContext.Capabilities.Drop, []v1.Capability{"ALL"})
 	assert.Equal(t, len(holder.pod.Spec.ImagePullSecrets), 2, "unexpected number of pull secrets")
 	assert.Equal(t, "secret1", holder.pod.Spec.ImagePullSecrets[0].Name)
 	assert.Equal(t, "secret2", holder.pod.Spec.ImagePullSecrets[1].Name)
@@ -296,4 +302,49 @@ func TestNewPlaceholderWithTopologySpreadConstraints(t *testing.T) {
 		"labelKey0": "labelKeyValue0",
 		"labelKey1": "labelKeyValue1",
 	})
+}
+
+func TestNewPlaceholderWithPlaceHolderConfig(t *testing.T) {
+	// Setup
+	mockedSchedulerAPI := newMockSchedulerAPI()
+	app := NewApplication(appID, queue, "bob",
+		testGroups, map[string]string{constants.AppTagNamespace: namespace}, mockedSchedulerAPI)
+	app.setTaskGroups(taskGroups)
+
+	// Update conf
+	originalConf := conf.GetSchedulerConf()
+	defer conf.SetSchedulerConf(originalConf)
+
+	newConf := originalConf.Clone()
+	runAsUser := int64(1000)
+	runAsGroup := int64(3000)
+	fsGroup := int64(2000)
+	newConf.PlaceHolderConfig = &conf.PlaceHolderConfig{
+		Image:      "new-image",
+		RunAsUser:  runAsUser,
+		RunAsGroup: runAsGroup,
+		FSGroup:    fsGroup,
+	}
+	conf.SetSchedulerConf(newConf)
+
+	// Execute
+	holder := newPlaceholder("ph-name", app, app.taskGroups[0])
+
+	// Verify
+	assert.Equal(t, holder.pod.Spec.Containers[0].Image, "new-image")
+	assert.Equal(t, *holder.pod.Spec.SecurityContext.RunAsUser, int64(1000))
+	assert.Equal(t, *holder.pod.Spec.SecurityContext.RunAsGroup, int64(3000))
+	assert.Equal(t, *holder.pod.Spec.SecurityContext.FSGroup, int64(2000))
+
+	// Test fallback
+	newConf2 := originalConf.Clone()
+	newConf2.PlaceHolderConfig = nil
+	conf.SetSchedulerConf(newConf2)
+
+	holder2 := newPlaceholder("ph-name-2", app, app.taskGroups[0])
+	assert.Equal(t, holder2.pod.Spec.Containers[0].Image, constants.PlaceholderContainerImage)
+	// RunAsUser etc should be nil/default
+	assert.Assert(t, holder2.pod.Spec.SecurityContext.RunAsUser == nil)
+	assert.Assert(t, holder2.pod.Spec.SecurityContext.RunAsGroup == nil)
+	assert.Assert(t, holder2.pod.Spec.SecurityContext.FSGroup == nil)
 }
