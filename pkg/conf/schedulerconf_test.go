@@ -236,6 +236,14 @@ func TestParseConfigMapWithInvalidDuration(t *testing.T) {
 	assert.ErrorContains(t, errs[0], "invalid duration", "wrong error type")
 }
 
+func TestParseConfigMapWithInvalidInt64(t *testing.T) {
+	prev := CreateDefaultConfig()
+	conf, errs := parseConfig(map[string]string{CMSvcPlaceholderRunAsUser: "x"}, prev)
+	assert.Assert(t, conf == nil, "Conf parsing failed")
+	assert.Equal(t, 1, len(errs), "1 Error for parsing invalid runAsUser")
+	assert.ErrorContains(t, errs[0], "invalid syntax", "wrong error type")
+}
+
 // get a configuration value by field name
 func getConfValue(t *testing.T, conf *SchedulerConf, name string) interface{} {
 	// Split by "." to handle nested fields
@@ -244,7 +252,7 @@ func getConfValue(t *testing.T, conf *SchedulerConf, name string) interface{} {
 
 	for _, part := range parts {
 		val = val.FieldByName(part)
-		assert.Assert(t, val.IsValid(), "Field not valid: "+name)
+		assert.Assert(t, val.IsValid(), fmt.Sprintf("Field not valid: %s", name))
 
 		// If it's a pointer, dereference it
 		if val.Kind() == reflect.Ptr {
