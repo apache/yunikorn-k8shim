@@ -35,7 +35,7 @@ var _ = Describe("", func() {
 	It("Verify foreign pod tracking", func() {
 		By("Retrieving foreign pods from kube-system")
 		kClient = k8s.KubeCtl{}
-		Ω(kClient.SetClient()).To(BeNil())
+		Ω(kClient.SetClient()).To(Succeed())
 		podList, err := kClient.GetPods(kubeSystem)
 		Ω(err).NotTo(gomega.HaveOccurred())
 
@@ -67,7 +67,7 @@ var _ = Describe("", func() {
 
 		// check that all UIDs from kube-system are tracked properly
 		for uid := range kubeUIDs {
-			Ω(foreignAllocs[uid]).To(Equal(true), "pod %s from kube-system is not tracked in Yunikorn", uid)
+			Ω(foreignAllocs[uid]).To(gomega.BeTrue(), "pod %s from kube-system is not tracked in Yunikorn", uid)
 			Ω(foreignNodes[uid]).To(Equal(kubeNodes[uid]), "pod %s is tracked under incorrect node", uid)
 		}
 	})

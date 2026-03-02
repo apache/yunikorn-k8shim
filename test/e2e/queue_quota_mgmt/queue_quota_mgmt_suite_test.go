@@ -91,3 +91,4 @@ var BeNil = gomega.BeNil
 var HaveOccurred = gomega.HaveOccurred
 var BeEmpty = gomega.BeEmpty
 var BeEquivalentTo = gomega.BeEquivalentTo
+var Succeed = gomega.Succeed

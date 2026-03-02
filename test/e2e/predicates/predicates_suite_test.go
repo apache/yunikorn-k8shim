@@ -94,3 +94,4 @@ var BeZero = gomega.BeZero
 var BeEquivalentTo = gomega.BeEquivalentTo
 var ContainElement = gomega.ContainElement
 var HaveKeyWithValue = gomega.HaveKeyWithValue
+var Succeed = gomega.Succeed

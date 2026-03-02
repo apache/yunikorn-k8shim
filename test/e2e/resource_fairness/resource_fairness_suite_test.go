@@ -44,7 +44,7 @@ var kClient = k8s.KubeCtl{} //nolint
 var _ = BeforeSuite(func() {
 	_, filename, _, _ := runtime.Caller(0)
 	suiteName = common.GetSuiteName(filename)
-	Ω(kClient.SetClient()).To(BeNil())
+	Ω(kClient.SetClient()).To(Succeed())
 	yunikorn.EnsureYuniKornConfigsPresent()
 })
 
@@ -82,3 +82,4 @@ var Equal = gomega.Equal
 var Ω = gomega.Expect
 var BeNil = gomega.BeNil
 var HaveOccurred = gomega.HaveOccurred
+var Succeed = gomega.Succeed

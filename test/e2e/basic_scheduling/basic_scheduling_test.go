@@ -85,7 +85,7 @@ var _ = ginkgo.Describe("", func() {
 		core := sleepRespPod.Spec.Containers[0].Resources.Requests.Cpu().MilliValue()
 		mem := sleepRespPod.Spec.Containers[0].Resources.Requests.Memory().Value()
 		resMap := allocation.ResourcePerAlloc
-		Ω(len(resMap)).NotTo(gomega.BeZero())
+		Ω(resMap).NotTo(gomega.BeEmpty())
 		Ω(resMap["memory"]).To(gomega.Equal(mem))
 		Ω(resMap["vcore"]).To(gomega.Equal(core))
 	})
@@ -121,7 +121,7 @@ var _ = ginkgo.Describe("", func() {
 		core := bestEffortPod.Spec.Containers[0].Resources.Requests.Cpu().MilliValue()
 		mem := bestEffortPod.Spec.Containers[0].Resources.Requests.Memory().Value()
 		resMap := allocation.ResourcePerAlloc
-		Ω(len(resMap)).NotTo(gomega.BeZero())
+		Ω(resMap).NotTo(gomega.BeEmpty())
 		Ω(resMap["memory"]).To(gomega.Equal(mem))
 		Ω(resMap["vcore"]).To(gomega.Equal(core))
 	})
@@ -157,7 +157,7 @@ var _ = ginkgo.Describe("", func() {
 		core := burstablePod.Spec.Containers[0].Resources.Requests.Cpu().MilliValue()
 		mem := burstablePod.Spec.Containers[0].Resources.Requests.Memory().Value()
 		resMap := allocation.ResourcePerAlloc
-		Ω(len(resMap)).NotTo(gomega.BeZero())
+		Ω(resMap).NotTo(gomega.BeEmpty())
 		Ω(resMap["memory"]).To(gomega.Equal(mem))
 		Ω(resMap["vcore"]).To(gomega.Equal(core))
 	})

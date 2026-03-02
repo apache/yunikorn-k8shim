@@ -62,7 +62,7 @@ var _ = BeforeSuite(func() {
 	_, filename, _, _ := runtime.Caller(0)
 	suiteName = common.GetSuiteName(filename)
 
-	Ω(kClient.SetClient()).To(BeNil())
+	Ω(kClient.SetClient()).To(Succeed())
 	/* Sample configMap. Post-update, Yunikorn will use binpacking node sort and fair app sort
 		partitions:
 	      - name: default
@@ -128,3 +128,5 @@ var Ω = gomega.Expect
 var BeNil = gomega.BeNil
 var BeNumerically = gomega.BeNumerically
 var HaveOccurred = gomega.HaveOccurred
+var HaveLen = gomega.HaveLen
+var Succeed = gomega.Succeed

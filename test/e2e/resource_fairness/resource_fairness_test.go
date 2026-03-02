@@ -51,7 +51,7 @@ var _ = Describe("FairScheduling:", func() {
 		ns = "test-" + common.RandSeq(10)
 		queuePath = "root." + ns
 		kClient = k8s.KubeCtl{}
-		Ω(kClient.SetClient()).To(BeNil())
+		Ω(kClient.SetClient()).To(Succeed())
 
 		By("Setting custom YuniKorn configuration")
 		yunikorn.UpdateCustomConfigMapWrapper(oldConfigMap, "fair", func(sc *configs.SchedulerConfig) error {
@@ -69,7 +69,7 @@ var _ = Describe("FairScheduling:", func() {
 			return nil
 		})
 		kClient = k8s.KubeCtl{}
-		Ω(kClient.SetClient()).To(BeNil())
+		Ω(kClient.SetClient()).To(Succeed())
 
 		// Restart yunikorn and port-forward
 		// Required to change node sort policy.

@@ -82,7 +82,7 @@ var _ = Describe("Predicates", func() {
 	BeforeEach(func() {
 		// Initializing kubectl client
 		kClient = k8s.KubeCtl{}
-		Ω(kClient.SetClient()).To(BeNil())
+		Ω(kClient.SetClient()).To(Succeed())
 		// Initializing rest client
 		restClient = yunikorn.RClient{}
 

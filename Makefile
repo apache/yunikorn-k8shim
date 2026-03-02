@@ -27,7 +27,7 @@ GO_EXE_PATH := $(GOROOT)/bin
 # Check if this GO tools version used is at least the version of go specified in
 # the go.mod file. The version in go.mod should be in sync with other repos.
 GO_VERSION := $(shell "$(GO)" version | awk '{print substr($$3, 3, 4)}')
-MOD_VERSION := $(shell cat .go_version) 
+MOD_VERSION := $(shell cat .go_version)
 
 GM := $(word 1,$(subst ., ,$(GO_VERSION)))
 MM := $(word 1,$(subst ., ,$(MOD_VERSION)))
@@ -79,7 +79,7 @@ endif
 ifeq ($(PLUGIN),1)
   PLUGIN_OPTS := --plugin
 else
-  PLUGIN_OPTS := 
+  PLUGIN_OPTS :=
 endif
 
 # Reproducible builds mode
@@ -163,7 +163,7 @@ endif
 export PATH := $(BASE_DIR)/$(SHELLCHECK_PATH):$(PATH)
 
 # golangci-lint
-GOLANGCI_LINT_VERSION=2.5.0
+GOLANGCI_LINT_VERSION=2.10.1
 GOLANGCI_LINT_PATH=$(TOOLS_DIR)/golangci-lint-v$(GOLANGCI_LINT_VERSION)
 GOLANGCI_LINT_BIN=$(GOLANGCI_LINT_PATH)/golangci-lint
 GOLANGCI_LINT_ARCHIVE=golangci-lint-$(GOLANGCI_LINT_VERSION)-$(OS)-$(EXEC_ARCH).tar.gz
@@ -514,7 +514,7 @@ $(COVERAGE_DIR)/$(PLUGIN_BINARY): go.mod go.sum $(shell find pkg)
 	-ldflags '-buildid= -extldflags "-static" -X ${FLAG_PREFIX}.buildVersion=${VERSION} -X ${FLAG_PREFIX}.buildDate=${DATE} -X ${FLAG_PREFIX}.isPluginVersion=true -X ${FLAG_PREFIX}.goVersion=${GO_VERSION} -X ${FLAG_PREFIX}.arch=${EXEC_ARCH} -X ${FLAG_PREFIX}.coreSHA=${CORE_SHA} -X ${FLAG_PREFIX}.siSHA=${SI_SHA} -X ${FLAG_PREFIX}.shimSHA=${SHIM_SHA}' \
 	-tags netgo \
 	./pkg/cmd/schedulerplugin/
-	
+
 # Build a scheduler image based on the production ready version
 .PHONY: sched_image
 sched_image: $(OUTPUT)/third-party-licenses.md scheduler docker/scheduler

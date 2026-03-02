@@ -63,7 +63,7 @@ var (
 var _ = Describe("", func() {
 	BeforeEach(func() {
 		kClient = k8s.KubeCtl{}
-		Ω(kClient.SetClient()).To(BeNil())
+		Ω(kClient.SetClient()).To(Succeed())
 
 		ns = "ns-" + common.RandSeq(10)
 		nsQueue = "root." + ns
@@ -185,7 +185,7 @@ var _ = Describe("", func() {
 		for i, tg := range annotations.TaskGroups {
 			jobPods, lstErr := kClient.ListPods(ns, fmt.Sprintf("job-name=%s", realJobNames[i]))
 			Ω(lstErr).NotTo(HaveOccurred())
-			Ω(len(jobPods.Items)).Should(BeNumerically("==", tg.MinMember))
+			Ω(jobPods.Items).To(gomega.HaveLen(int(tg.MinMember)), "Job pods count is not correct")
 			realPodNodes[tg.Name] = map[string]int{}
 			for _, pod := range jobPods.Items {
 				podRunErr := kClient.WaitForPodRunning(ns, pod.Name, time.Minute*5)
@@ -223,7 +223,7 @@ var _ = Describe("", func() {
 		Ω(phErr).NotTo(HaveOccurred())
 		appDaoInfo, appDaoInfoErr := restClient.GetAppInfo(configmanager.DefaultPartition, nsQueue, appID)
 		Ω(appDaoInfoErr).NotTo(HaveOccurred())
-		Ω(len(appDaoInfo.Allocations)).To(Equal(int(6)), "Allocations count is not correct")
+		Ω(appDaoInfo.Allocations).To(gomega.HaveLen(int(6)), "Allocations count is not correct")
 	})
 
 	// Test to verify soft GS style behaviour
@@ -258,11 +258,11 @@ var _ = Describe("", func() {
 		Ω(phErr).NotTo(HaveOccurred())
 		appDaoInfo, appDaoInfoErr := restClient.GetAppInfo(configmanager.DefaultPartition, nsQueue, appID)
 		Ω(appDaoInfoErr).NotTo(HaveOccurred())
-		Ω(len(appDaoInfo.PlaceholderData)).To(Equal(2), "Placeholder count is not correct")
-		Ω(len(appDaoInfo.Allocations)).To(Equal(int(3)), "Allocations count is not correct")
+		Ω(appDaoInfo.PlaceholderData).To(gomega.HaveLen(2), "Placeholder count is not correct")
+		Ω(appDaoInfo.Allocations).To(gomega.HaveLen(int(3)), "Allocations count is not correct")
 		for _, alloc := range appDaoInfo.Allocations {
-			Ω(alloc.Placeholder).To(Equal(false), "Allocation should be non placeholder")
-			Ω(alloc.PlaceholderUsed).To(Equal(false), "Allocation should not be replacement of ph")
+			Ω(alloc.Placeholder).To(gomega.BeFalse(), "Allocation should be non placeholder")
+			Ω(alloc.PlaceholderUsed).To(gomega.BeFalse(), "Allocation should not be replacement of ph")
 		}
 	})
 
@@ -295,7 +295,7 @@ var _ = Describe("", func() {
 		// Ensure placeholders are timed out and allocations count is correct as app started running normal because of 'soft' gang style
 		appDaoInfo, appDaoInfoErr := restClient.GetCompletedAppInfo(configmanager.DefaultPartition, appID)
 		Ω(appDaoInfoErr).NotTo(HaveOccurred())
-		Ω(len(appDaoInfo.PlaceholderData)).To(Equal(2), "Placeholder count is not correct")
+		Ω(appDaoInfo.PlaceholderData).To(gomega.HaveLen(2), "Placeholder count is not correct")
 		checkPlaceholderData(appDaoInfo, groupA, 3, 0, 3)
 		checkPlaceholderData(appDaoInfo, groupB, 3, 0, 3)
 	})
@@ -366,19 +366,19 @@ var _ = Describe("", func() {
 
 		appDaoInfo, appDaoInfoErr := restClient.GetAppInfo(configmanager.DefaultPartition, nsQueue, appIDA)
 		Ω(appDaoInfoErr).NotTo(HaveOccurred())
-		Ω(len(appDaoInfo.Allocations)).To(Equal(0), "Allocations count is not correct")
-		Ω(len(appDaoInfo.PlaceholderData)).To(Equal(0), "Placeholder count is not correct")
+		Ω(appDaoInfo.Allocations).To(gomega.BeEmpty(), "Allocations count is not correct")
+		Ω(appDaoInfo.PlaceholderData).To(gomega.BeEmpty(), "Placeholder count is not correct")
 
 		appDaoInfo, appDaoInfoErr = restClient.GetAppInfo(configmanager.DefaultPartition, nsQueue, appIDB)
 		Ω(appDaoInfoErr).NotTo(HaveOccurred())
-		Ω(len(appDaoInfo.Allocations)).To(Equal(3), "Allocations count is not correct")
-		Ω(len(appDaoInfo.PlaceholderData)).To(Equal(1), "Placeholder count is not correct")
+		Ω(appDaoInfo.Allocations).To(gomega.HaveLen(3), "Allocations count is not correct")
+		Ω(appDaoInfo.PlaceholderData).To(gomega.HaveLen(1), "Placeholder count is not correct")
 		Ω(int(appDaoInfo.PlaceholderData[0].Count)).To(Equal(int(3)), "Placeholder count is not correct")
 
 		appDaoInfo, appDaoInfoErr = restClient.GetAppInfo(configmanager.DefaultPartition, nsQueue, appIDC)
 		Ω(appDaoInfoErr).NotTo(HaveOccurred())
-		Ω(len(appDaoInfo.Allocations)).To(Equal(0), "Allocations count is not correct")
-		Ω(len(appDaoInfo.PlaceholderData)).To(Equal(0), "Placeholder count is not correct")
+		Ω(appDaoInfo.Allocations).To(gomega.BeEmpty(), "Allocations count is not correct")
+		Ω(appDaoInfo.PlaceholderData).To(gomega.BeEmpty(), "Placeholder count is not correct")
 	})
 
 	// Test validates that lost placeholders resources are decremented by Yunikorn.
@@ -395,7 +395,7 @@ var _ = Describe("", func() {
 		nodes, err := kClient.GetNodes()
 		Ω(err).NotTo(HaveOccurred())
 		workerNodes := k8s.GetWorkerNodes(*nodes)
-		Ω(len(workerNodes)).NotTo(Equal(0))
+		Ω(workerNodes).NotTo(gomega.BeEmpty())
 
 		pdTimeout := 60
 		annotations := k8s.PodAnnotation{
@@ -440,7 +440,7 @@ var _ = Describe("", func() {
 		// Verify app allocations correctly decremented
 		appInfo, appErr := restClient.GetAppInfo(configmanager.DefaultPartition, nsQueue, appID)
 		Ω(appErr).NotTo(HaveOccurred())
-		Ω(len(appInfo.Allocations)).To(Equal(0), "Placeholder allocation not removed from app")
+		Ω(appInfo.Allocations).To(gomega.BeEmpty(), "Placeholder allocation not removed from app")
 
 		// Verify no app allocation in nodeA
 		ykNodes, nodeErr := restClient.GetNodes(configmanager.DefaultPartition)
@@ -508,7 +508,7 @@ var _ = Describe("", func() {
 		By("Verify app allocation is empty")
 		appInfo, restErr := restClient.GetAppInfo(configmanager.DefaultPartition, nsQueue, appID)
 		Ω(restErr).NotTo(HaveOccurred())
-		Ω(len(appInfo.Allocations)).To(Equal(0))
+		Ω(appInfo.Allocations).To(gomega.BeEmpty())
 	})
 
 	// Test to verify originator deletion will trigger placeholders cleanup
@@ -574,8 +574,8 @@ var _ = Describe("", func() {
 		Ω(phErr).NotTo(HaveOccurred())
 		appDaoInfo, appDaoInfoErr := restClient.GetAppInfo(configmanager.DefaultPartition, nsQueue, appID)
 		Ω(appDaoInfoErr).NotTo(HaveOccurred())
-		Ω(len(appDaoInfo.PlaceholderData)).To(Equal(1), "Placeholder count is not correct")
-		Ω(len(appDaoInfo.Allocations)).To(Equal(int(3)), "Allocations count is not correct")
+		Ω(appDaoInfo.PlaceholderData).To(gomega.HaveLen(1), "Placeholder count is not correct")
+		Ω(appDaoInfo.Allocations).To(gomega.HaveLen(int(3)), "Allocations count is not correct")
 		Ω(appDaoInfo.UsedResource[hugepageKey]).To(Equal(int64(314572800)), "Used huge page resource is not correct")
 	})
 
@@ -621,11 +621,11 @@ var _ = Describe("", func() {
 		for _, alloc := range appDaoInfo.Allocations {
 			podName := alloc.AllocationTags["kubernetes.io/meta/podName"]
 			if podName == originator.Name {
-				Ω(alloc.Originator).To(Equal(true), "Originator pod should be a originator pod")
-				Ω(alloc.Placeholder).To(Equal(false), "Originator pod should not be a placeholder pod")
+				Ω(alloc.Originator).To(gomega.BeTrue(), "Originator pod should be a originator pod")
+				Ω(alloc.Placeholder).To(gomega.BeFalse(), "Originator pod should not be a placeholder pod")
 			} else {
-				Ω(alloc.Originator).To(Equal(false), "Placeholder pod should not be a originator pod")
-				Ω(alloc.Placeholder).To(Equal(true), "Placeholder pod should be a placeholder pod")
+				Ω(alloc.Originator).To(gomega.BeFalse(), "Placeholder pod should not be a originator pod")
+				Ω(alloc.Placeholder).To(gomega.BeTrue(), "Placeholder pod should be a placeholder pod")
 			}
 		}
 
@@ -646,11 +646,11 @@ var _ = Describe("", func() {
 		for _, alloc := range appDaoInfo.Allocations {
 			podName := alloc.AllocationTags["kubernetes.io/meta/podName"]
 			if podName == originator.Name {
-				Ω(alloc.Originator).To(Equal(true), "Originator pod should be a originator pod")
-				Ω(alloc.Placeholder).To(Equal(false), "Originator pod should not be a placeholder pod")
+				Ω(alloc.Originator).To(gomega.BeTrue(), "Originator pod should be a originator pod")
+				Ω(alloc.Placeholder).To(gomega.BeFalse(), "Originator pod should not be a placeholder pod")
 			} else {
-				Ω(alloc.Originator).To(Equal(false), "Placeholder pod should not be a originator pod")
-				Ω(alloc.Placeholder).To(Equal(true), "Placeholder pod should be a placeholder pod")
+				Ω(alloc.Originator).To(gomega.BeFalse(), "Placeholder pod should not be a originator pod")
+				Ω(alloc.Placeholder).To(gomega.BeTrue(), "Placeholder pod should be a placeholder pod")
 			}
 		}
 	})
@@ -777,7 +777,7 @@ func checkPlaceholderData(appDaoInfo *dao.ApplicationDAOInfo, tgName string, cou
 			break
 		}
 	}
-	Ω(verified).To(Equal(true), fmt.Sprintf("Can't find task group %s in app info", tgName))
+	Ω(verified).To(gomega.BeTrue(), fmt.Sprintf("Can't find task group %s in app info", tgName))
 }
 
 func getPlaceholderData(appDaoInfo *dao.ApplicationDAOInfo, tgName string) (bool, int, int, int) {
@@ -881,5 +881,5 @@ func verifyOriginatorDeletionCase(withOwnerRef bool) {
 	By("Verify app allocation is empty")
 	appInfo, restErr := restClient.GetAppInfo(configmanager.DefaultPartition, nsQueue, appID)
 	Ω(restErr).NotTo(HaveOccurred())
-	Ω(len(appInfo.Allocations)).To(BeNumerically("==", 0))
+	Ω(appInfo.Allocations).To(gomega.BeEmpty())
 }

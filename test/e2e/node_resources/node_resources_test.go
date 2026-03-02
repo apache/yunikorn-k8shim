@@ -38,7 +38,7 @@ var _ = Describe("", func() {
 
 	BeforeEach(func() {
 		kClient = k8s.KubeCtl{}
-		Ω(kClient.SetClient()).To(BeNil())
+		Ω(kClient.SetClient()).To(Succeed())
 		ns = "ns-" + common.RandSeq(10)
 		By(fmt.Sprintf("Creating namespace: %s", ns))
 		var ns1, err1 = kClient.CreateNamespace(ns, nil)

@@ -109,7 +109,7 @@ var _ = ginkgo.Describe("", func() {
 
 	ginkgo.It("Verify_SleepJobs_Restart_YK", func() {
 		kClient = k8s.KubeCtl{}
-		Ω(kClient.SetClient()).To(gomega.BeNil())
+		Ω(kClient.SetClient()).To(gomega.Succeed())
 		defer yunikorn.RestorePortForwarding(&kClient)
 
 		appID1 := normalSleepJobPrefix + "-" + common.RandSeq(5)
@@ -152,7 +152,7 @@ var _ = ginkgo.Describe("", func() {
 
 	ginkgo.It("Verify_GangScheduling_TwoGangs_Restart_YK", func() {
 		kClient = k8s.KubeCtl{}
-		Ω(kClient.SetClient()).To(gomega.BeNil())
+		Ω(kClient.SetClient()).To(gomega.Succeed())
 		defer yunikorn.RestorePortForwarding(&kClient)
 
 		appID := gangSleepJobPrefix + "-" + common.RandSeq(5)
@@ -242,13 +242,13 @@ var _ = ginkgo.Describe("", func() {
 
 	ginkgo.It("Verify_GangScheduling_PendingPlaceholders_Restart_YK", func() {
 		kClient = k8s.KubeCtl{}
-		Ω(kClient.SetClient()).To(gomega.BeNil())
+		Ω(kClient.SetClient()).To(gomega.Succeed())
 		defer yunikorn.RestorePortForwarding(&kClient)
 
 		ginkgo.By("Trying to find an available worker node")
 		nodes, err := kClient.GetNodes()
 		Ω(err).NotTo(gomega.HaveOccurred())
-		Ω(len(nodes.Items) >= 2).Should(gomega.Equal(true), "Not enough nodes in the cluster, need at least 2")
+		Ω(len(nodes.Items)).Should(gomega.BeNumerically(">=", 2), "Not enough nodes in the cluster, need at least 2")
 
 		var workerResource *resource.Quantity
 		masterPresent := false

@@ -63,8 +63,8 @@ var _ = Describe("ConfigMap", func() {
 
 		schedulerConfig, err := configs.LoadSchedulerConfigFromByteArray([]byte(queues))
 		Ω(err).NotTo(HaveOccurred())
-		Ω(len(schedulerConfig.Partitions)).To(Equal(1))
-		Ω(len(schedulerConfig.Partitions[0].Queues)).To(Equal(1))
+		Ω(schedulerConfig.Partitions).To(gomega.HaveLen(1))
+		Ω(schedulerConfig.Partitions[0].Queues).To(gomega.HaveLen(1))
 
 		ts := schedulerConfig.Partitions[0].Queues[0].Properties["timestamp"]
 		err = yunikorn.WaitForQueueTS("root", ts, 30*time.Second)
@@ -84,7 +84,7 @@ var _ = Describe("ConfigMap", func() {
 		Ω(err).NotTo(HaveOccurred())
 
 		queuesGz := configMap.BinaryData[configmanager.DefaultPolicyGroup+".gz"]
-		Ω(len(queuesGz)).NotTo(Equal(0))
+		Ω(queuesGz).ToNot(gomega.BeEmpty())
 		gzReader, err := gzip.NewReader(bytes.NewReader(queuesGz))
 		Ω(err).NotTo(HaveOccurred())
 		decompressedBytes, err := io.ReadAll(gzReader)
@@ -94,8 +94,8 @@ var _ = Describe("ConfigMap", func() {
 
 		schedulerConfig, err := configs.LoadSchedulerConfigFromByteArray(decompressedBytes)
 		Ω(err).NotTo(HaveOccurred())
-		Ω(len(schedulerConfig.Partitions)).To(Equal(1))
-		Ω(len(schedulerConfig.Partitions[0].Queues)).To(Equal(1))
+		Ω(schedulerConfig.Partitions).To(gomega.HaveLen(1))
+		Ω(schedulerConfig.Partitions[0].Queues).To(gomega.HaveLen(1))
 
 		ts := schedulerConfig.Partitions[0].Queues[0].Properties["timestamp"]
 		err = yunikorn.WaitForQueueTS("root", ts, 30*time.Second)

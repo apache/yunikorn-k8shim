@@ -39,7 +39,7 @@ import (
 var k = k8s.KubeCtl{}
 
 func EnsureYuniKornConfigsPresent() {
-	Ω(k.SetClient()).To(BeNil())
+	Ω(k.SetClient()).To(Succeed())
 	By("Create initial configMap if not exists")
 	exists, err := k.ConfigMapExists(constants.ConfigMapName, configmanager.YuniKornTestConfig.YkNamespace)
 	Ω(err).NotTo(HaveOccurred())
@@ -74,7 +74,7 @@ func UpdateCustomConfigMapWrapper(oldConfigMap *v1.ConfigMap, schedPolicy string
 }
 
 func UpdateCustomConfigMapWrapperWithMap(oldConfigMap *v1.ConfigMap, schedPolicy string, customMap map[string]string, mutator func(sc *configs.SchedulerConfig) error) {
-	Ω(k.SetClient()).To(BeNil())
+	Ω(k.SetClient()).To(Succeed())
 	By("Port-forward the scheduler pod")
 	fwdErr := k.PortForwardYkSchedulerPod()
 	Ω(fwdErr).NotTo(HaveOccurred())
@@ -82,7 +82,7 @@ func UpdateCustomConfigMapWrapperWithMap(oldConfigMap *v1.ConfigMap, schedPolicy
 	By("Enabling new scheduling config")
 
 	// Save old configMap
-	Ω(k.SetClient()).To(BeNil())
+	Ω(k.SetClient()).To(Succeed())
 	var c, err = k.GetConfigMaps(configmanager.YuniKornTestConfig.YkNamespace,
 		configmanager.DefaultYuniKornConfigMap)
 	Ω(err).NotTo(HaveOccurred())
@@ -122,7 +122,7 @@ func UpdateCustomConfigMapWrapperWithMap(oldConfigMap *v1.ConfigMap, schedPolicy
 }
 
 func RestoreConfigMapWrapper(oldConfigMap *v1.ConfigMap) {
-	Ω(k.SetClient()).To(BeNil())
+	Ω(k.SetClient()).To(Succeed())
 	By("Restoring the old config maps")
 	var c, err = k.GetConfigMaps(configmanager.YuniKornTestConfig.YkNamespace,
 		configmanager.DefaultYuniKornConfigMap)
@@ -168,3 +168,4 @@ var Ω = gomega.Expect
 var BeNil = gomega.BeNil
 var HaveOccurred = gomega.HaveOccurred
 var BeEquivalentTo = gomega.BeEquivalentTo
+var Succeed = gomega.Succeed
