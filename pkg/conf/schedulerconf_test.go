@@ -100,6 +100,23 @@ func TestDecompressUnknownKey(t *testing.T) {
 	assert.Assert(t, len(decodedConfigString) == 0, "expected decodedConfigString to be nil")
 }
 
+func TestPlaceholderConfigParsing(t *testing.T) {
+	err := UpdateConfigMaps([]*v1.ConfigMap{
+		{Data: map[string]string{
+			CMSvcPlaceholderImage:      "new-image",
+			CMSvcPlaceholderRunAsUser:  "1001",
+			CMSvcPlaceholderRunAsGroup: "1002",
+			CMSvcPlaceholderFSGroup:    "1003",
+		}},
+	}, true)
+	assert.NilError(t, err, "UpdateConfigMap failed")
+	conf := GetSchedulerConf()
+	assert.Equal(t, conf.PlaceHolderConfig.Image, "new-image")
+	assert.Equal(t, conf.PlaceHolderConfig.RunAsUser, int64(1001))
+	assert.Equal(t, conf.PlaceHolderConfig.RunAsGroup, int64(1002))
+	assert.Equal(t, conf.PlaceHolderConfig.FSGroup, int64(1003))
+}
+
 func TestDecompressBadCompression(t *testing.T) {
 	encodedConfigString := make([]byte, base64.StdEncoding.EncodedLen(len([]byte(configs.DefaultSchedulerConfig))))
 	base64.StdEncoding.Encode(encodedConfigString, []byte(configs.DefaultSchedulerConfig))
@@ -122,7 +139,10 @@ func TestParseConfigMap(t *testing.T) {
 		{CMSvcDispatchTimeout, "DispatchTimeout", 3 * time.Minute},
 		{CMSvcDisableGangScheduling, "DisableGangScheduling", true},
 		{CMSvcEnableConfigHotRefresh, "EnableConfigHotRefresh", false},
-		{CMSvcPlaceholderImage, "PlaceHolderImage", "test-image"},
+		{CMSvcPlaceholderImage, "PlaceHolderConfig.Image", "test-image"},
+		{CMSvcPlaceholderRunAsUser, "PlaceHolderConfig.RunAsUser", int64(1001)},
+		{CMSvcPlaceholderRunAsGroup, "PlaceHolderConfig.RunAsGroup", int64(1002)},
+		{CMSvcPlaceholderFSGroup, "PlaceHolderConfig.FSGroup", int64(1003)},
 		{CMSvcNodeInstanceTypeNodeLabelKey, "InstanceTypeNodeLabelKey", "node.kubernetes.io/instance-type"},
 		{CMKubeQPS, "KubeQPS", 2345},
 		{CMKubeBurst, "KubeBurst", 3456},
@@ -153,8 +173,11 @@ func TestUpdateConfigMapNonReloadable(t *testing.T) {
 		{CMSvcEventChannelCapacity, "EventChannelCapacity", 1234, false},
 		{CMSvcDispatchTimeout, "DispatchTimeout", 3 * time.Minute, false},
 		{CMSvcDisableGangScheduling, "DisableGangScheduling", true, false},
-		{CMSvcPlaceholderImage, "PlaceHolderImage", "test-image", false},
 		{CMSvcNodeInstanceTypeNodeLabelKey, "InstanceTypeNodeLabelKey", "node.kubernetes.io/instance-type", false},
+		{CMSvcPlaceholderImage, "PlaceHolderConfig.Image", "test-image", false},
+		{CMSvcPlaceholderRunAsUser, "PlaceHolderConfig.RunAsUser", int64(1001), false},
+		{CMSvcPlaceholderRunAsGroup, "PlaceHolderConfig.RunAsGroup", int64(1002), false},
+		{CMSvcPlaceholderFSGroup, "PlaceHolderConfig.FSGroup", int64(1003), false},
 		{CMKubeQPS, "KubeQPS", 2345, false},
 		{CMKubeBurst, "KubeBurst", 3456, false},
 	}
@@ -213,9 +236,32 @@ func TestParseConfigMapWithInvalidDuration(t *testing.T) {
 	assert.ErrorContains(t, errs[0], "invalid duration", "wrong error type")
 }
 
+func TestParseConfigMapWithInvalidInt64(t *testing.T) {
+	prev := CreateDefaultConfig()
+	conf, errs := parseConfig(map[string]string{CMSvcPlaceholderRunAsUser: "x"}, prev)
+	assert.Assert(t, conf == nil, "Conf parsing failed")
+	assert.Equal(t, 1, len(errs), "1 Error for parsing invalid runAsUser")
+	assert.ErrorContains(t, errs[0], "invalid syntax", "wrong error type")
+}
+
 // get a configuration value by field name
 func getConfValue(t *testing.T, conf *SchedulerConf, name string) interface{} {
-	val := reflect.ValueOf(conf).Elem().FieldByName(name)
-	assert.Assert(t, val.IsValid(), "Field not valid: "+name)
+	// Split by "." to handle nested fields
+	parts := strings.Split(name, ".")
+	val := reflect.ValueOf(conf).Elem()
+
+	for _, part := range parts {
+		val = val.FieldByName(part)
+		assert.Assert(t, val.IsValid(), fmt.Sprintf("Field not valid: %s", name))
+
+		// If it's a pointer, dereference it
+		if val.Kind() == reflect.Ptr {
+			if val.IsNil() {
+				return nil
+			}
+			val = val.Elem()
+		}
+	}
+
 	return val.Interface()
 }

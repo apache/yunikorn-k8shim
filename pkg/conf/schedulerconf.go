@@ -67,6 +67,9 @@ const (
 	CMSvcDisableGangScheduling        = PrefixService + "disableGangScheduling"
 	CMSvcEnableConfigHotRefresh       = PrefixService + "enableConfigHotRefresh"
 	CMSvcPlaceholderImage             = PrefixService + "placeholderImage"
+	CMSvcPlaceholderRunAsUser         = PrefixService + "placeholderRunAsUser"
+	CMSvcPlaceholderRunAsGroup        = PrefixService + "placeholderRunAsGroup"
+	CMSvcPlaceholderFSGroup           = PrefixService + "placeholderFsGroup"
 	CMSvcNodeInstanceTypeNodeLabelKey = PrefixService + "nodeInstanceTypeNodeLabelKey"
 
 	// kubernetes
@@ -110,26 +113,33 @@ var confHolder atomic.Value
 var kubeLoggerOnce sync.Once
 
 type SchedulerConf struct {
-	SchedulerName            string        `json:"schedulerName"`
-	ClusterID                string        `json:"clusterId"`
-	ClusterVersion           string        `json:"clusterVersion"`
-	PolicyGroup              string        `json:"policyGroup"`
-	Interval                 time.Duration `json:"schedulingIntervalSecond"`
-	KubeConfig               string        `json:"absoluteKubeConfigFilePath"`
-	VolumeBindTimeout        time.Duration `json:"volumeBindTimeout"`
-	EventChannelCapacity     int           `json:"eventChannelCapacity"`
-	DispatchTimeout          time.Duration `json:"dispatchTimeout"`
-	KubeQPS                  int           `json:"kubeQPS"`
-	KubeBurst                int           `json:"kubeBurst"`
-	EnableConfigHotRefresh   bool          `json:"enableConfigHotRefresh"`
-	DisableGangScheduling    bool          `json:"disableGangScheduling"`
-	UserLabelKey             string        `json:"userLabelKey"`
-	PlaceHolderImage         string        `json:"placeHolderImage"`
-	InstanceTypeNodeLabelKey string        `json:"instanceTypeNodeLabelKey"`
-	Namespace                string        `json:"namespace"`
-	GenerateUniqueAppIds     bool          `json:"generateUniqueAppIds"`
+	SchedulerName            string             `json:"schedulerName"`
+	ClusterID                string             `json:"clusterId"`
+	ClusterVersion           string             `json:"clusterVersion"`
+	PolicyGroup              string             `json:"policyGroup"`
+	Interval                 time.Duration      `json:"schedulingIntervalSecond"`
+	KubeConfig               string             `json:"absoluteKubeConfigFilePath"`
+	VolumeBindTimeout        time.Duration      `json:"volumeBindTimeout"`
+	EventChannelCapacity     int                `json:"eventChannelCapacity"`
+	DispatchTimeout          time.Duration      `json:"dispatchTimeout"`
+	KubeQPS                  int                `json:"kubeQPS"`
+	KubeBurst                int                `json:"kubeBurst"`
+	EnableConfigHotRefresh   bool               `json:"enableConfigHotRefresh"`
+	DisableGangScheduling    bool               `json:"disableGangScheduling"`
+	UserLabelKey             string             `json:"userLabelKey"`
+	PlaceHolderConfig        *PlaceHolderConfig `json:"placeHolderConfig"`
+	InstanceTypeNodeLabelKey string             `json:"instanceTypeNodeLabelKey"`
+	Namespace                string             `json:"namespace"`
+	GenerateUniqueAppIds     bool               `json:"generateUniqueAppIds"`
 
 	locking.RWMutex
+}
+
+type PlaceHolderConfig struct {
+	Image      string `json:"image"`
+	RunAsUser  int64  `json:"runAsUser,omitempty"`
+	RunAsGroup int64  `json:"runAsGroup,omitempty"`
+	FSGroup    int64  `json:"fsGroup,omitempty"`
 }
 
 func (conf *SchedulerConf) Clone() *SchedulerConf {
@@ -151,7 +161,7 @@ func (conf *SchedulerConf) Clone() *SchedulerConf {
 		EnableConfigHotRefresh:   conf.EnableConfigHotRefresh,
 		DisableGangScheduling:    conf.DisableGangScheduling,
 		UserLabelKey:             conf.UserLabelKey,
-		PlaceHolderImage:         conf.PlaceHolderImage,
+		PlaceHolderConfig:        conf.PlaceHolderConfig,
 		InstanceTypeNodeLabelKey: conf.InstanceTypeNodeLabelKey,
 		Namespace:                conf.Namespace,
 		GenerateUniqueAppIds:     conf.GenerateUniqueAppIds,
@@ -209,9 +219,12 @@ func handleNonReloadableConfig(old *SchedulerConf, new *SchedulerConf) {
 	checkNonReloadableInt(CMKubeQPS, &old.KubeQPS, &new.KubeQPS)
 	checkNonReloadableInt(CMKubeBurst, &old.KubeBurst, &new.KubeBurst)
 	checkNonReloadableBool(CMSvcDisableGangScheduling, &old.DisableGangScheduling, &new.DisableGangScheduling)
-	checkNonReloadableString(CMSvcPlaceholderImage, &old.PlaceHolderImage, &new.PlaceHolderImage)
 	checkNonReloadableString(CMSvcNodeInstanceTypeNodeLabelKey, &old.InstanceTypeNodeLabelKey, &new.InstanceTypeNodeLabelKey)
 	checkNonReloadableBool(AMFilteringGenerateUniqueAppIds, &old.GenerateUniqueAppIds, &new.GenerateUniqueAppIds)
+	checkNonReloadableInt64(CMSvcPlaceholderRunAsUser, &old.PlaceHolderConfig.RunAsUser, &new.PlaceHolderConfig.RunAsUser)
+	checkNonReloadableInt64(CMSvcPlaceholderRunAsGroup, &old.PlaceHolderConfig.RunAsGroup, &new.PlaceHolderConfig.RunAsGroup)
+	checkNonReloadableInt64(CMSvcPlaceholderFSGroup, &old.PlaceHolderConfig.FSGroup, &new.PlaceHolderConfig.FSGroup)
+	checkNonReloadableString(CMSvcPlaceholderImage, &old.PlaceHolderConfig.Image, &new.PlaceHolderConfig.Image)
 }
 
 const warningNonReloadable = "ignoring non-reloadable configuration change (restart required to update)"
@@ -233,6 +246,13 @@ func checkNonReloadableDuration(name string, old *time.Duration, new *time.Durat
 func checkNonReloadableInt(name string, old *int, new *int) {
 	if *old != *new {
 		log.Log(log.ShimConfig).Warn(warningNonReloadable, zap.String("config", name), zap.Int("existing", *old), zap.Int("new", *new))
+		*new = *old
+	}
+}
+
+func checkNonReloadableInt64(name string, old *int64, new *int64) {
+	if *old != *new {
+		log.Log(log.ShimConfig).Warn(warningNonReloadable, zap.String("config", name), zap.Int64("existing", *old), zap.Int64("new", *new))
 		*new = *old
 	}
 }
@@ -314,9 +334,11 @@ func CreateDefaultConfig() *SchedulerConf {
 		EnableConfigHotRefresh:   DefaultEnableConfigHotRefresh,
 		DisableGangScheduling:    DefaultDisableGangScheduling,
 		UserLabelKey:             constants.DefaultUserLabel,
-		PlaceHolderImage:         constants.PlaceholderContainerImage,
 		InstanceTypeNodeLabelKey: constants.DefaultNodeInstanceTypeNodeLabelKey,
 		GenerateUniqueAppIds:     DefaultAMFilteringGenerateUniqueAppIds,
+		PlaceHolderConfig: &PlaceHolderConfig{
+			Image: constants.PlaceholderContainerImage,
+		},
 	}
 }
 
@@ -339,7 +361,11 @@ func parseConfig(config map[string]string, prev *SchedulerConf) (*SchedulerConf,
 	parser.durationVar(&conf.DispatchTimeout, CMSvcDispatchTimeout)
 	parser.boolVar(&conf.DisableGangScheduling, CMSvcDisableGangScheduling)
 	parser.boolVar(&conf.EnableConfigHotRefresh, CMSvcEnableConfigHotRefresh)
-	parser.stringVar(&conf.PlaceHolderImage, CMSvcPlaceholderImage)
+	parser.stringVar(&conf.PlaceHolderConfig.Image, CMSvcPlaceholderImage)
+	parser.int64Var(&conf.PlaceHolderConfig.RunAsUser, CMSvcPlaceholderRunAsUser)
+	parser.int64Var(&conf.PlaceHolderConfig.RunAsGroup, CMSvcPlaceholderRunAsGroup)
+	parser.int64Var(&conf.PlaceHolderConfig.FSGroup, CMSvcPlaceholderFSGroup)
+
 	parser.stringVar(&conf.InstanceTypeNodeLabelKey, CMSvcNodeInstanceTypeNodeLabelKey)
 
 	// kubernetes
@@ -375,8 +401,8 @@ func (cp *configParser) stringVar(p *string, name string) {
 
 func (cp *configParser) intVar(p *int, name string) {
 	if newValue, ok := cp.config[name]; ok {
-		int64Value, err := strconv.ParseInt(newValue, 10, 32)
-		intValue := int(int64Value)
+		int32Value, err := strconv.ParseInt(newValue, 10, 32)
+		intValue := int(int32Value)
 		if err != nil {
 			log.Log(log.ShimConfig).Error("Unable to parse configmap entry", zap.String("key", name), zap.String("value", newValue), zap.Error(err))
 			cp.errors = append(cp.errors, err)
@@ -407,6 +433,18 @@ func (cp *configParser) durationVar(p *time.Duration, name string) {
 			return
 		}
 		*p = durationValue
+	}
+}
+
+func (cp *configParser) int64Var(p *int64, name string) {
+	if newValue, ok := cp.config[name]; ok {
+		int64Value, err := strconv.ParseInt(newValue, 10, 64)
+		if err != nil {
+			log.Log(log.ShimConfig).Error("Unable to parse configmap entry", zap.String("key", name), zap.String("value", newValue), zap.Error(err))
+			cp.errors = append(cp.errors, err)
+			return
+		}
+		*p = int64Value
 	}
 }
 

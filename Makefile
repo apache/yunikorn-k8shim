@@ -318,6 +318,12 @@ $(GINKGO_BIN):
 	@mkdir -p "$(GINKGO_PATH)"
 	@GOBIN="$(BASE_DIR)/$(GINKGO_PATH)" "$(GO)" install "github.com/onsi/ginkgo/v2/ginkgo@$(GINKGO_VERSION)"
 
+# Format the code
+.PHONY: format
+format:
+	@echo "running go fmt"
+	@"$(GO)" fmt ./...
+
 # Run lint against the previous commit for PR and branch build
 # In dev setup look at all changes on top of master
 .PHONY: lint
