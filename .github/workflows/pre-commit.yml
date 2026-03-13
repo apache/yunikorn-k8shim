@@ -19,9 +19,10 @@ jobs:
         with:
           fetch-depth: 2
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: .go_version
+          check-latest: true
       - name: Check license
         run: make license-check
       - name: Go lint
@@ -33,7 +34,7 @@ jobs:
       - name: Unit tests
         run: make test
       - name: Code coverage
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           files: build/coverage.txt
           # After codecov/codecov-action@v4, tokenless uploading of coverage files to non-public repo is unsupported.
@@ -61,9 +62,10 @@ jobs:
         with:
           fetch-depth: 2
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: .go_version
+          check-latest: true
       - name: Set hugepage
         run: |
           echo "vm.nr_hugepages = 1024" | sudo tee -a /etc/sysctl.conf
@@ -71,7 +73,7 @@ jobs:
           sudo sysctl -a | grep vm.nr_hugepages
       - name: Cache and Restore e2e required tools
         id: cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             tools
@@ -82,7 +84,7 @@ jobs:
         env:
           KIND_NODE_IMAGE: ${{ matrix.k8s }}
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: ${{ failure() }}
         with:
           name: ${{ github.job }} stdout (${{ matrix.k8s }})
