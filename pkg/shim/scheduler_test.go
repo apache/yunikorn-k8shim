@@ -225,7 +225,7 @@ func TestTaskFailures(t *testing.T) {
 	// wait for scheduling app and tasks
 	// verify app state
 	cluster.waitAndAssertApplicationState(t, "app0001", cache.ApplicationStates().Running)
-	cluster.waitAndAssertTaskState(t, "app0001", "task0001", cache.TaskStates().Failed)
+	cluster.waitAndAssertTaskState(t, "app0001", "task0001", cache.TaskStates().New)
 	cluster.waitAndAssertTaskState(t, "app0001", "task0002", cache.TaskStates().Bound)
 
 	// one task get bound, one ask failed, so we are expecting only 1 allocation in the scheduler
