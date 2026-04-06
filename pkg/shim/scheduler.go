@@ -73,15 +73,19 @@ func NewShimScheduler(scheduler api.SchedulerAPI, configs *conf.SchedulerConf, b
 	context := cache.NewContextWithBootstrapConfigMaps(apiFactory, bootstrapConfigMaps)
 	rmCallback := cache.NewAsyncRMCallback(context)
 
-	eventBroadcaster := k8events.NewBroadcaster(&k8events.EventSinkImpl{
-		Interface: kubeClient.GetClientSet().EventsV1()})
-	err := eventBroadcaster.StartRecordingToSinkWithContext(ctx.Background())
-	if err != nil {
-		log.Log(log.Shim).Error("Could not create event broadcaster",
-			zap.Error(err))
+	if configs.DisableKubernetesEvents {
+		events.UseMockedRecorder()
 	} else {
-		eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme, constants.SchedulerName)
-		events.SetRecorder(eventRecorder)
+		eventBroadcaster := k8events.NewBroadcaster(&k8events.EventSinkImpl{
+			Interface: kubeClient.GetClientSet().EventsV1()})
+		err := eventBroadcaster.StartRecordingToSinkWithContext(ctx.Background())
+		if err != nil {
+			log.Log(log.Shim).Error("Could not create event broadcaster",
+				zap.Error(err))
+		} else {
+			eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme, constants.SchedulerName)
+			events.SetRecorder(eventRecorder)
+		}
 	}
 
 	return newShimSchedulerInternal(context, apiFactory, rmCallback)

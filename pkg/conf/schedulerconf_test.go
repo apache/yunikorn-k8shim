@@ -74,6 +74,7 @@ func assertDefaults(t *testing.T, conf *SchedulerConf) {
 	assert.Equal(t, conf.DispatchTimeout, DefaultDispatchTimeout)
 	assert.Equal(t, conf.KubeQPS, DefaultKubeQPS)
 	assert.Equal(t, conf.KubeBurst, DefaultKubeBurst)
+	assert.Equal(t, conf.DisableKubernetesEvents, DefaultDisableKubernetesEvents)
 	assert.Equal(t, conf.UserLabelKey, constants.DefaultUserLabel)
 }
 
@@ -138,6 +139,7 @@ func TestParseConfigMap(t *testing.T) {
 		{CMSvcEventChannelCapacity, "EventChannelCapacity", 1234},
 		{CMSvcDispatchTimeout, "DispatchTimeout", 3 * time.Minute},
 		{CMSvcDisableGangScheduling, "DisableGangScheduling", true},
+		{CMSvcDisableKubernetesEvents, "DisableKubernetesEvents", true},
 		{CMSvcEnableConfigHotRefresh, "EnableConfigHotRefresh", false},
 		{CMSvcPlaceholderImage, "PlaceHolderConfig.Image", "test-image"},
 		{CMSvcPlaceholderRunAsUser, "PlaceHolderConfig.RunAsUser", int64(1001)},
@@ -173,6 +175,7 @@ func TestUpdateConfigMapNonReloadable(t *testing.T) {
 		{CMSvcEventChannelCapacity, "EventChannelCapacity", 1234, false},
 		{CMSvcDispatchTimeout, "DispatchTimeout", 3 * time.Minute, false},
 		{CMSvcDisableGangScheduling, "DisableGangScheduling", true, false},
+		{CMSvcDisableKubernetesEvents, "DisableKubernetesEvents", true, false},
 		{CMSvcNodeInstanceTypeNodeLabelKey, "InstanceTypeNodeLabelKey", "node.kubernetes.io/instance-type", false},
 		{CMSvcPlaceholderImage, "PlaceHolderConfig.Image", "test-image", false},
 		{CMSvcPlaceholderRunAsUser, "PlaceHolderConfig.RunAsUser", int64(1001), false},
