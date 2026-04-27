@@ -35,7 +35,6 @@ type YuniKornTestConfigType struct {
 	YkPort      string
 	YkScheme    string
 	LogDir      string
-	Plugin      bool
 }
 
 // YuniKornTestConfig holds the global configuration of commandline flags
