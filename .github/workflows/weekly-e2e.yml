@@ -48,7 +48,7 @@ jobs:
           key: ${{ runner.os }}-e2e-${{ hashFiles('Makefile') }}
           restore-keys: |
             ${{ runner.os }}-e2e-
-      - run: ./scripts/run-e2e-tests.sh -a "test" -n "yk8s" -v "kindest/node:${KIND_NODE_IMAGE}" ${KIND_EXTRA_ARGS}
+      - run: ./scripts/run-e2e-tests.sh -a "test" -n "yk8s" -v "kindest/node:${KIND_NODE_IMAGE}"
         env:
           KIND_NODE_IMAGE: ${{ matrix.k8s }}
       - name: Upload artifacts
