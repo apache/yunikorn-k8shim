@@ -219,9 +219,11 @@ func (ctx *Context) updateNodeInternal(node *v1.Node, register bool) {
 			}
 		}
 
-		// if node was registered in-line, enable it in the core
-		if err := ctx.enableNode(node); err != nil {
-			log.Log(log.ShimContext).Warn("Failed to enable node", zap.Error(err))
+		// if node is not cordoned, enable it in the core
+		if !node.Spec.Unschedulable {
+			if err := ctx.enableNode(node); err != nil {
+				log.Log(log.ShimContext).Warn("Failed to enable node", zap.Error(err))
+			}
 		}
 	} else {
 		// existing node
@@ -236,7 +238,22 @@ func (ctx *Context) updateNodeInternal(node *v1.Node, register bool) {
 				log.Log(log.ShimContext).Warn("Failed to update cached node capacity", zap.String("nodeName", node.Name))
 			}
 		}
+		if err := ctx.updateNodeSchedulability(prevNode, node); err != nil {
+			log.Log(log.ShimContext).Warn("Failed to update node schedulability", zap.Error(err))
+		}
 	}
+}
+
+func (ctx *Context) updateNodeSchedulability(prevNode, node *v1.Node) error {
+	if prevNode.Spec.Unschedulable == node.Spec.Unschedulable {
+		return nil
+	}
+	action := si.NodeInfo_DRAIN_TO_SCHEDULABLE
+	if node.Spec.Unschedulable {
+		action = si.NodeInfo_DRAIN_NODE
+	}
+	request := common.CreateUpdateRequestForDeleteOrRestoreNode(node.Name, action)
+	return ctx.apiProvider.GetAPIs().SchedulerAPI.UpdateNode(request)
 }
 
 func (ctx *Context) deleteNode(obj interface{}) {
@@ -1405,7 +1422,7 @@ func (ctx *Context) InitializeState() error {
 
 	// Step 4: Enable nodes. At this point all allocations and asks have been processed, so it is safe to allow the
 	// core to begin scheduling.
-	err = ctx.enableNodes(acceptedNodes)
+	err = ctx.enableNodes(filterSchedulableNodes(acceptedNodes))
 	if err != nil {
 		log.Log(log.ShimContext).Error("failed to enable nodes", zap.Error(err))
 		return err
@@ -1644,6 +1661,16 @@ func (ctx *Context) enableNodes(nodes []*v1.Node) error {
 		return err
 	}
 	return nil
+}
+
+func filterSchedulableNodes(nodes []*v1.Node) []*v1.Node {
+	schedulableNodes := make([]*v1.Node, 0, len(nodes))
+	for _, node := range nodes {
+		if node != nil && !node.Spec.Unschedulable {
+			schedulableNodes = append(schedulableNodes, node)
+		}
+	}
+	return schedulableNodes
 }
 
 func (ctx *Context) finalizeNodes(existingNodes []*v1.Node) error {
