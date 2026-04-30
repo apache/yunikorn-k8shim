@@ -27,8 +27,7 @@ import (
 var eventRecorder atomic.Pointer[events.EventRecorder]
 
 func init() {
-	r := events.EventRecorder(NewMockedRecorder())
-	eventRecorder.Store(&r)
+	UseMockedRecorder()
 }
 
 func GetRecorder() events.EventRecorder {
@@ -37,4 +36,16 @@ func GetRecorder() events.EventRecorder {
 
 func SetRecorder(recorder events.EventRecorder) {
 	eventRecorder.Store(&recorder)
+}
+
+func UseMockedRecorder() {
+	SetRecorder(NewMockedRecorder())
+}
+
+func ConfigureRecorder(recorder events.EventRecorder, disabled bool) {
+	if disabled {
+		UseMockedRecorder()
+		return
+	}
+	SetRecorder(recorder)
 }

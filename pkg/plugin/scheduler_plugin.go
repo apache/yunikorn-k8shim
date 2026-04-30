@@ -302,7 +302,7 @@ func NewSchedulerPlugin(_ context.Context, _ runtime.Object, handle framework.Ha
 	p := &YuniKornSchedulerPlugin{
 		context: context,
 	}
-	events.SetRecorder(handle.EventRecorder())
+	events.ConfigureRecorder(handle.EventRecorder(), conf.GetSchedulerConf().DisableKubernetesEvents)
 	return p, nil
 }
 
