@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-a
+  labels:
+    app: app-a
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: app-a
+  template:
+    metadata:
+      labels:
+        app: app-a
+        applicationId: "app-a-01"
+        queue: "root.parent.queue-a"
+      annotations:
+        yunikorn.apache.org/queue: "root.parent.queue-a"
+    spec:
+      terminationGracePeriodSeconds: 1
+      schedulerName: yunikorn
+      containers:
+        - name: sleep-container
+          image: registry.k8s.io/pause:3.7
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "100Mi"
+            limits:
+              cpu: "100m"
+              memory: "100Mi"
