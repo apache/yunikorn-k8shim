@@ -18,10 +18,12 @@
 package quota_preemption_test
 
 import (
+	"path/filepath"
 	"runtime"
 	"testing"
 
 	"github.com/onsi/ginkgo/v2"
+	"github.com/onsi/ginkgo/v2/reporters"
 	"github.com/onsi/gomega"
 
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
@@ -36,13 +38,19 @@ func init() {
 
 func TestQuotaPreemption(t *testing.T) {
 	ginkgo.ReportAfterSuite("TestQuotaPreemption", func(report ginkgo.Report) {
-
+		err := reporters.GenerateJUnitReportWithConfig(
+			report,
+			filepath.Join(configmanager.YuniKornTestConfig.LogDir, "TEST-quotapreemption_junit.xml"),
+			reporters.JunitReportConfig{OmitSpecLabels: true},
+		)
+		Ω(err).NotTo(HaveOccurred())
 	})
 	gomega.RegisterFailHandler(ginkgo.Fail)
 	ginkgo.RunSpecs(t, "TestQuotaPreemption", ginkgo.Label("TestQuotaPreemption"))
 }
 
 var Ω = gomega.Ω
+var HaveOccurred = gomega.HaveOccurred
 
 var _ = ginkgo.BeforeSuite(func() {
 	_, filename, _, _ := runtime.Caller(0)
@@ -59,7 +67,6 @@ var _ = ginkgo.BeforeSuite(func() {
 	ginkgo.By("Port-forward the scheduler pod")
 	var err = kClient.PortForwardYkSchedulerPod()
 	Ω(err).NotTo(gomega.HaveOccurred())
-
 })
 
 var _ = ginkgo.AfterSuite(func() {

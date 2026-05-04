@@ -19,6 +19,7 @@ metadata:
   name: yunikorn-configs
   namespace: yunikorn
 data:
+  log.level: DEBUG
   queues.yaml: |
     partitions:
       - name: default
@@ -36,8 +37,8 @@ data:
               - name: parent
                 resources:
                   max:
-                    memory: 400Mi
-                    vcore: 400m
+                    memory: 300Mi
+                    vcore: 300m
                 queues:
                   - name: queue-a
                     resources:
@@ -45,16 +46,8 @@ data:
                         memory: 200Mi
                         vcore: 200m
                       max:
-                        memory: 400Mi
-                        vcore: 400m
+                        memory: 300Mi
+                        vcore: 300m
                     properties:
                       # Quota preemption in a queue requires delay to be set
-                      quota.preemption.delay: 10s
-                  - name: queue-b # No quota preemption for queue-b as delay is not set
-                    resources:
-                      guaranteed:
-                        memory: 200Mi
-                        vcore: 200m
-                      max:
-                        memory: 400Mi
-                        vcore: 400m
+                      quota.preemption.delay: 2s

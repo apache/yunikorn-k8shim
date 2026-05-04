@@ -795,6 +795,18 @@ func GetPodObj(yamlPath string) (*v1.Pod, error) {
 	return pod, nil
 }
 
+func GetDeploymentObj(yamlPath string) (*appsv1.Deployment, error) {
+	o, err := common.Yaml2Obj(yamlPath)
+	if err != nil {
+		return nil, err
+	}
+	deployment, ok := o.(*appsv1.Deployment)
+	if !ok {
+		return nil, fmt.Errorf("failed to convert object to Deployment")
+	}
+	return deployment, nil
+}
+
 func (k *KubeCtl) CreateDeployment(deployment *appsv1.Deployment, namespace string) (*appsv1.Deployment, error) {
 	return k.clientSet.AppsV1().Deployments(namespace).Create(context.TODO(), deployment, metav1.CreateOptions{})
 }
