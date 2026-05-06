@@ -352,50 +352,34 @@ func (task *Task) postTaskAllocated() {
 		task.lock.Lock()
 		defer task.lock.Unlock()
 
-		// plugin mode means we delegate this work to the default scheduler
-		if utils.IsPluginMode() {
-			log.Log(log.ShimCacheTask).Debug("allocating pod",
-				zap.String("podName", task.pod.Name),
-				zap.String("podUID", string(task.pod.UID)))
+		// post a message to indicate the pod gets its allocation
+		events.GetRecorder().Eventf(task.pod.DeepCopy(),
+			nil, v1.EventTypeNormal, "Scheduled", "Scheduled",
+			"Successfully assigned %s to node %s", task.alias, task.nodeName)
 
-			task.context.AddPendingPodAllocation(string(task.pod.UID), task.nodeName)
-
-			dispatcher.Dispatch(NewBindTaskEvent(task.applicationID, task.taskID))
-			events.GetRecorder().Eventf(task.pod.DeepCopy(),
-				nil, v1.EventTypeNormal, "Pending", "Pending",
-				"Pod %s is ready for scheduling on node %s", task.alias, task.nodeName)
-		} else {
-			// post a message to indicate the pod gets its allocation
-			events.GetRecorder().Eventf(task.pod.DeepCopy(),
-				nil, v1.EventTypeNormal, "Scheduled", "Scheduled",
-				"Successfully assigned %s to node %s", task.alias, task.nodeName)
-
-			// before binding pod to node, first bind volumes to pod
-			log.Log(log.ShimCacheTask).Debug("bind pod volumes",
-				zap.String("podName", task.pod.Name),
-				zap.String("podUID", string(task.pod.UID)))
-			if err := task.context.bindPodVolumes(task.pod); err != nil {
-				log.Log(log.ShimCacheTask).Error("bind volumes to pod failed", zap.String("taskID", task.taskID), zap.Error(err))
-				task.failWithEvent(fmt.Sprintf("bind volumes to pod failed, name: %s, %s", task.alias, err.Error()), "PodVolumesBindFailure")
-				return
-			}
-
-			log.Log(log.ShimCacheTask).Debug("bind pod",
-				zap.String("podName", task.pod.Name),
-				zap.String("podUID", string(task.pod.UID)))
-
-			if err := task.context.apiProvider.GetAPIs().KubeClient.Bind(task.pod, task.nodeName); err != nil {
-				log.Log(log.ShimCacheTask).Error("bind pod to node failed", zap.String("taskID", task.taskID), zap.Error(err))
-				task.failWithEvent(fmt.Sprintf("bind pod to node failed, name: %s, %s", task.alias, err.Error()), "PodBindFailure")
-				return
-			}
-
-			log.Log(log.ShimCacheTask).Info("successfully bound pod", zap.String("podName", task.pod.Name))
-			dispatcher.Dispatch(NewBindTaskEvent(task.applicationID, task.taskID))
-			events.GetRecorder().Eventf(task.pod.DeepCopy(), nil,
-				v1.EventTypeNormal, "PodBindSuccessful", "PodBindSuccessful",
-				"Pod %s is successfully bound to node %s", task.alias, task.nodeName)
+		// before binding pod to node, first bind volumes to pod
+		log.Log(log.ShimCacheTask).Debug("bind pod volumes",
+			zap.String("podName", task.pod.Name),
+			zap.String("podUID", string(task.pod.UID)))
+		if err := task.context.bindPodVolumes(task.pod); err != nil {
+			log.Log(log.ShimCacheTask).Error("bind volumes to pod failed", zap.String("taskID", task.taskID), zap.Error(err))
+			task.failWithEvent(fmt.Sprintf("bind volumes to pod failed, name: %s, %s", task.alias, err.Error()), "PodVolumesBindFailure")
+			return
 		}
+		log.Log(log.ShimCacheTask).Debug("bind pod",
+			zap.String("podName", task.pod.Name),
+			zap.String("podUID", string(task.pod.UID)))
+
+		if err := task.context.apiProvider.GetAPIs().KubeClient.Bind(task.pod, task.nodeName); err != nil {
+			log.Log(log.ShimCacheTask).Error("bind pod to node failed", zap.String("taskID", task.taskID), zap.Error(err))
+			task.failWithEvent(fmt.Sprintf("bind pod to node failed, name: %s, %s", task.alias, err.Error()), "PodBindFailure")
+			return
+		}
+		log.Log(log.ShimCacheTask).Info("successfully bound pod", zap.String("podName", task.pod.Name))
+		dispatcher.Dispatch(NewBindTaskEvent(task.applicationID, task.taskID))
+		events.GetRecorder().Eventf(task.pod.DeepCopy(), nil,
+			v1.EventTypeNormal, "PodBindSuccessful", "PodBindSuccessful",
+			"Pod %s is successfully bound to node %s", task.alias, task.nodeName)
 
 		task.schedulingState = TaskSchedAllocated
 	}()
@@ -425,13 +409,6 @@ func (task *Task) beforeTaskAllocated(eventSrc string, allocationKey string, nod
 }
 
 func (task *Task) postTaskBound() {
-	if utils.IsPluginMode() {
-		// When the pod is actively scheduled by YuniKorn, it can be  moved to the default-scheduler's
-		// UnschedulablePods structure. If the pod does not change, the pod will stay in the UnschedulablePods
-		// structure for podMaxInUnschedulablePodsDuration (default 5 minutes). Here we explicitly activate the pod.
-		task.context.ActivatePod(task.pod)
-	}
-
 	if task.placeholder {
 		log.Log(log.ShimCacheTask).Info("placeholder is bound",
 			zap.String("appID", task.applicationID),
