@@ -74,7 +74,6 @@ type Context struct {
 	lock           *locking.RWMutex               // lock - used not only for context data but also to ensure that multiple event types are not executed concurrently
 	txnID          atomic.Uint64                  // transaction ID counter
 	klogger        klog.Logger
-	podActivator   atomic.Value
 }
 
 // NewContext create a new context for the scheduler using a default (empty) configuration
