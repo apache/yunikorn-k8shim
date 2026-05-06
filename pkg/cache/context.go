@@ -69,7 +69,6 @@ type Context struct {
 	schedulerCache *schedulercache.SchedulerCache // external cache
 	apiProvider    client.APIProvider             // apis to interact with api-server, scheduler-core, etc
 	predManager    predicates.PredicateManager    // K8s predicates
-	pluginMode     bool                           // true if we are configured as a scheduler plugin
 	namespace      string                         // yunikorn namespace
 	configMaps     []*v1.ConfigMap                // cached yunikorn configmaps
 	lock           *locking.RWMutex               // lock - used not only for context data but also to ensure that multiple event types are not executed concurrently
@@ -110,18 +109,6 @@ func NewContextWithBootstrapConfigMaps(apis client.APIProvider, bootstrapConfigM
 	ctx.predManager = predicates.NewPredicateManager(support.NewFrameworkHandle(sharedLister, informerFactory, clientSet))
 
 	return ctx
-}
-
-// SetPodActivator is used by the plugin mode to add a callback function to reschedule a pod
-func (ctx *Context) SetPodActivator(podActivator func(logger klog.Logger, pod *v1.Pod)) {
-	ctx.podActivator.Store(podActivator)
-}
-
-// ActivatePod is used to tell Kubernetes to re-schedule a pod when using plugin mode
-func (ctx *Context) ActivatePod(pod *v1.Pod) {
-	if activator, ok := ctx.podActivator.Load().(func(logger klog.Logger, pod *v1.Pod)); ok && activator != nil {
-		activator(ctx.klogger, pod)
-	}
 }
 
 func (ctx *Context) AddSchedulingEventHandlers() error {
@@ -168,10 +155,6 @@ func (ctx *Context) AddSchedulingEventHandlers() error {
 	}
 
 	return nil
-}
-
-func (ctx *Context) IsPluginMode() bool {
-	return ctx.pluginMode
 }
 
 func (ctx *Context) addNode(obj interface{}) {
@@ -888,28 +871,6 @@ func (ctx *Context) ForgetPod(name string) {
 // cached from a set of taskIDs to perform efficient negative lookups.
 func (ctx *Context) IsTaskMaybeSchedulable(taskID string) bool {
 	return ctx.schedulerCache.IsTaskMaybeSchedulable(taskID)
-}
-
-func (ctx *Context) AddPendingPodAllocation(podKey string, nodeID string) {
-	ctx.schedulerCache.AddPendingPodAllocation(podKey, nodeID)
-}
-
-func (ctx *Context) RemovePodAllocation(podKey string) {
-	ctx.schedulerCache.RemovePodAllocation(podKey)
-}
-
-func (ctx *Context) GetPendingPodAllocation(podKey string) (nodeID string, ok bool) {
-	nodeID, ok = ctx.schedulerCache.GetPendingPodAllocation(podKey)
-	return nodeID, ok
-}
-
-func (ctx *Context) GetInProgressPodAllocation(podKey string) (nodeID string, ok bool) {
-	nodeID, ok = ctx.schedulerCache.GetInProgressPodAllocation(podKey)
-	return nodeID, ok
-}
-
-func (ctx *Context) StartPodAllocation(podKey string, nodeID string) bool {
-	return ctx.schedulerCache.StartPodAllocation(podKey, nodeID)
 }
 
 func (ctx *Context) notifyTaskComplete(app *Application, taskID string) {

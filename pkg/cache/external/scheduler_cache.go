@@ -309,65 +309,6 @@ func (cache *SchedulerCache) IsTaskMaybeSchedulable(taskID string) bool {
 	return cache.taskBloomFilterRef.Load().isTaskMaybePresent(taskID)
 }
 
-// AddPendingPodAllocation is used to add a new pod -> node mapping to the cache when running in scheduler plugin mode.
-// This function is called (in plugin mode) after a task is allocated by the YuniKorn scheduler.
-func (cache *SchedulerCache) AddPendingPodAllocation(podKey string, nodeID string) {
-	cache.lock.Lock()
-	defer cache.lock.Unlock()
-	cache.dumpState("AddPendingPodAllocation.Pre")
-	defer cache.dumpState("AddPendingPodAllocation.Post")
-	delete(cache.inProgressAllocations, podKey)
-	cache.pendingAllocations[podKey] = nodeID
-}
-
-// RemovePodAllocation is used to remove a pod -> node mapping from the cache when running in scheduler plugin
-// mode. It removes both pending and in-progress allocations. This function is called (via cache) from the scheduler
-// plugin in PreFilter() if a previous allocation was found, and in PostBind() to cleanup the allocation since it is no
-// longer relevant.
-func (cache *SchedulerCache) RemovePodAllocation(podKey string) {
-	cache.lock.Lock()
-	defer cache.lock.Unlock()
-	cache.dumpState("RemovePendingPodAllocation.Pre")
-	defer cache.dumpState("RemovePendingPodAllocation.Post")
-	delete(cache.pendingAllocations, podKey)
-	delete(cache.inProgressAllocations, podKey)
-}
-
-// GetPendingPodAllocation is used in scheduler plugin mode to retrieve a pending pod allocation. A pending
-// allocation is one which has been decided upon by YuniKorn but has not yet been communicated to the default scheduler.
-func (cache *SchedulerCache) GetPendingPodAllocation(podKey string) (nodeID string, ok bool) {
-	cache.lock.RLock()
-	defer cache.lock.RUnlock()
-	res, ok := cache.pendingAllocations[podKey]
-	return res, ok
-}
-
-// GetInProgressPodAllocation is used in scheduler plugin mode to retrieve an in-progress pod allocation. An in-progress
-// allocation is one which has been communicated to the default scheduler, but has not yet been bound.
-func (cache *SchedulerCache) GetInProgressPodAllocation(podKey string) (nodeID string, ok bool) {
-	cache.lock.RLock()
-	defer cache.lock.RUnlock()
-	res, ok := cache.inProgressAllocations[podKey]
-	return res, ok
-}
-
-// StartPodAllocation is used in scheduler plugin mode to transition a pod allocation from pending to in-progress. If
-// the given pod has a pending allocation on the given node, the allocation is marked as in-progress and this function
-// returns true. If the pod is not pending or is pending on another node, this function does nothing and returns false.
-func (cache *SchedulerCache) StartPodAllocation(podKey string, nodeID string) bool {
-	cache.lock.Lock()
-	defer cache.lock.Unlock()
-	cache.dumpState("StartPendingPodAllocation.Pre")
-	defer cache.dumpState("StartPendingPodAllocation.Post")
-	expectedNodeID, ok := cache.pendingAllocations[podKey]
-	if ok && expectedNodeID == nodeID {
-		delete(cache.pendingAllocations, podKey)
-		cache.inProgressAllocations[podKey] = nodeID
-		return true
-	}
-	return false
-}
-
 // IsAssumedPod returns if pod is assumed in cache, avoid nil
 func (cache *SchedulerCache) IsAssumedPod(podKey string) bool {
 	cache.lock.RLock()
