@@ -87,14 +87,6 @@ func NewShimScheduler(scheduler api.SchedulerAPI, configs *conf.SchedulerConf, b
 	return newShimSchedulerInternal(context, apiFactory, rmCallback)
 }
 
-func NewShimSchedulerForPlugin(scheduler api.SchedulerAPI, informerFactory informers.SharedInformerFactory, configs *conf.SchedulerConf, bootstrapConfigMaps []*v1.ConfigMap) *KubernetesShim {
-	apiFactory := client.NewAPIFactory(scheduler, informerFactory, configs, false)
-	context := cache.NewContextWithBootstrapConfigMaps(apiFactory, bootstrapConfigMaps)
-	utils.SetPluginMode(true)
-	rmCallback := cache.NewAsyncRMCallback(context)
-	return newShimSchedulerInternal(context, apiFactory, rmCallback)
-}
-
 // this is visible for testing
 func newShimSchedulerInternal(ctx *cache.Context, apiFactory client.APIProvider, cb api.ResourceManagerCallback) *KubernetesShim {
 	ss := &KubernetesShim{
