@@ -4,6 +4,7 @@ metadata:
   name: app-a
   labels:
     app: app-a
+#  namespace: default
 spec:
   replicas: 3
   selector:

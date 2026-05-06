@@ -40,11 +40,10 @@ data:
                   - name: queue-a
                     resources:
                       guaranteed:
-                        memory: 100Mi
-                        vcore: 100m
-                      max:
                         memory: 200Mi
                         vcore: 200m
+                      max:
+                        memory: 300Mi
+                        vcore: 300m
                     properties:
-                      # Quota preemption in a queue requires delay to be set
-                      quota.preemption.delay: 1s
+                      quota.preemption.delay: 0

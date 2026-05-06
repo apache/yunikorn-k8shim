@@ -46,5 +46,4 @@ data:
                         memory: 200Mi
                         vcore: 200m
                     properties:
-                      # Quota preemption in a queue requires delay to be set
-                      quota.preemption.delay: 1s
+                      quota.preemption.delay: 0s

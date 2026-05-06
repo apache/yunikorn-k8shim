@@ -23,9 +23,6 @@ data:
   queues.yaml: |
     partitions:
       - name: default
-        placementrules:
-          - name: provided
-            create: true
         preemption:
           enabled: true
           # Enabling quota preemption

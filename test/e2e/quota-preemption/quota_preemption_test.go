@@ -55,7 +55,9 @@ var _ = ginkgo.Describe("QuotaPreemption", func() {
 		Ω(oldConfigMap).NotTo(gomega.BeNil())
 	})
 
-	ginkgo.It("Basic_Quota_Preemption", func() {
+
+	ginkgo.It("Check_Basic_Quota_Preemption", func() {
+		ginkgo.By("Quota preemption should be triggered when quota is reduced and delay is set.")
 		configMap, err := k8s.GetConfigMapObj("../testdata/quota-preemption/configs/yunikorn-configs-quota-preemption-enabled.yaml")
 		Ω(err).NotTo(gomega.HaveOccurred())
 		Ω(configMap).NotTo(gomega.BeNil())
@@ -66,17 +68,16 @@ var _ = ginkgo.Describe("QuotaPreemption", func() {
 		deployment1, err := k8s.GetDeploymentObj("../testdata/quota-preemption/deployments/deployment1.yaml")
 		Ω(err).NotTo(gomega.HaveOccurred())
 		Ω(deployment1).NotTo(gomega.BeNil())
-		ginkgo.By("Creating deployment1 in namespace " + dev)
+		ginkgo.By("Creating deployment in namespace " + dev)
 		_, err = kClient.CreateDeployment(deployment1, dev)
 		Ω(err).NotTo(gomega.HaveOccurred())
 
-		pods, err := kClient.ListPodsByLabelSelector(dev, "queue=root.parent.queue-a")
+		ginkgo.By("Waiting for all deployment pods to be running")
+		err = kClient.WaitForPodCount(dev, 3, 5*time.Second)
 		Ω(err).NotTo(gomega.HaveOccurred())
-		for _, pod := range pods.Items {
-			if pod.Status.Phase != v1.PodRunning {
-				ginkgo.Fail(fmt.Sprintf("Expected pod %s to be in running state, but got %s", pod.Name, pod.Status.Phase))
-			}
-		}
+		err = kClient.WaitForPodBySelectorRunning(dev, "app=app-a", 5)
+		Ω(err).NotTo(gomega.HaveOccurred())
+		ginkgo.By("All pods are running as expected before quota preemption is triggered")
 
 		// update configmap and reduce quota to trigger quota preemption
 		configMap, err = k8s.GetConfigMapObj("../testdata/quota-preemption/configs/yunikorn-configs-quota-reduced.yaml")
@@ -86,10 +87,10 @@ var _ = ginkgo.Describe("QuotaPreemption", func() {
 		_, err = kClient.UpdateConfigMap(configMap, configmanager.YuniKornTestConfig.YkNamespace)
 		Ω(err).NotTo(gomega.HaveOccurred())
 
-		// wait for quota preemption to take effect
+		// wait for quota preemption to take effect, delay is set to 2s in the config
 		time.Sleep(5 * time.Second)
 
-		pods, err = kClient.ListPodsByLabelSelector(dev, "queue=root.parent.queue-a")
+		pods, err := kClient.ListPodsByLabelSelector(dev, "queue=root.parent.queue-a")
 		Ω(err).NotTo(gomega.HaveOccurred())
 		runningCount := 0
 		pendingCount := 0
@@ -103,6 +104,155 @@ var _ = ginkgo.Describe("QuotaPreemption", func() {
 		}
 		Ω(runningCount).To(gomega.Equal(2), "Expected 2 pods to be running after quota preemption, but got %d", runningCount)
 		Ω(pendingCount).To(gomega.Equal(1), "Expected 1 pod to be pending after quota preemption, but got %d", pendingCount)
+	})
+
+	ginkgo.It("Check_Quota_Preemption_With_Delay", func() {
+		configMap, err := k8s.GetConfigMapObj("../testdata/quota-preemption/configs/yunikorn-configs-quota-preemption-enabled.yaml")
+		Ω(err).NotTo(gomega.HaveOccurred())
+		Ω(configMap).NotTo(gomega.BeNil())
+		ginkgo.By("Updating the config map with quota preemption enabled")
+		_, err = kClient.UpdateConfigMap(configMap, configmanager.YuniKornTestConfig.YkNamespace)
+		Ω(err).NotTo(gomega.HaveOccurred())
+
+		deployment1, err := k8s.GetDeploymentObj("../testdata/quota-preemption/deployments/deployment1.yaml")
+		Ω(err).NotTo(gomega.HaveOccurred())
+		Ω(deployment1).NotTo(gomega.BeNil())
+		ginkgo.By("Creating deployment in namespace " + dev)
+		_, err = kClient.CreateDeployment(deployment1, dev)
+		Ω(err).NotTo(gomega.HaveOccurred())
+
+		ginkgo.By("Waiting for all deployment pods to be running")
+		err = kClient.WaitForPodCount(dev, 3, 5*time.Second)
+		Ω(err).NotTo(gomega.HaveOccurred())
+		err = kClient.WaitForPodBySelectorRunning(dev, "app=app-a", 5)
+		Ω(err).NotTo(gomega.HaveOccurred())
+		ginkgo.By("All pods are running as expected before quota preemption is triggered")
+
+		// update configmap and reduce quota to trigger quota preemption
+		configMap, err = k8s.GetConfigMapObj("../testdata/quota-preemption/configs/yunikorn-configs-reduced-quota-preemption-20-seconds-delay.yaml")
+		Ω(err).NotTo(gomega.HaveOccurred())
+		Ω(configMap).NotTo(gomega.BeNil())
+		ginkgo.By("Updating the config map with reduced quota to trigger quota preemption")
+		_, err = kClient.UpdateConfigMap(configMap, configmanager.YuniKornTestConfig.YkNamespace)
+		Ω(err).NotTo(gomega.HaveOccurred())
+		ginkgo.By("Quota preemption should not be triggered immediately due to the delay setting")
+		time.Sleep(5 * time.Second)
+		// check pods after config update, all pods should still be running as quota preemption delay is set to 50s
+		err = kClient.WaitForPodCount(dev, 3, 5*time.Second)
+		ginkgo.By("All pods are still running immediately after config update as expected due to quota preemption delay")
+
+		// wait for quota preemption to take effect, delay is set to 50s in the config
+		time.Sleep(60 * time.Second)
+
+		pods, err := kClient.ListPodsByLabelSelector(dev, "queue=root.parent.queue-a")
+		Ω(err).NotTo(gomega.HaveOccurred())
+		runningCount := 0
+		pendingCount := 0
+		for _, pod := range pods.Items {
+			switch pod.Status.Phase {
+			case v1.PodRunning:
+				runningCount++
+			case v1.PodPending:
+				pendingCount++
+			}
+		}
+		Ω(runningCount).To(gomega.Equal(2), "Expected 2 pods to be running after quota preemption, but got %d", runningCount)
+		Ω(pendingCount).To(gomega.Equal(1), "Expected 1 pod to be pending after quota preemption, but got %d", pendingCount)
+	})
+
+	ginkgo.It("Quota_Preemption_With_Zero_Delay", func(){
+		configMap, err := k8s.GetConfigMapObj("../testdata/quota-preemption/configs/yunikorn-configs-quota-preemption-zero-delay.yaml")
+		Ω(err).NotTo(gomega.HaveOccurred())
+		Ω(configMap).NotTo(gomega.BeNil())
+		ginkgo.By("Updating the config map with quota preemption enabled and zero delay")
+		_, err = kClient.UpdateConfigMap(configMap, configmanager.YuniKornTestConfig.YkNamespace)
+		Ω(err).NotTo(gomega.HaveOccurred())
+
+		deployment1, err := k8s.GetDeploymentObj("../testdata/quota-preemption/deployments/deployment1.yaml")
+		Ω(err).NotTo(gomega.HaveOccurred())
+		Ω(deployment1).NotTo(gomega.BeNil())
+		ginkgo.By("Creating deployment in namespace " + dev)
+		_, err = kClient.CreateDeployment(deployment1, dev)
+		Ω(err).NotTo(gomega.HaveOccurred())
+
+		ginkgo.By("Waiting for all deployment pods to be running")
+		err = kClient.WaitForPodCount(dev, 3, 5*time.Second)
+		Ω(err).NotTo(gomega.HaveOccurred())
+		err = kClient.WaitForPodBySelectorRunning(dev, "app=app-a", 5)
+		Ω(err).NotTo(gomega.HaveOccurred())
+
+		// update configmap and reduce quota to trigger quota preemption
+		configMap, err = k8s.GetConfigMapObj("../testdata/quota-preemption/configs/yunikorn-configs-quota-reduced-preemption-disabled.yaml")
+		Ω(err).NotTo(gomega.HaveOccurred())
+		Ω(configMap).NotTo(gomega.BeNil())
+		ginkgo.By("Updating the config map with reduced quota to trigger quota preemption")
+		_, err = kClient.UpdateConfigMap(configMap, configmanager.YuniKornTestConfig.YkNamespace)
+		Ω(err).NotTo(gomega.HaveOccurred())
+
+		// wait for quota preemption to take effect
+		time.Sleep(5 * time.Second)
+
+		pods, err := kClient.ListPodsByLabelSelector(dev, "queue=root.parent.queue-a")
+		Ω(err).NotTo(gomega.HaveOccurred())
+		runningCount := 0
+		pendingCount := 0
+		for _, pod := range pods.Items {
+			switch pod.Status.Phase {
+			case v1.PodRunning:
+				runningCount++
+			case v1.PodPending:
+				pendingCount++
+			}
+		}
+		Ω(runningCount).To(gomega.Equal(3), "Expected 3 pods to be running after quota preemption, but got %d", runningCount)
+		Ω(pendingCount).To(gomega.Equal(0), "Expected 0 pods to be pending after quota preemption, but got %d", pendingCount)
+	})
+
+	ginkgo.It("Basic_Quota_Preemption_Disabled", func() {
+		configMap, err := k8s.GetConfigMapObj("../testdata/quota-preemption/configs/yunikorn-configs-quota-preemption-disabled.yaml")
+		Ω(err).NotTo(gomega.HaveOccurred())
+		Ω(configMap).NotTo(gomega.BeNil())
+		ginkgo.By("Updating the config map with quota preemption disabled")
+		_, err = kClient.UpdateConfigMap(configMap, configmanager.YuniKornTestConfig.YkNamespace)
+		Ω(err).NotTo(gomega.HaveOccurred())
+		deployment1, err := k8s.GetDeploymentObj("../testdata/quota-preemption/deployments/deployment1.yaml")
+		Ω(err).NotTo(gomega.HaveOccurred())
+		Ω(deployment1).NotTo(gomega.BeNil())
+		ginkgo.By("Creating deployment in namespace " + dev)
+		_, err = kClient.CreateDeployment(deployment1, dev)
+		Ω(err).NotTo(gomega.HaveOccurred())
+
+		ginkgo.By("Waiting for all deployment pods to be running")
+		err = kClient.WaitForPodCount(dev, 3, 5*time.Second)
+		Ω(err).NotTo(gomega.HaveOccurred())
+		err = kClient.WaitForPodBySelectorRunning(dev, "app=app-a", 5)
+		Ω(err).NotTo(gomega.HaveOccurred())
+
+		// update configmap and reduce quota to trigger quota preemption
+		configMap, err = k8s.GetConfigMapObj("../testdata/quota-preemption/configs/yunikorn-configs-quota-reduced-preemption-disabled.yaml")
+		Ω(err).NotTo(gomega.HaveOccurred())
+		Ω(configMap).NotTo(gomega.BeNil())
+		ginkgo.By("Updating the config map with reduced quota to trigger quota preemption")
+		_, err = kClient.UpdateConfigMap(configMap, configmanager.YuniKornTestConfig.YkNamespace)
+		Ω(err).NotTo(gomega.HaveOccurred())
+
+		// wait for quota preemption to take effect
+		time.Sleep(5 * time.Second)
+
+		pods, err := kClient.ListPodsByLabelSelector(dev, "queue=root.parent.queue-a")
+		Ω(err).NotTo(gomega.HaveOccurred())
+		runningCount := 0
+		pendingCount := 0
+		for _, pod := range pods.Items {
+			switch pod.Status.Phase {
+			case v1.PodRunning:
+				runningCount++
+			case v1.PodPending:
+				pendingCount++
+			}
+		}
+		Ω(runningCount).To(gomega.Equal(3), "Expected 3 pods to be running after quota preemption, but got %d", runningCount)
+		Ω(pendingCount).To(gomega.Equal(0), "Expected 0 pods to be pending after quota preemption, but got %d", pendingCount)
 	})
 
 	ginkgo.AfterEach(func() {
