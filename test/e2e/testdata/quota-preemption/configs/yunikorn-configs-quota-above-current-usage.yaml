@@ -13,6 +13,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+# This config is used to test that quota preemption is NOT triggered when the
+# new quota is reduced but remains above current resource usage.
+# Initial state: 2 pods running, each 100Mi/100m → 200Mi/200m in use.
+# New quota max = 250Mi/250m, which is above the 200Mi/200m in use, so no
+# preemption should occur.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -40,10 +46,13 @@ data:
                   - name: queue-a
                     resources:
                       guaranteed:
-                        memory: 100Mi
-                        vcore: 100m
-                      max:
                         memory: 200Mi
                         vcore: 200m
+                      max:
+                        memory: 250Mi
+                        vcore: 250m
                     properties:
-                      quota.preemption.delay: 20s
+                      # quota.preemption.delay is set so the preemption engine
+                      # would fire if usage exceeded quota — but it must not
+                      # because new max (250Mi) is above current usage (200Mi).
+                      quota.preemption.delay: 2s

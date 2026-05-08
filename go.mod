@@ -27,7 +27,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/looplab/fsm v1.0.3
 	github.com/onsi/ginkgo/v2 v2.27.2
-	github.com/onsi/gomega v1.38.2
+	github.com/onsi/gomega v1.40.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/sasha-s/go-deadlock v0.3.9
 	go.uber.org/zap v1.27.1

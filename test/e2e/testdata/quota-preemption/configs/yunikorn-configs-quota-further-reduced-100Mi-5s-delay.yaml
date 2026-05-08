@@ -13,6 +13,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+# Quota is further reduced to 100Mi (only 1 of the 3 running 100Mi-pods fits)
+# while the preemption delay is kept at 5s. Used in the quota-re-reduction
+# timer-reset test as the second quota reduction. Only 1 pod can remain
+# running once preemption fires (100Mi max / 100Mi per pod = 1 pod).
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -25,7 +30,6 @@ data:
       - name: default
         preemption:
           enabled: true
-          # Enabling quota preemption
           quotapreemptionenabled: true
         queues:
           - name: root
@@ -43,7 +47,7 @@ data:
                         memory: 100Mi
                         vcore: 100m
                       max:
-                        memory: 200Mi
-                        vcore: 200m
+                        memory: 100Mi
+                        vcore: 100m
                     properties:
-                      quota.preemption.delay: 20s
+                      quota.preemption.delay: 5s

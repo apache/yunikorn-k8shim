@@ -13,6 +13,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+# Quota is reduced to 250Mi with a 30s preemption delay. With 3 pods × 100Mi =
+# 300Mi in use this triggers a violation. After preemption one 100Mi pod is
+# evicted, leaving 200Mi used (≤ 250Mi max) and 50Mi of free headroom — enough
+# to schedule the 50Mi app-b pod created during the delay window.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -25,7 +30,6 @@ data:
       - name: default
         preemption:
           enabled: true
-          # Enabling quota preemption
           quotapreemptionenabled: true
         queues:
           - name: root
@@ -43,7 +47,7 @@ data:
                         memory: 100Mi
                         vcore: 100m
                       max:
-                        memory: 200Mi
-                        vcore: 200m
+                        memory: 250Mi
+                        vcore: 250m
                     properties:
-                      quota.preemption.delay: 20s
+                      quota.preemption.delay: 30s

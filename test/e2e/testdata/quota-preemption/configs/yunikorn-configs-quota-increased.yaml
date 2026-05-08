@@ -34,8 +34,8 @@ data:
               - name: parent
                 resources:
                   max:
-                    memory: 300Mi
-                    vcore: 300m
+                    memory: 400Mi
+                    vcore: 400m
                 queues:
                   - name: queue-a
                     resources:
@@ -43,7 +43,8 @@ data:
                         memory: 100Mi
                         vcore: 100m
                       max:
-                        memory: 200Mi
-                        vcore: 200m
+                        memory: 400Mi
+                        vcore: 400m
                     properties:
-                      quota.preemption.delay: 20s
+                      # Quota preemption in a queue requires delay to be set
+                      quota.preemption.delay: 1s

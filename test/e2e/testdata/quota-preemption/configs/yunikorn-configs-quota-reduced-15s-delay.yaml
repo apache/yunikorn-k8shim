@@ -13,6 +13,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+# Quota remains reduced at 200Mi (below 3-pod usage of 300Mi) but the
+# preemption delay is updated to 15s. Used in the delay-timer-reset test to
+# verify that the in-flight delay timer is restarted from zero when the delay
+# property changes.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -25,7 +30,6 @@ data:
       - name: default
         preemption:
           enabled: true
-          # Enabling quota preemption
           quotapreemptionenabled: true
         queues:
           - name: root
@@ -46,4 +50,4 @@ data:
                         memory: 200Mi
                         vcore: 200m
                     properties:
-                      quota.preemption.delay: 20s
+                      quota.preemption.delay: 15s

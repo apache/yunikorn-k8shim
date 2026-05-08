@@ -13,6 +13,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+# Config used to verify that quota.preemption.delay set on a parent queue is
+# inherited by child queues that do not set the property explicitly.
+# The parent queue has quota.preemption.delay: 20s; queue-a has no delay.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -25,7 +29,6 @@ data:
       - name: default
         preemption:
           enabled: true
-          # Enabling quota preemption
           quotapreemptionenabled: true
         queues:
           - name: root
@@ -36,14 +39,16 @@ data:
                   max:
                     memory: 300Mi
                     vcore: 300m
+                properties:
+                  # Delay set on parent; child queue-a will inherit this value
+                  quota.preemption.delay: 20s
                 queues:
                   - name: queue-a
                     resources:
                       guaranteed:
-                        memory: 100Mi
-                        vcore: 100m
-                      max:
                         memory: 200Mi
                         vcore: 200m
-                    properties:
-                      quota.preemption.delay: 20s
+                      max:
+                        memory: 300Mi
+                        vcore: 300m
+                    # No quota.preemption.delay — should be inherited from parent

@@ -13,6 +13,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+# Config used to reduce queue-a's quota so that quota preemption is triggered.
+# The parent queue retains quota.preemption.delay: 20s; queue-a still has no
+# explicit delay, so it continues to inherit the 20s delay from the parent.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -25,7 +29,6 @@ data:
       - name: default
         preemption:
           enabled: true
-          # Enabling quota preemption
           quotapreemptionenabled: true
         queues:
           - name: root
@@ -36,6 +39,9 @@ data:
                   max:
                     memory: 300Mi
                     vcore: 300m
+                properties:
+                  # Delay set on parent; child queue-a inherits this value
+                  quota.preemption.delay: 20s
                 queues:
                   - name: queue-a
                     resources:
@@ -45,5 +51,4 @@ data:
                       max:
                         memory: 200Mi
                         vcore: 200m
-                    properties:
-                      quota.preemption.delay: 20s
+                    # No quota.preemption.delay — inherited from parent (20s)

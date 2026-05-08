@@ -13,6 +13,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+# Quota is reduced to 200Mi (below 3-pod usage of 300Mi) with a 5s preemption
+# delay. Used as the initial violation trigger in the delay-timer-reset test.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -25,7 +28,6 @@ data:
       - name: default
         preemption:
           enabled: true
-          # Enabling quota preemption
           quotapreemptionenabled: true
         queues:
           - name: root
@@ -46,4 +48,4 @@ data:
                         memory: 200Mi
                         vcore: 200m
                     properties:
-                      quota.preemption.delay: 20s
+                      quota.preemption.delay: 5s
