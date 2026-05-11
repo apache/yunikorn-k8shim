@@ -20,7 +20,6 @@ package external
 
 import (
 	"fmt"
-	"sync/atomic"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -50,27 +49,22 @@ import (
 // to in-progress to signify that the default scheduler is responsible for fulfilling the allocation. Once PostBind()
 // is called in the plugin to signify completion of the allocation, it is removed.
 type SchedulerCache struct {
-	nodesMap              map[string]*framework.NodeInfo // node name to NodeInfo map
-	podsMap               map[string]*v1.Pod
-	pcMap                 map[string]*schedulingv1.PriorityClass
-	assignedPods          map[string]string      // map of pods to the node they are currently assigned to
-	assumedPods           map[string]bool        // map of assumed pods, value indicates if pod volumes are all bound
-	orphanedPods          map[string]*v1.Pod     // map of orphaned pods, keyed by pod UID
-	pendingAllocations    map[string]string      // map of pod to node ID, presence indicates a pending allocation for scheduler
-	inProgressAllocations map[string]string      // map of pod to node ID, presence indicates an in-process allocation for scheduler
-	schedulingTasks       map[string]interface{} // list of task IDs which are currently being processed by the scheduler
-	pvcRefCounts          map[string]map[string]int
-	lock                  locking.RWMutex
-	clients               *client.Clients // client APIs
-	klogger               klog.Logger
+	nodesMap        map[string]*framework.NodeInfo // node name to NodeInfo map
+	podsMap         map[string]*v1.Pod
+	pcMap           map[string]*schedulingv1.PriorityClass
+	assignedPods    map[string]string      // map of pods to the node they are currently assigned to
+	assumedPods     map[string]bool        // map of assumed pods, value indicates if pod volumes are all bound
+	orphanedPods    map[string]*v1.Pod     // map of orphaned pods, keyed by pod UID
+	schedulingTasks map[string]interface{} // list of task IDs which are currently being processed by the scheduler
+	pvcRefCounts    map[string]map[string]int
+	lock            locking.RWMutex
+	clients         *client.Clients // client APIs
+	klogger         klog.Logger
 
 	// cached data, re-calculated on demand from nodesMap
 	nodesInfo                        []fwk.NodeInfo
 	nodesInfoPodsWithAffinity        []fwk.NodeInfo
 	nodesInfoPodsWithReqAntiAffinity []fwk.NodeInfo
-
-	// task bloom filter, recomputed whenever task scheduling state changes
-	taskBloomFilterRef atomic.Pointer[taskBloomFilter]
 }
 
 type taskBloomFilter struct {
@@ -79,20 +73,17 @@ type taskBloomFilter struct {
 
 func NewSchedulerCache(clients *client.Clients) *SchedulerCache {
 	cache := &SchedulerCache{
-		nodesMap:              make(map[string]*framework.NodeInfo),
-		podsMap:               make(map[string]*v1.Pod),
-		pcMap:                 make(map[string]*schedulingv1.PriorityClass),
-		assignedPods:          make(map[string]string),
-		assumedPods:           make(map[string]bool),
-		orphanedPods:          make(map[string]*v1.Pod),
-		pendingAllocations:    make(map[string]string),
-		inProgressAllocations: make(map[string]string),
-		schedulingTasks:       make(map[string]interface{}),
-		pvcRefCounts:          make(map[string]map[string]int),
-		clients:               clients,
-		klogger:               klog.NewKlogr(),
+		nodesMap:        make(map[string]*framework.NodeInfo),
+		podsMap:         make(map[string]*v1.Pod),
+		pcMap:           make(map[string]*schedulingv1.PriorityClass),
+		assignedPods:    make(map[string]string),
+		assumedPods:     make(map[string]bool),
+		orphanedPods:    make(map[string]*v1.Pod),
+		schedulingTasks: make(map[string]interface{}),
+		pvcRefCounts:    make(map[string]map[string]int),
+		clients:         clients,
+		klogger:         klog.NewKlogr(),
 	}
-	cache.taskBloomFilterRef.Store(&taskBloomFilter{})
 	return cache
 }
 
@@ -232,8 +223,6 @@ func (cache *SchedulerCache) removeNode(node *v1.Node) (*v1.Node, []*v1.Pod) {
 		key := string(pod.UID)
 		delete(cache.assignedPods, key)
 		delete(cache.assumedPods, key)
-		delete(cache.pendingAllocations, key)
-		delete(cache.inProgressAllocations, key)
 		cache.orphanedPods[key] = pod
 		orphans = append(orphans, pod)
 	}
@@ -289,24 +278,6 @@ func (cache *SchedulerCache) RemovePriorityClass(priorityClass *schedulingv1.Pri
 func (cache *SchedulerCache) removePriorityClass(priorityClass *schedulingv1.PriorityClass) {
 	log.Log(log.ShimCacheExternal).Debug("Removing priorityClass from cache", zap.String("name", priorityClass.Name))
 	delete(cache.pcMap, priorityClass.Name)
-}
-
-// NotifyTaskSchedulerAction registers the fact that a task has been evaluated for scheduling, and consequently the
-// scheduler plugin should move it to the activeQ if requested to do so.
-func (cache *SchedulerCache) NotifyTaskSchedulerAction(taskID string) {
-	cache.lock.Lock()
-	defer cache.lock.Unlock()
-	// verify that the pod exists in the cache, otherwise ignore
-	if pod := cache.GetPodNoLock(taskID); pod == nil {
-		return
-	}
-	cache.addSchedulingTask(taskID)
-}
-
-// IsTaskMaybeSchedulable returns true if a task might be currently able to be scheduled. This uses a bloom filter
-// cached from a set of taskIDs to perform efficient negative lookups.
-func (cache *SchedulerCache) IsTaskMaybeSchedulable(taskID string) bool {
-	return cache.taskBloomFilterRef.Load().isTaskMaybePresent(taskID)
 }
 
 // IsAssumedPod returns if pod is assumed in cache, avoid nil
@@ -374,9 +345,6 @@ func (cache *SchedulerCache) updatePod(pod *v1.Pod) bool {
 	if utils.IsPodRunning(pod) || utils.IsPodTerminated(pod) {
 		// delete all assumed state from cache, as pod has now been bound
 		delete(cache.assumedPods, key)
-		delete(cache.pendingAllocations, key)
-		delete(cache.inProgressAllocations, key)
-		cache.removeSchedulingTask(key)
 	}
 
 	if utils.IsAssignedPod(pod) && !utils.IsPodTerminated(pod) {
@@ -413,9 +381,6 @@ func (cache *SchedulerCache) updatePod(pod *v1.Pod) bool {
 		delete(cache.assignedPods, key)
 		delete(cache.assumedPods, key)
 		delete(cache.orphanedPods, key)
-		delete(cache.pendingAllocations, key)
-		delete(cache.inProgressAllocations, key)
-		cache.removeSchedulingTask(key)
 	}
 
 	return result
@@ -450,29 +415,8 @@ func (cache *SchedulerCache) removePod(pod *v1.Pod) {
 	delete(cache.assignedPods, key)
 	delete(cache.assumedPods, key)
 	delete(cache.orphanedPods, key)
-	delete(cache.pendingAllocations, key)
-	delete(cache.inProgressAllocations, key)
-	cache.removeSchedulingTask(key)
 	cache.nodesInfoPodsWithAffinity = nil
 	cache.nodesInfoPodsWithReqAntiAffinity = nil
-}
-
-func (cache *SchedulerCache) removeSchedulingTask(taskID string) {
-	delete(cache.schedulingTasks, taskID)
-	filter := &taskBloomFilter{}
-	for taskID := range cache.schedulingTasks {
-		filter.addTask(taskID)
-	}
-	cache.taskBloomFilterRef.Store(filter)
-}
-
-func (cache *SchedulerCache) addSchedulingTask(taskID string) {
-	cache.schedulingTasks[taskID] = nil
-	filter := &taskBloomFilter{
-		data: cache.taskBloomFilterRef.Load().data,
-	}
-	filter.addTask(taskID)
-	cache.taskBloomFilterRef.Store(filter)
 }
 
 func (filter *taskBloomFilter) addTask(taskID string) {
@@ -556,9 +500,6 @@ func (cache *SchedulerCache) forgetPod(pod *v1.Pod) {
 		zap.String("podKey", key))
 
 	delete(cache.assumedPods, key)
-	delete(cache.pendingAllocations, key)
-	delete(cache.inProgressAllocations, key)
-	cache.removeSchedulingTask(key)
 }
 
 // Implement k8s.io/client-go/listers/core/v1#PodLister interface
@@ -614,8 +555,6 @@ func (cache *SchedulerCache) dumpState(context string) {
 			zap.Int("nodes", len(cache.nodesMap)),
 			zap.Int("pods", len(cache.podsMap)),
 			zap.Int("assumed", len(cache.assumedPods)),
-			zap.Int("pendingAllocs", len(cache.pendingAllocations)),
-			zap.Int("inProgressAllocs", len(cache.inProgressAllocations)),
 			zap.Int("podsAssigned", cache.nodePodCount()),
 			zap.Int("schedulingTasks", len(cache.schedulingTasks)),
 			zap.Any("phases", cache.podPhases()))
@@ -756,16 +695,6 @@ func (cache *SchedulerCache) GetSchedulerCacheDao() SchedulerCacheDao {
 			info.AllVolumesBound = allBound
 		}
 	}
-	for podUID, nodeName := range cache.pendingAllocations {
-		if info, ok := podSchedulingInfoByUID[podUID]; ok {
-			info.PendingNode = nodeName
-		}
-	}
-	for podUID, nodeName := range cache.inProgressAllocations {
-		if info, ok := podSchedulingInfoByUID[podUID]; ok {
-			info.InProgressNode = nodeName
-		}
-	}
 
 	podSchedulingInfoByName := make(map[string]PodSchedulingInfoDao)
 	for _, info := range podSchedulingInfoByUID {
@@ -774,14 +703,12 @@ func (cache *SchedulerCache) GetSchedulerCacheDao() SchedulerCacheDao {
 
 	return SchedulerCacheDao{
 		Statistics: SchedulerCacheStatisticsDao{
-			Nodes:                 len(cache.nodesMap),
-			Pods:                  len(cache.podsMap),
-			PriorityClasses:       len(cache.pcMap),
-			Assumed:               len(cache.assumedPods),
-			PendingAllocations:    len(cache.pendingAllocations),
-			InProgressAllocations: len(cache.inProgressAllocations),
-			PodsAssigned:          cache.nodePodCount(),
-			Phases:                cache.podPhases(),
+			Nodes:           len(cache.nodesMap),
+			Pods:            len(cache.podsMap),
+			PriorityClasses: len(cache.pcMap),
+			Assumed:         len(cache.assumedPods),
+			PodsAssigned:    cache.nodePodCount(),
+			Phases:          cache.podPhases(),
 		},
 		Nodes:           nodes,
 		Pods:            pods,

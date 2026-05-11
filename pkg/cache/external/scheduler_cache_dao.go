@@ -34,14 +34,12 @@ type SchedulerCacheDao struct {
 }
 
 type SchedulerCacheStatisticsDao struct {
-	Nodes                 int            `json:"nodes,omitempty"`
-	Pods                  int            `json:"pods,omitempty"`
-	PriorityClasses       int            `json:"priorityClasses,omitempty"`
-	Assumed               int            `json:"assumed,omitempty"`
-	PendingAllocations    int            `json:"pendingAllocations,omitempty"`
-	InProgressAllocations int            `json:"inProgressAllocations,omitempty"`
-	PodsAssigned          int            `json:"podsAssigned,omitempty"`
-	Phases                map[string]int `json:"phases,omitempty"`
+	Nodes           int            `json:"nodes,omitempty"`
+	Pods            int            `json:"pods,omitempty"`
+	PriorityClasses int            `json:"priorityClasses,omitempty"`
+	Assumed         int            `json:"assumed,omitempty"`
+	PodsAssigned    int            `json:"podsAssigned,omitempty"`
+	Phases          map[string]int `json:"phases,omitempty"`
 }
 
 type NodeDao struct {
@@ -100,6 +98,4 @@ type PodSchedulingInfoDao struct {
 	AssignedNode    string    `json:"assignedNode,omitempty"`
 	Assumed         bool      `json:"assumed,omitempty"`
 	AllVolumesBound bool      `json:"allVolumesBound,omitempty"`
-	PendingNode     string    `json:"pendingNode,omitempty"`
-	InProgressNode  string    `json:"inProgressNode,omitempty"`
 }

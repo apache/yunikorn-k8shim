@@ -921,8 +921,6 @@ func TestGetSchedulerCacheDao(t *testing.T) {
 	assert.Equal(t, dao.Statistics.PriorityClasses, 0)
 	assert.Equal(t, dao.Statistics.Assumed, 0)
 	assert.Equal(t, dao.Statistics.PodsAssigned, 0)
-	assert.Equal(t, dao.Statistics.InProgressAllocations, 0)
-	assert.Equal(t, dao.Statistics.PendingAllocations, 0)
 
 	resourceList := make(map[v1.ResourceName]resource.Quantity)
 	resourceList[v1.ResourceName("memory")] = *resource.NewQuantity(1024*1000*1000, resource.DecimalSI)
@@ -988,8 +986,6 @@ func TestGetSchedulerCacheDao(t *testing.T) {
 	assert.Equal(t, dao.Statistics.PriorityClasses, 1)
 	assert.Equal(t, dao.Statistics.Assumed, 0)
 	assert.Equal(t, dao.Statistics.PodsAssigned, 0)
-	assert.Equal(t, dao.Statistics.InProgressAllocations, 0)
-	assert.Equal(t, dao.Statistics.PendingAllocations, 0)
 }
 
 func expectHost1AndHost2(t *testing.T, nodesInfo []fwk.NodeInfo) {
