@@ -295,7 +295,7 @@ var _ = ginkgo.Describe("QuotaPreemption", func() {
 		}, 5*time.Second, time.Second).Should(gomega.Succeed())
 	})
 
-	ginkgo.It("Quota_Preemption_Delay_Inherited_From_Parent", ginkgo.Pending, func() {
+	ginkgo.PIt("Needs Investigation - Quota_Preemption_Delay_Inherited_From_Parent", func() {
 		ginkgo.By("Quota preemption delay set on parent queue should be inherited by child queues that do not set it explicitly.")
 
 		// Apply initial config: parent has quota.preemption.delay=20s, child (queue-a) has no delay set.
@@ -489,7 +489,7 @@ var _ = ginkgo.Describe("QuotaPreemption", func() {
 		}, 15*time.Second, time.Second).Should(gomega.Succeed())
 	})
 
-	ginkgo.It("Quota_Preemption_Delay_Timer_Reset_On_Quota_Re_Reduction", ginkgo.Pending, func() {
+	ginkgo.PIt("Needs Investigation - Quota_Preemption_Delay_Timer_Reset_On_Quota_Re_Reduction", func() {
 		ginkgo.By("The preemption delay timer must restart from zero when quota is reduced again before the delay elapses.")
 
 		// Step 1: Start with quota preemption enabled, 3 pods running (3×100Mi = 300Mi).
@@ -569,7 +569,7 @@ var _ = ginkgo.Describe("QuotaPreemption", func() {
 		}, 10*time.Second, time.Second).Should(gomega.Succeed())
 	})
 
-	ginkgo.It("New_Pods_Not_Allocated_While_Over_Quota_Then_Scheduled_After_Preemption", ginkgo.Pending, func() {
+	ginkgo.PIt("Needs Investigation - New_Pods_Not_Allocated_While_Over_Quota_Then_Scheduled_After_Preemption", func() {
 		ginkgo.By("New pods must stay Pending while the queue is over quota; they become schedulable once old pods are preempted back within quota.")
 
 		// Step 1: Set up initial state — 3 × 100Mi pods in queue-a (300Mi total), max=300Mi.
