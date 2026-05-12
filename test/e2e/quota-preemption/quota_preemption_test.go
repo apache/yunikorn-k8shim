@@ -489,7 +489,7 @@ var _ = ginkgo.Describe("QuotaPreemption", func() {
 		}, 15*time.Second, time.Second).Should(gomega.Succeed())
 	})
 
-	ginkgo.PIt("Needs Investigation - Quota_Preemption_Delay_Timer_Reset_On_Quota_Re_Reduction", func() {
+	ginkgo.It("Quota_Preemption_Delay_Timer_Reset_On_Quota_Re_Reduction", func() {
 		ginkgo.By("The preemption delay timer must restart from zero when quota is reduced again before the delay elapses.")
 
 		// Step 1: Start with quota preemption enabled, 3 pods running (3×100Mi = 300Mi).
@@ -508,7 +508,7 @@ var _ = ginkgo.Describe("QuotaPreemption", func() {
 		Ω(err).NotTo(gomega.HaveOccurred())
 
 		ginkgo.By("Waiting for all 3 deployment pods to be running")
-		err = kClient.WaitForPodBySelectorRunning(dev, "app=app-a", 30)
+		err = kClient.WaitForNPodsBySelectorRunning(dev, "app=app-a", 3, 5*time.Second)
 		Ω(err).NotTo(gomega.HaveOccurred())
 		ginkgo.By("All 3 pods are running before quota is first reduced")
 
@@ -521,22 +521,22 @@ var _ = ginkgo.Describe("QuotaPreemption", func() {
 		_, err = kClient.UpdateConfigMap(configMap, configmanager.YuniKornTestConfig.YkNamespace)
 		Ω(err).NotTo(gomega.HaveOccurred())
 
-		// Step 3: Before the 5s fires, reduce quota again to 100Mi (still delay=5s).
-		// A new, deeper violation is detected; the timer must restart from zero.
+		// Step 3: Before the 5s fires, reduce quota again to 100Mi (still delay=10s).
+		// The timer must restart from zero.
 		// After preemption at 100Mi only 1 pod (100Mi) can remain running.
 		ginkgo.By("Sleeping 3s — before the original 5s delay fires")
 		time.Sleep(3 * time.Second)
-		configMap, err = k8s.GetConfigMapObj("../testdata/quota-preemption/configs/yunikorn-configs-quota-further-reduced-100Mi-5s-delay.yaml")
+		configMap, err = k8s.GetConfigMapObj("../testdata/quota-preemption/configs/yunikorn-configs-quota-further-reduced-100Mi-10s-delay.yaml")
 		Ω(err).NotTo(gomega.HaveOccurred())
 		Ω(configMap).NotTo(gomega.BeNil())
-		ginkgo.By("Second quota reduction: max=100Mi, delay=5s — timer must reset")
+		ginkgo.By("Second quota reduction: max=100Mi, delay=10s — timer must reset")
 		_, err = kClient.UpdateConfigMap(configMap, configmanager.YuniKornTestConfig.YkNamespace)
 		Ω(err).NotTo(gomega.HaveOccurred())
 
-		// Step 4: Verify all 3 pods remain running for 4s past the original 5s deadline.
+		// Step 4: Verify all 3 pods remain running for 6s past the original 5s deadline.
 		// The original countdown would have fired at t=5s from the first reduction;
 		// consistent observation of 3 running pods proves the timer was properly reset.
-		ginkgo.By("Verifying all 3 pods stay running for 4s — past original deadline, within reset 5s window")
+		ginkgo.By("Verifying all 3 pods stay running for 6s — past original deadline, within reset 5s window")
 		gomega.Consistently(func(g gomega.Gomega) {
 			pods, err := kClient.ListPodsByLabelSelector(dev, "queue=root.parent.queue-a")
 			g.Ω(err).NotTo(gomega.HaveOccurred())
@@ -547,9 +547,9 @@ var _ = ginkgo.Describe("QuotaPreemption", func() {
 				}
 			}
 			g.Ω(stillRunning).To(gomega.Equal(3), "Expected all 3 pods still running (timer was reset); got %d running", stillRunning)
-		}, 4*time.Second, time.Second).Should(gomega.Succeed())
+		}, 6*time.Second, time.Second).Should(gomega.Succeed())
 
-		// Step 5: Wait for preemption to fire after the reset 5s delay (~10s since second reduction).
+		// Step 5: Wait for preemption to fire after the reset 10s delay (~11s since second reduction).
 		// At the new 100Mi quota, only 1 pod can remain running.
 		ginkgo.By("Waiting for preemption to fire after the reset 5s delay elapses")
 		gomega.Eventually(func(g gomega.Gomega) {
@@ -566,10 +566,10 @@ var _ = ginkgo.Describe("QuotaPreemption", func() {
 			}
 			g.Ω(runningCount).To(gomega.Equal(1), "Expected 1 pod running after preemption at 100Mi quota, but got %d", runningCount)
 			g.Ω(pendingCount).To(gomega.Equal(2), "Expected 2 pods pending after preemption at 100Mi quota, but got %d", pendingCount)
-		}, 10*time.Second, time.Second).Should(gomega.Succeed())
+		}, 5*time.Second, time.Second).Should(gomega.Succeed())
 	})
 
-	ginkgo.PIt("Needs Investigation - New_Pods_Not_Allocated_While_Over_Quota_Then_Scheduled_After_Preemption", func() {
+	ginkgo.It("New_Pods_Not_Allocated_While_Over_Quota_Then_Scheduled_After_Preemption", func() {
 		ginkgo.By("New pods must stay Pending while the queue is over quota; they become schedulable once old pods are preempted back within quota.")
 
 		// Step 1: Set up initial state — 3 × 100Mi pods in queue-a (300Mi total), max=300Mi.
@@ -578,18 +578,20 @@ var _ = ginkgo.Describe("QuotaPreemption", func() {
 		Ω(configMap).NotTo(gomega.BeNil())
 		ginkgo.By("Applying initial config: max=300Mi, quota preemption enabled")
 		_, err = kClient.UpdateConfigMap(configMap, configmanager.YuniKornTestConfig.YkNamespace)
-		Ω(err).NotTo(gomega.HaveOccurred())
+		Ω(err).NotTo(gomega.HaveOccurred(), "Failed to apply initial config with quota preemption enabled")
 
 		deployment1, err := k8s.GetDeploymentObj("../testdata/quota-preemption/deployments/deployment1.yaml")
 		Ω(err).NotTo(gomega.HaveOccurred())
 		Ω(deployment1).NotTo(gomega.BeNil())
 		ginkgo.By("Creating 3-replica deployment (app-a, 100Mi each) in namespace " + dev)
 		_, err = kClient.CreateDeployment(deployment1, dev)
-		Ω(err).NotTo(gomega.HaveOccurred())
+		Ω(err).NotTo(gomega.HaveOccurred(), "Failed to create initial deployment with 3 pods")
 
 		ginkgo.By("Waiting for all 3 app-a pods to be running (300Mi used = 300Mi max)")
-		err = kClient.WaitForPodBySelectorRunning(dev, "app=app-a", 30)
+		err = kClient.WaitForPodBySelector(dev, "app=app-a", 10*time.Second)
 		Ω(err).NotTo(gomega.HaveOccurred())
+		err = kClient.WaitForPodBySelectorRunning(dev, "app=app-a", 10)
+		Ω(err).NotTo(gomega.HaveOccurred(), "Expected all 3 app-a pods to be running before quota reduction, but they were not: %v", err)
 
 		// Step 2: Reduce quota to 250Mi with a 30s delay — violation detected (300Mi > 250Mi),
 		// and simultaneously submit a new 50Mi pod (app-b) to the same over-quota queue.
@@ -639,7 +641,7 @@ var _ = ginkgo.Describe("QuotaPreemption", func() {
 		// 50Mi headroom is now available → app-b (50Mi) should be scheduled:
 		//   200Mi (app-a) + 50Mi (app-b) = 250Mi = max.
 		ginkgo.By("Waiting for the 30s preemption delay to elapse and app-b to become schedulable (~35s timeout)")
-		err = kClient.WaitForPodBySelectorRunning(dev, "app=app-b", 35)
+		err = kClient.WaitForPodBySelectorRunning(dev, "app=app-b", 30)
 		Ω(err).NotTo(gomega.HaveOccurred())
 		ginkgo.By("app-b pod is now Running — allocated once old pods settled within quota")
 

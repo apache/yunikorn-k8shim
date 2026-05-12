@@ -50,4 +50,4 @@ data:
                         memory: 100Mi
                         vcore: 100m
                     properties:
-                      quota.preemption.delay: 5s
+                      quota.preemption.delay: 10s
