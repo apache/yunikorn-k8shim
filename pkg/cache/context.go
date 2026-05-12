@@ -866,12 +866,6 @@ func (ctx *Context) ForgetPod(name string) {
 	log.Log(log.ShimContext).Debug("unable to forget pod: not found in cache", zap.String("pod", name))
 }
 
-// IsTaskMaybeSchedulable returns true if a task might be currently able to be scheduled. This uses a bloom filter
-// cached from a set of taskIDs to perform efficient negative lookups.
-func (ctx *Context) IsTaskMaybeSchedulable(taskID string) bool {
-	return ctx.schedulerCache.IsTaskMaybeSchedulable(taskID)
-}
-
 func (ctx *Context) notifyTaskComplete(app *Application, taskID string) {
 	if app == nil {
 		log.Log(log.ShimContext).Debug("In notifyTaskComplete but app is nil",
@@ -1197,7 +1191,6 @@ func (ctx *Context) HandleContainerStateUpdate(request *si.UpdateContainerSchedu
 			// auto-scaler scans pods whose pod condition is PodScheduled=false && reason=Unschedulable
 			// if the pod is skipped because the queue quota has been exceeded, we do not trigger the auto-scaling
 			task.SetTaskSchedulingState(TaskSchedSkipped)
-			ctx.schedulerCache.NotifyTaskSchedulerAction(task.taskID)
 			if ctx.updatePodCondition(task,
 				&v1.PodCondition{
 					Type:    v1.PodScheduled,
@@ -1211,7 +1204,6 @@ func (ctx *Context) HandleContainerStateUpdate(request *si.UpdateContainerSchedu
 			}
 		case si.UpdateContainerSchedulingStateRequest_FAILED:
 			task.SetTaskSchedulingState(TaskSchedFailed)
-			ctx.schedulerCache.NotifyTaskSchedulerAction(task.taskID)
 			// set pod condition to Unschedulable in order to trigger auto-scaling
 			if ctx.updatePodCondition(task,
 				&v1.PodCondition{
