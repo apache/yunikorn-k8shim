@@ -44,19 +44,10 @@ import (
 const userInfoKey = siCommon.DomainYuniKorn + "user.info"
 const uniqueAutogenSuffix = "-uniqueautogen"
 
-var pluginMode bool
 var (
 	// ErrorTimeout returned if waiting for a condition times out
 	ErrorTimeout = errors.New("timeout waiting for condition")
 )
-
-func SetPluginMode(value bool) {
-	pluginMode = value
-}
-
-func IsPluginMode() bool {
-	return pluginMode
-}
 
 func Convert2Pod(obj interface{}) (*v1.Pod, error) {
 	pod, ok := obj.(*v1.Pod)
@@ -146,25 +137,11 @@ func GenerateApplicationID(namespace string, generateUniqueAppIds bool, podUID s
 }
 
 // GetApplicationIDFromPod returns the Application for a Pod. If a Pod is marked as schedulable by YuniKorn but is
-// missing an ApplicationID, one will be generated here (if YuniKorn is running in standard mode) or an empty string
-// will be returned (if YuniKorn is running in plugin mode).
-// If an Application ID is returned, the Pod is managed by YuniKorn. Otherwise, it is managed by an external scheduler.
+// missing an ApplicationID, one will be generated here
 func GetApplicationIDFromPod(pod *v1.Pod) string {
 	// SchedulerName needs to match
 	if strings.Compare(pod.Spec.SchedulerName, constants.SchedulerName) != 0 {
 		return ""
-	}
-
-	// If pod was tagged with ignore-application and plugin mode is active, return
-	if pluginMode {
-		if value := GetPodAnnotationValue(pod, constants.AnnotationIgnoreApplication); value != "" {
-			ignore, err := strconv.ParseBool(value)
-			if err != nil {
-				log.Log(log.ShimUtils).Warn("Failed to parse annotation "+constants.AnnotationIgnoreApplication, zap.Error(err))
-			} else if ignore {
-				return ""
-			}
-		}
 	}
 
 	// Application ID can be defined in multiple places
@@ -191,11 +168,6 @@ func GetApplicationIDFromPod(pod *v1.Pod) string {
 				break
 			}
 		}
-	}
-
-	// If plugin mode, interpret missing Application ID as a non-YuniKorn pod
-	if pluginMode && appID == "" {
-		return ""
 	}
 
 	// does appID end with '-uniqueautogen'?
