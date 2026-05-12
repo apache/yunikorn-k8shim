@@ -27,7 +27,6 @@ import (
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
-	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 )
@@ -107,9 +106,7 @@ func TestGetTaskMetadata(t *testing.T) {
 }
 
 func TestGetAppMetadata(t *testing.T) { //nolint:funlen
-	defer utils.SetPluginMode(false)
 	defer func() { conf.GetSchedulerConf().GenerateUniqueAppIds = false }()
-	utils.SetPluginMode(false)
 	conf.GetSchedulerConf().GenerateUniqueAppIds = false
 
 	pod := v1.Pod{
@@ -290,22 +287,15 @@ func TestGetAppMetadata(t *testing.T) { //nolint:funlen
 			Phase: v1.PodPending,
 		},
 	}
-
-	utils.SetPluginMode(false)
 	app, ok = getAppMetadata(&pod)
 	conf.GetSchedulerConf().GenerateUniqueAppIds = true
 	assert.Equal(t, ok, true)
 	assert.Equal(t, app.ApplicationID, "yunikorn-app-namespace-01-autogen")
 
-	utils.SetPluginMode(false)
 	conf.GetSchedulerConf().GenerateUniqueAppIds = true
 	app, ok = getAppMetadata(&pod)
 	assert.Equal(t, ok, true)
 	assert.Equal(t, app.ApplicationID, "app-namespace-01-UID-POD-00001")
-
-	utils.SetPluginMode(true)
-	app, ok = getAppMetadata(&pod)
-	assert.Equal(t, ok, false)
 
 	// case: invalid annotation task groups
 	pod = v1.Pod{
