@@ -40,26 +40,17 @@ import (
 // SchedulerCache maintains some critical information about nodes and pods used for scheduling.
 // Nodes are cached in the form of de-scheduler nodeInfo. Instead of re-creating all nodes info from scratch,
 // we replicate nodes info from de-scheduler, in order to re-use predicates functions.
-//
-// When running YuniKorn as a scheduler plugin, we also track pod allocations that YuniKorn has decided upon, but which
-// have not yet been fulfilled by the default scheduler. This tracking is needed to ensure that we pass along
-// allocations to the default scheduler once (and only) once. Allocations can be in one of two states, either pending or
-// in-progress. A pending allocation is one which has been decided upon by YuniKorn but has not yet been communicated
-// to the default scheduler via PreFilter() / Filter(). Once PreFilter() / Filter() pass, the allocation transitions
-// to in-progress to signify that the default scheduler is responsible for fulfilling the allocation. Once PostBind()
-// is called in the plugin to signify completion of the allocation, it is removed.
 type SchedulerCache struct {
-	nodesMap        map[string]*framework.NodeInfo // node name to NodeInfo map
-	podsMap         map[string]*v1.Pod
-	pcMap           map[string]*schedulingv1.PriorityClass
-	assignedPods    map[string]string      // map of pods to the node they are currently assigned to
-	assumedPods     map[string]bool        // map of assumed pods, value indicates if pod volumes are all bound
-	orphanedPods    map[string]*v1.Pod     // map of orphaned pods, keyed by pod UID
-	schedulingTasks map[string]interface{} // list of task IDs which are currently being processed by the scheduler
-	pvcRefCounts    map[string]map[string]int
-	lock            locking.RWMutex
-	clients         *client.Clients // client APIs
-	klogger         klog.Logger
+	nodesMap     map[string]*framework.NodeInfo // node name to NodeInfo map
+	podsMap      map[string]*v1.Pod
+	pcMap        map[string]*schedulingv1.PriorityClass
+	assignedPods map[string]string  // map of pods to the node they are currently assigned to
+	assumedPods  map[string]bool    // map of assumed pods, value indicates if pod volumes are all bound
+	orphanedPods map[string]*v1.Pod // map of orphaned pods, keyed by pod UID
+	pvcRefCounts map[string]map[string]int
+	lock         locking.RWMutex
+	clients      *client.Clients // client APIs
+	klogger      klog.Logger
 
 	// cached data, re-calculated on demand from nodesMap
 	nodesInfo                        []fwk.NodeInfo
@@ -67,22 +58,17 @@ type SchedulerCache struct {
 	nodesInfoPodsWithReqAntiAffinity []fwk.NodeInfo
 }
 
-type taskBloomFilter struct {
-	data [4][256]bool
-}
-
 func NewSchedulerCache(clients *client.Clients) *SchedulerCache {
 	cache := &SchedulerCache{
-		nodesMap:        make(map[string]*framework.NodeInfo),
-		podsMap:         make(map[string]*v1.Pod),
-		pcMap:           make(map[string]*schedulingv1.PriorityClass),
-		assignedPods:    make(map[string]string),
-		assumedPods:     make(map[string]bool),
-		orphanedPods:    make(map[string]*v1.Pod),
-		schedulingTasks: make(map[string]interface{}),
-		pvcRefCounts:    make(map[string]map[string]int),
-		clients:         clients,
-		klogger:         klog.NewKlogr(),
+		nodesMap:     make(map[string]*framework.NodeInfo),
+		podsMap:      make(map[string]*v1.Pod),
+		pcMap:        make(map[string]*schedulingv1.PriorityClass),
+		assignedPods: make(map[string]string),
+		assumedPods:  make(map[string]bool),
+		orphanedPods: make(map[string]*v1.Pod),
+		pvcRefCounts: make(map[string]map[string]int),
+		clients:      clients,
+		klogger:      klog.NewKlogr(),
 	}
 	return cache
 }
@@ -419,26 +405,6 @@ func (cache *SchedulerCache) removePod(pod *v1.Pod) {
 	cache.nodesInfoPodsWithReqAntiAffinity = nil
 }
 
-func (filter *taskBloomFilter) addTask(taskID string) {
-	limit := min(4, len(taskID))
-	for i := 0; i < limit; i++ {
-		filter.data[i][taskID[i]] = true
-	}
-}
-
-func (filter *taskBloomFilter) isTaskMaybePresent(taskID string) bool {
-	limit := len(taskID)
-	if limit > 4 {
-		limit = 4
-	}
-	for i := 0; i < limit; i++ {
-		if !filter.data[i][taskID[i]] {
-			return false
-		}
-	}
-	return true
-}
-
 func (cache *SchedulerCache) GetPod(uid string) *v1.Pod {
 	cache.lock.RLock()
 	defer cache.lock.RUnlock()
@@ -556,7 +522,6 @@ func (cache *SchedulerCache) dumpState(context string) {
 			zap.Int("pods", len(cache.podsMap)),
 			zap.Int("assumed", len(cache.assumedPods)),
 			zap.Int("podsAssigned", cache.nodePodCount()),
-			zap.Int("schedulingTasks", len(cache.schedulingTasks)),
 			zap.Any("phases", cache.podPhases()))
 	}
 }
