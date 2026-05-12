@@ -287,7 +287,6 @@ func TestGetAppMetadata(t *testing.T) { //nolint:funlen
 			Phase: v1.PodPending,
 		},
 	}
-	
 	app, ok = getAppMetadata(&pod)
 	conf.GetSchedulerConf().GenerateUniqueAppIds = true
 	assert.Equal(t, ok, true)
