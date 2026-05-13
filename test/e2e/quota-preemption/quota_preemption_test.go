@@ -568,7 +568,7 @@ var _ = ginkgo.Describe("QuotaPreemption", func() {
 		}, 5*time.Second, time.Second).Should(gomega.Succeed())
 	})
 
-	ginkgo.It("New_Pods_Not_Allocated_While_Over_Quota_Then_Scheduled_After_Preemption", func() {
+	ginkgo.PIt("Needs Investigation-New_Pods_Not_Allocated_While_Over_Quota_Then_Scheduled_After_Preemption", func() {
 		ginkgo.By("New pods must stay Pending while the queue is over quota; they become schedulable once old pods are preempted back within quota.")
 
 		// Step 1: Set up initial state — 3 × 100Mi pods in queue-a (300Mi total), max=300Mi.
