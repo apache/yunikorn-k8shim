@@ -69,13 +69,11 @@ type Context struct {
 	schedulerCache *schedulercache.SchedulerCache // external cache
 	apiProvider    client.APIProvider             // apis to interact with api-server, scheduler-core, etc
 	predManager    predicates.PredicateManager    // K8s predicates
-	pluginMode     bool                           // true if we are configured as a scheduler plugin
 	namespace      string                         // yunikorn namespace
 	configMaps     []*v1.ConfigMap                // cached yunikorn configmaps
 	lock           *locking.RWMutex               // lock - used not only for context data but also to ensure that multiple event types are not executed concurrently
 	txnID          atomic.Uint64                  // transaction ID counter
 	klogger        klog.Logger
-	podActivator   atomic.Value
 }
 
 // NewContext create a new context for the scheduler using a default (empty) configuration
@@ -110,18 +108,6 @@ func NewContextWithBootstrapConfigMaps(apis client.APIProvider, bootstrapConfigM
 	ctx.predManager = predicates.NewPredicateManager(support.NewFrameworkHandle(sharedLister, informerFactory, clientSet))
 
 	return ctx
-}
-
-// SetPodActivator is used by the plugin mode to add a callback function to reschedule a pod
-func (ctx *Context) SetPodActivator(podActivator func(logger klog.Logger, pod *v1.Pod)) {
-	ctx.podActivator.Store(podActivator)
-}
-
-// ActivatePod is used to tell Kubernetes to re-schedule a pod when using plugin mode
-func (ctx *Context) ActivatePod(pod *v1.Pod) {
-	if activator, ok := ctx.podActivator.Load().(func(logger klog.Logger, pod *v1.Pod)); ok && activator != nil {
-		activator(ctx.klogger, pod)
-	}
 }
 
 func (ctx *Context) AddSchedulingEventHandlers() error {
@@ -170,10 +156,6 @@ func (ctx *Context) AddSchedulingEventHandlers() error {
 	return nil
 }
 
-func (ctx *Context) IsPluginMode() bool {
-	return ctx.pluginMode
-}
-
 func (ctx *Context) addNode(obj interface{}) {
 	ctx.updateNode(nil, obj)
 }
@@ -219,9 +201,11 @@ func (ctx *Context) updateNodeInternal(node *v1.Node, register bool) {
 			}
 		}
 
-		// if node was registered in-line, enable it in the core
-		if err := ctx.enableNode(node); err != nil {
-			log.Log(log.ShimContext).Warn("Failed to enable node", zap.Error(err))
+		// if node is not cordoned, enable it in the core
+		if !node.Spec.Unschedulable {
+			if err := ctx.enableNode(node); err != nil {
+				log.Log(log.ShimContext).Warn("Failed to enable node", zap.Error(err))
+			}
 		}
 	} else {
 		// existing node
@@ -236,7 +220,22 @@ func (ctx *Context) updateNodeInternal(node *v1.Node, register bool) {
 				log.Log(log.ShimContext).Warn("Failed to update cached node capacity", zap.String("nodeName", node.Name))
 			}
 		}
+		if err := ctx.updateNodeSchedulability(prevNode, node); err != nil {
+			log.Log(log.ShimContext).Warn("Failed to update node schedulability", zap.Error(err))
+		}
 	}
+}
+
+func (ctx *Context) updateNodeSchedulability(prevNode, node *v1.Node) error {
+	if prevNode.Spec.Unschedulable == node.Spec.Unschedulable {
+		return nil
+	}
+	action := si.NodeInfo_DRAIN_TO_SCHEDULABLE
+	if node.Spec.Unschedulable {
+		action = si.NodeInfo_DRAIN_NODE
+	}
+	request := common.CreateUpdateRequestForDeleteOrRestoreNode(node.Name, action)
+	return ctx.apiProvider.GetAPIs().SchedulerAPI.UpdateNode(request)
 }
 
 func (ctx *Context) deleteNode(obj interface{}) {
@@ -867,34 +866,6 @@ func (ctx *Context) ForgetPod(name string) {
 	log.Log(log.ShimContext).Debug("unable to forget pod: not found in cache", zap.String("pod", name))
 }
 
-// IsTaskMaybeSchedulable returns true if a task might be currently able to be scheduled. This uses a bloom filter
-// cached from a set of taskIDs to perform efficient negative lookups.
-func (ctx *Context) IsTaskMaybeSchedulable(taskID string) bool {
-	return ctx.schedulerCache.IsTaskMaybeSchedulable(taskID)
-}
-
-func (ctx *Context) AddPendingPodAllocation(podKey string, nodeID string) {
-	ctx.schedulerCache.AddPendingPodAllocation(podKey, nodeID)
-}
-
-func (ctx *Context) RemovePodAllocation(podKey string) {
-	ctx.schedulerCache.RemovePodAllocation(podKey)
-}
-
-func (ctx *Context) GetPendingPodAllocation(podKey string) (nodeID string, ok bool) {
-	nodeID, ok = ctx.schedulerCache.GetPendingPodAllocation(podKey)
-	return nodeID, ok
-}
-
-func (ctx *Context) GetInProgressPodAllocation(podKey string) (nodeID string, ok bool) {
-	nodeID, ok = ctx.schedulerCache.GetInProgressPodAllocation(podKey)
-	return nodeID, ok
-}
-
-func (ctx *Context) StartPodAllocation(podKey string, nodeID string) bool {
-	return ctx.schedulerCache.StartPodAllocation(podKey, nodeID)
-}
-
 func (ctx *Context) notifyTaskComplete(app *Application, taskID string) {
 	if app == nil {
 		log.Log(log.ShimContext).Debug("In notifyTaskComplete but app is nil",
@@ -1220,7 +1191,6 @@ func (ctx *Context) HandleContainerStateUpdate(request *si.UpdateContainerSchedu
 			// auto-scaler scans pods whose pod condition is PodScheduled=false && reason=Unschedulable
 			// if the pod is skipped because the queue quota has been exceeded, we do not trigger the auto-scaling
 			task.SetTaskSchedulingState(TaskSchedSkipped)
-			ctx.schedulerCache.NotifyTaskSchedulerAction(task.taskID)
 			if ctx.updatePodCondition(task,
 				&v1.PodCondition{
 					Type:    v1.PodScheduled,
@@ -1234,7 +1204,6 @@ func (ctx *Context) HandleContainerStateUpdate(request *si.UpdateContainerSchedu
 			}
 		case si.UpdateContainerSchedulingStateRequest_FAILED:
 			task.SetTaskSchedulingState(TaskSchedFailed)
-			ctx.schedulerCache.NotifyTaskSchedulerAction(task.taskID)
 			// set pod condition to Unschedulable in order to trigger auto-scaling
 			if ctx.updatePodCondition(task,
 				&v1.PodCondition{
@@ -1405,7 +1374,7 @@ func (ctx *Context) InitializeState() error {
 
 	// Step 4: Enable nodes. At this point all allocations and asks have been processed, so it is safe to allow the
 	// core to begin scheduling.
-	err = ctx.enableNodes(acceptedNodes)
+	err = ctx.enableNodes(filterSchedulableNodes(acceptedNodes))
 	if err != nil {
 		log.Log(log.ShimContext).Error("failed to enable nodes", zap.Error(err))
 		return err
@@ -1644,6 +1613,16 @@ func (ctx *Context) enableNodes(nodes []*v1.Node) error {
 		return err
 	}
 	return nil
+}
+
+func filterSchedulableNodes(nodes []*v1.Node) []*v1.Node {
+	schedulableNodes := make([]*v1.Node, 0, len(nodes))
+	for _, node := range nodes {
+		if node != nil && !node.Spec.Unschedulable {
+			schedulableNodes = append(schedulableNodes, node)
+		}
+	}
+	return schedulableNodes
 }
 
 func (ctx *Context) finalizeNodes(existingNodes []*v1.Node) error {

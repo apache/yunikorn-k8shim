@@ -183,12 +183,11 @@ function delete_cluster() {
 function print_usage() {
   NAME=$(basename "$0")
   cat <<EOF
-Usage: ${NAME} -a <action> -n <kind-cluster-name> -v <kind-node-image-version> [-p <chart-path>] [--plugin]
+Usage: ${NAME} -a <action> -n <kind-cluster-name> -v <kind-node-image-version> [-p <chart-path>]
   <action>                     the action to be executed, must be either "test" or "cleanup".
   <kind-cluster-name>          the name of the K8s cluster to be created by kind
   <kind-node-image-version>    the kind node image used to provision the K8s cluster, required for "test" action
   <chart-path>                 local path to helm charts path (default is to pull from GitHub master)
-  --plugin                     use scheduler plugin image instead of default mode image
 
 Examples:
   ${NAME} -a test -n yk8s -v kindest/node:v1.24.17
@@ -241,10 +240,6 @@ case ${key} in
     CHART_PATH="$2"
     GIT_CLONE=false
     shift
-    shift
-    ;;
-  --plugin)
-    SCHEDULER_IMAGE="scheduler-plugin-${DOCKER_ARCH}-latest"
     shift
     ;;
   -h|--help)

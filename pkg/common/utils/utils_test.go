@@ -584,7 +584,6 @@ func TestPodUnderCondition(t *testing.T) {
 
 // nolint: funlen
 func TestGetApplicationIDFromPod(t *testing.T) {
-	defer SetPluginMode(false)
 	defer func() { conf.GetSchedulerConf().GenerateUniqueAppIds = false }()
 
 	appIDInCanonicalLabel := "CanonicalLabelAppID"
@@ -592,50 +591,49 @@ func TestGetApplicationIDFromPod(t *testing.T) {
 	appIDInLabel := "labelAppID"
 	appIDInSelector := "sparkLabelAppID"
 	testCases := []struct {
-		name                    string
-		pod                     *v1.Pod
-		expectedAppID           string
-		expectedAppIDPluginMode string
-		generateUniqueAppIds    bool
+		name                 string
+		pod                  *v1.Pod
+		expectedAppID        string
+		generateUniqueAppIds bool
 	}{
 		{"AppID defined in canonical label", &v1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{constants.CanonicalLabelApplicationID: appIDInCanonicalLabel},
 			},
 			Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
-		}, appIDInCanonicalLabel, appIDInCanonicalLabel, false},
+		}, appIDInCanonicalLabel, false},
 		{"AppID defined in annotation", &v1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
 				Annotations: map[string]string{constants.AnnotationApplicationID: appIDInAnnotation},
 			},
 			Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
-		}, appIDInAnnotation, appIDInAnnotation, false},
+		}, appIDInAnnotation, false},
 		{"AppID defined in legacy label", &v1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{constants.LabelApplicationID: appIDInLabel},
 			},
 			Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
-		}, appIDInLabel, appIDInLabel, false},
+		}, appIDInLabel, false},
 		{"AppID defined in spark app selector label", &v1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{constants.SparkLabelAppID: appIDInSelector},
 			},
 			Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
-		}, appIDInSelector, appIDInSelector, false},
+		}, appIDInSelector, false},
 		{"AppID defined in canonical label and annotation, canonical label win", &v1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
 				Annotations: map[string]string{constants.AnnotationApplicationID: appIDInAnnotation},
 				Labels:      map[string]string{constants.CanonicalLabelApplicationID: appIDInCanonicalLabel},
 			},
 			Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
-		}, appIDInCanonicalLabel, appIDInCanonicalLabel, false},
+		}, appIDInCanonicalLabel, false},
 		{"AppID defined in annotation and legacy label, annotation win", &v1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
 				Annotations: map[string]string{constants.AnnotationApplicationID: appIDInAnnotation},
 				Labels:      map[string]string{constants.LabelApplicationID: appIDInLabel},
 			},
 			Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
-		}, appIDInAnnotation, appIDInAnnotation, false},
+		}, appIDInAnnotation, false},
 		{"Spark AppID defined in legacy label and spark app selector, legacy label win", &v1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
@@ -644,22 +642,22 @@ func TestGetApplicationIDFromPod(t *testing.T) {
 				},
 			},
 			Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
-		}, appIDInLabel, appIDInLabel, false},
-		{"No AppID defined", &v1.Pod{}, "", "", false},
+		}, appIDInLabel, false},
+		{"No AppID defined", &v1.Pod{}, "", false},
 		{"No AppID defined but not generateUnique", &v1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: "testns",
 				UID:       "podUid",
 			},
 			Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
-		}, "yunikorn-testns-autogen", "", false},
+		}, "yunikorn-testns-autogen", false},
 		{"No AppID defined but generateUnique", &v1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: "testns",
 				UID:       "podUid",
 			},
 			Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
-		}, "testns-podUid", "", true},
+		}, "testns-podUid", true},
 		{"Unique autogen token found with generateUnique in canonical AppId label", &v1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: "testns",
@@ -667,7 +665,7 @@ func TestGetApplicationIDFromPod(t *testing.T) {
 				Labels:    map[string]string{constants.CanonicalLabelApplicationID: "testns-uniqueautogen"},
 			},
 			Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
-		}, "testns-podUid", "testns-podUid", true},
+		}, "testns-podUid", true},
 		{"Unique autogen token found with generateUnique in legacy AppId labels", &v1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: "testns",
@@ -675,19 +673,19 @@ func TestGetApplicationIDFromPod(t *testing.T) {
 				Labels:    map[string]string{constants.LabelApplicationID: "testns-uniqueautogen"},
 			},
 			Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
-		}, "testns-podUid", "testns-podUid", true},
+		}, "testns-podUid", true},
 		{"Non-yunikorn schedulerName with canonical AppId label", &v1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{constants.CanonicalLabelApplicationID: appIDInCanonicalLabel},
 			},
 			Spec: v1.PodSpec{SchedulerName: "default"},
-		}, "", "", false},
+		}, "", false},
 		{"Non-yunikorn schedulerName with legacy AppId label", &v1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{constants.LabelApplicationID: appIDInLabel},
 			},
 			Spec: v1.PodSpec{SchedulerName: "default"},
-		}, "", "", false},
+		}, "", false},
 		{"AppID defined but ignore-application set", &v1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
 				Annotations: map[string]string{
@@ -696,7 +694,7 @@ func TestGetApplicationIDFromPod(t *testing.T) {
 				},
 			},
 			Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
-		}, appIDInAnnotation, "", false},
+		}, appIDInAnnotation, false},
 		{"AppID defined and ignore-application invalid", &v1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
 				Annotations: map[string]string{
@@ -705,20 +703,14 @@ func TestGetApplicationIDFromPod(t *testing.T) {
 				},
 			},
 			Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
-		}, appIDInAnnotation, appIDInAnnotation, false},
+		}, appIDInAnnotation, false},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			conf.GetSchedulerConf().GenerateUniqueAppIds = tc.generateUniqueAppIds
-			SetPluginMode(false)
-			assert.Equal(t, IsPluginMode(), false)
 			appID := GetApplicationIDFromPod(tc.pod)
 			assert.Equal(t, appID, tc.expectedAppID, "Wrong appID (standard mode)")
-			SetPluginMode(true)
-			assert.Equal(t, IsPluginMode(), true)
-			appID2 := GetApplicationIDFromPod(tc.pod)
-			assert.Equal(t, appID2, tc.expectedAppIDPluginMode, "Wrong appID (plugin mode)")
 		})
 	}
 }

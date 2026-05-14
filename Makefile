@@ -54,7 +54,6 @@ COVERAGE_DIR=${OUTPUT}/instrumented
 
 # Binary names
 SCHEDULER_BINARY=yunikorn-scheduler
-PLUGIN_BINARY=yunikorn-scheduler-plugin
 ADMISSION_CONTROLLER_BINARY=yunikorn-admission-controller
 TEST_SERVER_BINARY=web-test-server
 
@@ -75,11 +74,6 @@ K8S_VERSION :=$(shell go list -m 'k8s.io/kubernetes' | cut -d' ' -f 2)
 endif
 ifeq ($(CLUSTER_NAME),)
 CLUSTER_NAME := yk8s
-endif
-ifeq ($(PLUGIN),1)
-  PLUGIN_OPTS := --plugin
-else
-  PLUGIN_OPTS :=
 endif
 
 # Reproducible builds mode
@@ -234,26 +228,14 @@ export GO111MODULE
 ifeq ($(SCHEDULER_TAG),)
 SCHEDULER_TAG := $(REGISTRY)/yunikorn:scheduler-$(DOCKER_ARCH)-$(VERSION)
 endif
-ifeq ($(PLUGIN_TAG),)
-PLUGIN_TAG := $(REGISTRY)/yunikorn:scheduler-plugin-$(DOCKER_ARCH)-$(VERSION)
-endif
 ifeq ($(ADMISSION_TAG),)
 ADMISSION_TAG := $(REGISTRY)/yunikorn:admission-$(DOCKER_ARCH)-$(VERSION)
 endif
 
 SCHEDULER_INSTRUMENTED_TAG := $(SCHEDULER_TAG)-instrumented
-PLUGIN_INSTRUMENTED_TAG := $(PLUGIN_TAG)-instrumented
 
 all:
-	$(MAKE) -C $(dir $(BASE_DIR)) init build build_plugin
-
-# Ensure generated files are present
-.PHONY: init
-init: conf/scheduler-config-local.yaml
-
-# Generate local scheduler config
-conf/scheduler-config-local.yaml: conf/scheduler-config.yaml
-	./scripts/plugin-conf-gen.sh $(KUBECONFIG) "conf/scheduler-config.yaml" "conf/scheduler-config-local.yaml"
+	$(MAKE) -C $(dir $(BASE_DIR)) build
 
 # Print tools version
 .PHONY: print_kubectl_version
@@ -406,16 +388,6 @@ run: build
 	cd ${DEV_BIN_DIR} && \
 	KUBECONFIG="$(KUBECONFIG)" ./${SCHEDULER_BINARY}
 
-.PHONY: run_plugin
-run_plugin: build_plugin
-	@echo "running scheduler plugin locally"
-	cd ${DEV_BIN_DIR} && \
-	KUBECONFIG="$(KUBECONFIG)" \
-	./${PLUGIN_BINARY} \
-	--bind-address=0.0.0.0 \
-	--config=../../conf/scheduler-config-local.yaml \
-	-v=2
-
 # Build scheduler binary for dev and test
 .PHONY: build
 build: $(DEV_BIN_DIR)/$(SCHEDULER_BINARY)
@@ -426,20 +398,8 @@ $(DEV_BIN_DIR)/$(SCHEDULER_BINARY): go.mod go.sum $(shell find pkg)
 	"$(GO)" build \
 	-o=${DEV_BIN_DIR}/${SCHEDULER_BINARY} \
 	-race \
-	-ldflags '-buildid= -X ${FLAG_PREFIX}.buildVersion=${VERSION} -X ${FLAG_PREFIX}.buildDate=${DATE} -X ${FLAG_PREFIX}.isPluginVersion=false -X ${FLAG_PREFIX}.goVersion=${GO_VERSION} -X ${FLAG_PREFIX}.arch=${EXEC_ARCH} -X ${FLAG_PREFIX}.coreSHA=${CORE_SHA} -X ${FLAG_PREFIX}.siSHA=${SI_SHA} -X ${FLAG_PREFIX}.shimSHA=${SHIM_SHA}' \
+	-ldflags '-buildid= -X ${FLAG_PREFIX}.buildVersion=${VERSION} -X ${FLAG_PREFIX}.buildDate=${DATE} -X ${FLAG_PREFIX}.goVersion=${GO_VERSION} -X ${FLAG_PREFIX}.arch=${EXEC_ARCH} -X ${FLAG_PREFIX}.coreSHA=${CORE_SHA} -X ${FLAG_PREFIX}.siSHA=${SI_SHA} -X ${FLAG_PREFIX}.shimSHA=${SHIM_SHA}' \
 	./pkg/cmd/shim/
-
-.PHONY: build_plugin
-build_plugin: $(DEV_BIN_DIR)/$(PLUGIN_BINARY)
-
-$(DEV_BIN_DIR)/$(PLUGIN_BINARY): go.mod go.sum $(shell find pkg)
-	@echo "building scheduler plugin binary"
-	@mkdir -p "$(DEV_BIN_DIR)"
-	"$(GO)" build \
-	-o=${DEV_BIN_DIR}/${PLUGIN_BINARY} \
-	-race \
-	-ldflags '-buildid= -X ${FLAG_PREFIX}.buildVersion=${VERSION} -X ${FLAG_PREFIX}.buildDate=${DATE} -X ${FLAG_PREFIX}.isPluginVersion=true -X ${FLAG_PREFIX}.goVersion=${GO_VERSION} -X ${FLAG_PREFIX}.arch=${EXEC_ARCH} -X ${FLAG_PREFIX}.coreSHA=${CORE_SHA} -X ${FLAG_PREFIX}.siSHA=${SI_SHA} -X ${FLAG_PREFIX}.shimSHA=${SHIM_SHA}' \
-	./pkg/cmd/schedulerplugin/
 
 # Build scheduler binary in a production ready version
 .PHONY: scheduler
@@ -454,7 +414,7 @@ ifeq ($(REPRO),1)
 	-a \
 	-o=${RELEASE_BIN_DIR}/${SCHEDULER_BINARY} \
 	-trimpath \
-	-ldflags '-buildid= -extldflags \"-static\" -X ${FLAG_PREFIX}.buildVersion=${VERSION} -X ${FLAG_PREFIX}.buildDate=${DATE} -X ${FLAG_PREFIX}.isPluginVersion=false -X ${FLAG_PREFIX}.goVersion=${GO_REPRO_VERSION} -X ${FLAG_PREFIX}.arch=${EXEC_ARCH} -X ${FLAG_PREFIX}.coreSHA=${CORE_SHA} -X ${FLAG_PREFIX}.siSHA=${SI_SHA} -X ${FLAG_PREFIX}.shimSHA=${SHIM_SHA}' \
+	-ldflags '-buildid= -extldflags \"-static\" -X ${FLAG_PREFIX}.buildVersion=${VERSION} -X ${FLAG_PREFIX}.buildDate=${DATE} -X ${FLAG_PREFIX}.goVersion=${GO_REPRO_VERSION} -X ${FLAG_PREFIX}.arch=${EXEC_ARCH} -X ${FLAG_PREFIX}.coreSHA=${CORE_SHA} -X ${FLAG_PREFIX}.siSHA=${SI_SHA} -X ${FLAG_PREFIX}.shimSHA=${SHIM_SHA}' \
 	-tags netgo \
 	./pkg/cmd/shim/"
 else
@@ -462,7 +422,7 @@ else
 	-a \
 	-o=${RELEASE_BIN_DIR}/${SCHEDULER_BINARY} \
 	-trimpath \
-	-ldflags '-buildid= -extldflags "-static" -X ${FLAG_PREFIX}.buildVersion=${VERSION} -X ${FLAG_PREFIX}.buildDate=${DATE} -X ${FLAG_PREFIX}.isPluginVersion=false -X ${FLAG_PREFIX}.goVersion=${GO_VERSION} -X ${FLAG_PREFIX}.arch=${EXEC_ARCH} -X ${FLAG_PREFIX}.coreSHA=${CORE_SHA} -X ${FLAG_PREFIX}.siSHA=${SI_SHA} -X ${FLAG_PREFIX}.shimSHA=${SHIM_SHA}' \
+	-ldflags '-buildid= -extldflags "-static" -X ${FLAG_PREFIX}.buildVersion=${VERSION} -X ${FLAG_PREFIX}.buildDate=${DATE} -X ${FLAG_PREFIX}.goVersion=${GO_VERSION} -X ${FLAG_PREFIX}.arch=${EXEC_ARCH} -X ${FLAG_PREFIX}.coreSHA=${CORE_SHA} -X ${FLAG_PREFIX}.siSHA=${SI_SHA} -X ${FLAG_PREFIX}.shimSHA=${SHIM_SHA}' \
 	-tags netgo \
 	./pkg/cmd/shim/
 endif
@@ -477,49 +437,9 @@ $(COVERAGE_DIR)/$(SCHEDULER_BINARY): go.mod go.sum $(shell find pkg)
 	-a \
 	-o=${COVERAGE_DIR}/${SCHEDULER_BINARY} \
 	-trimpath \
-	-ldflags '-buildid= -extldflags "-static" -X ${FLAG_PREFIX}.buildVersion=${VERSION} -X ${FLAG_PREFIX}.buildDate=${DATE} -X ${FLAG_PREFIX}.isPluginVersion=false -X ${FLAG_PREFIX}.goVersion=${GO_VERSION} -X ${FLAG_PREFIX}.arch=${EXEC_ARCH} -X ${FLAG_PREFIX}.coreSHA=${CORE_SHA} -X ${FLAG_PREFIX}.siSHA=${SI_SHA} -X ${FLAG_PREFIX}.shimSHA=${SHIM_SHA}' \
+	-ldflags '-buildid= -extldflags "-static" -X ${FLAG_PREFIX}.buildVersion=${VERSION} -X ${FLAG_PREFIX}.buildDate=${DATE} -X ${FLAG_PREFIX}.goVersion=${GO_VERSION} -X ${FLAG_PREFIX}.arch=${EXEC_ARCH} -X ${FLAG_PREFIX}.coreSHA=${CORE_SHA} -X ${FLAG_PREFIX}.siSHA=${SI_SHA} -X ${FLAG_PREFIX}.shimSHA=${SHIM_SHA}' \
 	-tags netgo \
 	./pkg/cmd/shim/
-
-# Build plugin binary in a production ready version
-.PHONY: plugin
-plugin: $(RELEASE_BIN_DIR)/$(PLUGIN_BINARY)
-
-$(RELEASE_BIN_DIR)/$(PLUGIN_BINARY): go.mod go.sum $(shell find pkg)
-	@echo "building binary for plugin docker image"
-	@mkdir -p "$(RELEASE_BIN_DIR)"
-ifeq ($(REPRO),1)
-	docker run -t --rm=true --volume "$(DOCKER_BUILDROOT):/buildroot" "golang:$(GO_REPRO_VERSION)" sh -c "cd $(DOCKER_SRCROOT) && \
-	CGO_ENABLED=0 GOOS=linux GOARCH=\"${EXEC_ARCH}\" go build \
-	-a \
-	-o=${RELEASE_BIN_DIR}/${PLUGIN_BINARY} \
-	-trimpath \
-	-ldflags '-buildid= -extldflags \"-static\" -X ${FLAG_PREFIX}.buildVersion=${VERSION} -X ${FLAG_PREFIX}.buildDate=${DATE} -X ${FLAG_PREFIX}.isPluginVersion=true -X ${FLAG_PREFIX}.goVersion=${GO_REPRO_VERSION} -X ${FLAG_PREFIX}.arch=${EXEC_ARCH} -X ${FLAG_PREFIX}.coreSHA=${CORE_SHA} -X ${FLAG_PREFIX}.siSHA=${SI_SHA} -X ${FLAG_PREFIX}.shimSHA=${SHIM_SHA}' \
-	-tags netgo \
-	./pkg/cmd/schedulerplugin/"
-else
-	CGO_ENABLED=0 GOOS=linux GOARCH="${EXEC_ARCH}" "$(GO)" build \
-	-a \
-	-o=${RELEASE_BIN_DIR}/${PLUGIN_BINARY} \
-	-trimpath \
-	-ldflags '-buildid= -extldflags "-static" -X ${FLAG_PREFIX}.buildVersion=${VERSION} -X ${FLAG_PREFIX}.buildDate=${DATE} -X ${FLAG_PREFIX}.isPluginVersion=true -X ${FLAG_PREFIX}.goVersion=${GO_VERSION} -X ${FLAG_PREFIX}.arch=${EXEC_ARCH} -X ${FLAG_PREFIX}.coreSHA=${CORE_SHA} -X ${FLAG_PREFIX}.siSHA=${SI_SHA} -X ${FLAG_PREFIX}.shimSHA=${SHIM_SHA}' \
-	-tags netgo \
-	./pkg/cmd/schedulerplugin/
-endif
-
-.PHONY: plugin_instrumented
-plugin_instrumented: $(COVERAGE_DIR)/$(PLUGIN_BINARY)
-
-$(COVERAGE_DIR)/$(PLUGIN_BINARY): go.mod go.sum $(shell find pkg)
-	@echo "building instrumented binary for plugin docker image"
-	@mkdir -p "$(RELEASE_BIN_DIR)"
-	CGO_ENABLED=0 GOOS=linux GOARCH="${EXEC_ARCH}" "$(GO)" build -cover \
-	-a \
-	-o=${COVERAGE_DIR}/${PLUGIN_BINARY} \
-	-trimpath \
-	-ldflags '-buildid= -extldflags "-static" -X ${FLAG_PREFIX}.buildVersion=${VERSION} -X ${FLAG_PREFIX}.buildDate=${DATE} -X ${FLAG_PREFIX}.isPluginVersion=true -X ${FLAG_PREFIX}.goVersion=${GO_VERSION} -X ${FLAG_PREFIX}.arch=${EXEC_ARCH} -X ${FLAG_PREFIX}.coreSHA=${CORE_SHA} -X ${FLAG_PREFIX}.siSHA=${SI_SHA} -X ${FLAG_PREFIX}.shimSHA=${SHIM_SHA}' \
-	-tags netgo \
-	./pkg/cmd/schedulerplugin/
 
 # Build a scheduler image based on the production ready version
 .PHONY: sched_image
@@ -569,65 +489,6 @@ sched_image_instrumented: $(OUTPUT)/third-party-licenses.md scheduler_instrument
 	--label "Version=${VERSION}" \
 	--label "org.opencontainers.image.title=${SCHEDULER_BINARY}" \
 	--label "org.opencontainers.image.description=Apache YuniKorn Scheduler" \
-	--label "org.opencontainers.image.version=${VERSION}" \
-	--label "org.opencontainers.image.created=$(DATE)" \
-	--label "org.opencontainers.image.source=${IMAGE_SOURCE}" \
-	--label "org.opencontainers.image.url=${IMAGE_URL}" \
-	--label "org.opencontainers.image.revision=$(SHIM_SHA)" \
-	--label "org.opencontainers.image.license=${LICENSE}" \
-	--label "org.opencontainers.image.documentation=${DOCS_URL}" \
-	${QUIET}
-
-# Build a plugin image based on the production ready version
-.PHONY: plugin_image
-plugin_image: $(OUTPUT)/third-party-licenses.md plugin docker/plugin conf/scheduler-config.yaml
-	@echo "building plugin docker image"
-	@rm -rf "$(DOCKER_DIR)/plugin"
-	@mkdir -p "$(DOCKER_DIR)/plugin"
-	@cp -a "docker/plugin/." "$(DOCKER_DIR)/plugin/."
-	@cp "$(RELEASE_BIN_DIR)/$(PLUGIN_BINARY)" "$(DOCKER_DIR)/plugin/."
-	@cp -a LICENSE NOTICE "$(OUTPUT)/third-party-licenses.md" "$(DOCKER_DIR)/plugin/."
-	@cp conf/scheduler-config.yaml "$(DOCKER_DIR)/plugin/scheduler-config.yaml"
-	DOCKER_BUILDKIT=1 docker build \
-	"$(DOCKER_DIR)/plugin" \
-	-t "$(PLUGIN_TAG)" \
-	--platform "linux/${DOCKER_ARCH}" \
-	--label "yunikorn-core-revision=${CORE_SHA}" \
-	--label "yunikorn-scheduler-interface-revision=${SI_SHA}" \
-	--label "yunikorn-k8shim-revision=${SHIM_SHA}" \
-	--label "BuildTimeStamp=${DATE}" \
-	--label "Version=${VERSION}" \
-	--label "org.opencontainers.image.title=${PLUGIN_BINARY}" \
-	--label "org.opencontainers.image.description=Apache YuniKorn Scheduler (Plugin)" \
-	--label "org.opencontainers.image.version=${VERSION}" \
-	--label "org.opencontainers.image.created=$(DATE)" \
-	--label "org.opencontainers.image.source=${IMAGE_SOURCE}" \
-	--label "org.opencontainers.image.url=${IMAGE_URL}" \
-	--label "org.opencontainers.image.revision=$(SHIM_SHA)" \
-	--label "org.opencontainers.image.license=${LICENSE}" \
-	--label "org.opencontainers.image.documentation=${DOCS_URL}" \
-	${QUIET}
-
-.PHONY: plugin_image_instrumented
-plugin_image_instrumented: $(OUTPUT)/third-party-licenses.md plugin_instrumented docker/plugin conf/scheduler-config.yaml
-	@echo "building instrumented plugin docker image"
-	@rm -rf "$(DOCKER_DIR)/plugin"
-	@mkdir -p "$(DOCKER_DIR)/plugin"
-	@cp -a "docker/plugin/." "$(DOCKER_DIR)/plugin/."
-	@cp "$(COVERAGE_DIR)/$(PLUGIN_BINARY)" "$(DOCKER_DIR)/plugin/."
-	@cp -a LICENSE NOTICE "$(OUTPUT)/third-party-licenses.md" "$(DOCKER_DIR)/plugin/."
-	@cp conf/scheduler-config.yaml "$(DOCKER_DIR)/plugin/scheduler-config.yaml"
-	DOCKER_BUILDKIT=1 docker build \
-	"$(DOCKER_DIR)/plugin" \
-	-t "$(PLUGIN_INSTRUMENTED_TAG)" \
-	--platform "linux/${DOCKER_ARCH}" \
-	--label "yunikorn-core-revision=${CORE_SHA}" \
-	--label "yunikorn-scheduler-interface-revision=${SI_SHA}" \
-	--label "yunikorn-k8shim-revision=${SHIM_SHA}" \
-	--label "BuildTimeStamp=${DATE}" \
-	--label "Version=${VERSION}" \
-	--label "org.opencontainers.image.title=${PLUGIN_BINARY}" \
-	--label "org.opencontainers.image.description=Apache YuniKorn Scheduler (Plugin)" \
 	--label "org.opencontainers.image.version=${VERSION}" \
 	--label "org.opencontainers.image.created=$(DATE)" \
 	--label "org.opencontainers.image.source=${IMAGE_SOURCE}" \
@@ -694,7 +555,7 @@ adm_image: $(OUTPUT)/third-party-licenses.md admission docker/admission
 
 # Build all images based on the production ready version
 .PHONY: image
-image: sched_image plugin_image adm_image
+image: sched_image adm_image
 
 # Build a web server image ONLY to be used in e2e tests
 .PHONY: webtest_image
@@ -785,7 +646,7 @@ arch:
 .PHONY: start-cluster
 start-cluster: $(KIND_BIN)
 	@"$(KIND_BIN)" delete cluster --name="$(CLUSTER_NAME)" || :
-	@./scripts/run-e2e-tests.sh -a install -n "$(CLUSTER_NAME)" -v "kindest/node:$(K8S_VERSION)" $(PLUGIN_OPTS)
+	@./scripts/run-e2e-tests.sh -a install -n "$(CLUSTER_NAME)" -v "kindest/node:$(K8S_VERSION)"
 
 # Stop dev cluster
 .PHONY: stop-cluster
@@ -796,7 +657,7 @@ stop-cluster: $(KIND_BIN)
 .PHONY: kind-e2e
 kind-e2e: $(KIND_BIN)
 	@"$(KIND_BIN)" delete cluster --name="$(CLUSTER_NAME)" || : ; \
-		./scripts/run-e2e-tests.sh -a test -n "$(CLUSTER_NAME)" -v "kindest/node:$(K8S_VERSION)" $(PLUGIN_OPTS) ; STATUS=$$? ; \
+		./scripts/run-e2e-tests.sh -a test -n "$(CLUSTER_NAME)" -v "kindest/node:$(K8S_VERSION)" ; STATUS=$$? ; \
 		"$(KIND_BIN)" delete cluster --name="$(CLUSTER_NAME)" || : ; exit $$STATUS
 
 # Run the e2e tests, this assumes yunikorn is running under yunikorn namespace

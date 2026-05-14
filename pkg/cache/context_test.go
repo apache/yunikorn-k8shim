@@ -212,6 +212,110 @@ func TestUpdateNodes(t *testing.T) {
 	ctx.updateNode(&oldNode, &newNode)
 }
 
+func TestAddCordonedNodeDoesNotEnable(t *testing.T) {
+	ctx, apiProvider := initContextAndAPIProviderForTest()
+	dispatcher.Start()
+	defer dispatcher.UnregisterAllEventHandlers()
+	defer dispatcher.Stop()
+
+	actions := make([]si.NodeInfo_ActionFromRM, 0)
+	apiProvider.MockSchedulerAPIUpdateNodeFn(func(request *si.NodeRequest) error {
+		for _, node := range request.Nodes {
+			actions = append(actions, node.Action)
+			if node.Action == si.NodeInfo_CREATE_DRAIN {
+				dispatcher.Dispatch(CachedSchedulerNodeEvent{
+					NodeID: node.NodeID,
+					Event:  NodeAccepted,
+				})
+			}
+		}
+		return nil
+	})
+
+	node := v1.Node{
+		ObjectMeta: apis.ObjectMeta{
+			Name:      Host1,
+			Namespace: "default",
+			UID:       uid1,
+		},
+		Spec: v1.NodeSpec{
+			Unschedulable: true,
+		},
+	}
+
+	ctx.addNode(&node)
+
+	assert.Equal(t, len(actions), 1)
+	assert.Equal(t, actions[0], si.NodeInfo_CREATE_DRAIN)
+}
+
+func TestUpdateNodeSchedulability(t *testing.T) {
+	ctx, apiProvider := initContextAndAPIProviderForTest()
+	dispatcher.Start()
+	defer dispatcher.UnregisterAllEventHandlers()
+	defer dispatcher.Stop()
+
+	actions := make([]si.NodeInfo_ActionFromRM, 0)
+	apiProvider.MockSchedulerAPIUpdateNodeFn(func(request *si.NodeRequest) error {
+		for _, node := range request.Nodes {
+			actions = append(actions, node.Action)
+			if node.Action == si.NodeInfo_CREATE_DRAIN {
+				dispatcher.Dispatch(CachedSchedulerNodeEvent{
+					NodeID: node.NodeID,
+					Event:  NodeAccepted,
+				})
+			}
+		}
+		return nil
+	})
+
+	node := v1.Node{
+		ObjectMeta: apis.ObjectMeta{
+			Name:      Host1,
+			Namespace: "default",
+			UID:       uid1,
+		},
+	}
+
+	ctx.addNode(&node)
+	assert.Equal(t, len(actions), 2)
+	assert.Equal(t, actions[0], si.NodeInfo_CREATE_DRAIN)
+	assert.Equal(t, actions[1], si.NodeInfo_DRAIN_TO_SCHEDULABLE)
+
+	cordoned := node.DeepCopy()
+	cordoned.Spec.Unschedulable = true
+	ctx.updateNode(&node, cordoned)
+	assert.Equal(t, len(actions), 3)
+	assert.Equal(t, actions[2], si.NodeInfo_DRAIN_NODE)
+
+	cordonedCopy := cordoned.DeepCopy()
+	ctx.updateNode(cordoned, cordonedCopy)
+	assert.Equal(t, len(actions), 3)
+
+	uncordoned := cordoned.DeepCopy()
+	uncordoned.Spec.Unschedulable = false
+	ctx.updateNode(cordoned, uncordoned)
+	assert.Equal(t, len(actions), 4)
+	assert.Equal(t, actions[3], si.NodeInfo_DRAIN_TO_SCHEDULABLE)
+}
+
+func TestFilterSchedulableNodes(t *testing.T) {
+	node1 := &v1.Node{
+		ObjectMeta: apis.ObjectMeta{Name: Host1},
+	}
+	node2 := &v1.Node{
+		ObjectMeta: apis.ObjectMeta{Name: Host2},
+		Spec: v1.NodeSpec{
+			Unschedulable: true,
+		},
+	}
+
+	nodes := filterSchedulableNodes([]*v1.Node{node1, nil, node2})
+
+	assert.Equal(t, len(nodes), 1)
+	assert.Equal(t, nodes[0].Name, Host1)
+}
+
 func TestDeleteNodes(t *testing.T) {
 	ctx, apiProvider := initContextAndAPIProviderForTest()
 	dispatcher.Start()
@@ -1544,121 +1648,6 @@ func TestAddApplicationsWithTags(t *testing.T) {
 	}
 }
 
-func TestPendingPodAllocations(t *testing.T) {
-	utils.SetPluginMode(true)
-	defer utils.SetPluginMode(false)
-
-	context, apiProvider := initContextAndAPIProviderForTest()
-	dispatcher.Start()
-	defer dispatcher.UnregisterAllEventHandlers()
-	defer dispatcher.Stop()
-
-	apiProvider.MockSchedulerAPIUpdateNodeFn(func(request *si.NodeRequest) error {
-		for _, node := range request.Nodes {
-			dispatcher.Dispatch(CachedSchedulerNodeEvent{
-				NodeID: node.NodeID,
-				Event:  NodeAccepted,
-			})
-		}
-		return nil
-	})
-
-	node1 := v1.Node{
-		ObjectMeta: apis.ObjectMeta{
-			Name:      Host1,
-			Namespace: "default",
-			UID:       uid1,
-		},
-	}
-	context.addNode(&node1)
-
-	node2 := v1.Node{
-		ObjectMeta: apis.ObjectMeta{
-			Name:      Host2,
-			Namespace: "default",
-			UID:       uid2,
-		},
-	}
-	context.addNode(&node2)
-
-	// add a new application
-	context.AddApplication(&AddApplicationRequest{
-		Metadata: ApplicationMetadata{
-			ApplicationID: appID1,
-			QueueName:     queueNameA,
-			User:          testUser,
-			Tags:          nil,
-		},
-	})
-
-	pod := &v1.Pod{
-		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-		ObjectMeta: apis.ObjectMeta{
-			Name: taskUID1,
-			UID:  uid1,
-		},
-	}
-
-	// add a tasks to the existing application
-	task := context.AddTask(&AddTaskRequest{
-		Metadata: TaskMetadata{
-			ApplicationID: appID1,
-			TaskID:        taskUID1,
-			Pod:           pod,
-		},
-	})
-	assert.Assert(t, task != nil, "task was nil")
-
-	// add the allocation
-	context.AddPendingPodAllocation(uid1, Host1)
-
-	// validate that the pending allocation matches
-	nodeID, ok := context.GetPendingPodAllocation(uid1)
-	if !ok {
-		t.Fatalf("no pending pod allocation found")
-	}
-	assert.Equal(t, nodeID, Host1, "wrong host")
-
-	// validate that there is not an in-progress allocation
-	if _, ok = context.GetInProgressPodAllocation(uid1); ok {
-		t.Fatalf("in-progress allocation exists when it should be pending")
-	}
-
-	if context.StartPodAllocation(uid1, Host2) {
-		t.Fatalf("attempt to start pod allocation on wrong node succeeded")
-	}
-
-	if !context.StartPodAllocation(uid1, Host1) {
-		t.Fatalf("attempt to start pod allocation on correct node failed")
-	}
-
-	if _, ok = context.GetPendingPodAllocation(uid1); ok {
-		t.Fatalf("pending pod allocation still exists after transition to in-progress")
-	}
-
-	nodeID, ok = context.GetInProgressPodAllocation(uid1)
-	if !ok {
-		t.Fatalf("in-progress allocation does not exist")
-	}
-	assert.Equal(t, nodeID, Host1, "wrong host")
-
-	context.RemovePodAllocation(uid1)
-	if _, ok = context.GetInProgressPodAllocation(uid1); ok {
-		t.Fatalf("in-progress pod allocation still exists after removal")
-	}
-
-	// re-add to validate pending pod removal
-	context.AddPendingPodAllocation(uid1, Host1)
-	context.RemovePodAllocation(uid1)
-
-	if _, ok = context.GetPendingPodAllocation(uid1); ok {
-		t.Fatalf("pending pod allocation still exists after removal")
-	}
-}
-
 func TestGetStateDump(t *testing.T) {
 	context := initContextForTest()
 
@@ -1998,6 +1987,47 @@ func TestInitializeState(t *testing.T) {
 	// pod3 is an orphan, should not be found
 	task3 := context.getTask(appID3, podName3)
 	assert.Assert(t, task3 == nil, "pod3 was found")
+}
+
+func TestInitializeStateDoesNotEnableCordonedNodes(t *testing.T) {
+	context, apiProvider := initContextAndAPIProviderForTest()
+	apiProvider.RunEventHandler()
+	nodeLister, ok := apiProvider.GetAPIs().NodeInformer.Lister().(*test.NodeListerMock)
+	assert.Assert(t, ok, "unable to get mock node lister")
+
+	dispatcher.Start()
+	defer dispatcher.UnregisterAllEventHandlers()
+	defer dispatcher.Stop()
+
+	actionsByNode := make(map[string][]si.NodeInfo_ActionFromRM)
+	apiProvider.MockSchedulerAPIUpdateNodeFn(func(request *si.NodeRequest) error {
+		for _, node := range request.Nodes {
+			actionsByNode[node.NodeID] = append(actionsByNode[node.NodeID], node.Action)
+			if node.Action == si.NodeInfo_CREATE_DRAIN {
+				dispatcher.Dispatch(CachedSchedulerNodeEvent{
+					NodeID: node.NodeID,
+					Event:  NodeAccepted,
+				})
+			}
+		}
+		return nil
+	})
+
+	schedulableNode := nodeForTest(nodeName1, "10G", "4")
+	cordonedNode := nodeForTest(nodeName2, "10G", "4")
+	cordonedNode.Spec.Unschedulable = true
+	nodeLister.AddNode(schedulableNode)
+	nodeLister.AddNode(cordonedNode)
+
+	err := context.InitializeState()
+	assert.NilError(t, err, "InitializeState failed")
+
+	assert.Assert(t, context.schedulerCache.GetNode(nodeName1) != nil, "schedulable node was not cached")
+	assert.Assert(t, context.schedulerCache.GetNode(nodeName2) != nil, "cordoned node was not cached")
+
+	cordonedActions := actionsByNode[nodeName2]
+	assert.Equal(t, len(cordonedActions), 1)
+	assert.Equal(t, cordonedActions[0], si.NodeInfo_CREATE_DRAIN)
 }
 
 func TestPodAdoption(t *testing.T) {

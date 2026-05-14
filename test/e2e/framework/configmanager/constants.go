@@ -57,7 +57,6 @@ const (
 	DefaultYuniKornScheme = "http"
 
 	DefaultYuniKornConfigMap = "yunikorn-configs"
-	DefaultPluginConfigMap   = "yunikorn-configs"
 	DefaultPolicyGroup       = "queues.yaml"
 
 	// Queues

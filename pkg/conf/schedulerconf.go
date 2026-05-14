@@ -97,14 +97,13 @@ const (
 )
 
 var (
-	buildVersion    string
-	buildDate       string
-	isPluginVersion string
-	goVersion       string
-	arch            string
-	coreSHA         string
-	siSHA           string
-	shimSHA         string
+	buildVersion string
+	buildDate    string
+	goVersion    string
+	arch         string
+	coreSHA      string
+	siSHA        string
+	shimSHA      string
 )
 
 var once sync.Once
@@ -524,20 +523,19 @@ func FlattenConfigMaps(configMaps []*v1.ConfigMap) map[string]string {
 
 func GetBuildInfoMap() map[string]string {
 	return map[string]string{
-		"buildVersion":    buildVersion,
-		"buildDate":       buildDate,
-		"isPluginVersion": isPluginVersion,
-		"goVersion":       goVersion,
-		"arch":            arch,
-		"coreSHA":         coreSHA,
-		"siSHA":           siSHA,
-		"shimSHA":         shimSHA,
+		"buildVersion": buildVersion,
+		"buildDate":    buildDate,
+		"goVersion":    goVersion,
+		"arch":         arch,
+		"coreSHA":      coreSHA,
+		"siSHA":        siSHA,
+		"shimSHA":      shimSHA,
 	}
 }
 
 func GetBuildInfoString() string {
 	return fmt.Sprintf(
-		"Build info: version=%s date=%s isPluginVersion=%s goVersion=%s arch=%s coreSHA=%s siSHA=%s shimSHA=%s",
-		buildVersion, buildDate, isPluginVersion, goVersion, arch, coreSHA, siSHA, shimSHA,
+		"Build info: version=%s date=%s goVersion=%s arch=%s coreSHA=%s siSHA=%s shimSHA=%s",
+		buildVersion, buildDate, goVersion, arch, coreSHA, siSHA, shimSHA,
 	)
 }
