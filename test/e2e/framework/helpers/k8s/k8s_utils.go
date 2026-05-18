@@ -795,6 +795,18 @@ func GetPodObj(yamlPath string) (*v1.Pod, error) {
 	return pod, nil
 }
 
+func GetDeploymentObj(yamlPath string) (*appsv1.Deployment, error) {
+	o, err := common.Yaml2Obj(yamlPath)
+	if err != nil {
+		return nil, err
+	}
+	deployment, ok := o.(*appsv1.Deployment)
+	if !ok {
+		return nil, fmt.Errorf("failed to convert object to Deployment")
+	}
+	return deployment, nil
+}
+
 func (k *KubeCtl) CreateDeployment(deployment *appsv1.Deployment, namespace string) (*appsv1.Deployment, error) {
 	return k.clientSet.AppsV1().Deployments(namespace).Create(context.TODO(), deployment, metav1.CreateOptions{})
 }
@@ -1111,6 +1123,24 @@ func (k *KubeCtl) WaitForPodBySelectorRunning(namespace string, selector string,
 		}
 	}
 	return nil
+}
+
+func (k *KubeCtl) WaitForNPodsBySelectorRunning(namespace string, selector string, expectedCount int, timeout time.Duration) error {
+	return wait.PollUntilContextTimeout(context.TODO(), time.Millisecond*100, timeout, false, func(ctx context.Context) (bool, error) {
+		podList, err := k.ListPods(namespace, selector)
+		if err != nil {
+			return false, err
+		}
+		if len(podList.Items) != expectedCount {
+			return false, nil
+		}
+		for _, pod := range podList.Items {
+			if pod.Status.Phase != v1.PodRunning {
+				return false, nil
+			}
+		}
+		return true, nil
+	})
 }
 
 // Wait for all pods in 'namespace' with given 'selector' to enter succeeded state.
