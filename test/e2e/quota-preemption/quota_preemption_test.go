@@ -294,7 +294,7 @@ var _ = ginkgo.Describe("QuotaPreemption", func() {
 		}, 5*time.Second, time.Second).Should(gomega.Succeed())
 	})
 
-	ginkgo.PIt("Needs Investigation - Quota_Preemption_Delay_Inherited_From_Parent", func() {
+	ginkgo.It("Quota_Preemption_Delay_Inherited_From_Parent", func() {
 		ginkgo.By("Quota preemption delay set on parent queue should be inherited by child queues that do not set it explicitly.")
 
 		// Apply initial config: parent has quota.preemption.delay=20s, child (queue-a) has no delay set.
@@ -313,7 +313,9 @@ var _ = ginkgo.Describe("QuotaPreemption", func() {
 		Ω(err).NotTo(gomega.HaveOccurred())
 
 		ginkgo.By("Waiting for all 3 deployment pods to be running")
-		err = kClient.WaitForPodBySelectorRunning(dev, "app=app-a", 30)
+		err = kClient.WaitForPodBySelector(dev, "app=app-a", 15*time.Second)
+		Ω(err).NotTo(gomega.HaveOccurred())
+		err = kClient.WaitForPodBySelectorRunning(dev, "app=app-a", 10)
 		Ω(err).NotTo(gomega.HaveOccurred())
 		ginkgo.By("All 3 pods are running before quota is reduced")
 
