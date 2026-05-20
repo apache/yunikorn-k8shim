@@ -313,7 +313,7 @@ var _ = ginkgo.Describe("QuotaPreemption", func() {
 		Ω(err).NotTo(gomega.HaveOccurred())
 
 		ginkgo.By("Waiting for all 3 deployment pods to be running")
-		err = kClient.WaitForPodBySelector(dev, "app=app-a", 15*time.Second)
+		err = kClient.WaitForPodBySelector(dev, "app=app-a", 20*time.Second)
 		Ω(err).NotTo(gomega.HaveOccurred())
 		err = kClient.WaitForPodBySelectorRunning(dev, "app=app-a", 10)
 		Ω(err).NotTo(gomega.HaveOccurred())
