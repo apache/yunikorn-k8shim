@@ -19,7 +19,7 @@
 package support
 
 import (
-	"k8s.io/kubernetes/pkg/scheduler/framework"
+	fwk "k8s.io/kube-scheduler/framework"
 
 	"github.com/apache/yunikorn-k8shim/pkg/cache/external"
 )
@@ -32,11 +32,11 @@ func (s storageInfoListerImpl) IsPVCUsedByPods(key string) bool {
 	return s.cache.IsPVCUsedByPods(key)
 }
 
-var _ framework.StorageInfoLister = &storageInfoListerImpl{}
+var _ fwk.StorageInfoLister = &storageInfoListerImpl{}
 
 // NewStorageInfoLister returns a new StorageInfoLister which references the scheduler cache. The returned lister is
 // not safe for access without acquiring the scheduler cache read lock first.
-func NewStorageInfoLister(cache *external.SchedulerCache) framework.StorageInfoLister {
+func NewStorageInfoLister(cache *external.SchedulerCache) fwk.StorageInfoLister {
 	sl := &storageInfoListerImpl{
 		cache: cache,
 	}

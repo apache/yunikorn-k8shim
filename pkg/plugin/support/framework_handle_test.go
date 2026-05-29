@@ -24,7 +24,7 @@ import (
 	"gotest.tools/v3/assert"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/kubernetes/pkg/scheduler/framework"
+	fwk "k8s.io/kube-scheduler/framework"
 
 	"github.com/apache/yunikorn-k8shim/pkg/cache/external"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
@@ -60,7 +60,7 @@ func TestClientSet(t *testing.T) {
 	assert.Equal(t, cs, cs2, "wrong clientset")
 }
 
-func lister() framework.SharedLister {
+func lister() fwk.SharedLister {
 	cache := external.NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
 	return NewSharedLister(cache)
 }

@@ -55,12 +55,12 @@ var _ PredicateManager = &predicateManagerImpl{}
 var configDecoder = scheme.Codecs.UniversalDecoder()
 
 type predicateManagerImpl struct {
-	reservationPreFilters *[]framework.PreFilterPlugin
-	allocationPreFilters  *[]framework.PreFilterPlugin
-	reservationFilters    *[]framework.FilterPlugin
-	allocationFilters     *[]framework.FilterPlugin
+	reservationPreFilters *[]fwk.PreFilterPlugin
+	allocationPreFilters  *[]fwk.PreFilterPlugin
+	reservationFilters    *[]fwk.FilterPlugin
+	allocationFilters     *[]fwk.FilterPlugin
 	klogger               klog.Logger
-	sharedLister          framework.SharedLister
+	sharedLister          fwk.SharedLister
 }
 
 func (p *predicateManagerImpl) EventsToRegister(queueingHintFn fwk.QueueingHintFn) []fwk.ClusterEventWithHint {
@@ -74,8 +74,8 @@ func (p *predicateManagerImpl) EventsToRegister(queueingHintFn fwk.QueueingHintF
 	return buildClusterEvents(actionMap, queueingHintFn)
 }
 
-func pluginEvents(plugin framework.Plugin) []fwk.ClusterEventWithHint {
-	ext, ok := plugin.(framework.EnqueueExtensions)
+func pluginEvents(plugin fwk.Plugin) []fwk.ClusterEventWithHint {
+	ext, ok := plugin.(fwk.EnqueueExtensions)
 	if !ok {
 		// legacy plugins that don't register for EnqueueExtensions get a default list of events
 		return framework.UnrollWildCardResource()
@@ -199,7 +199,7 @@ func (p *predicateManagerImpl) predicatesAllocate(pod *v1.Pod, node *framework.N
 	return p.podFitsNode(ctx, state, *p.allocationPreFilters, *p.allocationFilters, pod, node)
 }
 
-func (p *predicateManagerImpl) podFitsNode(ctx context.Context, state *framework.CycleState, preFilters []framework.PreFilterPlugin, filters []framework.FilterPlugin, pod *v1.Pod, node *framework.NodeInfo) (string, error) {
+func (p *predicateManagerImpl) podFitsNode(ctx context.Context, state *framework.CycleState, preFilters []fwk.PreFilterPlugin, filters []fwk.FilterPlugin, pod *v1.Pod, node *framework.NodeInfo) (string, error) {
 	// Run "prefilter" plugins.
 	status, plugin, skip := p.runPreFilterPlugins(ctx, state, preFilters, pod, node)
 	if !status.IsSuccess() && !status.IsSkip() {
@@ -214,8 +214,8 @@ func (p *predicateManagerImpl) podFitsNode(ctx context.Context, state *framework
 	return "", nil
 }
 
-func (p *predicateManagerImpl) runPreFilterPlugins(ctx context.Context, state *framework.CycleState, plugins []framework.PreFilterPlugin, pod *v1.Pod, node *framework.NodeInfo) (*fwk.Status, string, map[string]bool) {
-	var mergedNodes *framework.PreFilterResult
+func (p *predicateManagerImpl) runPreFilterPlugins(ctx context.Context, state *framework.CycleState, plugins []fwk.PreFilterPlugin, pod *v1.Pod, node *framework.NodeInfo) (*fwk.Status, string, map[string]bool) {
+	var mergedNodes *fwk.PreFilterResult
 	skip := make(map[string]bool)
 	allNodes, err := p.sharedLister.NodeInfos().List()
 	if err != nil {
@@ -249,11 +249,11 @@ func (p *predicateManagerImpl) runPreFilterPlugins(ctx context.Context, state *f
 	return nil, "", skip
 }
 
-func (p *predicateManagerImpl) runPreFilterPlugin(ctx context.Context, pl framework.PreFilterPlugin, state *framework.CycleState, pod *v1.Pod, allNodes []fwk.NodeInfo) (*framework.PreFilterResult, *fwk.Status) {
+func (p *predicateManagerImpl) runPreFilterPlugin(ctx context.Context, pl fwk.PreFilterPlugin, state *framework.CycleState, pod *v1.Pod, allNodes []fwk.NodeInfo) (*fwk.PreFilterResult, *fwk.Status) {
 	return pl.PreFilter(ctx, state, pod, allNodes)
 }
 
-func (p *predicateManagerImpl) runFilterPlugins(ctx context.Context, plugins []framework.FilterPlugin, state *framework.CycleState, pod *v1.Pod, nodeInfo fwk.NodeInfo, skip map[string]bool) (*fwk.Status, string) {
+func (p *predicateManagerImpl) runFilterPlugins(ctx context.Context, plugins []fwk.FilterPlugin, state *framework.CycleState, pod *v1.Pod, nodeInfo fwk.NodeInfo, skip map[string]bool) (*fwk.Status, string) {
 	for _, pl := range plugins {
 		plugin := pl.Name()
 		// skip plugin if prefilter returned skip
@@ -278,7 +278,7 @@ func (p *predicateManagerImpl) runFilterPlugins(ctx context.Context, plugins []f
 	return fwk.NewStatus(fwk.Success), ""
 }
 
-func (p *predicateManagerImpl) runFilterPlugin(ctx context.Context, pl framework.FilterPlugin, state *framework.CycleState, pod *v1.Pod, nodeInfo fwk.NodeInfo) *fwk.Status {
+func (p *predicateManagerImpl) runFilterPlugin(ctx context.Context, pl fwk.FilterPlugin, state *framework.CycleState, pod *v1.Pod, nodeInfo fwk.NodeInfo) *fwk.Status {
 	return pl.Filter(ctx, state, pod, nodeInfo)
 }
 
@@ -297,13 +297,9 @@ func EnableOptionalKubernetesFeatureGates() {
 	if err := feature.DefaultMutableFeatureGate.Set(fmt.Sprintf("%s=true", features.InPlacePodVerticalScaling)); err != nil {
 		log.Log(log.ShimPredicates).Fatal("Unable to set InPlacePodVerticalScaling feature gate", zap.Error(err))
 	}
-	if err := feature.DefaultMutableFeatureGate.Set(fmt.Sprintf("%s=false", features.DynamicResourceAllocation)); err != nil {
-		// disable explicitly
-		log.Log(log.ShimPredicates).Fatal("Unable to set DynamicResourceAllocation feature gate", zap.Error(err))
-	}
 }
 
-func NewPredicateManager(handle framework.Handle) PredicateManager {
+func NewPredicateManager(handle fwk.Handle) PredicateManager {
 	/*
 		Default K8S plugins as of 1.32 that implement PreFilter:
 			NodeAffinity
@@ -376,7 +372,7 @@ func NewPredicateManager(handle framework.Handle) PredicateManager {
 }
 
 func newPredicateManagerInternal(
-	handle framework.Handle,
+	handle fwk.Handle,
 	reservationPreFilters map[string]bool,
 	allocationPreFilters map[string]bool,
 	reservationFilters map[string]bool,
@@ -395,16 +391,16 @@ func newPredicateManagerInternal(
 
 	profile := cfg.Profiles[0] // first profile is default
 	registeredPlugins := profile.Plugins
-	createdPlugins := make([]framework.Plugin, 0)
+	createdPlugins := make([]fwk.Plugin, 0)
 
 	// As of SchedulerConfiguration v1, all plugins implement MultiPoint, therefore we need to instantiate each one and
 	// check to see what interfaces it implements dynamically
 	createPlugins(handle, pluginRegistry, &registeredPlugins.MultiPoint, &createdPlugins)
 
-	resPre := make([]framework.Plugin, 0)
-	allocPre := make([]framework.Plugin, 0)
-	resFilt := make([]framework.Plugin, 0)
-	allocFilt := make([]framework.Plugin, 0)
+	resPre := make([]fwk.Plugin, 0)
+	allocPre := make([]fwk.Plugin, 0)
+	resFilt := make([]fwk.Plugin, 0)
+	allocFilt := make([]fwk.Plugin, 0)
 
 	addPlugins("PreFilter", createdPlugins, &resPre, reservationPreFilters)
 	addPlugins("PreFilter", createdPlugins, &allocPre, allocationPreFilters)
@@ -423,10 +419,10 @@ func newPredicateManagerInternal(
 	return pm
 }
 
-func preFilterPlugins(plugins []framework.Plugin) *[]framework.PreFilterPlugin {
-	result := make([]framework.PreFilterPlugin, 0)
+func preFilterPlugins(plugins []fwk.Plugin) *[]fwk.PreFilterPlugin {
+	result := make([]fwk.PreFilterPlugin, 0)
 	for _, plugin := range plugins {
-		prefilter, ok := plugin.(framework.PreFilterPlugin)
+		prefilter, ok := plugin.(fwk.PreFilterPlugin)
 		if ok {
 			result = append(result, prefilter)
 		}
@@ -434,10 +430,10 @@ func preFilterPlugins(plugins []framework.Plugin) *[]framework.PreFilterPlugin {
 	return &result
 }
 
-func filterPlugins(plugins []framework.Plugin) *[]framework.FilterPlugin {
-	result := make([]framework.FilterPlugin, 0)
+func filterPlugins(plugins []fwk.Plugin) *[]fwk.FilterPlugin {
+	result := make([]fwk.FilterPlugin, 0)
 	for _, plugin := range plugins {
-		filter, ok := plugin.(framework.FilterPlugin)
+		filter, ok := plugin.(fwk.FilterPlugin)
 		if ok {
 			result = append(result, filter)
 		}
@@ -483,7 +479,7 @@ func removePlugin(config *apiConfig.KubeSchedulerConfiguration, name string) {
 	}
 }
 
-func addPlugins(phase string, createdPlugins []framework.Plugin, pluginList *[]framework.Plugin, pluginFilter map[string]bool) {
+func addPlugins(phase string, createdPlugins []fwk.Plugin, pluginList *[]fwk.Plugin, pluginFilter map[string]bool) {
 	for _, plugin := range createdPlugins {
 		name := plugin.Name()
 		enabled, ok := pluginFilter[name]
@@ -500,7 +496,7 @@ func addPlugins(phase string, createdPlugins []framework.Plugin, pluginList *[]f
 	}
 }
 
-func createPlugins(handle framework.Handle, registry fwruntime.Registry, plugins *apiConfig.PluginSet, createdPlugins *[]framework.Plugin) {
+func createPlugins(handle fwk.Handle, registry fwruntime.Registry, plugins *apiConfig.PluginSet, createdPlugins *[]fwk.Plugin) {
 	pluginConfig := make(map[string]runtime.Object)
 
 	for _, p := range plugins.Enabled {

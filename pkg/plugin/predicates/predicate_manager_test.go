@@ -20,7 +20,6 @@ package predicates
 
 import (
 	"errors"
-	"fmt"
 	"strconv"
 	"strings"
 	"testing"
@@ -52,12 +51,6 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-k8shim/pkg/plugin/support"
 )
-
-func init() {
-	if err := feature.DefaultMutableFeatureGate.Set(fmt.Sprintf("%s=false", features.DynamicResourceAllocation)); err != nil {
-		panic(fmt.Errorf("unable to set DynamicResourceAllocation feature gate: %v", err))
-	}
-}
 
 var (
 	extendedResourceA = v1.ResourceName("example.com/aaa")
@@ -2270,11 +2263,11 @@ type sharedListerMock struct {
 	storageLister *storageListerMock
 }
 
-func (s *sharedListerMock) NodeInfos() framework.NodeInfoLister {
+func (s *sharedListerMock) NodeInfos() fwk.NodeInfoLister {
 	return s.nodeLister
 }
 
-func (s *sharedListerMock) StorageInfos() framework.StorageInfoLister {
+func (s *sharedListerMock) StorageInfos() fwk.StorageInfoLister {
 	return s.storageLister
 }
 
@@ -2322,6 +2315,6 @@ func (s *storageListerMock) IsPVCUsedByPods(key string) bool {
 	return false
 }
 
-var _ framework.SharedLister = &sharedListerMock{}
-var _ framework.NodeInfoLister = &nodeListerMock{}
-var _ framework.StorageInfoLister = &storageListerMock{}
+var _ fwk.SharedLister = &sharedListerMock{}
+var _ fwk.NodeInfoLister = &nodeListerMock{}
+var _ fwk.StorageInfoLister = &storageListerMock{}

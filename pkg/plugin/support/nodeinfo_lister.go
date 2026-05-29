@@ -22,7 +22,6 @@ import (
 	"errors"
 
 	fwk "k8s.io/kube-scheduler/framework"
-	"k8s.io/kubernetes/pkg/scheduler/framework"
 
 	"github.com/apache/yunikorn-k8shim/pkg/cache/external"
 )
@@ -52,11 +51,11 @@ func (n nodeInfoListerImpl) Get(nodeName string) (fwk.NodeInfo, error) {
 	return node, nil
 }
 
-var _ framework.NodeInfoLister = &nodeInfoListerImpl{}
+var _ fwk.NodeInfoLister = &nodeInfoListerImpl{}
 
 // NewNodeInfoLister returns a new NodeInfoLister which references the scheduler cache. The returned lister is
 // not safe for access without acquiring the scheduler cache read lock first.
-func NewNodeInfoLister(cache *external.SchedulerCache) framework.NodeInfoLister {
+func NewNodeInfoLister(cache *external.SchedulerCache) fwk.NodeInfoLister {
 	nl := &nodeInfoListerImpl{
 		cache: cache,
 	}
