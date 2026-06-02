@@ -61,7 +61,7 @@ func TestPreemptionPredicatesEmpty(t *testing.T) {
 	clientSet := clientSet()
 	informerFactory := informerFactory(clientSet)
 	lister := lister()
-	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet)
+	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet, support.NewCSIManager(client.NewMockedAPIProvider(false).GetAPIs().CSINodeInformer.Lister()))
 
 	ep := enabledPlugins(noderesources.Name)
 	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
@@ -78,7 +78,7 @@ func TestPreemptionPredicates(t *testing.T) {
 	clientSet := clientSet()
 	informerFactory := informerFactory(clientSet)
 	lister := lister()
-	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet)
+	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet, support.NewCSIManager(client.NewMockedAPIProvider(false).GetAPIs().CSINodeInformer.Lister()))
 
 	ep := enabledPlugins(noderesources.Name)
 	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
@@ -130,7 +130,7 @@ func TestEventsToRegister(t *testing.T) {
 	clientSet := clientSet()
 	informerFactory := informerFactory(clientSet)
 	lister := lister()
-	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet)
+	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet, support.NewCSIManager(client.NewMockedAPIProvider(false).GetAPIs().CSINodeInformer.Lister()))
 
 	ep := enabledPlugins(nodename.Name, interpodaffinity.Name, podtopologyspread.Name)
 	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
@@ -156,7 +156,7 @@ func TestPodFitsHost(t *testing.T) {
 	clientSet := clientSet()
 	informerFactory := informerFactory(clientSet)
 	lister := lister()
-	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet)
+	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet, support.NewCSIManager(client.NewMockedAPIProvider(false).GetAPIs().CSINodeInformer.Lister()))
 
 	ep := enabledPlugins(nodename.Name)
 	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
@@ -243,7 +243,7 @@ func TestPodFitsHostPorts(t *testing.T) {
 	clientSet := clientSet()
 	informerFactory := informerFactory(clientSet)
 	lister := lister()
-	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet)
+	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet, support.NewCSIManager(client.NewMockedAPIProvider(false).GetAPIs().CSINodeInformer.Lister()))
 	ep := enabledPlugins(nodeports.Name)
 	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
 
@@ -360,7 +360,7 @@ func TestPodFitsSelector(t *testing.T) {
 	clientSet := clientSet()
 	informerFactory := informerFactory(clientSet)
 	lister := lister()
-	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet)
+	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet, support.NewCSIManager(client.NewMockedAPIProvider(false).GetAPIs().CSINodeInformer.Lister()))
 	ep := enabledPlugins(nodeports.Name, nodeaffinity.Name)
 	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
 
@@ -1120,7 +1120,7 @@ func TestRunGeneralPredicates(t *testing.T) {
 	clientSet := clientSet()
 	informerFactory := informerFactory(clientSet)
 	lister := lister()
-	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet)
+	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet, support.NewCSIManager(client.NewMockedAPIProvider(false).GetAPIs().CSINodeInformer.Lister()))
 	ep := enabledPlugins(noderesources.Name, nodename.Name, nodeports.Name, nodevolumelimits.CSIName)
 	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
 
@@ -1199,7 +1199,7 @@ func TestInterPodAffinity(t *testing.T) {
 	clientSet := clientSet()
 	informerFactory := informerFactory(clientSet)
 	lister := lister()
-	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet)
+	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet, support.NewCSIManager(client.NewMockedAPIProvider(false).GetAPIs().CSINodeInformer.Lister()))
 	ep := enabledPlugins(interpodaffinity.Name, nodeaffinity.Name)
 	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
 
@@ -2160,7 +2160,7 @@ func TestReserveAlloc(t *testing.T) {
 	clientSet := clientSet()
 	informerFactory := informerFactory(clientSet)
 	lister := lister()
-	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet)
+	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet, support.NewCSIManager(client.NewMockedAPIProvider(false).GetAPIs().CSINodeInformer.Lister()))
 	ep := enabledPlugins()
 	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
 	_, err := predicateManager.Predicates(pod, nodeInfo, false)
@@ -2204,7 +2204,7 @@ func TestReserveNodeSelector(t *testing.T) {
 	clientSet := clientSet()
 	informerFactory := informerFactory(clientSet)
 	lister := lister()
-	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet)
+	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet, support.NewCSIManager(client.NewMockedAPIProvider(false).GetAPIs().CSINodeInformer.Lister()))
 	ep := enabledPlugins(nodename.Name, nodeports.Name, podtopologyspread.Name, nodeaffinity.Name)
 	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
 

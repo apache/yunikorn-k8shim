@@ -40,11 +40,12 @@ type frameworkHandle struct {
 	sharedInformerFactory informers.SharedInformerFactory
 	clientSet             kubernetes.Interface
 	parallelizer          fwk.Parallelizer
+	sharedCSIManager      fwk.CSIManager
 }
 
 func (p frameworkHandle) SharedCSIManager() fwk.CSIManager {
 	log.Log(log.ShimFramework).Debug("BUG: Should not be used by plugins")
-	return nil
+	return p.sharedCSIManager
 }
 
 func (p frameworkHandle) ProfileName() string {
@@ -187,11 +188,12 @@ func (p frameworkHandle) APICacher() fwk.APICacher {
 
 var _ fwk.Handle = frameworkHandle{}
 
-func NewFrameworkHandle(sharedLister fwk.SharedLister, informerFactory informers.SharedInformerFactory, clientSet kubernetes.Interface) fwk.Handle {
+func NewFrameworkHandle(sharedLister fwk.SharedLister, informerFactory informers.SharedInformerFactory, clientSet kubernetes.Interface, sharedCSIManager fwk.CSIManager) fwk.Handle {
 	return &frameworkHandle{
 		sharedLister:          sharedLister,
 		sharedInformerFactory: informerFactory,
 		clientSet:             clientSet,
 		parallelizer:          parallelize.NewParallelizer(parallelize.DefaultParallelism),
+		sharedCSIManager:      sharedCSIManager,
 	}
 }

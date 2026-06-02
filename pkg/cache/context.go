@@ -105,7 +105,7 @@ func NewContextWithBootstrapConfigMaps(apis client.APIProvider, bootstrapConfigM
 	sharedLister := support.NewSharedLister(ctx.schedulerCache)
 	clientSet := apis.GetAPIs().KubeClient.GetClientSet()
 	informerFactory := apis.GetAPIs().InformerFactory
-	ctx.predManager = predicates.NewPredicateManager(support.NewFrameworkHandle(sharedLister, informerFactory, clientSet))
+	ctx.predManager = predicates.NewPredicateManager(support.NewFrameworkHandle(sharedLister, informerFactory, clientSet, support.NewCSIManager(apis.GetAPIs().CSINodeInformer.Lister())))
 
 	return ctx
 }
