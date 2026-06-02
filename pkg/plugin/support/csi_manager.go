@@ -25,18 +25,18 @@ import (
 	fwk "k8s.io/kube-scheduler/framework"
 )
 
-// SharedCSIManager is an implementation of the CSIManager interface.
-type SharedCSIManager struct {
+// CSIManagerImpl is an implementation of the CSIManager interface.
+type CSIManagerImpl struct {
 	csiNodeLister *csiNodeListerImpl
 }
 
-var _ fwk.CSIManager = &SharedCSIManager{}
+var _ fwk.CSIManager = &CSIManagerImpl{}
 
-func NewCSIManager(csiNodeLister storagelisters.CSINodeLister) *SharedCSIManager {
-	return &SharedCSIManager{csiNodeLister: NewCSINodeLister(csiNodeLister)}
+func NewCSIManager(csiNodeLister storagelisters.CSINodeLister) *CSIManagerImpl {
+	return &CSIManagerImpl{csiNodeLister: NewCSINodeLister(csiNodeLister)}
 }
 
-func (m *SharedCSIManager) CSINodes() fwk.CSINodeLister {
+func (m *CSIManagerImpl) CSINodes() fwk.CSINodeLister {
 	return m.csiNodeLister
 }
 
