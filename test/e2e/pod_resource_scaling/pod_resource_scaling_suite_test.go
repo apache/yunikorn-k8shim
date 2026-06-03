@@ -74,6 +74,7 @@ var _ = ginkgo.AfterSuite(func() {
 var Ω = gomega.Ω
 var HaveOccurred = gomega.HaveOccurred
 var Equal = gomega.Equal
+var Satisfy = gomega.Satisfy
 var By = ginkgo.By
 var BeforeEach = ginkgo.BeforeEach
 var AfterEach = ginkgo.AfterEach

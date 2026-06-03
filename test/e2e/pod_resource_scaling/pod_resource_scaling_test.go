@@ -205,9 +205,7 @@ var _ = ginkgo.Describe("InPlacePodVerticalScaling", func() {
 
 		// In K8s 1.36+, excessive resize requests are rejected at admission (403 Forbidden
 		// with NodeCapacity reason) rather than being accepted and later marked Infeasible.
-		if k8serrors.IsForbidden(err) && k8sVer.Minor >= "36" {
-			// Admission-level rejection is the expected "infeasible" signal for 1.36+
-		} else {
+		if k8sVer.Minor < "36" {
 			Ω(err).NotTo(HaveOccurred())
 
 			// Wait for resource update to be reflected
@@ -235,6 +233,9 @@ var _ = ginkgo.Describe("InPlacePodVerticalScaling", func() {
 
 			Ω(pod.Status.StartTime).To(Equal(initialStartTime), "Pod should not have restarted")
 			Ω(pod.Status.ContainerStatuses[0].RestartCount).To(Equal(initialRestartCount), "Container should not have restarted")
+		} else {
+			// In K8s 1.36+, admission rejects excessive resize requests with 403 Forbidden
+			Ω(err).To(Satisfy(k8serrors.IsForbidden), "Expected admission-level 403 Forbidden for excessive resize in K8s 1.36+")
 		}
 
 		// Verify pod resource usage is unchanged after set an excessive value
