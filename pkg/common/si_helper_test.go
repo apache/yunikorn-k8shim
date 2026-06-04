@@ -268,9 +268,7 @@ func TestCreateAllocationRequestForTask(t *testing.T) {
 	asks := updateRequest.Allocations
 	assert.Equal(t, len(asks), 1)
 	allocAsk := asks[0]
-	if allocAsk == nil {
-		t.Fatal("ask cannot be nil")
-	}
+	assert.Check(t, allocAsk != nil)
 	assert.Equal(t, allocAsk.Priority, int32(0))
 	assert.Assert(t, allocAsk.PreemptionPolicy != nil)
 	assert.Equal(t, allocAsk.PreemptionPolicy.AllowPreemptSelf, false)
@@ -301,9 +299,7 @@ func TestCreateAllocationRequestForTask(t *testing.T) {
 	asks1 := updateRequest1.Allocations
 	assert.Equal(t, len(asks1), 1)
 	allocAsk1 := asks1[0]
-	if allocAsk1 == nil {
-		t.Fatal("ask cannot be nil")
-	}
+	assert.Check(t, allocAsk1 != nil)
 	assert.Assert(t, allocAsk1.PreemptionPolicy != nil)
 	assert.Equal(t, allocAsk1.PreemptionPolicy.AllowPreemptSelf, true)
 	assert.Equal(t, allocAsk1.PreemptionPolicy.AllowPreemptOther, false)
@@ -344,9 +340,7 @@ func TestCreateAllocationForTask(t *testing.T) {
 	allocs := updateRequest.Allocations
 	assert.Equal(t, len(allocs), 1)
 	alloc := allocs[0]
-	if alloc == nil {
-		t.Fatal("alloc cannot be nil")
-	}
+	assert.Check(t, alloc != nil)
 	assert.Equal(t, alloc.Priority, int32(0))
 	assert.Assert(t, alloc.PreemptionPolicy != nil)
 	assert.Equal(t, alloc.PreemptionPolicy.AllowPreemptSelf, false)
@@ -380,9 +374,7 @@ func TestCreateAllocationForTask(t *testing.T) {
 	allocs1 := updateRequest1.Allocations
 	assert.Equal(t, len(allocs1), 1)
 	alloc1 := allocs1[0]
-	if alloc1 == nil {
-		t.Fatal("alloc cannot be nil")
-	}
+	assert.Check(t, alloc != nil)
 	assert.Assert(t, alloc1.PreemptionPolicy != nil)
 	assert.Equal(t, alloc1.PreemptionPolicy.AllowPreemptSelf, true)
 	assert.Equal(t, alloc1.PreemptionPolicy.AllowPreemptOther, false)

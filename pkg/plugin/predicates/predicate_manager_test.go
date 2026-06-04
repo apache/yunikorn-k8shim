@@ -20,7 +20,6 @@ package predicates
 
 import (
 	"errors"
-	"fmt"
 	"strconv"
 	"strings"
 	"testing"
@@ -49,15 +48,10 @@ import (
 	"k8s.io/kubernetes/pkg/util/taints"
 
 	"github.com/apache/yunikorn-k8shim/pkg/client"
+	"github.com/apache/yunikorn-k8shim/pkg/common/test"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-k8shim/pkg/plugin/support"
 )
-
-func init() {
-	if err := feature.DefaultMutableFeatureGate.Set(fmt.Sprintf("%s=false", features.DynamicResourceAllocation)); err != nil {
-		panic(fmt.Errorf("unable to set DynamicResourceAllocation feature gate: %v", err))
-	}
-}
 
 var (
 	extendedResourceA = v1.ResourceName("example.com/aaa")
@@ -68,7 +62,7 @@ func TestPreemptionPredicatesEmpty(t *testing.T) {
 	clientSet := clientSet()
 	informerFactory := informerFactory(clientSet)
 	lister := lister()
-	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet)
+	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet, test.NewCSIManagerMock(client.NewMockedAPIProvider(false).GetAPIs().CSINodeInformer.Lister()))
 
 	ep := enabledPlugins(noderesources.Name)
 	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
@@ -85,7 +79,7 @@ func TestPreemptionPredicates(t *testing.T) {
 	clientSet := clientSet()
 	informerFactory := informerFactory(clientSet)
 	lister := lister()
-	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet)
+	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet, test.NewCSIManagerMock(client.NewMockedAPIProvider(false).GetAPIs().CSINodeInformer.Lister()))
 
 	ep := enabledPlugins(noderesources.Name)
 	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
@@ -137,7 +131,7 @@ func TestEventsToRegister(t *testing.T) {
 	clientSet := clientSet()
 	informerFactory := informerFactory(clientSet)
 	lister := lister()
-	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet)
+	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet, test.NewCSIManagerMock(client.NewMockedAPIProvider(false).GetAPIs().CSINodeInformer.Lister()))
 
 	ep := enabledPlugins(nodename.Name, interpodaffinity.Name, podtopologyspread.Name)
 	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
@@ -163,7 +157,7 @@ func TestPodFitsHost(t *testing.T) {
 	clientSet := clientSet()
 	informerFactory := informerFactory(clientSet)
 	lister := lister()
-	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet)
+	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet, test.NewCSIManagerMock(client.NewMockedAPIProvider(false).GetAPIs().CSINodeInformer.Lister()))
 
 	ep := enabledPlugins(nodename.Name)
 	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
@@ -250,7 +244,7 @@ func TestPodFitsHostPorts(t *testing.T) {
 	clientSet := clientSet()
 	informerFactory := informerFactory(clientSet)
 	lister := lister()
-	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet)
+	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet, test.NewCSIManagerMock(client.NewMockedAPIProvider(false).GetAPIs().CSINodeInformer.Lister()))
 	ep := enabledPlugins(nodeports.Name)
 	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
 
@@ -367,7 +361,7 @@ func TestPodFitsSelector(t *testing.T) {
 	clientSet := clientSet()
 	informerFactory := informerFactory(clientSet)
 	lister := lister()
-	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet)
+	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet, test.NewCSIManagerMock(client.NewMockedAPIProvider(false).GetAPIs().CSINodeInformer.Lister()))
 	ep := enabledPlugins(nodeports.Name, nodeaffinity.Name)
 	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
 
@@ -1127,7 +1121,7 @@ func TestRunGeneralPredicates(t *testing.T) {
 	clientSet := clientSet()
 	informerFactory := informerFactory(clientSet)
 	lister := lister()
-	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet)
+	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet, test.NewCSIManagerMock(client.NewMockedAPIProvider(false).GetAPIs().CSINodeInformer.Lister()))
 	ep := enabledPlugins(noderesources.Name, nodename.Name, nodeports.Name, nodevolumelimits.CSIName)
 	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
 
@@ -1206,7 +1200,7 @@ func TestInterPodAffinity(t *testing.T) {
 	clientSet := clientSet()
 	informerFactory := informerFactory(clientSet)
 	lister := lister()
-	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet)
+	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet, test.NewCSIManagerMock(client.NewMockedAPIProvider(false).GetAPIs().CSINodeInformer.Lister()))
 	ep := enabledPlugins(interpodaffinity.Name, nodeaffinity.Name)
 	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
 
@@ -2167,7 +2161,7 @@ func TestReserveAlloc(t *testing.T) {
 	clientSet := clientSet()
 	informerFactory := informerFactory(clientSet)
 	lister := lister()
-	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet)
+	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet, test.NewCSIManagerMock(client.NewMockedAPIProvider(false).GetAPIs().CSINodeInformer.Lister()))
 	ep := enabledPlugins()
 	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
 	_, err := predicateManager.Predicates(pod, nodeInfo, false)
@@ -2211,7 +2205,7 @@ func TestReserveNodeSelector(t *testing.T) {
 	clientSet := clientSet()
 	informerFactory := informerFactory(clientSet)
 	lister := lister()
-	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet)
+	handle := support.NewFrameworkHandle(lister, informerFactory, clientSet, test.NewCSIManagerMock(client.NewMockedAPIProvider(false).GetAPIs().CSINodeInformer.Lister()))
 	ep := enabledPlugins(nodename.Name, nodeports.Name, podtopologyspread.Name, nodeaffinity.Name)
 	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
 
@@ -2270,11 +2264,11 @@ type sharedListerMock struct {
 	storageLister *storageListerMock
 }
 
-func (s *sharedListerMock) NodeInfos() framework.NodeInfoLister {
+func (s *sharedListerMock) NodeInfos() fwk.NodeInfoLister {
 	return s.nodeLister
 }
 
-func (s *sharedListerMock) StorageInfos() framework.StorageInfoLister {
+func (s *sharedListerMock) StorageInfos() fwk.StorageInfoLister {
 	return s.storageLister
 }
 
@@ -2322,6 +2316,6 @@ func (s *storageListerMock) IsPVCUsedByPods(key string) bool {
 	return false
 }
 
-var _ framework.SharedLister = &sharedListerMock{}
-var _ framework.NodeInfoLister = &nodeListerMock{}
-var _ framework.StorageInfoLister = &storageListerMock{}
+var _ fwk.SharedLister = &sharedListerMock{}
+var _ fwk.NodeInfoLister = &nodeListerMock{}
+var _ fwk.StorageInfoLister = &storageListerMock{}

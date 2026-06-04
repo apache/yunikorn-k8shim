@@ -470,6 +470,7 @@ func (m *MockedStorageClassInformer) Lister() storagev1.StorageClassLister {
 
 type MockedCSINodeInformer struct {
 	informer cache.SharedIndexInformer
+	lister   storagev1.CSINodeLister
 }
 
 func (m *MockedCSINodeInformer) Informer() cache.SharedIndexInformer {
@@ -477,12 +478,13 @@ func (m *MockedCSINodeInformer) Informer() cache.SharedIndexInformer {
 }
 
 func (m *MockedCSINodeInformer) Lister() storagev1.CSINodeLister {
-	return nil
+	return m.lister
 }
 
 func NewMockedCSINodeInformer() *MockedCSINodeInformer {
 	return &MockedCSINodeInformer{
 		informer: &test.SharedInformerMock{},
+		lister:   &test.CSINodeListerMock{},
 	}
 }
 

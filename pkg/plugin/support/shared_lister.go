@@ -19,27 +19,27 @@
 package support
 
 import (
-	"k8s.io/kubernetes/pkg/scheduler/framework"
+	fwk "k8s.io/kube-scheduler/framework"
 
 	"github.com/apache/yunikorn-k8shim/pkg/cache/external"
 )
 
 type sharedListerImpl struct {
-	nodeInfos    framework.NodeInfoLister
-	storageInfos framework.StorageInfoLister
+	nodeInfos    fwk.NodeInfoLister
+	storageInfos fwk.StorageInfoLister
 }
 
-func (s sharedListerImpl) NodeInfos() framework.NodeInfoLister {
+func (s sharedListerImpl) NodeInfos() fwk.NodeInfoLister {
 	return s.nodeInfos
 }
 
-func (s sharedListerImpl) StorageInfos() framework.StorageInfoLister {
+func (s sharedListerImpl) StorageInfos() fwk.StorageInfoLister {
 	return s.storageInfos
 }
 
-var _ framework.SharedLister = &sharedListerImpl{}
+var _ fwk.SharedLister = &sharedListerImpl{}
 
-func NewSharedLister(cache *external.SchedulerCache) framework.SharedLister {
+func NewSharedLister(cache *external.SchedulerCache) fwk.SharedLister {
 	return &sharedListerImpl{
 		nodeInfos:    NewNodeInfoLister(cache),
 		storageInfos: NewStorageInfoLister(cache),

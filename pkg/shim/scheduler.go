@@ -69,13 +69,17 @@ func NewShimScheduler(scheduler api.SchedulerAPI, configs *conf.SchedulerConf, b
 	// we have disabled re-sync to keep ourselves up-to-date
 	informerFactory := informers.NewSharedInformerFactory(kubeClient.GetClientSet(), 0)
 
-	apiFactory := client.NewAPIFactory(scheduler, informerFactory, configs, false)
+	apiFactory, err := client.NewAPIFactory(scheduler, informerFactory, configs, false)
+	if err != nil {
+		log.Log(log.Shim).Fatal("problem in creating the api factory")
+		return nil
+	}
 	context := cache.NewContextWithBootstrapConfigMaps(apiFactory, bootstrapConfigMaps)
 	rmCallback := cache.NewAsyncRMCallback(context)
 
 	eventBroadcaster := k8events.NewBroadcaster(&k8events.EventSinkImpl{
 		Interface: kubeClient.GetClientSet().EventsV1()})
-	err := eventBroadcaster.StartRecordingToSinkWithContext(ctx.Background())
+	err = eventBroadcaster.StartRecordingToSinkWithContext(ctx.Background())
 	if err != nil {
 		log.Log(log.Shim).Error("Could not create event broadcaster",
 			zap.Error(err))
