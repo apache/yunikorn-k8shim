@@ -24,15 +24,16 @@ import (
 	"gotest.tools/v3/assert"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/kubernetes/pkg/scheduler/framework"
+	fwk "k8s.io/kube-scheduler/framework"
 
 	"github.com/apache/yunikorn-k8shim/pkg/cache/external"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
+	"github.com/apache/yunikorn-k8shim/pkg/common/test"
 )
 
 func TestNewFrameworkHandle(t *testing.T) {
 	clientSet := clientSet()
-	handle := NewFrameworkHandle(lister(), informerFactory(clientSet), clientSet)
+	handle := NewFrameworkHandle(lister(), informerFactory(clientSet), clientSet, test.NewCSIManagerMock(client.NewMockedAPIProvider(false).GetAPIs().CSINodeInformer.Lister()))
 	_, ok := handle.(*frameworkHandle)
 	assert.Assert(t, ok, "handle was of wrong type")
 }
@@ -40,7 +41,7 @@ func TestNewFrameworkHandle(t *testing.T) {
 func TestSnapshotSharedLister(t *testing.T) {
 	sl := lister()
 	clientSet := clientSet()
-	handle := NewFrameworkHandle(sl, informerFactory(clientSet), clientSet)
+	handle := NewFrameworkHandle(sl, informerFactory(clientSet), clientSet, test.NewCSIManagerMock(client.NewMockedAPIProvider(false).GetAPIs().CSINodeInformer.Lister()))
 	sl2 := handle.SnapshotSharedLister()
 	assert.Equal(t, sl, sl2, "wrong shared lister")
 }
@@ -48,19 +49,19 @@ func TestSnapshotSharedLister(t *testing.T) {
 func TestSharedInformerFactory(t *testing.T) {
 	clientSet := clientSet()
 	si := informerFactory(clientSet)
-	handle := NewFrameworkHandle(lister(), si, clientSet)
+	handle := NewFrameworkHandle(lister(), si, clientSet, test.NewCSIManagerMock(client.NewMockedAPIProvider(false).GetAPIs().CSINodeInformer.Lister()))
 	si2 := handle.SharedInformerFactory()
 	assert.Equal(t, si, si2, "wrong shared informer")
 }
 
 func TestClientSet(t *testing.T) {
 	cs := clientSet()
-	handle := NewFrameworkHandle(lister(), informerFactory(cs), cs)
+	handle := NewFrameworkHandle(lister(), informerFactory(cs), cs, test.NewCSIManagerMock(client.NewMockedAPIProvider(false).GetAPIs().CSINodeInformer.Lister()))
 	cs2 := handle.ClientSet()
 	assert.Equal(t, cs, cs2, "wrong clientset")
 }
 
-func lister() framework.SharedLister {
+func lister() fwk.SharedLister {
 	cache := external.NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
 	return NewSharedLister(cache)
 }
