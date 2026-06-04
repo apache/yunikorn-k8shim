@@ -58,8 +58,8 @@ const (
 )
 
 func TestRegisterEventHandler(t *testing.T) {
-	createDispatcher()
-	defer createDispatcher()
+	createDispatcher(t)
+	defer createDispatcher(t)
 
 	RegisterEventHandler("TestAppHandler", EventTypeApp, func(obj interface{}) {})
 	RegisterEventHandler("TestTaskHandler", EventTypeTask, func(obj interface{}) {})
@@ -107,8 +107,8 @@ func (a *appEventsRecorder) size() int {
 }
 
 func TestDispatcherStartStop(t *testing.T) {
-	createDispatcher()
-	defer createDispatcher()
+	createDispatcher(t)
+	defer createDispatcher(t)
 	// thread safe
 	recorder := &appEventsRecorder{
 		apps: make([]string, 0),
@@ -161,8 +161,8 @@ func TestDispatcherStartStop(t *testing.T) {
 // Test sending events from multiple senders in parallel,
 // verify that events won't be lost
 func TestEventWillNotBeLostWhenEventChannelIsFull(t *testing.T) {
-	createDispatcher()
-	defer createDispatcher()
+	createDispatcher(t)
+	defer createDispatcher(t)
 	dispatcher.eventChan = make(chan events.SchedulingEvent, 1)
 
 	// thread safe
@@ -210,8 +210,8 @@ func TestEventWillNotBeLostWhenEventChannelIsFull(t *testing.T) {
 // Test dispatch timeout, verify that Dispatcher#asyncDispatch is called when event channel is full
 // and will disappear after timeout.
 func TestDispatchTimeout(t *testing.T) {
-	createDispatcher()
-	defer createDispatcher()
+	createDispatcher(t)
+	defer createDispatcher(t)
 	// reset event channel with small capacity for testing
 	dispatcher.eventChan = make(chan events.SchedulingEvent, 1)
 	dispatcher.asyncDispatchCheckInterval = 100 * time.Millisecond
@@ -269,8 +269,8 @@ func TestDispatchTimeout(t *testing.T) {
 
 // Test exceeding the async-dispatch limit, should panic immediately.
 func TestExceedAsyncDispatchLimit(t *testing.T) {
-	createDispatcher()
-	defer createDispatcher()
+	createDispatcher(t)
+	defer createDispatcher(t)
 
 	// reset event channel with small capacity for testing
 	dispatcher.eventChan = make(chan events.SchedulingEvent, 1)
@@ -305,7 +305,10 @@ func TestExceedAsyncDispatchLimit(t *testing.T) {
 	}
 }
 
-func createDispatcher() {
+// createDispatcher resets the dispatcher for a clean test state. It first drains
+// any async dispatch goroutines left by a previous test before reinitialising,
+// failing the test if they do not exit in time.
+func createDispatcher(t *testing.T) {
 	if dispatcher != nil {
 		d := dispatcher
 		if d.isRunning() {
@@ -316,11 +319,10 @@ func createDispatcher() {
 			if waitTimeout > maxTestAsyncDispatchDrain {
 				waitTimeout = maxTestAsyncDispatchDrain
 			}
-			if err := utils.WaitForCondition(func() bool {
+			err := utils.WaitForCondition(func() bool {
 				return d.asyncDispatchCount.Load() == 0
-			}, testAsyncDispatchPollPeriod, waitTimeout); err != nil {
-				fmt.Printf("warning: async dispatch did not drain before re-init: %v\n", err)
-			}
+			}, testAsyncDispatchPollPeriod, waitTimeout)
+			assert.NilError(t, err)
 		}
 	}
 	once.Do(func() {}) // run nop, so that functions like RegisterEventHandler() won't run initDispatcher() again

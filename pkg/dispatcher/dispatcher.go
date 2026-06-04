@@ -174,6 +174,8 @@ func (p *Dispatcher) asyncDispatch(event events.SchedulingEvent) {
 	log.Log(log.ShimDispatcher).Warn("event channel is full, transition to async-dispatch mode",
 		zap.Int32("asyncDispatchCount", count))
 	if count > p.asyncDispatchLimit {
+		// this event is not being async-dispatched, so undo the count
+		p.asyncDispatchCount.Add(-1)
 		panic(fmt.Errorf("dispatcher exceeds async-dispatch limit"))
 	}
 	go func(beginTime time.Time, stop chan struct{}) {
