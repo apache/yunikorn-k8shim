@@ -31,7 +31,7 @@ export GO
 function verlte() {
 	if [ "$1" = "$(echo -e "$1\n$2" | sort -V | head -n1)" ]; then
 		return 0
-	else 
+	else
 		return 1
 	fi
 }
