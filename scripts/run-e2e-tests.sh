@@ -50,9 +50,12 @@ function update_kind_config() {
   if verlt "${version}" "1.32"; then
     # 1.31 or earlier
     KIND_CONFIG=./scripts/kind.yaml
-  else
+  elif verlt "${version}" "1.36"; then
     # 1.32 or later; enable InPlacePodVerticalScaling and PodLevelResources feature flags
     KIND_CONFIG=./scripts/kind-1.32.yaml
+  else
+    # 1.36 or later; remove features that moved to beta or are completely gone.
+    KIND_CONFIG=./scripts/kind-1.36.yaml
   fi
 }
 
