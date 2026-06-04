@@ -316,9 +316,11 @@ func createDispatcher() {
 			if waitTimeout > maxTestAsyncDispatchDrain {
 				waitTimeout = maxTestAsyncDispatchDrain
 			}
-			_ = utils.WaitForCondition(func() bool {
+			if err := utils.WaitForCondition(func() bool {
 				return d.asyncDispatchCount.Load() == 0
-			}, testAsyncDispatchPollPeriod, waitTimeout)
+			}, testAsyncDispatchPollPeriod, waitTimeout); err != nil {
+				fmt.Printf("warning: async dispatch did not drain before re-init: %v\n", err)
+			}
 		}
 	}
 	once.Do(func() {}) // run nop, so that functions like RegisterEventHandler() won't run initDispatcher() again
