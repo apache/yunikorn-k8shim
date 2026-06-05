@@ -24,6 +24,7 @@ import (
 
 	"github.com/onsi/ginkgo/v2"
 	v1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/version"
 
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
@@ -197,38 +198,47 @@ var _ = ginkgo.Describe("InPlacePodVerticalScaling", func() {
 		Ω(err).NotTo(HaveOccurred())
 		initialStartTime := pod.Status.StartTime
 		initialRestartCount := pod.Status.ContainerStatuses[0].RestartCount
+		appID := pod.Labels["applicationId"]
 
 		// Patch CPU/Memory to an excessive value
 		pod, err = kClient.ModifyResourceUsage(pod, ns, 100000, 100000)
-		Ω(err).NotTo(HaveOccurred())
 
-		// Wait for resource update to be reflected
-		err = utils.WaitForCondition(func() bool {
-			var currentPod *v1.Pod
-			currentPod, err = kClient.GetPod(pod.Name, ns)
-			if err != nil {
-				return false
-			}
+		// In K8s 1.36+, excessive resize requests are rejected at admission (403 Forbidden
+		// with NodeCapacity reason) rather than being accepted and later marked Infeasible.
+		if k8sVer.Minor < "36" {
+			Ω(err).NotTo(HaveOccurred())
 
-			// only used in 1.32, it became deprecated in later versions
-			if k8sVer.Major == "1" && k8sVer.Minor == "32" {
-				return currentPod.Status.Resize == v1.PodResizeStatusInfeasible
-			}
-
-			// for 1.33+
-			for _, condition := range currentPod.Status.Conditions {
-				if condition.Type == v1.PodResizePending && condition.Reason == v1.PodReasonInfeasible {
-					return true
+			// Wait for resource update to be reflected
+			err = utils.WaitForCondition(func() bool {
+				var currentPod *v1.Pod
+				currentPod, err = kClient.GetPod(pod.Name, ns)
+				if err != nil {
+					return false
 				}
-			}
-			return false
-		}, time.Second, 120*time.Second)
-		Ω(err).NotTo(HaveOccurred())
 
-		Ω(pod.Status.StartTime).To(Equal(initialStartTime), "Pod should not have restarted")
-		Ω(pod.Status.ContainerStatuses[0].RestartCount).To(Equal(initialRestartCount), "Container should not have restarted")
+				// only used in 1.32, it became deprecated in later versions
+				if k8sVer.Major == "1" && k8sVer.Minor == "32" {
+					return currentPod.Status.Resize == v1.PodResizeStatusInfeasible
+				}
+
+				// for 1.33+
+				for _, condition := range currentPod.Status.Conditions {
+					if condition.Type == v1.PodResizePending && condition.Reason == v1.PodReasonInfeasible {
+						return true
+					}
+				}
+				return false
+			}, time.Second, 120*time.Second)
+			Ω(err).NotTo(HaveOccurred())
+
+			Ω(pod.Status.StartTime).To(Equal(initialStartTime), "Pod should not have restarted")
+			Ω(pod.Status.ContainerStatuses[0].RestartCount).To(Equal(initialRestartCount), "Container should not have restarted")
+		} else {
+			// In K8s 1.36+, admission rejects excessive resize requests with 403 Forbidden
+			Ω(err).To(Satisfy(k8serrors.IsForbidden), "Expected admission-level 403 Forbidden for excessive resize in K8s 1.36+")
+		}
 
 		// Verify pod resource usage is unchanged after set an excessive value
-		verifyYunikornResourceUsage(pod.Labels["applicationId"], "vcore", 100)
+		verifyYunikornResourceUsage(appID, "vcore", 100)
 	})
 })

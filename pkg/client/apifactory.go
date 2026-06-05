@@ -90,7 +90,7 @@ type APIFactory struct {
 	lock     *locking.RWMutex
 }
 
-func NewAPIFactory(scheduler api.SchedulerAPI, informerFactory informers.SharedInformerFactory, configs *conf.SchedulerConf, testMode bool) *APIFactory {
+func NewAPIFactory(scheduler api.SchedulerAPI, informerFactory informers.SharedInformerFactory, configs *conf.SchedulerConf, testMode bool) (*APIFactory, error) {
 	kubeClient := NewKubeClient(configs.KubeConfig)
 	namespaceInformerFactory := informers.NewSharedInformerFactoryWithOptions(kubeClient.GetClientSet(), 0, informers.WithNamespace(configs.Namespace))
 	// init informers
@@ -118,7 +118,7 @@ func NewAPIFactory(scheduler api.SchedulerAPI, informerFactory informers.SharedI
 	}
 
 	// create a volume binder (needs the informers)
-	volumeBinder := volumebinding.NewVolumeBinder(
+	volumeBinder, err := volumebinding.NewVolumeBinder(
 		klog.NewKlogr(),
 		kubeClient.GetClientSet(),
 		feature.Features{},
@@ -130,6 +130,10 @@ func NewAPIFactory(scheduler api.SchedulerAPI, informerFactory informers.SharedI
 		storageInformer,
 		capacityCheck,
 		configs.VolumeBindTimeout)
+	if err != nil {
+		log.Log(log.ShimClient).Error("unable to create the volume binder", zap.Error(err))
+		return nil, err
+	}
 
 	return &APIFactory{
 		clients: &Clients{
@@ -157,7 +161,7 @@ func NewAPIFactory(scheduler api.SchedulerAPI, informerFactory informers.SharedI
 		testMode: testMode,
 		stopChan: make(chan struct{}),
 		lock:     &locking.RWMutex{},
-	}
+	}, nil
 }
 
 func (s *APIFactory) GetAPIs() *Clients {

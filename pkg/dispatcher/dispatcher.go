@@ -35,19 +35,14 @@ import (
 var dispatcher *Dispatcher
 var once sync.Once
 
+const defaultAsyncDispatchCheckInterval = 3 * time.Second
+
 type EventType int8
 
 const (
 	EventTypeApp EventType = iota
 	EventTypeTask
 	EventTypeNode
-)
-
-var (
-	AsyncDispatchLimit         int32
-	AsyncDispatchCheckInterval = 3 * time.Second
-	DispatchTimeout            time.Duration
-	asyncDispatchCount         atomic.Int32 = atomic.Int32{}
 )
 
 // central dispatcher that dispatches scheduling events.
@@ -58,6 +53,11 @@ type Dispatcher struct {
 	running   atomic.Bool
 	lock      locking.RWMutex
 	stopped   sync.WaitGroup
+
+	asyncDispatchLimit         int32
+	asyncDispatchCheckInterval time.Duration
+	dispatchTimeout            time.Duration
+	asyncDispatchCount         atomic.Int32
 }
 
 func initDispatcher() {
@@ -67,15 +67,17 @@ func initDispatcher() {
 		handlers:  make(map[EventType]map[string]func(interface{})),
 		stopChan:  make(chan struct{}),
 		lock:      locking.RWMutex{},
+
+		asyncDispatchCheckInterval: defaultAsyncDispatchCheckInterval,
+		dispatchTimeout:            conf.GetSchedulerConf().DispatchTimeout,
+		asyncDispatchLimit:         max(10000, int32(eventChannelCapacity/10)), //nolint:gosec
 	}
 	dispatcher.setRunning(false)
-	DispatchTimeout = conf.GetSchedulerConf().DispatchTimeout
-	AsyncDispatchLimit = max(10000, int32(eventChannelCapacity/10)) //nolint:gosec
 
 	log.Log(log.ShimDispatcher).Info("Init dispatcher",
 		zap.Int("EventChannelCapacity", eventChannelCapacity),
-		zap.Int32("AsyncDispatchLimit", AsyncDispatchLimit),
-		zap.Float64("DispatchTimeoutInSeconds", DispatchTimeout.Seconds()))
+		zap.Int32("AsyncDispatchLimit", dispatcher.asyncDispatchLimit),
+		zap.Float64("DispatchTimeoutInSeconds", dispatcher.dispatchTimeout.Seconds()))
 }
 
 func RegisterEventHandler(handlerID string, eventType EventType, handlerFn func(interface{})) {
@@ -165,26 +167,28 @@ func (p *Dispatcher) dispatch(event events.SchedulingEvent) error {
 	}
 }
 
-// async-dispatch try to enqueue the event in every 3 seconds util timeout,
-// it's only called when event channel is full.
+// async-dispatch retries enqueueing the event in every 3 seconds until dispatchTimeout
+// it's only called when the event channel is full.
 func (p *Dispatcher) asyncDispatch(event events.SchedulingEvent) {
-	count := asyncDispatchCount.Add(1)
+	count := p.asyncDispatchCount.Add(1)
 	log.Log(log.ShimDispatcher).Warn("event channel is full, transition to async-dispatch mode",
 		zap.Int32("asyncDispatchCount", count))
-	if count > AsyncDispatchLimit {
+	if count > p.asyncDispatchLimit {
+		// this event is not being async-dispatched, so undo the count
+		p.asyncDispatchCount.Add(-1)
 		panic(fmt.Errorf("dispatcher exceeds async-dispatch limit"))
 	}
 	go func(beginTime time.Time, stop chan struct{}) {
-		defer asyncDispatchCount.Add(-1)
+		defer p.asyncDispatchCount.Add(-1)
 		for p.isRunning() {
 			select {
 			case <-stop:
 				return
 			case p.eventChan <- event:
 				return
-			case <-time.After(AsyncDispatchCheckInterval):
+			case <-time.After(p.asyncDispatchCheckInterval):
 				elapseTime := time.Since(beginTime)
-				if elapseTime >= DispatchTimeout {
+				if elapseTime >= p.dispatchTimeout {
 					log.Log(log.ShimDispatcher).Error("dispatch timeout",
 						zap.Float64("elapseSeconds", elapseTime.Seconds()))
 					return

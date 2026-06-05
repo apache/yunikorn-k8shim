@@ -16,29 +16,30 @@
  limitations under the License.
 */
 
-package support
+package test
 
 import (
-	fwk "k8s.io/kube-scheduler/framework"
+	"fmt"
 
-	"github.com/apache/yunikorn-k8shim/pkg/cache/external"
+	storagev1 "k8s.io/api/storage/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/labels"
 )
 
-type storageInfoListerImpl struct {
-	cache *external.SchedulerCache
-}
+// CSINodeListerMock declares a storagev1.CSINode type for testing.
+type CSINodeListerMock []storagev1.CSINode
 
-func (s storageInfoListerImpl) IsPVCUsedByPods(key string) bool {
-	return s.cache.IsPVCUsedByPods(key)
-}
-
-var _ fwk.StorageInfoLister = &storageInfoListerImpl{}
-
-// NewStorageInfoLister returns a new StorageInfoLister which references the scheduler cache. The returned lister is
-// not safe for access without acquiring the scheduler cache read lock first.
-func NewStorageInfoLister(cache *external.SchedulerCache) fwk.StorageInfoLister {
-	sl := &storageInfoListerImpl{
-		cache: cache,
+// Get returns a fake CSINode object.
+func (n CSINodeListerMock) Get(name string) (*storagev1.CSINode, error) {
+	for _, cn := range n {
+		if cn.Name == name {
+			return &cn, nil
+		}
 	}
-	return sl
+	return nil, errors.NewNotFound(storagev1.Resource("csinodes"), name)
+}
+
+// List lists all CSINodes in the indexer.
+func (n CSINodeListerMock) List(selector labels.Selector) (ret []*storagev1.CSINode, err error) {
+	return nil, fmt.Errorf("not implemented")
 }
