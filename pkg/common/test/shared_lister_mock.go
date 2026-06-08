@@ -16,38 +16,39 @@
  limitations under the License.
 */
 
-package support
+package test
 
 import (
 	fwk "k8s.io/kube-scheduler/framework"
-
-	"github.com/apache/yunikorn-k8shim/pkg/cache/external"
-	"github.com/apache/yunikorn-k8shim/pkg/log"
 )
 
-type sharedListerImpl struct {
-	nodeInfos    fwk.NodeInfoLister
-	storageInfos fwk.StorageInfoLister
+type SharedListerMock struct {
+	nodeLister    *NodeInfoListerMock
+	storageLister *StorageInfoListerMock
 }
 
-func (s sharedListerImpl) PodGroupStates() fwk.PodGroupStateLister {
-	log.Log(log.ShimFramework).Fatal("BUG: Should not be used by plugins")
+func (s *SharedListerMock) PodGroupStates() fwk.PodGroupStateLister {
 	return nil
 }
 
-func (s sharedListerImpl) NodeInfos() fwk.NodeInfoLister {
-	return s.nodeInfos
+func (s *SharedListerMock) NodeInfos() fwk.NodeInfoLister {
+	return s.nodeLister
 }
 
-func (s sharedListerImpl) StorageInfos() fwk.StorageInfoLister {
-	return s.storageInfos
+func (s *SharedListerMock) StorageInfos() fwk.StorageInfoLister {
+	return s.storageLister
 }
 
-var _ fwk.SharedLister = &sharedListerImpl{}
-
-func NewSharedLister(cache *external.SchedulerCache) fwk.SharedLister {
-	return &sharedListerImpl{
-		nodeInfos:    NewNodeInfoLister(cache),
-		storageInfos: NewStorageInfoLister(cache),
+func NewEmptySharedListerMock() fwk.SharedLister {
+	return &SharedListerMock{}
+}
+func (s *SharedListerMock) NodeLister() *NodeInfoListerMock {
+	return s.nodeLister
+}
+func NewSharedListerMock() *SharedListerMock {
+	return &SharedListerMock{
+		nodeLister: &NodeInfoListerMock{
+			nodeInfos: make([]fwk.NodeInfo, 0),
+		},
 	}
 }

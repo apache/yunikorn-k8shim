@@ -75,6 +75,10 @@ func NewShimScheduler(scheduler api.SchedulerAPI, configs *conf.SchedulerConf, b
 		return nil
 	}
 	context := cache.NewContextWithBootstrapConfigMaps(apiFactory, bootstrapConfigMaps)
+	if context == nil {
+		log.Log(log.Shim).Fatal("problem in creating the context")
+		return nil
+	}
 	rmCallback := cache.NewAsyncRMCallback(context)
 
 	eventBroadcaster := k8events.NewBroadcaster(&k8events.EventSinkImpl{
