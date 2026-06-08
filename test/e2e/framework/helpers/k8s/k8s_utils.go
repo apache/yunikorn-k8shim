@@ -32,6 +32,8 @@ import (
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
+	"k8s.io/client-go/transport/spdy"
+	"k8s.io/streaming/pkg/httpstream"
 
 	"go.uber.org/zap"
 	appsv1 "k8s.io/api/apps/v1"
@@ -43,7 +45,6 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/httpstream"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/version"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
@@ -53,9 +54,8 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/portforward"
-	"k8s.io/client-go/transport/spdy"
 	"k8s.io/client-go/util/retry"
-	resourcehelper "k8s.io/kubectl/pkg/util/resource"
+	helper "k8s.io/component-helpers/resource"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
 
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
@@ -349,7 +349,7 @@ func SetPortForwarder(req PortForwardAPodRequest, dialer httpstream.Dialer, port
 
 	var err error
 	if fw == nil {
-		fw, err = portforward.New(dialer, []string{fmt.Sprintf("%d:%d", req.LocalPort, req.PodPort)}, req.StopCh, req.ReadyCh, req.Streams.Out, req.Streams.ErrOut)
+		fw, err = portforward.NewForStreaming(dialer, []string{fmt.Sprintf("%d:%d", req.LocalPort, req.PodPort)}, req.StopCh, req.ReadyCh, req.Streams.Out, req.Streams.ErrOut)
 	}
 	return err
 }
@@ -364,7 +364,7 @@ func (k *KubeCtl) PortForwardPod(req PortForwardAPodRequest) error {
 		return err
 	}
 
-	dialer := spdy.NewDialer(upgrader, &http.Client{Transport: transport}, http.MethodPost, &url.URL{Scheme: "https", Path: path, Host: hostIP})
+	dialer := spdy.NewDialerForStreaming(upgrader, &http.Client{Transport: transport}, http.MethodPost, &url.URL{Scheme: "https", Path: path, Host: hostIP})
 	err = SetPortForwarder(req, dialer, []string{fmt.Sprintf("%d:%d", req.LocalPort, req.PodPort)})
 	if err != nil {
 		return err
@@ -1492,7 +1492,7 @@ func GetPodsTotalRequests(podList *v1.PodList) (reqs v1.ResourceList) {
 		pod := podList.Items[i]
 		podReqs := v1.ResourceList{}
 		if pod.Status.Phase == v1.PodRunning {
-			podReqs, _ = resourcehelper.PodRequestsAndLimits(&pod)
+			podReqs = helper.PodRequests(&pod, helper.PodResourcesOptions{Reuse: podReqs})
 		}
 		for podReqName, podReqValue := range podReqs {
 			if value, ok := reqs[podReqName]; !ok {
