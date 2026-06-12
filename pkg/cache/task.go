@@ -362,8 +362,11 @@ func (task *Task) postTaskAllocated() {
 			zap.String("podName", task.pod.Name),
 			zap.String("podUID", string(task.pod.UID)))
 		if err := task.context.bindPodVolumes(task.pod); err != nil {
-			log.Log(log.ShimCacheTask).Error("bind volumes to pod failed", zap.String("taskID", task.taskID), zap.Error(err))
-			task.failWithEvent(fmt.Sprintf("bind volumes to pod failed, name: %s, %s", task.alias, err.Error()), "PodVolumesBindFailure")
+			log.Log(log.ShimCacheTask).Warn("bind volumes to pod failed, will retry", zap.String("taskID", task.taskID), zap.Error(err))
+			events.GetRecorder().Eventf(task.pod.DeepCopy(),
+				nil, v1.EventTypeWarning, "PodVolumesBindFailure", "PodVolumesBindFailure",
+				"bind volumes to pod failed, name: %s, %s", task.alias, err.Error())
+			dispatcher.Dispatch(NewSimpleTaskEvent(task.applicationID, task.taskID, TaskBindFailed))
 			return
 		}
 		log.Log(log.ShimCacheTask).Debug("bind pod",
@@ -371,8 +374,11 @@ func (task *Task) postTaskAllocated() {
 			zap.String("podUID", string(task.pod.UID)))
 
 		if err := task.context.apiProvider.GetAPIs().KubeClient.Bind(task.pod, task.nodeName); err != nil {
-			log.Log(log.ShimCacheTask).Error("bind pod to node failed", zap.String("taskID", task.taskID), zap.Error(err))
-			task.failWithEvent(fmt.Sprintf("bind pod to node failed, name: %s, %s", task.alias, err.Error()), "PodBindFailure")
+			log.Log(log.ShimCacheTask).Warn("bind pod to node failed, will retry", zap.String("taskID", task.taskID), zap.Error(err))
+			events.GetRecorder().Eventf(task.pod.DeepCopy(),
+				nil, v1.EventTypeWarning, "PodBindFailure", "PodBindFailure",
+				"bind pod to node failed, name: %s, %s", task.alias, err.Error())
+			dispatcher.Dispatch(NewSimpleTaskEvent(task.applicationID, task.taskID, TaskBindFailed))
 			return
 		}
 		log.Log(log.ShimCacheTask).Info("successfully bound pod", zap.String("podName", task.pod.Name))
@@ -427,6 +433,18 @@ func (task *Task) postTaskRejected() {
 		"Task %s is rejected by the scheduler", task.alias)
 	dispatcher.Dispatch(NewFailTaskEvent(task.applicationID, task.taskID,
 		fmt.Sprintf("task %s failed because it is rejected by scheduler", task.alias)))
+}
+
+// beforeTaskBindFailed re-submits the ask to the core so it can be re-allocated.
+// this re-sends the ask so the core knows this task still needs to be scheduled.
+// The task state is reset to Scheduling, and the core will allocate it again on the next cycle.
+func (task *Task) beforeTaskBindFailed() {
+	log.Log(log.ShimCacheTask).Info("re-submitting ask for retry after bind failure",
+		zap.String("applicationID", task.applicationID),
+		zap.String("taskID", task.taskID))
+	task.allocationKey = ""
+	task.nodeName = ""
+	task.updateAllocation()
 }
 
 // beforeTaskFail releases the allocation or ask from scheduler core

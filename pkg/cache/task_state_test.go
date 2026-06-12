@@ -70,4 +70,5 @@ func TestTaskEventsAsString(t *testing.T) {
 	assert.Equal(t, TaskFail.String(), "TaskFail")
 	assert.Equal(t, KillTask.String(), "KillTask")
 	assert.Equal(t, TaskKilled.String(), "TaskKilled")
+	assert.Equal(t, TaskBindFailed.String(), "TaskBindFailed")
 }

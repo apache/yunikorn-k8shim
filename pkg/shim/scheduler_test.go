@@ -176,7 +176,7 @@ func TestSchedulerRegistrationFailed(t *testing.T) {
 	shim.Stop()
 }
 
-func TestTaskFailures(t *testing.T) {
+func TestTaskBindFailures(t *testing.T) {
 	// init and register scheduler
 	cluster := MockScheduler{}
 	cluster.init()
@@ -217,12 +217,12 @@ func TestTaskFailures(t *testing.T) {
 	// wait for scheduling app and tasks
 	// verify app state
 	cluster.waitAndAssertApplicationState(t, "app0001", cache.ApplicationStates().Running)
-	cluster.waitAndAssertTaskState(t, "app0001", "task0001", cache.TaskStates().Failed)
+	cluster.waitAndAssertTaskState(t, "app0001", "task0001", cache.TaskStates().Scheduling)
 	cluster.waitAndAssertTaskState(t, "app0001", "task0002", cache.TaskStates().Bound)
 
-	// one task get bound, one ask failed, so we are expecting only 1 allocation in the scheduler
+	// one task get bound, one task is kept for retrying, so we are expecting only 2 allocations in the scheduler
 	err = cluster.waitAndVerifySchedulerAllocations("root.a",
-		"[mycluster]default", "app0001", 1)
+		"[mycluster]default", "app0001", 2)
 	assert.NilError(t, err, "number of allocations is not expected, error")
 }
 

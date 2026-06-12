@@ -19,6 +19,7 @@
 package cache
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -32,6 +33,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
+	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/yunikorn-k8shim/pkg/locking"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
@@ -927,4 +929,124 @@ func TestCheckPodMetadataBeforeScheduling(t *testing.T) {
 			assert.Equal(t, rt.time, tc.expectedWarningEventCount)
 		})
 	}
+}
+
+// TestTaskBindFailedStateTransition verifies that the TaskBindFailed event transitions
+// the task from Allocated back to Scheduling, clearing allocationKey and nodeName.
+func TestTaskBindFailedStateTransition(t *testing.T) {
+	mockedContext, mockedAPIProvider := initContextAndAPIProviderForTest()
+
+	var lastRequest *si.AllocationRequest
+	mockedAPIProvider.MockSchedulerAPIUpdateAllocationFn(func(request *si.AllocationRequest) error {
+		lastRequest = request
+		return nil
+	})
+
+	pod := &v1.Pod{
+		TypeMeta: metav1.TypeMeta{Kind: "Pod", APIVersion: "v1"},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "pod-bind-fail-01",
+			UID:  "UID-bind-fail-01",
+		},
+	}
+	app := NewApplication("app01", "root.default", "bob", testGroups, map[string]string{}, mockedAPIProvider.GetAPIs().SchedulerAPI)
+	task := NewTask("task01", app, mockedContext, pod)
+
+	// drive task to Allocated
+	assert.NilError(t, task.handle(NewSimpleTaskEvent(task.applicationID, task.taskID, InitTask)))
+	assert.NilError(t, task.handle(NewSubmitTaskEvent(app.applicationID, task.taskID)))
+	assert.NilError(t, task.handle(NewAllocateTaskEvent(app.applicationID, task.taskID, "alloc-key-01", "node-1")))
+	assert.Equal(t, task.GetTaskState(), TaskStates().Allocated)
+	assert.Equal(t, task.allocationKey, "alloc-key-01")
+	assert.Equal(t, task.nodeName, "node-1")
+
+	// fire TaskBindFailed — should reset to Scheduling and re-submit ask
+	lastRequest = nil
+	assert.NilError(t, task.handle(NewSimpleTaskEvent(app.applicationID, task.taskID, TaskBindFailed)))
+
+	assert.Equal(t, task.GetTaskState(), TaskStates().Scheduling)
+	assert.Equal(t, task.allocationKey, "")
+	assert.Equal(t, task.nodeName, "")
+	// updateAllocation sends an Allocations request (ask re-submit), not a Releases request
+	assert.Assert(t, lastRequest != nil, "expected a scheduler update after bind failure")
+	assert.Assert(t, lastRequest.Allocations != nil, "expected ask to be re-submitted after bind failure")
+}
+
+// TestTaskBindFailedIllegalFromBound verifies TaskBindFailed is not accepted from Bound state.
+func TestTaskBindFailedIllegalFromBound(t *testing.T) {
+	mockedContext := initContextForTest()
+	pod := &v1.Pod{
+		TypeMeta: metav1.TypeMeta{Kind: "Pod", APIVersion: "v1"},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "pod-bind-fail-02",
+			UID:  "UID-bind-fail-02",
+		},
+	}
+	app := NewApplication("app01", "root.default", "bob", testGroups, map[string]string{}, nil)
+	task := NewTask("task01", app, mockedContext, pod)
+	task.sm.SetState(TaskStates().Bound)
+
+	err := task.handle(NewSimpleTaskEvent(app.applicationID, task.taskID, TaskBindFailed))
+	assert.Assert(t, err != nil, "TaskBindFailed should be rejected from Bound state")
+	assert.Equal(t, task.GetTaskState(), TaskStates().Bound)
+}
+
+// TestPostTaskAllocatedPodBindFailureRetries verifies that a pod bind failure
+// dispatches TaskBindFailed (retry) instead of failing the task permanently.
+func TestPostTaskAllocatedPodBindFailureRetries(t *testing.T) {
+	mockedContext, mockedAPIProvider := initContextAndAPIProviderForTest()
+	dispatcher.Start()
+	dispatcher.RegisterEventHandler("TestAppHandler", dispatcher.EventTypeApp, mockedContext.ApplicationEventHandler())
+	dispatcher.RegisterEventHandler("TestPodBindFail", dispatcher.EventTypeTask, mockedContext.TaskEventHandler())
+	defer dispatcher.UnregisterAllEventHandlers()
+	defer dispatcher.Stop()
+
+	mockedAPIProvider.MockSchedulerAPIUpdateAllocationFn(func(request *si.AllocationRequest) error {
+		return nil
+	})
+	// make pod bind fail
+	mockedAPIProvider.MockBindFn(func(pod *v1.Pod, hostID string) error {
+		return fmt.Errorf("simulated pod bind failure")
+	})
+
+	// add app and task through context so TaskEventHandler can route events
+	app := mockedContext.AddApplication(&AddApplicationRequest{
+		Metadata: ApplicationMetadata{
+			ApplicationID: "app-bind-fail-01",
+			QueueName:     "root.default",
+			User:          "bob",
+			Tags:          nil,
+		},
+	})
+	assert.Assert(t, app != nil)
+
+	pod := &v1.Pod{
+		TypeMeta: metav1.TypeMeta{Kind: "Pod", APIVersion: "v1"},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "pod-bind-fail-03",
+			Namespace: "default",
+			UID:       "UID-bind-fail-03",
+		},
+	}
+	task := mockedContext.AddTask(&AddTaskRequest{
+		Metadata: TaskMetadata{
+			ApplicationID: "app-bind-fail-01",
+			TaskID:        "task-bind-fail-01",
+			Pod:           pod,
+		},
+	})
+	assert.Assert(t, task != nil)
+
+	// drive to Allocated — postTaskAllocated fires async goroutine
+	assert.NilError(t, task.handle(NewSimpleTaskEvent(task.applicationID, task.taskID, InitTask)))
+	assert.NilError(t, task.handle(NewSubmitTaskEvent(task.applicationID, task.taskID)))
+	assert.NilError(t, task.handle(NewAllocateTaskEvent(task.applicationID, task.taskID, "alloc-key-pod", "node-1")))
+	assert.Equal(t, task.GetTaskState(), TaskStates().Allocated)
+
+	err := utils.WaitForCondition(func() bool {
+		return task.GetTaskState() == TaskStates().Scheduling
+	}, 100*time.Millisecond, 5*time.Second)
+	assert.NilError(t, err, "task should have transitioned back to Scheduling after pod bind failure")
+	assert.Equal(t, task.allocationKey, "")
+	assert.Equal(t, task.nodeName, "")
 }

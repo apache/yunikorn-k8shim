@@ -47,10 +47,11 @@ const (
 	TaskFail
 	KillTask
 	TaskKilled
+	TaskBindFailed
 )
 
 func (ae TaskEventType) String() string {
-	return [...]string{"InitTask", "SubmitTask", "TaskAllocated", "TaskRejected", "TaskBound", "CompleteTask", "TaskFail", "KillTask", "TaskKilled"}[ae]
+	return [...]string{"InitTask", "SubmitTask", "TaskAllocated", "TaskRejected", "TaskBound", "CompleteTask", "TaskFail", "KillTask", "TaskKilled", "TaskBindFailed"}[ae]
 }
 
 // ------------------------
@@ -371,6 +372,11 @@ func eventDesc(states *TStates) fsm.Events {
 			Src:  []string{states.New, states.Pending, states.Scheduling, states.Rejected, states.Allocated},
 			Dst:  states.Failed,
 		},
+		{
+			Name: TaskBindFailed.String(),
+			Src:  []string{states.Allocated},
+			Dst:  states.Scheduling,
+		},
 	}
 }
 
@@ -421,6 +427,10 @@ func callbacks(states *TStates) fsm.Callbacks {
 		beforeHook(TaskFail): func(_ context.Context, event *fsm.Event) {
 			task := event.Args[0].(*Task) //nolint:errcheck
 			task.beforeTaskFail()
+		},
+		beforeHook(TaskBindFailed): func(_ context.Context, event *fsm.Event) {
+			task := event.Args[0].(*Task) //nolint:errcheck
+			task.beforeTaskBindFailed()
 		},
 		beforeHook(TaskAllocated): func(_ context.Context, event *fsm.Event) {
 			task := event.Args[0].(*Task) //nolint:errcheck
