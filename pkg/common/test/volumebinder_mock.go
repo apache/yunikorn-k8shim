@@ -106,3 +106,15 @@ func (v *VolumeBinderMock) SetConflictReasons(reasons ...string) {
 func (v *VolumeBinderMock) SetAssumePodVolumesError(message string) {
 	v.assumeVolumeError = errors.New(message)
 }
+
+func (v *VolumeBinderMock) EnableBindPodVolumesError(message string) {
+	v.bindError = errors.New(message)
+}
+
+func (v *VolumeBinderMock) SetAllBound(allBound bool) {
+	v.allBound = allBound
+}
+
+func (v *VolumeBinderMock) SetPodVolumes(podVolumes *volumebinding.PodVolumes) {
+	v.podVolumes = podVolumes
+}

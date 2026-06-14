@@ -52,10 +52,11 @@ type Task struct {
 	sm            *fsm.FSM
 
 	// mutable resources, require locking
-	allocationKey   string
-	nodeName        string
-	taskGroupName   string
-	terminationType string
+	allocationKey      string
+	nodeName           string
+	taskGroupName      string
+	terminationType    string
+	bindFailureReason  string // reason from the last pod/volume bind failure; included in the re-submitted ask
 	schedulingState TaskSchedulingState
 	resource        *si.Resource
 	pod             *v1.Pod
@@ -326,6 +327,9 @@ func (task *Task) updateAllocation() {
 		task.pod,
 		task.originator,
 		preemptionPolicy)
+	if task.bindFailureReason != "" {
+		rr.Allocations[0].AllocationTags[common.BindFailureReasonTag] = task.bindFailureReason
+	}
 	log.Log(log.ShimCacheTask).Debug("send update request", zap.Stringer("request", rr))
 	if err := task.context.apiProvider.GetAPIs().SchedulerAPI.UpdateAllocation(rr); err != nil {
 		log.Log(log.ShimCacheTask).Debug("failed to send allocation to scheduler", zap.Error(err))
@@ -366,6 +370,7 @@ func (task *Task) postTaskAllocated() {
 			events.GetRecorder().Eventf(task.pod.DeepCopy(),
 				nil, v1.EventTypeWarning, "PodVolumesBindFailure", "PodVolumesBindFailure",
 				"bind volumes to pod failed, name: %s, %s", task.alias, err.Error())
+			task.bindFailureReason = fmt.Sprintf("volume bind failed on node %s: %s", task.nodeName, err.Error())
 			dispatcher.Dispatch(NewSimpleTaskEvent(task.applicationID, task.taskID, TaskBindFailed))
 			return
 		}
@@ -378,6 +383,7 @@ func (task *Task) postTaskAllocated() {
 			events.GetRecorder().Eventf(task.pod.DeepCopy(),
 				nil, v1.EventTypeWarning, "PodBindFailure", "PodBindFailure",
 				"bind pod to node failed, name: %s, %s", task.alias, err.Error())
+			task.bindFailureReason = fmt.Sprintf("pod bind failed on node %s: %s", task.nodeName, err.Error())
 			dispatcher.Dispatch(NewSimpleTaskEvent(task.applicationID, task.taskID, TaskBindFailed))
 			return
 		}
@@ -441,10 +447,12 @@ func (task *Task) postTaskRejected() {
 func (task *Task) beforeTaskBindFailed() {
 	log.Log(log.ShimCacheTask).Info("re-submitting ask for retry after bind failure",
 		zap.String("applicationID", task.applicationID),
-		zap.String("taskID", task.taskID))
+		zap.String("taskID", task.taskID),
+		zap.String("bindFailureReason", task.bindFailureReason))
 	task.allocationKey = ""
 	task.nodeName = ""
 	task.updateAllocation()
+	task.bindFailureReason = ""
 }
 
 // beforeTaskFail releases the allocation or ask from scheduler core

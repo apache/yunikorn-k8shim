@@ -220,7 +220,7 @@ func TestTaskBindFailures(t *testing.T) {
 	cluster.waitAndAssertTaskState(t, "app0001", "task0001", cache.TaskStates().Scheduling)
 	cluster.waitAndAssertTaskState(t, "app0001", "task0002", cache.TaskStates().Bound)
 
-	// one task get bound, one task is kept for retrying, so we are expecting only 2 allocations in the scheduler
+	// one task get bound, one task is kept for retrying, so we are expecting 2 allocations in the scheduler
 	err = cluster.waitAndVerifySchedulerAllocations("root.a",
 		"[mycluster]default", "app0001", 2)
 	assert.NilError(t, err, "number of allocations is not expected, error")

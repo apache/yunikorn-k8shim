@@ -30,6 +30,11 @@ import (
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
 
+// BindFailureReasonTag is the AllocationTags key used to communicate the reason
+// the last pod/volume bind attempt failed. The core scheduler can use this to
+// make smarter re-allocation decisions (e.g. avoid the same node).
+const BindFailureReasonTag = common.DomainYuniKorn + "bind.failure.reason"
+
 func CreateTagsForTask(pod *v1.Pod) map[string]string {
 	metaPrefix := common.DomainK8s + common.GroupMeta
 	tags := map[string]string{

@@ -32,10 +32,12 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
+	"github.com/apache/yunikorn-k8shim/pkg/common/test"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/yunikorn-k8shim/pkg/locking"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
+	volumebinding "k8s.io/kubernetes/pkg/scheduler/framework/plugins/volumebinding"
 )
 
 func TestTaskStateTransitions(t *testing.T) {
@@ -1047,6 +1049,55 @@ func TestPostTaskAllocatedPodBindFailureRetries(t *testing.T) {
 		return task.GetTaskState() == TaskStates().Scheduling
 	}, 100*time.Millisecond, 5*time.Second)
 	assert.NilError(t, err, "task should have transitioned back to Scheduling after pod bind failure")
+	assert.Equal(t, task.allocationKey, "")
+	assert.Equal(t, task.nodeName, "")
+}
+
+// TestPostTaskAllocatedVolumeBindFailureRetries verifies that a volume bind failure
+// dispatches TaskBindFailed (retry) instead of failing the task permanently.
+func TestPostTaskAllocatedVolumeBindFailureRetries(t *testing.T) {
+	// Configure the volume binder:
+	// - allBound=false so bindPodVolumes proceeds to call BindPodVolumes
+	// - non-nil PodVolumes so context.go doesn't nil-deref on StaticBindings/DynamicProvisions
+	// - BindPodVolumes returns an error
+	volumeBinder := test.NewVolumeBinderMock()
+	volumeBinder.SetAllBound(false)
+	volumeBinder.SetPodVolumes(&volumebinding.PodVolumes{})
+	volumeBinder.EnableBindPodVolumesError("simulated volume bind failure")
+
+	// initAssumePodTest starts the dispatcher, registers handlers, adds a node,
+	// and adds an app+pod (pod1UID / podName1) to the context.
+	mockedContext := initAssumePodTest(volumeBinder)
+	defer dispatcher.UnregisterAllEventHandlers()
+	defer dispatcher.Stop()
+
+	mockedAPIProvider, ok := mockedContext.apiProvider.(*client.MockedAPIProvider)
+	assert.Assert(t, ok)
+	mockedAPIProvider.MockSchedulerAPIUpdateAllocationFn(func(request *si.AllocationRequest) error {
+		return nil
+	})
+
+	// AssumePod puts the pod into the scheduler cache with nodeName set, which is
+	// required for bindPodVolumes to proceed.
+	err := mockedContext.AssumePod(pod1UID, fakeNodeName)
+	assert.NilError(t, err, "AssumePod should succeed (volumes not bound, but no assume error)")
+
+	// Retrieve the task that initAssumePodTest added via AddPod → AddTask.
+	app := mockedContext.GetApplication(appID)
+	assert.Assert(t, app != nil)
+	task := app.GetTask(pod1UID)
+	assert.Assert(t, task != nil)
+
+	// Drive task to Allocated — postTaskAllocated fires an async goroutine that
+	// calls bindPodVolumes, which will fail and dispatch TaskBindFailed.
+	task.sm.SetState(TaskStates().Scheduling)
+	assert.NilError(t, task.handle(NewAllocateTaskEvent(task.applicationID, task.taskID, "alloc-key-vol", fakeNodeName)))
+	assert.Equal(t, task.GetTaskState(), TaskStates().Allocated)
+
+	err = utils.WaitForCondition(func() bool {
+		return task.GetTaskState() == TaskStates().Scheduling
+	}, 100*time.Millisecond, 5*time.Second)
+	assert.NilError(t, err, "task should have transitioned back to Scheduling after volume bind failure")
 	assert.Equal(t, task.allocationKey, "")
 	assert.Equal(t, task.nodeName, "")
 }
