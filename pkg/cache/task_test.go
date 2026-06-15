@@ -28,6 +28,7 @@ import (
 	schedulingv1 "k8s.io/api/scheduling/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	volumebinding "k8s.io/kubernetes/pkg/scheduler/framework/plugins/volumebinding"
 
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
@@ -37,7 +38,6 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/yunikorn-k8shim/pkg/locking"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
-	volumebinding "k8s.io/kubernetes/pkg/scheduler/framework/plugins/volumebinding"
 )
 
 func TestTaskStateTransitions(t *testing.T) {

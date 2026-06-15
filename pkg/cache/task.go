@@ -52,14 +52,14 @@ type Task struct {
 	sm            *fsm.FSM
 
 	// mutable resources, require locking
-	allocationKey      string
-	nodeName           string
-	taskGroupName      string
-	terminationType    string
-	bindFailureReason  string // reason from the last pod/volume bind failure; included in the re-submitted ask
-	schedulingState TaskSchedulingState
-	resource        *si.Resource
-	pod             *v1.Pod
+	allocationKey     string
+	nodeName          string
+	taskGroupName     string
+	terminationType   string
+	bindFailureReason string // reason from the last pod/volume bind failure; included in the re-submitted ask
+	schedulingState   TaskSchedulingState
+	resource          *si.Resource
+	pod               *v1.Pod
 
 	lock *locking.RWMutex
 }
