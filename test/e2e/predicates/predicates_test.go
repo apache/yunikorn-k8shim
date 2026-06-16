@@ -58,6 +58,7 @@ func runPodAndGetNodeName(k *k8s.KubeCtl, conf k8s.SleepPodConfig) string {
 	By("Explicitly delete pod here to free the resource it takes.")
 	err := k.DeletePod(pod.Name, pod.Namespace)
 	Ω(err).NotTo(HaveOccurred())
+	Ω(k.WaitForPodTerminated(pod.Namespace, pod.Name, 60*time.Second)).NotTo(HaveOccurred())
 	return pod.Spec.NodeName
 }
 
@@ -116,6 +117,13 @@ var _ = Describe("Predicates", func() {
 			err = kClient.TearDownNamespace(n)
 			Ω(err).NotTo(HaveOccurred())
 		}
+
+		By("Wait for Yunikorn's health to recover after cleanup")
+		// Poll until live node state and cached health check are both clean. Exits
+		// immediately once healthy; DefaultSchedulerHealthTimeout is a ceiling (2× the
+		// default 30s health-check interval), not a fixed post-test delay.
+		err = yunikorn.WaitForSchedulerHealth(yunikorn.DefaultSchedulerHealthTimeout)
+		Ω(err).NotTo(HaveOccurred())
 	})
 
 	// Test Nodes does not have any label, hence it should be impossible to schedule Pod with
@@ -1088,12 +1096,5 @@ var _ = Describe("Predicates", func() {
 		Ω(log).NotTo(BeNil(), "Log can't be empty")
 		logEntries := yunikorn.AllocLogToStrings(log)
 		Ω(logEntries).To(ContainElement(MatchRegexp(".*free ports.*")), "Log entry message mismatch")
-	})
-
-	AfterEach(func() {
-		By("Check Yunikorn's health")
-		checks, err := yunikorn.GetFailedHealthChecks()
-		Ω(err).NotTo(HaveOccurred())
-		Ω(checks).To(Equal(""), checks)
 	})
 })

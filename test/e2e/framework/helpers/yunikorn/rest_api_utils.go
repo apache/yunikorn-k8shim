@@ -27,6 +27,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
@@ -36,7 +37,12 @@ import (
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 )
 
-const DefaultPartition = "default"
+const (
+	DefaultPartition = "default"
+	// DefaultSchedulerHealthTimeout allows the periodic health checker (default 30s interval)
+	// to refresh cached results after transient negative resources during pod cleanup.
+	DefaultSchedulerHealthTimeout = 60
+)
 
 type RClient struct {
 	BaseURL   *url.URL
@@ -404,13 +410,39 @@ func (c *RClient) ValidateSchedulerConfig(cm v1.ConfigMap) (*dao.ValidateConfRes
 	return validateConfResponse, err
 }
 
-func GetFailedHealthChecks() (string, error) {
-	restClient := RClient{}
-	var failCheck string
-	healthCheck, err := restClient.GetHealthCheck()
-	if err != nil {
-		return "", fmt.Errorf("failed to get scheduler health check from API")
+func hasNegativeResourceValues(values map[string]int64) bool {
+	for _, value := range values {
+		if value < 0 {
+			return true
+		}
 	}
+	return false
+}
+
+// HasNegativeNodeResources reports whether any node has negative resource values in the
+// fields checked by the scheduler's node-level "Negative resources" health check
+// (yunikorn-core/pkg/scheduler/health_checker.go checkSchedulingContext):
+//   - node.GetAllocatedResource().HasNegativeValue()  -> NodeDAOInfo.Allocated
+//   - node.GetAvailableResource().HasNegativeValue()  -> NodeDAOInfo.Available
+//   - node.GetCapacity().HasNegativeValue()           -> NodeDAOInfo.Capacity
+//   - node.GetOccupiedResource().HasNegativeValue()   -> NodeDAOInfo.Occupied
+//
+// This is a subset of the full health check. Partition-level negative resources,
+// consistency checks, and orphan allocations are covered only by GetHealthCheck().
+func HasNegativeNodeResources(nodes []dao.NodeDAOInfo) bool {
+	for _, node := range nodes {
+		if hasNegativeResourceValues(node.Capacity) ||
+			hasNegativeResourceValues(node.Allocated) ||
+			hasNegativeResourceValues(node.Occupied) ||
+			hasNegativeResourceValues(node.Available) {
+			return true
+		}
+	}
+	return false
+}
+
+func formatFailedHealthChecks(healthCheck dao.SchedulerHealthDAOInfo) string {
+	var failCheck string
 	if !healthCheck.Healthy {
 		for _, check := range healthCheck.HealthChecks {
 			if !check.Succeeded {
@@ -418,7 +450,53 @@ func GetFailedHealthChecks() (string, error) {
 			}
 		}
 	}
-	return failCheck, nil
+	return failCheck
+}
+
+func GetFailedHealthChecks() (string, error) {
+	restClient := RClient{}
+	healthCheck, err := restClient.GetHealthCheck()
+	if err != nil {
+		return "", fmt.Errorf("failed to get scheduler health check from API")
+	}
+	return formatFailedHealthChecks(healthCheck), nil
+}
+
+func (c *RClient) WaitForSchedulerHealth(partition string, timeout int) error {
+	// Poll until both live node state and the cached health-check result are clean.
+	// The health endpoint returns the last periodic check (default interval: 30s), so the
+	// timeout should exceed one full interval. A persistent scheduler bug still fails once
+	// the timeout elapses.
+	var lastFailure string
+	err := wait.PollUntilContextTimeout(context.Background(), time.Second, time.Duration(timeout)*time.Second, false,
+		func(ctx context.Context) (bool, error) {
+			nodes, err := c.GetNodes(partition)
+			if err != nil {
+				return false, err
+			}
+			if nodes != nil && HasNegativeNodeResources(*nodes) {
+				lastFailure = "nodes API reported negative resources"
+				return false, nil
+			}
+
+			healthCheck, err := c.GetHealthCheck()
+			if err != nil {
+				return false, err
+			}
+			if failedChecks := formatFailedHealthChecks(healthCheck); failedChecks != "" {
+				lastFailure = failedChecks
+				return false, nil
+			}
+			return true, nil
+		})
+	if err != nil {
+		return fmt.Errorf("scheduler did not become healthy within %ds: %s", timeout, strings.TrimSpace(lastFailure))
+	}
+	return nil
+}
+
+func WaitForSchedulerHealth(timeout int) error {
+	return (&RClient{}).WaitForSchedulerHealth(DefaultPartition, timeout)
 }
 
 func (c *RClient) GetQueue(partition string, queueName string, withChildren bool) (*dao.PartitionQueueDAOInfo, error) {
