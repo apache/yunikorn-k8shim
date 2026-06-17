@@ -1039,6 +1039,14 @@ func TestPostTaskAllocatedPodBindFailureRetries(t *testing.T) {
 	})
 	assert.Assert(t, task != nil)
 
+	// Add the pod to the scheduler cache and assume it on node-1, simulating
+	// the state that exists after the core sends an allocation and AssumePod is called.
+	mockedContext.schedulerCache.UpdatePod(pod)
+	assumedPod := pod.DeepCopy()
+	assumedPod.Spec.NodeName = "node-1"
+	mockedContext.schedulerCache.AssumePod(assumedPod, true)
+	assert.Assert(t, mockedContext.schedulerCache.IsAssumedPod(string(pod.UID)), "pod should be assumed before bind")
+
 	// drive to Allocated — postTaskAllocated fires async goroutine
 	assert.NilError(t, task.handle(NewSimpleTaskEvent(task.applicationID, task.taskID, InitTask)))
 	assert.NilError(t, task.handle(NewSubmitTaskEvent(task.applicationID, task.taskID)))
@@ -1051,6 +1059,9 @@ func TestPostTaskAllocatedPodBindFailureRetries(t *testing.T) {
 	assert.NilError(t, err, "task should have transitioned back to Scheduling after pod bind failure")
 	assert.Equal(t, task.allocationKey, "")
 	assert.Equal(t, task.nodeName, "")
+	// ForgetPod must have been called: the pod should no longer be in the assumed cache
+	assert.Assert(t, !mockedContext.schedulerCache.IsAssumedPod(string(pod.UID)),
+		"pod should no longer be assumed after bind failure")
 }
 
 // TestPostTaskAllocatedVolumeBindFailureRetries verifies that a volume bind failure
@@ -1100,4 +1111,7 @@ func TestPostTaskAllocatedVolumeBindFailureRetries(t *testing.T) {
 	assert.NilError(t, err, "task should have transitioned back to Scheduling after volume bind failure")
 	assert.Equal(t, task.allocationKey, "")
 	assert.Equal(t, task.nodeName, "")
+	// ForgetPod must have been called: the pod should no longer be in the assumed cache
+	assert.Assert(t, !mockedContext.schedulerCache.IsAssumedPod(pod1UID),
+		"pod should no longer be assumed after bind failure")
 }

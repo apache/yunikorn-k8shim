@@ -451,6 +451,18 @@ func (task *Task) beforeTaskBindFailed() {
 		zap.String("bindFailureReason", task.bindFailureReason))
 	task.allocationKey = ""
 	task.nodeName = ""
+	// AssumePod was called when the allocation was received, linking a deep copy of the
+	// pod (with Spec.NodeName set) to the node in the scheduler cache. Since the bind
+	// failed, we remove that assumed state so the cache no longer accounts for the pod
+	// on the node. We call schedulerCache.ForgetPod directly rather than ctx.ForgetPod
+	// to avoid a lock-ordering deadlock (task.lock -> ctx.lock conflicts with the
+	// existing ctx.lock -> task.lock path in UpdatePod).
+	// Note: task.pod.Spec.NodeName is already "" here because AssumePod stores a deep
+	// copy in the cache without modifying task.pod, so updateAllocation correctly sends
+	// NodeID="" to the core, signalling that the pod has no node assignment.
+	if pod := task.context.schedulerCache.GetPod(string(task.pod.UID)); pod != nil {
+		task.context.schedulerCache.ForgetPod(pod)
+	}
 	task.updateAllocation()
 	task.bindFailureReason = ""
 }
