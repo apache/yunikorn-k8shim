@@ -40,6 +40,10 @@ var (
 type SharedInformerMock struct {
 }
 
+func (s *SharedInformerMock) HasSyncedChecker() cache.DoneChecker {
+	return nil
+}
+
 func (s *SharedInformerMock) AddEventHandlerWithOptions(_ cache.ResourceEventHandler, _ cache.HandlerOptions) (cache.ResourceEventHandlerRegistration, error) {
 	return nil, nil
 }

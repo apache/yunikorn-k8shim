@@ -22,54 +22,38 @@ import (
 	"testing"
 
 	"gotest.tools/v3/assert"
-	"k8s.io/client-go/informers"
-	"k8s.io/client-go/kubernetes"
-	fwk "k8s.io/kube-scheduler/framework"
 
-	"github.com/apache/yunikorn-k8shim/pkg/cache/external"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common/test"
 )
 
 func TestNewFrameworkHandle(t *testing.T) {
-	clientSet := clientSet()
-	handle := NewFrameworkHandle(lister(), informerFactory(clientSet), clientSet, test.NewCSIManagerMock(client.NewMockedAPIProvider(false).GetAPIs().CSINodeInformer.Lister()))
+	clientSet := ClientSet()
+	handle := NewFrameworkHandle(Lister(), InformerFactory(clientSet), clientSet, test.NewCSIManagerMock(client.NewMockedAPIProvider(false).GetAPIs().CSINodeInformer.Lister()), SharedDRAManager())
 	_, ok := handle.(*frameworkHandle)
 	assert.Assert(t, ok, "handle was of wrong type")
 }
 
 func TestSnapshotSharedLister(t *testing.T) {
-	sl := lister()
-	clientSet := clientSet()
-	handle := NewFrameworkHandle(sl, informerFactory(clientSet), clientSet, test.NewCSIManagerMock(client.NewMockedAPIProvider(false).GetAPIs().CSINodeInformer.Lister()))
+	sl := Lister()
+	clientSet := ClientSet()
+	handle := NewFrameworkHandle(sl, InformerFactory(clientSet), clientSet, test.NewCSIManagerMock(client.NewMockedAPIProvider(false).GetAPIs().CSINodeInformer.Lister()), SharedDRAManager())
 	sl2 := handle.SnapshotSharedLister()
 	assert.Equal(t, sl, sl2, "wrong shared lister")
 }
 
 func TestSharedInformerFactory(t *testing.T) {
-	clientSet := clientSet()
-	si := informerFactory(clientSet)
-	handle := NewFrameworkHandle(lister(), si, clientSet, test.NewCSIManagerMock(client.NewMockedAPIProvider(false).GetAPIs().CSINodeInformer.Lister()))
+	clientSet := ClientSet()
+	si := InformerFactory(clientSet)
+	lister := Lister()
+	handle := NewFrameworkHandle(lister, si, clientSet, test.NewCSIManagerMock(client.NewMockedAPIProvider(false).GetAPIs().CSINodeInformer.Lister()), SharedDRAManager())
 	si2 := handle.SharedInformerFactory()
 	assert.Equal(t, si, si2, "wrong shared informer")
 }
 
 func TestClientSet(t *testing.T) {
-	cs := clientSet()
-	handle := NewFrameworkHandle(lister(), informerFactory(cs), cs, test.NewCSIManagerMock(client.NewMockedAPIProvider(false).GetAPIs().CSINodeInformer.Lister()))
+	cs := ClientSet()
+	handle := NewFrameworkHandle(Lister(), InformerFactory(cs), cs, test.NewCSIManagerMock(client.NewMockedAPIProvider(false).GetAPIs().CSINodeInformer.Lister()), SharedDRAManager())
 	cs2 := handle.ClientSet()
 	assert.Equal(t, cs, cs2, "wrong clientset")
-}
-
-func lister() fwk.SharedLister {
-	cache := external.NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
-	return NewSharedLister(cache)
-}
-
-func informerFactory(clientSet kubernetes.Interface) informers.SharedInformerFactory {
-	return informers.NewSharedInformerFactory(clientSet, 0)
-}
-
-func clientSet() kubernetes.Interface {
-	return client.NewKubeClientMock(false).GetClientSet()
 }

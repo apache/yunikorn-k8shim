@@ -40,12 +40,35 @@ type frameworkHandle struct {
 	sharedInformerFactory informers.SharedInformerFactory
 	clientSet             kubernetes.Interface
 	parallelizer          fwk.Parallelizer
-	sharedCSIManager      fwk.CSIManager
+	csiManager            fwk.CSIManager
+	sharedDRAManager      fwk.SharedDRAManager
+}
+
+func (p frameworkHandle) AddPodInPreBind(uid types.UID, cancel context.CancelCauseFunc) {
+	log.Log(log.ShimFramework).Fatal("BUG: Should not be used by plugins")
+}
+
+func (p frameworkHandle) GetPodInPreBind(uid types.UID) fwk.PodInPreBind {
+	log.Log(log.ShimFramework).Fatal("BUG: Should not be used by plugins")
+	return nil
+}
+
+func (p frameworkHandle) RemovePodInPreBind(uid types.UID) {
+	log.Log(log.ShimFramework).Fatal("BUG: Should not be used by plugins")
+}
+
+func (p frameworkHandle) EventRecorder() events.EventRecorderLogger {
+	log.Log(log.ShimFramework).Fatal("BUG: Should not be used by plugins")
+	return nil
+}
+
+func (p frameworkHandle) PodGroupManager() fwk.PodGroupManager {
+	log.Log(log.ShimFramework).Fatal("BUG: Should not be used by plugins")
+	return nil
 }
 
 func (p frameworkHandle) SharedCSIManager() fwk.CSIManager {
-	log.Log(log.ShimFramework).Debug("BUG: Should not be used by plugins")
-	return p.sharedCSIManager
+	return p.csiManager
 }
 
 func (p frameworkHandle) ProfileName() string {
@@ -53,12 +76,7 @@ func (p frameworkHandle) ProfileName() string {
 	return ""
 }
 
-func (p frameworkHandle) WorkloadManager() fwk.WorkloadManager {
-	log.Log(log.ShimFramework).Fatal("BUG: Should not be used by plugins")
-	return nil
-}
-
-func (p frameworkHandle) SignPod(ctx context.Context, pod *v1.Pod, recordPluginStats bool) fwk.PodSignature {
+func (p frameworkHandle) SignPod(ctx context.Context, pod *v1.Pod) fwk.PodSignature {
 	log.Log(log.ShimFramework).Fatal("BUG: Should not be used by plugins")
 	return nil
 }
@@ -146,11 +164,6 @@ func (p frameworkHandle) RejectWaitingPod(_ types.UID) bool {
 	return false
 }
 
-func (p frameworkHandle) EventRecorder() events.EventRecorder {
-	log.Log(log.ShimFramework).Fatal("BUG: Should not be used by plugins")
-	return nil
-}
-
 func (p frameworkHandle) KubeConfig() *rest.Config {
 	log.Log(log.ShimFramework).Fatal("BUG: Should not be used by plugins")
 	return nil
@@ -172,8 +185,7 @@ func (p frameworkHandle) Activate(_ klog.Logger, _ map[string]*v1.Pod) {
 }
 
 func (p frameworkHandle) SharedDRAManager() fwk.SharedDRAManager {
-	log.Log(log.ShimFramework).Debug("BUG: Should not be used by plugins")
-	return nil
+	return p.sharedDRAManager
 }
 
 func (p frameworkHandle) APIDispatcher() fwk.APIDispatcher {
@@ -188,12 +200,13 @@ func (p frameworkHandle) APICacher() fwk.APICacher {
 
 var _ fwk.Handle = frameworkHandle{}
 
-func NewFrameworkHandle(sharedLister fwk.SharedLister, informerFactory informers.SharedInformerFactory, clientSet kubernetes.Interface, sharedCSIManager fwk.CSIManager) fwk.Handle {
+func NewFrameworkHandle(sharedLister fwk.SharedLister, informerFactory informers.SharedInformerFactory, clientSet kubernetes.Interface, csiManager fwk.CSIManager, draManager fwk.SharedDRAManager) fwk.Handle {
 	return &frameworkHandle{
 		sharedLister:          sharedLister,
 		sharedInformerFactory: informerFactory,
 		clientSet:             clientSet,
 		parallelizer:          parallelize.NewParallelizer(parallelize.DefaultParallelism),
-		sharedCSIManager:      sharedCSIManager,
+		csiManager:            csiManager,
+		sharedDRAManager:      draManager,
 	}
 }

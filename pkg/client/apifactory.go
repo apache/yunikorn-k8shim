@@ -20,7 +20,6 @@ package client
 
 import (
 	"errors"
-	"time"
 
 	"go.uber.org/zap"
 	"k8s.io/client-go/informers"
@@ -195,37 +194,30 @@ func (s *APIFactory) AddEventHandler(handlers *ResourceEventHandlers) error {
 	}
 
 	log.Log(log.ShimClient).Info("registering event handler", zap.Stringer("type", handlers.Type))
-	if err := s.addEventHandlers(handlers.Type, h, 0); err != nil {
+	if err := s.addEventHandlers(handlers.Type, h); err != nil {
 		return errors.Join(errors.New("failed to initialize event handlers: "), err)
 	}
 	return nil
 }
 
 func (s *APIFactory) addEventHandlers(
-	handlerType Type, handler cache.ResourceEventHandler, resyncPeriod time.Duration) error {
+	handlerType Type, handler cache.ResourceEventHandler) error {
 	var err error
 	switch handlerType {
 	case PodInformerHandlers:
-		_, err = s.GetAPIs().PodInformer.Informer().
-			AddEventHandlerWithResyncPeriod(handler, resyncPeriod)
+		_, err = s.GetAPIs().PodInformer.Informer().AddEventHandler(handler)
 	case NodeInformerHandlers:
-		_, err = s.GetAPIs().NodeInformer.Informer().
-			AddEventHandlerWithResyncPeriod(handler, resyncPeriod)
+		_, err = s.GetAPIs().NodeInformer.Informer().AddEventHandler(handler)
 	case ConfigMapInformerHandlers:
-		_, err = s.GetAPIs().ConfigMapInformer.Informer().
-			AddEventHandlerWithResyncPeriod(handler, resyncPeriod)
+		_, err = s.GetAPIs().ConfigMapInformer.Informer().AddEventHandler(handler)
 	case StorageInformerHandlers:
-		_, err = s.GetAPIs().StorageClassInformer.Informer().
-			AddEventHandlerWithResyncPeriod(handler, resyncPeriod)
+		_, err = s.GetAPIs().StorageClassInformer.Informer().AddEventHandler(handler)
 	case PVInformerHandlers:
-		_, err = s.GetAPIs().PVInformer.Informer().
-			AddEventHandlerWithResyncPeriod(handler, resyncPeriod)
+		_, err = s.GetAPIs().PVInformer.Informer().AddEventHandler(handler)
 	case PVCInformerHandlers:
-		_, err = s.GetAPIs().PVCInformer.Informer().
-			AddEventHandlerWithResyncPeriod(handler, resyncPeriod)
+		_, err = s.GetAPIs().PVCInformer.Informer().AddEventHandler(handler)
 	case PriorityClassInformerHandlers:
-		_, err = s.GetAPIs().PriorityClassInformer.Informer().
-			AddEventHandlerWithResyncPeriod(handler, resyncPeriod)
+		_, err = s.GetAPIs().PriorityClassInformer.Informer().AddEventHandler(handler)
 	}
 
 	if err != nil {
