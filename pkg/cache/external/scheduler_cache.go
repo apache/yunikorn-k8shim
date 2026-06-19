@@ -41,16 +41,17 @@ import (
 // Nodes are cached in the form of de-scheduler nodeInfo. Instead of re-creating all nodes info from scratch,
 // we replicate nodes info from de-scheduler, in order to re-use predicates functions.
 type SchedulerCache struct {
-	nodesMap     map[string]*framework.NodeInfo // node name to NodeInfo map
-	podsMap      map[string]*v1.Pod
-	pcMap        map[string]*schedulingv1.PriorityClass
-	assignedPods map[string]string  // map of pods to the node they are currently assigned to
-	assumedPods  map[string]bool    // map of assumed pods, value indicates if pod volumes are all bound
-	orphanedPods map[string]*v1.Pod // map of orphaned pods, keyed by pod UID
-	pvcRefCounts map[string]map[string]int
-	lock         locking.RWMutex
-	clients      *client.Clients // client APIs
-	klogger      klog.Logger
+	nodesMap       map[string]*framework.NodeInfo // node name to NodeInfo map
+	podsMap        map[string]*v1.Pod
+	pcMap          map[string]*schedulingv1.PriorityClass
+	assignedPods   map[string]string  // map of pods to the node they are currently assigned to
+	assumedPods    map[string]bool    // map of assumed pods, value indicates if pod volumes are all bound
+	orphanedPods   map[string]*v1.Pod // map of orphaned pods, keyed by pod UID
+	pvcRefCounts   map[string]map[string]int
+	podsCycleState map[string]*framework.CycleState // map of pods to the cycle state
+	lock           locking.RWMutex
+	clients        *client.Clients // client APIs
+	klogger        klog.Logger
 
 	// cached data, re-calculated on demand from nodesMap
 	nodesInfo                        []fwk.NodeInfo
@@ -60,15 +61,16 @@ type SchedulerCache struct {
 
 func NewSchedulerCache(clients *client.Clients) *SchedulerCache {
 	cache := &SchedulerCache{
-		nodesMap:     make(map[string]*framework.NodeInfo),
-		podsMap:      make(map[string]*v1.Pod),
-		pcMap:        make(map[string]*schedulingv1.PriorityClass),
-		assignedPods: make(map[string]string),
-		assumedPods:  make(map[string]bool),
-		orphanedPods: make(map[string]*v1.Pod),
-		pvcRefCounts: make(map[string]map[string]int),
-		clients:      clients,
-		klogger:      klog.NewKlogr(),
+		nodesMap:       make(map[string]*framework.NodeInfo),
+		podsMap:        make(map[string]*v1.Pod),
+		pcMap:          make(map[string]*schedulingv1.PriorityClass),
+		assignedPods:   make(map[string]string),
+		assumedPods:    make(map[string]bool),
+		orphanedPods:   make(map[string]*v1.Pod),
+		pvcRefCounts:   make(map[string]map[string]int),
+		podsCycleState: make(map[string]*framework.CycleState),
+		clients:        clients,
+		klogger:        klog.NewKlogr(),
 	}
 	return cache
 }
@@ -209,6 +211,7 @@ func (cache *SchedulerCache) removeNode(node *v1.Node) (*v1.Node, []*v1.Pod) {
 		key := string(pod.UID)
 		delete(cache.assignedPods, key)
 		delete(cache.assumedPods, key)
+		delete(cache.podsCycleState, key)
 		cache.orphanedPods[key] = pod
 		orphans = append(orphans, pod)
 	}
@@ -367,6 +370,7 @@ func (cache *SchedulerCache) updatePod(pod *v1.Pod) bool {
 		delete(cache.assignedPods, key)
 		delete(cache.assumedPods, key)
 		delete(cache.orphanedPods, key)
+		delete(cache.podsCycleState, key)
 	}
 
 	return result
@@ -401,6 +405,7 @@ func (cache *SchedulerCache) removePod(pod *v1.Pod) {
 	delete(cache.assignedPods, key)
 	delete(cache.assumedPods, key)
 	delete(cache.orphanedPods, key)
+	delete(cache.podsCycleState, key)
 	cache.nodesInfoPodsWithAffinity = nil
 	cache.nodesInfoPodsWithReqAntiAffinity = nil
 }
@@ -575,6 +580,16 @@ func (cache *SchedulerCache) updatePVCRefCounts(node *framework.NodeInfo, remove
 			entry[nodeName] = count
 		}
 	}
+}
+
+func (cache *SchedulerCache) GetCycleState(pod *v1.Pod) *framework.CycleState {
+	return cache.podsCycleState[string(pod.UID)]
+}
+
+func (cache *SchedulerCache) UpdateCycleState(pod *v1.Pod, cycleState *framework.CycleState) {
+	cache.lock.Lock()
+	defer cache.lock.Unlock()
+	cache.podsCycleState[string(pod.UID)] = cycleState
 }
 
 func (cache *SchedulerCache) GetSchedulerCacheDao() SchedulerCacheDao {
