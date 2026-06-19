@@ -193,6 +193,10 @@ func (callback *AsyncRMCallback) UpdateNode(response *si.NodeResponse) error {
 	return nil
 }
 
+func (callback *AsyncRMCallback) PredicatesPreFilter(args *si.PredicatesArgs) (map[string]struct{}, error) {
+	return callback.context.Prefilter(args.AllocationKey, args.Allocate)
+}
+
 func (callback *AsyncRMCallback) Predicates(args *si.PredicatesArgs) error {
 	return callback.context.IsPodFitNode(args.AllocationKey, args.NodeID, args.Allocate)
 }

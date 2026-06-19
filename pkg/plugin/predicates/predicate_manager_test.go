@@ -188,7 +188,7 @@ func TestPodFitsHost(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			nodeInfo := framework.NewNodeInfo()
 			nodeInfo.SetNode(test.node)
-			plugin, err := predicateManager.Predicates(test.pod, nodeInfo, true)
+			plugin, err := predicateManager.Filter(test.pod, nodeInfo, framework.NewCycleState(), true)
 			if (err == nil) != test.fits {
 				t.Errorf("%s expected fit state '%t' did not match real state and err = %v, plugin = %v", test.name, test.fits, err, plugin)
 			}
@@ -326,7 +326,7 @@ func TestPodFitsHostPorts(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			plugin, err := predicateManager.Predicates(test.pod, test.nodeInfo, true)
+			plugin, err := predicateManager.Filter(test.pod, test.nodeInfo, framework.NewCycleState(), true)
 			if (err == nil) != test.fits {
 				t.Errorf("%s expected fit state '%t' did not match real state and err = %v, plugin = %v", test.name, test.fits, err, plugin)
 			}
@@ -1021,7 +1021,7 @@ func TestPodFitsSelector(t *testing.T) {
 			nodeInfo := framework.NewNodeInfo()
 			nodeInfo.SetNode(&node)
 
-			plugin, err := predicateManager.Predicates(test.pod, nodeInfo, true)
+			plugin, err := predicateManager.Filter(test.pod, nodeInfo, framework.NewCycleState(), true)
 			if (err == nil) != test.fits {
 				t.Errorf("%s expected fit state '%t' did not match real state and err = %v, plugin = %v", test.name, test.fits, err, plugin)
 			}
@@ -1159,7 +1159,7 @@ func TestRunGeneralPredicates(t *testing.T) {
 	for _, test := range resourceTests {
 		t.Run(test.name, func(t *testing.T) {
 			test.nodeInfo.SetNode(test.node)
-			plugin, err := predicateManager.Predicates(test.pod, test.nodeInfo, true)
+			plugin, err := predicateManager.Filter(test.pod, test.nodeInfo, framework.NewCycleState(), true)
 			if (err == nil) != test.fits {
 				t.Errorf("%s expected fit state '%t' did not match real state and err = %v, plugin = %v", test.name, test.fits, err, plugin)
 			}
@@ -2104,7 +2104,7 @@ func TestInterPodAffinity(t *testing.T) {
 			nodeInfo := framework.NewNodeInfo(podsOnNode...)
 			nodeInfo.SetNode(test.node)
 			lister.NodeLister().Set([]fwk.NodeInfo{nodeInfo})
-			pl, err := predicateManager.Predicates(test.pod, nodeInfo, true)
+			pl, err := predicateManager.Filter(test.pod, nodeInfo, framework.NewCycleState(), true)
 			if (err == nil) != test.fits {
 				t.Errorf("%s expected fit state '%t' did not match real state and err = %v, plugin = %v", test.name, test.fits, err, pl)
 			}
@@ -2130,13 +2130,13 @@ func TestReserveAlloc(t *testing.T) {
 	ep := enabledPlugins()
 	handle, _ := getFrameworkHandle()
 	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
-	_, err := predicateManager.Predicates(pod, nodeInfo, false)
+	_, err := predicateManager.Filter(pod, nodeInfo, framework.NewCycleState(), false)
 	assert.NilError(t, err, "error should have been nil, no predicates given")
 
 	// add one predicate also run by reservations
 	ep[nodeunschedulable.Name] = true
 	predicateManager = newPredicateManagerInternal(handle, ep, ep, ep, ep)
-	_, err = predicateManager.Predicates(pod, nodeInfo, false)
+	_, err = predicateManager.Filter(pod, nodeInfo, framework.NewCycleState(), false)
 	assert.NilError(t, err, "error should have been nil, node is schedulable")
 
 	// make the node unschedulable
@@ -2147,7 +2147,7 @@ func TestReserveAlloc(t *testing.T) {
 	node.Spec.Unschedulable = true
 	assert.NilError(t, err, "failed to add taint")
 	nodeInfo.SetNode(node)
-	_, err = predicateManager.Predicates(pod, nodeInfo, false)
+	_, err = predicateManager.Filter(pod, nodeInfo, framework.NewCycleState(), false)
 	if err == nil {
 		t.Errorf("error should not have been nil, predicate should have failed")
 	}
@@ -2187,7 +2187,7 @@ func TestReserveNodeSelector(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			pod.Spec.NodeSelector = tc.nodeSelectors
 			node.Labels = tc.nodeLabels
-			plugin, err := predicateManager.Predicates(pod, nodeInfo, false)
+			plugin, err := predicateManager.Filter(pod, nodeInfo, framework.NewCycleState(), false)
 			log.Log(log.Test).Info("reservation predicates called", zap.Error(err), zap.String("plugin", plugin))
 			if tc.errorExpected {
 				assert.Assert(t, err != nil, "An error is expected")
