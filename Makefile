@@ -15,6 +15,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+.PHONY: tools
+# production build targets
+.PHONY: scheduler admission scheduler_instrumented
+.PHONY: image sched_image adm_image sched_image_instrumented webtest_image go-license-generate
+# local run targets
+.PHONY: run build build_web_test_server_prod build_web_test_server_dev
+# test targets
+.PHONY: test_all test bench fsm_graph clean distclean arch
+.PHONY: lint check_scripts license-check go-license-check pseudo
+# e2e test targets
+.PHONY: print_kubectl_version print_kind_version print_helm_version
+.PHONY: e2e_test kind-e2e start-cluster stop-cluster
+
 # Go compiler selection
 ifeq ($(GO),)
 GO := go
@@ -160,8 +173,8 @@ export PATH := $(BASE_DIR)/$(SHELLCHECK_PATH):$(PATH)
 GOLANGCI_LINT_VERSION=2.10.1
 GOLANGCI_LINT_PATH=$(TOOLS_DIR)/golangci-lint-v$(GOLANGCI_LINT_VERSION)
 GOLANGCI_LINT_BIN=$(GOLANGCI_LINT_PATH)/golangci-lint
-GOLANGCI_LINT_ARCHIVE=golangci-lint-$(GOLANGCI_LINT_VERSION)-$(OS)-$(EXEC_ARCH).tar.gz
 GOLANGCI_LINT_ARCHIVEBASE=golangci-lint-$(GOLANGCI_LINT_VERSION)-$(OS)-$(EXEC_ARCH)
+GOLANGCI_LINT_ARCHIVE=$(GOLANGCI_LINT_ARCHIVEBASE).tar.gz
 export PATH := $(BASE_DIR)/$(GOLANGCI_LINT_PATH):$(PATH)
 
 # kubectl
@@ -186,7 +199,7 @@ export PATH := $(BASE_DIR)/$(HELM_PATH):$(PATH)
 
 # spark
 export SPARK_VERSION=3.5.5-java17
-# sometimes the image is not avaiable with $SPARK_VERSION, the minor version must match
+# sometimes the image is not available with $SPARK_VERSION, the minor version must match
 export SPARK_PYTHON_VERSION=3.4.0
 export SPARK_IMAGE=apache/spark:$(SPARK_VERSION)
 export SPARK_PYTHON_IMAGE=docker.io/apache/spark-py:v$(SPARK_PYTHON_VERSION)
@@ -237,19 +250,17 @@ SCHEDULER_INSTRUMENTED_TAG := $(SCHEDULER_TAG)-instrumented
 all:
 	$(MAKE) -C $(dir $(BASE_DIR)) build
 
+test_all: lint check_scripts license-check go-license-check pseudo test
+
 # Print tools version
-.PHONY: print_kubectl_version
 print_kubectl_version:
 	@echo $(KUBECTL_VERSION)
-.PHONY: print_kind_version
 print_kind_version:
 	@echo $(KIND_VERSION)
-.PHONY: print_helm_version
 print_helm_version:
 	@echo $(HELM_VERSION)
 
 # Install tools
-.PHONY: tools
 tools: $(SHELLCHECK_BIN) $(GOLANGCI_LINT_BIN) $(KUBECTL_BIN) $(KIND_BIN) $(HELM_BIN) $(GO_LICENSES_BIN) $(GINKGO_BIN)
 
 # Install shellcheck
@@ -300,27 +311,18 @@ $(GINKGO_BIN):
 	@mkdir -p "$(GINKGO_PATH)"
 	@GOBIN="$(BASE_DIR)/$(GINKGO_PATH)" "$(GO)" install "github.com/onsi/ginkgo/v2/ginkgo@$(GINKGO_VERSION)"
 
-# Format the code
-.PHONY: format
-format:
-	@echo "running go fmt"
-	@"$(GO)" fmt ./...
-
 # Run lint against the previous commit for PR and branch build
 # In dev setup look at all changes on top of master
-.PHONY: lint
 lint: $(GOLANGCI_LINT_BIN)
 	@echo "running golangci-lint"
 	@"${GOLANGCI_LINT_BIN}" run
 
 # Check scripts
-.PHONY: check_scripts
 ALLSCRIPTS := $(shell find . -not \( -path ./spark -prune \) -not \( -path ./tools -prune \) -not \( -path ./build -prune \) -name '*.sh')
 check_scripts: $(SHELLCHECK_BIN)
 	@echo "running shellcheck"
 	@"$(SHELLCHECK_BIN)" ${ALLSCRIPTS}
 
-.PHONY: license-check
 # This is a bit convoluted but using a recursive grep on linux fails to write anything when run
 # from the Makefile. That caused the pull-request license check run from the github action to
 # always pass. The syntax for find is slightly different too but that at least works in a similar
@@ -340,14 +342,12 @@ endif
 	@echo "  all OK"
 
 # Check licenses of go dependencies
-.PHONY: go-license-check
 go-license-check: $(GO_LICENSES_BIN)
 	@echo "Checking third-party licenses"
 	@"$(GO_LICENSES_BIN)" check ./pkg/... ./test/... --include_tests --disallowed_types=forbidden,permissive,reciprocal,restricted,unknown
 	@echo "License checks OK"
 
 # Generate third-party dependency licenses
-.PHONY: go-license-generate
 go-license-generate: $(OUTPUT)/third-party-licenses.md
 
 $(OUTPUT)/third-party-licenses.md: $(GO_LICENSES_BIN) go.mod go.sum
@@ -364,7 +364,6 @@ $(OUTPUT)/third-party-licenses.md: $(GO_LICENSES_BIN) go.mod go.sum
 	@mv "$(OUTPUT)/third-party-licenses.md.tmp" "$(OUTPUT)/third-party-licenses.md"
 
 # Check that we use pseudo versions in master
-.PHONY: pseudo
 BRANCH := $(shell git branch --show-current)
 CORE_REF := $(shell "$(GO)" list -m -f '{{ .Version }}' github.com/apache/yunikorn-core)
 CORE_MATCH := $(shell expr "${CORE_REF}" : "v0.0.0-")
@@ -382,14 +381,12 @@ pseudo:
 	fi
 	@echo "  all OK"
 
-.PHONY: run
 run: build
 	@echo "running scheduler locally"
 	cd ${DEV_BIN_DIR} && \
 	KUBECONFIG="$(KUBECONFIG)" ./${SCHEDULER_BINARY}
 
 # Build scheduler binary for dev and test
-.PHONY: build
 build: $(DEV_BIN_DIR)/$(SCHEDULER_BINARY)
 
 $(DEV_BIN_DIR)/$(SCHEDULER_BINARY): go.mod go.sum $(shell find pkg)
@@ -402,7 +399,6 @@ $(DEV_BIN_DIR)/$(SCHEDULER_BINARY): go.mod go.sum $(shell find pkg)
 	./pkg/cmd/shim/
 
 # Build scheduler binary in a production ready version
-.PHONY: scheduler
 scheduler: $(RELEASE_BIN_DIR)/$(SCHEDULER_BINARY)
 
 $(RELEASE_BIN_DIR)/$(SCHEDULER_BINARY): go.mod go.sum $(shell find pkg)
@@ -427,7 +423,6 @@ else
 	./pkg/cmd/shim/
 endif
 
-.PHONY: scheduler_instrumented
 scheduler_instrumented: $(COVERAGE_DIR)/$(SCHEDULER_BINARY)
 
 $(COVERAGE_DIR)/$(SCHEDULER_BINARY): go.mod go.sum $(shell find pkg)
@@ -442,7 +437,6 @@ $(COVERAGE_DIR)/$(SCHEDULER_BINARY): go.mod go.sum $(shell find pkg)
 	./pkg/cmd/shim/
 
 # Build a scheduler image based on the production ready version
-.PHONY: sched_image
 sched_image: $(OUTPUT)/third-party-licenses.md scheduler docker/scheduler
 	@echo "building scheduler docker image"
 	@rm -rf "$(DOCKER_DIR)/scheduler"
@@ -470,7 +464,6 @@ sched_image: $(OUTPUT)/third-party-licenses.md scheduler docker/scheduler
 	--label "org.opencontainers.image.documentation=${DOCS_URL}" \
 	${QUIET}
 
-.PHONY: sched_image_instrumented
 sched_image_instrumented: $(OUTPUT)/third-party-licenses.md scheduler_instrumented docker/scheduler
 	@echo "building instrumented scheduler docker image"
 	@rm -rf "$(DOCKER_DIR)/scheduler"
@@ -499,7 +492,6 @@ sched_image_instrumented: $(OUTPUT)/third-party-licenses.md scheduler_instrument
 	${QUIET}
 
 # Build admission controller binary in a production ready version
-.PHONY: admission
 admission: $(RELEASE_BIN_DIR)/$(ADMISSION_CONTROLLER_BINARY)
 
 $(RELEASE_BIN_DIR)/$(ADMISSION_CONTROLLER_BINARY): go.mod go.sum $(shell find pkg)
@@ -525,7 +517,6 @@ else
 endif
 
 # Build an admission controller image based on the production ready version
-.PHONY: adm_image
 adm_image: $(OUTPUT)/third-party-licenses.md admission docker/admission
 	@echo "building admission controller docker image"
 	@rm -rf "$(DOCKER_DIR)/admission"
@@ -554,11 +545,9 @@ adm_image: $(OUTPUT)/third-party-licenses.md admission docker/admission
 	${QUIET}
 
 # Build all images based on the production ready version
-.PHONY: image
 image: sched_image adm_image
 
 # Build a web server image ONLY to be used in e2e tests
-.PHONY: webtest_image
 webtest_image: $(OUTPUT)/third-party-licenses.md build_web_test_server_prod docker/webtest
 	@echo "building web server image for automated e2e tests"
 	@rm -rf "$(DOCKER_DIR)/webtest"
@@ -572,7 +561,6 @@ webtest_image: $(OUTPUT)/third-party-licenses.md build_web_test_server_prod dock
 	--label "yunikorn-e2e-web-image" \
 	${QUIET}
 
-.PHONY: build_web_test_server_dev
 build_web_test_server_dev: $(DEV_BIN_DIR)/$(TEST_SERVER_BINARY)
 
 $(DEV_BIN_DIR)/$(TEST_SERVER_BINARY): go.mod go.sum $(shell find pkg)
@@ -583,7 +571,6 @@ $(DEV_BIN_DIR)/$(TEST_SERVER_BINARY): go.mod go.sum $(shell find pkg)
 	-ldflags '-buildid= -X main.version=${VERSION} -X main.date=${DATE} -X main.goVersion=${GO_VERSION} -X main.arch=${EXEC_ARCH}' \
 	./pkg/cmd/webtest/
 
-.PHONY: build_web_test_server_prod
 build_web_test_server_prod: $(RELEASE_BIN_DIR)/$(TEST_SERVER_BINARY)
 
 $(RELEASE_BIN_DIR)/$(TEST_SERVER_BINARY): go.mod go.sum $(shell find pkg)
@@ -596,7 +583,6 @@ $(RELEASE_BIN_DIR)/$(TEST_SERVER_BINARY): go.mod go.sum $(shell find pkg)
 	./pkg/cmd/webtest/
 
 # Run the tests after building
-.PHONY: test
 test: export DEADLOCK_DETECTION_ENABLED = true
 test: export DEADLOCK_TIMEOUT_SECONDS = 10
 test: export DEADLOCK_EXIT = true
@@ -608,14 +594,12 @@ test:
 	"$(GO)" vet "$(REPO)"...
 
 # Run benchmarks
-.PHONY: bench
 bench:
 	@echo "running benchmarks"
 	"$(GO)" clean -testcache
 	"$(GO)" test -v -run '^Benchmark' -bench . ./pkg/...
 
 # Generate FSM graphs (dot/png)
-.PHONY: fsm_graph
 fsm_graph:
 	@echo "generating FSM graphs"
 	"$(GO)" clean -testcache
@@ -623,7 +607,6 @@ fsm_graph:
 	scripts/generate-fsm-graph-images.sh
 
 # Remove generated build artifacts
-.PHONY: clean
 clean:
 	@echo "cleaning up caches and output"
 	@"$(GO)" clean -cache -testcache -r
@@ -631,37 +614,31 @@ clean:
 	@rm -rf "${OUTPUT}"
 
 # Remove all generated content
-.PHONY: distclean
 distclean: clean
 	@echo "removing tools"
 	@rm -rf "${TOOLS_DIR}"
 
 # Print arch variables
-.PHONY: arch
 arch:
 	@echo DOCKER_ARCH=$(DOCKER_ARCH)
 	@echo EXEC_ARCH=$(EXEC_ARCH)
 
 # Start dev cluster
-.PHONY: start-cluster
 start-cluster: $(KIND_BIN)
 	@"$(KIND_BIN)" delete cluster --name="$(CLUSTER_NAME)" || :
 	@./scripts/run-e2e-tests.sh -a install -n "$(CLUSTER_NAME)" -v "kindest/node:$(K8S_VERSION)"
 
 # Stop dev cluster
-.PHONY: stop-cluster
 stop-cluster: $(KIND_BIN)
 	@"$(KIND_BIN)" delete cluster --name="$(CLUSTER_NAME)"
 
 # Start dev cluster, run e2e tests, stop dev cluster
-.PHONY: kind-e2e
 kind-e2e: $(KIND_BIN)
 	@"$(KIND_BIN)" delete cluster --name="$(CLUSTER_NAME)" || : ; \
 		./scripts/run-e2e-tests.sh -a test -n "$(CLUSTER_NAME)" -v "kindest/node:$(K8S_VERSION)" ; STATUS=$$? ; \
 		"$(KIND_BIN)" delete cluster --name="$(CLUSTER_NAME)" || : ; exit $$STATUS
 
 # Run the e2e tests, this assumes yunikorn is running under yunikorn namespace
-.PHONY: e2e_test
 e2e_test: tools
 	@echo "running e2e tests"
 	cd ./test/e2e && \
