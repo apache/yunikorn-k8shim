@@ -438,6 +438,10 @@ func TestPredicates(t *testing.T) {
 	assert.Error(t, err, "predicates were not run because pod was not found in cache")
 
 	// pod found
+	feasibleNodes, err := callback.PredicatesPreFilter(&si.PredicatesArgs{AllocationKey: taskUID1, NodeID: fakeNodeName, Allocate: true})
+	if err != nil {
+		t.Errorf("should not fail, no. of feasible nodes %d", len(feasibleNodes))
+	}
 	err = callback.Predicates(&si.PredicatesArgs{AllocationKey: taskUID1, NodeID: fakeNodeName, Allocate: true})
 	assert.NilError(t, err)
 }
@@ -453,6 +457,10 @@ func TestPreemptionPredicates(t *testing.T) {
 	assert.Assert(t, !resp.Success, "response should have failed")
 
 	// pod found
+	feasibleNodes, err := callback.PredicatesPreFilter(&si.PredicatesArgs{AllocationKey: taskUID1, NodeID: fakeNodeName, Allocate: true})
+	if err != nil {
+		t.Errorf("should not fail, no. of feasible nodes %d", len(feasibleNodes))
+	}
 	resp = callback.PreemptionPredicates(&si.PreemptionPredicatesArgs{AllocationKey: taskUID1, NodeID: fakeNodeName, StartIndex: 0, PreemptAllocationKeys: []string{taskUID1}})
 	assert.Assert(t, resp.Success, "response should have succeeded")
 	assert.Equal(t, int32(0), resp.Index)
@@ -521,16 +529,20 @@ var _ predicates.PredicateManager = &mockPredicateManager{}
 
 type mockPredicateManager struct{}
 
-func (m *mockPredicateManager) EventsToRegister(_ fwk.QueueingHintFn) []fwk.ClusterEventWithHint {
-	return nil
+func (m *mockPredicateManager) PreFilter(_ *v1.Pod, _ bool) (plugin string, feasibleNodes map[string]struct{}, cycleState *framework.CycleState, error error) {
+	return "", map[string]struct{}{}, framework.NewCycleState(), nil
 }
 
-func (m *mockPredicateManager) Predicates(_ *v1.Pod, _ *framework.NodeInfo, _ bool) (plugin string, error error) {
+func (m *mockPredicateManager) Filter(_ *v1.Pod, _ *framework.NodeInfo, _ *framework.CycleState, _ bool) (plugin string, error error) {
 	return "", nil
 }
 
-func (m *mockPredicateManager) PreemptionPredicates(_ *v1.Pod, _ *framework.NodeInfo, _ []*v1.Pod, _ int) (index int) {
+func (m *mockPredicateManager) PreemptionFilter(_ *v1.Pod, _ *framework.NodeInfo, _ *framework.CycleState, _ []*v1.Pod, _ int) (index int) {
 	return 0
+}
+
+func (m *mockPredicateManager) EventsToRegister(_ fwk.QueueingHintFn) []fwk.ClusterEventWithHint {
+	return nil
 }
 
 func initCallbackTest(t *testing.T, podAssigned, placeholder bool) (*AsyncRMCallback, *Context) {
