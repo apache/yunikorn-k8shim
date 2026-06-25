@@ -751,17 +751,18 @@ func (ctx *Context) IsPodFitNodeViaPreemption(name, node string, allocations []s
 			// need to lock cache here as predicates need a stable view into the cache
 			ctx.schedulerCache.LockForReads()
 			defer ctx.schedulerCache.UnlockForReads()
+			if cycleState := ctx.schedulerCache.GetCycleState(pod); cycleState != nil {
+				// look up each victim in the scheduler cache
+				victims := make([]*v1.Pod, len(allocations))
+				for index, uid := range allocations {
+					victim := ctx.schedulerCache.GetPodNoLock(uid)
+					victims[index] = victim
+				}
 
-			// look up each victim in the scheduler cache
-			victims := make([]*v1.Pod, len(allocations))
-			for index, uid := range allocations {
-				victim := ctx.schedulerCache.GetPodNoLock(uid)
-				victims[index] = victim
-			}
-
-			// check predicates for a match
-			if index := ctx.predManager.PreemptionPredicates(pod, targetNode, victims, startIndex); index != -1 {
-				return index, true
+				// check predicates for a match
+				if index := ctx.predManager.PreemptionFilter(pod, targetNode, cycleState, victims, startIndex); index != -1 {
+					return index, true
+				}
 			}
 		}
 	}
