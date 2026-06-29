@@ -41,6 +41,7 @@ const (
 	InitTask TaskEventType = iota
 	SubmitTask
 	TaskAllocated
+	TaskRetry
 	TaskRejected
 	TaskBound
 	CompleteTask
@@ -50,7 +51,7 @@ const (
 )
 
 func (ae TaskEventType) String() string {
-	return [...]string{"InitTask", "SubmitTask", "TaskAllocated", "TaskRejected", "TaskBound", "CompleteTask", "TaskFail", "KillTask", "TaskKilled"}[ae]
+	return [...]string{"InitTask", "SubmitTask", "TaskAllocated", "TaskRetry", "TaskRejected", "TaskBound", "CompleteTask", "TaskFail", "KillTask", "TaskKilled"}[ae]
 }
 
 // ------------------------
@@ -340,6 +341,16 @@ func eventDesc(states *TStates) fsm.Events {
 			Name: TaskAllocated.String(),
 			Src:  []string{states.Completed},
 			Dst:  states.Completed,
+		},
+		{
+			Name: TaskRetry.String(),
+			Src:  []string{states.Allocated},
+			Dst:  states.Scheduling,
+		},
+		{
+			Name: TaskRetry.String(),
+			Src:  []string{states.Scheduling},
+			Dst:  states.Scheduling,
 		},
 		{
 			Name: TaskBound.String(),

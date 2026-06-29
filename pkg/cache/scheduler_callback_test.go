@@ -20,6 +20,7 @@ package cache
 
 import (
 	"encoding/json"
+	"errors"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -27,10 +28,14 @@ import (
 
 	"gotest.tools/v3/assert"
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	k8sEvents "k8s.io/client-go/tools/events"
+	"k8s.io/klog/v2"
 	fwk "k8s.io/kube-scheduler/framework"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
+	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/volumebinding"
 
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
@@ -110,6 +115,273 @@ func TestUpdateAllocation_NewTask_AssumePodFails(t *testing.T) {
 		return task.GetTaskState() == TaskStates().Failed
 	}, 10*time.Millisecond, time.Second)
 	assert.NilError(t, err, "task has not transitioned to Failed state")
+}
+
+func TestUpdateAllocation_NewTask_AssumePodTransientFailureIsRetried(t *testing.T) {
+	callback, context := initCallbackTest(t, false, false)
+	defer dispatcher.UnregisterAllEventHandlers()
+	defer dispatcher.Stop()
+
+	binder := newTransientAssumePodBinder(1, apierrors.NewTimeoutError("transient assume error", 1))
+	setVolumeBinder(context, binder)
+
+	err := callback.UpdateAllocation(&si.AllocationResponse{
+		New: []*si.Allocation{
+			{
+				ApplicationID: appID,
+				AllocationKey: taskUID1,
+				NodeID:        fakeNodeName,
+			},
+		},
+	})
+	assert.NilError(t, err, "error updating allocation")
+	assert.Equal(t, binder.AssumeAttempts(), int32(2))
+
+	task := context.getTask(appID, taskUID1)
+	err = utils.WaitForCondition(func() bool {
+		return task.GetTaskState() == TaskStates().Bound
+	}, 10*time.Millisecond, time.Second)
+	assert.NilError(t, err, "task has not transitioned to Bound state")
+}
+
+func TestUpdateAllocation_NewTask_AssumePodPermanentFailureNotRetried(t *testing.T) {
+	callback, context := initCallbackTest(t, false, false)
+	defer dispatcher.UnregisterAllEventHandlers()
+	defer dispatcher.Stop()
+
+	binder := newTransientAssumePodBinder(1,
+		apierrors.NewForbidden(schema.GroupResource{Resource: "pods"}, "pod-a", errors.New("forbidden")))
+	setVolumeBinder(context, binder)
+
+	err := callback.UpdateAllocation(&si.AllocationResponse{
+		New: []*si.Allocation{
+			{
+				ApplicationID: appID,
+				AllocationKey: taskUID1,
+				NodeID:        fakeNodeName,
+			},
+		},
+	})
+	assert.Assert(t, err != nil, "expected update allocation error for permanent assume failure")
+	assert.Equal(t, binder.AssumeAttempts(), int32(1))
+
+	task := context.getTask(appID, taskUID1)
+	err = utils.WaitForCondition(func() bool {
+		return task.GetTaskState() == TaskStates().Failed
+	}, 10*time.Millisecond, time.Second)
+	assert.NilError(t, err, "task has not transitioned to Failed state")
+}
+
+func TestUpdateAllocation_NewTask_TransientBindFailureIsRetried(t *testing.T) {
+	callback, context := initCallbackTest(t, false, false)
+	defer dispatcher.UnregisterAllEventHandlers()
+	defer dispatcher.Stop()
+
+	mockAPI := context.apiProvider.(*client.MockedAPIProvider) //nolint:errcheck
+	var bindAttempts atomic.Int32
+	mockAPI.MockBindFn(func(_ *v1.Pod, _ string) error {
+		if bindAttempts.Add(1) <= 2 {
+			return apierrors.NewTimeoutError("transient bind error", 1)
+		}
+		return nil
+	})
+
+	err := callback.UpdateAllocation(&si.AllocationResponse{
+		New: []*si.Allocation{
+			{
+				ApplicationID: appID,
+				AllocationKey: taskUID1,
+				NodeID:        fakeNodeName,
+			},
+		},
+	})
+	assert.NilError(t, err, "error updating allocation")
+
+	task := context.getTask(appID, taskUID1)
+	err = utils.WaitForCondition(func() bool {
+		return task.GetTaskState() == TaskStates().Bound
+	}, 10*time.Millisecond, 2*time.Second)
+	assert.NilError(t, err, "task has not transitioned to Bound state")
+	assert.Equal(t, bindAttempts.Load(), int32(3))
+}
+
+func TestUpdateAllocation_NewTask_PermanentBindFailureNotRetried(t *testing.T) {
+	callback, context := initCallbackTest(t, false, false)
+	defer dispatcher.UnregisterAllEventHandlers()
+	defer dispatcher.Stop()
+
+	mockAPI := context.apiProvider.(*client.MockedAPIProvider) //nolint:errcheck
+	var bindAttempts atomic.Int32
+	mockAPI.MockBindFn(func(pod *v1.Pod, _ string) error {
+		bindAttempts.Add(1)
+		return apierrors.NewForbidden(schema.GroupResource{Resource: "pods"}, pod.Name, errors.New("forbidden"))
+	})
+
+	err := callback.UpdateAllocation(&si.AllocationResponse{
+		New: []*si.Allocation{
+			{
+				ApplicationID: appID,
+				AllocationKey: taskUID1,
+				NodeID:        fakeNodeName,
+			},
+		},
+	})
+	assert.NilError(t, err, "error updating allocation")
+
+	task := context.getTask(appID, taskUID1)
+	err = utils.WaitForCondition(func() bool {
+		return task.GetTaskState() == TaskStates().Failed
+	}, 10*time.Millisecond, time.Second)
+	assert.NilError(t, err, "task has not transitioned to Failed state")
+	assert.Equal(t, bindAttempts.Load(), int32(1))
+}
+
+func TestUpdateAllocation_NewTask_NodeScopedPermanentAssumeFailureRollsBackAndRetriesDifferentNode(t *testing.T) {
+	callback, context := initCallbackTest(t, false, false)
+	defer dispatcher.UnregisterAllEventHandlers()
+	defer dispatcher.Stop()
+	recorder := k8sEvents.NewFakeRecorder(1024)
+	events.SetRecorder(recorder)
+	defer events.SetRecorder(events.NewMockedRecorder())
+
+	secondNode := "fake-node-2"
+	context.addNode(&v1.Node{ObjectMeta: apis.ObjectMeta{Name: secondNode, Namespace: "default", UID: "uid_0002"}})
+
+	binder := newTransientAssumePodBinder(1, apierrors.NewNotFound(schema.GroupResource{Resource: "nodes"}, fakeNodeName))
+	setVolumeBinder(context, binder)
+
+	mockAPI := context.apiProvider.(*client.MockedAPIProvider) //nolint:errcheck
+	var rollbackSent atomic.Bool
+	mockAPI.MockSchedulerAPIUpdateAllocationFn(func(request *si.AllocationRequest) error {
+		if len(request.Allocations) == 1 {
+			tags := request.Allocations[0].AllocationTags
+			if tags[constants.AllocationTagRollback] == constants.True {
+				rollbackSent.Store(true)
+			}
+		}
+		return nil
+	})
+
+	err := callback.UpdateAllocation(&si.AllocationResponse{
+		New: []*si.Allocation{
+			{
+				ApplicationID: appID,
+				AllocationKey: taskUID1,
+				NodeID:        fakeNodeName,
+			},
+		},
+	})
+	assert.NilError(t, err, "error updating allocation")
+	assert.Equal(t, binder.AssumeAttempts(), int32(1))
+
+	task := context.getTask(appID, taskUID1)
+	err = utils.WaitForCondition(rollbackSent.Load, 10*time.Millisecond, time.Second)
+	assert.NilError(t, err, "expected rollback update request")
+	err = utils.WaitForCondition(func() bool {
+		return task.GetTaskState() == TaskStates().Scheduling
+	}, 10*time.Millisecond, time.Second)
+	assert.NilError(t, err, "task should return to Scheduling state")
+	assert.Assert(t, !context.schedulerCache.IsAssumedPod(taskUID1), "assumed pod should be forgotten after rollback")
+
+	rollbackEvent := ""
+	err = utils.WaitForCondition(func() bool {
+		select {
+		case event := <-recorder.Events:
+			if strings.Contains(event, "NodeScopedBindFailureRetry") {
+				rollbackEvent = event
+				return true
+			}
+		default:
+		}
+		return false
+	}, 10*time.Millisecond, time.Second)
+	assert.NilError(t, err, "expected NodeScopedBindFailureRetry event")
+	assert.Assert(t, strings.Contains(rollbackEvent, fakeNodeName), "event should include failed node name: %s", rollbackEvent)
+
+	err = context.IsPodFitNode(taskUID1, fakeNodeName, true)
+	assert.Assert(t, err != nil, "failed node should be suppressed after node-scoped assume failure")
+
+	err = callback.UpdateAllocation(&si.AllocationResponse{
+		New: []*si.Allocation{
+			{
+				ApplicationID: appID,
+				AllocationKey: taskUID1,
+				NodeID:        secondNode,
+			},
+		},
+	})
+	assert.NilError(t, err, "error updating allocation for retry on second node")
+	err = utils.WaitForCondition(func() bool {
+		return task.GetTaskState() == TaskStates().Bound
+	}, 10*time.Millisecond, time.Second)
+	assert.NilError(t, err, "task has not transitioned to Bound state after retry")
+	assert.Equal(t, task.GetNodeName(), secondNode)
+}
+
+func TestUpdateAllocation_NewTask_NodeScopedPermanentBindFailureRollsBackAndRetriesDifferentNode(t *testing.T) {
+	callback, context := initCallbackTest(t, false, false)
+	defer dispatcher.UnregisterAllEventHandlers()
+	defer dispatcher.Stop()
+
+	secondNode := "fake-node-2"
+	context.addNode(&v1.Node{ObjectMeta: apis.ObjectMeta{Name: secondNode, Namespace: "default", UID: "uid_0002"}})
+
+	mockAPI := context.apiProvider.(*client.MockedAPIProvider) //nolint:errcheck
+	var rollbackSent atomic.Bool
+	mockAPI.MockSchedulerAPIUpdateAllocationFn(func(request *si.AllocationRequest) error {
+		if len(request.Allocations) == 1 {
+			tags := request.Allocations[0].AllocationTags
+			if tags[constants.AllocationTagRollback] == constants.True {
+				rollbackSent.Store(true)
+			}
+		}
+		return nil
+	})
+	mockAPI.MockBindFn(func(_ *v1.Pod, hostID string) error {
+		if hostID == fakeNodeName {
+			return apierrors.NewNotFound(schema.GroupResource{Resource: "nodes"}, hostID)
+		}
+		return nil
+	})
+
+	err := callback.UpdateAllocation(&si.AllocationResponse{
+		New: []*si.Allocation{
+			{
+				ApplicationID: appID,
+				AllocationKey: taskUID1,
+				NodeID:        fakeNodeName,
+			},
+		},
+	})
+	assert.NilError(t, err, "error updating allocation")
+
+	task := context.getTask(appID, taskUID1)
+	err = utils.WaitForCondition(rollbackSent.Load, 10*time.Millisecond, time.Second)
+	assert.NilError(t, err, "expected rollback update request")
+	err = utils.WaitForCondition(func() bool {
+		return task.GetTaskState() == TaskStates().Scheduling
+	}, 10*time.Millisecond, time.Second)
+	assert.NilError(t, err, "task should return to Scheduling state")
+	assert.Assert(t, !context.schedulerCache.IsAssumedPod(taskUID1), "assumed pod should be forgotten after rollback")
+
+	err = context.IsPodFitNode(taskUID1, fakeNodeName, true)
+	assert.Assert(t, err != nil, "failed node should be suppressed after node-scoped bind failure")
+
+	err = callback.UpdateAllocation(&si.AllocationResponse{
+		New: []*si.Allocation{
+			{
+				ApplicationID: appID,
+				AllocationKey: taskUID1,
+				NodeID:        secondNode,
+			},
+		},
+	})
+	assert.NilError(t, err, "error updating allocation for retry on second node")
+	err = utils.WaitForCondition(func() bool {
+		return task.GetTaskState() == TaskStates().Bound
+	}, 10*time.Millisecond, time.Second)
+	assert.NilError(t, err, "task has not transitioned to Bound state after retry")
+	assert.Equal(t, task.GetNodeName(), secondNode)
 }
 
 func TestUpdateAllocation_NewTask_PodAlreadyAssigned(t *testing.T) {
@@ -520,6 +792,33 @@ func TestCallbackGetStateDump(t *testing.T) {
 var _ predicates.PredicateManager = &mockPredicateManager{}
 
 type mockPredicateManager struct{}
+
+type transientAssumePodBinder struct {
+	*test.VolumeBinderMock
+	failUntil int32
+	failure   error
+	attempts  atomic.Int32
+}
+
+func newTransientAssumePodBinder(failUntil int32, failure error) *transientAssumePodBinder {
+	return &transientAssumePodBinder{
+		VolumeBinderMock: test.NewVolumeBinderMock(),
+		failUntil:        failUntil,
+		failure:          failure,
+	}
+}
+
+func (b *transientAssumePodBinder) AssumePodVolumes(klogger klog.Logger, pod *v1.Pod, node string, volumes *volumebinding.PodVolumes) (bool, error) {
+	attempt := b.attempts.Add(1)
+	if attempt <= b.failUntil {
+		return false, b.failure
+	}
+	return b.VolumeBinderMock.AssumePodVolumes(klogger, pod, node, volumes)
+}
+
+func (b *transientAssumePodBinder) AssumeAttempts() int32 {
+	return b.attempts.Load()
+}
 
 func (m *mockPredicateManager) EventsToRegister(_ fwk.QueueingHintFn) []fwk.ClusterEventWithHint {
 	return nil

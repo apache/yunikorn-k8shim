@@ -29,6 +29,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
@@ -63,6 +64,8 @@ import (
 
 const registerNodeContextHandler = "RegisterNodeContextHandler"
 
+const failedNodeSuppressionTTL = 10 * time.Minute
+
 var (
 	ErrorPodNotFound  = errors.New("predicates were not run because pod was not found in cache")
 	ErrorNodeNotFound = errors.New("predicates were not run because node was not found in cache")
@@ -72,12 +75,14 @@ var (
 type Context struct {
 	applications   map[string]*Application        // apps
 	schedulerCache *schedulercache.SchedulerCache // external cache
-	apiProvider    client.APIProvider             // apis to interact with api-server, scheduler-core, etc
-	predManager    predicates.PredicateManager    // K8s predicates
-	namespace      string                         // yunikorn namespace
-	configMaps     []*v1.ConfigMap                // cached yunikorn configmaps
-	lock           *locking.RWMutex               // lock - used not only for context data but also to ensure that multiple event types are not executed concurrently
-	txnID          atomic.Uint64                  // transaction ID counter
+	failedNodes    map[string]map[string]time.Time
+	failedNodesMu  *locking.RWMutex
+	apiProvider    client.APIProvider          // apis to interact with api-server, scheduler-core, etc
+	predManager    predicates.PredicateManager // K8s predicates
+	namespace      string                      // yunikorn namespace
+	configMaps     []*v1.ConfigMap             // cached yunikorn configmaps
+	lock           *locking.RWMutex            // lock - used not only for context data but also to ensure that multiple event types are not executed concurrently
+	txnID          atomic.Uint64               // transaction ID counter
 	klogger        klog.Logger
 }
 
@@ -95,12 +100,14 @@ func NewContextWithBootstrapConfigMaps(apis client.APIProvider, bootstrapConfigM
 	// nodecontroller needs the cache
 	// predictor need the cache, volumebinder and informers
 	ctx := &Context{
-		applications: make(map[string]*Application),
-		apiProvider:  apis,
-		namespace:    schedulerconf.GetSchedulerConf().Namespace,
-		configMaps:   bootstrapConfigMaps,
-		lock:         &locking.RWMutex{},
-		klogger:      klog.NewKlogr(),
+		applications:  make(map[string]*Application),
+		apiProvider:   apis,
+		namespace:     schedulerconf.GetSchedulerConf().Namespace,
+		configMaps:    bootstrapConfigMaps,
+		failedNodes:   make(map[string]map[string]time.Time), // map of taskID to nodeName along with time of ttl expiry for retry
+		failedNodesMu: &locking.RWMutex{},
+		lock:          &locking.RWMutex{},
+		klogger:       klog.NewKlogr(),
 	}
 
 	// create the cache
@@ -686,6 +693,9 @@ func (ctx *Context) EventsToRegister(queueingHintFn fwk.QueueingHintFn) []fwk.Cl
 func (ctx *Context) IsPodFitNode(name, node string, allocate bool) error {
 	ctx.lock.RLock()
 	defer ctx.lock.RUnlock()
+	if ctx.isNodeSuppressedForTask(name, node) {
+		return fmt.Errorf("node %s is temporarily suppressed for allocation %s after a node-scoped bind failure", node, name)
+	}
 	pod := ctx.schedulerCache.GetPod(name)
 	if pod == nil {
 		return ErrorPodNotFound
@@ -750,6 +760,7 @@ func (ctx *Context) bindPodVolumes(pod *v1.Pod) error {
 			// retrieve the volume claims
 			podVolumeClaims, err := ctx.apiProvider.GetAPIs().VolumeBinder.GetPodVolumeClaims(ctx.klogger, pod)
 			if err != nil {
+				err = WrapBindFailureError(BindFailureStageBindPodVolumes, BindFailureOperationGetPodVolumeClaims, err)
 				log.Log(log.ShimContext).Error("Failed to get pod volume claims",
 					zap.String("podName", assumedPod.Name),
 					zap.Error(err))
@@ -759,6 +770,7 @@ func (ctx *Context) bindPodVolumes(pod *v1.Pod) error {
 			// get node information
 			node, err := ctx.schedulerCache.GetNodeInfo(assumedPod.Spec.NodeName)
 			if err != nil {
+				err = WrapBindFailureError(BindFailureStageBindPodVolumes, BindFailureOperationGetNodeInfo, err)
 				log.Log(log.ShimContext).Error("Failed to get node info",
 					zap.String("podName", assumedPod.Name),
 					zap.String("nodeName", assumedPod.Spec.NodeName),
@@ -769,6 +781,7 @@ func (ctx *Context) bindPodVolumes(pod *v1.Pod) error {
 			// retrieve volumes
 			volumes, reasons, err := ctx.apiProvider.GetAPIs().VolumeBinder.FindPodVolumes(ctx.klogger, pod, podVolumeClaims, node)
 			if err != nil {
+				err = WrapBindFailureError(BindFailureStageBindPodVolumes, BindFailureOperationFindPodVolumes, err)
 				log.Log(log.ShimContext).Error("Failed to find pod volumes",
 					zap.String("podName", assumedPod.Name),
 					zap.String("nodeName", assumedPod.Spec.NodeName),
@@ -776,12 +789,7 @@ func (ctx *Context) bindPodVolumes(pod *v1.Pod) error {
 				return err
 			}
 			if len(reasons) > 0 {
-				sReasons := make([]string, 0)
-				for _, reason := range reasons {
-					sReasons = append(sReasons, string(reason))
-				}
-				sReason := strings.Join(sReasons, ", ")
-				err = fmt.Errorf("pod %s has conflicting volume claims: %s", pod.Name, sReason)
+				err = NewBindFailureConflictError(BindFailureStageBindPodVolumes, BindFailureOperationFindPodVolumes, pod.Name, reasons)
 				log.Log(log.ShimContext).Error("Pod has conflicting volume claims",
 					zap.String("podName", assumedPod.Name),
 					zap.String("nodeName", assumedPod.Spec.NodeName),
@@ -798,6 +806,7 @@ func (ctx *Context) bindPodVolumes(pod *v1.Pod) error {
 			}
 			err = ctx.apiProvider.GetAPIs().VolumeBinder.BindPodVolumes(context.Background(), assumedPod, volumes)
 			if err != nil {
+				err = WrapBindFailureError(BindFailureStageBindPodVolumes, BindFailureOperationBindPodVolumes, err)
 				log.Log(log.ShimContext).Error("Failed to bind pod volumes",
 					zap.String("podName", assumedPod.Name),
 					zap.String("nodeName", assumedPod.Spec.NodeName),
@@ -832,6 +841,7 @@ func (ctx *Context) AssumePod(name, node string) error {
 			// retrieve the volume claims
 			podVolumeClaims, err := ctx.apiProvider.GetAPIs().VolumeBinder.GetPodVolumeClaims(ctx.klogger, pod)
 			if err != nil {
+				err = WrapBindFailureError(BindFailureStageAssumePod, BindFailureOperationGetPodVolumeClaims, err)
 				log.Log(log.ShimContext).Error("Failed to get pod volume claims",
 					zap.String("podName", assumedPod.Name),
 					zap.Error(err))
@@ -841,6 +851,7 @@ func (ctx *Context) AssumePod(name, node string) error {
 			// retrieve volumes
 			volumes, reasons, err := ctx.apiProvider.GetAPIs().VolumeBinder.FindPodVolumes(ctx.klogger, pod, podVolumeClaims, targetNode.Node())
 			if err != nil {
+				err = WrapBindFailureError(BindFailureStageAssumePod, BindFailureOperationFindPodVolumes, err)
 				log.Log(log.ShimContext).Error("Failed to find pod volumes",
 					zap.String("podName", assumedPod.Name),
 					zap.String("nodeName", node),
@@ -848,12 +859,7 @@ func (ctx *Context) AssumePod(name, node string) error {
 				return err
 			}
 			if len(reasons) > 0 {
-				sReasons := make([]string, len(reasons))
-				for i, reason := range reasons {
-					sReasons[i] = string(reason)
-				}
-				sReason := strings.Join(sReasons, ", ")
-				err = fmt.Errorf("pod %s has conflicting volume claims: %s", pod.Name, sReason)
+				err = NewBindFailureConflictError(BindFailureStageAssumePod, BindFailureOperationFindPodVolumes, pod.Name, reasons)
 				log.Log(log.ShimContext).Error("Pod has conflicting volume claims",
 					zap.String("podName", assumedPod.Name),
 					zap.String("nodeName", node),
@@ -862,6 +868,7 @@ func (ctx *Context) AssumePod(name, node string) error {
 			}
 			allBound, err = ctx.apiProvider.GetAPIs().VolumeBinder.AssumePodVolumes(ctx.klogger, pod, node, volumes)
 			if err != nil {
+				err = WrapBindFailureError(BindFailureStageAssumePod, BindFailureOperationAssumePodVolumes, err)
 				return err
 			}
 
@@ -885,6 +892,46 @@ func (ctx *Context) ForgetPod(name string) {
 		return
 	}
 	log.Log(log.ShimContext).Debug("unable to forget pod: not found in cache", zap.String("pod", name))
+}
+
+func (ctx *Context) rememberFailedNodeForTask(taskID, nodeID string) {
+	if taskID == "" || nodeID == "" {
+		return
+	}
+
+	ctx.failedNodesMu.Lock()
+	defer ctx.failedNodesMu.Unlock()
+	if _, ok := ctx.failedNodes[taskID]; !ok {
+		ctx.failedNodes[taskID] = make(map[string]time.Time)
+	}
+	ctx.failedNodes[taskID][nodeID] = time.Now().Add(failedNodeSuppressionTTL)
+}
+
+func (ctx *Context) clearFailedNodesForTask(taskID string) {
+	if taskID == "" {
+		return
+	}
+
+	ctx.failedNodesMu.Lock()
+	defer ctx.failedNodesMu.Unlock()
+	delete(ctx.failedNodes, taskID)
+}
+
+func (ctx *Context) isNodeSuppressedForTask(taskID, nodeID string) bool {
+	ctx.failedNodesMu.RLock()
+	defer ctx.failedNodesMu.RUnlock()
+
+	nodeMap, ok := ctx.failedNodes[taskID]
+	if !ok {
+		return false
+	}
+
+	expiry, ok := nodeMap[nodeID]
+	if !ok {
+		return false
+	}
+
+	return time.Now().Before(expiry)
 }
 
 func (ctx *Context) notifyTaskComplete(app *Application, taskID string) {

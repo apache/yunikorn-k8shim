@@ -19,13 +19,16 @@
 package predicates_test
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"time"
 
 	"github.com/onsi/ginkgo/v2"
 	v1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
 
 	tests "github.com/apache/yunikorn-k8shim/test/e2e"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
@@ -36,6 +39,36 @@ import (
 
 // variable populated in BeforeEach, never modified afterwards
 var workerNodes []string
+
+func getSchedulableComputeNodes(k *k8s.KubeCtl) ([]string, error) {
+	nodes, err := k.GetNodes()
+	if err != nil {
+		return nil, err
+	}
+
+	schedulable := make([]string, 0)
+	for _, node := range nodes.Items {
+		n := node
+		if k8s.IsMasterNode(&n) || !k8s.IsComputeNode(&n) || n.Spec.Unschedulable {
+			continue
+		}
+
+		hasNoScheduleTaint := false
+		for _, taint := range n.Spec.Taints {
+			if taint.Effect == v1.TaintEffectNoSchedule {
+				hasNoScheduleTaint = true
+				break
+			}
+		}
+		if hasNoScheduleTaint {
+			continue
+		}
+
+		schedulable = append(schedulable, n.Name)
+	}
+
+	return schedulable, nil
+}
 
 func getNodeThatCanRunPodWithoutToleration(k *k8s.KubeCtl, namespace string) string {
 	By("Trying to launch a pod without a toleration to get a node which can launch it.")
@@ -446,6 +479,111 @@ var _ = Describe("Predicates", func() {
 		labelPod, err := kClient.GetPod(podNameNoTolerations, ns)
 		Ω(err).NotTo(HaveOccurred())
 		Ω(labelPod.Spec.NodeName).Should(Equal(nodeName))
+	})
+
+	It("Verify_NodeScoped_BindFailure_Retries_On_Different_Node", func() {
+		nodeNames, nodeErr := getSchedulableComputeNodes(&kClient)
+		Ω(nodeErr).NotTo(HaveOccurred())
+		if len(nodeNames) < 2 {
+			ginkgo.Skip("Node-scoped bind failure retry test requires at least 2 schedulable compute nodes")
+		}
+
+		primaryNode := nodeNames[0]
+		fallbackNodes := nodeNames[1:]
+
+		taintKey := fmt.Sprintf("kubernetes.io/e2e-bind-failure-%s", common.RandSeq(6))
+		taintValue := "blocked"
+
+		By(fmt.Sprintf("Tainting fallback nodes to force initial scheduling onto %s", primaryNode))
+		err = kClient.TaintNodes(fallbackNodes, taintKey, taintValue, v1.TaintEffectNoSchedule)
+		Ω(err).NotTo(HaveOccurred())
+		defer func() {
+			err = kClient.UntaintNodes(fallbackNodes, taintKey)
+			Ω(err).NotTo(HaveOccurred())
+		}()
+
+		candidatePodName := ""
+		for attempt := 1; attempt <= 3; attempt++ {
+			podName := fmt.Sprintf("bind-retry-%d-%s", attempt, common.RandSeq(4))
+			podConf := k8s.SleepPodConfig{
+				Name: podName,
+				NS:   ns,
+				CPU:  10,
+				Mem:  20,
+				Time: 300,
+				Labels: map[string]string{
+					"app": "bind-failure-retry-" + common.RandSeq(5),
+				},
+			}
+
+			podObj, podErr := k8s.InitSleepPod(podConf)
+			Ω(podErr).NotTo(HaveOccurred())
+			createdPod, createErr := kClient.CreatePod(podObj, ns)
+			Ω(createErr).NotTo(HaveOccurred())
+
+			appID := createdPod.Labels["applicationId"]
+			pollErr := wait.PollUntilContextTimeout(context.TODO(), 100*time.Millisecond, 30*time.Second, false,
+				func(context.Context) (bool, error) {
+					appInfo, infoErr := restClient.GetAppInfo("default", "root."+ns, appID)
+					if infoErr != nil {
+						return false, nil
+					}
+					return len(appInfo.Allocations) > 0, nil
+				})
+			Ω(pollErr).NotTo(HaveOccurred())
+
+			latestPod, getErr := kClient.GetPod(podName, ns)
+			Ω(getErr).NotTo(HaveOccurred())
+			if latestPod.Spec.NodeName == "" {
+				candidatePodName = podName
+				break
+			}
+
+			By(fmt.Sprintf("Attempt %d observed pod already bound, retrying with a new pod", attempt))
+			err = kClient.DeletePod(podName, ns)
+			Ω(err).NotTo(HaveOccurred())
+			err = kClient.WaitForPodTerminated(ns, podName, 60*time.Second)
+			Ω(err).NotTo(HaveOccurred())
+		}
+
+		if candidatePodName == "" {
+			ginkgo.Skip("Unable to catch the pre-bind allocation window in this environment")
+		}
+
+		By(fmt.Sprintf("Deleting node %s to trigger node-scoped bind failure", primaryNode))
+		err = kClient.GetClient().CoreV1().Nodes().Delete(context.TODO(), primaryNode, metav1.DeleteOptions{})
+		if err != nil && !k8serrors.IsNotFound(err) {
+			Ω(err).NotTo(HaveOccurred())
+		}
+
+		defer func() {
+			_ = wait.PollUntilContextTimeout(context.TODO(), time.Second, 2*time.Minute, false, func(context.Context) (bool, error) {
+				latestNodes, getErr := kClient.GetNodes()
+				if getErr != nil {
+					return false, nil
+				}
+				for _, node := range latestNodes.Items {
+					if node.Name == primaryNode {
+						return true, nil
+					}
+				}
+				return false, nil
+			})
+		}()
+
+		By("Untainting fallback nodes to allow retry on a different node")
+		err = kClient.UntaintNodes(fallbackNodes, taintKey)
+		Ω(err).NotTo(HaveOccurred())
+
+		err = kClient.WaitForPodEvent(ns, candidatePodName, "NodeScopedBindFailureRetry", 2*time.Minute)
+		Ω(err).NotTo(HaveOccurred())
+
+		err = kClient.WaitForPodRunning(ns, candidatePodName, 2*time.Minute)
+		Ω(err).NotTo(HaveOccurred())
+
+		runningPod, getErr := kClient.GetPod(candidatePodName, ns)
+		Ω(getErr).NotTo(HaveOccurred())
+		Ω(runningPod.Spec.NodeName).NotTo(Equal(primaryNode))
 	})
 
 	// Tests for Pod Affinity & Anti Affinity
