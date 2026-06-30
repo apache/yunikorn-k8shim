@@ -348,11 +348,6 @@ func eventDesc(states *TStates) fsm.Events {
 			Dst:  states.Scheduling,
 		},
 		{
-			Name: TaskRetry.String(),
-			Src:  []string{states.Scheduling},
-			Dst:  states.Scheduling,
-		},
-		{
 			Name: TaskBound.String(),
 			Src:  []string{states.Allocated},
 			Dst:  states.Bound,
