@@ -205,6 +205,68 @@ func TestUpdateAllocation_NewTask_TransientBindFailureIsRetried(t *testing.T) {
 	assert.Equal(t, bindAttempts.Load(), int32(3))
 }
 
+func TestUpdateAllocation_NewTask_UnknownBindFailureRetriesUpToLimitThenFails(t *testing.T) {
+	callback, context := initCallbackTest(t, false, false)
+	defer dispatcher.UnregisterAllEventHandlers()
+	defer dispatcher.Stop()
+
+	mockAPI := context.apiProvider.(*client.MockedAPIProvider) //nolint:errcheck
+	var bindAttempts atomic.Int32
+	mockAPI.MockBindFn(func(_ *v1.Pod, _ string) error {
+		bindAttempts.Add(1)
+		return errors.New("opaque bind error")
+	})
+
+	err := callback.UpdateAllocation(&si.AllocationResponse{
+		New: []*si.Allocation{
+			{
+				ApplicationID: appID,
+				AllocationKey: taskUID1,
+				NodeID:        fakeNodeName,
+			},
+		},
+	})
+	assert.NilError(t, err, "error updating allocation")
+
+	task := context.getTask(appID, taskUID1)
+	err = utils.WaitForCondition(func() bool {
+		return task.GetTaskState() == TaskStates().Failed
+	}, 10*time.Millisecond, 3*time.Second)
+	assert.NilError(t, err, "task has not transitioned to Failed state")
+	assert.Equal(t, bindAttempts.Load(), int32(transientBindFailureRetryBackoff.Steps))
+}
+
+func TestUpdateAllocation_NewTask_IdempotentBindConflictTreatedAsSuccess(t *testing.T) {
+	callback, context := initCallbackTest(t, false, false)
+	defer dispatcher.UnregisterAllEventHandlers()
+	defer dispatcher.Stop()
+
+	mockAPI := context.apiProvider.(*client.MockedAPIProvider) //nolint:errcheck
+	var bindAttempts atomic.Int32
+	mockAPI.MockBindFn(func(pod *v1.Pod, _ string) error {
+		bindAttempts.Add(1)
+		return apierrors.NewAlreadyExists(schema.GroupResource{Resource: "pods"}, pod.Name)
+	})
+
+	err := callback.UpdateAllocation(&si.AllocationResponse{
+		New: []*si.Allocation{
+			{
+				ApplicationID: appID,
+				AllocationKey: taskUID1,
+				NodeID:        fakeNodeName,
+			},
+		},
+	})
+	assert.NilError(t, err, "error updating allocation")
+
+	task := context.getTask(appID, taskUID1)
+	err = utils.WaitForCondition(func() bool {
+		return task.GetTaskState() == TaskStates().Bound
+	}, 10*time.Millisecond, time.Second)
+	assert.NilError(t, err, "task has not transitioned to Bound state")
+	assert.Equal(t, bindAttempts.Load(), int32(1))
+}
+
 func TestUpdateAllocation_NewTask_PermanentBindFailureNotRetried(t *testing.T) {
 	callback, context := initCallbackTest(t, false, false)
 	defer dispatcher.UnregisterAllEventHandlers()

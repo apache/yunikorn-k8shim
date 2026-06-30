@@ -25,6 +25,7 @@ import (
 	"gotest.tools/v3/assert"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/volumebinding"
 )
 
@@ -33,6 +34,20 @@ func TestClassifyBindFailure_Transient(t *testing.T) {
 		BindFailureStageBindPod,
 		BindFailureOperationKubeBindPod,
 		apierrors.NewTimeoutError("timed out", 1),
+	)
+
+	decision := ClassifyBindFailure(err)
+	assert.Equal(t, decision.Scope, BindFailureScopeUnknown)
+	assert.Equal(t, decision.Durability, BindFailureDurabilityTransient)
+	assert.Equal(t, decision.Action, BindFailureActionRetrySameNode)
+	assert.Equal(t, decision.Confidence, BindFailureConfidenceHigh)
+}
+
+func TestClassifyBindFailure_TooManyRequestsIsTransient(t *testing.T) {
+	err := WrapBindFailureError(
+		BindFailureStageBindPod,
+		BindFailureOperationKubeBindPod,
+		apierrors.NewTooManyRequests("throttled", 1),
 	)
 
 	decision := ClassifyBindFailure(err)
@@ -73,6 +88,23 @@ func TestClassifyBindFailure_ConflictReasons(t *testing.T) {
 	assert.Equal(t, decision.Confidence, BindFailureConfidenceHigh)
 }
 
+func TestClassifyBindFailure_ConflictReasonsPodScoped(t *testing.T) {
+	err := NewBindFailureConflictError(
+		BindFailureStageAssumePod,
+		BindFailureOperationFindPodVolumes,
+		"pod-a",
+		volumebinding.ConflictReasons{
+			volumebinding.ConflictReason(volumebinding.ErrReasonPVNotExist),
+		},
+	)
+
+	decision := ClassifyBindFailure(err)
+	assert.Equal(t, decision.Scope, BindFailureScopePod)
+	assert.Equal(t, decision.Durability, BindFailureDurabilityPermanent)
+	assert.Equal(t, decision.Action, BindFailureActionFailFast)
+	assert.Equal(t, decision.Confidence, BindFailureConfidenceHigh)
+}
+
 func TestClassifyBindFailure_PodForbidden(t *testing.T) {
 	err := WrapBindFailureError(
 		BindFailureStageBindPod,
@@ -87,6 +119,58 @@ func TestClassifyBindFailure_PodForbidden(t *testing.T) {
 	assert.Equal(t, decision.Confidence, BindFailureConfidenceHigh)
 }
 
+func TestClassifyBindFailure_PodInvalid(t *testing.T) {
+	err := WrapBindFailureError(
+		BindFailureStageBindPod,
+		BindFailureOperationKubeBindPod,
+		apierrors.NewInvalid(
+			schema.GroupKind{Group: "", Kind: "Pod"},
+			"pod-a",
+			field.ErrorList{field.Invalid(field.NewPath("spec", "nodeName"), "", "node is invalid")},
+		),
+	)
+
+	decision := ClassifyBindFailure(err)
+	assert.Equal(t, decision.Scope, BindFailureScopePod)
+	assert.Equal(t, decision.Durability, BindFailureDurabilityPermanent)
+	assert.Equal(t, decision.Action, BindFailureActionFailFast)
+	assert.Equal(t, decision.Confidence, BindFailureConfidenceHigh)
+}
+
+func TestClassifyBindFailure_NotFoundPodOrPVC(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+	}{
+		{
+			name: "pod not found",
+			err: WrapBindFailureError(
+				BindFailureStageBindPod,
+				BindFailureOperationKubeBindPod,
+				apierrors.NewNotFound(schema.GroupResource{Resource: "pods"}, "pod-a"),
+			),
+		},
+		{
+			name: "pvc not found",
+			err: WrapBindFailureError(
+				BindFailureStageBindPodVolumes,
+				BindFailureOperationGetPodVolumeClaims,
+				apierrors.NewNotFound(schema.GroupResource{Resource: "persistentvolumeclaims"}, "pvc-a"),
+			),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			decision := ClassifyBindFailure(tc.err)
+			assert.Equal(t, decision.Scope, BindFailureScopePod)
+			assert.Equal(t, decision.Durability, BindFailureDurabilityPermanent)
+			assert.Equal(t, decision.Action, BindFailureActionFailFast)
+			assert.Equal(t, decision.Confidence, BindFailureConfidenceHigh)
+		})
+	}
+}
+
 func TestClassifyBindFailure_AlreadyBoundTreatAsSuccess(t *testing.T) {
 	err := WrapBindFailureError(
 		BindFailureStageBindPod,
@@ -99,4 +183,18 @@ func TestClassifyBindFailure_AlreadyBoundTreatAsSuccess(t *testing.T) {
 	assert.Equal(t, decision.Durability, BindFailureDurabilityPermanent)
 	assert.Equal(t, decision.Action, BindFailureActionTreatAsSuccess)
 	assert.Equal(t, decision.Confidence, BindFailureConfidenceHigh)
+}
+
+func TestClassifyBindFailure_UnknownLowConfidence(t *testing.T) {
+	err := WrapBindFailureError(
+		BindFailureStageBindPod,
+		BindFailureOperationKubeBindPod,
+		errors.New("opaque bind failure"),
+	)
+
+	decision := ClassifyBindFailure(err)
+	assert.Equal(t, decision.Scope, BindFailureScopeUnknown)
+	assert.Equal(t, decision.Durability, BindFailureDurabilityUnknown)
+	assert.Equal(t, decision.Action, BindFailureActionFailFast)
+	assert.Equal(t, decision.Confidence, BindFailureConfidenceLow)
 }

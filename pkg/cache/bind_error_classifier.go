@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/volumebinding"
 )
 
 type BindFailureScope string
@@ -100,13 +101,7 @@ func ClassifyBindFailure(err error) BindFailureDecision {
 
 	if hasDetails {
 		if len(details.ConflictReasons) > 0 {
-			return BindFailureDecision{
-				Scope:      BindFailureScopeNode,
-				Durability: BindFailureDurabilityPermanent,
-				Action:     BindFailureActionRetryDifferentNode,
-				Confidence: BindFailureConfidenceHigh,
-				Reason:     "volume conflict reasons indicate node-scoped incompatibility",
-			}
+			return classifyVolumeConflictReasons(details.ConflictReasons)
 		}
 
 		resourceKind := strings.ToLower(details.ResourceKind)
@@ -167,6 +162,84 @@ func ClassifyBindFailure(err error) BindFailureDecision {
 		Confidence: BindFailureConfidenceLow,
 		Reason:     "no reliable classifier match",
 	}
+}
+
+func classifyVolumeConflictReasons(reasons volumebinding.ConflictReasons) BindFailureDecision {
+	hasNodeScopedReason := false
+	hasPodScopedReason := false
+
+	for _, reason := range reasons {
+		if isPodScopedVolumeConflictReason(reason) {
+			hasPodScopedReason = true
+			continue
+		}
+		if isNodeScopedVolumeConflictReason(reason) {
+			hasNodeScopedReason = true
+		}
+	}
+
+	if hasPodScopedReason {
+		return BindFailureDecision{
+			Scope:      BindFailureScopePod,
+			Durability: BindFailureDurabilityPermanent,
+			Action:     BindFailureActionFailFast,
+			Confidence: BindFailureConfidenceHigh,
+			Reason:     "volume conflict reasons indicate pod-scoped incompatibility",
+		}
+	}
+
+	if hasNodeScopedReason {
+		return BindFailureDecision{
+			Scope:      BindFailureScopeNode,
+			Durability: BindFailureDurabilityPermanent,
+			Action:     BindFailureActionRetryDifferentNode,
+			Confidence: BindFailureConfidenceHigh,
+			Reason:     "volume conflict reasons indicate node-scoped incompatibility",
+		}
+	}
+
+	return BindFailureDecision{
+		Scope:      BindFailureScopePod,
+		Durability: BindFailureDurabilityPermanent,
+		Action:     BindFailureActionFailFast,
+		Confidence: BindFailureConfidenceLow,
+		Reason:     "volume conflict reason is unknown, treating as pod-scoped",
+	}
+}
+
+func isNodeScopedVolumeConflictReason(reason volumebinding.ConflictReason) bool {
+	normalized := strings.ToLower(strings.TrimSpace(string(reason)))
+	if normalized == "" {
+		return false
+	}
+
+	switch normalized {
+	case strings.ToLower(string(volumebinding.ErrReasonBindConflict)):
+		return true
+	case strings.ToLower(string(volumebinding.ErrReasonNodeConflict)):
+		return true
+	case strings.ToLower(volumebinding.ErrReasonNotEnoughSpace):
+		return true
+	case "nodevolumelimitsexceeded":
+		return true
+	}
+
+	return strings.Contains(normalized, "node")
+}
+
+func isPodScopedVolumeConflictReason(reason volumebinding.ConflictReason) bool {
+	normalized := strings.ToLower(strings.TrimSpace(string(reason)))
+	if normalized == "" {
+		return false
+	}
+
+	if normalized == strings.ToLower(volumebinding.ErrReasonPVNotExist) {
+		return true
+	}
+
+	return strings.Contains(normalized, "pvc") ||
+		strings.Contains(normalized, "persistentvolumeclaim") ||
+		strings.Contains(normalized, "non-existent pv")
 }
 
 func isTransientBindFailure(err error) bool {
