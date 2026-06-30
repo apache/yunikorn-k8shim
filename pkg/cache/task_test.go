@@ -224,6 +224,7 @@ func TestReleaseTaskAllocation(t *testing.T) {
 	})
 
 	// complete
+	task.application.sm.SetState(ApplicationStates().Running)
 	event4 := NewSimpleTaskEvent(app.applicationID, task.taskID, CompleteTask)
 	err = task.handle(event4)
 	assert.NilError(t, err, "failed to handle CompleteTask event")
@@ -324,6 +325,7 @@ func TestReleaseTaskAsk(t *testing.T) {
 	})
 
 	// complete
+	task.application.sm.SetState(ApplicationStates().Running)
 	event4 := NewSimpleTaskEvent(app.applicationID, task.taskID, CompleteTask)
 	err = task.handle(event4)
 	assert.NilError(t, err, "failed to handle CompleteTask event")
