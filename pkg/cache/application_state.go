@@ -455,6 +455,10 @@ func newAppState() *fsm.FSM { //nolint:funlen
 					zap.String("destination", event.Dst),
 					zap.String("event", event.Event))
 			},
+			states.Accepted: func(_ context.Context, event *fsm.Event) {
+				app := event.Args[0].(*Application) //nolint:errcheck
+				app.flushReleaseableTasks()
+			},
 			states.Reserving: func(_ context.Context, event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
 				app.onReserving()
