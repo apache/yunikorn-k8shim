@@ -439,7 +439,7 @@ func (task *Task) beforeTaskAllocated(eventSrc string, allocationKey string, nod
 			zap.String("currentTaskState", eventSrc),
 			zap.String("allocationKey", allocationKey),
 			zap.String("allocatedNode", nodeID))
-		task.releaseAllocation()
+		task.releaseAllocation(false)
 	}
 }
 
@@ -473,7 +473,7 @@ func (task *Task) beforeTaskFail() {
 	events.GetRecorder().Eventf(task.pod.DeepCopy(), nil,
 		v1.EventTypeNormal, "TaskFailed", "TaskFailed",
 		"Task %s is failed", task.alias)
-	task.releaseAllocation()
+	task.releaseAllocation(false)
 }
 
 // beforeTaskCompleted releases the allocation or ask from scheduler core
@@ -484,12 +484,18 @@ func (task *Task) beforeTaskCompleted() {
 	events.GetRecorder().Eventf(task.pod.DeepCopy(), nil,
 		v1.EventTypeNormal, "TaskCompleted", "TaskCompleted",
 		"Task %s is completed", task.alias)
-	task.releaseAllocation()
+  task.releaseAllocation(false)
 }
 
 // releaseAllocation sends the release request for the Allocation to the core.
-func (task *Task) releaseAllocation() {
+func (task *Task) releaseAllocation(force bool) {
 	terminationType := common.GetTerminationTypeFromString(task.terminationType)
+
+	if !force && task.shouldAppRelease() {
+		log.Log(log.ShimCacheTask).Info("not releasing task right now, app has not been accepted",
+			zap.String("appState", task.application.sm.Current()))
+		return
+	}
 
 	// scheduler api might be nil in some tests
 	if task.context.apiProvider.GetAPIs().SchedulerAPI != nil {
@@ -534,6 +540,12 @@ func (task *Task) releaseAllocation() {
 			log.Log(log.ShimCacheTask).Debug("failed to send scheduling request to scheduler", zap.Error(err))
 		}
 	}
+}
+
+func (task *Task) shouldAppRelease() bool {
+	task.lock.Unlock()
+	defer task.lock.Lock()
+	return task.application.tryAddReleasableTask(task)
 }
 
 // some sanity checks before sending task for scheduling,

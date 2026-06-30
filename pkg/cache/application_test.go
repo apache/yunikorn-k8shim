@@ -1328,7 +1328,74 @@ func TestTaskRemoval(t *testing.T) {
 	assert.Equal(t, 0, len(app.getTasks(TaskStates().Completed)))
 }
 
+func TestDeferredReleaseOnAccept(t *testing.T) {
+	context := initContextForTest()
+	mockedAPI, ok := context.apiProvider.(*client.MockedAPIProvider)
+	assert.Assert(t, ok, "expecting MockedAPIProvider")
+
+	removeCalled := false
+	mockScheduler := newMockSchedulerAPI()
+	mockScheduler.UpdateApplicationFn = func(request *si.ApplicationRequest) error {
+		if len(request.New) > 0 {
+			return nil
+		}
+		if len(request.Remove) == 1 {
+			removeCalled = true
+			assert.Equal(t, request.Remove[0].ApplicationID, "deferred-app")
+			assert.Equal(t, request.Remove[0].PartitionName, constants.DefaultPartition)
+		}
+		return nil
+	}
+
+	mockedAPI.MockSchedulerAPIUpdateAllocationFn(func(request *si.AllocationRequest) error {
+		t.Fatal("unexpected allocation update during deferred release flow")
+		return nil
+	})
+
+	pod := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "pod-deferred-release",
+			UID:  "task-deferred-01",
+		},
+		Spec: v1.PodSpec{},
+	}
+
+	app := NewApplication("deferred-app", "root.default", "testuser", testGroups, map[string]string{}, mockScheduler)
+	context.addApplicationToContext(app)
+	task := NewTask("task-deferred-01", app, context, pod)
+	app.addTask(task)
+
+	err := app.handle(NewSubmitApplicationEvent(app.applicationID))
+	assert.NilError(t, err)
+	assert.Equal(t, app.GetApplicationState(), ApplicationStates().Submitted)
+
+	err = task.handle(NewSimpleTaskEvent(app.applicationID, task.taskID, CompleteTask))
+	assert.NilError(t, err)
+	assert.Equal(t, task.GetTaskState(), TaskStates().Completed)
+	assert.Equal(t, mockedAPI.GetSchedulerAPIUpdateAllocationCount(), int32(0))
+
+	err = app.handle(NewSimpleApplicationEvent(app.applicationID, AcceptApplication))
+	assert.NilError(t, err)
+	assert.Equal(t, app.GetApplicationState(), ApplicationStates().Accepted)
+	assert.Assert(t, removeCalled, "expected RemoveApplication request to scheduler core")
+	assert.Assert(t, context.GetApplication(app.applicationID) == nil, "app should be removed from shim cache")
+}
+
+func TestTryAddReleasableTaskDedupe(t *testing.T) {
+	app := NewApplication("app-dedupe", "root.default", "testuser", testGroups, map[string]string{}, newMockSchedulerAPI())
+	task := &Task{taskID: "task01"}
+
+	assert.Assert(t, app.tryAddReleasableTask(task))
+	assert.Assert(t, app.tryAddReleasableTask(task))
+	assert.Equal(t, len(app.releaseableTasks), 1)
+}
+
 func (ctx *Context) addApplicationToContext(app *Application) {
+	app.setContext(ctx)
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
 	ctx.applications[app.applicationID] = app
