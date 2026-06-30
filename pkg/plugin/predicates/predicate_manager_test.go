@@ -55,23 +55,13 @@ var (
 	hugePageResourceA = v1helper.HugePageResourceName(resource.MustParse("2Mi"))
 )
 
-func TestPreemptionPredicatesEmpty(t *testing.T) {
-	ep := enabledPlugins(noderesources.Name)
-	handle, _ := getFrameworkHandle()
-	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
-
-	pod := &v1.Pod{}
-	node := framework.NewNodeInfo()
-	node.SetNode(&v1.Node{})
-	victims := make([]*v1.Pod, 0)
-	index := predicateManager.PreemptionFilter(pod, node, nil, victims, 0)
-	assert.Equal(t, index, -1, "should not find any victim index after preemption check")
-}
-
 func TestPreemptionPredicates(t *testing.T) {
 	ep := enabledPlugins(noderesources.Name)
 	handle, _ := getFrameworkHandle()
 	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
+
+	emptyNode := framework.NewNodeInfo()
+	emptyNode.SetNode(&v1.Node{})
 
 	pod := newResourcePod(framework.Resource{MilliCPU: 500, Memory: 5000000})
 	pod.Name = "smallpod"
@@ -103,27 +93,31 @@ func TestPreemptionPredicates(t *testing.T) {
 	node.AddPod(victims[2])
 	node.AddPod(victims[3])
 
-	plName, feasibleNodes, cycleState, err := predicateManager.PreFilter(pod, true)
-	if err != nil {
-		t.Errorf("'%s' should not fail, no. of feasible nodes %d", plName, len(feasibleNodes))
-	}
-
-	// all but 1 existing pod should need removing
-	index := predicateManager.PreemptionFilter(pod, node, cycleState, victims, 1)
-	assert.Equal(t, index, 2, "wrong victim index")
-
 	// try again, but with too many resources requested
-	pod = newResourcePod(framework.Resource{MilliCPU: 1500, Memory: 15000000})
-	pod.Name = "largepod"
-	pod.UID = "largepod"
+	largePod := newResourcePod(framework.Resource{MilliCPU: 1500, Memory: 15000000})
+	largePod.Name = "largepod"
+	largePod.UID = "largepod"
 
-	plName, feasibleNodes, cycleState, err = predicateManager.PreFilter(pod, true)
-	if err != nil {
-		t.Errorf("'%s' should not fail, no. of feasible nodes %d", plName, len(feasibleNodes))
+	tests := []struct {
+		name          string
+		pod           *v1.Pod
+		node          *framework.NodeInfo
+		victims       []*v1.Pod
+		expectedIndex int
+	}{
+		{"invalid pod and no victims", &v1.Pod{}, emptyNode, make([]*v1.Pod, 0), -1},
+		{"valid pod with available victims", pod, node, victims, 2},
+		{"valid pod with not suitable victims", largePod, node, victims, -1},
 	}
 
-	index = predicateManager.PreemptionFilter(pod, node, cycleState, victims, 1)
-	assert.Equal(t, index, -1, "should not find any victim index after preemption check")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, _, cycleState, err := predicateManager.PreFilter(tt.pod, true)
+			assert.NilError(t, err)
+			index := predicateManager.PreemptionFilter(tt.pod, tt.node, cycleState, tt.victims, 1)
+			assert.Equal(t, index, tt.expectedIndex, "wrong victim index")
+		})
+	}
 }
 
 func TestEventsToRegister(t *testing.T) {
@@ -336,10 +330,9 @@ func TestPodFitsHostPorts(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			plName, feasibleNodes, cycleState, err := predicateManager.PreFilter(test.pod, true)
-			if err != nil {
-				t.Errorf("'%s' should not fail, no. of feasible nodes %d", plName, len(feasibleNodes))
-			}
+			_, _, cycleState, err := predicateManager.PreFilter(test.pod, true)
+			assert.NilError(t, err)
+			assert.Assert(t, cycleState != nil)
 			plugin, err := predicateManager.Filter(test.pod, test.nodeInfo, cycleState, true)
 			if (err == nil) != test.fits {
 				t.Errorf("%s expected fit state '%t' did not match real state and err = %v, plugin = %v", test.name, test.fits, err, plugin)
@@ -1034,12 +1027,9 @@ func TestPodFitsSelector(t *testing.T) {
 			}}
 			nodeInfo := framework.NewNodeInfo()
 			nodeInfo.SetNode(&node)
-
-			plName, feasibleNodes, cycleState, err := predicateManager.PreFilter(test.pod, true)
-			if err != nil {
-				t.Errorf("'%s' should not fail, no. of feasible nodes %d", plName, len(feasibleNodes))
-			}
-
+			_, _, cycleState, err := predicateManager.PreFilter(test.pod, true)
+			assert.NilError(t, err)
+			assert.Assert(t, cycleState != nil)
 			plugin, err := predicateManager.Filter(test.pod, nodeInfo, cycleState, true)
 			if (err == nil) != test.fits {
 				t.Errorf("%s expected fit state '%t' did not match real state and err = %v, plugin = %v", test.name, test.fits, err, plugin)
@@ -1178,12 +1168,9 @@ func TestRunGeneralPredicates(t *testing.T) {
 	for _, test := range resourceTests {
 		t.Run(test.name, func(t *testing.T) {
 			test.nodeInfo.SetNode(test.node)
-
-			plName, feasibleNodes, cycleState, err := predicateManager.PreFilter(test.pod, true)
-			if err != nil {
-				t.Errorf("'%s' should not fail, no. of feasible nodes %d", plName, len(feasibleNodes))
-			}
-
+			_, _, cycleState, err := predicateManager.PreFilter(test.pod, true)
+			assert.NilError(t, err)
+			assert.Assert(t, cycleState != nil)
 			plugin, err := predicateManager.Filter(test.pod, test.nodeInfo, cycleState, true)
 			if (err == nil) != test.fits {
 				t.Errorf("%s expected fit state '%t' did not match real state and err = %v, plugin = %v", test.name, test.fits, err, plugin)
@@ -2130,11 +2117,9 @@ func TestInterPodAffinity(t *testing.T) {
 			nodeInfo.SetNode(test.node)
 			lister.NodeLister().Set([]fwk.NodeInfo{nodeInfo})
 
-			plName, feasibleNodes, cycleState, err := predicateManager.PreFilter(test.pod, true)
-			if err != nil {
-				t.Errorf("'%s' should not fail, no. of feasible nodes %d", plName, len(feasibleNodes))
-			}
-
+			_, _, cycleState, err := predicateManager.PreFilter(test.pod, true)
+			assert.NilError(t, err)
+			assert.Assert(t, cycleState != nil)
 			pl, err := predicateManager.Filter(test.pod, nodeInfo, cycleState, true)
 			if (err == nil) != test.fits {
 				t.Errorf("%s expected fit state '%t' did not match real state and err = %v, plugin = %v", test.name, test.fits, err, pl)
@@ -2218,10 +2203,9 @@ func TestReserveNodeSelector(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			pod.Spec.NodeSelector = tc.nodeSelectors
 			node.Labels = tc.nodeLabels
-			plName, feasibleNodes, cycleState, err := predicateManager.PreFilter(pod, true)
-			if err != nil {
-				t.Errorf("'%s' should not fail, no. of feasible nodes %d", plName, len(feasibleNodes))
-			}
+			_, _, cycleState, err := predicateManager.PreFilter(pod, true)
+			assert.NilError(t, err)
+			assert.Assert(t, cycleState != nil)
 			plugin, err := predicateManager.Filter(pod, nodeInfo, cycleState, false)
 			log.Log(log.Test).Info("reservation predicates called", zap.Error(err), zap.String("plugin", plugin))
 			if tc.errorExpected {
