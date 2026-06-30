@@ -700,7 +700,6 @@ func (task *Task) logBindFailure(message string, err error) {
 		zap.String("failureScope", string(decision.Scope)),
 		zap.String("failureDurability", string(decision.Durability)),
 		zap.String("shadowAction", string(decision.Action)),
-		zap.String("decisionConfidence", string(decision.Confidence)),
 		zap.String("decisionReason", decision.Reason),
 	)
 
@@ -710,19 +709,8 @@ func (task *Task) logBindFailure(message string, err error) {
 func (task *Task) retryTransientBindFailure(operation string, run func() error) error {
 	return retry.OnError(transientBindFailureRetryBackoff, func(err error) bool {
 		decision := ClassifyBindFailure(err)
-		if decision.Durability == BindFailureDurabilityTransient && decision.Action == BindFailureActionRetrySameNode {
+		if decision.Action == BindFailureActionRetrySameNode {
 			log.Log(log.ShimCacheTask).Warn("retrying transient bind failure",
-				zap.String("taskID", task.taskID),
-				zap.String("operation", operation),
-				zap.String("failureScope", string(decision.Scope)),
-				zap.String("failureDurability", string(decision.Durability)),
-				zap.String("decisionReason", decision.Reason),
-				zap.Error(err))
-			return true
-		}
-
-		if decision.Scope == BindFailureScopeUnknown && decision.Confidence == BindFailureConfidenceLow {
-			log.Log(log.ShimCacheTask).Warn("retrying low-confidence bind failure with bounded fallback",
 				zap.String("taskID", task.taskID),
 				zap.String("operation", operation),
 				zap.String("failureScope", string(decision.Scope)),

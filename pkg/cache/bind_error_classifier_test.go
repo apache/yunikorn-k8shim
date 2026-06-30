@@ -40,7 +40,6 @@ func TestClassifyBindFailure_Transient(t *testing.T) {
 	assert.Equal(t, decision.Scope, BindFailureScopeUnknown)
 	assert.Equal(t, decision.Durability, BindFailureDurabilityTransient)
 	assert.Equal(t, decision.Action, BindFailureActionRetrySameNode)
-	assert.Equal(t, decision.Confidence, BindFailureConfidenceHigh)
 }
 
 func TestClassifyBindFailure_TooManyRequestsIsTransient(t *testing.T) {
@@ -54,7 +53,6 @@ func TestClassifyBindFailure_TooManyRequestsIsTransient(t *testing.T) {
 	assert.Equal(t, decision.Scope, BindFailureScopeUnknown)
 	assert.Equal(t, decision.Durability, BindFailureDurabilityTransient)
 	assert.Equal(t, decision.Action, BindFailureActionRetrySameNode)
-	assert.Equal(t, decision.Confidence, BindFailureConfidenceHigh)
 }
 
 func TestClassifyBindFailure_NodeNotFound(t *testing.T) {
@@ -68,7 +66,6 @@ func TestClassifyBindFailure_NodeNotFound(t *testing.T) {
 	assert.Equal(t, decision.Scope, BindFailureScopeNode)
 	assert.Equal(t, decision.Durability, BindFailureDurabilityPermanent)
 	assert.Equal(t, decision.Action, BindFailureActionRetryDifferentNode)
-	assert.Equal(t, decision.Confidence, BindFailureConfidenceHigh)
 }
 
 func TestClassifyBindFailure_ConflictReasons(t *testing.T) {
@@ -77,7 +74,7 @@ func TestClassifyBindFailure_ConflictReasons(t *testing.T) {
 		BindFailureOperationFindPodVolumes,
 		"pod-a",
 		volumebinding.ConflictReasons{
-			volumebinding.ConflictReason("NodeVolumeLimitsExceeded"),
+			volumebinding.ConflictReason(volumebinding.ErrReasonNodeConflict),
 		},
 	)
 
@@ -85,7 +82,6 @@ func TestClassifyBindFailure_ConflictReasons(t *testing.T) {
 	assert.Equal(t, decision.Scope, BindFailureScopeNode)
 	assert.Equal(t, decision.Durability, BindFailureDurabilityPermanent)
 	assert.Equal(t, decision.Action, BindFailureActionRetryDifferentNode)
-	assert.Equal(t, decision.Confidence, BindFailureConfidenceHigh)
 }
 
 func TestClassifyBindFailure_ConflictReasonsPodScoped(t *testing.T) {
@@ -102,7 +98,6 @@ func TestClassifyBindFailure_ConflictReasonsPodScoped(t *testing.T) {
 	assert.Equal(t, decision.Scope, BindFailureScopePod)
 	assert.Equal(t, decision.Durability, BindFailureDurabilityPermanent)
 	assert.Equal(t, decision.Action, BindFailureActionFailFast)
-	assert.Equal(t, decision.Confidence, BindFailureConfidenceHigh)
 }
 
 func TestClassifyBindFailure_PodForbidden(t *testing.T) {
@@ -116,7 +111,6 @@ func TestClassifyBindFailure_PodForbidden(t *testing.T) {
 	assert.Equal(t, decision.Scope, BindFailureScopePod)
 	assert.Equal(t, decision.Durability, BindFailureDurabilityPermanent)
 	assert.Equal(t, decision.Action, BindFailureActionFailFast)
-	assert.Equal(t, decision.Confidence, BindFailureConfidenceHigh)
 }
 
 func TestClassifyBindFailure_PodInvalid(t *testing.T) {
@@ -134,7 +128,6 @@ func TestClassifyBindFailure_PodInvalid(t *testing.T) {
 	assert.Equal(t, decision.Scope, BindFailureScopePod)
 	assert.Equal(t, decision.Durability, BindFailureDurabilityPermanent)
 	assert.Equal(t, decision.Action, BindFailureActionFailFast)
-	assert.Equal(t, decision.Confidence, BindFailureConfidenceHigh)
 }
 
 func TestClassifyBindFailure_NotFoundPodOrPVC(t *testing.T) {
@@ -166,7 +159,6 @@ func TestClassifyBindFailure_NotFoundPodOrPVC(t *testing.T) {
 			assert.Equal(t, decision.Scope, BindFailureScopePod)
 			assert.Equal(t, decision.Durability, BindFailureDurabilityPermanent)
 			assert.Equal(t, decision.Action, BindFailureActionFailFast)
-			assert.Equal(t, decision.Confidence, BindFailureConfidenceHigh)
 		})
 	}
 }
@@ -182,10 +174,9 @@ func TestClassifyBindFailure_AlreadyBoundTreatAsSuccess(t *testing.T) {
 	assert.Equal(t, decision.Scope, BindFailureScopePod)
 	assert.Equal(t, decision.Durability, BindFailureDurabilityPermanent)
 	assert.Equal(t, decision.Action, BindFailureActionTreatAsSuccess)
-	assert.Equal(t, decision.Confidence, BindFailureConfidenceHigh)
 }
 
-func TestClassifyBindFailure_UnknownLowConfidence(t *testing.T) {
+func TestClassifyBindFailure_UnknownRetriesByDefault(t *testing.T) {
 	err := WrapBindFailureError(
 		BindFailureStageBindPod,
 		BindFailureOperationKubeBindPod,
@@ -195,6 +186,5 @@ func TestClassifyBindFailure_UnknownLowConfidence(t *testing.T) {
 	decision := ClassifyBindFailure(err)
 	assert.Equal(t, decision.Scope, BindFailureScopeUnknown)
 	assert.Equal(t, decision.Durability, BindFailureDurabilityUnknown)
-	assert.Equal(t, decision.Action, BindFailureActionFailFast)
-	assert.Equal(t, decision.Confidence, BindFailureConfidenceLow)
+	assert.Equal(t, decision.Action, BindFailureActionRetrySameNode)
 }

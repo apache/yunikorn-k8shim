@@ -73,7 +73,7 @@ func (callback *AsyncRMCallback) UpdateAllocation(response *si.AllocationRespons
 		}
 		err := retry.OnError(backOff, func(err error) bool {
 			decision := ClassifyBindFailure(err)
-			if decision.Durability != BindFailureDurabilityTransient || decision.Action != BindFailureActionRetrySameNode {
+			if decision.Action != BindFailureActionRetrySameNode {
 				log.Log(log.ShimRMCallback).Warn("AssumePod failed with non-retryable error",
 					zap.String("allocationKey", alloc.AllocationKey),
 					zap.String("applicationID", alloc.ApplicationID),
@@ -81,7 +81,6 @@ func (callback *AsyncRMCallback) UpdateAllocation(response *si.AllocationRespons
 					zap.String("failureScope", string(decision.Scope)),
 					zap.String("failureDurability", string(decision.Durability)),
 					zap.String("shadowAction", string(decision.Action)),
-					zap.String("decisionConfidence", string(decision.Confidence)),
 					zap.String("decisionReason", decision.Reason),
 					zap.Error(err))
 				return false
@@ -94,7 +93,6 @@ func (callback *AsyncRMCallback) UpdateAllocation(response *si.AllocationRespons
 				zap.String("failureScope", string(decision.Scope)),
 				zap.String("failureDurability", string(decision.Durability)),
 				zap.String("shadowAction", string(decision.Action)),
-				zap.String("decisionConfidence", string(decision.Confidence)),
 				zap.String("decisionReason", decision.Reason),
 				zap.Error(err))
 			return true
@@ -112,7 +110,6 @@ func (callback *AsyncRMCallback) UpdateAllocation(response *si.AllocationRespons
 					zap.String("failureScope", string(decision.Scope)),
 					zap.String("failureDurability", string(decision.Durability)),
 					zap.String("shadowAction", string(decision.Action)),
-					zap.String("decisionConfidence", string(decision.Confidence)),
 					zap.String("decisionReason", decision.Reason),
 					zap.Error(err))
 				continue
@@ -125,7 +122,6 @@ func (callback *AsyncRMCallback) UpdateAllocation(response *si.AllocationRespons
 				zap.String("failureScope", string(decision.Scope)),
 				zap.String("failureDurability", string(decision.Durability)),
 				zap.String("shadowAction", string(decision.Action)),
-				zap.String("decisionConfidence", string(decision.Confidence)),
 				zap.String("decisionReason", decision.Reason),
 			}
 			if details, ok := GetBindFailureDetails(err); ok {

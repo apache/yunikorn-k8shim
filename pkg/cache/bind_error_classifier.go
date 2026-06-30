@@ -51,18 +51,10 @@ const (
 	BindFailureActionFailFast           BindFailureAction = "fail_fast"
 )
 
-type BindFailureConfidence string
-
-const (
-	BindFailureConfidenceHigh BindFailureConfidence = "high"
-	BindFailureConfidenceLow  BindFailureConfidence = "low"
-)
-
 type BindFailureDecision struct {
 	Scope      BindFailureScope
 	Durability BindFailureDurability
 	Action     BindFailureAction
-	Confidence BindFailureConfidence
 	Reason     string
 }
 
@@ -71,8 +63,7 @@ func ClassifyBindFailure(err error) BindFailureDecision {
 		return BindFailureDecision{
 			Scope:      BindFailureScopeUnknown,
 			Durability: BindFailureDurabilityUnknown,
-			Action:     BindFailureActionFailFast,
-			Confidence: BindFailureConfidenceLow,
+			Action:     BindFailureActionRetrySameNode,
 			Reason:     "no error to classify",
 		}
 	}
@@ -84,7 +75,6 @@ func ClassifyBindFailure(err error) BindFailureDecision {
 			Scope:      BindFailureScopePod,
 			Durability: BindFailureDurabilityPermanent,
 			Action:     BindFailureActionTreatAsSuccess,
-			Confidence: BindFailureConfidenceHigh,
 			Reason:     "pod bind is already recorded",
 		}
 	}
@@ -94,7 +84,6 @@ func ClassifyBindFailure(err error) BindFailureDecision {
 			Scope:      BindFailureScopeUnknown,
 			Durability: BindFailureDurabilityTransient,
 			Action:     BindFailureActionRetrySameNode,
-			Confidence: BindFailureConfidenceHigh,
 			Reason:     "kubernetes API reported transient condition",
 		}
 	}
@@ -112,7 +101,6 @@ func ClassifyBindFailure(err error) BindFailureDecision {
 					Scope:      BindFailureScopeNode,
 					Durability: BindFailureDurabilityPermanent,
 					Action:     BindFailureActionRetryDifferentNode,
-					Confidence: BindFailureConfidenceHigh,
 					Reason:     "target node was not found",
 				}
 			case "pod", "pods", "persistentvolumeclaim", "persistentvolumeclaims", "persistentvolume", "persistentvolumes":
@@ -120,7 +108,6 @@ func ClassifyBindFailure(err error) BindFailureDecision {
 					Scope:      BindFailureScopePod,
 					Durability: BindFailureDurabilityPermanent,
 					Action:     BindFailureActionFailFast,
-					Confidence: BindFailureConfidenceHigh,
 					Reason:     "pod-scoped object required for binding was not found",
 				}
 			default:
@@ -128,7 +115,6 @@ func ClassifyBindFailure(err error) BindFailureDecision {
 					Scope:      BindFailureScopeRequest,
 					Durability: BindFailureDurabilityPermanent,
 					Action:     BindFailureActionFailFast,
-					Confidence: BindFailureConfidenceLow,
 					Reason:     "resource required for request processing was not found",
 				}
 			}
@@ -140,7 +126,6 @@ func ClassifyBindFailure(err error) BindFailureDecision {
 			Scope:      BindFailureScopePod,
 			Durability: BindFailureDurabilityPermanent,
 			Action:     BindFailureActionFailFast,
-			Confidence: BindFailureConfidenceHigh,
 			Reason:     "request payload or permissions are permanently invalid for this pod",
 		}
 	}
@@ -150,7 +135,6 @@ func ClassifyBindFailure(err error) BindFailureDecision {
 			Scope:      BindFailureScopePod,
 			Durability: BindFailureDurabilityTransient,
 			Action:     BindFailureActionRetrySameNode,
-			Confidence: BindFailureConfidenceLow,
 			Reason:     "optimistic concurrency conflict while writing bind state",
 		}
 	}
@@ -158,9 +142,8 @@ func ClassifyBindFailure(err error) BindFailureDecision {
 	return BindFailureDecision{
 		Scope:      BindFailureScopeUnknown,
 		Durability: BindFailureDurabilityUnknown,
-		Action:     BindFailureActionFailFast,
-		Confidence: BindFailureConfidenceLow,
-		Reason:     "no reliable classifier match",
+		Action:     BindFailureActionRetrySameNode,
+		Reason:     "no reliable classifier match, retrying by default",
 	}
 }
 
@@ -183,7 +166,6 @@ func classifyVolumeConflictReasons(reasons volumebinding.ConflictReasons) BindFa
 			Scope:      BindFailureScopePod,
 			Durability: BindFailureDurabilityPermanent,
 			Action:     BindFailureActionFailFast,
-			Confidence: BindFailureConfidenceHigh,
 			Reason:     "volume conflict reasons indicate pod-scoped incompatibility",
 		}
 	}
@@ -193,17 +175,15 @@ func classifyVolumeConflictReasons(reasons volumebinding.ConflictReasons) BindFa
 			Scope:      BindFailureScopeNode,
 			Durability: BindFailureDurabilityPermanent,
 			Action:     BindFailureActionRetryDifferentNode,
-			Confidence: BindFailureConfidenceHigh,
 			Reason:     "volume conflict reasons indicate node-scoped incompatibility",
 		}
 	}
 
 	return BindFailureDecision{
-		Scope:      BindFailureScopePod,
-		Durability: BindFailureDurabilityPermanent,
-		Action:     BindFailureActionFailFast,
-		Confidence: BindFailureConfidenceLow,
-		Reason:     "volume conflict reason is unknown, treating as pod-scoped",
+		Scope:      BindFailureScopeUnknown,
+		Durability: BindFailureDurabilityUnknown,
+		Action:     BindFailureActionRetrySameNode,
+		Reason:     "volume conflict reason is unknown, retrying by default",
 	}
 }
 
@@ -220,11 +200,9 @@ func isNodeScopedVolumeConflictReason(reason volumebinding.ConflictReason) bool 
 		return true
 	case strings.ToLower(volumebinding.ErrReasonNotEnoughSpace):
 		return true
-	case "nodevolumelimitsexceeded":
-		return true
 	}
 
-	return strings.Contains(normalized, "node")
+	return false
 }
 
 func isPodScopedVolumeConflictReason(reason volumebinding.ConflictReason) bool {
@@ -237,9 +215,7 @@ func isPodScopedVolumeConflictReason(reason volumebinding.ConflictReason) bool {
 		return true
 	}
 
-	return strings.Contains(normalized, "pvc") ||
-		strings.Contains(normalized, "persistentvolumeclaim") ||
-		strings.Contains(normalized, "non-existent pv")
+	return false
 }
 
 func isTransientBindFailure(err error) bool {
