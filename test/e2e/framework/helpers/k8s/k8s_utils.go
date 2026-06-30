@@ -31,10 +31,6 @@ import (
 
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
-	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
-	"k8s.io/client-go/transport/spdy"
-	"k8s.io/streaming/pkg/httpstream"
-
 	"go.uber.org/zap"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
@@ -53,10 +49,13 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 	"k8s.io/client-go/tools/portforward"
+	"k8s.io/client-go/transport/spdy"
 	"k8s.io/client-go/util/retry"
 	helper "k8s.io/component-helpers/resource"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
+	"k8s.io/streaming/pkg/httpstream"
 
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
