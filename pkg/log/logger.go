@@ -54,8 +54,8 @@ const (
 // Defined loggers: when adding new loggers, ids must be sequential, and all must be added to the loggers slice in the same order
 var (
 	Shim                  = &LoggerHandle{id: 0, name: "shim"}
-	Test        = &LoggerHandle{id: 1, name: "test"}
-	Deprecation = &LoggerHandle{id: 2, name: "deprecation"}
+	Test                  = &LoggerHandle{id: 1, name: "test"}
+	Deprecation           = &LoggerHandle{id: 2, name: "deprecation"}
 	Admission             = &LoggerHandle{id: 3, name: "admission"}
 	AdmissionClient       = &LoggerHandle{id: 4, name: "admission.client"}
 	AdmissionConf         = &LoggerHandle{id: 5, name: "admission.conf"}
@@ -80,7 +80,7 @@ var (
 	ShimPredicates        = &LoggerHandle{id: 24, name: "shim.predicates"}
 	ShimFramework         = &LoggerHandle{id: 25, name: "shim.framework"}
 	ShimPlaceHolderConfig = &LoggerHandle{id: 26, name: "shim.placeholder.config"}
-	Kubernetes  = &LoggerHandle{id: 27, name: "kubernetes"}
+	Kubernetes            = &LoggerHandle{id: 27, name: "kubernetes"}
 )
 
 // this tracks all the known logger handles, used to preallocate the real logger instances when configuration changes
