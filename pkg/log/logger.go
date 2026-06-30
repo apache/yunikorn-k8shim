@@ -54,8 +54,8 @@ const (
 // Defined loggers: when adding new loggers, ids must be sequential, and all must be added to the loggers slice in the same order
 var (
 	Shim                  = &LoggerHandle{id: 0, name: "shim"}
-	Kubernetes            = &LoggerHandle{id: 1, name: "kubernetes"}
-	Test                  = &LoggerHandle{id: 2, name: "test"}
+	Test        = &LoggerHandle{id: 1, name: "test"}
+	Deprecation = &LoggerHandle{id: 2, name: "deprecation"}
 	Admission             = &LoggerHandle{id: 3, name: "admission"}
 	AdmissionClient       = &LoggerHandle{id: 4, name: "admission.client"}
 	AdmissionConf         = &LoggerHandle{id: 5, name: "admission.conf"}
@@ -80,15 +80,16 @@ var (
 	ShimPredicates        = &LoggerHandle{id: 24, name: "shim.predicates"}
 	ShimFramework         = &LoggerHandle{id: 25, name: "shim.framework"}
 	ShimPlaceHolderConfig = &LoggerHandle{id: 26, name: "shim.placeholder.config"}
+	Kubernetes  = &LoggerHandle{id: 27, name: "kubernetes"}
 )
 
 // this tracks all the known logger handles, used to preallocate the real logger instances when configuration changes
 var loggers = []*LoggerHandle{
-	Shim, Kubernetes, Test,
+	Shim, Test, Deprecation,
 	Admission, AdmissionClient, AdmissionConf, AdmissionWebhook, AdmissionUtils, ShimContext, ShimFSM,
 	ShimCacheApplication, ShimCacheAppMgmt, ShimCacheNode, ShimCacheTask, ShimCacheExternal, ShimCachePlaceholder,
 	ShimRMCallback, ShimClient, ShimResources, ShimUtils, ShimConfig, ShimDispatcher,
-	ShimScheduler, ShimSchedulerPlugin, ShimPredicates, ShimFramework, ShimPlaceHolderConfig,
+	ShimScheduler, ShimSchedulerPlugin, ShimPredicates, ShimFramework, ShimPlaceHolderConfig, Kubernetes,
 }
 
 // structure to hold all current logger configuration state
