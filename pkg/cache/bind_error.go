@@ -111,7 +111,7 @@ func NewBindFailureConflictError(stage BindFailureStage, operation BindFailureOp
 		sReasons[i] = string(reason)
 	}
 
-	err := errors.New(fmt.Sprintf("pod %s has conflicting volume claims: %s", podName, strings.Join(sReasons, ", ")))
+	err := fmt.Errorf("pod %s has conflicting volume claims: %s", podName, strings.Join(sReasons, ", "))
 	return &BindFailureError{
 		details: BindFailureDetails{
 			Stage:           stage,

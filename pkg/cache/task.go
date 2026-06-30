@@ -484,7 +484,7 @@ func (task *Task) beforeTaskCompleted() {
 	events.GetRecorder().Eventf(task.pod.DeepCopy(), nil,
 		v1.EventTypeNormal, "TaskCompleted", "TaskCompleted",
 		"Task %s is completed", task.alias)
-  task.releaseAllocation(false)
+	task.releaseAllocation(false)
 }
 
 // releaseAllocation sends the release request for the Allocation to the core.

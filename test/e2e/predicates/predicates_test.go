@@ -423,14 +423,14 @@ var _ = Describe("Predicates", func() {
 		err = kClient.TaintNode(nodeName, taintKey, taintValue, taintEffect)
 		Ω(err).NotTo(HaveOccurred())
 		defer func() {
-			err := kClient.UntaintNode(nodeName, taintKey)
-			Ω(err).NotTo(HaveOccurred())
+			untaintErr := kClient.UntaintNode(nodeName, taintKey)
+			Ω(untaintErr).NotTo(HaveOccurred())
 		}()
 
 		ginkgo.By("Trying to apply a random label on the found node.")
 		labelKey := fmt.Sprintf("kubernetes.io/e2e-label-key-%s", common.RandSeq(10))
 		labelValue := LABELVALUE
-		err := kClient.SetNodeLabel(nodeName, labelKey, labelValue)
+		err = kClient.SetNodeLabel(nodeName, labelKey, labelValue)
 		Ω(err).NotTo(HaveOccurred())
 		exists, existsErr := kClient.IsNodeLabelExists(nodeName, labelKey)
 		Ω(existsErr).NotTo(HaveOccurred())
@@ -465,10 +465,10 @@ var _ = Describe("Predicates", func() {
 
 		err = restClient.WaitForAllocationLog("default", "root."+ns, initPod.Labels["applicationId"], podNameNoTolerations, 60)
 		Ω(err).NotTo(HaveOccurred())
-		log, err := restClient.GetAllocationLog("default", "root."+ns, initPod.Labels["applicationId"], podNameNoTolerations)
-		Ω(err).NotTo(HaveOccurred())
-		Ω(log).NotTo(BeNil(), "Log can't be empty")
-		logEntries := yunikorn.AllocLogToStrings(log)
+		allocationLog, getLogErr := restClient.GetAllocationLog("default", "root."+ns, initPod.Labels["applicationId"], podNameNoTolerations)
+		Ω(getLogErr).NotTo(HaveOccurred())
+		Ω(allocationLog).NotTo(BeNil(), "Log can't be empty")
+		logEntries := yunikorn.AllocLogToStrings(allocationLog)
 		Ω(logEntries).To(ContainElement(MatchRegexp(".*taint.*")), "Log entry message mismatch")
 
 		// Remove taint off the node and verify the pod is scheduled on node.
@@ -476,8 +476,8 @@ var _ = Describe("Predicates", func() {
 		Ω(err).NotTo(HaveOccurred())
 		Ω(kClient.WaitForPodRunning(ns, podNameNoTolerations, time.Duration(60)*time.Second)).NotTo(HaveOccurred())
 
-		labelPod, err := kClient.GetPod(podNameNoTolerations, ns)
-		Ω(err).NotTo(HaveOccurred())
+		labelPod, getPodErr := kClient.GetPod(podNameNoTolerations, ns)
+		Ω(getPodErr).NotTo(HaveOccurred())
 		Ω(labelPod.Spec.NodeName).Should(Equal(nodeName))
 	})
 
@@ -557,7 +557,7 @@ var _ = Describe("Predicates", func() {
 		}
 
 		defer func() {
-			_ = wait.PollUntilContextTimeout(context.TODO(), time.Second, 2*time.Minute, false, func(context.Context) (bool, error) {
+			pollErr := wait.PollUntilContextTimeout(context.TODO(), time.Second, 2*time.Minute, false, func(context.Context) (bool, error) {
 				latestNodes, getErr := kClient.GetNodes()
 				if getErr != nil {
 					return false, nil
@@ -569,6 +569,7 @@ var _ = Describe("Predicates", func() {
 				}
 				return false, nil
 			})
+			Ω(pollErr).NotTo(HaveOccurred())
 		}()
 
 		By("Untainting fallback nodes to allow retry on a different node")

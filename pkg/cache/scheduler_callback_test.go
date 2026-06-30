@@ -233,7 +233,7 @@ func TestUpdateAllocation_NewTask_UnknownBindFailureRetriesUpToLimitThenFails(t 
 		return task.GetTaskState() == TaskStates().Failed
 	}, 10*time.Millisecond, 3*time.Second)
 	assert.NilError(t, err, "task has not transitioned to Failed state")
-	assert.Equal(t, bindAttempts.Load(), int32(transientBindFailureRetryBackoff.Steps))
+	assert.Equal(t, int(bindAttempts.Load()), transientBindFailureRetryBackoff.Steps)
 }
 
 func TestUpdateAllocation_NewTask_IdempotentBindConflictTreatedAsSuccess(t *testing.T) {
