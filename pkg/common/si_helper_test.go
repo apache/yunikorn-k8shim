@@ -26,6 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
@@ -106,6 +107,34 @@ func TestCreateUpdateRequestForTask(t *testing.T) {
 
 	assert.Equal(t, tags[common.DomainK8s+common.GroupLabel+"label1"], "val1")
 	assert.Equal(t, tags[common.DomainK8s+common.GroupLabel+"label2"], "val2")
+}
+
+func TestCreateAllocationRollbackForTask(t *testing.T) {
+	res := NewResourceBuilder().Build()
+	pod := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name:              "pod-rollback-test",
+			UID:               "UID-rollback",
+			Namespace:         "default",
+			CreationTimestamp: apis.NewTime(time.Unix(10, 0)),
+		},
+	}
+
+	request := CreateAllocationRollbackForTask("app-rollback", "task-rollback", "default", res, pod)
+	assert.Assert(t, request != nil)
+	assert.Equal(t, len(request.Allocations), 1)
+
+	allocation := request.Allocations[0]
+	assert.Equal(t, allocation.AllocationKey, "task-rollback")
+	assert.Equal(t, allocation.ApplicationID, "app-rollback")
+	assert.Equal(t, allocation.PartitionName, "default")
+	assert.Equal(t, allocation.NodeID, "")
+	assert.Equal(t, allocation.AllocationTags[constants.AllocationTagRollback], constants.True)
+	assert.Equal(t, allocation.AllocationTags[common.CreationTime], "10")
 }
 
 func TestCreateTagsForTask(t *testing.T) {
