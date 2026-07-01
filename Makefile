@@ -17,8 +17,8 @@
 
 .PHONY: tools
 # production build targets
-.PHONY: scheduler admission scheduler_instrumented
-.PHONY: image sched_image adm_image sched_image_instrumented webtest_image go-license-generate
+.PHONY: scheduler admission queue_operator scheduler_instrumented
+.PHONY: image sched_image adm_image qop_image sched_image_instrumented webtest_image go-license-generate
 # local run targets
 .PHONY: run build build_web_test_server_prod build_web_test_server_dev
 # test targets
@@ -68,6 +68,7 @@ COVERAGE_DIR=${OUTPUT}/instrumented
 # Binary names
 SCHEDULER_BINARY=yunikorn-scheduler
 ADMISSION_CONTROLLER_BINARY=yunikorn-admission-controller
+QUEUE_OPERATOR_BINARY=yunikorn-queue-operator
 TEST_SERVER_BINARY=web-test-server
 
 TOOLS_DIR=tools
@@ -243,6 +244,9 @@ SCHEDULER_TAG := $(REGISTRY)/yunikorn:scheduler-$(DOCKER_ARCH)-$(VERSION)
 endif
 ifeq ($(ADMISSION_TAG),)
 ADMISSION_TAG := $(REGISTRY)/yunikorn:admission-$(DOCKER_ARCH)-$(VERSION)
+endif
+ifeq ($(QUEUE_OPERATOR_TAG),)
+QUEUE_OPERATOR_TAG := $(REGISTRY)/yunikorn:queue-operator-$(DOCKER_ARCH)-$(VERSION)
 endif
 
 SCHEDULER_INSTRUMENTED_TAG := $(SCHEDULER_TAG)-instrumented
@@ -544,7 +548,67 @@ adm_image: $(OUTPUT)/third-party-licenses.md admission docker/admission
 	--label "org.opencontainers.image.documentation=${DOCS_URL}" \
 	${QUIET}
 
-# Build all images based on the production ready version
+# Build the queue operator binary in a production ready version.
+#
+# The queue operator is an OPTIONAL (opt-in) component. Users who do not
+# want CRD-based queue management can ignore this binary entirely and keep
+# using the ConfigMap-based flow served by the admission controller.
+queue_operator: $(RELEASE_BIN_DIR)/$(QUEUE_OPERATOR_BINARY)
+
+$(RELEASE_BIN_DIR)/$(QUEUE_OPERATOR_BINARY): go.mod go.sum $(shell find pkg)
+	@echo "building queue operator binary"
+	@mkdir -p "$(RELEASE_BIN_DIR)"
+ifeq ($(REPRO),1)
+	docker run -t --rm=true --volume "$(DOCKER_BUILDROOT):/buildroot" "golang:$(GO_REPRO_VERSION)" sh -c "cd $(DOCKER_SRCROOT) && \
+	CGO_ENABLED=0 GOOS=linux GOARCH=\"${EXEC_ARCH}\" go build \
+	-a \
+	-o=$(RELEASE_BIN_DIR)/$(QUEUE_OPERATOR_BINARY) \
+	-trimpath \
+	-ldflags '-buildid= -extldflags \"-static\" -X ${FLAG_PREFIX}.buildVersion=${VERSION} -X ${FLAG_PREFIX}.buildDate=${DATE} -X ${FLAG_PREFIX}.goVersion=${GO_REPRO_VERSION} -X ${FLAG_PREFIX}.arch=${EXEC_ARCH}' \
+	-tags netgo \
+	./pkg/cmd/queueoperator"
+else
+	CGO_ENABLED=0 GOOS=linux GOARCH="${EXEC_ARCH}" "$(GO)" build \
+	-a \
+	-o=$(RELEASE_BIN_DIR)/$(QUEUE_OPERATOR_BINARY) \
+	-trimpath \
+	-ldflags '-buildid= -extldflags "-static" -X ${FLAG_PREFIX}.buildVersion=${VERSION} -X ${FLAG_PREFIX}.buildDate=${DATE} -X ${FLAG_PREFIX}.goVersion=${GO_VERSION} -X ${FLAG_PREFIX}.arch=${EXEC_ARCH}' \
+	-tags netgo \
+	./pkg/cmd/queueoperator
+endif
+
+# Build a queue operator image based on the production ready version.
+qop_image: $(OUTPUT)/third-party-licenses.md queue_operator docker/queueoperator
+	@echo "building queue operator docker image"
+	@rm -rf "$(DOCKER_DIR)/queueoperator"
+	@mkdir -p "$(DOCKER_DIR)/queueoperator"
+	@cp -a "docker/queueoperator/." "$(DOCKER_DIR)/queueoperator/."
+	@cp "$(RELEASE_BIN_DIR)/$(QUEUE_OPERATOR_BINARY)" "$(DOCKER_DIR)/queueoperator/."
+	@cp -a LICENSE NOTICE "$(OUTPUT)/third-party-licenses.md" "$(DOCKER_DIR)/queueoperator/."
+	DOCKER_BUILDKIT=1 docker build \
+	"$(DOCKER_DIR)/queueoperator" \
+	-t "$(QUEUE_OPERATOR_TAG)" \
+	--platform "linux/${DOCKER_ARCH}" \
+	--label "yunikorn-core-revision=${CORE_SHA}" \
+	--label "yunikorn-scheduler-interface-revision=${SI_SHA}" \
+	--label "yunikorn-k8shim-revision=${SHIM_SHA}" \
+	--label "BuildTimeStamp=${DATE}" \
+	--label "Version=${VERSION}" \
+	--label "org.opencontainers.image.title=${QUEUE_OPERATOR_BINARY}" \
+	--label "org.opencontainers.image.description=Apache YuniKorn Queue Operator (optional)" \
+	--label "org.opencontainers.image.version=${VERSION}" \
+	--label "org.opencontainers.image.created=$(DATE)" \
+	--label "org.opencontainers.image.source=${IMAGE_SOURCE}" \
+	--label "org.opencontainers.image.url=${IMAGE_URL}" \
+	--label "org.opencontainers.image.revision=$(SHIM_SHA)" \
+	--label "org.opencontainers.image.license=${LICENSE}" \
+	--label "org.opencontainers.image.documentation=${DOCS_URL}" \
+	${QUIET}
+
+# Build all images based on the production ready version.
+# The queue-operator image is OPT-IN and NOT included in the top-level
+# `image` target — build it explicitly with `make qop_image` if you want
+# CRD-based queue management.
 image: sched_image adm_image
 
 # Build a web server image ONLY to be used in e2e tests
