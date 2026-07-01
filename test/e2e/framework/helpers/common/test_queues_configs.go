@@ -24,9 +24,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/apache/yunikorn-core/pkg/common/configs"
-
 	"go.yaml.in/yaml/v3"
+
+	"github.com/apache/yunikorn-core/pkg/common/configs"
 )
 
 // Converts partitionsWrapper to YAML string
