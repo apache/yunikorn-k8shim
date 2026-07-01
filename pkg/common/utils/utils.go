@@ -341,14 +341,18 @@ func GetUserFromPod(pod *v1.Pod) (string, []string) {
 
 	// Label is processed for backwards compatibility
 	userLabelKey := conf.GetSchedulerConf().UserLabelKey
+	if userLabelKey != "" {
+		log.Log(log.Deprecation).Warn("'userLabelKey' config is deprecated, use 'user.info' annotation")
+	}
 	// UserLabelKey should not be empty
-	if len(userLabelKey) == 0 {
+	if userLabelKey == "" {
 		userLabelKey = constants.DefaultUserLabel
 	}
-	// User name to be defined in labels
+	// Username to be defined in labels
 	if username := GetPodLabelValue(pod, userLabelKey); username != "" && len(username) > 0 {
-		log.Log(log.ShimUtils).Info("Found user name from pod labels.",
-			zap.String("userLabel", userLabelKey), zap.String("user", username))
+		log.Log(log.Deprecation).Warn("Found user name from pod label",
+			zap.String("userLabel", userLabelKey),
+			zap.String("user", username))
 		return username, nil
 	}
 	value := constants.DefaultUser
