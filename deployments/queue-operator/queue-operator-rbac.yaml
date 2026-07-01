@@ -1,0 +1,80 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: yunikorn-queue-operator
+  labels:
+    app: yunikorn
+    component: yunikorn-queue-operator
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: yunikorn-queue-operator
+  labels:
+    app: yunikorn
+    component: yunikorn-queue-operator
+rules:
+  # The operator reconciles every Queue CR in the cluster and materialises
+  # them as a single yunikorn-configs ConfigMap. Read-write access on the
+  # CRDs and the target ConfigMap is required.
+  - apiGroups:
+      - queue.yunikorn.k8s.io
+    resources:
+      - queues
+    verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
+  - apiGroups:
+      - queue.yunikorn.k8s.io
+    resources:
+      - queues/status
+    verbs: ["get", "patch", "update"]
+  - apiGroups:
+      - queue.yunikorn.k8s.io
+    resources:
+      - queues/finalizers
+    verbs: ["update"]
+  - apiGroups: [""]
+    resources:
+      - configmaps
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+  - apiGroups: [""]
+    resources:
+      - events
+    verbs: ["create", "patch"]
+  # Leader election lease (opt-in via --leader-elect).
+  - apiGroups: ["coordination.k8s.io"]
+    resources:
+      - leases
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: yunikorn-queue-operator
+  labels:
+    app: yunikorn
+    component: yunikorn-queue-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: yunikorn-queue-operator
+subjects:
+  - kind: ServiceAccount
+    name: yunikorn-queue-operator
+    namespace: yunikorn

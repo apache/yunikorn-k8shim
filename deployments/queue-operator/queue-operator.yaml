@@ -1,0 +1,87 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: yunikorn-queue-operator
+  labels:
+    app: yunikorn
+    component: yunikorn-queue-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: yunikorn
+      component: yunikorn-queue-operator
+  template:
+    metadata:
+      labels:
+        app: yunikorn
+        component: yunikorn-queue-operator
+      name: yunikorn-queue-operator
+    spec:
+      serviceAccountName: yunikorn-queue-operator
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: yunikorn-queue-operator
+          image: apache/yunikorn:queue-operator-amd64-latest
+          imagePullPolicy: IfNotPresent
+          args:
+            - --leader-elect
+            - --health-probe-bind-address=:8081
+            - --metrics-bind-address=0
+          env:
+            # Namespace where the yunikorn-configs ConfigMap lives. The
+            # operator will create/update the ConfigMap in this namespace.
+            - name: TARGET_NAMESPACE
+              value: yunikorn
+            # Optional: name of the YuniKorn partition to graft the queues
+            # under. Defaults to "default".
+            - name: PARTITION_NAME
+              value: default
+          ports:
+            - containerPort: 8081
+              name: health
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: health
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: health
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 128Mi
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+      terminationGracePeriodSeconds: 10
