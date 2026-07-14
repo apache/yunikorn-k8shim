@@ -782,10 +782,8 @@ func TestUpdateForeignPod(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			if tc.oldPod == nil {
 				context.schedulerCache.RemovePod(tc.newPod) // this might log spew...
-			} else {
-				if tc.oldPod.Spec.NodeName != "" {
-					context.schedulerCache.UpdatePod(tc.oldPod)
-				}
+			} else if tc.oldPod.Spec.NodeName != "" {
+				context.schedulerCache.UpdatePod(tc.oldPod)
 			}
 			allocRequest = nil
 			context.UpdatePod(tc.oldPod, tc.newPod)
