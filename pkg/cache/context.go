@@ -887,6 +887,37 @@ func (ctx *Context) ForgetPod(name string) {
 	log.Log(log.ShimContext).Debug("unable to forget pod: not found in cache", zap.String("pod", name))
 }
 
+// RevertPodVolumeAssumptions undoes any PV/PVC assumptions made by the volume binder
+// for the given pod on the given node. This is idempotent and safe to call even if
+// AssumePodVolumes was never called or already reverted internally.
+func (ctx *Context) RevertPodVolumeAssumptions(podName, nodeID string) {
+	ctx.lock.Lock()
+	defer ctx.lock.Unlock()
+	pod := ctx.schedulerCache.GetPod(podName)
+	if pod == nil {
+		return
+	}
+	node := ctx.schedulerCache.GetNode(nodeID)
+	if node == nil {
+		return
+	}
+	podVolumeClaims, err := ctx.apiProvider.GetAPIs().VolumeBinder.GetPodVolumeClaims(ctx.klogger, pod)
+	if err != nil {
+		log.Log(log.ShimContext).Debug("RevertPodVolumeAssumptions: failed to get pod volume claims",
+			zap.String("pod", podName), zap.Error(err))
+		return
+	}
+	podVolumes, _, err := ctx.apiProvider.GetAPIs().VolumeBinder.FindPodVolumes(ctx.klogger, pod, podVolumeClaims, node.Node())
+	if err != nil || podVolumes == nil {
+		log.Log(log.ShimContext).Debug("RevertPodVolumeAssumptions: failed to find pod volumes",
+			zap.String("pod", podName), zap.Error(err))
+		return
+	}
+	ctx.apiProvider.GetAPIs().VolumeBinder.RevertAssumedPodVolumes(podVolumes)
+	log.Log(log.ShimContext).Debug("reverted assumed pod volumes",
+		zap.String("pod", podName), zap.String("node", nodeID))
+}
+
 func (ctx *Context) notifyTaskComplete(app *Application, taskID string) {
 	if app == nil {
 		log.Log(log.ShimContext).Debug("In notifyTaskComplete but app is nil",

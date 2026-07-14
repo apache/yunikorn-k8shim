@@ -77,8 +77,12 @@ func (callback *AsyncRMCallback) UpdateAllocation(response *si.AllocationRespons
 			return callback.context.AssumePod(alloc.AllocationKey, alloc.NodeID)
 		})
 		if err != nil {
-			task.FailWithEvent(err.Error(), "AssumePodError")
-			return err
+			if task.IsPlaceholder() {
+				task.FailWithEvent(err.Error(), "AssumePodError")
+				return err
+			}
+			task.rollbackOnAssumePodFailure(alloc.AllocationKey, alloc.NodeID)
+			continue
 		}
 
 		if utils.IsAssignedPod(task.GetTaskPod()) {
