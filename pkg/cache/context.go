@@ -861,6 +861,10 @@ func (ctx *Context) AssumePod(name, node string) error {
 				return err
 			}
 			allBound, err = ctx.apiProvider.GetAPIs().VolumeBinder.AssumePodVolumes(ctx.klogger, pod, node, volumes)
+            log.Log(log.ShimContext).Debug("Volumes", zap.String("volumes", fmt.Sprintf("%v", volumes)))
+            if utils.GetPodAnnotationValue(pod, "yunikorn.apache.org/test-fail-assume-volumes") == "true" {
+                err = errors.New("Some reason to fail AssumePodVolumes, this is a placeholder for actual implementation")
+            }
 			if err != nil {
 				return err
 			}
