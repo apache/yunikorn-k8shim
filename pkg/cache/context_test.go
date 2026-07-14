@@ -744,13 +744,21 @@ func TestUpdateForeignPod(t *testing.T) {
 	// pod is not assigned to any node
 	pod1 := foreignPod(podName1, "1G", "500m")
 	pod1.Status.Phase = v1.PodPending
-
+	// pod is assigned to a node
 	pod2 := foreignPod(podName2, "1G", "500m")
 	pod2.Spec.NodeName = Host1
-	pod2.Status.Phase = v1.PodRunning
+	pod2.Status.Phase = v1.PodPending
 
 	pod3 := pod2.DeepCopy()
-	pod3.Status.Phase = v1.PodFailed
+	pod3.Spec.NodeName = ""
+	pod3.Status.Phase = v1.PodPending
+	pod4 := pod2.DeepCopy()
+	request := make(map[v1.ResourceName]resource.Quantity)
+	request[v1.ResourceMemory] = resource.MustParse("2G")
+	request[v1.ResourceCPU] = resource.MustParse("1")
+	pod4.Spec.Containers[0].Resources.Requests = request
+	pod5 := pod2.DeepCopy()
+	pod5.Status.Phase = v1.PodFailed
 
 	tests := []struct {
 		name     string
@@ -762,10 +770,12 @@ func TestUpdateForeignPod(t *testing.T) {
 	}{
 		{"add not assigned", nil, pod1, false, false, false},
 		{"add assign", nil, pod2, true, true, false},
-		{"add terminated", nil, pod3, false, false, false},
-		{"update no change", pod1, pod1.DeepCopy(), false, true, false},
-		{"update assign", pod1, pod2, true, true, false},
-		{"update terminated", pod2, pod3, true, false, true},
+		{"add terminated", nil, pod5, false, false, false},
+		{"update no change", pod1, pod1.DeepCopy(), false, false, false},
+		{"update assigned no change", pod2, pod2.DeepCopy(), false, true, false},
+		{"update to assign", pod3, pod2, true, true, false},
+		{"update assigned change", pod2, pod4, true, true, false},
+		{"update terminated", pod2, pod5, true, false, true},
 	}
 
 	for _, tc := range tests {
@@ -773,7 +783,9 @@ func TestUpdateForeignPod(t *testing.T) {
 			if tc.oldPod == nil {
 				context.schedulerCache.RemovePod(tc.newPod) // this might log spew...
 			} else {
-				context.schedulerCache.UpdatePod(tc.oldPod)
+				if tc.oldPod.Spec.NodeName != "" {
+					context.schedulerCache.UpdatePod(tc.oldPod)
+				}
 			}
 			allocRequest = nil
 			context.UpdatePod(tc.oldPod, tc.newPod)
