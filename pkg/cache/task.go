@@ -636,7 +636,7 @@ func (task *Task) rollbackOnAssumePodFailure(allocationKey, nodeID string) {
 	// Post a warning event so operators can see the retry via kubectl describe pod.
 	events.GetRecorder().Eventf(podCopy, nil,
 		v1.EventTypeWarning, "AssumePodFailed", "AssumePodFailed",
-		"Node assignment failed for %s on node %s, it will be retried on a different node", alias, nodeID)
+		"Node assignment failed for %s on node %s, it will be retried", alias, nodeID)
 
 	// Clear stale node assignment under write lock so the task is clean for the next allocation.
 	task.lock.Lock()
