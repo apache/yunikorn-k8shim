@@ -34,6 +34,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/common"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/test"
+	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/api"
 	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
@@ -228,7 +229,6 @@ func TestTaskFailures(t *testing.T) {
 
 // simulate PVC error during Context.AssumePod() call
 func TestAssumePodError(t *testing.T) {
-	t.Skip("Skipping failing test - to be fixed")
 	cluster := MockScheduler{}
 	cluster.init()
 	binder := test.NewVolumeBinderMock()
@@ -249,12 +249,33 @@ func TestAssumePodError(t *testing.T) {
 	pod1 := createTestPod("root.a", "app0001", "task0001", taskResource)
 	cluster.AddPod(pod1)
 
-	// expect app to enter Completing state with allocation+ask removed
-	err = cluster.waitForApplicationStateInCore("app0001", partitionName, "Completing")
-	assert.NilError(t, err)
-	app := cluster.getApplicationFromCore("app0001", partitionName)
-	assert.Equal(t, 0, len(app.GetAllRequests()), "asks were not removed from the application")
-	assert.Equal(t, 0, len(app.GetAllAllocations()), "allocations were not removed from the application")
+	// wait for the application to be registered and its ask queued in the shim
+	cluster.waitAndAssertApplicationState(t, "app0001", cache.ApplicationStates().Accepted)
+
+	// wait for core to deliver the first allocation to the shim; the allocationKey is
+	// set in the callback before the AssumePod retry loop starts, so it becomes
+	// visible immediately — well before the long exponential backoff runs to completion.
+	err = utils.WaitForCondition(func() bool {
+		shimApp := cluster.context.GetApplication("app0001")
+		if shimApp == nil {
+			return false
+		}
+		task := shimApp.GetTask("task0001")
+		return task != nil && task.GetAllocationKey() != ""
+	}, time.Second, 30*time.Second)
+	assert.NilError(t, err, "task allocation key was never set; core did not allocate the ask")
+
+	// with the rollback-on-AssumePod-failure implementation the task must NOT fail;
+	// instead, each failed AssumePod attempt rolls the allocation back to a pending
+	// ask in core so the scheduler can retry on a different node.
+	shimApp := cluster.context.GetApplication("app0001")
+	assert.Assert(t, shimApp != nil, "application should still be present in the shim")
+	task := shimApp.GetTask("task0001")
+	assert.Assert(t, task != nil, "task should still be present in the shim")
+	assert.Check(t, task.GetTaskState() == cache.TaskStates().Scheduling,
+		"task must be in Scheduling state while AssumePod retries are in flight")
+	assert.Equal(t, 0, len(cluster.GetBoundPods(false)),
+		"no pods should be bound when AssumePod always fails")
 }
 
 func TestForeignPodTracking(t *testing.T) {
