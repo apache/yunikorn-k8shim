@@ -10,8 +10,8 @@ github.com/alexbrainman/sspi v0.0.0-20250919150558-7d374ff0d59e h1:4dAU9FXIyQktp
 github.com/alexbrainman/sspi v0.0.0-20250919150558-7d374ff0d59e/go.mod h1:cEWa1LVoE5KvSD9ONXsZrj0z6KqySlCCNKHlLzbqAt4=
 github.com/antlr4-go/antlr/v4 v4.13.0 h1:lxCg3LAv+EUK6t1i0y1V6/SLeUi0eKEKdhQAlS8TVTI=
 github.com/antlr4-go/antlr/v4 v4.13.0/go.mod h1:pfChB/xh/Unjila75QW7+VU4TSnWnnk9UTnmpPaOR2g=
-github.com/apache/yunikorn-core v1.9.0-0 h1:f3lyaH8w8THPMDO2RxHUK0Ac66e9NjULSttYujxSZPg=
-github.com/apache/yunikorn-core v1.9.0-0/go.mod h1:K7AHM5xEgrOtJ8v96gudVTTlHfL4Q0MXKlgDrHcS7Q0=
+github.com/apache/yunikorn-core v1.9.0-1 h1:5AalEnsvzZ1fVaoclgtVhdWuZaEnw0SiAu+9ojCtB4w=
+github.com/apache/yunikorn-core v1.9.0-1/go.mod h1:K7AHM5xEgrOtJ8v96gudVTTlHfL4Q0MXKlgDrHcS7Q0=
 github.com/apache/yunikorn-scheduler-interface v1.9.0-0 h1:dRnvy0SHd6U9QY+Sfy9O15F/g+dLAKwNW+rj7pH9yKM=
 github.com/apache/yunikorn-scheduler-interface v1.9.0-0/go.mod h1:XygReHrRd3TtfNS3uVtRQI0sCOfprcLUfhlmv/LdCmk=
 github.com/armon/go-socks5 v0.0.0-20160902184237-e75332964ef5 h1:0CwZNZbxp69SHPdPJAN/hZIm0C4OItdklCFmMRWYpio=
