@@ -19,6 +19,9 @@
 package cache
 
 import (
+	"fmt"
+	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -27,6 +30,7 @@ import (
 	schedulingv1 "k8s.io/api/scheduling/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8sEvents "k8s.io/client-go/tools/events"
 
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
@@ -929,4 +933,95 @@ func TestCheckPodMetadataBeforeScheduling(t *testing.T) {
 			assert.Equal(t, rt.time, tc.expectedWarningEventCount)
 		})
 	}
+}
+
+// newRollbackTask creates a task in Scheduling state with allocationKey and nodeName set,
+// ready to exercise rollbackOnAssumePodFailure.
+func newRollbackTask(ctx *Context, allocationKey, nodeID string) *Task {
+	app := NewApplication(appID1, queueNameA, testUser, testGroups, map[string]string{},
+		ctx.apiProvider.GetAPIs().SchedulerAPI)
+	pod := &v1.Pod{
+		TypeMeta:   metav1.TypeMeta{Kind: "Pod", APIVersion: "v1"},
+		ObjectMeta: metav1.ObjectMeta{Name: "rollback-pod", UID: "rollback-uid"},
+	}
+	task := NewTask(allocationKey, app, ctx, pod)
+	task.sm.SetState(TaskStates().Scheduling)
+	task.lock.Lock()
+	task.allocationKey = allocationKey
+	task.nodeName = nodeID
+	task.lock.Unlock()
+	return task
+}
+
+// TestRollbackOnAssumePodFailure_ClearsStateAndSendsRelease verifies the happy-path:
+// allocationKey and nodeName are cleared, a Warning "AssumePodFailed" event is posted,
+// and a SCHEDULING_FAILED_ON_RM release request is sent to the scheduler core.
+func TestRollbackOnAssumePodFailure_ClearsStateAndSendsRelease(t *testing.T) {
+	mockedContext, apiProvider := initContextAndAPIProviderForTest()
+
+	recorder := k8sEvents.NewFakeRecorder(1024)
+	events.SetRecorder(recorder)
+	defer events.SetRecorder(events.NewMockedRecorder())
+
+	var rollbackSent atomic.Bool
+	apiProvider.MockSchedulerAPIUpdateAllocationFn(func(request *si.AllocationRequest) error {
+		if request.Releases != nil {
+			for _, rel := range request.Releases.AllocationsToRelease {
+				if rel.TerminationType == si.TerminationType_SCHEDULING_FAILED_ON_RM &&
+					rel.AllocationKey == taskUID1 {
+					rollbackSent.Store(true)
+				}
+			}
+		}
+		return nil
+	})
+
+	task := newRollbackTask(mockedContext, taskUID1, fakeNodeName)
+	task.rollbackOnAssumePodFailure(taskUID1, fakeNodeName)
+
+	assert.Equal(t, "", task.GetAllocationKey(), "allocationKey should be cleared after rollback")
+	assert.Equal(t, "", task.GetNodeName(), "nodeName should be cleared after rollback")
+	assert.Assert(t, rollbackSent.Load(), "SCHEDULING_FAILED_ON_RM release request should be sent to scheduler")
+
+	assert.Equal(t, 1, len(recorder.Events), "expected one AssumePodFailed event")
+	event := <-recorder.Events
+	assert.Assert(t, strings.Contains(event, "AssumePodFailed"), "event should contain AssumePodFailed reason")
+}
+
+// TestRollbackOnAssumePodFailure_UpdateAllocationError verifies that if the scheduler
+// API returns an error, the task state (allocationKey, nodeName) is still cleaned up
+// and the function does not panic.
+func TestRollbackOnAssumePodFailure_UpdateAllocationError(t *testing.T) {
+	mockedContext, apiProvider := initContextAndAPIProviderForTest()
+	events.SetRecorder(events.NewMockedRecorder())
+	defer events.SetRecorder(events.NewMockedRecorder())
+
+	apiProvider.MockSchedulerAPIUpdateAllocationFn(func(request *si.AllocationRequest) error {
+		return fmt.Errorf("scheduler unavailable")
+	})
+
+	task := newRollbackTask(mockedContext, taskUID1, fakeNodeName)
+	// Must not panic even when UpdateAllocation fails.
+	task.rollbackOnAssumePodFailure(taskUID1, fakeNodeName)
+
+	assert.Equal(t, "", task.GetAllocationKey(), "allocationKey should be cleared even when UpdateAllocation errors")
+	assert.Equal(t, "", task.GetNodeName(), "nodeName should be cleared even when UpdateAllocation errors")
+}
+
+// TestRollbackOnAssumePodFailure_NilSchedulerAPI verifies that rollbackOnAssumePodFailure
+// does not panic when the scheduler API is nil, and still clears the allocation state.
+func TestRollbackOnAssumePodFailure_NilSchedulerAPI(t *testing.T) {
+	mockedContext, _ := initContextAndAPIProviderForTest()
+	events.SetRecorder(events.NewMockedRecorder())
+	defer events.SetRecorder(events.NewMockedRecorder())
+
+	// Simulate a context where the scheduler API is not available.
+	mockedContext.apiProvider.GetAPIs().SchedulerAPI = nil
+
+	task := newRollbackTask(mockedContext, taskUID1, fakeNodeName)
+	// Must not panic with a nil SchedulerAPI.
+	task.rollbackOnAssumePodFailure(taskUID1, fakeNodeName)
+
+	assert.Equal(t, "", task.GetAllocationKey(), "allocationKey should be cleared even with nil SchedulerAPI")
+	assert.Equal(t, "", task.GetNodeName(), "nodeName should be cleared even with nil SchedulerAPI")
 }

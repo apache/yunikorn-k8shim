@@ -78,8 +78,11 @@ func (callback *AsyncRMCallback) UpdateAllocation(response *si.AllocationRespons
 		})
 		if err != nil {
 			if task.IsPlaceholder() {
-				task.FailWithEvent(err.Error(), "AssumePodError")
-				return err
+				// Placeholder tasks do not have volume bindings, so AssumePod failure
+				// is unexpected and unrecoverable; wrap the error with context.
+				wrappedErr := fmt.Errorf("placeholder task does not have volume bindings, AssumePod failed: %w", err)
+				task.FailWithEvent(wrappedErr.Error(), "AssumePodError")
+				return wrappedErr
 			}
 			task.rollbackOnAssumePodFailure(alloc.AllocationKey, alloc.NodeID)
 			continue

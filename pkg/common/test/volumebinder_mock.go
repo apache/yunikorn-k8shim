@@ -37,9 +37,10 @@ type VolumeBinderMock struct {
 	bindError           error
 	conflictReasons     volumebinding.ConflictReasons
 
-	podVolumeClaim *volumebinding.PodVolumeClaims
-	podVolumes     *volumebinding.PodVolumes
-	allBound       bool
+	podVolumeClaim    *volumebinding.PodVolumeClaims
+	podVolumes        *volumebinding.PodVolumes
+	allBound          bool
+	revertCalledCount int
 }
 
 func NewVolumeBinderMock() *VolumeBinderMock {
@@ -81,6 +82,15 @@ func (v *VolumeBinderMock) AssumePodVolumes(_ klog.Logger, _ *v1.Pod, _ string, 
 }
 
 func (v *VolumeBinderMock) RevertAssumedPodVolumes(_ *volumebinding.PodVolumes) {
+	v.revertCalledCount++
+}
+
+func (v *VolumeBinderMock) RevertCalledCount() int {
+	return v.revertCalledCount
+}
+
+func (v *VolumeBinderMock) SetPodVolumes(podVolumes *volumebinding.PodVolumes) {
+	v.podVolumes = podVolumes
 }
 
 func (v *VolumeBinderMock) BindPodVolumes(_ context.Context, _ *v1.Pod, _ *volumebinding.PodVolumes) error {
@@ -105,4 +115,8 @@ func (v *VolumeBinderMock) SetConflictReasons(reasons ...string) {
 
 func (v *VolumeBinderMock) SetAssumePodVolumesError(message string) {
 	v.assumeVolumeError = errors.New(message)
+}
+
+func (v *VolumeBinderMock) SetAllBound(allBound bool) {
+	v.allBound = allBound
 }
