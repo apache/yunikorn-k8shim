@@ -490,7 +490,31 @@ func TestAddPod(t *testing.T) {
 	assert.Check(t, pod == nil, "terminated pod was added")
 }
 
-func TestUpdatePod(t *testing.T) { //nolint:funlen
+func TestAddForeignPod(t *testing.T) {
+	context := initContextForTest()
+	foreign := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: appID1,
+			UID:  podForeignUID,
+		},
+		Spec: v1.PodSpec{
+			SchedulerName: "default",
+		},
+	}
+	context.AddPod(foreign)
+	pod := context.schedulerCache.GetPod(podForeignUID)
+	assert.Assert(t, pod == nil, "unassigned foreign pod was added")
+	foreign.Spec.NodeName = fakeNodeName
+	context.AddPod(foreign)
+	pod = context.schedulerCache.GetPod(podForeignUID)
+	assert.Assert(t, pod != nil, "assigned foreign pod not added")
+}
+
+func TestUpdatePod(t *testing.T) {
 	context := initContextForTest()
 
 	pod1 := &v1.Pod{
@@ -533,6 +557,7 @@ func TestUpdatePod(t *testing.T) { //nolint:funlen
 			UID:  uid1,
 			Annotations: map[string]string{
 				constants.AnnotationApplicationID: appID1,
+				"test.state":                      "updated",
 			},
 		},
 		Spec: v1.PodSpec{SchedulerName: "yunikorn"},
@@ -541,18 +566,24 @@ func TestUpdatePod(t *testing.T) { //nolint:funlen
 		},
 	}
 
-	context.AddPod(pod1)
+	// these should not fail, but are no-ops
+	context.UpdatePod(nil, nil)
+	context.UpdatePod(pod1, nil)
+	context.UpdatePod(&v1.Node{}, pod1)
+	podFromCache := context.schedulerCache.GetPod(uid1)
+	assert.Check(t, podFromCache == nil, "pod from cache should have been nil")
+
+	// simulated AddPod call
+	context.UpdatePod(nil, pod1)
 	pod := context.schedulerCache.GetPod(uid1)
 	assert.Assert(t, pod != nil, "pod1 is not present after adding")
 
-	// these should not fail, but are no-ops
-	context.UpdatePod(nil, nil)
-	context.UpdatePod(nil, pod1)
-	context.UpdatePod(pod1, nil)
-	context.UpdatePod(&v1.Node{}, pod2)
-	podFromCache := context.schedulerCache.GetPod(uid1)
-	assert.Equal(t, "new", podFromCache.Annotations["test.state"])
-
+	// ensure a non-terminated pod is updated
+	context.UpdatePod(pod1, pod2)
+	found := context.schedulerCache.GetPod(uid1)
+	if assert.Check(t, found != nil, "pod not found after update") {
+		assert.Check(t, found.GetAnnotations()["test.state"] == "updated", "pod state not updated")
+	}
 	// ensure a terminated pod is removed
 	context.UpdatePod(pod1, pod3)
 	pod = context.schedulerCache.GetPod(uid1)
@@ -561,13 +592,10 @@ func TestUpdatePod(t *testing.T) { //nolint:funlen
 	// ensure that an updated pod is updated inside the Task
 	task := app.GetTask(uid1)
 	assert.Assert(t, task.GetTaskPod() == pod3, "task pod has not been updated")
+}
 
-	// ensure a non-terminated pod is updated
-	context.UpdatePod(pod1, pod2)
-	found := context.schedulerCache.GetPod(uid1)
-	if assert.Check(t, found != nil, "pod not found after update") {
-		assert.Check(t, found.GetAnnotations()["test.state"] == "updated", "pod state not updated")
-	}
+func TestUpdateSchedulingGates(t *testing.T) {
+	context := initContextForTest()
 
 	// scheduling gated pod
 	recorder := k8sEvents.NewFakeRecorder(1024)
@@ -687,8 +715,7 @@ func TestDeletePod(t *testing.T) {
 	assert.Check(t, pod == nil, "pod2 is still present")
 }
 
-//nolint:funlen
-func TestAddUpdatePodForeign(t *testing.T) {
+func TestUpdateForeignPod(t *testing.T) {
 	context, apiProvider := initContextAndAPIProviderForTest()
 	dispatcher.Start()
 	defer dispatcher.UnregisterAllEventHandlers()
@@ -717,92 +744,85 @@ func TestAddUpdatePodForeign(t *testing.T) {
 	// pod is not assigned to any node
 	pod1 := foreignPod(podName1, "1G", "500m")
 	pod1.Status.Phase = v1.PodPending
-	pod1.Spec.NodeName = ""
-
-	// validate add (pending, no node assigned)
-	allocRequest = nil
-	context.AddPod(pod1)
-	assert.Assert(t, allocRequest == nil, "unexpected update")
-	pod := context.schedulerCache.GetPod(string(pod1.UID))
-	assert.Assert(t, pod == nil, "unassigned pod found in cache")
-
-	// validate update (no change)
-	allocRequest = nil
-	pod1Upd := pod1.DeepCopy()
-	context.UpdatePod(pod1, pod1Upd)
-	assert.Assert(t, allocRequest == nil, "unexpected update")
-	pod = context.schedulerCache.GetPod(string(pod1.UID))
-	assert.Assert(t, pod == nil, "unassigned pod found in cache")
-
-	// pod is assigned to a node but still in pending state, should update
+	// pod is assigned to a node
 	pod2 := foreignPod(podName2, "1G", "500m")
-	pod2.Status.Phase = v1.PodPending
 	pod2.Spec.NodeName = Host1
+	pod2.Status.Phase = v1.PodPending
 
-	// validate add
-	context.AddPod(pod2)
-	assert.Assert(t, allocRequest != nil, "update expected")
-	assertAddForeignPod(t, podName2, Host1, allocRequest)
-	pod = context.schedulerCache.GetPod(string(pod2.UID))
-	assert.Assert(t, pod != nil, "pod not found in cache")
-
-	// validate update (no change)
-	allocRequest = nil
-	pod2Upd := pod2.DeepCopy()
-	context.UpdatePod(pod2, pod2Upd)
-	assert.Assert(t, allocRequest == nil, "unexpected update")
-	pod = context.schedulerCache.GetPod(string(pod2.UID))
-	assert.Assert(t, pod != nil, "pod not found in cache")
-
-	// validate update when not already in cache
-	allocRequest = nil
-	context.DeletePod(pod2)
-	assertReleaseForeignPod(t, podName2, allocRequest)
-
-	allocRequest = nil
-	context.UpdatePod(nil, pod2)
-	assert.Assert(t, allocRequest != nil, "expected update")
-	pod = context.schedulerCache.GetPod(string(pod2.UID))
-	assert.Assert(t, pod != nil, "pod not found in cache")
-	assertAddForeignPod(t, podName2, Host1, allocRequest)
-
-	// pod is failed, should trigger update if already in cache
 	pod3 := pod2.DeepCopy()
-	pod3.Status.Phase = v1.PodFailed
+	pod3.Spec.NodeName = ""
+	pod3.Status.Phase = v1.PodPending
+	pod4 := pod2.DeepCopy()
+	request := make(map[v1.ResourceName]resource.Quantity)
+	request[v1.ResourceMemory] = resource.MustParse("2G")
+	request[v1.ResourceCPU] = resource.MustParse("1")
+	pod4.Spec.Containers[0].Resources.Requests = request
+	pod5 := pod2.DeepCopy()
+	pod5.Status.Phase = v1.PodFailed
 
-	// validate add
-	allocRequest = nil
-	context.UpdatePod(pod2, pod3)
-	assert.Assert(t, allocRequest != nil, "expected update")
-	pod = context.schedulerCache.GetPod(string(pod3.UID))
-	assert.Assert(t, pod == nil, "failed pod found in cache")
-	assert.Assert(t, allocRequest.Releases != nil) // expecting a release due to pod status
-	assertReleaseForeignPod(t, podName2, allocRequest)
+	tests := []struct {
+		name     string
+		oldPod   *v1.Pod
+		newPod   *v1.Pod
+		allocate bool
+		cached   bool
+		release  bool
+	}{
+		{"add not assigned", nil, pod1, false, false, false},
+		{"add assign", nil, pod2, true, true, false},
+		{"add terminated", nil, pod5, false, false, false},
+		{"update no change", pod1, pod1.DeepCopy(), false, false, false},
+		{"update assigned no change", pod2, pod2.DeepCopy(), false, true, false},
+		{"update to assign", pod3, pod2, true, true, false},
+		{"update assigned change", pod2, pod4, true, true, false},
+		{"update terminated", pod2, pod5, true, false, true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.oldPod == nil {
+				context.schedulerCache.RemovePod(tc.newPod) // this might log spew...
+			} else if tc.oldPod.Spec.NodeName != "" {
+				context.schedulerCache.UpdatePod(tc.oldPod)
+			}
+			allocRequest = nil
+			context.UpdatePod(tc.oldPod, tc.newPod)
+			assert.Equal(t, allocRequest != nil, tc.allocate, "unexpected allocation returned")
+			pod := context.schedulerCache.GetPod(string(tc.newPod.UID))
+			assert.Equal(t, pod != nil, tc.cached, "pod cache shows incorrect pod")
+			if tc.allocate {
+				assertForeignPodAllocation(t, tc.newPod.Name, Host1, allocRequest, tc.release)
+			}
+			if tc.cached {
+				context.schedulerCache.RemovePod(tc.newPod) // this might log spew...
+			}
+		})
+	}
 }
 
-func assertAddForeignPod(t *testing.T, podName, host string, allocRequest *si.AllocationRequest) {
+func assertForeignPodAllocation(t *testing.T, podName, host string, allocRequest *si.AllocationRequest, release bool) {
 	t.Helper()
-	assert.Equal(t, 1, len(allocRequest.Allocations))
-	tags := allocRequest.Allocations[0].AllocationTags
-	assert.Equal(t, 4, len(tags))
-	assert.Equal(t, siCommon.AllocTypeDefault, tags[siCommon.Foreign])
-	assert.Equal(t, tags["kubernetes.io/meta/namespace"], "testNamespace")
-	assert.Equal(t, tags["kubernetes.io/meta/podName"], podName)
-	assert.Equal(t, podName, allocRequest.Allocations[0].AllocationKey)
-	assert.Equal(t, host, allocRequest.Allocations[0].NodeID)
+	assert.Assert(t, allocRequest != nil, "expected allocation request")
+	if release {
+		assert.Assert(t, allocRequest.Releases != nil)
+		assert.Equal(t, 1, len(allocRequest.Releases.AllocationsToRelease))
+		assert.Equal(t, podName, allocRequest.Releases.AllocationsToRelease[0].AllocationKey)
+		assert.Equal(t, constants.DefaultPartition, allocRequest.Releases.AllocationsToRelease[0].PartitionName)
+		assert.Equal(t, "", allocRequest.Releases.AllocationsToRelease[0].ApplicationID)
+		assert.Equal(t, si.TerminationType_STOPPED_BY_RM, allocRequest.Releases.AllocationsToRelease[0].TerminationType)
+	} else {
+		assert.Equal(t, 1, len(allocRequest.Allocations))
+		tags := allocRequest.Allocations[0].AllocationTags
+		assert.Equal(t, 4, len(tags))
+		assert.Equal(t, siCommon.AllocTypeDefault, tags[siCommon.Foreign])
+		assert.Equal(t, tags["kubernetes.io/meta/namespace"], "testNamespace")
+		assert.Equal(t, tags["kubernetes.io/meta/podName"], podName)
+		assert.Equal(t, podName, allocRequest.Allocations[0].AllocationKey)
+		assert.Equal(t, host, allocRequest.Allocations[0].NodeID)
+	}
 }
 
-func assertReleaseForeignPod(t *testing.T, podName string, allocRequest *si.AllocationRequest) {
-	t.Helper()
-	assert.Assert(t, allocRequest.Releases != nil)
-	assert.Equal(t, 1, len(allocRequest.Releases.AllocationsToRelease))
-	assert.Equal(t, podName, allocRequest.Releases.AllocationsToRelease[0].AllocationKey)
-	assert.Equal(t, constants.DefaultPartition, allocRequest.Releases.AllocationsToRelease[0].PartitionName)
-	assert.Equal(t, "", allocRequest.Releases.AllocationsToRelease[0].ApplicationID)
-	assert.Equal(t, si.TerminationType_STOPPED_BY_RM, allocRequest.Releases.AllocationsToRelease[0].TerminationType)
-}
-
-func TestDeletePodForeign(t *testing.T) {
+func TestDeleteForeignPod(t *testing.T) {
 	context, apiProvider := initContextAndAPIProviderForTest()
 
 	var allocRequest *si.AllocationRequest
