@@ -21,11 +21,13 @@ package cache
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
+	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 )
 
 func GetTaskGroupsFromAnnotation(pod *v1.Pod) ([]TaskGroup, error) {
@@ -40,6 +42,7 @@ func GetTaskGroupsFromAnnotation(pod *v1.Pod) ([]TaskGroup, error) {
 		return nil, err
 	}
 	// json.Unmarshal won't return error if name or MinMember is empty, but will return error if MinResource is empty or error format.
+	totals := make(map[string]int64)
 	for _, taskGroup := range taskGroups {
 		if taskGroup.Name == "" {
 			return nil, fmt.Errorf("can't get taskGroup Name from pod annotation, %s",
@@ -57,6 +60,62 @@ func GetTaskGroupsFromAnnotation(pod *v1.Pod) ([]TaskGroup, error) {
 			return nil, fmt.Errorf("minMember cannot be negative, %s",
 				taskGroupInfo)
 		}
+		if err := validateTaskGroupResources(taskGroup, totals); err != nil {
+			return nil, err
+		}
 	}
 	return taskGroups, nil
+}
+
+// validateTaskGroupResources folds one task group's placeholder-ask contribution
+// into totals (the canonical-key aggregate across all groups) and rejects an ask
+// that cannot be a non-negative int64: a negative minResource, an int64 overflow
+// (the accessor, the minMember product, or the cross-group aggregate), or a
+// same-canonical-key collision. It mirrors GetTGResource, which emits minMember
+// "pods" plus minMember*minResource per resource ("cpu" canonicalizes to
+// siCommon.CPU, "vcore"); a collision (cpu with vcore, or an explicit "pods") is
+// rejected because GetTGResource would otherwise let one silently overwrite the
+// other (cpu vs vcore by map-iteration order, an explicit "pods" over the implicit count).
+func validateTaskGroupResources(taskGroup TaskGroup, totals map[string]int64) error {
+	members := int64(taskGroup.MinMember)
+	// seen holds the canonical keys this task group has already contributed, so a
+	// same-group collision is rejected instead of silently overwritten. The implicit
+	// "pods" count claims the "pods" key up front.
+	seen := map[string]bool{"pods": true}
+	if totals["pods"] > math.MaxInt64-members {
+		return fmt.Errorf("aggregate placeholder request for \"pods\" overflows int64 across taskGroups")
+	}
+	totals["pods"] += members
+
+	for resName, quantity := range taskGroup.MinResource {
+		if quantity.Sign() < 0 {
+			return fmt.Errorf("minResource %q in taskGroup %q cannot be negative", resName, taskGroup.Name)
+		}
+		cpu := resName == v1.ResourceCPU.String()
+		canonical := resName
+		milliConvert := int64(1)
+		if cpu {
+			canonical = siCommon.CPU
+			milliConvert = 1000
+		}
+		if seen[canonical] {
+			return fmt.Errorf("minResource %q in taskGroup %q collides with another resource under canonical key %q", resName, taskGroup.Name, canonical)
+		}
+		seen[canonical] = true
+		// Reject before the int64 accessor or the minMember product can overflow:
+		// members*value (in milli-units for cpu) must stay within int64.
+		if quantity.CmpInt64(math.MaxInt64/(members*milliConvert)) > 0 {
+			return fmt.Errorf("minResource %q in taskGroup %q overflows int64 when scaled by minMember %d", resName, taskGroup.Name, members)
+		}
+		value := quantity.Value()
+		if cpu {
+			value = quantity.MilliValue()
+		}
+		contribution := members * value
+		if totals[canonical] > math.MaxInt64-contribution {
+			return fmt.Errorf("aggregate placeholder request for %q overflows int64 across taskGroups", canonical)
+		}
+		totals[canonical] += contribution
+	}
+	return nil
 }
