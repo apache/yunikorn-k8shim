@@ -112,7 +112,7 @@ func TestPreemptionPredicates(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, _, cycleState, err := predicateManager.PreFilter(tt.pod, true)
+			_, cycleState, err := predicateManager.PreFilter(tt.pod, true)
 			assert.NilError(t, err)
 			index := predicateManager.PreemptionFilter(tt.pod, tt.node, cycleState, tt.victims, 1)
 			assert.Equal(t, index, tt.expectedIndex, "wrong victim index")
@@ -330,7 +330,7 @@ func TestPodFitsHostPorts(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, _, cycleState, err := predicateManager.PreFilter(test.pod, true)
+			_, cycleState, err := predicateManager.PreFilter(test.pod, true)
 			assert.NilError(t, err)
 			assert.Assert(t, cycleState != nil)
 			plugin, err := predicateManager.Filter(test.pod, test.nodeInfo, cycleState, true)
@@ -1027,7 +1027,7 @@ func TestPodFitsSelector(t *testing.T) {
 			}}
 			nodeInfo := framework.NewNodeInfo()
 			nodeInfo.SetNode(&node)
-			_, _, cycleState, err := predicateManager.PreFilter(test.pod, true)
+			_, cycleState, err := predicateManager.PreFilter(test.pod, true)
 			assert.NilError(t, err)
 			assert.Assert(t, cycleState != nil)
 			plugin, err := predicateManager.Filter(test.pod, nodeInfo, cycleState, true)
@@ -1168,7 +1168,7 @@ func TestRunGeneralPredicates(t *testing.T) {
 	for _, test := range resourceTests {
 		t.Run(test.name, func(t *testing.T) {
 			test.nodeInfo.SetNode(test.node)
-			_, _, cycleState, err := predicateManager.PreFilter(test.pod, true)
+			_, cycleState, err := predicateManager.PreFilter(test.pod, true)
 			assert.NilError(t, err)
 			assert.Assert(t, cycleState != nil)
 			plugin, err := predicateManager.Filter(test.pod, test.nodeInfo, cycleState, true)
@@ -2117,7 +2117,7 @@ func TestInterPodAffinity(t *testing.T) {
 			nodeInfo.SetNode(test.node)
 			lister.NodeLister().Set([]fwk.NodeInfo{nodeInfo})
 
-			_, _, cycleState, err := predicateManager.PreFilter(test.pod, true)
+			_, cycleState, err := predicateManager.PreFilter(test.pod, true)
 			assert.NilError(t, err)
 			assert.Assert(t, cycleState != nil)
 			pl, err := predicateManager.Filter(test.pod, nodeInfo, cycleState, true)
@@ -2203,7 +2203,7 @@ func TestReserveNodeSelector(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			pod.Spec.NodeSelector = tc.nodeSelectors
 			node.Labels = tc.nodeLabels
-			_, _, cycleState, err := predicateManager.PreFilter(pod, true)
+			_, cycleState, err := predicateManager.PreFilter(pod, true)
 			assert.NilError(t, err)
 			assert.Assert(t, cycleState != nil)
 			plugin, err := predicateManager.Filter(pod, nodeInfo, cycleState, false)

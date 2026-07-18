@@ -587,6 +587,9 @@ func (cache *SchedulerCache) GetCycleState(pod *v1.Pod) *framework.CycleState {
 }
 
 func (cache *SchedulerCache) UpdateCycleState(pod *v1.Pod, cycleState *framework.CycleState) {
+	if pod == nil {
+		return
+	}
 	cache.lock.Lock()
 	defer cache.lock.Unlock()
 	cache.podsCycleState[string(pod.UID)] = cycleState

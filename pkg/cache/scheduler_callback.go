@@ -193,7 +193,7 @@ func (callback *AsyncRMCallback) UpdateNode(response *si.NodeResponse) error {
 	return nil
 }
 
-func (callback *AsyncRMCallback) PredicatesPreFilter(args *si.PredicatesArgs) (map[string]struct{}, error) {
+func (callback *AsyncRMCallback) PreFilterPredicates(args *si.PreFilterPredicatesArgs) *si.PreFilterPredicatesResponse {
 	return callback.context.Prefilter(args.AllocationKey, args.Allocate)
 }
 

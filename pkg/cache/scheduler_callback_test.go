@@ -434,12 +434,14 @@ func TestPredicatesPreFilter(t *testing.T) {
 	context.predManager = &mockPredicateManager{}
 
 	// pod not found
-	_, err := callback.PredicatesPreFilter(&si.PredicatesArgs{AllocationKey: "unknown", NodeID: fakeNodeName, Allocate: true})
-	assert.Error(t, err, "predicates were not run because pod was not found in cache")
+	predicatesResults := callback.PreFilterPredicates(&si.PreFilterPredicatesArgs{AllocationKey: "unknown", Allocate: true})
+	assert.Equal(t, predicatesResults.Success, false)
+	assert.Equal(t, len(predicatesResults.FeasibleNodes), 0)
 
 	// pod found
-	_, err = callback.PredicatesPreFilter(&si.PredicatesArgs{AllocationKey: taskUID1, NodeID: fakeNodeName, Allocate: true})
-	assert.NilError(t, err)
+	predicatesResults = callback.PreFilterPredicates(&si.PreFilterPredicatesArgs{AllocationKey: taskUID1, Allocate: true})
+	assert.Equal(t, predicatesResults.Success, true)
+	assert.Equal(t, len(predicatesResults.FeasibleNodes), 0)
 	assert.Assert(t, callback.context.schedulerCache.GetCycleState(&v1.Pod{ObjectMeta: apis.ObjectMeta{
 		Name: taskUID1,
 		UID:  taskUID1,
@@ -466,8 +468,9 @@ func TestPredicates(t *testing.T) {
 	assert.Error(t, err, "predicates were not run because pod's cycle state was not found in cache")
 
 	// pod, node & cycle state found
-	_, err = callback.PredicatesPreFilter(&si.PredicatesArgs{AllocationKey: taskUID1, NodeID: fakeNodeName, Allocate: true})
-	assert.NilError(t, err)
+	results := callback.PreFilterPredicates(&si.PreFilterPredicatesArgs{AllocationKey: taskUID1, Allocate: true})
+	assert.Equal(t, results.Success, true)
+	assert.Equal(t, len(results.FeasibleNodes), 0)
 	err = callback.Predicates(&si.PredicatesArgs{AllocationKey: taskUID1, NodeID: fakeNodeName, Allocate: true})
 	assert.NilError(t, err)
 }
@@ -491,8 +494,9 @@ func TestPreemptionPredicates(t *testing.T) {
 	assert.Assert(t, !resp.Success, "response should have failed")
 
 	// pod, node & cycle state found
-	_, err := callback.PredicatesPreFilter(&si.PredicatesArgs{AllocationKey: taskUID1, NodeID: fakeNodeName, Allocate: true})
-	assert.NilError(t, err)
+	results := callback.PreFilterPredicates(&si.PreFilterPredicatesArgs{AllocationKey: taskUID1, Allocate: true})
+	assert.Equal(t, results.Success, true)
+	assert.Equal(t, len(results.FeasibleNodes), 0)
 	resp = callback.PreemptionPredicates(&si.PreemptionPredicatesArgs{AllocationKey: taskUID1, NodeID: fakeNodeName, StartIndex: 0, PreemptAllocationKeys: []string{taskUID1}})
 	assert.Assert(t, resp.Success, "response should have succeeded")
 	assert.Equal(t, int32(0), resp.Index)
@@ -561,8 +565,8 @@ var _ predicates.PredicateManager = &mockPredicateManager{}
 
 type mockPredicateManager struct{}
 
-func (m *mockPredicateManager) PreFilter(_ *v1.Pod, _ bool) (plugin string, feasibleNodes map[string]struct{}, cycleState *framework.CycleState, error error) {
-	return "", map[string]struct{}{}, framework.NewCycleState(), nil
+func (m *mockPredicateManager) PreFilter(_ *v1.Pod, _ bool) (feasibleNodes map[string]*si.Empty, cycleState *framework.CycleState, error error) {
+	return map[string]*si.Empty{}, framework.NewCycleState(), nil
 }
 
 func (m *mockPredicateManager) Filter(_ *v1.Pod, _ *framework.NodeInfo, _ *framework.CycleState, _ bool) (plugin string, error error) {

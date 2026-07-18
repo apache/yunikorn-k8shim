@@ -694,24 +694,35 @@ func (ctx *Context) EventsToRegister(queueingHintFn fwk.QueueingHintFn) []fwk.Cl
 }
 
 // Prefilter evaluates given prefilter based predicates based on current context
-func (ctx *Context) Prefilter(name string, allocate bool) (map[string]struct{}, error) {
+func (ctx *Context) Prefilter(name string, allocate bool) *si.PreFilterPredicatesResponse {
 	ctx.lock.RLock()
 	defer ctx.lock.RUnlock()
 	pod := ctx.schedulerCache.GetPod(name)
 	if pod == nil {
-		return map[string]struct{}{}, ErrorPodNotFound
+		log.Log(log.ShimContext).Error("failed running PreFilter plugin",
+			zap.String("pod", name),
+			zap.Error(ErrorPodNotFound))
+		return &si.PreFilterPredicatesResponse{
+			FeasibleNodes: make(map[string]*si.Empty),
+			Success:       false,
+		}
 	}
 	// if pod exists in cache, try to run predicates
 	// need to lock cache here as predicates need a stable view into the cache
 	ctx.schedulerCache.LockForReads()
-	plugin, feasibleNodes, cycleState, err := ctx.predManager.PreFilter(pod, allocate)
+	feasibleNodes, cycleState, err := ctx.predManager.PreFilter(pod, allocate)
 	ctx.schedulerCache.UnlockForReads()
 	ctx.schedulerCache.UpdateCycleState(pod, cycleState)
 	if err != nil {
-		err = errors.Join(fmt.Errorf("failed plugin: '%s'", plugin), err)
-		return map[string]struct{}{}, err
+		return &si.PreFilterPredicatesResponse{
+			FeasibleNodes: make(map[string]*si.Empty),
+			Success:       false,
+		}
 	} else {
-		return feasibleNodes, nil
+		return &si.PreFilterPredicatesResponse{
+			FeasibleNodes: feasibleNodes,
+			Success:       true,
+		}
 	}
 }
 

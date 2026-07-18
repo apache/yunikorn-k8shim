@@ -43,11 +43,13 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/metrics"
 
 	"github.com/apache/yunikorn-k8shim/pkg/log"
+
+	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
 
 type PredicateManager interface {
 	EventsToRegister(queueingHintFn fwk.QueueingHintFn) []fwk.ClusterEventWithHint
-	PreFilter(pod *v1.Pod, allocate bool) (plugin string, feasibleNodes map[string]struct{}, cycleState *framework.CycleState, error error)
+	PreFilter(pod *v1.Pod, allocate bool) (feasibleNodes map[string]*si.Empty, cycleState *framework.CycleState, error error)
 	Filter(pod *v1.Pod, node *framework.NodeInfo, cycleState *framework.CycleState, allocate bool) (plugin string, error error)
 	PreemptionFilter(pod *v1.Pod, node *framework.NodeInfo, cycleState *framework.CycleState, victims []*v1.Pod, startIndex int) (index int)
 }
@@ -169,32 +171,31 @@ func (p *predicateManagerImpl) removePodFromNodeNoFail(node fwk.NodeInfo, pod *v
 	}
 }
 
-func (p *predicateManagerImpl) PreFilter(pod *v1.Pod, allocate bool) (string, map[string]struct{}, *framework.CycleState, error) {
+func (p *predicateManagerImpl) PreFilter(pod *v1.Pod, allocate bool) (map[string]*si.Empty, *framework.CycleState, error) {
 	ctx := context.Background()
 	cycleState := framework.NewCycleState()
 
 	var status *fwk.Status
-	var plugin string
-	var feasibleNodes map[string]struct{}
+	var feasibleNodes map[string]*si.Empty
 	if allocate {
-		status, plugin, feasibleNodes = p.runPreFilterPlugins(ctx, cycleState, *p.allocationPreFilters, pod)
+		status, feasibleNodes = p.runPreFilterPlugins(ctx, cycleState, *p.allocationPreFilters, pod)
 	} else {
-		status, plugin, feasibleNodes = p.runPreFilterPlugins(ctx, cycleState, *p.reservationPreFilters, pod)
+		status, feasibleNodes = p.runPreFilterPlugins(ctx, cycleState, *p.reservationPreFilters, pod)
 	}
 	if !status.IsSuccess() && !status.IsSkip() {
-		return plugin, map[string]struct{}{}, cycleState, errors.New(status.Message())
+		return map[string]*si.Empty{}, cycleState, errors.New(status.Message())
 	}
-	return plugin, feasibleNodes, cycleState, nil
+	return feasibleNodes, cycleState, nil
 }
 
-func (p *predicateManagerImpl) runPreFilterPlugins(ctx context.Context, cycleState *framework.CycleState, plugins []fwk.PreFilterPlugin, pod *v1.Pod) (*fwk.Status, string, map[string]struct{}) {
+func (p *predicateManagerImpl) runPreFilterPlugins(ctx context.Context, cycleState *framework.CycleState, plugins []fwk.PreFilterPlugin, pod *v1.Pod) (*fwk.Status, map[string]*si.Empty) {
 	skipPlugins := sets.New[string]()
-	feasibleNodes := make(map[string]struct{})
+	feasibleNodes := make(map[string]*si.Empty)
 	allNodes, err := p.sharedLister.NodeInfos().List()
 	if err != nil {
 		log.Log(log.ShimPredicates).Error("failed to list nodes",
 			zap.Error(err))
-		return fwk.AsStatus(err), "", feasibleNodes
+		return fwk.AsStatus(err), feasibleNodes
 	}
 	for _, pl := range plugins {
 		plugin := pl.Name()
@@ -203,25 +204,25 @@ func (p *predicateManagerImpl) runPreFilterPlugins(ctx context.Context, cycleSta
 			skipPlugins.Insert(plugin)
 		} else if !status.IsSuccess() {
 			if status.IsRejected() {
-				return status, "", map[string]struct{}{}
+				return status, map[string]*si.Empty{}
 			}
 			err := errors.New(status.Message())
 			log.Log(log.ShimPredicates).Error("failed running PreFilter plugin",
 				zap.String("pluginName", plugin),
 				zap.String("pod", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)),
 				zap.Error(err))
-			return fwk.AsStatus(errors.Join(fmt.Errorf("running PreFilter plugin %q: ", plugin), err)), plugin, map[string]struct{}{}
+			return fwk.AsStatus(errors.Join(fmt.Errorf("running PreFilter plugin %q: ", plugin), err)), map[string]*si.Empty{}
 		}
 		if nodes != nil {
 			for n := range nodes.NodeNames {
-				feasibleNodes[n] = struct{}{}
+				feasibleNodes[n] = &si.Empty{}
 			}
 		}
 	}
 	if skipPlugins.Len() > 0 {
 		cycleState.SetSkipFilterPlugins(skipPlugins)
 	}
-	return nil, "", feasibleNodes
+	return nil, feasibleNodes
 }
 
 func (p *predicateManagerImpl) Filter(pod *v1.Pod, node *framework.NodeInfo, cycleState *framework.CycleState, allocate bool) (string, error) {
