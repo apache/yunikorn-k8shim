@@ -137,6 +137,14 @@ func (cache *SchedulerCache) UnlockForReads() {
 	cache.lock.RUnlock()
 }
 
+func (cache *SchedulerCache) LockForWrites() {
+	cache.lock.Lock()
+}
+
+func (cache *SchedulerCache) UnlockForWrites() {
+	cache.lock.Unlock()
+}
+
 func (cache *SchedulerCache) GetNode(name string) *framework.NodeInfo {
 	cache.lock.RLock()
 	defer cache.lock.RUnlock()
@@ -590,8 +598,6 @@ func (cache *SchedulerCache) UpdateCycleState(pod *v1.Pod, cycleState *framework
 	if pod == nil {
 		return
 	}
-	cache.lock.Lock()
-	defer cache.lock.Unlock()
 	cache.podsCycleState[string(pod.UID)] = cycleState
 }
 

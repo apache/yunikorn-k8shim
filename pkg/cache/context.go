@@ -693,8 +693,8 @@ func (ctx *Context) EventsToRegister(queueingHintFn fwk.QueueingHintFn) []fwk.Cl
 	return ctx.predManager.EventsToRegister(queueingHintFn)
 }
 
-// Prefilter evaluates given prefilter based predicates based on current context
-func (ctx *Context) Prefilter(name string, allocate bool) *si.PreFilterPredicatesResponse {
+// PreFilter evaluates given prefilter based predicates based on current context
+func (ctx *Context) PreFilter(name string, allocate bool) *si.PreFilterPredicatesResponse {
 	ctx.lock.RLock()
 	defer ctx.lock.RUnlock()
 	pod := ctx.schedulerCache.GetPod(name)
@@ -709,20 +709,19 @@ func (ctx *Context) Prefilter(name string, allocate bool) *si.PreFilterPredicate
 	}
 	// if pod exists in cache, try to run predicates
 	// need to lock cache here as predicates need a stable view into the cache
-	ctx.schedulerCache.LockForReads()
+	ctx.schedulerCache.LockForWrites()
 	feasibleNodes, cycleState, err := ctx.predManager.PreFilter(pod, allocate)
-	ctx.schedulerCache.UnlockForReads()
 	ctx.schedulerCache.UpdateCycleState(pod, cycleState)
-	if err != nil {
-		return &si.PreFilterPredicatesResponse{
-			FeasibleNodes: make(map[string]*si.Empty),
-			Success:       false,
-		}
-	} else {
+	ctx.schedulerCache.UnlockForWrites()
+	if err == nil {
 		return &si.PreFilterPredicatesResponse{
 			FeasibleNodes: feasibleNodes,
 			Success:       true,
 		}
+	}
+	return &si.PreFilterPredicatesResponse{
+		FeasibleNodes: make(map[string]*si.Empty),
+		Success:       false,
 	}
 }
 

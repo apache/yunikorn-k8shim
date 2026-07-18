@@ -197,6 +197,7 @@ func (p *predicateManagerImpl) runPreFilterPlugins(ctx context.Context, cycleSta
 			zap.Error(err))
 		return fwk.AsStatus(err), feasibleNodes
 	}
+	var mergedPreFilterResults *fwk.PreFilterResult
 	for _, pl := range plugins {
 		plugin := pl.Name()
 		nodes, status := pl.PreFilter(ctx, cycleState, pod, allNodes)
@@ -212,11 +213,16 @@ func (p *predicateManagerImpl) runPreFilterPlugins(ctx context.Context, cycleSta
 				zap.String("pod", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)),
 				zap.Error(err))
 			return fwk.AsStatus(errors.Join(fmt.Errorf("running PreFilter plugin %q: ", plugin), err)), map[string]*si.Empty{}
-		}
-		if nodes != nil {
-			for n := range nodes.NodeNames {
-				feasibleNodes[n] = &si.Empty{}
+		} else {
+			if mergedPreFilterResults == nil {
+				mergedPreFilterResults = &fwk.PreFilterResult{}
 			}
+			mergedPreFilterResults.Merge(nodes)
+		}
+	}
+	if mergedPreFilterResults != nil {
+		for n := range mergedPreFilterResults.NodeNames {
+			feasibleNodes[n] = &si.Empty{}
 		}
 	}
 	if skipPlugins.Len() > 0 {

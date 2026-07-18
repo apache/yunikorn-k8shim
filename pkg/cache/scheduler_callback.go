@@ -194,7 +194,7 @@ func (callback *AsyncRMCallback) UpdateNode(response *si.NodeResponse) error {
 }
 
 func (callback *AsyncRMCallback) PreFilterPredicates(args *si.PreFilterPredicatesArgs) *si.PreFilterPredicatesResponse {
-	return callback.context.Prefilter(args.AllocationKey, args.Allocate)
+	return callback.context.PreFilter(args.AllocationKey, args.Allocate)
 }
 
 func (callback *AsyncRMCallback) Predicates(args *si.PredicatesArgs) error {
