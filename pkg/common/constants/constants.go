@@ -25,6 +25,7 @@ import (
 // Common
 const True = "true"
 const False = "false"
+const AllocationTagRollback = DomainYuniKornInternal + "allocation-rollback"
 
 // Kubernetes
 const Label = "label"

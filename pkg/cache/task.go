@@ -27,6 +27,8 @@ import (
 	"github.com/looplab/fsm"
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/util/retry"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
 
 	"github.com/apache/yunikorn-k8shim/pkg/common"
@@ -61,6 +63,14 @@ type Task struct {
 	pod             *v1.Pod
 
 	lock *locking.RWMutex
+}
+
+var transientBindFailureRetryBackoff = wait.Backoff{
+	Steps:    4,
+	Duration: 100 * time.Millisecond,
+	Factor:   2.0,
+	Jitter:   0.1,
+	Cap:      2 * time.Second,
 }
 
 func NewTask(tid string, app *Application, ctx *Context, pod *v1.Pod) *Task {
@@ -347,9 +357,16 @@ func (task *Task) postTaskPending() {
 // If successful, we move task to next state BOUND, otherwise we fail the task
 func (task *Task) postTaskAllocated() {
 	go func() {
+		forgetAssumedPod := false
+
 		// we need to obtain task's lock first,
 		// this ensures no other threads modifying task state at the time being
 		task.lock.Lock()
+		defer func() {
+			if forgetAssumedPod {
+				task.context.ForgetPod(task.taskID)
+			}
+		}()
 		defer task.lock.Unlock()
 
 		// post a message to indicate the pod gets its allocation
@@ -361,8 +378,15 @@ func (task *Task) postTaskAllocated() {
 		log.Log(log.ShimCacheTask).Debug("bind pod volumes",
 			zap.String("podName", task.pod.Name),
 			zap.String("podUID", string(task.pod.UID)))
-		if err := task.context.bindPodVolumes(task.pod); err != nil {
-			log.Log(log.ShimCacheTask).Error("bind volumes to pod failed", zap.String("taskID", task.taskID), zap.Error(err))
+		err := task.retryTransientBindFailure("bind pod volumes", func() error {
+			return task.context.bindPodVolumes(task.pod)
+		})
+		if err != nil {
+			task.logBindFailure("bind volumes to pod failed", err)
+			if task.rollbackNodeScopedBindFailure(err) {
+				forgetAssumedPod = true
+				return
+			}
 			task.failWithEvent(fmt.Sprintf("bind volumes to pod failed, name: %s, %s", task.alias, err.Error()), "PodVolumesBindFailure")
 			return
 		}
@@ -370,8 +394,19 @@ func (task *Task) postTaskAllocated() {
 			zap.String("podName", task.pod.Name),
 			zap.String("podUID", string(task.pod.UID)))
 
-		if err := task.context.apiProvider.GetAPIs().KubeClient.Bind(task.pod, task.nodeName); err != nil {
-			log.Log(log.ShimCacheTask).Error("bind pod to node failed", zap.String("taskID", task.taskID), zap.Error(err))
+		err = task.retryTransientBindFailure("bind pod to node", func() error {
+			bindErr := task.context.apiProvider.GetAPIs().KubeClient.Bind(task.pod, task.nodeName)
+			return WrapBindFailureError(BindFailureStageBindPod, BindFailureOperationKubeBindPod, bindErr)
+		})
+		if err != nil {
+			task.logBindFailure("bind pod to node failed", err)
+			if task.handleBindFailureAsSuccess(err) {
+				return
+			}
+			if task.rollbackNodeScopedBindFailure(err) {
+				forgetAssumedPod = true
+				return
+			}
 			task.failWithEvent(fmt.Sprintf("bind pod to node failed, name: %s, %s", task.alias, err.Error()), "PodBindFailure")
 			return
 		}
@@ -409,6 +444,7 @@ func (task *Task) beforeTaskAllocated(eventSrc string, allocationKey string, nod
 }
 
 func (task *Task) postTaskBound() {
+	task.context.clearFailedNodesForTask(task.taskID)
 	if task.placeholder {
 		log.Log(log.ShimCacheTask).Info("placeholder is bound",
 			zap.String("appID", task.applicationID),
@@ -433,6 +469,7 @@ func (task *Task) postTaskRejected() {
 // this is done as a before hook because the releaseAllocation() call needs to
 // send different requests to scheduler-core, depending on current task state
 func (task *Task) beforeTaskFail() {
+	task.context.clearFailedNodesForTask(task.taskID)
 	events.GetRecorder().Eventf(task.pod.DeepCopy(), nil,
 		v1.EventTypeNormal, "TaskFailed", "TaskFailed",
 		"Task %s is failed", task.alias)
@@ -443,11 +480,11 @@ func (task *Task) beforeTaskFail() {
 // this is done as a before hook because the releaseAllocation() call needs to
 // send different requests to scheduler-core, depending on current task state
 func (task *Task) beforeTaskCompleted() {
-	task.releaseAllocation(false)
-
+	task.context.clearFailedNodesForTask(task.taskID)
 	events.GetRecorder().Eventf(task.pod.DeepCopy(), nil,
 		v1.EventTypeNormal, "TaskCompleted", "TaskCompleted",
 		"Task %s is completed", task.alias)
+	task.releaseAllocation(false)
 }
 
 // releaseAllocation sends the release request for the Allocation to the core.
@@ -608,6 +645,12 @@ func (task *Task) setAllocationKey(allocationKey string) {
 	task.allocationKey = allocationKey
 }
 
+func (task *Task) setNodeName(nodeName string) {
+	task.lock.Lock()
+	defer task.lock.Unlock()
+	task.nodeName = nodeName
+}
+
 func (task *Task) FailWithEvent(errorMessage, actionReason string) {
 	task.lock.RLock()
 	defer task.lock.RUnlock()
@@ -618,6 +661,148 @@ func (task *Task) failWithEvent(errorMessage, actionReason string) {
 	events.GetRecorder().Eventf(task.pod.DeepCopy(),
 		nil, v1.EventTypeWarning, actionReason, actionReason, errorMessage)
 	dispatcher.Dispatch(NewFailTaskEvent(task.applicationID, task.taskID, errorMessage))
+}
+
+func (task *Task) logBindFailure(message string, err error) {
+	fields := []zap.Field{
+		zap.String("taskID", task.taskID),
+		zap.Error(err),
+	}
+
+	if details, ok := GetBindFailureDetails(err); ok {
+		fields = append(fields,
+			zap.String("bindStage", string(details.Stage)),
+			zap.String("bindOperation", string(details.Operation)),
+		)
+		if details.StatusReason != "" {
+			fields = append(fields, zap.String("k8sReason", string(details.StatusReason)))
+		}
+		if details.StatusCode != 0 {
+			fields = append(fields, zap.Int32("k8sStatusCode", details.StatusCode))
+		}
+		if details.ResourceKind != "" {
+			fields = append(fields, zap.String("resourceKind", details.ResourceKind))
+		}
+		if details.ResourceName != "" {
+			fields = append(fields, zap.String("resourceName", details.ResourceName))
+		}
+		if len(details.ConflictReasons) > 0 {
+			reasons := make([]string, len(details.ConflictReasons))
+			for i, reason := range details.ConflictReasons {
+				reasons[i] = string(reason)
+			}
+			fields = append(fields, zap.Strings("volumeConflictReasons", reasons))
+		}
+	}
+
+	decision := ClassifyBindFailure(err)
+	fields = append(fields,
+		zap.String("failureScope", string(decision.Scope)),
+		zap.String("failureDurability", string(decision.Durability)),
+		zap.String("shadowAction", string(decision.Action)),
+		zap.String("decisionReason", decision.Reason),
+	)
+
+	log.Log(log.ShimCacheTask).Error(message, fields...)
+}
+
+func (task *Task) retryTransientBindFailure(operation string, run func() error) error {
+	return retry.OnError(transientBindFailureRetryBackoff, func(err error) bool {
+		decision := ClassifyBindFailure(err)
+		if decision.Action == BindFailureActionRetrySameNode {
+			log.Log(log.ShimCacheTask).Warn("retrying transient bind failure",
+				zap.String("taskID", task.taskID),
+				zap.String("operation", operation),
+				zap.String("failureScope", string(decision.Scope)),
+				zap.String("failureDurability", string(decision.Durability)),
+				zap.String("decisionReason", decision.Reason),
+				zap.Error(err))
+			return true
+		}
+
+		return false
+	}, run)
+}
+
+func (task *Task) handleBindFailureAsSuccess(bindErr error) bool {
+	decision := ClassifyBindFailure(bindErr)
+	if decision.Action != BindFailureActionTreatAsSuccess {
+		return false
+	}
+
+	log.Log(log.ShimCacheTask).Info("treating idempotent bind failure as success",
+		zap.String("taskID", task.taskID),
+		zap.String("failureScope", string(decision.Scope)),
+		zap.String("failureDurability", string(decision.Durability)),
+		zap.String("decisionReason", decision.Reason),
+		zap.Error(bindErr))
+
+	dispatcher.Dispatch(NewBindTaskEvent(task.applicationID, task.taskID))
+	events.GetRecorder().Eventf(task.pod.DeepCopy(), nil,
+		v1.EventTypeNormal, "PodBindSuccessful", "PodBindSuccessful",
+		"Pod %s is already bound to node %s", task.alias, task.nodeName)
+	task.schedulingState = TaskSchedAllocated
+	return true
+}
+
+func (task *Task) rollbackNodeScopedBindFailure(bindErr error) bool {
+	decision := ClassifyBindFailure(bindErr)
+	if decision.Durability != BindFailureDurabilityPermanent ||
+		decision.Scope != BindFailureScopeNode ||
+		decision.Action != BindFailureActionRetryDifferentNode {
+		return false
+	}
+
+	failedNode := task.nodeName
+	rollbackRequest := common.CreateAllocationRollbackForTask(
+		task.applicationID,
+		task.taskID,
+		task.application.partition,
+		task.resource,
+		task.pod,
+	)
+	if err := task.context.apiProvider.GetAPIs().SchedulerAPI.UpdateAllocation(rollbackRequest); err != nil {
+		log.Log(log.ShimCacheTask).Error("failed to rollback allocation after node-scoped bind failure",
+			zap.String("taskID", task.taskID),
+			zap.String("nodeID", failedNode),
+			zap.Error(err))
+		return false
+	}
+
+	task.context.rememberFailedNodeForTask(task.taskID, failedNode)
+	task.allocationKey = ""
+	task.nodeName = ""
+	task.schedulingState = TaskSchedPending
+	if task.sm.Current() == TaskStates().Allocated {
+		if err := task.sm.Event(context.Background(), TaskRetry.String(), task, []interface{}{}); err != nil {
+			log.Log(log.ShimCacheTask).Error("failed to move task to scheduling state after node-scoped bind failure rollback",
+				zap.String("taskID", task.taskID),
+				zap.String("nodeID", failedNode),
+				zap.Error(err))
+			return false
+		}
+	} else if task.sm.Current() != TaskStates().Scheduling {
+		log.Log(log.ShimCacheTask).Error("unexpected task state for node-scoped bind failure rollback",
+			zap.String("taskID", task.taskID),
+			zap.String("taskState", task.sm.Current()),
+			zap.String("nodeID", failedNode))
+		return false
+	}
+
+	events.GetRecorder().Eventf(task.pod.DeepCopy(), nil,
+		v1.EventTypeNormal, "NodeScopedBindFailureRetry", "NodeScopedBindFailureRetry",
+		"Retrying pod %s on a different node after bind failure on node %s", task.alias, failedNode)
+	log.Log(log.ShimCacheTask).Info("rolled back allocation for node-scoped bind failure",
+		zap.String("taskID", task.taskID),
+		zap.String("failedNode", failedNode),
+		zap.String("decisionReason", decision.Reason))
+	return true
+}
+
+func (task *Task) rollbackNodeScopedBindFailureWithLock(bindErr error) bool {
+	task.lock.Lock()
+	defer task.lock.Unlock()
+	return task.rollbackNodeScopedBindFailure(bindErr)
 }
 
 func (task *Task) SetTaskPod(pod *v1.Pod) {

@@ -114,6 +114,26 @@ func CreateAllocationForTask(appID, taskID, nodeID string, resource *si.Resource
 	}
 }
 
+func CreateAllocationRollbackForTask(appID, taskID, partition string, resource *si.Resource, pod *v1.Pod) *si.AllocationRequest {
+	tags := CreateTagsForTask(pod)
+	tags[common.CreationTime] = strconv.FormatInt(pod.CreationTimestamp.Unix(), 10)
+	tags[constants.AllocationTagRollback] = constants.True
+
+	allocation := si.Allocation{
+		AllocationKey:    taskID,
+		ApplicationID:    appID,
+		PartitionName:    partition,
+		AllocationTags:   tags,
+		ResourcePerAlloc: resource,
+		Priority:         CreatePriorityForTask(pod),
+	}
+
+	return &si.AllocationRequest{
+		Allocations: []*si.Allocation{&allocation},
+		RmID:        conf.GetSchedulerConf().ClusterID,
+	}
+}
+
 func CreateAllocationForForeignPod(pod *v1.Pod) *si.AllocationRequest {
 	podType := common.AllocTypeDefault
 	for _, ref := range pod.OwnerReferences {
