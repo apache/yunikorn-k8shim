@@ -870,9 +870,9 @@ func TestTryReservePostRestart(t *testing.T) {
 
 func TestOnReservingSkipsTimedOutPlaceholders(t *testing.T) {
 	tests := []struct {
-		name          string
+		name            string
 		schedulingStyle string
-		expectedState string
+		expectedState   string
 	}{
 		{
 			name:            "soft",
