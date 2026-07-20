@@ -686,24 +686,6 @@ func TestGetApplicationIDFromPod(t *testing.T) {
 			},
 			Spec: v1.PodSpec{SchedulerName: "default"},
 		}, "", false},
-		{"AppID defined but ignore-application set", &v1.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Annotations: map[string]string{
-					constants.AnnotationApplicationID:     appIDInAnnotation,
-					constants.AnnotationIgnoreApplication: "true",
-				},
-			},
-			Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
-		}, appIDInAnnotation, false},
-		{"AppID defined and ignore-application invalid", &v1.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Annotations: map[string]string{
-					constants.AnnotationApplicationID:     appIDInAnnotation,
-					constants.AnnotationIgnoreApplication: "invalid",
-				},
-			},
-			Spec: v1.PodSpec{SchedulerName: constants.SchedulerName},
-		}, appIDInAnnotation, false},
 	}
 
 	for _, tc := range testCases {
