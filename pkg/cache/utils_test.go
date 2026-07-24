@@ -319,3 +319,18 @@ func TestValidatedTaskGroupsNeverProduceNegativePlaceholderAsk(t *testing.T) {
 	t.Logf("accepted %d combos, all placeholder asks match the exact value", accepted)
 	assert.Assert(t, accepted > 0, "no combos accepted; the validator may be over-rejecting")
 }
+
+// TestValidateTaskGroupResourcesRejectsPodsAggregateOverflow drives the helper
+// directly with a totals accumulator already near MaxInt64. GetTaskGroupsFromAnnotation
+// cannot reach this state (MinMember is int32 and the number of task groups is bounded by
+// the 256KB pod-annotation limit, so the "pods" total maxes out around 1e13), but the
+// accumulator's contract must still hold under composition: adding another group's members
+// must be rejected rather than silently wrapped past MaxInt64. Without the guard,
+// totals["pods"] += members would wrap negative and flow into a negative PlaceholderAsk.
+func TestValidateTaskGroupResourcesRejectsPodsAggregateOverflow(t *testing.T) {
+	totals := map[string]int64{"pods": math.MaxInt64 - 5}
+	tg := TaskGroup{Name: "g", MinMember: 10, MinResource: map[string]resource.Quantity{}}
+	err := validateTaskGroupResources(tg, totals)
+	assert.Assert(t, err != nil, "expected the pods aggregate overflow to be rejected")
+	assert.Equal(t, totals["pods"], int64(math.MaxInt64-5), "totals must be left unchanged when the group is rejected")
+}
