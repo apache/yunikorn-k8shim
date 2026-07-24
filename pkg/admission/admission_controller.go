@@ -199,8 +199,6 @@ func (c *AdmissionController) processPod(req *admissionv1.AdmissionRequest, name
 	if c.shouldLabelNamespace(namespace) {
 		patch = c.updateLabels(namespace, &pod, patch)
 		patch = c.updatePreemptionInfo(&pod, patch)
-	} else {
-		patch = disableYuniKorn(namespace, &pod, patch)
 	}
 	log.Log(log.Admission).Info("generated patch",
 		zap.String("namespace", namespace),
@@ -428,23 +426,6 @@ func (c *AdmissionController) updateLabels(namespace string, pod *v1.Pod, patch 
 	patch = append(patch, common.PatchOperation{
 		Op:    "add",
 		Path:  "/metadata/labels",
-		Value: result,
-	})
-
-	return patch
-}
-
-func disableYuniKorn(namespace string, pod *v1.Pod, patch []common.PatchOperation) []common.PatchOperation {
-	log.Log(log.Admission).Info("disabling yunikorn on pod since namespace is set to no-label",
-		zap.String("podName", pod.Name),
-		zap.String("generateName", pod.GenerateName),
-		zap.String("namespace", namespace))
-
-	result := updatePodAnnotation(pod, constants.AnnotationIgnoreApplication, constants.True)
-
-	patch = append(patch, common.PatchOperation{
-		Op:    "add",
-		Path:  "/metadata/annotations",
 		Value: result,
 	})
 
